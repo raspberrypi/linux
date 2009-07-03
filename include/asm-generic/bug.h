@@ -233,6 +233,20 @@ void __warn(const char *file, int line, void *caller, unsigned taint,
 # define WARN_ON_SMP(x)			({0;})
 #endif
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+# define BUG_ON_RT(c)			BUG_ON(c)
+# define BUG_ON_NONRT(c)		do { } while (0)
+# define WARN_ON_RT(condition)		WARN_ON(condition)
+# define WARN_ON_NONRT(condition)	do { } while (0)
+# define WARN_ON_ONCE_NONRT(condition)	do { } while (0)
+#else
+# define BUG_ON_RT(c)			do { } while (0)
+# define BUG_ON_NONRT(c)		BUG_ON(c)
+# define WARN_ON_RT(condition)		do { } while (0)
+# define WARN_ON_NONRT(condition)	WARN_ON(condition)
+# define WARN_ON_ONCE_NONRT(condition)	WARN_ON_ONCE(condition)
+#endif
+
 #endif /* __ASSEMBLY__ */
 
 #endif
