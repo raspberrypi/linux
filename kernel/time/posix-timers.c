@@ -443,6 +443,7 @@ static enum hrtimer_restart posix_timer_fn(struct hrtimer *timer)
 static struct pid *good_sigevent(sigevent_t * event)
 {
 	struct task_struct *rtn = current->group_leader;
+	int sig = event->sigev_signo;
 
 	switch (event->sigev_notify) {
 	case SIGEV_SIGNAL | SIGEV_THREAD_ID:
@@ -452,7 +453,8 @@ static struct pid *good_sigevent(sigevent_t * event)
 		/* FALLTHRU */
 	case SIGEV_SIGNAL:
 	case SIGEV_THREAD:
-		if (event->sigev_signo <= 0 || event->sigev_signo > SIGRTMAX)
+		if (sig <= 0 || sig > SIGRTMAX ||
+		    sig_kernel_only(sig) || sig_kernel_coredump(sig))
 			return NULL;
 		/* FALLTHRU */
 	case SIGEV_NONE:
