@@ -679,9 +679,9 @@ unsigned int ata_sff_data_xfer_noirq(struct ata_queued_cmd *qc, unsigned char *b
 	unsigned long flags;
 	unsigned int consumed;
 
-	local_irq_save(flags);
+	local_irq_save_nort(flags);
 	consumed = ata_sff_data_xfer32(qc, buf, buflen, rw);
-	local_irq_restore(flags);
+	local_irq_restore_nort(flags);
 
 	return consumed;
 }
