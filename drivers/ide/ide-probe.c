@@ -196,10 +196,10 @@ static void do_identify(ide_drive_t *drive, u8 cmd, u16 *id)
 	int bswap = 1;
 
 	/* local CPU only; some systems need this */
-	local_irq_save(flags);
+	local_irq_save_nort(flags);
 	/* read 512 bytes of id info */
 	hwif->tp_ops->input_data(drive, NULL, id, SECTOR_SIZE);
-	local_irq_restore(flags);
+	local_irq_restore_nort(flags);
 
 	drive->dev_flags |= IDE_DFLAG_ID_READ;
 #ifdef DEBUG
