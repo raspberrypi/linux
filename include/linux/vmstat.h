@@ -33,7 +33,9 @@ DECLARE_PER_CPU(struct vm_event_state, vm_event_states);
  */
 static inline void __count_vm_event(enum vm_event_item item)
 {
+	preempt_disable_rt();
 	raw_cpu_inc(vm_event_states.event[item]);
+	preempt_enable_rt();
 }
 
 static inline void count_vm_event(enum vm_event_item item)
@@ -43,7 +45,9 @@ static inline void count_vm_event(enum vm_event_item item)
 
 static inline void __count_vm_events(enum vm_event_item item, long delta)
 {
+	preempt_disable_rt();
 	raw_cpu_add(vm_event_states.event[item], delta);
+	preempt_enable_rt();
 }
 
 static inline void count_vm_events(enum vm_event_item item, long delta)
