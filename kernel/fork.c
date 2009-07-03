@@ -1575,6 +1575,9 @@ static void rt_mutex_init_task(struct task_struct *p)
  */
 static void posix_cpu_timers_init(struct task_struct *tsk)
 {
+#ifdef CONFIG_PREEMPT_RT_BASE
+	tsk->posix_timer_list = NULL;
+#endif
 	tsk->cputime_expires.prof_exp = 0;
 	tsk->cputime_expires.virt_exp = 0;
 	tsk->cputime_expires.sched_exp = 0;
