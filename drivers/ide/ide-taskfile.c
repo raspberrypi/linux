@@ -251,7 +251,7 @@ void ide_pio_bytes(ide_drive_t *drive, struct ide_cmd *cmd,
 
 		page_is_high = PageHighMem(page);
 		if (page_is_high)
-			local_irq_save(flags);
+			local_irq_save_nort(flags);
 
 		buf = kmap_atomic(page) + offset;
 
@@ -272,7 +272,7 @@ void ide_pio_bytes(ide_drive_t *drive, struct ide_cmd *cmd,
 		kunmap_atomic(buf);
 
 		if (page_is_high)
-			local_irq_restore(flags);
+			local_irq_restore_nort(flags);
 
 		len -= nr_bytes;
 	}
@@ -415,7 +415,7 @@ static ide_startstop_t pre_task_out_intr(ide_drive_t *drive,
 	}
 
 	if ((drive->dev_flags & IDE_DFLAG_UNMASK) == 0)
-		local_irq_disable();
+		local_irq_disable_nort();
 
 	ide_set_handler(drive, &task_pio_intr, WAIT_WORSTCASE);
 
