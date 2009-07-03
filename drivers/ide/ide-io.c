@@ -660,7 +660,7 @@ void ide_timer_expiry (unsigned long data)
 		/* disable_irq_nosync ?? */
 		disable_irq(hwif->irq);
 		/* local CPU only, as if we were handling an interrupt */
-		local_irq_disable();
+		local_irq_disable_nort();
 		if (hwif->polling) {
 			startstop = handler(drive);
 		} else if (drive_is_ready(drive)) {
