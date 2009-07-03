@@ -475,6 +475,16 @@ repeat:
 		struct cpu_stop_done *done = work->done;
 		int ret;
 
+		/*
+		 * Wait until the stopper finished scheduling on all
+		 * cpus
+		 */
+		lg_global_lock(&stop_cpus_lock);
+		/*
+		 * Let other cpu threads continue as well
+		 */
+		lg_global_unlock(&stop_cpus_lock);
+
 		/* cpu stop callbacks must not sleep, make in_atomic() == T */
 		preempt_count_inc();
 		ret = fn(arg);
