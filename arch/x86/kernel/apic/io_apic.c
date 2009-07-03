@@ -1690,7 +1690,8 @@ static bool io_apic_level_ack_pending(struct mp_chip_data *data)
 static inline bool ioapic_irqd_mask(struct irq_data *data)
 {
 	/* If we are moving the irq we need to mask it */
-	if (unlikely(irqd_is_setaffinity_pending(data))) {
+	if (unlikely(irqd_is_setaffinity_pending(data) &&
+		     !irqd_irq_inprogress(data))) {
 		mask_ioapic_irq(data);
 		return true;
 	}
