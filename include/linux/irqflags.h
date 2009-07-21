@@ -165,4 +165,23 @@ do {						\
 
 #define irqs_disabled_flags(flags) raw_irqs_disabled_flags(flags)
 
+/*
+ * local_irq* variants depending on RT/!RT
+ */
+#ifdef CONFIG_PREEMPT_RT_FULL
+# define local_irq_disable_nort()	do { } while (0)
+# define local_irq_enable_nort()	do { } while (0)
+# define local_irq_save_nort(flags)	local_save_flags(flags)
+# define local_irq_restore_nort(flags)	(void)(flags)
+# define local_irq_disable_rt()		local_irq_disable()
+# define local_irq_enable_rt()		local_irq_enable()
+#else
+# define local_irq_disable_nort()	local_irq_disable()
+# define local_irq_enable_nort()	local_irq_enable()
+# define local_irq_save_nort(flags)	local_irq_save(flags)
+# define local_irq_restore_nort(flags)	local_irq_restore(flags)
+# define local_irq_disable_rt()		do { } while (0)
+# define local_irq_enable_rt()		do { } while (0)
+#endif
+
 #endif
