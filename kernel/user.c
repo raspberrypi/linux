@@ -162,11 +162,11 @@ void free_uid(struct user_struct *up)
 	if (!up)
 		return;
 
-	local_irq_save(flags);
+	local_irq_save_nort(flags);
 	if (atomic_dec_and_lock(&up->__count, &uidhash_lock))
 		free_user(up, flags);
 	else
-		local_irq_restore(flags);
+		local_irq_restore_nort(flags);
 }
 
 struct user_struct *alloc_uid(kuid_t uid)
