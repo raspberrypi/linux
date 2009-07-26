@@ -264,8 +264,11 @@ config ARCH_MAY_HAVE_PC_FDC
 	def_bool y
 	depends on ISA_DMA_API
 
+config RWSEM_GENERIC_SPINLOCK
+	def_bool PREEMPT_RT_FULL
+
 config RWSEM_XCHGADD_ALGORITHM
-	def_bool y
+	def_bool !RWSEM_GENERIC_SPINLOCK && !PREEMPT_RT_FULL
 
 config GENERIC_CALIBRATE_DELAY
 	def_bool y
