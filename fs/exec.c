@@ -68,6 +68,7 @@
 #include <asm/mmu_context.h>
 #include <asm/tlb.h>
 
+#include <trace/events/fs.h>
 #include <trace/events/task.h>
 #include "internal.h"
 
@@ -135,6 +136,7 @@ SYSCALL_DEFINE1(uselib, const char __user *, library)
 		goto out;
 
 	file = do_filp_open(AT_FDCWD, tmp, &uselib_flags);
+	trace_uselib(tmp->name);
 	putname(tmp);
 	error = PTR_ERR(file);
 	if (IS_ERR(file))
@@ -887,6 +889,7 @@ struct file *open_exec(const char *name)
 
 	if (!IS_ERR(filename)) {
 		f = do_open_execat(AT_FDCWD, filename, 0);
+		trace_open_exec(filename->name);
 		putname(filename);
 	}
 	return f;
