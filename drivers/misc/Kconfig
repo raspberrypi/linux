@@ -62,6 +62,7 @@ config AD525X_DPOT_SPI
 config ATMEL_TCLIB
 	bool "Atmel AT32/AT91 Timer/Counter Library"
 	depends on (AVR32 || ARCH_AT91)
+	default y if PREEMPT_RT_FULL
 	help
 	  Select this if you want a library to allocate the Timer/Counter
 	  blocks found on many Atmel processors.  This facilitates using
@@ -94,7 +95,7 @@ config ATMEL_TCB_CLKSRC_BLOCK
 config ATMEL_TCB_CLKSRC_USE_SLOW_CLOCK
 	bool "TC Block use 32 KiHz clock"
 	depends on ATMEL_TCB_CLKSRC
-	default y
+	default y if !PREEMPT_RT_FULL
 	help
 	  Select this to use 32 KiHz base clock rate as TC block clock
 	  source for clock events.
