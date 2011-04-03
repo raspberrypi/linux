@@ -429,9 +429,13 @@ extern int irq_set_irqchip_state(unsigned int irq, enum irqchip_irq_state which,
 				 bool state);
 
 #ifdef CONFIG_IRQ_FORCED_THREADING
+# ifndef CONFIG_PREEMPT_RT_BASE
 extern bool force_irqthreads;
+# else
+#  define force_irqthreads	(true)
+# endif
 #else
-#define force_irqthreads	(0)
+#define force_irqthreads	(false)
 #endif
 
 #ifndef __ARCH_SET_SOFTIRQ_PENDING
