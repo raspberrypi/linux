@@ -281,6 +281,21 @@ static int cpu_hotplug_disabled;
 
 #ifdef CONFIG_HOTPLUG_CPU
 
+/**
+ * pin_current_cpu - Prevent the current cpu from being unplugged
+ */
+void pin_current_cpu(void)
+{
+
+}
+
+/**
+ * unpin_current_cpu - Allow unplug of current cpu
+ */
+void unpin_current_cpu(void)
+{
+}
+
 DEFINE_STATIC_PERCPU_RWSEM(cpu_hotplug_lock);
 
 void cpus_read_lock(void)
