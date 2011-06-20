@@ -19,6 +19,35 @@
 #define PERCPU_MODULE_RESERVE		0
 #endif
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+
+#define get_local_var(var) (*({	\
+	migrate_disable();	\
+	this_cpu_ptr(&var);	}))
+
+#define put_local_var(var) do {	\
+	(void)&(var);		\
+	migrate_enable();	\
+} while (0)
+
+# define get_local_ptr(var) ({	\
+	migrate_disable();	\
+	this_cpu_ptr(var);	})
+
+# define put_local_ptr(var) do {	\
+	(void)(var);			\
+	migrate_enable();		\
+} while (0)
+
+#else
+
+#define get_local_var(var)	get_cpu_var(var)
+#define put_local_var(var)	put_cpu_var(var)
+#define get_local_ptr(var)	get_cpu_ptr(var)
+#define put_local_ptr(var)	put_cpu_ptr(var)
+
+#endif
+
 /* minimum unit size, also is the maximum supported allocation size */
 #define PCPU_MIN_UNIT_SIZE		PFN_ALIGN(32 << 10)
 
