@@ -2033,8 +2033,25 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 	 */
 	raw_spin_lock_irqsave(&p->pi_lock, flags);
 	smp_mb__after_spinlock();
-	if (!(p->state & state))
+	if (!(p->state & state)) {
+		/*
+		 * The task might be running due to a spinlock sleeper
+		 * wakeup. Check the saved state and set it to running
+		 * if the wakeup condition is true.
+		 */
+		if (!(wake_flags & WF_LOCK_SLEEPER)) {
+			if (p->saved_state & state)
+				p->saved_state = TASK_RUNNING;
+		}
 		goto out;
+	}
+
+	/*
+	 * If this is a regular wakeup, then we can unconditionally
+	 * clear the saved state of a "lock sleeper".
+	 */
+	if (!(wake_flags & WF_LOCK_SLEEPER))
+		p->saved_state = TASK_RUNNING;
 
 	trace_sched_waking(p);
 
@@ -2197,6 +2214,18 @@ int wake_up_process(struct task_struct *p)
 	return try_to_wake_up(p, TASK_NORMAL, 0);
 }
 EXPORT_SYMBOL(wake_up_process);
+
+/**
+ * wake_up_lock_sleeper - Wake up a specific process blocked on a "sleeping lock"
+ * @p: The process to be woken up.
+ *
+ * Same as wake_up_process() above, but wake_flags=WF_LOCK_SLEEPER to indicate
+ * the nature of the wakeup.
+ */
+int wake_up_lock_sleeper(struct task_struct *p)
+{
+	return try_to_wake_up(p, TASK_ALL, WF_LOCK_SLEEPER);
+}
 
 int wake_up_state(struct task_struct *p, unsigned int state)
 {
