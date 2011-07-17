@@ -493,6 +493,11 @@ int trace_print_lat_fmt(struct trace_seq *s, struct trace_entry *entry)
 	else
 		trace_seq_putc(s, '.');
 
+	if (entry->migrate_disable)
+		trace_seq_printf(s, "%x", entry->migrate_disable);
+	else
+		trace_seq_putc(s, '.');
+
 	return !trace_seq_has_overflowed(s);
 }
 
