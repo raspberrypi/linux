@@ -501,7 +501,7 @@ struct softirq_action
 asmlinkage void do_softirq(void);
 asmlinkage void __do_softirq(void);
 
-#ifdef __ARCH_HAS_DO_SOFTIRQ
+#if defined(__ARCH_HAS_DO_SOFTIRQ) && !defined(CONFIG_PREEMPT_RT_FULL)
 void do_softirq_own_stack(void);
 #else
 static inline void do_softirq_own_stack(void)
