@@ -391,7 +391,7 @@ menu "Kernel options"
 
 config HIGHMEM
 	bool "High memory support"
-	depends on PPC32
+	depends on PPC32 && !PREEMPT_RT_FULL
 
 source kernel/Kconfig.hz
 source kernel/Kconfig.preempt
