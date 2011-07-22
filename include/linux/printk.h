@@ -142,9 +142,11 @@ struct va_format {
 #ifdef CONFIG_EARLY_PRINTK
 extern asmlinkage __printf(1, 2)
 void early_printk(const char *fmt, ...);
+extern void printk_kill(void);
 #else
 static inline __printf(1, 2) __cold
 void early_printk(const char *s, ...) { }
+static inline void printk_kill(void) { }
 #endif
 
 #ifdef CONFIG_PRINTK_NMI
