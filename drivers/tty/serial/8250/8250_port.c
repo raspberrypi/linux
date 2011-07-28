@@ -31,6 +31,7 @@
 #include <linux/nmi.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
+#include <linux/kdb.h>
 #include <linux/uaccess.h>
 #include <linux/pm_runtime.h>
 #include <linux/ktime.h>
@@ -3241,6 +3242,8 @@ void serial8250_console_write(struct uart_8250_port *up, const char *s,
 
 	if (port->sysrq || oops_in_progress)
 		locked = 0;
+	else if (in_kdb_printk())
+		locked = spin_trylock_irqsave(&port->lock, flags);
 	else
 		spin_lock_irqsave(&port->lock, flags);
 
