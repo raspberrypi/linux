@@ -435,6 +435,13 @@ asmlinkage void early_printk(const char *fmt, ...)
  */
 static bool __read_mostly printk_killswitch;
 
+static int __init force_early_printk_setup(char *str)
+{
+	printk_killswitch = true;
+	return 0;
+}
+early_param("force_early_printk", force_early_printk_setup);
+
 void printk_kill(void)
 {
 	printk_killswitch = true;
