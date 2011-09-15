@@ -867,7 +867,7 @@ void iwlagn_fw_error(struct iwl_priv *priv, bool ondemand)
 	 * commands by clearing the ready bit */
 	clear_bit(STATUS_READY, &priv->status);
 
-	wake_up_interruptible(&priv->wait_command_queue);
+	wake_up(&priv->wait_command_queue);
 
 	if (!ondemand) {
 		/*
@@ -918,7 +918,7 @@ void iwl_irq_handle_error(struct iwl_priv *priv)
 		 */
 		clear_bit(STATUS_READY, &priv->status);
 		clear_bit(STATUS_HCMD_ACTIVE, &priv->status);
-		wake_up_interruptible(&priv->wait_command_queue);
+		wake_up(&priv->wait_command_queue);
 		IWL_ERR(priv, "RF is used by WiMAX\n");
 		return;
 	}
