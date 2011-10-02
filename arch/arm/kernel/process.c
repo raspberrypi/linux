@@ -324,6 +324,30 @@ unsigned long arch_randomize_brk(struct mm_struct *mm)
 }
 
 #ifdef CONFIG_MMU
+/*
+ * CONFIG_SPLIT_PTLOCK_CPUS results in a page->ptl lock.  If the lock is not
+ * initialized by pgtable_page_ctor() then a coredump of the vector page will
+ * fail.
+ */
+static int __init vectors_user_mapping_init_page(void)
+{
+	struct page *page;
+	unsigned long addr = 0xffff0000;
+	pgd_t *pgd;
+	pud_t *pud;
+	pmd_t *pmd;
+
+	pgd = pgd_offset_k(addr);
+	pud = pud_offset(pgd, addr);
+	pmd = pmd_offset(pud, addr);
+	page = pmd_page(*(pmd));
+
+	pgtable_page_ctor(page);
+
+	return 0;
+}
+late_initcall(vectors_user_mapping_init_page);
+
 #ifdef CONFIG_KUSER_HELPERS
 /*
  * The vectors page is always readable from user space for the
