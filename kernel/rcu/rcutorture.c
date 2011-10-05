@@ -417,6 +417,7 @@ static struct rcu_torture_ops rcu_ops = {
 	.name		= "rcu"
 };
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /*
  * Definitions for rcu_bh torture testing.
  */
@@ -455,6 +456,12 @@ static struct rcu_torture_ops rcu_bh_ops = {
 	.irq_capable	= 1,
 	.name		= "rcu_bh"
 };
+
+#else
+static struct rcu_torture_ops rcu_bh_ops = {
+	.ttype		= INVALID_RCU_FLAVOR,
+};
+#endif
 
 /*
  * Don't even think about trying any of these in real life!!!
