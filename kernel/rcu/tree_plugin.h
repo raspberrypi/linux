@@ -29,6 +29,7 @@
 #include <linux/oom.h>
 #include <linux/sched/debug.h>
 #include <linux/smpboot.h>
+#include <linux/jiffies.h>
 #include <uapi/linux/sched/types.h>
 #include "../time/tick-internal.h"
 #include "../locking/rtmutex_common.h"
@@ -1305,7 +1306,7 @@ static void rcu_prepare_kthreads(int cpu)
 
 #endif /* #else #ifdef CONFIG_RCU_BOOST */
 
-#if !defined(CONFIG_RCU_FAST_NO_HZ)
+#if !defined(CONFIG_RCU_FAST_NO_HZ) || defined(CONFIG_PREEMPT_RT_FULL)
 
 /*
  * Check to see if any future RCU-related work will need to be done
@@ -1321,7 +1322,9 @@ int rcu_needs_cpu(u64 basemono, u64 *nextevt)
 	*nextevt = KTIME_MAX;
 	return rcu_cpu_has_callbacks(NULL);
 }
+#endif /* !defined(CONFIG_RCU_FAST_NO_HZ) || defined(CONFIG_PREEMPT_RT_FULL) */
 
+#if !defined(CONFIG_RCU_FAST_NO_HZ)
 /*
  * Because we do not have RCU_FAST_NO_HZ, don't bother cleaning up
  * after it.
@@ -1417,6 +1420,8 @@ static bool __maybe_unused rcu_try_advance_all_cbs(void)
 	return cbs_ready;
 }
 
+#ifndef CONFIG_PREEMPT_RT_FULL
+
 /*
  * Allow the CPU to enter dyntick-idle mode unless it has callbacks ready
  * to invoke.  If the CPU has callbacks, try to advance them.  Tell the
@@ -1459,6 +1464,7 @@ int rcu_needs_cpu(u64 basemono, u64 *nextevt)
 	*nextevt = basemono + dj * TICK_NSEC;
 	return 0;
 }
+#endif /* #ifndef CONFIG_PREEMPT_RT_FULL */
 
 /*
  * Prepare a CPU for idle from an RCU perspective.  The first major task
