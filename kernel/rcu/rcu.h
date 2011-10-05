@@ -462,18 +462,26 @@ static inline void show_rcu_gp_kthreads(void) { }
 extern unsigned long rcutorture_testseq;
 extern unsigned long rcutorture_vernum;
 unsigned long rcu_batches_started(void);
-unsigned long rcu_batches_started_bh(void);
 unsigned long rcu_batches_started_sched(void);
 unsigned long rcu_batches_completed(void);
-unsigned long rcu_batches_completed_bh(void);
 unsigned long rcu_batches_completed_sched(void);
 unsigned long rcu_exp_batches_completed(void);
 unsigned long rcu_exp_batches_completed_sched(void);
 unsigned long srcu_batches_completed(struct srcu_struct *sp);
 void show_rcu_gp_kthreads(void);
 void rcu_force_quiescent_state(void);
-void rcu_bh_force_quiescent_state(void);
 void rcu_sched_force_quiescent_state(void);
+
+#ifndef CONFIG_PREEMPT_RT_FULL
+void rcu_bh_force_quiescent_state(void);
+unsigned long rcu_batches_started_bh(void);
+unsigned long rcu_batches_completed_bh(void);
+#else
+# define rcu_bh_force_quiescent_state	rcu_force_quiescent_state
+# define rcu_batches_completed_bh	rcu_batches_completed
+# define rcu_batches_started_bh		rcu_batches_completed
+#endif
+
 #endif /* #else #ifdef CONFIG_TINY_RCU */
 
 #ifdef CONFIG_RCU_NOCB_CPU
