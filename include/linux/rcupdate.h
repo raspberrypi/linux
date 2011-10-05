@@ -56,7 +56,11 @@ void call_rcu(struct rcu_head *head, rcu_callback_t func);
 #define	call_rcu	call_rcu_sched
 #endif /* #else #ifdef CONFIG_PREEMPT_RCU */
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+#define call_rcu_bh	call_rcu
+#else
 void call_rcu_bh(struct rcu_head *head, rcu_callback_t func);
+#endif
 void call_rcu_sched(struct rcu_head *head, rcu_callback_t func);
 void synchronize_sched(void);
 void rcu_barrier_tasks(void);
@@ -261,7 +265,14 @@ extern struct lockdep_map rcu_sched_lock_map;
 extern struct lockdep_map rcu_callback_map;
 int debug_lockdep_rcu_enabled(void);
 int rcu_read_lock_held(void);
+#ifdef CONFIG_PREEMPT_RT_FULL
+static inline int rcu_read_lock_bh_held(void)
+{
+	return rcu_read_lock_held();
+}
+#else
 int rcu_read_lock_bh_held(void);
+#endif
 int rcu_read_lock_sched_held(void);
 
 #else /* #ifdef CONFIG_DEBUG_LOCK_ALLOC */
@@ -661,10 +672,14 @@ static inline void rcu_read_unlock(void)
 static inline void rcu_read_lock_bh(void)
 {
 	local_bh_disable();
+#ifdef CONFIG_PREEMPT_RT_FULL
+	rcu_read_lock();
+#else
 	__acquire(RCU_BH);
 	rcu_lock_acquire(&rcu_bh_lock_map);
 	RCU_LOCKDEP_WARN(!rcu_is_watching(),
 			 "rcu_read_lock_bh() used illegally while idle");
+#endif
 }
 
 /*
@@ -674,10 +689,14 @@ static inline void rcu_read_lock_bh(void)
  */
 static inline void rcu_read_unlock_bh(void)
 {
+#ifdef CONFIG_PREEMPT_RT_FULL
+	rcu_read_unlock();
+#else
 	RCU_LOCKDEP_WARN(!rcu_is_watching(),
 			 "rcu_read_unlock_bh() used illegally while idle");
 	rcu_lock_release(&rcu_bh_lock_map);
 	__release(RCU_BH);
+#endif
 	local_bh_enable();
 }
 
