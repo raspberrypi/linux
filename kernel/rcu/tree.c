@@ -244,7 +244,19 @@ void rcu_sched_qs(void)
 			   this_cpu_ptr(&rcu_sched_data), true);
 }
 
-#ifndef CONFIG_PREEMPT_RT_FULL
+#ifdef CONFIG_PREEMPT_RT_FULL
+static void rcu_preempt_qs(void);
+
+void rcu_bh_qs(void)
+{
+	unsigned long flags;
+
+	/* Callers to this function, rcu_preempt_qs(), must disable irqs. */
+	local_irq_save(flags);
+	rcu_preempt_qs();
+	local_irq_restore(flags);
+}
+#else
 void rcu_bh_qs(void)
 {
 	RCU_LOCKDEP_WARN(preemptible(), "rcu_bh_qs() invoked with preemption enabled!!!");
@@ -254,10 +266,6 @@ void rcu_bh_qs(void)
 				       TPS("cpuqs"));
 		__this_cpu_write(rcu_bh_data.cpu_no_qs.b.norm, false);
 	}
-}
-#else
-void rcu_bh_qs(void)
-{
 }
 #endif
 
