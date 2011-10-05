@@ -117,11 +117,7 @@ static inline int rcu_preempt_depth(void)
 void rcu_init(void);
 extern int rcu_scheduler_active __read_mostly;
 void rcu_sched_qs(void);
-#ifdef CONFIG_PREEMPT_RT_FULL
-static inline void rcu_bh_qs(void) { }
-#else
 void rcu_bh_qs(void);
-#endif
 void rcu_check_callbacks(int user);
 void rcu_report_dead(unsigned int cpu);
 void rcu_cpu_starting(unsigned int cpu);
