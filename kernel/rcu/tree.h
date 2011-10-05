@@ -413,7 +413,9 @@ extern struct list_head rcu_struct_flavors;
  */
 extern struct rcu_state rcu_sched_state;
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 extern struct rcu_state rcu_bh_state;
+#endif
 
 #ifdef CONFIG_PREEMPT_RCU
 extern struct rcu_state rcu_preempt_state;
