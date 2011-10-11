@@ -337,6 +337,16 @@ int core_tmr_lun_reset(
 		 */
 		if (prout_cmd == cmd)
 			continue;
+		/*
+		 * Skip direct processing of TRANSPORT_FREE_CMD_INTR for
+		 * HW target mode fabrics.
+		 */
+		spin_lock(&cmd->t_state_lock);
+		if (cmd->t_state == TRANSPORT_FREE_CMD_INTR) {
+			spin_unlock(&cmd->t_state_lock);
+			continue;
+		}
+		spin_unlock(&cmd->t_state_lock);
 
 		atomic_dec(&cmd->t_transport_queue_active);
 		atomic_dec(&qobj->queue_cnt);
