@@ -1337,7 +1337,7 @@ static int raid10_add_disk(mddev_t *mddev, mdk_rdev_t *rdev)
 		mirror_info_t *p = &conf->mirrors[mirror];
 		if (p->recovery_disabled == mddev->recovery_disabled)
 			continue;
-		if (!p->rdev)
+		if (p->rdev)
 			continue;
 
 		disk_stack_limits(mddev->gendisk, rdev->bdev,
