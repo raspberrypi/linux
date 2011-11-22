@@ -297,10 +297,10 @@ static int hdmi_update_eld(struct hdmi_eld *e,
 					buf + ELD_FIXED_BYTES + mnl + 3 * i);
 	}
 
+	e->eld_valid = true;
 	return 0;
 
 out_fail:
-	e->eld_ver = 0;
 	return -EINVAL;
 }
 
@@ -317,9 +317,6 @@ int snd_hdmi_get_eld(struct hdmi_eld *eld,
 	int ret;
 	int size;
 	unsigned char *buf;
-
-	if (!eld->eld_valid)
-		return -ENOENT;
 
 	size = snd_hdmi_get_eld_size(codec, nid);
 	if (size == 0) {
