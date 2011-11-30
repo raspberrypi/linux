@@ -21,6 +21,7 @@
 #include <linux/freezer.h>
 #include <linux/kthread.h>
 #include <linux/rcupdate.h>
+#include <linux/delay.h>
 #include <linux/ftrace.h>
 #include <linux/smp.h>
 #include <linux/smpboot.h>
@@ -475,11 +476,38 @@ static void __tasklet_schedule_common(struct tasklet_struct *t,
 	unsigned long flags;
 
 	local_irq_save(flags);
+	if (!tasklet_trylock(t)) {
+		local_irq_restore(flags);
+		return;
+	}
+
 	head = this_cpu_ptr(headp);
-	t->next = NULL;
-	*head->tail = t;
-	head->tail = &(t->next);
-	raise_softirq_irqoff(softirq_nr);
+again:
+	/* We may have been preempted before tasklet_trylock
+	 * and __tasklet_action may have already run.
+	 * So double check the sched bit while the takslet
+	 * is locked before adding it to the list.
+	 */
+	if (test_bit(TASKLET_STATE_SCHED, &t->state)) {
+		t->next = NULL;
+		*head->tail = t;
+		head->tail = &(t->next);
+		raise_softirq_irqoff(softirq_nr);
+		tasklet_unlock(t);
+	} else {
+		/* This is subtle. If we hit the corner case above
+		 * It is possible that we get preempted right here,
+		 * and another task has successfully called
+		 * tasklet_schedule(), then this function, and
+		 * failed on the trylock. Thus we must be sure
+		 * before releasing the tasklet lock, that the
+		 * SCHED_BIT is clear. Otherwise the tasklet
+		 * may get its SCHED_BIT set, but not added to the
+		 * list
+		 */
+		if (!tasklet_tryunlock(t))
+			goto again;
+	}
 	local_irq_restore(flags);
 }
 
@@ -497,11 +525,21 @@ void __tasklet_hi_schedule(struct tasklet_struct *t)
 }
 EXPORT_SYMBOL(__tasklet_hi_schedule);
 
+void tasklet_enable(struct tasklet_struct *t)
+{
+	if (!atomic_dec_and_test(&t->count))
+		return;
+	if (test_and_clear_bit(TASKLET_STATE_PENDING, &t->state))
+		tasklet_schedule(t);
+}
+EXPORT_SYMBOL(tasklet_enable);
+
 static void tasklet_action_common(struct softirq_action *a,
 				  struct tasklet_head *tl_head,
 				  unsigned int softirq_nr)
 {
 	struct tasklet_struct *list;
+	int loops = 1000000;
 
 	local_irq_disable();
 	list = tl_head->head;
@@ -513,25 +551,56 @@ static void tasklet_action_common(struct softirq_action *a,
 		struct tasklet_struct *t = list;
 
 		list = list->next;
-
-		if (tasklet_trylock(t)) {
-			if (!atomic_read(&t->count)) {
-				if (!test_and_clear_bit(TASKLET_STATE_SCHED,
-							&t->state))
-					BUG();
-				t->func(t->data);
-				tasklet_unlock(t);
-				continue;
-			}
-			tasklet_unlock(t);
+		/*
+		 * Should always succeed - after a tasklist got on the
+		 * list (after getting the SCHED bit set from 0 to 1),
+		 * nothing but the tasklet softirq it got queued to can
+		 * lock it:
+		 */
+		if (!tasklet_trylock(t)) {
+			WARN_ON(1);
+			continue;
 		}
 
-		local_irq_disable();
 		t->next = NULL;
-		*tl_head->tail = t;
-		tl_head->tail = &t->next;
-		__raise_softirq_irqoff(softirq_nr);
-		local_irq_enable();
+
+		if (unlikely(atomic_read(&t->count))) {
+out_disabled:
+			/* implicit unlock: */
+			wmb();
+			t->state = TASKLET_STATEF_PENDING;
+			continue;
+		}
+		/*
+		 * After this point on the tasklet might be rescheduled
+		 * on another CPU, but it can only be added to another
+		 * CPU's tasklet list if we unlock the tasklet (which we
+		 * dont do yet).
+		 */
+		if (!test_and_clear_bit(TASKLET_STATE_SCHED, &t->state))
+			WARN_ON(1);
+again:
+		t->func(t->data);
+
+		while (!tasklet_tryunlock(t)) {
+			/*
+			 * If it got disabled meanwhile, bail out:
+			 */
+			if (atomic_read(&t->count))
+				goto out_disabled;
+			/*
+			 * If it got scheduled meanwhile, re-execute
+			 * the tasklet function:
+			 */
+			if (test_and_clear_bit(TASKLET_STATE_SCHED, &t->state))
+				goto again;
+			if (!--loops) {
+				printk("hm, tasklet state: %08lx\n", t->state);
+				WARN_ON(1);
+				tasklet_unlock(t);
+				break;
+			}
+		}
 	}
 }
 
@@ -563,7 +632,7 @@ void tasklet_kill(struct tasklet_struct *t)
 
 	while (test_and_set_bit(TASKLET_STATE_SCHED, &t->state)) {
 		do {
-			yield();
+			msleep(1);
 		} while (test_bit(TASKLET_STATE_SCHED, &t->state));
 	}
 	tasklet_unlock_wait(t);
@@ -636,6 +705,23 @@ void __init softirq_init(void)
 	open_softirq(TASKLET_SOFTIRQ, tasklet_action);
 	open_softirq(HI_SOFTIRQ, tasklet_hi_action);
 }
+
+#if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT_RT_FULL)
+void tasklet_unlock_wait(struct tasklet_struct *t)
+{
+	while (test_bit(TASKLET_STATE_RUN, &(t)->state)) {
+		/*
+		 * Hack for now to avoid this busy-loop:
+		 */
+#ifdef CONFIG_PREEMPT_RT_FULL
+		msleep(1);
+#else
+		barrier();
+#endif
+	}
+}
+EXPORT_SYMBOL(tasklet_unlock_wait);
+#endif
 
 static int ksoftirqd_should_run(unsigned int cpu)
 {
