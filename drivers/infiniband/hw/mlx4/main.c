@@ -1144,7 +1144,8 @@ err_reg:
 
 err_counter:
 	for (; i; --i)
-		mlx4_counter_free(ibdev->dev, ibdev->counters[i - 1]);
+		if (ibdev->counters[i - 1] != -1)
+			mlx4_counter_free(ibdev->dev, ibdev->counters[i - 1]);
 
 err_map:
 	iounmap(ibdev->uar_map);
@@ -1175,7 +1176,8 @@ static void mlx4_ib_remove(struct mlx4_dev *dev, void *ibdev_ptr)
 	}
 	iounmap(ibdev->uar_map);
 	for (p = 0; p < ibdev->num_ports; ++p)
-		mlx4_counter_free(ibdev->dev, ibdev->counters[p]);
+		if (ibdev->counters[p] != -1)
+			mlx4_counter_free(ibdev->dev, ibdev->counters[p]);
 	mlx4_foreach_port(p, dev, MLX4_PORT_TYPE_IB)
 		mlx4_CLOSE_PORT(dev, p);
 
