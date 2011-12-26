@@ -1068,9 +1068,7 @@ static int iwl_trans_tx(struct iwl_priv *priv, struct sk_buff *skb,
 	iwl_print_hex_dump(priv, IWL_DL_TX, (u8 *)tx_cmd->hdr, hdr_len);
 
 	/* Set up entry for this TFD in Tx byte-count array */
-	if (ampdu)
-		iwl_trans_txq_update_byte_cnt_tbl(priv, txq,
-					       le16_to_cpu(tx_cmd->len));
+	iwl_trans_txq_update_byte_cnt_tbl(priv, txq, le16_to_cpu(tx_cmd->len));
 
 	dma_sync_single_for_device(priv->bus->dev, txcmd_phys, firstlen,
 			DMA_BIDIRECTIONAL);
