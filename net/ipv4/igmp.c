@@ -1244,7 +1244,7 @@ void ip_mc_inc_group(struct in_device *in_dev, __be32 addr)
 
 	im->next_rcu = in_dev->mc_list;
 	in_dev->mc_count++;
-	RCU_INIT_POINTER(in_dev->mc_list, im);
+	rcu_assign_pointer(in_dev->mc_list, im);
 
 #ifdef CONFIG_IP_MULTICAST
 	igmpv3_del_delrec(in_dev, im->multiaddr);
@@ -1816,7 +1816,7 @@ int ip_mc_join_group(struct sock *sk , struct ip_mreqn *imr)
 	iml->next_rcu = inet->mc_list;
 	iml->sflist = NULL;
 	iml->sfmode = MCAST_EXCLUDE;
-	RCU_INIT_POINTER(inet->mc_list, iml);
+	rcu_assign_pointer(inet->mc_list, iml);
 	ip_mc_inc_group(in_dev, addr);
 	err = 0;
 done:
@@ -2003,7 +2003,7 @@ int ip_mc_source(int add, int omode, struct sock *sk, struct
 			atomic_sub(IP_SFLSIZE(psl->sl_max), &sk->sk_omem_alloc);
 			kfree_rcu(psl, rcu);
 		}
-		RCU_INIT_POINTER(pmc->sflist, newpsl);
+		rcu_assign_pointer(pmc->sflist, newpsl);
 		psl = newpsl;
 	}
 	rv = 1;	/* > 0 for insert logic below if sl_count is 0 */
@@ -2106,7 +2106,7 @@ int ip_mc_msfilter(struct sock *sk, struct ip_msfilter *msf, int ifindex)
 	} else
 		(void) ip_mc_del_src(in_dev, &msf->imsf_multiaddr, pmc->sfmode,
 			0, NULL, 0);
-	RCU_INIT_POINTER(pmc->sflist, newpsl);
+	rcu_assign_pointer(pmc->sflist, newpsl);
 	pmc->sfmode = msf->imsf_fmode;
 	err = 0;
 done:
