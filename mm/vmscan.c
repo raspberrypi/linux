@@ -1911,7 +1911,8 @@ static void get_scan_count(struct zone *zone, struct scan_control *sc,
 	 * latencies, so it's better to scan a minimum amount there as
 	 * well.
 	 */
-	if (scanning_global_lru(sc) && current_is_kswapd())
+	if (scanning_global_lru(sc) && current_is_kswapd() &&
+	    zone->all_unreclaimable)
 		force_scan = true;
 	if (!scanning_global_lru(sc))
 		force_scan = true;
