@@ -855,9 +855,11 @@ do_alignment(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	case 0x08000000:	/* ldm or stm, or thumb-2 32bit instruction */
 		if (thumb2_32b)
 			handler = do_alignment_t32_to_handler(&instr, regs, &offset);
-		else
+		else {
+                        offset.un = 0; /* to keep compiler happy */
 			handler = do_alignment_ldmstm;
-		break;
+		}
+                break;
 
 	default:
 		goto bad;
