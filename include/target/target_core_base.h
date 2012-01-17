@@ -486,6 +486,7 @@ struct se_cmd {
 
 	struct scatterlist	*t_data_sg;
 	unsigned int		t_data_nents;
+	void			*t_data_vmap;
 	struct scatterlist	*t_bidi_data_sg;
 	unsigned int		t_bidi_data_nents;
 

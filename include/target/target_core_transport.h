@@ -129,8 +129,8 @@ extern void transport_init_se_cmd(struct se_cmd *,
 					struct target_core_fabric_ops *,
 					struct se_session *, u32, int, int,
 					unsigned char *);
-void *transport_kmap_first_data_page(struct se_cmd *cmd);
-void transport_kunmap_first_data_page(struct se_cmd *cmd);
+void *transport_kmap_data_sg(struct se_cmd *);
+void transport_kunmap_data_sg(struct se_cmd *);
 extern int transport_generic_allocate_tasks(struct se_cmd *, unsigned char *);
 extern int transport_handle_cdb_direct(struct se_cmd *);
 extern int transport_generic_handle_cdb_map(struct se_cmd *);
