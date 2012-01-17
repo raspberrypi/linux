@@ -1,0 +1,17 @@
+config HYPERV_STORAGE
+	tristate "Microsoft Hyper-V virtual storage driver"
+	depends on HYPERV && SCSI
+	help
+	 Select this option to enable the Hyper-V virtual storage driver.
+
+config HYPERV_NET
+	tristate "Microsoft Hyper-V virtual network driver"
+	depends on HYPERV && NET
+	help
+	  Select this option to enable the Hyper-V virtual network driver.
+
+config HYPERV_MOUSE
+	tristate "Microsoft Hyper-V mouse driver"
+	depends on HYPERV && HID
+	help
+	  Select this option to enable the Hyper-V mouse driver.
