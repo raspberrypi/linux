@@ -1,0 +1,7 @@
+config BCM2708_VCHIQ
+	tristate "Videocore VCHIQ"
+	depends on MACH_BCM2708
+        default y
+        help
+          Helper for communication for VideoCore.
+
