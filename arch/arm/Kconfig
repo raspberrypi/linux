@@ -955,6 +955,19 @@ config PLAT_SPEAR
 	help
 	  Support for ST's SPEAr platform (SPEAr3xx, SPEAr6xx and SPEAr13xx).
 
+config ARCH_BCM2708
+	bool "Broadcom BCM2708 family"
+	select CPU_V6
+	select ARM_AMBA
+	select HAVE_CLK
+	select CLKDEV_LOOKUP
+	select GENERIC_CLOCKEVENTS
+	select ARM_ERRATA_411920
+	select MACH_BCM2708
+	select VC4
+	help
+	  This enables support for Broadcom BCM2708 boards.
+
 config ARCH_VT8500
 	bool "VIA/WonderMedia 85xx"
 	select CPU_ARM926T
@@ -1098,6 +1111,7 @@ source "arch/arm/plat-versatile/Kconfig"
 source "arch/arm/mach-vt8500/Kconfig"
 
 source "arch/arm/mach-w90x900/Kconfig"
+source "arch/arm/mach-bcm2708/Kconfig"
 
 # Definitions to make life easier
 config ARCH_ACORN
