@@ -1932,6 +1932,7 @@ static int wm8996_set_sysclk(struct snd_soc_dai *dai,
 	struct wm8996_priv *wm8996 = snd_soc_codec_get_drvdata(codec);
 	int lfclk = 0;
 	int ratediv = 0;
+	int sync = WM8996_REG_SYNC;
 	int src;
 	int old;
 
@@ -1976,6 +1977,7 @@ static int wm8996_set_sysclk(struct snd_soc_dai *dai,
 	case 32000:
 	case 32768:
 		lfclk = WM8996_LFCLK_ENA;
+		sync = 0;
 		break;
 	default:
 		dev_warn(codec->dev, "Unsupported clock rate %dHz\n",
@@ -1989,6 +1991,8 @@ static int wm8996_set_sysclk(struct snd_soc_dai *dai,
 			    WM8996_SYSCLK_SRC_MASK | WM8996_SYSCLK_DIV_MASK,
 			    src << WM8996_SYSCLK_SRC_SHIFT | ratediv);
 	snd_soc_update_bits(codec, WM8996_CLOCKING_1, WM8996_LFCLK_ENA, lfclk);
+	snd_soc_update_bits(codec, WM8996_CONTROL_INTERFACE_1,
+			    WM8996_REG_SYNC, sync);
 	snd_soc_update_bits(codec, WM8996_AIF_CLOCKING_1,
 			    WM8996_SYSCLK_ENA, old);
 
