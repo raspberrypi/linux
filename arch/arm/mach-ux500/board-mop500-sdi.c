@@ -233,6 +233,8 @@ void __init snowball_sdi_init(void)
 {
 	u32 periphid = 0x10480180;
 
+	/* On Snowball MMC_CAP_SD_HIGHSPEED isn't supported on sdi0 */
+	mop500_sdi0_data.capabilities &= ~MMC_CAP_SD_HIGHSPEED;
 	mop500_sdi2_data.capabilities |= MMC_CAP_MMC_HIGHSPEED;
 
 	/* On-board eMMC */
