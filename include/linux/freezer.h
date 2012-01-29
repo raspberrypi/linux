@@ -51,6 +51,7 @@ extern void refrigerator(void);
 extern int freeze_processes(void);
 extern int freeze_kernel_threads(void);
 extern void thaw_processes(void);
+extern void thaw_kernel_threads(void);
 
 static inline int try_to_freeze(void)
 {
@@ -185,6 +186,7 @@ static inline void refrigerator(void) {}
 static inline int freeze_processes(void) { return -ENOSYS; }
 static inline int freeze_kernel_threads(void) { return -ENOSYS; }
 static inline void thaw_processes(void) {}
+static inline void thaw_kernel_threads(void) {}
 
 static inline int try_to_freeze(void) { return 0; }
 

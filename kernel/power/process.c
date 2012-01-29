@@ -203,3 +203,12 @@ void thaw_processes(void)
 	printk("done.\n");
 }
 
+void thaw_kernel_threads(void)
+{
+	printk("Restarting kernel threads ... ");
+	thaw_workqueues();
+	thaw_tasks(true);
+	schedule();
+	printk("done.\n");
+}
+
