@@ -598,6 +598,15 @@ void __local_bh_enable(void)
 }
 EXPORT_SYMBOL(__local_bh_enable);
 
+void _local_bh_enable(void)
+{
+	if (WARN_ON(current->softirq_nestcnt == 0))
+		return;
+	if (--current->softirq_nestcnt == 0)
+		migrate_enable();
+}
+EXPORT_SYMBOL(_local_bh_enable);
+
 int in_serving_softirq(void)
 {
 	return current->flags & PF_IN_SOFTIRQ;
