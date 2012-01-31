@@ -976,8 +976,10 @@ static void cs_automic(struct hda_codec *codec)
 	/* specific to CS421x, single ADC */
 	if (spec->vendor_nid == CS421X_VENDOR_NID) {
 		if (present) {
-			spec->last_input = spec->cur_input;
-			spec->cur_input = spec->automic_idx;
+			if (spec->cur_input != spec->automic_idx) {
+				spec->last_input = spec->cur_input;
+				spec->cur_input = spec->automic_idx;
+			}
 		} else  {
 			spec->cur_input = spec->last_input;
 		}
