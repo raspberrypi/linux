@@ -566,20 +566,6 @@ config USB_DWC_OTG_LPM
 	help
 	   Enables LPM support.
 
-config USB_GADGET_SNPS_DWC_OTG
-	boolean "Synopsys Driver for DWC_otg Controller"
-	depends on USB && EXPERIMENTAL
-	select USB_OTG
-	select USB_GADGET_DUALSPEED
-	help
-	   Selects the Synopsys Driver for the DWC_otg Controller.
-
-config USB_DWC_OTG_LPM
-	boolean "Enable LPM support"
-	depends on USB && EXPERIMENTAL
-	help
-	   Enables LPM support.
-
 #
 # USB Gadget Drivers
 #
