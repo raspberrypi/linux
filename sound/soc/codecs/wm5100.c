@@ -1406,7 +1406,6 @@ static int wm5100_set_bias_level(struct snd_soc_codec *codec,
 		break;
 
 	case SND_SOC_BIAS_OFF:
-		regcache_cache_only(wm5100->regmap, true);
 		if (wm5100->pdata.ldo_ena)
 			gpio_set_value_cansleep(wm5100->pdata.ldo_ena, 0);
 		regulator_bulk_disable(ARRAY_SIZE(wm5100->core_supplies),
