@@ -22,4 +22,11 @@ config BCM2708_VCMEM
         help
           Helper for videocore memory access and total size allocation.	   
 
+config BCM2708_L2CACHE
+	bool "Videocore L2 cache"
+	depends on MACH_BCM2708
+        default n
+        help
+          Allow ARM to use GPU's L2 cache. Requires enable_l2cache in config.txt.
+
 endmenu
