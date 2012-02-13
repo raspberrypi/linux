@@ -515,6 +515,8 @@ int snd_hda_jack_detect(struct hda_codec *codec, hda_nid_t nid);
 
 static inline bool is_jack_detectable(struct hda_codec *codec, hda_nid_t nid)
 {
+	if (codec->no_jack_detect)
+		return false;
 	if (!(snd_hda_query_pin_caps(codec, nid) & AC_PINCAP_PRES_DETECT))
 		return false;
 	if (!codec->ignore_misc_bit &&
