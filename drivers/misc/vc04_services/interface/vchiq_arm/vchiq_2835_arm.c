@@ -36,7 +36,7 @@
 #define TOTAL_SLOTS (VCHIQ_SLOT_ZERO_SLOTS + 2 * 32)
 
 #define VCHIQ_DOORBELL_IRQ IRQ_ARM_DOORBELL_0
-#define VCHIQ_ARM_ADDRESS(x) __virt_to_bus(x)
+#define VCHIQ_ARM_ADDRESS(x) __virt_to_bus((unsigned)x)
 
 #include "vchiq_arm.h"
 #include "vchiq_2835.h"
