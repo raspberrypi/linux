@@ -509,8 +509,13 @@ static int __do_config_autodelink(struct us_data *us, u8 *data, u16 len)
 	int retval;
 	u16 addr = 0xFE47;
 	u8 cmnd[12] = {0};
+	u8 *buf;
 
 	US_DEBUGP("%s, addr = 0x%x, len = %d\n", __FUNCTION__, addr, len);
+
+	buf = kmemdup(data, len, GFP_NOIO);
+	if (!buf)
+		return USB_STOR_TRANSPORT_ERROR;
 
 	cmnd[0] = 0xF0;
 	cmnd[1] = 0x0E;
@@ -519,7 +524,8 @@ static int __do_config_autodelink(struct us_data *us, u8 *data, u16 len)
 	cmnd[4] = (u8)(len >> 8);
 	cmnd[5] = (u8)len;
 
-	retval = rts51x_bulk_transport_special(us, 0, cmnd, 12, data, len, DMA_TO_DEVICE, NULL);
+	retval = rts51x_bulk_transport_special(us, 0, cmnd, 12, buf, len, DMA_TO_DEVICE, NULL);
+	kfree(buf);
 	if (retval != USB_STOR_TRANSPORT_GOOD) {
 		return -EIO;
 	}
