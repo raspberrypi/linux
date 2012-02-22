@@ -221,18 +221,28 @@ static inline int read_seqcount_retry(const seqcount_t *s, unsigned start)
 	return __read_seqcount_retry(s, start);
 }
 
-
-
-static inline void raw_write_seqcount_begin(seqcount_t *s)
+static inline void __raw_write_seqcount_begin(seqcount_t *s)
 {
 	s->sequence++;
 	smp_wmb();
 }
 
-static inline void raw_write_seqcount_end(seqcount_t *s)
+static inline void raw_write_seqcount_begin(seqcount_t *s)
+{
+	preempt_disable_rt();
+	__raw_write_seqcount_begin(s);
+}
+
+static inline void __raw_write_seqcount_end(seqcount_t *s)
 {
 	smp_wmb();
 	s->sequence++;
+}
+
+static inline void raw_write_seqcount_end(seqcount_t *s)
+{
+	__raw_write_seqcount_end(s);
+	preempt_enable_rt();
 }
 
 /**
@@ -428,10 +438,33 @@ typedef struct {
 /*
  * Read side functions for starting and finalizing a read side section.
  */
+#ifndef CONFIG_PREEMPT_RT_FULL
 static inline unsigned read_seqbegin(const seqlock_t *sl)
 {
 	return read_seqcount_begin(&sl->seqcount);
 }
+#else
+/*
+ * Starvation safe read side for RT
+ */
+static inline unsigned read_seqbegin(seqlock_t *sl)
+{
+	unsigned ret;
+
+repeat:
+	ret = READ_ONCE(sl->seqcount.sequence);
+	if (unlikely(ret & 1)) {
+		/*
+		 * Take the lock and let the writer proceed (i.e. evtl
+		 * boost it), otherwise we could loop here forever.
+		 */
+		spin_unlock_wait(&sl->lock);
+		goto repeat;
+	}
+	smp_rmb();
+	return ret;
+}
+#endif
 
 static inline unsigned read_seqretry(const seqlock_t *sl, unsigned start)
 {
@@ -446,36 +479,36 @@ static inline unsigned read_seqretry(const seqlock_t *sl, unsigned start)
 static inline void write_seqlock(seqlock_t *sl)
 {
 	spin_lock(&sl->lock);
-	write_seqcount_begin(&sl->seqcount);
+	__raw_write_seqcount_begin(&sl->seqcount);
 }
 
 static inline void write_sequnlock(seqlock_t *sl)
 {
-	write_seqcount_end(&sl->seqcount);
+	__raw_write_seqcount_end(&sl->seqcount);
 	spin_unlock(&sl->lock);
 }
 
 static inline void write_seqlock_bh(seqlock_t *sl)
 {
 	spin_lock_bh(&sl->lock);
-	write_seqcount_begin(&sl->seqcount);
+	__raw_write_seqcount_begin(&sl->seqcount);
 }
 
 static inline void write_sequnlock_bh(seqlock_t *sl)
 {
-	write_seqcount_end(&sl->seqcount);
+	__raw_write_seqcount_end(&sl->seqcount);
 	spin_unlock_bh(&sl->lock);
 }
 
 static inline void write_seqlock_irq(seqlock_t *sl)
 {
 	spin_lock_irq(&sl->lock);
-	write_seqcount_begin(&sl->seqcount);
+	__raw_write_seqcount_begin(&sl->seqcount);
 }
 
 static inline void write_sequnlock_irq(seqlock_t *sl)
 {
-	write_seqcount_end(&sl->seqcount);
+	__raw_write_seqcount_end(&sl->seqcount);
 	spin_unlock_irq(&sl->lock);
 }
 
@@ -484,7 +517,7 @@ static inline unsigned long __write_seqlock_irqsave(seqlock_t *sl)
 	unsigned long flags;
 
 	spin_lock_irqsave(&sl->lock, flags);
-	write_seqcount_begin(&sl->seqcount);
+	__raw_write_seqcount_begin(&sl->seqcount);
 	return flags;
 }
 
@@ -494,7 +527,7 @@ static inline unsigned long __write_seqlock_irqsave(seqlock_t *sl)
 static inline void
 write_sequnlock_irqrestore(seqlock_t *sl, unsigned long flags)
 {
-	write_seqcount_end(&sl->seqcount);
+	__raw_write_seqcount_end(&sl->seqcount);
 	spin_unlock_irqrestore(&sl->lock, flags);
 }
 
