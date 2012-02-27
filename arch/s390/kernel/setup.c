@@ -45,6 +45,7 @@
 #include <linux/kexec.h>
 #include <linux/crash_dump.h>
 #include <linux/memory.h>
+#include <linux/compat.h>
 
 #include <asm/ipl.h>
 #include <asm/uaccess.h>
@@ -58,7 +59,6 @@
 #include <asm/ptrace.h>
 #include <asm/sections.h>
 #include <asm/ebcdic.h>
-#include <asm/compat.h>
 #include <asm/kvm_virtio.h>
 #include <asm/diag.h>
 
