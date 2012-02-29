@@ -212,4 +212,12 @@ static inline perf_guest_switch_msr *perf_guest_get_msrs(int *nr)
 static inline void perf_events_lapic_init(void)	{ }
 #endif
 
+#if defined(CONFIG_PERF_EVENTS) && defined(CONFIG_CPU_SUP_AMD)
+ extern void amd_pmu_enable_virt(void);
+ extern void amd_pmu_disable_virt(void);
+#else
+ static inline void amd_pmu_enable_virt(void) { }
+ static inline void amd_pmu_disable_virt(void) { }
+#endif
+
 #endif /* _ASM_X86_PERF_EVENT_H */
