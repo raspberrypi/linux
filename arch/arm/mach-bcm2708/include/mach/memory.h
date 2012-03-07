@@ -35,10 +35,10 @@
 #define PHYS_OFFSET	 UL(0x00000000)
 #define ARMMEM_OFFSET    UL(0x00000000)   /* offset in VC of ARM memory */
 
-#ifdef CONFIG_BCM2708_L2CACHE
- #define _REAL_BUS_OFFSET UL(0x40000000)   /* use L2 cache */
-#else
+#ifdef CONFIG_BCM2708_NOL2CACHE
  #define _REAL_BUS_OFFSET UL(0xC0000000)   /* don't use L1 or L2 caches */
+#else
+ #define _REAL_BUS_OFFSET UL(0x40000000)   /* use L2 cache */
 #endif
 
 /* We're using the memory at 64M in the VideoCore for Linux - this adjustment
