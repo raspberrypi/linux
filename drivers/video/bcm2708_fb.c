@@ -96,6 +96,7 @@ static int bcm2708_fb_set_bitfields(struct fb_var_screeninfo *var)
 		var->red.length = 8;
 		var->green.length = 8;
 		var->blue.length = 8;
+		var->transp.length = 8;
 		break;
 	default:
 		ret = -EINVAL;
@@ -111,6 +112,7 @@ static int bcm2708_fb_set_bitfields(struct fb_var_screeninfo *var)
 		var->blue.offset = 0;
 		var->green.offset = var->blue.offset + var->blue.length;
 		var->red.offset = var->green.offset + var->green.length;
+		var->transp.offset = var->red.offset + var->red.length;
 	}
 
 	return ret;
@@ -119,7 +121,6 @@ static int bcm2708_fb_set_bitfields(struct fb_var_screeninfo *var)
 static int bcm2708_fb_check_var(struct fb_var_screeninfo *var,
 				struct fb_info *info)
 {
-
 	/* info input, var output */
 	int yres;
 	/* memory size in pixels */
@@ -137,13 +138,12 @@ static int bcm2708_fb_check_var(struct fb_var_screeninfo *var,
 	if (!var->bits_per_pixel)
 		var->bits_per_pixel = 16;
 
-	if (0 && var->bits_per_pixel != 16 && var->bits_per_pixel != 32) {
-		pr_err("bcm2708_fb_check_var: ERROR: bits_per_pixel=%d\n",
-		       var->bits_per_pixel);
+	if (bcm2708_fb_set_bitfields(var) != 0) {
+		pr_err("bcm2708_fb_check_var: invalid bits_per_pixel %d\n",
+		     var->bits_per_pixel);
 		return -EINVAL;
 	}
 
-	bcm2708_fb_set_bitfields(var);
 
 	if (var->xres_virtual < var->xres)
 		var->xres_virtual = var->xres;
@@ -158,15 +158,6 @@ static int bcm2708_fb_check_var(struct fb_var_screeninfo *var,
 	if (var->yres_virtual < var->yres)
 		var->yres_virtual = var->yres;
 
-#if 0
-	if (var->xres_virtual * var->yres_virtual > pixels) {
-		pr_err("bcm2708_fb_check_var: mode %dx%dx%d rejected... "
-		       "virtual resolution too high to fit into video memory!\n",
-		       var->xres_virtual, var->yres_virtual,
-		       var->bits_per_pixel);
-		return -EINVAL;
-	}
-#endif
 	if (var->xoffset < 0)
 		var->xoffset = 0;
 	if (var->yoffset < 0)
@@ -177,11 +168,6 @@ static int bcm2708_fb_check_var(struct fb_var_screeninfo *var,
 		var->xoffset = var->xres_virtual - var->xres - 1;
 	if (var->yoffset > var->yres_virtual - var->yres)
 		var->yoffset = var->yres_virtual - var->yres - 1;
-
-	var->red.msb_right =
-	    var->green.msb_right =
-	    var->blue.msb_right =
-	    var->transp.offset = var->transp.length = var->transp.msb_right = 0;
 
 	yres = var->yres;
 	if (var->vmode & FB_VMODE_DOUBLE)
@@ -230,28 +216,29 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 	/* ensure GPU writes are visible to us */
 	rmb();
 
-	fb->fb.fix.line_length = fbinfo->pitch;
+        if (val == 0) {
+		fb->fb.fix.line_length = fbinfo->pitch;
 
-	if (info->var.bits_per_pixel <= 8)
-		fb->fb.fix.visual = FB_VISUAL_PSEUDOCOLOR;
-	else
-		fb->fb.fix.visual = FB_VISUAL_TRUECOLOR;
+		if (info->var.bits_per_pixel <= 8)
+			fb->fb.fix.visual = FB_VISUAL_PSEUDOCOLOR;
+		else
+			fb->fb.fix.visual = FB_VISUAL_TRUECOLOR;
 
-	fb->fb.fix.smem_start = fbinfo->base;
-	fb->fb.fix.smem_len = fbinfo->pitch * fbinfo->yres_virtual;
-	fb->fb.screen_size = fbinfo->screen_size;
-	if (fb->fb.screen_base)
-		iounmap(fb->fb.screen_base);
-	fb->fb.screen_base =
-	    (void *)ioremap_nocache(fb->fb.fix.smem_start, fb->fb.screen_size);
-	if (!fb->fb.screen_base)
-		BUG();		/* what can we do here */
-
+		fb->fb.fix.smem_start = fbinfo->base;
+		fb->fb.fix.smem_len = fbinfo->pitch * fbinfo->yres_virtual;
+		fb->fb.screen_size = fbinfo->screen_size;
+		if (fb->fb.screen_base)
+			iounmap(fb->fb.screen_base);
+		fb->fb.screen_base =
+			(void *)ioremap_wc(fb->fb.fix.smem_start, fb->fb.screen_size);
+		if (!fb->fb.screen_base)
+			BUG();		/* what can we do here */
+	}
 	pr_info
-	    ("BCM2708FB: start = %p,%p,%p width=%d, height=%d, bpp=%d, pitch=%d\n",
+	    ("BCM2708FB: start = %p,%p width=%d, height=%d, bpp=%d, pitch=%d size=%d success=%d\n",
 	     (void *)fb->fb.screen_base, (void *)fb->fb.fix.smem_start,
-	     (void *)val, fbinfo->xres, fbinfo->yres, fbinfo->bpp,
-	     fbinfo->pitch);
+	     fbinfo->xres, fbinfo->yres, fbinfo->bpp,
+	     fbinfo->pitch, fb->fb.screen_size, val);
 
 	return val;
 }
