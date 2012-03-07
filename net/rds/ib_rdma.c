@@ -34,6 +34,7 @@
 #include <linux/slab.h>
 #include <linux/rculist.h>
 #include <linux/llist.h>
+#include <linux/delay.h>
 
 #include "rds_single_path.h"
 #include "ib_mr.h"
@@ -210,7 +211,7 @@ static inline void wait_clean_list_grace(void)
 	for_each_online_cpu(cpu) {
 		flag = &per_cpu(clean_list_grace, cpu);
 		while (test_bit(CLEAN_LIST_BUSY_BIT, flag))
-			cpu_relax();
+			cpu_chill();
 	}
 }
 
