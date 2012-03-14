@@ -92,6 +92,11 @@ static int bcm2708_fb_set_bitfields(struct fb_var_screeninfo *var)
 		if (var->green.length != 5 && var->green.length != 6)
 			var->green.length = 6;
 		break;
+	case 24:
+		var->red.length = 8;
+		var->blue.length = 8;
+		var->green.length = 8;
+		break;
 	case 32:
 		var->red.length = 8;
 		var->green.length = 8;
