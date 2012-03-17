@@ -9,7 +9,9 @@ ifeq ($(BUS_INTERFACE),)
 	BUS_INTERFACE = -DPLATFORM_INTERFACE=1
 endif
 
-CPPFLAGS	+= -DDEBUG 
+ifeq ($(CONFIG_USB_DEBUG),y)
+CPPFLAGS	+= -DDEBUG
+endif
 
 # Use one of the following flags to compile the software in host-only or
 # device-only mode.

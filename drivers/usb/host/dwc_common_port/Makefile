@@ -6,7 +6,9 @@ ifneq ($(KERNELRELEASE),)
 
 #CPPFLAGS	+= -DDEBUG_MEMORY
 
+ifeq ($(CONFIG_USB_DEBUG),y)
 CPPFLAGS	+= -DDEBUG
+endif
 CPPFLAGS	+= -DDWC_LINUX
 
 obj-$(CONFIG_USB_DWCOTG)	+= dwc_common_port_lib.o
