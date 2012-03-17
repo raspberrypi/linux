@@ -216,6 +216,7 @@ extern void __DWC_DEBUG(char *format, ...)
 #endif
 #else
 #define __DWC_DEBUG printk
+#include <linux/kernel.h>
 #endif
 
 /**
