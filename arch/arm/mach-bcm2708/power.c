@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/semaphore.h>
 #include <linux/bug.h>
+#include <linux/delay.h>
 #include <mach/power.h>
 #include <mach/vcio.h>
 #include <mach/arm_power.h>
@@ -97,6 +98,7 @@ int bcm_power_request(BCM_POWER_HANDLE_T handle, uint32_t request)
 						  global_request << 4);
 
 				/* Wait for a response during power-up */
+				mdelay(10);
 				if (global_request & ~g_state.global_request) {
 					rc = bcm_mailbox_read(MBOX_CHAN_POWER,
 							      &actual);
@@ -111,14 +113,14 @@ int bcm_power_request(BCM_POWER_HANDLE_T handle, uint32_t request)
 
 				if (rc == 0) {
 					if (actual != global_request) {
-						printk(KERN_ERR
-						     "%s: prev global %x, new global %x, actual %x, request %x, others_request %x\n",
+						printk(KERN_INFO
+						     "%s: Fail: prev global %x, new global %x, actual %x request %x, others_request %x\n",
 						     __func__,
 						     g_state.global_request,
 						     global_request, actual, request, others_request);
 						/* A failure */
-						BUG_ON((others_request & actual)
-						       != others_request);
+					//	BUG_ON((others_request & actual)
+					//	       != others_request);
 						request &= actual;
 						rc = -EIO;
 					}

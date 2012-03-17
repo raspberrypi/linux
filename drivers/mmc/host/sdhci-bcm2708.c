@@ -26,7 +26,9 @@
 #include <linux/highmem.h>
 #include <linux/platform_device.h>
 #include <linux/module.h>
+#include <linux/mmc/mmc.h>
 #include <linux/mmc/host.h>
+#include <linux/mmc/sd.h>
 
 #include <linux/io.h>
 #include <linux/dma-mapping.h>
@@ -67,6 +69,9 @@
 #define DMA_SDHCI_BUFFER (DMA_SDHCI_BASE + SDHCI_BUFFER)
 
 #define BCM2708_SDHCI_SLEEP_TIMEOUT 1000   /* msecs */
+
+/* Mhz clock that the EMMC core is running at. Should match the platform clockman settings */
+#define BCM2708_EMMC_CLOCK_FREQ 80000000
 
 #define POWER_OFF 0
 #define POWER_LAZY_OFF 1
@@ -222,6 +227,10 @@ u8 sdhci_bcm2708_readb(struct sdhci_host *host, int reg)
 
 static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 {
+	u32 ier;
+	static bool timeout_disabled = false;
+	unsigned int ns_2clk = 0;
+
 	/* The Arasan has a bugette whereby it may lose the content of
 	 * successive writes to registers that are within two SD-card clock
 	 * cycles of each other (a clock domain crossing problem).
@@ -234,7 +243,7 @@ static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 		/* host->clock is the clock freq in Hz */
 		static hptime_t last_write_hpt;
 		hptime_t now = hptime();
-		unsigned int ns_2clk = 2000000000/host->clock;
+		ns_2clk = 2000000000/host->clock;
 
 		if (now == last_write_hpt || now == last_write_hpt+1) {
 			 /* we can't guarantee any significant time has
@@ -250,6 +259,24 @@ static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 		}
 		last_write_hpt = now;
 	}
+#if 1
+	/* The Arasan is clocked for timeouts using the SD clock which is too fast
+	 * for ERASE commands and causes issues. So we disable timeouts for ERASE */
+	if (host->cmd != NULL && host->cmd->opcode == MMC_ERASE && reg == (SDHCI_COMMAND & ~3)) {
+		mod_timer(&host->timer, jiffies + 30 * HZ);
+		ier = readl(host->ioaddr + SDHCI_SIGNAL_ENABLE);
+		ier &= ~SDHCI_INT_DATA_TIMEOUT;
+		writel(ier, host->ioaddr + SDHCI_SIGNAL_ENABLE);
+		timeout_disabled = true;
+		udelay((ns_2clk+1000-1)/1000);
+	} else if (timeout_disabled) {
+		ier = readl(host->ioaddr + SDHCI_SIGNAL_ENABLE);
+		ier |= SDHCI_INT_DATA_TIMEOUT;
+		writel(ier, host->ioaddr + SDHCI_SIGNAL_ENABLE);
+		timeout_disabled = false;
+		udelay((ns_2clk+1000-1)/1000);
+	}
+#endif
 	writel(val, host->ioaddr + reg);
 #else
 	void __iomem * regaddr = host->ioaddr + reg;
@@ -325,13 +352,67 @@ void sdhci_bcm2708_writeb(struct sdhci_host *host, u8 val, int reg)
 
 static unsigned int sdhci_bcm2708_get_max_clock(struct sdhci_host *host)
 {
-	return 100000000;	// this value is in Hz (100MHz/4)
+	return 20000000;	// this value is in Hz (20MHz)
 }
 
 static unsigned int sdhci_bcm2708_get_timeout_clock(struct sdhci_host *host)
 {
-	return 100000;		// this value is in kHz (100MHz/4)
+	if(host->clock)
+		return (host->clock / 1000);		// this value is in kHz (100MHz)
+	else
+		return (sdhci_bcm2708_get_max_clock(host) / 1000);
 }
+
+static void sdhci_bcm2708_set_clock(struct sdhci_host *host, unsigned int clock)
+{
+	int div = 0;
+	u16 clk = 0;
+	unsigned long timeout;
+
+        if (clock == host->clock)
+                return;
+
+        sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
+
+        if (clock == 0)
+                goto out;
+
+	if (BCM2708_EMMC_CLOCK_FREQ <= clock)
+		div = 1;
+	else {
+		for (div = 2; div < SDHCI_MAX_DIV_SPEC_300; div += 2) {
+			if ((BCM2708_EMMC_CLOCK_FREQ / div) <= clock)
+				break;
+		}
+	}
+
+        DBG( "desired SD clock: %d, actual: %d\n",
+                clock, BCM2708_EMMC_CLOCK_FREQ / div);
+
+	clk |= (div & SDHCI_DIV_MASK) << SDHCI_DIVIDER_SHIFT;
+	clk |= ((div & SDHCI_DIV_HI_MASK) >> SDHCI_DIV_MASK_LEN)
+		<< SDHCI_DIVIDER_HI_SHIFT;
+	clk |= SDHCI_CLOCK_INT_EN;
+
+	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+        timeout = 20;
+        while (!((clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL))
+                        & SDHCI_CLOCK_INT_STABLE)) {
+                if (timeout == 0) {
+			printk(KERN_ERR "%s: Internal clock never "
+				"stabilised.\n", mmc_hostname(host->mmc));
+                        return;
+                }
+                timeout--;
+                mdelay(1);
+        }
+
+        clk |= SDHCI_CLOCK_CARD_EN;
+        sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+out:
+        host->clock = clock;
+ }
 
 /*****************************************************************************\
  *									     *
@@ -821,7 +902,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 			continue;
 
 		if (1000000-timeout > 4000) /*ave. is about 3250*/
-			printk(KERN_INFO "%s: note - long %s sync %luns - "
+			DBG("%s: note - long %s sync %luns - "
 			       "%d its.\n",
 			       mmc_hostname(host->mmc),
 			       data->flags & MMC_DATA_READ? "read": "write",
@@ -1219,7 +1300,7 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
 #error The BCM2708 SDHCI driver needs CONFIG_MMC_SDHCI_IO_ACCESSORS to be set
 #endif
 	//.enable_dma = NULL,
-	//.set_clock = NULL,
+	.set_clock = sdhci_bcm2708_set_clock,
 	.get_max_clock = sdhci_bcm2708_get_max_clock,
 	//.get_min_clock = NULL,
 	.get_timeout_clock = sdhci_bcm2708_get_timeout_clock,
@@ -1282,7 +1363,9 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 	host->irq = platform_get_irq(pdev, 0);
 
 	host->quirks = SDHCI_QUIRK_BROKEN_CARD_DETECTION |
-		       SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK;
+		       SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
+		       SDHCI_QUIRK_BROKEN_TIMEOUT_VAL |
+		       SDHCI_QUIRK_NONSTANDARD_CLOCK;
 #ifdef CONFIG_MMC_SDHCI_BCM2708_DMA
 	host->flags = SDHCI_USE_PLATDMA;
 #endif
@@ -1349,6 +1432,8 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 	    host_priv->cb_base, (unsigned)host_priv->cb_handle,
 	    host_priv->dma_chan, host_priv->dma_chan_base,
 	    host_priv->dma_irq);
+
+	host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
 #endif
 
 	ret = sdhci_add_host(host);
