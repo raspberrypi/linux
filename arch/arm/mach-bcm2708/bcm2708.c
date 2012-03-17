@@ -155,25 +155,44 @@ void __init bcm2708_map_io(void)
 	iotable_init(bcm2708_io_desc, ARRAY_SIZE(bcm2708_io_desc));
 }
 
-unsigned long frc_clock_ticks32(void)
+// The STC is a free running counter that increments at the rate of 1MHz
+#define STC_FREQ_HZ 1000000
+
+static cycle_t stc_read_cycles(struct clocksource *cs)
 {
 	/* STC: a free running counter that increments at the rate of 1MHz */
-	return readl(__io_address(ST_BASE + 0x04));
+	return (cycle_t)readl(__io_address(ST_BASE+0x04));
 }
 
-unsigned long long frc_clock_ticks63(void)
+static struct clocksource clocksource_stc = {
+	.name       = "stc",
+	.rating     = 300,
+	.read       = stc_read_cycles,
+	.mask       = CLOCKSOURCE_MASK(32),
+	.flags      = CLOCK_SOURCE_IS_CONTINUOUS,
+};
+
+unsigned long frc_clock_ticks32(void)
 {
-	unsigned long t = frc_clock_ticks32();
-	/* For cnt32_to_63 to work correctly we MUST call this routine
-	 * at least once every half-32-bit-wraparound period - that's once
-	 * every 35minutes or so - using it in sched_clock() should ensure this
-	 */
-	return cnt32_to_63(t);
+	return (unsigned long)stc_read_cycles(&clocksource_stc);
+}
+
+static void __init bcm2708_clocksource_init(void)
+{
+	// calculate .shift and .mult values and register clocksource
+	if (clocksource_register_hz(&clocksource_stc, STC_FREQ_HZ))
+	{
+		printk(KERN_ERR "timer: failed to initialize clock "
+			"source %s\n", clocksource_stc.name);
+	}
 }
 
 unsigned long long sched_clock(void)
 {
-	return 1000ull * frc_clock_ticks63();
+	return clocksource_cyc2ns(clocksource_stc.read(
+		 &clocksource_stc),
+		 clocksource_stc.mult,
+		 clocksource_stc.shift);
 }
 
 /*
@@ -484,6 +503,7 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_emmc_device);
 #endif
 	bcm2708_init_led();
+
 #ifdef CONFIG_BCM2708_VCMEM
 	{
 		extern void vc_mem_connected_init(void);
@@ -521,13 +541,13 @@ static void timer_set_mode(enum clock_event_mode mode,
 
 }
 
-static int timer_set_next_event(unsigned long evt,
+static int timer_set_next_event(unsigned long cycles,
 				struct clock_event_device *unused)
 {
 	unsigned long stc;
 
 	stc = readl(__io_address(ST_BASE + 0x04));
-	writel(stc + TIMER_PERIOD, __io_address(ST_BASE + 0x18));	/* stc3 */
+	writel(stc + cycles, __io_address(ST_BASE + 0x18));	/* stc3 */
 	return 0;
 }
 
@@ -564,6 +584,9 @@ static struct irqaction bcm2708_timer_irq = {
  */
 static void __init bcm2708_timer_init(void)
 {
+	/* init high res timer */
+	bcm2708_clocksource_init();
+
 	/*
 	 * Initialise to a known state (all timers off)
 	 */
@@ -574,7 +597,7 @@ static void __init bcm2708_timer_init(void)
 	setup_irq(IRQ_TIMER3, &bcm2708_timer_irq);
 
 	timer0_clockevent.mult =
-	    div_sc(1000000, NSEC_PER_SEC, timer0_clockevent.shift);
+	    div_sc(STC_FREQ_HZ, NSEC_PER_SEC, timer0_clockevent.shift);
 	timer0_clockevent.max_delta_ns =
 	    clockevent_delta2ns(0xffffffff, &timer0_clockevent);
 	timer0_clockevent.min_delta_ns =
