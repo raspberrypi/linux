@@ -510,7 +510,8 @@ static void schci_bcm2708_cb_read(struct sdhci_bcm2708_priv *host,
 	cb->stride = 0;
 
 	if (is_last) {
-		cb->info |= BCM2708_DMA_INT_EN;
+		cb->info |= BCM2708_DMA_INT_EN |
+		     BCM2708_DMA_WAIT_RESP;
 		cb->next = 0;
 	} else
 		cb->next = host->cb_handle +
@@ -541,7 +542,8 @@ static void schci_bcm2708_cb_write(struct sdhci_bcm2708_priv *host,
 	cb->stride = 0;
 
 	if (is_last) {
-		cb->info |= BCM2708_DMA_INT_EN;
+		cb->info |= BCM2708_DMA_INT_EN |
+		     BCM2708_DMA_WAIT_RESP;
 		cb->next = 0;
 	} else
 		cb->next = host->cb_handle +
