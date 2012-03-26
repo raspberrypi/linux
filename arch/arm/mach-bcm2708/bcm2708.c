@@ -422,6 +422,16 @@ struct platform_device bcm2708_powerman_device = {
 		.coherent_dma_mask = 0xffffffffUL},
 };
 
+
+static struct platform_device bcm2708_alsa_devices[] = {
+	[0] =	{
+		.name = "bcm2835_AUD0",
+		.id = 0,		/* first audio device */
+		.resource = 0,
+		.num_resources = 0,
+		},
+};
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -469,6 +479,8 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_emmc_device);
 #endif
 	bcm2708_init_led();
+	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
+		bcm_register_device(&bcm2708_alsa_devices[i]);
 
 #ifdef CONFIG_BCM2708_VCMEM
 	{
