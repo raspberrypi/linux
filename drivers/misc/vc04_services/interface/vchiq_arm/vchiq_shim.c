@@ -859,10 +859,38 @@ int32_t vchi_service_create( VCHI_INSTANCE_T instance_handle,
 
 int32_t vchi_service_close( const VCHI_SERVICE_HANDLE_T handle )
 {
-   vcos_unused(handle);
+   int32_t ret = -1;
+   SHIM_SERVICE_T *service = (SHIM_SERVICE_T *)handle;
+   if(service)
+   {
+      VCHIQ_STATUS_T status = vchiq_close_service(service->handle);
+      if (status == VCHIQ_SUCCESS)
+      {
+         service_free(service);
+         service = NULL;
+      }
 
-   // YTI??
-   return 0;
+      ret = vchiq_status_to_vchi( status );
+   }
+   return ret;
+}
+
+int32_t vchi_service_destroy( const VCHI_SERVICE_HANDLE_T handle )
+{
+   int32_t ret = -1;
+   SHIM_SERVICE_T *service = (SHIM_SERVICE_T *)handle;
+   if(service)
+   {
+      VCHIQ_STATUS_T status = vchiq_remove_service(service->handle);
+      if (status == VCHIQ_SUCCESS)
+      {
+         service_free(service);
+         service = NULL;
+      }
+
+      ret = vchiq_status_to_vchi( status );
+   }
+   return ret;
 }
 
 /* ----------------------------------------------------------------------
@@ -962,9 +990,12 @@ EXPORT_SYMBOL(vchi_bulk_queue_transmit);
 EXPORT_SYMBOL(vchi_msg_dequeue);
 EXPORT_SYMBOL(vchi_msg_queue);
 EXPORT_SYMBOL(vchi_msg_queuev);
+EXPORT_SYMBOL(vchi_msg_peek);
+EXPORT_SYMBOL(vchi_msg_remove);
 EXPORT_SYMBOL(vchi_service_close);
 EXPORT_SYMBOL(vchi_service_open);
 EXPORT_SYMBOL(vchi_service_create);
+EXPORT_SYMBOL(vchi_service_destroy);
 EXPORT_SYMBOL(vchi_service_use);
 EXPORT_SYMBOL(vchi_service_release);
 #endif
