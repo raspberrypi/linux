@@ -2,6 +2,8 @@ obj-$(CONFIG_BCM2708_VCHIQ)	+= vchiq.o
 
 vchiq-objs := \
    interface/vchiq_arm/vchiq_core.o  \
+   interface/vchiq_arm/vchiq_shim.o  \
+   interface/vchiq_arm/vchiq_util.o  \
    interface/vchiq_arm/vchiq_arm.o \
    interface/vchiq_arm/vchiq_kern_lib.o \
    interface/vchiq_arm/vchiq_2835_arm.o \
@@ -13,7 +15,7 @@ vchiq-objs := \
    interface/vcos/generic/vcos_mem_from_malloc.o \
    interface/vcos/generic/vcos_cmd.o
 
-EXTRA_CFLAGS += -DVCOS_VERIFY_BKPTS=1 -Idrivers/misc/vc04_services -Idrivers/misc/vc04_services/interface/vcos/linuxkernel
+EXTRA_CFLAGS += -DVCOS_VERIFY_BKPTS=1 -DUSE_VCHIQ_ARM -D__VCCOREVER__=0x04000000 -Idrivers/misc/vc04_services -Idrivers/misc/vc04_services/interface/vcos/linuxkernel
 
 
 
