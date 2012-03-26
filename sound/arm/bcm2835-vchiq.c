@@ -570,8 +570,6 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	VC_AUDIO_MSG_T m;
 	AUDIO_INSTANCE_T *instance = alsa_stream->instance;
 	int32_t success;
-	uint32_t chmap_value;
-	int i;
 	int ret;
 	LOG_DBG(" .. IN\n");
 
@@ -595,21 +593,10 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 
 	instance->result = -1;
 
-	if (alsa_stream->chip->cea_chmap >= 0) {
-		chmap_value = (unsigned)alsa_stream->chip->cea_chmap << 24;
-	} else {
-		chmap_value = 0; /* force stereo */
-		for (i = 0; i < 8; i++)
-			alsa_stream->chip->map_channels[i] = i;
-	}
-	for (i = 0; i < 8; i++)
-		chmap_value |= alsa_stream->chip->map_channels[i] << (i * 3);
-
 	m.type = VC_AUDIO_MSG_TYPE_CONFIG;
 	m.u.config.channels = channels;
 	m.u.config.samplerate = samplerate;
 	m.u.config.bps = bps;
-	m.u.config.channelmap = chmap_value;
 
 	/* Create the message available completion */
 	init_completion(&instance->msg_avail_comp);
