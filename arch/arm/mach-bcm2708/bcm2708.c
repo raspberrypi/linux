@@ -431,6 +431,58 @@ struct platform_device bcm2708_powerman_device = {
 		.coherent_dma_mask = 0xffffffffUL},
 };
 
+
+static struct platform_device bcm2708_alsa_devices[] = {
+	[0] = {
+	       .name = "bcm2835_AUD0",
+	       .id = 0,		/* first audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[1] = {
+	       .name = "bcm2835_AUD1",
+	       .id = 1,		/* second audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[2] = {
+	       .name = "bcm2835_AUD2",
+	       .id = 2,		/* third audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[3] = {
+	       .name = "bcm2835_AUD3",
+	       .id = 3,		/* forth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[4] = {
+	       .name = "bcm2835_AUD4",
+	       .id = 4,		/* fifth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[5] = {
+	       .name = "bcm2835_AUD5",
+	       .id = 5,		/* sixth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[6] = {
+	       .name = "bcm2835_AUD6",
+	       .id = 6,		/* seventh audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[7] = {
+	       .name = "bcm2835_AUD7",
+	       .id = 7,		/* eighth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+};
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -539,6 +591,8 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_emmc_device);
 #endif
 	bcm2708_init_led();
+	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
+		bcm_register_device(&bcm2708_alsa_devices[i]);
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];
