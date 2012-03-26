@@ -191,7 +191,7 @@ static int bcm2708_fb_check_var(struct fb_var_screeninfo *var,
 
 static int bcm2708_fb_set_par(struct fb_info *info)
 {
-	unsigned val = 0;
+	uint32_t val = 0;
 	struct bcm2708_fb *fb = to_bcm2708(info);
 	volatile struct fbinfo_s *fbinfo = fb->info;
 	fbinfo->xres = info->var.xres;
@@ -243,7 +243,7 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 	    ("BCM2708FB: start = %p,%p width=%d, height=%d, bpp=%d, pitch=%d size=%d success=%d\n",
 	     (void *)fb->fb.screen_base, (void *)fb->fb.fix.smem_start,
 	     fbinfo->xres, fbinfo->yres, fbinfo->bpp,
-	     fbinfo->pitch, fb->fb.screen_size, val);
+	     fbinfo->pitch, (int)fb->fb.screen_size, val);
 
 	return val;
 }
