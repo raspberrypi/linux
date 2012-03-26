@@ -97,6 +97,12 @@ is_valid_instance(VCHIQ_INSTANCE_T instance)
    return (instance == &vchiq_instance) && (instance->initialised > 0);
 }
 
+static __inline int
+is_valid_service(VCHIQ_SERVICE_T *service)
+{
+   return ((service != NULL) && (service->fd != VCHIQ_INVALID_HANDLE));
+}
+
 /*
  * VCHIQ API
  */
@@ -318,6 +324,9 @@ vchiq_close_service(VCHIQ_SERVICE_HANDLE_T handle)
 
    vcos_log_trace( "%s called service handle = 0x%08x", __func__, (uint32_t)handle );
 
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    RETRY(ret,ioctl(service->fd, VCHIQ_IOC_CLOSE_SERVICE, service->handle));
 
    if (ret != 0)
@@ -334,6 +343,9 @@ vchiq_remove_service(VCHIQ_SERVICE_HANDLE_T handle)
    int ret;
 
    vcos_log_trace( "%s called service handle = 0x%08x", __func__, (uint32_t)handle );
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
 
    RETRY(ret,ioctl(service->fd, VCHIQ_IOC_REMOVE_SERVICE, service->handle));
 
@@ -354,6 +366,9 @@ vchiq_queue_message(VCHIQ_SERVICE_HANDLE_T handle,
    int ret;
 
    vcos_log_trace( "%s called service handle = 0x%08x", __func__, (uint32_t)handle );
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
 
    args.handle = service->handle;
    args.elements = elements;
@@ -384,6 +399,9 @@ vchiq_queue_bulk_transmit(VCHIQ_SERVICE_HANDLE_T handle,
 
    vcos_log_trace( "%s called service handle = 0x%08x", __func__, (uint32_t)handle );
 
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    args.handle = service->handle;
    args.data = (void *)data;
    args.size = size;
@@ -405,6 +423,9 @@ vchiq_queue_bulk_receive(VCHIQ_SERVICE_HANDLE_T handle,
    int ret;
 
    vcos_log_trace( "%s called service handle = 0x%08x", __func__, (uint32_t)handle );
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
 
    args.handle = service->handle;
    args.data = data;
@@ -457,6 +478,9 @@ vchiq_bulk_transmit(VCHIQ_SERVICE_HANDLE_T handle,
 
    vcos_log_trace( "%s called service handle = 0x%08x", __func__, (uint32_t)handle );
 
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    args.handle = service->handle;
    args.data = (void *)data;
    args.size = size;
@@ -479,6 +503,9 @@ vchiq_bulk_receive(VCHIQ_SERVICE_HANDLE_T handle,
    int ret;
 
    vcos_log_trace( "%s called service handle = 0x%08x", __func__, (uint32_t)handle );
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
 
    args.handle = service->handle;
    args.data = data;
@@ -521,6 +548,9 @@ vchiq_get_client_id(VCHIQ_SERVICE_HANDLE_T handle)
 {
    VCHIQ_SERVICE_T *service = (VCHIQ_SERVICE_T *)handle;
 
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    return ioctl(service->fd, VCHIQ_IOC_GET_CLIENT_ID, service->handle);
 }
 
@@ -546,10 +576,14 @@ vchiq_get_config(VCHIQ_INSTANCE_T instance,
 int32_t
 vchiq_use_service( const VCHIQ_SERVICE_HANDLE_T handle )
 {
-    VCHIQ_SERVICE_T *service = (VCHIQ_SERVICE_T *)handle;
-    int ret;
-    RETRY(ret,ioctl(service->fd, VCHIQ_IOC_USE_SERVICE, service->handle));
-    return ret;
+   VCHIQ_SERVICE_T *service = (VCHIQ_SERVICE_T *)handle;
+   int ret;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
+   RETRY(ret,ioctl(service->fd, VCHIQ_IOC_USE_SERVICE, service->handle));
+   return ret;
 }
 
 int32_t
@@ -568,6 +602,9 @@ vchiq_set_service_option(VCHIQ_SERVICE_HANDLE_T handle,
    VCHIQ_SET_SERVICE_OPTION_T args;
    VCHIQ_SERVICE_T *service = (VCHIQ_SERVICE_T *)handle;
    int ret;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
 
    args.handle = service->handle;
    args.option = option;
@@ -633,6 +670,9 @@ vchi_msg_peek( VCHI_SERVICE_HANDLE_T handle,
    VCHI_SERVICE_T *service = (VCHI_SERVICE_T *)handle;
    int ret;
 
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    ret = fill_peek_buf(service, flags);
 
    if (ret == 0)
@@ -658,6 +698,9 @@ int32_t
 vchi_msg_remove( VCHI_SERVICE_HANDLE_T handle )
 {
    VCHI_SERVICE_T *service = (VCHI_SERVICE_T *)handle;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
 
    /* Why would you call vchi_msg_remove without calling vchi_msg_peek first? */
    vcos_assert(service->peek_size >= 0);
@@ -697,6 +740,9 @@ vchi_msg_queue( VCHI_SERVICE_HANDLE_T handle,
    vcos_unused(msg_handle);
    vcos_assert(flags == VCHI_FLAGS_BLOCK_UNTIL_QUEUED);
 
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    args.handle = service->handle;
    args.elements = &element;
    args.count = 1;
@@ -729,6 +775,9 @@ vchi_bulk_queue_receive( VCHI_SERVICE_HANDLE_T handle,
    VCHI_SERVICE_T *service = (VCHI_SERVICE_T *)handle;
    VCHIQ_QUEUE_BULK_TRANSFER_T args;
    int ret;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
 
    switch ((int)flags) {
    case VCHI_FLAGS_CALLBACK_WHEN_OP_COMPLETE | VCHI_FLAGS_BLOCK_UNTIL_QUEUED:
@@ -779,6 +828,9 @@ vchi_bulk_queue_transmit( VCHI_SERVICE_HANDLE_T handle,
    VCHI_SERVICE_T *service = (VCHI_SERVICE_T *)handle;
    VCHIQ_QUEUE_BULK_TRANSFER_T args;
    int ret;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
 
    switch ((int)flags) {
    case VCHI_FLAGS_CALLBACK_WHEN_OP_COMPLETE | VCHI_FLAGS_BLOCK_UNTIL_QUEUED:
@@ -832,6 +884,9 @@ vchi_msg_dequeue( VCHI_SERVICE_HANDLE_T handle,
    int ret;
 
    vcos_assert(flags == VCHI_FLAGS_NONE || flags == VCHI_FLAGS_BLOCK_UNTIL_OP_COMPLETE);
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
 
    if (service->peek_size >= 0)
    {
@@ -903,6 +958,9 @@ vchi_msg_queuev( VCHI_SERVICE_HANDLE_T handle,
 
    vcos_assert(flags == VCHI_FLAGS_BLOCK_UNTIL_QUEUED);
 
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    args.handle = service->handle;
    args.elements = (const VCHIQ_ELEMENT_T *)vector;
    args.count = count;
@@ -960,6 +1018,9 @@ vchi_msg_hold( VCHI_SERVICE_HANDLE_T handle,
 {
    VCHI_SERVICE_T *service = (VCHI_SERVICE_T *)handle;
    int ret;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
 
    ret = fill_peek_buf(service, flags);
 
@@ -1116,6 +1177,10 @@ vchi_service_close( const VCHI_SERVICE_HANDLE_T handle )
 {
    VCHI_SERVICE_T *service = (VCHI_SERVICE_T *)handle;
    int ret;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    RETRY(ret,ioctl(service->fd, VCHIQ_IOC_REMOVE_SERVICE, service->handle));
 
    if (ret == 0)
@@ -1129,6 +1194,10 @@ vchi_service_destroy( const VCHI_SERVICE_HANDLE_T handle )
 {
    VCHI_SERVICE_T *service = (VCHI_SERVICE_T *)handle;
    int ret;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    RETRY(ret,ioctl(service->fd, VCHIQ_IOC_REMOVE_SERVICE, service->handle));
 
    if (ret == 0)
@@ -1200,6 +1269,10 @@ vchi_service_use( const VCHI_SERVICE_HANDLE_T handle )
 {
    VCHI_SERVICE_T *service = (VCHI_SERVICE_T *)handle;
    int ret;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    RETRY(ret,ioctl(service->fd, VCHIQ_IOC_USE_SERVICE, service->handle));
    return ret;
 }
@@ -1218,9 +1291,46 @@ int32_t vchi_service_release( const VCHI_SERVICE_HANDLE_T handle )
 {
    VCHI_SERVICE_T *service = (VCHI_SERVICE_T *)handle;
    int ret;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
    RETRY(ret,ioctl(service->fd, VCHIQ_IOC_RELEASE_SERVICE, service->handle));
    return ret;
 }
+
+/***********************************************************
+ * Name: vchiq_dump_phys_mem
+ *
+ * Arguments: const VCHI_SERVICE_HANDLE_T handle
+ *            void *buffer
+ *            size_t num_bytes
+ *
+ * Description: Dumps the physical memory associated with
+ *              a buffer.
+ *
+ * Returns: void
+ *
+ ***********************************************************/
+VCHIQ_STATUS_T vchiq_dump_phys_mem( VCHIQ_SERVICE_HANDLE_T handle,
+                             void *ptr,
+                             size_t num_bytes )
+{
+   VCHIQ_SERVICE_T *service = (VCHIQ_SERVICE_T *)handle;
+   VCHIQ_DUMP_MEM_T  dump_mem;
+   int ret;
+
+   if (!is_valid_service(service))
+      return VCHIQ_ERROR;
+
+   dump_mem.virt_addr = ptr;
+   dump_mem.num_bytes = num_bytes;
+
+   RETRY(ret,ioctl(service->fd, VCHIQ_IOC_DUMP_PHYS_MEM, &dump_mem));
+   return (ret >= 0) ? VCHIQ_SUCCESS : VCHIQ_ERROR;
+}
+
+
 
 /*
  * Support functions

@@ -55,7 +55,9 @@ typedef enum
 
 typedef enum
 {
-   VCHIQ_SERVICE_OPTION_AUTOCLOSE
+   VCHIQ_SERVICE_OPTION_AUTOCLOSE,
+   VCHIQ_SERVICE_OPTION_SLOT_QUOTA,
+   VCHIQ_SERVICE_OPTION_MESSAGE_QUOTA
 } VCHIQ_SERVICE_OPTION_T;
 
 #ifdef __HIGHC__
@@ -94,11 +96,11 @@ typedef struct vchiq_service_base_struct {
 } VCHIQ_SERVICE_BASE_T;
 
 typedef struct vchiq_service_params_struct {
-  int fourcc;
-  VCHIQ_CALLBACK_T callback;
-  void *userdata;
-  short version;       /* Increment for non-trivial changes */
-  short version_min;   /* Update for incompatible changes */
+   int fourcc;
+   VCHIQ_CALLBACK_T callback;
+   void *userdata;
+   short version;       /* Increment for non-trivial changes */
+   short version_min;   /* Update for incompatible changes */
 } VCHIQ_SERVICE_PARAMS_T;
 
 typedef struct vchiq_config_struct {
@@ -112,6 +114,8 @@ typedef struct vchiq_config_struct {
 } VCHIQ_CONFIG_T;
 
 typedef struct vchiq_instance_struct *VCHIQ_INSTANCE_T;
+typedef void (*VCHIQ_REMOTE_USE_CALLBACK_T)(void* cb_arg);
+
 
 extern VCHIQ_STATUS_T vchiq_initialise(VCHIQ_INSTANCE_T *pinstance);
 extern VCHIQ_STATUS_T vchiq_shutdown(VCHIQ_INSTANCE_T instance);
@@ -142,6 +146,9 @@ extern VCHIQ_STATUS_T vchiq_bulk_receive_handle(VCHIQ_SERVICE_HANDLE_T service, 
 extern int            vchiq_get_client_id(VCHIQ_SERVICE_HANDLE_T service);
 extern VCHIQ_STATUS_T vchiq_get_config(VCHIQ_INSTANCE_T instance, int config_size, VCHIQ_CONFIG_T *pconfig);
 extern VCHIQ_STATUS_T vchiq_set_service_option(VCHIQ_SERVICE_HANDLE_T service, VCHIQ_SERVICE_OPTION_T option, int value);
+
+extern VCHIQ_STATUS_T vchiq_remote_use(VCHIQ_INSTANCE_T instance, VCHIQ_REMOTE_USE_CALLBACK_T callback, void* cb_arg);
+extern VCHIQ_STATUS_T vchiq_remote_release(VCHIQ_INSTANCE_T instance);
 
 extern VCHIQ_STATUS_T vchiq_dump_phys_mem( VCHIQ_SERVICE_HANDLE_T service, void *ptr, size_t num_bytes );
 
