@@ -85,9 +85,11 @@ unsigned long mm_vc_mem_phys_addr = MM_ADDR_IO_VC_EMI;
 #endif
 
 unsigned int mm_vc_mem_size = 0;
+unsigned int mm_vc_mem_base = 0;
 
 EXPORT_SYMBOL(mm_vc_mem_phys_addr);
 EXPORT_SYMBOL(mm_vc_mem_size);
+EXPORT_SYMBOL(mm_vc_mem_base);
 
 /****************************************************************************
 *
@@ -132,36 +134,19 @@ vc_mem_release(struct inode *inode, struct file *file)
 static void
 vc_mem_get_size(void)
 {
-#ifdef CONFIG_ARCH_BCM2708
 	mm_vc_mem_size = 256 * 1024 * 1024;	// Static for now
-#else
-	CHAL_IPC_HANDLE ipc_handle;
-	uint32_t wakeup_register;
+}
 
-	// Get the videocore memory size from the IPC mailbox if not yet
-	// assigned.
-	if (mm_vc_mem_size == 0) {
-		ipc_handle = chal_ipc_config(NULL);
-		if (ipc_handle == NULL) {
-			LOG_ERR("%s: failed to get IPC handlle", __func__);
-			return;
-		}
+/****************************************************************************
+*
+*   vc_mem_get_base
+*
+***************************************************************************/
 
-		chal_ipc_query_wakeup_vc(ipc_handle, &wakeup_register);
-		if ((wakeup_register & ~1) == 0) {
-			LOG_DBG("%s: videocore not yet loaded, skipping...",
-				__func__);
-		} else {
-			if (chal_ipc_read_mailbox(ipc_handle,
-						  IPC_MAILBOX_ID_0,
-						  &mm_vc_mem_size) !=
-			    BCM_SUCCESS) {
-				LOG_ERR("%s: failed to read from IPC mailbox",
-					__func__);
-			}
-		}
-	}
-#endif
+static void
+vc_mem_get_base(void)
+{
+	mm_vc_mem_base = 128 * 1024 * 1024;	// Static for now
 }
 
 /****************************************************************************
@@ -213,6 +198,20 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			vc_mem_get_size();
 
 			LOG_DBG("%s: VC_MEM_IOC_MEM_SIZE=%u", __func__,
+				mm_vc_mem_size);
+
+			if (copy_to_user((void *) arg, &mm_vc_mem_size,
+					 sizeof (mm_vc_mem_size)) != 0) {
+				rc = -EFAULT;
+			}
+			break;
+		}
+	case VC_MEM_IOC_MEM_BASE:
+		{
+			// Get the videocore memory size first
+			vc_mem_get_base();
+
+			LOG_DBG("%s: VC_MEM_IOC_MEM_BASE=%u", __func__,
 				mm_vc_mem_size);
 
 			if (copy_to_user((void *) arg, &mm_vc_mem_size,
