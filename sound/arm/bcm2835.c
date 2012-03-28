@@ -21,9 +21,9 @@
 
 /* module parameters (see "Module Parameters") */
 /* SNDRV_CARDS: maximum number of cards supported by this module */
-static int index[MAX_SUBSTREAMS] = { [0 ... (MAX_SUBSTREAMS - 1)] = -1};
-static char *id[MAX_SUBSTREAMS] = { [0 ... (MAX_SUBSTREAMS - 1)] = NULL};
-static int enable[MAX_SUBSTREAMS] = { [0 ... (MAX_SUBSTREAMS - 1)] = 1 };
+static int index[MAX_SUBSTREAMS] = {[0 ... (MAX_SUBSTREAMS - 1)] = -1 };
+static char *id[MAX_SUBSTREAMS] = {[0 ... (MAX_SUBSTREAMS - 1)] = NULL };
+static int enable[MAX_SUBSTREAMS] = {[0 ... (MAX_SUBSTREAMS - 1)] = 1 };
 
 /* HACKY global pointers needed for successive probes to work : ssp
  * But compared against the changes we will have to do in VC audio_ipc code
@@ -35,12 +35,11 @@ static int enable[MAX_SUBSTREAMS] = { [0 ... (MAX_SUBSTREAMS - 1)] = 1 };
 static struct snd_card *g_card = NULL;
 static bcm2835_chip_t *g_chip = NULL;
 
-static int snd_bcm2835_free(bcm2835_chip_t *chip)
+static int snd_bcm2835_free(bcm2835_chip_t * chip)
 {
 	kfree(chip);
 	return 0;
 }
-
 
 /* component-destructor
  * (see "Management of Cards and Components")
@@ -50,13 +49,12 @@ static int snd_bcm2835_dev_free(struct snd_device *device)
 	return snd_bcm2835_free(device->device_data);
 }
 
-
 /* chip-specific constructor
  * (see "Management of Cards and Components")
  */
 static int __devinit snd_bcm2835_create(struct snd_card *card,
-        struct platform_device *pdev,
-        bcm2835_chip_t **rchip)
+					struct platform_device *pdev,
+					bcm2835_chip_t ** rchip)
 {
 	bcm2835_chip_t *chip;
 	int err;
@@ -88,9 +86,11 @@ static int __devinit snd_bcm2835_alsa_probe(struct platform_device *pdev)
 	bcm2835_chip_t *chip;
 	struct snd_card *card;
 	int err;
-	printk(KERN_INFO"### snd_bcm2835_alsa_probe %p ###", pdev);
+	printk(KERN_INFO "### snd_bcm2835_alsa_probe %p ###", pdev);
 
-	printk("############ PROBING FOR bcm2835 ALSA device (%d):(%d) ###############\n", dev, enable[dev]);
+	printk
+	    ("############ PROBING FOR bcm2835 ALSA device (%d):(%d) ###############\n",
+	     dev, enable[dev]);
 
 	if (dev >= MAX_SUBSTREAMS)
 		return -ENODEV;
@@ -116,21 +116,21 @@ static int __devinit snd_bcm2835_alsa_probe(struct platform_device *pdev)
 	printk("Creating device/chip ..\n");
 	err = snd_bcm2835_create(g_card, pdev, &chip);
 	if (err < 0) {
-		printk(KERN_ERR"Failed to create bcm2835 chip\n");
+		printk(KERN_ERR "Failed to create bcm2835 chip\n");
 		goto out_bcm2835_create;
 	}
 
 	g_chip = chip;
 	err = snd_bcm2835_new_pcm(chip);
 	if (err < 0) {
-		printk(KERN_ERR"Failed to create new BCM2835 pcm device\n");
+		printk(KERN_ERR "Failed to create new BCM2835 pcm device\n");
 		goto out_bcm2835_new_pcm;
 	}
 
 	printk("Adding controls ..\n");
 	err = snd_bcm2835_new_ctl(chip);
 	if (err < 0) {
-		printk(KERN_ERR"Failed to create new BCM2835 ctl\n");
+		printk(KERN_ERR "Failed to create new BCM2835 ctl\n");
 		goto out_bcm2835_new_ctl;
 	}
 
@@ -147,7 +147,8 @@ add_register_map:
 		printk("Registering card ....\n");
 		err = snd_card_register(card);
 		if (err < 0) {
-			printk(KERN_ERR"Failed to register bcm2835 ALSA card \n");
+			printk(KERN_ERR
+			       "Failed to register bcm2835 ALSA card \n");
 			goto out_card_register;
 		}
 		platform_set_drvdata(pdev, card);
@@ -167,11 +168,11 @@ out_bcm2835_new_pcm:
 out_bcm2835_create:
 	BUG_ON(!g_card);
 	if (snd_card_free(g_card))
-		printk(KERN_ERR"Failed to free Registered alsa card\n");
+		printk(KERN_ERR "Failed to free Registered alsa card\n");
 	g_card = NULL;
 out:
-	dev = SNDRV_CARDS; /* stop more avail_substreams from being probed */
-	printk(KERN_ERR"BCM2835 ALSA Probe failed !!\n");
+	dev = SNDRV_CARDS;	/* stop more avail_substreams from being probed */
+	printk(KERN_ERR "BCM2835 ALSA Probe failed !!\n");
 	return err;
 }
 
@@ -187,14 +188,14 @@ static int snd_bcm2835_alsa_remove(struct platform_device *pdev)
 		snd_card_free((struct snd_card *)drv_data);
 		g_card = NULL;
 		g_chip = NULL;
-	} else  {
-		idx = (uint32_t)drv_data;
+	} else {
+		idx = (uint32_t) drv_data;
 		if (g_card != NULL) {
 			BUG_ON(!g_chip);
 			/* We pass chip device numbers in audio ipc devices
 			 * other than the one we registered our card with
 			 */
-			idx = (uint32_t)drv_data;
+			idx = (uint32_t) drv_data;
 			BUG_ON(!idx || idx > MAX_SUBSTREAMS);
 			g_chip->avail_substreams &= ~(1 << idx);
 			/* There should be atleast one substream registered
@@ -211,7 +212,8 @@ static int snd_bcm2835_alsa_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
-static int snd_bcm2835_alsa_suspend(struct platform_device *pdev, pm_message_t state)
+static int snd_bcm2835_alsa_suspend(struct platform_device *pdev,
+				    pm_message_t state)
 {
 	return 0;
 }
@@ -223,118 +225,109 @@ static int snd_bcm2835_alsa_resume(struct platform_device *pdev)
 
 #endif
 
-static struct platform_driver bcm2835_alsa0_driver =
-{
-	.probe      = snd_bcm2835_alsa_probe,
-	.remove     = snd_bcm2835_alsa_remove,
+static struct platform_driver bcm2835_alsa0_driver = {
+	.probe = snd_bcm2835_alsa_probe,
+	.remove = snd_bcm2835_alsa_remove,
 #ifdef CONFIG_PM
-	.suspend    = snd_bcm2835_alsa_suspend,
-	.resume     = snd_bcm2835_alsa_resume,
+	.suspend = snd_bcm2835_alsa_suspend,
+	.resume = snd_bcm2835_alsa_resume,
 #endif
-	.driver     = {
-		.name   = "bcm2835_AUD0",
-		.owner  = THIS_MODULE,
-	},
+	.driver = {
+		   .name = "bcm2835_AUD0",
+		   .owner = THIS_MODULE,
+		   },
 };
 
-static struct platform_driver bcm2835_alsa1_driver =
-{
-	.probe      = snd_bcm2835_alsa_probe,
-	.remove     = snd_bcm2835_alsa_remove,
+static struct platform_driver bcm2835_alsa1_driver = {
+	.probe = snd_bcm2835_alsa_probe,
+	.remove = snd_bcm2835_alsa_remove,
 #ifdef CONFIG_PM
-	.suspend    = snd_bcm2835_alsa_suspend,
-	.resume     = snd_bcm2835_alsa_resume,
+	.suspend = snd_bcm2835_alsa_suspend,
+	.resume = snd_bcm2835_alsa_resume,
 #endif
-	.driver     = {
-		.name   = "bcm2835_AUD1",
-		.owner  = THIS_MODULE,
-	},
+	.driver = {
+		   .name = "bcm2835_AUD1",
+		   .owner = THIS_MODULE,
+		   },
 };
 
-static struct platform_driver bcm2835_alsa2_driver =
-{
-	.probe      = snd_bcm2835_alsa_probe,
-	.remove     = snd_bcm2835_alsa_remove,
+static struct platform_driver bcm2835_alsa2_driver = {
+	.probe = snd_bcm2835_alsa_probe,
+	.remove = snd_bcm2835_alsa_remove,
 #ifdef CONFIG_PM
-	.suspend    = snd_bcm2835_alsa_suspend,
-	.resume     = snd_bcm2835_alsa_resume,
+	.suspend = snd_bcm2835_alsa_suspend,
+	.resume = snd_bcm2835_alsa_resume,
 #endif
-	.driver     = {
-		.name   = "bcm2835_AUD2",
-		.owner  = THIS_MODULE,
-	},
+	.driver = {
+		   .name = "bcm2835_AUD2",
+		   .owner = THIS_MODULE,
+		   },
 };
 
-static struct platform_driver bcm2835_alsa3_driver =
-{
-	.probe      = snd_bcm2835_alsa_probe,
-	.remove     = snd_bcm2835_alsa_remove,
+static struct platform_driver bcm2835_alsa3_driver = {
+	.probe = snd_bcm2835_alsa_probe,
+	.remove = snd_bcm2835_alsa_remove,
 #ifdef CONFIG_PM
-	.suspend    = snd_bcm2835_alsa_suspend,
-	.resume     = snd_bcm2835_alsa_resume,
+	.suspend = snd_bcm2835_alsa_suspend,
+	.resume = snd_bcm2835_alsa_resume,
 #endif
-	.driver     = {
-		.name   = "bcm2835_AUD3",
-		.owner  = THIS_MODULE,
-	},
+	.driver = {
+		   .name = "bcm2835_AUD3",
+		   .owner = THIS_MODULE,
+		   },
 };
 
-static struct platform_driver bcm2835_alsa4_driver =
-{
-	.probe      = snd_bcm2835_alsa_probe,
-	.remove     = snd_bcm2835_alsa_remove,
+static struct platform_driver bcm2835_alsa4_driver = {
+	.probe = snd_bcm2835_alsa_probe,
+	.remove = snd_bcm2835_alsa_remove,
 #ifdef CONFIG_PM
-	.suspend    = snd_bcm2835_alsa_suspend,
-	.resume     = snd_bcm2835_alsa_resume,
+	.suspend = snd_bcm2835_alsa_suspend,
+	.resume = snd_bcm2835_alsa_resume,
 #endif
-	.driver     = {
-		.name   = "bcm2835_AUD4",
-		.owner  = THIS_MODULE,
-	},
+	.driver = {
+		   .name = "bcm2835_AUD4",
+		   .owner = THIS_MODULE,
+		   },
 };
 
-static struct platform_driver bcm2835_alsa5_driver =
-{
-	.probe      = snd_bcm2835_alsa_probe,
-	.remove     = snd_bcm2835_alsa_remove,
+static struct platform_driver bcm2835_alsa5_driver = {
+	.probe = snd_bcm2835_alsa_probe,
+	.remove = snd_bcm2835_alsa_remove,
 #ifdef CONFIG_PM
-	.suspend    = snd_bcm2835_alsa_suspend,
-	.resume     = snd_bcm2835_alsa_resume,
+	.suspend = snd_bcm2835_alsa_suspend,
+	.resume = snd_bcm2835_alsa_resume,
 #endif
-	.driver     = {
-		.name   = "bcm2835_AUD5",
-		.owner  = THIS_MODULE,
-	},
+	.driver = {
+		   .name = "bcm2835_AUD5",
+		   .owner = THIS_MODULE,
+		   },
 };
 
-static struct platform_driver bcm2835_alsa6_driver =
-{
-	.probe      = snd_bcm2835_alsa_probe,
-	.remove     = snd_bcm2835_alsa_remove,
+static struct platform_driver bcm2835_alsa6_driver = {
+	.probe = snd_bcm2835_alsa_probe,
+	.remove = snd_bcm2835_alsa_remove,
 #ifdef CONFIG_PM
-	.suspend    = snd_bcm2835_alsa_suspend,
-	.resume     = snd_bcm2835_alsa_resume,
+	.suspend = snd_bcm2835_alsa_suspend,
+	.resume = snd_bcm2835_alsa_resume,
 #endif
-	.driver     = {
-		.name   = "bcm2835_AUD6",
-		.owner  = THIS_MODULE,
-	},
+	.driver = {
+		   .name = "bcm2835_AUD6",
+		   .owner = THIS_MODULE,
+		   },
 };
 
-static struct platform_driver bcm2835_alsa7_driver =
-{
-	.probe      = snd_bcm2835_alsa_probe,
-	.remove     = snd_bcm2835_alsa_remove,
+static struct platform_driver bcm2835_alsa7_driver = {
+	.probe = snd_bcm2835_alsa_probe,
+	.remove = snd_bcm2835_alsa_remove,
 #ifdef CONFIG_PM
-	.suspend    = snd_bcm2835_alsa_suspend,
-	.resume     = snd_bcm2835_alsa_resume,
+	.suspend = snd_bcm2835_alsa_suspend,
+	.resume = snd_bcm2835_alsa_resume,
 #endif
-	.driver     = {
-		.name   = "bcm2835_AUD7",
-		.owner  = THIS_MODULE,
-	},
+	.driver = {
+		   .name = "bcm2835_AUD7",
+		   .owner = THIS_MODULE,
+		   },
 };
-
 
 static int __devinit bcm2835_alsa_device_init(void)
 {
@@ -386,7 +379,8 @@ static int __devinit bcm2835_alsa_device_init(void)
 		printk("Error registering bcm2835_alsa7_driver %d .\n", err);
 		goto unregister_6;
 	}
-	printk(KERN_INFO"### BCM2835 ALSA driver init %s ### \n",err ? "FAILED": "OK");
+	printk(KERN_INFO "### BCM2835 ALSA driver init %s ### \n",
+	       err ? "FAILED" : "OK");
 
 	return 0;
 
@@ -408,19 +402,22 @@ out:
 	return err;
 }
 
-
-
 static void __devexit bcm2835_alsa_device_exit(void)
 {
-    platform_driver_unregister(&bcm2835_alsa0_driver);
-    platform_driver_unregister(&bcm2835_alsa1_driver);
-    platform_driver_unregister(&bcm2835_alsa2_driver);
-    platform_driver_unregister(&bcm2835_alsa3_driver);
-    platform_driver_unregister(&bcm2835_alsa4_driver);
-    platform_driver_unregister(&bcm2835_alsa5_driver);
-    platform_driver_unregister(&bcm2835_alsa6_driver);
-    platform_driver_unregister(&bcm2835_alsa7_driver);
+	platform_driver_unregister(&bcm2835_alsa0_driver);
+	platform_driver_unregister(&bcm2835_alsa1_driver);
+	platform_driver_unregister(&bcm2835_alsa2_driver);
+	platform_driver_unregister(&bcm2835_alsa3_driver);
+	platform_driver_unregister(&bcm2835_alsa4_driver);
+	platform_driver_unregister(&bcm2835_alsa5_driver);
+	platform_driver_unregister(&bcm2835_alsa6_driver);
+	platform_driver_unregister(&bcm2835_alsa7_driver);
 }
 
 late_initcall(bcm2835_alsa_device_init);
 module_exit(bcm2835_alsa_device_exit);
+
+MODULE_AUTHOR("Dom Cobley");
+MODULE_DESCRIPTION("Alsa driver for BCM2835 chip");
+MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:bcm2835_alsa");
