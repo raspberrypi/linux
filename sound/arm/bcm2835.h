@@ -13,7 +13,7 @@
 *****************************************************************************/
 
 #ifndef __SOUND_ARM_BCM2835_H
-#define __SOUND_ARM_BCM2835_H 
+#define __SOUND_ARM_BCM2835_H
 
 #define SUBSTREAM_NUM 1
 
@@ -74,39 +74,39 @@
 #define AUDIO_IPC_BLOCK_BUFFER_SIZE    (1024*8)
 
 #define AUDIO_CONTROL_OFFSET			(0x00)
-	#define CTRL_EN_SHIFT			(0)
-	#define CTRL_EN_MASK			(0x00000001)
-	#define CTRL_PLAY_SHIFT			(1)
-	#define CTRL_PLAY_MASK			(0x00000002)
-	#define CTRL_MUTE_SHIFT			(2)
-	#define CTRL_MUTE_MASK			(0x00000004)
-	#define CTRL_SETUP_SHIFT		(3)
-	#define CTRL_SETUP_MASK			(0x00000008)
-	#define CTRL_FLUSH_SHIFT	    (4)
-	#define CTRL_FLUSH_MASK			(0x00000010)
-    #define CTRL_STOPMODE_SHIFT	    (5)
-	#define CTRL_STOPMODE_MASK		(0x00000020)
+#define CTRL_EN_SHIFT			(0)
+#define CTRL_EN_MASK			(0x00000001)
+#define CTRL_PLAY_SHIFT			(1)
+#define CTRL_PLAY_MASK			(0x00000002)
+#define CTRL_MUTE_SHIFT			(2)
+#define CTRL_MUTE_MASK			(0x00000004)
+#define CTRL_SETUP_SHIFT		(3)
+#define CTRL_SETUP_MASK			(0x00000008)
+#define CTRL_FLUSH_SHIFT	    (4)
+#define CTRL_FLUSH_MASK			(0x00000010)
+#define CTRL_STOPMODE_SHIFT	    (5)
+#define CTRL_STOPMODE_MASK		(0x00000020)
 
 #define AUDIO_STATUS_OFFSET			(0x04)
-	#define STAT_EN_SHIFT			(0)
-	#define STAT_EN_MASK			(0x00000001)
-	#define STAT_PLAY_SHIFT			(1)
-	#define STAT_PLAY_MASK			(0x00000002)
-	#define STAT_MUTE_SHIFT			(2)
-	#define STAT_MUTE_MASK			(0x00000004)
-	#define STAT_SETUP_SHIFT		(3)
-	#define STAT_SETUP_MASK			(0x00000008)
-	#define STAT_FLUSH_SHIFT	    (4)
-	#define STAT_FLUSH_MASK			(0x00000010)
-	#define STAT_STOPMODE_SHIFT	    (5)
-	#define STAT_STOPMODE_MASK		(0x00000020)
+#define STAT_EN_SHIFT			(0)
+#define STAT_EN_MASK			(0x00000001)
+#define STAT_PLAY_SHIFT			(1)
+#define STAT_PLAY_MASK			(0x00000002)
+#define STAT_MUTE_SHIFT			(2)
+#define STAT_MUTE_MASK			(0x00000004)
+#define STAT_SETUP_SHIFT		(3)
+#define STAT_SETUP_MASK			(0x00000008)
+#define STAT_FLUSH_SHIFT	    (4)
+#define STAT_FLUSH_MASK			(0x00000010)
+#define STAT_STOPMODE_SHIFT	    (5)
+#define STAT_STOPMODE_MASK		(0x00000020)
 
 /* Interrupt status */
 #define AUDIO_INTSTAT_OFFSET			(0x08)
-	#define INTSTAT_CONTROL_SHIFT		(0)
-	#define INTSTAT_CONTROL_MASK		(0x0000000f)
-	#define INTSTAT_FIFO_SHIFT		(4)
-	#define INTSTAT_FIFO_MASK		(0x000000f0)
+#define INTSTAT_CONTROL_SHIFT		(0)
+#define INTSTAT_CONTROL_MASK		(0x0000000f)
+#define INTSTAT_FIFO_SHIFT		(4)
+#define INTSTAT_FIFO_MASK		(0x000000f0)
 
 /* Configuration */
 #define AUDIO_DESTINATION_OFFSET		(0x0C)
@@ -139,12 +139,12 @@
 /* 8 entries here of 4 words each = 0x80 gap from 0xF0 */
 #define AUDIO_OUT_FIFO_OFFSET			(0xF0)
 
-
 /* Some constants for values .. */
 typedef enum {
-	AUDIO_DEST_LOCAL = 0,
-	AUDIO_DEST_HDMI	= 2,
-	AUDIO_DEST_ALL = 3,
+	AUDIO_DEST_AUTO = 0,
+	AUDIO_DEST_HEADPHONES = 1,
+	AUDIO_DEST_HDMI = 2,
+	AUDIO_DEST_MAX,
 } SND_BCM2835_ROUTE_T;
 
 typedef enum {
@@ -154,8 +154,7 @@ typedef enum {
 } SND_BCM2835_CTRL_T;
 
 /* this struct is tightly packed - its size is 16bytes */
-typedef struct
-{
+typedef struct {
 	uint32_t buffer_id;
 	uint32_t buffer_size;
 	uint32_t buffer_ptr;
@@ -179,13 +178,13 @@ typedef struct bcm2835_chip {
 
 typedef struct bcm2835_audio_buffer {
 	uint32_t buffer_id;
-	phys_addr_t	bus_addr;
-	uint8_t __iomem	*start;
+	phys_addr_t bus_addr;
+	uint8_t __iomem *start;
 	uint32_t size;
 	uint32_t data_left;
 	struct list_head link;
 
-} bcm2835_audio_buffer_t; 
+} bcm2835_audio_buffer_t;
 
 typedef struct bcm2835_alsa_stream {
 	bcm2835_chip_t *chip;
@@ -215,25 +214,29 @@ typedef struct bcm2835_alsa_stream {
 	atomic_t retrieved;
 	struct opaque_AUDIO_INSTANCE_T *instance;
 	struct workqueue_struct *my_wq;
+	int idx;
 } bcm2835_alsa_stream_t;
 
-int snd_bcm2835_new_ctl(bcm2835_chip_t *chip);
-int snd_bcm2835_new_pcm(bcm2835_chip_t *chip);
+int snd_bcm2835_new_ctl(bcm2835_chip_t * chip);
+int snd_bcm2835_new_pcm(bcm2835_chip_t * chip);
 
-void bcm2835_audio_fifo_get_lock(bcm2835_alsa_stream_t *alsa_stream);
-void bcm2835_audio_fifo_put_lock(bcm2835_alsa_stream_t *alsa_stream);
+void bcm2835_audio_fifo_get_lock(bcm2835_alsa_stream_t * alsa_stream);
+void bcm2835_audio_fifo_put_lock(bcm2835_alsa_stream_t * alsa_stream);
 
-int bcm2835_audio_open(bcm2835_alsa_stream_t *alsa_stream);
-int bcm2835_audio_close(bcm2835_alsa_stream_t *alsa_stream);
-int bcm2835_audio_set_params(bcm2835_alsa_stream_t *alsa_stream, uint32_t channels, uint32_t samplerate, uint32_t bps);
-int bcm2835_audio_setup(bcm2835_alsa_stream_t *alsa_stream);
-int bcm2835_audio_start(bcm2835_alsa_stream_t *alsa_stream);
-int bcm2835_audio_stop(bcm2835_alsa_stream_t *alsa_stream);
-int bcm2835_audio_set_ctls(bcm2835_chip_t *chip);
-int bcm2835_audio_write(bcm2835_alsa_stream_t *alsa_stream, uint32_t count, void *src);
+int bcm2835_audio_open(bcm2835_alsa_stream_t * alsa_stream);
+int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream);
+int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
+			     uint32_t channels, uint32_t samplerate,
+			     uint32_t bps);
+int bcm2835_audio_setup(bcm2835_alsa_stream_t * alsa_stream);
+int bcm2835_audio_start(bcm2835_alsa_stream_t * alsa_stream);
+int bcm2835_audio_stop(bcm2835_alsa_stream_t * alsa_stream);
+int bcm2835_audio_set_ctls(bcm2835_chip_t * chip);
+int bcm2835_audio_write(bcm2835_alsa_stream_t * alsa_stream, uint32_t count,
+			void *src);
 //uint32_t bcm2835_audio_buffers_consumed_bytes(bcm2835_alsa_stream_t *alsa_stream);
-uint32_t bcm2835_audio_retrieve_buffers(bcm2835_alsa_stream_t *alsa_stream);
-void bcm2835_audio_flush_buffers(bcm2835_alsa_stream_t *alsa_stream);
-void bcm2835_audio_flush_playback_buffers(bcm2835_alsa_stream_t *alsa_stream);
+uint32_t bcm2835_audio_retrieve_buffers(bcm2835_alsa_stream_t * alsa_stream);
+void bcm2835_audio_flush_buffers(bcm2835_alsa_stream_t * alsa_stream);
+void bcm2835_audio_flush_playback_buffers(bcm2835_alsa_stream_t * alsa_stream);
 
 #endif /* __SOUND_ARM_BCM2835_H */

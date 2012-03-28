@@ -33,30 +33,31 @@
 
 #include "bcm2835.h"
 
-static int snd_bcm2835_ctl_info(struct snd_kcontrol * kcontrol,
-		struct snd_ctl_elem_info * uinfo)
+static int snd_bcm2835_ctl_info(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_info *uinfo)
 {
 	if (kcontrol->private_value == PCM_PLAYBACK_VOLUME) {
-		uinfo->type			= SNDRV_CTL_ELEM_TYPE_INTEGER;
-		uinfo->count			= 1;
-		uinfo->value.integer.min	= -10240;
-		uinfo->value.integer.max	= 2303;
+		uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+		uinfo->count = 1;
+		uinfo->value.integer.min = -10240;
+		uinfo->value.integer.max = 2303;
 	} else if (kcontrol->private_value == PCM_PLAYBACK_MUTE) {
-		uinfo->type			= SNDRV_CTL_ELEM_TYPE_INTEGER;
-		uinfo->count			= 1;
-		uinfo->value.integer.min	= 0;
-		uinfo->value.integer.max	= 1;
+		uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+		uinfo->count = 1;
+		uinfo->value.integer.min = 0;
+		uinfo->value.integer.max = 1;
 	} else if (kcontrol->private_value == PCM_PLAYBACK_DEVICE) {
-		uinfo->type			= SNDRV_CTL_ELEM_TYPE_INTEGER;
-		uinfo->count			= 1;
-		uinfo->value.integer.min	= AUDIO_DEST_LOCAL;
-		uinfo->value.integer.max	= AUDIO_DEST_ALL;
+		uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+		uinfo->count = 1;
+		uinfo->value.integer.min = 0;
+		uinfo->value.integer.max = AUDIO_DEST_MAX-0;
 	}
 
 	return 0;
 }
 
-static int snd_bcm2835_ctl_get(struct snd_kcontrol * kcontrol, struct snd_ctl_elem_value * ucontrol)
+static int snd_bcm2835_ctl_get(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
 {
 	struct bcm2835_chip *chip = snd_kcontrol_chip(kcontrol);
 
@@ -72,7 +73,8 @@ static int snd_bcm2835_ctl_get(struct snd_kcontrol * kcontrol, struct snd_ctl_el
 	return 0;
 }
 
-static int snd_bcm2835_ctl_put(struct snd_kcontrol * kcontrol, struct snd_ctl_elem_value * ucontrol)
+static int snd_bcm2835_ctl_put(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
 {
 	struct bcm2835_chip *chip = snd_kcontrol_chip(kcontrol);
 	int changed = 0;
@@ -82,7 +84,8 @@ static int snd_bcm2835_ctl_put(struct snd_kcontrol * kcontrol, struct snd_ctl_el
 			chip->mute = 0;
 			changed = 1;
 		}
-		if (changed || (ucontrol->value.integer.value[0] != chip->volume)) {
+		if (changed
+		    || (ucontrol->value.integer.value[0] != chip->volume)) {
 			int atten;
 
 			chip->volume = ucontrol->value.integer.value[0];
@@ -92,21 +95,21 @@ static int snd_bcm2835_ctl_put(struct snd_kcontrol * kcontrol, struct snd_ctl_el
 		}
 
 	} else if (kcontrol->private_value == PCM_PLAYBACK_MUTE) {
-		// Not implemented
+		/* Not implemented */
 		if (ucontrol->value.integer.value[0] != chip->mute) {
 			chip->mute = ucontrol->value.integer.value[0];
 			changed = 0;
 		}
 	} else if (kcontrol->private_value == PCM_PLAYBACK_DEVICE) {
-		if (ucontrol->value.integer.value[0] != chip->dest && ucontrol->value.integer.value[0] != 1) {
-			chip->dest= ucontrol->value.integer.value[0];
+		if (ucontrol->value.integer.value[0] != chip->dest) {
+			chip->dest = ucontrol->value.integer.value[0];
 			changed = 1;
 		}
 	}
 
 	if (changed) {
 		if (bcm2835_audio_set_ctls(chip))
-			printk(KERN_ERR"Failed to set ALSA controls..\n");
+			printk(KERN_ERR "Failed to set ALSA controls..\n");
 	}
 
 	return changed;
@@ -114,53 +117,54 @@ static int snd_bcm2835_ctl_put(struct snd_kcontrol * kcontrol, struct snd_ctl_el
 
 static DECLARE_TLV_DB_SCALE(snd_bcm2835_db_scale, -10240, 1, 1);
 
-static struct snd_kcontrol_new snd_bcm2835_ctl[] __devinitdata =
-{
+static struct snd_kcontrol_new snd_bcm2835_ctl[] __devinitdata = {
 	{
-		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
-		.name  = "PCM Playback Volume",
-		.index = 0,
-		.access= SNDRV_CTL_ELEM_ACCESS_READWRITE | SNDRV_CTL_ELEM_ACCESS_TLV_READWRITE,
-		.private_value = PCM_PLAYBACK_VOLUME,
-		.info  = snd_bcm2835_ctl_info,
-		.get   = snd_bcm2835_ctl_get,
-		.put   = snd_bcm2835_ctl_put,
-		.count = 1,
-		.tlv = { .p = snd_bcm2835_db_scale }
-	},
+	 .iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+	 .name = "PCM Playback Volume",
+	 .index = 0,
+	 .access =
+	 SNDRV_CTL_ELEM_ACCESS_READWRITE | SNDRV_CTL_ELEM_ACCESS_TLV_READWRITE,
+	 .private_value = PCM_PLAYBACK_VOLUME,
+	 .info = snd_bcm2835_ctl_info,
+	 .get = snd_bcm2835_ctl_get,
+	 .put = snd_bcm2835_ctl_put,
+	 .count = 1,
+	 .tlv = {.p = snd_bcm2835_db_scale}
+	 },
 	{
-		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
-		.name  = "PCM Playback Switch",
-		.index = 0,
-		.access= SNDRV_CTL_ELEM_ACCESS_READWRITE,
-		.private_value = PCM_PLAYBACK_MUTE,
-		.info  = snd_bcm2835_ctl_info,
-		.get   = snd_bcm2835_ctl_get,
-		.put   = snd_bcm2835_ctl_put,
-		.count = 1,
-	},
+	 .iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+	 .name = "PCM Playback Switch",
+	 .index = 0,
+	 .access = SNDRV_CTL_ELEM_ACCESS_READWRITE,
+	 .private_value = PCM_PLAYBACK_MUTE,
+	 .info = snd_bcm2835_ctl_info,
+	 .get = snd_bcm2835_ctl_get,
+	 .put = snd_bcm2835_ctl_put,
+	 .count = 1,
+	 },
 	{
-		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
-		.name  = "PCM Playback Route",
-		.index = 0,
-		.access= SNDRV_CTL_ELEM_ACCESS_READWRITE,
-		.private_value = PCM_PLAYBACK_DEVICE,
-		.info  = snd_bcm2835_ctl_info,
-		.get   = snd_bcm2835_ctl_get,
-		.put   = snd_bcm2835_ctl_put,
-		.count = 1,
-	},
+	 .iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+	 .name = "PCM Playback Route",
+	 .index = 0,
+	 .access = SNDRV_CTL_ELEM_ACCESS_READWRITE,
+	 .private_value = PCM_PLAYBACK_DEVICE,
+	 .info = snd_bcm2835_ctl_info,
+	 .get = snd_bcm2835_ctl_get,
+	 .put = snd_bcm2835_ctl_put,
+	 .count = 1,
+	 },
 };
 
-int __devinit snd_bcm2835_new_ctl(bcm2835_chip_t *chip)
+int __devinit snd_bcm2835_new_ctl(bcm2835_chip_t * chip)
 {
 	int err;
 	unsigned int idx;
 
 	strcpy(chip->card->mixername, "Broadcom Mixer");
-	for (idx = 0; idx < ARRAY_SIZE(snd_bcm2835_ctl); idx++)
-	{
-		err = snd_ctl_add(chip->card, snd_ctl_new1(&snd_bcm2835_ctl[idx], chip));
+	for (idx = 0; idx < ARRAY_SIZE(snd_bcm2835_ctl); idx++) {
+		err =
+		    snd_ctl_add(chip->card,
+				snd_ctl_new1(&snd_bcm2835_ctl[idx], chip));
 		if (err < 0)
 			return err;
 	}
