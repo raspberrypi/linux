@@ -23,106 +23,90 @@
 
 // List of screens that are currently supported
 // All message types supported for HOST->VC direction
-typedef enum
-{
-   VC_AUDIO_MSG_TYPE_RESULT,              // Generic result
-   VC_AUDIO_MSG_TYPE_COMPLETE,              // Generic result
-   VC_AUDIO_MSG_TYPE_CONFIG,                 // Configure audio
-   VC_AUDIO_MSG_TYPE_CONTROL,                 // Configure audio
-   VC_AUDIO_MSG_TYPE_OPEN,                 // Configure audio
-   VC_AUDIO_MSG_TYPE_CLOSE,                 // Configure audio
-   VC_AUDIO_MSG_TYPE_START,                 // Configure audio
-   VC_AUDIO_MSG_TYPE_STOP,                 // Configure audio
-   VC_AUDIO_MSG_TYPE_WRITE,                 // Configure audio
-   VC_AUDIO_MSG_TYPE_MAX
-
+typedef enum {
+	VC_AUDIO_MSG_TYPE_RESULT,	// Generic result
+	VC_AUDIO_MSG_TYPE_COMPLETE,	// Generic result
+	VC_AUDIO_MSG_TYPE_CONFIG,	// Configure audio
+	VC_AUDIO_MSG_TYPE_CONTROL,	// Configure audio
+	VC_AUDIO_MSG_TYPE_OPEN,	// Configure audio
+	VC_AUDIO_MSG_TYPE_CLOSE,	// Configure audio
+	VC_AUDIO_MSG_TYPE_START,	// Configure audio
+	VC_AUDIO_MSG_TYPE_STOP,	// Configure audio
+	VC_AUDIO_MSG_TYPE_WRITE,	// Configure audio
+	VC_AUDIO_MSG_TYPE_MAX
 } VC_AUDIO_MSG_TYPE;
 
-
 // configure the audio
-typedef struct
-{
-   uint32_t channels;
-   uint32_t samplerate;
-   uint32_t bps;
+typedef struct {
+	uint32_t channels;
+	uint32_t samplerate;
+	uint32_t bps;
 
 } VC_AUDIO_CONFIG_T;
 
-typedef struct
-{
-   uint32_t volume;
-   uint32_t dest;
+typedef struct {
+	uint32_t volume;
+	uint32_t dest;
 
 } VC_AUDIO_CONTROL_T;
 
 // audio
-typedef struct
-{
-   uint32_t dummy;
+typedef struct {
+	uint32_t dummy;
 
 } VC_AUDIO_OPEN_T;
 
 // audio
-typedef struct
-{
-   uint32_t dummy;
+typedef struct {
+	uint32_t dummy;
 
 } VC_AUDIO_CLOSE_T;
 // audio
-typedef struct
-{
-   uint32_t dummy;
+typedef struct {
+	uint32_t dummy;
 
 } VC_AUDIO_START_T;
 // audio
-typedef struct
-{
-   uint32_t draining;
+typedef struct {
+	uint32_t draining;
 
 } VC_AUDIO_STOP_T;
 
 // configure the write audio samples
-typedef struct
-{
-   uint32_t count; // in bytes
-   void *callback;
-   void *cookie;
-   uint32_t silence;
+typedef struct {
+	uint32_t count;		// in bytes
+	void *callback;
+	void *cookie;
+	uint32_t silence;
 } VC_AUDIO_WRITE_T;
 
 // Generic result for a request (VC->HOST)
-typedef struct
-{
-   int32_t success;  // Success value
+typedef struct {
+	int32_t success;	// Success value
 
 } VC_AUDIO_RESULT_T;
 
 // Generic result for a request (VC->HOST)
-typedef struct
-{
-   int32_t count;  // Success value
-   void *callback;
-   void *cookie;
+typedef struct {
+	int32_t count;		// Success value
+	void *callback;
+	void *cookie;
 } VC_AUDIO_COMPLETE_T;
 
 // Message header for all messages in HOST->VC direction
-typedef struct
-{
-   int32_t type;     // Message type (VC_AUDIO_MSG_TYPE)
-   union
-   {
-	VC_AUDIO_CONFIG_T    config;
-   VC_AUDIO_CONTROL_T   control;
-	VC_AUDIO_OPEN_T  open;
-	VC_AUDIO_CLOSE_T  close;
-	VC_AUDIO_START_T  start;
-	VC_AUDIO_STOP_T  stop;
-	VC_AUDIO_WRITE_T  write;
-	VC_AUDIO_RESULT_T result;
-	VC_AUDIO_COMPLETE_T complete;
-   } u;
+typedef struct {
+	int32_t type;		// Message type (VC_AUDIO_MSG_TYPE)
+	union {
+		VC_AUDIO_CONFIG_T config;
+		VC_AUDIO_CONTROL_T control;
+		VC_AUDIO_OPEN_T open;
+		VC_AUDIO_CLOSE_T close;
+		VC_AUDIO_START_T start;
+		VC_AUDIO_STOP_T stop;
+		VC_AUDIO_WRITE_T write;
+		VC_AUDIO_RESULT_T result;
+		VC_AUDIO_COMPLETE_T complete;
+	} u;
 } VC_AUDIO_MSG_T;
 
-
 #endif // _VC_AUDIO_DEFS_H_
-
