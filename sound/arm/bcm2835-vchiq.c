@@ -42,7 +42,7 @@
 #define VCOS_LOG_CATEGORY (&audio_log_category)
 
 /* Default VCOS logging level */
-#define LOG_LEVEL  VCOS_LOG_TRACE
+#define LOG_LEVEL  VCOS_LOG_WARN
 
 /* Logging macros (for remapping to other logging mechanisms, i.e., printf) */
 #define LOG_ERR( fmt, arg... )   vcos_log_error( "%s:%d " fmt, __func__, __LINE__, ##arg)
@@ -501,7 +501,6 @@ int bcm2835_audio_set_ctls(bcm2835_chip_t * chip)
 	int i;
 	int ret = 0;
 	LOG_DBG(" .. IN\n");
-printk(KERN_ERR "set_ctls dest=%d volume=%d\n", chip->dest, chip->volume);
 	/* change ctls for all substreams */
 	for (i = 0; i < MAX_SUBSTREAMS; i++) {
 		if (chip->avail_substreams & (1 << i)) {

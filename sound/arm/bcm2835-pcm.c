@@ -47,7 +47,7 @@ static irqreturn_t bcm2835_playback_fifo_irq(int irq, void *dev_id)
 	uint32_t consumed = 0;
 	int new_period = 0;
 
-	audio_debug(" .. IN\n");
+	audio_info(" .. IN\n");
 
 	audio_info("alsa_stream=%p substream=%p\n", alsa_stream,
 		   alsa_stream ? alsa_stream->substream : 0);
@@ -64,7 +64,7 @@ static irqreturn_t bcm2835_playback_fifo_irq(int irq, void *dev_id)
 		    ((alsa_stream->pos + consumed) / alsa_stream->period_size))
 			new_period = 1;
 	}
-	audio_warning("updating pos cur: %d + %d max:%d new_period:%d\n",
+	audio_debug("updating pos cur: %d + %d max:%d new_period:%d\n",
 		      alsa_stream->pos,
 		      (consumed /** AUDIO_IPC_BLOCK_BUFFER_SIZE*/ ),
 		      alsa_stream->buffer_size, new_period);
@@ -76,9 +76,9 @@ static irqreturn_t bcm2835_playback_fifo_irq(int irq, void *dev_id)
 		if (new_period)
 			snd_pcm_period_elapsed(alsa_stream->substream);
 	} else {
-		audio_debug(" unexpected NULL substream\n");
+		audio_warning(" unexpected NULL substream\n");
 	}
-	audio_debug(" .. OUT\n");
+	audio_info(" .. OUT\n");
 
 	return IRQ_HANDLED;
 }
@@ -94,7 +94,7 @@ static int snd_bcm2835_playback_open(struct snd_pcm_substream *substream)
 
 	audio_info(" .. IN (%d)\n", substream->number);
 
-	audio_warning(" .. open (%d)\n", substream->number);
+	audio_warning("Alsa open (%d)\n", substream->number);
 	idx = substream->number;
 
 	if (idx > MAX_SUBSTREAMS) {
@@ -150,7 +150,7 @@ static int snd_bcm2835_playback_open(struct snd_pcm_substream *substream)
 	alsa_stream->draining = 1;
 
 out:
-	audio_debug(" .. OUT =%d\n", err);
+	audio_info(" .. OUT =%d\n", err);
 
 	return err;
 }
@@ -163,7 +163,7 @@ static int snd_bcm2835_playback_close(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
 
-	audio_debug(" .. IN\n");
+	audio_info(" .. IN\n");
 	audio_warning("Alsa close\n");
 
 	/*
@@ -192,7 +192,7 @@ static int snd_bcm2835_playback_close(struct snd_pcm_substream *substream)
 	 * runtime->private_free callback we registered in *_open above
 	 */
 
-	audio_debug(" .. OUT\n");
+	audio_info(" .. OUT\n");
 
 	return 0;
 }
@@ -206,7 +206,7 @@ static int snd_bcm2835_pcm_hw_params(struct snd_pcm_substream *substream,
 	bcm2835_alsa_stream_t *alsa_stream =
 	    (bcm2835_alsa_stream_t *) runtime->private_data;
 
-	audio_debug(" .. IN\n");
+	audio_info(" .. IN\n");
 
 	err = snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(params));
 	if (err < 0) {
@@ -224,7 +224,7 @@ static int snd_bcm2835_pcm_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	bcm2835_audio_setup(alsa_stream);
-	audio_debug(" .. OUT\n");
+	audio_info(" .. OUT\n");
 
 	return err;
 }
@@ -232,7 +232,7 @@ static int snd_bcm2835_pcm_hw_params(struct snd_pcm_substream *substream,
 /* hw_free callback */
 static int snd_bcm2835_pcm_hw_free(struct snd_pcm_substream *substream)
 {
-	audio_debug(" .. IN\n");
+	audio_info(" .. IN\n");
 	return snd_pcm_lib_free_pages(substream);
 }
 
@@ -242,17 +242,17 @@ static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
 
-	audio_debug(" .. IN\n");
+	audio_info(" .. IN\n");
 
 	alsa_stream->buffer_size = snd_pcm_lib_buffer_bytes(substream);
 	alsa_stream->period_size = snd_pcm_lib_period_bytes(substream);
 	alsa_stream->pos = 0;
 
-	audio_warning("buffer_size=%d, period_size=%d pos=%d frame_bits=%d\n",
+	audio_debug("buffer_size=%d, period_size=%d pos=%d frame_bits=%d\n",
 		      alsa_stream->buffer_size, alsa_stream->period_size,
 		      alsa_stream->pos, runtime->frame_bits);
 
-	audio_debug(" .. OUT\n");
+	audio_info(" .. OUT\n");
 	return 0;
 }
 
@@ -263,11 +263,11 @@ static int snd_bcm2835_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
 	int err = 0;
 
-	audio_debug(" .. IN\n");
+	audio_info(" .. IN\n");
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
-		audio_warning("bcm2835_AUDIO_TRIGGER_START running=%d\n",
+		audio_debug("bcm2835_AUDIO_TRIGGER_START running=%d\n",
 			      alsa_stream->running);
 		if (!alsa_stream->running) {
 			err = bcm2835_audio_start(alsa_stream);
@@ -278,7 +278,7 @@ static int snd_bcm2835_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		}
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
-		audio_warning
+		audio_debug
 		    ("bcm2835_AUDIO_TRIGGER_STOP running=%d draining=%d\n",
 		     runtime->status->state == SNDRV_PCM_STATE_DRAINING,
 		     alsa_stream->running);
@@ -300,7 +300,7 @@ static int snd_bcm2835_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		err = -EINVAL;
 	}
 
-	audio_debug(" .. OUT\n");
+	audio_info(" .. OUT\n");
 	return err;
 }
 
@@ -311,14 +311,14 @@ snd_bcm2835_pcm_pointer(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
 
-	audio_debug(" .. IN\n");
+	audio_info(" .. IN\n");
 
-	audio_warning("pcm_pointer... (%d) hwptr=%d appl=%d pos=%d\n", 0,
+	audio_debug("pcm_pointer... (%d) hwptr=%d appl=%d pos=%d\n", 0,
 		      frames_to_bytes(runtime, runtime->status->hw_ptr),
 		      frames_to_bytes(runtime, runtime->control->appl_ptr),
 		      alsa_stream->pos);
 
-	audio_debug(" .. OUT\n");
+	audio_info(" .. OUT\n");
 	return bytes_to_frames(runtime, alsa_stream->pos);
 }
 
@@ -330,8 +330,8 @@ static int snd_bcm2835_pcm_copy(struct snd_pcm_substream *substream,
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
 
-	audio_debug(" .. IN\n");
-	audio_warning("copy.......... (%d) hwptr=%d appl=%d pos=%d\n",
+	audio_info(" .. IN\n");
+	audio_debug("copy.......... (%d) hwptr=%d appl=%d pos=%d\n",
 		      frames_to_bytes(runtime, count), frames_to_bytes(runtime,
 								       runtime->
 								       status->
@@ -341,7 +341,7 @@ static int snd_bcm2835_pcm_copy(struct snd_pcm_substream *substream,
 	ret =
 	    bcm2835_audio_write(alsa_stream, frames_to_bytes(runtime, count),
 				src);
-	audio_debug(" .. OUT\n");
+	audio_info(" .. OUT\n");
 	return ret;
 }
 
@@ -353,8 +353,8 @@ static int snd_bcm2835_pcm_silence(struct snd_pcm_substream *substream,
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
 
-	audio_debug(" .. IN\n");
-	audio_warning("silence....... (%d) hwptr=%d appl=%d pos=%d\n",
+	audio_info(" .. IN\n");
+	audio_debug("silence....... (%d) hwptr=%d appl=%d pos=%d\n",
 		      frames_to_bytes(runtime, count), frames_to_bytes(runtime,
 								       runtime->
 								       status->
@@ -364,7 +364,7 @@ static int snd_bcm2835_pcm_silence(struct snd_pcm_substream *substream,
 	ret =
 	    bcm2835_audio_write(alsa_stream, frames_to_bytes(runtime, count),
 				NULL);
-	audio_debug(" .. OUT\n");
+	audio_info(" .. OUT\n");
 	return ret;
 }
 
@@ -372,7 +372,7 @@ static int snd_bcm2835_pcm_lib_ioctl(struct snd_pcm_substream *substream,
 				     unsigned int cmd, void *arg)
 {
 	int ret = snd_pcm_lib_ioctl(substream, cmd, arg);
-	audio_debug(" .. substream=%p, cmd=%d, arg=%p (%x) ret=%d\n", substream,
+	audio_info(" .. substream=%p, cmd=%d, arg=%p (%x) ret=%d\n", substream,
 		    cmd, arg, arg ? *(unsigned *)arg : 0, ret);
 	return ret;
 }
@@ -397,7 +397,7 @@ int __devinit snd_bcm2835_new_pcm(bcm2835_chip_t * chip)
 	struct snd_pcm *pcm;
 	int err;
 
-	audio_debug(" .. IN\n");
+	audio_info(" .. IN\n");
 	err =
 	    snd_pcm_new(chip->card, "bcm2835 ALSA", 0, MAX_SUBSTREAMS, 0, &pcm);
 	if (err < 0)
@@ -418,7 +418,7 @@ int __devinit snd_bcm2835_new_pcm(bcm2835_chip_t * chip)
 					      (GFP_KERNEL), 64 * 1024,
 					      64 * 1024);
 
-	audio_debug(" .. OUT\n");
+	audio_info(" .. OUT\n");
 
 	return 0;
 }
