@@ -28,7 +28,7 @@
 #include <linux/workqueue.h>
 
 /* #define DUMP_RAW_DATA */
-#define AUDIO_DEBUG_ENABLE
+//#define AUDIO_DEBUG_ENABLE
 //#define AUDIO_VERBOSE_DEBUG_ENABLE
 
 /* Debug macros */
