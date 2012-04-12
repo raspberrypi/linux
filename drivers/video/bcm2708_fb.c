@@ -215,6 +215,8 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 	/* inform vc about new framebuffer */
 	bcm_mailbox_write(MBOX_CHAN_FB, fb->dma);
 
+	/* workaround occasional failure to read results. TODO: replace fb driver with vchiq version */
+	msleep(10);
 	/* wait for response */
 	bcm_mailbox_read(MBOX_CHAN_FB, &val);
 
