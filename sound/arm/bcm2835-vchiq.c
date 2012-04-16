@@ -761,20 +761,25 @@ int bcm2835_audio_write(bcm2835_alsa_stream_t * alsa_stream, uint32_t count,
 		ret = -1;
 		goto unlock;
 	}
-	LOG_DBG(" ... send header\n");
+	LOG_DBG(" ... sent header\n");
+	if (!m.u.write.silence) {
+		/* Send the message to the videocore */
+		success = vchi_bulk_queue_transmit(instance->vchi_handle[0],
+						   src, count,
+						   0 *
+						   VCHI_FLAGS_BLOCK_UNTIL_QUEUED
+						   +
+						   1 *
+						   VCHI_FLAGS_BLOCK_UNTIL_DATA_READ,
+						   NULL);
+		if (success != 0) {
+			LOG_ERR
+			    ("%s: failed on vchi_bulk_queue_transmit (status=%d)",
+			     __func__, success);
 
-	/* Send the message to the videocore */
-	success = vchi_bulk_queue_transmit(instance->vchi_handle[0],
-					   src, count,
-					   0 * VCHI_FLAGS_BLOCK_UNTIL_QUEUED +
-					   1 * VCHI_FLAGS_BLOCK_UNTIL_DATA_READ,
-					   NULL);
-	if (success != 0) {
-		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)",
-			__func__, success);
-
-		ret = -1;
-		goto unlock;
+			ret = -1;
+			goto unlock;
+		}
 	}
 	ret = 0;
 
