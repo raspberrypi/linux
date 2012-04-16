@@ -59,6 +59,9 @@
 //#define LOG_REGISTERS
 
 #define USE_SCHED_TIME
+#define USE_SPACED_WRITES_2CLK 1  /* space consecutive register writes */
+#define USE_SOFTWARE_TIMEOUTS 1   /* not hardware timeouts */
+#define SOFTWARE_ERASE_TIMEOUT_SEC 30
 
 #define SDHCI_BCM_DMA_CHAN 4   /* this default is normally overriden */
 #define SDHCI_BCM_DMA_WAITS 0  /* delays slowing DMA transfers: 0-31 */
@@ -228,9 +231,11 @@ u8 sdhci_bcm2708_readb(struct sdhci_host *host, int reg)
 static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 {
 	u32 ier;
+
+#if USE_SPACED_WRITES_2CLK
 	static bool timeout_disabled = false;
 	unsigned int ns_2clk = 0;
-
+        
 	/* The Arasan has a bugette whereby it may lose the content of
 	 * successive writes to registers that are within two SD-card clock
 	 * cycles of each other (a clock domain crossing problem).
@@ -238,7 +243,6 @@ static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 	 * (Which is just as well - otherwise we'd have to nobble the DMA engine
 	 * too)
 	 */
-#if 1
 	if (reg != SDHCI_BUFFER && host->clock != 0) {
 		/* host->clock is the clock freq in Hz */
 		static hptime_t last_write_hpt;
@@ -259,11 +263,14 @@ static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 		}
 		last_write_hpt = now;
 	}
-#if 1
-	/* The Arasan is clocked for timeouts using the SD clock which is too fast
-	 * for ERASE commands and causes issues. So we disable timeouts for ERASE */
-	if (host->cmd != NULL && host->cmd->opcode == MMC_ERASE && reg == (SDHCI_COMMAND & ~3)) {
-		mod_timer(&host->timer, jiffies + 30 * HZ);
+#if USE_SOFTWARE_TIMEOUTS
+	/* The Arasan is clocked for timeouts using the SD clock which is too
+	 * fast for ERASE commands and causes issues. So we disable timeouts
+	 * for ERASE */
+	if (host->cmd != NULL && host->cmd->opcode == MMC_ERASE &&
+            reg == (SDHCI_COMMAND & ~3)) {
+		mod_timer(&host->timer,
+                          jiffies + SOFTWARE_ERASE_TIMEOUT_SEC * HZ);
 		ier = readl(host->ioaddr + SDHCI_SIGNAL_ENABLE);
 		ier &= ~SDHCI_INT_DATA_TIMEOUT;
 		writel(ier, host->ioaddr + SDHCI_SIGNAL_ENABLE);
