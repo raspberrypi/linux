@@ -208,14 +208,14 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 	case VC_MEM_IOC_MEM_BASE:
 		{
-			// Get the videocore memory size first
+			// Get the videocore memory base
 			vc_mem_get_base();
 
 			LOG_DBG("%s: VC_MEM_IOC_MEM_BASE=%u", __func__,
-				mm_vc_mem_size);
+				mm_vc_mem_base);
 
-			if (copy_to_user((void *) arg, &mm_vc_mem_size,
-					 sizeof (mm_vc_mem_size)) != 0) {
+			if (copy_to_user((void *) arg, &mm_vc_mem_base,
+					 sizeof (mm_vc_mem_base)) != 0) {
 				rc = -EFAULT;
 			}
 			break;
