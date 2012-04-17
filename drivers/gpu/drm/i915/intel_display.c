@@ -7009,14 +7009,14 @@ static int intel_gen2_queue_flip(struct drm_device *dev,
 
 	ret = intel_pin_and_fence_fb_obj(dev, obj, LP_RING(dev_priv));
 	if (ret)
-		goto out;
+		goto err;
 
 	/* Offset into the new buffer for cases of shared fbs between CRTCs */
 	offset = crtc->y * fb->pitch + crtc->x * fb->bits_per_pixel/8;
 
 	ret = BEGIN_LP_RING(6);
 	if (ret)
-		goto out;
+		goto err_unpin;
 
 	/* Can't queue multiple flips, so wait for the previous
 	 * one to finish before executing the next.
@@ -7033,7 +7033,11 @@ static int intel_gen2_queue_flip(struct drm_device *dev,
 	OUT_RING(obj->gtt_offset + offset);
 	OUT_RING(MI_NOOP);
 	ADVANCE_LP_RING();
-out:
+	return 0;
+
+err_unpin:
+	i915_gem_object_unpin(obj);
+err:
 	return ret;
 }
 
@@ -7050,14 +7054,14 @@ static int intel_gen3_queue_flip(struct drm_device *dev,
 
 	ret = intel_pin_and_fence_fb_obj(dev, obj, LP_RING(dev_priv));
 	if (ret)
-		goto out;
+		goto err;
 
 	/* Offset into the new buffer for cases of shared fbs between CRTCs */
 	offset = crtc->y * fb->pitch + crtc->x * fb->bits_per_pixel/8;
 
 	ret = BEGIN_LP_RING(6);
 	if (ret)
-		goto out;
+		goto err_unpin;
 
 	if (intel_crtc->plane)
 		flip_mask = MI_WAIT_FOR_PLANE_B_FLIP;
@@ -7072,7 +7076,11 @@ static int intel_gen3_queue_flip(struct drm_device *dev,
 	OUT_RING(MI_NOOP);
 
 	ADVANCE_LP_RING();
-out:
+	return 0;
+
+err_unpin:
+	i915_gem_object_unpin(obj);
+err:
 	return ret;
 }
 
@@ -7088,11 +7096,11 @@ static int intel_gen4_queue_flip(struct drm_device *dev,
 
 	ret = intel_pin_and_fence_fb_obj(dev, obj, LP_RING(dev_priv));
 	if (ret)
-		goto out;
+		goto err;
 
 	ret = BEGIN_LP_RING(4);
 	if (ret)
-		goto out;
+		goto err_unpin;
 
 	/* i965+ uses the linear or tiled offsets from the
 	 * Display Registers (which do not change across a page-flip)
@@ -7111,7 +7119,11 @@ static int intel_gen4_queue_flip(struct drm_device *dev,
 	pipesrc = I915_READ(PIPESRC(intel_crtc->pipe)) & 0x0fff0fff;
 	OUT_RING(pf | pipesrc);
 	ADVANCE_LP_RING();
-out:
+	return 0;
+
+err_unpin:
+	i915_gem_object_unpin(obj);
+err:
 	return ret;
 }
 
@@ -7127,11 +7139,11 @@ static int intel_gen6_queue_flip(struct drm_device *dev,
 
 	ret = intel_pin_and_fence_fb_obj(dev, obj, LP_RING(dev_priv));
 	if (ret)
-		goto out;
+		goto err;
 
 	ret = BEGIN_LP_RING(4);
 	if (ret)
-		goto out;
+		goto err_unpin;
 
 	OUT_RING(MI_DISPLAY_FLIP |
 		 MI_DISPLAY_FLIP_PLANE(intel_crtc->plane));
@@ -7142,7 +7154,11 @@ static int intel_gen6_queue_flip(struct drm_device *dev,
 	pipesrc = I915_READ(PIPESRC(intel_crtc->pipe)) & 0x0fff0fff;
 	OUT_RING(pf | pipesrc);
 	ADVANCE_LP_RING();
-out:
+	return 0;
+
+err_unpin:
+	i915_gem_object_unpin(obj);
+err:
 	return ret;
 }
 
@@ -7164,18 +7180,22 @@ static int intel_gen7_queue_flip(struct drm_device *dev,
 
 	ret = intel_pin_and_fence_fb_obj(dev, obj, ring);
 	if (ret)
-		goto out;
+		goto err;
 
 	ret = intel_ring_begin(ring, 4);
 	if (ret)
-		goto out;
+		goto err_unpin;
 
 	intel_ring_emit(ring, MI_DISPLAY_FLIP_I915 | (intel_crtc->plane << 19));
 	intel_ring_emit(ring, (fb->pitch | obj->tiling_mode));
 	intel_ring_emit(ring, (obj->gtt_offset));
 	intel_ring_emit(ring, (MI_NOOP));
 	intel_ring_advance(ring);
-out:
+	return 0;
+
+err_unpin:
+	i915_gem_object_unpin(obj);
+err:
 	return ret;
 }
 
