@@ -925,7 +925,6 @@ static int dummy_udc_stop(struct usb_gadget *g,
 
 	dum->driver = NULL;
 
-	dummy_pullup(&dum->gadget, 0);
 	return 0;
 }
 
