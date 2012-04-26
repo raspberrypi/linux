@@ -909,6 +909,10 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		return 0;
 #endif
 
+	if (((urb->actual_length < 0) || (urb->actual_length > urb->length)) && !dwc_otg_hcd_is_pipe_in(&urb->pipe_info))
+		urb->actual_length = urb->length;
+
+
 	hc = DWC_CIRCLEQ_FIRST(&hcd->free_hc_list);
 
 	/* Remove the host channel from the free list. */
