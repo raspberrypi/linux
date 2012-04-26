@@ -85,69 +85,54 @@ static struct map_desc bcm2708_io_desc[] __initdata = {
 	 .virtual = IO_ADDRESS(ARMCTRL_BASE),
 	 .pfn = __phys_to_pfn(ARMCTRL_BASE),
 	 .length = SZ_4K,
-	 .type = MT_DEVICE}, {
-			      .virtual = IO_ADDRESS(UART0_BASE),
-			      .pfn = __phys_to_pfn(UART0_BASE),
-			      .length = SZ_4K,
-			      .type = MT_DEVICE}, {
-						   .virtual =
-						   IO_ADDRESS(UART1_BASE),
-						   .pfn =
-						   __phys_to_pfn(UART1_BASE),
-						   .length = SZ_4K,
-						   .type = MT_DEVICE}, {
-#ifdef CONFIG_MMC_BCM2708	/* broadcom legacy SD */
-									.
-									virtual
-									=
-									IO_ADDRESS
-									(MMCI0_BASE),
-									.pfn =
-									__phys_to_pfn
-									(MMCI0_BASE),
-									.
-									length =
-									SZ_4K,
-									.type =
-									MT_DEVICE},
+	 .type = MT_DEVICE},
 	{
+	 .virtual = IO_ADDRESS(UART0_BASE),
+	 .pfn = __phys_to_pfn(UART0_BASE),
+	 .length = SZ_4K,
+	 .type = MT_DEVICE},
+	{
+	 .virtual = IO_ADDRESS(UART1_BASE),
+	 .pfn = __phys_to_pfn(UART1_BASE),
+	 .length = SZ_4K,
+	 .type = MT_DEVICE},
+#ifdef CONFIG_MMC_BCM2708	/* broadcom legacy SD */
+	{
+	 .virtual = IO_ADDRESS(MMCI0_BASE),
+	 .pfn = __phys_to_pfn(MMCI0_BASE),
+	 .length = SZ_4K,
+	 .type = MT_DEVICE},
 #endif
+	{
 	 .virtual = IO_ADDRESS(DMA_BASE),
 	 .pfn = __phys_to_pfn(DMA_BASE),
 	 .length = SZ_4K,
-	 .type = MT_DEVICE}, {
-			      .virtual = IO_ADDRESS(MCORE_BASE),
-			      .pfn = __phys_to_pfn(MCORE_BASE),
-			      .length = SZ_4K,
-			      .type = MT_DEVICE}, {
-						   .virtual =
-						   IO_ADDRESS(ST_BASE),
-						   .pfn =
-						   __phys_to_pfn(ST_BASE),
-						   .length = SZ_4K,
-						   .type = MT_DEVICE}, {
-									.
-									virtual
-									=
-									IO_ADDRESS
-									(USB_BASE),
-									.pfn =
-									__phys_to_pfn
-									(USB_BASE),
-									.
-									length =
-									SZ_128K,
-									.type =
-									MT_DEVICE},
+	 .type = MT_DEVICE},
+	{
+	 .virtual = IO_ADDRESS(MCORE_BASE),
+	 .pfn = __phys_to_pfn(MCORE_BASE),
+	 .length = SZ_4K,
+	 .type = MT_DEVICE},
+	{
+	 .virtual = IO_ADDRESS(ST_BASE),
+	 .pfn = __phys_to_pfn(ST_BASE),
+	 .length = SZ_4K,
+	 .type = MT_DEVICE},
+	{
+	 .virtual = IO_ADDRESS(USB_BASE),
+	 .pfn = __phys_to_pfn(USB_BASE),
+	 .length = SZ_128K,
+	 .type = MT_DEVICE},
 	{
 	 .virtual = IO_ADDRESS(PM_BASE),
 	 .pfn = __phys_to_pfn(PM_BASE),
 	 .length = SZ_4K,
-	 .type = MT_DEVICE}, {
-			      .virtual = IO_ADDRESS(GPIO_BASE),
-			      .pfn = __phys_to_pfn(GPIO_BASE),
-			      .length = SZ_4K,
-			      .type = MT_DEVICE}
+	 .type = MT_DEVICE},
+	{
+	 .virtual = IO_ADDRESS(GPIO_BASE),
+	 .pfn = __phys_to_pfn(GPIO_BASE),
+	 .length = SZ_4K,
+	 .type = MT_DEVICE}
 };
 
 void __init bcm2708_map_io(void)
@@ -161,15 +146,15 @@ void __init bcm2708_map_io(void)
 static cycle_t stc_read_cycles(struct clocksource *cs)
 {
 	/* STC: a free running counter that increments at the rate of 1MHz */
-	return (cycle_t)readl(__io_address(ST_BASE+0x04));
+	return (cycle_t) readl(__io_address(ST_BASE + 0x04));
 }
 
 static struct clocksource clocksource_stc = {
-	.name       = "stc",
-	.rating     = 300,
-	.read       = stc_read_cycles,
-	.mask       = CLOCKSOURCE_MASK(32),
-	.flags      = CLOCK_SOURCE_IS_CONTINUOUS,
+	.name = "stc",
+	.rating = 300,
+	.read = stc_read_cycles,
+	.mask = CLOCKSOURCE_MASK(32),
+	.flags = CLOCK_SOURCE_IS_CONTINUOUS,
 };
 
 unsigned long frc_clock_ticks32(void)
@@ -180,19 +165,16 @@ unsigned long frc_clock_ticks32(void)
 static void __init bcm2708_clocksource_init(void)
 {
 	// calculate .shift and .mult values and register clocksource
-	if (clocksource_register_hz(&clocksource_stc, STC_FREQ_HZ))
-	{
+	if (clocksource_register_hz(&clocksource_stc, STC_FREQ_HZ)) {
 		printk(KERN_ERR "timer: failed to initialize clock "
-			"source %s\n", clocksource_stc.name);
+		       "source %s\n", clocksource_stc.name);
 	}
 }
 
 unsigned long long sched_clock(void)
 {
-	return clocksource_cyc2ns(clocksource_stc.read(
-		 &clocksource_stc),
-		 clocksource_stc.mult,
-		 clocksource_stc.shift);
+	return clocksource_cyc2ns(clocksource_stc.read(&clocksource_stc),
+				  clocksource_stc.mult, clocksource_stc.shift);
 }
 
 /*
@@ -269,11 +251,12 @@ static struct resource bcm2708_mci_resources[] = {
 	 .start = MMCI0_BASE,
 	 .end = MMCI0_BASE + SZ_4K - 1,
 	 .flags = IORESOURCE_MEM,
-	 }, {
-	     .start = IRQ_SDIO,
-	     .end = IRQ_SDIO,
-	     .flags = IORESOURCE_IRQ,
-	     }
+	 },
+	{
+	 .start = IRQ_SDIO,
+	 .end = IRQ_SDIO,
+	 .flags = IORESOURCE_IRQ,
+	 }
 };
 
 static struct platform_device bcm2708_mci_device = {
@@ -398,11 +381,12 @@ static struct resource bcm2708_systemtimer_resources[] = {
 	       .start = ST_BASE,
 	       .end = ST_BASE + SZ_4K - 1,
 	       .flags = IORESOURCE_MEM,
-	       }, {
-		   .start = IRQ_TIMER3,
-		   .end = IRQ_TIMER3,
-		   .flags = IORESOURCE_IRQ,
-		   }
+	       },
+	{
+	 .start = IRQ_TIMER3,
+	 .end = IRQ_TIMER3,
+	 .flags = IORESOURCE_IRQ,
+	 }
 
 };
 
@@ -467,14 +451,13 @@ struct platform_device bcm2708_powerman_device = {
 		.coherent_dma_mask = 0xffffffffUL},
 };
 
-
 static struct platform_device bcm2708_alsa_devices[] = {
-	[0] =	{
-		.name = "bcm2835_AUD0",
-		.id = 0,		/* first audio device */
-		.resource = 0,
-		.num_resources = 0,
-		},
+	[0] = {
+	       .name = "bcm2835_AUD0",
+	       .id = 0,		/* first audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
 };
 
 int __init bcm_register_device(struct platform_device *pdev)
@@ -660,7 +643,7 @@ static inline void bcm2708_init_led(void)
 
 MACHINE_START(BCM2708, "BCM2708")
     /* Maintainer: Broadcom Europe Ltd. */
-.map_io = bcm2708_map_io,.init_irq = bcm2708_init_irq,.timer =
+    .map_io = bcm2708_map_io,.init_irq = bcm2708_init_irq,.timer =
     &bcm2708_timer,.init_machine =
     bcm2708_init, MACHINE_END module_param(boardrev, uint, 0644);
 module_param(serial, uint, 0644);
