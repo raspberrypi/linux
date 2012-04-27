@@ -139,10 +139,12 @@ make_service_callback(VCHIQ_SERVICE_T *service, VCHIQ_REASON_T reason,
 static inline void
 vchiq_set_conn_state(VCHIQ_STATE_T *state, VCHIQ_CONNSTATE_T newstate)
 {
+   VCHIQ_CONNSTATE_T oldstate = state->conn_state;
    vcos_log_info("%d: %s->%s", state->id,
-      conn_state_names[state->conn_state],
+      conn_state_names[oldstate],
       conn_state_names[newstate]);
    state->conn_state = newstate;
+   vchiq_platform_conn_state_changed(state, oldstate, newstate);
 }
 
 static inline void
@@ -2686,15 +2688,30 @@ vchiq_dump_service_state(void *dump_context, VCHIQ_SERVICE_T *service)
 
 VCHIQ_STATUS_T vchiq_send_remote_use(VCHIQ_STATE_T * state)
 {
-   return queue_message(state, NULL, VCHIQ_MAKE_MSG(VCHIQ_MSG_REMOTE_USE, 0, 0), NULL, 0, 0, 0);
+   VCHIQ_STATUS_T status = VCHIQ_RETRY;
+   if(state->conn_state != VCHIQ_CONNSTATE_DISCONNECTED)
+   {
+      status = queue_message(state, NULL, VCHIQ_MAKE_MSG(VCHIQ_MSG_REMOTE_USE, 0, 0), NULL, 0, 0, 0);
+   }
+   return status;
 }
 
 VCHIQ_STATUS_T vchiq_send_remote_release(VCHIQ_STATE_T * state)
 {
-   return queue_message(state, NULL, VCHIQ_MAKE_MSG(VCHIQ_MSG_REMOTE_RELEASE, 0, 0), NULL, 0, 0, 0);
+   VCHIQ_STATUS_T status = VCHIQ_RETRY;
+   if(state->conn_state != VCHIQ_CONNSTATE_DISCONNECTED)
+   {
+      status = queue_message(state, NULL, VCHIQ_MAKE_MSG(VCHIQ_MSG_REMOTE_RELEASE, 0, 0), NULL, 0, 0, 0);
+   }
+   return status;
 }
 
 VCHIQ_STATUS_T vchiq_send_remote_use_active(VCHIQ_STATE_T * state)
 {
-   return queue_message(state, NULL, VCHIQ_MAKE_MSG(VCHIQ_MSG_REMOTE_USE_ACTIVE, 0, 0), NULL, 0, 0, 0);
+   VCHIQ_STATUS_T status = VCHIQ_RETRY;
+   if(state->conn_state != VCHIQ_CONNSTATE_DISCONNECTED)
+   {
+      status = queue_message(state, NULL, VCHIQ_MAKE_MSG(VCHIQ_MSG_REMOTE_USE_ACTIVE, 0, 0), NULL, 0, 0, 0);
+   }
+   return status;
 }
