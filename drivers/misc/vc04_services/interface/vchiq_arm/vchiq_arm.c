@@ -137,7 +137,7 @@ dump_phys_mem( void *virt_addr, uint32_t num_bytes );
 ***************************************************************************/
 
 static inline USER_SERVICE_T *find_service_by_handle(
-	VCHIQ_INSTANCE_T instance, int handle )
+   VCHIQ_INSTANCE_T instance, int handle )
 {
    USER_SERVICE_T *user_service;
 
@@ -1094,7 +1094,7 @@ vchiq_dump(void *dump_context, const char *str, int len)
          char cr = '\n';
          if (copy_to_user(context->buf + context->actual - 1, &cr, 1))
          {
-	    context->actual = -EFAULT;
+            context->actual = -EFAULT;
          }
       }
    }
@@ -1383,11 +1383,11 @@ hp_func(void *v)
       }
       if(arm_state->use_notify_pending)
       {
-         send_pending = 1;
-         arm_state->use_notify_pending = 0;
+         send_pending = arm_state->use_notify_pending;
+         arm_state->use_notify_pending=0;
       }
       vcos_mutex_unlock(&arm_state->use_count_mutex);
-      if(send_pending)
+      while(send_pending--)
       {
          vcos_log_info( "%s sending VCHIQ_MSG_REMOTE_USE_ACTIVE", __func__);
          if ( vchiq_send_remote_use_active(state) != VCHIQ_SUCCESS)
@@ -1587,7 +1587,7 @@ vchiq_use_internal(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service, int block_whi
       }
       if(!block_while_resume)
       {
-         arm_state->use_notify_pending = 1;
+         arm_state->use_notify_pending++;
          vcos_event_signal(&arm_state->hp_evt); /* hp task will check if we need to resume and also send use notify */
       }
 
@@ -1809,6 +1809,13 @@ vchiq_check_service(VCHIQ_SERVICE_T * service)
 void vchiq_on_remote_use_active(VCHIQ_STATE_T *state)
 {
    vcos_unused(state);
+}
+
+void vchiq_platform_conn_state_changed(VCHIQ_STATE_T *state, VCHIQ_CONNSTATE_T oldstate, VCHIQ_CONNSTATE_T newstate)
+{
+   vcos_unused(state);
+   vcos_unused(oldstate);
+   vcos_unused(oldstate);
 }
 
 

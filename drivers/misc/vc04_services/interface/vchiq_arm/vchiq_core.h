@@ -500,6 +500,7 @@ vchiq_send_remote_release(VCHIQ_STATE_T * state);
 extern VCHIQ_STATUS_T
 vchiq_send_remote_use_active(VCHIQ_STATE_T * state);
 
-
+extern void
+vchiq_platform_conn_state_changed(VCHIQ_STATE_T* state, VCHIQ_CONNSTATE_T oldstate, VCHIQ_CONNSTATE_T newstate);
 
 #endif
