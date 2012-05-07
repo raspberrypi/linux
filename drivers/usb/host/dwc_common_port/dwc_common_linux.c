@@ -1,7 +1,4 @@
 #include "dwc_cc.h"
-#include "dwc_modpow.h"
-#include "dwc_dh.h"
-#include "dwc_crypto.h"
 #include "dwc_notifier.h"
 
 #include <linux/kernel.h>
@@ -51,24 +48,6 @@ EXPORT_SYMBOL(dwc_cc_chid);
 EXPORT_SYMBOL(dwc_cc_cdid);
 EXPORT_SYMBOL(dwc_cc_name);
 
-#ifndef CONFIG_MACH_IPMATE
-/* Modpow */
-EXPORT_SYMBOL(dwc_modpow);
-/* DH */
-EXPORT_SYMBOL(dwc_dh_modpow);
-EXPORT_SYMBOL(dwc_dh_derive_keys);
-EXPORT_SYMBOL(dwc_dh_pk);
-#endif /* CONFIG_MACH_IPMATE  */
-/* Crypto */
-EXPORT_SYMBOL(dwc_wusb_aes_encrypt);
-EXPORT_SYMBOL(dwc_wusb_cmf);
-EXPORT_SYMBOL(dwc_wusb_prf);
-EXPORT_SYMBOL(dwc_wusb_fill_ccm_nonce);
-EXPORT_SYMBOL(dwc_wusb_gen_nonce);
-EXPORT_SYMBOL(dwc_wusb_gen_key);
-EXPORT_SYMBOL(dwc_wusb_gen_mic);
-
-
 /* Notification */
 EXPORT_SYMBOL(dwc_alloc_notification_manager);
 EXPORT_SYMBOL(dwc_free_notification_manager);
@@ -96,7 +75,6 @@ EXPORT_SYMBOL(dwc_dma_free_debug);
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/ctype.h>
-#include <linux/crypto.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
@@ -456,93 +434,6 @@ void __DWC_FREE(void *addr)
 	kfree(addr);
 }
 EXPORT_SYMBOL(__DWC_FREE);
-
-/* dwc_crypto.h */
-
-void DWC_RANDOM_BYTES(uint8_t *buffer, uint32_t length)
-{
-	get_random_bytes(buffer, length);
-}
-EXPORT_SYMBOL(DWC_RANDOM_BYTES);
-
-int DWC_AES_CBC(uint8_t *message, uint32_t messagelen, uint8_t *key, uint32_t keylen, uint8_t iv[16], uint8_t *out)
-{
-	struct crypto_blkcipher *tfm;
-	struct blkcipher_desc desc;
-	struct scatterlist sgd;
-	struct scatterlist sgs;
-
-	tfm = crypto_alloc_blkcipher("cbc(aes)", 0, CRYPTO_ALG_ASYNC);
-	if (tfm == NULL) {
-		printk("failed to load transform for aes CBC\n");
-		return -1;
-	}
-
-	crypto_blkcipher_setkey(tfm, key, keylen);
-	crypto_blkcipher_set_iv(tfm, iv, 16);
-
-	sg_init_one(&sgd, out, messagelen);
-	sg_init_one(&sgs, message, messagelen);
-
-	desc.tfm = tfm;
-	desc.flags = 0;
-
-	if(crypto_blkcipher_encrypt(&desc, &sgd, &sgs, messagelen)) {
-		crypto_free_blkcipher(tfm);
-		DWC_ERROR("AES CBC encryption failed");
-		return -1;
-	}
-
-	crypto_free_blkcipher(tfm);
-	return 0;
-}
-EXPORT_SYMBOL(DWC_AES_CBC);
-
-int DWC_SHA256(uint8_t *message, uint32_t len, uint8_t *out)
-{
-	struct crypto_hash *tfm;
-	struct hash_desc desc;
-	struct scatterlist sg;
-
-	tfm = crypto_alloc_hash("sha256", 0, CRYPTO_ALG_ASYNC);
-	if (IS_ERR(tfm)) {
-		DWC_ERROR("Failed to load transform for sha256: %ld\n", PTR_ERR(tfm));
-		return 0;
-	}
-	desc.tfm = tfm;
-	desc.flags = 0;
-
-	sg_init_one(&sg, message, len);
-	crypto_hash_digest(&desc, &sg, len, out);
-	crypto_free_hash(tfm);
-
-	return 1;
-}
-EXPORT_SYMBOL(DWC_SHA256);
-
-int DWC_HMAC_SHA256(uint8_t *message, uint32_t messagelen,
-		    uint8_t *key, uint32_t keylen, uint8_t *out)
-{
-	struct crypto_hash *tfm;
-	struct hash_desc desc;
-	struct scatterlist sg;
-
-	tfm = crypto_alloc_hash("hmac(sha256)", 0, CRYPTO_ALG_ASYNC);
-	if (IS_ERR(tfm)) {
-		DWC_ERROR("Failed to load transform for hmac(sha256): %ld\n", PTR_ERR(tfm));
-		return 0;
-	}
-	desc.tfm = tfm;
-	desc.flags = 0;
-
-	sg_init_one(&sg, message, messagelen);
-	crypto_hash_setkey(tfm, key, keylen);
-	crypto_hash_digest(&desc, &sg, messagelen, out);
-	crypto_free_hash(tfm);
-
-	return 1;
-}
-EXPORT_SYMBOL(DWC_HMAC_SHA256);
 
 /* Byte Ordering Conversions. */
 uint32_t DWC_CPU_TO_LE32(void *p)
