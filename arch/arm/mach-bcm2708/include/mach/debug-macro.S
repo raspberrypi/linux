@@ -12,13 +12,11 @@
  *
 */
 
-		.macro	addruart, rx, tmp
-		mrc	p15, 0, \rx, c1, c0
-		tst	\rx, #1			@ MMU enabled?
-		moveq	\rx,      #0x08000000
-		movne	\rx,      #0xf8000000	@ virtual base
-		orr	\rx, \rx, #0x00200000
-		orr	\rx, \rx, #0x00001000
+#include <mach/platform.h>
+
+		.macro	addruart, rp, rv
+		ldr	\rp, =UART0_BASE
+		ldr	\rv, =IO_ADDRESS(UART0_BASE)
 		.endm
 
 #include <asm/hardware/debug-pl01x.S>
