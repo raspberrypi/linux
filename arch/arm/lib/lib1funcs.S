@@ -349,33 +349,6 @@ UNWIND(.save {r0, r1, ip, lr}	)
 UNWIND(.fnend)
 ENDPROC(__aeabi_idivmod)
 
-/* Added 64x64 bit division for use with OTG USB driver - multi-precision
- * arithmetic for RSA encyrption.
- */
-ENTRY(__aeabi_ldivmod)
-
-        sub     sp, sp, #8
-        stmfd   sp!, {sp, lr}
-        bl      __gnu_ldivmod_helper
-        ldr     lr, [sp, #4]
-        add     sp, sp, #8
-        ldmfd   sp!, {r2, r3}
-        mov     pc, lr
-
-ENDPROC(__aeabi_ldivmod)
-
-ENTRY(__aeabi_uldivmod)
-
-        sub     sp, sp, #8
-        stmfd   sp!, {sp, lr}
-        bl      __gnu_uldivmod_helper
-        ldr     lr, [sp, #4]
-        add     sp, sp, #8
-        ldmfd   sp!, {r2, r3}
-        mov     pc, lr
-
-ENDPROC(__aeabi_uldivmod)
-
 #endif
 
 Ldiv0:
