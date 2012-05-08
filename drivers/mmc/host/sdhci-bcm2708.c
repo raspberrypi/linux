@@ -51,7 +51,6 @@
 #undef CONFIG_MMC_SDHCI_BCM2708_DMA
 #define CONFIG_MMC_SDHCI_BCM2708_DMA y
 
-#define USE_SYNC_AFTER_DMA
 #ifdef CONFIG_MMC_SDHCI_BCM2708_DMA
 /* #define CHECK_DMA_USE */
 #endif
@@ -73,7 +72,12 @@
 #define BCM2708_SDHCI_SLEEP_TIMEOUT 1000   /* msecs */
 
 /* Mhz clock that the EMMC core is running at. Should match the platform clockman settings */
-#define BCM2708_EMMC_CLOCK_FREQ 80000000
+#define BCM2708_EMMC_CLOCK_FREQ 50000000
+
+#define REG_EXRDFIFO_EN     0x80
+#define REG_EXRDFIFO_CFG    0x84
+
+int cycle_delay=2;
 
 /*****************************************************************************\
  *									     *
@@ -128,6 +132,14 @@ static inline unsigned long int since_ns(hptime_t t)
 {
 	return (unsigned long)((hptime() - t) * HPTIME_CLK_NS);
 }
+
+static bool allow_highspeed = 1;
+static int emmc_clock_freq = BCM2708_EMMC_CLOCK_FREQ;
+static bool sync_after_dma = 1;
+static bool missing_status = 1;
+static bool spurious_crc_acmd51 = 0;
+bool enable_llm = 1;
+bool extra_messages = 0;
 
 #if 0
 static void hptime_test(void)
@@ -241,19 +253,19 @@ static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 		/* host->clock is the clock freq in Hz */
 		static hptime_t last_write_hpt;
 		hptime_t now = hptime();
-		ns_2clk = 2000000000/host->clock;
+		ns_2clk = cycle_delay*1000000/(host->clock/1000);
 
 		if (now == last_write_hpt || now == last_write_hpt+1) {
 			 /* we can't guarantee any significant time has
 			  * passed - we'll have to wait anyway ! */
-			udelay((ns_2clk+1000-1)/1000);
+			ndelay(ns_2clk);
 		} else
 		{
 			/* we must have waited at least this many ns: */
 			unsigned int ns_wait = HPTIME_CLK_NS *
-					       (last_write_hpt - now - 1);
+					       (now - last_write_hpt - 1);
 			if (ns_wait < ns_2clk)
-				udelay((ns_2clk-ns_wait+500)/1000);
+				ndelay(ns_2clk - ns_wait);
 		}
 		last_write_hpt = now;
 	}
@@ -269,13 +281,13 @@ static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 		ier &= ~SDHCI_INT_DATA_TIMEOUT;
 		writel(ier, host->ioaddr + SDHCI_SIGNAL_ENABLE);
 		timeout_disabled = true;
-		udelay((ns_2clk+1000-1)/1000);
+		ndelay(ns_2clk);
 	} else if (timeout_disabled) {
 		ier = readl(host->ioaddr + SDHCI_SIGNAL_ENABLE);
 		ier |= SDHCI_INT_DATA_TIMEOUT;
 		writel(ier, host->ioaddr + SDHCI_SIGNAL_ENABLE);
 		timeout_disabled = false;
-		udelay((ns_2clk+1000-1)/1000);
+		ndelay(ns_2clk);
 	}
 #endif
 	writel(val, host->ioaddr + reg);
@@ -353,67 +365,8 @@ void sdhci_bcm2708_writeb(struct sdhci_host *host, u8 val, int reg)
 
 static unsigned int sdhci_bcm2708_get_max_clock(struct sdhci_host *host)
 {
-	return 20000000;	// this value is in Hz (20MHz)
+	return emmc_clock_freq;
 }
-
-static unsigned int sdhci_bcm2708_get_timeout_clock(struct sdhci_host *host)
-{
-	if(host->clock)
-		return (host->clock / 1000);		// this value is in kHz (100MHz)
-	else
-		return (sdhci_bcm2708_get_max_clock(host) / 1000);
-}
-
-static void sdhci_bcm2708_set_clock(struct sdhci_host *host, unsigned int clock)
-{
-	int div = 0;
-	u16 clk = 0;
-	unsigned long timeout;
-
-        if (clock == host->clock)
-                return;
-
-        sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
-
-        if (clock == 0)
-                goto out;
-
-	if (BCM2708_EMMC_CLOCK_FREQ <= clock)
-		div = 1;
-	else {
-		for (div = 2; div < SDHCI_MAX_DIV_SPEC_300; div += 2) {
-			if ((BCM2708_EMMC_CLOCK_FREQ / div) <= clock)
-				break;
-		}
-	}
-
-        DBG( "desired SD clock: %d, actual: %d\n",
-                clock, BCM2708_EMMC_CLOCK_FREQ / div);
-
-	clk |= (div & SDHCI_DIV_MASK) << SDHCI_DIVIDER_SHIFT;
-	clk |= ((div & SDHCI_DIV_HI_MASK) >> SDHCI_DIV_MASK_LEN)
-		<< SDHCI_DIVIDER_HI_SHIFT;
-	clk |= SDHCI_CLOCK_INT_EN;
-
-	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
-
-        timeout = 20;
-        while (!((clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL))
-                        & SDHCI_CLOCK_INT_STABLE)) {
-                if (timeout == 0) {
-			printk(KERN_ERR "%s: Internal clock never "
-				"stabilised.\n", mmc_hostname(host->mmc));
-                        return;
-                }
-                timeout--;
-                mdelay(1);
-        }
-
-        clk |= SDHCI_CLOCK_CARD_EN;
-        sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
-out:
-        host->clock = clock;
- }
 
 /*****************************************************************************\
  *									     *
@@ -695,11 +648,11 @@ void
 sdhci_bcm2708_platdma_reset(struct sdhci_host *host, struct mmc_data *data)
 {
 	struct sdhci_bcm2708_priv *host_priv = SDHCI_HOST_PRIV(host);
-	unsigned long flags;
+//	unsigned long flags;
 
 	BUG_ON(NULL == host);
 
-	spin_lock_irqsave(&host->lock, flags);
+//	spin_lock_irqsave(&host->lock, flags);
 
 	if (host_priv->dma_wanted) {
 		if (NULL == data) {
@@ -720,13 +673,16 @@ sdhci_bcm2708_platdma_reset(struct sdhci_host *host, struct mmc_data *data)
 			cs = readl(host_priv->dma_chan_base + BCM2708_DMA_CS);
 
 			if (!(BCM2708_DMA_ACTIVE & cs))
-				printk(KERN_INFO "%s: missed completion of "
+			{
+				if (extra_messages)
+					printk(KERN_INFO "%s: missed completion of "
 				       "cmd %d DMA (%d/%d [%d]/[%d]) - "
 				       "ignoring it\n",
 				       mmc_hostname(host->mmc),
 				       host->last_cmdop,
 				       host_priv->sg_done, sg_todo,
 				       host_priv->sg_ix+1, sg_len);
+			}
 			else
 				printk(KERN_INFO "%s: resetting ongoing cmd %d"
 				       "DMA before %d/%d [%d]/[%d] complete\n",
@@ -779,7 +735,7 @@ sdhci_bcm2708_platdma_reset(struct sdhci_host *host, struct mmc_data *data)
 #endif
 	}
 
-	spin_unlock_irqrestore(&host->lock, flags);
+//	spin_unlock_irqrestore(&host->lock, flags);
 }
 
 
@@ -792,11 +748,11 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 	int sg_len;
 	int sg_ix;
 	int sg_todo;
-	unsigned long flags;
+//	unsigned long flags;
 
 	BUG_ON(NULL == host);
 
-	spin_lock_irqsave(&host->lock, flags);
+//	spin_lock_irqsave(&host->lock, flags);
 	data = host->data;
 
 #ifdef CHECK_DMA_USE
@@ -821,7 +777,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 
 	if (NULL == data) {
 		DBG("PDMA unused completion - status 0x%X\n", dma_cs);
-		spin_unlock_irqrestore(&host->lock, flags);
+//		spin_unlock_irqrestore(&host->lock, flags);
 		return;
 	}
 	sg = data->sg;
@@ -878,40 +834,34 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 						SDHCI_INT_SPACE_AVAIL);
 		}
 	} else {
-#ifdef USE_SYNC_AFTER_DMA
-		/* On the Arasan controller the stop command (which will be
-		   scheduled after this completes) does not seem to work
-		   properly if we allow it to be issued when we are
-		   transferring data to/from the SD card.
-		   We get CRC and DEND errors unless we wait for
-		   the SD controller to finish reading/writing to the card. */
-		u32 state_mask;
-		int timeout=1000000;
-		hptime_t now = hptime();
+		if (sync_after_dma) {
+			/* On the Arasan controller the stop command (which will be
+			   scheduled after this completes) does not seem to work
+			   properly if we allow it to be issued when we are
+			   transferring data to/from the SD card.
+			   We get CRC and DEND errors unless we wait for
+			   the SD controller to finish reading/writing to the card. */
+			u32 state_mask;
+			int timeout=3*1000*1000;
 
-		DBG("PDMA over - sync card\n");
-		if (data->flags & MMC_DATA_READ)
-			state_mask = SDHCI_DOING_READ;
-		else
-			state_mask = SDHCI_DOING_WRITE;
+			DBG("PDMA over - sync card\n");
+			if (data->flags & MMC_DATA_READ)
+				state_mask = SDHCI_DOING_READ;
+			else
+				state_mask = SDHCI_DOING_WRITE;
 
-		while (0 != (sdhci_bcm2708_raw_readl(host,
-						     SDHCI_PRESENT_STATE) &
-			     state_mask) && --timeout > 0)
-			continue;
-
-		if (1000000-timeout > 4000) /*ave. is about 3250*/
-			DBG("%s: note - long %s sync %luns - "
-			       "%d its.\n",
-			       mmc_hostname(host->mmc),
-			       data->flags & MMC_DATA_READ? "read": "write",
-			       since_ns(now), 1000000-timeout);
-		if (timeout <= 0)
-			printk(KERN_ERR"%s: final %s to SD card still "
-			       "running\n",
-			       mmc_hostname(host->mmc),
-			       data->flags & MMC_DATA_READ? "read": "write");
-#endif
+			while (0 != (sdhci_bcm2708_raw_readl(host, SDHCI_PRESENT_STATE)
+				& state_mask) && --timeout > 0)
+			{
+				udelay(1);
+				continue;
+			}
+			if (timeout <= 0)
+				printk(KERN_ERR"%s: final %s to SD card still "
+				       "running\n",
+				       mmc_hostname(host->mmc),
+				       data->flags & MMC_DATA_READ? "read": "write");
+		}
 		if (host_priv->complete) {
 			(*host_priv->complete)(host);
 			DBG("PDMA %s complete\n",
@@ -920,7 +870,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 						SDHCI_INT_SPACE_AVAIL);
 		}
 	}
-	spin_unlock_irqrestore(&host->lock, flags);
+//	spin_unlock_irqrestore(&host->lock, flags);
 }
 
 static irqreturn_t sdhci_bcm2708_dma_irq(int irq, void *dev_id)
@@ -929,12 +879,11 @@ static irqreturn_t sdhci_bcm2708_dma_irq(int irq, void *dev_id)
 	struct sdhci_host *host = dev_id;
 	struct sdhci_bcm2708_priv *host_priv = SDHCI_HOST_PRIV(host);
 	u32 dma_cs; /* control and status register */
-	unsigned long flags;
 
 	BUG_ON(NULL == dev_id);
 	BUG_ON(NULL == host_priv->dma_chan_base);
 
-	spin_lock_irqsave(&host->lock, flags);
+	sdhci_spin_lock(host);
 
 	dma_cs = readl(host_priv->dma_chan_base + BCM2708_DMA_CS);
 
@@ -958,7 +907,8 @@ static irqreturn_t sdhci_bcm2708_dma_irq(int irq, void *dev_id)
 
 		if (!host_priv->dma_wanted) {
 			/* ignore this interrupt - it was reset */
-			printk(KERN_INFO "%s: DMA IRQ %X ignored - "
+			if (extra_messages)
+				printk(KERN_INFO "%s: DMA IRQ %X ignored - "
 			       "results were reset\n",
 			       mmc_hostname(host->mmc), dma_cs);
 #ifdef CHECK_DMA_USE
@@ -975,8 +925,7 @@ static irqreturn_t sdhci_bcm2708_dma_irq(int irq, void *dev_id)
 
 		result = IRQ_HANDLED;
 	}
-
-	spin_unlock_irqrestore(&host->lock, flags);
+	sdhci_spin_unlock(host);
 
 	return result;
 }
@@ -1019,10 +968,12 @@ static ssize_t attr_dma_store(struct device *_dev,
 		int on = simple_strtol(buf, NULL, 0);
 		if (on) {
 			host->flags |= SDHCI_USE_PLATDMA;
+			sdhci_bcm2708_writel(host, 1, REG_EXRDFIFO_EN);
 			printk(KERN_INFO "%s: DMA enabled\n",
 			       mmc_hostname(host->mmc));
 		} else {
 			host->flags &= ~(SDHCI_USE_PLATDMA | SDHCI_REQ_USE_DMA);
+			sdhci_bcm2708_writel(host, 0, REG_EXRDFIFO_EN);
 			printk(KERN_INFO "%s: DMA disabled\n",
 			       mmc_hostname(host->mmc));
 		}
@@ -1126,7 +1077,7 @@ static int sdhci_bcm2708_suspend(struct platform_device *dev, pm_message_t state
 	int ret = 0;
 
 	if (host->mmc) {
-		ret = mmc_suspend_host(host->mmc);
+		//ret = mmc_suspend_host(host->mmc);
 	}
 
 	return ret;
@@ -1139,7 +1090,7 @@ static int sdhci_bcm2708_resume(struct platform_device *dev)
 	int ret = 0;
 
 	if (host->mmc) {
-		ret = mmc_resume_host(host->mmc);
+		//ret = mmc_resume_host(host->mmc);
 	}
 
 	return ret;
@@ -1158,19 +1109,14 @@ static unsigned int sdhci_bcm2708_quirk_extra_ints(struct sdhci_host *host)
         return 1;
 }
 
-static unsigned int sdhci_bcm2708_quirk_spurious_crc(struct sdhci_host *host)
+static unsigned int sdhci_bcm2708_quirk_spurious_crc_acmd51(struct sdhci_host *host)
 {
         return 1;
 }
 
-static unsigned int sdhci_bcm2708_quirk_voltage_broken(struct sdhci_host *host)
+static unsigned int sdhci_bcm2708_missing_status(struct sdhci_host *host)
 {
-        return 1;
-}
-
-static unsigned int sdhci_bcm2708_uhs_broken(struct sdhci_host *host)
-{
-        return 1;
+	return 1;
 }
 
 /***************************************************************************** \
@@ -1190,11 +1136,7 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
 #else
 #error The BCM2708 SDHCI driver needs CONFIG_MMC_SDHCI_IO_ACCESSORS to be set
 #endif
-	//.enable_dma = NULL,
-	.set_clock = sdhci_bcm2708_set_clock,
 	.get_max_clock = sdhci_bcm2708_get_max_clock,
-	//.get_min_clock = NULL,
-	.get_timeout_clock = sdhci_bcm2708_get_timeout_clock,
 
 #ifdef CONFIG_MMC_SDHCI_BCM2708_DMA
 	// Platform DMA operations
@@ -1203,9 +1145,6 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
 	.pdma_reset = sdhci_bcm2708_platdma_reset,
 #endif
 	.extra_ints = sdhci_bcm2708_quirk_extra_ints,
-	.spurious_crc_acmd51 = sdhci_bcm2708_quirk_spurious_crc,
-	.voltage_broken = sdhci_bcm2708_quirk_voltage_broken,
-	.uhs_broken = sdhci_bcm2708_uhs_broken,
 };
 
 /*****************************************************************************\
@@ -1244,15 +1183,30 @@ static int sdhci_bcm2708_probe(struct platform_device *pdev)
 		ret = PTR_ERR(host);
 		goto err;
 	}
+	if (missing_status) {
+		sdhci_bcm2708_ops.missing_status = sdhci_bcm2708_missing_status;
+	}
+
+	if( spurious_crc_acmd51 ) {
+		sdhci_bcm2708_ops.spurious_crc_acmd51 = sdhci_bcm2708_quirk_spurious_crc_acmd51;
+	}
+
+
+	printk("sdhci: %s low-latency mode\n",enable_llm?"Enable":"Disable");
 
 	host->hw_name = "BCM2708_Arasan";
 	host->ops = &sdhci_bcm2708_ops;
 	host->irq = platform_get_irq(pdev, 0);
+	host->second_irq = 0;
 
 	host->quirks = SDHCI_QUIRK_BROKEN_CARD_DETECTION |
 		       SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
 		       SDHCI_QUIRK_BROKEN_TIMEOUT_VAL |
-		       SDHCI_QUIRK_NONSTANDARD_CLOCK;
+               SDHCI_QUIRK_MISSING_CAPS |
+               SDHCI_QUIRK_NO_HISPD_BIT |
+               (sync_after_dma ? 0:SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12);
+
+
 #ifdef CONFIG_MMC_SDHCI_BCM2708_DMA
 	host->flags = SDHCI_USE_PLATDMA;
 #endif
@@ -1305,17 +1259,24 @@ static int sdhci_bcm2708_probe(struct platform_device *pdev)
 	host_priv->dma_chan = ret;
 
 	ret = request_irq(host_priv->dma_irq, sdhci_bcm2708_dma_irq,
-			  IRQF_SHARED, DRIVER_NAME " (dma)", host);
+			  0 /*IRQF_SHARED*/, DRIVER_NAME " (dma)", host);
 	if (ret) {
 		dev_err(&pdev->dev, "cannot set DMA IRQ\n");
 		goto err_add_dma_irq;
 	}
+	host->second_irq = host_priv->dma_irq;
 	DBG("DMA CBs %p handle %08X DMA%d %p DMA IRQ %d\n",
 	    host_priv->cb_base, (unsigned)host_priv->cb_handle,
 	    host_priv->dma_chan, host_priv->dma_chan_base,
 	    host_priv->dma_irq);
 
-	host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
+    // we support 3.3V
+    host->caps |= SDHCI_CAN_VDD_330;
+    if (allow_highspeed)
+        host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
+
+    /* single block writes cause data loss with some SD cards! */
+    host->mmc->caps2 |= MMC_CAP2_FORCE_MULTIBLOCK;
 #endif
 
 	ret = sdhci_add_host(host);
@@ -1326,6 +1287,12 @@ static int sdhci_bcm2708_probe(struct platform_device *pdev)
 	ret = device_create_file(&pdev->dev, &dev_attr_use_dma);
 	ret = device_create_file(&pdev->dev, &dev_attr_dma_wait);
 	ret = device_create_file(&pdev->dev, &dev_attr_status);
+
+#ifdef CONFIG_MMC_SDHCI_BCM2708_DMA
+	/* enable extension fifo for paced DMA transfers */
+	sdhci_bcm2708_writel(host, 1, REG_EXRDFIFO_EN);
+	sdhci_bcm2708_writel(host, 4, REG_EXRDFIFO_CFG);
+#endif
 
 	printk(KERN_INFO "%s: BCM2708 SDHC host at 0x%08llx DMA %d IRQ %d\n",
 	       mmc_hostname(host->mmc), (unsigned long long)iomem->start,
@@ -1418,7 +1385,26 @@ static void __exit sdhci_drv_exit(void)
 module_init(sdhci_drv_init);
 module_exit(sdhci_drv_exit);
 
+module_param(allow_highspeed, bool, 0444);
+module_param(emmc_clock_freq, int, 0444);
+module_param(sync_after_dma, bool, 0444);
+module_param(missing_status, bool, 0444);
+module_param(spurious_crc_acmd51, bool, 0444);
+module_param(enable_llm, bool, 0444);
+module_param(cycle_delay, int, 0444);
+module_param(extra_messages, bool, 0444);
+
 MODULE_DESCRIPTION("Secure Digital Host Controller Interface platform driver");
 MODULE_AUTHOR("Broadcom <info@broadcom.com>");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:"DRIVER_NAME);
+
+MODULE_PARM_DESC(allow_highspeed, "Allow high speed transfers modes");
+MODULE_PARM_DESC(emmc_clock_freq, "Specify the speed of emmc clock");
+MODULE_PARM_DESC(sync_after_dma, "Block in driver until dma complete");
+MODULE_PARM_DESC(missing_status, "Use the missing status quirk");
+MODULE_PARM_DESC(spurious_crc_acmd51, "Use the spurious crc quirk for reading SCR (ACMD51)");
+MODULE_PARM_DESC(enable_llm, "Enable low-latency mode");
+MODULE_PARM_DESC(extra_messages, "Enable more sdcard warning messages");
+
+
