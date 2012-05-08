@@ -281,6 +281,7 @@ struct mmc_host {
 				 MMC_CAP2_PACKED_WR)
 #define MMC_CAP2_NO_PRESCAN_POWERUP (1 << 14)	/* Don't power up before scan */
 #define MMC_CAP2_SANITIZE	(1 << 15)		/* Support Sanitize */
+#define MMC_CAP2_FORCE_MULTIBLOCK (1 << 31)	/* Always use multiblock transfers */
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 

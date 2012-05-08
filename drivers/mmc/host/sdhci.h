@@ -299,8 +299,6 @@ struct sdhci_ops {
 				      struct mmc_data *data);
 	unsigned int 	(*extra_ints)(struct sdhci_host *host);
 	unsigned int	(*spurious_crc_acmd51)(struct sdhci_host *host);
-	unsigned int	(*voltage_broken)(struct sdhci_host *host);
-	unsigned int	(*uhs_broken)(struct sdhci_host *host);
 	unsigned int	(*missing_status)(struct sdhci_host *host);
 
 	void	(*hw_reset)(struct sdhci_host *host);
@@ -441,5 +439,11 @@ sdhci_platdma_reset(struct sdhci_host *host, struct mmc_data *data)
 extern int sdhci_runtime_suspend_host(struct sdhci_host *host);
 extern int sdhci_runtime_resume_host(struct sdhci_host *host);
 #endif
+
+extern void sdhci_spin_lock_irqsave(struct sdhci_host *host,unsigned long *flags);
+extern void sdhci_spin_unlock_irqrestore(struct sdhci_host *host,unsigned long flags);
+extern void sdhci_spin_lock(struct sdhci_host *host);
+extern void sdhci_spin_unlock(struct sdhci_host *host);
+
 
 #endif /* __SDHCI_HW_H */
