@@ -14,7 +14,7 @@
 
 #include <mach/platform.h>
 
-		.macro	addruart, rp, rv
+		.macro	addruart, rp, rv, tmp
 		ldr	\rp, =UART0_BASE
 		ldr	\rv, =IO_ADDRESS(UART0_BASE)
 		.endm

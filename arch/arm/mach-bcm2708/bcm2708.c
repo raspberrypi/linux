@@ -23,7 +23,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/serial_8250.h>
 #include <linux/platform_device.h>
-#include <linux/sysdev.h>
+#include <linux/syscore_ops.h>
 #include <linux/interrupt.h>
 #include <linux/amba/bus.h>
 #include <linux/amba/clcd.h>
@@ -34,16 +34,13 @@
 #include <linux/spi/spi.h>
 
 #include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
 #include <linux/clkdev.h>
-#else
-#include <asm/clkdev.h>
-#endif
 #include <asm/system.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
 #include <linux/leds.h>
 #include <asm/mach-types.h>
+#include <asm/sched_clock.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/flash.h>
@@ -71,6 +68,8 @@
  * more legitimate.
  */
 #define DMA_MASK_BITS_COMMON 32
+
+static DEFINE_CLOCK_DATA(cd);
 
 /* command line parameters */
 static unsigned boardrev, serial;
@@ -175,8 +174,15 @@ static void __init bcm2708_clocksource_init(void)
 
 unsigned long long sched_clock(void)
 {
-	return clocksource_cyc2ns(clocksource_stc.read(&clocksource_stc),
-				  clocksource_stc.mult, clocksource_stc.shift);
+	u32 cyc = clocksource_stc.read(&clocksource_stc);
+	return cyc_to_fixed_sched_clock(&cd, cyc, clocksource_stc.mask,
+			clocksource_stc.mult, clocksource_stc.shift);
+}
+
+static void notrace bcm2708_update_sched_clock(void)
+{
+	u32 cyc = clocksource_stc.read(&clocksource_stc);
+	update_sched_clock(&cd, cyc, clocksource_stc.mask);
 }
 
 /*
@@ -695,6 +701,9 @@ static void __init bcm2708_timer_init(void)
 	 * Make irqs happen for the system timer
 	 */
 	setup_irq(IRQ_TIMER3, &bcm2708_timer_irq);
+
+	init_fixed_sched_clock(&cd, bcm2708_update_sched_clock, 32,
+		STC_FREQ_HZ, clocksource_stc.mult, clocksource_stc.shift);
 
 	timer0_clockevent.mult =
 	    div_sc(STC_FREQ_HZ, NSEC_PER_SEC, timer0_clockevent.shift);
