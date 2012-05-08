@@ -960,6 +960,8 @@ config ARCH_BCM2708
 	select CPU_V6
 	select ARM_AMBA
 	select HAVE_CLK
+	select HAVE_SCHED_CLOCK
+	select NEED_MACH_MEMORY_H
 	select CLKDEV_LOOKUP
 	select GENERIC_CLOCKEVENTS
 	select ARM_ERRATA_411920

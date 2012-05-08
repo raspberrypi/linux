@@ -247,6 +247,14 @@ choice
 		  their output to the standard serial port on the RealView
 		  PB1176 platform.
 
+	config DEBUG_BCM2708_UART0
+		bool "Broadcom BCM2708 UART0 (PL011)"
+		depends on MACH_BCM2708
+		help
+		  Say Y here if you want the debug print routines to direct
+		  their output to UART 0. The port must have been initialised
+		  by the boot-loader before use.
+
 endchoice
 
 config EARLY_PRINTK
