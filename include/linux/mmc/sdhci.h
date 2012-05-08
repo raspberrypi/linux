@@ -102,6 +102,7 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_BROKEN_HS200			(1<<6)
 
 	int irq;		/* Device IRQ */
+	int second_irq; 	/* Additional IRQ to disable/enable in low-latency mode */
 	void __iomem *ioaddr;	/* Mapped address */
 
 	const struct sdhci_ops *ops;	/* Low level hw interface */
