@@ -967,6 +967,11 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	if ((cmd->data != NULL) || (cmd->flags & MMC_RSP_BUSY))
 		mask |= SDHCI_DATA_INHIBIT;
 
+	if(host->ops->missing_status && (cmd->opcode == MMC_SEND_STATUS)) {
+		timeout = 100;
+		mask |= SDHCI_DATA_INHIBIT;
+	}
+
 	/* We shouldn't wait for data inihibit for stop commands, even
 	   though they might use busy signaling */
 	if (host->mrq->data && (cmd == host->mrq->data->stop))

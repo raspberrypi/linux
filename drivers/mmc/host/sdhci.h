@@ -290,6 +290,7 @@ struct sdhci_ops {
 	unsigned int	(*spurious_crc_acmd51)(struct sdhci_host *host);
 	unsigned int	(*voltage_broken)(struct sdhci_host *host);
 	unsigned int	(*uhs_broken)(struct sdhci_host *host);
+	unsigned int	(*missing_status)(struct sdhci_host *host);
 
 	void	(*hw_reset)(struct sdhci_host *host);
 };
