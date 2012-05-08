@@ -27,6 +27,7 @@
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/printk.h>
+#include <linux/console.h>
 
 #include <mach/platform.h>
 #include <mach/vcio.h>
@@ -243,8 +244,13 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 			iounmap(fb->fb.screen_base);
 		fb->fb.screen_base =
 			(void *)ioremap_wc(fb->fb.fix.smem_start, fb->fb.screen_size);
-		if (!fb->fb.screen_base)
+		if (!fb->fb.screen_base) {
+			/* the console may currently be locked */
+			console_trylock();
+			console_unlock();
+
 			BUG();		/* what can we do here */
+		}
 	}
 	pr_info
 	    ("BCM2708FB: start = %p,%p width=%d, height=%d, bpp=%d, pitch=%d size=%d success=%d\n",
