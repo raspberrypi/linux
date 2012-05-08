@@ -1173,6 +1173,14 @@ static unsigned int sdhci_bcm2708_uhs_broken(struct sdhci_host *host)
         return 1;
 }
 
+static unsigned int sdhci_bcm2708_missing_status(struct sdhci_host *host)
+{
+	if(host->last_cmdop == MMC_SEND_STATUS)
+		return 1;
+	else
+		return 0;
+}
+
 /***************************************************************************** \
  *									     *
  * Device ops								     *
@@ -1206,6 +1214,7 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
 	.spurious_crc_acmd51 = sdhci_bcm2708_quirk_spurious_crc,
 	.voltage_broken = sdhci_bcm2708_quirk_voltage_broken,
 	.uhs_broken = sdhci_bcm2708_uhs_broken,
+	.missing_status = sdhci_bcm2708_missing_status,
 };
 
 /*****************************************************************************\
