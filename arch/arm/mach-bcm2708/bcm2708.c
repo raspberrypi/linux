@@ -376,6 +376,10 @@ static struct platform_device bcm2708_gpio_device = {
 		},
 };
 
+#endif
+
+#ifdef CONFIG_I2C_GPIO
+
 /* I2C at the pin header */
 static struct i2c_gpio_platform_data bcm2708_i2c_gpio_data0 = {
 	.sda_pin		= 0,	/* GPIO 0, SDA0 */
