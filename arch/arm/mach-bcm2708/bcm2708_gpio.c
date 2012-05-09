@@ -315,7 +315,7 @@ static void __exit bcm2708_gpio_exit(void)
 	platform_driver_unregister(&bcm2708_gpio_driver);
 }
 
-module_init(bcm2708_gpio_init);
+arch_initcall(bcm2708_gpio_init);
 module_exit(bcm2708_gpio_exit);
 
 MODULE_DESCRIPTION("Broadcom BCM2708 GPIO driver");
