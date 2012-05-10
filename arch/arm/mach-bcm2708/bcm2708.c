@@ -378,7 +378,7 @@ static struct platform_device bcm2708_gpio_device = {
 
 #endif
 
-#ifdef CONFIG_I2C_GPIO
+#if defined(CONFIG_I2C_GPIO) || defined(CONFIG_I2C_GPIO_MODULE)
 
 /* I2C at the pin header */
 static struct i2c_gpio_platform_data bcm2708_i2c_gpio_data0 = {
@@ -532,7 +532,7 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_emmc_device);
 #endif
 	bcm2708_init_led();
-#ifdef CONFIG_I2C_GPIO
+#if defined(CONFIG_I2C_GPIO) || defined(CONFIG_I2C_GPIO_MODULE)
 	bcm_register_device(&bcm2708_i2c_device0);
 	bcm_register_device(&bcm2708_i2c_device1);
 #endif
