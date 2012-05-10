@@ -628,7 +628,7 @@ static inline void dwc_otg_hcd_qh_remove_and_free(dwc_otg_hcd_t * hcd,
  * @return Returns the memory allocate or NULL on error. */
 static inline dwc_otg_qh_t *dwc_otg_hcd_qh_alloc(void)
 {
-	return (dwc_otg_qh_t *) dwc_alloc(sizeof(dwc_otg_qh_t));
+	return (dwc_otg_qh_t *) dwc_alloc_atomic(sizeof(dwc_otg_qh_t));
 }
 
 extern dwc_otg_qtd_t *dwc_otg_hcd_qtd_create(dwc_otg_hcd_urb_t * urb);
@@ -640,7 +640,7 @@ extern int dwc_otg_hcd_qtd_add(dwc_otg_qtd_t * qtd, dwc_otg_hcd_t * dwc_otg_hcd,
  * @return Returns the memory allocate or NULL on error. */
 static inline dwc_otg_qtd_t *dwc_otg_hcd_qtd_alloc(void)
 {
-	return (dwc_otg_qtd_t *) dwc_alloc(sizeof(dwc_otg_qtd_t));
+	return (dwc_otg_qtd_t *) dwc_alloc_atomic(sizeof(dwc_otg_qtd_t));
 }
 
 /** Frees the memory for a QTD structure.  QTD should already be removed from
