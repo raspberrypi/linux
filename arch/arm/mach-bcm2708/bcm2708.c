@@ -380,13 +380,15 @@ static struct platform_device bcm2708_gpio_device = {
 
 #if defined(CONFIG_I2C_GPIO) || defined(CONFIG_I2C_GPIO_MODULE)
 
+#define I2C_UDELAY 4
+
 /* I2C at the pin header */
 static struct i2c_gpio_platform_data bcm2708_i2c_gpio_data0 = {
 	.sda_pin		= 0,	/* GPIO 0, SDA0 */
 	.sda_is_open_drain	= 0,
 	.scl_pin		= 1,	/* GPIO 1, SCL0 */
 	.scl_is_open_drain	= 0,
-	.udelay			= 0,	/* default to 100 kHz */
+	.udelay			= I2C_UDELAY,	/* 100 kHz */
 	.timeout		= 0,	/* default to 100 ms */
 };
 static struct platform_device bcm2708_i2c_device0 = {
@@ -401,7 +403,7 @@ static struct i2c_gpio_platform_data bcm2708_i2c_gpio_data1 = {
 	.sda_is_open_drain	= 0,
 	.scl_pin		= 3,	/* GPIO 3, SCL1 */
 	.scl_is_open_drain	= 0,
-	.udelay			= 0,	/* default to 100 kHz */
+	.udelay			= I2C_UDELAY,	/* 100 kHz */
 	.timeout		= 0,	/* default to 100 ms */
 };
 static struct platform_device bcm2708_i2c_device1 = {
