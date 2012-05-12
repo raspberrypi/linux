@@ -7879,7 +7879,7 @@ brcms_c_recvctl(struct brcms_c_info *wlc, struct d11rxhdr *rxh,
 	if (wlc->hw->suspended_fifos) {
 		hdr = (struct ieee80211_hdr *)p->data;
 		if (ieee80211_is_beacon(hdr->frame_control))
-			brcms_b_mute(wlc->hw, false);
+			brcms_b_mute(wlc->hw, false, 0);
 	}
 
 	memcpy(IEEE80211_SKB_RXCB(p), &rx_status, sizeof(rx_status));
