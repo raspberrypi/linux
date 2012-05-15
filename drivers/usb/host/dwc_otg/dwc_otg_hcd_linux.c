@@ -761,10 +761,12 @@ static int urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 		dump_urb_info(urb, "urb_dequeue");
 	}
 #endif
-	dwc_otg_hcd_urb_dequeue(dwc_otg_hcd, (dwc_otg_hcd_urb_t *)urb->hcpriv);
+	if(urb->hcpriv != NULL) {
+		dwc_otg_hcd_urb_dequeue(dwc_otg_hcd, (dwc_otg_hcd_urb_t *)urb->hcpriv);
 
-	dwc_free(urb->hcpriv);
-	urb->hcpriv = NULL;
+		urb->hcpriv = NULL;
+		dwc_free(urb->hcpriv);
+	}
 
 	/* Higher layer software sets URB status. */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
