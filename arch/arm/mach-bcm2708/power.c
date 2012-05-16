@@ -97,8 +97,6 @@ int bcm_power_request(BCM_POWER_HANDLE_T handle, uint32_t request)
 				bcm_mailbox_write(MBOX_CHAN_POWER,
 						  global_request << 4);
 
-				/* Wait for a response during power-up */
-				mdelay(10);
 				if (global_request & ~g_state.global_request) {
 					rc = bcm_mailbox_read(MBOX_CHAN_POWER,
 							      &actual);
