@@ -119,8 +119,7 @@ static int mbox_read(struct vc_mailbox *mbox, unsigned chan, uint32_t *data28)
 	if (mbox->magic != MBOX_MAGIC)
 		rc = -EINVAL;
 	else {
-		if (mbox->msg[chan] ||
-		    (down_interruptible(&mbox->sema[chan]) == 0)) {
+		if (down_interruptible(&mbox->sema[chan]) == 0) {
 			*data28 = MBOX_DATA28(mbox->msg[chan]);
 			mbox->msg[chan] = 0;
 			rc = 0;
