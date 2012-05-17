@@ -886,8 +886,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 		   We get CRC and DEND errors unless we wait for
 		   the SD controller to finish reading/writing to the card. */
 		u32 state_mask;
-		int timeout=1000000;
-		hptime_t now = hptime();
+		int timeout=1000;
 
 		DBG("PDMA over - sync card\n");
 		if (data->flags & MMC_DATA_READ)
@@ -895,17 +894,12 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 		else
 			state_mask = SDHCI_DOING_WRITE;
 
-		while (0 != (sdhci_bcm2708_raw_readl(host,
-						     SDHCI_PRESENT_STATE) &
-			     state_mask) && --timeout > 0)
+		while (0 != (sdhci_bcm2708_raw_readl(host, SDHCI_PRESENT_STATE) 
+			& state_mask) && --timeout > 0)
+		{
+			udelay(100);
 			continue;
-
-		if (1000000-timeout > 4000) /*ave. is about 3250*/
-			DBG("%s: note - long %s sync %luns - "
-			       "%d its.\n",
-			       mmc_hostname(host->mmc),
-			       data->flags & MMC_DATA_READ? "read": "write",
-			       since_ns(now), 1000000-timeout);
+		}
 		if (timeout <= 0)
 			printk(KERN_ERR"%s: final %s to SD card still "
 			       "running\n",
@@ -1175,10 +1169,7 @@ static unsigned int sdhci_bcm2708_uhs_broken(struct sdhci_host *host)
 
 static unsigned int sdhci_bcm2708_missing_status(struct sdhci_host *host)
 {
-	if(host->last_cmdop == MMC_SEND_STATUS)
-		return 1;
-	else
-		return 0;
+	return 1;
 }
 
 /***************************************************************************** \
