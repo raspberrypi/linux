@@ -968,7 +968,8 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 		mask |= SDHCI_DATA_INHIBIT;
 
 	if(host->ops->missing_status && (cmd->opcode == MMC_SEND_STATUS)) {
-		timeout = 100;
+		timeout = 5000; // Really obscenely large delay to send the status, due to bug in controller
+				// which might cause the STATUS command to get stuck when a data operation is in flow
 		mask |= SDHCI_DATA_INHIBIT;
 	}
 
@@ -2052,7 +2053,7 @@ static void sdhci_timeout_timer(unsigned long data)
 
 	if (host->mrq) {
 		pr_err("%s: Timeout waiting for hardware "
-			"interrupt.\n", mmc_hostname(host->mmc));
+				"interrupt - cmd%d.\n", mmc_hostname(host->mmc), host->last_cmdop);
 		sdhci_dumpregs(host);
 
 		if (host->data) {
