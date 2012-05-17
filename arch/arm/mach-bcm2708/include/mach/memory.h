@@ -32,7 +32,7 @@
 /*
  * Physical DRAM offset.
  */
-#define PHYS_OFFSET	 UL(0x00000000)
+#define PLAT_PHYS_OFFSET	 UL(0x00000000)
 #define ARMMEM_OFFSET    UL(0x00000000)   /* offset in VC of ARM memory */
 
 #ifdef CONFIG_BCM2708_NOL2CACHE
@@ -51,8 +51,8 @@
 #define BUS_OFFSET          (ARMMEM_OFFSET + _REAL_BUS_OFFSET)
 #define __virt_to_bus(x)    ((x) + (BUS_OFFSET - PAGE_OFFSET))
 #define __bus_to_virt(x)    ((x) - (BUS_OFFSET - PAGE_OFFSET))
-#define __pfn_to_bus(x)     (__pfn_to_phys(x) + (BUS_OFFSET - PHYS_OFFSET))
-#define __bus_to_pfn(x)     __phys_to_pfn((x) - (BUS_OFFSET - PHYS_OFFSET))
+#define __pfn_to_bus(x)     (__pfn_to_phys(x) + (BUS_OFFSET - PLAT_PHYS_OFFSET))
+#define __bus_to_pfn(x)     __phys_to_pfn((x) - (BUS_OFFSET - PLAT_PHYS_OFFSET))
 
 /*
  * Consistent DMA area set to 2M. Framebuffer now allocated on host
