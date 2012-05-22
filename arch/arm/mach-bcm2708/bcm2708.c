@@ -104,6 +104,11 @@ static struct map_desc bcm2708_io_desc[] __initdata = {
 	 .type = MT_DEVICE},
 #endif
 	{
+	 .virtual = IO_ADDRESS(I2C0_BASE),
+	 .pfn = __phys_to_pfn(I2C0_BASE),
+	 .length = SZ_4K,
+	 .type = MT_DEVICE},
+	{
 	 .virtual = IO_ADDRESS(DMA_BASE),
 	 .pfn = __phys_to_pfn(DMA_BASE),
 	 .length = SZ_4K,
@@ -304,6 +309,26 @@ static struct platform_device bcm2708_uart1_device = {
 		},
 };
 
+static struct resource bcm2708_i2c0_resources[] = {
+	{
+		.start = I2C0_BASE,
+		.end = I2C0_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = IRQ_I2C,
+		.end = IRQ_I2C,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+static struct platform_device bcm2708_i2c0_device = {
+	.name = "i2c-bcm2708",
+	.id = 0,
+	.resource = bcm2708_i2c0_resources,
+	.num_resources = ARRAY_SIZE(bcm2708_i2c0_resources),
+};
+
 static struct resource bcm2708_usb_resources[] = {
 	[0] = {
 	       .start = USB_BASE,
@@ -491,6 +516,7 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_fb_device);
 	bcm_register_device(&bcm2708_usb_device);
 	bcm_register_device(&bcm2708_uart1_device);
+	bcm_register_device(&bcm2708_i2c0_device);
 	bcm_register_device(&bcm2708_powerman_device);
 #ifdef CONFIG_MMC_SDHCI_BCM2708
 	bcm_register_device(&bcm2708_emmc_device);

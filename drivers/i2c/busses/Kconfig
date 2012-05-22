@@ -687,6 +687,18 @@ config I2C_EG20T
 	  ML7213/ML7223 is companion chip for Intel Atom E6xx series.
 	  ML7213/ML7223 is completely compatible for Intel EG20T PCH.
 
+config I2C_BCM2708
+	tristate "Broadcom BCM2708 I2C controller"
+	depends on ARCH_BCM2708
+	help
+	  If you say yes to this option, support will be included for the
+	  BCM2708 I2C controller.
+
+	  If you don't know what to do here, say N.
+
+	  This support is also available as a module.  If so, the module
+	  will be called i2c-bcm2708.
+
 comment "External I2C/SMBus adapter drivers"
 
 config I2C_DIOLAN_U2C
