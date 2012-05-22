@@ -23,6 +23,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/serial_8250.h>
 #include <linux/platform_device.h>
+#include <linux/i2c-gpio.h>
 #include <linux/sysdev.h>
 #include <linux/interrupt.h>
 #include <linux/amba/bus.h>
@@ -374,6 +375,43 @@ static struct platform_device bcm2708_gpio_device = {
 		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON),
 		},
 };
+
+#endif
+
+#if defined(CONFIG_I2C_GPIO) || defined(CONFIG_I2C_GPIO_MODULE)
+
+#define I2C_UDELAY 4
+
+/* I2C at the pin header */
+static struct i2c_gpio_platform_data bcm2708_i2c_gpio_data0 = {
+	.sda_pin		= 0,	/* GPIO 0, SDA0 */
+	.sda_is_open_drain	= 0,
+	.scl_pin		= 1,	/* GPIO 1, SCL0 */
+	.scl_is_open_drain	= 0,
+	.udelay			= I2C_UDELAY,	/* 100 kHz */
+	.timeout		= 0,	/* default to 100 ms */
+};
+static struct platform_device bcm2708_i2c_device0 = {
+	.name = "i2c-gpio",
+	.id = 0,
+	.dev.platform_data = &bcm2708_i2c_gpio_data0,
+};
+
+/* I2C at the camera connector */
+static struct i2c_gpio_platform_data bcm2708_i2c_gpio_data1 = {
+	.sda_pin		= 2,	/* GPIO 2, SDA1 */
+	.sda_is_open_drain	= 0,
+	.scl_pin		= 3,	/* GPIO 3, SCL1 */
+	.scl_is_open_drain	= 0,
+	.udelay			= I2C_UDELAY,	/* 100 kHz */
+	.timeout		= 0,	/* default to 100 ms */
+};
+static struct platform_device bcm2708_i2c_device1 = {
+	.name = "i2c-gpio",
+	.id = 1,
+	.dev.platform_data = &bcm2708_i2c_gpio_data1,
+};
+
 #endif
 
 static struct resource bcm2708_systemtimer_resources[] = {
@@ -496,6 +534,10 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_emmc_device);
 #endif
 	bcm2708_init_led();
+#if defined(CONFIG_I2C_GPIO) || defined(CONFIG_I2C_GPIO_MODULE)
+	bcm_register_device(&bcm2708_i2c_device0);
+	bcm_register_device(&bcm2708_i2c_device1);
+#endif
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
 		bcm_register_device(&bcm2708_alsa_devices[i]);
 
