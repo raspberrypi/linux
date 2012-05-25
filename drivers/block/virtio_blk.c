@@ -20,8 +20,6 @@ struct workqueue_struct *virtblk_wq;
 
 struct virtio_blk
 {
-	spinlock_t lock;
-
 	struct virtio_device *vdev;
 	struct virtqueue *vq;
 
@@ -62,7 +60,7 @@ static void blk_done(struct virtqueue *vq)
 	unsigned int len;
 	unsigned long flags;
 
-	spin_lock_irqsave(&vblk->lock, flags);
+	spin_lock_irqsave(vblk->disk->queue->queue_lock, flags);
 	while ((vbr = virtqueue_get_buf(vblk->vq, &len)) != NULL) {
 		int error;
 
@@ -97,7 +95,7 @@ static void blk_done(struct virtqueue *vq)
 	}
 	/* In case queue is stopped waiting for more buffers. */
 	blk_start_queue(vblk->disk->queue);
-	spin_unlock_irqrestore(&vblk->lock, flags);
+	spin_unlock_irqrestore(vblk->disk->queue->queue_lock, flags);
 }
 
 static bool do_req(struct request_queue *q, struct virtio_blk *vblk,
@@ -384,7 +382,6 @@ static int __devinit virtblk_probe(struct virtio_device *vdev)
 	}
 
 	INIT_LIST_HEAD(&vblk->reqs);
-	spin_lock_init(&vblk->lock);
 	vblk->vdev = vdev;
 	vblk->sg_elems = sg_elems;
 	sg_init_table(vblk->sg, vblk->sg_elems);
@@ -410,7 +407,7 @@ static int __devinit virtblk_probe(struct virtio_device *vdev)
 		goto out_mempool;
 	}
 
-	q = vblk->disk->queue = blk_init_queue(do_virtblk_request, &vblk->lock);
+	q = vblk->disk->queue = blk_init_queue(do_virtblk_request, NULL);
 	if (!q) {
 		err = -ENOMEM;
 		goto out_put_disk;
