@@ -161,6 +161,7 @@ static int __init bcm_power_init(void)
 	int i;
 
 	printk(KERN_INFO "bcm_power: Broadcom power driver\n");
+	bcm_mailbox_write(MBOX_CHAN_POWER, 0);
 
 	for (i = 0; i < BCM_POWER_MAXCLIENTS; i++)
 		g_state.client_request[i] = BCM_POWER_NOCLIENT;
