@@ -897,7 +897,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 		while (0 != (sdhci_bcm2708_raw_readl(host, SDHCI_PRESENT_STATE) 
 			& state_mask) && --timeout > 0)
 		{
-			udelay(100);
+			udelay(30);
 			continue;
 		}
 		if (timeout <= 0)
