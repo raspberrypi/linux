@@ -241,6 +241,7 @@ static const struct attribute_group ad7606_attribute_group = {
 		.indexed = 1,				\
 		.channel = num,				\
 		.address = num,				\
+		.info_mask = (1 << IIO_CHAN_INFO_SCALE_SHARED), \
 		.scan_index = num,			\
 		.scan_type = IIO_ST('s', 16, 16, 0),	\
 	}
