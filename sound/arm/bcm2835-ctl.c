@@ -33,6 +33,19 @@
 
 #include "bcm2835.h"
 
+
+/* functions to convert alsa to chip volume and back. */
+int alsa2chip(int vol)
+{
+	return -((vol << 8) / 100);
+}
+
+int chip2alsa(int vol)
+{
+	return -((vol * 100) >> 8);
+}
+
+
 static int snd_bcm2835_ctl_info(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_info *uinfo)
 {
@@ -40,7 +53,7 @@ static int snd_bcm2835_ctl_info(struct snd_kcontrol *kcontrol,
 		uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 		uinfo->count = 1;
 		uinfo->value.integer.min = -10240;
-		uinfo->value.integer.max = 2303;
+		uinfo->value.integer.max = 400;      /* 2303 */
 	} else if (kcontrol->private_value == PCM_PLAYBACK_MUTE) {
 		uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 		uinfo->count = 1;
@@ -64,7 +77,7 @@ static int snd_bcm2835_ctl_get(struct snd_kcontrol *kcontrol,
 	BUG_ON(!chip && !(chip->avail_substreams & AVAIL_SUBSTREAMS_MASK));
 
 	if (kcontrol->private_value == PCM_PLAYBACK_VOLUME)
-		ucontrol->value.integer.value[0] = chip->volume;
+		ucontrol->value.integer.value[0] = chip2alsa(chip->volume);
 	else if (kcontrol->private_value == PCM_PLAYBACK_MUTE)
 		ucontrol->value.integer.value[0] = chip->mute;
 	else if (kcontrol->private_value == PCM_PLAYBACK_DEVICE)
@@ -85,13 +98,10 @@ static int snd_bcm2835_ctl_put(struct snd_kcontrol *kcontrol,
 			changed = 1;
 		}
 		if (changed
-		    || (ucontrol->value.integer.value[0] != chip->volume)) {
-			int atten;
+		    || (ucontrol->value.integer.value[0] != chip2alsa(chip->volume))) {
 
-			chip->volume = ucontrol->value.integer.value[0];
+			chip->volume = alsa2chip(ucontrol->value.integer.value[0]);
 			changed = 1;
-			atten = -((chip->volume << 8) / 100);
-			chip->volume = atten;
 		}
 
 	} else if (kcontrol->private_value == PCM_PLAYBACK_MUTE) {
