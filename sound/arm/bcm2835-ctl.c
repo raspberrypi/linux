@@ -53,7 +53,7 @@ static int snd_bcm2835_ctl_info(struct snd_kcontrol *kcontrol,
 		uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 		uinfo->count = 1;
 		uinfo->value.integer.min = -10240;
-		uinfo->value.integer.max = 2303;
+		uinfo->value.integer.max = 400;      /* 2303 */
 	} else if (kcontrol->private_value == PCM_PLAYBACK_MUTE) {
 		uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 		uinfo->count = 1;
