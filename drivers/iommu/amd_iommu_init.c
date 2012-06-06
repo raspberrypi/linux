@@ -1468,6 +1468,8 @@ static int __init amd_iommu_init(void)
 
 	register_syscore_ops(&amd_iommu_syscore_ops);
 
+	x86_platform.iommu_shutdown = disable_iommus;
+
 	if (iommu_pass_through)
 		goto out;
 
@@ -1476,7 +1478,6 @@ static int __init amd_iommu_init(void)
 	else
 		printk(KERN_INFO "AMD-Vi: Lazy IO/TLB flushing enabled\n");
 
-	x86_platform.iommu_shutdown = disable_iommus;
 out:
 	return ret;
 
