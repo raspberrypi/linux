@@ -1394,6 +1394,11 @@ static int pl011_startup(struct uart_port *port)
 	writew(uap->vendor->ifls, uap->port.membase + UART011_IFLS);
 
 	/*
+	 * The write to UART01x_DR causes a corrupted character to be sent
+	 * - why is it required?
+	 */
+#if 0
+	/*
 	 * Provoke TX FIFO interrupt into asserting.
 	 */
 	cr = UART01x_CR_UARTEN | UART011_CR_TXE | UART011_CR_LBE;
@@ -1414,6 +1419,7 @@ static int pl011_startup(struct uart_port *port)
 	writew(0, uap->port.membase + UART01x_DR);
 	while (readw(uap->port.membase + UART01x_FR) & UART01x_FR_BUSY)
 		barrier();
+#endif
 
 	cr = UART01x_CR_UARTEN | UART011_CR_RXE | UART011_CR_TXE;
 	writew(cr, uap->port.membase + UART011_CR);
