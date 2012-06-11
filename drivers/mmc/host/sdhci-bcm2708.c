@@ -73,7 +73,7 @@
 #define BCM2708_SDHCI_SLEEP_TIMEOUT 1000   /* msecs */
 
 /* Mhz clock that the EMMC core is running at. Should match the platform clockman settings */
-#define BCM2708_EMMC_CLOCK_FREQ 80000000
+#define BCM2708_EMMC_CLOCK_FREQ 50000000
 
 /*****************************************************************************\
  *									     *
