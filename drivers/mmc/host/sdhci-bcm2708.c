@@ -353,67 +353,8 @@ void sdhci_bcm2708_writeb(struct sdhci_host *host, u8 val, int reg)
 
 static unsigned int sdhci_bcm2708_get_max_clock(struct sdhci_host *host)
 {
-	return 20000000;	// this value is in Hz (20MHz)
+	return BCM2708_EMMC_CLOCK_FREQ;
 }
-
-static unsigned int sdhci_bcm2708_get_timeout_clock(struct sdhci_host *host)
-{
-	if(host->clock)
-		return (host->clock / 1000);		// this value is in kHz (100MHz)
-	else
-		return (sdhci_bcm2708_get_max_clock(host) / 1000);
-}
-
-static void sdhci_bcm2708_set_clock(struct sdhci_host *host, unsigned int clock)
-{
-	int div = 0;
-	u16 clk = 0;
-	unsigned long timeout;
-
-        if (clock == host->clock)
-                return;
-
-        sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
-
-        if (clock == 0)
-                goto out;
-
-	if (BCM2708_EMMC_CLOCK_FREQ <= clock)
-		div = 1;
-	else {
-		for (div = 2; div < SDHCI_MAX_DIV_SPEC_300; div += 2) {
-			if ((BCM2708_EMMC_CLOCK_FREQ / div) <= clock)
-				break;
-		}
-	}
-
-        DBG( "desired SD clock: %d, actual: %d\n",
-                clock, BCM2708_EMMC_CLOCK_FREQ / div);
-
-	clk |= (div & SDHCI_DIV_MASK) << SDHCI_DIVIDER_SHIFT;
-	clk |= ((div & SDHCI_DIV_HI_MASK) >> SDHCI_DIV_MASK_LEN)
-		<< SDHCI_DIVIDER_HI_SHIFT;
-	clk |= SDHCI_CLOCK_INT_EN;
-
-	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
-
-        timeout = 20;
-        while (!((clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL))
-                        & SDHCI_CLOCK_INT_STABLE)) {
-                if (timeout == 0) {
-			printk(KERN_ERR "%s: Internal clock never "
-				"stabilised.\n", mmc_hostname(host->mmc));
-                        return;
-                }
-                timeout--;
-                mdelay(1);
-        }
-
-        clk |= SDHCI_CLOCK_CARD_EN;
-        sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
-out:
-        host->clock = clock;
- }
 
 /*****************************************************************************\
  *									     *
@@ -1189,11 +1130,7 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
 #else
 #error The BCM2708 SDHCI driver needs CONFIG_MMC_SDHCI_IO_ACCESSORS to be set
 #endif
-	//.enable_dma = NULL,
-	.set_clock = sdhci_bcm2708_set_clock,
 	.get_max_clock = sdhci_bcm2708_get_max_clock,
-	//.get_min_clock = NULL,
-	.get_timeout_clock = sdhci_bcm2708_get_timeout_clock,
 
 #ifdef CONFIG_MMC_SDHCI_BCM2708_DMA
 	// Platform DMA operations
