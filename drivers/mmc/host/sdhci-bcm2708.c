@@ -1189,7 +1189,9 @@ static int sdhci_bcm2708_probe(struct platform_device *pdev)
 	host->quirks = SDHCI_QUIRK_BROKEN_CARD_DETECTION |
 		       SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
 		       SDHCI_QUIRK_BROKEN_TIMEOUT_VAL |
-		       SDHCI_QUIRK_NONSTANDARD_CLOCK;
+               SDHCI_QUIRK_MISSING_CAPS |
+               SDHCI_QUIRK_NO_HISPD_BIT;
+
 #ifdef CONFIG_MMC_SDHCI_BCM2708_DMA
 	host->flags = SDHCI_USE_PLATDMA;
 #endif
