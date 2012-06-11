@@ -135,6 +135,8 @@ static inline unsigned long int since_ns(hptime_t t)
 	return (unsigned long)((hptime() - t) * HPTIME_CLK_NS);
 }
 
+static bool allow_highspeed = 1;
+
 #if 0
 static void hptime_test(void)
 {
@@ -1381,7 +1383,8 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 	    host_priv->dma_chan, host_priv->dma_chan_base,
 	    host_priv->dma_irq);
 
-	host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
+    if (allow_highspeed)
+        host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
 #endif
 
 	ret = sdhci_add_host(host);
@@ -1487,8 +1490,12 @@ static void __exit sdhci_drv_exit(void)
 module_init(sdhci_drv_init);
 module_exit(sdhci_drv_exit);
 
+module_param(allow_highspeed, bool, 0444);
+
 MODULE_DESCRIPTION("Secure Digital Host Controller Interface platform driver");
 MODULE_AUTHOR("Broadcom <info@broadcom.com>");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:"DRIVER_NAME);
+
+MODULE_PARM_DESC(allow_highspeed, "Allow high speed transfers modes");
 
