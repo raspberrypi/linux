@@ -551,6 +551,26 @@ static inline void bnx2x_set_skb_rxhash(struct bnx2x *bp, union eth_rx_cqe *cqe,
 		le32_to_cpu(cqe->fast_path_cqe.rss_hash_result);
 }
 
+static void bnx2x_csum_validate(struct sk_buff *skb, union eth_rx_cqe *cqe,
+				struct bnx2x_fastpath *fp)
+{
+	/* Do nothing if no IP/L4 csum validation was done */
+
+	if (cqe->fast_path_cqe.status_flags &
+	    (ETH_FAST_PATH_RX_CQE_IP_XSUM_NO_VALIDATION_FLG |
+	     ETH_FAST_PATH_RX_CQE_L4_XSUM_NO_VALIDATION_FLG))
+		return;
+
+	/* If both IP/L4 validation were done, check if an error was found. */
+
+	if (cqe->fast_path_cqe.type_error_flags &
+	    (ETH_FAST_PATH_RX_CQE_IP_BAD_XSUM_FLG |
+	     ETH_FAST_PATH_RX_CQE_L4_BAD_XSUM_FLG))
+		fp->eth_q_stats.hw_csum_err++;
+	else
+		skb->ip_summed = CHECKSUM_UNNECESSARY;
+}
+
 int bnx2x_rx_int(struct bnx2x_fastpath *fp, int budget)
 {
 	struct bnx2x *bp = fp->bp;
@@ -746,13 +766,9 @@ reuse_rx:
 
 			skb_checksum_none_assert(skb);
 
-			if (bp->dev->features & NETIF_F_RXCSUM) {
+			if (bp->dev->features & NETIF_F_RXCSUM)
+				bnx2x_csum_validate(skb, cqe, fp);
 
-				if (likely(BNX2X_RX_CSUM_OK(cqe)))
-					skb->ip_summed = CHECKSUM_UNNECESSARY;
-				else
-					fp->eth_q_stats.hw_csum_err++;
-			}
 		}
 
 		skb_record_rx_queue(skb, fp->index);
