@@ -188,6 +188,7 @@ struct mmc_card {
 #define MMC_QUIRK_DISABLE_CD	(1<<5)		/* disconnect CD/DAT[3] resistor */
 #define MMC_QUIRK_INAND_CMD38	(1<<6)		/* iNAND devices have broken CMD38 */
 #define MMC_QUIRK_BLK_NO_CMD23	(1<<7)		/* Avoid CMD23 for regular multiblock */
+#define MMC_QUIRK_LONG_READ_TIME (1<<9)		/* Data read time > CSD says */
 
 	unsigned int		erase_size;	/* erase size in sectors */
  	unsigned int		erase_shift;	/* if erase unit is power 2 */
@@ -375,6 +376,11 @@ static inline int mmc_card_disable_cd(const struct mmc_card *c)
 static inline int mmc_card_nonstd_func_interface(const struct mmc_card *c)
 {
 	return c->quirks & MMC_QUIRK_NONSTD_FUNC_IF;
+}
+
+static inline int mmc_card_long_read_time(const struct mmc_card *c)
+{
+	return c->quirks & MMC_QUIRK_LONG_READ_TIME;
 }
 
 #define mmc_card_name(c)	((c)->cid.prod_name)
