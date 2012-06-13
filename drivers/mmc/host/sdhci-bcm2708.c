@@ -74,7 +74,7 @@
 #define BCM2708_SDHCI_SLEEP_TIMEOUT 1000   /* msecs */
 
 /* Mhz clock that the EMMC core is running at. Should match the platform clockman settings */
-#define BCM2708_EMMC_CLOCK_FREQ 80000000
+#define BCM2708_EMMC_CLOCK_FREQ 50000000
 
 #define POWER_OFF 0
 #define POWER_LAZY_OFF 1
@@ -134,6 +134,8 @@ static inline unsigned long int since_ns(hptime_t t)
 {
 	return (unsigned long)((hptime() - t) * HPTIME_CLK_NS);
 }
+
+static bool allow_highspeed = 1;
 
 #if 0
 static void hptime_test(void)
@@ -359,67 +361,8 @@ void sdhci_bcm2708_writeb(struct sdhci_host *host, u8 val, int reg)
 
 static unsigned int sdhci_bcm2708_get_max_clock(struct sdhci_host *host)
 {
-	return 20000000;	// this value is in Hz (20MHz)
+	return BCM2708_EMMC_CLOCK_FREQ;
 }
-
-static unsigned int sdhci_bcm2708_get_timeout_clock(struct sdhci_host *host)
-{
-	if(host->clock)
-		return (host->clock / 1000);		// this value is in kHz (100MHz)
-	else
-		return (sdhci_bcm2708_get_max_clock(host) / 1000);
-}
-
-static void sdhci_bcm2708_set_clock(struct sdhci_host *host, unsigned int clock)
-{
-	int div = 0;
-	u16 clk = 0;
-	unsigned long timeout;
-
-        if (clock == host->clock)
-                return;
-
-        sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
-
-        if (clock == 0)
-                goto out;
-
-	if (BCM2708_EMMC_CLOCK_FREQ <= clock)
-		div = 1;
-	else {
-		for (div = 2; div < SDHCI_MAX_DIV_SPEC_300; div += 2) {
-			if ((BCM2708_EMMC_CLOCK_FREQ / div) <= clock)
-				break;
-		}
-	}
-
-        DBG( "desired SD clock: %d, actual: %d\n",
-                clock, BCM2708_EMMC_CLOCK_FREQ / div);
-
-	clk |= (div & SDHCI_DIV_MASK) << SDHCI_DIVIDER_SHIFT;
-	clk |= ((div & SDHCI_DIV_HI_MASK) >> SDHCI_DIV_MASK_LEN)
-		<< SDHCI_DIVIDER_HI_SHIFT;
-	clk |= SDHCI_CLOCK_INT_EN;
-
-	sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
-
-        timeout = 20;
-        while (!((clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL))
-                        & SDHCI_CLOCK_INT_STABLE)) {
-                if (timeout == 0) {
-			printk(KERN_ERR "%s: Internal clock never "
-				"stabilised.\n", mmc_hostname(host->mmc));
-                        return;
-                }
-                timeout--;
-                mdelay(1);
-        }
-
-        clk |= SDHCI_CLOCK_CARD_EN;
-        sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
-out:
-        host->clock = clock;
- }
 
 /*****************************************************************************\
  *									     *
@@ -907,7 +850,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 		while (0 != (sdhci_bcm2708_raw_readl(host, SDHCI_PRESENT_STATE) 
 			& state_mask) && --timeout > 0)
 		{
-			udelay(100);
+			udelay(30);
 			continue;
 		}
 		if (timeout <= 0)
@@ -1307,11 +1250,7 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
 #else
 #error The BCM2708 SDHCI driver needs CONFIG_MMC_SDHCI_IO_ACCESSORS to be set
 #endif
-	//.enable_dma = NULL,
-	.set_clock = sdhci_bcm2708_set_clock,
 	.get_max_clock = sdhci_bcm2708_get_max_clock,
-	//.get_min_clock = NULL,
-	.get_timeout_clock = sdhci_bcm2708_get_timeout_clock,
 
 	.enable = sdhci_bcm2708_enable,
 	.disable = sdhci_bcm2708_disable,
@@ -1374,7 +1313,9 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 	host->quirks = SDHCI_QUIRK_BROKEN_CARD_DETECTION |
 		       SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
 		       SDHCI_QUIRK_BROKEN_TIMEOUT_VAL |
-		       SDHCI_QUIRK_NONSTANDARD_CLOCK;
+               SDHCI_QUIRK_MISSING_CAPS |
+               SDHCI_QUIRK_NO_HISPD_BIT;
+
 #ifdef CONFIG_MMC_SDHCI_BCM2708_DMA
 	host->flags = SDHCI_USE_PLATDMA;
 #endif
@@ -1442,7 +1383,8 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 	    host_priv->dma_chan, host_priv->dma_chan_base,
 	    host_priv->dma_irq);
 
-	host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
+    if (allow_highspeed)
+        host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
 #endif
 
 	ret = sdhci_add_host(host);
@@ -1548,8 +1490,12 @@ static void __exit sdhci_drv_exit(void)
 module_init(sdhci_drv_init);
 module_exit(sdhci_drv_exit);
 
+module_param(allow_highspeed, bool, 0444);
+
 MODULE_DESCRIPTION("Secure Digital Host Controller Interface platform driver");
 MODULE_AUTHOR("Broadcom <info@broadcom.com>");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:"DRIVER_NAME);
+
+MODULE_PARM_DESC(allow_highspeed, "Allow high speed transfers modes");
 
