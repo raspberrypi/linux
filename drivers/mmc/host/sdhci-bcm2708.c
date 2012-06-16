@@ -136,7 +136,7 @@ static inline unsigned long int since_ns(hptime_t t)
 }
 
 static bool allow_highspeed = 1;
-static bool emmc_clock_freq = BCM2708_EMMC_CLOCK_FREQ;
+static int emmc_clock_freq = BCM2708_EMMC_CLOCK_FREQ;
 
 #if 0
 static void hptime_test(void)
