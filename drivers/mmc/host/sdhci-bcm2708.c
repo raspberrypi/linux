@@ -136,6 +136,7 @@ static inline unsigned long int since_ns(hptime_t t)
 }
 
 static bool allow_highspeed = 1;
+static bool emmc_clock_freq = BCM2708_EMMC_CLOCK_FREQ;
 
 #if 0
 static void hptime_test(void)
@@ -361,7 +362,7 @@ void sdhci_bcm2708_writeb(struct sdhci_host *host, u8 val, int reg)
 
 static unsigned int sdhci_bcm2708_get_max_clock(struct sdhci_host *host)
 {
-	return BCM2708_EMMC_CLOCK_FREQ;
+	return emmc_clock_freq;
 }
 
 /*****************************************************************************\
@@ -1491,6 +1492,7 @@ module_init(sdhci_drv_init);
 module_exit(sdhci_drv_exit);
 
 module_param(allow_highspeed, bool, 0444);
+module_param(emmc_clock_freq, bool, 0444);
 
 MODULE_DESCRIPTION("Secure Digital Host Controller Interface platform driver");
 MODULE_AUTHOR("Broadcom <info@broadcom.com>");
@@ -1498,4 +1500,6 @@ MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:"DRIVER_NAME);
 
 MODULE_PARM_DESC(allow_highspeed, "Allow high speed transfers modes");
+MODULE_PARM_DESC(emmc_clock_freq, "Specify the speed of emmc clock");
+
 
