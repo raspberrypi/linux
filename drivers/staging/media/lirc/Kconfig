@@ -38,6 +38,12 @@ config LIRC_PARALLEL
 	help
 	  Driver for Homebrew Parallel Port Receivers
 
+config LIRC_RPI
+	tristate "Homebrew GPIO Port Receiver/Transmitter for the RaspberryPi"
+	depends on LIRC
+	help
+	  Driver for Homebrew GPIO Port Receiver/Transmitter for the RaspberryPi
+
 config LIRC_SASEM
 	tristate "Sasem USB IR Remote"
 	depends on LIRC && USB
