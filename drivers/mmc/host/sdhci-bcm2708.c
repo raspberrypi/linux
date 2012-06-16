@@ -830,7 +830,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 		   We get CRC and DEND errors unless we wait for
 		   the SD controller to finish reading/writing to the card. */
 		u32 state_mask;
-		int timeout=1000;
+		int timeout=5000;
 
 		DBG("PDMA over - sync card\n");
 		if (data->flags & MMC_DATA_READ)
