@@ -1492,7 +1492,7 @@ module_init(sdhci_drv_init);
 module_exit(sdhci_drv_exit);
 
 module_param(allow_highspeed, bool, 0444);
-module_param(emmc_clock_freq, bool, 0444);
+module_param(emmc_clock_freq, int, 0444);
 
 MODULE_DESCRIPTION("Secure Digital Host Controller Interface platform driver");
 MODULE_AUTHOR("Broadcom <info@broadcom.com>");
