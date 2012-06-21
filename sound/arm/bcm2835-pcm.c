@@ -345,29 +345,6 @@ static int snd_bcm2835_pcm_copy(struct snd_pcm_substream *substream,
 	return ret;
 }
 
-static int snd_bcm2835_pcm_silence(struct snd_pcm_substream *substream,
-				   int channel, snd_pcm_uframes_t post,
-				   snd_pcm_uframes_t count)
-{
-	int ret;
-	struct snd_pcm_runtime *runtime = substream->runtime;
-	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
-
-	audio_info(" .. IN\n");
-	audio_debug("silence....... (%d) hwptr=%d appl=%d pos=%d\n",
-		      frames_to_bytes(runtime, count), frames_to_bytes(runtime,
-								       runtime->
-								       status->
-								       hw_ptr),
-		      frames_to_bytes(runtime, runtime->control->appl_ptr),
-		      alsa_stream->pos);
-	ret =
-	    bcm2835_audio_write(alsa_stream, frames_to_bytes(runtime, count),
-				NULL);
-	audio_info(" .. OUT\n");
-	return ret;
-}
-
 static int snd_bcm2835_pcm_lib_ioctl(struct snd_pcm_substream *substream,
 				     unsigned int cmd, void *arg)
 {
@@ -388,7 +365,6 @@ static struct snd_pcm_ops snd_bcm2835_playback_ops = {
 	.trigger = snd_bcm2835_pcm_trigger,
 	.pointer = snd_bcm2835_pcm_pointer,
 	.copy = snd_bcm2835_pcm_copy,
-	.silence = snd_bcm2835_pcm_silence,
 };
 
 /* create a pcm device */
