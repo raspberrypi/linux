@@ -1211,10 +1211,12 @@ mwifiex_dequeue_tx_packet(struct mwifiex_adapter *adapter)
 		return 0;
 	}
 
-	if (!ptr->is_11n_enabled || mwifiex_is_ba_stream_setup(priv, ptr, tid)
-	    || ((priv->sec_info.wpa_enabled
-		  || priv->sec_info.wpa2_enabled) && !priv->wpa_is_gtk_set)
-		) {
+	if (!ptr->is_11n_enabled ||
+	    mwifiex_is_ba_stream_setup(priv, ptr, tid) ||
+	    priv->wps.session_enable ||
+	    ((priv->sec_info.wpa_enabled ||
+	      priv->sec_info.wpa2_enabled) &&
+	     !priv->wpa_is_gtk_set)) {
 		mwifiex_send_single_packet(priv, ptr, ptr_index, flags);
 		/* ra_list_spinlock has been freed in
 		   mwifiex_send_single_packet() */
