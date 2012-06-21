@@ -59,6 +59,8 @@ static struct protection_domain *pt_domain;
 
 static struct iommu_ops amd_iommu_ops;
 
+static struct dma_map_ops amd_iommu_dma_ops;
+
 /*
  * general struct to manage commands send to an IOMMU
  */
@@ -1877,6 +1879,11 @@ static int device_change_notifier(struct notifier_block *nb,
 		spin_lock_irqsave(&iommu_pd_list_lock, flags);
 		list_add_tail(&dma_domain->list, &iommu_pd_list);
 		spin_unlock_irqrestore(&iommu_pd_list_lock, flags);
+
+		if (!iommu_pass_through)
+			dev->archdata.dma_ops = &amd_iommu_dma_ops;
+		else
+			dev->archdata.dma_ops = &nommu_dma_ops;
 
 		break;
 	case BUS_NOTIFY_DEL_DEVICE:
