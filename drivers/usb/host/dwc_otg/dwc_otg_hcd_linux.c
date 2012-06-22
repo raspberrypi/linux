@@ -764,8 +764,8 @@ static int urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 	if(urb->hcpriv != NULL) {
 		dwc_otg_hcd_urb_dequeue(dwc_otg_hcd, (dwc_otg_hcd_urb_t *)urb->hcpriv);
 
-		urb->hcpriv = NULL;
 		dwc_free(urb->hcpriv);
+		urb->hcpriv = NULL;
 	}
 
 	/* Higher layer software sets URB status. */
