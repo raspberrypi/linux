@@ -249,14 +249,14 @@ static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 		if (now == last_write_hpt || now == last_write_hpt+1) {
 			 /* we can't guarantee any significant time has
 			  * passed - we'll have to wait anyway ! */
-			udelay((ns_2clk+1000-1)/1000);
+			ndelay(ns_2clk);
 		} else
 		{
 			/* we must have waited at least this many ns: */
 			unsigned int ns_wait = HPTIME_CLK_NS *
 					       (last_write_hpt - now - 1);
 			if (ns_wait < ns_2clk)
-				udelay((ns_2clk-ns_wait+500)/1000);
+				ndelay(ns_2clk - ns_wait);
 		}
 		last_write_hpt = now;
 	}
@@ -272,13 +272,13 @@ static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 		ier &= ~SDHCI_INT_DATA_TIMEOUT;
 		writel(ier, host->ioaddr + SDHCI_SIGNAL_ENABLE);
 		timeout_disabled = true;
-		udelay((ns_2clk+1000-1)/1000);
+		ndelay(ns_2clk);
 	} else if (timeout_disabled) {
 		ier = readl(host->ioaddr + SDHCI_SIGNAL_ENABLE);
 		ier |= SDHCI_INT_DATA_TIMEOUT;
 		writel(ier, host->ioaddr + SDHCI_SIGNAL_ENABLE);
 		timeout_disabled = false;
-		udelay((ns_2clk+1000-1)/1000);
+		ndelay(ns_2clk);
 	}
 #endif
 	writel(val, host->ioaddr + reg);
