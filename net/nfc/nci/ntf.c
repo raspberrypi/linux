@@ -86,7 +86,7 @@ static int nci_rf_activate_nfca_passive_poll(struct nci_dev *ndev,
 	nfca_poll->sens_res = __le16_to_cpu(*((__u16 *)data));
 	data += 2;
 
-	nfca_poll->nfcid1_len = *data++;
+	nfca_poll->nfcid1_len = min_t(__u8, *data++, sizeof(nfca_poll->nfcid1));
 
 	nfc_dbg("sens_res 0x%x, nfcid1_len %d",
 		nfca_poll->sens_res,
@@ -111,7 +111,7 @@ static int nci_rf_activate_nfca_passive_poll(struct nci_dev *ndev,
 
 	switch (ntf->rf_interface_type) {
 	case NCI_RF_INTERFACE_ISO_DEP:
-		nfca_poll_iso_dep->rats_res_len = *data++;
+		nfca_poll_iso_dep->rats_res_len = min_t(__u8, *data++, 20);
 		if (nfca_poll_iso_dep->rats_res_len > 0) {
 			memcpy(nfca_poll_iso_dep->rats_res,
 				data,
