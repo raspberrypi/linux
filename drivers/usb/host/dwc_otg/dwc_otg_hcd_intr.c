@@ -567,7 +567,7 @@ static int update_urb_state_xfer_comp(dwc_hc_t * hc,
 	   (urb->flags & URB_SEND_ZERO_PACKET) && (urb->actual_length == urb->length) &&
 	   !(urb->length % hc->max_packet)) {
 		xfer_done = 0;
-	} else if (short_read || urb->actual_length == urb->length) {
+	} else if (short_read || urb->actual_length >= urb->length) {
 		xfer_done = 1;
 		urb->status = 0;
 	}
@@ -1876,10 +1876,10 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 	} else if (hcint.b.xacterr && !hcd->core_if->dma_desc_enable) {
 		if (out_nak_enh) {
 			if (hcint.b.nyet || hcint.b.nak || hcint.b.ack) {
-				DWC_DEBUG("XactErr with NYET/NAK/ACK\n");
+				DWC_DEBUGPL(DBG_HCD, "XactErr with NYET/NAK/ACK\n");
 				qtd->error_count = 0;
 			} else {
-				DWC_DEBUG("XactErr without NYET/NAK/ACK\n");
+				DWC_DEBUGPL(DBG_HCD, "XactErr without NYET/NAK/ACK\n");
 			}
 		}
 
