@@ -886,7 +886,7 @@ uint8_t update_non_isoc_urb_state_ddma(dwc_otg_hcd_t * hcd,
 	if (hc->ep_type == DWC_OTG_EP_TYPE_CONTROL) {
 	    if (qtd->control_phase == DWC_OTG_CONTROL_DATA) {
 		urb->actual_length += n_bytes - remain;
-		if (remain || urb->actual_length == urb->length) {
+		if (remain || urb->actual_length >= urb->length) {
 			/* 
 			 * For Control Data stage do not set urb->status=0 to prevent
 			 * URB callback. Set it when Status phase done. See below.
@@ -905,7 +905,7 @@ uint8_t update_non_isoc_urb_state_ddma(dwc_otg_hcd_t * hcd,
 	else { 
 	    /* BULK and INTR */
 	    urb->actual_length += n_bytes - remain;
-	    if (remain || urb->actual_length == urb->length) {
+	    if (remain || urb->actual_length >= urb->length) {
 		urb->status = 0;
 		*xfer_done = 1;
 	    }
