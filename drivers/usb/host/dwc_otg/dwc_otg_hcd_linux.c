@@ -190,6 +190,7 @@ static int _hub_info(dwc_otg_hcd_t * hcd, void *urb_handle, uint32_t * hub_addr,
 		     uint32_t * port_addr)
 {
    struct urb *urb = (struct urb *)urb_handle;
+   struct usb_bus *bus;
 #if 1 //GRAYG - temporary
    if (NULL == urb_handle)
       DWC_ERROR("**** %s - NULL URB handle\n", __func__);//GRAYG
@@ -206,12 +207,18 @@ static int _hub_info(dwc_otg_hcd_t * hcd, void *urb_handle, uint32_t * hub_addr,
                 *hub_addr = 0; //GRAYG
                 // we probably shouldn't have a transaction translator if
                 // there's no associated hub?
-        } else
-                *hub_addr = urb->dev->tt->hub->devnum;
+        } else {
+		bus = hcd_to_bus(dwc_otg_hcd_to_hcd(hcd));
+		if (urb->dev->tt->hub == bus->root_hub)
+			*hub_addr = 0;
+		else
+			*hub_addr = urb->dev->tt->hub->devnum;
+	}
+	*port_addr = urb->dev->tt->multi ? urb->dev->ttport : 1;
    } else {
         *hub_addr = 0;
+	*port_addr = urb->dev->ttport;
    }
-   *port_addr = urb->dev->ttport;
    return 0;
 }
 
