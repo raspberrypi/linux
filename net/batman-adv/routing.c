@@ -619,6 +619,8 @@ int recv_tt_query(struct sk_buff *skb, struct hard_iface *recv_if)
 		/* packet needs to be linearized to access the TT changes */
 		if (skb_linearize(skb) < 0)
 			goto out;
+		/* skb_linearize() possibly changed skb->data */
+		tt_query = (struct tt_query_packet *)skb->data;
 
 		if (is_my_mac(tt_query->dst))
 			handle_tt_response(bat_priv, tt_query);
