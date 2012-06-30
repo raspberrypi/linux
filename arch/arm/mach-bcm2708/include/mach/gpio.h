@@ -12,7 +12,8 @@
 #define ARCH_NR_GPIOS 54 // number of gpio lines
 
 #include <asm-generic/gpio.h>
-
+#include <mach/platform.h>
+#include <mach/irqs.h>
 
 #ifdef CONFIG_GPIOLIB
 
@@ -31,18 +32,14 @@ static inline int gpio_cansleep(unsigned gpio)
         return __gpio_cansleep(gpio);
 }
 
-static inline int gpio_to_irq(unsigned gpio)
-{
-        WARN_ON(1);
-        return -ENOSYS;
+
+static inline unsigned irq_to_gpio(unsigned irq) {
+	return (irq-GPIO_IRQ_START);
 }
 
-static inline int irq_to_gpio(unsigned int irq)
-{
-        WARN_ON(1);
-        return -EINVAL;
+static inline unsigned gpio_to_irq(unsigned gpio) {
+	return GPIO_IRQ_START+gpio;
 }
-
 #endif /* CONFIG_GPIOLIB */
 
 #endif

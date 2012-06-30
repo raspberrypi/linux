@@ -185,6 +185,12 @@
 #define FIQ_PENDING1          INT_PENDING1
 #define FIQ_PENDING2          INT_PENDING2
 
-#define NR_IRQS			      (64 + 21)
+#define HARD_IRQS	      (64 + 21)
+#define GPIO_IRQ_START	      HARD_IRQS
+
+#define GPIO_IRQS	      32*5
+
+#define NR_IRQS		      HARD_IRQS+GPIO_IRQS
+
 
 #endif /* _BCM2708_IRQS_H_ */
