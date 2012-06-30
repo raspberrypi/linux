@@ -191,6 +191,7 @@
  * Watchdog
  */
 #define PM_RSTC			       (PM_BASE+0x1c)
+#define PM_RSTS			       (PM_BASE+0x20)
 #define PM_WDOG			       (PM_BASE+0x24)
 
 #define PM_WDOG_RESET                                         0000000000
@@ -199,9 +200,18 @@
 #define PM_RSTC_WRCFG_CLR              0xffffffcf
 #define PM_RSTC_WRCFG_SET              0x00000030
 #define PM_RSTC_WRCFG_FULL_RESET       0x00000020
-#define PM_RSTC_RESET			0x00000102
+#define PM_RSTC_RESET                  0x00000102
 
-
+#define PM_RSTS_HADPOR_SET                                 0x00001000
+#define PM_RSTS_HADSRH_SET                                 0x00000400
+#define PM_RSTS_HADSRF_SET                                 0x00000200
+#define PM_RSTS_HADSRQ_SET                                 0x00000100
+#define PM_RSTS_HADWRH_SET                                 0x00000040
+#define PM_RSTS_HADWRF_SET                                 0x00000020
+#define PM_RSTS_HADWRQ_SET                                 0x00000010
+#define PM_RSTS_HADDRH_SET                                 0x00000004
+#define PM_RSTS_HADDRF_SET                                 0x00000002
+#define PM_RSTS_HADDRQ_SET                                 0x00000001
 
 
 

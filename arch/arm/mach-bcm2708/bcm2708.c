@@ -53,6 +53,7 @@
 #include <mach/timex.h>
 #include <mach/dma.h>
 #include <mach/vcio.h>
+#include <mach/system.h>
 
 #include "bcm2708.h"
 #include "armctrl.h"
@@ -472,9 +473,22 @@ int __init bcm_register_device(struct platform_device *pdev)
 	return ret;
 }
 
+/* We can't really power off, but if we do the normal reset scheme, and indicate to bootcode.bin not to reboot, then most of the chip will be powered off */
+static void bcm2708_power_off(void)
+{
+	/* we set the watchdog hard reset bit here to distinguish this reset from the normal (full) reset. bootcode.bin will not reboot after a hard reset */
+	uint32_t pm_rsts = readl(IO_ADDRESS(PM_RSTS));
+	pm_rsts = PM_PASSWORD | (pm_rsts & PM_RSTC_WRCFG_CLR) | PM_RSTS_HADWRH_SET;
+	writel(pm_rsts, IO_ADDRESS(PM_RSTS));
+	/* continue with normal reset mechanism */
+	arch_reset(0, "");
+}
+
 void __init bcm2708_init(void)
 {
 	int i;
+
+	pm_power_off = bcm2708_power_off;
 
 	for (i = 0; i < ARRAY_SIZE(lookups); i++)
 		clkdev_add(&lookups[i]);
