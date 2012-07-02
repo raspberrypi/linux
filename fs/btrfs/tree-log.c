@@ -692,6 +692,8 @@ static noinline int drop_one_dir_item(struct btrfs_trans_handle *trans,
 	kfree(name);
 
 	iput(inode);
+
+	btrfs_run_delayed_items(trans, root);
 	return ret;
 }
 
@@ -897,6 +899,7 @@ again:
 				ret = btrfs_unlink_inode(trans, root, dir,
 							 inode, victim_name,
 							 victim_name_len);
+				btrfs_run_delayed_items(trans, root);
 			}
 			kfree(victim_name);
 			ptr = (unsigned long)(victim_ref + 1) + victim_name_len;
@@ -1477,6 +1480,9 @@ again:
 			ret = btrfs_unlink_inode(trans, root, dir, inode,
 						 name, name_len);
 			BUG_ON(ret);
+
+			btrfs_run_delayed_items(trans, root);
+
 			kfree(name);
 			iput(inode);
 
