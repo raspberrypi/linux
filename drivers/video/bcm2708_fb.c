@@ -275,23 +275,23 @@ static int bcm2708_fb_setcolreg(unsigned int regno, unsigned int red,
 	struct bcm2708_fb *fb = to_bcm2708(info);
 
 	/*pr_info("BCM2708FB: setcolreg %d:(%02x,%02x,%02x,%02x) %x\n", regno, red, green, blue, transp, fb->fb.fix.visual);*/
-	if (regno < 16)
+	if (fb->fb.var.bits_per_pixel <= 8) {
+		if (regno < 256) {
+			/* blue [0:4], green [5:10], red [11:15] */
+			fb->info->cmap[regno] = ((red   >> (16-5)) & 0x1f) << 11 |
+						((green >> (16-6)) & 0x3f) << 5 |
+						((blue  >> (16-5)) & 0x1f) << 0;
+		}
+		/* Hack: we need to tell GPU the palette has changed, but currently bcm2708_fb_set_par takes noticable time when called for every (256) colour */
+		/* So just call it for what looks like the last colour in a list for now. */
+		if (regno == 15 || regno == 255)
+			bcm2708_fb_set_par(info);
+        } else if (regno < 16) {
 		fb->cmap[regno] = convert_bitfield(transp, &fb->fb.var.transp) |
 		    convert_bitfield(blue, &fb->fb.var.blue) |
 		    convert_bitfield(green, &fb->fb.var.green) |
 		    convert_bitfield(red, &fb->fb.var.red);
-
-	if (regno < 256) {
-		/* blue [0:4], green [5:10], red [11:15] */
-		fb->info->cmap[regno] = ((red   >> (16-5)) & 0x1f) << 11 |
-					((green >> (16-6)) & 0x3f) << 5 |
-					((blue  >> (16-5)) & 0x1f) << 0;
 	}
-	/* Hack: we need to tell GPU the palette has changed, but currently bcm2708_fb_set_par takes noticable time when called for every (256) colour */
-        /* So just call it for what looks like the last colour in a list for now. */
-	if (regno == 15 || regno == 255)
-		bcm2708_fb_set_par(info);
-
 	return regno > 255;
 }
 
