@@ -1884,14 +1884,12 @@ void iwl_legacy_bg_watchdog(unsigned long data)
 		return;
 
 	/* monitor and check for other stuck queues */
-	if (iwl_legacy_is_any_associated(priv)) {
-		for (cnt = 0; cnt < priv->hw_params.max_txq_num; cnt++) {
-			/* skip as we already checked the command queue */
-			if (cnt == priv->cmd_queue)
-				continue;
-			if (iwl_legacy_check_stuck_queue(priv, cnt))
-				return;
-		}
+	for (cnt = 0; cnt < priv->hw_params.max_txq_num; cnt++) {
+		/* skip as we already checked the command queue */
+		if (cnt == priv->cmd_queue)
+			continue;
+		if (iwl_legacy_check_stuck_queue(priv, cnt))
+			return;
 	}
 
 	mod_timer(&priv->watchdog, jiffies +
