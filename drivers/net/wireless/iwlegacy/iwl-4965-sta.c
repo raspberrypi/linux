@@ -466,7 +466,7 @@ int iwl4965_remove_dynamic_key(struct iwl_priv *priv,
 		return 0;
 	}
 
-	if (priv->stations[sta_id].sta.key.key_offset == WEP_INVALID_OFFSET) {
+	if (priv->stations[sta_id].sta.key.key_flags & STA_KEY_FLG_INVALID) {
 		IWL_WARN(priv, "Removing wrong key %d 0x%x\n",
 			    keyconf->keyidx, key_flags);
 		spin_unlock_irqrestore(&priv->sta_lock, flags);
@@ -483,7 +483,7 @@ int iwl4965_remove_dynamic_key(struct iwl_priv *priv,
 					sizeof(struct iwl4965_keyinfo));
 	priv->stations[sta_id].sta.key.key_flags =
 			STA_KEY_FLG_NO_ENC | STA_KEY_FLG_INVALID;
-	priv->stations[sta_id].sta.key.key_offset = WEP_INVALID_OFFSET;
+	priv->stations[sta_id].sta.key.key_offset = keyconf->hw_key_idx;
 	priv->stations[sta_id].sta.sta.modify_mask = STA_MODIFY_KEY_MASK;
 	priv->stations[sta_id].sta.mode = STA_CONTROL_MODIFY_MSK;
 
