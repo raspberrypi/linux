@@ -569,6 +569,15 @@ struct dwc_otg_hcd {
 	uint32_t hfnum_other_samples_b;
 	uint64_t hfnum_other_frrem_accum_b;
 #endif
+#ifdef SOF_FIX
+	/**
+	 * SOF wakeup timer. We disable the SOF interrupt if there is nothing
+	 *  to do.  However, that eventually gets us into trouble.  So, re-enable 
+	 *  the SOF interrupt every tick so we can handle any backlog that does
+	 *  not trigger any other interrupt.
+	 */
+	dwc_timer_t *sof_timer;
+#endif
 };
 
 /** @name Transaction Execution Functions */

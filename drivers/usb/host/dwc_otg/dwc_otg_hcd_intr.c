@@ -32,12 +32,27 @@
  * ========================================================================== */
 #ifndef DWC_DEVICE_ONLY
 
+#include <linux/kernel.h>
+#include <linux/module.h>
 #include "dwc_otg_hcd.h"
 #include "dwc_otg_regs.h"
 
 /** @file
  * This file contains the implementation of the HCD Interrupt handlers.
  */
+
+/**
+ * SOF_FIX: Reduce SOF interrupt handling by disabling the SOF interrupt except
+ *          when there are actual USB transfers pending.  MSO 5/31/12
+ */
+#ifdef SOF_FIX
+ extern   int  sof_setting(void);
+ unsigned int  g_dwc_otg_hcd_handle_intr_count = 0;
+ #ifdef DEBUG_SOF_FIX
+  unsigned int  g_dwc_otg_interrupt_counts[10] = {0,0,0,0,0,0,0,0,0,0};
+  extern int    g_softintr_ref_cnt;
+ #endif
+#endif
 
 /** This function handles interrupts for the HCD. */
 int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
@@ -46,9 +61,12 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 
 	dwc_otg_core_if_t *core_if = dwc_otg_hcd->core_if;
 	gintsts_data_t gintsts;
-#ifdef DEBUG
+#ifdef SOF_FIX
 	dwc_otg_core_global_regs_t *global_regs = core_if->core_global_regs;
+	gintmsk_data_t gintmsk;
+#endif
 
+#ifdef DEBUG
         //GRAYG: debugging
         if (NULL == global_regs) {
                 DWC_DEBUGPL(DBG_HCD, "**** NULL regs: dwc_otg_hcd=%p "
@@ -57,7 +75,9 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
                 return retval;
         }
 #endif
-
+#ifdef SOF_FIX
+        g_dwc_otg_hcd_handle_intr_count++;
+#endif
 	/* Check if HOST Mode */
 	if (dwc_otg_is_host_mode(core_if)) {
 		gintsts.d32 = dwc_otg_read_core_intr(core_if);
@@ -81,29 +101,64 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 				    gintsts.d32, core_if);
 #endif
 
-		if (gintsts.b.sofintr) {
+		/*
+		 * If SOF handle it.  If not, it probably means that there is work to do,
+		 *  so enable SOF for the next micro-frame.
+		 */
+		if (gintsts.b.sofintr)
+		{
+#ifdef DEBUG_SOF_FIX
+			g_dwc_otg_interrupt_counts[0]++;
+#endif
 			retval |= dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd);
 		}
+#ifdef SOF_FIX
+		else
+		{
+			// turn on Start-of-Frame interrupt
+			gintmsk.d32 = dwc_read_reg32(&global_regs->gintmsk);
+			gintmsk.b.sofintr |= 1;
+			dwc_write_reg32(&global_regs->gintmsk, gintmsk.d32);
+		}
+#endif
 		if (gintsts.b.rxstsqlvl) {
+#ifdef DEBUG_SOF_FIX
+			g_dwc_otg_interrupt_counts[1]++;
+#endif
 			retval |=
 			    dwc_otg_hcd_handle_rx_status_q_level_intr
 			    (dwc_otg_hcd);
 		}
 		if (gintsts.b.nptxfempty) {
+#ifdef DEBUG_SOF_FIX
+			g_dwc_otg_interrupt_counts[2]++;
+#endif
 			retval |=
 			    dwc_otg_hcd_handle_np_tx_fifo_empty_intr
 			    (dwc_otg_hcd);
 		}
 		if (gintsts.b.i2cintr) {
+#ifdef DEBUG_SOF_FIX
+			g_dwc_otg_interrupt_counts[3]++;
+#endif
 			/** @todo Implement i2cintr handler. */
 		}
 		if (gintsts.b.portintr) {
+#ifdef DEBUG_SOF_FIX
+			g_dwc_otg_interrupt_counts[4]++;
+#endif
 			retval |= dwc_otg_hcd_handle_port_intr(dwc_otg_hcd);
 		}
 		if (gintsts.b.hcintr) {
+#ifdef DEBUG_SOF_FIX
+			g_dwc_otg_interrupt_counts[5]++;
+#endif
 			retval |= dwc_otg_hcd_handle_hc_intr(dwc_otg_hcd);
 		}
 		if (gintsts.b.ptxfempty) {
+#ifdef DEBUG_SOF_FIX
+			g_dwc_otg_interrupt_counts[6]++;
+#endif
 			retval |=
 			    dwc_otg_hcd_handle_perio_tx_fifo_empty_intr
 			    (dwc_otg_hcd);
@@ -130,7 +185,21 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 #endif
 
 	}
-
+#if defined(SOF_FIX) && defined(DEBUG_SOF_FIX)
+        if ((g_dwc_otg_hcd_handle_intr_count % 80000) == 0)
+	{
+		printk(KERN_ERR "dwc_otg_hcd_handle_intr: %u handled, %u, %u, %u, %u, %u, %u, %u, %u.\n",
+			g_dwc_otg_hcd_handle_intr_count,
+			g_dwc_otg_interrupt_counts[0],
+			g_dwc_otg_interrupt_counts[1],
+			g_dwc_otg_interrupt_counts[2],
+			g_dwc_otg_interrupt_counts[3],
+			g_dwc_otg_interrupt_counts[4],
+			g_dwc_otg_interrupt_counts[5],
+			g_dwc_otg_interrupt_counts[6],
+			g_dwc_otg_interrupt_counts[7]);
+	}
+#endif
 	return retval;
 }
 
@@ -174,6 +243,10 @@ static inline void track_missed_sofs(uint16_t curr_frame_number)
  * (micro)frame. Periodic transactions may be queued to the controller for the
  * next (micro)frame.
  */
+#ifdef SOF_FIX
+#define SOF_INTR_DELAY_COUNT	3
+static int g_sof_intr_delay_count = SOF_INTR_DELAY_COUNT;
+#endif
 int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 {
 	hfnum_data_t hfnum;
@@ -181,6 +254,11 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 	dwc_otg_qh_t *qh;
 	dwc_otg_transaction_type_e tr_type;
 	gintsts_data_t gintsts = {.d32 = 0 };
+#ifdef SOF_FIX
+	dwc_otg_core_if_t *core_if = hcd->core_if;
+	gintmsk_data_t gintmsk = {.d32 = 0 };
+	dwc_otg_core_global_regs_t *global_regs = core_if->core_global_regs;
+#endif
 
 	hfnum.d32 =
 	    dwc_read_reg32(&hcd->core_if->host_if->host_global_regs->hfnum);
@@ -213,9 +291,24 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 		}
 	}
 	tr_type = dwc_otg_hcd_select_transactions(hcd);
-	if (tr_type != DWC_OTG_TRANSACTION_NONE) {
+	if (tr_type != DWC_OTG_TRANSACTION_NONE)
+	{
 		dwc_otg_hcd_queue_transactions(hcd, tr_type);
 	}
+#ifdef SOF_FIX
+	else
+	{
+		// turn off Start-of-Frame interrupt
+		if ((sof_setting()) &&
+		    (g_sof_intr_delay_count-- == 0))
+		{
+			gintmsk.d32 = dwc_read_reg32(&global_regs->gintmsk);
+			gintmsk.b.sofintr &= 0;
+			dwc_write_reg32(&global_regs->gintmsk, gintmsk.d32);
+			g_sof_intr_delay_count = SOF_INTR_DELAY_COUNT;
+		}
+	}
+#endif
 
 	/* Clear interrupt */
 	gintsts.b.sofintr = 1;

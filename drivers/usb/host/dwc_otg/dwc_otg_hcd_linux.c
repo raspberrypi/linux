@@ -260,10 +260,19 @@ static void free_bus_bandwidth(struct usb_hcd *hcd, uint32_t bw,
  * Sets the final status of an URB and returns it to the device driver. Any
  * required cleanup of the URB is performed.
  */
+#ifdef DEBUG_SOF_FIX
+extern unsigned int g_dwc_otg_interrupt_counts[10];
+#endif
+
 static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 		     dwc_otg_hcd_urb_t * dwc_otg_urb, int32_t status)
 {
 	struct urb *urb = (struct urb *)urb_handle;
+
+#ifdef DEBUG_SOF_FIX
+	g_dwc_otg_interrupt_counts[7]++;
+#endif
+
 #ifdef DEBUG
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
 		DWC_PRINTF("%s: urb %p, device %d, ep %d %s, status=%d\n",
@@ -810,6 +819,10 @@ static void endpoint_disable(struct usb_hcd *hcd, struct usb_host_endpoint *ep)
  * interrupt.
  *
  * This function is called by the USB core when an interrupt occurs */
+
+#ifdef DEBUG_SOF_FIX
+unsigned int g_dwc_otg_hcd_irq_count = 0;
+#endif
 static irqreturn_t dwc_otg_hcd_irq(struct usb_hcd *hcd)
 {
 	dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd(hcd);
@@ -817,6 +830,12 @@ static irqreturn_t dwc_otg_hcd_irq(struct usb_hcd *hcd)
 	if (retval != 0) {
 		S3C2410X_CLEAR_EINTPEND();
 	}
+
+#ifdef DEBUG_SOF_FIX
+	++g_dwc_otg_hcd_irq_count;
+	if ((++g_dwc_otg_hcd_irq_count %10000) == 0)
+		printk(KERN_ERR "dwc_otg_hcd_irq: %u completions.\n", g_dwc_otg_hcd_irq_count);
+#endif
 	return IRQ_RETVAL(retval);
 }
 

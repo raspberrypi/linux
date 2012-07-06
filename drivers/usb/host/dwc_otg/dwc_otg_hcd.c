@@ -64,6 +64,37 @@ void dwc_otg_hcd_connect_timeout(void *ptr)
 	__DWC_ERROR("Device Not Connected/Responding\n");
 }
 
+/**
+ * SOF_FIX: Reduce the SOF overhead by disabling the SOF interrupt except
+ *          when there are USB transfers pending.  Re-enable the interrupt
+ *          every tick for periodic transaction handling.  MSO 5/31/12
+ * SOF (Start of Frame) timeout function.  Kick the driver by re-enabling
+ * the SOF interrupt
+ */
+#ifdef SOF_FIX
+void dwc_otg_hcd_sof_timeout(void *ptr)
+{
+	dwc_otg_hcd_t * hcd = (dwc_otg_hcd_t *)ptr;
+	dwc_otg_core_if_t *core_if = hcd->core_if;
+	gintmsk_data_t gintmsk = {.d32 = 0};
+	dwc_otg_core_global_regs_t *global_regs = core_if->core_global_regs;
+	unsigned int intmsk;
+
+	// turn on Start-of-Frame interrupt
+	gintmsk.d32 = dwc_read_reg32(&global_regs->gintmsk);
+	intmsk = gintmsk.d32;
+	gintmsk.b.sofintr |= 1;
+	dwc_write_reg32(&global_regs->gintmsk, gintmsk.d32);
+	DWC_TIMER_SCHEDULE(hcd->sof_timer, 1);		/* 1ms */
+#ifdef DEBUG_SOF_FIX
+	if ((++sof_timeout_count % 10000) == 0)
+	    printk(KERN_ERR "%s: %d timeouts handled, read 0x%x wrote 0x%x.",
+		   __FUNCTION__, sof_timeout_count, intmsk, gintmsk.d32);
+#endif
+
+}
+#endif
+
 #ifdef DEBUG
 static void dump_channel_info(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 {
@@ -792,6 +823,13 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 	hcd->conn_timer = DWC_TIMER_ALLOC("Connection timer",
 					  dwc_otg_hcd_connect_timeout, 0);
 
+#ifdef SOF_FIX
+	/* Initialize the Start of Frame interrupt timeout timer. */
+	hcd->sof_timer = DWC_TIMER_ALLOC("SOF timer",
+					  dwc_otg_hcd_sof_timeout, hcd);
+	DWC_TIMER_SCHEDULE(hcd->sof_timer, 1);		/* 1ms */
+#endif
+
 	/* Initialize reset tasklet. */
 	hcd->reset_tasklet = DWC_TASK_ALLOC(reset_tasklet_func, hcd);
 
@@ -1307,6 +1345,11 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 	dwc_otg_qh_t *qh;
 	int num_channels;
 	dwc_otg_transaction_type_e ret_val = DWC_OTG_TRANSACTION_NONE;
+#ifdef SOF_FIX
+	dwc_otg_core_if_t *core_if = hcd->core_if;
+	gintmsk_data_t gintmsk = {.d32 = 0};
+	dwc_otg_core_global_regs_t *global_regs = core_if->core_global_regs;
+#endif
 
 #ifdef DEBUG_SOF
 	DWC_DEBUGPL(DBG_HCD, "  Select Transactions\n");
@@ -1346,6 +1389,19 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 		}
 #endif
 	}
+#ifdef SOF_FIX
+	/*
+	 * If there are transactions queued then enable the SOF interrupt to send them to
+	 *  the controller.
+	 */
+	if (ret_val != DWC_OTG_TRANSACTION_NONE)
+	{
+		// turn on Start-of-Frame interrupt
+		gintmsk.d32 = dwc_read_reg32(&global_regs->gintmsk);
+		gintmsk.b.sofintr |= 1;
+		dwc_write_reg32(&global_regs->gintmsk, gintmsk.d32);
+	}
+#endif
 
 	/*
 	 * Process entries in the inactive portion of the non-periodic
