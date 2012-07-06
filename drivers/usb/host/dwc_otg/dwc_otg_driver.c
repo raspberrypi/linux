@@ -82,6 +82,11 @@
 
 # include <linux/irq.h>
 
+#ifdef SOF_FIX
+#include <asm/uaccess.h>
+#include <linux/proc_fs.h>
+#endif
+
 #include <asm/io.h>
 
 
@@ -178,6 +183,8 @@ struct dwc_otg_driver_module_params {
 	int32_t lpm_enable;
 	int32_t ic_usb_cap;
 	int32_t ahb_thr_ratio;
+	int32_t sof_setting;		// 0=off, 1=on
+	int32_t proc_init_done;		// 0=not done, 1=done
 };
 
 static struct dwc_otg_driver_module_params dwc_otg_module_params = {
@@ -254,7 +261,137 @@ static struct dwc_otg_driver_module_params dwc_otg_module_params = {
 	.lpm_enable = -1,
 	.ic_usb_cap = -1,
 	.ahb_thr_ratio = -1,
+	.sof_setting = 0,
+	.proc_init_done = 0,
 };
+
+/**
+ * PROC_FS SUPPORT
+ * proc_fs support for setting the Start-of-Frame (SOF) interrupt processing
+ *  fix (reducing SOF interrupts by an order of magnitude).  When set
+ *  to "on" the SOF interrupt will only be turned on once per tick, for
+ *  3 micro-frame times.  When set to "off" it will not turn off the
+ *  SOF interrupt, and process all 8000 per second.
+ */
+
+#ifdef SOF_FIX
+
+static struct proc_dir_entry *proc_dir, *proc_file;
+
+int sof_setting(void)
+{
+    return dwc_otg_module_params.sof_setting;
+}
+
+static int sof_read_data (char *page,
+			  char **start,
+                          off_t off,
+			  int count,
+                          int *eof,
+			  void *data)
+{
+
+	if (dwc_otg_module_params.sof_setting == 1)
+	{
+		sprintf(page, "on\n");
+		return 4;
+	}
+	else
+	{
+		sprintf(page, "off\n");
+		return 5;
+	}
+	return 0;
+}
+
+#define PROC_FS_MAX_SIZE	1024
+#define PROC_FS_NAME		"SOF_reduction"
+
+static char proc_fs_buffer[PROC_FS_MAX_SIZE];
+
+static int sof_write_data (struct file *file,
+			   const char __user *buffer,
+                           unsigned long count,
+			   void *data)
+{
+	unsigned long buffer_size = count;
+
+	if (buffer_size > PROC_FS_MAX_SIZE)
+		buffer_size = PROC_FS_MAX_SIZE;
+
+	memset(proc_fs_buffer, 0, sizeof(proc_fs_buffer));
+
+	if (copy_from_user(proc_fs_buffer, buffer, buffer_size))
+	{
+		printk(KERN_ERR "\nSOF_write_data: copy_from_user failure\n");
+		return -EFAULT;
+	}
+
+	if ((strnlen(proc_fs_buffer, PROC_FS_MAX_SIZE) == 3) &&
+	    (strncmp(proc_fs_buffer, "on", 2) == 0))
+	{
+		printk(KERN_ERR "\n%s: Setting SOF (reduction) ON.\n", PROC_FS_NAME);
+		dwc_otg_module_params.sof_setting = 1;
+	}
+	else if ((strnlen(proc_fs_buffer, PROC_FS_MAX_SIZE) == 4) &&
+	         (strncmp(proc_fs_buffer, "off", 3) == 0))
+	{
+		printk(KERN_ERR "\n%s: Setting SOF reduction OFF.\n",PROC_FS_NAME);
+		dwc_otg_module_params.sof_setting = 0;
+	}
+	else
+		printk(KERN_ERR "\n%s: input not \'on\' or \'off\', ignored.\n", PROC_FS_NAME);
+#ifdef DEBUG_SOF_FIX
+		printk(KERN_ERR "\n%s:buffer %s, len = %d.\n",__func__,
+			proc_fs_buffer, strnlen(proc_fs_buffer, PROC_FS_MAX_SIZE));
+#endif
+
+	return buffer_size;
+}
+
+/**
+ * Initialize proc_fs entry for SOF setting.
+ */
+static int init_proc_fs(void)
+{
+	int retval = 0;
+
+	if (dwc_otg_module_params.proc_init_done)
+		return 0;
+
+	proc_dir = proc_mkdir_mode("dwc_sof", 0755, NULL);
+
+        if(proc_dir == NULL)
+        {
+		retval = -ENOMEM;
+		printk("Error creating dir\n");
+		return retval;
+        }
+
+	proc_file = create_proc_entry(PROC_FS_NAME, 0666, proc_dir);
+
+	if (proc_file != NULL)
+	{
+		dwc_otg_module_params.proc_init_done = 1;
+		proc_file->read_proc  = sof_read_data;
+		proc_file->write_proc = sof_write_data;
+		proc_file->mode       = S_IFREG | S_IRUGO;
+		proc_file->uid        = 0;
+		proc_file->gid        = 0;
+		proc_file->gid        = PROC_FS_MAX_SIZE;
+	}
+	else
+	{
+		retval = -ENOMEM;
+		printk("Error creating file\n");
+		remove_proc_entry(PROC_FS_NAME, NULL);
+	}
+
+	return retval;
+}
+
+#endif
+
 
 /**
  * This function shows the Driver Version.
@@ -845,6 +982,12 @@ struct platform_device *_dev
 	dev_dbg(&_dev->dev, "Calling attr_create\n");
 	dwc_otg_attr_create(_dev);
 
+#ifdef SOF_FIX
+	retval = init_proc_fs();
+	if (retval)
+		goto fail;
+#endif
+
 	/*
 	 * Disable the global interrupt until all the interrupt
 	 * handlers are installed.
@@ -1015,6 +1158,7 @@ static struct platform_driver dwc_otg_driver = {
  *
  * @return
  */
+
 static int __init dwc_otg_driver_init(void)
 {
 	int retval = 0;
@@ -1049,6 +1193,11 @@ static int __init dwc_otg_driver_init(void)
 	error = driver_create_file(&dwc_otg_driver.driver,
                                    &driver_attr_debuglevel);
 #endif
+
+#ifdef SOF_FIX
+        retval = init_proc_fs();
+#endif
+
 	return retval;
 }
 

@@ -15,8 +15,13 @@ endif
 
 # Use one of the following flags to compile the software in host-only or
 # device-only mode.
-#CPPFLAGS        += -DDWC_HOST_ONLY
+ifeq ($(CONFIG_USB_GADGET_DWCOTG),)
+CPPFLAGS         += -DDWC_HOST_ONLY
+endif
 #CPPFLAGS        += -DDWC_DEVICE_ONLY
+
+# Use this flag to reduce SOF interrupt service overhead
+CPPFLAGS        += -DSOF_FIX
 
 CPPFLAGS	+= -Dlinux -DDWC_HS_ELECT_TST
 #CGG: CPPFLAGS	+= -DDWC_EN_ISOC
