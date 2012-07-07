@@ -70,6 +70,7 @@
 #include "dwc_otg_hcd_if.h"
 #include "dwc_otg_dbg.h"
 #include "dwc_otg_driver.h"
+#include "dwc_otg_hcd.h"
 
 /**
  * Gets the endpoint number from a _bEndpointAddress argument. The endpoint is
@@ -263,6 +264,7 @@ static void free_bus_bandwidth(struct usb_hcd *hcd, uint32_t bw,
 static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 		     dwc_otg_hcd_urb_t * dwc_otg_urb, int32_t status)
 {
+	uint64_t flags;
 	struct urb *urb = (struct urb *)urb_handle;
 #ifdef DEBUG
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
@@ -347,7 +349,9 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
 	usb_hcd_giveback_urb(dwc_otg_hcd_to_hcd(hcd), urb);
 #else
+	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 	usb_hcd_unlink_urb_from_ep(dwc_otg_hcd_to_hcd(hcd), urb);
+	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 	usb_hcd_giveback_urb(dwc_otg_hcd_to_hcd(hcd), urb, status);
 #endif
 	return 0;
@@ -758,6 +762,8 @@ static int urb_dequeue(struct usb_hcd *hcd, struct urb *urb)
 static int urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 #endif
 {
+	int rc;
+	uint64_t flags;
 	dwc_otg_hcd_t *dwc_otg_hcd;
 	DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD URB Dequeue\n");
 
@@ -779,8 +785,18 @@ static int urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
 	usb_hcd_giveback_urb(hcd, urb);
 #else
-	usb_hcd_unlink_urb_from_ep(hcd, urb);
-	usb_hcd_giveback_urb(hcd, urb, status);
+	DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &flags);
+	rc = usb_hcd_check_unlink_urb(hcd, urb, status);
+	if(!rc)
+	{
+		usb_hcd_unlink_urb_from_ep(hcd, urb);
+	}
+
+	DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, flags);
+	if (!rc)
+	{
+		usb_hcd_giveback_urb(hcd, urb, status);
+	}
 #endif
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
 		DWC_PRINTF("Called usb_hcd_giveback_urb()\n");
