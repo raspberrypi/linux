@@ -74,6 +74,14 @@ config SPI_ATMEL
 	  This selects a driver for the Atmel SPI Controller, present on
 	  many AT32 (AVR32) and AT91 (ARM) chips.
 
+config SPI_BCM2708
+	tristate "BCM2708 SPI controller driver (SPI0)"
+	depends on MACH_BCM2708
+	help
+	  This selects a driver for the Broadcom BCM2708 SPI master (SPI0). This
+	  driver is not compatible with the "Universal SPI Master" or the SPI slave
+	  device.
+
 config SPI_BFIN5XX
 	tristate "SPI controller driver for ADI Blackfin5xx"
 	depends on BLACKFIN
