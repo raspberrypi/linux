@@ -952,6 +952,11 @@ int ext4_group_add(struct super_block *sb, struct ext4_new_group_data *input)
 			   &sbi->s_flex_groups[flex_group].free_inodes);
 	}
 
+	/*
+	 * Update the fs overhead information
+	 */
+	ext4_calculate_overhead(sb);
+
 	ext4_handle_dirty_super(handle, sb);
 
 exit_journal:
