@@ -20,6 +20,7 @@
  */
 
 #include <linux/io.h>
+#include <linux/amba/serial.h>
 #include <mach/hardware.h>
 
 #define BCM2708_UART_DR	__io_address(UART0_BASE + 0x00)
@@ -38,8 +39,12 @@ static inline void putc(int c)
 
 static inline void flush(void)
 {
-	while (readl(BCM2708_UART_FR) & (1 << 3))
+	int fr;
+
+	do {
+		fr = __raw_readl(BCM2708_UART_FR);
 		barrier();
+	} while ((fr & (UART011_FR_TXFE | UART01x_FR_BUSY)) != UART011_FR_TXFE);
 }
 
 /*
