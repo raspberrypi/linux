@@ -23,18 +23,24 @@
 #include <linux/amba/serial.h>
 #include <mach/hardware.h>
 
-#define BCM2708_UART_DR	__io_address(UART0_BASE + 0x00)
-#define BCM2708_UART_FR	__io_address(UART0_BASE + 0x18)
+#define UART_BAUD 115200
+
+#define BCM2708_UART_DR	UART0_BASE + UART01x_DR
+#define BCM2708_UART_FR	UART0_BASE + UART01x_FR
+#define BCM2708_UART_IBRD UART0_BASE + UART011_IBRD
+#define BCM2708_UART_FBRD UART0_BASE + UART011_FBRD
+#define BCM2708_UART_LCRH UART0_BASE + UART011_LCRH
+#define BCM2708_UART_CR UART0_BASE + UART011_CR
 
 /*
  * This does not append a newline
  */
 static inline void putc(int c)
 {
-	while (readl(BCM2708_UART_FR) & (1 << 5))
+	while (__raw_readl(BCM2708_UART_FR) & UART01x_FR_TXFF)
 		barrier();
 
-	writel(c, BCM2708_UART_DR);
+	__raw_writel(c, BCM2708_UART_DR);
 }
 
 static inline void flush(void)
@@ -47,8 +53,33 @@ static inline void flush(void)
 	} while ((fr & (UART011_FR_TXFE | UART01x_FR_BUSY)) != UART011_FR_TXFE);
 }
 
+static inline void arch_decomp_setup(void)
+{
+	int temp, div, rem, frac;
+
+	temp = 16 * UART_BAUD;
+	div = UART0_CLOCK / temp;
+	rem = UART0_CLOCK % temp;
+	temp = (8 * rem) / UART_BAUD;
+	frac = (temp >> 1) + (temp & 1);
+
+	/* Make sure the UART is disabled before we start */
+	__raw_writel(0, BCM2708_UART_CR);
+
+	/* Set the baud rate */
+	__raw_writel(div, BCM2708_UART_IBRD);
+	__raw_writel(frac, BCM2708_UART_FBRD);
+
+	/* Set the UART to 8n1, FIFO enabled */
+	__raw_writel(UART01x_LCRH_WLEN_8 | UART01x_LCRH_FEN, BCM2708_UART_LCRH);
+
+	/* Enable the UART */
+	__raw_writel(UART01x_CR_UARTEN | UART011_CR_TXE | UART011_CR_RXE,
+			BCM2708_UART_CR);
+}
+
 /*
  * nothing to do
  */
-#define arch_decomp_setup()
 #define arch_decomp_wdog()
+
