@@ -216,7 +216,7 @@
 #define PM_RSTS_HADDRF_SET                                 0x00000002
 #define PM_RSTS_HADDRQ_SET                                 0x00000001
 
-
+#define UART0_CLOCK      3000000
 
 #endif
 

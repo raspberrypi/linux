@@ -183,7 +183,7 @@ unsigned long long sched_clock(void)
  * These are fixed clocks.
  */
 static struct clk ref24_clk = {
-	.rate = 3000000,	/* The UART is clocked at 3MHz via APB_CLK */
+	.rate = UART0_CLOCK,	/* The UART is clocked at 3MHz via APB_CLK */
 };
 
 static struct clk osc_clk = {
