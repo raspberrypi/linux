@@ -18,6 +18,7 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 #include <linux/mm.h>
 #include <linux/fb.h>
 #include <linux/init.h>
@@ -221,7 +222,9 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 	/* inform vc about new framebuffer */
 	bcm_mailbox_write(MBOX_CHAN_FB, fb->dma);
 
-	/* TODO: replace fb driver with vchiq version */
+	/* workaround occasional failure to read results. TODO: fix */
+	msleep(10);
+
 	/* wait for response */
 	bcm_mailbox_read(MBOX_CHAN_FB, &val);
 
