@@ -119,14 +119,10 @@ static int mbox_read(struct vc_mailbox *mbox, unsigned chan, uint32_t *data28)
 	if (mbox->magic != MBOX_MAGIC)
 		rc = -EINVAL;
 	else {
-		if (down_interruptible(&mbox->sema[chan]) == 0) {
-			*data28 = MBOX_DATA28(mbox->msg[chan]);
-			mbox->msg[chan] = 0;
-			rc = 0;
-		} else {
-			/* The wait was interrupted */
-			rc = -EINTR;
-		}
+		down(&mbox->sema[chan]);
+		*data28 = MBOX_DATA28(mbox->msg[chan]);
+		mbox->msg[chan] = 0;
+		rc = 0;
 	}
 	return rc;
 }
