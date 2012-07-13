@@ -1020,14 +1020,11 @@ static int __cpuinit smp_cpu_notify(struct notifier_block *self,
 	unsigned int cpu = (unsigned int)(long)hcpu;
 	struct cpu *c = &per_cpu(cpu_devices, cpu);
 	struct sys_device *s = &c->sysdev;
-	struct s390_idle_data *idle;
 	int err = 0;
 
 	switch (action) {
 	case CPU_ONLINE:
 	case CPU_ONLINE_FROZEN:
-		idle = &per_cpu(s390_idle, cpu);
-		memset(idle, 0, sizeof(struct s390_idle_data));
 		err = sysfs_create_group(&s->kobj, &cpu_online_attr_group);
 		break;
 	case CPU_DEAD:
