@@ -374,8 +374,8 @@ static int bcm2708_fb_register(struct bcm2708_fb *fb)
 	fb->fb.var.vmode = FB_VMODE_NONINTERLACED;
 	fb->fb.var.activate = FB_ACTIVATE_NOW;
 	fb->fb.var.nonstd = 0;
-	fb->fb.var.height = fbwidth;
-	fb->fb.var.width = fbheight;
+	fb->fb.var.height = -1;		/* height of picture in mm    */
+	fb->fb.var.width = -1;		/* width of picture in mm    */
 	fb->fb.var.accel_flags = 0;
 
 	fb->fb.monspecs.hfmin = 0;
