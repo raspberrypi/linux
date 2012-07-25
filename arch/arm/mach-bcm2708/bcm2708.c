@@ -618,7 +618,7 @@ void __init bcm2708_init(void)
 #endif
 }
 
-#define TIMER_PERIOD 10000	/* HZ in microsecs */
+#define TIMER_PERIOD DIV_ROUND_CLOSEST(STC_FREQ_HZ, HZ)
 
 static void timer_set_mode(enum clock_event_mode mode,
 			   struct clock_event_device *clk)
