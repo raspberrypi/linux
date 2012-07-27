@@ -282,12 +282,21 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 		qh = DWC_LIST_ENTRY(qh_entry, dwc_otg_qh_t, qh_list_entry);
 		qh_entry = qh_entry->next;
 		if (dwc_frame_num_le(qh->sched_frame, hcd->frame_number)) {
-			/*
-			 * Move QH to the ready list to be executed next
-			 * (micro)frame.
-			 */
-			DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_ready,
-					   &qh->qh_list_entry);
+
+			if(qh->do_split && qh->sched_frame != hcd->frame_number)
+			{
+				// If we're late we may have missed the beginning of the frame
+				qh->sched_frame += qh->interval;
+			}
+			else
+			{
+				/*
+				* Move QH to the ready list to be executed next
+				* (micro)frame.
+				*/
+				DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_ready,
+						&qh->qh_list_entry);
+			}
 		}
 	}
 	tr_type = dwc_otg_hcd_select_transactions(hcd);
