@@ -1,24 +1,14 @@
 BODY,H1,H2,H3,H4,H5,H6,P,CENTER,TD,TH,UL,DL,DIV {
 	font-family: Geneva, Arial, Helvetica, sans-serif;
 }
-BODY,TD {
-       font-size: 90%;
-}
 H1 {
 	text-align: center;
-       font-size: 160%;
-}
-H2 {
-       font-size: 120%;
-}
-H3 {
-       font-size: 100%;
 }
 CAPTION { font-weight: bold }
 DIV.qindex {
 	width: 100%;
-	background-color: #e8eef2;
-	border: 1px solid #84b0c7;
+	background-color: #eeeeff;
+	border: 1px solid #b0b0b0;
 	text-align: center;
 	margin: 2px;
 	padding: 2px;
@@ -26,23 +16,12 @@ DIV.qindex {
 }
 DIV.nav {
 	width: 100%;
-	background-color: #e8eef2;
-	border: 1px solid #84b0c7;
+	background-color: #eeeeff;
+	border: 1px solid #b0b0b0;
 	text-align: center;
 	margin: 2px;
 	padding: 2px;
 	line-height: 140%;
-}
-DIV.navtab {
-       background-color: #e8eef2;
-       border: 1px solid #84b0c7;
-       text-align: center;
-       margin: 2px;
-       margin-right: 15px;
-       padding: 2px;
-}
-TD.navtab {
-       font-size: 70%;
 }
 A.qindex {
        text-decoration: none;
@@ -80,8 +59,7 @@ A.codeRef:visited { font-weight: normal; color: #0000FF}
 A:hover { text-decoration: none; background-color: #f2f2ff }
 DL.el { margin-left: -1cm }
 .fragment {
-       font-family: monospace, fixed;
-       font-size: 95%;
+       font-family: monospace
 }
 PRE.fragment {
 	border: 1px solid #CCCCCC;
@@ -96,14 +74,16 @@ PRE.fragment {
 	padding-bottom: 4px;
 }
 DIV.ah { background-color: black; font-weight: bold; color: #ffffff; margin-bottom: 3px; margin-top: 3px }
-
+TD.md { background-color: #F4F4FB; font-weight: bold; }
+TD.mdname1 { background-color: #F4F4FB; font-weight: bold; color: #602020; }
+TD.mdname { background-color: #F4F4FB; font-weight: bold; color: #602020; width: 600px; }
 DIV.groupHeader {
        margin-left: 16px;
        margin-top: 12px;
        margin-bottom: 6px;
        font-weight: bold;
 }
-DIV.groupText { margin-left: 16px; font-style: italic; font-size: 90% }
+DIV.groupText { margin-left: 16px; font-style: italic; font-size: 14px }
 BODY {
 	background: white;
 	color: black;
@@ -111,7 +91,7 @@ BODY {
 	margin-left: 20px;
 }
 TD.indexkey {
-	background-color: #e8eef2;
+	background-color: #eeeeff;
 	font-weight: bold;
 	padding-right  : 10px;
 	padding-top    : 2px;
@@ -124,7 +104,7 @@ TD.indexkey {
 	border: 1px solid #CCCCCC;
 }
 TD.indexvalue {
-	background-color: #e8eef2;
+	background-color: #eeeeff;
 	font-style: italic;
 	padding-right  : 10px;
 	padding-top    : 2px;
@@ -149,9 +129,16 @@ SPAN.comment       { color: #800000 }
 SPAN.preprocessor  { color: #806020 }
 SPAN.stringliteral { color: #002080 }
 SPAN.charliteral   { color: #008080 }
+.mdTable {
+	border: 1px solid #868686;
+	background-color: #F4F4FB;
+}
+.mdRow {
+	padding: 8px 10px;
+}
 .mdescLeft {
        padding: 0px 8px 4px 8px;
-	font-size: 80%;
+	font-size: 12px;
 	font-style: italic;
 	background-color: #FAFAFA;
 	border-top: 1px none #E0E0E0;
@@ -162,7 +149,7 @@ SPAN.charliteral   { color: #008080 }
 }
 .mdescRight {
        padding: 0px 8px 4px 8px;
-	font-size: 80%;
+	font-size: 12px;
 	font-style: italic;
 	background-color: #FAFAFA;
 	border-top: 1px none #E0E0E0;
@@ -187,7 +174,7 @@ SPAN.charliteral   { color: #008080 }
 	border-bottom-style: none;
 	border-left-style: none;
 	background-color: #FAFAFA;
-	font-size: 80%;
+	font-size: 12px;
 }
 .memItemRight {
 	padding: 1px 8px 0px 8px;
@@ -205,7 +192,7 @@ SPAN.charliteral   { color: #008080 }
 	border-bottom-style: none;
 	border-left-style: none;
 	background-color: #FAFAFA;
-	font-size: 80%;
+	font-size: 13px;
 }
 .memTemplItemLeft {
 	padding: 1px 0px 0px 8px;
@@ -223,7 +210,7 @@ SPAN.charliteral   { color: #008080 }
 	border-bottom-style: none;
 	border-left-style: none;
 	background-color: #FAFAFA;
-	font-size: 80%;
+	font-size: 12px;
 }
 .memTemplItemRight {
 	padding: 1px 8px 0px 8px;
@@ -241,7 +228,7 @@ SPAN.charliteral   { color: #008080 }
 	border-bottom-style: none;
 	border-left-style: none;
 	background-color: #FAFAFA;
-	font-size: 80%;
+	font-size: 13px;
 }
 .memTemplParams {
 	padding: 1px 0px 0px 8px;
@@ -260,7 +247,7 @@ SPAN.charliteral   { color: #008080 }
 	border-left-style: none;
        color: #606060;
 	background-color: #FAFAFA;
-	font-size: 80%;
+	font-size: 12px;
 }
 .search     { color: #003399;
               font-weight: bold;
@@ -272,87 +259,13 @@ FORM.search {
 INPUT.search { font-size: 75%;
                color: #000080;
                font-weight: normal;
-               background-color: #e8eef2;
+               background-color: #eeeeff;
 }
 TD.tiny      { font-size: 75%;
 }
 a {
-	color: #1A41A8;
+	color: #252E78;
 }
 a:visited {
-	color: #2A3798;
+	color: #3D2185;
 }
-.dirtab { padding: 4px;
-          border-collapse: collapse;
-          border: 1px solid #84b0c7;
-}
-TH.dirtab { background: #e8eef2;
-            font-weight: bold;
-}
-HR { height: 1px;
-     border: none;
-     border-top: 1px solid black;
-}
-
-/* Style for detailed member documentation */
-.memtemplate {
-  font-size: 80%;
-  color: #606060;
-  font-weight: normal;
-} 
-.memnav { 
-  background-color: #e8eef2;
-  border: 1px solid #84b0c7;
-  text-align: center;
-  margin: 2px;
-  margin-right: 15px;
-  padding: 2px;
-}
-.memitem {
-  padding: 4px;
-  background-color: #eef3f5;
-  border-width: 1px;
-  border-style: solid;
-  border-color: #dedeee;
-  -moz-border-radius: 8px 8px 8px 8px;
-}
-.memname {
-  white-space: nowrap;
-  font-weight: bold;
-}
-.memdoc{
-  padding-left: 10px;
-}
-.memproto {
-  background-color: #d5e1e8;
-  width: 100%;
-  border-width: 1px;
-  border-style: solid;
-  border-color: #84b0c7;
-  font-weight: bold;
-  -moz-border-radius: 8px 8px 8px 8px;
-}
-.paramkey {
-  text-align: right;
-}
-.paramtype {
-  white-space: nowrap;
-}
-.paramname {
-  color: #602020;
-  font-style: italic;
-}
-/* End Styling for detailed member documentation */
-
-/* for the tree view */
-.ftvtree {
-	font-family: sans-serif;
-	margin:0.5em;
-}
-.directory { font-size: 9pt; font-weight: bold; }
-.directory h3 { margin: 0px; margin-top: 1em; font-size: 11pt; }
-.directory > h3 { margin-top: 0; }
-.directory p { margin: 0px; white-space: nowrap; }
-.directory div { display: none; margin: 0px; }
-.directory img { vertical-align: -30%; }
-

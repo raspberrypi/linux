@@ -1,8 +1,8 @@
  /* ==========================================================================
   * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_pcd_linux.c $
-  * $Revision: #7 $
-  * $Date: 2009/04/03 $
-  * $Change: 1225160 $
+  * $Revision: #19 $
+  * $Date: 2011/10/26 $
+  * $Change: 1873028 $
   *
   * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
   * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -53,47 +53,9 @@
  *
  */
 
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/moduleparam.h>
-#include <linux/init.h>
-#include <linux/device.h>
-#include <linux/errno.h>
-#include <linux/list.h>
-#include <linux/interrupt.h>
-#include <linux/string.h>
-#include <linux/dma-mapping.h>
-#include <linux/version.h>
-
-#if defined(LM_INTERFACE)
-//# include <asm/arch/regs-irq.h>
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
-#include <asm/arch/lm.h>
-#else
-/* by 2.6.31, at least, the location of some headers has changed
-*/
-#include <mach/lm.h>
-#endif
-
-#elif defined(PLATFORM_INTERFACE)
-#include <linux/platform_device.h>
-#endif
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
-#include <asm/arch/irqs.h>
-#include <linux/usb_ch9.h>
-#include <linux/usb_gadget.h>
-#else
-/* by 2.6.31, at least, the location of some headers has changed
-*/
-#include <mach/irqs.h>
-#include <linux/usb/ch9.h>
-#include <linux/usb/gadget.h>
-#endif
-
-#include <asm/io.h>
-
+#include "dwc_otg_os_dep.h"
 #include "dwc_otg_pcd_if.h"
+#include "dwc_otg_pcd.h"
 #include "dwc_otg_driver.h"
 #include "dwc_otg_dbg.h"
 
@@ -111,6 +73,26 @@ static struct gadget_wrapper {
 
 /* Display the contents of the buffer */
 extern void dump_msg(const u8 * buf, unsigned int length);
+/**
+ * Get the dwc_otg_pcd_ep_t* from usb_ep* pointer - NULL in case
+ * if the endpoint is not found
+ */
+static struct dwc_otg_pcd_ep *ep_from_handle(dwc_otg_pcd_t * pcd, void *handle)
+{
+	int i;
+	if (pcd->ep0.priv == handle) {
+		return &pcd->ep0;
+	}
+
+	for (i = 0; i < MAX_EPS_CHANNELS - 1; i++) {
+		if (pcd->in_ep[i].priv == handle)
+			return &pcd->in_ep[i];
+		if (pcd->out_ep[i].priv == handle)
+			return &pcd->out_ep[i];
+	}
+
+	return NULL;
+}
 
 /* USB Endpoint Operations */
 /*
@@ -164,6 +146,13 @@ static int ep_enable(struct usb_ep *usb_ep,
 		return -ESHUTDOWN;
 	}
 
+	/* Delete after check - MAS */
+#if 0
+	nat = (uint32_t) ep_desc->wMaxPacketSize;
+	printk(KERN_ALERT "%s: nat (before) =%d\n", __func__, nat);
+	nat = (nat >> 11) & 0x03;
+	printk(KERN_ALERT "%s: nat (after) =%d\n", __func__, nat);
+#endif
 	retval = dwc_otg_pcd_ep_enable(gadget_wrapper->pcd,
 				       (const uint8_t *)ep_desc,
 				       (void *)usb_ep);
@@ -227,7 +216,7 @@ static struct usb_request *dwc_otg_pcd_alloc_request(struct usb_ep *ep,
 		return 0;
 	}
 	memset(usb_req, 0, sizeof(*usb_req));
-	usb_req->dma = DWC_INVALID_DMA_ADDR;
+	usb_req->dma = DWC_DMA_ADDR_INVALID;
 
 	return usb_req;
 }
@@ -251,7 +240,7 @@ static void dwc_otg_pcd_free_request(struct usb_ep *ep, struct usb_request *req)
 	kfree(req);
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 /**
  * This function allocates an I/O buffer to be used for a transfer
  * to/from the specified endpoint.
@@ -329,7 +318,9 @@ static int ep_queue(struct usb_ep *usb_ep, struct usb_request *usb_req,
 		    gfp_t gfp_flags)
 {
 	dwc_otg_pcd_t *pcd;
-	int retval;
+	struct dwc_otg_pcd_ep *ep = NULL;
+	int retval = 0, is_isoc_ep = 0;
+	dma_addr_t dma_addr = DWC_DMA_ADDR_INVALID;
 
 	DWC_DEBUGPL(DBG_PCDV, "%s(%p,%p,%d)\n",
 		    __func__, usb_ep, usb_req, gfp_flags);
@@ -359,7 +350,44 @@ static int ep_queue(struct usb_ep *usb_ep, struct usb_request *usb_req,
 	usb_req->status = -EINPROGRESS;
 	usb_req->actual = 0;
 
-	retval = dwc_otg_pcd_ep_queue(pcd, usb_ep, usb_req->buf, usb_req->dma,
+	ep = ep_from_handle(pcd, usb_ep);
+	if (ep == NULL)
+		is_isoc_ep = 0;
+	else
+		is_isoc_ep = (ep->dwc_ep.type == DWC_OTG_EP_TYPE_ISOC) ? 1 : 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
+	dma_addr = usb_req->dma;
+#else
+	if (GET_CORE_IF(pcd)->dma_enable) {
+                dwc_otg_device_t *otg_dev = gadget_wrapper->pcd->otg_dev;
+                struct device *dev = NULL;
+                
+                if (otg_dev != NULL)
+                        dev = DWC_OTG_OS_GETDEV(otg_dev->os_dep);
+                
+		if (usb_req->length != 0 &&
+                    usb_req->dma == DWC_DMA_ADDR_INVALID) {
+                        dma_addr = dma_map_single(dev, usb_req->buf,
+                                                  usb_req->length, 
+                                                  ep->dwc_ep.is_in ?
+                                                        DMA_TO_DEVICE:
+                                                        DMA_FROM_DEVICE);
+		}
+	}
+#endif
+
+#ifdef DWC_UTE_PER_IO
+	if (is_isoc_ep == 1) {
+		retval = dwc_otg_pcd_xiso_ep_queue(pcd, usb_ep, usb_req->buf, dma_addr,
+			usb_req->length, usb_req->zero, usb_req,
+			gfp_flags == GFP_ATOMIC ? 1 : 0, &usb_req->ext_req);
+		if (retval)
+			return -EINVAL;
+
+		return 0;
+	}
+#endif
+	retval = dwc_otg_pcd_ep_queue(pcd, usb_ep, usb_req->buf, dma_addr,
 				      usb_req->length, usb_req->zero, usb_req,
 				      gfp_flags == GFP_ATOMIC ? 1 : 0);
 	if (retval) {
@@ -568,8 +596,10 @@ static struct usb_isoc_ep_ops dwc_otg_pcd_ep_ops = {
 		   .alloc_request = dwc_otg_pcd_alloc_request,
 		   .free_request = dwc_otg_pcd_free_request,
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 		   .alloc_buffer = dwc_otg_pcd_alloc_buffer,
 		   .free_buffer = dwc_otg_pcd_free_buffer,
+#endif
 
 		   .queue = ep_queue,
 		   .dequeue = ep_dequeue,
@@ -610,7 +640,7 @@ static struct usb_ep_ops dwc_otg_pcd_ep_ops = {
 	.alloc_request = dwc_otg_pcd_alloc_request,
 	.free_request = dwc_otg_pcd_free_request,
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 	.alloc_buffer = dwc_otg_pcd_alloc_buffer,
 	.free_buffer = dwc_otg_pcd_free_buffer,
 #else
@@ -627,7 +657,7 @@ static struct usb_ep_ops dwc_otg_pcd_ep_ops = {
 
 };
 
-#endif				/* _EN_ISOC_ */
+#endif /* _EN_ISOC_ */
 /*	Gadget Operations */
 /**
  * The following gadget operations will be implemented in the DWC_otg
@@ -761,12 +791,78 @@ static int _isoc_complete(dwc_otg_pcd_t * pcd, void *ep_handle,
 
 	return 0;
 }
-#endif				/* DWC_EN_ISOC */
+#endif /* DWC_EN_ISOC */
+
+#ifdef DWC_UTE_PER_IO
+/**
+ * Copy the contents of the extended request to the Linux usb_request's
+ * extended part and call the gadget's completion.
+ *
+ * @param pcd			Pointer to the pcd structure
+ * @param ep_handle		Void pointer to the usb_ep structure
+ * @param req_handle	Void pointer to the usb_request structure
+ * @param status		Request status returned from the portable logic
+ * @param ereq_port		Void pointer to the extended request structure
+ *						created in the the portable part that contains the
+ *						results of the processed iso packets.
+ */
+static int _xisoc_complete(dwc_otg_pcd_t * pcd, void *ep_handle,
+			   void *req_handle, int32_t status, void *ereq_port)
+{
+	struct dwc_ute_iso_req_ext *ereqorg = NULL;
+	struct dwc_iso_xreq_port *ereqport = NULL;
+	struct dwc_ute_iso_packet_descriptor *desc_org = NULL;
+	int i;
+	struct usb_request *req;
+	//struct dwc_ute_iso_packet_descriptor *
+	//int status = 0;
+
+	req = (struct usb_request *)req_handle;
+	ereqorg = &req->ext_req;
+	ereqport = (struct dwc_iso_xreq_port *)ereq_port;
+	desc_org = ereqorg->per_io_frame_descs;
+
+	if (req && req->complete) {
+		/* Copy the request data from the portable logic to our request */
+		for (i = 0; i < ereqport->pio_pkt_count; i++) {
+			desc_org[i].actual_length =
+			    ereqport->per_io_frame_descs[i].actual_length;
+			desc_org[i].status =
+			    ereqport->per_io_frame_descs[i].status;
+		}
+
+		switch (status) {
+		case -DWC_E_SHUTDOWN:
+			req->status = -ESHUTDOWN;
+			break;
+		case -DWC_E_RESTART:
+			req->status = -ECONNRESET;
+			break;
+		case -DWC_E_INVALID:
+			req->status = -EINVAL;
+			break;
+		case -DWC_E_TIMEOUT:
+			req->status = -ETIMEDOUT;
+			break;
+		default:
+			req->status = status;
+		}
+
+		/* And call the gadget's completion */
+		req->complete(ep_handle, req);
+	}
+
+	return 0;
+}
+#endif /* DWC_UTE_PER_IO */
 
 static int _complete(dwc_otg_pcd_t * pcd, void *ep_handle,
 		     void *req_handle, int32_t status, uint32_t actual)
 {
 	struct usb_request *req = (struct usb_request *)req_handle;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,27)
+	struct dwc_otg_pcd_ep *ep = NULL;
+#endif
 
 	if (req && req->complete) {
 		switch (status) {
@@ -786,9 +882,28 @@ static int _complete(dwc_otg_pcd_t * pcd, void *ep_handle,
 			req->status = status;
 
 		}
+
 		req->actual = actual;
+		DWC_SPINUNLOCK(pcd->lock);
 		req->complete(ep_handle, req);
+		DWC_SPINLOCK(pcd->lock);
 	}
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,27)
+	ep = ep_from_handle(pcd, ep_handle);
+	if (GET_CORE_IF(pcd)->dma_enable) {
+                if (req->length != 0) {
+                        dwc_otg_device_t *otg_dev = gadget_wrapper->pcd->otg_dev;
+                        struct device *dev = NULL;
+
+                        if (otg_dev != NULL)
+                                  dev = DWC_OTG_OS_GETDEV(otg_dev->os_dep);
+
+			dma_unmap_single(dev, req->dma, req->length,
+                                         ep->dwc_ep.is_in ?
+                                                DMA_TO_DEVICE: DMA_FROM_DEVICE);
+                }
+	}
+#endif
 
 	return 0;
 }
@@ -850,11 +965,9 @@ static int _cfi_setup(dwc_otg_pcd_t * pcd, void *cfi_req)
 	int retval = -DWC_E_INVALID;
 	if (gadget_wrapper->driver->cfi_feature_setup) {
 		retval =
-		    gadget_wrapper->driver->cfi_feature_setup(&gadget_wrapper->
-							      gadget,
-							      (struct
-							       cfi_usb_ctrlrequest
-							       *)cfi_req);
+		    gadget_wrapper->driver->
+		    cfi_feature_setup(&gadget_wrapper->gadget,
+				      (struct cfi_usb_ctrlrequest *)cfi_req);
 	}
 
 	return retval;
@@ -875,6 +988,9 @@ static const struct dwc_otg_pcd_function_ops fops = {
 	.reset = _reset,
 #ifdef DWC_UTE_CFI
 	.cfi_setup = _cfi_setup,
+#endif
+#ifdef DWC_UTE_PER_IO
+	.xisoc_complete = _xisoc_complete,
 #endif
 };
 
@@ -938,6 +1054,7 @@ void gadget_add_eps(struct gadget_wrapper *d)
 
 	int i;
 	struct usb_ep *ep;
+	int8_t dev_endpoints;
 
 	DWC_DEBUGPL(DBG_PCDV, "%s\n", __func__);
 
@@ -968,12 +1085,13 @@ void gadget_add_eps(struct gadget_wrapper *d)
 	/**
 	 * Initialize the EP structures.
 	 */
+	dev_endpoints = d->pcd->core_if->dev_if->num_in_eps;
 
-	for (i = 0; i < 15; i++) {
+	for (i = 0; i < dev_endpoints; i++) {
 		ep = &d->in_ep[i];
 
 		/* Init the usb_ep structure. */
-		ep->name = names[i + 1];
+		ep->name = names[d->pcd->in_ep[i].dwc_ep.num];
 		ep->ops = (struct usb_ep_ops *)&dwc_otg_pcd_ep_ops;
 
 		/**
@@ -984,11 +1102,13 @@ void gadget_add_eps(struct gadget_wrapper *d)
 		list_add_tail(&ep->ep_list, &d->gadget.ep_list);
 	}
 
-	for (i = 0; i < 15; i++) {
+	dev_endpoints = d->pcd->core_if->dev_if->num_out_eps;
+
+	for (i = 0; i < dev_endpoints; i++) {
 		ep = &d->out_ep[i];
 
 		/* Init the usb_ep structure. */
-		ep->name = names[15 + i + 1];
+		ep->name = names[15 + d->pcd->out_ep[i].dwc_ep.num];
 		ep->ops = (struct usb_ep_ops *)&dwc_otg_pcd_ep_ops;
 
 		/**
@@ -1017,29 +1137,14 @@ static void dwc_otg_pcd_gadget_release(struct device *dev)
 	DWC_DEBUGPL(DBG_PCDV, "%s(%p)\n", __func__, dev);
 }
 
-static struct gadget_wrapper *alloc_wrapper(
-#ifdef LM_INTERFACE
-	struct lm_device *_dev
-#elif  defined(PCI_INTERFACE)
-	struct pci_dev *_dev
-#elif  defined(PLATFORM_INTERFACE)
-	struct platform_device *_dev
-#endif
-	)
+static struct gadget_wrapper *alloc_wrapper(dwc_bus_dev_t *_dev)
 {
-#ifdef LM_INTERFACE
-	dwc_otg_device_t *otg_dev = lm_get_drvdata(_dev);
-#elif defined(PCI_INTERFACE)
-	dwc_otg_device_t *otg_dev = pci_get_drvdata(_dev);
-#elif defined(PLATFORM_INTERFACE)
-	dwc_otg_device_t *otg_dev = platform_get_drvdata(_dev);
-#endif
 	static char pcd_name[] = "dwc_otg_pcd";
-
+	dwc_otg_device_t *otg_dev = DWC_OTG_BUSDRVDATA(_dev);
 	struct gadget_wrapper *d;
 	int retval;
 
-	d = dwc_alloc(sizeof(*d));
+	d = DWC_ALLOC(sizeof(*d));
 	if (d == NULL) {
 		return NULL;
 	}
@@ -1048,12 +1153,13 @@ static struct gadget_wrapper *alloc_wrapper(
 
 	d->gadget.name = pcd_name;
 	d->pcd = otg_dev->pcd;
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30)
 	strcpy(d->gadget.dev.bus_id, "gadget");
 #else
-	/*d->gadget.dev.bus = NULL;*/
-        d->gadget.dev.init_name = "gadget";
+	dev_set_name(&d->gadget.dev, "%s", "gadget");
 #endif
+
 	d->gadget.dev.parent = &_dev->dev;
 	d->gadget.dev.release = dwc_otg_pcd_gadget_release;
 	d->gadget.ops = &dwc_otg_pcd_ops;
@@ -1065,7 +1171,7 @@ static struct gadget_wrapper *alloc_wrapper(
 	retval = device_register(&d->gadget.dev);
 	if (retval != 0) {
 		DWC_ERROR("device_register failed\n");
-		dwc_free(d);
+		DWC_FREE(d);
 		return NULL;
 	}
 
@@ -1082,33 +1188,16 @@ static void free_wrapper(struct gadget_wrapper *d)
 	}
 
 	device_unregister(&d->gadget.dev);
-	dwc_free(d);
+	DWC_FREE(d);
 }
 
 /**
  * This function initialized the PCD portion of the driver.
  *
  */
-int pcd_init(
-#ifdef LM_INTERFACE
-	struct lm_device *_dev
-#elif  defined(PCI_INTERFACE)
-	struct pci_dev *_dev
-#elif  defined(PLATFORM_INTERFACE)
-	struct platform_device *_dev
-#endif
-	)
-
+int pcd_init(dwc_bus_dev_t *_dev)
 {
-#ifdef LM_INTERFACE
-        dwc_otg_device_t *otg_dev = lm_get_drvdata(_dev);
-#elif  defined(PCI_INTERFACE)
-        dwc_otg_device_t *otg_dev = pci_get_drvdata(_dev);
-#elif  defined(PLATFORM_INTERFACE)
-        dwc_otg_device_t *otg_dev = platform_get_drvdata(_dev);
-#endif
-        int devirq;
-
+	dwc_otg_device_t *otg_dev = DWC_OTG_BUSDRVDATA(_dev);
 	int retval = 0;
 
 	DWC_DEBUGPL(DBG_PCDV, "%s(%p) otg_dev=%p\n", __func__, _dev, otg_dev);
@@ -1120,30 +1209,40 @@ int pcd_init(
 		return -ENOMEM;
 	}
 
+	otg_dev->pcd->otg_dev = otg_dev;
 	gadget_wrapper = alloc_wrapper(_dev);
 
 	/*
 	 * Initialize EP structures
 	 */
 	gadget_add_eps(gadget_wrapper);
-
 	/*
 	 * Setup interupt handler
 	 */
 #ifdef PLATFORM_INTERFACE
-        devirq = platform_get_irq(_dev, 0);
-#else
-        devirq = _dev->irq;
-#endif
-	DWC_DEBUGPL(DBG_ANY, "registering handler for irq%d\n", devirq);
-	retval = request_irq(devirq, dwc_otg_pcd_irq,
+	DWC_DEBUGPL(DBG_ANY, "registering handler for irq%d\n",
+                    platform_get_irq(_dev, 0));
+	retval = request_irq(platform_get_irq(_dev, 0), dwc_otg_pcd_irq,
 			     IRQF_SHARED, gadget_wrapper->gadget.name,
 			     otg_dev->pcd);
 	if (retval != 0) {
-                DWC_ERROR("request of irq%d failed\n", devirq);
+		DWC_ERROR("request of irq%d failed\n",
+                          platform_get_irq(_dev, 0));
 		free_wrapper(gadget_wrapper);
 		return -EBUSY;
 	}
+#else
+	DWC_DEBUGPL(DBG_ANY, "registering handler for irq%d\n",
+                    _dev->irq);
+	retval = request_irq(_dev->irq, dwc_otg_pcd_irq,
+			     IRQF_SHARED | IRQF_DISABLED,
+			     gadget_wrapper->gadget.name, otg_dev->pcd);
+	if (retval != 0) {
+		DWC_ERROR("request of irq%d failed\n", _dev->irq);
+		free_wrapper(gadget_wrapper);
+		return -EBUSY;
+	}
+#endif
 
 	dwc_otg_pcd_start(gadget_wrapper->pcd, &fops);
 
@@ -1153,23 +1252,9 @@ int pcd_init(
 /**
  * Cleanup the PCD.
  */
-void pcd_remove(
-#ifdef LM_INTERFACE
-	struct lm_device *_dev
-#elif  defined(PCI_INTERFACE)
-	struct pci_dev *_dev
-#elif  defined(PLATFORM_INTERFACE)
-	struct platform_device *_dev
-#endif
-	)
+void pcd_remove(dwc_bus_dev_t *_dev)
 {
-#ifdef LM_INTERFACE
-	dwc_otg_device_t *otg_dev = lm_get_drvdata(_dev);
-#elif  defined(PCI_INTERFACE)
-	dwc_otg_device_t *otg_dev = pci_get_drvdata(_dev);
-#elif  defined(PLATFORM_INTERFACE)
-	dwc_otg_device_t *otg_dev = platform_get_drvdata(_dev);
-#endif
+	dwc_otg_device_t *otg_dev = DWC_OTG_BUSDRVDATA(_dev);
 	dwc_otg_pcd_t *pcd = otg_dev->pcd;
 
 	DWC_DEBUGPL(DBG_PCDV, "%s(%p) otg_dev %p\n", __func__, _dev, otg_dev);
@@ -1196,6 +1281,7 @@ void pcd_remove(
  * then a host may connect again, or the driver might get unbound.
  *
  * @param driver The driver being registered
+ * @param bind The bind function of gadget driver
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
 int usb_gadget_register_driver(struct usb_gadget_driver *driver)
@@ -1213,7 +1299,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
 	    !driver->bind ||
 #else
-            !bind ||
+		!bind ||
 #endif
 	    !driver->unbind || !driver->disconnect || !driver->setup) {
 		DWC_DEBUGPL(DBG_PCDV, "EINVAL\n");
@@ -1249,7 +1335,6 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		    driver->driver.name);
 	return 0;
 }
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
 EXPORT_SYMBOL(usb_gadget_register_driver);
 #else
@@ -1285,4 +1370,4 @@ int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)
 
 EXPORT_SYMBOL(usb_gadget_unregister_driver);
 
-#endif				/* DWC_HOST_ONLY */
+#endif /* DWC_HOST_ONLY */

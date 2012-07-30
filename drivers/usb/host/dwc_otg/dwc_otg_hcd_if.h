@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_hcd_if.h $
- * $Revision: #6 $
- * $Date: 2009/04/21 $
- * $Change: 1237474 $
+ * $Revision: #12 $
+ * $Date: 2011/10/26 $
+ * $Change: 1873028 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -175,6 +175,13 @@ extern int dwc_otg_hcd_hub_control(dwc_otg_hcd_t * dwc_otg_hcd,
 extern uint32_t dwc_otg_hcd_otg_port(dwc_otg_hcd_t * hcd);
 
 /**
+ * Returns OTG version - either 1.3 or 2.0.
+ *
+ * @param core_if The core_if structure pointer
+ */
+extern uint16_t dwc_otg_get_otg_version(dwc_otg_core_if_t * core_if);
+
+/**
  * Returns 1 if currently core is acting as B host, and 0 otherwise.
  *
  * @param hcd The HCD
@@ -223,7 +230,7 @@ extern int dwc_otg_hcd_send_lpm(dwc_otg_hcd_t * hcd, uint8_t devaddr,
 
 /**
  * Allocates memory for dwc_otg_hcd_urb structure.
- * Allocated memory should be freed by call dwc_free function.
+ * Allocated memory should be freed by call of DWC_FREE.
  *
  * @param hcd The HCD
  * @param iso_desc_count Count of ISOC descriptors
@@ -248,7 +255,7 @@ extern void dwc_otg_hcd_urb_set_pipeinfo(dwc_otg_hcd_urb_t * hcd_urb,
 					 uint8_t ep_type, uint8_t ep_dir,
 					 uint16_t mps);
 
-/* Transfer flags */ 
+/* Transfer flags */
 #define URB_GIVEBACK_ASAP 0x1
 #define URB_SEND_ZERO_PACKET 0x2
 
@@ -325,6 +332,7 @@ extern uint32_t dwc_otg_hcd_urb_get_iso_desc_actual_length(dwc_otg_hcd_urb_t *
  * @param dwc_otg_hcd The HCD
  * @param dwc_otg_urb DWC_OTG URB
  * @param ep_handle Out parameter for returning endpoint handle
+ * @param atomic_alloc Flag to do atomic allocation if needed
  *
  * Returns -DWC_E_NO_DEVICE if no device is connected.
  * Returns -DWC_E_NO_MEMORY if there is no enough memory.
@@ -332,7 +340,7 @@ extern uint32_t dwc_otg_hcd_urb_get_iso_desc_actual_length(dwc_otg_hcd_urb_t *
  */
 extern int dwc_otg_hcd_urb_enqueue(dwc_otg_hcd_t * dwc_otg_hcd,
 				   dwc_otg_hcd_urb_t * dwc_otg_urb,
-				   void **ep_handle);
+				   void **ep_handle, int atomic_alloc);
 
 /** De-queue the specified URB
  *
@@ -354,6 +362,17 @@ extern int dwc_otg_hcd_urb_dequeue(dwc_otg_hcd_t * dwc_otg_hcd,
  */
 extern int dwc_otg_hcd_endpoint_disable(dwc_otg_hcd_t * hcd, void *ep_handle,
 					int retry);
+
+/* Resets the data toggle in qh structure. This function can be called from
+ * usb_clear_halt routine.
+ *
+ * @param hcd The HCD
+ * @param ep_handle Endpoint handle, returned by dwc_otg_hcd_urb_enqueue function
+ *
+ * Returns -DWC_E_INVALID if invalid arguments are passed.
+ * Returns 0 on success
+ */
+extern int dwc_otg_hcd_endpoint_reset(dwc_otg_hcd_t * hcd, void *ep_handle);
 
 /** Returns 1 if status of specified port is changed and 0 otherwise.
  *
@@ -389,5 +408,5 @@ extern uint8_t dwc_otg_hcd_get_ep_bandwidth(dwc_otg_hcd_t * hcd,
 
 /** @} */
 
-#endif				/* __DWC_HCD_IF_H__ */
-#endif				/* DWC_DEVICE_ONLY */
+#endif /* __DWC_HCD_IF_H__ */
+#endif /* DWC_DEVICE_ONLY */
