@@ -965,7 +965,7 @@ static void mmc_blk_rw_rq_prep(struct mmc_queue_req *mqrq,
 	if (disable_multi && brq->data.blocks > 1)
 		brq->data.blocks = 1;
 
-	if (brq->data.blocks > 1 || do_rel_wr) {
+	if (brq->data.blocks > 1 || do_rel_wr || card->host->caps2 & MMC_CAP2_FORCE_MULTIBLOCK) {
 		/* SPI multiblock writes terminate using a special
 		 * token, not a STOP_TRANSMISSION request.
 		 */
