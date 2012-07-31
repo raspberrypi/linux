@@ -79,6 +79,8 @@
 #define POWER_LAZY_OFF 1
 #define POWER_ON  2
 
+#define REG_EXRDFIFO_EN     0x80
+#define REG_EXRDFIFO_CFG    0x84
 
 /*****************************************************************************\
  *									     *
@@ -967,10 +969,12 @@ static ssize_t attr_dma_store(struct device *_dev,
 		int on = simple_strtol(buf, NULL, 0);
 		if (on) {
 			host->flags |= SDHCI_USE_PLATDMA;
+			sdhci_bcm2708_writel(host, 1, REG_EXRDFIFO_EN);
 			printk(KERN_INFO "%s: DMA enabled\n",
 			       mmc_hostname(host->mmc));
 		} else {
 			host->flags &= ~(SDHCI_USE_PLATDMA | SDHCI_REQ_USE_DMA);
+			sdhci_bcm2708_writel(host, 0, REG_EXRDFIFO_EN);
 			printk(KERN_INFO "%s: DMA disabled\n",
 			       mmc_hostname(host->mmc));
 		}
@@ -1388,6 +1392,9 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 
     if (allow_highspeed)
         host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
+
+    /* single block writes cause data loss with some SD cards! */
+    host->mmc->caps2 |= MMC_CAP2_FORCE_MULTIBLOCK;
 #endif
 
 	ret = sdhci_add_host(host);
@@ -1398,6 +1405,12 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 	ret = device_create_file(&pdev->dev, &dev_attr_use_dma);
 	ret = device_create_file(&pdev->dev, &dev_attr_dma_wait);
 	ret = device_create_file(&pdev->dev, &dev_attr_status);
+
+#ifdef CONFIG_MMC_SDHCI_BCM2708_DMA
+	/* enable extension fifo for paced DMA transfers */
+	sdhci_bcm2708_writel(host, 1, REG_EXRDFIFO_EN);
+	sdhci_bcm2708_writel(host, 4, REG_EXRDFIFO_CFG);
+#endif
 
 	printk(KERN_INFO "%s: BCM2708 SDHC host at 0x%08llx DMA %d IRQ %d\n",
 	       mmc_hostname(host->mmc), (unsigned long long)iomem->start,
