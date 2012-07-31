@@ -658,6 +658,9 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 					    urb->number_of_packets,
 					    mem_flags == GFP_ATOMIC ? 1 : 0);
 
+	if(dwc_otg_urb == NULL)
+		return -ENOMEM;
+
         urb->hcpriv = dwc_otg_urb;
         if (!dwc_otg_urb && urb->number_of_packets)
                 return -ENOMEM;
