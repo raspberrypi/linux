@@ -5,6 +5,10 @@
 #ifndef _DWC_MODPOW_H
 #define _DWC_MODPOW_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "dwc_os.h"
 
 /** @file
@@ -21,6 +25,10 @@ typedef uint64_t BignumDblInt;
 typedef BignumInt *Bignum;
 
 /* Compute modular exponentiaion */
-extern Bignum dwc_modpow(Bignum base_in, Bignum exp, Bignum mod);
+extern Bignum dwc_modpow(void *mem_ctx, Bignum base_in, Bignum exp, Bignum mod);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _LINUX_BIGNUM_H */

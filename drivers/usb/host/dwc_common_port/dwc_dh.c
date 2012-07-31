@@ -1,8 +1,8 @@
 /* =========================================================================
- * $File: //dwh/usb_iip/dev/software/dwc_common_port/dwc_dh.c $
- * $Revision: #1 $
- * $Date: 2008/12/21 $
- * $Change: 1156609 $
+ * $File: //dwh/usb_iip/dev/software/dwc_common_port_2/dwc_dh.c $
+ * $Revision: #3 $
+ * $Date: 2010/09/28 $
+ * $Change: 1596182 $
  *
  * Synopsys Portability Library Software and documentation
  * (hereinafter, "Software") is an Unsupported proprietary work of
@@ -33,7 +33,10 @@
  * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
  * DAMAGE.
  * ========================================================================= */
+#ifdef DWC_CRYPTOLIB
+
 #ifndef CONFIG_MACH_IPMATE
+
 #include "dwc_dh.h"
 #include "dwc_modpow.h"
 
@@ -91,10 +94,10 @@ static void dh_swap_bytes(void *_in, void *_out, uint32_t len)
 /* Computes the modular exponentiation (num^exp % mod).  num, exp, and mod are
  * big endian numbers of size len, in bytes.  Each len value must be a multiple
  * of 4. */
-int dwc_dh_modpow(void *num, uint32_t num_len,
-			 void *exp, uint32_t exp_len,
-			 void *mod, uint32_t mod_len,
-			 void *out)
+int dwc_dh_modpow(void *mem_ctx, void *num, uint32_t num_len,
+		  void *exp, uint32_t exp_len,
+		  void *mod, uint32_t mod_len,
+		  void *out)
 {
 	/* modpow() takes little endian numbers.  AM uses big-endian.  This
 	 * function swaps bytes of numbers before passing onto modpow. */
@@ -102,9 +105,9 @@ int dwc_dh_modpow(void *num, uint32_t num_len,
 	int retval = 0;
 	uint32_t *result;
 
-	uint32_t *bignum_num = DWC_ALLOC(num_len + 4);
-	uint32_t *bignum_exp = DWC_ALLOC(exp_len + 4);
-	uint32_t *bignum_mod = DWC_ALLOC(mod_len + 4);
+	uint32_t *bignum_num = dwc_alloc(mem_ctx, num_len + 4);
+	uint32_t *bignum_exp = dwc_alloc(mem_ctx, exp_len + 4);
+	uint32_t *bignum_mod = dwc_alloc(mem_ctx, mod_len + 4);
 
 	dh_swap_bytes(num, &bignum_num[1], num_len);
 	bignum_num[0] = num_len / 4;
@@ -115,24 +118,24 @@ int dwc_dh_modpow(void *num, uint32_t num_len,
 	dh_swap_bytes(mod, &bignum_mod[1], mod_len);
 	bignum_mod[0] = mod_len / 4;
 
-	result = dwc_modpow(bignum_num, bignum_exp, bignum_mod);
+	result = dwc_modpow(mem_ctx, bignum_num, bignum_exp, bignum_mod);
 	if (!result) {
 		retval = -1;
 		goto dh_modpow_nomem;
 	}
 
 	dh_swap_bytes(&result[1], out, result[0] * 4);
-	DWC_FREE(result);
+	dwc_free(mem_ctx, result);
 
  dh_modpow_nomem:
-	DWC_FREE(bignum_num);
-	DWC_FREE(bignum_exp);
-	DWC_FREE(bignum_mod);
+	dwc_free(mem_ctx, bignum_num);
+	dwc_free(mem_ctx, bignum_exp);
+	dwc_free(mem_ctx, bignum_mod);
 	return retval;
 }
 
 
-int dwc_dh_pk(uint8_t nd, uint8_t *exp, uint8_t *pk, uint8_t *hash)
+int dwc_dh_pk(void *mem_ctx, uint8_t nd, uint8_t *exp, uint8_t *pk, uint8_t *hash)
 {
 	int retval;
 	uint8_t m3[385];
@@ -142,9 +145,9 @@ int dwc_dh_pk(uint8_t nd, uint8_t *exp, uint8_t *pk, uint8_t *hash)
 #endif
 
 	/* Compute the pkd */
-	if ((retval = dwc_dh_modpow(dh_g, 4,
-					  exp, 32,
-					  dh_p, 384, pk))) {
+	if ((retval = dwc_dh_modpow(mem_ctx, dh_g, 4,
+				    exp, 32,
+				    dh_p, 384, pk))) {
 		return retval;
 	}
 
@@ -157,9 +160,9 @@ int dwc_dh_pk(uint8_t nd, uint8_t *exp, uint8_t *pk, uint8_t *hash)
 	return 0;
 }
 
-int dwc_dh_derive_keys(uint8_t nd, uint8_t *pkh, uint8_t *pkd,
-			     uint8_t *exp, int is_host,
-			     char *dd, uint8_t *ck, uint8_t *kdk)
+int dwc_dh_derive_keys(void *mem_ctx, uint8_t nd, uint8_t *pkh, uint8_t *pkd,
+		       uint8_t *exp, int is_host,
+		       char *dd, uint8_t *ck, uint8_t *kdk)
 {
 	int retval;
 	uint8_t mv[784];
@@ -178,9 +181,9 @@ int dwc_dh_derive_keys(uint8_t nd, uint8_t *pkh, uint8_t *pkd,
 		pk = pkh;
 	}
 
-	if ((retval = dwc_dh_modpow(pk, 384,
-					  exp, 32,
-					  dh_p, 384, shared_secret))) {
+	if ((retval = dwc_dh_modpow(mem_ctx, pk, 384,
+				    exp, 32,
+				    dh_p, 384, shared_secret))) {
 		return retval;
 	}
 	dh_dump("Shared Secret", shared_secret, 384);
@@ -258,7 +261,7 @@ static __u8 dh_b[] = {
 	0xde, 0xd9, 0x26, 0x56,
 };
 
-void dwc_run_dh_test_vectors(void)
+void dwc_run_dh_test_vectors(void *mem_ctx)
 {
 	uint8_t pkd[384];
 	uint8_t pkh[384];
@@ -272,15 +275,17 @@ void dwc_run_dh_test_vectors(void)
 
 	/* compute the PKd and SHA-256(PKd || Nd) */
 	DWC_PRINTF("Computing PKd\n");
-	dwc_dh_pk(2, dh_a, pkd, hashd);
+	dwc_dh_pk(mem_ctx, 2, dh_a, pkd, hashd);
 
 	/* compute the PKd and SHA-256(PKh || Nd) */
 	DWC_PRINTF("Computing PKh\n");
-	dwc_dh_pk(2, dh_b, pkh, hashh);
+	dwc_dh_pk(mem_ctx, 2, dh_b, pkh, hashh);
 
 	/* compute the dhkey */
-	dwc_dh_derive_keys(2, pkh, pkd, dh_a, 0, dd, ck, kdk);
+	dwc_dh_derive_keys(mem_ctx, 2, pkh, pkd, dh_a, 0, dd, ck, kdk);
 }
 #endif /* DH_TEST_VECTORS */
 
-#endif /* CONFIG_IPMATE_MACH */
+#endif /* !CONFIG_MACH_IPMATE */
+
+#endif /* DWC_CRYPTOLIB */
