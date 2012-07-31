@@ -759,11 +759,13 @@ static int dwc_otg_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 	DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &flags);
 	rc = usb_hcd_check_unlink_urb(hcd, urb, status);
 	if (0 == rc) {
-                dwc_otg_hcd_urb_dequeue(dwc_otg_hcd,
-                                        (dwc_otg_hcd_urb_t *)urb->hcpriv);
+		if(urb->hcpriv != NULL) {
+	                dwc_otg_hcd_urb_dequeue(dwc_otg_hcd,
+    	                                    (dwc_otg_hcd_urb_t *)urb->hcpriv);
 
-                DWC_FREE(urb->hcpriv);
-                urb->hcpriv = NULL;
+        	        DWC_FREE(urb->hcpriv);
+            		urb->hcpriv = NULL;
+            	}
         }
 
         if (0 == rc) {
