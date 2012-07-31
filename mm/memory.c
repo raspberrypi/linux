@@ -1358,8 +1358,11 @@ unsigned long unmap_vmas(struct mmu_gather *tlb,
 				 * Since no pte has actually been setup, it is
 				 * safe to do nothing in this case.
 				 */
-				if (vma->vm_file)
-					unmap_hugepage_range(vma, start, end, NULL);
+				if (vma->vm_file) {
+					mutex_lock(&vma->vm_file->f_mapping->i_mmap_mutex);
+					__unmap_hugepage_range_final(vma, start, end, NULL);
+					mutex_unlock(&vma->vm_file->f_mapping->i_mmap_mutex);
+				}
 
 				start = end;
 			} else

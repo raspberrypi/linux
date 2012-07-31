@@ -41,6 +41,9 @@ int follow_hugetlb_page(struct mm_struct *, struct vm_area_struct *,
 			unsigned long *, int *, int, unsigned int flags);
 void unmap_hugepage_range(struct vm_area_struct *,
 			unsigned long, unsigned long, struct page *);
+void __unmap_hugepage_range_final(struct vm_area_struct *vma,
+			  unsigned long start, unsigned long end,
+			  struct page *ref_page);
 void __unmap_hugepage_range(struct vm_area_struct *,
 			unsigned long, unsigned long, struct page *);
 int hugetlb_prefault(struct address_space *, struct vm_area_struct *);
@@ -99,6 +102,13 @@ static inline unsigned long hugetlb_total_pages(void)
 #define copy_hugetlb_page_range(src, dst, vma)	({ BUG(); 0; })
 #define hugetlb_prefault(mapping, vma)		({ BUG(); 0; })
 #define unmap_hugepage_range(vma, start, end, page)	BUG()
+static inline void __unmap_hugepage_range_final(struct vm_area_struct *vma,
+			unsigned long start, unsigned long end,
+			struct page *ref_page)
+{
+	BUG();
+}
+
 static inline void hugetlb_report_meminfo(struct seq_file *m)
 {
 }
