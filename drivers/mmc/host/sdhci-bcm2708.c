@@ -139,6 +139,7 @@ static inline unsigned long int since_ns(hptime_t t)
 static bool allow_highspeed = 1;
 static int emmc_clock_freq = BCM2708_EMMC_CLOCK_FREQ;
 static bool sync_after_dma = 1;
+static bool missing_status = 1;
 
 #if 0
 static void hptime_test(void)
@@ -1271,7 +1272,6 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
 	.spurious_crc_acmd51 = sdhci_bcm2708_quirk_spurious_crc,
 	.voltage_broken = sdhci_bcm2708_quirk_voltage_broken,
 	.uhs_broken = sdhci_bcm2708_uhs_broken,
-	.missing_status = sdhci_bcm2708_missing_status,
 };
 
 /*****************************************************************************\
@@ -1309,6 +1309,9 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 	if (IS_ERR(host)) {
 		ret = PTR_ERR(host);
 		goto err;
+	}
+	if (missing_status) {
+		sdhci_bcm2708_ops.missing_status = sdhci_bcm2708_missing_status;
 	}
 
 	host->hw_name = "BCM2708_Arasan";
@@ -1509,6 +1512,7 @@ module_exit(sdhci_drv_exit);
 module_param(allow_highspeed, bool, 0444);
 module_param(emmc_clock_freq, int, 0444);
 module_param(sync_after_dma, bool, 0444);
+module_param(missing_status, bool, 0444);
 
 MODULE_DESCRIPTION("Secure Digital Host Controller Interface platform driver");
 MODULE_AUTHOR("Broadcom <info@broadcom.com>");
@@ -1518,5 +1522,6 @@ MODULE_ALIAS("platform:"DRIVER_NAME);
 MODULE_PARM_DESC(allow_highspeed, "Allow high speed transfers modes");
 MODULE_PARM_DESC(emmc_clock_freq, "Specify the speed of emmc clock");
 MODULE_PARM_DESC(sync_after_dma, "Block in driver until dma complete");
+MODULE_PARM_DESC(missing_status, "Use the missing status quirk");
 
 
