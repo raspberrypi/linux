@@ -967,6 +967,7 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	if ((cmd->data != NULL) || (cmd->flags & MMC_RSP_BUSY))
 		mask |= SDHCI_DATA_INHIBIT;
 
+	// This may disable preemption for up to 5s! In real world cases we saw that preemption is stopped for ~150ms which is bad for realtime A/V streaming apps.
 	if(host->ops->missing_status && (cmd->opcode == MMC_SEND_STATUS)) {
 		timeout = 5000; // Really obscenely large delay to send the status, due to bug in controller
 				// which might cause the STATUS command to get stuck when a data operation is in flow
@@ -988,7 +989,10 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 			return;
 		}
 		timeout--;
+		preempt_enable();
+		schedule();
 		mdelay(1);
+		preempt_disable();
 	}
 	DBG("send cmd %d - wait 0x%X irq 0x%x\n", cmd->opcode, mask,
 	    sdhci_readl(host, SDHCI_INT_STATUS));
