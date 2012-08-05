@@ -656,7 +656,7 @@ sdhci_bcm2708_platdma_reset(struct sdhci_host *host, struct mmc_data *data)
 
 	BUG_ON(NULL == host);
 
-	spin_lock_irqsave(&host->lock, flags);
+//	spin_lock_irqsave(&host->lock, flags);
 
 	if (host_priv->dma_wanted) {
 		if (NULL == data) {
@@ -736,7 +736,7 @@ sdhci_bcm2708_platdma_reset(struct sdhci_host *host, struct mmc_data *data)
 #endif
 	}
 
-	spin_unlock_irqrestore(&host->lock, flags);
+//	spin_unlock_irqrestore(&host->lock, flags);
 }
 
 
@@ -753,7 +753,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 
 	BUG_ON(NULL == host);
 
-	spin_lock_irqsave(&host->lock, flags);
+//	spin_lock_irqsave(&host->lock, flags);
 	data = host->data;
 
 #ifdef CHECK_DMA_USE
@@ -778,7 +778,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 
 	if (NULL == data) {
 		DBG("PDMA unused completion - status 0x%X\n", dma_cs);
-		spin_unlock_irqrestore(&host->lock, flags);
+//		spin_unlock_irqrestore(&host->lock, flags);
 		return;
 	}
 	sg = data->sg;
@@ -871,7 +871,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 						SDHCI_INT_SPACE_AVAIL);
 		}
 	}
-	spin_unlock_irqrestore(&host->lock, flags);
+//	spin_unlock_irqrestore(&host->lock, flags);
 }
 
 static irqreturn_t sdhci_bcm2708_dma_irq(int irq, void *dev_id)
