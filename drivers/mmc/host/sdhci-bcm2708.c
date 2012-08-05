@@ -79,6 +79,8 @@
 #define POWER_LAZY_OFF 1
 #define POWER_ON  2
 
+#define REG_EXRDFIFO_EN     0x80
+#define REG_EXRDFIFO_CFG    0x84
 
 /*****************************************************************************\
  *									     *
@@ -137,6 +139,7 @@ static inline unsigned long int since_ns(hptime_t t)
 static bool allow_highspeed = 1;
 static int emmc_clock_freq = BCM2708_EMMC_CLOCK_FREQ;
 static bool sync_after_dma = 1;
+static bool missing_status = 1;
 
 #if 0
 static void hptime_test(void)
@@ -967,10 +970,12 @@ static ssize_t attr_dma_store(struct device *_dev,
 		int on = simple_strtol(buf, NULL, 0);
 		if (on) {
 			host->flags |= SDHCI_USE_PLATDMA;
+			sdhci_bcm2708_writel(host, 1, REG_EXRDFIFO_EN);
 			printk(KERN_INFO "%s: DMA enabled\n",
 			       mmc_hostname(host->mmc));
 		} else {
 			host->flags &= ~(SDHCI_USE_PLATDMA | SDHCI_REQ_USE_DMA);
+			sdhci_bcm2708_writel(host, 0, REG_EXRDFIFO_EN);
 			printk(KERN_INFO "%s: DMA disabled\n",
 			       mmc_hostname(host->mmc));
 		}
@@ -1267,7 +1272,6 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
 	.spurious_crc_acmd51 = sdhci_bcm2708_quirk_spurious_crc,
 	.voltage_broken = sdhci_bcm2708_quirk_voltage_broken,
 	.uhs_broken = sdhci_bcm2708_uhs_broken,
-	.missing_status = sdhci_bcm2708_missing_status,
 };
 
 /*****************************************************************************\
@@ -1305,6 +1309,9 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 	if (IS_ERR(host)) {
 		ret = PTR_ERR(host);
 		goto err;
+	}
+	if (missing_status) {
+		sdhci_bcm2708_ops.missing_status = sdhci_bcm2708_missing_status;
 	}
 
 	host->hw_name = "BCM2708_Arasan";
@@ -1388,6 +1395,9 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 
     if (allow_highspeed)
         host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
+
+    /* single block writes cause data loss with some SD cards! */
+    host->mmc->caps2 |= MMC_CAP2_FORCE_MULTIBLOCK;
 #endif
 
 	ret = sdhci_add_host(host);
@@ -1398,6 +1408,12 @@ static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
 	ret = device_create_file(&pdev->dev, &dev_attr_use_dma);
 	ret = device_create_file(&pdev->dev, &dev_attr_dma_wait);
 	ret = device_create_file(&pdev->dev, &dev_attr_status);
+
+#ifdef CONFIG_MMC_SDHCI_BCM2708_DMA
+	/* enable extension fifo for paced DMA transfers */
+	sdhci_bcm2708_writel(host, 1, REG_EXRDFIFO_EN);
+	sdhci_bcm2708_writel(host, 4, REG_EXRDFIFO_CFG);
+#endif
 
 	printk(KERN_INFO "%s: BCM2708 SDHC host at 0x%08llx DMA %d IRQ %d\n",
 	       mmc_hostname(host->mmc), (unsigned long long)iomem->start,
@@ -1496,6 +1512,7 @@ module_exit(sdhci_drv_exit);
 module_param(allow_highspeed, bool, 0444);
 module_param(emmc_clock_freq, int, 0444);
 module_param(sync_after_dma, bool, 0444);
+module_param(missing_status, bool, 0444);
 
 MODULE_DESCRIPTION("Secure Digital Host Controller Interface platform driver");
 MODULE_AUTHOR("Broadcom <info@broadcom.com>");
@@ -1505,5 +1522,6 @@ MODULE_ALIAS("platform:"DRIVER_NAME);
 MODULE_PARM_DESC(allow_highspeed, "Allow high speed transfers modes");
 MODULE_PARM_DESC(emmc_clock_freq, "Specify the speed of emmc clock");
 MODULE_PARM_DESC(sync_after_dma, "Block in driver until dma complete");
+MODULE_PARM_DESC(missing_status, "Use the missing status quirk");
 
 
