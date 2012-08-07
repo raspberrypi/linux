@@ -43,12 +43,18 @@
 
 /* Default VCOS logging level */
 #define LOG_LEVEL  VCOS_LOG_WARN
-
 /* Logging macros (for remapping to other logging mechanisms, i.e., printf) */
-#define LOG_ERR( fmt, arg... )   vcos_log_error( "%s:%d " fmt, __func__, __LINE__, ##arg)
-#define LOG_WARN( fmt, arg... )  vcos_log_warn( "%s:%d " fmt, __func__, __LINE__, ##arg)
-#define LOG_INFO( fmt, arg... )  vcos_log_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
-#define LOG_DBG( fmt, arg... )   vcos_log_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
+#ifdef AUDIO_DEBUG_ENABLE
+	#define LOG_ERR( fmt, arg... )   pr_err( "%s:%d " fmt, __func__, __LINE__, ##arg)
+	#define LOG_WARN( fmt, arg... )  pr_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
+	#define LOG_INFO( fmt, arg... )  pr_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
+	#define LOG_DBG( fmt, arg... )   pr_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
+#else
+	#define LOG_ERR( fmt, arg... ) vcos_log_error( "%s:%d " fmt, __func__, __LINE__, ##arg)
+	#define LOG_WARN( fmt, arg... ) vcos_log_warn( "%s:%d " fmt, __func__, __LINE__, ##arg)
+	#define LOG_INFO( fmt, arg... ) vcos_log_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
+	#define LOG_DBG( fmt, arg... ) vcos_log_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
+#endif
 
 typedef struct opaque_AUDIO_INSTANCE_T {
 	uint32_t num_connections;
@@ -103,7 +109,7 @@ int bcm2835_audio_start(bcm2835_alsa_stream_t * alsa_stream)
 	LOG_DBG(" .. IN\n");
 	if (alsa_stream->my_wq) {
 		my_work_t *work = kmalloc(sizeof(my_work_t), GFP_ATOMIC);
-		/* Queue some work (item 1) */
+		/*--- Queue some work (item 1) ---*/
 		if (work) {
 			INIT_WORK((struct work_struct *)work, my_wq_function);
 			work->alsa_stream = alsa_stream;
@@ -124,7 +130,7 @@ int bcm2835_audio_stop(bcm2835_alsa_stream_t * alsa_stream)
 	LOG_DBG(" .. IN\n");
 	if (alsa_stream->my_wq) {
 		my_work_t *work = kmalloc(sizeof(my_work_t), GFP_ATOMIC);
-		/* Queue some work (item 1) */
+		 /*--- Queue some work (item 1) ---*/
 		if (work) {
 			INIT_WORK((struct work_struct *)work, my_wq_function);
 			work->alsa_stream = alsa_stream;
@@ -142,6 +148,7 @@ int bcm2835_audio_stop(bcm2835_alsa_stream_t * alsa_stream)
 void my_workqueue_init(bcm2835_alsa_stream_t * alsa_stream)
 {
 	alsa_stream->my_wq = create_workqueue("my_queue");
+	return;
 }
 
 void my_workqueue_quit(bcm2835_alsa_stream_t * alsa_stream)
@@ -151,6 +158,7 @@ void my_workqueue_quit(bcm2835_alsa_stream_t * alsa_stream)
 		destroy_workqueue(alsa_stream->my_wq);
 		alsa_stream->my_wq = NULL;
 	}
+	return;
 }
 
 static void audio_vchi_callback(void *param,
@@ -501,14 +509,22 @@ int bcm2835_audio_set_ctls(bcm2835_chip_t * chip)
 	int i;
 	int ret = 0;
 	LOG_DBG(" .. IN\n");
+
 	/* change ctls for all substreams */
 	for (i = 0; i < MAX_SUBSTREAMS; i++) {
 		if (chip->avail_substreams & (1 << i)) {
 			if (!chip->alsa_stream[i])
+			{
+				LOG_DBG(" No ALSA stream available?! ");
 				ret = 0;
-			else if (bcm2835_audio_set_ctls_chan
+			}
+			else if (bcm2835_audio_set_ctls_chan /* returns 0 on success */
 				 (chip->alsa_stream[i], chip) != 0)
-				ret = -1;
+				 {
+					LOG_DBG("Couldn't set the controls for stream %d", i);
+					ret = -1;
+				 }
+			LOG_DBG(" Controls set for stream %d", i);
 		}
 	}
 	LOG_DBG(" .. OUT ret=%d\n", ret);
