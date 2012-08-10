@@ -912,7 +912,7 @@ static void timer_callback(unsigned long data)
 {
 	dwc_timer_t *timer = (dwc_timer_t *)data;
 	set_scheduled(timer, 0);
-	/*DWC_DEBUG("Timer %s callback", timer->name);*/
+	DWC_DEBUG("Timer %s callback", timer->name);
 	timer->cb(timer->data);
 }
 
