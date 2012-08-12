@@ -1071,8 +1071,8 @@ static int smsc95xx_bind(struct usbnet *dev, struct usb_interface *intf)
 	dev->net->netdev_ops = &smsc95xx_netdev_ops;
 	dev->net->ethtool_ops = &smsc95xx_ethtool_ops;
 	dev->net->flags |= IFF_MULTICAST;
-	dev->net->hard_header_len += SMSC95XX_TX_OVERHEAD_CSUM;
-	dev->hard_mtu = dev->net->mtu + dev->net->hard_header_len;
+	dev->net->needed_headroom = SMSC95XX_TX_OVERHEAD_CSUM;
+	dev->hard_mtu = dev->net->mtu + dev->net->hard_header_len + dev->net->needed_headroom;
 	return 0;
 }
 
