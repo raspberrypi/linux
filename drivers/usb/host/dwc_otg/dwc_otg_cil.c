@@ -1385,7 +1385,7 @@ void dwc_otg_core_init(dwc_otg_core_if_t * core_if)
 		/* Old value was DWC_GAHBCFG_INT_DMA_BURST_INCR - done for 
 		  Host mode ISOC in issue fix - vahrama */
 		/* Broadcom had altered to (1<<3)|(0<<0) - WRESP=1, max 4 beats */
-		ahbcfg.b.hburstlen = DWC_GAHBCFG_INT_DMA_BURST_INCR4;
+		ahbcfg.b.hburstlen = (1<<3)|(0<<0);//DWC_GAHBCFG_INT_DMA_BURST_INCR4;
 		core_if->dma_enable = (core_if->core_params->dma_enable != 0);
 		core_if->dma_desc_enable =
 		    (core_if->core_params->dma_desc_enable != 0);
