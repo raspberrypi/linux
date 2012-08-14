@@ -2,7 +2,7 @@
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
  * otherwise expressly agreed to in writing between Synopsys and you.
- * 
+ *
  * The Software IS NOT an item of Licensed Software or Licensed Product under
  * any End User Software License Agreement or Agreement for Licensed Product
  * with Synopsys or any supplement thereto. You are permitted to use and
@@ -12,7 +12,7 @@
  * any information contained herein except pursuant to this license grant from
  * Synopsys. If you do not agree with this notice, including the disclaimer
  * below, then you are not authorized to use the Software.
- * 
+ *
  * THIS SOFTWARE IS BEING DISTRIBUTED BY SYNOPSYS SOLELY ON AN "AS IS" BASIS
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -33,10 +33,11 @@
 #include "dwc_cfi_common.h"
 
 /**
- * @file 
- *
- * This file contains the CFI related OTG PCD specific common constants, interfaces
- * (functions and macros) and data structures.
+ * @file
+ * This file contains the CFI related OTG PCD specific common constants, 
+ * interfaces(functions and macros) and data structures.The CFI Protocol is an 
+ * optional interface for internal testing purposes that a DUT may implement to 
+ * support testing of configurable features.
  *
  */
 
@@ -70,7 +71,7 @@ struct dwc_otg_pcd_ep;
 #define max(x,y) ({ \
 	x > y ? x : y; })
 
-/** 
+/**
  * Descriptor DMA SG Buffer setup structure (SG buffer). This structure is
  * also used for setting up a buffer for Circular DDMA.
  */
@@ -134,7 +135,7 @@ typedef struct _rx_fifo_size_setup rx_fifo_size_setup_t;
 
 /**
  * struct cfi_usb_ctrlrequest - the CFI implementation of the struct usb_ctrlrequest
- * This structure encapsulates the standard usb_ctrlrequest and adds a pointer 
+ * This structure encapsulates the standard usb_ctrlrequest and adds a pointer
  * to the data returned in the data stage of a 3-stage Control Write requests.
  */
 struct cfi_usb_ctrlrequest {
@@ -150,7 +151,7 @@ struct cfi_usb_ctrlrequest {
 
 /**
  * The CFI wrapper of the enabled and activated dwc_otg_pcd_ep structures.
- * This structure is used to store the buffer setup data for any 
+ * This structure is used to store the buffer setup data for any
  * enabled endpoint in the PCD.
  */
 struct cfi_ep {
@@ -170,7 +171,7 @@ struct cfi_ep {
 	ddma_align_buffer_setup_t *bm_align;
 	/* XFER length */
 	uint32_t xfer_len;
-	/* 
+	/*
 	 * Count of DMA descriptors currently used.
 	 * The total should not exceed the MAX_DMA_DESCS_PER_EP value
 	 * defined in the dwc_otg_cil.h
@@ -190,7 +191,7 @@ struct cfiobject;
 
 /**
  * This is the interface for the CFI operations.
- * 
+ *
  * @param	ep_enable			Called when any endpoint is enabled and activated.
  * @param	release				Called when the CFI object is released and it needs to correctly
  *								deallocate the dynamic memory
@@ -229,12 +230,12 @@ struct cfiobject {
 	/* This flag shall control the propagation of a specific request
 	 * to the gadget's processing routines.
 	 * 0 - no gadget handling
-	 * 1 - the gadget needs to know about this request (w/o completing a status 
+	 * 1 - the gadget needs to know about this request (w/o completing a status
 	 * phase - just return a 0 to the _setup callback)
 	 */
 	uint8_t need_gadget_att;
 
-	/* Flag indicating whether the status IN phase needs to be 
+	/* Flag indicating whether the status IN phase needs to be
 	 * completed by the PCD
 	 */
 	uint8_t need_status_in_complete;
@@ -316,4 +317,4 @@ static inline struct cfi_ep *get_cfi_ep_by_pcd_ep(struct cfiobject *cfi,
 
 int cfi_setup(struct dwc_otg_pcd *pcd, struct cfi_usb_ctrlrequest *ctrl);
 
-#endif				/* (__DWC_OTG_CFI_H__) */
+#endif /* (__DWC_OTG_CFI_H__) */
