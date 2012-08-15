@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_driver.h $
- * $Revision: #16 $
- * $Date: 2009/04/03 $
- * $Change: 1225160 $
+ * $Revision: #19 $
+ * $Date: 2010/11/15 $
+ * $Change: 1627671 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -37,40 +37,25 @@
 /** @file
  * This file contains the interface to the Linux driver.
  */
+#include "dwc_otg_os_dep.h"
 #include "dwc_otg_core_if.h"
 
 /* Type declarations */
 struct dwc_otg_pcd;
 struct dwc_otg_hcd;
 
-#ifdef  PCI_INTERFACE
-#include <linux/pci.h>
-#endif
-
-
-
 /**
  * This structure is a wrapper that encapsulates the driver components used to
  * manage a single DWC_otg controller.
  */
 typedef struct dwc_otg_device {
-	/** Base address returned from ioremap() */
-	void *base;
-
-#ifdef LM_INTERFACE
-	struct lm_device *lmdev;
-#elif  defined(PCI_INTERFACE)
-	int rsrc_start;
-	int rsrc_len;
-#elif  defined(PLATFORM_INTERFACE)
-	struct platform_device *platformdev;
-#endif
+	/** Structure containing OS-dependent stuff. KEEP THIS STRUCT AT THE
+	 * VERY BEGINNING OF THE DEVICE STRUCT. OSes such as FreeBSD and NetBSD
+	 * require this. */
+	struct os_dependent os_dep;
 
 	/** Pointer to the core interface structure. */
 	dwc_otg_core_if_t *core_if;
-
-	/** Register offset for Diagnostic API. */
-	uint32_t reg_offset;
 
 	/** Pointer to the PCD structure. */
 	struct dwc_otg_pcd *pcd;

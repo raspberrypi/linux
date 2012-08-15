@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_pcd_if.h $
- * $Revision: #6 $
- * $Date: 2009/04/03 $
- * $Change: 1225059 $
+ * $Revision: #11 $
+ * $Date: 2011/10/26 $
+ * $Change: 1873028 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -35,10 +35,10 @@
 #if !defined(__DWC_PCD_IF_H__)
 #define __DWC_PCD_IF_H__
 
-#include "dwc_os.h"
+//#include "dwc_os.h"
 #include "dwc_otg_core_if.h"
 
-/** @file 
+/** @file
  * This file defines DWC_OTG PCD Core API.
  */
 
@@ -103,6 +103,15 @@ typedef int (*dwc_reset_cb_t) (dwc_otg_pcd_t * pcd);
 
 typedef int (*cfi_setup_cb_t) (dwc_otg_pcd_t * pcd, void *ctrl_req_bytes);
 
+/**
+ *
+ * @param ep_handle	Void pointer to the usb_ep structure
+ * @param ereq_port Pointer to the extended request structure created in the
+ *					portable part.
+ */
+typedef int (*xiso_completion_cb_t) (dwc_otg_pcd_t * pcd, void *ep_handle,
+				     void *req_handle, int32_t status,
+				     void *ereq_port);
 /** Function Driver Ops Data Structure */
 struct dwc_otg_pcd_function_ops {
 	dwc_connect_cb_t connect;
@@ -116,6 +125,9 @@ struct dwc_otg_pcd_function_ops {
 	dwc_reset_cb_t reset;
 	dwc_hnp_params_changed_cb_t hnp_changed;
 	cfi_setup_cb_t cfi_setup;
+#ifdef DWC_UTE_PER_IO
+	xiso_completion_cb_t xisoc_complete;
+#endif
 };
 /** @} */
 
@@ -156,15 +168,15 @@ extern void dwc_otg_pcd_start(dwc_otg_pcd_t * pcd,
  *
  * @param pcd The PCD
  * @param ep_desc Endpoint descriptor
- * @param ep_handle Handle on endpoint, that will be used to identify endpoint.
+ * @param usb_ep Handle on endpoint, that will be used to identify endpoint.
  */
 extern int dwc_otg_pcd_ep_enable(dwc_otg_pcd_t * pcd,
-				 const uint8_t * ep_desc, void *ep_handle);
+				 const uint8_t * ep_desc, void *usb_ep);
 
 /** Disable the endpoint referenced by ep_handle.
  *
  * Returns -DWC_E_INVALID if invalid parameters were passed.
- * Returns -DWC_E_SHUTDOWN if any other error ocurred.
+ * Returns -DWC_E_SHUTDOWN if any other error occurred.
  * Returns 0 on success. */
 extern int dwc_otg_pcd_ep_disable(dwc_otg_pcd_t * pcd, void *ep_handle);
 
@@ -190,6 +202,19 @@ extern int dwc_otg_pcd_ep_queue(dwc_otg_pcd_t * pcd, void *ep_handle,
 				uint8_t * buf, dwc_dma_t dma_buf,
 				uint32_t buflen, int zero, void *req_handle,
 				int atomic_alloc);
+#ifdef DWC_UTE_PER_IO
+/**
+ *
+ * @param ereq_nonport	Pointer to the extended request part of the
+ *						usb_request structure defined in usb_gadget.h file.
+ */
+extern int dwc_otg_pcd_xiso_ep_queue(dwc_otg_pcd_t * pcd, void *ep_handle,
+				     uint8_t * buf, dwc_dma_t dma_buf,
+				     uint32_t buflen, int zero,
+				     void *req_handle, int atomic_alloc,
+				     void *ereq_nonport);
+
+#endif
 
 /** De-queue the specified data transfer that has not yet completed.
  *
@@ -307,6 +332,8 @@ extern void dwc_otg_pcd_initiate_srp(dwc_otg_pcd_t * pcd);
 /** Starts remote wakeup signaling. */
 extern void dwc_otg_pcd_remote_wakeup(dwc_otg_pcd_t * pcd, int set);
 
+/** Starts micorsecond soft disconnect. */
+extern void dwc_otg_pcd_disconnect_us(dwc_otg_pcd_t * pcd, int no_of_usecs);
 /** This function returns whether device is dualspeed.*/
 extern uint32_t dwc_otg_pcd_is_dualspeed(dwc_otg_pcd_t * pcd);
 

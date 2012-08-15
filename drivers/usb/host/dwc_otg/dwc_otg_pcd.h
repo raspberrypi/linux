@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_pcd.h $
- * $Revision: #39 $
- * $Date: 2008/12/16 $
- * $Change: 1153731 $
+ * $Revision: #46 $
+ * $Date: 2011/10/20 $
+ * $Change: 1870124 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -34,6 +34,7 @@
 #if !defined(__DWC_PCD_H__)
 #define __DWC_PCD_H__
 
+#include "dwc_otg_os_dep.h"
 #include "usb.h"
 #include "dwc_otg_cil.h"
 #include "dwc_otg_pcd_if.h"
@@ -46,7 +47,7 @@ struct cfiobject;
  * the Perpherial Contoller Driver (PCD).
  *
  * The Peripheral Controller Driver (PCD) for Linux will implement the
- * Gadget API, so that the existing Gadget drivers can be used.	 For
+ * Gadget API, so that the existing Gadget drivers can be used. For
  * the Mass Storage Function driver the File-backed USB Storage Gadget
  * (FBS) driver will be used.  The FBS driver supports the
  * Control-Bulk (CB), Control-Bulk-Interrupt (CBI), and Bulk-Only
@@ -54,11 +55,11 @@ struct cfiobject;
  *
  */
 
+/** Invalid DMA Address */
+#define DWC_DMA_ADDR_INVALID	(~(dwc_dma_t)0)
+
 /** Max Transfer size for any EP */
 #define DDMA_MAX_TRANSFER_SIZE 65535
-
-/** Max DMA Descriptor count for any EP */
-#define MAX_DMA_DESC_CNT 64
 
 /**
  * Get the pointer to the core_if from the pcd pointer.
@@ -86,6 +87,42 @@ struct dwc_otg_pcd;
  */
 typedef struct usb_iso_request dwc_otg_pcd_iso_request_t;
 
+#ifdef DWC_UTE_PER_IO
+
+/**
+ * This shall be the exact analogy of the same type structure defined in the
+ * usb_gadget.h. Each descriptor contains
+ */
+struct dwc_iso_pkt_desc_port {
+	uint32_t offset;
+	uint32_t length;	/* expected length */
+	uint32_t actual_length;
+	uint32_t status;
+};
+
+struct dwc_iso_xreq_port {
+	/** transfer/submission flag */
+	uint32_t tr_sub_flags;
+	/** Start the request ASAP */
+#define DWC_EREQ_TF_ASAP		0x00000002
+	/** Just enqueue the request w/o initiating a transfer */
+#define DWC_EREQ_TF_ENQUEUE		0x00000004
+
+	/**
+	* count of ISO packets attached to this request - shall
+	* not exceed the pio_alloc_pkt_count
+	*/
+	uint32_t pio_pkt_count;
+	/** count of ISO packets allocated for this request */
+	uint32_t pio_alloc_pkt_count;
+	/** number of ISO packet errors */
+	uint32_t error_count;
+	/** reserved for future extension */
+	uint32_t res;
+	/** Will be allocated and freed in the UTE gadget and based on the CFC value */
+	struct dwc_iso_pkt_desc_port *per_io_frame_descs;
+};
+#endif
 /** DWC_otg request structure.
  * This structure is a list of requests.
  */
@@ -96,8 +133,18 @@ typedef struct dwc_otg_pcd_request {
 	uint32_t length;
 	uint32_t actual;
 	unsigned sent_zlp:1;
+    /**
+     * Used instead of original buffer if
+     * it(physical address) is not dword-aligned.
+     **/
+     uint8_t *dw_align_buf;
+     dwc_dma_t dw_align_buf_dma;
 
 	 DWC_CIRCLEQ_ENTRY(dwc_otg_pcd_request) queue_entry;
+#ifdef DWC_UTE_PER_IO
+	struct dwc_iso_xreq_port ext_req;
+	//void *priv_ereq_nport; /*  */
+#endif
 } dwc_otg_pcd_request_t;
 
 DWC_CIRCLEQ_HEAD(req_list, dwc_otg_pcd_request);
@@ -136,6 +183,8 @@ typedef struct dwc_otg_pcd_ep {
  */
 struct dwc_otg_pcd {
 	const struct dwc_otg_pcd_function_ops *fops;
+	/** The DWC otg device pointer */
+	struct dwc_otg_device *otg_dev;
 	/** Core Interface */
 	dwc_otg_core_if_t *core_if;
 	/** State of EP0 */
@@ -180,9 +229,6 @@ struct dwc_otg_pcd {
 	/** number of valid EPs in the above array. */
 //        unsigned      num_eps : 4;
 	dwc_spinlock_t *lock;
-	/** Timer for SRP. If it expires before SRP is successful
-	 * clear the SRP. */
-	dwc_timer_t *srp_timer;
 
 	/** Tasklet to defer starting of TEST mode transmissions until
 	 *	Status Phase has been completed.
@@ -195,7 +241,7 @@ struct dwc_otg_pcd {
 	/** The test mode to enter when the tasklet is executed. */
 	unsigned test_mode;
 	/** The cfi_api structure that implements most of the CFI API
-	 * and OTG specific core configuration functionality 
+	 * and OTG specific core configuration functionality
 	 */
 #ifdef DWC_UTE_CFI
 	struct cfiobject *cfi;
@@ -213,4 +259,4 @@ void dwc_otg_iso_buffer_done(dwc_otg_pcd_t * pcd, dwc_otg_pcd_ep_t * ep,
 
 extern void do_test_mode(void *data);
 #endif
-#endif				/* DWC_HOST_ONLY */
+#endif /* DWC_HOST_ONLY */
