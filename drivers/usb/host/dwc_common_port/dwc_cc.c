@@ -1,8 +1,8 @@
 /* =========================================================================
- * $File: //dwh/usb_iip/dev/software/dwc_common_port/dwc_cc.c $
- * $Revision: #1 $
- * $Date: 2008/12/21 $
- * $Change: 1156609 $
+ * $File: //dwh/usb_iip/dev/software/dwc_common_port_2/dwc_cc.c $
+ * $Revision: #4 $
+ * $Date: 2010/11/04 $
+ * $Change: 1621692 $
  *
  * Synopsys Portability Library Software and documentation
  * (hereinafter, "Software") is an Unsupported proprietary work of
@@ -33,6 +33,8 @@
  * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
  * DAMAGE.
  * ========================================================================= */
+#ifdef DWC_CCLIB
+
 #include "dwc_cc.h"
 
 typedef struct dwc_cc
@@ -75,9 +77,9 @@ static inline void dump_bytes(char *name, uint8_t *bytes, int len)
 #define dump_bytes(x...)
 #endif
 
-static dwc_cc_t *alloc_cc(uint8_t *name, uint32_t length)
+static dwc_cc_t *alloc_cc(void *mem_ctx, uint8_t *name, uint32_t length)
 {
-	dwc_cc_t *cc = DWC_ALLOC(sizeof(dwc_cc_t));
+	dwc_cc_t *cc = dwc_alloc(mem_ctx, sizeof(dwc_cc_t));
 	if (!cc) {
 		return NULL;
 	}
@@ -85,19 +87,24 @@ static dwc_cc_t *alloc_cc(uint8_t *name, uint32_t length)
 
 	if (name) {
 		cc->length = length;
-		cc->name = DWC_ALLOC(length);
+		cc->name = dwc_alloc(mem_ctx, length);
+		if (!cc->name) {
+			dwc_free(mem_ctx, cc);
+			return NULL;
+		}
+
 		DWC_MEMCPY(cc->name, name, length);
 	}
 
 	return cc;
 }
 
-static void free_cc(dwc_cc_t *cc)
+static void free_cc(void *mem_ctx, dwc_cc_t *cc)
 {
 	if (cc->name) {
-		DWC_FREE(cc->name);
+		dwc_free(mem_ctx, cc->name);
 	}
-	DWC_FREE(cc);
+	dwc_free(mem_ctx, cc);
 }
 
 static uint32_t next_uid(dwc_cc_if_t *cc_if)
@@ -169,7 +176,8 @@ static uint32_t cc_match_cdid(dwc_cc_if_t *cc_if, uint8_t *cdid)
 }
 
 /* Internal cc_add */
-static int32_t cc_add(dwc_cc_if_t *cc_if, uint8_t *chid, uint8_t *cdid, uint8_t *ck, uint8_t *name, uint8_t length)
+static int32_t cc_add(void *mem_ctx, dwc_cc_if_t *cc_if, uint8_t *chid,
+		      uint8_t *cdid, uint8_t *ck, uint8_t *name, uint8_t length)
 {
 	dwc_cc_t *cc;
 	uint32_t uid;
@@ -182,11 +190,11 @@ static int32_t cc_add(dwc_cc_if_t *cc_if, uint8_t *chid, uint8_t *cdid, uint8_t 
 	}
 
 	if (uid) {
-		DWC_DEBUG("Replacing previous connection context id=%d name=%p name_len=%d", uid, name, length);
+		DWC_DEBUGC("Replacing previous connection context id=%d name=%p name_len=%d", uid, name, length);
 		cc = cc_find(cc_if, uid);
 	}
 	else {
-		cc = alloc_cc(name, length);
+		cc = alloc_cc(mem_ctx, name, length);
 		cc->uid = next_uid(cc_if);
 		DWC_CIRCLEQ_INSERT_TAIL(&cc_if->list, cc, list_entry);
 	}
@@ -195,7 +203,7 @@ static int32_t cc_add(dwc_cc_if_t *cc_if, uint8_t *chid, uint8_t *cdid, uint8_t 
 	DWC_MEMCPY(&(cc->cdid[0]), cdid, 16);
 	DWC_MEMCPY(&(cc->ck[0]), ck, 16);
 
-	DWC_DEBUG("Added connection context id=%d name=%p name_len=%d", cc->uid, name, length);
+	DWC_DEBUGC("Added connection context id=%d name=%p name_len=%d", cc->uid, name, length);
 	dump_bytes("CHID", cc->chid, 16);
 	dump_bytes("CDID", cc->cdid, 16);
 	dump_bytes("CK", cc->ck, 16);
@@ -203,41 +211,51 @@ static int32_t cc_add(dwc_cc_if_t *cc_if, uint8_t *chid, uint8_t *cdid, uint8_t 
 }
 
 /* Internal cc_clear */
-static void cc_clear(dwc_cc_if_t *cc_if)
+static void cc_clear(void *mem_ctx, dwc_cc_if_t *cc_if)
 {
 	while (!DWC_CIRCLEQ_EMPTY(&cc_if->list)) {
 		dwc_cc_t *cc = DWC_CIRCLEQ_FIRST(&cc_if->list);
 		DWC_CIRCLEQ_REMOVE_INIT(&cc_if->list, cc, list_entry);
-		free_cc(cc);
+		free_cc(mem_ctx, cc);
 	}
 }
 
-dwc_cc_if_t *dwc_cc_if_alloc(dwc_notifier_t *notifier, unsigned is_host)
+dwc_cc_if_t *dwc_cc_if_alloc(void *mem_ctx, void *mtx_ctx, 
+			     dwc_notifier_t *notifier, unsigned is_host)
 {
 	dwc_cc_if_t *cc_if = NULL;
 
 	/* Allocate a common_cc_if structure */
-	cc_if = DWC_ALLOC(sizeof(dwc_cc_if_t));
+	cc_if = dwc_alloc(mem_ctx, sizeof(dwc_cc_if_t));
 
-	if(!cc_if)
+	if (!cc_if)
 		return NULL;
 
 #if (defined(DWC_LINUX) && defined(CONFIG_DEBUG_MUTEXES))
 	DWC_MUTEX_ALLOC_LINUX_DEBUG(cc_if->mutex);
 #else
-	cc_if->mutex = DWC_MUTEX_ALLOC();
+	cc_if->mutex = dwc_mutex_alloc(mtx_ctx);
 #endif
+	if (!cc_if->mutex) {
+		dwc_free(mem_ctx, cc_if);
+		return NULL;
+	}
+
 	DWC_CIRCLEQ_INIT(&cc_if->list);
 	cc_if->is_host = is_host;
 	cc_if->notifier = notifier;
 	return cc_if;
 }
 
-void dwc_cc_if_free(dwc_cc_if_t *cc_if)
+void dwc_cc_if_free(void *mem_ctx, void *mtx_ctx, dwc_cc_if_t *cc_if)
 {
+#if (defined(DWC_LINUX) && defined(CONFIG_DEBUG_MUTEXES))
 	DWC_MUTEX_FREE(cc_if->mutex);
-	cc_clear(cc_if);
-	DWC_FREE(cc_if);
+#else
+	dwc_mutex_free(mtx_ctx, cc_if->mutex);
+#endif
+	cc_clear(mem_ctx, cc_if);
+	dwc_free(mem_ctx, cc_if);
 }
 
 static void cc_changed(dwc_cc_if_t *cc_if)
@@ -247,37 +265,38 @@ static void cc_changed(dwc_cc_if_t *cc_if)
 	}
 }
 
-void dwc_cc_clear(dwc_cc_if_t *cc_if)
+void dwc_cc_clear(void *mem_ctx, dwc_cc_if_t *cc_if)
 {
 	DWC_MUTEX_LOCK(cc_if->mutex);
-	cc_clear(cc_if);
+	cc_clear(mem_ctx, cc_if);
 	DWC_MUTEX_UNLOCK(cc_if->mutex);
 	cc_changed(cc_if);
 }
 
-int32_t dwc_cc_add(dwc_cc_if_t *cc_if, uint8_t *chid, uint8_t *cdid, uint8_t *ck, uint8_t *name, uint8_t length)
+int32_t dwc_cc_add(void *mem_ctx, dwc_cc_if_t *cc_if, uint8_t *chid,
+		   uint8_t *cdid, uint8_t *ck, uint8_t *name, uint8_t length)
 {
 	uint32_t uid;
 
 	DWC_MUTEX_LOCK(cc_if->mutex);
-	uid = cc_add(cc_if, chid, cdid, ck, name, length);
+	uid = cc_add(mem_ctx, cc_if, chid, cdid, ck, name, length);
 	DWC_MUTEX_UNLOCK(cc_if->mutex);
 	cc_changed(cc_if);
 
 	return uid;
 }
 
-void dwc_cc_change(dwc_cc_if_t *cc_if, int32_t id,
-			  uint8_t *chid, uint8_t *cdid, uint8_t *ck, uint8_t *name, uint8_t length)
+void dwc_cc_change(void *mem_ctx, dwc_cc_if_t *cc_if, int32_t id, uint8_t *chid,
+		   uint8_t *cdid, uint8_t *ck, uint8_t *name, uint8_t length)
 {
 	dwc_cc_t* cc;
 
-	DWC_DEBUG("Change connection context %d", id);
+	DWC_DEBUGC("Change connection context %d", id);
 
 	DWC_MUTEX_LOCK(cc_if->mutex);
 	cc = cc_find(cc_if, id);
 	if (!cc) {
-		DWC_ERROR("Uid %d not found in cc list", id);
+		DWC_ERROR("Uid %d not found in cc list\n", id);
 		DWC_MUTEX_UNLOCK(cc_if->mutex);
 		return;
 	}
@@ -294,9 +313,14 @@ void dwc_cc_change(dwc_cc_if_t *cc_if, int32_t id,
 
 	if (name) {
 		if (cc->name) {
-			DWC_FREE(cc->name);
+			dwc_free(mem_ctx, cc->name);
 		}
-		cc->name = DWC_ALLOC(length);
+		cc->name = dwc_alloc(mem_ctx, length);
+		if (!cc->name) {
+			DWC_ERROR("Out of memory in dwc_cc_change()\n");
+			DWC_MUTEX_UNLOCK(cc_if->mutex);
+			return;
+		}
 		cc->length = length;
 		DWC_MEMCPY(cc->name, name, length);
 	}
@@ -305,34 +329,34 @@ void dwc_cc_change(dwc_cc_if_t *cc_if, int32_t id,
 
 	cc_changed(cc_if);
 
-	DWC_DEBUG("Changed connection context id=%d\n", id);
+	DWC_DEBUGC("Changed connection context id=%d\n", id);
 	dump_bytes("New CHID", cc->chid, 16);
 	dump_bytes("New CDID", cc->cdid, 16);
 	dump_bytes("New CK", cc->ck, 16);
 }
 
-void dwc_cc_remove(dwc_cc_if_t *cc_if, int32_t id)
+void dwc_cc_remove(void *mem_ctx, dwc_cc_if_t *cc_if, int32_t id)
 {
 	dwc_cc_t *cc;
 
-	DWC_DEBUG("Removing connection context %d", id);
+	DWC_DEBUGC("Removing connection context %d", id);
 
 	DWC_MUTEX_LOCK(cc_if->mutex);
 	cc = cc_find(cc_if, id);
 	if (!cc) {
-		DWC_ERROR("Uid %d not found in cc list", id);
+		DWC_ERROR("Uid %d not found in cc list\n", id);
 		DWC_MUTEX_UNLOCK(cc_if->mutex);
 		return;
 	}
 
 	DWC_CIRCLEQ_REMOVE_INIT(&cc_if->list, cc, list_entry);
 	DWC_MUTEX_UNLOCK(cc_if->mutex);
-	free_cc(cc);
+	free_cc(mem_ctx, cc);
 
 	cc_changed(cc_if);
 }
 
-uint8_t *dwc_cc_data_for_save(dwc_cc_if_t *cc_if, unsigned int *length)
+uint8_t *dwc_cc_data_for_save(void *mem_ctx, dwc_cc_if_t *cc_if, unsigned int *length)
 {
 	uint8_t *buf, *x;
 	uint8_t zero = 0;
@@ -345,9 +369,9 @@ uint8_t *dwc_cc_data_for_save(dwc_cc_if_t *cc_if, unsigned int *length)
 		return NULL;
 	}
 
-	DWC_DEBUG("Creating data for saving (length=%d)", *length);
+	DWC_DEBUGC("Creating data for saving (length=%d)", *length);
 
-	buf = DWC_ALLOC(*length);
+	buf = dwc_alloc(mem_ctx, *length);
 	if (!buf) {
 		*length = 0;
 		DWC_MUTEX_UNLOCK(cc_if->mutex);
@@ -378,7 +402,7 @@ uint8_t *dwc_cc_data_for_save(dwc_cc_if_t *cc_if, unsigned int *length)
 	return buf;
 }
 
-void dwc_cc_restore_from_data(dwc_cc_if_t *cc_if, uint8_t *data, uint32_t length)
+void dwc_cc_restore_from_data(void *mem_ctx, dwc_cc_if_t *cc_if, uint8_t *data, uint32_t length)
 {
 	uint8_t name_length;
 	uint8_t *name;
@@ -388,7 +412,7 @@ void dwc_cc_restore_from_data(dwc_cc_if_t *cc_if, uint8_t *data, uint32_t length
 	uint32_t i = 0;
 
 	DWC_MUTEX_LOCK(cc_if->mutex);
-	cc_clear(cc_if);
+	cc_clear(mem_ctx, cc_if);
 
 	while (i < length) {
 		chid = &data[i];
@@ -412,11 +436,11 @@ void dwc_cc_restore_from_data(dwc_cc_if_t *cc_if, uint8_t *data, uint32_t length
 		/* check to see if we haven't overflown the buffer */
 		if (i > length) {
 			DWC_ERROR("Data format error while attempting to load CCs "
-				  "(nlen=%d, iter=%d, buflen=%d).", name_length, i, length);
+				  "(nlen=%d, iter=%d, buflen=%d).\n", name_length, i, length);
 			break;
 		}
 
-		cc_add(cc_if, chid, cdid, ck, name, name_length);
+		cc_add(mem_ctx, cc_if, chid, cdid, ck, name, name_length);
 	}
 	DWC_MUTEX_UNLOCK(cc_if->mutex);
 
@@ -504,3 +528,5 @@ uint8_t *dwc_cc_name(dwc_cc_if_t *cc_if, int32_t id, uint8_t *length)
 
 	return retval;
 }
+
+#endif	/* DWC_CCLIB */
