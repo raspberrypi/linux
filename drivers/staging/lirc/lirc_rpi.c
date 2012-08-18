@@ -346,6 +346,7 @@ static int init_port(void)
 	GPIO_DIR_INPUT(gpio_in_pin);
 
 	GPIO_DIR_OUTPUT(gpio_out_pin);
+	GPIO_CLEAR_PIN(gpio_out_pin);
 
 	/* if pin is high, then this must be an active low receiver. */
 	if (sense == -1) {
