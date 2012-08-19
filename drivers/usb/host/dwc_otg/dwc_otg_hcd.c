@@ -43,6 +43,16 @@
 #include "dwc_otg_hcd.h"
 #include "dwc_otg_regs.h"
 
+extern bool microframe_schedule;
+
+//#define DEBUG_HOST_CHANNELS
+#ifdef DEBUG_HOST_CHANNELS
+static int last_sel_trans_num_per_scheduled = 0;
+static int last_sel_trans_num_nonper_scheduled = 0;
+static int last_sel_trans_num_avail_hc_at_start = 0;
+static int last_sel_trans_num_avail_hc_at_end = 0;
+#endif /* DEBUG_HOST_CHANNELS */
+
 dwc_otg_hcd_t *dwc_otg_hcd_alloc_hcd(void)
 {
 	return DWC_ALLOC(sizeof(dwc_otg_hcd_t));
@@ -825,6 +835,8 @@ static void dwc_otg_hcd_free(dwc_otg_hcd_t * dwc_otg_hcd)
 	DWC_FREE(dwc_otg_hcd);
 }
 
+int init_hcd_usecs(dwc_otg_hcd_t *_hcd);
+
 int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 {
 	int retval = 0;
@@ -888,6 +900,10 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 	hcd->conn_timer = DWC_TIMER_ALLOC("Connection timer",
 					  dwc_otg_hcd_connect_timeout, 0);
 
+	printk(KERN_DEBUG "dwc_otg: Microframe scheduler %s\n", microframe_schedule ? "enabled":"disabled");
+	if (microframe_schedule)
+		init_hcd_usecs(hcd);
+
 	/* Initialize reset tasklet. */
 	hcd->reset_tasklet = DWC_TASK_ALLOC("reset_tasklet", reset_tasklet_func, hcd);
 #ifdef DWC_DEV_SRPCAP
@@ -947,9 +963,12 @@ static void dwc_otg_hcd_reinit(dwc_otg_hcd_t * hcd)
 	hcd->flags.d32 = 0;
 
 	hcd->non_periodic_qh_ptr = &hcd->non_periodic_sched_active;
-	hcd->non_periodic_channels = 0;
-	hcd->periodic_channels = 0;
-
+	if (!microframe_schedule) {
+		hcd->non_periodic_channels = 0;
+		hcd->periodic_channels = 0;
+	} else {
+		hcd->available_host_channels = hcd->core_if->core_params->host_channels;
+	}
 	/*
 	 * Put all channels in the free channel list and clean up channel
 	 * states.
@@ -1225,17 +1244,38 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 	dwc_list_link_t *qh_ptr;
 	dwc_otg_qh_t *qh;
 	int num_channels;
+	dwc_irqflags_t flags;
+	dwc_spinlock_t *channel_lock = DWC_SPINLOCK_ALLOC();
 	dwc_otg_transaction_type_e ret_val = DWC_OTG_TRANSACTION_NONE;
 
 #ifdef DEBUG_SOF
 	DWC_DEBUGPL(DBG_HCD, "  Select Transactions\n");
 #endif
 
+#ifdef DEBUG_HOST_CHANNELS
+	last_sel_trans_num_per_scheduled = 0;
+	last_sel_trans_num_nonper_scheduled = 0;
+	last_sel_trans_num_avail_hc_at_start = hcd->available_host_channels;
+#endif /* DEBUG_HOST_CHANNELS */
+
 	/* Process entries in the periodic ready list. */
 	qh_ptr = DWC_LIST_FIRST(&hcd->periodic_sched_ready);
 
 	while (qh_ptr != &hcd->periodic_sched_ready &&
 	       !DWC_CIRCLEQ_EMPTY(&hcd->free_hc_list)) {
+		if (microframe_schedule) {
+			// Make sure we leave one channel for non periodic transactions.
+			DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
+			if (hcd->available_host_channels <= 1) {
+				DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
+				break;
+			}
+			hcd->available_host_channels--;
+			DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
+#ifdef DEBUG_HOST_CHANNELS
+			last_sel_trans_num_per_scheduled++;
+#endif /* DEBUG_HOST_CHANNELS */
+		}
 		qh = DWC_LIST_ENTRY(qh_ptr, dwc_otg_qh_t, qh_list_entry);
 		assign_and_init_hc(hcd, qh);
 
@@ -1244,8 +1284,10 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 		 * periodic assigned schedule.
 		 */
 		qh_ptr = DWC_LIST_NEXT(qh_ptr);
+		DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 		DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_assigned,
 				   &qh->qh_list_entry);
+		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 
 		ret_val = DWC_OTG_TRANSACTION_PERIODIC;
 	}
@@ -1258,10 +1300,22 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 	qh_ptr = hcd->non_periodic_sched_inactive.next;
 	num_channels = hcd->core_if->core_params->host_channels;
 	while (qh_ptr != &hcd->non_periodic_sched_inactive &&
-	       (hcd->non_periodic_channels <
+	       (microframe_schedule || hcd->non_periodic_channels <
 		num_channels - hcd->periodic_channels) &&
 	       !DWC_CIRCLEQ_EMPTY(&hcd->free_hc_list)) {
 
+		if (microframe_schedule) {
+				DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
+				if (hcd->available_host_channels < 1) {
+					DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
+					break;
+				}
+				hcd->available_host_channels--;
+				DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
+#ifdef DEBUG_HOST_CHANNELS
+				last_sel_trans_num_nonper_scheduled++;
+#endif /* DEBUG_HOST_CHANNELS */
+		}
 		qh = DWC_LIST_ENTRY(qh_ptr, dwc_otg_qh_t, qh_list_entry);
 
 		assign_and_init_hc(hcd, qh);
@@ -1271,8 +1325,10 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 		 * non-periodic active schedule.
 		 */
 		qh_ptr = DWC_LIST_NEXT(qh_ptr);
+		DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 		DWC_LIST_MOVE_HEAD(&hcd->non_periodic_sched_active,
 				   &qh->qh_list_entry);
+		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 
 		if (ret_val == DWC_OTG_TRANSACTION_NONE) {
 			ret_val = DWC_OTG_TRANSACTION_NON_PERIODIC;
@@ -1280,9 +1336,15 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 			ret_val = DWC_OTG_TRANSACTION_ALL;
 		}
 
-		hcd->non_periodic_channels++;
+		if (!microframe_schedule)
+			hcd->non_periodic_channels++;
 	}
 
+#ifdef DEBUG_HOST_CHANNELS
+	last_sel_trans_num_avail_hc_at_end = hcd->available_host_channels;
+#endif /* DEBUG_HOST_CHANNELS */
+
+	DWC_SPINLOCK_FREE(channel_lock);
 	return ret_val;
 }
 
