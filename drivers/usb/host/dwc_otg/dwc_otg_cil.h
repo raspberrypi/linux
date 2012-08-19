@@ -34,8 +34,6 @@
 #if !defined(__DWC_CIL_H__)
 #define __DWC_CIL_H__
 
-#define DBG_HW2937 0x400
-
 #include "dwc_list.h"
 #include "dwc_otg_dbg.h"
 #include "dwc_otg_regs.h"
