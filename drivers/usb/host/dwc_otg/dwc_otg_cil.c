@@ -2403,7 +2403,6 @@ void dwc_otg_hc_halt(dwc_otg_core_if_t * core_if,
 	dwc_otg_core_global_regs_t *global_regs;
 	dwc_otg_host_global_regs_t *host_global_regs;
 
-	DWC_DEBUGPL(DBG_HW2937, "  dwc_otg_hc_halt(%d)\n", hc->hc_num);
 	hc_regs = core_if->host_if->hc_regs[hc->hc_num];
 	global_regs = core_if->core_global_regs;
 	host_global_regs = core_if->host_if->host_global_regs;

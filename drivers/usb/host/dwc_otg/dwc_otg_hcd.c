@@ -1336,7 +1336,8 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 			ret_val = DWC_OTG_TRANSACTION_ALL;
 		}
 
-		hcd->non_periodic_channels++;
+		if (!microframe_schedule)
+			hcd->non_periodic_channels++;
 	}
 
 #ifdef DEBUG_HOST_CHANNELS

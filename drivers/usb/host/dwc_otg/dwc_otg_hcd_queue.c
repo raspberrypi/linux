@@ -613,16 +613,16 @@ static int schedule_periodic(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		}
 
 		status = check_periodic_bandwidth(hcd, qh);
-
-		if (status) {
-			DWC_INFO("%s: Insufficient periodic bandwidth for " "periodic transfer.\n", __func__);	//NOTICE
-			return status;
-		}
-
-		status = check_max_xfer_size(hcd, qh);
 	}
 	if (status) {
-		DWC_INFO("%s: Channel max transfer size too small " "for periodic transfer.\n", __func__);	//NOTICE
+		DWC_INFO("%s: Insufficient periodic bandwidth for "
+			    "periodic transfer.\n", __func__);
+		return status;
+	}
+	status = check_max_xfer_size(hcd, qh);
+	if (status) {
+		DWC_INFO("%s: Channel max transfer size too small "
+			    "for periodic transfer.\n", __func__);
 		return status;
 	}
 
@@ -692,12 +692,12 @@ static void deschedule_periodic(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	int i;
 	DWC_LIST_REMOVE_INIT(&qh->qh_list_entry);
 
+	/* Update claimed usecs per (micro)frame. */
+	hcd->periodic_usecs -= qh->usecs;
+
 	if (!microframe_schedule) {
 		/* Release the periodic channel reservation. */
 		hcd->periodic_channels--;
-
-		/* Update claimed usecs per (micro)frame. */
-		hcd->periodic_usecs -= qh->usecs;
 	} else {
 		for (i = 0; i < 8; i++) {
 			hcd->frame_usecs[i] += qh->frame_usecs[i];
