@@ -35,6 +35,8 @@
 #include "dwc_otg_hcd.h"
 #include "dwc_otg_regs.h"
 
+extern bool microframe_schedule;
+
 /** @file
  * This file contains the implementation of the HCD Interrupt handlers.
  */
@@ -794,6 +796,8 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 {
 	dwc_otg_transaction_type_e tr_type;
 	int free_qtd;
+	dwc_irqflags_t flags;
+	dwc_spinlock_t *channel_lock = DWC_SPINLOCK_ALLOC();
 
 	DWC_DEBUGPL(DBG_HCDV, "  %s: channel %d, halt_status %d, xfer_len %d\n",
 		    __func__, hc->hc_num, halt_status, hc->xfer_len);
@@ -853,19 +857,26 @@ cleanup:
 	dwc_otg_hc_cleanup(hcd->core_if, hc);
 	DWC_CIRCLEQ_INSERT_TAIL(&hcd->free_hc_list, hc, hc_list_entry);
 
-	switch (hc->ep_type) {
-	case DWC_OTG_EP_TYPE_CONTROL:
-	case DWC_OTG_EP_TYPE_BULK:
-		hcd->non_periodic_channels--;
-		break;
+	if (!microframe_schedule) {
+		switch (hc->ep_type) {
+		case DWC_OTG_EP_TYPE_CONTROL:
+		case DWC_OTG_EP_TYPE_BULK:
+			hcd->non_periodic_channels--;
+			break;
 
-	default:
-		/*
-		 * Don't release reservations for periodic channels here.
-		 * That's done when a periodic transfer is descheduled (i.e.
-		 * when the QH is removed from the periodic schedule).
-		 */
-		break;
+		default:
+			/*
+			 * Don't release reservations for periodic channels here.
+			 * That's done when a periodic transfer is descheduled (i.e.
+			 * when the QH is removed from the periodic schedule).
+			 */
+			break;
+		}
+	} else {
+
+		DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
+		hcd->available_host_channels++;
+		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 	}
 
 	/* Try to queue more transfers now that there's a free channel. */
@@ -873,6 +884,7 @@ cleanup:
 	if (tr_type != DWC_OTG_TRANSACTION_NONE) {
 		dwc_otg_hcd_queue_transactions(hcd, tr_type);
 	}
+	DWC_SPINLOCK_FREE(channel_lock);
 }
 
 /**
