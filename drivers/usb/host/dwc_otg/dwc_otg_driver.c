@@ -60,6 +60,8 @@
 #define DWC_DRIVER_VERSION	"2.94b 27-OCT-2011 (rev 01-DEC-2011)"
 #define DWC_DRIVER_DESC		"HS OTG USB Controller driver"
 
+bool microframe_schedule;
+
 static const char dwc_driver_name[] = "dwc_otg";
 
 extern int pcd_init(
@@ -1337,6 +1339,8 @@ module_param_named(adp_enable, dwc_otg_module_params.adp_enable, int, 0444);
 MODULE_PARM_DESC(adp_enable, "ADP Enable 0=ADP Disabled 1=ADP Enabled");
 module_param_named(otg_ver, dwc_otg_module_params.otg_ver, int, 0444);
 MODULE_PARM_DESC(otg_ver, "OTG revision supported 0=OTG 1.3 1=OTG 2.0");
+module_param(microframe_schedule, bool, 0444);
+MODULE_PARM_DESC(microframe_schedule, "Enable the microframe scheduler");
 
 /** @page "Module Parameters"
  *
