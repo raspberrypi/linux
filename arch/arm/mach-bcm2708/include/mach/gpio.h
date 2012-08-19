@@ -9,7 +9,7 @@
 #ifndef __ASM_ARCH_GPIO_H
 #define __ASM_ARCH_GPIO_H
 
-#define ARCH_NR_GPIOS 54 // number of gpio lines
+#define BCM_NR_GPIOS 54 // number of gpio lines
 
 #include <asm-generic/gpio.h>
 #include <mach/platform.h>
@@ -40,6 +40,9 @@ static inline unsigned irq_to_gpio(unsigned irq) {
 static inline unsigned gpio_to_irq(unsigned gpio) {
 	return GPIO_IRQ_START+gpio;
 }
+#define gpio_to_irq gpio_to_irq
+
 #endif /* CONFIG_GPIOLIB */
 
 #endif
+
