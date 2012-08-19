@@ -369,16 +369,6 @@ typedef struct dwc_otg_qh {
 
 DWC_CIRCLEQ_HEAD(hc_list, dwc_hc);
 
-#ifdef HW2937_WORKAROUND
-
-typedef enum {
-	HW2937_XFER_MODE_IDLE,
-	HW2937_XFER_MODE_IN,
-	HW2937_XFER_MODE_OUT,
-	HW2937_XFER_MODE_PAUSEIN /* Transitioning from IN to IDLE */
-} hw2937_xfer_mode_t;
-#endif
-
 /**
  * This structure holds the state of the HCD, including the non-periodic and
  * periodic schedules.
@@ -571,14 +561,6 @@ struct dwc_otg_hcd {
 
 	/** Frame List DMA address */
 	dma_addr_t frame_list_dma;
-
-#ifdef HW2937_WORKAROUND
-	/** Current transfer mode (IN, OUT, or IDLE) */
-	hw2937_xfer_mode_t hw2937_xfer_mode;
-
-	/** Mask of channels assigned to the current mode */
-	uint32_t hw2937_assigned_channels;
-#endif
 
 #ifdef DEBUG
 	uint32_t frrem_samples;
