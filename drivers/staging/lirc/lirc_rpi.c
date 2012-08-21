@@ -466,6 +466,7 @@ static ssize_t lirc_write(struct file *file, const char *buf,
 		else
 			delta = send_pulse(wbuf[i]);
 	}
+	GPIO_CLEAR_PIN(gpio_out_pin);
 
 	spin_unlock_irqrestore(&lock, flags);
 	kfree(wbuf);
