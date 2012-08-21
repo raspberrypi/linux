@@ -112,10 +112,12 @@ int hv_post_message(union hv_connection_id connection_id,
 static void hv_stimer0_isr(void)
 {
 	struct hv_per_cpu_context *hv_cpu;
+	struct pt_regs *regs = get_irq_regs();
+	u64 ip = regs ? instruction_pointer(regs) : 0;
 
 	hv_cpu = this_cpu_ptr(hv_context.cpu_context);
 	hv_cpu->clk_evt->event_handler(hv_cpu->clk_evt);
-	add_interrupt_randomness(stimer0_vector, 0);
+	add_interrupt_randomness(stimer0_vector, 0, ip);
 }
 
 static int hv_ce_set_next_event(unsigned long delta,
