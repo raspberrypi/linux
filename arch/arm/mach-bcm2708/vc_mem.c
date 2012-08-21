@@ -21,6 +21,7 @@
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
 #include <asm/uaccess.h>
+#include <linux/dma-mapping.h>
 
 #ifdef CONFIG_ARCH_KONA
 #include <chal/chal_ipc.h>
@@ -30,12 +31,12 @@
 #endif
 
 #include "mach/vc_mem.h"
-//#include "interface/vchiq_arm/vchiq_connected.h"
+#include <mach/vcio.h>
 
 #define DRIVER_NAME  "vc-mem"
 
 // Uncomment to enable debug logging
-//#define ENABLE_DBG
+#define ENABLE_DBG
 
 #if defined(ENABLE_DBG)
 #define LOG_DBG( fmt, ... )  printk( KERN_INFO fmt "\n", ##__VA_ARGS__ )
@@ -67,23 +68,8 @@ static struct proc_dir_entry *vc_mem_proc_entry;
  * bootloader (and/or kernel). When that happens, the values of these variables
  * would be calculated and assigned in the init function.
  */
-#ifdef CONFIG_ARCH_KONA
-
-#include <mach/io_map.h>
-unsigned long mm_vc_mem_phys_addr = VC_EMI;
-
-#elif CONFIG_ARCH_BCM2708
-
 // in the 2835 VC in mapped above ARM, but ARM has full access to VC space
 unsigned long mm_vc_mem_phys_addr = 0x00000000;
-
-#else
-
-#include <mach/csp/mm_io.h>
-unsigned long mm_vc_mem_phys_addr = MM_ADDR_IO_VC_EMI;
-
-#endif
-
 unsigned int mm_vc_mem_size = 0;
 unsigned int mm_vc_mem_base = 0;
 
@@ -125,6 +111,64 @@ vc_mem_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+
+/* tag part of the message */
+struct vc_msg_tag {
+	uint32_t tag_id;		/* the message id */
+	uint32_t buffer_size;	/* size of the buffer (which in this case is always 8 bytes) */
+	uint32_t data_size;		/* amount of data being sent or received */
+	uint32_t base;		/* the address of memory base */
+	uint32_t size;			/* the size of memory in bytes */
+};
+
+struct vc_set_msg {
+	uint32_t msg_size;			/* simply, sizeof(struct vc_msg) */
+	uint32_t request_code;		/* holds various information like the success and number of bytes returned (refer to mailboxes wiki) */
+	struct vc_msg_tag tag[2];	/* the array of tag structures above to make */
+	uint32_t end_tag;			/* an end identifier, should be set to NULL */
+};
+
+#define VCMSG_GET_ARM_MEMORY 0x00010005
+#define VCMSG_GET_VC_MEMORY  0x00010006
+
+static void vc_mem_update(void)
+{
+	uint32_t success;
+	dma_addr_t vc_mem;						/* the memory address accessed from videocore */
+	struct vc_set_msg *get_mem;					/* the memory address accessed from driver */
+
+	/* allocate some memory for the messages to use throughout the lifetime of the driver, use the larger of the two message structures */
+	get_mem = (struct vc_set_msg *)dma_alloc_coherent(NULL, PAGE_ALIGN(sizeof(struct vc_set_msg)), &vc_mem, GFP_ATOMIC); 
+	/* clear any garbage */
+	memset(get_mem, 0, sizeof(struct vc_set_msg));
+	/* create the message */
+	get_mem->msg_size = sizeof(struct vc_set_msg);
+	get_mem->tag[0].tag_id = VCMSG_GET_VC_MEMORY;
+	get_mem->tag[0].buffer_size = 8;
+	get_mem->tag[0].data_size   = 0;
+	get_mem->tag[1].tag_id = VCMSG_GET_ARM_MEMORY;
+	get_mem->tag[1].buffer_size = 8;
+	get_mem->tag[1].data_size   = 0;
+
+	/* send the message */
+	wmb();
+	bcm_mailbox_write(MBOX_CHAN_PROPERTY,(uint32_t)vc_mem);
+	bcm_mailbox_read(MBOX_CHAN_PROPERTY, &success);
+	rmb();
+
+	LOG_DBG("%s: resp %x, vcbase=%x vcsize=%x armbase=%x armsize=%x", __func__, get_mem->request_code, 
+		get_mem->tag[0].base, get_mem->tag[0].size, get_mem->tag[1].base, get_mem->tag[1].size);
+
+	/* check we're all good */
+	if (get_mem->request_code & 0x80000000) {
+		mm_vc_mem_base = get_mem->tag[0].base;
+		mm_vc_mem_size = get_mem->tag[0].size+get_mem->tag[1].size;
+		mm_vc_mem_phys_addr = get_mem->tag[1].base;
+	}
+	dma_free_coherent(NULL, PAGE_ALIGN(sizeof(struct vc_set_msg)), (void *)get_mem, vc_mem);
+}
+
+
 /****************************************************************************
 *
 *   vc_mem_get_size
@@ -134,7 +178,7 @@ vc_mem_release(struct inode *inode, struct file *file)
 static void
 vc_mem_get_size(void)
 {
-	mm_vc_mem_size = 256 * 1024 * 1024;	// Static for now
+	vc_mem_update();
 }
 
 /****************************************************************************
@@ -146,7 +190,7 @@ vc_mem_get_size(void)
 static void
 vc_mem_get_base(void)
 {
-	mm_vc_mem_base = 128 * 1024 * 1024;	// Static for now
+	vc_mem_update();
 }
 
 /****************************************************************************
