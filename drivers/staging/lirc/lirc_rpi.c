@@ -57,11 +57,11 @@
 #define RBUF_LEN 256
 #define LIRC_TRANSMITTER_LATENCY 256
 /* set GPIO pin g as input */
-#define GPIO_DIR_INPUT(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
+#define GPIO_DIR_INPUT(g) gpiochip->direction_input(gpiochip,g)
 /* set GPIO pin g as output */
 #define GPIO_DIR_OUTPUT(g) gpiochip->direction_output(gpiochip,g,1)
 /* get logical value from gpio pin g */
-#define GPIO_READ_PIN(g) (*(gpio+13) & (1<<(g))) && 1
+#define GPIO_READ_PIN(g) gpiochip->get(gpiochip,g)
 /* sets   bits which are 1 ignores bits which are 0 */
 #define GPIO_SET_PIN(g)	gpiochip->set(gpiochip,g,1)
 /* clears bits which are 1 ignores bits which are 0 */
@@ -320,7 +320,7 @@ int is_right_chip(struct gpio_chip *chip, void *data) {
 }
 static int init_port(void)
 {
-	int i, nlow, nhigh;
+	int i, nlow, nhigh, ret;
 
 	/* reserve GPIO memory region. */
 	if (request_mem_region(GPIO_BASE, SZ_4K, LIRC_DRIVER_NAME) == NULL) {
@@ -333,13 +333,20 @@ static int init_port(void)
 	if ((gpio = ioremap_nocache(GPIO_BASE, SZ_4K)) == NULL) {
 		printk(KERN_ERR LIRC_DRIVER_NAME
 		       ": failed to map GPIO I/O memory\n");
-		return -EBUSY;
+		ret = -EBUSY;
+		goto error1;
 	}
 	gpiochip = gpiochip_find("bcm2708_gpio",is_right_chip);
 	if (!gpiochip) return -ENODEV;
 	if (gpio_request(gpio_out_pin,"lirc_rpi")) {
-		printk(KERN_ALERT"cant claim gpio pin\n");
-		return -ENODEV;
+		printk(KERN_ALERT"cant claim gpio pin %d\n",gpio_out_pin);
+		ret = -ENODEV;
+		goto error2;
+	}
+	if (gpio_request(gpio_in_pin,"lirc_rpi")) {
+		printk(KERN_ALERT"cant claim gpio pin %d\n",gpio_in_pin);
+		ret = -ENODEV;
+		goto error3;
 	}
 
 	/* set specified pin as input */
@@ -376,6 +383,13 @@ static int init_port(void)
 		       sense ? "low" : "high", gpio_in_pin);
 	}
 	return 0;
+	error3:
+	gpio_free(gpio_out_pin);
+	error2:
+	iounmap(gpio);
+	error1:
+	release_mem_region(GPIO_BASE, SZ_4K);
+	return ret;
 }
 
 static int set_use_inc(void *data)
@@ -598,6 +612,7 @@ static int __init lirc_rpi_init(void)
 static void lirc_rpi_exit(void)
 {
 	gpio_free(gpio_out_pin);
+	gpio_free(gpio_in_pin);
 	platform_device_unregister(lirc_rpi_dev);
 	platform_driver_unregister(&lirc_rpi_driver);
 	lirc_buffer_free(&rbuf);
