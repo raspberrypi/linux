@@ -72,7 +72,7 @@ static irqreturn_t bcm2835_playback_fifo_irq(int irq, void *dev_id)
 			  frames_to_bytes(alsa_stream->substream->runtime, alsa_stream->substream->runtime->status->hw_ptr),
 			  new_period);
 	if (alsa_stream->buffer_size) {
-		alsa_stream->pos += consumed;
+		alsa_stream->pos += consumed &~ (1<<30);
 		alsa_stream->pos %= alsa_stream->buffer_size;
 	}
 

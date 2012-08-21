@@ -28,7 +28,7 @@
 /*
 #define AUDIO_DEBUG_ENABLE
 #define AUDIO_VERBOSE_DEBUG_ENABLE
-*.
+*/
 
 /* Debug macros */
 
