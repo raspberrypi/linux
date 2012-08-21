@@ -34,7 +34,8 @@
 #define MBOX_CHAN_LEDS    4 /* for use by the leds interface */
 #define MBOX_CHAN_BUTTONS 5 /* for use by the buttons interface */
 #define MBOX_CHAN_TOUCH   6 /* for use by the touchscreen interface */
-#define MBOX_CHAN_COUNT   7
+#define MBOX_CHAN_PROPERTY 8 /* for use by the property channel */
+#define MBOX_CHAN_COUNT   9
 
 extern int /*rc*/ bcm_mailbox_read(unsigned chan, uint32_t *data28);
 extern int /*rc*/ bcm_mailbox_write(unsigned chan, uint32_t data28);
