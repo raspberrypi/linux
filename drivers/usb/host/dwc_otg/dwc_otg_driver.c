@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_driver.c $
- * $Revision: #91 $
- * $Date: 2011/10/24 $
- * $Change: 1871159 $
+ * $Revision: #92 $
+ * $Date: 2012/08/10 $
+ * $Change: 2047372 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -57,7 +57,7 @@
 #include "dwc_otg_pcd_if.h"
 #include "dwc_otg_hcd_if.h"
 
-#define DWC_DRIVER_VERSION	"2.94b 27-OCT-2011 (rev 01-DEC-2011)"
+#define DWC_DRIVER_VERSION	"3.00a 10-AUG-2012"
 #define DWC_DRIVER_DESC		"HS OTG USB Controller driver"
 
 bool microframe_schedule;
@@ -836,11 +836,12 @@ static int dwc_otg_driver_probe(
 	/*
 	 * Attempt to ensure this device is really a DWC_otg Controller.
 	 * Read and verify the SNPSID register contents. The value should be
-	 * 0x45F42XXX, which corresponds to "OT2", as in "OTG version 2.XX".
+	 * 0x45F42XXX or 0x45F42XXX, which corresponds to either "OT2" or "OTG3",
+	 * as in "OTG version 2.XX" or "OTG version 3.XX".
 	 */
 
-	if ((dwc_otg_get_gsnpsid(dwc_otg_device->core_if) & 0xFFFFF000) !=
-	    0x4F542000) {
+	if (((dwc_otg_get_gsnpsid(dwc_otg_device->core_if) & 0xFFFFF000) !=	0x4F542000) &&
+		((dwc_otg_get_gsnpsid(dwc_otg_device->core_if) & 0xFFFFF000) != 0x4F543000)) {
 		dev_err(&_dev->dev, "Bad value for SNPSID: 0x%08x\n",
 			dwc_otg_get_gsnpsid(dwc_otg_device->core_if));
 		retval = -EINVAL;
