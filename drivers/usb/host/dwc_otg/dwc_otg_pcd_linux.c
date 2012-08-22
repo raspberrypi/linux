@@ -1,8 +1,8 @@
  /* ==========================================================================
   * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_pcd_linux.c $
-  * $Revision: #19 $
-  * $Date: 2011/10/26 $
-  * $Change: 1873028 $
+  * $Revision: #21 $
+  * $Date: 2012/08/10 $
+  * $Change: 2047372 $
   *
   * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
   * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -525,9 +525,10 @@ static int iso_ep_start(struct usb_ep *usb_ep, struct usb_iso_request *req,
 				     req->buf1, req->dma0, req->dma1,
 				     req->sync_frame, req->data_pattern_frame,
 				     req->data_per_frame,
-				     req->flags & USB_REQ_ISO_ASAP ? -1 : req->
-				     start_frame, req->buf_proc_intrvl, req,
-				     gfp_flags == GFP_ATOMIC ? 1 : 0);
+				     req->
+				     flags & USB_REQ_ISO_ASAP ? -1 :
+				     req->start_frame, req->buf_proc_intrvl,
+				     req, gfp_flags == GFP_ATOMIC ? 1 : 0);
 
 	if (retval) {
 		return -EINVAL;

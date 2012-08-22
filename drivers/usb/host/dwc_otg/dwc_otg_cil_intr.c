@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_cil_intr.c $
- * $Revision: #31 $
- * $Date: 2011/10/24 $
- * $Change: 1871286 $
+ * $Revision: #32 $
+ * $Date: 2012/08/10 $
+ * $Change: 2047372 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -168,6 +168,10 @@ int32_t dwc_otg_handle_otg_intr(dwc_otg_core_if_t * core_if)
 		/* Print statements during the HNP interrupt handling
 		 * can cause it to fail.*/
 		gotgctl.d32 = DWC_READ_REG32(&global_regs->gotgctl);
+		/* WA for 3.00a- HW is not setting cur_mode, even sometimes
+		 * this does not help*/
+		if (core_if->snpsid >= OTG_CORE_REV_3_00a)
+			dwc_udelay(100);
 		if (gotgctl.b.hstnegscs) {
 			if (dwc_otg_is_host_mode(core_if)) {
 				core_if->op_state = B_HOST;
@@ -443,8 +447,8 @@ int32_t dwc_otg_handle_wakeup_detected_intr(dwc_otg_core_if_t * core_if)
 	if (dwc_otg_is_device_mode(core_if)) {
 		dctl_data_t dctl = {.d32 = 0 };
 		DWC_DEBUGPL(DBG_PCD, "DSTS=0x%0x\n",
-			    DWC_READ_REG32(&core_if->dev_if->
-					   dev_global_regs->dsts));
+			    DWC_READ_REG32(&core_if->dev_if->dev_global_regs->
+					   dsts));
 		if (core_if->lx_state == DWC_OTG_L2) {
 #ifdef PARTIAL_POWER_DOWN
 			if (core_if->hwcfg4.b.power_optimiz) {
@@ -466,8 +470,8 @@ int32_t dwc_otg_handle_wakeup_detected_intr(dwc_otg_core_if_t * core_if)
 #endif
 			/* Clear the Remote Wakeup Signaling */
 			dctl.b.rmtwkupsig = 1;
-			DWC_MODIFY_REG32(&core_if->dev_if->
-					 dev_global_regs->dctl, dctl.d32, 0);
+			DWC_MODIFY_REG32(&core_if->dev_if->dev_global_regs->
+					 dctl, dctl.d32, 0);
 
 			DWC_SPINUNLOCK(core_if->lock);
 			if (core_if->pcd_cb && core_if->pcd_cb->resume_wakeup) {
@@ -611,8 +615,7 @@ static int32_t dwc_otg_handle_pwrdn_idsts_change(dwc_otg_device_t *otg_dev)
 
 	DWC_DEBUGPL(DBG_ANY, "%s called\n", __FUNCTION__);
 	gpwrdn_temp.d32 = DWC_READ_REG32(&core_if->core_global_regs->gpwrdn);
-	if (core_if->power_down == 2)
-	{		
+	if (core_if->power_down == 2) {
 		if (!core_if->hibernation_suspend) {
 			DWC_PRINTF("Already exited from Hibernation\n");
 			return 1;
@@ -674,8 +677,7 @@ static int32_t dwc_otg_handle_pwrdn_idsts_change(dwc_otg_device_t *otg_dev)
 		}
 	}
 
-	if (core_if->adp_enable)
-	{
+	if (core_if->adp_enable) {
 		uint8_t is_host = 0;
 		DWC_SPINUNLOCK(core_if->lock);
 		/* Change the core_if's lock to hcd/pcd lock depend on mode? */
@@ -978,16 +980,17 @@ int32_t dwc_otg_handle_disconnect_intr(dwc_otg_core_if_t * core_if)
 				/* Enable Power Down Logic */
 				gpwrdn.b.pmuintsel = 1;
 				gpwrdn.b.pmuactv = 1;
-				DWC_MODIFY_REG32(&core_if->core_global_regs->gpwrdn, 0, gpwrdn.d32);
+				DWC_MODIFY_REG32(&core_if->core_global_regs->
+						 gpwrdn, 0, gpwrdn.d32);
 				dwc_otg_adp_probe_start(core_if);
 
 				/* Power off the core */
 				if (core_if->power_down == 2) {
 					gpwrdn.d32 = 0;
 					gpwrdn.b.pwrdnswtch = 1;
-					DWC_MODIFY_REG32(&core_if->
-							 core_global_regs->
-							 gpwrdn, gpwrdn.d32, 0);
+					DWC_MODIFY_REG32
+					    (&core_if->core_global_regs->gpwrdn,
+					     gpwrdn.d32, 0);
 				}
 			}
 		}
@@ -1141,6 +1144,49 @@ int32_t dwc_otg_handle_usb_suspend_intr(dwc_otg_core_if_t * core_if)
 
 				return 1;
 			}
+		} else if (core_if->power_down == 3) {
+			pcgcctl_data_t pcgcctl = {.d32 = 0 };
+			dcfg.d32 = DWC_READ_REG32(&core_if->dev_if->dev_global_regs->dcfg);
+			DWC_DEBUGPL(DBG_ANY, "lx_state = %08x\n",core_if->lx_state);
+			DWC_DEBUGPL(DBG_ANY, " device address = %08d\n",dcfg.b.devaddr);
+
+			if (core_if->lx_state != DWC_OTG_L3 && dcfg.b.devaddr) {
+				DWC_DEBUGPL(DBG_ANY, "Start entering to extended hibernation\n");
+				core_if->xhib = 1;
+
+				/* Clear interrupt in gintsts */
+				gintsts.d32 = 0;
+				gintsts.b.usbsuspend = 1;
+				DWC_WRITE_REG32(&core_if->core_global_regs->
+					gintsts, gintsts.d32);
+
+				dwc_otg_save_global_regs(core_if);
+				dwc_otg_save_dev_regs(core_if);
+
+				/* Wait for 10 PHY clocks */
+				dwc_udelay(10);
+
+				/* Program GPIO register while entering to xHib */
+				DWC_WRITE_REG32(&core_if->core_global_regs->ggpio, 0x1);
+
+				pcgcctl.b.enbl_extnd_hiber = 1;
+				DWC_MODIFY_REG32(core_if->pcgcctl, 0, pcgcctl.d32);
+				DWC_MODIFY_REG32(core_if->pcgcctl, 0, pcgcctl.d32);
+
+				pcgcctl.d32 = 0;
+				pcgcctl.b.extnd_hiber_pwrclmp = 1;
+				DWC_MODIFY_REG32(core_if->pcgcctl, 0, pcgcctl.d32);
+
+				pcgcctl.d32 = 0;
+				pcgcctl.b.extnd_hiber_switch = 1;
+				core_if->gr_backup->xhib_gpwrdn = DWC_READ_REG32(&core_if->core_global_regs->gpwrdn);
+				core_if->gr_backup->xhib_pcgcctl = DWC_READ_REG32(core_if->pcgcctl) | pcgcctl.d32;
+				DWC_MODIFY_REG32(core_if->pcgcctl, 0, pcgcctl.d32);
+
+				DWC_DEBUGPL(DBG_ANY, "Finished entering to extended hibernation\n");
+
+				return 1;
+			}
 		}
 	} else {
 		if (core_if->op_state == A_PERIPHERAL) {
@@ -1161,6 +1207,70 @@ int32_t dwc_otg_handle_usb_suspend_intr(dwc_otg_core_if_t * core_if)
 	gintsts.d32 = 0;
 	gintsts.b.usbsuspend = 1;
 	DWC_WRITE_REG32(&core_if->core_global_regs->gintsts, gintsts.d32);
+
+	return 1;
+}
+
+static int32_t dwc_otg_handle_xhib_exit_intr(dwc_otg_core_if_t * core_if)
+{
+	gpwrdn_data_t gpwrdn = {.d32 = 0 };
+	pcgcctl_data_t pcgcctl = {.d32 = 0 };
+	gahbcfg_data_t gahbcfg = {.d32 = 0 };
+
+	dwc_udelay(10);
+
+	/* Program GPIO register while entering to xHib */
+	DWC_WRITE_REG32(&core_if->core_global_regs->ggpio, 0x0);
+
+	pcgcctl.d32 = core_if->gr_backup->xhib_pcgcctl;
+	pcgcctl.b.extnd_hiber_pwrclmp = 0;
+	DWC_WRITE_REG32(core_if->pcgcctl, pcgcctl.d32);
+	dwc_udelay(10);
+
+	gpwrdn.d32 = core_if->gr_backup->xhib_gpwrdn;
+	gpwrdn.b.restore = 1;
+	DWC_WRITE_REG32(&core_if->core_global_regs->gpwrdn, gpwrdn.d32);
+	dwc_udelay(10);
+
+	restore_lpm_i2c_regs(core_if);
+
+	pcgcctl.d32 = core_if->gr_backup->pcgcctl_local & (0x3FFFF << 14);
+	pcgcctl.b.max_xcvrselect = 1;
+	pcgcctl.b.ess_reg_restored = 0;
+	pcgcctl.b.extnd_hiber_switch = 0;
+	pcgcctl.b.extnd_hiber_pwrclmp = 0;
+	pcgcctl.b.enbl_extnd_hiber = 1;
+	DWC_WRITE_REG32(core_if->pcgcctl, pcgcctl.d32);
+
+	gahbcfg.d32 = core_if->gr_backup->gahbcfg_local;
+	gahbcfg.b.glblintrmsk = 1;
+	DWC_WRITE_REG32(&core_if->core_global_regs->gahbcfg, gahbcfg.d32);
+
+	DWC_WRITE_REG32(&core_if->core_global_regs->gintsts, 0xFFFFFFFF);
+	DWC_WRITE_REG32(&core_if->core_global_regs->gintmsk, 0x1 << 16);
+
+	DWC_WRITE_REG32(&core_if->core_global_regs->gusbcfg,
+			core_if->gr_backup->gusbcfg_local);
+	DWC_WRITE_REG32(&core_if->dev_if->dev_global_regs->dcfg,
+			core_if->dr_backup->dcfg);
+
+	pcgcctl.d32 = 0;
+	pcgcctl.d32 = core_if->gr_backup->pcgcctl_local & (0x3FFFF << 14);
+	pcgcctl.b.max_xcvrselect = 1;
+	pcgcctl.d32 |= 0x608;
+	DWC_WRITE_REG32(core_if->pcgcctl, pcgcctl.d32);
+	dwc_udelay(10);
+
+	pcgcctl.d32 = 0;
+	pcgcctl.d32 = core_if->gr_backup->pcgcctl_local & (0x3FFFF << 14);
+	pcgcctl.b.max_xcvrselect = 1;
+	pcgcctl.b.ess_reg_restored = 1;
+	pcgcctl.b.enbl_extnd_hiber = 1;
+	pcgcctl.b.rstpdwnmodule = 1;
+	pcgcctl.b.restoremode = 1;
+	DWC_WRITE_REG32(core_if->pcgcctl, pcgcctl.d32);
+
+	DWC_DEBUGPL(DBG_ANY, "%s called\n", __FUNCTION__);
 
 	return 1;
 }
@@ -1286,6 +1396,16 @@ int32_t dwc_otg_handle_common_intr(void *dev)
 	if (core_if->lock)
 		DWC_SPINLOCK(core_if->lock);
 
+	if (core_if->power_down == 3 && core_if->xhib == 1) {
+		DWC_DEBUGPL(DBG_ANY, "Exiting from xHIB state\n");
+		retval |= dwc_otg_handle_xhib_exit_intr(core_if);
+		core_if->xhib = 2;
+		if (core_if->lock)
+			DWC_SPINUNLOCK(core_if->lock);
+
+		return retval;
+	}
+
 	if (core_if->hibernation_suspend <= 0) {
 		gintsts.d32 = dwc_otg_read_common_intr(core_if);
 
@@ -1296,7 +1416,8 @@ int32_t dwc_otg_handle_common_intr(void *dev)
 			retval |= dwc_otg_handle_otg_intr(core_if);
 		}
 		if (gintsts.b.conidstschng) {
-			retval |= dwc_otg_handle_conn_id_status_change_intr(core_if);
+			retval |=
+			    dwc_otg_handle_conn_id_status_change_intr(core_if);
 		}
 		if (gintsts.b.disconnect) {
 			retval |= dwc_otg_handle_disconnect_intr(core_if);
@@ -1319,6 +1440,57 @@ int32_t dwc_otg_handle_common_intr(void *dev)
 			gintsts.d32 = 0;
 	                if (core_if->power_down == 2)
 				core_if->hibernation_suspend = -1;
+			else if (core_if->power_down == 3 && core_if->xhib == 2) {
+				gpwrdn_data_t gpwrdn = {.d32 = 0 };
+				pcgcctl_data_t pcgcctl = {.d32 = 0 };
+				dctl_data_t dctl = {.d32 = 0 };
+
+				DWC_WRITE_REG32(&core_if->core_global_regs->
+						gintsts, 0xFFFFFFFF);
+
+				DWC_DEBUGPL(DBG_ANY,
+					    "RESTORE DONE generated\n");
+
+				gpwrdn.b.restore = 1;
+				DWC_MODIFY_REG32(&core_if->core_global_regs->gpwrdn, gpwrdn.d32, 0);
+				dwc_udelay(10);
+
+				pcgcctl.b.rstpdwnmodule = 1;
+				DWC_MODIFY_REG32(core_if->pcgcctl, pcgcctl.d32, 0);
+
+				DWC_WRITE_REG32(&core_if->core_global_regs->gusbcfg, core_if->gr_backup->gusbcfg_local);
+				DWC_WRITE_REG32(&core_if->dev_if->dev_global_regs->dcfg, core_if->dr_backup->dcfg);
+				DWC_WRITE_REG32(&core_if->dev_if->dev_global_regs->dctl, core_if->dr_backup->dctl);
+				dwc_udelay(50);
+
+				dctl.b.pwronprgdone = 1;
+				DWC_MODIFY_REG32(&core_if->dev_if->dev_global_regs->dctl, 0, dctl.d32);
+				dwc_udelay(10);
+
+				dwc_otg_restore_global_regs(core_if);
+				dwc_otg_restore_dev_regs(core_if, 0);
+
+				dctl.d32 = 0;
+				dctl.b.pwronprgdone = 1;
+				DWC_MODIFY_REG32(&core_if->dev_if->dev_global_regs->dctl, dctl.d32, 0);
+				dwc_udelay(10);
+
+				pcgcctl.d32 = 0;
+				pcgcctl.b.enbl_extnd_hiber = 1;
+				DWC_MODIFY_REG32(core_if->pcgcctl, pcgcctl.d32, 0);
+
+				/* The core will be in ON STATE */
+				core_if->lx_state = DWC_OTG_L0;
+				core_if->xhib = 0;
+
+				DWC_SPINUNLOCK(core_if->lock);
+				if (core_if->pcd_cb && core_if->pcd_cb->resume_wakeup) {
+					core_if->pcd_cb->resume_wakeup(core_if->pcd_cb->p);
+				}
+				DWC_SPINLOCK(core_if->lock);
+
+			}
+
 			gintsts.b.restoredone = 1;
 			DWC_WRITE_REG32(&core_if->core_global_regs->gintsts,gintsts.d32);
 			DWC_PRINTF(" --Restore done interrupt received-- \n");

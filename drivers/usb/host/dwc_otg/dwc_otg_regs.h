@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_regs.h $
- * $Revision: #97 $
- * $Date: 2011/10/24 $
- * $Change: 1871160 $
+ * $Revision: #98 $
+ * $Date: 2012/08/10 $
+ * $Change: 2047372 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -826,8 +826,9 @@ typedef union hwcfg4_data {
 		unsigned num_dev_perio_in_ep:4;
 		unsigned power_optimiz:1;
 		unsigned min_ahb_freq:1;
-		unsigned part_power_down:1;
-		unsigned reserved:7;
+		unsigned hiber:1;
+		unsigned xhiber:1;
+		unsigned reserved:6;
 		unsigned utmi_phy_data_width:2;
 		unsigned num_dev_mode_ctrl_ep:4;
 		unsigned iddig_filt_en:1;
@@ -1330,8 +1331,10 @@ typedef union doepint_data {
 		unsigned nak:1;
 		/** NYET Interrupt */
 		unsigned nyet:1;
+		/** Bit indicating setup packet received */
+		unsigned sr:1;
 
-		unsigned reserved15_31:17;
+		unsigned reserved16_31:16;
 	} b;
 } doepint_data_t;
 
@@ -2448,7 +2451,9 @@ typedef union pcgcctl_data {
 		unsigned deep_sleep:1;
 		unsigned resetaftsusp:1;
 		unsigned restoremode:1;
-		unsigned reserved10_12:3;
+		unsigned enbl_extnd_hiber:1;
+		unsigned extnd_hiber_pwrclmp:1;
+		unsigned extnd_hiber_switch:1;
 		unsigned ess_reg_restored:1;
 		unsigned prt_clk_sel:2;
 		unsigned port_power:1;
