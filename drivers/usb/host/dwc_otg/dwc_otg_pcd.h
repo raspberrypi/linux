@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_pcd.h $
- * $Revision: #46 $
- * $Date: 2011/10/20 $
- * $Change: 1870124 $
+ * $Revision: #48 $
+ * $Date: 2012/08/10 $
+ * $Change: 2047372 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -214,6 +214,10 @@ struct dwc_otg_pcd {
 	} *setup_pkt;
 
 	dwc_dma_t setup_pkt_dma_handle;
+
+	/* Additional buffer and flag for CTRL_WR premature case */
+	uint8_t *backup_buf;
+	unsigned data_terminated;
 
 	/** 2-byte dma buffer used to return status from GET_STATUS */
 	uint16_t *status_buf;
