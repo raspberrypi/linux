@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_core_if.h $
- * $Revision: #12 $
- * $Date: 2011/10/24 $
- * $Change: 1871159 $
+ * $Revision: #13 $
+ * $Date: 2012/08/10 $
+ * $Change: 2047372 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
