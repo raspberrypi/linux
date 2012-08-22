@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_cil.h $
- * $Revision: #122 $
- * $Date: 2011/10/24 $
- * $Change: 1871160 $
+ * $Revision: #123 $
+ * $Date: 2012/08/10 $
+ * $Change: 2047372 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -74,6 +74,7 @@ typedef enum _data_buffer_mode {
 #define OTG_CORE_REV_2_92a	0x4F54292A
 #define OTG_CORE_REV_2_93a	0x4F54293A
 #define OTG_CORE_REV_2_94a	0x4F54294A
+#define OTG_CORE_REV_3_00a	0x4F54300A
 
 /**
  * Information for each ISOC packet.
@@ -145,6 +146,9 @@ typedef struct dwc_ep {
 
 	/** stall clear flag */
 	unsigned stall_clear_flag:1;
+
+	/** SETUP pkt cnt rollover flag for EP0 out*/
+	unsigned stp_rollover;
 
 #ifdef DWC_UTE_CFI
 	/* The buffer mode */
@@ -764,6 +768,8 @@ struct dwc_otg_global_regs_backup {
 	uint32_t gdfifocfg_local;
 	uint32_t dtxfsiz_local[MAX_EPS_CHANNELS];
 	uint32_t gpwrdn_local;
+	uint32_t xhib_pcgcctl;
+	uint32_t xhib_gpwrdn;
 };
 
 struct dwc_otg_host_regs_backup {
@@ -963,6 +969,9 @@ struct dwc_otg_core_if {
 
 	/** hibernation/suspend flag */
 	int hibernation_suspend;
+
+	/** Device mode extended hibernation flag */
+	int xhib;
 
 	/** OTG revision supported */
 	uint32_t otg_ver;
