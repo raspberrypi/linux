@@ -72,6 +72,7 @@
 #define GPIO_INT_RISING(g,v) *(gpio+19) = v ? (*(gpio+19) | (1<<g)) : (*(gpio+19) ^ (1<<g))
 /* GPFEN0 GPIO Pin Falling Edge Detect Enable/Disable */
 #define GPIO_INT_FALLING(g,v) *(gpio+22) = v ? (*(gpio+22) | (1<<g)) : (*(gpio+22) ^ (1<<g))
+#define GPIO_IRQ(g) gpiochip->to_irq(gpiochip,g)
 
 #ifndef MAX_UDELAY_MS
 #define MAX_UDELAY_US 5000
@@ -400,14 +401,14 @@ static int set_use_inc(void *data)
 	/* initialize timestamp */
 	do_gettimeofday(&lasttv);
 
-	result = request_irq(INTERRUPT_GPIO0, (irq_handler_t)
+	result = request_irq(GPIO_IRQ(gpio_in_pin), (irq_handler_t)
 			     irq_handler, 0,
 			     LIRC_DRIVER_NAME, (void*) gpio);
 
 	switch (result) {
 	case -EBUSY:
 		printk(KERN_ERR LIRC_DRIVER_NAME
-		       ": IRQ %d is busy\n", INTERRUPT_GPIO0);
+		       ": IRQ %d is busy\n", GPIO_IRQ(gpio_in_pin));
 		return -EBUSY;
 	case -EINVAL:
 		printk(KERN_ERR LIRC_DRIVER_NAME
@@ -415,7 +416,7 @@ static int set_use_inc(void *data)
 		return -EINVAL;
 	default:
 		dprintk(KERN_INFO LIRC_DRIVER_NAME
-			": Interrupt %04x obtained\n", INTERRUPT_GPIO0);
+			": Interrupt %04x obtained\n", GPIO_IRQ(gpio_in_pin));
 		break;
 	};
 
@@ -452,10 +453,10 @@ static void set_use_dec(void *data)
 
 	spin_unlock_irqrestore(&lock, flags);
 
-	free_irq(INTERRUPT_GPIO0, (void *) gpio);
+	free_irq(GPIO_IRQ(gpio_in_pin), (void *) gpio);
 
 	dprintk(KERN_INFO LIRC_DRIVER_NAME
-		": freed IRQ %04x\n", INTERRUPT_GPIO0);
+		": freed IRQ %04x\n", GPIO_IRQ(gpio_in_pin));
 }
 
 static ssize_t lirc_write(struct file *file, const char *buf,
