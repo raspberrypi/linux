@@ -60,7 +60,7 @@
 #define DWC_DRIVER_VERSION	"3.00a 10-AUG-2012"
 #define DWC_DRIVER_DESC		"HS OTG USB Controller driver"
 
-bool microframe_schedule;
+bool microframe_schedule=true;
 
 static const char dwc_driver_name[] = "dwc_otg";
 
