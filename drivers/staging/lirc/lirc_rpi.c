@@ -51,20 +51,21 @@
 
 /* include RPi harware specific constants */
 #include <mach/hardware.h>
+#include <linux/gpio.h>
 
 #define LIRC_DRIVER_NAME "lirc_rpi"
 #define RBUF_LEN 256
 #define LIRC_TRANSMITTER_LATENCY 256
 /* set GPIO pin g as input */
-#define GPIO_DIR_INPUT(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
+#define GPIO_DIR_INPUT(g) gpiochip->direction_input(gpiochip,g)
 /* set GPIO pin g as output */
-#define GPIO_DIR_OUTPUT(g) *(gpio+((g)/10)) |=  (1<<(((g)%10)*3))
+#define GPIO_DIR_OUTPUT(g) gpiochip->direction_output(gpiochip,g,1)
 /* get logical value from gpio pin g */
-#define GPIO_READ_PIN(g) (*(gpio+13) & (1<<(g))) && 1
+#define GPIO_READ_PIN(g) gpiochip->get(gpiochip,g)
 /* sets   bits which are 1 ignores bits which are 0 */
-#define GPIO_SET_PIN(g)	*(gpio+7) = 1<<g;
+#define GPIO_SET_PIN(g)	gpiochip->set(gpiochip,g,1)
 /* clears bits which are 1 ignores bits which are 0 */
-#define GPIO_CLEAR_PIN(g) *(gpio+10) = 1<<g;
+#define GPIO_CLEAR_PIN(g) gpiochip->set(gpiochip,g,0)
 /* Clear GPIO interrupt on the pin we use */
 #define GPIO_INT_CLEAR(g) *(gpio+16) = (*(gpio+16) | (1<<g));
 /* GPREN0 GPIO Pin Rising Edge Detect Enable/Disable */
@@ -97,6 +98,8 @@ static int debug;
 static int sense = -1;
 /* use softcarrier by default */
 static int softcarrier = 1;
+
+struct gpio_chip *gpiochip;
 
 /* forward declarations */
 static long send_pulse(unsigned long length);
@@ -310,9 +313,14 @@ static irqreturn_t irq_handler(int i, void *blah, struct pt_regs *regs)
 	return IRQ_HANDLED;
 }
 
+int is_right_chip(struct gpio_chip *chip, void *data) {
+	printk(KERN_ALERT"is_right_chip %s %d\n",chip->label,strcmp(data,chip->label));
+	if (strcmp(data,chip->label) == 0) return 1;
+	return 0;
+}
 static int init_port(void)
 {
-	int i, nlow, nhigh;
+	int i, nlow, nhigh, ret;
 
 	/* reserve GPIO memory region. */
 	if (request_mem_region(GPIO_BASE, SZ_4K, LIRC_DRIVER_NAME) == NULL) {
@@ -325,13 +333,27 @@ static int init_port(void)
 	if ((gpio = ioremap_nocache(GPIO_BASE, SZ_4K)) == NULL) {
 		printk(KERN_ERR LIRC_DRIVER_NAME
 		       ": failed to map GPIO I/O memory\n");
-		return -EBUSY;
+		ret = -EBUSY;
+		goto error1;
+	}
+	gpiochip = gpiochip_find("bcm2708_gpio",is_right_chip);
+	if (!gpiochip) return -ENODEV;
+	if (gpio_request(gpio_out_pin,"lirc_rpi")) {
+		printk(KERN_ALERT"cant claim gpio pin %d\n",gpio_out_pin);
+		ret = -ENODEV;
+		goto error2;
+	}
+	if (gpio_request(gpio_in_pin,"lirc_rpi")) {
+		printk(KERN_ALERT"cant claim gpio pin %d\n",gpio_in_pin);
+		ret = -ENODEV;
+		goto error3;
 	}
 
 	/* set specified pin as input */
 	GPIO_DIR_INPUT(gpio_in_pin);
 
 	GPIO_DIR_OUTPUT(gpio_out_pin);
+	GPIO_CLEAR_PIN(gpio_out_pin);
 
 	/* if pin is high, then this must be an active low receiver. */
 	if (sense == -1) {
@@ -361,6 +383,13 @@ static int init_port(void)
 		       sense ? "low" : "high", gpio_in_pin);
 	}
 	return 0;
+	error3:
+	gpio_free(gpio_out_pin);
+	error2:
+	iounmap(gpio);
+	error1:
+	release_mem_region(GPIO_BASE, SZ_4K);
+	return ret;
 }
 
 static int set_use_inc(void *data)
@@ -451,6 +480,7 @@ static ssize_t lirc_write(struct file *file, const char *buf,
 		else
 			delta = send_pulse(wbuf[i]);
 	}
+	GPIO_CLEAR_PIN(gpio_out_pin);
 
 	spin_unlock_irqrestore(&lock, flags);
 	kfree(wbuf);
@@ -581,6 +611,8 @@ static int __init lirc_rpi_init(void)
 
 static void lirc_rpi_exit(void)
 {
+	gpio_free(gpio_out_pin);
+	gpio_free(gpio_in_pin);
 	platform_device_unregister(lirc_rpi_dev);
 	platform_driver_unregister(&lirc_rpi_driver);
 	lirc_buffer_free(&rbuf);
