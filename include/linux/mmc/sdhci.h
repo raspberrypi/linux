@@ -93,6 +93,7 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_OWN_CARD_DETECTION			(1<<0)
 
 	int irq;		/* Device IRQ */
+	int second_irq; 	/* Additional IRQ to disable/enable in low-latency mode */
 	void __iomem *ioaddr;	/* Mapped address */
 
 	const struct sdhci_ops *ops;	/* Low level hw interface */
