@@ -653,7 +653,7 @@ void
 sdhci_bcm2708_platdma_reset(struct sdhci_host *host, struct mmc_data *data)
 {
 	struct sdhci_bcm2708_priv *host_priv = SDHCI_HOST_PRIV(host);
-	unsigned long flags;
+//	unsigned long flags;
 
 	BUG_ON(NULL == host);
 
@@ -750,7 +750,7 @@ static void sdhci_bcm2708_dma_complete_irq(struct sdhci_host *host,
 	int sg_len;
 	int sg_ix;
 	int sg_todo;
-	unsigned long flags;
+//	unsigned long flags;
 
 	BUG_ON(NULL == host);
 

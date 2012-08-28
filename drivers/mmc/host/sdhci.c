@@ -127,6 +127,7 @@ static int sdhci_locked=0;
 void sdhci_spin_lock(struct sdhci_host *host)
 {
 	spin_lock(&host->lock);
+#ifdef CONFIG_PREEMPT
 	if(enable_llm)
 	{
 		disable_irq_nosync(host->irq);
@@ -134,10 +135,12 @@ void sdhci_spin_lock(struct sdhci_host *host)
 			disable_irq_nosync(host->second_irq);
 		local_irq_enable();
 	}
+#endif
 }
 
 void sdhci_spin_unlock(struct sdhci_host *host)
 {
+#ifdef CONFIG_PREEMPT
 	if(enable_llm)
 	{
 		local_irq_disable();
@@ -145,11 +148,13 @@ void sdhci_spin_unlock(struct sdhci_host *host)
 		if(host->second_irq)
 			enable_irq(host->second_irq);
 	}
+#endif
 	spin_unlock(&host->lock);
 }
 
 void sdhci_spin_lock_irqsave(struct sdhci_host *host,unsigned long *flags)
 {
+#ifdef CONFIG_PREEMPT
 	if(enable_llm)
 	{
 		while(sdhci_locked)
@@ -163,11 +168,13 @@ void sdhci_spin_lock_irqsave(struct sdhci_host *host,unsigned long *flags)
 		local_irq_enable();
 	}
 	else
+#endif
 		spin_lock_irqsave(&host->lock,*flags);
 }
 
 void sdhci_spin_unlock_irqrestore(struct sdhci_host *host,unsigned long flags)
 {
+#ifdef CONFIG_PREEMPT
 	if(enable_llm)
 	{
 		local_irq_disable();
@@ -175,25 +182,30 @@ void sdhci_spin_unlock_irqrestore(struct sdhci_host *host,unsigned long flags)
 		if(host->second_irq)
 			enable_irq(host->second_irq);
 	}
+#endif
 	spin_unlock_irqrestore(&host->lock,flags);
 }
 
 static void sdhci_spin_enable_schedule(struct sdhci_host *host)
 {
+#ifdef CONFIG_PREEMPT
 	if(enable_llm)
 	{
 		sdhci_locked = 1;
 		preempt_enable();
 	}
+#endif
 }
 
 static void sdhci_spin_disable_schedule(struct sdhci_host *host)
 {
+#ifdef CONFIG_PREEMPT
 	if(enable_llm)
 	{
 		preempt_disable();
 		sdhci_locked = 0;
 	}
+#endif
 }
 
 static void sdhci_clear_set_irqs(struct sdhci_host *host, u32 clear, u32 set)
