@@ -5,7 +5,7 @@
  *	      (space-lengths) (just like the lirc_serial driver does)
  *	      between GPIO interrupt events on the Raspberry Pi.
  *	      Lots of code has been taken from the lirc_serial module,
- *	      so I would like say thank to the authors.
+ *	      so I would like say thanks to the authors.
  *
  * Copyright (C) 2012 Aron Robert Szabo <aron@reon.hu>
  *  This program is free software; you can redistribute it and/or modify
@@ -56,16 +56,7 @@
 #define LIRC_DRIVER_NAME "lirc_rpi"
 #define RBUF_LEN 256
 #define LIRC_TRANSMITTER_LATENCY 256
-/* set GPIO pin g as input */
-#define GPIO_DIR_INPUT(g) gpiochip->direction_input(gpiochip,g)
-/* set GPIO pin g as output */
-#define GPIO_DIR_OUTPUT(g) gpiochip->direction_output(gpiochip,g,1)
-/* get logical value from gpio pin g */
-#define GPIO_READ_PIN(g) gpiochip->get(gpiochip,g)
-/* sets   bits which are 1 ignores bits which are 0 */
-#define GPIO_SET_PIN(g)	gpiochip->set(gpiochip,g,1)
-/* clears bits which are 1 ignores bits which are 0 */
-#define GPIO_CLEAR_PIN(g) gpiochip->set(gpiochip,g,0)
+
 /* Clear GPIO interrupt on the pin we use */
 #define GPIO_INT_CLEAR(g) *(gpio+16) = (*(gpio+16) | (1<<g));
 /* GPREN0 GPIO Pin Rising Edge Detect Enable/Disable */
@@ -112,7 +103,7 @@ int valid_gpio_pins[] = { 0, 1, 4, 8, 7, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23,
 volatile unsigned *gpio;
 
 static struct platform_device *lirc_rpi_dev;
-static struct timeval lasttv = {0, 0};
+static struct timeval lasttv = { 0, 0 };
 static struct lirc_buffer rbuf;
 static spinlock_t lock;
 
@@ -164,10 +155,10 @@ static long send_pulse_softcarrier(unsigned long length)
 	actual = 0; target = 0; flag = 0;
 	while (actual < length) {
 		if (flag) {
-			GPIO_CLEAR_PIN(gpio_out_pin);
+			gpiochip->set(gpiochip, gpio_out_pin, 0);
 			target += space_width;
 		} else {
-			GPIO_SET_PIN(gpio_out_pin);
+			gpiochip->set(gpiochip, gpio_out_pin, 1);
 			target += pulse_width;
 		}
 		d = (target - actual -
@@ -191,7 +182,7 @@ static long send_pulse(unsigned long length)
 	if (softcarrier) {
 		return send_pulse_softcarrier(length);
 	} else {
-		GPIO_SET_PIN(gpio_out_pin);
+		gpiochip->set(gpiochip, gpio_out_pin, 1);
 		safe_udelay(length);
 		return 0;
 	}
@@ -199,7 +190,7 @@ static long send_pulse(unsigned long length)
 
 static void send_space(long length)
 {
-	GPIO_CLEAR_PIN(gpio_out_pin);
+	gpiochip->set(gpiochip, gpio_out_pin, 0);
 	if (length <= 0)
 		return;
 	safe_udelay(length);
@@ -266,7 +257,7 @@ static irqreturn_t irq_handler(int i, void *blah, struct pt_regs *regs)
 	int signal;
 
 	/* use the GPIO signal level */
-	signal = GPIO_READ_PIN(gpio_in_pin);
+	signal = gpiochip->get(gpiochip, gpio_in_pin);
 
 	/* reset interrupt */
 	GPIO_INT_CLEAR(gpio_in_pin);
@@ -313,11 +304,15 @@ static irqreturn_t irq_handler(int i, void *blah, struct pt_regs *regs)
 	return IRQ_HANDLED;
 }
 
-int is_right_chip(struct gpio_chip *chip, void *data) {
-	printk(KERN_ALERT"is_right_chip %s %d\n",chip->label,strcmp(data,chip->label));
-	if (strcmp(data,chip->label) == 0) return 1;
+static int is_right_chip(struct gpio_chip *chip, void *data)
+{
+	printk(KERN_ALERT "is_right_chip %s %d\n", chip->label,
+	       strcmp(data,chip->label));
+	if (strcmp(data,chip->label) == 0)
+		return 1;
 	return 0;
 }
+
 static int init_port(void)
 {
 	int i, nlow, nhigh, ret;
@@ -334,26 +329,33 @@ static int init_port(void)
 		printk(KERN_ERR LIRC_DRIVER_NAME
 		       ": failed to map GPIO I/O memory\n");
 		ret = -EBUSY;
-		goto error1;
+		goto exit_release_mem_region;
 	}
-	gpiochip = gpiochip_find("bcm2708_gpio",is_right_chip);
-	if (!gpiochip) return -ENODEV;
-	if (gpio_request(gpio_out_pin,"lirc_rpi")) {
-		printk(KERN_ALERT"cant claim gpio pin %d\n",gpio_out_pin);
+
+
+	gpiochip = gpiochip_find("bcm2708_gpio", is_right_chip);
+	if (!gpiochip) {
 		ret = -ENODEV;
-		goto error2;
+		goto exit_iounmap;
 	}
+
+	if (gpio_request(gpio_out_pin, "lirc_rpi")) {
+		printk(KERN_ALERT "cant claim gpio pin %d\n", gpio_out_pin);
+		ret = -ENODEV;
+		goto exit_iounmap;
+	}
+	
 	if (gpio_request(gpio_in_pin,"lirc_rpi")) {
-		printk(KERN_ALERT"cant claim gpio pin %d\n",gpio_in_pin);
+		printk(KERN_ALERT "cant claim gpio pin %d\n", gpio_in_pin);
 		ret = -ENODEV;
-		goto error3;
+		goto exit_gpio_free;
 	}
 
 	/* set specified pin as input */
-	GPIO_DIR_INPUT(gpio_in_pin);
+	gpiochip->direction_input(gpiochip, gpio_in_pin);
 
-	GPIO_DIR_OUTPUT(gpio_out_pin);
-	GPIO_CLEAR_PIN(gpio_out_pin);
+	gpiochip->direction_output(gpiochip, gpio_out_pin, 1);
+	gpiochip->set(gpiochip, gpio_out_pin, 0);
 
 	/* if pin is high, then this must be an active low receiver. */
 	if (sense == -1) {
@@ -367,7 +369,7 @@ static int init_port(void)
 		nlow = 0;
 		nhigh = 0;
 		for (i = 0; i < 9; i++) {
-			if (GPIO_READ_PIN(gpio_in_pin))
+			if (gpiochip->get(gpiochip, gpio_in_pin))
 				nlow++;
 			else
 				nhigh++;
@@ -382,13 +384,18 @@ static int init_port(void)
 		       ": manually using active %s receiver on GPIO pin %d\n",
 		       sense ? "low" : "high", gpio_in_pin);
 	}
+
 	return 0;
-	error3:
+
+	exit_gpio_free:
 	gpio_free(gpio_out_pin);
-	error2:
+
+	exit_iounmap:
 	iounmap(gpio);
-	error1:
+
+	exit_release_mem_region:
 	release_mem_region(GPIO_BASE, SZ_4K);
+
 	return ret;
 }
 
@@ -480,7 +487,7 @@ static ssize_t lirc_write(struct file *file, const char *buf,
 		else
 			delta = send_pulse(wbuf[i]);
 	}
-	GPIO_CLEAR_PIN(gpio_out_pin);
+	gpiochip->set(gpiochip, gpio_out_pin, 0);
 
 	spin_unlock_irqrestore(&lock, flags);
 	kfree(wbuf);
@@ -629,9 +636,9 @@ static int __init lirc_rpi_init_module(void)
 
 	/* check if the module received valid gpio pin numbers */
 	result = 0;
-	if(gpio_in_pin != gpio_out_pin) {
+	if (gpio_in_pin != gpio_out_pin) {
 		for(i = 0; (i < ARRAY_SIZE(valid_gpio_pins)) && (result != 2); i++) {
-			if(gpio_in_pin == valid_gpio_pins[i] ||
+			if (gpio_in_pin == valid_gpio_pins[i] ||
 			   gpio_out_pin == valid_gpio_pins[i]) {
 				result++;
 			}
@@ -679,7 +686,7 @@ static void __exit lirc_rpi_exit_module(void)
 	lirc_rpi_exit();
 
 	/* release mapped memory and allocated region */
-	if(gpio != NULL) {
+	if (gpio != NULL) {
 		iounmap(gpio);
 		release_mem_region(GPIO_BASE, SZ_4K);
 	}
