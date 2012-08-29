@@ -1,8 +1,8 @@
 /* =========================================================================
- * $File: //dwh/usb_iip/dev/software/dwc_common_port/dwc_crypto.h $
- * $Revision: #1 $
- * $Date: 2008/12/21 $
- * $Change: 1156609 $
+ * $File: //dwh/usb_iip/dev/software/dwc_common_port_2/dwc_crypto.h $
+ * $Revision: #3 $
+ * $Date: 2010/09/28 $
+ * $Change: 1596182 $
  *
  * Synopsys Portability Library Software and documentation
  * (hereinafter, "Software") is an Unsupported proprietary work of
@@ -36,6 +36,10 @@
 
 #ifndef _DWC_CRYPTO_H_
 #define _DWC_CRYPTO_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @file
  *
@@ -99,5 +103,9 @@ void dwc_wusb_gen_key(uint8_t *ccm_nonce, uint8_t *mk,
 
 void dwc_wusb_gen_mic(uint8_t *ccm_nonce, uint8_t
 			*kck, uint8_t *data, uint8_t *mic);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _DWC_CRYPTO_H_ */

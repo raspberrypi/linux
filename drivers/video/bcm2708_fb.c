@@ -18,6 +18,7 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 #include <linux/mm.h>
 #include <linux/fb.h>
 #include <linux/init.h>
@@ -48,6 +49,7 @@ struct fbinfo_s {
 	u32 xoffset, yoffset;
 	u32 base;
 	u32 screen_size;
+	u16 cmap[256];
 };
 
 struct bcm2708_fb {
@@ -220,7 +222,6 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 	/* inform vc about new framebuffer */
 	bcm_mailbox_write(MBOX_CHAN_FB, fb->dma);
 
-	/* TODO: replace fb driver with vchiq version */
 	/* wait for response */
 	bcm_mailbox_read(MBOX_CHAN_FB, &val);
 
@@ -266,18 +267,31 @@ static inline u32 convert_bitfield(int val, struct fb_bitfield *bf)
 	return (val >> (16 - bf->length) & mask) << bf->offset;
 }
 
+
 static int bcm2708_fb_setcolreg(unsigned int regno, unsigned int red,
 				unsigned int green, unsigned int blue,
 				unsigned int transp, struct fb_info *info)
 {
 	struct bcm2708_fb *fb = to_bcm2708(info);
 
-	if (regno < 16)
+	/*pr_info("BCM2708FB: setcolreg %d:(%02x,%02x,%02x,%02x) %x\n", regno, red, green, blue, transp, fb->fb.fix.visual);*/
+	if (fb->fb.var.bits_per_pixel <= 8) {
+		if (regno < 256) {
+			/* blue [0:4], green [5:10], red [11:15] */
+			fb->info->cmap[regno] = ((red   >> (16-5)) & 0x1f) << 11 |
+						((green >> (16-6)) & 0x3f) << 5 |
+						((blue  >> (16-5)) & 0x1f) << 0;
+		}
+		/* Hack: we need to tell GPU the palette has changed, but currently bcm2708_fb_set_par takes noticable time when called for every (256) colour */
+		/* So just call it for what looks like the last colour in a list for now. */
+		if (regno == 15 || regno == 255)
+			bcm2708_fb_set_par(info);
+        } else if (regno < 16) {
 		fb->cmap[regno] = convert_bitfield(transp, &fb->fb.var.transp) |
 		    convert_bitfield(blue, &fb->fb.var.blue) |
 		    convert_bitfield(green, &fb->fb.var.green) |
 		    convert_bitfield(red, &fb->fb.var.red);
-
+	}
 	return regno > 255;
 }
 
@@ -360,8 +374,8 @@ static int bcm2708_fb_register(struct bcm2708_fb *fb)
 	fb->fb.var.vmode = FB_VMODE_NONINTERLACED;
 	fb->fb.var.activate = FB_ACTIVATE_NOW;
 	fb->fb.var.nonstd = 0;
-	fb->fb.var.height = fbwidth;
-	fb->fb.var.width = fbheight;
+	fb->fb.var.height = -1;		/* height of picture in mm    */
+	fb->fb.var.width = -1;		/* width of picture in mm    */
 	fb->fb.var.accel_flags = 0;
 
 	fb->fb.monspecs.hfmin = 0;

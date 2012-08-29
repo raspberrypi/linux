@@ -1,8 +1,8 @@
 /* =========================================================================
- * $File: //dwh/usb_iip/dev/software/dwc_common_port/dwc_dh.h $
- * $Revision: #1 $
- * $Date: 2008/12/21 $
- * $Change: 1156609 $
+ * $File: //dwh/usb_iip/dev/software/dwc_common_port_2/dwc_dh.h $
+ * $Revision: #4 $
+ * $Date: 2010/09/28 $
+ * $Change: 1596182 $
  *
  * Synopsys Portability Library Software and documentation
  * (hereinafter, "Software") is an Unsupported proprietary work of
@@ -36,6 +36,10 @@
 #ifndef _DWC_DH_H_
 #define _DWC_DH_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "dwc_os.h"
 
 /** @file
@@ -46,12 +50,12 @@
 
 extern int dwc_dh_sha256(uint8_t *message, uint32_t len, uint8_t *out);
 extern int dwc_dh_hmac_sha256(uint8_t *message, uint32_t messagelen,
-				     uint8_t *key, uint32_t keylen,
-				     uint8_t *out);
-extern int dwc_dh_modpow(void *num, uint32_t num_len,
-			       void *exp, uint32_t exp_len,
-			       void *mod, uint32_t mod_len,
-			       void *out);
+			      uint8_t *key, uint32_t keylen,
+			      uint8_t *out);
+extern int dwc_dh_modpow(void *mem_ctx, void *num, uint32_t num_len,
+			 void *exp, uint32_t exp_len,
+			 void *mod, uint32_t mod_len,
+			 void *out);
 
 /** Computes PKD or PKH, and SHA-256(PKd || Nd)
  *
@@ -66,7 +70,7 @@ extern int dwc_dh_modpow(void *num, uint32_t num_len,
  * pk = A 384-byte buffer to be filled with the PKH or PKD.
  * hash = A 32-byte buffer to be filled with SHA-256(PK || ND).
  */
-extern int dwc_dh_pk(uint8_t nd, uint8_t *exp, uint8_t *pkd, uint8_t *hash);
+extern int dwc_dh_pk(void *mem_ctx, uint8_t nd, uint8_t *exp, uint8_t *pkd, uint8_t *hash);
 
 /** Computes the DHKEY, and VD.
  *
@@ -87,12 +91,16 @@ extern int dwc_dh_pk(uint8_t nd, uint8_t *exp, uint8_t *pkd, uint8_t *hash);
  * ck = A 16-byte buffer to be filled with the CK.
  * kdk = A 32-byte buffer to be filled with the KDK.
  */
-extern int dwc_dh_derive_keys(uint8_t nd, uint8_t *pkh, uint8_t *pkd,
+extern int dwc_dh_derive_keys(void *mem_ctx, uint8_t nd, uint8_t *pkh, uint8_t *pkd,
 			      uint8_t *exp, int is_host,
 			      char *dd, uint8_t *ck, uint8_t *kdk);
 
 #ifdef DH_TEST_VECTORS
 extern void dwc_run_dh_test_vectors(void);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* _DWC_DH_H_ */

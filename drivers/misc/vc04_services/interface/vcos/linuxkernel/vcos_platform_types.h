@@ -26,6 +26,7 @@ VideoCore OS Abstraction Layer - platform-specific types and defines
 #include <stddef.h>
 #include <linux/types.h>
 #include <linux/bug.h>
+#include <linux/kernel.h>
 
 #define VCOSPRE_ extern
 #define VCOSPOST_

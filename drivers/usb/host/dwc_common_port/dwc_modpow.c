@@ -27,9 +27,9 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  */
+#ifdef DWC_CRYPTOLIB
 
 #ifndef CONFIG_MACH_IPMATE
-
 
 #include "dwc_modpow.h"
 
@@ -38,17 +38,17 @@
 #define BIGNUM_INT_BITS  32
 
 
-static void *snmalloc(size_t n, size_t size)
+static void *snmalloc(void *mem_ctx, size_t n, size_t size)
 {
     void *p;
     size *= n;
     if (size == 0) size = 1;
-    p = DWC_ALLOC(size);
+    p = dwc_alloc(mem_ctx, size);
     return p;
 }
 
-#define snewn(n, type) ((type *)snmalloc((n), sizeof(type)))
-#define sfree DWC_FREE
+#define snewn(ctx, n, type) ((type *)snmalloc((ctx), (n), sizeof(type)))
+#define sfree dwc_free
 
 /*
  * Usage notes:
@@ -86,9 +86,9 @@ static void *snmalloc(size_t n, size_t size)
 
 #define BIGNUM_INTERNAL
 
-static Bignum newbn(int length)
+static Bignum newbn(void *mem_ctx, int length)
 {
-    Bignum b = snewn(length + 1, BignumInt);
+    Bignum b = snewn(mem_ctx, length + 1, BignumInt);
     //if (!b)
     //abort();		       /* FIXME */
     DWC_MEMSET(b, 0, (length + 1) * sizeof(*b));
@@ -96,13 +96,13 @@ static Bignum newbn(int length)
     return b;
 }
 
-void freebn(Bignum b)
+void freebn(void *mem_ctx, Bignum b)
 {
     /*
      * Burn the evidence, just in case.
      */
     DWC_MEMSET(b, 0, sizeof(b[0]) * (b[0] + 1));
-    sfree(b);
+    sfree(mem_ctx, b);
 }
 
 /*
@@ -258,7 +258,7 @@ static void internal_mod(BignumInt *a, int alen,
  * We optionally write out a quotient if `quotient' is non-NULL.
  * We can avoid writing out the result if `result' is NULL.
  */
-void bigdivmod(Bignum p, Bignum mod, Bignum result, Bignum quotient)
+void bigdivmod(void *mem_ctx, Bignum p, Bignum mod, Bignum result, Bignum quotient)
 {
     BignumInt *n, *m;
     int mshift;
@@ -267,7 +267,9 @@ void bigdivmod(Bignum p, Bignum mod, Bignum result, Bignum quotient)
     /* Allocate m of size mlen, copy mod to m */
     /* We use big endian internally */
     mlen = mod[0];
-    m = snewn(mlen, BignumInt);
+    m = snewn(mem_ctx, mlen, BignumInt);
+    //if (!m)
+    //abort();		       /* FIXME */
     for (j = 0; j < mlen; j++)
 	m[j] = mod[mod[0] - j];
 
@@ -287,7 +289,9 @@ void bigdivmod(Bignum p, Bignum mod, Bignum result, Bignum quotient)
 	plen = mlen + 1;
 
     /* Allocate n of size plen, copy p to n */
-    n = snewn(plen, BignumInt);
+    n = snewn(mem_ctx, plen, BignumInt);
+    //if (!n)
+    //abort();		       /* FIXME */
     for (j = 0; j < plen; j++)
 	n[j] = 0;
     for (j = 1; j <= (int)p[0]; j++)
@@ -317,26 +321,26 @@ void bigdivmod(Bignum p, Bignum mod, Bignum result, Bignum quotient)
     /* Free temporary arrays */
     for (i = 0; i < mlen; i++)
 	m[i] = 0;
-    sfree(m);
+    sfree(mem_ctx, m);
     for (i = 0; i < plen; i++)
 	n[i] = 0;
-    sfree(n);
+    sfree(mem_ctx, n);
 }
 
 /*
  * Simple remainder.
  */
-Bignum bigmod(Bignum a, Bignum b)
+Bignum bigmod(void *mem_ctx, Bignum a, Bignum b)
 {
-    Bignum r = newbn(b[0]);
-    bigdivmod(a, b, r, NULL);
+    Bignum r = newbn(mem_ctx, b[0]);
+    bigdivmod(mem_ctx, a, b, r, NULL);
     return r;
 }
 
 /*
  * Compute (base ^ exp) % mod.
  */
-Bignum dwc_modpow(Bignum base_in, Bignum exp, Bignum mod)
+Bignum dwc_modpow(void *mem_ctx, Bignum base_in, Bignum exp, Bignum mod)
 {
     BignumInt *a, *b, *n, *m;
     int mshift;
@@ -353,12 +357,14 @@ Bignum dwc_modpow(Bignum base_in, Bignum exp, Bignum mod)
      * Make sure the base is smaller than the modulus, by reducing
      * it modulo the modulus if not.
      */
-    base = bigmod(base_in, mod);
+    base = bigmod(mem_ctx, base_in, mod);
 
     /* Allocate m of size mlen, copy mod to m */
     /* We use big endian internally */
     mlen = mod[0];
-    m = snewn(mlen, BignumInt);
+    m = snewn(mem_ctx, mlen, BignumInt);
+    //if (!m)
+    //abort();		       /* FIXME */
     for (j = 0; j < mlen; j++)
 	m[j] = mod[mod[0] - j];
 
@@ -375,7 +381,9 @@ Bignum dwc_modpow(Bignum base_in, Bignum exp, Bignum mod)
     }
 
     /* Allocate n of size mlen, copy base to n */
-    n = snewn(mlen, BignumInt);
+    n = snewn(mem_ctx, mlen, BignumInt);
+    //if (!n)
+    //abort();		       /* FIXME */
     i = mlen - base[0];
     for (j = 0; j < i; j++)
 	n[j] = 0;
@@ -383,8 +391,12 @@ Bignum dwc_modpow(Bignum base_in, Bignum exp, Bignum mod)
 	n[i + j] = base[base[0] - j];
 
     /* Allocate a and b of size 2*mlen. Set a = 1 */
-    a = snewn(2 * mlen, BignumInt);
-    b = snewn(2 * mlen, BignumInt);
+    a = snewn(mem_ctx, 2 * mlen, BignumInt);
+    //if (!a)
+    //abort();		       /* FIXME */
+    b = snewn(mem_ctx, 2 * mlen, BignumInt);
+    //if (!b)
+    //abort();		       /* FIXME */
     for (i = 0; i < 2 * mlen; i++)
 	a[i] = 0;
     a[2 * mlen - 1] = 1;
@@ -435,7 +447,7 @@ Bignum dwc_modpow(Bignum base_in, Bignum exp, Bignum mod)
     }
 
     /* Copy result to buffer */
-    result = newbn(mod[0]);
+    result = newbn(mem_ctx, mod[0]);
     for (i = 0; i < mlen; i++)
 	result[result[0] - i] = a[i + mlen];
     while (result[0] > 1 && result[result[0]] == 0)
@@ -444,18 +456,18 @@ Bignum dwc_modpow(Bignum base_in, Bignum exp, Bignum mod)
     /* Free temporary arrays */
     for (i = 0; i < 2 * mlen; i++)
 	a[i] = 0;
-    sfree(a);
+    sfree(mem_ctx, a);
     for (i = 0; i < 2 * mlen; i++)
 	b[i] = 0;
-    sfree(b);
+    sfree(mem_ctx, b);
     for (i = 0; i < mlen; i++)
 	m[i] = 0;
-    sfree(m);
+    sfree(mem_ctx, m);
     for (i = 0; i < mlen; i++)
 	n[i] = 0;
-    sfree(n);
+    sfree(mem_ctx, n);
 
-    freebn(base);
+    freebn(mem_ctx, base);
 
     return result;
 }
@@ -596,7 +608,7 @@ int main(void)
 {
 	int i;
 	__u32 *k;
-	k = modpow(dh_g, dh_a, dh_p);
+	k = dwc_modpow(NULL, dh_g, dh_a, dh_p);
 
 	printf("\n\n");
 	for (i=0; i<k[0]; i++) {
@@ -620,3 +632,5 @@ int main(void)
 #endif /* UNITTEST */
 
 #endif /* CONFIG_MACH_IPMATE */
+
+#endif /*DWC_CRYPTOLIB */

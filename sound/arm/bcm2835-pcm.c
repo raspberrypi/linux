@@ -26,11 +26,11 @@ static struct snd_pcm_hardware snd_bcm2835_playback_hw = {
 	.rate_max = 48000,
 	.channels_min = 1,
 	.channels_max = 2,
-	.buffer_bytes_max = (4 * 8 - 1) * 1024,	/* Needs to be less than audioplay buffer size */
+	.buffer_bytes_max = 32 * 1024,	/* Needs to be less than audioplay buffer size */
 	.period_bytes_min = 1 * 1024,
-	.period_bytes_max = (4 * 8 - 1) * 1024,
+	.period_bytes_max = 32 * 1024,
 	.periods_min = 1,
-	.periods_max = 4 * 8 - 1,
+	.periods_max = 32,
 };
 
 static void snd_bcm2835_playback_free(struct snd_pcm_runtime *runtime)
@@ -64,14 +64,18 @@ static irqreturn_t bcm2835_playback_fifo_irq(int irq, void *dev_id)
 		    ((alsa_stream->pos + consumed) / alsa_stream->period_size))
 			new_period = 1;
 	}
-	audio_debug("updating pos cur: %d + %d max:%d new_period:%d\n",
+	audio_debug("updating pos cur: %d + %d max:%d period_bytes:%d, hw_ptr: %d new_period:%d\n",
 		      alsa_stream->pos,
-		      (consumed /** AUDIO_IPC_BLOCK_BUFFER_SIZE*/ ),
-		      alsa_stream->buffer_size, new_period);
+		      consumed,
+		      alsa_stream->buffer_size,
+			  (int)(alsa_stream->period_size*alsa_stream->substream->runtime->periods),
+			  frames_to_bytes(alsa_stream->substream->runtime, alsa_stream->substream->runtime->status->hw_ptr),
+			  new_period);
 	if (alsa_stream->buffer_size) {
 		alsa_stream->pos += consumed;
 		alsa_stream->pos %= alsa_stream->buffer_size;
 	}
+
 	if (alsa_stream->substream) {
 		if (new_period)
 			snd_pcm_period_elapsed(alsa_stream->substream);
@@ -135,7 +139,6 @@ static int snd_bcm2835_playback_open(struct snd_pcm_substream *substream)
 	runtime->private_data = alsa_stream;
 	runtime->private_free = snd_bcm2835_playback_free;
 	runtime->hw = snd_bcm2835_playback_hw;
-
 	/* minimum 16 bytes alignment (for vchiq bulk transfers) */
 	snd_pcm_hw_constraint_step(runtime, 0, SNDRV_PCM_HW_PARAM_PERIOD_BYTES,
 				   16);
@@ -224,6 +227,10 @@ static int snd_bcm2835_pcm_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	bcm2835_audio_setup(alsa_stream);
+
+	/* in preparation of the stream, set the controls (volume level) of the stream */
+	bcm2835_audio_set_ctls(alsa_stream->chip);
+
 	audio_info(" .. OUT\n");
 
 	return err;
@@ -345,29 +352,6 @@ static int snd_bcm2835_pcm_copy(struct snd_pcm_substream *substream,
 	return ret;
 }
 
-static int snd_bcm2835_pcm_silence(struct snd_pcm_substream *substream,
-				   int channel, snd_pcm_uframes_t post,
-				   snd_pcm_uframes_t count)
-{
-	int ret;
-	struct snd_pcm_runtime *runtime = substream->runtime;
-	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
-
-	audio_info(" .. IN\n");
-	audio_debug("silence....... (%d) hwptr=%d appl=%d pos=%d\n",
-		      frames_to_bytes(runtime, count), frames_to_bytes(runtime,
-								       runtime->
-								       status->
-								       hw_ptr),
-		      frames_to_bytes(runtime, runtime->control->appl_ptr),
-		      alsa_stream->pos);
-	ret =
-	    bcm2835_audio_write(alsa_stream, frames_to_bytes(runtime, count),
-				NULL);
-	audio_info(" .. OUT\n");
-	return ret;
-}
-
 static int snd_bcm2835_pcm_lib_ioctl(struct snd_pcm_substream *substream,
 				     unsigned int cmd, void *arg)
 {
@@ -388,7 +372,6 @@ static struct snd_pcm_ops snd_bcm2835_playback_ops = {
 	.trigger = snd_bcm2835_pcm_trigger,
 	.pointer = snd_bcm2835_pcm_pointer,
 	.copy = snd_bcm2835_pcm_copy,
-	.silence = snd_bcm2835_pcm_silence,
 };
 
 /* create a pcm device */
@@ -406,7 +389,8 @@ int __devinit snd_bcm2835_new_pcm(bcm2835_chip_t * chip)
 	strcpy(pcm->name, "bcm2835 ALSA");
 	chip->pcm = pcm;
 	chip->dest = AUDIO_DEST_AUTO;
-	chip->volume = 100;
+	chip->volume = alsa2chip(0);
+	chip->mute = CTRL_VOL_UNMUTE;	/*disable mute on startup */
 	/* set operators */
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK,
 			&snd_bcm2835_playback_ops);

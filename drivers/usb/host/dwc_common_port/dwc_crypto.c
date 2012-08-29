@@ -1,8 +1,8 @@
 /* =========================================================================
- * $File: //dwh/usb_iip/dev/software/dwc_common_port/dwc_crypto.c $
- * $Revision: #1 $
- * $Date: 2008/12/21 $
- * $Change: 1156609 $
+ * $File: //dwh/usb_iip/dev/software/dwc_common_port_2/dwc_crypto.c $
+ * $Revision: #5 $
+ * $Date: 2010/09/28 $
+ * $Change: 1596182 $
  *
  * Synopsys Portability Library Software and documentation
  * (hereinafter, "Software") is an Unsupported proprietary work of
@@ -38,6 +38,8 @@
  * This file contains the WUSB cryptographic routines.
  */
 
+#ifdef DWC_CRYPTOLIB
+
 #include "dwc_crypto.h"
 #include "usb.h"
 
@@ -58,7 +60,7 @@ static inline void dump_bytes(char *name, uint8_t *bytes, int len)
 /* Display a block */
 void show_block(const u8 *blk, const char *prefix, const char *suffix, int a)
 {
-#ifdef DEBUG_CRYPTO
+#ifdef DWC_DEBUG_CRYPTO
 	int i, blksize = 16;
 
 	DWC_DEBUG("%s", prefix);
@@ -71,7 +73,6 @@ void show_block(const u8 *blk, const char *prefix, const char *suffix, int a)
 	for (i = 0; i < blksize; i++)
 		DWC_PRINT("%02x%s", *blk++, ((i & 3) == 3) ? "  " : " ");
 	DWC_PRINT(suffix);
-
 #endif
 }
 
@@ -304,3 +305,4 @@ void dwc_wusb_gen_mic(uint8_t *ccm_nonce, uint8_t *kck,
 			data, WUSB_HANDSHAKE_LEN_FOR_MIC, mic);
 }
 
+#endif	/* DWC_CRYPTOLIB */
