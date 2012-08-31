@@ -1,4 +1,4 @@
-iconfig ARM
+config ARM
 	bool
 	default y
 	select ARCH_HAVE_CUSTOM_GPIO_H
