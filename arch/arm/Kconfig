@@ -1,4 +1,4 @@
-iconfig ARM
+config ARM
 	bool
 	default y
 	select HAVE_AOUT
