@@ -140,7 +140,7 @@ static bool allow_highspeed = 1;
 static int emmc_clock_freq = BCM2708_EMMC_CLOCK_FREQ;
 static bool sync_after_dma = 1;
 static bool missing_status = 1;
-bool enable_llm = 0;
+bool enable_llm = 1;
 
 #if 0
 static void hptime_test(void)
