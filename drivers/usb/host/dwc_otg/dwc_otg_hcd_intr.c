@@ -199,6 +199,7 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 	dwc_list_link_t *qh_entry;
 	dwc_otg_qh_t *qh;
 	dwc_otg_transaction_type_e tr_type;
+	int next_sched;
 	gintsts_data_t gintsts = {.d32 = 0 };
 
 	hfnum.d32 =

@@ -1373,12 +1373,12 @@ static void process_periodic_channels(dwc_otg_hcd_t * hcd)
 	int no_queue_space = 0;
 	int no_fifo_space = 0;
 
+	dwc_otg_host_global_regs_t *host_regs;
+	host_regs = hcd->core_if->host_if->host_global_regs;
+
 // OK This is not being called on the right frame, even though we do get every SOF interrupt, need to see if it is
 // not actually in the assigned queue at the right time...
 info_data(info_process_periodic);
-
-	dwc_otg_host_global_regs_t *host_regs;
-	host_regs = hcd->core_if->host_if->host_global_regs;
 
 	DWC_DEBUGPL(DBG_HCDV, "Queue periodic transactions\n");
 #ifdef DEBUG
