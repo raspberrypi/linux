@@ -14,6 +14,7 @@ if WLAN_VENDOR_REALTEK
 
 source "drivers/net/wireless/realtek/rtl818x/Kconfig"
 source "drivers/net/wireless/realtek/rtlwifi/Kconfig"
+source "drivers/net/wireless/realtek/rtl8192cu/Kconfig"
 source "drivers/net/wireless/realtek/rtl8xxxu/Kconfig"
 source "drivers/net/wireless/realtek/rtw88/Kconfig"
 
