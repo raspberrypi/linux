@@ -59,12 +59,20 @@ static void armctrl_mask_irq(unsigned int irq)
 		IO_ADDRESS(ARM_IRQ_DIBL3),
 		0
 	};
+
+	if(d->irq >= FIQ_START)
+	{
+	  writel(0, __io(IO_ADDRESS(ARM_IRQ_FAST)));
+	}
+	else
+	{
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
-	unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
+		unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
 #else
-	unsigned int data = (unsigned int)get_irq_chip_data(irq);
+		unsigned int data = (unsigned int)get_irq_chip_data(irq);
 #endif
-	writel(1 << (data & 0x1f), __io(disables[(data >> 5) & 0x3]));
+		writel(1 << (data & 0x1f), __io(disables[(data >> 5) & 0x3]));
+	}
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
@@ -79,12 +87,21 @@ static void armctrl_unmask_irq(unsigned int irq)
 		IO_ADDRESS(ARM_IRQ_ENBL3),
 		0
 	};
+
+	if(d->irq >= FIQ_START)
+	{
+	  unsigned int data = (unsigned int)irq_get_chip_data(d->irq) - FIQ_START;
+	  writel(0x80 | data, __io(IO_ADDRESS(ARM_IRQ_FAST)));
+	}
+	else
+	{
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
-	unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
+	  unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
 #else
-	unsigned int data = (unsigned int)get_irq_chip_data(irq);
+	  unsigned int data = (unsigned int)get_irq_chip_data(irq);
 #endif
-	writel(1 << (data & 0x1f), __io(enables[(data >> 5) & 0x3]));
+	  writel(1 << (data & 0x1f), __io(enables[(data >> 5) & 0x3]));
+	}
 }
 
 #if defined(CONFIG_PM)
@@ -379,7 +396,7 @@ int __init armctrl_init(void __iomem * base, unsigned int irq_start,
 
 	for (irq = 0; irq < NR_IRQS; irq++) {
 		unsigned int data = irq;
-		if (irq >= INTERRUPT_JPEG)
+		if (irq >= INTERRUPT_JPEG && irq <= INTERRUPT_ARASANSDIO)
 			data = remap_irqs[irq - INTERRUPT_JPEG];
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
