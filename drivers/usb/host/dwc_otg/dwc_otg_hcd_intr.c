@@ -237,6 +237,19 @@ static inline void track_missed_sofs(uint16_t curr_frame_number)
 }
 #endif
 
+struct tracking
+{
+	int frame;
+	int next_sched;
+	int info;
+} tracking_frames[16];
+int tracking_frames_n = 0;
+
+void info_data(int info)
+{
+	tracking_frames[(tracking_frames_n + 15)  % 16].info |= info;
+}
+
 /**
  * Handles the start-of-frame interrupt in host mode. Non-periodic
  * transactions may be queued to the DWC_otg controller for the current
@@ -259,6 +272,7 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 	gintmsk_data_t gintmsk = {.d32 = 0 };
 	dwc_otg_core_global_regs_t *global_regs = core_if->core_global_regs;
 #endif
+	int next_sched;
 
 	hfnum.d32 =
 	    dwc_read_reg32(&hcd->core_if->host_if->host_global_regs->hfnum);
@@ -276,18 +290,44 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 #ifdef DWC_TRACK_MISSED_SOFS
 	track_missed_sofs(hcd->frame_number);
 #endif
+
+	qh_entry = DWC_LIST_FIRST(&hcd->periodic_sched_inactive);
+	next_sched = (DWC_LIST_ENTRY(qh_entry, dwc_otg_qh_t, qh_list_entry))->sched_frame;
+	while (qh_entry != &hcd->periodic_sched_inactive) {
+		qh = DWC_LIST_ENTRY(qh_entry, dwc_otg_qh_t, qh_list_entry);
+		qh_entry = qh_entry->next;
+		if (dwc_frame_num_le(qh->sched_frame, next_sched)) {
+			next_sched = qh->sched_frame;
+		}
+	}	
+
+	tracking_frames[tracking_frames_n].frame = hcd->frame_number;
+        tracking_frames[tracking_frames_n].next_sched = next_sched;
+	tracking_frames[tracking_frames_n].info = 0;
+        tracking_frames_n = (tracking_frames_n + 1) % 16;
+info_data(info_frame);
+
 	/* Determine whether any periodic QHs should be executed. */
 	qh_entry = DWC_LIST_FIRST(&hcd->periodic_sched_inactive);
 	while (qh_entry != &hcd->periodic_sched_inactive) {
 		qh = DWC_LIST_ENTRY(qh_entry, dwc_otg_qh_t, qh_list_entry);
 		qh_entry = qh_entry->next;
 		if (dwc_frame_num_le(qh->sched_frame, hcd->frame_number)) {
-			/*
-			 * Move QH to the ready list to be executed next
-			 * (micro)frame.
-			 */
-			DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_ready,
-					   &qh->qh_list_entry);
+			dwc_otg_qtd_t * qtd = DWC_CIRCLEQ_FIRST(&qh->qtd_list);
+			if(qh->do_split && !qtd->complete_split && qh->sched_frame != hcd->frame_number) {
+				if((qh->sched_frame & 7) != 7)
+					printk("start split not scheduled for frame 7\n");
+				qh->sched_frame = hcd->frame_number | 7;
+				qh->start_split_frame = qh->sched_frame;
+			}
+			else {
+				/*
+				 * Move QH to the ready list to be executed next
+				 * (micro)frame.
+				 */
+				DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_ready,
+						   &qh->qh_list_entry);
+			}
 		}
 	}
 	tr_type = dwc_otg_hcd_select_transactions(hcd);
@@ -1549,10 +1589,23 @@ static int32_t handle_hc_nyet_intr(dwc_otg_hcd_t * hcd,
 
 			if (dwc_full_frame_num(frnum) !=
 			    dwc_full_frame_num(hc->qh->sched_frame)) {
+int i;
 				/*
 				 * No longer in the same full speed frame.
 				 * Treat this as a transaction error.
 				 */
+				printk(KERN_ERR "Dropping split complete packet, check interrupt latency, scheduled at %d.%d frame number %d.%d start_split_frame = %d.%d\n", hc->qh->sched_frame/8, hc->qh->sched_frame%8, frnum/8, frnum%8, hc->qh->start_split_frame/8, hc->qh->start_split_frame%8);
+				for(i = 0; i < 16; i++)
+				{
+					int info = tracking_frames[(tracking_frames_n + i)%16].info;
+					int frame = tracking_frames[(tracking_frames_n + i)%16].frame;
+					int next = tracking_frames[(tracking_frames_n + i)%16].next_sched;
+					char info_string[32] = "f...........pncs";
+					int i;
+					for(i = 0; i < 16; i++)
+						if(info & (1 << i)) info_string[15-i] = info_string[15-i] + ('A' - 'a');
+					printk("frame %d.%d - (%d) %s next_sched = %d.%d\n", frame/8, frame%8, info, info_string, next/8, next%8);
+				}
 #if 0
 				/** @todo Fix system performance so this can
 				 * be treated as an error. Right now complete
@@ -1569,6 +1622,8 @@ static int32_t handle_hc_nyet_intr(dwc_otg_hcd_t * hcd,
 				goto handle_nyet_done;
 			}
 		}
+
+		info_data(info_complete_nyet);
 
 		halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NYET);
 		goto handle_nyet_done;

@@ -1827,6 +1827,7 @@ void dwc_otg_hc_start_transfer(dwc_otg_core_if_t * core_if, dwc_hc_t * hc)
 	if (hc->do_split) {
 		num_packets = 1;
 
+		info_data(hc->complete_split ? info_complete_split : info_start_split);
 		if (hc->complete_split && !hc->ep_is_in) {
 			/* For CSPLIT OUT Transfer, set the size to 0 so the
 			 * core doesn't expect any data written to the FIFO */
@@ -1922,6 +1923,7 @@ void dwc_otg_hc_start_transfer(dwc_otg_core_if_t * core_if, dwc_hc_t * hc)
 		hcsplt.d32 = dwc_read_reg32(&hc_regs->hcsplt);
 		hcsplt.b.spltena = 1;
 		dwc_write_reg32(&hc_regs->hcsplt, hcsplt.d32);
+
 	}
 
 	hcchar.d32 = dwc_read_reg32(&hc_regs->hcchar);
