@@ -598,7 +598,8 @@ void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 				    (qh->sched_frame, frame_number)) {
 					qh->sched_frame = frame_number;
 				}
-				qh->sched_frame |= 0x7;
+				// Try to schedule on frame 0...
+				qh->sched_frame = (qh->sched_frame + 7) & ~7;
 				qh->start_split_frame = qh->sched_frame;
 			}
 		} else {

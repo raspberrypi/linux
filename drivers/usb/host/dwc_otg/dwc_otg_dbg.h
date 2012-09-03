@@ -30,6 +30,14 @@
 #ifndef __DWC_OTG_DBG_H__
 #define __DWC_OTG_DBG_H__
 
+#define info_start_split      (1 << 0)
+#define info_complete_split   (1 << 1)
+#define info_complete_nyet    (1 << 2)
+#define info_process_periodic (1 << 3)
+#define info_frame            (1 << 15)
+void info_data(int info);
+
+
 /** @file
  * This file defines debug levels.
  * Debugging support vanishes in non-debug builds.  
