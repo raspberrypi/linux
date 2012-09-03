@@ -3894,7 +3894,11 @@ int process_recv_indicatepkts(_adapter *padapter, union recv_frame *prframe)
 
 }
 
+<<<<<<< HEAD
 static int recv_func_prehandle(_adapter *padapter, union recv_frame *rframe)
+=======
+int recv_func_prehandle(_adapter *padapter, union recv_frame *rframe)
+>>>>>>> 2dbbdde... net: Add non-mainline source for rtl8192cu wlan
 {
 	int ret = _SUCCESS;
 	struct rx_pkt_attrib *pattrib = &rframe->u.hdr.attrib;
@@ -3935,7 +3939,11 @@ exit:
 	return ret;
 }
 
+<<<<<<< HEAD
 static int recv_func_posthandle(_adapter *padapter, union recv_frame *prframe)
+=======
+int recv_func_posthandle(_adapter *padapter, union recv_frame *prframe)
+>>>>>>> 2dbbdde... net: Add non-mainline source for rtl8192cu wlan
 {
 	int ret = _SUCCESS;
 	union recv_frame *orig_prframe = prframe;
@@ -4107,7 +4115,8 @@ _recv_data_drop:
 }
 
 
-static int recv_func(_adapter *padapter, union recv_frame *rframe)
+int recv_func(_adapter *padapter, union recv_frame *rframe);
+int recv_func(_adapter *padapter, union recv_frame *rframe)
 {
 	int ret;
 	struct rx_pkt_attrib *prxattrib = &rframe->u.hdr.attrib;
