@@ -548,7 +548,7 @@ struct dwc_otg_hcd {
 
 	/*  */
 	dwc_spinlock_t *lock;
-
+	dwc_spinlock_t *channel_lock;
 	/**
 	 * Private data that could be used by OS wrapper.
 	 */
