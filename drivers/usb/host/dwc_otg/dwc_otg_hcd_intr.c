@@ -922,7 +922,7 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 	dwc_otg_transaction_type_e tr_type;
 	int free_qtd;
 	dwc_irqflags_t flags;
-	dwc_spinlock_t *channel_lock = DWC_SPINLOCK_ALLOC();
+	dwc_spinlock_t *channel_lock = hcd->channel_lock;
 
 	DWC_DEBUGPL(DBG_HCDV, "  %s: channel %d, halt_status %d, xfer_len %d\n",
 		    __func__, hc->hc_num, halt_status, hc->xfer_len);
@@ -1009,7 +1009,6 @@ cleanup:
 	if (tr_type != DWC_OTG_TRANSACTION_NONE) {
 		dwc_otg_hcd_queue_transactions(hcd, tr_type);
 	}
-	DWC_SPINLOCK_FREE(channel_lock);
 }
 
 /**
