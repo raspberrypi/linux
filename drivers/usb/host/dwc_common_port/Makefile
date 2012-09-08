@@ -30,9 +30,9 @@ endif
 
 else
 
-ifeq ($(KDIR),)
-$(error Must give "KDIR=/path/to/kernel/source" on command line or in environment)
-endif
+#ifeq ($(KDIR),)
+#$(error Must give "KDIR=/path/to/kernel/source" on command line or in environment)
+#endif
 
 ifeq ($(ARCH),)
 $(error Must give "ARCH=<arch>" on command line or in environment. Also, if \
