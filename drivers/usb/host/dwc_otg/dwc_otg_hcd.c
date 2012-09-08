@@ -822,6 +822,7 @@ static void dwc_otg_hcd_free(dwc_otg_hcd_t * dwc_otg_hcd)
 	} else if (dwc_otg_hcd->status_buf != NULL) {
 		DWC_FREE(dwc_otg_hcd->status_buf);
 	}
+	DWC_SPINLOCK_FREE(dwc_otg_hcd->channel_lock);
 	DWC_SPINLOCK_FREE(dwc_otg_hcd->lock);
 	/* Set core_if's lock pointer to NULL */
 	dwc_otg_hcd->core_if->lock = NULL;
@@ -848,6 +849,7 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 	dwc_hc_t *channel;
 
 	hcd->lock = DWC_SPINLOCK_ALLOC();
+	hcd->channel_lock = DWC_SPINLOCK_ALLOC();
         DWC_DEBUGPL(DBG_HCDV, "init of HCD %p given core_if %p\n",
                     hcd, core_if);
 	if (!hcd->lock) {
@@ -1248,7 +1250,7 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 	dwc_otg_qh_t *qh;
 	int num_channels;
 	dwc_irqflags_t flags;
-	dwc_spinlock_t *channel_lock = DWC_SPINLOCK_ALLOC();
+	dwc_spinlock_t *channel_lock = hcd->channel_lock;
 	dwc_otg_transaction_type_e ret_val = DWC_OTG_TRANSACTION_NONE;
 
 #ifdef DEBUG_SOF
@@ -1348,8 +1350,6 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 #ifdef DEBUG_HOST_CHANNELS
 	last_sel_trans_num_avail_hc_at_end = hcd->available_host_channels;
 #endif /* DEBUG_HOST_CHANNELS */
-
-	DWC_SPINLOCK_FREE(channel_lock);
 	return ret_val;
 }
 
