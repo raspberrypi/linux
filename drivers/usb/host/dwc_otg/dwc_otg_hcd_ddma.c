@@ -276,7 +276,7 @@ void dump_frame_list(dwc_otg_hcd_t * hcd)
 static void release_channel_ddma(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 {
 	dwc_irqflags_t flags;
-	dwc_spinlock_t *channel_lock = DWC_SPINLOCK_ALLOC();
+	dwc_spinlock_t *channel_lock = hcd->channel_lock;
 
 	dwc_hc_t *hc = qh->channel;
 	if (dwc_qh_is_non_per(qh)) {
@@ -306,7 +306,6 @@ static void release_channel_ddma(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		dwc_memset(qh->desc_list, 0x00,
 			   sizeof(dwc_otg_host_dma_desc_t) * max_desc_num(qh));
 	}
-	DWC_SPINLOCK_FREE(channel_lock);
 }
 
 /**
