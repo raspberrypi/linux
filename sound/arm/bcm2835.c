@@ -87,10 +87,7 @@ static int __devinit snd_bcm2835_alsa_probe(struct platform_device *pdev)
 	bcm2835_chip_t *chip;
 	struct snd_card *card;
 	int err;
-	printk(KERN_INFO "### snd_bcm2835_alsa_probe %p ###", pdev);
-
-	printk
-	    ("############ PROBING FOR bcm2835 ALSA device (%d):(%d) ###############\n",
+	printk(KERN_INFO "Probing FOR bcm2835 ALSA device (%d):(%d)\n",
 	     dev, enable[dev]);
 
 	if (dev >= MAX_SUBSTREAMS)
@@ -114,7 +111,6 @@ static int __devinit snd_bcm2835_alsa_probe(struct platform_device *pdev)
 	strcpy(g_card->shortname, "bcm2835 ALSA");
 	sprintf(g_card->longname, "%s", g_card->shortname);
 
-	printk("Creating device/chip ..\n");
 	err = snd_bcm2835_create(g_card, pdev, &chip);
 	if (err < 0) {
 		printk(KERN_ERR "Failed to create bcm2835 chip\n");
@@ -128,7 +124,6 @@ static int __devinit snd_bcm2835_alsa_probe(struct platform_device *pdev)
 		goto out_bcm2835_new_pcm;
 	}
 
-	printk("Adding controls ..\n");
 	err = snd_bcm2835_new_ctl(chip);
 	if (err < 0) {
 		printk(KERN_ERR "Failed to create new BCM2835 ctl\n");
@@ -145,7 +140,6 @@ add_register_map:
 	chip->pdev[dev] = pdev;
 
 	if (dev == 0) {
-		printk("Registering card ....\n");
 		err = snd_card_register(card);
 		if (err < 0) {
 			printk(KERN_ERR
@@ -153,9 +147,9 @@ add_register_map:
 			goto out_card_register;
 		}
 		platform_set_drvdata(pdev, card);
-		printk("bcm2835 ALSA CARD CREATED!\n");
+		printk(KERN_INFO "bcm2835 ALSA card created!\n");
 	} else {
-		printk("bcm2835 ALSA CHIP CREATED!\n");
+		printk(KERN_INFO "bcm2835 ALSA chip created!\n");
 		platform_set_drvdata(pdev, (void *)dev);
 	}
 
@@ -380,7 +374,7 @@ static int __devinit bcm2835_alsa_device_init(void)
 		printk("Error registering bcm2835_alsa7_driver %d .\n", err);
 		goto unregister_6;
 	}
-	printk(KERN_INFO "### BCM2835 ALSA driver init %s ### \n",
+	printk(KERN_INFO "BCM2835 ALSA driver init %s\n",
 	       err ? "FAILED" : "OK");
 
 	return 0;
