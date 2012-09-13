@@ -18,3 +18,13 @@ config THERMAL_HWMON
 	depends on THERMAL
 	depends on HWMON=y || HWMON=THERMAL
 	default y
+
+if THERMAL
+
+config THERMAL_BCM2835
+	tristate "BCM2835 Thermal Driver"
+	help
+	  This will enable temperature monitoring for the Broadcom BCM2835
+	  chip. If built as a module, it will be called 'bcm2835-thermal'.
+
+endif # THERMAL_BCM2835
