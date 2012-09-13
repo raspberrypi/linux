@@ -27,3 +27,14 @@ config SPEAR_THERMAL
 	help
 	  Enable this to plug the SPEAr thermal sensor driver into the Linux
 	  thermal framework
+
+if THERMAL
+
+config THERMAL_BCM2835
+	tristate "BCM2835 Thermal Driver"
+	help
+	  This will enable temperature monitoring for the Broadcom BCM2835
+	  chip. If built as a module, it will be called 'bcm2835-thermal'.
+
+endif # THERMAL_BCM2835
+
