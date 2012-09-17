@@ -87,8 +87,6 @@ static int __devinit snd_bcm2835_alsa_probe(struct platform_device *pdev)
 	bcm2835_chip_t *chip;
 	struct snd_card *card;
 	int err;
-	printk(KERN_INFO "Probing FOR bcm2835 ALSA device (%d):(%d)\n",
-	     dev, enable[dev]);
 
 	if (dev >= MAX_SUBSTREAMS)
 		return -ENODEV;
@@ -101,7 +99,6 @@ static int __devinit snd_bcm2835_alsa_probe(struct platform_device *pdev)
 	if (dev > 0)
 		goto add_register_map;
 
-	printk("Creating card...\n");
 	err = snd_card_create(index[dev], id[dev], THIS_MODULE, 0, &g_card);
 	if (err < 0)
 		goto out;
@@ -374,8 +371,6 @@ static int __devinit bcm2835_alsa_device_init(void)
 		printk("Error registering bcm2835_alsa7_driver %d .\n", err);
 		goto unregister_6;
 	}
-	printk(KERN_INFO "BCM2835 ALSA driver init %s\n",
-	       err ? "FAILED" : "OK");
 
 	return 0;
 
