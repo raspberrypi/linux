@@ -98,7 +98,7 @@ static int snd_bcm2835_playback_open(struct snd_pcm_substream *substream)
 
 	audio_info(" .. IN (%d)\n", substream->number);
 
-	audio_warning("Alsa open (%d)\n", substream->number);
+	audio_info("Alsa open (%d)\n", substream->number);
 	idx = substream->number;
 
 	if (idx > MAX_SUBSTREAMS) {
@@ -167,7 +167,7 @@ static int snd_bcm2835_playback_close(struct snd_pcm_substream *substream)
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
 
 	audio_info(" .. IN\n");
-	audio_warning("Alsa close\n");
+	audio_info("Alsa close\n");
 
 	/*
 	 * Call stop if it's still running. This happens when app
