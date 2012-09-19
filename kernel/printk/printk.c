@@ -1617,6 +1617,7 @@ SYSCALL_DEFINE3(syslog, int, type, char __user *, buf, int, len)
 	return do_syslog(type, buf, len, SYSLOG_FROM_READER);
 }
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /*
  * Special console_lock variants that help to reduce the risk of soft-lockups.
  * They allow to pass console_lock to another printk() call using a busy wait.
@@ -1757,6 +1758,15 @@ static int console_trylock_spinning(void)
 	return 1;
 }
 
+#else
+
+static int console_trylock_spinning(void)
+{
+	return console_trylock();
+}
+
+#endif
+
 /*
  * Call the console drivers, asking them to write out
  * log_buf[start] to log_buf[end - 1].
@@ -1772,6 +1782,7 @@ static void call_console_drivers(const char *ext_text, size_t ext_len,
 	if (!console_drivers)
 		return;
 
+	migrate_disable();
 	for_each_console(con) {
 		if (exclusive_console && con != exclusive_console)
 			continue;
@@ -1787,6 +1798,7 @@ static void call_console_drivers(const char *ext_text, size_t ext_len,
 		else
 			con->write(con, text, len);
 	}
+	migrate_enable();
 }
 
 int printk_delay_msec __read_mostly;
@@ -1978,20 +1990,30 @@ asmlinkage int vprintk_emit(int facility, int level,
 
 	/* If called from the scheduler, we can not call up(). */
 	if (!in_sched) {
+		int may_trylock = 1;
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+		/*
+		 * we can't take a sleeping lock with IRQs or preeption disabled
+		 * so we can't print in these contexts
+		 */
+		if (!(preempt_count() == 0 && !irqs_disabled()))
+			may_trylock = 0;
+#endif
 		/*
 		 * Disable preemption to avoid being preempted while holding
 		 * console_sem which would prevent anyone from printing to
 		 * console
 		 */
-		preempt_disable();
+		migrate_disable();
 		/*
 		 * Try to acquire and then immediately release the console
 		 * semaphore.  The release will print out buffers and wake up
 		 * /dev/kmsg and syslog() users.
 		 */
-		if (console_trylock_spinning())
+		if (may_trylock && console_trylock_spinning())
 			console_unlock();
-		preempt_enable();
+		migrate_enable();
 	}
 
 	wake_up_klogd();
@@ -2444,6 +2466,10 @@ skip:
 		console_seq++;
 		raw_spin_unlock(&logbuf_lock);
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+		printk_safe_exit_irqrestore(flags);
+		call_console_drivers(ext_text, ext_len, text, len);
+#else
 		/*
 		 * While actively printing out messages, if another printk()
 		 * were to occur on another CPU, it may wait for this one to
@@ -2462,6 +2488,7 @@ skip:
 		}
 
 		printk_safe_exit_irqrestore(flags);
+#endif
 
 		if (do_cond_resched)
 			cond_resched();
