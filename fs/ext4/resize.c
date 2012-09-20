@@ -979,8 +979,6 @@ static void update_backups(struct super_block *sb,
 		goto exit_err;
 	}
 
-	ext4_superblock_csum_set(sb);
-
 	while ((group = ext4_list_backups(sb, &three, &five, &seven)) < last) {
 		struct buffer_head *bh;
 
