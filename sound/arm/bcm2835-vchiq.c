@@ -32,17 +32,10 @@
 /* ---- Include Files -------------------------------------------------------- */
 
 #include "interface/vchi/vchi.h"
-#include "interface/vcos/vcos.h"
-#include "interface/vcos/vcos_logging.h"
 #include "vc_vchi_audioserv_defs.h"
 
 /* ---- Private Constants and Types ------------------------------------------ */
 
-/* VCOS logging category for this service */
-#define VCOS_LOG_CATEGORY (&audio_log_category)
-
-/* Default VCOS logging level */
-#define LOG_LEVEL  VCOS_LOG_WARN
 /* Logging macros (for remapping to other logging mechanisms, i.e., printf) */
 #ifdef AUDIO_DEBUG_ENABLE
 	#define LOG_ERR( fmt, arg... )   pr_err( "%s:%d " fmt, __func__, __LINE__, ##arg)
@@ -50,25 +43,22 @@
 	#define LOG_INFO( fmt, arg... )  pr_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
 	#define LOG_DBG( fmt, arg... )   pr_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
 #else
-	#define LOG_ERR( fmt, arg... ) vcos_log_error( "%s:%d " fmt, __func__, __LINE__, ##arg)
-	#define LOG_WARN( fmt, arg... ) vcos_log_warn( "%s:%d " fmt, __func__, __LINE__, ##arg)
-	#define LOG_INFO( fmt, arg... ) vcos_log_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
-	#define LOG_DBG( fmt, arg... ) vcos_log_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
+	#define LOG_ERR( fmt, arg... )
+	#define LOG_WARN( fmt, arg... )
+	#define LOG_INFO( fmt, arg... )
+	#define LOG_DBG( fmt, arg... )
 #endif
 
 typedef struct opaque_AUDIO_INSTANCE_T {
 	uint32_t num_connections;
 	VCHI_SERVICE_HANDLE_T vchi_handle[VCHI_MAX_NUM_CONNECTIONS];
-	VCOS_EVENT_T msg_avail_event;
-	VCOS_MUTEX_T vchi_mutex;
+	struct semaphore msg_avail_event;
+	struct mutex vchi_mutex;
 	bcm2835_alsa_stream_t *alsa_stream;
 	int32_t result, got_result;
 } AUDIO_INSTANCE_T;
 
 /* ---- Private Variables ---------------------------------------------------- */
-
-/* VCOS logging category for this service */
-static VCOS_LOG_CAT_T audio_log_category;
 
 /* ---- Private Function Prototypes ------------------------------------------ */
 
@@ -186,7 +176,7 @@ static void audio_vchi_callback(void *param,
 		BUG_ON(instance->got_result);
 		instance->result = m.u.result.success;
 		instance->got_result = 1;
-		vcos_event_signal(&instance->msg_avail_event);
+		up(&instance->msg_avail_event);
 	} else if (m.type == VC_AUDIO_MSG_TYPE_COMPLETE) {
 		irq_handler_t callback = (irq_handler_t) m.u.complete.callback;
 		LOG_DBG
@@ -199,7 +189,7 @@ static void audio_vchi_callback(void *param,
 			LOG_DBG(" .. unexpected alsa_stream=%p, callback=%p\n",
 				alsa_stream, callback);
 		}
-		vcos_event_signal(&instance->msg_avail_event);
+		up(&instance->msg_avail_event);
 	} else {
 		LOG_DBG(" .. unexpected m.type=%d\n", m.type);
 	}
@@ -212,7 +202,7 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 {
 	uint32_t i;
 	AUDIO_INSTANCE_T *instance;
-	VCOS_STATUS_T status;
+	int status;
 
 	LOG_DBG("%s: start", __func__);
 
@@ -223,27 +213,16 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 		return NULL;
 	}
 	/* Allocate memory for this instance */
-	instance = vcos_malloc(sizeof(*instance), "audio_instance");
+	instance = kmalloc(sizeof(*instance), GFP_KERNEL);
+
 	memset(instance, 0, sizeof(*instance));
 
 	instance->num_connections = num_connections;
 	/* Create the message available event */
-	status =
-	    vcos_event_create(&instance->msg_avail_event, "audio_msg_avail");
-	if (status != VCOS_SUCCESS) {
-		LOG_ERR("%s: failed to create event (status=%d)", __func__,
-			status);
+	sema_init(&instance->msg_avail_event,1);
 
-		goto err_free_mem;
-	}
 	/* Create a lock for exclusive, serialized VCHI connection access */
-	status = vcos_mutex_create(&instance->vchi_mutex, "audio_vchi_mutex");
-	if (status != VCOS_SUCCESS) {
-		LOG_ERR("%s: failed to create event (status=%d)", __func__,
-			status);
-
-		goto err_delete_event;
-	}
+	mutex_init(&instance->vchi_mutex);
 	/* Open the VCHI service connections */
 	for (i = 0; i < num_connections; i++) {
 		SERVICE_CREATION_T params = {
@@ -253,14 +232,14 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 			0,	// tx fifo size (unused)
 			audio_vchi_callback,	// service callback
 			instance,	// service callback parameter
-			VCOS_TRUE,	//TODO: remove VCOS_FALSE,   // unaligned bulk recieves
-			VCOS_TRUE,	//TODO: remove VCOS_FALSE,   // unaligned bulk transmits
-			VCOS_FALSE	// want crc check on bulk transfers
+			1,	//TODO: remove VCOS_FALSE,   // unaligned bulk recieves
+			1,	//TODO: remove VCOS_FALSE,   // unaligned bulk transmits
+			0	// want crc check on bulk transfers
 		};
 
 		status = vchi_service_open(vchi_instance, &params,
 					   &instance->vchi_handle[i]);
-		if (status != VCOS_SUCCESS) {
+		if (status) {
 			LOG_ERR
 			    ("%s: failed to open VCHI service connection (status=%d)",
 			     __func__, status);
@@ -278,13 +257,7 @@ err_close_services:
 		vchi_service_close(instance->vchi_handle[i]);
 	}
 
-	vcos_mutex_delete(&instance->vchi_mutex);
-
-err_delete_event:
-	vcos_event_delete(&instance->msg_avail_event);
-
-err_free_mem:
-	vcos_free(instance);
+	kfree(instance);
 
 	return NULL;
 }
@@ -302,7 +275,11 @@ static int32_t vc_vchi_audio_deinit(AUDIO_INSTANCE_T * instance)
 	}
 
 	LOG_DBG(" .. about to lock (%d)\n", instance->num_connections);
-	vcos_mutex_lock(&instance->vchi_mutex);
+	if(mutex_lock_interruptible(&instance->vchi_mutex))
+	{
+		LOG_DBG("Interrupted whilst waiting for lock on (%d)\n",instance->num_connections);
+		return -EINTR;
+	}
 
 	/* Close all VCHI service connections */
 	for (i = 0; i < instance->num_connections; i++) {
@@ -318,16 +295,9 @@ static int32_t vc_vchi_audio_deinit(AUDIO_INSTANCE_T * instance)
 		}
 	}
 
-	vcos_mutex_unlock(&instance->vchi_mutex);
+	mutex_unlock(&instance->vchi_mutex);
 
-	vcos_mutex_delete(&instance->vchi_mutex);
-
-	vcos_event_delete(&instance->msg_avail_event);
-
-	vcos_free(instance);
-
-	/* Unregister the log category so we can add it back next time */
-	vcos_log_unregister(&audio_log_category);
+	kfree(instance);
 
 	LOG_DBG(" .. OUT\n");
 
@@ -371,10 +341,6 @@ static int bcm2835_audio_open_connection(bcm2835_alsa_stream_t * alsa_stream)
 		goto err_free_mem;
 	}
 
-	/* Set up the VCOS logging */
-	vcos_log_set_level(VCOS_LOG_CATEGORY, LOG_LEVEL);
-	vcos_log_register("audio", VCOS_LOG_CATEGORY);
-
 	/* Initialize an instance of the audio service */
 	instance = vc_vchi_audio_init(vchi_instance, &vchi_connection, 1);
 
@@ -412,7 +378,11 @@ int bcm2835_audio_open(bcm2835_alsa_stream_t * alsa_stream)
 	}
 	instance = alsa_stream->instance;
 
-	vcos_mutex_lock(&instance->vchi_mutex);
+	if(mutex_lock_interruptible(&instance->vchi_mutex))
+	{
+		LOG_DBG("Interrupted whilst waiting for lock on (%d)\n",instance->num_connections);
+		return -EINTR;
+	}
 	vchi_service_use(instance->vchi_handle[0]);
 
 	m.type = VC_AUDIO_MSG_TYPE_OPEN;
@@ -434,7 +404,7 @@ int bcm2835_audio_open(bcm2835_alsa_stream_t * alsa_stream)
 
 unlock:
 	vchi_service_release(instance->vchi_handle[0]);
-	vcos_mutex_unlock(&instance->vchi_mutex);
+	mutex_unlock(&instance->vchi_mutex);
 exit:
 	LOG_DBG(" .. OUT\n");
 	return ret;
@@ -452,7 +422,11 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 	LOG_INFO
 	    (" Setting ALSA dest(%d), volume(%d)\n", chip->dest, chip->volume);
 
-	vcos_mutex_lock(&instance->vchi_mutex);
+	if(mutex_lock_interruptible(&instance->vchi_mutex))
+	{
+		LOG_DBG("Interrupted whilst waiting for lock on (%d)\n",instance->num_connections);
+		return -EINTR;
+	}
 	vchi_service_use(instance->vchi_handle[0]);
 
 	instance->got_result = 0;
@@ -477,8 +451,7 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 
 	/* We are expecting a reply from the videocore */
 	while (!instance->got_result) {
-		success = vcos_event_wait(&instance->msg_avail_event);
-		if (success != VCOS_SUCCESS) {
+		if (down_interruptible(&instance->msg_avail_event)) {
 			LOG_ERR("%s: failed on waiting for event (status=%d)",
 				__func__, success);
 
@@ -498,7 +471,7 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 
 unlock:
 	vchi_service_release(instance->vchi_handle[0]);
-	vcos_mutex_unlock(&instance->vchi_mutex);
+	mutex_unlock(&instance->vchi_mutex);
 
 	LOG_DBG(" .. OUT\n");
 	return ret;
@@ -552,7 +525,11 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 		return -EINVAL;
 	}
 
-	vcos_mutex_lock(&instance->vchi_mutex);
+	if(mutex_lock_interruptible(&instance->vchi_mutex))
+	{
+		LOG_DBG("Interrupted whilst waiting for lock on (%d)\n",instance->num_connections);
+		return -EINTR;
+	}
 	vchi_service_use(instance->vchi_handle[0]);
 
 	instance->got_result = 0;
@@ -578,8 +555,7 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 
 	/* We are expecting a reply from the videocore */
 	while (!instance->got_result) {
-		success = vcos_event_wait(&instance->msg_avail_event);
-		if (success != VCOS_SUCCESS) {
+		if (down_interruptible(&instance->msg_avail_event)) {
 			LOG_ERR("%s: failed on waiting for event (status=%d)",
 				__func__, success);
 
@@ -599,7 +575,7 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 
 unlock:
 	vchi_service_release(instance->vchi_handle[0]);
-	vcos_mutex_unlock(&instance->vchi_mutex);
+	mutex_unlock(&instance->vchi_mutex);
 
 	LOG_DBG(" .. OUT\n");
 	return ret;
@@ -622,7 +598,11 @@ static int bcm2835_audio_start_worker(bcm2835_alsa_stream_t * alsa_stream)
 	int ret;
 	LOG_DBG(" .. IN\n");
 
-	vcos_mutex_lock(&instance->vchi_mutex);
+	if(mutex_lock_interruptible(&instance->vchi_mutex))
+	{
+		LOG_DBG("Interrupted whilst waiting for lock on (%d)\n",instance->num_connections);
+		return -EINTR;
+	}
 	vchi_service_use(instance->vchi_handle[0]);
 
 	m.type = VC_AUDIO_MSG_TYPE_START;
@@ -644,7 +624,7 @@ static int bcm2835_audio_start_worker(bcm2835_alsa_stream_t * alsa_stream)
 
 unlock:
 	vchi_service_release(instance->vchi_handle[0]);
-	vcos_mutex_unlock(&instance->vchi_mutex);
+	mutex_unlock(&instance->vchi_mutex);
 	LOG_DBG(" .. OUT\n");
 	return ret;
 }
@@ -657,7 +637,11 @@ static int bcm2835_audio_stop_worker(bcm2835_alsa_stream_t * alsa_stream)
 	int ret;
 	LOG_DBG(" .. IN\n");
 
-	vcos_mutex_lock(&instance->vchi_mutex);
+	if(mutex_lock_interruptible(&instance->vchi_mutex))
+	{
+		LOG_DBG("Interrupted whilst waiting for lock on (%d)\n",instance->num_connections);
+		return -EINTR;
+	}
 	vchi_service_use(instance->vchi_handle[0]);
 
 	m.type = VC_AUDIO_MSG_TYPE_STOP;
@@ -680,7 +664,7 @@ static int bcm2835_audio_stop_worker(bcm2835_alsa_stream_t * alsa_stream)
 
 unlock:
 	vchi_service_release(instance->vchi_handle[0]);
-	vcos_mutex_unlock(&instance->vchi_mutex);
+	mutex_unlock(&instance->vchi_mutex);
 	LOG_DBG(" .. OUT\n");
 	return ret;
 }
@@ -695,7 +679,11 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 
 	my_workqueue_quit(alsa_stream);
 
-	vcos_mutex_lock(&instance->vchi_mutex);
+	if(mutex_lock_interruptible(&instance->vchi_mutex))
+	{
+		LOG_DBG("Interrupted whilst waiting for lock on (%d)\n",instance->num_connections);
+		return -EINTR;
+	}
 	vchi_service_use(instance->vchi_handle[0]);
 
 	m.type = VC_AUDIO_MSG_TYPE_CLOSE;
@@ -712,8 +700,7 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 		goto unlock;
 	}
 	while (!instance->got_result) {
-		success = vcos_event_wait(&instance->msg_avail_event);
-		if (success != VCOS_SUCCESS) {
+		if (down_interruptible(&instance->msg_avail_event)) {
 			LOG_ERR("%s: failed on waiting for event (status=%d)",
 				__func__, success);
 
@@ -733,7 +720,7 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 
 unlock:
 	vchi_service_release(instance->vchi_handle[0]);
-	vcos_mutex_unlock(&instance->vchi_mutex);
+	mutex_unlock(&instance->vchi_mutex);
 
 	/* Stop the audio service */
 	if (instance) {
@@ -756,7 +743,11 @@ int bcm2835_audio_write(bcm2835_alsa_stream_t * alsa_stream, uint32_t count,
 
 	LOG_INFO(" Writing %d bytes from %p\n", count, src);
 
-	vcos_mutex_lock(&instance->vchi_mutex);
+	if(mutex_lock_interruptible(&instance->vchi_mutex))
+	{
+		LOG_DBG("Interrupted whilst waiting for lock on (%d)\n",instance->num_connections);
+		return -EINTR;
+	}
 	vchi_service_use(instance->vchi_handle[0]);
 
 	m.type = VC_AUDIO_MSG_TYPE_WRITE;
@@ -801,7 +792,7 @@ int bcm2835_audio_write(bcm2835_alsa_stream_t * alsa_stream, uint32_t count,
 
 unlock:
 	vchi_service_release(instance->vchi_handle[0]);
-	vcos_mutex_unlock(&instance->vchi_mutex);
+	mutex_unlock(&instance->vchi_mutex);
 	LOG_DBG(" .. OUT\n");
 	return ret;
 }
