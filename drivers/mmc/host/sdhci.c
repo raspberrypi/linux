@@ -144,9 +144,9 @@ void sdhci_spin_unlock(struct sdhci_host *host)
 	if(enable_llm)
 	{
 		local_irq_disable();
-		enable_irq(host->irq);
 		if(host->second_irq)
 			enable_irq(host->second_irq);
+		enable_irq(host->irq);
 	}
 #endif
 	spin_unlock(&host->lock);
@@ -178,9 +178,9 @@ void sdhci_spin_unlock_irqrestore(struct sdhci_host *host,unsigned long flags)
 	if(enable_llm)
 	{
 		local_irq_disable();
-		enable_irq(host->irq);
 		if(host->second_irq)
 			enable_irq(host->second_irq);
+		enable_irq(host->irq);
 	}
 #endif
 	spin_unlock_irqrestore(&host->lock,flags);
@@ -291,9 +291,7 @@ static void sdhci_reset(struct sdhci_host *host, u8 mask)
 			return;
 		}
 		timeout--;
-		sdhci_spin_enable_schedule(host);
 		mdelay(1);
-		sdhci_spin_disable_schedule(host);
 	}
 
 	if (host->ops->platform_reset_exit)
