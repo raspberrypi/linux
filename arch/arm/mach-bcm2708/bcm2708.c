@@ -859,6 +859,36 @@ static inline void bcm2708_init_led(void)
 }
 #endif
 
+
+/* The assembly versions in delay.S don't account for core freq changing in cpufreq driver */
+/* Use 1MHz system timer for busy waiting */
+void __udelay(unsigned long usecs)
+{
+	unsigned long start = readl(__io_address(ST_BASE + 0x04));
+	unsigned long now;
+	do {
+		now = readl(__io_address(ST_BASE + 0x04));
+	} while ((long)(now - start) <= usecs);
+}
+
+
+void __const_udelay(unsigned long scaled_usecs)
+{
+	/* want /107374, this is about 3% bigger. We know usecs is less than 2000, so shouldn't overflow */
+	const unsigned long usecs = scaled_usecs * 10 >> 20;
+	unsigned long start = readl(__io_address(ST_BASE + 0x04));
+	unsigned long now;
+	do {
+		now = readl(__io_address(ST_BASE + 0x04));
+	} while ((long)(now - start) <= usecs);
+}
+
+void __delay(int loops)
+{
+	while (--loops > 0)
+		nop();
+}
+
 MACHINE_START(BCM2708, "BCM2708")
     /* Maintainer: Broadcom Europe Ltd. */
     .map_io = bcm2708_map_io,.init_irq = bcm2708_init_irq,.timer =
