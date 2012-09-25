@@ -1182,8 +1182,8 @@ int nfc_llcp_register_device(struct nfc_dev *ndev)
 		goto err_rx_wq;
 	}
 
-	local->sockets.lock = __RW_LOCK_UNLOCKED(local->sockets.lock);
-	local->connecting_sockets.lock = __RW_LOCK_UNLOCKED(local->connecting_sockets.lock);
+	rwlock_init(&local->sockets.lock);
+	rwlock_init(&local->connecting_sockets.lock);
 
 	nfc_llcp_build_gb(local);
 
