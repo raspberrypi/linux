@@ -883,12 +883,6 @@ void __const_udelay(unsigned long scaled_usecs)
 	} while ((long)(now - start) <= usecs);
 }
 
-void __delay(int loops)
-{
-	while (--loops > 0)
-		nop();
-}
-
 MACHINE_START(BCM2708, "BCM2708")
     /* Maintainer: Broadcom Europe Ltd. */
     .map_io = bcm2708_map_io,.init_irq = bcm2708_init_irq,.timer =
