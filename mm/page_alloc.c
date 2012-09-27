@@ -291,9 +291,9 @@ static DEFINE_LOCAL_IRQ_LOCK(pa_lock);
 
 #ifdef CONFIG_PREEMPT_RT_BASE
 # define cpu_lock_irqsave(cpu, flags)		\
-	spin_lock_irqsave(&per_cpu(pa_lock, cpu).lock, flags)
+	local_lock_irqsave_on(pa_lock, flags, cpu)
 # define cpu_unlock_irqrestore(cpu, flags)	\
-	spin_unlock_irqrestore(&per_cpu(pa_lock, cpu).lock, flags)
+	local_unlock_irqrestore_on(pa_lock, flags, cpu)
 #else
 # define cpu_lock_irqsave(cpu, flags)		local_irq_save(flags)
 # define cpu_unlock_irqrestore(cpu, flags)	local_irq_restore(flags)
