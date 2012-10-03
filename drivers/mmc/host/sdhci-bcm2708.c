@@ -77,6 +77,8 @@
 #define REG_EXRDFIFO_EN     0x80
 #define REG_EXRDFIFO_CFG    0x84
 
+int cycle_delay=2;
+
 /*****************************************************************************\
  *									     *
  * Debug								     *
@@ -249,7 +251,7 @@ static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 		/* host->clock is the clock freq in Hz */
 		static hptime_t last_write_hpt;
 		hptime_t now = hptime();
-		ns_2clk = 2000000000/host->clock;
+		ns_2clk = cycle_delay*1000000/(host->clock/1000);
 
 		if (now == last_write_hpt || now == last_write_hpt+1) {
 			 /* we can't guarantee any significant time has
@@ -1388,6 +1390,7 @@ module_param(emmc_clock_freq, int, 0444);
 module_param(sync_after_dma, bool, 0444);
 module_param(missing_status, bool, 0444);
 module_param(enable_llm, bool, 0444);
+module_param(cycle_delay, int, 0444);
 
 MODULE_DESCRIPTION("Secure Digital Host Controller Interface platform driver");
 MODULE_AUTHOR("Broadcom <info@broadcom.com>");
