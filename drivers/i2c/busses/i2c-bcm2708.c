@@ -66,10 +66,14 @@
 #define BSC_S_DONE		0x00000002
 #define BSC_S_TA		0x00000001
 
-#define I2C_CLOCK_HZ	100000 /* FIXME: get from DT */
 #define I2C_TIMEOUT_MS	150
 
 #define DRV_NAME	"bcm2708_i2c"
+
+static unsigned int baudrate = CONFIG_I2C_BCM2708_BAUDRATE;
+module_param(baudrate, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(baudrate, "The I2C baudrate");
+
 
 struct bcm2708_i2c {
 	struct i2c_adapter adapter;
@@ -148,7 +152,7 @@ static inline void bcm2708_bsc_setup(struct bcm2708_i2c *bi)
 	u32 c = BSC_C_I2CEN | BSC_C_INTD | BSC_C_ST | BSC_C_CLEAR_1;
 
 	bus_hz = clk_get_rate(bi->clk);
-	cdiv = bus_hz / I2C_CLOCK_HZ;
+	cdiv = bus_hz / baudrate;
 
 	if (bi->msg->flags & I2C_M_RD)
 		c |= BSC_C_INTR | BSC_C_READ;
@@ -331,8 +335,8 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 		goto out_free_irq;
 	}
 
-	dev_info(&pdev->dev, "BSC%d Controller at 0x%08lx (irq %d)\n",
-		pdev->id, (unsigned long)regs->start, irq);
+	dev_info(&pdev->dev, "BSC%d Controller at 0x%08lx (irq %d) (baudrate %dk)\n",
+		pdev->id, (unsigned long)regs->start, irq, baudrate/1000);
 
 	return 0;
 
