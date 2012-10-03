@@ -1028,6 +1028,8 @@ static void __maybe_unused das08_detach(struct comedi_device *dev)
 	const struct das08_board_struct *thisboard = comedi_board(dev);
 	struct das08_private_struct *devpriv = dev->private;
 
+	if (!thisboard)
+		return;
 	das08_common_detach(dev);
 	if (IS_ENABLED(CONFIG_COMEDI_DAS08_ISA) &&
 	    (thisboard->bustype == isa || thisboard->bustype == pc104)) {
