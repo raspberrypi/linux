@@ -577,10 +577,9 @@ static int __devinit pc236_attach_pci(struct comedi_device *dev,
 
 static void pc236_detach(struct comedi_device *dev)
 {
-	struct pc236_private *devpriv = dev->private;
 	struct pci_dev *pcidev = comedi_to_pci_dev(dev);
 
-	if (devpriv)
+	if (dev->iobase)
 		pc236_intr_disable(dev);
 	if (dev->irq)
 		free_irq(dev->irq, dev);
