@@ -1429,6 +1429,8 @@ static void dio200_detach(struct comedi_device *dev)
 	const struct dio200_layout_struct *layout;
 	unsigned n;
 
+	if (!thisboard)
+		return;
 	if (dev->irq)
 		free_irq(dev->irq, dev);
 	if (dev->subdevices) {
