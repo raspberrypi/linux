@@ -208,6 +208,20 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			}
 			break;
 		}
+	case VC_MEM_IOC_MEM_LOAD:
+		{
+			// Get the videocore memory base
+			vc_mem_get_base();
+
+			LOG_DBG("%s: VC_MEM_IOC_MEM_LOAD=%u", __func__,
+				mm_vc_mem_base);
+
+			if (copy_to_user((void *) arg, &mm_vc_mem_base,
+					 sizeof (mm_vc_mem_base)) != 0) {
+				rc = -EFAULT;
+			}
+			break;
+		}
 	default:
 		{
 			return -ENOTTY;
