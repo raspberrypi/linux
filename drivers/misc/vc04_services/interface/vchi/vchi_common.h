@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2011 Broadcom Corporation. All rights reserved.
+ * Copyright (c) 2010-2012 Broadcom. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +15,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-
-/*=============================================================================
-Contains global defs used by submodules within vchi.
-=============================================================================*/
 
 #ifndef VCHI_COMMON_H_
 #define VCHI_COMMON_H_

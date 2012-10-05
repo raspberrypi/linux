@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2011 Broadcom Corporation. All rights reserved.
+ * Copyright (c) 2010-2012 Broadcom. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,10 @@
 
 #ifndef CONNECTION_H_
 #define CONNECTION_H_
+
+#include <linux/kernel.h>
+#include <linux/types.h>
+#include <linux/semaphore.h>
 
 #include "interface/vchi/vchi_cfg_internal.h"
 #include "interface/vchi/vchi_common.h"
@@ -50,15 +54,15 @@ typedef int32_t (*VCHI_CONNECTION_CRC_CONTROL_T)( VCHI_CONNECTION_STATE_T *state
 
 // Routine to create a service
 typedef int32_t (*VCHI_CONNECTION_SERVICE_CONNECT_T)( VCHI_CONNECTION_STATE_T *state_handle,
-                                                      vcos_fourcc_t service_id,
+                                                      int32_t service_id,
                                                       uint32_t rx_fifo_size,
                                                       uint32_t tx_fifo_size,
                                                       int server,
                                                       VCHI_CALLBACK_T callback,
                                                       void *callback_param,
-                                                      vcos_bool_t want_crc,
-                                                      vcos_bool_t want_unaligned_bulk_rx,
-                                                      vcos_bool_t want_unaligned_bulk_tx,
+                                                      int32_t want_crc,
+                                                      int32_t want_unaligned_bulk_rx,
+                                                      int32_t want_unaligned_bulk_tx,
                                                       VCHI_CONNECTION_SERVICE_HANDLE_T *service_handle );
 
 // Routine to close a service
@@ -116,7 +120,7 @@ typedef int32_t (*VCHI_CONNECTION_HELD_MSG_INFO_T)( VCHI_CONNECTION_SERVICE_HAND
                                                     uint32_t *rx_timestamp );
 
 // Routine to check whether the iterator has a next message
-typedef vcos_bool_t (*VCHI_CONNECTION_MSG_ITER_HAS_NEXT_T)( VCHI_CONNECTION_SERVICE_HANDLE_T service,
+typedef int32_t (*VCHI_CONNECTION_MSG_ITER_HAS_NEXT_T)( VCHI_CONNECTION_SERVICE_HANDLE_T service,
                                                        const VCHI_MSG_ITER_T *iter );
 
 // Routine to advance the iterator
@@ -149,7 +153,7 @@ typedef int32_t (*VCHI_CONNECTION_BULK_QUEUE_RECEIVE_T)( VCHI_CONNECTION_SERVICE
                                                          void *bulk_handle );
 
 // Routine to report if a server is available
-typedef int32_t (*VCHI_CONNECTION_SERVER_PRESENT)( VCHI_CONNECTION_STATE_T *state, vcos_fourcc_t service_id, int32_t peer_flags );
+typedef int32_t (*VCHI_CONNECTION_SERVER_PRESENT)( VCHI_CONNECTION_STATE_T *state, int32_t service_id, int32_t peer_flags );
 
 // Routine to report the number of RX slots available
 typedef int (*VCHI_CONNECTION_RX_SLOTS_AVAILABLE)( const VCHI_CONNECTION_STATE_T *state );
@@ -159,7 +163,7 @@ typedef uint32_t (*VCHI_CONNECTION_RX_SLOT_SIZE)( const VCHI_CONNECTION_STATE_T 
 
 // Callback to indicate that the other side has added a buffer to the rx bulk DMA FIFO
 typedef void (*VCHI_CONNECTION_RX_BULK_BUFFER_ADDED)(VCHI_CONNECTION_STATE_T *state,
-                                                     vcos_fourcc_t service,
+                                                     int32_t service,
                                                      uint32_t length,
                                                      MESSAGE_TX_CHANNEL_T channel,
                                                      uint32_t channel_params,
@@ -167,10 +171,10 @@ typedef void (*VCHI_CONNECTION_RX_BULK_BUFFER_ADDED)(VCHI_CONNECTION_STATE_T *st
                                                      uint32_t data_offset);
 
 // Callback to inform a service that a Xon or Xoff message has been received
-typedef void (*VCHI_CONNECTION_FLOW_CONTROL)(VCHI_CONNECTION_STATE_T *state, vcos_fourcc_t service_id, int32_t xoff);
+typedef void (*VCHI_CONNECTION_FLOW_CONTROL)(VCHI_CONNECTION_STATE_T *state, int32_t service_id, int32_t xoff);
 
 // Callback to inform a service that a server available reply message has been received
-typedef void (*VCHI_CONNECTION_SERVER_AVAILABLE_REPLY)(VCHI_CONNECTION_STATE_T *state, vcos_fourcc_t service_id, uint32_t flags);
+typedef void (*VCHI_CONNECTION_SERVER_AVAILABLE_REPLY)(VCHI_CONNECTION_STATE_T *state, int32_t service_id, uint32_t flags);
 
 // Callback to indicate that bulk auxiliary messages have arrived
 typedef void (*VCHI_CONNECTION_BULK_AUX_RECEIVED)(VCHI_CONNECTION_STATE_T *state);
@@ -185,7 +189,7 @@ typedef void (*VCHI_CONNECTION_INFO)(VCHI_CONNECTION_STATE_T *state, uint32_t pr
 typedef void (*VCHI_CONNECTION_DISCONNECT)(VCHI_CONNECTION_STATE_T *state, uint32_t flags);
 
 // Callback to inform of a power control request
-typedef void (*VCHI_CONNECTION_POWER_CONTROL)(VCHI_CONNECTION_STATE_T *state, MESSAGE_TX_CHANNEL_T channel, vcos_bool_t enable);
+typedef void (*VCHI_CONNECTION_POWER_CONTROL)(VCHI_CONNECTION_STATE_T *state, MESSAGE_TX_CHANNEL_T channel, int32_t enable);
 
 // allocate memory suitably aligned for this connection
 typedef void * (*VCHI_BUFFER_ALLOCATE)(VCHI_CONNECTION_SERVICE_HANDLE_T service_handle, uint32_t * length);
@@ -299,7 +303,7 @@ struct vchi_connection_t {
    const VCHI_CONNECTION_API_T *api;
    VCHI_CONNECTION_STATE_T     *state;
 #ifdef VCHI_COARSE_LOCKING
-   VCOS_SEMAPHORE_T             sem;
+   struct semaphore             sem;
 #endif
 };
 

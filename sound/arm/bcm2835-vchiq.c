@@ -226,6 +226,7 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 	/* Open the VCHI service connections */
 	for (i = 0; i < num_connections; i++) {
 		SERVICE_CREATION_T params = {
+			VCHI_VERSION(VC_AUDIOSERV_VER), // version
 			VC_AUDIO_SERVER_NAME,	// 4cc service code
 			vchi_connections[i],	// passed in fn pointers
 			0,	// rx fifo size (unused)

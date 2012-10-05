@@ -15,6 +15,8 @@
 #ifndef _VC_AUDIO_DEFS_H_
 #define _VC_AUDIO_DEFS_H_
 
+#define VC_AUDIOSERV_VER 1
+
 // FourCC code used for VCHI connection
 #define VC_AUDIO_SERVER_NAME  MAKE_FOURCC("AUDS")
 
