@@ -1,7 +1,7 @@
 config BCM2708_VCHIQ
 	tristate "Videocore VCHIQ"
 	depends on MACH_BCM2708
-	default CONFIG_BCM_VC_SERVICES
+	default y
 	help
 		Kernel to VideoCore communication interface for the
 		BCM2708 family of products.
