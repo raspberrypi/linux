@@ -18,80 +18,88 @@
 
 #include "vchiq_util.h"
 
-#if !defined(__KERNEL__)
-#include <stdlib.h>
-#endif
-
-static __inline int is_pow2(int i)
+static inline int is_pow2(int i)
 {
-  return i && !(i & (i - 1));
+	return i && !(i & (i - 1));
 }
 
 int vchiu_queue_init(VCHIU_QUEUE_T *queue, int size)
 {
-   vcos_assert(is_pow2(size));
+	WARN_ON(!is_pow2(size));
 
-   queue->size = size;
-   queue->read = 0;
-   queue->write = 0;
+	queue->size = size;
+	queue->read = 0;
+	queue->write = 0;
 
-   vcos_event_create(&queue->pop, "vchiu");
-   vcos_event_create(&queue->push, "vchiu");
+	sema_init(&queue->pop, 0);
+	sema_init(&queue->push, 0);
 
-   queue->storage = vcos_malloc(size * sizeof(VCHIQ_HEADER_T *), VCOS_FUNCTION);
-   if (queue->storage == NULL)
-   {
-      vchiu_queue_delete(queue);
-      return 0;
-   }
-   return 1;
+	queue->storage = kzalloc(size * sizeof(VCHIQ_HEADER_T *), GFP_KERNEL);
+	if (queue->storage == NULL) {
+		vchiu_queue_delete(queue);
+		return 0;
+	}
+	return 1;
 }
 
 void vchiu_queue_delete(VCHIU_QUEUE_T *queue)
 {
-   vcos_event_delete(&queue->pop);
-   vcos_event_delete(&queue->push);
-   if (queue->storage != NULL)
-      vcos_free(queue->storage);
+	if (queue->storage != NULL)
+		kfree(queue->storage);
 }
 
 int vchiu_queue_is_empty(VCHIU_QUEUE_T *queue)
 {
-   return queue->read == queue->write;
+	return queue->read == queue->write;
+}
+
+int vchiu_queue_is_full(VCHIU_QUEUE_T *queue)
+{
+	return queue->write == queue->read + queue->size;
 }
 
 void vchiu_queue_push(VCHIU_QUEUE_T *queue, VCHIQ_HEADER_T *header)
 {
-   while (queue->write == queue->read + queue->size)
-      vcos_event_wait(&queue->pop);
+	while (queue->write == queue->read + queue->size) {
+		if (down_interruptible(&queue->pop) != 0) {
+			flush_signals(current);
+		}
+	}
 
-   queue->storage[queue->write & (queue->size - 1)] = header;
+	queue->storage[queue->write & (queue->size - 1)] = header;
 
-   queue->write++;
+	queue->write++;
 
-   vcos_event_signal(&queue->push);
+	up(&queue->push);
 }
 
 VCHIQ_HEADER_T *vchiu_queue_peek(VCHIU_QUEUE_T *queue)
 {
-   while (queue->write == queue->read)
-      vcos_event_wait(&queue->push);
+	while (queue->write == queue->read) {
+		if (down_interruptible(&queue->push) != 0) {
+			flush_signals(current);
+		}
+	}
 
-   return queue->storage[queue->read & (queue->size - 1)];
+	up(&queue->push); // We haven't removed anything from the queue.
+	return queue->storage[queue->read & (queue->size - 1)];
 }
 
 VCHIQ_HEADER_T *vchiu_queue_pop(VCHIU_QUEUE_T *queue)
 {
-   VCHIQ_HEADER_T *header;
+	VCHIQ_HEADER_T *header;
 
-   while (queue->write == queue->read)
-      vcos_event_wait(&queue->push);
+	while (queue->write == queue->read) {
+		if (down_interruptible(&queue->push) != 0) {
+			flush_signals(current);
+		}
+	}
 
-   header = queue->storage[queue->read & (queue->size - 1)];
+	header = queue->storage[queue->read & (queue->size - 1)];
 
-   queue->read++;
+	queue->read++;
 
-   vcos_event_signal(&queue->pop);
+	up(&queue->pop);
 
-   return header;
+	return header;
 }

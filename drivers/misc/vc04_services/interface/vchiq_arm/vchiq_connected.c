@@ -12,20 +12,18 @@
 * consent.
 *****************************************************************************/
 
-#include "vcos.h"
 #include "vchiq_connected.h"
+#include "vchiq_core.h"
 #include <linux/module.h>
+#include <linux/mutex.h>
 
 #define  MAX_CALLBACKS  10
 
-static   int                        g_connected = 0;
+static   int                        g_connected;
 static   int                        g_num_deferred_callbacks;
-static   VCHIQ_CONNECTED_CALLBACK_T g_deferred_callback[ MAX_CALLBACKS ];
-static   VCOS_ONCE_T                g_once_init;
-static   VCOS_MUTEX_T               g_connected_mutex;
-
-extern VCOS_LOG_CAT_T vchiq_core_log_category;
-#define  VCOS_LOG_CATEGORY (&vchiq_core_log_category)
+static   VCHIQ_CONNECTED_CALLBACK_T g_deferred_callback[MAX_CALLBACKS];
+static   int                        g_once_init;
+static   struct mutex               g_connected_mutex;
 
 /****************************************************************************
 *
@@ -33,9 +31,12 @@ extern VCOS_LOG_CAT_T vchiq_core_log_category;
 *
 ***************************************************************************/
 
-static void connected_init( void )
+static void connected_init(void)
 {
-   vcos_mutex_create( &g_connected_mutex, "connected_mutex");
+	if (!g_once_init) {
+		mutex_init(&g_connected_mutex);
+		g_once_init = 1;
+	}
 }
 
 /****************************************************************************
@@ -47,32 +48,30 @@ static void connected_init( void )
 *
 ***************************************************************************/
 
-void vchiq_add_connected_callback( VCHIQ_CONNECTED_CALLBACK_T callback )
+void vchiq_add_connected_callback(VCHIQ_CONNECTED_CALLBACK_T callback)
 {
-   vcos_once( &g_once_init, connected_init );
+	connected_init();
 
-   vcos_mutex_lock( &g_connected_mutex );
+	if (mutex_lock_interruptible(&g_connected_mutex) != 0)
+		return;
 
-   if ( g_connected )
-   {
-      // We're already connected. Call the callback immediately.
+	if (g_connected)
+		/* We're already connected. Call the callback immediately. */
 
-      callback();
-   }
-   else
-   {
-      if ( g_num_deferred_callbacks >= MAX_CALLBACKS )
-      {
-         vcos_log_error( "There already %d callback registered - please increase MAX_CALLBACKS",
-                         g_num_deferred_callbacks );
-      }
-      else
-      {
-         g_deferred_callback[ g_num_deferred_callbacks ] = callback;
-         g_num_deferred_callbacks++;
-      }
-   }
-   vcos_mutex_unlock( &g_connected_mutex );
+		callback();
+	else {
+		if (g_num_deferred_callbacks >= MAX_CALLBACKS)
+			vchiq_log_error(vchiq_core_log_level,
+				"There already %d callback registered - "
+				"please increase MAX_CALLBACKS",
+				g_num_deferred_callbacks);
+		else {
+			g_deferred_callback[g_num_deferred_callbacks] =
+				callback;
+			g_num_deferred_callbacks++;
+		}
+	}
+	mutex_unlock(&g_connected_mutex);
 }
 
 /****************************************************************************
@@ -82,20 +81,20 @@ void vchiq_add_connected_callback( VCHIQ_CONNECTED_CALLBACK_T callback )
 *
 ***************************************************************************/
 
-void vchiq_call_connected_callbacks( void )
+void vchiq_call_connected_callbacks(void)
 {
-   int   i;
+	int i;
 
-   vcos_once( &g_once_init, connected_init );
+	connected_init();
 
-   vcos_mutex_lock( &g_connected_mutex );
-   for ( i = 0; i <  g_num_deferred_callbacks; i++ )\
-   {
-      g_deferred_callback[i]();
-   }
-   g_num_deferred_callbacks = 0;
-   g_connected = 1;
-   vcos_mutex_unlock( &g_connected_mutex );
+	if (mutex_lock_interruptible(&g_connected_mutex) != 0)
+		return;
+
+	for (i = 0; i <  g_num_deferred_callbacks; i++)
+		g_deferred_callback[i]();
+
+	g_num_deferred_callbacks = 0;
+	g_connected = 1;
+	mutex_unlock(&g_connected_mutex);
 }
-
-EXPORT_SYMBOL( vchiq_add_connected_callback );
+EXPORT_SYMBOL(vchiq_add_connected_callback);
