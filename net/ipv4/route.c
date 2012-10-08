@@ -1210,8 +1210,6 @@ static bool rt_cache_route(struct fib_nh *nh, struct rtable *rt)
 	if (rt_is_input_route(rt)) {
 		p = (struct rtable **)&nh->nh_rth_input;
 	} else {
-		if (!nh->nh_pcpu_rth_output)
-			goto nocache;
 		p = (struct rtable **)__this_cpu_ptr(nh->nh_pcpu_rth_output);
 	}
 	orig = *p;
@@ -1226,7 +1224,6 @@ static bool rt_cache_route(struct fib_nh *nh, struct rtable *rt)
 		 * unsuccessful at storing this route into the cache
 		 * we really need to set it.
 		 */
-nocache:
 		rt->dst.flags |= DST_NOCACHE;
 		ret = false;
 	}
