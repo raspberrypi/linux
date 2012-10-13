@@ -13,8 +13,8 @@
 
 		.text
 @ Delay routine
-ENTRY(__delay)
+ENTRY(bcm2708_delay)
 		subs	r0, r0, #1
-		bhi	__delay
+		bhi	bcm2708_delay
 		mov	pc, lr
-ENDPROC(__delay)
+ENDPROC(bcm2708_delay)

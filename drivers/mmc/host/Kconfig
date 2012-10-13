@@ -320,14 +320,6 @@ config MMC_ATMELMCI
 	  If unsure, say N.
 
 endchoice
-config MMC_BCM2708
-	tristate "BCM2708 Multimedia Card Interface support"
-	help
-	  This selects the BCM2708 Multimedia Card Interface driver. If
-	  you have a BCM2708 platform with a Multimedia Card
-	  slot, say Y or M here.
-
-	  If unsure, say N.
 
 config MMC_ATMELMCI_DMA
 	bool "Atmel MCI DMA support"

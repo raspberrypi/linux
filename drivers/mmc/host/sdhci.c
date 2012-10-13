@@ -1351,35 +1351,6 @@ static int sdhci_set_power(struct sdhci_host *host, unsigned short power)
 	return power;
 }
 
-/* Power on or off the circuitary supporting the register set */
-static int sdhci_set_plat_power(struct sdhci_host *host, int power_mode)
-{
-	if (host->ops->set_plat_power)
-		return host->ops->set_plat_power(host, power_mode);
-	else
-		return 0;
-}
-
-/* Click forwards one step towards fully on */
-static int sdhci_enable(struct mmc_host *mmc)
-{
-	struct sdhci_host *host;
-
-	host = mmc_priv(mmc);
-
-	return host->ops->enable? host->ops->enable(host): 0;
-}
-
-/* Click backwards one step towards fully off */
-static int sdhci_disable(struct mmc_host *mmc, int lazy)
-{
-	struct sdhci_host *host;
-
-	host = mmc_priv(mmc);
-
-	return host->ops->disable? host->ops->disable(host, lazy): 0;
-}
-
 /*****************************************************************************\
  *                                                                           *
  * MMC callbacks                                                             *
@@ -1466,7 +1437,6 @@ static void sdhci_do_set_ios(struct sdhci_host *host, struct mmc_ios *ios)
 	unsigned long flags;
 	int vdd_bit = -1;
 	u8 ctrl;
-	int rc;
 
 	sdhci_spin_lock_irqsave(host, &flags);
 
@@ -1627,12 +1597,6 @@ static void sdhci_do_set_ios(struct sdhci_host *host, struct mmc_ios *ios)
 
 	mmiowb();
 	sdhci_spin_unlock_irqrestore(host, flags);
-
-	if (ios->power_mode == MMC_POWER_OFF) {
-		do 
-			rc = sdhci_set_plat_power(host, ios->power_mode);
-		while (rc == -EINTR);
-	}
 }
 
 static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
@@ -2098,8 +2062,6 @@ static const struct mmc_host_ops sdhci_ops = {
 	.start_signal_voltage_switch	= sdhci_start_signal_voltage_switch,
 	.execute_tuning			= sdhci_execute_tuning,
 	.enable_preset_value		= sdhci_enable_preset_value,
-	.enable		= sdhci_enable,
-	.disable	= sdhci_disable,
 };
 
 /*****************************************************************************\
@@ -2634,12 +2596,6 @@ EXPORT_SYMBOL_GPL(sdhci_suspend_host);
 int sdhci_resume_host(struct sdhci_host *host)
 {
 	int ret;
-
-	if (host->vmmc) {
-		int ret = regulator_enable(host->vmmc);
-		if (ret)
-			return ret;
-	}
 
 	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA | 
 			   SDHCI_USE_PLATDMA)) {

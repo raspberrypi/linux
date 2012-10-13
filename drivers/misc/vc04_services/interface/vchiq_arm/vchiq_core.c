@@ -1448,8 +1448,6 @@ fail_open:
 		NULL, 0, 0, 0) == VCHIQ_RETRY)
 		goto bail_not_ready;
 
-	unlock_service(service);
-
 	return 1;
 
 bail_not_ready:
@@ -1649,7 +1647,14 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 				&& (service->srvstate ==
 				VCHIQ_SRVSTATE_OPEN)) {
 				VCHIQ_BULK_T *bulk;
-				int resolved;
+				int resolved = 0;
+
+				DEBUG_TRACE(PARSE_LINE);
+				if (mutex_lock_interruptible(
+					&service->bulk_mutex) != 0) {
+					DEBUG_TRACE(PARSE_LINE);
+					goto bail_not_ready;
+				}
 
 				WARN_ON(!(queue->remote_insert < queue->remove +
 					VCHIQ_NUM_SERVICE_BULKS));
@@ -1670,18 +1675,12 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 
 				queue->remote_insert++;
 
-				if (state->conn_state !=
-					VCHIQ_CONNSTATE_CONNECTED)
-					break;
-
-				DEBUG_TRACE(PARSE_LINE);
-				if (mutex_lock_interruptible(
-					&service->bulk_mutex) != 0) {
+				if (state->conn_state ==
+					VCHIQ_CONNSTATE_CONNECTED) {
 					DEBUG_TRACE(PARSE_LINE);
-					goto bail_not_ready;
+					resolved = resolve_bulks(service, queue);
 				}
-				DEBUG_TRACE(PARSE_LINE);
-				resolved = resolve_bulks(service, queue);
+
 				mutex_unlock(&service->bulk_mutex);
 				if (resolved)
 					notify_bulks(service, queue,
@@ -1700,14 +1699,23 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 				queue = (type == VCHIQ_MSG_BULK_RX_DONE) ?
 					&service->bulk_rx : &service->bulk_tx;
 
+				DEBUG_TRACE(PARSE_LINE);
+				if (mutex_lock_interruptible(
+					&service->bulk_mutex) != 0) {
+					DEBUG_TRACE(PARSE_LINE);
+					goto bail_not_ready;
+				}
 				if ((int)(queue->remote_insert -
 					queue->local_insert) >= 0) {
 					vchiq_log_error(vchiq_core_log_level,
 						"%d: prs %s@%x (%d->%d) "
-						"unexpected",
+						"unexpected (ri=%d,li=%d)",
 						state->id, msg_type_str(type),
 						(unsigned int)header,
-						remoteport, localport);
+						remoteport, localport,
+						queue->remote_insert,
+						queue->local_insert);
+					mutex_unlock(&service->bulk_mutex);
 					break;
 				}
 
@@ -1734,12 +1742,6 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 					queue->local_insert,
 					queue->remote_insert, queue->process);
 
-				DEBUG_TRACE(PARSE_LINE);
-				if (mutex_lock_interruptible(
-					&service->bulk_mutex) != 0) {
-					DEBUG_TRACE(PARSE_LINE);
-					goto bail_not_ready;
-				}
 				DEBUG_TRACE(PARSE_LINE);
 				WARN_ON(queue->process == queue->local_insert);
 				vchiq_complete_bulk(bulk);
@@ -2971,7 +2973,6 @@ vchiq_remove_service(VCHIQ_SERVICE_HANDLE_T handle)
 	return status;
 }
 
-
 /* This function may be called by kernel threads or user threads.
  * User threads may receive VCHIQ_RETRY to indicate that a signal has been
  * received and the call should be retried after being returned to user
@@ -3116,154 +3117,6 @@ unlock_error_exit:
 error_exit:
 	if (service)
 		unlock_service(service);
-	return status;
-}
-
-VCHIQ_STATUS_T
-vchiq_queue_bulk_transmit(VCHIQ_SERVICE_HANDLE_T handle,
-	const void *data, int size, void *userdata)
-{
-	return vchiq_bulk_transfer(handle,
-		VCHI_MEM_HANDLE_INVALID, (void *)data, size, userdata,
-		VCHIQ_BULK_MODE_CALLBACK, VCHIQ_BULK_TRANSMIT);
-}
-
-VCHIQ_STATUS_T
-vchiq_queue_bulk_receive(VCHIQ_SERVICE_HANDLE_T handle, void *data, int size,
-	void *userdata)
-{
-	return vchiq_bulk_transfer(handle,
-		VCHI_MEM_HANDLE_INVALID, data, size, userdata,
-		VCHIQ_BULK_MODE_CALLBACK, VCHIQ_BULK_RECEIVE);
-}
-
-VCHIQ_STATUS_T
-vchiq_queue_bulk_transmit_handle(VCHIQ_SERVICE_HANDLE_T handle,
-	VCHI_MEM_HANDLE_T memhandle, const void *offset, int size,
-	void *userdata)
-{
-	return vchiq_bulk_transfer(handle,
-		memhandle, (void *)offset, size, userdata,
-		VCHIQ_BULK_MODE_CALLBACK, VCHIQ_BULK_TRANSMIT);
-}
-
-VCHIQ_STATUS_T
-vchiq_queue_bulk_receive_handle(VCHIQ_SERVICE_HANDLE_T handle,
-	VCHI_MEM_HANDLE_T memhandle, void *offset, int size,
-	void *userdata)
-{
-	return vchiq_bulk_transfer(handle,
-		memhandle, offset, size, userdata,
-		VCHIQ_BULK_MODE_CALLBACK, VCHIQ_BULK_RECEIVE);
-}
-
-VCHIQ_STATUS_T
-vchiq_bulk_transmit(VCHIQ_SERVICE_HANDLE_T handle, const void *data, int size,
-	void *userdata, VCHIQ_BULK_MODE_T mode)
-{
-	struct bulk_waiter bulk_waiter;
-	VCHIQ_STATUS_T status;
-
-	switch (mode) {
-	case VCHIQ_BULK_MODE_NOCALLBACK:
-	case VCHIQ_BULK_MODE_CALLBACK:
-		break;
-	case VCHIQ_BULK_MODE_BLOCKING:
-		userdata = &bulk_waiter;
-		break;
-	default:
-		return VCHIQ_ERROR;
-	}
-
-	status = vchiq_bulk_transfer(handle,
-		VCHI_MEM_HANDLE_INVALID, (void *)data, size, userdata,
-		mode, VCHIQ_BULK_TRANSMIT);
-
-	/* This call is for kernel thread use and should not be interrupted */
-	// dc4: remove as it does happen: BUG_ON(status == VCHIQ_RETRY);
-	return status;
-}
-
-VCHIQ_STATUS_T
-vchiq_bulk_receive(VCHIQ_SERVICE_HANDLE_T handle, void *data, int size,
-	void *userdata, VCHIQ_BULK_MODE_T mode)
-{
-	struct bulk_waiter bulk_waiter;
-	VCHIQ_STATUS_T status;
-
-	switch (mode) {
-	case VCHIQ_BULK_MODE_NOCALLBACK:
-	case VCHIQ_BULK_MODE_CALLBACK:
-		break;
-	case VCHIQ_BULK_MODE_BLOCKING:
-		userdata = &bulk_waiter;
-		break;
-	default:
-		return VCHIQ_ERROR;
-	}
-
-	status = vchiq_bulk_transfer(handle,
-		VCHI_MEM_HANDLE_INVALID, data, size, userdata,
-		mode, VCHIQ_BULK_RECEIVE);
-
-	/* This call is for kernel thread use and should not be interrupted */
-	BUG_ON(status == VCHIQ_RETRY);
-	return status;
-}
-
-VCHIQ_STATUS_T
-vchiq_bulk_transmit_handle(VCHIQ_SERVICE_HANDLE_T handle,
-	VCHI_MEM_HANDLE_T memhandle, const void *offset, int size,
-	void *userdata, VCHIQ_BULK_MODE_T mode)
-{
-	struct bulk_waiter bulk_waiter;
-	VCHIQ_STATUS_T status;
-
-	switch (mode) {
-	case VCHIQ_BULK_MODE_NOCALLBACK:
-	case VCHIQ_BULK_MODE_CALLBACK:
-		break;
-	case VCHIQ_BULK_MODE_BLOCKING:
-		userdata = &bulk_waiter;
-		break;
-	default:
-		return VCHIQ_ERROR;
-	}
-
-	status = vchiq_bulk_transfer(handle,
-		memhandle, (void *)offset, size, userdata,
-		mode, VCHIQ_BULK_TRANSMIT);
-
-	/* This call is for kernel thread use and should not be interrupted */
-	BUG_ON(status == VCHIQ_RETRY);
-	return status;
-}
-
-VCHIQ_STATUS_T
-vchiq_bulk_receive_handle(VCHIQ_SERVICE_HANDLE_T handle,
-	VCHI_MEM_HANDLE_T memhandle, void *offset, int size, void *userdata,
-	VCHIQ_BULK_MODE_T mode)
-{
-	struct bulk_waiter bulk_waiter;
-	VCHIQ_STATUS_T status;
-
-	switch (mode) {
-	case VCHIQ_BULK_MODE_NOCALLBACK:
-	case VCHIQ_BULK_MODE_CALLBACK:
-		break;
-	case VCHIQ_BULK_MODE_BLOCKING:
-		userdata = &bulk_waiter;
-		break;
-	default:
-		return VCHIQ_ERROR;
-	}
-
-	status = vchiq_bulk_transfer(handle,
-		memhandle, offset, size, userdata,
-		mode, VCHIQ_BULK_RECEIVE);
-
-	/* This call is for kernel thread use and should not be interrupted */
-	BUG_ON(status == VCHIQ_RETRY);
 	return status;
 }
 

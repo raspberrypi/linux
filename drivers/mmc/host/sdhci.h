@@ -276,11 +276,6 @@ struct sdhci_ops {
 	void	(*platform_reset_exit)(struct sdhci_host *host, u8 mask);
 	int	(*set_uhs_signaling)(struct sdhci_host *host, unsigned int uhs);
 
-	int             (*enable)(struct sdhci_host *mmc);
-	int             (*disable)(struct sdhci_host *mmc, int lazy);
-	int             (*set_plat_power)(struct sdhci_host *mmc,
-					  int power_mode);
-
 	int             (*pdma_able)(struct sdhci_host *host,
 				     struct mmc_data *data);
 	void            (*pdma_avail)(struct sdhci_host *host,
