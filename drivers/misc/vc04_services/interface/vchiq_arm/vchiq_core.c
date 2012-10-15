@@ -3180,7 +3180,7 @@ vchiq_bulk_transmit(VCHIQ_SERVICE_HANDLE_T handle, const void *data, int size,
 		mode, VCHIQ_BULK_TRANSMIT);
 
 	/* This call is for kernel thread use and should not be interrupted */
-	// dc4: remove as it does happen: BUG_ON(status == VCHIQ_RETRY);
+	BUG_ON(status == VCHIQ_RETRY);
 	return status;
 }
 
