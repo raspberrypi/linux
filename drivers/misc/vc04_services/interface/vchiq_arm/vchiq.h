@@ -21,6 +21,7 @@
 
 #include "vchiq_if.h"
 #include "vchiq_util.h"
+#include "interface/vcos/vcos.h"
 
 #endif
 

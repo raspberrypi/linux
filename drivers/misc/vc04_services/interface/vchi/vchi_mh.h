@@ -19,7 +19,7 @@
 #ifndef VCHI_MH_H_
 #define VCHI_MH_H_
 
-#include <linux/types.h>
+#include <interface/vcos/vcos.h>
 
 typedef int32_t VCHI_MEM_HANDLE_T;
 #define VCHI_MEM_HANDLE_INVALID 0
