@@ -624,6 +624,21 @@ int __init bcm_register_device(struct platform_device *pdev)
 	return ret;
 }
 
+static void bcm2708_restart(char mode, const char *cmd)
+{
+	uint32_t pm_rstc, pm_wdog;
+	uint32_t timeout = 10;
+
+	/* Setup watchdog for reset */
+	pm_rstc = readl(__io_address(PM_RSTC));
+
+	pm_wdog = PM_PASSWORD | (timeout & PM_WDOG_TIME_SET); // watchdog timer = timer clock / 16; need password (31:16) + value (11:0)
+	pm_rstc = PM_PASSWORD | (pm_rstc & PM_RSTC_WRCFG_CLR) | PM_RSTC_WRCFG_FULL_RESET;
+
+	writel(pm_wdog, __io_address(PM_WDOG));
+	writel(pm_rstc, __io_address(PM_RSTC));
+}
+
 /* We can't really power off, but if we do the normal reset scheme, and indicate to bootcode.bin not to reboot, then most of the chip will be powered off */
 static void bcm2708_power_off(void)
 {
@@ -632,7 +647,7 @@ static void bcm2708_power_off(void)
 	pm_rsts = PM_PASSWORD | (pm_rsts & PM_RSTC_WRCFG_CLR) | PM_RSTS_HADWRH_SET;
 	writel(pm_rsts, __io_address(PM_RSTS));
 	/* continue with normal reset mechanism */
-	arch_reset(0, "");
+	bcm2708_restart(0, "");
 }
 
 void __init bcm2708_init(void)
@@ -855,6 +870,7 @@ MACHINE_START(BCM2708, "BCM2708")
 	.init_machine = bcm2708_init,
 	.init_early = bcm2708_init_early,
 	.reserve = board_reserve,
+	.restart	= bcm2708_restart,
 MACHINE_END
 
 module_param(boardrev, uint, 0644);
