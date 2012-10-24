@@ -164,17 +164,18 @@ static int eeh_report_error(struct pci_dev *dev, void *userdata)
 	enum pci_ers_result rc, *res = userdata;
 	struct pci_driver *driver;
 
+	device_lock(&dev->dev);
 	dev->error_state = pci_channel_io_frozen;
 
 	driver = eeh_pcid_get(dev);
-	if (!driver) return 0;
+	if (!driver) goto out;
 
 	eeh_disable_irq(dev);
 
 	if (!driver->err_handler ||
 	    !driver->err_handler->error_detected) {
 		eeh_pcid_put(dev);
-		return 0;
+		goto out;
 	}
 
 	rc = driver->err_handler->error_detected(dev, pci_channel_io_frozen);
@@ -184,6 +185,8 @@ static int eeh_report_error(struct pci_dev *dev, void *userdata)
 	if (*res == PCI_ERS_RESULT_NONE) *res = rc;
 
 	eeh_pcid_put(dev);
+out:
+	device_unlock(&dev->dev);
 	return 0;
 }
 
@@ -201,13 +204,14 @@ static int eeh_report_mmio_enabled(struct pci_dev *dev, void *userdata)
 	enum pci_ers_result rc, *res = userdata;
 	struct pci_driver *driver;
 
+	device_lock(&dev->dev);
 	driver = eeh_pcid_get(dev);
-	if (!driver) return 0;
+	if (!driver) goto out;
 
 	if (!driver->err_handler ||
 	    !driver->err_handler->mmio_enabled) {
 		eeh_pcid_put(dev);
-		return 0;
+		goto out;
 	}
 
 	rc = driver->err_handler->mmio_enabled(dev);
@@ -217,6 +221,8 @@ static int eeh_report_mmio_enabled(struct pci_dev *dev, void *userdata)
 	if (*res == PCI_ERS_RESULT_NONE) *res = rc;
 
 	eeh_pcid_put(dev);
+out:
+	device_unlock(&dev->dev);
 	return 0;
 }
 
@@ -235,17 +241,18 @@ static int eeh_report_reset(struct pci_dev *dev, void *userdata)
 	enum pci_ers_result rc, *res = userdata;
 	struct pci_driver *driver;
 
+	device_lock(&dev->dev);
 	dev->error_state = pci_channel_io_normal;
 
 	driver = eeh_pcid_get(dev);
-	if (!driver) return 0;
+	if (!driver) goto out;
 
 	eeh_enable_irq(dev);
 
 	if (!driver->err_handler ||
 	    !driver->err_handler->slot_reset) {
 		eeh_pcid_put(dev);
-		return 0;
+		goto out;
 	}
 
 	rc = driver->err_handler->slot_reset(dev);
@@ -255,6 +262,8 @@ static int eeh_report_reset(struct pci_dev *dev, void *userdata)
 	     rc == PCI_ERS_RESULT_NEED_RESET) *res = rc;
 
 	eeh_pcid_put(dev);
+out:
+	device_unlock(&dev->dev);
 	return 0;
 }
 
@@ -271,22 +280,25 @@ static int eeh_report_resume(struct pci_dev *dev, void *userdata)
 {
 	struct pci_driver *driver;
 
+	device_lock(&dev->dev);
 	dev->error_state = pci_channel_io_normal;
 
 	driver = eeh_pcid_get(dev);
-	if (!driver) return 0;
+	if (!driver) goto out;
 
 	eeh_enable_irq(dev);
 
 	if (!driver->err_handler ||
 	    !driver->err_handler->resume) {
 		eeh_pcid_put(dev);
-		return 0;
+		goto out;
 	}
 
 	driver->err_handler->resume(dev);
 
 	eeh_pcid_put(dev);
+out:
+	device_unlock(&dev->dev);
 	return 0;
 }
 
@@ -302,22 +314,25 @@ static int eeh_report_failure(struct pci_dev *dev, void *userdata)
 {
 	struct pci_driver *driver;
 
+	device_lock(&dev->dev);
 	dev->error_state = pci_channel_io_perm_failure;
 
 	driver = eeh_pcid_get(dev);
-	if (!driver) return 0;
+	if (!driver) goto out;
 
 	eeh_disable_irq(dev);
 
 	if (!driver->err_handler ||
 	    !driver->err_handler->error_detected) {
 		eeh_pcid_put(dev);
-		return 0;
+		goto out;
 	}
 
 	driver->err_handler->error_detected(dev, pci_channel_io_perm_failure);
 
 	eeh_pcid_put(dev);
+out:
+	device_unlock(&dev->dev);
 	return 0;
 }
 
