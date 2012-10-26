@@ -6,6 +6,12 @@ config PREEMPT_RT_BASE
 	bool
 	select PREEMPT
 
+config HAVE_PREEMPT_LAZY
+	bool
+
+config PREEMPT_LAZY
+	def_bool y if HAVE_PREEMPT_LAZY && PREEMPT_RT_FULL
+
 choice
 	prompt "Preemption Model"
 	default PREEMPT_NONE
