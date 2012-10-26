@@ -304,11 +304,13 @@ again:
 		return;
 	}
 	cpu = smp_processor_id();
+	preempt_lazy_enable();
 	preempt_enable();
 
 	__read_rt_lock(cpuhp_pin);
 
 	preempt_disable();
+	preempt_lazy_disable();
 	if (cpu != smp_processor_id()) {
 		__read_rt_unlock(cpuhp_pin);
 		goto again;
