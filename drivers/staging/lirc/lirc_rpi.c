@@ -58,11 +58,7 @@
 #define LIRC_TRANSMITTER_LATENCY 256
 
 /* Clear GPIO interrupt on the pin we use */
-#define GPIO_INT_CLEAR(g) *(gpio+16) = (*(gpio+16) | (1<<g));
-/* GPREN0 GPIO Pin Rising Edge Detect Enable/Disable */
-#define GPIO_INT_RISING(g,v) *(gpio+19) = v ? (*(gpio+19) | (1<<g)) : (*(gpio+19) ^ (1<<g))
-/* GPFEN0 GPIO Pin Falling Edge Detect Enable/Disable */
-#define GPIO_INT_FALLING(g,v) *(gpio+22) = v ? (*(gpio+22) | (1<<g)) : (*(gpio+22) ^ (1<<g))
+#define GPIO_IRQ(g) gpiochip->to_irq(gpiochip,g)
 
 #ifndef MAX_UDELAY_MS
 #define MAX_UDELAY_US 5000
@@ -91,6 +87,8 @@ static int sense = -1;
 static int softcarrier = 1;
 
 struct gpio_chip *gpiochip;
+struct irq_chip *irqchip;
+struct irq_data* irqdata;
 
 /* forward declarations */
 static long send_pulse(unsigned long length);
@@ -99,8 +97,6 @@ static void lirc_rpi_exit(void);
 
 int valid_gpio_pins[] = { 0, 1, 4, 8, 7, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23,
 	24, 25 };
-
-volatile unsigned *gpio;
 
 static struct platform_device *lirc_rpi_dev;
 static struct timeval lasttv = { 0, 0 };
@@ -260,7 +256,8 @@ static irqreturn_t irq_handler(int i, void *blah, struct pt_regs *regs)
 	signal = gpiochip->get(gpiochip, gpio_in_pin);
 
 	/* reset interrupt */
-	GPIO_INT_CLEAR(gpio_in_pin);
+	// is this supposed to mask or unmask the irq?
+	irqchip->irq_unmask(irqdata);
 
 	if (sense != -1) {
 		/* get current time */
@@ -315,26 +312,12 @@ static int is_right_chip(struct gpio_chip *chip, void *data)
 
 static int init_port(void)
 {
-	int i, nlow, nhigh, ret;
+	int i, nlow, nhigh, ret, irq;
 
-	/* reserve GPIO memory region. */
-	if (request_mem_region(GPIO_BASE, SZ_4K, LIRC_DRIVER_NAME) == NULL) {
-		printk(KERN_ERR LIRC_DRIVER_NAME
-		       ": unable to obtain GPIO I/O memory address\n");
-		return -EBUSY;
-	}
-
-	/* remap the GPIO memory */
-	if ((gpio = ioremap_nocache(GPIO_BASE, SZ_4K)) == NULL) {
-		printk(KERN_ERR LIRC_DRIVER_NAME
-		       ": failed to map GPIO I/O memory\n");
-		ret = -EBUSY;
-		goto exit_release_mem_region;
-	}
-
-
-	gpiochip = gpiochip_find("bcm2708_gpio", is_right_chip);
-	if (!gpiochip) {
+	gpiochip = gpiochip_find("bcm2708_gpio",is_right_chip);
+	if (!gpiochip) return -ENODEV;
+	if (gpio_request(gpio_out_pin,"lirc_rpi")) {
+		printk(KERN_ALERT"cant claim gpio pin %d\n",gpio_out_pin);
 		ret = -ENODEV;
 		goto exit_iounmap;
 	}
@@ -356,6 +339,16 @@ static int init_port(void)
 
 	gpiochip->direction_output(gpiochip, gpio_out_pin, 1);
 	gpiochip->set(gpiochip, gpio_out_pin, 0);
+
+	irq = gpiochip->to_irq(gpiochip,gpio_in_pin);
+	printk(KERN_ALERT " to_irq %d\n",irq);
+	irqdata = irq_get_irq_data(irq);
+	if (irqdata && irqdata->chip) {
+		irqchip = irqdata->chip;
+	} else {
+		ret = -ENODEV;
+		goto error4;
+	}
 
 	/* if pin is high, then this must be an active low receiver. */
 	if (sense == -1) {
@@ -387,18 +380,16 @@ static int init_port(void)
 
 	return 0;
 
+	error4:
+	gpio_free(gpio_in_pin);
+
 	exit_gpio_free:
 	gpio_free(gpio_out_pin);
-
-	exit_iounmap:
-	iounmap(gpio);
-
-	exit_release_mem_region:
-	release_mem_region(GPIO_BASE, SZ_4K);
 
 	return ret;
 }
 
+// called when the character device is opened
 static int set_use_inc(void *data)
 {
 	int result;
@@ -407,14 +398,14 @@ static int set_use_inc(void *data)
 	/* initialize timestamp */
 	do_gettimeofday(&lasttv);
 
-	result = request_irq(INTERRUPT_GPIO0, (irq_handler_t)
+	result = request_irq(GPIO_IRQ(gpio_in_pin), (irq_handler_t)
 			     irq_handler, 0,
-			     LIRC_DRIVER_NAME, (void*) gpio);
+			     LIRC_DRIVER_NAME, (void*) 0);
 
 	switch (result) {
 	case -EBUSY:
 		printk(KERN_ERR LIRC_DRIVER_NAME
-		       ": IRQ %d is busy\n", INTERRUPT_GPIO0);
+		       ": IRQ %d is busy\n", GPIO_IRQ(gpio_in_pin));
 		return -EBUSY;
 	case -EINVAL:
 		printk(KERN_ERR LIRC_DRIVER_NAME
@@ -422,7 +413,7 @@ static int set_use_inc(void *data)
 		return -EINVAL;
 	default:
 		dprintk(KERN_INFO LIRC_DRIVER_NAME
-			": Interrupt %04x obtained\n", INTERRUPT_GPIO0);
+			": Interrupt %04x obtained\n", GPIO_IRQ(gpio_in_pin));
 		break;
 	};
 
@@ -432,13 +423,12 @@ static int set_use_inc(void *data)
 	spin_lock_irqsave(&lock, flags);
 
 	/* GPREN0 GPIO Pin Rising Edge Detect Enable */
-	GPIO_INT_RISING(gpio_in_pin, 1);
-
 	/* GPFEN0 GPIO Pin Falling Edge Detect Enable */
-	GPIO_INT_FALLING(gpio_in_pin, 1);
+	irqchip->irq_set_type(irqdata,IRQ_TYPE_EDGE_RISING | IRQ_TYPE_EDGE_FALLING);
 
 	/* clear interrupt flag */
-	GPIO_INT_CLEAR(gpio_in_pin);
+	// is this supposed to mask or unmask the irq?
+	irqchip->irq_unmask(irqdata);
 
 	spin_unlock_irqrestore(&lock, flags);
 
@@ -452,17 +442,16 @@ static void set_use_dec(void *data)
 	spin_lock_irqsave(&lock, flags);
 
 	/* GPREN0 GPIO Pin Rising Edge Detect Disable */
-	GPIO_INT_RISING(gpio_in_pin, 0);
-
 	/* GPFEN0 GPIO Pin Falling Edge Detect Disable */
-	GPIO_INT_FALLING(gpio_in_pin, 0);
+	irqchip->irq_set_type(irqdata,0);
+	irqchip->irq_mask(irqdata);
 
 	spin_unlock_irqrestore(&lock, flags);
 
-	free_irq(INTERRUPT_GPIO0, (void *) gpio);
+	free_irq(GPIO_IRQ(gpio_in_pin), (void *) 0);
 
 	dprintk(KERN_INFO LIRC_DRIVER_NAME
-		": freed IRQ %04x\n", INTERRUPT_GPIO0);
+		": freed IRQ %04x\n", GPIO_IRQ(gpio_in_pin));
 }
 
 static ssize_t lirc_write(struct file *file, const char *buf,
@@ -684,12 +673,6 @@ static int __init lirc_rpi_init_module(void)
 static void __exit lirc_rpi_exit_module(void)
 {
 	lirc_rpi_exit();
-
-	/* release mapped memory and allocated region */
-	if (gpio != NULL) {
-		iounmap(gpio);
-		release_mem_region(GPIO_BASE, SZ_4K);
-	}
 
 	lirc_unregister_driver(driver.minor);
 	printk(KERN_INFO LIRC_DRIVER_NAME ": cleaned up module\n");
