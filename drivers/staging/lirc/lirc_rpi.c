@@ -7,7 +7,8 @@
  *	      Lots of code has been taken from the lirc_serial module,
  *	      so I would like say thanks to the authors.
  *
- * Copyright (C) 2012 Aron Robert Szabo <aron@reon.hu>
+ * Copyright (C) 2012 Aron Robert Szabo <aron@reon.hu>,
+ *		      Michael Bishop <cleverca22@gmail.com>
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2 of the License, or
@@ -29,7 +30,6 @@
 #include <linux/list.h>
 #include <linux/io.h>
 #include <linux/version.h>
-#include <linux/sysdev.h>
 #include <linux/interrupt.h>
 #include <linux/sched.h>
 #include <linux/ioport.h>
@@ -56,9 +56,6 @@
 #define LIRC_DRIVER_NAME "lirc_rpi"
 #define RBUF_LEN 256
 #define LIRC_TRANSMITTER_LATENCY 256
-
-/* Clear GPIO interrupt on the pin we use */
-#define GPIO_IRQ(g) gpiochip->to_irq(gpiochip,g)
 
 #ifndef MAX_UDELAY_MS
 #define MAX_UDELAY_US 5000
@@ -196,7 +193,7 @@ static void rbwrite(int l)
 {
 	if (lirc_buffer_full(&rbuf)) {
 		/* no new signals will be accepted */
-		dprintk(KERN_WARNING LIRC_DRIVER_NAME "Buffer overrun\n");
+		dprintk("Buffer overrun\n");
 		return;
 	}
 	lirc_buffer_write(&rbuf, (void *)&l);
@@ -303,8 +300,7 @@ static irqreturn_t irq_handler(int i, void *blah, struct pt_regs *regs)
 
 static int is_right_chip(struct gpio_chip *chip, void *data)
 {
-	printk(KERN_ALERT "is_right_chip %s %d\n", chip->label,
-	       strcmp(data,chip->label));
+	dprintk("is_right_chip %s %d\n", chip->label, strcmp(data, chip->label));
 	if (strcmp(data,chip->label) == 0)
 		return 1;
 	return 0;
@@ -314,40 +310,39 @@ static int init_port(void)
 {
 	int i, nlow, nhigh, ret, irq;
 
-	gpiochip = gpiochip_find("bcm2708_gpio",is_right_chip);
-	if (!gpiochip) return -ENODEV;
-	if (gpio_request(gpio_out_pin,"lirc_rpi")) {
-		printk(KERN_ALERT"cant claim gpio pin %d\n",gpio_out_pin);
+	gpiochip = gpiochip_find("bcm2708_gpio", is_right_chip);
+
+	if (!gpiochip)
+		return -ENODEV;
+
+	if (gpio_request(gpio_out_pin, LIRC_DRIVER_NAME " ir/out")) {
+		printk(KERN_ALERT LIRC_DRIVER_NAME
+		       ": cant claim gpio pin %d\n", gpio_out_pin);
 		ret = -ENODEV;
-		goto exit_iounmap;
+		goto exit_init_port;
 	}
 
-	if (gpio_request(gpio_out_pin, "lirc_rpi")) {
-		printk(KERN_ALERT "cant claim gpio pin %d\n", gpio_out_pin);
+	if (gpio_request(gpio_in_pin, LIRC_DRIVER_NAME " ir/in")) {
+		printk(KERN_ALERT LIRC_DRIVER_NAME
+		       ": cant claim gpio pin %d\n", gpio_in_pin);
 		ret = -ENODEV;
-		goto exit_iounmap;
-	}
-	
-	if (gpio_request(gpio_in_pin,"lirc_rpi")) {
-		printk(KERN_ALERT "cant claim gpio pin %d\n", gpio_in_pin);
-		ret = -ENODEV;
-		goto exit_gpio_free;
+		goto exit_gpio_free_out_pin;
 	}
 
-	/* set specified pin as input */
+
 	gpiochip->direction_input(gpiochip, gpio_in_pin);
-
 	gpiochip->direction_output(gpiochip, gpio_out_pin, 1);
 	gpiochip->set(gpiochip, gpio_out_pin, 0);
 
-	irq = gpiochip->to_irq(gpiochip,gpio_in_pin);
-	printk(KERN_ALERT " to_irq %d\n",irq);
+	irq = gpiochip->to_irq(gpiochip, gpio_in_pin);
+	dprintk("to_irq %d\n", irq);
 	irqdata = irq_get_irq_data(irq);
+
 	if (irqdata && irqdata->chip) {
 		irqchip = irqdata->chip;
 	} else {
 		ret = -ENODEV;
-		goto error4;
+		goto exit_gpio_free_in_pin;
 	}
 
 	/* if pin is high, then this must be an active low receiver. */
@@ -380,12 +375,13 @@ static int init_port(void)
 
 	return 0;
 
-	error4:
+	exit_gpio_free_in_pin:
 	gpio_free(gpio_in_pin);
 
-	exit_gpio_free:
+	exit_gpio_free_out_pin:
 	gpio_free(gpio_out_pin);
 
+	exit_init_port:
 	return ret;
 }
 
@@ -398,22 +394,23 @@ static int set_use_inc(void *data)
 	/* initialize timestamp */
 	do_gettimeofday(&lasttv);
 
-	result = request_irq(GPIO_IRQ(gpio_in_pin), (irq_handler_t)
-			     irq_handler, 0,
+	result = request_irq(gpiochip->to_irq(gpiochip, gpio_in_pin),
+			     (irq_handler_t) irq_handler, 0,
 			     LIRC_DRIVER_NAME, (void*) 0);
 
 	switch (result) {
 	case -EBUSY:
 		printk(KERN_ERR LIRC_DRIVER_NAME
-		       ": IRQ %d is busy\n", GPIO_IRQ(gpio_in_pin));
+		       ": IRQ %d is busy\n",
+		       gpiochip->to_irq(gpiochip, gpio_in_pin));
 		return -EBUSY;
 	case -EINVAL:
 		printk(KERN_ERR LIRC_DRIVER_NAME
 		       ": Bad irq number or handler\n");
 		return -EINVAL;
 	default:
-		dprintk(KERN_INFO LIRC_DRIVER_NAME
-			": Interrupt %04x obtained\n", GPIO_IRQ(gpio_in_pin));
+		dprintk("Interrupt %04x obtained\n",
+			gpiochip->to_irq(gpiochip, gpio_in_pin));
 		break;
 	};
 
@@ -422,9 +419,9 @@ static int set_use_inc(void *data)
 
 	spin_lock_irqsave(&lock, flags);
 
-	/* GPREN0 GPIO Pin Rising Edge Detect Enable */
-	/* GPFEN0 GPIO Pin Falling Edge Detect Enable */
-	irqchip->irq_set_type(irqdata,IRQ_TYPE_EDGE_RISING | IRQ_TYPE_EDGE_FALLING);
+	/* GPIO Pin Falling/Rising Edge Detect Enable */
+	irqchip->irq_set_type(irqdata,
+			      IRQ_TYPE_EDGE_RISING | IRQ_TYPE_EDGE_FALLING);
 
 	/* clear interrupt flag */
 	// is this supposed to mask or unmask the irq?
@@ -441,17 +438,16 @@ static void set_use_dec(void *data)
 
 	spin_lock_irqsave(&lock, flags);
 
-	/* GPREN0 GPIO Pin Rising Edge Detect Disable */
-	/* GPFEN0 GPIO Pin Falling Edge Detect Disable */
-	irqchip->irq_set_type(irqdata,0);
+	/* GPIO Pin Falling/Rising Edge Detect Disable */
+	irqchip->irq_set_type(irqdata, 0);
 	irqchip->irq_mask(irqdata);
 
 	spin_unlock_irqrestore(&lock, flags);
 
-	free_irq(GPIO_IRQ(gpio_in_pin), (void *) 0);
+	free_irq(gpiochip->to_irq(gpiochip, gpio_in_pin), (void *) 0);
 
 	dprintk(KERN_INFO LIRC_DRIVER_NAME
-		": freed IRQ %04x\n", GPIO_IRQ(gpio_in_pin));
+		": freed IRQ %04x\n", gpiochip->to_irq(gpiochip, gpio_in_pin));
 }
 
 static ssize_t lirc_write(struct file *file, const char *buf,
@@ -682,7 +678,8 @@ module_init(lirc_rpi_init_module);
 module_exit(lirc_rpi_exit_module);
 
 MODULE_DESCRIPTION("Infra-red receiver and blaster driver for Raspberry Pi GPIO.");
-MODULE_AUTHOR("Aron Robert Szabo");
+MODULE_AUTHOR("Aron Robert Szabo <aron@reon.hu>");
+MODULE_AUTHOR("Michael Bishop <cleverca22@gmail.com>");
 MODULE_LICENSE("GPL");
 
 module_param(gpio_out_pin, int, S_IRUGO);
@@ -701,3 +698,6 @@ MODULE_PARM_DESC(sense, "Override autodetection of IR receiver circuit"
 
 module_param(softcarrier, bool, S_IRUGO);
 MODULE_PARM_DESC(softcarrier, "Software carrier (0 = off, 1 = on, default on)");
+
+module_param(debug, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(debug, "Enable debugging messages");
