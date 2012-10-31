@@ -105,7 +105,7 @@ static int iuu_port_probe(struct usb_serial_port *port)
 	}
 
 	priv->dbgbuf = kzalloc(256, GFP_KERNEL);
-	if (!priv->writebuf) {
+	if (!priv->dbgbuf) {
 		kfree(priv->writebuf);
 		kfree(priv->buf);
 		kfree(priv);
@@ -120,6 +120,7 @@ static int iuu_port_probe(struct usb_serial_port *port)
 
 	ret = iuu_create_sysfs_attrs(port);
 	if (ret) {
+		kfree(priv->dbgbuf);
 		kfree(priv->writebuf);
 		kfree(priv->buf);
 		kfree(priv);
