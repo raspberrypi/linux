@@ -220,11 +220,18 @@ __irq_svc:
 
 #ifdef CONFIG_PREEMPT
 	ldr	r8, [tsk, #TI_PREEMPT]		@ get preempt count
-	ldr	r0, [tsk, #TI_FLAGS]		@ get flags
 	teq	r8, #0				@ if preempt count != 0
+	bne	1f				@ return from exeption
+	ldr	r0, [tsk, #TI_FLAGS]		@ get flags
+	tst	r0, #_TIF_NEED_RESCHED		@ if NEED_RESCHED is set
+	blne	svc_preempt			@ preempt!
+
+	ldr	r8, [tsk, #TI_PREEMPT_LAZY]	@ get preempt lazy count
+	teq	r8, #0				@ if preempt lazy count != 0
 	movne	r0, #0				@ force flags to 0
-	tst	r0, #_TIF_NEED_RESCHED
+	tst	r0, #_TIF_NEED_RESCHED_LAZY
 	blne	svc_preempt
+1:
 #endif
 
 	svc_exit r5, irq = 1			@ return from exception
@@ -239,8 +246,14 @@ svc_preempt:
 1:	bl	preempt_schedule_irq		@ irq en/disable is done inside
 	ldr	r0, [tsk, #TI_FLAGS]		@ get new tasks TI_FLAGS
 	tst	r0, #_TIF_NEED_RESCHED
+	bne	1b
+	tst	r0, #_TIF_NEED_RESCHED_LAZY
 	reteq	r8				@ go again
-	b	1b
+	ldr	r0, [tsk, #TI_PREEMPT_LAZY]	@ get preempt lazy count
+	teq	r0, #0				@ if preempt lazy count != 0
+	beq	1b
+	ret	r8				@ go again
+
 #endif
 
 __und_fault:
