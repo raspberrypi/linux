@@ -26,31 +26,17 @@
 
 #include <linux/module.h>
 #include <linux/errno.h>
-#include <linux/init.h>
-#include <linux/list.h>
-#include <linux/io.h>
-#include <linux/version.h>
 #include <linux/interrupt.h>
 #include <linux/sched.h>
-#include <linux/ioport.h>
 #include <linux/kernel.h>
 #include <linux/time.h>
 #include <linux/string.h>
-#include <linux/types.h>
-#include <linux/wait.h>
-#include <linux/mm.h>
 #include <linux/delay.h>
-#include <linux/poll.h>
 #include <linux/platform_device.h>
-#include <linux/syscore_ops.h>
 #include <linux/irq.h>
-#include <linux/fcntl.h>
 #include <linux/spinlock.h>
 #include <media/lirc.h>
 #include <media/lirc_dev.h>
-
-/* include RPi harware specific constants */
-#include <mach/hardware.h>
 #include <linux/gpio.h>
 
 #define LIRC_DRIVER_NAME "lirc_rpi"
@@ -85,7 +71,7 @@ static int softcarrier = 1;
 
 struct gpio_chip *gpiochip;
 struct irq_chip *irqchip;
-struct irq_data* irqdata;
+struct irq_data *irqdata;
 
 /* forward declarations */
 static long send_pulse(unsigned long length);
@@ -143,6 +129,7 @@ static long send_pulse_softcarrier(unsigned long length)
 {
 	int flag;
 	unsigned long actual, target, d;
+
 	length <<= 8;
 
 	actual = 0; target = 0; flag = 0;
@@ -252,8 +239,7 @@ static irqreturn_t irq_handler(int i, void *blah, struct pt_regs *regs)
 	/* use the GPIO signal level */
 	signal = gpiochip->get(gpiochip, gpio_in_pin);
 
-	/* reset interrupt */
-	// is this supposed to mask or unmask the irq?
+	/* unmask the irq */
 	irqchip->irq_unmask(irqdata);
 
 	if (sense != -1) {
@@ -301,7 +287,8 @@ static irqreturn_t irq_handler(int i, void *blah, struct pt_regs *regs)
 static int is_right_chip(struct gpio_chip *chip, void *data)
 {
 	dprintk("is_right_chip %s %d\n", chip->label, strcmp(data, chip->label));
-	if (strcmp(data,chip->label) == 0)
+
+	if (strcmp(data, chip->label) == 0)
 		return 1;
 	return 0;
 }
@@ -328,7 +315,6 @@ static int init_port(void)
 		ret = -ENODEV;
 		goto exit_gpio_free_out_pin;
 	}
-
 
 	gpiochip->direction_input(gpiochip, gpio_in_pin);
 	gpiochip->direction_output(gpiochip, gpio_out_pin, 1);
@@ -423,8 +409,7 @@ static int set_use_inc(void *data)
 	irqchip->irq_set_type(irqdata,
 			      IRQ_TYPE_EDGE_RISING | IRQ_TYPE_EDGE_FALLING);
 
-	/* clear interrupt flag */
-	// is this supposed to mask or unmask the irq?
+	/* unmask the irq */
 	irqchip->irq_unmask(irqdata);
 
 	spin_unlock_irqrestore(&lock, flags);
@@ -612,8 +597,7 @@ static void lirc_rpi_exit(void)
 
 static int __init lirc_rpi_init_module(void)
 {
-	int result;
-	int i;
+	int result, i;
 
 	result = lirc_rpi_init();
 	if (result)
