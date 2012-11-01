@@ -171,7 +171,7 @@ system_call:			/* label this so stack traces look sane */
  * based on caller's run-mode / personality.
  */
 	ld	r11,SYS_CALL_TABLE@toc(2)
-	andi.	r10,r10,_TIF_32BIT
+	andis.	r10,r10,_TIF_32BIT@h
 	beq	15f
 	addi	r11,r11,8	/* use 32-bit syscall entries */
 	clrldi	r3,r3,32
@@ -763,7 +763,7 @@ _GLOBAL(ret_from_except_lite)
 	bl	restore_math
 	b	restore
 #endif
-1:	andi.	r0,r4,_TIF_NEED_RESCHED
+1:	andi.	r0,r4,_TIF_NEED_RESCHED_MASK
 	beq	2f
 	bl	restore_interrupts
 	SCHEDULE_USER
@@ -825,10 +825,18 @@ resume_kernel:
 
 #ifdef CONFIG_PREEMPT
 	/* Check if we need to preempt */
-	andi.	r0,r4,_TIF_NEED_RESCHED
-	beq+	restore
-	/* Check that preempt_count() == 0 and interrupts are enabled */
 	lwz	r8,TI_PREEMPT(r9)
+	cmpwi	0,r8,0		/* if non-zero, just restore regs and return */
+	bne	restore
+	andi.	r0,r4,_TIF_NEED_RESCHED
+	bne+	check_count
+
+	andi.	r0,r4,_TIF_NEED_RESCHED_LAZY
+	beq+	restore
+	lwz	r8,TI_PREEMPT_LAZY(r9)
+
+	/* Check that preempt_count() == 0 and interrupts are enabled */
+check_count:
 	cmpwi	cr0,r8,0
 	bne	restore
 	ld	r0,SOFTE(r1)
@@ -845,7 +853,7 @@ resume_kernel:
 	/* Re-test flags and eventually loop */
 	CURRENT_THREAD_INFO(r9, r1)
 	ld	r4,TI_FLAGS(r9)
-	andi.	r0,r4,_TIF_NEED_RESCHED
+	andi.	r0,r4,_TIF_NEED_RESCHED_MASK
 	bne	1b
 
 	/*
