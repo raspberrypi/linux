@@ -156,6 +156,7 @@ int main(void)
 	OFFSET(TI_FLAGS, thread_info, flags);
 	OFFSET(TI_LOCAL_FLAGS, thread_info, local_flags);
 	OFFSET(TI_PREEMPT, thread_info, preempt_count);
+	OFFSET(TI_PREEMPT_LAZY, thread_info, preempt_lazy_count);
 	OFFSET(TI_TASK, thread_info, task);
 	OFFSET(TI_CPU, thread_info, cpu);
 
