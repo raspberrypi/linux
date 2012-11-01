@@ -395,7 +395,7 @@ static int set_use_inc(void *data)
 		       ": Bad irq number or handler\n");
 		return -EINVAL;
 	default:
-		dprintk("Interrupt %04x obtained\n",
+		dprintk("Interrupt %d obtained\n",
 			gpiochip->to_irq(gpiochip, gpio_in_pin));
 		break;
 	};
@@ -432,7 +432,7 @@ static void set_use_dec(void *data)
 	free_irq(gpiochip->to_irq(gpiochip, gpio_in_pin), (void *) 0);
 
 	dprintk(KERN_INFO LIRC_DRIVER_NAME
-		": freed IRQ %04x\n", gpiochip->to_irq(gpiochip, gpio_in_pin));
+		": freed IRQ %d\n", gpiochip->to_irq(gpiochip, gpio_in_pin));
 }
 
 static ssize_t lirc_write(struct file *file, const char *buf,
