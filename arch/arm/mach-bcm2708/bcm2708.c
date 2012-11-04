@@ -77,6 +77,7 @@ static DEFINE_CLOCK_DATA(cd);
 
 /* command line parameters */
 static unsigned boardrev, serial;
+static unsigned uart_clock;
 
 static void __init bcm2708_init_led(void);
 
@@ -516,6 +517,48 @@ static struct platform_device bcm2708_alsa_devices[] = {
 	       .resource = 0,
 	       .num_resources = 0,
 	       },
+	[1] = {
+	       .name = "bcm2835_AUD1",
+	       .id = 1,		/* second audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[2] = {
+	       .name = "bcm2835_AUD2",
+	       .id = 2,		/* third audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[3] = {
+	       .name = "bcm2835_AUD3",
+	       .id = 3,		/* forth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[4] = {
+	       .name = "bcm2835_AUD4",
+	       .id = 4,		/* fifth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[5] = {
+	       .name = "bcm2835_AUD5",
+	       .id = 5,		/* sixth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[6] = {
+	       .name = "bcm2835_AUD6",
+	       .id = 6,		/* seventh audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[7] = {
+	       .name = "bcm2835_AUD7",
+	       .id = 7,		/* eighth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
 };
 
 static struct resource bcm2708_spi_resources[] = {
@@ -627,7 +670,11 @@ void __init bcm2708_init(void)
 {
 	int i;
 
+	printk("bcm2708.uart_clock = %d\n", uart_clock);
 	pm_power_off = bcm2708_power_off;
+
+	if (uart_clock)
+		lookups[0].clk->rate = uart_clock;
 
 	for (i = 0; i < ARRAY_SIZE(lookups); i++)
 		clkdev_add(&lookups[i]);
@@ -667,12 +714,6 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2835_hwmon_device);
 	bcm_register_device(&bcm2835_thermal_device);
 
-#ifdef CONFIG_BCM2708_VCMEM
-	{
-		extern void vc_mem_connected_init(void);
-		vc_mem_connected_init();
-	}
-#endif
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];
 		amba_device_register(d, &iomem_resource);
@@ -817,9 +858,38 @@ static inline void bcm2708_init_led(void)
 }
 #endif
 
+
+/* The assembly versions in delay.S don't account for core freq changing in cpufreq driver */
+/* Use 1MHz system timer for busy waiting */
+void __udelay(unsigned long usecs)
+{
+	unsigned long start = readl(__io_address(ST_BASE + 0x04));
+	unsigned long now;
+	do {
+		now = readl(__io_address(ST_BASE + 0x04));
+	} while ((long)(now - start) <= usecs);
+}
+
+
+void __const_udelay(unsigned long scaled_usecs)
+{
+	/* want /107374, this is about 3% bigger. We know usecs is less than 2000, so shouldn't overflow */
+	const unsigned long usecs = scaled_usecs * 10 >> 20;
+	unsigned long start = readl(__io_address(ST_BASE + 0x04));
+	unsigned long now;
+	do {
+		now = readl(__io_address(ST_BASE + 0x04));
+	} while ((long)(now - start) <= usecs);
+}
+
 MACHINE_START(BCM2708, "BCM2708")
     /* Maintainer: Broadcom Europe Ltd. */
-    .map_io = bcm2708_map_io,.init_irq = bcm2708_init_irq,.timer =
-    &bcm2708_timer,.init_machine =
-    bcm2708_init, MACHINE_END module_param(boardrev, uint, 0644);
+	.map_io = bcm2708_map_io,
+	.init_irq = bcm2708_init_irq,
+	.timer =&bcm2708_timer,
+	.init_machine =bcm2708_init,
+MACHINE_END
+
+module_param(boardrev, uint, 0644);
 module_param(serial, uint, 0644);
+module_param(uart_clock, uint, 0644);
