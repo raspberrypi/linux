@@ -232,6 +232,8 @@ exit_handler_routine:
 		if (mphi_int_count >= 60)
 		{
 			DWC_WRITE_REG32(c_mphi_regs.ctrl, ((1<<31) + (1<<16)));
+			while(!(DWC_READ_REG32(c_mphi_regs.ctrl) & (1 << 17)))
+				;
 			DWC_WRITE_REG32(c_mphi_regs.ctrl, (1<<31));
 			mphi_int_count = 0;
 		}
