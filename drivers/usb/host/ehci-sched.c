@@ -1646,7 +1646,7 @@ static void itd_link_urb(
 
 	/* don't need that schedule data any more */
 	iso_sched_free (stream, iso_sched);
-	urb->hcpriv = NULL;
+	urb->hcpriv = stream;
 
 	++ehci->isoc_count;
 	enable_periodic(ehci);
@@ -2045,7 +2045,7 @@ static void sitd_link_urb(
 
 	/* don't need that schedule data any more */
 	iso_sched_free (stream, sched);
-	urb->hcpriv = NULL;
+	urb->hcpriv = stream;
 
 	++ehci->isoc_count;
 	enable_periodic(ehci);
