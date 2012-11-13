@@ -479,7 +479,8 @@ static bool compliance_mode_recovery_timer_quirk_check(void)
 
 	if (strstr(dmi_product_name, "Z420") ||
 			strstr(dmi_product_name, "Z620") ||
-			strstr(dmi_product_name, "Z820"))
+			strstr(dmi_product_name, "Z820") ||
+			strstr(dmi_product_name, "Z1"))
 		return true;
 
 	return false;
@@ -4019,7 +4020,7 @@ int xhci_update_device(struct usb_hcd *hcd, struct usb_device *udev)
 static unsigned long long xhci_service_interval_to_ns(
 		struct usb_endpoint_descriptor *desc)
 {
-	return (1 << (desc->bInterval - 1)) * 125 * 1000;
+	return (1ULL << (desc->bInterval - 1)) * 125 * 1000;
 }
 
 static u16 xhci_get_timeout_no_hub_lpm(struct usb_device *udev,
@@ -4140,7 +4141,7 @@ static u16 xhci_calculate_intel_u2_timeout(struct usb_device *udev,
 			(xhci_service_interval_to_ns(desc) > timeout_ns))
 		timeout_ns = xhci_service_interval_to_ns(desc);
 
-	u2_del_ns = udev->bos->ss_cap->bU2DevExitLat * 1000;
+	u2_del_ns = le16_to_cpu(udev->bos->ss_cap->bU2DevExitLat) * 1000ULL;
 	if (u2_del_ns > timeout_ns)
 		timeout_ns = u2_del_ns;
 

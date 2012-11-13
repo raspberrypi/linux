@@ -364,6 +364,20 @@ static const struct usb_device_id products[] = {
 		USB_VENDOR_AND_INTERFACE_INFO(HUAWEI_VENDOR_ID, USB_CLASS_VENDOR_SPEC, 1, 57),
 		.driver_info        = (unsigned long)&qmi_wwan_info,
 	},
+	{	/* Novatel USB551L and MC551 */
+		USB_DEVICE_AND_INTERFACE_INFO(0x1410, 0xb001,
+		                              USB_CLASS_COMM,
+		                              USB_CDC_SUBCLASS_ETHERNET,
+		                              USB_CDC_PROTO_NONE),
+		.driver_info        = (unsigned long)&qmi_wwan_info,
+	},
+	{	/* Novatel E362 */
+		USB_DEVICE_AND_INTERFACE_INFO(0x1410, 0x9010,
+		                              USB_CLASS_COMM,
+		                              USB_CDC_SUBCLASS_ETHERNET,
+		                              USB_CDC_PROTO_NONE),
+		.driver_info        = (unsigned long)&qmi_wwan_info,
+	},
 
 	/* 2. Combined interface devices matching on class+protocol */
 	{	/* Huawei E367 and possibly others in "Windows mode" */

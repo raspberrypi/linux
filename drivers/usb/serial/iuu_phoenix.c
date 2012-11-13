@@ -60,6 +60,8 @@ static int iuu_cardout;
 static bool xmas;
 static int vcc_default = 5;
 
+static int iuu_create_sysfs_attrs(struct usb_serial_port *port);
+static int iuu_remove_sysfs_attrs(struct usb_serial_port *port);
 static void read_rxcmd_callback(struct urb *urb);
 
 struct iuu_private {
@@ -80,64 +82,65 @@ struct iuu_private {
 	u32 clk;
 };
 
-
-static void iuu_free_buf(struct iuu_private *priv)
-{
-	kfree(priv->buf);
-	kfree(priv->dbgbuf);
-	kfree(priv->writebuf);
-}
-
-static int iuu_alloc_buf(struct iuu_private *priv)
-{
-	priv->buf = kzalloc(256, GFP_KERNEL);
-	priv->dbgbuf = kzalloc(256, GFP_KERNEL);
-	priv->writebuf = kzalloc(256, GFP_KERNEL);
-	if (!priv->buf || !priv->dbgbuf || !priv->writebuf) {
-		iuu_free_buf(priv);
-		dbg("%s problem allocation buffer", __func__);
-		return -ENOMEM;
-	}
-	dbg("%s - Privates buffers allocation success", __func__);
-	return 0;
-}
-
-static int iuu_startup(struct usb_serial *serial)
+static int iuu_port_probe(struct usb_serial_port *port)
 {
 	struct iuu_private *priv;
+	int ret;
+
 	priv = kzalloc(sizeof(struct iuu_private), GFP_KERNEL);
-	dbg("%s- priv allocation success", __func__);
 	if (!priv)
 		return -ENOMEM;
-	if (iuu_alloc_buf(priv)) {
+
+	priv->buf = kzalloc(256, GFP_KERNEL);
+	if (!priv->buf) {
 		kfree(priv);
 		return -ENOMEM;
 	}
+
+	priv->writebuf = kzalloc(256, GFP_KERNEL);
+	if (!priv->writebuf) {
+		kfree(priv->buf);
+		kfree(priv);
+		return -ENOMEM;
+	}
+
+	priv->dbgbuf = kzalloc(256, GFP_KERNEL);
+	if (!priv->dbgbuf) {
+		kfree(priv->writebuf);
+		kfree(priv->buf);
+		kfree(priv);
+		return -ENOMEM;
+	}
+
 	priv->vcc = vcc_default;
 	spin_lock_init(&priv->lock);
 	init_waitqueue_head(&priv->delta_msr_wait);
-	usb_set_serial_port_data(serial->port[0], priv);
+
+	usb_set_serial_port_data(port, priv);
+
+	ret = iuu_create_sysfs_attrs(port);
+	if (ret) {
+		kfree(priv->dbgbuf);
+		kfree(priv->writebuf);
+		kfree(priv->buf);
+		kfree(priv);
+		return ret;
+	}
+
 	return 0;
 }
 
-/* Release function */
-static void iuu_release(struct usb_serial *serial)
+static int iuu_port_remove(struct usb_serial_port *port)
 {
-	struct usb_serial_port *port = serial->port[0];
 	struct iuu_private *priv = usb_get_serial_port_data(port);
-	if (!port)
-		return;
 
-	if (priv) {
-		iuu_free_buf(priv);
-		dbg("%s - I will free all", __func__);
-		usb_set_serial_port_data(port, NULL);
+	iuu_remove_sysfs_attrs(port);
+	kfree(priv->dbgbuf);
+	kfree(priv->writebuf);
+	kfree(priv->buf);
+	kfree(priv);
 
-		dbg("%s - priv is not anymore in port structure", __func__);
-		kfree(priv);
-
-		dbg("%s priv is now kfree", __func__);
-	}
+	return 0;
 }
 
 static int iuu_tiocmset(struct tty_struct *tty,
@@ -1231,8 +1234,6 @@ static struct usb_serial_driver iuu_device = {
 	.num_ports = 1,
 	.bulk_in_size = 512,
 	.bulk_out_size = 512,
-	.port_probe = iuu_create_sysfs_attrs,
-	.port_remove = iuu_remove_sysfs_attrs,
 	.open = iuu_open,
 	.close = iuu_close,
 	.write = iuu_uart_write,
@@ -1241,8 +1242,8 @@ static struct usb_serial_driver iuu_device = {
 	.tiocmset = iuu_tiocmset,
 	.set_termios = iuu_set_termios,
 	.init_termios = iuu_init_termios,
-	.attach = iuu_startup,
-	.release = iuu_release,
+	.port_probe = iuu_port_probe,
+	.port_remove = iuu_port_remove,
 };
 
 static struct usb_serial_driver * const serial_drivers[] = {

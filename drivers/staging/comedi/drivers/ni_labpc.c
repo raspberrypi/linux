@@ -809,6 +809,8 @@ static int labpc_find_device(struct comedi_device *dev, int bus, int slot)
 
 void labpc_common_detach(struct comedi_device *dev)
 {
+	if (!thisboard)
+		return;
 	if (dev->subdevices)
 		subdev_8255_cleanup(dev, dev->subdevices + 2);
 #ifdef CONFIG_ISA_DMA_API

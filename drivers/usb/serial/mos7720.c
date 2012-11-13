@@ -2023,9 +2023,7 @@ static int mos7720_ioctl(struct tty_struct *tty,
 
 static int mos7720_startup(struct usb_serial *serial)
 {
-	struct moschip_port *mos7720_port;
 	struct usb_device *dev;
-	int i;
 	char data;
 	u16 product;
 	int ret_val;
@@ -2063,29 +2061,6 @@ static int mos7720_startup(struct usb_serial *serial)
 		serial->port[1]->interrupt_in_buffer = NULL;
 	}
 
-
-	/* set up serial port private structures */
-	for (i = 0; i < serial->num_ports; ++i) {
-		mos7720_port = kzalloc(sizeof(struct moschip_port), GFP_KERNEL);
-		if (mos7720_port == NULL) {
-			dev_err(&dev->dev, "%s - Out of memory\n", __func__);
-			return -ENOMEM;
-		}
-
-		/* Initialize all port interrupt end point to port 0 int
-		 * endpoint.  Our device has only one interrupt endpoint
-		 * common to all ports */
-		serial->port[i]->interrupt_in_endpointAddress =
-				serial->port[0]->interrupt_in_endpointAddress;
-
-		mos7720_port->port = serial->port[i];
-		usb_set_serial_port_data(serial->port[i], mos7720_port);
-
-		dbg("port number is %d", serial->port[i]->number);
-		dbg("serial number is %d", serial->minor);
-	}
-
-
 	/* setting configuration feature to one */
 	usb_control_msg(serial->dev, usb_sndctrlpipe(serial->dev, 0),
 			(__u8)0x03, 0x00, 0x01, 0x00, NULL, 0x00, 5*HZ);
@@ -2113,8 +2088,6 @@ static int mos7720_startup(struct usb_serial *serial)
 
 static void mos7720_release(struct usb_serial *serial)
 {
-	int i;
-
 #ifdef CONFIG_USB_SERIAL_MOS7715_PARPORT
 	/* close the parallel port */
 
@@ -2153,9 +2126,36 @@ static void mos7720_release(struct usb_serial *serial)
 		kref_put(&mos_parport->ref_count, destroy_mos_parport);
 	}
 #endif
-	/* free private structure allocated for serial port */
-	for (i = 0; i < serial->num_ports; ++i)
-		kfree(usb_get_serial_port_data(serial->port[i]));
+}
+
+static int mos7720_port_probe(struct usb_serial_port *port)
+{
+	struct moschip_port *mos7720_port;
+
+	mos7720_port = kzalloc(sizeof(*mos7720_port), GFP_KERNEL);
+	if (!mos7720_port)
+		return -ENOMEM;
+
+	/* Initialize all port interrupt end point to port 0 int endpoint.
+	 * Our device has only one interrupt endpoint common to all ports.
+	 */
+	port->interrupt_in_endpointAddress =
+		port->serial->port[0]->interrupt_in_endpointAddress;
+	mos7720_port->port = port;
+
+	usb_set_serial_port_data(port, mos7720_port);
+
+	return 0;
+}
+
+static int mos7720_port_remove(struct usb_serial_port *port)
+{
+	struct moschip_port *mos7720_port;
+
+	mos7720_port = usb_get_serial_port_data(port);
+	kfree(mos7720_port);
+
+	return 0;
 }
 
 static struct usb_serial_driver moschip7720_2port_driver = {
@@ -2173,6 +2173,8 @@ static struct usb_serial_driver moschip7720_2port_driver = {
 	.probe			= mos77xx_probe,
 	.attach			= mos7720_startup,
 	.release		= mos7720_release,
+	.port_probe		= mos7720_port_probe,
+	.port_remove		= mos7720_port_remove,
 	.ioctl			= mos7720_ioctl,
 	.tiocmget		= mos7720_tiocmget,
 	.tiocmset		= mos7720_tiocmset,

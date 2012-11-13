@@ -42,6 +42,8 @@ static void keyspan_dtr_rts		(struct usb_serial_port *port, int on);
 static int  keyspan_startup		(struct usb_serial *serial);
 static void keyspan_disconnect		(struct usb_serial *serial);
 static void keyspan_release		(struct usb_serial *serial);
+static int keyspan_port_probe(struct usb_serial_port *port);
+static int keyspan_port_remove(struct usb_serial_port *port);
 static int  keyspan_write_room		(struct tty_struct *tty);
 
 static int  keyspan_write		(struct tty_struct *tty,
@@ -562,6 +564,8 @@ static struct usb_serial_driver keyspan_1port_device = {
 	.attach			= keyspan_startup,
 	.disconnect		= keyspan_disconnect,
 	.release		= keyspan_release,
+	.port_probe		= keyspan_port_probe,
+	.port_remove		= keyspan_port_remove,
 };
 
 static struct usb_serial_driver keyspan_2port_device = {
@@ -584,6 +588,8 @@ static struct usb_serial_driver keyspan_2port_device = {
 	.attach			= keyspan_startup,
 	.disconnect		= keyspan_disconnect,
 	.release		= keyspan_release,
+	.port_probe		= keyspan_port_probe,
+	.port_remove		= keyspan_port_remove,
 };
 
 static struct usb_serial_driver keyspan_4port_device = {
@@ -606,6 +612,8 @@ static struct usb_serial_driver keyspan_4port_device = {
 	.attach			= keyspan_startup,
 	.disconnect		= keyspan_disconnect,
 	.release		= keyspan_release,
+	.port_probe		= keyspan_port_probe,
+	.port_remove		= keyspan_port_remove,
 };
 
 static struct usb_serial_driver * const serial_drivers[] = {

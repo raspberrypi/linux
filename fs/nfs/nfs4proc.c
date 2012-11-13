@@ -1774,7 +1774,11 @@ static void nfs41_clear_delegation_stateid(struct nfs4_state *state)
 		 * informs us the stateid is unrecognized. */
 		if (status != -NFS4ERR_BAD_STATEID)
 			nfs41_free_stateid(server, stateid);
+		nfs_remove_bad_delegation(state->inode);
 
+		write_seqlock(&state->seqlock);
+		nfs4_stateid_copy(&state->stateid, &state->open_stateid);
+		write_sequnlock(&state->seqlock);
 		clear_bit(NFS_DELEGATED_STATE, &state->flags);
 	}
 }
@@ -3362,8 +3366,11 @@ static int nfs4_proc_fsinfo(struct nfs_server *server, struct nfs_fh *fhandle, s
 
 	nfs_fattr_init(fsinfo->fattr);
 	error = nfs4_do_fsinfo(server, fhandle, fsinfo);
-	if (error == 0)
+	if (error == 0) {
+		/* block layout checks this! */
+		server->pnfs_blksize = fsinfo->blksize;
 		set_pnfs_layoutdriver(server, fhandle, fsinfo->layouttype);
+	}
 
 	return error;
 }

@@ -56,8 +56,8 @@ static bool debug;
 
 
 /* Function prototypes */
-static int  kobil_startup(struct usb_serial *serial);
-static void kobil_release(struct usb_serial *serial);
+static int kobil_port_probe(struct usb_serial_port *probe);
+static int kobil_port_remove(struct usb_serial_port *probe);
 static int  kobil_open(struct tty_struct *tty, struct usb_serial_port *port);
 static void kobil_close(struct usb_serial_port *port);
 static int  kobil_write(struct tty_struct *tty, struct usb_serial_port *port,
@@ -91,8 +91,8 @@ static struct usb_serial_driver kobil_device = {
 	.description =		"KOBIL USB smart card terminal",
 	.id_table =		id_table,
 	.num_ports =		1,
-	.attach =		kobil_startup,
-	.release =		kobil_release,
+	.port_probe =		kobil_port_probe,
+	.port_remove =		kobil_port_remove,
 	.ioctl =		kobil_ioctl,
 	.set_termios =		kobil_set_termios,
 	.init_termios =		kobil_init_termios,
@@ -119,9 +119,10 @@ struct kobil_private {
 };
 
 
-static int kobil_startup(struct usb_serial *serial)
+static int kobil_port_probe(struct usb_serial_port *port)
 {
 	int i;
+	struct usb_serial *serial = port->serial;
 	struct kobil_private *priv;
 	struct usb_device *pdev;
 	struct usb_host_config *actconfig;
@@ -152,7 +153,7 @@ static int kobil_startup(struct usb_serial *serial)
 		printk(KERN_DEBUG "KOBIL KAAN SIM detected\n");
 		break;
 	}
-	usb_set_serial_port_data(serial->port[0], priv);
+	usb_set_serial_port_data(port, priv);
 
 	/* search for the necessary endpoints */
 	pdev = serial->dev;
@@ -180,12 +181,14 @@ static int kobil_startup(struct usb_serial *serial)
 }
 
 
-static void kobil_release(struct usb_serial *serial)
+static int kobil_port_remove(struct usb_serial_port *port)
 {
-	int i;
+	struct kobil_private *priv;
 
-	for (i = 0; i < serial->num_ports; ++i)
-		kfree(usb_get_serial_port_data(serial->port[i]));
+	priv = usb_get_serial_port_data(port);
+	kfree(priv);
+
+	return 0;
 }
 
 static void kobil_init_termios(struct tty_struct *tty)

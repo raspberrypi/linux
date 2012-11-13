@@ -487,6 +487,7 @@ struct azx {
 
 	/* VGA-switcheroo setup */
 	unsigned int use_vga_switcheroo:1;
+	unsigned int vga_switcheroo_registered:1;
 	unsigned int init_failed:1; /* delayed init failed */
 	unsigned int disabled:1; /* disabled by VGA-switcher */
 
@@ -538,6 +539,7 @@ enum {
 #define AZX_DCAPS_ALIGN_BUFSIZE	(1 << 22)	/* buffer size alignment */
 #define AZX_DCAPS_4K_BDLE_BOUNDARY (1 << 23)	/* BDLE in 4k boundary */
 #define AZX_DCAPS_POSFIX_COMBO  (1 << 24)	/* Use COMBO as default */
+#define AZX_DCAPS_COUNT_LPIB_DELAY  (1 << 25)	/* Take LPIB as delay */
 
 /* quirks for ATI SB / AMD Hudson */
 #define AZX_DCAPS_PRESET_ATI_SB \
@@ -2120,6 +2122,30 @@ static unsigned int azx_get_position(struct azx *chip,
 
 	if (pos >= azx_dev->bufsize)
 		pos = 0;
+
+	/* calculate runtime delay from LPIB */
+	if (azx_dev->substream->runtime &&
+	    chip->position_fix[stream] == POS_FIX_POSBUF &&
+	    (chip->driver_caps & AZX_DCAPS_COUNT_LPIB_DELAY)) {
+		unsigned int lpib_pos = azx_sd_readl(azx_dev, SD_LPIB);
+		int delay;
+		if (stream == SNDRV_PCM_STREAM_PLAYBACK)
+			delay = pos - lpib_pos;
+		else
+			delay = lpib_pos - pos;
+		if (delay < 0)
+			delay += azx_dev->bufsize;
+		if (delay >= azx_dev->period_bytes) {
+			snd_printk(KERN_WARNING SFX
+				   "Unstable LPIB (%d >= %d); "
+				   "disabling LPIB delay counting\n",
+				   delay, azx_dev->period_bytes);
+			delay = 0;
+			chip->driver_caps &= ~AZX_DCAPS_COUNT_LPIB_DELAY;
+		}
+		azx_dev->substream->runtime->delay =
+			bytes_to_frames(azx_dev->substream->runtime, delay);
+	}
 	return pos;
 }
 
@@ -2534,7 +2560,9 @@ static void azx_vs_set_state(struct pci_dev *pci,
 		if (disabled) {
 			azx_suspend(&pci->dev);
 			chip->disabled = true;
-			snd_hda_lock_devices(chip->bus);
+			if (snd_hda_lock_devices(chip->bus))
+				snd_printk(KERN_WARNING SFX
+					   "Cannot lock devices!\n");
 		} else {
 			snd_hda_unlock_devices(chip->bus);
 			chip->disabled = false;
@@ -2577,14 +2605,20 @@ static const struct vga_switcheroo_client_ops azx_vs_ops = {
 
 static int __devinit register_vga_switcheroo(struct azx *chip)
 {
+	int err;
+
 	if (!chip->use_vga_switcheroo)
 		return 0;
 	/* FIXME: currently only handling DIS controller
 	 * is there any machine with two switchable HDMI audio controllers?
 	 */
-	return vga_switcheroo_register_audio_client(chip->pci, &azx_vs_ops,
+	err = vga_switcheroo_register_audio_client(chip->pci, &azx_vs_ops,
 						    VGA_SWITCHEROO_DIS,
 						    chip->bus != NULL);
+	if (err < 0)
+		return err;
+	chip->vga_switcheroo_registered = 1;
+	return 0;
 }
 #else
 #define init_vga_switcheroo(chip)		/* NOP */
@@ -2604,7 +2638,8 @@ static int azx_free(struct azx *chip)
 	if (use_vga_switcheroo(chip)) {
 		if (chip->disabled && chip->bus)
 			snd_hda_unlock_devices(chip->bus);
-		vga_switcheroo_unregister_client(chip->pci);
+		if (chip->vga_switcheroo_registered)
+			vga_switcheroo_unregister_client(chip->pci);
 	}
 
 	if (chip->initialized) {
@@ -2952,14 +2987,6 @@ static int __devinit azx_create(struct snd_card *card, struct pci_dev *pci,
 	}
 
  ok:
-	err = register_vga_switcheroo(chip);
-	if (err < 0) {
-		snd_printk(KERN_ERR SFX
-			   "Error registering VGA-switcheroo client\n");
-		azx_free(chip);
-		return err;
-	}
-
 	err = snd_device_new(card, SNDRV_DEV_LOWLEVEL, chip, &ops);
 	if (err < 0) {
 		snd_printk(KERN_ERR SFX "Error creating device [card]!\n");
@@ -3186,6 +3213,13 @@ static int __devinit azx_probe(struct pci_dev *pci,
 
 	pci_set_drvdata(pci, card);
 
+	err = register_vga_switcheroo(chip);
+	if (err < 0) {
+		snd_printk(KERN_ERR SFX
+			   "Error registering VGA-switcheroo client\n");
+		goto out_free;
+	}
+
 	dev++;
 	return 0;
 
@@ -3260,7 +3294,7 @@ static DEFINE_PCI_DEVICE_TABLE(azx_ids) = {
 	/* CPT */
 	{ PCI_DEVICE(0x8086, 0x1c20),
 	  .driver_data = AZX_DRIVER_PCH | AZX_DCAPS_SCH_SNOOP |
-	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_POSFIX_COMBO },
+	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_COUNT_LPIB_DELAY },
 	/* PBG */
 	{ PCI_DEVICE(0x8086, 0x1d20),
 	  .driver_data = AZX_DRIVER_PCH | AZX_DCAPS_SCH_SNOOP |
@@ -3268,23 +3302,26 @@ static DEFINE_PCI_DEVICE_TABLE(azx_ids) = {
 	/* Panther Point */
 	{ PCI_DEVICE(0x8086, 0x1e20),
 	  .driver_data = AZX_DRIVER_PCH | AZX_DCAPS_SCH_SNOOP |
-	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_POSFIX_COMBO },
+	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_COUNT_LPIB_DELAY },
 	/* Lynx Point */
 	{ PCI_DEVICE(0x8086, 0x8c20),
 	  .driver_data = AZX_DRIVER_PCH | AZX_DCAPS_SCH_SNOOP |
-	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_POSFIX_COMBO },
+	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_COUNT_LPIB_DELAY },
 	/* Lynx Point-LP */
 	{ PCI_DEVICE(0x8086, 0x9c20),
 	  .driver_data = AZX_DRIVER_PCH | AZX_DCAPS_SCH_SNOOP |
-	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_POSFIX_COMBO },
+	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_COUNT_LPIB_DELAY },
 	/* Lynx Point-LP */
 	{ PCI_DEVICE(0x8086, 0x9c21),
 	  .driver_data = AZX_DRIVER_PCH | AZX_DCAPS_SCH_SNOOP |
-	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_POSFIX_COMBO },
+	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_COUNT_LPIB_DELAY },
 	/* Haswell */
 	{ PCI_DEVICE(0x8086, 0x0c0c),
 	  .driver_data = AZX_DRIVER_SCH | AZX_DCAPS_SCH_SNOOP |
-	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_POSFIX_COMBO },
+	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_COUNT_LPIB_DELAY },
+	{ PCI_DEVICE(0x8086, 0x0d0c),
+	  .driver_data = AZX_DRIVER_SCH | AZX_DCAPS_SCH_SNOOP |
+	  AZX_DCAPS_BUFSIZE | AZX_DCAPS_COUNT_LPIB_DELAY },
 	/* SCH */
 	{ PCI_DEVICE(0x8086, 0x811b),
 	  .driver_data = AZX_DRIVER_SCH | AZX_DCAPS_SCH_SNOOP |

@@ -400,7 +400,7 @@ void ieee80211_add_pending_skb(struct ieee80211_local *local,
 	int queue = info->hw_queue;
 
 	if (WARN_ON(!info->control.vif)) {
-		kfree_skb(skb);
+		ieee80211_free_txskb(&local->hw, skb);
 		return;
 	}
 
@@ -425,7 +425,7 @@ void ieee80211_add_pending_skbs_fn(struct ieee80211_local *local,
 		struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
 
 		if (WARN_ON(!info->control.vif)) {
-			kfree_skb(skb);
+			ieee80211_free_txskb(&local->hw, skb);
 			continue;
 		}
 

@@ -575,6 +575,10 @@ static void extcon_cleanup(struct extcon_dev *edev, bool skip)
 			kfree(edev->cables);
 		}
 
+#if defined(CONFIG_ANDROID)
+		if (switch_class)
+			class_compat_remove_link(switch_class, edev->dev, NULL);
+#endif
 		device_unregister(edev->dev);
 		put_device(edev->dev);
 	}
@@ -821,6 +825,9 @@ module_init(extcon_class_init);
 
 static void __exit extcon_class_exit(void)
 {
+#if defined(CONFIG_ANDROID)
+	class_compat_unregister(switch_class);
+#endif
 	class_destroy(extcon_class);
 }
 module_exit(extcon_class_exit);

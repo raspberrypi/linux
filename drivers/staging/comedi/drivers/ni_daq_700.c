@@ -71,7 +71,7 @@ static int subdev_700_insn(struct comedi_device *dev,
 	}
 
 	data[1] = s->state & 0xff;
-	data[1] |= inb(dev->iobase + DIO_R);
+	data[1] |= inb(dev->iobase + DIO_R) << 8;
 
 	return insn->n;
 }

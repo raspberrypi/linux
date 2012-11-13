@@ -310,8 +310,11 @@ static int __devinit pc263_attach_pci(struct comedi_device *dev,
 
 static void pc263_detach(struct comedi_device *dev)
 {
+	const struct pc263_board *thisboard = comedi_board(dev);
 	struct pci_dev *pcidev = comedi_to_pci_dev(dev);
 
+	if (!thisboard)
+		return;
 	if (pcidev) {
 		if (dev->iobase)
 			comedi_pci_disable(pcidev);

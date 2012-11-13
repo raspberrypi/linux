@@ -49,6 +49,7 @@ enum {
 	IP_VS_RT_MODE_RDR	= 4, /* Allow redirect from remote daddr to
 				      * local
 				      */
+	IP_VS_RT_MODE_KNOWN_NH	= 16,/* Route via remote addr */
 };
 
 /*
@@ -103,6 +104,8 @@ __ip_vs_get_out_rt(struct sk_buff *skb, struct ip_vs_dest *dest,
 			memset(&fl4, 0, sizeof(fl4));
 			fl4.daddr = dest->addr.ip;
 			fl4.flowi4_tos = rtos;
+			fl4.flowi4_flags = (rt_mode & IP_VS_RT_MODE_KNOWN_NH) ?
+					   FLOWI_FLAG_KNOWN_NH : 0;
 			rt = ip_route_output_key(net, &fl4);
 			if (IS_ERR(rt)) {
 				spin_unlock(&dest->dst_lock);
@@ -127,6 +130,8 @@ __ip_vs_get_out_rt(struct sk_buff *skb, struct ip_vs_dest *dest,
 		memset(&fl4, 0, sizeof(fl4));
 		fl4.daddr = daddr;
 		fl4.flowi4_tos = rtos;
+		fl4.flowi4_flags = (rt_mode & IP_VS_RT_MODE_KNOWN_NH) ?
+				   FLOWI_FLAG_KNOWN_NH : 0;
 		rt = ip_route_output_key(net, &fl4);
 		if (IS_ERR(rt)) {
 			IP_VS_DBG_RL("ip_route_output error, dest: %pI4\n",
@@ -1014,7 +1019,8 @@ ip_vs_dr_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
 	if (!(rt = __ip_vs_get_out_rt(skb, cp->dest, cp->daddr.ip,
 				      RT_TOS(iph->tos),
 				      IP_VS_RT_MODE_LOCAL |
-					IP_VS_RT_MODE_NON_LOCAL, NULL)))
+				      IP_VS_RT_MODE_NON_LOCAL |
+				      IP_VS_RT_MODE_KNOWN_NH, NULL)))
 		goto tx_error_icmp;
 	if (rt->rt_flags & RTCF_LOCAL) {
 		ip_rt_put(rt);
