@@ -132,6 +132,7 @@ static struct vchiq_proc_log_entry vchiq_proc_log_entries[] = {
 	{ "core", &vchiq_core_log_level },
 	{ "msg",  &vchiq_core_msg_log_level },
 	{ "sync", &vchiq_sync_log_level },
+	{ "susp", &vchiq_susp_log_level },
 	{ "arm",  &vchiq_arm_log_level },
 };
 static int n_log_entries =
@@ -221,3 +222,4 @@ struct proc_dir_entry *vchiq_clients_top(void)
 {
 	return proc_info.clients;
 }
+

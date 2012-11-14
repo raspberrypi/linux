@@ -308,6 +308,11 @@ vchiq_dump_platform_use_state(VCHIQ_STATE_T *state)
 {
 	vchiq_log_info((vchiq_arm_log_level>=VCHIQ_LOG_INFO),"Suspend timer not in use");
 }
+void
+vchiq_platform_handle_timeout(VCHIQ_STATE_T *state)
+{
+	(void)state;
+}
 /*
  * Local functions
  */

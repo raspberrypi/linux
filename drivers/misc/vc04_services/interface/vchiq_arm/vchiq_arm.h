@@ -21,10 +21,6 @@
 
 #include <linux/mutex.h>
 #include <linux/semaphore.h>
-//#include <linux/pm_qos_params.h>
-#define pm_qos_add_request(a,b,c) do {} while (0)
-#define pm_qos_remove_request(a) do {} while (0)
-struct pm_qos_request_list {int dummy;};
 #include <linux/atomic.h>
 #include "vchiq_core.h"
 
@@ -50,9 +46,10 @@ enum vc_resume_status {
 
 enum USE_TYPE_E {
 	USE_TYPE_SERVICE,
-	USE_TYPE_PEER,
+	USE_TYPE_SERVICE_NO_RESUME,
 	USE_TYPE_VCHIQ
 };
+
 
 
 typedef struct vchiq_arm_state_struct {
@@ -70,7 +67,6 @@ typedef struct vchiq_arm_state_struct {
 	enum vc_suspend_status vc_suspend_state;
 	enum vc_resume_status vc_resume_state;
 
-	struct mutex vc_use_cnt_mutex;
 	unsigned int wake_address;
 
 	struct timer_list suspend_timer;
@@ -97,13 +93,13 @@ typedef struct vchiq_arm_state_struct {
 	struct completion blocked_blocker;
 	int blocked_count;
 
+	int autosuspend_override;
+
 	/* Flag to indicate that the first vchiq connect has made it through.
 	** This means that both sides should be fully ready, and we should
 	** be able to suspend after this point.
 	*/
 	int first_connect;
-
-	struct pm_qos_request_list qos_request;
 
 	unsigned long long suspend_start_time;
 	unsigned long long sleep_start_time;

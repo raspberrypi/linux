@@ -191,7 +191,9 @@ typedef enum {
 	VCHIQ_CONNSTATE_PAUSING,
 	VCHIQ_CONNSTATE_PAUSE_SENT,
 	VCHIQ_CONNSTATE_PAUSED,
-	VCHIQ_CONNSTATE_RESUMING
+	VCHIQ_CONNSTATE_RESUMING,
+	VCHIQ_CONNSTATE_PAUSE_TIMEOUT,
+	VCHIQ_CONNSTATE_RESUME_TIMEOUT
 } VCHIQ_CONNSTATE_T;
 
 enum {
@@ -665,6 +667,13 @@ vchiq_send_remote_use_active(VCHIQ_STATE_T *state);
 extern void
 vchiq_platform_conn_state_changed(VCHIQ_STATE_T *state,
 	VCHIQ_CONNSTATE_T oldstate, VCHIQ_CONNSTATE_T newstate);
+
+extern void
+vchiq_platform_handle_timeout(VCHIQ_STATE_T *state);
+
+extern void
+vchiq_set_conn_state(VCHIQ_STATE_T *state, VCHIQ_CONNSTATE_T newstate);
+
 
 extern void
 vchiq_log_dump_mem(const char *label, uint32_t addr, const void *voidMem,

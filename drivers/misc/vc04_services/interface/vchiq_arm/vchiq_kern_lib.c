@@ -111,6 +111,9 @@ VCHIQ_STATUS_T vchiq_shutdown(VCHIQ_INSTANCE_T instance)
 
 	mutex_unlock(&state->mutex);
 
+	vchiq_log_trace(vchiq_core_log_level,
+		"%s(%p): returning %d", __func__, instance, status);
+
 	if (status == VCHIQ_SUCCESS) {
 		struct list_head *pos, *next;
 		list_for_each_safe(pos, next,
@@ -128,9 +131,6 @@ VCHIQ_STATUS_T vchiq_shutdown(VCHIQ_INSTANCE_T instance)
 		}
 		kfree(instance);
 	}
-
-	vchiq_log_trace(vchiq_core_log_level,
-		"%s(%p): returning %d", __func__, instance, status);
 
 	return status;
 }
