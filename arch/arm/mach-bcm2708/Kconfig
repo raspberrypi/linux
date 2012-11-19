@@ -31,4 +31,11 @@ config BCM2708_NOL2CACHE
         help
           Do not allow ARM to use GPU's L2 cache. Requires disable_l2cache in config.txt.
 
+config BCM2708_DMAER
+	tristate "BCM2708 DMA helper"
+	depends on MACH_BCM2708
+        default n
+        help
+          Enable DMA helper for accelerating X composition
+
 endmenu
