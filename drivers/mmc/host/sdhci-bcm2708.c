@@ -137,6 +137,7 @@ static bool allow_highspeed = 1;
 static int emmc_clock_freq = BCM2708_EMMC_CLOCK_FREQ;
 static bool sync_after_dma = 1;
 static bool missing_status = 1;
+static bool spurious_crc_acmd51 = 0;
 bool enable_llm = 1;
 
 #if 0
@@ -1103,7 +1104,7 @@ static unsigned int sdhci_bcm2708_quirk_extra_ints(struct sdhci_host *host)
         return 1;
 }
 
-static unsigned int sdhci_bcm2708_quirk_spurious_crc(struct sdhci_host *host)
+static unsigned int sdhci_bcm2708_quirk_spurious_crc_acmd51(struct sdhci_host *host)
 {
         return 1;
 }
@@ -1149,7 +1150,6 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
 	.pdma_reset = sdhci_bcm2708_platdma_reset,
 #endif
 	.extra_ints = sdhci_bcm2708_quirk_extra_ints,
-	.spurious_crc_acmd51 = sdhci_bcm2708_quirk_spurious_crc,
 	.voltage_broken = sdhci_bcm2708_quirk_voltage_broken,
 	.uhs_broken = sdhci_bcm2708_uhs_broken,
 };
@@ -1193,6 +1193,11 @@ static int sdhci_bcm2708_probe(struct platform_device *pdev)
 	if (missing_status) {
 		sdhci_bcm2708_ops.missing_status = sdhci_bcm2708_missing_status;
 	}
+
+	if( spurious_crc_acmd51 ) {
+		sdhci_bcm2708_ops.spurious_crc_acmd51 = sdhci_bcm2708_quirk_spurious_crc_acmd51;
+	}
+
 
 	printk("sdhci: %s low-latency mode\n",enable_llm?"Enable":"Disable");
 
@@ -1389,6 +1394,7 @@ module_param(allow_highspeed, bool, 0444);
 module_param(emmc_clock_freq, int, 0444);
 module_param(sync_after_dma, bool, 0444);
 module_param(missing_status, bool, 0444);
+module_param(spurious_crc_acmd51, bool, 0444);
 module_param(enable_llm, bool, 0444);
 module_param(cycle_delay, int, 0444);
 
@@ -1401,6 +1407,7 @@ MODULE_PARM_DESC(allow_highspeed, "Allow high speed transfers modes");
 MODULE_PARM_DESC(emmc_clock_freq, "Specify the speed of emmc clock");
 MODULE_PARM_DESC(sync_after_dma, "Block in driver until dma complete");
 MODULE_PARM_DESC(missing_status, "Use the missing status quirk");
+MODULE_PARM_DESC(spurious_crc_acmd51, "Use the spurious crc quirk for reading SCR (ACMD51)");
 MODULE_PARM_DESC(enable_llm, "Enable low-latency mode");
 
 

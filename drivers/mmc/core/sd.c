@@ -13,6 +13,8 @@
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
+#include <linux/jiffies.h>
+#include <linux/nmi.h>
 
 #include <linux/mmc/host.h>
 #include <linux/mmc/card.h>
@@ -57,6 +59,15 @@ static const unsigned int tacc_mant[] = {
 			__res |= resp[__off-1] << ((32 - __shft) % 32);	\
 		__res & __mask;						\
 	})
+
+// timeout for tries
+static const unsigned long retry_timeout_ms= 10*1000;
+
+// try at least 10 times, even if timeout is reached
+static const int retry_min_tries= 10;
+
+// delay between tries
+static const unsigned long retry_delay_ms= 10;
 
 /*
  * Given the decoded CSD structure, decode the raw CID to our CID structure.
@@ -210,12 +221,62 @@ static int mmc_decode_scr(struct mmc_card *card)
 }
 
 /*
- * Fetch and process SD Status register.
+ * Fetch and process SD Configuration Register.
+ */
+static int mmc_read_scr(struct mmc_card *card)
+{
+	unsigned long timeout_at;
+	int err, tries;
+
+	timeout_at= jiffies + msecs_to_jiffies( retry_timeout_ms );
+	tries= 		0;
+
+	while( tries < retry_min_tries || time_before( jiffies, timeout_at ) )
+	{
+		unsigned long delay_at;
+		tries++;
+
+		err = mmc_app_send_scr(card, card->raw_scr);
+		if( !err )
+			break; // sucess!!!
+
+		touch_nmi_watchdog();	  // we are still alive!
+
+		// delay
+		delay_at= jiffies + msecs_to_jiffies( retry_delay_ms );
+		while( time_before( jiffies, delay_at ) )
+		{
+			mdelay( 1 );
+			touch_nmi_watchdog();	  // we are still alive!
+		}
+	}
+	
+	if( err)
+	{
+		pr_err("%s: failed to read SD Configuration register (SCR) after %d tries during %lu ms, error %d\n", mmc_hostname(card->host), tries, retry_timeout_ms, err );
+		return err;
+	}
+
+	if( tries > 1 )
+	{
+		pr_info("%s: could read SD Configuration register (SCR) at the %dth attempt\n", mmc_hostname(card->host), tries );
+	}
+
+	err = mmc_decode_scr(card);
+	if (err)
+		return err;
+	
+	return err;
+}
+
+/*
+ * Fetch and process SD Status Register.
  */
 static int mmc_read_ssr(struct mmc_card *card)
 {
+	unsigned long timeout_at;
 	unsigned int au, es, et, eo;
-	int err, i;
+	int err, i, tries;
 	u32 *ssr;
 
 	if (!(card->csd.cmdclass & CCC_APP_SPEC)) {
@@ -227,13 +288,39 @@ static int mmc_read_ssr(struct mmc_card *card)
 	ssr = kmalloc(64, GFP_KERNEL);
 	if (!ssr)
 		return -ENOMEM;
-
-	err = mmc_app_sd_status(card, ssr);
-	if (err) {
-		pr_warning("%s: problem reading SD Status "
-			"register.\n", mmc_hostname(card->host));
-		err = 0;
+	
+	timeout_at= jiffies + msecs_to_jiffies( retry_timeout_ms );
+	tries= 		0;
+	
+	while( tries < retry_min_tries || time_before( jiffies, timeout_at ) )
+	{
+		unsigned long delay_at;
+		tries++;
+		
+		err= mmc_app_sd_status(card, ssr);
+		if( !err )
+			break; // sucess!!!
+	
+		touch_nmi_watchdog();	  // we are still alive!
+	
+		// delay
+		delay_at= jiffies + msecs_to_jiffies( retry_delay_ms );
+		while( time_before( jiffies, delay_at ) )
+		{
+			mdelay( 1 );
+			touch_nmi_watchdog();	  // we are still alive!
+		}			
+	}
+	
+	if( err) 
+	{
+		pr_err("%s: failed to read SD Status register (SSR) after %d tries during %lu ms, error %d\n", mmc_hostname(card->host), tries, retry_timeout_ms, err );
 		goto out;
+	}
+
+	if( tries > 1 )
+	{
+		pr_info("%s: could read SD Status register (SSR) at the %dth attempt\n", mmc_hostname(card->host), tries );
 	}
 
 	for (i = 0; i < 16; i++)
@@ -808,15 +895,11 @@ int mmc_sd_setup_card(struct mmc_host *host, struct mmc_card *card,
 
 	if (!reinit) {
 		/*
-		 * Fetch SCR from card.
+		 * Fetch and decode SD Configuration register.
 		 */
-		err = mmc_app_send_scr(card, card->raw_scr);
-		if (err)
-			return err;
-
-		err = mmc_decode_scr(card);
-		if (err)
-			return err;
+	  	err = mmc_read_scr(card);
+	  	if( err )
+	  		return err;
 
 		/*
 		 * Fetch and process SD Status register.
