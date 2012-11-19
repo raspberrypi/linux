@@ -38,4 +38,12 @@ config BCM2708_SPIDEV
 	default y
 	help
 	  Binds spidev driver to the SPI0 master
+
+config BCM2708_DMAER
+	tristate "BCM2708 DMA helper"
+	depends on MACH_BCM2708
+        default n
+        help
+          Enable DMA helper for accelerating X composition
+
 endmenu
