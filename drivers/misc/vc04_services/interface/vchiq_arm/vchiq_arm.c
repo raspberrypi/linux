@@ -1567,7 +1567,6 @@ VCHIQ_STATUS_T
 vchiq_arm_init_state(VCHIQ_STATE_T *state, VCHIQ_ARM_STATE_T *arm_state)
 {
 	VCHIQ_STATUS_T status = VCHIQ_SUCCESS;
-	char threadname[10];
 
 	if (arm_state) {
 		rwlock_init(&arm_state->susp_res_lock);
@@ -1593,19 +1592,6 @@ vchiq_arm_init_state(VCHIQ_STATE_T *state, VCHIQ_ARM_STATE_T *arm_state)
 		/* Initialise to 'done' state.  We only want to block on this
 		 * completion while things are waiting on the resume blocker */
 		complete_all(&arm_state->blocked_blocker);
-
-		snprintf(threadname, sizeof(threadname), "VCHIQka-%d",
-			state->id);
-		arm_state->ka_thread = kthread_create(
-			&vchiq_keepalive_thread_func,
-			(void *)state,
-			threadname);
-		if (arm_state->ka_thread == NULL) {
-			vchiq_log_error(vchiq_susp_log_level,
-				"vchiq: FATAL: couldn't create thread %s",
-				threadname);
-			status = VCHIQ_ERROR;
-		}
 
 		arm_state->suspend_timer_timeout = SUSPEND_TIMER_TIMEOUT_MS;
 		arm_state->suspend_timer_running = 0;
@@ -2622,9 +2608,22 @@ void vchiq_platform_conn_state_changed(VCHIQ_STATE_T *state,
 	if (state->conn_state == VCHIQ_CONNSTATE_CONNECTED) {
 		write_lock_bh(&arm_state->susp_res_lock);
 		if (!arm_state->first_connect) {
+			char threadname[10];
 			arm_state->first_connect = 1;
 			write_unlock_bh(&arm_state->susp_res_lock);
-			wake_up_process(arm_state->ka_thread);
+			snprintf(threadname, sizeof(threadname), "VCHIQka-%d",
+				state->id);
+			arm_state->ka_thread = kthread_create(
+				&vchiq_keepalive_thread_func,
+				(void *)state,
+				threadname);
+			if (arm_state->ka_thread == NULL) {
+				vchiq_log_error(vchiq_susp_log_level,
+					"vchiq: FATAL: couldn't create thread %s",
+					threadname);
+			} else {
+				wake_up_process(arm_state->ka_thread);
+			}
 		} else
 			write_unlock_bh(&arm_state->susp_res_lock);
 	}
