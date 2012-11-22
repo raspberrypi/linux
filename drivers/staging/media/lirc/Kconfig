@@ -75,6 +75,12 @@ config LIRC_TTUSBIR
 	help
 	  Driver for the Technotrend USB IR Receiver
 
+config LIRC_XBOX
+        tristate "Original XBOX DVD Remote"
+        depends on LIRC && USB
+        help
+          Driver for the Original XBOX DVD Remote
+
 config LIRC_ZILOG
 	tristate "Zilog/Hauppauge IR Transmitter"
 	depends on LIRC && I2C
