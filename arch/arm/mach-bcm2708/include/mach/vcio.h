@@ -105,4 +105,37 @@ extern int /*rc*/ bcm_mailbox_read(unsigned chan, uint32_t *data28);
 extern int /*rc*/ bcm_mailbox_write(unsigned chan, uint32_t data28);
 extern int /*rc*/ bcm_mailbox_property(void *data, int size);
 
+#include <linux/ioctl.h>
+
+/* 
+ * The major device number. We can't rely on dynamic 
+ * registration any more, because ioctls need to know 
+ * it. 
+ */
+#define MAJOR_NUM 100
+
+/* 
+ * Set the message of the device driver 
+ */
+#define IOCTL_MBOX_PROPERTY _IOWR(MAJOR_NUM, 0, char *)
+/*
+ * _IOWR means that we're creating an ioctl command 
+ * number for passing information from a user process
+ * to the kernel module and from the kernel module to user process 
+ *
+ * The first arguments, MAJOR_NUM, is the major device 
+ * number we're using.
+ *
+ * The second argument is the number of the command 
+ * (there could be several with different meanings).
+ *
+ * The third argument is the type we want to get from 
+ * the process to the kernel.
+ */
+
+/* 
+ * The name of the device file 
+ */
+#define DEVICE_FILE_NAME "char_dev"
+
 #endif
