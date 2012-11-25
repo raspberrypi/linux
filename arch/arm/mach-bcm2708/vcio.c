@@ -37,6 +37,9 @@
 #include <mach/vcio.h>
 #include <mach/platform.h>
 
+#include <asm/uaccess.h>
+
+
 #define DRIVER_NAME BCM_VCIO_DRIVER_NAME
 
 /* ----------------------------------------------------------------------
@@ -216,6 +219,33 @@ static void dev_mbox_register(const char *dev_name, struct device *dev)
 	mbox_dev = dev;
 }
 
+static int mbox_copy_from_user(void *dst, const void *src, int size)
+{
+	if ( (uint32_t)src < TASK_SIZE)
+	{
+		return copy_from_user(dst, src, size);
+	}
+	else
+	{
+		memcpy( dst, src, size );
+		return 0;
+	}
+}
+
+static int mbox_copy_to_user(void *dst, const void *src, int size)
+{
+	if ( (uint32_t)dst < TASK_SIZE)
+	{
+		return copy_to_user(dst, src, size);
+	}
+	else
+	{
+		memcpy( dst, src, size );
+		return 0;
+	}
+}
+
+
 extern int bcm_mailbox_property(void *data, int size)
 {
 	uint32_t success;
@@ -227,7 +257,7 @@ extern int bcm_mailbox_property(void *data, int size)
 	mem_kern = dma_alloc_coherent(NULL, PAGE_ALIGN(size), &mem_bus, GFP_ATOMIC);
 	if (mem_kern) {
 		/* create the message */
-		memcpy(mem_kern, data, size);
+		mbox_copy_from_user(mem_kern, data, size);
 
 		/* send the message */
 		wmb();
@@ -238,7 +268,7 @@ extern int bcm_mailbox_property(void *data, int size)
 		if (s == 0) {
 			/* copy the response */
 			rmb();
-			memcpy(data, mem_kern, size);
+			mbox_copy_to_user(data, mem_kern, size);
 		}
 		dma_free_coherent(NULL, PAGE_ALIGN(size), mem_kern, mem_bus);
 	} else {
@@ -253,6 +283,93 @@ EXPORT_SYMBOL_GPL(bcm_mailbox_property);
 /* ----------------------------------------------------------------------
  *	Platform Device for Mailbox
  * -------------------------------------------------------------------- */
+
+/* 
+ * Is the device open right now? Used to prevent
+ * concurent access into the same device 
+ */
+static int Device_Open = 0;
+
+/* 
+ * This is called whenever a process attempts to open the device file 
+ */
+static int device_open(struct inode *inode, struct file *file)
+{
+	/* 
+	 * We don't want to talk to two processes at the same time 
+	 */
+	if (Device_Open)
+		return -EBUSY;
+
+	Device_Open++;
+	/*
+	 * Initialize the message 
+	 */
+	try_module_get(THIS_MODULE);
+	return 0;
+}
+
+static int device_release(struct inode *inode, struct file *file)
+{
+	/* 
+	 * We're now ready for our next caller 
+	 */
+	Device_Open--;
+
+	module_put(THIS_MODULE);
+	return 0;
+}
+
+/* 
+ * This function is called whenever a process tries to do an ioctl on our
+ * device file. We get two extra parameters (additional to the inode and file
+ * structures, which all device functions get): the number of the ioctl called
+ * and the parameter given to the ioctl function.
+ *
+ * If the ioctl is write or read/write (meaning output is returned to the
+ * calling process), the ioctl call returns the output of this function.
+ *
+ */
+static long device_ioctl(struct file *file,	/* see include/linux/fs.h */
+		 unsigned int ioctl_num,	/* number and param for ioctl */
+		 unsigned long ioctl_param)
+{
+	unsigned size;
+	/* 
+	 * Switch according to the ioctl called 
+	 */
+	switch (ioctl_num) {
+	case IOCTL_MBOX_PROPERTY:
+		/* 
+		 * Receive a pointer to a message (in user space) and set that
+		 * to be the device's message.  Get the parameter given to 
+		 * ioctl by the process. 
+		 */
+		mbox_copy_from_user(&size, (void *)ioctl_param, sizeof size);
+		return bcm_mailbox_property((void *)ioctl_param, size);
+		break;
+	default:
+		printk(KERN_ERR DRIVER_NAME "unknown ioctl: %d\n", ioctl_num);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/* Module Declarations */
+
+/* 
+ * This structure will hold the functions to be called
+ * when a process does something to the device we
+ * created. Since a pointer to this structure is kept in
+ * the devices table, it can't be local to
+ * init_module. NULL is for unimplemented functios. 
+ */
+struct file_operations fops = {
+	.unlocked_ioctl = device_ioctl,
+	.open = device_open,
+	.release = device_release,	/* a.k.a. close */
+};
 
 static int bcm_vcio_probe(struct platform_device *pdev)
 {
@@ -284,6 +401,22 @@ static int bcm_vcio_probe(struct platform_device *pdev)
 			setup_irq(IRQ_ARM_MAILBOX, &mbox_irqaction);
 			printk(KERN_INFO DRIVER_NAME ": mailbox at %p\n",
 			       __io_address(ARM_0_MAIL0_RD));
+		}
+	}
+
+	if (ret == 0) {
+		/* 
+		 * Register the character device
+		 */
+		ret = register_chrdev(MAJOR_NUM, DEVICE_FILE_NAME, &fops);
+
+		/* 
+		 * Negative values signify an error 
+		 */
+		if (ret < 0) {
+			printk(KERN_ERR DRIVER_NAME
+			       "Failed registering the character device %d\n", ret);
+			return ret;
 		}
 	}
 	return ret;
