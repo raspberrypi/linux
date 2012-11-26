@@ -136,7 +136,7 @@ static inline unsigned long int since_ns(hptime_t t)
 static bool allow_highspeed = 1;
 static int emmc_clock_freq = BCM2708_EMMC_CLOCK_FREQ;
 static bool sync_after_dma = 1;
-static bool missing_status = 0;
+static bool missing_status = 1;
 static bool spurious_crc_acmd51 = 0;
 bool enable_llm = 1;
 
