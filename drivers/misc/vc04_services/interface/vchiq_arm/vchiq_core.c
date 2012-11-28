@@ -1202,6 +1202,24 @@ poll_services(VCHIQ_STATE_T *state)
 				service_flags =
 					atomic_xchg(&service->poll_flags, 0);
 				if (service_flags &
+					(1 << VCHIQ_POLL_REMOVE)) {
+					vchiq_log_info(vchiq_core_log_level,
+						"%d: ps - remove %d<->%d",
+						state->id, service->localport,
+						service->remoteport);
+
+					/* Make it look like a client, because
+					   it must be removed and not left in
+					   the LISTENING state. */
+					service->public_fourcc =
+						VCHIQ_FOURCC_INVALID;
+
+					if (vchiq_close_service_internal(
+						service, 0/*!close_recvd*/) !=
+						VCHIQ_SUCCESS)
+						request_poll(state, service,
+							VCHIQ_POLL_REMOVE);
+				} else if (service_flags &
 					(1 << VCHIQ_POLL_TERMINATE)) {
 					vchiq_log_info(vchiq_core_log_level,
 						"%d: ps - terminate %d<->%d",
@@ -1526,6 +1544,26 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 		case VCHIQ_MSG_BULK_RX_DONE:
 		case VCHIQ_MSG_BULK_TX_DONE:
 			service = find_service_by_port(state, localport);
+			if ((!service || service->remoteport != remoteport) &&
+				(localport == 0) &&
+				(type == VCHIQ_MSG_CLOSE)) {
+				/* This could be a CLOSE from a client which
+				   hadn't yet received the OPENACK - look for
+				   the connected service */
+				if (service)
+					unlock_service(service);
+				service = get_connected_service(state,
+					remoteport);
+				if (service)
+					vchiq_log_warning(vchiq_core_log_level,
+						"%d: prs %s@%x (%d->%d) - "
+						"found connected service %d",
+						state->id, msg_type_str(type),
+						(unsigned int)header,
+						remoteport, localport,
+						service->localport);
+			}
+
 			if (!service) {
 				vchiq_log_error(vchiq_core_log_level,
 					"%d: prs %s@%x (%d->%d) - "
@@ -1535,6 +1573,7 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 					remoteport, localport, localport);
 				goto skip_message;
 			}
+			break;
 		default:
 			break;
 		}
@@ -1595,17 +1634,6 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 				"%d: prs CLOSE@%x (%d->%d)",
 				state->id, (unsigned int)header,
 				remoteport, localport);
-
-			if ((service->remoteport != remoteport) &&
-				VCHIQ_PORT_IS_VALID(service->remoteport)) {
-				/* This could be from a client which hadn't yet
-				** received the OPENACK - look for the
-				** connected service */
-				service = get_connected_service(state,
-					remoteport);
-				if (!service)
-					break;
-			}
 
 			mark_service_closing(service);
 
@@ -2782,14 +2810,10 @@ vchiq_terminate_service_internal(VCHIQ_SERVICE_T *service)
 	vchiq_log_info(vchiq_core_log_level, "%d: tsi - (%d<->%d)",
 		state->id, service->localport, service->remoteport);
 
-	/* Make it look like a client, because it must be removed and not
-	   left in the LISTENING state. */
-	service->public_fourcc = VCHIQ_FOURCC_INVALID;
-
 	mark_service_closing(service);
 
-	/* Mark the service for termination by the slot handler */
-	request_poll(state, service, VCHIQ_POLL_TERMINATE);
+	/* Mark the service for removal by the slot handler */
+	request_poll(state, service, VCHIQ_POLL_REMOVE);
 }
 
 /* Called from the slot handler */
@@ -2994,20 +3018,20 @@ vchiq_remove_service(VCHIQ_SERVICE_HANDLE_T handle)
 		return VCHIQ_ERROR;
 	}
 
-	/* Make it look like a client, because it must be removed and not
-	   left in the LISTENING state. */
-	service->public_fourcc = VCHIQ_FOURCC_INVALID;
-
 	mark_service_closing(service);
 
 	if ((service->srvstate == VCHIQ_SRVSTATE_HIDDEN) ||
 		(current == service->state->slot_handler_thread)) {
+		/* Make it look like a client, because it must be removed and
+		   not left in the LISTENING state. */
+		service->public_fourcc = VCHIQ_FOURCC_INVALID;
+
 		status = vchiq_close_service_internal(service,
 			0/*!close_recvd*/);
 		BUG_ON(status == VCHIQ_RETRY);
 	} else {
-		/* Mark the service for termination by the slot handler */
-		request_poll(service->state, service, VCHIQ_POLL_TERMINATE);
+		/* Mark the service for removal by the slot handler */
+		request_poll(service->state, service, VCHIQ_POLL_REMOVE);
 	}
 	while (1) {
 		if (down_interruptible(&service->remove_event) != 0) {

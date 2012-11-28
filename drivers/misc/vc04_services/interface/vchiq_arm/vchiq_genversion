@@ -41,11 +41,11 @@ if ( -d "$root/.git" ) {
 			$tainted =~ s/[ \r\n]*$//;     # chomp may not be enough (cygwin).
 			$tainted =~ s/^[ \r\n]*//;     # chomp may not be enough (cygwin).
 			if (length $tainted) {
-			$version = join ' ', $version, "(tainted)";
-		}
-		else {
-			$version = join ' ', $version, "(clean)";
-         }
+   			$version = join ' ', $version, "(tainted)";
+   		}
+   		else {
+   			$version = join ' ', $version, "(clean)";
+         }   		
 		}
 	}
 }
@@ -85,3 +85,5 @@ const char *vchiq_get_build_time( void )
    return vchiq_build_time;
 }
 EOF
+
+

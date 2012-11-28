@@ -25,12 +25,14 @@
 #include <linux/dma-contiguous.h>
 #include <linux/platform_device.h>
 #include <linux/uaccess.h>
-
+#include <asm/cacheflush.h>
 
 #include "vc_cma.h"
 
 #include "vchiq_util.h"
 #include "vchiq_connected.h"
+//#include "debug_sym.h"
+//#include "vc_mem.h"
 
 #define DRIVER_NAME  "vc-cma"
 
@@ -43,7 +45,7 @@
 #define VC_CMA_FOURCC VCHIQ_MAKE_FOURCC('C', 'M', 'A', ' ')
 #define VC_CMA_VERSION 2
 
-#define VC_CMA_CHUNK_ORDER 6  /* 256K */
+#define VC_CMA_CHUNK_ORDER 6	/* 256K */
 #define VC_CMA_CHUNK_SIZE (4096 << VC_CMA_CHUNK_ORDER)
 #define VC_CMA_MAX_PARAMS_PER_MSG \
 	((VCHIQ_MAX_MSG_SIZE - sizeof(unsigned short))/sizeof(unsigned short))
@@ -51,16 +53,21 @@
 
 #define PAGES_PER_CHUNK (VC_CMA_CHUNK_SIZE / PAGE_SIZE)
 
+#define VCADDR_TO_PHYSADDR(vcaddr) (mm_vc_mem_phys_addr + vcaddr)
+
+#define loud_error(...) \
+	LOG_ERR("===== " __VA_ARGS__)
+
 enum {
 	VC_CMA_MSG_QUIT,
 	VC_CMA_MSG_OPEN,
 	VC_CMA_MSG_TICK,
-	VC_CMA_MSG_ALLOC,     /* chunk count */
-	VC_CMA_MSG_FREE,      /* chunk, chunk, ... */
-	VC_CMA_MSG_ALLOCATED, /* chunk, chunk, ... */
-	VC_CMA_MSG_REQUEST_ALLOC, /* chunk count */
-	VC_CMA_MSG_REQUEST_FREE,  /* chunk count */
-	VC_CMA_MSG_RESERVE,   /* bytes lo, bytes hi */
+	VC_CMA_MSG_ALLOC,	/* chunk count */
+	VC_CMA_MSG_FREE,	/* chunk, chunk, ... */
+	VC_CMA_MSG_ALLOCATED,	/* chunk, chunk, ... */
+	VC_CMA_MSG_REQUEST_ALLOC,	/* chunk count */
+	VC_CMA_MSG_REQUEST_FREE,	/* chunk count */
+	VC_CMA_MSG_RESERVE,	/* bytes lo, bytes hi */
 	VC_CMA_MSG_UPDATE_RESERVE,
 	VC_CMA_MSG_MAX
 };
@@ -76,38 +83,40 @@ struct vc_cma_reserve_user {
 };
 
 /* Device (/dev) related variables */
-static dev_t         vc_cma_devnum;
+static dev_t vc_cma_devnum;
 static struct class *vc_cma_class;
-static struct cdev   vc_cma_cdev;
-static int           vc_cma_inited;
-static int           vc_cma_debug;
+static struct cdev vc_cma_cdev;
+static int vc_cma_inited;
+static int vc_cma_debug;
 
 /* Proc entry */
 static struct proc_dir_entry *vc_cma_proc_entry;
 
-phys_addr_t   vc_cma_base;
-struct page  *vc_cma_base_page;
-unsigned int  vc_cma_size;
+phys_addr_t vc_cma_base;
+struct page *vc_cma_base_page;
+unsigned int vc_cma_size;
 EXPORT_SYMBOL(vc_cma_size);
-unsigned int  vc_cma_initial;
-unsigned int  vc_cma_chunks;
-unsigned int  vc_cma_chunks_used;
-unsigned int  vc_cma_chunks_reserved;
+unsigned int vc_cma_initial;
+unsigned int vc_cma_chunks;
+unsigned int vc_cma_chunks_used;
+unsigned int vc_cma_chunks_reserved;
 
-unsigned int  vc_cma_reserve_total;
-unsigned int  vc_cma_reserve_count;
+static int in_loud_error;
+
+unsigned int vc_cma_reserve_total;
+unsigned int vc_cma_reserve_count;
 struct vc_cma_reserve_user vc_cma_reserve_users[VC_CMA_RESERVE_COUNT_MAX];
 static DEFINE_SEMAPHORE(vc_cma_reserve_mutex);
 static DEFINE_SEMAPHORE(vc_cma_worker_queue_push_mutex);
 
 static u64 vc_cma_dma_mask = DMA_BIT_MASK(32);
 static struct platform_device vc_cma_device = {
-	.name	= "vc-cma",
-	.id	= 0,
-	.dev	= {
-		.dma_mask		= &vc_cma_dma_mask,
-		.coherent_dma_mask	= DMA_BIT_MASK(32),
-	},
+	.name = "vc-cma",
+	.id = 0,
+	.dev = {
+		.dma_mask = &vc_cma_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		},
 };
 
 static VCHIQ_INSTANCE_T cma_instance;
@@ -117,16 +126,13 @@ static struct task_struct *cma_worker;
 
 static int vc_cma_set_reserve(unsigned int reserve, unsigned int pid);
 static int vc_cma_alloc_chunks(int num_chunks, struct cma_msg *reply);
-static VCHIQ_STATUS_T cma_service_callback(
-	VCHIQ_REASON_T reason,
-	VCHIQ_HEADER_T *header,
-	VCHIQ_SERVICE_HANDLE_T service,
-	void *bulk_userdata);
-static void send_vc_msg(
-	unsigned short type,
-	unsigned short param1,
-	unsigned short param2);
-static bool send_worker_msg(VCHIQ_HEADER_T *msg);
+static VCHIQ_STATUS_T cma_service_callback(VCHIQ_REASON_T reason,
+					   VCHIQ_HEADER_T * header,
+					   VCHIQ_SERVICE_HANDLE_T service,
+					   void *bulk_userdata);
+static void send_vc_msg(unsigned short type,
+			unsigned short param1, unsigned short param2);
+static bool send_worker_msg(VCHIQ_HEADER_T * msg);
 
 static int __init early_vc_cma_mem(char *p)
 {
@@ -140,18 +146,18 @@ static int __init early_vc_cma_mem(char *p)
 		vc_cma_base = memparse(p + 1, &p);
 
 	new_size = (vc_cma_size - ((-vc_cma_base) & (VC_CMA_CHUNK_SIZE - 1)))
-		& ~(VC_CMA_CHUNK_SIZE - 1);
+	    & ~(VC_CMA_CHUNK_SIZE - 1);
 	if (new_size > vc_cma_size)
 		vc_cma_size = 0;
 	vc_cma_initial = (vc_cma_initial + VC_CMA_CHUNK_SIZE - 1)
-		& ~(VC_CMA_CHUNK_SIZE - 1);
+	    & ~(VC_CMA_CHUNK_SIZE - 1);
 	if (vc_cma_initial > vc_cma_size)
 		vc_cma_initial = vc_cma_size;
 	vc_cma_base = (vc_cma_base + VC_CMA_CHUNK_SIZE - 1)
-		& ~(VC_CMA_CHUNK_SIZE - 1);
+	    & ~(VC_CMA_CHUNK_SIZE - 1);
 
 	printk(KERN_ERR " -> initial %x, size %x, base %x", vc_cma_initial,
-		vc_cma_size, (unsigned int)vc_cma_base);
+	       vc_cma_size, (unsigned int)vc_cma_base);
 
 	return 0;
 }
@@ -174,7 +180,7 @@ void __init vc_cma_reserve(void)
 	 */
 	if (vc_cma_size) {
 		if (dma_declare_contiguous(&vc_cma_device.dev, vc_cma_size,
-			vc_cma_base, 0) == 0) {
+					   vc_cma_base, 0) == 0) {
 		} else {
 			LOG_ERR("vc_cma: dma_declare_contiguous(%x,%x) failed",
 				vc_cma_size, (unsigned int)vc_cma_base);
@@ -241,7 +247,6 @@ static long vc_cma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return rc;
 }
 
-
 /****************************************************************************
 *
 *   File Operations for the driver.
@@ -249,9 +254,9 @@ static long vc_cma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 ***************************************************************************/
 
 static const struct file_operations vc_cma_fops = {
-	.owner          = THIS_MODULE,
-	.open           = vc_cma_open,
-	.release        = vc_cma_release,
+	.owner = THIS_MODULE,
+	.open = vc_cma_open,
+	.release = vc_cma_release,
 	.unlocked_ioctl = vc_cma_ioctl,
 };
 
@@ -271,19 +276,19 @@ static int vc_cma_show_info(struct seq_file *m, void *v)
 	seq_printf(m, "   Initial    : %08x\n", vc_cma_initial);
 	seq_printf(m, "   Chunk size : %08x\n", VC_CMA_CHUNK_SIZE);
 	seq_printf(m, "   Chunks     : %4d (%d bytes)\n",
-		(int)vc_cma_chunks,
-		(int)(vc_cma_chunks * VC_CMA_CHUNK_SIZE));
+		   (int)vc_cma_chunks,
+		   (int)(vc_cma_chunks * VC_CMA_CHUNK_SIZE));
 	seq_printf(m, "   Used       : %4d (%d bytes)\n",
-		(int)vc_cma_chunks_used,
-		(int)(vc_cma_chunks_used * VC_CMA_CHUNK_SIZE));
+		   (int)vc_cma_chunks_used,
+		   (int)(vc_cma_chunks_used * VC_CMA_CHUNK_SIZE));
 	seq_printf(m, "   Reserved   : %4d (%d bytes)\n",
-		(unsigned int)vc_cma_chunks_reserved,
-		(int)(vc_cma_chunks_reserved * VC_CMA_CHUNK_SIZE));
+		   (unsigned int)vc_cma_chunks_reserved,
+		   (int)(vc_cma_chunks_reserved * VC_CMA_CHUNK_SIZE));
 
 	for (i = 0; i < vc_cma_reserve_count; i++) {
 		struct vc_cma_reserve_user *user = &vc_cma_reserve_users[i];
 		seq_printf(m, "     PID %5d: %d bytes\n", user->pid,
-			user->reserve);
+			   user->reserve);
 	}
 
 	seq_printf(m, "\n");
@@ -302,11 +307,9 @@ static int vc_cma_proc_open(struct inode *inode, struct file *file)
 *
 ***************************************************************************/
 
-static int vc_cma_proc_write(
-	struct file *file,
-	const char __user *buffer,
-	size_t size,
-	loff_t *ppos)
+static int vc_cma_proc_write(struct file *file,
+			     const char __user *buffer,
+			     size_t size, loff_t *ppos)
 {
 	int rc = -EFAULT;
 	char input_str[20];
@@ -322,7 +325,6 @@ static int vc_cma_proc_write(
 		LOG_ERR("%s: failed to get input string", __func__);
 		goto out;
 	}
-
 #define ALLOC_STR "alloc"
 #define FREE_STR "free"
 #define DEBUG_STR "debug"
@@ -337,12 +339,11 @@ static int vc_cma_proc_write(
 		LOG_ERR("/proc/vc-cma: alloc %d", size);
 		if (size)
 			send_vc_msg(VC_CMA_MSG_REQUEST_FREE,
-				size / VC_CMA_CHUNK_SIZE, 0);
+				    size / VC_CMA_CHUNK_SIZE, 0);
 		else
 			LOG_ERR("invalid size '%s'", p);
 		rc = size;
-	} else if (strncmp(input_str, FREE_STR,
-			strlen(FREE_STR)) == 0) {
+	} else if (strncmp(input_str, FREE_STR, strlen(FREE_STR)) == 0) {
 		int size;
 		char *p = input_str + strlen(FREE_STR);
 
@@ -352,7 +353,7 @@ static int vc_cma_proc_write(
 		LOG_ERR("/proc/vc-cma: free %d", size);
 		if (size)
 			send_vc_msg(VC_CMA_MSG_REQUEST_ALLOC,
-				size / VC_CMA_CHUNK_SIZE, 0);
+				    size / VC_CMA_CHUNK_SIZE, 0);
 		else
 			LOG_ERR("invalid size '%s'", p);
 		rc = size;
@@ -382,7 +383,6 @@ out:
 	return rc;
 }
 
-
 /****************************************************************************
 *
 *   File Operations for /proc interface.
@@ -396,7 +396,6 @@ static const struct file_operations vc_cma_proc_fops = {
 	.llseek = seq_lseek,
 	.release = single_release
 };
-
 
 static int vc_cma_set_reserve(unsigned int reserve, unsigned int pid)
 {
@@ -445,10 +444,9 @@ static int vc_cma_set_reserve(unsigned int reserve, unsigned int pid)
 	vc_cma_reserve_total += delta;
 
 	send_vc_msg(VC_CMA_MSG_RESERVE,
-		vc_cma_reserve_total & 0xffff,
-		vc_cma_reserve_total >> 16);
+		    vc_cma_reserve_total & 0xffff, vc_cma_reserve_total >> 16);
 
-	send_worker_msg((VCHIQ_HEADER_T *)VC_CMA_MSG_UPDATE_RESERVE);
+	send_worker_msg((VCHIQ_HEADER_T *) VC_CMA_MSG_UPDATE_RESERVE);
 
 	LOG_DBG("/proc/vc-cma: reserve %d (PID %d) - total %u",
 		reserve, pid, vc_cma_reserve_total);
@@ -458,11 +456,10 @@ static int vc_cma_set_reserve(unsigned int reserve, unsigned int pid)
 	return vc_cma_reserve_total;
 }
 
-static VCHIQ_STATUS_T cma_service_callback(
-	VCHIQ_REASON_T reason,
-	VCHIQ_HEADER_T *header,
-	VCHIQ_SERVICE_HANDLE_T service,
-	void *bulk_userdata)
+static VCHIQ_STATUS_T cma_service_callback(VCHIQ_REASON_T reason,
+					   VCHIQ_HEADER_T * header,
+					   VCHIQ_SERVICE_HANDLE_T service,
+					   void *bulk_userdata)
 {
 	switch (reason) {
 	case VCHIQ_MESSAGE_AVAILABLE:
@@ -479,10 +476,8 @@ static VCHIQ_STATUS_T cma_service_callback(
 	return VCHIQ_SUCCESS;
 }
 
-static void send_vc_msg(
-	unsigned short type,
-	unsigned short param1,
-	unsigned short param2)
+static void send_vc_msg(unsigned short type,
+			unsigned short param1, unsigned short param2)
 {
 	unsigned short msg[] = { type, param1, param2 };
 	VCHIQ_ELEMENT_T elem = { &msg, sizeof(msg) };
@@ -494,7 +489,7 @@ static void send_vc_msg(
 		LOG_ERR("vchiq_queue_message returned %x", ret);
 }
 
-static bool send_worker_msg(VCHIQ_HEADER_T *msg)
+static bool send_worker_msg(VCHIQ_HEADER_T * msg)
 {
 	if (down_interruptible(&vc_cma_worker_queue_push_mutex))
 		return false;
@@ -509,26 +504,33 @@ static int vc_cma_alloc_chunks(int num_chunks, struct cma_msg *reply)
 	for (i = 0; i < num_chunks; i++) {
 		struct page *chunk;
 		unsigned int chunk_num;
-		chunk = dma_alloc_from_contiguous(
-			&vc_cma_device.dev,
-			PAGES_PER_CHUNK,
-			VC_CMA_CHUNK_ORDER);
+		uint8_t *chunk_addr;
+		size_t chunk_size = PAGES_PER_CHUNK << PAGE_SHIFT;
+
+		chunk = dma_alloc_from_contiguous(&vc_cma_device.dev,
+						  PAGES_PER_CHUNK,
+						  VC_CMA_CHUNK_ORDER);
 		if (!chunk)
 			break;
+
+		chunk_addr = page_address(chunk);
+		dmac_flush_range(chunk_addr, chunk_addr + chunk_size);
+		outer_inv_range(__pa(chunk_addr), __pa(chunk_addr) +
+			chunk_size);
+
 		chunk_num =
-			(page_to_phys(chunk) - vc_cma_base) /
-			VC_CMA_CHUNK_SIZE;
+		    (page_to_phys(chunk) - vc_cma_base) / VC_CMA_CHUNK_SIZE;
 		BUG_ON(((page_to_phys(chunk) - vc_cma_base) %
 			VC_CMA_CHUNK_SIZE) != 0);
-		if (chunk_num >= vc_cma_chunks)
-		{
+		if (chunk_num >= vc_cma_chunks) {
 			LOG_ERR("%s: ===============================",
 				__func__);
 			LOG_ERR("%s: chunk phys %x, vc_cma %x-%x - "
 				"bad SPARSEMEM configuration?",
 				__func__, (unsigned int)page_to_phys(chunk),
 				vc_cma_base, vc_cma_base + vc_cma_size - 1);
-			LOG_ERR("%s: dev->cma_area = %p\n", __func__, vc_cma_device.dev.cma_area);
+			LOG_ERR("%s: dev->cma_area = %p\n", __func__,
+				vc_cma_device.dev.cma_area);
 			LOG_ERR("%s: ===============================",
 				__func__);
 			break;
@@ -541,8 +543,7 @@ static int vc_cma_alloc_chunks(int num_chunks, struct cma_msg *reply)
 		LOG_ERR("%s: dma_alloc_from_contiguous failed "
 			"for %x bytes (alloc %d of %d, %d free)",
 			__func__, VC_CMA_CHUNK_SIZE, i,
-			num_chunks,
-			vc_cma_chunks - vc_cma_chunks_used);
+			num_chunks, vc_cma_chunks - vc_cma_chunks_used);
 		num_chunks = i;
 	}
 
@@ -554,16 +555,14 @@ static int vc_cma_alloc_chunks(int num_chunks, struct cma_msg *reply)
 		VCHIQ_ELEMENT_T elem = {
 			reply,
 			offsetof(struct cma_msg, params[0]) +
-				num_chunks * sizeof(reply->params[0])
+			    num_chunks * sizeof(reply->params[0])
 		};
 		VCHIQ_STATUS_T ret;
 		vchiq_use_service(cma_service);
-		ret = vchiq_queue_message(cma_service,
-			&elem, 1);
+		ret = vchiq_queue_message(cma_service, &elem, 1);
 		vchiq_release_service(cma_service);
 		if (ret != VCHIQ_SUCCESS)
-			LOG_ERR("vchiq_queue_message return "
-				"%x", ret);
+			LOG_ERR("vchiq_queue_message return " "%x", ret);
 	}
 
 	return num_chunks;
@@ -601,93 +600,106 @@ static int cma_worker_proc(void *param)
 		}
 
 		switch (type) {
-		case VC_CMA_MSG_ALLOC: {
-			int num_chunks, free_chunks;
-			num_chunks = cma_msg->params[0];
-			free_chunks = vc_cma_chunks - vc_cma_chunks_used;
-			LOG_DBG("CMA_MSG_ALLOC(%d chunks)", num_chunks);
-			if (num_chunks > VC_CMA_MAX_PARAMS_PER_MSG) {
-				LOG_ERR("CMA_MSG_ALLOC - chunk count (%d) "
-					"exceeds VC_CMA_MAX_PARAMS_PER_MSG (%d)",
-					num_chunks, VC_CMA_MAX_PARAMS_PER_MSG);
-				num_chunks = VC_CMA_MAX_PARAMS_PER_MSG;
-			}
-
-			if (num_chunks > free_chunks) {
-				LOG_ERR("CMA_MSG_ALLOC - chunk count (%d) "
-					"exceeds free chunks (%d)",
-					num_chunks, free_chunks);
-				num_chunks = free_chunks;
-			}
-
-			vc_cma_alloc_chunks(num_chunks, &reply);
-		}
-		break;
-
-		case VC_CMA_MSG_FREE: {
-			int chunk_count =
-				(msg_size - offsetof(struct cma_msg, params))/
-				sizeof(cma_msg->params[0]);
-			int i;
-			BUG_ON(chunk_count <= 0);
-
-			LOG_DBG("CMA_MSG_FREE(%d chunks - %x, ...)",
-				chunk_count, cma_msg->params[0]);
-			for (i = 0; i < chunk_count; i++) {
-				int chunk_num = cma_msg->params[i];
-				struct page *page = vc_cma_base_page +
-					chunk_num * PAGES_PER_CHUNK;
-				if (chunk_num >= vc_cma_chunks) {
-					LOG_ERR("CMA_MSG_FREE - chunk %d of %d"
-						" (value %x) exceeds maximum "
-						"(%x)",
-						i, chunk_count, chunk_num,
-						vc_cma_chunks - 1);
-					break;
+		case VC_CMA_MSG_ALLOC:{
+				int num_chunks, free_chunks;
+				num_chunks = cma_msg->params[0];
+				free_chunks =
+				    vc_cma_chunks - vc_cma_chunks_used;
+				LOG_DBG("CMA_MSG_ALLOC(%d chunks)", num_chunks);
+				if (num_chunks > VC_CMA_MAX_PARAMS_PER_MSG) {
+					LOG_ERR
+					    ("CMA_MSG_ALLOC - chunk count (%d) "
+					     "exceeds VC_CMA_MAX_PARAMS_PER_MSG (%d)",
+					     num_chunks,
+					     VC_CMA_MAX_PARAMS_PER_MSG);
+					num_chunks = VC_CMA_MAX_PARAMS_PER_MSG;
 				}
 
-				if (!dma_release_from_contiguous(
-					&vc_cma_device.dev,
-					page, PAGES_PER_CHUNK)) {
-					LOG_ERR("CMA_MSG_FREE - failed to "
-						"release chunk %d (phys %x, "
-						"page %x)",
-						chunk_num, page_to_phys(page),
-						(unsigned int)page);
+				if (num_chunks > free_chunks) {
+					LOG_ERR
+					    ("CMA_MSG_ALLOC - chunk count (%d) "
+					     "exceeds free chunks (%d)",
+					     num_chunks, free_chunks);
+					num_chunks = free_chunks;
 				}
-				vc_cma_chunks_used--;
+
+				vc_cma_alloc_chunks(num_chunks, &reply);
 			}
-			LOG_DBG("CMA released %d chunks -> %d used",
-				i, vc_cma_chunks_used);
-		}
-		break;
+			break;
 
-		case VC_CMA_MSG_UPDATE_RESERVE: {
-			int chunks_needed =
-				((vc_cma_reserve_total + VC_CMA_CHUNK_SIZE - 1)
-				/ VC_CMA_CHUNK_SIZE) -
-				vc_cma_chunks_reserved;
+		case VC_CMA_MSG_FREE:{
+				int chunk_count =
+				    (msg_size -
+				     offsetof(struct cma_msg,
+					      params)) /
+				    sizeof(cma_msg->params[0]);
+				int i;
+				BUG_ON(chunk_count <= 0);
 
-			LOG_DBG("CMA_MSG_UPDATE_RESERVE(%d chunks needed)",
-				chunks_needed);
+				LOG_DBG("CMA_MSG_FREE(%d chunks - %x, ...)",
+					chunk_count, cma_msg->params[0]);
+				for (i = 0; i < chunk_count; i++) {
+					int chunk_num = cma_msg->params[i];
+					struct page *page = vc_cma_base_page +
+					    chunk_num * PAGES_PER_CHUNK;
+					if (chunk_num >= vc_cma_chunks) {
+						LOG_ERR
+						    ("CMA_MSG_FREE - chunk %d of %d"
+						     " (value %x) exceeds maximum "
+						     "(%x)", i, chunk_count,
+						     chunk_num,
+						     vc_cma_chunks - 1);
+						break;
+					}
 
-			/* Cap the reservations to what is available */
-			if (chunks_needed > 0) {
-				if (chunks_needed >
-					(vc_cma_chunks - vc_cma_chunks_used))
+					if (!dma_release_from_contiguous
+					    (&vc_cma_device.dev, page,
+					     PAGES_PER_CHUNK)) {
+						LOG_ERR
+						    ("CMA_MSG_FREE - failed to "
+						     "release chunk %d (phys %x, "
+						     "page %x)", chunk_num,
+						     page_to_phys(page),
+						     (unsigned int)page);
+					}
+					vc_cma_chunks_used--;
+				}
+				LOG_DBG("CMA released %d chunks -> %d used",
+					i, vc_cma_chunks_used);
+			}
+			break;
+
+		case VC_CMA_MSG_UPDATE_RESERVE:{
+				int chunks_needed =
+				    ((vc_cma_reserve_total + VC_CMA_CHUNK_SIZE -
+				      1)
+				     / VC_CMA_CHUNK_SIZE) -
+				    vc_cma_chunks_reserved;
+
+				LOG_DBG
+				    ("CMA_MSG_UPDATE_RESERVE(%d chunks needed)",
+				     chunks_needed);
+
+				/* Cap the reservations to what is available */
+				if (chunks_needed > 0) {
+					if (chunks_needed >
+					    (vc_cma_chunks -
+					     vc_cma_chunks_used))
+						chunks_needed =
+						    (vc_cma_chunks -
+						     vc_cma_chunks_used);
+
 					chunks_needed =
-						(vc_cma_chunks -
-						vc_cma_chunks_used);
+					    vc_cma_alloc_chunks(chunks_needed,
+								&reply);
+				}
 
-				chunks_needed = vc_cma_alloc_chunks(
-					chunks_needed, &reply);
+				LOG_DBG
+				    ("CMA_MSG_UPDATE_RESERVE(%d chunks allocated)",
+				     chunks_needed);
+				vc_cma_chunks_reserved += chunks_needed;
 			}
-
-			LOG_DBG("CMA_MSG_UPDATE_RESERVE(%d chunks allocated)",
-				chunks_needed);
-			vc_cma_chunks_reserved += chunks_needed;
-		}
-		break;
+			break;
 
 		default:
 			LOG_ERR("unexpected msg type %d", type);
@@ -698,6 +710,14 @@ static int cma_worker_proc(void *param)
 	LOG_DBG("quitting...");
 	return 0;
 }
+
+/****************************************************************************
+*
+*   vc_cma_connected_init
+*
+*   This function is called once the videocore has been connected.
+*
+***************************************************************************/
 
 static void vc_cma_connected_init(void)
 {
@@ -722,7 +742,7 @@ static void vc_cma_connected_init(void)
 	service_params.version_min = VC_CMA_VERSION;
 
 	if (vchiq_open_service(cma_instance, &service_params,
-		&cma_service) != VCHIQ_SUCCESS) {
+			       &cma_service) != VCHIQ_SUCCESS) {
 		LOG_ERR("failed to open service - already in use?");
 		goto fail_vchiq_open;
 	}
@@ -749,58 +769,278 @@ fail_queue:
 	return;
 }
 
+void
+loud_error_header(void)
+{
+	if (in_loud_error)
+		return;
 
-/****************************************************************************
-*
-*   vc_cma_connected_init
-*
-*   This function is called once the videocore has been connected.
-*
-***************************************************************************/
+	LOG_ERR("============================================================"
+		"================");
+	LOG_ERR("============================================================"
+		"================");
+	LOG_ERR("=====");
+
+	in_loud_error = 1;
+}
+
+void
+loud_error_footer(void)
+{
+	if (!in_loud_error)
+		return;
+
+	LOG_ERR("=====");
+	LOG_ERR("============================================================"
+		"================");
+	LOG_ERR("============================================================"
+		"================");
+
+	in_loud_error = 0;
+}
+
+#if 1
+static int check_cma_config(void) { return 1; }
+#else
+static int
+read_vc_debug_var(VC_MEM_ACCESS_HANDLE_T handle,
+	const char *symbol,
+	void *buf, size_t bufsize)
+{
+	VC_MEM_ADDR_T vcMemAddr;
+	size_t vcMemSize;
+	uint8_t *mapAddr;
+	off_t  vcMapAddr;
+
+	if (!LookupVideoCoreSymbol(handle, symbol,
+		&vcMemAddr,
+		&vcMemSize)) {
+		loud_error_header();
+		loud_error(
+			"failed to find VC symbol \"%s\".",
+			symbol);
+		loud_error_footer();
+		return 0;
+	}
+
+	if (vcMemSize != bufsize) {
+		loud_error_header();
+		loud_error(
+			"VC symbol \"%s\" is the wrong size.",
+			symbol);
+		loud_error_footer();
+		return 0;
+	}
+
+	vcMapAddr = (off_t)vcMemAddr & VC_MEM_TO_ARM_ADDR_MASK;
+	vcMapAddr += mm_vc_mem_phys_addr;
+	mapAddr = ioremap_nocache(vcMapAddr, vcMemSize);
+	if (mapAddr == 0) {
+		loud_error_header();
+		loud_error(
+			"failed to ioremap \"%s\" @ 0x%x "
+			"(phys: 0x%x, size: %u).",
+			symbol,
+			(unsigned int)vcMapAddr,
+			(unsigned int)vcMemAddr,
+			(unsigned int)vcMemSize);
+		loud_error_footer();
+		return 0;
+	}
+
+	memcpy(buf, mapAddr, bufsize);
+	iounmap(mapAddr);
+
+	return 1;
+}
+
+
+static int
+check_cma_config(void)
+{
+	VC_MEM_ACCESS_HANDLE_T mem_hndl;
+	VC_MEM_ADDR_T mempool_start;
+	VC_MEM_ADDR_T mempool_end;
+	VC_MEM_ADDR_T mempool_offline_start;
+	VC_MEM_ADDR_T mempool_offline_end;
+	VC_MEM_ADDR_T cam_alloc_base;
+	VC_MEM_ADDR_T cam_alloc_size;
+	VC_MEM_ADDR_T cam_alloc_end;
+	int success = 0;
+
+	if (OpenVideoCoreMemory(&mem_hndl) != 0)
+		goto out;
+
+	/* Read the relevant VideoCore variables */
+	if (!read_vc_debug_var(mem_hndl, "__MEMPOOL_START",
+		&mempool_start,
+		sizeof(mempool_start)))
+		goto close;
+
+	if (!read_vc_debug_var(mem_hndl, "__MEMPOOL_END",
+		&mempool_end,
+		sizeof(mempool_end)))
+		goto close;
+
+	if (!read_vc_debug_var(mem_hndl, "__MEMPOOL_OFFLINE_START",
+		&mempool_offline_start,
+		sizeof(mempool_offline_start)))
+		goto close;
+
+	if (!read_vc_debug_var(mem_hndl, "__MEMPOOL_OFFLINE_END",
+		&mempool_offline_end,
+		sizeof(mempool_offline_end)))
+		goto close;
+
+	if (!read_vc_debug_var(mem_hndl, "cam_alloc_base",
+		&cam_alloc_base,
+		sizeof(cam_alloc_base)))
+		goto close;
+
+	if (!read_vc_debug_var(mem_hndl, "cam_alloc_size",
+		&cam_alloc_size,
+		sizeof(cam_alloc_size)))
+		goto close;
+
+	cam_alloc_end = cam_alloc_base + cam_alloc_size;
+
+	success = 1;
+
+	/* Now the sanity checks */
+	if (!mempool_offline_start)
+		mempool_offline_start = mempool_start;
+	if (!mempool_offline_end)
+		mempool_offline_end = mempool_end;
+
+	if (VCADDR_TO_PHYSADDR(mempool_offline_start) != vc_cma_base) {
+		loud_error_header();
+		loud_error(
+			"__MEMPOOL_OFFLINE_START(%x -> %lx) doesn't match "
+			"vc_cma_base(%x)",
+			mempool_offline_start,
+			VCADDR_TO_PHYSADDR(mempool_offline_start),
+			vc_cma_base);
+		success = 0;
+	}
+
+	if (VCADDR_TO_PHYSADDR(mempool_offline_end) !=
+		(vc_cma_base + vc_cma_size)) {
+		loud_error_header();
+		loud_error(
+			"__MEMPOOL_OFFLINE_END(%x -> %lx) doesn't match "
+			"vc_cma_base(%x) + vc_cma_size(%x) = %x",
+			mempool_offline_start,
+			VCADDR_TO_PHYSADDR(mempool_offline_end),
+			vc_cma_base, vc_cma_size, vc_cma_base + vc_cma_size);
+		success = 0;
+	}
+
+	if (mempool_end < mempool_start) {
+		loud_error_header();
+		loud_error(
+			"__MEMPOOL_END(%x) must not be before "
+			"__MEMPOOL_START(%x)",
+			mempool_end,
+			mempool_start);
+		success = 0;
+	}
+
+	if (mempool_offline_end < mempool_offline_start) {
+		loud_error_header();
+		loud_error(
+			"__MEMPOOL_OFFLINE_END(%x) must not be before "
+			"__MEMPOOL_OFFLINE_START(%x)",
+			mempool_offline_end,
+			mempool_offline_start);
+		success = 0;
+	}
+
+	if (mempool_offline_start < mempool_start) {
+		loud_error_header();
+		loud_error(
+			"__MEMPOOL_OFFLINE_START(%x) must not be before "
+			"__MEMPOOL_START(%x)",
+			mempool_offline_start,
+			mempool_start);
+		success = 0;
+	}
+
+	if (mempool_offline_end > mempool_end) {
+		loud_error_header();
+		loud_error(
+			"__MEMPOOL_OFFLINE_END(%x) must not be after "
+			"__MEMPOOL_END(%x)",
+			mempool_offline_end,
+			mempool_end);
+		success = 0;
+	}
+
+	if ((cam_alloc_base < mempool_end) &&
+		(cam_alloc_end > mempool_start)) {
+		loud_error_header();
+		loud_error(
+			"cam_alloc pool(%x-%x) overlaps "
+			"mempool(%x-%x)",
+			cam_alloc_base, cam_alloc_end,
+			mempool_start, mempool_end);
+		success = 0;
+	}
+
+	loud_error_footer();
+
+close:
+	CloseVideoCoreMemory(mem_hndl);
+
+out:
+	return success;
+}
+#endif
 
 static int __init vc_cma_init(void)
 {
 	int rc = -EFAULT;
 	struct device *dev;
 
+	if (!check_cma_config())
+		goto out_release;
+
 	printk(KERN_INFO "vc-cma: Videocore CMA driver\n");
-	printk(KERN_INFO "vc-cma: vc_cma_base      = 0x%08x\n",
-			vc_cma_base);
+	printk(KERN_INFO "vc-cma: vc_cma_base      = 0x%08x\n", vc_cma_base);
 	printk(KERN_INFO "vc-cma: vc_cma_size      = 0x%08x (%u MiB)\n",
-			vc_cma_size, vc_cma_size / (1024 * 1024));
+	       vc_cma_size, vc_cma_size / (1024 * 1024));
 	printk(KERN_INFO "vc-cma: vc_cma_initial   = 0x%08x (%u MiB)\n",
-			vc_cma_initial, vc_cma_initial / (1024 * 1024));
+	       vc_cma_initial, vc_cma_initial / (1024 * 1024));
 
 	vc_cma_base_page = phys_to_page(vc_cma_base);
+
 	if (vc_cma_chunks) {
 		int chunks_needed = vc_cma_initial / VC_CMA_CHUNK_SIZE;
 
 		for (vc_cma_chunks_used = 0;
-			vc_cma_chunks_used < chunks_needed;
-			vc_cma_chunks_used++) {
+		     vc_cma_chunks_used < chunks_needed; vc_cma_chunks_used++) {
 			struct page *chunk;
 			chunk = dma_alloc_from_contiguous(&vc_cma_device.dev,
-				PAGES_PER_CHUNK, VC_CMA_CHUNK_ORDER);
+							  PAGES_PER_CHUNK,
+							  VC_CMA_CHUNK_ORDER);
 			if (!chunk)
 				break;
 			BUG_ON(((page_to_phys(chunk) - vc_cma_base) %
-				 VC_CMA_CHUNK_SIZE) != 0);
+				VC_CMA_CHUNK_SIZE) != 0);
 		}
 		if (vc_cma_chunks_used != chunks_needed) {
 			LOG_ERR("%s: dma_alloc_from_contiguous failed (%d "
 				"bytes, allocation %d of %d)",
 				__func__, VC_CMA_CHUNK_SIZE,
-				vc_cma_chunks_used,
-				chunks_needed);
+				vc_cma_chunks_used, chunks_needed);
 			goto out_release;
 		}
+
 		vchiq_add_connected_callback(vc_cma_connected_init);
 	}
 
 	rc = alloc_chrdev_region(&vc_cma_devnum, 0, 1, DRIVER_NAME);
 	if (rc < 0) {
-		LOG_ERR("%s: alloc_chrdev_region failed (rc=%d)", __func__,
-			rc);
+		LOG_ERR("%s: alloc_chrdev_region failed (rc=%d)", __func__, rc);
 		goto out_release;
 	}
 
@@ -819,7 +1059,7 @@ static int __init vc_cma_init(void)
 	}
 
 	dev = device_create(vc_cma_class, NULL, vc_cma_devnum, NULL,
-		DRIVER_NAME);
+			    DRIVER_NAME);
 	if (IS_ERR(dev)) {
 		rc = PTR_ERR(dev);
 		LOG_ERR("%s: device_create failed (rc=%d)", __func__, rc);

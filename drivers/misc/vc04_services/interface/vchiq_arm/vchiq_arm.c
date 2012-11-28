@@ -1370,8 +1370,8 @@ dump_phys_mem(void *virt_addr, uint32_t num_bytes)
 
 	while (offset < end_offset) {
 
-		page_idx = offset / PAGE_SIZE;
 		int page_offset = offset % PAGE_SIZE;
+		page_idx = offset / PAGE_SIZE;
 
 		if (page_idx != prev_idx) {
 
