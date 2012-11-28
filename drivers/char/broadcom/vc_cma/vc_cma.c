@@ -179,7 +179,7 @@ void __init vc_cma_reserve(void)
 	 * size from the end of memory
 	 */
 	if (vc_cma_size) {
-		if (dma_declare_contiguous(&vc_cma_device.dev, vc_cma_size,
+		if (dma_declare_contiguous(NULL /*&vc_cma_device.dev*/, vc_cma_size,
 					   vc_cma_base, 0) == 0) {
 		} else {
 			LOG_ERR("vc_cma: dma_declare_contiguous(%x,%x) failed",
@@ -507,7 +507,7 @@ static int vc_cma_alloc_chunks(int num_chunks, struct cma_msg *reply)
 		uint8_t *chunk_addr;
 		size_t chunk_size = PAGES_PER_CHUNK << PAGE_SHIFT;
 
-		chunk = dma_alloc_from_contiguous(&vc_cma_device.dev,
+		chunk = dma_alloc_from_contiguous(NULL /*&vc_cma_device.dev*/,
 						  PAGES_PER_CHUNK,
 						  VC_CMA_CHUNK_ORDER);
 		if (!chunk)
@@ -653,7 +653,7 @@ static int cma_worker_proc(void *param)
 					}
 
 					if (!dma_release_from_contiguous
-					    (&vc_cma_device.dev, page,
+					    (NULL /*&vc_cma_device.dev*/, page,
 					     PAGES_PER_CHUNK)) {
 						LOG_ERR
 						    ("CMA_MSG_FREE - failed to "
@@ -1019,7 +1019,7 @@ static int __init vc_cma_init(void)
 		for (vc_cma_chunks_used = 0;
 		     vc_cma_chunks_used < chunks_needed; vc_cma_chunks_used++) {
 			struct page *chunk;
-			chunk = dma_alloc_from_contiguous(&vc_cma_device.dev,
+			chunk = dma_alloc_from_contiguous(NULL /*&vc_cma_device.dev*/,
 							  PAGES_PER_CHUNK,
 							  VC_CMA_CHUNK_ORDER);
 			if (!chunk)
