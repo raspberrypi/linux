@@ -27,6 +27,11 @@
  * not have an RI input, nor do they have DTR or RTS outputs.  If
  * required, these have to be supplied via some other means (eg, GPIO)
  * and hooked into this driver.
+ * 
+ * Apparently the above paragraph was written when AMBA ports didn't
+ * have DTR. The code below shows that some AMBA ports DO have a DTR,
+ * but others do not. The DTR through GPIO implementation is now
+ * present. 
  */
 
 #if defined(CONFIG_SERIAL_AMBA_PL011_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
@@ -51,10 +56,15 @@
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
 #include <linux/delay.h>
+#include <linux/gpio.h>
 
 #include <asm/io.h>
 #include <asm/sizes.h>
 
+
+
+// The maximum number of amba ports supported. Increase this if you need
+// more (unlikely). -- REW
 #define UART_NR			14
 
 #define SERIAL_AMBA_MAJOR	204
@@ -162,6 +172,7 @@ struct uart_amba_port {
 	bool			autorts;
 	char			type[12];
 	bool			interrupt_may_hang; /* vendor-specific */
+	int			dtrpin;
 #ifdef CONFIG_DMA_ENGINE
 	/* DMA stuff */
 	bool			using_tx_dma;
@@ -170,6 +181,18 @@ struct uart_amba_port {
 	struct pl011_dmatx_data	dmatx;
 #endif
 };
+
+
+static int dtr_pin[UART_NR]; 
+static int gpio_inited;
+
+// We need to know the number of passed software-dtr-gpio-numbers. 
+// Otherwise it would be impossible to distiguish between "not specified"
+// and specified as GPIO-0. 
+static int num_dtrs; 
+
+module_param_array (dtr_pin, int, &num_dtrs, 0);
+
 
 /*
  * Reads up to 256 characters from the FIFO or until it's empty and
@@ -1305,6 +1328,8 @@ static void pl011_set_mctrl(struct uart_port *port, unsigned int mctrl)
 		cr &= ~uartbit
 
 	TIOCMBIT(TIOCM_RTS, UART011_CR_RTS);
+	// On the raspberry pi this writes the bit documented as:
+	// "DTR: unsupported, write zero". Oh well..  -- REW
 	TIOCMBIT(TIOCM_DTR, UART011_CR_DTR);
 	TIOCMBIT(TIOCM_OUT1, UART011_CR_OUT1);
 	TIOCMBIT(TIOCM_OUT2, UART011_CR_OUT2);
@@ -1315,6 +1340,17 @@ static void pl011_set_mctrl(struct uart_port *port, unsigned int mctrl)
 		TIOCMBIT(TIOCM_RTS, UART011_CR_RTSEN);
 	}
 #undef TIOCMBIT
+
+	// Software (GPIO) DTR support. 
+	if (uap->dtrpin >= 0) {
+		// Apparently, this is called without us having been able
+		// to grab the gpio pin. So we'll have to check the flag. 
+		// (I'm assuming this is called early during boot, as I don't
+		// see this happening when the system is up. That's why a 
+		// global static flag works).
+		if (gpio_inited)
+			gpio_set_value (uap->dtrpin, (mctrl & TIOCM_DTR )?0:1);
+	}
 
 	writew(cr, uap->port.membase + UART011_CR);
 }
@@ -1449,6 +1485,21 @@ static int pl011_startup(struct uart_port *port)
 			plat->init();
 	}
 
+	// Software (GPIO) DTR support. 
+	if (uap->dtrpin >= 0) {
+		retval = gpio_request (uap->dtrpin, "pl011.dtr");
+		if (retval < 0) {
+			printk ("DTR request GPIO failed. \n");
+			goto clk_dis;
+		}
+		retval = gpio_direction_output(uap->dtrpin, 0);
+		if (retval < 0) {
+			printk ("DTR  GPIO output failed. \n");
+			goto clk_dis;
+		}
+		gpio_inited = 1;
+	}
+
 	return 0;
 
  clk_dis:
@@ -1488,6 +1539,15 @@ static void pl011_shutdown(struct uart_port *port)
 	 * Free the interrupt
 	 */
 	free_irq(uap->port.irq, uap);
+	
+	if (uap->dtrpin >= 0) {
+		// I considered making the pin input again. However, when
+		// software DTR is configured, there is most likely hardware
+		// attached, so we better keep driving the pin, probably in
+		// the "not-active" state. 
+		gpio_free (uap->dtrpin);
+		gpio_inited = 0;
+	}
 
 	/*
 	 * disable the port
@@ -1918,6 +1978,14 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 		ret = PTR_ERR(uap->clk);
 		goto unmap;
 	}
+
+
+	// Specify -1 for no software DTR (to skip over ports). 
+	// Specify anything else to use that GPIO. 
+	if (i < num_dtrs) 
+		uap->dtrpin = dtr_pin[i];
+	else
+		uap->dtrpin = -1;
 
 	uap->vendor = vendor;
 	uap->lcrh_rx = vendor->lcrh_rx;
