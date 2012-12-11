@@ -850,9 +850,7 @@ void __init bcm2708_init_early(void)
 	 * context. Increase size of atomic coherent pool to make sure such
 	 * the allocations won't fail.
 	 */
-#if !defined(CONFIG_BCM_VC_CMA)
-	init_dma_coherent_pool_size(SZ_2M);
-#endif
+	init_dma_coherent_pool_size(SZ_4M);
 }
 
 static void __init board_reserve(void)
