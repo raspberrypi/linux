@@ -11,6 +11,7 @@
 #include <linux/device.h>
 #include <linux/jiffies.h>
 #include <linux/timex.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/uaccess.h>
 #include <asm/atomic.h>
@@ -18,10 +19,30 @@
 #include <asm/io.h>
 
 #include <mach/dma.h>
+#include <mach/vc_support.h>
 
-MODULE_LICENSE("Dual BSD/GPL");
+#ifdef ECLIPSE_IGNORE
 
-//#define inline 
+#define __user
+#define __init
+#define __exit
+#define __iomem
+#define KERN_DEBUG
+#define KERN_ERR
+#define KERN_WARNING
+#define KERN_INFO
+#define _IOWR(a, b, c) b
+#define _IOW(a, b, c) b
+#define _IO(a, b) b
+
+#endif
+
+//#define inline
+
+#define PRINTK(args...) printk(args)
+//#define PRINTK_VERBOSE(args...) printk(args)
+//#define PRINTK(args...)
+#define PRINTK_VERBOSE(args...)
 
 /***** TYPES ****/
 #define PAGES_PER_LIST 500
@@ -39,6 +60,7 @@ struct VmaPageList
 	struct PageList *m_pPageTail;
 	unsigned int m_refCount;
 };
+
 struct DmaControlBlock
 {
 	unsigned int m_transferInfo;
@@ -78,6 +100,15 @@ struct DmaControlBlock
 //set the address range through which the user address is assumed to already by a physical address
 #define DMA_SET_MIN_PHYS	_IOW(DMA_MAGIC, 7, unsigned long)
 #define DMA_SET_MAX_PHYS	_IOW(DMA_MAGIC, 8, unsigned long)
+#define DMA_SET_PHYS_OFFSET	_IOW(DMA_MAGIC, 9, unsigned long)
+
+//used to define the size for the CMA-based allocation *in pages*, can only be done once once the file is opened
+#define DMA_CMA_SET_SIZE	_IOW(DMA_MAGIC, 10, unsigned long)
+
+//used to get the version of the module, to test for a capability
+#define DMA_GET_VERSION		_IO(DMA_MAGIC, 99)
+
+#define VERSION_NUMBER 1
 
 #define VIRT_TO_BUS_CACHE_SIZE 8
 
@@ -89,19 +120,24 @@ static ssize_t Read(struct file *pFile, char __user *pUser, size_t count, loff_t
 static int Mmap(struct file *pFile, struct vm_area_struct *pVma);
 
 /***** VMA OPS ****/
-static void VmaOpen(struct vm_area_struct *pVma);
-static void VmaClose(struct vm_area_struct *pVma);
-static int VmaFault(struct vm_area_struct *pVma, struct vm_fault *pVmf);
+static void VmaOpen4k(struct vm_area_struct *pVma);
+static void VmaClose4k(struct vm_area_struct *pVma);
+static int VmaFault4k(struct vm_area_struct *pVma, struct vm_fault *pVmf);
+
+/**** DMA PROTOTYPES */
+static struct DmaControlBlock __user *DmaPrepare(struct DmaControlBlock __user *pUserCB, int *pError);
+static int DmaKick(struct DmaControlBlock __user *pUserCB);
+static void DmaWaitAll(void);
 
 /**** GENERIC ****/
 static int __init dmaer_init(void);
 static void __exit dmaer_exit(void);
 
 /*** OPS ***/
-static struct vm_operations_struct g_vmOps = {
-	.open = VmaOpen,
-	.close = VmaClose,
-	.fault = VmaFault,
+static struct vm_operations_struct g_vmOps4k = {
+	.open = VmaOpen4k,
+	.close = VmaClose4k,
+	.fault = VmaFault4k,
 };
 
 static struct file_operations g_fOps = {
@@ -117,13 +153,23 @@ static struct file_operations g_fOps = {
 
 /***** GLOBALS ******/
 static dev_t g_majorMinor;
-static atomic_t g_oneLock = ATOMIC_INIT(1);
+
+//tracking usage of the two files
+static atomic_t g_oneLock4k = ATOMIC_INIT(1);
+
+//device operations
 static struct cdev g_cDev;
 static int g_trackedPages = 0;
+
+//dma control
 static unsigned int *g_pDmaChanBase;
 static int g_dmaIrq;
 static int g_dmaChan;
 
+//cma allocation
+static int g_cmaHandle;
+
+//user virtual to bus address translation acceleration
 static unsigned long g_virtAddr[VIRT_TO_BUS_CACHE_SIZE];
 static unsigned long g_busAddr[VIRT_TO_BUS_CACHE_SIZE];
 static unsigned long g_cbVirtAddr;
@@ -132,8 +178,9 @@ static int g_cacheInsertAt;
 static int g_cacheHit, g_cacheMiss;
 
 //off by default
-static void __user *g_pMinPhys = (void __user *)-1;
-static void __user *g_pMaxPhys = (void __user *)0;
+static void __user *g_pMinPhys;
+static void __user *g_pMaxPhys;
+static unsigned long g_physOffset;
 
 /****** CACHE OPERATIONS ********/
 static inline void FlushAddrCache(void)
@@ -164,6 +211,9 @@ static inline void __iomem *UserVirtualToBus(void __user *pUser)
 
 	if (mapped <= 0)		//error
 		return 0;
+
+	PRINTK_VERBOSE(KERN_DEBUG "user virtual %p arm phys %p bus %p\n",
+			pUser, page_address(pPage), (void __iomem *)__virt_to_bus(page_address(pPage)));
 
 	//get the arm physical address
 	phys = page_address(pPage) + offset_in_page(pUser);
@@ -211,8 +261,8 @@ static inline void __iomem *UserVirtualToBusViaCache(void __user *pUser)
 
 	if (pUser >= g_pMinPhys && pUser < g_pMaxPhys)
 	{
-//		printk(KERN_DEBUG "user->phys passthrough on %p\n", pUser);
-		return (void __iomem *)__virt_to_bus(pUser);
+		PRINTK_VERBOSE(KERN_DEBUG "user->phys passthrough on %p\n", pUser);
+		return (void __iomem *)((unsigned long)pUser + g_physOffset);
 	}
 
 	//check the cache for our entry
@@ -246,25 +296,57 @@ static inline void __iomem *UserVirtualToBusViaCache(void __user *pUser)
 /***** FILE OPERATIONS ****/
 static int Open(struct inode *pInode, struct file *pFile)
 {
-	printk(KERN_DEBUG "file opening\n");
+	PRINTK(KERN_DEBUG "file opening: %d/%d\n", imajor(pInode), iminor(pInode));
 	
-	//only one at a time
-	if (!atomic_dec_and_test(&g_oneLock))
+	//check which device we are
+	if (iminor(pInode) == 0)		//4k
 	{
-		atomic_inc(&g_oneLock);
-		return -EBUSY;
+		//only one at a time
+		if (!atomic_dec_and_test(&g_oneLock4k))
+		{
+			atomic_inc(&g_oneLock4k);
+			return -EBUSY;
+		}
 	}
+	else
+		return -EINVAL;
 	
+	//todo there will be trouble if two different processes open the files
+
+	//reset after any file is opened
+	g_pMinPhys = (void __user *)-1;
+	g_pMaxPhys = (void __user *)0;
+	g_physOffset = 0;
+	g_cmaHandle = 0;
+
 	return 0;
 }
 
 static int Release(struct inode *pInode, struct file *pFile)
 {
-	printk(KERN_DEBUG "file closing, %d pages tracked\n", g_trackedPages);
+	PRINTK(KERN_DEBUG "file closing, %d pages tracked\n", g_trackedPages);
 	if (g_trackedPages)
-		printk(KERN_ERR "we\'re leaking memory!\n");
+		PRINTK(KERN_ERR "we\'re leaking memory!\n");
 	
-	atomic_inc(&g_oneLock);
+	//wait for any dmas to finish
+	DmaWaitAll();
+
+	//free this memory on the application closing the file or it crashing (implicitly closing the file)
+	if (g_cmaHandle)
+	{
+		PRINTK(KERN_DEBUG "unlocking vc memory\n");
+		if (UnlockVcMemory(g_cmaHandle))
+			PRINTK(KERN_ERR "uh-oh, unable to unlock vc memory!\n");
+		PRINTK(KERN_DEBUG "releasing vc memory\n");
+		if (ReleaseVcMemory(g_cmaHandle))
+			PRINTK(KERN_ERR "uh-oh, unable to release vc memory!\n");
+	}
+
+	if (iminor(pInode) == 0)
+		atomic_inc(&g_oneLock4k);
+	else
+		return -EINVAL;
+
 	return 0;
 }
 
@@ -274,18 +356,17 @@ static struct DmaControlBlock __user *DmaPrepare(struct DmaControlBlock __user *
 	struct DmaControlBlock __user *pUNext;
 	void __iomem *pSourceBus, __iomem *pDestBus;
 	
-	
 	//get the control block into kernel memory so we can work on it
 	if (copy_from_user(&kernCB, pUserCB, sizeof(struct DmaControlBlock)) != 0)
 	{
-		printk(KERN_ERR "copy_from_user failed for user cb %p\n", pUserCB);
+		PRINTK(KERN_ERR "copy_from_user failed for user cb %p\n", pUserCB);
 		*pError = 1;
 		return 0;
 	}
 	
 	if (kernCB.m_pSourceAddr == 0 || kernCB.m_pDestAddr == 0)
 	{
-		printk(KERN_ERR "faulty source (%p) dest (%p) addresses for user cb %p\n",
+		PRINTK(KERN_ERR "faulty source (%p) dest (%p) addresses for user cb %p\n",
 			kernCB.m_pSourceAddr, kernCB.m_pDestAddr, pUserCB);
 		*pError = 1;
 		return 0;
@@ -296,7 +377,9 @@ static struct DmaControlBlock __user *DmaPrepare(struct DmaControlBlock __user *
 
 	if (!pSourceBus || !pDestBus)
 	{
-		printk(KERN_ERR "virtual to bus translation failure for source/dest\n");
+		PRINTK(KERN_ERR "virtual to bus translation failure for source/dest %p/%p->%p/%p\n",
+				kernCB.m_pSourceAddr, kernCB.m_pDestAddr,
+				pSourceBus, pDestBus);
 		*pError = 1;
 		return 0;
 	}
@@ -304,6 +387,8 @@ static struct DmaControlBlock __user *DmaPrepare(struct DmaControlBlock __user *
 	//update the user structure with the new bus addresses
 	kernCB.m_pSourceAddr = pSourceBus;
 	kernCB.m_pDestAddr = pDestBus;
+
+	PRINTK_VERBOSE(KERN_DEBUG "final source %p dest %p\n", kernCB.m_pSourceAddr, kernCB.m_pDestAddr);
 		
 	//sort out the bus address for the next block
 	pUNext = kernCB.m_pNext;
@@ -315,7 +400,7 @@ static struct DmaControlBlock __user *DmaPrepare(struct DmaControlBlock __user *
 
 		if (!pNextBus)
 		{
-			printk(KERN_ERR "virtual to bus translation failure for m_pNext\n");
+			PRINTK(KERN_ERR "virtual to bus translation failure for m_pNext\n");
 			*pError = 1;
 			return 0;
 		}
@@ -327,7 +412,7 @@ static struct DmaControlBlock __user *DmaPrepare(struct DmaControlBlock __user *
 	//write it back to user space
 	if (copy_to_user(pUserCB, &kernCB, sizeof(struct DmaControlBlock)) != 0)
 	{
-		printk(KERN_ERR "copy_to_user failed for cb %p\n", pUserCB);
+		PRINTK(KERN_ERR "copy_to_user failed for cb %p\n", pUserCB);
 		*pError = 1;
 		return 0;
 	}
@@ -345,7 +430,7 @@ static int DmaKick(struct DmaControlBlock __user *pUserCB)
 	pBusCB = UserVirtualToBusViaCbCache(pUserCB);
 	if (!pBusCB)
 	{
-		printk(KERN_ERR "virtual to bus translation failure for cb\n");
+		PRINTK(KERN_ERR "virtual to bus translation failure for cb\n");
 		return 1;
 	}
 
@@ -361,9 +446,9 @@ static void DmaWaitAll(void)
 	int counter = 0;
 	volatile int inner_count;
 	volatile unsigned int cs;
-	//unsigned long time_before, time_after;
+	unsigned long time_before, time_after;
 
-	//time_before = jiffies;
+	time_before = jiffies;
 	//bcm_dma_wait_idle(g_pDmaChanBase);
 	dsb();
 	
@@ -380,19 +465,19 @@ static void DmaWaitAll(void)
 		//cpu_do_idle();
 		if (counter >= 1000000)
 		{
-			printk(KERN_WARNING "DMA failed to finish in a timely fashion\n");
+			PRINTK(KERN_WARNING "DMA failed to finish in a timely fashion\n");
 			break;
 		}
 	}
-	//time_after = jiffies;
-	//printk(KERN_DEBUG "done, counter %d, cs %08x", counter, cs);
-	//printk(KERN_DEBUG "took %ld jiffies, %d HZ\n", time_after - time_before, HZ);
+	time_after = jiffies;
+	PRINTK_VERBOSE(KERN_DEBUG "done, counter %d, cs %08x", counter, cs);
+	PRINTK_VERBOSE(KERN_DEBUG "took %ld jiffies, %d HZ\n", time_after - time_before, HZ);
 }
 
 static long Ioctl(struct file *pFile, unsigned int cmd, unsigned long arg)
 {
 	int error = 0;
-	//printk(KERN_DEBUG "ioctl cmd %x arg %lx\n", cmd, arg);
+	PRINTK_VERBOSE(KERN_DEBUG "ioctl cmd %x arg %lx\n", cmd, arg);
 
 	switch (cmd)
 	{
@@ -402,29 +487,30 @@ static long Ioctl(struct file *pFile, unsigned int cmd, unsigned long arg)
 		{
 			struct DmaControlBlock __user *pUCB = (struct DmaControlBlock *)arg;
 			int steps = 0;
-			//unsigned long start_time = jiffies;
+			unsigned long start_time = jiffies;
+			(void)start_time;
 
 			//flush our address cache
 			FlushAddrCache();
 
-//			printk(KERN_DEBUG "dma prepare\n");
-			
+			PRINTK_VERBOSE(KERN_DEBUG "dma prepare\n");
+
 			//do virtual to bus translation for each entry
 			do
 			{
 				pUCB = DmaPrepare(pUCB, &error);
 			} while (error == 0 && ++steps && pUCB);
-			//printk(KERN_DEBUG "prepare done in %d steps, %ld\n", steps, jiffies - start_time);
+			PRINTK_VERBOSE(KERN_DEBUG "prepare done in %d steps, %ld\n", steps, jiffies - start_time);
 
 			//carry straight on if we want to kick too
 			if (cmd == DMA_PREPARE || error)
 			{
-//				printk(KERN_DEBUG "falling out\n");
-				break;
+				PRINTK_VERBOSE(KERN_DEBUG "falling out\n");
+				return error ? -EINVAL : 0;
 			}
-		};
+		}
 	case DMA_KICK:
-//		printk(KERN_DEBUG "dma begin\n");
+		PRINTK_VERBOSE(KERN_DEBUG "dma begin\n");
 
 		if (cmd == DMA_KICK)
 			FlushAddrCache();
@@ -434,10 +520,10 @@ static long Ioctl(struct file *pFile, unsigned int cmd, unsigned long arg)
 		if (cmd != DMA_PREPARE_KICK_WAIT)
 			break;
 /*	case DMA_WAIT_ONE:
-		//printk(KERN_DEBUG "dma wait one\n");
+		//PRINTK(KERN_DEBUG "dma wait one\n");
 		break;*/
 	case DMA_WAIT_ALL:
-		//printk(KERN_DEBUG "dma wait all\n");
+		//PRINTK(KERN_DEBUG "dma wait all\n");
 		DmaWaitAll();
 		break;
 	case DMA_MAX_BURST:
@@ -447,14 +533,54 @@ static long Ioctl(struct file *pFile, unsigned int cmd, unsigned long arg)
 			return 5;
 	case DMA_SET_MIN_PHYS:
 		g_pMinPhys = (void __user *)arg;
-		printk("min/max user/phys bypass set to %p %p\n", g_pMinPhys, g_pMaxPhys);
+		PRINTK(KERN_DEBUG "min/max user/phys bypass set to %p %p\n", g_pMinPhys, g_pMaxPhys);
 		break;
 	case DMA_SET_MAX_PHYS:
 		g_pMaxPhys = (void __user *)arg;
-		printk("min/max user/phys bypass set to %p %p\n", g_pMinPhys, g_pMaxPhys);
+		PRINTK(KERN_DEBUG "min/max user/phys bypass set to %p %p\n", g_pMinPhys, g_pMaxPhys);
 		break;
+	case DMA_SET_PHYS_OFFSET:
+		g_physOffset = arg;
+		PRINTK(KERN_DEBUG "user/phys bypass offset set to %ld\n", g_physOffset);
+		break;
+	case DMA_CMA_SET_SIZE:
+	{
+		unsigned int pBusAddr;
+
+		if (g_cmaHandle)
+		{
+			PRINTK(KERN_ERR "memory has already been allocated (handle %d)\n", g_cmaHandle);
+			return -EINVAL;
+		}
+
+		PRINTK(KERN_INFO "allocating %ld bytes of VC memory\n", arg * 4096);
+
+		//get the memory
+		if (AllocateVcMemory(&g_cmaHandle, arg * 4096, 4096, MEM_FLAG_L1_NONALLOCATING | MEM_FLAG_NO_INIT | MEM_FLAG_HINT_PERMALOCK))
+		{
+			PRINTK(KERN_ERR "failed to allocate %ld bytes of VC memory\n", arg * 4096);
+			g_cmaHandle = 0;
+			return -EINVAL;
+		}
+
+		//get an address for it
+		PRINTK(KERN_INFO "trying to map VC memory\n");
+
+		if (LockVcMemory(&pBusAddr, g_cmaHandle))
+		{
+			PRINTK(KERN_ERR "failed to map CMA handle %d, releasing memory\n", g_cmaHandle);
+			ReleaseVcMemory(g_cmaHandle);
+			g_cmaHandle = 0;
+		}
+
+		PRINTK(KERN_INFO "bus address for CMA memory is %x\n", pBusAddr);
+		return pBusAddr;
+	}
+	case DMA_GET_VERSION:
+		PRINTK(KERN_DEBUG "returning version number, %d\n", VERSION_NUMBER);
+		return VERSION_NUMBER;
 	default:
-		printk(KERN_DEBUG "unknown ioctl: %d\n", cmd);
+		PRINTK(KERN_DEBUG "unknown ioctl: %d\n", cmd);
 		return -EINVAL;
 	}
 
@@ -463,12 +589,6 @@ static long Ioctl(struct file *pFile, unsigned int cmd, unsigned long arg)
 
 static ssize_t Read(struct file *pFile, char __user *pUser, size_t count, loff_t *offp)
 {
-	/*printk(KERN_DEBUG "file read pFile %p pUser %p count %ld offp %p\n",
-		pFile, pUser, count, offp);
-	printk(KERN_DEBUG "phys pFile %lx pUser %lx offp %lx\n",
-		__pa(pFile), __pa(pUser), __pa(offp));
-	printk(KERN_DEBUG "bus pFile %lx pUser %lx offp %lx\n",
-		virt_to_bus(pFile), virt_to_bus(pUser), virt_to_bus(offp));*/
 	return -EIO;
 }
 
@@ -477,20 +597,20 @@ static int Mmap(struct file *pFile, struct vm_area_struct *pVma)
 	struct PageList *pPages;
 	struct VmaPageList *pVmaList;
 	
-//	printk(KERN_DEBUG "MMAP vma %p, length %ld (%s %d)\n",
-//		pVma, pVma->vm_end - pVma->vm_start,
-//		current->comm, current->pid);
-//	printk(KERN_DEBUG "MMAP %p %d (tracked %d)\n", pVma, current->pid, g_trackedPages);
-	
+	PRINTK_VERBOSE(KERN_DEBUG "MMAP vma %p, length %ld (%s %d)\n",
+		pVma, pVma->vm_end - pVma->vm_start,
+		current->comm, current->pid);
+	PRINTK_VERBOSE(KERN_DEBUG "MMAP %p %d (tracked %d)\n", pVma, current->pid, g_trackedPages);
+
 	//make a new page list
 	pPages = (struct PageList *)kmalloc(sizeof(struct PageList), GFP_KERNEL);
 	if (!pPages)
 	{
-		printk(KERN_ERR "couldn\'t allocate a new page list (%s %d)\n",
+		PRINTK(KERN_ERR "couldn\'t allocate a new page list (%s %d)\n",
 			current->comm, current->pid);
 		return -ENOMEM;
 	}
-	
+
 	//clear the page list
 	pPages->m_used = 0;
 	pPages->m_pNext = 0;
@@ -500,67 +620,72 @@ static int Mmap(struct file *pFile, struct vm_area_struct *pVma)
 	{
 		struct VmaPageList *pList;
 
-//		printk(KERN_DEBUG "new vma list, making new one (%s %d)\n",
-//			current->comm, current->pid);
-		
+		PRINTK_VERBOSE(KERN_DEBUG "new vma list, making new one (%s %d)\n",
+			current->comm, current->pid);
+
 		//make a new vma list
 		pList = (struct VmaPageList *)kmalloc(sizeof(struct VmaPageList), GFP_KERNEL);
 		if (!pList)
 		{
-			printk(KERN_ERR "couldn\'t allocate vma page list (%s %d)\n",
+			PRINTK(KERN_ERR "couldn\'t allocate vma page list (%s %d)\n",
 				current->comm, current->pid);
 			kfree(pPages);
 			return -ENOMEM;
 		}
-		
+
 		//clear this list
 		pVma->vm_private_data = (void *)pList;
 		pList->m_refCount = 0;
 	}
-	
+
 	pVmaList = (struct VmaPageList *)pVma->vm_private_data;
-	
+
 	//add it to the vma list
 	pVmaList->m_pPageHead = pPages;
 	pVmaList->m_pPageTail = pPages;
-	
-	pVma->vm_ops = &g_vmOps;
+
+	pVma->vm_ops = &g_vmOps4k;
 	pVma->vm_flags |= VM_RESERVED;
-	
-	VmaOpen(pVma);
-	
+
+	VmaOpen4k(pVma);
+
 	return 0;
 }
 
 /****** VMA OPERATIONS ******/
 
-static void VmaOpen(struct vm_area_struct *pVma)
+static void VmaOpen4k(struct vm_area_struct *pVma)
 {
 	struct VmaPageList *pVmaList;
 
-//	printk(KERN_DEBUG "vma open %p private %p (%s %d), %d live pages\n", pVma, pVma->vm_private_data, current->comm, current->pid, g_trackedPages);
-//	printk(KERN_DEBUG "OPEN %p %d %ld pages (tracked pages %d)\n",
-//		pVma, current->pid, (pVma->vm_end - pVma->vm_start) >> 12,
-//		g_trackedPages);
+	PRINTK_VERBOSE(KERN_DEBUG "vma open %p private %p (%s %d), %d live pages\n", pVma, pVma->vm_private_data, current->comm, current->pid, g_trackedPages);
+	PRINTK_VERBOSE(KERN_DEBUG "OPEN %p %d %ld pages (tracked pages %d)\n",
+		pVma, current->pid, (pVma->vm_end - pVma->vm_start) >> 12,
+		g_trackedPages);
 
 	pVmaList = (struct VmaPageList *)pVma->vm_private_data;
 
 	if (pVmaList)
 	{
 		pVmaList->m_refCount++;
-//		printk(KERN_DEBUG "ref count is now %d\n", pVmaList->m_refCount);
+		PRINTK_VERBOSE(KERN_DEBUG "ref count is now %d\n", pVmaList->m_refCount);
 	}
-//	else
-//		printk(KERN_DEBUG "err, open but no vma page list\n");
+	else
+	{
+		PRINTK_VERBOSE(KERN_DEBUG "err, open but no vma page list\n");
+	}
 }
 
-static void VmaClose(struct vm_area_struct *pVma)
+static void VmaClose4k(struct vm_area_struct *pVma)
 {
 	struct VmaPageList *pVmaList;
 	int freed = 0;
 	
-//	printk(KERN_DEBUG "vma close %p private %p (%s %d)\n", pVma, pVma->vm_private_data, current->comm, current->pid);
+	PRINTK_VERBOSE(KERN_DEBUG "vma close %p private %p (%s %d)\n", pVma, pVma->vm_private_data, current->comm, current->pid);
 	
+	//wait for any dmas to finish
+	DmaWaitAll();
+
 	//find our vma in the list
 	pVmaList = (struct VmaPageList *)pVma->vm_private_data;
 
@@ -573,14 +698,14 @@ static void VmaClose(struct vm_area_struct *pVma)
 
 		if (pVmaList->m_refCount == 0)
 		{
-//			printk(KERN_DEBUG "found vma, freeing pages (%s %d)\n",
-//				current->comm, current->pid);
+			PRINTK_VERBOSE(KERN_DEBUG "found vma, freeing pages (%s %d)\n",
+				current->comm, current->pid);
 
 			pPages = pVmaList->m_pPageHead;
 
 			if (!pPages)
 			{
-				printk(KERN_ERR "no page list (%s %d)!\n",
+				PRINTK(KERN_ERR "no page list (%s %d)!\n",
 					current->comm, current->pid);
 				return;
 			}
@@ -590,22 +715,22 @@ static void VmaClose(struct vm_area_struct *pVma)
 				struct PageList *next;
 				int count;
 
-//				printk(KERN_DEBUG "page list (%s %d)\n",
-//					current->comm, current->pid);
+				PRINTK_VERBOSE(KERN_DEBUG "page list (%s %d)\n",
+					current->comm, current->pid);
 
 				next = pPages->m_pNext;
 				for (count = 0; count < pPages->m_used; count++)
 				{
-//					printk(KERN_DEBUG "freeing page %p (%s %d)\n",
-//						pPages->m_pPages[count],
-//						current->comm, current->pid);
+					PRINTK_VERBOSE(KERN_DEBUG "freeing page %p (%s %d)\n",
+						pPages->m_pPages[count],
+						current->comm, current->pid);
 					__free_pages(pPages->m_pPages[count], 0);
 					g_trackedPages--;
 					freed++;
 				}
 
-//				printk(KERN_DEBUG "freeing page list (%s %d)\n",
-//					current->comm, current->pid);
+				PRINTK_VERBOSE(KERN_DEBUG "freeing page list (%s %d)\n",
+					current->comm, current->pid);
 				kfree(pPages);
 				pPages = next;
 			}
@@ -614,33 +739,38 @@ static void VmaClose(struct vm_area_struct *pVma)
 			kfree(pVmaList);
 			pVma->vm_private_data = 0;
 		}
-//		else
-//			printk(KERN_DEBUG "ref count is %d, not closing\n", pVmaList->m_refCount);
+		else
+		{
+			PRINTK_VERBOSE(KERN_DEBUG "ref count is %d, not closing\n", pVmaList->m_refCount);
+		}
 	}
 	else
 	{
-//		printk(KERN_ERR "uh-oh, vma %p not found (%s %d)!\n", pVma, current->comm, current->pid);
-//		printk(KERN_ERR "CLOSE ERR\n");
+		PRINTK_VERBOSE(KERN_ERR "uh-oh, vma %p not found (%s %d)!\n", pVma, current->comm, current->pid);
+		PRINTK_VERBOSE(KERN_ERR "CLOSE ERR\n");
 	}
 
-//	printk(KERN_DEBUG "CLOSE %p %d %d pages (tracked pages %d)",
-//		pVma, current->pid, freed, g_trackedPages);
+	PRINTK_VERBOSE(KERN_DEBUG "CLOSE %p %d %d pages (tracked pages %d)",
+		pVma, current->pid, freed, g_trackedPages);
 
-//	printk(KERN_DEBUG "%d pages open\n", g_trackedPages);
+	PRINTK_VERBOSE(KERN_DEBUG "%d pages open\n", g_trackedPages);
 }
 
-static int VmaFault(struct vm_area_struct *pVma, struct vm_fault *pVmf)
+static int VmaFault4k(struct vm_area_struct *pVma, struct vm_fault *pVmf)
 {
-//	printk(KERN_DEBUG "vma fault for vma %p private %p at offset %ld (%s %d)\n", pVma, pVma->vm_private_data, pVmf->pgoff,
-//		current->comm, current->pid);
-	//printk(KERN_DEBUG "FAULT\n");
+	PRINTK_VERBOSE(KERN_DEBUG "vma fault for vma %p private %p at offset %ld (%s %d)\n", pVma, pVma->vm_private_data, pVmf->pgoff,
+		current->comm, current->pid);
+	PRINTK_VERBOSE(KERN_DEBUG "FAULT\n");
 	pVmf->page = alloc_page(GFP_KERNEL);
-	/*if (pVmf->page)
-		printk(KERN_DEBUG "alloc page virtual %p\n", page_address(pVmf->page));*/
 	
+	if (pVmf->page)
+	{
+		PRINTK_VERBOSE(KERN_DEBUG "alloc page virtual %p\n", page_address(pVmf->page));
+	}
+
 	if (!pVmf->page)
 	{
-		printk(KERN_ERR "vma fault oom (%s %d)\n", current->comm, current->pid);
+		PRINTK(KERN_ERR "vma fault oom (%s %d)\n", current->comm, current->pid);
 		return VM_FAULT_OOM;
 	}
 	else
@@ -655,11 +785,11 @@ static int VmaFault(struct vm_area_struct *pVma, struct vm_fault *pVmf)
 		
 		if (pVmaList)
 		{
-//			printk(KERN_DEBUG "vma found (%s %d)\n", current->comm, current->pid);
+			PRINTK_VERBOSE(KERN_DEBUG "vma found (%s %d)\n", current->comm, current->pid);
 
 			if (pVmaList->m_pPageTail->m_used == PAGES_PER_LIST)
 			{
-//				printk(KERN_DEBUG "making new page list (%s %d)\n", current->comm, current->pid);
+				PRINTK_VERBOSE(KERN_DEBUG "making new page list (%s %d)\n", current->comm, current->pid);
 				//making a new page list
 				pVmaList->m_pPageTail->m_pNext = (struct PageList *)kmalloc(sizeof(struct PageList), GFP_KERNEL);
 				if (!pVmaList->m_pPageTail->m_pNext)
@@ -671,13 +801,13 @@ static int VmaFault(struct vm_area_struct *pVma, struct vm_fault *pVmf)
 				pVmaList->m_pPageTail->m_pNext = 0;
 			}
 
-//			printk(KERN_DEBUG "adding page to list (%s %d)\n", current->comm, current->pid);
+			PRINTK_VERBOSE(KERN_DEBUG "adding page to list (%s %d)\n", current->comm, current->pid);
 			
 			pVmaList->m_pPageTail->m_pPages[pVmaList->m_pPageTail->m_used] = pVmf->page;
 			pVmaList->m_pPageTail->m_used++;
 		}
 		else
-			printk(KERN_ERR "returned page for vma we don\'t know %p (%s %d)\n", pVma, current->comm, current->pid);
+			PRINTK(KERN_ERR "returned page for vma we don\'t know %p (%s %d)\n", pVma, current->comm, current->pid);
 		
 		return 0;
 	}
@@ -689,32 +819,33 @@ static int __init dmaer_init(void)
 	int result = alloc_chrdev_region(&g_majorMinor, 0, 1, "dmaer");
 	if (result < 0)
 	{
-		printk(KERN_ERR "unable to get major device number\n");
+		PRINTK(KERN_ERR "unable to get major device number\n");
 		return result;
 	}
 	else
-		printk(KERN_DEBUG "major device number %d\n", MAJOR(g_majorMinor));
+		PRINTK(KERN_DEBUG "major device number %d\n", MAJOR(g_majorMinor));
 	
-	printk(KERN_DEBUG "vma list size %d, page list size %d, page size %ld\n",
+	PRINTK(KERN_DEBUG "vma list size %d, page list size %d, page size %ld\n",
 		sizeof(struct VmaPageList), sizeof(struct PageList), PAGE_SIZE);
-	
-	
+
 	//get a dma channel to work with
 	result = bcm_dma_chan_alloc(BCM_DMA_FEATURE_FAST, (void **)&g_pDmaChanBase, &g_dmaIrq);
+
+	//uncomment to force to channel 0
 	//result = 0;
 	//g_pDmaChanBase = 0xce808000;
 	
 	if (result < 0)
 	{
-		printk(KERN_ERR "failed to allocate dma channel\n");
+		PRINTK(KERN_ERR "failed to allocate dma channel\n");
 		cdev_del(&g_cDev);
 		unregister_chrdev_region(g_majorMinor, 1);
 	}
 	
 	//reset the channel
-	printk(KERN_DEBUG "allocated dma channel %d (%p), initial state %08x\n", result, g_pDmaChanBase, *g_pDmaChanBase);
+	PRINTK(KERN_DEBUG "allocated dma channel %d (%p), initial state %08x\n", result, g_pDmaChanBase, *g_pDmaChanBase);
 	*g_pDmaChanBase = 1 << 31;
-	printk(KERN_DEBUG "post-reset %08x\n", *g_pDmaChanBase);
+	PRINTK(KERN_DEBUG "post-reset %08x\n", *g_pDmaChanBase);
 	
 	g_dmaChan = result;
 
@@ -730,7 +861,7 @@ static int __init dmaer_init(void)
 	result = cdev_add(&g_cDev, g_majorMinor, 1);
 	if (result < 0)
 	{
-		printk(KERN_ERR "failed to add character device\n");
+		PRINTK(KERN_ERR "failed to add character device\n");
 		unregister_chrdev_region(g_majorMinor, 1);
 		bcm_dma_chan_free(g_dmaChan);
 		return result;
@@ -741,7 +872,7 @@ static int __init dmaer_init(void)
 
 static void __exit dmaer_exit(void)
 {
-	printk(KERN_INFO "closing dmaer device, cache stats: %d hits %d misses\n", g_cacheHit, g_cacheMiss);
+	PRINTK(KERN_INFO "closing dmaer device, cache stats: %d hits %d misses\n", g_cacheHit, g_cacheMiss);
 	//unregister the device
 	cdev_del(&g_cDev);
 	unregister_chrdev_region(g_majorMinor, 1);
@@ -749,6 +880,7 @@ static void __exit dmaer_exit(void)
 	bcm_dma_chan_free(g_dmaChan);
 }
 
+MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Simon Hall");
 module_init(dmaer_init);
 module_exit(dmaer_exit);
