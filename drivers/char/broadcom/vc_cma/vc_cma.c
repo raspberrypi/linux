@@ -156,7 +156,7 @@ static bool send_worker_msg(VCHIQ_HEADER_T * msg);
 static int __init early_vc_cma_mem(char *p)
 {
 	unsigned int new_size;
-	printk(KERN_ERR "early_vc_cma_mem(%s)", p);
+	printk(KERN_NOTICE "early_vc_cma_mem(%s)", p);
 	vc_cma_size = memparse(p, &p);
 	vc_cma_initial = vc_cma_size;
 	if (*p == '/')
@@ -175,7 +175,7 @@ static int __init early_vc_cma_mem(char *p)
 	vc_cma_base = (vc_cma_base + VC_CMA_CHUNK_SIZE - 1)
 	    & ~(VC_CMA_CHUNK_SIZE - 1);
 
-	printk(KERN_ERR " -> initial %x, size %x, base %x", vc_cma_initial,
+	printk(KERN_NOTICE " -> initial %x, size %x, base %x", vc_cma_initial,
 	       vc_cma_size, (unsigned int)vc_cma_base);
 
 	return 0;
