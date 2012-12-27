@@ -584,6 +584,9 @@ static struct platform_device bcm2708_spi_device = {
 	.id = 0,
 	.num_resources = ARRAY_SIZE(bcm2708_spi_resources),
 	.resource = bcm2708_spi_resources,
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON),
+	},
 };
 
 #ifdef CONFIG_SPI
