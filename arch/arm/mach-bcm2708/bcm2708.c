@@ -762,13 +762,14 @@ static void timer_set_mode(enum clock_event_mode mode,
 	unsigned long stc;
 
 	switch (mode) {
-	case CLOCK_EVT_MODE_PERIODIC:
-		stc = readl(__io_address(ST_BASE + 0x04));
-		writel(stc + TIMER_PERIOD, __io_address(ST_BASE + 0x18));	/* stc3 */
-		break;
-	case CLOCK_EVT_MODE_ONESHOT:
-	case CLOCK_EVT_MODE_UNUSED:
+	case CLOCK_EVT_MODE_ONESHOT: /* Leave the timer disabled, .set_next_event will enable it */
 	case CLOCK_EVT_MODE_SHUTDOWN:
+		break;
+	case CLOCK_EVT_MODE_PERIODIC:
+
+	case CLOCK_EVT_MODE_UNUSED:
+	case CLOCK_EVT_MODE_RESUME:
+
 	default:
 		printk(KERN_ERR "timer_set_mode: unhandled mode:%d\n",
 		       (int)mode);

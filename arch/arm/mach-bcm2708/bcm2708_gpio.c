@@ -263,7 +263,7 @@ static int bcm2708_gpio_probe(struct platform_device *dev)
 	struct resource *res;
 	int err = 0;
 
-	printk(KERN_ERR DRIVER_NAME ": bcm2708_gpio_probe %p\n", dev);
+	printk(KERN_INFO DRIVER_NAME ": bcm2708_gpio_probe %p\n", dev);
 
 	ucb = kzalloc(sizeof(*ucb), GFP_KERNEL);
 	if (NULL == ucb) {
