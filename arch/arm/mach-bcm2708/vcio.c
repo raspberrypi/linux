@@ -245,7 +245,7 @@ static int mbox_copy_to_user(void *dst, const void *src, int size)
 	}
 }
 
-
+static DEFINE_MUTEX(mailbox_lock);
 extern int bcm_mailbox_property(void *data, int size)
 {
 	uint32_t success;
@@ -253,6 +253,7 @@ extern int bcm_mailbox_property(void *data, int size)
 	void *mem_kern;					/* the memory address accessed from driver */
 	int s = 0;
 
+        mutex_lock(&mailbox_lock);
 	/* allocate some memory for the messages communicating with GPU */
 	mem_kern = dma_alloc_coherent(NULL, PAGE_ALIGN(size), &mem_bus, GFP_ATOMIC);
 	if (mem_kern) {
@@ -276,6 +277,8 @@ extern int bcm_mailbox_property(void *data, int size)
 	}
 	if (s != 0)
 		printk(KERN_ERR DRIVER_NAME ": %s failed (%d)\n", __func__, s);
+
+        mutex_unlock(&mailbox_lock);
 	return s;
 }
 EXPORT_SYMBOL_GPL(bcm_mailbox_property);
