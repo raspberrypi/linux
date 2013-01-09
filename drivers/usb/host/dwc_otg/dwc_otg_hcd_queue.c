@@ -946,6 +946,7 @@ int dwc_otg_hcd_qtd_add(dwc_otg_qtd_t * qtd,
 	if (retval == 0) {
 		DWC_CIRCLEQ_INSERT_TAIL(&((*qh)->qtd_list), qtd,
 					qtd_list_entry);
+		qtd->qh = *qh;
 	}
 	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 
