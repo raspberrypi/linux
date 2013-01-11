@@ -148,6 +148,7 @@ static inline bool swq_has_sleeper(struct swait_queue_head *wq)
 extern void swake_up(struct swait_queue_head *q);
 extern void swake_up_all(struct swait_queue_head *q);
 extern void swake_up_locked(struct swait_queue_head *q);
+extern void swake_up_all_locked(struct swait_queue_head *q);
 
 extern void __prepare_to_swait(struct swait_queue_head *q, struct swait_queue *wait);
 extern void prepare_to_swait(struct swait_queue_head *q, struct swait_queue *wait, int state);
