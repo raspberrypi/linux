@@ -752,8 +752,8 @@ static int ps3_notification_read_write(struct ps3_notification_device *dev,
 	}
 	pr_debug("%s:%u: notification %s issued\n", __func__, __LINE__, op);
 
-	res = wait_event_interruptible(dev->done.wait,
-				       dev->done.done || kthread_should_stop());
+	res = swait_event_interruptible_exclusive(dev->done.wait,
+						  dev->done.done || kthread_should_stop());
 	if (kthread_should_stop())
 		res = -EINTR;
 	if (res) {
