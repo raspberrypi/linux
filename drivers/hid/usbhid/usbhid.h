@@ -97,6 +97,8 @@ struct usbhid_device {
 	struct work_struct reset_work;                                  /* Task context for resets */
 	wait_queue_head_t wait;						/* For sleeping */
 	int ledcount;							/* counting the number of active leds */
+	
+	char *idle_inbuf;						/* buffer for duplicate input comparison */
 };
 
 #define	hid_to_usb_dev(hid_dev) \
