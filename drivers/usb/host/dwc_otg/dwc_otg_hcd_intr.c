@@ -2122,13 +2122,15 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 				halt_channel(hcd, hc, qtd,
 					     DWC_OTG_HC_XFER_PERIODIC_INCOMPLETE);
 			} else {
-				DWC_ERROR
-				    ("%s: Channel %d, DMA Mode -- ChHltd set, but reason "
-				     "for halting is unknown, hcint 0x%08x, intsts 0x%08x\n",
-				     __func__, hc->hc_num, hcint.d32,
-				     DWC_READ_REG32(&hcd->
-						    core_if->core_global_regs->
-						    gintsts));
+				/*
+				* Even if the reason for landing here is unknown, handle
+				* it like previously. Someone that understands how the
+				* driver works should probably explain why this works
+				* or add a real fix
+				*/
+				
+				halt_channel(hcd, hc, qtd,
+					     DWC_OTG_HC_XFER_PERIODIC_INCOMPLETE);
 			}
 
 		}
