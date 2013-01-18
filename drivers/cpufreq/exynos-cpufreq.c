@@ -222,8 +222,6 @@ static int exynos_cpufreq_cpu_init(struct cpufreq_policy *policy)
 
 	cpufreq_frequency_table_get_attr(exynos_info->freq_table, policy->cpu);
 
-	locking_frequency = exynos_getspeed(0);
-
 	/* set the transition latency value */
 	policy->cpuinfo.transition_latency = 100000;
 
@@ -287,6 +285,8 @@ static int __init exynos_cpufreq_init(void)
 		pr_err("%s: failed to get resource vdd_arm\n", __func__);
 		goto err_vdd_arm;
 	}
+
+	locking_frequency = exynos_getspeed(0);
 
 	register_pm_notifier(&exynos_cpufreq_nb);
 
