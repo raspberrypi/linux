@@ -146,9 +146,30 @@ static inline void bcm2708_rd_fifo(struct bcm2708_spi *bs, int len)
 static inline void bcm2708_wr_fifo(struct bcm2708_spi *bs, int len)
 {
 	u8 byte;
+	u16 val;
 
 	if (len > bs->len)
 		len = bs->len;
+
+	if (unlikely(bcm2708_rd(bs, SPI_CS) & SPI_CS_LEN)) {
+		/* LoSSI mode */
+		if (unlikely(len % 2)) {
+			printk(KERN_ERR"bcm2708_wr_fifo: length must be even, skipping.\n");
+			bs->len = 0;
+			return;
+		}
+		while (len) {
+			if (bs->tx_buf) {
+				val = *(const u16 *)bs->tx_buf;
+				bs->tx_buf += 2;
+			} else
+				val = 0;
+			bcm2708_wr(bs, SPI_FIFO, val);
+			bs->len -= 2;
+			len -= 2;
+		}
+		return;
+	}
 
 	while (len--) {
 		byte = bs->tx_buf ? *bs->tx_buf++ : 0;
@@ -234,8 +255,12 @@ static int bcm2708_setup_state(struct spi_master *master,
 	switch (bpw) {
 	case 8:
 		break;
+	case 9:
+		/* Reading in LoSSI mode is a special case. See 'BCM2835 ARM Peripherals' datasheet */
+		cs |= SPI_CS_LEN;
+		break;
 	default:
-		dev_dbg(dev, "setup: invalid bits_per_word %u (must be 8)\n",
+		dev_dbg(dev, "setup: invalid bits_per_word %u (must be 8 or 9)\n",
 			bpw);
 		return -EINVAL;
 	}
@@ -283,7 +308,8 @@ static int bcm2708_process_transfer(struct bcm2708_spi *bs,
 		ret = bcm2708_setup_state(spi->master, &spi->dev, &state,
 			xfer->speed_hz ? xfer->speed_hz : spi->max_speed_hz,
 			spi->chip_select, spi->mode,
-			spi->bits_per_word);
+			xfer->bits_per_word ? xfer->bits_per_word :
+				spi->bits_per_word);
 		if (ret)
 			return ret;
 
