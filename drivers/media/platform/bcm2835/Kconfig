@@ -1,0 +1,25 @@
+# Broadcom VideoCore IV v4l2 camera support
+
+config VIDEO_BCM2835
+	bool "Broadcom BCM2835 camera interface driver"
+	depends on VIDEO_V4L2 && (ARCH_BCM2708 || ARCH_BCM2709 || ARCH_BCM2835)
+	---help---
+	  Say Y here to enable camera host interface devices for
+	  Broadcom BCM2835 SoC. This operates over the VCHIQ interface
+	  to a service running on VideoCore.
+
+
+if VIDEO_BCM2835
+
+config VIDEO_BCM2835_MMAL
+	tristate "Broadcom BM2835 MMAL camera interface driver"
+	depends on BCM2708_VCHIQ
+	select VIDEOBUF2_VMALLOC
+	---help---
+	  This is a V4L2 driver for the Broadcom BCM2835 MMAL camera host interface
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called bcm2835-v4l2.o
+
+
+endif # VIDEO_BM2835
