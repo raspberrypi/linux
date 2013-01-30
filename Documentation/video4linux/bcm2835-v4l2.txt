@@ -1,0 +1,60 @@
+
+BCM2835 (aka Raspberry Pi) V4L2 driver
+======================================
+
+1. Copyright
+============
+
+Copyright © 2013 Raspberry Pi (Trading) Ltd.
+
+2. License
+==========
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+3. Quick Start
+==============
+
+You need a version 1.0 or later of v4l2-ctl, available from:
+	git://git.linuxtv.org/v4l-utils.git
+
+$ sudo modprobe bcm2835-v4l2
+
+Turn on the overlay:
+
+$ v4l2-ctl --overlay=1
+
+Turn off the overlay:
+
+$ v4l2-ctl --overlay=0
+
+Set the capture format for video:
+
+$ v4l2-ctl  --set-fmt-video=width=1920,height=1088,pixelformat=4
+
+(Note: 1088 not 1080).
+
+Capture:
+
+$ v4l2-ctl --stream-mmap=3 --stream-count=100 --stream-to=somefile.h264
+
+Stills capture:
+
+$ v4l2-ctl  --set-fmt-video=width=2592,height=1944,pixelformat=3
+$ v4l2-ctl --stream-mmap=3 --stream-count=1 --stream-to=somefile.jpg
+
+List of available formats:
+
+$ v4l2-ctl --list-formats
