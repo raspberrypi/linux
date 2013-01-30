@@ -11,6 +11,8 @@ menuconfig V4L_PLATFORM_DRIVERS
 
 if V4L_PLATFORM_DRIVERS
 
+source "drivers/media/platform/bcm2835/Kconfig"
+
 source "drivers/media/platform/marvell-ccic/Kconfig"
 
 config VIDEO_VIA_CAMERA
