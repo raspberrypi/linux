@@ -236,7 +236,7 @@ static struct mmal_fmt *get_format(struct v4l2_format *f)
 	Videobuf queue operations
    ------------------------------------------------------------------*/
 
-static int queue_setup(struct vb2_queue *vq,
+static int queue_setup(struct vb2_queue *vq, const void *parg,
 		       unsigned int *nbuffers, unsigned int *nplanes,
 		       unsigned int sizes[], void *alloc_ctxs[])
 {
