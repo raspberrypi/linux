@@ -450,6 +450,8 @@ int iwl_load_ucode_wait_alive(struct iwl_priv *priv,
 		return -EIO;
 	}
 
+	priv->ucode_loaded = true;
+
 	/*
 	 * This step takes a long time (60-80ms!!) and
 	 * WoWLAN image should be loaded quickly, so
@@ -473,8 +475,6 @@ int iwl_load_ucode_wait_alive(struct iwl_priv *priv,
 		priv->cur_ucode = old_type;
 		return ret;
 	}
-
-	priv->ucode_loaded = true;
 
 	return 0;
 }
