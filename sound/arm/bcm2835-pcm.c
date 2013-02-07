@@ -281,14 +281,15 @@ static int snd_bcm2835_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 			if (err == 0) {
 				alsa_stream->running = 1;
 				alsa_stream->draining = 1;
+			} else {
+				audio_error(" Failed to START alsa device (%d)\n", err);
 			}
 		}
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 		audio_debug
 		    ("bcm2835_AUDIO_TRIGGER_STOP running=%d draining=%d\n",
-		     runtime->status->state == SNDRV_PCM_STATE_DRAINING,
-		     alsa_stream->running);
+			     alsa_stream->running, runtime->status->state == SNDRV_PCM_STATE_DRAINING);
 		if (runtime->status->state == SNDRV_PCM_STATE_DRAINING) {
 			audio_info("DRAINING\n");
 			alsa_stream->draining = 1;
@@ -299,7 +300,7 @@ static int snd_bcm2835_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		if (alsa_stream->running) {
 			err = bcm2835_audio_stop(alsa_stream);
 			if (err != 0)
-				audio_error(" Failed to STOP alsa device\n");
+				audio_error(" Failed to STOP alsa device (%d)\n", err);
 			alsa_stream->running = 0;
 		}
 		break;

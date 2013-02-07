@@ -26,6 +26,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/atomic.h>
+#include <linux/module.h>
 
 #include "bcm2835.h"
 
@@ -43,7 +44,7 @@
 	#define LOG_INFO( fmt, arg... )  pr_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
 	#define LOG_DBG( fmt, arg... )   pr_info( "%s:%d " fmt, __func__, __LINE__, ##arg)
 #else
-	#define LOG_ERR( fmt, arg... )
+	#define LOG_ERR( fmt, arg... )   pr_err( "%s:%d " fmt, __func__, __LINE__, ##arg)
 	#define LOG_WARN( fmt, arg... )
 	#define LOG_INFO( fmt, arg... )
 	#define LOG_DBG( fmt, arg... )
@@ -55,8 +56,11 @@ typedef struct opaque_AUDIO_INSTANCE_T {
 	struct semaphore msg_avail_event;
 	struct mutex vchi_mutex;
 	bcm2835_alsa_stream_t *alsa_stream;
-	int32_t result, got_result;
+	int32_t result;
+	short peer_version;
 } AUDIO_INSTANCE_T;
+
+bool force_bulk = 1;
 
 /* ---- Private Variables ---------------------------------------------------- */
 
@@ -173,9 +177,7 @@ static void audio_vchi_callback(void *param,
 		LOG_DBG
 		    (" .. instance=%p, m.type=VC_AUDIO_MSG_TYPE_RESULT, success=%d\n",
 		     instance, m.u.result.success);
-		BUG_ON(instance->got_result);
 		instance->result = m.u.result.success;
-		instance->got_result = 1;
 		up(&instance->msg_avail_event);
 	} else if (m.type == VC_AUDIO_MSG_TYPE_COMPLETE) {
 		irq_handler_t callback = (irq_handler_t) m.u.complete.callback;
@@ -189,10 +191,10 @@ static void audio_vchi_callback(void *param,
 			LOG_DBG(" .. unexpected alsa_stream=%p, callback=%p\n",
 				alsa_stream, callback);
 		}
-		up(&instance->msg_avail_event);
 	} else {
 		LOG_DBG(" .. unexpected m.type=%d\n", m.type);
 	}
+	LOG_DBG(" .. OUT\n");
 }
 
 static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
@@ -207,7 +209,7 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 	LOG_DBG("%s: start", __func__);
 
 	if (num_connections > VCHI_MAX_NUM_CONNECTIONS) {
-		LOG_ERR("%s: unsupported number of connections %u (max=%u)",
+		LOG_ERR("%s: unsupported number of connections %u (max=%u)\n",
 			__func__, num_connections, VCHI_MAX_NUM_CONNECTIONS);
 
 		return NULL;
@@ -216,17 +218,14 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 	instance = kmalloc(sizeof(*instance), GFP_KERNEL);
 
 	memset(instance, 0, sizeof(*instance));
-
 	instance->num_connections = num_connections;
-	/* Create the message available event */
-	sema_init(&instance->msg_avail_event,1);
 
 	/* Create a lock for exclusive, serialized VCHI connection access */
 	mutex_init(&instance->vchi_mutex);
 	/* Open the VCHI service connections */
 	for (i = 0; i < num_connections; i++) {
 		SERVICE_CREATION_T params = {
-			VCHI_VERSION(VC_AUDIOSERV_VER), // version
+			VCHI_VERSION_EX(VC_AUDIOSERV_VER, VC_AUDIOSERV_MIN_VER),
 			VC_AUDIO_SERVER_NAME,	// 4cc service code
 			vchi_connections[i],	// passed in fn pointers
 			0,	// rx fifo size (unused)
@@ -242,7 +241,7 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 					   &instance->vchi_handle[i]);
 		if (status) {
 			LOG_ERR
-			    ("%s: failed to open VCHI service connection (status=%d)",
+			    ("%s: failed to open VCHI service connection (status=%d)\n",
 			     __func__, status);
 
 			goto err_close_services;
@@ -270,7 +269,7 @@ static int32_t vc_vchi_audio_deinit(AUDIO_INSTANCE_T * instance)
 	LOG_DBG(" .. IN\n");
 
 	if (instance == NULL) {
-		LOG_ERR("%s: invalid handle %p", __func__, instance);
+		LOG_ERR("%s: invalid handle %p\n", __func__, instance);
 
 		return -1;
 	}
@@ -291,7 +290,7 @@ static int32_t vc_vchi_audio_deinit(AUDIO_INSTANCE_T * instance)
 		success = vchi_service_close(instance->vchi_handle[i]);
 		if (success != 0) {
 			LOG_ERR
-			    ("%s: failed to close VCHI service connection (status=%d)",
+			    ("%s: failed to close VCHI service connection (status=%d)\n",
 			     __func__, success);
 		}
 	}
@@ -316,7 +315,7 @@ static int bcm2835_audio_open_connection(bcm2835_alsa_stream_t * alsa_stream)
 	LOG_INFO("%s: start", __func__);
 	//BUG_ON(instance);
 	if (instance) {
-		LOG_ERR("%s: VCHI instance already open (%p)",
+		LOG_ERR("%s: VCHI instance already open (%p)\n",
 			__func__, instance);
 		instance->alsa_stream = alsa_stream;
 		alsa_stream->instance = instance;
@@ -327,7 +326,7 @@ static int bcm2835_audio_open_connection(bcm2835_alsa_stream_t * alsa_stream)
 	/* Initialize and create a VCHI connection */
 	ret = vchi_initialise(&vchi_instance);
 	if (ret != 0) {
-		LOG_ERR("%s: failed to initialise VCHI instance (ret=%d)",
+		LOG_ERR("%s: failed to initialise VCHI instance (ret=%d)\n",
 			__func__, ret);
 
 		ret = -EIO;
@@ -335,7 +334,7 @@ static int bcm2835_audio_open_connection(bcm2835_alsa_stream_t * alsa_stream)
 	}
 	ret = vchi_connect(NULL, 0, vchi_instance);
 	if (ret != 0) {
-		LOG_ERR("%s: failed to connect VCHI instance (ret=%d)",
+		LOG_ERR("%s: failed to connect VCHI instance (ret=%d)\n",
 			__func__, ret);
 
 		ret = -EIO;
@@ -346,7 +345,7 @@ static int bcm2835_audio_open_connection(bcm2835_alsa_stream_t * alsa_stream)
 	instance = vc_vchi_audio_init(vchi_instance, &vchi_connection, 1);
 
 	if (instance == NULL /*|| audio_handle != instance */ ) {
-		LOG_ERR("%s: failed to initialize audio service", __func__);
+		LOG_ERR("%s: failed to initialize audio service\n", __func__);
 
 		ret = -EPERM;
 		goto err_free_mem;
@@ -394,7 +393,7 @@ int bcm2835_audio_open(bcm2835_alsa_stream_t * alsa_stream)
 				 VCHI_FLAGS_BLOCK_UNTIL_QUEUED, NULL);
 
 	if (success != 0) {
-		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)",
+		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)\n",
 			__func__, success);
 
 		ret = -1;
@@ -430,12 +429,14 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 	}
 	vchi_service_use(instance->vchi_handle[0]);
 
-	instance->got_result = 0;
 	instance->result = -1;
 
 	m.type = VC_AUDIO_MSG_TYPE_CONTROL;
 	m.u.control.dest = chip->dest;
 	m.u.control.volume = chip->volume;
+
+	/* Create the message available event */
+	sema_init(&instance->msg_avail_event, 0);
 
 	/* Send the message to the videocore */
 	success = vchi_msg_queue(instance->vchi_handle[0],
@@ -443,7 +444,7 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 				 VCHI_FLAGS_BLOCK_UNTIL_QUEUED, NULL);
 
 	if (success != 0) {
-		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)",
+		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)\n",
 			__func__, success);
 
 		ret = -1;
@@ -451,18 +452,16 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 	}
 
 	/* We are expecting a reply from the videocore */
-	while (!instance->got_result) {
-		if (down_interruptible(&instance->msg_avail_event)) {
-			LOG_ERR("%s: failed on waiting for event (status=%d)",
-				__func__, success);
+	if (down_interruptible(&instance->msg_avail_event)) {
+		LOG_ERR("%s: failed on waiting for event (status=%d)\n",
+			__func__, success);
 
-			ret = -1;
-			goto unlock;
-		}
+		ret = -1;
+		goto unlock;
 	}
 
 	if (instance->result != 0) {
-		LOG_ERR("%s: result=%d", __func__, instance->result);
+		LOG_ERR("%s: result=%d\n", __func__, instance->result);
 
 		ret = -1;
 		goto unlock;
@@ -489,16 +488,16 @@ int bcm2835_audio_set_ctls(bcm2835_chip_t * chip)
 		if (chip->avail_substreams & (1 << i)) {
 			if (!chip->alsa_stream[i])
 			{
-				LOG_DBG(" No ALSA stream available?! ");
+				LOG_DBG(" No ALSA stream available?! %i:%p (%x)\n", i, chip->alsa_stream[i], chip->avail_substreams);
 				ret = 0;
 			}
 			else if (bcm2835_audio_set_ctls_chan /* returns 0 on success */
 				 (chip->alsa_stream[i], chip) != 0)
 				 {
-					LOG_DBG("Couldn't set the controls for stream %d", i);
+					LOG_DBG("Couldn't set the controls for stream %d\n", i);
 					ret = -1;
 				 }
-			LOG_DBG(" Controls set for stream %d", i);
+			else LOG_DBG(" Controls set for stream %d\n", i);
 		}
 	}
 	LOG_DBG(" .. OUT ret=%d\n", ret);
@@ -533,7 +532,6 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	}
 	vchi_service_use(instance->vchi_handle[0]);
 
-	instance->got_result = 0;
 	instance->result = -1;
 
 	m.type = VC_AUDIO_MSG_TYPE_CONFIG;
@@ -541,13 +539,16 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	m.u.config.samplerate = samplerate;
 	m.u.config.bps = bps;
 
+	/* Create the message available event */
+	sema_init(&instance->msg_avail_event, 0);
+
 	/* Send the message to the videocore */
 	success = vchi_msg_queue(instance->vchi_handle[0],
 				 &m, sizeof m,
 				 VCHI_FLAGS_BLOCK_UNTIL_QUEUED, NULL);
 
 	if (success != 0) {
-		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)",
+		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)\n",
 			__func__, success);
 
 		ret = -1;
@@ -555,14 +556,12 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	}
 
 	/* We are expecting a reply from the videocore */
-	while (!instance->got_result) {
-		if (down_interruptible(&instance->msg_avail_event)) {
-			LOG_ERR("%s: failed on waiting for event (status=%d)",
-				__func__, success);
+	if (down_interruptible(&instance->msg_avail_event)) {
+		LOG_ERR("%s: failed on waiting for event (status=%d)\n",
+			__func__, success);
 
-			ret = -1;
-			goto unlock;
-		}
+		ret = -1;
+		goto unlock;
 	}
 
 	if (instance->result != 0) {
@@ -688,7 +687,10 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 	vchi_service_use(instance->vchi_handle[0]);
 
 	m.type = VC_AUDIO_MSG_TYPE_CLOSE;
-	instance->got_result = 0;
+
+	/* Create the message available event */
+	sema_init(&instance->msg_avail_event, 0);
+
 	/* Send the message to the videocore */
 	success = vchi_msg_queue(instance->vchi_handle[0],
 				 &m, sizeof m,
@@ -700,14 +702,12 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 		ret = -1;
 		goto unlock;
 	}
-	while (!instance->got_result) {
-		if (down_interruptible(&instance->msg_avail_event)) {
-			LOG_ERR("%s: failed on waiting for event (status=%d)",
-				__func__, success);
+	if (down_interruptible(&instance->msg_avail_event)) {
+		LOG_ERR("%s: failed on waiting for event (status=%d)",
+			__func__, success);
 
-			ret = -1;
-			goto unlock;
-		}
+		ret = -1;
+		goto unlock;
 	}
 	if (instance->result != 0) {
 		LOG_ERR("%s: failed result (status=%d)",
@@ -751,8 +751,13 @@ int bcm2835_audio_write(bcm2835_alsa_stream_t * alsa_stream, uint32_t count,
 	}
 	vchi_service_use(instance->vchi_handle[0]);
 
+	if ( instance->peer_version==0 && vchi_get_peer_version(instance->vchi_handle[0], &instance->peer_version) == 0 ) {
+		LOG_DBG("%s: client version %d connected\n", __func__, instance->peer_version);
+	}
 	m.type = VC_AUDIO_MSG_TYPE_WRITE;
 	m.u.write.count = count;
+	// old version uses bulk, new version uses control
+	m.u.write.max_packet = instance->peer_version < 2 || force_bulk ? 0:4000;
 	m.u.write.callback = alsa_stream->fifo_irq_handler;
 	m.u.write.cookie = alsa_stream;
 	m.u.write.silence = src == NULL;
@@ -769,17 +774,27 @@ int bcm2835_audio_write(bcm2835_alsa_stream_t * alsa_stream, uint32_t count,
 		ret = -1;
 		goto unlock;
 	}
-	LOG_DBG(" ... sent header\n");
 	if (!m.u.write.silence) {
-		/* Send the message to the videocore */
-		success = vchi_bulk_queue_transmit(instance->vchi_handle[0],
-						   src, count,
-						   0 *
-						   VCHI_FLAGS_BLOCK_UNTIL_QUEUED
-						   +
-						   1 *
-						   VCHI_FLAGS_BLOCK_UNTIL_DATA_READ,
-						   NULL);
+		if (m.u.write.max_packet == 0) {
+			/* Send the message to the videocore */
+			success = vchi_bulk_queue_transmit(instance->vchi_handle[0],
+							   src, count,
+							   0 *
+							   VCHI_FLAGS_BLOCK_UNTIL_QUEUED
+							   +
+							   1 *
+							   VCHI_FLAGS_BLOCK_UNTIL_DATA_READ,
+							   NULL);
+		} else {
+			while (count > 0) {
+				int bytes = min((int)m.u.write.max_packet, (int)count);
+				success = vchi_msg_queue(instance->vchi_handle[0],
+							 src, bytes,
+							 VCHI_FLAGS_BLOCK_UNTIL_QUEUED, NULL);
+				src = (char *)src + bytes;
+				count -= bytes;
+			}
+		}
 		if (success != 0) {
 			LOG_ERR
 			    ("%s: failed on vchi_bulk_queue_transmit (status=%d)",
@@ -824,3 +839,6 @@ uint32_t bcm2835_audio_retrieve_buffers(bcm2835_alsa_stream_t * alsa_stream)
 	atomic_sub(count, &alsa_stream->retrieved);
 	return count;
 }
+
+module_param(force_bulk, bool, 0444);
+MODULE_PARM_DESC(force_bulk, "Force use of vchiq bulk for audio");

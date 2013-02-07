@@ -15,7 +15,8 @@
 #ifndef _VC_AUDIO_DEFS_H_
 #define _VC_AUDIO_DEFS_H_
 
-#define VC_AUDIOSERV_VER 1
+#define VC_AUDIOSERV_MIN_VER 1
+#define VC_AUDIOSERV_VER 2
 
 // FourCC code used for VCHI connection
 #define VC_AUDIO_SERVER_NAME  MAKE_FOURCC("AUDS")
@@ -79,7 +80,8 @@ typedef struct {
 	uint32_t count;		// in bytes
 	void *callback;
 	void *cookie;
-	uint32_t silence;
+	uint16_t silence;
+	uint16_t max_packet;
 } VC_AUDIO_WRITE_T;
 
 // Generic result for a request (VC->HOST)

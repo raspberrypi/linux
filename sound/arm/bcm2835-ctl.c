@@ -41,7 +41,7 @@
 static int snd_bcm2835_ctl_info(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_info *uinfo)
 {
-	audio_info(" ... IN ");
+	audio_info(" ... IN\n");
 	if (kcontrol->private_value == PCM_PLAYBACK_VOLUME) {
 		uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 		uinfo->count = 1;
@@ -58,7 +58,7 @@ static int snd_bcm2835_ctl_info(struct snd_kcontrol *kcontrol,
 		uinfo->value.integer.min = 0;
 		uinfo->value.integer.max = AUDIO_DEST_MAX-1;
 	}
-	audio_info(" ... OUT ");
+	audio_info(" ... OUT\n");
 	return 0;
 }
 
@@ -75,13 +75,13 @@ static int toggle_mute(struct bcm2835_chip *chip, int nmute)
 	if(chip->mute == CTRL_VOL_MUTE)
 	{
 		chip->volume = chip->old_volume; /* copy the old volume back */
-		audio_info("Unmuting, old_volume = %d, volume = %d ...", chip->old_volume, chip->volume);
+		audio_info("Unmuting, old_volume = %d, volume = %d ...\n", chip->old_volume, chip->volume);
 	}
 	else /* otherwise we mute */
 	{
 		chip->old_volume = chip->volume;
 		chip->volume = 26214; /* set volume to minimum level AKA mute */
-		audio_info("Muting, old_volume = %d, volume = %d ...", chip->old_volume, chip->volume);
+		audio_info("Muting, old_volume = %d, volume = %d ...\n", chip->old_volume, chip->volume);
 	}
 
 	chip->mute = nmute;
@@ -112,7 +112,7 @@ static int snd_bcm2835_ctl_put(struct snd_kcontrol *kcontrol,
 	int changed = 0;
 
 	if (kcontrol->private_value == PCM_PLAYBACK_VOLUME) {
-		audio_info("Volume change attempted.. volume = %d new_volume = %d", chip->volume, (int)ucontrol->value.integer.value[0]);
+		audio_info("Volume change attempted.. volume = %d new_volume = %d\n", chip->volume, (int)ucontrol->value.integer.value[0]);
 		if (chip->mute == CTRL_VOL_MUTE) {
 			/* changed = toggle_mute(chip, CTRL_VOL_UNMUTE); */
 			return 1; /* should return 0 to signify no change but the mixer takes this as the opposite sign (no idea why) */
@@ -126,7 +126,7 @@ static int snd_bcm2835_ctl_put(struct snd_kcontrol *kcontrol,
 
 	} else if (kcontrol->private_value == PCM_PLAYBACK_MUTE) {
 		/* Now implemented */
-		audio_info(" Mute attempted");
+		audio_info(" Mute attempted\n");
 		changed = toggle_mute(chip, ucontrol->value.integer.value[0]);
 
 	} else if (kcontrol->private_value == PCM_PLAYBACK_DEVICE) {
