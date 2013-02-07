@@ -91,7 +91,7 @@ static uint32_t bcm2835_cpufreq_set_clock(int cur_rate, int arm_rate)
 	if (s == 0 && (msg.request_code & 0x80000000))
 		actual_rate = msg.tag.val/1000;
 
-	print_debug("Setting new frequency = %d -> %d (actual %d)", cur_rate, arm_rate, actual_rate);	
+	print_debug("Setting new frequency = %d -> %d (actual %d)\n", cur_rate, arm_rate, actual_rate);	
 	return actual_rate;
 }
 
@@ -117,7 +117,7 @@ static uint32_t bcm2835_cpufreq_get_clock(int tag)
 	if (s == 0 && (msg.request_code & 0x80000000))
 		arm_rate = msg.tag.val/1000;
 
-	print_debug("%s frequency = %d",
+	print_debug("%s frequency = %d\n",
 		tag == VCMSG_GET_CLOCK_RATE ? "Current":
 		tag == VCMSG_GET_MIN_CLOCK ? "Min":
 		tag == VCMSG_GET_MAX_CLOCK ? "Max":
@@ -133,7 +133,7 @@ static uint32_t bcm2835_cpufreq_get_clock(int tag)
 */
 static int __init bcm2835_cpufreq_module_init(void)
 {	
-	print_debug("IN");
+	print_debug("IN\n");
 	return cpufreq_register_driver(&bcm2835_cpufreq_driver);
 }
 
@@ -144,7 +144,7 @@ static int __init bcm2835_cpufreq_module_init(void)
 */
 static void __exit bcm2835_cpufreq_module_exit(void)
 {
-	print_debug("IN");
+	print_debug("IN\n");
 	cpufreq_unregister_driver(&bcm2835_cpufreq_driver);
 	return;
 }
@@ -164,7 +164,7 @@ static int bcm2835_cpufreq_driver_init(struct cpufreq_policy *policy)
 	policy->max = policy->cpuinfo.max_freq = bcm2835_cpufreq_get_clock(VCMSG_GET_MAX_CLOCK);
 	policy->cur = bcm2835_cpufreq_get_clock(VCMSG_GET_CLOCK_RATE);
 	
-	print_info("min=%d max=%d cur=%d", policy->min, policy->max, policy->cur);
+	print_info("min=%d max=%d cur=%d\n", policy->min, policy->max, policy->cur);
 	return 0;
 }
 
@@ -178,7 +178,7 @@ static int bcm2835_cpufreq_driver_target(struct cpufreq_policy *policy, unsigned
 {
 	unsigned int target = target_freq;
 	unsigned int cur = policy->cur;
-	print_debug("%s: min=%d max=%d cur=%d target=%d",policy->governor->name,policy->min,policy->max,policy->cur,target_freq);
+	print_debug("%s: min=%d max=%d cur=%d target=%d\n",policy->governor->name,policy->min,policy->max,policy->cur,target_freq);
 	
 	/* if we are above min and using ondemand, then just use max */
 	if (strcmp("ondemand", policy->governor->name)==0 && target > policy->min)
@@ -192,18 +192,18 @@ static int bcm2835_cpufreq_driver_target(struct cpufreq_policy *policy, unsigned
 	
 	if (!policy->cur)
 	{
-		print_err("Error occurred setting a new frequency (%d)!", target);
+		print_err("Error occurred setting a new frequency (%d)!\n", target);
 		policy->cur = bcm2835_cpufreq_get_clock(VCMSG_GET_CLOCK_RATE);
 		return -EINVAL;
 	}
-	print_debug("Freq %d->%d (min=%d max=%d target=%d request=%d)", cur, policy->cur, policy->min, policy->max, target_freq, target);
+	print_debug("Freq %d->%d (min=%d max=%d target=%d request=%d)\n", cur, policy->cur, policy->min, policy->max, target_freq, target);
 	return 0;
 }
 
 static unsigned int bcm2835_cpufreq_driver_get(unsigned int cpu)
 {
 	unsigned int actual_rate = bcm2835_cpufreq_get_clock(VCMSG_GET_CLOCK_RATE);
-	print_debug("%d", actual_rate);
+	print_debug("cpu=%d\n", actual_rate);
 	return actual_rate;
 }
 
@@ -215,7 +215,7 @@ static unsigned int bcm2835_cpufreq_driver_get(unsigned int cpu)
 
 static int bcm2835_cpufreq_driver_verify(struct cpufreq_policy *policy)
 {
-	print_info("switching to governor %s", policy->governor->name);
+	print_info("switching to governor %s\n", policy->governor->name);
 	return 0;
 }
 
