@@ -36,7 +36,7 @@
 
 #define VCHIQ_MAGIC              VCHIQ_MAKE_FOURCC('V', 'C', 'H', 'I')
 /* The version of VCHIQ - change with any non-trivial change */
-#define VCHIQ_VERSION            5
+#define VCHIQ_VERSION            6
 /* The minimum compatible version - update to match VCHIQ_VERSION with any
 ** incompatible change */
 #define VCHIQ_VERSION_MIN        3

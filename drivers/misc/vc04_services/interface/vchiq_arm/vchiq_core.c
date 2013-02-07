@@ -58,6 +58,10 @@ struct vchiq_open_payload {
 	short version_min;
 };
 
+struct vchiq_openack_payload {
+	short version;
+};
+
 /* we require this for consistency between endpoints */
 vchiq_static_assert(sizeof(VCHIQ_HEADER_T) == 8);
 vchiq_static_assert(IS_POW2(sizeof(VCHIQ_HEADER_T)));
@@ -1402,6 +1406,7 @@ pause_bulks(VCHIQ_STATE_T *state)
 static void
 resume_bulks(VCHIQ_STATE_T *state)
 {
+	int i;
 	if (unlikely(atomic_dec_return(&pause_bulks_count) != 0)) {
 		WARN_ON_ONCE(1);
 		atomic_set(&pause_bulks_count, 0);
@@ -1410,6 +1415,34 @@ resume_bulks(VCHIQ_STATE_T *state)
 
 	/* Allow bulk transfers from all services */
 	mutex_unlock(&state->bulk_transfer_mutex);
+
+	if (state->deferred_bulks == 0)
+		return;
+
+	/* Deal with any bulks which had to be deferred due to being in
+	 * paused state.  Don't try to match up to number of deferred bulks
+	 * in case we've had something come and close the service in the
+	 * interim - just process all bulk queues for all services */
+	vchiq_log_info(vchiq_core_log_level, "%s: processing %d deferred bulks",
+		__func__, state->deferred_bulks);
+
+	for (i = 0; i < state->unused_service; i++) {
+		VCHIQ_SERVICE_T *service = state->services[i];
+		int resolved_rx = 0;
+		int resolved_tx = 0;
+		if (!service || (service->srvstate != VCHIQ_SRVSTATE_OPEN))
+			continue;
+
+		mutex_lock(&service->bulk_mutex);
+		resolved_rx = resolve_bulks(service, &service->bulk_rx);
+		resolved_tx = resolve_bulks(service, &service->bulk_tx);
+		mutex_unlock(&service->bulk_mutex);
+		if (resolved_rx)
+			notify_bulks(service, &service->bulk_rx, 1);
+		if (resolved_tx)
+			notify_bulks(service, &service->bulk_tx, 1);
+	}
+	state->deferred_bulks = 0;
 }
 
 static int
@@ -1425,7 +1458,7 @@ parse_open(VCHIQ_STATE_T *state, VCHIQ_HEADER_T *header)
 	type = VCHIQ_MSG_TYPE(msgid);
 	localport = VCHIQ_MSG_DSTPORT(msgid);
 	remoteport = VCHIQ_MSG_SRCPORT(msgid);
-	if (size == sizeof(struct vchiq_open_payload)) {
+	if (size >= sizeof(struct vchiq_open_payload)) {
 		const struct vchiq_open_payload *payload =
 			(struct vchiq_open_payload *)header->data;
 		unsigned int fourcc;
@@ -1458,7 +1491,17 @@ parse_open(VCHIQ_STATE_T *state, VCHIQ_HEADER_T *header)
 				unlock_service(service);
 				goto fail_open;
 			}
+			service->peer_version = version;
+
 			if (service->srvstate == VCHIQ_SRVSTATE_LISTENING) {
+				struct vchiq_openack_payload ack_payload = {
+					service->version
+				};
+				VCHIQ_ELEMENT_T body = {
+					&ack_payload,
+					sizeof(ack_payload)
+				};
+
 				/* Acknowledge the OPEN */
 				if (service->sync) {
 					if (queue_message_sync(state, NULL,
@@ -1466,7 +1509,8 @@ parse_open(VCHIQ_STATE_T *state, VCHIQ_HEADER_T *header)
 							VCHIQ_MSG_OPENACK,
 							service->localport,
 							remoteport),
-						NULL, 0, 0, 0) == VCHIQ_RETRY)
+						&body, 1, sizeof(ack_payload),
+						0) == VCHIQ_RETRY)
 						goto bail_not_ready;
 				} else {
 					if (queue_message(state, NULL,
@@ -1474,7 +1518,8 @@ parse_open(VCHIQ_STATE_T *state, VCHIQ_HEADER_T *header)
 							VCHIQ_MSG_OPENACK,
 							service->localport,
 							remoteport),
-						NULL, 0, 0, 0) == VCHIQ_RETRY)
+						&body, 1, sizeof(ack_payload),
+						0) == VCHIQ_RETRY)
 						goto bail_not_ready;
 				}
 
@@ -1639,10 +1684,16 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 				goto bail_not_ready;
 			break;
 		case VCHIQ_MSG_OPENACK:
+			if (size >= sizeof(struct vchiq_openack_payload)) {
+				const struct vchiq_openack_payload *payload =
+					(struct vchiq_openack_payload *)
+					header->data;
+				service->peer_version = payload->version;
+			}
 			vchiq_log_info(vchiq_core_log_level,
-				"%d: prs OPENACK@%x (%d->%d)",
-				state->id, (unsigned int)header,
-				remoteport, localport);
+				"%d: prs OPENACK@%x,%x (%d->%d) v:%d",
+				state->id, (unsigned int)header, size,
+				remoteport, localport, service->peer_version);
 			if (service->srvstate ==
 				VCHIQ_SRVSTATE_OPENING) {
 				service->remoteport = remoteport;
@@ -1743,7 +1794,22 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 
 				queue->remote_insert++;
 
-				if (state->conn_state ==
+				if (atomic_read(&pause_bulks_count)) {
+					state->deferred_bulks++;
+					vchiq_log_info(vchiq_core_log_level,
+						"%s: deferring bulk (%d)",
+						__func__,
+						state->deferred_bulks);
+					if (state->conn_state !=
+						VCHIQ_CONNSTATE_PAUSE_SENT)
+						vchiq_log_error(
+							vchiq_core_log_level,
+							"%s: bulks paused in "
+							"unexpected state %s",
+							__func__,
+							conn_state_names[
+							state->conn_state]);
+				} else if (state->conn_state ==
 					VCHIQ_CONNSTATE_CONNECTED) {
 					DEBUG_TRACE(PARSE_LINE);
 					resolved = resolve_bulks(service,
@@ -2064,10 +2130,16 @@ sync_func(void *v)
 
 		switch (type) {
 		case VCHIQ_MSG_OPENACK:
+			if (size >= sizeof(struct vchiq_openack_payload)) {
+				const struct vchiq_openack_payload *payload =
+					(struct vchiq_openack_payload *)
+					header->data;
+				service->peer_version = payload->version;
+			}
 			vchiq_log_info(vchiq_sync_log_level,
-				"%d: sf OPENACK@%x (%d->%d)",
-				state->id, (unsigned int)header,
-				remoteport, localport);
+				"%d: sf OPENACK@%x,%x (%d->%d) v:%d",
+				state->id, (unsigned int)header, size,
+				remoteport, localport, service->peer_version);
 			if (service->srvstate == VCHIQ_SRVSTATE_OPENING) {
 				service->remoteport = remoteport;
 				vchiq_set_service_state(service,
@@ -3326,6 +3398,25 @@ release_message_sync(VCHIQ_STATE_T *state, VCHIQ_HEADER_T *header)
 	header->msgid = VCHIQ_MSGID_PADDING;
 	wmb();
 	remote_event_signal(&state->remote->sync_release);
+}
+
+VCHIQ_STATUS_T
+vchiq_get_peer_version(VCHIQ_SERVICE_HANDLE_T handle, short *peer_version)
+{
+   VCHIQ_STATUS_T status = VCHIQ_ERROR;
+   VCHIQ_SERVICE_T *service = find_service_by_handle(handle);
+
+   if (!service ||
+      (vchiq_check_service(service) != VCHIQ_SUCCESS) ||
+      !peer_version)
+      goto exit;
+   *peer_version = service->peer_version;
+   status = VCHIQ_SUCCESS;
+
+exit:
+   if (service)
+      unlock_service(service);
+   return status;
 }
 
 VCHIQ_STATUS_T

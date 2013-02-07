@@ -294,6 +294,7 @@ typedef struct vchiq_service_struct {
 	atomic_t poll_flags;
 	short version;
 	short version_min;
+	short peer_version;
 
 	VCHIQ_STATE_T *state;
 	VCHIQ_INSTANCE_T instance;
@@ -483,6 +484,10 @@ struct vchiq_state_struct {
 
 	/* Signalled when a free data slot becomes available. */
 	struct semaphore data_quota_event;
+
+	/* Incremented when there are bulk transfers which cannot be processed
+	 * whilst paused and must be processed on resume */
+	int deferred_bulks;
 
 	struct state_stats_struct {
 		int slot_stalls;

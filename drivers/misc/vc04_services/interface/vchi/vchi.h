@@ -208,6 +208,9 @@ extern int32_t vchi_service_open( VCHI_INSTANCE_T instance_handle,
                                   SERVICE_CREATION_T *setup,
                                   VCHI_SERVICE_HANDLE_T *handle);
 
+extern int32_t vchi_get_peer_version( const VCHI_SERVICE_HANDLE_T handle,
+                                      short *peer_version );
+
 // Routine to close a named service
 extern int32_t vchi_service_close( const VCHI_SERVICE_HANDLE_T handle );
 

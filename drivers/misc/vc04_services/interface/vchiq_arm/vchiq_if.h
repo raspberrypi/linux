@@ -179,4 +179,7 @@ extern VCHIQ_STATUS_T vchiq_remote_release(VCHIQ_INSTANCE_T instance);
 extern VCHIQ_STATUS_T vchiq_dump_phys_mem(VCHIQ_SERVICE_HANDLE_T service,
 	void *ptr, size_t num_bytes);
 
+extern VCHIQ_STATUS_T vchiq_get_peer_version(VCHIQ_SERVICE_HANDLE_T handle,
+      short *peer_version);
+
 #endif /* VCHIQ_IF_H */
