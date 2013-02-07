@@ -60,7 +60,7 @@ typedef struct opaque_AUDIO_INSTANCE_T {
 	short peer_version;
 } AUDIO_INSTANCE_T;
 
-bool force_bulk = 1;
+bool force_bulk = false;
 
 /* ---- Private Variables ---------------------------------------------------- */
 
