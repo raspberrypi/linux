@@ -238,7 +238,7 @@ static int mmc_read_scr(struct mmc_card *card)
 
 		err = mmc_app_send_scr(card, card->raw_scr);
 		if( !err )
-			break; // sucess!!!
+			break; // success!!!
 
 		touch_nmi_watchdog();	  // we are still alive!
 
@@ -320,7 +320,7 @@ static int mmc_read_ssr(struct mmc_card *card)
 
 	if( tries > 1 )
 	{
-		pr_info("%s: could read SD Status register (SSR) at the %dth attempt\n", mmc_hostname(card->host), tries );
+		pr_info("%s: read SD Status register (SSR) after %d attempts\n", mmc_hostname(card->host), tries );
 	}
 
 	for (i = 0; i < 16; i++)
