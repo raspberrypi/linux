@@ -759,7 +759,6 @@ void __init bcm2708_init(void)
 static void timer_set_mode(enum clock_event_mode mode,
 			   struct clock_event_device *clk)
 {
-	unsigned long stc;
 
 	switch (mode) {
 	case CLOCK_EVT_MODE_ONESHOT: /* Leave the timer disabled, .set_next_event will enable it */

@@ -2002,7 +2002,8 @@ static int ftrace_function_set_regexp(struct ftrace_ops *ops, int filter,
 static int __ftrace_function_set_filter(int filter, char *buf, int len,
 					struct function_filter_data *data)
 {
-	int i, re_cnt, ret;
+	int i, re_cnt;
+	int ret = -EINVAL;
 	int *reset;
 	char **re;
 
