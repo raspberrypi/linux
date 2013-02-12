@@ -160,13 +160,12 @@ static inline uint32_t timer_read(void)
 	return readl(__io_address(ST_BASE + 0x04));
 }
 
+#ifdef ARCH_HAS_READ_CURRENT_TIMER
 int read_current_timer(unsigned long *timer_val)
 {
 	*timer_val = timer_read();
 	return 0;
 }
-
-#ifdef CONFIG_ARM_ARCH_TIMER
 EXPORT_SYMBOL(read_current_timer);
 #endif
 
@@ -759,8 +758,6 @@ void __init bcm2708_init(void)
 static void timer_set_mode(enum clock_event_mode mode,
 			   struct clock_event_device *clk)
 {
-	unsigned long stc;
-
 	switch (mode) {
 	case CLOCK_EVT_MODE_ONESHOT: /* Leave the timer disabled, .set_next_event will enable it */
 	case CLOCK_EVT_MODE_SHUTDOWN:
@@ -887,7 +884,7 @@ static inline void bcm2708_init_led(void)
 
 /* The assembly versions in delay.S don't account for core freq changing in cpufreq driver */
 /* Use 1MHz system timer for busy waiting */
-void bcm2708_udelay(unsigned long usecs)
+static void bcm2708_udelay(unsigned long usecs)
 {
 	unsigned long start = timer_read();
 	unsigned long now;
@@ -897,7 +894,7 @@ void bcm2708_udelay(unsigned long usecs)
 }
 
 
-void bcm2708_const_udelay(unsigned long scaled_usecs)
+static void bcm2708_const_udelay(unsigned long scaled_usecs)
 {
 	/* want /107374, this is about 3% bigger. We know usecs is less than 2000, so shouldn't overflow */
 	const unsigned long usecs = scaled_usecs * 10 >> 20;
