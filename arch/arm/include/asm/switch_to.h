@@ -4,6 +4,13 @@
 
 #include <linux/thread_info.h>
 
+#if defined CONFIG_PREEMPT_RT_FULL && defined CONFIG_HIGHMEM
+void switch_kmaps(struct task_struct *prev_p, struct task_struct *next_p);
+#else
+static inline void
+switch_kmaps(struct task_struct *prev_p, struct task_struct *next_p) { }
+#endif
+
 /*
  * For v7 SMP cores running a preemptible kernel we may be pre-empted
  * during a TLB maintenance operation, so execute an inner-shareable dsb
@@ -26,6 +33,7 @@ extern struct task_struct *__switch_to(struct task_struct *, struct thread_info 
 #define switch_to(prev,next,last)					\
 do {									\
 	__complete_pending_tlbi();					\
+	switch_kmaps(prev, next);					\
 	last = __switch_to(prev,task_thread_info(prev), task_thread_info(next));	\
 } while (0)
 
