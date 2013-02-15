@@ -462,6 +462,8 @@ int dwc_otg_hcd_urb_enqueue(dwc_otg_hcd_t * hcd,
 {
 	dwc_irqflags_t flags;
 	int retval = 0;
+	uint8_t needs_scheduling = 0;
+	dwc_otg_transaction_type_e tr_type;
 	dwc_otg_qtd_t *qtd;
 	gintmsk_data_t intr_mask = {.d32 = 0 };
 
@@ -493,22 +495,22 @@ int dwc_otg_hcd_urb_enqueue(dwc_otg_hcd_t * hcd,
 		return -DWC_E_NO_MEMORY;
 	}
 #endif
-	retval =
-	    dwc_otg_hcd_qtd_add(qtd, hcd, (dwc_otg_qh_t **) ep_handle, atomic_alloc);
+	intr_mask.d32 = DWC_READ_REG32(&hcd->core_if->core_global_regs->gintmsk);
+	if(!intr_mask.b.sofintr) needs_scheduling = 1;
+	if((((dwc_otg_qh_t *)ep_handle)->ep_type == UE_BULK) && !(qtd->urb->flags & URB_GIVEBACK_ASAP))
+		/* Do not schedule SG transactions until qtd has URB_GIVEBACK_ASAP set */
+		needs_scheduling = 0;
+
+	retval = dwc_otg_hcd_qtd_add(qtd, hcd, (dwc_otg_qh_t **) ep_handle, atomic_alloc);
             // creates a new queue in ep_handle if it doesn't exist already
 	if (retval < 0) {
 		DWC_ERROR("DWC OTG HCD URB Enqueue failed adding QTD. "
 			  "Error status %d\n", retval);
 		dwc_otg_hcd_qtd_free(qtd);
+		return retval;
 	}
-	intr_mask.d32 = DWC_READ_REG32(&hcd->core_if->core_global_regs->gintmsk);
-	if (!intr_mask.b.sofintr && retval == 0) {
-		dwc_otg_transaction_type_e tr_type;
-		if ((qtd->qh->ep_type == UE_BULK)
-		    && !(qtd->urb->flags & URB_GIVEBACK_ASAP)) {
-			/* Do not schedule SG transactions until qtd has URB_GIVEBACK_ASAP set */
-			return 0;
-		}
+
+	if(needs_scheduling) {
 		DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 		tr_type = dwc_otg_hcd_select_transactions(hcd);
 		if (tr_type != DWC_OTG_TRANSACTION_NONE) {
@@ -516,7 +518,6 @@ int dwc_otg_hcd_urb_enqueue(dwc_otg_hcd_t * hcd,
 		}
 		DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 	}
-
 	return retval;
 }
 
