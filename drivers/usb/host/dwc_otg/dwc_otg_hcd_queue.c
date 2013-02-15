@@ -937,7 +937,7 @@ int dwc_otg_hcd_qtd_add(dwc_otg_qtd_t * qtd,
 	if (*qh == NULL) {
 		*qh = dwc_otg_hcd_qh_create(hcd, urb, atomic_alloc);
 		if (*qh == NULL) {
-			retval = -1;
+			retval = -DWC_E_NO_MEMORY;
 			goto done;
 		}
 	}
