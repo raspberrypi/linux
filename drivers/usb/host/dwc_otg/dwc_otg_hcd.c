@@ -3136,17 +3136,13 @@ dwc_otg_hcd_urb_t *dwc_otg_hcd_urb_alloc(dwc_otg_hcd_t * hcd,
 	else
 		dwc_otg_urb = DWC_ALLOC(size);
 
-        if (NULL != dwc_otg_urb)
-                dwc_otg_urb->packet_count = iso_desc_count;
+        if (dwc_otg_urb)
+		dwc_otg_urb->packet_count = iso_desc_count;
         else {
-                dwc_otg_urb->packet_count = 0;
-                if (size != 0) {
-                        DWC_ERROR("**** DWC OTG HCD URB alloc - "
-                                  "%salloc of %db failed\n",
-                                  atomic_alloc?"atomic ":"", size);
-                }
-        }
-
+		DWC_ERROR("**** DWC OTG HCD URB alloc - "
+			"%salloc of %db failed\n",
+			atomic_alloc?"atomic ":"", size);
+	}
 	return dwc_otg_urb;
 }
 
