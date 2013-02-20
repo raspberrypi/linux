@@ -68,6 +68,8 @@ static int debug;
 static int sense = -1;
 /* use softcarrier by default */
 static int softcarrier = 1;
+/* 0 = do not invert output, 1 = invert output */
+static int invert = 0;
 
 struct gpio_chip *gpiochip;
 struct irq_chip *irqchip;
@@ -135,10 +137,10 @@ static long send_pulse_softcarrier(unsigned long length)
 	actual = 0; target = 0; flag = 0;
 	while (actual < length) {
 		if (flag) {
-			gpiochip->set(gpiochip, gpio_out_pin, 0);
+			gpiochip->set(gpiochip, gpio_out_pin, invert);
 			target += space_width;
 		} else {
-			gpiochip->set(gpiochip, gpio_out_pin, 1);
+			gpiochip->set(gpiochip, gpio_out_pin, !invert);
 			target += pulse_width;
 		}
 		d = (target - actual -
@@ -162,7 +164,7 @@ static long send_pulse(unsigned long length)
 	if (softcarrier) {
 		return send_pulse_softcarrier(length);
 	} else {
-		gpiochip->set(gpiochip, gpio_out_pin, 1);
+		gpiochip->set(gpiochip, gpio_out_pin, !invert);
 		safe_udelay(length);
 		return 0;
 	}
@@ -170,7 +172,7 @@ static long send_pulse(unsigned long length)
 
 static void send_space(long length)
 {
-	gpiochip->set(gpiochip, gpio_out_pin, 0);
+	gpiochip->set(gpiochip, gpio_out_pin, invert);
 	if (length <= 0)
 		return;
 	safe_udelay(length);
@@ -318,7 +320,7 @@ static int init_port(void)
 
 	gpiochip->direction_input(gpiochip, gpio_in_pin);
 	gpiochip->direction_output(gpiochip, gpio_out_pin, 1);
-	gpiochip->set(gpiochip, gpio_out_pin, 0);
+	gpiochip->set(gpiochip, gpio_out_pin, invert);
 
 	irq = gpiochip->to_irq(gpiochip, gpio_in_pin);
 	dprintk("to_irq %d\n", irq);
@@ -457,7 +459,7 @@ static ssize_t lirc_write(struct file *file, const char *buf,
 		else
 			delta = send_pulse(wbuf[i]);
 	}
-	gpiochip->set(gpiochip, gpio_out_pin, 0);
+	gpiochip->set(gpiochip, gpio_out_pin, invert);
 
 	spin_unlock_irqrestore(&lock, flags);
 	kfree(wbuf);
@@ -682,6 +684,9 @@ MODULE_PARM_DESC(sense, "Override autodetection of IR receiver circuit"
 
 module_param(softcarrier, bool, S_IRUGO);
 MODULE_PARM_DESC(softcarrier, "Software carrier (0 = off, 1 = on, default on)");
+
+module_param(invert, bool, S_IRUGO);
+MODULE_PARM_DESC(invert, "Invert output (0 = off, 1 = on, default off");
 
 module_param(debug, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "Enable debugging messages");
