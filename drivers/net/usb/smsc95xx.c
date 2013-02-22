@@ -1340,6 +1340,8 @@ static int smsc95xx_enter_suspend0(struct usbnet *dev)
 	ret = smsc95xx_read_reg_nopm(dev, PM_CTRL, &val);
 	if (ret < 0)
 		netdev_warn(dev->net, "Error reading PM_CTRL\n");
+	else
+		ret = 0;
 
 	return ret;
 }
@@ -1392,6 +1394,8 @@ static int smsc95xx_enter_suspend1(struct usbnet *dev)
 	ret = smsc95xx_write_reg_nopm(dev, PM_CTRL, val);
 	if (ret < 0)
 		netdev_warn(dev->net, "Error writing PM_CTRL\n");
+	else
+		ret = 0;
 
 	return ret;
 }
@@ -1413,6 +1417,8 @@ static int smsc95xx_enter_suspend2(struct usbnet *dev)
 	ret = smsc95xx_write_reg_nopm(dev, PM_CTRL, val);
 	if (ret < 0)
 		netdev_warn(dev->net, "Error writing PM_CTRL\n");
+	else
+		ret = 0;
 
 	return ret;
 }
