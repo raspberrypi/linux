@@ -47,6 +47,7 @@ extern void error(char *);
 #ifdef CONFIG_KERNEL_XZ
 #define memmove memmove
 #define memcpy memcpy
+extern char * strstr(const char *, const char *);
 #include "../../../../lib/decompress_unxz.c"
 #endif
 
