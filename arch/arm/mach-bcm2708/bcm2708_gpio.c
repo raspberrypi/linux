@@ -173,6 +173,8 @@ static void bcm2708_gpio_irq_mask(struct irq_data *d)
 	unsigned long rising = readl(gpio->base + GPIOREN(gb));
 	unsigned long falling = readl(gpio->base + GPIOFEN(gb));
 
+	gn = gn % 32;
+
 	writel(rising & ~(1 << gn), gpio->base + GPIOREN(gb));
 	writel(falling & ~(1 << gn), gpio->base + GPIOFEN(gb));
 }
