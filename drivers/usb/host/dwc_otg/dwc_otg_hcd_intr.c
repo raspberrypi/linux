@@ -1921,13 +1921,20 @@ static int32_t handle_hc_datatglerr_intr(dwc_otg_hcd_t * hcd,
 					 dwc_otg_qtd_t * qtd)
 {
 	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
-		    "Data Toggle Error--\n", hc->hc_num);
+		"Data Toggle Error on %s transfer--\n",
+		hc->hc_num, (hc->ep_is_in ? "IN" : "OUT"));
 
-	if (hc->ep_is_in) {
+	/* Data toggles on split transactions cause the hc to halt.
+	 * restart transfer */
+	if(hc->qh->do_split)
+	{
+		qtd->error_count++;
+		dwc_otg_hcd_save_data_toggle(hc, hc_regs, qtd);
+		update_urb_state_xfer_intr(hc, hc_regs,
+			qtd->urb, qtd, DWC_OTG_HC_XFER_XACT_ERR);
+		halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_XACT_ERR);
+	} else if (hc->ep_is_in) {
 		qtd->error_count = 0;
-	} else {
-		DWC_ERROR("Data Toggle Error on OUT transfer,"
-			  "channel %d\n", hc->hc_num);
 	}
 
 	disable_hc_int(hc_regs, datatglerr);
@@ -2080,6 +2087,8 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 		handle_hc_babble_intr(hcd, hc, hc_regs, qtd);
 	} else if (hcint.b.frmovrun) {
 		handle_hc_frmovrun_intr(hcd, hc, hc_regs, qtd);
+	} else if (hcint.b.datatglerr) {
+		handle_hc_datatglerr_intr(hcd, hc, hc_regs, qtd);
 	} else if (!out_nak_enh) {
 		if (hcint.b.nyet) {
 			/*
