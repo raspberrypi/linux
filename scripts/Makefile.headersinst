@@ -8,7 +8,7 @@
 # ==========================================================================
 
 # called may set destination dir (when installing to asm/)
-_dst := $(or $(destination-y),$(dst),$(obj))
+_dst := $(if $(destination-y),$(destination-y),$(if $(dst),$(dst),$(obj)))
 
 # generated header directory
 gen := $(if $(gen),$(gen),$(subst include/,include/generated/,$(obj)))
@@ -48,13 +48,14 @@ all-files     := $(header-y) $(genhdr-y) $(wrapper-files)
 output-files  := $(addprefix $(installdir)/, $(all-files))
 
 input-files   := $(foreach hdr, $(header-y), \
-		   $(or \
+		   $(if $(wildcard $(srcdir)/$(hdr)), \
 			$(wildcard $(srcdir)/$(hdr)), \
-			$(wildcard $(oldsrcdir)/$(hdr)), \
-			$(error Missing UAPI file $(srcdir)/$(hdr)) \
+			$(if $(wildcard $(oldsrcdir)/$(hdr)), \
+				$(wildcard $(oldsrcdir)/$(hdr)), \
+				$(error Missing UAPI file $(srcdir)/$(hdr))) \
 		   )) \
 		 $(foreach hdr, $(genhdr-y), \
-		   $(or \
+		   $(if	$(wildcard $(gendir)/$(hdr)), \
 			$(wildcard $(gendir)/$(hdr)), \
 			$(error Missing generated UAPI file $(gendir)/$(hdr)) \
 		   ))
