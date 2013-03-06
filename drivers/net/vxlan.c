@@ -1491,6 +1491,15 @@ static __net_init int vxlan_init_net(struct net *net)
 static __net_exit void vxlan_exit_net(struct net *net)
 {
 	struct vxlan_net *vn = net_generic(net, vxlan_net_id);
+	struct vxlan_dev *vxlan;
+	struct hlist_node *pos;
+	unsigned h;
+
+	rtnl_lock();
+	for (h = 0; h < VNI_HASH_SIZE; ++h)
+		hlist_for_each_entry(vxlan, pos, &vn->vni_list[h], hlist)
+			dev_close(vxlan->dev);
+	rtnl_unlock();
 
 	if (vn->sock) {
 		sk_release_kernel(vn->sock->sk);
