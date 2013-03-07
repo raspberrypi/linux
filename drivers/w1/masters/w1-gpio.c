@@ -86,7 +86,7 @@ static int __init w1_gpio_probe(struct platform_device *pdev)
 	if (w1_gpio_pullup)
 		if (pdata->is_open_drain)
 			printk(KERN_ERR "w1-gpio 'pullup' option "
-				"doesn't work with open drain GPIO\n");
+			       "doesn't work with open drain GPIO\n");
 		else
 			master->bitbang_pullup = w1_gpio_bitbang_pullup;
 
@@ -101,9 +101,9 @@ static int __init w1_gpio_probe(struct platform_device *pdev)
 
 	return 0;
 
- free_gpio:
+free_gpio:
 	gpio_free(pdata->pin);
- free_master:
+free_master:
 	kfree(master);
 
 	return err;
@@ -153,10 +153,10 @@ static int w1_gpio_resume(struct platform_device *pdev)
 
 static struct platform_driver w1_gpio_driver = {
 	.driver = {
-		.name	= "w1-gpio",
-		.owner	= THIS_MODULE,
-	},
-	.remove	= __exit_p(w1_gpio_remove),
+		   .name = "w1-gpio",
+		   .owner = THIS_MODULE,
+		   },
+	.remove = __exit_p(w1_gpio_remove),
 	.suspend = w1_gpio_suspend,
 	.resume = w1_gpio_resume,
 };
