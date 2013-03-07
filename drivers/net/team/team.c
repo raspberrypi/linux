@@ -1139,6 +1139,8 @@ static int team_port_del(struct team *team, struct net_device *port_dev)
 	netdev_set_master(port_dev, NULL);
 	team_port_disable_netpoll(port);
 	vlan_vids_del_by_dev(port_dev, dev);
+	dev_uc_unsync(port_dev, dev);
+	dev_mc_unsync(port_dev, dev);
 	dev_close(port_dev);
 	team_port_leave(team, port);
 	team_port_set_orig_dev_addr(port);
