@@ -32,15 +32,15 @@
 #include "w1_netlink.h"
 #include "w1_int.h"
 
-static int w1_search_count = -1; /* Default is continual scan */
+static int w1_search_count = -1;	/* Default is continual scan */
 module_param_named(search_count, w1_search_count, int, 0);
 
 static int w1_enable_pullup = 1;
 module_param_named(enable_pullup, w1_enable_pullup, int, 0);
 
-static struct w1_master * w1_alloc_dev(u32 id, int slave_count, int slave_ttl,
-				       struct device_driver *driver,
-				       struct device *device)
+static struct w1_master *w1_alloc_dev(u32 id, int slave_count, int slave_ttl,
+				      struct device_driver *driver,
+				      struct device *device)
 {
 	struct w1_master *dev;
 	int err;
@@ -48,26 +48,27 @@ static struct w1_master * w1_alloc_dev(u32 id, int slave_count, int slave_ttl,
 	/*
 	 * We are in process context(kernel thread), so can sleep.
 	 */
-	dev = kzalloc(sizeof(struct w1_master) + sizeof(struct w1_bus_master), GFP_KERNEL);
+	dev =
+	    kzalloc(sizeof(struct w1_master) + sizeof(struct w1_bus_master),
+		    GFP_KERNEL);
 	if (!dev) {
 		printk(KERN_ERR
-			"Failed to allocate %zd bytes for new w1 device.\n",
-			sizeof(struct w1_master));
+		       "Failed to allocate %zd bytes for new w1 device.\n",
+		       sizeof(struct w1_master));
 		return NULL;
 	}
 
-
 	dev->bus_master = (struct w1_bus_master *)(dev + 1);
 
-	dev->owner		= THIS_MODULE;
-	dev->max_slave_count	= slave_count;
-	dev->slave_count	= 0;
-	dev->attempts		= 0;
-	dev->initialized	= 0;
-	dev->id			= id;
-	dev->slave_ttl		= slave_ttl;
-	dev->search_count	= w1_search_count;
-	dev->enable_pullup	= w1_enable_pullup;
+	dev->owner = THIS_MODULE;
+	dev->max_slave_count = slave_count;
+	dev->slave_count = 0;
+	dev->attempts = 0;
+	dev->initialized = 0;
+	dev->id = id;
+	dev->slave_ttl = slave_ttl;
+	dev->search_count = w1_search_count;
+	dev->enable_pullup = w1_enable_pullup;
 
 	/* 1 for w1_process to decrement
 	 * 1 for __w1_remove_master_device to decrement
@@ -89,7 +90,8 @@ static struct w1_master * w1_alloc_dev(u32 id, int slave_count, int slave_ttl,
 
 	err = device_register(&dev->dev);
 	if (err) {
-		printk(KERN_ERR "Failed to register master device. err=%d\n", err);
+		printk(KERN_ERR "Failed to register master device. err=%d\n",
+		       err);
 		memset(dev, 0, sizeof(struct w1_master));
 		kfree(dev);
 		dev = NULL;
@@ -110,23 +112,25 @@ int w1_add_master_device(struct w1_bus_master *master)
 	struct w1_netlink_msg msg;
 	int id, found;
 
-        /* validate minimum functionality */
-        if (!(master->touch_bit && master->reset_bus) &&
-            !(master->write_bit && master->read_bit) &&
+	/* validate minimum functionality */
+	if (!(master->touch_bit && master->reset_bus) &&
+	    !(master->write_bit && master->read_bit) &&
 	    !(master->write_byte && master->read_byte && master->reset_bus)) {
 		printk(KERN_ERR "w1_add_master_device: invalid function set\n");
-		return(-EINVAL);
-        }
-	/* While it would be electrically possible to make a device that
-	 * generated a strong pullup in bit bang mode, only hardware that
-	 * controls 1-wire time frames are even expected to support a strong
-	 * pullup.  w1_io.c would need to support calling set_pullup before
-	 * the last write_bit operation of a w1_write_8 which it currently
-	 * doesn't.
-	 */
+		return (-EINVAL);
+	}
+
+	/* bitbanging hardware uses bitbang_pullup, other hardware uses set_pullup
+	 * and takes care of timing itself */
 	if (!master->write_byte && !master->touch_bit && master->set_pullup) {
 		printk(KERN_ERR "w1_add_master_device: set_pullup requires "
-			"write_byte or touch_bit, disabling\n");
+		       "write_byte or touch_bit, disabling\n");
+		master->set_pullup = NULL;
+	}
+
+	if (master->set_pullup && master->bitbang_pullup) {
+		printk(KERN_ERR "w1_add_master_device: set_pullup should not "
+		       "be set when bitbang_pullup is used, disabling\n");
 		master->set_pullup = NULL;
 	}
 
@@ -146,13 +150,13 @@ int w1_add_master_device(struct w1_bus_master *master)
 	} while (found);
 
 	dev = w1_alloc_dev(id, w1_max_slave_count, w1_max_slave_ttl,
-		&w1_master_driver, &w1_master_device);
+			   &w1_master_driver, &w1_master_device);
 	if (!dev) {
 		mutex_unlock(&w1_mlock);
 		return -ENOMEM;
 	}
 
-	retval =  w1_create_master_attributes(dev);
+	retval = w1_create_master_attributes(dev);
 	if (retval) {
 		mutex_unlock(&w1_mlock);
 		goto err_out_free_dev;
@@ -166,8 +170,7 @@ int w1_add_master_device(struct w1_bus_master *master)
 	if (IS_ERR(dev->thread)) {
 		retval = PTR_ERR(dev->thread);
 		dev_err(&dev->dev,
-			 "Failed to create new kernel thread. err=%d\n",
-			 retval);
+			"Failed to create new kernel thread. err=%d\n", retval);
 		mutex_unlock(&w1_mlock);
 		goto err_out_rm_attr;
 	}
@@ -182,7 +185,7 @@ int w1_add_master_device(struct w1_bus_master *master)
 
 	return 0;
 
-#if 0 /* Thread cleanup code, not required currently. */
+#if 0				/* Thread cleanup code, not required currently. */
 err_out_kill_thread:
 	kthread_stop(dev->thread);
 #endif
@@ -207,14 +210,15 @@ void __w1_remove_master_device(struct w1_master *dev)
 
 	mutex_lock(&dev->mutex);
 	list_for_each_entry_safe(sl, sln, &dev->slist, w1_slave_entry)
-		w1_slave_detach(sl);
+	    w1_slave_detach(sl);
 	w1_destroy_master_attributes(dev);
 	mutex_unlock(&dev->mutex);
 	atomic_dec(&dev->refcnt);
 
 	while (atomic_read(&dev->refcnt)) {
-		dev_info(&dev->dev, "Waiting for %s to become free: refcnt=%d.\n",
-				dev->name, atomic_read(&dev->refcnt));
+		dev_info(&dev->dev,
+			 "Waiting for %s to become free: refcnt=%d.\n",
+			 dev->name, atomic_read(&dev->refcnt));
 
 		if (msleep_interruptible(1000))
 			flush_signals(current);
