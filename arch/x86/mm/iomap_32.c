@@ -66,6 +66,8 @@ void *kmap_atomic_prot_pfn(unsigned long pfn, pgprot_t prot)
 	type = kmap_atomic_idx_push();
 	idx = type + KM_TYPE_NR * smp_processor_id();
 	vaddr = __fix_to_virt(FIX_KMAP_BEGIN + idx);
+	WARN_ON(!pte_none(*(kmap_pte - idx)));
+
 #ifdef CONFIG_PREEMPT_RT_FULL
 	current->kmap_pte[type] = pte;
 #endif
