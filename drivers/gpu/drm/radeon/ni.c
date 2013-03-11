@@ -1671,6 +1671,7 @@ int cayman_resume(struct radeon_device *rdev)
 int cayman_suspend(struct radeon_device *rdev)
 {
 	r600_audio_fini(rdev);
+	radeon_vm_manager_fini(rdev);
 	cayman_cp_enable(rdev, false);
 	cayman_dma_stop(rdev);
 	evergreen_irq_suspend(rdev);
