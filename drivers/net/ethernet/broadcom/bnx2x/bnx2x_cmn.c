@@ -2523,6 +2523,7 @@ load_error2:
 	bp->port.pmf = 0;
 load_error1:
 	bnx2x_napi_disable(bp);
+	bnx2x_del_all_napi(bp);
 	/* clear pf_load status, as it was already set */
 	bnx2x_clear_pf_load(bp);
 load_error0:
