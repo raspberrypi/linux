@@ -137,6 +137,7 @@ static struct usb_device_id rtw_usb_id_tbl[] ={
 	{USB_DEVICE(0x2001, 0x3307)},//D-Link - Cameo
 	{USB_DEVICE(0x2001, 0x330A)},//D-Link - Alpha
 	{USB_DEVICE(0x2001, 0x3309)},//D-Link - Alpha
+	{USB_DEVICE(0x2001, 0x330D)},//D-Link - Alpha(?)
 	{USB_DEVICE(0x0586, 0x341F)},//Zyxel - Abocom
 	{USB_DEVICE(0x7392, 0x7822)},//Edimax - Edimax
 	{USB_DEVICE(0x2019, 0xAB2B)},//Planex - Abocom
