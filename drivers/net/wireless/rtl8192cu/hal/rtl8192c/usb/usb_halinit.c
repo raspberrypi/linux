@@ -3786,6 +3786,8 @@ _ReadIDs(
 				pHalData->CustomerID = RT_CID_DLINK;
 			else if((pHalData->EEPROMVID == 0x2001) && (pHalData->EEPROMPID == 0x330a))
 				pHalData->CustomerID = RT_CID_DLINK;
+			else if((pHalData->EEPROMVID == 0x2001) && (pHalData->EEPROMPID == 0x330d))
+				pHalData->CustomerID = RT_CID_DLINK;
 			break;
 		case EEPROM_CID_WHQL:
 /*			
