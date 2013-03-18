@@ -1297,21 +1297,19 @@ static int i915_load_modeset_init(struct drm_device *dev)
 	if (ret)
 		goto cleanup_vga_switcheroo;
 
-	ret = drm_irq_install(dev);
-	if (ret)
-		goto cleanup_gem_stolen;
-
-	/* Important: The output setup functions called by modeset_init need
-	 * working irqs for e.g. gmbus and dp aux transfers. */
 	intel_modeset_init(dev);
 
 	ret = i915_gem_init(dev);
 	if (ret)
-		goto cleanup_irq;
+		goto cleanup_gem_stolen;
+
+	intel_modeset_gem_init(dev);
 
 	INIT_WORK(&dev_priv->console_resume_work, intel_console_resume);
 
-	intel_modeset_gem_init(dev);
+	ret = drm_irq_install(dev);
+	if (ret)
+		goto cleanup_gem;
 
 	/* Always safe in the mode setting case. */
 	/* FIXME: do pre/post-mode set stuff in core KMS code */
@@ -1319,10 +1317,7 @@ static int i915_load_modeset_init(struct drm_device *dev)
 
 	ret = intel_fbdev_init(dev);
 	if (ret)
-		goto cleanup_gem;
-
-	/* Only enable hotplug handling once the fbdev is fully set up. */
-	dev_priv->enable_hotplug_processing = true;
+		goto cleanup_irq;
 
 	drm_kms_helper_poll_init(dev);
 
@@ -1331,13 +1326,13 @@ static int i915_load_modeset_init(struct drm_device *dev)
 
 	return 0;
 
+cleanup_irq:
+	drm_irq_uninstall(dev);
 cleanup_gem:
 	mutex_lock(&dev->struct_mutex);
 	i915_gem_cleanup_ringbuffer(dev);
 	mutex_unlock(&dev->struct_mutex);
 	i915_gem_cleanup_aliasing_ppgtt(dev);
-cleanup_irq:
-	drm_irq_uninstall(dev);
 cleanup_gem_stolen:
 	i915_gem_cleanup_stolen(dev);
 cleanup_vga_switcheroo:
