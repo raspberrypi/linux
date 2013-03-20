@@ -1492,6 +1492,7 @@ parse_open(VCHIQ_STATE_T *state, VCHIQ_HEADER_T *header)
 					version, version_min);
 				vchiq_loud_error_footer();
 				unlock_service(service);
+				service = NULL;
 				goto fail_open;
 			}
 			service->peer_version = version;
@@ -1557,7 +1558,8 @@ fail_open:
 	return 1;
 
 bail_not_ready:
-	unlock_service(service);
+	if (service)
+		unlock_service(service);
 
 	return 0;
 }
