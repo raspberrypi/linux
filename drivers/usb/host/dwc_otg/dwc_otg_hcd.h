@@ -374,6 +374,13 @@ typedef struct dwc_otg_qh {
 
 DWC_CIRCLEQ_HEAD(hc_list, dwc_hc);
 
+typedef struct urb_tq_entry {
+	struct urb *urb;
+	DWC_TAILQ_ENTRY(urb_tq_entry) urb_tq_entries;
+} urb_tq_entry_t;
+
+DWC_TAILQ_HEAD(urb_list, urb_tq_entry);
+
 /**
  * This structure holds the state of the HCD, including the non-periodic and
  * periodic schedules.
@@ -550,6 +557,9 @@ struct dwc_otg_hcd {
 
 	/* Tasket to do a reset */
 	dwc_tasklet_t *reset_tasklet;
+
+	dwc_tasklet_t *completion_tasklet;
+	struct urb_list completed_urb_list;
 
 	/*  */
 	dwc_spinlock_t *lock;
