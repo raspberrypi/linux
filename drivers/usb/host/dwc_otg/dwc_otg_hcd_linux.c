@@ -271,7 +271,7 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 		     dwc_otg_hcd_urb_t * dwc_otg_urb, int32_t status)
 {
 	struct urb *urb = (struct urb *)urb_handle;
-
+	urb_tq_entry_t *new_entry;
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
 		DWC_PRINTF("%s: urb %p, device %d, ep %d %s, status=%d\n",
 			   __func__, urb, usb_pipedevice(urb->pipe),
@@ -285,7 +285,7 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 			}
 		}
 	}
-
+	new_entry = DWC_ALLOC_ATOMIC(sizeof(urb_tq_entry_t));
 	urb->actual_length = dwc_otg_hcd_urb_get_actual_length(dwc_otg_urb);
 	/* Convert status value. */
 	switch (status) {
@@ -348,18 +348,25 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 	}
 
 	DWC_FREE(dwc_otg_urb);
-
+	if (!new_entry) {
+		DWC_ERROR("dwc_otg_hcd: complete: cannot allocate URB TQ entry\n");
+		urb->status = -EPROTO;
+		/* don't schedule the tasklet -
+		 * directly return the packet here with error. */
 #if USB_URB_EP_LINKING
-        usb_hcd_unlink_urb_from_ep(dwc_otg_hcd_to_hcd(hcd), urb);
+		usb_hcd_unlink_urb_from_ep(dwc_otg_hcd_to_hcd(hcd), urb);
 #endif
-	DWC_SPINUNLOCK(hcd->lock);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
-	usb_hcd_giveback_urb(dwc_otg_hcd_to_hcd(hcd), urb);
+		usb_hcd_giveback_urb(dwc_otg_hcd_to_hcd(hcd), urb);
 #else
-	usb_hcd_giveback_urb(dwc_otg_hcd_to_hcd(hcd), urb, status);
+		usb_hcd_giveback_urb(dwc_otg_hcd_to_hcd(hcd), urb, urb->status);
 #endif
-	DWC_SPINLOCK(hcd->lock);
-
+	} else {
+		new_entry->urb = urb;
+		DWC_TAILQ_INSERT_TAIL(&hcd->completed_urb_list, new_entry,
+					urb_tq_entries);
+		DWC_TASK_HI_SCHEDULE(hcd->completion_tasklet);
+	}
 	return 0;
 }
 
