@@ -991,6 +991,11 @@ void DWC_TASK_SCHEDULE(dwc_tasklet_t *task)
 	tasklet_schedule(&task->t);
 }
 
+void DWC_TASK_HI_SCHEDULE(dwc_tasklet_t *task)
+{
+	tasklet_hi_schedule(&task->t);
+}
+
 
 /* workqueues
  - run in process context (can sleep)
