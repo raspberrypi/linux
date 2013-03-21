@@ -40,6 +40,9 @@
  * header file.
  */
 
+#include <linux/usb.h>
+#include <linux/usb/hcd.h>
+
 #include "dwc_otg_hcd.h"
 #include "dwc_otg_regs.h"
 
@@ -694,6 +697,31 @@ static void reset_tasklet_func(void *data)
 	dwc_otg_hcd->flags.b.port_reset_change = 1;
 }
 
+static void completion_tasklet_func(void *ptr)
+{
+	dwc_otg_hcd_t *hcd = (dwc_otg_hcd_t *) ptr;
+	struct urb *urb;
+	urb_tq_entry_t *item;
+	dwc_irqflags_t flags;
+
+	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
+	while (!DWC_TAILQ_EMPTY(&hcd->completed_urb_list)) {
+		item = DWC_TAILQ_FIRST(&hcd->completed_urb_list);
+		urb = item->urb;
+		DWC_TAILQ_REMOVE(&hcd->completed_urb_list, item,
+				urb_tq_entries);
+		DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
+		DWC_FREE(item);
+
+		usb_hcd_unlink_urb_from_ep(hcd->priv, urb);
+		usb_hcd_giveback_urb(hcd->priv, urb, urb->status);
+
+		DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
+	}
+	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
+	return;
+}
+
 static void qh_list_free(dwc_otg_hcd_t * hcd, dwc_list_link_t * qh_list)
 {
 	dwc_list_link_t *item;
@@ -833,6 +861,7 @@ static void dwc_otg_hcd_free(dwc_otg_hcd_t * dwc_otg_hcd)
 
 	DWC_TIMER_FREE(dwc_otg_hcd->conn_timer);
 	DWC_TASK_FREE(dwc_otg_hcd->reset_tasklet);
+	DWC_TASK_FREE(dwc_otg_hcd->completion_tasklet);
 
 #ifdef DWC_DEV_SRPCAP
 	if (dwc_otg_hcd->core_if->power_down == 2 &&
@@ -877,7 +906,7 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 	DWC_LIST_INIT(&hcd->periodic_sched_ready);
 	DWC_LIST_INIT(&hcd->periodic_sched_assigned);
 	DWC_LIST_INIT(&hcd->periodic_sched_queued);
-
+	DWC_TAILQ_INIT(&hcd->completed_urb_list);
 	/*
 	 * Create a host channel descriptor for each host channel implemented
 	 * in the controller. Initialize the channel descriptor array.
@@ -915,6 +944,9 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 
 	/* Initialize reset tasklet. */
 	hcd->reset_tasklet = DWC_TASK_ALLOC("reset_tasklet", reset_tasklet_func, hcd);
+
+	hcd->completion_tasklet = DWC_TASK_ALLOC("completion_tasklet",
+						completion_tasklet_func, hcd);
 #ifdef DWC_DEV_SRPCAP
 	if (hcd->core_if->power_down == 2) {
 		/* Initialize Power on timer for Host power up in case hibernation */
