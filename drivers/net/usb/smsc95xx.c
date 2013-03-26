@@ -87,6 +87,10 @@ static int packetsize = 2560;
 module_param(packetsize, int, 0644);
 MODULE_PARM_DESC(packetsize, "Override the RX URB packet size");
 
+static char *macaddr = ":";
+module_param(macaddr, charp, 0);
+MODULE_PARM_DESC(macaddr, "MAC address");
+
 static int __must_check smsc95xx_read_reg(struct usbnet *dev, u32 index,
 					  u32 *data)
 {
@@ -807,6 +811,52 @@ static int smsc95xx_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	return phy_mii_ioctl(netdev->phydev, rq, cmd);
 }
 
+/* Check the macaddr module parameter for a MAC address */
+static int smsc95xx_is_macaddr_param(struct usbnet *dev, struct net_device *nd)
+{
+       int i, j, got_num, num;
+       u8 mtbl[ETH_ALEN];
+
+       if (macaddr[0] == ':')
+               return 0;
+
+       i = 0;
+       j = 0;
+       num = 0;
+       got_num = 0;
+       while (j < ETH_ALEN) {
+               if (macaddr[i] && macaddr[i] != ':') {
+                       got_num++;
+                       if ('0' <= macaddr[i] && macaddr[i] <= '9')
+                               num = num * 16 + macaddr[i] - '0';
+                       else if ('A' <= macaddr[i] && macaddr[i] <= 'F')
+                               num = num * 16 + 10 + macaddr[i] - 'A';
+                       else if ('a' <= macaddr[i] && macaddr[i] <= 'f')
+                               num = num * 16 + 10 + macaddr[i] - 'a';
+                       else
+                               break;
+                       i++;
+               } else if (got_num == 2) {
+                       mtbl[j++] = (u8) num;
+                       num = 0;
+                       got_num = 0;
+                       i++;
+               } else {
+                       break;
+               }
+       }
+
+       if (j == ETH_ALEN) {
+               netif_dbg(dev, ifup, dev->net, "Overriding MAC address with: "
+               "%02x:%02x:%02x:%02x:%02x:%02x\n", mtbl[0], mtbl[1], mtbl[2],
+                                               mtbl[3], mtbl[4], mtbl[5]);
+	       dev_addr_mod(nd, 0, mtbl, ETH_ALEN);
+               return 1;
+       } else {
+               return 0;
+       }
+}
+
 static void smsc95xx_init_mac_address(struct usbnet *dev)
 {
 	u8 addr[ETH_ALEN];
@@ -829,6 +879,10 @@ static void smsc95xx_init_mac_address(struct usbnet *dev)
 			return;
 		}
 	}
+
+	/* Check module parameters */
+	if (smsc95xx_is_macaddr_param(dev, dev->net))
+		return;
 
 	/* no useful static MAC address found. generate a random one */
 	eth_hw_addr_random(dev->net);
