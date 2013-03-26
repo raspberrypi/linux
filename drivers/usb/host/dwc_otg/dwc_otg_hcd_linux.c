@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_hcd_linux.c $
- * $Revision: #11 $
- * $Date: 2009/04/21 $
- * $Change: 1237476 $
+ * $Revision: #20 $
+ * $Date: 2011/10/26 $
+ * $Change: 1872981 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -50,28 +50,23 @@
 #include <linux/dma-mapping.h>
 #include <linux/version.h>
 #include <asm/io.h>
-
-#ifdef LM_INTERFACE
-//#include <asm/arch/regs-irq.h>
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
-#include <asm/arch/lm.h>
-#include <asm/arch/irqs.h>
-#else
-#include <mach/lm.h>
-#include <mach/irqs.h>
-#endif
-#elif defined(PLATFORM_INTERFACE)
-#include <linux/platform_device.h>
-#endif
-
 #include <linux/usb.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
+#include <../drivers/usb/core/hcd.h>
+#else
 #include <linux/usb/hcd.h>
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30))
+#define USB_URB_EP_LINKING 1
+#else
+#define USB_URB_EP_LINKING 0
+#endif
 
 #include "dwc_otg_hcd_if.h"
 #include "dwc_otg_dbg.h"
 #include "dwc_otg_driver.h"
 #include "dwc_otg_hcd.h"
-
 /**
  * Gets the endpoint number from a _bEndpointAddress argument. The endpoint is
  * qualified with its direction (possible 32 endpoints per device).
@@ -84,22 +79,25 @@ static const char dwc_otg_hcd_name[] = "dwc_otg_hcd";
 /** @name Linux HC Driver API Functions */
 /** @{ */
 /* manage i/o requests, device state */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
-static int urb_enqueue(struct usb_hcd *hcd,
+static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 		       struct usb_host_endpoint *ep,
-		       struct urb *urb, gfp_t mem_flags);
-
-static int urb_dequeue(struct usb_hcd *hcd, struct urb *urb);
-#else
-static int urb_enqueue(struct usb_hcd *hcd,
-		       struct urb *urb, gfp_t mem_flags);
-
-static int urb_dequeue(struct usb_hcd *hcd,
-		       struct urb *urb, int status);
 #endif
+		       struct urb *urb, gfp_t mem_flags);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
+static int dwc_otg_urb_dequeue(struct usb_hcd *hcd, struct urb *urb);
+#endif
+#else /* kernels at or post 2.6.30 */
+static int dwc_otg_urb_dequeue(struct usb_hcd *hcd,
+                               struct urb *urb, int status);
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30) */
 
 static void endpoint_disable(struct usb_hcd *hcd, struct usb_host_endpoint *ep);
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
+static void endpoint_reset(struct usb_hcd *hcd, struct usb_host_endpoint *ep);
+#endif
 static irqreturn_t dwc_otg_hcd_irq(struct usb_hcd *hcd);
 extern int hcd_start(struct usb_hcd *hcd);
 extern void hcd_stop(struct usb_hcd *hcd);
@@ -131,10 +129,12 @@ static struct hc_driver dwc_otg_hc_driver = {
 	//.resume =             
 	.stop = hcd_stop,
 
-	.urb_enqueue = urb_enqueue,
-	.urb_dequeue = urb_dequeue,
+	.urb_enqueue = dwc_otg_urb_enqueue,
+	.urb_dequeue = dwc_otg_urb_dequeue,
 	.endpoint_disable = endpoint_disable,
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
+	.endpoint_reset = endpoint_reset,
+#endif
 	.get_frame_number = get_frame_number,
 
 	.hub_status_data = hub_status_data,
@@ -264,9 +264,8 @@ static void free_bus_bandwidth(struct usb_hcd *hcd, uint32_t bw,
 static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 		     dwc_otg_hcd_urb_t * dwc_otg_urb, int32_t status)
 {
-	uint64_t flags;
 	struct urb *urb = (struct urb *)urb_handle;
-#ifdef DEBUG
+
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
 		DWC_PRINTF("%s: urb %p, device %d, ep %d %s, status=%d\n",
 			   __func__, urb, usb_pipedevice(urb->pipe),
@@ -280,7 +279,6 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 			}
 		}
 	}
-#endif
 
 	urb->actual_length = dwc_otg_hcd_urb_get_actual_length(dwc_otg_urb);
 	/* Convert status value. */
@@ -319,8 +317,7 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 			    dwc_otg_hcd_urb_get_iso_desc_actual_length
 			    (dwc_otg_urb, i);
 			urb->iso_frame_desc[i].status =
-			    dwc_otg_hcd_urb_get_iso_desc_status
-			    (dwc_otg_urb, i);
+			    dwc_otg_hcd_urb_get_iso_desc_status(dwc_otg_urb, i);
 		}
 	}
 
@@ -339,21 +336,24 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 		if (ep) {
 			free_bus_bandwidth(dwc_otg_hcd_to_hcd(hcd),
 					   dwc_otg_hcd_get_ep_bandwidth(hcd,
-									ep->
-									hcpriv),
+									ep->hcpriv),
 					   urb);
 		}
 	}
 
-	dwc_free(dwc_otg_urb);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
+	DWC_FREE(dwc_otg_urb);
+
+#if USB_URB_EP_LINKING
+        usb_hcd_unlink_urb_from_ep(dwc_otg_hcd_to_hcd(hcd), urb);
+#endif
+	DWC_SPINUNLOCK(hcd->lock);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 	usb_hcd_giveback_urb(dwc_otg_hcd_to_hcd(hcd), urb);
 #else
-	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
-	usb_hcd_unlink_urb_from_ep(dwc_otg_hcd_to_hcd(hcd), urb);
-	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 	usb_hcd_giveback_urb(dwc_otg_hcd_to_hcd(hcd), urb, status);
 #endif
+	DWC_SPINLOCK(hcd->lock);
+
 	return 0;
 }
 
@@ -372,26 +372,11 @@ static struct dwc_otg_hcd_function_ops hcd_fops = {
  * USB bus with the core and calls the hc_driver->start() function. It returns
  * a negative error on failure.
  */
-int hcd_init(
-#ifdef LM_INTERFACE
-	struct lm_device *_dev
-#elif  defined(PCI_INTERFACE)
-	struct pci_dev *_dev
-#elif  defined(PLATFORM_INTERFACE)
-	struct platform_device *_dev
-#endif
-	)
+int hcd_init(dwc_bus_dev_t *_dev)
 {
 	struct usb_hcd *hcd = NULL;
 	dwc_otg_hcd_t *dwc_otg_hcd = NULL;
-#ifdef LM_INTERFACE
-	dwc_otg_device_t *otg_dev = lm_get_drvdata(_dev);
-#elif  defined(PCI_INTERFACE)
-	dwc_otg_device_t *otg_dev = pci_get_drvdata(_dev);
-#elif  defined(PLATFORM_INTERFACE)
-	dwc_otg_device_t *otg_dev = platform_get_drvdata(_dev);
-#endif
-
+	dwc_otg_device_t *otg_dev = DWC_OTG_BUSDRVDATA(_dev);
 	int retval = 0;
         u64 dmamask;
 
@@ -415,21 +400,20 @@ int hcd_init(
 	 * Allocate memory for the base HCD plus the DWC OTG HCD.
 	 * Initialize the base HCD.
 	 */
-	hcd = usb_create_hcd(&dwc_otg_hc_driver, &_dev->dev,
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
-                             _dev->dev.bus_id);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30)
+	hcd = usb_create_hcd(&dwc_otg_hc_driver, &_dev->dev, _dev->dev.bus_id);
 #else
-                             dev_name(&_dev->dev));
+	hcd = usb_create_hcd(&dwc_otg_hc_driver, &_dev->dev, dev_name(&_dev->dev));
+	hcd->has_tt = 1;
+//      hcd->uses_new_polling = 1;
+//      hcd->poll_rh = 0;
 #endif
 	if (!hcd) {
 		retval = -ENOMEM;
 		goto error1;
 	}
 
-	hcd->regs = otg_dev->base;
-
-	/* Integrate TT in root hub */
-	hcd->has_tt = 1;
+	hcd->regs = otg_dev->os_dep.base;
 
 	/* Initialize the DWC OTG HCD. */
 	dwc_otg_hcd = dwc_otg_hcd_alloc_hcd();
@@ -444,17 +428,24 @@ int hcd_init(
 		goto error2;
 	}
 
+	otg_dev->hcd->otg_dev = otg_dev;
 	hcd->self.otg_port = dwc_otg_hcd_otg_port(dwc_otg_hcd);
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33) //don't support for LM(with 2.6.20.1 kernel)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35) //version field absent later
+	hcd->self.otg_version = dwc_otg_get_otg_version(otg_dev->core_if);
+#endif
+	/* Don't support SG list at this point */
+	hcd->self.sg_tablesize = 0;
+#endif
 	/*
 	 * Finish generic HCD initialization and start the HCD. This function
 	 * allocates the DMA buffer pool, registers the USB bus, requests the
 	 * IRQ line, and calls hcd_start method.
 	 */
 #ifdef PLATFORM_INTERFACE
-	retval = usb_add_hcd(hcd, platform_get_irq(_dev, 0), IRQF_SHARED);
+        retval = usb_add_hcd(hcd, platform_get_irq(_dev, 0), IRQF_SHARED | IRQF_DISABLED);
 #else
-	retval = usb_add_hcd(hcd, _dev->irq, IRQF_SHARED);
+        retval = usb_add_hcd(hcd, _dev->irq, IRQF_SHARED | IRQF_DISABLED);	
 #endif
 	if (retval < 0) {
 		goto error2;
@@ -463,9 +454,9 @@ int hcd_init(
 	dwc_otg_hcd_set_priv_data(dwc_otg_hcd, hcd);
 	return 0;
 
-      error2:
+error2:
 	usb_put_hcd(hcd);
-      error1:
+error1:
 	return retval;
 }
 
@@ -473,24 +464,9 @@ int hcd_init(
  * Removes the HCD.
  * Frees memory and resources associated with the HCD and deregisters the bus.
  */
-void hcd_remove(
-#ifdef LM_INTERFACE
-	struct lm_device *_dev
-#elif  defined(PCI_INTERFACE)
-	struct pci_dev *_dev
-#elif  defined(PLATFORM_INTERFACE)
-	struct platform_device *_dev
-#endif
-	)
+void hcd_remove(dwc_bus_dev_t *_dev)
 {
-#ifdef LM_INTERFACE
-	dwc_otg_device_t *otg_dev = lm_get_drvdata(_dev);
-#elif  defined(PCI_INTERFACE)
-	dwc_otg_device_t *otg_dev = pci_get_drvdata(_dev);
-#elif  defined(PLATFORM_INTERFACE)
-	dwc_otg_device_t *otg_dev = platform_get_drvdata(_dev);
-#endif
-
+	dwc_otg_device_t *otg_dev = DWC_OTG_BUSDRVDATA(_dev);
 	dwc_otg_hcd_t *dwc_otg_hcd;
 	struct usb_hcd *hcd;
 
@@ -616,26 +592,25 @@ speed = "LOW"; break; default:
 		}
 	}
 }
-
 #endif
 
 /** Starts processing a USB transfer request specified by a USB Request Block
  * (URB). mem_flags indicates the type of memory allocation to use while
  * processing this URB. */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
-static int urb_enqueue(struct usb_hcd *hcd,
+static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 		       struct usb_host_endpoint *ep,
+#endif
 		       struct urb *urb, gfp_t mem_flags)
 {
-#else
-static int urb_enqueue(struct usb_hcd *hcd,
-		       struct urb *urb,
-                       gfp_t mem_flags)
-{
-        struct usb_host_endpoint *ep = urb->ep;
+	int retval = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+	struct usb_host_endpoint *ep = urb->ep;
+#endif
+#if USB_URB_EP_LINKING
+      	dwc_irqflags_t irqflags;
 #endif
         void **ref_ep_hcpriv = &ep->hcpriv;
-	int retval = 0;
 	dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd(hcd);
 	dwc_otg_hcd_urb_t *dwc_otg_urb;
 	int i;
@@ -646,7 +621,7 @@ static int urb_enqueue(struct usb_hcd *hcd,
 
 #ifdef DEBUG
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
-		dump_urb_info(urb, "urb_enqueue");
+		dump_urb_info(urb, "dwc_otg_urb_enqueue");
 	}
 #endif
 
@@ -675,9 +650,10 @@ static int urb_enqueue(struct usb_hcd *hcd,
 		ep_type = USB_ENDPOINT_XFER_INT;
 		break;
 	default:
-		DWC_WARN("Wrong ep type\n");
+                DWC_WARN("Wrong EP type - %d\n", usb_pipetype(urb->pipe));
 	}
 
+        /* # of packets is often 0 - do we really need to call this then? */
 	dwc_otg_urb = dwc_otg_hcd_urb_alloc(dwc_otg_hcd,
 					    urb->number_of_packets,
 					    mem_flags == GFP_ATOMIC ? 1 : 0);
@@ -686,6 +662,8 @@ static int urb_enqueue(struct usb_hcd *hcd,
 		return -ENOMEM;
 
         urb->hcpriv = dwc_otg_urb;
+        if (!dwc_otg_urb && urb->number_of_packets)
+                return -ENOMEM;
         
 	dwc_otg_hcd_urb_set_pipeinfo(dwc_otg_urb, usb_pipedevice(urb->pipe),
 				     usb_pipeendpoint(urb->pipe), ep_type,
@@ -705,7 +683,7 @@ static int urb_enqueue(struct usb_hcd *hcd,
                 // DMA addresses are bus addresses not physical addresses!
                 buf = dma_to_virt(&urb->dev->dev, urb->transfer_dma);
 	}
-	
+
 	if (!(urb->transfer_flags & URB_NO_INTERRUPT))
 		flags |= URB_GIVEBACK_ASAP;
 	if (urb->transfer_flags & URB_ZERO_PACKET)
@@ -714,27 +692,28 @@ static int urb_enqueue(struct usb_hcd *hcd,
 	dwc_otg_hcd_urb_set_params(dwc_otg_urb, urb, buf,
 				   urb->transfer_dma,
 				   urb->transfer_buffer_length,
-				   urb->setup_packet, 
-				   urb->setup_dma,
-				   flags,
-				   urb->interval);
+				   urb->setup_packet,
+				   urb->setup_dma, flags, urb->interval);
 
 	for (i = 0; i < urb->number_of_packets; ++i) {
 		dwc_otg_hcd_urb_set_iso_desc_params(dwc_otg_urb, i,
-						    urb->iso_frame_desc[i].
-						    offset,
-						    urb->iso_frame_desc[i].
-						    length);
+						    urb->
+						    iso_frame_desc[i].offset,
+						    urb->
+						    iso_frame_desc[i].length);
 	}
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30))
+#if USB_URB_EP_LINKING
+        DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &irqflags);
 	retval = usb_hcd_link_urb_to_ep(hcd, urb);
+        DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, irqflags);
 	if (0 == retval) 
 #endif
         {
                 retval = dwc_otg_hcd_urb_enqueue(dwc_otg_hcd, dwc_otg_urb,
                                                  /*(dwc_otg_qh_t **)*/
-                                                 ref_ep_hcpriv);
+                                                 ref_ep_hcpriv, 
+                                                 mem_flags == GFP_ATOMIC ? 1 : 0);
                 if (0 == retval) {
                         if (alloc_bandwidth) {
                                 allocate_bus_bandwidth(hcd,
@@ -743,8 +722,12 @@ static int urb_enqueue(struct usb_hcd *hcd,
                                                        urb);
                         }
                 } else {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30))
+#if USB_URB_EP_LINKING
+                	dwc_irqflags_t irqflags;
+                        DWC_DEBUGPL(DBG_HCD, "DWC OTG dwc_otg_hcd_urb_enqueue failed rc %d\n", retval);
+                        DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &irqflags);
                         usb_hcd_unlink_urb_from_ep(hcd, urb);
+                        DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, irqflags);
 #endif
                         if (retval == -DWC_E_NO_DEVICE) {
                                 retval = -ENODEV;
@@ -756,54 +739,61 @@ static int urb_enqueue(struct usb_hcd *hcd,
 
 /** Aborts/cancels a USB transfer request. Always returns 0 to indicate
  * success.  */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
-static int urb_dequeue(struct usb_hcd *hcd, struct urb *urb)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
+static int dwc_otg_urb_dequeue(struct usb_hcd *hcd, struct urb *urb)
 #else
-static int urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
+static int dwc_otg_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 #endif
 {
-	int rc;
-	uint64_t flags;
+	dwc_irqflags_t flags;
 	dwc_otg_hcd_t *dwc_otg_hcd;
+        int rc;
+
 	DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD URB Dequeue\n");
 
 	dwc_otg_hcd = hcd_to_dwc_otg_hcd(hcd);
 
 #ifdef DEBUG
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
-		dump_urb_info(urb, "urb_dequeue");
+		dump_urb_info(urb, "dwc_otg_urb_dequeue");
 	}
 #endif
-	if(urb->hcpriv != NULL) {
-		dwc_otg_hcd_urb_dequeue(dwc_otg_hcd, (dwc_otg_hcd_urb_t *)urb->hcpriv);
 
-		dwc_free(urb->hcpriv);
-		urb->hcpriv = NULL;
-	}
-
-	/* Higher layer software sets URB status. */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,30))
-	usb_hcd_giveback_urb(hcd, urb);
-#else
 	DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &flags);
 	rc = usb_hcd_check_unlink_urb(hcd, urb, status);
-	if(!rc)
-	{
-		usb_hcd_unlink_urb_from_ep(hcd, urb);
-	}
+	if (0 == rc) {
+		if(urb->hcpriv != NULL) {
+	                dwc_otg_hcd_urb_dequeue(dwc_otg_hcd,
+    	                                    (dwc_otg_hcd_urb_t *)urb->hcpriv);
 
-	DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, flags);
-	if (!rc)
-	{
-		usb_hcd_giveback_urb(hcd, urb, status);
-	}
+        	        DWC_FREE(urb->hcpriv);
+            		urb->hcpriv = NULL;
+            	}
+        }
+
+        if (0 == rc) {
+        	/* Higher layer software sets URB status. */
+#if USB_URB_EP_LINKING
+                usb_hcd_unlink_urb_from_ep(hcd, urb);
 #endif
-	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
-		DWC_PRINTF("Called usb_hcd_giveback_urb()\n");
-		DWC_PRINTF("  urb->status = %d\n", urb->status);
-	}
-
-	return 0;
+        	DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, flags);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
+                usb_hcd_giveback_urb(hcd, urb);
+#else
+                usb_hcd_giveback_urb(hcd, urb, status);
+#endif
+                if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
+                        DWC_PRINTF("Called usb_hcd_giveback_urb() \n");
+                        DWC_PRINTF("  1urb->status = %d\n", urb->status);
+                }
+                DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD URB Dequeue OK\n");
+        } else {
+        	DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, flags);
+                DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD URB Dequeue failed - rc %d\n",
+                            rc);
+        }
+           
+	return rc;
 }
 
 /* Frees resources in the DWC_otg controller related to a given endpoint. Also
@@ -820,6 +810,38 @@ static void endpoint_disable(struct usb_hcd *hcd, struct usb_host_endpoint *ep)
 	dwc_otg_hcd_endpoint_disable(dwc_otg_hcd, ep->hcpriv, 250);
 	ep->hcpriv = NULL;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
+/* Resets endpoint specific parameter values, in current version used to reset 
+ * the data toggle(as a WA). This function can be called from usb_clear_halt routine */
+static void endpoint_reset(struct usb_hcd *hcd, struct usb_host_endpoint *ep)
+{
+	dwc_irqflags_t flags;
+	struct usb_device *udev = NULL;
+	int epnum = usb_endpoint_num(&ep->desc);
+	int is_out = usb_endpoint_dir_out(&ep->desc);
+	int is_control = usb_endpoint_xfer_control(&ep->desc);
+	dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd(hcd);
+        struct device *dev = DWC_OTG_OS_GETDEV(dwc_otg_hcd->otg_dev->os_dep);
+
+	if (dev)
+		udev = to_usb_device(dev);
+	else
+		return;
+
+	DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD EP RESET: Endpoint Num=0x%02d\n", epnum);
+
+	DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &flags);
+	usb_settoggle(udev, epnum, is_out, 0);
+	if (is_control)
+		usb_settoggle(udev, epnum, !is_out, 0);
+
+	if (ep->hcpriv) {
+		dwc_otg_hcd_endpoint_reset(dwc_otg_hcd, ep->hcpriv);
+	}
+	DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, flags);
+}
+#endif
 
 /** Handles host mode interrupts for the DWC_otg controller. Returns IRQ_NONE if
  * there was no interrupt to handle. Returns IRQ_HANDLED if there was a valid
@@ -868,4 +890,4 @@ int hub_control(struct usb_hcd *hcd,
 	return retval;
 }
 
-#endif				/* DWC_DEVICE_ONLY */
+#endif /* DWC_DEVICE_ONLY */

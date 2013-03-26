@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_hcd_intr.c $
- * $Revision: #77 $
- * $Date: 2009/04/21 $
- * $Change: 1237475 $
+ * $Revision: #89 $
+ * $Date: 2011/10/20 $
+ * $Change: 1869487 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -58,10 +58,16 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
         }
 #endif
 
+	/* Exit from ISR if core is hibernated */
+	if (core_if->hibernation_suspend == 1) {
+		return retval;
+	}
+	DWC_SPINLOCK(dwc_otg_hcd->lock);
 	/* Check if HOST Mode */
 	if (dwc_otg_is_host_mode(core_if)) {
 		gintsts.d32 = dwc_otg_read_core_intr(core_if);
 		if (!gintsts.d32) {
+			DWC_SPINUNLOCK(dwc_otg_hcd->lock);
 			return 0;
 		}
 #ifdef DEBUG
@@ -69,14 +75,14 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 #ifndef DEBUG_SOF
 		if (gintsts.d32 != DWC_SOF_INTR_MASK)
 #endif
-			DWC_DEBUGPL(DBG_HCD, "\n");
+			DWC_DEBUGPL(DBG_HCDI, "\n");
 #endif
 
 #ifdef DEBUG
 #ifndef DEBUG_SOF
 		if (gintsts.d32 != DWC_SOF_INTR_MASK)
 #endif
-			DWC_DEBUGPL(DBG_HCD,
+			DWC_DEBUGPL(DBG_HCDI,
 				    "DWC OTG HCD Interrupt Detected gintsts&gintmsk=0x%08x core_if=%p\n",
 				    gintsts.d32, core_if);
 #endif
@@ -113,12 +119,12 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 		if (gintsts.d32 != DWC_SOF_INTR_MASK)
 #endif
 		{
-			DWC_DEBUGPL(DBG_HCD,
+			DWC_DEBUGPL(DBG_HCDI,
 				    "DWC OTG HCD Finished Servicing Interrupts\n");
 			DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD gintsts=0x%08x\n",
-				    dwc_read_reg32(&global_regs->gintsts));
+				    DWC_READ_REG32(&global_regs->gintsts));
 			DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD gintmsk=0x%08x\n",
-				    dwc_read_reg32(&global_regs->gintmsk));
+				    DWC_READ_REG32(&global_regs->gintmsk));
 		}
 #endif
 
@@ -126,11 +132,11 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 #ifndef DEBUG_SOF
 		if (gintsts.d32 != DWC_SOF_INTR_MASK)
 #endif
-			DWC_DEBUGPL(DBG_HCD, "\n");
+			DWC_DEBUGPL(DBG_HCDI, "\n");
 #endif
 
 	}
-
+	DWC_SPINUNLOCK(dwc_otg_hcd->lock);
 	return retval;
 }
 
@@ -183,7 +189,7 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 	gintsts_data_t gintsts = {.d32 = 0 };
 
 	hfnum.d32 =
-	    dwc_read_reg32(&hcd->core_if->host_if->host_global_regs->hfnum);
+	    DWC_READ_REG32(&hcd->core_if->host_if->host_global_regs->hfnum);
 
 #ifdef DEBUG_SOF
 	DWC_DEBUGPL(DBG_HCD, "--Start of Frame Interrupt--\n");
@@ -219,7 +225,7 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 
 	/* Clear interrupt */
 	gintsts.b.sofintr = 1;
-	dwc_write_reg32(&hcd->core_if->core_global_regs->gintsts, gintsts.d32);
+	DWC_WRITE_REG32(&hcd->core_if->core_global_regs->gintsts, gintsts.d32);
 
 	return 1;
 }
@@ -235,9 +241,13 @@ int32_t dwc_otg_hcd_handle_rx_status_q_level_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 	DWC_DEBUGPL(DBG_HCD, "--RxStsQ Level Interrupt--\n");
 
 	grxsts.d32 =
-	    dwc_read_reg32(&dwc_otg_hcd->core_if->core_global_regs->grxstsp);
+	    DWC_READ_REG32(&dwc_otg_hcd->core_if->core_global_regs->grxstsp);
 
 	hc = dwc_otg_hcd->hc_ptr_array[grxsts.b.chnum];
+	if (!hc) {
+		DWC_ERROR("Unable to get corresponding channel\n");
+		return 0;
+	}
 
 	/* Packet Status */
 	DWC_DEBUGPL(DBG_HCDV, "    Ch num = %d\n", grxsts.b.chnum);
@@ -305,8 +315,8 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 	hprt0_data_t hprt0;
 	hprt0_data_t hprt0_modify;
 
-	hprt0.d32 = dwc_read_reg32(dwc_otg_hcd->core_if->host_if->hprt0);
-	hprt0_modify.d32 = dwc_read_reg32(dwc_otg_hcd->core_if->host_if->hprt0);
+	hprt0.d32 = DWC_READ_REG32(dwc_otg_hcd->core_if->host_if->hprt0);
+	hprt0_modify.d32 = DWC_READ_REG32(dwc_otg_hcd->core_if->host_if->hprt0);
 
 	/* Clear appropriate bits in HPRT0 to clear the interrupt bit in
 	 * GINTSTS */
@@ -318,16 +328,41 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 
 	/* Port Connect Detected
 	 * Set flag and clear if detected */
-	if (hprt0.b.prtconndet) {
-		DWC_DEBUGPL(DBG_HCD, "--Port Interrupt HPRT0=0x%08x "
-			    "Port Connect Detected--\n", hprt0.d32);
-		dwc_otg_hcd->flags.b.port_connect_status_change = 1;
-		dwc_otg_hcd->flags.b.port_connect_status = 1;
+	if (dwc_otg_hcd->core_if->hibernation_suspend == 1) {
+		// Dont modify port status if we are in hibernation state
 		hprt0_modify.b.prtconndet = 1;
+		hprt0_modify.b.prtenchng = 1;
+		DWC_WRITE_REG32(dwc_otg_hcd->core_if->host_if->hprt0, hprt0_modify.d32);
+		hprt0.d32 = DWC_READ_REG32(dwc_otg_hcd->core_if->host_if->hprt0);
+		return retval;
+	}
 
-		/* B-Device has connected, Delete the connection timer. */
-		DWC_TIMER_CANCEL(dwc_otg_hcd->conn_timer);
-
+	if (hprt0.b.prtconndet) {
+		/** @todo - check if steps performed in 'else' block should be perfromed regardles adp */
+		if (dwc_otg_hcd->core_if->adp_enable && 	
+				dwc_otg_hcd->core_if->adp.vbuson_timer_started == 1) {
+			DWC_PRINTF("PORT CONNECT DETECTED ----------------\n");
+			DWC_TIMER_CANCEL(dwc_otg_hcd->core_if->adp.vbuson_timer);
+			dwc_otg_hcd->core_if->adp.vbuson_timer_started = 0;
+			/* TODO - check if this is required, as
+			 * host initialization was already performed
+			 * after initial ADP probing
+			 */
+			/*dwc_otg_hcd->core_if->adp.vbuson_timer_started = 0;
+			dwc_otg_core_init(dwc_otg_hcd->core_if);
+			dwc_otg_enable_global_interrupts(dwc_otg_hcd->core_if);
+			cil_hcd_start(dwc_otg_hcd->core_if);*/
+		} else {
+		
+			DWC_DEBUGPL(DBG_HCD, "--Port Interrupt HPRT0=0x%08x "
+				    "Port Connect Detected--\n", hprt0.d32);
+			dwc_otg_hcd->flags.b.port_connect_status_change = 1;
+			dwc_otg_hcd->flags.b.port_connect_status = 1;
+			hprt0_modify.b.prtconndet = 1;
+	
+			/* B-Device has connected, Delete the connection timer. */
+			DWC_TIMER_CANCEL(dwc_otg_hcd->conn_timer);
+		}
 		/* The Hub driver asserts a reset when it sees port connect
 		 * status change flag */
 		retval |= 1;
@@ -340,6 +375,7 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 			    "Port Enable Changed--\n", hprt0.d32);
 		hprt0_modify.b.prtenchng = 1;
 		if (hprt0.b.prtena == 1) {
+			hfir_data_t hfir;
 			int do_reset = 0;
 			dwc_otg_core_params_t *params =
 			    dwc_otg_hcd->core_if->core_params;
@@ -347,6 +383,13 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 			    dwc_otg_hcd->core_if->core_global_regs;
 			dwc_otg_host_if_t *host_if =
 			    dwc_otg_hcd->core_if->host_if;
+			    
+			/* Every time when port enables calculate
+			 * HFIR.FrInterval
+			 */
+			hfir.d32 = DWC_READ_REG32(&host_if->host_global_regs->hfir);
+			hfir.b.frint = calc_frame_interval(dwc_otg_hcd->core_if);
+			DWC_WRITE_REG32(&host_if->host_global_regs->hfir, hfir.d32);
 
 			/* Check if we need to adjust the PHY clock speed for
 			 * low power and adjust it */
@@ -354,7 +397,7 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 				gusbcfg_data_t usbcfg;
 
 				usbcfg.d32 =
-				    dwc_read_reg32(&global_regs->gusbcfg);
+				    DWC_READ_REG32(&global_regs->gusbcfg);
 
 				if (hprt0.b.prtspd == DWC_HPRT0_PRTSPD_LOW_SPEED
 				    || hprt0.b.prtspd ==
@@ -366,20 +409,20 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 					if (usbcfg.b.phylpwrclksel == 0) {
 						/* Set PHY low power clock select for FS/LS devices */
 						usbcfg.b.phylpwrclksel = 1;
-						dwc_write_reg32(&global_regs->
-								gusbcfg,
-								usbcfg.d32);
+						DWC_WRITE_REG32
+						    (&global_regs->gusbcfg,
+						     usbcfg.d32);
 						do_reset = 1;
 					}
 
 					hcfg.d32 =
-					    dwc_read_reg32(&host_if->
-							   host_global_regs->hcfg);
+					    DWC_READ_REG32
+					    (&host_if->host_global_regs->hcfg);
 
 					if (hprt0.b.prtspd ==
 					    DWC_HPRT0_PRTSPD_LOW_SPEED
-					    && params->
-					    host_ls_low_power_phy_clk ==
+					    && params->host_ls_low_power_phy_clk
+					    ==
 					    DWC_HOST_LS_LOW_POWER_PHY_CLK_PARAM_6MHZ)
 					{
 						/* 6 MHZ */
@@ -389,10 +432,9 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 						    DWC_HCFG_6_MHZ) {
 							hcfg.b.fslspclksel =
 							    DWC_HCFG_6_MHZ;
-							dwc_write_reg32
-							    (&host_if->
-							     host_global_regs->
-							     hcfg, hcfg.d32);
+							DWC_WRITE_REG32
+							    (&host_if->host_global_regs->hcfg,
+							     hcfg.d32);
 							do_reset = 1;
 						}
 					} else {
@@ -403,10 +445,9 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 						    DWC_HCFG_48_MHZ) {
 							hcfg.b.fslspclksel =
 							    DWC_HCFG_48_MHZ;
-							dwc_write_reg32
-							    (&host_if->
-							     host_global_regs->
-							     hcfg, hcfg.d32);
+							DWC_WRITE_REG32
+							    (&host_if->host_global_regs->hcfg,
+							     hcfg.d32);
 							do_reset = 1;
 						}
 					}
@@ -416,16 +457,15 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 					 */
 					if (usbcfg.b.phylpwrclksel == 1) {
 						usbcfg.b.phylpwrclksel = 0;
-						dwc_write_reg32(&global_regs->
-								gusbcfg,
-								usbcfg.d32);
+						DWC_WRITE_REG32
+						    (&global_regs->gusbcfg,
+						     usbcfg.d32);
 						do_reset = 1;
 					}
 				}
 
 				if (do_reset) {
-					DWC_TASK_SCHEDULE(dwc_otg_hcd->
-							  reset_tasklet);
+					DWC_TASK_SCHEDULE(dwc_otg_hcd->reset_tasklet);
 				}
 			}
 
@@ -449,7 +489,7 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 	}
 
 	/* Clear Port Interrupts */
-	dwc_write_reg32(dwc_otg_hcd->core_if->host_if->hprt0, hprt0_modify.d32);
+	DWC_WRITE_REG32(dwc_otg_hcd->core_if->host_if->hprt0, hprt0_modify.d32);
 
 	return retval;
 }
@@ -478,8 +518,6 @@ int32_t dwc_otg_hcd_handle_hc_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 	return retval;
 }
 
-
-
 /**
  * Gets the actual length of a transfer after the transfer halts. _halt_status
  * holds the reason for the halt.
@@ -502,7 +540,7 @@ static uint32_t get_actual_xfer_length(dwc_hc_t * hc,
 	if (short_read != NULL) {
 		*short_read = 0;
 	}
-	hctsiz.d32 = dwc_read_reg32(&hc_regs->hctsiz);
+	hctsiz.d32 = DWC_READ_REG32(&hc_regs->hctsiz);
 
 	if (halt_status == DWC_OTG_HC_XFER_COMPLETE) {
 		if (hc->ep_is_in) {
@@ -551,21 +589,23 @@ static int update_urb_state_xfer_comp(dwc_hc_t * hc,
 
 	int xfer_length;
 
-	xfer_length = get_actual_xfer_length(hc, hc_regs, qtd,						     
-						     DWC_OTG_HC_XFER_COMPLETE,
-						     &short_read);
+	xfer_length = get_actual_xfer_length(hc, hc_regs, qtd,
+					     DWC_OTG_HC_XFER_COMPLETE,
+					     &short_read);
 
 
 	/* non DWORD-aligned buffer case handling. */
 	if (hc->align_buff && xfer_length && hc->ep_is_in) {
-		dwc_memcpy(urb->buf + urb->actual_length, hc->qh->dw_align_buf, xfer_length);
+		dwc_memcpy(urb->buf + urb->actual_length, hc->qh->dw_align_buf,
+			   xfer_length);
 	}
 
 	urb->actual_length += xfer_length;
 
-	if(xfer_length && (hc->ep_type == DWC_OTG_EP_TYPE_BULK) &&
-	   (urb->flags & URB_SEND_ZERO_PACKET) && (urb->actual_length == urb->length) &&
-	   !(urb->length % hc->max_packet)) {
+	if (xfer_length && (hc->ep_type == DWC_OTG_EP_TYPE_BULK) &&
+	    (urb->flags & URB_SEND_ZERO_PACKET)
+	    && (urb->actual_length == urb->length)
+	    && !(urb->length % hc->max_packet)) {
 		xfer_done = 0;
 	} else if (short_read || urb->actual_length >= urb->length) {
 		xfer_done = 1;
@@ -575,7 +615,7 @@ static int update_urb_state_xfer_comp(dwc_hc_t * hc,
 #ifdef DEBUG
 	{
 		hctsiz_data_t hctsiz;
-		hctsiz.d32 = dwc_read_reg32(&hc_regs->hctsiz);
+		hctsiz.d32 = DWC_READ_REG32(&hc_regs->hctsiz);
 		DWC_DEBUGPL(DBG_HCDV, "DWC_otg: %s: %s, channel %d\n",
 			    __func__, (hc->ep_is_in ? "IN" : "OUT"),
 			    hc->hc_num);
@@ -603,7 +643,7 @@ void dwc_otg_hcd_save_data_toggle(dwc_hc_t * hc,
 			     dwc_otg_hc_regs_t * hc_regs, dwc_otg_qtd_t * qtd)
 {
 	hctsiz_data_t hctsiz;
-	hctsiz.d32 = dwc_read_reg32(&hc_regs->hctsiz);
+	hctsiz.d32 = DWC_READ_REG32(&hc_regs->hctsiz);
 
 	if (hc->ep_type != DWC_OTG_EP_TYPE_CONTROL) {
 		dwc_otg_qh_t *qh = hc->qh;
@@ -646,10 +686,10 @@ update_isoc_urb_state(dwc_otg_hcd_t * hcd,
 		frame_desc->status = 0;
 		frame_desc->actual_length =
 		    get_actual_xfer_length(hc, hc_regs, qtd, halt_status, NULL);
-		    
+
 		/* non DWORD-aligned buffer case handling. */
 		if (hc->align_buff && frame_desc->actual_length && hc->ep_is_in) {
-			dwc_memcpy(urb->buf + frame_desc->offset + qtd->isoc_split_offset, 
+			dwc_memcpy(urb->buf + frame_desc->offset + qtd->isoc_split_offset,
 				   hc->qh->dw_align_buf, frame_desc->actual_length);
 		}
 		
@@ -673,19 +713,19 @@ update_isoc_urb_state(dwc_otg_hcd_t * hcd,
 		frame_desc->status = -DWC_E_PROTOCOL;
 		frame_desc->actual_length =
 		    get_actual_xfer_length(hc, hc_regs, qtd, halt_status, NULL);
-		
+
 		/* non DWORD-aligned buffer case handling. */
 		if (hc->align_buff && frame_desc->actual_length && hc->ep_is_in) {
-			dwc_memcpy(urb->buf + frame_desc->offset + qtd->isoc_split_offset, 
+			dwc_memcpy(urb->buf + frame_desc->offset + qtd->isoc_split_offset,
 				   hc->qh->dw_align_buf, frame_desc->actual_length);
 		}
 		/* Skip whole frame */
-		if (hc->qh->do_split && (hc->ep_type == DWC_OTG_EP_TYPE_ISOC) && 
-				hc->ep_is_in && hcd->core_if->dma_enable) {
+		if (hc->qh->do_split && (hc->ep_type == DWC_OTG_EP_TYPE_ISOC) &&
+		    hc->ep_is_in && hcd->core_if->dma_enable) {
 			qtd->complete_split = 0;
 			qtd->isoc_split_offset = 0;
 		}
-			
+
 		break;
 	default:
 		DWC_ASSERT(1, "Unhandled _halt_status (%d)\n", halt_status);
@@ -758,19 +798,6 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 	DWC_DEBUGPL(DBG_HCDV, "  %s: channel %d, halt_status %d, xfer_len %d\n",
 		    __func__, hc->hc_num, halt_status, hc->xfer_len);
 
-#ifdef HW2937_WORKAROUND
-	if (hcd->hw2937_assigned_channels & (1<<hc->hc_num))
-	{
-		if ((hcd->hw2937_assigned_channels &= ~(1<<hc->hc_num)) == 0)
-			hcd->hw2937_xfer_mode = HW2937_XFER_MODE_IDLE;
-		DWC_DEBUGPL(DBG_HW2937, " release %d, hw2937_ac -> %x\n", hc->hc_num, hcd->hw2937_assigned_channels);
-	}
-	else
-	{
-		DWC_DEBUGPL(DBG_ANY, " Unexpected release %d (hw2937_ac = %x)\n", hc->hc_num, hcd->hw2937_assigned_channels);
-	}
-#endif
-
 	switch (halt_status) {
 	case DWC_OTG_HC_XFER_URB_COMPLETE:
 		free_qtd = 1;
@@ -802,6 +829,14 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 	case DWC_OTG_HC_XFER_NO_HALT_STATUS:
 		free_qtd = 0;
 		break;
+	case DWC_OTG_HC_XFER_PERIODIC_INCOMPLETE:
+		DWC_DEBUGPL(DBG_HCDV,
+			"  Complete URB with I/O error\n");
+		free_qtd = 1;
+		qtd->urb->status = -DWC_E_IO;
+		hcd->fops->complete(hcd, qtd->urb->priv,
+			qtd->urb, -DWC_E_IO);
+		break;
 	default:
 		free_qtd = 0;
 		break;
@@ -809,7 +844,7 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 
 	deactivate_qh(hcd, hc->qh, free_qtd);
 
-      cleanup:
+cleanup:
 	/*
 	 * Release the host channel for use by other transfers. The cleanup
 	 * function clears the channel interrupt enables and conditions, so
@@ -839,7 +874,6 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 		dwc_otg_hcd_queue_transactions(hcd, tr_type);
 	}
 }
-
 
 /**
  * Halts a host channel. If the channel cannot be halted immediately because
@@ -876,7 +910,7 @@ static void halt_channel(dwc_otg_hcd_t * hcd,
 			 * be processed.
 			 */
 			gintmsk.b.nptxfempty = 1;
-			dwc_modify_reg32(&global_regs->gintmsk, 0, gintmsk.d32);
+			DWC_MODIFY_REG32(&global_regs->gintmsk, 0, gintmsk.d32);
 		} else {
 			/*
 			 * Move the QH from the periodic queued schedule to
@@ -893,7 +927,7 @@ static void halt_channel(dwc_otg_hcd_t * hcd,
 			 * processed.
 			 */
 			gintmsk.b.ptxfempty = 1;
-			dwc_modify_reg32(&global_regs->gintmsk, 0, gintmsk.d32);
+			DWC_MODIFY_REG32(&global_regs->gintmsk, 0, gintmsk.d32);
 		}
 	}
 }
@@ -913,7 +947,7 @@ static void complete_non_periodic_xfer(dwc_otg_hcd_t * hcd,
 
 	qtd->error_count = 0;
 
-	hcint.d32 = dwc_read_reg32(&hc_regs->hcint);
+	hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
 	if (hcint.b.nyet) {
 		/*
 		 * Got a NYET on the last transaction of the transfer. This
@@ -964,7 +998,7 @@ static void complete_periodic_xfer(dwc_otg_hcd_t * hcd,
 	hctsiz_data_t hctsiz;
 	qtd->error_count = 0;
 
-	hctsiz.d32 = dwc_read_reg32(&hc_regs->hctsiz);
+	hctsiz.d32 = DWC_READ_REG32(&hc_regs->hctsiz);
 	if (!hc->ep_is_in || hctsiz.b.pktcnt == 0) {
 		/* Core halts channel in these cases. */
 		release_channel(hcd, hc, qtd, halt_status);
@@ -975,47 +1009,46 @@ static void complete_periodic_xfer(dwc_otg_hcd_t * hcd,
 }
 
 static int32_t handle_xfercomp_isoc_split_in(dwc_otg_hcd_t * hcd,
-				       	     dwc_hc_t * hc,
-				       	     dwc_otg_hc_regs_t * hc_regs,
-				       	     dwc_otg_qtd_t * qtd)
+					     dwc_hc_t * hc,
+					     dwc_otg_hc_regs_t * hc_regs,
+					     dwc_otg_qtd_t * qtd)
 {
-	uint32_t len;	
+	uint32_t len;
 	struct dwc_otg_hcd_iso_packet_desc *frame_desc;
 	frame_desc = &qtd->urb->iso_descs[qtd->isoc_frame_index];
-				
+
 	len = get_actual_xfer_length(hc, hc_regs, qtd,
-			     	     DWC_OTG_HC_XFER_COMPLETE,
-			     	     NULL);
-		     
+				     DWC_OTG_HC_XFER_COMPLETE, NULL);
+
 	if (!len) {
 		qtd->complete_split = 0;
 		qtd->isoc_split_offset = 0;
 		return 0;
 	}
 	frame_desc->actual_length += len;
-	
+
 	if (hc->align_buff && len)
-		dwc_memcpy(qtd->urb->buf + frame_desc->offset + qtd->isoc_split_offset, 
-								hc->qh->dw_align_buf, 
-								len);
+		dwc_memcpy(qtd->urb->buf + frame_desc->offset +
+			   qtd->isoc_split_offset, hc->qh->dw_align_buf, len);
 	qtd->isoc_split_offset += len;
-	
+
 	if (frame_desc->length == frame_desc->actual_length) {
 		frame_desc->status = 0;
 		qtd->isoc_frame_index++;
 		qtd->complete_split = 0;
 		qtd->isoc_split_offset = 0;
 	}
-			
+
 	if (qtd->isoc_frame_index == qtd->urb->packet_count) {
 		hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, 0);
 		release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
 	} else {
 		release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NO_HALT_STATUS);
 	}
-	
-	return 1; /* Indicates that channel released */
+
+	return 1;		/* Indicates that channel released */
 }
+
 /**
  * Handles a host channel Transfer Complete interrupt. This handler may be
  * called in either DMA mode or Slave mode.
@@ -1030,13 +1063,13 @@ static int32_t handle_hc_xfercomp_intr(dwc_otg_hcd_t * hcd,
 	dwc_otg_hcd_urb_t *urb = qtd->urb;
 	int pipe_type = dwc_otg_hcd_get_pipe_type(&urb->pipe_info);
 
-	DWC_DEBUGPL(DBG_HCD, "--Host Channel %d Interrupt: "
+	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "Transfer Complete--\n", hc->hc_num);
 
 	if (hcd->core_if->dma_desc_enable) {
 		dwc_otg_hcd_complete_xfer_ddma(hcd, hc, hc_regs, halt_status);
 		if (pipe_type == UE_ISOCHRONOUS) {
-			/* Do not disable the interrupt, just clear it */	
+			/* Do not disable the interrupt, just clear it */
 			clear_hc_int(hc_regs, xfercomp);
 			return 1;
 		}
@@ -1048,13 +1081,15 @@ static int32_t handle_hc_xfercomp_intr(dwc_otg_hcd_t * hcd,
 	 */
 
 	if (hc->qh->do_split) {
-		if ((hc->ep_type == DWC_OTG_EP_TYPE_ISOC) && hc->ep_is_in && hcd->core_if->dma_enable) {
-			if (qtd->complete_split && handle_xfercomp_isoc_split_in(hcd, hc, hc_regs, qtd))
+		if ((hc->ep_type == DWC_OTG_EP_TYPE_ISOC) && hc->ep_is_in
+		    && hcd->core_if->dma_enable) {
+			if (qtd->complete_split
+			    && handle_xfercomp_isoc_split_in(hcd, hc, hc_regs,
+							     qtd))
 				goto handle_xfercomp_done;
+		} else {
+			qtd->complete_split = 0;
 		}
-		else {
-                        qtd->complete_split = 0;
-                }
 	}
 
 	/* Update the QTD and URB states. */
@@ -1114,16 +1149,22 @@ static int32_t handle_hc_xfercomp_intr(dwc_otg_hcd_t * hcd,
 		break;
 	case UE_INTERRUPT:
 		DWC_DEBUGPL(DBG_HCDV, "  Interrupt transfer complete\n");
-		update_urb_state_xfer_comp(hc, hc_regs, urb, qtd);
+		urb_xfer_done =
+			update_urb_state_xfer_comp(hc, hc_regs, urb, qtd);
 
 		/*
 		 * Interrupt URB is done on the first transfer complete
 		 * interrupt.
 		 */
-		hcd->fops->complete(hcd, urb->priv, urb, urb->status);
+		if (urb_xfer_done) {
+				hcd->fops->complete(hcd, urb->priv, urb, urb->status);
+				halt_status = DWC_OTG_HC_XFER_URB_COMPLETE;
+		} else {
+				halt_status = DWC_OTG_HC_XFER_COMPLETE;
+		}
+
 		dwc_otg_hcd_save_data_toggle(hc, hc_regs, qtd);
-		complete_periodic_xfer(hcd, hc, hc_regs, qtd,
-				       DWC_OTG_HC_XFER_URB_COMPLETE);
+		complete_periodic_xfer(hcd, hc, hc_regs, qtd, halt_status);
 		break;
 	case UE_ISOCHRONOUS:
 		DWC_DEBUGPL(DBG_HCDV, "  Isochronous transfer complete\n");
@@ -1202,15 +1243,16 @@ static void update_urb_state_xfer_intr(dwc_hc_t * hc,
 							    halt_status, NULL);
 	/* non DWORD-aligned buffer case handling. */
 	if (hc->align_buff && bytes_transferred && hc->ep_is_in) {
-		dwc_memcpy(urb->buf + urb->actual_length, hc->qh->dw_align_buf, bytes_transferred);
+		dwc_memcpy(urb->buf + urb->actual_length, hc->qh->dw_align_buf,
+			   bytes_transferred);
 	}
-	
+
 	urb->actual_length += bytes_transferred;
 
 #ifdef DEBUG
 	{
 		hctsiz_data_t hctsiz;
-		hctsiz.d32 = dwc_read_reg32(&hc_regs->hctsiz);
+		hctsiz.d32 = DWC_READ_REG32(&hc_regs->hctsiz);
 		DWC_DEBUGPL(DBG_HCDV, "DWC_otg: %s: %s, channel %d\n",
 			    __func__, (hc->ep_is_in ? "IN" : "OUT"),
 			    hc->hc_num);
@@ -1237,7 +1279,7 @@ static int32_t handle_hc_nak_intr(dwc_otg_hcd_t * hcd,
 				  dwc_otg_hc_regs_t * hc_regs,
 				  dwc_otg_qtd_t * qtd)
 {
-	DWC_DEBUGPL(DBG_HCD, "--Host Channel %d Interrupt: "
+	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "NAK Received--\n", hc->hc_num);
 
 	/*
@@ -1257,11 +1299,6 @@ static int32_t handle_hc_nak_intr(dwc_otg_hcd_t * hcd,
 	case UE_CONTROL:
 	case UE_BULK:
 		if (hcd->core_if->dma_enable && hc->ep_is_in) {
-#ifdef HW2937_WORKAROUND
-			if (hc->halt_status == DWC_OTG_HC_XFER_PAUSE_IN) {
-				halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NAK);
-			}
-#endif
 			/*
 			 * NAK interrupts are enabled on bulk/control IN
 			 * transfers in DMA mode for the sole purpose of
@@ -1287,7 +1324,7 @@ static int32_t handle_hc_nak_intr(dwc_otg_hcd_t * hcd,
 
 			if (hc->speed == DWC_OTG_EP_SPEED_HIGH)
 				hc->qh->ping_state = 1;
-			}
+		}
 
 		/*
 		 * Halt the channel so the transfer can be re-started from
@@ -1301,18 +1338,12 @@ static int32_t handle_hc_nak_intr(dwc_otg_hcd_t * hcd,
 		halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NAK);
 		break;
 	case UE_ISOCHRONOUS:
-#ifdef HW2937_WORKAROUND
-		if (hc->halt_status == DWC_OTG_HC_XFER_PAUSE_IN) {
-			halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NAK);
-			break;
-		}
-#endif
 		/* Should never get called for isochronous transfers. */
 		DWC_ASSERT(1, "NACK interrupt for ISOC transfer\n");
 		break;
 	}
 
-      handle_nak_done:
+handle_nak_done:
 	disable_hc_int(hc_regs, nak);
 
 	return 1;
@@ -1328,7 +1359,7 @@ static int32_t handle_hc_ack_intr(dwc_otg_hcd_t * hcd,
 				  dwc_otg_hc_regs_t * hc_regs,
 				  dwc_otg_qtd_t * qtd)
 {
-	DWC_DEBUGPL(DBG_HCD, "--Host Channel %d Interrupt: "
+	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "ACK Received--\n", hc->hc_num);
 
 	if (hc->do_split) {
@@ -1362,11 +1393,11 @@ static int32_t handle_hc_ack_intr(dwc_otg_hcd_t * hcd,
 				 */
 				{
 					struct dwc_otg_hcd_iso_packet_desc
-					    *frame_desc;
+					*frame_desc;
 
 					frame_desc =
-					    &qtd->urb->iso_descs[qtd->
-									 isoc_frame_index];
+					    &qtd->urb->
+					    iso_descs[qtd->isoc_frame_index];
 					qtd->isoc_split_offset += 188;
 
 					if ((frame_desc->length -
@@ -1398,14 +1429,6 @@ static int32_t handle_hc_ack_intr(dwc_otg_hcd_t * hcd,
 			 */
 			halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_ACK);
 		}
-#ifdef HW2937_WORKAROUND
-		else if (hc->halt_status == DWC_OTG_HC_XFER_PAUSE_IN) {
-			dwc_otg_hc_regs_t *hc_regs = hcd->core_if->host_if->hc_regs[hc->hc_num];
-			update_urb_state_xfer_intr(hc, hc_regs, qtd->urb, qtd, DWC_OTG_HC_XFER_PAUSE_IN);
-			dwc_otg_hcd_save_data_toggle(hc, hc_regs, qtd);
-			release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_PAUSE_IN);
-		}
-#endif
 	}
 
 	/*
@@ -1430,7 +1453,7 @@ static int32_t handle_hc_nyet_intr(dwc_otg_hcd_t * hcd,
 				   dwc_otg_hc_regs_t * hc_regs,
 				   dwc_otg_qtd_t * qtd)
 {
-	DWC_DEBUGPL(DBG_HCD, "--Host Channel %d Interrupt: "
+	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "NYET Received--\n", hc->hc_num);
 
 	/*
@@ -1438,7 +1461,8 @@ static int32_t handle_hc_nyet_intr(dwc_otg_hcd_t * hcd,
 	 * re-do the CSPLIT immediately on non-periodic
 	 */
 	if (hc->do_split && hc->complete_split) {
-		if (hc->ep_is_in && (hc->ep_type == DWC_OTG_EP_TYPE_ISOC) && hcd->core_if->dma_enable) {	
+		if (hc->ep_is_in && (hc->ep_type == DWC_OTG_EP_TYPE_ISOC)
+		    && hcd->core_if->dma_enable) {
 			qtd->complete_split = 0;
 			qtd->isoc_split_offset = 0;
 			if (++qtd->isoc_frame_index == qtd->urb->packet_count) {
@@ -1494,7 +1518,7 @@ static int32_t handle_hc_nyet_intr(dwc_otg_hcd_t * hcd,
 	 */
 	halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NYET);
 
-      handle_nyet_done:
+handle_nyet_done:
 	disable_hc_int(hc_regs, nyet);
 	return 1;
 }
@@ -1508,11 +1532,12 @@ static int32_t handle_hc_babble_intr(dwc_otg_hcd_t * hcd,
 				     dwc_otg_hc_regs_t * hc_regs,
 				     dwc_otg_qtd_t * qtd)
 {
-	DWC_DEBUGPL(DBG_HCD, "--Host Channel %d Interrupt: "
+	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "Babble Error--\n", hc->hc_num);
-	
+
 	if (hcd->core_if->dma_desc_enable) {
-		dwc_otg_hcd_complete_xfer_ddma(hcd, hc, hc_regs, DWC_OTG_HC_XFER_BABBLE_ERR);
+		dwc_otg_hcd_complete_xfer_ddma(hcd, hc, hc_regs,
+					       DWC_OTG_HC_XFER_BABBLE_ERR);
 		goto handle_babble_done;
 	}
 
@@ -1526,7 +1551,7 @@ static int32_t handle_hc_babble_intr(dwc_otg_hcd_t * hcd,
 						    DWC_OTG_HC_XFER_BABBLE_ERR);
 		halt_channel(hcd, hc, qtd, halt_status);
 	}
-	
+
 handle_babble_done:
 	disable_hc_int(hc_regs, bblerr);
 	return 1;
@@ -1549,13 +1574,13 @@ static int32_t handle_hc_ahberr_intr(dwc_otg_hcd_t * hcd,
 
 	dwc_otg_hcd_urb_t *urb = qtd->urb;
 
-	DWC_DEBUGPL(DBG_HCD, "--Host Channel %d Interrupt: "
+	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "AHB Error--\n", hc->hc_num);
 
-	hcchar.d32 = dwc_read_reg32(&hc_regs->hcchar);
-	hcsplt.d32 = dwc_read_reg32(&hc_regs->hcsplt);
-	hctsiz.d32 = dwc_read_reg32(&hc_regs->hctsiz);
-	hcdma = dwc_read_reg32(&hc_regs->hcdma);
+	hcchar.d32 = DWC_READ_REG32(&hc_regs->hcchar);
+	hcsplt.d32 = DWC_READ_REG32(&hc_regs->hcsplt);
+	hctsiz.d32 = DWC_READ_REG32(&hc_regs->hctsiz);
+	hcdma = DWC_READ_REG32(&hc_regs->hcdma);
 
 	DWC_ERROR("AHB ERROR, Channel %d\n", hc->hc_num);
 	DWC_ERROR("  hcchar 0x%08x, hcsplt 0x%08x\n", hcchar.d32, hcsplt.d32);
@@ -1566,45 +1591,44 @@ static int32_t handle_hc_ahberr_intr(dwc_otg_hcd_t * hcd,
 	DWC_ERROR("  Endpoint: %d, %s\n",
 		  dwc_otg_hcd_get_ep_num(&urb->pipe_info),
 		  (dwc_otg_hcd_is_pipe_in(&urb->pipe_info) ? "IN" : "OUT"));
-	
 
 	switch (dwc_otg_hcd_get_pipe_type(&urb->pipe_info)) {
-case UE_CONTROL:
-		pipetype = "CONTROL"; 
-		break; 
+	case UE_CONTROL:
+		pipetype = "CONTROL";
+		break;
 	case UE_BULK:
-		pipetype = "BULK"; 
-		break; 
+		pipetype = "BULK";
+		break;
 	case UE_INTERRUPT:
-		pipetype = "INTERRUPT"; 
-		break; 
+		pipetype = "INTERRUPT";
+		break;
 	case UE_ISOCHRONOUS:
-		pipetype = "ISOCHRONOUS"; 
-		break; 
+		pipetype = "ISOCHRONOUS";
+		break;
 	default:
-		pipetype = "UNKNOWN"; 
+		pipetype = "UNKNOWN";
 		break;
 	}
-	
+
 	DWC_ERROR("  Endpoint type: %s\n", pipetype);
 
 	switch (hc->speed) {
 	case DWC_OTG_EP_SPEED_HIGH:
-		speed = "HIGH"; 
-		break; 
-	case DWC_OTG_EP_SPEED_FULL:
-		speed = "FULL"; 
-		break; 
-	case DWC_OTG_EP_SPEED_LOW:
-		speed = "LOW"; 
-		break; 
-	default:
-		speed = "UNKNOWN"; 
+		speed = "HIGH";
 		break;
-	};	
+	case DWC_OTG_EP_SPEED_FULL:
+		speed = "FULL";
+		break;
+	case DWC_OTG_EP_SPEED_LOW:
+		speed = "LOW";
+		break;
+	default:
+		speed = "UNKNOWN";
+		break;
+	};
 
 	DWC_ERROR("  Speed: %s\n", speed);
-	
+
 	DWC_ERROR("  Max packet size: %d\n",
 		  dwc_otg_hcd_get_mps(&urb->pipe_info));
 	DWC_ERROR("  Data buffer length: %d\n", urb->length);
@@ -1616,7 +1640,8 @@ case UE_CONTROL:
 
 	/* Core haltes the channel for Descriptor DMA mode */
 	if (hcd->core_if->dma_desc_enable) {
-		dwc_otg_hcd_complete_xfer_ddma(hcd, hc, hc_regs, DWC_OTG_HC_XFER_AHB_ERR);
+		dwc_otg_hcd_complete_xfer_ddma(hcd, hc, hc_regs,
+					       DWC_OTG_HC_XFER_AHB_ERR);
 		goto handle_ahberr_done;
 	}
 
@@ -1641,11 +1666,12 @@ static int32_t handle_hc_xacterr_intr(dwc_otg_hcd_t * hcd,
 				      dwc_otg_hc_regs_t * hc_regs,
 				      dwc_otg_qtd_t * qtd)
 {
-	DWC_DEBUGPL(DBG_HCD, "--Host Channel %d Interrupt: "
+	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "Transaction Error--\n", hc->hc_num);
 
 	if (hcd->core_if->dma_desc_enable) {
-		dwc_otg_hcd_complete_xfer_ddma(hcd, hc, hc_regs, DWC_OTG_HC_XFER_XACT_ERR);
+		dwc_otg_hcd_complete_xfer_ddma(hcd, hc, hc_regs,
+					       DWC_OTG_HC_XFER_XACT_ERR);
 		goto handle_xacterr_done;
 	}
 
@@ -1703,7 +1729,7 @@ static int32_t handle_hc_frmovrun_intr(dwc_otg_hcd_t * hcd,
 				       dwc_otg_hc_regs_t * hc_regs,
 				       dwc_otg_qtd_t * qtd)
 {
-	DWC_DEBUGPL(DBG_HCD, "--Host Channel %d Interrupt: "
+	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "Frame Overrun--\n", hc->hc_num);
 
 	switch (dwc_otg_hcd_get_pipe_type(&qtd->urb->pipe_info)) {
@@ -1739,7 +1765,7 @@ static int32_t handle_hc_datatglerr_intr(dwc_otg_hcd_t * hcd,
 					 dwc_otg_hc_regs_t * hc_regs,
 					 dwc_otg_qtd_t * qtd)
 {
-	DWC_DEBUGPL(DBG_HCD, "--Host Channel %d Interrupt: "
+	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "Data Toggle Error--\n", hc->hc_num);
 
 	if (hc->ep_is_in) {
@@ -1777,11 +1803,11 @@ static inline int halt_status_ok(dwc_otg_hcd_t * hcd,
 		 * This code is here only as a check. This condition should
 		 * never happen. Ignore the halt if it does occur.
 		 */
-		hcchar.d32 = dwc_read_reg32(&hc_regs->hcchar);
-		hctsiz.d32 = dwc_read_reg32(&hc_regs->hctsiz);
-		hcint.d32 = dwc_read_reg32(&hc_regs->hcint);
-		hcintmsk.d32 = dwc_read_reg32(&hc_regs->hcintmsk);
-		hcsplt.d32 = dwc_read_reg32(&hc_regs->hcsplt);
+		hcchar.d32 = DWC_READ_REG32(&hc_regs->hcchar);
+		hctsiz.d32 = DWC_READ_REG32(&hc_regs->hctsiz);
+		hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
+		hcintmsk.d32 = DWC_READ_REG32(&hc_regs->hcintmsk);
+		hcsplt.d32 = DWC_READ_REG32(&hc_regs->hcsplt);
 		DWC_WARN
 		    ("%s: hc->halt_status == DWC_OTG_HC_XFER_NO_HALT_STATUS, "
 		     "channel %d, hcchar 0x%08x, hctsiz 0x%08x, "
@@ -1802,7 +1828,7 @@ static inline int halt_status_ok(dwc_otg_hcd_t * hcd,
 	 * never be set when the halt interrupt occurs. Halt the
 	 * channel again if it does occur.
 	 */
-	hcchar.d32 = dwc_read_reg32(&hc_regs->hcchar);
+	hcchar.d32 = DWC_READ_REG32(&hc_regs->hcchar);
 	if (hcchar.b.chdis) {
 		DWC_WARN("%s: hcchar.chdis set unexpectedly, "
 			 "hcchar 0x%08x, trying to halt again\n",
@@ -1842,7 +1868,8 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 	}
 
 	if (hc->halt_status == DWC_OTG_HC_XFER_URB_DEQUEUE ||
-	    (hc->halt_status == DWC_OTG_HC_XFER_AHB_ERR && !hcd->core_if->dma_desc_enable)) {
+	    (hc->halt_status == DWC_OTG_HC_XFER_AHB_ERR
+	     && !hcd->core_if->dma_desc_enable)) {
 		/*
 		 * Just release the channel. A dequeue can happen on a
 		 * transfer timeout. In the case of an AHB Error, the channel
@@ -1850,15 +1877,16 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 		 * recover.
 		 */
 		if (hcd->core_if->dma_desc_enable)
-			dwc_otg_hcd_complete_xfer_ddma(hcd, hc, hc_regs, hc->halt_status);
+			dwc_otg_hcd_complete_xfer_ddma(hcd, hc, hc_regs,
+						       hc->halt_status);
 		else
 			release_channel(hcd, hc, qtd, hc->halt_status);
 		return;
 	}
 
 	/* Read the HCINTn register to determine the cause for the halt. */
-	hcint.d32 = dwc_read_reg32(&hc_regs->hcint);
-	hcintmsk.d32 = dwc_read_reg32(&hc_regs->hcintmsk);
+	hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
+	hcintmsk.d32 = DWC_READ_REG32(&hc_regs->hcintmsk);
 
 	if (hcint.b.xfercomp) {
 		/** @todo This is here because of a possible hardware bug.  Spec
@@ -1891,7 +1919,7 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 		handle_hc_xacterr_intr(hcd, hc, hc_regs, qtd);
 	} else if (hcint.b.xcs_xact && hcd->core_if->dma_desc_enable) {
 		handle_hc_xacterr_intr(hcd, hc, hc_regs, qtd);
- 	} else if (hcint.b.ahberr && hcd->core_if->dma_desc_enable) {	 
+	} else if (hcint.b.ahberr && hcd->core_if->dma_desc_enable) {
 		handle_hc_ahberr_intr(hcd, hc, hc_regs, qtd);
 	} else if (hcint.b.bblerr) {
 		handle_hc_babble_intr(hcd, hc, hc_regs, qtd);
@@ -1943,10 +1971,11 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 				    ("%s: Channel %d, DMA Mode -- ChHltd set, but reason "
 				     "for halting is unknown, hcint 0x%08x, intsts 0x%08x\n",
 				     __func__, hc->hc_num, hcint.d32,
-				     dwc_read_reg32(&hcd->core_if->
-						    core_global_regs->gintsts));
+				     DWC_READ_REG32(&hcd->
+						    core_if->core_global_regs->
+						    gintsts));
 			}
-	
+
 		}
 	} else {
 		DWC_PRINTF("NYET/NAK/ACK/other in non-error case, 0x%08x\n",
@@ -1970,7 +1999,7 @@ static int32_t handle_hc_chhltd_intr(dwc_otg_hcd_t * hcd,
 				     dwc_otg_hc_regs_t * hc_regs,
 				     dwc_otg_qtd_t * qtd)
 {
-	DWC_DEBUGPL(DBG_HCD, "--Host Channel %d Interrupt: "
+	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "Channel Halted--\n", hc->hc_num);
 
 	if (hcd->core_if->dma_enable) {
@@ -2003,8 +2032,8 @@ int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 	hc_regs = dwc_otg_hcd->core_if->host_if->hc_regs[num];
 	qtd = DWC_CIRCLEQ_FIRST(&hc->qh->qtd_list);
 
-	hcint.d32 = dwc_read_reg32(&hc_regs->hcint);
-	hcintmsk.d32 = dwc_read_reg32(&hc_regs->hcintmsk);
+	hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
+	hcintmsk.d32 = DWC_READ_REG32(&hc_regs->hcintmsk);
 	DWC_DEBUGPL(DBG_HCDV,
 		    "  hcint 0x%08x, hcintmsk 0x%08x, hcint&hcintmsk 0x%08x\n",
 		    hcint.d32, hcintmsk.d32, (hcint.d32 & hcintmsk.d32));
@@ -2062,4 +2091,4 @@ int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 	return retval;
 }
 
-#endif				/* DWC_DEVICE_ONLY */
+#endif /* DWC_DEVICE_ONLY */

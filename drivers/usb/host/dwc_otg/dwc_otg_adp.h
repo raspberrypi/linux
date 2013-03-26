@@ -1,13 +1,13 @@
 /* ==========================================================================
- * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_driver.h $
- * $Revision: #19 $
- * $Date: 2010/11/15 $
- * $Change: 1627671 $
+ * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_adp.h $
+ * $Revision: #7 $
+ * $Date: 2011/10/24 $
+ * $Change: 1871159 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
  * otherwise expressly agreed to in writing between Synopsys and you.
- * 
+ *
  * The Software IS NOT an item of Licensed Software or Licensed Product under
  * any End User Software License Agreement or Agreement for Licensed Product
  * with Synopsys or any supplement thereto. You are permitted to use and
@@ -17,7 +17,7 @@
  * any information contained herein except pursuant to this license grant from
  * Synopsys. If you do not agree with this notice, including the disclaimer
  * below, then you are not authorized to use the Software.
- * 
+ *
  * THIS SOFTWARE IS BEING DISTRIBUTED BY SYNOPSYS SOLELY ON AN "AS IS" BASIS
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -31,56 +31,50 @@
  * DAMAGE.
  * ========================================================================== */
 
-#ifndef __DWC_OTG_DRIVER_H__
-#define __DWC_OTG_DRIVER_H__
-
-/** @file
- * This file contains the interface to the Linux driver.
- */
-#include "dwc_otg_os_dep.h"
-#include "dwc_otg_core_if.h"
-
-/* Type declarations */
-struct dwc_otg_pcd;
-struct dwc_otg_hcd;
+#ifndef __DWC_OTG_ADP_H__
+#define __DWC_OTG_ADP_H__
 
 /**
- * This structure is a wrapper that encapsulates the driver components used to
- * manage a single DWC_otg controller.
+ * @file
+ *
+ * This file contains the Attach Detect Protocol interfaces and defines
+ * (functions) and structures for Linux.
+ *
  */
-typedef struct dwc_otg_device {
-	/** Structure containing OS-dependent stuff. KEEP THIS STRUCT AT THE
-	 * VERY BEGINNING OF THE DEVICE STRUCT. OSes such as FreeBSD and NetBSD
-	 * require this. */
-	struct os_dependent os_dep;
 
-	/** Pointer to the core interface structure. */
-	dwc_otg_core_if_t *core_if;
+#define DWC_OTG_ADP_UNATTACHED	0
+#define DWC_OTG_ADP_ATTACHED	1
+#define DWC_OTG_ADP_UNKOWN	2
 
-	/** Pointer to the PCD structure. */
-	struct dwc_otg_pcd *pcd;
+typedef struct dwc_otg_adp {
+	uint32_t adp_started;	
+	uint32_t initial_probe;
+	int32_t probe_timer_values[2];
+	uint32_t probe_enabled;
+	uint32_t sense_enabled;
+	dwc_timer_t *sense_timer;
+	uint32_t sense_timer_started;
+	dwc_timer_t *vbuson_timer;
+	uint32_t vbuson_timer_started;
+	uint32_t attached;
+	uint32_t probe_counter;
+	uint32_t gpwrdn;
+} dwc_otg_adp_t;
 
-	/** Pointer to the HCD structure. */
-	struct dwc_otg_hcd *hcd;
-
-	/** Flag to indicate whether the common IRQ handler is installed. */
-	uint8_t common_irq_installed;
-
-} dwc_otg_device_t;
-
-/*We must clear S3C24XX_EINTPEND external interrupt register 
- * because after clearing in this register trigerred IRQ from 
- * H/W core in kernel interrupt can be occured again before OTG
- * handlers clear all IRQ sources of Core registers because of
- * timing latencies and Low Level IRQ Type.
+/**
+ * Attach Detect Protocol functions
  */
-#ifdef CONFIG_MACH_IPMATE
-#define  S3C2410X_CLEAR_EINTPEND()   \
-do { \
-	__raw_writel(1UL << 11,S3C24XX_EINTPEND); \
-} while (0)
-#else
-#define  S3C2410X_CLEAR_EINTPEND()   do { } while (0)
-#endif
 
-#endif
+extern void dwc_otg_adp_write_reg(dwc_otg_core_if_t * core_if, uint32_t value);
+extern uint32_t dwc_otg_adp_read_reg(dwc_otg_core_if_t * core_if);
+extern uint32_t dwc_otg_adp_probe_start(dwc_otg_core_if_t * core_if);
+extern uint32_t dwc_otg_adp_sense_start(dwc_otg_core_if_t * core_if);
+extern uint32_t dwc_otg_adp_probe_stop(dwc_otg_core_if_t * core_if);
+extern uint32_t dwc_otg_adp_sense_stop(dwc_otg_core_if_t * core_if);
+extern void dwc_otg_adp_start(dwc_otg_core_if_t * core_if, uint8_t is_host);
+extern void dwc_otg_adp_init(dwc_otg_core_if_t * core_if);
+extern void dwc_otg_adp_remove(dwc_otg_core_if_t * core_if);
+extern int32_t dwc_otg_adp_handle_intr(dwc_otg_core_if_t * core_if);
+extern int32_t dwc_otg_adp_handle_srp_intr(dwc_otg_core_if_t * core_if);
+
+#endif //__DWC_OTG_ADP_H__
