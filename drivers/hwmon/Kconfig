@@ -1602,6 +1602,16 @@ config SENSORS_ULTRA45
 	  This driver provides support for the Ultra45 workstation environmental
 	  sensors.
 
+config SENSORS_BCM2835
+	depends on THERMAL_BCM2835=n
+	tristate "Broadcom BCM2835 HWMON Driver"
+	help
+	  If you say yes here you get support for the hardware
+	  monitoring features of the BCM2835 Chip
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called bcm2835-hwmon.
+
 if ACPI
 
 comment "ACPI drivers"
