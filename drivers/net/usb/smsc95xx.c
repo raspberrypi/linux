@@ -83,6 +83,10 @@ static int packetsize = 2560;
 module_param(packetsize, int, 0644);
 MODULE_PARM_DESC(packetsize, "Override the RX URB packet size");
 
+static char *macaddr = ":";
+module_param(macaddr, charp, 0);
+MODULE_PARM_DESC(macaddr, "MAC address");
+
 static int __must_check smsc95xx_read_reg(struct usbnet *dev, u32 index,
 					  u32 *data)
 {
@@ -805,6 +809,21 @@ static int smsc95xx_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	return phy_mii_ioctl(netdev->phydev, rq, cmd);
 }
 
+/* Check the macaddr module parameter for a MAC address */
+static int smsc95xx_macaddr_param(struct usbnet *dev, struct net_device *nd)
+{
+	u8 mtbl[ETH_ALEN];
+
+	if (mac_pton(macaddr, mtbl)) {
+		netif_dbg(dev, ifup, dev->net,
+			  "Overriding MAC address with: %pM\n", mtbl);
+		dev_addr_mod(nd, 0, mtbl, ETH_ALEN);
+		return 0;
+	} else {
+		return -EINVAL;
+	}
+}
+
 static void smsc95xx_init_mac_address(struct usbnet *dev)
 {
 	u8 addr[ETH_ALEN];
@@ -824,6 +843,14 @@ static void smsc95xx_init_mac_address(struct usbnet *dev)
 		if (is_valid_ether_addr(dev->net->dev_addr)) {
 			/* eeprom values are valid so use them */
 			netif_dbg(dev, ifup, dev->net, "MAC address read from EEPROM\n");
+			return;
+		}
+	}
+
+	/* Check module parameters */
+	if (smsc95xx_macaddr_param(dev, dev->net) == 0) {
+		if (is_valid_ether_addr(dev->net->dev_addr)) {
+			netif_dbg(dev, ifup, dev->net, "MAC address read from module parameter\n");
 			return;
 		}
 	}
