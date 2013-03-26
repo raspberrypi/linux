@@ -41,7 +41,9 @@
 #ifndef _USB_H_
 #define _USB_H_
 
-#include "dwc_os.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  * The USB records contain some unaligned little-endian word
@@ -54,6 +56,9 @@ typedef u_int8_t uWord[2];
 typedef u_int8_t uDWord[4];
 
 #define USETW2(w,h,l) ((w)[0] = (u_int8_t)(l), (w)[1] = (u_int8_t)(h))
+#define UCONSTW(x)	{ (x) & 0xff, ((x) >> 8) & 0xff }
+#define UCONSTDW(x)	{ (x) & 0xff, ((x) >> 8) & 0xff, \
+			  ((x) >> 16) & 0xff, ((x) >> 24) & 0xff }
 
 #if 1
 #define UGETW(w) ((w)[0] | ((w)[1] << 8))
@@ -73,6 +78,21 @@ typedef u_int8_t uDWord[4];
 #define UGETDW(w) (*(u_int32_t *)(w))
 #define USETDW(w,v) (*(u_int32_t *)(w) = (v))
 #endif
+
+/*
+ * Macros for accessing UAS IU fields, which are big-endian
+ */
+#define IUSETW2(w,h,l) ((w)[0] = (u_int8_t)(h), (w)[1] = (u_int8_t)(l))
+#define IUCONSTW(x)	{ ((x) >> 8) & 0xff, (x) & 0xff }
+#define IUCONSTDW(x)	{ ((x) >> 24) & 0xff, ((x) >> 16) & 0xff, \
+			((x) >> 8) & 0xff, (x) & 0xff }
+#define IUGETW(w) (((w)[0] << 8) | (w)[1])
+#define IUSETW(w,v) ((w)[0] = (u_int8_t)((v) >> 8), (w)[1] = (u_int8_t)(v))
+#define IUGETDW(w) (((w)[0] << 24) | ((w)[1] << 16) | ((w)[2] << 8) | (w)[3])
+#define IUSETDW(w,v) ((w)[0] = (u_int8_t)((v) >> 24), \
+		      (w)[1] = (u_int8_t)((v) >> 16), \
+		      (w)[2] = (u_int8_t)((v) >> 8), \
+		      (w)[3] = (u_int8_t)(v))
 
 #define UPACKED __attribute__((__packed__))
 
@@ -140,6 +160,7 @@ typedef struct {
 #define  UDESC_STRING		0x03
 #define  UDESC_INTERFACE	0x04
 #define  UDESC_ENDPOINT		0x05
+#define  UDESC_SS_USB_COMPANION	0x30
 #define  UDESC_DEVICE_QUALIFIER	0x06
 #define  UDESC_OTHER_SPEED_CONFIGURATION 0x07
 #define  UDESC_INTERFACE_POWER	0x08
@@ -157,6 +178,8 @@ typedef struct {
 #define  WUDESC_BOS		0x0f
 #define  WUDESC_DEVICE_CAPABILITY 0x10
 #define  WUDESC_WIRELESS_ENDPOINT_COMPANION 0x11
+#define  UDESC_BOS		0x0f
+#define  UDESC_DEVICE_CAPABILITY 0x10
 #define  UDESC_CS_DEVICE	0x21	/* class specific */
 #define  UDESC_CS_CONFIG	0x22
 #define  UDESC_CS_STRING	0x23
@@ -177,11 +200,11 @@ typedef struct {
 #define WUR_SET_SECURITY_DATA	0x12
 #define WUR_GET_SECURITY_DATA	0x13
 #define WUR_SET_WUSB_DATA	0x14
-#define  WUDATA_DRPIE_INFO  0x01
-#define  WUDATA_TRANSMIT_DATA 0x02
-#define  WUDATA_TRANSMIT_PARAMS 0x03
-#define  WUDATA_RECEIVE_PARAMS 0x04
-#define  WUDATA_TRANSMIT_POWER 0x05
+#define  WUDATA_DRPIE_INFO	0x01
+#define  WUDATA_TRANSMIT_DATA	0x02
+#define  WUDATA_TRANSMIT_PARAMS	0x03
+#define  WUDATA_RECEIVE_PARAMS	0x04
+#define  WUDATA_TRANSMIT_POWER	0x05
 #define WUR_LOOPBACK_DATA_WRITE	0x15
 #define WUR_LOOPBACK_DATA_READ	0x16
 #define WUR_SET_INTERFACE_DS	0x17
@@ -193,11 +216,15 @@ typedef struct {
 #define UF_DEVICE_B_HNP_ENABLE	3
 #define UF_DEVICE_A_HNP_SUPPORT	4
 #define UF_DEVICE_A_ALT_HNP_SUPPORT 5
-#define WUF_WUSB                3
-#define  WUF_TX_DRPIE           0x0
-#define  WUF_DEV_XMIT_PACKET    0x1
-#define  WUF_COUNT_PACKETS      0x2
-#define  WUF_CAPTURE_PACKETS    0x3
+#define WUF_WUSB		3
+#define  WUF_TX_DRPIE		0x0
+#define  WUF_DEV_XMIT_PACKET	0x1
+#define  WUF_COUNT_PACKETS	0x2
+#define  WUF_CAPTURE_PACKETS	0x3
+#define UF_FUNCTION_SUSPEND	0
+#define UF_U1_ENABLE		48
+#define UF_U2_ENABLE		49
+#define UF_LTM_ENABLE		50
 
 /* Class requests from the USB 2.0 hub spec, table 11-15 */
 #define UCR_CLEAR_HUB_FEATURE		(0x2000 | UR_CLEAR_FEATURE)
@@ -209,11 +236,20 @@ typedef struct {
 #define UCR_SET_PORT_FEATURE		(0x2300 | UR_SET_FEATURE)
 #define UCR_SET_AND_TEST_PORT_FEATURE	(0xa300 | UR_SET_AND_TEST_FEATURE)
 
+#ifdef _MSC_VER
+#include <pshpack1.h>
+#endif
+
 typedef struct {
 	uByte		bLength;
 	uByte		bDescriptorType;
 	uByte		bDescriptorSubtype;
 } UPACKED usb_descriptor_t;
+
+typedef struct {
+	uByte		bLength;
+	uByte		bDescriptorType;
+} UPACKED usb_descriptor_header_t;
 
 typedef struct {
 	uByte		bLength;
@@ -243,6 +279,10 @@ typedef struct {
 	uByte		bNumInterface;
 	uByte		bConfigurationValue;
 	uByte		iConfiguration;
+#define UC_ATT_ONE		(1 << 7)	/* must be set */
+#define UC_ATT_SELFPOWER	(1 << 6)	/* self powered */
+#define UC_ATT_WAKEUP		(1 << 5)	/* can wakeup */
+#define UC_ATT_BATTERY		(1 << 4)	/* battery powered */
 	uByte		bmAttributes;
 #define UC_BUS_POWERED		0x80
 #define UC_SELF_POWERED		0x40
@@ -291,6 +331,19 @@ typedef struct {
 	uByte		bInterval;
 } UPACKED usb_endpoint_descriptor_t;
 #define USB_ENDPOINT_DESCRIPTOR_SIZE 7
+
+typedef struct ss_endpoint_companion_descriptor {
+	uByte bLength;
+	uByte bDescriptorType;
+	uByte bMaxBurst;
+#define USSE_GET_MAX_STREAMS(a)		((a) & 0x1f)
+#define USSE_SET_MAX_STREAMS(a, b)	((a) | ((b) & 0x1f))
+#define USSE_GET_MAX_PACKET_NUM(a)	((a) & 0x03)
+#define USSE_SET_MAX_PACKET_NUM(a, b)	((a) | ((b) & 0x03))
+	uByte bmAttributes;
+	uWord wBytesPerInterval;
+} UPACKED ss_endpoint_companion_descriptor_t;
+#define USB_SS_ENDPOINT_COMPANION_DESCRIPTOR_SIZE 6
 
 typedef struct {
 	uByte		bLength;
@@ -420,6 +473,10 @@ typedef struct {
 #define UPS_C_PORT_RESET		0x0010
 } UPACKED usb_port_status_t;
 
+#ifdef _MSC_VER
+#include <poppack.h>
+#endif
+
 /* Device class codes */
 #define UDCLASS_IN_INTERFACE	0x00
 #define UDCLASS_COMM		0x02
@@ -443,13 +500,13 @@ typedef struct {
 #define  UISUBCLASS_MIDISTREAM		3
 
 #define UICLASS_CDC		0x02 /* communication */
-#define	 UISUBCLASS_DIRECT_LINE_CONTROL_MODEL	1
+#define  UISUBCLASS_DIRECT_LINE_CONTROL_MODEL	1
 #define  UISUBCLASS_ABSTRACT_CONTROL_MODEL	2
-#define	 UISUBCLASS_TELEPHONE_CONTROL_MODEL	3
-#define	 UISUBCLASS_MULTICHANNEL_CONTROL_MODEL	4
-#define	 UISUBCLASS_CAPI_CONTROLMODEL		5
-#define	 UISUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL 6
-#define	 UISUBCLASS_ATM_NETWORKING_CONTROL_MODEL 7
+#define  UISUBCLASS_TELEPHONE_CONTROL_MODEL	3
+#define  UISUBCLASS_MULTICHANNEL_CONTROL_MODEL	4
+#define  UISUBCLASS_CAPI_CONTROLMODEL		5
+#define  UISUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL 6
+#define  UISUBCLASS_ATM_NETWORKING_CONTROL_MODEL 7
 #define   UIPROTO_CDC_AT			1
 
 #define UICLASS_HID		0x03
@@ -519,7 +576,6 @@ typedef struct {
 
 #define UICLASS_VENDOR		0xff
 
-
 #define USB_HUB_MAX_DEPTH 5
 
 /*
@@ -557,7 +613,6 @@ typedef struct {
 #define USB_MAX_POWER		500 /* mA */
 
 #define USB_BUS_RESET_DELAY	100 /* ms XXX?*/
-
 
 #define USB_UNCONFIG_NO 0
 #define USB_UNCONFIG_INDEX (-1)
@@ -638,9 +693,12 @@ struct usb_device_info {
 	u_int8_t	udi_protocol;
 	u_int8_t	udi_config;
 	u_int8_t	udi_speed;
-#define USB_SPEED_LOW  1
-#define USB_SPEED_FULL 2
-#define USB_SPEED_HIGH 3
+#define USB_SPEED_UNKNOWN	0
+#define USB_SPEED_LOW		1
+#define USB_SPEED_FULL		2
+#define USB_SPEED_HIGH		3
+#define USB_SPEED_VARIABLE	4
+#define USB_SPEED_SUPER		5
 	int		udi_power;	/* power consumption in mA, 0 if selfpowered */
 	int		udi_nports;
 	char		udi_devnames[USB_MAX_DEVNAMES][USB_MAX_DEVNAMELEN];
@@ -660,17 +718,14 @@ struct usb_device_stats {
 	u_long	uds_requests[4];	/* indexed by transfer type UE_* */
 };
 
-
-
-
 #define WUSB_MIN_IE			0x80
 #define WUSB_WCTA_IE			0x80
 #define WUSB_WCONNECTACK_IE		0x81
 #define WUSB_WHOSTINFO_IE		0x82
 #define  WUHI_GET_CA(_bmAttributes_) ((_bmAttributes_) & 0x3)
-#define   WUHI_CA_RECONN		        0x00
-#define   WUHI_CA_LIMITED	        0x01
-#define   WUHI_CA_ALL		        0x03
+#define   WUHI_CA_RECONN		0x00
+#define   WUHI_CA_LIMITED		0x01
+#define   WUHI_CA_ALL			0x03
 #define  WUHI_GET_MLSI(_bmAttributes_) (((_bmAttributes_) & 0x38) >> 3)
 #define WUSB_WCHCHANGEANNOUNCE_IE	0x83
 #define WUSB_WDEV_DISCONNECT_IE		0x84
@@ -701,150 +756,191 @@ struct usb_device_stats {
 #define WUSB_DN_ALIVE			0x07
 #define WUSB_DN_MAX			0x07
 
+#ifdef _MSC_VER
+#include <pshpack1.h>
+#endif
 
 /* WUSB Handshake Data.  Used during the SET/GET HANDSHAKE requests */
 typedef struct wusb_hndshk_data {
-	uint8_t bMessageNumber;
-	uint8_t bStatus;
-	uint8_t tTKID[3];
-	uint8_t bReserved;
-	uint8_t CDID[16];
-	uint8_t Nonce[16];
-	uint8_t MIC[8];
+	uByte bMessageNumber;
+	uByte bStatus;
+	uByte tTKID[3];
+	uByte bReserved;
+	uByte CDID[16];
+	uByte Nonce[16];
+	uByte MIC[8];
 } UPACKED wusb_hndshk_data_t;
 #define WUSB_HANDSHAKE_LEN_FOR_MIC	38
 
 /* WUSB Connection Context */
 typedef struct wusb_conn_context {
-	uint8_t CHID [16];
-	uint8_t CDID [16];
-	uint8_t CK [16];
+	uByte CHID [16];
+	uByte CDID [16];
+	uByte CK [16];
 } UPACKED wusb_conn_context_t;
 
 /* WUSB Security Descriptor */
 typedef struct wusb_security_desc {
-	uint8_t bLength;
-	uint8_t bDescriptorType;
-	uint16_t wTotalLength;
-	uint8_t bNumEncryptionTypes;
+	uByte bLength;
+	uByte bDescriptorType;
+	uWord wTotalLength;
+	uByte bNumEncryptionTypes;
 } UPACKED wusb_security_desc_t;
 
 /* WUSB Encryption Type Descriptor */
 typedef struct wusb_encrypt_type_desc {
-	uint8_t bLength;
-	uint8_t bDescriptorType;
+	uByte bLength;
+	uByte bDescriptorType;
 
-	uint8_t bEncryptionType;
-#define WUETD_UNSECURE	        0
+	uByte bEncryptionType;
+#define WUETD_UNSECURE		0
 #define WUETD_WIRED		1
 #define WUETD_CCM_1		2
 #define WUETD_RSA_1		3
 
-	uint8_t bEncryptionValue;
-	uint8_t bAuthKeyIndex;
+	uByte bEncryptionValue;
+	uByte bAuthKeyIndex;
 } UPACKED wusb_encrypt_type_desc_t;
 
 /* WUSB Key Descriptor */
 typedef struct wusb_key_desc {
-	uint8_t bLength;
-	uint8_t bDescriptorType;
-	uint8_t tTKID[3];
-	uint8_t bReserved;
-	uint8_t KeyData[1];	/* variable length */
+	uByte bLength;
+	uByte bDescriptorType;
+	uByte tTKID[3];
+	uByte bReserved;
+	uByte KeyData[1];	/* variable length */
 } UPACKED wusb_key_desc_t;
 
 /* WUSB BOS Descriptor (Binary device Object Store) */
 typedef struct wusb_bos_desc {
-	uint8_t bLength;
-	uint8_t bDescriptorType;
-	uint16_t wTotalLength;
-	uint8_t bNumDeviceCaps;
+	uByte bLength;
+	uByte bDescriptorType;
+	uWord wTotalLength;
+	uByte bNumDeviceCaps;
 } UPACKED wusb_bos_desc_t;
 
+#define USB_DEVICE_CAPABILITY_20_EXTENSION	0x02
+typedef struct usb_dev_cap_20_ext_desc {
+	uByte bLength;
+	uByte bDescriptorType;
+	uByte bDevCapabilityType;
+#define USB_20_EXT_LPM				0x02
+	uDWord bmAttributes;
+} UPACKED usb_dev_cap_20_ext_desc_t;
+
+#define USB_DEVICE_CAPABILITY_SS_USB		0x03
+typedef struct usb_dev_cap_ss_usb {
+	uByte bLength;
+	uByte bDescriptorType;
+	uByte bDevCapabilityType;
+#define USB_DC_SS_USB_LTM_CAPABLE		0x02
+	uByte bmAttributes;
+#define USB_DC_SS_USB_SPEED_SUPPORT_LOW		0x01
+#define USB_DC_SS_USB_SPEED_SUPPORT_FULL	0x02
+#define USB_DC_SS_USB_SPEED_SUPPORT_HIGH	0x04
+#define USB_DC_SS_USB_SPEED_SUPPORT_SS		0x08
+	uWord wSpeedsSupported;
+	uByte bFunctionalitySupport;
+	uByte bU1DevExitLat;
+	uWord wU2DevExitLat;
+} UPACKED usb_dev_cap_ss_usb_t;
+
+#define USB_DEVICE_CAPABILITY_CONTAINER_ID	0x04
+typedef struct usb_dev_cap_container_id {
+	uByte bLength;
+	uByte bDescriptorType;
+	uByte bDevCapabilityType;
+	uByte bReserved;
+	uByte containerID[16];
+} UPACKED usb_dev_cap_container_id_t;
 
 /* Device Capability Type Codes */
 #define WUSB_DEVICE_CAPABILITY_WIRELESS_USB 0x01
 
 /* Device Capability Descriptor */
 typedef struct wusb_dev_cap_desc {
-	uint8_t bLength;
-	uint8_t bDescriptorType;
-	uint8_t bDevCapabilityType;
-	uint8_t caps[1];	      /* Variable length */
+	uByte bLength;
+	uByte bDescriptorType;
+	uByte bDevCapabilityType;
+	uByte caps[1];	/* Variable length */
 } UPACKED wusb_dev_cap_desc_t;
 
 /* Device Capability Descriptor */
 typedef struct wusb_dev_cap_uwb_desc {
-	uint8_t bLength;
-	uint8_t bDescriptorType;
-	uint8_t bDevCapabilityType;
-	uint8_t bmAttributes;
-	uint16_t wPHYRates;      /* Bitmap */
-	uint8_t bmTFITXPowerInfo;
-	uint8_t bmFFITXPowerInfo;
-	uint16_t bmBandGroup;
-	uint8_t bReserved;
+	uByte bLength;
+	uByte bDescriptorType;
+	uByte bDevCapabilityType;
+	uByte bmAttributes;
+	uWord wPHYRates;	/* Bitmap */
+	uByte bmTFITXPowerInfo;
+	uByte bmFFITXPowerInfo;
+	uWord bmBandGroup;
+	uByte bReserved;
 } UPACKED wusb_dev_cap_uwb_desc_t;
 
 /* Wireless USB Endpoint Companion Descriptor */
 typedef struct wusb_endpoint_companion_desc {
-	uint8_t bLength;
-	uint8_t bDescriptorType;
-	uint8_t bMaxBurst;
-	uint8_t bMaxSequence;
-	uint16_t wMaxStreamDelay;
-	uint16_t wOverTheAirPacketSize;
-	uint8_t bOverTheAirInterval;
-	uint8_t bmCompAttributes;
+	uByte bLength;
+	uByte bDescriptorType;
+	uByte bMaxBurst;
+	uByte bMaxSequence;
+	uWord wMaxStreamDelay;
+	uWord wOverTheAirPacketSize;
+	uByte bOverTheAirInterval;
+	uByte bmCompAttributes;
 } UPACKED wusb_endpoint_companion_desc_t;
-
 
 /* Wireless USB Numeric Association M1 Data Structure */
 typedef struct wusb_m1_data {
-	uint8_t version;
-	uint16_t langId;
-	uint8_t deviceFriendlyNameLength;
-	uint8_t sha_256_m3[32];
-	uint8_t deviceFriendlyName[256];
+	uByte version;
+	uWord langId;
+	uByte deviceFriendlyNameLength;
+	uByte sha_256_m3[32];
+	uByte deviceFriendlyName[256];
 } UPACKED wusb_m1_data_t;
 
 typedef struct wusb_m2_data {
-	uint8_t version;
-	uint16_t langId;
-	uint8_t hostFriendlyNameLength;
-	uint8_t pkh[384];
-	uint8_t hostFriendlyName[256];
+	uByte version;
+	uWord langId;
+	uByte hostFriendlyNameLength;
+	uByte pkh[384];
+	uByte hostFriendlyName[256];
 } UPACKED wusb_m2_data_t;
 
 typedef struct wusb_m3_data {
-	uint8_t pkd[384];
-	uint8_t nd;
+	uByte pkd[384];
+	uByte nd;
 } UPACKED wusb_m3_data_t;
 
 typedef struct wusb_m4_data {
-	uint32_t _attributeTypeIdAndLength_1;
-	uint16_t associationTypeId;
+	uDWord _attributeTypeIdAndLength_1;
+	uWord  associationTypeId;
 
-	uint32_t _attributeTypeIdAndLength_2;
-	uint16_t associationSubTypeId;
+	uDWord _attributeTypeIdAndLength_2;
+	uWord  associationSubTypeId;
 
-	uint32_t _attributeTypeIdAndLength_3;
-	uint32_t length;
+	uDWord _attributeTypeIdAndLength_3;
+	uDWord length;
 
-	uint32_t _attributeTypeIdAndLength_4;
-	uint32_t associationStatus;
+	uDWord _attributeTypeIdAndLength_4;
+	uDWord associationStatus;
 
-	uint32_t _attributeTypeIdAndLength_5;
-	uint8_t chid[16];
+	uDWord _attributeTypeIdAndLength_5;
+	uByte  chid[16];
 
-	uint32_t _attributeTypeIdAndLength_6;
-	uint8_t cdid[16];
+	uDWord _attributeTypeIdAndLength_6;
+	uByte  cdid[16];
 
-	uint32_t _attributeTypeIdAndLength_7;
-	uint8_t bandGroups[2];
+	uDWord _attributeTypeIdAndLength_7;
+	uByte  bandGroups[2];
 } UPACKED wusb_m4_data_t;
 
+#ifdef _MSC_VER
+#include <poppack.h>
+#endif
 
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _USB_H_ */

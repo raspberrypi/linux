@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_hcd.h $
- * $Revision: #52 $
- * $Date: 2009/04/21 $
- * $Change: 1237472 $
+ * $Revision: #58 $
+ * $Date: 2011/09/15 $
+ * $Change: 1846647 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -34,7 +34,8 @@
 #ifndef __DWC_HCD_H__
 #define __DWC_HCD_H__
 
-#include <usb.h>
+#include "dwc_otg_os_dep.h"
+#include "usb.h"
 #include "dwc_otg_hcd_if.h"
 #include "dwc_otg_core_if.h"
 #include "dwc_list.h"
@@ -238,17 +239,17 @@ typedef struct dwc_otg_qtd {
 	 DWC_CIRCLEQ_ENTRY(dwc_otg_qtd) qtd_list_entry;
 
 	/** Indicates if this QTD is currently processed by HW. */
-	uint8_t	in_process;
+	uint8_t in_process;
 
 	/** Number of DMA descriptors for this QTD */
-	uint8_t	n_desc;
-	
+	uint8_t n_desc;
+
 	/** 
 	 * Last activated frame(packet) index. 
 	 * Used in Descriptor DMA mode only.
 	 */
 	uint16_t isoc_frame_index_last;
-	
+
 } dwc_otg_qtd_t;
 
 DWC_CIRCLEQ_HEAD(dwc_otg_qtd_list, dwc_otg_qtd);
@@ -331,36 +332,36 @@ typedef struct dwc_otg_qh {
 	 */
 	uint8_t *dw_align_buf;
 	dwc_dma_t dw_align_buf_dma;
-	
+
 	/** Entry for QH in either the periodic or non-periodic schedule. */
 	dwc_list_link_t qh_list_entry;
-	
+
 	/** @name Descriptor DMA support */
 	/** @{ */
-	
+
 	/** Descriptor List. */
-	dwc_otg_host_dma_desc_t	*desc_list;
-	
+	dwc_otg_host_dma_desc_t *desc_list;
+
 	/** Descriptor List physical address. */
 	dwc_dma_t desc_list_dma;
-	
+
 	/** 
 	 * Xfer Bytes array.
 	 * Each element corresponds to a descriptor and indicates 
 	 * original XferSize size value for the descriptor.
 	 */
 	uint32_t *n_bytes;
-	
+
 	/** Actual number of transfer descriptors in a list. */
 	uint16_t ntd;
-	
+
 	/** First activated isochronous transfer descriptor index. */
 	uint8_t td_first;
 	/** Last activated isochronous transfer descriptor index. */
 	uint8_t td_last;
-	
+
 	/** @} */
-	
+
 } dwc_otg_qh_t;
 
 DWC_CIRCLEQ_HEAD(hc_list, dwc_hc);
@@ -380,6 +381,8 @@ typedef enum {
  * periodic schedules.
  */
 struct dwc_otg_hcd {
+	/** The DWC otg device pointer */
+	struct dwc_otg_device *otg_dev;
 	/** DWC OTG Core Interface Layer */
 	dwc_otg_core_if_t *core_if;
 
@@ -480,6 +483,11 @@ struct dwc_otg_hcd {
 	uint16_t frame_number;
 
 	/**
+	 * Count of periodic QHs, if using several eps. For SOF enable/disable.
+	 */
+	uint16_t periodic_qh_count;
+
+	/**
 	 * Free host channels in the controller. This is a list of
 	 * dwc_hc_t items.
 	 */
@@ -576,7 +584,7 @@ struct dwc_otg_hcd {
 extern dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t
 								  * hcd);
 extern void dwc_otg_hcd_queue_transactions(dwc_otg_hcd_t * hcd,
-				    dwc_otg_transaction_type_e tr_type);
+					   dwc_otg_transaction_type_e tr_type);
 
 /** @} */
 
@@ -609,7 +617,7 @@ extern int32_t dwc_otg_hcd_handle_wakeup_detected_intr(dwc_otg_hcd_t *
 
 /* Implemented in dwc_otg_hcd_queue.c */
 extern dwc_otg_qh_t *dwc_otg_hcd_qh_create(dwc_otg_hcd_t * hcd,
-					   dwc_otg_hcd_urb_t * urb);
+					   dwc_otg_hcd_urb_t * urb, int atomic_alloc);
 extern void dwc_otg_hcd_qh_free(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh);
 extern int dwc_otg_hcd_qh_add(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh);
 extern void dwc_otg_hcd_qh_remove(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh);
@@ -620,27 +628,37 @@ extern void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 static inline void dwc_otg_hcd_qh_remove_and_free(dwc_otg_hcd_t * hcd,
 						  dwc_otg_qh_t * qh)
 {
+	dwc_irqflags_t flags;
+	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 	dwc_otg_hcd_qh_remove(hcd, qh);
+	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 	dwc_otg_hcd_qh_free(hcd, qh);
 }
 
 /** Allocates memory for a QH structure.
  * @return Returns the memory allocate or NULL on error. */
-static inline dwc_otg_qh_t *dwc_otg_hcd_qh_alloc(void)
+static inline dwc_otg_qh_t *dwc_otg_hcd_qh_alloc(int atomic_alloc)
 {
-	return (dwc_otg_qh_t *) dwc_alloc_atomic(sizeof(dwc_otg_qh_t));
+	if (atomic_alloc)
+		return (dwc_otg_qh_t *) DWC_ALLOC_ATOMIC(sizeof(dwc_otg_qh_t));
+	else
+		return (dwc_otg_qh_t *) DWC_ALLOC(sizeof(dwc_otg_qh_t));
 }
 
-extern dwc_otg_qtd_t *dwc_otg_hcd_qtd_create(dwc_otg_hcd_urb_t * urb);
+extern dwc_otg_qtd_t *dwc_otg_hcd_qtd_create(dwc_otg_hcd_urb_t * urb,
+					     int atomic_alloc);
 extern void dwc_otg_hcd_qtd_init(dwc_otg_qtd_t * qtd, dwc_otg_hcd_urb_t * urb);
 extern int dwc_otg_hcd_qtd_add(dwc_otg_qtd_t * qtd, dwc_otg_hcd_t * dwc_otg_hcd,
-			       dwc_otg_qh_t ** qh);
+			       dwc_otg_qh_t ** qh, int atomic_alloc);
 
 /** Allocates memory for a QTD structure.
  * @return Returns the memory allocate or NULL on error. */
-static inline dwc_otg_qtd_t *dwc_otg_hcd_qtd_alloc(void)
+static inline dwc_otg_qtd_t *dwc_otg_hcd_qtd_alloc(int atomic_alloc)
 {
-	return (dwc_otg_qtd_t *) dwc_alloc_atomic(sizeof(dwc_otg_qtd_t));
+	if (atomic_alloc)
+		return (dwc_otg_qtd_t *) DWC_ALLOC_ATOMIC(sizeof(dwc_otg_qtd_t));
+	else
+		return (dwc_otg_qtd_t *) DWC_ALLOC(sizeof(dwc_otg_qtd_t));
 }
 
 /** Frees the memory for a QTD structure.  QTD should already be removed from
@@ -648,7 +666,7 @@ static inline dwc_otg_qtd_t *dwc_otg_hcd_qtd_alloc(void)
  * @param qtd QTD to free.*/
 static inline void dwc_otg_hcd_qtd_free(dwc_otg_qtd_t * qtd)
 {
-	dwc_free(qtd);
+	DWC_FREE(qtd);
 }
 
 /** Removes a QTD from list.
@@ -660,13 +678,12 @@ static inline void dwc_otg_hcd_qtd_remove(dwc_otg_hcd_t * hcd,
 					  dwc_otg_qtd_t * qtd,
 					  dwc_otg_qh_t * qh)
 {
-	uint64_t flags;
-	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 	DWC_CIRCLEQ_REMOVE(&qh->qtd_list, qtd, qtd_list_entry);
-	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 }
 
-/** Remove and free a QTD */
+/** Remove and free a QTD 
+  * Need to disable IRQ and hold hcd lock while calling this function out of 
+  * interrupt servicing chain */
 static inline void dwc_otg_hcd_qtd_remove_and_free(dwc_otg_hcd_t * hcd,
 						   dwc_otg_qtd_t * qtd,
 						   dwc_otg_qh_t * qh)
@@ -682,15 +699,15 @@ static inline void dwc_otg_hcd_qtd_remove_and_free(dwc_otg_hcd_t * hcd,
 
 extern void dwc_otg_hcd_start_xfer_ddma(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh);
 extern void dwc_otg_hcd_complete_xfer_ddma(dwc_otg_hcd_t * hcd,
-				    	   dwc_hc_t * hc,
-				    	   dwc_otg_hc_regs_t * hc_regs,
-				    	   dwc_otg_halt_status_e halt_status);
+					   dwc_hc_t * hc,
+					   dwc_otg_hc_regs_t * hc_regs,
+					   dwc_otg_halt_status_e halt_status);
 
 extern int dwc_otg_hcd_qh_init_ddma(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh);
 extern void dwc_otg_hcd_qh_free_ddma(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh);
 
 /** @} */
-		
+
 /** @name Internal Functions */
 /** @{ */
 dwc_otg_qh_t *dwc_urb_to_qh(dwc_otg_hcd_urb_t * urb);
@@ -761,8 +778,8 @@ static inline uint16_t dwc_micro_frame_num(uint16_t frame)
 }
 
 void dwc_otg_hcd_save_data_toggle(dwc_hc_t * hc,
-			     	  dwc_otg_hc_regs_t * hc_regs, 
-			     	  dwc_otg_qtd_t * qtd);
+				  dwc_otg_hc_regs_t * hc_regs,
+				  dwc_otg_qtd_t * qtd);
 
 #ifdef DEBUG
 /**
@@ -780,7 +797,7 @@ void dwc_otg_hcd_save_data_toggle(dwc_hc_t * hc,
 	dwc_otg_qtd_t *qtd; \
 	qtd = list_entry(_qh->qtd_list.next, dwc_otg_qtd_t, qtd_list_entry); \
 	if (usb_pipeint(qtd->urb->pipe) && _qh->start_split_frame != 0 && !qtd->complete_split) { \
-		hfnum.d32 = dwc_read_reg32(&_hcd->core_if->host_if->host_global_regs->hfnum); \
+		hfnum.d32 = DWC_READ_REG32(&_hcd->core_if->host_if->host_global_regs->hfnum); \
 		switch (hfnum.b.frnum & 0x7) { \
 		case 7: \
 			_hcd->hfnum_7_samples_##_letter++; \
@@ -801,4 +818,4 @@ void dwc_otg_hcd_save_data_toggle(dwc_hc_t * hc,
 #define dwc_sample_frrem(_hcd, _qh, _letter)
 #endif
 #endif
-#endif				/* DWC_DEVICE_ONLY */
+#endif /* DWC_DEVICE_ONLY */
