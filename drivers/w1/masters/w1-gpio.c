@@ -147,7 +147,7 @@ static int w1_gpio_probe(struct platform_device *pdev)
 	if (w1_gpio_pullup)
 		if (pdata->is_open_drain)
 			printk(KERN_ERR "w1-gpio 'pullup' option "
-				"doesn't work with open drain GPIO\n");
+			       "doesn't work with open drain GPIO\n");
 		else
 			master->bitbang_pullup = w1_gpio_bitbang_pullup;
 
@@ -167,12 +167,12 @@ static int w1_gpio_probe(struct platform_device *pdev)
 
 	return 0;
 
- free_gpio_ext_pu:
+free_gpio_ext_pu:
 	if (gpio_is_valid(pdata->ext_pullup_enable_pin))
 		gpio_free(pdata->ext_pullup_enable_pin);
- free_gpio:
+free_gpio:
 	gpio_free(pdata->pin);
- free_master:
+free_master:
 	kfree(master);
 
 	return err;
