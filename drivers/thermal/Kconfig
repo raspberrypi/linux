@@ -122,4 +122,11 @@ config DB8500_CPUFREQ_COOLING
 	  bound cpufreq cooling device turns active to set CPU frequency low to
 	  cool down the CPU.
 
+config THERMAL_BCM2835
+	tristate "BCM2835 Thermal Driver"
+	help
+	  This will enable temperature monitoring for the Broadcom BCM2835
+	  chip. If built as a module, it will be called 'bcm2835-thermal'.
+
 endif
+
