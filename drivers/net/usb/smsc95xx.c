@@ -48,6 +48,7 @@
 #define SUSPEND_SUSPEND3		(0x08)
 #define SUSPEND_ALLMODES		(SUSPEND_SUSPEND0 | SUSPEND_SUSPEND1 | \
 					 SUSPEND_SUSPEND2 | SUSPEND_SUSPEND3)
+#define MAC_ADDR_LEN                    (6)
 
 #define CARRIER_CHECK_DELAY (2 * HZ)
 
@@ -77,6 +78,10 @@ MODULE_PARM_DESC(truesize_mode, "Report larger truesize value");
 static int packetsize = 2560;
 module_param(packetsize, int, 0644);
 MODULE_PARM_DESC(packetsize, "Override the RX URB packet size");
+
+static char *macaddr = ":";
+module_param(macaddr, charp, 0);
+MODULE_PARM_DESC(macaddr, "MAC address");
 
 static int __must_check __smsc95xx_read_reg(struct usbnet *dev, u32 index,
 					    u32 *data, int in_pm)
@@ -907,6 +912,53 @@ static int smsc95xx_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	return generic_mii_ioctl(&dev->mii, if_mii(rq), cmd, NULL);
 }
 
+/* Check the macaddr module parameter for a MAC address */
+static int smsc95xx_is_macaddr_param(struct usbnet *dev, u8 *dev_mac)
+{
+       int i, j, got_num, num;
+       u8 mtbl[MAC_ADDR_LEN];
+
+       if (macaddr[0] == ':')
+               return 0;
+
+       i = 0;
+       j = 0;
+       num = 0;
+       got_num = 0;
+       while (j < MAC_ADDR_LEN) {
+               if (macaddr[i] && macaddr[i] != ':') {
+                       got_num++;
+                       if ('0' <= macaddr[i] && macaddr[i] <= '9')
+                               num = num * 16 + macaddr[i] - '0';
+                       else if ('A' <= macaddr[i] && macaddr[i] <= 'F')
+                               num = num * 16 + 10 + macaddr[i] - 'A';
+                       else if ('a' <= macaddr[i] && macaddr[i] <= 'f')
+                               num = num * 16 + 10 + macaddr[i] - 'a';
+                       else
+                               break;
+                       i++;
+               } else if (got_num == 2) {
+                       mtbl[j++] = (u8) num;
+                       num = 0;
+                       got_num = 0;
+                       i++;
+               } else {
+                       break;
+               }
+       }
+
+       if (j == MAC_ADDR_LEN) {
+               netif_dbg(dev, ifup, dev->net, "Overriding MAC address with: "
+               "%02x:%02x:%02x:%02x:%02x:%02x\n", mtbl[0], mtbl[1], mtbl[2],
+                                               mtbl[3], mtbl[4], mtbl[5]);
+               for (i = 0; i < MAC_ADDR_LEN; i++)
+                       dev_mac[i] = mtbl[i];
+               return 1;
+       } else {
+               return 0;
+       }
+}
+
 static void smsc95xx_init_mac_address(struct usbnet *dev)
 {
 	const u8 *mac_addr;
@@ -927,6 +979,10 @@ static void smsc95xx_init_mac_address(struct usbnet *dev)
 			return;
 		}
 	}
+
+	/* Check module parameters */
+	if (smsc95xx_is_macaddr_param(dev, dev->net->dev_addr))
+		return;
 
 	/* no useful static MAC address found. generate a random one */
 	eth_hw_addr_random(dev->net);
