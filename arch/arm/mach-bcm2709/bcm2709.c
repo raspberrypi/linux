@@ -525,6 +525,10 @@ static struct platform_device bcm2708_alsa_devices[] = {
 	       },
 };
 
+static struct platform_device bcm2835_thermal_device = {
+	.name = "bcm2835_thermal",
+};
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -670,6 +674,8 @@ void __init bcm2709_init(void)
 	bcm2709_init_uart1();
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
 		bcm_register_device_dt(&bcm2708_alsa_devices[i]);
+
+	bcm_register_device_dt(&bcm2835_thermal_device);
 
 	if (!use_dt) {
 		for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
