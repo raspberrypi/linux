@@ -2959,7 +2959,7 @@ int snd_soc_put_volsw_range(struct snd_kcontrol *kcontrol,
 	val = val << shift;
 
 	ret = snd_soc_update_bits_locked(codec, reg, val_mask, val);
-	if (ret != 0)
+	if (ret < 0)
 		return ret;
 
 	if (snd_soc_volsw_is_stereo(mc)) {
