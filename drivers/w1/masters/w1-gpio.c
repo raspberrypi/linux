@@ -23,6 +23,9 @@
 #include "../w1.h"
 #include "../w1_int.h"
 
+static int w1_gpio_pullup = 0;
+module_param_named(pullup, w1_gpio_pullup, int, 0);
+
 static void w1_gpio_write_bit_dir(void *data, u8 bit)
 {
 	struct w1_gpio_platform_data *pdata = data;
@@ -45,6 +48,16 @@ static u8 w1_gpio_read_bit(void *data)
 	struct w1_gpio_platform_data *pdata = data;
 
 	return gpio_get_value(pdata->pin) ? 1 : 0;
+}
+
+static void w1_gpio_bitbang_pullup(void *data, u8 on)
+{
+	struct w1_gpio_platform_data *pdata = data;
+
+	if (on)
+		gpio_direction_output(pdata->pin, 1);
+	else
+		gpio_direction_input(pdata->pin);
 }
 
 static struct of_device_id w1_gpio_dt_ids[] = {
@@ -131,6 +144,13 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		master->write_bit = w1_gpio_write_bit_dir;
 	}
 
+	if (w1_gpio_pullup)
+		if (pdata->is_open_drain)
+			printk(KERN_ERR "w1-gpio 'pullup' option "
+			       "doesn't work with open drain GPIO\n");
+		else
+			master->bitbang_pullup = w1_gpio_bitbang_pullup;
+
 	err = w1_add_master_device(master);
 	if (err) {
 		dev_err(&pdev->dev, "w1_add_master device failed\n");
@@ -147,12 +167,12 @@ static int w1_gpio_probe(struct platform_device *pdev)
 
 	return 0;
 
- free_gpio_ext_pu:
+free_gpio_ext_pu:
 	if (gpio_is_valid(pdata->ext_pullup_enable_pin))
 		gpio_free(pdata->ext_pullup_enable_pin);
- free_gpio:
+free_gpio:
 	gpio_free(pdata->pin);
- free_master:
+free_master:
 	kfree(master);
 
 	return err;
