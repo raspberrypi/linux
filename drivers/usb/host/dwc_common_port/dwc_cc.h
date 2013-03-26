@@ -1,8 +1,8 @@
 /* =========================================================================
- * $File: //dwh/usb_iip/dev/software/dwc_common_port/dwc_cc.h $
- * $Revision: #1 $
- * $Date: 2008/12/21 $
- * $Change: 1156609 $
+ * $File: //dwh/usb_iip/dev/software/dwc_common_port_2/dwc_cc.h $
+ * $Revision: #4 $
+ * $Date: 2010/09/28 $
+ * $Change: 1596182 $
  *
  * Synopsys Portability Library Software and documentation
  * (hereinafter, "Software") is an Unsupported proprietary work of
@@ -35,6 +35,10 @@
  * ========================================================================= */
 #ifndef _DWC_CC_H_
 #define _DWC_CC_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @file
  *
@@ -69,14 +73,15 @@ typedef struct dwc_cc_if dwc_cc_if_t;
 /** This function allocates memory for a dwc_cc_if_t structure, initializes
  * fields to default values, and returns a pointer to the structure or NULL on
  * error. */
-extern dwc_cc_if_t *dwc_cc_if_alloc(dwc_notifier_t *notifier, unsigned is_host);
+extern dwc_cc_if_t *dwc_cc_if_alloc(void *mem_ctx, void *mtx_ctx,
+				    dwc_notifier_t *notifier, unsigned is_host);
 
 /** Frees the memory for the specified CC structure allocated from
  * dwc_cc_if_alloc(). */
-extern void dwc_cc_if_free(dwc_cc_if_t *cc_if);
+extern void dwc_cc_if_free(void *mem_ctx, void *mtx_ctx, dwc_cc_if_t *cc_if);
 
 /** Removes all contexts from the connection context list */
-extern void dwc_cc_clear(dwc_cc_if_t *cc_if);
+extern void dwc_cc_clear(void *mem_ctx, dwc_cc_if_t *cc_if);
 
 /** Adds a connection context (CHID, CK, CDID, Name) to the connection context list.
  * If a CHID already exists, the CK and name are overwritten.  Statistics are
@@ -91,7 +96,9 @@ extern void dwc_cc_clear(dwc_cc_if_t *cc_if);
  * @param length The length othe unicode string.
  * @return A unique identifier used to refer to this context that is valid for
  * as long as this context is still in the list. */
-extern int32_t dwc_cc_add(dwc_cc_if_t *cc_if, uint8_t *chid, uint8_t *cdid, uint8_t *ck, uint8_t *name, uint8_t length);
+extern int32_t dwc_cc_add(void *mem_ctx, dwc_cc_if_t *cc_if, uint8_t *chid,
+			  uint8_t *cdid, uint8_t *ck, uint8_t *name,
+			  uint8_t length);
 
 /** Changes the CHID, CK, CDID, or Name values of a connection context in the
  * list, preserving any accumulated statistics.  This would typically be called
@@ -107,12 +114,14 @@ extern int32_t dwc_cc_add(dwc_cc_if_t *cc_if, uint8_t *chid, uint8_t *cdid, uint
  * indicates no change.
  * @param name Host friendly name UTF16-LE.  NULL indicates no change.
  * @param length Length of name. */
-extern void dwc_cc_change(dwc_cc_if_t *cc_if, int32_t id, uint8_t *chid, uint8_t *cdid, uint8_t *ck, uint8_t *name, uint8_t length);
+extern void dwc_cc_change(void *mem_ctx, dwc_cc_if_t *cc_if, int32_t id,
+			  uint8_t *chid, uint8_t *cdid, uint8_t *ck,
+			  uint8_t *name, uint8_t length);
 
 /** Remove the specified connection context.
  * @param cc_if The cc_if structure.
  * @param id The identifier of the connection context to remove. */
-extern void dwc_cc_remove(dwc_cc_if_t *cc_if, int32_t id);
+extern void dwc_cc_remove(void *mem_ctx, dwc_cc_if_t *cc_if, int32_t id);
 
 /** Get a binary block of data for the connection context list and attributes.
  * This data can be used by the OS specific driver to save the connection
@@ -120,8 +129,10 @@ extern void dwc_cc_remove(dwc_cc_if_t *cc_if, int32_t id);
  *
  * @param cc_if The cc_if structure.
  * @param length Return the length of the data buffer.
- * @return A pointer to the data buffer.  The memory for this buffer should be freed with DWC_FREE() after use. */
-extern uint8_t *dwc_cc_data_for_save(dwc_cc_if_t *cc_if, unsigned int *length);
+ * @return A pointer to the data buffer.  The memory for this buffer should be
+ * freed with DWC_FREE() after use. */
+extern uint8_t *dwc_cc_data_for_save(void *mem_ctx, dwc_cc_if_t *cc_if,
+				     unsigned int *length);
 
 /** Restore the connection context list from the binary data that was previously
  * returned from a call to dwc_cc_data_for_save.  This can be used by the OS specific
@@ -130,7 +141,8 @@ extern uint8_t *dwc_cc_data_for_save(dwc_cc_if_t *cc_if, unsigned int *length);
  * @param cc_if The cc_if structure.
  * @param data The data bytes as returned from dwc_cc_data_for_save.
  * @param length The length of the data. */
-extern void dwc_cc_restore_from_data(dwc_cc_if_t *cc_if, uint8_t *data, unsigned int length);
+extern void dwc_cc_restore_from_data(void *mem_ctx, dwc_cc_if_t *cc_if,
+				     uint8_t *data, unsigned int length);
 
 /** Find the connection context from the specified CHID.
  *
@@ -204,6 +216,10 @@ static inline int dwc_print_id_string(char *buffer, uint8_t *id) {
 }
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _DWC_CC_H_ */
 

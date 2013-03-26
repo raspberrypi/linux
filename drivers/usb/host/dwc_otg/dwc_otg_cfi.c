@@ -28,7 +28,8 @@
 
 /** @file 
  *
- * This file contains the most of the CFI implementation for the OTG.
+ * This file contains the most of the CFI(Core Feature Interface) 
+ * implementation for the OTG. 
  */
 
 #ifdef DWC_UTE_CFI
@@ -285,7 +286,7 @@ int cfi_setup(struct dwc_otg_pcd *pcd, struct cfi_usb_ctrlrequest *ctrl)
 		if (wValue == 0) {
 			/* @TODO - MAS - fix the access to the base field */
 			regaddr = 0;
-			//regaddr = (uint32_t) pcd->otg_dev->base;
+			//regaddr = (uint32_t) pcd->otg_dev->os_dep.base;
 			//GET_CORE_IF(pcd)->co
 			regaddr |= wIndex;
 		} else {
@@ -293,7 +294,7 @@ int cfi_setup(struct dwc_otg_pcd *pcd, struct cfi_usb_ctrlrequest *ctrl)
 		}
 
 		/* Read a 32-bit value of the memory at the regaddr */
-		regval = dwc_read_reg32((uint32_t *) regaddr);
+		regval = DWC_READ_REG32((uint32_t *) regaddr);
 
 		ep = &pcd->ep0;
 		dwc_memcpy(cfi->buf_in.buf, &regval, sizeof(uint32_t));
@@ -406,13 +407,13 @@ static void cfi_release(cfiobject_t * cfiobj)
 	CFI_INFO("%s\n", __func__);
 
 	if (cfiobj->buf_in.buf) {
-		dwc_dma_free(CFI_IN_BUF_LEN, cfiobj->buf_in.buf,
+		DWC_DMA_FREE(CFI_IN_BUF_LEN, cfiobj->buf_in.buf,
 			     cfiobj->buf_in.addr);
 		cfiobj->buf_in.buf = NULL;
 	}
 
 	if (cfiobj->buf_out.buf) {
-		dwc_dma_free(CFI_OUT_BUF_LEN, cfiobj->buf_out.buf,
+		DWC_DMA_FREE(CFI_OUT_BUF_LEN, cfiobj->buf_out.buf,
 			     cfiobj->buf_out.addr);
 		cfiobj->buf_out.buf = NULL;
 	}
@@ -431,21 +432,21 @@ static void cfi_release(cfiobject_t * cfiobj)
 static void cfi_free_ep_bs_dyn_data(cfi_ep_t * cfiep)
 {
 	if (cfiep->bm_sg) {
-		dwc_free(cfiep->bm_sg);
+		DWC_FREE(cfiep->bm_sg);
 		cfiep->bm_sg = NULL;
 	}
 
 	if (cfiep->bm_align) {
-		dwc_free(cfiep->bm_align);
+		DWC_FREE(cfiep->bm_align);
 		cfiep->bm_align = NULL;
 	}
 
 	if (cfiep->bm_concat) {
 		if (NULL != cfiep->bm_concat->wTxBytes) {
-			dwc_free(cfiep->bm_concat->wTxBytes);
+			DWC_FREE(cfiep->bm_concat->wTxBytes);
 			cfiep->bm_concat->wTxBytes = NULL;
 		}
-		dwc_free(cfiep->bm_concat);
+		DWC_FREE(cfiep->bm_concat);
 		cfiep->bm_concat = NULL;
 	}
 }
@@ -459,7 +460,7 @@ static int cfi_ep_init_defaults(struct dwc_otg_pcd *pcd, cfi_ep_t * cfiep)
 {
 	int retval = 0;
 
-	cfiep->bm_sg = dwc_alloc(sizeof(ddma_sg_buffer_setup_t));
+	cfiep->bm_sg = DWC_ALLOC(sizeof(ddma_sg_buffer_setup_t));
 	if (NULL == cfiep->bm_sg) {
 		CFI_INFO("Failed to allocate memory for SG feature value\n");
 		return -DWC_E_NO_MEMORY;
@@ -470,21 +471,21 @@ static int cfi_ep_init_defaults(struct dwc_otg_pcd *pcd, cfi_ep_t * cfiep)
 	 * memory for the wTxBytes field - it will be done in the set_feature_value
 	 * request handler.
 	 */
-	cfiep->bm_concat = dwc_alloc(sizeof(ddma_concat_buffer_setup_t));
+	cfiep->bm_concat = DWC_ALLOC(sizeof(ddma_concat_buffer_setup_t));
 	if (NULL == cfiep->bm_concat) {
 		CFI_INFO
 		    ("Failed to allocate memory for CONCATENATION feature value\n");
-		dwc_free(cfiep->bm_sg);
+		DWC_FREE(cfiep->bm_sg);
 		return -DWC_E_NO_MEMORY;
 	}
 	dwc_memset(cfiep->bm_concat, 0, sizeof(ddma_concat_buffer_setup_t));
 
-	cfiep->bm_align = dwc_alloc(sizeof(ddma_align_buffer_setup_t));
+	cfiep->bm_align = DWC_ALLOC(sizeof(ddma_align_buffer_setup_t));
 	if (NULL == cfiep->bm_align) {
 		CFI_INFO
 		    ("Failed to allocate memory for Alignment feature value\n");
-		dwc_free(cfiep->bm_sg);
-		dwc_free(cfiep->bm_concat);
+		DWC_FREE(cfiep->bm_sg);
+		DWC_FREE(cfiep->bm_concat);
 		return -DWC_E_NO_MEMORY;
 	}
 	dwc_memset(cfiep->bm_align, 0, sizeof(ddma_align_buffer_setup_t));
@@ -516,7 +517,7 @@ static int cfi_ep_enable(struct cfiobject *cfi, struct dwc_otg_pcd *pcd,
 
 	if (NULL == cfiep) {
 		/* Allocate a cfi_ep_t object */
-		cfiep = dwc_alloc(sizeof(cfi_ep_t));
+		cfiep = DWC_ALLOC(sizeof(cfi_ep_t));
 		if (NULL == cfiep) {
 			CFI_INFO
 			    ("Unable to allocate memory for <cfiep> in function %s\n",
@@ -530,12 +531,12 @@ static int cfi_ep_enable(struct cfiobject *cfi, struct dwc_otg_pcd *pcd,
 
 		/* Allocate the DMA Descriptors chain of MAX_DMA_DESCS_PER_EP count */
 		ep->dwc_ep.descs =
-		    dwc_dma_alloc(MAX_DMA_DESCS_PER_EP *
+		    DWC_DMA_ALLOC(MAX_DMA_DESCS_PER_EP *
 				  sizeof(dwc_otg_dma_desc_t),
 				  &ep->dwc_ep.descs_dma_addr);
 
 		if (NULL == ep->dwc_ep.descs) {
-			dwc_free(cfiep);
+			DWC_FREE(cfiep);
 			return -DWC_E_NO_MEMORY;
 		}
 
@@ -596,7 +597,7 @@ static int cfi_ctrl_write_complete(struct cfiobject *cfi,
 		reg_value = *((uint32_t *) buf);
 		if (wValue == 0) {
 			addr = 0;
-			//addr = (uint32_t) pcd->otg_dev->base;
+			//addr = (uint32_t) pcd->otg_dev->os_dep.base;
 			addr += wIndex;
 		} else {
 			addr = (wValue << 16) | wIndex;
@@ -791,7 +792,7 @@ static void *cfi_ep_alloc_buf(struct cfiobject *cfi, struct dwc_otg_pcd *pcd,
 			      struct dwc_otg_pcd_ep *ep, dma_addr_t * dma,
 			      unsigned size, gfp_t flags)
 {
-	return dwc_dma_alloc(size, dma);
+	return DWC_DMA_ALLOC(size, dma);
 }
 
 /**
@@ -803,7 +804,7 @@ int init_cfi(cfiobject_t * cfiobj)
 
 	/* Allocate a buffer for IN XFERs */
 	cfiobj->buf_in.buf =
-	    dwc_dma_alloc(CFI_IN_BUF_LEN, &cfiobj->buf_in.addr);
+	    DWC_DMA_ALLOC(CFI_IN_BUF_LEN, &cfiobj->buf_in.addr);
 	if (NULL == cfiobj->buf_in.buf) {
 		CFI_INFO("Unable to allocate buffer for INs\n");
 		return -DWC_E_NO_MEMORY;
@@ -811,7 +812,7 @@ int init_cfi(cfiobject_t * cfiobj)
 
 	/* Allocate a buffer for OUT XFERs */
 	cfiobj->buf_out.buf =
-	    dwc_dma_alloc(CFI_OUT_BUF_LEN, &cfiobj->buf_out.addr);
+	    DWC_DMA_ALLOC(CFI_OUT_BUF_LEN, &cfiobj->buf_out.addr);
 	if (NULL == cfiobj->buf_out.buf) {
 		CFI_INFO("Unable to allocate buffer for OUT\n");
 		return -DWC_E_NO_MEMORY;
@@ -925,7 +926,7 @@ static int cfi_reset_concat_val(cfi_ep_t * cfiep)
 {
 	/* First we need to free the wTxBytes field */
 	if (cfiep->bm_concat->wTxBytes) {
-		dwc_free(cfiep->bm_concat->wTxBytes);
+		DWC_FREE(cfiep->bm_concat->wTxBytes);
 		cfiep->bm_concat->wTxBytes = NULL;
 	}
 
@@ -984,8 +985,9 @@ static int cfi_handle_reset_fifo_val(struct dwc_otg_pcd *pcd, uint8_t ep_addr,
 			    params->dev_tx_fifo_size[ep->dwc_ep.tx_fifo_num -
 						     1];
 			params->dev_tx_fifo_size[ep->dwc_ep.tx_fifo_num - 1] =
-			    GET_CORE_IF(pcd)->init_txfsiz[ep->dwc_ep.
-							  tx_fifo_num - 1];
+			    GET_CORE_IF(pcd)->init_txfsiz[ep->
+							  dwc_ep.tx_fifo_num -
+							  1];
 		}
 	}
 
@@ -1004,13 +1006,14 @@ static int cfi_handle_reset_fifo_val(struct dwc_otg_pcd *pcd, uint8_t ep_addr,
 				int i;
 				for (i = 0; i < core_if->hwcfg4.b.num_in_eps;
 				     i++) {
-					core_if->core_params->
-					    dev_tx_fifo_size[i] = tx_siz[i];
+					core_if->
+					    core_params->dev_tx_fifo_size[i] =
+					    tx_siz[i];
 				}
 			} else {
-				params->dev_tx_fifo_size[ep->dwc_ep.
-							 tx_fifo_num - 1] =
-				    tx_siz[0];
+				params->dev_tx_fifo_size[ep->
+							 dwc_ep.tx_fifo_num -
+							 1] = tx_siz[0];
 			}
 		}
 		retval = -DWC_E_INVALID;
@@ -1349,12 +1352,12 @@ static int cfi_ep_set_concat_val(uint8_t * buf, struct dwc_otg_pcd *pcd)
 
 	/* Free the previously allocated storage for the wTxBytes */
 	if (ep->bm_concat->wTxBytes) {
-		dwc_free(ep->bm_concat->wTxBytes);
+		DWC_FREE(ep->bm_concat->wTxBytes);
 	}
 
 	/* Allocate a new storage for the wTxBytes field */
 	ep->bm_concat->wTxBytes =
-	    dwc_alloc(sizeof(uint16_t) * pConcatValHdr->bDescCount);
+	    DWC_ALLOC(sizeof(uint16_t) * pConcatValHdr->bDescCount);
 	if (NULL == ep->bm_concat->wTxBytes) {
 		CFI_INFO("%s: Unable to allocate memory\n", __func__);
 		return -DWC_E_NO_MEMORY;
@@ -1446,16 +1449,15 @@ static int32_t get_txfifo_size(struct dwc_otg_pcd *pcd, uint16_t wValue)
 
 	switch (wValue >> 8) {
 	case 0:
-		return (GET_CORE_IF(pcd)->
-			pwron_txfsiz[ep->dwc_ep.tx_fifo_num - 1] <
-			768) ? GET_CORE_IF(pcd)->pwron_txfsiz[ep->dwc_ep.
-							      tx_fifo_num -
-							      1] : 32768;
+		return (GET_CORE_IF(pcd)->pwron_txfsiz
+			[ep->dwc_ep.tx_fifo_num - 1] <
+			768) ? GET_CORE_IF(pcd)->pwron_txfsiz[ep->
+							      dwc_ep.tx_fifo_num
+							      - 1] : 32768;
 		break;
 	case 1:
-		return GET_CORE_IF(pcd)->core_params->dev_tx_fifo_size[ep->
-								       dwc_ep.
-								       num - 1];
+		return GET_CORE_IF(pcd)->core_params->
+		    dev_tx_fifo_size[ep->dwc_ep.num - 1];
 		break;
 	default:
 		return -DWC_E_INVALID;
@@ -1552,65 +1554,63 @@ static uint8_t resize_fifos(dwc_otg_core_if_t * core_if)
 
 	/* Configure data FIFO sizes */
 	if (core_if->hwcfg2.b.dynamic_fifo && params->enable_dynamic_fifo) {
-		rx_fsz_bak = dwc_read_reg32(&global_regs->grxfsiz);
+		rx_fsz_bak = DWC_READ_REG32(&global_regs->grxfsiz);
 		rx_fifo_size = params->dev_rx_fifo_size;
-		dwc_write_reg32(&global_regs->grxfsiz, rx_fifo_size);
+		DWC_WRITE_REG32(&global_regs->grxfsiz, rx_fifo_size);
 
 		/*
 		 * Tx FIFOs These FIFOs are numbered from 1 to 15.
 		 * Indexes of the FIFO size module parameters in the
 		 * dev_tx_fifo_size array and the FIFO size registers in
-		 * the dptxfsiz_dieptxf array run from 0 to 14.
+		 * the dtxfsiz array run from 0 to 14.
 		 */
 
 		/* Non-periodic Tx FIFO */
-		nptxfsz_bak = dwc_read_reg32(&global_regs->gnptxfsiz);
+		nptxfsz_bak = DWC_READ_REG32(&global_regs->gnptxfsiz);
 		nptxfifosize.b.depth = params->dev_nperio_tx_fifo_size;
 		start_address = params->dev_rx_fifo_size;
 		nptxfifosize.b.startaddr = start_address;
 
-		dwc_write_reg32(&global_regs->gnptxfsiz, nptxfifosize.d32);
+		DWC_WRITE_REG32(&global_regs->gnptxfsiz, nptxfifosize.d32);
 
 		start_address += nptxfifosize.b.depth;
 
 		for (i = 0; i < core_if->hwcfg4.b.num_in_eps; i++) {
-			txfsz_bak[i] =
-			    dwc_read_reg32(&global_regs->dptxfsiz_dieptxf[i]);
+			txfsz_bak[i] = DWC_READ_REG32(&global_regs->dtxfsiz[i]);
 
 			txfifosize[i].b.depth = params->dev_tx_fifo_size[i];
 			txfifosize[i].b.startaddr = start_address;
-			dwc_write_reg32(&global_regs->dptxfsiz_dieptxf[i],
+			DWC_WRITE_REG32(&global_regs->dtxfsiz[i],
 					txfifosize[i].d32);
 
 			start_address += txfifosize[i].b.depth;
 		}
 
 		/** Check if register values are set correctly */
-		if (rx_fifo_size != dwc_read_reg32(&global_regs->grxfsiz)) {
+		if (rx_fifo_size != DWC_READ_REG32(&global_regs->grxfsiz)) {
 			retval = 0;
 		}
 
-		if (nptxfifosize.d32 != dwc_read_reg32(&global_regs->gnptxfsiz)) {
+		if (nptxfifosize.d32 != DWC_READ_REG32(&global_regs->gnptxfsiz)) {
 			retval = 0;
 		}
 
 		for (i = 0; i < core_if->hwcfg4.b.num_in_eps; i++) {
 			if (txfifosize[i].d32 !=
-			    dwc_read_reg32(&global_regs->dptxfsiz_dieptxf[i])) {
+			    DWC_READ_REG32(&global_regs->dtxfsiz[i])) {
 				retval = 0;
 			}
 		}
 
 		/** If register values are not set correctly, reset old values */
 		if (retval == 0) {
-			dwc_write_reg32(&global_regs->grxfsiz, rx_fsz_bak);
+			DWC_WRITE_REG32(&global_regs->grxfsiz, rx_fsz_bak);
 
 			/* Non-periodic Tx FIFO */
-			dwc_write_reg32(&global_regs->gnptxfsiz, nptxfsz_bak);
+			DWC_WRITE_REG32(&global_regs->gnptxfsiz, nptxfsz_bak);
 
 			for (i = 0; i < core_if->hwcfg4.b.num_in_eps; i++) {
-				dwc_write_reg32(&global_regs->
-						dptxfsiz_dieptxf[i],
+				DWC_WRITE_REG32(&global_regs->dtxfsiz[i],
 						txfsz_bak[i]);
 			}
 		}
@@ -1873,4 +1873,4 @@ static int cfi_set_feature_value(struct dwc_otg_pcd *pcd)
 	return retval;
 }
 
-#endif				//DWC_UTE_CFI
+#endif //DWC_UTE_CFI
