@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_hcd_queue.c $
- * $Revision: #39 $
- * $Date: 2009/04/21 $
- * $Change: 1237477 $
+ * $Revision: #44 $
+ * $Date: 2011/10/26 $
+ * $Change: 1873028 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -53,32 +53,28 @@
 void dwc_otg_hcd_qh_free(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 {
 	dwc_otg_qtd_t *qtd, *qtd_tmp;
-	uint64_t flags;
 
 	/* Free each QTD in the QTD list */
-	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
+	DWC_SPINLOCK(hcd->lock);
 	DWC_CIRCLEQ_FOREACH_SAFE(qtd, qtd_tmp, &qh->qtd_list, qtd_list_entry) {
 		DWC_CIRCLEQ_REMOVE(&qh->qtd_list, qtd, qtd_list_entry);
 		dwc_otg_hcd_qtd_free(qtd);
 	}
-	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 
 	if (hcd->core_if->dma_desc_enable) {
 		dwc_otg_hcd_qh_free_ddma(hcd, qh);
-	}
-	else if (qh->dw_align_buf) {
+	} else if (qh->dw_align_buf) {
 		uint32_t buf_size;
-		if(qh->ep_type == UE_ISOCHRONOUS) {
+		if (qh->ep_type == UE_ISOCHRONOUS) {
 			buf_size = 4096;
 		} else {
 			buf_size = hcd->core_if->core_params->max_transfer_size;
 		}
-		dwc_dma_free(buf_size, qh->dw_align_buf, qh->dw_align_buf_dma);
+		DWC_DMA_FREE(buf_size, qh->dw_align_buf, qh->dw_align_buf_dma);
 	}
-	
-	
-	
-	dwc_free(qh);
+
+	DWC_FREE(qh);
+	DWC_SPINUNLOCK(hcd->lock);
 	return;
 }
 
@@ -89,8 +85,7 @@ void dwc_otg_hcd_qh_free(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 #define NS_TO_US(ns)		((ns + 500) / 1000)
 				/* convert & round nanoseconds to microseconds */
 
-static uint32_t calc_bus_time(int speed, int is_in, int is_isoc,
-					  int bytecount)
+static uint32_t calc_bus_time(int speed, int is_in, int is_isoc, int bytecount)
 {
 	unsigned long retval;
 
@@ -144,7 +139,7 @@ static uint32_t calc_bus_time(int speed, int is_in, int is_isoc,
 		DWC_WARN("Unknown device speed\n");
 		retval = -1;
 	}
-	
+
 	return NS_TO_US(retval);
 }
 
@@ -157,18 +152,16 @@ static uint32_t calc_bus_time(int speed, int is_in, int is_isoc,
  * 	      to initialize the QH. 
  */
 #define SCHEDULE_SLOP 10
-void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
-			 dwc_otg_hcd_urb_t * urb)
+void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh, dwc_otg_hcd_urb_t * urb)
 {
 	char *speed, *type;
 	int dev_speed;
 	uint32_t hub_addr, hub_port;
 
 	dwc_memset(qh, 0, sizeof(dwc_otg_qh_t));
-	
+
 	/* Initialize QH */
 	qh->ep_type = dwc_otg_hcd_get_pipe_type(&urb->pipe_info);
-
 	qh->ep_is_in = dwc_otg_hcd_is_pipe_in(&urb->pipe_info) ? 1 : 0;
 
 	qh->data_toggle = DWC_OTG_HC_PID_DATA0;
@@ -180,17 +173,17 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 	/* FS/LS Enpoint on HS Hub 
 	 * NOT virtual root hub */
 	dev_speed = hcd->fops->speed(hcd, urb->priv);
+
 	hcd->fops->hub_info(hcd, urb->priv, &hub_addr, &hub_port);
 	qh->do_split = 0;
+
 	if (((dev_speed == USB_SPEED_LOW) ||
 	     (dev_speed == USB_SPEED_FULL)) &&
 	    (hub_addr != 0 && hub_addr != 1)) {
-		
 		DWC_DEBUGPL(DBG_HCD,
 			    "QH init: EP %d: TT found at hub addr %d, for port %d\n",
 			    dwc_otg_hcd_get_ep_num(&urb->pipe_info), hub_addr,
 			    hub_port);
-		
 		qh->do_split = 1;
 	}
 
@@ -202,22 +195,22 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 		int bytecount =
 		    dwc_hb_mult(qh->maxp) * dwc_max_packet(qh->maxp);
 
-		qh->usecs = calc_bus_time((qh->do_split ? USB_SPEED_HIGH : dev_speed),
-					  qh->ep_is_in,
-					  (qh->ep_type == UE_ISOCHRONOUS),
-					  bytecount);
+		qh->usecs =
+		    calc_bus_time((qh->do_split ? USB_SPEED_HIGH : dev_speed),
+				  qh->ep_is_in, (qh->ep_type == UE_ISOCHRONOUS),
+				  bytecount);
 		/* Start in a slightly future (micro)frame. */
 		qh->sched_frame = dwc_frame_num_inc(hcd->frame_number,
 						    SCHEDULE_SLOP);
 		qh->interval = urb->interval;
-		
+
 #if 0
 		/* Increase interrupt polling rate for debugging. */
 		if (qh->ep_type == UE_INTERRUPT) {
 			qh->interval = 8;
 		}
 #endif
-		hprt.d32 = dwc_read_reg32(hcd->core_if->host_if->hprt0);
+		hprt.d32 = DWC_READ_REG32(hcd->core_if->host_if->hprt0);
 		if ((hprt.b.prtspd == DWC_HPRT0_PRTSPD_HIGH_SPEED) &&
 		    ((dev_speed == USB_SPEED_LOW) ||
 		     (dev_speed == USB_SPEED_FULL))) {
@@ -271,7 +264,7 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 		type = "?";
 		break;
 	}
-	
+
 	DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - Type = %s\n", type);
 
 #ifdef DEBUG
@@ -291,27 +284,30 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
  * @param hcd The HCD state structure for the DWC OTG controller.
  * @param urb Holds the information about the device/endpoint that we need
  * 	      to initialize the QH.
+ * @param atomic_alloc Flag to do atomic allocation if needed
  *
  * @return Returns pointer to the newly allocated QH, or NULL on error. */
 dwc_otg_qh_t *dwc_otg_hcd_qh_create(dwc_otg_hcd_t * hcd,
-				    dwc_otg_hcd_urb_t * urb)
+				    dwc_otg_hcd_urb_t * urb, int atomic_alloc)
 {
 	dwc_otg_qh_t *qh;
 
 	/* Allocate memory */
 	/** @todo add memflags argument */
-	qh = dwc_otg_hcd_qh_alloc();
+	qh = dwc_otg_hcd_qh_alloc(atomic_alloc);
 	if (qh == NULL) {
+		DWC_ERROR("qh allocation failed");
 		return NULL;
 	}
 
 	qh_init(hcd, qh, urb);
-	
-	if (hcd->core_if->dma_desc_enable && (dwc_otg_hcd_qh_init_ddma(hcd, qh) < 0)) {
-		dwc_otg_hcd_qh_free(hcd, qh);	
+
+	if (hcd->core_if->dma_desc_enable
+	    && (dwc_otg_hcd_qh_init_ddma(hcd, qh) < 0)) {
+		dwc_otg_hcd_qh_free(hcd, qh);
 		return NULL;
 	}
-	
+
 	return qh;
 }
 
@@ -331,8 +327,8 @@ static int periodic_channel_available(dwc_otg_hcd_t * hcd)
 	int num_channels;
 
 	num_channels = hcd->core_if->core_params->host_channels;
-	if ((hcd->periodic_channels + hcd->non_periodic_channels < num_channels) &&
-	    (hcd->periodic_channels < num_channels - 1)) {
+	if ((hcd->periodic_channels + hcd->non_periodic_channels < num_channels)
+	    && (hcd->periodic_channels < num_channels - 1)) {
 		status = 0;
 	} else {
 		DWC_INFO("%s: Total channels: %d, Periodic: %d, Non-periodic: %d\n",
@@ -472,13 +468,11 @@ static int schedule_periodic(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 int dwc_otg_hcd_qh_add(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 {
 	int status = 0;
-	uint64_t flags;
-
-	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
+	gintmsk_data_t intr_mask = {.d32 = 0 };
 
 	if (!DWC_LIST_EMPTY(&qh->qh_list_entry)) {
 		/* QH already in a schedule. */
-		goto done;
+		return status;
 	}
 
 	/* Add the new QH to the appropriate schedule */
@@ -488,10 +482,13 @@ int dwc_otg_hcd_qh_add(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 				     &qh->qh_list_entry);
 	} else {
 		status = schedule_periodic(hcd, qh);
+		if ( !hcd->periodic_qh_count ) {
+			intr_mask.b.sofintr = 1;
+			DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk,
+								intr_mask.d32, intr_mask.d32);
+		}
+		hcd->periodic_qh_count++;
 	}
-
-      done:
-	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 
 	return status;
 }
@@ -521,12 +518,11 @@ static void deschedule_periodic(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
  * @param qh QH to remove from schedule. */
 void dwc_otg_hcd_qh_remove(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 {
-	uint64_t flags;
-	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
+	gintmsk_data_t intr_mask = {.d32 = 0 };
 
 	if (DWC_LIST_EMPTY(&qh->qh_list_entry)) {
 		/* QH is not in a schedule. */
-		goto done;
+		return;
 	}
 
 	if (dwc_qh_is_non_per(qh)) {
@@ -537,10 +533,13 @@ void dwc_otg_hcd_qh_remove(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		DWC_LIST_REMOVE_INIT(&qh->qh_list_entry);
 	} else {
 		deschedule_periodic(hcd, qh);
+		hcd->periodic_qh_count--;
+		if( !hcd->periodic_qh_count ) {
+			intr_mask.b.sofintr = 1;
+				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk,
+									intr_mask.d32, 0);
+		}
 	}
-
-      done:
-	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 }
 
 /**
@@ -558,10 +557,7 @@ void dwc_otg_hcd_qh_remove(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
  */
 void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 			       int sched_next_periodic_split)
-{
-	uint64_t flags;
-	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
-
+{	
 	if (dwc_qh_is_non_per(qh)) {
 		dwc_otg_hcd_qh_remove(hcd, qh);
 		if (!DWC_CIRCLEQ_EMPTY(&qh->qtd_list)) {
@@ -577,9 +573,9 @@ void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 
 				qh->sched_frame = frame_number;
 				if (dwc_frame_num_le(frame_number,
-						     dwc_frame_num_inc(qh->
-								       start_split_frame,
-								       1))) {
+						     dwc_frame_num_inc
+						     (qh->start_split_frame,
+						      1))) {
 					/*
 					 * Allow one frame to elapse after start
 					 * split microframe before scheduling
@@ -623,14 +619,12 @@ void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 				DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_ready,
 						   &qh->qh_list_entry);
 			} else {
-				DWC_LIST_MOVE_HEAD(&hcd->
-						   periodic_sched_inactive,
-						   &qh->qh_list_entry);
+				DWC_LIST_MOVE_HEAD
+				    (&hcd->periodic_sched_inactive,
+				     &qh->qh_list_entry);
 			}
 		}
 	}
-
-	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 }
 
 /** 
@@ -638,13 +632,14 @@ void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
  *
  * @param urb The URB to create a QTD from.  Each URB-QTD pair will end up
  * 	      pointing to each other so each pair should have a unique correlation.
+ * @param atomic_alloc Flag to do atomic alloc if needed
  *
  * @return Returns pointer to the newly allocated QTD, or NULL on error. */
-dwc_otg_qtd_t *dwc_otg_hcd_qtd_create(dwc_otg_hcd_urb_t * urb)
+dwc_otg_qtd_t *dwc_otg_hcd_qtd_create(dwc_otg_hcd_urb_t * urb, int atomic_alloc)
 {
 	dwc_otg_qtd_t *qtd;
 
-	qtd = dwc_otg_hcd_qtd_alloc();
+	qtd = dwc_otg_hcd_qtd_alloc(atomic_alloc);
 	if (qtd == NULL) {
 		return NULL;
 	}
@@ -692,41 +687,40 @@ void dwc_otg_hcd_qtd_init(dwc_otg_qtd_t * qtd, dwc_otg_hcd_urb_t * urb)
  * @param[in] qtd The QTD to add
  * @param[in] hcd The DWC HCD structure
  * @param[out] qh out parameter to return queue head
+ * @param atomic_alloc Flag to do atomic alloc if needed
  *
  * @return 0 if successful, negative error code otherwise.
  */
 int dwc_otg_hcd_qtd_add(dwc_otg_qtd_t * qtd,
-			dwc_otg_hcd_t * hcd, dwc_otg_qh_t ** qh)
+			dwc_otg_hcd_t * hcd, dwc_otg_qh_t ** qh, int atomic_alloc)
 {
 	int retval = 0;
-	uint64_t flags;
+	dwc_irqflags_t flags;
 
 	dwc_otg_hcd_urb_t *urb = qtd->urb;
-
-	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 
 	/*
 	 * Get the QH which holds the QTD-list to insert to. Create QH if it
 	 * doesn't exist.
 	 */
 	if (*qh == NULL) {
-		*qh = dwc_otg_hcd_qh_create(hcd, urb);
+		*qh = dwc_otg_hcd_qh_create(hcd, urb, atomic_alloc);
 		if (*qh == NULL) {
 			retval = -1;
 			goto done;
 		}
 	}
-
+	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 	retval = dwc_otg_hcd_qh_add(hcd, *qh);
 	if (retval == 0) {
 		DWC_CIRCLEQ_INSERT_TAIL(&((*qh)->qtd_list), qtd,
 					qtd_list_entry);
 	}
-
-      done:
 	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
+
+done:
 
 	return retval;
 }
 
-#endif				/* DWC_DEVICE_ONLY */
+#endif /* DWC_DEVICE_ONLY */

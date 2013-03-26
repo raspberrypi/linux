@@ -1,8 +1,8 @@
 /* ==========================================================================
  * $File: //dwh/usb_iip/dev/software/otg/linux/drivers/dwc_otg_attr.h $
- * $Revision: #11 $
- * $Date: 2009/04/03 $
- * $Change: 1225160 $
+ * $Revision: #13 $
+ * $Date: 2010/06/21 $
+ * $Change: 1532021 $
  *
  * Synopsys HS OTG Linux Software Driver and documentation (hereinafter,
  * "Software") is an Unsupported proprietary work of Synopsys, Inc. unless
@@ -47,6 +47,8 @@ extern struct device_attribute dev_attr_hnp;
 extern struct device_attribute dev_attr_srp;
 extern struct device_attribute dev_attr_buspower;
 extern struct device_attribute dev_attr_bussuspend;
+extern struct device_attribute dev_attr_mode_ch_tim_en;
+extern struct device_attribute dev_attr_fr_interval;
 extern struct device_attribute dev_attr_busconnected;
 extern struct device_attribute dev_attr_gotgctl;
 extern struct device_attribute dev_attr_gusbcfg;
@@ -62,27 +64,26 @@ extern struct device_attribute dev_attr_hptxfsiz;
 extern struct device_attribute dev_attr_hprt0;
 #ifdef CONFIG_USB_DWC_OTG_LPM
 extern struct device_attribute dev_attr_lpm_response;
-extern struct device_attribute dev_attr_sleep_local_dev;
 extern struct device_attribute devi_attr_sleep_status;
 #endif
 
-void dwc_otg_attr_create (
+void dwc_otg_attr_create(
 #ifdef LM_INTERFACE
-	struct lm_device *dev
+				struct lm_device *dev
 #elif  defined(PCI_INTERFACE)
-	struct pci_dev *dev
+				struct pci_dev *dev
 #elif  defined(PLATFORM_INTERFACE)
 	struct platform_device *dev
 #endif
-	);
+    );
 
-void dwc_otg_attr_remove (
+void dwc_otg_attr_remove(
 #ifdef LM_INTERFACE
-	struct lm_device *dev
+				struct lm_device *dev
 #elif  defined(PCI_INTERFACE)
-	struct pci_dev *dev
+				struct pci_dev *dev
 #elif  defined(PLATFORM_INTERFACE)
 	struct platform_device *dev
 #endif
-	);
+    );
 #endif

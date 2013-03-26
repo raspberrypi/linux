@@ -2,6 +2,10 @@
 #ifndef __DWC_NOTIFIER_H__
 #define __DWC_NOTIFIER_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "dwc_os.h"
 
 /** @file
@@ -66,21 +70,22 @@ typedef struct dwc_notifier dwc_notifier_t;
  * the documentation of the observable module with the notifications.
  * @param user_data This is any custom data that the observer provided when
  * adding itself as an observer to the notification. */
-typedef void (*dwc_notifier_callback_t)(void *object, char *notification, void *observer, void *notification_data, void *user_data);
+typedef void (*dwc_notifier_callback_t)(void *object, char *notification, void *observer,
+					void *notification_data, void *user_data);
 
 /** Brings up the notification manager. */
-extern void dwc_alloc_notification_manager(void);
+extern int dwc_alloc_notification_manager(void *mem_ctx, void *wkq_ctx);
 /** Brings down the notification manager. */
 extern void dwc_free_notification_manager(void);
 
-/** This function register an observable module.  A dwc_notifier_t object is
+/** This function registers an observable module.  A dwc_notifier_t object is
  * returned to the observable module.  This is an opaque object that is used by
  * the observable module to trigger notifications.  This object should only be
  * accessible to functions that are authorized to trigger notifications for this
  * module.  Observers do not need this object. */
-extern dwc_notifier_t *dwc_register_notifier(void *object);
+extern dwc_notifier_t *dwc_register_notifier(void *mem_ctx, void *object);
 
-/** This function unregister an observable module.  All observers have to be
+/** This function unregisters an observable module.  All observers have to be
  * removed prior to unregistration. */
 extern void dwc_unregister_notifier(dwc_notifier_t *notifier);
 
@@ -92,7 +97,8 @@ extern void dwc_unregister_notifier(dwc_notifier_t *notifier);
  * @param notification The notification to observe
  * @param callback The callback function to call
  * @param user_data Any additional user data to pass into the callback function */
-extern int dwc_add_observer(void *observer, void *object, char *notification, dwc_notifier_callback_t callback, void *user_data);
+extern int dwc_add_observer(void *observer, void *object, char *notification,
+			    dwc_notifier_callback_t callback, void *user_data);
 
 /** Removes the specified observer from all notifications that it is currently
  * observing. */
@@ -108,5 +114,9 @@ extern int dwc_remove_observer(void *observer);
  *
  */
 void dwc_notify(dwc_notifier_t *notifier, char *notification, void *notification_data);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __DWC_NOTIFIER_H__ */
