@@ -627,8 +627,9 @@ __inline static union recv_frame *rxmem_to_recvframe(u8 *rxmem)
 	//from any given member of recv_frame.
 	// rxmem indicates the any member/address in recv_frame
 	
-	return (union recv_frame*)(((uint)rxmem>>RXFRAME_ALIGN) <<RXFRAME_ALIGN) ;
-	
+	//return (union recv_frame*)(((uint)rxmem>>RXFRAME_ALIGN) <<RXFRAME_ALIGN) ;
+	//return (union recv_frame*)(((SIZE_PTR)rxmem >> RXFRAME_ALIGN) << RXFRAME_ALIGN);
+	return (union recv_frame*)(((ulong)rxmem>>RXFRAME_ALIGN) <<RXFRAME_ALIGN) ; 
 }
 
 __inline static union recv_frame *pkt_to_recvframe(_pkt *pkt)

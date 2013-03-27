@@ -790,27 +790,22 @@ u32 rtw_start_drv_threads(_adapter *padapter)
 	RT_TRACE(_module_os_intfs_c_,_drv_info_,("+rtw_start_drv_threads\n"));
 
 #ifdef CONFIG_SDIO_HCI
-	padapter->xmitThread = kernel_thread(rtw_xmit_thread, padapter, CLONE_FS|CLONE_FILES);
-	if(padapter->xmitThread < 0)
+	if(!start_kthread(&padapter->xmitThread, rtw_xmit_thread, padapter, "8192cu-xmit"))
 		_status = _FAIL;
 #endif
 
 #ifdef CONFIG_RECV_THREAD_MODE
-	padapter->recvThread = kernel_thread(recv_thread, padapter, CLONE_FS|CLONE_FILES);
-	if(padapter->recvThread < 0)
+	if(!start_kthread(&padapter->recvThread, recv_thread, padapter, "8192cu-recv"))
 		_status = _FAIL;	
 #endif
 
-	padapter->cmdThread = kernel_thread(rtw_cmd_thread, padapter, CLONE_FS|CLONE_FILES);
-	if(padapter->cmdThread < 0)
+	if(!start_kthread(&padapter->cmdThread, rtw_cmd_thread, padapter, "8192cu-cmd"))
 		_status = _FAIL;
 	else
 		_rtw_down_sema(&padapter->cmdpriv.terminate_cmdthread_sema); //wait for cmd_thread to run
-		
 
 #ifdef CONFIG_EVENT_THREAD_MODE
-	padapter->evtThread = kernel_thread(event_thread, padapter, CLONE_FS|CLONE_FILES);
-	if(padapter->evtThread < 0)
+	if(!start_kthread(&padapter->evtThread, event_thread, padapter, "8192cu-evt"))
 		_status = _FAIL;		
 #endif
 

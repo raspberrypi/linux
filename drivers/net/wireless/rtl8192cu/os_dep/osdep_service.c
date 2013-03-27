@@ -1553,3 +1553,19 @@ u64 rtw_division64(u64 x, u64 y)
 #endif
 }
 
+#ifdef PLATFORM_LINUX
+int start_kthread(_thread_hdl_ *t_hdl, int (*threadfn)(void *data),
+		  void *data, const char *name)
+{
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,7,0))
+	*t_hdl = kernel_thread(threadfn, data, CLONE_FS|CLONE_FILES);
+	if(*t_hdl < 0)
+#else
+	*t_hdl = kthread_run(threadfn, data, name);
+	if(IS_ERR(*t_hdl))
+#endif
+		return 0;
+	return -1;
+}
+#endif
+

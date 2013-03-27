@@ -1140,8 +1140,7 @@ void SetPacketTx(PADAPTER padapter)
 	_rtw_memset(ptr, payload, pkt_end - ptr);
 
 	//3 6. start thread
-	pmp_priv->tx.PktTxThread = kernel_thread(mp_xmit_packet_thread, pmp_priv, CLONE_FS|CLONE_FILES);
-	if(pmp_priv->tx.PktTxThread < 0)
+	if(!start_kthread(&pmp_priv->tx.PktTxThread, mp_xmit_packet_thread, pmp_priv, "8192cu-mp-xmit"))
 		DBG_871X("Create PktTx Thread Fail !!!!!\n");
 
 }
