@@ -313,7 +313,6 @@ config MMC_ATMELMCI
 
 	  If unsure, say N.
 
-endchoice
 config MMC_BCM2708
 	tristate "BCM2708 Multimedia Card Interface support"
 	help
