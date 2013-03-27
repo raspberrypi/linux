@@ -54,11 +54,4 @@
 #define __pfn_to_bus(x)     (__pfn_to_phys(x) + (BUS_OFFSET - PLAT_PHYS_OFFSET))
 #define __bus_to_pfn(x)     __phys_to_pfn((x) - (BUS_OFFSET - PLAT_PHYS_OFFSET))
 
-/*
- * Consistent DMA area set to 2M. Framebuffer now allocated on host
- */
-
-
-#define CONSISTENT_DMA_SIZE 0x00200000
-
 #endif
