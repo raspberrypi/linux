@@ -146,7 +146,7 @@ static int snd_bcm2835_ctl_put(struct snd_kcontrol *kcontrol,
 
 static DECLARE_TLV_DB_SCALE(snd_bcm2835_db_scale, CTRL_VOL_MIN, 1, 1);
 
-static struct snd_kcontrol_new snd_bcm2835_ctl[] __devinitdata = {
+static struct snd_kcontrol_new snd_bcm2835_ctl[] = {
 	{
 	 .iface = SNDRV_CTL_ELEM_IFACE_MIXER,
 	 .name = "PCM Playback Volume",
@@ -183,7 +183,7 @@ static struct snd_kcontrol_new snd_bcm2835_ctl[] __devinitdata = {
 	},
 };
 
-int __devinit snd_bcm2835_new_ctl(bcm2835_chip_t * chip)
+int snd_bcm2835_new_ctl(bcm2835_chip_t * chip)
 {
 	int err;
 	unsigned int idx;

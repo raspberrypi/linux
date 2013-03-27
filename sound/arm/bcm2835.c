@@ -53,7 +53,7 @@ static int snd_bcm2835_dev_free(struct snd_device *device)
 /* chip-specific constructor
  * (see "Management of Cards and Components")
  */
-static int __devinit snd_bcm2835_create(struct snd_card *card,
+static int snd_bcm2835_create(struct snd_card *card,
 					struct platform_device *pdev,
 					bcm2835_chip_t ** rchip)
 {
@@ -81,7 +81,7 @@ static int __devinit snd_bcm2835_create(struct snd_card *card,
 	return 0;
 }
 
-static int __devinit snd_bcm2835_alsa_probe(struct platform_device *pdev)
+static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 {
 	static int dev;
 	bcm2835_chip_t *chip;
@@ -321,7 +321,7 @@ static struct platform_driver bcm2835_alsa7_driver = {
 		   },
 };
 
-static int __devinit bcm2835_alsa_device_init(void)
+static int bcm2835_alsa_device_init(void)
 {
 	int err;
 	err = platform_driver_register(&bcm2835_alsa0_driver);
@@ -392,7 +392,7 @@ out:
 	return err;
 }
 
-static void __devexit bcm2835_alsa_device_exit(void)
+static void bcm2835_alsa_device_exit(void)
 {
 	platform_driver_unregister(&bcm2835_alsa0_driver);
 	platform_driver_unregister(&bcm2835_alsa1_driver);

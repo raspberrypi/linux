@@ -376,7 +376,7 @@ static struct snd_pcm_ops snd_bcm2835_playback_ops = {
 };
 
 /* create a pcm device */
-int __devinit snd_bcm2835_new_pcm(bcm2835_chip_t * chip)
+int snd_bcm2835_new_pcm(bcm2835_chip_t * chip)
 {
 	struct snd_pcm *pcm;
 	int err;
