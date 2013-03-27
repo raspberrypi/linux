@@ -1164,7 +1164,7 @@ static struct gadget_wrapper *alloc_wrapper(dwc_bus_dev_t *_dev)
 	d->gadget.dev.parent = &_dev->dev;
 	d->gadget.dev.release = dwc_otg_pcd_gadget_release;
 	d->gadget.ops = &dwc_otg_pcd_ops;
-	d->gadget.is_dualspeed = dwc_otg_pcd_is_dualspeed(otg_dev->pcd);
+	d->gadget.max_speed = dwc_otg_pcd_is_dualspeed(otg_dev->pcd) ? USB_SPEED_HIGH:USB_SPEED_FULL;
 	d->gadget.is_otg = dwc_otg_pcd_is_otg(otg_dev->pcd);
 
 	d->driver = 0;
@@ -1296,7 +1296,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 	DWC_DEBUGPL(DBG_PCD, "registering gadget driver '%s'\n",
 		    driver->driver.name);
 
-	if (!driver || driver->speed == USB_SPEED_UNKNOWN ||
+	if (!driver || driver->max_speed == USB_SPEED_UNKNOWN ||
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
 	    !driver->bind ||
 #else
