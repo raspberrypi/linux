@@ -33,6 +33,7 @@
 #include <linux/capability.h>
 #include <linux/errno.h>
 #include <linux/interrupt.h>
+#include <linux/syscalls.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/signal.h>
@@ -48,7 +49,6 @@
 #include <asm/io.h>
 #include <asm/tlbflush.h>
 #include <asm/irq.h>
-#include <asm/syscalls.h>
 
 /*
  * Known problems:
@@ -202,17 +202,16 @@ out:
 static int do_vm86_irq_handling(int subfunction, int irqnumber);
 static void do_sys_vm86(struct kernel_vm86_struct *info, struct task_struct *tsk);
 
-int sys_vm86old(struct vm86_struct __user *v86)
+SYSCALL_DEFINE1(vm86old, struct vm86_struct __user *, v86)
 {
 	struct kernel_vm86_struct info; /* declare this _on top_,
 					 * this avoids wasting of stack space.
 					 * This remains on the stack until we
 					 * return to 32 bit user space.
 					 */
-	struct task_struct *tsk;
+	struct task_struct *tsk = current;
 	int tmp, ret = -EPERM;
 
-	tsk = current;
 	if (tsk->thread.saved_sp0)
 		goto out;
 	tmp = copy_vm86_regs_from_user(&info.regs, &v86->regs,
@@ -227,11 +226,12 @@ int sys_vm86old(struct vm86_struct __user *v86)
 	do_sys_vm86(&info, tsk);
 	ret = 0;	/* we never return here */
 out:
+	asmlinkage_protect(1, ret, v86);
 	return ret;
 }
 
 
-int sys_vm86(unsigned long cmd, unsigned long arg)
+SYSCALL_DEFINE2(vm86, unsigned long, cmd, unsigned long, arg)
 {
 	struct kernel_vm86_struct info; /* declare this _on top_,
 					 * this avoids wasting of stack space.
@@ -278,6 +278,7 @@ int sys_vm86(unsigned long cmd, unsigned long arg)
 	do_sys_vm86(&info, tsk);
 	ret = 0;	/* we never return here */
 out:
+	asmlinkage_protect(2, ret, cmd, arg);
 	return ret;
 }
 
