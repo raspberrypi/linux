@@ -645,7 +645,7 @@ static int Mmap(struct file *pFile, struct vm_area_struct *pVma)
 	pVmaList->m_pPageTail = pPages;
 
 	pVma->vm_ops = &g_vmOps4k;
-	pVma->vm_flags |= VM_RESERVED;
+	pVma->vm_flags |= VM_IO;
 
 	VmaOpen4k(pVma);
 
