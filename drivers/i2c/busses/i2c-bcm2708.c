@@ -249,7 +249,7 @@ static struct i2c_algorithm bcm2708_i2c_algorithm = {
 	.functionality = bcm2708_i2c_functionality,
 };
 
-static int __devinit bcm2708_i2c_probe(struct platform_device *pdev)
+static int bcm2708_i2c_probe(struct platform_device *pdev)
 {
 	struct resource *regs;
 	int irq, err = -ENOMEM;
@@ -347,7 +347,7 @@ out_clk_put:
 	return err;
 }
 
-static int __devexit bcm2708_i2c_remove(struct platform_device *pdev)
+static int bcm2708_i2c_remove(struct platform_device *pdev)
 {
 	struct bcm2708_i2c *bi = platform_get_drvdata(pdev);
 
@@ -369,7 +369,7 @@ static struct platform_driver bcm2708_i2c_driver = {
 		.owner	= THIS_MODULE,
 	},
 	.probe		= bcm2708_i2c_probe,
-	.remove		= __devexit_p(bcm2708_i2c_remove),
+	.remove		= bcm2708_i2c_remove,
 };
 
 // module_platform_driver(bcm2708_i2c_driver);
