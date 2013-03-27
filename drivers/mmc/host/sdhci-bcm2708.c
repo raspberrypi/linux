@@ -1160,7 +1160,7 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
  *									     *
 \*****************************************************************************/
 
-static int __devinit sdhci_bcm2708_probe(struct platform_device *pdev)
+static int sdhci_bcm2708_probe(struct platform_device *pdev)
 {
 	struct sdhci_host *host;
 	struct resource *iomem;
@@ -1325,7 +1325,7 @@ err:
 	return ret;
 }
 
-static int __devexit sdhci_bcm2708_remove(struct platform_device *pdev)
+static int sdhci_bcm2708_remove(struct platform_device *pdev)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
 	struct resource *iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1362,7 +1362,7 @@ static struct platform_driver sdhci_bcm2708_driver = {
 		.owner	= THIS_MODULE,
 	},
 	.probe		= sdhci_bcm2708_probe,
-	.remove		= __devexit_p(sdhci_bcm2708_remove),
+	.remove		= sdhci_bcm2708_remove,
 
 #ifdef CONFIG_PM
 	.suspend = sdhci_bcm2708_suspend,
