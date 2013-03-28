@@ -60,6 +60,11 @@
 #include "armctrl.h"
 #include "clock.h"
 
+#ifdef CONFIG_BCM_VC_CMA
+#include <linux/broadcom/vc_cma.h>
+#endif
+
+
 /* Effectively we have an IOMMU (ARM<->VideoCore map) that is set up to
  * give us IO access only to 64Mbytes of physical memory (26 bits).  We could
  * represent this window by setting our dmamasks to 26 bits but, in fact
@@ -634,6 +639,9 @@ void __init bcm2708_init(void)
 {
 	int i;
 
+#if defined(CONFIG_BCM_VC_CMA)
+	vc_cma_early_init();
+#endif
 	printk("bcm2708.uart_clock = %d\n", uart_clock);
 	pm_power_off = bcm2708_power_off;
 
@@ -827,7 +835,16 @@ void __init bcm2708_init_early(void)
 	 * context. Increase size of atomic coherent pool to make sure such
 	 * the allocations won't fail.
 	 */
+#if !defined(CONFIG_BCM_VC_CMA)
 	init_dma_coherent_pool_size(SZ_2M);
+#endif
+}
+
+static void __init board_reserve(void)
+{
+#if defined(CONFIG_BCM_VC_CMA)
+	vc_cma_reserve();
+#endif
 }
 
 MACHINE_START(BCM2708, "BCM2708")
@@ -837,6 +854,7 @@ MACHINE_START(BCM2708, "BCM2708")
 	.init_time = bcm2708_timer_init,
 	.init_machine = bcm2708_init,
 	.init_early = bcm2708_init_early,
+	.reserve = board_reserve,
 MACHINE_END
 
 module_param(boardrev, uint, 0644);
