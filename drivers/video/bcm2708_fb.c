@@ -35,6 +35,12 @@
 #include <linux/io.h>
 #include <linux/dma-mapping.h>
 
+#ifdef BCM2708_FB_DEBUG
+#define print_debug(fmt,...) pr_debug("%s:%s:%d: "fmt, MODULE_NAME, __func__, __LINE__, ##__VA_ARGS__)
+#else
+#define print_debug(fmt,...)
+#endif
+
 /* This is limited to 16 characters when displayed by X startup */
 static const char *bcm2708_name = "BCM2708 FB";
 
@@ -134,17 +140,15 @@ static int bcm2708_fb_check_var(struct fb_var_screeninfo *var,
 {
 	/* info input, var output */
 	int yres;
-	/* memory size in pixels */
-	unsigned pixels = info->screen_size * 8 / var->bits_per_pixel;
 
 	/* info input, var output */
-	pr_info("bcm2708_fb_check_var info(%p) %dx%d (%dx%d), %d, %d\n", info,
+	print_debug("bcm2708_fb_check_var info(%p) %dx%d (%dx%d), %d, %d\n", info,
 		info->var.xres, info->var.yres, info->var.xres_virtual,
 		info->var.yres_virtual, (int)info->screen_size,
 		info->var.bits_per_pixel);
-	pr_info("bcm2708_fb_check_var var(%p) %dx%d (%dx%d), %d, %d\n", var,
+	print_debug("bcm2708_fb_check_var var(%p) %dx%d (%dx%d), %d\n", var,
 		var->xres, var->yres, var->xres_virtual, var->yres_virtual,
-		var->bits_per_pixel, pixels);
+		var->bits_per_pixel);
 
 	if (!var->bits_per_pixel)
 		var->bits_per_pixel = 16;
@@ -210,7 +214,7 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 	fbinfo->base = 0;	/* filled in by VC */
 	fbinfo->pitch = 0;	/* filled in by VC */
 
-	pr_info("bcm2708_fb_set_par info(%p) %dx%d (%dx%d), %d, %d\n", info,
+	print_debug("bcm2708_fb_set_par info(%p) %dx%d (%dx%d), %d, %d\n", info,
 		info->var.xres, info->var.yres, info->var.xres_virtual,
 		info->var.yres_virtual, (int)info->screen_size,
 		info->var.bits_per_pixel);
@@ -251,7 +255,7 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 			BUG();		/* what can we do here */
 		}
 	}
-	pr_info
+	print_debug
 	    ("BCM2708FB: start = %p,%p width=%d, height=%d, bpp=%d, pitch=%d size=%d success=%d\n",
 	     (void *)fb->fb.screen_base, (void *)fb->fb.fix.smem_start,
 	     fbinfo->xres, fbinfo->yres, fbinfo->bpp,
@@ -274,7 +278,7 @@ static int bcm2708_fb_setcolreg(unsigned int regno, unsigned int red,
 {
 	struct bcm2708_fb *fb = to_bcm2708(info);
 
-	/*pr_info("BCM2708FB: setcolreg %d:(%02x,%02x,%02x,%02x) %x\n", regno, red, green, blue, transp, fb->fb.fix.visual);*/
+	/*print_debug("BCM2708FB: setcolreg %d:(%02x,%02x,%02x,%02x) %x\n", regno, red, green, blue, transp, fb->fb.fix.visual);*/
 	if (fb->fb.var.bits_per_pixel <= 8) {
 		if (regno < 256) {
 			/* blue [0:4], green [5:10], red [11:15] */
@@ -297,28 +301,28 @@ static int bcm2708_fb_setcolreg(unsigned int regno, unsigned int red,
 
 static int bcm2708_fb_blank(int blank_mode, struct fb_info *info)
 {
-	/*pr_info("bcm2708_fb_blank\n"); */
+	/*print_debug("bcm2708_fb_blank\n"); */
 	return -1;
 }
 
 static void bcm2708_fb_fillrect(struct fb_info *info,
 				const struct fb_fillrect *rect)
 {
-	/* (is called) pr_info("bcm2708_fb_fillrect\n"); */
+	/* (is called) print_debug("bcm2708_fb_fillrect\n"); */
 	cfb_fillrect(info, rect);
 }
 
 static void bcm2708_fb_copyarea(struct fb_info *info,
 				const struct fb_copyarea *region)
 {
-	/*pr_info("bcm2708_fb_copyarea\n"); */
+	/*print_debug("bcm2708_fb_copyarea\n"); */
 	cfb_copyarea(info, region);
 }
 
 static void bcm2708_fb_imageblit(struct fb_info *info,
 				 const struct fb_image *image)
 {
-	/* (is called) pr_info("bcm2708_fb_imageblit\n"); */
+	/* (is called) print_debug("bcm2708_fb_imageblit\n"); */
 	cfb_imageblit(info, image);
 }
 
@@ -393,15 +397,15 @@ static int bcm2708_fb_register(struct bcm2708_fb *fb)
 
 	fb_set_var(&fb->fb, &fb->fb.var);
 
-	pr_info("BCM2708FB: registering framebuffer (%dx%d@%d)\n", fbwidth,
+	print_debug("BCM2708FB: registering framebuffer (%dx%d@%d)\n", fbwidth,
 		fbheight, fbdepth);
 
 	ret = register_framebuffer(&fb->fb);
-	pr_info("BCM2708FB: register framebuffer (%d)\n", ret);
+	print_debug("BCM2708FB: register framebuffer (%d)\n", ret);
 	if (ret == 0)
 		goto out;
 
-	pr_info("BCM2708FB: cannot register framebuffer (%d)\n", ret);
+	print_debug("BCM2708FB: cannot register framebuffer (%d)\n", ret);
 out:
 	return ret;
 }
