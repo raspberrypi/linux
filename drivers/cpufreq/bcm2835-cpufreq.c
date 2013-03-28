@@ -196,7 +196,7 @@ static int bcm2835_cpufreq_driver_target(struct cpufreq_policy *policy, unsigned
 		policy->cur = bcm2835_cpufreq_get_clock(VCMSG_GET_CLOCK_RATE);
 		return -EINVAL;
 	}
-	print_info("Freq %d->%d (min=%d max=%d target=%d request=%d)", cur, policy->cur, policy->min, policy->max, target_freq, target);
+	print_debug("Freq %d->%d (min=%d max=%d target=%d request=%d)", cur, policy->cur, policy->min, policy->max, target_freq, target);
 	return 0;
 }
 
