@@ -52,5 +52,5 @@ obj-$(CONFIG_INTEL_MEI)		+= mei/
 obj-$(CONFIG_MAX8997_MUIC)	+= max8997-muic.o
 obj-$(CONFIG_VMWARE_VMCI)	+= vmw_vmci/
 obj-$(CONFIG_LATTICE_ECP3_CONFIG)	+= lattice-ecp3-config.o
-obj-y				+= vc04_services/
+obj-$(CONFIG_BCM2708_VCHIQ)	+= vc04_services/
 
