@@ -26,11 +26,11 @@ static struct snd_pcm_hardware snd_bcm2835_playback_hw = {
 	.rate_max = 48000,
 	.channels_min = 1,
 	.channels_max = 2,
-	.buffer_bytes_max = 32 * 1024,	/* Needs to be less than audioplay buffer size */
-	.period_bytes_min =  4 * 1024,
-	.period_bytes_max = 32 * 1024,
+	.buffer_bytes_max = 128 * 1024,
+	.period_bytes_min =   1 * 1024,
+	.period_bytes_max = 128 * 1024,
 	.periods_min = 1,
-	.periods_max = 32,
+	.periods_max = 128,
 };
 
 static void snd_bcm2835_playback_free(struct snd_pcm_runtime *runtime)
