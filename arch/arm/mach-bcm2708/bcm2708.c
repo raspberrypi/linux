@@ -366,7 +366,7 @@ static struct resource bcm2708_usb_resources[] = {
 	       },
 };
 
-extern bool fiq_fix_enable;
+bool fiq_fix_enable = true;
 
 static struct resource bcm2708_usb_resources_no_fiq_fix[] = {
 	[0] = {

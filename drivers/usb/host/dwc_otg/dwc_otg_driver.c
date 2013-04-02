@@ -240,8 +240,8 @@ static struct dwc_otg_driver_module_params dwc_otg_module_params = {
 	.adp_enable = -1,
 };
 
-//Global variable to switch the fiq fix on or off
-bool fiq_fix_enable = true;
+//Global variable to switch the fiq fix on or off (declared in bcm2708.c)
+extern bool fiq_fix_enable;
 
 //Global variable to switch the nak holdoff on or off
 bool nak_holdoff_enable = true;
