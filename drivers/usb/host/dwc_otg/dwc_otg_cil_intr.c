@@ -47,8 +47,6 @@
 #include "dwc_otg_hcd.h"
 #include "dwc_otg_mphi_fix.h"
 
-extern bool fiq_fix_enable;
-
 #ifdef DEBUG
 inline const char *op_state_str(dwc_otg_core_if_t * core_if)
 {
@@ -1321,7 +1319,7 @@ static int32_t dwc_otg_handle_lpm_intr(dwc_otg_core_if_t * core_if)
 /**
  * This function returns the Core Interrupt register.
  */
-static inline uint32_t dwc_otg_read_common_intr(dwc_otg_core_if_t * core_if)
+static inline uint32_t dwc_otg_read_common_intr(dwc_otg_core_if_t * core_if, gintmsk_data_t *reenable_gintmsk)
 {
 	gahbcfg_data_t gahbcfg = {.d32 = 0 };
 	gintsts_data_t gintsts;
@@ -1338,19 +1336,33 @@ static inline uint32_t dwc_otg_read_common_intr(dwc_otg_core_if_t * core_if)
 	gintmsk_common.b.lpmtranrcvd = 1;
 #endif
 	gintmsk_common.b.restoredone = 1;
-	/** @todo: The port interrupt occurs while in device
-         * mode. Added code to CIL to clear the interrupt for now!
-         */
-	gintmsk_common.b.portintr = 1;
-
+	if(dwc_otg_is_device_mode(core_if))
+	{
+		/** @todo: The port interrupt occurs while in device
+		 * mode. Added code to CIL to clear the interrupt for now!
+		 */
+		gintmsk_common.b.portintr = 1;
+	}
 	gintsts.d32 = DWC_READ_REG32(&core_if->core_global_regs->gintsts);
 	gintmsk.d32 = DWC_READ_REG32(&core_if->core_global_regs->gintmsk);
+	{
+		unsigned long flags;
+
+		// Re-enable the saved interrupts
+		local_irq_save(flags);
+		local_fiq_disable();
+		gintmsk.d32 |= gintmsk_common.d32;
+		gintsts_saved.d32 &= ~gintmsk_common.d32;
+		reenable_gintmsk->d32 = gintmsk.d32;
+		local_irq_restore(flags);
+	}
+
 	gahbcfg.d32 = DWC_READ_REG32(&core_if->core_global_regs->gahbcfg);
 
 #ifdef DEBUG
 	/* if any common interrupts set */
 	if (gintsts.d32 & gintmsk_common.d32) {
-		DWC_DEBUGPL(DBG_ANY, "gintsts=%08x  gintmsk=%08x\n",
+		DWC_DEBUGPL(DBG_ANY, "common_intr: gintsts=%08x  gintmsk=%08x\n",
 			    gintsts.d32, gintmsk.d32);
 	}
 #endif
@@ -1394,6 +1406,7 @@ int32_t dwc_otg_handle_common_intr(void *dev)
 {
 	int retval = 0;
 	gintsts_data_t gintsts;
+	gintmsk_data_t reenable_gintmsk;
 	gpwrdn_data_t gpwrdn = {.d32 = 0 };
 	dwc_otg_device_t *otg_dev = dev;
 	dwc_otg_core_if_t *core_if = otg_dev->core_if;
@@ -1415,7 +1428,7 @@ int32_t dwc_otg_handle_common_intr(void *dev)
 	}
 
 	if (core_if->hibernation_suspend <= 0) {
-		gintsts.d32 = dwc_otg_read_common_intr(core_if);
+		gintsts.d32 = dwc_otg_read_common_intr(core_if, &reenable_gintmsk);
 
 		if (gintsts.b.modemismatch) {
 			retval |= dwc_otg_handle_mode_mismatch_intr(core_if);
@@ -1512,8 +1525,12 @@ int32_t dwc_otg_handle_common_intr(void *dev)
 			gintsts.b.portintr = 1;
 			DWC_WRITE_REG32(&core_if->core_global_regs->gintsts,gintsts.d32);
 			retval |= 1;
+			reenable_gintmsk.b.portintr = 1;
 
 		}
+
+		DWC_WRITE_REG32(&core_if->core_global_regs->gintmsk, reenable_gintmsk.d32);
+
 	} else {
 		DWC_DEBUGPL(DBG_ANY, "gpwrdn=%08x\n", gpwrdn.d32);
 
