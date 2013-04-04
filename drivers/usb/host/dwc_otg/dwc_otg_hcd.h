@@ -168,10 +168,10 @@ typedef enum dwc_otg_control_phase {
 
 /** Transaction types. */
 typedef enum dwc_otg_transaction_type {
-	DWC_OTG_TRANSACTION_NONE,
-	DWC_OTG_TRANSACTION_PERIODIC,
-	DWC_OTG_TRANSACTION_NON_PERIODIC,
-	DWC_OTG_TRANSACTION_ALL
+	DWC_OTG_TRANSACTION_NONE          = 0,
+	DWC_OTG_TRANSACTION_PERIODIC      = 1,
+	DWC_OTG_TRANSACTION_NON_PERIODIC  = 2,
+	DWC_OTG_TRANSACTION_ALL           = DWC_OTG_TRANSACTION_PERIODIC + DWC_OTG_TRANSACTION_NON_PERIODIC
 } dwc_otg_transaction_type_e;
 
 struct dwc_otg_qh;
@@ -370,6 +370,8 @@ typedef struct dwc_otg_qh {
 
 	uint16_t speed;
 	uint16_t frame_usecs[8];
+
+	uint32_t skip_count;
 } dwc_otg_qh_t;
 
 DWC_CIRCLEQ_HEAD(hc_list, dwc_hc);
@@ -574,6 +576,10 @@ struct dwc_otg_hcd {
 	/** Frame List */
 	uint32_t *frame_list;
 
+	/** Hub - Port assignment */
+	int hub_port[16];
+	int hub_port_alloc[256];
+
 	/** Frame List DMA address */
 	dma_addr_t frame_list_dma;
 
@@ -604,12 +610,16 @@ extern dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t
 extern void dwc_otg_hcd_queue_transactions(dwc_otg_hcd_t * hcd,
 					   dwc_otg_transaction_type_e tr_type);
 
+int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh);
+void dwc_otg_hcd_release_port(dwc_otg_hcd_t * dwc_otg_hcd, dwc_otg_qh_t *qh);
+
+
 /** @} */
 
 /** @name Interrupt Handler Functions */
 /** @{ */
 extern int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd);
-extern int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * dwc_otg_hcd, int32_t);
+extern int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * dwc_otg_hcd);
 extern int32_t dwc_otg_hcd_handle_rx_status_q_level_intr(dwc_otg_hcd_t *
 							 dwc_otg_hcd);
 extern int32_t dwc_otg_hcd_handle_np_tx_fifo_empty_intr(dwc_otg_hcd_t *
