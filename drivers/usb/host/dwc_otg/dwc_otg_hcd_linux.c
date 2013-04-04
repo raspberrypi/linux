@@ -392,7 +392,11 @@ static struct dwc_otg_hcd_function_ops hcd_fops = {
 static struct fiq_handler fh = {
   .name = "usb_fiq",
 };
-static uint8_t fiqStack[1024];
+struct fiq_stack_s {
+	int magic1;
+	uint8_t stack[2048];
+	int magic2;
+} fiq_stack;
 
 extern mphi_regs_t c_mphi_regs;
 /**
@@ -434,9 +438,11 @@ int hcd_init(dwc_bus_dev_t *_dev)
 		memset(&regs,0,sizeof(regs));
 		regs.ARM_r8 = (long)dwc_otg_hcd_handle_fiq;
 		regs.ARM_r9 = (long)0;
-		regs.ARM_sp = (long)fiqStack + sizeof(fiqStack) - 4;
+		regs.ARM_sp = (long)fiq_stack.stack + sizeof(fiq_stack.stack) - 4;
 		set_fiq_regs(&regs);
-		}
+		fiq_stack.magic1 = 0xdeadbeef;
+		fiq_stack.magic2 = 0xaa995566;
+	}
 
 	/*
 	 * Allocate memory for the base HCD plus the DWC OTG HCD.
@@ -459,12 +465,16 @@ int hcd_init(dwc_bus_dev_t *_dev)
 
 	if (fiq_fix_enable)
 	{
+		volatile extern void *dwc_regs_base;
+
 		//Set the mphi periph to  the required registers
 		c_mphi_regs.base    = otg_dev->os_dep.mphi_base;
 		c_mphi_regs.ctrl    = otg_dev->os_dep.mphi_base + 0x4c;
 		c_mphi_regs.outdda  = otg_dev->os_dep.mphi_base + 0x28;
 		c_mphi_regs.outddb  = otg_dev->os_dep.mphi_base + 0x2c;
 		c_mphi_regs.intstat = otg_dev->os_dep.mphi_base + 0x50;
+
+		dwc_regs_base = otg_dev->os_dep.base;
 
 		//Enable mphi peripheral
 		writel((1<<31),c_mphi_regs.ctrl);
@@ -839,6 +849,8 @@ static int dwc_otg_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
                 usb_hcd_unlink_urb_from_ep(hcd, urb);
 #endif
 		DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, flags);
+
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
                 usb_hcd_giveback_urb(hcd, urb);
 #else
