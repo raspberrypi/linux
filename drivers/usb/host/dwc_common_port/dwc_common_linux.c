@@ -580,7 +580,12 @@ void DWC_WRITE_REG64(uint64_t volatile *reg, uint64_t value)
 
 void DWC_MODIFY_REG32(uint32_t volatile *reg, uint32_t clear_mask, uint32_t set_mask)
 {
+	unsigned long flags;
+
+	local_irq_save(flags);
+	local_fiq_disable();
 	writel((readl(reg) & ~clear_mask) | set_mask, reg);
+	local_irq_restore(flags);
 }
 
 #if 0
