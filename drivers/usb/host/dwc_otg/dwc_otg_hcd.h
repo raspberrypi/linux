@@ -594,7 +594,7 @@ extern void dwc_otg_hcd_queue_transactions(dwc_otg_hcd_t * hcd,
 /** @name Interrupt Handler Functions */
 /** @{ */
 extern int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd);
-extern int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * dwc_otg_hcd);
+extern int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * dwc_otg_hcd, int32_t);
 extern int32_t dwc_otg_hcd_handle_rx_status_q_level_intr(dwc_otg_hcd_t *
 							 dwc_otg_hcd);
 extern int32_t dwc_otg_hcd_handle_np_tx_fifo_empty_intr(dwc_otg_hcd_t *
