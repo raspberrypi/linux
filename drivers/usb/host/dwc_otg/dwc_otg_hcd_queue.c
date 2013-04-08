@@ -181,6 +181,7 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh, dwc_otg_hcd_urb_t * urb)
 	if (microframe_schedule)
 		qh->speed = dev_speed;
 
+	qh->nak_frame = 0xffff;
 
 	if (((dev_speed == USB_SPEED_LOW) ||
 	     (dev_speed == USB_SPEED_FULL)) &&
@@ -764,6 +765,24 @@ void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 			       int sched_next_periodic_split)
 {	
 	if (dwc_qh_is_non_per(qh)) {
+
+	dwc_otg_qh_t *qh_tmp;
+	dwc_list_link_t *qh_list;
+	DWC_LIST_FOREACH(qh_list, &hcd->non_periodic_sched_inactive)
+	{
+		qh_tmp = DWC_LIST_ENTRY(qh_list, struct dwc_otg_qh, qh_list_entry);
+		if(qh_tmp == qh)
+		{
+			/*
+			 *  FIQ is being disabled because this one nevers gets a np_count increment
+			 *  This is still not absolutely correct, but it should fix itself with
+			 *  just an unnecessary extra interrupt
+			 */
+			g_np_sent = g_np_count;
+		}
+	}
+
+
 		dwc_otg_hcd_qh_remove(hcd, qh);
 		if (!DWC_CIRCLEQ_EMPTY(&qh->qtd_list)) {
 			/* Add back to inactive non-periodic schedule. */
