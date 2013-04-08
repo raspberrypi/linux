@@ -527,6 +527,8 @@ int dwc_otg_hcd_urb_dequeue(dwc_otg_hcd_t * hcd,
 {
 	dwc_otg_qh_t *qh;
 	dwc_otg_qtd_t *urb_qtd;
+	BUG_ON(!hcd);
+	BUG_ON(!dwc_otg_urb);
 
 #ifdef DEBUG /* integrity checks (Broadcom) */
 
@@ -543,14 +545,17 @@ int dwc_otg_hcd_urb_dequeue(dwc_otg_hcd_t * hcd,
 		return -DWC_E_INVALID;
 	}
 	urb_qtd = dwc_otg_urb->qtd;
+	BUG_ON(!urb_qtd);
 	if (urb_qtd->qh == NULL) {
 		DWC_ERROR("**** DWC OTG HCD URB Dequeue with QTD with NULL Q handler\n");
 		return -DWC_E_INVALID;
 	}
 #else
 	urb_qtd = dwc_otg_urb->qtd;
+	BUG_ON(!urb_qtd);
 #endif
 	qh = urb_qtd->qh;
+	BUG_ON(!qh);
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
 		if (urb_qtd->in_process) {
 			dump_channel_info(hcd, qh);
@@ -1309,6 +1314,22 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 		num_channels - hcd->periodic_channels) &&
 	       !DWC_CIRCLEQ_EMPTY(&hcd->free_hc_list)) {
 
+		qh = DWC_LIST_ENTRY(qh_ptr, dwc_otg_qh_t, qh_list_entry);
+
+		/*
+		 * Check to see if this is a NAK'd retransmit, in which case ignore for retransmission
+		 * we hold off on bulk retransmissions to reduce NAK interrupt overhead for
+		 * cheeky devices that just hold off using NAKs
+		 */
+		if (dwc_full_frame_num(qh->nak_frame) == dwc_full_frame_num(dwc_otg_hcd_get_frame_number(hcd))) {
+			// Make fiq interrupt run on next frame (i.e. 8 uframes)
+			g_next_sched_frame = ((qh->nak_frame + 8) & ~7) & DWC_HFNUM_MAX_FRNUM;
+			qh_ptr = DWC_LIST_NEXT(qh_ptr);
+			continue;
+		}
+		else
+			qh->nak_frame = 0xffff;
+
 		if (microframe_schedule) {
 				DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 				if (hcd->available_host_channels < 1) {
@@ -1321,7 +1342,6 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 				last_sel_trans_num_nonper_scheduled++;
 #endif /* DEBUG_HOST_CHANNELS */
 		}
-		qh = DWC_LIST_ENTRY(qh_ptr, dwc_otg_qh_t, qh_list_entry);
 
 		assign_and_init_hc(hcd, qh);
 
