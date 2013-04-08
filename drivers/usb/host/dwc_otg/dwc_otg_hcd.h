@@ -321,6 +321,11 @@ typedef struct dwc_otg_qh {
 	 */
 	uint16_t sched_frame;
 
+	/*
+	** Frame a NAK was received on this queue head, used to minimise NAK retransmission
+	*/
+	uint16_t nak_frame;
+
 	/** (micro)frame at which last start split was initialized. */
 	uint16_t start_split_frame;
 
