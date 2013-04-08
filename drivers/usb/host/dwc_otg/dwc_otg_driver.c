@@ -243,6 +243,9 @@ static struct dwc_otg_driver_module_params dwc_otg_module_params = {
 //Global variable to switch the fiq fix on or off (declared in bcm2708.c)
 extern bool fiq_fix_enable;
 
+//Global variable to switch the nak holdoff on or off
+bool nak_holdoff_enable = true;
+
 
 /**
  * This function shows the Driver Version.
@@ -1086,6 +1089,7 @@ static int __init dwc_otg_driver_init(void)
 		return retval;
 	}
 	printk(KERN_DEBUG "dwc_otg: FIQ %s\n", fiq_fix_enable ? "enabled":"disabled");
+	printk(KERN_DEBUG "dwc_otg: NAK holdoff %s\n", nak_holdoff_enable ? "enabled":"disabled");
 
 	error = driver_create_file(drv, &driver_attr_version);
 #ifdef DEBUG
@@ -1366,9 +1370,10 @@ MODULE_PARM_DESC(otg_ver, "OTG revision supported 0=OTG 1.3 1=OTG 2.0");
 module_param(microframe_schedule, bool, 0444);
 MODULE_PARM_DESC(microframe_schedule, "Enable the microframe scheduler");
 
-
 module_param(fiq_fix_enable, bool, 0444);
 MODULE_PARM_DESC(fiq_fix_enable, "Enable the fiq fix");
+module_param(nak_holdoff_enable, bool, 0444);
+MODULE_PARM_DESC(nak_holdoff_enable, "Enable the NAK holdoff");
 
 /** @page "Module Parameters"
  *

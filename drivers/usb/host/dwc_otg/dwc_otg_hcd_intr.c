@@ -56,7 +56,12 @@ int fiq_done, int_done;
 int g_next_sched_frame, g_np_count, g_np_sent, g_work_expected;
 static int mphi_int_count = 0 ;
 
-extern bool fiq_fix_enable;
+extern bool fiq_fix_enable, nak_holdoff_enable;
+
+hcchar_data_t nak_hcchar;
+hctsiz_data_t nak_hctsiz;
+hcsplt_data_t nak_hcsplt;
+int nak_count;
 
 void __attribute__ ((naked)) dwc_otg_hcd_handle_fiq(void)
 {
@@ -230,7 +235,7 @@ exit_handler_routine:
 			DWC_WRITE_REG32(c_mphi_regs.ctrl, (1<<31));
 			mphi_int_count = 0;
 		}
-			int_done++;
+		int_done++;
 		if((jiffies / HZ) > last_time)
 		{
 			/* Once a second output the fiq and irq numbers, useful for debug */
@@ -1417,6 +1422,18 @@ static int32_t handle_hc_nak_intr(dwc_otg_hcd_t * hcd,
 {
 	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "NAK Received--\n", hc->hc_num);
+
+	/*
+	 * When we get bulk NAKs then remember this so we holdoff on this qh until
+	 * the beginning of the next frame
+	 */
+	switch(dwc_otg_hcd_get_pipe_type(&qtd->urb->pipe_info)) {
+		case UE_BULK:
+		//case UE_INTERRUPT:
+		//case UE_CONTROL:
+		if (nak_holdoff_enable)
+			hc->qh->nak_frame = dwc_otg_hcd_get_frame_number(hcd);
+	}
 
 	/*
 	 * Handle NAK for IN/OUT SSPLIT/CSPLIT transfers, bulk, control, and
