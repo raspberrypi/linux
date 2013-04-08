@@ -595,6 +595,34 @@ dm_initial_gain_Multi_STA(
 	//			DM_DigTable.CurMultiSTAConnectState, DM_DigTable.Dig_Ext_Port_Stage));
 }
 
+static VOID 
+dm_initial_gain_STA_beforelinked(
+	IN	PADAPTER	pAdapter)
+{
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
+	struct dm_priv	*pdmpriv = &pHalData->dmpriv;
+	DIG_T	*pDigTable = &pdmpriv->DM_DigTable;
+	PFALSE_ALARM_STATISTICS pFalseAlmCnt = &(pdmpriv->FalseAlmCnt);
+	
+	//CurrentIGI = pDM_DigTable->rx_gain_range_min;//pDM_DigTable->CurIGValue = pDM_DigTable->rx_gain_range_min
+	//ODM_RT_TRACE(pDM_Odm, ODM_COMP_DIG, ODM_DBG_LOUD, ("odm_DIG(): DIG BeforeLink\n"));
+	//2012.03.30 LukeLee: enable DIG before link but with very high thresholds
+      	if(pFalseAlmCnt->Cnt_all > 10000)
+		pDigTable->CurIGValue = pDigTable->CurIGValue + 2;//pDM_DigTable->CurIGValue = pDM_DigTable->PreIGValue+2;
+	else if (pFalseAlmCnt->Cnt_all > 8000)
+		pDigTable->CurIGValue = pDigTable->CurIGValue + 1;//pDM_DigTable->CurIGValue = pDM_DigTable->PreIGValue+1;
+	else if(pFalseAlmCnt->Cnt_all < 500)
+		 pDigTable->CurIGValue = pDigTable->CurIGValue - 1;//pDM_DigTable->CurIGValue =pDM_DigTable->PreIGValue-1; 
+
+	//Check initial gain by upper/lower bound
+	if(pDigTable->CurIGValue >pDigTable->rx_gain_range_max)
+		pDigTable->CurIGValue = pDigTable->rx_gain_range_max;
+
+	if(pDigTable->CurIGValue < pDigTable->rx_gain_range_min)
+		pDigTable->CurIGValue = pDigTable->rx_gain_range_min;
+	
+	printk("%s ==> FalseAlmCnt->Cnt_all:%d CurIGValue:0x%02x \n",__FUNCTION__,pFalseAlmCnt->Cnt_all ,pDigTable->CurIGValue);		 
+}
 
 static VOID 
 dm_initial_gain_STA(
@@ -626,16 +654,29 @@ dm_initial_gain_STA(
 			pDigTable->CurIGValue = 0x30;
 			DM_Write_DIG(pAdapter);
 		}
-#endif			
+#endif		
+		else{ // pDigTable->CurSTAConnectState == DIG_STA_DISCONNECT 
+		#ifdef CONFIG_BEFORE_LINKED_DIG
+			//printk("%s==> ##1 CurIGI(0x%02x),PreIGValue(0x%02x) \n",__FUNCTION__,pDigTable->CurIGValue,pDigTable->PreIGValue );
+			dm_initial_gain_STA_beforelinked(pAdapter);
+			DM_Write_DIG(pAdapter);
+		#endif
+		}
 	}
 	else	
-	{
+	{		
 		// connect -> disconnect or beforeconnect -> disconnect
 		pDigTable->Rssi_val_min = 0;
 		pDigTable->Dig_Ext_Port_Stage = DIG_EXT_PORT_STAGE_MAX;
 		pDigTable->BackoffVal = DM_DIG_BACKOFF_DEFAULT;
 		pDigTable->CurIGValue = 0x20;
 		pDigTable->PreIGValue = 0;	
+
+		#ifdef CONFIG_BEFORE_LINKED_DIG			
+		//printk("%s==> ##2 CurIGI(0x%02x),PreIGValue(0x%02x) \n",__FUNCTION__,pDigTable->CurIGValue,pDigTable->PreIGValue );	
+		dm_initial_gain_STA_beforelinked(pAdapter);			 
+ 		#endif
+
 		DM_Write_DIG(pAdapter);
 	}
 

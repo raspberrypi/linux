@@ -161,11 +161,7 @@ struct rx_pkt_attrib	{
 //#define REORDER_ENTRY_NUM	128
 #define REORDER_WAIT_TIME	(30) // (ms)
 
-#ifdef CONFIG_MINIMAL_MEMORY_USAGE
-#define RECVBUFF_ALIGN_SZ 512
-#else
 #define RECVBUFF_ALIGN_SZ 8
-#endif
 
 #define RXDESC_SIZE	24
 #define RXDESC_OFFSET RXDESC_SIZE

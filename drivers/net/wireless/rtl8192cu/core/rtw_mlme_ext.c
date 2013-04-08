@@ -143,7 +143,7 @@ ChannelPlan definitions
 
 static RT_CHANNEL_PLAN_2G	RTW_ChannelPlan2G[RT_CHANNEL_DOMAIN_2G_MAX] = {
 	{{1,2,3,4,5,6,7,8,9,10,11,12,13},13},		// 0x00, RT_CHANNEL_DOMAIN_2G_WORLD , Passive scan CH 12, 13
-	{{1,2,3,4,5,6,7,8,9,10,11,13,13},13},		// 0x01, RT_CHANNEL_DOMAIN_2G_ETSI1
+	{{1,2,3,4,5,6,7,8,9,10,11,12,13},13},		// 0x01, RT_CHANNEL_DOMAIN_2G_ETSI1
 	{{1,2,3,4,5,6,7,8,9,10,11},11},			// 0x02, RT_CHANNEL_DOMAIN_2G_FCC1
 	{{1,2,3,4,5,6,7,8,9,10,11,12,13,14},14},	// 0x03, RT_CHANNEL_DOMAIN_2G_MIKK1
 	{{10,11,12,13},4},						// 0x04, RT_CHANNEL_DOMAIN_2G_ETSI2
@@ -6169,7 +6169,7 @@ void issue_probereq(_adapter *padapter, NDIS_802_11_SSID *pssid, u8 blnbc)
 		pframe = rtw_set_ie(pframe, _SUPPORTEDRATES_IE_ , bssrate_len , bssrate, &(pattrib->pktlen));
 	}
 
-
+#if 0
 	//add wps_ie for wps2.0
 	if(pmlmepriv->probereq_wpsie_len>0 && pmlmepriv->probereq_wpsie_len<MAX_WPS_IE_LEN)
 	{
@@ -6178,7 +6178,16 @@ void issue_probereq(_adapter *padapter, NDIS_802_11_SSID *pssid, u8 blnbc)
 		pattrib->pktlen += pmlmepriv->probereq_wpsie_len;
 		//pmlmepriv->probereq_wpsie_len = 0 ;//reset to zero		
 	}	
-
+#else
+	//add wps_ie for wps2.0
+	if(pmlmepriv->wps_probe_req_ie_len>0 && pmlmepriv->wps_probe_req_ie)
+	{
+		_rtw_memcpy(pframe, pmlmepriv->wps_probe_req_ie, pmlmepriv->wps_probe_req_ie_len);
+		pframe += pmlmepriv->wps_probe_req_ie_len;
+		pattrib->pktlen += pmlmepriv->wps_probe_req_ie_len;
+		//pmlmepriv->wps_probe_req_ie_len = 0 ;//reset to zero		
+	}	
+#endif
 
 	pattrib->last_txcmdsz = pattrib->pktlen;
 
@@ -7533,60 +7542,41 @@ BOOLEAN IsLegal5GChannel(
 
 void site_survey(_adapter *padapter)
 {
-	unsigned char		survey_channel, val8;
-	RT_SCAN_TYPE	ScanType;
+	unsigned char		survey_channel = 0, val8;
+	RT_SCAN_TYPE	ScanType = SCAN_PASSIVE;
 	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
 	u32 initialgain = 0;
+	
 #ifdef CONFIG_P2P
 	struct wifidirect_info *pwdinfo= &(padapter->wdinfo);
 	static unsigned char  prev_survey_channel = 0;
 	static unsigned int p2p_scan_count = 0;	
+	
+	if(rtw_p2p_findphase_ex_is_social(pwdinfo))
+	{
+		//	Commented by Albert 2011/06/03
+		//	The driver is in the find phase, it should go through the social channel.
+		survey_channel = pwdinfo->social_chan[pmlmeext->sitesurvey_res.channel_idx];
+	}
+	else
 #endif //CONFIG_P2P
-	
-#ifdef CONFIG_P2P
-	survey_channel = 0;
-	ScanType = SCAN_PASSIVE;
-	
-	if(rtw_p2p_chk_state(pwdinfo, P2P_STATE_FIND_PHASE_SEARCH))
-	{
-		if ( pwdinfo->find_phase_state_exchange_cnt != 0 )
-		{
-			//	Commented by Albert 2011/06/03
-			//	The driver is in the find phase, it should go through the social channel.
-			survey_channel = pwdinfo->social_chan[pmlmeext->sitesurvey_res.channel_idx];
-			ScanType = SCAN_ACTIVE;
-		}
-		else
-		{
-			//	Commented by Albert 2011/06/03
-			//	The driver is in the scan phase, it should go through all the channel.
-			survey_channel = pmlmeext->channel_set[pmlmeext->sitesurvey_res.channel_idx].ChannelNum;
-			ScanType = pmlmeext->channel_set[pmlmeext->sitesurvey_res.channel_idx].ScanType;
-		}
-	}
-	else if(rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE) || rtw_p2p_chk_state(pwdinfo, P2P_STATE_IDLE))
-	{
-		//	Commented by Albert 20110805
-		//	The following code will be executed only when the P2P is disable.
-		survey_channel = pmlmeext->channel_set[pmlmeext->sitesurvey_res.channel_idx].ChannelNum;
-		ScanType = pmlmeext->channel_set[pmlmeext->sitesurvey_res.channel_idx].ScanType;
-	}
-#else
 	{
 		survey_channel = pmlmeext->channel_set[pmlmeext->sitesurvey_res.channel_idx].ChannelNum;
-		ScanType = pmlmeext->channel_set[pmlmeext->sitesurvey_res.channel_idx].ScanType;
 	}
-#endif //CONFIG_P2P
+
+	ScanType = pmlmeext->channel_set[pmlmeext->sitesurvey_res.channel_idx].ScanType;
+	
+	//DBG_871X("switching to ch:%d (cnt:%u,idx:%d) at %dms, %c%c%c\n"
+	//	, survey_channel
+	//	, pwdinfo->find_phase_state_exchange_cnt, pmlmeext->sitesurvey_res.channel_idx
+	//	, rtw_get_passing_time_ms(padapter->mlmepriv.scan_start_time)
+	//	, ScanType?'A':'P', pmlmeext->sitesurvey_res.scan_mode?'A':'P'
+	//	, pmlmeext->sitesurvey_res.ssid[0].SsidLength?'S':' ' 
+	//);
 
 	if(survey_channel != 0)
 	{
-
-		//DBG_871X("switching to ch:%d at %dms, %c%c%c\n"
-		//	, survey_channel, rtw_get_passing_time_ms(padapter->mlmepriv.scan_start_time)
-		//	, ScanType?'A':'P', pmlmeext->sitesurvey_res.scan_mode?'A':'P'
-		//	, pmlmeext->sitesurvey_res.ssid[0].SsidLength?'S':' '
-		//);
 		//PAUSE 4-AC Queue when site_survey
 		//padapter->HalFunc.GetHwRegHandler(padapter, HW_VAR_TXPAUSE, (u8 *)(&val8));
 		//val8 |= 0x0f;
@@ -7652,8 +7642,7 @@ void site_survey(_adapter *padapter)
 			#endif
 		}
 		
-		if ( ( rtw_p2p_chk_state(pwdinfo, P2P_STATE_SCAN) || rtw_p2p_chk_state(pwdinfo, P2P_STATE_FIND_PHASE_SEARCH) ) && 
-			( pwdinfo->find_phase_state_exchange_cnt < P2P_FINDPHASE_EX_CNT ) )
+		if(rtw_p2p_findphase_ex_is_needed(pwdinfo))
 		{
 			//	Set the P2P State to the listen state of find phase and set the current channel to the listen channel
 			set_channel_bwmode(padapter, pwdinfo->listen_channel, HAL_PRIME_CHNL_OFFSET_DONT_CARE, HT_CHANNEL_WIDTH_20);
@@ -7665,7 +7654,6 @@ void site_survey(_adapter *padapter)
 		}
 		else
 #endif //CONFIG_P2P
-
 		{
 
 #ifdef CONFIG_ANTENNA_DIVERSITY
@@ -7687,6 +7675,7 @@ void site_survey(_adapter *padapter)
 			{
 				rtw_p2p_set_state(pwdinfo, P2P_STATE_LISTEN);
 			}
+			rtw_p2p_findphase_ex_set(pwdinfo, P2P_FINDPHASE_EX_NONE);
 #endif //CONFIG_P2P
 			
 			pmlmeext->sitesurvey_res.state = SCAN_COMPLETE;
@@ -8819,13 +8808,20 @@ void survey_timer_hdl(_adapter *padapter)
 			#ifdef CONFIG_P2P
 			if(!rtw_p2p_chk_state(&padapter->wdinfo, P2P_STATE_NONE))
 			{
-				pwdinfo->find_phase_state_exchange_cnt = P2P_FINDPHASE_EX_CNT;
+				rtw_p2p_findphase_ex_set(pwdinfo, P2P_FINDPHASE_EX_MAX);
 				pmlmeext->sitesurvey_res.channel_idx = 3;
+				DBG_871X("%s idx:%d, cnt:%u\n", __FUNCTION__
+					, pmlmeext->sitesurvey_res.channel_idx
+					, pwdinfo->find_phase_state_exchange_cnt
+				);
 			}
 			else
 			#endif
 			{
 				pmlmeext->sitesurvey_res.channel_idx = pmlmeext->max_chan_nums;
+				DBG_871X("%s idx:%d\n", __FUNCTION__
+					, pmlmeext->sitesurvey_res.channel_idx
+				);
 			}
 
 			pmlmeext->scan_abort = _FALSE;//reset
@@ -9245,9 +9241,11 @@ u8 join_cmd_hdl(_adapter *padapter, u8 *pbuf)
 	//Switch_DM_Func(padapter, DYNAMIC_FUNC_DISABLE, _FALSE);
 
 	//config the initial gain under linking, need to write the BB registers
+	#ifndef CONFIG_BEFORE_LINKED_DIG
 	initialgain = 0x1E;
 	padapter->HalFunc.SetHwRegHandler(padapter, HW_VAR_INITIAL_GAIN, (u8 *)(&initialgain));
-
+	#endif
+	
 	padapter->HalFunc.SetHwRegHandler(padapter, HW_VAR_BSSID, pmlmeinfo->network.MacAddress);
 	join_type = 0;
 	padapter->HalFunc.SetHwRegHandler(padapter, HW_VAR_MLME_JOIN, (u8 *)(&join_type));
@@ -9326,15 +9324,15 @@ u8 sitesurvey_cmd_hdl(_adapter *padapter, u8 *pbuf)
 		pmlmeext->sitesurvey_res.channel_idx = 0;
 
 		for(i=0;i<RTW_SSID_SCAN_AMOUNT;i++){
-			if(le32_to_cpu(pparm->ssid[i].SsidLength)) {
+			if(pparm->ssid[i].SsidLength) {
 				_rtw_memcpy(pmlmeext->sitesurvey_res.ssid[i].Ssid, pparm->ssid[i].Ssid, IW_ESSID_MAX_SIZE);
-				pmlmeext->sitesurvey_res.ssid[i].SsidLength= le32_to_cpu(pparm->ssid[i].SsidLength);
+				pmlmeext->sitesurvey_res.ssid[i].SsidLength= pparm->ssid[i].SsidLength;
 			} else {
 				pmlmeext->sitesurvey_res.ssid[i].SsidLength= 0;
 			}	
 		}
 
-		pmlmeext->sitesurvey_res.scan_mode = le32_to_cpu(pparm->scan_mode);			
+		pmlmeext->sitesurvey_res.scan_mode = pparm->scan_mode;
 
 		//issue null data if associating to the AP
 		if (is_client_associated_to_ap(padapter) == _TRUE)
@@ -9370,8 +9368,9 @@ u8 sitesurvey_cmd_hdl(_adapter *padapter, u8 *pbuf)
 		if((wdev_to_priv(padapter->rtw_wdev))->p2p_enabled == _TRUE)
 			initialgain = 0x27;
 		else
-#endif			
+#endif		
 			initialgain = 0x17;
+
 #ifdef CONFIG_P2P
 		if(!rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE) && !rtw_p2p_chk_state(pwdinfo, P2P_STATE_IDLE))
 			initialgain = 0x27;

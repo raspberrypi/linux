@@ -38,7 +38,11 @@
 		#define NR_RECVBUFF (4)
 	#endif
 #else
+#ifdef CONFIG_SINGLE_RECV_BUF
+	#define NR_RECVBUFF (1)
+#else
 	#define NR_RECVBUFF (4)
+#endif //CONFIG_SINGLE_RECV_BUF
 	#define NR_PREALLOC_RECV_SKB (8)
 #endif
 

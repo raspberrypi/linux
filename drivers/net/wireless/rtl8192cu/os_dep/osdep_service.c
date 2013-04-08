@@ -137,7 +137,7 @@ u8* _rtw_malloc(u32 sz)
 		pbuf = (u8 *)dvr_malloc(sz);
 	else
 #endif
-		pbuf = kmalloc(sz, /*GFP_KERNEL*/GFP_ATOMIC);
+		pbuf = kmalloc(sz, in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
 
 #endif	
 	

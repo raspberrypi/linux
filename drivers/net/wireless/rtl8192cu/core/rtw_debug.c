@@ -453,6 +453,53 @@ int proc_set_rx_signal(struct file *file, const char *buffer,
 	
 }
 
+int proc_get_ampdu_enable(char *page, char **start,
+			  off_t offset, int count,
+			  int *eof, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct registry_priv	*pregpriv = &padapter->registrypriv;
+	
+	int len = 0;
+	
+	if(pregpriv)
+		len += snprintf(page + len, count - len,
+			"%d\n",
+			pregpriv->ampdu_enable
+			);
+
+	*eof = 1;
+	return len;
+}
+
+int proc_set_ampdu_enable(struct file *file, const char *buffer,
+		unsigned long count, void *data)
+{
+	struct net_device *dev = (struct net_device *)data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct registry_priv	*pregpriv = &padapter->registrypriv;
+	char tmp[32];
+	u32 mode;
+
+	if (count < 1)
+		return -EFAULT;
+
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
+
+		int num = sscanf(tmp, "%d ", &mode);
+
+		if( pregpriv && mode >= 0 && mode < 3 )
+		{
+			pregpriv->ampdu_enable= mode;
+			printk("ampdu_enable=%d\n", mode);
+		}
+	}
+	
+	return count;
+	
+}
+
 int proc_get_rssi_disp(char *page, char **start,
 			  off_t offset, int count,
 			  int *eof, void *data)

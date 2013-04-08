@@ -135,5 +135,17 @@ void dbg_rtw_p2p_set_role(struct wifidirect_info *wdinfo, enum P2P_ROLE role, co
 #define rtw_p2p_chk_state(wdinfo, state) _rtw_p2p_chk_state(wdinfo, state)
 #define rtw_p2p_chk_role(wdinfo, role) _rtw_p2p_chk_role(wdinfo, role)
 
+#define rtw_p2p_findphase_ex_set(wdinfo, value) \
+	(wdinfo)->find_phase_state_exchange_cnt = (value)
+
+//is this find phase exchange for social channel scan?
+#define rtw_p2p_findphase_ex_is_social(wdinfo)   \
+	(wdinfo)->find_phase_state_exchange_cnt >= P2P_FINDPHASE_EX_SOCIAL_FIRST
+
+//should we need find phase exchange anymore?
+#define rtw_p2p_findphase_ex_is_needed(wdinfo) \
+	((wdinfo)->find_phase_state_exchange_cnt < P2P_FINDPHASE_EX_MAX && \
+	(wdinfo)->find_phase_state_exchange_cnt != P2P_FINDPHASE_EX_NONE)
+
 #endif
 

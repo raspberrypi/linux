@@ -351,9 +351,10 @@ struct mlme_priv {
 	u8	ChannelPlan;
 	RT_SCAN_TYPE scan_mode; // active: 1, passive: 0
 
-
-	u8 probereq_wpsie[MAX_WPS_IE_LEN];//added in probe req	
-	int probereq_wpsie_len;
+	//u8 probereq_wpsie[MAX_WPS_IE_LEN];//added in probe req	
+	//int probereq_wpsie_len;
+	u8 *wps_probe_req_ie;
+	u32 wps_probe_req_ie_len;
 
 #if defined (CONFIG_AP_MODE) && defined (CONFIG_NATIVEAP_MLME)
 	/* Number of associated Non-ERP stations (i.e., stations using 802.11b
@@ -385,12 +386,12 @@ struct mlme_priv {
 #endif /* CONFIG_80211N_HT */	
 
 	u8 *wps_beacon_ie;	
-	u8 *wps_probe_req_ie;
+	//u8 *wps_probe_req_ie;
 	u8 *wps_probe_resp_ie;
 	u8 *wps_assoc_resp_ie; // for CONFIG_IOCTL_CFG80211, this IE could include p2p ie
 
 	u32 wps_beacon_ie_len;
-	u32 wps_probe_req_ie_len;
+	//u32 wps_probe_req_ie_len;
 	u32 wps_probe_resp_ie_len;
 	u32 wps_assoc_resp_ie_len;
 	

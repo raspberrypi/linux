@@ -683,8 +683,8 @@ _func_enter_;
 
 	init_h2fwcmd_w_parm_no_rsp(ph2c, psurveyPara, GEN_CMD_CODE(_SiteSurvey));
 
-	psurveyPara->bsslimit = cpu_to_le32(48);
-	psurveyPara->scan_mode = cpu_to_le32(pmlmepriv->scan_mode);
+	psurveyPara->bsslimit = 48;
+	psurveyPara->scan_mode = pmlmepriv->scan_mode;
 
 	_rtw_memset(psurveyPara->ssid, 0, sizeof(NDIS_802_11_SSID)*RTW_SSID_SCAN_AMOUNT);
 
@@ -2395,6 +2395,7 @@ _func_enter_;
 	
 	_cancel_timer(&pmlmepriv->assoc_timer, &timer_cancelled);
 
+#ifdef CONFIG_FW_MLMLE
        //endian_convert
 	pnetwork->Length = le32_to_cpu(pnetwork->Length);
   	pnetwork->Ssid.SsidLength = le32_to_cpu(pnetwork->Ssid.SsidLength);
@@ -2411,7 +2412,7 @@ _func_enter_;
 	pnetwork->Configuration.Length = le32_to_cpu(pnetwork->Configuration.Length);
 	pnetwork->InfrastructureMode = le32_to_cpu(pnetwork->InfrastructureMode);
 	pnetwork->IELength = le32_to_cpu(pnetwork->IELength);
-
+#endif
 	
 	_enter_critical_bh(&pmlmepriv->lock, &irqL);
 	

@@ -1694,6 +1694,8 @@ static void rtw_cfg80211_scan_abort(_adapter *padapter)
 		}	
 	}
 
+	pmlmeext->scan_abort = _FALSE;
+
 	rtw_cfg80211_indicate_scan_done(wdev_to_priv(padapter->rtw_wdev), _TRUE);
 
 }
@@ -1717,7 +1719,6 @@ static int cfg80211_rtw_scan(struct wiphy *wiphy, struct net_device *ndev,
 #endif //CONFIG_P2P
 	struct rtw_wdev_priv *pwdev_priv = wdev_to_priv(padapter->rtw_wdev);
 	struct cfg80211_ssid *ssids = request->ssids;
-	struct ieee80211_channel *pchannel = request->channels[0];
 	int social_channel = 0, j = 0;
 	bool need_indicate_scan_done = _FALSE;
 
@@ -1754,7 +1755,6 @@ static int cfg80211_rtw_scan(struct wiphy *wiphy, struct net_device *ndev,
 			&& rtw_get_p2p_ie((u8 *)request->ie, request->ie_len, NULL, NULL)
 		)
 		{
-			//if(!rtw_p2p_chk_role(pwdinfo, P2P_ROLE_CLIENT) && !rtw_p2p_chk_role(pwdinfo, P2P_ROLE_GO))
 			if(rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE))
 			{
 				rtw_p2p_enable(padapter, P2P_ROLE_DEVICE);
@@ -1767,13 +1767,12 @@ static int cfg80211_rtw_scan(struct wiphy *wiphy, struct net_device *ndev,
 				printk("%s, role=%d, p2p_state=%d\n", __func__, rtw_p2p_role(pwdinfo), rtw_p2p_state(pwdinfo));
 				#endif
 			}
-
 			rtw_p2p_set_state(pwdinfo, P2P_STATE_LISTEN);
 			
 			if(request->n_channels == 3 &&
-				pchannel->center_freq == 2412 &&
-				(pchannel+1)->center_freq == 2417 &&
-				(pchannel+2)->center_freq == 2422
+				request->channels[0]->hw_value == 1 &&
+				request->channels[1]->hw_value == 6 &&
+				request->channels[2]->hw_value == 11
 			)
 			{
 				social_channel = 1;
@@ -1807,12 +1806,10 @@ static int cfg80211_rtw_scan(struct wiphy *wiphy, struct net_device *ndev,
 		rtw_p2p_set_state(pwdinfo, P2P_STATE_FIND_PHASE_SEARCH);
 		rtw_free_network_queue(padapter, _TRUE);
 
-		//Commented by Kurt 20120114
-		//For pwdinfo->find_phase_state_exchange_cnt = 3 means we just do site survey on social channels
 		if(social_channel == 0)
-			pwdinfo->find_phase_state_exchange_cnt = 0;
+			rtw_p2p_findphase_ex_set(pwdinfo, P2P_FINDPHASE_EX_NONE);
 		else
-			pwdinfo->find_phase_state_exchange_cnt = 3;
+			rtw_p2p_findphase_ex_set(pwdinfo, P2P_FINDPHASE_EX_SOCIAL_LAST);
 	}
 #endif //CONFIG_P2P
 
@@ -2430,7 +2427,7 @@ static int cfg80211_rtw_connect(struct wiphy *wiphy, struct net_device *dev,
 
 	if((matched == _FALSE) || (pnetwork== NULL))
 	{
-		ret = -EBUSY;
+		ret = -ENOENT;
 		printk("connect, matched == _FALSE, goto exit\n");
 		goto exit;
 	}
@@ -2466,8 +2463,8 @@ static int cfg80211_rtw_connect(struct wiphy *wiphy, struct net_device *dev,
 	}
 
 	//For WEP Shared auth
-	if(psecuritypriv->dot11AuthAlgrthm == dot11AuthAlgrthm_Shared
-		|| psecuritypriv->dot11AuthAlgrthm == dot11AuthAlgrthm_Auto
+	if((psecuritypriv->dot11AuthAlgrthm == dot11AuthAlgrthm_Shared
+		|| psecuritypriv->dot11AuthAlgrthm == dot11AuthAlgrthm_Auto) && sme->key
 	)
 	{
 		u32 wep_key_idx, wep_key_len,wep_total_len;
@@ -3408,8 +3405,10 @@ static int	cfg80211_rtw_dump_station(struct wiphy *wiphy, struct net_device *dev
 			       int idx, u8 *mac, struct station_info *sinfo)
 {
 	printk("%s\n", __func__);
-	
-	return 0;
+
+	//TODO: dump scanned queue
+
+	return -ENOENT;
 }
 
 static int	cfg80211_rtw_change_bss(struct wiphy *wiphy, struct net_device *dev,
@@ -3990,8 +3989,7 @@ static s32 cfg80211_rtw_remain_on_channel(struct wiphy *wiphy, struct net_device
 
 	pcfg80211_wdinfo->restore_channel = pmlmeext->cur_channel;
 
-	if(check_fwstate(&padapter->mlmepriv, _FW_UNDER_SURVEY))
-		rtw_cfg80211_scan_abort(padapter);
+	rtw_cfg80211_scan_abort(padapter);
 
 	if( remain_ch != pmlmeext->cur_channel )
 	{

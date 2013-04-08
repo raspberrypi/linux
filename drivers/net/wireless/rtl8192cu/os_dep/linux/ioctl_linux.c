@@ -1834,7 +1834,7 @@ _func_enter_;
 	if(!rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE) && !rtw_p2p_chk_state(pwdinfo, P2P_STATE_IDLE))
 	{
 		rtw_p2p_set_state(pwdinfo, P2P_STATE_FIND_PHASE_SEARCH);
-		pwdinfo->find_phase_state_exchange_cnt = 0;
+		rtw_p2p_findphase_ex_set(pwdinfo, P2P_FINDPHASE_EX_FULL);
 		rtw_free_network_queue(padapter, _TRUE);
 	}
 #endif //CONFIG_P2P
@@ -6887,11 +6887,31 @@ static int rtw_wx_set_priv(struct net_device *dev,
 		if((_VENDOR_SPECIFIC_IE_ == probereq_wpsie[0]) &&
 			(_rtw_memcmp(&probereq_wpsie[2], wps_oui, 4) ==_TRUE))
 		{
-
 			cp_sz = probereq_wpsie_len>MAX_WPS_IE_LEN ? MAX_WPS_IE_LEN:probereq_wpsie_len;
 
-			_rtw_memcpy(pmlmepriv->probereq_wpsie, probereq_wpsie, cp_sz);
-			pmlmepriv->probereq_wpsie_len = cp_sz;
+			//_rtw_memcpy(pmlmepriv->probereq_wpsie, probereq_wpsie, cp_sz);
+			//pmlmepriv->probereq_wpsie_len = cp_sz;
+					
+			printk("probe_req_wps_ielen=%d\n", cp_sz);
+						
+			if(pmlmepriv->wps_probe_req_ie)
+			{
+				u32 free_len = pmlmepriv->wps_probe_req_ie_len;
+				pmlmepriv->wps_probe_req_ie_len = 0;
+				rtw_mfree(pmlmepriv->wps_probe_req_ie, free_len);
+				pmlmepriv->wps_probe_req_ie = NULL;			
+			}	
+
+			pmlmepriv->wps_probe_req_ie = rtw_malloc(cp_sz);
+			if ( pmlmepriv->wps_probe_req_ie == NULL) {
+				printk("%s()-%d: rtw_malloc() ERROR!\n", __FUNCTION__, __LINE__);
+				ret =  -EINVAL;
+				goto FREE_EXT;
+			
+			}
+			
+			_rtw_memcpy(pmlmepriv->wps_probe_req_ie, probereq_wpsie, cp_sz);
+			pmlmepriv->wps_probe_req_ie_len = cp_sz;					
 			
 		}	
 		

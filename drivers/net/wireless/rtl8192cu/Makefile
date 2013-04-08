@@ -252,7 +252,7 @@ ifeq ($(CONFIG_PLATFORM_ARM_BCM2708), y)
 EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
 ARCH := arm
 CROSS_COMPILE ?=
-KVER  := 3.2.27+
+KVER  := 3.6.11+
 KSRC := /lib/modules/$(KVER)/build
 endif
 

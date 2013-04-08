@@ -1109,7 +1109,13 @@ _func_enter_;
 
 	_enter_critical_bh(&pmlmepriv->lock, &irqL);
 
-	pmlmepriv->probereq_wpsie_len = 0 ;//reset to zero	
+	if(pmlmepriv->wps_probe_req_ie)
+	{
+		u32 free_len = pmlmepriv->wps_probe_req_ie_len;
+		pmlmepriv->wps_probe_req_ie_len = 0;
+		rtw_mfree(pmlmepriv->wps_probe_req_ie, free_len);
+		pmlmepriv->wps_probe_req_ie = NULL;			
+	}
 	
 	RT_TRACE(_module_rtl871x_mlme_c_,_drv_info_,("rtw_surveydone_event_callback: fw_state:%x\n\n", get_fwstate(pmlmepriv)));
 	
@@ -1931,8 +1937,8 @@ _func_enter_;
 	}	
 	
 	//to do : init sta_info variable
-	psta->qos_option = 0;	
-	psta->mac_id = le32_to_cpu((uint)pstassoc->cam_id);
+	psta->qos_option = 0;
+	psta->mac_id = (uint)pstassoc->cam_id;
 	//psta->aid = (uint)pstassoc->cam_id;
 	
 	if(adapter->securitypriv.dot11AuthAlgrthm==dot11AuthAlgrthm_8021X)

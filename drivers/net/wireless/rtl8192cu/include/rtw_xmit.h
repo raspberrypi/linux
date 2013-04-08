@@ -35,8 +35,11 @@
 #else
 #define MAX_XMITBUF_SZ	(2048)
 #endif
-
+#ifdef CONFIG_SINGLE_XMIT_BUF
+#define NR_XMITBUFF	(1)
+#else
 #define NR_XMITBUFF	(4)
+#endif //CONFIG_SINGLE_XMIT_BUF
 
 #elif defined (CONFIG_PCI_HCI)
 #define MAX_XMITBUF_SZ	(1664)
@@ -55,8 +58,11 @@
 
 // xmit extension buff defination
 #define MAX_XMIT_EXTBUF_SZ	(2048)
-
+#ifdef CONFIG_SINGLE_XMIT_BUF
+#define NR_XMIT_EXTBUFF	(1)
+#else
 #define NR_XMIT_EXTBUFF	(32)
+#endif //CONFIG_SINGLE_XMIT_BUF
 
 #define MAX_NUMBLKS		(1)
 

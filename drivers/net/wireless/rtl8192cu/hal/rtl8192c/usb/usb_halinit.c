@@ -2586,6 +2586,9 @@ HAL_INIT_PROFILE_TAG(HAL_INIT_STAGES_MISC31);
 		DBG_8192C("MAC Address from REG_MACID = "MAC_FMT"\n", MAC_ARG(mac_addr));
 	}
 
+#ifdef CONFIG_ENABLE_NOTCH_FILTER
+	rtw_write8(Adapter, 0xc41, 0x42);	
+#endif
 exit:
 HAL_INIT_PROFILE_TAG(HAL_INIT_STAGES_END);
 
@@ -3782,8 +3785,6 @@ _ReadIDs(
 			else if((pHalData->EEPROMVID == 0x2001) && (pHalData->EEPROMPID == 0x3309))
 				pHalData->CustomerID = RT_CID_DLINK;
 			else if((pHalData->EEPROMVID == 0x2001) && (pHalData->EEPROMPID == 0x330a))
-				pHalData->CustomerID = RT_CID_DLINK;
-			else if((pHalData->EEPROMVID == 0x2001) && (pHalData->EEPROMPID == 0x330d))
 				pHalData->CustomerID = RT_CID_DLINK;
 			break;
 		case EEPROM_CID_WHQL:

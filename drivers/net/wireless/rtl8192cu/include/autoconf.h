@@ -174,7 +174,7 @@
 /* 
  * CONFIG_USE_USB_BUFFER_ALLOC_XX uses Linux USB Buffer alloc API and is for Linux platform only now!
  */
-#define CONFIG_USE_USB_BUFFER_ALLOC_TX 1	// Trade-off: For TX path, improve stability on some platforms, but may cause performance degrade on other platforms.
+//#define CONFIG_USE_USB_BUFFER_ALLOC_TX 1	// Trade-off: For TX path, improve stability on some platforms, but may cause performance degrade on other platforms.
 //#define CONFIG_USE_USB_BUFFER_ALLOC_RX 1	// For RX path
 
 /* 
@@ -245,6 +245,9 @@
 #ifdef CONFIG_PLATFORM_TI_DM365
 #define CONFIG_USE_USB_BUFFER_ALLOC_RX 1
 #endif
+
+//#define CONFIG_BEFORE_LINKED_DIG	
+//#define CONFIG_ENABLE_NOTCH_FILTER
 
 
 /*
