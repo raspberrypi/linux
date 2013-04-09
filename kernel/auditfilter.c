@@ -345,6 +345,12 @@ static struct audit_entry *audit_rule_to_entry(struct audit_rule *rule)
 		f->uid = INVALID_UID;
 		f->gid = INVALID_GID;
 
+		/* Support legacy tests for a valid loginuid */
+		if ((f->type == AUDIT_LOGINUID) && (f->val == 4294967295U)) {
+			f->type = AUDIT_LOGINUID_SET;
+			f->val = 0;
+		}
+
 		err = -EINVAL;
 		if (f->op == Audit_bad)
 			goto exit_free;
@@ -352,6 +358,12 @@ static struct audit_entry *audit_rule_to_entry(struct audit_rule *rule)
 		switch(f->type) {
 		default:
 			goto exit_free;
+		case AUDIT_LOGINUID_SET:
+			if ((f->val != 0) && (f->val != 1))
+				goto exit_free;
+			if (f->op != Audit_not_equal && f->op != Audit_equal)
+				goto exit_free;
+			break;
 		case AUDIT_UID:
 		case AUDIT_EUID:
 		case AUDIT_SUID:
@@ -459,7 +471,20 @@ static struct audit_entry *audit_data_to_entry(struct audit_rule_data *data,
 		f->gid = INVALID_GID;
 		f->lsm_str = NULL;
 		f->lsm_rule = NULL;
-		switch(f->type) {
+
+		/* Support legacy tests for a valid loginuid */
+		if ((f->type == AUDIT_LOGINUID) && (f->val == 4294967295U)) {
+			f->type = AUDIT_LOGINUID_SET;
+			f->val = 0;
+		}
+
+		switch (f->type) {
+		case AUDIT_LOGINUID_SET:
+			if ((f->val != 0) && (f->val != 1))
+				goto exit_free;
+			if (f->op != Audit_not_equal && f->op != Audit_equal)
+				goto exit_free;
+			break;
 		case AUDIT_UID:
 		case AUDIT_EUID:
 		case AUDIT_SUID:
@@ -1377,6 +1402,10 @@ static int audit_filter_user_rules(struct audit_krule *rule,
 		case AUDIT_LOGINUID:
 			result = audit_uid_comparator(audit_get_loginuid(current),
 						  f->op, f->uid);
+			break;
+		case AUDIT_LOGINUID_SET:
+			result = audit_comparator(audit_loginuid_set(current),
+						  f->op, f->val);
 			break;
 		case AUDIT_SUBJ_USER:
 		case AUDIT_SUBJ_ROLE:
