@@ -4885,6 +4885,8 @@ static __init int tracer_init_debugfs(void)
 	trace_access_lock_init();
 
 	d_tracer = tracing_init_dentry();
+	if (!d_tracer)
+		return 0;
 
 	trace_create_file("trace_options", 0644, d_tracer,
 			NULL, &tracing_iter_fops);
