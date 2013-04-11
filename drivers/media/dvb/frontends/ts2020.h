@@ -1,5 +1,5 @@
 /*
-    Montage Technology DS3000 - DVBS/S2 Demodulator driver
+    Montage Technology TS2020 - Silicon Tuner driver
     Copyright (C) 2009-2012 Konstantin Dimitrov <kosio.dimitrov@gmail.com>
 
     Copyright (C) 2009-2012 TurboSight.com
@@ -19,32 +19,32 @@
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#ifndef DS3000_H
-#define DS3000_H
+#ifndef TS2020_H
+#define TS2020_H
 
 #include <linux/dvb/frontend.h>
 
-struct ds3000_config {
-	/* the demodulator's i2c address */
-	u8 demod_address;
-	u8 ci_mode;
-	/* Set device param to start dma */
-	int (*set_ts_params)(struct dvb_frontend *fe, int is_punctured);
-	/* Hook for Lock LED */
-	void (*set_lock_led)(struct dvb_frontend *fe, int offon);
+struct ts2020_config {
+	u8 tuner_address;
+	u8 clk_out_div;
 };
 
-#if defined(CONFIG_DVB_DS3000) || \
-			(defined(CONFIG_DVB_DS3000_MODULE) && defined(MODULE))
-extern struct dvb_frontend *ds3000_attach(const struct ds3000_config *config,
-					struct i2c_adapter *i2c);
+#if defined(CONFIG_DVB_TS2020) || \
+	(defined(CONFIG_DVB_TS2020_MODULE) && defined(MODULE))
+
+extern struct dvb_frontend *ts2020_attach(
+	struct dvb_frontend *fe,
+	const struct ts2020_config *config,
+	struct i2c_adapter *i2c);
 #else
-static inline
-struct dvb_frontend *ds3000_attach(const struct ds3000_config *config,
-					struct i2c_adapter *i2c)
+static inline struct dvb_frontend *ts2020_attach(
+	struct dvb_frontend *fe,
+	const struct ts2020_config *config,
+	struct i2c_adapter *i2c)
 {
 	printk(KERN_WARNING "%s: driver disabled by Kconfig\n", __func__);
 	return NULL;
 }
-#endif /* CONFIG_DVB_DS3000 */
-#endif /* DS3000_H */
+#endif
+
+#endif /* TS2020_H */
