@@ -1,4 +1,16 @@
-//bcm2835-hwmon.c
+/*****************************************************************************
+* Copyright 2011 Broadcom Corporation.  All rights reserved.
+*
+* Unless you and Broadcom execute a separate written software license
+* agreement governing use of this software, this software is licensed to you
+* under the terms of the GNU General Public License version 2, available at
+* http://www.broadcom.com/licenses/GPLv2.php (the "GPL").
+*
+* Notwithstanding the above, under no circumstances may you combine this
+* software in any way with any other Broadcom software provided under a
+* license other than the GPL, without Broadcom's express prior written
+* consent.
+*****************************************************************************/
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -25,11 +37,11 @@
 
 #define VC_TAG_GET_TEMP 0x00030006
 #define VC_TAG_GET_MAX_TEMP 0x0003000A
+
+/* --- STRUCTS --- */
 struct bcm2835_hwmon_data {
 	struct device *hwmon_dev;
 };
-
-/* --- STRUCTS --- */
 
 /* tag part of the message */
 struct vc_msg_tag {
@@ -64,16 +76,12 @@ static struct platform_driver bcm2835_hwmon_driver;
 
 static SENSOR_DEVICE_ATTR(name, S_IRUGO,bcm2835_get_name,NULL,0);
 static SENSOR_DEVICE_ATTR(temp1_input,S_IRUGO,bcm2835_get_temp,NULL,TEMP);
-static SENSOR_DEVICE_ATTR(temp,S_IRUGO,bcm2835_get_temp,NULL,TEMP);
 static SENSOR_DEVICE_ATTR(temp1_max,S_IRUGO,bcm2835_get_temp,NULL,MAX_TEMP);
-static SENSOR_DEVICE_ATTR(trip_point_0_temp,S_IRUGO,bcm2835_get_temp,NULL,MAX_TEMP);
 
 static struct attribute* bcm2835_attributes[] = {
 	&sensor_dev_attr_name.dev_attr.attr,
 	&sensor_dev_attr_temp1_input.dev_attr.attr,
 	&sensor_dev_attr_temp1_max.dev_attr.attr,
-	&sensor_dev_attr_temp.dev_attr.attr,
-	&sensor_dev_attr_trip_point_0_temp.dev_attr.attr,
 	NULL,
 };
 
