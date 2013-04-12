@@ -1,6 +1,6 @@
 VERSION = 3
 PATCHLEVEL = 8
-SUBLEVEL = 6
+SUBLEVEL = 7
 EXTRAVERSION =
 NAME = Displaced Humerus Anterior
 
