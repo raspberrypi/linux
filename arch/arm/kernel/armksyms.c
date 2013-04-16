@@ -156,3 +156,7 @@ EXPORT_SYMBOL(__gnu_mcount_nc);
 #ifdef CONFIG_ARM_PATCH_PHYS_VIRT
 EXPORT_SYMBOL(__pv_phys_offset);
 #endif
+
+extern void v6wbi_flush_kern_tlb_range(void);
+EXPORT_SYMBOL(v6wbi_flush_kern_tlb_range);
+
