@@ -587,6 +587,7 @@ static struct platform_device bcm2708_spi_device = {
 
 #ifdef CONFIG_SPI
 static struct spi_board_info bcm2708_spi_devices[] = {
+#ifdef CONFIG_SPI_SPIDEV
 	{
 		.modalias = "spidev",
 		.max_speed_hz = 500000,
@@ -600,6 +601,7 @@ static struct spi_board_info bcm2708_spi_devices[] = {
 		.chip_select = 1,
 		.mode = SPI_MODE_0,
 	}
+#endif	
 };
 #endif
 
