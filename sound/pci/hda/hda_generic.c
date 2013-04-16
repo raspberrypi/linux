@@ -2072,6 +2072,14 @@ get_multiio_path(struct hda_codec *codec, int idx)
 
 static void update_automute_all(struct hda_codec *codec);
 
+/* Default value to be passed as aamix argument for snd_hda_activate_path();
+ * used for output paths
+ */
+static bool aamix_default(struct hda_gen_spec *spec)
+{
+	return !spec->have_aamix_ctl || spec->aamix_mode;
+}
+
 static int set_multi_io(struct hda_codec *codec, int idx, bool output)
 {
 	struct hda_gen_spec *spec = codec->spec;
@@ -2087,11 +2095,11 @@ static int set_multi_io(struct hda_codec *codec, int idx, bool output)
 
 	if (output) {
 		set_pin_target(codec, nid, PIN_OUT, true);
-		snd_hda_activate_path(codec, path, true, true);
+		snd_hda_activate_path(codec, path, true, aamix_default(spec));
 		set_pin_eapd(codec, nid, true);
 	} else {
 		set_pin_eapd(codec, nid, false);
-		snd_hda_activate_path(codec, path, false, true);
+		snd_hda_activate_path(codec, path, false, aamix_default(spec));
 		set_pin_target(codec, nid, spec->multi_io[idx].ctl_in, true);
 		path_power_down_sync(codec, path);
 	}
@@ -2182,8 +2190,8 @@ static void update_aamix_paths(struct hda_codec *codec, bool do_mix,
 		snd_hda_activate_path(codec, mix_path, true, true);
 		path_power_down_sync(codec, nomix_path);
 	} else {
-		snd_hda_activate_path(codec, mix_path, false, true);
-		snd_hda_activate_path(codec, nomix_path, true, true);
+		snd_hda_activate_path(codec, mix_path, false, false);
+		snd_hda_activate_path(codec, nomix_path, true, false);
 		path_power_down_sync(codec, mix_path);
 	}
 }
@@ -4729,7 +4737,8 @@ static void set_output_and_unmute(struct hda_codec *codec, int path_idx)
 		return;
 	pin = path->path[path->depth - 1];
 	restore_pin_ctl(codec, pin);
-	snd_hda_activate_path(codec, path, path->active, true);
+	snd_hda_activate_path(codec, path, path->active,
+			      aamix_default(codec->spec));
 	set_pin_eapd(codec, pin, path->active);
 }
 
@@ -4779,7 +4788,8 @@ static void init_multi_io(struct hda_codec *codec)
 		if (!spec->multi_io[i].ctl_in)
 			spec->multi_io[i].ctl_in =
 				snd_hda_codec_get_pin_target(codec, pin);
-		snd_hda_activate_path(codec, path, path->active, true);
+		snd_hda_activate_path(codec, path, path->active,
+				      aamix_default(spec));
 	}
 }
 
