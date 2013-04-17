@@ -36,7 +36,7 @@
 #define DRIVER_NAME  "vc-mem"
 
 // Uncomment to enable debug logging
-#define ENABLE_DBG
+// #define ENABLE_DBG
 
 #if defined(ENABLE_DBG)
 #define LOG_DBG( fmt, ... )  printk( KERN_INFO fmt "\n", ##__VA_ARGS__ )
@@ -77,6 +77,11 @@ EXPORT_SYMBOL(mm_vc_mem_phys_addr);
 EXPORT_SYMBOL(mm_vc_mem_size);
 EXPORT_SYMBOL(mm_vc_mem_base);
 
+static uint phys_addr = 0;
+static uint mem_size = 0;
+static uint mem_base = 0;
+
+
 /****************************************************************************
 *
 *   vc_mem_open
@@ -111,53 +116,6 @@ vc_mem_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-
-/* tag part of the message */
-struct vc_msg_tag {
-	uint32_t tag_id;		/* the message id */
-	uint32_t buffer_size;	/* size of the buffer (which in this case is always 8 bytes) */
-	uint32_t data_size;		/* amount of data being sent or received */
-	uint32_t base;		/* the address of memory base */
-	uint32_t size;			/* the size of memory in bytes */
-};
-
-struct vc_set_msg {
-	uint32_t msg_size;			/* simply, sizeof(struct vc_msg) */
-	uint32_t request_code;		/* holds various information like the success and number of bytes returned (refer to mailboxes wiki) */
-	struct vc_msg_tag tag[2];	/* the array of tag structures above to make */
-	uint32_t end_tag;			/* an end identifier, should be set to NULL */
-};
-
-static void vc_mem_update(void)
-{
-	struct vc_set_msg msg;					/* the memory address accessed from driver */
-	uint32_t s;
-
-	memset(&msg, 0, sizeof msg);
-	/* create the message */
-	msg.msg_size = sizeof msg;
-	msg.tag[0].tag_id = VCMSG_GET_VC_MEMORY;
-	msg.tag[0].buffer_size = 8;
-	msg.tag[0].data_size   = 0;
-	msg.tag[1].tag_id = VCMSG_GET_ARM_MEMORY;
-	msg.tag[1].buffer_size = 8;
-	msg.tag[1].data_size   = 0;
-
-	/* send the message */
-	s = bcm_mailbox_property(&msg, sizeof msg);
-
-	LOG_DBG("%s: success=%d resp %x, vcbase=%x vcsize=%x armbase=%x armsize=%x", __func__, s, msg.request_code, 
-		msg.tag[0].base, msg.tag[0].size, msg.tag[1].base, msg.tag[1].size);
-
-	/* check we're all good */
-	if (s == 0 && msg.request_code & 0x80000000) {
-		mm_vc_mem_base = msg.tag[0].base;
-		mm_vc_mem_size = msg.tag[0].size+msg.tag[1].size;
-		mm_vc_mem_phys_addr = msg.tag[1].base;
-	}
-}
-
-
 /****************************************************************************
 *
 *   vc_mem_get_size
@@ -167,7 +125,6 @@ static void vc_mem_update(void)
 static void
 vc_mem_get_size(void)
 {
-	vc_mem_update();
 }
 
 /****************************************************************************
@@ -179,7 +136,6 @@ vc_mem_get_size(void)
 static void
 vc_mem_get_base(void)
 {
-	vc_mem_update();
 }
 
 /****************************************************************************
@@ -191,7 +147,6 @@ vc_mem_get_base(void)
 int
 vc_mem_get_current_size(void)
 {
-	vc_mem_get_size();
 	return mm_vc_mem_size;
 }
 
@@ -382,25 +337,26 @@ vc_mem_proc_write(struct file *file, const char __user * buffer,
 
 /****************************************************************************
 *
-*   vc_mem_connected_init
-*
-*   This function is called once the videocore has been connected.
+*   vc_mem_init
 *
 ***************************************************************************/
 
-void
-vc_mem_connected_init(void)
+static int __init
+vc_mem_init(void)
 {
 	int rc = -EFAULT;
 	struct device *dev;
 
 	LOG_DBG("%s: called", __func__);
 
+	mm_vc_mem_phys_addr = phys_addr;
+	mm_vc_mem_size = mem_size;
+	mm_vc_mem_base = mem_base;
+
 	vc_mem_get_size();
 
-	printk("vc-mem: mm_vc_mem_phys_addr = 0x%08lx\n", mm_vc_mem_phys_addr);
-	printk("vc-mem: mm_vc_mem_size      = 0x%08x (%u MiB)\n",
-	       mm_vc_mem_size, mm_vc_mem_size / (1024 * 1024));
+	printk("vc-mem: phys_addr:0x%08lx mem_base=0x%08x mem_size:0x%08x(%u MiB)\n",
+		mm_vc_mem_phys_addr, mm_vc_mem_base, mm_vc_mem_size, mm_vc_mem_size / (1024 * 1024));
 
 	if ((rc = alloc_chrdev_region(&vc_mem_devnum, 0, 1, DRIVER_NAME)) < 0) {
 		LOG_ERR("%s: alloc_chrdev_region failed (rc=%d)", __func__, rc);
@@ -440,7 +396,7 @@ vc_mem_connected_init(void)
 #endif
 
 	vc_mem_inited = 1;
-	return;
+	return 0;
 
       out_device_destroy:
 	device_destroy(vc_mem_class, vc_mem_devnum);
@@ -456,23 +412,7 @@ vc_mem_connected_init(void)
 	unregister_chrdev_region(vc_mem_devnum, 1);
 
       out_err:
-	return;
-}
-
-/****************************************************************************
-*
-*   vc_mem_init
-*
-***************************************************************************/
-
-static int __init
-vc_mem_init(void)
-{
-	printk(KERN_INFO "vc-mem: Videocore memory driver\n");
-
-	//vchiq_add_connected_callback(vc_mem_connected_init);
-
-	return 0;
+	return -1;
 }
 
 /****************************************************************************
@@ -501,3 +441,8 @@ module_init(vc_mem_init);
 module_exit(vc_mem_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Broadcom Corporation");
+
+module_param(phys_addr, uint, 0644);
+module_param(mem_size, uint, 0644);
+module_param(mem_base, uint, 0644);
+
