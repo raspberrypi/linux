@@ -77,6 +77,7 @@
 
 /* command line parameters */
 static unsigned boardrev, serial;
+static unsigned uart_clock;
 
 static void __init bcm2708_init_led(void);
 
@@ -633,7 +634,11 @@ void __init bcm2708_init(void)
 {
 	int i;
 
+	printk("bcm2708.uart_clock = %d\n", uart_clock);
 	pm_power_off = bcm2708_power_off;
+
+	if (uart_clock)
+		lookups[0].clk->rate = uart_clock;
 
 	for (i = 0; i < ARRAY_SIZE(lookups); i++)
 		clkdev_add(&lookups[i]);
@@ -671,12 +676,6 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2835_hwmon_device);
 	bcm_register_device(&bcm2835_thermal_device);
 
-#ifdef CONFIG_BCM2708_VCMEM
-	{
-		extern void vc_mem_connected_init(void);
-		vc_mem_connected_init();
-	}
-#endif
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];
 		amba_device_register(d, &iomem_resource);
@@ -842,3 +841,4 @@ MACHINE_END
 
 module_param(boardrev, uint, 0644);
 module_param(serial, uint, 0644);
+module_param(uart_clock, uint, 0644);
