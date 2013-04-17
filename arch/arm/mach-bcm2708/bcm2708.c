@@ -469,12 +469,54 @@ struct platform_device bcm2708_powerman_device = {
 
 
 static struct platform_device bcm2708_alsa_devices[] = {
-	[0] =	{
-		.name = "bcm2835_AUD0",
-		.id = 0,		/* first audio device */
-		.resource = 0,
-		.num_resources = 0,
-		},
+	[0] = {
+	       .name = "bcm2835_AUD0",
+	       .id = 0,		/* first audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[1] = {
+	       .name = "bcm2835_AUD1",
+	       .id = 1,		/* second audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[2] = {
+	       .name = "bcm2835_AUD2",
+	       .id = 2,		/* third audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[3] = {
+	       .name = "bcm2835_AUD3",
+	       .id = 3,		/* forth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[4] = {
+	       .name = "bcm2835_AUD4",
+	       .id = 4,		/* fifth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[5] = {
+	       .name = "bcm2835_AUD5",
+	       .id = 5,		/* sixth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[6] = {
+	       .name = "bcm2835_AUD6",
+	       .id = 6,		/* seventh audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
+	[7] = {
+	       .name = "bcm2835_AUD7",
+	       .id = 7,		/* eighth audio device */
+	       .resource = 0,
+	       .num_resources = 0,
+	       },
 };
 
 static struct resource bcm2708_spi_resources[] = {
