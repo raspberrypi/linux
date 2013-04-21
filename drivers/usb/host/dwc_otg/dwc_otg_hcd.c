@@ -46,7 +46,7 @@
 #include "dwc_otg_hcd.h"
 #include "dwc_otg_regs.h"
 
-extern bool microframe_schedule;
+extern bool microframe_schedule, nak_holdoff_enable;
 
 //#define DEBUG_HOST_CHANNELS
 #ifdef DEBUG_HOST_CHANNELS
@@ -1349,18 +1349,26 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 
 		/*
 		 * Check to see if this is a NAK'd retransmit, in which case ignore for retransmission
-		 * we hold off on bulk retransmissions to reduce NAK interrupt overhead for
+		 * we hold off on bulk retransmissions to reduce NAK interrupt overhead for full-speed
 		 * cheeky devices that just hold off using NAKs
 		 */
-		if (dwc_full_frame_num(qh->nak_frame) == dwc_full_frame_num(dwc_otg_hcd_get_frame_number(hcd))) {
-			// Make fiq interrupt run on next frame (i.e. 8 uframes)
-			g_next_sched_frame = ((qh->nak_frame + 8) & ~7) & DWC_HFNUM_MAX_FRNUM;
-			qh_ptr = DWC_LIST_NEXT(qh_ptr);
-			continue;
+		if (nak_holdoff_enable && qh->do_split) {
+			if (qh->nak_frame != 0xffff &&
+				dwc_full_frame_num(qh->nak_frame) ==
+				dwc_full_frame_num(dwc_otg_hcd_get_frame_number(hcd))) {
+				/*
+				 * Revisit: Need to avoid trampling on periodic scheduling.
+				 * Currently we are safe because g_np_count != g_np_sent whenever we hit this,
+				 * but if this behaviour is changed then periodic endpoints will get a slower
+				 * polling rate.
+				 */
+				g_next_sched_frame = ((qh->nak_frame + 8) & ~7) & DWC_HFNUM_MAX_FRNUM;
+				qh_ptr = DWC_LIST_NEXT(qh_ptr);
+				continue;
+			} else {
+				qh->nak_frame = 0xffff;
+			}
 		}
-		else
-			qh->nak_frame = 0xffff;
-
 		if (microframe_schedule) {
 				DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 				if (hcd->available_host_channels < 1) {
