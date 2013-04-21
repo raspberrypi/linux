@@ -6,6 +6,7 @@ config REMOTEPROC
 	depends on HAS_DMA
 	select FW_LOADER
 	select VIRTIO
+	select VIRTUALIZATION
 
 config OMAP_REMOTEPROC
 	tristate "OMAP remoteproc support"
