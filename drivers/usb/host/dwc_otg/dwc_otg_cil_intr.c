@@ -45,6 +45,9 @@
 #include "dwc_otg_driver.h"
 #include "dwc_otg_pcd.h"
 #include "dwc_otg_hcd.h"
+#include "dwc_otg_mphi_fix.h"
+
+extern bool fiq_fix_enable;
 
 #ifdef DEBUG
 inline const char *op_state_str(dwc_otg_core_if_t * core_if)
@@ -1351,10 +1354,15 @@ static inline uint32_t dwc_otg_read_common_intr(dwc_otg_core_if_t * core_if)
 			    gintsts.d32, gintmsk.d32);
 	}
 #endif
-	if (gahbcfg.b.glblintrmsk)	
+	if (!fiq_fix_enable){
+		if (gahbcfg.b.glblintrmsk)
+			return ((gintsts.d32 & gintmsk.d32) & gintmsk_common.d32);
+		else
+			return 0;
+	}
+	else {
 		return ((gintsts.d32 & gintmsk.d32) & gintmsk_common.d32);
-	else
-		return 0;
+	}
 
 }
 

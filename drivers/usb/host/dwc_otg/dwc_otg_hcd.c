@@ -53,6 +53,8 @@ static int last_sel_trans_num_avail_hc_at_start = 0;
 static int last_sel_trans_num_avail_hc_at_end = 0;
 #endif /* DEBUG_HOST_CHANNELS */
 
+extern int g_next_sched_frame, g_np_count, g_np_sent;
+
 dwc_otg_hcd_t *dwc_otg_hcd_alloc_hcd(void)
 {
 	return DWC_ALLOC(sizeof(dwc_otg_hcd_t));
@@ -406,6 +408,7 @@ static int dwc_otg_hcd_sleep_cb(void *p)
 	return 0;
 }
 #endif
+
 
 /**
  * HCD Callback function for Remote Wakeup.
@@ -1329,6 +1332,8 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 		DWC_LIST_MOVE_HEAD(&hcd->non_periodic_sched_active,
 				   &qh->qh_list_entry);
 		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
+
+		g_np_sent++;
 
 		if (ret_val == DWC_OTG_TRANSACTION_NONE) {
 			ret_val = DWC_OTG_TRANSACTION_NON_PERIODIC;
