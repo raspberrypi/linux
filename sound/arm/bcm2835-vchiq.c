@@ -38,6 +38,9 @@
 
 /* ---- Private Constants and Types ------------------------------------------ */
 
+#define BCM2835_AUDIO_STOP           0
+#define BCM2835_AUDIO_START          1
+
 /* Logging macros (for remapping to other logging mechanisms, i.e., printf) */
 #ifdef AUDIO_DEBUG_ENABLE
 	#define LOG_ERR( fmt, arg... )   pr_err( "%s:%d " fmt, __func__, __LINE__, ##arg)
@@ -75,23 +78,23 @@ static int bcm2835_audio_start_worker(bcm2835_alsa_stream_t * alsa_stream);
 typedef struct {
 	struct work_struct my_work;
 	bcm2835_alsa_stream_t *alsa_stream;
-	int x;
+	int cmd;
 } my_work_t;
 
 static void my_wq_function(struct work_struct *work)
 {
 	my_work_t *w = (my_work_t *) work;
 	int ret = -9;
-	LOG_DBG(" .. IN %p:%d\n", w->alsa_stream, w->x);
-	switch (w->x) {
-	case 1:
+	LOG_DBG(" .. IN %p:%d\n", w->alsa_stream, w->cmd);
+	switch (w->cmd) {
+	case BCM2835_AUDIO_START:
 		ret = bcm2835_audio_start_worker(w->alsa_stream);
 		break;
-	case 2:
+	case BCM2835_AUDIO_STOP:
 		ret = bcm2835_audio_stop_worker(w->alsa_stream);
 		break;
 	default:
-		LOG_ERR(" Unexpected work: %p:%d\n", w->alsa_stream, w->x);
+		LOG_ERR(" Unexpected work: %p:%d\n", w->alsa_stream, w->cmd);
 		break;
 	}
 	kfree((void *)work);
@@ -108,7 +111,7 @@ int bcm2835_audio_start(bcm2835_alsa_stream_t * alsa_stream)
 		if (work) {
 			INIT_WORK((struct work_struct *)work, my_wq_function);
 			work->alsa_stream = alsa_stream;
-			work->x = 1;
+			work->cmd = BCM2835_AUDIO_START;
 			if (queue_work
 			    (alsa_stream->my_wq, (struct work_struct *)work))
 				ret = 0;
@@ -129,7 +132,7 @@ int bcm2835_audio_stop(bcm2835_alsa_stream_t * alsa_stream)
 		if (work) {
 			INIT_WORK((struct work_struct *)work, my_wq_function);
 			work->alsa_stream = alsa_stream;
-			work->x = 2;
+			work->cmd = BCM2835_AUDIO_STOP;
 			if (queue_work
 			    (alsa_stream->my_wq, (struct work_struct *)work))
 				ret = 0;
