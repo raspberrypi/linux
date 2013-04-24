@@ -27,6 +27,7 @@
 #include <linux/delay.h>
 #include <linux/atomic.h>
 #include <linux/module.h>
+#include <linux/completion.h>
 
 #include "bcm2835.h"
 
@@ -53,7 +54,7 @@
 typedef struct opaque_AUDIO_INSTANCE_T {
 	uint32_t num_connections;
 	VCHI_SERVICE_HANDLE_T vchi_handle[VCHI_MAX_NUM_CONNECTIONS];
-	struct semaphore msg_avail_event;
+	struct completion msg_avail_comp;
 	struct mutex vchi_mutex;
 	bcm2835_alsa_stream_t *alsa_stream;
 	int32_t result;
@@ -178,7 +179,7 @@ static void audio_vchi_callback(void *param,
 		    (" .. instance=%p, m.type=VC_AUDIO_MSG_TYPE_RESULT, success=%d\n",
 		     instance, m.u.result.success);
 		instance->result = m.u.result.success;
-		up(&instance->msg_avail_event);
+		complete(&instance->msg_avail_comp);
 	} else if (m.type == VC_AUDIO_MSG_TYPE_COMPLETE) {
 		irq_handler_t callback = (irq_handler_t) m.u.complete.callback;
 		LOG_DBG
@@ -435,8 +436,8 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 	m.u.control.dest = chip->dest;
 	m.u.control.volume = chip->volume;
 
-	/* Create the message available event */
-	sema_init(&instance->msg_avail_event, 0);
+	/* Create the message available completion */
+	init_completion(&instance->msg_avail_comp);
 
 	/* Send the message to the videocore */
 	success = vchi_msg_queue(instance->vchi_handle[0],
@@ -452,11 +453,10 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 	}
 
 	/* We are expecting a reply from the videocore */
-	if (down_interruptible(&instance->msg_avail_event)) {
+	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
+	if (ret) {
 		LOG_ERR("%s: failed on waiting for event (status=%d)\n",
 			__func__, success);
-
-		ret = -1;
 		goto unlock;
 	}
 
@@ -539,8 +539,8 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	m.u.config.samplerate = samplerate;
 	m.u.config.bps = bps;
 
-	/* Create the message available event */
-	sema_init(&instance->msg_avail_event, 0);
+	/* Create the message available completion */
+	init_completion(&instance->msg_avail_comp);
 
 	/* Send the message to the videocore */
 	success = vchi_msg_queue(instance->vchi_handle[0],
@@ -556,11 +556,10 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	}
 
 	/* We are expecting a reply from the videocore */
-	if (down_interruptible(&instance->msg_avail_event)) {
+	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
+	if (ret) {
 		LOG_ERR("%s: failed on waiting for event (status=%d)\n",
 			__func__, success);
-
-		ret = -1;
 		goto unlock;
 	}
 
@@ -688,8 +687,8 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 
 	m.type = VC_AUDIO_MSG_TYPE_CLOSE;
 
-	/* Create the message available event */
-	sema_init(&instance->msg_avail_event, 0);
+	/* Create the message available completion */
+	init_completion(&instance->msg_avail_comp);
 
 	/* Send the message to the videocore */
 	success = vchi_msg_queue(instance->vchi_handle[0],
@@ -702,11 +701,11 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 		ret = -1;
 		goto unlock;
 	}
-	if (down_interruptible(&instance->msg_avail_event)) {
+
+	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
+	if (ret) {
 		LOG_ERR("%s: failed on waiting for event (status=%d)",
 			__func__, success);
-
-		ret = -1;
 		goto unlock;
 	}
 	if (instance->result != 0) {
