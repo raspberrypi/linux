@@ -64,6 +64,7 @@ _GLOBAL(__restore_cpu_power8)
 	mflr	r11
 	mfmsr	r3
 	rldicl.	r0,r3,4,63
+	mtlr	r11
 	beqlr
 	li	r0,0
 	mtspr	SPRN_LPID,r0
