@@ -40,6 +40,7 @@
 
 #define BCM2835_AUDIO_STOP           0
 #define BCM2835_AUDIO_START          1
+#define BCM2835_AUDIO_WRITE          2
 
 /* Logging macros (for remapping to other logging mechanisms, i.e., printf) */
 #ifdef AUDIO_DEBUG_ENABLE
@@ -74,11 +75,15 @@ bool force_bulk = false;
 
 static int bcm2835_audio_stop_worker(bcm2835_alsa_stream_t * alsa_stream);
 static int bcm2835_audio_start_worker(bcm2835_alsa_stream_t * alsa_stream);
+static int bcm2835_audio_write_worker(bcm2835_alsa_stream_t *alsa_stream,
+				      uint32_t count, void *src);
 
 typedef struct {
 	struct work_struct my_work;
 	bcm2835_alsa_stream_t *alsa_stream;
 	int cmd;
+	void *src;
+	uint32_t count;
 } my_work_t;
 
 static void my_wq_function(struct work_struct *work)
@@ -92,6 +97,10 @@ static void my_wq_function(struct work_struct *work)
 		break;
 	case BCM2835_AUDIO_STOP:
 		ret = bcm2835_audio_stop_worker(w->alsa_stream);
+		break;
+	case BCM2835_AUDIO_WRITE:
+		ret = bcm2835_audio_write_worker(w->alsa_stream, w->count,
+						 w->src);
 		break;
 	default:
 		LOG_ERR(" Unexpected work: %p:%d\n", w->alsa_stream, w->cmd);
@@ -133,6 +142,30 @@ int bcm2835_audio_stop(bcm2835_alsa_stream_t * alsa_stream)
 			INIT_WORK((struct work_struct *)work, my_wq_function);
 			work->alsa_stream = alsa_stream;
 			work->cmd = BCM2835_AUDIO_STOP;
+			if (queue_work
+			    (alsa_stream->my_wq, (struct work_struct *)work))
+				ret = 0;
+		} else
+			LOG_ERR(" .. Error: NULL work kmalloc\n");
+	}
+	LOG_DBG(" .. OUT %d\n", ret);
+	return ret;
+}
+
+int bcm2835_audio_write(bcm2835_alsa_stream_t *alsa_stream,
+			uint32_t count, void *src)
+{
+	int ret = -1;
+	LOG_DBG(" .. IN\n");
+	if (alsa_stream->my_wq) {
+		my_work_t *work = kmalloc(sizeof(my_work_t), GFP_ATOMIC);
+		 /*--- Queue some work (item 1) ---*/
+		if (work) {
+			INIT_WORK((struct work_struct *)work, my_wq_function);
+			work->alsa_stream = alsa_stream;
+			work->cmd = BCM2835_AUDIO_WRITE;
+			work->src = src;
+			work->count = count;
 			if (queue_work
 			    (alsa_stream->my_wq, (struct work_struct *)work))
 				ret = 0;
@@ -734,8 +767,8 @@ unlock:
 	return ret;
 }
 
-int bcm2835_audio_write(bcm2835_alsa_stream_t * alsa_stream, uint32_t count,
-			void *src)
+int bcm2835_audio_write_worker(bcm2835_alsa_stream_t *alsa_stream,
+			       uint32_t count, void *src)
 {
 	VC_AUDIO_MSG_T m;
 	AUDIO_INSTANCE_T *instance = alsa_stream->instance;
