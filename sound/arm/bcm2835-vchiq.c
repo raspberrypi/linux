@@ -27,6 +27,7 @@
 #include <linux/delay.h>
 #include <linux/atomic.h>
 #include <linux/module.h>
+#include <linux/completion.h>
 
 #include "bcm2835.h"
 
@@ -36,6 +37,10 @@
 #include "vc_vchi_audioserv_defs.h"
 
 /* ---- Private Constants and Types ------------------------------------------ */
+
+#define BCM2835_AUDIO_STOP           0
+#define BCM2835_AUDIO_START          1
+#define BCM2835_AUDIO_WRITE          2
 
 /* Logging macros (for remapping to other logging mechanisms, i.e., printf) */
 #ifdef AUDIO_DEBUG_ENABLE
@@ -53,7 +58,7 @@
 typedef struct opaque_AUDIO_INSTANCE_T {
 	uint32_t num_connections;
 	VCHI_SERVICE_HANDLE_T vchi_handle[VCHI_MAX_NUM_CONNECTIONS];
-	struct semaphore msg_avail_event;
+	struct completion msg_avail_comp;
 	struct mutex vchi_mutex;
 	bcm2835_alsa_stream_t *alsa_stream;
 	int32_t result;
@@ -70,27 +75,35 @@ bool force_bulk = false;
 
 static int bcm2835_audio_stop_worker(bcm2835_alsa_stream_t * alsa_stream);
 static int bcm2835_audio_start_worker(bcm2835_alsa_stream_t * alsa_stream);
+static int bcm2835_audio_write_worker(bcm2835_alsa_stream_t *alsa_stream,
+				      uint32_t count, void *src);
 
 typedef struct {
 	struct work_struct my_work;
 	bcm2835_alsa_stream_t *alsa_stream;
-	int x;
+	int cmd;
+	void *src;
+	uint32_t count;
 } my_work_t;
 
 static void my_wq_function(struct work_struct *work)
 {
 	my_work_t *w = (my_work_t *) work;
 	int ret = -9;
-	LOG_DBG(" .. IN %p:%d\n", w->alsa_stream, w->x);
-	switch (w->x) {
-	case 1:
+	LOG_DBG(" .. IN %p:%d\n", w->alsa_stream, w->cmd);
+	switch (w->cmd) {
+	case BCM2835_AUDIO_START:
 		ret = bcm2835_audio_start_worker(w->alsa_stream);
 		break;
-	case 2:
+	case BCM2835_AUDIO_STOP:
 		ret = bcm2835_audio_stop_worker(w->alsa_stream);
 		break;
+	case BCM2835_AUDIO_WRITE:
+		ret = bcm2835_audio_write_worker(w->alsa_stream, w->count,
+						 w->src);
+		break;
 	default:
-		LOG_ERR(" Unexpected work: %p:%d\n", w->alsa_stream, w->x);
+		LOG_ERR(" Unexpected work: %p:%d\n", w->alsa_stream, w->cmd);
 		break;
 	}
 	kfree((void *)work);
@@ -107,7 +120,7 @@ int bcm2835_audio_start(bcm2835_alsa_stream_t * alsa_stream)
 		if (work) {
 			INIT_WORK((struct work_struct *)work, my_wq_function);
 			work->alsa_stream = alsa_stream;
-			work->x = 1;
+			work->cmd = BCM2835_AUDIO_START;
 			if (queue_work
 			    (alsa_stream->my_wq, (struct work_struct *)work))
 				ret = 0;
@@ -128,7 +141,31 @@ int bcm2835_audio_stop(bcm2835_alsa_stream_t * alsa_stream)
 		if (work) {
 			INIT_WORK((struct work_struct *)work, my_wq_function);
 			work->alsa_stream = alsa_stream;
-			work->x = 2;
+			work->cmd = BCM2835_AUDIO_STOP;
+			if (queue_work
+			    (alsa_stream->my_wq, (struct work_struct *)work))
+				ret = 0;
+		} else
+			LOG_ERR(" .. Error: NULL work kmalloc\n");
+	}
+	LOG_DBG(" .. OUT %d\n", ret);
+	return ret;
+}
+
+int bcm2835_audio_write(bcm2835_alsa_stream_t *alsa_stream,
+			uint32_t count, void *src)
+{
+	int ret = -1;
+	LOG_DBG(" .. IN\n");
+	if (alsa_stream->my_wq) {
+		my_work_t *work = kmalloc(sizeof(my_work_t), GFP_ATOMIC);
+		 /*--- Queue some work (item 1) ---*/
+		if (work) {
+			INIT_WORK((struct work_struct *)work, my_wq_function);
+			work->alsa_stream = alsa_stream;
+			work->cmd = BCM2835_AUDIO_WRITE;
+			work->src = src;
+			work->count = count;
 			if (queue_work
 			    (alsa_stream->my_wq, (struct work_struct *)work))
 				ret = 0;
@@ -178,7 +215,7 @@ static void audio_vchi_callback(void *param,
 		    (" .. instance=%p, m.type=VC_AUDIO_MSG_TYPE_RESULT, success=%d\n",
 		     instance, m.u.result.success);
 		instance->result = m.u.result.success;
-		up(&instance->msg_avail_event);
+		complete(&instance->msg_avail_comp);
 	} else if (m.type == VC_AUDIO_MSG_TYPE_COMPLETE) {
 		irq_handler_t callback = (irq_handler_t) m.u.complete.callback;
 		LOG_DBG
@@ -435,8 +472,8 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 	m.u.control.dest = chip->dest;
 	m.u.control.volume = chip->volume;
 
-	/* Create the message available event */
-	sema_init(&instance->msg_avail_event, 0);
+	/* Create the message available completion */
+	init_completion(&instance->msg_avail_comp);
 
 	/* Send the message to the videocore */
 	success = vchi_msg_queue(instance->vchi_handle[0],
@@ -452,11 +489,10 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 	}
 
 	/* We are expecting a reply from the videocore */
-	if (down_interruptible(&instance->msg_avail_event)) {
+	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
+	if (ret) {
 		LOG_ERR("%s: failed on waiting for event (status=%d)\n",
 			__func__, success);
-
-		ret = -1;
 		goto unlock;
 	}
 
@@ -539,8 +575,8 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	m.u.config.samplerate = samplerate;
 	m.u.config.bps = bps;
 
-	/* Create the message available event */
-	sema_init(&instance->msg_avail_event, 0);
+	/* Create the message available completion */
+	init_completion(&instance->msg_avail_comp);
 
 	/* Send the message to the videocore */
 	success = vchi_msg_queue(instance->vchi_handle[0],
@@ -556,11 +592,10 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	}
 
 	/* We are expecting a reply from the videocore */
-	if (down_interruptible(&instance->msg_avail_event)) {
+	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
+	if (ret) {
 		LOG_ERR("%s: failed on waiting for event (status=%d)\n",
 			__func__, success);
-
-		ret = -1;
 		goto unlock;
 	}
 
@@ -688,8 +723,8 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 
 	m.type = VC_AUDIO_MSG_TYPE_CLOSE;
 
-	/* Create the message available event */
-	sema_init(&instance->msg_avail_event, 0);
+	/* Create the message available completion */
+	init_completion(&instance->msg_avail_comp);
 
 	/* Send the message to the videocore */
 	success = vchi_msg_queue(instance->vchi_handle[0],
@@ -702,11 +737,11 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 		ret = -1;
 		goto unlock;
 	}
-	if (down_interruptible(&instance->msg_avail_event)) {
+
+	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
+	if (ret) {
 		LOG_ERR("%s: failed on waiting for event (status=%d)",
 			__func__, success);
-
-		ret = -1;
 		goto unlock;
 	}
 	if (instance->result != 0) {
@@ -732,8 +767,8 @@ unlock:
 	return ret;
 }
 
-int bcm2835_audio_write(bcm2835_alsa_stream_t * alsa_stream, uint32_t count,
-			void *src)
+int bcm2835_audio_write_worker(bcm2835_alsa_stream_t *alsa_stream,
+			       uint32_t count, void *src)
 {
 	VC_AUDIO_MSG_T m;
 	AUDIO_INSTANCE_T *instance = alsa_stream->instance;
