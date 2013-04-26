@@ -148,12 +148,7 @@ static int fd_configure_device(struct se_device *dev)
 	 */
 	inode = file->f_mapping->host;
 	if (S_ISBLK(inode->i_mode)) {
-		struct request_queue *q = bdev_get_queue(inode->i_bdev);
 		unsigned long long dev_size;
-
-		dev->dev_attrib.hw_block_size =
-			bdev_logical_block_size(inode->i_bdev);
-		dev->dev_attrib.hw_max_sectors = queue_max_hw_sectors(q);
 
 		/*
 		 * Determine the number of bytes from i_size_read() minus
@@ -173,13 +168,12 @@ static int fd_configure_device(struct se_device *dev)
 				" block_device\n");
 			goto fail;
 		}
-
-		dev->dev_attrib.hw_block_size = FD_BLOCKSIZE;
-		dev->dev_attrib.hw_max_sectors = FD_MAX_SECTORS;
 	}
 
 	fd_dev->fd_block_size = dev->dev_attrib.hw_block_size;
 
+	dev->dev_attrib.hw_block_size = FD_BLOCKSIZE;
+	dev->dev_attrib.hw_max_sectors = FD_MAX_SECTORS;
 	dev->dev_attrib.hw_queue_depth = FD_MAX_DEVICE_QUEUE_DEPTH;
 
 	if (fd_dev->fbd_flags & FDBD_HAS_BUFFERED_IO_WCE) {
