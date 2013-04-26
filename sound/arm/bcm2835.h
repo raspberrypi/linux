@@ -23,6 +23,7 @@
 #include <sound/initval.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
+#include <sound/pcm-indirect.h>
 #include <linux/workqueue.h>
 
 /*
@@ -110,6 +111,7 @@ typedef struct bcm2835_chip {
 typedef struct bcm2835_alsa_stream {
 	bcm2835_chip_t *chip;
 	struct snd_pcm_substream *substream;
+	struct snd_pcm_indirect pcm_indirect;
 
 	struct semaphore buffers_update_sem;
 	struct semaphore control_sem;
