@@ -19,7 +19,8 @@
 
 /* hardware definition */
 static struct snd_pcm_hardware snd_bcm2835_playback_hw = {
-	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER),
+	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
+		 SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID),
 	.formats = SNDRV_PCM_FMTBIT_U8 | SNDRV_PCM_FMTBIT_S16_LE,
 	.rates = SNDRV_PCM_RATE_CONTINUOUS | SNDRV_PCM_RATE_8000_48000,
 	.rate_min = 8000,
@@ -251,6 +252,12 @@ static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
 
 	audio_info(" .. IN\n");
 
+	memset(&alsa_stream->pcm_indirect, 0, sizeof(alsa_stream->pcm_indirect));
+
+	alsa_stream->pcm_indirect.hw_buffer_size =
+	alsa_stream->pcm_indirect.sw_buffer_size =
+		snd_pcm_lib_buffer_bytes(substream);
+
 	alsa_stream->buffer_size = snd_pcm_lib_buffer_bytes(substream);
 	alsa_stream->period_size = snd_pcm_lib_period_bytes(substream);
 	alsa_stream->pos = 0;
@@ -260,6 +267,32 @@ static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
 		      alsa_stream->pos, runtime->frame_bits);
 
 	audio_info(" .. OUT\n");
+	return 0;
+}
+
+static void snd_bcm2835_pcm_transfer(struct snd_pcm_substream *substream,
+				    struct snd_pcm_indirect *rec, size_t bytes)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
+	void *src = (void *)(substream->runtime->dma_area + rec->sw_data);
+	int err;
+
+	err = bcm2835_audio_write(alsa_stream, bytes, src);
+	if (err)
+		audio_error(" Failed to transfer to alsa device (%d)\n", err);
+
+}
+
+static int snd_bcm2835_pcm_ack(struct snd_pcm_substream *substream)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
+	struct snd_pcm_indirect *pcm_indirect = &alsa_stream->pcm_indirect;
+
+	pcm_indirect->hw_queue_size = runtime->hw.buffer_bytes_max;
+	snd_pcm_indirect_playback_transfer(substream, pcm_indirect,
+					   snd_bcm2835_pcm_transfer);
 	return 0;
 }
 
@@ -279,6 +312,11 @@ static int snd_bcm2835_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		if (!alsa_stream->running) {
 			err = bcm2835_audio_start(alsa_stream);
 			if (err == 0) {
+				alsa_stream->pcm_indirect.hw_io =
+				alsa_stream->pcm_indirect.hw_data =
+					bytes_to_frames(runtime,
+							alsa_stream->pos);
+				substream->ops->ack(substream);
 				alsa_stream->running = 1;
 				alsa_stream->draining = 1;
 			} else {
@@ -327,30 +365,9 @@ snd_bcm2835_pcm_pointer(struct snd_pcm_substream *substream)
 		      alsa_stream->pos);
 
 	audio_info(" .. OUT\n");
-	return bytes_to_frames(runtime, alsa_stream->pos);
-}
-
-static int snd_bcm2835_pcm_copy(struct snd_pcm_substream *substream,
-				int channel, snd_pcm_uframes_t pos, void *src,
-				snd_pcm_uframes_t count)
-{
-	int ret;
-	struct snd_pcm_runtime *runtime = substream->runtime;
-	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
-
-	audio_info(" .. IN\n");
-	audio_debug("copy.......... (%d) hwptr=%d appl=%d pos=%d\n",
-		      frames_to_bytes(runtime, count), frames_to_bytes(runtime,
-								       runtime->
-								       status->
-								       hw_ptr),
-		      frames_to_bytes(runtime, runtime->control->appl_ptr),
-		      alsa_stream->pos);
-	ret =
-	    bcm2835_audio_write(alsa_stream, frames_to_bytes(runtime, count),
-				src);
-	audio_info(" .. OUT\n");
-	return ret;
+	return snd_pcm_indirect_playback_pointer(substream,
+						 &alsa_stream->pcm_indirect,
+						 alsa_stream->pos);
 }
 
 static int snd_bcm2835_pcm_lib_ioctl(struct snd_pcm_substream *substream,
@@ -372,7 +389,7 @@ static struct snd_pcm_ops snd_bcm2835_playback_ops = {
 	.prepare = snd_bcm2835_pcm_prepare,
 	.trigger = snd_bcm2835_pcm_trigger,
 	.pointer = snd_bcm2835_pcm_pointer,
-	.copy = snd_bcm2835_pcm_copy,
+	.ack = snd_bcm2835_pcm_ack,
 };
 
 /* create a pcm device */
