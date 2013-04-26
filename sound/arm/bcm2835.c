@@ -110,20 +110,20 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 
 	err = snd_bcm2835_create(g_card, pdev, &chip);
 	if (err < 0) {
-		printk(KERN_ERR "Failed to create bcm2835 chip\n");
+		dev_err(&pdev->dev, "Failed to create bcm2835 chip\n");
 		goto out_bcm2835_create;
 	}
 
 	g_chip = chip;
 	err = snd_bcm2835_new_pcm(chip);
 	if (err < 0) {
-		printk(KERN_ERR "Failed to create new BCM2835 pcm device\n");
+		dev_err(&pdev->dev, "Failed to create new BCM2835 pcm device\n");
 		goto out_bcm2835_new_pcm;
 	}
 
 	err = snd_bcm2835_new_ctl(chip);
 	if (err < 0) {
-		printk(KERN_ERR "Failed to create new BCM2835 ctl\n");
+		dev_err(&pdev->dev, "Failed to create new BCM2835 ctl\n");
 		goto out_bcm2835_new_ctl;
 	}
 
@@ -139,14 +139,14 @@ add_register_map:
 	if (dev == 0) {
 		err = snd_card_register(card);
 		if (err < 0) {
-			printk(KERN_ERR
-			       "Failed to register bcm2835 ALSA card \n");
+			dev_err(&pdev->dev,
+				"Failed to register bcm2835 ALSA card \n");
 			goto out_card_register;
 		}
 		platform_set_drvdata(pdev, card);
-		printk(KERN_INFO "bcm2835 ALSA card created!\n");
+		audio_info("bcm2835 ALSA card created!\n");
 	} else {
-		printk(KERN_INFO "bcm2835 ALSA chip created!\n");
+		audio_info("bcm2835 ALSA chip created!\n");
 		platform_set_drvdata(pdev, (void *)dev);
 	}
 
@@ -160,11 +160,11 @@ out_bcm2835_new_pcm:
 out_bcm2835_create:
 	BUG_ON(!g_card);
 	if (snd_card_free(g_card))
-		printk(KERN_ERR "Failed to free Registered alsa card\n");
+		dev_err(&pdev->dev, "Failed to free Registered alsa card\n");
 	g_card = NULL;
 out:
 	dev = SNDRV_CARDS;	/* stop more avail_substreams from being probed */
-	printk(KERN_ERR "BCM2835 ALSA Probe failed !!\n");
+	dev_err(&pdev->dev, "BCM2835 ALSA Probe failed !!\n");
 	return err;
 }
 
@@ -326,49 +326,49 @@ static int bcm2835_alsa_device_init(void)
 	int err;
 	err = platform_driver_register(&bcm2835_alsa0_driver);
 	if (err) {
-		printk("Error registering bcm2835_alsa0_driver %d .\n", err);
+		pr_err("Error registering bcm2835_alsa0_driver %d .\n", err);
 		goto out;
 	}
 
 	err = platform_driver_register(&bcm2835_alsa1_driver);
 	if (err) {
-		printk("Error registering bcm2835_alsa1_driver %d .\n", err);
+		pr_err("Error registering bcm2835_alsa0_driver %d .\n", err);
 		goto unregister_0;
 	}
 
 	err = platform_driver_register(&bcm2835_alsa2_driver);
 	if (err) {
-		printk("Error registering bcm2835_alsa2_driver %d .\n", err);
+		pr_err("Error registering bcm2835_alsa0_driver %d .\n", err);
 		goto unregister_1;
 	}
 
 	err = platform_driver_register(&bcm2835_alsa3_driver);
 	if (err) {
-		printk("Error registering bcm2835_alsa3_driver %d .\n", err);
+		pr_err("Error registering bcm2835_alsa0_driver %d .\n", err);
 		goto unregister_2;
 	}
 
 	err = platform_driver_register(&bcm2835_alsa4_driver);
 	if (err) {
-		printk("Error registering bcm2835_alsa4_driver %d .\n", err);
+		pr_err("Error registering bcm2835_alsa0_driver %d .\n", err);
 		goto unregister_3;
 	}
 
 	err = platform_driver_register(&bcm2835_alsa5_driver);
 	if (err) {
-		printk("Error registering bcm2835_alsa5_driver %d .\n", err);
+		pr_err("Error registering bcm2835_alsa0_driver %d .\n", err);
 		goto unregister_4;
 	}
 
 	err = platform_driver_register(&bcm2835_alsa6_driver);
 	if (err) {
-		printk("Error registering bcm2835_alsa6_driver %d .\n", err);
+		pr_err("Error registering bcm2835_alsa0_driver %d .\n", err);
 		goto unregister_5;
 	}
 
 	err = platform_driver_register(&bcm2835_alsa7_driver);
 	if (err) {
-		printk("Error registering bcm2835_alsa7_driver %d .\n", err);
+		pr_err("Error registering bcm2835_alsa0_driver %d .\n", err);
 		goto unregister_6;
 	}
 
