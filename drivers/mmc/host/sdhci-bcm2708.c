@@ -1266,6 +1266,9 @@ static int sdhci_bcm2708_probe(struct platform_device *pdev)
 
     if (allow_highspeed)
         host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
+
+    /* single block writes cause data loss with some SD cards! */
+    host->mmc->caps2 |= MMC_CAP2_FORCE_MULTIBLOCK;
 #endif
 
 	ret = sdhci_add_host(host);
