@@ -202,6 +202,7 @@ int usb_choose_configuration(struct usb_device *udev)
 		dev_warn(&udev->dev,
 			"no configuration chosen from %d choice%s\n",
 			num_configs, str_plural(num_configs));
+		dev_warn(&udev->dev, "No support over %dmA\n", udev->bus_mA);
 	}
 	return i;
 }
