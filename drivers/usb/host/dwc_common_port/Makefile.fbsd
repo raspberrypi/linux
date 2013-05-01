@@ -1,0 +1,17 @@
+CFLAGS	+= -I/sys/i386/compile/GENERIC -I/sys/i386/include -I/usr/include
+CFLAGS	+= -DDWC_FREEBSD
+CFLAGS	+= -DDEBUG
+#CFLAGS	+= -DDWC_DEBUG_REGS
+#CFLAGS	+= -DDWC_DEBUG_MEMORY
+
+#CFLAGS	+= -DDWC_LIBMODULE
+#CFLAGS	+= -DDWC_CCLIB
+#CFLAGS	+= -DDWC_CRYPTOLIB
+#CFLAGS	+= -DDWC_NOTIFYLIB
+#CFLAGS	+= -DDWC_UTFLIB
+
+KMOD = dwc_common_port_lib
+SRCS = dwc_cc.c dwc_modpow.c dwc_dh.c dwc_crypto.c dwc_notifier.c \
+       dwc_common_fbsd.c dwc_mem.c
+
+.include <bsd.kmod.mk>
