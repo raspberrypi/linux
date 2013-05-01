@@ -5295,7 +5295,7 @@ static void port_event(struct usb_hub *hub, int port1)
 		port_dev->over_current_count++;
 		port_over_current_notify(port_dev);
 
-		dev_dbg(&port_dev->dev, "over-current change #%u\n",
+		dev_notice(&port_dev->dev, "over-current change #%u\n",
 			port_dev->over_current_count);
 		usb_clear_port_feature(hdev, port1,
 				USB_PORT_FEAT_C_OVER_CURRENT);
