@@ -678,6 +678,16 @@ config USB_RENESAS_USBHS_HCD
 	  To compile this driver as a module, choose M here: the
 	  module will be called renesas-usbhs.
 
+config USB_DWCOTG
+	bool "Synopsis DWC host support"
+	depends on USB=y && (FIQ || ARM64)
+	help
+	  The Synopsis DWC controller is a dual-role
+	  host/peripheral/OTG ("On The Go") USB controllers.
+
+	  Enable this option to support this IP in host controller mode.
+	  If unsure, say N.
+
 config USB_HCD_BCMA
 	tristate "BCMA usb host driver"
 	depends on BCMA
