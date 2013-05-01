@@ -392,6 +392,12 @@ config RETU_WATCHDOG
 	  To compile this driver as a module, choose M here: the
 	  module will be called retu_wdt.
 
+config BCM2708_WDT
+	tristate "BCM2708 Watchdog"
+	depends on ARCH_BCM2708
+	help
+	  Enables BCM2708 watchdog support.
+
 # AVR32 Architecture
 
 config AT32AP700X_WDT
