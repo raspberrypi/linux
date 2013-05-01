@@ -117,16 +117,18 @@ int w1_add_master_device(struct w1_bus_master *master)
 		printk(KERN_ERR "w1_add_master_device: invalid function set\n");
 		return(-EINVAL);
         }
-	/* While it would be electrically possible to make a device that
-	 * generated a strong pullup in bit bang mode, only hardware that
-	 * controls 1-wire time frames are even expected to support a strong
-	 * pullup.  w1_io.c would need to support calling set_pullup before
-	 * the last write_bit operation of a w1_write_8 which it currently
-	 * doesn't.
-	 */
+
+	/* bitbanging hardware uses bitbang_pullup, other hardware uses set_pullup
+	 * and takes care of timing itself */
 	if (!master->write_byte && !master->touch_bit && master->set_pullup) {
 		printk(KERN_ERR "w1_add_master_device: set_pullup requires "
 			"write_byte or touch_bit, disabling\n");
+		master->set_pullup = NULL;
+	}
+
+	if (master->set_pullup && master->bitbang_pullup) {
+		printk(KERN_ERR "w1_add_master_device: set_pullup should not "
+		       "be set when bitbang_pullup is used, disabling\n");
 		master->set_pullup = NULL;
 	}
 
