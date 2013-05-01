@@ -23,6 +23,9 @@
 #include "../w1.h"
 #include "../w1_int.h"
 
+static int w1_gpio_pullup = 0;
+module_param_named(pullup, w1_gpio_pullup, int, 0);
+
 static void w1_gpio_write_bit_dir(void *data, u8 bit)
 {
 	struct w1_gpio_platform_data *pdata = data;
@@ -45,6 +48,16 @@ static u8 w1_gpio_read_bit(void *data)
 	struct w1_gpio_platform_data *pdata = data;
 
 	return gpio_get_value(pdata->pin) ? 1 : 0;
+}
+
+static void w1_gpio_bitbang_pullup(void *data, u8 on)
+{
+	struct w1_gpio_platform_data *pdata = data;
+
+	if (on)
+		gpio_direction_output(pdata->pin, 1);
+	else
+		gpio_direction_input(pdata->pin);
 }
 
 #if defined(CONFIG_OF)
@@ -132,6 +145,13 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		gpio_direction_input(pdata->pin);
 		master->write_bit = w1_gpio_write_bit_dir;
 	}
+
+	if (w1_gpio_pullup)
+		if (pdata->is_open_drain)
+			printk(KERN_ERR "w1-gpio 'pullup' option "
+			       "doesn't work with open drain GPIO\n");
+		else
+			master->bitbang_pullup = w1_gpio_bitbang_pullup;
 
 	err = w1_add_master_device(master);
 	if (err) {
