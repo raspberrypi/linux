@@ -735,6 +735,19 @@ config USB_HWA_HCD
 	  To compile this driver a module, choose M here: the module
 	  will be called "hwa-hc".
 
+config USB_DWCOTG
+	tristate "Synopsis DWC host support"
+	depends on USB
+	help
+	  The Synopsis DWC controller is a dual-role
+	  host/peripheral/OTG ("On The Go") USB controllers.
+
+	  Enable this option to support this IP in host controller mode.
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  modules built will be called dwc_otg and dwc_common_port.
+
 config USB_IMX21_HCD
        tristate "i.MX21 HCD support"
        depends on ARM && ARCH_MXC
