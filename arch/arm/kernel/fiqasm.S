@@ -47,3 +47,7 @@ ENTRY(__get_fiq_regs)
 	mov	r0, r0		@ avoid hazard prior to ARMv4
 	ret	lr
 ENDPROC(__get_fiq_regs)
+
+ENTRY(__FIQ_Branch)
+	mov pc, r8
+ENDPROC(__FIQ_Branch)
