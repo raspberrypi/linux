@@ -254,11 +254,22 @@ static struct resource bcm2708_usb_resources[] = {
 		.flags = IORESOURCE_MEM,
 		},
 	[1] = {
+		.start = MPHI_BASE,
+		.end = MPHI_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+		},
+	[2] = {
+		.start = IRQ_HOSTPORT,
+		.end = IRQ_HOSTPORT,
+		.flags = IORESOURCE_IRQ,
+		},
+	[3] = {
 		.start = IRQ_USB,
 		.end = IRQ_USB,
 		.flags = IORESOURCE_IRQ,
 		},
 };
+
 
 static u64 usb_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
 
