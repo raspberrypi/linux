@@ -91,7 +91,15 @@ static void armctrl_unmask_irq(struct irq_data *d)
 	};
 	int i;
 	if (d->irq >= FIQ_START) {
-		unsigned int data = (unsigned int)irq_get_chip_data(d->irq) - FIQ_START;
+		unsigned int data;
+		if (num_online_cpus() > 1) {
+			data = readl(__io_address(ARM_LOCAL_GPU_INT_ROUTING));
+			data &= ~0xc;
+			data |= (1 << 2);
+			writel(data, __io_address(ARM_LOCAL_GPU_INT_ROUTING));
+		}
+		/* Unmask in ARMCTRL block after routing it properly */
+		data = (unsigned int)irq_get_chip_data(d->irq) - FIQ_START;
 		writel(0x80 | data, __io_address(ARM_IRQ_FAST));
 	} else if (d->irq >= IRQ_ARM_LOCAL_CNTPSIRQ && d->irq < IRQ_ARM_LOCAL_CNTPSIRQ + 4) {
 #if 1
