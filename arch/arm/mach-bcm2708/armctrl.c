@@ -54,8 +54,12 @@ static void armctrl_mask_irq(struct irq_data *d)
 		0
 	};
 
-	unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
-	writel(1 << (data & 0x1f), __io_address(disables[(data >> 5) & 0x3]));
+	if (d->irq >= FIQ_START) {
+		writel(0, __io_address(ARM_IRQ_FAST));
+	} else {
+		unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
+		writel(1 << (data & 0x1f), __io_address(disables[(data >> 5) & 0x3]));
+	}
 }
 
 static void armctrl_unmask_irq(struct irq_data *d)
@@ -67,8 +71,14 @@ static void armctrl_unmask_irq(struct irq_data *d)
 		0
 	};
 
-	unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
-	writel(1 << (data & 0x1f), __io_address(enables[(data >> 5) & 0x3]));
+	if (d->irq >= FIQ_START) {
+		unsigned int data =
+		    (unsigned int)irq_get_chip_data(d->irq) - FIQ_START;
+		writel(0x80 | data, __io_address(ARM_IRQ_FAST));
+	} else {
+		unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
+		writel(1 << (data & 0x1f), __io_address(enables[(data >> 5) & 0x3]));
+	}
 }
 
 #ifdef CONFIG_OF
@@ -299,6 +309,7 @@ int __init armctrl_init(void __iomem * base, unsigned int irq_start,
 	}
 
 	armctrl_pm_register(base, irq_start, resume_sources);
+	init_FIQ(FIQ_START);
 	armctrl_dt_init();
 	return 0;
 }
