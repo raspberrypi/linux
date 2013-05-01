@@ -83,6 +83,14 @@ extern void bcm_dma_wait_idle(void __iomem *dma_chan_base)
 
 EXPORT_SYMBOL_GPL(bcm_dma_start);
 
+extern bool bcm_dma_is_busy(void __iomem *dma_chan_base)
+{
+	dsb();
+
+	return readl(dma_chan_base + BCM2708_DMA_CS) & BCM2708_DMA_ACTIVE;
+}
+EXPORT_SYMBOL_GPL(bcm_dma_is_busy);
+
 /* Complete an ongoing DMA (assuming its results are to be ignored)
    Does nothing if there is no DMA in progress.
    This routine waits for the current AXI transfer to complete before
