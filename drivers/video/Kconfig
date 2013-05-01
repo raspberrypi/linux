@@ -310,6 +310,20 @@ config FB_PM2_FIFO_DISCONNECT
 	help
 	  Support the Permedia2 FIFO disconnect feature.
 
+config FB_BCM2708
+	tristate "BCM2708 framebuffer support"
+	depends on FB && ARM
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	help
+	  This framebuffer device driver is for the BCM2708 framebuffer.
+
+	  If you want to compile this as a module (=code which can be
+	  inserted into and removed from the running kernel), say M
+	  here and read <file:Documentation/kbuild/modules.txt>.  The module
+	  will be called bcm2708_fb.
+
 config FB_ARMCLCD
 	tristate "ARM PrimeCell PL110 support"
 	depends on FB && ARM && ARM_AMBA
