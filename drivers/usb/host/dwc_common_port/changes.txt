@@ -1,0 +1,174 @@
+
+dwc_read_reg32() and friends now take an additional parameter, a pointer to an
+IO context struct. The IO context struct should live in an os-dependent struct
+in your driver. As an example, the dwc_usb3 driver has an os-dependent struct
+named 'os_dep' embedded in the main device struct. So there these calls look
+like this:
+
+	dwc_read_reg32(&usb3_dev->os_dep.ioctx, &pcd->dev_global_regs->dcfg);
+
+	dwc_write_reg32(&usb3_dev->os_dep.ioctx,
+			&pcd->dev_global_regs->dcfg, 0);
+
+Note that for the existing Linux driver ports, it is not necessary to actually
+define the 'ioctx' member in the os-dependent struct. Since Linux does not
+require an IO context, its macros for dwc_read_reg32() and friends do not
+use the context pointer, so it is optimized away by the compiler. But it is
+necessary to add the pointer parameter to all of the call sites, to be ready
+for any future ports (such as FreeBSD) which do require an IO context.
+
+
+Similarly, dwc_alloc(), dwc_alloc_atomic(), dwc_strdup(), and dwc_free() now
+take an additional parameter, a pointer to a memory context. Examples:
+
+	addr = dwc_alloc(&usb3_dev->os_dep.memctx, size);
+
+	dwc_free(&usb3_dev->os_dep.memctx, addr);
+
+Again, for the Linux ports, it is not necessary to actually define the memctx
+member, but it is necessary to add the pointer parameter to all of the call
+sites.
+
+
+Same for dwc_dma_alloc() and dwc_dma_free(). Examples:
+
+	virt_addr = dwc_dma_alloc(&usb3_dev->os_dep.dmactx, size, &phys_addr);
+
+	dwc_dma_free(&usb3_dev->os_dep.dmactx, size, virt_addr, phys_addr);
+
+
+Same for dwc_mutex_alloc() and dwc_mutex_free(). Examples:
+
+	mutex = dwc_mutex_alloc(&usb3_dev->os_dep.mtxctx);
+
+	dwc_mutex_free(&usb3_dev->os_dep.mtxctx, mutex);
+
+
+Same for dwc_spinlock_alloc() and dwc_spinlock_free(). Examples:
+
+	lock = dwc_spinlock_alloc(&usb3_dev->osdep.splctx);
+
+	dwc_spinlock_free(&usb3_dev->osdep.splctx, lock);
+
+
+Same for dwc_timer_alloc(). Example:
+
+	timer = dwc_timer_alloc(&usb3_dev->os_dep.tmrctx, "dwc_usb3_tmr1",
+				cb_func, cb_data);
+
+
+Same for dwc_waitq_alloc(). Example:
+
+	waitq = dwc_waitq_alloc(&usb3_dev->os_dep.wtqctx);
+
+
+Same for dwc_thread_run(). Example:
+
+	thread = dwc_thread_run(&usb3_dev->os_dep.thdctx, func,
+				"dwc_usb3_thd1", data);
+
+
+Same for dwc_workq_alloc(). Example:
+
+	workq = dwc_workq_alloc(&usb3_dev->osdep.wkqctx, "dwc_usb3_wkq1");
+
+
+Same for dwc_task_alloc(). Example:
+
+	task = dwc_task_alloc(&usb3_dev->os_dep.tskctx, "dwc_usb3_tsk1",
+			      cb_func, cb_data);
+
+
+In addition to the context pointer additions, a few core functions have had
+other changes made to their parameters:
+
+The 'flags' parameter to dwc_spinlock_irqsave() and dwc_spinunlock_irqrestore()
+has been changed from a uint64_t to a dwc_irqflags_t.
+
+dwc_thread_should_stop() now takes a 'dwc_thread_t *' parameter, because the
+FreeBSD equivalent of that function requires it.
+
+And, in addition to the context pointer, dwc_task_alloc() also adds a
+'char *name' parameter, to be consistent with dwc_thread_run() and
+dwc_workq_alloc(), and because the FreeBSD equivalent of that function
+requires a unique name.
+
+
+Here is a complete list of the core functions that now take a pointer to a
+context as their first parameter:
+
+	dwc_read_reg32
+	dwc_read_reg64
+	dwc_write_reg32
+	dwc_write_reg64
+	dwc_modify_reg32
+	dwc_modify_reg64
+	dwc_alloc
+	dwc_alloc_atomic
+	dwc_strdup
+	dwc_free
+	dwc_dma_alloc
+	dwc_dma_free
+	dwc_mutex_alloc
+	dwc_mutex_free
+	dwc_spinlock_alloc
+	dwc_spinlock_free
+	dwc_timer_alloc
+	dwc_waitq_alloc
+	dwc_thread_run
+	dwc_workq_alloc
+	dwc_task_alloc     Also adds a 'char *name' as its 2nd parameter
+
+And here are the core functions that have other changes to their parameters:
+
+	dwc_spinlock_irqsave      'flags' param is now a 'dwc_irqflags_t *'
+	dwc_spinunlock_irqrestore 'flags' param is now a 'dwc_irqflags_t'
+	dwc_thread_should_stop    Adds a 'dwc_thread_t *' parameter
+
+
+
+The changes to the core functions also require some of the other library
+functions to change:
+
+	dwc_cc_if_alloc() and dwc_cc_if_free() now take a 'void *memctx'
+	(for memory allocation) as the 1st param and a 'void *mtxctx'
+	(for mutex allocation) as the 2nd param.
+
+	dwc_cc_clear(), dwc_cc_add(), dwc_cc_change(), dwc_cc_remove(),
+	dwc_cc_data_for_save(), and dwc_cc_restore_from_data() now take a
+	'void *memctx' as the 1st param.
+
+	dwc_dh_modpow(), dwc_dh_pk(), and dwc_dh_derive_keys() now take a
+	'void *memctx' as the 1st param.
+
+	dwc_modpow() now takes a 'void *memctx' as the 1st param.
+
+	dwc_alloc_notification_manager() now takes a 'void *memctx' as the
+	1st param and a 'void *wkqctx' (for work queue allocation) as the 2nd
+	param, and also now returns an integer value that is non-zero if
+	allocation of its data structures or work queue fails.
+
+	dwc_register_notifier() now takes a 'void *memctx' as the 1st param.
+
+	dwc_memory_debug_start() now takes a 'void *mem_ctx' as the first
+	param, and also now returns an integer value that is non-zero if
+	allocation of its data structures fails.
+
+
+
+Other miscellaneous changes:
+
+The DEBUG_MEMORY and DEBUG_REGS #define's have been renamed to
+DWC_DEBUG_MEMORY and DWC_DEBUG_REGS.
+
+The following #define's have been added to allow selectively compiling library
+features:
+
+	DWC_CCLIB
+	DWC_CRYPTOLIB
+	DWC_NOTIFYLIB
+	DWC_UTFLIB
+
+A DWC_LIBMODULE #define has also been added. If this is not defined, then the
+module code in dwc_common_linux.c is not compiled in. This allows linking the
+library code directly into a driver module, instead of as a standalone module.
