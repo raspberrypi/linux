@@ -148,6 +148,12 @@ struct w1_bus_master
 	 */
 	u8		(*set_pullup)(void *, int);
 
+	/**
+	 * Turns the pullup on/off in bitbanging mode, takes an on/off argument.
+	 * @return -1=Error, 0=completed
+	 */
+	void (*bitbang_pullup) (void *, u8);
+
 	/** Really nice hardware can handles the different types of ROM search
 	 *  w1_master* is passed to the slave found callback.
 	 */
