@@ -2033,8 +2033,6 @@ static int edge_chars_in_buffer(struct tty_struct *tty)
 	struct edgeport_port *edge_port = usb_get_serial_port_data(port);
 	int chars = 0;
 	unsigned long flags;
-	int ret;
-
 	if (edge_port == NULL)
 		return 0;
 
@@ -2042,14 +2040,20 @@ static int edge_chars_in_buffer(struct tty_struct *tty)
 	chars = kfifo_len(&edge_port->write_fifo);
 	spin_unlock_irqrestore(&edge_port->ep_lock, flags);
 
-	if (!chars) {
-		ret = tx_active(edge_port);
-		if (ret > 0)
-			chars = ret;
-	}
-
 	dev_dbg(&port->dev, "%s - returns %d\n", __func__, chars);
 	return chars;
+}
+
+static bool edge_tx_empty(struct usb_serial_port *port)
+{
+	struct edgeport_port *edge_port = usb_get_serial_port_data(port);
+	int ret;
+
+	ret = tx_active(edge_port);
+	if (ret > 0)
+		return false;
+
+	return true;
 }
 
 static void edge_throttle(struct tty_struct *tty)
@@ -2622,6 +2626,7 @@ static struct usb_serial_driver edgeport_1port_device = {
 	.write			= edge_write,
 	.write_room		= edge_write_room,
 	.chars_in_buffer	= edge_chars_in_buffer,
+	.tx_empty		= edge_tx_empty,
 	.break_ctl		= edge_break,
 	.read_int_callback	= edge_interrupt_callback,
 	.read_bulk_callback	= edge_bulk_in_callback,
@@ -2653,6 +2658,7 @@ static struct usb_serial_driver edgeport_2port_device = {
 	.write			= edge_write,
 	.write_room		= edge_write_room,
 	.chars_in_buffer	= edge_chars_in_buffer,
+	.tx_empty		= edge_tx_empty,
 	.break_ctl		= edge_break,
 	.read_int_callback	= edge_interrupt_callback,
 	.read_bulk_callback	= edge_bulk_in_callback,
