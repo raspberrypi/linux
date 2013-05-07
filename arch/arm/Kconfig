@@ -793,6 +793,26 @@ config ARCH_OMAP1
 	help
 	  Support for older TI OMAP1 (omap7xx, omap15xx or omap16xx)
 
+config ARCH_BCM2709
+	bool "Broadcom BCM2709 family"
+	select ARCH_HAS_BARRIERS if SMP
+	select CPU_V7
+	select HAVE_SMP
+	select ARM_AMBA
+	select MIGHT_HAVE_CACHE_L2X0
+	select HAVE_SCHED_CLOCK
+	select NEED_MACH_MEMORY_H
+	select NEED_MACH_IO_H
+	select COMMON_CLK
+	select ARCH_HAS_CPUFREQ
+	select GENERIC_CLOCKEVENTS
+	select MACH_BCM2709
+	select VC4
+	select FIQ
+#	select ZONE_DMA
+	help
+	  This enables support for Broadcom BCM2709 boards.
+
 endchoice
 
 menu "Multiple platform selection"
@@ -984,6 +1004,7 @@ source "arch/arm/mach-vt8500/Kconfig"
 
 source "arch/arm/mach-w90x900/Kconfig"
 source "arch/arm/mach-bcm2708/Kconfig"
+source "arch/arm/mach-bcm2709/Kconfig"
 
 source "arch/arm/mach-zynq/Kconfig"
 
