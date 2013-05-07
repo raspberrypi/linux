@@ -304,7 +304,7 @@ config MMC_SDHCI_ST
 
 config MMC_BCM2835
 	tristate "MMC support on BCM2835"
-	depends on MACH_BCM2708
+	depends on (MACH_BCM2708 || MACH_BCM2709)
 	help
 	  This selects the MMC Interface on BCM2835.
 
