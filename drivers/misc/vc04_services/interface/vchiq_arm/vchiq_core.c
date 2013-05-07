@@ -850,7 +850,7 @@ queue_message(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 						VCHIQ_LOG_INFO)
 						vchiq_log_dump_mem("Sent", 0,
 							header->data + pos,
-							min(64,
+							min(64u,
 							elements[0].size));
 				}
 			}
@@ -998,7 +998,7 @@ queue_message_sync(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 						VCHIQ_LOG_TRACE)
 						vchiq_log_dump_mem("Sent Sync",
 							0, header->data + pos,
-							min(64,
+							min(64u,
 							elements[0].size));
 				}
 			}
@@ -3307,7 +3307,7 @@ error_exit:
 
 VCHIQ_STATUS_T
 vchiq_queue_message(VCHIQ_SERVICE_HANDLE_T handle,
-	const VCHIQ_ELEMENT_T *elements, int count)
+	const VCHIQ_ELEMENT_T *elements, unsigned int count)
 {
 	VCHIQ_SERVICE_T *service = find_service_by_handle(handle);
 	VCHIQ_STATUS_T status = VCHIQ_ERROR;

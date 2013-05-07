@@ -89,7 +89,7 @@ typedef struct vchiq_header_struct {
 
 typedef struct {
 	const void *data;
-	int size;
+	unsigned int size;
 } VCHIQ_ELEMENT_T;
 
 typedef unsigned int VCHIQ_SERVICE_HANDLE_T;
@@ -112,11 +112,12 @@ typedef struct vchiq_service_params_struct {
 } VCHIQ_SERVICE_PARAMS_T;
 
 typedef struct vchiq_config_struct {
-	int max_msg_size;
-	int bulk_threshold; /* The message size aboce which it is better to use
-				a bulk transfer (<= max_msg_size) */
-	int max_outstanding_bulks;
-	int max_services;
+	unsigned int max_msg_size;
+	unsigned int bulk_threshold; /* The message size above which it
+					is better to use a bulk transfer
+					(<= max_msg_size) */
+	unsigned int max_outstanding_bulks;
+	unsigned int max_services;
 	short version;      /* The version of VCHIQ */
 	short version_min;  /* The minimum compatible version of VCHIQ */
 } VCHIQ_CONFIG_T;
@@ -141,29 +142,31 @@ extern VCHIQ_STATUS_T vchiq_use_service_no_resume(
 extern VCHIQ_STATUS_T vchiq_release_service(VCHIQ_SERVICE_HANDLE_T service);
 
 extern VCHIQ_STATUS_T vchiq_queue_message(VCHIQ_SERVICE_HANDLE_T service,
-	const VCHIQ_ELEMENT_T *elements, int count);
+	const VCHIQ_ELEMENT_T *elements, unsigned int count);
 extern void           vchiq_release_message(VCHIQ_SERVICE_HANDLE_T service,
 	VCHIQ_HEADER_T *header);
 extern VCHIQ_STATUS_T vchiq_queue_bulk_transmit(VCHIQ_SERVICE_HANDLE_T service,
-	const void *data, int size, void *userdata);
+	const void *data, unsigned int size, void *userdata);
 extern VCHIQ_STATUS_T vchiq_queue_bulk_receive(VCHIQ_SERVICE_HANDLE_T service,
-	void *data, int size, void *userdata);
+	void *data, unsigned int size, void *userdata);
 extern VCHIQ_STATUS_T vchiq_queue_bulk_transmit_handle(
 	VCHIQ_SERVICE_HANDLE_T service, VCHI_MEM_HANDLE_T handle,
-	const void *offset, int size, void *userdata);
+	const void *offset, unsigned int size, void *userdata);
 extern VCHIQ_STATUS_T vchiq_queue_bulk_receive_handle(
 	VCHIQ_SERVICE_HANDLE_T service, VCHI_MEM_HANDLE_T handle,
-	void *offset, int size, void *userdata);
+	void *offset, unsigned int size, void *userdata);
 extern VCHIQ_STATUS_T vchiq_bulk_transmit(VCHIQ_SERVICE_HANDLE_T service,
-	const void *data, int size, void *userdata, VCHIQ_BULK_MODE_T mode);
+	const void *data, unsigned int size, void *userdata,
+	VCHIQ_BULK_MODE_T mode);
 extern VCHIQ_STATUS_T vchiq_bulk_receive(VCHIQ_SERVICE_HANDLE_T service,
-	void *data, int size, void *userdata, VCHIQ_BULK_MODE_T mode);
+	void *data, unsigned int size, void *userdata,
+	VCHIQ_BULK_MODE_T mode);
 extern VCHIQ_STATUS_T vchiq_bulk_transmit_handle(VCHIQ_SERVICE_HANDLE_T service,
-	VCHI_MEM_HANDLE_T handle, const void *offset, int size, void *userdata,
-	VCHIQ_BULK_MODE_T mode);
+	VCHI_MEM_HANDLE_T handle, const void *offset, unsigned int size,
+	void *userdata,	VCHIQ_BULK_MODE_T mode);
 extern VCHIQ_STATUS_T vchiq_bulk_receive_handle(VCHIQ_SERVICE_HANDLE_T service,
-	VCHI_MEM_HANDLE_T handle, void *offset, int size, void *userdata,
-	VCHIQ_BULK_MODE_T mode);
+	VCHI_MEM_HANDLE_T handle, void *offset, unsigned int size,
+	void *userdata, VCHIQ_BULK_MODE_T mode);
 extern int   vchiq_get_client_id(VCHIQ_SERVICE_HANDLE_T service);
 extern void *vchiq_get_service_userdata(VCHIQ_SERVICE_HANDLE_T service);
 extern int   vchiq_get_service_fourcc(VCHIQ_SERVICE_HANDLE_T service);

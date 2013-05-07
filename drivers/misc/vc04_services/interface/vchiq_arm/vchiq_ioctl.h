@@ -38,25 +38,25 @@
 #include "vchiq_if.h"
 
 #define VCHIQ_IOC_MAGIC 0xc4
-#define VCHIQ_INVALID_HANDLE -1
+#define VCHIQ_INVALID_HANDLE (~0)
 
 typedef struct {
 	VCHIQ_SERVICE_PARAMS_T params;
 	int is_open;
 	int is_vchi;
-	int handle;       /* OUT */
+	unsigned int handle;       /* OUT */
 } VCHIQ_CREATE_SERVICE_T;
 
 typedef struct {
-	int handle;
-	int count;
+	unsigned int handle;
+	unsigned int count;
 	const VCHIQ_ELEMENT_T *elements;
 } VCHIQ_QUEUE_MESSAGE_T;
 
 typedef struct {
-	int handle;
+	unsigned int handle;
 	void *data;
-	int size;
+	unsigned int size;
 	void *userdata;
 	VCHIQ_BULK_MODE_T mode;
 } VCHIQ_QUEUE_BULK_TRANSFER_T;
@@ -69,27 +69,27 @@ typedef struct {
 } VCHIQ_COMPLETION_DATA_T;
 
 typedef struct {
-	int count;
+	unsigned int count;
 	VCHIQ_COMPLETION_DATA_T *buf;
-	int msgbufsize;
-	int msgbufcount; /* IN/OUT */
+	unsigned int msgbufsize;
+	unsigned int msgbufcount; /* IN/OUT */
 	void **msgbufs;
 } VCHIQ_AWAIT_COMPLETION_T;
 
 typedef struct {
-	int handle;
+	unsigned int handle;
 	int blocking;
-	int bufsize;
+	unsigned int bufsize;
 	void *buf;
 } VCHIQ_DEQUEUE_MESSAGE_T;
 
 typedef struct {
-	int config_size;
+	unsigned int config_size;
 	VCHIQ_CONFIG_T *pconfig;
 } VCHIQ_GET_CONFIG_T;
 
 typedef struct {
-	int handle;
+	unsigned int handle;
 	VCHIQ_SERVICE_OPTION_T option;
 	int value;
 } VCHIQ_SET_SERVICE_OPTION_T;
