@@ -273,7 +273,6 @@ struct iwl_mvm_tid_data {
  * @max_agg_bufsize: the maximal size of the AGG buffer for this station
  * @lock: lock to protect the whole struct. Since %tid_data is access from Tx
  * and from Tx response flow, it needs a spinlock.
- * @pending_frames: number of frames for this STA on the shared Tx queues.
  * @tid_data: per tid data. Look at %iwl_mvm_tid_data.
  *
  * When mac80211 creates a station it reserves some space (hw->sta_data_size)
@@ -288,7 +287,6 @@ struct iwl_mvm_sta {
 	u16 tid_disable_agg;
 	u8 max_agg_bufsize;
 	spinlock_t lock;
-	atomic_t pending_frames;
 	struct iwl_mvm_tid_data tid_data[IWL_MAX_TID_COUNT];
 	struct iwl_lq_sta lq_sta;
 	struct ieee80211_vif *vif;
