@@ -454,7 +454,7 @@ config RETU_WATCHDOG
 
 config BCM2708_WDT
 	tristate "BCM2708 Watchdog"
-	depends on ARCH_BCM2708
+	depends on ARCH_BCM2708 || ARCH_BCM2709
 	help
 	  Enables BCM2708 watchdog support.
 

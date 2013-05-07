@@ -1,5 +1,3 @@
-ifeq ($(CONFIG_MACH_BCM2708),y)
-
 obj-$(CONFIG_BCM2708_VCHIQ)	+= vchiq.o
 
 vchiq-objs := \
@@ -14,4 +12,3 @@ vchiq-objs := \
 
 ccflags-y += -DVCOS_VERIFY_BKPTS=1 -Idrivers/misc/vc04_services -DUSE_VCHIQ_ARM -D__VCCOREVER__=0x04000000
 
-endif

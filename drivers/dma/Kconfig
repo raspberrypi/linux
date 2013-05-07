@@ -332,7 +332,7 @@ config DMA_BCM2835
 
 config DMA_BCM2708
 	tristate "BCM2708 DMA engine support"
-	depends on MACH_BCM2708
+	depends on MACH_BCM2708 || MACH_BCM2709
 	select DMA_ENGINE
 	select DMA_VIRTUAL_CHANNELS
 
