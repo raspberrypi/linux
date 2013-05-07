@@ -1,8 +1,8 @@
 /include/ "skeleton.dtsi"
 
 / {
-	compatible = "brcm,bcm2708";
-	model = "BCM2708";
+	compatible = "brcm,bcm2709";
+	model = "BCM2709";
 
 	interrupt-parent = <&intc>;
 
@@ -15,7 +15,7 @@
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <1>;
-		ranges = <0x7e000000 0x20000000 0x01000000>;
+		ranges = <0x7e000000 0x3f000000 0x01000000>;
 
 		intc: interrupt-controller {
 			compatible = "brcm,bcm2708-armctrl-ic";
@@ -106,5 +106,55 @@
 			clock-output-names = "spi";
 			clock-frequency = <250000000>;
 		};
+	};
+
+	timer {
+		compatible = "arm,armv7-timer";
+		clock-frequency = <19200000>;
+		interrupts = <3 0>, // PHYS_SECURE_PPI
+			     <3 1>, // PHYS_NONSECURE_PPI
+			     <3 3>, // VIRT_PPI
+			     <3 2>; // HYP_PPI
+		always-on;
+	};
+
+	cpus: cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		v7_cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf00>;
+			clock-frequency = <800000000>;
+		};
+
+		v7_cpu1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf01>;
+			clock-frequency = <800000000>;
+		};
+
+		v7_cpu2: cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf02>;
+			clock-frequency = <800000000>;
+		};
+
+		v7_cpu3: cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf03>;
+			clock-frequency = <800000000>;
+		};
+	};
+
+	__overrides__ {
+		arm_freq = <&v7_cpu0>, "clock-frequency:0",
+		       <&v7_cpu1>, "clock-frequency:0",
+		       <&v7_cpu2>, "clock-frequency:0",
+		       <&v7_cpu3>, "clock-frequency:0";
 	};
 };
