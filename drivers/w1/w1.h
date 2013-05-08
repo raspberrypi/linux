@@ -173,6 +173,12 @@ struct w1_bus_master
 
 	u8		(*set_pullup)(void *, int);
 
+	/**
+	 * Turns the pullup on/off in bitbanging mode, takes an on/off argument.
+	 * @return -1=Error, 0=completed
+	 */
+	void (*bitbang_pullup) (void *, u8);
+
 	void		(*search)(void *, struct w1_master *,
 		u8, w1_slave_found_callback);
 };
