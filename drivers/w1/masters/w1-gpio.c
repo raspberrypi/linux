@@ -23,6 +23,15 @@
 #include "../w1.h"
 #include "../w1_int.h"
 
+static int w1_gpio_pullup = -1;
+static int w1_gpio_pullup_orig = -1;
+module_param_named(pullup, w1_gpio_pullup, int, 0);
+MODULE_PARM_DESC(pullup, "GPIO pin pullup number");
+static int w1_gpio_pin = -1;
+static int w1_gpio_pin_orig = -1;
+module_param_named(gpiopin, w1_gpio_pin, int, 0);
+MODULE_PARM_DESC(gpiopin, "GPIO pin number");
+
 static u8 w1_gpio_set_pullup(void *data, int delay)
 {
 	struct w1_gpio_platform_data *pdata = data;
@@ -67,6 +76,16 @@ static u8 w1_gpio_read_bit(void *data)
 	return gpio_get_value(pdata->pin) ? 1 : 0;
 }
 
+static void w1_gpio_bitbang_pullup(void *data, u8 on)
+{
+	struct w1_gpio_platform_data *pdata = data;
+
+	if (on)
+		gpio_direction_output(pdata->pin, 1);
+	else
+		gpio_direction_input(pdata->pin);
+}
+
 #if defined(CONFIG_OF)
 static struct of_device_id w1_gpio_dt_ids[] = {
 	{ .compatible = "w1-gpio" },
@@ -102,14 +121,16 @@ static int w1_gpio_probe_dt(struct platform_device *pdev)
 static int w1_gpio_probe(struct platform_device *pdev)
 {
 	struct w1_bus_master *master;
-	struct w1_gpio_platform_data *pdata;
+	struct w1_gpio_platform_data *pdata = pdev->dev.platform_data;
 	int err;
 
-	if (of_have_populated_dt()) {
-		err = w1_gpio_probe_dt(pdev);
-		if (err < 0) {
-			dev_err(&pdev->dev, "Failed to parse DT\n");
-			return err;
+	if(pdata == NULL) {
+		if (of_have_populated_dt()) {
+			err = w1_gpio_probe_dt(pdev);
+			if (err < 0) {
+				dev_err(&pdev->dev, "Failed to parse DT\n");
+				return err;
+			}
 		}
 	}
 
@@ -126,6 +147,19 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Out of memory\n");
 		return -ENOMEM;
 	}
+
+	w1_gpio_pin_orig = pdata->pin;
+	w1_gpio_pullup_orig = pdata->ext_pullup_enable_pin;
+
+	if(gpio_is_valid(w1_gpio_pin)) {
+		pdata->pin = w1_gpio_pin;
+		pdata->ext_pullup_enable_pin = -1;
+	}
+	if(gpio_is_valid(w1_gpio_pullup)) {
+		pdata->ext_pullup_enable_pin = w1_gpio_pullup;
+	}
+
+	dev_info(&pdev->dev, "gpio pin %d, gpio pullup pin %d\n", pdata->pin, pdata->ext_pullup_enable_pin);
 
 	err = devm_gpio_request(&pdev->dev, pdata->pin, "w1");
 	if (err) {
@@ -154,6 +188,14 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		gpio_direction_input(pdata->pin);
 		master->write_bit = w1_gpio_write_bit_dir;
 		master->set_pullup = w1_gpio_set_pullup;
+	}
+
+	if (gpio_is_valid(w1_gpio_pullup)) {
+		if (pdata->is_open_drain)
+			printk(KERN_ERR "w1-gpio 'pullup' option "
+			       "doesn't work with open drain GPIO\n");
+		else
+			master->bitbang_pullup = w1_gpio_bitbang_pullup;
 	}
 
 	err = w1_add_master_device(master);
@@ -185,6 +227,9 @@ static int w1_gpio_remove(struct platform_device *pdev)
 		gpio_set_value(pdata->ext_pullup_enable_pin, 0);
 
 	w1_remove_master_device(master);
+
+	pdata->pin = w1_gpio_pin_orig;
+	pdata->ext_pullup_enable_pin = w1_gpio_pullup_orig;
 
 	return 0;
 }
