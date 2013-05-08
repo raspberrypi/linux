@@ -32,6 +32,7 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/spi/spi.h>
+#include <linux/w1-gpio.h>
 
 #include <linux/version.h>
 #include <linux/clkdev.h>
@@ -70,6 +71,9 @@
  * more legitimate.
  */
 #define DMA_MASK_BITS_COMMON 32
+
+// use GPIO 4 for the one-wire GPIO pin, if enabled
+#define W1_GPIO 4
 
 /* command line parameters */
 static unsigned boardrev, serial;
@@ -248,6 +252,19 @@ static struct platform_device bcm2708_dmaman_device = {
 	.resource = bcm2708_dmaman_resources,
 	.num_resources = ARRAY_SIZE(bcm2708_dmaman_resources),
 };
+
+#if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
+static struct w1_gpio_platform_data w1_gpio_pdata = {
+	.pin = W1_GPIO,
+	.is_open_drain = 0,
+};
+
+static struct platform_device w1_device = {
+	.name = "w1-gpio",
+	.id = -1,
+	.dev.platform_data = &w1_gpio_pdata,
+};
+#endif
 
 static u64 fb_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
 
@@ -555,6 +572,9 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_vcio_device);
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device(&bcm2708_gpio_device);
+#endif
+#if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
+	platform_device_register(&w1_device);
 #endif
 	bcm_register_device(&bcm2708_systemtimer_device);
 	bcm_register_device(&bcm2708_fb_device);
