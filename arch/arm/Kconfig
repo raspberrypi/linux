@@ -373,6 +373,7 @@ config ARCH_BCM2708
 	select ARM_ERRATA_411920
 	select MACH_BCM2708
 	select VC4
+	select FIQ
 	help
 	  This enables support for Broadcom BCM2708 boards.
 
