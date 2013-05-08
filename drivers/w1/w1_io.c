@@ -127,10 +127,22 @@ static void w1_pre_write(struct w1_master *dev)
 static void w1_post_write(struct w1_master *dev)
 {
 	if (dev->pullup_duration) {
-		if (dev->enable_pullup && dev->bus_master->set_pullup)
-			dev->bus_master->set_pullup(dev->bus_master->data, 0);
-		else
+		if (dev->enable_pullup) {
+			if (dev->bus_master->set_pullup) {
+				dev->bus_master->set_pullup(dev->
+							    bus_master->data,
+							    0);
+			} else if (dev->bus_master->bitbang_pullup) {
+				dev->bus_master->
+				    bitbang_pullup(dev->bus_master->data, 1);
 			msleep(dev->pullup_duration);
+				dev->bus_master->
+				    bitbang_pullup(dev->bus_master->data, 0);
+			}
+		} else {
+			msleep(dev->pullup_duration);
+		}
+
 		dev->pullup_duration = 0;
 	}
 }
