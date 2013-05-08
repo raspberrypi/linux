@@ -216,6 +216,40 @@ static void dev_mbox_register(const char *dev_name, struct device *dev)
 	mbox_dev = dev;
 }
 
+extern int bcm_mailbox_property(void *data, int size)
+{
+	uint32_t success;
+	dma_addr_t mem_bus;				/* the memory address accessed from videocore */
+	void *mem_kern;					/* the memory address accessed from driver */
+	int s = 0;
+
+	/* allocate some memory for the messages communicating with GPU */
+	mem_kern = dma_alloc_coherent(NULL, PAGE_ALIGN(size), &mem_bus, GFP_ATOMIC);
+	if (mem_kern) {
+		/* create the message */
+		memcpy(mem_kern, data, size);
+
+		/* send the message */
+		wmb();
+		s = bcm_mailbox_write(MBOX_CHAN_PROPERTY, (uint32_t)mem_bus);
+		if (s == 0) {
+			s = bcm_mailbox_read(MBOX_CHAN_PROPERTY, &success);
+		}
+		if (s == 0) {
+			/* copy the response */
+			rmb();
+			memcpy(data, mem_kern, size);
+		}
+		dma_free_coherent(NULL, PAGE_ALIGN(size), mem_kern, mem_bus);
+	} else {
+		s = -ENOMEM;
+	}
+	if (s != 0)
+		printk(KERN_ERR DRIVER_NAME ": %s failed (%d)\n", __func__, s);
+	return s;
+}
+EXPORT_SYMBOL_GPL(bcm_mailbox_property);
+
 /* ----------------------------------------------------------------------
  *	Platform Device for Mailbox
  * -------------------------------------------------------------------- */
