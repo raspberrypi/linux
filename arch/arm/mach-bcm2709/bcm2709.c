@@ -36,6 +36,7 @@
 #include <linux/of_platform.h>
 #include <linux/spi/spi.h>
 #include <linux/gpio/machine.h>
+#include <linux/w1-gpio.h>
 
 #include <linux/version.h>
 #include <linux/clkdev.h>
@@ -79,12 +80,19 @@
  */
 #define DMA_MASK_BITS_COMMON 32
 
+// use GPIO 4 for the one-wire GPIO pin, if enabled
+#define W1_GPIO 4
+// ensure one-wire GPIO pullup is disabled by default
+#define W1_PULLUP -1
+
 /* command line parameters */
 static unsigned boardrev, serial;
 static unsigned uart_clock = UART0_CLOCK;
 static unsigned disk_led_gpio = 16;
 static unsigned disk_led_active_low = 1;
 static unsigned reboot_part = 0;
+static unsigned w1_gpio_pin = W1_GPIO;
+static unsigned w1_gpio_pullup = W1_PULLUP;
 static bool vc_i2c_override = false;
 
 static unsigned use_dt = 0;
@@ -312,6 +320,20 @@ static struct platform_device bcm2708_dmaengine_device = {
 	.resource = bcm2708_dmaengine_resources,
 	.num_resources = ARRAY_SIZE(bcm2708_dmaengine_resources),
 };
+
+#if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
+static struct w1_gpio_platform_data w1_gpio_pdata = {
+	.pin = W1_GPIO,
+        .ext_pullup_enable_pin = W1_PULLUP,
+	.is_open_drain = 0,
+};
+
+static struct platform_device w1_device = {
+	.name = "w1-gpio",
+	.id = -1,
+	.dev.platform_data = &w1_gpio_pdata,
+};
+#endif
 
 static u64 fb_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
 
@@ -749,6 +771,11 @@ void __init bcm2709_init(void)
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device_dt(&bcm2708_gpio_device);
 #endif
+#if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
+	w1_gpio_pdata.pin = w1_gpio_pin;
+	w1_gpio_pdata.ext_pullup_enable_pin = w1_gpio_pullup;
+	bcm_register_device_dt(&w1_device);
+#endif
 	bcm_register_device_dt(&bcm2708_fb_device);
 	bcm_register_device_dt(&bcm2708_usb_device);
 
@@ -1110,5 +1137,7 @@ module_param(uart_clock, uint, 0644);
 module_param(disk_led_gpio, uint, 0644);
 module_param(disk_led_active_low, uint, 0644);
 module_param(reboot_part, uint, 0644);
+module_param(w1_gpio_pin, uint, 0644);
+module_param(w1_gpio_pullup, uint, 0644);
 module_param(vc_i2c_override, bool, 0644);
 MODULE_PARM_DESC(vc_i2c_override, "Allow the use of VC's I2C peripheral.");
