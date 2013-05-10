@@ -243,7 +243,7 @@ config MMC_SDHCI_BCM2708
 
 config MMC_SDHCI_BCM2708_DMA
 	bool "DMA support on BCM2708 Arasan controller"
-	depends on MMC_SDHCI_BCM2708 && EXPERIMENTAL
+	depends on MMC_SDHCI_BCM2708
 	help
 	  Enable DMA support on the Arasan SDHCI controller in Broadcom 2708
           based chips.
