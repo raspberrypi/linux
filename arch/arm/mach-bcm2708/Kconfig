@@ -1,0 +1,30 @@
+menu "Broadcom BCM2708 Implementations"
+	depends on ARCH_BCM2708
+
+config MACH_BCM2708
+	bool "Broadcom BCM2708 Development Platform"
+	select NEED_MACH_MEMORY_H
+	select NEED_MACH_IO_H
+	select CPU_V6
+	help
+	  Include support for the Broadcom(R) BCM2708 platform.
+
+config BCM2708_DT
+	bool "BCM2708 Device Tree support"
+	depends on MACH_BCM2708
+	default n
+	select USE_OF
+	select ARCH_REQUIRE_GPIOLIB
+	select PINCTRL
+	select PINCTRL_BCM2835
+	help
+	  Enable Device Tree support for BCM2708
+
+config BCM2708_NOL2CACHE
+	bool "Videocore L2 cache disable"
+	depends on MACH_BCM2708
+        default n
+        help
+          Do not allow ARM to use GPU's L2 cache. Requires disable_l2cache in config.txt.
+
+endmenu
