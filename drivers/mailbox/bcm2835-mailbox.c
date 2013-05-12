@@ -45,12 +45,15 @@
 #define MAIL1_WRT	(ARM_0_MAIL1 + 0x00)
 #define MAIL1_STA	(ARM_0_MAIL1 + 0x18)
 
+/* On ARCH_BCM270x these come through <linux/interrupt.h> (arm_control.h ) */
+#ifndef ARM_MS_FULL
 /* Status register: FIFO state. */
 #define ARM_MS_FULL		BIT(31)
 #define ARM_MS_EMPTY		BIT(30)
 
 /* Configuration register: Enable interrupts. */
 #define ARM_MC_IHAVEDATAIRQEN	BIT(0)
+#endif
 
 struct bcm2835_mbox {
 	void __iomem *regs;
@@ -188,7 +191,18 @@ static struct platform_driver bcm2835_mbox_driver = {
 	},
 	.probe		= bcm2835_mbox_probe,
 };
-module_platform_driver(bcm2835_mbox_driver);
+
+static int __init bcm2835_mbox_init(void)
+{
+	return platform_driver_register(&bcm2835_mbox_driver);
+}
+arch_initcall(bcm2835_mbox_init);
+
+static void __init bcm2835_mbox_exit(void)
+{
+	platform_driver_unregister(&bcm2835_mbox_driver);
+}
+module_exit(bcm2835_mbox_exit);
 
 MODULE_AUTHOR("Lubomir Rintel <lkundrak@v3.sk>");
 MODULE_DESCRIPTION("BCM2835 mailbox IPC driver");
