@@ -324,6 +324,52 @@ choice
 	default ARM_SINGLE_ARMV7M if !MMU
 	default ARCH_MULTIPLATFORM if MMU
 
+config ARCH_BCM2708
+	bool "Broadcom BCM2708 family"
+	select CPU_V6
+	select ARM_AMBA
+	select CLKSRC_MMIO
+	select CLKSRC_OF if OF
+	select HAVE_SCHED_CLOCK
+	select NEED_MACH_GPIO_H
+	select NEED_MACH_MEMORY_H
+	select COMMON_CLK
+	select ARCH_HAS_CPUFREQ
+	select GENERIC_CLOCKEVENTS
+	select ARM_ERRATA_411920
+	select MACH_BCM2708
+	select MULTI_IRQ_HANDLER
+	select SPARSE_IRQ
+	select VC4
+	select FIQ
+	help
+	  This enables support for Broadcom BCM2708 boards.
+
+config ARCH_BCM2709
+	bool "Broadcom BCM2709 family"
+	select CPU_V7
+	select HAVE_SMP
+	select ARM_AMBA
+	select MIGHT_HAVE_CACHE_L2X0
+	select HAVE_SCHED_CLOCK
+	select NEED_MACH_MEMORY_H
+	select NEED_MACH_IO_H
+	select COMMON_CLK
+	select ARCH_HAS_CPUFREQ
+	select GENERIC_CLOCKEVENTS
+	select MACH_BCM2709
+	select MULTI_IRQ_HANDLER
+	select SPARSE_IRQ
+	select MFD_SYSCON
+	select VC4
+	select FIQ
+	select USE_OF
+	select ARCH_REQUIRE_GPIOLIB
+	select PINCTRL
+	select PINCTRL_BCM2835
+	help
+	  This enables support for Broadcom BCM2709 boards.
+
 config ARCH_MULTIPLATFORM
 	bool "Allow multiple platforms to be selected"
 	depends on MMU
@@ -725,6 +771,9 @@ config ARCH_VIRT
 # Kconfigs may be included either alphabetically (according to the
 # plat- suffix) or along side the corresponding mach-* source.
 #
+source "arch/arm/mach-bcm2708/Kconfig"
+source "arch/arm/mach-bcm2709/Kconfig"
+
 source "arch/arm/mach-mvebu/Kconfig"
 
 source "arch/arm/mach-alpine/Kconfig"
