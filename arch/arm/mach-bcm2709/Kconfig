@@ -1,0 +1,16 @@
+menu "Broadcom BCM2709 Implementations"
+	depends on ARCH_BCM2709
+
+config MACH_BCM2709
+	bool "Broadcom BCM2709 Development Platform"
+	help
+	  Include support for the Broadcom(R) BCM2709 platform.
+
+config BCM2708_NOL2CACHE
+	bool "Videocore L2 cache disable"
+	depends on MACH_BCM2709
+        default y
+        help
+          Do not allow ARM to use GPU's L2 cache. Requires disable_l2cache in config.txt.
+
+endmenu
