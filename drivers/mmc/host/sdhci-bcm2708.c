@@ -135,6 +135,7 @@ static bool allow_highspeed = 1;
 static int emmc_clock_freq = BCM2708_EMMC_CLOCK_FREQ;
 static bool sync_after_dma = 1;
 static bool missing_status = 1;
+bool enable_llm = 1;
 
 #if 0
 static void hptime_test(void)
@@ -871,12 +872,11 @@ static irqreturn_t sdhci_bcm2708_dma_irq(int irq, void *dev_id)
 	struct sdhci_host *host = dev_id;
 	struct sdhci_bcm2708_priv *host_priv = SDHCI_HOST_PRIV(host);
 	u32 dma_cs; /* control and status register */
-	unsigned long flags;
 
 	BUG_ON(NULL == dev_id);
 	BUG_ON(NULL == host_priv->dma_chan_base);
 
-	spin_lock_irqsave(&host->lock, flags);
+	sdhci_spin_lock(host);
 
 	dma_cs = readl(host_priv->dma_chan_base + BCM2708_DMA_CS);
 
@@ -917,8 +917,7 @@ static irqreturn_t sdhci_bcm2708_dma_irq(int irq, void *dev_id)
 
 		result = IRQ_HANDLED;
 	}
-
-	spin_unlock_irqrestore(&host->lock, flags);
+	sdhci_spin_unlock(host);
 
 	return result;
 }
@@ -1193,9 +1192,12 @@ static int sdhci_bcm2708_probe(struct platform_device *pdev)
 		sdhci_bcm2708_ops.missing_status = sdhci_bcm2708_missing_status;
 	}
 
+	printk("sdhci: %s low-latency mode\n",enable_llm?"Enable":"Disable");
+
 	host->hw_name = "BCM2708_Arasan";
 	host->ops = &sdhci_bcm2708_ops;
 	host->irq = platform_get_irq(pdev, 0);
+	host->second_irq = 0;
 
 	host->quirks = SDHCI_QUIRK_BROKEN_CARD_DETECTION |
 		       SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
@@ -1256,12 +1258,13 @@ static int sdhci_bcm2708_probe(struct platform_device *pdev)
 	}
 	host_priv->dma_chan = ret;
 
-	ret = request_irq(host_priv->dma_irq, sdhci_bcm2708_dma_irq,
-			  IRQF_SHARED, DRIVER_NAME " (dma)", host);
+	ret = request_irq(host_priv->dma_irq, sdhci_bcm2708_dma_irq,0,//IRQF_SHARED,
+			  DRIVER_NAME " (dma)", host);
 	if (ret) {
 		dev_err(&pdev->dev, "cannot set DMA IRQ\n");
 		goto err_add_dma_irq;
 	}
+	host->second_irq = host_priv->dma_irq;
 	DBG("DMA CBs %p handle %08X DMA%d %p DMA IRQ %d\n",
 	    host_priv->cb_base, (unsigned)host_priv->cb_handle,
 	    host_priv->dma_chan, host_priv->dma_chan_base,
@@ -1384,6 +1387,7 @@ module_param(allow_highspeed, bool, 0444);
 module_param(emmc_clock_freq, int, 0444);
 module_param(sync_after_dma, bool, 0444);
 module_param(missing_status, bool, 0444);
+module_param(enable_llm, bool, 0444);
 
 MODULE_DESCRIPTION("Secure Digital Host Controller Interface platform driver");
 MODULE_AUTHOR("Broadcom <info@broadcom.com>");
@@ -1394,5 +1398,6 @@ MODULE_PARM_DESC(allow_highspeed, "Allow high speed transfers modes");
 MODULE_PARM_DESC(emmc_clock_freq, "Specify the speed of emmc clock");
 MODULE_PARM_DESC(sync_after_dma, "Block in driver until dma complete");
 MODULE_PARM_DESC(missing_status, "Use the missing status quirk");
+MODULE_PARM_DESC(enable_llm, "Enable low-latency mode");
 
 
