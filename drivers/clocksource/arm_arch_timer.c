@@ -882,3 +882,39 @@ void __init acpi_generic_timer_init(void)
 	acpi_table_parse(ACPI_SIG_GTDT, arch_timer_acpi_init);
 }
 #endif
+
+int __init dc4_arch_timer_init(void)
+{
+	if (arch_timers_present & ARCH_CP15_TIMER) {
+		pr_warn("arch_timer: multiple nodes in dt, skipping\n");
+		return -1;
+	}
+
+	arch_timers_present |= ARCH_CP15_TIMER;
+
+	/* Try to determine the frequency from the device tree or CNTFRQ */
+	arch_timer_rate = 19200000;
+
+	arch_timer_ppi[PHYS_SECURE_PPI]    = IRQ_ARM_LOCAL_CNTPSIRQ;
+	arch_timer_ppi[PHYS_NONSECURE_PPI] = IRQ_ARM_LOCAL_CNTPNSIRQ;
+	arch_timer_ppi[VIRT_PPI]           = IRQ_ARM_LOCAL_CNTVIRQ;
+	arch_timer_ppi[HYP_PPI]            = IRQ_ARM_LOCAL_CNTHPIRQ;
+
+	/*
+	 * If HYP mode is available, we know that the physical timer
+	 * has been configured to be accessible from PL1. Use it, so
+	 * that a guest can use the virtual timer instead.
+	 *
+	 * If no interrupt provided for virtual timer, we'll have to
+	 * stick to the physical timer. It'd better be accessible...
+	 */
+	if (is_hyp_mode_available() || !arch_timer_ppi[VIRT_PPI]) {
+		arch_timer_use_virtual = false;
+	}
+
+	arch_timer_c3stop = 0;
+
+	arch_timer_register();
+	arch_timer_common_init();
+	return 0;
+}
