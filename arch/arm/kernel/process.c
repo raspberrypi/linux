@@ -176,6 +176,16 @@ void arch_cpu_idle(void)
 		default_idle();
 }
 
+char bcm2708_reboot_mode = 'h';
+
+int __init reboot_setup(char *str)
+{
+	bcm2708_reboot_mode = str[0];
+	return 1;
+}
+
+__setup("reboot=", reboot_setup);
+
 /*
  * Called by kexec, immediately prior to machine_kexec().
  *
