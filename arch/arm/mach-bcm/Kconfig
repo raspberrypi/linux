@@ -173,6 +173,22 @@ config ARCH_BCM_53573
 	  The base chip is BCM53573 and there are some packaging modifications
 	  like BCM47189 and BCM47452.
 
+config ARCH_BCM2708
+	bool "Broadcom BCM2708 family"
+	depends on ARCH_MULTI_V6
+	select ARCH_BCM2835
+	help
+	  This enables support for Broadcom BCM2708 boards.
+
+config ARCH_BCM2709
+	bool "Broadcom BCM2709 family"
+	depends on ARCH_MULTI_V7
+	select ARCH_BCM2835
+	select HAVE_SMP
+	select MFD_SYSCON
+	help
+	  This enables support for Broadcom BCM2709 boards.
+
 config ARCH_BCM_63XX
 	bool "Broadcom BCM63xx DSL SoC"
 	depends on ARCH_MULTI_V7

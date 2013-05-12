@@ -16,6 +16,7 @@
 #include <linux/irqchip.h>
 #include <linux/of_address.h>
 #include <linux/clk/bcm2835.h>
+#include <linux/broadcom/vc_cma.h>
 #include <asm/system_info.h>
 
 #include <asm/mach/arch.h>
@@ -27,12 +28,18 @@ static void __init bcm2835_init(void)
 	u32 val;
 	u64 val64;
 
+	vc_cma_early_init();
 	bcm2835_init_clocks();
 
 	if (!of_property_read_u32(np, "linux,revision", &val))
 		system_rev = val;
 	if (!of_property_read_u64(np, "linux,serial", &val64))
 		system_serial_low = val64;
+}
+
+static void __init bcm2835_board_reserve(void)
+{
+	vc_cma_reserve();
 }
 
 static const char * const bcm2835_compat[] = {
@@ -47,5 +54,32 @@ static const char * const bcm2835_compat[] = {
 
 DT_MACHINE_START(BCM2835, "BCM2835")
 	.init_machine = bcm2835_init,
+	.reserve = bcm2835_board_reserve,
 	.dt_compat = bcm2835_compat
 MACHINE_END
+
+#ifdef CONFIG_ARCH_BCM2708
+static const char * const bcm2708_compat[] = {
+	"brcm,bcm2708",
+	NULL
+};
+
+DT_MACHINE_START(BCM2708, "BCM2708")
+	.init_machine = bcm2835_init,
+	.reserve = bcm2835_board_reserve,
+	.dt_compat = bcm2708_compat,
+MACHINE_END
+#endif
+
+#ifdef CONFIG_ARCH_BCM2709
+static const char * const bcm2709_compat[] = {
+	"brcm,bcm2709",
+	NULL
+};
+
+DT_MACHINE_START(BCM2709, "BCM2709")
+	.init_machine = bcm2835_init,
+	.reserve = bcm2835_board_reserve,
+	.dt_compat = bcm2709_compat,
+MACHINE_END
+#endif
