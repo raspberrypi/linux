@@ -460,6 +460,7 @@ __v7_setup_cont:
 	orr	r0, r0, r6			@ set them
  THUMB(	orr	r0, r0, #1 << 30	)	@ Thumb exceptions
 	ret	lr				@ return to head.S:__ret
+        .space 256
 ENDPROC(__v7_setup)
 
 	.align	2
