@@ -1294,6 +1294,14 @@ choice
 		  options; the platform specific options are deprecated
 		  and will be soon removed.
 
+	config DEBUG_BCM2708_UART0
+		bool "Broadcom BCM270X UART0 (PL011)"
+		depends on ARCH_BCM2708 || ARCH_BCM2709
+		help
+		  Say Y here if you want the debug print routines to direct
+		  their output to UART 0. The port must have been initialised
+		  by the boot-loader before use.
+
 endchoice
 
 config DEBUG_EXYNOS_UART
