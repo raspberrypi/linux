@@ -1,0 +1,34 @@
+menu "Broadcom BCM2708 Implementations"
+	depends on ARCH_BCM2708
+
+config MACH_BCM2708
+	bool "Broadcom BCM2708 Development Platform"
+	select NEED_MACH_MEMORY_H
+	select NEED_MACH_IO_H
+	select CPU_V6
+	help
+	  Include support for the Broadcom(R) BCM2708 platform.
+
+config BCM2708_GPIO
+	bool "BCM2708 gpio support"
+	depends on MACH_BCM2708
+	select ARCH_REQUIRE_GPIOLIB
+        default y
+	help
+	  Include support for the Broadcom(R) BCM2708 gpio.
+
+config BCM2708_VCMEM
+	bool "Videocore Memory"
+	depends on MACH_BCM2708
+        default y
+        help
+          Helper for videocore memory access and total size allocation.
+
+config BCM2708_NOL2CACHE
+	bool "Videocore L2 cache disable"
+	depends on MACH_BCM2708
+        default n
+        help
+          Do not allow ARM to use GPU's L2 cache. Requires disable_l2cache in config.txt.
+
+endmenu
