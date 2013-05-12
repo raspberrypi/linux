@@ -131,6 +131,7 @@ struct sdhci_host {
 #define SDHCI_SDIO_IRQ_ENABLED	(1<<9)	/* SDIO irq enabled */
 #define SDHCI_SDR104_NEEDS_TUNING (1<<10)	/* SDR104/HS200 needs tuning */
 #define SDHCI_USING_RETUNING_TIMER (1<<11)	/* Host is using a retuning timer for the card */
+#define SDHCI_USE_PLATDMA       (1<<12) /* Host uses 3rd party DMA */
 
 	unsigned int version;	/* SDHCI spec. version */
 

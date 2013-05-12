@@ -84,7 +84,7 @@ struct vendor_data {
 
 static unsigned int get_fifosize_arm(struct amba_device *dev)
 {
-	return amba_rev(dev) < 3 ? 16 : 32;
+	return 16; //TODO: fix: amba_rev(dev) < 3 ? 16 : 32;
 }
 
 static struct vendor_data vendor_arm = {
