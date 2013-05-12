@@ -21,6 +21,8 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
+#include <linux/dma-mapping.h>
+
 static void __init bcm2835_init(void)
 {
 	struct device_node *np = of_find_node_by_path("/system");
@@ -35,6 +37,12 @@ static void __init bcm2835_init(void)
 		system_serial_low = val64;
 }
 
+static void __init bcm2835_init_early(void)
+{
+	/* dwc_otg needs this for bounce buffers on non-aligned transfers */
+	init_dma_coherent_pool_size(SZ_1M);
+}
+
 static const char * const bcm2835_compat[] = {
 #ifdef CONFIG_ARCH_MULTI_V6
 	"brcm,bcm2835",
@@ -47,5 +55,6 @@ static const char * const bcm2835_compat[] = {
 
 DT_MACHINE_START(BCM2835, "BCM2835")
 	.init_machine = bcm2835_init,
+	.init_early = bcm2835_init_early,
 	.dt_compat = bcm2835_compat
 MACHINE_END
