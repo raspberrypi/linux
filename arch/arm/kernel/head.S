@@ -703,6 +703,14 @@ ARM_BE8(rev16	ip, ip)
 	ldrcc	r7, [r4], #4	@ use branch for delay slot
 	bcc	1b
 	ret	lr
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
 #endif
 ENDPROC(__fixup_a_pv_table)
 
