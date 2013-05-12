@@ -361,6 +361,21 @@ config ARCH_AT91
 	  This enables support for systems based on Atmel
 	  AT91RM9200 and AT91SAM9* processors.
 
+config ARCH_BCM2708
+	bool "Broadcom BCM2708 family"
+	select CPU_V6
+	select ARM_AMBA
+	select HAVE_CLK
+	select HAVE_SCHED_CLOCK
+	select NEED_MACH_MEMORY_H
+	select CLKDEV_LOOKUP
+	select GENERIC_CLOCKEVENTS
+	select ARM_ERRATA_411920
+	select MACH_BCM2708
+	select VC4
+	help
+	  This enables support for Broadcom BCM2708 boards.
+
 config ARCH_CLPS711X
 	bool "Cirrus Logic CLPS711x/EP721x/EP731x-based"
 	select ARCH_REQUIRE_GPIOLIB
@@ -1025,6 +1040,7 @@ source "arch/arm/mach-virt/Kconfig"
 source "arch/arm/mach-vt8500/Kconfig"
 
 source "arch/arm/mach-w90x900/Kconfig"
+source "arch/arm/mach-bcm2708/Kconfig"
 
 source "arch/arm/mach-zynq/Kconfig"
 
