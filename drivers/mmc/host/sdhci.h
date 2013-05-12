@@ -290,6 +290,20 @@ struct sdhci_ops {
 	void	(*platform_reset_exit)(struct sdhci_host *host, u8 mask);
 	int	(*platform_execute_tuning)(struct sdhci_host *host, u32 opcode);
 	int	(*set_uhs_signaling)(struct sdhci_host *host, unsigned int uhs);
+
+	int             (*pdma_able)(struct sdhci_host *host,
+				     struct mmc_data *data);
+	void            (*pdma_avail)(struct sdhci_host *host,
+				      unsigned int *ref_intmask,
+				      void(*complete)(struct sdhci_host *));
+	void            (*pdma_reset)(struct sdhci_host *host,
+				      struct mmc_data *data);
+	unsigned int 	(*extra_ints)(struct sdhci_host *host);
+	unsigned int	(*spurious_crc_acmd51)(struct sdhci_host *host);
+	unsigned int	(*voltage_broken)(struct sdhci_host *host);
+	unsigned int	(*uhs_broken)(struct sdhci_host *host);
+	unsigned int	(*missing_status)(struct sdhci_host *host);
+
 	void	(*hw_reset)(struct sdhci_host *host);
 	void	(*platform_suspend)(struct sdhci_host *host);
 	void	(*platform_resume)(struct sdhci_host *host);
@@ -402,6 +416,29 @@ extern int sdhci_suspend_host(struct sdhci_host *host);
 extern int sdhci_resume_host(struct sdhci_host *host);
 extern void sdhci_enable_irq_wakeups(struct sdhci_host *host);
 #endif
+
+static inline int /*bool*/
+sdhci_platdma_dmaable(struct sdhci_host *host, struct mmc_data *data)
+{
+	if (host->ops->pdma_able)
+		return host->ops->pdma_able(host, data);
+	else
+		return 1;
+}
+static inline void
+sdhci_platdma_avail(struct sdhci_host *host, unsigned int *ref_intmask,
+		void(*completion_callback)(struct sdhci_host *))
+{
+	if (host->ops->pdma_avail)
+		host->ops->pdma_avail(host, ref_intmask, completion_callback);
+}
+
+static inline void
+sdhci_platdma_reset(struct sdhci_host *host, struct mmc_data *data)
+{
+	if (host->ops->pdma_reset)
+		host->ops->pdma_reset(host, data);
+}
 
 #ifdef CONFIG_PM_RUNTIME
 extern int sdhci_runtime_suspend_host(struct sdhci_host *host);
