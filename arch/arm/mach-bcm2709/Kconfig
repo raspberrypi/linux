@@ -1,0 +1,42 @@
+menu "Broadcom BCM2709 Implementations"
+	depends on ARCH_BCM2709
+
+config MACH_BCM2709
+	bool "Broadcom BCM2709 Development Platform"
+	help
+	  Include support for the Broadcom(R) BCM2709 platform.
+
+config BCM2709_DT
+	bool "BCM2709 Device Tree support"
+	depends on MACH_BCM2709
+	default n
+	select USE_OF
+	select ARCH_REQUIRE_GPIOLIB
+	select PINCTRL
+	select PINCTRL_BCM2835
+	help
+	  Enable Device Tree support for BCM2709
+
+config BCM2708_GPIO
+	bool "BCM2709 gpio support"
+	depends on MACH_BCM2709
+	select ARCH_REQUIRE_GPIOLIB
+        default y
+	help
+	  Include support for the Broadcom(R) BCM2709 gpio.
+
+config BCM2708_NOL2CACHE
+	bool "Videocore L2 cache disable"
+	depends on MACH_BCM2709
+        default y
+        help
+          Do not allow ARM to use GPU's L2 cache. Requires disable_l2cache in config.txt.
+
+config BCM2708_SPIDEV
+	bool "Bind spidev to SPI0 master"
+	depends on MACH_BCM2709
+	depends on SPI
+	default y
+	help
+	  Binds spidev driver to the SPI0 master
+endmenu
