@@ -45,12 +45,15 @@
 #define MAIL1_WRT	(ARM_0_MAIL1 + 0x00)
 #define MAIL1_STA	(ARM_0_MAIL1 + 0x18)
 
+/* On ARCH_BCM270x these come through <linux/interrupt.h> (arm_control.h ) */
+#ifndef ARM_MS_FULL
 /* Status register: FIFO state. */
 #define ARM_MS_FULL		BIT(31)
 #define ARM_MS_EMPTY		BIT(30)
 
 /* Configuration register: Enable interrupts. */
 #define ARM_MC_IHAVEDATAIRQEN	BIT(0)
+#endif
 
 struct bcm2835_mbox {
 	void __iomem *regs;
@@ -144,7 +147,7 @@ static int bcm2835_mbox_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	spin_lock_init(&mbox->lock);
 
-	ret = devm_request_irq(dev, irq_of_parse_and_map(dev->of_node, 0),
+	ret = devm_request_irq(dev, platform_get_irq(pdev, 0),
 			       bcm2835_mbox_irq, IRQF_NO_SUSPEND, dev_name(dev),
 			       mbox);
 	if (ret) {
@@ -193,7 +196,18 @@ static struct platform_driver bcm2835_mbox_driver = {
 	},
 	.probe		= bcm2835_mbox_probe,
 };
-module_platform_driver(bcm2835_mbox_driver);
+
+static int __init bcm2835_mbox_init(void)
+{
+	return platform_driver_register(&bcm2835_mbox_driver);
+}
+arch_initcall(bcm2835_mbox_init);
+
+static void __init bcm2835_mbox_exit(void)
+{
+	platform_driver_unregister(&bcm2835_mbox_driver);
+}
+module_exit(bcm2835_mbox_exit);
 
 MODULE_AUTHOR("Lubomir Rintel <lkundrak@v3.sk>");
 MODULE_DESCRIPTION("BCM2835 mailbox IPC driver");
