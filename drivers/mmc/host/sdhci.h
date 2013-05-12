@@ -441,4 +441,10 @@ extern int sdhci_runtime_suspend_host(struct sdhci_host *host);
 extern int sdhci_runtime_resume_host(struct sdhci_host *host);
 #endif
 
+extern void sdhci_spin_lock_irqsave(struct sdhci_host *host,unsigned long *flags);
+extern void sdhci_spin_unlock_irqrestore(struct sdhci_host *host,unsigned long flags);
+extern void sdhci_spin_lock(struct sdhci_host *host);
+extern void sdhci_spin_unlock(struct sdhci_host *host);
+
+
 #endif /* __SDHCI_HW_H */
