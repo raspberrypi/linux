@@ -585,7 +585,7 @@ static struct platform_device bcm2708_spi_device = {
 	.resource = bcm2708_spi_resources,
 };
 
-#ifdef CONFIG_SPI
+#ifdef CONFIG_BCM2708_SPIDEV
 static struct spi_board_info bcm2708_spi_devices[] = {
 	{
 		.modalias = "spidev",
@@ -747,7 +747,7 @@ void __init bcm2708_init(void)
 	system_rev = boardrev;
 	system_serial_low = serial;
 
-#ifdef CONFIG_SPI
+#ifdef CONFIG_BCM2708_SPIDEV
 	spi_register_board_info(bcm2708_spi_devices,
 			ARRAY_SIZE(bcm2708_spi_devices));
 #endif
