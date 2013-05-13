@@ -273,6 +273,9 @@ unlock_service(VCHIQ_SERVICE_T *service)
 	}
 	spin_unlock(&service_spinlock);
 
+	if (service && service->userdata_term)
+		service->userdata_term(service->base.userdata);
+
 	kfree(service);
 }
 
@@ -2476,7 +2479,7 @@ vchiq_init_state(VCHIQ_STATE_T *state, VCHIQ_SLOT_ZERO_T *slot_zero,
 VCHIQ_SERVICE_T *
 vchiq_add_service_internal(VCHIQ_STATE_T *state,
 	const VCHIQ_SERVICE_PARAMS_T *params, int srvstate,
-	VCHIQ_INSTANCE_T instance)
+	VCHIQ_INSTANCE_T instance, VCHIQ_USERDATA_TERM_T userdata_term)
 {
 	VCHIQ_SERVICE_T *service;
 
@@ -2488,6 +2491,7 @@ vchiq_add_service_internal(VCHIQ_STATE_T *state,
 		service->handle        = VCHIQ_SERVICE_HANDLE_INVALID;
 		service->ref_count     = 1;
 		service->srvstate      = VCHIQ_SRVSTATE_FREE;
+		service->userdata_term = userdata_term;
 		service->localport     = VCHIQ_PORT_FREE;
 		service->remoteport    = VCHIQ_PORT_FREE;
 
