@@ -241,7 +241,8 @@ VCHIQ_STATUS_T vchiq_add_service(
 		state,
 		params,
 		srvstate,
-		instance);
+		instance,
+		NULL);
 
 	if (service) {
 		*phandle = service->handle;
@@ -282,7 +283,8 @@ VCHIQ_STATUS_T vchiq_open_service(
 	service = vchiq_add_service_internal(state,
 		params,
 		VCHIQ_SRVSTATE_OPENING,
-		instance);
+		instance,
+		NULL);
 
 	if (service) {
 		status = vchiq_open_service_internal(service, current->pid);
