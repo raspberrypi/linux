@@ -629,6 +629,15 @@ static void bcm2708_restart(char mode, const char *cmd)
 	uint32_t pm_rstc, pm_wdog;
 	uint32_t timeout = 10;
 
+	/* For quick reset notification add reboot=q to cmdline
+	 */
+	if(mode == 'q')
+	{
+		uint32_t pm_rsts = readl(__io_address(PM_RSTS));
+		pm_rsts = PM_PASSWORD | pm_rsts | PM_RSTS_HADWRQ_SET;
+		writel(pm_rsts, __io_address(PM_RSTS));
+	}
+
 	/* Setup watchdog for reset */
 	pm_rstc = readl(__io_address(PM_RSTC));
 
