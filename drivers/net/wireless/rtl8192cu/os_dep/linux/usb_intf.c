@@ -114,6 +114,7 @@ static struct usb_device_id rtw_usb_id_tbl[] ={
 	{USB_DEVICE(0x4856, 0x0091)},//NetweeN - Feixun
 	{USB_DEVICE(0x2019, 0x4902)},//Planex - Etop
 	{USB_DEVICE(0x2019, 0xAB2E)},//SW-WF02-AD15 -Abocom
+	{USB_DEVICE(0x0846, 0x9041)},//Netgear
 
 	/****** 8188 RU ********/
 	{USB_DEVICE(0x0BDA, 0x317F)},//Netcore,Netcore
@@ -137,6 +138,7 @@ static struct usb_device_id rtw_usb_id_tbl[] ={
 	{USB_DEVICE(0x2001, 0x3307)},//D-Link - Cameo
 	{USB_DEVICE(0x2001, 0x330A)},//D-Link - Alpha
 	{USB_DEVICE(0x2001, 0x3309)},//D-Link - Alpha
+	{USB_DEVICE(0x2001, 0x330D)},//D-Link - Alpha(?)
 	{USB_DEVICE(0x0586, 0x341F)},//Zyxel - Abocom
 	{USB_DEVICE(0x7392, 0x7822)},//Edimax - Edimax
 	{USB_DEVICE(0x2019, 0xAB2B)},//Planex - Abocom
