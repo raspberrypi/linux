@@ -826,6 +826,14 @@ static int timekeeping_suspend(void)
 
 	read_persistent_clock(&timekeeping_suspend_time);
 
+	/*
+	 * On some systems the persistent_clock can not be detected at
+	 * timekeeping_init by its return value, so if we see a valid
+	 * value returned, update the persistent_clock_exists flag.
+	 */
+	if (timekeeping_suspend_time.tv_sec || timekeeping_suspend_time.tv_nsec)
+		persistent_clock_exist = true;
+
 	write_seqlock_irqsave(&tk->lock, flags);
 	timekeeping_forward_now(tk);
 	timekeeping_suspended = 1;
