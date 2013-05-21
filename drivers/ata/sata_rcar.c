@@ -548,6 +548,7 @@ static void sata_rcar_bmdma_start(struct ata_queued_cmd *qc)
 
 	/* start host DMA transaction */
 	dmactl = ioread32(priv->base + ATAPI_CONTROL1_REG);
+	dmactl &= ~ATAPI_CONTROL1_STOP;
 	dmactl |= ATAPI_CONTROL1_START;
 	iowrite32(dmactl, priv->base + ATAPI_CONTROL1_REG);
 }
