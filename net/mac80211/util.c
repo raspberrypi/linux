@@ -626,12 +626,12 @@ void ieee80211_queue_delayed_work(struct ieee80211_hw *hw,
 }
 EXPORT_SYMBOL(ieee80211_queue_delayed_work);
 
-u32 ieee802_11_parse_elems_crc(u8 *start, size_t len,
+u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len,
 			       struct ieee802_11_elems *elems,
 			       u64 filter, u32 crc)
 {
 	size_t left = len;
-	u8 *pos = start;
+	const u8 *pos = start;
 	bool calc_crc = filter != 0;
 	DECLARE_BITMAP(seen_elems, 256);
 
@@ -877,7 +877,7 @@ u32 ieee802_11_parse_elems_crc(u8 *start, size_t len,
 	return crc;
 }
 
-void ieee802_11_parse_elems(u8 *start, size_t len,
+void ieee802_11_parse_elems(const u8 *start, size_t len,
 			    struct ieee802_11_elems *elems)
 {
 	ieee802_11_parse_elems_crc(start, len, elems, 0, 0);

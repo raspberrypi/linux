@@ -1520,9 +1520,9 @@ static inline void ieee80211_tx_skb(struct ieee80211_sub_if_data *sdata,
 	ieee80211_tx_skb_tid(sdata, skb, 7);
 }
 
-void ieee802_11_parse_elems(u8 *start, size_t len,
+void ieee802_11_parse_elems(const u8 *start, size_t len,
 			    struct ieee802_11_elems *elems);
-u32 ieee802_11_parse_elems_crc(u8 *start, size_t len,
+u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len,
 			       struct ieee802_11_elems *elems,
 			       u64 filter, u32 crc);
 u32 ieee80211_mandatory_rates(struct ieee80211_local *local,
