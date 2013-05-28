@@ -81,7 +81,19 @@ void vchiu_queue_push(VCHIU_QUEUE_T *queue, VCHIQ_HEADER_T *header)
 		}
 	}
 
+	/*
+	 * Write to queue->storage must be visible after read from
+	 * queue->read
+	 */
+	smp_mb();
+
 	queue->storage[queue->write & (queue->size - 1)] = header;
+
+	/*
+	 * Write to queue->storage must be visible before write to
+	 * queue->write
+	 */
+	smp_wmb();
 
 	queue->write++;
 
@@ -97,6 +109,13 @@ VCHIQ_HEADER_T *vchiu_queue_peek(VCHIU_QUEUE_T *queue)
 	}
 
 	up(&queue->push); // We haven't removed anything from the queue.
+
+	/*
+	 * Read from queue->storage must be visible after read from
+	 * queue->write
+	 */
+	smp_rmb();
+
 	return queue->storage[queue->read & (queue->size - 1)];
 }
 
@@ -110,7 +129,19 @@ VCHIQ_HEADER_T *vchiu_queue_pop(VCHIU_QUEUE_T *queue)
 		}
 	}
 
+	/*
+	 * Read from queue->storage must be visible after read from
+	 * queue->write
+	 */
+	smp_rmb();
+
 	header = queue->storage[queue->read & (queue->size - 1)];
+
+	/*
+	 * Read from queue->storage must be visible before write to
+	 * queue->read
+	 */
+	smp_mb();
 
 	queue->read++;
 
