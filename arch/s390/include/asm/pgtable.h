@@ -1063,11 +1063,12 @@ static inline pte_t ptep_modify_prot_start(struct mm_struct *mm,
 					   unsigned long address,
 					   pte_t *ptep)
 {
+	pgste_t pgste;
 	pte_t pte;
 
 	mm->context.flush_mm = 1;
 	if (mm_has_pgste(mm))
-		pgste_get_lock(ptep);
+		pgste = pgste_get_lock(ptep);
 
 	pte = *ptep;
 	if (!mm_exclusive(mm))
