@@ -279,8 +279,9 @@ static void ci_role_work(struct work_struct *work)
 
 		ci_role_stop(ci);
 		ci_role_start(ci, role);
-		enable_irq(ci->irq);
 	}
+
+	enable_irq(ci->irq);
 }
 
 static ssize_t show_role(struct device *dev, struct device_attribute *attr,
