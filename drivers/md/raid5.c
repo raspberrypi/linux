@@ -5457,7 +5457,7 @@ static int run(struct mddev *mddev)
 		if (mddev->major_version == 0 &&
 		    mddev->minor_version > 90)
 			rdev->recovery_offset = reshape_offset;
-			
+
 		if (rdev->recovery_offset < reshape_offset) {
 			/* We need to check old and new layout */
 			if (!only_parity(rdev->raid_disk,
@@ -5579,6 +5579,8 @@ static int run(struct mddev *mddev)
 		 * guarantee discard_zerors_data
 		 */
 		mddev->queue->limits.discard_zeroes_data = 0;
+
+		blk_queue_max_write_same_sectors(mddev->queue, 0);
 
 		rdev_for_each(rdev, mddev) {
 			disk_stack_limits(mddev->gendisk, rdev->bdev,
