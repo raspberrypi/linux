@@ -175,6 +175,11 @@ static irqreturn_t bcm2708_i2c_interrupt(int irq, void *dev_id)
 
 	spin_lock(&bi->lock);
 
+	/* we may see camera interrupts on the "other" I2C channel
+           Just return if we've not sent anything */
+        if (!bi->nmsgs || !bi->msg )
+		goto early_exit;
+
 	s = bcm2708_rd(bi, BSC_S);
 
 	if (s & (BSC_S_CLKT | BSC_S_ERR)) {
@@ -208,6 +213,7 @@ static irqreturn_t bcm2708_i2c_interrupt(int irq, void *dev_id)
 		handled = false;
 	}
 
+early_exit:
 	spin_unlock(&bi->lock);
 
 	return handled ? IRQ_HANDLED : IRQ_NONE;
