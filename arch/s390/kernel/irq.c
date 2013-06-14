@@ -314,6 +314,7 @@ void measurement_alert_subclass_unregister(void)
 }
 EXPORT_SYMBOL(measurement_alert_subclass_unregister);
 
+#ifdef CONFIG_SMP
 void synchronize_irq(unsigned int irq)
 {
 	/*
@@ -322,6 +323,7 @@ void synchronize_irq(unsigned int irq)
 	 */
 }
 EXPORT_SYMBOL_GPL(synchronize_irq);
+#endif
 
 #ifndef CONFIG_PCI
 
