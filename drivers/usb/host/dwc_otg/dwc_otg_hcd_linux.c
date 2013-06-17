@@ -265,13 +265,15 @@ static void free_bus_bandwidth(struct usb_hcd *hcd, uint32_t bw,
 
 /**
  * Sets the final status of an URB and returns it to the device driver. Any
- * required cleanup of the URB is performed.
+ * required cleanup of the URB is performed.  The HCD lock should be held on
+ * entry.
  */
 static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 		     dwc_otg_hcd_urb_t * dwc_otg_urb, int32_t status)
 {
 	struct urb *urb = (struct urb *)urb_handle;
 	urb_tq_entry_t *new_entry;
+	int rc = 0;
 	if (CHK_DEBUG_LEVEL(DBG_HCDV | DBG_HCD_URB)) {
 		DWC_PRINTF("%s: urb %p, device %d, ep %d %s, status=%d\n",
 			   __func__, urb, usb_pipedevice(urb->pipe),
@@ -363,9 +365,17 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 #endif
 	} else {
 		new_entry->urb = urb;
-		DWC_TAILQ_INSERT_TAIL(&hcd->completed_urb_list, new_entry,
-					urb_tq_entries);
-		DWC_TASK_HI_SCHEDULE(hcd->completion_tasklet);
+#if USB_URB_EP_LINKING
+		rc = usb_hcd_check_unlink_urb(dwc_otg_hcd_to_hcd(hcd), urb, urb->status);
+		if(0 == rc) {
+			usb_hcd_unlink_urb_from_ep(dwc_otg_hcd_to_hcd(hcd), urb);
+		}
+#endif
+		if(0 == rc) {
+			DWC_TAILQ_INSERT_TAIL(&hcd->completed_urb_list, new_entry,
+						urb_tq_entries);
+			DWC_TASK_HI_SCHEDULE(hcd->completion_tasklet);
+		}
 	}
 	return 0;
 }
