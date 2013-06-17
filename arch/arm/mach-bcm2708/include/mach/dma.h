@@ -62,11 +62,13 @@ struct bcm2708_dma_cb {
 	unsigned long next;
 	unsigned long pad[2];
 };
+struct scatterlist;
 
 extern int bcm_sg_suitable_for_dma(struct scatterlist *sg_ptr, int sg_len);
 extern void bcm_dma_start(void __iomem *dma_chan_base,
 			  dma_addr_t control_block);
 extern void bcm_dma_wait_idle(void __iomem *dma_chan_base);
+extern bool bcm_dma_is_busy(void __iomem *dma_chan_base);
 extern int /*rc*/ bcm_dma_abort(void __iomem *dma_chan_base);
 
 /* When listing features we can ask for when allocating DMA channels give
