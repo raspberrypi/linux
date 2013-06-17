@@ -32,8 +32,10 @@
 #include <linux/printk.h>
 #include <linux/console.h>
 #include <linux/debugfs.h>
+#include <linux/uaccess.h>
 #include <linux/io.h>
 #include <linux/dma-mapping.h>
+#include <linux/cred.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 #include <linux/mutex.h>
 
@@ -183,9 +185,6 @@ static int bcm2708_fb_debugfs_init(struct bcm2708_fb *fb)
 	snprintf(buf, sizeof(buf), "%u", fb->display_settings.display_num);
 
 	fb->debugfs_subdir = debugfs_create_dir(buf, fb->debugfs_dir);
-
-	debugfs_create_regset32("stats", 0444, fb->debugfs_dir,
-				&fb->stats.regset);
 
 	if (!fb->debugfs_subdir) {
 		dev_warn(fb->fb.dev, "%s: could not create debugfs entry %u\n",
@@ -603,7 +602,110 @@ static int bcm2708_fb_pan_display(struct fb_var_screeninfo *var,
 	return result;
 }
 
-static int bcm2708_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
+static void dma_memcpy(struct bcm2708_fb *fb, dma_addr_t dst, dma_addr_t src,
+		       int size)
+{
+	struct bcm2708_fb_dev *fbdev = fb->fbdev;
+	struct bcm2708_dma_cb *cb = fbdev->cb_base;
+	int burst_size = (fbdev->dma_chan == 0) ? 8 : 2;
+
+	cb->info = BCM2708_DMA_BURST(burst_size) | BCM2708_DMA_S_WIDTH |
+		   BCM2708_DMA_S_INC | BCM2708_DMA_D_WIDTH |
+		   BCM2708_DMA_D_INC;
+	cb->dst = dst;
+	cb->src = src;
+	cb->length = size;
+	cb->stride = 0;
+	cb->pad[0] = 0;
+	cb->pad[1] = 0;
+	cb->next = 0;
+
+	// Not sure what to do if this gets a signal whilst waiting
+	if (mutex_lock_interruptible(&fbdev->dma_mutex))
+		return;
+
+	if (size < dma_busy_wait_threshold) {
+		bcm_dma_start(fbdev->dma_chan_base, fbdev->cb_handle);
+		bcm_dma_wait_idle(fbdev->dma_chan_base);
+	} else {
+		void __iomem *local_dma_chan = fbdev->dma_chan_base;
+
+		cb->info |= BCM2708_DMA_INT_EN;
+		bcm_dma_start(fbdev->dma_chan_base, fbdev->cb_handle);
+		while (bcm_dma_is_busy(local_dma_chan)) {
+			wait_event_interruptible(fbdev->dma_waitq,
+						 !bcm_dma_is_busy(local_dma_chan));
+		}
+		fbdev->dma_stats.dma_irqs++;
+	}
+	fbdev->dma_stats.dma_copies++;
+
+	mutex_unlock(&fbdev->dma_mutex);
+}
+
+/* address with no aliases */
+#define INTALIAS_NORMAL(x) ((x) & ~0xc0000000)
+/* cache coherent but non-allocating in L1 and L2 */
+#define INTALIAS_L1L2_NONALLOCATING(x) (((x) & ~0xc0000000) | 0x80000000)
+
+static long vc_mem_copy(struct bcm2708_fb *fb, struct fb_dmacopy *ioparam)
+{
+	size_t size = PAGE_SIZE;
+	u32 *buf = NULL;
+	dma_addr_t bus_addr;
+	long rc = 0;
+	size_t offset;
+
+	/* restrict this to root user */
+	if (!uid_eq(current_euid(), GLOBAL_ROOT_UID)) {
+		rc = -EFAULT;
+		goto out;
+	}
+
+	if (!fb->gpu.base || !fb->gpu.length) {
+		pr_err("[%s]: Unable to determine gpu memory (%x,%x)\n",
+		       __func__, fb->gpu.base, fb->gpu.length);
+		return -EFAULT;
+	}
+
+	if (INTALIAS_NORMAL(ioparam->src) < fb->gpu.base ||
+	    INTALIAS_NORMAL(ioparam->src) >= fb->gpu.base + fb->gpu.length) {
+		pr_err("[%s]: Invalid memory access %x (%x-%x)", __func__,
+		       INTALIAS_NORMAL(ioparam->src), fb->gpu.base,
+		       fb->gpu.base + fb->gpu.length);
+		return -EFAULT;
+	}
+
+	buf = dma_alloc_coherent(fb->fb.device, PAGE_ALIGN(size), &bus_addr,
+				 GFP_ATOMIC);
+	if (!buf) {
+		pr_err("[%s]: failed to dma_alloc_coherent(%zd)\n", __func__,
+		       size);
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	for (offset = 0; offset < ioparam->length; offset += size) {
+		size_t remaining = ioparam->length - offset;
+		size_t s = min(size, remaining);
+		u8 *p = (u8 *)((uintptr_t)ioparam->src + offset);
+		u8 *q = (u8 *)ioparam->dst + offset;
+
+		dma_memcpy(fb, bus_addr,
+			   INTALIAS_L1L2_NONALLOCATING((dma_addr_t)p), size);
+		if (copy_to_user(q, buf, s) != 0) {
+			pr_err("[%s]: failed to copy-to-user\n", __func__);
+			rc = -EFAULT;
+			goto out;
+		}
+	}
+out:
+	if (buf)
+		dma_free_coherent(fb->fb.device, PAGE_ALIGN(size), buf,
+				  bus_addr);
+	return rc;
+}
+
 static int bcm2708_ioctl(struct fb_info *info, unsigned int cmd,
 			 unsigned long arg)
 {
@@ -619,6 +721,21 @@ static int bcm2708_ioctl(struct fb_info *info, unsigned int cmd,
 					    RPI_FIRMWARE_FRAMEBUFFER_SET_VSYNC,
 					    &dummy, sizeof(dummy));
 		break;
+
+	case FBIODMACOPY:
+	{
+		struct fb_dmacopy ioparam;
+		/* Get the parameter data.
+		 */
+		if (copy_from_user
+		    (&ioparam, (void *)arg, sizeof(ioparam))) {
+			pr_err("[%s]: failed to copy-from-user\n", __func__);
+			ret = -EFAULT;
+			break;
+		}
+		ret = vc_mem_copy(fb, &ioparam);
+		break;
+	}
 	default:
 		dev_dbg(info->device, "Unknown ioctl 0x%x\n", cmd);
 		return -ENOTTY;
@@ -629,6 +746,48 @@ static int bcm2708_ioctl(struct fb_info *info, unsigned int cmd,
 
 	return ret;
 }
+
+#ifdef CONFIG_COMPAT
+struct fb_dmacopy32 {
+	compat_uptr_t dst;
+	__u32 src;
+	__u32 length;
+};
+
+#define FBIODMACOPY32		_IOW('z', 0x22, struct fb_dmacopy32)
+
+static int bcm2708_compat_ioctl(struct fb_info *info, unsigned int cmd,
+				unsigned long arg)
+{
+	struct bcm2708_fb *fb = to_bcm2708(info);
+	int ret;
+
+	switch (cmd) {
+	case FBIODMACOPY32:
+	{
+		struct fb_dmacopy32 param32;
+		struct fb_dmacopy param;
+		/* Get the parameter data.
+		 */
+		if (copy_from_user(&param32, (void *)arg, sizeof(param32))) {
+			pr_err("[%s]: failed to copy-from-user\n", __func__);
+			ret = -EFAULT;
+			break;
+		}
+		param.dst = compat_ptr(param32.dst);
+		param.src = param32.src;
+		param.length = param32.length;
+		ret = vc_mem_copy(fb, &param);
+		break;
+	}
+	default:
+		ret = bcm2708_ioctl(info, cmd, arg);
+		break;
+	}
+	return ret;
+}
+#endif
+
 static void bcm2708_fb_fillrect(struct fb_info *info,
 				const struct fb_fillrect *rect)
 {
@@ -821,6 +980,9 @@ static struct fb_ops bcm2708_fb_ops = {
 	.fb_imageblit = bcm2708_fb_imageblit,
 	.fb_pan_display = bcm2708_fb_pan_display,
 	.fb_ioctl = bcm2708_ioctl,
+#ifdef CONFIG_COMPAT
+	.fb_compat_ioctl = bcm2708_compat_ioctl,
+#endif
 };
 
 static int bcm2708_fb_register(struct bcm2708_fb *fb)
