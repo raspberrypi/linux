@@ -704,6 +704,7 @@ static void completion_tasklet_func(void *ptr)
 	urb_tq_entry_t *item;
 	dwc_irqflags_t flags;
 
+	/* This could just be spin_lock_irq */
 	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 	while (!DWC_TAILQ_EMPTY(&hcd->completed_urb_list)) {
 		item = DWC_TAILQ_FIRST(&hcd->completed_urb_list);
@@ -713,7 +714,6 @@ static void completion_tasklet_func(void *ptr)
 		DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 		DWC_FREE(item);
 
-		usb_hcd_unlink_urb_from_ep(hcd->priv, urb);
 		usb_hcd_giveback_urb(hcd->priv, urb, urb->status);
 
 		DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
