@@ -1081,6 +1081,31 @@ fb_blank(struct fb_info *info, int blank)
 }
 EXPORT_SYMBOL(fb_blank);
 
+static int fb_copyarea_user(struct fb_info *info,
+			    struct fb_copyarea *copy)
+{
+	int ret = 0;
+	if (!lock_fb_info(info))
+		return -ENODEV;
+	if (copy->dx >= info->var.xres ||
+	    copy->sx >= info->var.xres ||
+	    copy->width > info->var.xres ||
+	    copy->dy >= info->var.yres ||
+	    copy->sy >= info->var.yres ||
+	    copy->height > info->var.yres ||
+	    copy->dx + copy->width > info->var.xres ||
+	    copy->sx + copy->width > info->var.xres ||
+	    copy->dy + copy->height > info->var.yres ||
+	    copy->sy + copy->height > info->var.yres) {
+		ret = -EINVAL;
+		goto out;
+	}
+	info->fbops->fb_copyarea(info, copy);
+out:
+	unlock_fb_info(info);
+	return ret;
+}
+
 static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			unsigned long arg)
 {
@@ -1091,6 +1116,7 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	struct fb_cmap cmap_from;
 	struct fb_cmap_user cmap;
 	struct fb_event event;
+	struct fb_copyarea copy;
 	void __user *argp = (void __user *)arg;
 	long ret = 0;
 
@@ -1208,6 +1234,15 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		unlock_fb_info(info);
 		console_unlock();
 		break;
+	case FBIOCOPYAREA:
+		if (info->flags & FBINFO_HWACCEL_COPYAREA) {
+			/* only provide this ioctl if it is accelerated */
+			if (copy_from_user(&copy, argp, sizeof(copy)))
+				return -EFAULT;
+			ret = fb_copyarea_user(info, &copy);
+			break;
+		}
+		/* fall through */
 	default:
 		if (!lock_fb_info(info))
 			return -ENODEV;
@@ -1353,6 +1388,7 @@ static long fb_compat_ioctl(struct file *file, unsigned int cmd,
 	case FBIOPAN_DISPLAY:
 	case FBIOGET_CON2FBMAP:
 	case FBIOPUT_CON2FBMAP:
+	case FBIOCOPYAREA:
 		arg = (unsigned long) compat_ptr(arg);
 		/* fall through */
 	case FBIOBLANK:
