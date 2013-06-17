@@ -34,6 +34,11 @@
 #define FBIOPUT_MODEINFO        0x4617
 #define FBIOGET_DISPINFO        0x4618
 #define FBIO_WAITFORVSYNC	_IOW('F', 0x20, __u32)
+/*
+ * HACK: use 'z' in order not to clash with any other ioctl numbers which might
+ * be concurrently added to the mainline kernel
+ */
+#define FBIOCOPYAREA		_IOW('z', 0x21, struct fb_copyarea)
 
 #define FB_TYPE_PACKED_PIXELS		0	/* Packed Pixels	*/
 #define FB_TYPE_PLANES			1	/* Non interleaved planes */
