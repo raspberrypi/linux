@@ -77,7 +77,8 @@ extern void bcm_dma_wait_idle(void __iomem *dma_chan_base)
   dsb();
 
   /* ugly busy wait only option for now */
-  while (readl(dma_chan_base + BCM2708_DMA_CS) & BCM2708_DMA_ACTIVE);
+  while (readl(dma_chan_base + BCM2708_DMA_CS) & BCM2708_DMA_ACTIVE)
+    cpu_relax();
 }
 
 EXPORT_SYMBOL_GPL(bcm_dma_start);
@@ -146,6 +147,7 @@ static void vc_dmaman_init(struct vc_dmaman *dmaman, void __iomem *dma_base,
 	dmaman->dma_base = dma_base;
 	dmaman->chan_available = chans_available;
 	dmaman->has_feature[BCM_DMA_FEATURE_FAST_ORD] = 0x0c;  /* chans 2 & 3 */
+	dmaman->has_feature[BCM_DMA_FEATURE_BULK_ORD] = 0x01;  /* chan 0 */
 }
 
 static int vc_dmaman_chan_alloc(struct vc_dmaman *dmaman,
