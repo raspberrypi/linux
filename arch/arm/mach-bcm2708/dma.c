@@ -71,6 +71,8 @@ bcm_dma_start(void __iomem *dma_chan_base, dma_addr_t control_block)
 	writel(control_block,	     dma_chan_base + BCM2708_DMA_ADDR);
 	writel(BCM2708_DMA_ACTIVE,   dma_chan_base + BCM2708_DMA_CS);
 }
+EXPORT_SYMBOL_GPL(bcm_dma_start);
+
 
 extern void bcm_dma_wait_idle(void __iomem *dma_chan_base)
 {
@@ -80,8 +82,7 @@ extern void bcm_dma_wait_idle(void __iomem *dma_chan_base)
   while (readl(dma_chan_base + BCM2708_DMA_CS) & BCM2708_DMA_ACTIVE)
     cpu_relax();
 }
-
-EXPORT_SYMBOL_GPL(bcm_dma_start);
+EXPORT_SYMBOL_GPL(bcm_dma_wait_idle);
 
 /* Complete an ongoing DMA (assuming its results are to be ignored)
    Does nothing if there is no DMA in progress.
