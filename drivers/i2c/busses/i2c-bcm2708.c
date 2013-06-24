@@ -150,7 +150,7 @@ static inline void bcm2708_bsc_fifo_fill(struct bcm2708_i2c *bi)
 static inline void bcm2708_bsc_setup(struct bcm2708_i2c *bi)
 {
 	unsigned long bus_hz;
-	u32 cdiv;
+	u32 cdiv, s;
 	u32 c = BSC_C_I2CEN | BSC_C_INTD | BSC_C_ST | BSC_C_CLEAR_1;
 
 	bus_hz = clk_get_rate(bi->clk);
@@ -164,6 +164,29 @@ static inline void bcm2708_bsc_setup(struct bcm2708_i2c *bi)
 	bcm2708_wr(bi, BSC_DIV, cdiv);
 	bcm2708_wr(bi, BSC_A, bi->msg->addr);
 	bcm2708_wr(bi, BSC_DLEN, bi->msg->len);
+	/* Do the next two messages meet combined transaction criteria? 
+	   - Current message is a write, next message is a read
+	   - Both messages to same slave address
+	   - Write message can fit inside FIFO (16 bytes or less) */
+	if ( (bi->nmsgs > 1) &&
+	    !(bi->msg[0].flags & I2C_M_RD) && (bi->msg[1].flags & I2C_M_RD) &&
+	     (bi->msg[0].addr == bi->msg[1].addr) && (bi->msg[0].len <= 16)) {
+		/* Fill FIFO with entire write message (16 byte FIFO) */
+		while (bi->pos < bi->msg->len)
+			bcm2708_wr(bi, BSC_FIFO, bi->msg->buf[bi->pos++]);
+		/* Start write transfer (no interrupts, don't clear FIFO) */
+		bcm2708_wr(bi, BSC_C, BSC_C_I2CEN | BSC_C_ST);
+		/* poll for transfer start bit (should only take 1-20 polls) */
+		do {
+			s = bcm2708_rd(bi, BSC_S);
+		} while (!(s & (BSC_S_TA | BSC_S_ERR | BSC_S_CLKT | BSC_S_DONE)));
+		/* Send next read message before the write transfer finishes. */
+		bi->nmsgs--;
+		bi->msg++;
+		bi->pos = 0;
+		bcm2708_wr(bi, BSC_DLEN, bi->msg->len);
+		c = BSC_C_I2CEN | BSC_C_INTD | BSC_C_INTR | BSC_C_ST | BSC_C_READ;
+	}
 	bcm2708_wr(bi, BSC_C, c);
 }
 
