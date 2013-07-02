@@ -4276,7 +4276,7 @@ do { \
 									&& (pcd->ep0state == EP0_OUT_DATA_PHASE))
 									status.d32 = core_if->dev_if->out_desc_addr->status.d32;
 								if (pcd->ep0state == EP0_OUT_STATUS_PHASE)
-									status.d32 = status.d32 = core_if->dev_if->
+									status.d32 = core_if->dev_if->
 									out_desc_addr->status.d32;
 
 								if (status.b.sr) {

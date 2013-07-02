@@ -49,6 +49,7 @@ static inline uint32_t SET_DEBUG_LEVEL(const uint32_t new)
 	return old;
 }
 
+#define DBG_USER	(0x1)
 /** When debug level has the DBG_CIL bit set, display CIL Debug messages. */
 #define DBG_CIL		(0x2)
 /** When debug level has the DBG_CILV bit set, display CIL Verbose debug
