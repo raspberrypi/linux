@@ -34,6 +34,11 @@
 
 #include "dwc_otg_hcd.h"
 #include "dwc_otg_regs.h"
+#include "dwc_otg_mphi_fix.h"
+
+#include <linux/jiffies.h>
+#include <mach/hardware.h>
+
 
 extern bool microframe_schedule;
 
@@ -41,36 +46,105 @@ extern bool microframe_schedule;
  * This file contains the implementation of the HCD Interrupt handlers.
  */
 
+/*
+ * Some globals to communicate between the FIQ and INTERRUPT
+ */
+
+void * dummy_send;
+mphi_regs_t c_mphi_regs;
+int fiq_done, int_done;
+int g_next_sched_frame, g_np_count, g_np_sent, g_work_expected;
+static int mphi_int_count = 0 ;
+
+extern bool fiq_fix_enable;
+
+void __attribute__ ((naked)) dwc_otg_hcd_handle_fiq(void)
+{
+	gintsts_data_t gintsts;
+	hfnum_data_t hfnum;
+
+	/* entry takes care to store registers we will be treading on here */
+	asm __volatile__ (
+		"mov     ip, sp ;"
+		/* stash FIQ and normal regs */
+		"stmdb	sp!, {r0-r12,  lr};"
+		/* !! THIS SETS THE FRAME, adjust to > sizeof locals */
+		"sub     fp, ip, #256 ;"
+		);
+
+	fiq_done++;
+	gintsts.d32 = FIQ_READ_IO_ADDRESS(USB_BASE + 0x14) & FIQ_READ_IO_ADDRESS(USB_BASE + 0x18);
+	hfnum.d32 =   FIQ_READ_IO_ADDRESS(USB_BASE + 0x408);
+
+	if(gintsts.d32)
+	{
+		if(gintsts.b.sofintr && g_np_count == g_np_sent && dwc_frame_num_gt(g_next_sched_frame, hfnum.b.frnum))
+		{
+			/*
+			 * If np_count != np_sent that means we need to queue non-periodic (bulk) packets this packet
+			 * g_next_sched_frame is the next frame we have periodic packets for
+			 *
+			 * if neither of these are required for this frame then just clear the interrupt
+			 */
+			gintsts.d32 = 0;
+			gintsts.b.sofintr = 1;
+			FIQ_WRITE_IO_ADDRESS((USB_BASE + 0x14), gintsts.d32);
+
+			g_work_expected = 0;
+		}
+		else
+		{
+			g_work_expected = 1;
+			/* To enable the MPHI interrupt  (INT 32)
+			 */
+			FIQ_WRITE(  c_mphi_regs.outdda, (int) dummy_send);
+			FIQ_WRITE( c_mphi_regs.outddb, (1 << 29));
+
+			mphi_int_count++;
+			/* Clear the USB global interrupt so we don't just sit in the FIQ */
+			FIQ_MODIFY_IO_ADDRESS((USB_BASE + 0x8),1,0);
+
+		}
+	}
+	mb();
+
+	/* exit back to normal mode restoring everything */
+	asm __volatile__ (
+		/* return FIQ regs back to pristine state
+		 * and get normal regs back
+		 */
+		"ldmia	sp!, {r0-r12, lr};"
+
+		/* return */
+		"subs	pc, lr, #4;"
+	);
+}
+
 /** This function handles interrupts for the HCD. */
 int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 {
 	int retval = 0;
+	static int last_time;
 
 	dwc_otg_core_if_t *core_if = dwc_otg_hcd->core_if;
 	gintsts_data_t gintsts;
+	hfnum_data_t hfnum;
+
 #ifdef DEBUG
 	dwc_otg_core_global_regs_t *global_regs = core_if->core_global_regs;
 
-        //GRAYG: debugging
-        if (NULL == global_regs) {
-                DWC_DEBUGPL(DBG_HCD, "**** NULL regs: dwc_otg_hcd=%p "
-                            "core_if=%p\n",
-                            dwc_otg_hcd, global_regs);
-                return retval;
-        }
 #endif
 
 	/* Exit from ISR if core is hibernated */
 	if (core_if->hibernation_suspend == 1) {
-		return retval;
+		goto exit_handler_routine;
 	}
 	DWC_SPINLOCK(dwc_otg_hcd->lock);
 	/* Check if HOST Mode */
 	if (dwc_otg_is_host_mode(core_if)) {
 		gintsts.d32 = dwc_otg_read_core_intr(core_if);
 		if (!gintsts.d32) {
-			DWC_SPINUNLOCK(dwc_otg_hcd->lock);
-			return 0;
+			goto exit_handler_routine;
 		}
 #ifdef DEBUG
 		/* Don't print debug message in the interrupt handler on SOF */
@@ -88,9 +162,14 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 				    "DWC OTG HCD Interrupt Detected gintsts&gintmsk=0x%08x core_if=%p\n",
 				    gintsts.d32, core_if);
 #endif
-
-		if (gintsts.b.sofintr) {
-			retval |= dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd);
+		hfnum.d32 = DWC_READ_REG32(&dwc_otg_hcd->core_if->host_if->host_global_regs->hfnum);
+		if (gintsts.b.sofintr && g_np_count == g_np_sent && dwc_frame_num_gt(g_next_sched_frame, hfnum.b.frnum))
+		{
+			/* Note, we should never get here if the FIQ is doing it's job properly*/
+			retval |= dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd, g_work_expected);
+		}
+		else if (gintsts.b.sofintr) {
+			retval |= dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd, g_work_expected);
 		}
 		if (gintsts.b.rxstsqlvl) {
 			retval |=
@@ -138,11 +217,37 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 #endif
 
 	}
+
+exit_handler_routine:
+
+	if (fiq_fix_enable)
+	{
+		/* Clear the MPHI interrupt */
+		DWC_WRITE_REG32(c_mphi_regs.intstat, (1<<16));
+		if (mphi_int_count >= 60)
+		{
+			DWC_WRITE_REG32(c_mphi_regs.ctrl, ((1<<31) + (1<<16)));
+			DWC_WRITE_REG32(c_mphi_regs.ctrl, (1<<31));
+			mphi_int_count = 0;
+		}
+			int_done++;
+		if((jiffies / HZ) > last_time)
+		{
+			/* Once a second output the fiq and irq numbers, useful for debug */
+			last_time = jiffies / HZ;
+			DWC_DEBUGPL(DBG_USER, "int_done = %d fiq_done = %d\n", int_done, fiq_done);
+		}
+
+		/* Re-Enable FIQ interrupt from USB peripheral */
+		DWC_MODIFY_REG32((uint32_t *)IO_ADDRESS(USB_BASE + 0x8), 0 , 1);
+	}
+
 	DWC_SPINUNLOCK(dwc_otg_hcd->lock);
 	return retval;
 }
 
 #ifdef DWC_TRACK_MISSED_SOFS
+
 #warning Compiling code to track missed SOFs
 #define FRAME_NUM_ARRAY_SIZE 1000
 /**
@@ -182,13 +287,15 @@ static inline void track_missed_sofs(uint16_t curr_frame_number)
  * (micro)frame. Periodic transactions may be queued to the controller for the
  * next (micro)frame.
  */
-int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
+int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd, int32_t work_expected)
 {
 	hfnum_data_t hfnum;
 	dwc_list_link_t *qh_entry;
 	dwc_otg_qh_t *qh;
 	dwc_otg_transaction_type_e tr_type;
 	gintsts_data_t gintsts = {.d32 = 0 };
+	int did_something = 0;
+	int32_t next_sched_frame = -1;
 
 	hfnum.d32 =
 	    DWC_READ_REG32(&hcd->core_if->host_if->host_global_regs->hfnum);
@@ -218,12 +325,30 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 			 */
 			DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_ready,
 					   &qh->qh_list_entry);
+
+			did_something = 1;
+		}
+		else
+		{
+			if(next_sched_frame < 0 || dwc_frame_num_le(qh->sched_frame, next_sched_frame))
+			{
+				next_sched_frame = qh->sched_frame;
+			}
 		}
 	}
+
+	g_next_sched_frame = next_sched_frame;
+
 	tr_type = dwc_otg_hcd_select_transactions(hcd);
 	if (tr_type != DWC_OTG_TRANSACTION_NONE) {
 		dwc_otg_hcd_queue_transactions(hcd, tr_type);
+		did_something = 1;
 	}
+	if(work_expected && !did_something)
+		DWC_DEBUGPL(DBG_USER, "Nothing to do !! frame = %x, g_next_sched_frame = %x\n", (int) hfnum.b.frnum, g_next_sched_frame);
+	if(!work_expected && did_something)
+		DWC_DEBUGPL(DBG_USER, "Unexpected work done !! frame = %x, g_next_sched_frame = %x\n", (int) hfnum.b.frnum, g_next_sched_frame);
+
 
 	/* Clear interrupt */
 	gintsts.b.sofintr = 1;
@@ -2102,5 +2227,4 @@ int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 
 	return retval;
 }
-
 #endif /* DWC_DEVICE_ONLY */
