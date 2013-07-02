@@ -376,6 +376,31 @@ static struct platform_device bcm2708_vcio_device = {
 		},
 };
 
+static struct resource bcm2708_vchiq_resources[] = {
+	{
+		.start = ARMCTRL_0_BELL_BASE,
+		.end = ARMCTRL_0_BELL_BASE + 16,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = IRQ_ARM_DOORBELL_0,
+		.end = IRQ_ARM_DOORBELL_0,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static u64 vchiq_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
+
+static struct platform_device bcm2708_vchiq_device = {
+	.name = "bcm2835_vchiq",
+	.id = -1,
+	.resource = bcm2708_vchiq_resources,
+	.num_resources = ARRAY_SIZE(bcm2708_vchiq_resources),
+	.dev = {
+		.dma_mask = &vchiq_dmamask,
+		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON),
+		},
+};
+
 #ifdef CONFIG_BCM2708_GPIO
 #define BCM_GPIO_DRIVER_NAME "bcm2708_gpio"
 
@@ -611,6 +636,7 @@ void __init bcm2708_init(void)
 
 	bcm_register_device_dt(&bcm2708_dmaengine_device);
 	bcm_register_device(&bcm2708_vcio_device);
+	bcm_register_device_dt(&bcm2708_vchiq_device);
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device_dt(&bcm2708_gpio_device);
 #endif
