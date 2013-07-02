@@ -168,10 +168,10 @@ typedef enum dwc_otg_control_phase {
 
 /** Transaction types. */
 typedef enum dwc_otg_transaction_type {
-	DWC_OTG_TRANSACTION_NONE,
-	DWC_OTG_TRANSACTION_PERIODIC,
-	DWC_OTG_TRANSACTION_NON_PERIODIC,
-	DWC_OTG_TRANSACTION_ALL
+	DWC_OTG_TRANSACTION_NONE          = 0,
+	DWC_OTG_TRANSACTION_PERIODIC      = 1,
+	DWC_OTG_TRANSACTION_NON_PERIODIC  = 2,
+	DWC_OTG_TRANSACTION_ALL           = DWC_OTG_TRANSACTION_PERIODIC + DWC_OTG_TRANSACTION_NON_PERIODIC
 } dwc_otg_transaction_type_e;
 
 struct dwc_otg_qh;
@@ -321,6 +321,11 @@ typedef struct dwc_otg_qh {
 	 */
 	uint16_t sched_frame;
 
+	/*
+	** Frame a NAK was received on this queue head, used to minimise NAK retransmission
+	*/
+	uint16_t nak_frame;
+
 	/** (micro)frame at which last start split was initialized. */
 	uint16_t start_split_frame;
 
@@ -365,9 +370,18 @@ typedef struct dwc_otg_qh {
 
 	uint16_t speed;
 	uint16_t frame_usecs[8];
+
+	uint32_t skip_count;
 } dwc_otg_qh_t;
 
 DWC_CIRCLEQ_HEAD(hc_list, dwc_hc);
+
+typedef struct urb_tq_entry {
+	struct urb *urb;
+	DWC_TAILQ_ENTRY(urb_tq_entry) urb_tq_entries;
+} urb_tq_entry_t;
+
+DWC_TAILQ_HEAD(urb_list, urb_tq_entry);
 
 /**
  * This structure holds the state of the HCD, including the non-periodic and
@@ -546,9 +560,12 @@ struct dwc_otg_hcd {
 	/* Tasket to do a reset */
 	dwc_tasklet_t *reset_tasklet;
 
+	dwc_tasklet_t *completion_tasklet;
+	struct urb_list completed_urb_list;
+
 	/*  */
 	dwc_spinlock_t *lock;
-
+	dwc_spinlock_t *channel_lock;
 	/**
 	 * Private data that could be used by OS wrapper.
 	 */
@@ -558,6 +575,12 @@ struct dwc_otg_hcd {
 
 	/** Frame List */
 	uint32_t *frame_list;
+
+	/** Hub - Port assignment */
+	int hub_port[128];
+#ifdef FIQ_DEBUG
+	int hub_port_alloc[2048];
+#endif
 
 	/** Frame List DMA address */
 	dma_addr_t frame_list_dma;
@@ -588,6 +611,10 @@ extern dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t
 								  * hcd);
 extern void dwc_otg_hcd_queue_transactions(dwc_otg_hcd_t * hcd,
 					   dwc_otg_transaction_type_e tr_type);
+
+int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh);
+void dwc_otg_hcd_release_port(dwc_otg_hcd_t * dwc_otg_hcd, dwc_otg_qh_t *qh);
+
 
 /** @} */
 
