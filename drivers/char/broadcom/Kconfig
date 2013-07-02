@@ -1,0 +1,16 @@
+#
+# Broadcom char driver config
+#
+
+menuconfig BRCM_CHAR_DRIVERS
+	bool "Broadcom Char Drivers"
+	help
+	  Broadcom's char drivers
+
+config BCM_VC_CMA
+	bool "Videocore CMA"
+	depends on CMA && BRCM_CHAR_DRIVERS && BCM2708_VCHIQ
+	default n
+        help
+          Helper for videocore CMA access.
+
