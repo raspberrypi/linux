@@ -344,6 +344,14 @@ config I2C_BCM2835
 	  This support is also available as a module.  If so, the module
 	  will be called i2c-bcm2835.
 
+config I2C_BCM2708
+	tristate "BCM2708 BSC"
+	depends on MACH_BCM2708
+	help
+	  Enabling this option will add BSC (Broadcom Serial Controller)
+	  support for the BCM2708. BSC is a Broadcom proprietary bus compatible
+	  with I2C/TWI/SMBus.
+
 config I2C_BLACKFIN_TWI
 	tristate "Blackfin TWI I2C support"
 	depends on BLACKFIN
