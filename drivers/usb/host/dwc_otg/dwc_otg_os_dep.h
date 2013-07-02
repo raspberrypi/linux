@@ -97,6 +97,9 @@ typedef struct os_dependent {
 	/** Register offset for Diagnostic API */
 	uint32_t reg_offset;
 
+	/** Base address for MPHI peripheral */
+	void *mphi_base;
+
 #ifdef LM_INTERFACE
 	struct lm_device *lmdev;
 #elif  defined(PCI_INTERFACE)
