@@ -317,10 +317,30 @@ static struct resource bcm2708_usb_resources[] = {
 	       .flags = IORESOURCE_MEM,
 	       },
 	[1] = {
-	       .start = IRQ_USB,
-	       .end = IRQ_USB,
+		.start = MPHI_BASE,
+		.end = MPHI_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	      },
+	[2] = {
+	       .start = IRQ_HOSTPORT,
+	       .end = IRQ_HOSTPORT,
 	       .flags = IORESOURCE_IRQ,
 	       },
+};
+
+bool fiq_fix_enable = true;
+
+static struct resource bcm2708_usb_resources_no_fiq_fix[] = {
+	[0] = {
+		.start = USB_BASE,
+		.end = USB_BASE + SZ_128K - 1,
+		.flags = IORESOURCE_MEM,
+		},
+	[1] = {
+		.start = IRQ_USB,
+		.end = IRQ_USB,
+		.flags = IORESOURCE_IRQ,
+		},
 };
 
 static u64 usb_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
@@ -704,6 +724,11 @@ void __init bcm2708_init(void)
 #endif
 	bcm_register_device(&bcm2708_systemtimer_device);
 	bcm_register_device(&bcm2708_fb_device);
+	if (!fiq_fix_enable)
+	{
+		bcm2708_usb_device.resource = bcm2708_usb_resources_no_fiq_fix;
+		bcm2708_usb_device.num_resources = ARRAY_SIZE(bcm2708_usb_resources_no_fiq_fix);
+	}
 	bcm_register_device(&bcm2708_usb_device);
 	bcm_register_device(&bcm2708_uart1_device);
 	bcm_register_device(&bcm2708_powerman_device);
