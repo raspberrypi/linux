@@ -63,9 +63,12 @@
 #define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO */
 #define UART0_BASE               (BCM2708_PERI_BASE + 0x201000)	/* Uart 0 */
 #define MMCI0_BASE               (BCM2708_PERI_BASE + 0x202000) /* MMC interface */
+#define SPI0_BASE		 (BCM2708_PERI_BASE + 0x204000) /* SPI0 */
+#define BSC0_BASE		 (BCM2708_PERI_BASE + 0x205000) /* BSC0 I2C/TWI */
 #define UART1_BASE               (BCM2708_PERI_BASE + 0x215000) /* Uart 1 */
 #define EMMC_BASE                (BCM2708_PERI_BASE + 0x300000) /* eMMC interface */
 #define SMI_BASE		 (BCM2708_PERI_BASE + 0x600000) /* SMI */
+#define BSC1_BASE		 (BCM2708_PERI_BASE + 0x804000) /* BSC1 I2C/TWI */
 #define USB_BASE                 (BCM2708_PERI_BASE + 0x980000) /* DTC_OTG USB controller */
 #define MCORE_BASE               (BCM2708_PERI_BASE + 0x0000)   /* Fake frame buffer device (actually the multicore sync block*/
 
