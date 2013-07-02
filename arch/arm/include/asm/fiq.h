@@ -42,6 +42,7 @@ extern void disable_fiq(int fiq);
 /* helpers defined in fiqasm.S: */
 extern void __set_fiq_regs(unsigned long const *regs);
 extern void __get_fiq_regs(unsigned long *regs);
+extern void __FIQ_Branch(unsigned long *regs);
 
 static inline void set_fiq_regs(struct pt_regs const *regs)
 {
