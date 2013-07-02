@@ -64,6 +64,8 @@ bool microframe_schedule=true;
 
 static const char dwc_driver_name[] = "dwc_otg";
 
+extern void* dummy_send;
+
 extern int pcd_init(
 #ifdef LM_INTERFACE
 			   struct lm_device *_dev
@@ -237,6 +239,10 @@ static struct dwc_otg_driver_module_params dwc_otg_module_params = {
 	.otg_ver = -1,
 	.adp_enable = -1,
 };
+
+//Global variable to switch the fiq fix on or off (declared in bcm2708.c)
+extern bool fiq_fix_enable;
+
 
 /**
  * This function shows the Driver Version.
@@ -779,17 +785,33 @@ static int dwc_otg_driver_probe(
                     _dev->resource->start,
                     _dev->resource->end - _dev->resource->start + 1);
 #if 1
-        if (!request_mem_region(_dev->resource->start,
-                                _dev->resource->end - _dev->resource->start + 1,
+        if (!request_mem_region(_dev->resource[0].start,
+                                _dev->resource[0].end - _dev->resource[0].start + 1,
                                 "dwc_otg")) {
           dev_dbg(&_dev->dev, "error reserving mapped memory\n");
           retval = -EFAULT;
           goto fail;
         }
 
-	dwc_otg_device->os_dep.base = ioremap_nocache(_dev->resource->start,
-                                                      _dev->resource->end -
-                                                      _dev->resource->start+1);
+	dwc_otg_device->os_dep.base = ioremap_nocache(_dev->resource[0].start,
+                                                      _dev->resource[0].end -
+                                                      _dev->resource[0].start+1);
+	if (fiq_fix_enable)
+	{
+		if (!request_mem_region(_dev->resource[1].start,
+	                                _dev->resource[1].end - _dev->resource[1].start + 1,
+	                                "dwc_otg")) {
+	          dev_dbg(&_dev->dev, "error reserving mapped memory\n");
+	          retval = -EFAULT;
+	          goto fail;
+	}
+
+		dwc_otg_device->os_dep.mphi_base = ioremap_nocache(_dev->resource[1].start,
+							    _dev->resource[1].end -
+							    _dev->resource[1].start + 1);
+		dummy_send = (void *) kmalloc(16, GFP_ATOMIC);
+	}
+
 #else
         {
                 struct map_desc desc = {
@@ -1063,6 +1085,7 @@ static int __init dwc_otg_driver_init(void)
 		printk(KERN_ERR "%s retval=%d\n", __func__, retval);
 		return retval;
 	}
+	printk(KERN_DEBUG "dwc_otg: FIQ %s\n", fiq_fix_enable ? "enabled":"disabled");
 
 	error = driver_create_file(drv, &driver_attr_version);
 #ifdef DEBUG
@@ -1342,6 +1365,10 @@ module_param_named(otg_ver, dwc_otg_module_params.otg_ver, int, 0444);
 MODULE_PARM_DESC(otg_ver, "OTG revision supported 0=OTG 1.3 1=OTG 2.0");
 module_param(microframe_schedule, bool, 0444);
 MODULE_PARM_DESC(microframe_schedule, "Enable the microframe scheduler");
+
+
+module_param(fiq_fix_enable, bool, 0444);
+MODULE_PARM_DESC(fiq_fix_enable, "Enable the fiq fix");
 
 /** @page "Module Parameters"
  *
