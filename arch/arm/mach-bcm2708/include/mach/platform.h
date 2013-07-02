@@ -56,7 +56,9 @@
  */
 
 #define BCM2708_PERI_BASE        0x20000000
+#define IC0_BASE                 (BCM2708_PERI_BASE + 0x2000)
 #define ST_BASE                  (BCM2708_PERI_BASE + 0x3000)   /* System Timer */
+#define MPHI_BASE		 (BCM2708_PERI_BASE + 0x6000)	/* Message -based Parallel Host Interface */
 #define DMA_BASE		 (BCM2708_PERI_BASE + 0x7000)	/* DMA controller */
 #define ARM_BASE                 (BCM2708_PERI_BASE + 0xB000)	 /* BCM2708 ARM control block */
 #define PM_BASE			 (BCM2708_PERI_BASE + 0x100000) /* Power Management, Reset controller and Watchdog registers */
