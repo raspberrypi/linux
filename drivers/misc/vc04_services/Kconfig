@@ -1,0 +1,9 @@
+config BCM2708_VCHIQ
+	tristate "Videocore VCHIQ"
+	depends on (MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835) && BCM2708_MBOX
+	default y
+	help
+		Kernel to VideoCore communication interface for the
+		BCM2708 family of products.
+		Defaults to Y when the Broadcom Videocore services
+		are included in the build, N otherwise.
