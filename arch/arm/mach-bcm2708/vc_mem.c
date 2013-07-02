@@ -128,44 +128,33 @@ struct vc_set_msg {
 	uint32_t end_tag;			/* an end identifier, should be set to NULL */
 };
 
-#define VCMSG_GET_ARM_MEMORY 0x00010005
-#define VCMSG_GET_VC_MEMORY  0x00010006
-
 static void vc_mem_update(void)
 {
-	uint32_t success;
-	dma_addr_t vc_mem;						/* the memory address accessed from videocore */
-	struct vc_set_msg *get_mem;					/* the memory address accessed from driver */
+	struct vc_set_msg msg;					/* the memory address accessed from driver */
+	uint32_t s;
 
-	/* allocate some memory for the messages to use throughout the lifetime of the driver, use the larger of the two message structures */
-	get_mem = (struct vc_set_msg *)dma_alloc_coherent(NULL, PAGE_ALIGN(sizeof(struct vc_set_msg)), &vc_mem, GFP_ATOMIC); 
-	/* clear any garbage */
-	memset(get_mem, 0, sizeof(struct vc_set_msg));
+	memset(&msg, 0, sizeof msg);
 	/* create the message */
-	get_mem->msg_size = sizeof(struct vc_set_msg);
-	get_mem->tag[0].tag_id = VCMSG_GET_VC_MEMORY;
-	get_mem->tag[0].buffer_size = 8;
-	get_mem->tag[0].data_size   = 0;
-	get_mem->tag[1].tag_id = VCMSG_GET_ARM_MEMORY;
-	get_mem->tag[1].buffer_size = 8;
-	get_mem->tag[1].data_size   = 0;
+	msg.msg_size = sizeof msg;
+	msg.tag[0].tag_id = VCMSG_GET_VC_MEMORY;
+	msg.tag[0].buffer_size = 8;
+	msg.tag[0].data_size   = 0;
+	msg.tag[1].tag_id = VCMSG_GET_ARM_MEMORY;
+	msg.tag[1].buffer_size = 8;
+	msg.tag[1].data_size   = 0;
 
 	/* send the message */
-	wmb();
-	bcm_mailbox_write(MBOX_CHAN_PROPERTY,(uint32_t)vc_mem);
-	bcm_mailbox_read(MBOX_CHAN_PROPERTY, &success);
-	rmb();
+	s = bcm_mailbox_property(&msg, sizeof msg);
 
-	LOG_DBG("%s: resp %x, vcbase=%x vcsize=%x armbase=%x armsize=%x", __func__, get_mem->request_code, 
-		get_mem->tag[0].base, get_mem->tag[0].size, get_mem->tag[1].base, get_mem->tag[1].size);
+	LOG_DBG("%s: success=%d resp %x, vcbase=%x vcsize=%x armbase=%x armsize=%x", __func__, s, msg.request_code, 
+		msg.tag[0].base, msg.tag[0].size, msg.tag[1].base, msg.tag[1].size);
 
 	/* check we're all good */
-	if (get_mem->request_code & 0x80000000) {
-		mm_vc_mem_base = get_mem->tag[0].base;
-		mm_vc_mem_size = get_mem->tag[0].size+get_mem->tag[1].size;
-		mm_vc_mem_phys_addr = get_mem->tag[1].base;
+	if (s == 0 && msg.request_code & 0x80000000) {
+		mm_vc_mem_base = msg.tag[0].base;
+		mm_vc_mem_size = msg.tag[0].size+msg.tag[1].size;
+		mm_vc_mem_phys_addr = msg.tag[1].base;
 	}
-	dma_free_coherent(NULL, PAGE_ALIGN(sizeof(struct vc_set_msg)), (void *)get_mem, vc_mem);
 }
 
 
