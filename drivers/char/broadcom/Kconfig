@@ -7,51 +7,10 @@ menuconfig BRCM_CHAR_DRIVERS
 	help
 	  Broadcom's char drivers
 
-if BRCM_CHAR_DRIVERS
-
 config BCM_VC_CMA
 	bool "Videocore CMA"
-	depends on CMA && BCM2708_VCHIQ
+	depends on CMA && BRCM_CHAR_DRIVERS && BCM2708_VCHIQ
 	default n
         help
           Helper for videocore CMA access.
 
-config BCM2708_VCMEM
-	bool "Videocore Memory"
-        default y
-        help
-          Helper for videocore memory access and total size allocation.
-
-config BCM_VCIO
-	tristate "Mailbox userspace access"
-	depends on BCM2835_MBOX
-	help
-	  Gives access to the mailbox property channel from userspace.
-
-endif
-
-config BCM_VC_SM
-	bool "VMCS Shared Memory"
-	depends on BCM2708_VCHIQ
-	select BCM2708_VCMEM
-	default n
-	help
-	Support for the VC shared memory on the Broadcom reference
-	design. Uses the VCHIQ stack.
-
-config BCM2835_DEVGPIOMEM
-	tristate "/dev/gpiomem rootless GPIO access via mmap() on the BCM2835"
-	default m
-	help
-		Provides users with root-free access to the GPIO registers
-		on the 2835. Calling mmap(/dev/gpiomem) will map the GPIO
-		register page to the user's pointer.
-
-config BCM2835_SMI_DEV
-	tristate "Character device driver for BCM2835 Secondary Memory Interface"
-	depends on (MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835) && BCM2835_SMI
-	default m
-	help
-		This driver provides a character device interface (ioctl + read/write) to
-		Broadcom's Secondary Memory interface. The low-level functionality is provided
-		by the SMI driver itself.
