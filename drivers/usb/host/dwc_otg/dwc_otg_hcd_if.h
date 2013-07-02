@@ -113,6 +113,11 @@ extern void dwc_otg_hcd_remove(dwc_otg_hcd_t * hcd);
  */
 extern int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd);
 
+/** This function is used to handle the fast interrupt
+ *
+ */
+extern void __attribute__ ((naked)) dwc_otg_hcd_handle_fiq(void);
+
 /**
  * Returns private data set by
  * dwc_otg_hcd_set_priv_data function.

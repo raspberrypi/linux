@@ -572,6 +572,9 @@ static int check_max_xfer_size(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	return status;
 }
 
+
+extern int g_next_sched_frame, g_np_count, g_np_sent;
+
 /**
  * Schedules an interrupt or isochronous transfer in the periodic schedule.
  *
@@ -630,8 +633,13 @@ static int schedule_periodic(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		DWC_LIST_INSERT_TAIL(&hcd->periodic_sched_ready, &qh->qh_list_entry);
 	}
 	else {
-	/* Always start in the inactive schedule. */
-	DWC_LIST_INSERT_TAIL(&hcd->periodic_sched_inactive, &qh->qh_list_entry);
+		if(DWC_LIST_EMPTY(&hcd->periodic_sched_inactive) || dwc_frame_num_le(qh->sched_frame, g_next_sched_frame))
+		{
+			g_next_sched_frame = qh->sched_frame;
+
+		}
+		/* Always start in the inactive schedule. */
+		DWC_LIST_INSERT_TAIL(&hcd->periodic_sched_inactive, &qh->qh_list_entry);
 	}
 
 	if (!microframe_schedule) {
@@ -644,6 +652,7 @@ static int schedule_periodic(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 
 	return status;
 }
+
 
 /**
  * This function adds a QH to either the non periodic or periodic schedule if
@@ -667,6 +676,7 @@ int dwc_otg_hcd_qh_add(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		/* Always start in the inactive schedule. */
 		DWC_LIST_INSERT_TAIL(&hcd->non_periodic_sched_inactive,
 				     &qh->qh_list_entry);
+		g_np_count++;
 	} else {
 		status = schedule_periodic(hcd, qh);
 		if ( !hcd->periodic_qh_count ) {
@@ -767,6 +777,7 @@ void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 			if (sched_next_periodic_split) {
 
 				qh->sched_frame = frame_number;
+
 				if (dwc_frame_num_le(frame_number,
 						     dwc_frame_num_inc
 						     (qh->start_split_frame,
@@ -815,6 +826,11 @@ void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 				DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_ready,
 						   &qh->qh_list_entry);
 			} else {
+				if(!dwc_frame_num_le(g_next_sched_frame, qh->sched_frame))
+				{
+					g_next_sched_frame = qh->sched_frame;
+				}
+
 				DWC_LIST_MOVE_HEAD
 				    (&hcd->periodic_sched_inactive,
 				     &qh->qh_list_entry);
