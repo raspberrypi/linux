@@ -218,6 +218,14 @@ config ARM_SPEAR_CPUFREQ
 	help
 	  This adds the CPUFreq driver support for SPEAr SOCs.
 
+config ARM_BCM2835_CPUFREQ
+	bool "BCM2835 Driver"
+	default y
+	help
+	  This adds the CPUFreq driver for BCM2835
+
+	  If in doubt, say N.
+
 config ARM_TEGRA_CPUFREQ
 	bool "TEGRA CPUFreq support"
 	depends on ARCH_TEGRA
