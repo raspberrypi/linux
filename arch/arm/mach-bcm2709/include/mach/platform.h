@@ -78,6 +78,8 @@
 #define ARMCTRL_IC_BASE          (ARM_BASE + 0x200)           /* ARM interrupt controller */
 #define ARMCTRL_TIMER0_1_BASE    (ARM_BASE + 0x400)           /* Timer 0 and 1 */
 #define ARMCTRL_0_SBM_BASE       (ARM_BASE + 0x800)           /* User 0 (ARM)'s Semaphores Doorbells and Mailboxes */
+#define ARMCTRL_0_BELL_BASE      (ARMCTRL_0_SBM_BASE + 0x40)  /* User 0 (ARM)'s Doorbell */
+#define ARMCTRL_0_MAIL0_BASE     (ARMCTRL_0_SBM_BASE + 0x80)  /* User 0 (ARM)'s Mailbox 0 */
 
 /*
  * Watchdog
