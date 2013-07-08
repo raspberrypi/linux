@@ -255,6 +255,18 @@ static char rtw_proc_name[IFNAMSIZ];
 static struct proc_dir_entry *rtw_proc = NULL;
 static int	rtw_proc_cnt = 0;
 
+#ifndef create_proc_entry
+/* dummy routines */
+void rtw_proc_remove_one(struct net_device *dev)
+{
+}
+
+void rtw_proc_init_one(struct net_device *dev)
+{
+}
+
+#else	/* create_proc_entry not defined */
+
 void rtw_proc_init_one(struct net_device *dev)
 {
 	struct proc_dir_entry *dir_dev = NULL;
@@ -524,6 +536,7 @@ void rtw_proc_remove_one(struct net_device *dev)
 		}
 	}
 }
+#endif
 #endif
 
 uint loadparam( _adapter *padapter,  _nic_hdl	pnetdev)
