@@ -324,6 +324,27 @@ int fiq_hcintr_handle(int channel, hfnum_data_t hfnum)
 			}
 		}
 	}
+	else
+	{
+		/*
+		 * If we have any of NAK, ACK, Datatlgerr active on a
+		 * non-split channel, the sole reason is to reset error
+		 * counts for a previously broken transaction. The FIQ
+		 * will thrash on NAK IN and ACK OUT in particular so
+		 * handle it "once" and allow the IRQ to do the rest.
+		 */
+		hcint.d32 &= hcintmsk.d32;
+		if(hcint.b.nak)
+		{
+			hcintmsk.b.nak = 0;
+			FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0xc), hcintmsk.d32);
+		}
+		if (hcint.b.ack)
+		{
+			hcintmsk.b.ack = 0;
+			FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0xc), hcintmsk.d32);
+		}
+	}
 
 	// Clear the interrupt, this will also clear the HAINT bit
 	FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0x8), hcint.d32);
