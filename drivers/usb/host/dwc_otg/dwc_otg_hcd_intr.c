@@ -1851,7 +1851,11 @@ static int32_t handle_hc_nak_intr(dwc_otg_hcd_t * hcd,
 			 * transfers in DMA mode for the sole purpose of
 			 * resetting the error count after a transaction error
 			 * occurs. The core will continue transferring data.
+			 * Disable other interrupts unmasked for the same
+			 * reason.
 			 */
+			disable_hc_int(hc_regs, datatglerr);
+			disable_hc_int(hc_regs, ack);
 			qtd->error_count = 0;
 			goto handle_nak_done;
 		}
@@ -1963,6 +1967,15 @@ static int32_t handle_hc_ack_intr(dwc_otg_hcd_t * hcd,
 			halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_ACK);
 		}
 	} else {
+		/*
+		 * An unmasked ACK on a non-split DMA transaction is
+		 * for the sole purpose of resetting error counts. Disable other
+		 * interrupts unmasked for the same reason.
+		 */
+		if(hcd->core_if->dma_enable) {
+			disable_hc_int(hc_regs, datatglerr);
+			disable_hc_int(hc_regs, nak);
+		}
 		qtd->error_count = 0;
 
 		if (hc->qh->ping_state) {
@@ -2328,6 +2341,14 @@ static int32_t handle_hc_datatglerr_intr(dwc_otg_hcd_t * hcd,
 			qtd->urb, qtd, DWC_OTG_HC_XFER_XACT_ERR);
 		halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_XACT_ERR);
 	} else if (hc->ep_is_in) {
+		/* An unmasked data toggle error on a non-split DMA transaction is
+		 * for the sole purpose of resetting error counts. Disable other
+		 * interrupts unmasked for the same reason.
+		 */
+		if(hcd->core_if->dma_enable) {
+			disable_hc_int(hc_regs, ack);
+			disable_hc_int(hc_regs, nak);
+		}
 		qtd->error_count = 0;
 	}
 
