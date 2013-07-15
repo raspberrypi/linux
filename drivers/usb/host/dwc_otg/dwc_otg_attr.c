@@ -920,7 +920,7 @@ static ssize_t spramdump_show(struct device *_dev,
 {
         dwc_otg_device_t *otg_dev = dwc_otg_drvdev(_dev);
 
-	dwc_otg_dump_spram(otg_dev->core_if);
+	//dwc_otg_dump_spram(otg_dev->core_if);
 
 	return sprintf(buf, "SPRAM Dump\n");
 }
