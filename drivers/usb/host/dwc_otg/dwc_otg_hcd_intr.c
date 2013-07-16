@@ -324,6 +324,27 @@ int fiq_hcintr_handle(int channel, hfnum_data_t hfnum)
 			}
 		}
 	}
+	else
+	{
+		/*
+		 * If we have any of NAK, ACK, Datatlgerr active on a
+		 * non-split channel, the sole reason is to reset error
+		 * counts for a previously broken transaction. The FIQ
+		 * will thrash on NAK IN and ACK OUT in particular so
+		 * handle it "once" and allow the IRQ to do the rest.
+		 */
+		hcint.d32 &= hcintmsk.d32;
+		if(hcint.b.nak)
+		{
+			hcintmsk.b.nak = 0;
+			FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0xc), hcintmsk.d32);
+		}
+		if (hcint.b.ack)
+		{
+			hcintmsk.b.ack = 0;
+			FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0xc), hcintmsk.d32);
+		}
+	}
 
 	// Clear the interrupt, this will also clear the HAINT bit
 	FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0x8), hcint.d32);
@@ -1851,7 +1872,11 @@ static int32_t handle_hc_nak_intr(dwc_otg_hcd_t * hcd,
 			 * transfers in DMA mode for the sole purpose of
 			 * resetting the error count after a transaction error
 			 * occurs. The core will continue transferring data.
+			 * Disable other interrupts unmasked for the same
+			 * reason.
 			 */
+			disable_hc_int(hc_regs, datatglerr);
+			disable_hc_int(hc_regs, ack);
 			qtd->error_count = 0;
 			goto handle_nak_done;
 		}
@@ -1963,6 +1988,15 @@ static int32_t handle_hc_ack_intr(dwc_otg_hcd_t * hcd,
 			halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_ACK);
 		}
 	} else {
+		/*
+		 * An unmasked ACK on a non-split DMA transaction is
+		 * for the sole purpose of resetting error counts. Disable other
+		 * interrupts unmasked for the same reason.
+		 */
+		if(hcd->core_if->dma_enable) {
+			disable_hc_int(hc_regs, datatglerr);
+			disable_hc_int(hc_regs, nak);
+		}
 		qtd->error_count = 0;
 
 		if (hc->qh->ping_state) {
@@ -2328,6 +2362,14 @@ static int32_t handle_hc_datatglerr_intr(dwc_otg_hcd_t * hcd,
 			qtd->urb, qtd, DWC_OTG_HC_XFER_XACT_ERR);
 		halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_XACT_ERR);
 	} else if (hc->ep_is_in) {
+		/* An unmasked data toggle error on a non-split DMA transaction is
+		 * for the sole purpose of resetting error counts. Disable other
+		 * interrupts unmasked for the same reason.
+		 */
+		if(hcd->core_if->dma_enable) {
+			disable_hc_int(hc_regs, ack);
+			disable_hc_int(hc_regs, nak);
+		}
 		qtd->error_count = 0;
 	}
 
