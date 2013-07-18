@@ -733,9 +733,9 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 	if(dwc_otg_urb == NULL)
 		return -ENOMEM;
 
-        urb->hcpriv = dwc_otg_urb;
-        if (!dwc_otg_urb && urb->number_of_packets)
-                return -ENOMEM;
+	urb->hcpriv = dwc_otg_urb;
+	if (!dwc_otg_urb && urb->number_of_packets)
+		return -ENOMEM;
 
 	dwc_otg_hcd_urb_set_pipeinfo(dwc_otg_urb, usb_pipedevice(urb->pipe),
 				     usb_pipeendpoint(urb->pipe), ep_type,
@@ -776,36 +776,35 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 	}
 
 #if USB_URB_EP_LINKING
-        DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &irqflags);
+	DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &irqflags);
 	retval = usb_hcd_link_urb_to_ep(hcd, urb);
-        DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, irqflags);
+	DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, irqflags);
 	if (0 == retval)
 #endif
-        {
-                retval = dwc_otg_hcd_urb_enqueue(dwc_otg_hcd, dwc_otg_urb,
-                                                 /*(dwc_otg_qh_t **)*/
-                                                 ref_ep_hcpriv,
-                                                 mem_flags == GFP_ATOMIC ? 1 : 0);
-                if (0 == retval) {
-                        if (alloc_bandwidth) {
-                                allocate_bus_bandwidth(hcd,
-                                        dwc_otg_hcd_get_ep_bandwidth(
-                                                dwc_otg_hcd, *ref_ep_hcpriv),
-                                                       urb);
-                        }
-                } else {
+	{
+		retval = dwc_otg_hcd_urb_enqueue(dwc_otg_hcd, dwc_otg_urb,
+						/*(dwc_otg_qh_t **)*/
+						ref_ep_hcpriv,
+						mem_flags == GFP_ATOMIC ? 1 : 0);
+		if (0 == retval) {
+			if (alloc_bandwidth) {
+				allocate_bus_bandwidth(hcd,
+						dwc_otg_hcd_get_ep_bandwidth(
+							dwc_otg_hcd, *ref_ep_hcpriv),
+						urb);
+			}
+		} else {
 #if USB_URB_EP_LINKING
 			dwc_irqflags_t irqflags;
-                        DWC_DEBUGPL(DBG_HCD, "DWC OTG dwc_otg_hcd_urb_enqueue failed rc %d\n", retval);
-                        DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &irqflags);
-                        usb_hcd_unlink_urb_from_ep(hcd, urb);
-                        DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, irqflags);
+			DWC_DEBUGPL(DBG_HCD, "DWC OTG dwc_otg_hcd_urb_enqueue failed rc %d\n", retval);
+			DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &irqflags);
+			usb_hcd_unlink_urb_from_ep(hcd, urb);
+			DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, irqflags);
 #endif
-                        if (retval == -DWC_E_NO_DEVICE) {
-                                retval = -ENODEV;
-                        }
-                }
-        }
+			if (retval == -DWC_E_NO_DEVICE)
+				retval = -ENODEV;
+		}
+	}
 	return retval;
 }
 
