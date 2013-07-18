@@ -464,7 +464,6 @@ int dwc_otg_hcd_urb_enqueue(dwc_otg_hcd_t * hcd,
 			    dwc_otg_hcd_urb_t * dwc_otg_urb, void **ep_handle,
 			    int atomic_alloc)
 {
-	dwc_irqflags_t flags;
 	int retval = 0;
 	uint8_t needs_scheduling = 0;
 	dwc_otg_transaction_type_e tr_type;
@@ -515,12 +514,10 @@ int dwc_otg_hcd_urb_enqueue(dwc_otg_hcd_t * hcd,
 	}
 
 	if(needs_scheduling) {
-		DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 		tr_type = dwc_otg_hcd_select_transactions(hcd);
 		if (tr_type != DWC_OTG_TRANSACTION_NONE) {
 			dwc_otg_hcd_queue_transactions(hcd, tr_type);
 		}
-		DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 	}
 	return retval;
 }
