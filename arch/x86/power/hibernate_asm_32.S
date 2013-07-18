@@ -1,9 +1,9 @@
 /*
  * This may not use any stack, nor any variable that is not "NoSave":
  *
- * Its rewriting one kernel image with another. What is stack in "old"
+ * It'ss rewriting one kernel image with another. What is stack in "old"
  * image could very well be data page in "new" image, and overwriting
- * your own stack under you is bad idea.
+ * your own stack under you is a bad idea.
  */
 
 #include <linux/linkage.h>
