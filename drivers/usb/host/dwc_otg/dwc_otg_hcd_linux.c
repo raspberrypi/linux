@@ -679,9 +679,7 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
 	struct usb_host_endpoint *ep = urb->ep;
 #endif
-#if USB_URB_EP_LINKING
 	dwc_irqflags_t irqflags;
-#endif
         void **ref_ep_hcpriv = &ep->hcpriv;
 	dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd(hcd);
 	dwc_otg_hcd_urb_t *dwc_otg_urb;
@@ -733,7 +731,6 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 	if(dwc_otg_urb == NULL)
 		return -ENOMEM;
 
-	urb->hcpriv = dwc_otg_urb;
 	if (!dwc_otg_urb && urb->number_of_packets)
 		return -ENOMEM;
 
@@ -775,10 +772,10 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 						    iso_frame_desc[i].length);
 	}
 
-#if USB_URB_EP_LINKING
 	DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &irqflags);
+	urb->hcpriv = dwc_otg_urb;
+#if USB_URB_EP_LINKING
 	retval = usb_hcd_link_urb_to_ep(hcd, urb);
-	DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, irqflags);
 	if (0 == retval)
 #endif
 	{
@@ -794,17 +791,16 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 						urb);
 			}
 		} else {
-#if USB_URB_EP_LINKING
-			dwc_irqflags_t irqflags;
 			DWC_DEBUGPL(DBG_HCD, "DWC OTG dwc_otg_hcd_urb_enqueue failed rc %d\n", retval);
-			DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &irqflags);
+#if USB_URB_EP_LINKING
 			usb_hcd_unlink_urb_from_ep(hcd, urb);
-			DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, irqflags);
 #endif
+			urb->hcpriv = NULL;
 			if (retval == -DWC_E_NO_DEVICE)
 				retval = -ENODEV;
 		}
 	}
+	DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, irqflags);
 	return retval;
 }
 
