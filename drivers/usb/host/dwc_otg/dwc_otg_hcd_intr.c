@@ -1419,8 +1419,9 @@ cleanup:
 		}
 
 		hcd->hub_port[hc->hub_addr] &= ~(1 << hc->port_addr);
+#ifdef FIQ_DEBUG
 		hcd->hub_port_alloc[hc->hub_addr * 16 + hc->port_addr] = -1;
-
+#endif
 		fiq_print(FIQDBG_PORTHUB, "H%dP%d:RR%d", hc->hub_addr, hc->port_addr, endp);
 	}
 
