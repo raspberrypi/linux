@@ -1085,15 +1085,13 @@ static int vc_cma_init(void)
 		goto out_class_destroy;
 	}
 
-	vc_cma_proc_entry = create_proc_entry(DRIVER_NAME, 0444, NULL);
+	vc_cma_proc_entry = proc_create(DRIVER_NAME, 0444, NULL, &vc_cma_proc_fops);
 	if (vc_cma_proc_entry == NULL) {
 		rc = -EFAULT;
-		LOG_ERR("%s: create_proc_entry failed", __func__);
+		LOG_ERR("%s: proc_create failed", __func__);
 		goto out_device_destroy;
 	}
-
-	vc_cma_proc_entry->proc_fops = &vc_cma_proc_fops;
-
+    
 	vc_cma_inited = 1;
 	return 0;
 
@@ -1131,7 +1129,7 @@ static void __exit vc_cma_exit(void)
 	LOG_DBG("%s: called", __func__);
 
 	if (vc_cma_inited) {
-		remove_proc_entry(vc_cma_proc_entry->name, NULL);
+		remove_proc_entry(DRIVER_NAME, NULL);
 		device_destroy(vc_cma_class, vc_cma_devnum);
 		class_destroy(vc_cma_class);
 		cdev_del(&vc_cma_cdev);
