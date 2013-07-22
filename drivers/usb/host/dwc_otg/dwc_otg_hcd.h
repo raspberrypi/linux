@@ -577,8 +577,10 @@ struct dwc_otg_hcd {
 	uint32_t *frame_list;
 
 	/** Hub - Port assignment */
-	int hub_port[16];
-	int hub_port_alloc[256];
+	int hub_port[128];
+#ifdef FIQ_DEBUG
+	int hub_port_alloc[2048];
+#endif
 
 	/** Frame List DMA address */
 	dma_addr_t frame_list_dma;
