@@ -983,7 +983,9 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 	hcd->periodic_qh_count = 0;
 
 	DWC_MEMSET(hcd->hub_port, 0, sizeof(hcd->hub_port));
+#ifdef FIQ_DEBUG
 	DWC_MEMSET(hcd->hub_port_alloc, -1, sizeof(hcd->hub_port_alloc));
+#endif
 
 out:
 	return retval;
@@ -1317,7 +1319,9 @@ int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 		qh->skip_count = 0;
 		hcd->hub_port[hub_addr] |= 1 << port_addr;
 		fiq_print(FIQDBG_PORTHUB, "H%dP%d:A %d", hub_addr, port_addr, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->pipe_info.ep_num);
+#ifdef FIQ_DEBUG
 		hcd->hub_port_alloc[hub_addr * 16 + port_addr] = dwc_otg_hcd_get_frame_number(hcd);
+#endif
 		return 0;
 	}
 }
@@ -1331,8 +1335,9 @@ void dwc_otg_hcd_release_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 	hcd->fops->hub_info(hcd, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->priv, &hub_addr, &port_addr);
 
 	hcd->hub_port[hub_addr] &= ~(1 << port_addr);
+#ifdef FIQ_DEBUG
 	hcd->hub_port_alloc[hub_addr * 16 + port_addr] = -1;
-
+#endif
 	fiq_print(FIQDBG_PORTHUB, "H%dP%d:RO%d", hub_addr, port_addr, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->pipe_info.ep_num);
 
 }
