@@ -2578,12 +2578,24 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 				     DWC_READ_REG32(&hcd->
 						    core_if->core_global_regs->
 						    gintsts));
+				/* Failthrough: use 3-strikes rule */
+				qtd->error_count++;
+				dwc_otg_hcd_save_data_toggle(hc, hc_regs, qtd);
+				update_urb_state_xfer_intr(hc, hc_regs,
+					   qtd->urb, qtd, DWC_OTG_HC_XFER_XACT_ERR);
+				halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_XACT_ERR);
 			}
 
 		}
 	} else {
 		DWC_PRINTF("NYET/NAK/ACK/other in non-error case, 0x%08x\n",
 			   hcint.d32);
+		/* Failthrough: use 3-strikes rule */
+		qtd->error_count++;
+		dwc_otg_hcd_save_data_toggle(hc, hc_regs, qtd);
+		update_urb_state_xfer_intr(hc, hc_regs,
+			   qtd->urb, qtd, DWC_OTG_HC_XFER_XACT_ERR);
+		halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_XACT_ERR);
 	}
 }
 
