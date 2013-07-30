@@ -1356,6 +1356,7 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 {
 	dwc_list_link_t *qh_ptr;
 	dwc_otg_qh_t *qh;
+	dwc_otg_qtd_t *qtd;
 	int num_channels;
 	dwc_irqflags_t flags;
 	dwc_spinlock_t *channel_lock = hcd->channel_lock;
@@ -1379,11 +1380,18 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 
 		qh = DWC_LIST_ENTRY(qh_ptr, dwc_otg_qh_t, qh_list_entry);
 
-		if(qh->do_split && dwc_otg_hcd_allocate_port(hcd, qh))
-		{
-			qh_ptr = DWC_LIST_NEXT(qh_ptr);
-			g_next_sched_frame = dwc_frame_num_inc(dwc_otg_hcd_get_frame_number(hcd), 1);
-			continue;
+		if(qh->do_split) {
+			qtd = DWC_CIRCLEQ_FIRST(&qh->qtd_list);
+			if(!(qh->ep_type == UE_ISOCHRONOUS &&
+					(qtd->isoc_split_pos == DWC_HCSPLIT_XACTPOS_MID ||
+					qtd->isoc_split_pos == DWC_HCSPLIT_XACTPOS_END))) {
+				if(dwc_otg_hcd_allocate_port(hcd, qh))
+				{
+					qh_ptr = DWC_LIST_NEXT(qh_ptr);
+					g_next_sched_frame = dwc_frame_num_inc(dwc_otg_hcd_get_frame_number(hcd), 1);
+					continue;
+				}
+			}
 		}
 
 		if (microframe_schedule) {
@@ -1451,18 +1459,10 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 			}
 		}
 
-		if (qh->do_split && dwc_otg_hcd_allocate_port(hcd, qh))
-		{
-			g_next_sched_frame = dwc_frame_num_inc(dwc_otg_hcd_get_frame_number(hcd), 1);
-			qh_ptr = DWC_LIST_NEXT(qh_ptr);
-			continue;
-		}
-
 		if (microframe_schedule) {
 				DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 				if (hcd->available_host_channels < 1) {
 					DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
-					if(qh->do_split) dwc_otg_hcd_release_port(hcd, qh);
 					break;
 				}
 				hcd->available_host_channels--;

@@ -1328,9 +1328,19 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 #ifdef FIQ_DEBUG
 	int endp = qtd->urb ? qtd->urb->pipe_info.ep_num : 0;
 #endif
+	int hog_port = 0;
 
 	DWC_DEBUGPL(DBG_HCDV, "  %s: channel %d, halt_status %d, xfer_len %d\n",
 		    __func__, hc->hc_num, halt_status, hc->xfer_len);
+
+	if(fiq_split_enable && hc->do_split) {
+		if(!hc->ep_is_in && hc->ep_type == UE_ISOCHRONOUS) {
+			if(hc->xact_pos == DWC_HCSPLIT_XACTPOS_MID ||
+					hc->xact_pos == DWC_HCSPLIT_XACTPOS_BEGIN) {
+				hog_port = 1;
+			}
+		}
+	}
 
 	switch (halt_status) {
 	case DWC_OTG_HC_XFER_URB_COMPLETE:
@@ -1417,12 +1427,14 @@ cleanup:
 			fiq_print(FIQDBG_ERR, "PRTNOTAL");
 			//BUG();
 		}
-
-		hcd->hub_port[hc->hub_addr] &= ~(1 << hc->port_addr);
+		if(!hog_port && (hc->ep_type == DWC_OTG_EP_TYPE_ISOC ||
+				hc->ep_type == DWC_OTG_EP_TYPE_INTR)) {
+			hcd->hub_port[hc->hub_addr] &= ~(1 << hc->port_addr);
 #ifdef FIQ_DEBUG
-		hcd->hub_port_alloc[hc->hub_addr * 16 + hc->port_addr] = -1;
+			hcd->hub_port_alloc[hc->hub_addr * 16 + hc->port_addr] = -1;
 #endif
-		fiq_print(FIQDBG_PORTHUB, "H%dP%d:RR%d", hc->hub_addr, hc->port_addr, endp);
+			fiq_print(FIQDBG_PORTHUB, "H%dP%d:RR%d", hc->hub_addr, hc->port_addr, endp);
+		}
 	}
 
 	/* Try to queue more transfers now that there's a free channel. */
