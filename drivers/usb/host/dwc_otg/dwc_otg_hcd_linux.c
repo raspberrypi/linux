@@ -781,8 +781,7 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 	{
 		retval = dwc_otg_hcd_urb_enqueue(dwc_otg_hcd, dwc_otg_urb,
 						/*(dwc_otg_qh_t **)*/
-						ref_ep_hcpriv,
-						mem_flags == GFP_ATOMIC ? 1 : 0);
+						ref_ep_hcpriv, 1);
 		if (0 == retval) {
 			if (alloc_bandwidth) {
 				allocate_bus_bandwidth(hcd,
