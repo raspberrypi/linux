@@ -59,6 +59,11 @@ static int last_sel_trans_num_avail_hc_at_end = 0;
 
 extern int g_next_sched_frame, g_np_count, g_np_sent;
 
+extern haint_data_t haint_saved;
+extern hcintmsk_data_t hcintmsk_saved[MAX_EPS_CHANNELS];
+extern hcint_data_t hcint_saved[MAX_EPS_CHANNELS];
+extern gintsts_data_t ginsts_saved;
+
 dwc_otg_hcd_t *dwc_otg_hcd_alloc_hcd(void)
 {
 	return DWC_ALLOC(sizeof(dwc_otg_hcd_t));
@@ -168,31 +173,43 @@ static void del_timers(dwc_otg_hcd_t * hcd)
 
 /**
  * Processes all the URBs in a single list of QHs. Completes them with
- * -ETIMEDOUT and frees the QTD.
+ * -ESHUTDOWN and frees the QTD.
  */
 static void kill_urbs_in_qh_list(dwc_otg_hcd_t * hcd, dwc_list_link_t * qh_list)
 {
-	dwc_list_link_t *qh_item;
+	dwc_list_link_t *qh_item, *qh_tmp;
 	dwc_otg_qh_t *qh;
 	dwc_otg_qtd_t *qtd, *qtd_tmp;
 
-	DWC_LIST_FOREACH(qh_item, qh_list) {
+	DWC_LIST_FOREACH_SAFE(qh_item, qh_tmp, qh_list) {
 		qh = DWC_LIST_ENTRY(qh_item, dwc_otg_qh_t, qh_list_entry);
 		DWC_CIRCLEQ_FOREACH_SAFE(qtd, qtd_tmp,
 					 &qh->qtd_list, qtd_list_entry) {
 			qtd = DWC_CIRCLEQ_FIRST(&qh->qtd_list);
 			if (qtd->urb != NULL) {
 				hcd->fops->complete(hcd, qtd->urb->priv,
-						    qtd->urb, -DWC_E_TIMEOUT);
+						    qtd->urb, -DWC_E_SHUTDOWN);
 				dwc_otg_hcd_qtd_remove_and_free(hcd, qtd, qh);
 			}
 
 		}
+		if(qh->channel) {
+			/* Using hcchar.chen == 1 is not a reliable test.
+			 * It is possible that the channel has already halted
+			 * but not yet been through the IRQ handler.
+			 */
+			dwc_otg_hc_halt(hcd->core_if, qh->channel,
+				DWC_OTG_HC_XFER_URB_DEQUEUE);
+			if(microframe_schedule)
+				hcd->available_host_channels++;
+			qh->channel = NULL;
+		}
+		dwc_otg_hcd_qh_remove(hcd, qh);
 	}
 }
 
 /**
- * Responds with an error status of ETIMEDOUT to all URBs in the non-periodic
+ * Responds with an error status of ESHUTDOWN to all URBs in the non-periodic
  * and periodic schedules. The QTD associated with each URB is removed from
  * the schedule and freed. This function may be called when a disconnect is
  * detected or when the HCD is being stopped.
@@ -278,7 +295,8 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 	 */
 	dwc_otg_hcd->flags.b.port_connect_status_change = 1;
 	dwc_otg_hcd->flags.b.port_connect_status = 0;
-
+	if(fiq_fix_enable)
+		local_fiq_disable();
 	/*
 	 * Shutdown any transfers in process by clearing the Tx FIFO Empty
 	 * interrupt mask and status bits and disabling subsequent host
@@ -374,7 +392,21 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 				channel->qh = NULL;
 			}
 		}
+		if(fiq_split_enable) {
+			for(i=0; i < 128; i++) {
+				dwc_otg_hcd->hub_port[i] = 0;
+			}
+			haint_saved.d32 = 0;
+			for(i=0; i < MAX_EPS_CHANNELS; i++) {
+				hcint_saved[i].d32 = 0;
+				hcintmsk_saved[i].d32 = 0;
+			}
+		}
+
 	}
+
+	if(fiq_fix_enable)
+		local_fiq_enable();
 
 	if (dwc_otg_hcd->fops->disconnect) {
 		dwc_otg_hcd->fops->disconnect(dwc_otg_hcd);
