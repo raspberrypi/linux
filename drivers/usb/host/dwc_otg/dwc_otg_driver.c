@@ -1070,6 +1070,12 @@ static int __init dwc_otg_driver_init(void)
 	int retval = 0;
 	int error;
         struct device_driver *drv;
+
+	if(fiq_split_enable && !fiq_fix_enable) {
+		printk(KERN_WARNING "dwc_otg: fiq_split_enable was set without fiq_fix_enable! Correcting.\n");
+		fiq_fix_enable = 1;
+	}
+
 	printk(KERN_INFO "%s: version %s (%s bus)\n", dwc_driver_name,
 	       DWC_DRIVER_VERSION,
 #ifdef LM_INTERFACE
