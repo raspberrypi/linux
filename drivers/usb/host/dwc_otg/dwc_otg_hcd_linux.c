@@ -309,6 +309,9 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 	case -DWC_E_OVERFLOW:
 		status = -EOVERFLOW;
 		break;
+	case -DWC_E_SHUTDOWN:
+		status = -ESHUTDOWN;
+		break;
 	default:
 		if (status) {
 			DWC_PRINTF("Uknown urb status %d\n", status);
