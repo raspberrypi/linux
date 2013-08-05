@@ -797,11 +797,19 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 #if USB_URB_EP_LINKING
 			usb_hcd_unlink_urb_from_ep(hcd, urb);
 #endif
+			DWC_FREE(dwc_otg_urb);
 			urb->hcpriv = NULL;
 			if (retval == -DWC_E_NO_DEVICE)
 				retval = -ENODEV;
 		}
 	}
+#if USB_URB_EP_LINKING
+	else
+	{
+		DWC_FREE(dwc_otg_urb);
+		urb->hcpriv = NULL;
+	}
+#endif
 	DWC_SPINUNLOCK_IRQRESTORE(dwc_otg_hcd->lock, irqflags);
 	return retval;
 }
