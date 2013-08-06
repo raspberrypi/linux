@@ -97,7 +97,7 @@ struct bcm2708_i2c {
  *
  * FIXME: This is a hack. Use pinmux / pinctrl.
  */
-static void bcm2708_i2c_init_pinmode(void)
+static void bcm2708_i2c_init_pinmode(int id)
 {
 #define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
 #define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
@@ -105,8 +105,10 @@ static void bcm2708_i2c_init_pinmode(void)
 	int pin;
 	u32 *gpio = ioremap(0x20200000, SZ_16K);
 
+        BUG_ON(id != 0 && id != 1);
 	/* BSC0 is on GPIO 0 & 1, BSC1 is on GPIO 2 & 3 */
-	for (pin = 0; pin <= 3; pin++) {
+	for (pin = id*2+0; pin <= id*2+1; pin++) {
+printk("bcm2708_i2c_init_pinmode(%d,%d)\n", id, pin);
 		INP_GPIO(pin);		/* set mode to GPIO input first */
 		SET_GPIO_ALT(pin, 0);	/* set mode to ALT 0 */
 	}
@@ -173,6 +175,11 @@ static irqreturn_t bcm2708_i2c_interrupt(int irq, void *dev_id)
 
 	spin_lock(&bi->lock);
 
+	/* we may see camera interrupts on the "other" I2C channel
+           Just return if we've not sent anything */
+        if (!bi->nmsgs || !bi->msg )
+		goto early_exit;
+
 	s = bcm2708_rd(bi, BSC_S);
 
 	if (s & (BSC_S_CLKT | BSC_S_ERR)) {
@@ -206,6 +213,7 @@ static irqreturn_t bcm2708_i2c_interrupt(int irq, void *dev_id)
 		handled = false;
 	}
 
+early_exit:
 	spin_unlock(&bi->lock);
 
 	return handled ? IRQ_HANDLED : IRQ_NONE;
@@ -279,7 +287,7 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 		return PTR_ERR(clk);
 	}
 
-	bcm2708_i2c_init_pinmode();
+	bcm2708_i2c_init_pinmode(pdev->id);
 
 	bi = kzalloc(sizeof(*bi), GFP_KERNEL);
 	if (!bi)
