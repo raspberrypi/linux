@@ -359,6 +359,17 @@ service_callback(VCHIQ_REASON_T reason, VCHIQ_HEADER_T *header,
 
 /****************************************************************************
 *
+*   user_service_free
+*
+***************************************************************************/
+static void
+user_service_free(void *userdata)
+{
+	kfree(userdata);
+}
+
+/****************************************************************************
+*
 *   vchiq_ioctl
 *
 ***************************************************************************/
@@ -467,7 +478,7 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		service = vchiq_add_service_internal(
 				instance->state,
 				&args.params, srvstate,
-				instance);
+				instance, user_service_free);
 
 		if (service != NULL) {
 			user_service->service = service;
@@ -490,8 +501,6 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					service = NULL;
 					ret = (status == VCHIQ_RETRY) ?
 						-EINTR : -EIO;
-					user_service->service = NULL;
-					user_service->instance = NULL;
 					break;
 				}
 			}
@@ -503,7 +512,6 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				sizeof(service->handle)) != 0) {
 				ret = -EFAULT;
 				vchiq_remove_service(service->handle);
-				kfree(user_service);
 			}
 
 			service = NULL;
@@ -796,10 +804,8 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				}
 
 				if (completion->reason ==
-					VCHIQ_SERVICE_CLOSED) {
+					VCHIQ_SERVICE_CLOSED)
 					unlock_service(service);
-					kfree(user_service);
-				}
 
 				if (copy_to_user((void __user *)(
 					(size_t)args.buf +
@@ -1151,7 +1157,6 @@ vchiq_release(struct inode *inode, struct file *file)
 			spin_unlock(&msg_queue_spinlock);
 
 			unlock_service(service);
-			kfree(user_service);
 		}
 
 		/* Release any closed services */
