@@ -174,7 +174,7 @@ void arch_cpu_idle(void)
 		default_idle();
 }
 
-static char reboot_mode = 'h';
+char reboot_mode = 'h';
 
 int __init reboot_setup(char *str)
 {
