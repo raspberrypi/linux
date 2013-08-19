@@ -83,6 +83,7 @@
 /* command line parameters */
 static unsigned boardrev, serial;
 static unsigned uart_clock;
+static unsigned reboot_part = 0;
 
 static void __init bcm2708_init_led(void);
 
@@ -662,19 +663,41 @@ int __init bcm_register_device(struct platform_device *pdev)
 	return ret;
 }
 
+int calc_rsts(int partition)
+{
+	return 0x5a000000 |
+		((partition & (1 << 0))  << 0) |
+		((partition & (1 << 1))  << 1) |
+		((partition & (1 << 2))  << 2) |
+		((partition & (1 << 3))  << 3) |
+		((partition & (1 << 4))  << 4) |
+		((partition & (1 << 5))  << 5);
+}
+
 static void bcm2708_restart(char mode, const char *cmd)
 {
 	uint32_t pm_rstc, pm_wdog;
 	uint32_t timeout = 10;
+	uint32_t pm_rsts = 0;
 
-	/* For quick reset notification add reboot=q to cmdline
-	 */
 	if(mode == 'q')
 	{
-		uint32_t pm_rsts = readl(__io_address(PM_RSTS));
+		// NOOBS < 1.3 booting with reboot=q
+		pm_rsts = readl(__io_address(PM_RSTS));
 		pm_rsts = PM_PASSWORD | pm_rsts | PM_RSTS_HADWRQ_SET;
-		writel(pm_rsts, __io_address(PM_RSTS));
 	}
+	else if(mode == 'p')
+	{
+		// NOOBS < 1.3 halting
+		pm_rsts = readl(__io_address(PM_RSTS));
+		pm_rsts = PM_PASSWORD | pm_rsts | PM_RSTS_HADWRH_SET;
+	}
+	else
+	{
+		pm_rsts = calc_rsts(reboot_part);
+	}
+
+	writel(pm_rsts, __io_address(PM_RSTS));
 
 	/* Setup watchdog for reset */
 	pm_rstc = readl(IO_ADDRESS(PM_RSTC));
@@ -689,12 +712,20 @@ static void bcm2708_restart(char mode, const char *cmd)
 /* We can't really power off, but if we do the normal reset scheme, and indicate to bootcode.bin not to reboot, then most of the chip will be powered off */
 static void bcm2708_power_off(void)
 {
-	/* we set the watchdog hard reset bit here to distinguish this reset from the normal (full) reset. bootcode.bin will not reboot after a hard reset */
-	uint32_t pm_rsts = readl(IO_ADDRESS(PM_RSTS));
-	pm_rsts = PM_PASSWORD | (pm_rsts & PM_RSTC_WRCFG_CLR) | PM_RSTS_HADWRH_SET;
-	writel(pm_rsts, IO_ADDRESS(PM_RSTS));
-	/* continue with normal reset mechanism */
-	bcm2708_restart(0, "");
+	extern char reboot_mode;
+
+	if(reboot_mode == 'q')
+	{
+		// NOOBS < v1.3
+		bcm2708_restart('p', "");
+	}
+	else
+	{
+		/* partition 63 is special code for HALT the bootloader knows not to boot*/
+		reboot_part = 63;
+		/* continue with normal reset mechanism */
+		bcm2708_restart(0, "");
+	}
 }
 
 void __init bcm2708_init(void)
@@ -954,3 +985,4 @@ MACHINE_END
 module_param(boardrev, uint, 0644);
 module_param(serial, uint, 0644);
 module_param(uart_clock, uint, 0644);
+module_param(reboot_part, uint, 0644);

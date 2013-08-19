@@ -227,7 +227,7 @@ void cpu_idle(void)
 	}
 }
 
-static char reboot_mode = 'h';
+char reboot_mode = 'h';
 
 int __init reboot_setup(char *str)
 {
