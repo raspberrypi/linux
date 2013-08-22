@@ -665,7 +665,7 @@ int __init bcm_register_device(struct platform_device *pdev)
 
 int calc_rsts(int partition)
 {
-	return 0x5a000000 |
+	return PM_PASSWORD |
 		((partition & (1 << 0))  << 0) |
 		((partition & (1 << 1))  << 1) |
 		((partition & (1 << 2))  << 2) |
