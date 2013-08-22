@@ -143,6 +143,16 @@ config TI_ADC081C
 	  This driver can also be built as a module. If so, the module will be
 	  called ti-adc081c.
 
+config MCP3422
+	tristate "Microchip Technology MCP3422/3/4 driver"
+	depends on I2C
+	help
+	  Say yes here to build support for Microchip Technology's MCP3422,
+	  MCP3423 or MCP3424 analog to digital converters.
+
+	  This driver can also be built as a module. If so, the module will be
+	  called mcp3422.
+
 config TI_AM335X_ADC
 	tristate "TI's ADC driver"
 	depends on MFD_TI_AM335X_TSCADC
