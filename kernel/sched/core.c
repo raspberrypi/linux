@@ -1359,6 +1359,18 @@ out:
 	return ret;
 }
 
+static bool check_task_state(struct task_struct *p, long match_state)
+{
+	bool match = false;
+
+	raw_spin_lock_irq(&p->pi_lock);
+	if (p->state == match_state || p->saved_state == match_state)
+		match = true;
+	raw_spin_unlock_irq(&p->pi_lock);
+
+	return match;
+}
+
 /*
  * wait_task_inactive - wait for a thread to unschedule.
  *
@@ -1403,7 +1415,7 @@ unsigned long wait_task_inactive(struct task_struct *p, long match_state)
 		 * is actually now running somewhere else!
 		 */
 		while (task_running(rq, p)) {
-			if (match_state && unlikely(p->state != match_state))
+			if (match_state && !check_task_state(p, match_state))
 				return 0;
 			cpu_relax();
 		}
@@ -1418,7 +1430,8 @@ unsigned long wait_task_inactive(struct task_struct *p, long match_state)
 		running = task_running(rq, p);
 		queued = task_on_rq_queued(p);
 		ncsw = 0;
-		if (!match_state || p->state == match_state)
+		if (!match_state || p->state == match_state ||
+		    p->saved_state == match_state)
 			ncsw = p->nvcsw | LONG_MIN; /* sets MSB */
 		task_rq_unlock(rq, p, &rf);
 
