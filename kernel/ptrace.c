@@ -175,7 +175,14 @@ static bool ptrace_freeze_traced(struct task_struct *task)
 
 	spin_lock_irq(&task->sighand->siglock);
 	if (task_is_traced(task) && !__fatal_signal_pending(task)) {
-		task->state = __TASK_TRACED;
+		unsigned long flags;
+
+		raw_spin_lock_irqsave(&task->pi_lock, flags);
+		if (task->state & __TASK_TRACED)
+			task->state = __TASK_TRACED;
+		else
+			task->saved_state = __TASK_TRACED;
+		raw_spin_unlock_irqrestore(&task->pi_lock, flags);
 		ret = true;
 	}
 	spin_unlock_irq(&task->sighand->siglock);
