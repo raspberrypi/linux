@@ -519,6 +519,119 @@ int arizona_of_get_named_gpio(struct arizona *arizona, const char *prop,
 }
 EXPORT_SYMBOL_GPL(arizona_of_get_named_gpio);
 
+static int arizona_of_get_u32_num_groups(struct arizona *arizona,
+					const char *prop,
+					int group_size)
+{
+	int len_prop;
+	int num_groups;
+
+	if (!of_get_property(arizona->dev->of_node, prop, &len_prop))
+		return -EINVAL;
+
+	num_groups =  len_prop / (group_size * sizeof(u32));
+
+	if (num_groups * group_size * sizeof(u32) != len_prop) {
+		dev_err(arizona->dev,
+			"DT property %s is malformed: %d\n",
+			prop, -EOVERFLOW);
+		return -EOVERFLOW;
+	}
+
+	return num_groups;
+}
+
+static int arizona_of_get_micd_ranges(struct arizona *arizona,
+				      const char *prop)
+{
+	int nranges;
+	int i, j;
+	int ret = 0;
+	u32 value;
+	struct arizona_micd_range *micd_ranges;
+
+	nranges = arizona_of_get_u32_num_groups(arizona, prop, 2);
+	if (nranges < 0)
+		return nranges;
+
+	micd_ranges = devm_kzalloc(arizona->dev,
+				   nranges * sizeof(struct arizona_micd_range),
+				   GFP_KERNEL);
+
+	for (i = 0, j = 0; i < nranges; ++i) {
+		ret = of_property_read_u32_index(arizona->dev->of_node,
+						 prop, j++, &value);
+		if (ret < 0)
+			goto error;
+		micd_ranges[i].max = value;
+
+		ret = of_property_read_u32_index(arizona->dev->of_node,
+						 prop, j++, &value);
+		if (ret < 0)
+			goto error;
+		micd_ranges[i].key = value;
+	}
+
+	arizona->pdata.micd_ranges = micd_ranges;
+	arizona->pdata.num_micd_ranges = nranges;
+
+	return ret;
+
+error:
+	devm_kfree(arizona->dev, micd_ranges);
+	dev_err(arizona->dev, "DT property %s is malformed: %d\n", prop, ret);
+	return ret;
+}
+
+static int arizona_of_get_micd_configs(struct arizona *arizona,
+				       const char *prop)
+{
+	int nconfigs;
+	int i, j;
+	int ret = 0;
+	u32 value;
+	struct arizona_micd_config *micd_configs;
+
+	nconfigs = arizona_of_get_u32_num_groups(arizona, prop, 3);
+	if (nconfigs < 0)
+		return nconfigs;
+
+	micd_configs = devm_kzalloc(arizona->dev,
+				    nconfigs *
+				    sizeof(struct arizona_micd_config),
+				    GFP_KERNEL);
+
+	for (i = 0, j = 0; i < nconfigs; ++i) {
+		ret = of_property_read_u32_index(arizona->dev->of_node,
+						 prop, j++, &value);
+		if (ret < 0)
+			goto error;
+		micd_configs[i].src = value;
+
+		ret = of_property_read_u32_index(arizona->dev->of_node,
+						 prop, j++, &value);
+		if (ret < 0)
+			goto error;
+		micd_configs[i].bias = value;
+
+		ret = of_property_read_u32_index(arizona->dev->of_node,
+						 prop, j++, &value);
+		if (ret < 0)
+			goto error;
+		micd_configs[i].gpio = value;
+	}
+
+	arizona->pdata.micd_configs = micd_configs;
+	arizona->pdata.num_micd_configs = nconfigs;
+
+	return ret;
+
+error:
+	devm_kfree(arizona->dev, micd_configs);
+	dev_err(arizona->dev, "DT property %s is malformed: %d\n", prop, ret);
+	return ret;
+}
+
 static int arizona_of_get_core_pdata(struct arizona *arizona)
 {
 	struct arizona_pdata *pdata = &arizona->pdata;
@@ -551,6 +664,9 @@ static int arizona_of_get_core_pdata(struct arizona *arizona)
 		dev_err(arizona->dev, "Failed to parse GPIO defaults: %d\n",
 			ret);
 	}
+
+	arizona_of_get_micd_ranges(arizona, "wlf,micd-ranges");
+	arizona_of_get_micd_configs(arizona, "wlf,micd-configs");
 
 	of_property_for_each_u32(arizona->dev->of_node, "wlf,inmode", prop,
 				 cur, val) {

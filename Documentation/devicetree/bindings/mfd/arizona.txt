@@ -36,6 +36,21 @@ Optional properties:
   - wlf,reset : GPIO specifier for the GPIO controlling /RESET
   - wlf,ldoena : GPIO specifier for the GPIO controlling LDOENA
 
+  - wlf,micd-ranges : Microphone detection level and key configuration, this
+    field can be of variable length but should always be a multiple of 2 cells
+    long, each two cell group represents one button configuration
+    The first cell is the maximum impedance for this button in ohms
+    The second cell the key that should be reported to the input layer
+  - wlf,micd-configs : Headset polarity configurations, the field can be of
+    variable length but should always be a multiple of 3 cells long, each two
+    cell group represents one polarity configration
+    The first cell is the accessory detection source as per the ACCDET_SRC bits
+    in the ACCESSORY_DETECT_MODE_1 register
+    The second cell represents the MICBIAS to be used as per the MICD_BIAS_SRC
+    bits in the MIC_DETECT_1 register
+    The third cell represents the value of the micd-pol-gpio pin, a non-zero
+    value indicates this should be on
+
   - wlf,gpio-defaults : A list of GPIO configuration register values. If
     absent, no configuration of these registers is performed. If any
     entry has a value that is out of range for a 16 bit register then
@@ -71,6 +86,19 @@ codec: wm5102@1a {
 
 	gpio-controller;
 	#gpio-cells = <2>;
+
+	wlf,micd-ranges = <
+		11 0x100
+		28 0x101
+		54 0x102
+		100 0x103
+		186 0x104
+		430 0x105
+	>;
+	wlf,micd-configs = <
+		0x1 1 0
+		0x0 2 1
+	>;
 
 	wlf,gpio-defaults = <
 		0x00000000 /* AIF1TXLRCLK */
