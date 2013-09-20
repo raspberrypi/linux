@@ -1857,8 +1857,7 @@ static int32_t handle_hc_nak_intr(dwc_otg_hcd_t * hcd,
 	 */
 	switch(dwc_otg_hcd_get_pipe_type(&qtd->urb->pipe_info)) {
 		case UE_BULK:
-		//case UE_INTERRUPT:
-		//case UE_CONTROL:
+		case UE_CONTROL:
 		if (nak_holdoff_enable)
 			hc->qh->nak_frame = dwc_otg_hcd_get_frame_number(hcd);
 	}
