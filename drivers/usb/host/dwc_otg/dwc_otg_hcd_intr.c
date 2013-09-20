@@ -742,8 +742,8 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 	}
 
 	/* Clear interrupt */
-	//gintsts.b.sofintr = 1;
-	//DWC_WRITE_REG32(&hcd->core_if->core_global_regs->gintsts, gintsts.d32);
+	gintsts.b.sofintr = 1;
+	DWC_WRITE_REG32(&hcd->core_if->core_global_regs->gintsts, gintsts.d32);
 
 	return 1;
 }
