@@ -63,13 +63,13 @@ static int gpio_in_pin = 18;
 /* set the default GPIO output pin */
 static int gpio_out_pin = 17;
 /* enable debugging messages */
-static int debug;
+static bool debug;
 /* -1 = auto, 0 = active high, 1 = active low */
 static int sense = -1;
 /* use softcarrier by default */
-static int softcarrier = 1;
+static bool softcarrier = 1;
 /* 0 = do not invert output, 1 = invert output */
-static int invert = 0;
+static bool invert = 0;
 
 struct gpio_chip *gpiochip;
 struct irq_chip *irqchip;
@@ -678,7 +678,7 @@ MODULE_PARM_DESC(gpio_in_pin, "GPIO input pin number of the BCM processor."
 		 " Valid pin numbers are: 0, 1, 4, 8, 7, 9, 10, 11, 14, 15,"
 		 " 17, 18, 21, 22, 23, 24, 25, default 18");
 
-module_param(sense, bool, S_IRUGO);
+module_param(sense, int, S_IRUGO);
 MODULE_PARM_DESC(sense, "Override autodetection of IR receiver circuit"
 		 " (0 = active high, 1 = active low )");
 
