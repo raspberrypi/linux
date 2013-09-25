@@ -590,8 +590,6 @@ static int __init lirc_rpi_init(void)
 
 static void lirc_rpi_exit(void)
 {
-	gpio_free(gpio_out_pin);
-	gpio_free(gpio_in_pin);
 	platform_device_unregister(lirc_rpi_dev);
 	platform_driver_unregister(&lirc_rpi_driver);
 	lirc_buffer_free(&rbuf);
@@ -623,6 +621,10 @@ static int __init lirc_rpi_init_module(void)
 		goto exit_rpi;
 	}
 
+	result = init_port();
+	if (result < 0)
+		goto exit_rpi;
+
 	driver.features = LIRC_CAN_SET_SEND_DUTY_CYCLE |
 			  LIRC_CAN_SET_SEND_CARRIER |
 			  LIRC_CAN_SEND_PULSE |
@@ -640,10 +642,6 @@ static int __init lirc_rpi_init_module(void)
 
 	printk(KERN_INFO LIRC_DRIVER_NAME ": driver registered!\n");
 
-	result = init_port();
-	if (result < 0)
-		goto exit_rpi;
-
 	return 0;
 
 	exit_rpi:
@@ -654,6 +652,9 @@ static int __init lirc_rpi_init_module(void)
 
 static void __exit lirc_rpi_exit_module(void)
 {
+	gpio_free(gpio_out_pin);
+	gpio_free(gpio_in_pin);
+
 	lirc_rpi_exit();
 
 	lirc_unregister_driver(driver.minor);
