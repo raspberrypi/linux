@@ -501,6 +501,7 @@ int dwc_otg_hcd_urb_enqueue(dwc_otg_hcd_t * hcd,
 	dwc_otg_transaction_type_e tr_type;
 	dwc_otg_qtd_t *qtd;
 	gintmsk_data_t intr_mask = {.d32 = 0 };
+	hprt0_data_t hprt0 = { .d32 = 0 };
 
 #ifdef DEBUG /* integrity checks (Broadcom) */
 	if (NULL == hcd->core_if) {
@@ -513,6 +514,16 @@ int dwc_otg_hcd_urb_enqueue(dwc_otg_hcd_t * hcd,
 		/* No longer connected. */
 		DWC_ERROR("Not connected\n");
 		return -DWC_E_NO_DEVICE;
+	}
+
+	/* Some core configurations cannot support LS traffic on a FS root port */
+	if ((hcd->fops->speed(hcd, dwc_otg_urb->priv) == USB_SPEED_LOW) &&
+		(hcd->core_if->hwcfg2.b.fs_phy_type == 1) &&
+		(hcd->core_if->hwcfg2.b.hs_phy_type == 1)) {
+			hprt0.d32 = DWC_READ_REG32(hcd->core_if->host_if->hprt0);
+			if (hprt0.b.prtspd == DWC_HPRT0_PRTSPD_FULL_SPEED) {
+				return -DWC_E_NO_DEVICE;
+			}
 	}
 
 	qtd = dwc_otg_hcd_qtd_create(dwc_otg_urb, atomic_alloc);
