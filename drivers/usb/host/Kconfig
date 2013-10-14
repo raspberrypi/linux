@@ -5,7 +5,7 @@ comment "USB Host Controller Drivers"
 	depends on USB
 
 config USB_FIQ_ENABLED
-        tristate "Usage of ARM FIQ handler to improve USB performance"
+        bool "Usage of ARM FIQ handler to improve USB performance"
         depends on USB
 	default y
         help
