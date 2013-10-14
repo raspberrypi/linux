@@ -802,19 +802,19 @@ static int dwc_otg_driver_probe(
                                                       _dev->resource[0].end -
                                                       _dev->resource[0].start+1);
 #ifdef CONFIG_USB_FIQ_ENABLED
-		if (!request_mem_region(_dev->resource[1].start,
-	                                _dev->resource[1].end - _dev->resource[1].start + 1,
-	                                "dwc_otg")) {
-	          dev_dbg(&_dev->dev, "error reserving mapped memory\n");
-	          retval = -EFAULT;
-	          goto fail;
-#endif
+	if (!request_mem_region(_dev->resource[1].start,
+                                _dev->resource[1].end - _dev->resource[1].start + 1,
+                                "dwc_otg")) {
+          dev_dbg(&_dev->dev, "error reserving mapped memory\n");
+          retval = -EFAULT;
+          goto fail;
+	}
 
-		dwc_otg_device->os_dep.mphi_base = ioremap_nocache(_dev->resource[1].start,
+	dwc_otg_device->os_dep.mphi_base = ioremap_nocache(_dev->resource[1].start,
 							    _dev->resource[1].end -
 							    _dev->resource[1].start + 1);
-		dummy_send = (void *) kmalloc(16, GFP_ATOMIC);
-	}
+	dummy_send = (void *) kmalloc(16, GFP_ATOMIC);
+#endif
 
 #else
         {
