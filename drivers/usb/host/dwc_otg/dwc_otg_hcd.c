@@ -747,9 +747,7 @@ static void completion_tasklet_func(void *ptr)
 		DWC_FREE(item);
 
 		usb_hcd_giveback_urb(hcd->priv, urb, urb->status);
-
 		fiq_print(FIQDBG_PORTHUB, "COMPLETE");
-
 		DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 	}
 	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
@@ -1334,13 +1332,14 @@ int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 	if(hcd->hub_port[hub_addr] & (1 << port_addr))
 	{
 		fiq_print(FIQDBG_PORTHUB, "H%dP%d:S%02d", hub_addr, port_addr, qh->skip_count);
-
 		qh->skip_count++;
 
 		if(qh->skip_count > 40000)
 		{
 			printk_once(KERN_ERR "Error: Having to skip port allocation");
+#ifdef DWC_FIQ
 			local_fiq_disable();
+#endif
 			BUG();
 			return 0;
 		}
@@ -1351,7 +1350,7 @@ int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 		qh->skip_count = 0;
 		hcd->hub_port[hub_addr] |= 1 << port_addr;
 		fiq_print(FIQDBG_PORTHUB, "H%dP%d:A %d", hub_addr, port_addr, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->pipe_info.ep_num);
-#ifdef FIQ_DEBUG
+#if defined(DWC_FIQ) && defined(FIQ_DEBUG)
 		hcd->hub_port_alloc[hub_addr * 16 + port_addr] = dwc_otg_hcd_get_frame_number(hcd);
 #endif
 		return 0;
@@ -1371,7 +1370,6 @@ void dwc_otg_hcd_release_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 	hcd->hub_port_alloc[hub_addr * 16 + port_addr] = -1;
 #endif
 	fiq_print(FIQDBG_PORTHUB, "H%dP%d:RO%d", hub_addr, port_addr, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->pipe_info.ep_num);
-
 }
 
 

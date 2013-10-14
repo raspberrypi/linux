@@ -37,7 +37,7 @@ typedef enum {
 } FIQDBG_T;
 
 void _fiq_print(FIQDBG_T dbg_lvl, char *fmt, ...);
-#ifdef FIQ_DEBUG
+#if defined(DWC_FIQ) && defined(FIQ_DEBUG)
 #define fiq_print _fiq_print
 #else
 #define fiq_print(x, y, ...)
