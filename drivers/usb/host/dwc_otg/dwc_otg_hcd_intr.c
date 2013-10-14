@@ -38,8 +38,9 @@
 
 #include <linux/jiffies.h>
 #include <mach/hardware.h>
+#ifdef DWC_FIQ
 #include <asm/fiq.h>
-
+#endif
 
 extern bool microframe_schedule;
 
@@ -54,8 +55,13 @@ extern bool microframe_schedule;
 void * dummy_send;
 mphi_regs_t c_mphi_regs;
 volatile void *dwc_regs_base;
-int fiq_done, int_done;
+#ifdef DWC_FIQ
+int fiq_done;
+#endif
+int int_done;
 
+gintsts_data_t gintsts;
+gintmsk_data_t gintmsk;
 gintsts_data_t  gintsts_saved = {.d32 = 0};
 hcint_data_t    hcint_saved[MAX_EPS_CHANNELS];
 hcintmsk_data_t hcintmsk_saved[MAX_EPS_CHANNELS];
@@ -74,6 +80,7 @@ int complete_sched[MAX_EPS_CHANNELS] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 int split_start_frame[MAX_EPS_CHANNELS];
 int queued_port[MAX_EPS_CHANNELS];
 
+#ifdef DWC_FIQ
 #ifdef FIQ_DEBUG
 char buffer[1000*16];
 int wptr;
@@ -100,6 +107,7 @@ void notrace _fiq_print(FIQDBG_T dbg_lvl, char *fmt, ...)
 	local_irq_restore(flags);
 }
 #endif
+
 
 void notrace fiq_queue_request(int channel, int odd_frame)
 {
@@ -351,13 +359,13 @@ int notrace fiq_hcintr_handle(int channel, hfnum_data_t hfnum)
 	return hcint_saved[channel].d32 == 0;
 }
 
-gintsts_data_t gintsts;
-gintmsk_data_t gintmsk;
 // triggered: The set of interrupts that were triggered
 // handled:   The set of interrupts that have been handled (no IRQ is
 //            required)
 // keep:      The set of interrupts we want to keep unmasked even though we
 //            want to trigger an IRQ to handle it (SOF and HCINTR)
+//gintsts_data_t gintsts;
+//gintmsk_data_t gintmsk;
 gintsts_data_t triggered, handled, keep;
 hfnum_data_t hfnum;
 
@@ -489,6 +497,7 @@ void __attribute__ ((naked)) notrace dwc_otg_hcd_handle_fiq(void)
 		"subs	pc, lr, #4;"
 	);
 }
+#endif //DWC_FIQ
 
 /** This function handles interrupts for the HCD. */
 int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
@@ -516,11 +525,15 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 	DWC_SPINLOCK(dwc_otg_hcd->lock);
 	/* Check if HOST Mode */
 	if (dwc_otg_is_host_mode(core_if)) {
+#ifdef DWC_FIQ
 		local_fiq_disable();
+#endif
 		gintmsk.d32 |= gintsts_saved.d32;
 		gintsts.d32 |= gintsts_saved.d32;
 		gintsts_saved.d32 = 0;
+#ifdef DWC_FIQ
 		local_fiq_enable();
+#endif
 		if (!gintsts.d32) {
 			goto exit_handler_routine;
 		}
@@ -742,9 +755,10 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 	}
 
 	/* Clear interrupt */
-	gintsts.b.sofintr = 1;
-	DWC_WRITE_REG32(&hcd->core_if->core_global_regs->gintsts, gintsts.d32);
-
+	if (!fiq_fix_enable) {
+		gintsts.b.sofintr = 1;
+		DWC_WRITE_REG32(&hcd->core_if->core_global_regs->gintsts, gintsts.d32);
+	}
 	return 1;
 }
 
@@ -1325,7 +1339,7 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 	int free_qtd;
 	dwc_irqflags_t flags;
 	dwc_spinlock_t *channel_lock = hcd->channel_lock;
-#ifdef FIQ_DEBUG
+#if defined(DWC_FIQ) && defined(FIQ_DEBUG)
 	int endp = qtd->urb ? qtd->urb->pipe_info.ep_num : 0;
 #endif
 	int hog_port = 0;
@@ -1416,7 +1430,9 @@ cleanup:
 
 		DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 		hcd->available_host_channels++;
+#ifdef DWC_FIQ
 		fiq_print(FIQDBG_PORTHUB, "AHC = %d ", hcd->available_host_channels);
+#endif
 		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 	}
 
@@ -1857,7 +1873,8 @@ static int32_t handle_hc_nak_intr(dwc_otg_hcd_t * hcd,
 	 */
 	switch(dwc_otg_hcd_get_pipe_type(&qtd->urb->pipe_info)) {
 		case UE_BULK:
-		case UE_CONTROL:
+		//case UE_INTERRUPT:
+		//case UE_CONTROL:
 		if (nak_holdoff_enable)
 			hc->qh->nak_frame = dwc_otg_hcd_get_frame_number(hcd);
 	}

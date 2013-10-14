@@ -1284,12 +1284,8 @@ void pcd_remove(dwc_bus_dev_t *_dev)
  * @param driver The driver being registered
  * @param bind The bind function of gadget driver
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
-int usb_gadget_register_driver(struct usb_gadget_driver *driver)
-#else
-int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
-		int (*bind)(struct usb_gadget *))
-#endif
+
+int usb_gadget_probe_driver(struct usb_gadget_driver *driver)
 {
 	int retval;
 
@@ -1297,11 +1293,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		    driver->driver.name);
 
 	if (!driver || driver->max_speed == USB_SPEED_UNKNOWN ||
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
 	    !driver->bind ||
-#else
-		!bind ||
-#endif
 	    !driver->unbind || !driver->disconnect || !driver->setup) {
 		DWC_DEBUGPL(DBG_PCDV, "EINVAL\n");
 		return -EINVAL;
@@ -1320,11 +1312,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 	gadget_wrapper->gadget.dev.driver = &driver->driver;
 
 	DWC_DEBUGPL(DBG_PCD, "bind to driver %s\n", driver->driver.name);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
-	retval = driver->bind(&gadget_wrapper->gadget);
-#else
-	retval = bind(&gadget_wrapper->gadget);
-#endif
+	retval = driver->bind(&gadget_wrapper->gadget, gadget_wrapper->driver);
 	if (retval) {
 		DWC_ERROR("bind to driver %s --> error %d\n",
 			  driver->driver.name, retval);
@@ -1336,11 +1324,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		    driver->driver.name);
 	return 0;
 }
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
-EXPORT_SYMBOL(usb_gadget_register_driver);
-#else
 EXPORT_SYMBOL(usb_gadget_probe_driver);
-#endif
 
 /**
  * This function unregisters a gadget driver

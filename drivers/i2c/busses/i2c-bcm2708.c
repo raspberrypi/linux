@@ -71,7 +71,10 @@
 #define DRV_NAME	"bcm2708_i2c"
 
 static unsigned int baudrate = CONFIG_I2C_BCM2708_BAUDRATE;
+static unsigned int clkt = 0x0; // Disable Clock stretching timeout by default 
 module_param(baudrate, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+module_param(clkt, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+
 MODULE_PARM_DESC(baudrate, "The I2C baudrate");
 
 
@@ -108,6 +111,7 @@ static void bcm2708_i2c_init_pinmode(int id)
         BUG_ON(id != 0 && id != 1);
 	/* BSC0 is on GPIO 0 & 1, BSC1 is on GPIO 2 & 3 */
 	for (pin = id*2+0; pin <= id*2+1; pin++) {
+printk("bcm2708_i2c_init_pinmode(%d,%d)\n", id, pin);
 		INP_GPIO(pin);		/* set mode to GPIO input first */
 		SET_GPIO_ALT(pin, 0);	/* set mode to ALT 0 */
 	}
@@ -131,6 +135,7 @@ static inline void bcm2708_wr(struct bcm2708_i2c *bi, unsigned reg, u32 val)
 static inline void bcm2708_bsc_reset(struct bcm2708_i2c *bi)
 {
 	bcm2708_wr(bi, BSC_C, 0);
+	bcm2708_wr(bi, BSC_CLKT, clkt);
 	bcm2708_wr(bi, BSC_S, BSC_S_CLKT | BSC_S_ERR | BSC_S_DONE);	
 }
 
@@ -260,7 +265,7 @@ static struct i2c_algorithm bcm2708_i2c_algorithm = {
 	.functionality = bcm2708_i2c_functionality,
 };
 
-static int __devinit bcm2708_i2c_probe(struct platform_device *pdev)
+static int bcm2708_i2c_probe(struct platform_device *pdev)
 {
 	struct resource *regs;
 	int irq, err = -ENOMEM;
@@ -358,7 +363,7 @@ out_clk_put:
 	return err;
 }
 
-static int __devexit bcm2708_i2c_remove(struct platform_device *pdev)
+static int bcm2708_i2c_remove(struct platform_device *pdev)
 {
 	struct bcm2708_i2c *bi = platform_get_drvdata(pdev);
 
@@ -380,7 +385,7 @@ static struct platform_driver bcm2708_i2c_driver = {
 		.owner	= THIS_MODULE,
 	},
 	.probe		= bcm2708_i2c_probe,
-	.remove		= __devexit_p(bcm2708_i2c_remove),
+	.remove		= bcm2708_i2c_remove,
 };
 
 // module_platform_driver(bcm2708_i2c_driver);

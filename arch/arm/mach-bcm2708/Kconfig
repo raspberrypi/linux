@@ -13,9 +13,16 @@ config BCM2708_GPIO
 	bool "BCM2708 gpio support"
 	depends on MACH_BCM2708
 	select ARCH_REQUIRE_GPIOLIB
-        default y
+        default n
 	help
 	  Include support for the Broadcom(R) BCM2708 gpio.
+
+config BCM2708_RPI2C
+        bool "I2C Sniffing support on Raspbery Pi"
+        depends on MACH_BCM2708
+        default y
+        help
+          Include support for the I2C sniffer (slave mode) on Raspbery Pi.
 
 config BCM2708_VCMEM
 	bool "Videocore Memory"

@@ -108,13 +108,6 @@ static struct map_desc bcm2708_io_desc[] __initdata = {
 	 .pfn = __phys_to_pfn(UART1_BASE),
 	 .length = SZ_4K,
 	 .type = MT_DEVICE},
-#ifdef CONFIG_MMC_BCM2708	/* broadcom legacy SD */
-	{
-	 .virtual = IO_ADDRESS(MMCI0_BASE),
-	 .pfn = __phys_to_pfn(MMCI0_BASE),
-	 .length = SZ_4K,
-	 .type = MT_DEVICE},
-#endif
 	{
 	 .virtual = IO_ADDRESS(DMA_BASE),
 	 .pfn = __phys_to_pfn(DMA_BASE),
@@ -161,14 +154,10 @@ static inline uint32_t timer_read(void)
 	return readl(__io_address(ST_BASE + 0x04));
 }
 
-#ifdef ARCH_HAS_READ_CURRENT_TIMER
-int read_current_timer(unsigned long *timer_val)
+static unsigned long bcm2708_read_current_timer(void)
 {
-	*timer_val = timer_read();
-	return 0;
+	return timer_read();
 }
-EXPORT_SYMBOL(read_current_timer);
-#endif
 
 static u32 notrace bcm2708_read_sched_clock(void)
 {
@@ -235,12 +224,6 @@ static struct clk_lookup lookups[] = {
 	{			/* USB */
 	 .dev_id = "bcm2708_usb",
 	 .clk = &osc_clk,
-#ifdef CONFIG_MMC_BCM2708
-	 },
-	{			/* MCI */
-	 .dev_id = "bcm2708_mci.0",
-	 .clk = &sdhost_clk,
-#endif
 	 }, {	/* SPI */
 		 .dev_id = "bcm2708_spi.0",
 		 .clk = &sdhost_clk,
@@ -276,31 +259,6 @@ static struct platform_device bcm2708_dmaman_device = {
 	.resource = bcm2708_dmaman_resources,
 	.num_resources = ARRAY_SIZE(bcm2708_dmaman_resources),
 };
-
-#ifdef CONFIG_MMC_BCM2708
-static struct resource bcm2708_mci_resources[] = {
-	{
-	 .start = MMCI0_BASE,
-	 .end = MMCI0_BASE + SZ_4K - 1,
-	 .flags = IORESOURCE_MEM,
-	 },
-	{
-	 .start = IRQ_SDIO,
-	 .end = IRQ_SDIO,
-	 .flags = IORESOURCE_IRQ,
-	 }
-};
-
-static struct platform_device bcm2708_mci_device = {
-	.name = "bcm2708_mci",
-	.id = 0,		/* first bcm2708_mci */
-	.resource = bcm2708_mci_resources,
-	.num_resources = ARRAY_SIZE(bcm2708_mci_resources),
-	.dev = {
-		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON),
-		},
-};
-#endif /* CONFIG_MMC_BCM2708 */
 
 #if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
 static struct w1_gpio_platform_data w1_gpio_pdata = {
@@ -516,6 +474,7 @@ struct platform_device bcm2708_powerman_device = {
 		.coherent_dma_mask = 0xffffffffUL},
 };
 
+
 static struct platform_device bcm2708_alsa_devices[] = {
 	[0] = {
 	       .name = "bcm2835_AUD0",
@@ -579,6 +538,7 @@ static struct resource bcm2708_spi_resources[] = {
 	}
 };
 
+
 static struct platform_device bcm2708_spi_device = {
 	.name = "bcm2708_spi",
 	.id = 0,
@@ -588,6 +548,7 @@ static struct platform_device bcm2708_spi_device = {
 
 #ifdef CONFIG_BCM2708_SPIDEV
 static struct spi_board_info bcm2708_spi_devices[] = {
+#ifdef CONFIG_SPI_SPIDEV
 	{
 		.modalias = "spidev",
 		.max_speed_hz = 500000,
@@ -601,6 +562,7 @@ static struct spi_board_info bcm2708_spi_devices[] = {
 		.chip_select = 1,
 		.mode = SPI_MODE_0,
 	}
+#endif
 };
 #endif
 
@@ -700,13 +662,13 @@ static void bcm2708_restart(char mode, const char *cmd)
 	writel(pm_rsts, __io_address(PM_RSTS));
 
 	/* Setup watchdog for reset */
-	pm_rstc = readl(IO_ADDRESS(PM_RSTC));
+	pm_rstc = readl(__io_address(PM_RSTC));
 
 	pm_wdog = PM_PASSWORD | (timeout & PM_WDOG_TIME_SET); // watchdog timer = timer clock / 16; need password (31:16) + value (11:0)
 	pm_rstc = PM_PASSWORD | (pm_rstc & PM_RSTC_WRCFG_CLR) | PM_RSTC_WRCFG_FULL_RESET;
 
-	writel(pm_wdog, IO_ADDRESS(PM_WDOG));
-	writel(pm_rstc, IO_ADDRESS(PM_RSTC));
+	writel(pm_wdog, __io_address(PM_WDOG));
+	writel(pm_rstc, __io_address(PM_RSTC));
 }
 
 /* We can't really power off, but if we do the normal reset scheme, and indicate to bootcode.bin not to reboot, then most of the chip will be powered off */
@@ -753,9 +715,6 @@ void __init bcm2708_init(void)
 	platform_device_register(&w1_device);
 #endif
 	bcm_register_device(&bcm2708_systemtimer_device);
-#ifdef CONFIG_MMC_BCM2708
-	bcm_register_device(&bcm2708_mci_device);
-#endif
 	bcm_register_device(&bcm2708_fb_device);
 	if (!fiq_fix_enable)
 	{
@@ -792,8 +751,6 @@ void __init bcm2708_init(void)
 			ARRAY_SIZE(bcm2708_spi_devices));
 #endif
 }
-
-#define TIMER_PERIOD DIV_ROUND_CLOSEST(STC_FREQ_HZ, HZ)
 
 static void timer_set_mode(enum clock_event_mode mode,
 			   struct clock_event_device *clk)
@@ -856,6 +813,12 @@ static struct irqaction bcm2708_timer_irq = {
 /*
  * Set up timer interrupt, and return the current time in seconds.
  */
+
+static struct delay_timer bcm2708_delay_timer = {
+	.read_current_timer = bcm2708_read_current_timer,
+	.freq = STC_FREQ_HZ,
+};
+
 static void __init bcm2708_timer_init(void)
 {
 	/* init high res timer */
@@ -881,11 +844,9 @@ static void __init bcm2708_timer_init(void)
 
 	timer0_clockevent.cpumask = cpumask_of(0);
 	clockevents_register_device(&timer0_clockevent);
-}
 
-struct sys_timer bcm2708_timer = {
-	.init = bcm2708_timer_init,
-};
+	register_current_timer_delay(&bcm2708_delay_timer);
+}
 
 #if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
 #include <linux/leds.h>
@@ -922,38 +883,6 @@ static inline void bcm2708_init_led(void)
 }
 #endif
 
-/* The assembly versions in delay.S don't account for core freq changing in cpufreq driver */
-/* Use 1MHz system timer for busy waiting */
-static void bcm2708_udelay(unsigned long usecs)
-{
-	unsigned long start = timer_read();
-	unsigned long now;
-	do {
-		now = timer_read();
-	} while ((long)(now - start) <= usecs);
-}
-
-
-static void bcm2708_const_udelay(unsigned long scaled_usecs)
-{
-	/* want /107374, this is about 3% bigger. We know usecs is less than 2000, so shouldn't overflow */
-	const unsigned long usecs = scaled_usecs * 10 >> 20;
-	unsigned long start = timer_read();
-	unsigned long now;
-	do {
-		now = timer_read();
-	} while ((long)(now - start) <= usecs);
-}
-
-extern void bcm2708_delay(unsigned long cycles);
-
-struct arm_delay_ops arm_delay_ops = {
-	.delay		= bcm2708_delay,
-	.const_udelay	= bcm2708_const_udelay,
-	.udelay		= bcm2708_udelay,
-};
-
-
 void __init bcm2708_init_early(void)
 {
 	/*
@@ -975,7 +904,7 @@ MACHINE_START(BCM2708, "BCM2708")
     /* Maintainer: Broadcom Europe Ltd. */
 	.map_io = bcm2708_map_io,
 	.init_irq = bcm2708_init_irq,
-	.timer =&bcm2708_timer,
+	.init_time = bcm2708_timer_init,
 	.init_machine = bcm2708_init,
 	.init_early = bcm2708_init_early,
 	.reserve = board_reserve,
