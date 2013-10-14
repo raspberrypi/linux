@@ -22,7 +22,13 @@ config BCM2708_RPI2C
         depends on MACH_BCM2708 && !BCM2708_GPIO && !USB_FIQ_ENABLED
         default n
         help
-          Include support for the I2C sniffer and dummy I2C Slave (receive only) for Raspbery Pi. Driver replaces default BCM2708_GPIO so you cannot have any userspave support for GPIO  working anymore on Rpi. In future, this driver should copy gpio interface from bcm2708_gpio.c to provide GPIO functionality on unused pins, but currently this is TODO.  In order to use this module you have to hardwire two GPIO lines together for SDA signal gpiop[0..27] with gpio[28..31] for SCL you need only one gpio[0..27]. You have to provide these as kernel params: rpi2c.rpi2c_sda_gpio_a=[0..27], rpi2c.rpi2c_sda_gpio_b=[28..31], rpi2c.rpi2c_scl_gpio=[0..27], defaults are SDA: 4,31 and SCL:17 also module defines rpi2c.rpi2c_my_addr for I2C slave address this module will ACK, by default it is 0x40
+          Include support for the I2C sniffer and dummy I2C Slave (receive only) for Raspbery Pi.
+          Driver replaces default BCM2708_GPIO so you cannot have any userspave support for GPIO  working anymore on Rpi.
+          In future, this driver should copy gpio interface from bcm2708_gpio.c to provide GPIO functionality on unused pins, but currently this is TODO.
+          In order to use this module you have to hardwire two GPIO lines together
+          for SDA signal gpiop[0..27] with gpio[28..31] for SCL you need only one gpio[0..27].
+          You have to provide these as kernel params: rpi2c.rpi2c_sda_gpio_a=[0..27], rpi2c.rpi2c_sda_gpio_b=[28..31], rpi2c.rpi2c_scl_gpio=[0..27]
+          defaults are SDA: 4,31 and SCL:17 also module defines rpi2c.rpi2c_my_addr for I2C slave address this module will ACK, by default it is 0x40
 
 config BCM2708_VCMEM
 	bool "Videocore Memory"
