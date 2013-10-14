@@ -1350,7 +1350,7 @@ static inline uint32_t dwc_otg_read_common_intr(dwc_otg_core_if_t * core_if, gin
 
 		// Re-enable the saved interrupts
 		local_irq_save(flags);
-#ifdef DWC_FIQ
+#ifdef CONFIG_USB_FIQ_ENABLED
 		local_fiq_disable();
 #endif
 		gintmsk.d32 |= gintmsk_common.d32;
@@ -1368,15 +1368,15 @@ static inline uint32_t dwc_otg_read_common_intr(dwc_otg_core_if_t * core_if, gin
 			    gintsts.d32, gintmsk.d32);
 	}
 #endif
-	if (!fiq_fix_enable){
-		if (gahbcfg.b.glblintrmsk)
-			return ((gintsts.d32 & gintmsk.d32) & gintmsk_common.d32);
-		else
-			return 0;
-	}
-	else {
+
+#ifndef CONFIG_USB_FIQ_ENABLED
+	if (gahbcfg.b.glblintrmsk)
 		return ((gintsts.d32 & gintmsk.d32) & gintmsk_common.d32);
-	}
+	else
+		return 0;
+#else
+	return ((gintsts.d32 & gintmsk.d32) & gintmsk_common.d32);
+#endif
 
 }
 

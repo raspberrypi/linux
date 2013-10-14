@@ -4,6 +4,13 @@
 comment "USB Host Controller Drivers"
 	depends on USB
 
+config USB_FIQ_ENABLED
+        tristate "Usage of ARM FIQ handler to improve USB performance"
+        depends on USB
+	default n
+        help
+          Enable/Disable usage of ARM FIQ for USB drivers. currently only: "Synopsis DWC host" (see below)
+
 config USB_C67X00_HCD
 	tristate "Cypress C67x00 HCD support"
 	depends on USB

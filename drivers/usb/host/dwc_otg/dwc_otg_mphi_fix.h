@@ -36,8 +36,11 @@ typedef enum {
 	FIQDBG_PORTHUB = (1 << 3),
 } FIQDBG_T;
 
+#ifdef CONFIG_USB_FIQ_ENABLED
 void _fiq_print(FIQDBG_T dbg_lvl, char *fmt, ...);
-#if defined(DWC_FIQ) && defined(FIQ_DEBUG)
+#endif
+
+#if defined(CONFIG_USB_FIQ_ENABLED) && defined(FIQ_DEBUG)
 #define fiq_print _fiq_print
 #else
 #define fiq_print(x, y, ...)
