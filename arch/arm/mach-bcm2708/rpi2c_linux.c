@@ -44,6 +44,8 @@ MODULE_VERSION("1.0.0");
 
 void rpi2c_fiq(void);
 void rpi2c_update_counters(void);
+int rpi2c_gpio_init(void);
+int rpi2c_gpio_destroy(void);
 
 unsigned int rpi2c_my_addr = 0x40;
 unsigned int rpi2c_sda_gpio_a = 4;
@@ -91,7 +93,7 @@ extern struct fiq_stack_s rpi2c_fiq_stack;
 extern unsigned long long rpi2c_total_cycles;//,total_count1,total_count2;
 static struct timer_list overflow_timer;
 
-static int rpi2c_set_function(unsigned offset,
+int rpi2c_set_function(unsigned offset,
                                 int function);
 
 static void avoid_overflow(unsigned long d) {
@@ -110,9 +112,9 @@ static irqreturn_t notrace wakeup_readers_irq(int irq, void *dev_id)
 {
 	irqreturn_t result = IRQ_NONE;
 	unsigned long edsr = __raw_readl(rpi2c_base + GPIOEDS(0));
-        // clear only INT_GPIO0 interrupts (GPIO[0..27])
-	if(edsr & (1<<rpi2c_sda_gpio_b)) {
-        	writel(edsr & (1<<rpi2c_sda_gpio_b), rpi2c_base + GPIOEDS(0));
+        // clear only INT_GPIO1 interrupts (GPIO[28..GPIO31])
+	if(edsr & (0b11110000000000000000000000000000)) {
+        	writel(edsr & (0b11110000000000000000000000000000), rpi2c_base + GPIOEDS(0));
 		result = IRQ_HANDLED;
 	}
 	wake_up_all(&read_queue);
@@ -275,8 +277,8 @@ static struct file_operations rpi2c_fops = {
  .release = release,
 };
 
-static int rpi2c_set_function(unsigned offset,
-				int function)
+int rpi2c_set_function(unsigned offset,
+			int function)
 {
 	unsigned gpiodir;
 	unsigned gpio_bank = offset / 10;
@@ -292,7 +294,7 @@ static int rpi2c_set_function(unsigned offset,
 }
 
 
-static int rpi2c_get(unsigned offset)
+int rpi2c_get(unsigned offset)
 {
 	unsigned gpio_bank = offset / 32;
 	unsigned gpio_field_offset = (offset - 32 * gpio_bank);
@@ -302,7 +304,7 @@ static int rpi2c_get(unsigned offset)
 	return 0x1 & (lev >> gpio_field_offset);
 }
 
-static void rpi2c_set(unsigned offset, int value)
+void rpi2c_set(unsigned offset, int value)
 {
 	unsigned gpio_bank = offset / 32;
 	unsigned gpio_field_offset = (offset - 32 * gpio_bank);
@@ -483,8 +485,8 @@ static int __init rpi2c_init(void)
 	writel(1<<rpi2c_sda_gpio_a | 1<<rpi2c_scl_gpio | 1<<rpi2c_sda_gpio_b /* GPIOsda_gpio_a and GPIOscl_gpio and GPIOsda_gpio_b */,
 		rpi2c_base + GPIOUDCLK(0));
 	// enable shmidt trigger for GPIO[0..27]
-	writel(0x5a000000 | 0b001 /* 2ma */ | 1<<3 /*hyst*/ | 0<<4 /* slew*/ , rpi2c_power_base + PM_PADS(0));
-	writel(0x5a000000 | 0b001 /* 2ma */ | 1<<3 /*hyst*/ | 0<<4 /* slew*/ , rpi2c_power_base + PM_PADS(1));
+	writel(0x5a000000 | 0b001 /* 4ma */ | 1<<3 /*hyst*/ | 0<<4 /* slew*/ , rpi2c_power_base + PM_PADS(0));
+	writel(0x5a000000 | 0b001 /* 4ma */ | 1<<3 /*hyst*/ | 0<<4 /* slew*/ , rpi2c_power_base + PM_PADS(1));
 
 	err = rpi2c_set_function(rpi2c_sda_gpio_a, GPIO_FSEL_INPUT);
         if(err != 0) {
@@ -535,6 +537,13 @@ static int __init rpi2c_init(void)
                 printk(KERN_ERR DRIVER_NAME ": failed to request GPIO1 irq %d\n", err);
                 goto unregall;
         }
+	err = rpi2c_gpio_init();
+        if(err != 0) {
+                printk(KERN_ERR DRIVER_NAME ": failed to initialize gpio %d\n", err);
+                goto unregallfreeirq;
+        }
+
+
 	disable_irq(IRQ_GPIO0);
         rpi2c_irq_unmask(rpi2c_sda_gpio_a);
         rpi2c_irq_unmask(rpi2c_scl_gpio);
@@ -550,6 +559,8 @@ static int __init rpi2c_init(void)
 	set_fiq_regs(&regs);
         enable_fiq(INTERRUPT_GPIO0);
 	return 0;
+unregallfreeirq:
+	free_irq(IRQ_GPIO1,wakeup_readers_irq);
 unregall:
         device_destroy(cdev_class, cdevid);
         class_destroy(cdev_class);
@@ -575,6 +586,7 @@ static void __exit rpi2c_exit(void)
         rpi2c_irq_mask(rpi2c_sda_gpio_a);
         disable_fiq(INTERRUPT_GPIO0);
         enable_irq(IRQ_GPIO0);
+	rpi2c_gpio_destroy();
 	free_irq(IRQ_GPIO1,wakeup_readers_irq);
         release_fiq(&fh);
 	//
@@ -588,7 +600,7 @@ static void __exit rpi2c_exit(void)
         asm volatile("mcr p15, 0, %0, c15, c12, 0\n"
                      : "+r" (control));
 	del_timer(&overflow_timer);
-
+	
 }
 
 module_init(rpi2c_init);

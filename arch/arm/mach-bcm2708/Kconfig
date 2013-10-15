@@ -20,6 +20,7 @@ config BCM2708_GPIO
 config BCM2708_RPI2C
         bool "I2C Sniffing support on Raspbery Pi iwth basic Slave functionality (always ACK on own address)"
         depends on MACH_BCM2708 && !BCM2708_GPIO && !USB_FIQ_ENABLED
+	select ARCH_REQUIRE_GPIOLIB
         default n
         help
           Include support for the I2C sniffer and dummy I2C Slave (receive only) for Raspbery Pi.
