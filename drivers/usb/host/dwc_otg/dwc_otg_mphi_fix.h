@@ -1,10 +1,7 @@
 #ifndef __DWC_OTG_MPHI_FIX_H__
 #define __DWC_OTG_MPHI_FIX_H__
-
-#ifdef CONFIG_USB_FIQ_ENABLED
 #define FIQ_WRITE(_addr_,_data_) (*(volatile uint32_t *) (_addr_) = (_data_))
 #define FIQ_READ(_addr_) (*(volatile uint32_t *) (_addr_))
-#endif
 
 typedef struct {
 	volatile void* base;
@@ -39,17 +36,13 @@ typedef enum {
 	FIQDBG_PORTHUB = (1 << 3),
 } FIQDBG_T;
 
-#ifdef CONFIG_USB_FIQ_ENABLED
 void _fiq_print(FIQDBG_T dbg_lvl, char *fmt, ...);
-extern bool fiq_split_enable;
-#endif
-
-#if defined(CONFIG_USB_FIQ_ENABLED) && defined(FIQ_DEBUG)
+#if defined(DWC_FIQ) && defined(FIQ_DEBUG)
 #define fiq_print _fiq_print
 #else
 #define fiq_print(x, y, ...)
 #endif
 
-extern bool nak_holdoff_enable;
+extern bool fiq_fix_enable, nak_holdoff_enable, fiq_split_enable;
 
 #endif

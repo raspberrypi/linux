@@ -295,9 +295,8 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 	 */
 	dwc_otg_hcd->flags.b.port_connect_status_change = 1;
 	dwc_otg_hcd->flags.b.port_connect_status = 0;
-#ifdef CONFIG_USB_FIQ_ENABLED
-	local_fiq_disable();
-#endif
+	if(fiq_fix_enable)
+		local_fiq_disable();
 	/*
 	 * Shutdown any transfers in process by clearing the Tx FIFO Empty
 	 * interrupt mask and status bits and disabling subsequent host
@@ -393,7 +392,6 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 				channel->qh = NULL;
 			}
 		}
-#ifdef CONFIG_USB_FIQ_ENABLED
 		if(fiq_split_enable) {
 			for(i=0; i < 128; i++) {
 				dwc_otg_hcd->hub_port[i] = 0;
@@ -404,13 +402,11 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 				hcintmsk_saved[i].d32 = 0;
 			}
 		}
-#endif
 
 	}
 
-#ifdef CONFIG_USB_FIQ_ENABLED
-	local_fiq_enable();
-#endif
+	if(fiq_fix_enable)
+		local_fiq_enable();
 
 	if (dwc_otg_hcd->fops->disconnect) {
 		dwc_otg_hcd->fops->disconnect(dwc_otg_hcd);
@@ -1017,7 +1013,7 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 	hcd->periodic_qh_count = 0;
 
 	DWC_MEMSET(hcd->hub_port, 0, sizeof(hcd->hub_port));
-#if defined(FIQ_DEBUG) && defined(CONFIG_USB_FIQ_ENABLED)
+#ifdef FIQ_DEBUG
 	DWC_MEMSET(hcd->hub_port_alloc, -1, sizeof(hcd->hub_port_alloc));
 #endif
 
@@ -1166,15 +1162,12 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		uint32_t hub_addr, port_addr;
 		hc->do_split = 1;
 		hc->xact_pos = qtd->isoc_split_pos;
-#ifdef CONFIG_USB_FIQ_ENABLED
 		/* We don't need to do complete splits anymore */
 		if(fiq_split_enable)
 			hc->complete_split = qtd->complete_split = 0;
 		else
 			hc->complete_split = qtd->complete_split;
-#else
-		hc->complete_split = qtd->complete_split;
-#endif
+
 		hcd->fops->hub_info(hcd, urb->priv, &hub_addr, &port_addr);
 		hc->hub_addr = (uint8_t) hub_addr;
 		hc->port_addr = (uint8_t) port_addr;
@@ -1331,12 +1324,8 @@ int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 {
 	uint32_t hub_addr, port_addr;
 
-#ifdef CONFIG_USB_FIQ_ENABLED
 	if(!fiq_split_enable)
 		return 0;
-#else
-	return 0;
-#endif
 
 	hcd->fops->hub_info(hcd, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->priv, &hub_addr, &port_addr);
 
@@ -1348,7 +1337,7 @@ int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 		if(qh->skip_count > 40000)
 		{
 			printk_once(KERN_ERR "Error: Having to skip port allocation");
-#ifdef CONFIG_USB_FIQ_ENABLED
+#ifdef DWC_FIQ
 			local_fiq_disable();
 #endif
 			BUG();
@@ -1361,7 +1350,7 @@ int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 		qh->skip_count = 0;
 		hcd->hub_port[hub_addr] |= 1 << port_addr;
 		fiq_print(FIQDBG_PORTHUB, "H%dP%d:A %d", hub_addr, port_addr, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->pipe_info.ep_num);
-#if defined(CONFIG_USB_FIQ_ENABLED) && defined(FIQ_DEBUG)
+#if defined(DWC_FIQ) && defined(FIQ_DEBUG)
 		hcd->hub_port_alloc[hub_addr * 16 + port_addr] = dwc_otg_hcd_get_frame_number(hcd);
 #endif
 		return 0;
@@ -1370,17 +1359,14 @@ int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 void dwc_otg_hcd_release_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 {
 	uint32_t hub_addr, port_addr;
-#ifdef CONFIG_USB_FIQ_ENABLED
+
 	if(!fiq_split_enable)
 		return;
-#else
-	return;
-#endif
 
 	hcd->fops->hub_info(hcd, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->priv, &hub_addr, &port_addr);
 
 	hcd->hub_port[hub_addr] &= ~(1 << port_addr);
-#if defined(FIQ_DEBUG) && defined(CONFIG_USB_FIQ_ENABLED)
+#ifdef FIQ_DEBUG
 	hcd->hub_port_alloc[hub_addr * 16 + port_addr] = -1;
 #endif
 	fiq_print(FIQDBG_PORTHUB, "H%dP%d:RO%d", hub_addr, port_addr, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->pipe_info.ep_num);
@@ -1659,14 +1645,12 @@ static void process_periodic_channels(dwc_otg_hcd_t * hcd)
 
 		// Do not send a split start transaction any later than frame .6
 		// Note, we have to schedule a periodic in .5 to make it go in .6
-#ifdef CONFIG_USB_FIQ_ENABLED
 		if(fiq_split_enable && qh->do_split && ((dwc_otg_hcd_get_frame_number(hcd) + 1) & 7) > 6)
 		{
 			qh_ptr = qh_ptr->next;
 			g_next_sched_frame = dwc_otg_hcd_get_frame_number(hcd) | 7;
 			continue;
 		}
-#endif
 
 		/*
 		 * Set a flag if we're queuing high-bandwidth in slave mode.
@@ -1800,13 +1784,11 @@ static void process_non_periodic_channels(dwc_otg_hcd_t * hcd)
 
 		// Do not send a split start transaction any later than frame .5
 		// non periodic transactions will start immediately in this uframe
-#ifdef CONFIG_USB_FIQ_ENABLED
 		if(fiq_split_enable && qh->do_split && ((dwc_otg_hcd_get_frame_number(hcd) + 1) & 7) > 6)
 		{
 			g_next_sched_frame = dwc_otg_hcd_get_frame_number(hcd) | 7;
 			break;
 		}
-#endif
 
 		status =
 		    queue_transaction(hcd, qh->channel,
