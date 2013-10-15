@@ -578,7 +578,7 @@ struct dwc_otg_hcd {
 
 	/** Hub - Port assignment */
 	int hub_port[128];
-#if defined(FIQ_DEBUG) && defined(CONFIG_USB_FIQ_ENABLED)
+#ifdef FIQ_DEBUG
 	int hub_port_alloc[2048];
 #endif
 

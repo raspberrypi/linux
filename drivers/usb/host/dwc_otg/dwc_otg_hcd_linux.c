@@ -51,7 +51,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/version.h>
 #include <asm/io.h>
-#ifdef CONFIG_USB_FIQ_ENABLED
+#ifdef DWC_FIQ
 #include <asm/fiq.h>
 #endif
 #include <linux/usb.h>
@@ -81,6 +81,8 @@
 						     ((_bEndpointAddress_ & USB_DIR_IN) != 0) << 4)
 
 static const char dwc_otg_hcd_name[] = "dwc_otg_hcd";
+
+extern bool fiq_fix_enable;
 
 /** @name Linux HC Driver API Functions */
 /** @{ */
@@ -392,7 +394,7 @@ static struct dwc_otg_hcd_function_ops hcd_fops = {
 	.get_b_hnp_enable = _get_b_hnp_enable,
 };
 
-#ifdef CONFIG_USB_FIQ_ENABLED
+#ifdef DWC_FIQ
 static struct fiq_handler fh = {
   .name = "usb_fiq",
 };
@@ -435,7 +437,9 @@ int hcd_init(dwc_bus_dev_t *_dev)
         pci_set_consistent_dma_mask(_dev, dmamask);
 #endif
 
-#ifdef CONFIG_USB_FIQ_ENABLED
+#ifdef DWC_FIQ
+	if (fiq_fix_enable)
+	{
 		// Set up fiq
 		claim_fiq(&fh);
 		set_fiq_handler(__FIQ_Branch, 4);
@@ -446,6 +450,7 @@ int hcd_init(dwc_bus_dev_t *_dev)
 		set_fiq_regs(&regs);
 		fiq_stack.magic1 = 0xdeadbeef;
 		fiq_stack.magic2 = 0xaa995566;
+	}
 #endif
 	/*
 	 * Allocate memory for the base HCD plus the DWC OTG HCD.
@@ -465,28 +470,31 @@ int hcd_init(dwc_bus_dev_t *_dev)
 	}
 
 	hcd->regs = otg_dev->os_dep.base;
-#ifdef CONFIG_USB_FIQ_ENABLED
-	volatile extern void *dwc_regs_base;
+#ifdef DWC_FIQ
+	if (fiq_fix_enable)
+	{
+		volatile extern void *dwc_regs_base;
 
-	//Set the mphi periph to  the required registers
-	c_mphi_regs.base    = otg_dev->os_dep.mphi_base;
-	c_mphi_regs.ctrl    = otg_dev->os_dep.mphi_base + 0x4c;
-	c_mphi_regs.outdda  = otg_dev->os_dep.mphi_base + 0x28;
-	c_mphi_regs.outddb  = otg_dev->os_dep.mphi_base + 0x2c;
-	c_mphi_regs.intstat = otg_dev->os_dep.mphi_base + 0x50;
+		//Set the mphi periph to  the required registers
+		c_mphi_regs.base    = otg_dev->os_dep.mphi_base;
+		c_mphi_regs.ctrl    = otg_dev->os_dep.mphi_base + 0x4c;
+		c_mphi_regs.outdda  = otg_dev->os_dep.mphi_base + 0x28;
+		c_mphi_regs.outddb  = otg_dev->os_dep.mphi_base + 0x2c;
+		c_mphi_regs.intstat = otg_dev->os_dep.mphi_base + 0x50;
 
-	dwc_regs_base = otg_dev->os_dep.base;
+		dwc_regs_base = otg_dev->os_dep.base;
 
-	//Enable mphi peripheral
-	writel((1<<31),c_mphi_regs.ctrl);
+		//Enable mphi peripheral
+		writel((1<<31),c_mphi_regs.ctrl);
 #ifdef DEBUG
-	if (readl(c_mphi_regs.ctrl) & 0x80000000)
-		DWC_DEBUGPL(DBG_USER, "MPHI periph has been enabled\n");
-	else
-		DWC_DEBUGPL(DBG_USER, "MPHI periph has NOT been enabled\n");
+		if (readl(c_mphi_regs.ctrl) & 0x80000000)
+			DWC_DEBUGPL(DBG_USER, "MPHI periph has been enabled\n");
+		else
+			DWC_DEBUGPL(DBG_USER, "MPHI periph has NOT been enabled\n");
 #endif
-	// Enable FIQ interrupt from USB peripheral
-	enable_fiq(INTERRUPT_VC_USB);
+		// Enable FIQ interrupt from USB peripheral
+		enable_fiq(INTERRUPT_VC_USB);
+	}
 #endif
 	/* Initialize the DWC OTG HCD. */
 	dwc_otg_hcd = dwc_otg_hcd_alloc_hcd();
