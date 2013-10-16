@@ -38,8 +38,9 @@
 
 #include <linux/jiffies.h>
 #include <mach/hardware.h>
+#ifdef CONFIG_USB_FIQ_ENABLED
 #include <asm/fiq.h>
-
+#endif
 
 extern bool microframe_schedule;
 
@@ -54,8 +55,13 @@ extern bool microframe_schedule;
 void * dummy_send;
 mphi_regs_t c_mphi_regs;
 volatile void *dwc_regs_base;
-int fiq_done, int_done;
+#ifdef CONFIG_USB_FIQ_ENABLED
+int fiq_done;
+#endif
+int int_done;
 
+gintsts_data_t gintsts;
+gintmsk_data_t gintmsk;
 gintsts_data_t  gintsts_saved = {.d32 = 0};
 hcint_data_t    hcint_saved[MAX_EPS_CHANNELS];
 hcintmsk_data_t hcintmsk_saved[MAX_EPS_CHANNELS];
@@ -74,6 +80,7 @@ int complete_sched[MAX_EPS_CHANNELS] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 int split_start_frame[MAX_EPS_CHANNELS];
 int queued_port[MAX_EPS_CHANNELS];
 
+#ifdef CONFIG_USB_FIQ_ENABLED
 #ifdef FIQ_DEBUG
 char buffer[1000*16];
 int wptr;
@@ -100,6 +107,7 @@ void notrace _fiq_print(FIQDBG_T dbg_lvl, char *fmt, ...)
 	local_irq_restore(flags);
 }
 #endif
+
 
 void notrace fiq_queue_request(int channel, int odd_frame)
 {
@@ -351,13 +359,13 @@ int notrace fiq_hcintr_handle(int channel, hfnum_data_t hfnum)
 	return hcint_saved[channel].d32 == 0;
 }
 
-gintsts_data_t gintsts;
-gintmsk_data_t gintmsk;
 // triggered: The set of interrupts that were triggered
 // handled:   The set of interrupts that have been handled (no IRQ is
 //            required)
 // keep:      The set of interrupts we want to keep unmasked even though we
 //            want to trigger an IRQ to handle it (SOF and HCINTR)
+//gintsts_data_t gintsts;
+//gintmsk_data_t gintmsk;
 gintsts_data_t triggered, handled, keep;
 hfnum_data_t hfnum;
 
@@ -489,6 +497,7 @@ void __attribute__ ((naked)) notrace dwc_otg_hcd_handle_fiq(void)
 		"subs	pc, lr, #4;"
 	);
 }
+#endif //CONFIG_USB_FIQ_ENABLED
 
 /** This function handles interrupts for the HCD. */
 int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
@@ -516,11 +525,15 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 	DWC_SPINLOCK(dwc_otg_hcd->lock);
 	/* Check if HOST Mode */
 	if (dwc_otg_is_host_mode(core_if)) {
+#ifdef CONFIG_USB_FIQ_ENABLED
 		local_fiq_disable();
+#endif
 		gintmsk.d32 |= gintsts_saved.d32;
 		gintsts.d32 |= gintsts_saved.d32;
 		gintsts_saved.d32 = 0;
+#ifdef CONFIG_USB_FIQ_ENABLED
 		local_fiq_enable();
+#endif
 		if (!gintsts.d32) {
 			goto exit_handler_routine;
 		}
@@ -605,8 +618,7 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 
 exit_handler_routine:
 
-	if (fiq_fix_enable)
-	{
+#ifdef CONFIG_USB_FIQ_ENABLED
 		local_fiq_disable();
 		// Make sure that we don't clear the interrupt if we've still got pending work to do
 		if(gintsts_saved.d32 == 0)
@@ -636,7 +648,7 @@ exit_handler_routine:
 			last_time = jiffies / HZ;
 			DWC_DEBUGPL(DBG_USER, "int_done = %d fiq_done = %d\n", int_done, fiq_done);
 		}
-	}
+#endif
 
 	DWC_SPINUNLOCK(dwc_otg_hcd->lock);
 	return retval;
@@ -742,9 +754,10 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 	}
 
 	/* Clear interrupt */
-	//gintsts.b.sofintr = 1;
-	//DWC_WRITE_REG32(&hcd->core_if->core_global_regs->gintsts, gintsts.d32);
-
+#ifndef CONFIG_USB_FIQ_ENABLED 
+		gintsts.b.sofintr = 1;
+		DWC_WRITE_REG32(&hcd->core_if->core_global_regs->gintsts, gintsts.d32);
+#endif
 	return 1;
 }
 
@@ -1027,6 +1040,7 @@ int32_t dwc_otg_hcd_handle_hc_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 
 	haint.d32 = dwc_otg_read_host_all_channels_intr(dwc_otg_hcd->core_if);
 
+#ifdef CONFIG_USB_FIQ_ENABLED
 	// Overwrite with saved interrupts from fiq handler
 	if(fiq_split_enable)
 	{
@@ -1035,6 +1049,7 @@ int32_t dwc_otg_hcd_handle_hc_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 		haint_saved.d32 = 0;
 		local_fiq_enable();
 	}
+#endif
 
 	for (i = 0; i < dwc_otg_hcd->core_if->core_params->host_channels; i++) {
 		if (haint.b2.chint & (1 << i)) {
@@ -1076,10 +1091,14 @@ static uint32_t get_actual_xfer_length(dwc_hc_t * hc,
 				*short_read = (hctsiz.b.xfersize != 0);
 			}
 		} else if (hc->qh->do_split) {
+#ifdef CONFIG_USB_FIQ_ENABLED
 			if(fiq_split_enable)
 				length = split_out_xfersize[hc->hc_num];
 			else
 				length = qtd->ssplit_out_xfer_count;
+#else
+			length = qtd->ssplit_out_xfer_count;
+#endif
 		} else {
 			length = hc->xfer_len;
 		}
@@ -1325,7 +1344,7 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 	int free_qtd;
 	dwc_irqflags_t flags;
 	dwc_spinlock_t *channel_lock = hcd->channel_lock;
-#ifdef FIQ_DEBUG
+#if defined(CONFIG_USB_FIQ_ENABLED) && defined(FIQ_DEBUG)
 	int endp = qtd->urb ? qtd->urb->pipe_info.ep_num : 0;
 #endif
 	int hog_port = 0;
@@ -1333,6 +1352,7 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 	DWC_DEBUGPL(DBG_HCDV, "  %s: channel %d, halt_status %d, xfer_len %d\n",
 		    __func__, hc->hc_num, halt_status, hc->xfer_len);
 
+#ifdef CONFIG_USB_FIQ_ENABLED
 	if(fiq_split_enable && hc->do_split) {
 		if(!hc->ep_is_in && hc->ep_type == UE_ISOCHRONOUS) {
 			if(hc->xact_pos == DWC_HCSPLIT_XACTPOS_MID || 
@@ -1341,6 +1361,7 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 			}
 		}
 	}
+#endif
 
 	switch (halt_status) {
 	case DWC_OTG_HC_XFER_URB_COMPLETE:
@@ -1416,10 +1437,12 @@ cleanup:
 
 		DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 		hcd->available_host_channels++;
+#ifdef CONFIG_USB_FIQ_ENABLED
 		fiq_print(FIQDBG_PORTHUB, "AHC = %d ", hcd->available_host_channels);
+#endif
 		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 	}
-
+#ifdef CONFIG_USB_FIQ_ENABLED
 	if(fiq_split_enable && hc->do_split)
 	{
 		if(!(hcd->hub_port[hc->hub_addr] & (1 << hc->port_addr)))
@@ -1436,6 +1459,7 @@ cleanup:
 			fiq_print(FIQDBG_PORTHUB, "H%dP%d:RR%d", hc->hub_addr, hc->port_addr, endp);
 		}
 	}
+#endif
 
 	/* Try to queue more transfers now that there's a free channel. */
 	tr_type = dwc_otg_hcd_select_transactions(hcd);
@@ -2072,6 +2096,7 @@ static int32_t handle_hc_nyet_intr(dwc_otg_hcd_t * hcd,
 		    hc->ep_type == DWC_OTG_EP_TYPE_ISOC) {
 			int frnum = dwc_otg_hcd_get_frame_number(hcd);
 
+#ifdef CONFIG_USB_FIQ_ENABLED
 			// With the FIQ running we only ever see the failed NYET
 			if (dwc_full_frame_num(frnum) !=
 			    dwc_full_frame_num(hc->qh->sched_frame) ||
@@ -2095,6 +2120,32 @@ static int32_t handle_hc_nyet_intr(dwc_otg_hcd_t * hcd,
 				/** @todo add support for isoc release */
 				goto handle_nyet_done;
 			}
+#else
+                        // With the FIQ running we only ever see the failed NYET
+                        if (dwc_full_frame_num(frnum) !=
+                            dwc_full_frame_num(hc->qh->sched_frame)) {
+                                /*
+                                 * No longer in the same full speed frame.
+                                 * Treat this as a transaction error.
+                                 */
+#if 0
+                                /** @todo Fix system performance so this can
+                                 * be treated as an error. Right now complete
+                                 * splits cannot be scheduled precisely enough
+                                 * due to other system activity, so this error
+                                 * occurs regularly in Slave mode.
+                                 */
+                                qtd->error_count++;
+#endif
+                                qtd->complete_split = 0;
+                                halt_channel(hcd, hc, qtd,
+                                             DWC_OTG_HC_XFER_XACT_ERR);
+                                /** @todo add support for isoc release */
+                                goto handle_nyet_done;
+                        }
+
+#endif
+
 		}
 
 		halt_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NYET);
@@ -2496,11 +2547,16 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 	}
 
 	/* Read the HCINTn register to determine the cause for the halt. */
+#ifdef CONFIG_USB_FIQ_ENABLED
 	if(!fiq_split_enable)
 	{
 		hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
 		hcintmsk.d32 = DWC_READ_REG32(&hc_regs->hcintmsk);
 	}
+#else
+        hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
+        hcintmsk.d32 = DWC_READ_REG32(&hc_regs->hcintmsk);
+#endif
 
 	if (hcint.b.xfercomp) {
 		/** @todo This is here because of a possible hardware bug.  Spec
@@ -2677,6 +2733,7 @@ int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 		    hcint.d32, hcintmsk.d32, (hcint.d32 & hcintmsk.d32));
 	hcint.d32 = hcint.d32 & hcintmsk.d32;
 
+#ifdef CONFIG_USB_FIQ_ENABLED
 	if(fiq_split_enable)
 	{
 		// replace with the saved interrupts from the fiq handler
@@ -2686,6 +2743,7 @@ int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 		hcint_saved[num].d32 = 0;
 		local_fiq_enable();
 	}
+#endif
 
 	if (!dwc_otg_hcd->core_if->dma_enable) {
 		if (hcint.b.chhltd && hcint.d32 != 0x2) {

@@ -51,7 +51,9 @@
 #include <linux/dma-mapping.h>
 #include <linux/version.h>
 #include <asm/io.h>
+#ifdef CONFIG_USB_FIQ_ENABLED
 #include <asm/fiq.h>
+#endif
 #include <linux/usb.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
 #include <../drivers/usb/core/hcd.h>
@@ -392,6 +394,7 @@ static struct dwc_otg_hcd_function_ops hcd_fops = {
 	.get_b_hnp_enable = _get_b_hnp_enable,
 };
 
+#ifdef CONFIG_USB_FIQ_ENABLED
 static struct fiq_handler fh = {
   .name = "usb_fiq",
 };
@@ -400,6 +403,7 @@ struct fiq_stack_s {
 	uint8_t stack[2048];
 	int magic2;
 } fiq_stack;
+#endif
 
 extern mphi_regs_t c_mphi_regs;
 /**
@@ -433,20 +437,18 @@ int hcd_init(dwc_bus_dev_t *_dev)
         pci_set_consistent_dma_mask(_dev, dmamask);
 #endif
 
-	if (fiq_fix_enable)
-	{
-		// Set up fiq
-		claim_fiq(&fh);
-		set_fiq_handler(__FIQ_Branch, 4);
-		memset(&regs,0,sizeof(regs));
-		regs.ARM_r8 = (long)dwc_otg_hcd_handle_fiq;
-		regs.ARM_r9 = (long)0;
-		regs.ARM_sp = (long)fiq_stack.stack + sizeof(fiq_stack.stack) - 4;
-		set_fiq_regs(&regs);
-		fiq_stack.magic1 = 0xdeadbeef;
-		fiq_stack.magic2 = 0xaa995566;
-	}
-
+#ifdef CONFIG_USB_FIQ_ENABLED
+	// Set up fiq
+	claim_fiq(&fh);
+	set_fiq_handler(__FIQ_Branch, 4);
+	memset(&regs,0,sizeof(regs));
+	regs.ARM_r8 = (long)dwc_otg_hcd_handle_fiq;
+	regs.ARM_r9 = (long)0;
+	regs.ARM_sp = (long)fiq_stack.stack + sizeof(fiq_stack.stack) - 4;
+	set_fiq_regs(&regs);
+	fiq_stack.magic1 = 0xdeadbeef;
+	fiq_stack.magic2 = 0xaa995566;
+#endif
 	/*
 	 * Allocate memory for the base HCD plus the DWC OTG HCD.
 	 * Initialize the base HCD.
@@ -465,31 +467,29 @@ int hcd_init(dwc_bus_dev_t *_dev)
 	}
 
 	hcd->regs = otg_dev->os_dep.base;
+#ifdef CONFIG_USB_FIQ_ENABLED
+	volatile extern void *dwc_regs_base;
 
-	if (fiq_fix_enable)
-	{
-		volatile extern void *dwc_regs_base;
+	//Set the mphi periph to  the required registers
+	c_mphi_regs.base    = otg_dev->os_dep.mphi_base;
+	c_mphi_regs.ctrl    = otg_dev->os_dep.mphi_base + 0x4c;
+	c_mphi_regs.outdda  = otg_dev->os_dep.mphi_base + 0x28;
+	c_mphi_regs.outddb  = otg_dev->os_dep.mphi_base + 0x2c;
+	c_mphi_regs.intstat = otg_dev->os_dep.mphi_base + 0x50;
 
-		//Set the mphi periph to  the required registers
-		c_mphi_regs.base    = otg_dev->os_dep.mphi_base;
-		c_mphi_regs.ctrl    = otg_dev->os_dep.mphi_base + 0x4c;
-		c_mphi_regs.outdda  = otg_dev->os_dep.mphi_base + 0x28;
-		c_mphi_regs.outddb  = otg_dev->os_dep.mphi_base + 0x2c;
-		c_mphi_regs.intstat = otg_dev->os_dep.mphi_base + 0x50;
+	dwc_regs_base = otg_dev->os_dep.base;
 
-		dwc_regs_base = otg_dev->os_dep.base;
-
-		//Enable mphi peripheral
-		writel((1<<31),c_mphi_regs.ctrl);
+	//Enable mphi peripheral
+	writel((1<<31),c_mphi_regs.ctrl);
 #ifdef DEBUG
-		if (readl(c_mphi_regs.ctrl) & 0x80000000)
-			DWC_DEBUGPL(DBG_USER, "MPHI periph has been enabled\n");
-		else
-			DWC_DEBUGPL(DBG_USER, "MPHI periph has NOT been enabled\n");
+	if (readl(c_mphi_regs.ctrl) & 0x80000000)
+		DWC_DEBUGPL(DBG_USER, "MPHI periph has been enabled\n");
+	else
+		DWC_DEBUGPL(DBG_USER, "MPHI periph has NOT been enabled\n");
 #endif
-		// Enable FIQ interrupt from USB peripheral
-		enable_fiq(INTERRUPT_VC_USB);
-	}
+	// Enable FIQ interrupt from USB peripheral
+	enable_fiq(INTERRUPT_VC_USB);
+#endif
 	/* Initialize the DWC OTG HCD. */
 	dwc_otg_hcd = dwc_otg_hcd_alloc_hcd();
 	if (!dwc_otg_hcd) {
