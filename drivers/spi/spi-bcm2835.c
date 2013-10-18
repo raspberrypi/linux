@@ -298,6 +298,35 @@ out:
 	return 0;
 }
 
+#ifdef CONFIG_MACH_BCM2708
+static void bcm2835_spi_init_pinmode(void) {
+	/* taken from spi-bcm2708.c, where it says: */
+/*
+ * This function sets the ALT mode on the SPI pins so that we can use them with
+ * the SPI hardware.
+ *
+ * FIXME: This is a hack. Use pinmux / pinctrl.
+ */
+	/* maybe someone has an Idea how to fix this... */
+#define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
+#define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
+
+	int pin;
+	u32 *gpio = ioremap(0x20200000, SZ_16K);
+
+	/* SPI is on GPIO 7..11 */
+	for (pin = 7; pin <= 11; pin++) {
+		INP_GPIO(pin);		/* set mode to GPIO input first */
+		SET_GPIO_ALT(pin, 0);	/* set mode to ALT 0 */
+	}
+
+	iounmap(gpio);
+
+#undef INP_GPIO
+#undef SET_GPIO_ALT
+}
+#endif
+
 static int bcm2835_spi_probe(struct platform_device *pdev)
 {
 	struct spi_master *master;
@@ -369,6 +398,11 @@ static int bcm2835_spi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "could not request IRQ: %d\n", err);
 		goto out_clk_disable;
 	}
+
+#ifdef CONFIG_MACH_BCM2708
+	/* configure pin function for SPI */
+	bcm2835_spi_init_pinmode();
+#endif
 
 	/* initialise the hardware */
 	bcm2835_wr(bs, BCM2835_SPI_CS,
