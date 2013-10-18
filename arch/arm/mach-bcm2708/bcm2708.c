@@ -539,11 +539,15 @@ static struct resource bcm2708_spi_resources[] = {
 };
 
 
+static u64 bcm2708_spi_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
 static struct platform_device bcm2708_spi_device = {
 	.name = "bcm2708_spi",
 	.id = 0,
 	.num_resources = ARRAY_SIZE(bcm2708_spi_resources),
 	.resource = bcm2708_spi_resources,
+	.dev = {
+		.dma_mask = &bcm2708_spi_dmamask,
+		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON)},
 };
 
 #ifdef CONFIG_BCM2708_SPIDEV
