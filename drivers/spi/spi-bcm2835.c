@@ -75,6 +75,10 @@
 
 #define DRV_NAME	"spi-bcm2835"
 
+static bool realtime=1;
+module_param(realtime, bool, 0);
+MODULE_PARM_DESC(realtime, "Run the driver with realtime priority");
+
 struct bcm2835_spi {
 	void __iomem *regs;
 	struct clk *clk;
@@ -315,10 +319,15 @@ static int bcm2835_spi_probe(struct platform_device *pdev)
 
 	master->mode_bits = BCM2835_SPI_MODE_BITS;
 	master->bits_per_word_mask = BIT(8 - 1);
+#ifdef CONFIG_MACH_BCM2708
+	master->bus_num = pdev->id;
+#else
 	master->bus_num = -1;
+#endif
 	master->num_chipselect = 3;
 	master->transfer_one_message = bcm2835_spi_transfer_one;
 	master->dev.of_node = pdev->dev.of_node;
+	master->rt = realtime;
 
 	bs = spi_master_get_devdata(master);
 
@@ -345,7 +354,13 @@ static int bcm2835_spi_probe(struct platform_device *pdev)
 		goto out_master_put;
 	}
 
-	bs->irq = irq_of_parse_and_map(pdev->dev.of_node, 0);
+#ifdef CONFIG_MACH_BCM2708
+	if (!(bs->irq=platform_get_irq(pdev, 0))) {
+#endif
+		bs->irq = irq_of_parse_and_map(pdev->dev.of_node, 0);
+#ifdef CONFIG_MACH_BCM2708
+	}
+#endif
 	if (bs->irq <= 0) {
 		dev_err(&pdev->dev, "could not get IRQ: %d\n", bs->irq);
 		err = bs->irq ? bs->irq : -ENODEV;
@@ -406,6 +421,15 @@ static const struct of_device_id bcm2835_spi_match[] = {
 };
 MODULE_DEVICE_TABLE(of, bcm2835_spi_match);
 
+/* and "normal" aliases */
+#ifdef CONFIG_MACH_BCM2708
+static const struct platform_device_id bcm2835_id_table[] = {
+        { "bcm2835_spi",  2835 },
+	{ "bcm2708_spi",  2708 },
+	{ },
+};
+#endif
+
 static struct platform_driver bcm2835_spi_driver = {
 	.driver		= {
 		.name		= DRV_NAME,
@@ -414,6 +438,9 @@ static struct platform_driver bcm2835_spi_driver = {
 	},
 	.probe		= bcm2835_spi_probe,
 	.remove		= bcm2835_spi_remove,
+#ifdef CONFIG_MACH_BCM2708
+	.id_table       = bcm2835_id_table,
+#endif
 };
 module_platform_driver(bcm2835_spi_driver);
 
