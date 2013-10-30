@@ -2036,7 +2036,7 @@ static void drain_all_stock(struct mem_cgroup *root_memcg)
 	 * as well as workers from this path always operate on the local
 	 * per-cpu data. CPU up doesn't touch memcg_stock at all.
 	 */
-	curcpu = get_cpu();
+	curcpu = get_cpu_light();
 	for_each_online_cpu(cpu) {
 		struct memcg_stock_pcp *stock = &per_cpu(memcg_stock, cpu);
 		struct mem_cgroup *memcg;
@@ -2056,7 +2056,7 @@ static void drain_all_stock(struct mem_cgroup *root_memcg)
 		}
 		css_put(&memcg->css);
 	}
-	put_cpu();
+	put_cpu_light();
 	mutex_unlock(&percpu_charge_mutex);
 }
 
