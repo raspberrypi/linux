@@ -853,6 +853,8 @@ static void xs_close(struct rpc_xprt *xprt)
 
 	dprintk("RPC:       xs_close xprt %p\n", xprt);
 
+	cancel_delayed_work_sync(&transport->connect_worker);
+
 	xs_reset_transport(transport);
 	xprt->reestablish_timeout = 0;
 
@@ -887,11 +889,7 @@ static void xs_local_destroy(struct rpc_xprt *xprt)
  */
 static void xs_destroy(struct rpc_xprt *xprt)
 {
-	struct sock_xprt *transport = container_of(xprt, struct sock_xprt, xprt);
-
 	dprintk("RPC:       xs_destroy xprt %p\n", xprt);
-
-	cancel_delayed_work_sync(&transport->connect_worker);
 
 	xs_local_destroy(xprt);
 }
@@ -1834,6 +1832,10 @@ static inline void xs_reclassify_socket(int family, struct socket *sock)
 }
 #endif
 
+static void xs_dummy_setup_socket(struct work_struct *work)
+{
+}
+
 static struct socket *xs_create_sock(struct rpc_xprt *xprt,
 		struct sock_xprt *transport, int family, int type, int protocol)
 {
@@ -2672,6 +2674,9 @@ static struct rpc_xprt *xs_setup_local(struct xprt_create *args)
 
 	xprt->ops = &xs_local_ops;
 	xprt->timeout = &xs_local_default_timeout;
+
+	INIT_DELAYED_WORK(&transport->connect_worker,
+			xs_dummy_setup_socket);
 
 	switch (sun->sun_family) {
 	case AF_LOCAL:
