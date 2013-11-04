@@ -31,6 +31,7 @@
 #include <linux/cnt32_to_63.h>
 #include <linux/io.h>
 #include <linux/module.h>
+#include <linux/spi/spi.h>
 
 #include <linux/version.h>
 #include <linux/clkdev.h>
@@ -203,7 +204,6 @@ static struct clk osc_clk = {
 
 /* warning - the USB needs a clock > 34MHz */
 
-#ifdef CONFIG_MMC_BCM2708
 static struct clk sdhost_clk = {
 #ifdef CONFIG_ARCH_BCM2708_CHIPIT
 	.rate = 4000000,	/* 4MHz */
@@ -211,7 +211,6 @@ static struct clk sdhost_clk = {
 	.rate = 250000000,	/* 250MHz */
 #endif
 };
-#endif
 
 static struct clk_lookup lookups[] = {
 	{			/* UART0 */
@@ -221,6 +220,15 @@ static struct clk_lookup lookups[] = {
 	{			/* USB */
 	 .dev_id = "bcm2708_usb",
 	 .clk = &osc_clk,
+	 }, {	/* SPI */
+		 .dev_id = "bcm2708_spi.0",
+		 .clk = &sdhost_clk,
+	 }, {	/* BSC0 */
+		 .dev_id = "bcm2708_i2c.0",
+		 .clk = &sdhost_clk,
+	 }, {	/* BSC1 */
+		 .dev_id = "bcm2708_i2c.1",
+		 .clk = &sdhost_clk,
 	 }
 };
 
@@ -439,6 +447,89 @@ static struct platform_device bcm2708_alsa_devices[] = {
 		},
 };
 
+static struct resource bcm2708_spi_resources[] = {
+	{
+		.start = SPI0_BASE,
+		.end = SPI0_BASE + SZ_256 - 1,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = IRQ_SPI,
+		.end = IRQ_SPI,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+
+static u64 bcm2708_spi_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
+static struct platform_device bcm2708_spi_device = {
+	.name = "bcm2708_spi",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(bcm2708_spi_resources),
+	.resource = bcm2708_spi_resources,
+	.dev = {
+		.dma_mask = &bcm2708_spi_dmamask,
+		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON)},
+};
+
+#ifdef CONFIG_BCM2708_SPIDEV
+static struct spi_board_info bcm2708_spi_devices[] = {
+#ifdef CONFIG_SPI_SPIDEV
+	{
+		.modalias = "spidev",
+		.max_speed_hz = 500000,
+		.bus_num = 0,
+		.chip_select = 0,
+		.mode = SPI_MODE_0,
+	}, {
+		.modalias = "spidev",
+		.max_speed_hz = 500000,
+		.bus_num = 0,
+		.chip_select = 1,
+		.mode = SPI_MODE_0,
+	}
+#endif
+};
+#endif
+
+static struct resource bcm2708_bsc0_resources[] = {
+	{
+		.start = BSC0_BASE,
+		.end = BSC0_BASE + SZ_256 - 1,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = INTERRUPT_I2C,
+		.end = INTERRUPT_I2C,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+static struct platform_device bcm2708_bsc0_device = {
+	.name = "bcm2708_i2c",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(bcm2708_bsc0_resources),
+	.resource = bcm2708_bsc0_resources,
+};
+
+
+static struct resource bcm2708_bsc1_resources[] = {
+	{
+		.start = BSC1_BASE,
+		.end = BSC1_BASE + SZ_256 - 1,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = INTERRUPT_I2C,
+		.end = INTERRUPT_I2C,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+static struct platform_device bcm2708_bsc1_device = {
+	.name = "bcm2708_i2c",
+	.id = 1,
+	.num_resources = ARRAY_SIZE(bcm2708_bsc1_resources),
+	.resource = bcm2708_bsc1_resources,
+};
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -550,12 +641,21 @@ void __init bcm2708_init(void)
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
 		bcm_register_device(&bcm2708_alsa_devices[i]);
 
+	bcm_register_device(&bcm2708_spi_device);
+	bcm_register_device(&bcm2708_bsc0_device);
+	bcm_register_device(&bcm2708_bsc1_device);
+
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];
 		amba_device_register(d, &iomem_resource);
 	}
 	system_rev = boardrev;
 	system_serial_low = serial;
+
+#ifdef CONFIG_BCM2708_SPIDEV
+	spi_register_board_info(bcm2708_spi_devices,
+			ARRAY_SIZE(bcm2708_spi_devices));
+#endif
 }
 
 static void timer_set_mode(enum clock_event_mode mode,
