@@ -19,4 +19,4 @@
 		ldr	\rv, =IO_ADDRESS(UART0_BASE)
 		.endm
 
-#include <asm/hardware/debug-pl01x.S>
+#include <debug/pl01x.S>
