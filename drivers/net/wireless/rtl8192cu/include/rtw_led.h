@@ -16,8 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef __RTW_LED_H_
 #define __RTW_LED_H_
 
@@ -44,15 +43,15 @@ typedef enum _LED_CTL_MODE{
 }LED_CTL_MODE;
 
 
-#ifdef CONFIG_USB_HCI
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI)
 //================================================================================
 // LED object.
 //================================================================================
 
 typedef enum _LED_STATE_871x{
 	LED_UNKNOWN = 0,
-	LED_ON = 1,
-	LED_OFF = 2,
+	RTW_LED_ON = 1,
+	RTW_LED_OFF = 2,
 	LED_BLINK_NORMAL = 3,
 	LED_BLINK_SLOWLY = 4,
 	LED_POWER_ON_BLINK = 5,
@@ -95,10 +94,10 @@ typedef struct _LED_871x{
 	u8					bLedWPSBlinkInProgress;
 	
 	u32					BlinkTimes; // Number of times to toggle led state for blinking.
-	LED_STATE_871x		BlinkingLedState; // Next state for blinking, either LED_ON or LED_OFF are.
+	LED_STATE_871x		BlinkingLedState; // Next state for blinking, either RTW_LED_ON or RTW_LED_OFF are.
 
 	_timer				BlinkTimer; // Timer object for led blinking.
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0)|| defined PLATFORM_FREEBSD
 	_workitem			BlinkWorkItem; // Workitem used by BlinkTimer to manipulate H/W to blink LED.
 #endif
 } LED_871x, *PLED_871x;
@@ -127,8 +126,8 @@ typedef	enum _LED_STRATEGY_871x{
 
 typedef	enum _LED_STATE_871x{
 	LED_UNKNOWN = 0,
-	LED_ON = 1,
-	LED_OFF = 2,
+	RTW_LED_ON = 1,
+	RTW_LED_OFF = 2,
 	LED_BLINK_NORMAL = 3,
 	LED_BLINK_SLOWLY = 4,
 	LED_POWER_ON_BLINK = 5,
@@ -160,9 +159,13 @@ typedef struct _LED_871x{
 
 	u8					bLedSlowBlinkInProgress;//added by vivi, for led new mode
 	u32					BlinkTimes; // Number of times to toggle led state for blinking.
-	LED_STATE_871x		BlinkingLedState; // Next state for blinking, either LED_ON or LED_OFF are.
+	LED_STATE_871x		BlinkingLedState; // Next state for blinking, either RTW_LED_ON or RTW_LED_OFF are.
 
 	_timer				BlinkTimer; // Timer object for led blinking.
+	
+	u8					bLedLinkBlinkInProgress;
+	u8					bLedNoLinkBlinkInProgress;
+	u8 					bLedScanBlinkInProgress;
 } LED_871x, *PLED_871x;
 
 

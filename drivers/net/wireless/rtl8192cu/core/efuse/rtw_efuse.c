@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -54,6 +54,11 @@ BOOLEAN
 Efuse_Read1ByteFromFakeContent(
 	IN		PADAPTER	pAdapter,
 	IN		u16		Offset,
+	IN OUT	u8		*Value	);
+BOOLEAN
+Efuse_Read1ByteFromFakeContent(
+	IN		PADAPTER	pAdapter,
+	IN		u16		Offset,
 	IN OUT	u8		*Value	)
 {
 	if(Offset >= EFUSE_MAX_HW_SIZE)
@@ -67,6 +72,12 @@ Efuse_Read1ByteFromFakeContent(
 		*Value = fakeBTEfuseContent[fakeEfuseBank-1][Offset];
 	return _TRUE;
 }
+
+BOOLEAN
+Efuse_Write1ByteToFakeContent(
+	IN		PADAPTER	pAdapter,
+	IN		u16		Offset,
+	IN 		u8		Value	);
 BOOLEAN
 Efuse_Write1ByteToFakeContent(
 	IN		PADAPTER	pAdapter,
@@ -210,7 +221,7 @@ ReadEFuseByte(
 	value32 = rtw_read32(Adapter, EFUSE_CTRL);
 	
 	*pbuf = (u8)(value32 & 0xff);
-	//MSG_8192C("ReadEFuseByte _offset:%08u, in %d ms\n",_offset ,rtw_get_passing_time_ms(start));
+	//DBG_871X("ReadEFuseByte _offset:%08u, in %d ms\n",_offset ,rtw_get_passing_time_ms(start));
 	
 }
 
@@ -232,6 +243,16 @@ ReadEFuseByte(
 //	2008/12/22 MH	Read Efuse must check if we write section 1 data again!!! Sec1
 //					write addr must be after sec5.
 //
+
+VOID
+efuse_ReadEFuse(
+	PADAPTER	Adapter,
+	u8		efuseType,
+	u16		_offset,
+	u16 		_size_byte,
+	u8      	*pbuf,
+	IN	BOOLEAN	bPseudoTest
+	);
 VOID
 efuse_ReadEFuse(
 	PADAPTER	Adapter,
@@ -250,7 +271,7 @@ EFUSE_GetEfuseDefinition(
 	IN		PADAPTER	pAdapter,
 	IN		u8		efuseType,
 	IN		u8		type,
-	OUT		PVOID		*pOut,
+	OUT		void		*pOut,
 	IN		BOOLEAN		bPseudoTest
 	)
 {
@@ -337,6 +358,12 @@ EFUSE_Read1Byte(
  * 09/23/2008 	MHC		Copy from WMAC.
  *
  *---------------------------------------------------------------------------*/
+
+void	
+EFUSE_Write1Byte(	
+	IN	PADAPTER	Adapter, 
+	IN	u16		Address,
+	IN	u8		Value);
 void	
 EFUSE_Write1Byte(	
 	IN	PADAPTER	Adapter, 
@@ -709,12 +736,12 @@ u8 rtw_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 
 		if (word_en != 0xF) {
 			ret = Efuse_PgPacketWrite(padapter, offset, word_en, newdata, _FALSE);
-			DBG_8192C("offset=%x \n",offset);
-			DBG_8192C("word_en=%x \n",word_en);
+			DBG_871X("offset=%x \n",offset);
+			DBG_871X("word_en=%x \n",word_en);
 
 			for(i=0;i<PGPKT_DATA_SIZE;i++)
 			{
-				DBG_8192C("data=%x \t",newdata[i]);
+				DBG_871X("data=%x \t",newdata[i]);
 			}
 			if (ret == _FAIL) break;
 		}
@@ -754,6 +781,12 @@ exit:
  * 11/11/2008 	MHC		Create Version 0.
  *
  *---------------------------------------------------------------------------*/
+VOID 
+Efuse_ReadAllMap(
+	IN		PADAPTER	pAdapter, 
+	IN		u8		efuseType,
+	IN OUT	u8		*Efuse,
+	IN		BOOLEAN		bPseudoTest);
 VOID 
 Efuse_ReadAllMap(
 	IN		PADAPTER	pAdapter, 
@@ -851,6 +884,13 @@ efuse_ShadowRead4Byte(
  * 11/12/2008 	MHC		Create Version 0.
  *
  *---------------------------------------------------------------------------*/
+#ifdef PLATFORM
+static VOID
+efuse_ShadowWrite1Byte(
+	IN	PADAPTER	pAdapter,
+	IN	u16		Offset,
+	IN 	u8		Value);
+#endif //PLATFORM
 static VOID
 efuse_ShadowWrite1Byte(
 	IN	PADAPTER	pAdapter,
@@ -990,7 +1030,13 @@ EFUSE_ShadowRead(
  * 11/12/2008 	MHC		Create Version 0.
  *
  *---------------------------------------------------------------------------*/
-extern VOID
+VOID
+EFUSE_ShadowWrite(
+	IN	PADAPTER	pAdapter,
+	IN	u8		Type,
+	IN	u16		Offset,
+	IN OUT	u32		Value);
+VOID
 EFUSE_ShadowWrite(
 	IN	PADAPTER	pAdapter,
 	IN	u8		Type,
@@ -1010,6 +1056,10 @@ EFUSE_ShadowWrite(
 
 }	// EFUSE_ShadowWrite
 
+VOID
+Efuse_InitSomeVar(
+	IN		PADAPTER	pAdapter
+	);
 VOID
 Efuse_InitSomeVar(
 	IN		PADAPTER	pAdapter
@@ -1056,7 +1106,7 @@ int storeAdaptorInfoFile(char *path, struct eeprom_priv * eeprom_priv)
 		else
 			ret = _FAIL;
 	} else {
-		DBG_8192C("%s NULL pointer\n",__FUNCTION__);
+		DBG_871X("%s NULL pointer\n",__FUNCTION__);
 		ret =  _FAIL;
 	}
 	return ret;
@@ -1086,7 +1136,7 @@ int retriveAdaptorInfoFile(char *path, struct eeprom_priv * eeprom_priv)
 		#endif
 		
 	} else {
-		DBG_8192C("%s NULL pointer\n",__FUNCTION__);
+		DBG_871X("%s NULL pointer\n",__FUNCTION__);
 		ret = _FAIL;
 	}
 	return ret;

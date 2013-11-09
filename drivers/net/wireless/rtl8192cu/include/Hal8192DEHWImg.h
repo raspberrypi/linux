@@ -17,50 +17,50 @@
  *
  *
  ******************************************************************************/
-#ifndef __INC_HAL8192DU_FW_IMG_H
-#define __INC_HAL8192DU_FW_IMG_H
+#ifndef __INC_HAL8192DE_FW_IMG_H
+#define __INC_HAL8192DE_FW_IMG_H
 
 #include <basic_types.h>
 
-/*Created on  2011/ 8/ 8,  1:41*/
+/*Created on  2011/11/11,  8: 8*/
 
-#define ImgArrayLength 29642
-extern u8 Rtl8192DEFwImgArray[ImgArrayLength];
-#define MainArrayLength 1
-extern u8 Rtl8192DEFwMainArray[MainArrayLength];
-#define DataArrayLength 1
-extern u8 Rtl8192DEFwDataArray[DataArrayLength];
-#define PHY_REG_2TArrayLength 380
-extern u32 Rtl8192DEPHY_REG_2TArray[PHY_REG_2TArrayLength];
-#define PHY_REG_1TArrayLength 1
-extern u32 Rtl8192DEPHY_REG_1TArray[PHY_REG_1TArrayLength];
-#define PHY_REG_Array_PGLength 624
-extern u32 Rtl8192DEPHY_REG_Array_PG[PHY_REG_Array_PGLength];
-#define PHY_REG_Array_MPLength 10
-extern u32 Rtl8192DEPHY_REG_Array_MP[PHY_REG_Array_MPLength];
-#define RadioA_2TArrayLength 378
-extern u32 Rtl8192DERadioA_2TArray[RadioA_2TArrayLength];
-#define RadioB_2TArrayLength 384
-extern u32 Rtl8192DERadioB_2TArray[RadioB_2TArrayLength];
-#define RadioA_1TArrayLength 1
-extern u32 Rtl8192DERadioA_1TArray[RadioA_1TArrayLength];
-#define RadioB_1TArrayLength 1
-extern u32 Rtl8192DERadioB_1TArray[RadioB_1TArrayLength];
-#define RadioA_2T_intPAArrayLength 378
-extern u32 Rtl8192DERadioA_2T_intPAArray[RadioA_2T_intPAArrayLength];
-#define RadioB_2T_intPAArrayLength 384
-extern u32 Rtl8192DERadioB_2T_intPAArray[RadioB_2T_intPAArrayLength];
-#define MAC_2TArrayLength 160
-extern u32 Rtl8192DEMAC_2TArray[MAC_2TArrayLength];
-#define AGCTAB_ArrayLength 386
-extern u32 Rtl8192DEAGCTAB_Array[AGCTAB_ArrayLength];
-#define AGCTAB_5GArrayLength 194
-extern u32 Rtl8192DEAGCTAB_5GArray[AGCTAB_5GArrayLength];
-#define AGCTAB_2GArrayLength 194
-extern u32 Rtl8192DEAGCTAB_2GArray[AGCTAB_2GArrayLength];
-#define AGCTAB_2TArrayLength 1
-extern u32 Rtl8192DEAGCTAB_2TArray[AGCTAB_2TArrayLength];
-#define AGCTAB_1TArrayLength 1
-extern u32 Rtl8192DEAGCTAB_1TArray[AGCTAB_1TArrayLength];
+#define Rtl8192DEImgArrayLength 32296
+extern const u8 Rtl8192DEFwImgArray[Rtl8192DEImgArrayLength];
+#define Rtl8192DEMainArrayLength 1
+extern const u8 Rtl8192DEFwMainArray[Rtl8192DEMainArrayLength];
+#define Rtl8192DEDataArrayLength 1
+extern const u8 Rtl8192DEFwDataArray[Rtl8192DEDataArrayLength];
+#define Rtl8192DEPHY_REG_2TArrayLength 372
+extern const u32 Rtl8192DEPHY_REG_2TArray[Rtl8192DEPHY_REG_2TArrayLength];
+#define Rtl8192DEPHY_REG_1TArrayLength 1
+extern const u32 Rtl8192DEPHY_REG_1TArray[Rtl8192DEPHY_REG_1TArrayLength];
+#define Rtl8192DEPHY_REG_Array_PGLength 624
+extern const u32 Rtl8192DEPHY_REG_Array_PG[Rtl8192DEPHY_REG_Array_PGLength];
+#define Rtl8192DEPHY_REG_Array_MPLength 12
+extern const u32 Rtl8192DEPHY_REG_Array_MP[Rtl8192DEPHY_REG_Array_MPLength];
+#define Rtl8192DERadioA_2TArrayLength 378
+extern const u32 Rtl8192DERadioA_2TArray[Rtl8192DERadioA_2TArrayLength];
+#define Rtl8192DERadioB_2TArrayLength 384
+extern const u32 Rtl8192DERadioB_2TArray[Rtl8192DERadioB_2TArrayLength];
+#define Rtl8192DERadioA_1TArrayLength 1
+extern const u32 Rtl8192DERadioA_1TArray[Rtl8192DERadioA_1TArrayLength];
+#define Rtl8192DERadioB_1TArrayLength 1
+extern const u32 Rtl8192DERadioB_1TArray[Rtl8192DERadioB_1TArrayLength];
+#define Rtl8192DERadioA_2T_intPAArrayLength 378
+extern const u32 Rtl8192DERadioA_2T_intPAArray[Rtl8192DERadioA_2T_intPAArrayLength];
+#define Rtl8192DERadioB_2T_intPAArrayLength 384
+extern const u32 Rtl8192DERadioB_2T_intPAArray[Rtl8192DERadioB_2T_intPAArrayLength];
+#define Rtl8192DEMAC_2T_ArrayLength 192
+extern const u32 Rtl8192DEMAC_2T_Array[Rtl8192DEMAC_2T_ArrayLength];
+#define Rtl8192DEAGCTAB_ArrayLength 386
+extern const u32 Rtl8192DEAGCTAB_Array[Rtl8192DEAGCTAB_ArrayLength];
+#define Rtl8192DEAGCTAB_5GArrayLength 194
+extern const u32 Rtl8192DEAGCTAB_5GArray[Rtl8192DEAGCTAB_5GArrayLength];
+#define Rtl8192DEAGCTAB_2GArrayLength 194
+extern const u32 Rtl8192DEAGCTAB_2GArray[Rtl8192DEAGCTAB_2GArrayLength];
+#define Rtl8192DEAGCTAB_2TArrayLength 1
+extern const u32 Rtl8192DEAGCTAB_2TArray[Rtl8192DEAGCTAB_2TArrayLength];
+#define Rtl8192DEAGCTAB_1TArrayLength 1
+extern const u32 Rtl8192DEAGCTAB_1TArray[Rtl8192DEAGCTAB_1TArrayLength];
 
 #endif //__INC_HAL8192CU_FW_IMG_H

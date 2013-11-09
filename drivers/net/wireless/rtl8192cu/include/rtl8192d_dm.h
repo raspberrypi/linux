@@ -16,7 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
-******************************************************************************/
+ ******************************************************************************/
 #ifndef	__RTL8192D_DM_H__
 #define __RTL8192D_DM_H__
 //============================================================
@@ -31,15 +31,6 @@
 //============================================================
 
 extern u32 EDCAParam[maxAP][3] ;
-
-#define	OFDM_TABLE_SIZE 	37
-#define	OFDM_TABLE_SIZE_92D 	43
-#define	CCK_TABLE_SIZE		33
-extern u32 OFDMSwingTable[OFDM_TABLE_SIZE_92D] ;
-
-extern u8 CCKSwingTable_Ch1_Ch13[CCK_TABLE_SIZE][8];
-
-extern u8 CCKSwingTable_Ch14 [CCK_TABLE_SIZE][8];
 
 //============================================================
 // structure and define
@@ -101,7 +92,9 @@ typedef struct _Dynamic_Initial_Gain_Threshold_
 	u8		LargeFAHit;
 	u8		ForbiddenIGI;
 	u32		Recover_cnt;
+	u8		rx_gain_range_min_nolink;
 }DIG_T,*pDIG_T;
+
 typedef enum tag_Dynamic_Init_Gain_Operation_Type_Definition
 {
 	DIG_TYPE_THRESH_HIGH	= 0,
@@ -176,8 +169,8 @@ typedef enum tag_DIG_Connect_Definition
 #define		DM_DIG_FA_TH2				0x400//0x200
 //this is for 92d
 #define		DM_DIG_FA_TH0_92D			0x100
-#define		DM_DIG_FA_TH1_92D			0x400
-#define		DM_DIG_FA_TH2_92D			0x600
+#define		DM_DIG_FA_TH1_92D			0x150
+#define		DM_DIG_FA_TH2_92D			0x250
 
 #define		DM_DIG_BACKOFF_MAX			12
 #define		DM_DIG_BACKOFF_MIN			(-4)
@@ -304,6 +297,15 @@ struct 	dm_priv
 	int	EntryMaxUndecoratedSmoothedPWDB;
 	int	MinUndecoratedPWDBForDM;
 	int	LastMinUndecoratedPWDBForDM;
+#ifdef CONFIG_DUALMAC_CONCURRENT
+	int	RssiValMinForAnotherMacOfDMSP;
+	u32	CurDigValueForAnotherMacOfDMSP;
+	BOOLEAN		bWriteDigForAnotherMacOfDMSP;
+	BOOLEAN		bChangeCCKPDStateForAnotherMacOfDMSP;
+	u8	CurCCKPDStateForAnotherMacOfDMSP;
+	BOOLEAN		bChangeTxHighPowerLvlForAnotherMacOfDMSP;
+	u8	CurTxHighLvlForAnotherMacOfDMSP;
+#endif
 
 	//for High Power
 	u8	bDynamicTxPowerEnable;
@@ -364,17 +366,6 @@ struct 	dm_priv
 
 	SWAT_T DM_SWAT_Table;
 
-       //Neil Chen----2011--06--23-----
-       //3 Path Diversity 
-	BOOLEAN		bPathDiv_Enable;	//For 92D Non-interrupt Antenna Diversity by Neil ,add by wl.2011.07.19
-	BOOLEAN		RSSI_test;
-	s32			RSSI_sum_A;
-	s32			RSSI_cnt_A;
-	s32			RSSI_sum_B;
-	s32			RSSI_cnt_B;
-	struct sta_info	*RSSI_target;
-	_timer		PathDivSwitchTimer;
-
 	//for TxPwrTracking
 	int	RegE94;
 	int 	RegE9C;
@@ -392,6 +383,21 @@ struct 	dm_priv
 
 	// Add for Reading Initial Data Rate SEL Register 0x484 during watchdog. Using for fill tx desc. 2011.3.21 by Thomas
 	u8	INIDATA_RATE[32];
+
+#ifdef CONFIG_DM_ADAPTIVITY
+	/* Ported from ODM, for ESTI Adaptivity test */
+	s8 TH_L2H_ini;
+	s8 TH_EDCCA_HL_diff;
+	s8 IGI_Base;
+	u8 IGI_target;
+	bool ForceEDCCA;
+	u8 AdapEn_RSSI;
+	s8 Force_TH_H;
+	s8 Force_TH_L;
+	u8 IGI_LowerBound;
+
+	bool	bPreEdccaEnable;
+#endif
 };
 
 

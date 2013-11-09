@@ -59,22 +59,32 @@ enum ANDROID_WIFI_CMD {
 
 	ANDROID_WIFI_CMD_BLOCK,
 
+	ANDROID_WIFI_CMD_WFD_ENABLE,
+	ANDROID_WIFI_CMD_WFD_DISABLE,
+	
+	ANDROID_WIFI_CMD_WFD_SET_TCPPORT,
+	ANDROID_WIFI_CMD_WFD_SET_MAX_TPUT,
+	ANDROID_WIFI_CMD_WFD_SET_DEVTYPE,
+
 	ANDROID_WIFI_CMD_MAX
 };
 
 int rtw_android_cmdstr_to_num(char *cmdstr);
 int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd);
 
-#if defined(CONFIG_WIFI_CONTROL_FUNC) && 0
-int wl_android_wifictrl_func_add(void);
-void wl_android_wifictrl_func_del(void);
+#if defined(RTW_ENABLE_WIFI_CONTROL_FUNC)
+int rtw_android_wifictrl_func_add(void);
+void rtw_android_wifictrl_func_del(void);
 void* wl_android_prealloc(int section, unsigned long size);
 
 int wifi_get_irq_number(unsigned long *irq_flags_ptr);
 int wifi_set_power(int on, unsigned long msec);
 int wifi_get_mac_addr(unsigned char *buf);
 void *wifi_get_country_code(char *ccode);
-#endif /* CONFIG_WIFI_CONTROL_FUNC */
+#else
+static int rtw_android_wifictrl_func_add(void) { return 0; }
+static void rtw_android_wifictrl_func_del(void) {}
+#endif /* defined(RTW_ENABLE_WIFI_CONTROL_FUNC) */
 
 #endif //__RTW_ANDROID_H__
 

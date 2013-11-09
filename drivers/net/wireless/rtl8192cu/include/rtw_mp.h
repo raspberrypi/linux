@@ -192,7 +192,7 @@ struct mp_tx
 	u8 *pallocated_buf;
 	u8 *buf;
 	u32 buf_size, write_size;
-	_thread_hdl_	PktTxThread;
+	_thread_hdl_  PktTxThread;
 };
 
 //#if (MP_DRIVER == 1)
@@ -606,6 +606,12 @@ typedef enum _ENCRY_CTRL_STATE_ {
 	SW_ENCRY_HW_DECRY	//sw encryption & hw decryption
 }ENCRY_CTRL_STATE;
 
+typedef enum _OFDM_TX_MODE {
+	OFDM_ALL_OFF		= 0,	
+	OFDM_ContinuousTx	= 1,
+	OFDM_SingleCarrier	= 2,
+	OFDM_SingleTone 	= 4,
+} OFDM_TX_MODE;
 
 //=======================================================================
 //extern struct mp_xmit_frame *alloc_mp_xmitframe(struct mp_priv *pmp_priv);
@@ -672,8 +678,6 @@ extern s32	SetPowerTracking(PADAPTER padapter, u8 enable);
 extern void	GetPowerTracking(PADAPTER padapter, u8 *enable);
 
 extern u32	mp_query_psd(PADAPTER pAdapter, u8 *data);
-
-extern u32	rtw_atoi(u8 *s);
 
 
 extern void Hal_SetAntenna(PADAPTER pAdapter);

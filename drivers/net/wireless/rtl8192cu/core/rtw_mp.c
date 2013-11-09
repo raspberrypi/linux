@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -21,6 +21,10 @@
 
 #include <drv_types.h>
 
+#ifdef PLATFORM_FREEBSD
+#include <sys/unistd.h>		/* for RFHIGHPID */
+#endif
+
 #ifdef CONFIG_RTL8712
 #include <rtw_mp_phy_regdef.h>
 #endif
@@ -29,6 +33,9 @@
 #endif
 #ifdef CONFIG_RTL8192D
 #include <rtl8192d_hal.h>
+#endif
+#ifdef CONFIG_RTL8723A
+#include <rtl8723a_hal.h>
 #endif
 
 
@@ -79,34 +86,33 @@ void write_macreg(_adapter *padapter, u32 addr, u32 val, u32 sz)
 
 u32 read_bbreg(_adapter *padapter, u32 addr, u32 bitmask)
 {
-	return padapter->HalFunc.read_bbreg(padapter, addr, bitmask);
+	return rtw_hal_read_bbreg(padapter, addr, bitmask);
 }
 
 void write_bbreg(_adapter *padapter, u32 addr, u32 bitmask, u32 val)
 {
-	padapter->HalFunc.write_bbreg(padapter, addr, bitmask, val);
+	rtw_hal_write_bbreg(padapter, addr, bitmask, val);
 }
 
 u32 _read_rfreg(PADAPTER padapter, u8 rfpath, u32 addr, u32 bitmask)
 {
-	return padapter->HalFunc.read_rfreg(padapter, (RF90_RADIO_PATH_E)rfpath, addr, bitmask);
+	return rtw_hal_read_rfreg(padapter, (RF_RADIO_PATH_E)rfpath, addr, bitmask);
 }
 
 void _write_rfreg(PADAPTER padapter, u8 rfpath, u32 addr, u32 bitmask, u32 val)
 {
-	padapter->HalFunc.write_rfreg(padapter, (RF90_RADIO_PATH_E)rfpath, addr, bitmask, val);
+	rtw_hal_write_rfreg(padapter, (RF_RADIO_PATH_E)rfpath, addr, bitmask, val);
 }
 
 u32 read_rfreg(PADAPTER padapter, u8 rfpath, u32 addr)
 {
-	return _read_rfreg(padapter, (RF90_RADIO_PATH_E)rfpath, addr, bRFRegOffsetMask);
+	return _read_rfreg(padapter, (RF_RADIO_PATH_E)rfpath, addr, bRFRegOffsetMask);
 }
 
 void write_rfreg(PADAPTER padapter, u8 rfpath, u32 addr, u32 val)
 {
-	_write_rfreg(padapter, (RF90_RADIO_PATH_E)rfpath, addr, bRFRegOffsetMask, val);
+	_write_rfreg(padapter, (RF_RADIO_PATH_E)rfpath, addr, bRFRegOffsetMask, val);
 }
-
 
 static void _init_mp_priv_(struct mp_priv *pmp_priv)
 {
@@ -349,7 +355,7 @@ MPT_InitializeAdapter(
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
 	s32		rtStatus = _SUCCESS;
 	PMPT_CONTEXT	pMptCtx = &pAdapter->mppriv.MptCtx;
-	u32		tmpRegA, tmpRegC, TempCCk,ledsetting;
+	u32		ledsetting;
 
 	//-------------------------------------------------------------------------
 	// HW Initialization for 8190 MPT.
@@ -503,16 +509,22 @@ void GetPowerTracking(PADAPTER padapter, u8 *enable)
 
 static void disable_dm(PADAPTER padapter)
 {
+#ifndef CONFIG_RTL8723A
 	u8 v8;
+#endif
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 	struct dm_priv	*pdmpriv = &pHalData->dmpriv;
 
 
 	//3 1. disable firmware dynamic mechanism
 	// disable Power Training, Rate Adaptive
+#ifdef CONFIG_RTL8723A
+	SetBcnCtrlReg(padapter, 0, EN_BCN_FUNCTION);
+#else
 	v8 = rtw_read8(padapter, REG_BCN_CTRL);
 	v8 &= ~EN_BCN_FUNCTION;
 	rtw_write8(padapter, REG_BCN_CTRL, v8);
+#endif
 
 	//3 2. disable driver dynamic mechanism
 	// disable Dynamic Initial Gain
@@ -595,7 +607,7 @@ s32 mp_start_test(PADAPTER padapter)
 
 	//init mp_start_test status
 	if (check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE) {
-		rtw_disassoc_cmd(padapter);
+		rtw_disassoc_cmd(padapter, 500, _TRUE);
 		rtw_indicate_disconnect(padapter);
 		rtw_free_assoc_resources(padapter, 1);
 	}
@@ -765,7 +777,7 @@ static VOID mpt_AdjustRFRegByRateByChan92CU(PADAPTER pAdapter, u8 RateIdx, u8 Ch
 static void mpt_SwitchRfSetting(PADAPTER pAdapter)
 {
 	Hal_mpt_SwitchRfSetting(pAdapter);
-	 }
+    }
 
 /*---------------------------hal\rtl8192c\MPT_Phy.c---------------------------*/
 /*---------------------------hal\rtl8192c\MPT_HelperFunc.c---------------------------*/
@@ -827,7 +839,7 @@ void	SetAntennaPathPower(PADAPTER pAdapter)
 void SetTxPower(PADAPTER pAdapter)
 {
 	Hal_SetTxPower(pAdapter);
-}
+	}
 
 void SetTxAGCOffset(PADAPTER pAdapter, u32 ulTxAGCOffset)
 {
@@ -904,12 +916,12 @@ void SetCarrierSuppressionTx(PADAPTER pAdapter, u8 bStart)
 }
 
 void SetCCKContinuousTx(PADAPTER pAdapter, u8 bStart)
-{
+		{
 	Hal_SetCCKContinuousTx(pAdapter,bStart);
 		}
 
 void SetOFDMContinuousTx(PADAPTER pAdapter, u8 bStart)
-{
+        {
    Hal_SetOFDMContinuousTx( pAdapter, bStart);
 }/* mpt_StartOfdmContTx */
 
@@ -919,12 +931,12 @@ void SetContinuousTx(PADAPTER pAdapter, u8 bStart)
 }
 
 //------------------------------------------------------------------------------
-void dump_mpframe(_adapter *padapter, struct xmit_frame *pmpframe)
+static void dump_mpframe(PADAPTER padapter, struct xmit_frame *pmpframe)
 {
-	padapter->HalFunc.mgnt_xmit(padapter, pmpframe);
+	rtw_hal_mgnt_xmit(padapter, pmpframe);
 }
 
-struct xmit_frame *alloc_mp_xmitframe(struct xmit_priv *pxmitpriv)
+static struct xmit_frame *alloc_mp_xmitframe(struct xmit_priv *pxmitpriv)
 {
 	struct xmit_frame	*pmpframe;
 	struct xmit_buf	*pxmitbuf;
@@ -936,7 +948,7 @@ struct xmit_frame *alloc_mp_xmitframe(struct xmit_priv *pxmitpriv)
 
 	if ((pxmitbuf = rtw_alloc_xmitbuf(pxmitpriv)) == NULL)
 	{
-		rtw_free_xmitframe_ex(pxmitpriv, pmpframe);
+		rtw_free_xmitframe(pxmitpriv, pmpframe);
 		return NULL;
 	}
 
@@ -952,7 +964,7 @@ struct xmit_frame *alloc_mp_xmitframe(struct xmit_priv *pxmitpriv)
 
 }
 
-thread_return mp_xmit_packet_thread(thread_context context)
+static thread_return mp_xmit_packet_thread(thread_context context)
 {
 	struct xmit_frame	*pxmitframe;
 	struct mp_tx		*pmptx;
@@ -965,9 +977,9 @@ thread_return mp_xmit_packet_thread(thread_context context)
 	padapter = pmp_priv->papdater;
 	pxmitpriv = &(padapter->xmitpriv);
 
-	thread_enter(padapter);
+	thread_enter("RTW_MP_THREAD");
 
-	//DBG_8192C("%s:pkTx Start\n", __func__);
+	DBG_871X("%s:pkTx Start\n", __func__);
 	while (1) {
 		pxmitframe = alloc_mp_xmitframe(pxmitpriv);
 		if (pxmitframe == NULL) {
@@ -1002,7 +1014,7 @@ thread_return mp_xmit_packet_thread(thread_context context)
 	}
 
 exit:
-	//DBG_8192C("%s:pkTx Exit\n", __func__);
+	//DBG_871X("%s:pkTx Exit\n", __func__);
 	rtw_mfree(pmptx->pallocated_buf, pmptx->buf_size);
 	pmptx->pallocated_buf = NULL;
 	pmptx->stop = 1;
@@ -1059,7 +1071,7 @@ void SetPacketTx(PADAPTER padapter)
 	pmp_priv->tx.buf_size = pkt_size + XMITBUF_ALIGN_SZ;
 	pmp_priv->tx.pallocated_buf = rtw_zmalloc(pmp_priv->tx.buf_size);
 	if (pmp_priv->tx.pallocated_buf == NULL) {
-		DBG_8192C("%s: malloc(%d) fail!!\n", __func__, pmp_priv->tx.buf_size);
+		DBG_871X("%s: malloc(%d) fail!!\n", __func__, pmp_priv->tx.buf_size);
 		return;
 	}
 	pmp_priv->tx.buf = (u8 *)N_BYTE_ALIGMENT((SIZE_PTR)(pmp_priv->tx.pallocated_buf), XMITBUF_ALIGN_SZ);
@@ -1140,9 +1152,22 @@ void SetPacketTx(PADAPTER padapter)
 	_rtw_memset(ptr, payload, pkt_end - ptr);
 
 	//3 6. start thread
-	if(!start_kthread(&pmp_priv->tx.PktTxThread, mp_xmit_packet_thread, pmp_priv, "8192cu-mp-xmit"))
+#ifdef PLATFORM_LINUX
+	pmp_priv->tx.PktTxThread = kthread_run(mp_xmit_packet_thread, pmp_priv, "RTW_MP_THREAD");
+	if (IS_ERR(pmp_priv->tx.PktTxThread))
 		DBG_871X("Create PktTx Thread Fail !!!!!\n");
+#endif
+#ifdef PLATFORM_FREEBSD
+{
+	struct proc *p;
+	struct thread *td;
+	pmp_priv->tx.PktTxThread = kproc_kthread_add(mp_xmit_packet_thread, pmp_priv,
+					&p, &td, RFHIGHPID, 0, "MPXmitThread", "MPXmitThread");
 
+	if (pmp_priv->tx.PktTxThread < 0)
+		DBG_871X("Create PktTx Thread Fail !!!!!\n");
+}
+#endif
 }
 
 void SetPacketRx(PADAPTER pAdapter, u8 bStartRx)
@@ -1151,9 +1176,14 @@ void SetPacketRx(PADAPTER pAdapter, u8 bStartRx)
 
 	if(bStartRx)
 	{
-		// Accept CRC error and destination address
-		pHalData->ReceiveConfig |= (RCR_ACRC32|RCR_AAP);
+		pHalData->ReceiveConfig = AAP | APM | AM | AB | APP_ICV | ADF | AMF | HTC_LOC_CTRL | APP_MIC | APP_PHYSTS;
+	
+		pHalData->ReceiveConfig |= ACRC32;
+	
 		rtw_write32(pAdapter, REG_RCR, pHalData->ReceiveConfig);
+
+		// Accept all data frames
+		rtw_write16(pAdapter, REG_RXFLTMAP2, 0xFFFF);
 	}
 	else
 	{
@@ -1244,15 +1274,15 @@ static u32 GetPSDData(PADAPTER pAdapter, u32 point)
  */
 u32 mp_query_psd(PADAPTER pAdapter, u8 *data)
 {
-	u8 *val;
 	u32 i, psd_pts=0, psd_start=0, psd_stop=0;
 	u32 psd_data=0;
-
-
+	
+#ifdef PLATFORM_LINUX
 	if (!netif_running(pAdapter->pnetdev)) {
 		RT_TRACE(_module_mp_, _drv_warning_, ("mp_query_psd: Fail! interface not opened!\n"));
 		return 0;
 	}
+#endif
 
 	if (check_fwstate(&pAdapter->mlmepriv, WIFI_MP_STATE) == _FALSE) {
 		RT_TRACE(_module_mp_, _drv_warning_, ("mp_query_psd: Fail! not in MP mode!\n"));
@@ -1288,29 +1318,6 @@ u32 mp_query_psd(PADAPTER pAdapter, u8 *data)
 	#endif
 
 	return strlen(data)+1;
-}
-
-
-u32 rtw_atoi(u8* s)
-{
-
-	int num=0,flag=0;
-	int i;
-	for(i=0;i<=strlen(s);i++)
-	{
-	  if(s[i] >= '0' && s[i] <= '9')
-		 num = num * 10 + s[i] -'0';
-	  else if(s[0] == '-' && i==0) 
-		 flag =1;
-	  else 
-		  break;
-	 }
-
-	if(flag == 1)
-	   num = num * -1;
-
-	 return(num); 
-
 }
 
 #endif

@@ -16,8 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef _RTW_EVENT_H_
 #define _RTW_EVENT_H_
 #include <drv_conf.h>
@@ -92,7 +91,8 @@ struct stassoc_event {
 
 struct stadel_event {
  unsigned char macaddr[6];
- unsigned char rsvd[2]; 
+ unsigned char rsvd[2]; //for reason
+ int mac_id;
 };
 
 struct addba_event

@@ -126,10 +126,10 @@ static int skb_pull_and_merge(struct sk_buff *skb, unsigned char *src, int len)
 	int tail_len;
 	unsigned long end, tail;
 
-	if ((src+len) > skb->tail || skb->len < len)
+	if ((src+len) > skb_tail_pointer(skb) || skb->len < len)
 		return -1;
 
-	tail = (unsigned long)skb->tail;
+	tail = (unsigned long)skb_tail_pointer(skb);
 	end = (unsigned long)src+len;
 	if (tail < end)
 		return -1;
@@ -522,7 +522,7 @@ static void __nat25_db_network_insert(_adapter *priv,
 		db = db->next_hash;
 	}
 
-	db = (struct nat25_network_db_entry *) _rtw_malloc(sizeof(*db));
+	db = (struct nat25_network_db_entry *) rtw_malloc(sizeof(*db));
 	if(db == NULL) {
 		_exit_critical_bh(&priv->br_ext_lock, &irqL);
 		return;
@@ -633,7 +633,7 @@ void nat25_db_cleanup(_adapter *priv)
 	int i;
 	_irqL irqL;
 	_enter_critical_bh(&priv->br_ext_lock, &irqL);
-
+	
 	for(i=0; i<NAT25_HASH_SIZE; i++)
 	{
 		struct nat25_network_db_entry *f;
@@ -649,7 +649,7 @@ void nat25_db_cleanup(_adapter *priv)
 				priv->scdb_entry = NULL;
 			}
 			__network_hash_unlink(f);
-			_rtw_mfree((u8 *) f, sizeof(struct nat25_network_db_entry));
+			rtw_mfree((u8 *) f, sizeof(struct nat25_network_db_entry));
 
 			f = g;
 		}
@@ -664,7 +664,7 @@ void nat25_db_expire(_adapter *priv)
 	int i;
 	_irqL irqL;
 	_enter_critical_bh(&priv->br_ext_lock, &irqL);
-
+	
 	//if(!priv->ethBrExtInfo.nat25_disable)
 	{
 		for (i=0; i<NAT25_HASH_SIZE; i++)
@@ -739,7 +739,7 @@ void nat25_db_expire(_adapter *priv)
 							priv->scdb_entry = NULL;
 						}
 						__network_hash_unlink(f);
-						_rtw_mfree((u8 *) f, sizeof(struct nat25_network_db_entry));
+						rtw_mfree((u8 *) f, sizeof(struct nat25_network_db_entry));
 					}
 				}
 
@@ -848,6 +848,11 @@ int nat25_db_handle(_adapter *priv, struct sk_buff *skb, int method)
 							else {
 								// forward unknow IP packet to upper TCP/IP
 								DEBUG_INFO("NAT25: Replace DA with BR's MAC\n");
+								if ( (*(u32 *)priv->br_mac) == 0 && (*(u16 *)(priv->br_mac+4)) == 0 ) {
+									void netdev_br_init(struct net_device *netdev);
+									printk("Re-init netdev_br_init() due to br_mac==0!\n");
+									netdev_br_init(priv->pnetdev);
+								}
 								memcpy(skb->data, priv->br_mac, ETH_ALEN);
 							}
 						}
@@ -1533,7 +1538,7 @@ int nat25_handle_frame(_adapter *priv, struct sk_buff *skb)
 				_exit_critical_bh(&priv->br_ext_lock, &irqL);
 				
 				retval = nat25_db_handle(priv, skb, NAT25_LOOKUP);
-		}
+			}
 		}
 		else {
 			if (((*((unsigned short *)(skb->data+ETH_ALEN*2)) == __constant_htons(ETH_P_IP)) &&
@@ -1633,13 +1638,13 @@ void dhcp_flag_bcast(_adapter *priv, struct sk_buff *skb)
 
 			if(iph->protocol == IPPROTO_UDP) // UDP
 			{
-				struct udphdr *udph = (struct udphdr *)((unsigned int)iph + (iph->ihl << 2));
+				struct udphdr *udph = (struct udphdr *)((SIZE_PTR)iph + (iph->ihl << 2));
 
 				if((udph->source == __constant_htons(CLIENT_PORT))
 					&& (udph->dest == __constant_htons(SERVER_PORT))) // DHCP request
 				{
 					struct dhcpMessage *dhcph =
-						(struct dhcpMessage *)((unsigned int)udph + sizeof(struct udphdr));
+						(struct dhcpMessage *)((SIZE_PTR)udph + sizeof(struct udphdr));
 
 					if(dhcph->cookie == __constant_htonl(DHCP_MAGIC)) // match magic word
 					{

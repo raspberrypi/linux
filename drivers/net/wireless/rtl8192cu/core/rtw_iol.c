@@ -38,7 +38,7 @@ struct xmit_frame	*rtw_IOL_accquire_xmit_frame(ADAPTER *adapter)
 	if ((xmitbuf = rtw_alloc_xmitbuf(pxmitpriv)) == NULL)
 	{
 		DBG_871X("%s rtw_alloc_xmitbuf return null\n", __FUNCTION__);
-		rtw_free_xmitframe_ex(pxmitpriv, xmit_frame);
+		rtw_free_xmitframe(pxmitpriv, xmit_frame);
 		xmit_frame=NULL;
 		goto exit;
 	}
@@ -145,7 +145,7 @@ int _rtw_IOL_append_WD_cmd(struct xmit_frame *xmit_frame, u16 addr, u32 value)
 #ifdef DBG_IO
 int dbg_rtw_IOL_append_WB_cmd(struct xmit_frame *xmit_frame, u16 addr, u8 value, const char *caller, const int line)
 {
-	if(addr + 1 > DBG_IO_WRITE_SNIFF_ADDR_START && addr <= DBG_IO_WRITE_SNIFF_ADDR_END)
+	if (match_write_sniff_ranges(addr, 1))
 		DBG_871X("DBG_IO %s:%d IOL_WB(0x%04x, 0x%02x)\n", caller, line, addr, value);
 
 	return _rtw_IOL_append_WB_cmd(xmit_frame, addr, value);
@@ -153,7 +153,7 @@ int dbg_rtw_IOL_append_WB_cmd(struct xmit_frame *xmit_frame, u16 addr, u8 value,
 
 int dbg_rtw_IOL_append_WW_cmd(struct xmit_frame *xmit_frame, u16 addr, u16 value, const char *caller, const int line)
 {
-	if(addr + 2 > DBG_IO_WRITE_SNIFF_ADDR_START && addr <= DBG_IO_WRITE_SNIFF_ADDR_END)
+	if (match_write_sniff_ranges(addr, 2))
 		DBG_871X("DBG_IO %s:%d IOL_WW(0x%04x, 0x%04x)\n", caller, line, addr, value);
 
 	return _rtw_IOL_append_WW_cmd(xmit_frame, addr, value);
@@ -161,7 +161,7 @@ int dbg_rtw_IOL_append_WW_cmd(struct xmit_frame *xmit_frame, u16 addr, u16 value
 
 int dbg_rtw_IOL_append_WD_cmd(struct xmit_frame *xmit_frame, u16 addr, u32 value, const char *caller, const int line)
 {
-	if(addr + 4 > DBG_IO_WRITE_SNIFF_ADDR_START && addr <= DBG_IO_WRITE_SNIFF_ADDR_END)
+	if (match_write_sniff_ranges(addr, 4))
 		DBG_871X("DBG_IO %s:%d IOL_WD(0x%04x, 0x%08x)\n", caller, line, addr, value);
 
 	return _rtw_IOL_append_WD_cmd(xmit_frame, addr, value);
@@ -224,10 +224,7 @@ int rtw_IOL_append_END_cmd(struct xmit_frame *xmit_frame)
 
 int rtw_IOL_exec_cmds_sync(ADAPTER *adapter, struct xmit_frame *xmit_frame, u32 max_wating_ms)
 {
-	if(adapter->HalFunc.IOL_exec_cmds_sync)
-		return adapter->HalFunc.IOL_exec_cmds_sync(adapter, xmit_frame, max_wating_ms);
-
-	return _FAIL;
+	return rtw_hal_iol_cmd(adapter, xmit_frame, max_wating_ms);
 }
 
 int rtw_IOL_exec_cmd_array_sync(PADAPTER adapter, u8 *IOL_cmds, u32 cmd_num, u32 max_wating_ms)
@@ -255,7 +252,7 @@ bool rtw_IOL_applied(ADAPTER *adapter)
 		return _TRUE;
 
 #ifdef CONFIG_USB_HCI
-	if(!adapter->dvobjpriv.ishighspeed)
+	if(!adapter_to_dvobj(adapter)->ishighspeed)
 		return _TRUE;
 #endif
 

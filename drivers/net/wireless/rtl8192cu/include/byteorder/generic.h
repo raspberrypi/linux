@@ -98,7 +98,7 @@
  */
 
 
-#if defined(PLATFORM_LINUX) || defined(PLATFORM_WINDOWS) || defined(PLATFORM_MPIXEL)
+#if defined(PLATFORM_LINUX) || defined(PLATFORM_WINDOWS) || defined(PLATFORM_MPIXEL) || defined(PLATFORM_FREEBSD)
 /*
  * inside the kernel, we can use nicknames;
  * outside of it, we must avoid POSIX namespace pollution...
@@ -168,13 +168,16 @@
 #if defined(PLATFORM_LINUX) || (defined (__GLIBC__) && __GLIBC__ >= 2)
 extern __u32			ntohl(__u32);
 extern __u32			htonl(__u32);
-#else
+#else //defined(PLATFORM_LINUX) || (defined (__GLIBC__) && __GLIBC__ >= 2)
+#ifndef PLATFORM_FREEBSD
 extern unsigned long int	ntohl(unsigned long int);
 extern unsigned long int	htonl(unsigned long int);
 #endif
+#endif
+#ifndef PLATFORM_FREEBSD
 extern unsigned short int	ntohs(unsigned short int);
 extern unsigned short int	htons(unsigned short int);
-
+#endif
 
 #if defined(__GNUC__) && (__GNUC__ >= 2) && defined(__OPTIMIZE__) ||  defined(PLATFORM_MPIXEL)
 

@@ -16,8 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef __RTW_CMD_H_
 #define __RTW_CMD_H_
 
@@ -47,6 +46,7 @@
 #endif
 
 	struct cmd_obj {
+		_adapter *padapter;
 		u16	cmdcode;
 		u8	res;
 		u8	*parmbuf;
@@ -71,6 +71,7 @@
 		u32	cmd_done_cnt;
 		u32	rsp_cnt;
 		u8 cmdthd_running;
+		u8 stop_req;
 		_adapter *padapter;
 	};
 
@@ -89,7 +90,15 @@
 		_sema	evt_notify;
 		_sema	terminate_evtthread_sema;
 		_queue	evt_queue;
-#endif		
+#endif
+
+//#define CONFIG_C2H_WK
+#ifdef CONFIG_C2H_WK
+		_workitem c2h_wk;
+		bool c2h_wk_alive;
+		struct rtw_cbuf *c2h_queue;
+		#define C2H_QUEUE_MAX_LEN 10
+#endif
 		
 #ifdef CONFIG_H2CLBK
 		_sema	lbkevt_done;
@@ -121,6 +130,15 @@ do {\
 	pcmd->rspsz = 0;\
 } while(0)
 
+struct c2h_evt_hdr {
+	u8 id:4;
+	u8 plen:4;
+	u8 seq;
+	u8 payload[0];
+};
+
+#define c2h_evt_exist(c2h_evt) ((c2h_evt)->id || (c2h_evt)->plen)
+
 extern u32 rtw_enqueue_cmd(struct cmd_priv *pcmdpriv, struct cmd_obj *obj);
 extern struct cmd_obj *rtw_dequeue_cmd(struct cmd_priv *pcmdpriv);
 extern void rtw_free_cmd_obj(struct cmd_obj *pcmd);
@@ -131,6 +149,7 @@ extern struct evt_obj *rtw_dequeue_evt(_queue *queue);
 extern void rtw_free_evt_obj(struct evt_obj *pcmd);
 #endif
 
+void rtw_stop_cmd_thread(_adapter *adapter);
 thread_return rtw_cmd_thread(thread_context context);
 
 extern u32 rtw_init_cmd_priv (struct cmd_priv *pcmdpriv);
@@ -160,6 +179,10 @@ enum rtw_drvextra_cmd_id
 	P2P_PS_WK_CID,
 	P2P_PROTO_WK_CID,
 	CHECK_HIQ_WK_CID,//for softap mode, check hi queue if empty
+	INTEl_WIDI_WK_CID,
+	C2H_WK_CID,
+	RESET_SECURITYPRIV, // add for CONFIG_IEEE80211W, none 11w also can use
+	FREE_ASSOC_RESOURCES, // add for CONFIG_IEEE80211W, none 11w also can use
 	MAX_WK_CID
 };
 
@@ -220,7 +243,7 @@ Command Mode
 
 */
 struct disconnect_parm {
-	u32 rsvd;
+	u32 deauth_timeout_ms;
 };
 
 /*
@@ -267,11 +290,14 @@ Command-Event Mode
 */
 
 #define RTW_SSID_SCAN_AMOUNT 9 // for WEXT_CSCAN_AMOUNT 9
+#define RTW_CHANNEL_SCAN_AMOUNT (14+37)
 struct sitesurvey_parm {
 	sint scan_mode;	//active: 1, passive: 0 
-	sint bsslimit;	// 1 ~ 48
-	// for up to 9 probreq with specific ssid
+	/* sint bsslimit;	// 1 ~ 48 */
+	u8 ssid_num;
+	u8 ch_num;
 	NDIS_802_11_SSID ssid[RTW_SSID_SCAN_AMOUNT];
+	struct rtw_ieee80211_channel ch[RTW_CHANNEL_SCAN_AMOUNT];
 };
 
 /*
@@ -320,6 +346,7 @@ when shared key ==> algorithm/keyid
 struct set_stakey_parm {
 	u8	addr[ETH_ALEN];
 	u8	algorithm;
+	u8 	id;// currently for erasing cam entry if algorithm == _NO_PRIVACY_ 
 	u8	key[16];
 };
 
@@ -793,9 +820,10 @@ struct addBaReq_parm
 };
 
 /*H2C Handler index: 46 */
-struct SetChannel_parm
-{
-	u32 curr_ch;	
+struct set_ch_parm {
+	u8 ch;
+	u8 bw;
+	u8 ch_offset;
 };
 
 #ifdef MP_FIRMWARE_OFFLOAD
@@ -908,13 +936,14 @@ Result:
 
 extern u8 rtw_setassocsta_cmd(_adapter  *padapter, u8 *mac_addr);
 extern u8 rtw_setstandby_cmd(_adapter *padapter, uint action);
-extern u8 rtw_sitesurvey_cmd(_adapter  *padapter, NDIS_802_11_SSID *pssid, int ssid_max_num);
+u8 rtw_sitesurvey_cmd(_adapter  *padapter, NDIS_802_11_SSID *ssid, int ssid_num, struct rtw_ieee80211_channel *ch, int ch_num);
 extern u8 rtw_createbss_cmd(_adapter  *padapter);
 extern u8 rtw_createbss_cmd_ex(_adapter  *padapter, unsigned char *pbss, unsigned int sz);
 extern u8 rtw_setphy_cmd(_adapter  *padapter, u8 modem, u8 ch);
 extern u8 rtw_setstakey_cmd(_adapter  *padapter, u8 *psta, u8 unicast_key);
+extern u8 rtw_clearstakey_cmd(_adapter *padapter, u8 *psta, u8 entry, u8 enqueue);
 extern u8 rtw_joinbss_cmd(_adapter  *padapter, struct wlan_network* pnetwork);
-extern u8 rtw_disassoc_cmd(_adapter  *padapter);
+u8 rtw_disassoc_cmd(_adapter *padapter, u32 deauth_timeout_ms, bool enqueue);
 extern u8 rtw_setopmode_cmd(_adapter  *padapter, NDIS_802_11_NETWORK_INFRASTRUCTURE networktype);
 extern u8 rtw_setdatarate_cmd(_adapter  *padapter, u8 *rateset);
 extern u8 rtw_setbasicrate_cmd(_adapter  *padapter, u8 *rateset);
@@ -931,7 +960,9 @@ extern u8 rtw_setfwdig_cmd(_adapter*padapter, u8 type);
 extern u8 rtw_setfwra_cmd(_adapter*padapter, u8 type);
 
 extern u8 rtw_addbareq_cmd(_adapter*padapter, u8 tid, u8 *addr);
-
+// add for CONFIG_IEEE80211W, none 11w also can use
+extern u8 rtw_reset_securitypriv_cmd(_adapter*padapter);
+extern u8 rtw_free_assoc_resources_cmd(_adapter *padapter);
 extern u8 rtw_dynamic_chk_wk_cmd(_adapter *adapter);
 
 u8 rtw_lps_ctrl_wk_cmd(_adapter*padapter, u8 lps_ctrl_type, u8 enqueue);
@@ -947,10 +978,13 @@ extern u8 rtw_ps_cmd(_adapter*padapter);
 u8 rtw_chk_hi_queue_cmd(_adapter*padapter);
 #endif
 
-extern u8 rtw_set_chplan_cmd(_adapter*padapter, u8 chplan, u8 enaueue);
+u8 rtw_set_ch_cmd(_adapter*padapter, u8 ch, u8 bw, u8 ch_offset, u8 enqueue);
+extern u8 rtw_set_chplan_cmd(_adapter*padapter, u8 chplan, u8 enqueue);
 extern u8 rtw_led_blink_cmd(_adapter*padapter, PLED_871x pLed);
 extern u8 rtw_set_csa_cmd(_adapter*padapter, u8 new_ch_no);
 extern u8 rtw_tdls_cmd(_adapter*padapter, u8 *addr, u8 option);
+
+extern u8 rtw_c2h_wk_cmd(PADAPTER padapter, u8 *c2h_evt);
 
 u8 rtw_drvextra_cmd_hdl(_adapter *padapter, unsigned char *pbuf);
 
@@ -1041,7 +1075,7 @@ enum rtw_h2c_cmd
 	
 	GEN_CMD_CODE(_SetChannelPlan), /*59*/
 	GEN_CMD_CODE(_LedBlink), /*60*/
-	
+
 	GEN_CMD_CODE(_SetChannelSwitch), /*61*/
 	GEN_CMD_CODE(_TDLS), /*62*/
 	
@@ -1123,6 +1157,7 @@ struct _cmd_callback 	rtw_cmd_callback[] =
 	{GEN_CMD_CODE(_Set_H2C_MSG), NULL},/*58*/
 	{GEN_CMD_CODE(_SetChannelPlan), NULL},/*59*/
 	{GEN_CMD_CODE(_LedBlink), NULL},/*60*/
+	
 	{GEN_CMD_CODE(_SetChannelSwitch), NULL},/*61*/
 	{GEN_CMD_CODE(_TDLS), NULL},/*62*/
 };

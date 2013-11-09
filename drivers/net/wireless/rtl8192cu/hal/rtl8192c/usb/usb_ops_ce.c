@@ -16,8 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #define _HCI_OPS_OS_C_
 
 #include <drv_conf.h>
@@ -870,7 +869,7 @@ _func_enter_;
 
 
 	//not to consider tx fragment
-	rtw_free_xmitframe_ex(pxmitpriv, pxmitframe);		
+	rtw_free_xmitframe(pxmitpriv, pxmitframe);		
 
 
 #if 1

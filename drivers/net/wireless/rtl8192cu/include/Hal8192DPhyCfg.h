@@ -157,6 +157,16 @@ typedef enum _MACPHY_MODE_8192D{
 	DUALMAC_SINGLEPHY,
 }MACPHY_MODE_8192D,*PMACPHY_MODE_8192D;
 
+typedef enum _MACPHY_MODE_CHANGE_ACTION{
+	DMDP2DMSP = 0,
+	DMSP2DMDP = 1,
+	DMDP2SMSP = 2,
+	SMSP2DMDP = 3,
+	DMSP2SMSP = 4,
+	SMSP2DMSP = 5,
+	MAXACTION
+}MACPHY_MODE_CHANGE_ACTION,*PMACPHY_MODE_CHANGE_ACTION;
+
 typedef enum _BAND_TYPE{
 	BAND_ON_2_4G = 0,
 	BAND_ON_5G,
@@ -186,19 +196,6 @@ typedef	enum _RF_TYPE_8190P{
 	// TODO: We sholud remove this psudo PHY RF after we get new RF.
 	RF_PSEUDO_11N=5,	// 5, It is a temporality RF. 
 }RF_TYPE_8190P_E,*PRF_TYPE_8190P_E;
-
-
-typedef enum _RATR_TABLE_MODE_8192C{
-	RATR_INX_WIRELESS_NGB = 0,
-	RATR_INX_WIRELESS_NG = 1,
-	RATR_INX_WIRELESS_NB = 2,
-	RATR_INX_WIRELESS_N = 3,
-	RATR_INX_WIRELESS_GB = 4,
-	RATR_INX_WIRELESS_G = 5,
-	RATR_INX_WIRELESS_B = 6,
-	RATR_INX_WIRELESS_MC = 7,
-	RATR_INX_WIRELESS_A = 8,
-}RATR_TABLE_MODE_8192C, *PRATR_TABLE_MODE_8192C;
 
 typedef struct _BB_REGISTER_DEFINITION{
 	u32 rfintfs;			// set software control: 
@@ -513,6 +510,9 @@ HalChangeCCKStatus8192D(
 	IN	PADAPTER	Adapter,
 	IN	BOOLEAN		bCCKDisable
 );
+
+VOID 
+PHY_InitPABias92D(IN	PADAPTER Adapter);
 
 /*--------------------------Exported Function prototype---------------------*/
 

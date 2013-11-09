@@ -20,31 +20,31 @@
 #ifndef __INC_HAL8192CU_FW_IMG_H
 #define __INC_HAL8192CU_FW_IMG_H
 
-/*Created on  2011/12/14,  8:38*/
+/*Created on  2011/ 6/15,  5:45*/
 
 #ifdef CONFIG_BT_COEXISTENCE
-#define TSMCImgArrayLength 16248 //v79 TSMC COMMON 2011-10-06
-#else
-#define TSMCImgArrayLength 16116 //v80 TSMC P2PPS 2011-12-14
+#define TSMCImgArrayLength 15706 //v84 TSMC COMMON 2012-04-13
+#else //#ifdef CONFIG_P2P
+#define TSMCImgArrayLength 16126 //v88 TSMC P2PPS with CCX report C2H 2012-12-05
 #endif
 extern u8 Rtl8192CUFwTSMCImgArray[TSMCImgArrayLength];
 
 #ifdef CONFIG_BT_COEXISTENCE
 #define UMCACutImgArrayLength 16248 //v79 UMC A Cut COMMON 2011-10-06
 #else //#ifdef CONFIG_P2P
-#define UMCACutImgArrayLength 16116 //v80 UMC A Cut P2PPS 2011-12-14
+#define UMCACutImgArrayLength 16126 //v88 UMC A Cut P2PPS with CCX report C2H 2012-12-05
 #endif
 extern u8 Rtl8192CUFwUMCACutImgArray[UMCACutImgArrayLength];
 
 #ifdef CONFIG_BT_COEXISTENCE
-#define UMCBCutImgArrayLength 16254 //v79 UMC B Cut COMMON 2011-10-06
+#define UMCBCutImgArrayLength 15686 //v84 UMC B Cut COMMON 2012-04-13
 #else //#ifdef CONFIG_P2P
-#define UMCBCutImgArrayLength 16096 //v80 UMC B Cut P2PPS 2011-12-14
+#define UMCBCutImgArrayLength 16096 //v88 UMC B Cut P2PPS with CCX report C2H 2012-12-05
 #endif
 extern u8 Rtl8192CUFwUMCBCutImgArray[UMCBCutImgArrayLength];
 
-#define UMC8723ImgArrayLength 16288
-extern u8 Rtl8192CUFwUMC8723ImgArray[UMC8723ImgArrayLength];
+//8188C_Formal_All_PHYforMP_111117	2011-11-23
+//8192C_Formal_92CU_PHYforMP_110817 	2011-11-23
 #define PHY_REG_2TArrayLength 374
 extern u32  Rtl8192CUPHY_REG_2TArray[PHY_REG_2TArrayLength];
 #define PHY_REG_1TArrayLength 374
@@ -77,6 +77,10 @@ extern u32 Rtl8192CURadioB_2TArray[RadioB_2TArrayLength];
 extern u32 Rtl8192CURadioA_1TArray[RadioA_1TArrayLength];
 #define RadioB_1TArrayLength 1
 extern u32 Rtl8192CURadioB_1TArray[RadioB_1TArrayLength];
+#define RadioA_2T_mCardArrayLength 282
+extern u32 Rtl8192CURadioA_2T_mCardArray[RadioA_2T_mCardArrayLength];
+#define RadioB_2T_mCardArrayLength 78
+extern u32 Rtl8192CURadioB_2T_mCardArray[RadioB_2T_mCardArrayLength];
 #define RadioA_1T_mCardArrayLength 282
 extern u32 Rtl8192CURadioA_1T_mCardArray[RadioA_1T_mCardArrayLength];
 #define RadioB_1T_mCardArrayLength 1
@@ -85,7 +89,9 @@ extern u32 Rtl8192CURadioB_1T_mCardArray[RadioB_1T_mCardArrayLength];
 extern u32 Rtl8192CURadioA_1T_HPArray[RadioA_1T_HPArrayLength];
 #define RadioB_GM_ArrayLength 1
 extern u32 Rtl8192CURadioB_GM_Array[RadioB_GM_ArrayLength];
-#define MAC_2T_ArrayLength 172
+
+// MAC reg V14 - 2011-11-23
+#define MAC_2T_ArrayLength 174
 extern u32 Rtl8192CUMAC_2T_Array[MAC_2T_ArrayLength];
 #define MACPHY_Array_PGLength 1
 extern u32 Rtl8192CUMACPHY_Array_PG[MACPHY_Array_PGLength];

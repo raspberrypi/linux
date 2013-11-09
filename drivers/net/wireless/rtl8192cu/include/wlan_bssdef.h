@@ -16,8 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef __WLAN_BSSDEF_H__
 #define __WLAN_BSSDEF_H__
 
@@ -295,6 +294,275 @@ typedef struct _NDIS_802_11_TEST
 
 #endif //end of #ifdef PLATFORM_LINUX
 
+#ifdef PLATFORM_FREEBSD
+
+#define NDIS_802_11_LENGTH_SSID         32
+#define NDIS_802_11_LENGTH_RATES        8
+#define NDIS_802_11_LENGTH_RATES_EX     16
+
+typedef unsigned char   NDIS_802_11_MAC_ADDRESS[6];
+typedef long    		NDIS_802_11_RSSI;           // in dBm
+typedef unsigned char   NDIS_802_11_RATES[NDIS_802_11_LENGTH_RATES];        // Set of 8 data rates
+typedef unsigned char   NDIS_802_11_RATES_EX[NDIS_802_11_LENGTH_RATES_EX];  // Set of 16 data rates
+
+
+typedef  ULONG  NDIS_802_11_KEY_INDEX;
+typedef unsigned long long NDIS_802_11_KEY_RSC;
+
+
+typedef struct _NDIS_802_11_SSID
+{
+  ULONG  SsidLength;
+  UCHAR  Ssid[32];
+} NDIS_802_11_SSID, *PNDIS_802_11_SSID;
+
+typedef enum _NDIS_802_11_NETWORK_TYPE
+{
+    Ndis802_11FH,
+    Ndis802_11DS,
+    Ndis802_11OFDM5,
+    Ndis802_11OFDM24,
+    Ndis802_11NetworkTypeMax    // not a real type, defined as an upper bound
+} NDIS_802_11_NETWORK_TYPE, *PNDIS_802_11_NETWORK_TYPE;
+
+typedef struct _NDIS_802_11_CONFIGURATION_FH
+{
+    ULONG           Length;             // Length of structure
+    ULONG           HopPattern;         // As defined by 802.11, MSB set
+    ULONG           HopSet;             // to one if non-802.11
+    ULONG           DwellTime;          // units are Kusec
+} NDIS_802_11_CONFIGURATION_FH, *PNDIS_802_11_CONFIGURATION_FH;
+ 
+
+/*
+	FW will only save the channel number in DSConfig.
+	ODI Handler will convert the channel number to freq. number.	
+*/
+typedef struct _NDIS_802_11_CONFIGURATION
+{
+    ULONG           Length;             // Length of structure
+    ULONG           BeaconPeriod;       // units are Kusec
+    ULONG           ATIMWindow;         // units are Kusec
+    ULONG           DSConfig;           // Frequency, units are kHz
+    NDIS_802_11_CONFIGURATION_FH    FHConfig;
+} NDIS_802_11_CONFIGURATION, *PNDIS_802_11_CONFIGURATION;
+
+
+
+typedef enum _NDIS_802_11_NETWORK_INFRASTRUCTURE
+{
+    Ndis802_11IBSS,
+    Ndis802_11Infrastructure,
+    Ndis802_11AutoUnknown,
+    Ndis802_11InfrastructureMax,     // Not a real value, defined as upper bound
+    Ndis802_11APMode
+} NDIS_802_11_NETWORK_INFRASTRUCTURE, *PNDIS_802_11_NETWORK_INFRASTRUCTURE;
+
+
+
+
+
+typedef struct _NDIS_802_11_FIXED_IEs
+{
+  UCHAR  Timestamp[8];
+  USHORT  BeaconInterval;
+  USHORT  Capabilities;
+} NDIS_802_11_FIXED_IEs, *PNDIS_802_11_FIXED_IEs;
+
+
+
+typedef struct _NDIS_802_11_VARIABLE_IEs
+{
+  UCHAR  ElementID;
+  UCHAR  Length;
+  UCHAR  data[1];
+} NDIS_802_11_VARIABLE_IEs, *PNDIS_802_11_VARIABLE_IEs;
+
+
+
+/*
+
+
+
+Length is the 4 bytes multiples of the sume of
+	sizeof (NDIS_802_11_MAC_ADDRESS) + 2 + sizeof (NDIS_802_11_SSID) + sizeof (ULONG)
++   sizeof (NDIS_802_11_RSSI) + sizeof (NDIS_802_11_NETWORK_TYPE) + sizeof (NDIS_802_11_CONFIGURATION)
++   sizeof (NDIS_802_11_RATES_EX) + IELength
+
+Except the IELength, all other fields are fixed length. Therefore, we can define a marco to present the
+partial sum.
+
+*/
+#if 0
+typedef struct _NDIS_WLAN_BSSID_EX
+{
+  ULONG  Length;
+  NDIS_802_11_MAC_ADDRESS  MacAddress;
+  UCHAR  Reserved[2];//[0]: IS beacon frame, [1]:optimum_antenna=>For antenna diversity;
+  NDIS_802_11_SSID  Ssid;
+  ULONG  Privacy;
+  NDIS_802_11_RSSI  Rssi;
+  NDIS_802_11_NETWORK_TYPE  NetworkTypeInUse;
+  NDIS_802_11_CONFIGURATION  Configuration;
+  NDIS_802_11_NETWORK_INFRASTRUCTURE  InfrastructureMode;
+  NDIS_802_11_RATES_EX  SupportedRates;
+  ULONG  IELength;
+  UCHAR  IEs[MAX_IE_SZ];	//(timestamp, beacon interval, and capability information)
+} NDIS_WLAN_BSSID_EX, *PNDIS_WLAN_BSSID_EX;
+
+
+typedef struct _NDIS_802_11_BSSID_LIST_EX
+{
+  ULONG  NumberOfItems;
+  NDIS_WLAN_BSSID_EX  Bssid[1];
+} NDIS_802_11_BSSID_LIST_EX, *PNDIS_802_11_BSSID_LIST_EX;
+#endif
+
+typedef enum _NDIS_802_11_AUTHENTICATION_MODE
+{
+    Ndis802_11AuthModeOpen,
+    Ndis802_11AuthModeShared,
+    Ndis802_11AuthModeAutoSwitch,
+    Ndis802_11AuthModeWPA,
+    Ndis802_11AuthModeWPAPSK,
+    Ndis802_11AuthModeWPANone,
+    Ndis802_11AuthModeMax               // Not a real mode, defined as upper bound
+} NDIS_802_11_AUTHENTICATION_MODE, *PNDIS_802_11_AUTHENTICATION_MODE;
+
+typedef enum _NDIS_802_11_WEP_STATUS
+{
+    Ndis802_11WEPEnabled,
+    Ndis802_11Encryption1Enabled = Ndis802_11WEPEnabled,
+    Ndis802_11WEPDisabled,
+    Ndis802_11EncryptionDisabled = Ndis802_11WEPDisabled,
+    Ndis802_11WEPKeyAbsent,
+    Ndis802_11Encryption1KeyAbsent = Ndis802_11WEPKeyAbsent,
+    Ndis802_11WEPNotSupported,
+    Ndis802_11EncryptionNotSupported = Ndis802_11WEPNotSupported,
+    Ndis802_11Encryption2Enabled,
+    Ndis802_11Encryption2KeyAbsent,
+    Ndis802_11Encryption3Enabled,
+    Ndis802_11Encryption3KeyAbsent
+} NDIS_802_11_WEP_STATUS, *PNDIS_802_11_WEP_STATUS,
+  NDIS_802_11_ENCRYPTION_STATUS, *PNDIS_802_11_ENCRYPTION_STATUS;
+
+
+#define NDIS_802_11_AI_REQFI_CAPABILITIES      1
+#define NDIS_802_11_AI_REQFI_LISTENINTERVAL    2
+#define NDIS_802_11_AI_REQFI_CURRENTAPADDRESS  4
+
+#define NDIS_802_11_AI_RESFI_CAPABILITIES      1
+#define NDIS_802_11_AI_RESFI_STATUSCODE        2
+#define NDIS_802_11_AI_RESFI_ASSOCIATIONID     4
+
+typedef struct _NDIS_802_11_AI_REQFI
+{
+    USHORT Capabilities;
+    USHORT ListenInterval;
+    NDIS_802_11_MAC_ADDRESS  CurrentAPAddress;
+} NDIS_802_11_AI_REQFI, *PNDIS_802_11_AI_REQFI;
+
+typedef struct _NDIS_802_11_AI_RESFI
+{
+    USHORT Capabilities;
+    USHORT StatusCode;
+    USHORT AssociationId;
+} NDIS_802_11_AI_RESFI, *PNDIS_802_11_AI_RESFI;
+
+typedef struct _NDIS_802_11_ASSOCIATION_INFORMATION
+{
+    ULONG                   Length;
+    USHORT                  AvailableRequestFixedIEs;
+    NDIS_802_11_AI_REQFI    RequestFixedIEs;
+    ULONG                   RequestIELength;
+    ULONG                   OffsetRequestIEs;
+    USHORT                  AvailableResponseFixedIEs;
+    NDIS_802_11_AI_RESFI    ResponseFixedIEs;
+    ULONG                   ResponseIELength;
+    ULONG                   OffsetResponseIEs;
+} NDIS_802_11_ASSOCIATION_INFORMATION, *PNDIS_802_11_ASSOCIATION_INFORMATION;
+
+typedef enum _NDIS_802_11_RELOAD_DEFAULTS
+{
+   Ndis802_11ReloadWEPKeys
+} NDIS_802_11_RELOAD_DEFAULTS, *PNDIS_802_11_RELOAD_DEFAULTS;
+
+
+// Key mapping keys require a BSSID
+typedef struct _NDIS_802_11_KEY
+{
+    ULONG           Length;             // Length of this structure
+    ULONG           KeyIndex;           
+    ULONG           KeyLength;          // length of key in bytes
+    NDIS_802_11_MAC_ADDRESS BSSID;
+    NDIS_802_11_KEY_RSC KeyRSC;
+    UCHAR           KeyMaterial[32];     // variable length depending on above field
+} NDIS_802_11_KEY, *PNDIS_802_11_KEY;
+
+typedef struct _NDIS_802_11_REMOVE_KEY
+{
+    ULONG                   Length;        // Length of this structure
+    ULONG                   KeyIndex;           
+    NDIS_802_11_MAC_ADDRESS BSSID;      
+} NDIS_802_11_REMOVE_KEY, *PNDIS_802_11_REMOVE_KEY;
+
+typedef struct _NDIS_802_11_WEP
+{
+    ULONG     Length;        // Length of this structure
+    ULONG     KeyIndex;      // 0 is the per-client key, 1-N are the global keys
+    ULONG     KeyLength;     // length of key in bytes
+    UCHAR     KeyMaterial[16];// variable length depending on above field
+} NDIS_802_11_WEP, *PNDIS_802_11_WEP;
+
+typedef struct _NDIS_802_11_AUTHENTICATION_REQUEST
+{
+    ULONG Length;            // Length of structure
+    NDIS_802_11_MAC_ADDRESS Bssid;
+    ULONG Flags;
+} NDIS_802_11_AUTHENTICATION_REQUEST, *PNDIS_802_11_AUTHENTICATION_REQUEST;
+
+typedef enum _NDIS_802_11_STATUS_TYPE
+{
+	Ndis802_11StatusType_Authentication,
+	Ndis802_11StatusType_MediaStreamMode,
+	Ndis802_11StatusType_PMKID_CandidateList,		
+	Ndis802_11StatusTypeMax    // not a real type, defined as an upper bound
+} NDIS_802_11_STATUS_TYPE, *PNDIS_802_11_STATUS_TYPE;
+
+typedef struct _NDIS_802_11_STATUS_INDICATION
+{
+    NDIS_802_11_STATUS_TYPE StatusType;
+} NDIS_802_11_STATUS_INDICATION, *PNDIS_802_11_STATUS_INDICATION;
+
+// mask for authentication/integrity fields
+#define NDIS_802_11_AUTH_REQUEST_AUTH_FIELDS        0x0f
+#define NDIS_802_11_AUTH_REQUEST_REAUTH			0x01
+#define NDIS_802_11_AUTH_REQUEST_KEYUPDATE		0x02
+#define NDIS_802_11_AUTH_REQUEST_PAIRWISE_ERROR		0x06
+#define NDIS_802_11_AUTH_REQUEST_GROUP_ERROR		0x0E
+
+// MIC check time, 60 seconds.
+#define MIC_CHECK_TIME	60000000
+
+typedef struct _NDIS_802_11_AUTHENTICATION_EVENT
+{
+    NDIS_802_11_STATUS_INDICATION       Status;
+    NDIS_802_11_AUTHENTICATION_REQUEST  Request[1];
+} NDIS_802_11_AUTHENTICATION_EVENT, *PNDIS_802_11_AUTHENTICATION_EVENT;
+        
+typedef struct _NDIS_802_11_TEST
+{
+    ULONG Length;
+    ULONG Type;
+    union
+    {
+        NDIS_802_11_AUTHENTICATION_EVENT AuthenticationEvent;
+        NDIS_802_11_RSSI RssiTrigger;
+    }tt;
+} NDIS_802_11_TEST, *PNDIS_802_11_TEST;
+
+
+#endif //PLATFORM_FREEBSD
 #ifndef Ndis802_11APMode
 #define Ndis802_11APMode (Ndis802_11InfrastructureMax+1)
 #endif
@@ -340,25 +608,7 @@ WLAN_BSSID_EX, *PWLAN_BSSID_EX;
 
 __inline  static uint get_WLAN_BSSID_EX_sz(WLAN_BSSID_EX *bss)
 {
-	uint t_len;
-	
-	t_len = sizeof (ULONG) 
-		+ sizeof (NDIS_802_11_MAC_ADDRESS) 
-		+ 2 
-		+ sizeof (NDIS_802_11_SSID) 
-		+ sizeof (ULONG) 
-		+ sizeof (NDIS_802_11_RSSI) 
-		+ sizeof (NDIS_802_11_NETWORK_TYPE)
-		+ sizeof (NDIS_802_11_CONFIGURATION)
-		+ sizeof (NDIS_802_11_NETWORK_INFRASTRUCTURE)
-		+ sizeof (NDIS_802_11_RATES_EX)
-		//all new member add here
-		+ sizeof(WLAN_PHY_INFO)
-		//all new member add here
-		+ sizeof (ULONG)
-		+ bss->IELength;	
-	return t_len;
-	
+	return (sizeof(WLAN_BSSID_EX) - MAX_IE_SZ + bss->IELength);
 }
 
 struct	wlan_network {

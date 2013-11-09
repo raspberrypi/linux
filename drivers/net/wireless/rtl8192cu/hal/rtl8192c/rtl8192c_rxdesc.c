@@ -16,7 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
-******************************************************************************/
+ ******************************************************************************/
 #define _RTL8192C_REDESC_C_
 #include <drv_conf.h>
 #include <osdep_service.h>
@@ -196,7 +196,7 @@ static s32  translate2dbm(u8 signal_strength_idx)
 	return signal_power;
 }
 
-void rtl8192c_query_rx_phy_status(union recv_frame *prframe, struct phy_stat *pphy_stat)
+static void query_rx_phy_status(union recv_frame *prframe, struct phy_stat *pphy_stat)
 {
 	PHY_STS_OFDM_8192CD_T	*pOfdm_buf;
 	PHY_STS_CCK_8192CD_T	*pCck_buf;
@@ -383,9 +383,9 @@ void rtl8192c_query_rx_phy_status(union recv_frame *prframe, struct phy_stat *pp
 				//continue;
 
 			rx_pwr[i] =  ((pOfdm_buf->trsw_gain_X[i]&0x3F)*2) - 110;
-			pattrib->rx_rssi[i]=query_rx_pwr_percentage(rx_pwr[i]);
+			padapter->recvpriv.RxRssi[i] = rx_pwr[i];
 			/* Translate DBM to percentage. */
-			rssi=query_rx_pwr_percentage(rx_pwr[i]);
+			pattrib->rx_rssi[i] = rssi = query_rx_pwr_percentage(rx_pwr[i]);
 			total_rssi += rssi;
 
 			RT_TRACE(_module_rtl871x_recv_c_, _drv_err_, ("RF-%d RXPWR=%x RSSI=%d\n", i, rx_pwr[i], rssi));
@@ -733,8 +733,7 @@ static void process_link_qual(_adapter *padapter,union recv_frame *prframe)
 }// Process_UiLinkQuality8192S
 
 
-//void rtl8192c_process_phy_info(_adapter *padapter, union recv_frame *prframe)
-void rtl8192c_process_phy_info(_adapter *padapter, void *prframe)
+static void process_phy_info(_adapter *padapter, union recv_frame *prframe)
 {
 	union recv_frame *precvframe = (union recv_frame *)prframe;
 
@@ -761,6 +760,116 @@ void rtl8192c_process_phy_info(_adapter *padapter, void *prframe)
 	// Check EVM
 	//
 	process_link_qual(padapter,  precvframe);
+
+}
+
+
+void rtl8192c_translate_rx_signal_stuff(union recv_frame *precvframe, struct phy_stat *pphy_info)
+{
+	struct rx_pkt_attrib	*pattrib = &precvframe->u.hdr.attrib;
+	_adapter				*padapter = precvframe->u.hdr.adapter;
+	u8	bPacketMatchBSSID =_FALSE;
+	u8	bPacketToSelf = _FALSE;
+	u8	bPacketBeacon = _FALSE;
+
+	if((pattrib->physt) && (pphy_info != NULL))
+	{
+		bPacketMatchBSSID = ((!IsFrameTypeCtrl(precvframe->u.hdr.rx_data)) && !(pattrib->icv_err) && !(pattrib->crc_err) &&
+			_rtw_memcmp(get_hdr_bssid(precvframe->u.hdr.rx_data), get_my_bssid(&padapter->mlmeextpriv.mlmext_info.network), ETH_ALEN));
+			
+
+		bPacketToSelf = bPacketMatchBSSID &&  (_rtw_memcmp(get_da(precvframe->u.hdr.rx_data), myid(&padapter->eeprompriv), ETH_ALEN));
+
+		bPacketBeacon =bPacketMatchBSSID && (GetFrameSubType(precvframe->u.hdr.rx_data) ==  WIFI_BEACON);
+
+		query_rx_phy_status(precvframe, pphy_info);
+
+		precvframe->u.hdr.psta = NULL;
+		if(bPacketMatchBSSID && check_fwstate(&padapter->mlmepriv, WIFI_AP_STATE) == _TRUE)
+		{
+			u8 *sa;
+			struct sta_info *psta=NULL;
+			struct sta_priv *pstapriv = &padapter->stapriv;
+			
+			sa = get_sa(precvframe->u.hdr.rx_data);
+
+			psta = rtw_get_stainfo(pstapriv, sa);
+			if(psta)
+			{
+				precvframe->u.hdr.psta = psta;
+				process_phy_info(padapter, precvframe);
+			}
+		}
+		else if(bPacketToSelf || bPacketBeacon)
+		{
+			if(check_fwstate(&padapter->mlmepriv, WIFI_ADHOC_STATE|WIFI_ADHOC_MASTER_STATE) == _TRUE)
+			{
+				u8 *sa;
+				struct sta_info *psta=NULL;
+				struct sta_priv *pstapriv = &padapter->stapriv;
+			
+				sa = get_sa(precvframe->u.hdr.rx_data);
+
+				psta = rtw_get_stainfo(pstapriv, sa);
+				if(psta)
+				{
+					precvframe->u.hdr.psta = psta;
+				}				
+			}
+					
+			process_phy_info(padapter, precvframe);
+		}
+	}
+}
+
+void rtl8192c_query_rx_desc_status(union recv_frame *precvframe, struct recv_stat *pdesc)
+{
+	struct rx_pkt_attrib	*pattrib = &precvframe->u.hdr.attrib;
+
+	//Offset 0
+	pattrib->physt = (u8)((le32_to_cpu(pdesc->rxdw0) >> 26) & 0x1);
+	pattrib->pkt_len =  (u16)(le32_to_cpu(pdesc->rxdw0)&0x00003fff);
+	pattrib->drvinfo_sz = (u8)((le32_to_cpu(pdesc->rxdw0) >> 16) & 0xf) * 8;//uint 2^3 = 8 bytes
+
+	pattrib->shift_sz = (u8)((le32_to_cpu(pdesc->rxdw0) >> 24) & 0x3);
+
+	pattrib->crc_err = (u8)((le32_to_cpu(pdesc->rxdw0) >> 14) & 0x1);
+	pattrib->icv_err = (u8)((le32_to_cpu(pdesc->rxdw0) >> 15) & 0x1);
+	pattrib->qos = (u8)(( le32_to_cpu( pdesc->rxdw0 ) >> 23) & 0x1);// Qos data, wireless lan header length is 26
+	pattrib->bdecrypted = (le32_to_cpu(pdesc->rxdw0) & BIT(27))? 0:1;
+
+	//Offset 4
+	pattrib->mfrag = (u8)((le32_to_cpu(pdesc->rxdw1) >> 27) & 0x1);//more fragment bit
+
+	//Offset 8
+	pattrib->frag_num = (u8)((le32_to_cpu(pdesc->rxdw2) >> 12) & 0xf);//fragmentation number
+
+	//Offset 12
+#ifdef CONFIG_TCP_CSUM_OFFLOAD_RX
+	if ( le32_to_cpu(pdesc->rxdw3) & BIT(13)){
+		pattrib->tcpchk_valid = 1; // valid
+		if ( le32_to_cpu(pdesc->rxdw3) & BIT(11) ) {
+			pattrib->tcp_chkrpt = 1; // correct
+			//DBG_8192C("tcp csum ok\n");
+		}
+		else
+			pattrib->tcp_chkrpt = 0; // incorrect
+
+		if ( le32_to_cpu(pdesc->rxdw3) & BIT(12) )
+			pattrib->ip_chkrpt = 1; // correct
+		else
+			pattrib->ip_chkrpt = 0; // incorrect
+	}
+	else {
+		pattrib->tcpchk_valid = 0; // invalid
+	}
+#endif
+
+	pattrib->mcs_rate=(u8)((le32_to_cpu(pdesc->rxdw3))&0x3f);
+	pattrib->rxht=(u8)((le32_to_cpu(pdesc->rxdw3) >>6)&0x1);
+	pattrib->sgi=(u8)((le32_to_cpu(pdesc->rxdw3) >>8)&0x1);
+	//Offset 16
+	//Offset 20
 
 }
 

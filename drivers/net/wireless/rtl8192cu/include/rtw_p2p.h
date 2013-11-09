@@ -29,11 +29,13 @@ u32 build_assoc_resp_p2p_ie(struct wifidirect_info *pwdinfo, u8 *pbuf, u8 status
 u32 build_deauth_p2p_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
 #ifdef CONFIG_WFD
 u32 build_probe_req_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
-u32 build_probe_resp_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
+u32 build_probe_resp_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf, u8 tunneled);
 u32 build_beacon_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
 u32 build_nego_req_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
 u32 build_nego_resp_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
 u32 build_nego_confirm_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
+u32 build_invitation_req_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
+u32 build_invitation_resp_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
 u32 build_assoc_req_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
 u32 build_assoc_resp_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
 u32 build_provdisc_req_wfd_ie(struct wifidirect_info *pwdinfo, u8 *pbuf);
@@ -51,16 +53,24 @@ u8 process_p2p_group_negotation_resp( struct wifidirect_info *pwdinfo, u8 *pfram
 u8 process_p2p_group_negotation_confirm( struct wifidirect_info *pwdinfo, u8 *pframe, uint len );
 u8 process_p2p_presence_req(struct wifidirect_info *pwdinfo, u8 *pframe, uint len);
 
-void process_p2p_ps_ie(PADAPTER padapter, u8 *IEs, u32 IELength);
-void p2p_ps_wk_hdl(_adapter *padapter, u8 p2p_ps_state);
 void p2p_protocol_wk_hdl(_adapter *padapter, int intCmdType);
-u8 p2p_ps_wk_cmd(_adapter*padapter, u8 p2p_ps_state, u8 enqueue);
+
+#ifdef CONFIG_P2P_PS
+void	process_p2p_ps_ie(PADAPTER padapter, u8 *IEs, u32 IELength);
+void	p2p_ps_wk_hdl(_adapter *padapter, u8 p2p_ps_state);
+u8	p2p_ps_wk_cmd(_adapter*padapter, u8 p2p_ps_state, u8 enqueue);
+#endif // CONFIG_P2P_PS
 
 #ifdef CONFIG_IOCTL_CFG80211
 void rtw_init_cfg80211_wifidirect_info( _adapter*	padapter);
 int rtw_p2p_check_frames(_adapter *padapter, const u8 *buf, u32 len, u8 tx);
+void rtw_append_wfd_ie(_adapter *padapter, u8 *buf, u32 *len);
 #endif //CONFIG_IOCTL_CFG80211
 
+void reset_global_wifidirect_info( _adapter* padapter );
+int rtw_init_wifi_display_info(_adapter* padapter);
+void rtw_init_wifidirect_timers(_adapter* padapter);
+void rtw_init_wifidirect_addrs(_adapter* padapter, u8 *dev_addr, u8 *iface_addr);
 void init_wifidirect_info( _adapter* padapter, enum P2P_ROLE role);
 int rtw_p2p_enable(_adapter *padapter, enum P2P_ROLE role);
 

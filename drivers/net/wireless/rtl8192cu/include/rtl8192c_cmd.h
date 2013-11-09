@@ -16,8 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef __RTL8192C_CMD_H_
 #define __RTL8192C_CMD_H_
 
@@ -35,15 +34,23 @@ enum cmd_msg_element_id
 	MACID_PS_MODE_EID=7,
 	P2P_PS_OFFLOAD_EID=8,
 	SELECTIVE_SUSPEND_ROF_CMD=9,
+#ifdef CONFIG_WOWLAN
 	H2C_WO_WLAN_CMD = 26,	// Wake on Wlan.
 	EXT_MACID_PERIOD_EID = 27,	// support macid to 64
 	MACID64_CONFIG_EID = 28,	// support macid to 64
+#endif // CONFIG_WOWLAN
 	P2P_PS_CTW_CMD_EID=32,
 	H2C_92C_IO_OFFLOAD=44,
+#ifdef CONFIG_WOWLAN
 	KEEP_ALIVE_CONTROL_CMD=48,
 	DISCONNECT_DECISION_CTRL_CMD=49,
 	REMOTE_WAKE_CTRL_CMD=60,
-	H2C_92C_CMD_MAX};
+#endif // CONFIG_WOWLAN
+	H2C_92C_TSF_SYNC=67,
+	H2C_92C_DISABLE_BCN_FUNC=68,
+	H2C_92C_RESET_TSF = 75,
+	H2C_92C_CMD_MAX
+};
 
 struct cmd_msg_parm {
 	u8 eid; //element id
@@ -51,31 +58,13 @@ struct cmd_msg_parm {
 	u8 buf[6];
 };
 
-enum evt_msg_element_id
-{	
-	EVT_DBG_EID=0,
-	EVT_TSF_EID=1,
-	EVT_AP_RPT_RSP_EID=2,
-	EVT_CCX_TXRPT_EID=3,
-	EVT_BT_RSSI_EID=4,
-	EVT_BT_OPMODE_EID=5,
-	EVT_EXT_RA_RPT_EID=6,
-	EVT_BT_TYPE_RPT_EID=7,
-	EVT_INIT_OFFLOAD_EID=8,
-	EVT_PSD_CONTROL_EID=9,
-	EVT_HW_INFO_EXCHGNGE_EID=10,
-	EVT_C2H_H2C_TEST_EID=11,
-	EVT_BT_INTO_EID=12,
-	EVT_BT_RPT_EID=13,
-	H2C_92C_EVT_MAX};
-
-
 typedef struct _SETPWRMODE_PARM{
 	u8 	Mode;
 	u8 	SmartPS;
 	u8	BcnPassTime;	// unit: 100ms
 }SETPWRMODE_PARM, *PSETPWRMODE_PARM;
 
+#ifdef CONFIG_WOWLAN
 typedef struct _SETWOWLAN_PARM{
 	u8 	mode;
 	u8 	gpio_index;
@@ -95,6 +84,7 @@ typedef struct _SETWOWLAN_PARM{
 
 #define FW_WOWLAN_GPIO_WAKEUP_EN	BIT(0)
 #define FW_FW_PARSE_MAGIC_PKT		BIT(1)
+#endif // CONFIG_WOWLAN
 
 struct H2C_SS_RFOFF_PARAM{
 	u8 	ROFOn; // 1: on, 0:off
@@ -132,8 +122,7 @@ void	rtl8192c_set_FwPwrMode_cmd(_adapter*padapter, u8 Mode);
 void	rtl8192c_set_FwJoinBssReport_cmd(_adapter* padapter, u8 mstatus);
 u8	rtl8192c_set_rssi_cmd(_adapter*padapter, u8 *param);
 u8	rtl8192c_set_raid_cmd(_adapter*padapter, u32 mask, u8 arg);
-u8	rtl8192c_set_raid64_cmd(_adapter*padapter, u32 mask, u8 arg);
-void	rtl8192c_Add_RateATid(PADAPTER pAdapter, u32 bitmap, u8 arg, u8 mac_id);
+void	rtl8192c_Add_RateATid(PADAPTER pAdapter, u32 bitmap, u8 arg);
 u8	rtl8192c_set_FwSelectSuspend_cmd(_adapter*padapter,u8 bfwpoll, u16 period);
 #ifdef CONFIG_P2P
 void	rtl8192c_set_p2p_ps_offload_cmd(_adapter* padapter, u8 p2p_ps_state);
@@ -146,8 +135,19 @@ typedef struct _IO_OFFLOAD_LOC{
 int rtl8192c_IOL_exec_cmds_sync(ADAPTER *adapter, struct xmit_frame *xmit_frame, u32 max_wating_ms);
 #endif //CONFIG_IOL
 
-#endif
+#ifdef CONFIG_BEACON_DISABLE_OFFLOAD
+u8 rtl8192c_dis_beacon_fun_cmd(_adapter* padapter);
+#endif  // CONFIG_BEACON_DISABLE_OFFLOAD
+
+
+#ifdef CONFIG_TSF_RESET_OFFLOAD
+int reset_tsf(PADAPTER Adapter, u8 reset_port );
+#endif	// CONFIG_TSF_RESET_OFFLOAD
+
 #ifdef CONFIG_WOWLAN
 void rtl8192c_set_wowlan_cmd(_adapter* padapter);
 void SetFwRelatedForWoWLAN8192CU(_adapter* 	padapter,u8 bHostIsGoingtoSleep);
 #endif // CONFIG_WOWLAN
+
+#endif	// __RTL8192C_CMD_H_
+

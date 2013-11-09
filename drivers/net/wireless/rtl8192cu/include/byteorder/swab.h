@@ -16,12 +16,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef _LINUX_BYTEORDER_SWAB_H
 #define _LINUX_BYTEORDER_SWAB_H
 
-#if !defined(CONFIG_PLATFORM_MSTAR_TITANIA12)
+#if !defined(CONFIG_PLATFORM_MSTAR)
 #ifndef __u16
 typedef unsigned short __u16;
 #endif
@@ -74,7 +73,7 @@ __inline static __u64  ___swab64(__u64 x)
 		(__u64)(((__u64)(__x) & (__u64)0x00ff000000000000ULL) >> 40) | \
 		(__u64)(((__u64)(__x) & (__u64)0xff00000000000000ULL) >> 56) )); \
 }
-#endif // CONFIG_PLATFORM_MSTAR_TITANIA12
+#endif // CONFIG_PLATFORM_MSTAR
 
 #ifndef __arch__swab16
 __inline static __u16 __arch__swab16(__u16 x)
@@ -109,11 +108,19 @@ __inline static __u64 __arch__swab64(__u64 x)
 #define __swab64(x) __fswab64(x)
 #endif	// __swab16
 
+#ifdef PLATFORM_FREEBSD
+__inline static __u16 __fswab16(__u16 x)
+#else
 __inline static const __u16 __fswab16(__u16 x)
+#endif //PLATFORM_FREEBSD
 {
 	return __arch__swab16(x);
 }
+#ifdef PLATFORM_FREEBSD
+__inline static __u32 __fswab32(__u32 x)
+#else
 __inline static const __u32 __fswab32(__u32 x)
+#endif //PLATFORM_FREEBSD
 {
 	return __arch__swab32(x);
 }

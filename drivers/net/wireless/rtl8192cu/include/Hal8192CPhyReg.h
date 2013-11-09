@@ -197,6 +197,19 @@
 #define		rCCK0_FACounterUpper      	0xa58  //0xa5c
 
 //
+// PageB(0xB00)
+//
+#define		rPdp_AntA      				0xb00  
+#define		rPdp_AntA_4    				0xb04
+#define		rConfig_Pmpd_AntA 			0xb28
+#define		rConfig_AntA 				0xb68
+#define		rConfig_AntB 				0xb6c
+#define		rPdp_AntB 					0xb70
+#define		rPdp_AntB_4 				0xb74
+#define		rConfig_Pmpd_AntB			0xb98
+#define		rAPK						0xbd8
+
+//
 // 6. PageC(0xC00)
 //
 #define		rOFDM0_LSTF				0xc00
@@ -390,12 +403,20 @@
 
 #define		RF_IQADJ_G1				0x01	// 
 #define		RF_IQADJ_G2				0x02	// 
+#define		RF_BS_PA_APSET_G1_G4		0x03
+#define		RF_BS_PA_APSET_G5_G8		0x04
 #define		RF_POW_TRSW				0x05	// 
 
 #define		RF_GAIN_RX					0x06	// 
 #define		RF_GAIN_TX					0x07	// 
 
 #define		RF_TXM_IDAC				0x08	// 
+#define		RF_IPA_G					0x09	// 
+#define		RF_TXBIAS_G				0x0A
+#define		RF_TXPA_AG					0x0B
+#define		RF_IPA_A					0x0C	// 
+#define		RF_TXBIAS_A				0x0D
+#define		RF_BS_PA_APSET_G9_G11	0x0E
 #define		RF_BS_IQGEN				0x0F	// 
 
 #define		RF_MODE1					0x10	// 

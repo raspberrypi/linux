@@ -25,25 +25,28 @@
 /*Created on  2011/ 6/15,  5:45*/
 
 #ifdef CONFIG_BT_COEXISTENCE
-#define TSMCImgArrayLength 16248 //v79 TSMC COMMON 2011-10-06
+#define TSMCImgArrayLength 15706 //v84 TSMC COMMON 2012-04-13
 #else //#ifdef CONFIG_P2P
-#define TSMCImgArrayLength 16404 //v79 TSMC P2PPS 2011-10-06
+#define TSMCImgArrayLength 16126 //v88 TSMC P2PPS with CCX report C2H 2012-12-05
 #endif
 extern u8 Rtl8192CEFwTSMCImgArray[TSMCImgArrayLength];
 
 #ifdef CONFIG_BT_COEXISTENCE
 #define UMCACutImgArrayLength 16248 //v79 UMC A Cut COMMON 2011-10-06
 #else //#ifdef CONFIG_P2P
-#define UMCACutImgArrayLength 16404 //v79 UMC A Cut P2PPS 2011-10-06
+#define UMCACutImgArrayLength 16126 //v88 UMC A Cut P2PPS with CCX report C2H 2012-12-05
 #endif
 extern u8 Rtl8192CEFwUMCACutImgArray[UMCACutImgArrayLength];
 
 #ifdef CONFIG_BT_COEXISTENCE
-#define UMCBCutImgArrayLength 16254 //v79 UMC B Cut COMMON 2011-10-06
+#define UMCBCutImgArrayLength 15686 //v84 UMC B Cut COMMON 2012-04-13
 #else //#ifdef CONFIG_P2P
-#define UMCBCutImgArrayLength 16386 //v79 UMC B Cut P2PPS 2011-10-06
+#define UMCBCutImgArrayLength 16096 //v88 UMC B Cut P2PPS with CCX report C2H 2012-12-05
 #endif
 extern u8 Rtl8192CEFwUMCBCutImgArray[UMCBCutImgArrayLength];
+
+//8192C_Formal_92CE_PHYforMP_110804 2011-11-23
+//8188C_Formal_88CE_PHYforMP_111117 2011-11-23
 
 #define PHY_REG_2TArrayLength 374
 extern u32 Rtl8192CEPHY_REG_2TArray[PHY_REG_2TArrayLength];
@@ -69,7 +72,8 @@ extern u32 Rtl8192CERadioA_1TArray[RadioA_1TArrayLength];
 extern u32 Rtl8192CERadioB_1TArray[RadioB_1TArrayLength];
 #define RadioB_GM_ArrayLength 1
 extern u32 Rtl8192CERadioB_GM_Array[RadioB_GM_ArrayLength];
-#define MAC_2T_ArrayLength 172
+// MAC reg V14 - 2011-11-23
+#define MAC_2T_ArrayLength 174
 extern u32 Rtl8192CEMAC_2T_Array[MAC_2T_ArrayLength];
 #define MACPHY_Array_PGLength 1
 extern u32 Rtl8192CEMACPHY_Array_PG[MACPHY_Array_PGLength];

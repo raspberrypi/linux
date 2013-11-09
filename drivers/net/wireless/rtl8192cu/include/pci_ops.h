@@ -37,6 +37,7 @@ void	rtl8192ce_xmit_tasklet(void *priv);
 void	rtl8192ce_recv_tasklet(void *priv);
 void	rtl8192ce_prepare_bcn_tasklet(void *priv);
 void	rtl8192ce_set_intf_ops(struct _io_ops	*pops);
+#define pci_set_intf_ops	rtl8192ce_set_intf_ops
 #endif
 
 #ifdef CONFIG_RTL8192D
@@ -51,6 +52,7 @@ void	rtl8192de_xmit_tasklet(void *priv);
 void	rtl8192de_recv_tasklet(void *priv);
 void	rtl8192de_prepare_bcn_tasklet(void *priv);
 void	rtl8192de_set_intf_ops(struct _io_ops	*pops);
+#define pci_set_intf_ops	rtl8192de_set_intf_ops
 u32	MpReadPCIDwordDBI8192D(IN PADAPTER Adapter, IN u16 Offset, IN u8 Direct);
 void	MpWritePCIDwordDBI8192D(IN PADAPTER Adapter, IN u16 Offset, IN u32 Value, IN u8 Direct);
 #endif

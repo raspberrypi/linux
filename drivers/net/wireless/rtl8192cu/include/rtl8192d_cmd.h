@@ -16,8 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef __RTL8192D_CMD_H_
 #define __RTL8192D_CMD_H_
 
@@ -75,12 +74,18 @@ typedef enum _RTL8192D_H2C_CMD
 	H2C_P2P_PS_OFFLOAD = 8,
 	H2C_MAC_MODE_SEL = 9,
 	H2C_PWRM=15,
+#ifdef CONFIG_WOWLAN
 	H2C_WO_WLAN_CMD = 20,	// Wake on Wlan.
+#endif // CONFIG_WOWLAN
 	H2C_P2P_PS_CTW_CMD = 24,
 	H2C_PathDiv = 26,                  //PathDiv--NeilChen--2011.07.15
+#ifdef CONFIG_WOWLAN
 	KEEP_ALIVE_CONTROL_CMD=31, //keep alive for wake on wlan
 	DISCONNECT_DECISION_CTRL_CMD=32,
 	REMOTE_WAKE_CTRL_CMD=34,
+#endif // CONFIG_WOWLAN
+	H2C_92D_TSF_SYNC=36,
+	H2C_92D_RESET_TSF = 43,
 	H2C_CMD_MAX
 }RTL8192D_H2C_CMD;
 
@@ -98,12 +103,14 @@ void	rtl8192d_set_FwPwrMode_cmd(_adapter*padapter, u8 Mode);
 void	rtl8192d_set_FwJoinBssReport_cmd(_adapter* padapter, u8 mstatus);
 u8	rtl8192d_set_rssi_cmd(_adapter*padapter, u8 *param);
 u8	rtl8192d_set_raid_cmd(_adapter*padapter, u32 mask, u8 arg);
-void	rtl8192d_Add_RateATid(PADAPTER pAdapter, u32 bitmap, u8 arg, u8 mac_id);
+void	rtl8192d_Add_RateATid(PADAPTER pAdapter, u32 bitmap, u8 arg);
 #ifdef CONFIG_P2P
 void	rtl8192d_set_p2p_ps_offload_cmd(_adapter* padapter, u8 p2p_ps_state);
 #endif //CONFIG_P2P
 
-#endif
+#ifdef CONFIG_TSF_RESET_OFFLOAD
+int reset_tsf(PADAPTER Adapter, u8 reset_port );
+#endif	// CONFIG_TSF_RESET_OFFLOAD
 
 #ifdef CONFIG_WOWLAN
 typedef struct _SETWOWLAN_PARM{
@@ -129,5 +136,7 @@ typedef struct _SETWOWLAN_PARM{
 void rtl8192d_set_wowlan_cmd(_adapter* padapter);
 void SetFwRelatedForWoWLAN8192DU(_adapter* 	padapter,u8 bHostIsGoingtoSleep);
 #endif // CONFIG_WOWLAN
+
+#endif	// __RTL8192D_CMD_H_
 
 

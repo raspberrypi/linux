@@ -16,8 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef _WIFI_H_
 #define _WIFI_H_
 
@@ -551,6 +550,7 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 #define _IBSS_PARA_IE_			6
 #define _COUNTRY_IE_			7
 #define _CHLGETXT_IE_			16
+#define _POW_CAP_IE_			33
 #define _SUPPORTED_CH_IE_		36
 #define _CH_SWTICH_ANNOUNCE_	37	//Secondary Channel Offset
 #define _RSN_IE_2_				48
@@ -561,6 +561,7 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 #define _HT_CAPABILITY_IE_			45
 #define _FTIE_						55
 #define _TIMEOUT_ITVL_IE_			56
+#define _SRC_IE_				59
 #define _HT_EXTRA_INFO_IE_			61
 #define _HT_ADD_INFO_IE_			61 //_HT_EXTRA_INFO_IE_
 
@@ -568,6 +569,9 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 #define	EID_BSSIntolerantChlReport	73
 #define _RIC_Descriptor_IE_			75
 
+#ifdef CONFIG_IEEE80211W
+#define _MME_IE_					76 //802.11w Management MIC element
+#endif //CONFIG_IEEE80211W
 #define _LINK_ID_IE_					101
 #define _CH_SWITCH_TIMING_		104
 #define _PTI_BUFFER_STATUS_		106
@@ -624,7 +628,10 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 #define _WEP_104_PRIVACY_		5
 #define _WEP_WPA_MIXED_PRIVACY_ 6	// WEP + WPA
 */
-				
+
+#ifdef CONFIG_IEEE80211W
+#define _MME_IE_LENGTH_  18
+#endif //CONFIG_IEEE80211W				
 /*-----------------------------------------------------------------------------
 				Below is the definition for WMM
 ------------------------------------------------------------------------------*/
@@ -654,7 +661,7 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 
 
 /**
- * struct ieee80211_bar - HT Block Ack Request
+ * struct rtw_ieee80211_bar - HT Block Ack Request
  *
  * This structure refers to "HT BlockAckReq" as
  * described in 802.11n draft section 7.2.1.7.1
@@ -675,7 +682,9 @@ struct rtw_ieee80211_bar {
 #define IEEE80211_BAR_CTRL_CBMTID_COMPRESSED_BA  0x0004
 
 
- #if defined(PLATFORM_LINUX) || defined(CONFIG_RTL8712FW)
+ #if defined(PLATFORM_LINUX) || defined(CONFIG_RTL8712FW) || defined(PLATFORM_FREEBSD)
+
+
 
  /**
  * struct rtw_ieee80211_ht_cap - HT capabilities
@@ -722,7 +731,7 @@ struct HT_caps_element
 			unsigned char	ASEL_caps;
 		} HT_cap_element;
 		unsigned char HT_cap[26];
-	};
+	}u;
 } __attribute__ ((packed));
 
 struct HT_info_element
@@ -887,7 +896,7 @@ struct ADDBA_request
 #define WLAN_HT_CAP_SM_PS_INVALID	2
 #define WLAN_HT_CAP_SM_PS_DISABLED	3
 
-#ifdef CONFIG_AP_MODE
+
 #define OP_MODE_PURE                    0
 #define OP_MODE_MAY_BE_LEGACY_STAS      1
 #define OP_MODE_20MHZ_HT_STA_ASSOCED    2
@@ -914,7 +923,7 @@ struct ADDBA_request
 #define HT_INFO_STBC_PARAM_LSIG_TXOP_PROTECT_ALLOWED	((u16) BIT(9))
 #define HT_INFO_STBC_PARAM_PCO_ACTIVE			((u16) BIT(10))
 #define HT_INFO_STBC_PARAM_PCO_PHASE			((u16) BIT(11))
-#endif
+
 
 
 //#endif
@@ -932,6 +941,7 @@ struct ADDBA_request
 #define WPS_ATTR_MODEL_NUMBER		0x1024
 #define WPS_ATTR_SERIAL_NUMBER		0x1042
 #define WPS_ATTR_PRIMARY_DEV_TYPE	0x1054
+#define WPS_ATTR_SEC_DEV_TYPE_LIST	0x1055
 #define WPS_ATTR_DEVICE_NAME			0x1011
 #define WPS_ATTR_CONF_METHOD			0x1008
 #define WPS_ATTR_RF_BANDS				0x103C
@@ -940,7 +950,7 @@ struct ADDBA_request
 #define WPS_ATTR_ASSOCIATION_STATE	0x1002
 #define WPS_ATTR_CONFIG_ERROR			0x1009
 #define WPS_ATTR_VENDOR_EXT			0x1049
-#define WPA_ATTR_SELECTED_REGISTRAR	0x1041
+#define WPS_ATTR_SELECTED_REGISTRAR	0x1041
 
 //	Value of WPS attribute "WPS_ATTR_DEVICE_NAME
 #define WPS_MAX_DEVICE_NAME_LEN		32
@@ -980,12 +990,13 @@ struct ADDBA_request
 #define WPS_CONFIG_METHOD_PDISPLAY	0x4008
 
 //	Value of Category ID of WPS Primary Device Type Attribute
+#define WPS_PDT_CID_DISPLAYS			0x0007
 #define WPS_PDT_CID_MULIT_MEDIA		0x0008
-#define WPS_PDT_CID_RTK_WIDI			0x001E
+#define WPS_PDT_CID_RTK_WIDI			WPS_PDT_CID_MULIT_MEDIA
 
 //	Value of Sub Category ID of WPS Primary Device Type Attribute
 #define WPS_PDT_SCID_MEDIA_SERVER	0x0005
-#define WPS_PDT_SCID_RTK_DMP			0x0001
+#define WPS_PDT_SCID_RTK_DMP			WPS_PDT_SCID_MEDIA_SERVER
 
 //	Value of Device Password ID
 #define WPS_DPID_PIN					0x0000
@@ -995,6 +1006,16 @@ struct ADDBA_request
 #define WPS_DPID_PBC					0x0004
 #define WPS_DPID_REGISTRAR_SPEC		0x0005
 
+//	Value of WPS RF Bands Attribute
+#define WPS_RF_BANDS_2_4_GHZ		0x01
+#define WPS_RF_BANDS_5_GHZ		0x02
+
+//	Value of WPS Association State Attribute
+#define WPS_ASSOC_STATE_NOT_ASSOCIATED			0x00
+#define WPS_ASSOC_STATE_CONNECTION_SUCCESS		0x01
+#define WPS_ASSOC_STATE_CONFIGURATION_FAILURE	0x02
+#define WPS_ASSOC_STATE_ASSOCIATION_FAILURE		0x03
+#define WPS_ASSOC_STATE_IP_FAILURE				0x04
 
 //	=====================P2P Section=====================
 //	For P2P
@@ -1038,6 +1059,12 @@ struct ADDBA_request
 //	Value of Inviation Flags Attribute
 #define	P2P_INVITATION_FLAGS_PERSISTENT			BIT(0)
 
+#define	DMP_P2P_DEVCAP_SUPPORT	(P2P_DEVCAP_SERVICE_DISCOVERY | \
+									P2P_DEVCAP_CLIENT_DISCOVERABILITY | \
+									P2P_DEVCAP_CONCURRENT_OPERATION | \
+									P2P_DEVCAP_INVITATION_PROC)
+
+#define	DMP_P2P_GRPCAP_SUPPORT	(P2P_GRPCAP_INTRABSS)
 
 //	Value of Device Capability Bitmap
 #define	P2P_DEVCAP_SERVICE_DISCOVERY		BIT(0)
@@ -1090,9 +1117,13 @@ struct ADDBA_request
 #define	P2P_FINDPHASE_EX_SOCIAL_LAST		P2P_FINDPHASE_EX_MAX
 
 #define	P2P_PROVISION_TIMEOUT				5000	//	5 seconds timeout for sending the provision discovery request
+#define	P2P_CONCURRENT_PROVISION_TIMEOUT	3000	//	3 seconds timeout for sending the provision discovery request under concurrent mode
 #define	P2P_GO_NEGO_TIMEOUT					5000	//	5 seconds timeout for receiving the group negotation response
+#define	P2P_CONCURRENT_GO_NEGO_TIMEOUT		3000	//	3 seconds timeout for sending the negotiation request under concurrent mode
 #define	P2P_TX_PRESCAN_TIMEOUT				100		//	100ms
-
+#define	P2P_INVITE_TIMEOUT					5000	//	5 seconds timeout for sending the invitation request
+#define	P2P_CONCURRENT_INVITE_TIMEOUT		3000	//	3 seconds timeout for sending the invitation request under concurrent mode
+#define	P2P_RESET_SCAN_CH						15000	//	15 seconds timeout to reset the scan channel ( based on channel plan )
 #define	P2P_MAX_INTENT						15
 
 #define	P2P_MAX_NOA_NUM						2
@@ -1119,21 +1150,29 @@ enum P2P_ROLE {
 };
 
 enum P2P_STATE {
-	P2P_STATE_NONE = 0,					//	P2P disable
-	P2P_STATE_IDLE = 1,						//	P2P had enabled and do nothing
-	P2P_STATE_LISTEN = 2,					//	In pure listen state
-	P2P_STATE_SCAN = 3,					//	In scan phase
-	P2P_STATE_FIND_PHASE_LISTEN = 4,		//	In the listen state of find phase
-	P2P_STATE_FIND_PHASE_SEARCH = 5,		//	In the search state of find phase
-	P2P_STATE_TX_PROVISION_DIS_REQ = 6,	//	In P2P provisioning discovery
+	P2P_STATE_NONE = 0,							//	P2P disable
+	P2P_STATE_IDLE = 1,								//	P2P had enabled and do nothing
+	P2P_STATE_LISTEN = 2,							//	In pure listen state
+	P2P_STATE_SCAN = 3,							//	In scan phase
+	P2P_STATE_FIND_PHASE_LISTEN = 4,				//	In the listen state of find phase
+	P2P_STATE_FIND_PHASE_SEARCH = 5,				//	In the search state of find phase
+	P2P_STATE_TX_PROVISION_DIS_REQ = 6,			//	In P2P provisioning discovery
 	P2P_STATE_RX_PROVISION_DIS_RSP = 7,
 	P2P_STATE_RX_PROVISION_DIS_REQ = 8,	
-	P2P_STATE_GONEGO_ING = 9,				//	Doing the group owner negoitation handshake
-	P2P_STATE_GONEGO_OK = 10,				//	finish the group negoitation handshake with success
-	P2P_STATE_GONEGO_FAIL = 11,			//	finish the group negoitation handshake with failure
-	P2P_STATE_RECV_INVITE_REQ = 12,		//	receiving the P2P Inviation request
-	P2P_STATE_PROVISIONING_ING = 13,		//	Doing the P2P WPS
-	P2P_STATE_PROVISIONING_DONE = 14,	//	Finish the P2P WPS
+	P2P_STATE_GONEGO_ING = 9,						//	Doing the group owner negoitation handshake
+	P2P_STATE_GONEGO_OK = 10,						//	finish the group negoitation handshake with success
+	P2P_STATE_GONEGO_FAIL = 11,					//	finish the group negoitation handshake with failure
+	P2P_STATE_RECV_INVITE_REQ_MATCH = 12,		//	receiving the P2P Inviation request and match with the profile.
+	P2P_STATE_PROVISIONING_ING = 13,				//	Doing the P2P WPS
+	P2P_STATE_PROVISIONING_DONE = 14,			//	Finish the P2P WPS
+	P2P_STATE_TX_INVITE_REQ = 15,					//	Transmit the P2P Invitation request
+	P2P_STATE_RX_INVITE_RESP_OK = 16,				//	Receiving the P2P Invitation response with sucess
+	P2P_STATE_RECV_INVITE_REQ_DISMATCH = 17,	//	receiving the P2P Inviation request and dismatch with the profile.
+	P2P_STATE_RECV_INVITE_REQ_GO = 18,			//	receiving the P2P Inviation request and this wifi is GO.
+	P2P_STATE_RECV_INVITE_REQ_JOIN = 19,			//	receiving the P2P Inviation request to join an existing P2P Group.
+	P2P_STATE_RX_INVITE_RESP_FAIL = 20,			//	recveing the P2P Inviation response with failure
+	P2P_STATE_RX_INFOR_NOREADY = 21, 			// receiving p2p negoitation response with information is not available
+	P2P_STATE_TX_INFOR_NOREADY = 22, 			// sending p2p negoitation response with information is not available
 };
 
 enum P2P_WPSINFO {
@@ -1150,34 +1189,51 @@ enum P2P_PROTO_WK_ID
 	P2P_FIND_PHASE_WK = 0,
 	P2P_RESTORE_STATE_WK = 1,
 	P2P_PRE_TX_PROVDISC_PROCESS_WK = 2,
-	P2P_PRE_TX_NEGOREQ_PROCESS_WK = 3,
-	P2P_RO_CH_WK = 4,
+	P2P_PRE_TX_NEGOREQ_PROCESS_WK = 3,	
+	P2P_PRE_TX_INVITEREQ_PROCESS_WK = 4,
+	P2P_AP_P2P_CH_SWITCH_PROCESS_WK =5,
+	P2P_RO_CH_WK = 6,
 };
 
-enum P2P_PS
+#ifdef CONFIG_P2P_PS
+enum P2P_PS_STATE
 {
-	P2P_PS_DISABLE=0,
-	P2P_PS_ENABLE=1,
-	P2P_PS_SCAN=2,
-	P2P_PS_SCAN_DONE=3,
-	P2P_PS_ALLSTASLEEP=4, // for owner
+	P2P_PS_DISABLE = 0,
+	P2P_PS_ENABLE = 1,
+	P2P_PS_SCAN = 2,
+	P2P_PS_SCAN_DONE = 3,
+	P2P_PS_ALLSTASLEEP = 4, // for P2P GO
 };
+
+enum P2P_PS_MODE
+{
+	P2P_PS_NONE = 0,
+	P2P_PS_CTWINDOW = 1,
+	P2P_PS_NOA	 = 2,
+	P2P_PS_MIX = 3, // CTWindow and NoA
+};
+#endif // CONFIG_P2P_PS
 
 //	=====================WFD Section=====================
 //	For Wi-Fi Display
 #define	WFD_ATTR_DEVICE_INFO			0x00
 #define	WFD_ATTR_ASSOC_BSSID			0x01
 #define	WFD_ATTR_COUPLED_SINK_INFO	0x06
+#define	WFD_ATTR_LOCAL_IP_ADDR		0x08
 #define	WFD_ATTR_SESSION_INFO		0x09
+#define	WFD_ATTR_ALTER_MAC			0x0a
 
 //	For WFD Device Information Attribute
-#define	WFD_DEVINFO_SOURCE					0
-#define	WFD_DEVINFO_PRIARY_SINK				1
-#define	WFD_DEVINFO_SECARY_SINK				2
-#define	WFD_DEVINFO_SOURCE_PRIARY_SINK		3
+#define	WFD_DEVINFO_SOURCE					0x0000
+#define	WFD_DEVINFO_PSINK					0x0001
+#define	WFD_DEVINFO_SSINK					0x0002
+#define	WFD_DEVINFO_DUAL 					0x0003
 
-#define	WFD_DEVINFO_NO_COUPLED_SINK		0
-#define	WFD_DEVINFO_COUPLED_SINK			4
+#define	WFD_DEVINFO_SESSION_AVAIL			0x0010
+#define	WFD_DEVINFO_WSD						0x0040
+#define	WFD_DEVINFO_PC_TDLS					0x0080
+#define	WFD_DEVINFO_HDCP_SUPPORT			0x0100
+
 
 #ifdef  CONFIG_TX_MCAST2UNI
 #define IP_MCAST_MAC(mac)		((mac[0]==0x01)&&(mac[1]==0x00)&&(mac[2]==0x5e))

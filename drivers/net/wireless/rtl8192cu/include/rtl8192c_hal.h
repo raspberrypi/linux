@@ -16,11 +16,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef __RTL8192C_HAL_H__
 #define __RTL8192C_HAL_H__
 
+#include "hal_com.h"
 #include "rtl8192c_spec.h"
 #include "Hal8192CPhyReg.h"
 #include "Hal8192CPhyCfg.h"
@@ -123,9 +123,11 @@
 	#define RTL8192C_FW_TSMC_IMG				"rtl8192CU\\rtl8192cfwT.bin"
 	#define RTL8192C_FW_UMC_IMG				"rtl8192CU\\rtl8192cfwU.bin"
 	#define RTL8192C_FW_UMC_B_IMG				"rtl8192CU\\rtl8192cfwU_B.bin"
+#ifdef CONFIG_WOWLAN
 	#define 	RTL8192C_FW_TSMC_WW_IMG			"rtl8192CU\\rtl8192cfwTww.bin"
 	#define 	RTL8192C_FW_UMC_WW_IMG			"rtl8192CU\\rtl8192cfwUww.bin"
 	#define 	RTL8192C_FW_UMC_B_WW_IMG		"rtl8192CU\\rtl8192cfwU_Bww.bin"
+#endif // CONFIG_WOWLAN
 	//#define RTL819X_FW_BOOT_IMG   				"rtl8192CU\\boot.img"
 	//#define RTL819X_FW_MAIN_IMG				"rtl8192CU\\main.img"
 	//#define RTL819X_FW_DATA_IMG				"rtl8192CU\\data.img"
@@ -307,10 +309,10 @@ typedef enum _USB_RX_AGG_MODE{
 #define WMM_NORMAL_TX_TOTAL_PAGE_NUMBER	0xF5
 #define WMM_NORMAL_TX_PAGE_BOUNDARY	(WMM_TEST_TX_TOTAL_PAGE_NUMBER + 1) //F6
 
-#define WMM_NORMAL_PAGE_NUM_PUBQ		0xB0
-#define WMM_NORMAL_PAGE_NUM_HPQ		0x29
-#define WMM_NORMAL_PAGE_NUM_LPQ			0x1C
-#define WMM_NORMAL_PAGE_NUM_NPQ		0x1C
+#define WMM_NORMAL_PAGE_NUM_PUBQ		0x65
+#define WMM_NORMAL_PAGE_NUM_HPQ		0x30
+#define WMM_NORMAL_PAGE_NUM_LPQ			0x30
+#define WMM_NORMAL_PAGE_NUM_NPQ		0x30
 
 //-------------------------------------------------------------------------
 //	Chip specific
@@ -428,13 +430,13 @@ enum ChannelPlan{
 };
 
 typedef struct _TxPowerInfo{
-	u8 CCKIndex[RF90_PATH_MAX][CHANNEL_GROUP_MAX];
-	u8 HT40_1SIndex[RF90_PATH_MAX][CHANNEL_GROUP_MAX];
-	u8 HT40_2SIndexDiff[RF90_PATH_MAX][CHANNEL_GROUP_MAX];
-	u8 HT20IndexDiff[RF90_PATH_MAX][CHANNEL_GROUP_MAX];
-	u8 OFDMIndexDiff[RF90_PATH_MAX][CHANNEL_GROUP_MAX];
-	u8 HT40MaxOffset[RF90_PATH_MAX][CHANNEL_GROUP_MAX];
-	u8 HT20MaxOffset[RF90_PATH_MAX][CHANNEL_GROUP_MAX];
+	u8 CCKIndex[RF_PATH_MAX][CHANNEL_GROUP_MAX];
+	u8 HT40_1SIndex[RF_PATH_MAX][CHANNEL_GROUP_MAX];
+	u8 HT40_2SIndexDiff[RF_PATH_MAX][CHANNEL_GROUP_MAX];
+	s8 HT20IndexDiff[RF_PATH_MAX][CHANNEL_GROUP_MAX];
+	u8 OFDMIndexDiff[RF_PATH_MAX][CHANNEL_GROUP_MAX];
+	u8 HT40MaxOffset[RF_PATH_MAX][CHANNEL_GROUP_MAX];
+	u8 HT20MaxOffset[RF_PATH_MAX][CHANNEL_GROUP_MAX];
 	u8 TSSI_A;
 	u8 TSSI_B;
 }TxPowerInfo, *PTxPowerInfo;
@@ -489,6 +491,21 @@ typedef enum _RT_REGULATOR_MODE{
 	RT_SWITCHING_REGULATOR = 0,
 	RT_LDO_REGULATOR = 1,	
 }RT_REGULATOR_MODE,*PRT_REGULATOR_MODE;
+
+enum c2h_id_8192c {
+	C2H_DBG = 0,
+	C2H_TSF = 1,
+	C2H_AP_RPT_RSP = 2,
+	C2H_CCX_TX_RPT = 3,
+	C2H_BT_RSSI = 4,
+	C2H_BT_OP_MODE = 5,
+	C2H_EXT_RA_RPT = 6,
+	C2H_HW_INFO_EXCH = 10,
+	C2H_C2H_H2C_TEST = 11,
+	C2H_BT_INFO = 12,
+	C2H_BT_MP_INFO = 15,
+	MAX_C2HEVENT
+};
 
 #ifdef CONFIG_PCI_HCI
 struct hal_data_8192ce
@@ -553,14 +570,14 @@ struct hal_data_8192ce
 	u8	bDefaultAntenna;
 	u8	bIQKInitialized;
 
-	u8	TxPwrLevelCck[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];
-	u8	TxPwrLevelHT40_1S[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];	// For HT 40MHZ pwr
-	u8	TxPwrLevelHT40_2S[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];	// For HT 40MHZ pwr	
-	u8	TxPwrHt20Diff[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];// HT 20<->40 Pwr diff
-	u8	TxPwrLegacyHtDiff[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];// For HT<->legacy pwr diff
+	u8	TxPwrLevelCck[RF_PATH_MAX][CHANNEL_MAX_NUMBER];
+	u8	TxPwrLevelHT40_1S[RF_PATH_MAX][CHANNEL_MAX_NUMBER];	// For HT 40MHZ pwr
+	u8	TxPwrLevelHT40_2S[RF_PATH_MAX][CHANNEL_MAX_NUMBER];	// For HT 40MHZ pwr	
+	s8	TxPwrHt20Diff[RF_PATH_MAX][CHANNEL_MAX_NUMBER];// HT 20<->40 Pwr diff
+	u8	TxPwrLegacyHtDiff[RF_PATH_MAX][CHANNEL_MAX_NUMBER];// For HT<->legacy pwr diff
 	// For power group
-	u8	PwrGroupHT20[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];
-	u8	PwrGroupHT40[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];
+	u8	PwrGroupHT20[RF_PATH_MAX][CHANNEL_MAX_NUMBER];
+	u8	PwrGroupHT40[RF_PATH_MAX][CHANNEL_MAX_NUMBER];
 
 	u8	LegacyHTTxPowerDiff;// Legacy to HT rate power diff
 
@@ -672,7 +689,7 @@ typedef struct hal_data_8192ce HAL_DATA_TYPE, *PHAL_DATA_TYPE;
 #define IS_MULTI_FUNC_CHIP(_Adapter)	(((((PHAL_DATA_TYPE)(_Adapter->HalData))->MultiFunc) & (RT_MULTI_FUNC_BT|RT_MULTI_FUNC_GPS)) ? _TRUE : _FALSE)
 
 void InterruptRecognized8192CE(PADAPTER Adapter, PRT_ISR_CONTENT pIsrContent);
-VOID UpdateInterruptMask8192CE(PADAPTER Adapter, u32 AddMSR, u32 RemoveMSR);
+VOID UpdateInterruptMask8192CE(PADAPTER Adapter, u32 AddMSR, u32 AddMSR1, u32 RemoveMSR, u32 RemoveMSR1);
 #endif
 
 #ifdef CONFIG_USB_HCI
@@ -722,14 +739,14 @@ struct hal_data_8192cu
 
 	u8	bIQKInitialized;
 
-	u8	TxPwrLevelCck[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];
-	u8	TxPwrLevelHT40_1S[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];	// For HT 40MHZ pwr
-	u8	TxPwrLevelHT40_2S[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];	// For HT 40MHZ pwr	
-	u8	TxPwrHt20Diff[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];// HT 20<->40 Pwr diff
-	u8	TxPwrLegacyHtDiff[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];// For HT<->legacy pwr diff
+	u8	TxPwrLevelCck[RF_PATH_MAX][CHANNEL_MAX_NUMBER];
+	u8	TxPwrLevelHT40_1S[RF_PATH_MAX][CHANNEL_MAX_NUMBER];	// For HT 40MHZ pwr
+	u8	TxPwrLevelHT40_2S[RF_PATH_MAX][CHANNEL_MAX_NUMBER];	// For HT 40MHZ pwr	
+	s8	TxPwrHt20Diff[RF_PATH_MAX][CHANNEL_MAX_NUMBER];// HT 20<->40 Pwr diff
+	u8	TxPwrLegacyHtDiff[RF_PATH_MAX][CHANNEL_MAX_NUMBER];// For HT<->legacy pwr diff
 	// For power group
-	u8	PwrGroupHT20[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];
-	u8	PwrGroupHT40[RF90_PATH_MAX][CHANNEL_MAX_NUMBER];
+	u8	PwrGroupHT20[RF_PATH_MAX][CHANNEL_MAX_NUMBER];
+	u8	PwrGroupHT40[RF_PATH_MAX][CHANNEL_MAX_NUMBER];
 
 	u8	LegacyHTTxPowerDiff;// Legacy to HT rate power diff
 
@@ -876,12 +893,45 @@ VOID rtl8192c_FirmwareSelfReset(IN PADAPTER Adapter);
 int FirmwareDownload92C(IN PADAPTER Adapter,IN	BOOLEAN			bUsedWoWLANFw);
 VOID InitializeFirmwareVars92C(PADAPTER Adapter);
 u8 GetEEPROMSize8192C(PADAPTER Adapter);
-RT_CHANNEL_DOMAIN _HalMapChannelPlan8192C(PADAPTER Adapter, u8 HalChannelPlan);
+void rtl8192c_EfuseParseChnlPlan(PADAPTER padapter, u8 *hwinfo, BOOLEAN AutoLoadFail);
 VERSION_8192C rtl8192c_ReadChipVersion(IN PADAPTER Adapter);
 void rtl8192c_ReadBluetoothCoexistInfo(PADAPTER Adapter, u8 *PROMContent, BOOLEAN AutoloadFail);
-void rtl8192c_HalSetBrateCfg(PADAPTER Adapter, u8 *mBratesOS, u16 *pBrateCfg);
 //void rtl8192c_free_hal_data(_adapter * padapter);
 VOID rtl8192c_EfuseParseIDCode(PADAPTER pAdapter, u8 *hwinfo);
 void rtl8192c_set_hal_ops(struct hal_ops *pHalFunc);
 
+s32 c2h_id_filter_ccx_8192c(u8 id);
 #endif
+
+#ifdef CONFIG_MP_INCLUDED
+
+extern void Hal_SetAntenna(PADAPTER pAdapter);
+extern void Hal_SetBandwidth(PADAPTER pAdapter);
+
+extern void Hal_SetTxPower(PADAPTER pAdapter);
+extern void Hal_SetCarrierSuppressionTx(PADAPTER pAdapter, u8 bStart);
+extern void Hal_SetSingleToneTx ( PADAPTER pAdapter , u8 bStart );
+extern void Hal_SetSingleCarrierTx (PADAPTER pAdapter, u8 bStart);
+extern void Hal_SetContinuousTx (PADAPTER pAdapter, u8 bStart);
+
+extern void Hal_SetDataRate(PADAPTER pAdapter);
+extern void Hal_SetChannel(PADAPTER pAdapter);
+extern void Hal_SetAntennaPathPower(PADAPTER pAdapter);
+extern s32 Hal_SetThermalMeter(PADAPTER pAdapter, u8 target_ther);
+extern s32 Hal_SetPowerTracking(PADAPTER padapter, u8 enable);
+extern void Hal_GetPowerTracking(PADAPTER padapter, u8 * enable);
+extern void Hal_GetThermalMeter(PADAPTER pAdapter, u8 *value);
+extern void Hal_mpt_SwitchRfSetting(PADAPTER pAdapter);
+extern void Hal_MPT_CCKTxPowerAdjust(PADAPTER Adapter, BOOLEAN bInCH14);
+extern void Hal_MPT_CCKTxPowerAdjustbyIndex(PADAPTER pAdapter, BOOLEAN beven);
+extern void Hal_SetCCKTxPower(PADAPTER pAdapter, u8 * TxPower);
+extern void Hal_SetOFDMTxPower(PADAPTER pAdapter, u8 * TxPower);
+extern void Hal_TriggerRFThermalMeter(PADAPTER pAdapter);
+extern u8 Hal_ReadRFThermalMeter(PADAPTER pAdapter);
+extern void Hal_SetCCKContinuousTx(PADAPTER pAdapter, u8 bStart);
+extern void Hal_SetOFDMContinuousTx(PADAPTER pAdapter, u8 bStart);
+
+#endif
+
+
+

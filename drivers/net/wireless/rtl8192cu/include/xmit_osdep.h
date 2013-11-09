@@ -16,8 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef __XMIT_OSDEP_H_
 #define __XMIT_OSDEP_H_
 
@@ -56,6 +55,11 @@ IN UINT				flags
 
 #endif
 
+#ifdef PLATFORM_FREEBSD
+#define NR_XMITFRAME	256
+extern int rtw_xmit_entry(_pkt *pkt, _nic_hdl pnetdev);
+extern void rtw_xmit_entry_wrap (struct ifnet * pifp);
+#endif //PLATFORM_FREEBSD
 
 #ifdef PLATFORM_LINUX
 
@@ -67,6 +71,7 @@ struct sta_xmit_priv;
 struct xmit_frame;
 struct xmit_buf;
 
+extern int _rtw_xmit_entry(_pkt *pkt, _nic_hdl pnetdev);
 extern int rtw_xmit_entry(_pkt *pkt, _nic_hdl pnetdev);
 
 #endif
@@ -86,5 +91,5 @@ extern sint rtw_endofpktfile (struct pkt_file *pfile);
 extern void rtw_os_pkt_complete(_adapter *padapter, _pkt *pkt);
 extern void rtw_os_xmit_complete(_adapter *padapter, struct xmit_frame *pxframe);
 
-#endif //
+#endif //__XMIT_OSDEP_H_
 

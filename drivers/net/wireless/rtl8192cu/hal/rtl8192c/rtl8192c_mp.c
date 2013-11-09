@@ -107,7 +107,7 @@ void Hal_mpt_SwitchRfSetting(PADAPTER pAdapter)
 {
 	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(pAdapter);
 	struct mp_priv *pmp = &pAdapter->mppriv;
-	u8 ChannelToSw = pmp->channel, eRFPath = RF90_PATH_A;
+	u8 ChannelToSw = pmp->channel, eRFPath = RF_PATH_A;
 	u8 ulRateIdx = pmp->rateidx;
 	u8 ulbandwidth = pmp->bandwidth;
 	PMPT_CONTEXT	pMptCtx = &(pAdapter->mppriv.MptCtx);
@@ -340,7 +340,7 @@ void Hal_MPT_CCKTxPowerAdjustbyIndex(PADAPTER pAdapter, BOOLEAN beven)
 	PMPT_CONTEXT	pMptCtx = &pAdapter->mppriv.MptCtx;
 
 
-	if (!IS_92C_SERIAL(pHalData->VersionID) || !IS_NORMAL_CHIP(pHalData->VersionID))
+	if (!IS_92C_SERIAL(pHalData->VersionID))
 		return;
 #if 0
 	while(PlatformAtomicExchange(&Adapter->IntrCCKRefCount, TRUE) == TRUE)
@@ -459,7 +459,7 @@ void Hal_SetChannel(PADAPTER pAdapter)
 	for (eRFPath = 0; eRFPath < pHalData->NumTotalRFPath; eRFPath++)
 	{
       if(IS_HARDWARE_TYPE_8192D(pAdapter))
-			_write_rfreg(pAdapter, (RF90_RADIO_PATH_E)eRFPath, rRfChannel, 0xFF, channel);
+			_write_rfreg(pAdapter, (RF_RADIO_PATH_E)eRFPath, rRfChannel, 0xFF, channel);
 		else
 		_write_rfreg(pAdapter, eRFPath, rRfChannel, 0x3FF, channel);
 	}
@@ -475,13 +475,6 @@ void Hal_SetChannel(PADAPTER pAdapter)
 		pHalData->dmpriv.bCCKinCH14 = _FALSE;
 		Hal_MPT_CCKTxPowerAdjust(pAdapter, pHalData->dmpriv.bCCKinCH14);
 	}
-#if 0
-//#ifdef CONFIG_USB_HCI
-	// Georgia add 2009-11-17, suggested by Edlu , for 8188CU ,46 PIN
-	if (!IS_92C_SERIAL(pHalData->VersionID) && !IS_NORMAL_CHIP(pHalData->VersionID)) {
-		mpt_AdjustRFRegByRateByChan92CU(pAdapter, rate, pHalData->CurrentChannel, bandwidth);
-	}
-#endif
 
 #endif
 }
@@ -538,14 +531,6 @@ void Hal_SetOFDMTxPower(PADAPTER pAdapter, u8 *TxPower)
 	write_bbreg(pAdapter, rTxAGC_A_Mcs11_Mcs08, bMaskDWord, TxAGC);
 	write_bbreg(pAdapter, rTxAGC_A_Mcs15_Mcs12, bMaskDWord, TxAGC);
 
-	if (pHalData->dmpriv.bAPKdone && !IS_NORMAL_CHIP(pHalData->VersionID))
-	{
-		if (tmpval > pMptCtx->APK_bound[RF_PATH_A])
-			write_rfreg(pAdapter, RF_PATH_A, 0xe, pHalData->dmpriv.APKoutput[0][0]);
-		else
-			write_rfreg(pAdapter, RF_PATH_A, 0xe, pHalData->dmpriv.APKoutput[0][1]);
-	}
-
 	// HT Tx-rf(B)
 	tmpval = TxPower[RF_PATH_B];
 	TxAGC = (tmpval<<24) | (tmpval<<16) | (tmpval<<8) | tmpval;
@@ -556,14 +541,6 @@ void Hal_SetOFDMTxPower(PADAPTER pAdapter, u8 *TxPower)
 	write_bbreg(pAdapter, rTxAGC_B_Mcs07_Mcs04, bMaskDWord, TxAGC);
 	write_bbreg(pAdapter, rTxAGC_B_Mcs11_Mcs08, bMaskDWord, TxAGC);
 	write_bbreg(pAdapter, rTxAGC_B_Mcs15_Mcs12, bMaskDWord, TxAGC);
-
-	if (pHalData->dmpriv.bAPKdone && !IS_NORMAL_CHIP(pHalData->VersionID))
-	{
-		if (tmpval > pMptCtx->APK_bound[RF_PATH_B])
-			write_rfreg(pAdapter, RF_PATH_B, 0xe, pHalData->dmpriv.APKoutput[1][0]);
-		else
-			write_rfreg(pAdapter, RF_PATH_B, 0xe, pHalData->dmpriv.APKoutput[1][1]);
-	}
 
 	RT_TRACE(_module_mp_, _drv_notice_,
 		 ("-SetOFDMTxPower: A[0x%02x] B[0x%02x]\n",
@@ -800,7 +777,7 @@ void Hal_SetAntenna(PADAPTER pAdapter)
 			// 2008/10/31 MH From SD3 Willi's suggestion. We must read RFA 2T table.
 			if ((pHalData->VersionID == VERSION_8192S_ACUT)) // For RTL8192SU A-Cut only, by Roger, 2008.11.07.
 			{
-				mpt_RFConfigFromPreParaArrary(pAdapter, 1, RF90_PATH_A);
+				mpt_RFConfigFromPreParaArrary(pAdapter, 1, RF_PATH_A);
 			}
 #endif
 			// 2009/01/08 MH From Sd3 Willis. We need to enable RFA/B by SW control

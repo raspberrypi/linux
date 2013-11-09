@@ -16,8 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  *
- 
-******************************************************************************/
+ ******************************************************************************/
 #ifndef __RTL8192C_SPEC_H__
 #define __RTL8192C_SPEC_H__
 
@@ -115,7 +114,9 @@
 #define REG_GPIO_IO_SEL_2			0x0062 // RTL8723 WIFI/BT/GPS Multi-Function GPIO Select.
 #define REG_MULTI_FUNC_CTRL		0x0068 // RTL8723 WIFI/BT/GPS Multi-Function control source.
 #define REG_MCUFWDL				0x0080
+#ifdef CONFIG_WOWLAN
 #define REG_WOWLAN_REASON			0x0081
+#endif //CONFIG_WOWLAN
 #define REG_HMEBOX_EXT_0			0x0088
 #define REG_HMEBOX_EXT_1			0x008A
 #define REG_HMEBOX_EXT_2			0x008C
@@ -264,6 +265,12 @@
 #define REG_RD_RESP_PKT_TH				0x0463
 #define REG_INIRTS_RATE_SEL			0x0480
 #define REG_INIDATA_RATE_SEL			0x0484
+
+//#define REG_FW_TSF_SYNC_CNT				0x04A0
+#define REG_FW_RESET_TSF_CNT_1				0x05FC
+#define REG_FW_RESET_TSF_CNT_0				0x05FD
+#define REG_FW_BCN_DIS_CNT				0x05FE
+
 #define REG_POWER_STATUS				0x04A4
 #define REG_POWER_STAGE1				0x04B4
 #define REG_POWER_STAGE2				0x04B8
@@ -300,6 +307,7 @@
 #define REG_SIFS_OFDM				0x0516
 #define REG_SIFS_CTX				0x0514
 #define REG_SIFS_TRX				0x0516
+#define REG_TSFTR_SYN_OFFSET		0x0518
 #define REG_AGGR_BREAK_TIME		0x051A
 #define REG_SLOT					0x051B
 #define REG_TX_PTCL_CTRL			0x0520
@@ -322,7 +330,9 @@
 #define REG_RXTSF_OFFSET_CCK		0x055E
 #define REG_RXTSF_OFFSET_OFDM		0x055F	
 #define REG_TSFTR					0x0560
+#define REG_TSFTR1					0x0568
 #define REG_INIT_TSFTR				0x0564
+#define REG_ATIMWND_1				0x0570
 #define REG_PSTIMER					0x0580
 #define REG_TIMER0					0x0584
 #define REG_TIMER1					0x0588
@@ -396,6 +406,9 @@
 #define REG_PKT_MON_CTRL			0x06B4
 #define REG_BT_COEX_TABLE			0x06C0
 #define REG_WMAC_RESP_TXINFO		0x06D8
+
+#define REG_MACID1					0x0700
+#define REG_BSSID1					0x0708
 
 
 //-----------------------------------------------------
@@ -594,53 +607,6 @@ Default: 00b.
 #define	RATR_MCS14					0x04000000
 #define	RATR_MCS15					0x08000000
 
-
-// NOTE: For 92CU - Ziv
-//CCK
-#define RATE_1M						BIT(0)
-#define RATE_2M						BIT(1)
-#define RATE_5_5M					BIT(2)
-#define RATE_11M					BIT(3)
-//OFDM 
-#define RATE_6M						BIT(4)
-#define RATE_9M						BIT(5)
-#define RATE_12M					BIT(6)
-#define RATE_18M					BIT(7)
-#define RATE_24M					BIT(8)
-#define RATE_36M					BIT(9)
-#define RATE_48M					BIT(10)
-#define RATE_54M					BIT(11)
-//MCS 1 Spatial Stream
-#define RATE_MCS0					BIT(12)
-#define RATE_MCS1					BIT(13)
-#define RATE_MCS2					BIT(14)
-#define RATE_MCS3					BIT(15)
-#define RATE_MCS4					BIT(16)
-#define RATE_MCS5					BIT(17)
-#define RATE_MCS6					BIT(18)
-#define RATE_MCS7					BIT(19)
-//MCS 2 Spatial Stream
-#define RATE_MCS8					BIT(20)
-#define RATE_MCS9					BIT(21)
-#define RATE_MCS10					BIT(22)
-#define RATE_MCS11					BIT(23)
-#define RATE_MCS12					BIT(24)
-#define RATE_MCS13					BIT(25)
-#define RATE_MCS14					BIT(26)
-#define RATE_MCS15					BIT(27)
-
-
-
-
-// ALL CCK Rate
-#define	RATE_ALL_CCK				RATR_1M|RATR_2M|RATR_55M|RATR_11M 
-#define	RATE_ALL_OFDM_AG			RATR_6M|RATR_9M|RATR_12M|RATR_18M|RATR_24M|\
-									RATR_36M|RATR_48M|RATR_54M	
-#define	RATE_ALL_OFDM_1SS			RATR_MCS0|RATR_MCS1|RATR_MCS2|RATR_MCS3 |\
-									RATR_MCS4|RATR_MCS5|RATR_MCS6	|RATR_MCS7	
-#define	RATE_ALL_OFDM_2SS			RATR_MCS8|RATR_MCS9	|RATR_MCS10|RATR_MCS11|\
-									RATR_MCS12|RATR_MCS13|RATR_MCS14|RATR_MCS15
-
 //----------------------------------------------------------------------------
 //       8192C BW_OPMODE bits					(Offset 0x203, 8bit)
 //----------------------------------------------------------------------------
@@ -724,6 +690,7 @@ Default: 00b.
 #define	IMR_TX_MASK		(IMR_VODOK|IMR_VIDOK|IMR_BEDOK|IMR_BKDOK|IMR_MGNTDOK|IMR_HIGHDOK|IMR_BDOK)
 
 // 13. Host Interrupt Status Extension Register	 (Offset: 0x012C-012Eh)
+#define	IMR_BcnInt_E				BIT12
 #define	IMR_TXERR				BIT11
 #define	IMR_RXERR				BIT10
 #define	IMR_C2HCMD			BIT9
@@ -1697,7 +1664,6 @@ Current IOREG MAP
 #define EN_MBSSID						BIT(1)
 #define EN_TXBCN_RPT					BIT(2)
 #define	EN_BCN_FUNCTION				BIT(3)
-
 // The same function but different bit field.
 #define	DIS_TSF_UDT0_NORMAL_CHIP	BIT(4)
 #define	DIS_TSF_UDT0_TEST_CHIP		BIT(5)
