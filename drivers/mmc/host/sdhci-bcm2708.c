@@ -1282,6 +1282,8 @@ static int sdhci_bcm2708_probe(struct platform_device *pdev)
 	    host_priv->dma_chan, host_priv->dma_chan_base,
 	    host_priv->dma_irq);
 
+    // we support 3.3V
+    host->caps |= SDHCI_CAN_VDD_330;
     if (allow_highspeed)
         host->mmc->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
 
