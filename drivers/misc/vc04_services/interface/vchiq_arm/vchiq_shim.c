@@ -405,6 +405,7 @@ int32_t vchi_held_msg_release(VCHI_HELD_MSG_T *message)
 
 	return 0;
 }
+EXPORT_SYMBOL(vchi_held_msg_release);
 
 /***********************************************************
  * Name: vchi_msg_hold
@@ -450,6 +451,7 @@ int32_t vchi_msg_hold(VCHI_SERVICE_HANDLE_T handle,
 
 	return 0;
 }
+EXPORT_SYMBOL(vchi_msg_hold);
 
 /***********************************************************
  * Name: vchi_initialise
