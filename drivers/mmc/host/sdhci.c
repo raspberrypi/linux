@@ -3245,12 +3245,6 @@ int sdhci_add_host(struct sdhci_host *host)
 				   SDHCI_MAX_CURRENT_MULTIPLIER;
 	}
 
-	if(host->ops->voltage_broken) {
-		ocr_avail |= MMC_VDD_32_33 | MMC_VDD_33_34;
-		// Cannot support UHS modes if we are stuck at 3.3V;
-		mmc->caps &= ~(MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 | MMC_CAP_UHS_SDR104 | MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_DDR50);
-	}
-
 	mmc->ocr_avail = ocr_avail;
 	mmc->ocr_avail_sdio = ocr_avail;
 	if (host->ocr_avail_sdio)

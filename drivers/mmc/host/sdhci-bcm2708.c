@@ -1114,11 +1114,6 @@ static unsigned int sdhci_bcm2708_quirk_spurious_crc_acmd51(struct sdhci_host *h
         return 1;
 }
 
-static unsigned int sdhci_bcm2708_quirk_voltage_broken(struct sdhci_host *host)
-{
-        return 1;
-}
-
 static unsigned int sdhci_bcm2708_uhs_broken(struct sdhci_host *host)
 {
         return 1;
@@ -1155,7 +1150,6 @@ static struct sdhci_ops sdhci_bcm2708_ops = {
 	.pdma_reset = sdhci_bcm2708_platdma_reset,
 #endif
 	.extra_ints = sdhci_bcm2708_quirk_extra_ints,
-	.voltage_broken = sdhci_bcm2708_quirk_voltage_broken,
 	.uhs_broken = sdhci_bcm2708_uhs_broken,
 };
 
