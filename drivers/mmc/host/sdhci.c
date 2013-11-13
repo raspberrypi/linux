@@ -1581,7 +1581,7 @@ static void sdhci_do_set_ios(struct sdhci_host *host, struct mmc_ios *ios)
 	else
 		ctrl &= ~SDHCI_CTRL_HISPD;
 
-	if (host->version >= SDHCI_SPEC_300 && !(host->ops->uhs_broken)) {
+	if (host->version >= SDHCI_SPEC_300) {
 		u16 clk, ctrl_2;
 
 		/* In case of UHS-I modes, set High Speed Enable */
