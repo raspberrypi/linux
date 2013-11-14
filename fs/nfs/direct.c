@@ -227,21 +227,27 @@ static void nfs_direct_complete(struct nfs_direct_req *dreq, bool write)
 {
 	struct inode *inode = dreq->inode;
 
-	if (dreq->iocb) {
+	if (dreq->iocb && write) {
 		loff_t pos = dreq->iocb->ki_pos + dreq->count;
+
+		spin_lock(&inode->i_lock);
+		if (i_size_read(inode) < pos)
+			i_size_write(inode, pos);
+		spin_unlock(&inode->i_lock);
+	}
+
+	if (write) {
+		nfs_zap_mapping(inode, inode->i_mapping);
+		inode_dio_done(inode);
+	}
+
+	if (dreq->iocb) {
 		long res = (long) dreq->error;
 		if (!res)
 			res = (long) dreq->count;
-
-		if (write) {
-			spin_lock(&inode->i_lock);
-			if (i_size_read(inode) < pos)
-				i_size_write(inode, pos);
-			spin_unlock(&inode->i_lock);
-		}
-
 		aio_complete(dreq->iocb, res, 0);
 	}
+
 	complete_all(&dreq->completion);
 
 	nfs_direct_req_release(dreq);
@@ -484,12 +490,6 @@ out:
 	return result;
 }
 
-static void nfs_inode_dio_write_done(struct inode *inode)
-{
-	nfs_zap_mapping(inode, inode->i_mapping);
-	inode_dio_done(inode);
-}
-
 #if IS_ENABLED(CONFIG_NFS_V3) || IS_ENABLED(CONFIG_NFS_V4)
 static void nfs_direct_write_reschedule(struct nfs_direct_req *dreq)
 {
@@ -605,7 +605,6 @@ static void nfs_direct_write_schedule_work(struct work_struct *work)
 			nfs_direct_write_reschedule(dreq);
 			break;
 		default:
-			nfs_inode_dio_write_done(dreq->inode);
 			nfs_direct_complete(dreq, true);
 	}
 }
@@ -622,7 +621,6 @@ static void nfs_direct_write_schedule_work(struct work_struct *work)
 
 static void nfs_direct_write_complete(struct nfs_direct_req *dreq, struct inode *inode)
 {
-	nfs_inode_dio_write_done(inode);
 	nfs_direct_complete(dreq, true);
 }
 #endif
