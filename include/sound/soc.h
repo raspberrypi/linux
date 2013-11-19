@@ -941,7 +941,9 @@ struct snd_soc_dai_link {
 	struct device_node *platform_of_node;
 	int be_id;	/* optional ID for machine driver BE identification */
 
-	const struct snd_soc_pcm_stream *params;
+	struct snd_soc_pcm_stream *params;
+	/* optional params re-writing for dai links */
+	int (*params_fixup)(struct snd_soc_dapm_widget *w, int event);
 
 	unsigned int dai_fmt;           /* format to set on init */
 

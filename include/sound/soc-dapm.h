@@ -377,9 +377,9 @@ int snd_soc_dapm_new_dai_widgets(struct snd_soc_dapm_context *dapm,
 int snd_soc_dapm_link_dai_widgets(struct snd_soc_card *card);
 void snd_soc_dapm_connect_dai_link_widgets(struct snd_soc_card *card);
 int snd_soc_dapm_new_pcm(struct snd_soc_card *card,
-			 const struct snd_soc_pcm_stream *params,
+			 struct snd_soc_pcm_stream *params,
 			 struct snd_soc_dapm_widget *source,
-			 struct snd_soc_dapm_widget *sink);
+			 struct snd_soc_dapm_widget *sink, void *priv);
 
 /* dapm path setup */
 int snd_soc_dapm_new_widgets(struct snd_soc_card *card);
@@ -532,7 +532,7 @@ struct snd_soc_dapm_widget {
 
 	void *priv;				/* widget specific data */
 	struct regulator *regulator;		/* attached regulator */
-	const struct snd_soc_pcm_stream *params; /* params for dai links */
+	struct snd_soc_pcm_stream *params; /* params for dai links */
 
 	/* dapm control */
 	int reg;				/* negative reg = no direct dapm */
