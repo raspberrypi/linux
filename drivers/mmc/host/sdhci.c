@@ -551,6 +551,7 @@ static void sdhci_transfer_pio(struct sdhci_host *host, u32 intstate)
 			break;
 		state = sdhci_readl(host, SDHCI_PRESENT_STATE);
 		available = state & mask;
+		break;
 	}
 
 	DBG("PIO transfer complete - %d blocks left.\n", host->blocks);
