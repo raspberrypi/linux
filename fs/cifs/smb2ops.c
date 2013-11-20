@@ -1059,6 +1059,7 @@ struct smb_version_operations smb30_operations = {
 	.set_oplock_level = smb3_set_oplock_level,
 	.create_lease_buf = smb3_create_lease_buf,
 	.parse_lease_buf = smb3_parse_lease_buf,
+	.validate_negotiate = smb3_validate_negotiate,
 };
 
 struct smb_version_values smb20_values = {

@@ -391,6 +391,7 @@ struct smb_version_operations {
 			const char *, u32 *);
 	int (*set_acl)(struct cifs_ntsd *, __u32, struct inode *, const char *,
 			int);
+	int (*validate_negotiate)(const unsigned int, struct cifs_tcon *);
 };
 
 struct smb_version_values {
