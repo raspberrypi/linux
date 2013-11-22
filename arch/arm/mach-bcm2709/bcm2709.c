@@ -269,6 +269,11 @@ static struct platform_device bcm2708_dmaman_device = {
 	.num_resources = ARRAY_SIZE(bcm2708_dmaman_resources),
 };
 
+static struct platform_device bcm2708_dmaengine_device = {
+	.name = "bcm2708-dmaengine",
+	.id = -1,
+};
+
 #if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
 static struct w1_gpio_platform_data w1_gpio_pdata = {
 	.pin = W1_GPIO,
@@ -858,6 +863,7 @@ void __init bcm2709_init(void)
 	bcm2709_dt_init();
 
 	bcm_register_device(&bcm2708_dmaman_device);
+	bcm_register_device(&bcm2708_dmaengine_device);
 	bcm_register_device(&bcm2708_vcio_device);
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device_dt(&bcm2708_gpio_device);
