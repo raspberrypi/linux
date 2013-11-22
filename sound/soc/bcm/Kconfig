@@ -16,3 +16,10 @@ config SND_SOC_CYGNUS
 	  Cygnus chips (bcm958300, bcm958305, bcm911360)
 
 	  If you don't know what to do here, say N.
+
+config SND_BCM2708_SOC_HIFIBERRY_DAC
+        tristate "Support for HifiBerry DAC"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+        select SND_SOC_PCM5102A
+        help
+         Say Y or M if you want to add support for HifiBerry DAC.
