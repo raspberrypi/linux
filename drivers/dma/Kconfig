@@ -312,6 +312,12 @@ config TI_CPPI41
 	  The Communications Port Programming Interface (CPPI) 4.1 DMA engine
 	  is currently used by the USB driver on AM335x platforms.
 
+config DMA_BCM2708
+	tristate "BCM2708 DMA engine support"
+	depends on MACH_BCM2708
+	select DMA_ENGINE
+	select DMA_VIRTUAL_CHANNELS
+
 config MMP_PDMA
 	bool "MMP PDMA support"
 	depends on (ARCH_MMP || ARCH_PXA)
