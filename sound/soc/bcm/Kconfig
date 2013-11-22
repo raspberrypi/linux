@@ -7,3 +7,10 @@ config SND_BCM2835_SOC_I2S
 	  Say Y or M if you want to add support for codecs attached to
 	  the BCM2835 I2S interface. You will also need
 	  to select the audio interfaces to support below.
+
+config SND_BCM2708_SOC_HIFIBERRY_DAC
+        tristate "Support for HifiBerry DAC"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+        select SND_SOC_PCM5102A
+        help
+         Say Y or M if you want to add support for HifiBerry DAC.
