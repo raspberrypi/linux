@@ -250,6 +250,11 @@ static struct platform_device bcm2708_dmaman_device = {
 	.num_resources = ARRAY_SIZE(bcm2708_dmaman_resources),
 };
 
+static struct platform_device bcm2708_dmaengine_device = {
+	.name = "bcm2708-dmaengine",
+	.id = -1,
+};
+
 static u64 fb_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
 
 static struct platform_device bcm2708_fb_device = {
@@ -508,6 +513,7 @@ void __init bcm2708_init(void)
 		clkdev_add(&lookups[i]);
 
 	bcm_register_device(&bcm2708_dmaman_device);
+	bcm_register_device(&bcm2708_dmaengine_device);
 	bcm_register_device(&bcm2708_vcio_device);
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device(&bcm2708_gpio_device);
