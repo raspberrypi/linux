@@ -136,7 +136,7 @@ config BCM_SBA_RAID
 
 config DMA_BCM2835
 	tristate "BCM2835 DMA engine support"
-	depends on ARCH_BCM2835 || ARCH_BCM2708 || ARCH_BCM2709
+	depends on ARCH_BCM2835
 	select DMA_ENGINE
 	select DMA_VIRTUAL_CHANNELS
 
@@ -682,6 +682,10 @@ config UNIPHIER_XDMAC
 	  Enable support for the XDMAC (external DMA controller) on the
 	  UniPhier platform. This DMA controller can transfer data from
 	  memory to memory, memory to peripheral and peripheral to memory.
+
+config DMA_BCM2708
+	tristate "BCM2708 DMA legacy API support"
+	depends on DMA_BCM2835
 
 config XGENE_DMA
 	tristate "APM X-Gene DMA support"
