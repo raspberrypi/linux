@@ -101,7 +101,6 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_RT5514 if I2C
 	select SND_SOC_RT5616 if I2C
 	select SND_SOC_PCM5102A if I2C
-	select SND_SOC_PCM1794A if I2C
 	select SND_SOC_RT5631 if I2C
 	select SND_SOC_RT5640 if I2C
 	select SND_SOC_RT5645 if I2C
@@ -639,6 +638,10 @@ config SND_SOC_RT298
 	depends on I2C
 
 config SND_SOC_PCM1794A
+	tristate
+	depends on I2C
+
+config SND_SOC_PCM5102A
 	tristate
 	depends on I2C
 
