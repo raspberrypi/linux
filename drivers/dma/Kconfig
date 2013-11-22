@@ -131,7 +131,7 @@ config COH901318
 
 config DMA_BCM2835
 	tristate "BCM2835 DMA engine support"
-	depends on ARCH_BCM2835 || ARCH_BCM2708 || ARCH_BCM2709
+	depends on ARCH_BCM2835
 	select DMA_ENGINE
 	select DMA_VIRTUAL_CHANNELS
 
@@ -611,6 +611,10 @@ config UNIPHIER_MDMAC
 	  Enable support for the MIO DMAC (Media I/O DMA controller) on the
 	  UniPhier platform.  This DMA controller is used as the external
 	  DMA engine of the SD/eMMC controllers of the LD4, Pro4, sLD8 SoCs.
+
+config DMA_BCM2708
+	tristate "BCM2708 DMA legacy API support"
+	depends on DMA_BCM2835
 
 config XGENE_DMA
 	tristate "APM X-Gene DMA support"
