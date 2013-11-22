@@ -62,10 +62,12 @@
 #define DMA_BASE		 (BCM2708_PERI_BASE + 0x7000)	/* DMA controller */
 #define ARM_BASE                 (BCM2708_PERI_BASE + 0xB000)	 /* BCM2708 ARM control block */
 #define PM_BASE			 (BCM2708_PERI_BASE + 0x100000) /* Power Management, Reset controller and Watchdog registers */
+#define PCM_CLOCK_BASE           (BCM2708_PERI_BASE + 0x101098) /* PCM Clock */
 #define RNG_BASE                 (BCM2708_PERI_BASE + 0x104000) /* Hardware RNG */
 #define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO */
 #define UART0_BASE               (BCM2708_PERI_BASE + 0x201000)	/* Uart 0 */
 #define MMCI0_BASE               (BCM2708_PERI_BASE + 0x202000) /* MMC interface */
+#define I2S_BASE                 (BCM2708_PERI_BASE + 0x203000) /* I2S */
 #define SPI0_BASE		 (BCM2708_PERI_BASE + 0x204000) /* SPI0 */
 #define BSC0_BASE		 (BCM2708_PERI_BASE + 0x205000) /* BSC0 I2C/TWI */
 #define UART1_BASE               (BCM2708_PERI_BASE + 0x215000) /* Uart 1 */
