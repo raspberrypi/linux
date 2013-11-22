@@ -18,6 +18,7 @@ obj-$(CONFIG_AT_HDMAC) += at_hdmac.o
 obj-$(CONFIG_AT_XDMAC) += at_xdmac.o
 obj-$(CONFIG_AXI_DMAC) += dma-axi-dmac.o
 obj-$(CONFIG_COH901318) += coh901318.o coh901318_lli.o
+obj-$(CONFIG_DMA_BCM2708) += bcm2708-dmaengine.o
 obj-$(CONFIG_DMA_BCM2835) += bcm2835-dma.o
 obj-$(CONFIG_DMA_JZ4740) += dma-jz4740.o
 obj-$(CONFIG_DMA_JZ4780) += dma-jz4780.o
