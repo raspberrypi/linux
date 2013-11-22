@@ -234,6 +234,73 @@ static struct amba_device *amba_devs[] __initdata = {
 	&uart0_device,
 };
 
+static struct resource bcm2708_dmaengine_resources[] = {
+	{
+		.start = DMA_BASE,
+		.end = DMA_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = IRQ_DMA0,
+		.end = IRQ_DMA0,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA1,
+		.end = IRQ_DMA1,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA2,
+		.end = IRQ_DMA2,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA3,
+		.end = IRQ_DMA3,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA4,
+		.end = IRQ_DMA4,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA5,
+		.end = IRQ_DMA5,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA6,
+		.end = IRQ_DMA6,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA7,
+		.end = IRQ_DMA7,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA8,
+		.end = IRQ_DMA8,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA9,
+		.end = IRQ_DMA9,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA10,
+		.end = IRQ_DMA10,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA11,
+		.end = IRQ_DMA11,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA12,
+		.end = IRQ_DMA12,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+static struct platform_device bcm2708_dmaengine_device = {
+	.name = "bcm2708-dmaengine",
+	.id = -1,
+	.resource = bcm2708_dmaengine_resources,
+	.num_resources = ARRAY_SIZE(bcm2708_dmaengine_resources),
+};
+
 static u64 fb_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
 
 static struct platform_device bcm2708_fb_device = {
@@ -463,6 +530,7 @@ void __init bcm2708_init(void)
 	bcm2708_init_clocks();
 	bcm2708_dt_init();
 
+	bcm_register_device_dt(&bcm2708_dmaengine_device);
 	bcm_register_device(&bcm2708_vcio_device);
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device_dt(&bcm2708_gpio_device);
