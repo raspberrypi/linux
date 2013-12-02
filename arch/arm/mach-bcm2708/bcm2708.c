@@ -656,6 +656,20 @@ static struct platform_device snd_pcm5102a_codec_device = {
 };
 #endif
 
+#if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
+static struct platform_device snd_rpi_dac_device = {
+        .name = "snd-rpi-dac",
+        .id = 0,
+        .num_resources = 0,
+};
+
+static struct platform_device snd_pcm1794a_codec_device = {
+        .name = "pcm1794a-codec",
+        .id = -1,
+        .num_resources = 0,
+};
+#endif
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -790,6 +804,11 @@ void __init bcm2708_init(void)
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
         bcm_register_device(&snd_hifiberry_dac_device);
         bcm_register_device(&snd_pcm5102a_codec_device);
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
+        bcm_register_device(&snd_rpi_dac_device);
+        bcm_register_device(&snd_pcm1794a_codec_device);
 #endif
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
