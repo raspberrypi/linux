@@ -405,6 +405,7 @@ int32_t vchi_held_msg_release(VCHI_HELD_MSG_T *message)
 
 	return 0;
 }
+EXPORT_SYMBOL(vchi_held_msg_release);
 
 /***********************************************************
  * Name: vchi_msg_hold
@@ -450,6 +451,7 @@ int32_t vchi_msg_hold(VCHI_SERVICE_HANDLE_T handle,
 
 	return 0;
 }
+EXPORT_SYMBOL(vchi_msg_hold);
 
 /***********************************************************
  * Name: vchi_initialise
@@ -545,47 +547,58 @@ static VCHIQ_STATUS_T shim_callback(VCHIQ_REASON_T reason,
 	SHIM_SERVICE_T *service =
 		(SHIM_SERVICE_T *)VCHIQ_GET_SERVICE_USERDATA(handle);
 
+        if (!service->callback)
+		goto release;
+
 	switch (reason) {
 	case VCHIQ_MESSAGE_AVAILABLE:
 		vchiu_queue_push(&service->queue, header);
 
-		if (service->callback)
-			service->callback(service->callback_param,
-				VCHI_CALLBACK_MSG_AVAILABLE, NULL);
+		service->callback(service->callback_param,
+				  VCHI_CALLBACK_MSG_AVAILABLE, NULL);
+
+		goto done;
 		break;
+
 	case VCHIQ_BULK_TRANSMIT_DONE:
-		if (service->callback)
-			service->callback(service->callback_param,
-				VCHI_CALLBACK_BULK_SENT, bulk_user);
+		service->callback(service->callback_param,
+				  VCHI_CALLBACK_BULK_SENT, bulk_user);
 		break;
+
 	case VCHIQ_BULK_RECEIVE_DONE:
-		if (service->callback)
-			service->callback(service->callback_param,
-				VCHI_CALLBACK_BULK_RECEIVED, bulk_user);
+		service->callback(service->callback_param,
+				  VCHI_CALLBACK_BULK_RECEIVED, bulk_user);
 		break;
+
 	case VCHIQ_SERVICE_CLOSED:
-		if (service->callback)
-			service->callback(service->callback_param,
-				VCHI_CALLBACK_SERVICE_CLOSED, NULL);
+		service->callback(service->callback_param,
+				  VCHI_CALLBACK_SERVICE_CLOSED, NULL);
 		break;
+
 	case VCHIQ_SERVICE_OPENED:
 		/* No equivalent VCHI reason */
 		break;
+
 	case VCHIQ_BULK_TRANSMIT_ABORTED:
-		if (service->callback)
-			service->callback(service->callback_param,
-				VCHI_CALLBACK_BULK_TRANSMIT_ABORTED, bulk_user);
+		service->callback(service->callback_param,
+				  VCHI_CALLBACK_BULK_TRANSMIT_ABORTED,
+				  bulk_user);
 		break;
+
 	case VCHIQ_BULK_RECEIVE_ABORTED:
-		if (service->callback)
-			service->callback(service->callback_param,
-				VCHI_CALLBACK_BULK_RECEIVE_ABORTED, bulk_user);
+		service->callback(service->callback_param,
+				  VCHI_CALLBACK_BULK_RECEIVE_ABORTED,
+				  bulk_user);
 		break;
+
 	default:
 		WARN(1, "not supported\n");
 		break;
 	}
 
+release:
+        vchiq_release_message(service->handle, header);
+done:
 	return VCHIQ_SUCCESS;
 }
 
