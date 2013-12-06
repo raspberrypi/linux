@@ -1412,6 +1412,8 @@ static const struct usb_device_id rtl28xxu_id_table[] = {
 		&rtl2832u_props, "August DVB-T 205", NULL) },
 	{ DVB_USB_DEVICE(USB_VID_GTEK, 0xa803 /*USB_PID_AUGUST_DVBT205*/,
 		&rtl2832u_props, "August DVB-T 205", NULL) },
+	{ DVB_USB_DEVICE(USB_VID_KWORLD_2, 0xd396,
+		&rtl2832u_props, "EXAGERATE DVB-T UB396", NULL) },
 	{ }
 };
 MODULE_DEVICE_TABLE(usb, rtl28xxu_id_table);
