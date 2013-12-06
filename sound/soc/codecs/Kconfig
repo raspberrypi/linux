@@ -59,6 +59,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_PCM1681 if I2C
 	select SND_SOC_PCM1792A if SPI_MASTER
 	select SND_SOC_PCM3008
+	select SND_SOC_PCM1794A
 	select SND_SOC_PCM5102A
 	select SND_SOC_RT5631 if I2C
 	select SND_SOC_RT5640 if I2C
@@ -311,6 +312,9 @@ config SND_SOC_PCM1792A
 
 config SND_SOC_PCM3008
        tristate
+
+config SND_SOC_PCM1794A
+	tristate
 
 config SND_SOC_PCM5102A
 	tristate
