@@ -55,6 +55,8 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_ML26124 if I2C
 	select SND_SOC_OMAP_HDMI_CODEC if OMAP4_DSS_HDMI
 	select SND_SOC_PCM3008
+	select SND_SOC_PCM1794A
+	select SND_SOC_PCM5102A
 	select SND_SOC_RT5631 if I2C
 	select SND_SOC_SGTL5000 if I2C
 	select SND_SOC_SI476X if MFD_SI476X_CORE
@@ -292,6 +294,12 @@ config SND_SOC_OMAP_HDMI_CODEC
 
 config SND_SOC_PCM3008
        tristate
+
+config SND_SOC_PCM1794A
+	tristate
+
+config SND_SOC_PCM5102A
+	tristate
 
 config SND_SOC_RT5631
 	tristate
