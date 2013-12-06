@@ -77,6 +77,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_PCM512x_SPI if SPI_MASTER
 	select SND_SOC_RT286 if I2C
 	select SND_SOC_PCM5102A if I2C
+	select SND_SOC_PCM1794A if I2C
 	select SND_SOC_RT5631 if I2C
 	select SND_SOC_RT5640 if I2C
 	select SND_SOC_RT5645 if I2C
@@ -464,6 +465,9 @@ config SND_SOC_RL6231
 	default m if SND_SOC_RT5677=m
 
 config SND_SOC_RT286
+	tristate
+
+config SND_SOC_PCM1794A
 	tristate
 
 config SND_SOC_PCM5102A
