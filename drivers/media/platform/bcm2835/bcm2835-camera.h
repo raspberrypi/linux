@@ -15,7 +15,7 @@
  * core driver device
  */
 
-#define V4L2_CTRL_COUNT 18 /* number of v4l controls */
+#define V4L2_CTRL_COUNT 19 /* number of v4l controls */
 
 enum {
 	MMAL_COMPONENT_CAMERA = 0,
@@ -51,6 +51,8 @@ struct bm2835_mmal_dev {
 	struct mmal_colourfx      colourfx;
 	int                       hflip;
 	int                       vflip;
+	enum mmal_parameter_exposuremode exposure_mode;
+	unsigned int		  manual_shutter_speed;
 
 	/* allocated mmal instance and components */
 	struct vchiq_mmal_instance   *instance;

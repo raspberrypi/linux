@@ -161,6 +161,7 @@ enum mmal_parameter_camera_type {
 	MMAL_PARAMETER_SW_SHARPEN_DISABLE, /**< @ref MMAL_PARAMETER_BOOLEAN_T */
 	MMAL_PARAMETER_FLASH_REQUIRED, /**< @ref MMAL_PARAMETER_BOOLEAN_T */
 	MMAL_PARAMETER_SW_SATURATION_DISABLE, /**< @ref MMAL_PARAMETER_BOOLEAN_T */
+	MMAL_PARAMETER_SHUTTER_SPEED              /**< Takes a @ref MMAL_PARAMETER_UINT32_T */
 };
 
 enum mmal_parameter_camera_config_timestamp_mode {
