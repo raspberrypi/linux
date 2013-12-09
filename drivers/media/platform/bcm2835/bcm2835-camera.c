@@ -955,69 +955,87 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 			camera_port->current_buffer.num =
 			    camera_port->recommended_buffer.num;
 
-			port->format.encoding = mfmt->mmal;
-			port->format.encoding_variant = 0;
-			/* Set any encoding specific parameters */
-			switch (mfmt->mmal_component) {
-			case MMAL_COMPONENT_VIDEO_ENCODE:
-				port->format.bitrate =
-				    dev->capture.encode_bitrate;
-				break;
-			case MMAL_COMPONENT_IMAGE_ENCODE:
-				/* Could set EXIF parameters here */
-				break;
-			default:
-				break;
-			}
-			ret = vchiq_mmal_port_set_format(dev->instance, port);
-
+			ret =
+			    vchiq_mmal_port_connect_tunnel(
+					dev->instance,
+					camera_port,
+					&encode_component->input[0]);
 			if (ret) {
-				v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
-					 "%s failed to set format\n", __func__);
+				v4l2_dbg(1, bcm2835_v4l2_debug,
+					 &dev->v4l2_dev,
+					 "%s failed to create connection\n",
+					 __func__);
+				/* ensure capture is not going to be tried */
+				dev->capture.port = NULL;
 			} else {
+				port->es.video.width = f->fmt.pix.width;
+				port->es.video.height = f->fmt.pix.height;
+				port->es.video.crop.x = 0;
+				port->es.video.crop.y = 0;
+				port->es.video.crop.width = f->fmt.pix.width;
+				port->es.video.crop.height = f->fmt.pix.height;
+				port->es.video.frame_rate.num =
+					  dev->capture.timeperframe.denominator;
+				port->es.video.frame_rate.den =
+					  dev->capture.timeperframe.numerator;
+
+				port->format.encoding = mfmt->mmal;
+				port->format.encoding_variant = 0;
+				/* Set any encoding specific parameters */
+				switch (mfmt->mmal_component) {
+				case MMAL_COMPONENT_VIDEO_ENCODE:
+					port->format.bitrate =
+					    dev->capture.encode_bitrate;
+					break;
+				case MMAL_COMPONENT_IMAGE_ENCODE:
+					/* Could set EXIF parameters here */
+					break;
+				default:
+					break;
+				}
+				ret = vchiq_mmal_port_set_format(dev->instance,
+								 port);
+				if (ret)
+					v4l2_dbg(1, bcm2835_v4l2_debug,
+						 &dev->v4l2_dev,
+						 "%s failed to set format\n",
+						 __func__);
+			}
+
+			if (!ret) {
 				ret = vchiq_mmal_component_enable(
 						dev->instance,
 						encode_component);
 				if (ret) {
 					v4l2_dbg(1, bcm2835_v4l2_debug,
-						 &dev->v4l2_dev,
-						 "%s Failed to enable encode components\n",
-						 __func__);
-				} else {
-					/* configure buffering */
-					port->current_buffer.num = 1;
-					port->current_buffer.size =
-					    f->fmt.pix.sizeimage;
-					if (port->format.encoding ==
-					    MMAL_ENCODING_JPEG) {
-						v4l2_dbg(1, bcm2835_v4l2_debug,
-							 &dev->v4l2_dev,
-							 "JPEG - fiddle buffer size\n");
-						port->current_buffer.size =
-						    (f->fmt.pix.sizeimage <
-						     (100 << 10))
-						    ? (100 << 10) : f->fmt.pix.
-						    sizeimage;
-					}
-					v4l2_dbg(1, bcm2835_v4l2_debug,
-						 &dev->v4l2_dev,
-						 "vid_cap - current_buffer.size being set to %d\n",
-						 f->fmt.pix.sizeimage);
-					port->current_buffer.alignment = 0;
-					ret =
-					    vchiq_mmal_port_connect_tunnel(
-							dev->instance,
-							camera_port,
-							&encode_component->input[0]);
-					if (ret) {
-						v4l2_dbg(1, bcm2835_v4l2_debug,
-							 &dev->v4l2_dev,
-							 "%s failed to create connection\n",
-							 __func__);
-						/* ensure capture is not going to be tried */
-						dev->capture.port = NULL;
-					}
+					   &dev->v4l2_dev,
+					   "%s Failed to enable encode components\n",
+					   __func__);
 				}
+			}
+			if (!ret) {
+				/* configure buffering */
+				port->current_buffer.num = 1;
+				port->current_buffer.size =
+				    f->fmt.pix.sizeimage;
+				if (port->format.encoding ==
+				    MMAL_ENCODING_JPEG) {
+					v4l2_dbg(1, bcm2835_v4l2_debug,
+					    &dev->v4l2_dev,
+					    "JPG - buf size now %d was %d\n",
+					    f->fmt.pix.sizeimage,
+					    port->current_buffer.size);
+					port->current_buffer.size =
+					    (f->fmt.pix.sizeimage <
+					     (100 << 10))
+					    ? (100 << 10) : f->fmt.pix.
+					    sizeimage;
+				}
+				v4l2_dbg(1, bcm2835_v4l2_debug,
+					 &dev->v4l2_dev,
+					 "vid_cap - cur_buf.size set to %d\n",
+					 f->fmt.pix.sizeimage);
+				port->current_buffer.alignment = 0;
 			}
 		} else {
 			/* configure buffering */
