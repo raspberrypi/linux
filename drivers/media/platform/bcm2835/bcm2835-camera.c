@@ -1028,13 +1028,19 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 		if (!ret) {
 			dev->capture.fmt = mfmt;
 			dev->capture.stride = f->fmt.pix.bytesperline;
-			dev->capture.width = port->es.video.crop.width;
-			dev->capture.height = port->es.video.crop.height;
+			dev->capture.width = camera_port->es.video.crop.width;
+			dev->capture.height = camera_port->es.video.crop.height;
 
 			/* select port for capture */
 			dev->capture.port = port;
 			dev->capture.camera_port = camera_port;
 			dev->capture.encode_component = encode_component;
+			v4l2_dbg(1, bcm2835_v4l2_debug,
+				 &dev->v4l2_dev,
+				"Set dev->capture.fmt %08X, %dx%d, stride %d",
+				port->format.encoding,
+				dev->capture.width, dev->capture.height,
+				dev->capture.stride);
 		}
 	}
 
