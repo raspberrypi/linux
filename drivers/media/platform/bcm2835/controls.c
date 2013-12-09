@@ -56,6 +56,13 @@ static const s64 iso_qmenu[] = {
 	0, 100, 200, 400, 800,
 };
 
+static const s64 mains_freq_qmenu[] = {
+	V4L2_CID_POWER_LINE_FREQUENCY_DISABLED,
+	V4L2_CID_POWER_LINE_FREQUENCY_50HZ,
+	V4L2_CID_POWER_LINE_FREQUENCY_60HZ,
+	V4L2_CID_POWER_LINE_FREQUENCY_AUTO
+};
+
 /* Supported video encode modes */
 static const s64 bitrate_mode_qmenu[] = {
 	(s64)V4L2_MPEG_VIDEO_BITRATE_MODE_VBR,
@@ -366,6 +373,35 @@ static int ctrl_set_metering_mode(struct bm2835_mmal_dev *dev,
 		break;
 	*/
 
+	}
+
+	return vchiq_mmal_port_parameter_set(dev->instance, control,
+					     mmal_ctrl->mmal_id,
+					     &u32_value, sizeof(u32_value));
+}
+
+static int ctrl_set_flicker_avoidance(struct bm2835_mmal_dev *dev,
+			   struct v4l2_ctrl *ctrl,
+			   const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl)
+{
+	u32 u32_value;
+	struct vchiq_mmal_port *control;
+
+	control = &dev->component[MMAL_COMPONENT_CAMERA]->control;
+
+	switch (ctrl->val) {
+	case V4L2_CID_POWER_LINE_FREQUENCY_DISABLED:
+		u32_value = MMAL_PARAM_FLICKERAVOID_OFF;
+		break;
+	case V4L2_CID_POWER_LINE_FREQUENCY_50HZ:
+		u32_value = MMAL_PARAM_FLICKERAVOID_50HZ;
+		break;
+	case V4L2_CID_POWER_LINE_FREQUENCY_60HZ:
+		u32_value = MMAL_PARAM_FLICKERAVOID_60HZ;
+		break;
+	case V4L2_CID_POWER_LINE_FREQUENCY_AUTO:
+		u32_value = MMAL_PARAM_FLICKERAVOID_AUTO;
+		break;
 	}
 
 	return vchiq_mmal_port_parameter_set(dev->instance, control,
@@ -705,6 +741,12 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 		1, 100,
 		30, 1, NULL,
 		MMAL_PARAMETER_JPEG_Q_FACTOR, &ctrl_set_image_encode_output
+	},
+	{
+		V4L2_CID_POWER_LINE_FREQUENCY, MMAL_CONTROL_TYPE_STD_MENU,
+		0, ARRAY_SIZE(mains_freq_qmenu) - 1,
+		1, 1, NULL,
+		MMAL_PARAMETER_FLICKER_AVOID, &ctrl_set_flicker_avoidance
 	},
 };
 
