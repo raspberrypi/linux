@@ -617,6 +617,56 @@ static struct platform_device bcm2835_thermal_device = {
 	.name = "bcm2835_thermal",
 };
 
+#ifdef CONFIG_SND_BCM2708_SOC_I2S_MODULE
+static struct resource bcm2708_i2s_resources[] = {
+	{
+		.start = I2S_BASE,
+		.end = I2S_BASE + 0x20,
+		.flags = IORESOURCE_MEM,
+	},
+        {
+		.start = PCM_CLOCK_BASE,
+		.end = PCM_CLOCK_BASE + 0x02,
+		.flags = IORESOURCE_MEM,
+	}
+};
+
+static struct platform_device bcm2708_i2s_device = {
+	.name = "bcm2708-i2s",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(bcm2708_i2s_resources),
+	.resource = bcm2708_i2s_resources,
+};
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
+static struct platform_device snd_hifiberry_dac_device = {
+        .name = "snd-hifiberry-dac",
+        .id = 0,
+        .num_resources = 0,
+};
+
+static struct platform_device snd_pcm5102a_codec_device = {
+        .name = "pcm5102a-codec",
+        .id = -1,
+        .num_resources = 0,
+};
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
+static struct platform_device snd_rpi_dac_device = {
+        .name = "snd-rpi-dac",
+        .id = 0,
+        .num_resources = 0,
+};
+
+static struct platform_device snd_pcm1794a_codec_device = {
+        .name = "pcm1794a-codec",
+        .id = -1,
+        .num_resources = 0,
+};
+#endif
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -742,6 +792,20 @@ void __init bcm2708_init(void)
 
 	bcm_register_device(&bcm2835_hwmon_device);
 	bcm_register_device(&bcm2835_thermal_device);
+
+#ifdef CONFIG_SND_BCM2708_SOC_I2S_MODULE
+	bcm_register_device(&bcm2708_i2s_device);
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
+        bcm_register_device(&snd_hifiberry_dac_device);
+        bcm_register_device(&snd_pcm5102a_codec_device);
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
+        bcm_register_device(&snd_rpi_dac_device);
+        bcm_register_device(&snd_pcm1794a_codec_device);
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];

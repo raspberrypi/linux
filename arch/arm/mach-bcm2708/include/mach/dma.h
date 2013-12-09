@@ -45,6 +45,8 @@
 #define BCM2708_DMA_ADDR	0x04
 /* the current control block appears in the following registers - read only */
 #define BCM2708_DMA_INFO	0x08
+#define BCM2708_DMA_SOURCE_AD	0x0c
+#define BCM2708_DMA_DEST_AD	0x10
 #define BCM2708_DMA_NEXTCB	0x1C
 #define BCM2708_DMA_DEBUG	0x20
 
