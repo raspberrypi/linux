@@ -15,7 +15,7 @@
  * core driver device
  */
 
-#define V4L2_CTRL_COUNT 19 /* number of v4l controls */
+#define V4L2_CTRL_COUNT 20 /* number of v4l controls */
 
 enum {
 	MMAL_COMPONENT_CAMERA = 0,
