@@ -26,6 +26,7 @@
 struct mmal_fmt {
 	char  *name;
 	u32   fourcc;          /* v4l2 format id */
+	int   flags;           /* v4l2 flags field */
 	u32   mmal;
 	int   depth;
 	u32   mmal_component;  /* MMAL component index to be used to encode */
