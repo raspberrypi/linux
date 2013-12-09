@@ -664,10 +664,18 @@ static int vidioc_g_fbuf(struct file *file, void *fh,
 {
 	/* The video overlay must stay within the framebuffer and can't be
 	   positioned independently. */
+	struct bm2835_mmal_dev *dev = video_drvdata(file);
+	struct vchiq_mmal_port *preview_port =
+		    &dev->component[MMAL_COMPONENT_CAMERA]->
+		    output[MMAL_CAMERA_PORT_PREVIEW];
 	a->flags = V4L2_FBUF_FLAG_OVERLAY;
-
-	/* todo: v4l2_framebuffer still needs more info filling in
-	 *       in order to pass the v4l2-compliance test. */
+	a->fmt.width = preview_port->es.video.width;
+	a->fmt.height = preview_port->es.video.height;
+	a->fmt.pixelformat = V4L2_PIX_FMT_YUV420;
+	a->fmt.bytesperline = (preview_port->es.video.width * 3)>>1;
+	a->fmt.sizeimage = (preview_port->es.video.width *
+			       preview_port->es.video.height * 3)>>1;
+	a->fmt.colorspace = V4L2_COLORSPACE_SMPTE170M;
 
 	return 0;
 }
