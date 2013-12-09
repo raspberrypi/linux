@@ -742,7 +742,7 @@ static int send_synchronous_mmal_msg(struct vchiq_mmal_instance *instance,
 		return ret;
 	}
 
-	ret = wait_for_completion_timeout(&msg_context.u.sync.cmplt, HZ);
+	ret = wait_for_completion_timeout(&msg_context.u.sync.cmplt, 3*HZ);
 	if (ret <= 0) {
 		pr_err("error %d waiting for sync completion\n", ret);
 		if (ret == 0)
@@ -1326,7 +1326,7 @@ static int port_parameter_get(struct vchiq_mmal_instance *instance,
 		memcpy(value, &rmsg->u.port_parameter_get_reply.value,
 		       rmsg->u.port_parameter_get_reply.size);
 
-	pr_info("%s:result:%d component:0x%x port:%d parameter:%d\n", __func__,
+	pr_debug("%s:result:%d component:0x%x port:%d parameter:%d\n", __func__,
 	        ret, port->component->handle, port->handle, parameter_id);
 
 release_msg:
