@@ -178,6 +178,25 @@ static int ctrl_set_value(struct bm2835_mmal_dev *dev,
 					     &u32_value, sizeof(u32_value));
 }
 
+static int ctrl_set_value_menu(struct bm2835_mmal_dev *dev,
+		      struct v4l2_ctrl *ctrl,
+		      const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl)
+{
+	u32 u32_value;
+	struct vchiq_mmal_port *control;
+
+	if (ctrl->val > mmal_ctrl->max || ctrl->val < mmal_ctrl->min)
+		return 1;
+
+	control = &dev->component[MMAL_COMPONENT_CAMERA]->control;
+
+	u32_value = mmal_ctrl->imenu[ctrl->val];
+
+	return vchiq_mmal_port_parameter_set(dev->instance, control,
+					     mmal_ctrl->mmal_id,
+					     &u32_value, sizeof(u32_value));
+}
+
 static int ctrl_set_value_ev(struct bm2835_mmal_dev *dev,
 		      struct v4l2_ctrl *ctrl,
 		      const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl)
@@ -601,7 +620,7 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 	{
 		V4L2_CID_ISO_SENSITIVITY, MMAL_CONTROL_TYPE_INT_MENU,
 		0, ARRAY_SIZE(iso_qmenu) - 1, 0, 1, iso_qmenu,
-		MMAL_PARAMETER_ISO, &ctrl_set_value
+		MMAL_PARAMETER_ISO, &ctrl_set_value_menu
 	},
 	{
 		V4L2_CID_IMAGE_STABILIZATION, MMAL_CONTROL_TYPE_STD,
