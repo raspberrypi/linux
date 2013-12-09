@@ -538,7 +538,7 @@ static int ctrl_set_bitrate_mode(struct bm2835_mmal_dev *dev,
 	return 0;
 }
 
-static int ctrl_set_q_factor(struct bm2835_mmal_dev *dev,
+static int ctrl_set_image_encode_output(struct bm2835_mmal_dev *dev,
 		      struct v4l2_ctrl *ctrl,
 		      const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl)
 {
@@ -683,9 +683,9 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 	},
 	{
 		V4L2_CID_JPEG_COMPRESSION_QUALITY, MMAL_CONTROL_TYPE_STD,
-		0, 100,
+		1, 100,
 		30, 1, NULL,
-		MMAL_PARAMETER_JPEG_Q_FACTOR, &ctrl_set_q_factor
+		MMAL_PARAMETER_JPEG_Q_FACTOR, &ctrl_set_image_encode_output
 	},
 };
 
