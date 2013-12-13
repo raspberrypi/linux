@@ -164,6 +164,11 @@ enum mmal_parameter_camera_type {
 	MMAL_PARAMETER_SHUTTER_SPEED              /**< Takes a @ref MMAL_PARAMETER_UINT32_T */
 };
 
+struct mmal_parameter_rational {
+	s32 num;    /**< Numerator */
+	s32 den;    /**< Denominator */
+};
+
 enum mmal_parameter_camera_config_timestamp_mode {
 	MMAL_PARAM_TIMESTAMP_MODE_ZERO = 0, /* Always timestamp frames as 0 */
 	MMAL_PARAM_TIMESTAMP_MODE_RAW_STC,  /* Use the raw STC value
