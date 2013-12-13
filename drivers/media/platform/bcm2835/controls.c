@@ -152,10 +152,7 @@ static int ctrl_set_rational(struct bm2835_mmal_dev *dev,
 		      struct v4l2_ctrl *ctrl,
 		      const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl)
 {
-	struct  {
-		s32 num;    /**< Numerator */
-		s32 den;    /**< Denominator */
-	} rational_value;
+	struct mmal_parameter_rational rational_value;
 	struct vchiq_mmal_port *control;
 
 	control = &dev->component[MMAL_COMPONENT_CAMERA]->control;
