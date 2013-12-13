@@ -32,9 +32,6 @@ enum {
 	MMAL_CAMERA_PORT_COUNT
 };
 
-#define PREVIEW_FRAME_RATE_NUM 30
-#define PREVIEW_FRAME_RATE_DEN 1
-
 #define PREVIEW_LAYER      2
 
 extern int bcm2835_v4l2_debug;
@@ -66,6 +63,7 @@ struct bm2835_mmal_dev {
 		unsigned int     height;  /* height */
 		unsigned int     stride;  /* stride */
 		struct mmal_fmt  *fmt;
+		struct v4l2_fract          timeperframe;
 
 		/* H264 encode bitrate */
 		int         encode_bitrate;
