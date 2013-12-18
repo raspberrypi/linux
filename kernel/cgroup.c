@@ -5413,6 +5413,29 @@ static int __init cgroup_disable(char *str)
 }
 __setup("cgroup_disable=", cgroup_disable);
 
+static int __init cgroup_enable(char *str)
+{
+	struct cgroup_subsys *ss;
+	char *token;
+	int i;
+
+	while ((token = strsep(&str, ",")) != NULL) {
+		if (!*token)
+			continue;
+
+		for_each_subsys(ss, i) {
+			if (!strcmp(token, ss->name)) {
+				ss->disabled = 0;
+				printk(KERN_INFO "Enabling %s control group"
+					" subsystem\n", ss->name);
+				break;
+			}
+		}
+	}
+	return 1;
+}
+__setup("cgroup_enable=", cgroup_enable);
+
 static int __init cgroup_set_legacy_files_on_dfl(char *str)
 {
 	printk("cgroup: using legacy files on the default hierarchy\n");
