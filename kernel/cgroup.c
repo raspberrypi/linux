@@ -5127,6 +5127,37 @@ static int __init cgroup_disable(char *str)
 }
 __setup("cgroup_disable=", cgroup_disable);
 
+static int __init cgroup_enable(char *str)
+{
+	int i;
+	char *token;
+
+	while ((token = strsep(&str, ",")) != NULL) {
+		if (!*token)
+			continue;
+		for (i = 0; i < CGROUP_SUBSYS_COUNT; i++) {
+			struct cgroup_subsys *ss = subsys[i];
+
+			/*
+			 * cgroup_enable, being at boot time, can't
+			 * know about module subsystems, so we don't
+			 * worry about them.
+			 */
+			if (!ss || ss->module)
+				continue;
+
+			if (!strcmp(token, ss->name)) {
+				ss->disabled = 0;
+				printk(KERN_INFO "Enabling %s control group"
+					" subsystem\n", ss->name);
+				break;
+			}
+		}
+	}
+	return 1;
+}
+__setup("cgroup_enable=", cgroup_enable);
+
 /*
  * Functons for CSS ID.
  */
