@@ -5591,7 +5591,7 @@ int __init cgroup_init_early(void)
 	return 0;
 }
 
-static u16 cgroup_disable_mask __initdata;
+static u16 cgroup_disable_mask __initdata = 1<<0;
 
 /**
  * cgroup_init - cgroup initialization
@@ -6120,6 +6120,28 @@ static int __init cgroup_no_v1(char *str)
 	return 1;
 }
 __setup("cgroup_no_v1=", cgroup_no_v1);
+
+static int __init cgroup_enable(char *str)
+{
+	struct cgroup_subsys *ss;
+	char *token;
+	int i;
+
+	while ((token = strsep(&str, ",")) != NULL) {
+		if (!*token)
+			continue;
+
+		for_each_subsys(ss, i) {
+			if (strcmp(token, ss->name) &&
+			    strcmp(token, ss->legacy_name))
+				continue;
+
+			cgroup_disable_mask &= ~(1 << i);
+		}
+	}
+	return 1;
+}
+__setup("cgroup_enable=", cgroup_enable);
 
 /**
  * css_tryget_online_from_dir - get corresponding css from a cgroup dentry
