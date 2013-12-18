@@ -5398,6 +5398,7 @@ struct cgroup_subsys memory_cgrp_subsys = {
 	.bind = mem_cgroup_bind,
 	.legacy_cftypes = mem_cgroup_files,
 	.early_init = 0,
+	.disabled = 1,
 };
 
 #ifdef CONFIG_MEMCG_SWAP
