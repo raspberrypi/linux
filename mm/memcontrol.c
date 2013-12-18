@@ -7043,6 +7043,7 @@ struct cgroup_subsys mem_cgroup_subsys = {
 	.bind = mem_cgroup_bind,
 	.base_cftypes = mem_cgroup_files,
 	.early_init = 0,
+	.disabled = 1,
 };
 
 #ifdef CONFIG_MEMCG_SWAP
