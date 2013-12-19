@@ -238,7 +238,8 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 		}
 	} else {
 		if (dev->capture.frame_count) {
-			if (dev->capture.vc_start_timestamp != -1) {
+			if (dev->capture.vc_start_timestamp != -1 &&
+			    pts != 0) {
 				s64 runtime_us = pts -
 				    dev->capture.vc_start_timestamp;
 				u32 div = 0;
@@ -259,7 +260,7 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 					    USEC_PER_SEC;
 				}
 				v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
-					 "Convert start time %d.%06d and %llu"
+					 "Convert start time %d.%06d and %llu "
 					 "with offset %llu to %d.%06d\n",
 					 (int)dev->capture.kernel_start_ts.
 					 tv_sec,
