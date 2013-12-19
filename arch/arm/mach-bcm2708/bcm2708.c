@@ -84,6 +84,7 @@
 static unsigned boardrev, serial;
 static unsigned uart_clock;
 static unsigned reboot_part = 0;
+static unsigned w1_gpio_pin = W1_GPIO;
 
 static void __init bcm2708_init_led(void);
 
@@ -766,6 +767,7 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_gpio_device);
 #endif
 #if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
+	w1_gpio_pdata.pin = w1_gpio_pin;
 	platform_device_register(&w1_device);
 #endif
 	bcm_register_device(&bcm2708_systemtimer_device);
@@ -983,3 +985,4 @@ module_param(boardrev, uint, 0644);
 module_param(serial, uint, 0644);
 module_param(uart_clock, uint, 0644);
 module_param(reboot_part, uint, 0644);
+module_param(w1_gpio_pin, uint, 0644);
