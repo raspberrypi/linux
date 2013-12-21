@@ -155,6 +155,8 @@ static inline void bcm2708_bsc_setup(struct bcm2708_i2c *bi)
 
 	bus_hz = clk_get_rate(bi->clk);
 	cdiv = bus_hz / baudrate;
+	if (cdiv > 0xffff)
+		cdiv = 0xffff;
 
 	if (bi->msg->flags & I2C_M_RD)
 		c |= BSC_C_INTR | BSC_C_READ;
@@ -291,6 +293,8 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 	struct clk *clk;
 	struct bcm2708_i2c *bi;
 	struct i2c_adapter *adap;
+	unsigned long bus_hz;
+	u32 cdiv;
 
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!regs) {
@@ -366,8 +370,15 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 		goto out_free_irq;
 	}
 
-	dev_info(&pdev->dev, "BSC%d Controller at 0x%08lx (irq %d) (baudrate %dk)\n",
-		pdev->id, (unsigned long)regs->start, irq, baudrate/1000);
+	bus_hz = clk_get_rate(bi->clk);
+	cdiv = bus_hz / baudrate;
+	if (cdiv > 0xffff) {
+		cdiv = 0xffff;
+		baudrate = bus_hz / cdiv;
+	}
+
+	dev_info(&pdev->dev, "BSC%d Controller at 0x%08lx (irq %d) (baudrate %d)\n",
+		pdev->id, (unsigned long)regs->start, irq, baudrate);
 
 	return 0;
 
