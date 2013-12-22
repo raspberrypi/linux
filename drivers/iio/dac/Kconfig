@@ -150,5 +150,11 @@ config MCP4725
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called mcp4725.
-
+config MCP4725_VREF_MV
+    prompt "MCP4725_VREF_MV"
+	depends on MCP4725
+    int
+    default 5000
+    help
+      Set the Vref for MCP4725. This value set Vref in mV; 
 endmenu

@@ -311,6 +311,23 @@ static ssize_t w1_master_attribute_show_timeout(struct device *dev, struct devic
 	return count;
 }
 
+static ssize_t w1_master_attribute_store_timeout(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	long tmp;
+	struct w1_master *md = dev_to_w1_master(dev);
+
+	if (strict_strtol(buf, 0, &tmp) == -EINVAL)
+		return -EINVAL;
+
+	mutex_lock(&md->mutex);
+	w1_timeout = tmp;
+	mutex_unlock(&md->mutex);
+	wake_up_process(md->thread);
+	return count;
+}
+
 static ssize_t w1_master_attribute_show_max_slave_count(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct w1_master *md = dev_to_w1_master(dev);
@@ -319,6 +336,23 @@ static ssize_t w1_master_attribute_show_max_slave_count(struct device *dev, stru
 	mutex_lock(&md->mutex);
 	count = sprintf(buf, "%d\n", md->max_slave_count);
 	mutex_unlock(&md->mutex);
+	return count;
+}
+
+static ssize_t w1_master_attribute_store_max_slave_count(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	long tmp;
+	struct w1_master *md = dev_to_w1_master(dev);
+
+	if (strict_strtol(buf, 0, &tmp) == -EINVAL)
+		return -EINVAL;
+
+	mutex_lock(&md->mutex);
+	md->max_slave_count = tmp;
+	mutex_unlock(&md->mutex);
+	wake_up_process(md->thread);
 	return count;
 }
 
@@ -513,9 +547,9 @@ static ssize_t w1_master_attribute_store_remove(struct device *dev,
 static W1_MASTER_ATTR_RO(name, S_IRUGO);
 static W1_MASTER_ATTR_RO(slaves, S_IRUGO);
 static W1_MASTER_ATTR_RO(slave_count, S_IRUGO);
-static W1_MASTER_ATTR_RO(max_slave_count, S_IRUGO);
+static W1_MASTER_ATTR_RW(max_slave_count, S_IRUGO | S_IWUSR | S_IWGRP);
 static W1_MASTER_ATTR_RO(attempts, S_IRUGO);
-static W1_MASTER_ATTR_RO(timeout, S_IRUGO);
+static W1_MASTER_ATTR_RW(timeout, S_IRUGO | S_IWUSR | S_IWGRP);
 static W1_MASTER_ATTR_RO(pointer, S_IRUGO);
 static W1_MASTER_ATTR_RW(search, S_IRUGO | S_IWUSR | S_IWGRP);
 static W1_MASTER_ATTR_RW(pullup, S_IRUGO | S_IWUSR | S_IWGRP);
