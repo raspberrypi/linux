@@ -28,10 +28,19 @@
 
 #define MCP4725_DRV_NAME "mcp4725"
 
+static unsigned int vref_mv = 5000;
+module_param(vref_mv, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(vref_mv, "vref_mv");
+
+
 struct mcp4725_data {
 	struct i2c_client *client;
 	u16 vref_mv;
 	u16 dac_value;
+};
+
+enum mcp4725_supported_i2c_device_ids {
+	ID_MCP4725
 };
 
 #ifdef CONFIG_PM_SLEEP
@@ -141,20 +150,74 @@ static const struct iio_info mcp4725_info = {
 	.driver_module = THIS_MODULE,
 };
 
+static ssize_t mcp4725_attribute_show_vref_mv(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct iio_dev *indio_dev=dev_to_iio_dev(dev);
+	struct mcp4725_data *mcp4725 = iio_priv(indio_dev);
+	ssize_t count;
+
+	mutex_lock(&indio_dev->mlock);
+	count = sprintf(buf, "%d\n", mcp4725->vref_mv);
+	mutex_unlock(&indio_dev->mlock);
+	return count;
+}
+
+static ssize_t mcp4725_attribute_store_vref_mv(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct iio_dev *indio_dev=dev_to_iio_dev(dev);
+	long tmp;
+	struct mcp4725_data *mcp4725 = iio_priv(indio_dev);
+
+	if (strict_strtol(buf, 0, &tmp) == -EINVAL)
+		return -EINVAL;
+
+	mutex_lock(&indio_dev->mlock);
+	mcp4725->vref_mv = tmp;
+	mutex_unlock(&indio_dev->mlock);
+	return count;
+}
+
+#define MCP4725_ATTR_RO(_name, _mode)				\
+	struct device_attribute mcp4725_attribute_##_name =	\
+		__ATTR(mcp4725_##_name, _mode,		\
+				mcp4725_attribute_show_##_name, NULL)
+
+#define MCP4725_ATTR_RW(_name, _mode)				\
+	struct device_attribute mcp4725_attribute_##_name =	\
+		__ATTR(mcp4725_##_name, _mode,		\
+			   mcp4725_attribute_show_##_name,	\
+		       mcp4725_attribute_store_##_name)
+
+static MCP4725_ATTR_RW(vref_mv, S_IRUGO | S_IWUSR | S_IWGRP);
+
+static struct attribute *mcp4725_default_attrs[] = {
+	&mcp4725_attribute_vref_mv.attr,
+	NULL
+};
+
+static struct attribute_group mcp4725_defattr_group = {
+	.attrs = mcp4725_default_attrs,
+};
+
+int mcp4725_create_attributes(struct iio_dev *indio_dev)
+{
+	return sysfs_create_group(&indio_dev->dev.kobj, &mcp4725_defattr_group);
+}
+
+void mcp4725_destroy_attributes(struct iio_dev *indio_dev)
+{
+	sysfs_remove_group(&indio_dev->dev.kobj, &mcp4725_defattr_group);
+}
+
 static int mcp4725_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
 	struct mcp4725_data *data;
 	struct iio_dev *indio_dev;
-	struct mcp4725_platform_data *platform_data = client->dev.platform_data;
 	u8 inbuf[3];
 	int err;
-
-	if (!platform_data || !platform_data->vref_mv) {
-		dev_err(&client->dev, "invalid platform data");
-		err = -EINVAL;
-		goto exit;
-	}
 
 	indio_dev = iio_device_alloc(sizeof(*data));
 	if (indio_dev == NULL) {
@@ -171,7 +234,7 @@ static int mcp4725_probe(struct i2c_client *client,
 	indio_dev->num_channels = 1;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 
-	data->vref_mv = platform_data->vref_mv;
+	data->vref_mv = vref_mv;
 
 	/* read current DAC value */
 	err = i2c_master_recv(client, inbuf, 3);
@@ -179,11 +242,18 @@ static int mcp4725_probe(struct i2c_client *client,
 		dev_err(&client->dev, "failed to read DAC value");
 		goto exit_free_device;
 	}
+
 	data->dac_value = (inbuf[1] << 4) | (inbuf[2] >> 4);
 
 	err = iio_device_register(indio_dev);
 	if (err)
 		goto exit_free_device;
+
+	int retval =  mcp4725_create_attributes(i2c_get_clientdata(client));
+	if (retval) {
+		dev_err(&client->dev, "failed to create attributes");
+		goto exit_free_device;
+	}
 
 	dev_info(&client->dev, "MCP4725 DAC registered\n");
 
@@ -198,7 +268,7 @@ exit:
 static int mcp4725_remove(struct i2c_client *client)
 {
 	struct iio_dev *indio_dev = i2c_get_clientdata(client);
-
+	mcp4725_destroy_attributes(indio_dev);
 	iio_device_unregister(indio_dev);
 	iio_device_free(indio_dev);
 
@@ -206,7 +276,7 @@ static int mcp4725_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id mcp4725_id[] = {
-	{ "mcp4725", 0 },
+	{ "mcp4725", ID_MCP4725 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, mcp4725_id);
