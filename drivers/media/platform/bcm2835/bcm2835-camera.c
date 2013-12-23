@@ -100,6 +100,13 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_H264,
 	 .depth = 8,
 	 .mmal_component = MMAL_COMPONENT_VIDEO_ENCODE,
+	 },
+	{
+	 .name = "MJPEG",
+	 .fourcc = V4L2_PIX_FMT_MJPEG,
+	 .mmal = MMAL_ENCODING_MJPEG,
+	 .depth = 8,
+	 .mmal_component = MMAL_COMPONENT_VIDEO_ENCODE,
 	 }
 };
 
