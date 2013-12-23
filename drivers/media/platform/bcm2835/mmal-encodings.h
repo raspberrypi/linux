@@ -27,6 +27,7 @@
 #define MMAL_ENCODING_VP6              MMAL_FOURCC('V', 'P', '6', ' ')
 #define MMAL_ENCODING_THEORA           MMAL_FOURCC('T', 'H', 'E', 'O')
 #define MMAL_ENCODING_SPARK            MMAL_FOURCC('S', 'P', 'R', 'K')
+#define MMAL_ENCODING_MJPEG            MMAL_FOURCC('M', 'J', 'P', 'G')
 
 #define MMAL_ENCODING_JPEG             MMAL_FOURCC('J', 'P', 'E', 'G')
 #define MMAL_ENCODING_GIF              MMAL_FOURCC('G', 'I', 'F', ' ')
