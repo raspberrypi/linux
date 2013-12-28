@@ -19,7 +19,7 @@
 #include <linux/cdev.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
-#include <linux/proc_fs.h>
+#include <linux/debugfs.h>
 #include <asm/uaccess.h>
 #include <linux/dma-mapping.h>
 
@@ -35,24 +35,15 @@
 
 #define DRIVER_NAME  "vc-mem"
 
-// Uncomment to enable debug logging
-// #define ENABLE_DBG
-
-#if defined(ENABLE_DBG)
-#define LOG_DBG( fmt, ... )  printk( KERN_INFO fmt "\n", ##__VA_ARGS__ )
-#else
-#define LOG_DBG( fmt, ... )
-#endif
-#define LOG_ERR( fmt, ... )  printk( KERN_ERR fmt "\n", ##__VA_ARGS__ )
-
 // Device (/dev) related variables
 static dev_t vc_mem_devnum = 0;
 static struct class *vc_mem_class = NULL;
 static struct cdev vc_mem_cdev;
 static int vc_mem_inited = 0;
 
-// Proc entry
-static struct proc_dir_entry *vc_mem_proc_entry;
+#ifdef CONFIG_DEBUG_FS
+static struct dentry *vc_mem_debugfs_entry;
+#endif
 
 /*
  * Videocore memory addresses and size
@@ -94,7 +85,7 @@ vc_mem_open(struct inode *inode, struct file *file)
 	(void) inode;
 	(void) file;
 
-	LOG_DBG("%s: called file = 0x%p", __func__, file);
+	pr_debug("%s: called file = 0x%p\n", __func__, file);
 
 	return 0;
 }
@@ -111,7 +102,7 @@ vc_mem_release(struct inode *inode, struct file *file)
 	(void) inode;
 	(void) file;
 
-	LOG_DBG("%s: called file = 0x%p", __func__, file);
+	pr_debug("%s: called file = 0x%p\n", __func__, file);
 
 	return 0;
 }
@@ -166,12 +157,12 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	(void) cmd;
 	(void) arg;
 
-	LOG_DBG("%s: called file = 0x%p", __func__, file);
+	pr_debug("%s: called file = 0x%p\n", __func__, file);
 
 	switch (cmd) {
 	case VC_MEM_IOC_MEM_PHYS_ADDR:
 		{
-			LOG_DBG("%s: VC_MEM_IOC_MEM_PHYS_ADDR=0x%p",
+			pr_debug("%s: VC_MEM_IOC_MEM_PHYS_ADDR=0x%p\n",
 				__func__, (void *) mm_vc_mem_phys_addr);
 
 			if (copy_to_user((void *) arg, &mm_vc_mem_phys_addr,
@@ -185,7 +176,7 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			// Get the videocore memory size first
 			vc_mem_get_size();
 
-			LOG_DBG("%s: VC_MEM_IOC_MEM_SIZE=%u", __func__,
+			pr_debug("%s: VC_MEM_IOC_MEM_SIZE=%u\n", __func__,
 				mm_vc_mem_size);
 
 			if (copy_to_user((void *) arg, &mm_vc_mem_size,
@@ -199,7 +190,7 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			// Get the videocore memory base
 			vc_mem_get_base();
 
-			LOG_DBG("%s: VC_MEM_IOC_MEM_BASE=%u", __func__,
+			pr_debug("%s: VC_MEM_IOC_MEM_BASE=%u\n", __func__,
 				mm_vc_mem_base);
 
 			if (copy_to_user((void *) arg, &mm_vc_mem_base,
@@ -213,7 +204,7 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			// Get the videocore memory base
 			vc_mem_get_base();
 
-			LOG_DBG("%s: VC_MEM_IOC_MEM_LOAD=%u", __func__,
+			pr_debug("%s: VC_MEM_IOC_MEM_LOAD=%u\n", __func__,
 				mm_vc_mem_base);
 
 			if (copy_to_user((void *) arg, &mm_vc_mem_base,
@@ -227,7 +218,7 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -ENOTTY;
 		}
 	}
-	LOG_DBG("%s: file = 0x%p returning %d", __func__, file, rc);
+	pr_debug("%s: file = 0x%p returning %d\n", __func__, file, rc);
 
 	return rc;
 }
@@ -245,12 +236,12 @@ vc_mem_mmap(struct file *filp, struct vm_area_struct *vma)
 	unsigned long length = vma->vm_end - vma->vm_start;
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 
-	LOG_DBG("%s: vm_start = 0x%08lx vm_end = 0x%08lx vm_pgoff = 0x%08lx",
+	pr_debug("%s: vm_start = 0x%08lx vm_end = 0x%08lx vm_pgoff = 0x%08lx\n",
 		__func__, (long) vma->vm_start, (long) vma->vm_end,
 		(long) vma->vm_pgoff);
 
 	if (offset + length > mm_vc_mem_size) {
-		LOG_ERR("%s: length %ld is too big", __func__, length);
+		pr_err("%s: length %ld is too big\n", __func__, length);
 		return -EINVAL;
 	}
 	// Do not cache the memory map
@@ -260,7 +251,7 @@ vc_mem_mmap(struct file *filp, struct vm_area_struct *vma)
 			     (mm_vc_mem_phys_addr >> PAGE_SHIFT) +
 			     vma->vm_pgoff, length, vma->vm_page_prot);
 	if (rc != 0) {
-		LOG_ERR("%s: remap_pfn_range failed (rc=%d)", __func__, rc);
+		pr_err("%s: remap_pfn_range failed (rc=%d)\n", __func__, rc);
 	}
 
 	return rc;
@@ -280,74 +271,59 @@ static const struct file_operations vc_mem_fops = {
 	.mmap = vc_mem_mmap,
 };
 
-/****************************************************************************
-*
-*   vc_mem_proc_read
-*
-***************************************************************************/
-
-static int
-vc_mem_proc_read(char *buf, char **start, off_t offset, int count, int *eof,
-		 void *data)
+#ifdef CONFIG_DEBUG_FS
+static void vc_mem_debugfs_deinit(void)
 {
-	char *p = buf;
-
-	(void) start;
-	(void) count;
-	(void) data;
-
-	if (offset > 0) {
-		*eof = 1;
-		return 0;
-	}
-	// Get the videocore memory size first
-	vc_mem_get_size();
-
-	p += sprintf(p, "Videocore memory:\n");
-	if (mm_vc_mem_phys_addr != 0)
-		p += sprintf(p, "   Physical address: 0x%p\n",
-			     (void *) mm_vc_mem_phys_addr);
-	else
-		p += sprintf(p, "   Physical address: 0x00000000\n");
-	p += sprintf(p, "   Length (bytes):   %u\n", mm_vc_mem_size);
-
-	*eof = 1;
-	return p - buf;
+	debugfs_remove_recursive(vc_mem_debugfs_entry);
+	vc_mem_debugfs_entry = NULL;
 }
 
-/****************************************************************************
-*
-*   vc_mem_proc_write
-*
-***************************************************************************/
 
-static int
-vc_mem_proc_write(struct file *file, const char __user * buffer,
-		  unsigned long count, void *data)
+static int vc_mem_debugfs_init(
+	struct device *dev)
 {
-	int rc = -EFAULT;
-	char input_str[10];
-
-	memset(input_str, 0, sizeof (input_str));
-
-	if (count > sizeof (input_str)) {
-		LOG_ERR("%s: input string length too long", __func__);
-		goto out;
+	vc_mem_debugfs_entry = debugfs_create_dir(DRIVER_NAME, NULL);
+	if (!vc_mem_debugfs_entry) {
+		dev_warn(dev, "could not create debugfs entry\n");
+		return -EFAULT;
 	}
 
-	if (copy_from_user(input_str, buffer, count - 1)) {
-		LOG_ERR("%s: failed to get input string", __func__);
-		goto out;
+	if (!debugfs_create_x32("vc_mem_phys_addr",
+				0444,
+				vc_mem_debugfs_entry,
+				(u32 *)&mm_vc_mem_phys_addr)) {
+		dev_warn(dev, "%s:could not create vc_mem_phys entry\n",
+			__func__);
+		goto fail;
 	}
 
-	if (strncmp(input_str, "connect", strlen("connect")) == 0) {
-		// Get the videocore memory size from the videocore
-		vc_mem_get_size();
+	if (!debugfs_create_x32("vc_mem_size",
+				0444,
+				vc_mem_debugfs_entry,
+				(u32 *)&mm_vc_mem_size)) {
+		dev_warn(dev, "%s:could not create vc_mem_size entry\n",
+			__func__);
+		goto fail;
 	}
 
-      out:
-	return rc;
+	if (!debugfs_create_x32("vc_mem_base",
+				0444,
+				vc_mem_debugfs_entry,
+				(u32 *)&mm_vc_mem_base)) {
+		dev_warn(dev, "%s:could not create vc_mem_base entry\n",
+			 __func__);
+		goto fail;
+	}
+
+	return 0;
+
+fail:
+	vc_mem_debugfs_deinit();
+	return -EFAULT;
 }
+
+#endif /* CONFIG_DEBUG_FS */
+
 
 /****************************************************************************
 *
@@ -361,7 +337,7 @@ vc_mem_init(void)
 	int rc = -EFAULT;
 	struct device *dev;
 
-	LOG_DBG("%s: called", __func__);
+	pr_debug("%s: called\n", __func__);
 
 	mm_vc_mem_phys_addr = phys_addr;
 	mm_vc_mem_size = mem_size;
@@ -369,24 +345,25 @@ vc_mem_init(void)
 
 	vc_mem_get_size();
 
-	printk("vc-mem: phys_addr:0x%08lx mem_base=0x%08x mem_size:0x%08x(%u MiB)\n",
+	pr_info("vc-mem: phys_addr:0x%08lx mem_base=0x%08x mem_size:0x%08x(%u MiB)\n",
 		mm_vc_mem_phys_addr, mm_vc_mem_base, mm_vc_mem_size, mm_vc_mem_size / (1024 * 1024));
 
 	if ((rc = alloc_chrdev_region(&vc_mem_devnum, 0, 1, DRIVER_NAME)) < 0) {
-		LOG_ERR("%s: alloc_chrdev_region failed (rc=%d)", __func__, rc);
+		pr_err("%s: alloc_chrdev_region failed (rc=%d)\n",
+		       __func__, rc);
 		goto out_err;
 	}
 
 	cdev_init(&vc_mem_cdev, &vc_mem_fops);
 	if ((rc = cdev_add(&vc_mem_cdev, vc_mem_devnum, 1)) != 0) {
-		LOG_ERR("%s: cdev_add failed (rc=%d)", __func__, rc);
+		pr_err("%s: cdev_add failed (rc=%d)\n", __func__, rc);
 		goto out_unregister;
 	}
 
 	vc_mem_class = class_create(THIS_MODULE, DRIVER_NAME);
 	if (IS_ERR(vc_mem_class)) {
 		rc = PTR_ERR(vc_mem_class);
-		LOG_ERR("%s: class_create failed (rc=%d)", __func__, rc);
+		pr_err("%s: class_create failed (rc=%d)\n", __func__, rc);
 		goto out_cdev_del;
 	}
 
@@ -394,25 +371,18 @@ vc_mem_init(void)
 			    DRIVER_NAME);
 	if (IS_ERR(dev)) {
 		rc = PTR_ERR(dev);
-		LOG_ERR("%s: device_create failed (rc=%d)", __func__, rc);
+		pr_err("%s: device_create failed (rc=%d)\n", __func__, rc);
 		goto out_class_destroy;
 	}
 
-#if 0
-	vc_mem_proc_entry = create_proc_entry(DRIVER_NAME, 0444, NULL);
-	if (vc_mem_proc_entry == NULL) {
-		rc = -EFAULT;
-		LOG_ERR("%s: create_proc_entry failed", __func__);
-		goto out_device_destroy;
-	}
-	vc_mem_proc_entry->read_proc = vc_mem_proc_read;
-	vc_mem_proc_entry->write_proc = vc_mem_proc_write;
+#ifdef CONFIG_DEBUG_FS
+	/* don't fail if the debug entries cannot be created */
+	vc_mem_debugfs_init(dev);
 #endif
 
 	vc_mem_inited = 1;
 	return 0;
 
-      out_device_destroy:
 	device_destroy(vc_mem_class, vc_mem_devnum);
 
       out_class_destroy:
@@ -438,11 +408,11 @@ vc_mem_init(void)
 static void __exit
 vc_mem_exit(void)
 {
-	LOG_DBG("%s: called", __func__);
+	pr_debug("%s: called\n", __func__);
 
 	if (vc_mem_inited) {
-#if 0
-		remove_proc_entry(vc_mem_proc_entry->name, NULL);
+#if CONFIG_DEBUG_FS
+		vc_mem_debugfs_deinit();
 #endif
 		device_destroy(vc_mem_class, vc_mem_devnum);
 		class_destroy(vc_mem_class);
