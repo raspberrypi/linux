@@ -27,6 +27,7 @@
 #include <linux/clk.h>
 #include <linux/printk.h>
 #include <linux/console.h>
+#include <linux/debugfs.h>
 
 #include <mach/dma.h>
 #include <mach/platform.h>
@@ -58,6 +59,12 @@ struct fbinfo_s {
 	u16 cmap[256];
 };
 
+struct bcm2708_fb_stats {
+	struct debugfs_regset32 regset;
+	u32 dma_copies;
+	u32 dma_irqs;
+};
+
 struct bcm2708_fb {
 	struct fb_info fb;
 	struct platform_device *dev;
@@ -69,9 +76,50 @@ struct bcm2708_fb {
 	void __iomem *dma_chan_base;
 	void *cb_base;		/* DMA control blocks */
 	dma_addr_t cb_handle;
+	struct dentry *debugfs_dir;
+	struct bcm2708_fb_stats stats;
 };
 
 #define to_bcm2708(info)	container_of(info, struct bcm2708_fb, fb)
+
+static void bcm2708_fb_debugfs_deinit(struct bcm2708_fb *fb)
+{
+	debugfs_remove_recursive(fb->debugfs_dir);
+	fb->debugfs_dir = NULL;
+}
+
+static int bcm2708_fb_debugfs_init(struct bcm2708_fb *fb)
+{
+	static struct debugfs_reg32 stats_registers[] = {
+		{
+			"dma_copies",
+			offsetof(struct bcm2708_fb_stats, dma_copies)
+		},
+	};
+
+	fb->debugfs_dir = debugfs_create_dir(DRIVER_NAME, NULL);
+	if (!fb->debugfs_dir) {
+		pr_warn("%s: could not create debugfs entry\n",
+			__func__);
+		return -EFAULT;
+	}
+
+	fb->stats.regset.regs = stats_registers;
+	fb->stats.regset.nregs = ARRAY_SIZE(stats_registers);
+	fb->stats.regset.base = &fb->stats;
+
+	if (!debugfs_create_regset32(
+		"stats", 0444, fb->debugfs_dir, &fb->stats.regset)) {
+		pr_warn("%s: could not create statistics registers\n",
+			__func__);
+		goto fail;
+	}
+	return 0;
+
+fail:
+	bcm2708_fb_debugfs_deinit(fb);
+	return -EFAULT;
+}
 
 static int bcm2708_fb_set_bitfields(struct fb_var_screeninfo *var)
 {
@@ -443,8 +491,10 @@ static void bcm2708_fb_copyarea(struct fb_info *info,
 	/* end of dma control blocks chain */
 	cb->next = 0;
 
+
 	bcm_dma_start(fb->dma_chan_base, fb->cb_handle);
 	bcm_dma_wait_idle(fb->dma_chan_base);
+	fb->stats.dma_copies++;
 }
 
 static void bcm2708_fb_imageblit(struct fb_info *info,
@@ -552,6 +602,9 @@ static int bcm2708_fb_probe(struct platform_device *dev)
 	}
 	memset(fb, 0, sizeof(struct bcm2708_fb));
 
+
+	bcm2708_fb_debugfs_init(fb);
+
 	fb->cb_base = dma_alloc_writecombine(&dev->dev, SZ_64K,
 					     &fb->cb_handle, GFP_KERNEL);
 	if (!fb->cb_base) {
@@ -607,6 +660,8 @@ static int bcm2708_fb_remove(struct platform_device *dev)
 
 	dma_free_coherent(NULL, PAGE_ALIGN(sizeof(*fb->info)), (void *)fb->info,
 			  fb->dma);
+	bcm2708_fb_debugfs_deinit(fb);
+
 	kfree(fb);
 
 	return 0;
