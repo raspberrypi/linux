@@ -127,7 +127,6 @@ static int snd_bcm2835_playback_open(struct snd_pcm_substream *substream)
 	alsa_stream->chip = chip;
 	alsa_stream->substream = substream;
 	alsa_stream->idx = idx;
-	chip->alsa_stream[idx] = alsa_stream;
 
 	sema_init(&alsa_stream->buffers_update_sem, 0);
 	sema_init(&alsa_stream->control_sem, 0);
@@ -149,6 +148,7 @@ static int snd_bcm2835_playback_open(struct snd_pcm_substream *substream)
 		kfree(alsa_stream);
 		return err;
 	}
+	chip->alsa_stream[idx] = alsa_stream;
 
 	alsa_stream->open = 1;
 	alsa_stream->draining = 1;
