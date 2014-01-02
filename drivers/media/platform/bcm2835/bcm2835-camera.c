@@ -69,6 +69,7 @@ static struct mmal_fmt formats[] = {
 	{
 	 .name = "4:2:0, packed YUV",
 	 .fourcc = V4L2_PIX_FMT_YUV420,
+	 .flags = 0,
 	 .mmal = MMAL_ENCODING_I420,
 	 .depth = 12,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
@@ -76,6 +77,7 @@ static struct mmal_fmt formats[] = {
 	{
 	 .name = "4:2:2, packed, YUYV",
 	 .fourcc = V4L2_PIX_FMT_YUYV,
+	 .flags = 0,
 	 .mmal = MMAL_ENCODING_YUYV,
 	 .depth = 16,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
@@ -83,6 +85,7 @@ static struct mmal_fmt formats[] = {
 	{
 	 .name = "RGB24 (BE)",
 	 .fourcc = V4L2_PIX_FMT_BGR24,
+	 .flags = 0,
 	 .mmal = MMAL_ENCODING_BGR24,
 	 .depth = 24,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
@@ -90,6 +93,7 @@ static struct mmal_fmt formats[] = {
 	{
 	 .name = "JPEG",
 	 .fourcc = V4L2_PIX_FMT_JPEG,
+	 .flags = V4L2_FMT_FLAG_COMPRESSED,
 	 .mmal = MMAL_ENCODING_JPEG,
 	 .depth = 8,
 	 .mmal_component = MMAL_COMPONENT_IMAGE_ENCODE,
@@ -97,6 +101,7 @@ static struct mmal_fmt formats[] = {
 	{
 	 .name = "H264",
 	 .fourcc = V4L2_PIX_FMT_H264,
+	 .flags = V4L2_FMT_FLAG_COMPRESSED,
 	 .mmal = MMAL_ENCODING_H264,
 	 .depth = 8,
 	 .mmal_component = MMAL_COMPONENT_VIDEO_ENCODE,
@@ -104,6 +109,7 @@ static struct mmal_fmt formats[] = {
 	{
 	 .name = "MJPEG",
 	 .fourcc = V4L2_PIX_FMT_MJPEG,
+	 .flags = V4L2_FMT_FLAG_COMPRESSED,
 	 .mmal = MMAL_ENCODING_MJPEG,
 	 .depth = 8,
 	 .mmal_component = MMAL_COMPONENT_VIDEO_ENCODE,
@@ -555,6 +561,7 @@ static int vidioc_enum_fmt_vid_overlay(struct file *file, void *priv,
 
 	strlcpy(f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
+	f->flags = fmt->flags;
 
 	return 0;
 }
@@ -750,6 +757,8 @@ static int vidioc_enum_fmt_vid_cap(struct file *file, void *priv,
 
 	strlcpy(f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
+	f->flags = fmt->flags;
+
 	return 0;
 }
 
