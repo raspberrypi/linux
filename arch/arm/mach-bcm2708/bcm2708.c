@@ -667,6 +667,19 @@ static struct platform_device snd_pcm1794a_codec_device = {
 };
 #endif
 
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_PROTO_MODULE
+static struct platform_device snd_rpi_proto_device = {
+	.name = "snd-rpi-proto",
+	.id = 0,
+	.num_resources = 0,
+};
+static struct i2c_board_info __initdata snd_rpi_proto_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("wm8731", 0x1a)
+	},
+};
+#endif
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -805,6 +818,12 @@ void __init bcm2708_init(void)
 #if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
         bcm_register_device(&snd_rpi_dac_device);
         bcm_register_device(&snd_pcm1794a_codec_device);
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_PROTO_MODULE
+	bcm_register_device(&snd_rpi_proto_device);
+	i2c_register_board_info(1, snd_rpi_proto_i2c_devices,
+			ARRAY_SIZE(snd_rpi_proto_i2c_devices));
 #endif
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
