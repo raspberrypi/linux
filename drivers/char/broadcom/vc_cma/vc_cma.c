@@ -46,7 +46,7 @@
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
 
-#include "vc_cma.h"
+#include <linux/broadcom/vc_cma.h>
 
 #include "vchiq_util.h"
 #include "vchiq_connected.h"
