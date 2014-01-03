@@ -641,29 +641,59 @@ static struct platform_device bcm2708_i2s_device = {
 
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
 static struct platform_device snd_hifiberry_dac_device = {
-        .name = "snd-hifiberry-dac",
-        .id = 0,
-        .num_resources = 0,
+	.name = "snd-hifiberry-dac",
+	.id = 0,
+	.num_resources = 0,
 };
 
 static struct platform_device snd_pcm5102a_codec_device = {
-        .name = "pcm5102a-codec",
-        .id = -1,
-        .num_resources = 0,
+	.name = "pcm5102a-codec",
+	.id = -1,
+	.num_resources = 0,
 };
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
 static struct platform_device snd_rpi_dac_device = {
-        .name = "snd-rpi-dac",
-        .id = 0,
-        .num_resources = 0,
+	.name = "snd-rpi-dac",
+	.id = 0,
+	.num_resources = 0,
 };
 
 static struct platform_device snd_pcm1794a_codec_device = {
-        .name = "pcm1794a-codec",
-        .id = -1,
-        .num_resources = 0,
+	.name = "pcm1794a-codec",
+	.id = -1,
+	.num_resources = 0,
+};
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_MBED_MODULE
+static struct platform_device snd_rpi_mbed_device = {
+	.name = "snd-rpi-mbed",
+	.id = 0,
+	.num_resources = 0,
+};
+
+
+static struct i2c_board_info __initdata snd_rpi_mbed_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("tlv320aic23", 0x1b)
+	},
+};
+#endif
+
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_TDA1541A_MODULE
+static struct platform_device snd_rpi_tda1541a_device = {
+	.name = "snd-rpi-tda1541a",
+	.id = 0,
+	.num_resources = 0,
+};
+
+static struct platform_device snd_rpi_tda1541a_codec_device = {
+	.name = "tda1541a-codec",
+	.id = -1,
+	.num_resources = 0,
 };
 #endif
 
@@ -673,10 +703,54 @@ static struct platform_device snd_rpi_proto_device = {
 	.id = 0,
 	.num_resources = 0,
 };
+
 static struct i2c_board_info __initdata snd_rpi_proto_i2c_devices[] = {
 	{
 		I2C_BOARD_INFO("wm8731", 0x1a)
 	},
+};
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_CS534X_MODULE
+static struct platform_device snd_rpi_cs534x_device = {
+	.name = "snd-rpi-cs534x",
+	.id = 0,
+	.num_resources = 0,
+};
+
+static struct platform_device snd_rpi_cs534x_codec_device = {
+	.name = "cs534x-codec",
+	.id = -1,
+	.num_resources = 0,
+};
+
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_ESS9018_MODULE
+static struct platform_device snd_rpi_ess9018_device = {
+	.name = "snd-rpi-ess9018",
+	.id = 0,
+	.num_resources = 0,
+};
+
+static struct platform_device snd_rpi_ess9018_codec_device = {
+	.name = "ess9018-codec",
+	.id = -1,
+	.num_resources = 0,
+};
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_PCM5102A_MODULE
+static struct platform_device snd_rpi_pcm5102a_device = {
+	.name = "snd-rpi-pcm5102a",
+	.id = 0,
+	.num_resources = 0,
+};
+
+static struct platform_device snd_rpi_pcm5102a_codec_device = {
+	.name = "pcm5102a-codec",
+	.id = -1,
+	.num_resources = 0,
 };
 #endif
 
@@ -811,19 +885,44 @@ void __init bcm2708_init(void)
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
-        bcm_register_device(&snd_hifiberry_dac_device);
-        bcm_register_device(&snd_pcm5102a_codec_device);
+	bcm_register_device(&snd_hifiberry_dac_device);
+	bcm_register_device(&snd_pcm5102a_codec_device);
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
-        bcm_register_device(&snd_rpi_dac_device);
-        bcm_register_device(&snd_pcm1794a_codec_device);
+	bcm_register_device(&snd_rpi_dac_device);
+	bcm_register_device(&snd_pcm1794a_codec_device);
+#endif
+
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_MBED_MODULE
+	bcm_register_device(&snd_rpi_mbed_device);
+	i2c_register_board_info(1, snd_rpi_mbed_i2c_devices, ARRAY_SIZE(snd_rpi_mbed_i2c_devices));
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_CS534X_MODULE
+	bcm_register_device(&snd_rpi_cs534x_device);
+	bcm_register_device(&snd_rpi_cs534x_codec_device);
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_TDA1541A_MODULE
+	bcm_register_device(&snd_rpi_tda1541a_device);
+	bcm_register_device(&snd_rpi_tda1541a_codec_device);
 #endif
 
 #ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_PROTO_MODULE
 	bcm_register_device(&snd_rpi_proto_device);
-	i2c_register_board_info(1, snd_rpi_proto_i2c_devices,
-			ARRAY_SIZE(snd_rpi_proto_i2c_devices));
+	i2c_register_board_info(1, snd_rpi_proto_i2c_devices, ARRAY_SIZE(snd_rpi_proto_i2c_devices));
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_ESS9018_MODULE
+	bcm_register_device(&snd_rpi_ess9018_device);
+	bcm_register_device(&snd_rpi_ess9018_codec_device);
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_PCM5102A_MODULE
+	bcm_register_device(&snd_rpi_pcm5102a_device);
+	bcm_register_device(&snd_rpi_pcm5102a_codec_device);
 #endif
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
