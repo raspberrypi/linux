@@ -49,9 +49,10 @@ static int snd_rpi_proto_hw_params(struct snd_pcm_substream *substream,
 	int ret = snd_soc_dai_set_bclk_ratio(cpu_dai,32*2);
 	if (ret < 0){
 		dev_err(substream->pcm->dev,
-				"Failed to set BCLK ratio %d\n", ret);
+				"Failed to set WM8731 BCLK ratio %d\n", ret);
 		return ret;
 	}
+
 	int sysclk = 12288000; /* This is fixed on this board */
 
 	/* Set proto sysclk */
