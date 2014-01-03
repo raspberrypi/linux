@@ -4,16 +4,16 @@
 
 ifneq ($(KERNELRELEASE),)
 
-EXTRA_CFLAGS	+= -DDWC_LINUX
-#EXTRA_CFLAGS	+= -DDEBUG
-#EXTRA_CFLAGS	+= -DDWC_DEBUG_REGS
-#EXTRA_CFLAGS	+= -DDWC_DEBUG_MEMORY
+ccflags-y	+= -DDWC_LINUX
+#ccflags-y	+= -DDEBUG
+#ccflags-y	+= -DDWC_DEBUG_REGS
+#ccflags-y	+= -DDWC_DEBUG_MEMORY
 
-EXTRA_CFLAGS	+= -DDWC_LIBMODULE
-EXTRA_CFLAGS	+= -DDWC_CCLIB
-#EXTRA_CFLAGS	+= -DDWC_CRYPTOLIB
-EXTRA_CFLAGS	+= -DDWC_NOTIFYLIB
-EXTRA_CFLAGS	+= -DDWC_UTFLIB
+ccflags-y	+= -DDWC_LIBMODULE
+ccflags-y	+= -DDWC_CCLIB
+#ccflags-y	+= -DDWC_CRYPTOLIB
+ccflags-y	+= -DDWC_NOTIFYLIB
+ccflags-y	+= -DDWC_UTFLIB
 
 obj-$(CONFIG_USB_DWCOTG)	+= dwc_common_port_lib.o
 dwc_common_port_lib-objs := dwc_cc.o dwc_modpow.o dwc_dh.o \
@@ -24,8 +24,8 @@ kernrelwd := $(subst ., ,$(KERNELRELEASE))
 kernrel3 := $(word 1,$(kernrelwd)).$(word 2,$(kernrelwd)).$(word 3,$(kernrelwd))
 			    
 ifneq ($(kernrel3),2.6.20)
-# grayg - I only know that we use EXTRA_CFLAGS in 2.6.31 actually
-EXTRA_CFLAGS += $(CPPFLAGS)
+# grayg - I only know that we use ccflags-y in 2.6.31 actually
+ccflags-y += $(CPPFLAGS)
 endif
 
 else
