@@ -22,3 +22,56 @@ config SND_BCM2708_SOC_RPI_DAC
         select SND_SOC_PCM1794A
         help
          Say Y or M if you want to add support for RPi-DAC.
+
+config SND_BCM2708_SOC_I2S
+	tristate "SoC Audio support for the Broadcom BCM2708 I2S module"
+	depends on MACH_BCM2708
+	select REGMAP_MMIO
+	select SND_SOC_DMAENGINE_PCM
+	select SND_SOC_GENERIC_DMAENGINE_PCM
+	help
+	 Say Y or M if you want to add support for codecs attached to
+	 the BCM2708 I2S interface. You will also need
+	 to select the audio interfaces to support below.
+
+config SND_BCM2708_SOC_HIFIBERRY_MINI
+	tristate "Support for HifiBerry Mini"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_PCM5102A
+	help
+	 Say Y or M if you want to add support for HifiBerry Mini.
+
+config SND_BCM2708_SOC_RPI_CODEC_MBED
+	tristate "Support for AudioCODEC for mbed (TLV320AIC32B)"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_TLV320AIC3X
+	help
+	 Say Y if you want to add support for AudioCODEC for mbed (TLV320AIC32B)
+
+config SND_BCM2708_SOC_RPI_CODEC_TDA1541A
+	tristate "Support for TDA1541A"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_TDA1541A
+	help
+	 Say Y if you want to add support for TDA1541A
+
+config SND_BCM2708_SOC_RPI_CODEC_PROTO
+	tristate "Support for Audio Codec Board - PROTO (WM8731)"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_WM8731
+	help
+	 Say Y if you want to add support for Audio Codec Board - PROTO (WM8731)
+
+config SND_BCM2708_SOC_RPI_CODEC_ESS9018
+	tristate "Support for ESS9018"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_ESS9018
+	help
+	 Say Y if you want to add support for ESS9018
+
+config SND_BCM2708_SOC_RPI_CODEC_PCM5102A
+	tristate "Support for PCM5102A"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_PCM5102A
+	help
+	 Say Y if you want to add support for PCM5102A
