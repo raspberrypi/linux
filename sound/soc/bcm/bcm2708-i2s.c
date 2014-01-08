@@ -437,6 +437,9 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 	case SND_SOC_DAIFMT_I2S:
 		data_delay = 1;
 		break;
+	case SND_SOC_DAIFMT_LEFT_J :
+		data_delay = 0;
+		break;
 	default:
 		/*
 		 * TODO

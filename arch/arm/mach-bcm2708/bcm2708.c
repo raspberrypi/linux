@@ -667,6 +667,20 @@ static struct platform_device snd_pcm1794a_codec_device = {
 };
 #endif
 
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_GUITAR_SYSTEM_MODULE
+static struct platform_device snd_rpi_guitar_system_device = {
+	.name = "snd-rpi-guitar-system",
+	.id = 0,
+	.num_resources = 0,
+};
+
+static struct platform_device snd_cs534x_codec_device = {
+	.name = "cs534x-codec",
+	.id = -1,
+	.num_resources = 0,
+};
+#endif
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -805,6 +819,11 @@ void __init bcm2708_init(void)
 #if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
         bcm_register_device(&snd_rpi_dac_device);
         bcm_register_device(&snd_pcm1794a_codec_device);
+#endif
+
+#if defined (CONFIG_SND_BCM2708_SOC_RPI_GUITAR_SYSTEM) || defined(CONFIG_SND_BCM2708_SOC_RPI_GUITAR_SYSTEM_MODULE)
+	bcm_register_device(&snd_rpi_guitar_system_device);
+	bcm_register_device(&snd_cs534x_codec_device);
 #endif
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {

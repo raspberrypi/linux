@@ -37,6 +37,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_CS42L73 if I2C
 	select SND_SOC_CS4270 if I2C
 	select SND_SOC_CS4271 if SND_SOC_I2C_AND_SPI
+	select SND_SOC_CS534X
 	select SND_SOC_CX20442 if TTY
 	select SND_SOC_DA7210 if I2C
 	select SND_SOC_DA7213 if I2C
@@ -252,6 +253,9 @@ config SND_SOC_CS4270_VD33_ERRATA
 	depends on SND_SOC_CS4270
 
 config SND_SOC_CS4271
+	tristate
+
+config SND_SOC_CS534X
 	tristate
 
 config SND_SOC_CX20442
@@ -560,3 +564,4 @@ config SND_SOC_ML26124
 
 config SND_SOC_TPA6130A2
 	tristate
+

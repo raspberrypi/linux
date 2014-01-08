@@ -22,3 +22,11 @@ config SND_BCM2708_SOC_RPI_DAC
         select SND_SOC_PCM1794A
         help
          Say Y or M if you want to add support for RPi-DAC.
+
+config SND_BCM2708_SOC_RPI_GUITAR_SYSTEM
+	tristate "Support for guitar system with CS5343/CS5344 ADC"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_CS534X
+	help
+	  Say Y if you want to add support for CS5343/CS5344
+ 
