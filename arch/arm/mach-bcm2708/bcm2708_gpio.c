@@ -16,7 +16,7 @@
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
-#include <mach/gpio.h>
+#include <mach/gpio_irq.h>
 #include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <mach/platform.h>
