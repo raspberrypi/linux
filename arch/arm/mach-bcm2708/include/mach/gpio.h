@@ -9,9 +9,7 @@
 #ifndef __ASM_ARCH_GPIO_H
 #define __ASM_ARCH_GPIO_H
 
-#define ARCH_NR_GPIOS 54 // number of gpio lines
-
-#define __bcm2708_gpio_to_irq(x)   ((x) + GPIO_IRQ_START)
-#define __bcm2708_irq_to_gpio(x)   ((x) - GPIO_IRQ_START)
+#error Use <mach/gpio_irq.h> and __bcm2708_gpio_to_irq() to achieve what you want. <mach/gpio.h> used to contain gpio_to_irq() which conflicted with the gpio subsystem function of the same name in subtle ways.
 
 #endif
+
