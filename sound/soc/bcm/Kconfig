@@ -22,3 +22,11 @@ config SND_BCM2708_SOC_RPI_DAC
         select SND_SOC_PCM1794A
         help
          Say Y or M if you want to add support for RPi-DAC.
+
+config SND_BCM2708_SOC_RPI_CODEC_PROTO
+	tristate "Support for Audio Codec Board - PROTO (WM8731)"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_WM8731
+	help
+	 Say Y if you want to add support for Audio Codec Board - 
+	 PROTO (WM8731)
