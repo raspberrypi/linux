@@ -304,6 +304,7 @@ static int wm8804_hw_params(struct snd_pcm_substream *substream,
 		blen = 0x1;
 		break;
 	case 24:
+	case 32:
 		blen = 0x2;
 		break;
 	default:
@@ -515,7 +516,7 @@ static const struct snd_soc_dai_ops wm8804_dai_ops = {
 };
 
 #define WM8804_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | \
-			SNDRV_PCM_FMTBIT_S24_LE)
+			SNDRV_PCM_FMTBIT_S24_3LE | SNDRV_PCM_FMTBIT_S32_LE)
 
 #define WM8804_RATES (SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_44100 | \
 		      SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_64000 | \
@@ -543,7 +544,7 @@ static struct snd_soc_dai_driver wm8804_dai = {
 };
 
 static const struct snd_soc_codec_driver soc_codec_dev_wm8804 = {
-	.idle_bias_off = true,
+	.idle_bias_off = false,
 
 	.dapm_widgets = wm8804_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(wm8804_dapm_widgets),
