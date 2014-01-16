@@ -79,6 +79,8 @@ static int vmbus_negotiate_version(struct vmbus_channel_msginfo *msginfo,
 	msg->monitor_page2 = virt_to_phys(
 			(void *)((unsigned long)vmbus_connection.monitor_pages +
 				 PAGE_SIZE));
+	if (version == VERSION_WIN8)
+		msg->target_vcpu = hv_context.vp_index[smp_processor_id()];
 
 	/*
 	 * Add to list before we send the request since we may
