@@ -544,7 +544,7 @@ static struct snd_soc_dai_driver wm8804_dai = {
 };
 
 static const struct snd_soc_codec_driver soc_codec_dev_wm8804 = {
-	.idle_bias_off = true,
+	.idle_bias_off = false,
 
 	.dapm_widgets = wm8804_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(wm8804_dapm_widgets),
