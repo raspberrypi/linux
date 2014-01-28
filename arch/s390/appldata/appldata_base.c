@@ -527,6 +527,7 @@ static int __init appldata_init(void)
 {
 	int rc;
 
+	init_virt_timer(&appldata_timer);
 	appldata_timer.function = appldata_timer_function;
 	appldata_timer.data = (unsigned long) &appldata_work;
 
