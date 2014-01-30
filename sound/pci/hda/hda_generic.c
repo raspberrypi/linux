@@ -3264,7 +3264,7 @@ static int cap_put_caller(struct snd_kcontrol *kcontrol,
 	mutex_unlock(&codec->control_mutex);
 	snd_hda_codec_flush_cache(codec); /* flush the updates */
 	if (err >= 0 && spec->cap_sync_hook)
-		spec->cap_sync_hook(codec, ucontrol);
+		spec->cap_sync_hook(codec, kcontrol, ucontrol);
 	return err;
 }
 
@@ -3385,7 +3385,7 @@ static int cap_single_sw_put(struct snd_kcontrol *kcontrol,
 		return ret;
 
 	if (spec->cap_sync_hook)
-		spec->cap_sync_hook(codec, ucontrol);
+		spec->cap_sync_hook(codec, kcontrol, ucontrol);
 
 	return ret;
 }
@@ -3790,7 +3790,7 @@ static int mux_select(struct hda_codec *codec, unsigned int adc_idx,
 		return 0;
 	snd_hda_activate_path(codec, path, true, false);
 	if (spec->cap_sync_hook)
-		spec->cap_sync_hook(codec, NULL);
+		spec->cap_sync_hook(codec, NULL, NULL);
 	path_power_down_sync(codec, old_path);
 	return 1;
 }
@@ -5233,7 +5233,7 @@ static void init_input_src(struct hda_codec *codec)
 	}
 
 	if (spec->cap_sync_hook)
-		spec->cap_sync_hook(codec, NULL);
+		spec->cap_sync_hook(codec, NULL, NULL);
 }
 
 /* set right pin controls for digital I/O */
