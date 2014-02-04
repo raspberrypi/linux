@@ -1012,25 +1012,11 @@ static void endpoint_disable(struct usb_hcd *hcd, struct usb_host_endpoint *ep)
 static void endpoint_reset(struct usb_hcd *hcd, struct usb_host_endpoint *ep)
 {
 	dwc_irqflags_t flags;
-	struct usb_device *udev = NULL;
-	int epnum = usb_endpoint_num(&ep->desc);
-	int is_out = usb_endpoint_dir_out(&ep->desc);
-	int is_control = usb_endpoint_xfer_control(&ep->desc);
 	dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd(hcd);
-        struct device *dev = DWC_OTG_OS_GETDEV(dwc_otg_hcd->otg_dev->os_dep);
-
-	if (dev)
-		udev = to_usb_device(dev);
-	else
-		return;
 
 	DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD EP RESET: Endpoint Num=0x%02d\n", epnum);
 
 	DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &flags);
-	usb_settoggle(udev, epnum, is_out, 0);
-	if (is_control)
-		usb_settoggle(udev, epnum, !is_out, 0);
-
 	if (ep->hcpriv) {
 		dwc_otg_hcd_endpoint_reset(dwc_otg_hcd, ep->hcpriv);
 	}
