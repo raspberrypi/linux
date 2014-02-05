@@ -646,9 +646,6 @@ static int bcm2708_fb_probe(struct platform_device *dev)
 
 	bcm2708_fb_debugfs_init(fb);
 
-
-	bcm2708_fb_debugfs_init(fb);
-
 	fb->cb_base = dma_alloc_writecombine(&dev->dev, SZ_64K,
 					     &fb->cb_handle, GFP_KERNEL);
 	if (!fb->cb_base) {
