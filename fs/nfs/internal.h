@@ -266,6 +266,18 @@ extern const u32 nfs41_maxgetdevinfo_overhead;
 extern struct rpc_procinfo nfs4_procedures[];
 #endif
 
+#ifdef CONFIG_NFS_V4_SECURITY_LABEL
+static inline void nfs_zap_label_cache_locked(struct nfs_inode *nfsi)
+{
+	if (nfs_server_capable(&nfsi->vfs_inode, NFS_CAP_SECURITY_LABEL))
+		nfsi->cache_validity |= NFS_INO_INVALID_LABEL;
+}
+#else
+static inline void nfs_zap_label_cache_locked(struct nfs_inode *nfsi)
+{
+}
+#endif /* CONFIG_NFS_V4_SECURITY_LABEL */
+
 /* proc.c */
 void nfs_close_context(struct nfs_open_context *ctx, int is_sync);
 extern struct nfs_client *nfs_init_client(struct nfs_client *clp,
