@@ -4410,16 +4410,6 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 	rcu_assign_pointer(cgrp->name, name);
 
 	/*
-	 * Temporarily set the pointer to NULL, so idr_find() won't return
-	 * a half-baked cgroup.
-	 */
-	cgrp->id = idr_alloc(&root->cgroup_idr, NULL, 1, 0, GFP_KERNEL);
-	if (cgrp->id < 0) {
-		err = -ENOMEM;
-		goto err_free_name;
-	}
-
-	/*
 	 * Only live parents can have children.  Note that the liveliness
 	 * check isn't strictly necessary because cgroup_mkdir() and
 	 * cgroup_rmdir() are fully synchronized by i_mutex; however, do it
@@ -4428,7 +4418,7 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 	 */
 	if (!cgroup_lock_live_group(parent)) {
 		err = -ENODEV;
-		goto err_free_id;
+		goto err_free_name;
 	}
 
 	/* Grab a reference on the superblock so the hierarchy doesn't
@@ -4437,6 +4427,16 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 	 * disappear while someone has an open control file on the
 	 * fs */
 	atomic_inc(&sb->s_active);
+
+	/*
+	 * Temporarily set the pointer to NULL, so idr_find() won't return
+	 * a half-baked cgroup.
+	 */
+	cgrp->id = idr_alloc(&root->cgroup_idr, NULL, 1, 0, GFP_KERNEL);
+	if (cgrp->id < 0) {
+		err = -ENOMEM;
+		goto err_unlock;
+ 	}
 
 	init_cgroup_housekeeping(cgrp);
 
@@ -4544,11 +4544,11 @@ err_free_all:
 			ss->css_free(css);
 		}
 	}
+	idr_remove(&root->cgroup_idr, cgrp->id);
+err_unlock:
 	mutex_unlock(&cgroup_mutex);
 	/* Release the reference count that we took on the superblock */
 	deactivate_super(sb);
-err_free_id:
-	idr_remove(&root->cgroup_idr, cgrp->id);
 err_free_name:
 	kfree(rcu_dereference_raw(cgrp->name));
 err_free_cgrp:
