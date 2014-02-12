@@ -84,8 +84,8 @@ static struct mmal_fmt formats[] = {
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
 	 },
 	{
-	 .name = "RGB24 (BE)",
-	 .fourcc = V4L2_PIX_FMT_BGR24,
+	 .name = "RGB24 (LE)",
+	 .fourcc = V4L2_PIX_FMT_RGB24,
 	 .flags = 0,
 	 .mmal = MMAL_ENCODING_BGR24,
 	 .depth = 24,
