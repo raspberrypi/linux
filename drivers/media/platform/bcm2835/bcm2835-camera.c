@@ -114,7 +114,39 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_MJPEG,
 	 .depth = 8,
 	 .mmal_component = MMAL_COMPONENT_VIDEO_ENCODE,
-	 }
+	 },
+	{
+	 .name = "4:2:2, packed, YVYU",
+	 .fourcc = V4L2_PIX_FMT_YVYU,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_YVYU,
+	 .depth = 16,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "4:2:2, packed, VYUY",
+	 .fourcc = V4L2_PIX_FMT_VYUY,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_VYUY,
+	 .depth = 16,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "4:2:2, packed, UYVY",
+	 .fourcc = V4L2_PIX_FMT_UYVY,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_UYVY,
+	 .depth = 16,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "4:2:0, packed, NV12",
+	 .fourcc = V4L2_PIX_FMT_NV12,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_NV12,
+	 .depth = 12,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
 };
 
 static struct mmal_fmt *get_format(struct v4l2_format *f)
@@ -691,7 +723,7 @@ static int vidioc_g_fbuf(struct file *file, void *fh,
 	a->fmt.bytesperline = (preview_port->es.video.width * 3)>>1;
 	a->fmt.sizeimage = (preview_port->es.video.width *
 			       preview_port->es.video.height * 3)>>1;
-	a->fmt.colorspace = V4L2_COLORSPACE_SMPTE170M;
+	a->fmt.colorspace = V4L2_COLORSPACE_JPEG;
 
 	return 0;
 }
