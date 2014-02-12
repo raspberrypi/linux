@@ -70,6 +70,7 @@ struct bm2835_mmal_dev {
 		unsigned int     width;  /* width */
 		unsigned int     height;  /* height */
 		unsigned int     stride;  /* stride */
+		unsigned int     buffersize; /* buffer size with padding */
 		struct mmal_fmt  *fmt;
 		struct v4l2_fract timeperframe;
 

@@ -828,20 +828,13 @@ static int vidioc_g_fmt_vid_cap(struct file *file, void *priv,
 	f->fmt.pix.height = dev->capture.height;
 	f->fmt.pix.field = V4L2_FIELD_NONE;
 	f->fmt.pix.pixelformat = dev->capture.fmt->fourcc;
-	f->fmt.pix.bytesperline =
-	    (f->fmt.pix.width * dev->capture.fmt->depth) >> 3;
-	f->fmt.pix.sizeimage = f->fmt.pix.height * f->fmt.pix.bytesperline;
-	if (dev->capture.fmt->fourcc == V4L2_PIX_FMT_JPEG
-	    && f->fmt.pix.sizeimage < (100 << 10)) {
-		/* Need a minimum size for JPEG to account for EXIF. */
-		f->fmt.pix.sizeimage = (100 << 10);
-	}
+	f->fmt.pix.bytesperline = dev->capture.stride;
+	f->fmt.pix.sizeimage = dev->capture.buffersize;
 
-	if (dev->capture.fmt->fourcc == V4L2_PIX_FMT_YUYV ||
-	    dev->capture.fmt->fourcc == V4L2_PIX_FMT_UYVY)
-		f->fmt.pix.colorspace = V4L2_COLORSPACE_SMPTE170M;
-	else
+	if (dev->capture.fmt->fourcc == V4L2_PIX_FMT_RGB24)
 		f->fmt.pix.colorspace = V4L2_COLORSPACE_SRGB;
+	else
+		f->fmt.pix.colorspace = V4L2_COLORSPACE_JPEG;
 	f->fmt.pix.priv = 0;
 
 	v4l2_dump_pix_format(1, bcm2835_v4l2_debug, &dev->v4l2_dev, &f->fmt.pix,
@@ -865,20 +858,34 @@ static int vidioc_try_fmt_vid_cap(struct file *file, void *priv,
 	}
 
 	f->fmt.pix.field = V4L2_FIELD_NONE;
-	/* image must be a multiple of 32 pixels wide and 16 lines high */
-	v4l_bound_align_image(&f->fmt.pix.width, 48, MAX_WIDTH, 5,
-			      &f->fmt.pix.height, 32, MAX_HEIGHT, 4, 0);
-	f->fmt.pix.bytesperline = (f->fmt.pix.width * mfmt->depth) >> 3;
-	f->fmt.pix.sizeimage = f->fmt.pix.height * f->fmt.pix.bytesperline;
-	if (f->fmt.pix.sizeimage < MIN_BUFFER_SIZE)
+
+	v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+		"Clipping/aligning %dx%d format %08X\n",
+		f->fmt.pix.width, f->fmt.pix.height, f->fmt.pix.pixelformat);
+
+	v4l_bound_align_image(&f->fmt.pix.width, MIN_WIDTH, MAX_WIDTH, 1,
+			      &f->fmt.pix.height, MIN_HEIGHT, MAX_HEIGHT, 1, 0);
+	f->fmt.pix.bytesperline = (f->fmt.pix.width * mfmt->depth)>>3;
+
+	/* Image buffer has to be padded to allow for alignment, even though
+	 * we then remove that padding before delivering the buffer.
+	 */
+	f->fmt.pix.sizeimage = ((f->fmt.pix.height+15)&~15) *
+			(((f->fmt.pix.width+31)&~31) * mfmt->depth) >> 3;
+
+	if ((mfmt->flags & V4L2_FMT_FLAG_COMPRESSED) &&
+	    f->fmt.pix.sizeimage < MIN_BUFFER_SIZE)
 		f->fmt.pix.sizeimage = MIN_BUFFER_SIZE;
 
-	if (mfmt->fourcc == V4L2_PIX_FMT_YUYV ||
-	    mfmt->fourcc == V4L2_PIX_FMT_UYVY)
-		f->fmt.pix.colorspace = V4L2_COLORSPACE_SMPTE170M;
-	else
+	if (dev->capture.fmt->fourcc == V4L2_PIX_FMT_RGB24)
 		f->fmt.pix.colorspace = V4L2_COLORSPACE_SRGB;
+	else
+		f->fmt.pix.colorspace = V4L2_COLORSPACE_JPEG;
 	f->fmt.pix.priv = 0;
+
+	v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+		"Now %dx%d format %08X\n",
+		f->fmt.pix.width, f->fmt.pix.height, f->fmt.pix.pixelformat);
 
 	v4l2_dump_pix_format(1, bcm2835_v4l2_debug, &dev->v4l2_dev, &f->fmt.pix,
 			     __func__);
@@ -1014,7 +1021,9 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 
 	if (ret) {
 		v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
-			 "%s failed to set format\n", __func__);
+			 "%s failed to set format %dx%d %08X\n", __func__,
+			 f->fmt.pix.width, f->fmt.pix.height,
+			 f->fmt.pix.pixelformat);
 		/* ensure capture is not going to be tried */
 		dev->capture.port = NULL;
 	} else {
@@ -1071,8 +1080,12 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 				if (ret)
 					v4l2_dbg(1, bcm2835_v4l2_debug,
 						 &dev->v4l2_dev,
-						 "%s failed to set format\n",
-						 __func__);
+						 "%s failed to set format %dx%d fmt %08X\n",
+						 __func__,
+						 f->fmt.pix.width,
+						 f->fmt.pix.height,
+						 f->fmt.pix.pixelformat
+						 );
 			}
 
 			if (!ret) {
@@ -1122,6 +1135,7 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 			dev->capture.stride = f->fmt.pix.bytesperline;
 			dev->capture.width = camera_port->es.video.crop.width;
 			dev->capture.height = camera_port->es.video.crop.height;
+			dev->capture.buffersize = port->current_buffer.size;
 
 			/* select port for capture */
 			dev->capture.port = port;
@@ -1129,10 +1143,10 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 			dev->capture.encode_component = encode_component;
 			v4l2_dbg(1, bcm2835_v4l2_debug,
 				 &dev->v4l2_dev,
-				"Set dev->capture.fmt %08X, %dx%d, stride %d",
+				"Set dev->capture.fmt %08X, %dx%d, stride %d, size %d",
 				port->format.encoding,
 				dev->capture.width, dev->capture.height,
-				dev->capture.stride);
+				dev->capture.stride, dev->capture.buffersize);
 		}
 	}
 
@@ -1371,6 +1385,7 @@ static int __init mmal_init(struct bm2835_mmal_dev *dev)
 {
 	int ret;
 	struct mmal_es_format *format;
+	u32 bool_true = 1;
 
 	ret = vchiq_mmal_init(&dev->instance);
 	if (ret < 0)
@@ -1425,6 +1440,12 @@ static int __init mmal_init(struct bm2835_mmal_dev *dev)
 	format->es->video.frame_rate.num = 0; /* Rely on fps_range */
 	format->es->video.frame_rate.den = 1;
 
+	vchiq_mmal_port_parameter_set(dev->instance,
+		&dev->component[MMAL_COMPONENT_CAMERA]->
+				output[MMAL_CAMERA_PORT_VIDEO],
+		MMAL_PARAMETER_NO_IMAGE_PADDING,
+		&bool_true, sizeof(bool_true));
+
 	format =
 	    &dev->component[MMAL_COMPONENT_CAMERA]->
 	    output[MMAL_CAMERA_PORT_CAPTURE].format;
@@ -1447,6 +1468,12 @@ static int __init mmal_init(struct bm2835_mmal_dev *dev)
 	dev->capture.timeperframe = tpf_default;
 	dev->capture.enc_profile = V4L2_MPEG_VIDEO_H264_PROFILE_HIGH;
 	dev->capture.enc_level = V4L2_MPEG_VIDEO_H264_LEVEL_4_0;
+
+	vchiq_mmal_port_parameter_set(dev->instance,
+		&dev->component[MMAL_COMPONENT_CAMERA]->
+			output[MMAL_CAMERA_PORT_CAPTURE],
+		MMAL_PARAMETER_NO_IMAGE_PADDING,
+		&bool_true, sizeof(bool_true));
 
 	/* get the preview component ready */
 	ret = vchiq_mmal_component_init(
@@ -1578,9 +1605,9 @@ static int __init bm2835_mmal_init_device(struct bm2835_mmal_dev *dev,
 static struct v4l2_format default_v4l2_format = {
 	.fmt.pix.pixelformat = V4L2_PIX_FMT_JPEG,
 	.fmt.pix.width = 1024,
-	.fmt.pix.bytesperline = 1024 * 3 / 2,
+	.fmt.pix.bytesperline = 1024,
 	.fmt.pix.height = 768,
-	.fmt.pix.sizeimage = 1<<18,
+	.fmt.pix.sizeimage = 1024*768,
 };
 
 static int __init bm2835_mmal_init(void)
@@ -1643,6 +1670,9 @@ static int __init bm2835_mmal_init(void)
 	if (ret < 0)
 		goto unreg_dev;
 
+	/* Really want to call vidioc_s_fmt_vid_cap with the default
+	 * format, but currently the APIs don't join up.
+	 */
 	ret = mmal_setup_components(dev, &default_v4l2_format);
 	if (ret < 0) {
 		v4l2_err(&dev->v4l2_dev,
