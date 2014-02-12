@@ -69,7 +69,6 @@ static const s64 bitrate_mode_qmenu[] = {
 	(s64)V4L2_MPEG_VIDEO_BITRATE_MODE_CBR,
 };
 
-
 enum bm2835_mmal_ctrl_type {
 	MMAL_CONTROL_TYPE_STD,
 	MMAL_CONTROL_TYPE_STD_MENU,
@@ -329,6 +328,9 @@ static int ctrl_set_exposure(struct bm2835_mmal_dev *dev,
 
 		}
 		dev->exposure_mode = exp_mode;
+		dev->exposure_mode_v4l2 = ctrl->val;
+	} else if (mmal_ctrl->id == V4L2_CID_EXPOSURE_AUTO_PRIORITY) {
+		dev->exp_auto_priority = ctrl->val;
 	}
 
 	if (dev->exposure_mode == MMAL_PARAM_EXPOSUREMODE_OFF)
@@ -340,6 +342,8 @@ static int ctrl_set_exposure(struct bm2835_mmal_dev *dev,
 	ret += vchiq_mmal_port_parameter_set(dev->instance, control,
 					     MMAL_PARAMETER_EXPOSURE_MODE,
 					     &exp_mode, sizeof(u32));
+	ret += set_framerate_params(dev);
+
 	return ret;
 }
 
@@ -540,8 +544,8 @@ static int ctrl_set_colfx(struct bm2835_mmal_dev *dev,
 					&dev->colourfx, sizeof(dev->colourfx));
 
 	v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
-		 "After: mmal_ctrl:%p ctrl id:0x%x ctrl val:%d ret %d(%d)\n",
-			mmal_ctrl, ctrl->id, ctrl->val, ret,
+		 "%s: After: mmal_ctrl:%p ctrl id:0x%x ctrl val:%d ret %d(%d)\n",
+			__func__, mmal_ctrl, ctrl->id, ctrl->val, ret,
 			(ret == 0 ? 0 : -EINVAL));
 	return (ret == 0 ? 0 : EINVAL);
 }
@@ -623,6 +627,117 @@ static int ctrl_set_video_encode_param_output(struct bm2835_mmal_dev *dev,
 					     &u32_value, sizeof(u32_value));
 }
 
+static int ctrl_set_video_encode_profile_level(struct bm2835_mmal_dev *dev,
+		      struct v4l2_ctrl *ctrl,
+		      const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl)
+{
+	struct mmal_parameter_video_profile param;
+	int ret = 0;
+
+	if (ctrl->id == V4L2_CID_MPEG_VIDEO_H264_PROFILE) {
+		switch (ctrl->val) {
+		case V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE:
+		case V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE:
+		case V4L2_MPEG_VIDEO_H264_PROFILE_MAIN:
+		case V4L2_MPEG_VIDEO_H264_PROFILE_HIGH:
+			dev->capture.enc_profile = ctrl->val;
+			break;
+		default:
+			ret = -EINVAL;
+			break;
+		}
+	} else if (ctrl->id == V4L2_CID_MPEG_VIDEO_H264_LEVEL) {
+		switch (ctrl->val) {
+		case V4L2_MPEG_VIDEO_H264_LEVEL_1_0:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_1B:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_1_1:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_1_2:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_1_3:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_2_0:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_2_1:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_2_2:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_3_0:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_3_1:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_3_2:
+		case V4L2_MPEG_VIDEO_H264_LEVEL_4_0:
+			dev->capture.enc_level = ctrl->val;
+			break;
+		default:
+			ret = -EINVAL;
+			break;
+		}
+	}
+
+	if (!ret) {
+		switch (dev->capture.enc_profile) {
+		case V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE:
+			param.profile = MMAL_VIDEO_PROFILE_H264_BASELINE;
+			break;
+		case V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE:
+			param.profile =
+				MMAL_VIDEO_PROFILE_H264_CONSTRAINED_BASELINE;
+			break;
+		case V4L2_MPEG_VIDEO_H264_PROFILE_MAIN:
+			param.profile = MMAL_VIDEO_PROFILE_H264_MAIN;
+			break;
+		case V4L2_MPEG_VIDEO_H264_PROFILE_HIGH:
+			param.profile = MMAL_VIDEO_PROFILE_H264_HIGH;
+			break;
+		default:
+			/* Should never get here */
+			break;
+		}
+
+		switch (dev->capture.enc_level) {
+		case V4L2_MPEG_VIDEO_H264_LEVEL_1_0:
+			param.level = MMAL_VIDEO_LEVEL_H264_1;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_1B:
+			param.level = MMAL_VIDEO_LEVEL_H264_1b;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_1_1:
+			param.level = MMAL_VIDEO_LEVEL_H264_11;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_1_2:
+			param.level = MMAL_VIDEO_LEVEL_H264_12;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_1_3:
+			param.level = MMAL_VIDEO_LEVEL_H264_13;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_2_0:
+			param.level = MMAL_VIDEO_LEVEL_H264_2;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_2_1:
+			param.level = MMAL_VIDEO_LEVEL_H264_21;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_2_2:
+			param.level = MMAL_VIDEO_LEVEL_H264_22;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_3_0:
+			param.level = MMAL_VIDEO_LEVEL_H264_3;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_3_1:
+			param.level = MMAL_VIDEO_LEVEL_H264_31;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_3_2:
+			param.level = MMAL_VIDEO_LEVEL_H264_32;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_4_0:
+			param.level = MMAL_VIDEO_LEVEL_H264_4;
+			break;
+		default:
+			/* Should never get here */
+			break;
+		}
+
+		ret = vchiq_mmal_port_parameter_set(dev->instance,
+			&dev->component[MMAL_COMPONENT_VIDEO_ENCODE]->output[0],
+			mmal_ctrl->mmal_id,
+			&param, sizeof(param));
+	}
+	return ret;
+}
+
 static int bm2835_mmal_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct bm2835_mmal_dev *dev =
@@ -639,6 +754,9 @@ static int bm2835_mmal_s_ctrl(struct v4l2_ctrl *ctrl)
 	}
 
 	ret = mmal_ctrl->setter(dev, ctrl, mmal_ctrl);
+	if (ret)
+		pr_warn("ctrl id:%d/MMAL param %08X- returned ret %d\n",
+				ctrl->id, mmal_ctrl->mmal_id, ret);
 	if (mmal_ctrl->ignore_errors)
 		ret = 0;
 	return ret;
@@ -722,6 +840,14 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 		(ARRAY_SIZE(ev_bias_qmenu)+1)/2 - 1, 0, ev_bias_qmenu,
 		MMAL_PARAMETER_EXPOSURE_COMP,
 		&ctrl_set_value_ev,
+		false
+	},
+	{
+		V4L2_CID_EXPOSURE_AUTO_PRIORITY, MMAL_CONTROL_TYPE_STD,
+		0, 1,
+		0, 1, NULL,
+		0,	/* Dummy MMAL ID as it gets mapped into FPS range*/
+		&ctrl_set_exposure,
 		false
 	},
 	{
@@ -814,6 +940,39 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 		&ctrl_set_video_encode_param_output,
 		true	/* Errors ignored as requires latest firmware to work */
 	},
+	{
+		V4L2_CID_MPEG_VIDEO_H264_PROFILE,
+		MMAL_CONTROL_TYPE_STD_MENU,
+		~((1<<V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
+			(1<<V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE) |
+			(1<<V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
+			(1<<V4L2_MPEG_VIDEO_H264_PROFILE_HIGH)),
+		V4L2_MPEG_VIDEO_H264_PROFILE_HIGH,
+		V4L2_MPEG_VIDEO_H264_PROFILE_HIGH, 1, NULL,
+		MMAL_PARAMETER_PROFILE,
+		&ctrl_set_video_encode_profile_level,
+		false
+	},
+	{
+		V4L2_CID_MPEG_VIDEO_H264_LEVEL, MMAL_CONTROL_TYPE_STD_MENU,
+		~((1<<V4L2_MPEG_VIDEO_H264_LEVEL_1_0) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_1B) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_1_1) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_1_2) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_1_3) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_2_0) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_2_1) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_2_2) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_3_0) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_3_1) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_3_2) |
+			(1<<V4L2_MPEG_VIDEO_H264_LEVEL_4_0)),
+		V4L2_MPEG_VIDEO_H264_LEVEL_4_0,
+		V4L2_MPEG_VIDEO_H264_LEVEL_4_0, 1, NULL,
+		MMAL_PARAMETER_PROFILE,
+		&ctrl_set_video_encode_profile_level,
+		false
+	},
 };
 
 int bm2835_mmal_set_all_camera_controls(struct bm2835_mmal_dev *dev)
@@ -825,13 +984,71 @@ int bm2835_mmal_set_all_camera_controls(struct bm2835_mmal_dev *dev)
 		if ((dev->ctrls[c]) && (v4l2_ctrls[c].setter)) {
 			ret = v4l2_ctrls[c].setter(dev, dev->ctrls[c],
 						   &v4l2_ctrls[c]);
-			if (!v4l2_ctrls[c]. ignore_errors && ret)
+			if (!v4l2_ctrls[c].ignore_errors && ret) {
+				v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+					"Failed when setting default values for ctrl %d\n",
+					c);
 				break;
+			}
 		}
 	}
 	return ret;
 }
 
+int set_framerate_params(struct bm2835_mmal_dev *dev)
+{
+	struct mmal_parameter_fps_range fps_range;
+	int ret;
+
+	if ((dev->exposure_mode_v4l2 == V4L2_EXPOSURE_AUTO ||
+	     dev->exposure_mode_v4l2 == V4L2_EXPOSURE_APERTURE_PRIORITY) &&
+	     (dev->exp_auto_priority)) {
+		/* Variable FPS. Define min FPS as 1fps.
+		 * Max as max defined FPS.
+		 */
+		fps_range.fps_low.num = 1;
+		fps_range.fps_low.den = 1;
+		fps_range.fps_high.num = dev->capture.timeperframe.denominator;
+		fps_range.fps_high.den = dev->capture.timeperframe.numerator;
+	} else {
+		/* Fixed FPS - set min and max to be the same */
+		fps_range.fps_low.num = fps_range.fps_high.num =
+			dev->capture.timeperframe.denominator;
+		fps_range.fps_low.den = fps_range.fps_high.den =
+			dev->capture.timeperframe.numerator;
+	}
+
+	v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+			 "Set fps range to %d/%d to %d/%d\n",
+			 fps_range.fps_low.num,
+			 fps_range.fps_low.den,
+			 fps_range.fps_high.num,
+			 fps_range.fps_high.den
+		 );
+
+	ret = vchiq_mmal_port_parameter_set(dev->instance,
+				      &dev->component[MMAL_COMPONENT_CAMERA]->
+					output[MMAL_CAMERA_PORT_PREVIEW],
+				      MMAL_PARAMETER_FPS_RANGE,
+				      &fps_range, sizeof(fps_range));
+	ret += vchiq_mmal_port_parameter_set(dev->instance,
+				      &dev->component[MMAL_COMPONENT_CAMERA]->
+					output[MMAL_CAMERA_PORT_VIDEO],
+				      MMAL_PARAMETER_FPS_RANGE,
+				      &fps_range, sizeof(fps_range));
+	ret += vchiq_mmal_port_parameter_set(dev->instance,
+				      &dev->component[MMAL_COMPONENT_CAMERA]->
+					output[MMAL_CAMERA_PORT_CAPTURE],
+				      MMAL_PARAMETER_FPS_RANGE,
+				      &fps_range, sizeof(fps_range));
+	if (ret)
+		v4l2_dbg(0, bcm2835_v4l2_debug, &dev->v4l2_dev,
+		 "Failed to set fps ret %d\n",
+		 ret);
+
+	return ret;
+
+}
 int bm2835_mmal_init_controls(struct bm2835_mmal_dev *dev,
 			      struct v4l2_ctrl_handler *hdl)
 {
