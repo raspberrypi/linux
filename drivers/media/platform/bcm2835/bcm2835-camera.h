@@ -15,7 +15,7 @@
  * core driver device
  */
 
-#define V4L2_CTRL_COUNT 24 /* number of v4l controls */
+#define V4L2_CTRL_COUNT 25 /* number of v4l controls */
 
 enum {
 	MMAL_COMPONENT_CAMERA = 0,
@@ -45,11 +45,15 @@ struct bm2835_mmal_dev {
 	/* controls */
 	struct v4l2_ctrl_handler  ctrl_handler;
 	struct v4l2_ctrl          *ctrls[V4L2_CTRL_COUNT];
+	enum v4l2_scene_mode	  scene_mode;
 	struct mmal_colourfx      colourfx;
 	int                       hflip;
 	int                       vflip;
-	enum mmal_parameter_exposuremode exposure_mode;
-	enum v4l2_exposure_auto_type exposure_mode_v4l2;
+	enum mmal_parameter_exposuremode exposure_mode_user;
+	enum v4l2_exposure_auto_type exposure_mode_v4l2_user;
+	/* active exposure mode may differ if selected via a scene mode */
+	enum mmal_parameter_exposuremode exposure_mode_active;
+	enum mmal_parameter_exposuremeteringmode metering_mode;
 	unsigned int		  manual_shutter_speed;
 	bool			  exp_auto_priority;
 
