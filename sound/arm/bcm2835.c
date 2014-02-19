@@ -104,7 +104,7 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 		goto out;
 
 	snd_card_set_dev(g_card, &pdev->dev);
-	strcpy(g_card->driver, "BRCM bcm2835 ALSA Driver");
+	strcpy(g_card->driver, "bcm2835");
 	strcpy(g_card->shortname, "bcm2835 ALSA");
 	sprintf(g_card->longname, "%s", g_card->shortname);
 
@@ -119,6 +119,12 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 	if (err < 0) {
 		dev_err(&pdev->dev, "Failed to create new BCM2835 pcm device\n");
 		goto out_bcm2835_new_pcm;
+	}
+
+	err = snd_bcm2835_new_spdif_pcm(chip);
+	if (err < 0) {
+		dev_err(&pdev->dev, "Failed to create new BCM2835 spdif pcm device\n");
+		goto out_bcm2835_new_spdif;
 	}
 
 	err = snd_bcm2835_new_ctl(chip);
@@ -156,6 +162,7 @@ add_register_map:
 
 out_card_register:
 out_bcm2835_new_ctl:
+out_bcm2835_new_spdif:
 out_bcm2835_new_pcm:
 out_bcm2835_create:
 	BUG_ON(!g_card);
