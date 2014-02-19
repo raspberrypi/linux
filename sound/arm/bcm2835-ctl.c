@@ -30,6 +30,7 @@
 #include <sound/rawmidi.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
+#include <sound/asoundef.h>
 
 #include "bcm2835.h"
 
@@ -183,6 +184,122 @@ static struct snd_kcontrol_new snd_bcm2835_ctl[] = {
 	},
 };
 
+static int snd_bcm2835_spdif_default_info(struct snd_kcontrol *kcontrol,
+					  struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_IEC958;
+	uinfo->count = 1;
+	return 0;
+}
+
+static int snd_bcm2835_spdif_default_get(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	struct bcm2835_chip *chip = snd_kcontrol_chip(kcontrol);
+	int i;
+
+	for (i = 0; i < 4; i++)
+		ucontrol->value.iec958.status[i] =
+			(chip->spdif_status >> (i * 8)) && 0xff;
+
+	return 0;
+}
+
+static int snd_bcm2835_spdif_default_put(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	struct bcm2835_chip *chip = snd_kcontrol_chip(kcontrol);
+	unsigned int val = 0;
+	int i, change;
+
+	for (i = 0; i < 4; i++)
+		val |= (unsigned int)ucontrol->value.iec958.status[i] << (i * 8);
+
+	change = val != chip->spdif_status;
+	chip->spdif_status = val;
+
+	return change;
+}
+
+static int snd_bcm2835_spdif_mask_info(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_IEC958;
+	uinfo->count = 1;
+	return 0;
+}
+
+static int snd_bcm2835_spdif_mask_get(struct snd_kcontrol *kcontrol,
+				      struct snd_ctl_elem_value *ucontrol)
+{
+	/* bcm2835 supports only consumer mode and sets all other format flags
+	 * automatically. So the only thing left is signalling non-audio
+	 * content */
+	ucontrol->value.iec958.status[0] = IEC958_AES0_NONAUDIO;
+	return 0;
+}
+
+static int snd_bcm2835_spdif_stream_info(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_IEC958;
+	uinfo->count = 1;
+	return 0;
+}
+
+static int snd_bcm2835_spdif_stream_get(struct snd_kcontrol *kcontrol,
+					struct snd_ctl_elem_value *ucontrol)
+{
+	struct bcm2835_chip *chip = snd_kcontrol_chip(kcontrol);
+	int i;
+
+	for (i = 0; i < 4; i++)
+		ucontrol->value.iec958.status[i] =
+			(chip->spdif_status >> (i * 8)) & 0xff;
+	return 0;
+}
+
+static int snd_bcm2835_spdif_stream_put(struct snd_kcontrol *kcontrol,
+					struct snd_ctl_elem_value *ucontrol)
+{
+	struct bcm2835_chip *chip = snd_kcontrol_chip(kcontrol);
+	unsigned int val = 0;
+	int i, change;
+
+	for (i = 0; i < 4; i++)
+		val |= (unsigned int)ucontrol->value.iec958.status[i] << (i * 8);
+	change = val != chip->spdif_status;
+	chip->spdif_status = val;
+
+	return change;
+}
+
+static struct snd_kcontrol_new snd_bcm2835_spdif[] = {
+	{
+		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
+		.name = SNDRV_CTL_NAME_IEC958("", PLAYBACK, DEFAULT),
+		.info = snd_bcm2835_spdif_default_info,
+		.get = snd_bcm2835_spdif_default_get,
+		.put = snd_bcm2835_spdif_default_put
+	},
+	{
+		.access = SNDRV_CTL_ELEM_ACCESS_READ,
+		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
+		.name = SNDRV_CTL_NAME_IEC958("", PLAYBACK, CON_MASK),
+		.info = snd_bcm2835_spdif_mask_info,
+		.get = snd_bcm2835_spdif_mask_get,
+	},
+	{
+		.access = SNDRV_CTL_ELEM_ACCESS_READWRITE |
+			SNDRV_CTL_ELEM_ACCESS_INACTIVE,
+		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
+		.name = SNDRV_CTL_NAME_IEC958("", PLAYBACK, PCM_STREAM),
+		.info = snd_bcm2835_spdif_stream_info,
+		.get = snd_bcm2835_spdif_stream_get,
+		.put = snd_bcm2835_spdif_stream_put,
+	},
+};
+
 int snd_bcm2835_new_ctl(bcm2835_chip_t * chip)
 {
 	int err;
@@ -193,6 +310,12 @@ int snd_bcm2835_new_ctl(bcm2835_chip_t * chip)
 		err =
 		    snd_ctl_add(chip->card,
 				snd_ctl_new1(&snd_bcm2835_ctl[idx], chip));
+		if (err < 0)
+			return err;
+	}
+	for (idx = 0; idx < ARRAY_SIZE(snd_bcm2835_spdif); idx++) {
+		err = snd_ctl_add(chip->card,
+				snd_ctl_new1(&snd_bcm2835_spdif[idx], chip));
 		if (err < 0)
 			return err;
 	}
