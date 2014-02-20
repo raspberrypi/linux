@@ -1360,7 +1360,7 @@ static struct regulator *_regulator_get(struct device *dev, const char *id,
 		rdev = dummy_regulator_rdev;
 		goto found;
 	} else {
-		dev_err(dev, "dummy supplies not allowed\n");
+		dev_warn(dev, "dummy supplies not allowed\n");
 	}
 
 	mutex_unlock(&regulator_list_mutex);
