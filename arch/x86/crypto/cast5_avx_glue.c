@@ -61,7 +61,7 @@ static inline void cast5_fpu_end(bool fpu_enabled)
 
 static int ecb_crypt(struct skcipher_request *req, bool enc)
 {
-	bool fpu_enabled = false;
+	bool fpu_enabled;
 	struct crypto_skcipher *tfm = crypto_skcipher_reqtfm(req);
 	struct cast5_ctx *ctx = crypto_skcipher_ctx(tfm);
 	struct skcipher_walk walk;
@@ -76,7 +76,7 @@ static int ecb_crypt(struct skcipher_request *req, bool enc)
 		u8 *wsrc = walk.src.virt.addr;
 		u8 *wdst = walk.dst.virt.addr;
 
-		fpu_enabled = cast5_fpu_begin(fpu_enabled, &walk, nbytes);
+		fpu_enabled = cast5_fpu_begin(false, &walk, nbytes);
 
 		/* Process multi-block batch */
 		if (nbytes >= bsize * CAST5_PARALLEL_BLOCKS) {
@@ -105,10 +105,9 @@ static int ecb_crypt(struct skcipher_request *req, bool enc)
 		} while (nbytes >= bsize);
 
 done:
+		cast5_fpu_end(fpu_enabled);
 		err = skcipher_walk_done(&walk, nbytes);
 	}
-
-	cast5_fpu_end(fpu_enabled);
 	return err;
 }
 
@@ -212,7 +211,7 @@ static int cbc_decrypt(struct skcipher_request *req)
 {
 	struct crypto_skcipher *tfm = crypto_skcipher_reqtfm(req);
 	struct cast5_ctx *ctx = crypto_skcipher_ctx(tfm);
-	bool fpu_enabled = false;
+	bool fpu_enabled;
 	struct skcipher_walk walk;
 	unsigned int nbytes;
 	int err;
@@ -220,12 +219,11 @@ static int cbc_decrypt(struct skcipher_request *req)
 	err = skcipher_walk_virt(&walk, req, false);
 
 	while ((nbytes = walk.nbytes)) {
-		fpu_enabled = cast5_fpu_begin(fpu_enabled, &walk, nbytes);
+		fpu_enabled = cast5_fpu_begin(false, &walk, nbytes);
 		nbytes = __cbc_decrypt(ctx, &walk);
+		cast5_fpu_end(fpu_enabled);
 		err = skcipher_walk_done(&walk, nbytes);
 	}
-
-	cast5_fpu_end(fpu_enabled);
 	return err;
 }
 
@@ -292,7 +290,7 @@ static int ctr_crypt(struct skcipher_request *req)
 {
 	struct crypto_skcipher *tfm = crypto_skcipher_reqtfm(req);
 	struct cast5_ctx *ctx = crypto_skcipher_ctx(tfm);
-	bool fpu_enabled = false;
+	bool fpu_enabled;
 	struct skcipher_walk walk;
 	unsigned int nbytes;
 	int err;
@@ -300,12 +298,11 @@ static int ctr_crypt(struct skcipher_request *req)
 	err = skcipher_walk_virt(&walk, req, false);
 
 	while ((nbytes = walk.nbytes) >= CAST5_BLOCK_SIZE) {
-		fpu_enabled = cast5_fpu_begin(fpu_enabled, &walk, nbytes);
+		fpu_enabled = cast5_fpu_begin(false, &walk, nbytes);
 		nbytes = __ctr_crypt(&walk, ctx);
+		cast5_fpu_end(fpu_enabled);
 		err = skcipher_walk_done(&walk, nbytes);
 	}
-
-	cast5_fpu_end(fpu_enabled);
 
 	if (walk.nbytes) {
 		ctr_crypt_final(&walk, ctx);
