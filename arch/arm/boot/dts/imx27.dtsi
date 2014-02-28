@@ -30,6 +30,7 @@
 		spi0 = &cspi1;
 		spi1 = &cspi2;
 		spi2 = &cspi3;
+		ethernet0 = &fec;
 	};
 
 	aitc: aitc-interrupt-controller@e0000000 {
