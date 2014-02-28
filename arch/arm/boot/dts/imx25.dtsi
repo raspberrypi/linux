@@ -30,6 +30,7 @@
 		spi2 = &spi3;
 		usb0 = &usbotg;
 		usb1 = &usbhost1;
+		ethernet0 = &fec;
 	};
 
 	cpus {
