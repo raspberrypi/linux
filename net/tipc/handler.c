@@ -57,7 +57,6 @@ unsigned int tipc_k_signal(Handler routine, unsigned long argument)
 	struct queue_item *item;
 
 	if (!handler_enabled) {
-		pr_err("Signal request ignored by handler\n");
 		return -ENOPROTOOPT;
 	}
 
