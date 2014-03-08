@@ -681,6 +681,22 @@ static struct platform_device snd_pcm1794a_codec_device = {
 };
 #endif
 
+
+#if defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) || defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC_MODULE)
+static struct platform_device snd_rpi_iqaudio_dac_device = {
+        .name = "snd-rpi-iqaudio-dac",
+        .id = 0,
+        .num_resources = 0,
+};
+
+// Use the actual device name rather than generic driver name
+static struct i2c_board_info __initdata snd_pcm512x_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("pcm5122", 0x4c)
+	},
+};
+#endif
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -862,6 +878,11 @@ void __init bcm2708_init(void)
 #if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
         bcm_register_device_dt(&snd_rpi_dac_device);
         bcm_register_device_dt(&snd_pcm1794a_codec_device);
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) || defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC_MODULE)
+        bcm_register_device_dt(&snd_rpi_iqaudio_dac_device);
+        i2c_register_board_info_dt(1, snd_pcm512x_i2c_devices, ARRAY_SIZE(snd_pcm512x_i2c_devices));
 #endif
 
 	if (!use_dt) {
