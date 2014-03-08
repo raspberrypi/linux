@@ -28,3 +28,10 @@ config SND_BCM2708_SOC_RPI_DAC
         select SND_SOC_PCM1794A
         help
          Say Y or M if you want to add support for RPi-DAC.
+
+config SND_BCM2708_SOC_IQAUDIO_DAC
+	tristate "Support for IQaudIO-DAC"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_PCM512x_I2C
+	help
+	  Say Y or M if you want to add support for IQaudIO-DAC.
