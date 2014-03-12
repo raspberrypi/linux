@@ -718,7 +718,7 @@ static struct snd_soc_dai_driver bcm2708_i2s_dai = {
 		.channels_max = 2,
 		.rates =	SNDRV_PCM_RATE_8000_192000,
 		.formats =	SNDRV_PCM_FMTBIT_S16_LE
-				| SNDRV_PCM_FMTBIT_S24_LE
+				// | SNDRV_PCM_FMTBIT_S24_LE : disable for now, it causes white noise with xbmc
 				| SNDRV_PCM_FMTBIT_S32_LE
 		},
 	.capture = {
