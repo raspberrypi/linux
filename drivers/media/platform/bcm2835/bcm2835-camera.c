@@ -1330,7 +1330,7 @@ static int set_camera_parameters(struct vchiq_mmal_instance *instance,
 		.one_shot_stills = 1,
 		.max_preview_video_w = 1920,
 		.max_preview_video_h = 1088,
-		.num_preview_video_frames = 3,
+		.num_preview_video_frames = 6,
 		.stills_capture_circular_buffer_height = 0,
 		.fast_preview_resume = 0,
 		.use_stc_timestamp = MMAL_PARAM_TIMESTAMP_MODE_RAW_STC
