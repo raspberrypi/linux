@@ -42,6 +42,9 @@
 #define MAX_HEIGHT 1944
 #define MIN_BUFFER_SIZE (80*1024)
 
+/* Max number of pixels supported whilst still being considered
+ * a video mode by the GPU.
+ */
 #define MAX_VIDEO_MODE_WIDTH 1280
 #define MAX_VIDEO_MODE_HEIGHT 720
 
@@ -893,8 +896,8 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 	switch (mfmt->mmal_component) {
 	case MMAL_COMPONENT_CAMERA:
 		/* Make a further decision on port based on resolution */
-		if (f->fmt.pix.width <= MAX_VIDEO_MODE_WIDTH
-		    && f->fmt.pix.height <= MAX_VIDEO_MODE_HEIGHT)
+		if ((f->fmt.pix.width*f->fmt.pix.height) <=
+			(MAX_VIDEO_MODE_WIDTH * MAX_VIDEO_MODE_HEIGHT))
 			camera_port = port =
 			    &dev->component[MMAL_COMPONENT_CAMERA]->
 			    output[MMAL_CAMERA_PORT_VIDEO];
