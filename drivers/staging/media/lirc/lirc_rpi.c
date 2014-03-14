@@ -80,8 +80,8 @@ static long send_pulse(unsigned long length);
 static void send_space(long length);
 static void lirc_rpi_exit(void);
 
-int valid_gpio_pins[] = { 0, 1, 4, 8, 7, 9, 10, 11, 14, 15, 17, 18, 21, 22, 23,
-	24, 25 };
+int valid_gpio_pins[] = { 0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21,
+	22, 23, 24, 25 ,27, 28, 29, 30, 31 };
 
 static struct platform_device *lirc_rpi_dev;
 static struct timeval lasttv = { 0, 0 };
