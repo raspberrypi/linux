@@ -58,6 +58,7 @@
 #else
 #include <linux/usb/hcd.h>
 #endif
+#include <asm/bug.h>
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30))
 #define USB_URB_EP_LINKING 1
@@ -69,7 +70,8 @@
 #include "dwc_otg_dbg.h"
 #include "dwc_otg_driver.h"
 #include "dwc_otg_hcd.h"
-#include "dwc_otg_mphi_fix.h"
+
+extern unsigned char  _dwc_otg_fiq_stub, _dwc_otg_fiq_stub_end;
 
 /**
  * Gets the endpoint number from a _bEndpointAddress argument. The endpoint is
@@ -80,7 +82,7 @@
 
 static const char dwc_otg_hcd_name[] = "dwc_otg_hcd";
 
-extern bool fiq_fix_enable;
+extern bool fiq_enable;
 
 /** @name Linux HC Driver API Functions */
 /** @{ */
@@ -351,7 +353,6 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 					   urb);
 		}
 	}
-
 	DWC_FREE(dwc_otg_urb);
 	if (!new_entry) {
 		DWC_ERROR("dwc_otg_hcd: complete: cannot allocate URB TQ entry\n");
@@ -395,13 +396,9 @@ static struct dwc_otg_hcd_function_ops hcd_fops = {
 static struct fiq_handler fh = {
   .name = "usb_fiq",
 };
-struct fiq_stack_s {
-	int magic1;
-	uint8_t stack[2048];
-	int magic2;
-} fiq_stack;
 
-extern mphi_regs_t c_mphi_regs;
+
+
 /**
  * Initializes the HCD. This function allocates memory for and initializes the
  * static parts of the usb_hcd and dwc_otg_hcd structures. It also registers the
@@ -433,20 +430,6 @@ int hcd_init(dwc_bus_dev_t *_dev)
         pci_set_consistent_dma_mask(_dev, dmamask);
 #endif
 
-	if (fiq_fix_enable)
-	{
-		// Set up fiq
-		claim_fiq(&fh);
-		set_fiq_handler(__FIQ_Branch, 4);
-		memset(&regs,0,sizeof(regs));
-		regs.ARM_r8 = (long)dwc_otg_hcd_handle_fiq;
-		regs.ARM_r9 = (long)0;
-		regs.ARM_sp = (long)fiq_stack.stack + sizeof(fiq_stack.stack) - 4;
-		set_fiq_regs(&regs);
-		fiq_stack.magic1 = 0xdeadbeef;
-		fiq_stack.magic2 = 0xaa995566;
-	}
-
 	/*
 	 * Allocate memory for the base HCD plus the DWC OTG HCD.
 	 * Initialize the base HCD.
@@ -466,30 +449,7 @@ int hcd_init(dwc_bus_dev_t *_dev)
 
 	hcd->regs = otg_dev->os_dep.base;
 
-	if (fiq_fix_enable)
-	{
-		volatile extern void *dwc_regs_base;
 
-		//Set the mphi periph to  the required registers
-		c_mphi_regs.base    = otg_dev->os_dep.mphi_base;
-		c_mphi_regs.ctrl    = otg_dev->os_dep.mphi_base + 0x4c;
-		c_mphi_regs.outdda  = otg_dev->os_dep.mphi_base + 0x28;
-		c_mphi_regs.outddb  = otg_dev->os_dep.mphi_base + 0x2c;
-		c_mphi_regs.intstat = otg_dev->os_dep.mphi_base + 0x50;
-
-		dwc_regs_base = otg_dev->os_dep.base;
-
-		//Enable mphi peripheral
-		writel((1<<31),c_mphi_regs.ctrl);
-#ifdef DEBUG
-		if (readl(c_mphi_regs.ctrl) & 0x80000000)
-			DWC_DEBUGPL(DBG_USER, "MPHI periph has been enabled\n");
-		else
-			DWC_DEBUGPL(DBG_USER, "MPHI periph has NOT been enabled\n");
-#endif
-		// Enable FIQ interrupt from USB peripheral
-		enable_fiq(INTERRUPT_VC_USB);
-	}
 	/* Initialize the DWC OTG HCD. */
 	dwc_otg_hcd = dwc_otg_hcd_alloc_hcd();
 	if (!dwc_otg_hcd) {
@@ -502,6 +462,55 @@ int hcd_init(dwc_bus_dev_t *_dev)
 	if (dwc_otg_hcd_init(dwc_otg_hcd, otg_dev->core_if)) {
 		goto error2;
 	}
+
+	if (fiq_enable)
+	{
+		if (claim_fiq(&fh)) {
+			DWC_ERROR("Can't claim FIQ");
+			goto error2;
+		}
+
+		DWC_WARN("FIQ at 0x%08x", (fiq_fsm_enable ? (int)&dwc_otg_fiq_fsm : (int)&dwc_otg_fiq_nop));
+		DWC_WARN("FIQ ASM at 0x%08x length %d", (int)&_dwc_otg_fiq_stub, (int)(&_dwc_otg_fiq_stub_end - &_dwc_otg_fiq_stub));
+
+		set_fiq_handler((void *) &_dwc_otg_fiq_stub, &_dwc_otg_fiq_stub_end - &_dwc_otg_fiq_stub);
+		memset(&regs,0,sizeof(regs));
+
+		regs.ARM_r8 = (long) dwc_otg_hcd->fiq_state;
+		if (fiq_fsm_enable) {
+			regs.ARM_r9 = dwc_otg_hcd->core_if->core_params->host_channels;
+			//regs.ARM_r10 = dwc_otg_hcd->dma;
+			regs.ARM_fp = (long) dwc_otg_fiq_fsm;
+		} else {
+			regs.ARM_fp = (long) dwc_otg_fiq_nop;
+		}
+
+		regs.ARM_sp = (long) dwc_otg_hcd->fiq_stack + (sizeof(struct fiq_stack) - 4);
+
+//		__show_regs(&regs);
+		set_fiq_regs(&regs);
+
+		//Set the mphi periph to  the required registers
+		dwc_otg_hcd->fiq_state->mphi_regs.base    = otg_dev->os_dep.mphi_base;
+		dwc_otg_hcd->fiq_state->mphi_regs.ctrl    = otg_dev->os_dep.mphi_base + 0x4c;
+		dwc_otg_hcd->fiq_state->mphi_regs.outdda  = otg_dev->os_dep.mphi_base + 0x28;
+		dwc_otg_hcd->fiq_state->mphi_regs.outddb  = otg_dev->os_dep.mphi_base + 0x2c;
+		dwc_otg_hcd->fiq_state->mphi_regs.intstat = otg_dev->os_dep.mphi_base + 0x50;
+		dwc_otg_hcd->fiq_state->dwc_regs_base = otg_dev->os_dep.base;
+		DWC_WARN("MPHI regs_base at 0x%08x", (int)dwc_otg_hcd->fiq_state->mphi_regs.base);
+		//Enable mphi peripheral
+		writel((1<<31),dwc_otg_hcd->fiq_state->mphi_regs.ctrl);
+#ifdef DEBUG
+		if (readl(dwc_otg_hcd->fiq_state->mphi_regs.ctrl) & 0x80000000)
+			DWC_WARN("MPHI periph has been enabled");
+		else
+			DWC_WARN("MPHI periph has NOT been enabled");
+#endif
+		// Enable FIQ interrupt from USB peripheral
+		enable_fiq(INTERRUPT_VC_USB);
+		local_fiq_enable();
+	}
+
 
 	otg_dev->hcd->otg_dev = otg_dev;
 	hcd->self.otg_port = dwc_otg_hcd_otg_port(dwc_otg_hcd);
@@ -617,9 +626,13 @@ void hcd_stop(struct usb_hcd *hcd)
 /** Returns the current frame number. */
 static int get_frame_number(struct usb_hcd *hcd)
 {
+	hprt0_data_t hprt0;
 	dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd(hcd);
-
-	return dwc_otg_hcd_get_frame_number(dwc_otg_hcd);
+	hprt0.d32 = DWC_READ_REG32(dwc_otg_hcd->core_if->host_if->hprt0);
+	if (hprt0.b.prtspd == DWC_HPRT0_PRTSPD_HIGH_SPEED)
+		return dwc_otg_hcd_get_frame_number(dwc_otg_hcd) >> 3;
+	else
+		return dwc_otg_hcd_get_frame_number(dwc_otg_hcd);
 }
 
 #ifdef DEBUG
