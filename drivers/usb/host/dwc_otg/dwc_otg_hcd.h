@@ -40,6 +40,8 @@
 #include "dwc_otg_core_if.h"
 #include "dwc_list.h"
 #include "dwc_otg_cil.h"
+#include "dwc_otg_fiq_fsm.h"
+
 
 /**
  * @file
@@ -585,6 +587,12 @@ struct dwc_otg_hcd {
 	/** Frame List DMA address */
 	dma_addr_t frame_list_dma;
 
+	struct fiq_stack *fiq_stack;
+	struct fiq_state *fiq_state;
+	
+	/** Virtual address for split transaction DMA bounce buffers */
+	struct fiq_dma_blob *fiq_dmab;
+	
 #ifdef DEBUG
 	uint32_t frrem_samples;
 	uint64_t frrem_accum;
@@ -615,6 +623,9 @@ extern void dwc_otg_hcd_queue_transactions(dwc_otg_hcd_t * hcd,
 int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh);
 void dwc_otg_hcd_release_port(dwc_otg_hcd_t * dwc_otg_hcd, dwc_otg_qh_t *qh);
 
+extern int fiq_fsm_queue_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh);
+extern int fiq_fsm_transaction_suitable(dwc_otg_qh_t *qh);
+extern void dwc_otg_cleanup_fiq_channel(dwc_otg_hcd_t *hcd, uint32_t num);
 
 /** @} */
 
