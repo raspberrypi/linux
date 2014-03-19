@@ -59,6 +59,8 @@
 #include "dwc_otg_driver.h"
 #include "dwc_otg_dbg.h"
 
+extern bool fiq_enable;
+
 static struct gadget_wrapper {
 	dwc_otg_pcd_t *pcd;
 
@@ -1222,13 +1224,13 @@ int pcd_init(dwc_bus_dev_t *_dev)
 	 */
 #ifdef PLATFORM_INTERFACE
 	DWC_DEBUGPL(DBG_ANY, "registering handler for irq%d\n",
-                    platform_get_irq(_dev, 0));
-	retval = request_irq(platform_get_irq(_dev, 0), dwc_otg_pcd_irq,
+                    platform_get_irq(_dev, fiq_enable ? 0 : 1));
+	retval = request_irq(platform_get_irq(_dev, fiq_enable ? 0 : 1), dwc_otg_pcd_irq,
 			     IRQF_SHARED, gadget_wrapper->gadget.name,
 			     otg_dev->pcd);
 	if (retval != 0) {
 		DWC_ERROR("request of irq%d failed\n",
-                          platform_get_irq(_dev, 0));
+                          platform_get_irq(_dev, fiq_enable ? 0 : 1));
 		free_wrapper(gadget_wrapper);
 		return -EBUSY;
 	}
