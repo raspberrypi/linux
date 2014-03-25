@@ -263,7 +263,7 @@ static void sdhci_bcm2708_raw_writel(struct sdhci_host *host, u32 val, int reg)
 		{
 			/* we must have waited at least this many ns: */
 			unsigned int ns_wait = HPTIME_CLK_NS *
-					       (last_write_hpt - now - 1);
+					       (now - last_write_hpt - 1);
 			if (ns_wait < ns_2clk)
 				ndelay(ns_2clk - ns_wait);
 		}
