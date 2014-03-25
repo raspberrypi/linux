@@ -491,6 +491,29 @@ static int ctrl_set_awb_mode(struct bm2835_mmal_dev *dev,
 					     &u32_value, sizeof(u32_value));
 }
 
+static int ctrl_set_awb_gains(struct bm2835_mmal_dev *dev,
+		      struct v4l2_ctrl *ctrl,
+		      const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl)
+{
+	struct vchiq_mmal_port *control;
+	struct mmal_parameter_awbgains gains;
+
+	control = &dev->component[MMAL_COMPONENT_CAMERA]->control;
+
+	if (ctrl->id == V4L2_CID_RED_BALANCE)
+		dev->red_gain = ctrl->val;
+	else if (ctrl->id == V4L2_CID_BLUE_BALANCE)
+		dev->blue_gain = ctrl->val;
+
+	gains.r_gain.num = dev->red_gain;
+	gains.b_gain.num = dev->blue_gain;
+	gains.r_gain.den = gains.b_gain.den = 1000;
+
+	return vchiq_mmal_port_parameter_set(dev->instance, control,
+					     mmal_ctrl->mmal_id,
+					     &gains, sizeof(gains));
+}
+
 static int ctrl_set_image_effect(struct bm2835_mmal_dev *dev,
 		   struct v4l2_ctrl *ctrl,
 		   const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl)
@@ -991,9 +1014,23 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 	{
 		V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE,
 		MMAL_CONTROL_TYPE_STD_MENU,
-		~0x3fe, 9, V4L2_WHITE_BALANCE_AUTO, 0, NULL,
+		~0x3ff, 9, V4L2_WHITE_BALANCE_AUTO, 0, NULL,
 		MMAL_PARAMETER_AWB_MODE,
 		&ctrl_set_awb_mode,
+		false
+	},
+	{
+		V4L2_CID_RED_BALANCE, MMAL_CONTROL_TYPE_STD,
+		1, 7999, 1000, 1, NULL,
+		MMAL_PARAMETER_CUSTOM_AWB_GAINS,
+		&ctrl_set_awb_gains,
+		false
+	},
+	{
+		V4L2_CID_BLUE_BALANCE, MMAL_CONTROL_TYPE_STD,
+		1, 7999, 1000, 1, NULL,
+		MMAL_PARAMETER_CUSTOM_AWB_GAINS,
+		&ctrl_set_awb_gains,
 		false
 	},
 	{

@@ -161,7 +161,8 @@ enum mmal_parameter_camera_type {
 	MMAL_PARAMETER_SW_SHARPEN_DISABLE, /**< @ref MMAL_PARAMETER_BOOLEAN_T */
 	MMAL_PARAMETER_FLASH_REQUIRED, /**< @ref MMAL_PARAMETER_BOOLEAN_T */
 	MMAL_PARAMETER_SW_SATURATION_DISABLE, /**< @ref MMAL_PARAMETER_BOOLEAN_T */
-	MMAL_PARAMETER_SHUTTER_SPEED              /**< Takes a @ref MMAL_PARAMETER_UINT32_T */
+	MMAL_PARAMETER_SHUTTER_SPEED,             /**< Takes a @ref MMAL_PARAMETER_UINT32_T */
+	MMAL_PARAMETER_CUSTOM_AWB_GAINS,          /**< Takes a @ref MMAL_PARAMETER_AWB_GAINS_T */
 };
 
 struct mmal_parameter_rational {
@@ -290,6 +291,11 @@ enum MMAL_PARAM_FLICKERAVOID_T {
 	MMAL_PARAM_FLICKERAVOID_50HZ,
 	MMAL_PARAM_FLICKERAVOID_60HZ,
 	MMAL_PARAM_FLICKERAVOID_MAX = 0x7FFFFFFF
+};
+
+struct mmal_parameter_awbgains {
+	struct mmal_parameter_rational r_gain;	/**< Red gain */
+	struct mmal_parameter_rational b_gain;	/**< Blue gain */
 };
 
 /** Manner of video rate control */
