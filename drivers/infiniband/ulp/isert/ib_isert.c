@@ -1652,7 +1652,6 @@ isert_cq_tx_comp_err(struct iser_tx_desc *tx_desc, struct isert_conn *isert_conn
 static void
 isert_cq_rx_comp_err(struct isert_conn *isert_conn)
 {
-	struct ib_device *ib_dev = isert_conn->conn_cm_id->device;
 	struct iscsi_conn *conn = isert_conn->conn;
 
 	if (isert_conn->post_recv_buf_count)
