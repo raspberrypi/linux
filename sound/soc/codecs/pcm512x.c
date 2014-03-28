@@ -240,8 +240,8 @@ static const struct soc_enum pcm512x_veds =
 			pcm512x_ramp_step_text);
 
 static const struct snd_kcontrol_new pcm512x_controls[] = {
-SOC_DOUBLE_R_TLV("Playback Digital Volume", PCM512x_DIGITAL_VOLUME_2,
-		 PCM512x_DIGITAL_VOLUME_3, 0, 255, 1, digital_tlv),
+SOC_DOUBLE_R_RANGE_TLV("Playback Digital Volume", PCM512x_DIGITAL_VOLUME_2,
+		 PCM512x_DIGITAL_VOLUME_3, 0, 48, 255, 1, digital_tlv),
 SOC_DOUBLE("Playback Digital Switch", PCM512x_MUTE, PCM512x_RQML_SHIFT,
 	   PCM512x_RQMR_SHIFT, 1, 1),
 
