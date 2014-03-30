@@ -3071,8 +3071,8 @@ int snd_soc_put_volsw_range(struct snd_kcontrol *kcontrol,
 
 	if (invert)
 		val = ((max - ucontrol->value.integer.value[0] + min) & mask);
-    else
-	val = (ucontrol->value.integer.value[0] & mask);
+	else
+		val = (ucontrol->value.integer.value[0] & mask);
 	val_mask = mask << shift;
 	val = val << shift;
 
@@ -3083,8 +3083,8 @@ int snd_soc_put_volsw_range(struct snd_kcontrol *kcontrol,
 	if (snd_soc_volsw_is_stereo(mc)) {
 		if (invert)
 			val = ((max - ucontrol->value.integer.value[1] + min) & mask);
-        else
-            val = (ucontrol->value.integer.value[1] & mask);
+		else
+			val = (ucontrol->value.integer.value[1] & mask);
 		val_mask = mask << shift;
 		val = val << shift;
 

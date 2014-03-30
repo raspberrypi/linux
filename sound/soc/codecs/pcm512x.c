@@ -239,9 +239,10 @@ static const struct soc_enum pcm512x_veds =
 	SOC_ENUM_SINGLE(PCM512x_DIGITAL_MUTE_2, PCM512x_VEDS_SHIFT, 4,
 			pcm512x_ramp_step_text);
 
+/* Don't let the DAC go into clipping by limiting the alsa volume control range */
 static const struct snd_kcontrol_new pcm512x_controls[] = {
 SOC_DOUBLE_R_RANGE_TLV("Playback Digital Volume", PCM512x_DIGITAL_VOLUME_2,
-		 PCM512x_DIGITAL_VOLUME_3, 0, 48, 255, 1, digital_tlv),
+		 PCM512x_DIGITAL_VOLUME_3, 0, 40, 255, 1, digital_tlv),
 SOC_DOUBLE("Playback Digital Switch", PCM512x_MUTE, PCM512x_RQML_SHIFT,
 	   PCM512x_RQMR_SHIFT, 1, 1),
 
