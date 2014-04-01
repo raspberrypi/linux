@@ -731,7 +731,8 @@ static void xenvif_tx_err(struct xenvif *vif,
 static void xenvif_fatal_tx_err(struct xenvif *vif)
 {
 	netdev_err(vif->dev, "fatal error; disabling device\n");
-	xenvif_carrier_off(vif);
+	vif->disabled = true;
+	xenvif_kick_thread(vif);
 }
 
 static int xenvif_count_requests(struct xenvif *vif,
@@ -1242,7 +1243,7 @@ static unsigned xenvif_tx_build_gops(struct xenvif *vif)
 				   vif->tx.sring->req_prod, vif->tx.req_cons,
 				   XEN_NETIF_TX_RING_SIZE);
 			xenvif_fatal_tx_err(vif);
-			continue;
+			break;
 		}
 
 		RING_FINAL_CHECK_FOR_REQUESTS(&vif->tx, work_to_do);
@@ -1642,7 +1643,18 @@ int xenvif_kthread(void *data)
 	while (!kthread_should_stop()) {
 		wait_event_interruptible(vif->wq,
 					 rx_work_todo(vif) ||
+					 vif->disabled ||
 					 kthread_should_stop());
+
+		/* This frontend is found to be rogue, disable it in
+		 * kthread context. Currently this is only set when
+		 * netback finds out frontend sends malformed packet,
+		 * but we cannot disable the interface in softirq
+		 * context so we defer it here.
+		 */
+		if (unlikely(vif->disabled && netif_carrier_ok(vif->dev)))
+			xenvif_carrier_off(vif);
+
 		if (kthread_should_stop())
 			break;
 

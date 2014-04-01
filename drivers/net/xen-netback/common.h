@@ -102,6 +102,11 @@ struct xenvif {
 	domid_t          domid;
 	unsigned int     handle;
 
+	/* Is this interface disabled? True when backend discovers
+	 * frontend is rogue.
+	 */
+	bool disabled;
+
 	/* Use NAPI for guest TX */
 	struct napi_struct napi;
 	/* When feature-split-event-channels = 0, tx_irq = rx_irq. */
