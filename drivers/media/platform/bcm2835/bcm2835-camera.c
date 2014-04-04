@@ -147,6 +147,30 @@ static struct mmal_fmt formats[] = {
 	 .depth = 12,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
 	 },
+	{
+	 .name = "RGB24 (BE)",
+	 .fourcc = V4L2_PIX_FMT_BGR24,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_RGB24,
+	 .depth = 24,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "4:2:0, packed YVU",
+	 .fourcc = V4L2_PIX_FMT_YVU420,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_YV12,
+	 .depth = 12,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "4:2:0, packed, NV21",
+	 .fourcc = V4L2_PIX_FMT_NV21,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_NV21,
+	 .depth = 12,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
 };
 
 static struct mmal_fmt *get_format(struct v4l2_format *f)
