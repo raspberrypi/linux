@@ -45,7 +45,7 @@ static int ucv2_target(struct cpufreq_policy *policy,
 	freqs.new = target_freq;
 
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
-	ret = clk_set_rate(policy->mclk, target_freq * 1000);
+	ret = clk_set_rate(policy->clk, target_freq * 1000);
 	cpufreq_notify_post_transition(policy, &freqs, ret);
 
 	return ret;
