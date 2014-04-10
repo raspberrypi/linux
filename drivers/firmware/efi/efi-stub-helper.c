@@ -468,7 +468,7 @@ grow:
 					chunksize = EFI_READ_CHUNK_SIZE;
 				else
 					chunksize = size;
-				status = efi_call_phys3(fh->read,
+				status = efi_call_phys3(files[j].handle->read,
 							files[j].handle,
 							&chunksize,
 							(void *)addr);
@@ -480,7 +480,7 @@ grow:
 				size -= chunksize;
 			}
 
-			efi_call_phys1(fh->close, files[j].handle);
+			efi_call_phys1(files[j].handle->close, files[j].handle);
 		}
 
 	}
@@ -497,7 +497,7 @@ free_file_total:
 
 close_handles:
 	for (k = j; k < i; k++)
-		efi_call_phys1(fh->close, files[k].handle);
+		efi_call_phys1(files[k].handle->close, files[k].handle);
 free_files:
 	efi_call_phys1(sys_table_arg->boottime->free_pool, files);
 fail:
