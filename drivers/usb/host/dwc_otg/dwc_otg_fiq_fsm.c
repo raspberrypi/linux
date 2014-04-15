@@ -612,6 +612,7 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 {
 	hcint_data_t hcint;
 	hcintmsk_data_t hcintmsk;
+	hcint_data_t hcint_probe;
 	hcchar_data_t hcchar;
 	int handled = 0;
 	int restart = 0;
@@ -622,7 +623,8 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 
 	hcint.d32 = FIQ_READ(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINT);
 	hcintmsk.d32 = FIQ_READ(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINTMSK);
-	
+	hcint_probe.d32 = hcint.d32 & hcintmsk.d32;
+
 	if (st->fsm != FIQ_PASSTHROUGH) {
 		fiq_print(FIQDBG_INT, state, "HC%01d ST%02d", n, st->fsm);
 		fiq_print(FIQDBG_INT, state, "%08x", hcint.d32);
@@ -633,6 +635,30 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 	case FIQ_PASSTHROUGH:
 	case FIQ_DEQUEUE_ISSUED:
 		/* doesn't belong to us, kick it upstairs */
+		break;
+
+	case FIQ_PASSTHROUGH_ERRORSTATE:
+		/* We are here to emulate the error recovery mechanism of the dwc HCD.
+		 * Several interrupts are unmasked if a previous transaction failed - it's
+		 * death for the FIQ to attempt to handle them as the channel isn't halted.
+		 * Emulate what the HCD does in this situation: mask and continue.
+		 * The FSM has no other state setup so this has to be handled out-of-band.
+		 */
+		fiq_print(FIQDBG_ERR, state, "ERRST %02d", n);
+		if (hcint_probe.b.nak || hcint_probe.b.ack || hcint_probe.b.datatglerr) {
+			fiq_print(FIQDBG_ERR, state, "RESET %02d", n);
+			st->nr_errors = 0;
+			hcintmsk.b.nak = 0;
+			hcintmsk.b.ack = 0;
+			hcintmsk.b.datatglerr = 0;
+			FIQ_WRITE(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINTMSK, hcintmsk.d32);
+			return 1;
+		}
+		if (hcint_probe.b.chhltd) {
+			fiq_print(FIQDBG_ERR, state, "CHHLT %02d", n);
+			fiq_print(FIQDBG_ERR, state, "%08x", hcint.d32);
+			return 0;
+		}
 		break;
 
 	/* Non-periodic state groups */
