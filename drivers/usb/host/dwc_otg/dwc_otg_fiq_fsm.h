@@ -155,7 +155,9 @@ extern ushort nak_holdoff;
 enum fiq_fsm_state {
 	/* FIQ isn't enabled for this host channel */
 	FIQ_PASSTHROUGH = 0,
-
+	/* For the first interrupt received for this channel,
+	 * the FIQ has to ack any interrupts indicating success. */
+	FIQ_PASSTHROUGH_ERRORSTATE = 31,
 	/* Nonperiodic state groups */
 	FIQ_NP_SSPLIT_STARTED = 1,
 	FIQ_NP_SSPLIT_RETRY = 2,

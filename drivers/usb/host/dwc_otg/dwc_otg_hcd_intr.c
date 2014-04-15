@@ -2600,21 +2600,30 @@ int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 		release_channel(dwc_otg_hcd, hc, NULL, hc->halt_status);
 		return 1;
 	}
+	qtd = DWC_CIRCLEQ_FIRST(&hc->qh->qtd_list);
 
 	/*
 	 * FSM mode: Check to see if this is a HC interrupt from a channel handled by the FIQ.
 	 * Execution path is fundamentally different for the channels after a FIQ has completed
 	 * a split transaction.
 	 */
-
-
 	if (fiq_fsm_enable) {
-		if (*(volatile uint32_t *)&dwc_otg_hcd->fiq_state->channel[num].fsm != FIQ_PASSTHROUGH) {
-			dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd, num);
-			return 1;
+		switch (dwc_otg_hcd->fiq_state->channel[num].fsm) {
+			case FIQ_PASSTHROUGH:
+				break;
+			case FIQ_PASSTHROUGH_ERRORSTATE:
+				/* Hook into the error count */
+				fiq_print(FIQDBG_ERR, dwc_otg_hcd->fiq_state, "HCDERR%02d", num);
+				if (dwc_otg_hcd->fiq_state->channel[num].nr_errors) {
+					qtd->error_count = 0;
+					fiq_print(FIQDBG_ERR, dwc_otg_hcd->fiq_state, "RESET   ");
+				}
+				break;
+			default:
+				dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd, num);
+				return 1;
 		}
 	}
-	qtd = DWC_CIRCLEQ_FIRST(&hc->qh->qtd_list);
 
 	hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
 	hcintmsk.d32 = DWC_READ_REG32(&hc_regs->hcintmsk);

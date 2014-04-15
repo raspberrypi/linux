@@ -2073,6 +2073,12 @@ static int queue_transaction(dwc_otg_hcd_t * hcd,
 				hc->qh->ping_state = 0;
 			}
 		} else if (!hc->xfer_started) {
+			if (fiq_fsm_enable && hc->error_state) {
+				hcd->fiq_state->channel[hc->hc_num].nr_errors =
+					DWC_CIRCLEQ_FIRST(&hc->qh->qtd_list)->error_count;
+				hcd->fiq_state->channel[hc->hc_num].fsm =
+					FIQ_PASSTHROUGH_ERRORSTATE;
+			}
 			dwc_otg_hc_start_transfer(hcd->core_if, hc);
 			hc->qh->ping_state = 0;
 		}
