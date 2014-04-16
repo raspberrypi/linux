@@ -334,7 +334,7 @@
 &usb {
 	status = "okay";
 
-	control@44e10000 {
+	control@44e10620 {
 		status = "okay";
 	};
 
