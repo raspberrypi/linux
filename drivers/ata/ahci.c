@@ -1163,7 +1163,7 @@ static inline void ahci_gtf_filter_workaround(struct ata_host *host)
 #endif
 
 static int ahci_init_interrupts(struct pci_dev *pdev, unsigned int n_ports,
-			 struct ahci_host_priv *hpriv)
+				struct ahci_host_priv *hpriv)
 {
 	int rc, nvec;
 
@@ -1188,6 +1188,13 @@ static int ahci_init_interrupts(struct pci_dev *pdev, unsigned int n_ports,
 		goto intx;
 	else if (rc > 0)
 		goto single_msi;
+
+	/* fallback to single MSI mode if the controller enforced MRSM mode */
+	if (readl(hpriv->mmio + HOST_CTL) & HOST_MRSM) {
+		pci_disable_msi(pdev);
+		printk(KERN_INFO "ahci: MRSM is on, fallback to single MSI\n");
+		goto single_msi;
+	}
 
 	return nvec;
 
