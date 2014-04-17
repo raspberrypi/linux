@@ -342,6 +342,8 @@ struct fiq_state {
 	struct fiq_channel_state channel[0];
 };
 
+extern int fiq_fsm_too_late(struct fiq_state *st, int n);
+
 extern int fiq_fsm_tt_in_use(struct fiq_state *st, int num_channels, int n);
 
 extern void dwc_otg_fiq_fsm(struct fiq_state *state, int num_channels);

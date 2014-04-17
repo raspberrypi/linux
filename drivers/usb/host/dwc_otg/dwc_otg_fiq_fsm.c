@@ -148,21 +148,20 @@ static inline int notrace fiq_get_xfer_len(struct fiq_state *st, int n)
 static int notrace fiq_increment_dma_buf(struct fiq_state *st, int num_channels, int n)
 {
 	hcdma_data_t hcdma;
-	int i = st->channel[n].nrpackets;
-	int len = 254;
+	int i = st->channel[n].dma_info.index;
+	int len;
 	struct fiq_dma_blob *blob = (struct fiq_dma_blob *) st->dma_base;
 
 	len = fiq_get_xfer_len(st, n);
 	fiq_print(FIQDBG_INT, st, "LEN: %03d", len);
 	st->channel[n].dma_info.slot_len[i] = len;
 	i++;
-	if (i > 5)
+	if (i > 6)
 		BUG();
-
-	st->channel[n].nrpackets++;
 
 	hcdma.d32 = (dma_addr_t) &blob->channel[n].index[i].buf[0];
 	FIQ_WRITE(st->dwc_regs_base + HC_DMA + (HC_OFFSET * n), hcdma.d32);
+	st->channel[n].dma_info.index = i;
 	return 0;
 }
 
@@ -313,6 +312,7 @@ int notrace noinline fiq_fsm_tt_in_use(struct fiq_state *st, int num_channels, i
  *
  * We also return whether this is the last CSPLIT to be queued, again based on
  * heuristics. This is to allow a 1-uframe overlap of periodic split transactions.
+ * Note: requires at least 1 CSPLIT to have been performed prior to being called.
  */
 
 /*
@@ -335,7 +335,7 @@ static int notrace noinline fiq_fsm_more_csplits(struct fiq_state *state, int n,
 	int more_needed = 1;
 	struct fiq_channel_state *st = &state->channel[n];
 
-	for (i = 0; i < st->nrpackets; i++) {
+	for (i = 0; i < st->dma_info.index; i++) {
 			total_len += st->dma_info.slot_len[i];
 	}
 
@@ -350,7 +350,7 @@ static int notrace noinline fiq_fsm_more_csplits(struct fiq_state *state, int n,
 	} else {
 		/* Isoc IN. This is a bit risky if we are the first transaction:
 		 * we may have been held off slightly. */
-		if (i > 1 && st->dma_info.slot_len[st->nrpackets-1] <= DATA0_PID_HEURISTIC) {
+		if (i > 1 && st->dma_info.slot_len[st->dma_info.index-1] <= DATA0_PID_HEURISTIC) {
 			more_needed = 0;
 		}
 		/* If in the next uframe we will receive enough data to fill the endpoint,
@@ -362,10 +362,35 @@ static int notrace noinline fiq_fsm_more_csplits(struct fiq_state *state, int n,
 
 	if (total_len >= st->hctsiz_copy.b.xfersize || 
 		i == 6 || total_len == 0)
+		/* Note: due to bit stuffing it is possible to have > 6 CSPLITs for
+		 * a single endpoint. Accepting more would completely break our scheduling mechanism though
+		 * - in these extreme cases we will pass through a truncated packet.
+		 */
 		more_needed = 0;	
 	
 	return more_needed;
 }
+
+/**
+ * fiq_fsm_too_late() - Test transaction for lateness
+ * 
+ * If a SSPLIT for a large IN transaction is issued too late in a frame,
+ * the hub will disable the port to the device and respond with ERR handshakes.
+ * The hub status endpoint will not reflect this change.
+ * Returns 1 if we will issue a SSPLIT that will result in a device babble.
+ */
+int notrace fiq_fsm_too_late(struct fiq_state *st, int n)
+{
+	int uframe;
+	hfnum_data_t hfnum = { .d32 = FIQ_READ(st->dwc_regs_base + HFNUM) };
+	uframe = hfnum.b.frnum & 0x7;
+	if ((uframe < 6) && (st->channel[n].nrpackets + 1 + uframe > 7)) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
 
 /**
  * fiq_fsm_start_next_periodic() - A half-arsed attempt at a microframe pipeline
@@ -385,9 +410,13 @@ static void notrace noinline fiq_fsm_start_next_periodic(struct fiq_state *st, i
 		if (st->channel[n].fsm == FIQ_PER_SSPLIT_QUEUED) {
 			/* Check to see if any other transactions are using this TT */
 			if(!fiq_fsm_tt_in_use(st, num_channels, n)) {
-				st->channel[n].fsm = FIQ_PER_SSPLIT_STARTED;
-				fiq_print(FIQDBG_INT, st, "NEXTPER ");
-				fiq_fsm_restart_channel(st, n, 0);
+				if (!fiq_fsm_too_late(st, n)) {
+					st->channel[n].fsm = FIQ_PER_SSPLIT_STARTED;
+					fiq_print(FIQDBG_INT, st, "NEXTPER ");
+					fiq_fsm_restart_channel(st, n, 0);
+				} else {
+					st->channel[n].fsm = FIQ_PER_SPLIT_TIMEOUT;
+				}
 				break;
 			}
 		}
@@ -503,7 +532,30 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 {
 	hfnum_data_t hfnum = { .d32 = FIQ_READ(state->dwc_regs_base + HFNUM) };
 	int n;
-	
+	int kick_irq = 0;
+
+	if ((hfnum.b.frnum & 0x7) == 1) {
+		/* We cannot issue csplits for transactions in the last frame past (n+1).1
+		 * Check to see if there are any transactions that are stale.
+		 * Boot them out.
+		 */
+		for (n = 0; n < num_channels; n++) {
+			switch (state->channel[n].fsm) {
+			case FIQ_PER_CSPLIT_WAIT:
+			case FIQ_PER_CSPLIT_NYET1:
+			case FIQ_PER_CSPLIT_POLL:
+			case FIQ_PER_CSPLIT_LAST:
+				/* Check if we are no longer in the same full-speed frame. */				
+				if (((state->channel[n].expected_uframe & 0x3FFF) & ~0x7) <
+						(hfnum.b.frnum & ~0x7))
+					state->channel[n].fsm = FIQ_PER_SPLIT_TIMEOUT;
+				break;
+			default:
+				break;
+			}
+		}
+	}
+
 	for (n = 0; n < num_channels; n++) {
 		switch (state->channel[n].fsm) {
 		
@@ -521,10 +573,16 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 		case FIQ_PER_SSPLIT_QUEUED:
 			if ((hfnum.b.frnum & 0x7) == 5)
 				break;
-			if (!fiq_fsm_tt_in_use(state, num_channels, n)) {
-				fiq_print(FIQDBG_INT, state, "SOF GO %01d", n);
-				fiq_fsm_restart_channel(state, n, 0);
-				state->channel[n].fsm = FIQ_PER_SSPLIT_STARTED;
+			if(!fiq_fsm_tt_in_use(state, num_channels, n)) {
+				if (!fiq_fsm_too_late(state, n)) {
+					fiq_print(FIQDBG_INT, st, "SOF GO %01d", n);
+					fiq_fsm_restart_channel(state, n, 0);
+					state->channel[n].fsm = FIQ_PER_SSPLIT_STARTED;
+				} else {
+					state->channel[n].fsm = FIQ_PER_SPLIT_TIMEOUT;
+					state->haintmsk_saved.b2.chint &= ~(1 << n);
+					kick_irq |= 1;
+				}
 			}
 			break;
 			
@@ -562,41 +620,27 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 				
 			}
 			break;
-			
+		
+		case FIQ_PER_SPLIT_TIMEOUT:
+			/* Ugly: we have to force a HCD interrupt.
+			 * Poke the mask for the channel in question.
+			 * We will take a fake SOF because of this, but
+			 * that's OK.
+			 */
+			state->haintmsk_saved.b2.chint &= ~(1 << n);
+			kick_irq |= 1;
+			break;
+		
 		default:
 			break;
 		}
 	}
 
-	if ((hfnum.b.frnum & 0x7) == 1) {
-		/* We cannot issue csplits for transactions in the last frame past (n+1).1
-		 * Check to see if there are any transactions that are stale.
-		 * Boot them out.
-		 */
-		for (n = 0; n < num_channels; n++) {
-			switch (state->channel[n].fsm) {
-			case FIQ_PER_CSPLIT_WAIT:
-			case FIQ_PER_CSPLIT_NYET1:
-			case FIQ_PER_CSPLIT_POLL:
-			case FIQ_PER_CSPLIT_LAST:
-				/* Check if we are no longer in the same full-speed frame. */				
-				if (((state->channel[n].expected_uframe & 0x3FFF) & ~0x7) <
-						(hfnum.b.frnum & ~0x7))
-					state->channel[n].fsm = FIQ_PER_SPLIT_TIMEOUT;
-				break;
-			default:
-				break;
-			}
-		}
+	if (state->kick_np_queues ||
+			dwc_frame_num_le(state->next_sched_frame, hfnum.b.frnum))
+		kick_irq |= 1;
 
-	}
-
-	if (!state->kick_np_queues &&
-			dwc_frame_num_gt(state->next_sched_frame, hfnum.b.frnum)) {
-		return 1;
-	} else {
-		return 0;
-	}
+	return !kick_irq;
 }
 
 

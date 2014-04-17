@@ -1478,8 +1478,8 @@ int fiq_fsm_transaction_suitable(dwc_otg_qh_t *qh)
  */
 int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_state *st, dwc_otg_qh_t *qh)
  {
-	int i = 0;
-	uint32_t frame_length, nrslots, last_size;
+	int frame_length, i = 0;
+	uint32_t nrslots, last_size;
 	uint8_t *ptr = NULL;
 	dwc_hc_t *hc = qh->channel;
 	struct fiq_dma_blob *blob;
@@ -1498,6 +1498,15 @@ int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_state *st,
 		 */
 		blob = (struct fiq_dma_blob *) hcd->fiq_state->dma_base;
 		st->hcdma_copy.d32 = (uint32_t) &blob->channel[hc->hc_num].index[0].buf[0];
+		/* Calculate the max number of CSPLITS such that the FIQ can time out
+		 * a transaction if it fails.
+		 */
+		frame_length = st->hcchar_copy.b.mps;
+		do {
+			i++;
+			frame_length -= 188;
+		} while (frame_length >= 0);
+		st->nrpackets = i;
 		return 1;
 	} else {
 		if (qh->ep_type == UE_ISOCHRONOUS) {
@@ -1804,7 +1813,9 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 			start_immediate = 0;
 		} else if (uframe == 5) {
 			start_immediate = 0;
-		} else if (hc->ep_type == UE_ISOCHRONOUS) {
+		} else if (hc->ep_type == UE_ISOCHRONOUS && !hc->ep_is_in) {
+			start_immediate = 0;
+		} else if (hc->ep_is_in && fiq_fsm_too_late(hcd->fiq_state, hc->hc_num)) {
 			start_immediate = 0;
 		} else {
 			/* Search through all host channels to determine if a transaction

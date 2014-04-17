@@ -2300,7 +2300,7 @@ int dwc_otg_fiq_unsetup_per_dma(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh, dwc_otg_qt
 			ptr += qtd->urb->actual_length;
 		}
 
-		for (i = 0; i < st->nrpackets; i++) {
+		for (i = 0; i < st->dma_info.index; i++) {
 			len += st->dma_info.slot_len[i];
 			dwc_memcpy(ptr, &blob->channel[num].index[i].buf[0], st->dma_info.slot_len[i]);
 			ptr += st->dma_info.slot_len[i];
@@ -2488,9 +2488,9 @@ int32_t dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 
 	case FIQ_PER_SPLIT_NYET_ABORTED:
 		/* Doh. lost the data. */
-		printk_ratelimited(KERN_INFO "Transfer to device %d endpoint 0x%x failed "
+		printk_ratelimited(KERN_INFO "Transfer to device %d endpoint 0x%x frame %d failed "
 				"- FIQ reported NYET. Data may have been lost.\n",
-				hc->dev_addr, hc->ep_num);
+				hc->dev_addr, hc->ep_num, dwc_otg_hcd_get_frame_number(hcd) >> 3);
 		if (hc->ep_type == UE_ISOCHRONOUS) {
 			struct dwc_otg_hcd_iso_packet_desc *frame_desc = &qtd->urb->iso_descs[qtd->isoc_frame_index];
 			/* Record errors, update qtd. */
@@ -2543,9 +2543,9 @@ int32_t dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 
 	case FIQ_PER_SPLIT_TIMEOUT:
 		/* Couldn't complete in the nominated frame */
-		printk_ratelimited(KERN_INFO "Transfer to device %d endpoint 0x%x failed "
+		printk(KERN_INFO "Transfer to device %d endpoint 0x%x frame %d failed "
 				"- FIQ timed out. Data may have been lost.\n",
-				hc->dev_addr, hc->ep_num);
+				hc->dev_addr, hc->ep_num, dwc_otg_hcd_get_frame_number(hcd) >> 3);
 		if (hc->ep_type == UE_ISOCHRONOUS) {
 			struct dwc_otg_hcd_iso_packet_desc *frame_desc = &qtd->urb->iso_descs[qtd->isoc_frame_index];
 			/* Record errors, update qtd. */
