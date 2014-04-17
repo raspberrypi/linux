@@ -1479,12 +1479,10 @@ int fiq_fsm_transaction_suitable(dwc_otg_qh_t *qh)
 int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_state *st, dwc_otg_qh_t *qh)
  {
 	int frame_length, i = 0;
-	uint32_t nrslots, last_size;
 	uint8_t *ptr = NULL;
 	dwc_hc_t *hc = qh->channel;
 	struct fiq_dma_blob *blob;
 	struct dwc_otg_hcd_iso_packet_desc *frame_desc;
-
 
 	for (i = 0; i < 6; i++) {
 		st->dma_info.slot_len[i] = 255;
@@ -1520,9 +1518,6 @@ int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_state *st,
 			blob = hcd->fiq_dmab;
 
 			ptr = qtd->urb->buf + frame_desc->offset;
-			nrslots = (frame_length + 187) / 188;
-			last_size = frame_length % 188;
-			//printk(KERN_INFO "len = %d nrslots = %d last_size=%d\n", frame_length, nrslots, last_size);
 			if (frame_length == 0) {
 				/*
 				 * for isochronous transactions, we must still transmit a packet
@@ -1532,31 +1527,25 @@ int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_state *st,
 				st->nrpackets = 1;
 			} else {
 				do {
-					if (i < nrslots - 1) {
+					if (frame_length <= 188) {
+						dwc_memcpy(&blob->channel[hc->hc_num].index[i].buf[0], ptr, frame_length);
+						st->dma_info.slot_len[i] = frame_length;
+						ptr += frame_length;
+					} else {
 						dwc_memcpy(&blob->channel[hc->hc_num].index[i].buf[0], ptr, 188);
 						st->dma_info.slot_len[i] = 188;
 						ptr += 188;
-					} else {
-						dwc_memcpy(&blob->channel[hc->hc_num].index[i].buf[0], ptr, last_size);
-						st->dma_info.slot_len[i] = last_size;
-						ptr += last_size;
 					}
 					i++;
-				} while (i <= nrslots - 1);
+					frame_length -= 188;
+				} while (frame_length > 0);
 				st->nrpackets = i;
 			}
 			ptr = qtd->urb->buf + frame_desc->offset;
-			if(DWC_MEMCMP(&blob->channel[hc->hc_num].index[0].buf[0], ptr, frame_length))
-				BUG();
 			/* Point the HC at the DMA address of the bounce buffers */
 			blob = (struct fiq_dma_blob *) hcd->fiq_state->dma_base;
-			/* Bugette: for some reason, memcpy corrupts the data in the bounce buffers. May be a
-			 * cache coherency issue */
-			//st->hcdma_copy.d32 = (uint32_t) &blob->channel[hc->hc_num].index[0].buf[0];
-			//ptr = qtd->urb->buf + frame_desc->offset;
-			st->hcdma_copy.d32 = (uint32_t) qtd->urb->dma + frame_desc->offset;
-			if (st->hcdma_copy.d32 & 0x3)
-				BUG();
+			st->hcdma_copy.d32 = (uint32_t) &blob->channel[hc->hc_num].index[0].buf[0];
+			
 			/* fixup xfersize to the actual packet size */
 			st->hctsiz_copy.b.pid = 0;
 			st->hctsiz_copy.b.xfersize = st->dma_info.slot_len[0];
