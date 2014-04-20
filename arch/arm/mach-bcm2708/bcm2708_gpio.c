@@ -72,7 +72,7 @@ static int bcm2708_set_function(struct gpio_chip *gc, unsigned offset,
 	unsigned gpio_field_offset = (offset - 10 * gpio_bank) * 3;
 
 //printk(KERN_ERR DRIVER_NAME ": bcm2708_gpio_set_function %p (%d,%d)\n", gc, offset, function);
-	if (offset >= ARCH_NR_GPIOS)
+	if (offset >= BCM2708_NR_GPIOS)
 		return -EINVAL;
 
 	spin_lock_irqsave(&lock, flags);
@@ -110,7 +110,7 @@ static int bcm2708_gpio_get(struct gpio_chip *gc, unsigned offset)
 	unsigned gpio_field_offset = (offset - 32 * gpio_bank);
 	unsigned lev;
 
-	if (offset >= ARCH_NR_GPIOS)
+	if (offset >= BCM2708_NR_GPIOS)
 		return 0;
 	lev = readl(gpio->base + GPIOLEV(gpio_bank));
 //printk(KERN_ERR DRIVER_NAME ": bcm2708_gpio_get %p (%d)=%d\n", gc, offset, 0x1 & (lev>>gpio_field_offset));
@@ -123,7 +123,7 @@ static void bcm2708_gpio_set(struct gpio_chip *gc, unsigned offset, int value)
 	unsigned gpio_bank = offset / 32;
 	unsigned gpio_field_offset = (offset - 32 * gpio_bank);
 //printk(KERN_ERR DRIVER_NAME ": bcm2708_gpio_set %p (%d=%d)\n", gc, offset, value);
-	if (offset >= ARCH_NR_GPIOS)
+	if (offset >= BCM2708_NR_GPIOS)
 		return;
 	if (value)
 		writel(1 << gpio_field_offset, gpio->base + GPIOSET(gpio_bank));
@@ -302,7 +302,7 @@ static int bcm2708_gpio_probe(struct platform_device *dev)
 
 	ucb->gc.label = "bcm2708_gpio";
 	ucb->gc.base = 0;
-	ucb->gc.ngpio = ARCH_NR_GPIOS;
+	ucb->gc.ngpio = BCM2708_NR_GPIOS;
 	ucb->gc.owner = THIS_MODULE;
 
 	ucb->gc.direction_input = bcm2708_gpio_dir_in;
