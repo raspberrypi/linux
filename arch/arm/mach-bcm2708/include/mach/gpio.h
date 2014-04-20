@@ -11,8 +11,8 @@
 
 #define ARCH_NR_GPIOS 54 // number of gpio lines
 
-#define __bcm2708_gpio_to_irq(x)   ((x) + GPIO_IRQ_START)
-#define __bcm2708_irq_to_gpio(x)   ((x) - GPIO_IRQ_START)
+#define gpio_to_irq(x)	((x) + GPIO_IRQ_START)
+#define irq_to_gpio(x)	((x) - GPIO_IRQ_START)
 
 #endif
 

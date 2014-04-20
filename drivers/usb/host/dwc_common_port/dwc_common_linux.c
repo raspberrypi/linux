@@ -585,6 +585,7 @@ void DWC_MODIFY_REG32(uint32_t volatile *reg, uint32_t clear_mask, uint32_t set_
 	local_irq_save(flags);
 	local_fiq_disable();
 	writel((readl(reg) & ~clear_mask) | set_mask, reg);
+	local_fiq_enable();
 	local_irq_restore(flags);
 }
 

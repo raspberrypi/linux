@@ -15,7 +15,7 @@
  * core driver device
  */
 
-#define V4L2_CTRL_COUNT 21 /* number of v4l controls */
+#define V4L2_CTRL_COUNT 27 /* number of v4l controls */
 
 enum {
 	MMAL_COMPONENT_CAMERA = 0,
@@ -45,11 +45,19 @@ struct bm2835_mmal_dev {
 	/* controls */
 	struct v4l2_ctrl_handler  ctrl_handler;
 	struct v4l2_ctrl          *ctrls[V4L2_CTRL_COUNT];
+	enum v4l2_scene_mode	  scene_mode;
 	struct mmal_colourfx      colourfx;
 	int                       hflip;
 	int                       vflip;
-	enum mmal_parameter_exposuremode exposure_mode;
+	int			  red_gain;
+	int			  blue_gain;
+	enum mmal_parameter_exposuremode exposure_mode_user;
+	enum v4l2_exposure_auto_type exposure_mode_v4l2_user;
+	/* active exposure mode may differ if selected via a scene mode */
+	enum mmal_parameter_exposuremode exposure_mode_active;
+	enum mmal_parameter_exposuremeteringmode metering_mode;
 	unsigned int		  manual_shutter_speed;
+	bool			  exp_auto_priority;
 
 	/* allocated mmal instance and components */
 	struct vchiq_mmal_instance   *instance;
@@ -63,12 +71,16 @@ struct bm2835_mmal_dev {
 		unsigned int     height;  /* height */
 		unsigned int     stride;  /* stride */
 		struct mmal_fmt  *fmt;
-		struct v4l2_fract          timeperframe;
+		struct v4l2_fract timeperframe;
 
 		/* H264 encode bitrate */
 		int         encode_bitrate;
 		/* H264 bitrate mode. CBR/VBR */
 		int         encode_bitrate_mode;
+		/* H264 profile */
+		enum v4l2_mpeg_video_h264_profile enc_profile;
+		/* H264 level */
+		enum v4l2_mpeg_video_h264_level enc_level;
 		/* JPEG Q-factor */
 		int         q_factor;
 
@@ -98,7 +110,7 @@ int bm2835_mmal_init_controls(
 			struct v4l2_ctrl_handler *hdl);
 
 int bm2835_mmal_set_all_camera_controls(struct bm2835_mmal_dev *dev);
-
+int set_framerate_params(struct bm2835_mmal_dev *dev);
 
 /* Debug helpers */
 

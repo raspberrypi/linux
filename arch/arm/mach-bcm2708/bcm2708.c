@@ -83,6 +83,8 @@
 /* command line parameters */
 static unsigned boardrev, serial;
 static unsigned uart_clock;
+static unsigned disk_led_gpio = 16;
+static unsigned disk_led_active_low = 1;
 static unsigned reboot_part = 0;
 static unsigned w1_gpio_pin = W1_GPIO;
 
@@ -326,20 +328,6 @@ static struct resource bcm2708_usb_resources[] = {
 	       },
 };
 
-bool fiq_fix_enable = true;
-
-static struct resource bcm2708_usb_resources_no_fiq_fix[] = {
-	[0] = {
-		.start = USB_BASE,
-		.end = USB_BASE + SZ_128K - 1,
-		.flags = IORESOURCE_MEM,
-		},
-	[1] = {
-		.start = IRQ_USB,
-		.end = IRQ_USB,
-		.flags = IORESOURCE_IRQ,
-		},
-};
 
 static u64 usb_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
 
@@ -654,6 +642,21 @@ static struct platform_device snd_pcm5102a_codec_device = {
 };
 #endif
 
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI_MODULE)
+static struct platform_device snd_hifiberry_digi_device = {
+        .name = "snd-hifiberry-digi",
+        .id = 0,
+        .num_resources = 0,
+};
+
+static struct i2c_board_info __initdata snd_wm8804_i2c_devices[] = {
+        {
+                I2C_BOARD_INFO("wm8804", 0x3b)
+        },
+};
+
+#endif
+
 #if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
 static struct platform_device snd_rpi_dac_device = {
         .name = "snd-rpi-dac",
@@ -665,6 +668,22 @@ static struct platform_device snd_pcm1794a_codec_device = {
         .name = "pcm1794a-codec",
         .id = -1,
         .num_resources = 0,
+};
+#endif
+
+
+#if defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) || defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC_MODULE)
+static struct platform_device snd_rpi_iqaudio_dac_device = {
+        .name = "snd-rpi-iqaudio-dac",
+        .id = 0,
+        .num_resources = 0,
+};
+
+// Use the actual device name rather than generic driver name 
+static struct i2c_board_info __initdata snd_pcm512x_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("pcm5122", 0x4c)
+	},
 };
 #endif
 
@@ -772,11 +791,6 @@ void __init bcm2708_init(void)
 #endif
 	bcm_register_device(&bcm2708_systemtimer_device);
 	bcm_register_device(&bcm2708_fb_device);
-	if (!fiq_fix_enable)
-	{
-		bcm2708_usb_device.resource = bcm2708_usb_resources_no_fiq_fix;
-		bcm2708_usb_device.num_resources = ARRAY_SIZE(bcm2708_usb_resources_no_fiq_fix);
-	}
 	bcm_register_device(&bcm2708_usb_device);
 	bcm_register_device(&bcm2708_uart1_device);
 	bcm_register_device(&bcm2708_powerman_device);
@@ -804,10 +818,21 @@ void __init bcm2708_init(void)
         bcm_register_device(&snd_pcm5102a_codec_device);
 #endif
 
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI_MODULE)
+        bcm_register_device(&snd_hifiberry_digi_device);
+        i2c_register_board_info(1, snd_wm8804_i2c_devices, ARRAY_SIZE(snd_wm8804_i2c_devices));
+#endif
+
 #if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
         bcm_register_device(&snd_rpi_dac_device);
         bcm_register_device(&snd_pcm1794a_codec_device);
 #endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) || defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC_MODULE)
+        bcm_register_device(&snd_rpi_iqaudio_dac_device);
+        i2c_register_board_info(1, snd_pcm512x_i2c_devices, ARRAY_SIZE(snd_pcm512x_i2c_devices));
+#endif
+
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];
@@ -945,7 +970,9 @@ static struct platform_device bcm2708_led_device = {
 
 static void __init bcm2708_init_led(void)
 {
-	platform_device_register(&bcm2708_led_device);
+  bcm2708_leds[0].gpio = disk_led_gpio;
+  bcm2708_leds[0].active_low = disk_led_active_low;
+  platform_device_register(&bcm2708_led_device);
 }
 #else
 static inline void bcm2708_init_led(void)
@@ -984,5 +1011,7 @@ MACHINE_END
 module_param(boardrev, uint, 0644);
 module_param(serial, uint, 0644);
 module_param(uart_clock, uint, 0644);
+module_param(disk_led_gpio, uint, 0644);
+module_param(disk_led_active_low, uint, 0644);
 module_param(reboot_part, uint, 0644);
 module_param(w1_gpio_pin, uint, 0644);

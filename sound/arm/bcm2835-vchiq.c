@@ -178,7 +178,7 @@ int bcm2835_audio_write(bcm2835_alsa_stream_t *alsa_stream,
 
 void my_workqueue_init(bcm2835_alsa_stream_t * alsa_stream)
 {
-	alsa_stream->my_wq = create_workqueue("my_queue");
+	alsa_stream->my_wq = alloc_workqueue("my_queue", WQ_HIGHPRI, 1);
 	return;
 }
 

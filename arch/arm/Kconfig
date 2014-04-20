@@ -367,6 +367,7 @@ config ARCH_BCM2708
 	select ARM_AMBA
 	select HAVE_CLK
 	select HAVE_SCHED_CLOCK
+	select NEED_MACH_GPIO_H
 	select NEED_MACH_MEMORY_H
 	select CLKDEV_LOOKUP
 	select ARCH_HAS_CPUFREQ

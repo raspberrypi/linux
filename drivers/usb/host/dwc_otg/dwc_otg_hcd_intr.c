@@ -34,7 +34,6 @@
 
 #include "dwc_otg_hcd.h"
 #include "dwc_otg_regs.h"
-#include "dwc_otg_mphi_fix.h"
 
 #include <linux/jiffies.h>
 #include <mach/hardware.h>
@@ -47,32 +46,7 @@ extern bool microframe_schedule;
  * This file contains the implementation of the HCD Interrupt handlers.
  */
 
-/*
- * Some globals to communicate between the FIQ and INTERRUPT
- */
-
-void * dummy_send;
-mphi_regs_t c_mphi_regs;
-volatile void *dwc_regs_base;
 int fiq_done, int_done;
-
-gintsts_data_t  gintsts_saved = {.d32 = 0};
-hcint_data_t    hcint_saved[MAX_EPS_CHANNELS];
-hcintmsk_data_t hcintmsk_saved[MAX_EPS_CHANNELS];
-int             split_out_xfersize[MAX_EPS_CHANNELS];
-haint_data_t    haint_saved;
-
-int g_next_sched_frame, g_np_count, g_np_sent;
-static int mphi_int_count = 0 ;
-
-hcchar_data_t nak_hcchar;
-hctsiz_data_t nak_hctsiz;
-hcsplt_data_t nak_hcsplt;
-int nak_count;
-
-int complete_sched[MAX_EPS_CHANNELS] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
-int split_start_frame[MAX_EPS_CHANNELS];
-int queued_port[MAX_EPS_CHANNELS];
 
 #ifdef FIQ_DEBUG
 char buffer[1000*16];
@@ -83,12 +57,10 @@ void notrace _fiq_print(FIQDBG_T dbg_lvl, char *fmt, ...)
 	va_list args;
 	char text[17];
 	hfnum_data_t hfnum = { .d32 = FIQ_READ(dwc_regs_base + 0x408) };
-	unsigned long flags;
 
-	local_irq_save(flags);
-	local_fiq_disable();
 	if(dbg_lvl & dbg_lvl_req || dbg_lvl == FIQDBG_ERR)
 	{
+		local_fiq_disable();
 		snprintf(text, 9, "%4d%d:%d ", hfnum.b.frnum/8, hfnum.b.frnum%8, 8 - hfnum.b.frrem/937);
 		va_start(args, fmt);
 		vsnprintf(text+8, 9, fmt, args);
@@ -96,410 +68,21 @@ void notrace _fiq_print(FIQDBG_T dbg_lvl, char *fmt, ...)
 
 		memcpy(buffer + wptr, text, 16);
 		wptr = (wptr + 16) % sizeof(buffer);
+		local_fiq_enable();
 	}
-	local_irq_restore(flags);
 }
 #endif
-
-void notrace fiq_queue_request(int channel, int odd_frame)
-{
-	hcchar_data_t   hcchar   = { .d32 = FIQ_READ(dwc_regs_base + 0x500 + (channel * 0x20) + 0x0)  };
-	hcsplt_data_t   hcsplt   = { .d32 = FIQ_READ(dwc_regs_base + 0x500 + (channel * 0x20) + 0x4)  };
-	hctsiz_data_t   hctsiz   = { .d32 = FIQ_READ(dwc_regs_base + 0x500 + (channel * 0x20) + 0x10) };
-
-	if(hcsplt.b.spltena	== 0)
-	{
-		fiq_print(FIQDBG_ERR, "SPLTENA ");
-		BUG();
-	}
-
-	if(hcchar.b.epdir == 1)
-	{
-		fiq_print(FIQDBG_SCHED, "IN  Ch %d", channel);
-	}
-	else
-	{
-		hctsiz.b.xfersize = 0;
-		fiq_print(FIQDBG_SCHED, "OUT Ch %d", channel);
-	}
-	FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0x10), hctsiz.d32);
-
-	hcsplt.b.compsplt = 1;
-	FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0x4), hcsplt.d32);
-
-	// Send the Split complete
-	hcchar.b.chen = 1;
-	hcchar.b.oddfrm = odd_frame ? 1 : 0;
-
-	// Post this for transmit on the next frame for periodic or this frame for non-periodic
-	fiq_print(FIQDBG_SCHED, "SND_%s", odd_frame ? "ODD " : "EVEN");
-
-	FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0x0), hcchar.d32);
-}
-
-static int last_sof = -1;
-
-/*
-** Function to handle the start of frame interrupt, choose whether we need to do anything and
-** therefore trigger the main interrupt
-**
-** returns int != 0 - interrupt has been handled
-*/
-int diff;
-
-int notrace fiq_sof_handle(hfnum_data_t hfnum)
-{
-	int handled = 0;
-	int i;
-
-	// Just check that once we're running we don't miss a SOF
-	/*if(last_sof != -1 && (hfnum.b.frnum != ((last_sof + 1) & 0x3fff)))
-	{
-		fiq_print(FIQDBG_ERR, "LASTSOF ");
-		fiq_print(FIQDBG_ERR, "%4d%d   ", last_sof / 8, last_sof & 7);
-		fiq_print(FIQDBG_ERR, "%4d%d   ", hfnum.b.frnum / 8, hfnum.b.frnum & 7);
-		BUG();
-	}*/
-
-	// Only start remembering the last sof when the interrupt has been
-	// enabled (we don't check the mask to come in here...)
-	if(last_sof != -1 || FIQ_READ(dwc_regs_base + 0x18) & (1<<3))
-		last_sof = hfnum.b.frnum;
-
-	for(i = 0; i < MAX_EPS_CHANNELS; i++)
-	{
-		if(complete_sched[i] != -1)
-		{
-			if(complete_sched[i] <= hfnum.b.frnum || (complete_sched[i] > 0x3f00 && hfnum.b.frnum < 0xf0))
-			{
-				fiq_queue_request(i, hfnum.b.frnum & 1);
-				complete_sched[i] = -1;
-			}
-		}
-
-		if(complete_sched[i] != -1)
-		{
-			// This is because we've seen a split complete occur with no start...
-			// most likely because missed the complete 0x3fff frames ago!
-
-			diff = (hfnum.b.frnum + 0x3fff - complete_sched[i]) & 0x3fff ;
-			if(diff > 32 && diff < 0x3f00)
-			{
-				fiq_print(FIQDBG_ERR, "SPLTMISS");
-				BUG();
-			}
-		}
-	}
-
-	if(g_np_count == g_np_sent && dwc_frame_num_gt(g_next_sched_frame, hfnum.b.frnum))
-	{
-		/*
-		 * If np_count != np_sent that means we need to queue non-periodic (bulk) packets this packet
-		 * g_next_sched_frame is the next frame we have periodic packets for
-		 *
-		 * if neither of these are required for this frame then just clear the interrupt
-		 */
-		handled = 1;
-
-	}
-
-	return handled;
-}
-
-int notrace port_id(hcsplt_data_t hcsplt)
-{
-	return hcsplt.b.prtaddr + (hcsplt.b.hubaddr << 8);
-}
-
-int notrace fiq_hcintr_handle(int channel, hfnum_data_t hfnum)
-{
-	hcchar_data_t   hcchar   = { .d32 = FIQ_READ(dwc_regs_base + 0x500 + (channel * 0x20) + 0x0) };
-	hcsplt_data_t   hcsplt   = { .d32 = FIQ_READ(dwc_regs_base + 0x500 + (channel * 0x20) + 0x4) };
-	hcint_data_t    hcint    = { .d32 = FIQ_READ(dwc_regs_base + 0x500 + (channel * 0x20) + 0x8) };
-	hcintmsk_data_t hcintmsk = { .d32 = FIQ_READ(dwc_regs_base + 0x500 + (channel * 0x20) + 0xc) };
-	hctsiz_data_t   hctsiz   = { .d32 = FIQ_READ(dwc_regs_base + 0x500 + (channel * 0x20) + 0x10)};
-
-	hcint_saved[channel].d32 |= hcint.d32;
-	hcintmsk_saved[channel].d32 =  hcintmsk.d32;
-
-	if(hcsplt.b.spltena)
-	{
-		fiq_print(FIQDBG_PORTHUB, "ph: %4x", port_id(hcsplt));
-		if(hcint.b.chhltd)
-		{
-			fiq_print(FIQDBG_SCHED, "CH HLT %d", channel);
-			fiq_print(FIQDBG_SCHED, "%08x", hcint_saved[channel]);
-		}
-		if(hcint.b.stall || hcint.b.xacterr || hcint.b.bblerr || hcint.b.frmovrun || hcint.b.datatglerr)
-		{
-			queued_port[channel] = 0;
-			fiq_print(FIQDBG_ERR, "CHAN ERR");
-		}
-		if(hcint.b.xfercomp)
-		{
-			// Clear the port allocation and transmit anything also on this port
-			queued_port[channel] = 0;
-			fiq_print(FIQDBG_SCHED, "XFERCOMP");
-		}
-		if(hcint.b.nak)
-		{
-			queued_port[channel] = 0;
-			fiq_print(FIQDBG_SCHED, "NAK");
-		}
-		if(hcint.b.ack && !hcsplt.b.compsplt)
-		{
-			int i;
-
-			// Do not complete isochronous out transactions
-			if(hcchar.b.eptype == 1 && hcchar.b.epdir == 0)
-			{
-				queued_port[channel] = 0;
-				fiq_print(FIQDBG_SCHED, "ISOC_OUT");
-			}
-			else
-			{
-				// Make sure we check the port / hub combination that we sent this split on.
-				// Do not queue a second request to the same port
-				for(i = 0; i < MAX_EPS_CHANNELS; i++)
-				{
-					if(port_id(hcsplt) == queued_port[i])
-					{
-						fiq_print(FIQDBG_ERR, "PORTERR ");
-						//BUG();
-					}
-				}
-
-				split_start_frame[channel] = (hfnum.b.frnum + 1) & ~7;
-
-				// Note, the size of an OUT is in the start split phase, not
-				// the complete split
-				split_out_xfersize[channel] = hctsiz.b.xfersize;
-
-				hcint_saved[channel].b.chhltd = 0;
-				hcint_saved[channel].b.ack = 0;
-
-				queued_port[channel] = port_id(hcsplt);
-
-				if(hcchar.b.eptype & 1)
-				{
-					// Send the periodic complete in the same oddness frame as the ACK went...
-					fiq_queue_request(channel, !(hfnum.b.frnum & 1));
-	//				complete_sched[channel] = dwc_frame_num_inc(hfnum.b.frnum, 1);
-				}
-				else
-				{
-					// Schedule the split complete to occur later
-					complete_sched[channel] = dwc_frame_num_inc(hfnum.b.frnum, 2);
-					fiq_print(FIQDBG_SCHED, "ACK%04d%d", complete_sched[channel]/8, complete_sched[channel]%8);
-				}
-			}
-		}
-		if(hcint.b.nyet)
-		{
-			fiq_print(FIQDBG_ERR, "NYETERR1");
-			//BUG();
-			// Can transmit a split complete up to uframe .0 of the next frame
-			if(hfnum.b.frnum <= dwc_frame_num_inc(split_start_frame[channel], 8))
-			{
-				// Send it next frame
-				if(hcchar.b.eptype & 1) // type 1 & 3 are interrupt & isoc
-				{
-					fiq_print(FIQDBG_SCHED, "NYT:SEND");
-					fiq_queue_request(channel, !(hfnum.b.frnum & 1));
-				}
-				else
-				{
-					// Schedule non-periodic access for next frame (the odd-even bit doesn't effect NP)
-					complete_sched[channel] = dwc_frame_num_inc(hfnum.b.frnum, 1);
-					fiq_print(FIQDBG_SCHED, "NYT%04d%d", complete_sched[channel]/8, complete_sched[channel]%8);
-				}
-				hcint_saved[channel].b.chhltd = 0;
-				hcint_saved[channel].b.nyet = 0;
-			}
-			else
-			{
-				queued_port[channel] = 0;
-				fiq_print(FIQDBG_ERR, "NYETERR2");
-				//BUG();
-			}
-		}
-	}
-	else
-	{
-		/*
-		 * If we have any of NAK, ACK, Datatlgerr active on a
-		 * non-split channel, the sole reason is to reset error
-		 * counts for a previously broken transaction. The FIQ
-		 * will thrash on NAK IN and ACK OUT in particular so
-		 * handle it "once" and allow the IRQ to do the rest.
-		 */
-		hcint.d32 &= hcintmsk.d32;
-		if(hcint.b.nak)
-		{
-			hcintmsk.b.nak = 0;
-			FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0xc), hcintmsk.d32);
-		}
-		if (hcint.b.ack)
-		{
-			hcintmsk.b.ack = 0;
-			FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0xc), hcintmsk.d32);
-		}
-	}
-
-	// Clear the interrupt, this will also clear the HAINT bit
-	FIQ_WRITE((dwc_regs_base + 0x500 + (channel * 0x20) + 0x8), hcint.d32);
-	return hcint_saved[channel].d32 == 0;
-}
-
-gintsts_data_t gintsts;
-gintmsk_data_t gintmsk;
-// triggered: The set of interrupts that were triggered
-// handled:   The set of interrupts that have been handled (no IRQ is
-//            required)
-// keep:      The set of interrupts we want to keep unmasked even though we
-//            want to trigger an IRQ to handle it (SOF and HCINTR)
-gintsts_data_t triggered, handled, keep;
-hfnum_data_t hfnum;
-
-void __attribute__ ((naked)) notrace dwc_otg_hcd_handle_fiq(void)
-{
-
-	/* entry takes care to store registers we will be treading on here */
-	asm __volatile__ (
-		"mov     ip, sp ;"
-		/* stash FIQ and normal regs */
-		"stmdb	sp!, {r0-r12,  lr};"
-		/* !! THIS SETS THE FRAME, adjust to > sizeof locals */
-		"sub     fp, ip, #512 ;"
-		);
-
-	// Cannot put local variables at the beginning of the function
-	// because otherwise 'C' will play with the stack pointer. any locals
-	// need to be inside the following block
-	do
-	{
-		fiq_done++;
-		gintsts.d32 = FIQ_READ(dwc_regs_base + 0x14);
-		gintmsk.d32 = FIQ_READ(dwc_regs_base + 0x18);
-		hfnum.d32 =   FIQ_READ(dwc_regs_base + 0x408);
-		triggered.d32 = gintsts.d32 & gintmsk.d32;
-		handled.d32 = 0;
-		keep.d32 = 0;
-		fiq_print(FIQDBG_INT, "FIQ     ");
-		fiq_print(FIQDBG_INT, "%08x", gintsts.d32);
-		fiq_print(FIQDBG_INT, "%08x", gintmsk.d32);
-		if(gintsts.d32)
-		{
-			// If port enabled
-			if((FIQ_READ(dwc_regs_base + 0x440) & 0xf) == 0x5)
-			{
-				if(gintsts.b.sofintr)
-				{
-					if(fiq_sof_handle(hfnum))
-					{
-						handled.b.sofintr = 1; /* Handled in FIQ */
-					}
-					else
-					{
-						/* Keer interrupt unmasked */
-						keep.b.sofintr = 1;
-					}
-					{
-						// Need to make sure the read and clearing of the SOF interrupt is as close as possible to avoid the possibility of missing
-						// a start of frame interrupt
-						gintsts_data_t gintsts = { .b.sofintr = 1 };
-						FIQ_WRITE((dwc_regs_base + 0x14), gintsts.d32);
-					}
-				}
-
-				if(fiq_split_enable && gintsts.b.hcintr)
-				{
-					int i;
-					haint_data_t    haint;
-					haintmsk_data_t haintmsk;
-
-					haint.d32 = FIQ_READ(dwc_regs_base + 0x414);
-					haintmsk.d32 = FIQ_READ(dwc_regs_base + 0x418);
-					haint.d32 &= haintmsk.d32;
-					haint_saved.d32 |= haint.d32;
-
-					fiq_print(FIQDBG_INT, "hcintr");
-					fiq_print(FIQDBG_INT, "%08x", FIQ_READ(dwc_regs_base + 0x414));
-
-					// Go through each channel that has an enabled interrupt
-					for(i = 0; i < 16; i++)
-						if((haint.d32 >> i) & 1)
-							if(fiq_hcintr_handle(i, hfnum))
-								haint_saved.d32 &= ~(1 << i); /* this was handled */
-
-					/* If we've handled all host channel interrupts then don't trigger the interrupt */
-					if(haint_saved.d32 == 0)
-					{
-						handled.b.hcintr = 1;
-					}
-					else
-					{
-						/* Make sure we keep the channel interrupt unmasked when triggering the IRQ */
-						keep.b.hcintr = 1;
-					}
-
-					{
-						gintsts_data_t gintsts = { .b.hcintr = 1 };
-
-						// Always clear the channel interrupt
-						FIQ_WRITE((dwc_regs_base + 0x14), gintsts.d32);
-					}
-				}
-			}
-			else
-			{
-				last_sof = -1;
-			}
-		}
-
-		// Mask out the interrupts triggered - those handled - don't mask out the ones we want to keep
-		gintmsk.d32 = keep.d32 | (gintmsk.d32 & ~(triggered.d32 & ~handled.d32));
-		// Save those that were triggered but not handled
-		gintsts_saved.d32 |= triggered.d32 & ~handled.d32;
-		FIQ_WRITE(dwc_regs_base + 0x18, gintmsk.d32);
-
-		// Clear and save any unhandled interrupts and trigger the interrupt
-		if(gintsts_saved.d32)
-		{
-			/* To enable the MPHI interrupt  (INT 32)
-			 */
-			FIQ_WRITE( c_mphi_regs.outdda, (int) dummy_send);
-			FIQ_WRITE( c_mphi_regs.outddb, (1 << 29));
-
-			mphi_int_count++;
-		}
-	}
-	while(0);
-
-	mb();
-
-	/* exit back to normal mode restoring everything */
-	asm __volatile__ (
-		/* return FIQ regs back to pristine state
-		 * and get normal regs back
-		 */
-		"ldmia	sp!, {r0-r12, lr};"
-
-		/* return */
-		"subs	pc, lr, #4;"
-	);
-}
 
 /** This function handles interrupts for the HCD. */
 int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 {
 	int retval = 0;
 	static int last_time;
-
 	dwc_otg_core_if_t *core_if = dwc_otg_hcd->core_if;
 	gintsts_data_t gintsts;
 	gintmsk_data_t gintmsk;
 	hfnum_data_t hfnum;
+	haintmsk_data_t haintmsk;
 
 #ifdef DEBUG
 	dwc_otg_core_global_regs_t *global_regs = core_if->core_global_regs;
@@ -517,14 +100,25 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 	/* Check if HOST Mode */
 	if (dwc_otg_is_host_mode(core_if)) {
 		local_fiq_disable();
-		gintmsk.d32 |= gintsts_saved.d32;
-		gintsts.d32 |= gintsts_saved.d32;
-		gintsts_saved.d32 = 0;
+		/* Pull in from the FIQ's disabled mask */
+		gintmsk.d32 = gintmsk.d32 | ~(dwc_otg_hcd->fiq_state->gintmsk_saved.d32);
+		dwc_otg_hcd->fiq_state->gintmsk_saved.d32 = ~0;
+
+
+		if (fiq_fsm_enable && ( 0x0000FFFF & ~(dwc_otg_hcd->fiq_state->haintmsk_saved.b2.chint))) {
+			gintsts.b.hcintr = 1;
+		}
+
+		/* Danger will robinson: fake a SOF if necessary */
+		if (fiq_fsm_enable && (dwc_otg_hcd->fiq_state->gintmsk_saved.b.sofintr == 1)) {
+			gintsts.b.sofintr = 1;
+		}
+		gintsts.d32 &= gintmsk.d32;
+
 		local_fiq_enable();
 		if (!gintsts.d32) {
 			goto exit_handler_routine;
 		}
-		gintsts.d32 &= gintmsk.d32;
 
 #ifdef DEBUG
 		// We should be OK doing this because the common interrupts should already have been serviced
@@ -544,12 +138,7 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 				    gintsts.d32, core_if);
 #endif
 		hfnum.d32 = DWC_READ_REG32(&dwc_otg_hcd->core_if->host_if->host_global_regs->hfnum);
-		if (gintsts.b.sofintr && g_np_count == g_np_sent && dwc_frame_num_gt(g_next_sched_frame, hfnum.b.frnum))
-		{
-			/* Note, we should never get here if the FIQ is doing it's job properly*/
-			retval |= dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd);
-		}
-		else if (gintsts.b.sofintr) {
+		if (gintsts.b.sofintr) {
 			retval |= dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd);
 		}
 
@@ -604,37 +193,43 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 	}
 
 exit_handler_routine:
-
-	if (fiq_fix_enable)
-	{
+	if (fiq_enable)	{
+		gintmsk_data_t gintmsk_new;
+		haintmsk_data_t haintmsk_new;
 		local_fiq_disable();
-		// Make sure that we don't clear the interrupt if we've still got pending work to do
-		if(gintsts_saved.d32 == 0)
-		{
-			/* Clear the MPHI interrupt */
-			DWC_WRITE_REG32(c_mphi_regs.intstat, (1<<16));
-			if (mphi_int_count >= 60)
-			{
-				DWC_WRITE_REG32(c_mphi_regs.ctrl, ((1<<31) + (1<<16)));
-				while(!(DWC_READ_REG32(c_mphi_regs.ctrl) & (1 << 17)))
-					;
-				DWC_WRITE_REG32(c_mphi_regs.ctrl, (1<<31));
-				mphi_int_count = 0;
-			}
-			int_done++;
+		gintmsk_new.d32 = *(volatile uint32_t *)&dwc_otg_hcd->fiq_state->gintmsk_saved.d32;
+		if(fiq_fsm_enable)
+			haintmsk_new.d32 = *(volatile uint32_t *)&dwc_otg_hcd->fiq_state->haintmsk_saved.d32;
+		else
+			haintmsk_new.d32 = 0x0000FFFF;
+
+		/* The FIQ could have sneaked another interrupt in. If so, don't clear MPHI */
+		if ((gintmsk_new.d32 == ~0) && (haintmsk_new.d32 == 0x0000FFFF)) {
+				DWC_WRITE_REG32(dwc_otg_hcd->fiq_state->mphi_regs.intstat, (1<<16));
+				if (dwc_otg_hcd->fiq_state->mphi_int_count >= 50) {
+					fiq_print(FIQDBG_INT, dwc_otg_hcd->fiq_state, "MPHI CLR");
+					DWC_WRITE_REG32(dwc_otg_hcd->fiq_state->mphi_regs.ctrl, ((1<<31) + (1<<16)));
+					while (!(DWC_READ_REG32(dwc_otg_hcd->fiq_state->mphi_regs.ctrl) & (1 << 17)))
+						;
+					DWC_WRITE_REG32(dwc_otg_hcd->fiq_state->mphi_regs.ctrl, (1<<31));
+					dwc_otg_hcd->fiq_state->mphi_int_count = 0;
+				}
+				int_done++;
 		}
-
-		// Unmask handled interrupts
-		FIQ_WRITE(dwc_regs_base + 0x18, gintmsk.d32);
-		//DWC_MODIFY_REG32((uint32_t *)IO_ADDRESS(USB_BASE + 0x8), 0 , 1);
-
+		haintmsk.d32 = DWC_READ_REG32(&core_if->host_if->host_global_regs->haintmsk);
+		/* Re-enable interrupts that the FIQ masked (first time round) */
+		FIQ_WRITE(dwc_otg_hcd->fiq_state->dwc_regs_base + GINTMSK, gintmsk.d32);
 		local_fiq_enable();
 
-		if((jiffies / HZ) > last_time)
-		{
+		if ((jiffies / HZ) > last_time) {
+			//dwc_otg_qh_t *qh;
+			//dwc_list_link_t *cur;
 			/* Once a second output the fiq and irq numbers, useful for debug */
 			last_time = jiffies / HZ;
-			DWC_DEBUGPL(DBG_USER, "int_done = %d fiq_done = %d\n", int_done, fiq_done);
+		//	 DWC_WARN("np_kick=%d AHC=%d sched_frame=%d cur_frame=%d int_done=%d fiq_done=%d",
+		//	dwc_otg_hcd->fiq_state->kick_np_queues, dwc_otg_hcd->available_host_channels,
+		//	dwc_otg_hcd->fiq_state->next_sched_frame, hfnum.b.frnum, int_done, dwc_otg_hcd->fiq_state->fiq_done);
+			 //printk(KERN_WARNING "Periodic queues:\n");
 		}
 	}
 
@@ -686,6 +281,7 @@ static inline void track_missed_sofs(uint16_t curr_frame_number)
 int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 {
 	hfnum_data_t hfnum;
+	gintsts_data_t gintsts = { .d32 = 0 };
 	dwc_list_link_t *qh_entry;
 	dwc_otg_qh_t *qh;
 	dwc_otg_transaction_type_e tr_type;
@@ -733,7 +329,7 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 		}
 	}
 
-	g_next_sched_frame = next_sched_frame;
+	hcd->fiq_state->next_sched_frame = next_sched_frame;
 
 	tr_type = dwc_otg_hcd_select_transactions(hcd);
 	if (tr_type != DWC_OTG_TRANSACTION_NONE) {
@@ -741,10 +337,11 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 		did_something = 1;
 	}
 
-	/* Clear interrupt */
-	gintsts.b.sofintr = 1;
-	DWC_WRITE_REG32(&hcd->core_if->core_global_regs->gintsts, gintsts.d32);
-
+	/* Clear interrupt - but do not trample on the FIQ sof */
+	if (!fiq_fsm_enable) {
+		gintsts.b.sofintr = 1;
+		DWC_WRITE_REG32(&hcd->core_if->core_global_regs->gintsts, gintsts.d32);
+	}
 	return 1;
 }
 
@@ -1020,19 +617,21 @@ int32_t dwc_otg_hcd_handle_hc_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 {
 	int i;
 	int retval = 0;
-	haint_data_t haint;
+	haint_data_t haint = { .d32 = 0 } ;
 
 	/* Clear appropriate bits in HCINTn to clear the interrupt bit in
 	 * GINTSTS */
 
-	haint.d32 = dwc_otg_read_host_all_channels_intr(dwc_otg_hcd->core_if);
+	if (!fiq_fsm_enable)
+		haint.d32 = dwc_otg_read_host_all_channels_intr(dwc_otg_hcd->core_if);
 
 	// Overwrite with saved interrupts from fiq handler
-	if(fiq_split_enable)
+	if(fiq_fsm_enable)
 	{
+		/* check the mask? */
 		local_fiq_disable();
-		haint.d32 = haint_saved.d32;
-		haint_saved.d32 = 0;
+		haint.b2.chint |= ~(dwc_otg_hcd->fiq_state->haintmsk_saved.b2.chint);
+		dwc_otg_hcd->fiq_state->haintmsk_saved.b2.chint = ~0;
 		local_fiq_enable();
 	}
 
@@ -1076,9 +675,7 @@ static uint32_t get_actual_xfer_length(dwc_hc_t * hc,
 				*short_read = (hctsiz.b.xfersize != 0);
 			}
 		} else if (hc->qh->do_split) {
-			if(fiq_split_enable)
-				length = split_out_xfersize[hc->hc_num];
-			else
+				//length = split_out_xfersize[hc->hc_num];
 				length = qtd->ssplit_out_xfer_count;
 		} else {
 			length = hc->xfer_len;
@@ -1325,19 +922,17 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 	int free_qtd;
 	dwc_irqflags_t flags;
 	dwc_spinlock_t *channel_lock = hcd->channel_lock;
-#ifdef FIQ_DEBUG
-	int endp = qtd->urb ? qtd->urb->pipe_info.ep_num : 0;
-#endif
+
 	int hog_port = 0;
 
 	DWC_DEBUGPL(DBG_HCDV, "  %s: channel %d, halt_status %d, xfer_len %d\n",
 		    __func__, hc->hc_num, halt_status, hc->xfer_len);
 
-	if(fiq_split_enable && hc->do_split) {
+	if(fiq_fsm_enable && hc->do_split) {
 		if(!hc->ep_is_in && hc->ep_type == UE_ISOCHRONOUS) {
-			if(hc->xact_pos == DWC_HCSPLIT_XACTPOS_MID || 
+			if(hc->xact_pos == DWC_HCSPLIT_XACTPOS_MID ||
 					hc->xact_pos == DWC_HCSPLIT_XACTPOS_BEGIN) {
-				hog_port = 1;
+				hog_port = 0;
 			}
 		}
 	}
@@ -1394,6 +989,8 @@ cleanup:
 	 * function clears the channel interrupt enables and conditions, so
 	 * there's no need to clear the Channel Halted interrupt separately.
 	 */
+	if (fiq_fsm_enable && hcd->fiq_state->channel[hc->hc_num].fsm != FIQ_PASSTHROUGH)
+		dwc_otg_cleanup_fiq_channel(hcd, hc->hc_num);
 	dwc_otg_hc_cleanup(hcd->core_if, hc);
 	DWC_CIRCLEQ_INSERT_TAIL(&hcd->free_hc_list, hc, hc_list_entry);
 
@@ -1416,25 +1013,8 @@ cleanup:
 
 		DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 		hcd->available_host_channels++;
-		fiq_print(FIQDBG_PORTHUB, "AHC = %d ", hcd->available_host_channels);
+		fiq_print(FIQDBG_INT, hcd->fiq_state, "AHC = %d ", hcd->available_host_channels);
 		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
-	}
-
-	if(fiq_split_enable && hc->do_split)
-	{
-		if(!(hcd->hub_port[hc->hub_addr] & (1 << hc->port_addr)))
-		{
-			fiq_print(FIQDBG_ERR, "PRTNOTAL");
-			//BUG();
-		}
-		if(!hog_port && (hc->ep_type == DWC_OTG_EP_TYPE_ISOC ||
-				hc->ep_type == DWC_OTG_EP_TYPE_INTR)) {
-			hcd->hub_port[hc->hub_addr] &= ~(1 << hc->port_addr);
-#ifdef FIQ_DEBUG
-			hcd->hub_port_alloc[hc->hub_addr * 16 + hc->port_addr] = -1;
-#endif
-			fiq_print(FIQDBG_PORTHUB, "H%dP%d:RR%d", hc->hub_addr, hc->port_addr, endp);
-		}
 	}
 
 	/* Try to queue more transfers now that there's a free channel. */
@@ -1858,7 +1438,7 @@ static int32_t handle_hc_nak_intr(dwc_otg_hcd_t * hcd,
 	switch(dwc_otg_hcd_get_pipe_type(&qtd->urb->pipe_info)) {
 		case UE_BULK:
 		case UE_CONTROL:
-		if (nak_holdoff_enable)
+		if (nak_holdoff && qtd->qh->do_split)
 			hc->qh->nak_frame = dwc_otg_hcd_get_frame_number(hcd);
 	}
 
@@ -2074,7 +1654,7 @@ static int32_t handle_hc_nyet_intr(dwc_otg_hcd_t * hcd,
 			// With the FIQ running we only ever see the failed NYET
 			if (dwc_full_frame_num(frnum) !=
 			    dwc_full_frame_num(hc->qh->sched_frame) ||
-			    fiq_split_enable) {
+			    fiq_fsm_enable) {
 				/*
 				 * No longer in the same full speed frame.
 				 * Treat this as a transaction error.
@@ -2460,12 +2040,11 @@ static inline int halt_status_ok(dwc_otg_hcd_t * hcd,
 static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 				      dwc_hc_t * hc,
 				      dwc_otg_hc_regs_t * hc_regs,
-				      dwc_otg_qtd_t * qtd,
-				      hcint_data_t hcint,
-				      hcintmsk_data_t hcintmsk)
+				      dwc_otg_qtd_t * qtd)
 {
 	int out_nak_enh = 0;
-
+	hcint_data_t hcint;
+	hcintmsk_data_t hcintmsk;
 	/* For core with OUT NAK enhancement, the flow for high-
 	 * speed CONTROL/BULK OUT is handled a little differently.
 	 */
@@ -2495,11 +2074,9 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 	}
 
 	/* Read the HCINTn register to determine the cause for the halt. */
-	if(!fiq_split_enable)
-	{
-		hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
-		hcintmsk.d32 = DWC_READ_REG32(&hc_regs->hcintmsk);
-	}
+
+	hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
+	hcintmsk.d32 = DWC_READ_REG32(&hc_regs->hcintmsk);
 
 	if (hcint.b.xfercomp) {
 		/** @todo This is here because of a possible hardware bug.  Spec
@@ -2624,15 +2201,13 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 static int32_t handle_hc_chhltd_intr(dwc_otg_hcd_t * hcd,
 				     dwc_hc_t * hc,
 				     dwc_otg_hc_regs_t * hc_regs,
-				     dwc_otg_qtd_t * qtd,
-				     hcint_data_t hcint,
-				     hcintmsk_data_t hcintmsk)
+				     dwc_otg_qtd_t * qtd)
 {
 	DWC_DEBUGPL(DBG_HCDI, "--Host Channel %d Interrupt: "
 		    "Channel Halted--\n", hc->hc_num);
 
 	if (hcd->core_if->dma_enable) {
-		handle_hc_chhltd_intr_dma(hcd, hc, hc_regs, qtd, hcint, hcintmsk);
+		handle_hc_chhltd_intr_dma(hcd, hc, hc_regs, qtd);
 	} else {
 #ifdef DEBUG
 		if (!halt_status_ok(hcd, hc, hc_regs, qtd)) {
@@ -2645,11 +2220,370 @@ static int32_t handle_hc_chhltd_intr(dwc_otg_hcd_t * hcd,
 	return 1;
 }
 
+
+/**
+ * dwc_otg_fiq_unmangle_isoc() - Update the iso_frame_desc structure on
+ * FIQ transfer completion
+ * @hcd:	Pointer to dwc_otg_hcd struct
+ * @num:	Host channel number
+ *
+ * 1. Un-mangle the status as recorded in each iso_frame_desc status
+ * 2. Copy it from the dwc_otg_urb into the real URB
+ */
+void dwc_otg_fiq_unmangle_isoc(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh, dwc_otg_qtd_t *qtd, uint32_t num)
+{
+	struct dwc_otg_hcd_urb *dwc_urb = qtd->urb;
+	int nr_frames = dwc_urb->packet_count;
+	int i;
+	hcint_data_t frame_hcint;
+
+	for (i = 0; i < nr_frames; i++) {
+		frame_hcint.d32 = dwc_urb->iso_descs[i].status;
+		if (frame_hcint.b.xfercomp) {
+			dwc_urb->iso_descs[i].status = 0;
+			dwc_urb->actual_length += dwc_urb->iso_descs[i].actual_length;
+		} else if (frame_hcint.b.frmovrun) {
+			if (qh->ep_is_in)
+				dwc_urb->iso_descs[i].status = -DWC_E_NO_STREAM_RES;
+			else
+				dwc_urb->iso_descs[i].status = -DWC_E_COMMUNICATION;
+			dwc_urb->error_count++;
+			dwc_urb->iso_descs[i].actual_length = 0;
+		} else if (frame_hcint.b.xacterr) {
+			dwc_urb->iso_descs[i].status = -DWC_E_PROTOCOL;
+			dwc_urb->error_count++;
+			dwc_urb->iso_descs[i].actual_length = 0;
+		} else if (frame_hcint.b.bblerr) {
+			dwc_urb->iso_descs[i].status = -DWC_E_OVERFLOW;
+			dwc_urb->error_count++;
+			dwc_urb->iso_descs[i].actual_length = 0;
+		} else {
+			/* Something went wrong */
+			dwc_urb->iso_descs[i].status = -1;
+			dwc_urb->iso_descs[i].actual_length = 0;
+			dwc_urb->error_count++;
+		}
+	}
+	//printk_ratelimited(KERN_INFO "%s: HS isochronous of %d/%d frames with %d errors complete\n",
+	//			__FUNCTION__, i, dwc_urb->packet_count, dwc_urb->error_count);
+	hcd->fops->complete(hcd, dwc_urb->priv, dwc_urb, 0);
+	release_channel(hcd, qh->channel, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
+}
+
+/**
+ * dwc_otg_fiq_unsetup_per_dma() - Remove data from bounce buffers for split transactions
+ * @hcd:	Pointer to dwc_otg_hcd struct
+ * @num:	Host channel number
+ *
+ * Copies data from the FIQ bounce buffers into the URB's transfer buffer. Does not modify URB state.
+ * Returns total length of data or -1 if the buffers were not used.
+ *
+ */
+int dwc_otg_fiq_unsetup_per_dma(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh, dwc_otg_qtd_t *qtd, uint32_t num)
+{
+	dwc_hc_t *hc = qh->channel;
+	struct fiq_dma_blob *blob = hcd->fiq_dmab;
+	struct fiq_channel_state *st = &hcd->fiq_state->channel[num];
+	uint8_t *ptr = NULL;
+	int index = 0, len = 0;
+	int i = 0;
+	if (hc->ep_is_in) {
+		/* Copy data out of the DMA bounce buffers to the URB's buffer.
+		 * The align_buf is ignored as this is ignored on FSM enqueue. */
+		ptr = qtd->urb->buf;
+		if (qh->ep_type == UE_ISOCHRONOUS) {
+			/* Isoc IN transactions - grab the offset of the iso_frame_desc into the URB transfer buffer */
+			index = qtd->isoc_frame_index;
+			ptr += qtd->urb->iso_descs[index].offset;
+		} else {
+			/* Need to increment by actual_length for interrupt IN */
+			ptr += qtd->urb->actual_length;
+		}
+
+		for (i = 0; i < st->nrpackets; i++) {
+			len += st->dma_info.slot_len[i];
+			dwc_memcpy(ptr, &blob->channel[num].index[i].buf[0], st->dma_info.slot_len[i]);
+			ptr += st->dma_info.slot_len[i];
+		}
+		return len;
+	} else {
+		/* OUT endpoints - nothing to do. */
+		return -1;
+	}
+
+}
+/**
+ * dwc_otg_hcd_handle_hc_fsm() - handle an unmasked channel interrupt
+ * 				 from a channel handled in the FIQ
+ * @hcd:	Pointer to dwc_otg_hcd struct
+ * @num:	Host channel number
+ *
+ * If a host channel interrupt was received by the IRQ and this was a channel
+ * used by the FIQ, the execution flow for transfer completion is substantially
+ * different from the normal (messy) path. This function and its friends handles
+ * channel cleanup and transaction completion from a FIQ transaction.
+ */
+int32_t dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
+{
+	struct fiq_channel_state *st = &hcd->fiq_state->channel[num];
+	dwc_hc_t *hc = hcd->hc_ptr_array[num];
+	dwc_otg_qtd_t *qtd = DWC_CIRCLEQ_FIRST(&hc->qh->qtd_list);
+	dwc_otg_qh_t *qh = hc->qh;
+	dwc_otg_hc_regs_t *hc_regs = hcd->core_if->host_if->hc_regs[num];
+	hcint_data_t hcint = hcd->fiq_state->channel[num].hcint_copy;
+	int hostchannels  = 0;
+	int ret = 0;
+	fiq_print(FIQDBG_INT, hcd->fiq_state, "OUT %01d %01d ", num , st->fsm);
+
+	hostchannels = hcd->available_host_channels;
+	switch (st->fsm) {
+	case FIQ_TEST:
+		break;
+
+	case FIQ_DEQUEUE_ISSUED:
+		/* hc_halt was called. QTD no longer exists. */
+		/* TODO: for a nonperiodic split transaction, need to issue a
+		 * CLEAR_TT_BUFFER hub command if we were in the start-split phase.
+		 */
+		release_channel(hcd, hc, NULL, hc->halt_status);
+		ret = 1;
+		break;
+
+	case FIQ_NP_SPLIT_DONE:
+		/* Nonperiodic transaction complete. */
+		if (!hc->ep_is_in) {
+			qtd->ssplit_out_xfer_count = hc->xfer_len;
+		}
+		if (hcint.b.xfercomp) {
+			handle_hc_xfercomp_intr(hcd, hc, hc_regs, qtd);
+		} else if (hcint.b.nak) {
+			handle_hc_nak_intr(hcd, hc, hc_regs, qtd);
+		}
+		ret = 1;
+		break;
+
+	case FIQ_NP_SPLIT_HS_ABORTED:
+		/* A HS abort is a 3-strikes on the HS bus at any point in the transaction.
+		 * Normally a CLEAR_TT_BUFFER hub command would be required: we can't do that
+		 * because there's no guarantee which order a non-periodic split happened in.
+		 * We could end up clearing a perfectly good transaction out of the buffer.
+		 */
+		if (hcint.b.xacterr) {
+			qtd->error_count += st->nr_errors;
+			handle_hc_xacterr_intr(hcd, hc, hc_regs, qtd);
+		} else if (hcint.b.ahberr) {
+			handle_hc_ahberr_intr(hcd, hc, hc_regs, qtd);
+		} else {
+			local_fiq_disable();
+			BUG();
+		}
+		break;
+
+	case FIQ_NP_SPLIT_LS_ABORTED:
+		/* A few cases can cause this - either an unknown state on a SSPLIT or
+		 * STALL/data toggle error response on a CSPLIT */
+		if (hcint.b.stall) {
+			handle_hc_stall_intr(hcd, hc, hc_regs, qtd);
+		} else if (hcint.b.datatglerr) {
+			handle_hc_datatglerr_intr(hcd, hc, hc_regs, qtd);
+		} else if (hcint.b.ahberr) {
+			handle_hc_ahberr_intr(hcd, hc, hc_regs, qtd);
+		} else {
+			local_fiq_disable();
+			BUG();
+		}
+		break;
+
+	case FIQ_PER_SPLIT_DONE:
+		/* Isoc IN or Interrupt IN/OUT */
+
+		/* Flow control here is different from the normal execution by the driver.
+		* We need to completely ignore most of the driver's method of handling
+		* split transactions and do it ourselves.
+		*/
+		if (hc->ep_type == UE_INTERRUPT) {
+			if (hc->ep_is_in) {
+				if (hcint.b.nak) {
+					handle_hc_nak_intr(hcd, hc, hc_regs, qtd);
+				} else {
+					int len;
+					len = dwc_otg_fiq_unsetup_per_dma(hcd, hc->qh, qtd, num);
+					//printk(KERN_NOTICE "FIQ Transaction: hc=%d len=%d urb_len = %d\n", num, len, qtd->urb->length);
+					qtd->urb->actual_length += len;
+					if (qtd->urb->actual_length >= qtd->urb->length) {
+						qtd->urb->status = 0;
+						hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, qtd->urb->status);
+						release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
+					} else {
+						/* Interrupt transfer not complete yet - is it a short read? */
+						if (len < hc->max_packet) {
+							/* Interrupt transaction complete */
+							qtd->urb->status = 0;
+							hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, qtd->urb->status);
+							release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
+						} else {
+							/* Further transactions required */
+							release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_COMPLETE);
+						}
+
+					}
+
+				}
+
+			} else {
+				/* Interrupt OUT complete. */
+				qtd->urb->actual_length += hc->xfer_len;
+				if (qtd->urb->actual_length >= qtd->urb->length) {
+					qtd->urb->status = 0;
+					hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, qtd->urb->status);
+					release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
+				} else {
+					release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_COMPLETE);
+				}
+			}
+		} else {
+			/* ISOC IN complete. */
+			struct dwc_otg_hcd_iso_packet_desc *frame_desc = &qtd->urb->iso_descs[qtd->isoc_frame_index];
+			int len = 0;
+			/* Record errors, update qtd. */
+			if (st->nr_errors) {
+				frame_desc->actual_length = 0;
+				frame_desc->status = -DWC_E_PROTOCOL;
+			} else {
+				frame_desc->status = 0;
+				/* Unswizzle dma */
+				len = dwc_otg_fiq_unsetup_per_dma(hcd, qh, qtd, num);
+				frame_desc->actual_length = len;
+			}
+			qtd->isoc_frame_index++;
+			if (qtd->isoc_frame_index == qtd->urb->packet_count) {
+				hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, 0);
+				release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
+			} else {
+				release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_COMPLETE);
+			}
+		}
+		break;
+
+	case FIQ_PER_ISO_OUT_DONE: {
+			struct dwc_otg_hcd_iso_packet_desc *frame_desc = &qtd->urb->iso_descs[qtd->isoc_frame_index];
+			/* Record errors, update qtd. */
+			if (st->nr_errors) {
+				frame_desc->actual_length = 0;
+				frame_desc->status = -DWC_E_PROTOCOL;
+			} else {
+				frame_desc->status = 0;
+				frame_desc->actual_length = frame_desc->length;
+			}
+			qtd->isoc_frame_index++;
+			qtd->isoc_split_offset = 0;
+			if (qtd->isoc_frame_index == qtd->urb->packet_count) {
+				hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, 0);
+				release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
+			} else {
+				release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_COMPLETE);
+			}
+		}
+		break;
+
+	case FIQ_PER_SPLIT_NYET_ABORTED:
+		/* Doh. lost the data. */
+		printk_ratelimited(KERN_INFO "Transfer to device %d endpoint 0x%x failed "
+				"- FIQ reported NYET. Data may have been lost.\n",
+				hc->dev_addr, hc->ep_num);
+		if (hc->ep_type == UE_ISOCHRONOUS) {
+			struct dwc_otg_hcd_iso_packet_desc *frame_desc = &qtd->urb->iso_descs[qtd->isoc_frame_index];
+			/* Record errors, update qtd. */
+			frame_desc->actual_length = 0;
+			frame_desc->status = -DWC_E_PROTOCOL;
+			qtd->isoc_frame_index++;
+			qtd->isoc_split_offset = 0;
+			if (qtd->isoc_frame_index == qtd->urb->packet_count) {
+				hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, 0);
+				release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
+			} else {
+				release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_COMPLETE);
+			}
+		} else {
+			release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NO_HALT_STATUS);
+		}
+		break;
+
+	case FIQ_HS_ISOC_DONE:
+		/* The FIQ has performed a whole pile of isochronous transactions.
+		 * The status is recorded as the interrupt state should the transaction
+		 * fail.
+		 */
+		dwc_otg_fiq_unmangle_isoc(hcd, qh, qtd, num);
+		break;
+
+	case FIQ_PER_SPLIT_LS_ABORTED:
+		if (hcint.b.xacterr) {
+			/* Hub has responded with an ERR packet. Device
+			 * has been unplugged or the port has been disabled.
+			 * TODO: need to issue a reset to the hub port. */
+			qtd->error_count += 3;
+			handle_hc_xacterr_intr(hcd, hc, hc_regs, qtd);
+		} else {
+			printk_ratelimited(KERN_INFO "Transfer to device %d endpoint 0x%x failed "
+				"- FIQ reported FSM=%d. Data may have been lost.\n",
+				st->fsm, hc->dev_addr, hc->ep_num);
+			release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NO_HALT_STATUS);
+		}
+		break;
+
+	case FIQ_PER_SPLIT_HS_ABORTED:
+		/* Either the SSPLIT phase suffered transaction errors or something
+		 * unexpected happened.
+		 */
+		qtd->error_count += 3;
+		handle_hc_xacterr_intr(hcd, hc, hc_regs, qtd);
+		release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NO_HALT_STATUS);
+		break;
+
+	case FIQ_PER_SPLIT_TIMEOUT:
+		/* Couldn't complete in the nominated frame */
+		printk_ratelimited(KERN_INFO "Transfer to device %d endpoint 0x%x failed "
+				"- FIQ timed out. Data may have been lost.\n",
+				hc->dev_addr, hc->ep_num);
+		if (hc->ep_type == UE_ISOCHRONOUS) {
+			struct dwc_otg_hcd_iso_packet_desc *frame_desc = &qtd->urb->iso_descs[qtd->isoc_frame_index];
+			/* Record errors, update qtd. */
+			frame_desc->actual_length = 0;
+			if (hc->ep_is_in) {
+				frame_desc->status = -DWC_E_NO_STREAM_RES;
+			} else {
+				frame_desc->status = -DWC_E_COMMUNICATION;
+			}
+			qtd->isoc_frame_index++;
+			if (qtd->isoc_frame_index == qtd->urb->packet_count) {
+				hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, 0);
+				release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
+			} else {
+				release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_COMPLETE);
+			}
+		} else {
+			release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NO_HALT_STATUS);
+		}
+		break;
+
+	default:
+		local_fiq_disable();
+		DWC_WARN("unexpected state received on hc=%d fsm=%d", hc->hc_num, st->fsm);
+		BUG();
+	}
+	//if (hostchannels != hcd->available_host_channels) {
+		/* should have incremented by now! */
+	//	BUG();
+//	}
+	return ret;
+}
+
 /** Handles interrupt for a specific Host Channel */
 int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 {
 	int retval = 0;
-	hcint_data_t hcint, hcint_orig;
+	hcint_data_t hcint;
 	hcintmsk_data_t hcintmsk;
 	dwc_hc_t *hc;
 	dwc_otg_hc_regs_t *hc_regs;
@@ -2668,24 +2602,32 @@ int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 	}
 	qtd = DWC_CIRCLEQ_FIRST(&hc->qh->qtd_list);
 
-	hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
-	hcint_orig = hcint;
-	hcintmsk.d32 = DWC_READ_REG32(&hc_regs->hcintmsk);
-	DWC_DEBUGPL(DBG_HCDV,
-		    "  hcint 0x%08x, hcintmsk 0x%08x, hcint&hcintmsk 0x%08x\n",
-		    hcint.d32, hcintmsk.d32, (hcint.d32 & hcintmsk.d32));
-	hcint.d32 = hcint.d32 & hcintmsk.d32;
-
-	if(fiq_split_enable)
-	{
-		// replace with the saved interrupts from the fiq handler
-		local_fiq_disable();
-		hcint_orig.d32 = hcint_saved[num].d32;
-		hcint.d32 = hcint_orig.d32 & hcintmsk_saved[num].d32;
-		hcint_saved[num].d32 = 0;
-		local_fiq_enable();
+	/*
+	 * FSM mode: Check to see if this is a HC interrupt from a channel handled by the FIQ.
+	 * Execution path is fundamentally different for the channels after a FIQ has completed
+	 * a split transaction.
+	 */
+	if (fiq_fsm_enable) {
+		switch (dwc_otg_hcd->fiq_state->channel[num].fsm) {
+			case FIQ_PASSTHROUGH:
+				break;
+			case FIQ_PASSTHROUGH_ERRORSTATE:
+				/* Hook into the error count */
+				fiq_print(FIQDBG_ERR, dwc_otg_hcd->fiq_state, "HCDERR%02d", num);
+				if (dwc_otg_hcd->fiq_state->channel[num].nr_errors) {
+					qtd->error_count = 0;
+					fiq_print(FIQDBG_ERR, dwc_otg_hcd->fiq_state, "RESET   ");
+				}
+				break;
+			default:
+				dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd, num);
+				return 1;
+		}
 	}
 
+	hcint.d32 = DWC_READ_REG32(&hc_regs->hcint);
+	hcintmsk.d32 = DWC_READ_REG32(&hc_regs->hcintmsk);
+	hcint.d32 = hcint.d32 & hcintmsk.d32;
 	if (!dwc_otg_hcd->core_if->dma_enable) {
 		if (hcint.b.chhltd && hcint.d32 != 0x2) {
 			hcint.b.chhltd = 0;
@@ -2703,7 +2645,7 @@ int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 		hcint.b.nyet = 0;
 	}
 	if (hcint.b.chhltd) {
-		retval |= handle_hc_chhltd_intr(dwc_otg_hcd, hc, hc_regs, qtd, hcint_orig, hcintmsk_saved[num]);
+		retval |= handle_hc_chhltd_intr(dwc_otg_hcd, hc, hc_regs, qtd);
 	}
 	if (hcint.b.ahberr) {
 		retval |= handle_hc_ahberr_intr(dwc_otg_hcd, hc, hc_regs, qtd);

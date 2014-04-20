@@ -53,6 +53,7 @@ static u32 dma_busy_wait_threshold = 1<<15;
 module_param(dma_busy_wait_threshold, int, 0644);
 MODULE_PARM_DESC(dma_busy_wait_threshold, "Busy-wait for DMA completion below this area");
 
+static int fbswap = 0;     /* module parameter */
 
 /* this data structure describes each frame buffer device we find */
 
@@ -185,7 +186,12 @@ static int bcm2708_fb_set_bitfields(struct fb_var_screeninfo *var)
 	 * encoded in the pixel data.  Calculate their position from
 	 * the bitfield length defined above.
 	 */
-	if (ret == 0 && var->bits_per_pixel >= 24) {
+	if (ret == 0 && var->bits_per_pixel >= 24 && fbswap) {
+		var->blue.offset = 0;
+		var->green.offset = var->blue.offset + var->blue.length;
+		var->red.offset = var->green.offset + var->green.length;
+		var->transp.offset = var->red.offset + var->red.length;
+	} else if (ret == 0 && var->bits_per_pixel >= 24) {
 		var->red.offset = 0;
 		var->green.offset = var->red.offset + var->red.length;
 		var->blue.offset = var->green.offset + var->green.length;
@@ -255,8 +261,8 @@ static int bcm2708_fb_check_var(struct fb_var_screeninfo *var,
 	else if (var->vmode & FB_VMODE_INTERLACED)
 		yres = (yres + 1) / 2;
 
-	if (yres > 1200) {
-		pr_err("bcm2708_fb_check_var: ERROR: VerticalTotal >= 1200; "
+	if (var->xres * yres > 1920 * 1200) {
+		pr_err("bcm2708_fb_check_var: ERROR: Pixel size >= 1920x1200; "
 		       "special treatment required! (TODO)\n");
 		return -EINVAL;
 	}
@@ -415,7 +421,7 @@ static void bcm2708_fb_copyarea(struct fb_info *info,
 
 	/* Fallback to cfb_copyarea() if we don't like something */
 	if (bytes_per_pixel > 4 ||
-	    info->var.xres > 1920 || info->var.yres > 1200 ||
+	    info->var.xres * info->var.yres > 1920 * 1200 ||
 	    region->width <= 0 || region->width > info->var.xres ||
 	    region->height <= 0 || region->height > info->var.yres ||
 	    region->sx < 0 || region->sx >= info->var.xres ||
@@ -618,8 +624,8 @@ static int bcm2708_fb_register(struct bcm2708_fb *fb)
 
 	fb_set_var(&fb->fb, &fb->fb.var);
 
-	print_debug("BCM2708FB: registering framebuffer (%dx%d@%d)\n", fbwidth,
-		fbheight, fbdepth);
+	print_debug("BCM2708FB: registering framebuffer (%dx%d@%d) (%d)\n", fbwidth
+		fbheight, fbdepth, fbswap);
 
 	ret = register_framebuffer(&fb->fb);
 	print_debug("BCM2708FB: register framebuffer (%d)\n", ret);
@@ -643,9 +649,6 @@ static int bcm2708_fb_probe(struct platform_device *dev)
 		ret = -ENOMEM;
 		goto free_region;
 	}
-
-	bcm2708_fb_debugfs_init(fb);
-
 
 	bcm2708_fb_debugfs_init(fb);
 
@@ -749,6 +752,7 @@ module_exit(bcm2708_fb_exit);
 module_param(fbwidth, int, 0644);
 module_param(fbheight, int, 0644);
 module_param(fbdepth, int, 0644);
+module_param(fbswap, int, 0644);
 
 MODULE_DESCRIPTION("BCM2708 framebuffer driver");
 MODULE_LICENSE("GPL");
@@ -756,3 +760,4 @@ MODULE_LICENSE("GPL");
 MODULE_PARM_DESC(fbwidth, "Width of ARM Framebuffer");
 MODULE_PARM_DESC(fbheight, "Height of ARM Framebuffer");
 MODULE_PARM_DESC(fbdepth, "Bit depth of ARM Framebuffer");
+MODULE_PARM_DESC(fbswap, "Swap order of red and blue in 24 and 32 bit modes");

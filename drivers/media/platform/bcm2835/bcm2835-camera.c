@@ -36,11 +36,15 @@
 
 #define BM2835_MMAL_VERSION "0.0.2"
 #define BM2835_MMAL_MODULE_NAME "bcm2835-v4l2"
-
+#define MIN_WIDTH 16
+#define MIN_HEIGHT 16
 #define MAX_WIDTH 2592
 #define MAX_HEIGHT 1944
 #define MIN_BUFFER_SIZE (80*1024)
 
+/* Max number of pixels supported whilst still being considered
+ * a video mode by the GPU.
+ */
 #define MAX_VIDEO_MODE_WIDTH 1280
 #define MAX_VIDEO_MODE_HEIGHT 720
 
@@ -56,7 +60,7 @@ MODULE_PARM_DESC(bcm2835_v4l2_debug, "Debug level 0-2");
 static struct bm2835_mmal_dev *gdev;	/* global device data */
 
 #define FPS_MIN 1
-#define FPS_MAX 30
+#define FPS_MAX 90
 
 /* timeperframe: min/max and default */
 static const struct v4l2_fract
@@ -83,8 +87,8 @@ static struct mmal_fmt formats[] = {
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
 	 },
 	{
-	 .name = "RGB24 (BE)",
-	 .fourcc = V4L2_PIX_FMT_BGR24,
+	 .name = "RGB24 (LE)",
+	 .fourcc = V4L2_PIX_FMT_RGB24,
 	 .flags = 0,
 	 .mmal = MMAL_ENCODING_BGR24,
 	 .depth = 24,
@@ -113,7 +117,63 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_MJPEG,
 	 .depth = 8,
 	 .mmal_component = MMAL_COMPONENT_VIDEO_ENCODE,
-	 }
+	 },
+	{
+	 .name = "4:2:2, packed, YVYU",
+	 .fourcc = V4L2_PIX_FMT_YVYU,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_YVYU,
+	 .depth = 16,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "4:2:2, packed, VYUY",
+	 .fourcc = V4L2_PIX_FMT_VYUY,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_VYUY,
+	 .depth = 16,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "4:2:2, packed, UYVY",
+	 .fourcc = V4L2_PIX_FMT_UYVY,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_UYVY,
+	 .depth = 16,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "4:2:0, packed, NV12",
+	 .fourcc = V4L2_PIX_FMT_NV12,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_NV12,
+	 .depth = 12,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "RGB24 (BE)",
+	 .fourcc = V4L2_PIX_FMT_BGR24,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_RGB24,
+	 .depth = 24,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "4:2:0, packed YVU",
+	 .fourcc = V4L2_PIX_FMT_YVU420,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_YV12,
+	 .depth = 12,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
+	{
+	 .name = "4:2:0, packed, NV21",
+	 .fourcc = V4L2_PIX_FMT_NV21,
+	 .flags = 0,
+	 .mmal = MMAL_ENCODING_NV21,
+	 .depth = 12,
+	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 },
 };
 
 static struct mmal_fmt *get_format(struct v4l2_format *f)
@@ -690,7 +750,7 @@ static int vidioc_g_fbuf(struct file *file, void *fh,
 	a->fmt.bytesperline = (preview_port->es.video.width * 3)>>1;
 	a->fmt.sizeimage = (preview_port->es.video.width *
 			       preview_port->es.video.height * 3)>>1;
-	a->fmt.colorspace = V4L2_COLORSPACE_SMPTE170M;
+	a->fmt.colorspace = V4L2_COLORSPACE_JPEG;
 
 	return 0;
 }
@@ -860,8 +920,8 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 	switch (mfmt->mmal_component) {
 	case MMAL_COMPONENT_CAMERA:
 		/* Make a further decision on port based on resolution */
-		if (f->fmt.pix.width <= MAX_VIDEO_MODE_WIDTH
-		    && f->fmt.pix.height <= MAX_VIDEO_MODE_HEIGHT)
+		if ((f->fmt.pix.width*f->fmt.pix.height) <=
+			(MAX_VIDEO_MODE_WIDTH * MAX_VIDEO_MODE_HEIGHT))
 			camera_port = port =
 			    &dev->component[MMAL_COMPONENT_CAMERA]->
 			    output[MMAL_CAMERA_PORT_VIDEO];
@@ -903,10 +963,8 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 	camera_port->es.video.crop.y = 0;
 	camera_port->es.video.crop.width = f->fmt.pix.width;
 	camera_port->es.video.crop.height = f->fmt.pix.height;
-	camera_port->es.video.frame_rate.num =
-			dev->capture.timeperframe.denominator;
-	camera_port->es.video.frame_rate.den =
-			dev->capture.timeperframe.numerator;
+	camera_port->es.video.frame_rate.num = 0;
+	camera_port->es.video.frame_rate.den = 1;
 
 	ret = vchiq_mmal_port_set_format(dev->instance, camera_port);
 
@@ -940,8 +998,10 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 		preview_port->es.video.crop.y = 0;
 		preview_port->es.video.crop.width = f->fmt.pix.width;
 		preview_port->es.video.crop.height = f->fmt.pix.height;
-		preview_port->es.video.frame_rate.num = 30;
-		preview_port->es.video.frame_rate.den = 1;
+		preview_port->es.video.frame_rate.num =
+					  dev->capture.timeperframe.denominator;
+		preview_port->es.video.frame_rate.den =
+					  dev->capture.timeperframe.numerator;
 		ret = vchiq_mmal_port_set_format(dev->instance, preview_port);
 		if (overlay_enabled) {
 			ret = vchiq_mmal_port_connect_tunnel(
@@ -1116,22 +1176,56 @@ static int vidioc_s_fmt_vid_cap(struct file *file, void *priv,
 	}
 
 	ret = mmal_setup_components(dev, f);
-	if (ret != 0)
+	if (ret != 0) {
 		v4l2_err(&dev->v4l2_dev,
 			 "%s: failed to setup mmal components: %d\n",
 			 __func__, ret);
+		ret = -EINVAL;
+	}
 
 	return ret;
+}
+
+int vidioc_enum_framesizes(struct file *file, void *fh,
+			   struct v4l2_frmsizeenum *fsize)
+{
+	static const struct v4l2_frmsize_stepwise sizes = {
+		MIN_WIDTH, MAX_WIDTH, 2,
+		MIN_HEIGHT, MAX_HEIGHT, 2
+	};
+	int i;
+
+	if (fsize->index)
+		return -EINVAL;
+	for (i = 0; i < ARRAY_SIZE(formats); i++)
+		if (formats[i].fourcc == fsize->pixel_format)
+			break;
+	if (i == ARRAY_SIZE(formats))
+		return -EINVAL;
+	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
+	fsize->stepwise = sizes;
+	return 0;
 }
 
 /* timeperframe is arbitrary and continous */
 static int vidioc_enum_frameintervals(struct file *file, void *priv,
 					     struct v4l2_frmivalenum *fival)
 {
+	int i;
+
 	if (fival->index)
 		return -EINVAL;
 
-	/* regarding width & height - we support any */
+	for (i = 0; i < ARRAY_SIZE(formats); i++)
+		if (formats[i].fourcc == fival->pixel_format)
+			break;
+	if (i == ARRAY_SIZE(formats))
+		return -EINVAL;
+
+	/* regarding width & height - we support any within range */
+	if (fival->width < MIN_WIDTH || fival->width > MAX_WIDTH ||
+	    fival->height < MIN_HEIGHT || fival->height > MAX_HEIGHT)
+		return -EINVAL;
 
 	fival->type = V4L2_FRMIVAL_TYPE_CONTINUOUS;
 
@@ -1167,7 +1261,6 @@ static int vidioc_s_parm(struct file *file, void *priv,
 	struct bm2835_mmal_dev *dev = video_drvdata(file);
 	struct v4l2_fract tpf;
 	struct mmal_parameter_rational fps_param;
-	int ret;
 
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
@@ -1183,27 +1276,11 @@ static int vidioc_s_parm(struct file *file, void *priv,
 	parm->parm.capture.timeperframe = tpf;
 	parm->parm.capture.readbuffers  = 1;
 
-	fps_param.num = dev->capture.timeperframe.denominator;
-	fps_param.den = dev->capture.timeperframe.numerator;
-	ret = vchiq_mmal_port_parameter_set(dev->instance,
-				      &dev->component[MMAL_COMPONENT_CAMERA]->
-					output[MMAL_CAMERA_PORT_PREVIEW],
-				      MMAL_PARAMETER_VIDEO_FRAME_RATE,
-				      &fps_param, sizeof(fps_param));
-	ret += vchiq_mmal_port_parameter_set(dev->instance,
-				      &dev->component[MMAL_COMPONENT_CAMERA]->
-					output[MMAL_CAMERA_PORT_VIDEO],
-				      MMAL_PARAMETER_VIDEO_FRAME_RATE,
-				      &fps_param, sizeof(fps_param));
-	ret += vchiq_mmal_port_parameter_set(dev->instance,
-				      &dev->component[MMAL_COMPONENT_CAMERA]->
-					output[MMAL_CAMERA_PORT_CAPTURE],
-				      MMAL_PARAMETER_VIDEO_FRAME_RATE,
-				      &fps_param, sizeof(fps_param));
-	if (ret)
-		v4l2_dbg(0, bcm2835_v4l2_debug, &dev->v4l2_dev,
-		 "Failed to set fps ret %d\n",
-		 ret);
+	fps_param.num = 0;	/* Select variable fps, and then use
+				 * FPS_RANGE to select the actual limits.
+				 */
+	fps_param.den = 1;
+	set_framerate_params(dev);
 
 	return 0;
 }
@@ -1236,6 +1313,7 @@ static const struct v4l2_ioctl_ops camera0_ioctl_ops = {
 	.vidioc_querybuf = vb2_ioctl_querybuf,
 	.vidioc_qbuf = vb2_ioctl_qbuf,
 	.vidioc_dqbuf = vb2_ioctl_dqbuf,
+	.vidioc_enum_framesizes = vidioc_enum_framesizes,
 	.vidioc_enum_frameintervals = vidioc_enum_frameintervals,
 	.vidioc_g_parm        = vidioc_g_parm,
 	.vidioc_s_parm        = vidioc_s_parm,
@@ -1279,7 +1357,7 @@ static int set_camera_parameters(struct vchiq_mmal_instance *instance,
 		.one_shot_stills = 1,
 		.max_preview_video_w = 1920,
 		.max_preview_video_h = 1088,
-		.num_preview_video_frames = 3,
+		.num_preview_video_frames = 6,
 		.stills_capture_circular_buffer_height = 0,
 		.fast_preview_resume = 0,
 		.use_stc_timestamp = MMAL_PARAM_TIMESTAMP_MODE_RAW_STC
@@ -1331,10 +1409,8 @@ static int __init mmal_init(struct bm2835_mmal_dev *dev)
 	format->es->video.crop.y = 0;
 	format->es->video.crop.width = 1024;
 	format->es->video.crop.height = 768;
-	format->es->video.frame_rate.num =
-			dev->capture.timeperframe.denominator;
-	format->es->video.frame_rate.den =
-			dev->capture.timeperframe.numerator;
+	format->es->video.frame_rate.num = 0; /* Rely on fps_range */
+	format->es->video.frame_rate.den = 1;
 
 	format =
 	    &dev->component[MMAL_COMPONENT_CAMERA]->
@@ -1349,10 +1425,8 @@ static int __init mmal_init(struct bm2835_mmal_dev *dev)
 	format->es->video.crop.y = 0;
 	format->es->video.crop.width = 1024;
 	format->es->video.crop.height = 768;
-	format->es->video.frame_rate.num =
-			dev->capture.timeperframe.denominator;
-	format->es->video.frame_rate.den =
-			dev->capture.timeperframe.numerator;
+	format->es->video.frame_rate.num = 0; /* Rely on fps_range */
+	format->es->video.frame_rate.den = 1;
 
 	format =
 	    &dev->component[MMAL_COMPONENT_CAMERA]->
@@ -1366,7 +1440,7 @@ static int __init mmal_init(struct bm2835_mmal_dev *dev)
 	format->es->video.crop.y = 0;
 	format->es->video.crop.width = 2592;
 	format->es->video.crop.height = 1944;
-	format->es->video.frame_rate.num = 30;
+	format->es->video.frame_rate.num = 0; /* Rely on fps_range */
 	format->es->video.frame_rate.den = 1;
 
 	dev->capture.width = format->es->video.width;
@@ -1374,6 +1448,8 @@ static int __init mmal_init(struct bm2835_mmal_dev *dev)
 	dev->capture.fmt = &formats[0];
 	dev->capture.encode_component = NULL;
 	dev->capture.timeperframe = tpf_default;
+	dev->capture.enc_profile = V4L2_MPEG_VIDEO_H264_PROFILE_HIGH;
+	dev->capture.enc_level = V4L2_MPEG_VIDEO_H264_LEVEL_4_0;
 
 	/* get the preview component ready */
 	ret = vchiq_mmal_component_init(
@@ -1417,6 +1493,14 @@ static int __init mmal_init(struct bm2835_mmal_dev *dev)
 			 dev->component[MMAL_COMPONENT_VIDEO_ENCODE]->inputs,
 			 1);
 		goto unreg_vid_encoder;
+	}
+
+	{
+		struct vchiq_mmal_port *encoder_port =
+			&dev->component[MMAL_COMPONENT_VIDEO_ENCODE]->output[0];
+		encoder_port->format.encoding = MMAL_ENCODING_H264;
+		ret = vchiq_mmal_port_set_format(dev->instance,
+			encoder_port);
 	}
 
 	{
