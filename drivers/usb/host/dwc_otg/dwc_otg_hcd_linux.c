@@ -626,9 +626,13 @@ void hcd_stop(struct usb_hcd *hcd)
 /** Returns the current frame number. */
 static int get_frame_number(struct usb_hcd *hcd)
 {
+	hprt0_data_t hprt0;
 	dwc_otg_hcd_t *dwc_otg_hcd = hcd_to_dwc_otg_hcd(hcd);
-
-	return dwc_otg_hcd_get_frame_number(dwc_otg_hcd);
+	hprt0.d32 = DWC_READ_REG32(dwc_otg_hcd->core_if->host_if->hprt0);
+	if (hprt0.b.prtspd == DWC_HPRT0_PRTSPD_HIGH_SPEED)
+		return dwc_otg_hcd_get_frame_number(dwc_otg_hcd) >> 3;
+	else
+		return dwc_otg_hcd_get_frame_number(dwc_otg_hcd);
 }
 
 #ifdef DEBUG
