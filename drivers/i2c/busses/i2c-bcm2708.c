@@ -252,6 +252,9 @@ static int bcm2708_i2c_master_xfer(struct i2c_adapter *adap,
 		u32 cdiv, stat;
 		bus_hz = clk_get_rate(bi->clk);
 		cdiv = bus_hz / baudrate;
+		if (cdiv > 0xffff) {
+			cdiv = 0xffff;
+		}
 		
 		// start transfer
 		// like bcm2708_bsc_setup(), but interrupt flags are clear
