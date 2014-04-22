@@ -920,6 +920,8 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 		} else if (hcint.b.nyet) {
 			/* Doh. Data lost. */
 			st->fsm = FIQ_PER_SPLIT_NYET_ABORTED;
+		} else if (hcint.b.xacterr || hcint.b.stall) {
+			st->fsm = FIQ_PER_SPLIT_LS_ABORTED;
 		} else {
 			st->fsm = FIQ_PER_SPLIT_HS_ABORTED;
 		}
@@ -999,8 +1001,8 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 					st->fsm = FIQ_PER_SPLIT_DONE;
 				}
 			}
-		} else if (hcint.b.xacterr) {
-			/* Local 3-strikes retry is handled by the core. This is a ERR response.*/
+		} else if (hcint.b.xacterr || hcint.b.stall) {
+			/* For xacterr, Local 3-strikes retry is handled by the core. This is a ERR response.*/
 			st->fsm = FIQ_PER_SPLIT_LS_ABORTED;
 		} else if (hcint.b.datatglerr) {
 			fiq_print(FIQDBG_INT, state, "TOGGLES");

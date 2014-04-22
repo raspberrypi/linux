@@ -2402,36 +2402,32 @@ int32_t dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 		* split transactions and do it ourselves.
 		*/
 		if (hc->ep_type == UE_INTERRUPT) {
-			if (hc->ep_is_in) {
-				if (hcint.b.nak) {
+			if (hcint.b.nak) {
 					handle_hc_nak_intr(hcd, hc, hc_regs, qtd);
+			} else if (hc->ep_is_in) {
+				int len;
+				len = dwc_otg_fiq_unsetup_per_dma(hcd, hc->qh, qtd, num);
+				//printk(KERN_NOTICE "FIQ Transaction: hc=%d len=%d urb_len = %d\n", num, len, qtd->urb->length);
+				qtd->urb->actual_length += len;
+				if (qtd->urb->actual_length >= qtd->urb->length) {
+					qtd->urb->status = 0;
+					hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, qtd->urb->status);
+					release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
 				} else {
-					int len;
-					len = dwc_otg_fiq_unsetup_per_dma(hcd, hc->qh, qtd, num);
-					//printk(KERN_NOTICE "FIQ Transaction: hc=%d len=%d urb_len = %d\n", num, len, qtd->urb->length);
-					qtd->urb->actual_length += len;
-					if (qtd->urb->actual_length >= qtd->urb->length) {
+					/* Interrupt transfer not complete yet - is it a short read? */
+					if (len < hc->max_packet) {
+						/* Interrupt transaction complete */
 						qtd->urb->status = 0;
 						hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, qtd->urb->status);
 						release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
 					} else {
-						/* Interrupt transfer not complete yet - is it a short read? */
-						if (len < hc->max_packet) {
-							/* Interrupt transaction complete */
-							qtd->urb->status = 0;
-							hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, qtd->urb->status);
-							release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
-						} else {
-							/* Further transactions required */
-							release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_COMPLETE);
-						}
-
+						/* Further transactions required */
+						release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_COMPLETE);
 					}
-
 				}
-
 			} else {
 				/* Interrupt OUT complete. */
+				dwc_otg_hcd_save_data_toggle(hc, hc_regs, qtd);
 				qtd->urb->actual_length += hc->xfer_len;
 				if (qtd->urb->actual_length >= qtd->urb->length) {
 					qtd->urb->status = 0;
@@ -2524,6 +2520,8 @@ int32_t dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 			 * TODO: need to issue a reset to the hub port. */
 			qtd->error_count += 3;
 			handle_hc_xacterr_intr(hcd, hc, hc_regs, qtd);
+		} else if (hcint.b.stall) {
+			handle_hc_stall_intr(hcd, hc, hc_regs, qtd);
 		} else {
 			printk_ratelimited(KERN_INFO "Transfer to device %d endpoint 0x%x failed "
 				"- FIQ reported FSM=%d. Data may have been lost.\n",
