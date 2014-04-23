@@ -286,6 +286,7 @@ int notrace noinline fiq_fsm_tt_in_use(struct fiq_state *st, int num_channels, i
 		case FIQ_PER_CSPLIT_NYET1:
 		//case FIQ_PER_CSPLIT_POLL:
 		case FIQ_PER_ISO_OUT_ACTIVE:
+		case FIQ_PER_ISO_OUT_LAST:
 			if (st->channel[i].hub_addr == hub_addr &&
 				st->channel[i].port_addr == port_addr) {
 				in_use = 1;
