@@ -580,8 +580,10 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 					fiq_fsm_restart_channel(state, n, 0);
 					state->channel[n].fsm = FIQ_PER_SSPLIT_STARTED;
 				} else {
+					/* Transaction cannot be started without risking a device babble error */
 					state->channel[n].fsm = FIQ_PER_SPLIT_TIMEOUT;
 					state->haintmsk_saved.b2.chint &= ~(1 << n);
+					FIQ_WRITE(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINTMSK, 0);
 					kick_irq |= 1;
 				}
 			}
@@ -629,6 +631,7 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 			 * that's OK.
 			 */
 			state->haintmsk_saved.b2.chint &= ~(1 << n);
+			FIQ_WRITE(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINTMSK, 0);
 			kick_irq |= 1;
 			break;
 		
