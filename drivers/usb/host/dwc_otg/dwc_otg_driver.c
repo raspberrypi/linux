@@ -243,11 +243,11 @@ static struct dwc_otg_driver_module_params dwc_otg_module_params = {
 //Global variable to switch the fiq fix on or off
 bool fiq_enable = 1;
 // Global variable to enable the split transaction fix
-bool fiq_fsm_enable = false;
+bool fiq_fsm_enable = true;
 //Bulk split-transaction NAK holdoff in microframes
 uint16_t nak_holdoff = 8;
 
-unsigned short fiq_fsm_mask = 0x01;
+unsigned short fiq_fsm_mask = 0x07;
 
 /**
  * This function shows the Driver Version.
