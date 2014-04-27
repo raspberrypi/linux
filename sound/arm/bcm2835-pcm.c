@@ -136,6 +136,11 @@ static int snd_bcm2835_playback_open(struct snd_pcm_substream *substream)
 	alsa_stream->enable_fifo_irq = 0;
 	alsa_stream->fifo_irq_handler = bcm2835_playback_fifo_irq;
 
+	err = bcm2835_audio_open(alsa_stream);
+	if (err != 0) {
+		kfree(alsa_stream);
+		return err;
+	}
 	runtime->private_data = alsa_stream;
 	runtime->private_free = snd_bcm2835_playback_free;
 	runtime->hw = snd_bcm2835_playback_hw;
@@ -143,11 +148,6 @@ static int snd_bcm2835_playback_open(struct snd_pcm_substream *substream)
 	snd_pcm_hw_constraint_step(runtime, 0, SNDRV_PCM_HW_PARAM_PERIOD_BYTES,
 				   16);
 
-	err = bcm2835_audio_open(alsa_stream);
-	if (err != 0) {
-		kfree(alsa_stream);
-		return err;
-	}
 	chip->alsa_stream[idx] = alsa_stream;
 
 	alsa_stream->open = 1;
