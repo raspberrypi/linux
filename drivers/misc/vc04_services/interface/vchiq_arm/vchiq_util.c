@@ -76,7 +76,7 @@ int vchiu_queue_is_full(VCHIU_QUEUE_T *queue)
 void vchiu_queue_push(VCHIU_QUEUE_T *queue, VCHIQ_HEADER_T *header)
 {
 	while (queue->write == queue->read + queue->size) {
-		if (down_interruptible(&queue->pop) != 0) {
+		if (down_killable(&queue->pop) != 0) {
 			flush_signals(current);
 		}
 	}
@@ -103,7 +103,7 @@ void vchiu_queue_push(VCHIU_QUEUE_T *queue, VCHIQ_HEADER_T *header)
 VCHIQ_HEADER_T *vchiu_queue_peek(VCHIU_QUEUE_T *queue)
 {
 	while (queue->write == queue->read) {
-		if (down_interruptible(&queue->push) != 0) {
+		if (down_killable(&queue->push) != 0) {
 			flush_signals(current);
 		}
 	}
@@ -124,7 +124,7 @@ VCHIQ_HEADER_T *vchiu_queue_pop(VCHIU_QUEUE_T *queue)
 	VCHIQ_HEADER_T *header;
 
 	while (queue->write == queue->read) {
-		if (down_interruptible(&queue->push) != 0) {
+		if (down_killable(&queue->push) != 0) {
 			flush_signals(current);
 		}
 	}

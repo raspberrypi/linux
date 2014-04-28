@@ -470,7 +470,7 @@ create_pagelist(char __user *buf, size_t count, unsigned short type,
 		(CACHE_LINE_SIZE - 1)))) {
 		FRAGMENTS_T *fragments;
 
-		if (down_interruptible(&g_free_fragments_sema) != 0) {
+		if (down_killable(&g_free_fragments_sema) != 0) {
 			kfree(pagelist);
 			return -EINTR;
 		}
