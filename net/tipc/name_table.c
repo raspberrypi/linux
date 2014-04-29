@@ -962,6 +962,7 @@ static void tipc_purge_publications(struct name_seq *seq)
 	list_for_each_entry_safe(publ, safe, &info->zone_list, zone_list) {
 		tipc_nametbl_remove_publ(publ->type, publ->lower, publ->node,
 					 publ->ref, publ->key);
+		kfree(publ);
 	}
 }
 
@@ -986,7 +987,6 @@ void tipc_nametbl_stop(void)
 		hlist_for_each_entry_safe(seq, safe, seq_head, ns_list) {
 			tipc_purge_publications(seq);
 		}
-		continue;
 	}
 	kfree(table.types);
 	table.types = NULL;
