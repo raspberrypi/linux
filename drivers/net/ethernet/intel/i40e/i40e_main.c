@@ -4310,7 +4310,7 @@ int i40e_vsi_open(struct i40e_vsi *vsi)
 		goto err_setup_rx;
 
 	if (!vsi->netdev) {
-		err = EINVAL;
+		err = -EINVAL;
 		goto err_setup_rx;
 	}
 	snprintf(int_name, sizeof(int_name) - 1, "%s-%s",
