@@ -305,6 +305,31 @@ static int bcm2708_i2s_set_dai_bclk_ratio(struct snd_soc_dai *dai,
 	return 0;
 }
 
+
+static void bcm2708_i2s_setup_gpio(void)
+{
+	/*
+	 * This is the common way to handle the GPIO pins for
+	 * the Raspberry Pi.
+	 * TODO Better way would be to handle
+	 * this in the device tree!
+	 */
+#define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
+#define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
+
+	unsigned int *gpio;
+	int pin;
+	gpio = ioremap(GPIO_BASE, SZ_16K);
+
+	/* SPI is on GPIO 7..11 */
+	for (pin = 28; pin <= 31; pin++) {
+		INP_GPIO(pin);		/* set mode to GPIO input first */
+		SET_GPIO_ALT(pin, 2);	/* set mode to ALT 0 */
+	}
+#undef INP_GPIO
+#undef SET_GPIO_ALT
+}
+
 static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 				 struct snd_pcm_hw_params *params,
 				 struct snd_soc_dai *dai)
@@ -333,6 +358,9 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	if (csreg & (BCM2708_I2S_TXON | BCM2708_I2S_RXON))
 		return 0;
+
+
+	bcm2708_i2s_setup_gpio();
 
 	/*
 	 * Adjust the data length according to the format.
@@ -790,31 +818,6 @@ static const struct snd_soc_component_driver bcm2708_i2s_component = {
 	.name		= "bcm2708-i2s-comp",
 };
 
-
-static void bcm2708_i2s_setup_gpio(void)
-{
-	/*
-	 * This is the common way to handle the GPIO pins for
-	 * the Raspberry Pi.
-	 * TODO Better way would be to handle
-	 * this in the device tree!
-	 */
-#define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
-#define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
-
-	unsigned int *gpio;
-	int pin;
-	gpio = ioremap(GPIO_BASE, SZ_16K);
-
-	/* SPI is on GPIO 7..11 */
-	for (pin = 28; pin <= 31; pin++) {
-		INP_GPIO(pin);		/* set mode to GPIO input first */
-		SET_GPIO_ALT(pin, 2);	/* set mode to ALT 0 */
-	}
-#undef INP_GPIO
-#undef SET_GPIO_ALT
-}
-
 static const struct snd_pcm_hardware bcm2708_pcm_hardware = {
 	.info			= SNDRV_PCM_INFO_INTERLEAVED |
 				  SNDRV_PCM_INFO_JOINT_DUPLEX,
@@ -864,8 +867,6 @@ static int bcm2708_i2s_probe(struct platform_device *pdev)
 			   GFP_KERNEL);
 	if (IS_ERR(dev))
 		return PTR_ERR(dev);
-
-	bcm2708_i2s_setup_gpio();
 
 	dev->i2s_regmap = regmap[0];
 	dev->clk_regmap = regmap[1];
