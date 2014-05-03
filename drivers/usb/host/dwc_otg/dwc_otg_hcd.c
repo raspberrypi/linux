@@ -614,11 +614,13 @@ int dwc_otg_hcd_urb_dequeue(dwc_otg_hcd_t * hcd,
 			/* In FIQ FSM mode, we need to shut down carefully.
 			 * The FIQ may attempt to restart a disabled channel */
 			if (fiq_fsm_enable && (hcd->fiq_state->channel[n].fsm != FIQ_PASSTHROUGH)) {
+				qh->channel->halt_status = DWC_OTG_HC_XFER_URB_DEQUEUE;
+				qh->channel->halt_pending = 1;
 				hcd->fiq_state->channel[n].fsm = FIQ_DEQUEUE_ISSUED;
+			} else {
+				dwc_otg_hc_halt(hcd->core_if, qh->channel,
+						DWC_OTG_HC_XFER_URB_DEQUEUE);
 			}
-			dwc_otg_hc_halt(hcd->core_if, qh->channel,
-					DWC_OTG_HC_XFER_URB_DEQUEUE);
-
 		}
 	}
 

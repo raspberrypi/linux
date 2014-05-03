@@ -625,6 +625,7 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 			break;
 		
 		case FIQ_PER_SPLIT_TIMEOUT:
+		case FIQ_DEQUEUE_ISSUED:
 			/* Ugly: we have to force a HCD interrupt.
 			 * Poke the mask for the channel in question.
 			 * We will take a fake SOF because of this, but
