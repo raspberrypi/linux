@@ -426,11 +426,18 @@ isert_conn_create_frwr_pool(struct isert_conn *isert_conn)
 {
 	struct fast_reg_descriptor *fr_desc;
 	struct isert_device *device = isert_conn->conn_device;
-	int i, ret;
+	struct se_session *se_sess = isert_conn->conn->sess->se_sess;
+	struct se_node_acl *se_nacl = se_sess->se_node_acl;
+	int i, ret, tag_num;
+	/*
+	 * Setup the number of FRMRs based upon the number of tags
+	 * available to session in iscsi_target_locate_portal().
+	 */
+	tag_num = max_t(u32, ISCSIT_MIN_TAGS, se_nacl->queue_depth);
+	tag_num = (tag_num * 2) + ISCSIT_EXTRA_TAGS;
 
-	INIT_LIST_HEAD(&isert_conn->conn_frwr_pool);
 	isert_conn->conn_frwr_pool_size = 0;
-	for (i = 0; i < ISCSI_DEF_XMIT_CMDS_MAX; i++) {
+	for (i = 0; i < tag_num; i++) {
 		fr_desc = kzalloc(sizeof(*fr_desc), GFP_KERNEL);
 		if (!fr_desc) {
 			pr_err("Failed to allocate fast_reg descriptor\n");
@@ -502,6 +509,7 @@ isert_connect_request(struct rdma_cm_id *cma_id, struct rdma_cm_event *event)
 	kref_get(&isert_conn->conn_kref);
 	mutex_init(&isert_conn->conn_mutex);
 	spin_lock_init(&isert_conn->conn_lock);
+	INIT_LIST_HEAD(&isert_conn->conn_frwr_pool);
 
 	cma_id->context = isert_conn;
 	isert_conn->conn_cm_id = cma_id;
@@ -559,14 +567,6 @@ isert_connect_request(struct rdma_cm_id *cma_id, struct rdma_cm_event *event)
 	isert_conn->conn_pd = device->dev_pd;
 	isert_conn->conn_mr = device->dev_mr;
 
-	if (device->use_frwr) {
-		ret = isert_conn_create_frwr_pool(isert_conn);
-		if (ret) {
-			pr_err("Conn: %p failed to create frwr_pool\n", isert_conn);
-			goto out_frwr;
-		}
-	}
-
 	ret = isert_conn_setup_qp(isert_conn, cma_id);
 	if (ret)
 		goto out_conn_dev;
@@ -580,9 +580,6 @@ isert_connect_request(struct rdma_cm_id *cma_id, struct rdma_cm_event *event)
 	return 0;
 
 out_conn_dev:
-	if (device->use_frwr)
-		isert_conn_free_frwr_pool(isert_conn);
-out_frwr:
 	isert_device_try_release(device);
 out_rsp_dma_map:
 	ib_dma_unmap_single(ib_dev, isert_conn->login_rsp_dma,
@@ -930,6 +927,15 @@ isert_put_login_tx(struct iscsi_conn *conn, struct iscsi_login *login,
 	}
 	if (!login->login_failed) {
 		if (login->login_complete) {
+			if (isert_conn->conn_device->use_frwr) {
+				ret = isert_conn_create_frwr_pool(isert_conn);
+				if (ret) {
+					pr_err("Conn: %p failed to create"
+					       " frwr_pool\n", isert_conn);
+					return ret;
+				}
+			}
+
 			ret = isert_alloc_rx_descriptors(isert_conn);
 			if (ret)
 				return ret;
