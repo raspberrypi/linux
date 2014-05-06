@@ -135,12 +135,22 @@ static inline unsigned long arch_local_save_flags(void)
 }
 
 /*
- * restore saved IRQ & FIQ state
+ * restore saved IRQ state
  */
 static inline void arch_local_irq_restore(unsigned long flags)
 {
-	asm volatile(
-		"	msr	cpsr_c, %0	@ local_irq_restore"
+	unsigned long temp = 0;
+	flags &= ~(1 << 6);
+	asm volatile (
+		" mrs %0, cpsr"
+		: "=r" (temp)
+		:
+		: "memory", "cc");
+		/* Preserve FIQ bit */
+		temp &= (1 << 6);
+		flags = flags | temp;
+	asm volatile (
+		"    msr    cpsr_c, %0    @ local_irq_restore"
 		:
 		: "r" (flags)
 		: "memory", "cc");

@@ -31,6 +31,7 @@
 #include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
+#include <linux/delay.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
 
@@ -179,7 +180,7 @@ static irqreturn_t bcm2708_i2c_interrupt(int irq, void *dev_id)
 
 	/* we may see camera interrupts on the "other" I2C channel
            Just return if we've not sent anything */
-        if (!bi->nmsgs || !bi->msg )
+	if (!bi->nmsgs || !bi->msg )
 		goto early_exit;
 
 	s = bcm2708_rd(bi, BSC_S);
@@ -238,7 +239,62 @@ static int bcm2708_i2c_master_xfer(struct i2c_adapter *adap,
 
 	spin_unlock_irqrestore(&bi->lock, flags);
 
-	bcm2708_bsc_setup(bi);
+	// special case: send a byte followed by receive; need to poll (arrrg!)
+	if ((num == 2) && (msgs[0].len == 1) && (msgs[1].len > 0) && !(msgs[0].flags & I2C_M_RD) && (msgs[1].flags & I2C_M_RD)) {
+		// steps:
+		//  - start the first transfer
+		//  - setup data for the interrupt handler in advance
+		//  - poll for it to begin (this is why the special case isn't in the interrupt)
+		//  - setup next transfer
+		//  - handoff to interrupt handler
+		
+		unsigned long bus_hz;
+		u32 cdiv, stat;
+		bus_hz = clk_get_rate(bi->clk);
+		cdiv = bus_hz / baudrate;
+		if (cdiv > 0xffff) {
+			cdiv = 0xffff;
+		}
+		
+		// start transfer
+		// like bcm2708_bsc_setup(), but interrupt flags are clear
+		bcm2708_wr(bi, BSC_C, BSC_C_CLEAR_1);
+		bcm2708_bsc_reset(bi);     // needed?
+		bcm2708_wr(bi, BSC_DIV, cdiv);
+		bcm2708_wr(bi, BSC_A, msgs[0].addr);
+		// steps from the BCM2835 manual
+		bcm2708_wr(bi, BSC_DLEN, 1);
+		bcm2708_wr(bi, BSC_FIFO, msgs[0].buf[0]);  // the byte to send
+		//bcm2708_wr(bi, BSC_C, BSC_C_I2CEN);
+		bcm2708_wr(bi, BSC_C, BSC_C_I2CEN | BSC_C_ST);
+
+		// setup data for the interrupt handler
+		bi->msg++;
+		bi->nmsgs--;
+		
+		// poll for start of transfer
+		do {
+			stat = bcm2708_rd(bi, BSC_S);
+		} while (!(stat & (BSC_S_CLKT | BSC_S_ERR | BSC_S_TA | BSC_S_DONE)));
+		// check for trouble
+		if (stat & (BSC_S_CLKT | BSC_S_ERR)) {
+			dev_err(&adap->dev, "1st message failure\n");
+			bcm2708_bsc_reset(bi);
+			bcm2708_wr(bi, BSC_C, BSC_C_I2CEN | BSC_C_CLEAR_1);
+			return -EIO;
+		}
+
+		// setup next transfer before the first is complete
+		bcm2708_wr(bi, BSC_DLEN, msgs[1].len);
+		bcm2708_wr(bi, BSC_C,
+			BSC_C_I2CEN | BSC_C_ST | BSC_C_READ | BSC_C_INTD | BSC_C_INTR);
+
+		// interrupt flags now set -- let the interrupt handler deal with it
+	}
+	else {
+		// let the interrupt handler do all the work
+		bcm2708_bsc_setup(bi);
+	}
 
 	ret = wait_for_completion_timeout(&bi->done,
 			msecs_to_jiffies(I2C_TIMEOUT_MS));
@@ -249,7 +305,6 @@ static int bcm2708_i2c_master_xfer(struct i2c_adapter *adap,
 		spin_unlock_irqrestore(&bi->lock, flags);
 		return -ETIMEDOUT;
 	}
-
 	return bi->error ? -EIO : num;
 }
 
@@ -354,7 +409,7 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 		baudrate = bus_hz / cdiv;
 	}
 
-	dev_info(&pdev->dev, "BSC%d Controller at 0x%08lx (irq %d) (baudrate %d)\n",
+	dev_info(&pdev->dev, "BSC%d Controller (mod) at 0x%08lx (irq %d) (baudrate %d)\n",
 		pdev->id, (unsigned long)regs->start, irq, baudrate);
 
 	return 0;
@@ -413,7 +468,8 @@ module_exit(bcm2708_i2c_exit);
 
 
 
-MODULE_DESCRIPTION("BSC controller driver for Broadcom BCM2708");
+MODULE_DESCRIPTION("BSC controller driver for Broadcom BCM2708 (modified)");
 MODULE_AUTHOR("Chris Boot <bootc@bootc.net>");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:" DRV_NAME);
+

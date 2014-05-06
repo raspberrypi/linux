@@ -25,9 +25,6 @@
 ENTRY(__set_fiq_regs)
 	mov	r2, #PSR_I_BIT | PSR_F_BIT | FIQ_MODE
 	mrs	r1, cpsr
-@@@@@@@@@@@@@@@ hack: enable the fiq here to keep usb driver happy
-	and	r1, #~PSR_F_BIT
-@@@@@@@@@@@@@@@ endhack: (need to find better place for this to happen)
 	msr	cpsr_c, r2	@ select FIQ mode
 	mov	r0, r0		@ avoid hazard prior to ARMv4
 	ldmia	r0!, {r8 - r12}
