@@ -1545,11 +1545,6 @@ int dw_dma_probe(struct dw_dma_chip *chip, struct dw_dma_platform_data *pdata)
 	/* Disable BLOCK interrupts as well */
 	channel_clear_bit(dw, MASK.BLOCK, dw->all_chan_mask);
 
-	err = devm_request_irq(chip->dev, chip->irq, dw_dma_interrupt,
-			       IRQF_SHARED, "dw_dmac", dw);
-	if (err)
-		return err;
-
 	/* Create a pool of consistent memory blocks for hardware descriptors */
 	dw->desc_pool = dmam_pool_create("dw_dmac_desc_pool", chip->dev,
 					 sizeof(struct dw_desc), 4, 0);
@@ -1559,6 +1554,11 @@ int dw_dma_probe(struct dw_dma_chip *chip, struct dw_dma_platform_data *pdata)
 	}
 
 	tasklet_init(&dw->tasklet, dw_dma_tasklet, (unsigned long)dw);
+
+	err = request_irq(chip->irq, dw_dma_interrupt, IRQF_SHARED,
+			  "dw_dmac", dw);
+	if (err)
+		return err;
 
 	INIT_LIST_HEAD(&dw->dma.channels);
 	for (i = 0; i < nr_channels; i++) {
@@ -1664,6 +1664,7 @@ int dw_dma_remove(struct dw_dma_chip *chip)
 	dw_dma_off(dw);
 	dma_async_device_unregister(&dw->dma);
 
+	free_irq(chip->irq, dw);
 	tasklet_kill(&dw->tasklet);
 
 	list_for_each_entry_safe(dwc, _dwc, &dw->dma.channels,
