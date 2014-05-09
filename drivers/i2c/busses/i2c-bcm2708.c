@@ -103,7 +103,7 @@ static void bcm2708_i2c_init_pinmode(int id)
 #define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
 
 	int pin;
-	u32 *gpio = ioremap(0x20200000, SZ_16K);
+	u32 *gpio = ioremap(GPIO_BASE, SZ_16K);
 
         BUG_ON(id != 0 && id != 1);
 	/* BSC0 is on GPIO 0 & 1, BSC1 is on GPIO 2 & 3 */

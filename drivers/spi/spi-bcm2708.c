@@ -108,7 +108,7 @@ static void bcm2708_init_pinmode(void)
 #define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
 
 	int pin;
-	u32 *gpio = ioremap(0x20200000, SZ_16K);
+	u32 *gpio = ioremap(GPIO_BASE, SZ_16K);
 
 	/* SPI is on GPIO 7..11 */
 	for (pin = 7; pin <= 11; pin++) {
