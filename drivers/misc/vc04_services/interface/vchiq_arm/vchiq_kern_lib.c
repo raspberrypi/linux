@@ -39,6 +39,7 @@
 
 #include "vchiq_core.h"
 #include "vchiq_arm.h"
+#include "vchiq_killable.h"
 
 /* ---- Public Variables ------------------------------------------------- */
 
