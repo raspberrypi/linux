@@ -32,6 +32,7 @@
  */
 
 #include "vchiq_util.h"
+#include "vchiq_killable.h"
 
 static inline int is_pow2(int i)
 {
