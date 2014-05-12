@@ -33,6 +33,7 @@
 
 #include "vchiq_connected.h"
 #include "vchiq_core.h"
+#include "vchiq_killable.h"
 #include <linux/module.h>
 #include <linux/mutex.h>
 
