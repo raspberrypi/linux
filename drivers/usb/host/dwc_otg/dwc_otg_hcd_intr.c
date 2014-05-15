@@ -2386,6 +2386,8 @@ int32_t dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 			handle_hc_stall_intr(hcd, hc, hc_regs, qtd);
 		} else if (hcint.b.datatglerr) {
 			handle_hc_datatglerr_intr(hcd, hc, hc_regs, qtd);
+		} else if (hcint.b.bblerr) {
+			handle_hc_babble_intr(hcd, hc, hc_regs, qtd);
 		} else if (hcint.b.ahberr) {
 			handle_hc_ahberr_intr(hcd, hc, hc_regs, qtd);
 		} else {
@@ -2522,6 +2524,8 @@ int32_t dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 			handle_hc_xacterr_intr(hcd, hc, hc_regs, qtd);
 		} else if (hcint.b.stall) {
 			handle_hc_stall_intr(hcd, hc, hc_regs, qtd);
+		} else if (hcint.b.bblerr) {
+			handle_hc_babble_intr(hcd, hc, hc_regs, qtd);
 		} else {
 			printk_ratelimited(KERN_INFO "Transfer to device %d endpoint 0x%x failed "
 				"- FIQ reported FSM=%d. Data may have been lost.\n",

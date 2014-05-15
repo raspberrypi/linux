@@ -773,7 +773,7 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 				handled = 1;
 				restart = 1;
 			}
-		} else if (hcint.b.stall) {
+		} else if (hcint.b.stall || hcint.b.bblerr) {
 			/* A STALL implies either a LS bus error or a genuine STALL. */
 			st->fsm = FIQ_NP_SPLIT_LS_ABORTED;
 		} else {
@@ -925,7 +925,7 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 		} else if (hcint.b.nyet) {
 			/* Doh. Data lost. */
 			st->fsm = FIQ_PER_SPLIT_NYET_ABORTED;
-		} else if (hcint.b.xacterr || hcint.b.stall) {
+		} else if (hcint.b.xacterr || hcint.b.stall || hcint.b.bblerr) {
 			st->fsm = FIQ_PER_SPLIT_LS_ABORTED;
 		} else {
 			st->fsm = FIQ_PER_SPLIT_HS_ABORTED;
@@ -962,12 +962,11 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 		} else if (hcint.b.nyet) {
 			st->fsm = FIQ_PER_SPLIT_NYET_ABORTED;
 			start_next_periodic = 1;
-		} else if (hcint.b.xacterr) {
+		} else if (hcint.b.xacterr || hcint.b.stall || hcint.b.bblerr) {
 			/* Local 3-strikes retry is handled by the core. This is a ERR response.*/
 			st->fsm = FIQ_PER_SPLIT_LS_ABORTED;
 		} else {
-			fiq_print(FIQDBG_INT, state, "TOGGLES");
-			BUG();
+			st->fsm = FIQ_PER_SPLIT_HS_ABORTED;
 		}
 		break;
 	
@@ -1006,12 +1005,9 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 					st->fsm = FIQ_PER_SPLIT_DONE;
 				}
 			}
-		} else if (hcint.b.xacterr || hcint.b.stall) {
+		} else if (hcint.b.xacterr || hcint.b.stall || hcint.b.bblerr) {
 			/* For xacterr, Local 3-strikes retry is handled by the core. This is a ERR response.*/
 			st->fsm = FIQ_PER_SPLIT_LS_ABORTED;
-		} else if (hcint.b.datatglerr) {
-			fiq_print(FIQDBG_INT, state, "TOGGLES");
-			BUG();
 		} else {
 			st->fsm = FIQ_PER_SPLIT_HS_ABORTED;
 		}
