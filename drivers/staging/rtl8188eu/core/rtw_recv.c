@@ -555,7 +555,7 @@ _func_exit_;
 /* set the security information in the recv_frame */
 static union recv_frame *portctrl(struct adapter *adapter, union recv_frame *precv_frame)
 {
-	u8   *psta_addr = NULL, *ptr;
+	u8   *psta_addr, *ptr;
 	uint  auth_alg;
 	struct recv_frame_hdr *pfhdr;
 	struct sta_info *psta;
@@ -569,7 +569,6 @@ static union recv_frame *portctrl(struct adapter *adapter, union recv_frame *pre
 _func_enter_;
 
 	pstapriv = &adapter->stapriv;
-	psta = rtw_get_stainfo(pstapriv, psta_addr);
 
 	auth_alg = adapter->securitypriv.dot11AuthAlgrthm;
 
@@ -577,6 +576,7 @@ _func_enter_;
 	pfhdr = &precv_frame->u.hdr;
 	pattrib = &pfhdr->attrib;
 	psta_addr = pattrib->ta;
+	psta = rtw_get_stainfo(pstapriv, psta_addr);
 
 	prtnframe = NULL;
 

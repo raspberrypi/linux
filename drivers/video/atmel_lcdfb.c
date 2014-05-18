@@ -1081,6 +1081,12 @@ static int __init atmel_lcdfb_probe(struct platform_device *pdev)
 		goto free_cmap;
 	}
 
+	ret = atmel_lcdfb_set_par(info);
+	if (ret < 0) {
+		dev_err(dev, "set par failed: %d\n", ret);
+		goto unregister_irqs;
+	}
+
 	dev_set_drvdata(dev, info);
 
 	/*
