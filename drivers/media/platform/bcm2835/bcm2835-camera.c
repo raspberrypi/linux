@@ -977,6 +977,7 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 	camera_port->es.video.crop.height = f->fmt.pix.height;
 	camera_port->es.video.frame_rate.num = 0;
 	camera_port->es.video.frame_rate.den = 1;
+	camera_port->es.video.color_space = MMAL_COLOR_SPACE_JPEG_JFIF;
 
 	ret = vchiq_mmal_port_set_format(dev->instance, camera_port);
 
