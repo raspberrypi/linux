@@ -121,6 +121,7 @@ struct isert_conn {
 	int			conn_frwr_pool_size;
 	/* lock to protect frwr_pool */
 	spinlock_t		conn_lock;
+	bool                    disconnect;
 };
 
 #define ISERT_MAX_CQ 64
