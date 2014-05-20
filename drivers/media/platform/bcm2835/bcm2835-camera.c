@@ -54,6 +54,13 @@ int bcm2835_v4l2_debug;
 module_param_named(debug, bcm2835_v4l2_debug, int, 0644);
 MODULE_PARM_DESC(bcm2835_v4l2_debug, "Debug level 0-2");
 
+int max_video_width = MAX_VIDEO_MODE_WIDTH;
+int max_video_height = MAX_VIDEO_MODE_HEIGHT;
+module_param(max_video_width, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+MODULE_PARM_DESC(max_video_width, "Threshold for video mode");
+module_param(max_video_height, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+MODULE_PARM_DESC(max_video_height, "Threshold for video mode");
+
 static struct bm2835_mmal_dev *gdev;	/* global device data */
 
 #define FPS_MIN 1
@@ -932,8 +939,8 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 	switch (mfmt->mmal_component) {
 	case MMAL_COMPONENT_CAMERA:
 		/* Make a further decision on port based on resolution */
-		if (f->fmt.pix.width <= MAX_VIDEO_MODE_WIDTH
-		    && f->fmt.pix.height <= MAX_VIDEO_MODE_HEIGHT)
+		if (f->fmt.pix.width <= max_video_width
+		    && f->fmt.pix.height <= max_video_height)
 			camera_port = port =
 			    &dev->component[MMAL_COMPONENT_CAMERA]->
 			    output[MMAL_CAMERA_PORT_VIDEO];
@@ -1375,8 +1382,8 @@ static int set_camera_parameters(struct vchiq_mmal_instance *instance,
 		.max_stills_h = MAX_HEIGHT,
 		.stills_yuv422 = 1,
 		.one_shot_stills = 1,
-		.max_preview_video_w = 1920,
-		.max_preview_video_h = 1088,
+		.max_preview_video_w = max_video_width,
+		.max_preview_video_h = max_video_height,
 		.num_preview_video_frames = 3,
 		.stills_capture_circular_buffer_height = 0,
 		.fast_preview_resume = 0,
@@ -1605,8 +1612,9 @@ static int __init bm2835_mmal_init_device(struct bm2835_mmal_dev *dev,
 	if (ret < 0)
 		return ret;
 
-	v4l2_info(vfd->v4l2_dev, "V4L2 device registered as %s\n",
-		  video_device_node_name(vfd));
+	v4l2_info(vfd->v4l2_dev,
+		"V4L2 device registered as %s - stills mode > %dx%d\n",
+		video_device_node_name(vfd), max_video_width, max_video_height);
 
 	return 0;
 }
