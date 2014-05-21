@@ -15,7 +15,7 @@
  * core driver device
  */
 
-#define V4L2_CTRL_COUNT 27 /* number of v4l controls */
+#define V4L2_CTRL_COUNT 28 /* number of v4l controls */
 
 enum {
 	MMAL_COMPONENT_CAMERA = 0,
@@ -70,6 +70,7 @@ struct bm2835_mmal_dev {
 		unsigned int     width;  /* width */
 		unsigned int     height;  /* height */
 		unsigned int     stride;  /* stride */
+		unsigned int     buffersize; /* buffer size with padding */
 		struct mmal_fmt  *fmt;
 		struct v4l2_fract timeperframe;
 

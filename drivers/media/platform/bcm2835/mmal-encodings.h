@@ -12,6 +12,8 @@
  *          Simon Mellor <simellor@broadcom.com>
  *          Luke Diamand <luked@broadcom.com>
  */
+#ifndef MMAL_ENCODINGS_H
+#define MMAL_ENCODINGS_H
 
 #define MMAL_ENCODING_H264             MMAL_FOURCC('H', '2', '6', '4')
 #define MMAL_ENCODING_H263             MMAL_FOURCC('H', '2', '6', '3')
@@ -92,3 +94,34 @@
 #define MMAL_ENCODING_VARIANT_H264_AVC1      MMAL_FOURCC('A', 'V', 'C', '1')
 /** Implicitly delineated NAL units without emulation prevention */
 #define MMAL_ENCODING_VARIANT_H264_RAW       MMAL_FOURCC('R', 'A', 'W', ' ')
+
+
+/** \defgroup MmalColorSpace List of pre-defined video color spaces
+ * This defines a list of common color spaces. This list isn't exhaustive and
+ * is only provided as a convenience to avoid clients having to use FourCC
+ * codes directly. However components are allowed to define and use their own
+ * FourCC codes.
+ */
+/* @{ */
+
+/** Unknown color space */
+#define MMAL_COLOR_SPACE_UNKNOWN       0
+/** ITU-R BT.601-5 [SDTV] */
+#define MMAL_COLOR_SPACE_ITUR_BT601    MMAL_FOURCC('Y', '6', '0', '1')
+/** ITU-R BT.709-3 [HDTV] */
+#define MMAL_COLOR_SPACE_ITUR_BT709    MMAL_FOURCC('Y', '7', '0', '9')
+/** JPEG JFIF */
+#define MMAL_COLOR_SPACE_JPEG_JFIF     MMAL_FOURCC('Y', 'J', 'F', 'I')
+/** Title 47 Code of Federal Regulations (2003) 73.682 (a) (20) */
+#define MMAL_COLOR_SPACE_FCC           MMAL_FOURCC('Y', 'F', 'C', 'C')
+/** Society of Motion Picture and Television Engineers 240M (1999) */
+#define MMAL_COLOR_SPACE_SMPTE240M     MMAL_FOURCC('Y', '2', '4', '0')
+/** ITU-R BT.470-2 System M */
+#define MMAL_COLOR_SPACE_BT470_2_M     MMAL_FOURCC('Y', '_', '_', 'M')
+/** ITU-R BT.470-2 System BG */
+#define MMAL_COLOR_SPACE_BT470_2_BG    MMAL_FOURCC('Y', '_', 'B', 'G')
+/** JPEG JFIF, but with 16..255 luma */
+#define MMAL_COLOR_SPACE_JFIF_Y16_255  MMAL_FOURCC('Y', 'Y', '1', '6')
+/* @} MmalColorSpace List */
+
+#endif /* MMAL_ENCODINGS_H */
