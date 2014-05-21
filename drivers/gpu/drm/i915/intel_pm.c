@@ -1539,6 +1539,16 @@ static void i9xx_update_wm(struct drm_crtc *unused_crtc)
 
 	DRM_DEBUG_KMS("FIFO watermarks - A: %d, B: %d\n", planea_wm, planeb_wm);
 
+	if (IS_I915GM(dev) && enabled) {
+		struct intel_framebuffer *fb;
+
+		fb = to_intel_framebuffer(enabled->fb);
+
+		/* self-refresh seems busted with untiled */
+		if (fb->obj->tiling_mode == I915_TILING_NONE)
+			enabled = NULL;
+	}
+
 	/*
 	 * Overlay gets an aggressive default since video jitter is bad.
 	 */
