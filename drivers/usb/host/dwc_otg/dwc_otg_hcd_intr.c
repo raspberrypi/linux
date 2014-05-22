@@ -99,11 +99,12 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 	DWC_SPINLOCK(dwc_otg_hcd->lock);
 	/* Check if HOST Mode */
 	if (dwc_otg_is_host_mode(core_if)) {
-		local_fiq_disable();
-		/* Pull in from the FIQ's disabled mask */
-		gintmsk.d32 = gintmsk.d32 | ~(dwc_otg_hcd->fiq_state->gintmsk_saved.d32);
-		dwc_otg_hcd->fiq_state->gintmsk_saved.d32 = ~0;
-
+		if (fiq_enable) {
+			local_fiq_disable();
+			/* Pull in from the FIQ's disabled mask */
+			gintmsk.d32 = gintmsk.d32 | ~(dwc_otg_hcd->fiq_state->gintmsk_saved.d32);
+			dwc_otg_hcd->fiq_state->gintmsk_saved.d32 = ~0;
+		}
 
 		if (fiq_fsm_enable && ( 0x0000FFFF & ~(dwc_otg_hcd->fiq_state->haintmsk_saved.b2.chint))) {
 			gintsts.b.hcintr = 1;
@@ -115,7 +116,9 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 		}
 		gintsts.d32 &= gintmsk.d32;
 
-		local_fiq_enable();
+		if (fiq_enable)
+			local_fiq_enable();
+
 		if (!gintsts.d32) {
 			goto exit_handler_routine;
 		}
@@ -328,8 +331,8 @@ int32_t dwc_otg_hcd_handle_sof_intr(dwc_otg_hcd_t * hcd)
 			}
 		}
 	}
-
-	hcd->fiq_state->next_sched_frame = next_sched_frame;
+	if (fiq_enable)
+		hcd->fiq_state->next_sched_frame = next_sched_frame;
 
 	tr_type = dwc_otg_hcd_select_transactions(hcd);
 	if (tr_type != DWC_OTG_TRANSACTION_NONE) {

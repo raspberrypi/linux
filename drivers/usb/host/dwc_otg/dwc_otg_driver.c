@@ -902,9 +902,9 @@ static int dwc_otg_driver_probe(
 	 */
 
 #if defined(PLATFORM_INTERFACE)
-        devirq = platform_get_irq(_dev, 0);
+	devirq = platform_get_irq(_dev, fiq_enable ? 0 : 1);
 #else
-        devirq = _dev->irq;
+	devirq = _dev->irq;
 #endif
 	DWC_DEBUGPL(DBG_CIL, "registering (common) handler for irq%d\n",
 		    devirq);

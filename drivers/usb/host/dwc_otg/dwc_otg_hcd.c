@@ -2016,17 +2016,19 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 	 * stop the FIQ from kicking us. We could potentially still have elements here if we
 	 * ran out of host channels.
 	 */
-	if (DWC_LIST_EMPTY(&hcd->non_periodic_sched_inactive)) {
+	if (fiq_enable) {
+		if (DWC_LIST_EMPTY(&hcd->non_periodic_sched_inactive)) {
 			hcd->fiq_state->kick_np_queues = 0;
-	} else {
-		/* For each entry remaining in the NP inactive queue,
-		 * if this a NAK'd retransmit then don't set the kick flag.
-		 */
-		if(nak_holdoff) {
-			DWC_LIST_FOREACH(qh_ptr, &hcd->non_periodic_sched_inactive) {
-				qh = DWC_LIST_ENTRY(qh_ptr, dwc_otg_qh_t, qh_list_entry);
-				if (qh->nak_frame == 0xFFFF) {
-					hcd->fiq_state->kick_np_queues = 1;
+		} else {
+			/* For each entry remaining in the NP inactive queue,
+			* if this a NAK'd retransmit then don't set the kick flag.
+			*/
+			if(nak_holdoff) {
+				DWC_LIST_FOREACH(qh_ptr, &hcd->non_periodic_sched_inactive) {
+					qh = DWC_LIST_ENTRY(qh_ptr, dwc_otg_qh_t, qh_list_entry);
+					if (qh->nak_frame == 0xFFFF) {
+						hcd->fiq_state->kick_np_queues = 1;
+					}
 				}
 			}
 		}

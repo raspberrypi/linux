@@ -326,6 +326,11 @@ static struct resource bcm2708_usb_resources[] = {
 	       .end = IRQ_HOSTPORT,
 	       .flags = IORESOURCE_IRQ,
 	       },
+	[3] = {
+			.start = IRQ_USB,
+			.end = IRQ_USB,
+			.flags = IORESOURCE_IRQ,
+			},
 };
 
 

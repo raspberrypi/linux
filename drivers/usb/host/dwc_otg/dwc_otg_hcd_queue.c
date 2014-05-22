@@ -634,7 +634,7 @@ static int schedule_periodic(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		DWC_LIST_INSERT_TAIL(&hcd->periodic_sched_ready, &qh->qh_list_entry);
 	}
 	else {
-		if(DWC_LIST_EMPTY(&hcd->periodic_sched_inactive) || dwc_frame_num_le(qh->sched_frame, hcd->fiq_state->next_sched_frame))
+		if(fiq_enable && (DWC_LIST_EMPTY(&hcd->periodic_sched_inactive) || dwc_frame_num_le(qh->sched_frame, hcd->fiq_state->next_sched_frame)))
 		{
 			hcd->fiq_state->next_sched_frame = qh->sched_frame;
 
@@ -830,7 +830,7 @@ void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 				DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_ready,
 						   &qh->qh_list_entry);
 			} else {
-				if(!dwc_frame_num_le(hcd->fiq_state->next_sched_frame, qh->sched_frame))
+				if(fiq_enable && !dwc_frame_num_le(hcd->fiq_state->next_sched_frame, qh->sched_frame))
 				{
 					hcd->fiq_state->next_sched_frame = qh->sched_frame;
 				}

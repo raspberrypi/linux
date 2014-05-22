@@ -527,9 +527,9 @@ int hcd_init(dwc_bus_dev_t *_dev)
 	 * IRQ line, and calls hcd_start method.
 	 */
 #ifdef PLATFORM_INTERFACE
-        retval = usb_add_hcd(hcd, platform_get_irq(_dev, 0), IRQF_SHARED | IRQF_DISABLED);
+	retval = usb_add_hcd(hcd, platform_get_irq(_dev, fiq_enable ? 0 : 1), IRQF_SHARED | IRQF_DISABLED);
 #else
-        retval = usb_add_hcd(hcd, _dev->irq, IRQF_SHARED | IRQF_DISABLED);
+	retval = usb_add_hcd(hcd, _dev->irq, IRQF_SHARED | IRQF_DISABLED);
 #endif
 	if (retval < 0) {
 		goto error2;
