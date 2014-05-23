@@ -1053,6 +1053,7 @@ static int qlcnic_dcb_peer_app_info(struct net_device *netdev,
 	struct qlcnic_dcb_cee *peer;
 	int i;
 
+	memset(info, 0, sizeof(*info));
 	*app_count = 0;
 
 	if (!test_bit(__QLCNIC_DCB_STATE, &adapter->state))
