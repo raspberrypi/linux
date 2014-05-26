@@ -605,6 +605,7 @@ extern bool br_allowed_ingress(struct net_bridge *br, struct net_port_vlans *v,
 extern bool br_allowed_egress(struct net_bridge *br,
 			      const struct net_port_vlans *v,
 			      const struct sk_buff *skb);
+bool br_should_learn(struct net_bridge_port *p, struct sk_buff *skb, u16 *vid);
 extern struct sk_buff *br_handle_vlan(struct net_bridge *br,
 				      const struct net_port_vlans *v,
 				      struct sk_buff *skb);
@@ -667,6 +668,12 @@ static inline bool br_allowed_ingress(struct net_bridge *br,
 static inline bool br_allowed_egress(struct net_bridge *br,
 				     const struct net_port_vlans *v,
 				     const struct sk_buff *skb)
+{
+	return true;
+}
+
+static inline bool br_should_learn(struct net_bridge_port *p,
+				   struct sk_buff *skb, u16 *vid)
 {
 	return true;
 }
