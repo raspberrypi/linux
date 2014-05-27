@@ -1382,8 +1382,10 @@ static int set_camera_parameters(struct vchiq_mmal_instance *instance,
 		.max_stills_h = MAX_HEIGHT,
 		.stills_yuv422 = 1,
 		.one_shot_stills = 1,
-		.max_preview_video_w = max_video_width,
-		.max_preview_video_h = max_video_height,
+		.max_preview_video_w = (max_video_width > 1920) ?
+						max_video_width : 1920,
+		.max_preview_video_h = (max_video_height > 1088) ?
+						max_video_height : 1088,
 		.num_preview_video_frames = 3,
 		.stills_capture_circular_buffer_height = 0,
 		.fast_preview_resume = 0,
