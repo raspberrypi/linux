@@ -61,6 +61,19 @@ MODULE_PARM_DESC(max_video_width, "Threshold for video mode");
 module_param(max_video_height, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(max_video_height, "Threshold for video mode");
 
+/* Gstreamer bug https://bugzilla.gnome.org/show_bug.cgi?id=726521
+ * v4l2src does bad (and actually wrong) things when the vidioc_enum_framesizes
+ * function says type V4L2_FRMSIZE_TYPE_STEPWISE, which we do by default.
+ * It's happier if we just don't say anything at all, when it then
+ * sets up a load of defaults that it thinks might work.
+ * If gst_v4l2src_is_broken is non-zero, then we remove the function from
+ * our function table list (actually switch to an alternate set, but same
+ * result).
+ */
+int gst_v4l2src_is_broken = 0;
+module_param(gst_v4l2src_is_broken, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+MODULE_PARM_DESC(gst_v4l2src_is_broken, "If non-zero, enable workaround for Gstreamer");
+
 static struct bm2835_mmal_dev *gdev;	/* global device data */
 
 #define FPS_MIN 1
@@ -1352,6 +1365,47 @@ static const struct v4l2_ioctl_ops camera0_ioctl_ops = {
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
 
+static const struct v4l2_ioctl_ops camera0_ioctl_ops_gstreamer = {
+	/* overlay */
+	.vidioc_enum_fmt_vid_overlay = vidioc_enum_fmt_vid_overlay,
+	.vidioc_g_fmt_vid_overlay = vidioc_g_fmt_vid_overlay,
+	.vidioc_try_fmt_vid_overlay = vidioc_try_fmt_vid_overlay,
+	.vidioc_s_fmt_vid_overlay = vidioc_s_fmt_vid_overlay,
+	.vidioc_overlay = vidioc_overlay,
+	.vidioc_g_fbuf = vidioc_g_fbuf,
+
+	/* inputs */
+	.vidioc_enum_input = vidioc_enum_input,
+	.vidioc_g_input = vidioc_g_input,
+	.vidioc_s_input = vidioc_s_input,
+
+	/* capture */
+	.vidioc_querycap = vidioc_querycap,
+	.vidioc_enum_fmt_vid_cap = vidioc_enum_fmt_vid_cap,
+	.vidioc_g_fmt_vid_cap = vidioc_g_fmt_vid_cap,
+	.vidioc_try_fmt_vid_cap = vidioc_try_fmt_vid_cap,
+	.vidioc_s_fmt_vid_cap = vidioc_s_fmt_vid_cap,
+
+	/* buffer management */
+	.vidioc_reqbufs = vb2_ioctl_reqbufs,
+	.vidioc_create_bufs = vb2_ioctl_create_bufs,
+	.vidioc_prepare_buf = vb2_ioctl_prepare_buf,
+	.vidioc_querybuf = vb2_ioctl_querybuf,
+	.vidioc_qbuf = vb2_ioctl_qbuf,
+	.vidioc_dqbuf = vb2_ioctl_dqbuf,
+	/* Remove this function ptr to fix gstreamer bug
+	.vidioc_enum_framesizes = vidioc_enum_framesizes, */
+	.vidioc_enum_frameintervals = vidioc_enum_frameintervals,
+	.vidioc_g_parm        = vidioc_g_parm,
+	.vidioc_s_parm        = vidioc_s_parm,
+	.vidioc_streamon = vb2_ioctl_streamon,
+	.vidioc_streamoff = vb2_ioctl_streamoff,
+
+	.vidioc_log_status = v4l2_ctrl_log_status,
+	.vidioc_subscribe_event = v4l2_ctrl_subscribe_event,
+	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
+};
+
 /* ------------------------------------------------------------------
 	Driver init/finalise
    ------------------------------------------------------------------*/
@@ -1382,8 +1436,10 @@ static int set_camera_parameters(struct vchiq_mmal_instance *instance,
 		.max_stills_h = MAX_HEIGHT,
 		.stills_yuv422 = 1,
 		.one_shot_stills = 1,
-		.max_preview_video_w = max_video_width,
-		.max_preview_video_h = max_video_height,
+		.max_preview_video_w = (max_video_width > 1920) ?
+						max_video_width : 1920,
+		.max_preview_video_h = (max_video_height > 1088) ?
+						max_video_height : 1088,
 		.num_preview_video_frames = 3,
 		.stills_capture_circular_buffer_height = 0,
 		.fast_preview_resume = 0,
@@ -1596,6 +1652,11 @@ static int __init bm2835_mmal_init_device(struct bm2835_mmal_dev *dev,
 	int ret;
 
 	*vfd = vdev_template;
+	if (gst_v4l2src_is_broken) {
+		v4l2_info(&dev->v4l2_dev,
+		  "Work-around for gstreamer issue is active.\n");
+		vfd->ioctl_ops = &camera0_ioctl_ops_gstreamer;
+	}
 
 	vfd->v4l2_dev = &dev->v4l2_dev;
 
