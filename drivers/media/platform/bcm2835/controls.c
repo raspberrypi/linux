@@ -1151,7 +1151,7 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 	},
 	{
 		V4L2_CID_MPEG_VIDEO_H264_I_PERIOD, MMAL_CONTROL_TYPE_STD,
-		1, 1000, 60, 1, NULL,
+		0, 0x7FFFFFFF, 60, 1, NULL,
 		MMAL_PARAMETER_INTRAPERIOD,
 		&ctrl_set_video_encode_param_output,
 		false
