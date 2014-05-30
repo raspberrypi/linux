@@ -1536,6 +1536,10 @@ int radeon_resume_kms(struct drm_device *dev, bool resume, bool fbcon)
 
 	radeon_restore_bios_scratch_regs(rdev);
 
+	/* set the power state here in case we are a PX system or headless */
+	if ((rdev->pm.pm_method == PM_METHOD_DPM) && rdev->pm.dpm_enabled)
+		radeon_pm_compute_clocks(rdev);
+
 	if (fbcon) {
 		radeon_fbdev_set_suspend(rdev, 0);
 		console_unlock();
