@@ -1,8 +1,8 @@
 VERSION = 3
 PATCHLEVEL = 14
-SUBLEVEL = 4
+SUBLEVEL = 5
 EXTRAVERSION =
-NAME = Shuffling Zombie Juror
+NAME = Remembering Coco
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
