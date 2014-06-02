@@ -5138,10 +5138,25 @@ bool intel_display_power_enabled_sw(struct drm_device *dev,
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct i915_power_domains *power_domains;
+	struct i915_power_well *power_well;
+	bool is_enabled;
+	int i;
+
+	if (dev_priv->pm.suspended)
+		return false;
 
 	power_domains = &dev_priv->power_domains;
+	is_enabled = true;
+	for_each_power_well_rev(i, power_well, BIT(domain), power_domains) {
+		if (power_well->always_on)
+			continue;
 
-	return power_domains->domain_use_count[domain];
+		if (!power_well->count) {
+			is_enabled = false;
+			break;
+		}
+	}
+	return is_enabled;
 }
 
 bool intel_display_power_enabled(struct drm_device *dev,
