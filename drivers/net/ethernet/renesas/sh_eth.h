@@ -320,7 +320,6 @@ enum TD_STS_BIT {
 enum RMCR_BIT {
 	RMCR_RNC = 0x00000001,
 };
-#define DEFAULT_RMCR_VALUE	0x00000000
 
 /* ECMR */
 enum FELIC_MODE_BIT {
@@ -467,7 +466,6 @@ struct sh_eth_cpu_data {
 	unsigned long fdr_value;
 	unsigned long fcftr_value;
 	unsigned long rpadir_value;
-	unsigned long rmcr_value;
 
 	/* interrupt checking mask */
 	unsigned long tx_check;
