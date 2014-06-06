@@ -51,7 +51,7 @@ struct intel_ring_hangcheck {
 	u32 seqno;
 	int score;
 	enum intel_ring_hangcheck_action action;
-	bool deadlock;
+	int deadlock;
 };
 
 struct  intel_ring_buffer {
