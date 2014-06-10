@@ -117,6 +117,7 @@ static void rtw_dev_remove(struct usb_interface *pusb_intf);
 	{USB_DEVICE(0x0B05, 0x17BA)}, /* ASUS - Edimax */ \
 	{USB_DEVICE(0x0BDA, 0x1E1E)}, /* Intel - - */ \
 	{USB_DEVICE(0x04BB, 0x094c)}, /* I-O DATA - Edimax */ \
+	{USB_DEVICE(0X0BDA, 0x8176)}, /* TP-Link TL-WN723N */ \
 	/****** 8188CTV ********/ \
 	{USB_DEVICE(0xCDAB, 0x8011)}, /* - - compare */ \
 	{USB_DEVICE(0x0BDA, 0x0A8A)}, /* Sony - Foxconn */ \
