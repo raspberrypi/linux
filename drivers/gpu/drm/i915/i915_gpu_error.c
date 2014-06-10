@@ -894,6 +894,8 @@ static void i915_gem_record_rings(struct drm_device *dev,
 	for (i = 0; i < I915_NUM_RINGS; i++) {
 		struct intel_ring_buffer *ring = &dev_priv->ring[i];
 
+		error->ring[i].pid = -1;
+
 		if (ring->dev == NULL)
 			continue;
 
@@ -901,7 +903,6 @@ static void i915_gem_record_rings(struct drm_device *dev,
 
 		i915_record_ring_state(dev, ring, &error->ring[i]);
 
-		error->ring[i].pid = -1;
 		request = i915_gem_find_active_request(ring);
 		if (request) {
 			/* We need to copy these to an anonymous buffer
