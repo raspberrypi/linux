@@ -86,15 +86,16 @@ static int __init bcm2708_rng_init(void)
 		return -ENOMEM;
 	}
 	bcm2708_rng_ops.priv = (unsigned long)rng_base;
+
+	/* set warm-up count & enable */
+	__raw_writel(RNG_WARMUP_COUNT, rng_base + RNG_STATUS);
+	__raw_writel(RNG_RBGEN, rng_base + RNG_CTRL);
+
 	/* register driver */
 	err = hwrng_register(&bcm2708_rng_ops);
 	if (err) {
 		pr_err("bcm2708_rng_init hwrng_register()=%d\n", err);
 		iounmap(rng_base);
-	} else {
-		/* set warm-up count & enable */
-		__raw_writel(RNG_WARMUP_COUNT, rng_base + RNG_STATUS);
-		__raw_writel(RNG_RBGEN, rng_base + RNG_CTRL);
 	}
 	return err;
 }
