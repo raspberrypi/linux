@@ -533,7 +533,7 @@ static void random_work(struct work_struct *work)
 		hci_le_start_enc(hcon, ediv, rand, stk);
 		hcon->enc_key_size = smp->enc_key_size;
 	} else {
-		u8 stk[16];
+		u8 stk[16], auth;
 		__le64 rand = 0;
 		__le16 ediv = 0;
 
@@ -545,8 +545,13 @@ static void random_work(struct work_struct *work)
 		memset(stk + smp->enc_key_size, 0,
 		       SMP_MAX_ENC_KEY_SIZE - smp->enc_key_size);
 
+		if (hcon->pending_sec_level == BT_SECURITY_HIGH)
+			auth = 1;
+		else
+			auth = 0;
+
 		hci_add_ltk(hcon->hdev, &hcon->dst, hcon->dst_type,
-			    HCI_SMP_STK_SLAVE, 0, stk, smp->enc_key_size,
+			    HCI_SMP_STK_SLAVE, auth, stk, smp->enc_key_size,
 			    ediv, rand);
 	}
 
