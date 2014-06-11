@@ -265,12 +265,6 @@ static int bcm2708_fb_check_var(struct fb_var_screeninfo *var,
 	else if (var->vmode & FB_VMODE_INTERLACED)
 		yres = (yres + 1) / 2;
 
-	if (var->xres * yres > 1920 * 1200) {
-		pr_err("bcm2708_fb_check_var: ERROR: Pixel size >= 1920x1200; "
-		       "special treatment required! (TODO)\n");
-		return -EINVAL;
-	}
-
 	return 0;
 }
 
