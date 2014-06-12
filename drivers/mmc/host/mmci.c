@@ -834,6 +834,10 @@ static void
 mmci_data_irq(struct mmci_host *host, struct mmc_data *data,
 	      unsigned int status)
 {
+	/* Make sure we have data to handle */
+	if (!data)
+		return;
+
 	/* First check for errors */
 	if (status & (MCI_DATACRCFAIL|MCI_DATATIMEOUT|MCI_STARTBITERR|
 		      MCI_TXUNDERRUN|MCI_RXOVERRUN)) {
@@ -1133,7 +1137,6 @@ static irqreturn_t mmci_irq(int irq, void *dev_id)
 
 	do {
 		struct mmc_command *cmd;
-		struct mmc_data *data;
 
 		status = readl(host->base + MMCISTATUS);
 
@@ -1159,11 +1162,7 @@ static irqreturn_t mmci_irq(int irq, void *dev_id)
 			MCI_CMDSENT|MCI_CMDRESPEND) && cmd)
 			mmci_cmd_irq(host, cmd, status);
 
-		data = host->data;
-		if (status & (MCI_DATACRCFAIL|MCI_DATATIMEOUT|MCI_STARTBITERR|
-			      MCI_TXUNDERRUN|MCI_RXOVERRUN|MCI_DATAEND|
-			      MCI_DATABLOCKEND) && data)
-			mmci_data_irq(host, data, status);
+		mmci_data_irq(host, host->data, status);
 
 		/* Don't poll for busy completion in irq context. */
 		if (host->busy_status)
