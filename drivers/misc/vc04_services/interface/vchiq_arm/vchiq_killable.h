@@ -37,7 +37,7 @@
 #include <linux/mutex.h>
 #include <linux/semaphore.h>
 
-#define SHUTDOWN_SIGS   (sigmask(SIGKILL) | sigmask(SIGINT) | sigmask(SIGQUIT))
+#define SHUTDOWN_SIGS   (sigmask(SIGKILL) | sigmask(SIGINT) | sigmask(SIGQUIT) | sigmask(SIGTRAP))
 
 static inline int __must_check down_interruptible_killable(struct semaphore *sem)
 {
