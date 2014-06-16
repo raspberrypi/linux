@@ -615,6 +615,23 @@ static struct platform_device bcm2835_thermal_device = {
 	.name = "bcm2835_thermal",
 };
 
+#ifdef CONFIG_DRM_VC4
+static struct resource vc4_drm_resources[] = {
+	{
+		.start = VC4_BASE,
+		.end = VC4_BASE + SZ_4K,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device vc4_drm_device = {
+	.name = "vc4-drm",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(vc4_drm_resources),
+	.resource = vc4_drm_resources,
+};
+#endif
+
 #ifdef CONFIG_SND_BCM2708_SOC_I2S_MODULE
 static struct resource bcm2708_i2s_resources[] = {
 	{
@@ -821,6 +838,10 @@ void __init bcm2708_init(void)
 
 #ifdef CONFIG_SND_BCM2708_SOC_I2S_MODULE
 	bcm_register_device(&bcm2708_i2s_device);
+#endif
+
+#ifdef CONFIG_DRM_VC4
+	bcm_register_device(&vc4_drm_device);
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)

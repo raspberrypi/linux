@@ -76,6 +76,7 @@
 #define BSC1_BASE		 (BCM2708_PERI_BASE + 0x804000) /* BSC1 I2C/TWI */
 #define USB_BASE                 (BCM2708_PERI_BASE + 0x980000) /* DTC_OTG USB controller */
 #define MCORE_BASE               (BCM2708_PERI_BASE + 0x0000)   /* Fake frame buffer device (actually the multicore sync block*/
+#define VC4_BASE                 (BCM2708_PERI_BASE + 0xc00000) /* VC4 V3D core */
 
 #define ARMCTRL_BASE             (ARM_BASE + 0x000)
 #define ARMCTRL_IC_BASE          (ARM_BASE + 0x200)           /* ARM interrupt controller */
