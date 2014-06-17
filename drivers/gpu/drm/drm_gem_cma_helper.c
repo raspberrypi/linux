@@ -195,34 +195,6 @@ int drm_gem_cma_dumb_create(struct drm_file *file_priv,
 }
 EXPORT_SYMBOL_GPL(drm_gem_cma_dumb_create);
 
-/*
- * drm_gem_cma_dumb_map_offset - (struct drm_driver)->dumb_map_offset callback
- * function
- */
-int drm_gem_cma_dumb_map_offset(struct drm_file *file_priv,
-		struct drm_device *drm, uint32_t handle, uint64_t *offset)
-{
-	struct drm_gem_object *gem_obj;
-
-	mutex_lock(&drm->struct_mutex);
-
-	gem_obj = drm_gem_object_lookup(drm, file_priv, handle);
-	if (!gem_obj) {
-		dev_err(drm->dev, "failed to lookup gem object\n");
-		mutex_unlock(&drm->struct_mutex);
-		return -EINVAL;
-	}
-
-	*offset = drm_vma_node_offset_addr(&gem_obj->vma_node);
-
-	drm_gem_object_unreference(gem_obj);
-
-	mutex_unlock(&drm->struct_mutex);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(drm_gem_cma_dumb_map_offset);
-
 const struct vm_operations_struct drm_gem_cma_vm_ops = {
 	.open = drm_gem_vm_open,
 	.close = drm_gem_vm_close,

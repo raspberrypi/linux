@@ -274,32 +274,6 @@ int tegra_bo_dumb_create(struct drm_file *file, struct drm_device *drm,
 	return 0;
 }
 
-int tegra_bo_dumb_map_offset(struct drm_file *file, struct drm_device *drm,
-			     uint32_t handle, uint64_t *offset)
-{
-	struct drm_gem_object *gem;
-	struct tegra_bo *bo;
-
-	mutex_lock(&drm->struct_mutex);
-
-	gem = drm_gem_object_lookup(drm, file, handle);
-	if (!gem) {
-		dev_err(drm->dev, "failed to lookup GEM object\n");
-		mutex_unlock(&drm->struct_mutex);
-		return -EINVAL;
-	}
-
-	bo = to_tegra_bo(gem);
-
-	*offset = drm_vma_node_offset_addr(&bo->gem.vma_node);
-
-	drm_gem_object_unreference(gem);
-
-	mutex_unlock(&drm->struct_mutex);
-
-	return 0;
-}
-
 const struct vm_operations_struct tegra_bo_vm_ops = {
 	.open = drm_gem_vm_open,
 	.close = drm_gem_vm_close,

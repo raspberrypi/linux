@@ -1588,6 +1588,9 @@ int drm_gem_handle_delete(struct drm_file *filp, u32 handle);
 void drm_gem_free_mmap_offset(struct drm_gem_object *obj);
 int drm_gem_create_mmap_offset(struct drm_gem_object *obj);
 int drm_gem_create_mmap_offset_size(struct drm_gem_object *obj, size_t size);
+int drm_gem_dumb_map_offset(struct drm_file *file_priv,
+			    struct drm_device *dev, uint32_t handle,
+			    uint64_t *offset);
 
 struct page **drm_gem_get_pages(struct drm_gem_object *obj, gfp_t gfpmask);
 void drm_gem_put_pages(struct drm_gem_object *obj, struct page **pages,

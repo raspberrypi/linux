@@ -25,10 +25,6 @@ void drm_gem_cma_free_object(struct drm_gem_object *gem_obj);
 int drm_gem_cma_dumb_create(struct drm_file *file_priv,
 		struct drm_device *drm, struct drm_mode_create_dumb *args);
 
-/* map memory region for drm framebuffer to user space. */
-int drm_gem_cma_dumb_map_offset(struct drm_file *file_priv,
-		struct drm_device *drm, uint32_t handle, uint64_t *offset);
-
 /* set vm_flags and we can change the vm attribute to other one at here. */
 int drm_gem_cma_mmap(struct file *filp, struct vm_area_struct *vma);
 
