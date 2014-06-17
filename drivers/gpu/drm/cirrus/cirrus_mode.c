@@ -430,71 +430,6 @@ void cirrus_crtc_fb_gamma_get(struct drm_crtc *crtc, u16 *red, u16 *green,
 }
 
 
-static bool cirrus_encoder_mode_fixup(struct drm_encoder *encoder,
-				      const struct drm_display_mode *mode,
-				      struct drm_display_mode *adjusted_mode)
-{
-	return true;
-}
-
-static void cirrus_encoder_mode_set(struct drm_encoder *encoder,
-				struct drm_display_mode *mode,
-				struct drm_display_mode *adjusted_mode)
-{
-}
-
-static void cirrus_encoder_dpms(struct drm_encoder *encoder, int state)
-{
-	return;
-}
-
-static void cirrus_encoder_prepare(struct drm_encoder *encoder)
-{
-}
-
-static void cirrus_encoder_commit(struct drm_encoder *encoder)
-{
-}
-
-static void cirrus_encoder_destroy(struct drm_encoder *encoder)
-{
-	struct cirrus_encoder *cirrus_encoder = to_cirrus_encoder(encoder);
-	drm_encoder_cleanup(encoder);
-	kfree(cirrus_encoder);
-}
-
-static const struct drm_encoder_helper_funcs cirrus_encoder_helper_funcs = {
-	.dpms = cirrus_encoder_dpms,
-	.mode_fixup = cirrus_encoder_mode_fixup,
-	.mode_set = cirrus_encoder_mode_set,
-	.prepare = cirrus_encoder_prepare,
-	.commit = cirrus_encoder_commit,
-};
-
-static const struct drm_encoder_funcs cirrus_encoder_encoder_funcs = {
-	.destroy = cirrus_encoder_destroy,
-};
-
-static struct drm_encoder *cirrus_encoder_init(struct drm_device *dev)
-{
-	struct drm_encoder *encoder;
-	struct cirrus_encoder *cirrus_encoder;
-
-	cirrus_encoder = kzalloc(sizeof(struct cirrus_encoder), GFP_KERNEL);
-	if (!cirrus_encoder)
-		return NULL;
-
-	encoder = &cirrus_encoder->base;
-	encoder->possible_crtcs = 0x1;
-
-	drm_encoder_init(dev, encoder, &cirrus_encoder_encoder_funcs,
-			 DRM_MODE_ENCODER_DAC);
-	drm_encoder_helper_add(encoder, &cirrus_encoder_helper_funcs);
-
-	return encoder;
-}
-
-
 static int cirrus_vga_get_modes(struct drm_connector *connector)
 {
 	int count;
@@ -596,9 +531,9 @@ int cirrus_modeset_init(struct cirrus_device *cdev)
 
 	cirrus_crtc_init(cdev->dev);
 
-	encoder = cirrus_encoder_init(cdev->dev);
+	encoder = drm_stub_encoder_init(cdev->dev);
 	if (!encoder) {
-		DRM_ERROR("cirrus_encoder_init failed\n");
+		DRM_ERROR("drm_stub_encoder_init failed\n");
 		return -1;
 	}
 

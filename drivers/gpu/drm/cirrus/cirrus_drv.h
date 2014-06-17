@@ -88,7 +88,6 @@
 #define CIRRUS_DPMS_CLEARED (-1)
 
 #define to_cirrus_crtc(x) container_of(x, struct cirrus_crtc, base)
-#define to_cirrus_encoder(x) container_of(x, struct cirrus_encoder, base)
 #define to_cirrus_framebuffer(x) container_of(x, struct cirrus_framebuffer, base)
 
 struct cirrus_crtc {
@@ -104,11 +103,6 @@ struct cirrus_mode_info {
 	struct cirrus_crtc		*crtc;
 	/* pointer to fbdev info structure */
 	struct cirrus_fbdev		*gfbdev;
-};
-
-struct cirrus_encoder {
-	struct drm_encoder		base;
-	int				last_dpms;
 };
 
 struct cirrus_connector {

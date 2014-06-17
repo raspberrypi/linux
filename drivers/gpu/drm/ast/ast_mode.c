@@ -644,13 +644,6 @@ static int ast_crtc_init(struct drm_device *dev)
 	return 0;
 }
 
-static void ast_encoder_destroy(struct drm_encoder *encoder)
-{
-	drm_encoder_cleanup(encoder);
-	kfree(encoder);
-}
-
-
 static struct drm_encoder *ast_best_single_encoder(struct drm_connector *connector)
 {
 	int enc_id = connector->encoder_ids[0];
@@ -666,64 +659,6 @@ static struct drm_encoder *ast_best_single_encoder(struct drm_connector *connect
 		return encoder;
 	}
 	return NULL;
-}
-
-
-static const struct drm_encoder_funcs ast_enc_funcs = {
-	.destroy = ast_encoder_destroy,
-};
-
-static void ast_encoder_dpms(struct drm_encoder *encoder, int mode)
-{
-
-}
-
-static bool ast_mode_fixup(struct drm_encoder *encoder,
-			   const struct drm_display_mode *mode,
-			   struct drm_display_mode *adjusted_mode)
-{
-	return true;
-}
-
-static void ast_encoder_mode_set(struct drm_encoder *encoder,
-			       struct drm_display_mode *mode,
-			       struct drm_display_mode *adjusted_mode)
-{
-}
-
-static void ast_encoder_prepare(struct drm_encoder *encoder)
-{
-
-}
-
-static void ast_encoder_commit(struct drm_encoder *encoder)
-{
-
-}
-
-
-static const struct drm_encoder_helper_funcs ast_enc_helper_funcs = {
-	.dpms = ast_encoder_dpms,
-	.mode_fixup = ast_mode_fixup,
-	.prepare = ast_encoder_prepare,
-	.commit = ast_encoder_commit,
-	.mode_set = ast_encoder_mode_set,
-};
-
-static int ast_encoder_init(struct drm_device *dev)
-{
-	struct ast_encoder *ast_encoder;
-
-	ast_encoder = kzalloc(sizeof(struct ast_encoder), GFP_KERNEL);
-	if (!ast_encoder)
-		return -ENOMEM;
-
-	drm_encoder_init(dev, &ast_encoder->base, &ast_enc_funcs,
-			 DRM_MODE_ENCODER_DAC);
-	drm_encoder_helper_add(&ast_encoder->base, &ast_enc_helper_funcs);
-
-	ast_encoder->base.possible_crtcs = 1;
-	return 0;
 }
 
 static int ast_get_modes(struct drm_connector *connector)
@@ -858,7 +793,7 @@ int ast_mode_init(struct drm_device *dev)
 {
 	ast_cursor_init(dev);
 	ast_crtc_init(dev);
-	ast_encoder_init(dev);
+	drm_stub_encoder_init(dev);
 	ast_connector_init(dev);
 	return 0;
 }

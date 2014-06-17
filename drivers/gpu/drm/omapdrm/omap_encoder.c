@@ -74,39 +74,6 @@ static const struct drm_encoder_funcs omap_encoder_funcs = {
  * that.
  */
 
-static void omap_encoder_dpms(struct drm_encoder *encoder, int mode)
-{
-}
-
-static bool omap_encoder_mode_fixup(struct drm_encoder *encoder,
-				  const struct drm_display_mode *mode,
-				  struct drm_display_mode *adjusted_mode)
-{
-	return true;
-}
-
-static void omap_encoder_mode_set(struct drm_encoder *encoder,
-				struct drm_display_mode *mode,
-				struct drm_display_mode *adjusted_mode)
-{
-}
-
-static void omap_encoder_prepare(struct drm_encoder *encoder)
-{
-}
-
-static void omap_encoder_commit(struct drm_encoder *encoder)
-{
-}
-
-static const struct drm_encoder_helper_funcs omap_encoder_helper_funcs = {
-	.dpms = omap_encoder_dpms,
-	.mode_fixup = omap_encoder_mode_fixup,
-	.mode_set = omap_encoder_mode_set,
-	.prepare = omap_encoder_prepare,
-	.commit = omap_encoder_commit,
-};
-
 /*
  * Instead of relying on the helpers for modeset, the omap_crtc code
  * calls these functions in the proper sequence.
@@ -179,7 +146,7 @@ struct drm_encoder *omap_encoder_init(struct drm_device *dev,
 
 	drm_encoder_init(dev, encoder, &omap_encoder_funcs,
 			 DRM_MODE_ENCODER_TMDS);
-	drm_encoder_helper_add(encoder, &omap_encoder_helper_funcs);
+	drm_encoder_helper_add(encoder, &drm_stub_encoder_helper_funcs);
 
 	return encoder;
 

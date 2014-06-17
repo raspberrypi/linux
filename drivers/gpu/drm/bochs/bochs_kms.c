@@ -135,52 +135,15 @@ static void bochs_crtc_init(struct drm_device *dev)
 	drm_crtc_helper_add(crtc, &bochs_helper_funcs);
 }
 
-static bool bochs_encoder_mode_fixup(struct drm_encoder *encoder,
-				     const struct drm_display_mode *mode,
-				     struct drm_display_mode *adjusted_mode)
-{
-	return true;
-}
-
-static void bochs_encoder_mode_set(struct drm_encoder *encoder,
-				   struct drm_display_mode *mode,
-				   struct drm_display_mode *adjusted_mode)
-{
-}
-
-static void bochs_encoder_dpms(struct drm_encoder *encoder, int state)
-{
-}
-
-static void bochs_encoder_prepare(struct drm_encoder *encoder)
-{
-}
-
-static void bochs_encoder_commit(struct drm_encoder *encoder)
-{
-}
-
-static const struct drm_encoder_helper_funcs bochs_encoder_helper_funcs = {
-	.dpms = bochs_encoder_dpms,
-	.mode_fixup = bochs_encoder_mode_fixup,
-	.mode_set = bochs_encoder_mode_set,
-	.prepare = bochs_encoder_prepare,
-	.commit = bochs_encoder_commit,
-};
-
-static const struct drm_encoder_funcs bochs_encoder_encoder_funcs = {
-	.destroy = drm_encoder_cleanup,
-};
-
 static void bochs_encoder_init(struct drm_device *dev)
 {
 	struct bochs_device *bochs = dev->dev_private;
 	struct drm_encoder *encoder = &bochs->encoder;
 
 	encoder->possible_crtcs = 0x1;
-	drm_encoder_init(dev, encoder, &bochs_encoder_encoder_funcs,
+	drm_encoder_init(dev, encoder, &drm_stub_encoder_encoder_funcs,
 			 DRM_MODE_ENCODER_DAC);
-	drm_encoder_helper_add(encoder, &bochs_encoder_helper_funcs);
+	drm_encoder_helper_add(encoder, &drm_stub_encoder_helper_funcs);
 }
 
 
