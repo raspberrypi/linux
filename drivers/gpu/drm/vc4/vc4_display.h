@@ -21,29 +21,27 @@
  * IN THE SOFTWARE.
  */
 
-#include "drmP.h"
-
-struct vc4_dev {
-	struct drm_device dev;
-
-	void __iomem *vc4_regs;
-
-	volatile struct vc4_mode_set_cmd *mode_set_cmd;
-	dma_addr_t mode_set_cmd_addr;
+struct intel_encoder {
+	struct drm_encoder base;
 };
 
-static inline struct vc4_dev *
-to_vc4_dev(struct drm_device *dev)
+struct vc4_connector {
+	struct drm_connector base;
+
+	/* The fixed encoder this connector is connected to. */
+	struct drm_encoder *encoder;
+};
+
+struct vc4_crtc {
+	struct drm_crtc base;
+};
+
+#define to_vc4_crtc(x) container_of(x, struct vc4_crtc, base)
+#define to_vc4_connector(x) container_of(x, struct vc4_connector, base)
+#define to_vc4_encoder(x) container_of(x, struct vc4_encoder, base)
+
+static inline struct drm_encoder *
+vc4_attached_encoder(struct drm_connector *connector)
 {
-	return (struct vc4_dev *)dev;
+	return to_vc4_connector(connector)->encoder;
 }
-
-#define VC4_READ(offset) readl(to_vc4_dev(dev)->vc4_regs + offset)
-#define VC4_WRITE(offset, val) writel(val, to_vc4_dev(dev)->vc4_regs + offset)
-
-/* vc4_debugfs.c */
-int vc4_debugfs_init(struct drm_minor *minor);
-void vc4_debugfs_cleanup(struct drm_minor *minor);
-
-/* vc4_display.c */
-int vc4_modeset_init(struct drm_device *dev);

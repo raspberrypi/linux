@@ -29,6 +29,7 @@
 
 #include "vc4_drv.h"
 #include "vc4_regs.h"
+#include "drm_gem_cma_helper.h"
 
 #define DRIVER_NAME "vc4"
 #define DRIVER_DESC "Broadcom VC4 graphics"
@@ -74,7 +75,7 @@ set_platform_qpu_enable(bool on)
 static int
 map_regs(struct drm_device *dev)
 {
-	struct vc4__dev *vc4 = to_vc4_dev(dev);
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	int i;
 	void __iomem *regs[1];
 	struct resource *mem[1];
@@ -97,12 +98,18 @@ map_regs(struct drm_device *dev)
 static int
 vc4_drm_load(struct drm_device *dev, unsigned long flags)
 {
-	struct vc4__dev *vc4;
+	struct vc4_dev *vc4;
 	int ret;
 
 	vc4 = kzalloc(sizeof(*vc4), GFP_KERNEL);
 	if (!vc4)
 		return -ENOMEM;
+
+	ret = dma_set_coherent_mask(dev->dev, DMA_BIT_MASK(32));
+	if (ret) {
+		kfree(vc4);
+		return ret;
+	}
 
 	dev_set_drvdata(dev->dev, dev);
 	dev->dev_private = vc4;
@@ -119,7 +126,7 @@ vc4_drm_load(struct drm_device *dev, unsigned long flags)
 		goto fail;
 	}
 
-	drm_mode_config_init(dev);
+	vc4_modeset_init(dev);
 
 	return 0;
 
@@ -146,7 +153,7 @@ static const struct file_operations vc4_drm_fops = {
 	.open = drm_open,
 	.release = drm_release,
 	.unlocked_ioctl = drm_ioctl,
-	/* .mmap = vc4_drm_mmap, */
+	.mmap = drm_gem_cma_mmap,
 	.poll = drm_poll,
 	.read = drm_read,
 #ifdef CONFIG_COMPAT
@@ -179,21 +186,22 @@ static struct drm_driver vc4_drm_driver = {
 	.debugfs_cleanup = vc4_debugfs_cleanup,
 #endif
 
-	/*
-	.gem_free_object = vc4_bo_free_object,
-	.gem_vm_ops = &vc4_bo_vm_ops,
-	*/
+	.gem_free_object = drm_gem_cma_free_object,
+	.gem_vm_ops = &drm_gem_cma_vm_ops,
 
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
-	/*
-	.gem_prime_export = vc4_gem_prime_export,
-	.gem_prime_import = vc4_gem_prime_import,
+	.gem_prime_import = drm_gem_prime_import,
+	.gem_prime_export = drm_gem_prime_export,
+	.gem_prime_get_sg_table	= drm_gem_cma_prime_get_sg_table,
+	.gem_prime_import_sg_table = drm_gem_cma_prime_import_sg_table,
+	.gem_prime_vmap		= drm_gem_cma_prime_vmap,
+	.gem_prime_vunmap	= drm_gem_cma_prime_vunmap,
+	.gem_prime_mmap		= drm_gem_cma_prime_mmap,
 
-	.dumb_create = vc4_bo_dumb_create,
-	.dumb_map_offset = vc4_bo_dumb_map_offset,
+	.dumb_create = drm_gem_cma_dumb_create,
+	.dumb_map_offset = drm_gem_dumb_map_offset,
 	.dumb_destroy = drm_gem_dumb_destroy,
-	*/
 
 	.ioctls = vc4_drm_ioctls,
 	.num_ioctls = ARRAY_SIZE(vc4_drm_ioctls),

@@ -5,6 +5,7 @@ ccflags-y := -Iinclude/drm
 # core driver code
 vc4-y := \
 	vc4_drv.o \
+	vc4_display.o \
 	$()
 
 vc4-$(CONFIG_DEBUG_FS) += vc4_debugfs.o
