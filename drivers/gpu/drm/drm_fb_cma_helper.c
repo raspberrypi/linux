@@ -341,8 +341,7 @@ static struct drm_fb_helper_funcs drm_fb_cma_helper_funcs = {
  * Returns a newly allocated drm_fbdev_cma struct or a ERR_PTR.
  */
 struct drm_fbdev_cma *drm_fbdev_cma_init(struct drm_device *dev,
-	unsigned int preferred_bpp, unsigned int num_crtc,
-	unsigned int max_conn_count)
+	unsigned int preferred_bpp)
 {
 	struct drm_fbdev_cma *fbdev_cma;
 	struct drm_fb_helper *helper;
@@ -357,7 +356,8 @@ struct drm_fbdev_cma *drm_fbdev_cma_init(struct drm_device *dev,
 	fbdev_cma->fb_helper.funcs = &drm_fb_cma_helper_funcs;
 	helper = &fbdev_cma->fb_helper;
 
-	ret = drm_fb_helper_init(dev, helper, num_crtc, max_conn_count);
+	ret = drm_fb_helper_init(dev, helper, dev->mode_config.num_crtc,
+				 dev->mode_config.num_connector);
 	if (ret < 0) {
 		dev_err(dev->dev, "Failed to initialize drm fb helper.\n");
 		goto err_free;

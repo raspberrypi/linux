@@ -278,8 +278,7 @@ int rcar_du_modeset_init(struct rcar_du_device *rcdu)
 
 	drm_helper_disable_unused_functions(dev);
 
-	fbdev = drm_fbdev_cma_init(dev, 32, dev->mode_config.num_crtc,
-				   dev->mode_config.num_connector);
+	fbdev = drm_fbdev_cma_init(dev, 32);
 	if (IS_ERR(fbdev))
 		return PTR_ERR(fbdev);
 
