@@ -30,6 +30,13 @@
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 
+struct exec_info {
+	struct drm_gem_cma_object *bin_bo;
+	struct drm_gem_cma_object *render_bo;
+	uint32_t ct0ca, ct0ea;
+	uint32_t ct1ca, ct1ea;
+};
+
 static void
 thread_reset(struct drm_device *dev)
 {
@@ -131,11 +138,11 @@ wait_for_render_thread(struct drm_device *dev, u32 initial_rfc)
 */
 
 static int
-vc4_submit(struct drm_device *dev, struct drm_vc4_submit_cl *args)
+vc4_submit(struct drm_device *dev, struct exec_info *args)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	uint32_t ct0ca = args->ct0ca, ct0ea = args->ct0ea; /* XXX */
-	uint32_t ct1ca = args->ct1ca, ct1ea = args->ct1ea; /* XXX */
+	uint32_t ct0ca = args->ct0ca, ct0ea = args->ct0ea;
+	uint32_t ct1ca = args->ct1ca, ct1ea = args->ct1ea;
 	int ret;
 
 	/* flushes caches */
@@ -171,6 +178,68 @@ vc4_submit(struct drm_device *dev, struct drm_vc4_submit_cl *args)
 	return 0;
 }
 
+static int
+vc4_cl_validate(struct drm_device *dev, struct drm_vc4_submit_cl *args,
+		struct exec_info *exec_info)
+{
+	void *bin_contents, *render_contents;
+	int ret = 0;
+
+	bin_contents = kmalloc(args->bin_thread_len, GFP_KERNEL);
+	render_contents = kmalloc(args->render_thread_len, GFP_KERNEL);
+	if (!bin_contents || !render_contents) {
+		DRM_ERROR("Failed to allocate storage for copying "
+			  "in bin/render CLs.\n");
+		ret = -ENOMEM;
+		goto fail;
+	}
+
+	ret = copy_from_user(bin_contents, args->bin_thread,
+			     args->bin_thread_len);
+	if (ret) {
+		DRM_ERROR("Failed to copy in bin thread\n");
+		goto fail;
+	}
+
+	ret = copy_from_user(render_contents, args->render_thread,
+			     args->render_thread_len);
+	if (ret) {
+		DRM_ERROR("Failed to copy in render thread\n");
+		goto fail;
+	}
+
+	exec_info->bin_bo = drm_gem_cma_create(dev, args->bin_thread_len);
+	if (IS_ERR(exec_info->bin_bo)) {
+		DRM_ERROR("Couldn't allocate BO for bin thread\n");
+		ret = PTR_ERR(exec_info->bin_bo);
+		exec_info->bin_bo = NULL;
+		goto fail;
+	}
+
+	exec_info->render_bo = drm_gem_cma_create(dev, args->render_thread_len);
+	if (IS_ERR(exec_info->render_bo)) {
+		DRM_ERROR("Couldn't allocate BO for render thread\n");
+		ret = PTR_ERR(exec_info->render_bo);
+		exec_info->render_bo = NULL;
+		goto fail;
+	}
+
+	memcpy(exec_info->bin_bo->vaddr, bin_contents,
+	       args->bin_thread_len);
+	memcpy(exec_info->render_bo->vaddr, render_contents,
+	       args->render_thread_len);
+
+	exec_info->ct0ca = exec_info->bin_bo->paddr;
+	exec_info->ct0ea = exec_info->ct0ca + args->bin_thread_len;
+	exec_info->ct1ca = exec_info->render_bo->paddr;
+	exec_info->ct1ea = exec_info->ct1ca + args->render_thread_len;
+
+fail:
+	kfree(bin_contents);
+	kfree(render_contents);
+	return ret;
+}
+
 /**
  * Submits a command list to the VC4.
  *
@@ -181,13 +250,30 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 		    struct drm_file *file_priv)
 {
 	struct drm_vc4_submit_cl *args = data;
+	struct exec_info exec_info;
 	int ret;
 
+	memset(&exec_info, 0, sizeof(exec_info));
+
 	mutex_lock(&dev->struct_mutex);
-	ret = vc4_submit(dev, args);
+
+	ret = vc4_cl_validate(dev, args, &exec_info);
+	if (ret) {
+		mutex_unlock(&dev->struct_mutex);
+		goto fail;
+	}
+
+	ret = vc4_submit(dev, &exec_info);
 	if (ret)
 		thread_reset(dev);
+
 	mutex_unlock(&dev->struct_mutex);
+
+fail:
+
+	/* XXX */
+	//drm_gem_object_unreference(&exec_info.bin_bo->base);
+	//drm_gem_object_unreference(&exec_info.render_bo->base);
 
 	return ret;
 }

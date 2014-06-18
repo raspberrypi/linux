@@ -29,7 +29,10 @@
 #define DRM_IOCTL_VC4_SUBMIT_CL	   DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_SUBMIT_CL, struct drm_vc4_submit_cl)
 
 struct drm_vc4_submit_cl {
-	uint32_t ct0ca, ct0ea, ct1ca, ct1ea;
+	void __user *bin_thread;
+	void __user *render_thread;
+	uint32_t bin_thread_len;
+	uint32_t render_thread_len;
 };
 
 #endif /* _UAPI_VC4_DRM_H_ */
