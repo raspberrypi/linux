@@ -219,7 +219,11 @@ static inline void __inc_zone_state(struct zone *zone, enum zone_stat_item item)
 static inline void __dec_zone_state(struct zone *zone, enum zone_stat_item item)
 {
 	atomic_long_dec(&zone->vm_stat[item]);
+	if (item == NR_FILE_DIRTY && unlikely(atomic_long_read(&zone->vm_stat[item]) < 0))
+		atomic_long_set(&zone->vm_stat[item], 0);
 	atomic_long_dec(&vm_stat[item]);
+	if (item == NR_FILE_DIRTY && unlikely(atomic_long_read(&vm_stat[item]) < 0))
+		atomic_long_set(&vm_stat[item], 0);
 }
 
 static inline void __inc_zone_page_state(struct page *page,
