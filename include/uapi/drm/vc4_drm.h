@@ -24,15 +24,22 @@
 #ifndef _UAPI_VC4_DRM_H_
 #define _UAPI_VC4_DRM_H_
 
+#include <drm/drm.h>
+
 #define DRM_VC4_SUBMIT_CL                         0x00
 
 #define DRM_IOCTL_VC4_SUBMIT_CL	   DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_SUBMIT_CL, struct drm_vc4_submit_cl)
 
 struct drm_vc4_submit_cl {
-	void __user *bin_thread;
-	void __user *render_thread;
-	uint32_t bin_thread_len;
-	uint32_t render_thread_len;
+	void __user *bin_cl;
+	void __user *render_cl;
+	void __user *shader_records;
+	void __user *bo_handles;
+	uint32_t bin_cl_len;
+	uint32_t render_cl_len;
+	uint32_t shader_record_len;
+	uint32_t shader_record_count;
+	uint32_t bo_handle_count;
 };
 
 #endif /* _UAPI_VC4_DRM_H_ */

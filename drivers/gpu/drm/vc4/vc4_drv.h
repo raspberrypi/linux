@@ -84,6 +84,49 @@ to_vc4_plane(struct drm_plane *plane)
 #define HVS_READ(offset) readl(vc4->hvs->regs + offset)
 #define HVS_WRITE(offset, val) writel(val, vc4->hvs->regs + offset)
 
+struct exec_info {
+	/* This is the array of BOs that were looked up at the start of exec.
+	 * Command validation will use indices into this array.
+	 */
+	struct drm_gem_cma_object **bo;
+	uint32_t bo_count;
+
+	/* Current indices into @bo loaded by the non-hardware packet
+	 * that passes in indices.  This can be used even without
+	 * checking that we've seen one of those packets, because
+	 * @bo_count is always >= 1, and this struct is initialized to
+	 * 0.
+	 */
+	uint32_t bo_index[2];
+	uint32_t max_width, max_height;
+
+	/**
+	 * This is the BO where we store the validated command lists
+	 * and shader records.
+	 */
+	struct drm_gem_cma_object *exec_bo;
+
+	/**
+	 * This tracks the per-shader-record state (packet 64) that
+	 * determines the length of the shader record and the offset
+	 * it's expected to be found at.  It gets read in from the
+	 * command lists.
+	 */
+	uint32_t *shader_state;
+	/** How many shader states the user declared they were using. */
+	uint32_t shader_state_size;
+	/** How many shader state records the validator has seen. */
+	uint32_t shader_state_count;
+
+	/**
+	 * Computed addresses pointing into exec_bo where we start the
+	 * bin thread (ct0) and render thread (ct1).
+	 */
+	uint32_t ct0ca, ct0ea;
+	uint32_t ct1ca, ct1ea;
+	uint32_t shader_paddr;
+};
+
 /* vc4_bo.c */
 void vc4_free_object(struct drm_gem_object *gem_obj);
 struct vc4_bo *vc4_bo_create(struct drm_device *dev, size_t size);
@@ -139,3 +182,19 @@ void vc4_v3d_unregister(void);
 int vc4_v3d_debugfs_ident(struct seq_file *m, void *unused);
 int vc4_v3d_debugfs_regs(struct seq_file *m, void *unused);
 int vc4_v3d_set_power(struct vc4_dev *vc4, bool on);
+
+/* vc4_validate.c */
+int
+vc4_validate_cl(struct drm_device *dev,
+		void *validated,
+		void *unvalidated,
+		uint32_t len,
+		bool is_bin,
+		struct exec_info *exec);
+
+int
+vc4_validate_shader_recs(struct drm_device *dev,
+			 void *validated,
+			 void *unvalidated,
+			 uint32_t len,
+			 struct exec_info *exec);

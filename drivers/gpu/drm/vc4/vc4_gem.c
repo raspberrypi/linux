@@ -30,13 +30,6 @@
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 
-struct exec_info {
-	struct drm_gem_cma_object *bin_bo;
-	struct drm_gem_cma_object *render_bo;
-	uint32_t ct0ca, ct0ea;
-	uint32_t ct1ca, ct1ea;
-};
-
 static void
 thread_reset(struct drm_device *dev)
 {
@@ -178,65 +171,171 @@ vc4_submit(struct drm_device *dev, struct exec_info *args)
 	return 0;
 }
 
+/**
+ * Looks up a bunch of GEM handles for BOs and stores the array for
+ * use in the command validator that actually writes relocated
+ * addresses pointing to them.
+ */
+static int
+vc4_cl_lookup_bos(struct drm_device *dev,
+		  struct drm_file *file_priv,
+		  struct drm_vc4_submit_cl *args,
+		  struct exec_info *exec)
+{
+	uint32_t *handles;
+	int ret = 0;
+	int i;
+
+	exec->bo_count = args->bo_handle_count;
+
+	if (!exec->bo_count) {
+		/* See comment on bo_index for why we have to check
+		 * this.
+		 */
+		DRM_ERROR("Rendering requires BOs to validate\n");
+		return -EINVAL;
+	}
+
+	exec->bo = kcalloc(exec->bo_count, sizeof(struct drm_gem_object *),
+			   GFP_KERNEL);
+	if (!exec->bo) {
+		DRM_ERROR("Failed to allocate validated BO pointers\n");
+		return -ENOMEM;
+	}
+
+	handles = drm_malloc_ab(exec->bo_count, sizeof(uint32_t));
+	if (!handles) {
+		DRM_ERROR("Failed to allocate incoming GEM handles\n");
+		goto fail;
+	}
+
+	ret = copy_from_user(handles, args->bo_handles,
+			     exec->bo_count * sizeof(uint32_t));
+	if (ret) {
+		DRM_ERROR("Failed to copy in GEM handles\n");
+		goto fail;
+	}
+
+	for (i = 0; i < exec->bo_count; i++) {
+		struct drm_gem_object *bo;
+
+		bo = drm_gem_object_lookup(dev, file_priv, handles[i]);
+		if (!bo) {
+			DRM_ERROR("Failed to look up GEM BO %d: %d\n",
+				  i, handles[i]);
+			ret = -EINVAL;
+			goto fail;
+		}
+		exec->bo[i] = (struct drm_gem_cma_object *)bo;
+	}
+
+fail:
+	kfree(handles);
+	return 0;
+}
+
 static int
 vc4_cl_validate(struct drm_device *dev, struct drm_vc4_submit_cl *args,
-		struct exec_info *exec_info)
+		struct exec_info *exec)
 {
-	void *bin_contents, *render_contents;
+	void *temp = NULL;
+	void *bin, *render, *shader_rec;
 	int ret = 0;
+	uint32_t bin_offset = 0;
+	uint32_t render_offset = bin_offset + args->bin_cl_len;
+	uint32_t shader_rec_offset = roundup(render_offset +
+					     args->render_cl_len, 16);
+	uint32_t exec_size = shader_rec_offset + args->shader_record_len;
+	uint32_t temp_size = exec_size + (sizeof(uint32_t) *
+					  args->shader_record_count);
 
-	bin_contents = kmalloc(args->bin_thread_len, GFP_KERNEL);
-	render_contents = kmalloc(args->render_thread_len, GFP_KERNEL);
-	if (!bin_contents || !render_contents) {
+	if (shader_rec_offset < render_offset ||
+	    exec_size < shader_rec_offset ||
+	    args->shader_record_count >= (UINT_MAX / sizeof(uint32_t)) ||
+	    temp_size < exec_size) {
+		DRM_ERROR("overflow in exec arguments\n");
+		goto fail;
+	}
+
+	/* Allocate space where we'll store the copied in user command lists
+	 * and shader records.
+	 *
+	 * We don't just copy directly into the BOs because we need to
+	 * read the contents back for validation, and I think the
+	 * bo->vaddr is uncached access.
+	 */
+	temp = kmalloc(temp_size, GFP_KERNEL);
+	if (!temp) {
 		DRM_ERROR("Failed to allocate storage for copying "
 			  "in bin/render CLs.\n");
 		ret = -ENOMEM;
 		goto fail;
 	}
+	bin = temp + bin_offset;
+	render = temp + render_offset;
+	shader_rec = temp + shader_rec_offset;
+	exec->shader_state = temp + exec_size;
+	exec->shader_state_size = args->shader_record_count;
 
-	ret = copy_from_user(bin_contents, args->bin_thread,
-			     args->bin_thread_len);
+	ret = copy_from_user(bin, args->bin_cl, args->bin_cl_len);
 	if (ret) {
-		DRM_ERROR("Failed to copy in bin thread\n");
+		DRM_ERROR("Failed to copy in bin cl\n");
 		goto fail;
 	}
 
-	ret = copy_from_user(render_contents, args->render_thread,
-			     args->render_thread_len);
+	ret = copy_from_user(render, args->render_cl, args->render_cl_len);
 	if (ret) {
-		DRM_ERROR("Failed to copy in render thread\n");
+		DRM_ERROR("Failed to copy in render cl\n");
 		goto fail;
 	}
 
-	exec_info->bin_bo = drm_gem_cma_create(dev, args->bin_thread_len);
-	if (IS_ERR(exec_info->bin_bo)) {
-		DRM_ERROR("Couldn't allocate BO for bin thread\n");
-		ret = PTR_ERR(exec_info->bin_bo);
-		exec_info->bin_bo = NULL;
+	ret = copy_from_user(shader_rec, args->shader_records,
+			     args->shader_record_len);
+	if (ret) {
+		DRM_ERROR("Failed to copy in shader recs\n");
 		goto fail;
 	}
 
-	exec_info->render_bo = drm_gem_cma_create(dev, args->render_thread_len);
-	if (IS_ERR(exec_info->render_bo)) {
-		DRM_ERROR("Couldn't allocate BO for render thread\n");
-		ret = PTR_ERR(exec_info->render_bo);
-		exec_info->render_bo = NULL;
+	exec->exec_bo = drm_gem_cma_create(dev, exec_size);
+	if (IS_ERR(exec->exec_bo)) {
+		DRM_ERROR("Couldn't allocate BO for exec\n");
+		ret = PTR_ERR(exec->exec_bo);
+		exec->exec_bo = NULL;
 		goto fail;
 	}
 
-	memcpy(exec_info->bin_bo->vaddr, bin_contents,
-	       args->bin_thread_len);
-	memcpy(exec_info->render_bo->vaddr, render_contents,
-	       args->render_thread_len);
+	exec->ct0ca = exec->exec_bo->paddr + bin_offset;
+	exec->ct0ea = exec->ct0ca + args->bin_cl_len;
+	exec->ct1ca = exec->exec_bo->paddr + render_offset;
+	exec->ct1ea = exec->ct1ca + args->render_cl_len;
+	exec->shader_paddr = exec->exec_bo->paddr + shader_rec_offset;
 
-	exec_info->ct0ca = exec_info->bin_bo->paddr;
-	exec_info->ct0ea = exec_info->ct0ca + args->bin_thread_len;
-	exec_info->ct1ca = exec_info->render_bo->paddr;
-	exec_info->ct1ea = exec_info->ct1ca + args->render_thread_len;
+	ret = vc4_validate_cl(dev,
+			      exec->exec_bo->vaddr + bin_offset,
+			      bin,
+			      args->bin_cl_len,
+			      true,
+			      exec);
+	if (ret)
+		goto fail;
+
+	ret = vc4_validate_cl(dev,
+			      exec->exec_bo->vaddr + render_offset,
+			      render,
+			      args->render_cl_len,
+			      false,
+			      exec);
+	if (ret)
+		goto fail;
+
+	ret = vc4_validate_shader_recs(dev,
+				       exec->exec_bo->vaddr + shader_rec_offset,
+				       shader_rec,
+				       args->shader_record_len,
+				       exec);
 
 fail:
-	kfree(bin_contents);
-	kfree(render_contents);
+	kfree(temp);
 	return ret;
 }
 
@@ -250,30 +349,38 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 		    struct drm_file *file_priv)
 {
 	struct drm_vc4_submit_cl *args = data;
-	struct exec_info exec_info;
+	struct exec_info exec;
 	int ret;
+	int i;
 
-	memset(&exec_info, 0, sizeof(exec_info));
+	memset(&exec, 0, sizeof(exec));
 
 	mutex_lock(&dev->struct_mutex);
 
-	ret = vc4_cl_validate(dev, args, &exec_info);
+	ret = vc4_cl_lookup_bos(dev, file_priv, args, &exec);
+	if (ret)
+		goto fail;
+
+	ret = vc4_cl_validate(dev, args, &exec);
+	if (ret)
+		goto fail;
+
+	ret = vc4_submit(dev, &exec);
 	if (ret) {
-		mutex_unlock(&dev->struct_mutex);
+		thread_reset(dev);
 		goto fail;
 	}
 
-	ret = vc4_submit(dev, &exec_info);
-	if (ret)
-		thread_reset(dev);
+fail:
+	if (exec.bo) {
+		for (i = 0; i < exec.bo_count; i++)
+			drm_gem_object_unreference(&exec.bo[i]->base);
+		kfree(exec.bo);
+	}
+
+	drm_gem_object_unreference(&exec.exec_bo->base);
 
 	mutex_unlock(&dev->struct_mutex);
-
-fail:
-
-	/* XXX */
-	//drm_gem_object_unreference(&exec_info.bin_bo->base);
-	//drm_gem_object_unreference(&exec_info.render_bo->base);
 
 	return ret;
 }
