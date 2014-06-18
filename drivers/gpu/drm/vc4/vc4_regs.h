@@ -36,19 +36,41 @@
 #define V3D_INTCTL   0x00030
 #define V3D_INTENA   0x00034
 #define V3D_INTDIS   0x00038
+
 #define V3D_CT0CS    0x00100
 #define V3D_CT1CS    0x00104
+#define V3D_CTNCS(n) (V3D_CT0CS + 4 * n)
+# define V3D_CTRSTA      (1 << 15)
+# define V3D_CTSEMA      (1 << 12)
+# define V3D_CTRTSD      (1 << 8)
+# define V3D_CTRUN       (1 << 5)
+# define V3D_CTSUBS      (1 << 4)
+# define V3D_CTERR       (1 << 3)
+# define V3D_CTMODE      (1 << 0)
+
 #define V3D_CT0EA    0x00108
 #define V3D_CT1EA    0x0010c
+#define V3D_CTNEA(n) (V3D_CT0EA + 4 * (n))
 #define V3D_CT0CA    0x00110
 #define V3D_CT1CA    0x00114
+#define V3D_CTNCA(n) (V3D_CT0CA + 4 * (n))
 #define V3D_CT00RA0  0x00118
 #define V3D_CT01RA0  0x0011c
+#define V3D_CTNRA0(n) (V3D_CT00RA0 + 4 * (n))
 #define V3D_CT0LC    0x00120
 #define V3D_CT1LC    0x00124
+#define V3D_CTNLC(n) (V3D_CT0LC + 4 * (n))
 #define V3D_CT0PC    0x00128
 #define V3D_CT1PC    0x0012c
+#define V3D_CTNPC(n) (V3D_CT0PC + 4 * (n))
+
 #define V3D_PCS      0x00130
+# define V3D_BMOOM       (1 << 8)
+# define V3D_RMBUSY      (1 << 3)
+# define V3D_RMACTIVE    (1 << 2)
+# define V3D_BMBUSY      (1 << 1)
+# define V3D_BMACTIVE    (1 << 0)
+
 #define V3D_BFC      0x00134
 #define V3D_RFC      0x00138
 #define V3D_BPCA     0x00300

@@ -21,33 +21,15 @@
  * IN THE SOFTWARE.
  */
 
-#include "drmP.h"
+#ifndef _UAPI_VC4_DRM_H_
+#define _UAPI_VC4_DRM_H_
 
-struct vc4_dev {
-	struct drm_device dev;
+#define DRM_VC4_SUBMIT_CL                         0x00
 
-	void __iomem *vc4_regs;
+#define DRM_IOCTL_VC4_SUBMIT_CL	   DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_SUBMIT_CL, struct drm_vc4_submit_cl)
 
-	volatile struct vc4_mode_set_cmd *mode_set_cmd;
-	dma_addr_t mode_set_cmd_addr;
+struct drm_vc4_submit_cl {
+	uint32_t ct0ca, ct0ea, ct1ca, ct1ea;
 };
 
-static inline struct vc4_dev *
-to_vc4_dev(struct drm_device *dev)
-{
-	return (struct vc4_dev *)dev;
-}
-
-#define VC4_READ(offset) readl(to_vc4_dev(dev)->vc4_regs + offset)
-#define VC4_WRITE(offset, val) writel(val, to_vc4_dev(dev)->vc4_regs + offset)
-
-/* vc4_debugfs.c */
-int vc4_debugfs_init(struct drm_minor *minor);
-void vc4_debugfs_cleanup(struct drm_minor *minor);
-
-/* vc4_display.c */
-int vc4_modeset_init(struct drm_device *dev);
-
-/* vc4_gem.c */
-int vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
-			struct drm_file *file_priv);
+#endif /* _UAPI_VC4_DRM_H_ */

@@ -27,6 +27,7 @@
 #include <linux/io.h>
 #include <mach/vcio.h>
 
+#include "uapi/drm/vc4_drm.h"
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 #include "drm_gem_cma_helper.h"
@@ -163,6 +164,7 @@ static const struct file_operations vc4_drm_fops = {
 };
 
 static const struct drm_ioctl_desc vc4_drm_ioctls[] = {
+	DRM_IOCTL_DEF_DRV(VC4_SUBMIT_CL, vc4_submit_cl_ioctl, 0),
 };
 
 static struct drm_driver vc4_drm_driver = {
