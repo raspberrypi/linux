@@ -696,7 +696,11 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 		fiq_print(FIQDBG_ERR, state, "ERRST %02d", n);
 		if (hcint_probe.b.nak || hcint_probe.b.ack || hcint_probe.b.datatglerr) {
 			fiq_print(FIQDBG_ERR, state, "RESET %02d", n);
-			st->nr_errors = 0;
+			/* In some random cases we can get a NAK interrupt coincident with a Xacterr
+			 * interrupt, after the device has disappeared.
+			 */
+			if (!hcint.b.xacterr)
+				st->nr_errors = 0;
 			hcintmsk.b.nak = 0;
 			hcintmsk.b.ack = 0;
 			hcintmsk.b.datatglerr = 0;
