@@ -140,6 +140,7 @@ int ima_must_measure(struct inode *inode, int mask, int function)
 int ima_collect_measurement(struct integrity_iint_cache *iint,
 			    struct file *file)
 {
+	const char *audit_cause = "failed";
 	struct inode *inode = file_inode(file);
 	const char *filename = file->f_dentry->d_name.name;
 	int result = 0;
@@ -147,6 +148,11 @@ int ima_collect_measurement(struct integrity_iint_cache *iint,
 	if (!(iint->flags & IMA_COLLECTED)) {
 		u64 i_version = file_inode(file)->i_version;
 
+		if (file->f_flags & O_DIRECT) {
+			audit_cause = "failed(directio)";
+			result = -EACCES;
+			goto out;
+		}
 		iint->ima_xattr.type = IMA_XATTR_DIGEST;
 		result = ima_calc_file_hash(file, iint->ima_xattr.digest);
 		if (!result) {
@@ -154,9 +160,10 @@ int ima_collect_measurement(struct integrity_iint_cache *iint,
 			iint->flags |= IMA_COLLECTED;
 		}
 	}
+out:
 	if (result)
 		integrity_audit_msg(AUDIT_INTEGRITY_DATA, inode,
-				    filename, "collect_data", "failed",
+				    filename, "collect_data", audit_cause,
 				    result, 0);
 	return result;
 }
