@@ -1348,10 +1348,9 @@ static inline uint32_t dwc_otg_read_common_intr(dwc_otg_core_if_t * core_if, gin
 		local_fiq_disable();
 		/* Pull in the interrupts that the FIQ has masked */
 		gintmsk.d32 |= ~(hcd->fiq_state->gintmsk_saved.d32);
+		gintmsk.d32 |= gintmsk_common.d32;
 		/* for the upstairs function to reenable - have to read it here in case FIQ triggers again */
-		reenable_gintmsk->d32 |= gintmsk.d32;
-		reenable_gintmsk->d32 |= ~(hcd->fiq_state->gintmsk_saved.d32);
-		reenable_gintmsk->d32 &= gintmsk_common.d32;
+		reenable_gintmsk->d32 = gintmsk.d32;
 		local_fiq_enable();
 	}
 
@@ -1535,7 +1534,7 @@ int32_t dwc_otg_handle_common_intr(void *dev)
 //		fiq_print(FIQDBG_INT, otg_dev->hcd->fiq_state, "CILOUT %1d", retval);
 //		fiq_print(FIQDBG_INT, otg_dev->hcd->fiq_state, "%08x", gintsts.d32);
 //		fiq_print(FIQDBG_INT, otg_dev->hcd->fiq_state, "%08x", gintmsk_reenable.d32);
-		if (retval) {
+		if (retval && fiq_enable) {
 			DWC_WRITE_REG32(&core_if->core_global_regs->gintmsk, gintmsk_reenable.d32);
 		}
 
