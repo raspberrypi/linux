@@ -1050,10 +1050,11 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 			for (i=0; i < hcd->core_if->core_params->host_channels; i++) {
 				dwc_otg_cleanup_fiq_channel(hcd, i);
 			}
-			DWC_PRINTF("FIQ FSM acceleration enabled for :\n%s%s%s",
+			DWC_PRINTF("FIQ FSM acceleration enabled for :\n%s%s%s%s",
 				(fiq_fsm_mask & 0x1) ? "Non-periodic Split Transactions\n" : "",
 				(fiq_fsm_mask & 0x2) ? "Periodic Split Transactions\n" : "",
-				(fiq_fsm_mask & 0x4) ? "High-Speed Isochronous Endpoints\n" : "");
+				(fiq_fsm_mask & 0x4) ? "High-Speed Isochronous Endpoints\n" : "",
+				(fiq_fsm_mask & 0x8) ? "Interrupt/Control Split Transaction hack enabled\n" : "");
 		}
 	}
 
@@ -1784,6 +1785,20 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	st->hcintmsk_copy.b.chhltd = 1;
 	st->hcintmsk_copy.b.ahberr = 1;
 
+	/* Hack courtesy of FreeBSD: apparently forcing Interrupt Split transactions
+	 * as Control puts the transfer into the non-periodic request queue and the
+	 * non-periodic handler in the hub. Makes things lots easier.
+	 */
+	if ((fiq_fsm_mask & 0x8) && hc->ep_type == UE_INTERRUPT) {
+		st->hcchar_copy.b.multicnt = 0;
+		st->hcchar_copy.b.oddfrm = 0;
+		st->hcchar_copy.b.eptype = UE_CONTROL;
+		if (hc->align_buff) {
+			st->hcdma_copy.d32 = hc->align_buff;
+		} else {
+			st->hcdma_copy.d32 = ((unsigned long) hc->xfer_buff & 0xFFFFFFFF);
+		}
+	}
 	DWC_WRITE_REG32(&hc_regs->hcdma, st->hcdma_copy.d32);
 	DWC_WRITE_REG32(&hc_regs->hctsiz, st->hctsiz_copy.d32);
 	DWC_WRITE_REG32(&hc_regs->hcsplt, st->hcsplt_copy.d32);
@@ -1837,6 +1852,9 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 			}
 		}
 	}
+	if ((fiq_fsm_mask & 0x8) && hc->ep_type == UE_INTERRUPT)
+		start_immediate = 1;
+	
 	fiq_print(FIQDBG_INT, hcd->fiq_state, "FSMQ %01d %01d", hc->hc_num, start_immediate);
 	fiq_print(FIQDBG_INT, hcd->fiq_state, "%08d", hfnum.b.frrem);
 	//fiq_print(FIQDBG_INT, hcd->fiq_state, "H:%02dP:%02d", hub_addr, port_addr);
@@ -1868,11 +1886,13 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 			}
 			break;
 		case UE_INTERRUPT:
-				if (start_immediate) {
+			if (fiq_fsm_mask & 0x8) {
+				st->fsm = FIQ_NP_SSPLIT_STARTED;
+			} else if (start_immediate) {
 					st->fsm = FIQ_PER_SSPLIT_STARTED;
-				} else {
-					st->fsm = FIQ_PER_SSPLIT_QUEUED;
-				}
+			} else {
+				st->fsm = FIQ_PER_SSPLIT_QUEUED;
+			}
 		default:
 			break;
 	}
