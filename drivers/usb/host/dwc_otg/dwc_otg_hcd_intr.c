@@ -2619,7 +2619,7 @@ int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 			case FIQ_PASSTHROUGH_ERRORSTATE:
 				/* Hook into the error count */
 				fiq_print(FIQDBG_ERR, dwc_otg_hcd->fiq_state, "HCDERR%02d", num);
-				if (dwc_otg_hcd->fiq_state->channel[num].nr_errors) {
+				if (!dwc_otg_hcd->fiq_state->channel[num].nr_errors) {
 					qtd->error_count = 0;
 					fiq_print(FIQDBG_ERR, dwc_otg_hcd->fiq_state, "RESET   ");
 				}
