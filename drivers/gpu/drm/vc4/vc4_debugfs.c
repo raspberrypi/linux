@@ -34,7 +34,7 @@
 static const struct {
 	uint32_t offset;
 	const char *name;
-} regs[] = {
+} vc4_reg_defs[] = {
 	REGDEF(V3D_IDENT0),
 	REGDEF(V3D_IDENT1),
 	REGDEF(V3D_IDENT2),
@@ -115,16 +115,66 @@ static const struct {
 	REGDEF(V3D_ERRSTAT),
 };
 
-static int vc4_regs(struct seq_file *m, void *unused)
+static int
+vc4_regs(struct seq_file *m, void *unused)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_device *dev = node->minor->dev;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(regs); i++) {
+	for (i = 0; i < ARRAY_SIZE(vc4_reg_defs); i++) {
 		seq_printf(m, "%s (0x%04x): 0x%08x\n",
-			   regs[i].name, regs[i].offset,
-			   VC4_READ(regs[i].offset));
+			   vc4_reg_defs[i].name, vc4_reg_defs[i].offset,
+			   VC4_READ(vc4_reg_defs[i].offset));
+	}
+
+	return 0;
+}
+
+static const struct {
+	uint32_t offset;
+	const char *name;
+} hvs_reg_defs[] = {
+	REGDEF(SCALER_DISPCTRL),
+	REGDEF(SCALER_DISPSTAT),
+	REGDEF(SCALER_DISPID),
+	REGDEF(SCALER_DISPECTRL),
+	REGDEF(SCALER_DISPPROF),
+	REGDEF(SCALER_DISPDITHER),
+	REGDEF(SCALER_DISPEOLN),
+	REGDEF(SCALER_DISPLIST0),
+	REGDEF(SCALER_DISPLIST1),
+	REGDEF(SCALER_DISPLIST2),
+	REGDEF(SCALER_DISPLSTAT),
+	REGDEF(SCALER_DISPLACT0),
+	REGDEF(SCALER_DISPLACT1),
+	REGDEF(SCALER_DISPLACT2),
+	REGDEF(SCALER_DISPCTRL0),
+	REGDEF(SCALER_DISPBKGND0),
+	REGDEF(SCALER_DISPSTAT0),
+	REGDEF(SCALER_DISPBASE0),
+	REGDEF(SCALER_DISPCTRL1),
+	REGDEF(SCALER_DISPBKGND1),
+	REGDEF(SCALER_DISPSTAT1),
+	REGDEF(SCALER_DISPBASE1),
+	REGDEF(SCALER_DISPCTRL2),
+	REGDEF(SCALER_DISPBKGND2),
+	REGDEF(SCALER_DISPSTAT2),
+	REGDEF(SCALER_DISPBASE2),
+	REGDEF(SCALER_DISPALPHA2),
+};
+
+static int
+hvs_regs(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(hvs_reg_defs); i++) {
+		seq_printf(m, "%s (0x%04x): 0x%08x\n",
+			   hvs_reg_defs[i].name, hvs_reg_defs[i].offset,
+			   HVS_READ(hvs_reg_defs[i].offset));
 	}
 
 	return 0;
@@ -132,6 +182,7 @@ static int vc4_regs(struct seq_file *m, void *unused)
 
 static const struct drm_info_list vc4_debugfs_list[] = {
 	{"vc4_regs", vc4_regs, 0},
+	{"hvs_regs", hvs_regs, 0},
 };
 #define VC4_DEBUGFS_ENTRIES ARRAY_SIZE(vc4_debugfs_list)
 

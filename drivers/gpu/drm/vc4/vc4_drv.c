@@ -78,20 +78,28 @@ map_regs(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	int i;
-	void __iomem *regs[1];
-	struct resource *mem[1];
+	void __iomem *map[3];
+	struct resource *res[3];
 
-	for (i = 0; i <= 0; i++) {
-		mem[i] = platform_get_resource(dev->platformdev,
+	for (i = 0; i <= 2; i++) {
+		res[i] = platform_get_resource(dev->platformdev,
 					       IORESOURCE_MEM, i);
-		regs[i] = devm_ioremap_resource(dev->dev, mem[i]);
-		if (IS_ERR(regs[i])) {
+		map[i] = devm_ioremap_resource(dev->dev, res[i]);
+		if (IS_ERR(map[i])) {
+			int ret = PTR_ERR(map[i]);
+
 			DRM_ERROR("Failed to map registers\n");
-			return PTR_ERR(  regs[i]);
+
+			while (--i >= 0)
+				devm_iounmap(dev->dev, map[i]);
+			return ret;
 		}
 	}
 
-	vc4->vc4_regs = regs[0];
+	vc4->vc4_regs = map[0];
+	vc4->hvs_regs = map[1];
+	vc4->hvs_ctx = map[2];
+	vc4->hvs_ctx_size = resource_size(res[2]);
 
 	return 0;
 }
@@ -139,9 +147,15 @@ fail:
 
 static int vc4_drm_unload(struct drm_device *dev)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
 	drm_mode_config_cleanup(dev);
 
 	set_platform_qpu_enable(false);
+
+	devm_iounmap(dev->dev, vc4->vc4_regs);
+	devm_iounmap(dev->dev, vc4->hvs_regs);
+	devm_iounmap(dev->dev, vc4->hvs_ctx);
 
 	kfree(dev->dev_private);
 	dev->dev_private = NULL;

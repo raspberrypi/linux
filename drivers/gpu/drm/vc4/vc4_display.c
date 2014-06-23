@@ -41,7 +41,8 @@
 
 struct vc4_mode_set_cmd {
 	u32 xres, yres, xres_virtual, yres_virtual;
-	u32 pitch, bpp;
+	u32 pitch; /* in bytes */
+	u32 bpp;
 	u32 xoffset, yoffset;
 	u32 base;
 	u32 screen_size;
@@ -158,35 +159,134 @@ vc4_crtc_disable(struct drm_crtc *crtc)
 	/* XXX: unimplemented */
 }
 
+#define HVS_REG(reg) { reg, #reg }
+static const struct {
+	uint32_t reg;
+	const char *name;
+} hvs_regs[] = {
+	HVS_REG(SCALER_DISPCTRL),
+	HVS_REG(SCALER_DISPSTAT),
+	HVS_REG(SCALER_DISPID),
+	HVS_REG(SCALER_DISPECTRL),
+	HVS_REG(SCALER_DISPPROF),
+	HVS_REG(SCALER_DISPDITHER),
+	HVS_REG(SCALER_DISPEOLN),
+	HVS_REG(SCALER_DISPLIST0),
+	HVS_REG(SCALER_DISPLIST1),
+	HVS_REG(SCALER_DISPLIST2),
+	HVS_REG(SCALER_DISPLSTAT),
+	HVS_REG(SCALER_DISPLACT0),
+	HVS_REG(SCALER_DISPLACT1),
+	HVS_REG(SCALER_DISPLACT2),
+	HVS_REG(SCALER_DISPCTRL0),
+	HVS_REG(SCALER_DISPBKGND0),
+	HVS_REG(SCALER_DISPSTAT0),
+	HVS_REG(SCALER_DISPBASE0),
+	HVS_REG(SCALER_DISPCTRL1),
+	HVS_REG(SCALER_DISPBKGND1),
+	HVS_REG(SCALER_DISPSTAT1),
+	HVS_REG(SCALER_DISPBASE1),
+	HVS_REG(SCALER_DISPCTRL2),
+	HVS_REG(SCALER_DISPBKGND2),
+	HVS_REG(SCALER_DISPSTAT2),
+	HVS_REG(SCALER_DISPBASE2),
+	HVS_REG(SCALER_DISPALPHA2),
+};
+
+#if 0
+static void
+dump_hvs(struct drm_device *dev)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	int i;
+
+	rmb();
+	for (i = 0; i < ARRAY_SIZE(hvs_regs); i++) {
+		DRM_INFO("0x%04x (%s): 0x%08x\n",
+			 hvs_regs[i].reg, hvs_regs[i].name,
+			 HVS_READ(hvs_regs[i].reg));
+	}
+
+	DRM_INFO("HVS ctx:\n");
+	for (i = 0; i < 64; i += 4) {
+		DRM_INFO("0x%08x (%s): 0x%08x 0x%08x 0x%08x 0x%08x\n",
+			 i * 4, i < 32 ? "B" : "D",
+			 ((uint32_t *)vc4->hvs_ctx)[i + 0],
+			 ((uint32_t *)vc4->hvs_ctx)[i + 1],
+			 ((uint32_t *)vc4->hvs_ctx)[i + 2],
+			 ((uint32_t *)vc4->hvs_ctx)[i + 3]);
+	}
+}
+#endif
+
 static int
 vc4_crtc_mode_set(struct drm_crtc *crtc,
 		  struct drm_display_mode *mode,
 		  struct drm_display_mode *adjusted_mode,
 		  int x, int y, struct drm_framebuffer *old_fb)
 {
-	struct vc4_dev *vc4 = to_vc4_dev(crtc->dev);
+	struct drm_device *dev = crtc->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	volatile struct vc4_mode_set_cmd *set = vc4->mode_set_cmd;
 	struct drm_framebuffer *fb = crtc->primary->fb;
 	struct drm_gem_cma_object *bo = drm_fb_cma_get_gem_obj(fb, 0);
 	uint32_t val;
+	uint32_t *dlist = (uint32_t *)vc4->hvs_ctx + HVS_BOOTLOADER_DLIST_END;
+	uint32_t dlist_count = 0;
 
 	set->xres = mode->hdisplay;
 	set->yres = mode->vdisplay;
 	set->xres_virtual = mode->hdisplay;
 	set->yres_virtual = mode->vdisplay;
 	set->bpp = fb->bits_per_pixel;
-	set->xoffset = x;
-	set->yoffset = y;
-	set->base = 0;//bo->paddr + fb->offsets[0];
+	set->xoffset = 0;
+	set->yoffset = 0;
+	set->base = 0;
 	set->pitch = crtc->primary->fb->pitches[0];
+
+#if 0
+	DRM_INFO("HVS regs before:\n");
+	dump_hvs(dev);
+#endif
 
 	wmb();
 	bcm_mailbox_write(MBOX_CHAN_FB, vc4->mode_set_cmd_addr);
 	bcm_mailbox_read(MBOX_CHAN_FB, &val);
 	rmb();
 
-	DRM_ERROR("val = 0x%08x, pitch = %d to %d\n", val,
-		  crtc->primary->fb->pitches[0], set->pitch);
+#if 0
+	DRM_INFO("HVS regs after modeset:\n");
+	dump_hvs(dev);
+#endif
+
+	dlist[dlist_count++] =
+		(SCALER_CTL0_VALID |
+		 (HVS_PIXEL_ORDER_ABGR << SCALER_CTL0_ORDER_SHIFT) |
+		 (HVS_PIXEL_FORMAT_RGB8888 << SCALER_CTL0_PIXEL_FORMAT_SHIFT) |
+		 SCALER_CTL0_UNITY);
+
+	dlist[dlist_count++] = 0xFF << SCALER_POS0_ALPHA_SHIFT;
+
+	dlist[dlist_count++] =
+		((1 << SCALER_POS2_ALPHA_MODE_SHIFT) |
+		 (mode->vdisplay << SCALER_POS2_HEIGHT_SHIFT) |
+		 (mode->hdisplay << SCALER_POS2_WIDTH_SHIFT));
+
+	dlist[dlist_count++] = 0xc0c0c0c0;
+	dlist[dlist_count++] = bo->paddr + fb->offsets[0];
+	dlist[dlist_count++] = 0xc0c0c0c0;
+	dlist[dlist_count++] = (crtc->primary->fb->pitches[0] &
+				SCALER_SRC_PITCH_MASK);
+	dlist[0] |= dlist_count << SCALER_CTL0_SIZE_SHIFT;
+	dlist[dlist_count++] = SCALER_CTL0_END;
+	wmb();
+
+	HVS_WRITE(SCALER_DISPLIST1, HVS_BOOTLOADER_DLIST_END);
+
+#if 0
+	DRM_INFO("HVS regs after submit:\n");
+	dump_hvs(dev);
+#endif
 
 	return 0;
 }
@@ -258,6 +358,17 @@ static const struct drm_mode_config_funcs vc4_mode_funcs = {
 	.fb_create = drm_fb_cma_create,
 };
 
+static void
+vc4_hvs_init(struct drm_device *dev)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	int i;
+
+	/* Clear out the non-bootloader dsiplay list contents. */
+	for (i = HVS_BOOTLOADER_DLIST_END; i < vc4->hvs_ctx_size / 4; i++)
+		writel(SCALER_CTL0_END, (uint32_t *)vc4->hvs_ctx + i);
+}
+
 int
 vc4_modeset_init(struct drm_device *dev)
 {
@@ -295,6 +406,8 @@ vc4_modeset_init(struct drm_device *dev)
 		DRM_ERROR("vc4_connector_init failed\n");
 		return -1;
 	}
+
+	vc4_hvs_init(dev);
 
 	drm_mode_connector_attach_encoder(connector, encoder);
 

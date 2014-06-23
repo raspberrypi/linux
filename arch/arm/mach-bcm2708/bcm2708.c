@@ -617,9 +617,22 @@ static struct platform_device bcm2835_thermal_device = {
 
 #ifdef CONFIG_DRM_VC4
 static struct resource vc4_drm_resources[] = {
+	/* V3D registers */
 	{
 		.start = VC4_BASE,
-		.end = VC4_BASE + SZ_4K,
+		.end = VC4_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	/* HVS registers */
+	{
+		.start = BCM2708_PERI_BASE + 0x00400000,
+		.end = BCM2708_PERI_BASE + 0x00400000 + 2 * SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	/* HVS context memory */
+	{
+		.start = BCM2708_PERI_BASE + 0x00402000,
+		.end = BCM2708_PERI_BASE + 0x00402000 + 4 * SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
 };

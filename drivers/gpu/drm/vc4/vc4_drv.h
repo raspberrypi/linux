@@ -27,6 +27,9 @@ struct vc4_dev {
 	struct drm_device dev;
 
 	void __iomem *vc4_regs;
+	void __iomem *hvs_regs;
+	void __iomem *hvs_ctx;
+	uint32_t hvs_ctx_size;
 
 	volatile struct vc4_mode_set_cmd *mode_set_cmd;
 	dma_addr_t mode_set_cmd_addr;
@@ -83,6 +86,8 @@ struct exec_info {
 
 #define VC4_READ(offset) readl(to_vc4_dev(dev)->vc4_regs + offset)
 #define VC4_WRITE(offset, val) writel(val, to_vc4_dev(dev)->vc4_regs + offset)
+#define HVS_READ(offset) readl(to_vc4_dev(dev)->hvs_regs + offset)
+#define HVS_WRITE(offset, val) writel(val, to_vc4_dev(dev)->hvs_regs + offset)
 
 /* vc4_debugfs.c */
 int vc4_debugfs_init(struct drm_minor *minor);

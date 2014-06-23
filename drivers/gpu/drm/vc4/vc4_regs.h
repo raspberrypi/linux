@@ -127,3 +127,94 @@
 #define V3D_FDBGR    0x00f0c
 #define V3D_FDBGS    0x00f10
 #define V3D_ERRSTAT  0x00f20
+
+#define SCALER_DISPCTRL                         0x00000000
+#define SCALER_DISPSTAT                         0x00000004
+#define SCALER_DISPID                           0x00000008
+#define SCALER_DISPECTRL                        0x0000000c
+#define SCALER_DISPPROF                         0x00000010
+#define SCALER_DISPDITHER                       0x00000014
+#define SCALER_DISPEOLN                         0x00000018
+#define SCALER_DISPLIST0                        0x00000020
+#define SCALER_DISPLIST1                        0x00000024
+#define SCALER_DISPLIST2                        0x00000028
+#define SCALER_DISPLSTAT                        0x0000002c
+#define SCALER_DISPLACT0                        0x00000030
+#define SCALER_DISPLACT1                        0x00000034
+#define SCALER_DISPLACT2                        0x00000038
+#define SCALER_DISPCTRL0                        0x00000040
+#define SCALER_DISPBKGND0                       0x00000044
+#define SCALER_DISPSTAT0                        0x00000048
+#define SCALER_DISPBASE0                        0x0000004c
+#define SCALER_DISPCTRL1                        0x00000050
+#define SCALER_DISPBKGND1                       0x00000054
+#define SCALER_DISPSTAT1                        0x00000058
+#define SCALER_DISPBASE1                        0x0000005c
+#define SCALER_DISPCTRL2                        0x00000060
+#define SCALER_DISPBKGND2                       0x00000064
+#define SCALER_DISPSTAT2                        0x00000068
+#define SCALER_DISPBASE2                        0x0000006c
+#define SCALER_DISPALPHA2                       0x00000070
+#define SCALER_GAMADDR                          0x00000078
+#define SCALER_GAMDATA                          0x000000e0
+
+/* HVS display list information. */
+#define HVS_BOOTLOADER_DLIST_END                32
+
+enum hvs_pixel_format {
+	HVS_PIXEL_FORMAT_RGB4444 = 1,
+	HVS_PIXEL_FORMAT_RGB555 = 2,
+	HVS_PIXEL_FORMAT_RGB5551 = 3,
+	HVS_PIXEL_FORMAT_RGB565 = 4,
+	HVS_PIXEL_FORMAT_RGB888 = 5,
+	HVS_PIXEL_FORMAT_RGB6666 = 6,
+	HVS_PIXEL_FORMAT_RGB8888 = 7
+};
+
+/* Note: the LSB is the rightmost character shown.  Only valid for
+ * HVS_PIXEL_FORMAT_RGB8888, not RGB888.
+ */
+enum hvs_pixel_order {
+	HVS_PIXEL_ORDER_RGBA,
+	HVS_PIXEL_ORDER_BGRA,
+	HVS_PIXEL_ORDER_ARGB,
+	HVS_PIXEL_ORDER_ABGR,
+};
+
+#define SCALER_CTL0_END				0x80000000
+#define SCALER_CTL0_VALID			0x40000000
+
+#define SCALER_CTL0_SIZE_MASK			0x3f000000
+#define SCALER_CTL0_SIZE_SHIFT			24
+
+#define SCALER_CTL0_HFLIP                       (1 << 16)
+#define SCALER_CTL0_VFLIP                       (1 << 15)
+
+#define SCALER_CTL0_ORDER_MASK			0x00006000
+#define SCALER_CTL0_ORDER_SHIFT			13
+
+/* Set to indicate no scaling. */
+#define SCALER_CTL0_UNITY			(1 << 4)
+
+#define SCALER_CTL0_PIXEL_FORMAT_MASK		0x0000000f
+#define SCALER_CTL0_PIXEL_FORMAT_SHIFT		0
+
+#define SCALER_POS0_ALPHA_MASK			0xff000000
+#define SCALER_POS0_ALPHA_SHIFT			24
+
+#define SCALER_POS0_START_Y_MASK		0x007fe000
+#define SCALER_POS0_START_Y_SHIFT		13
+
+#define SCALER_POS0_START_X_MASK		0x00001fff
+#define SCALER_POS0_START_X_SHIFT		0
+
+#define SCALER_POS2_ALPHA_MODE_MASK		0xc0000000
+#define SCALER_POS2_ALPHA_MODE_SHIFT		30
+
+#define SCALER_POS2_HEIGHT_MASK			0x0fff0000
+#define SCALER_POS2_HEIGHT_SHIFT		16
+
+#define SCALER_POS2_WIDTH_MASK			0x00000fff
+#define SCALER_POS2_WIDTH_SHIFT			0
+
+#define SCALER_SRC_PITCH_MASK			0x0000ffff
