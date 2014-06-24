@@ -112,7 +112,11 @@ struct exec_info {
 	 * it's expected to be found at.  It gets read in from the
 	 * command lists.
 	 */
-	uint32_t *shader_state;
+	struct vc4_shader_state {
+		uint8_t packet;
+		uint32_t addr;
+	} *shader_state;
+
 	/** How many shader states the user declared they were using. */
 	uint32_t shader_state_size;
 	/** How many shader state records the validator has seen. */

@@ -40,6 +40,7 @@
  */
 
 #include "vc4_drv.h"
+#include "vc4_packet.h"
 #include "vc4_regs.h"
 
 #define VALIDATE_ARGS \
@@ -125,12 +126,11 @@ validate_gl_shader_state(VALIDATE_ARGS)
 		return -EINVAL;
 	}
 
-	exec->shader_state[i] = *(uint32_t *)untrusted;
-	if (exec->shader_state[i] & 15) {
-		DRM_ERROR("shader record must by 16-byte aligned\n");
-		return -EINVAL;
-	}
-	*(uint32_t *)validated = exec->shader_state[i] + exec->shader_paddr;
+	exec->shader_state[i].packet = VC4_PACKET_GL_SHADER_STATE;
+	exec->shader_state[i].addr = *(uint32_t *)untrusted;
+
+	*(uint32_t *)validated = exec->shader_state[i].addr +
+		exec->shader_paddr;
 
 	return 0;
 }
@@ -145,9 +145,17 @@ validate_nv_shader_state(VALIDATE_ARGS)
 		return -EINVAL;
 	}
 
-	/* XXX: validate alignment */
-	exec->shader_state[i] = *(uint32_t *)untrusted;
-	*(uint32_t *)validated = exec->shader_state[i] + exec->shader_paddr;
+	exec->shader_state[i].packet = VC4_PACKET_NV_SHADER_STATE;
+	exec->shader_state[i].addr = *(uint32_t *)untrusted;
+
+	if (exec->shader_state[i].addr & 15) {
+		DRM_ERROR("NV shader state address 0x%08x misaligned\n",
+			  exec->shader_state[i].addr);
+		return -EINVAL;
+	}
+
+	*(uint32_t *)validated =
+		exec->shader_state[i].addr + exec->shader_paddr;
 
 	return 0;
 }
@@ -343,6 +351,81 @@ vc4_validate_cl(struct drm_device *dev,
 	return 0;
 }
 
+static int
+validate_shader_rec(struct drm_device *dev,
+		    struct exec_info *exec,
+		    void *validated,
+		    void *unvalidated,
+		    uint32_t len,
+		    struct vc4_shader_state *state)
+{
+	uint32_t *src_handles = unvalidated;
+	void *src_pkt;
+	void *dst_pkt = validated;
+	static const int gl_bo_offsets[] = {
+		4, 8, /* fs code, ubo */
+		16, 20, /* vs code, ubo */
+		28, 32, /* cs code, ubo */
+	};
+	static const int nv_bo_offsets[] = {
+		4, 8, /* fs code, ubo */
+		12, /* vbo */
+	};
+	struct drm_gem_cma_object *bo[ARRAY_SIZE(gl_bo_offsets) + 8];
+	const int *bo_offsets;
+	uint32_t nr_attributes = 0, nr_bo, packet_size;
+	int i;
+
+	if (state->packet == VC4_PACKET_NV_SHADER_STATE) {
+		bo_offsets = nv_bo_offsets;
+		nr_bo = ARRAY_SIZE(nv_bo_offsets);
+
+		packet_size = 16;
+	} else {
+		bo_offsets = gl_bo_offsets;
+		nr_bo = ARRAY_SIZE(gl_bo_offsets);
+
+		nr_attributes = state->addr & 0x7;
+		if (nr_attributes == 0)
+			nr_attributes = 8;
+		packet_size = 36 + nr_attributes * 8;
+	}
+	if ((nr_bo + nr_attributes) * 4 + packet_size > len) {
+		DRM_ERROR("overflowed shader packet read "
+			  "(handles %d, packet %d, len %d)\n",
+			  (nr_bo + nr_attributes) * 4, packet_size, len);
+		return -EINVAL;
+	}
+
+	src_pkt = unvalidated + 4 * (nr_bo + nr_attributes);
+	memcpy(dst_pkt, src_pkt, packet_size);
+
+	for (i = 0; i < nr_bo + nr_attributes; i++) {
+		if (src_handles[i] >= exec->bo_count) {
+			DRM_ERROR("shader rec bo index %d > %d\n",
+				  src_handles[i], exec->bo_count);
+			return -EINVAL;
+		}
+		bo[i] = exec->bo[src_handles[i]];
+	}
+
+	for (i = 0; i < nr_bo; i++) {
+		/* XXX: validation */
+		uint32_t o = bo_offsets[i];
+		*(uint32_t *)(dst_pkt + o) =
+			bo[i]->paddr + *(uint32_t *)(src_pkt + o);
+	}
+
+	for (i = 0; i < nr_attributes; i++) {
+		/* XXX: validation */
+		uint32_t o = 36 + i * 8;
+		*(uint32_t *)(dst_pkt + o) =
+			bo[nr_bo + i]->paddr + *(uint32_t *)(src_pkt + o);
+	}
+
+	return 0;
+}
+
 int
 vc4_validate_shader_recs(struct drm_device *dev,
 			 void *validated,
@@ -353,54 +436,31 @@ vc4_validate_shader_recs(struct drm_device *dev,
 	uint32_t dst_offset = 0;
 	uint32_t src_offset = 0;
 	uint32_t i;
+	int ret = 0;
 
-	/* Look, all I'm doing here is relocating the one packet in
-	 * phire's hackdriver code.
-	 */
 	for (i = 0; i < exec->shader_state_count; i++) {
-		/* XXX: lots of overflow */
-		uint32_t *src_handles = unvalidated + src_offset;
-		void *src_pkt = &src_handles[3];
-		void *dst_pkt = validated + dst_offset;
-		uint32_t fs_code_index = src_handles[0];
-		uint32_t fs_uniform_index = src_handles[1];
-		uint32_t vbo_index = src_handles[2];
-		struct drm_gem_cma_object *fs_code_bo, *fs_uniform_bo, *vbo;
-
-		if (fs_code_index >= exec->bo_count) {
-			DRM_ERROR("FS index %d > %d\n",
-				  fs_code_index, exec->bo_count);
-			return -EINVAL;
-		}
-		if (fs_uniform_index >= exec->bo_count) {
-			DRM_ERROR("FS index %d > %d\n",
-				  fs_uniform_index, exec->bo_count);
-			return -EINVAL;
-		}
-		if (vbo_index >= exec->bo_count) {
-			DRM_ERROR("FS index %d > %d\n",
-				  vbo_index, exec->bo_count);
+		if ((exec->shader_state[i].addr & ~0xf) !=
+		    (validated - exec->exec_bo->vaddr -
+		     (exec->shader_paddr - exec->exec_bo->paddr))) {
+			DRM_ERROR("unexpected shader rec offset: "
+				  "0x%08x vs 0x%08x\n",
+				  exec->shader_state[i].addr & ~0xf,
+				  (int)(validated -
+                                        exec->exec_bo->vaddr -
+                                        (exec->shader_paddr -
+                                         exec->exec_bo->paddr)));
 			return -EINVAL;
 		}
 
-		if (src_offset + len >
-		    src_pkt + 16 - unvalidated) {
-			DRM_ERROR("weird overflow of src data\n");
-			return -EINVAL;
-		}
-
-		fs_code_bo = exec->bo[fs_code_index];
-		fs_uniform_bo = exec->bo[fs_uniform_index];
-		vbo = exec->bo[vbo_index];
-
-		memcpy(dst_pkt, src_pkt, 16);
-		*(uint32_t *)(dst_pkt + 4) =
-			fs_code_bo->paddr + *(uint32_t *)(src_pkt + 4);
-		*(uint32_t *)(dst_pkt + 8) =
-			fs_uniform_bo->paddr + *(uint32_t *)(src_pkt + 8);
-		*(uint32_t *)(dst_pkt + 12) =
-			vbo->paddr + *(uint32_t *)(src_pkt + 12);
+		ret = validate_shader_rec(dev, exec,
+					  validated + dst_offset,
+					  unvalidated + src_offset,
+					  len - src_offset,
+					  &exec->shader_state[i]);
+		if (ret)
+			return ret;
+		/* XXX: incr dst/src offset */
 	}
 
-	return 0;
+	return ret;
 }

@@ -246,12 +246,13 @@ vc4_cl_validate(struct drm_device *dev, struct drm_vc4_submit_cl *args,
 	uint32_t shader_rec_offset = roundup(render_offset +
 					     args->render_cl_len, 16);
 	uint32_t exec_size = shader_rec_offset + args->shader_record_len;
-	uint32_t temp_size = exec_size + (sizeof(uint32_t) *
+	uint32_t temp_size = exec_size + (sizeof(struct vc4_shader_state) *
 					  args->shader_record_count);
 
 	if (shader_rec_offset < render_offset ||
 	    exec_size < shader_rec_offset ||
-	    args->shader_record_count >= (UINT_MAX / sizeof(uint32_t)) ||
+	    args->shader_record_count >= (UINT_MAX /
+					  sizeof(struct vc4_shader_state)) ||
 	    temp_size < exec_size) {
 		DRM_ERROR("overflow in exec arguments\n");
 		goto fail;
