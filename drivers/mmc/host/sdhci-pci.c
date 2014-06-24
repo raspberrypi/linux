@@ -43,6 +43,7 @@
 #define PCI_DEVICE_ID_INTEL_CLV_SDIO2	0x08fb
 #define PCI_DEVICE_ID_INTEL_CLV_EMMC0	0x08e5
 #define PCI_DEVICE_ID_INTEL_CLV_EMMC1	0x08e6
+#define PCI_DEVICE_ID_INTEL_QRK_SD	0x08A7
 
 /*
  * PCI registers
@@ -173,6 +174,10 @@ static const struct sdhci_pci_fixes sdhci_cafe = {
 			  SDHCI_QUIRK_NO_BUSY_IRQ |
 			  SDHCI_QUIRK_BROKEN_CARD_DETECTION |
 			  SDHCI_QUIRK_BROKEN_TIMEOUT_VAL,
+};
+
+static const struct sdhci_pci_fixes sdhci_intel_qrk = {
+	.quirks		= SDHCI_QUIRK_NO_HISPD_BIT,
 };
 
 static int mrst_hc_probe_slot(struct sdhci_pci_slot *slot)
@@ -856,6 +861,14 @@ static const struct pci_device_id pci_ids[] = {
 		.subvendor	= PCI_ANY_ID,
 		.subdevice	= PCI_ANY_ID,
 		.driver_data	= (kernel_ulong_t)&sdhci_via,
+	},
+
+	{
+		.vendor		= PCI_VENDOR_ID_INTEL,
+		.device		= PCI_DEVICE_ID_INTEL_QRK_SD,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.driver_data	= (kernel_ulong_t)&sdhci_intel_qrk,
 	},
 
 	{
