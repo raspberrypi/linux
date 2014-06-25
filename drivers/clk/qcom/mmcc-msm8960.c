@@ -1208,7 +1208,7 @@ static struct clk_branch rot_clk = {
 
 static u8 mmcc_pxo_hdmi_map[] = {
 	[P_PXO]		= 0,
-	[P_HDMI_PLL]	= 2,
+	[P_HDMI_PLL]	= 3,
 };
 
 static const char *mmcc_pxo_hdmi[] = {
