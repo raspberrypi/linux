@@ -184,7 +184,7 @@ late_initcall(armctrl_syscore_init);
 
 static struct irq_chip armctrl_chip = {
 	.name = "ARMCTRL",
-	.irq_ack = armctrl_mask_irq,
+	.irq_ack = NULL,
 	.irq_mask = armctrl_mask_irq,
 	.irq_unmask = armctrl_unmask_irq,
 	.irq_set_wake = armctrl_set_wake,
