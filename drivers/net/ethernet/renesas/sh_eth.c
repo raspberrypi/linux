@@ -247,6 +247,27 @@ static const u16 sh_eth_offset_fast_sh4[SH_ETH_MAX_REGISTER_OFFSET] = {
 };
 
 static const u16 sh_eth_offset_fast_sh3_sh2[SH_ETH_MAX_REGISTER_OFFSET] = {
+	[EDMR]		= 0x0000,
+	[EDTRR]		= 0x0004,
+	[EDRRR]		= 0x0008,
+	[TDLAR]		= 0x000c,
+	[RDLAR]		= 0x0010,
+	[EESR]		= 0x0014,
+	[EESIPR]	= 0x0018,
+	[TRSCER]	= 0x001c,
+	[RMFCR]		= 0x0020,
+	[TFTR]		= 0x0024,
+	[FDR]		= 0x0028,
+	[RMCR]		= 0x002c,
+	[EDOCR]		= 0x0030,
+	[FCFTR]		= 0x0034,
+	[RPADIR]	= 0x0038,
+	[TRIMD]		= 0x003c,
+	[RBWAR]		= 0x0040,
+	[RDFAR]		= 0x0044,
+	[TBRAR]		= 0x004c,
+	[TDFAR]		= 0x0050,
+
 	[ECMR]		= 0x0160,
 	[ECSR]		= 0x0164,
 	[ECSIPR]	= 0x0168,
@@ -483,7 +504,6 @@ static struct sh_eth_cpu_data sh7757_data = {
 	.register_type	= SH_ETH_REG_FAST_SH4,
 
 	.eesipr_value	= DMAC_M_RFRMER | DMAC_M_ECI | 0x003fffff,
-	.rmcr_value	= 0x00000001,
 
 	.tx_check	= EESR_FTC | EESR_CND | EESR_DLC | EESR_CD | EESR_RTO,
 	.eesr_err_check	= EESR_TWB | EESR_TABT | EESR_RABT | EESR_RFE |
@@ -561,7 +581,6 @@ static struct sh_eth_cpu_data sh7757_data_giga = {
 			  EESR_RFE | EESR_RDE | EESR_RFRMER | EESR_TFE |
 			  EESR_TDE | EESR_ECI,
 	.fdr_value	= 0x0000072f,
-	.rmcr_value	= 0x00000001,
 
 	.irq_flags	= IRQF_SHARED,
 	.apr		= 1,
@@ -689,7 +708,6 @@ static struct sh_eth_cpu_data r8a7740_data = {
 			  EESR_RFE | EESR_RDE | EESR_RFRMER | EESR_TFE |
 			  EESR_TDE | EESR_ECI,
 	.fdr_value	= 0x0000070f,
-	.rmcr_value	= 0x00000001,
 
 	.apr		= 1,
 	.mpr		= 1,
@@ -737,9 +755,6 @@ static void sh_eth_set_default_cpu_data(struct sh_eth_cpu_data *cd)
 
 	if (!cd->fdr_value)
 		cd->fdr_value = DEFAULT_FDR_INIT;
-
-	if (!cd->rmcr_value)
-		cd->rmcr_value = DEFAULT_RMCR_VALUE;
 
 	if (!cd->tx_check)
 		cd->tx_check = DEFAULT_TX_CHECK;
@@ -1193,8 +1208,8 @@ static int sh_eth_dev_init(struct net_device *ndev, bool start)
 	sh_eth_write(ndev, mdp->cd->fdr_value, FDR);
 	sh_eth_write(ndev, 0, TFTR);
 
-	/* Frame recv control */
-	sh_eth_write(ndev, mdp->cd->rmcr_value, RMCR);
+	/* Frame recv control (enable multiple-packets per rx irq) */
+	sh_eth_write(ndev, 0x00000001, RMCR);
 
 	sh_eth_write(ndev, DESC_I_RINT8 | DESC_I_RINT5 | DESC_I_TINT2, TRSCER);
 

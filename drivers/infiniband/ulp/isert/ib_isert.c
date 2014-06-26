@@ -493,6 +493,14 @@ isert_connect_request(struct rdma_cm_id *cma_id, struct rdma_cm_event *event)
 	struct ib_device *ib_dev = cma_id->device;
 	int ret = 0;
 
+	spin_lock_bh(&np->np_thread_lock);
+	if (!np->enabled) {
+		spin_unlock_bh(&np->np_thread_lock);
+		pr_debug("iscsi_np is not enabled, reject connect request\n");
+		return rdma_reject(cma_id, NULL, 0);
+	}
+	spin_unlock_bh(&np->np_thread_lock);
+
 	pr_debug("Entering isert_connect_request cma_id: %p, context: %p\n",
 		 cma_id, cma_id->context);
 
@@ -1081,6 +1089,8 @@ sequence_cmd:
 
 	if (!rc && dump_payload == false && unsol_data)
 		iscsit_set_unsoliticed_dataout(cmd);
+	else if (dump_payload && imm_data)
+		target_put_sess_cmd(conn->sess->se_sess, &cmd->se_cmd);
 
 	return 0;
 }

@@ -657,8 +657,11 @@ static int mcp23s08_probe(struct spi_device *spi)
 			return -ENODEV;
 		}
 
-		for (addr = 0; addr < ARRAY_SIZE(pdata->chip); addr++)
+		for (addr = 0; addr < ARRAY_SIZE(pdata->chip); addr++) {
 			pullups[addr] = 0;
+			if (spi_present_mask & (1 << addr))
+				chips++;
+		}
 	} else {
 		type = spi_get_device_id(spi)->driver_data;
 		pdata = dev_get_platdata(&spi->dev);
@@ -681,11 +684,11 @@ static int mcp23s08_probe(struct spi_device *spi)
 			pullups[addr] = pdata->chip[addr].pullups;
 		}
 
-		if (!chips)
-			return -ENODEV;
-
 		base = pdata->base;
 	}
+
+	if (!chips)
+		return -ENODEV;
 
 	data = kzalloc(sizeof *data + chips * sizeof(struct mcp23s08),
 			GFP_KERNEL);
