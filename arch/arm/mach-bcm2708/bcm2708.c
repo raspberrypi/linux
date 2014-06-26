@@ -870,7 +870,8 @@ static int timer_set_next_event(unsigned long cycles,
 		stc = readl(__io_address(ST_BASE + 0x04));
 		/* We could take a FIQ here, which may push ST above STC3 */
 		writel(stc + cycles, __io_address(ST_BASE + 0x18));
-	} while ((signed long) (readl(__io_address(ST_BASE + 0x04)) - stc)
+	} while ((signed long) cycles >= 0 &&
+				(signed long) (readl(__io_address(ST_BASE + 0x04)) - stc)
 				>= (signed long) cycles);
 	return 0;
 }
