@@ -3322,11 +3322,12 @@ static int snd_soc_dai_link_event(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_dapm_path *source_p, *sink_p;
 	struct snd_soc_dai *source, *sink;
-	const struct snd_soc_pcm_stream *config = w->params;
+	struct snd_soc_pcm_stream *config = w->params;
+	struct snd_soc_dai_link *dai_link = w->priv;
 	struct snd_pcm_substream substream;
 	struct snd_pcm_hw_params *params = NULL;
 	u64 fmt;
-	int ret;
+	int ret = 0;
 
 	BUG_ON(!config);
 	BUG_ON(list_empty(&w->sources) || list_empty(&w->sinks));
@@ -3343,6 +3344,16 @@ static int snd_soc_dai_link_event(struct snd_soc_dapm_widget *w,
 
 	source = source_p->source->priv;
 	sink = sink_p->sink->priv;
+
+	if (dai_link && dai_link->params_fixup) {
+		ret = dai_link->params_fixup(w, event);
+		if (ret < 0) {
+			dev_err(w->dapm->dev,
+				"ASoC: params_fixup for dai link widget failed %d\n",
+				ret);
+			goto out;
+		}
+	}
 
 	/* Be a little careful as we don't want to overflow the mask array */
 	if (config->formats) {
@@ -3425,9 +3436,9 @@ out:
 }
 
 int snd_soc_dapm_new_pcm(struct snd_soc_card *card,
-			 const struct snd_soc_pcm_stream *params,
+			 struct snd_soc_pcm_stream *params,
 			 struct snd_soc_dapm_widget *source,
-			 struct snd_soc_dapm_widget *sink)
+			 struct snd_soc_dapm_widget *sink, void *priv)
 {
 	struct snd_soc_dapm_route routes[2];
 	struct snd_soc_dapm_widget template;
@@ -3459,6 +3470,7 @@ int snd_soc_dapm_new_pcm(struct snd_soc_card *card,
 	}
 
 	w->params = params;
+	w->priv = priv;
 
 	memset(&routes, 0, sizeof(routes));
 
