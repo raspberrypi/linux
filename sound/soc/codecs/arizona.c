@@ -1088,6 +1088,8 @@ static int arizona_hw_params(struct snd_pcm_substream *substream,
 	int chan_limit = arizona->pdata.max_channels_clocked[dai->id - 1];
 	int bclk, lrclk, wl, frame, bclk_target;
 	unsigned int base_rate;
+	unsigned int aif_tx_state;
+	unsigned int aif_rx_state;
 
 	switch (dai_priv->clk) {
 	case ARIZONA_CLK_SYSCLK:
@@ -1148,9 +1150,18 @@ static int arizona_hw_params(struct snd_pcm_substream *substream,
 	wl = snd_pcm_format_width(params_format(params));
 	frame = wl << ARIZONA_AIF1TX_WL_SHIFT | wl;
 
+	/* Save AIF TX/RX state */
+	aif_tx_state = snd_soc_read(dai->codec, base + ARIZONA_AIF_TX_ENABLES);
+	aif_rx_state = snd_soc_read(dai->codec, base + ARIZONA_AIF_RX_ENABLES);
+	/* Disable AIF TX/RX before configuring it */
+	snd_soc_update_bits(dai->codec, base + ARIZONA_AIF_TX_ENABLES,
+			    0xff, 0x0);
+	snd_soc_update_bits(dai->codec, base + ARIZONA_AIF_RX_ENABLES,
+			    0xff, 0x0);
+
 	ret = arizona_hw_params_rate(substream, params, dai);
 	if (ret != 0)
-		return ret;
+		goto restore_aif;
 
 	snd_soc_update_bits(codec, base + ARIZONA_AIF_BCLK_CTRL,
 			    ARIZONA_AIF1_BCLK_FREQ_MASK, bclk);
@@ -1165,7 +1176,13 @@ static int arizona_hw_params(struct snd_pcm_substream *substream,
 			    ARIZONA_AIF1RX_WL_MASK |
 			    ARIZONA_AIF1RX_SLOT_LEN_MASK, frame);
 
-	return 0;
+restore_aif:
+	/* Restore AIF TX/RX state */
+	snd_soc_update_bits(dai->codec, base + ARIZONA_AIF_TX_ENABLES,
+			    0xff, aif_tx_state);
+	snd_soc_update_bits(dai->codec, base + ARIZONA_AIF_RX_ENABLES,
+			    0xff, aif_rx_state);
+	return ret;
 }
 
 static const char *arizona_dai_clk_str(int clk_id)
