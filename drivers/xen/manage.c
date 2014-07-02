@@ -109,7 +109,6 @@ static int xen_suspend(void *data)
 
 	if (!si->cancelled) {
 		xen_irq_resume();
-		xen_console_resume();
 		xen_timer_resume();
 	}
 
@@ -165,6 +164,10 @@ static void do_suspend(void)
 	}
 
 	err = stop_machine(xen_suspend, &si, cpumask_of(0));
+
+	/* Resume console as early as possible. */
+	if (!si.cancelled)
+		xen_console_resume();
 
 	raw_notifier_call_chain(&xen_resume_notifier, 0, NULL);
 
