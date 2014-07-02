@@ -699,7 +699,6 @@ isert_disconnect_work(struct work_struct *work)
 
 wake_up:
 	complete(&isert_conn->conn_wait);
-	isert_put_conn(isert_conn);
 }
 
 static void
@@ -2709,6 +2708,7 @@ static void isert_wait_conn(struct iscsi_conn *conn)
 	wait_for_completion(&isert_conn->conn_wait_comp_err);
 
 	wait_for_completion(&isert_conn->conn_wait);
+	isert_put_conn(isert_conn);
 }
 
 static void isert_free_conn(struct iscsi_conn *conn)
