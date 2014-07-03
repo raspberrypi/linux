@@ -18,10 +18,12 @@
 
 #ifdef CONFIG_SND_HDA_I915
 int hda_display_power(bool enable);
+int haswell_get_cdclk(void);
 int hda_i915_init(void);
 int hda_i915_exit(void);
 #else
 static inline int hda_display_power(bool enable) { return 0; }
+static inline int haswell_get_cdclk(void) { return -EINVAL; }
 static inline int hda_i915_init(void)
 {
 	return -ENODEV;

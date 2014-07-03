@@ -24,6 +24,7 @@
 
 static int (*get_power)(void);
 static int (*put_power)(void);
+static int (*get_cdclk)(void);
 
 int hda_display_power(bool enable)
 {
@@ -36,6 +37,13 @@ int hda_display_power(bool enable)
 		return get_power();
 	else
 		return put_power();
+}
+
+int haswell_get_cdclk(void)
+{
+	if (!get_cdclk)
+		return -EINVAL;
+	return get_cdclk();
 }
 
 int hda_i915_init(void)
@@ -55,6 +63,10 @@ int hda_i915_init(void)
 		return -ENODEV;
 	}
 
+	get_cdclk = symbol_request(i915_get_cdclk_freq);
+	if (!get_cdclk)	/* may have abnormal BCLK and audio playback rate */
+		snd_printd("hda-i915: get_cdclk symbol get fail\n");
+
 	snd_printd("HDA driver get symbol successfully from i915 module\n");
 
 	return err;
@@ -69,6 +81,10 @@ int hda_i915_exit(void)
 	if (put_power) {
 		symbol_put(i915_release_power_well);
 		put_power = NULL;
+	}
+	if (get_cdclk) {
+		symbol_put(i915_get_cdclk_freq);
+		get_cdclk = NULL;
 	}
 
 	return 0;
