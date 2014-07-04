@@ -64,7 +64,6 @@ static void btrfs_destroy_ordered_operations(struct btrfs_transaction *t,
 static void btrfs_destroy_ordered_extents(struct btrfs_root *root);
 static int btrfs_destroy_delayed_refs(struct btrfs_transaction *trans,
 				      struct btrfs_root *root);
-static void btrfs_evict_pending_snapshots(struct btrfs_transaction *t);
 static void btrfs_destroy_delalloc_inodes(struct btrfs_root *root);
 static int btrfs_destroy_marked_extents(struct btrfs_root *root,
 					struct extent_io_tree *dirty_pages,
@@ -1780,6 +1779,9 @@ sleep:
 		wake_up_process(root->fs_info->cleaner_kthread);
 		mutex_unlock(&root->fs_info->transaction_kthread_mutex);
 
+		if (unlikely(test_bit(BTRFS_FS_STATE_ERROR,
+				      &root->fs_info->fs_state)))
+			btrfs_cleanup_transaction(root);
 		if (!try_to_freeze()) {
 			set_current_state(TASK_INTERRUPTIBLE);
 			if (!kthread_should_stop() &&
@@ -3620,6 +3622,11 @@ int close_ctree(struct btrfs_root *root)
 
 	btrfs_free_block_groups(fs_info);
 
+	/*
+	 * we must make sure there is not any read request to
+	 * submit after we stopping all workers.
+	 */
+	invalidate_inode_pages2(fs_info->btree_inode->i_mapping);
 	btrfs_stop_all_workers(fs_info);
 
 	del_fs_roots(fs_info);
@@ -3806,7 +3813,8 @@ static void btrfs_destroy_all_ordered_extents(struct btrfs_fs_info *fs_info)
 	while (!list_empty(&splice)) {
 		root = list_first_entry(&splice, struct btrfs_root,
 					ordered_root);
-		list_del_init(&root->ordered_root);
+		list_move_tail(&root->ordered_root,
+			       &fs_info->ordered_roots);
 
 		btrfs_destroy_ordered_extents(root);
 
@@ -3882,24 +3890,6 @@ static int btrfs_destroy_delayed_refs(struct btrfs_transaction *trans,
 	spin_unlock(&delayed_refs->lock);
 
 	return ret;
-}
-
-static void btrfs_evict_pending_snapshots(struct btrfs_transaction *t)
-{
-	struct btrfs_pending_snapshot *snapshot;
-	struct list_head splice;
-
-	INIT_LIST_HEAD(&splice);
-
-	list_splice_init(&t->pending_snapshots, &splice);
-
-	while (!list_empty(&splice)) {
-		snapshot = list_entry(splice.next,
-				      struct btrfs_pending_snapshot,
-				      list);
-		snapshot->error = -ECANCELED;
-		list_del_init(&snapshot->list);
-	}
 }
 
 static void btrfs_destroy_delalloc_inodes(struct btrfs_root *root)
@@ -4031,14 +4021,14 @@ again:
 void btrfs_cleanup_one_transaction(struct btrfs_transaction *cur_trans,
 				   struct btrfs_root *root)
 {
+	btrfs_destroy_ordered_operations(cur_trans, root);
+
 	btrfs_destroy_delayed_refs(cur_trans, root);
 	btrfs_block_rsv_release(root, &root->fs_info->trans_block_rsv,
 				cur_trans->dirty_pages.dirty_bytes);
 
 	cur_trans->state = TRANS_STATE_COMMIT_START;
 	wake_up(&root->fs_info->transaction_blocked_wait);
-
-	btrfs_evict_pending_snapshots(cur_trans);
 
 	cur_trans->state = TRANS_STATE_UNBLOCKED;
 	wake_up(&root->fs_info->transaction_wait);
@@ -4063,63 +4053,51 @@ void btrfs_cleanup_one_transaction(struct btrfs_transaction *cur_trans,
 static int btrfs_cleanup_transaction(struct btrfs_root *root)
 {
 	struct btrfs_transaction *t;
-	LIST_HEAD(list);
 
 	mutex_lock(&root->fs_info->transaction_kthread_mutex);
 
 	spin_lock(&root->fs_info->trans_lock);
-	list_splice_init(&root->fs_info->trans_list, &list);
-	root->fs_info->running_transaction = NULL;
-	spin_unlock(&root->fs_info->trans_lock);
+	while (!list_empty(&root->fs_info->trans_list)) {
+		t = list_first_entry(&root->fs_info->trans_list,
+				     struct btrfs_transaction, list);
+		if (t->state >= TRANS_STATE_COMMIT_START) {
+			atomic_inc(&t->use_count);
+			spin_unlock(&root->fs_info->trans_lock);
+			btrfs_wait_for_commit(root, t->transid);
+			btrfs_put_transaction(t);
+			spin_lock(&root->fs_info->trans_lock);
+			continue;
+		}
+		if (t == root->fs_info->running_transaction) {
+			t->state = TRANS_STATE_COMMIT_DOING;
+			spin_unlock(&root->fs_info->trans_lock);
+			/*
+			 * We wait for 0 num_writers since we don't hold a trans
+			 * handle open currently for this transaction.
+			 */
+			wait_event(t->writer_wait,
+				   atomic_read(&t->num_writers) == 0);
+		} else {
+			spin_unlock(&root->fs_info->trans_lock);
+		}
+		btrfs_cleanup_one_transaction(t, root);
 
-	while (!list_empty(&list)) {
-		t = list_entry(list.next, struct btrfs_transaction, list);
-
-		btrfs_destroy_ordered_operations(t, root);
-
-		btrfs_destroy_all_ordered_extents(root->fs_info);
-
-		btrfs_destroy_delayed_refs(t, root);
-
-		/*
-		 *  FIXME: cleanup wait for commit
-		 *  We needn't acquire the lock here, because we are during
-		 *  the umount, there is no other task which will change it.
-		 */
-		t->state = TRANS_STATE_COMMIT_START;
-		smp_mb();
-		if (waitqueue_active(&root->fs_info->transaction_blocked_wait))
-			wake_up(&root->fs_info->transaction_blocked_wait);
-
-		btrfs_evict_pending_snapshots(t);
-
-		t->state = TRANS_STATE_UNBLOCKED;
-		smp_mb();
-		if (waitqueue_active(&root->fs_info->transaction_wait))
-			wake_up(&root->fs_info->transaction_wait);
-
-		btrfs_destroy_delayed_inodes(root);
-		btrfs_assert_delayed_root_empty(root);
-
-		btrfs_destroy_all_delalloc_inodes(root->fs_info);
-
-		btrfs_destroy_marked_extents(root, &t->dirty_pages,
-					     EXTENT_DIRTY);
-
-		btrfs_destroy_pinned_extent(root,
-					    root->fs_info->pinned_extents);
-
-		t->state = TRANS_STATE_COMPLETED;
-		smp_mb();
-		if (waitqueue_active(&t->commit_wait))
-			wake_up(&t->commit_wait);
-
-		atomic_set(&t->use_count, 0);
+		spin_lock(&root->fs_info->trans_lock);
+		if (t == root->fs_info->running_transaction)
+			root->fs_info->running_transaction = NULL;
 		list_del_init(&t->list);
-		memset(t, 0, sizeof(*t));
-		kmem_cache_free(btrfs_transaction_cachep, t);
-	}
+		spin_unlock(&root->fs_info->trans_lock);
 
+		btrfs_put_transaction(t);
+		trace_btrfs_transaction_commit(root);
+		spin_lock(&root->fs_info->trans_lock);
+	}
+	spin_unlock(&root->fs_info->trans_lock);
+	btrfs_destroy_all_ordered_extents(root->fs_info);
+	btrfs_destroy_delayed_inodes(root);
+	btrfs_assert_delayed_root_empty(root);
+	btrfs_destroy_pinned_extent(root, root->fs_info->pinned_extents);
+	btrfs_destroy_all_delalloc_inodes(root->fs_info);
 	mutex_unlock(&root->fs_info->transaction_kthread_mutex);
 
 	return 0;

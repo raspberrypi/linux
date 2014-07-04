@@ -1551,7 +1551,13 @@ static void btrfs_clear_bit_hook(struct inode *inode,
 			spin_unlock(&BTRFS_I(inode)->lock);
 		}
 
-		if (*bits & EXTENT_DO_ACCOUNTING)
+		/*
+		 * We don't reserve metadata space for space cache inodes so we
+		 * don't need to call dellalloc_release_metadata if there is an
+		 * error.
+		 */
+		if (*bits & EXTENT_DO_ACCOUNTING &&
+		    root != root->fs_info->tree_root)
 			btrfs_delalloc_release_metadata(inode, len);
 
 		if (root->root_key.objectid != BTRFS_DATA_RELOC_TREE_OBJECTID
@@ -2978,6 +2984,7 @@ int btrfs_orphan_add(struct btrfs_trans_handle *trans, struct inode *inode)
 	if (insert >= 1) {
 		ret = btrfs_insert_orphan_item(trans, root, btrfs_ino(inode));
 		if (ret) {
+			atomic_dec(&root->orphan_inodes);
 			if (reserve) {
 				clear_bit(BTRFS_INODE_ORPHAN_META_RESERVED,
 					  &BTRFS_I(inode)->runtime_flags);
@@ -3027,13 +3034,15 @@ static int btrfs_orphan_del(struct btrfs_trans_handle *trans,
 		release_rsv = 1;
 	spin_unlock(&root->orphan_lock);
 
-	if (trans && delete_item)
-		ret = btrfs_del_orphan_item(trans, root, btrfs_ino(inode));
-
-	if (release_rsv) {
-		btrfs_orphan_release_metadata(inode);
+	if (delete_item) {
 		atomic_dec(&root->orphan_inodes);
+		if (trans)
+			ret = btrfs_del_orphan_item(trans, root,
+						    btrfs_ino(inode));
 	}
+
+	if (release_rsv)
+		btrfs_orphan_release_metadata(inode);
 
 	return ret;
 }

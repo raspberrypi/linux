@@ -112,6 +112,11 @@ struct kioctx {
 
 	struct work_struct	free_work;
 
+	/*
+	 * signals when all in-flight requests are done
+	 */
+	struct completion *requests_done;
+
 	struct {
 		/*
 		 * This counts the number of available slots in the ringbuffer,
@@ -508,6 +513,10 @@ static void free_ioctx_reqs(struct percpu_ref *ref)
 {
 	struct kioctx *ctx = container_of(ref, struct kioctx, reqs);
 
+	/* At this point we know that there are no any in-flight requests */
+	if (ctx->requests_done)
+		complete(ctx->requests_done);
+
 	INIT_WORK(&ctx->free_work, free_ioctx);
 	schedule_work(&ctx->free_work);
 }
@@ -718,7 +727,8 @@ err:
  *	when the processes owning a context have all exited to encourage
  *	the rapid destruction of the kioctx.
  */
-static void kill_ioctx(struct mm_struct *mm, struct kioctx *ctx)
+static void kill_ioctx(struct mm_struct *mm, struct kioctx *ctx,
+		struct completion *requests_done)
 {
 	if (!atomic_xchg(&ctx->dead, 1)) {
 		struct kioctx_table *table;
@@ -747,7 +757,11 @@ static void kill_ioctx(struct mm_struct *mm, struct kioctx *ctx)
 		if (ctx->mmap_size)
 			vm_munmap(ctx->mmap_base, ctx->mmap_size);
 
+		ctx->requests_done = requests_done;
 		percpu_ref_kill(&ctx->users);
+	} else {
+		if (requests_done)
+			complete(requests_done);
 	}
 }
 
@@ -809,7 +823,7 @@ void exit_aio(struct mm_struct *mm)
 		 */
 		ctx->mmap_size = 0;
 
-		kill_ioctx(mm, ctx);
+		kill_ioctx(mm, ctx, NULL);
 	}
 }
 
@@ -1007,6 +1021,7 @@ void aio_complete(struct kiocb *iocb, long res, long res2)
 
 	/* everything turned out well, dispose of the aiocb. */
 	kiocb_free(iocb);
+	put_reqs_available(ctx, 1);
 
 	/*
 	 * We have to order our ring_info tail store above and test
@@ -1048,6 +1063,12 @@ static long aio_read_events_ring(struct kioctx *ctx,
 	if (head == tail)
 		goto out;
 
+	head %= ctx->nr_events;
+	tail %= ctx->nr_events;
+
+	head %= ctx->nr_events;
+	tail %= ctx->nr_events;
+
 	while (ret < nr) {
 		long avail;
 		struct io_event *ev;
@@ -1086,8 +1107,6 @@ static long aio_read_events_ring(struct kioctx *ctx,
 	flush_dcache_page(ctx->ring_pages[0]);
 
 	pr_debug("%li  h%u t%u\n", ret, head, tail);
-
-	put_reqs_available(ctx, ret);
 out:
 	mutex_unlock(&ctx->ring_lock);
 
@@ -1185,7 +1204,7 @@ SYSCALL_DEFINE2(io_setup, unsigned, nr_events, aio_context_t __user *, ctxp)
 	if (!IS_ERR(ioctx)) {
 		ret = put_user(ioctx->user_id, ctxp);
 		if (ret)
-			kill_ioctx(current->mm, ioctx);
+			kill_ioctx(current->mm, ioctx, NULL);
 		percpu_ref_put(&ioctx->users);
 	}
 
@@ -1203,8 +1222,22 @@ SYSCALL_DEFINE1(io_destroy, aio_context_t, ctx)
 {
 	struct kioctx *ioctx = lookup_ioctx(ctx);
 	if (likely(NULL != ioctx)) {
-		kill_ioctx(current->mm, ioctx);
+		struct completion requests_done =
+			COMPLETION_INITIALIZER_ONSTACK(requests_done);
+
+		/* Pass requests_done to kill_ioctx() where it can be set
+		 * in a thread-safe way. If we try to set it here then we have
+		 * a race condition if two io_destroy() called simultaneously.
+		 */
+		kill_ioctx(current->mm, ioctx, &requests_done);
 		percpu_ref_put(&ioctx->users);
+
+		/* Wait until all IO for the context are done. Otherwise kernel
+		 * keep using user-space buffers even if user thinks the context
+		 * is destroyed.
+		 */
+		wait_for_completion(&requests_done);
+
 		return 0;
 	}
 	pr_debug("EINVAL: io_destroy: invalid context id\n");

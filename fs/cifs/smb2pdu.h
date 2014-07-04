@@ -166,8 +166,6 @@ struct smb2_symlink_err_rsp {
 
 #define SMB2_CLIENT_GUID_SIZE 16
 
-extern __u8 cifs_client_guid[SMB2_CLIENT_GUID_SIZE];
-
 struct smb2_negotiate_req {
 	struct smb2_hdr hdr;
 	__le16 StructureSize; /* Must be 36 */
@@ -546,13 +544,19 @@ struct copychunk_ioctl {
 	__u32 Reserved2;
 } __packed;
 
-/* Response and Request are the same format */
-struct validate_negotiate_info {
+struct validate_negotiate_info_req {
 	__le32 Capabilities;
 	__u8   Guid[SMB2_CLIENT_GUID_SIZE];
 	__le16 SecurityMode;
 	__le16 DialectCount;
-	__le16 Dialect[1];
+	__le16 Dialects[1]; /* dialect (someday maybe list) client asked for */
+} __packed;
+
+struct validate_negotiate_info_rsp {
+	__le32 Capabilities;
+	__u8   Guid[SMB2_CLIENT_GUID_SIZE];
+	__le16 SecurityMode;
+	__le16 Dialect; /* Dialect in use for the connection */
 } __packed;
 
 #define RSS_CAPABLE	0x00000001
