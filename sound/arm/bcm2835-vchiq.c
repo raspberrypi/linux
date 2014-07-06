@@ -200,14 +200,22 @@ static void audio_vchi_callback(void *param,
 	int32_t status;
 	int32_t msg_len;
 	VC_AUDIO_MSG_T m;
-	bcm2835_alsa_stream_t *alsa_stream = 0;
-	LOG_DBG(" .. IN instance=%p, param=%p, reason=%d, handle=%p\n",
-		instance, param, reason, msg_handle);
+	LOG_DBG(" .. IN instance=%p, handle=%p, alsa=%p, reason=%d, handle=%p\n",
+		instance, instance ? instance->vchi_handle[0] : NULL, instance ? instance->alsa_stream : NULL, reason, msg_handle);
 
-	if (!instance || reason != VCHI_CALLBACK_MSG_AVAILABLE) {
+	if (reason != VCHI_CALLBACK_MSG_AVAILABLE) {
 		return;
 	}
-	alsa_stream = instance->alsa_stream;
+	if (!instance) {
+		LOG_ERR(" .. instance is null\n");
+		BUG();
+		return;
+  }
+  if (!instance->vchi_handle[0]) {
+		LOG_ERR(" .. instance->vchi_handle[0] is null\n");
+		BUG();
+		return;
+  }
 	status = vchi_msg_dequeue(instance->vchi_handle[0],
 				  &m, sizeof m, &msg_len, VCHI_FLAGS_NONE);
 	if (m.type == VC_AUDIO_MSG_TYPE_RESULT) {
@@ -217,6 +225,7 @@ static void audio_vchi_callback(void *param,
 		instance->result = m.u.result.success;
 		complete(&instance->msg_avail_comp);
 	} else if (m.type == VC_AUDIO_MSG_TYPE_COMPLETE) {
+		bcm2835_alsa_stream_t *alsa_stream = instance->alsa_stream;
 		irq_handler_t callback = (irq_handler_t) m.u.complete.callback;
 		LOG_DBG
 		    (" .. instance=%p, m.type=VC_AUDIO_MSG_TYPE_COMPLETE, complete=%d\n",
@@ -225,11 +234,11 @@ static void audio_vchi_callback(void *param,
 			atomic_add(m.u.complete.count, &alsa_stream->retrieved);
 			callback(0, alsa_stream);
 		} else {
-			LOG_DBG(" .. unexpected alsa_stream=%p, callback=%p\n",
+			LOG_ERR(" .. unexpected alsa_stream=%p, callback=%p\n",
 				alsa_stream, callback);
 		}
 	} else {
-		LOG_DBG(" .. unexpected m.type=%d\n", m.type);
+		LOG_ERR(" .. unexpected m.type=%d\n", m.type);
 	}
 	LOG_DBG(" .. OUT\n");
 }
@@ -253,6 +262,8 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 	}
 	/* Allocate memory for this instance */
 	instance = kmalloc(sizeof(*instance), GFP_KERNEL);
+	if (!instance)
+		return NULL;
 
 	memset(instance, 0, sizeof(*instance));
 	instance->num_connections = num_connections;
@@ -274,8 +285,10 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 			0	// want crc check on bulk transfers
 		};
 
+		LOG_DBG("%s: about to open %i\n", __func__, i);
 		status = vchi_service_open(vchi_instance, &params,
 					   &instance->vchi_handle[i]);
+		LOG_DBG("%s: opened %i: %p=%d\n", __func__, i, instance->vchi_handle[i], status);
 		if (status) {
 			LOG_ERR
 			    ("%s: failed to open VCHI service connection (status=%d)\n",
@@ -287,14 +300,18 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 		vchi_service_release(instance->vchi_handle[i]);
 	}
 
+	LOG_DBG("%s: okay\n", __func__);
 	return instance;
 
 err_close_services:
 	for (i = 0; i < instance->num_connections; i++) {
-		vchi_service_close(instance->vchi_handle[i]);
+		LOG_ERR("%s: closing %i: %p\n", __func__, i, instance->vchi_handle[i]);
+		if (instance->vchi_handle[i])
+			vchi_service_close(instance->vchi_handle[i]);
 	}
 
 	kfree(instance);
+	LOG_ERR("%s: error\n", __func__);
 
 	return NULL;
 }
@@ -345,12 +362,13 @@ static int bcm2835_audio_open_connection(bcm2835_alsa_stream_t * alsa_stream)
 {
 	static VCHI_INSTANCE_T vchi_instance;
 	static VCHI_CONNECTION_T *vchi_connection;
+	static int initted;
 	AUDIO_INSTANCE_T *instance = alsa_stream->instance;
 	int ret;
 	LOG_DBG(" .. IN\n");
 
-	LOG_INFO("%s: start", __func__);
-	//BUG_ON(instance);
+	LOG_INFO("%s: start\n", __func__);
+	BUG_ON(instance);
 	if (instance) {
 		LOG_ERR("%s: VCHI instance already open (%p)\n",
 			__func__, instance);
@@ -361,27 +379,30 @@ static int bcm2835_audio_open_connection(bcm2835_alsa_stream_t * alsa_stream)
 	}
 
 	/* Initialize and create a VCHI connection */
-	ret = vchi_initialise(&vchi_instance);
-	if (ret != 0) {
-		LOG_ERR("%s: failed to initialise VCHI instance (ret=%d)\n",
-			__func__, ret);
+	if (!initted) {
+	  ret = vchi_initialise(&vchi_instance);
+	  if (ret != 0) {
+		  LOG_ERR("%s: failed to initialise VCHI instance (ret=%d)\n",
+			  __func__, ret);
 
-		ret = -EIO;
-		goto err_free_mem;
-	}
-	ret = vchi_connect(NULL, 0, vchi_instance);
-	if (ret != 0) {
-		LOG_ERR("%s: failed to connect VCHI instance (ret=%d)\n",
-			__func__, ret);
+		  ret = -EIO;
+		  goto err_free_mem;
+	  }
+	  ret = vchi_connect(NULL, 0, vchi_instance);
+	  if (ret != 0) {
+		  LOG_ERR("%s: failed to connect VCHI instance (ret=%d)\n",
+			  __func__, ret);
 
-		ret = -EIO;
-		goto err_free_mem;
+		  ret = -EIO;
+		  goto err_free_mem;
+	  }
+	initted = 1;
 	}
 
 	/* Initialize an instance of the audio service */
 	instance = vc_vchi_audio_init(vchi_instance, &vchi_connection, 1);
 
-	if (instance == NULL /*|| audio_handle != instance */ ) {
+	if (instance == NULL) {
 		LOG_ERR("%s: failed to initialize audio service\n", __func__);
 
 		ret = -EPERM;
@@ -414,6 +435,7 @@ int bcm2835_audio_open(bcm2835_alsa_stream_t * alsa_stream)
 		goto exit;
 	}
 	instance = alsa_stream->instance;
+	LOG_DBG(" instance (%p)\n", instance);
 
 	if(mutex_lock_interruptible(&instance->vchi_mutex))
 	{
@@ -518,22 +540,23 @@ int bcm2835_audio_set_ctls(bcm2835_chip_t * chip)
 	int i;
 	int ret = 0;
 	LOG_DBG(" .. IN\n");
+	LOG_DBG(" Setting ALSA dest(%d), volume(%d)\n", chip->dest, chip->volume);
 
 	/* change ctls for all substreams */
 	for (i = 0; i < MAX_SUBSTREAMS; i++) {
 		if (chip->avail_substreams & (1 << i)) {
 			if (!chip->alsa_stream[i])
 			{
-				LOG_DBG(" No ALSA stream available?! %i:%p (%x)\n", i, chip->alsa_stream[i], chip->avail_substreams);
+				LOG_ERR(" No ALSA stream available?! %i:%p (%x)\n", i, chip->alsa_stream[i], chip->avail_substreams);
 				ret = 0;
 			}
 			else if (bcm2835_audio_set_ctls_chan /* returns 0 on success */
 				 (chip->alsa_stream[i], chip) != 0)
 				 {
-					LOG_DBG("Couldn't set the controls for stream %d\n", i);
+					LOG_ERR("Couldn't set the controls for stream %d\n", i);
 					ret = -1;
 				 }
-			else LOG_DBG(" Controls set for stream %d\n", i);
+			else LOG_ERR(" Controls set for stream %d\n", i);
 		}
 	}
 	LOG_DBG(" .. OUT ret=%d\n", ret);
@@ -648,7 +671,7 @@ static int bcm2835_audio_start_worker(bcm2835_alsa_stream_t * alsa_stream)
 				 VCHI_FLAGS_BLOCK_UNTIL_QUEUED, NULL);
 
 	if (success != 0) {
-		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)",
+		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)\n",
 			__func__, success);
 
 		ret = -1;
@@ -688,7 +711,7 @@ static int bcm2835_audio_stop_worker(bcm2835_alsa_stream_t * alsa_stream)
 				 VCHI_FLAGS_BLOCK_UNTIL_QUEUED, NULL);
 
 	if (success != 0) {
-		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)",
+		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)\n",
 			__func__, success);
 
 		ret = -1;
@@ -732,7 +755,7 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 				 VCHI_FLAGS_BLOCK_UNTIL_QUEUED, NULL);
 
 	if (success != 0) {
-		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)",
+		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)\n",
 			__func__, success);
 		ret = -1;
 		goto unlock;
@@ -740,12 +763,12 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 
 	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
 	if (ret) {
-		LOG_ERR("%s: failed on waiting for event (status=%d)",
+		LOG_ERR("%s: failed on waiting for event (status=%d)\n",
 			__func__, success);
 		goto unlock;
 	}
 	if (instance->result != 0) {
-		LOG_ERR("%s: failed result (status=%d)",
+		LOG_ERR("%s: failed result (status=%d)\n",
 			__func__, instance->result);
 
 		ret = -1;
@@ -803,7 +826,7 @@ int bcm2835_audio_write_worker(bcm2835_alsa_stream_t *alsa_stream,
 				 VCHI_FLAGS_BLOCK_UNTIL_QUEUED, NULL);
 
 	if (success != 0) {
-		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)",
+		LOG_ERR("%s: failed on vchi_msg_queue (status=%d)\n",
 			__func__, success);
 
 		ret = -1;
@@ -832,7 +855,7 @@ int bcm2835_audio_write_worker(bcm2835_alsa_stream_t *alsa_stream,
 		}
 		if (success != 0) {
 			LOG_ERR
-			    ("%s: failed on vchi_bulk_queue_transmit (status=%d)",
+			    ("%s: failed on vchi_bulk_queue_transmit (status=%d)\n",
 			     __func__, success);
 
 			ret = -1;

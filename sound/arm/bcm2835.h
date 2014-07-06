@@ -110,6 +110,7 @@ typedef struct bcm2835_chip {
 
 	unsigned int opened;
 	unsigned int spdif_status;
+	struct mutex audio_mutex;
 } bcm2835_chip_t;
 
 typedef struct bcm2835_alsa_stream {
