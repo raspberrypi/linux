@@ -27,6 +27,8 @@
 #include <linux/interrupt.h>
 #include <linux/amba/bus.h>
 #include <linux/amba/clcd.h>
+#include <linux/clk-provider.h>
+#include <linux/clkdev.h>
 #include <linux/clockchips.h>
 #include <linux/cnt32_to_63.h>
 #include <linux/io.h>
@@ -58,7 +60,6 @@
 
 #include "bcm2708.h"
 #include "armctrl.h"
-#include "clock.h"
 
 #ifdef CONFIG_BCM_VC_CMA
 #include <linux/broadcom/vc_cma.h>
@@ -84,7 +85,7 @@
 
 /* command line parameters */
 static unsigned boardrev, serial;
-static unsigned uart_clock;
+static unsigned uart_clock = UART0_CLOCK;
 static unsigned disk_led_gpio = 16;
 static unsigned disk_led_active_low = 1;
 static unsigned reboot_part = 0;
@@ -196,51 +197,44 @@ static void __init bcm2708_clocksource_init(void)
 	}
 }
 
+struct clk __init *bcm2708_clk_register(const char *name, unsigned long fixed_rate)
+{
+	struct clk *clk;
 
-/*
- * These are fixed clocks.
- */
-static struct clk ref24_clk = {
-	.rate = UART0_CLOCK,	/* The UART is clocked at 3MHz via APB_CLK */
-};
+	clk = clk_register_fixed_rate(NULL, name, NULL, CLK_IS_ROOT,
+						fixed_rate);
+	if (IS_ERR(clk))
+		pr_err("%s not registered\n", name);
 
-static struct clk osc_clk = {
-#ifdef CONFIG_ARCH_BCM2708_CHIPIT
-	.rate = 27000000,
-#else
-	.rate = 500000000,	/* ARM clock is set from the VideoCore booter */
-#endif
-};
+	return clk;
+}
 
-/* warning - the USB needs a clock > 34MHz */
+void __init bcm2708_register_clkdev(struct clk *clk, const char *name)
+{
+	int ret;
 
-static struct clk sdhost_clk = {
-#ifdef CONFIG_ARCH_BCM2708_CHIPIT
-	.rate = 4000000,	/* 4MHz */
-#else
-	.rate = 250000000,	/* 250MHz */
-#endif
-};
+	ret = clk_register_clkdev(clk, NULL, name);
+	if (ret)
+		pr_err("%s alias not registered\n", name);
+}
 
-static struct clk_lookup lookups[] = {
-	{			/* UART0 */
-	 .dev_id = "dev:f1",
-	 .clk = &ref24_clk,
-	 },
-	{			/* USB */
-	 .dev_id = "bcm2708_usb",
-	 .clk = &osc_clk,
-	 }, {	/* SPI */
-		 .dev_id = "bcm2708_spi.0",
-		 .clk = &sdhost_clk,
-	 }, {	/* BSC0 */
-		 .dev_id = "bcm2708_i2c.0",
-		 .clk = &sdhost_clk,
-	 }, {	/* BSC1 */
-		 .dev_id = "bcm2708_i2c.1",
-		 .clk = &sdhost_clk,
-	 }
-};
+void __init bcm2708_init_clocks(void)
+{
+	struct clk *clk;
+
+	clk = bcm2708_clk_register("uart0_clk", uart_clock);
+	bcm2708_register_clkdev(clk, "dev:f1");
+
+	/* ARM clock is set from the VideoCore booter */
+	/* warning - the USB needs a clock > 34MHz */
+	clk = bcm2708_clk_register("osc_clk", 500000000);
+	bcm2708_register_clkdev(clk, "bcm2708_usb");
+
+	clk = bcm2708_clk_register("sdhost_clk", 250000000);
+	bcm2708_register_clkdev(clk, "bcm2708_spi.0");
+	bcm2708_register_clkdev(clk, "bcm2708_i2c.0");
+	bcm2708_register_clkdev(clk, "bcm2708_i2c.1");
+}
 
 #define UART0_IRQ	{ IRQ_UART, 0 /*NO_IRQ*/ }
 #define UART0_DMA	{ 15, 14 }
@@ -783,11 +777,7 @@ void __init bcm2708_init(void)
 	printk("bcm2708.uart_clock = %d\n", uart_clock);
 	pm_power_off = bcm2708_power_off;
 
-	if (uart_clock)
-		lookups[0].clk->rate = uart_clock;
-
-	for (i = 0; i < ARRAY_SIZE(lookups); i++)
-		clkdev_add(&lookups[i]);
+	bcm2708_init_clocks();
 
 	bcm_register_device(&bcm2708_dmaman_device);
 	bcm_register_device(&bcm2708_vcio_device);
