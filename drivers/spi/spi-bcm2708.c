@@ -545,7 +545,7 @@ static int bcm2708_spi_probe(struct platform_device *pdev)
 	}
 
 	/* initialise the hardware */
-	clk_enable(clk);
+	clk_prepare_enable(clk);
 	bcm2708_wr(bs, SPI_CS, SPI_CS_REN | SPI_CS_CLEAR_RX | SPI_CS_CLEAR_TX);
 
 	err = spi_register_master(master);
@@ -561,6 +561,7 @@ static int bcm2708_spi_probe(struct platform_device *pdev)
 
 out_free_irq:
 	free_irq(bs->irq, master);
+	clk_disable_unprepare(bs->clk);
 out_workqueue:
 	destroy_workqueue(bs->workq);
 out_iounmap:
@@ -585,7 +586,7 @@ static int bcm2708_spi_remove(struct platform_device *pdev)
 
 	flush_work_sync(&bs->work);
 
-	clk_disable(bs->clk);
+	clk_disable_unprepare(bs->clk);
 	clk_put(bs->clk);
 	free_irq(bs->irq, master);
 	iounmap(bs->base);
