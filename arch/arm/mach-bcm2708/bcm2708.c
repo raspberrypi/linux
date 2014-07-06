@@ -225,11 +225,6 @@ void __init bcm2708_init_clocks(void)
 	clk = bcm2708_clk_register("uart0_clk", uart_clock);
 	bcm2708_register_clkdev(clk, "dev:f1");
 
-	/* ARM clock is set from the VideoCore booter */
-	/* warning - the USB needs a clock > 34MHz */
-	clk = bcm2708_clk_register("osc_clk", 500000000);
-	bcm2708_register_clkdev(clk, "bcm2708_usb");
-
 	clk = bcm2708_clk_register("sdhost_clk", 250000000);
 	bcm2708_register_clkdev(clk, "bcm2708_spi.0");
 	bcm2708_register_clkdev(clk, "bcm2708_i2c.0");
