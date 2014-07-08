@@ -9294,6 +9294,8 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 
 	if (IS_VALLEYVIEW(dev)) {
 		ring = &dev_priv->ring[BCS];
+	} else if (IS_IVYBRIDGE(dev)) {
+		ring = &dev_priv->ring[BCS];
 	} else if (INTEL_INFO(dev)->gen >= 7) {
 		ring = obj->ring;
 		if (ring == NULL || ring->id != RCS)
