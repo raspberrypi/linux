@@ -1,0 +1,20 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&usb>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		__overlay__ {
+			compatible = "brcm,bcm2708-usb";
+			reg = <0x7e980000 0x10000>,
+			      <0x7e006000 0x1000>;
+			interrupts = <2 0>,
+				     <1 9>;
+			status = "okay";
+		};
+	};
+};
