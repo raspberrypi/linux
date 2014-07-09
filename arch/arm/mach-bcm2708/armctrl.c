@@ -23,6 +23,8 @@
 #include <linux/version.h>
 #include <linux/syscore_ops.h>
 #include <linux/interrupt.h>
+#include <linux/irqdomain.h>
+#include <linux/of.h>
 
 #include <asm/mach/irq.h>
 #include <mach/hardware.h>
@@ -78,6 +80,100 @@ static void armctrl_unmask_irq(struct irq_data *d)
 		writel(1 << (data & 0x1f), __io_address(enables[(data >> 5) & 0x3]));
 	}
 }
+
+#ifdef CONFIG_OF
+
+#define NR_IRQS_BANK0           21
+#define NR_BANKS                3 + 1 /* bank 3 is used for GPIO interrupts */
+#define IRQS_PER_BANK           32
+
+/* from drivers/irqchip/irq-bcm2835.c */
+static int armctrl_xlate(struct irq_domain *d, struct device_node *ctrlr,
+        const u32 *intspec, unsigned int intsize,
+        unsigned long *out_hwirq, unsigned int *out_type)
+{
+        if (WARN_ON(intsize != 2))
+                return -EINVAL;
+
+        if (WARN_ON(intspec[0] >= NR_BANKS))
+                return -EINVAL;
+
+        if (WARN_ON(intspec[1] >= IRQS_PER_BANK))
+                return -EINVAL;
+
+        if (WARN_ON(intspec[0] == 0 && intspec[1] >= NR_IRQS_BANK0))
+                return -EINVAL;
+
+	if (intspec[0] == 0)
+		*out_hwirq = ARM_IRQ0_BASE + intspec[1];
+	else if (intspec[0] == 1)
+		*out_hwirq = ARM_IRQ1_BASE + intspec[1];
+	else if (intspec[0] == 2)
+		*out_hwirq = ARM_IRQ2_BASE + intspec[1];
+	else
+		*out_hwirq = GPIO_IRQ_START + intspec[1];
+
+	/* reverse remap_irqs[] */
+	switch (*out_hwirq) {
+	case INTERRUPT_VC_JPEG:
+		*out_hwirq = INTERRUPT_JPEG;
+		break;
+	case INTERRUPT_VC_USB:
+		*out_hwirq = INTERRUPT_USB;
+		break;
+	case INTERRUPT_VC_3D:
+		*out_hwirq = INTERRUPT_3D;
+		break;
+	case INTERRUPT_VC_DMA2:
+		*out_hwirq = INTERRUPT_DMA2;
+		break;
+	case INTERRUPT_VC_DMA3:
+		*out_hwirq = INTERRUPT_DMA3;
+		break;
+	case INTERRUPT_VC_I2C:
+		*out_hwirq = INTERRUPT_I2C;
+		break;
+	case INTERRUPT_VC_SPI:
+		*out_hwirq = INTERRUPT_SPI;
+		break;
+	case INTERRUPT_VC_I2SPCM:
+		*out_hwirq = INTERRUPT_I2SPCM;
+		break;
+	case INTERRUPT_VC_SDIO:
+		*out_hwirq = INTERRUPT_SDIO;
+		break;
+	case INTERRUPT_VC_UART:
+		*out_hwirq = INTERRUPT_UART;
+		break;
+	case INTERRUPT_VC_ARASANSDIO:
+		*out_hwirq = INTERRUPT_ARASANSDIO;
+		break;
+	}
+
+        *out_type = IRQ_TYPE_NONE;
+        return 0;
+}
+
+static struct irq_domain_ops armctrl_ops = {
+        .xlate = armctrl_xlate
+};
+
+void __init armctrl_dt_init(void)
+{
+	struct device_node *np;
+	struct irq_domain *domain;
+
+	np = of_find_compatible_node(NULL, NULL, "brcm,bcm2708-armctrl-ic");
+	if (!np)
+		return;
+
+        domain = irq_domain_add_legacy(np, NR_IRQS, IRQ_ARMCTRL_START, 0,
+					&armctrl_ops, NULL);
+        WARN_ON(!domain);
+}
+#else
+void __init armctrl_dt_init(void) { }
+#endif /* CONFIG_OF */
 
 #if defined(CONFIG_PM)
 
@@ -215,5 +311,6 @@ int __init armctrl_init(void __iomem * base, unsigned int irq_start,
 
 	armctrl_pm_register(base, irq_start, resume_sources);
 	init_FIQ(FIQ_START);
+	armctrl_dt_init();
 	return 0;
 }
