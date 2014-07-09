@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0
+
+/ {
+	soc {
+		/delete-node/ mailbox@7e00b840;
+	};
+};
+
+&scb {
+	vchiq: mailbox@7e00b840 {
+		compatible = "brcm,bcm2838-vchiq";
+		reg = <0 0x7e00b840 0x3c>;
+		interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+	};
+};
+
+&dma {
+	/* The VPU firmware uses DMA channel 11 for VCHIQ */
+	brcm,dma-channel-mask = <0x1f5>;
+};
+
+&dma40 {
+	/* The VPU firmware DMA channel 11 for VCHIQ */
+	brcm,dma-channel-mask = <0x7000>;
+};
