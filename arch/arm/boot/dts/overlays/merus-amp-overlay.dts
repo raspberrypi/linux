@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for Infineon Merus-Amp
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/pinctrl/bcm2835.h>
+#include <dt-bindings/gpio/gpio.h>
+
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			merus_amp_pins: merus_amp_pins {
+				brcm,pins = <23>;
+				brcm,function = <0>; /* in */
+				brcm,pull = <2>; /* up */
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			merus_amp: ma120x0p@20 {
+				#sound-dai-cells = <0>;
+				compatible = "ma,ma120x0p";
+				reg = <0x20>;
+				status = "okay";
+				pinctrl-names = "default";
+				pinctrl-0 = <&merus_amp_pins>;
+				enable_gp-gpios = <&gpio 14 GPIO_ACTIVE_HIGH>;
+				mute_gp-gpios = <&gpio 15 GPIO_ACTIVE_HIGH>;
+				booster_gp-gpios = <&gpio 17 GPIO_ACTIVE_HIGH>;
+				error_gp-gpios = <&gpio 23 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "merus,merus-amp";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+};
