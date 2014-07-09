@@ -1,0 +1,89 @@
+/*
+ * vc4-fkms-v3d-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+	fragment@0 {
+		target-path = "/chosen";
+		__overlay__ {
+			bootargs = "cma=256M";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=192M";
+		};
+	};
+
+	fragment@2 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=128M";
+		};
+	};
+
+	fragment@3 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=96M";
+		};
+	};
+
+	fragment@4 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=64M";
+		};
+	};
+
+	fragment@5 {
+		target = <&fb>;
+		__overlay__  {
+			status = "disabled";
+		};
+	};
+
+	fragment@6 {
+		target = <&firmwarekms>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@7 {
+		target = <&v3d>;
+		__overlay__  {
+			interrupts = <1 10>;
+			status = "okay";
+		};
+	};
+
+	fragment@8 {
+		target = <&vc4>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@9 {
+		target-path = "/soc/dma";
+		__overlay__ {
+			brcm,dma-channel-mask = <0x7f35>;
+		};
+	};
+
+	__overrides__ {
+		cma-256 = <0>,"+0-1-2-3-4";
+		cma-192 = <0>,"-0+1-2-3-4";
+		cma-128 = <0>,"-0-1+2-3-4";
+		cma-96  = <0>,"-0-1-2+3-4";
+		cma-64  = <0>,"-0-1-2-3+4";
+	};
+};
