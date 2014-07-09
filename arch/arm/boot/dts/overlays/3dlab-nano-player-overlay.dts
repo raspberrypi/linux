@@ -1,0 +1,32 @@
+// Definitions for 3Dlab Nano Player
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			nano-player@41 {
+				compatible = "3dlab,nano-player";
+				reg = <0x41>;
+				i2s-controller = <&i2s>;
+				status = "okay";
+			};
+		};
+	};
+};
+
+// EOF
