@@ -1,10 +1,10 @@
-/include/ "bcm2835.dtsi"
+/dts-v1/;
+
+/include/ "bcm2709.dtsi"
 
 / {
-	/* This is left here in case u-boot needs it */
-	memory {
-		reg = <0 0x10000000>;
-	};
+	compatible = "brcm,bcm2709";
+	model = "Raspberry Pi 2 Model B";
 
 	aliases {
 		soc = &soc;
@@ -15,26 +15,13 @@
 		gpio = &gpio;
 		intc = &intc;
 		leds = &leds;
+		audio = &audio;
 		sound = &sound;
+		uart0 = &uart0;
+		uart1 = &uart1;
+		clocks = &clocks;
 	};
 
-	leds: leds {
-		compatible = "gpio-leds";
-
-		act_led: act {
-			label = "led0";
-			linux,default-trigger = "mmc0";
-		};
-	};
-
-	/* Onboard audio */
-	audio: audio {
-		compatible = "brcm,bcm2835-audio";
-		brcm,pwm-channels = <8>;
-		status = "disabled";
-	};
-
-	/* External sound card */
 	sound: sound {
 	};
 };
@@ -54,6 +41,24 @@
 		brcm,pins = <2 3>;
 		brcm,function = <4>;
 	};
+
+	i2s_pins: i2s {
+		brcm,pins = <18 19 20 21>;
+		brcm,function = <4>; /* alt0 */
+	};
+};
+
+&mmc {
+	status = "okay";
+	bus-width = <4>;
+};
+
+&fb {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
 };
 
 &spi0 {
@@ -89,24 +94,47 @@
 	clock-frequency = <100000>;
 };
 
-&mmc {
-	status = "okay";
-	bus-width = <4>;
+&i2s {
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s_pins>;
 };
 
-&fb {
-	status = "okay";
+&leds {
+	act_led: act {
+		label = "led0";
+		linux,default-trigger = "mmc0";
+		gpios = <&gpio 47 0>;
+	};
+
+	pwr_led: pwr {
+		label = "led1";
+		linux,default-trigger = "input";
+		gpios = <&gpio 35 0>;
+	};
 };
 
 / {
 	__overrides__ {
+		uart0 = <&uart0>,"status";
+		uart0_clkrate = <&clk_uart0>,"clock-frequency:0";
 		i2s = <&i2s>,"status";
 		spi = <&spi0>,"status";
 		i2c0 = <&i2c0>,"status";
 		i2c1 = <&i2c1>,"status";
 		i2c0_baudrate = <&i2c0>,"clock-frequency:0";
 		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
+
+		act_led_gpio = <&act_led>,"gpios:4";
+		act_led_activelow = <&act_led>,"gpios:8";
 		act_led_trigger = <&act_led>,"linux,default-trigger";
+
+		pwr_led_gpio = <&pwr_led>,"gpios:4";
+		pwr_led_activelow = <&pwr_led>,"gpios:8";
+		pwr_led_trigger = <&pwr_led>,"linux,default-trigger";
+
 		audio = <&audio>,"status";
+		watchdog = <&watchdog>,"status";
+		random = <&random>,"status";
 	};
 };
