@@ -43,3 +43,34 @@
 &pm {
 	/delete-property/ system-power-controller;
 };
+
+// =============================================
+// Downstream rpi- changes
+
+&audio_pins {
+	brcm,pins = <>;
+	brcm,function = <>;
+};
+
+&leds {
+	/delete-node/ led-act;
+};
+
+&led_pwr {
+	label = "led1";
+	default-state = "off";
+};
+
+&cam1_reg {
+	  /delete-property/ gpio;
+};
+
+/ {
+	__overrides__ {
+		audio = <&chosen>,"bootargs{on='snd_bcm2835.enable_hdmi=1',off='snd_bcm2835.enable_hdmi=0'}";
+
+		act_led_gpio = <&led_pwr>,"gpios:4";
+		act_led_activelow = <&led_pwr>,"gpios:8";
+		act_led_trigger = <&led_pwr>,"linux,default-trigger";
+	};
+};
