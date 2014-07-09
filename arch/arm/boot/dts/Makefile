@@ -1,4 +1,23 @@
 # SPDX-License-Identifier: GPL-2.0
+
+dtb-$(CONFIG_ARCH_BCM2835) += \
+	bcm2708-rpi-b.dtb \
+	bcm2708-rpi-b-rev1.dtb \
+	bcm2708-rpi-b-plus.dtb \
+	bcm2708-rpi-cm.dtb \
+	bcm2708-rpi-zero.dtb \
+	bcm2708-rpi-zero-w.dtb \
+	bcm2710-rpi-zero-2.dtb \
+	bcm2710-rpi-zero-2-w.dtb \
+	bcm2709-rpi-2-b.dtb \
+	bcm2710-rpi-2-b.dtb \
+	bcm2710-rpi-3-b.dtb \
+	bcm2710-rpi-3-b-plus.dtb \
+	bcm2711-rpi-4-b.dtb \
+	bcm2711-rpi-400.dtb \
+	bcm2710-rpi-cm3.dtb \
+	bcm2711-rpi-cm4.dtb
+
 dtb-$(CONFIG_ARCH_ALPINE) += \
 	alpine-db.dtb
 dtb-$(CONFIG_MACH_ARTPEC6) += \
@@ -1520,3 +1539,13 @@ dtb-$(CONFIG_ARCH_ASPEED) += \
 	aspeed-bmc-supermicro-x11spi.dtb \
 	aspeed-bmc-inventec-transformers.dtb \
 	aspeed-bmc-tyan-s7106.dtb
+
+targets += dtbs dtbs_install
+targets += $(dtb-y)
+
+subdir-y	:= overlays
+
+# Enable fixups to support overlays on BCM2835 platforms
+ifeq ($(CONFIG_ARCH_BCM2835),y)
+	DTC_FLAGS += -@
+endif
