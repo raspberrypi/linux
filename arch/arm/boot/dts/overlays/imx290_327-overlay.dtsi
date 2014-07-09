@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Partial definitions for IMX290 or IMX327 camera module on VC I2C bus
+// The compatible string should be set in an overlay that then includes this one
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/{
+	compatible = "brcm,bcm2835";
+
+	i2c_frag: fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			imx290: imx290@1a {
+				reg = <0x1a>;
+				status = "okay";
+
+				clocks = <&cam1_clk>;
+				clock-names = "xclk";
+				clock-frequency = <37125000>;
+
+				rotation = <0>;
+				orientation = <2>;
+
+				vdda-supply = <&cam1_reg>;	/* 2.8v */
+				vdddo-supply = <&cam_dummy_reg>;	/* 1.8v */
+				vddd-supply = <&cam_dummy_reg>;	/* 1.5v */
+
+				port {
+					imx290_0: endpoint {
+						remote-endpoint = <&csi1_ep>;
+						clock-lanes = <0>;
+					};
+				};
+			};
+		};
+	};
+
+	csi_frag: fragment@1 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+			brcm,media-controller;
+
+			port {
+				csi1_ep: endpoint {
+					remote-endpoint = <&imx290_0>;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@3 {
+		target = <&cam1_clk>;
+		cam_clk: __overlay__ {
+			status = "okay";
+			clock-frequency = <37125000>;
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@6 {
+		target = <&imx290_0>;
+		__overlay__ {
+			data-lanes = <1 2>;
+			link-frequencies =
+				/bits/ 64 <445500000 297000000>;
+		};
+	};
+
+	fragment@7 {
+		target = <&imx290_0>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+			link-frequencies =
+				/bits/ 64 <222750000 148500000>;
+		};
+	};
+
+	fragment@8 {
+		target = <&csi1_ep>;
+		__overlay__ {
+			data-lanes = <1 2>;
+		};
+	};
+
+	fragment@9 {
+		target = <&csi1_ep>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+	__overrides__ {
+		4lane = <0>, "-6+7-8+9";
+		clock-frequency = <&cam_clk>,"clock-frequency:0",
+				  <&imx290>,"clock-frequency:0";
+		rotation = <&imx290>,"rotation:0";
+		orientation = <&imx290>,"orientation:0";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&imx290>, "clocks:0=",<&cam0_clk>,
+		       <&imx290>, "vdda-supply:0=",<&cam0_reg>;
+	};
+};
