@@ -1,0 +1,100 @@
+/*
+ * vc4-kms-vga666-overlay.dts
+ * Configures a FenLogic or similar VGA666 DPI adapter when using the
+ * vc4-kms-v3d driver.
+ * If a suitable I2C level shifter is connected to GPIOs 0&1 and the VGA
+ * ID1/SDA (pin 12) and ID3/SCL (pin 15) lines, then there is the option to
+ * enable reading the EDID from the display.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			vga_connector: vga_connector {
+				compatible = "vga-connector";
+				label = "vga";
+
+				port {
+					vga_con_in: endpoint {
+						remote-endpoint = <&vga666_out>;
+					};
+				};
+			};
+
+			vga_dac {
+				compatible = "dumb-vga-dac";
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+
+						vga666_in: endpoint {
+							remote-endpoint = <&dpi_out>;
+						};
+					};
+
+					port@1 {
+						reg = <1>;
+
+						vga666_out: endpoint {
+							remote-endpoint = <&vga_con_in>;
+						};
+					};
+				};
+			};
+
+		};
+	};
+
+	fragment@1 {
+		target = <&dpi>;
+		__overlay__  {
+			status = "okay";
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&dpi_18bit_gpio2>;
+
+			port {
+				dpi_out: endpoint@0 {
+					remote-endpoint = <&vga666_in>;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&vga_connector>;
+		__dormant__  {
+			ddc-i2c-bus = <&i2c_vc>;
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0if>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		ddc = <0>,"=2", <0>,"=3", <0>,"=4";
+	};
+};

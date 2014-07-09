@@ -1,0 +1,26 @@
+/*
+ * vc4-kms-kippah-7inch-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "vc4-kms-dpi.dtsi"
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&panel>;
+		__overlay__  {
+			compatible = "ontat,yx700wv03", "simple-panel";
+		};
+	};
+
+	fragment@1 {
+		target = <&dpi>;
+		__overlay__  {
+			pinctrl-0 = <&dpi_18bit_gpio0>;
+		};
+	};
+};

@@ -1,0 +1,44 @@
+/*
+ * Device Tree overlay for Witty Pi extension board by UUGear
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&leds>;
+		__overlay__ {
+			compatible = "gpio-leds";
+			wittypi_led: wittypi_led {
+				label = "wittypi_led";
+				linux,default-trigger = "default-on";
+				gpios = <&gpio 17 0>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rtc: ds1337@68 {
+				compatible = "dallas,ds1337";
+				reg = <0x68>;
+				wakeup-source;
+			};
+		};
+	};
+
+	__overrides__ {
+		led_gpio =	<&wittypi_led>,"gpios:4";
+		led_trigger =	<&wittypi_led>,"linux,default-trigger";
+	};
+
+};

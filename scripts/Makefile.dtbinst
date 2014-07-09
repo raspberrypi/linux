@@ -18,9 +18,10 @@ include $(srctree)/scripts/Kbuild.include
 include $(kbuild-file)
 
 dtbs    := $(addprefix $(dst)/, $(dtb-y) $(if $(CONFIG_OF_ALL_DTBS),$(dtb-)))
+dtbos   := $(addprefix $(dst)/, $(dtbo-y) $(if $(CONFIG_OF_ALL_DTBS),$(dtb-)))
 subdirs := $(addprefix $(obj)/, $(subdir-y) $(subdir-m))
 
-__dtbs_install: $(dtbs) $(subdirs)
+__dtbs_install: $(dtbs) $(dtbos) $(subdirs)
 	@:
 
 quiet_cmd_dtb_install = INSTALL $@
