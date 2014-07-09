@@ -15,7 +15,7 @@
 *.bin
 *.bz2
 *.c.[012]*.*
-*.dtb
+*.dtb*
 *.dtb.S
 *.dwo
 *.elf
