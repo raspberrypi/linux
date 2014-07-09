@@ -1,0 +1,48 @@
+// Device tree overlay for I2C connected EETI EXC3000 multiple touch controller
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			exc3000_pins: exc3000_pins {
+				brcm,pins = <4>; // interrupt
+				brcm,function = <0>; // in
+				brcm,pull = <2>; // pull-up
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			exc3000: exc3000@2a {
+				compatible = "eeti,exc3000";
+				reg = <0x2a>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&exc3000_pins>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 8>; // active low level-sensitive
+				touchscreen-size-x = <4096>;
+				touchscreen-size-y = <4096>;
+			};
+		};
+	};
+
+	__overrides__ {
+		interrupt = <&exc3000_pins>,"brcm,pins:0",
+			<&exc3000>,"interrupts:0";
+		sizex = <&exc3000>,"touchscreen-size-x:0";
+		sizey = <&exc3000>,"touchscreen-size-y:0";
+		invx = <&exc3000>,"touchscreen-inverted-x?";
+		invy = <&exc3000>,"touchscreen-inverted-y?";
+		swapxy = <&exc3000>,"touchscreen-swapped-x-y?";
+	};
+};
