@@ -21,7 +21,24 @@
 			ethernet: ethernet@1 {
 				compatible = "usb424,7800";
 				reg = <1>;
+				microchip,eee-enabled;
+				microchip,tx-lpi-timer = <600>; /* non-aggressive*/
+				/*
+				 * led0 = 1:link1000/activity
+				 * led1 = 6:link10/100/activity
+				 */
+				microchip,led-modes = <1 6>;
 			};
 		};
+	};
+};
+
+
+/ {
+	__overrides__ {
+		eee = <&ethernet>,"microchip,eee-enabled?";
+		tx_lpi_timer = <&ethernet>,"microchip,tx-lpi-timer:0";
+		eth_led0 = <&ethernet>,"microchip,led-modes:0";
+		eth_led1 = <&ethernet>,"microchip,led-modes:4";
 	};
 };
