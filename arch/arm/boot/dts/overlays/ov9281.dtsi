@@ -1,0 +1,27 @@
+// Fragment that configures an ov9281
+
+cam_node: ov9281@60 {
+	compatible = "ovti,ov9281";
+	reg = <0x60>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xvclk";
+
+	avdd-supply = <&cam1_reg>;
+	dovdd-supply = <&cam_dummy_reg>;
+	dvdd-supply = <&cam_dummy_reg>;
+
+	rotation = <0>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <400000000>;
+		};
+	};
+};
