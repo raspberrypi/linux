@@ -1,0 +1,42 @@
+// Definitions for gpio-charger module
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		// Configure the gpio pin controller
+		target = <&gpio>;
+		__overlay__ {
+			pin_state: charger_pins@0 {
+				brcm,pins = <4>; // gpio number
+				brcm,function = <0>; // 0 = input, 1 = output
+				brcm,pull = <1>; // 0 = none, 1 = pull down, 2 = pull up
+			};
+		};
+	};
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			charger: charger@0 {
+				compatible = "gpio-charger";
+				pinctrl-0 = <&pin_state>;
+				status = "okay";
+				gpios = <&gpio 4 0>;
+				charger-type = "mains";
+			};
+		};
+	};
+
+	__overrides__ {
+		gpio =       <&charger>,"reg:0",
+			     <&charger>,"gpios:4",
+			     <&pin_state>,"reg:0",
+			     <&pin_state>,"brcm,pins:0";
+		type =       <&charger>,"charger-type";
+		gpio_pull =  <&pin_state>,"brcm,pull:0";
+		active_low = <&charger>,"gpios:8";
+	};
+
+};

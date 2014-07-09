@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+
+#include "bcm2712-rpi-cm5.dtsi"
+
+// The RP1 USB3 interfaces are not usable on CM4IO
+
+&rp1_usb0 {
+	status = "disabled";
+};
+
+&rp1_usb1 {
+	status = "disabled";
+};
+
+/ {
+	__overrides__ {
+		i2c_csi_dsi = <&i2c_csi_dsi>, "status";
+	};
+};

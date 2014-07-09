@@ -1,0 +1,354 @@
+// Definitions for several I2C based Real Time Clocks
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			abx80x: abx80x@69 {
+				compatible = "abracon,abx80x";
+				reg = <0x69>;
+				abracon,tc-diode = "standard";
+				abracon,tc-resistor = <0>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ds1307: ds1307@68 {
+				compatible = "dallas,ds1307";
+				reg = <0x68>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ds1339: ds1339@68 {
+				compatible = "dallas,ds1339";
+				trickle-resistor-ohms = <0>;
+				reg = <0x68>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ds3231: ds3231@68 {
+				compatible = "maxim,ds3231";
+				reg = <0x68>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mcp7940x: mcp7940x@6f {
+				compatible = "microchip,mcp7940x";
+				reg = <0x6f>;
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mcp7941x: mcp7941x@6f {
+				compatible = "microchip,mcp7941x";
+				reg = <0x6f>;
+			};
+		};
+	};
+
+	fragment@6 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcf2127@51 {
+				compatible = "nxp,pcf2127";
+				reg = <0x51>;
+			};
+		};
+	};
+
+	fragment@7 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcf8523: pcf8523@68 {
+				compatible = "nxp,pcf8523";
+				reg = <0x68>;
+			};
+		};
+	};
+
+	fragment@8 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcf8563: pcf8563@51 {
+				compatible = "nxp,pcf8563";
+				reg = <0x51>;
+			};
+		};
+	};
+
+	fragment@9 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			m41t62: m41t62@68 {
+				compatible = "st,m41t62";
+				reg = <0x68>;
+			};
+		};
+	};
+
+	fragment@10 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rv3028: rv3028@52 {
+				compatible = "microcrystal,rv3028";
+				reg = <0x52>;
+			};
+		};
+	};
+
+	fragment@11 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcf2129@51 {
+				compatible = "nxp,pcf2129";
+				reg = <0x51>;
+			};
+		};
+	};
+
+	fragment@12 {
+		target = <&i2cbus>;
+	       __dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcf85363@51 {
+				compatible = "nxp,pcf85363";
+				reg = <0x51>;
+			};
+		};
+	};
+
+	fragment@13 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rv1805: rv1805@69 {
+				compatible = "microcrystal,rv1805";
+				reg = <0x69>;
+				abracon,tc-diode = "standard";
+				abracon,tc-resistor = <0>;
+			};
+		};
+	};
+
+	fragment@14 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			sd3078: sd3078@32 {
+				compatible = "whwave,sd3078";
+				reg = <0x32>;
+			};
+		};
+	};
+
+	fragment@15 {
+		target = <&i2cbus>;
+	       __dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcf85063@51 {
+				compatible = "nxp,pcf85063";
+				reg = <0x51>;
+			};
+		};
+	};
+
+	fragment@16 {
+		target = <&i2cbus>;
+	       __dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pcf85063a@51 {
+				compatible = "nxp,pcf85063a";
+				reg = <0x51>;
+			};
+		};
+	};
+
+	fragment@17 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ds1340: ds1340@68 {
+				compatible = "dallas,ds1340";
+				trickle-resistor-ohms = <0>;
+				reg = <0x68>;
+			};
+		};
+	};
+
+	fragment@18 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			s35390a: s35390a@30 {
+				compatible = "sii,s35390a";
+				reg = <0x30>;
+			};
+		};
+	};
+
+	fragment@19 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			bq32000: bq32000@68 {
+				compatible = "ti,bq32000";
+				trickle-resistor-ohms = <0>;
+				reg = <0x68>;
+			};
+		};
+	};
+
+	fragment@20 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rv8803: rv8803@32 {
+				compatible = "microcrystal,rv8803";
+				reg = <0x32>;
+			};
+		};
+	};
+
+	fragment@21 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rv3032: rv3032@51 {
+				compatible = "microcrystal,rv3032";
+				reg = <0x51>;
+			};
+		};
+	};
+
+
+	__overrides__ {
+		abx80x = <0>,"+0";
+		ds1307 = <0>,"+1";
+		ds1339 = <0>,"+2";
+		ds1340 = <0>,"+17";
+		ds3231 = <0>,"+3";
+		mcp7940x = <0>,"+4";
+		mcp7941x = <0>,"+5";
+		pcf2127 = <0>,"+6";
+		pcf8523 = <0>,"+7";
+		pcf8563 = <0>,"+8";
+		m41t62 = <0>,"+9";
+		rv3028 = <0>,"+10";
+		pcf2129 = <0>,"+11";
+		pcf85363 = <0>,"+12";
+		rv1805 = <0>,"+13";
+		sd3078 = <0>,"+14";
+		pcf85063 = <0>,"+15";
+		pcf85063a = <0>,"+16";
+		s35390a = <0>,"+18";
+		bq32000 = <0>,"+19";
+		rv8803 = <0>,"+20";
+		rv3032 = <0>,"+21";
+
+		addr = <&abx80x>, "reg:0",
+		       <&ds1307>, "reg:0",
+		       <&ds1339>, "reg:0",
+		       <&ds3231>, "reg:0",
+		       <&mcp7940x>, "reg:0",
+		       <&mcp7941x>, "reg:0",
+		       <&pcf8523>, "reg:0",
+		       <&pcf8563>, "reg:0",
+		       <&m41t62>, "reg:0",
+		       <&rv1805>, "reg:0",
+		       <&s35390a>, "reg:0";
+		trickle-diode-disable = <&bq32000>,"trickle-diode-disable?";
+		trickle-diode-type = <&abx80x>,"abracon,tc-diode",
+				     <&rv1805>,"abracon,tc-diode";
+		trickle-resistor-ohms = <&ds1339>,"trickle-resistor-ohms:0",
+					<&ds1340>,"trickle-resistor-ohms:0",
+					<&abx80x>,"abracon,tc-resistor:0",
+					<&rv3028>,"trickle-resistor-ohms:0",
+					<&rv3032>,"trickle-resistor-ohms:0",
+					<&rv1805>,"abracon,tc-resistor:0",
+					<&bq32000>,"abracon,tc-resistor:0";
+		trickle-voltage-mv = <&rv3032>,"trickle-voltage-millivolts:0";
+		backup-switchover-mode = <&rv3028>,"backup-switchover-mode:0";
+		wakeup-source = <&ds1339>,"wakeup-source?",
+				<&ds3231>,"wakeup-source?",
+				<&mcp7940x>,"wakeup-source?",
+				<&mcp7941x>,"wakeup-source?",
+				<&m41t62>,"wakeup-source?",
+				<&pcf8563>,"wakeup-source?";
+	};
+};

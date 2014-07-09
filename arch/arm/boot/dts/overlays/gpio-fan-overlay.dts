@@ -1,0 +1,89 @@
+/*
+ * Overlay for the Raspberry Pi GPIO Fan @ BCM GPIO12.
+ * References: 
+ *	- https://www.raspberrypi.org/forums/viewtopic.php?f=107&p=1367135#p1365084
+ *
+ * Optional parameters:
+ *	- "gpiopin"	- BCM number of the pin driving the fan, default 12 (GPIO12);
+ * 	- "temp"	- CPU temperature at which fan is started in millicelsius, default 55000;
+ *
+ * Requires:
+ *	- kernel configurations: CONFIG_SENSORS_GPIO_FAN=m;
+ *	- kernel rebuild;
+ *	- N-MOSFET connected to gpiopin, 2N7002-[https://en.wikipedia.org/wiki/2N7000];
+ *	- DC Fan connected to N-MOSFET Drain terminal, a 12V fan is working fine and quite silently;
+ *	  [https://www.tme.eu/en/details/ee40101s1-999-a/dc12v-fans/sunon/ee40101s1-1000u-999/]
+ *
+ *                   ┌─────────────────────┐
+ *                   │Fan negative terminal│
+ *                   └┬────────────────────┘
+ *                    │D
+ *             G   │──┘
+ * [GPIO12]──────┤ │<─┐  2N7002
+ *                 │──┤
+ *                    │S
+ *                   ─┴─
+ *                   GND
+ *
+ * Build:
+ * 	- `sudo dtc -W no-unit_address_vs_reg -@ -I dts -O dtb -o /boot/overlays/gpio-fan.dtbo gpio-fan-overlay.dts`
+ * Activate:
+ *	- sudo nano /boot/config.txt add "dtoverlay=gpio-fan" or "dtoverlay=gpio-fan,gpiopin=12,temp=45000"
+ *	 or
+ *	- sudo sh -c 'printf "\n# Enable PI GPIO-Fan Default\ndtoverlay=gpio-fan\n" >> /boot/config.txt'
+ *	- sudo sh -c 'printf "\n# Enable PI GPIO-Fan Custom\ndtoverlay=gpio-fan,gpiopin=12,temp=45000\n" >> /boot/config.txt'
+ *
+ */
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			fan0: gpio-fan@0 {
+				compatible = "gpio-fan";
+				gpios = <&gpio 12 0>;
+				gpio-fan,speed-map = <0    0>,
+									 <5000 1>;
+				#cooling-cells = <2>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&cpu_thermal>;
+		__overlay__ {
+			polling-delay = <2000>;	/* milliseconds */
+		};
+	};
+
+	fragment@2 {
+		target = <&thermal_trips>;
+		__overlay__ {
+			cpu_hot: trip-point@0 {
+				temperature = <55000>;	/* (millicelsius) Fan started at 55°C */
+				hysteresis = <10000>;	/* (millicelsius) Fan stopped at 45°C */
+				type = "active";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&cooling_maps>;
+		__overlay__ {
+			map0 {
+				trip = <&cpu_hot>;
+				cooling-device = <&fan0 1 1>;
+			};
+		};
+	};
+
+	__overrides__ {
+		gpiopin = <&fan0>,"gpios:4", <&fan0>,"brcm,pins:0";
+		temp = <&cpu_hot>,"temperature:0";
+		hyst = <&cpu_hot>,"hysteresis:0";
+	};
+};
