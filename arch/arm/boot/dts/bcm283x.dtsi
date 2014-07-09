@@ -410,7 +410,7 @@
 			reg = <0x7e202000 0x100>;
 			interrupts = <2 24>;
 			clocks = <&clocks BCM2835_CLOCK_VPU>;
-			dmas = <&dma 13>;
+			dmas = <&dma (13|(1<<29))>;
 			dma-names = "rx-tx";
 			status = "disabled";
 		};
