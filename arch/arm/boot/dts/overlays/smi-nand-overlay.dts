@@ -1,0 +1,69 @@
+// Description: Overlay to enable NAND flash through
+// the secondary memory interface
+// Author:	Luke Wren
+
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&smi>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&smi_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&soc>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			nand: flash@0 {
+				compatible = "brcm,bcm2835-smi-nand";
+				smi_handle = <&smi>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				status = "okay";
+
+				partition@0 {
+					label = "stage2";
+					// 128k
+					reg = <0 0x20000>;
+					read-only;
+				};
+				partition@1 {
+					label = "firmware";
+					// 16M
+					reg = <0x20000 0x1000000>;
+					read-only;
+				};
+				partition@2 {
+					label = "root";
+					// 2G (will need to use 64 bit for >=4G)
+					reg = <0x1020000 0x80000000>;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&gpio>;
+		__overlay__ {
+			smi_pins: smi_pins {
+				brcm,pins = <0 1 2 3 4 5 6 7 8 9 10 11
+					12 13 14 15>;
+				/* Alt 1: SMI */
+				brcm,function = <5 5 5 5 5 5 5 5 5 5 5
+					5 5 5 5 5>;
+				/* /CS, /WE and /OE are pulled high, as they are
+				   generally active low signals */
+				brcm,pull = <2 2 2 2 2 2 2 2 0 0 0 0 0 0 0 0>;
+			};
+		};
+	};
+};
