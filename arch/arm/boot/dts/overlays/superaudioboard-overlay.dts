@@ -1,0 +1,73 @@
+// Definitions for SuperAudioBoard
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "simple-audio-card";
+			i2s-controller = <&i2s>;
+			status = "okay";
+
+			simple-audio-card,name = "SuperAudioBoard";
+
+			simple-audio-card,widgets =
+				"Line", "Line In",
+				"Line", "Line Out";
+
+			simple-audio-card,routing =
+				"Line Out","AOUTA+",
+				"Line Out","AOUTA-",
+				"Line Out","AOUTB+",
+				"Line Out","AOUTB-",
+				"AINA","Line In",
+				"AINB","Line In";
+
+			simple-audio-card,format = "i2s";
+
+			simple-audio-card,bitclock-master = <&sound_master>;
+			simple-audio-card,frame-master = <&sound_master>;
+
+			simple-audio-card,cpu {
+				sound-dai = <&i2s>;
+				dai-tdm-slot-num = <2>;
+				dai-tdm-slot-width = <32>;
+			};
+
+			sound_master: simple-audio-card,codec {
+				sound-dai = <&cs4271>;
+				system-clock-frequency = <24576000>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+    
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			cs4271: cs4271@10 {
+				#sound-dai-cells = <0>;
+				compatible = "cirrus,cs4271";
+				reg = <0x10>;
+				status = "okay";
+				reset-gpio = <&gpio 26 0>; /* Pin 26, active high */
+			};
+		};
+	};
+	__overrides__ {
+		gpiopin = <&cs4271>,"reset-gpio:4";
+	};
+};

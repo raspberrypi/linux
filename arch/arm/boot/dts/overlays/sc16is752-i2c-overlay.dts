@@ -1,0 +1,40 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c1>;
+
+		frag1: __overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sc16is752: sc16is752@48 {
+				compatible = "nxp,sc16is752";
+				reg = <0x48>; // i2c address
+				clocks = <&sc16is752_clk>;
+				interrupt-parent = <&gpio>;
+				interrupts = <24 0x2>; /* IRQ_TYPE_EDGE_FALLING */
+				gpio-controller;
+				#gpio-cells = <0>;
+				i2c-max-frequency = <400000>;
+				status = "okay";
+
+				sc16is752_clk: sc16is752_clk {
+					compatible = "fixed-clock";
+					#clock-cells = <0>;
+					clock-frequency = <14745600>;
+				};
+			};
+		};
+	};
+
+	__overrides__ {
+		int_pin = <&sc16is752>,"interrupts:0";
+		addr = <&sc16is752>,"reg:0";
+		xtal = <&sc16is752>,"clock-frequency:0";
+	};
+};
