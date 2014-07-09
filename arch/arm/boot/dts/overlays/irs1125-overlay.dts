@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for IRS1125 camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			irs1125: irs1125@3D {
+				compatible = "infineon,irs1125";
+				reg = <0x3D>;
+				status = "okay";
+
+				pwdn-gpios = <&gpio 5 0>;
+				clocks = <&irs1125_clk>;
+
+				port {
+					irs1125_0: endpoint {
+						remote-endpoint = <&csi1_ep>;
+						clock-lanes = <0>;
+						data-lanes = <1 2>;
+						clock-noncontinuous;
+						link-frequencies =
+							/bits/ 64 <297000000>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&csi1>;
+		__overlay__ {
+			status = "okay";
+
+			port {
+				csi1_ep: endpoint {
+					remote-endpoint = <&irs1125_0>;
+					data-lanes = <1 2>;
+					clock-noncontinuous;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target-path="/__overrides__";
+		__overlay__ {
+			cam0-pwdn-ctrl = <&irs1125>,"pwdn-gpios:0";
+			cam0-pwdn      = <&irs1125>,"pwdn-gpios:4";
+		};
+	};
+
+	fragment@5 {
+		target-path = "/";
+		__overlay__ {
+			irs1125_clk: camera-clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <26000000>;
+			};
+		};
+	};
+};

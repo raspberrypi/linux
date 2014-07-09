@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: GPL-2.0
+
+&uart0 {
+	bt: bluetooth {
+		compatible = "brcm,bcm43438-bt";
+		max-speed = <3000000>;
+		shutdown-gpios = <&expgpio 0 GPIO_ACTIVE_HIGH>;
+		status = "disabled";
+	};
+};
+
+&uart1 {
+	minibt: bluetooth {
+		compatible = "brcm,bcm43438-bt";
+		max-speed = <460800>;
+		shutdown-gpios = <&expgpio 0 GPIO_ACTIVE_HIGH>;
+		status = "disabled";
+	};
+};
+
+/ {
+	__overrides__ {
+		krnbt = <&bt>,"status";
+		krnbt_baudrate = <&bt>,"max-speed:0";
+	};
+};
