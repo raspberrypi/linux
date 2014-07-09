@@ -1,0 +1,175 @@
+/*
+ * mipi-dbi-spi-overlay.dts
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	spidev_fragment: fragment@0 {
+		target-path = "spi0/spidev@0";
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	panel_fragment: fragment@1 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			status = "okay";
+
+			panel: panel@0 {
+				compatible = "panel", "panel-mipi-dbi-spi";
+				reg = <0>;
+				spi-max-frequency = <32000000>;
+
+				width-mm = <0>;
+				height-mm = <0>;
+
+				timing: panel-timing {
+					hactive = <320>;
+					vactive = <240>;
+					hback-porch = <0>;
+					vback-porch = <0>;
+
+					clock-frequency = <0>;
+					hfront-porch = <0>;
+					hsync-len = <0>;
+					vfront-porch = <0>;
+					vsync-len = <0>;
+				};
+			};
+		};
+	};
+
+	fragment@10 {
+		target = <&panel>;
+		__dormant__  {
+			backlight = <&backlight_gpio>;
+		};
+	};
+
+	fragment@11 {
+		target-path = "/";
+		__dormant__  {
+			backlight_gpio: backlight_gpio {
+				compatible = "gpio-backlight";
+				gpios = <&gpio 255 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+
+	fragment@20 {
+		target = <&panel>;
+		__dormant__  {
+			backlight = <&backlight_pwm>;
+		};
+	};
+
+	fragment@21 {
+		target-path = "/";
+		__dormant__  {
+			backlight_pwm: backlight_pwm {
+				compatible = "pwm-backlight";
+				brightness-levels = <0 6 8 12 16 24 32 40 48 64 96 128 160 192 224 255>;
+				default-brightness-level = <16>;
+				pwms = <&pwm 0 200000>;
+			};
+		};
+	};
+
+	fragment@22 {
+		target = <&pwm>;
+		__dormant__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm_pins>;
+			assigned-clock-rates = <1000000>;
+			status = "okay";
+		};
+	};
+
+	fragment@23 {
+		target = <&gpio>;
+		__dormant__ {
+			pwm_pins: pwm_pins {
+				brcm,pins = <18>;
+				brcm,function = <2>; /* Alt5 */
+			};
+		};
+	};
+
+	fragment@24 {
+		target = <&chosen>;
+		__dormant__  {
+			bootargs = "snd_bcm2835.enable_headphones=0";
+		};
+	};
+
+	__overrides__ {
+		compatible    = <&panel>, "compatible";
+
+		spi0-0        = <&panel_fragment>, "target:0=",<&spi0>,
+				<&spidev_fragment>, "target-path=spi0/spidev@0",
+				<&panel>, "reg:0=0";
+		spi0-1        = <&panel_fragment>, "target:0=",<&spi0>,
+				<&spidev_fragment>, "target-path=spi0/spidev@1",
+				<&panel>, "reg:0=1";
+		spi1-0        = <&panel_fragment>, "target:0=",<&spi1>,
+				<&spidev_fragment>, "target-path=spi1/spidev@0",
+				<&panel>, "reg:0=0";
+		spi1-1        = <&panel_fragment>, "target:0=",<&spi1>,
+				<&spidev_fragment>, "target-path=spi1/spidev@1",
+				<&panel>, "reg:0=1";
+		spi1-2        = <&panel_fragment>, "target:0=",<&spi1>,
+				<&spidev_fragment>, "target-path=spi1/spidev@2",
+				<&panel>, "reg:0=2";
+		spi2-0        = <&panel_fragment>, "target:0=",<&spi2>,
+				<&spidev_fragment>, "target-path=spi2/spidev@0",
+				<&panel>, "reg:0=0";
+		spi2-1        = <&panel_fragment>, "target:0=",<&spi2>,
+				<&spidev_fragment>, "target-path=spi2/spidev@1",
+				<&panel>, "reg:0=1";
+		spi2-2        = <&panel_fragment>, "target:0=",<&spi2>,
+				<&spidev_fragment>, "target-path=spi2/spidev@2",
+				<&panel>, "reg:0=2";
+
+		speed         = <&panel>, "spi-max-frequency:0";
+		cpha          = <&panel>, "spi-cpha?";
+		cpol          = <&panel>, "spi-cpol?";
+
+		write-only    = <&panel>, "write-only?";
+
+		width         = <&timing>, "hactive:0";
+		height        = <&timing>, "vactive:0";
+		x-offset      = <&timing>, "hback-porch:0";
+		y-offset      = <&timing>, "vback-porch:0";
+		clock-frequency = <&timing>, "clock-frequency:0";
+
+		width-mm      = <&panel>, "width-mm:0";
+		height-mm     = <&panel>, "height-mm:0";
+
+		/* optional gpios */
+		reset-gpio    = <&panel>, "reset-gpios:0=", <&gpio>,
+				<&panel>, "reset-gpios:4",
+				<&panel>, "reset-gpios:8=0"; /* GPIO_ACTIVE_HIGH */
+		dc-gpio       = <&panel>, "dc-gpios:0=", <&gpio>,
+				<&panel>, "dc-gpios:4",
+				<&panel>, "dc-gpios:8=0"; /* GPIO_ACTIVE_HIGH */
+
+		backlight-gpio        = <0>, "+10+11",
+					<&backlight_gpio>, "gpios:4";
+		backlight-pwm         = <0>, "+20+21+22+23+24";
+		backlight-pwm-chan    = <&backlight_pwm>, "pwms:4";
+		backlight-pwm-gpio    = <&pwm_pins>, "brcm,pins:0";
+		backlight-pwm-func    = <&pwm_pins>, "brcm,function:0";
+		backlight-def-brightness = <&backlight_pwm>, "default-brightness-level:0";
+	};
+};
