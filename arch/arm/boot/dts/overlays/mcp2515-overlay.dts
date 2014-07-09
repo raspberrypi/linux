@@ -1,0 +1,156 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spidev0>;
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
+		target = <&spidev1>;
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target-path = "spi1/spidev@0";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
+		target-path = "spi1/spidev@1";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@4 {
+		target-path = "spi1/spidev@2";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@5 {
+		target-path = "spi2/spidev@0";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@6 {
+		target-path = "spi2/spidev@1";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@7 {
+		target-path = "spi2/spidev@2";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@8 {
+		target = <&gpio>;
+		__overlay__ {
+			mcp2515_pins: mcp2515_pins {
+				brcm,pins = <25>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+			};
+		};
+	};
+
+	fragment@9 {
+		target-path = "/clocks";
+		__overlay__ {
+			clk_mcp2515_osc: mcp2515-osc {
+				#clock-cells = <0>;
+				compatible = "fixed-clock";
+				clock-frequency = <16000000>;
+			};
+		};
+	};
+
+	mcp2515_frag: fragment@10 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mcp2515: mcp2515@0 {
+				compatible = "microchip,mcp2515";
+				reg = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&mcp2515_pins>;
+				spi-max-frequency = <10000000>;
+				interrupt-parent = <&gpio>;
+				interrupts = <25 IRQ_TYPE_LEVEL_LOW>;
+				clocks = <&clk_mcp2515_osc>;
+			};
+		};
+	};
+
+	__overrides__ {
+		spi0-0 = <0>, "+0",
+			<&mcp2515_frag>, "target:0=", <&spi0>,
+			<&mcp2515>, "reg:0=0",
+			<&mcp2515_pins>, "name=mcp2515_spi0_0_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi0-0-osc";
+		spi0-1 = <0>, "+1",
+			<&mcp2515_frag>, "target:0=", <&spi0>,
+			<&mcp2515>, "reg:0=1",
+			<&mcp2515_pins>, "name=mcp2515_spi0_1_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi0-1-osc";
+		spi1-0 = <0>, "+2",
+			<&mcp2515_frag>, "target:0=", <&spi1>,
+			<&mcp2515>, "reg:0=0",
+			<&mcp2515_pins>, "name=mcp2515_spi1_0_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi1-0-osc";
+		spi1-1 = <0>, "+3",
+			<&mcp2515_frag>, "target:0=", <&spi1>,
+			<&mcp2515>, "reg:0=1",
+			<&mcp2515_pins>, "name=mcp2515_spi1_1_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi1-1-osc";
+		spi1-2 = <0>, "+4",
+			<&mcp2515_frag>, "target:0=", <&spi1>,
+			<&mcp2515>, "reg:0=2",
+			<&mcp2515_pins>, "name=mcp2515_spi1_2_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi1-2-osc";
+		spi2-0 = <0>, "+5",
+			<&mcp2515_frag>, "target:0=", <&spi2>,
+			<&mcp2515>, "reg:0=0",
+			<&mcp2515_pins>, "name=mcp2515_spi2_0_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi2-0-osc";
+		spi2-1 = <0>, "+6",
+			<&mcp2515_frag>, "target:0=", <&spi2>,
+			<&mcp2515>, "reg:0=1",
+			<&mcp2515_pins>, "name=mcp2515_spi2_1_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi2-1-osc";
+		spi2-2 = <0>, "+7",
+			<&mcp2515_frag>, "target:0=", <&spi2>,
+			<&mcp2515>, "reg:0=2",
+			<&mcp2515_pins>, "name=mcp2515_spi2_2_pins",
+			<&clk_mcp2515_osc>, "name=mcp2515-spi2-2-osc";
+		oscillator = <&clk_mcp2515_osc>, "clock-frequency:0";
+		speed = <&mcp2515>, "spi-max-frequency:0";
+		interrupt = <&mcp2515_pins>, "brcm,pins:0",
+			<&mcp2515>, "interrupts:0";
+	};
+};
