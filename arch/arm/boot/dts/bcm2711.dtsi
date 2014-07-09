@@ -304,7 +304,7 @@
 		vec: vec@7ec13000 {
 			compatible = "brcm,bcm2711-vec";
 			reg = <0x7ec13000 0x1000>;
-			clocks = <&clocks BCM2835_CLOCK_VEC>;
+			clocks = <&firmware_clocks 15>;
 			interrupts = <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
@@ -320,9 +320,10 @@
 		aon_intr: interrupt-controller@7ef00100 {
 			compatible = "brcm,bcm2711-l2-intc", "brcm,l2-intc";
 			reg = <0x7ef00100 0x30>;
-			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 96 IRQ_TYPE_EDGE_RISING>;
 			interrupt-controller;
 			#interrupt-cells = <1>;
+			status = "disabled";
 		};
 
 		hdmi0: hdmi@7ef00700 {
@@ -335,7 +336,8 @@
 			      <0x7ef01f00 0x400>,
 			      <0x7ef00200 0x80>,
 			      <0x7ef04300 0x100>,
-			      <0x7ef20000 0x100>;
+			      <0x7ef20000 0x100>,
+			      <0x7ef00100 0x30>;
 			reg-names = "hdmi",
 				    "dvp",
 				    "phy",
@@ -344,7 +346,12 @@
 				    "metadata",
 				    "csc",
 				    "cec",
-				    "hd";
+				    "hd",
+				    "intr2";
+			clocks = <&firmware_clocks 13>,
+				 <&firmware_clocks 14>,
+				 <&dvp 0>,
+				 <&clk_27MHz>;
 			clock-names = "hdmi", "bvb", "audio", "cec";
 			resets = <&dvp 0>;
 			interrupt-parent = <&aon_intr>;
@@ -353,7 +360,7 @@
 			interrupt-names = "cec-tx", "cec-rx", "cec-low",
 					  "wakeup", "hpd-connected", "hpd-removed";
 			ddc = <&ddc0>;
-			dmas = <&dma 10>;
+			dmas = <&dma (10 | (1 << 27) | (1 << 24)| (15 << 20) | (10 << 16))>;
 			dma-names = "audio-rx";
 			status = "disabled";
 		};
@@ -376,7 +383,8 @@
 			      <0x7ef06f00 0x400>,
 			      <0x7ef00280 0x80>,
 			      <0x7ef09300 0x100>,
-			      <0x7ef20000 0x100>;
+			      <0x7ef20000 0x100>,
+			      <0x7ef00100 0x30>;
 			reg-names = "hdmi",
 				    "dvp",
 				    "phy",
@@ -385,16 +393,21 @@
 				    "metadata",
 				    "csc",
 				    "cec",
-				    "hd";
+				    "hd",
+				    "intr2";
 			ddc = <&ddc1>;
 			clock-names = "hdmi", "bvb", "audio", "cec";
+			clocks = <&firmware_clocks 13>,
+				 <&firmware_clocks 14>,
+				 <&dvp 0>,
+				 <&clk_27MHz>;
 			resets = <&dvp 1>;
 			interrupt-parent = <&aon_intr>;
-			interrupts = <8>, <7>, <6>,
+			interrupts = <8>, <7>, <6>,	// This is correct
 				     <9>, <10>, <11>;
 			interrupt-names = "cec-tx", "cec-rx", "cec-low",
 					  "wakeup", "hpd-connected", "hpd-removed";
-			dmas = <&dma 17>;
+			dmas = <&dma (17 | (1 << 27) | (1 << 24)| (15 << 20) | (10 << 16))>;
 			dma-names = "audio-rx";
 			status = "disabled";
 		};
@@ -545,14 +558,14 @@
 	scb {
 		compatible = "simple-bus";
 		#address-cells = <2>;
-		#size-cells = <1>;
+		#size-cells = <2>;
 
-		ranges = <0x0 0x7c000000  0x0 0xfc000000  0x03800000>,
-			 <0x6 0x00000000  0x6 0x00000000  0x40000000>;
+		ranges = <0x0 0x7c000000  0x0 0xfc000000  0x0 0x03800000>,
+			 <0x6 0x00000000  0x6 0x00000000  0x0 0x40000000>;
 
 		pcie0: pcie@7d500000 {
 			compatible = "brcm,bcm2711-pcie";
-			reg = <0x0 0x7d500000 0x9310>;
+			reg = <0x0 0x7d500000  0x0 0x9310>;
 			device_type = "pci";
 			#address-cells = <3>;
 			#interrupt-cells = <1>;
@@ -572,8 +585,8 @@
 			msi-controller;
 			msi-parent = <&pcie0>;
 
-			ranges = <0x02000000 0x0 0xf8000000 0x6 0x00000000
-				  0x0 0x04000000>;
+			ranges = <0x02000000 0x0 0xc0000000 0x6 0x00000000
+				  0x0 0x40000000>;
 			/*
 			 * The wrapper around the PCIe block has a bug
 			 * preventing it from accessing beyond the first 3GB of
@@ -586,7 +599,7 @@
 
 		genet: ethernet@7d580000 {
 			compatible = "brcm,bcm2711-genet-v5";
-			reg = <0x0 0x7d580000 0x10000>;
+			reg = <0x0 0x7d580000  0x0 0x10000>;
 			#address-cells = <0x1>;
 			#size-cells = <0x1>;
 			interrupts = <GIC_SPI 157 IRQ_TYPE_LEVEL_HIGH>,
@@ -1096,7 +1109,7 @@
 	alloc-ranges = <0x0 0x00000000 0x40000000>;
 };
 
-&i2c0 {
+&i2c0if {
 	compatible = "brcm,bcm2711-i2c", "brcm,bcm2835-i2c";
 	interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
 };
@@ -1151,9 +1164,4 @@
 
 &usb {
 	interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
-};
-
-&vec {
-	compatible = "brcm,bcm2711-vec";
-	interrupts = <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>;
 };
