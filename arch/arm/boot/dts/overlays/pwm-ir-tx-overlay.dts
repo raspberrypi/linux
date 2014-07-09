@@ -1,0 +1,40 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			pwm0_pins: pwm0_pins {
+				brcm,pins = <18>;
+				brcm,function = <2>; /* Alt5 */
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&pwm>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm0_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			pwm-ir-transmitter {
+				compatible = "pwm-ir-tx";
+				pwms = <&pwm 0 100>;
+			};
+		};
+	};
+
+	__overrides__ {
+		gpio_pin = <&pwm0_pins>, "brcm,pins:0";
+		func = <&pwm0_pins>,"brcm,function:0";
+	};
+};

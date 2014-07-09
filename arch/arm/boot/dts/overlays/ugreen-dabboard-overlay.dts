@@ -1,0 +1,49 @@
+// Definitions for the ugreen dabboard I2S
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			dmic_codec: dmic-codec {
+				#sound-dai-cells = <0>;
+				compatible = "dmic-codec";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		sound_overlay: __overlay__ {
+			compatible = "simple-audio-card";
+			simple-audio-card,format = "i2s";
+			simple-audio-card,name = "dabboard";
+			simple-audio-card,bitclock-master = <&dailink0_slave>;
+			simple-audio-card,frame-master = <&dailink0_slave>;
+			simple-audio-card,widgets = "Microphone", "Microphone Jack";
+			status = "okay";
+			simple-audio-card,cpu {
+				sound-dai = <&i2s>;
+			};
+			dailink0_slave: simple-audio-card,codec {
+				#sound-dai-cells = <0>;
+				sound-dai = <&dmic_codec>;
+			};
+		};
+	};
+
+	__overrides__ {
+		card-name = <&sound_overlay>,"simple-audio-card,name";
+	};
+};

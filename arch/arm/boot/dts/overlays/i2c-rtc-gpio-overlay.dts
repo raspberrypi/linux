@@ -1,0 +1,31 @@
+// Definitions for several I2C based Real Time Clocks
+// Available through i2c-gpio
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+#include "i2c-rtc-common.dtsi"
+
+/ {
+	fragment@100 {
+		target-path = "/";
+		__overlay__ {
+			i2cbus: i2c-gpio-rtc@0 {
+				compatible = "i2c-gpio";
+				gpios = <&gpio 23 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN) /* sda */
+					 &gpio 24 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN) /* scl */
+					>;
+				i2c-gpio,delay-us = <2>;        /* ~100 kHz */
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		i2c_gpio_sda = <&i2cbus>,"gpios:4";
+		i2c_gpio_scl = <&i2cbus>,"gpios:16";
+		i2c_gpio_delay_us = <&i2cbus>,"i2c-gpio,delay-us:0";
+	};
+};

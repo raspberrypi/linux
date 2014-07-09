@@ -1,0 +1,8 @@
+#include "bcm2708-rpi.dtsi"
+
+&vchiq {
+	compatible = "brcm,bcm2836-vchiq", "brcm,bcm2835-vchiq";
+};
+
+i2c_arm: &i2c1 {};
+i2c_vc: &i2c0 {};
