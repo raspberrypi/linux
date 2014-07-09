@@ -15,6 +15,7 @@
 		ethernet0 = &genet;
 		pcie0 = &pcie0;
 		blconfig = &blconfig;
+		blpubkey = &blpubkey;
 	};
 };
 
@@ -61,6 +62,18 @@
 	 */
 	blconfig: nvram@0 {
 		compatible = "raspberrypi,bootloader-config", "nvmem-rmem";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0 0x0 0x0>;
+		no-map;
+		status = "disabled";
+	};
+	/*
+	 * RPi4 will copy the binary public key blob (if present) from the bootloader
+	 * into memory for use by the OS.
+	 */
+	blpubkey: nvram@1 {
+		compatible = "raspberrypi,bootloader-public-key", "nvmem-rmem";
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x0 0x0 0x0>;

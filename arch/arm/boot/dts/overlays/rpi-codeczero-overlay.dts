@@ -1,0 +1,9 @@
+// Overlay for the Raspberry Pi Codec Zero soundcard
+
+#include "iqaudio-codec-overlay.dts"
+
+&iqaudio_dac {
+	card_name = "RPi Codec Zero";
+	dai_name = "Raspberry Pi Codec Zero";
+	dai_stream_name = "Raspberry Pi Codec Zero HiFi";
+};

@@ -1,0 +1,27 @@
+#include "bcm2708.dtsi"
+#include "bcm2708-rpi.dtsi"
+#include "bcm283x-rpi-led-deprecated.dtsi"
+
+&led_act {
+	gpios = <&gpio 47 GPIO_ACTIVE_HIGH>;
+	default-state = "off";
+	linux,default-trigger = "mmc0";
+};
+
+i2c_arm: &i2c1 {
+};
+
+i2c_vc: &i2c0 {
+};
+
+/ {
+	__overrides__ {
+		act_led_gpio = <&led_act>,"gpios:4";
+		act_led_activelow = <&led_act>,"gpios:8";
+		act_led_trigger = <&led_act>,"linux,default-trigger";
+		cam0_reg = <&cam0_reg>,"status";
+		cam0_reg_gpio = <&cam0_reg>,"gpio:4";
+		cam1_reg = <&cam1_reg>,"status";
+		cam1_reg_gpio = <&cam1_reg>,"gpio:4";
+	};
+};

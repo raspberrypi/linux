@@ -1,0 +1,57 @@
+// Definitions for Piano DAC
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			allo_pcm5122_4c: pcm5122@4c {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm5122";
+				reg = <0x4c>;
+				sound-name-prefix = "Main";
+				status = "okay";
+			};
+			allo_pcm5122_4d: pcm5122@4d {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm5122";
+				reg = <0x4d>;
+				sound-name-prefix = "Sub";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		piano_dac: __overlay__ {
+			compatible = "allo,piano-dac-plus";
+			audio-codec = <&allo_pcm5122_4c &allo_pcm5122_4d>;
+			i2s-controller = <&i2s>;
+			mute1-gpios = <&gpio 6 1>;
+			mute2-gpios = <&gpio 25 1>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		24db_digital_gain =
+			<&piano_dac>,"allo,24db_digital_gain?";
+		glb_mclk =
+			<&piano_dac>,"allo,glb_mclk?";
+	};
+};
