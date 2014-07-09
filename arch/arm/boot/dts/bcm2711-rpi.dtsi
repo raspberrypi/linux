@@ -1,0 +1,201 @@
+// SPDX-License-Identifier: GPL-2.0
+#include "bcm270x-rpi.dtsi"
+
+/ {
+	__overrides__ {
+		arm_freq;
+	};
+
+	v3dbus: v3dbus {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <2>;
+		ranges = <0x7c500000  0x0 0xfc500000  0x0 0x03300000>,
+			 <0x40000000  0x0 0xff800000  0x0 0x00800000>;
+		dma-ranges = <0x00000000  0x0 0x00000000  0x4 0x00000000>;
+
+		v3d: v3d@7ec04000 {
+			compatible = "brcm,2711-v3d";
+			reg =
+			    <0x7ec00000  0x0 0x4000>,
+			    <0x7ec04000  0x0 0x4000>;
+			reg-names = "hub", "core0";
+
+			power-domains = <&pm BCM2835_POWER_DOMAIN_GRAFX_V3D>;
+			resets = <&pm BCM2835_RESET_V3D>;
+			clocks = <&firmware_clocks 5>;
+			clocks-names = "v3d";
+			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+	};
+
+	scb: scb {
+	     /* Add a label */
+	};
+};
+
+&cma {
+	/* Limit cma to the lower 768MB to allow room for HIGHMEM on 32-bit */
+	alloc-ranges = <0x0 0x00000000 0x30000000>;
+};
+
+&scb {
+	ranges = <0x0 0x7c000000  0x0 0xfc000000  0x0 0x03800000>,
+		 <0x0 0x40000000  0x0 0xff800000  0x0 0x00800000>,
+		 <0x6 0x00000000  0x6 0x00000000  0x0 0x40000000>,
+		 <0x0 0x00000000  0x0 0x00000000  0x0 0xfc000000>;
+	dma-ranges = <0x0 0x00000000  0x0 0x00000000  0x4 0x00000000>;
+
+	dma40: dma@7e007b00 {
+		compatible = "brcm,bcm2711-dma";
+		reg = <0x0 0x7e007b00  0x0 0x400>;
+		interrupts =
+			<GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>, /* dma4 11 */
+			<GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>, /* dma4 12 */
+			<GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>, /* dma4 13 */
+			<GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>; /* dma4 14 */
+		interrupt-names = "dma11",
+			"dma12",
+			"dma13",
+			"dma14";
+		#dma-cells = <1>;
+		brcm,dma-channel-mask = <0x7800>;
+	};
+
+	xhci: xhci@7e9c0000 {
+		compatible = "generic-xhci";
+		status = "disabled";
+		reg = <0x0 0x7e9c0000  0x0 0x100000>;
+		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>;
+		power-domains = <&power RPI_POWER_DOMAIN_USB>;
+	};
+
+	hevc-decoder@7eb00000 {
+		compatible = "raspberrypi,rpivid-hevc-decoder";
+		reg = <0x0 0x7eb00000  0x0 0x10000>;
+		status = "okay";
+	};
+
+	rpivid-local-intc@7eb10000 {
+		compatible = "raspberrypi,rpivid-local-intc";
+		reg = <0x0 0x7eb10000  0x0 0x1000>;
+		status = "okay";
+		interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	h264-decoder@7eb20000 {
+		compatible = "raspberrypi,rpivid-h264-decoder";
+		reg = <0x0 0x7eb20000  0x0 0x10000>;
+		status = "okay";
+	};
+
+	vp9-decoder@7eb30000 {
+		compatible = "raspberrypi,rpivid-vp9-decoder";
+		reg = <0x0 0x7eb30000  0x0 0x10000>;
+		status = "okay";
+	};
+};
+
+&dma40 {
+	/* The VPU firmware uses DMA channel 11 for VCHIQ */
+	brcm,dma-channel-mask = <0x7000>;
+};
+
+&vchiq {
+	compatible = "brcm,bcm2711-vchiq";
+};
+
+&firmwarekms {
+	compatible = "raspberrypi,rpi-firmware-kms-2711";
+	interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&smi {
+	interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mmc {
+	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mmcnr {
+	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&csi0 {
+	interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&csi1 {
+	interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&random {
+	compatible = "brcm,bcm2711-rng200";
+	status = "okay";
+};
+
+&usb {
+	/* Enable the FIQ support */
+	reg = <0x7e980000 0x10000>,
+	      <0x7e00b200 0x200>;
+	interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+	status = "disabled";
+};
+
+&gpio {
+	interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&emmc2 {
+	mmc-ddr-3_3v;
+};
+
+&vc4 {
+	status = "disabled";
+};
+
+&pixelvalve0 {
+	status = "disabled";
+};
+
+&pixelvalve1 {
+	status = "disabled";
+};
+
+&pixelvalve2 {
+	status = "disabled";
+};
+
+&pixelvalve3 {
+	status = "disabled";
+};
+
+&pixelvalve4 {
+	status = "disabled";
+};
+
+&hdmi0 {
+	dmas = <&dma (10|(1<<27)|(1<<24)|(10<<16)|(15<<20))>;
+	status = "disabled";
+};
+
+&ddc0 {
+	status = "disabled";
+};
+
+&hdmi1 {
+	dmas = <&dma (17|(1<<27)|(1<<24)|(10<<16)|(15<<20))>;
+	status = "disabled";
+};
+
+&ddc1 {
+	status = "disabled";
+};
+
+&dvp {
+	status = "disabled";
+};
