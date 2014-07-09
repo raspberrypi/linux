@@ -1,0 +1,46 @@
+// Overlay for the Qualcomm Atheros QCA7000 on PLC Stamp micro EVK
+// Visit: https://in-tech-smartcharging.com/products/evaluation-tools/plc-stamp-micro-2-evaluation-board for details
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&uart0>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart0_pins>;
+			status = "okay";
+
+			eth2: qca7000 {
+				compatible = "qca,qca7000";
+				current-speed = <115200>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			uart0_pins: uart0_ovl_pins {
+				brcm,pins = <14 15>;
+				brcm,function = <4>; /* alt0 */
+				brcm,pull = <0 2>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/aliases";
+		__overlay__ {
+			serial0 = "/soc/serial@7e201000";
+			serial1 = "/soc/serial@7e215040";
+		};
+	};
+
+	__overrides__ {
+		baudrate = <&eth2>, "current-speed:0";
+	};
+};
