@@ -1,0 +1,45 @@
+// Definitions for RaspiDACv3
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "jg,raspidacv3";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcm5122@4c {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm5122";
+				reg = <0x4c>;
+				status = "okay";
+			};
+
+			tpa6130a2: tpa6130a2@60 {
+				compatible = "ti,tpa6130a2";
+				reg = <0x60>;
+				status = "okay";
+			};
+		};
+	};
+};

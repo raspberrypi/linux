@@ -1,0 +1,102 @@
+#include "bcm2708_common.dtsi"
+
+/ {
+	compatible = "brcm,bcm2710","brcm,bcm2709";
+	model = "BCM2710";
+
+	chosen {
+		/* No padding required - the boot loader can do that. */
+		bootargs = "";
+	};
+
+	soc {
+		ranges = <0x7e000000 0x3f000000 0x01000000>,
+		         <0x40000000 0x40000000 0x00040000>;
+
+		local_intc: local_intc {
+			compatible = "brcm,bcm2836-l1-intc";
+			reg = <0x40000000 0x100>;
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			interrupt-parent = <&local_intc>;
+		};
+
+		arm-pmu {
+			compatible = "arm,cortex-a7-pmu";
+			interrupt-parent = <&local_intc>;
+			interrupts = <9>;
+		};
+
+		gpiomem {
+			compatible = "brcm,bcm2835-gpiomem";
+			reg = <0x7e200000 0x1000>;
+			status = "okay";
+		};
+
+		timer {
+			compatible = "arm,armv7-timer";
+			clock-frequency = <19200000>;
+			interrupt-parent = <&local_intc>;
+			interrupts = <0>, // PHYS_SECURE_PPI
+				     <1>, // PHYS_NONSECURE_PPI
+				     <3>, // VIRT_PPI
+				     <2>; // HYP_PPI
+			always-on;
+		};
+
+		syscon@40000000 {
+			compatible = "brcm,bcm2836-arm-local", "syscon";
+			reg = <0x40000000 0x100>;
+		};
+	};
+
+	cpus: cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		v7_cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0x000>;
+			clock-frequency = <800000000>;
+		};
+
+		v7_cpu1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0x001>;
+			clock-frequency = <800000000>;
+		};
+
+		v7_cpu2: cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0x002>;
+			clock-frequency = <800000000>;
+		};
+
+		v7_cpu3: cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0x003>;
+			clock-frequency = <800000000>;
+		};
+	};
+
+	__overrides__ {
+		arm_freq = <&v7_cpu0>, "clock-frequency:0",
+		       <&v7_cpu1>, "clock-frequency:0",
+		       <&v7_cpu2>, "clock-frequency:0",
+		       <&v7_cpu3>, "clock-frequency:0";
+	};
+};
+
+&watchdog {
+	status = "okay";
+};
+
+&intc {
+        compatible = "brcm,bcm2836-armctrl-ic";
+        interrupt-parent = <&local_intc>;
+        interrupts = <8>;
+};
