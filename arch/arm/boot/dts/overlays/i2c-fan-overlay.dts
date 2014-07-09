@@ -1,0 +1,92 @@
+// Definitions for I2C based sensors using the Industrial IO or HWMON interface.
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/thermal/thermal.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			emc2301: emc2301@2f {
+				compatible = "microchip,emc2301";
+				reg = <0x2f>;
+				status = "okay";
+				#cooling-cells = <0x02>;
+			};
+		};
+	};
+
+	frag100: fragment@100 {
+		target = <&i2c_arm>;
+		i2cbus: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@101 {
+		target = <&i2c0if>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
+	fragment@102 {
+		target = <&i2c0mux>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
+	fragment@103 {
+		target = <&cpu_thermal>;
+		polling-delay = <2000>; /* milliseconds */
+		__overlay__ {
+			trips {
+				fanmid0: fanmid0 {
+					temperature = <50000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				fanmax0: fanmax0 {
+					temperature = <75000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+			};
+			cooling-maps {
+				map0: map0 {
+					trip = <&fanmid0>;
+					cooling-device = <&emc2301 2 6>;
+				};
+				map1: map1 {
+					trip = <&fanmax0>;
+					cooling-device = <&emc2301 7 THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+	};
+
+	__overrides__ {
+		i2c0 =		<&frag100>,"target:0=",<&i2c0>;
+		i2c_csi_dsi =	<&frag100>,"target:0=",<&i2c_csi_dsi>,
+				<0>,"+101+102";
+		addr =		<&emc2301>,"reg:0";
+		minpwm =	<&emc2301>,"emc2305,pwm-min;0";
+		maxpwm =	<&emc2301>,"emc2305,pwm-max;0";
+		midtemp =	<&fanmid0>,"temperature:0";
+		midtemp_hyst =	<&fanmid0>,"hysteresis:0";
+		maxtemp =	<&fanmax0>,"temperature:0";
+		maxtemp_hyst =	<&fanmax0>,"hysteresis:0";
+
+		emc2301 =	<0>,"+0",
+				<&map0>,"cooling-device:0=",<&emc2301>,
+				<&map1>,"cooling-device:0=",<&emc2301>;
+	};
+};

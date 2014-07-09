@@ -161,3 +161,8 @@
 &wifi_pwrseq {
 	reset-gpios = <&expgpio 1 GPIO_ACTIVE_LOW>;
 };
+
+/* i2c on camera/display connector is gpio 44&45 */
+&i2c0mux {
+	pinctrl-1 = <&i2c0_gpio44>;
+};
