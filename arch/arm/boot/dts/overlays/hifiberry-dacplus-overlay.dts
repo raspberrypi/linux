@@ -1,0 +1,56 @@
+// Definitions for HiFiBerry DAC+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target-path = "/clocks";
+		__overlay__ {
+			dacpro_osc: dacpro_osc {
+				compatible = "hifiberry,dacpro-clk";
+				#clock-cells = <0>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcm5122@4d {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm5122";
+				reg = <0x4d>;
+				clocks = <&dacpro_osc>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&sound>;
+		hifiberry_dacplus: __overlay__ {
+			compatible = "hifiberry,hifiberry-dacplus";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		24db_digital_gain =
+			<&hifiberry_dacplus>,"hifiberry,24db_digital_gain?";
+		slave = <&hifiberry_dacplus>,"hifiberry-dacplus,slave?";
+	};
+};
