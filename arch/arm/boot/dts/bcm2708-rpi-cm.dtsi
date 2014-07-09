@@ -1,0 +1,52 @@
+#include "bcm2708.dtsi"
+
+&gpio {
+	sdhost_pins: sdhost_pins {
+		brcm,pins = <48 49 50 51 52 53>;
+		brcm,function = <4>; /* alt0 */
+	};
+};
+
+&gpio {
+	mmc_pins: mmc_pins {
+		brcm,pins = <48 49 50 51 52 53>;
+		brcm,function = <7>; /* alt3 */
+	};
+};
+
+&leds {
+	act_led: act {
+		label = "led0";
+		linux,default-trigger = "mmc0";
+		gpios = <&gpio 47 0>;
+	};
+};
+
+
+&mmc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&mmc_pins>;
+	non-removable;
+	bus-width = <4>;
+	status = "okay";
+	brcm,overclock-50 = <0>;
+};
+
+&fb {
+	status = "okay";
+};
+
+/ {
+	__overrides__ {
+		core_freq = <&clk_core>,"clock-frequency:0";
+
+		act_led_gpio = <&act_led>,"gpios:4";
+		act_led_activelow = <&act_led>,"gpios:8";
+		act_led_trigger = <&act_led>,"linux,default-trigger";
+
+		audio = <&audio>,"status";
+		watchdog = <&watchdog>,"status";
+		random = <&random>,"status";
+		sd_overclock = <&mmc>,"brcm,overclock-50:0";
+	};
+};
