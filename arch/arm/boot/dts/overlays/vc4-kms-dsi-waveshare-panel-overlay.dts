@@ -1,0 +1,123 @@
+/*
+ * Device Tree overlay for Waveshare DSI Touchscreens
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&dsi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+		};
+	};
+
+	frag2: fragment@2 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			panel: panel_disp1@45 {
+				reg = <0x45>;
+				compatible = "waveshare,10.1inch-panel";
+
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+
+			touch: goodix@14 {
+				reg = <0x14>;
+				compatible = "goodix,gt911";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		2_8_inch = <&panel>, "compatible=waveshare,2.8inch-panel",
+				   <&touch>, "touchscreen-size-x:0=640",
+				   <&touch>, "touchscreen-size-y:0=480",
+				   <&touch>, "touchscreen-inverted-y?",
+				   <&touch>, "touchscreen-swapped-x-y?";
+		3_4_inch = <&panel>, "compatible=waveshare,3.4inch-panel",
+				   <&touch>, "touchscreen-size-x:0=800",
+				   <&touch>, "touchscreen-size-y:0=800";
+		4_0_inch = <&panel>, "compatible=waveshare,4.0inch-panel",
+				   <&touch>, "touchscreen-size-x:0=800",
+				   <&touch>, "touchscreen-size-y:0=480",
+				   <&touch>, "touchscreen-inverted-x?",
+				   <&touch>, "touchscreen-swapped-x-y?";
+		7_0_inchC = <&panel>, "compatible=waveshare,7.0inch-c-panel",
+				   <&touch>, "touchscreen-size-x:0=800",
+				   <&touch>, "touchscreen-size-y:0=480";
+		7_9_inch = <&panel>, "compatible=waveshare,7.9inch-panel",
+				   <&touch>, "touchscreen-size-x:0=400",
+				   <&touch>, "touchscreen-size-y:0=1280",
+				   <&touch>, "touchscreen-inverted-x?",
+				   <&touch>, "touchscreen-inverted-y?";
+		8_0_inch = <&panel>, "compatible=waveshare,8.0inch-panel",
+				   <&touch>, "touchscreen-size-x:0=800",
+				   <&touch>, "touchscreen-size-y:0=1280",
+				   <&touch>, "touchscreen-inverted-x?",
+				   <&touch>, "touchscreen-swapped-x-y?";
+		10_1_inch = <&panel>, "compatible=waveshare,10.1inch-panel",
+				   <&touch>, "touchscreen-size-x:0=800",
+				   <&touch>, "touchscreen-size-y:0=1280",
+				   <&touch>, "touchscreen-inverted-x?",
+				   <&touch>, "touchscreen-swapped-x-y?";
+		11_9_inch = <&panel>, "compatible=waveshare,11.9inch-panel",
+				   <&touch>, "touchscreen-size-x:0=320",
+				   <&touch>, "touchscreen-size-y:0=1480",
+				   <&touch>, "touchscreen-inverted-x?",
+				   <&touch>, "touchscreen-swapped-x-y?";
+		i2c1 = <&frag2>, "target:0=",<&i2c1>,
+		       <0>, "-3-4+5";
+		disable_touch = <&touch>, "status=disabled";
+		rotation = <&panel>, "rotation:0";
+		invx = <&touch>,"touchscreen-inverted-x?";
+		invy = <&touch>,"touchscreen-inverted-y?";
+		swapxy = <&touch>,"touchscreen-swapped-x-y?";
+	};
+};
