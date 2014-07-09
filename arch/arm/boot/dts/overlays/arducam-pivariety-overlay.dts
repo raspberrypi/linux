@@ -1,0 +1,94 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for Arducam Pivariety camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	i2c_frag: fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			arducam_pivariety: arducam_pivariety@c {
+				compatible = "arducam,arducam-pivariety";
+				reg = <0x0c>;
+				status = "okay";
+
+				clocks = <&cam1_clk>;
+				clock-names = "xclk";
+
+				VANA-supply = <&cam1_reg>;	/* 2.8v */
+				VDIG-supply = <&cam_dummy_reg>;	/* 1.8v */
+				VDDL-supply = <&cam_dummy_reg>;	/* 1.2v */
+
+				rotation = <0>;
+				orientation = <2>;
+
+				port {
+					arducam_pivariety_0: endpoint {
+						remote-endpoint = <&csi1_ep>;
+						clock-lanes = <0>;
+						data-lanes = <1 2>;
+						clock-noncontinuous;
+						link-frequencies =
+							/bits/ 64 <493500000>;
+					};
+				};
+			};
+		};
+	};
+
+	csi_frag: fragment@1 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+			brcm,media-controller;
+
+			port{
+				csi1_ep: endpoint{
+					remote-endpoint = <&arducam_pivariety_0>;
+					clock-lanes = <0>;
+					data-lanes = <1 2>;
+					clock-noncontinuous;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@3 {
+		target = <&cam1_clk>;
+		__overlay__ {
+			clock-frequency = <24000000>;
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		rotation = <&arducam_pivariety>,"rotation:0";
+		orientation = <&arducam_pivariety>,"orientation:0";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&arducam_pivariety>, "clocks:0=",<&cam0_clk>,
+		       <&arducam_pivariety>, "VANA-supply:0=",<&cam0_reg>;
+	};
+};
