@@ -1,0 +1,47 @@
+/dts-v1/;
+/plugin/;
+
+/*
+This is the 2-channel overlay - only use it if you need both channels.
+
+Legal pin,function combinations for each channel:
+  PWM0: 12,4(Alt0) 18,2(Alt5) 40,4(Alt0)            52,5(Alt1)
+  PWM1: 13,4(Alt0) 19,2(Alt5) 41,4(Alt0) 45,4(Alt0) 53,5(Alt1)
+
+N.B.:
+  1) Pin 18 is the only one available on all platforms, and
+     it is the one used by the I2S audio interface.
+     Pins 12 and 13 might be better choices on an A+, B+ or Pi2.
+  2) The onboard analogue audio output uses both PWM channels.
+  3) So be careful mixing audio and PWM.
+*/
+
+/ {
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			pwm_pins: pwm_pins {
+				brcm,pins = <18 19>;
+				brcm,function = <2 2>; /* Alt5 */
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&pwm>;
+		frag1: __overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm_pins>;
+			assigned-clock-rates = <100000000>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		pin   = <&pwm_pins>,"brcm,pins:0";
+		pin2  = <&pwm_pins>,"brcm,pins:4";
+		func  = <&pwm_pins>,"brcm,function:0";
+		func2 = <&pwm_pins>,"brcm,function:4";
+		clock = <&frag1>,"assigned-clock-rates:0";
+	};
+};
