@@ -1,0 +1,29 @@
+#include "bcm2837.dtsi"
+#include "bcm270x.dtsi"
+#include "bcm2709-rpi.dtsi"
+
+/ {
+	compatible = "brcm,bcm2837", "brcm,bcm2836";
+
+	soc {
+
+		arm-pmu {
+#ifdef RPI364
+			compatible = "arm,armv8-pmuv3", "arm,cortex-a7-pmu";
+#else
+			compatible = "arm,cortex-a7-pmu";
+#endif
+			interrupt-parent = <&local_intc>;
+			interrupts = <9 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		/delete-node/ timer@7e003000;
+	};
+
+	__overrides__ {
+		arm_freq = <&cpu0>, "clock-frequency:0",
+		       <&cpu1>, "clock-frequency:0",
+		       <&cpu2>, "clock-frequency:0",
+		       <&cpu3>, "clock-frequency:0";
+	};
+};
