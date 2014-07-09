@@ -1,0 +1,12 @@
+#include "bcm2835.dtsi"
+#include "bcm270x.dtsi"
+
+/ {
+	__overrides__ {
+		arm_freq;
+	};
+};
+
+&vc4 {
+	status = "disabled";
+};
