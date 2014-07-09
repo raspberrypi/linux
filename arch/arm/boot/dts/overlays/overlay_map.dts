@@ -1,0 +1,162 @@
+/dts-v1/;
+
+/ {
+	bmp085_i2c-sensor {
+		deprecated = "use i2c-sensor,bmp085";
+	};
+
+	cutiepi-panel {
+		bcm2711;
+	};
+
+	highperi {
+		bcm2711;
+	};
+
+	i2c0-bcm2708 {
+		deprecated = "use i2c0";
+	};
+
+	i2c1-bcm2708 {
+		deprecated = "use i2c1";
+	};
+
+	i2c3 {
+		bcm2711;
+	};
+
+	i2c4 {
+		bcm2711;
+	};
+
+	i2c5 {
+		bcm2711;
+	};
+
+	i2c6 {
+		bcm2711;
+	};
+
+	lirc-rpi {
+		deprecated = "use gpio-ir";
+	};
+
+	pcie-32bit-dma {
+		bcm2711;
+	};
+
+	pi3-act-led {
+		renamed = "act-led";
+	};
+
+	pi3-disable-bt {
+		renamed = "disable-bt";
+	};
+
+	pi3-disable-wifi {
+		renamed = "disable-wifi";
+	};
+
+	pi3-miniuart-bt {
+		renamed = "miniuart-bt";
+	};
+
+	rpivid-v4l2 {
+		bcm2711;
+	};
+
+	sdio-1bit {
+		deprecated = "use sdio,bus_width=1,gpios_22_25";
+	};
+
+	sdtweak {
+		deprecated = "use 'dtparam=sd_poll_once' etc.";
+	};
+
+	spi0-cs {
+		renamed = "spi0-2cs";
+	};
+
+	spi0-hw-cs {
+		deprecated = "no longer necessary";
+	};
+
+	spi3-1cs {
+		bcm2711;
+	};
+
+	spi3-2cs {
+		bcm2711;
+	};
+
+	spi4-1cs {
+		bcm2711;
+	};
+
+	spi4-2cs {
+		bcm2711;
+	};
+
+	spi5-1cs {
+		bcm2711;
+	};
+
+	spi5-2cs {
+		bcm2711;
+	};
+
+	spi6-1cs {
+		bcm2711;
+	};
+
+	spi6-2cs {
+		bcm2711;
+	};
+
+	uart2 {
+		bcm2711;
+	};
+
+	uart3 {
+		bcm2711;
+	};
+
+	uart4 {
+		bcm2711;
+	};
+
+	uart5 {
+		bcm2711;
+	};
+
+	upstream {
+		bcm2835;
+		bcm2711 = "upstream-pi4";
+	};
+
+	upstream-aux-interrupt {
+		deprecated = "no longer necessary";
+	};
+
+	upstream-pi4 {
+		bcm2711;
+	};
+
+	vc4-fkms-v3d {
+		bcm2835;
+		bcm2711 = "vc4-fkms-v3d-pi4";
+	};
+
+	vc4-fkms-v3d-pi4 {
+		bcm2711;
+	};
+
+	vc4-kms-v3d {
+		bcm2835;
+		bcm2711 = "vc4-kms-v3d-pi4";
+	};
+
+	vc4-kms-v3d-pi4 {
+		bcm2711;
+	};
+};
