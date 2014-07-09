@@ -1,0 +1,347 @@
+#include "skeleton.dtsi"
+
+/ {
+	interrupt-parent = <&intc>;
+
+	aliases {
+		audio = &audio;
+		sound = &sound;
+		soc = &soc;
+		dma = &dma;
+		intc = &intc;
+		watchdog = &watchdog;
+		random = &random;
+		mailbox = &mailbox;
+		gpio = &gpio;
+		uart0 = &uart0;
+		sdhost = &sdhost;
+		i2s  = &i2s;
+		spi0 = &spi0;
+		i2c0 = &i2c0;
+		uart1 = &uart1;
+		mmc = &mmc;
+		i2c1 = &i2c1;
+		i2c2 = &i2c2;
+		usb = &usb;
+		leds = &leds;
+		fb = &fb;
+		vchiq = &vchiq;
+		thermal = &thermal;
+		clocks = &clocks;
+	};
+
+	/* Onboard audio */
+	audio: audio {
+		compatible = "brcm,bcm2835-audio";
+		brcm,pwm-channels = <8>;
+		status = "disabled";
+	};
+
+	/* External sound card */
+	sound: sound {
+	};
+
+	soc: soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		dma: dma@7e007000 {
+			compatible = "brcm,bcm2835-dma";
+			reg = <0x7e007000 0xf00>;
+			interrupts = <1 16>,
+				     <1 17>,
+				     <1 18>,
+				     <1 19>,
+				     <1 20>,
+				     <1 21>,
+				     <1 22>,
+				     <1 23>,
+				     <1 24>,
+				     <1 25>,
+				     <1 26>,
+				     <1 27>;
+
+			#dma-cells = <1>;
+			brcm,dma-channel-mask = <0x0f35>;
+		};
+
+		intc: interrupt-controller@7e00b200 {
+			compatible = "brcm,bcm2708-armctrl-ic";
+			reg = <0x7e00b200 0x200>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		mailbox: mailbox@7e00b800 {
+			compatible = "brcm,bcm2835-mbox";
+			reg = <0x7e00b880 0x40>;
+			interrupts = <0 1>;
+			#mbox-cells = <0>;
+		};
+
+		watchdog: watchdog@7e100000 {
+			compatible = "brcm,bcm2835-pm-wdt";
+			reg = <0x7e100000 0x28>;
+			status = "disabled";
+		};
+
+		cprman: cprman@7e101000 {
+			compatible = "brcm,bcm2835-cprman";
+			#clock-cells = <1>;
+			reg = <0x7e101000 0x2000>;
+
+			/* CPRMAN derives everything from the platform's
+			 * oscillator.
+			 */
+			clocks = <&clk_osc>;
+			status = "disabled";
+		};
+
+		random: rng@7e104000 {
+			compatible = "brcm,bcm2835-rng";
+			reg = <0x7e104000 0x10>;
+			status = "disabled";
+		};
+
+		gpio: gpio@7e200000 {
+			compatible = "brcm,bcm2835-gpio";
+			reg = <0x7e200000 0xb4>;
+			interrupts = <2 17>, <2 18>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		uart0: uart@7e201000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x7e201000 0x1000>;
+			interrupts = <2 25>;
+			clocks = <&clk_uart0 &clk_apb_p>;
+			clock-names = "uartclk","apb_pclk";
+			arm,primecell-periphid = <0x00241011>; // For an explanation, see
+			// https://github.com/raspberrypi/linux/commit/13731d862cf5219216533a3b0de052cee4cc5038
+			status = "disabled";
+		};
+
+		sdhost: sdhost@7e202000 {
+			compatible = "brcm,bcm2835-sdhost";
+			reg = <0x7e202000 0x100>;
+			interrupts = <2 24>;
+			clocks = <&clk_core>;
+			dmas = <&dma 13>,
+			       <&dma 13>;
+			dma-names = "tx", "rx";
+			brcm,pio-limit = <1>;
+			status = "disabled";
+		};
+
+		i2s: i2s@7e203000 {
+			compatible = "brcm,bcm2835-i2s";
+			reg = <0x7e203000 0x24>,
+			      <0x7e101098 0x08>;
+
+			dmas = <&dma 2>, <&dma 3>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		spi0: spi@7e204000 {
+			compatible = "brcm,bcm2835-spi";
+			reg = <0x7e204000 0x1000>;
+			interrupts = <2 22>;
+			clocks = <&clk_core>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+			/* the dma channels */
+			dmas = <&dma 6>, <&dma 7>;
+			dma-names = "tx", "rx";
+			/* the chipselects used - <0> means native GPIO
+			 * add more gpios if necessary as <&gpio 6 1>
+			 * (but do not forget to make them output!)
+			 */
+			cs-gpios = <0>, <0>;
+		};
+
+		i2c0: i2c@7e205000 {
+			compatible = "brcm,bcm2708-i2c";
+			reg = <0x7e205000 0x1000>;
+			interrupts = <2 21>;
+			clocks = <&clk_core>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		pwm: pwm@7e20c000 {
+			compatible = "brcm,bcm2835-pwm";
+			reg = <0x7e20c000 0x28>;
+			clocks = <&clk_pwm>;
+			#pwm-cells = <2>;
+			status = "disabled";
+		};
+
+		uart1: uart@7e215040 {
+			compatible = "brcm,bcm2835-aux-uart", "ns16550";
+			reg = <0x7e215040 0x40>;
+			interrupts = <1 29>;
+			clocks = <&clk_uart1>;
+			reg-shift = <2>;
+			no-loopback-test;
+			status = "disabled";
+	        };
+
+		mmc: mmc@7e300000 {
+			compatible = "brcm,bcm2835-mmc";
+			reg = <0x7e300000 0x100>;
+			interrupts = <2 30>;
+			clocks = <&clk_mmc>;
+			dmas = <&dma 11>,
+			       <&dma 11>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		i2c1: i2c@7e804000 {
+			compatible = "brcm,bcm2708-i2c";
+			reg = <0x7e804000 0x1000>;
+			interrupts = <2 21>;
+			clocks = <&clk_core>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c2: i2c@7e805000 {
+			// Beware - this is shared with the HDMI module.
+			// Careless use may break (really) your display.
+			// Caveat emptor.
+			compatible = "brcm,bcm2708-i2c";
+			reg = <0x7e805000 0x1000>;
+			interrupts = <2 21>;
+			clocks = <&clk_core>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		smi: smi@7e600000 {
+			compatible = "brcm,bcm2835-smi";
+			reg = <0x7e600000 0x44>, <0x7e1010b0 0x8>;
+			interrupts = <2 16>;
+			brcm,smi-clock-source = <6>;
+			brcm,smi-clock-divisor = <4>;
+			dmas = <&dma 4>;
+			dma-names = "rx-tx";
+			status = "disabled";
+		};
+
+		usb: usb@7e980000 {
+			compatible = "brcm,bcm2708-usb";
+			reg = <0x7e980000 0x10000>,
+			      <0x7e006000 0x1000>;
+			interrupts = <2 0>,
+				     <1 9>;
+		};
+
+		firmware: firmware {
+			compatible = "raspberrypi,bcm2835-firmware";
+			mboxes = <&mailbox>;
+		};
+
+		leds: leds {
+			compatible = "gpio-leds";
+		};
+
+		fb: fb {
+			compatible = "brcm,bcm2708-fb";
+			firmware = <&firmware>;
+			status = "disabled";
+		};
+
+		vchiq: vchiq {
+			compatible = "brcm,bcm2835-vchiq";
+			reg = <0x7e00b840 0xf>;
+			interrupts = <0 2>;
+			cache-line-size = <32>;
+			firmware = <&firmware>;
+		};
+
+		thermal: thermal {
+			compatible = "brcm,bcm2835-thermal";
+			firmware = <&firmware>;
+		};
+	};
+
+	clocks: clocks {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		clk_core: clock@0 {
+			compatible = "fixed-clock";
+			reg = <0>;
+			#clock-cells = <0>;
+			clock-output-names = "core";
+			clock-frequency = <250000000>;
+		};
+
+		clk_mmc: clock@1 {
+			compatible = "fixed-clock";
+			reg = <1>;
+			#clock-cells = <0>;
+			clock-output-names = "mmc";
+			clock-frequency = <250000000>;
+		};
+
+		clk_uart0: clock@2 {
+			compatible = "fixed-clock";
+			reg = <2>;
+			#clock-cells = <0>;
+			clock-output-names = "uart0_pclk";
+			clock-frequency = <3000000>;
+		};
+
+		clk_apb_p: clock@3 {
+			compatible = "fixed-clock";
+			reg = <3>;
+			#clock-cells = <0>;
+			clock-output-names = "apb_pclk";
+			clock-frequency = <126000000>;
+		};
+
+		clk_pwm: clock@4 {
+			compatible = "fixed-clock";
+			reg = <4>;
+			#clock-cells = <0>;
+			clock-output-names = "pwm";
+			clock-frequency = <100000000>;
+		};
+
+		clk_uart1: clock@5 {
+			compatible = "fixed-factor-clock";
+			reg = <5>;
+			clocks = <&clk_core>;
+			#clock-cells = <0>;
+			clock-div = <1>;
+			clock-mult = <2>;
+		};
+
+		/* The oscillator is the root of the clock tree. */
+		clk_osc: clock@6 {
+			compatible = "fixed-clock";
+			reg = <6>;
+			#clock-cells = <0>;
+			clock-output-names = "osc";
+			clock-frequency = <19200000>;
+		};
+	};
+
+	__overrides__ {
+		cache_line_size = <&vchiq>, "cache-line-size:0";
+	};
+};

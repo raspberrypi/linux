@@ -1,0 +1,17 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			rpi_ft5406: rpi_ft5406 {
+				compatible = "rpi,rpi-ft5406";
+				firmware = <&firmware>;
+				status = "okay";
+			};
+		};
+	};
+};
