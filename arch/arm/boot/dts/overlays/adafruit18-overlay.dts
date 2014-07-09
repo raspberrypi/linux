@@ -1,0 +1,55 @@
+/*
+ * Device Tree overlay for Adafruit 1.8" TFT LCD with ST7735R chip 160x128
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			af18: adafruit18@0 {
+				compatible = "fbtft,adafruit18";
+				reg = <0>;
+				pinctrl-names = "default";
+				spi-max-frequency = <40000000>;
+				rotate = <90>;
+				buswidth = <8>;
+				fps = <50>;
+				height = <160>;
+				width = <128>;
+				reset-gpios = <&gpio 25 1>;
+				dc-gpios = <&gpio 24 0>;
+				led-gpios = <&gpio 18 0>;
+				debug = <0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		green = <&af18>, "compatible=fbtft,adafruit18_green";
+		speed     = <&af18>,"spi-max-frequency:0";
+		rotate    = <&af18>,"rotate:0";
+		fps       = <&af18>,"fps:0";
+		bgr       = <&af18>,"bgr?";
+		debug     = <&af18>,"debug:0";
+		dc_pin    = <&af18>,"dc-gpios:4";
+		reset_pin = <&af18>,"reset-gpios:4";
+		led_pin   = <&af18>,"led-gpios:4";
+	};
+};

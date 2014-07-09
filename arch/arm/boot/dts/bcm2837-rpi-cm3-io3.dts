@@ -94,3 +94,8 @@
 	pinctrl-0 = <&uart0_gpio14>;
 	status = "okay";
 };
+
+/* WHAT TO DO HERE? */
+&i2c0mux {
+	pinctrl-1 = <&i2c0_gpio28>;
+};
