@@ -1,0 +1,26 @@
+/*
+ * Device tree overlay to re-enable hardware CS for SPI0
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			cs-gpios = <0>, <0>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&spi0_cs_pins>;
+		__overlay__ {
+			brcm,pins = <8 7>;
+			brcm,function = <4>; /* alt0 */
+		};
+	};
+};
