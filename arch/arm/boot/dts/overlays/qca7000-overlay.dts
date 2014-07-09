@@ -1,0 +1,52 @@
+// Overlay for the Qualcomm Atheros QCA7000 on I2SE's PLC Stamp micro EVK
+// Visit: https://www.i2se.com/product/plc-stamp-micro-evk for details
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			status = "okay";
+
+			spidev@0 {
+				status = "disabled";
+			};
+
+			eth1: qca7000@0 {
+				compatible = "qca,qca7000";
+				reg = <0>; /* CE0 */
+				pinctrl-names = "default";
+				pinctrl-0 = <&eth1_pins>;
+				interrupt-parent = <&gpio>;
+				interrupts = <23 0x1>; /* rising edge */
+				spi-max-frequency = <12000000>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			eth1_pins: eth1_pins {
+				brcm,pins = <23>;
+				brcm,function = <0>; /* in */
+				brcm,pull = <0>; /* none */
+			};
+		};
+	};
+
+	__overrides__ {
+		int_pin = <&eth1>, "interrupts:0",
+		          <&eth1_pins>, "brcm,pins:0";
+		speed   = <&eth1>, "spi-max-frequency:0";
+	};
+};
