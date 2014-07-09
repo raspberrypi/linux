@@ -1,0 +1,36 @@
+/*
+ * vc4-kms-dpi-hyperpixel4-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "vc4-kms-dpi-hyperpixel.dtsi"
+
+&panel {
+	compatible = "pimoroni,hyperpixel4square";
+};
+
+/ {
+	fragment@11 {
+		target = <&i2c_gpio>;
+		__overlay__ {
+			polytouch: edt-ft5x06@48 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "edt,edt-ft5406";
+				reg = <0x48>;
+				interrupt-parent = <&gpio>;
+				interrupts = <27 0x02>;
+				touchscreen-size-x = <720>;
+				touchscreen-size-y = <720>;
+			};
+		};
+	};
+	__overrides__ {
+		disable-touch = <0>,"-3-11";
+		touchscreen-inverted-x = <&polytouch>,"touchscreen-inverted-x?";
+		touchscreen-inverted-y = <&polytouch>,"touchscreen-inverted-y!";
+		touchscreen-swapped-x-y = <&polytouch>,"touchscreen-swapped-x-y!";
+	};
+};
