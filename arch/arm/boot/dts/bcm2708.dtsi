@@ -1,0 +1,27 @@
+/include/ "skeleton.dtsi"
+
+/ {
+	compatible = "brcm,bcm2708";
+	model = "BCM2708";
+
+	chosen {
+		/*
+		   bootargs must be 1024 characters long because the
+		   VC bootloader can't expand it
+		*/
+		bootargs = "console=ttyAMA0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ";
+	};
+
+	axi {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x7e000000 0x20000000 0x02000000>;
+	};
+
+	clocks {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+};
