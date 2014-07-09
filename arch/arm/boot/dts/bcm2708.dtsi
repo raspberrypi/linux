@@ -1,0 +1,19 @@
+#include "bcm2835.dtsi"
+#include "bcm270x.dtsi"
+#include "bcm2708-rpi.dtsi"
+
+/ {
+	compatible = "brcm,bcm2708";
+	model = "BCM2708";
+
+	soc {
+		timer@7e003000 {
+			compatible = "brcm,bcm2835-system-timer";
+			reg = <0x7e003000 0x1000>;
+			interrupts = <1 0>, <1 1>, <1 2>, <1 3>;
+			clock-frequency = <1000000>;
+		};
+	};
+
+	/delete-node/ cpus;
+};
