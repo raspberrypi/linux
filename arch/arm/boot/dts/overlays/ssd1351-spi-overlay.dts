@@ -1,0 +1,83 @@
+/*
+ * Device Tree overlay for SSD1351 based SPI OLED display
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			ssd1351_pins: ssd1351_pins {
+                                brcm,pins = <25 24>;
+                                brcm,function = <1 1>; /* out out */
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ssd1351: ssd1351@0{
+				compatible = "solomon,ssd1351";
+				reg = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&ssd1351_pins>;
+
+				spi-max-frequency = <4500000>;
+				bgr = <0>;
+				bpp = <16>;
+				rotate = <0>;
+				fps = <25>;
+				buswidth = <8>;
+				reset-gpios = <&gpio 25 1>;
+				dc-gpios = <&gpio 24 0>;
+				debug = <0>;
+
+				solomon,height = <128>;
+				solomon,width = <128>;
+				solomon,page-offset = <0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		speed     = <&ssd1351>,"spi-max-frequency:0";
+		rotate    = <&ssd1351>,"rotate:0";
+		fps       = <&ssd1351>,"fps:0";
+		debug     = <&ssd1351>,"debug:0";
+		dc_pin    = <&ssd1351>,"dc-gpios:4",
+		            <&ssd1351_pins>,"brcm,pins:4";
+		reset_pin = <&ssd1351>,"reset-gpios:4",
+		            <&ssd1351_pins>,"brcm,pins:0";
+	};
+};
