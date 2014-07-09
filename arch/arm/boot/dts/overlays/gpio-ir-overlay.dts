@@ -1,0 +1,48 @@
+// Definitions for ir-gpio module
+/dts-v1/;
+/plugin/;
+
+/ {
+        compatible = "brcm,bcm2835";
+
+        fragment@0 {
+                target-path = "/";
+                __overlay__ {
+                        gpio_ir: ir-receiver@12 {
+                                compatible = "gpio-ir-receiver";
+                                pinctrl-names = "default";
+                                pinctrl-0 = <&gpio_ir_pins>;
+
+                                // pin number, high or low
+                                gpios = <&gpio 18 1>;
+
+                                // parameter for keymap name
+                                linux,rc-map-name = "rc-rc6-mce";
+
+                                status = "okay";
+                        };
+                };
+        };
+
+        fragment@1 {
+                target = <&gpio>;
+                __overlay__ {
+                        gpio_ir_pins: gpio_ir_pins@12 {
+                                brcm,pins = <18>;                       // pin 18
+                                brcm,function = <0>;                    // in
+                                brcm,pull = <2>;                        // up
+                        };
+                };
+        };
+
+        __overrides__ {
+                // parameters
+                gpio_pin =      <&gpio_ir>,"gpios:4",           // pin number
+                                <&gpio_ir>,"reg:0",
+                                <&gpio_ir_pins>,"brcm,pins:0",
+                                <&gpio_ir_pins>,"reg:0";
+                gpio_pull = <&gpio_ir_pins>,"brcm,pull:0";              // pull-up/down state
+
+                rc-map-name = <&gpio_ir>,"linux,rc-map-name";           // default rc map
+        };
+};

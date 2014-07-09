@@ -1,0 +1,152 @@
+// Definitions for the Cirrus Logic Audio Card
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/pinctrl/bcm2835.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/mfd/arizona.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			wlf_pins: wlf_pins {
+				brcm,pins = <17 22 27 8>;
+				brcm,function = <
+					BCM2835_FSEL_GPIO_OUT
+					BCM2835_FSEL_GPIO_OUT
+					BCM2835_FSEL_GPIO_IN
+					BCM2835_FSEL_GPIO_OUT
+				>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			rpi_cirrus_reg_1v8: rpi_cirrus_reg_1v8 {
+				compatible = "regulator-fixed";
+				regulator-name = "RPi-Cirrus 1v8";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-always-on;
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@4 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@5 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			wm5102@1{
+				compatible = "wlf,wm5102";
+				reg = <1>;
+
+				spi-max-frequency = <500000>;
+
+				interrupt-parent = <&gpio>;
+				interrupts = <27 8>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+
+				gpio-controller;
+				#gpio-cells = <2>;
+
+				LDOVDD-supply = <&rpi_cirrus_reg_1v8>;
+				AVDD-supply = <&rpi_cirrus_reg_1v8>;
+				DBVDD1-supply = <&rpi_cirrus_reg_1v8>;
+				DBVDD2-supply = <&vdd_3v3_reg>;
+				DBVDD3-supply = <&vdd_3v3_reg>;
+				CPVDD-supply = <&rpi_cirrus_reg_1v8>;
+				SPKVDDL-supply = <&vdd_5v0_reg>;
+				SPKVDDR-supply = <&vdd_5v0_reg>;
+				DCVDD-supply = <&arizona_ldo1>;
+
+				wlf,reset = <&gpio 17 GPIO_ACTIVE_HIGH>;
+				wlf,ldoena = <&gpio 22 GPIO_ACTIVE_HIGH>;
+				wlf,gpio-defaults = <
+					ARIZONA_GP_DEFAULT
+					ARIZONA_GP_DEFAULT
+					ARIZONA_GP_DEFAULT
+					ARIZONA_GP_DEFAULT
+					ARIZONA_GP_DEFAULT
+				>;
+				wlf,micd-configs = <0 1 0>;
+				wlf,dmic-ref = <
+					ARIZONA_DMIC_MICVDD
+					ARIZONA_DMIC_MICBIAS2
+					ARIZONA_DMIC_MICVDD
+					ARIZONA_DMIC_MICVDD
+				>;
+				wlf,inmode = <
+					ARIZONA_INMODE_DIFF
+					ARIZONA_INMODE_DMIC
+					ARIZONA_INMODE_SE
+					ARIZONA_INMODE_DIFF
+				>;
+				status = "okay";
+
+				arizona_ldo1: ldo1 {
+					regulator-name = "LDO1";
+					// default constraints as in
+					// arizona-ldo1.c
+					regulator-min-microvolt = <1200000>;
+					regulator-max-microvolt = <1800000>;
+				};
+			};
+		};
+	};
+
+	fragment@6 {
+		target = <&i2c1>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			wm8804@3b {
+				compatible = "wlf,wm8804";
+				reg = <0x3b>;
+				status = "okay";
+				PVDD-supply = <&vdd_3v3_reg>;
+				DVDD-supply = <&vdd_3v3_reg>;
+				wlf,reset-gpio = <&gpio 8 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+
+	fragment@7 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "wlf,rpi-cirrus";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+};
