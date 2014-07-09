@@ -1,0 +1,24 @@
+cam_node: imx477@1a {
+	reg = <0x1a>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+
+	VANA-supply = <&cam1_reg>;	/* 2.8v */
+	VDIG-supply = <&cam_dummy_reg>;	/* 1.05v */
+	VDDL-supply = <&cam_dummy_reg>;	/* 1.8v */
+
+	rotation = <180>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <450000000>;
+		};
+	};
+};
