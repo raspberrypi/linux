@@ -1,0 +1,38 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&uart1>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			uart1_pins: uart1_pins {
+				brcm,pins = <14 15>;
+				brcm,function = <2>; /* alt5 */
+				brcm,pull = <0 2>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/chosen";
+		__overlay__ {
+			bootargs = "8250.nr_uarts=1";
+		};
+	};
+
+	__overrides__ {
+		txd1_pin = <&uart1_pins>,"brcm,pins:0";
+		rxd1_pin = <&uart1_pins>,"brcm,pins:4";
+	};
+};
