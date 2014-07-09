@@ -1,0 +1,46 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            lcd_screen: auxdisplay {
+                compatible = "hit,hd44780";
+
+                data-gpios = <&gpio 6 0>,
+                             <&gpio 13 0>,
+                             <&gpio 19 0>,
+                             <&gpio 26 0>;
+                enable-gpios = <&gpio 21 0>;
+                rs-gpios = <&gpio 20 0>;
+
+                display-height-chars = <2>;
+                display-width-chars = <16>;
+            };
+
+        };
+    };
+
+    fragment@1 {
+       target = <&lcd_screen>;
+        __dormant__ {
+            backlight-gpios = <&gpio 12 0>;
+        };
+    };
+
+    __overrides__ {
+        pin_d4 = <&lcd_screen>,"data-gpios:4";
+        pin_d5 = <&lcd_screen>,"data-gpios:16";
+        pin_d6 = <&lcd_screen>,"data-gpios:28";
+        pin_d7 = <&lcd_screen>,"data-gpios:40";
+        pin_en = <&lcd_screen>,"enable-gpios:4";
+        pin_rs = <&lcd_screen>,"rs-gpios:4";
+        pin_bl = <0>,"+1", <&lcd_screen>,"backlight-gpios:4";
+        display_height = <&lcd_screen>,"display-height-chars:0";
+        display_width = <&lcd_screen>,"display-width-chars:0";
+    };
+
+};
