@@ -1,0 +1,57 @@
+/* * Definitions for Allo Boss2 DAC boards
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			#sound-dai-cells = <0>;
+			status = "okay";
+			cpu_port: port {
+				cpu_endpoint: endpoint {
+					remote-endpoint = <&codec_endpoint>;
+					bitclock-master = <&codec_endpoint>;
+					frame-master = <&codec_endpoint>;
+					dai-format = "i2s";
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			allo-cs43130@30 {
+				#sound-dai-cells = <0>;
+				compatible = "allo,allo-cs43198";
+				clock44-gpio = <&gpio 5 0>;
+				clock48-gpio = <&gpio 6 0>;
+				reg = <0x30>;
+				port {
+					codec_endpoint: endpoint {
+					remote-endpoint = <&cpu_endpoint>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		boss2_dac: __overlay__ {
+			compatible = "audio-graph-card";
+			label = "Allo Boss2";
+			dais = <&cpu_port>;
+			status = "okay";
+		};
+	};
+};
+
