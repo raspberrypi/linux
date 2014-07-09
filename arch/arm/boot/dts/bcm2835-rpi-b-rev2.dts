@@ -121,3 +121,10 @@
 	pinctrl-0 = <&uart0_gpio14>;
 	status = "okay";
 };
+
+/* i2c0 on camera/display connector is gpio 0&1. Not exposed on header.
+ * To avoid having to remap everything, map both ports to gpios 0&1
+ */
+&i2c0mux {
+	pinctrl-1 = <&i2c0_gpio0>;
+};
