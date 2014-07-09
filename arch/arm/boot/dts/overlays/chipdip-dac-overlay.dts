@@ -1,0 +1,46 @@
+/*
+ * Device Tree overlay for ChipDip DAC
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			spdif-transmitter {
+				#address-cells = <0>;
+				#size-cells = <0>;
+				#sound-dai-cells = <0>;
+				compatible = "linux,spdif-dit";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "chipdip,chipdip-dac";
+			i2s-controller = <&i2s_clk_consumer>;
+			sr0-gpios = <&gpio 5 0>;
+			sr1-gpios = <&gpio 6 0>;
+			sr2-gpios = <&gpio 12 0>;
+			res0-gpios = <&gpio 24 0>;
+			res1-gpios = <&gpio 27 0>;
+			mute-gpios = <&gpio 4 0>;
+			sdwn-gpios = <&gpio 13 0>;
+			status = "okay";
+		};
+	};
+};
