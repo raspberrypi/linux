@@ -1,0 +1,13 @@
+/dts-v1/;
+
+/ {
+	iqaudio-pi-codecplus {
+		uuid = [ dc1c9594 c1ab 4c6c acda a88dc59a3c5b ];
+		overlay = "iqaudio-codec";
+	};
+
+	recalbox-rgbdual {
+		uuid = [ 1c955808 681f 4bbc a2ef b7ea47cd388e ];
+		overlay = "recalboxrgbdual";
+	};
+};

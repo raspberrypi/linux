@@ -1,0 +1,39 @@
+// Definitions for Dion Audio KIWI streamer
+
+/*
+ * PCM1794 DAC (in hardware mode).
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_producer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			pcm1794a-codec {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm1794a";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "dionaudio,dionaudio-kiwi";
+			i2s-controller = <&i2s_clk_producer>;
+			status = "okay";
+		};
+	};
+};
