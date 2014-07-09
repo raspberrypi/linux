@@ -1,0 +1,41 @@
+// Definitions for w1-gpio module (without external pullup)
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+
+			w1: onewire@0 {
+				compatible = "w1-gpio";
+				pinctrl-names = "default";
+				pinctrl-0 = <&w1_pins>;
+				gpios = <&gpio 4 0>;
+				rpi,parasitic-power = <0>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			w1_pins: w1_pins@0 {
+				brcm,pins = <4>;
+				brcm,function = <0>; // in (initially)
+				brcm,pull = <0>; // off
+			};
+		};
+	};
+
+	__overrides__ {
+		gpiopin =       <&w1>,"gpios:4",
+				<&w1>,"reg:0",
+				<&w1_pins>,"brcm,pins:0",
+				<&w1_pins>,"reg:0";
+		pullup =        <&w1>,"rpi,parasitic-power:0";
+	};
+};
