@@ -1,0 +1,33 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&spidev0>;
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
+		target = <&spi0>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			rtc-pcf2123@0 {
+				compatible = "nxp,rtc-pcf2123";
+				spi-max-frequency = <5000000>;
+				spi-cs-high = <1>;
+				reg = <0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		pcf2123 = <0>, "=0=1";
+	};
+};
