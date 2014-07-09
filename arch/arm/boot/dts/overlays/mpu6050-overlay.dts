@@ -1,0 +1,28 @@
+// Definitions for MPU6050
+/dts-v1/;
+/plugin/;
+
+/ {
+        compatible = "brcm,bcm2708";
+
+        fragment@0 {
+                target = <&i2c1>;
+                __overlay__ {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        status = "okay";
+                        clock-frequency = <400000>;
+
+                        mpu6050: mpu6050@68 {
+                                compatible = "invensense,mpu6050";
+                                reg = <0x68>;
+                                interrupt-parent = <&gpio>;
+                                interrupts = <4 1>;
+                        };
+                };
+        };
+
+        __overrides__ {
+                interrupt = <&mpu6050>,"interrupts:0";
+        };
+};
