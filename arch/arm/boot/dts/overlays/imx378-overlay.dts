@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for IMX378 camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+#include "imx477_378-overlay.dtsi"
+
+&imx477 {
+	compatible = "sony,imx378";
+};
