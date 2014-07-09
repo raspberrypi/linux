@@ -1,0 +1,120 @@
+/*
+ * Pisound Linux kernel module.
+ * Copyright (C) 2016-2017  Vilniaus Blokas UAB, https://blokas.io/pisound
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; version 2 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pisound_spi: pisound_spi@0{
+				compatible = "blokaslabs,pisound-spi";
+				reg = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&spi0_pins>;
+				spi-max-frequency = <1000000>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target-path = "/";
+		__overlay__ {
+			pcm5102a-codec {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm5102a";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "blokaslabs,pisound";
+			i2s-controller = <&i2s>;
+			status = "okay";
+
+			pinctrl-0 = <&pisound_button_pins>;
+
+			osr-gpios =
+				<&gpio 13 GPIO_ACTIVE_HIGH>,
+				<&gpio 26 GPIO_ACTIVE_HIGH>,
+				<&gpio 16 GPIO_ACTIVE_HIGH>;
+
+			reset-gpios =
+				<&gpio 12 GPIO_ACTIVE_HIGH>,
+				<&gpio 24 GPIO_ACTIVE_HIGH>;
+
+			data_available-gpios = <&gpio 25 GPIO_ACTIVE_HIGH>;
+
+			button-gpios = <&gpio 17 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	fragment@6 {
+		target = <&gpio>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&pisound_button_pins>;
+
+			pisound_button_pins: pisound_button_pins {
+				brcm,pins = <17>;
+				brcm,function = <0>; // Input
+				brcm,pull = <2>; // Pull-Up
+			};
+		};
+	};
+
+	fragment@7 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+};
