@@ -1,0 +1,39 @@
+// Definitions for Rpi-Proto
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			wm8731@1a {
+				#sound-dai-cells = <0>;
+				compatible = "wlf,wm8731";
+				reg = <0x1a>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "rpi,rpi-proto";
+			i2s-controller = <&i2s_clk_consumer>;
+			status = "okay";
+		};
+	};
+};

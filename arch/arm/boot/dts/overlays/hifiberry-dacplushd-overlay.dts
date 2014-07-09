@@ -1,0 +1,94 @@
+// Definitions for HiFiBerry DAC+ HD
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcm1792a@4c {
+				compatible = "ti,pcm1792a";
+				#sound-dai-cells = <0>;
+				#clock-cells = <0>;
+				reg = <0x4c>;
+				status = "okay";
+			};
+			pll: pll@62 {
+				compatible = "hifiberry,dachd-clk";
+				#clock-cells = <0>;
+				reg = <0x62>;
+				status = "okay";
+				common_pll_regs = [
+					02 53 03 00 07 20 0F 00
+					10 0D 11 1D 12 0D 13 8C
+					14 8C 15 8C 16 8C 17 8C
+					18 2A 1C 00 1D 0F 1F 00
+					2A 00 2C 00 2F 00 30 00
+					31 00 32 00 34 00 37 00
+					38 00 39 00 3A 00 3B 01
+					3E 00 3F 00 40 00 41 00
+					5A 00 5B 00 95 00 96 00
+					97 00 98 00 99 00 9A 00
+					9B 00 A2 00 A3 00 A4 00
+					B7 92 ];
+				192k_pll_regs = [
+					1A 0C 1B 35 1E F0 20 09
+					21 50 2B 02 2D 10 2E 40
+					33 01 35 22 36 80 3C 22
+					3D 46 ];
+				96k_pll_regs = [
+					1A 0C 1B 35 1E F0 20 09
+					21 50 2B 02 2D 10 2E 40
+					33 01 35 47 36 00 3C 32
+					3D 46 ];
+				48k_pll_regs = [
+					1A 0C 1B 35 1E F0 20 09
+					21 50 2B 02 2D 10 2E 40
+					33 01 35 90 36 00 3C 42
+					3D 46 ];
+				176k4_pll_regs = [
+					1A 3D 1B 09 1E F3 20 13
+					21 75 2B 04 2D 11 2E E0
+					33 02 35 25 36 C0 3C 22
+					3D 7A ];
+				88k2_pll_regs = [
+					1A 3D 1B 09 1E F3 20 13
+					21 75 2B 04 2D 11 2E E0
+					33 01 35 4D 36 80 3C 32
+					3D 7A ];
+				44k1_pll_regs = [
+					1A 3D 1B 09 1E F3 20 13
+					21 75 2B 04 2D 11 2E E0
+					33 01 35 9D 36 00 3C 42
+					3D 7A ];
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "hifiberry,hifiberry-dacplushd";
+			i2s-controller = <&i2s_clk_consumer>;
+			clocks = <&pll 0>;
+			reset-gpio = <&gpio 16 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+	};
+
+};
