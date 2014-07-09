@@ -1,0 +1,493 @@
+Introduction
+============
+
+This directory contains Device Tree overlays. Device Tree makes it possible
+to support many hardware configurations with a single kernel and without the
+need to explicitly load or blacklist kernel modules. Note that this isn't a
+"pure" Device Tree configuration (c.f. MACH_BCM2835) - some on-board devices
+are still configured by the board support code, but the intention is to
+eventually reach that goal.
+
+On Raspberry Pi, Device Tree usage is controlled from /boot/config.txt. By
+default, the Raspberry Pi kernel boots with device tree enabled. You can
+completely disable DT usage (for now) by adding:
+
+    device_tree=
+
+to your config.txt, which should cause your Pi to revert to the old way of
+doing things after a reboot.
+
+In /boot you will find a .dtb for each base platform. This describes the
+hardware that is part of the Raspberry Pi board. The loader (start.elf and its
+siblings) selects the .dtb file appropriate for the platform by name, and reads
+it into memory. At this point, all of the optional interfaces (i2c, i2s, spi)
+are disabled, but they can be enabled using Device Tree parameters:
+
+    dtparam=i2c=on,i2s=on,spi=on
+
+However, this shouldn't be necessary in many use cases because loading an
+overlay that requires one of those interfaces will cause it to be enabled
+automatically, and it is advisable to only enable interfaces if they are
+needed.
+
+Configuring additional, optional hardware is done using Device Tree overlays
+(see below).
+
+raspi-config
+============
+
+The Advanced Options section of the raspi-config utility can enable and disable
+Device Tree use, as well as toggling the I2C and SPI interfaces. Note that it
+is possible to both enable an interface and blacklist the driver, if for some
+reason you should want to defer the loading.
+
+Modules
+=======
+
+As well as describing the hardware, Device Tree also gives enough information
+to allow suitable driver modules to be located and loaded, with the corollary
+that unneeded modules are not loaded. As a result it should be possible to
+remove lines from /etc/modules, and /etc/modprobe.d/raspi-blacklist.conf can
+have its contents deleted (or commented out).
+
+Using Overlays
+==============
+
+Overlays are loaded using the "dtoverlay" directive. As an example, consider the
+popular lirc-rpi module, the Linux Infrared Remote Control driver. In the
+pre-DT world this would be loaded from /etc/modules, with an explicit
+"modprobe lirc-rpi" command, or programmatically by lircd. With DT enabled,
+this becomes a line in config.txt:
+
+    dtoverlay=lirc-rpi
+
+This causes the file /boot/overlays/lirc-rpi-overlay.dtb to be loaded. By
+default it will use GPIOs 17 (out) and 18 (in), but this can be modified using
+DT parameters:
+
+    dtoverlay=lirc-rpi,gpio_out_pin=17,gpio_in_pin=13
+
+Parameters always have default values, although in some cases (e.g. "w1-gpio")
+it is necessary to provided multiple overlays in order to get the desired
+behaviour. See the list of overlays below for a description of the parameters and their defaults.
+
+The Overlay and Parameter Reference
+===================================
+
+Name:   <The base DTB>
+Info:   Configures the base Raspberry Pi hardware
+Load:   <loaded automatically>
+Params:
+        audio                    Set to "on" to disable the onboard ALSA audio
+                                 interface (default "off")
+
+        i2c_arm                  Set to "on" to enable the ARM's i2c interface
+                                 (default "off")
+
+        i2c_vc                   Set to "on" to enable the i2c interface
+                                 usually reserved for the VideoCore processor
+                                 (default "off")
+
+        i2c                      An alias for i2c_arm
+
+        i2c_arm_baudrate         Set the baudrate of the ARM's i2c interface
+                                 (default "100000")
+
+        i2c_vc_baudrate          Set the baudrate of the VideoCore i2c interface
+                                 (default "100000")
+
+        i2c_baudrate             An alias for i2c_arm_baudrate
+
+        i2s                      Set to "on" to enable the i2s interface
+                                 (default "off")
+
+        spi                      Set to "on" to enable the spi interfaces
+                                 (default "off")
+
+        random                   Set to "on" to enable the hardware random
+                                 number generator (default "off")
+
+        uart0                    Set to "off" to disable uart0 (default "on")
+
+        watchdog                 Set to "on" to enable the hardware watchdog
+                                 (default "off")
+
+        act_led_trigger          Choose which activity the LED tracks.
+                                 Use "heartbeat" for a nice load indicator.
+                                 (default "mmc")
+
+        act_led_activelow        Set to "on" to invert the sense of the LED
+                                 (default "off")
+
+        act_led_gpio             Set which GPIO to use for the activity LED
+                                 (in case you want to connect it to an external
+                                 device)
+                                 (default "16" on a non-Plus board, "47" on a
+                                 Plus or Pi 2)
+
+        pwr_led_trigger
+        pwr_led_activelow
+        pwr_led_gpio
+                                 As for act_led_*, but using the PWR LED.
+                                 Not available on Model A/B boards.
+
+        N.B. It is recommended to only enable those interfaces that are needed.
+        Leaving all interfaces enabled can lead to unwanted behaviour (i2c_vc
+        interfering with Pi Camera, I2S and SPI hogging GPIO pins, etc.)
+        Note also that i2c, i2c_arm and i2c_vc are aliases for the physical
+        interfaces i2c0 and i2c1. Use of the numeric variants is still possible
+        but deprecated because the ARM/VC assignments differ between board
+        revisions. The same board-specific mapping applies to i2c_baudrate,
+        and the other i2c baudrate parameters.
+
+
+Name:   ads7846
+Info:   ADS7846 Touch controller
+Load:   dtoverlay=ads7846,<param>=<val>
+Params: cs                       SPI bus Chip Select (default 1)
+        speed                    SPI bus speed (default 2Mhz, max 3.25MHz)
+        penirq                   GPIO used for PENIRQ. REQUIRED
+        penirq_pull              Set GPIO pull (default 0=none, 2=pullup)
+        swapxy                   Swap x and y axis
+        xmin                     Minimum value on the X axis (default 0)
+        ymin                     Minimum value on the Y axis (default 0)
+        xmax                     Maximum value on the X axis (default 4095)
+        ymax                     Maximum value on the Y axis (default 4095)
+        pmin                     Minimum reported pressure value (default 0)
+        pmax                     Maximum reported pressure value (default 65535)
+        xohms                    Touchpanel sensitivity (X-plate resistance)
+                                 (default 400)
+
+        penirq is required and usually xohms (60-100) has to be set as well.
+        Apart from that, pmax (255) and swapxy are also common.
+        The rest of the calibration can be done with xinput-calibrator.
+        See: github.com/notro/fbtft/wiki/FBTFT-on-Raspian
+        Device Tree binding document:
+        www.kernel.org/doc/Documentation/devicetree/bindings/input/ads7846.txt
+
+
+Name:   bmp085_i2c-sensor
+Info:   Configures the BMP085/BMP180 digital barometric pressure and temperature
+        sensors from Bosch Sensortec
+Load:   dtoverlay=bmp085_i2c-sensor
+Params: <None>
+
+
+[ The ds1307-rtc overlay has been deleted. See i2c-rtc. ]
+
+
+Name:   enc28j60
+Info:   Overlay for the Microchip ENC28J60 Ethernet Controller (SPI)
+Load:   dtoverlay=enc28j60,<param>=<val>
+Params: int_pin                  GPIO used for INT (default 25)
+
+        speed                    SPI bus speed (default 12000000)
+
+
+Name:   hifiberry-amp
+Info:   Configures the HifiBerry Amp and Amp+ audio cards
+Load:   dtoverlay=hifiberry-amp
+Params: <None>
+
+
+Name:   hifiberry-dac
+Info:   Configures the HifiBerry DAC audio card
+Load:   dtoverlay=hifiberry-dac
+Params: <None>
+
+
+Name:   hifiberry-dacplus
+Info:   Configures the HifiBerry DAC+ audio card
+Load:   dtoverlay=hifiberry-dacplus
+Params: <None>
+
+
+Name:   hifiberry-digi
+Info:   Configures the HifiBerry Digi audio card
+Load:   dtoverlay=hifiberry-digi
+Params: <None>
+
+
+Name:   hy28a
+Info:   HY28A - 2.8" TFT LCD Display Module by HAOYU Electronics
+        Default values match Texy's display shield
+Load:   dtoverlay=hy28a,<param>=<val>
+Params: speed                    Display SPI bus speed
+
+        rotate                   Display rotation {0,90,180,270}
+
+        fps                      Delay between frame updates
+
+        debug                    Debug output level {0-7}
+
+        xohms                    Touchpanel sensitivity (X-plate resistance)
+
+        resetgpio                GPIO used to reset controller
+
+        ledgpio                  GPIO used to control backlight
+
+
+Name:   hy28b
+Info:   HY28B - 2.8" TFT LCD Display Module by HAOYU Electronics
+        Default values match Texy's display shield
+Load:   dtoverlay=hy28b,<param>=<val>
+Params: speed                    Display SPI bus speed
+
+        rotate                   Display rotation {0,90,180,270}
+
+        fps                      Delay between frame updates
+
+        debug                    Debug output level {0-7}
+
+        xohms                    Touchpanel sensitivity (X-plate resistance)
+
+        resetgpio                GPIO used to reset controller
+
+        ledgpio                  GPIO used to control backlight
+
+
+Name:   i2c-rtc
+Info:   Adds support for a number of I2C Real Time Clock devices
+Load:   dtoverlay=i2c-rtc,<param>
+Params: ds1307                   Select the DS1307 device
+
+        ds3231                   Select the DS3231 device
+
+        pcf2127                  Select the PCF2127 device
+
+        pcf8523                  Select the PCF8523 device
+
+        pcf8563                  Select the PCF8563 device
+
+
+Name:   iqaudio-dac
+Info:   Configures the IQaudio DAC audio card
+Load:   dtoverlay=iqaudio-dac
+Params: <None>
+
+
+Name:   iqaudio-dacplus
+Info:   Configures the IQaudio DAC+ audio card
+Load:   dtoverlay=iqaudio-dacplus
+Params: <None>
+
+
+Name:   lirc-rpi
+Info:   Configures lirc-rpi (Linux Infrared Remote Control for Raspberry Pi)
+        Consult the module documentation for more details.
+Load:   dtoverlay=lirc-rpi,<param>=<val>,...
+Params: gpio_out_pin             GPIO for output (default "17")
+
+        gpio_in_pin              GPIO for input (default "18")
+
+        gpio_in_pull             Pull up/down/off on the input pin
+                                 (default "down")
+
+        sense                    Override the IR receive auto-detection logic:
+                                   "1" = force active high
+                                   "0" = force active low
+                                   "-1" = use auto-detection
+                                 (default "-1")
+
+        softcarrier              Turn the software carrier "on" or "off"
+                                 (default "on")
+
+        invert                   "on" = invert the output pin (default "off")
+
+        debug                    "on" = enable additional debug messages
+                                 (default "off")
+
+
+Name:   mcp2515-can0
+Info:   Configures the MCP2515 CAN controller
+Load:   dtoverlay=mcp2515-can0,<param>=<val>
+Params: oscillator               Clock frequency for the CAN controller (Hz)
+
+        spimaxfrequency          Maximum SPI frequence (Hz)
+
+        interrupt                GPIO for interrupt signal
+
+
+Name:   mmc
+Info:   Selects the bcm2835-mmc SD/MMC driver, optionally with overclock
+Load:   dtoverlay=mmc,<param>=<val>
+Params: overclock_50             Clock (in MHz) to use when the MMC framework
+                                 requests 50MHz
+        force_pio                Disable DMA support
+
+
+Name:   mz61581
+Info:   MZ61581 display by Tontec
+Load:   dtoverlay=mz61581,<param>=<val>
+Params: speed                    Display SPI bus speed
+
+        rotate                   Display rotation {0,90,180,270}
+
+        fps                      Delay between frame updates
+
+        debug                    Debug output level {0-7}
+
+        xohms                    Touchpanel sensitivity (X-plate resistance)
+
+
+[ The pcf2127-rtc overlay has been deleted. See i2c-rtc. ]
+
+
+[ The pcf8523-rtc overlay has been deleted. See i2c-rtc. ]
+
+
+[ The pcf8563-rtc overlay has been deleted. See i2c-rtc. ]
+
+
+Name:   piscreen
+Info:   PiScreen display by OzzMaker.com
+Load:   dtoverlay=piscreen,<param>=<val>
+Params: speed                    Display SPI bus speed
+
+        rotate                   Display rotation {0,90,180,270}
+
+        fps                      Delay between frame updates
+
+        debug                    Debug output level {0-7}
+
+        xohms                    Touchpanel sensitivity (X-plate resistance)
+
+
+Name:   pitft28-resistive
+Info:   Adafruit PiTFT 2.8" resistive touch screen
+Load:   dtoverlay=pitft28-resistive,<param>=<val>
+Params: speed                    Display SPI bus speed
+
+        rotate                   Display rotation {0,90,180,270}
+
+        fps                      Delay between frame updates
+
+        debug                    Debug output level {0-7}
+
+
+Name:   pps-gpio
+Info:   Configures the pps-gpio (pulse-per-second time signal via GPIO).
+Load:   dtoverlay=pps-gpio,<param>=<val>
+Params: gpiopin                  Input GPIO (default "18")
+
+
+Name:   rpi-dac
+Info:   Configures the RPi DAC audio card
+Load:   dtoverlay=rpi-dac
+Params: <None>
+
+
+Name:   rpi-display
+Info:   RPi-Display - 2.8" Touch Display by Watterott
+Load:   dtoverlay=rpi-display,<param>=<val>
+Params: speed                    Display SPI bus speed
+
+        rotate                   Display rotation {0,90,180,270}
+
+        fps                      Delay between frame updates
+
+        debug                    Debug output level {0-7}
+
+        xohms                    Touchpanel sensitivity (X-plate resistance)
+
+
+Name:   rpi-proto
+Info:   Configures the RPi Proto audio card
+Load:   dtoverlay=rpi-proto
+Params: <None>
+
+
+Name:   sdhost
+Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock
+Load:   dtoverlay=sdhost,<param>=<val>
+Params: overclock_50             Clock (in MHz) to use when the MMC framework
+                                 requests 50MHz
+        force_pio                Disable DMA support
+
+
+Name:   spi-bcm2708
+Info:   Selects the bcm2708-spi SPI driver
+Load:   dtoverlay=spi-bcm2708
+Params: <None>
+
+
+Name:   spi-bcm2835
+Info:   Selects the bcm2835-spi SPI driver
+Load:   dtoverlay=spi-bcm2835
+Params: <None>
+
+
+Name:   tinylcd35
+Info:   3.5" Color TFT Display by www.tinylcd.com
+        Options: Touch, RTC, keypad
+Load:   dtoverlay=tinylcd35,<param>=<val>
+Params: speed                    Display SPI bus speed
+
+        rotate                   Display rotation {0,90,180,270}
+
+        fps                      Delay between frame updates
+
+        debug                    Debug output level {0-7}
+
+        touch                    Enable touch panel
+
+        touchgpio                Touch controller IRQ GPIO
+
+        xohms                    Touchpanel: Resistance of X-plate in ohms
+
+        rtc-pcf                  PCF8563 Real Time Clock
+
+        rtc-ds                   DS1307 Real Time Clock
+
+        keypad                   Enable keypad
+
+        Examples:
+            Display with touchpanel, PCF8563 RTC and keypad:
+                dtoverlay=tinylcd35,touch,rtc-pcf,keypad
+            Old touch display:
+                dtoverlay=tinylcd35,touch,touchgpio=3
+
+
+Name:   w1-gpio
+Info:   Configures the w1-gpio Onewire interface module.
+        Use this overlay if you *don't* need a GPIO to drive an external pullup.
+Load:   dtoverlay=w1-gpio,<param>=<val>
+Params: gpiopin                  GPIO for I/O (default "4")
+
+        pullup                   Non-zero, "on", or "y" to enable the parasitic
+                                 power (2-wire, power-on-data) feature
+
+
+Name:   w1-gpio-pullup
+Info:   Configures the w1-gpio Onewire interface module.
+        Use this overlay if you *do* need a GPIO to drive an external pullup.
+Load:   dtoverlay=w1-gpio-pullup,<param>=<val>,...
+Params: gpiopin                  GPIO for I/O (default "4")
+
+        pullup                   Non-zero, "on", or "y" to enable the parasitic
+                                 power (2-wire, power-on-data) feature
+
+        extpullup                GPIO for external pullup (default "5")
+
+
+Troubleshooting
+===============
+
+If you are experiencing problems that you think are DT-related, enable DT
+diagnostic output by adding this to /boot/config.txt:
+
+    dtdebug=on
+
+and rebooting. Then run:
+
+    sudo vcdbg log msg
+
+and look for relevant messages.
+
+Further reading
+===============
+
+This is only meant to be a quick introduction to the subject of Device Tree on
+Raspberry Pi. There is a more complete explanation here:
+
+http://www.raspberrypi.org/documentation/configuration/device-tree.md
