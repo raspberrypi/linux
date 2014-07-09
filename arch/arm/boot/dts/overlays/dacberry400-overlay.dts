@@ -1,0 +1,71 @@
+// Definitions for DACberry400
+/dts-v1/;
+/plugin/;
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_producer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			codec_1v8_reg: codec-1v8-reg {
+			compatible = "regulator-fixed";
+			regulator-name = "tlv320aic3104_1v8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&gpio>;
+		__overlay__ {
+			codec_rst: codec-rst {
+				brcm,pins = <26>;
+				brcm,function = <1>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tlv320aic3104@18 {
+				#sound-dai-cells = <0>;
+				reg = <0x18>;
+
+				compatible = "ti,tlv320aic3x";
+				AVDD-supply = <&vdd_3v3_reg>;
+				DRVDD-supply = <&vdd_3v3_reg>;
+				DVDD-supply = <&codec_1v8_reg>;
+				IOVDD-supply = <&codec_1v8_reg>;
+
+				gpio-controller;
+				reset-gpios = <&gpio 26 1>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "osaelectronics,dacberry400";
+			i2s-controller = <&i2s_clk_producer>;
+			status = "okay";
+		};
+	};
+};
+
+
