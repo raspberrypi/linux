@@ -1,0 +1,341 @@
+// Definitions for I2C based sensors using the Industrial IO or HWMON interface.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bme280: bme280@76 {
+				compatible = "bosch,bme280";
+				reg = <0x76>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bmp085: bmp085@77 {
+				compatible = "bosch,bmp085";
+				reg = <0x77>;
+				default-oversampling = <3>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bmp180: bmp180@77 {
+				compatible = "bosch,bmp180";
+				reg = <0x77>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bmp280: bmp280@76 {
+				compatible = "bosch,bmp280";
+				reg = <0x76>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			htu21: htu21@40 {
+				compatible = "htu21";
+				reg = <0x40>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			lm75: lm75@4f {
+				compatible = "lm75";
+				reg = <0x4f>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@6 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			si7020: si7020@40 {
+				compatible = "si7020";
+				reg = <0x40>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@7 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tmp102: tmp102@48 {
+				compatible = "ti,tmp102";
+				reg = <0x48>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@8 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			hdc100x: hdc100x@40 {
+				compatible = "hdc100x";
+				reg = <0x40>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@9 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tsl4531: tsl4531@29 {
+				compatible = "tsl4531";
+				reg = <0x29>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@10 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			veml6070: veml6070@38 {
+				compatible = "veml6070";
+				reg = <0x38>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@11 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sht3x: sht3x@44 {
+				compatible = "sht3x";
+				reg = <0x44>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@12 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ds1621: ds1621@48 {
+				compatible = "ds1621";
+				reg = <0x48>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@13 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			max17040: max17040@36 {
+				compatible = "maxim,max17040";
+				reg = <0x36>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@14 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bme680: bme680@76 {
+				compatible = "bosch,bme680";
+				reg = <0x76>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@15 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sps30: sps30@69 {
+				compatible = "sensirion,sps30";
+				reg = <0x69>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@16 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sgp30: sgp30@58 {
+				compatible = "sensirion,sgp30";
+				reg = <0x58>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@17 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ccs811: ccs811@5b {
+				compatible = "ccs811";
+				reg = <0x5b>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@18 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bh1750: bh1750@23 {
+				compatible = "bh1750";
+				reg = <0x23>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@19 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			max30102: max30102@57 {
+				compatible = "maxim,max30102";
+				reg = <0x57>;
+				maxim,red-led-current-microamp = <7000>;
+				maxim,ir-led-current-microamp  = <7000>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 2>;
+			};
+		};
+	};
+
+	__overrides__ {
+		bme280 = <0>,"+0";
+		bmp085 = <0>,"+1";
+		bmp180 = <0>,"+2";
+		bmp280 = <0>,"+3";
+		htu21 = <0>,"+4";
+		lm75 = <0>,"+5";
+		lm75addr = <&lm75>,"reg:0";
+		si7020 = <0>,"+6";
+		tmp102 = <0>,"+7";
+		hdc100x = <0>,"+8";
+		tsl4531 = <0>,"+9";
+		veml6070 = <0>,"+10";
+		sht3x = <0>,"+11";
+		ds1621 = <0>,"+12";
+		max17040 = <0>,"+13";
+		bme680 = <0>,"+14";
+		sps30 = <0>,"+15";
+		sgp30 = <0>,"+16";
+		ccs811 = <0>, "+17";
+		bh1750 = <0>, "+18";
+		max30102 = <0>,"+19";
+
+		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
+			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
+			<&ds1621>,"reg:0", <&bme680>,"reg:0", <&ccs811>,"reg:0",
+			<&bh1750>,"reg:0";
+		int_pin = <&max30102>, "interrupts:0";
+	};
+};

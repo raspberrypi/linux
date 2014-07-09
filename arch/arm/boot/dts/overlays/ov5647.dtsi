@@ -1,0 +1,25 @@
+cam_node: ov5647@36 {
+	compatible = "ovti,ov5647";
+	reg = <0x36>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+
+	avdd-supply = <&cam1_reg>;
+	dovdd-supply = <&cam_dummy_reg>;
+	dvdd-supply = <&cam_dummy_reg>;
+
+	rotation = <0>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1 2>;
+			clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <297000000>;
+		};
+	};
+};
+
