@@ -1,0 +1,69 @@
+/*
+ * vc4-kms-dpi-panel-overlay.dts
+ * Support for any predefined DPI panel.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "vc4-kms-dpi.dtsi"
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&panel>;
+		__dormant__  {
+			compatible = "innolux,at056tn53v1", "simple-panel";
+		};
+	};
+	fragment@1 {
+		target = <&panel>;
+		__dormant__  {
+			compatible = "ontat,yx700wv03", "simple-panel";
+		};
+	};
+	fragment@2 {
+		target = <&panel>;
+		__dormant__  {
+			compatible = "geekworm,mzp280", "simple-panel";
+		};
+	};
+
+	fragment@90 {
+		target = <&dpi>;
+		__dormant__  {
+			pinctrl-0 = <&dpi_18bit_cpadhi_gpio0>;
+		};
+	};
+	fragment@91 {
+		target = <&dpi>;
+		__dormant__  {
+			pinctrl-0 = <&dpi_18bit_gpio0>;
+		};
+	};
+	fragment@92 {
+		target = <&dpi>;
+		__dormant__  {
+			pinctrl-0 = <&dpi_gpio0>;
+		};
+	};
+	fragment@93 {
+		target = <&dpi>;
+		__dormant__  {
+			pinctrl-0 = <&dpi_16bit_cpadhi_gpio0>;
+		};
+	};
+	fragment@94 {
+		target = <&dpi>;
+		__dormant__  {
+			pinctrl-0 = <&dpi_16bit_gpio0>;
+		};
+	};
+
+	__overrides__ {
+		at056tn53v1 = <0>, "+0+90";
+		kippah-7inch = <0>, "+1+91";
+		mzp280 = <0>, "+2+93";
+	};
+};

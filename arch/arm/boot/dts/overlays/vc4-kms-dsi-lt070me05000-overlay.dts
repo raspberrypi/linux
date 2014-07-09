@@ -1,0 +1,69 @@
+/*
+ * Device Tree overlay to connect a JDI LT070ME05000 DSI panel to DSI1.
+ * This uses 4 DSI data lanes, so can only be used with a Compute Module.
+ *
+ * Credit to forum user gizmomouse on
+ * https://www.raspberrypi.org/forums/viewtopic.php?f=98&t=253912 and
+ * Andrey Vostrukhin of Harlab for the overlay.
+ *
+ * Refer to https://github.com/harlab/CM4_LCD_LT070ME05000 for schematics and
+ * other documentation.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&dsi1>;
+		__overlay__{
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port {
+				dsi_out_port:endpoint {
+					remote-endpoint = <&panel_dsi_port>;
+				};
+			};
+
+			lt070me05000:lt070me05000@0 {
+				compatible    = "jdi,lt070me05000";
+				status        = "okay";
+				reg           = <0>;
+				reset-gpios   = <&gpio 17 1>;   // LCD RST
+				enable-gpios  = <&gpio 4 0>;    // LCD Enable
+				dcdc-en-gpios = <&gpio 5 0>;    // LCD DC-DC Enable
+				port {
+					panel_dsi_port: endpoint {
+						remote-endpoint = <&dsi_out_port>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			lt070me05000_pins: lt070me05000_pins {
+				brcm,pins = <4 5 17>;
+				brcm,function = <1 1 1>; // out
+				brcm,pull = <0 0 0>; // off
+			};
+		};
+
+	};
+
+	__overrides__ {
+		reset = <&lt070me05000_pins>,"brcm,pins:8",
+			<&lt070me05000>,"reset-gpios:4";
+
+		enable = <&lt070me05000_pins>,"brcm,pins:0",
+			<&lt070me05000>,"enable-gpios:4";
+
+		dcdc-en = <&lt070me05000_pins>,"brcm,pins:4",
+			<&lt070me05000>,"dcdc-en-gpios:4";
+	};
+};

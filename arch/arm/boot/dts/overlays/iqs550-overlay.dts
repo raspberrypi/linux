@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Definitions for Azoteq IQS550 trackpad/touchscreen controller
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			iqs550: iqs550@74 {
+				compatible = "azoteq,iqs550";
+				reg = <0x74>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 IRQ_TYPE_LEVEL_HIGH>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&iqs550_pins>;
+				touchscreen-size-x = <800>;
+				touchscreen-size-y = <480>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&iqs550>;
+		iqs550_reset: __dormant__ {
+			reset-gpios = <&gpio 255 (GPIO_ACTIVE_LOW |
+						  GPIO_PUSH_PULL)>;
+		};
+	};
+
+	fragment@2 {
+		target = <&gpio>;
+		__overlay__ {
+			iqs550_pins: iqs550_pins {
+				brcm,pins = <4>;
+				brcm,pull = <1>;
+			};
+		};
+	};
+
+	__overrides__ {
+		interrupt = <&iqs550>,"interrupts:0",
+			    <&iqs550_pins>,"brcm,pins:0";
+		reset = <0>,"+1", <&iqs550_reset>,"reset-gpios:4";
+		sizex = <&iqs550>,"touchscreen-size-x:0";
+		sizey = <&iqs550>,"touchscreen-size-y:0";
+		invx = <&iqs550>,"touchscreen-inverted-x?";
+		invy = <&iqs550>,"touchscreen-inverted-y?";
+		swapxy = <&iqs550>,"touchscreen-swapped-x-y?";
+	};
+};
