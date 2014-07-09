@@ -1,0 +1,47 @@
+// rpi-sense HAT
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			rpi-sense@46 {
+				compatible = "rpi,rpi-sense";
+				reg = <0x46>;
+				keys-int-gpios = <&gpio 23 1>;
+				status = "okay";
+			};
+
+			lsm9ds1-magn@1c {
+				compatible = "st,lsm9ds1-magn";
+				reg = <0x1c>;
+				status = "okay";
+			};
+
+			lps25h-press@5c {
+				compatible = "st,lps25h-press";
+				reg = <0x5c>;
+				status = "okay";
+			};
+
+			hts221-humid@5f {
+				compatible = "st,hts221-humid", "st,hts221";
+				reg = <0x5f>;
+				status = "okay";
+			};
+
+			lsm9ds1-accel@6a {
+				compatible = "st,lsm9ds1-accel";
+				reg = <0x6a>;
+				status = "okay";
+			};
+		};
+	};
+};

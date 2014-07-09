@@ -1,0 +1,28 @@
+/dts-v1/;
+/plugin/;
+
+/* Pi3 uses a GPIO expander to drive the LEDs which can only be accessed
+   from the VPU. There is a special driver for this with a separate DT node,
+   which has the unfortunate consequence of breaking the act_led_gpio and
+   act_led_activelow dtparams.
+
+   This overlay changes the GPIO controller back to the standard one and
+   restores the dtparams.
+*/
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&led_act>;
+		frag0: __overlay__ {
+			gpios = <&gpio 0 0>;
+		};
+	};
+
+	__overrides__ {
+		gpio = <&frag0>,"gpios:4",
+		       <&frag0>,"status=okay";
+		activelow = <&frag0>,"gpios:8";
+	};
+};

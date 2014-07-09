@@ -1,0 +1,173 @@
+// Umbrella I2C Mux overlay
+
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pca9542: mux@70 {
+				compatible = "nxp,pca9542";
+				reg = <0x70>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				i2c@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+				};
+				i2c@1 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <1>;
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pca9545: mux@70 {
+				compatible = "nxp,pca9545";
+				reg = <0x70>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				i2c@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+				};
+				i2c@1 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <1>;
+				};
+				i2c@2 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <2>;
+				};
+				i2c@3 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <3>;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2cbus>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pca9548: mux@70 {
+				compatible = "nxp,pca9548";
+				reg = <0x70>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				i2c@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+				};
+				i2c@1 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <1>;
+				};
+				i2c@2 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <2>;
+				};
+				i2c@3 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <3>;
+				};
+				i2c@4 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <4>;
+				};
+				i2c@5 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <5>;
+				};
+				i2c@6 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <6>;
+				};
+				i2c@7 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <7>;
+				};
+			};
+		};
+	};
+
+	frag100: fragment@100 {
+		target = <&i2c_arm>;
+		i2cbus: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@101 {
+		target = <&i2c0if>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
+	fragment@102 {
+		target = <&i2c0mux>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		pca9542 = <0>, "+0";
+		pca9545 = <0>, "+1";
+		pca9548 = <0>, "+2";
+
+		addr =  <&pca9542>,"reg:0",
+			<&pca9545>,"reg:0",
+			<&pca9548>,"reg:0";
+
+		i2c0 = <&frag100>, "target:0=",<&i2c0>,
+			      <0>,"+101+102";
+		i2c_csi_dsi = <&frag100>, "target:0=",<&i2c_csi_dsi>,
+			      <0>,"+101+102";
+		i2c3 = <&frag100>, "target?=0",
+		       <&frag100>, "target-path=i2c3";
+		i2c4 = <&frag100>, "target?=0",
+		       <&frag100>, "target-path=i2c4";
+		i2c5 = <&frag100>, "target?=0",
+		       <&frag100>, "target-path=i2c5";
+		i2c6 = <&frag100>, "target?=0",
+		       <&frag100>, "target-path=i2c6";
+	};
+};
