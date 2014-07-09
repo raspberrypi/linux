@@ -1,6 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0
 ifeq ($(CONFIG_OF),y)
 
+dtb-$(CONFIG_ARCH_BCM2835) += \
+	bcm2708-rpi-b.dtb \
+	bcm2708-rpi-b-plus.dtb \
+	bcm2708-rpi-cm.dtb \
+	bcm2708-rpi-0-w.dtb \
+	bcm2709-rpi-2-b.dtb \
+	bcm2710-rpi-3-b.dtb \
+	bcm2710-rpi-cm3.dtb
+
 dtb-$(CONFIG_ARCH_ALPINE) += \
 	alpine-db.dtb
 dtb-$(CONFIG_MACH_ARTPEC6) += \
@@ -1104,4 +1113,15 @@ dtb-$(CONFIG_ARCH_ZX) += zx296702-ad1.dtb
 dtb-$(CONFIG_ARCH_ASPEED) += aspeed-bmc-opp-palmetto.dtb \
 	aspeed-bmc-opp-romulus.dtb \
 	aspeed-ast2500-evb.dtb
+
+targets += dtbs dtbs_install
+targets += $(dtb-y)
+
+endif
+
+subdir-y	:= overlays
+
+# Enable fixups to support overlays on BCM2835 platforms
+ifeq ($(CONFIG_ARCH_BCM2835),y)
+	DTC_FLAGS ?= -@
 endif
