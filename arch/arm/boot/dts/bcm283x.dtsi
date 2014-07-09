@@ -408,6 +408,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
+			cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
 		};
 
 		i2c0: i2c@7e205000 {
@@ -464,12 +465,16 @@
 			#clock-cells = <1>;
 			reg = <0x7e215000 0x8>;
 			clocks = <&clocks BCM2835_CLOCK_VPU>;
+			interrupts = <1 29>;
+			interrupt-controller;
+			#interrupt-cells = <1>;
 		};
 
 		uart1: serial@7e215040 {
 			compatible = "brcm,bcm2835-aux-uart";
 			reg = <0x7e215040 0x40>;
-			interrupts = <1 29>;
+			interrupt-parent = <&aux>;
+			interrupts = <0>;
 			clocks = <&aux BCM2835_AUX_CLOCK_UART>;
 			status = "disabled";
 		};
@@ -477,7 +482,8 @@
 		spi1: spi@7e215080 {
 			compatible = "brcm,bcm2835-aux-spi";
 			reg = <0x7e215080 0x40>;
-			interrupts = <1 29>;
+			interrupt-parent = <&aux>;
+			interrupts = <1>;
 			clocks = <&aux BCM2835_AUX_CLOCK_SPI1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -487,7 +493,8 @@
 		spi2: spi@7e2150c0 {
 			compatible = "brcm,bcm2835-aux-spi";
 			reg = <0x7e2150c0 0x40>;
-			interrupts = <1 29>;
+			interrupt-parent = <&aux>;
+			interrupts = <2>;
 			clocks = <&aux BCM2835_AUX_CLOCK_SPI2>;
 			#address-cells = <1>;
 			#size-cells = <0>;

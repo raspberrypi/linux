@@ -1,0 +1,28 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&usb>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		dwc2_usb: __overlay__ {
+			compatible = "brcm,bcm2835-usb";
+			reg = <0x7e980000 0x10000>;
+			interrupts = <1 9>;
+			dr_mode = "otg";
+			g-np-tx-fifo-size = <32>;
+			g-rx-fifo-size = <256>;
+			g-tx-fifo-size = <512 512 512 512 512 768>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		dr_mode = <&dwc2_usb>, "dr_mode";
+		g-np-tx-fifo-size = <&dwc2_usb>,"g-np-tx-fifo-size:0";
+		g-rx-fifo-size = <&dwc2_usb>,"g-rx-fifo-size:0";
+	};
+};
