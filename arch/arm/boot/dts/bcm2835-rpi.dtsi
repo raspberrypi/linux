@@ -34,6 +34,22 @@
 			interrupts = <0 2>;
 		};
 	};
+
+	vdd_3v3_reg: fixedregulator_3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
+	vdd_5v0_reg: fixedregulator_5v0 {
+		compatible = "regulator-fixed";
+		regulator-name = "5v0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+	};
 };
 
 &gpio {
@@ -101,4 +117,12 @@
 
 &dsi1 {
 	power-domains = <&power RPI_POWER_DOMAIN_DSI1>;
+};
+
+&csi0 {
+	power-domains = <&power RPI_POWER_DOMAIN_UNICAM0>;
+};
+
+&csi1 {
+	power-domains = <&power RPI_POWER_DOMAIN_UNICAM1>;
 };
