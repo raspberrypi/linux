@@ -1,0 +1,21 @@
+/*
+ * Devicetree overlay for mailbox-driven Raspberry Pi DSI Display
+ * backlight controller
+ */
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			rpi_backlight: rpi_backlight {
+				compatible = "raspberrypi,rpi-backlight";
+				firmware = <&firmware>;
+				status = "okay";
+			};
+		};
+	};
+};
