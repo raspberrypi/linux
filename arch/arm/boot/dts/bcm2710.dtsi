@@ -1,0 +1,25 @@
+#include "bcm2837.dtsi"
+#include "bcm270x.dtsi"
+
+/ {
+	compatible = "brcm,bcm2837", "brcm,bcm2836";
+
+	arm-pmu {
+		compatible = "arm,cortex-a53-pmu", "arm,cortex-a7-pmu";
+	};
+
+	soc {
+		/delete-node/ timer@7e003000;
+	};
+
+	__overrides__ {
+		arm_freq = <&cpu0>, "clock-frequency:0",
+		       <&cpu1>, "clock-frequency:0",
+		       <&cpu2>, "clock-frequency:0",
+		       <&cpu3>, "clock-frequency:0";
+	};
+};
+
+&vc4 {
+	status = "disabled";
+};

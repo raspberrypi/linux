@@ -1,0 +1,49 @@
+// Overlay for PiFi-DAC-HD
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells =<0>;
+
+			pcm5142: pcm5142@4c {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm5142";
+				reg = <0x4c>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "PiFi-DAC-HD";
+			status = "okay";
+
+			simple-audio-card,dai-link@1 {
+				format = "i2s";
+				cpu {
+					sound-dai = <&i2s>;
+				};
+				codec {
+					sound-dai = <&pcm5142>;
+				};
+			};
+		};
+	};
+};
