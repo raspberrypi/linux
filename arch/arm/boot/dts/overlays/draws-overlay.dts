@@ -1,0 +1,200 @@
+#include <dt-bindings/clock/bcm2835.h>
+/*
+ * Device tree overlay for the DRAWS Hardware
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835", "brcm,bcm2836", "brcm,bcm2708", "brcm,bcm2709";
+    fragment@0 {
+        target = <&i2s>;
+        __overlay__ {
+            status = "okay";
+        };
+    };
+
+    fragment@1 {
+        target-path = "/";
+        __overlay__ {
+            regulators {
+                compatible = "simple-bus";
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                udrc0_ldoin: udrc0_ldoin {
+                    compatible = "regulator-fixed";
+                    regulator-name = "ldoin";
+                    regulator-min-microvolt = <3300000>;
+                    regulator-max-microvolt = <3300000>;
+                    regulator-always-on;
+                };
+            };
+
+            pps: pps {
+                compatible = "pps-gpio";
+                pinctrl-names = "default";
+                pinctrl-0 = <&pps_pins>;
+                gpios = <&gpio 7 0>;
+                status = "okay";
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&i2c_arm>;
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+
+            tlv320aic32x4: tlv320aic32x4@18 {
+                compatible = "ti,tlv320aic32x4";
+                reg = <0x18>;
+                #sound-dai-cells = <0>;
+                status = "okay";
+
+                clocks = <&clocks BCM2835_CLOCK_GP0>;
+                clock-names = "mclk";
+                assigned-clocks = <&clocks BCM2835_CLOCK_GP0>;
+                assigned-clock-rates = <25000000>;
+
+                pinctrl-names = "default";
+                pinctrl-0 = <&gpclk0_pin &aic3204_reset>;
+
+                reset-gpios = <&gpio 13 0>;
+
+                iov-supply = <&udrc0_ldoin>;
+                ldoin-supply = <&udrc0_ldoin>;
+            };
+
+            sc16is752: sc16is752@50 {
+                compatible = "nxp,sc16is752";
+                reg = <0x50>;
+                clocks = <&sc16is752_clk>;
+                interrupt-parent = <&gpio>;
+                interrupts = <17 2>; /* IRQ_TYPE_EDGE_FALLING */
+
+                pinctrl-names = "default";
+                pinctrl-0 = <&sc16is752_irq>;
+
+                sc16is752_clk: sc16is752_clk {
+                    compatible = "fixed-clock";
+                    #clock-cells = <0>;
+                    clock-frequency = <1843200>;
+                };
+            };
+
+            tla2024: tla2024@48 {
+                compatible = "ti,ads1015";
+                reg = <0x48>;
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                adc_ch4: channel@4 {
+                    reg = <4>;
+                    ti,gain = <1>;
+                    ti,datarate = <4>;
+                };
+
+                adc_ch5: channel@5 {
+                    reg = <5>;
+                    ti,gain = <1>;
+                    ti,datarate = <4>;
+                };
+
+                adc_ch6: channel@6 {
+                    reg = <6>;
+                    ti,gain = <2>;
+                    ti,datarate = <4>;
+                };
+
+                adc_ch7: channel@7 {
+                    reg = <7>;
+                    ti,gain = <2>;
+                    ti,datarate = <4>;
+                };
+            };
+        };
+    };
+
+    fragment@3 {
+        target = <&sound>;
+        snd: __overlay__ {
+            compatible = "simple-audio-card";
+            i2s-controller = <&i2s>;
+            status = "okay";
+
+            simple-audio-card,name = "draws";
+            simple-audio-card,format = "i2s";
+
+            simple-audio-card,bitclock-master = <&dailink0_master>;
+            simple-audio-card,frame-master = <&dailink0_master>;
+
+            simple-audio-card,widgets =
+                "Line", "Line In",
+                "Line", "Line Out";
+
+            simple-audio-card,routing =
+                "IN1_R", "Line In",
+                "IN1_L", "Line In",
+                "CM_L", "Line In",
+                "CM_R", "Line In",
+                "Line Out", "LOR",
+                "Line Out", "LOL";
+
+            dailink0_master: simple-audio-card,cpu {
+                sound-dai = <&i2s>;
+            };
+
+            simple-audio-card,codec {
+                sound-dai = <&tlv320aic32x4>;
+            };
+        };
+    };
+
+    fragment@4 {
+        target = <&gpio>;
+        __overlay__ {
+            gpclk0_pin: gpclk0_pin {
+                brcm,pins = <4>;
+                brcm,function = <4>;
+            };
+
+            aic3204_reset: aic3204_reset {
+                brcm,pins = <13>;
+                brcm,function = <1>;
+                brcm,pull = <1>;
+            };
+
+            aic3204_gpio: aic3204_gpio {
+                brcm,pins = <26>;
+            };
+
+            sc16is752_irq: sc16is752_irq {
+                brcm,pins = <17>;
+                brcm,function = <0>;
+                brcm,pull = <2>;
+            };
+
+            pps_pins: pps_pins {
+                brcm,pins = <7>;
+                brcm,function = <0>;
+                brcm,pull = <0>;
+            };
+        };
+    };
+
+    __overrides__ {
+        draws_adc_ch4_gain = <&adc_ch4>,"ti,gain:0";
+        draws_adc_ch4_datarate = <&adc_ch4>,"ti,datarate:0";
+        draws_adc_ch5_gain = <&adc_ch5>,"ti,gain:0";
+        draws_adc_ch5_datarate = <&adc_ch5>,"ti,datarate:0";
+        draws_adc_ch6_gain = <&adc_ch6>,"ti,gain:0";
+        draws_adc_ch6_datarate = <&adc_ch6>,"ti,datarate:0";
+        draws_adc_ch7_gain = <&adc_ch7>,"ti,gain:0";
+        draws_adc_ch7_datarate = <&adc_ch7>,"ti,datarate:0";
+        alsaname = <&snd>, "simple-audio-card,name";
+    };
+};
