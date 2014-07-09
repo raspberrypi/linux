@@ -1,0 +1,145 @@
+/* Downstream bcm283x.dtsi diff */
+#include "dt-bindings/power/raspberrypi-power.h"
+
+/ {
+	chosen {
+		bootargs = "";
+	};
+
+	soc: soc {
+
+		/delete-node/ timer@7e003000;
+
+		watchdog: watchdog@7e100000 {
+			/* Add alias */
+		};
+
+		cprman: cprman@7e101000 {
+			/* Add alias */
+		};
+
+		random: rng@7e104000 {
+			/* Add alias */
+		};
+
+		gpio@7e200000 { /* gpio */
+			interrupts = <2 17>, <2 18>;
+		};
+
+		i2s@7e203000 { /* i2s */
+			#sound-dai-cells = <0>;
+			reg = <0x7e203000 0x24>;
+			clocks = <&clocks BCM2835_CLOCK_PCM>;
+		};
+
+		spi0: spi@7e204000 {
+			/* Add alias */
+			dmas = <&dma 6>, <&dma 7>;
+			dma-names = "tx", "rx";
+		};
+
+		pixelvalve0: pixelvalve@7e206000 {
+			/* Add alias */
+			status = "disabled";
+		};
+
+		pixelvalve1: pixelvalve@7e207000 {
+			/* Add alias */
+			status = "disabled";
+		};
+
+		dpi: dpi@7e208000 {
+			compatible = "brcm,bcm2835-dpi";
+			reg = <0x7e208000 0x8c>;
+			clocks = <&clocks BCM2835_CLOCK_VPU>,
+				 <&clocks BCM2835_CLOCK_DPI>;
+			clock-names = "core", "pixel";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		/delete-node/ sdhci@7e300000;
+
+		mmc: mmc@7e300000 {
+			compatible = "brcm,bcm2835-mmc";
+			reg = <0x7e300000 0x100>;
+			interrupts = <2 30>;
+			clocks = <&clocks BCM2835_CLOCK_EMMC>;
+			dmas = <&dma 11>;
+			dma-names = "rx-tx";
+			brcm,overclock-50 = <0>;
+			status = "disabled";
+		};
+
+		hvs: hvs@7e400000 {
+			/* Add alias */
+			status = "disabled";
+		};
+
+		firmwarekms: firmwarekms@7e600000 {
+			compatible = "raspberrypi,rpi-firmware-kms";
+			/* SMI interrupt reg */
+			reg = <0x7e600000 0x100>;
+			interrupts = <2 16>;
+			brcm,firmware = <&firmware>;
+			status = "disabled";
+		};
+
+		smi: smi@7e600000 {
+			compatible = "brcm,bcm2835-smi";
+			reg = <0x7e600000 0x100>;
+			interrupts = <2 16>;
+			clocks = <&clocks BCM2835_CLOCK_SMI>;
+			assigned-clocks = <&cprman BCM2835_CLOCK_SMI>;
+			assigned-clock-rates = <125000000>;
+			dmas = <&dma 4>;
+			dma-names = "rx-tx";
+			status = "disabled";
+		};
+
+		pixelvalve2: pixelvalve@7e807000 {
+			/* Add alias */
+			status = "disabled";
+		};
+
+		hdmi@7e902000 { /* hdmi */
+			status = "disabled";
+		};
+
+		usb@7e980000 { /* usb */
+			compatible = "brcm,bcm2708-usb";
+			reg = <0x7e980000 0x10000>,
+			      <0x7e006000 0x1000>;
+			interrupts = <2 0>,
+				     <1 9>;
+		};
+
+		v3d@7ec00000 { /* vd3 */
+			compatible = "brcm,vc4-v3d";
+			power-domains = <&power RPI_POWER_DOMAIN_V3D>;
+			status = "disabled";
+		};
+
+		gpu: gpu {
+			/* Add alias */
+			status = "disabled";
+		};
+	};
+
+	vdd_5v0_reg: fixedregulator_5v0 {
+		compatible = "regulator-fixed";
+		regulator-name = "5v0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+	};
+
+	vdd_3v3_reg: fixedregulator_3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+};
