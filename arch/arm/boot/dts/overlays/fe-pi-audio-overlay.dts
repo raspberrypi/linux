@@ -1,0 +1,70 @@
+// Definitions for Fe-Pi Audio
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&clocks>;
+		__overlay__ {
+			sgtl5000_mclk: sgtl5000_mclk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <12288000>;
+				clock-output-names = "sgtl5000-mclk";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&soc>;
+		__overlay__ {
+			reg_1v8: reg_1v8@0 {
+				compatible = "regulator-fixed";
+				regulator-name = "1V8";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-always-on;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sgtl5000@0a {
+				#sound-dai-cells = <0>;
+				compatible = "fsl,sgtl5000";
+				reg = <0x0a>;
+				clocks = <&sgtl5000_mclk>;
+				micbias-resistor-k-ohms = <2>;
+				micbias-voltage-m-volts = <3000>;
+				VDDA-supply = <&vdd_3v3_reg>;
+				VDDIO-supply = <&vdd_3v3_reg>;
+				VDDD-supply = <&reg_1v8>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "fe-pi,fe-pi-audio";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+};
