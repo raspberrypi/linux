@@ -1,0 +1,23 @@
+// Definitions for BMP085/BMP180 digital barometric pressure and temperature sensors from Bosch Sensortec
+/dts-v1/;
+/plugin/;
+
+/ {
+        compatible = "brcm,bcm2708";
+
+        fragment@0 {
+                target = <&i2c1>;
+                __overlay__ {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        status = "okay";
+
+                        bmp085@77 {
+                                compatible = "bosch,bmp085";
+                                reg = <0x77>;
+                                default-oversampling = <3>;
+                                status = "okay";
+                        };
+                };
+        };
+};
