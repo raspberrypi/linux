@@ -1,4 +1,20 @@
 # SPDX-License-Identifier: GPL-2.0
+
+dtb-$(CONFIG_ARCH_BCM2835) += \
+	bcm2708-rpi-b.dtb \
+	bcm2708-rpi-b-rev1.dtb \
+	bcm2708-rpi-b-plus.dtb \
+	bcm2708-rpi-cm.dtb \
+	bcm2708-rpi-zero.dtb \
+	bcm2708-rpi-zero-w.dtb \
+	bcm2709-rpi-2-b.dtb \
+	bcm2710-rpi-2-b.dtb \
+	bcm2710-rpi-3-b.dtb \
+	bcm2711-rpi-4-b.dtb \
+	bcm2710-rpi-3-b-plus.dtb \
+	bcm2710-rpi-cm3.dtb \
+	bcm2711-rpi-cm4.dtb
+
 dtb-$(CONFIG_ARCH_ALPINE) += \
 	alpine-db.dtb
 dtb-$(CONFIG_MACH_ARTPEC6) += \
@@ -92,7 +108,6 @@ dtb-$(CONFIG_ARCH_BCM2835) += \
 	bcm2837-rpi-3-b.dtb \
 	bcm2837-rpi-3-b-plus.dtb \
 	bcm2837-rpi-cm3-io3.dtb \
-	bcm2711-rpi-4-b.dtb \
 	bcm2835-rpi-zero.dtb \
 	bcm2835-rpi-zero-w.dtb
 dtb-$(CONFIG_ARCH_BCM_5301X) += \
@@ -1408,3 +1423,13 @@ dtb-$(CONFIG_ARCH_ASPEED) += \
 	aspeed-bmc-opp-zaius.dtb \
 	aspeed-bmc-portwell-neptune.dtb \
 	aspeed-bmc-quanta-q71l.dtb
+
+targets += dtbs dtbs_install
+targets += $(dtb-y)
+
+subdir-y	:= overlays
+
+# Enable fixups to support overlays on BCM2835 platforms
+ifeq ($(CONFIG_ARCH_BCM2835),y)
+	DTC_FLAGS ?= -@
+endif
