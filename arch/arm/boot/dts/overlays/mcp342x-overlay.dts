@@ -1,0 +1,93 @@
+// Overlay for MCP3421-8 ADCs from Microchip Semiconductor
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			status = "okay";
+
+			mcp342x: mcp@68 {
+				reg = <0x68>;
+
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&mcp342x>;
+		__dormant__ {
+			compatible = "microchip,mcp3421";
+		};
+	};
+
+	fragment@2 {
+		target = <&mcp342x>;
+		__dormant__ {
+			compatible = "microchip,mcp3422";
+		};
+	};
+
+	fragment@3 {
+		target = <&mcp342x>;
+		__dormant__ {
+			compatible = "microchip,mcp3423";
+		};
+	};
+
+	fragment@4 {
+		target = <&mcp342x>;
+		__dormant__ {
+			compatible = "microchip,mcp3424";
+		};
+	};
+
+	fragment@5 {
+		target = <&mcp342x>;
+		__dormant__ {
+			compatible = "microchip,mcp3425";
+		};
+	};
+
+	fragment@6 {
+		target = <&mcp342x>;
+		__dormant__ {
+			compatible = "microchip,mcp3426";
+		};
+	};
+
+	fragment@7 {
+		target = <&mcp342x>;
+		__dormant__ {
+			compatible = "microchip,mcp3427";
+		};
+	};
+
+	fragment@8 {
+		target = <&mcp342x>;
+		__dormant__ {
+			compatible = "microchip,mcp3428";
+		};
+	};
+
+	__overrides__ {
+		addr = <&mcp342x>,"reg:0";
+		mcp3421 = <0>,"=1";
+		mcp3422 = <0>,"=2";
+		mcp3423 = <0>,"=3";
+		mcp3424 = <0>,"=4";
+		mcp3425 = <0>,"=5";
+		mcp3426 = <0>,"=6";
+		mcp3427 = <0>,"=7";
+		mcp3428 = <0>,"=8";
+	};
+};
+

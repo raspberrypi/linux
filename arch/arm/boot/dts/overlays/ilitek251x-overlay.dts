@@ -1,0 +1,45 @@
+// Device tree overlay for I2C connected Ilitek multiple touch controller
+/dts-v1/;
+/plugin/;
+
+ / {
+	compatible = "brcm,bcm2708";
+
+ 	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {		
+			ili251x_pins: ili251x_pins {
+				brcm,pins = <4>; // interrupt
+				brcm,function = <0>; // in
+				brcm,pull = <2>; // pull-up //
+			};
+		};
+	};
+
+ 	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+ 			ili251x: ili251x@41 {
+				compatible = "ilitek,ili251x";
+				reg = <0x41>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&ili251x_pins>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 8>; // high-to-low edge triggered
+				touchscreen-size-x = <16384>;
+				touchscreen-size-y = <9600>;
+			};
+		};
+	};
+
+ 	__overrides__ {
+		interrupt = <&ili251x_pins>,"brcm,pins:0",
+			<&ili251x>,"interrupts:0";
+		sizex = <&ili251x>,"touchscreen-size-x:0";
+		sizey = <&ili251x>,"touchscreen-size-y:0";
+	};
+};
