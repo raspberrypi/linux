@@ -1,0 +1,11 @@
+#include "bcm2835.dtsi"
+#include "bcm270x.dtsi"
+#include "bcm2708-rpi.dtsi"
+
+/ {
+	/delete-node/ cpus;
+
+	__overrides__ {
+		arm_freq;
+	};
+};
