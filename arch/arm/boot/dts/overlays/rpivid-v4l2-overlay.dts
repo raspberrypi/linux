@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for Raspberry Pi video decode engine
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+/{
+	compatible = "brcm,bcm2711";
+
+	fragment@0 {
+		target = <&scb>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <2>;
+			#size-cells = <2>;
+
+			codec@7eb10000 {
+				compatible = "raspberrypi,rpivid-vid-decoder";
+				reg = <0x0 0x7eb10000  0x0 0x1000>,  /* INTC */
+				      <0x0 0x7eb00000  0x0 0x10000>; /* HEVC */
+				reg-names = "intc",
+					    "hevc";
+
+				interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+
+				clocks = <&hevc_clk>;
+				clock-names = "hevc";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&scb>;
+		__overlay__ {
+			hevc-decoder@7eb00000 {
+				status = "disabled";
+			};
+			rpivid-local-intc@7eb10000 {
+				status = "disabled";
+			};
+			h264-decoder@7eb20000 {
+				status = "disabled";
+			};
+			vp9-decoder@7eb30000 {
+				status = "disabled";
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			hevc_clk: hevc_clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <500000000>;
+			};
+		};
+	};
+};
