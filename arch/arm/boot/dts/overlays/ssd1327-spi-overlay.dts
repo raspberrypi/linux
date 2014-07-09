@@ -1,0 +1,70 @@
+/*
+ * Device Tree overlay for SSD1327 based SPI OLED display
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			ssd1327_pins: ssd1327_pins {
+				brcm,pins = <25 24>;
+				brcm,function = <1 1>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ssd1327: ssd1327@0{
+				compatible = "solomon,ssd1327";
+				reg = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&ssd1327_pins>;
+
+				spi-max-frequency = <4500000>;
+				reset-gpios = <&gpio 25 1>;
+				dc-gpios = <&gpio 24 0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		speed     = <&ssd1327>,"spi-max-frequency:0";
+		dc_pin    = <&ssd1327>,"dc-gpios:4",
+			    <&ssd1327_pins>,"brcm,pins:4";
+		reset_pin = <&ssd1327>,"reset-gpios:4",
+			    <&ssd1327_pins>,"brcm,pins:0";
+	};
+};

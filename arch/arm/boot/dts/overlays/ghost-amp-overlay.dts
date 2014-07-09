@@ -1,0 +1,145 @@
+// Overlay for the PCM5122-based Ghost amplifier using gpio-fsm
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio-fsm.h>
+
+#define ENABLE   GF_SW(0)
+#define FAULT    GF_IP(0) // GPIO5
+#define RELAY1   GF_OP(0) // GPIO22
+#define RELAY2   GF_OP(1) // GPIO23
+#define RELAYSSR GF_OP(2) // GPIO24
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_producer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcm5122@4c {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm5122";
+				reg = <0x4c>;
+				AVDD-supply = <&vdd_3v3_reg>;
+				DVDD-supply = <&vdd_3v3_reg>;
+				CPVDD-supply = <&vdd_3v3_reg>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		iqaudio_dac: __overlay__ {
+			compatible = "iqaudio,iqaudio-dac";
+			i2s-controller = <&i2s_clk_producer>;
+			mute-gpios = <&amp 0 0>;
+			iqaudio-dac,auto-mute-amp;
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target-path = "/";
+		__overlay__ {
+			amp: ghost-amp {
+				compatible = "rpi,gpio-fsm";
+				pinctrl-names = "default";
+				pinctrl-0 = <&ghost_amp_pins>;
+
+				debug = <0>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				num-swgpios = <1>;
+				gpio-line-names = "enable";
+				input-gpios  = <&gpio 5 1>;  // FAULT (active low)
+				output-gpios = <&gpio 22 0>, // RELAY1
+					       <&gpio 23 0>, // RELAY2
+					       <&gpio 24 0>; // RELAYSSR
+				shutdown-timeout-ms = <1000>;
+
+				amp_off {
+					start_state;
+					shutdown_state;
+
+					set = <RELAYSSR 0>,
+					      <RELAY2 0>,
+					      <RELAY1 0>;
+					amp_on_1 = <ENABLE 1>;
+					fault = <FAULT 1>;
+				};
+
+				amp_on_1 {
+					set = <RELAY1 1>;
+					amp_on_2 = <GF_DELAY 1000>;
+					amp_off = <GF_SHUTDOWN 0>;
+					fault = <FAULT 1>;
+				};
+
+				amp_on_2 {
+					set = <RELAY2 1>;
+					amp_on_wait = <ENABLE 0>;
+					amp_on = <GF_DELAY 1>;
+					fault = <FAULT 1>;
+				};
+
+				amp_on {
+					set = <RELAYSSR 1>;
+					amp_on_wait = <ENABLE 0>;
+					fault = <FAULT 1>;
+				};
+
+				amp_on_wait {
+					set = <RELAYSSR 0>;
+					amp_off_1 = <GF_DELAY (30*60*1000)>,
+						    <GF_SHUTDOWN 0>;
+					amp_on = <ENABLE 1>;
+					fault = <FAULT 1>;
+				};
+
+				amp_off_1 {
+					set = <RELAY2 0>;
+					amp_on = <ENABLE 1>;
+					amp_off = <GF_DELAY 100>;
+					fault = <FAULT 1>;
+				};
+
+				// Keep this a distinct state to prevent
+				// changes and for the diagnostic output
+				fault {
+					set = <RELAYSSR 0>,
+					      <RELAY2 0>,
+					      <RELAY1 0>;
+					amp_off = <FAULT 0>;
+					shutdown_state;
+				};
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&gpio>;
+		__overlay__ {
+			ghost_amp_pins: ghost_amp_pins {
+				brcm,pins = <5 22 23 24>;
+				brcm,function = <0 1 1 1>; /* in out out out */
+				brcm,pull = <2 0 0 0>; /* up none none none */
+			};
+		};
+	};
+
+	__overrides__ {
+		fsm_debug = <&amp>,"debug:0";
+	};
+};
