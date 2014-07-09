@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for IMX327 camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "imx290_327-overlay.dtsi"
+
+/{
+	compatible = "brcm,bcm2835";
+
+	// Fragment numbers deliberately high to avoid conflicts with the
+	// included imx290_327 overlay file.
+
+	fragment@101 {
+		target = <&cam_node>;
+		__overlay__ {
+			compatible = "sony,imx327";
+		};
+	};
+
+	fragment@102 {
+		target = <&cam_node>;
+		__dormant__ {
+			compatible = "sony,imx327-mono";
+		};
+	};
+
+	__overrides__ {
+		mono = <0>, "-101+102";
+	};
+};
