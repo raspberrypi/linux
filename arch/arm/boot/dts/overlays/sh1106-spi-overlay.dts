@@ -1,0 +1,84 @@
+/*
+ * Device Tree overlay for SH1106 based SPI OLED display
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			sh1106_pins: sh1106_pins {
+                                brcm,pins = <25 24>;
+                                brcm,function = <1 1>; /* out out */
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			sh1106: sh1106@0{
+				compatible = "sinowealth,sh1106";
+				reg = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&sh1106_pins>;
+
+				spi-max-frequency = <4000000>;
+				bgr = <0>;
+				bpp = <1>;
+				rotate = <0>;
+				fps = <25>;
+				buswidth = <8>;
+				reset-gpios = <&gpio 25 1>;
+				dc-gpios = <&gpio 24 0>;
+				debug = <0>;
+
+				sinowealth,height = <64>;
+				sinowealth,width = <128>;
+				sinowealth,page-offset = <0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		speed     = <&sh1106>,"spi-max-frequency:0";
+		rotate    = <&sh1106>,"rotate:0";
+		fps       = <&sh1106>,"fps:0";
+		debug     = <&sh1106>,"debug:0";
+		dc_pin    = <&sh1106>,"dc-gpios:4",
+		            <&sh1106_pins>,"brcm,pins:4";
+		reset_pin = <&sh1106>,"reset-gpios:4",
+		            <&sh1106_pins>,"brcm,pins:0";
+		height    = <&sh1106>,"sinowealth,height:0";
+	};
+};
