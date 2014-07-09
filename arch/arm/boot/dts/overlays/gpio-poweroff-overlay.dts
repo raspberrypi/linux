@@ -1,0 +1,37 @@
+// Definitions for gpio-poweroff module
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			power_ctrl: power_ctrl {
+				compatible = "gpio-poweroff";
+				gpios = <&gpio 26 0>;
+				force;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			power_ctrl_pins: power_ctrl_pins {
+				brcm,pins = <26>;
+				brcm,function = <1>; // out
+			};
+		};
+	};
+
+	__overrides__ {
+		gpiopin =       <&power_ctrl>,"gpios:4",
+				<&power_ctrl_pins>,"brcm,pins:0";
+		active_low =    <&power_ctrl>,"gpios:8";
+		input =         <&power_ctrl>,"input?";
+		export =        <&power_ctrl>,"export?";
+		timeout_ms =    <&power_ctrl>,"timeout-ms:0";
+	};
+};
