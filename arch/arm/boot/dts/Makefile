@@ -1,5 +1,17 @@
 ifeq ($(CONFIG_OF),y)
 
+dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b.dtb
+dtb-$(CONFIG_BCM2709_DT) += bcm2709-rpi-2-b.dtb
+dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b-plus.dtb
+
+# Raspberry Pi
+ifeq ($(CONFIG_BCM2708_DT),y)
+   RPI_DT_OVERLAYS=y
+endif
+ifeq ($(CONFIG_BCM2709_DT),y)
+   RPI_DT_OVERLAYS=y
+endif
+
 dtb-$(CONFIG_MACH_ASM9260) += \
 	alphascale-asm9260-devkit.dtb
 # Keep at91 dtb files sorted alphabetically for each SoC
@@ -645,7 +657,16 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += \
 	mt6592-evb.dtb \
 	mt8127-moose.dtb \
 	mt8135-evbp1.dtb
+
+targets += dtbs dtbs_install
+targets += $(dtb-y)
+
 endif
 
 always		:= $(dtb-y)
 clean-files	:= *.dtb
+
+# Enable fixups to support overlays on BCM2708 platforms
+ifeq ($(RPI_DT_OVERLAYS),y)
+	DTC_FLAGS ?= -@
+endif
