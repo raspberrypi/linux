@@ -1,0 +1,143 @@
+/* Downstream modifications to bcm2835-rpi.dtsi */
+
+#include "bcm2835-rpi.dtsi"
+
+/ {
+	memory {
+		device_type = "memory";
+		reg = <0x0 0x0>;
+	};
+
+	aliases {
+		audio = &audio;
+		aux = &aux;
+		sound = &sound;
+		soc = &soc;
+		dma = &dma;
+		intc = &intc;
+		watchdog = &watchdog;
+		random = &random;
+		mailbox = &mailbox;
+		gpio = &gpio;
+		uart0 = &uart0;
+		sdhost = &sdhost;
+		mmc0 = &sdhost;
+		i2s = &i2s;
+		spi0 = &spi0;
+		i2c0 = &i2c0;
+		uart1 = &uart1;
+		spi1 = &spi1;
+		spi2 = &spi2;
+		mmc = &mmc;
+		mmc1 = &mmc;
+		i2c1 = &i2c1;
+		i2c2 = &i2c2;
+		usb = &usb;
+		leds = &leds;
+		fb = &fb;
+		thermal = &thermal;
+		axiperf = &axiperf;
+	};
+
+	leds: leds {
+		compatible = "gpio-leds";
+	};
+
+	soc {
+		gpiomem {
+			compatible = "brcm,bcm2835-gpiomem";
+			reg = <0x7e200000 0x1000>;
+		};
+
+		fb: fb {
+			compatible = "brcm,bcm2708-fb";
+			firmware = <&firmware>;
+			status = "okay";
+		};
+
+		vcsm: vcsm {
+			compatible = "raspberrypi,bcm2835-vcsm";
+			firmware = <&firmware>;
+			status = "okay";
+		};
+
+		/* Onboard audio */
+		audio: audio {
+			compatible = "brcm,bcm2835-audio";
+			brcm,pwm-channels = <8>;
+			status = "disabled";
+		};
+
+		/* External sound card */
+		sound: sound {
+			status = "disabled";
+		};
+	};
+
+	__overrides__ {
+		cache_line_size;
+
+		uart0 = <&uart0>,"status";
+		uart1 = <&uart1>,"status";
+		i2s = <&i2s>,"status";
+		spi = <&spi0>,"status";
+		i2c0 = <&i2c0>,"status";
+		i2c1 = <&i2c1>,"status";
+		i2c2_iknowwhatimdoing = <&i2c2>,"status";
+		i2c0_baudrate = <&i2c0>,"clock-frequency:0";
+		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
+		i2c2_baudrate = <&i2c2>,"clock-frequency:0";
+
+		audio = <&audio>,"status";
+		watchdog = <&watchdog>,"status";
+		random = <&random>,"status";
+		sd_overclock = <&sdhost>,"brcm,overclock-50:0";
+		sd_force_pio = <&sdhost>,"brcm,force-pio?";
+		sd_pio_limit = <&sdhost>,"brcm,pio-limit:0";
+		sd_debug     = <&sdhost>,"brcm,debug";
+		sdio_overclock = <&mmc>,"brcm,overclock-50:0",
+				 <&mmcnr>,"brcm,overclock-50:0";
+		axiperf      = <&axiperf>,"status";
+	};
+};
+
+&hdmi {
+	status = "disabled";
+};
+
+&txp {
+	status = "disabled";
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&i2c2 {
+	status = "disabled";
+};
+
+&clocks {
+	firmware = <&firmware>;
+};
+
+sdhost_pins: &sdhost_gpio48 {
+	/* Add alias */
+};
+
+&sdhost {
+	brcm,overclock-50 = <0>;
+	brcm,pio-limit = <1>;
+};
+
+&cpu_thermal {
+	/delete-node/ trips;
+};
+
+&vec {
+	status = "disabled";
+};

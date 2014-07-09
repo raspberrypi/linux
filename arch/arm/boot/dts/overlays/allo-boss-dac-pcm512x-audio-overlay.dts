@@ -1,0 +1,59 @@
+/*
+ * Definitions for Allo Boss DAC board
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/clocks";
+		__overlay__ {
+			boss_osc: boss_osc {
+				compatible = "allo,dac-clk";
+				#clock-cells = <0>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcm5122@4d {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm5122";
+				clocks = <&boss_osc>;
+				reg = <0x4d>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&sound>;
+		boss_dac: __overlay__ {
+			compatible = "allo,boss-dac";
+			i2s-controller = <&i2s>;
+			mute-gpios = <&gpio 6 1>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		24db_digital_gain = <&boss_dac>,"allo,24db_digital_gain?";
+		slave = <&boss_dac>,"allo,slave?";
+	};
+};
