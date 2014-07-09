@@ -1,0 +1,51 @@
+/include/ "bcm2708.dtsi"
+
+/ {
+	aliases {
+		soc = &soc;
+		spi0 = &spi0;
+		i2c0 = &i2c0;
+		i2c1 = &i2c1;
+		i2s  = &i2s;
+		gpio = &gpio;
+		intc = &intc;
+		leds = &leds;
+		audio = &audio;
+		sound = &sound;
+		uart0 = &uart0;
+		uart1 = &uart1;
+		clocks = &clocks;
+	};
+
+	sound: sound {
+	};
+};
+
+&leds {
+	act_led: act {
+		label = "led0";
+		linux,default-trigger = "mmc0";
+		gpios = <&gpio 47 0>;
+	};
+};
+
+&mmc {
+	status = "okay";
+	bus-width = <4>;
+};
+
+&fb {
+	status = "okay";
+};
+
+&audio {
+	status = "okay";
+};
+
+/ {
+	__overrides__ {
+		act_led_gpio = <&act_led>,"gpios:4";
+		act_led_activelow = <&act_led>,"gpios:8";
+		act_led_trigger = <&act_led>,"linux,default-trigger";
+	};
+};
