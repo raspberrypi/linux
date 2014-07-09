@@ -1,0 +1,30 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			rpi_ft5406: rpi_ft5406 {
+				compatible = "rpi,rpi-ft5406";
+				firmware = <&firmware>;
+				status = "okay";
+				touchscreen-size-x = <800>;
+				touchscreen-size-y = <480>;
+				touchscreen-inverted-x = <0>;
+				touchscreen-inverted-y = <0>;
+				touchscreen-swapped-x-y = <0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		touchscreen-size-x = <&rpi_ft5406>,"touchscreen-size-x:0";
+		touchscreen-size-y = <&rpi_ft5406>,"touchscreen-size-y:0";
+		touchscreen-inverted-x = <&rpi_ft5406>,"touchscreen-inverted-x:0";
+		touchscreen-inverted-y = <&rpi_ft5406>,"touchscreen-inverted-y:0";
+		touchscreen-swapped-x-y = <&rpi_ft5406>,"touchscreen-swapped-x-y:0";
+        };
+};
