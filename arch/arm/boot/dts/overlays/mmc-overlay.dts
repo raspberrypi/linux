@@ -1,0 +1,38 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&mmc>;
+		frag0: __overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&mmc_pins>;
+			bus-width = <4>;
+			brcm,overclock-50 = <0>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			mmc_pins: mmc_pins {
+				brcm,pins = <48 49 50 51 52 53>;
+				brcm,function = <7>; /* alt3 */
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sdhost>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	__overrides__ {
+		overclock_50     = <&frag0>,"brcm,overclock-50:0";
+	};
+};
