@@ -1,0 +1,26 @@
+/*
+ * Device Tree overlay for EDT 5406 touchscreen controller, as used on the
+ * Raspberry Pi 7" panel
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "edt-ft5406.dtsi"
+
+/ {
+	fragment@0 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+};
