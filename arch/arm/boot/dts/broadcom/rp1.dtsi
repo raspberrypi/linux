@@ -1,0 +1,1314 @@
+#include <dt-bindings/clock/rp1.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/mfd/rp1.h>
+
+&rp1_target {
+	rp1: rp1 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		#interrupt-cells = <2>;
+		interrupt-controller;
+		interrupt-parent = <&rp1>;
+
+		// ranges and dma-ranges must be provided by the includer
+
+		rp1_clocks: clocks@18000 {
+			compatible = "raspberrypi,rp1-clocks";
+			#clock-cells = <1>;
+			reg = <0xc0 0x40018000 0x0 0x10038>;
+			clocks = <&clk_xosc>;
+
+			assigned-clocks = <&rp1_clocks RP1_PLL_SYS_CORE>,
+					  <&rp1_clocks RP1_PLL_AUDIO_CORE>,
+					  // RP1_PLL_VIDEO_CORE and dividers are now managed by VEC,DPI drivers
+					  <&rp1_clocks RP1_PLL_SYS>,
+					  <&rp1_clocks RP1_PLL_SYS_SEC>,
+					  <&rp1_clocks RP1_PLL_AUDIO>,
+					  <&rp1_clocks RP1_PLL_AUDIO_SEC>,
+					  <&rp1_clocks RP1_CLK_SYS>,
+					  <&rp1_clocks RP1_PLL_SYS_PRI_PH>,
+					  // RP1_CLK_SLOW_SYS is used for the frequency counter (FC0)
+					  <&rp1_clocks RP1_CLK_SLOW_SYS>,
+					  <&rp1_clocks RP1_CLK_SDIO_TIMER>,
+					  <&rp1_clocks RP1_CLK_SDIO_ALT_SRC>,
+					  <&rp1_clocks RP1_CLK_ETH_TSU>;
+
+			assigned-clock-rates = <1000000000>, // RP1_PLL_SYS_CORE
+					       <1536000000>, // RP1_PLL_AUDIO_CORE
+					       <200000000>,  // RP1_PLL_SYS
+					       <125000000>,  // RP1_PLL_SYS_SEC
+					       <61440000>,   // RP1_PLL_AUDIO
+					       <192000000>,  // RP1_PLL_AUDIO_SEC
+					       <200000000>,  // RP1_CLK_SYS
+					       <100000000>,  // RP1_PLL_SYS_PRI_PH
+					       // Must match the XOSC frequency
+					       <50000000>, // RP1_CLK_SLOW_SYS
+					       <1000000>, // RP1_CLK_SDIO_TIMER
+					       <200000000>, // RP1_CLK_SDIO_ALT_SRC
+					       <50000000>; // RP1_CLK_ETH_TSU
+		};
+
+		rp1_uart0: serial@30000 {
+			compatible = "arm,pl011-axi";
+			reg = <0xc0 0x40030000  0x0 0x100>;
+			interrupts = <RP1_INT_UART0 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_UART &rp1_clocks RP1_PLL_SYS_PRI_PH>;
+			clock-names = "uartclk", "apb_pclk";
+			dmas = <&rp1_dma RP1_DMA_UART0_TX>,
+			       <&rp1_dma RP1_DMA_UART0_RX>;
+			dma-names = "tx", "rx";
+			pinctrl-names = "default";
+			arm,primecell-periphid = <0x00541011>;
+			uart-has-rtscts;
+			cts-event-workaround;
+			skip-init;
+			status = "disabled";
+		};
+
+		rp1_uart1: serial@34000 {
+			compatible = "arm,pl011-axi";
+			reg = <0xc0 0x40034000  0x0 0x100>;
+			interrupts = <RP1_INT_UART1 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_UART &rp1_clocks RP1_PLL_SYS_PRI_PH>;
+			clock-names = "uartclk", "apb_pclk";
+			// dmas = <&rp1_dma RP1_DMA_UART1_TX>,
+			//        <&rp1_dma RP1_DMA_UART1_RX>;
+			// dma-names = "tx", "rx";
+			pinctrl-names = "default";
+			arm,primecell-periphid = <0x00541011>;
+			uart-has-rtscts;
+			cts-event-workaround;
+			skip-init;
+			status = "disabled";
+		};
+
+		rp1_uart2: serial@38000 {
+			compatible = "arm,pl011-axi";
+			reg = <0xc0 0x40038000  0x0 0x100>;
+			interrupts = <RP1_INT_UART2 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_UART &rp1_clocks RP1_PLL_SYS_PRI_PH>;
+			clock-names = "uartclk", "apb_pclk";
+			// dmas = <&rp1_dma RP1_DMA_UART2_TX>,
+			//        <&rp1_dma RP1_DMA_UART2_RX>;
+			// dma-names = "tx", "rx";
+			pinctrl-names = "default";
+			arm,primecell-periphid = <0x00541011>;
+			uart-has-rtscts;
+			cts-event-workaround;
+			skip-init;
+			status = "disabled";
+		};
+
+		rp1_uart3: serial@3c000 {
+			compatible = "arm,pl011-axi";
+			reg = <0xc0 0x4003c000  0x0 0x100>;
+			interrupts = <RP1_INT_UART3 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_UART &rp1_clocks RP1_PLL_SYS_PRI_PH>;
+			clock-names = "uartclk", "apb_pclk";
+			// dmas = <&rp1_dma RP1_DMA_UART3_TX>,
+			//        <&rp1_dma RP1_DMA_UART3_RX>;
+			// dma-names = "tx", "rx";
+			pinctrl-names = "default";
+			arm,primecell-periphid = <0x00541011>;
+			uart-has-rtscts;
+			cts-event-workaround;
+			skip-init;
+			status = "disabled";
+		};
+
+		rp1_uart4: serial@40000 {
+			compatible = "arm,pl011-axi";
+			reg = <0xc0 0x40040000  0x0 0x100>;
+			interrupts = <RP1_INT_UART4 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_UART &rp1_clocks RP1_PLL_SYS_PRI_PH>;
+			clock-names = "uartclk", "apb_pclk";
+			// dmas = <&rp1_dma RP1_DMA_UART4_TX>,
+			//        <&rp1_dma RP1_DMA_UART4_RX>;
+			// dma-names = "tx", "rx";
+			pinctrl-names = "default";
+			arm,primecell-periphid = <0x00541011>;
+			uart-has-rtscts;
+			cts-event-workaround;
+			skip-init;
+			status = "disabled";
+		};
+
+		rp1_uart5: serial@44000 {
+			compatible = "arm,pl011-axi";
+			reg = <0xc0 0x40044000  0x0 0x100>;
+			interrupts = <RP1_INT_UART5 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_UART &rp1_clocks RP1_PLL_SYS_PRI_PH>;
+			clock-names = "uartclk", "apb_pclk";
+			// dmas = <&rp1_dma RP1_DMA_UART5_TX>,
+			//        <&rp1_dma RP1_DMA_UART5_RX>;
+			// dma-names = "tx", "rx";
+			pinctrl-names = "default";
+			arm,primecell-periphid = <0x00541011>;
+			uart-has-rtscts;
+			cts-event-workaround;
+			skip-init;
+			status = "disabled";
+		};
+
+		rp1_spi8: spi@4c000 {
+			reg = <0xc0 0x4004c000  0x0 0x130>;
+			compatible = "snps,dw-apb-ssi";
+			interrupts = <RP1_INT_SPI8 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			clock-names = "ssi_clk";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <2>;
+			dmas = <&rp1_dma RP1_DMA_SPI8_TX>,
+			       <&rp1_dma RP1_DMA_SPI8_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		rp1_spi0: spi@50000 {
+			reg = <0xc0 0x40050000  0x0 0x130>;
+			compatible = "snps,dw-apb-ssi";
+			interrupts = <RP1_INT_SPI0 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			clock-names = "ssi_clk";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <2>;
+			dmas = <&rp1_dma RP1_DMA_SPI0_TX>,
+			       <&rp1_dma RP1_DMA_SPI0_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		rp1_spi1: spi@54000 {
+			reg = <0xc0 0x40054000  0x0 0x130>;
+			compatible = "snps,dw-apb-ssi";
+			interrupts = <RP1_INT_SPI1 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			clock-names = "ssi_clk";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <2>;
+			dmas = <&rp1_dma RP1_DMA_SPI1_TX>,
+			       <&rp1_dma RP1_DMA_SPI1_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		rp1_spi2: spi@58000 {
+			reg = <0xc0 0x40058000  0x0 0x130>;
+			compatible = "snps,dw-apb-ssi";
+			interrupts = <RP1_INT_SPI2 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			clock-names = "ssi_clk";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <2>;
+			dmas = <&rp1_dma RP1_DMA_SPI2_TX>,
+			       <&rp1_dma RP1_DMA_SPI2_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		rp1_spi3: spi@5c000 {
+			reg = <0xc0 0x4005c000  0x0 0x130>;
+			compatible = "snps,dw-apb-ssi";
+			interrupts = <RP1_INT_SPI3 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			clock-names = "ssi_clk";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <2>;
+			dmas = <&rp1_dma RP1_DMA_SPI3_TX>,
+			       <&rp1_dma RP1_DMA_SPI3_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		// SPI4 is a target/slave interface
+		rp1_spi4: spi@60000 {
+			reg = <0xc0 0x40060000  0x0 0x130>;
+			compatible = "snps,dw-apb-ssi";
+			interrupts = <RP1_INT_SPI4 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			clock-names = "ssi_clk";
+			#address-cells = <0>;
+			#size-cells = <0>;
+			num-cs = <1>;
+			spi-slave;
+			dmas = <&rp1_dma RP1_DMA_SPI4_TX>,
+			       <&rp1_dma RP1_DMA_SPI4_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+
+			slave {
+				compatible = "spidev";
+				spi-max-frequency = <1000000>;
+			};
+		};
+
+		rp1_spi5: spi@64000 {
+			reg = <0xc0 0x40064000  0x0 0x130>;
+			compatible = "snps,dw-apb-ssi";
+			interrupts = <RP1_INT_SPI5 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			clock-names = "ssi_clk";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <2>;
+			dmas = <&rp1_dma RP1_DMA_SPI5_TX>,
+			       <&rp1_dma RP1_DMA_SPI5_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		rp1_spi6: spi@68000 {
+			reg = <0xc0 0x40068000  0x0 0x130>;
+			compatible = "snps,dw-apb-ssi";
+			interrupts = <RP1_INT_SPI6 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			clock-names = "ssi_clk";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <2>;
+			dmas = <&rp1_dma RP1_DMA_SPI6_TX>,
+			       <&rp1_dma RP1_DMA_SPI6_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		// SPI7 is a target/slave interface
+		rp1_spi7: spi@6c000 {
+			reg = <0xc0 0x4006c000  0x0 0x130>;
+			compatible = "snps,dw-apb-ssi";
+			interrupts = <RP1_INT_SPI7 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			clock-names = "ssi_clk";
+			#address-cells = <0>;
+			#size-cells = <0>;
+			num-cs = <1>;
+			spi-slave;
+			dmas = <&rp1_dma RP1_DMA_SPI7_TX>,
+			       <&rp1_dma RP1_DMA_SPI7_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+
+			slave {
+				compatible = "spidev";
+				spi-max-frequency = <1000000>;
+			};
+		};
+
+		rp1_i2c0: i2c@70000 {
+			reg = <0xc0 0x40070000  0x0 0x1000>;
+			compatible = "snps,designware-i2c";
+			interrupts = <RP1_INT_I2C0 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
+			i2c-sda-hold-time-ns = <300>;
+			status = "disabled";
+		};
+
+		rp1_i2c1: i2c@74000 {
+			reg = <0xc0 0x40074000  0x0 0x1000>;
+			compatible = "snps,designware-i2c";
+			interrupts = <RP1_INT_I2C1 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
+			i2c-sda-hold-time-ns = <300>;
+			status = "disabled";
+		};
+
+		rp1_i2c2: i2c@78000 {
+			reg = <0xc0 0x40078000  0x0 0x1000>;
+			compatible = "snps,designware-i2c";
+			interrupts = <RP1_INT_I2C2 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
+			i2c-sda-hold-time-ns = <300>;
+			status = "disabled";
+		};
+
+		rp1_i2c3: i2c@7c000 {
+			reg = <0xc0 0x4007c000  0x0 0x1000>;
+			compatible = "snps,designware-i2c";
+			interrupts = <RP1_INT_I2C3 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
+			i2c-sda-hold-time-ns = <300>;
+			status = "disabled";
+		};
+
+		rp1_i2c4: i2c@80000 {
+			reg = <0xc0 0x40080000  0x0 0x1000>;
+			compatible = "snps,designware-i2c";
+			interrupts = <RP1_INT_I2C4 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
+			i2c-sda-hold-time-ns = <300>;
+			status = "disabled";
+		};
+
+		rp1_i2c5: i2c@84000 {
+			reg = <0xc0 0x40084000  0x0 0x1000>;
+			compatible = "snps,designware-i2c";
+			interrupts = <RP1_INT_I2C5 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
+			i2c-sda-hold-time-ns = <300>;
+			status = "disabled";
+		};
+
+		rp1_i2c6: i2c@88000 {
+			reg = <0xc0 0x40088000  0x0 0x1000>;
+			compatible = "snps,designware-i2c";
+			interrupts = <RP1_INT_I2C6 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS>;
+			i2c-scl-rising-time-ns = <65>;
+			i2c-scl-falling-time-ns = <100>;
+			i2c-sda-hold-time-ns = <300>;
+			status = "disabled";
+		};
+
+		rp1_pwm0: pwm@98000 {
+			compatible = "raspberrypi,rp1-pwm";
+			reg = <0xc0 0x40098000  0x0 0x100>;
+			#pwm-cells = <3>;
+			clocks = <&rp1_clocks RP1_CLK_PWM0>;
+			assigned-clocks = <&rp1_clocks RP1_CLK_PWM0>;
+			assigned-clock-rates = <50000000>;
+			status = "disabled";
+		};
+
+		rp1_pwm1: pwm@9c000 {
+			compatible = "raspberrypi,rp1-pwm";
+			reg = <0xc0 0x4009c000  0x0 0x100>;
+			#pwm-cells = <3>;
+			clocks = <&rp1_clocks RP1_CLK_PWM1>;
+			assigned-clocks = <&rp1_clocks RP1_CLK_PWM1>;
+			assigned-clock-rates = <50000000>;
+			status = "disabled";
+		};
+
+		rp1_i2s0: i2s@a0000 {
+			reg = <0xc0 0x400a0000  0x0 0x1000>;
+			compatible = "snps,designware-i2s";
+			// Providing an interrupt disables DMA
+			// interrupts = <RP1_INT_I2S0 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_I2S>;
+			clock-names = "i2sclk";
+			#sound-dai-cells = <0>;
+			dmas = <&rp1_dma RP1_DMA_I2S0_TX>,<&rp1_dma RP1_DMA_I2S0_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		rp1_i2s1: i2s@a4000 {
+			reg = <0xc0 0x400a4000  0x0 0x1000>;
+			compatible = "snps,designware-i2s";
+			// Providing an interrupt disables DMA
+			// interrupts = <RP1_INT_I2S1 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_I2S>;
+			clock-names = "i2sclk";
+			#sound-dai-cells = <0>;
+			dmas = <&rp1_dma RP1_DMA_I2S1_TX>,<&rp1_dma RP1_DMA_I2S1_RX>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		rp1_i2s2: i2s@a8000 {
+			reg = <0xc0 0x400a8000  0x0 0x1000>;
+			compatible = "snps,designware-i2s";
+			// Providing an interrupt disables DMA
+			// interrupts = <RP1_INT_I2S2 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_I2S>;
+			status = "disabled";
+		};
+
+		rp1_sdio_clk0: sdio_clk0@b0004 {
+			compatible = "raspberrypi,rp1-sdio-clk";
+			reg = <0xc0 0x400b0004 0x0 0x1c>;
+			clocks = <&sdio_src &sdhci_core>;
+			clock-names = "src", "base";
+			#clock-cells = <0>;
+			status = "disabled";
+		};
+
+		rp1_sdio_clk1: sdio_clk1@b4004 {
+			compatible = "raspberrypi,rp1-sdio-clk";
+			reg = <0xc0 0x400b4004 0x0 0x1c>;
+			clocks = <&sdio_src &sdhci_core>;
+			clock-names = "src", "base";
+			#clock-cells = <0>;
+			status = "disabled";
+		};
+
+		rp1_adc: adc@c8000 {
+			compatible = "raspberrypi,rp1-adc";
+			reg = <0xc0 0x400c8000 0x0 0x4000>;
+			clocks = <&rp1_clocks RP1_CLK_ADC>;
+			clock-names = "adcclk";
+			#clock-cells = <0>;
+			vref-supply = <&rp1_vdd_3v3>;
+			status = "disabled";
+		};
+
+		rp1_gpio: gpio@d0000 {
+			reg = <0xc0 0x400d0000  0x0 0xc000>,
+			      <0xc0 0x400e0000  0x0 0xc000>,
+			      <0xc0 0x400f0000  0x0 0xc000>;
+			compatible = "raspberrypi,rp1-gpio";
+			interrupts = <RP1_INT_IO_BANK0 IRQ_TYPE_LEVEL_HIGH>,
+				     <RP1_INT_IO_BANK1 IRQ_TYPE_LEVEL_HIGH>,
+			             <RP1_INT_IO_BANK2 IRQ_TYPE_LEVEL_HIGH>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-ranges = <&rp1_gpio 0 0 54>;
+
+			rp1_uart0_14_15: rp1_uart0_14_15 {
+				pin_txd {
+					function = "uart0";
+					pins = "gpio14";
+					bias-disable;
+				};
+				pin_rxd {
+					function = "uart0";
+					pins = "gpio15";
+					bias-pull-up;
+				};
+			};
+			rp1_uart0_ctsrts_16_17: rp1_uart0_ctsrts_16_17 {
+				pin_cts {
+					function = "uart0";
+					pins = "gpio16";
+					bias-pull-up;
+				};
+				pin_rts {
+					function = "uart0";
+					pins = "gpio17";
+					bias-disable;
+				};
+			};
+			rp1_uart1_0_1: rp1_uart1_0_1 {
+				pin_txd {
+					function = "uart1";
+					pins = "gpio0";
+					bias-disable;
+				};
+				pin_rxd {
+					function = "uart1";
+					pins = "gpio1";
+					bias-pull-up;
+				};
+			};
+			rp1_uart1_ctsrts_2_3: rp1_uart1_ctsrts_2_3 {
+				pin_cts {
+					function = "uart1";
+					pins = "gpio2";
+					bias-pull-up;
+				};
+				pin_rts {
+					function = "uart1";
+					pins = "gpio3";
+					bias-disable;
+				};
+			};
+			rp1_uart2_4_5: rp1_uart2_4_5 {
+				pin_txd {
+					function = "uart2";
+					pins = "gpio4";
+					bias-disable;
+				};
+				pin_rxd {
+					function = "uart2";
+					pins = "gpio5";
+					bias-pull-up;
+				};
+			};
+			rp1_uart2_ctsrts_6_7: rp1_uart2_ctsrts_6_7 {
+				pin_cts {
+					function = "uart2";
+					pins = "gpio6";
+					bias-pull-up;
+				};
+				pin_rts {
+					function = "uart2";
+					pins = "gpio7";
+					bias-disable;
+				};
+			};
+			rp1_uart3_8_9: rp1_uart3_8_9 {
+				pin_txd {
+					function = "uart3";
+					pins = "gpio8";
+					bias-disable;
+				};
+				pin_rxd {
+					function = "uart3";
+					pins = "gpio9";
+					bias-pull-up;
+				};
+			};
+			rp1_uart3_ctsrts_10_11: rp1_uart3_ctsrts_10_11 {
+				pin_cts {
+					function = "uart3";
+					pins = "gpio10";
+					bias-pull-up;
+				};
+				pin_rts {
+					function = "uart3";
+					pins = "gpio11";
+					bias-disable;
+				};
+			};
+			rp1_uart4_12_13: rp1_uart4_12_13 {
+				pin_txd {
+					function = "uart4";
+					pins = "gpio12";
+					bias-disable;
+				};
+				pin_rxd {
+					function = "uart4";
+					pins = "gpio13";
+					bias-pull-up;
+				};
+			};
+			rp1_uart4_ctsrts_14_15: rp1_uart4_ctsrts_14_15 {
+				pin_cts {
+					function = "uart4";
+					pins = "gpio14";
+					bias-pull-up;
+				};
+				pin_rts {
+					function = "uart4";
+					pins = "gpio15";
+					bias-disable;
+				};
+			};
+
+			rp1_sdio0_22_27: rp1_sdio0_22_27 {
+				pin_clk {
+					function = "sd0";
+					pins = "gpio22";
+					bias-disable;
+					drive-strength = <12>;
+					slew-rate = <1>;
+				};
+				pin_cmd {
+					function = "sd0";
+					pins = "gpio23";
+					bias-pull-up;
+					drive-strength = <12>;
+					slew-rate = <1>;
+				};
+				pins_dat {
+					function = "sd0";
+					pins = "gpio24", "gpio25", "gpio26", "gpio27";
+					bias-pull-up;
+					drive-strength = <12>;
+					slew-rate = <1>;
+				};
+			};
+
+			rp1_sdio1_28_33: rp1_sdio1_28_33 {
+				pin_clk {
+					function = "sd1";
+					pins = "gpio28";
+					bias-disable;
+					drive-strength = <12>;
+					slew-rate = <1>;
+				};
+				pin_cmd {
+					function = "sd1";
+					pins = "gpio29";
+					bias-pull-up;
+					drive-strength = <12>;
+					slew-rate = <1>;
+				};
+				pins_dat {
+					function = "sd1";
+					pins = "gpio30", "gpio31", "gpio32", "gpio33";
+					bias-pull-up;
+					drive-strength = <12>;
+					slew-rate = <1>;
+				};
+			};
+
+			rp1_i2s0_18_21: rp1_i2s0_18_21 {
+				function = "i2s0";
+				pins = "gpio18", "gpio19", "gpio20", "gpio21";
+				bias-disable;
+			};
+
+			rp1_i2s1_18_21: rp1_i2s1_18_21 {
+				function = "i2s1";
+				pins = "gpio18", "gpio19", "gpio20", "gpio21";
+				bias-disable;
+			};
+
+			rp1_i2c4_34_35: rp1_i2c4_34_35 {
+				function = "i2c4";
+				pins = "gpio34", "gpio35";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c6_38_39: rp1_i2c6_38_39 {
+				function = "i2c6";
+				pins = "gpio38", "gpio39";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c4_40_41: rp1_i2c4_40_41 {
+				function = "i2c4";
+				pins = "gpio40", "gpio41";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c5_44_45: rp1_i2c5_44_45 {
+				function = "i2c5";
+				pins = "gpio44", "gpio45";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c0_0_1: rp1_i2c0_0_1 {
+				function = "i2c0";
+				pins = "gpio0", "gpio1";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c0_8_9: rp1_i2c0_8_9 {
+				function = "i2c0";
+				pins = "gpio8", "gpio9";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c1_2_3: rp1_i2c1_2_3 {
+				function = "i2c1";
+				pins = "gpio2", "gpio3";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c1_10_11: rp1_i2c1_10_11 {
+				function = "i2c1";
+				pins = "gpio10", "gpio11";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c2_4_5: rp1_i2c2_4_5 {
+				function = "i2c2";
+				pins = "gpio4", "gpio5";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c2_12_13: rp1_i2c2_12_13 {
+				function = "i2c2";
+				pins = "gpio12", "gpio13";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c3_6_7: rp1_i2c3_6_7 {
+				function = "i2c3";
+				pins = "gpio6", "gpio7";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c3_14_15: rp1_i2c3_14_15 {
+				function = "i2c3";
+				pins = "gpio14", "gpio15";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+			rp1_i2c3_22_23: rp1_i2c3_22_23 {
+				function = "i2c3";
+				pins = "gpio22", "gpio23";
+				drive-strength = <12>;
+				bias-pull-up;
+			};
+
+			// DPI mappings with HSYNC,VSYNC but without PIXCLK,DE
+			rp1_dpi_16bit_gpio2: rp1_dpi_16bit_gpio2 { /* Mode 2, not fully supported by RP1 */
+				function = "dpi";
+				pins = "gpio2", "gpio3", "gpio4", "gpio5",
+				       "gpio6", "gpio7", "gpio8", "gpio9",
+				       "gpio10", "gpio11", "gpio12", "gpio13",
+				       "gpio14", "gpio15", "gpio16", "gpio17",
+				       "gpio18", "gpio19";
+				bias-disable;
+			};
+			rp1_dpi_16bit_cpadhi_gpio2: rp1_dpi_16bit_cpadhi_gpio2 { /* Mode 3 */
+				function = "dpi";
+				pins = "gpio2", "gpio3", "gpio4", "gpio5",
+				       "gpio6", "gpio7", "gpio8",
+				       "gpio12", "gpio13", "gpio14", "gpio15",
+				       "gpio16", "gpio17",
+				       "gpio20", "gpio21", "gpio22", "gpio23",
+				       "gpio24";
+				bias-disable;
+			};
+			rp1_dpi_16bit_pad666_gpio2: rp1_dpi_16bit_pad666_gpio2 { /* Mode 4 */
+				function = "dpi";
+				pins = "gpio2", "gpio3",
+				       "gpio5", "gpio6", "gpio7", "gpio8",
+				       "gpio9",
+				       "gpio12", "gpio13", "gpio14", "gpio15",
+				       "gpio16", "gpio17",
+				       "gpio21", "gpio22", "gpio23", "gpio24",
+				       "gpio25";
+				bias-disable;
+			};
+			rp1_dpi_18bit_gpio2: rp1_dpi_18bit_gpio2 { /* Mode 5, not fully supported by RP1 */
+				function = "dpi";
+				pins = "gpio2", "gpio3", "gpio4", "gpio5",
+				       "gpio6", "gpio7", "gpio8", "gpio9",
+				       "gpio10", "gpio11", "gpio12", "gpio13",
+				       "gpio14", "gpio15", "gpio16", "gpio17",
+				       "gpio18", "gpio19", "gpio20", "gpio21";
+				bias-disable;
+			};
+			rp1_dpi_18bit_cpadhi_gpio2: rp1_dpi_18bit_cpadhi_gpio2 { /* Mode 6 */
+				function = "dpi";
+				pins = "gpio2", "gpio3", "gpio4", "gpio5",
+				       "gpio6", "gpio7", "gpio8", "gpio9",
+				       "gpio12", "gpio13", "gpio14", "gpio15",
+				       "gpio16", "gpio17",
+				       "gpio20", "gpio21", "gpio22", "gpio23",
+				       "gpio24", "gpio25";
+				bias-disable;
+			};
+			rp1_dpi_24bit_gpio2: rp1_dpi_24bit_gpio2 { /* Mode 7 */
+				function = "dpi";
+				pins = "gpio2", "gpio3", "gpio4", "gpio5",
+				       "gpio6", "gpio7", "gpio8", "gpio9",
+				       "gpio10", "gpio11", "gpio12", "gpio13",
+				       "gpio14", "gpio15", "gpio16", "gpio17",
+				       "gpio18", "gpio19", "gpio20", "gpio21",
+				       "gpio22", "gpio23", "gpio24", "gpio25",
+				       "gpio26", "gpio27";
+				bias-disable;
+			};
+			rp1_dpi_hvsync: rp1_dpi_hvsync { /* Sync only, for use with int VDAC */
+				function = "dpi";
+				pins = "gpio2", "gpio3";
+				bias-disable;
+			};
+
+			// More DPI mappings, including PIXCLK,DE on GPIOs 0,1
+			rp1_dpi_16bit_gpio0: rp1_dpi_16bit_gpio0 { /* Mode 2, not fully supported by RP1 */
+				function = "dpi";
+				pins = "gpio0", "gpio1", "gpio2", "gpio3",
+				       "gpio4", "gpio5", "gpio6", "gpio7",
+				       "gpio8", "gpio9", "gpio10", "gpio11",
+				       "gpio12", "gpio13", "gpio14", "gpio15",
+				       "gpio16", "gpio17", "gpio18", "gpio19";
+				bias-disable;
+			};
+			rp1_dpi_16bit_cpadhi_gpio0: rp1_dpi_16bit_cpadhi_gpio0 { /* Mode 3 */
+				function = "dpi";
+				pins = "gpio0", "gpio1", "gpio2", "gpio3",
+				       "gpio4", "gpio5", "gpio6", "gpio7",
+				       "gpio8",
+				       "gpio12", "gpio13", "gpio14", "gpio15",
+				       "gpio16", "gpio17",
+				       "gpio20", "gpio21", "gpio22", "gpio23",
+				       "gpio24";
+				bias-disable;
+			};
+			rp1_dpi_16bit_pad666_gpio0: rp1_dpi_16bit_pad666_gpio0 { /* Mode 4 */
+				function = "dpi";
+				pins = "gpio0", "gpio1", "gpio2", "gpio3",
+				       "gpio5", "gpio6", "gpio7", "gpio8",
+				       "gpio9",
+				       "gpio12", "gpio13", "gpio14", "gpio15",
+				       "gpio16", "gpio17",
+				       "gpio21", "gpio22", "gpio23", "gpio24",
+				       "gpio25";
+				bias-disable;
+			};
+			rp1_dpi_18bit_gpio0: rp1_dpi_18bit_gpio0 { /* Mode 5, not fully supported by RP1 */
+				function = "dpi";
+				pins = "gpio0", "gpio1", "gpio2", "gpio3",
+				       "gpio4", "gpio5", "gpio6", "gpio7",
+				       "gpio8", "gpio9", "gpio10", "gpio11",
+				       "gpio12", "gpio13", "gpio14", "gpio15",
+				       "gpio16", "gpio17", "gpio18", "gpio19",
+				       "gpio20", "gpio21";
+				bias-disable;
+			};
+			rp1_dpi_18bit_cpadhi_gpio0: rp1_dpi_18bit_cpadhi_gpio0 { /* Mode 6 */
+				function = "dpi";
+				pins = "gpio0", "gpio1", "gpio2", "gpio3",
+				       "gpio4", "gpio5", "gpio6", "gpio7",
+				       "gpio8", "gpio9",
+				       "gpio12", "gpio13", "gpio14", "gpio15",
+				       "gpio16", "gpio17",
+				       "gpio20", "gpio21", "gpio22", "gpio23",
+				       "gpio24", "gpio25";
+				bias-disable;
+			};
+			rp1_dpi_24bit_gpio0: rp1_dpi_24bit_gpio0 { /* Mode 7 -- All GPIOs used! */
+				function = "dpi";
+				pins = "gpio0", "gpio1", "gpio2", "gpio3",
+				       "gpio4", "gpio5", "gpio6", "gpio7",
+				       "gpio8", "gpio9", "gpio10", "gpio11",
+				       "gpio12", "gpio13", "gpio14", "gpio15",
+				       "gpio16", "gpio17", "gpio18", "gpio19",
+				       "gpio20", "gpio21", "gpio22", "gpio23",
+				       "gpio24", "gpio25", "gpio26", "gpio27";
+				bias-disable;
+			};
+
+			rp1_gpclksrc0_gpio4: rp1_gpclksrc0_gpio4 {
+				function = "gpclk0";
+				pins = "gpio4";
+				bias-disable;
+			};
+
+			rp1_gpclksrc0_gpio20: rp1_gpclksrc0_gpio20 {
+				function = "gpclk0";
+				pins = "gpio20";
+				bias-disable;
+			};
+
+			rp1_gpclksrc1_gpio5: rp1_gpclksrc1_gpio5 {
+				function = "gpclk1";
+				pins = "gpio5";
+				bias-disable;
+			};
+
+			rp1_gpclksrc1_gpio18: rp1_gpclksrc1_gpio18 {
+				function = "gpclk1";
+				pins = "gpio18";
+				bias-disable;
+			};
+
+			rp1_gpclksrc1_gpio21: rp1_gpclksrc1_gpio21 {
+				function = "gpclk1";
+				pins = "gpio21";
+				bias-disable;
+			};
+
+			rp1_pwm1_gpio45: rp1_pwm1_gpio45 {
+				function = "pwm1";
+				pins = "gpio45";
+				bias-pull-down;
+			};
+
+			rp1_spi0_gpio9: rp1_spi0_gpio9 {
+				function = "spi0";
+				pins = "gpio9", "gpio10", "gpio11";
+				bias-disable;
+				drive-strength = <12>;
+				slew-rate = <1>;
+			};
+
+			rp1_spi0_cs_gpio7: rp1_spi0_cs_gpio7 {
+				function = "spi0";
+				pins = "gpio7", "gpio8";
+				bias-pull-up;
+			};
+
+			rp1_spi1_gpio19: rp1_spi1_gpio19 {
+				function = "spi1";
+				pins = "gpio19", "gpio20", "gpio21";
+				bias-disable;
+				drive-strength = <12>;
+				slew-rate = <1>;
+			};
+
+			rp1_spi2_gpio1: rp1_spi2_gpio1 {
+				function = "spi2";
+				pins = "gpio1", "gpio2", "gpio3";
+				bias-disable;
+				drive-strength = <12>;
+				slew-rate = <1>;
+			};
+
+			rp1_spi3_gpio5: rp1_spi3_gpio5 {
+				function = "spi3";
+				pins = "gpio5", "gpio6", "gpio7";
+				bias-disable;
+				drive-strength = <12>;
+				slew-rate = <1>;
+			};
+
+			rp1_spi4_gpio9: rp1_spi4_gpio9 {
+				function = "spi4";
+				pins = "gpio9", "gpio10", "gpio11";
+				bias-disable;
+				drive-strength = <12>;
+				slew-rate = <1>;
+			};
+
+			rp1_spi5_gpio13: rp1_spi5_gpio13 {
+				function = "spi5";
+				pins = "gpio13", "gpio14", "gpio15";
+				bias-disable;
+				drive-strength = <12>;
+				slew-rate = <1>;
+			};
+
+			rp1_spi8_gpio49: rp1_spi8_gpio49 {
+				function = "spi8";
+				pins = "gpio49", "gpio50", "gpio51";
+				bias-disable;
+				drive-strength = <12>;
+				slew-rate = <1>;
+			};
+
+			rp1_spi8_cs_gpio52: rp1_spi8_cs_gpio52 {
+				function = "spi0";
+				pins = "gpio52", "gpio53";
+				bias-pull-up;
+			};
+		};
+
+		rp1_eth: ethernet@100000 {
+			reg = <0xc0 0x40100000  0x0 0x4000>;
+			compatible = "cdns,macb";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <RP1_INT_ETH IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&macb_pclk &macb_hclk &rp1_clocks RP1_CLK_ETH_TSU>;
+			clock-names = "pclk", "hclk", "tsu_clk";
+			phy-mode = "rgmii-id";
+			cdns,aw2w-max-pipe = /bits/ 8 <8>;
+			cdns,ar2r-max-pipe = /bits/ 8 <8>;
+			cdns,use-aw2b-fill;
+			local-mac-address = [00 00 00 00 00 00];
+			status = "disabled";
+		};
+
+		rp1_csi0: csi@110000 {
+			compatible = "raspberrypi,rp1-cfe";
+			reg = <0xc0 0x40110000  0x0 0x100>, // CSI2 DMA address
+			      <0xc0 0x40114000  0x0 0x100>, // PHY/CSI Host address
+			      <0xc0 0x40120000  0x0 0x100>, // MIPI CFG address
+			      <0xc0 0x40124000  0x0 0x1000>; // PiSP FE address
+
+			// interrupts must match rp1_pisp_fe setup
+			interrupts = <RP1_INT_MIPI0 IRQ_TYPE_LEVEL_HIGH>;
+
+			clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>;
+			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>;
+			assigned-clock-rates = <25000000>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		rp1_csi1: csi@128000 {
+			compatible = "raspberrypi,rp1-cfe";
+			reg = <0xc0 0x40128000  0x0 0x100>, // CSI2 DMA address
+			      <0xc0 0x4012c000  0x0 0x100>, // PHY/CSI Host address
+			      <0xc0 0x40138000  0x0 0x100>, // MIPI CFG address
+			      <0xc0 0x4013c000  0x0 0x1000>; // PiSP FE address
+
+			// interrupts must match rp1_pisp_fe setup
+			interrupts = <RP1_INT_MIPI1 IRQ_TYPE_LEVEL_HIGH>;
+
+			clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>;
+			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>;
+			assigned-clock-rates = <25000000>;
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		rp1_mmc0: mmc@180000 {
+			reg = <0xc0 0x40180000  0x0 0x100>;
+			compatible = "raspberrypi,rp1-dwcmshc";
+			interrupts = <RP1_INT_SDIO0 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS &sdhci_core
+			          &rp1_clocks RP1_CLK_SDIO_TIMER
+			          &rp1_sdio_clk0>;
+			clock-names = "bus", "core", "timeout", "sdio";
+			/* Bank 0 VDDIO is fixed */
+			no-1-8-v;
+			bus-width = <4>;
+			vmmc-supply = <&rp1_vdd_3v3>;
+			broken-cd;
+			status = "disabled";
+		};
+
+		rp1_mmc1: mmc@184000 {
+			reg = <0xc0 0x40184000  0x0 0x100>;
+			compatible = "raspberrypi,rp1-dwcmshc";
+			interrupts = <RP1_INT_SDIO1 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&rp1_clocks RP1_CLK_SYS &sdhci_core
+			          &rp1_clocks RP1_CLK_SDIO_TIMER
+			          &rp1_sdio_clk1>;
+			clock-names = "bus", "core", "timeout", "sdio";
+			bus-width = <4>;
+			vmmc-supply = <&rp1_vdd_3v3>;
+			/* Nerf SDR speeds */
+			sdhci-caps-mask = <0x3 0x0>;
+			broken-cd;
+			status = "disabled";
+		};
+
+		rp1_dma: dma@188000 {
+			reg = <0xc0 0x40188000  0x0 0x1000>;
+			compatible = "snps,axi-dma-1.01a";
+			interrupts = <RP1_INT_DMA IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&sdhci_core &rp1_clocks RP1_CLK_SYS>;
+			clock-names = "core-clk", "cfgr-clk";
+
+			#dma-cells = <1>;
+			dma-channels = <8>;
+			snps,dma-masters = <1>;
+			snps,dma-targets = <64>;
+			snps,data-width = <4>; // (8 << 4) == 128 bits
+			snps,block-size = <0x40000 0x40000 0x40000 0x40000 0x40000 0x40000 0x40000 0x40000>;
+			snps,priority = <0 1 2 3 4 5 6 7>;
+			snps,axi-max-burst-len = <8>;
+			status = "disabled";
+		};
+
+		rp1_usb0: usb@200000 {
+			reg = <0xc0 0x40200000  0x0 0x100000>;
+			compatible = "snps,dwc3";
+			dr_mode = "host";
+			usb3-lpm-capable;
+			snps,axi-pipe-limit = /bits/ 8 <8>;
+			snps,dis_rxdet_inp3_quirk;
+			snps,parkmode-disable-ss-quirk;
+			snps,parkmode-disable-hs-quirk;
+			snps,parkmode-disable-fsls-quirk;
+			snps,tx-max-burst = /bits/ 8 <8>;
+			snps,tx-thr-num-pkt = /bits/ 8 <2>;
+			interrupts = <RP1_INT_USBHOST0_0 IRQ_TYPE_EDGE_RISING>;
+			status = "disabled";
+		};
+
+		rp1_usb1: usb@300000 {
+			reg = <0xc0 0x40300000  0x0 0x100000>;
+			compatible = "snps,dwc3";
+			dr_mode = "host";
+			usb3-lpm-capable;
+			snps,axi-pipe-limit = /bits/ 8 <8>;
+			snps,dis_rxdet_inp3_quirk;
+			snps,parkmode-disable-ss-quirk;
+			snps,parkmode-disable-hs-quirk;
+			snps,parkmode-disable-fsls-quirk;
+			snps,tx-max-burst = /bits/ 8 <8>;
+			snps,tx-thr-num-pkt = /bits/ 8 <2>;
+			interrupts = <RP1_INT_USBHOST1_0 IRQ_TYPE_EDGE_RISING>;
+			status = "disabled";
+		};
+
+		rp1_dsi0: dsi@110000 {
+			compatible = "raspberrypi,rp1dsi";
+			status = "disabled";
+			reg = <0xc0 0x40118000  0x0 0x1000>,  // MIPI0 DSI DMA (ArgonDPI)
+			      <0xc0 0x4011c000  0x0 0x1000>,  // MIPI0 DSI Host (SNPS)
+			      <0xc0 0x40120000  0x0 0x1000>;  // MIPI0 CFG
+
+			interrupts = <RP1_INT_MIPI0 IRQ_TYPE_LEVEL_HIGH>;
+
+			clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>,  // required, config bus clock
+				 <&rp1_clocks RP1_CLK_MIPI0_DPI>,  // required, pixel clock
+				 <&clksrc_mipi0_dsi_byteclk>,    // internal, parent for divide
+				 <&clk_xosc>;                    // hardwired to DSI "refclk"
+			clock-names = "cfgclk", "dpiclk", "byteclk", "refclk";
+
+			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI0_CFG>,
+					  <&rp1_clocks RP1_CLK_MIPI0_DPI>;
+			assigned-clock-rates = <25000000>;
+			assigned-clock-parents = <0>, <&clksrc_mipi0_dsi_byteclk>;
+		};
+
+		rp1_dsi1: dsi@128000 {
+			compatible = "raspberrypi,rp1dsi";
+			status = "disabled";
+			reg = <0xc0 0x40130000  0x0 0x1000>,  // MIPI1 DSI DMA (ArgonDPI)
+		              <0xc0 0x40134000  0x0 0x1000>,  // MIPI1 DSI Host (SNPS)
+		              <0xc0 0x40138000  0x0 0x1000>;  // MIPI1 CFG
+
+			interrupts = <RP1_INT_MIPI1 IRQ_TYPE_LEVEL_HIGH>;
+
+			clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>,  // required, config bus clock
+				 <&rp1_clocks RP1_CLK_MIPI1_DPI>,  // required, pixel clock
+				 <&clksrc_mipi1_dsi_byteclk>,    // internal, parent for divide
+				 <&clk_xosc>;                    // hardwired to DSI "refclk"
+			clock-names = "cfgclk", "dpiclk", "byteclk", "refclk";
+
+			assigned-clocks = <&rp1_clocks RP1_CLK_MIPI1_CFG>,
+					  <&rp1_clocks RP1_CLK_MIPI1_DPI>;
+			assigned-clock-rates = <25000000>;
+			assigned-clock-parents = <0>, <&clksrc_mipi1_dsi_byteclk>;
+		};
+
+		/* VEC and DPI both need to control PLL_VIDEO and cannot work together;   */
+		/* config.txt should enable one or other using dtparam=vec or an overlay. */
+		rp1_vec: vec@144000 {
+			compatible = "raspberrypi,rp1vec";
+			status = "disabled";
+			reg = <0xc0 0x40144000  0x0 0x1000>, // VIDEO_OUT_VEC
+			      <0xc0 0x40140000  0x0 0x1000>; // VIDEO_OUT_CFG
+
+			interrupts = <RP1_INT_VIDEO_OUT IRQ_TYPE_LEVEL_HIGH>;
+
+			clocks = <&rp1_clocks RP1_CLK_VEC>;
+
+			assigned-clocks = <&rp1_clocks RP1_PLL_VIDEO_CORE>,
+					  <&rp1_clocks RP1_PLL_VIDEO_SEC>,
+					  <&rp1_clocks RP1_CLK_VEC>;
+			assigned-clock-rates = <1188000000>,
+					       <108000000>,
+					       <108000000>;
+			assigned-clock-parents = <0>,
+						 <&rp1_clocks RP1_PLL_VIDEO_CORE>,
+						 <&rp1_clocks RP1_PLL_VIDEO_SEC>;
+		};
+
+		rp1_dpi: dpi@148000 {
+			compatible = "raspberrypi,rp1dpi";
+			status = "disabled";
+			reg = <0xc0 0x40148000  0x0 0x1000>, // VIDEO_OUT DPI
+			      <0xc0 0x40140000  0x0 0x1000>; // VIDEO_OUT_CFG
+
+			interrupts = <RP1_INT_VIDEO_OUT IRQ_TYPE_LEVEL_HIGH>;
+
+			clocks = <&rp1_clocks RP1_CLK_DPI>,        // DPI pixel clock
+				 <&rp1_clocks RP1_PLL_VIDEO>,      // PLL primary divider, and
+				 <&rp1_clocks RP1_PLL_VIDEO_CORE>; // VCO, which we also control
+			clock-names = "dpiclk", "plldiv", "pllcore";
+
+			assigned-clocks        = <&rp1_clocks RP1_CLK_DPI>;
+			assigned-clock-parents = <&rp1_clocks RP1_PLL_VIDEO>;
+		};
+	};
+};
+
+&clocks {
+	clk_xosc: clk_xosc {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-output-names = "xosc";
+		clock-frequency = <50000000>;
+	};
+	macb_pclk: macb_pclk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-output-names = "pclk";
+		clock-frequency = <200000000>;
+	};
+	macb_hclk: macb_hclk {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-output-names = "hclk";
+		clock-frequency = <200000000>;
+	};
+	sdio_src: sdio_src {
+		// 400 MHz on FPGA. PLL sys VCO on asic
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-output-names = "src";
+		clock-frequency = <1000000000>;
+	};
+	sdhci_core: sdhci_core {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-output-names = "core";
+		clock-frequency = <50000000>;
+	};
+	clksrc_mipi0_dsi_byteclk: clksrc_mipi0_dsi_byteclk {
+		// This clock is synthesized by MIPI0 D-PHY, when DSI is running.
+		// Its frequency is not known a priori (until a panel driver attaches)
+		// so assign a made-up frequency of 72MHz so it can be divided for DPI.
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-output-names = "clksrc_mipi0_dsi_byteclk";
+		clock-frequency = <72000000>;
+	};
+	clksrc_mipi1_dsi_byteclk: clksrc_mipi1_dsi_byteclk {
+		// This clock is synthesized by MIPI1 D-PHY, when DSI is running.
+		// Its frequency is not known a priori (until a panel driver attaches)
+		// so assign a made-up frequency of 72MHz so it can be divided for DPI.
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-output-names = "clksrc_mipi1_dsi_byteclk";
+		clock-frequency = <72000000>;
+	};
+	/* GPIO derived clock sources. Each GPIO with a GPCLK function
+	 * can drive its output from the respective GPCLK
+	 * generator, and provide a clock source to other internal
+	 * dividers. Add dummy sources here so that they can be overridden
+	 * with overlays.
+	 */
+	clksrc_gp0: clksrc_gp0 {
+		status = "disabled";
+		compatible = "fixed-factor-clock";
+		#clock-cells = <0>;
+		clock-div = <1>;
+		clock-mult = <1>;
+		clocks = <&rp1_clocks RP1_CLK_GP0>;
+		clock-output-names = "clksrc_gp0";
+	};
+	clksrc_gp1: clksrc_gp1 {
+		status = "disabled";
+		compatible = "fixed-factor-clock";
+		#clock-cells = <0>;
+		clock-div = <1>;
+		clock-mult = <1>;
+		clocks = <&rp1_clocks RP1_CLK_GP1>;
+		clock-output-names = "clksrc_gp1";
+	};
+	clksrc_gp2: clksrc_gp2 {
+		status = "disabled";
+		compatible = "fixed-factor-clock";
+		clock-div = <1>;
+		clock-mult = <1>;
+		#clock-cells = <0>;
+		clocks = <&rp1_clocks RP1_CLK_GP2>;
+		clock-output-names = "clksrc_gp2";
+	};
+	clksrc_gp3: clksrc_gp3 {
+		status = "disabled";
+		compatible = "fixed-factor-clock";
+		clock-div = <1>;
+		clock-mult = <1>;
+		#clock-cells = <0>;
+		clocks = <&rp1_clocks RP1_CLK_GP3>;
+		clock-output-names = "clksrc_gp3";
+	};
+	clksrc_gp4: clksrc_gp4 {
+		status = "disabled";
+		compatible = "fixed-factor-clock";
+		#clock-cells = <0>;
+		clock-div = <1>;
+		clock-mult = <1>;
+		clocks = <&rp1_clocks RP1_CLK_GP4>;
+		clock-output-names = "clksrc_gp4";
+	};
+	clksrc_gp5: clksrc_gp5 {
+		status = "disabled";
+		compatible = "fixed-factor-clock";
+		#clock-cells = <0>;
+		clock-div = <1>;
+		clock-mult = <1>;
+		clocks = <&rp1_clocks RP1_CLK_GP5>;
+		clock-output-names = "clksrc_gp5";
+	};
+};
+
+/ {
+	rp1_vdd_3v3: rp1_vdd_3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+};

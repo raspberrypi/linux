@@ -1,0 +1,35 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/rp1.h>
+
+/*
+ * Fake a higher clock rate to get a larger divisor, and thereby a lower
+ * baudrate. The real clock is 50MHz, which we scale so that requesting
+ * 38.4kHz results in an actual 31.25kHz.
+ *
+ *   50000000*38400/31250 = 61440000
+ */
+
+/{
+	compatible = "brcm,bcm2712";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			midi_clk: midi_clk2 {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-output-names = "uart2_pclk";
+				clock-frequency = <61440000>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&uart2>;
+		__overlay__ {
+			clocks = <&midi_clk &rp1_clocks RP1_PLL_SYS_PRI_PH>;
+		};
+	};
+};
