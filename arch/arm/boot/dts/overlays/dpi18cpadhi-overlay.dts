@@ -1,0 +1,26 @@
+/*
+ * dpi18cpadhi-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&fb>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&dpi_18bit_cpadhi_gpio0>;
+		};
+	};
+
+	fragment@1 {
+		target = <&vc4>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&dpi_18bit_cpadhi_gpio0>;
+		};
+	};
+};
