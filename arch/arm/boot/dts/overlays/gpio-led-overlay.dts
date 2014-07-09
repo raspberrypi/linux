@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * gpio-led - generic connection of kernel's LED framework to the RPI's GPIO.
+ * Copyright (C) 2021 House Gordon Software Company Ltd. <assafgordon@gmail.com>
+ *
+ * Based on information from:
+ *   https://mjoldfield.com/atelier/2017/03/rpi-devicetree.html
+ *   https://www.raspberrypi.org/documentation/configuration/device-tree.md
+ *   https://www.kernel.org/doc/html/latest/leds/index.html
+ *
+ * compile with:
+ *   dtc -@ -Hepapr -I dts -O dtb -o gpio-led.dtbo gpio-led-overlay.dts
+ *
+ * There will be some warnings (can be ignored):
+ *  Warning (label_is_string): /__overrides__:label: property is not a string
+ *  Warning (unit_address_vs_reg): /fragment@0/__overlay__/led_pins@0:
+ *                                 node has a unit name, but no reg property
+ *  Warning (unit_address_vs_reg): /fragment@1/__overlay__/leds@0:
+ *                                 node has a unit name, but no reg property
+ *  Warning (gpios_property): /__overrides__: Missing property
+ *                 '#gpio-cells' in node /fragment@1/__overlay__/leds@0/led
+ *                  or bad phandle (referred from gpio[0])
+ *
+ * Typical electrical connection is:
+ *    RPI-GPIO.19  ->  LED  -> 300ohm resister  -> RPI-GND
+ *    The GPIO pin number can be changed with the 'gpio=' parameter.
+ *
+ * Test from user-space with:
+ *   # if nothing is shown, the overlay file isn't found in /boot/overlays
+ *   dtoverlay -a | grep gpio-led
+ *
+ *   # Load the overlay
+ *   dtoverlay gpio-led label=moo gpio=19
+ *
+ *   # if nothing is shown, the overlay wasn't loaded successfully
+ *   dtoverlay -l | grep gpio-led
+ *
+ *   echo 1 > /sys/class/leds/moo/brightness
+ *   echo 0 > /sys/class/leds/moo/brightness
+ *   echo cpu > /sys/class/leds/moo/trigger
+ *   echo heartbeat > /sys/class/leds/moo/trigger
+ *
+ *   # unload the overlay
+ *   dtoverlay -r gpio-led
+ *
+ * To load in /boot/config.txt add lines such as:
+ *   dtoverlay=gpio-led,gpio=19,label=heart,trigger=heartbeat
+ *   dtoverlay=gpio-led,gpio=26,label=brain,trigger=cpu
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		// Configure the gpio pin controller
+		target = <&gpio>;
+		__overlay__ {
+			led_pin: led_pins@19 {
+				brcm,pins = <19>; // gpio number
+				brcm,function = <1>; // 0 = input, 1 = output
+				brcm,pull = <0>; // 0 = none, 1 = pull down, 2 = pull up
+			};
+		};
+	};
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			leds: leds@0 {
+				compatible = "gpio-leds";
+				pinctrl-names = "default";
+				pinctrl-0 = <&led_pin>;
+				status = "okay";
+
+				led: led {
+			                label = "myled1";
+					gpios = <&gpio 19 0>;
+			                linux,default-trigger = "none";
+				};
+			};
+		};
+	};
+
+	__overrides__ {
+		gpio =       <&led>,"gpios:4",
+		             <&leds>,"reg:0",
+		             <&led_pin>,"brcm,pins:0",
+		             <&led_pin>,"reg:0";
+		label =      <&led>,"label";
+		active_low = <&led>,"gpios:8";
+		trigger =    <&led>,"linux,default-trigger";
+	};
+
+};
+
