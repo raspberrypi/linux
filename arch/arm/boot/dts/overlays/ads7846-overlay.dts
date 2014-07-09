@@ -1,0 +1,89 @@
+/*
+ * Generic Device Tree overlay for the ADS7846 touch controller
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			ads7846_pins: ads7846_pins {
+				brcm,pins = <255>; /* illegal default value */
+				brcm,function = <0>; /* in */
+				brcm,pull = <0>; /* none */
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ads7846: ads7846@1 {
+				compatible = "ti,ads7846";
+				reg = <1>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&ads7846_pins>;
+
+				spi-max-frequency = <2000000>;
+				interrupts = <255 2>; /* high-to-low edge triggered */
+				interrupt-parent = <&gpio>;
+				pendown-gpio = <&gpio 255 0>;
+
+				/* driver defaults */
+				ti,x-min = /bits/ 16 <0>;
+				ti,y-min = /bits/ 16 <0>;
+				ti,x-max = /bits/ 16 <0x0FFF>;
+				ti,y-max = /bits/ 16 <0x0FFF>;
+				ti,pressure-min = /bits/ 16 <0>;
+				ti,pressure-max = /bits/ 16 <0xFFFF>;
+				ti,x-plate-ohms = /bits/ 16 <400>;
+			};
+		};
+	};
+	__overrides__ {
+		cs =     <&ads7846>,"reg:0";
+		speed =  <&ads7846>,"spi-max-frequency:0";
+		penirq = <&ads7846_pins>,"brcm,pins:0", /* REQUIRED */
+			 <&ads7846>,"interrupts:0",
+			 <&ads7846>,"pendown-gpio:4";
+		penirq_pull = <&ads7846_pins>,"brcm,pull:0";
+		swapxy = <&ads7846>,"ti,swap-xy?";
+		xmin =   <&ads7846>,"ti,x-min;0";
+		ymin =   <&ads7846>,"ti,y-min;0";
+		xmax =   <&ads7846>,"ti,x-max;0";
+		ymax =   <&ads7846>,"ti,y-max;0";
+		pmin =   <&ads7846>,"ti,pressure-min;0";
+		pmax =   <&ads7846>,"ti,pressure-max;0";
+		xohms =  <&ads7846>,"ti,x-plate-ohms;0";
+	};
+};
