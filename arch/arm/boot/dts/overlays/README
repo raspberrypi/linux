@@ -1,0 +1,1229 @@
+Introduction
+============
+
+This directory contains Device Tree overlays. Device Tree makes it possible
+to support many hardware configurations with a single kernel and without the
+need to explicitly load or blacklist kernel modules. Note that this isn't a
+"pure" Device Tree configuration (c.f. MACH_BCM2835) - some on-board devices
+are still configured by the board support code, but the intention is to
+eventually reach that goal.
+
+On Raspberry Pi, Device Tree usage is controlled from /boot/config.txt. By
+default, the Raspberry Pi kernel boots with device tree enabled. You can
+completely disable DT usage (for now) by adding:
+
+    device_tree=
+
+to your config.txt, which should cause your Pi to revert to the old way of
+doing things after a reboot.
+
+In /boot you will find a .dtb for each base platform. This describes the
+hardware that is part of the Raspberry Pi board. The loader (start.elf and its
+siblings) selects the .dtb file appropriate for the platform by name, and reads
+it into memory. At this point, all of the optional interfaces (i2c, i2s, spi)
+are disabled, but they can be enabled using Device Tree parameters:
+
+    dtparam=i2c=on,i2s=on,spi=on
+
+However, this shouldn't be necessary in many use cases because loading an
+overlay that requires one of those interfaces will cause it to be enabled
+automatically, and it is advisable to only enable interfaces if they are
+needed.
+
+Configuring additional, optional hardware is done using Device Tree overlays
+(see below).
+
+raspi-config
+============
+
+The Advanced Options section of the raspi-config utility can enable and disable
+Device Tree use, as well as toggling the I2C and SPI interfaces. Note that it
+is possible to both enable an interface and blacklist the driver, if for some
+reason you should want to defer the loading.
+
+Modules
+=======
+
+As well as describing the hardware, Device Tree also gives enough information
+to allow suitable driver modules to be located and loaded, with the corollary
+that unneeded modules are not loaded. As a result it should be possible to
+remove lines from /etc/modules, and /etc/modprobe.d/raspi-blacklist.conf can
+have its contents deleted (or commented out).
+
+Using Overlays
+==============
+
+Overlays are loaded using the "dtoverlay" directive. As an example, consider
+the popular lirc-rpi module, the Linux Infrared Remote Control driver. In the
+pre-DT world this would be loaded from /etc/modules, with an explicit
+"modprobe lirc-rpi" command, or programmatically by lircd. With DT enabled,
+this becomes a line in config.txt:
+
+    dtoverlay=lirc-rpi
+
+This causes the file /boot/overlays/lirc-rpi-overlay.dtb to be loaded. By
+default it will use GPIOs 17 (out) and 18 (in), but this can be modified using
+DT parameters:
+
+    dtoverlay=lirc-rpi,gpio_out_pin=17,gpio_in_pin=13
+
+Parameters always have default values, although in some cases (e.g. "w1-gpio")
+it is necessary to provided multiple overlays in order to get the desired
+behaviour. See the list of overlays below for a description of the parameters
+and their defaults.
+
+The Overlay and Parameter Reference
+===================================
+
+N.B. When editing this file, please preserve the indentation levels to make it
+simple to parse programmatically. NO HARD TABS.
+
+
+Name:   <The base DTB>
+Info:   Configures the base Raspberry Pi hardware
+Load:   <loaded automatically>
+Params:
+        audio                   Set to "on" to enable the onboard ALSA audio
+                                interface (default "off")
+
+        i2c_arm                 Set to "on" to enable the ARM's i2c interface
+                                (default "off")
+
+        i2c_vc                  Set to "on" to enable the i2c interface
+                                usually reserved for the VideoCore processor
+                                (default "off")
+
+        i2c                     An alias for i2c_arm
+
+        i2c_arm_baudrate        Set the baudrate of the ARM's i2c interface
+                                (default "100000")
+
+        i2c_vc_baudrate         Set the baudrate of the VideoCore i2c interface
+                                (default "100000")
+
+        i2c_baudrate            An alias for i2c_arm_baudrate
+
+        i2s                     Set to "on" to enable the i2s interface
+                                (default "off")
+
+        spi                     Set to "on" to enable the spi interfaces
+                                (default "off")
+
+        random                  Set to "on" to enable the hardware random
+                                number generator (default "on")
+
+        sd_overclock            Clock (in MHz) to use when the MMC framework
+                                requests 50MHz
+
+        sd_force_pio            Disable DMA support for SD driver (default off)
+
+        sd_pio_limit            Number of blocks above which to use DMA for
+                                SD card (default 1)
+
+        sd_debug                Enable debug output from SD driver (default off)
+
+        uart0                   Set to "off" to disable uart0 (default "on")
+
+        uart1                   Set to "on" or "off" to enable or disable uart1
+                                (default varies)
+
+        watchdog                Set to "on" to enable the hardware watchdog
+                                (default "off")
+
+        act_led_trigger         Choose which activity the LED tracks.
+                                Use "heartbeat" for a nice load indicator.
+                                (default "mmc")
+
+        act_led_activelow       Set to "on" to invert the sense of the LED
+                                (default "off")
+                                N.B. For Pi3 see pi3-act-led overlay.
+
+        act_led_gpio            Set which GPIO to use for the activity LED
+                                (in case you want to connect it to an external
+                                device)
+                                (default "16" on a non-Plus board, "47" on a
+                                Plus or Pi 2)
+                                N.B. For Pi3 see pi3-act-led overlay.
+
+        pwr_led_trigger
+        pwr_led_activelow
+        pwr_led_gpio
+                                As for act_led_*, but using the PWR LED.
+                                Not available on Model A/B boards.
+
+        N.B. It is recommended to only enable those interfaces that are needed.
+        Leaving all interfaces enabled can lead to unwanted behaviour (i2c_vc
+        interfering with Pi Camera, I2S and SPI hogging GPIO pins, etc.)
+        Note also that i2c, i2c_arm and i2c_vc are aliases for the physical
+        interfaces i2c0 and i2c1. Use of the numeric variants is still possible
+        but deprecated because the ARM/VC assignments differ between board
+        revisions. The same board-specific mapping applies to i2c_baudrate,
+        and the other i2c baudrate parameters.
+
+
+Name:   adau1977-adc
+Info:   Overlay for activation of ADAU1977 ADC codec over I2C for control
+        and I2S for data.
+Load:   dtoverlay=adau1977-adc
+Params: <None>
+
+
+Name:   ads1015
+Info:   Overlay for activation of Texas Instruments ADS1015 ADC over I2C
+Load:   dtoverlay=ads1015,<param>=<val>
+Params: addr                    I2C bus address of device. Set based on how the
+                                addr pin is wired. (default=0x48 assumes addr
+                                is pulled to GND)
+        cha_enable              Enable virtual channel a. (default=true)
+        cha_cfg                 Set the configuration for virtual channel a.
+                                (default=4 configures this channel for the
+                                voltage at A0 with respect to GND)
+        cha_datarate            Set the datarate (samples/sec) for this channel.
+                                (default=4 sets 1600 sps)
+        cha_gain                Set the gain of the Programmable Gain
+                                Amplifier for this channel. (default=2 sets the
+                                full scale of the channel to 2.048 Volts)
+
+        Channel (ch) parameters can be set for each enabled channel.
+        A maximum of 4 channels can be enabled (letters a thru d).
+        For more information refer to the device datasheet at:
+        http://www.ti.com/lit/ds/symlink/ads1015.pdf
+
+
+Name:   ads7846
+Info:   ADS7846 Touch controller
+Load:   dtoverlay=ads7846,<param>=<val>
+Params: cs                      SPI bus Chip Select (default 1)
+        speed                   SPI bus speed (default 2MHz, max 3.25MHz)
+        penirq                  GPIO used for PENIRQ. REQUIRED
+        penirq_pull             Set GPIO pull (default 0=none, 2=pullup)
+        swapxy                  Swap x and y axis
+        xmin                    Minimum value on the X axis (default 0)
+        ymin                    Minimum value on the Y axis (default 0)
+        xmax                    Maximum value on the X axis (default 4095)
+        ymax                    Maximum value on the Y axis (default 4095)
+        pmin                    Minimum reported pressure value (default 0)
+        pmax                    Maximum reported pressure value (default 65535)
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+                                (default 400)
+
+        penirq is required and usually xohms (60-100) has to be set as well.
+        Apart from that, pmax (255) and swapxy are also common.
+        The rest of the calibration can be done with xinput-calibrator.
+        See: github.com/notro/fbtft/wiki/FBTFT-on-Raspian
+        Device Tree binding document:
+        www.kernel.org/doc/Documentation/devicetree/bindings/input/ads7846.txt
+
+
+Name:   akkordion-iqdacplus
+Info:   Configures the Digital Dreamtime Akkordion Music Player (based on the
+        OEM IQAudIO DAC+ or DAC Zero module).
+Load:   dtoverlay=akkordion-iqdacplus,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                dtoverlay=akkordion-iqdacplus,24db_digital_gain
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24db_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+
+
+Name:   at86rf233
+Info:   Configures the Atmel AT86RF233 802.15.4 low-power WPAN transceiver,
+        connected to spi0.0
+Load:   dtoverlay=at86rf233,<param>=<val>
+Params: interrupt               GPIO used for INT (default 23)
+        reset                   GPIO used for Reset (default 24)
+        sleep                   GPIO used for Sleep (default 25)
+        speed                   SPI bus speed in Hz (default 3000000)
+        trim                    Fine tuning of the internal capacitance
+                                arrays (0=+0pF, 15=+4.5pF, default 15)
+
+
+Name:   audioinjector-wm8731-audio
+Info:   Configures the audioinjector.net audio add on soundcard
+Load:   dtoverlay=audioinjector-wm8731-audio
+Params: <None>
+
+
+Name:   bmp085_i2c-sensor
+Info:   Configures the BMP085/BMP180 digital barometric pressure and temperature
+        sensors from Bosch Sensortec
+Load:   dtoverlay=bmp085_i2c-sensor
+Params: <None>
+
+
+Name:   dht11
+Info:   Overlay for the DHT11/DHT21/DHT22 humidity/temperature sensors
+        Also sometimes found with the part number(s) AM230x.
+Load:   dtoverlay=dht11,<param>=<val>
+Params: gpiopin                 GPIO connected to the sensor's DATA output.
+                                (default 4)
+
+
+Name:   dionaudio-loco
+Info:   Configures the Dion Audio LOCO DAC-AMP
+Load:   dtoverlay=dionaudio-loco
+Params: <None>
+
+
+Name:   dpi24
+Info:   Overlay for a generic 24-bit DPI display
+        This uses GPIOs 0-27 (so no I2C, uart etc.), and activates the output
+        2-3 seconds after the kernel has started.
+Load:   dtoverlay=dpi24
+Params: <None>
+
+
+Name:   dwc-otg
+Info:   Selects the dwc_otg USB controller driver which has fiq support. This
+        is the default on all except the Pi Zero which defaults to dwc2.
+Load:   dtoverlay=dwc-otg
+Params: <None>
+
+
+Name:   dwc2
+Info:   Selects the dwc2 USB controller driver
+Load:   dtoverlay=dwc2,<param>=<val>
+Params: dr_mode                 Dual role mode: "host", "peripheral" or "otg"
+
+        g-rx-fifo-size          Size of rx fifo size in gadget mode
+
+        g-np-tx-fifo-size       Size of non-periodic tx fifo size in gadget
+                                mode
+
+        g-tx-fifo-size          Size of periodic tx fifo per endpoint
+                                (except ep0) in gadget mode
+
+
+[ The ds1307-rtc overlay has been deleted. See i2c-rtc. ]
+
+
+Name:   enc28j60
+Info:   Overlay for the Microchip ENC28J60 Ethernet Controller (SPI)
+Load:   dtoverlay=enc28j60,<param>=<val>
+Params: int_pin                 GPIO used for INT (default 25)
+
+        speed                   SPI bus speed (default 12000000)
+
+
+Name:   gpio-ir
+Info:   Use GPIO pin as rc-core style infrared receiver input. The rc-core-
+        based gpio_ir_recv driver maps received keys directly to a
+        /dev/input/event* device, all decoding is done by the kernel - LIRC is
+        not required! The key mapping and other decoding parameters can be
+        configured by "ir-keytable" tool.
+Load:   dtoverlay=gpio-ir,<param>=<val>
+Params: gpio_pin                Input pin number. Default is 18.
+
+        gpio_pull               Desired pull-up/down state (off, down, up)
+                                Default is "down".
+
+        rc-map-name             Default rc keymap (can also be changed by
+                                ir-keytable), defaults to "rc-rc6-mce"
+
+
+Name:   gpio-poweroff
+Info:   Drives a GPIO high or low on reboot
+Load:   dtoverlay=gpio-poweroff,<param>=<val>
+Params: gpiopin                 GPIO for signalling (default 26)
+
+        active_low              Set if the power control device requires a
+                                high->low transition to trigger a power-down.
+                                Note that this will require the support of a
+                                custom dt-blob.bin to prevent a power-down
+                                during the boot process, and that a reboot
+                                will also cause the pin to go low.
+
+
+Name:   hifiberry-amp
+Info:   Configures the HifiBerry Amp and Amp+ audio cards
+Load:   dtoverlay=hifiberry-amp
+Params: <None>
+
+
+Name:   hifiberry-dac
+Info:   Configures the HifiBerry DAC audio card
+Load:   dtoverlay=hifiberry-dac
+Params: <None>
+
+
+Name:   hifiberry-dacplus
+Info:   Configures the HifiBerry DAC+ audio card
+Load:   dtoverlay=hifiberry-dacplus,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=hifiberry-dacplus,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24dB_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+        slave                   Force DAC+ Pro into slave mode, using Pi as
+                                master for bit clock and frame clock.
+
+
+Name:   hifiberry-digi
+Info:   Configures the HifiBerry Digi audio card
+Load:   dtoverlay=hifiberry-digi
+Params: <None>
+
+
+Name:   hy28a
+Info:   HY28A - 2.8" TFT LCD Display Module by HAOYU Electronics
+        Default values match Texy's display shield
+Load:   dtoverlay=hy28a,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+
+        resetgpio               GPIO used to reset controller
+
+        ledgpio                 GPIO used to control backlight
+
+
+Name:   hy28b
+Info:   HY28B - 2.8" TFT LCD Display Module by HAOYU Electronics
+        Default values match Texy's display shield
+Load:   dtoverlay=hy28b,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+
+        resetgpio               GPIO used to reset controller
+
+        ledgpio                 GPIO used to control backlight
+
+
+Name:   i2c-gpio
+Info:   Adds support for software i2c controller on gpio pins
+Load:   dtoverlay=i2c-gpio,<param>=<val>
+Params: i2c_gpio_sda            GPIO used for I2C data (default "23")
+
+        i2c_gpio_scl            GPIO used for I2C clock (default "24")
+
+        i2c_gpio_delay_us       Clock delay in microseconds
+                                (default "2" = ~100kHz)
+
+
+Name:   i2c-mux
+Info:   Adds support for a number of I2C bus multiplexers on i2c_arm
+Load:   dtoverlay=i2c-mux,<param>=<val>
+Params: pca9542                 Select the NXP PCA9542 device
+
+        pca9545                 Select the NXP PCA9545 device
+
+        pca9548                 Select the NXP PCA9548 device
+
+        addr                    Change I2C address of the device (default 0x70)
+
+
+[ The i2c-mux-pca9548a overlay has been deleted. See i2c-mux. ]
+
+
+Name:   i2c-pwm-pca9685a
+Info:   Adds support for an NXP PCA9685A I2C PWM controller on i2c_arm
+Load:   dtoverlay=i2c-pwm-pca9685a,<param>=<val>
+Params: addr                    I2C address of PCA9685A (default 0x40)
+
+
+Name:   i2c-rtc
+Info:   Adds support for a number of I2C Real Time Clock devices
+Load:   dtoverlay=i2c-rtc,<param>=<val>
+Params: ds1307                  Select the DS1307 device
+
+        ds1339                  Select the DS1339 device
+
+        ds3231                  Select the DS3231 device
+
+        mcp7940x                Select the MCP7940x device
+
+        mcp7941x                Select the MCP7941x device
+
+        pcf2127                 Select the PCF2127 device
+
+        pcf8523                 Select the PCF8523 device
+
+        pcf8563                 Select the PCF8563 device
+
+        trickle-resistor-ohms   Resistor value for trickle charge (DS1339-only)
+
+        wakeup-source           Specify that the RTC can be used as a wakeup
+                                source
+
+
+Name:   i2c0-bcm2708
+Info:   Enable the i2c_bcm2708 driver for the i2c0 bus. Not all pin combinations
+        are usable on all platforms.
+Load:   dtoverlay=i2c0-bcm2708,<param>=<val>
+Params: sda0_pin                GPIO pin for SDA0 (deprecated - use pins_*)
+        scl0_pin                GPIO pin for SCL0 (deprecated - use pins_*)
+        pins_0_1                Use pins 0 and 1 (default)
+        pins_28_29              Use pins 28 and 29
+        pins_44_45              Use pins 44 and 45
+        pins_46_47              Use pins 46 and 47
+
+
+Name:   i2c1-bcm2708
+Info:   Enable the i2c_bcm2708 driver for the i2c1 bus
+Load:   dtoverlay=i2c1-bcm2708,<param>=<val>
+Params: sda1_pin                GPIO pin for SDA1 (2 or 44 - default 2)
+        scl1_pin                GPIO pin for SCL1 (3 or 45 - default 3)
+        pin_func                Alternative pin function (4 (alt0), 6 (alt2) -
+                                default 4)
+
+
+Name:   i2s-gpio28-31
+Info:   move I2S function block to GPIO 28 to 31
+Load:   dtoverlay=i2s-gpio28-31
+Params: <None>
+
+
+Name:   i2s-mmap
+Info:   Enables mmap support in the bcm2708-i2s driver
+Load:   dtoverlay=i2s-mmap
+Params: <None>
+
+
+Name:   iqaudio-dac
+Info:   Configures the IQaudio DAC audio card
+Load:   dtoverlay=iqaudio-dac,<param>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=iqaudio-dac,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24db_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+
+
+Name:   iqaudio-dacplus
+Info:   Configures the IQaudio DAC+ audio card
+Load:   dtoverlay=iqaudio-dacplus,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=iqaudio-dacplus,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24db_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+        auto_mute_amp           If specified, unmute/mute the IQaudIO amp when
+                                starting/stopping audio playback.
+        unmute_amp              If specified, unmute the IQaudIO amp once when
+                                the DAC driver module loads.
+
+
+Name:   iqaudio-digi-wm8804-audio
+Info:   Configures the IQAudIO Digi WM8804 audio card
+Load:   dtoverlay=iqaudio-digi-wm8804-audio,<param>=<val>
+Params: card_name               Override the default, "IQAudIODigi", card name.
+        dai_name                Override the default, "IQAudIO Digi", dai name.
+        dai_stream_name         Override the default, "IQAudIO Digi HiFi",
+                                dai stream name.
+
+
+Name:   justboom-dac
+Info:   Configures the JustBoom DAC HAT, Amp HAT, DAC Zero and Amp Zero audio
+        cards
+Load:   dtoverlay=justboom-dac,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=justboom-dac,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24dB_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+
+
+Name:   justboom-digi
+Info:   Configures the JustBoom Digi HAT and Digi Zero audio cards
+Load:   dtoverlay=justboom-digi
+Params: <None>
+
+
+Name:   lirc-rpi
+Info:   Configures lirc-rpi (Linux Infrared Remote Control for Raspberry Pi)
+        Consult the module documentation for more details.
+Load:   dtoverlay=lirc-rpi,<param>=<val>
+Params: gpio_out_pin            GPIO for output (default "17")
+
+        gpio_in_pin             GPIO for input (default "18")
+
+        gpio_in_pull            Pull up/down/off on the input pin
+                                (default "down")
+
+        sense                   Override the IR receive auto-detection logic:
+                                 "0" = force active-high
+                                 "1" = force active-low
+                                 "-1" = use auto-detection
+                                (default "-1")
+
+        softcarrier             Turn the software carrier "on" or "off"
+                                (default "on")
+
+        invert                  "on" = invert the output pin (default "off")
+
+        debug                   "on" = enable additional debug messages
+                                (default "off")
+
+
+Name:   mcp23017
+Info:   Configures the MCP23017 I2C GPIO expander
+Load:   dtoverlay=mcp23017,<param>=<val>
+Params: gpiopin                 Gpio pin connected to the INTA output of the
+                                MCP23017 (default: 4)
+
+        addr                    I2C address of the MCP23017 (default: 0x20)
+
+
+Name:   mcp2515-can0
+Info:   Configures the MCP2515 CAN controller on spi0.0
+Load:   dtoverlay=mcp2515-can0,<param>=<val>
+Params: oscillator              Clock frequency for the CAN controller (Hz)
+
+        spimaxfrequency         Maximum SPI frequence (Hz)
+
+        interrupt               GPIO for interrupt signal
+
+
+Name:   mcp2515-can1
+Info:   Configures the MCP2515 CAN controller on spi0.1
+Load:   dtoverlay=mcp2515-can1,<param>=<val>
+Params: oscillator              Clock frequency for the CAN controller (Hz)
+
+        spimaxfrequency         Maximum SPI frequence (Hz)
+
+        interrupt               GPIO for interrupt signal
+
+
+Name:   mmc
+Info:   Selects the bcm2835-mmc SD/MMC driver, optionally with overclock
+Load:   dtoverlay=mmc,<param>=<val>
+Params: overclock_50            Clock (in MHz) to use when the MMC framework
+                                requests 50MHz
+
+
+Name:   mz61581
+Info:   MZ61581 display by Tontec
+Load:   dtoverlay=mz61581,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        txbuflen                Transmit buffer length (default 32768)
+
+        debug                   Debug output level {0-7}
+
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+
+
+[ The pcf2127-rtc overlay has been deleted. See i2c-rtc. ]
+
+
+[ The pcf8523-rtc overlay has been deleted. See i2c-rtc. ]
+
+
+[ The pcf8563-rtc overlay has been deleted. See i2c-rtc. ]
+
+
+Name:   pi3-act-led
+Info:   Pi3 uses a GPIO expander to drive the LEDs which can only be accessed
+        from the VPU. There is a special driver for this with a separate DT
+        node, which has the unfortunate consequence of breaking the
+        act_led_gpio and act_led_activelow dtparams.
+        This overlay changes the GPIO controller back to the standard one and
+        restores the dtparams.
+Load:   dtoverlay=pi3-act-led,<param>=<val>
+Params: activelow               Set to "on" to invert the sense of the LED
+                                (default "off")
+
+        gpio                    Set which GPIO to use for the activity LED
+                                (in case you want to connect it to an external
+                                device)
+                                REQUIRED
+
+
+Name:   pi3-disable-bt
+Info:   Disable Pi3 Bluetooth and restore UART0/ttyAMA0 over GPIOs 14 & 15
+        N.B. To disable the systemd service that initialises the modem so it
+        doesn't use the UART, use 'sudo systemctl disable hciuart'.
+Load:   dtoverlay=pi3-disable-bt
+Params: <None>
+
+
+Name:   pi3-miniuart-bt
+Info:   Switch Pi3 Bluetooth function to use the mini-UART (ttyS0) and restore
+        UART0/ttyAMA0 over GPIOs 14 & 15. Note that this may reduce the maximum
+        usable baudrate.
+        N.B. It is also necessary to edit /lib/systemd/system/hciuart.service
+        and replace ttyAMA0 with ttyS0, unless you have a system with udev rules
+        that create /dev/serial0 and /dev/serial1, in which case use
+        /dev/serial1 instead because it will always be correct. Furthermore,
+        you must also set core_freq=250 in config.txt or the miniuart will not
+        work.
+Load:   dtoverlay=pi3-miniuart-bt
+Params: <None>
+
+
+Name:   piscreen
+Info:   PiScreen display by OzzMaker.com
+Load:   dtoverlay=piscreen,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+
+
+Name:   piscreen2r
+Info:   PiScreen 2 with resistive TP display by OzzMaker.com
+Load:   dtoverlay=piscreen2r,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+
+
+Name:   pitft22
+Info:   Adafruit PiTFT 2.2" screen
+Load:   dtoverlay=pitft22,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+
+Name:   pitft28-capacitive
+Info:   Adafruit PiTFT 2.8" capacitive touch screen
+Load:   dtoverlay=pitft28-capacitive,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+        touch-sizex             Touchscreen size x (default 240)
+
+        touch-sizey             Touchscreen size y (default 320)
+
+        touch-invx              Touchscreen inverted x axis
+
+        touch-invy              Touchscreen inverted y axis
+
+        touch-swapxy            Touchscreen swapped x y axis
+
+
+Name:   pitft28-resistive
+Info:   Adafruit PiTFT 2.8" resistive touch screen
+Load:   dtoverlay=pitft28-resistive,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+
+Name:   pps-gpio
+Info:   Configures the pps-gpio (pulse-per-second time signal via GPIO).
+Load:   dtoverlay=pps-gpio,<param>=<val>
+Params: gpiopin                 Input GPIO (default "18")
+
+
+Name:   pwm
+Info:   Configures a single PWM channel
+        Legal pin,function combinations for each channel:
+          PWM0: 12,4(Alt0) 18,2(Alt5) 40,4(Alt0)            52,5(Alt1)
+          PWM1: 13,4(Alt0) 19,2(Alt5) 41,4(Alt0) 45,4(Alt0) 53,5(Alt1)
+        N.B.:
+          1) Pin 18 is the only one available on all platforms, and
+             it is the one used by the I2S audio interface.
+             Pins 12 and 13 might be better choices on an A+, B+ or Pi2.
+          2) The onboard analogue audio output uses both PWM channels.
+          3) So be careful mixing audio and PWM.
+          4) Currently the clock must have been enabled and configured
+             by other means.
+Load:   dtoverlay=pwm,<param>=<val>
+Params: pin                     Output pin (default 18) - see table
+        func                    Pin function (default 2 = Alt5) - see above
+        clock                   PWM clock frequency (informational)
+
+
+Name:   pwm-2chan
+Info:   Configures both PWM channels
+        Legal pin,function combinations for each channel:
+          PWM0: 12,4(Alt0) 18,2(Alt5) 40,4(Alt0)            52,5(Alt1)
+          PWM1: 13,4(Alt0) 19,2(Alt5) 41,4(Alt0) 45,4(Alt0) 53,5(Alt1)
+        N.B.:
+          1) Pin 18 is the only one available on all platforms, and
+             it is the one used by the I2S audio interface.
+             Pins 12 and 13 might be better choices on an A+, B+ or Pi2.
+          2) The onboard analogue audio output uses both PWM channels.
+          3) So be careful mixing audio and PWM.
+          4) Currently the clock must have been enabled and configured
+             by other means.
+Load:   dtoverlay=pwm-2chan,<param>=<val>
+Params: pin                     Output pin (default 18) - see table
+        pin2                    Output pin for other channel (default 19)
+        func                    Pin function (default 2 = Alt5) - see above
+        func2                   Function for pin2 (default 2 = Alt5)
+        clock                   PWM clock frequency (informational)
+
+
+Name:   qca7000
+Info:   I2SE's Evaluation Board for PLC Stamp micro
+Load:   dtoverlay=qca7000,<param>=<val>
+Params: int_pin                 GPIO pin for interrupt signal (default 23)
+
+        speed                   SPI bus speed (default 12 MHz)
+
+
+Name:   raspidac3
+Info:   Configures the RaspiDAV Rev.3x audio card
+Load:   dtoverlay=raspidac3
+Params: <None>
+
+
+Name:   rpi-backlight
+Info:   Raspberry Pi official display backlight driver
+Load:   dtoverlay=rpi-backlight
+Params: <None>
+
+
+Name:   rpi-dac
+Info:   Configures the RPi DAC audio card
+Load:   dtoverlay=rpi-dac
+Params: <None>
+
+
+Name:   rpi-display
+Info:   RPi-Display - 2.8" Touch Display by Watterott
+Load:   dtoverlay=rpi-display,<param>=<val>
+Params: speed                   Display SPI bus speed
+        rotate                  Display rotation {0,90,180,270}
+        fps                     Delay between frame updates
+        debug                   Debug output level {0-7}
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+        swapxy                  Swap x and y axis
+
+
+Name:   rpi-ft5406
+Info:   Official Raspberry Pi display touchscreen
+Load:   dtoverlay=rpi-ft5406
+Params: <None>
+
+
+Name:   rpi-proto
+Info:   Configures the RPi Proto audio card
+Load:   dtoverlay=rpi-proto
+Params: <None>
+
+
+Name:   rpi-sense
+Info:   Raspberry Pi Sense HAT
+Load:   dtoverlay=rpi-sense
+Params: <None>
+
+
+Name:   rra-digidac1-wm8741-audio
+Info:   Configures the Red Rocks Audio DigiDAC1 soundcard
+Load:   dtoverlay=rra-digidac1-wm8741-audio
+Params: <None>
+
+
+Name:   sc16is752-spi1
+Info:   Overlay for the NXP SC16IS752 Dual UART with SPI Interface
+        Enables the chip on SPI1.
+        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
+              A+, B+, Zero and PI2 B; as well as the Compute Module.
+
+Load:   dtoverlay=sc16is752-spi1,<param>=<val>
+Params: int_pin                 GPIO used for IRQ (default 24)
+
+
+Name:   sdhost
+Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock.
+        N.B. This overlay is designed for situations where the mmc driver is
+        the default, so it disables the other (mmc) interface - this will kill
+        WiFi on a Pi3. If this isn't what you want, either use the sdtweak
+        overlay or the new sd_* dtparams of the base DTBs.
+Load:   dtoverlay=sdhost,<param>=<val>
+Params: overclock_50            Clock (in MHz) to use when the MMC framework
+                                requests 50MHz
+
+        force_pio               Disable DMA support (default off)
+
+        pio_limit               Number of blocks above which to use DMA
+                                (default 1)
+
+        debug                   Enable debug output (default off)
+
+
+Name:   sdio
+Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock,
+        and enables SDIO via GPIOs 22-27.
+Load:   dtoverlay=sdio,<param>=<val>
+Params: overclock_50            SD Clock (in MHz) to use when the MMC framework
+                                requests 50MHz
+
+        sdio_overclock          SDIO Clock (in MHz) to use when the MMC
+                                framework requests 50MHz
+
+        force_pio               Disable DMA support (default off)
+
+        pio_limit               Number of blocks above which to use DMA
+                                (default 1)
+
+        debug                   Enable debug output (default off)
+
+        poll_once               Disable SDIO-device polling every second
+                                (default on: polling once at boot-time)
+
+        bus_width               Set the SDIO host bus width (default 4 bits)
+
+
+Name:   sdio-1bit
+Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock,
+        and enables 1-bit SDIO via GPIOs 22-25.
+Load:   dtoverlay=sdio-1bit,<param>=<val>
+Params: overclock_50            SD Clock (in MHz) to use when the MMC framework
+                                requests 50MHz
+
+        sdio_overclock          SDIO Clock (in MHz) to use when the MMC
+                                framework requests 50MHz
+
+        force_pio               Disable DMA support (default off)
+
+        pio_limit               Number of blocks above which to use DMA
+                                (default 1)
+
+        debug                   Enable debug output (default off)
+
+        poll_once               Disable SDIO-device polling every second
+                                (default on: polling once at boot-time)
+
+
+Name:   sdtweak
+Info:   Tunes the bcm2835-sdhost SD/MMC driver
+        N.B. This functionality is now available via the sd_* dtparams in the
+        base DTB.
+Load:   dtoverlay=sdtweak,<param>=<val>
+Params: overclock_50            Clock (in MHz) to use when the MMC framework
+                                requests 50MHz
+
+        force_pio               Disable DMA support (default off)
+
+        pio_limit               Number of blocks above which to use DMA
+                                (default 1)
+
+        debug                   Enable debug output (default off)
+
+
+Name:   smi
+Info:   Enables the Secondary Memory Interface peripheral. Uses GPIOs 2-25!
+Load:   dtoverlay=smi
+Params: <None>
+
+
+Name:   smi-dev
+Info:   Enables the userspace interface for the SMI driver
+Load:   dtoverlay=smi-dev
+Params: <None>
+
+
+Name:   smi-nand
+Info:   Enables access to NAND flash via the SMI interface
+Load:   dtoverlay=smi-nand
+Params: <None>
+
+
+Name:   spi-gpio35-39
+Info:   move SPI function block to GPIO 35 to 39
+Load:   dtoverlay=spi-gpio35-39
+Params: <None>
+
+
+Name:   spi-rtc
+Info:   Adds support for a number of SPI Real Time Clock devices
+Load:   dtoverlay=spi-rtc,<param>=<val>
+Params: pcf2123                 Select the PCF2123 device
+
+
+Name:   spi0-hw-cs
+Info:   Re-enables hardware CS/CE (chip selects) for SPI0
+Load:   dtoverlay=spi0-hw-cs
+Params: <None>
+
+
+Name:   spi1-1cs
+Info:   Enables spi1 with a single chip select (CS) line and associated spidev
+        dev node. The gpio pin number for the CS line and spidev device node
+        creation are configurable.
+        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
+              A+, B+, Zero and PI2 B; as well as the Compute Module.
+Load:   dtoverlay=spi1-1cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI1_CE0).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.0 (default
+                                is 'okay' or enabled).
+
+
+Name:   spi1-2cs
+Info:   Enables spi1 with two chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
+              A+, B+, Zero and PI2 B; as well as the Compute Module.
+Load:   dtoverlay=spi1-2cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI1_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 17 - BCM SPI1_CE1).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.0 (default
+                                is 'okay' or enabled).
+        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.1 (default
+                                is 'okay' or enabled).
+
+
+Name:   spi1-3cs
+Info:   Enables spi1 with three chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
+              A+, B+, Zero and PI2 B; as well as the Compute Module.
+Load:   dtoverlay=spi1-3cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI1_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 17 - BCM SPI1_CE1).
+        cs2_pin                 GPIO pin for CS2 (default 16 - BCM SPI1_CE2).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.0 (default
+                                is 'okay' or enabled).
+        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.1 (default
+                                is 'okay' or enabled).
+        cs2_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.2 (default
+                                is 'okay' or enabled).
+
+
+Name:   spi2-1cs
+Info:   Enables spi2 with a single chip select (CS) line and associated spidev
+        dev node. The gpio pin number for the CS line and spidev device node
+        creation are configurable.
+        N.B.: spi2 is only accessible with the Compute Module.
+Load:   dtoverlay=spi2-1cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.0 (default
+                                is 'okay' or enabled).
+
+
+Name:   spi2-2cs
+Info:   Enables spi2 with two chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+        N.B.: spi2 is only accessible with the Compute Module.
+Load:   dtoverlay=spi2-2cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 44 - BCM SPI2_CE1).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.0 (default
+                                is 'okay' or enabled).
+        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.1 (default
+                                is 'okay' or enabled).
+
+
+Name:   spi2-3cs
+Info:   Enables spi2 with three chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+        N.B.: spi2 is only accessible with the Compute Module.
+Load:   dtoverlay=spi2-3cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 44 - BCM SPI2_CE1).
+        cs2_pin                 GPIO pin for CS2 (default 45 - BCM SPI2_CE2).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.0 (default
+                                is 'okay' or enabled).
+        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.1 (default
+                                is 'okay' or enabled).
+        cs2_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.2 (default
+                                is 'okay' or enabled).
+
+
+Name:   tinylcd35
+Info:   3.5" Color TFT Display by www.tinylcd.com
+        Options: Touch, RTC, keypad
+Load:   dtoverlay=tinylcd35,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+        touch                   Enable touch panel
+
+        touchgpio               Touch controller IRQ GPIO
+
+        xohms                   Touchpanel: Resistance of X-plate in ohms
+
+        rtc-pcf                 PCF8563 Real Time Clock
+
+        rtc-ds                  DS1307 Real Time Clock
+
+        keypad                  Enable keypad
+
+        Examples:
+            Display with touchpanel, PCF8563 RTC and keypad:
+                dtoverlay=tinylcd35,touch,rtc-pcf,keypad
+            Old touch display:
+                dtoverlay=tinylcd35,touch,touchgpio=3
+
+
+Name:   uart1
+Info:   Enable uart1 in place of uart0
+Load:   dtoverlay=uart1,<param>=<val>
+Params: txd1_pin                GPIO pin for TXD1 (14, 32 or 40 - default 14)
+
+        rxd1_pin                GPIO pin for RXD1 (15, 33 or 41 - default 15)
+
+
+Name:   vc4-kms-v3d
+Info:   Enable Eric Anholt's DRM VC4 HDMI/HVS/V3D driver. Running startx or
+        booting to GUI while this overlay is in use will cause interesting
+        lockups.
+Load:   dtoverlay=vc4-kms-v3d,<param>
+Params: cma-256                 CMA is 256MB, 256MB-aligned (needs 1GB)
+        cma-192                 CMA is 192MB, 256MB-aligned (needs 1GB)
+        cma-128                 CMA is 128MB, 128MB-aligned
+        cma-96                  CMA is 96MB, 128MB-aligned
+        cma-64                  CMA is 64MB, 64MB-aligned
+
+
+Name:   vga666
+Info:   Overlay for the Fen Logic VGA666 board
+        This uses GPIOs 2-21 (so no I2C), and activates the output 2-3 seconds
+        after the kernel has started.
+Load:   dtoverlay=vga666
+Params: <None>
+
+
+Name:   w1-gpio
+Info:   Configures the w1-gpio Onewire interface module.
+        Use this overlay if you *don't* need a GPIO to drive an external pullup.
+Load:   dtoverlay=w1-gpio,<param>=<val>
+Params: gpiopin                 GPIO for I/O (default "4")
+
+        pullup                  Non-zero, "on", or "y" to enable the parasitic
+                                power (2-wire, power-on-data) feature
+
+
+Name:   w1-gpio-pullup
+Info:   Configures the w1-gpio Onewire interface module.
+        Use this overlay if you *do* need a GPIO to drive an external pullup.
+Load:   dtoverlay=w1-gpio-pullup,<param>=<val>
+Params: gpiopin                 GPIO for I/O (default "4")
+
+        pullup                  Non-zero, "on", or "y" to enable the parasitic
+                                power (2-wire, power-on-data) feature
+
+        extpullup               GPIO for external pullup (default "5")
+
+
+Name:   wittypi
+Info:   Configures the wittypi RTC module.
+Load:   dtoverlay=wittypi,<param>=<val>
+Params: led_gpio                GPIO for LED (default "17")
+        led_trigger             Choose which activity the LED tracks (default
+                                "default-on")
+
+
+Troubleshooting
+===============
+
+If you are experiencing problems that you think are DT-related, enable DT
+diagnostic output by adding this to /boot/config.txt:
+
+    dtdebug=on
+
+and rebooting. Then run:
+
+    sudo vcdbg log msg
+
+and look for relevant messages.
+
+Further reading
+===============
+
+This is only meant to be a quick introduction to the subject of Device Tree on
+Raspberry Pi. There is a more complete explanation here:
+
+http://www.raspberrypi.org/documentation/configuration/device-tree.md
