@@ -1,0 +1,37 @@
+/dts-v1/;
+/plugin/;
+
+/* Enable 1-bit SDIO from MMC interface via GPIOs 22-25. Includes sdhost overlay. */
+
+/{
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&mmc>;
+		sdio_mmc: __overlay__ {
+			compatible = "brcm,bcm2835-mmc";
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdio_pins>;
+			non-removable;
+			bus-width = <1>;
+			brcm,overclock-50 = <0>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			sdio_pins: sdio_pins {
+				brcm,pins = <22 23 24 25>;
+				brcm,function = <7>; /* ALT3 = SD1 */
+				brcm,pull = <0 2 2 2>;
+			};
+		};
+	};
+
+	__overrides__ {
+		poll_once = <&sdio_mmc>,"non-removable?";
+		sdio_overclock = <&sdio_mmc>,"brcm,overclock-50:0";
+	};
+};
