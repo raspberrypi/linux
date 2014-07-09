@@ -33,7 +33,9 @@
 #include <linux/cnt32_to_63.h>
 #include <linux/io.h>
 #include <linux/module.h>
+#include <linux/of_platform.h>
 #include <linux/spi/spi.h>
+#include <linux/gpio/machine.h>
 
 #include <linux/version.h>
 #include <linux/clkdev.h>
@@ -83,6 +85,8 @@ static unsigned uart_clock = UART0_CLOCK;
 static unsigned disk_led_gpio = 16;
 static unsigned disk_led_active_low = 1;
 static unsigned reboot_part = 0;
+
+static unsigned use_dt = 0;
 
 static void __init bcm2708_init_led(void);
 
@@ -599,6 +603,16 @@ int __init bcm_register_device(struct platform_device *pdev)
 	return ret;
 }
 
+/*
+ * Use these macros for platform and i2c devices that are present in the
+ * Device Tree. This way the devices are only added on non-DT systems.
+ */
+#define bcm_register_device_dt(pdev) \
+    if (!use_dt) bcm_register_device(pdev)
+
+#define i2c_register_board_info_dt(busnum, info, n) \
+    if (!use_dt) i2c_register_board_info(busnum, info, n)
+
 int calc_rsts(int partition)
 {
 	return PM_PASSWORD |
@@ -664,6 +678,24 @@ static void bcm2708_power_off(void)
 	}
 }
 
+#ifdef CONFIG_OF
+static void __init bcm2708_dt_init(void)
+{
+	int ret;
+
+	of_clk_init(NULL);
+	ret = of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
+	if (ret) {
+		pr_err("of_platform_populate failed: %d\n", ret);
+		/* Proceed as if CONFIG_OF was not defined */
+	} else {
+		use_dt = 1;
+	}
+}
+#else
+static void __init bcm2708_dt_init(void) { }
+#endif /* CONFIG_OF */
+
 void __init bcm2708_init(void)
 {
 	int i;
@@ -675,6 +707,7 @@ void __init bcm2708_init(void)
 	pm_power_off = bcm2708_power_off;
 
 	bcm2708_init_clocks();
+	bcm2708_dt_init();
 
 	bcm_register_device(&bcm2708_dmaman_device);
 	bcm_register_device(&bcm2708_dmaengine_device);
@@ -842,9 +875,9 @@ static struct platform_device bcm2708_led_device = {
 
 static void __init bcm2708_init_led(void)
 {
-  bcm2708_leds[0].gpio = disk_led_gpio;
-  bcm2708_leds[0].active_low = disk_led_active_low;
-  platform_device_register(&bcm2708_led_device);
+	bcm2708_leds[0].gpio = disk_led_gpio;
+	bcm2708_leds[0].active_low = disk_led_active_low;
+	bcm_register_device_dt(&bcm2708_led_device);
 }
 #else
 static inline void bcm2708_init_led(void)
@@ -869,6 +902,11 @@ static void __init board_reserve(void)
 #endif
 }
 
+static const char * const bcm2708_compat[] = {
+	"brcm,bcm2708",
+	NULL
+};
+
 MACHINE_START(BCM2708, "BCM2708")
     /* Maintainer: Broadcom Europe Ltd. */
 	.map_io = bcm2708_map_io,
@@ -878,6 +916,7 @@ MACHINE_START(BCM2708, "BCM2708")
 	.init_early = bcm2708_init_early,
 	.reserve = board_reserve,
 	.restart	= bcm2708_restart,
+	.dt_compat = bcm2708_compat,
 MACHINE_END
 
 module_param(boardrev, uint, 0644);
