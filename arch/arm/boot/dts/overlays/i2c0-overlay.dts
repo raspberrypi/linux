@@ -1,0 +1,74 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+			pinctrl-0 = <&i2c0_pins>;
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c0_pins>;
+		pins1: __overlay__ {
+			brcm,pins = <0 1>;
+			brcm,function = <4>; /* alt0 */
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0_pins>;
+		pins2: __dormant__ {
+			brcm,pins = <28 29>;
+			brcm,function = <4>; /* alt0 */
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0_pins>;
+		pins3: __dormant__ {
+			brcm,pins = <44 45>;
+			brcm,function = <5>; /* alt1 */
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0_pins>;
+		pins4: __dormant__ {
+			brcm,pins = <46 47>;
+			brcm,function = <4>; /* alt0 */
+		};
+	};
+
+	fragment@5 {
+		target = <&i2c0>;
+		__dormant__ {
+			compatible = "brcm,bcm2708-i2c";
+		};
+	};
+
+	fragment@6 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@7 {
+		target-path = "/aliases";
+		__overlay__ {
+			i2c0 = "/soc/i2c@7e205000";
+		};
+	};
+	__overrides__ {
+		pins_0_1   = <0>,"+1-2-3-4";
+		pins_28_29 = <0>,"-1+2-3-4";
+		pins_44_45 = <0>,"-1-2+3-4";
+		pins_46_47 = <0>,"-1-2-3+4";
+		combine = <0>, "!5";
+	};
+};

@@ -1,0 +1,89 @@
+/* PaPiRus ePaper Screen by Pi Supply */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c_arm>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			display_temp: lm75@48 {
+				compatible = "lm75b";
+				reg = <0x48>;
+				status = "okay";
+				#thermal-sensor-cells = <0>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			thermal-zones {
+				display {
+					polling-delay-passive = <0>;
+					polling-delay = <0>;
+					thermal-sensors = <&display_temp>;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+
+			spidev@0{
+				status = "disabled";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			repaper_pins: repaper_pins {
+				brcm,pins = <14 15 23 24 25>;
+				brcm,function = <1 1 1 1 0>; /* out out out out in */
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			repaper: repaper@0{
+				compatible = "not_set";
+				reg = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&repaper_pins>;
+
+				spi-max-frequency = <8000000>;
+
+				panel-on-gpios = <&gpio 23 0>;
+				border-gpios = <&gpio 14 0>;
+				discharge-gpios = <&gpio 15 0>;
+				reset-gpios = <&gpio 24 0>;
+				busy-gpios = <&gpio 25 0>;
+
+				repaper-thermal-zone = "display";
+			};
+		};
+	};
+
+	__overrides__ {
+		panel = <&repaper>, "compatible";
+		speed = <&repaper>, "spi-max-frequency:0";
+	};
+};

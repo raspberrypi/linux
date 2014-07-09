@@ -1,0 +1,104 @@
+// Demo overlay for the gpio-fsm driver
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio-fsm.h>
+
+#define BUTTON1 GF_IP(0)
+#define BUTTON2 GF_SW(0)
+#define RED   GF_OP(0) // GPIO7
+#define AMBER GF_OP(1) // GPIO8
+#define GREEN GF_OP(2) // GPIO25
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			fsm_demo: fsm-demo {
+				compatible = "rpi,gpio-fsm";
+
+				debug = <0>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				num-soft-gpios = <1>;
+				gpio-line-names = "button2";
+				input-gpios  = <&gpio 6 1>;  // BUTTON1 (active-low)
+				output-gpios = <&gpio 7 0>,  // RED
+					       <&gpio 8 0>,  // AMBER
+					       <&gpio 25 0>; // GREEN
+				shutdown-timeout-ms = <2000>;
+
+				start {
+					start_state;
+					set = <RED 1>, <AMBER 0>, <GREEN 0>;
+					start2 = <GF_DELAY 250>;
+				};
+
+				start2 {
+					set = <RED 0>, <AMBER 1>;
+					go = <GF_DELAY 250>;
+				};
+
+				go {
+					set = <RED 0>, <AMBER 0>, <GREEN 1>;
+					ready_wait = <BUTTON1 0>;
+					shutdown1 = <GF_SHUTDOWN 0>;
+				};
+
+				ready_wait {
+					// Clear the soft GPIO
+					set = <BUTTON2 0>;
+					ready = <GF_DELAY 1000>;
+					shutdown1 = <GF_SHUTDOWN 0>;
+				};
+
+				ready {
+					stopping = <BUTTON1 1>, <BUTTON2 1>;
+					shutdown1 = <GF_SHUTDOWN 0>;
+				};
+
+				stopping {
+					set = <GREEN 0>, <AMBER 1>;
+					stopped = <GF_DELAY 1000>;
+				};
+
+				stopped {
+					set = <AMBER 0>, <RED 1>;
+					get_set = <GF_DELAY 3000>;
+					shutdown1 = <GF_SHUTDOWN 0>;
+				};
+
+				get_set {
+					set = <AMBER 1>;
+					go = <GF_DELAY 1000>;
+				};
+
+				shutdown1 {
+					set = <RED 0>, <AMBER 0>, <GREEN 1>;
+					shutdown2 = <GF_SHUTDOWN 250>;
+				};
+
+				shutdown2 {
+					set = <AMBER 1>, <GREEN 0>;
+					shutdown3 = <GF_SHUTDOWN 250>;
+				};
+
+				shutdown3 {
+					set = <RED 1>, <AMBER 0>;
+					shutdown4 = <GF_SHUTDOWN 250>;
+				};
+
+				shutdown4 {
+					shutdown_state;
+					set = <RED 0>;
+				};
+			};
+	       };
+        };
+
+	__overrides__ {
+		fsm_debug = <&fsm_demo>,"debug:0";
+	};
+};
