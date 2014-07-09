@@ -37,8 +37,53 @@
 	gpios = <&gpio 42 GPIO_ACTIVE_HIGH>;
 };
 
-/delete-node/ &led_act;
-
 &pm {
 	/delete-property/ system-power-controller;
+};
+
+// =============================================
+// Downstream rpi- changes
+
+/ {
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+};
+
+&audio_pins {
+	brcm,pins = <>;
+	brcm,function = <>;
+};
+
+// Declare the LED but leave it disabled, in case a user wants to map it
+// to a GPIO on the header
+&led_act {
+	default-state = "off";
+	gpios = <&gpio 0 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
+};
+
+&led_pwr {
+	default-state = "off";
+};
+
+&cam1_reg {
+	  /delete-property/ gpio;
+};
+
+cam0_reg: &cam_dummy_reg {
+};
+
+/ {
+	__overrides__ {
+		audio = <&chosen>,"bootargs{on='snd_bcm2835.enable_hdmi=1',off='snd_bcm2835.enable_hdmi=0'}";
+
+		act_led_gpio = <&led_act>,"gpios:4",
+			       <&led_act>,"status=okay";
+		act_led_activelow = <&led_act>,"gpios:8";
+		act_led_trigger = <&led_act>,"linux,default-trigger";
+		pwr_led_gpio = <&led_pwr>,"gpios:4";
+		pwr_led_activelow = <&led_pwr>,"gpios:8";
+		pwr_led_trigger = <&led_pwr>,"linux,default-trigger";
+	};
 };
