@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for OV9281 camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ov9281: ov9281@60 {
+				compatible = "ovti,ov9281";
+				reg = <0x60>;
+				status = "okay";
+
+				clocks = <&ov9281_clk>;
+				clock-names = "xvclk";
+
+				avdd-supply = <&cam1_reg>;
+				dovdd-supply = <&ov9281_dovdd>;
+				dvdd-supply = <&ov9281_dvdd>;
+
+				port {
+					ov9281_0: endpoint {
+						remote-endpoint = <&csi1_ep>;
+						clock-lanes = <0>;
+						data-lanes = <1 2>;
+						clock-noncontinuous;
+						link-frequencies =
+							/bits/ 64 <400000000>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&csi1>;
+		__overlay__ {
+			status = "okay";
+
+			port {
+				csi1_ep: endpoint {
+					remote-endpoint = <&ov9281_0>;
+					data-lanes = <1 2>;
+					clock-noncontinuous;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target-path="/";
+		__overlay__ {
+			ov9281_dovdd: fixedregulator@1 {
+				compatible = "regulator-fixed";
+				regulator-name = "ov9281_dovdd";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+			ov9281_dvdd: fixedregulator@2 {
+				compatible = "regulator-fixed";
+				regulator-name = "ov9281_dvdd";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>;
+			};
+			ov9281_clk: ov9281-clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <24000000>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
+		target = <&cam1_reg>;
+		__overlay__ {
+			status = "okay";
+			regulator-name = "ov9281_avdd";
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+		};
+	};
+
+};
