@@ -1,0 +1,64 @@
+/*
+ * Device Tree overlay to connect a JDI LT070ME05000 DSI panel to DSI1.
+ * This uses 4 DSI data lanes, so can only be used with a Compute Module.
+ *
+ * The overlay is for V2 of Harlab's interface board that uses a PCA9536 to
+ * handle the panel's control GPIOs instead of wiring it back to Pi GPIOs.
+ *
+ * Credit to Andrey Vostrukhin of Harlab for the overlay.
+ *
+ * Refer to https://github.com/harlab/CM4_LCD_LT070ME05000 for schematics and
+ * other documentation.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pca: pca@41 {
+				compatible = "nxp,pca9536";
+				reg = <0x41>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&dsi1>;
+		__overlay__{
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port {
+				dsi_out_port:endpoint {
+					remote-endpoint = <&panel_dsi_port>;
+				};
+			};
+
+			lt070me05000:lt070me05000@0 {
+				compatible    = "jdi,lt070me05000";
+				status        = "okay";
+				reg           = <0>;
+				reset-gpios   = <&pca 0 1>;
+				enable-gpios  = <&pca 2 0>;
+				dcdc-en-gpios = <&pca 1 0>;
+				port {
+					panel_dsi_port: endpoint {
+						remote-endpoint = <&dsi_out_port>;
+					};
+				};
+			};
+		};
+	};
+};

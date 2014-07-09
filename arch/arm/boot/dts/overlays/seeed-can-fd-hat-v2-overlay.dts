@@ -1,0 +1,117 @@
+// redo: ovmerge -c mcp251xfd-overlay.dts,spi0-0,interrupt=25 mcp251xfd-overlay.dts,spi0-1,interrupt=24 i2c-rtc-overlay.dts,pcf85063
+
+// Device tree overlay for https://www.seeedstudio.com/CAN-BUS-FD-HAT-for-Raspberry-Pi-p-4742.html 
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+	fragment@0 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			mcp251xfd_pins: mcp251xfd_spi0_0_pins {
+				brcm,pins = <25>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+			};
+		};
+	};
+	fragment@2 {
+		target-path = "/clocks";
+		__overlay__ {
+			clk_mcp251xfd_osc: mcp251xfd-spi0-0-osc {
+				#clock-cells = <0>;
+				compatible = "fixed-clock";
+				clock-frequency = <40000000>;
+			};
+		};
+	};
+	fragment@3 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			mcp251xfd@0 {
+				compatible = "microchip,mcp251xfd";
+				reg = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&mcp251xfd_pins>;
+				spi-max-frequency = <20000000>;
+				interrupt-parent = <&gpio>;
+				interrupts = <25 IRQ_TYPE_LEVEL_LOW>;
+				clocks = <&clk_mcp251xfd_osc>;
+			};
+		};
+	};
+	fragment@4 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	fragment@5 {
+		target = <&gpio>;
+		__overlay__ {
+			mcp251xfd_pins_1: mcp251xfd_spi0_1_pins {
+				brcm,pins = <24>;
+				brcm,function = <BCM2835_FSEL_GPIO_IN>;
+			};
+		};
+	};
+	fragment@6 {
+		target-path = "/clocks";
+		__overlay__ {
+			clk_mcp251xfd_osc_1: mcp251xfd-spi0-1-osc {
+				#clock-cells = <0>;
+				compatible = "fixed-clock";
+				clock-frequency = <40000000>;
+			};
+		};
+	};
+	fragment@7 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			mcp251xfd@1 {
+				compatible = "microchip,mcp251xfd";
+				reg = <1>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&mcp251xfd_pins_1>;
+				spi-max-frequency = <20000000>;
+				interrupt-parent = <&gpio>;
+				interrupts = <24 IRQ_TYPE_LEVEL_LOW>;
+				clocks = <&clk_mcp251xfd_osc_1>;
+			};
+		};
+	};
+	fragment@8 {
+		target = <&i2cbus>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pcf85063@51 {
+				compatible = "nxp,pcf85063";
+				reg = <0x51>;
+			};
+		};
+	};
+	fragment@9 {
+		target = <&i2c_arm>;
+		i2cbus: __overlay__ {
+			status = "okay";
+		};
+	};
+};
