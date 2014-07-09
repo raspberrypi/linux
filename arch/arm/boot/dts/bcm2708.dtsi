@@ -4,6 +4,8 @@
 	compatible = "brcm,bcm2708";
 	model = "BCM2708";
 
+	interrupt-parent = <&intc>;
+
 	chosen {
 		/*
 		   bootargs must be 1024 characters long because the
@@ -17,6 +19,13 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges = <0x7e000000 0x20000000 0x02000000>;
+
+		intc: interrupt-controller {
+			compatible = "brcm,bcm2708-armctrl-ic";
+			reg = <0x7e00b200 0x200>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
 	};
 
 	clocks {
