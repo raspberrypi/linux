@@ -1,0 +1,36 @@
+/* Downstream modifications common to bcm2835, bcm2836, bcm2837 */
+
+#include "bcm2835-rpi.dtsi"
+#include "bcm270x-rpi.dtsi"
+
+/ {
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x0>;
+	};
+
+	aliases {
+		i2c2 = &i2c2;
+	};
+
+	__overrides__ {
+		i2c2_iknowwhatimdoing = <&i2c2>,"status";
+		i2c2_baudrate = <&i2c2>,"clock-frequency:0";
+		sd_poll_once = <&sdhost>,"non-removable?";
+	};
+};
+
+&sdhost {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdhost_gpio48>;
+	status = "okay";
+};
+
+&hdmi {
+	power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
+	status = "disabled";
+};
+
+&i2c2 {
+	status = "disabled";
+};

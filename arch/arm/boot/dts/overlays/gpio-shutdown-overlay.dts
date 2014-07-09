@@ -1,0 +1,84 @@
+// Definitions for gpio-poweroff module
+/dts-v1/;
+/plugin/;
+
+// This overlay sets up an input device that generates KEY_POWER events
+// when a given GPIO pin changes. It defaults to using GPIO3, which can
+// also be used to wake up (start) the Rpi again after shutdown.
+// Raspberry Pi 1 Model B rev 1 can be wake up only by GPIO1 pin, so for
+// these boards change default GPIO pin to 1 via gpio_pin parameter. Since
+// wakeup is active-low, this defaults to active-low with a pullup
+// enabled, but all of this can be changed using overlay parameters (but
+// note that GPIO3 has an external pullup on at least some boards).
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		// Configure the gpio pin controller
+		target = <&gpio>;
+		__overlay__ {
+			// Define a pinctrl state, that sets up the gpio
+			// as an input with a pullup enabled. This does
+			// not take effect by itself, only when referenced
+			// by a "pinctrl client", as is done below. See:
+			//   https://www.kernel.org/doc/Documentation/devicetree/bindings/pinctrl/pinctrl-bindings.txt
+			//   https://www.kernel.org/doc/Documentation/devicetree/bindings/pinctrl/brcm,bcm2835-gpio.txt
+			pin_state: shutdown_button_pins {
+				brcm,pins = <3>; // gpio number
+				brcm,function = <0>; // 0 = input, 1 = output
+				brcm,pull = <2>; // 0 = none, 1 = pull down, 2 = pull up
+			};
+		};
+	};
+	fragment@1 {
+		// Add a new device to the /soc devicetree node
+		target-path = "/soc";
+		__overlay__ {
+			shutdown_button {
+				// Let the gpio-keys driver handle this device. See:
+				// https://www.kernel.org/doc/Documentation/devicetree/bindings/input/gpio-keys.txt
+				compatible = "gpio-keys";
+
+				// Declare a single pinctrl state (referencing the one declared above) and name it
+				// default, so it is activated automatically.
+				pinctrl-names = "default";
+				pinctrl-0 = <&pin_state>;
+
+				// Enable this device
+				status = "okay";
+
+				// Define a single key, called "shutdown" that monitors the gpio and sends KEY_POWER
+				// (keycode 116, see
+				// https://github.com/torvalds/linux/blob/v4.12/include/uapi/linux/input-event-codes.h#L190)
+				button: shutdown {
+					label = "shutdown";
+					linux,code = <116>; // KEY_POWER
+					gpios = <&gpio 3 1>;
+					debounce-interval = <100>; // ms
+				};
+			};
+		};
+	};
+
+	// This defines parameters that can be specified when loading
+	// the overlay. Each foo = line specifies one parameter, named
+	// foo. The rest of the specification gives properties where the
+	// parameter value is inserted into (changing the values above
+	// or adding new ones).
+	__overrides__ {
+		// Allow overriding the GPIO number.
+		gpio_pin = <&button>,"gpios:4",
+		           <&pin_state>,"brcm,pins:0";
+
+		// Allow changing the internal pullup/down state. 0 = none, 1 = pulldown, 2 = pullup
+		// Note that GPIO3 and GPIO2 are the I2c pins and have an external pullup (at least
+		// on some boards). Same applies for GPIO1 on Raspberry Pi 1 Model B rev 1.
+		gpio_pull = <&pin_state>,"brcm,pull:0";
+
+		// Allow setting the active_low flag. 0 = active high, 1 = active low
+		active_low = <&button>,"gpios:8";
+		debounce = <&button>,"debounce-interval:0";
+	};
+
+};

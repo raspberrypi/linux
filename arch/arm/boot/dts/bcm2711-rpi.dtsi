@@ -1,0 +1,306 @@
+// SPDX-License-Identifier: GPL-2.0
+#include "bcm270x-rpi.dtsi"
+
+/ {
+	soc {
+		/delete-node/ v3d@7ec00000;
+
+		pixelvalve0: pixelvalve@7e206000 {
+			compatible = "brcm,bcm2711-pixelvalve0";
+			reg = <0x7e206000 0x100>;
+			interrupts = <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		pixelvalve1: pixelvalve@7e207000 {
+			compatible = "brcm,bcm2711-pixelvalve1";
+			reg = <0x7e207000 0x100>;
+			interrupts = <GIC_SPI 110 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		pixelvalve2: pixelvalve@7e20a000 {
+			compatible = "brcm,bcm2711-pixelvalve2";
+			reg = <0x7e20a000 0x100>;
+			interrupts = <GIC_SPI 101 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		pixelvalve4: pixelvalve@7e216000 {
+			compatible = "brcm,bcm2711-pixelvalve4";
+			reg = <0x7e216000 0x100>;
+			interrupts = <GIC_SPI 110 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		pixelvalve3: pixelvalve@7ec12000 {
+			compatible = "brcm,bcm2711-pixelvalve3";
+			reg = <0x7ec12000 0x100>;
+			interrupts = <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		dvp: clock@7ef00000 {
+			compatible = "brcm,brcm2711-dvp";
+			reg = <0x7ef00000 0x10>;
+			clocks = <&clk_108MHz>;
+			#clock-cells = <1>;
+			#reset-cells = <1>;
+			status = "disabled";
+		};
+
+		hdmi0: hdmi@7ef00700 {
+			compatible = "brcm,bcm2711-hdmi0";
+			reg = <0x7ef00700 0x300>,
+			      <0x7ef00300 0x200>,
+			      <0x7ef00f00 0x80>,
+			      <0x7ef00f80 0x80>,
+			      <0x7ef01b00 0x200>,
+			      <0x7ef01f00 0x400>,
+			      <0x7ef00200 0x80>,
+			      <0x7ef04300 0x100>,
+			      <0x7ef20000 0x100>,
+			      <0x7ef00100 0x30>;
+			reg-names = "hdmi",
+				    "dvp",
+				    "phy",
+				    "rm",
+				    "packet",
+				    "metadata",
+				    "csc",
+				    "cec",
+				    "hd",
+				    "intr2";
+			clocks = <&firmware_clocks 13>;
+			clock-names = "hdmi";
+			resets = <&dvp 0>;
+			ddc = <&ddc0>;
+			dmas = <&dma (10|(1<<27))>;
+			dma-names = "audio-rx";
+			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		ddc0: i2c@7ef04500 {
+			compatible = "brcm,bcm2711-hdmi-i2c";
+			reg = <0x7ef04500 0x100>, <0x7ef00b00 0x300>;
+			reg-names = "bsc", "auto-i2c";
+			clock-frequency = <97500>;
+			status = "disabled";
+		};
+
+		hdmi1: hdmi@7ef05700 {
+			compatible = "brcm,bcm2711-hdmi1";
+			reg = <0x7ef05700 0x300>,
+			      <0x7ef05300 0x200>,
+			      <0x7ef05f00 0x80>,
+			      <0x7ef05f80 0x80>,
+			      <0x7ef06b00 0x200>,
+			      <0x7ef06f00 0x400>,
+			      <0x7ef00280 0x80>,
+			      <0x7ef09300 0x100>,
+			      <0x7ef20000 0x100>,
+			      <0x7ef00100 0x30>;
+			reg-names = "hdmi",
+				    "dvp",
+				    "phy",
+				    "rm",
+				    "packet",
+				    "metadata",
+				    "csc",
+				    "cec",
+				    "hd",
+				    "intr2";
+			ddc = <&ddc1>;
+			clocks = <&firmware_clocks 13>;
+			clock-names = "hdmi";
+			resets = <&dvp 1>;
+			dmas = <&dma (17|(1<<27))>;
+			dma-names = "audio-rx";
+			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		ddc1: i2c@7ef09500 {
+			compatible = "brcm,bcm2711-hdmi-i2c";
+			reg = <0x7ef09500 0x100>, <0x7ef05b00 0x300>;
+			reg-names = "bsc", "auto-i2c";
+			clock-frequency = <97500>;
+			status = "disabled";
+		};
+	};
+
+	__overrides__ {
+		arm_freq;
+	};
+
+	v3dbus: v3dbus {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <2>;
+		ranges = <0x7c500000  0x0 0xfc500000  0x0 0x03300000>,
+			 <0x40000000  0x0 0xff800000  0x0 0x00800000>;
+		dma-ranges = <0x00000000  0x0 0x00000000  0x4 0x00000000>;
+
+		v3d: v3d@7ec04000 {
+			compatible = "brcm,2711-v3d";
+			reg =
+			    <0x7ec00000  0x0 0x4000>,
+			    <0x7ec04000  0x0 0x4000>;
+			reg-names = "hub", "core0";
+
+			power-domains = <&pm BCM2835_POWER_DOMAIN_GRAFX_V3D>;
+			resets = <&pm BCM2835_RESET_V3D>;
+			clocks = <&firmware_clocks 5>;
+			clocks-names = "v3d";
+			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+	};
+
+	scb: scb {
+	     /* Add a label */
+	};
+
+	vc4: gpu {
+		compatible = "brcm,bcm2711-vc5";
+		status = "disabled";
+	};
+
+	clk_108MHz: clk-108M {
+		#clock-cells = <0>;
+		compatible = "fixed-clock";
+		clock-frequency = <108000000>;
+		clock-output-names = "108MHz-clock";
+	};
+};
+
+&soc {
+	/delete-node/ audio;
+};
+
+&cma {
+	/* Limit cma to the lower 768MB to allow room for HIGHMEM on 32-bit */
+	alloc-ranges = <0x0 0x00000000 0x30000000>;
+};
+
+&scb {
+	ranges = <0x0 0x7c000000  0x0 0xfc000000  0x0 0x03800000>,
+		 <0x0 0x40000000  0x0 0xff800000  0x0 0x00800000>,
+		 <0x6 0x00000000  0x6 0x00000000  0x0 0x40000000>,
+		 <0x0 0x00000000  0x0 0x00000000  0x0 0xfc000000>;
+	dma-ranges = <0x0 0x00000000  0x0 0x00000000  0x4 0x00000000>;
+
+	dma40: dma@7e007b00 {
+		compatible = "brcm,bcm2711-dma";
+		reg = <0x0 0x7e007b00  0x0 0x400>;
+		interrupts =
+			<GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>, /* dma4 11 */
+			<GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>, /* dma4 12 */
+			<GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>, /* dma4 13 */
+			<GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>; /* dma4 14 */
+		interrupt-names = "dma11",
+			"dma12",
+			"dma13",
+			"dma14";
+		#dma-cells = <1>;
+		brcm,dma-channel-mask = <0x7800>;
+	};
+
+	xhci: xhci@7e9c0000 {
+		compatible = "generic-xhci";
+		status = "disabled";
+		reg = <0x0 0x7e9c0000  0x0 0x100000>;
+		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	hevc-decoder@7eb00000 {
+		compatible = "raspberrypi,rpivid-hevc-decoder";
+		reg = <0x0 0x7eb00000  0x0 0x10000>;
+		status = "okay";
+	};
+
+	rpivid-local-intc@7eb10000 {
+		compatible = "raspberrypi,rpivid-local-intc";
+		reg = <0x0 0x7eb10000  0x0 0x1000>;
+		status = "okay";
+		interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	h264-decoder@7eb20000 {
+		compatible = "raspberrypi,rpivid-h264-decoder";
+		reg = <0x0 0x7eb20000  0x0 0x10000>;
+		status = "okay";
+	};
+
+	vp9-decoder@7eb30000 {
+		compatible = "raspberrypi,rpivid-vp9-decoder";
+		reg = <0x0 0x7eb30000  0x0 0x10000>;
+		status = "okay";
+	};
+};
+
+&dma {
+	/* The VPU firmware uses DMA channel 11 for VCHIQ */
+	brcm,dma-channel-mask = <0x1f5>;
+};
+
+&dma40 {
+	/* The VPU firmware DMA channel 11 for VCHIQ */
+	brcm,dma-channel-mask = <0x7000>;
+};
+
+&vchiq {
+	compatible = "brcm,bcm2711-vchiq";
+};
+
+&firmwarekms {
+	interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&smi {
+	interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mmc {
+	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mmcnr {
+	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&csi0 {
+	interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&csi1 {
+	interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&random {
+	compatible = "brcm,bcm2711-rng200";
+	status = "okay";
+};
+
+&usb {
+	/* Enable the FIQ support */
+	reg = <0x7e980000 0x10000>,
+	      <0x7e00b200 0x200>;
+	interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+	status = "disabled";
+};
+
+&gpio {
+	interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&hvs {
+	clocks = <&firmware_clocks 4>;
+};
+
+&emmc2 {
+	mmc-ddr-3_3v;
+};
