@@ -1,0 +1,52 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2708";
+
+    fragment@0 {
+        target = <&i2s>;
+        __overlay__ {
+            status = "okay";
+        };
+    };
+
+    fragment@1 {
+        target-path = "/";
+        __overlay__ {
+                adau7002_codec: adau7002-codec {
+                #sound-dai-cells = <0>;
+                compatible = "adi,adau7002";
+/*                IOVDD-supply = <&supply>;*/
+                status = "okay";
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&sound>;
+            sound_overlay: __overlay__ {
+            compatible = "simple-audio-card";
+            simple-audio-card,format = "i2s";
+            simple-audio-card,name = "adau7002";
+            simple-audio-card,bitclock-slave = <&dailink0_slave>;
+            simple-audio-card,frame-slave = <&dailink0_slave>;
+            simple-audio-card,widgets =
+                    "Microphone", "Microphone Jack";
+            simple-audio-card,routing =
+                    "PDM_DAT", "Microphone Jack";
+            status = "okay";
+            simple-audio-card,cpu {
+                sound-dai = <&i2s>;
+            };
+            dailink0_slave: simple-audio-card,codec {
+                sound-dai = <&adau7002_codec>;
+            };
+        };
+    };
+
+
+    __overrides__ {
+        card-name = <&sound_overlay>,"simple-audio-card,name";
+    };
+};
