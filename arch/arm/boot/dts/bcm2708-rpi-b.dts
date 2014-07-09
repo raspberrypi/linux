@@ -1,0 +1,8 @@
+/dts-v1/;
+
+/include/ "bcm2708.dtsi"
+
+/ {
+	compatible = "brcm,bcm2708";
+	model = "Raspberry Pi";
+};
