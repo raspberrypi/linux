@@ -1,0 +1,18 @@
+/*
+ * Device tree overlay for spi-bcm2835
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2836", "brcm,bcm2708", "brcm,bcm2709";
+	/* setting up compatiblity to allow loading the spi-bcm2835 driver */
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+			compatible = "brcm,bcm2835-spi";
+		};
+	};
+};
