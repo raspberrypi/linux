@@ -1,0 +1,136 @@
+// Overlay for JEDEC SPI-NOR Flash Devices (aka m25p80)
+
+// dtparams:
+//     flash-spi<n>-<m>        - Enables flash device on SPI<n>, CS#<m>.
+//     flash-fastr-spi<n>-<m>  - Enables flash device with fast read capability on SPI<n>, CS#<m>.
+//     speed                   - Set the SPI clock speed in Hz
+//
+// If devices are present on SPI1 or SPI2, those interfaces must be enabled with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
+//
+// Example: A single flash device with fast read capability on SPI0, CS#0:
+// dtoverlay=jedec-spi-nor:flash-fastr-spi0-0
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	// disable spi-dev on spi0.0
+	fragment@0 {
+		target = <&spidev0>;
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	// disable spi-dev on spi0.1
+	fragment@1 {
+		target = <&spidev1>;
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	// disable spi-dev on spi1.0
+	fragment@2 {
+		target-path = "spi1/spidev@0";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	// disable spi-dev on spi1.1
+	fragment@3 {
+		target-path = "spi1/spidev@1";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	// disable spi-dev on spi1.2
+	fragment@4 {
+		target-path = "spi1/spidev@2";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	// disable spi-dev on spi2.0
+	fragment@5 {
+		target-path = "spi2/spidev@0";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	// disable spi-dev on spi2.1
+	fragment@6 {
+		target-path = "spi2/spidev@1";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	// disable spi-dev on spi2.2
+	fragment@7 {
+		target-path = "spi2/spidev@2";
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	// Enable fast read for device
+	// Use default active low interrupt signalling.
+	fragment@8 {
+		target = <&spi_nor>;
+		__dormant__ {
+			m25p,fast-read;
+		};
+	};
+
+	payload: fragment@100 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			spi_nor: spi_nor@0 {
+				compatible = "jedec,spi-nor";
+				reg = <0>;
+				spi-max-frequency = <500000>;
+			};
+		};
+	};
+
+	__overrides__ {
+		spi0-0             = <0>,"+0", <&payload>,"target:0=",<&spi0>, <&spi_nor>,"reg:0=0";
+		spi0-1             = <0>,"+1", <&payload>,"target:0=",<&spi0>, <&spi_nor>,"reg:0=1";
+		spi1-0             = <0>,"+2", <&payload>,"target:0=",<&spi1>, <&spi_nor>,"reg:0=0";
+		spi1-1             = <0>,"+3", <&payload>,"target:0=",<&spi1>, <&spi_nor>,"reg:0=1";
+		spi1-2             = <0>,"+4", <&payload>,"target:0=",<&spi1>, <&spi_nor>,"reg:0=2";
+		spi2-0             = <0>,"+5", <&payload>,"target:0=",<&spi2>, <&spi_nor>,"reg:0=0";
+		spi2-1             = <0>,"+6", <&payload>,"target:0=",<&spi2>, <&spi_nor>,"reg:0=1";
+		spi2-2             = <0>,"+7", <&payload>,"target:0=",<&spi2>, <&spi_nor>,"reg:0=2";
+		flash-spi0-0       = <0>,"+0", <&payload>,"target:0=",<&spi0>, <&spi_nor>,"reg:0=0";
+		flash-spi0-1       = <0>,"+1", <&payload>,"target:0=",<&spi0>, <&spi_nor>,"reg:0=1";
+		flash-spi1-0       = <0>,"+2", <&payload>,"target:0=",<&spi1>, <&spi_nor>,"reg:0=0";
+		flash-spi1-1       = <0>,"+3", <&payload>,"target:0=",<&spi1>, <&spi_nor>,"reg:0=1";
+		flash-spi1-2       = <0>,"+4", <&payload>,"target:0=",<&spi1>, <&spi_nor>,"reg:0=2";
+		flash-spi2-0       = <0>,"+5", <&payload>,"target:0=",<&spi2>, <&spi_nor>,"reg:0=0";
+		flash-spi2-1       = <0>,"+6", <&payload>,"target:0=",<&spi2>, <&spi_nor>,"reg:0=1";
+		flash-spi2-2       = <0>,"+7", <&payload>,"target:0=",<&spi2>, <&spi_nor>,"reg:0=2";
+		flash-fastr-spi0-0 = <0>,"+0+8", <&payload>,"target:0=",<&spi0>, <&spi_nor>,"reg:0=0";
+		flash-fastr-spi0-1 = <0>,"+1+8", <&payload>,"target:0=",<&spi0>, <&spi_nor>,"reg:0=1";
+		flash-fastr-spi1-0 = <0>,"+2+8", <&payload>,"target:0=",<&spi1>, <&spi_nor>,"reg:0=0";
+		flash-fastr-spi1-1 = <0>,"+3+8", <&payload>,"target:0=",<&spi1>, <&spi_nor>,"reg:0=1";
+		flash-fastr-spi1-2 = <0>,"+4+8", <&payload>,"target:0=",<&spi1>, <&spi_nor>,"reg:0=2";
+		flash-fastr-spi2-0 = <0>,"+5+8", <&payload>,"target:0=",<&spi2>, <&spi_nor>,"reg:0=0";
+		flash-fastr-spi2-1 = <0>,"+6+8", <&payload>,"target:0=",<&spi2>, <&spi_nor>,"reg:0=1";
+		flash-fastr-spi2-2 = <0>,"+7+8", <&payload>,"target:0=",<&spi2>, <&spi_nor>,"reg:0=2";
+		fastr              = <0>,"+8";
+		speed              = <&spi_nor>, "spi-max-frequency:0";
+	};
+};
+
