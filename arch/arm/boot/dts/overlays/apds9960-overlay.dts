@@ -1,0 +1,57 @@
+// Definitions for APDS-9960 ambient light and gesture sensor
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			apds9960_pins: apds9960_pins@39 {
+				brcm,pins = <4>;
+				brcm,function = <0>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			apds9960: apds@39 {
+				compatible = "avago,apds9960";
+				reg = <0x39>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c1>;
+		__overlay__ {
+			apds9960_irq: apds@39 {
+				#interrupt-cells=<2>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 1>;
+			};
+		};
+	};
+
+	__overrides__ {
+		gpiopin = <&apds9960_pins>,"brcm,pins:0",
+				<&apds9960_irq>,"interrupts:0";
+		noints = <0>,"!1!3";
+	};
+};
+
