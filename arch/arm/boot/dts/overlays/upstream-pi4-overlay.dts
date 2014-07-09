@@ -1,0 +1,161 @@
+// redo: ovmerge -c vc4-kms-v3d-pi4-overlay.dts,cma-default dwc2-overlay.dts,dr_mode=otg
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+	fragment@0 {
+		target = <&cma>;
+		__dormant__ {
+			size = <0x10000000>;
+		};
+	};
+	fragment@1 {
+		target = <&ddc0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@2 {
+		target = <&ddc1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@3 {
+		target = <&hdmi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@4 {
+		target = <&hdmi1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@5 {
+		target = <&hvs>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@6 {
+		target = <&pixelvalve0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@7 {
+		target = <&pixelvalve1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@8 {
+		target = <&pixelvalve2>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@9 {
+		target = <&pixelvalve3>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@10 {
+		target = <&pixelvalve4>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@11 {
+		target = <&v3d>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@12 {
+		target = <&vc4>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@13 {
+		target = <&txp>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@14 {
+		target = <&fb>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	fragment@15 {
+		target = <&firmwarekms>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	fragment@16 {
+		target = <&vec>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	fragment@17 {
+		target = <&hdmi0>;
+		__dormant__ {
+			dmas;
+		};
+	};
+	fragment@18 {
+		target = <&hdmi1>;
+		__dormant__ {
+			dmas;
+		};
+	};
+	fragment@19 {
+		target = <&audio>;
+		__overlay__ {
+			brcm,disable-hdmi;
+		};
+	};
+	fragment@20 {
+		target = <&dvp>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@21 {
+		target = <&pixelvalve3>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+	fragment@22 {
+		target = <&vec>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+	fragment@23 {
+		target = <&usb>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		__overlay__ {
+			compatible = "brcm,bcm2835-usb";
+			dr_mode = "otg";
+			g-np-tx-fifo-size = <32>;
+			g-rx-fifo-size = <558>;
+			g-tx-fifo-size = <512 512 512 512 512 256 256>;
+			status = "okay";
+		};
+	};
+};
