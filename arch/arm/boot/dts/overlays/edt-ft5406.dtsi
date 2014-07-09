@@ -1,0 +1,47 @@
+/*
+ * Device Tree overlay for an EDT FT5406 touchscreen
+ *
+ * Note that this is included from vc4-kms-dsi-7inch, hence the
+ * fragment numbers not starting at 0.
+ */
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@10 {
+		target = <&ft5406>;
+		__overlay__ {
+			touchscreen-inverted-x;
+		};
+	};
+
+	fragment@11 {
+		target = <&ft5406>;
+		__overlay__ {
+			touchscreen-inverted-y;
+		};
+	};
+
+	fragment@12 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			ft5406: ts@38 {
+				compatible = "edt,edt-ft5506";
+				reg = <0x38>;
+
+				touchscreen-size-x = < 800 >;
+				touchscreen-size-y = < 480 >;
+			};
+		};
+	};
+
+	__overrides__ {
+		sizex = <&ft5406>,"touchscreen-size-x:0";
+		sizey = <&ft5406>,"touchscreen-size-y:0";
+		invx = <0>, "-10";
+		invy = <0>, "-11";
+		swapxy = <&ft5406>,"touchscreen-swapped-x-y?";
+	};
+};
