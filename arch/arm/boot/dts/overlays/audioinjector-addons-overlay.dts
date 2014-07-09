@@ -1,0 +1,60 @@
+// Definitions for audioinjector.net audio add on soundcard
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			cs42448_mclk: codec-mclk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <49152000>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			cs42448: cs42448@48 {
+				#sound-dai-cells = <0>;
+				compatible = "cirrus,cs42448";
+				reg = <0x48>;
+				clocks = <&cs42448_mclk>;
+				clock-names = "mclk";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&sound>;
+		snd: __overlay__ {
+			compatible = "ai,audioinjector-octo-soundcard";
+			mult-gpios = <&gpio 27 0>, <&gpio 22 0>, <&gpio 23 0>,
+				     <&gpio 24 0>;
+			reset-gpios = <&gpio 5 0>;
+			i2s-controller = <&i2s>;
+			codec = <&cs42448>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		non-stop-clocks = <&snd>, "non-stop-clocks?";
+	};
+};
