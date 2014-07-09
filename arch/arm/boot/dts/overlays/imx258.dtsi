@@ -1,0 +1,27 @@
+// Fragment that configures a Sony IMX258
+
+cam_node: imx258@10 {
+	compatible = "sony,imx258";
+	reg = <0x10>;
+	status = "disabled";
+
+	clocks = <&cam1_clk>;
+	clock-names = "xclk";
+
+	vana-supply = <&cam1_reg>;	/* 2.8v */
+	vdig-supply = <&cam_dummy_reg>;	/* 1.05v */
+	vif-supply = <&cam_dummy_reg>;	/* 1.8v */
+
+	rotation = <180>;
+	orientation = <2>;
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <633600000
+					320000000>;
+		};
+	};
+};
