@@ -1,0 +1,59 @@
+// Device tree overlay for GPIO connected rotary encoder.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			rotary_pins: rotary_pins@4 {
+				brcm,pins = <4 17>; /* gpio 4 17 */
+				brcm,function = <0 0>; /* input */
+				brcm,pull = <2 2>; /* pull-up */
+			};
+
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			rotary: rotary@4 {
+				compatible = "rotary-encoder";
+				status = "okay";
+				pinctrl-names = "default";
+				pinctrl-0 = <&rotary_pins>;
+				gpios = <&gpio 4 0>, <&gpio 17 0>;
+				linux,axis = <0>; /* REL_X */
+				rotary-encoder,encoding = "gray";
+				rotary-encoder,steps = <24>; /* 24 default */
+				rotary-encoder,steps-per-period = <1>; /* corresponds to full period mode. See README */
+			};
+		};
+
+	};  
+
+	__overrides__ {
+		pin_a =		    <&rotary>,"gpios:4",
+				    <&rotary_pins>,"brcm,pins:0",
+				    /* modify reg values to allow multiple instantiation */
+				    <&rotary>,"reg:0",
+				    <&rotary_pins>,"reg:0";
+		pin_b =		    <&rotary>,"gpios:16",
+				    <&rotary_pins>,"brcm,pins:4";
+		relative_axis =     <&rotary>,"rotary-encoder,relative-axis?";
+		linux_axis =        <&rotary>,"linux,axis:0";
+		rollover =          <&rotary>,"rotary-encoder,rollover?";
+		steps-per-period =  <&rotary>,"rotary-encoder,steps-per-period:0";
+		steps =             <&rotary>,"rotary-encoder,steps:0";
+		wakeup =            <&rotary>,"wakeup-source?";
+		encoding =          <&rotary>,"rotary-encoder,encoding";
+                /* legacy parameters*/
+		rotary0_pin_a =     <&rotary>,"gpios:4",
+		                    <&rotary_pins>,"brcm,pins:0";
+		rotary0_pin_b =     <&rotary>,"gpios:16",
+		                    <&rotary_pins>,"brcm,pins:4";
+	};
+};
