@@ -1,0 +1,230 @@
+/include/ "skeleton.dtsi"
+
+/ {
+	interrupt-parent = <&intc>;
+
+	/* Onboard audio */
+	audio: audio {
+		compatible = "brcm,bcm2835-audio";
+		brcm,pwm-channels = <8>;
+		status = "disabled";
+	};
+
+	soc: soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		dma: dma@7e007000 {
+			compatible = "brcm,bcm2835-dma";
+			reg = <0x7e007000 0xf00>;
+			interrupts = <1 16>,
+				     <1 17>,
+				     <1 18>,
+				     <1 19>,
+				     <1 20>,
+				     <1 21>,
+				     <1 22>,
+				     <1 23>,
+				     <1 24>,
+				     <1 25>,
+				     <1 26>,
+				     <1 27>,
+				     <1 28>;
+
+			#dma-cells = <1>;
+			brcm,dma-channel-mask = <0x7f35>;
+		};
+
+		intc: interrupt-controller {
+			compatible = "brcm,bcm2708-armctrl-ic";
+			reg = <0x7e00b200 0x200>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		watchdog: watchdog@7e100000 {
+			compatible = "brcm,bcm2835-pm-wdt";
+			reg = <0x7e100000 0x28>;
+			status = "disabled";
+		};
+
+		random: rng@7e104000 {
+			compatible = "brcm,bcm2835-rng";
+			reg = <0x7e104000 0x10>;
+			status = "disabled";
+		};
+
+		mailbox: mailbox@7e00b800 {
+			compatible = "brcm,bcm2708-vcio";
+			reg = <0x7e00b880 0x40>;
+			interrupts = <0 1>;
+		};
+
+		gpio: gpio {
+			compatible = "brcm,bcm2835-gpio";
+			reg = <0x7e200000 0xb4>;
+			interrupts = <2 17>, <2 18>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		mmc: mmc@7e300000 {
+			compatible = "brcm,bcm2835-mmc";
+			reg = <0x7e300000 0x100>;
+			interrupts = <2 30>;
+			clocks = <&clk_mmc>;
+			dmas = <&dma 11>,
+			       <&dma 11>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		uart0: uart@7e201000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x7e201000 0x1000>;
+			interrupts = <2 25>;
+			clocks = <&clk_uart0 &clk_apb_p>;
+			clock-names = "uartclk","apb_pclk";
+			arm,primecell-periphid = <0x00241011>; // For an explanation, see
+			// https://github.com/raspberrypi/linux/commit/13731d862cf5219216533a3b0de052cee4cc5038
+			status = "disabled";
+		};
+
+		i2s: i2s@7e203000 {
+			compatible = "brcm,bcm2708-i2s";
+			reg = <0x7e203000 0x20>,
+			      <0x7e101098 0x02>;
+
+			//dmas = <&dma 2>,
+			//       <&dma 3>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
+		spi0: spi@7e204000 {
+			compatible = "brcm,bcm2835-spi";
+			reg = <0x7e204000 0x1000>;
+			interrupts = <2 22>;
+			clocks = <&clk_spi>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+			/* the dma channels */
+			dmas = <&dma 6>, <&dma 7>;
+			dma-names = "tx", "rx";
+			/* the chipselects used - <0> means native GPIO
+			 * add more gpios if necessary as <&gpio 6 1>
+			 * (but do not forget to make them output!)
+			 */
+			cs-gpios = <0>, <0>;
+		};
+
+		i2c0: i2c@7e205000 {
+			compatible = "brcm,bcm2708-i2c";
+			reg = <0x7e205000 0x1000>;
+			interrupts = <2 21>;
+			clocks = <&clk_i2c>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		uart1: uart@7e215040 {
+			compatible = "brcm,bcm2835-aux-uart", "ns16550";
+			reg = <0x7e215040 0x40>;
+			interrupts = <1 29>;
+			clock-frequency = <500000000>;
+			reg-shift = <2>;
+			no-loopback-test;
+			status = "disabled";
+	        };
+
+		i2c1: i2c@7e804000 {
+			compatible = "brcm,bcm2708-i2c";
+			reg = <0x7e804000 0x1000>;
+			interrupts = <2 21>;
+			clocks = <&clk_i2c>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		usb: usb@7e980000 {
+			compatible = "brcm,bcm2708-usb";
+			reg = <0x7e980000 0x10000>,
+			      <0x7e006000 0x1000>;
+			interrupts = <2 0>,
+				     <1 9>;
+		};
+
+		leds: leds {
+			compatible = "gpio-leds";
+		};
+
+		fb: fb {
+			compatible = "brcm,bcm2708-fb";
+			status = "disabled";
+		};
+
+		vchiq: vchiq {
+			compatible = "brcm,bcm2835-vchiq";
+			reg = <0x7e00b840 0xf>;
+			interrupts = <0 2>;
+		};
+
+		thermal: thermal {
+			compatible = "brcm,bcm2835-thermal";
+		};
+	};
+
+	clocks: clocks {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		clk_mmc: clock@0 {
+			compatible = "fixed-clock";
+			reg = <0>;
+			#clock-cells = <0>;
+			clock-output-names = "mmc";
+			clock-frequency = <250000000>;
+		};
+
+		clk_i2c: clock@1 {
+			compatible = "fixed-clock";
+			reg = <1>;
+			#clock-cells = <0>;
+			clock-output-names = "i2c";
+			clock-frequency = <250000000>;
+		};
+
+		clk_spi: clock@2 {
+			compatible = "fixed-clock";
+			reg = <2>;
+			#clock-cells = <0>;
+			clock-output-names = "spi";
+			clock-frequency = <250000000>;
+		};
+
+		clk_uart0: clock@3 {
+			compatible = "fixed-clock";
+			reg = <3>;
+			#clock-cells = <0>;
+			clock-output-names = "uart0_pclk";
+			clock-frequency = <3000000>;
+		};
+
+		clk_apb_p: clock@4 {
+			compatible = "fixed-clock";
+			reg = <4>;
+			#clock-cells = <0>;
+			clock-output-names = "apb_pclk";
+			clock-frequency = <126000000>;
+		};
+	};
+};
