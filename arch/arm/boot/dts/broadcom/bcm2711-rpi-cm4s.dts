@@ -1,0 +1,298 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+#define BCM2711
+#define i2c0 i2c0if
+#include "bcm2711.dtsi"
+//#include "bcm283x-rpi-wifi-bt.dtsi"
+#undef i2c0
+#include "bcm270x.dtsi"
+#define i2c0 i2c0mux
+#include "bcm2711-rpi.dtsi"
+#undef i2c0
+#include "bcm283x-rpi-led-deprecated.dtsi"
+
+/ {
+	compatible = "raspberrypi,4-compute-module-s", "brcm,bcm2711";
+	model = "Raspberry Pi Compute Module 4S";
+};
+
+&ddc0 {
+	status = "okay";
+};
+
+&gpio {
+	/*
+	 * Parts taken from rpi_SCH_4b_4p0_reduced.pdf and
+	 * the official GPU firmware DT blob.
+	 *
+	 * Legend:
+	 * "FOO" = GPIO line named "FOO" on the schematic
+	 * "FOO_N" = GPIO line named "FOO" on schematic, active low
+	 */
+	gpio-line-names = "ID_SDA",
+			  "ID_SCL",
+			  "GPIO2",
+			  "GPIO3",
+			  "GPIO4",
+			  "GPIO5",
+			  "GPIO6",
+			  "GPIO7",
+			  "GPIO8",
+			  "GPIO9",
+			  "GPIO10",
+			  "GPIO11",
+			  "GPIO12",
+			  "GPIO13",
+			  "GPIO14",
+			  "GPIO15",
+			  "GPIO16",
+			  "GPIO17",
+			  "GPIO18",
+			  "GPIO19",
+			  "GPIO20",
+			  "GPIO21",
+			  "GPIO22",
+			  "GPIO23",
+			  "GPIO24",
+			  "GPIO25",
+			  "GPIO26",
+			  "GPIO27",
+			  "GPIO28",
+			  "GPIO29",
+			  "GPIO30",
+			  "GPIO31",
+			  "GPIO32",
+			  "GPIO33",
+			  "GPIO34",
+			  "GPIO35",
+			  "GPIO36",
+			  "GPIO37",
+			  "GPIO38",
+			  "GPIO39",
+			  "PWM0_MISO",
+			  "PWM1_MOSI",
+			  "GPIO42",
+			  "GPIO43",
+			  "GPIO44",
+			  "GPIO45";
+};
+
+&hdmi0 {
+	status = "okay";
+};
+
+&led_act {
+	gpios = <&virtgpio 0 GPIO_ACTIVE_HIGH>;
+};
+
+&pixelvalve0 {
+	status = "okay";
+};
+
+&pixelvalve1 {
+	status = "okay";
+};
+
+&pixelvalve2 {
+	status = "okay";
+};
+
+&pixelvalve4 {
+	status = "okay";
+};
+
+&pwm1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pwm1_0_gpio40 &pwm1_1_gpio41>;
+	status = "okay";
+};
+
+/* EMMC2 is used to drive the EMMC card */
+&emmc2 {
+	bus-width = <8>;
+	broken-cd;
+	status = "okay";
+};
+
+&pcie0 {
+	status = "disabled";
+};
+
+&vchiq {
+	interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&vc4 {
+	status = "okay";
+};
+
+&vec {
+	status = "disabled";
+};
+
+// =============================================
+// Downstream rpi- changes
+
+#include "bcm2711-rpi-ds.dtsi"
+
+/ {
+	soc {
+		/delete-node/ pixelvalve@7e807000;
+		/delete-node/ hdmi@7e902000;
+	};
+};
+
+#include "bcm283x-rpi-csi0-2lane.dtsi"
+#include "bcm283x-rpi-csi1-4lane.dtsi"
+#include "bcm283x-rpi-i2c0mux_0_28.dtsi"
+
+/ {
+	chosen {
+		bootargs = "coherent_pool=1M snd_bcm2835.enable_headphones=0";
+	};
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		/delete-property/ i2c20;
+		/delete-property/ i2c21;
+	};
+
+	/delete-node/ wifi-pwrseq;
+};
+
+&firmware {
+		virtgpio: virtgpio {
+			compatible = "brcm,bcm2835-virtgpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			status = "okay";
+		};
+};
+
+&uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_pins>;
+	status = "okay";
+};
+
+&spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+	cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
+
+	spidev0: spidev@0{
+		compatible = "spidev";
+		reg = <0>;	/* CE0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <125000000>;
+	};
+
+	spidev1: spidev@1{
+		compatible = "spidev";
+		reg = <1>;	/* CE1 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <125000000>;
+	};
+};
+
+&gpio {
+	uart0_pins: uart0_pins {
+		brcm,pins;
+		brcm,function;
+		brcm,pull;
+	};
+};
+
+&i2c0if {
+	clock-frequency = <100000>;
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+	clock-frequency = <100000>;
+};
+
+&i2s {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s_pins>;
+};
+
+// =============================================
+// Board specific stuff here
+
+/* Enable USB in OTG-aware mode */
+&usb {
+	compatible = "brcm,bcm2835-usb";
+	dr_mode = "otg";
+	g-np-tx-fifo-size = <32>;
+	g-rx-fifo-size = <558>;
+	g-tx-fifo-size = <512 512 512 512 512 256 256>;
+	status = "okay";
+};
+
+&sdhost {
+	status = "disabled";
+};
+
+&gpio {
+	audio_pins: audio_pins {
+		brcm,pins = <>;
+		brcm,function = <>;
+	};
+};
+
+/* Permanently disable HDMI1 */
+&hdmi1 {
+	compatible = "disabled";
+};
+
+/* Permanently disable DDC1 */
+&ddc1 {
+	compatible = "disabled";
+};
+
+&led_act {
+	default-state = "off";
+	linux,default-trigger = "mmc0";
+};
+
+&pwm1 {
+	status = "disabled";
+};
+
+&vchiq {
+	pinctrl-names = "default";
+	pinctrl-0 = <&audio_pins>;
+};
+
+&cam1_reg {
+	gpio = <&gpio 3 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
+};
+
+cam0_reg: &cam0_regulator {
+	gpio = <&gpio 31 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
+};
+
+i2c_csi_dsi0: &i2c0 {
+};
+
+/ {
+	__overrides__ {
+		audio = <&chosen>,"bootargs{on='snd_bcm2835.enable_hdmi=1',off='snd_bcm2835.enable_hdmi=0'}";
+
+		act_led_gpio = <&led_act>,"gpios:4";
+		act_led_activelow = <&led_act>,"gpios:8";
+		act_led_trigger = <&led_act>,"linux,default-trigger";
+
+		cam0_reg = <&cam0_reg>,"status";
+		cam0_reg_gpio = <&cam0_reg>,"gpio:4";
+		cam1_reg = <&cam1_reg>,"status";
+		cam1_reg_gpio = <&cam1_reg>,"gpio:4";
+	};
+};

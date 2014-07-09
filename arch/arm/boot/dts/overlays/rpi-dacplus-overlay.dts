@@ -1,0 +1,17 @@
+// Overlay for the Raspberry Pi DAC Plus soundcard
+
+#include "iqaudio-dacplus-overlay.dts"
+
+&iqaudio_dac {
+	card_name = "RPi DAC+";
+	dai_name = "Raspberry Pi DAC+";
+	dai_stream_name = "Raspberry Pi DAC+ HiFi";
+	/delete-property/ mute-gpios;
+};
+
+/ {
+	__overrides__ {
+		/delete-property/ auto_mute_amp;
+		/delete-property/ unmute_amp;
+	};
+};
