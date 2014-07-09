@@ -1,0 +1,64 @@
+// Definitions for mbed DAC
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+                        #size-cells = <0>;
+			status = "okay";
+
+			tlv320aic23: codec@1a {
+				#sound-dai-cells = <0>;
+				reg = <0x1a>;
+				compatible = "ti,tlv320aic23";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "simple-audio-card";
+			i2s-controller = <&i2s>;
+			status = "okay";
+
+			simple-audio-card,name = "mbed-DAC";
+
+			simple-audio-card,widgets =
+				"Microphone", "Mic Jack",
+				"Line", "Line In",
+				"Headphone", "Headphone Jack";
+
+			simple-audio-card,routing =
+				"Headphone Jack", "LHPOUT",
+				"Headphone Jack", "RHPOUT",
+				"LLINEIN", "Line In",
+				"RLINEIN", "Line In",
+				"MICIN", "Mic Jack";
+
+			simple-audio-card,format = "i2s";
+
+			simple-audio-card,cpu {
+				sound-dai = <&i2s>;
+			};
+
+			sound_master: simple-audio-card,codec {
+				sound-dai = <&tlv320aic23>;
+				system-clock-frequency = <12288000>;
+			};
+		};
+	};
+};

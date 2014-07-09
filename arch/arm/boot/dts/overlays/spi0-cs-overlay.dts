@@ -1,0 +1,29 @@
+/dts-v1/;
+/plugin/;
+
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+	fragment@0 {
+		target = <&spi0_cs_pins>;
+		frag0: __overlay__ {
+			brcm,pins = <8 7>;
+		};
+	};
+
+	fragment@1 {
+		target = <&spi0>;
+		frag1: __overlay__ {
+			cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		cs0_pin  = <&frag0>,"brcm,pins:0",
+			   <&frag1>,"cs-gpios:4";
+		cs1_pin  = <&frag0>,"brcm,pins:4",
+			   <&frag1>,"cs-gpios:16";
+	};
+};
