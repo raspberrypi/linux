@@ -1,0 +1,39 @@
+// Definitions for Dion Audio LOCO DAC-AMP
+
+/*
+ * PCM5242 DAC (in hardware mode) and TPA3118 AMP.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			pcm5102a-codec {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm5102a";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "dionaudio,loco-pcm5242-tpa3118";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+};
