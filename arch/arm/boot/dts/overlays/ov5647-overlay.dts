@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for OV5647 camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ov5647: ov5647@36 {
+				compatible = "ovti,ov5647";
+				reg = <0x36>;
+				status = "okay";
+
+				pwdn-gpios = <&gpio 41 1>, <&gpio 32 1>;
+				clocks = <&ov5647_clk>;
+
+				rotation = <0>;
+
+				port {
+					ov5647_0: endpoint {
+						remote-endpoint = <&csi1_ep>;
+						clock-lanes = <0>;
+						data-lanes = <1 2>;
+						clock-noncontinuous;
+						link-frequencies =
+							/bits/ 64 <297000000>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&csi1>;
+		__overlay__ {
+			status = "okay";
+
+			port {
+				csi1_ep: endpoint {
+					remote-endpoint = <&ov5647_0>;
+					data-lanes = <1 2>;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target-path="/__overrides__";
+		__overlay__ {
+			cam0-pwdn-ctrl = <&ov5647>,"pwdn-gpios:0";
+			cam0-pwdn      = <&ov5647>,"pwdn-gpios:4";
+			cam0-led-ctrl  = <&ov5647>,"pwdn-gpios:12";
+			cam0-led       = <&ov5647>,"pwdn-gpios:16";
+		};
+	};
+
+	fragment@5 {
+		target-path = "/";
+		__overlay__ {
+			ov5647_clk: camera-clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <25000000>;
+			};
+		};
+	};
+
+	__overrides__ {
+		rotation = <&ov5647>,"rotation:0";
+	};
+};
