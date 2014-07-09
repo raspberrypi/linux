@@ -1,0 +1,53 @@
+// Overlay for the SiLabs Si446X Controller - SPI0
+// Default Interrupt Pin: 17
+// Default SDN Pin: 27
+/dts-v1/;
+/plugin/;
+
+   / {
+    compatible = "brcm,bcm2835";
+
+    fragment@0 {
+        target = <&spi0>;
+        __overlay__ {
+            // needed to avoid dtc warning
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            status = "okay";
+
+            uhf0: si446x@0{
+                compatible = "silabs,si446x";
+                reg = <0>; // CE0
+                pinctrl-names = "default";
+                pinctrl-0 = <&uhf0_pins>;
+                interrupt-parent = <&gpio>;
+                interrupts = <17 0x2>; // falling edge
+                spi-max-frequency = <4000000>;
+                sdn_pin = <27>;
+                irq_pin = <17>;
+                status = "okay";
+            };
+        };
+    };
+
+    fragment@1 {
+        target = <&gpio>;
+        __overlay__ {
+            uhf0_pins: uhf0_pins {
+                brcm,pins = <17 27>;
+                brcm,function = <0 1>; // in, out
+                brcm,pull = <2 0>; // high, none
+            };
+        };
+    };
+
+    __overrides__ {
+        int_pin = <&uhf0>, "interrupts:0",
+                  <&uhf0>, "irq_pin:0",
+                  <&uhf0_pins>, "brcm,pins:0";
+        reset_pin = <&uhf0>, "sdn_pin:0",
+                    <&uhf0_pins>, "brcm,pins:4";
+        speed   = <&uhf0>, "spi-max-frequency:0";
+    };
+};
