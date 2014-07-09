@@ -1,0 +1,81 @@
+/dts-v1/;
+/plugin/;
+
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			spi1_pins: spi1_pins {
+				brcm,pins = <19 20 21>;
+				brcm,function = <3>; /* alt4 */
+			};
+
+			spi1_cs_pins: spi1_cs_pins {
+				brcm,pins = <18 17 16>;
+				brcm,function = <1>; /* output */
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&spi1>;
+		frag1: __overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_pins &spi1_cs_pins>;
+			cs-gpios = <&gpio 18 1>, <&gpio 17 1>, <&gpio 16 1>;
+			status = "okay";
+
+			spidev1_0: spidev@0 {
+				compatible = "spidev";
+				reg = <0>;      /* CE0 */
+				#address-cells = <1>;
+				#size-cells = <0>;
+				spi-max-frequency = <500000>;
+				status = "okay";
+			};
+
+			spidev1_1: spidev@1 {
+				compatible = "spidev";
+				reg = <1>;      /* CE1 */
+				#address-cells = <1>;
+				#size-cells = <0>;
+				spi-max-frequency = <500000>;
+				status = "okay";
+			};
+
+			spidev1_2: spidev@2 {
+				compatible = "spidev";
+				reg = <2>;      /* CE2 */
+				#address-cells = <1>;
+				#size-cells = <0>;
+				spi-max-frequency = <500000>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&aux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		cs0_pin  = <&spi1_cs_pins>,"brcm,pins:0",
+			   <&frag1>,"cs-gpios:4";
+		cs1_pin  = <&spi1_cs_pins>,"brcm,pins:4",
+			   <&frag1>,"cs-gpios:16";
+		cs2_pin  = <&spi1_cs_pins>,"brcm,pins:8",
+			   <&frag1>,"cs-gpios:28";
+		cs0_spidev = <&spidev1_0>,"status";
+		cs1_spidev = <&spidev1_1>,"status";
+		cs2_spidev = <&spidev1_2>,"status";
+	};
+};
