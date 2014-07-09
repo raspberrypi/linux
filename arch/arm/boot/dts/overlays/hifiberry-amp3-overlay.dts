@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for HiFiBerry's Amp3
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/pinctrl/bcm2835.h>
+#include <dt-bindings/gpio/gpio.h>
+
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_producer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			hifiberry_amp3_pins: hifiberry_amp3_pins {
+				brcm,pins = <23 17>;
+				brcm,function = <0 1>;
+				brcm,pull = <2 1>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			hifiberry_amp2: ma120x0p@20 {
+				#sound-dai-cells = <0>;
+				compatible = "ma,ma120x0p";
+				reg = <0x20>;
+				status = "okay";
+				pinctrl-names = "default";
+				pinctrl-0 = <&hifiberry_amp3_pins>;
+				error_gp-gpios = <&gpio 23 GPIO_ACTIVE_HIGH>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "hifiberry,hifiberry-amp3";
+			i2s-controller = <&i2s_clk_producer>;
+			status = "okay";
+		};
+	};
+};
