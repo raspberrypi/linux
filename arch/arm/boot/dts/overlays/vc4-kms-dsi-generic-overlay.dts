@@ -1,0 +1,106 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	dsi_frag: fragment@0 {
+		target = <&dsi1>;
+		__overlay__{
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port {
+				dsi_out:endpoint {
+					remote-endpoint = <&panel_dsi_port>;
+				};
+			};
+			panel: panel-dsi-generic@0 {
+				// See panel-dsi.yaml binding
+				// Using dummy name for panel model
+				compatible = "Generic,panel-dsi","panel-dsi";
+				reg = <0>;
+				power-supply = <0>;
+				backlight = <0>;
+				dsi-color-format = "RGB888";
+				mode = "MODE_VIDEO";
+				width-mm = <0>;
+				height-mm = <0>;
+
+				port {
+					panel_dsi_port: endpoint {
+						data-lanes = <1>;
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+
+				timing: panel-timing {
+					clock-frequency = <30000000>;
+					hactive = <840>;
+					vactive = <480>;
+					hback-porch = <44>;
+					hfront-porch = <46>;
+					hsync-len = <2>;
+					vback-porch = <18>;
+					vfront-porch = <16>;
+					vsync-len = <2>;
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&panel_dsi_port>;
+		__dormant__ {
+			data-lanes = <1>;
+		};
+	};
+
+	fragment@2 {
+		target = <&panel_dsi_port>;
+		__dormant__ {
+			data-lanes = <1 2>;
+		};
+	};
+
+	fragment@3 {
+		target = <&panel_dsi_port>;
+		__dormant__ {
+			data-lanes = <1 2 3>;
+		};
+	};
+
+	fragment@4 {
+		target = <&panel_dsi_port>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+	__overrides__ {
+		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>;
+
+		clock-frequency = <&timing>, "clock-frequency:0";
+		hactive = <&timing>, "hactive:0";
+		hfp = <&timing>, "hfront-porch:0";
+		hsync = <&timing>, "hsync-len:0";
+		hbp = <&timing>, "hback-porch:0";
+		vactive = <&timing>, "vactive:0";
+		vfp = <&timing>, "vfront-porch:0";
+		vsync = <&timing>, "vsync-len:0";
+		vbp = <&timing>, "vback-porch:0";
+
+		width-mm = <&panel>, "width-mm:0";
+		height-mm = <&panel>, "height-mm:0";
+
+		rgb565 = <&panel>, "dsi-color-format=RGB565";
+		rgb666p = <&panel>, "dsi-color-format=RGB666_PACKED";
+		rgb666 = <&panel>, "dsi-color-format=RGB666";
+		rgb888 = <&panel>, "dsi-color-format=RGB888";
+		one-lane = <0>,"+1";
+		two-lane = <0>,"+2";
+		three-lane = <0>,"+3";
+		four-lane = <0>,"+4";
+	};
+
+};

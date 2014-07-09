@@ -1,0 +1,49 @@
+// Definitions for Interlude Audio Digital Hat
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s_clk_consumer>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			wm8804@3b {
+				#sound-dai-cells = <0>;
+				compatible = "wlf,wm8804";
+				reg = <0x3b>;
+				PVDD-supply = <&vdd_3v3_reg>;
+				DVDD-supply = <&vdd_3v3_reg>;
+				status = "okay";
+			};
+		};
+	};
+
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "interludeaudio,interludeaudio-digital";
+			i2s-controller = <&i2s_clk_consumer>;
+			status = "okay";
+			clock44-gpio = <&gpio 22 0>;
+			clock48-gpio = <&gpio 27 0>;
+			led1-gpio = <&gpio 13 0>;
+			led2-gpio = <&gpio 12 0>;
+			led3-gpio = <&gpio 6 0>;
+			reset-gpio = <&gpio 23 0>;
+		};
+	};
+
+};

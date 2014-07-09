@@ -1,0 +1,2 @@
+// SPDX-License-Identifier: GPL-2.0
+#include "../../../../arm/boot/dts/broadcom/bcm2712d0-rpi-5-b.dts"
