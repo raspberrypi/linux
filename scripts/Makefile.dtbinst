@@ -20,6 +20,7 @@ include scripts/Kbuild.include
 include $(src)/Makefile
 
 dtbinst-files	:= $(sort $(dtb-y) $(if $(CONFIG_OF_ALL_DTBS), $(dtb-)))
+dtboinst-files	:= $(sort $(dtbo-y) $(if $(CONFIG_OF_ALL_DTBS), $(dtb-)))
 dtbinst-dirs	:= $(subdir-y) $(subdir-m)
 
 # Helper targets for Installing DTBs into the boot directory
@@ -31,10 +32,13 @@ install-dir = $(patsubst $(dtbinst_root)%,$(INSTALL_DTBS_PATH)%,$(obj))
 $(dtbinst-files): %.dtb: $(obj)/%.dtb
 	$(call cmd,dtb_install,$(install-dir))
 
+$(dtboinst-files): %.dtbo: $(obj)/%.dtbo
+	$(call cmd,dtb_install,$(install-dir))
+
 $(dtbinst-dirs):
 	$(Q)$(MAKE) $(dtbinst)=$(obj)/$@
 
-PHONY += $(dtbinst-files) $(dtbinst-dirs)
-__dtbs_install: $(dtbinst-files) $(dtbinst-dirs)
+PHONY += $(dtbinst-files) $(dtboinst-files) $(dtbinst-dirs)
+__dtbs_install: $(dtbinst-files) $(dtboinst-files) $(dtbinst-dirs)
 
 .PHONY: $(PHONY)
