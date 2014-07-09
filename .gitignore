@@ -17,6 +17,7 @@
 *.c.[012]*.*
 *.dt.yaml
 *.dtb
+*.dtbo
 *.dtb.S
 *.dwo
 *.elf
