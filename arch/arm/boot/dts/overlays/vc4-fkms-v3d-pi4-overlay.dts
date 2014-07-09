@@ -1,0 +1,44 @@
+/*
+ * vc4-fkms-v3d-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "cma-overlay.dts"
+
+&frag0 {
+	size = <((320-4)*1024*1024)>;
+};
+
+/ {
+	compatible = "brcm,bcm2711";
+
+	fragment@1 {
+		target = <&fb>;
+		__overlay__  {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&firmwarekms>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&v3d>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&vc4>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+};

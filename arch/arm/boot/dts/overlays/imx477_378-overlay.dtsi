@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for IMX477 camera module on VC I2C bus
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@3 {
+		target = <&cam1_clk>;
+		cam_clk: __overlay__ {
+			clock-frequency = <24000000>;
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	reg_frag: fragment@5 {
+		target = <&cam1_reg>;
+		cam_reg: __overlay__ {
+			startup-delay-us = <300000>;
+		};
+	};
+
+	i2c_frag: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			imx477: imx477@1a {
+				reg = <0x1a>;
+				status = "okay";
+
+				clocks = <&cam1_clk>;
+				clock-names = "xclk";
+
+				VANA-supply = <&cam1_reg>;	/* 2.8v */
+				VDIG-supply = <&cam_dummy_reg>;	/* 1.05v */
+				VDDL-supply = <&cam_dummy_reg>;	/* 1.8v */
+
+				rotation = <180>;
+				orientation = <2>;
+
+				port {
+					imx477_0: endpoint {
+						remote-endpoint = <&csi_ep>;
+						clock-lanes = <0>;
+						data-lanes = <1 2>;
+						clock-noncontinuous;
+						link-frequencies =
+							/bits/ 64 <450000000>;
+					};
+				};
+			};
+		};
+	};
+
+	csi_frag: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+			brcm,media-controller;
+
+			port {
+				csi_ep: endpoint {
+					remote-endpoint = <&imx477_0>;
+					clock-lanes = <0>;
+					data-lanes = <1 2>;
+					clock-noncontinuous;
+				};
+			};
+		};
+	};
+
+	__overrides__ {
+		rotation = <&imx477>,"rotation:0";
+		orientation = <&imx477>,"orientation:0";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&reg_frag>, "target:0=",<&cam0_reg>,
+		       <&imx477>, "clocks:0=",<&cam0_clk>,
+		       <&imx477>, "vdda-supply:0=",<&cam0_reg>;
+	};
+};

@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+// Overlay for the Raspberry Pi PoE+ HAT.
+
+#include "rpi-poe-overlay.dts"
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@10 {
+		target-path = "/";
+		__overlay__ {
+			rpi_poe_power_supply: rpi-poe-power-supply {
+				compatible = "raspberrypi,rpi-poe-power-supply";
+				firmware = <&firmware>;
+				status = "okay";
+			};
+		};
+	};
+	fragment@11 {
+		target = <&poe_mfd>;
+		__dormant__ {
+			rpi-poe-power-supply@f2 {
+				compatible = "raspberrypi,rpi-poe-power-supply";
+				reg = <0xf2>;
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		i2c =	<0>, "-3+4+5+6-10+11",
+			<&fan>,"pwms:0=",<&poe_mfd_pwm>;
+	};
+};
+
+&fan {
+	cooling-levels = <0 32 64 128 255>;
+};
