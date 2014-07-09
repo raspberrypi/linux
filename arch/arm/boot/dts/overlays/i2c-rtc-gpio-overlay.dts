@@ -1,0 +1,266 @@
+// Definitions for several I2C based Real Time Clocks
+// Available through i2c-gpio
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			i2c_gpio: i2c-gpio-rtc@0 {
+				compatible = "i2c-gpio";
+				gpios = <&gpio 23 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN) /* sda */
+					 &gpio 24 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN) /* scl */
+					>;
+				i2c-gpio,delay-us = <2>;        /* ~100 kHz */
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			abx80x: abx80x@69 {
+				compatible = "abracon,abx80x";
+				reg = <0x69>;
+				abracon,tc-diode = "standard";
+				abracon,tc-resistor = <0>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ds1307: ds1307@68 {
+				compatible = "dallas,ds1307";
+				reg = <0x68>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ds1339: ds1339@68 {
+				compatible = "dallas,ds1339";
+				trickle-resistor-ohms = <0>;
+				reg = <0x68>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ds3231: ds3231@68 {
+				compatible = "maxim,ds3231";
+				reg = <0x68>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			mcp7940x: mcp7940x@6f {
+				compatible = "microchip,mcp7940x";
+				reg = <0x6f>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@6 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			mcp7941x: mcp7941x@6f {
+				compatible = "microchip,mcp7941x";
+				reg = <0x6f>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@7 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcf2127@51 {
+				compatible = "nxp,pcf2127";
+				reg = <0x51>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@8 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcf8523: pcf8523@68 {
+				compatible = "nxp,pcf8523";
+				reg = <0x68>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@9 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcf8563: pcf8563@51 {
+				compatible = "nxp,pcf8563";
+				reg = <0x51>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@10 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			m41t62: m41t62@68 {
+				compatible = "st,m41t62";
+				reg = <0x68>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@11 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			rv3028: rv3028@52 {
+				compatible = "microcrystal,rv3028";
+				reg = <0x52>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@12 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcf2129@51 {
+				compatible = "nxp,pcf2129";
+				reg = <0x51>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@13 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			rv1805: rv1805@69 {
+				compatible = "microcrystal,rv1805";
+				reg = <0x69>;
+				abracon,tc-diode = "standard";
+				abracon,tc-resistor = <0>;
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		abx80x = <0>,"+1";
+		ds1307 = <0>,"+2";
+		ds1339 = <0>,"+3";
+		ds3231 = <0>,"+4";
+		mcp7940x = <0>,"+5";
+		mcp7941x = <0>,"+6";
+		pcf2127 = <0>,"+7";
+		pcf8523 = <0>,"+8";
+		pcf8563 = <0>,"+9";
+		m41t62 = <0>,"+10";
+		rv3028 = <0>,"+11";
+		pcf2129 = <0>,"+12";
+		rv1805 = <0>,"+13";
+
+		addr = <&abx80x>, "reg:0",
+		       <&ds1307>, "reg:0",
+		       <&ds1339>, "reg:0",
+		       <&ds3231>, "reg:0",
+		       <&mcp7940x>, "reg:0",
+		       <&mcp7941x>, "reg:0",
+		       <&pcf8523>, "reg:0",
+		       <&pcf8563>, "reg:0",
+		       <&m41t62>, "reg:0",
+		       <&rv1805>, "reg:0";
+		trickle-diode-type = <&abx80x>,"abracon,tc-diode",
+				     <&rv1805>,"abracon,tc-diode";
+		trickle-resistor-ohms = <&ds1339>,"trickle-resistor-ohms:0",
+					<&abx80x>,"abracon,tc-resistor:0",
+					<&rv3028>,"trickle-resistor-ohms:0",
+					<&rv1805>,"abracon,tc-resistor:0";
+		backup-switchover-mode = <&rv3028>,"backup-switchover-mode:0";
+		wakeup-source = <&ds1339>,"wakeup-source?",
+				<&ds3231>,"wakeup-source?",
+				<&mcp7940x>,"wakeup-source?",
+				<&mcp7941x>,"wakeup-source?";
+		i2c_gpio_sda = <&i2c_gpio>,"gpios:4";
+		i2c_gpio_scl = <&i2c_gpio>,"gpios:16";
+		i2c_gpio_delay_us = <&i2c_gpio>,"i2c-gpio,delay-us:0";
+	};
+};
