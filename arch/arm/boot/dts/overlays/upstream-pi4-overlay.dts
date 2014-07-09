@@ -1,0 +1,137 @@
+// redo: ovmerge -c vc4-kms-v3d-pi4-overlay.dts,cma-default dwc2-overlay.dts,dr_mode=otg
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2711";
+	fragment@0 {
+		target = <&ddc0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@1 {
+		target = <&ddc1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@2 {
+		target = <&hdmi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@3 {
+		target = <&hdmi1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@4 {
+		target = <&hvs>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@5 {
+		target = <&pixelvalve0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@6 {
+		target = <&pixelvalve1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@7 {
+		target = <&pixelvalve2>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@8 {
+		target = <&pixelvalve3>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@9 {
+		target = <&pixelvalve4>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@10 {
+		target = <&v3d>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@11 {
+		target = <&vc4>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@12 {
+		target = <&txp>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@13 {
+		target = <&fb>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	fragment@14 {
+		target = <&firmwarekms>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	fragment@15 {
+		target = <&vec>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	fragment@16 {
+		target-path = "/chosen";
+		__overlay__ {
+			bootargs = "snd_bcm2835.enable_hdmi=0";
+		};
+	};
+	fragment@17 {
+		target = <&dvp>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@18 {
+		target = <&aon_intr>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@19 {
+		target = <&usb>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		__overlay__ {
+			compatible = "brcm,bcm2835-usb";
+			dr_mode = "otg";
+			g-np-tx-fifo-size = <32>;
+			g-rx-fifo-size = <558>;
+			g-tx-fifo-size = <512 512 512 512 512 256 256>;
+			status = "okay";
+		};
+	};
+};
