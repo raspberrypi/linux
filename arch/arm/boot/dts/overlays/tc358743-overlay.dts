@@ -1,0 +1,109 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for Toshiba TC358743 HDMI to CSI2 bridge on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	i2c_frag: fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tc358743: tc358743@f {
+				compatible = "toshiba,tc358743";
+				reg = <0x0f>;
+				status = "okay";
+
+				clocks = <&cam1_clk>;
+				clock-names = "refclk";
+
+				port {
+					tc358743_0: endpoint {
+						remote-endpoint = <&csi1_ep>;
+						clock-lanes = <0>;
+						clock-noncontinuous;
+						link-frequencies =
+							/bits/ 64 <486000000>;
+					};
+				};
+			};
+		};
+	};
+
+	csi_frag: fragment@1 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+
+			port {
+				csi1_ep: endpoint {
+					remote-endpoint = <&tc358743_0>;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&tc358743_0>;
+		__overlay__ {
+			data-lanes = <1 2>;
+		};
+	};
+
+	fragment@3 {
+		target = <&tc358743_0>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	clk_frag: fragment@6 {
+		target = <&cam1_clk>;
+		__overlay__ {
+			status = "okay";
+			clock-frequency = <27000000>;
+		};
+	};
+
+	fragment@7 {
+		target = <&csi1_ep>;
+		__overlay__ {
+			data-lanes = <1 2>;
+		};
+	};
+
+	fragment@8 {
+		target = <&csi1_ep>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+	__overrides__ {
+		4lane = <0>, "-2+3-7+8";
+		link-frequency = <&tc358743_0>,"link-frequencies#0";
+		media-controller = <&csi>,"brcm,media-controller?";
+		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
+		       <&csi_frag>, "target:0=",<&csi0>,
+		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&tc358743>, "clocks:0=",<&cam0_clk>;
+	};
+};
