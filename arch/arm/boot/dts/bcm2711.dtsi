@@ -318,7 +318,8 @@
 			      <0x7ef01f00 0x400>,
 			      <0x7ef00200 0x80>,
 			      <0x7ef04300 0x100>,
-			      <0x7ef20000 0x100>;
+			      <0x7ef20000 0x100>,
+			      <0x7ef00100 0x30>;
 			reg-names = "hdmi",
 				    "dvp",
 				    "phy",
@@ -327,12 +328,18 @@
 				    "metadata",
 				    "csc",
 				    "cec",
-				    "hd";
+				    "hd",
+				    "intr2";
+			clocks = <&firmware_clocks 13>,
+				 <&firmware_clocks 14>,
+				 <&dvp 0>,
+				 <&clk_27MHz>;
 			clock-names = "hdmi", "bvb", "audio", "cec";
 			resets = <&dvp 0>;
 			ddc = <&ddc0>;
 			dmas = <&dma 10>;
 			dma-names = "audio-rx";
+			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
 
@@ -354,7 +361,8 @@
 			      <0x7ef06f00 0x400>,
 			      <0x7ef00280 0x80>,
 			      <0x7ef09300 0x100>,
-			      <0x7ef20000 0x100>;
+			      <0x7ef20000 0x100>,
+			      <0x7ef00100 0x30>;
 			reg-names = "hdmi",
 				    "dvp",
 				    "phy",
@@ -363,12 +371,18 @@
 				    "metadata",
 				    "csc",
 				    "cec",
-				    "hd";
+				    "hd",
+				    "intr2";
 			ddc = <&ddc1>;
 			clock-names = "hdmi", "bvb", "audio", "cec";
+			clocks = <&firmware_clocks 13>,
+				 <&firmware_clocks 14>,
+				 <&dvp 0>,
+				 <&clk_27MHz>;
 			resets = <&dvp 1>;
 			dmas = <&dma 17>;
 			dma-names = "audio-rx";
+			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
 
@@ -468,14 +482,14 @@
 	scb {
 		compatible = "simple-bus";
 		#address-cells = <2>;
-		#size-cells = <1>;
+		#size-cells = <2>;
 
-		ranges = <0x0 0x7c000000  0x0 0xfc000000  0x03800000>,
-			 <0x6 0x00000000  0x6 0x00000000  0x40000000>;
+		ranges = <0x0 0x7c000000  0x0 0xfc000000  0x0 0x03800000>,
+			 <0x6 0x00000000  0x6 0x00000000  0x0 0x40000000>;
 
 		pcie0: pcie@7d500000 {
 			compatible = "brcm,bcm2711-pcie";
-			reg = <0x0 0x7d500000 0x9310>;
+			reg = <0x0 0x7d500000  0x0 0x9310>;
 			device_type = "pci";
 			#address-cells = <3>;
 			#interrupt-cells = <1>;
@@ -503,7 +517,7 @@
 
 		genet: ethernet@7d580000 {
 			compatible = "brcm,bcm2711-genet-v5";
-			reg = <0x0 0x7d580000 0x10000>;
+			reg = <0x0 0x7d580000  0x0 0x10000>;
 			#address-cells = <0x1>;
 			#size-cells = <0x1>;
 			interrupts = <GIC_SPI 157 IRQ_TYPE_LEVEL_HIGH>,
@@ -1010,7 +1024,7 @@
 	alloc-ranges = <0x0 0x00000000 0x40000000>;
 };
 
-&i2c0 {
+&i2c0if {
 	compatible = "brcm,bcm2711-i2c", "brcm,bcm2835-i2c";
 	interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
 };
