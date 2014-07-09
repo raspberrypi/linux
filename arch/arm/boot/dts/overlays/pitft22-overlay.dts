@@ -1,0 +1,69 @@
+/*
+ * Device Tree overlay for pitft by Adafruit
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+        compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+        fragment@0 {
+                target = <&spi0>;
+                __overlay__ {
+                        status = "okay";
+
+                        spidev@0{
+                                status = "disabled";
+                        };
+
+                        spidev@1{
+                                status = "disabled";
+                        };
+                };
+        };
+
+        fragment@1 {
+                target = <&gpio>;
+                __overlay__ {
+                        pitft_pins: pitft_pins {
+                                brcm,pins = <25>;
+                                brcm,function = <1>; /* out */
+                                brcm,pull = <0>; /* none */
+                        };
+                };
+        };
+
+        fragment@2 {
+                target = <&spi0>;
+                __overlay__ {
+                        /* needed to avoid dtc warning */
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        pitft: pitft@0{
+                                compatible = "ilitek,ili9340";
+                                reg = <0>;
+                                pinctrl-names = "default";
+                                pinctrl-0 = <&pitft_pins>;
+
+                                spi-max-frequency = <32000000>;
+                                rotate = <90>;
+                                fps = <25>;
+                                bgr;
+                                buswidth = <8>;
+                                dc-gpios = <&gpio 25 0>;
+                                debug = <0>;
+                        };
+
+                };
+        };
+
+        __overrides__ {
+                speed =   <&pitft>,"spi-max-frequency:0";
+                rotate =  <&pitft>,"rotate:0";
+                fps =     <&pitft>,"fps:0";
+                debug =   <&pitft>,"debug:0";
+        };
+};
