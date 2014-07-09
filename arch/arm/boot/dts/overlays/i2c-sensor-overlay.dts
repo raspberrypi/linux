@@ -1,0 +1,142 @@
+// Definitions for I2C based sensors using the Industrial IO or HWMON interface.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bme280: bme280@76 {
+				compatible = "bosch,bme280";
+				reg = <0x76>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bmp085: bmp085@77 {
+				compatible = "bosch,bmp085";
+				reg = <0x77>;
+				default-oversampling = <3>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bmp180: bmp180@77 {
+				compatible = "bosch,bmp180";
+				reg = <0x77>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			bmp280: bmp280@76 {
+				compatible = "bosch,bmp280";
+				reg = <0x76>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			htu21: htu21@40 {
+				compatible = "htu21";
+				reg = <0x40>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			lm75: lm75@4f {
+				compatible = "lm75";
+				reg = <0x4f>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@6 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			si7020: si7020@40 {
+				compatible = "si7020";
+				reg = <0x40>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@7 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tmp102: tmp102@48 {
+				compatible = "ti,tmp102";
+				reg = <0x48>;
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
+			<&lm75>,"reg:0";
+		bme280 = <0>,"+0";
+		bmp085 = <0>,"+1";
+		bmp180 = <0>,"+2";
+		bmp280 = <0>,"+3";
+		htu21 = <0>,"+4";
+		lm75 = <0>,"+5";
+		lm75addr = <&lm75>,"reg:0";
+		si7020 = <0>,"+6";
+		tmp102 = <0>,"+7";
+	};
+};
