@@ -1,0 +1,200 @@
+/dts-v1/;
+
+#include "bcm2710.dtsi"
+#include "bcm2709-rpi.dtsi"
+#include "bcm283x-rpi-smsc9514.dtsi"
+#include "bcm283x-rpi-csi1-2lane.dtsi"
+#include "bcm283x-rpi-i2c0mux_0_28.dtsi"
+
+/ {
+	compatible = "raspberrypi,2-model-b-rev2", "brcm,bcm2837";
+	model = "Raspberry Pi 2 Model B rev 1.2";
+};
+
+&gpio {
+	/*
+	 * Taken from rpi_SCH_2b_1p2_reduced.pdf and
+	 * the official GPU firmware DT blob.
+	 *
+	 * Legend:
+	 * "NC" = not connected (no rail from the SoC)
+	 * "FOO" = GPIO line named "FOO" on the schematic
+	 * "FOO_N" = GPIO line named "FOO" on schematic, active low
+	 */
+	gpio-line-names = "ID_SDA",
+			  "ID_SCL",
+			  "SDA1",
+			  "SCL1",
+			  "GPIO_GCLK",
+			  "GPIO5",
+			  "GPIO6",
+			  "SPI_CE1_N",
+			  "SPI_CE0_N",
+			  "SPI_MISO",
+			  "SPI_MOSI",
+			  "SPI_SCLK",
+			  "GPIO12",
+			  "GPIO13",
+			  /* Serial port */
+			  "TXD0",
+			  "RXD0",
+			  "GPIO16",
+			  "GPIO17",
+			  "GPIO18",
+			  "GPIO19",
+			  "GPIO20",
+			  "GPIO21",
+			  "GPIO22",
+			  "GPIO23",
+			  "GPIO24",
+			  "GPIO25",
+			  "GPIO26",
+			  "GPIO27",
+			  "SDA0",
+			  "SCL0",
+			  "NC", /* GPIO30 */
+			  "LAN_RUN",
+			  "CAM_GPIO1",
+			  "NC", /* GPIO33 */
+			  "NC", /* GPIO34 */
+			  "PWR_LOW_N",
+			  "NC", /* GPIO36 */
+			  "NC", /* GPIO37 */
+			  "USB_LIMIT",
+			  "NC", /* GPIO39 */
+			  "PWM0_OUT",
+			  "CAM_GPIO0",
+			  "SMPS_SCL",
+			  "SMPS_SDA",
+			  "ETH_CLK",
+			  "PWM1_OUT",
+			  "HDMI_HPD_N",
+			  "STATUS_LED",
+			  /* Used by SD Card */
+			  "SD_CLK_R",
+			  "SD_CMD_R",
+			  "SD_DATA0_R",
+			  "SD_DATA1_R",
+			  "SD_DATA2_R",
+			  "SD_DATA3_R";
+
+	spi0_pins: spi0_pins {
+		brcm,pins = <9 10 11>;
+		brcm,function = <4>; /* alt0 */
+	};
+
+	spi0_cs_pins: spi0_cs_pins {
+		brcm,pins = <8 7>;
+		brcm,function = <1>; /* output */
+	};
+
+	i2c0_pins: i2c0 {
+		brcm,pins = <0 1>;
+		brcm,function = <4>;
+	};
+
+	i2c1_pins: i2c1 {
+		brcm,pins = <2 3>;
+		brcm,function = <4>;
+	};
+
+	i2s_pins: i2s {
+		brcm,pins = <18 19 20 21>;
+		brcm,function = <4>; /* alt0 */
+	};
+
+	audio_pins: audio_pins {
+		brcm,pins = <40 45>;
+		brcm,function = <4>;
+		brcm,pull = <0>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+	cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
+
+	spidev0: spidev@0{
+		compatible = "spidev";
+		reg = <0>;	/* CE0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <125000000>;
+	};
+
+	spidev1: spidev@1{
+		compatible = "spidev";
+		reg = <1>;	/* CE1 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <125000000>;
+	};
+};
+
+&i2c0if {
+	clock-frequency = <100000>;
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+	clock-frequency = <100000>;
+};
+
+&i2c2 {
+	clock-frequency = <100000>;
+};
+
+&i2s {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s_pins>;
+};
+
+&leds {
+	act_led: led-act {
+		label = "led0";
+		linux,default-trigger = "mmc0";
+		gpios = <&gpio 47 0>;
+	};
+
+	pwr_led: led-pwr {
+		label = "led1";
+		linux,default-trigger = "input";
+		gpios = <&gpio 35 0>;
+	};
+};
+
+&hdmi {
+	hpd-gpios = <&gpio 46 GPIO_ACTIVE_LOW>;
+};
+
+&vchiq {
+	pinctrl-names = "default";
+	pinctrl-0 = <&audio_pins>;
+};
+
+&cam1_reg {
+	gpio = <&gpio 41 GPIO_ACTIVE_HIGH>;
+};
+
+cam0_reg: &cam_dummy_reg {
+};
+
+/ {
+	__overrides__ {
+		audio = <&chosen>,"bootargs{on='snd_bcm2835.enable_headphones=1 snd_bcm2835.enable_hdmi=1',off='snd_bcm2835.enable_headphones=0 snd_bcm2835.enable_hdmi=0'}";
+
+		act_led_gpio = <&act_led>,"gpios:4";
+		act_led_activelow = <&act_led>,"gpios:8";
+		act_led_trigger = <&act_led>,"linux,default-trigger";
+
+		pwr_led_gpio = <&pwr_led>,"gpios:4";
+		pwr_led_activelow = <&pwr_led>,"gpios:8";
+		pwr_led_trigger = <&pwr_led>,"linux,default-trigger";
+	};
+};
