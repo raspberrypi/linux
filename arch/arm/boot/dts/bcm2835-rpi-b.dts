@@ -5,19 +5,28 @@
 	compatible = "raspberrypi,model-b", "brcm,bcm2835";
 	model = "Raspberry Pi Model B";
 
-	leds {
-		act {
-			gpios = <&gpio 16 1>;
-		};
-	};
 };
 
 &gpio {
-	pinctrl-0 = <&gpioout &alt0 &i2s_alt2 &alt3>;
-
-	/* I2S interface */
-	i2s_alt2: i2s_alt2 {
+	i2s_pins: i2s {
 		brcm,pins = <28 29 30 31>;
-		brcm,function = <6>; /* alt2 */
+		brcm,function = <4>; /* alt0 */
+	};
+};
+
+&i2s {
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s_pins>;
+};
+
+&act_led {
+	gpios = <&gpio 16 1>;
+};
+
+/ {
+	__overrides__ {
+		act_led_gpio = <&act_led>,"gpios:4";
+		act_led_activelow = <&act_led>,"gpios:8";
 	};
 };
