@@ -1,0 +1,14 @@
+#include "i2c0-overlay.dts"
+
+/{
+	__overrides__ {
+		sda0_pin = <&pins1>,"brcm,pins:0",
+			   <&pins2>,"brcm,pins:0",
+			   <&pins3>,"brcm,pins:0",
+			   <&pins4>,"brcm,pins:0";
+		scl0_pin = <&pins1>,"brcm,pins:4",
+			   <&pins2>,"brcm,pins:4",
+			   <&pins3>,"brcm,pins:4",
+			   <&pins4>,"brcm,pins:4";
+	};
+};

@@ -1,0 +1,57 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    fragment@0 {
+        target = <&sound>;
+        __overlay__ {
+            compatible = "simple-audio-card";
+            simple-audio-card,name = "ApplePi-DAC";
+
+            status = "okay";
+
+            playback_link: simple-audio-card,dai-link@1 {
+                format = "i2s";
+
+                p_cpu_dai: cpu {
+                    sound-dai = <&i2s>;
+                    dai-tdm-slot-num = <2>;
+                    dai-tdm-slot-width = <32>;
+                };
+
+                p_codec_dai: codec {
+                    sound-dai = <&codec_out>;
+                };
+            };
+        };
+    };
+
+    fragment@1 {
+        target-path = "/";
+        __overlay__ {
+            codec_out: pcm1794a-codec {
+                #sound-dai-cells = <0>;
+                compatible = "ti,pcm1794a";
+                status = "okay";
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&i2s>;
+        __overlay__ {
+            #sound-dai-cells = <0>;
+            status = "okay";
+        };
+    };
+};
+
+/*
+   Written by: Leonid Ayzenshtat
+   Company: Orchard Audio (www.orchardaudio.com)
+
+   compile with:
+   dtc -@ -H epapr -O dtb -o ApplePi-DAC.dtbo -W no-unit_address_vs_reg ApplePi-DAC.dts
+*/
