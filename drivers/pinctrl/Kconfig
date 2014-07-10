@@ -99,6 +99,11 @@ config PINCTRL_BAYTRAIL
 
 	  Requires ACPI device enumeration code to set up a platform device.
 
+config PINCTRL_BCM2708
+	bool
+	select PINMUX
+	select PINCONF
+
 config PINCTRL_BCM2835
 	bool
 	select PINMUX
