@@ -386,7 +386,7 @@ static struct gpio_chip bcm2835_gpio_chip = {
 	.get = bcm2835_gpio_get,
 	.set = bcm2835_gpio_set,
 	.to_irq = bcm2835_gpio_to_irq,
-	.base = -1,
+	.base = 0,
 	.ngpio = BCM2835_NUM_GPIOS,
 	.can_sleep = false,
 };
