@@ -14,6 +14,9 @@ config BCM2708_DT
 	depends on MACH_BCM2708
 	default n
 	select USE_OF
+	select PINCTRL
+	select PINCTRL_BCM2708
+	select BCM2708_GPIO
 	help
 	  Enable Device Tree support for BCM2708
 
