@@ -816,7 +816,7 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_dmaengine_device);
 	bcm_register_device(&bcm2708_vcio_device);
 #ifdef CONFIG_BCM2708_GPIO
-	bcm_register_device(&bcm2708_gpio_device);
+	bcm_register_device_dt(&bcm2708_gpio_device);
 #endif
 #if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
 	w1_gpio_pdata.pin = w1_gpio_pin;
