@@ -26,6 +26,13 @@
 			interrupt-controller;
 			#interrupt-cells = <2>;
 		};
+
+		gpio: gpio {
+			compatible = "brcm,bcm2708-pinctrl";
+			reg = <0x7e200000 0xb4>;
+			gpio-controller;
+			#gpio-cells = <2>;
+		};
 	};
 
 	clocks {
