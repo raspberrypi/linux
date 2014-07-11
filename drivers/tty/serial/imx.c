@@ -563,7 +563,7 @@ static void imx_start_tx(struct uart_port *port)
 	struct imx_port *sport = (struct imx_port *)port;
 	unsigned long temp;
 
-	if (uart_circ_empty(&port.state->xmit))
+	if (uart_circ_empty(&port->state->xmit))
 		return;
 
 	if (USE_IRDA(sport)) {
