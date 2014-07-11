@@ -1235,6 +1235,9 @@ int bch_flash_dev_create(struct cache_set *c, uint64_t size)
 	if (test_bit(CACHE_SET_STOPPING, &c->flags))
 		return -EINTR;
 
+	if (!test_bit(CACHE_SET_RUNNING, &c->flags))
+		return -EPERM;
+
 	u = uuid_find_empty(c);
 	if (!u) {
 		pr_err("Can't create volume, no room for UUID");
@@ -1640,6 +1643,7 @@ static void run_cache_set(struct cache_set *c)
 
 	flash_devs_run(c);
 
+	set_bit(CACHE_SET_RUNNING, &c->flags);
 	return;
 err_unlock_gc:
 	closure_set_stopped(&c->gc.cl);
