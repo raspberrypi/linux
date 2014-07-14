@@ -48,7 +48,7 @@
  * Module parameters.
  */
 
-static unsigned int hid_mousepoll_interval;
+static unsigned int hid_mousepoll_interval = ~0;
 module_param_named(mousepoll, hid_mousepoll_interval, uint, 0644);
 MODULE_PARM_DESC(mousepoll, "Polling interval of mice");
 
@@ -1103,7 +1103,9 @@ static int usbhid_start(struct hid_device *hid)
 		 */
 		switch (hid->collection->usage) {
 		case HID_GD_MOUSE:
-			if (hid_mousepoll_interval > 0)
+			if (hid_mousepoll_interval == ~0 && interval < 16)
+				interval = 16;
+			else if (hid_mousepoll_interval != ~0 && hid_mousepoll_interval != 0)
 				interval = hid_mousepoll_interval;
 			break;
 		case HID_GD_JOYSTICK:
