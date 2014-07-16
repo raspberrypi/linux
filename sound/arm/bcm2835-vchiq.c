@@ -547,7 +547,7 @@ int bcm2835_audio_set_ctls(bcm2835_chip_t * chip)
 		if (chip->avail_substreams & (1 << i)) {
 			if (!chip->alsa_stream[i])
 			{
-				LOG_ERR(" No ALSA stream available?! %i:%p (%x)\n", i, chip->alsa_stream[i], chip->avail_substreams);
+				LOG_DBG(" No ALSA stream available?! %i:%p (%x)\n", i, chip->alsa_stream[i], chip->avail_substreams);
 				ret = 0;
 			}
 			else if (bcm2835_audio_set_ctls_chan /* returns 0 on success */
