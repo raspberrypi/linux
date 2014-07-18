@@ -64,19 +64,17 @@ validate_branch_to_sublist(VALIDATE_ARGS)
 }
 
 static int
-validate_store_tile_buffer_general(VALIDATE_ARGS)
+validate_loadstore_tile_buffer_general(VALIDATE_ARGS)
 {
-	struct drm_gem_cma_object *fbo;
+	uint32_t packet_b0 = *(uint8_t *)(untrusted + 0);
+	struct drm_gem_cma_object *fbo = exec->bo[exec->bo_index[0]];
+
+	if ((packet_b0 & 0xf) == VC4_LOADSTORE_TILE_BUFFER_NONE)
+		return 0;
 
 	/* XXX: Validate address offset */
-
-	fbo = exec->bo[exec->bo_index[0]];
-
-	/* XXX */
-	/*
 	*(uint32_t *)(validated + 2) =
 		*(uint32_t *)(untrusted + 2) + fbo->paddr;
-		*/
 
 	return 0;
 }
@@ -230,7 +228,9 @@ static const struct cmd_info {
 	[25] = { 0, 1, 1, "store MS resolved tile color buffer and EOF", NULL },
 
 	[28] = { 0, 1, 7, "Store Tile Buffer General",
-		 validate_store_tile_buffer_general },
+		 validate_loadstore_tile_buffer_general },
+	[29] = { 0, 1, 7, "Load Tile Buffer General",
+		 validate_loadstore_tile_buffer_general },
 
 	[32] = { 1, 1, 14, "Indexed Primitive List",
 		 validate_indexed_prim_list },

@@ -76,43 +76,55 @@ enum vc4_packet {
 } __attribute__ ((__packed__));
 
 /** @{
- * byte 2 of VC4_PACKET_STORE_TILE_BUFFER_GENERAL (low bits of the
- * address)
+ *
+ * byte 2 of VC4_PACKET_STORE_TILE_BUFFER_GENERAL and
+ * VC4_PACKET_LOAD_TILE_BUFFER_GENERAL (low bits of the address)
  */
 
-#define VC4_STORE_TILE_BUFFER_DISABLE_FULL_VG_MASK_DUMP (1 << 2)
-#define VC4_STORE_TILE_BUFFER_DISABLE_FULL_ZS_DUMP      (1 << 1)
-#define VC4_STORE_TILE_BUFFER_DISABLE_FULL_COLOR_DUMP   (1 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_DISABLE_FULL_VG_MASK (1 << 2)
+#define VC4_LOADSTORE_TILE_BUFFER_DISABLE_FULL_ZS      (1 << 1)
+#define VC4_LOADSTORE_TILE_BUFFER_DISABLE_FULL_COLOR   (1 << 0)
 
 /** @} */
 
-/** @{ byte 1 of VC4_PACKET_STORE_TILE_BUFFER_GENERAL */
+/** @{
+ *
+ * byte 1 of VC4_PACKET_STORE_TILE_BUFFER_GENERAL and
+ * VC4_PACKET_LOAD_TILE_BUFFER_GENERAL
+ */
 #define VC4_STORE_TILE_BUFFER_DISABLE_VG_MASK_CLEAR (1 << 7)
 #define VC4_STORE_TILE_BUFFER_DISABLE_ZS_CLEAR     (1 << 6)
 #define VC4_STORE_TILE_BUFFER_DISABLE_COLOR_CLEAR  (1 << 5)
 #define VC4_STORE_TILE_BUFFER_DISABLE_SWAP         (1 << 4)
 
-#define VC4_STORE_TILE_BUFFER_RGBA8888             (0 << 0)
-#define VC4_STORE_TILE_BUFFER_BGR565_DITHER        (1 << 0)
-#define VC4_STORE_TILE_BUFFER_BGR565               (2 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_RGBA8888         (0 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_BGR565_DITHER    (1 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_BGR565           (2 << 0)
 /** @} */
 
-/** @{ byte 0 of VC4_PACKET_STORE_TILE_BUFFER_GENERAL */
+/** @{
+ *
+ * byte 0 of VC4_PACKET_STORE_TILE_BUFFER_GENERAL and
+ * VC4_PACKET_LOAD_TILE_BUFFER_GENERAL
+ */
 #define VC4_STORE_TILE_BUFFER_MODE_SAMPLE0         (0 << 6)
 #define VC4_STORE_TILE_BUFFER_MODE_DECIMATE_X4     (1 << 6)
 #define VC4_STORE_TILE_BUFFER_MODE_DECIMATE_X16    (2 << 6)
 
-#define VC4_STORE_TILE_BUFFER_FORMAT_RASTER        (0 << 4)
-#define VC4_STORE_TILE_BUFFER_FORMAT_T             (1 << 4)
-#define VC4_STORE_TILE_BUFFER_FORMAT_LT            (2 << 4)
+#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_RASTER    (0 << 4)
+#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_T         (1 << 4)
+#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_LT        (2 << 4)
 
-#define VC4_STORE_TILE_BUFFER_NONE                 (0 << 0)
-#define VC4_STORE_TILE_BUFFER_COLOR                (1 << 0)
-#define VC4_STORE_TILE_BUFFER_ZS                   (2 << 0)
-#define VC4_STORE_TILE_BUFFER_Z                    (3 << 0)
-#define VC4_STORE_TILE_BUFFER_VG_MASK              (4 << 0)
-#define VC4_STORE_TILE_BUFFER_FULL                 (5 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_NONE             (0 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_COLOR            (1 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_ZS               (2 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_Z                (3 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_VG_MASK          (4 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_FULL             (5 << 0)
 /** @} */
+
+#define VC4_INDEX_BUFFER_U8                        (0 << 4)
+#define VC4_INDEX_BUFFER_U16                       (1 << 4)
 
 /* This flag is only present in NV shader state. */
 #define VC4_SHADER_FLAG_SHADED_CLIP_COORDS         (1 << 3)
