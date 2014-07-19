@@ -1233,6 +1233,7 @@ static int kvmppc_get_one_reg_pr(struct kvm_vcpu *vcpu, u64 id,
 		*val = get_reg_val(id, to_book3s(vcpu)->hior);
 		break;
 	case KVM_REG_PPC_LPCR:
+	case KVM_REG_PPC_LPCR_64:
 		/*
 		 * We are only interested in the LPCR_ILE bit
 		 */
@@ -1268,6 +1269,7 @@ static int kvmppc_set_one_reg_pr(struct kvm_vcpu *vcpu, u64 id,
 		to_book3s(vcpu)->hior_explicit = true;
 		break;
 	case KVM_REG_PPC_LPCR:
+	case KVM_REG_PPC_LPCR_64:
 		kvmppc_set_lpcr_pr(vcpu, set_reg_val(id, *val));
 		break;
 	default:
