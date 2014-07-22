@@ -13,3 +13,10 @@ config BCM_VC_CMA
 	default n
         help
           Helper for videocore CMA access.
+
+config BCM_VC_SM
+	bool "VMCS Shared Memory"
+	default n
+	help
+	Support for the VC shared memory on the Broadcom reference
+	design. Uses the VCHIQ stack.
