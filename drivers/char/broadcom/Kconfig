@@ -23,3 +23,12 @@ config BCM2708_VCMEM
           Helper for videocore memory access and total size allocation.
 
 endif
+
+config BCM_VC_SM
+	bool "VMCS Shared Memory"
+	depends on BCM2708_VCHIQ
+	select BCM2708_VCMEM
+	default n
+	help
+	Support for the VC shared memory on the Broadcom reference
+	design. Uses the VCHIQ stack.
