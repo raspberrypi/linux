@@ -1066,9 +1066,6 @@ static long aio_read_events_ring(struct kioctx *ctx,
 	head %= ctx->nr_events;
 	tail %= ctx->nr_events;
 
-	head %= ctx->nr_events;
-	tail %= ctx->nr_events;
-
 	while (ret < nr) {
 		long avail;
 		struct io_event *ev;
