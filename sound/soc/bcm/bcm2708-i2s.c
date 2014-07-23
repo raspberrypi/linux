@@ -46,6 +46,8 @@
 #include <sound/soc.h>
 #include <sound/dmaengine_pcm.h>
 
+extern int system_rev;
+
 /* Clock registers */
 #define BCM2708_CLK_PCMCTL_REG  0x00
 #define BCM2708_CLK_PCMDIV_REG  0x04
@@ -305,7 +307,6 @@ static int bcm2708_i2s_set_dai_bclk_ratio(struct snd_soc_dai *dai,
 	return 0;
 }
 
-
 static void bcm2708_i2s_setup_gpio(void)
 {
 	/*
@@ -318,14 +319,28 @@ static void bcm2708_i2s_setup_gpio(void)
 #define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
 
 	unsigned int *gpio;
-	int pin;
+	int pin,startpin,alt;
+
 	gpio = ioremap(GPIO_BASE, SZ_16K);
 
-	/* SPI is on GPIO 7..11 */
-	for (pin = 28; pin <= 31; pin++) {
-		INP_GPIO(pin);		/* set mode to GPIO input first */
-		SET_GPIO_ALT(pin, 2);	/* set mode to ALT 0 */
+	/* SPI is on different GPIOs on different boards */
+        /* for Raspberry Pi B+, this is pin GPIO18-21, for original on 28-31 */
+	if (system_rev >= 0x10) {
+		/* Model B+ */
+		startpin=18;
+		alt=0;
+	} else {
+		/* original (hopefully) */
+		startpin=28;
+		alt=2;
 	}
+
+	/* configure I2S pins to correct ALT mode */
+	for (pin = startpin; pin <= startpin+3; pin++) {
+                INP_GPIO(pin);		/* set mode to GPIO input first */
+                SET_GPIO_ALT(pin, alt);	/* set mode to ALT  */
+        }
+	
 #undef INP_GPIO
 #undef SET_GPIO_ALT
 }
