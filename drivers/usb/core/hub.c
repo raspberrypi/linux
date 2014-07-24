@@ -4772,7 +4772,7 @@ static void hub_events(void)
 				u16 status = 0;
 				u16 unused;
 
-				dev_dbg(hub_dev, "over-current change on port "
+				dev_notice(hub_dev, "over-current change on port "
 					"%d\n", i);
 				usb_clear_port_feature(hdev, i,
 					USB_PORT_FEAT_C_OVER_CURRENT);
