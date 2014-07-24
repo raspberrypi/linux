@@ -1076,11 +1076,12 @@ static int usbhid_start(struct hid_device *hid)
 		}
 
 		/* Change the polling interval of mice. */
-		if (hid->collection->usage == HID_GD_MOUSE)
-				if (hid_mousepoll_interval != ~0)
-						interval = hid_mousepoll_interval;
-				else if (interval < 16)
+		if (hid->collection->usage == HID_GD_MOUSE) {
+				if (hid_mousepoll_interval == ~0 && interval < 16)
 						interval = 16;
+				else if (hid_mousepoll_interval != ~0 && hid_mousepoll_interval != 0)
+						interval = hid_mousepoll_interval;
+		}
 
 		ret = -ENOMEM;
 		if (usb_endpoint_dir_in(endpoint)) {
