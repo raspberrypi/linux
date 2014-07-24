@@ -31,6 +31,8 @@
  * General Public License for more details.
  */
 
+#include "bcm2708-i2s.h"
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/device.h>
@@ -45,6 +47,8 @@
 #include <sound/initval.h>
 #include <sound/soc.h>
 #include <sound/dmaengine_pcm.h>
+
+extern int system_rev;
 
 /* Clock registers */
 #define BCM2708_CLK_PCMCTL_REG  0x00
@@ -163,6 +167,9 @@ static const unsigned int bcm2708_clk_freq[BCM2708_CLK_SRC_HDMI+1] = {
 #define BCM2708_DMA_DREQ_PCM_TX		2
 #define BCM2708_DMA_DREQ_PCM_RX		3
 
+/* I2S pin configuration */
+static int bcm2708_i2s_gpio=BCM2708_I2S_GPIO_AUTO;
+
 /* General device struct */
 struct bcm2708_i2s_dev {
 	struct device				*dev;
@@ -173,6 +180,12 @@ struct bcm2708_i2s_dev {
 	struct regmap *i2s_regmap;
 	struct regmap *clk_regmap;
 };
+
+void bcm2708_i2s_set_gpio(int gpio) {
+	bcm2708_i2s_gpio=gpio;
+}
+EXPORT_SYMBOL(bcm2708_i2s_set_gpio);
+
 
 static void bcm2708_i2s_start_clock(struct bcm2708_i2s_dev *dev)
 {
@@ -305,7 +318,6 @@ static int bcm2708_i2s_set_dai_bclk_ratio(struct snd_soc_dai *dai,
 	return 0;
 }
 
-
 static void bcm2708_i2s_setup_gpio(void)
 {
 	/*
@@ -318,14 +330,41 @@ static void bcm2708_i2s_setup_gpio(void)
 #define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
 
 	unsigned int *gpio;
-	int pin;
+	int pin,pinconfig,startpin,alt;
+
 	gpio = ioremap(GPIO_BASE, SZ_16K);
 
-	/* SPI is on GPIO 7..11 */
-	for (pin = 28; pin <= 31; pin++) {
-		INP_GPIO(pin);		/* set mode to GPIO input first */
-		SET_GPIO_ALT(pin, 2);	/* set mode to ALT 0 */
+	/* SPI is on different GPIOs on different boards */
+        /* for Raspberry Pi B+, this is pin GPIO18-21, for original on 28-31 */
+	if (bcm2708_i2s_gpio==BCM2708_I2S_GPIO_AUTO) {	
+		if (system_rev >= 0x10) {
+			/* Model B+ */
+			pinconfig=BCM2708_I2S_GPIO_PIN18;
+		} else {
+			/* original */
+			pinconfig=BCM2708_I2S_GPIO_PIN28;
+		}
+	} else {
+		pinconfig=bcm2708_i2s_gpio;
 	}
+
+	if (pinconfig==BCM2708_I2S_GPIO_PIN18) {
+		startpin=18;
+		alt=BCM2708_I2S_GPIO_PIN18_ALT;
+	} else if (pinconfig==BCM2708_I2S_GPIO_PIN28) {
+		startpin=28;
+		alt=BCM2708_I2S_GPIO_PIN28_ALT;
+	} else {
+		printk(KERN_INFO "Can't configure I2S GPIOs, unknown pin mode for I2S: %i\n",pinconfig);
+		return;
+	}	
+
+	/* configure I2S pins to correct ALT mode */
+	for (pin = startpin; pin <= startpin+3; pin++) {
+                INP_GPIO(pin);		/* set mode to GPIO input first */
+                SET_GPIO_ALT(pin, alt);	/* set mode to ALT  */
+        }
+	
 #undef INP_GPIO
 #undef SET_GPIO_ALT
 }
