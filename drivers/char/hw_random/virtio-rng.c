@@ -36,6 +36,7 @@ struct virtrng_info {
 	bool busy;
 	char name[25];
 	int index;
+	bool hwrng_register_done;
 };
 
 static bool probe_done;
@@ -137,15 +138,6 @@ static int probe_common(struct virtio_device *vdev)
 		return err;
 	}
 
-	err = hwrng_register(&vi->hwrng);
-	if (err) {
-		vdev->config->del_vqs(vdev);
-		vi->vq = NULL;
-		kfree(vi);
-		ida_simple_remove(&rng_index_ida, index);
-		return err;
-	}
-
 	probe_done = true;
 	return 0;
 }
@@ -153,9 +145,11 @@ static int probe_common(struct virtio_device *vdev)
 static void remove_common(struct virtio_device *vdev)
 {
 	struct virtrng_info *vi = vdev->priv;
+
 	vdev->config->reset(vdev);
 	vi->busy = false;
-	hwrng_unregister(&vi->hwrng);
+	if (vi->hwrng_register_done)
+		hwrng_unregister(&vi->hwrng);
 	vdev->config->del_vqs(vdev);
 	ida_simple_remove(&rng_index_ida, vi->index);
 	kfree(vi);
@@ -169,6 +163,16 @@ static int virtrng_probe(struct virtio_device *vdev)
 static void virtrng_remove(struct virtio_device *vdev)
 {
 	remove_common(vdev);
+}
+
+static void virtrng_scan(struct virtio_device *vdev)
+{
+	struct virtrng_info *vi = vdev->priv;
+	int err;
+
+	err = hwrng_register(&vi->hwrng);
+	if (!err)
+		vi->hwrng_register_done = true;
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -195,6 +199,7 @@ static struct virtio_driver virtio_rng_driver = {
 	.id_table =	id_table,
 	.probe =	virtrng_probe,
 	.remove =	virtrng_remove,
+	.scan =		virtrng_scan,
 #ifdef CONFIG_PM_SLEEP
 	.freeze =	virtrng_freeze,
 	.restore =	virtrng_restore,
