@@ -512,6 +512,7 @@ static int bcm2708_spi_probe(struct platform_device *pdev)
 	master->setup = bcm2708_spi_setup;
 	master->transfer = bcm2708_spi_transfer;
 	master->cleanup = bcm2708_spi_cleanup;
+	master->dev.of_node = pdev->dev.of_node;
 	platform_set_drvdata(pdev, master);
 
 	bs = spi_master_get_devdata(master);
@@ -596,10 +597,17 @@ static int bcm2708_spi_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id bcm2708_spi_match[] = {
+	{ .compatible = "brcm,bcm2708-spi", },
+	{}
+};
+MODULE_DEVICE_TABLE(of, bcm2708_spi_match);
+
 static struct platform_driver bcm2708_spi_driver = {
 	.driver		= {
 		.name	= DRV_NAME,
 		.owner	= THIS_MODULE,
+		.of_match_table = bcm2708_spi_match,
 	},
 	.probe		= bcm2708_spi_probe,
 	.remove		= bcm2708_spi_remove,
