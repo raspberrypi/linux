@@ -33,11 +33,29 @@
 			gpio-controller;
 			#gpio-cells = <2>;
 		};
+
+		spi0: spi@7e204000 {
+			compatible = "brcm,bcm2708-spi";
+			reg = <0x7e204000 0x1000>;
+			interrupts = <2 22>;
+			clocks = <&clk_spi>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
 	};
 
 	clocks {
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <0>;
+
+		clk_spi: clock@2 {
+			compatible = "fixed-clock";
+			reg = <2>;
+			#clock-cells = <0>;
+			clock-output-names = "spi";
+			clock-frequency = <250000000>;
+		};
 	};
 };
