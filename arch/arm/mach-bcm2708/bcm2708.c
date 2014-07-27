@@ -836,7 +836,7 @@ void __init bcm2708_init(void)
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
 		bcm_register_device(&bcm2708_alsa_devices[i]);
 
-	bcm_register_device(&bcm2708_spi_device);
+	bcm_register_device_dt(&bcm2708_spi_device);
 	bcm_register_device(&bcm2708_bsc0_device);
 	bcm_register_device(&bcm2708_bsc1_device);
 
@@ -876,8 +876,9 @@ void __init bcm2708_init(void)
 	system_serial_low = serial;
 
 #ifdef CONFIG_BCM2708_SPIDEV
-	spi_register_board_info(bcm2708_spi_devices,
-			ARRAY_SIZE(bcm2708_spi_devices));
+	if (!use_dt)
+	    spi_register_board_info(bcm2708_spi_devices,
+				    ARRAY_SIZE(bcm2708_spi_devices));
 #endif
 }
 

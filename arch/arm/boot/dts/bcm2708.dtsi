@@ -82,5 +82,13 @@
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <0>;
+
+		clk_spi: clock@2 {
+			compatible = "fixed-clock";
+			reg = <2>;
+			#clock-cells = <0>;
+			clock-output-names = "spi";
+			clock-frequency = <250000000>;
+		};
 	};
 };
