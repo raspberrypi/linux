@@ -514,6 +514,7 @@ static struct platform_device bcm2708_alsa_devices[] = {
 	       },
 };
 
+#ifndef CONFIG_OF
 static struct resource bcm2708_spi_resources[] = {
 	{
 		.start = SPI0_BASE,
@@ -537,6 +538,7 @@ static struct platform_device bcm2708_spi_device = {
 		.dma_mask = &bcm2708_spi_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON)},
 };
+#endif
 
 #ifdef CONFIG_BCM2708_SPIDEV
 static struct spi_board_info bcm2708_spi_devices[] = {
@@ -698,6 +700,16 @@ int __init bcm_register_device(struct platform_device *pdev)
 	return ret;
 }
 
+/*
+ * Use this macro for platform devices that are present in the Device Tree.
+ * This way the device is only added on non-DT builds.
+ */
+#ifdef CONFIG_OF
+#define bcm_register_device_dt(pdev)
+#else
+#define bcm_register_device_dt(pdev) bcm_register_device(pdev)
+#endif
+
 int calc_rsts(int partition)
 {
 	return PM_PASSWORD |
@@ -815,7 +827,7 @@ void __init bcm2708_init(void)
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
 		bcm_register_device(&bcm2708_alsa_devices[i]);
 
-	bcm_register_device(&bcm2708_spi_device);
+	bcm_register_device_dt(&bcm2708_spi_device);
 	bcm_register_device(&bcm2708_bsc0_device);
 	bcm_register_device(&bcm2708_bsc1_device);
 
