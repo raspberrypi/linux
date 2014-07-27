@@ -5,4 +5,36 @@
 / {
 	compatible = "brcm,bcm2708";
 	model = "Raspberry Pi";
+
+	aliases {
+		spi0 = &spi0;
+	};
+};
+
+&gpio {
+	spi0_pins: spi0_pins {
+		brcm,pins = <7 8 9 10 11>;
+		brcm,function = <4>; /* alt0 */
+	};
+};
+
+&spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi0_pins>;
+
+	spidev@0{
+		compatible = "spidev";
+		reg = <0>;	/* CE0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <500000>;
+	};
+
+	spidev@1{
+		compatible = "spidev";
+		reg = <1>;	/* CE1 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <500000>;
+	};
 };
