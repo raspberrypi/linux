@@ -44,7 +44,7 @@ config BCM2708_NOL2CACHE
 
 config BCM2708_SPIDEV
 	bool "Bind spidev to SPI0 master"
-	depends on MACH_BCM2708
+	depends on MACH_BCM2708 && !USE_OF
 	depends on SPI
 	default y
 	help
