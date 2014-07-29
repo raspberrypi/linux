@@ -43,12 +43,39 @@
 			#size-cells = <0>;
 			status = "disabled";
 		};
+
+		i2c0: i2c@7e205000 {
+			compatible = "brcm,bcm2708-i2c";
+			reg = <0x7e205000 0x1000>;
+			interrupts = <2 21>;
+			clocks = <&clk_i2c>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c1: i2c@7e804000 {
+			compatible = "brcm,bcm2708-i2c";
+			reg = <0x7e804000 0x1000>;
+			interrupts = <2 21>;
+			clocks = <&clk_i2c>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
 	};
 
 	clocks {
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <0>;
+
+		clk_i2c: i2c {
+			compatible = "fixed-clock";
+			reg = <1>;
+			#clock-cells = <0>;
+			clock-frequency = <250000000>;
+		};
 
 		clk_spi: clock@2 {
 			compatible = "fixed-clock";
