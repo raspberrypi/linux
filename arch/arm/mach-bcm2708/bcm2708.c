@@ -560,6 +560,7 @@ static struct spi_board_info bcm2708_spi_devices[] = {
 };
 #endif
 
+#ifndef CONFIG_OF
 static struct resource bcm2708_bsc0_resources[] = {
 	{
 		.start = BSC0_BASE,
@@ -598,6 +599,7 @@ static struct platform_device bcm2708_bsc1_device = {
 	.num_resources = ARRAY_SIZE(bcm2708_bsc1_resources),
 	.resource = bcm2708_bsc1_resources,
 };
+#endif
 
 static struct platform_device bcm2835_hwmon_device = {
 	.name = "bcm2835_hwmon",
@@ -828,8 +830,8 @@ void __init bcm2708_init(void)
 		bcm_register_device(&bcm2708_alsa_devices[i]);
 
 	bcm_register_device_dt(&bcm2708_spi_device);
-	bcm_register_device(&bcm2708_bsc0_device);
-	bcm_register_device(&bcm2708_bsc1_device);
+	bcm_register_device_dt(&bcm2708_bsc0_device);
+	bcm_register_device_dt(&bcm2708_bsc1_device);
 
 	bcm_register_device(&bcm2835_hwmon_device);
 	bcm_register_device(&bcm2835_thermal_device);
