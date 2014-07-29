@@ -156,6 +156,8 @@ static void vc_dmaman_init(struct vc_dmaman *dmaman, void __iomem *dma_base,
 	dmaman->chan_available = chans_available;
 	dmaman->has_feature[BCM_DMA_FEATURE_FAST_ORD] = 0x0c;  /* chans 2 & 3 */
 	dmaman->has_feature[BCM_DMA_FEATURE_BULK_ORD] = 0x01;  /* chan 0 */
+	dmaman->has_feature[BCM_DMA_FEATURE_NORMAL_ORD] = 0xfe;  /* chans 1 to 7 */
+	dmaman->has_feature[BCM_DMA_FEATURE_LITE_ORD] = 0x7f00;  /* chans 8 to 14 */
 }
 
 static int vc_dmaman_chan_alloc(struct vc_dmaman *dmaman,
