@@ -26,6 +26,7 @@
 #include <linux/spinlock.h>
 #include <linux/clk.h>
 #include <linux/err.h>
+#include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/slab.h>
@@ -302,6 +303,21 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 	unsigned long bus_hz;
 	u32 cdiv;
 
+	if (pdev->dev.of_node) {
+		u32 bus_clk_rate;
+		pdev->id = of_alias_get_id(pdev->dev.of_node, "i2c");
+		if (pdev->id < 0) {
+			dev_err(&pdev->dev, "alias is missing\n");
+			return -EINVAL;
+		}
+		if (!of_property_read_u32(pdev->dev.of_node,
+					"clock-frequency", &bus_clk_rate))
+			baudrate = bus_clk_rate;
+		else
+			dev_warn(&pdev->dev,
+				"Could not read clock-frequency property\n");
+	}
+
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!regs) {
 		dev_err(&pdev->dev, "could not get IO memory\n");
@@ -335,6 +351,7 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 	adap->dev.parent = &pdev->dev;
 	adap->nr = pdev->id;
 	strlcpy(adap->name, dev_name(&pdev->dev), sizeof(adap->name));
+	adap->dev.of_node = pdev->dev.of_node;
 
 	switch (pdev->id) {
 	case 0:
@@ -415,10 +432,17 @@ static int bcm2708_i2c_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id bcm2708_i2c_of_match[] = {
+        { .compatible = "brcm,bcm2708-i2c" },
+        {},
+};
+MODULE_DEVICE_TABLE(of, bcm2708_i2c_of_match);
+
 static struct platform_driver bcm2708_i2c_driver = {
 	.driver		= {
 		.name	= DRV_NAME,
 		.owner	= THIS_MODULE,
+		.of_match_table = bcm2708_i2c_of_match,
 	},
 	.probe		= bcm2708_i2c_probe,
 	.remove		= bcm2708_i2c_remove,
