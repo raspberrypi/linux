@@ -18,11 +18,9 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/clk.h>
-#include <linux/i2c.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
-#include <linux/spi/spi.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/tlv.h>
@@ -30,7 +28,7 @@
 #include "pcm512x.h"
 
 #define PCM512x_NUM_SUPPLIES 3
-static const char *pcm512x_supply_names[PCM512x_NUM_SUPPLIES] = {
+static const char * const pcm512x_supply_names[PCM512x_NUM_SUPPLIES] = {
 	"AVDD",
 	"DVDD",
 	"CPVDD",
@@ -66,22 +64,29 @@ PCM512x_REGULATOR_EVENT(1)
 PCM512x_REGULATOR_EVENT(2)
 
 static const struct reg_default pcm512x_reg_defaults[] = {
-	{ PCM512x_RESET,            0x00 },
-	{ PCM512x_POWER,            0x00 },
-	{ PCM512x_MUTE,             0x00 },
-	{ PCM512x_DSP,              0x00 },
-	{ PCM512x_PLL_REF,          0x00 },
-	{ PCM512x_DAC_ROUTING,      0x11 },
-	{ PCM512x_DSP_PROGRAM,      0x01 },
-	{ PCM512x_CLKDET,           0x00 },
-	{ PCM512x_AUTO_MUTE,        0x00 },
-	{ PCM512x_ERROR_DETECT,     0x00 },
-	{ PCM512x_DIGITAL_VOLUME_1, 0x00 },
-	{ PCM512x_DIGITAL_VOLUME_2, 0x30 },
-	{ PCM512x_DIGITAL_VOLUME_3, 0x30 },
-	{ PCM512x_DIGITAL_MUTE_1,   0x22 },
-	{ PCM512x_DIGITAL_MUTE_2,   0x00 },
-	{ PCM512x_DIGITAL_MUTE_3,   0x07 },
+	{ PCM512x_RESET,             0x00 },
+	{ PCM512x_POWER,             0x00 },
+	{ PCM512x_MUTE,              0x00 },
+	{ PCM512x_DSP,               0x00 },
+	{ PCM512x_PLL_REF,           0x00 },
+	{ PCM512x_DAC_ROUTING,       0x11 },
+	{ PCM512x_DSP_PROGRAM,       0x01 },
+	{ PCM512x_CLKDET,            0x00 },
+	{ PCM512x_AUTO_MUTE,         0x00 },
+	{ PCM512x_ERROR_DETECT,      0x00 },
+	{ PCM512x_DIGITAL_VOLUME_1,  0x00 },
+	{ PCM512x_DIGITAL_VOLUME_2,  0x30 },
+	{ PCM512x_DIGITAL_VOLUME_3,  0x30 },
+	{ PCM512x_DIGITAL_MUTE_1,    0x22 },
+	{ PCM512x_DIGITAL_MUTE_2,    0x00 },
+	{ PCM512x_DIGITAL_MUTE_3,    0x07 },
+	{ PCM512x_OUTPUT_AMPLITUDE,  0x00 },
+	{ PCM512x_ANALOG_GAIN_CTRL,  0x00 },
+	{ PCM512x_UNDERVOLTAGE_PROT, 0x00 },
+	{ PCM512x_ANALOG_MUTE_CTRL,  0x00 },
+	{ PCM512x_ANALOG_GAIN_BOOST, 0x00 },
+	{ PCM512x_VCOM_CTRL_1,       0x00 },
+	{ PCM512x_VCOM_CTRL_2,       0x01 },
 };
 
 static bool pcm512x_readable(struct device *dev, unsigned int reg)
@@ -141,9 +146,18 @@ static bool pcm512x_readable(struct device *dev, unsigned int reg)
 	case PCM512x_ANALOG_MUTE_DET:
 	case PCM512x_GPIN:
 	case PCM512x_DIGITAL_MUTE_DET:
+	case PCM512x_OUTPUT_AMPLITUDE:
+	case PCM512x_ANALOG_GAIN_CTRL:
+	case PCM512x_UNDERVOLTAGE_PROT:
+	case PCM512x_ANALOG_MUTE_CTRL:
+	case PCM512x_ANALOG_GAIN_BOOST:
+	case PCM512x_VCOM_CTRL_1:
+	case PCM512x_VCOM_CTRL_2:
+	case PCM512x_CRAM_CTRL:
 		return true;
 	default:
-		return false;
+		/* There are 256 raw register addresses */
+		return reg < 0xff;
 	}
 }
 
@@ -159,17 +173,22 @@ static bool pcm512x_volatile(struct device *dev, unsigned int reg)
 	case PCM512x_ANALOG_MUTE_DET:
 	case PCM512x_GPIN:
 	case PCM512x_DIGITAL_MUTE_DET:
+	case PCM512x_CRAM_CTRL:
 		return true;
 	default:
-		return false;
+		/* There are 256 raw register addresses */
+		return reg < 0xff;
 	}
 }
 
 static const DECLARE_TLV_DB_SCALE(digital_tlv, -10350, 50, 1);
+static const DECLARE_TLV_DB_SCALE(analog_tlv, -600, 600, 0);
+static const DECLARE_TLV_DB_SCALE(boost_tlv, 0, 80, 0);
 
-static const char *pcm512x_dsp_program_texts[] = {
+static const char * const pcm512x_dsp_program_texts[] = {
 	"FIR interpolation with de-emphasis",
 	"Low latency IIR with de-emphasis",
+	"Fixed process flow",
 	"High attenuation with de-emphasis",
 	"Ringing-less low latency FIR",
 };
@@ -182,31 +201,31 @@ static const unsigned int pcm512x_dsp_program_values[] = {
 	7,
 };
 
-static const SOC_VALUE_ENUM_SINGLE_DECL(pcm512x_dsp_program,
-					PCM512x_DSP_PROGRAM, 0, 0x1f,
-					pcm512x_dsp_program_texts,
-					pcm512x_dsp_program_values);
+static SOC_VALUE_ENUM_SINGLE_DECL(pcm512x_dsp_program,
+				  PCM512x_DSP_PROGRAM, 0, 0x1f,
+				  pcm512x_dsp_program_texts,
+				  pcm512x_dsp_program_values);
 
-static const char *pcm512x_clk_missing_text[] = {
+static const char * const pcm512x_clk_missing_text[] = {
 	"1s", "2s", "3s", "4s", "5s", "6s", "7s", "8s"
 };
 
 static const struct soc_enum pcm512x_clk_missing =
-	SOC_ENUM_SINGLE(PCM512x_CLKDET, 0,  7, pcm512x_clk_missing_text);
+	SOC_ENUM_SINGLE(PCM512x_CLKDET, 0,  8, pcm512x_clk_missing_text);
 
-static const char *pcm512x_autom_text[] = {
+static const char * const pcm512x_autom_text[] = {
 	"21ms", "106ms", "213ms", "533ms", "1.07s", "2.13s", "5.33s", "10.66s"
 };
 
 static const struct soc_enum pcm512x_autom_l =
-	SOC_ENUM_SINGLE(PCM512x_AUTO_MUTE, PCM512x_ATML_SHIFT, 7,
+	SOC_ENUM_SINGLE(PCM512x_AUTO_MUTE, PCM512x_ATML_SHIFT, 8,
 			pcm512x_autom_text);
 
 static const struct soc_enum pcm512x_autom_r =
-	SOC_ENUM_SINGLE(PCM512x_AUTO_MUTE, PCM512x_ATMR_SHIFT, 7,
+	SOC_ENUM_SINGLE(PCM512x_AUTO_MUTE, PCM512x_ATMR_SHIFT, 8,
 			pcm512x_autom_text);
 
-static const char *pcm512x_ramp_rate_text[] = {
+static const char * const pcm512x_ramp_rate_text[] = {
 	"1 sample/update", "2 samples/update", "4 samples/update",
 	"Immediate"
 };
@@ -223,7 +242,7 @@ static const struct soc_enum pcm512x_vedf =
 	SOC_ENUM_SINGLE(PCM512x_DIGITAL_MUTE_2, PCM512x_VEDF_SHIFT, 4,
 			pcm512x_ramp_rate_text);
 
-static const char *pcm512x_ramp_step_text[] = {
+static const char * const pcm512x_ramp_step_text[] = {
 	"4dB/step", "2dB/step", "1dB/step", "0.5dB/step"
 };
 
@@ -239,10 +258,13 @@ static const struct soc_enum pcm512x_veds =
 	SOC_ENUM_SINGLE(PCM512x_DIGITAL_MUTE_2, PCM512x_VEDS_SHIFT, 4,
 			pcm512x_ramp_step_text);
 
-/* Don't let the DAC go into clipping by limiting the alsa volume control range */
 static const struct snd_kcontrol_new pcm512x_controls[] = {
-SOC_DOUBLE_R_RANGE_TLV("Playback Digital Volume", PCM512x_DIGITAL_VOLUME_2,
-		 PCM512x_DIGITAL_VOLUME_3, 0, 40, 255, 1, digital_tlv),
+SOC_DOUBLE_R_TLV("Playback Digital Volume", PCM512x_DIGITAL_VOLUME_2,
+		 PCM512x_DIGITAL_VOLUME_3, 0, 255, 1, digital_tlv),
+SOC_DOUBLE_TLV("Playback Volume", PCM512x_ANALOG_GAIN_CTRL,
+	       PCM512x_LAGN_SHIFT, PCM512x_RAGN_SHIFT, 1, 1, analog_tlv),
+SOC_DOUBLE_TLV("Playback Boost Volume", PCM512x_ANALOG_GAIN_BOOST,
+	       PCM512x_AGBL_SHIFT, PCM512x_AGBR_SHIFT, 1, 0, boost_tlv),
 SOC_DOUBLE("Playback Digital Switch", PCM512x_MUTE, PCM512x_RQML_SHIFT,
 	   PCM512x_RQMR_SHIFT, 1, 1),
 
@@ -343,27 +365,32 @@ static struct snd_soc_codec_driver pcm512x_codec_driver = {
 	.num_dapm_routes = ARRAY_SIZE(pcm512x_dapm_routes),
 };
 
-static const struct regmap_config pcm512x_regmap = {
+static const struct regmap_range_cfg pcm512x_range = {
+	.name = "Pages", .range_min = PCM512x_VIRT_BASE,
+	.range_max = PCM512x_MAX_REGISTER,
+	.selector_reg = PCM512x_PAGE,
+	.selector_mask = 0xff,
+	.window_start = 0, .window_len = 0x100,
+};
+
+const struct regmap_config pcm512x_regmap = {
 	.reg_bits = 8,
 	.val_bits = 8,
 
 	.readable_reg = pcm512x_readable,
 	.volatile_reg = pcm512x_volatile,
 
+	.ranges = &pcm512x_range,
+	.num_ranges = 1,
+
 	.max_register = PCM512x_MAX_REGISTER,
 	.reg_defaults = pcm512x_reg_defaults,
 	.num_reg_defaults = ARRAY_SIZE(pcm512x_reg_defaults),
 	.cache_type = REGCACHE_RBTREE,
 };
+EXPORT_SYMBOL_GPL(pcm512x_regmap);
 
-static const struct of_device_id pcm512x_of_match[] = {
-	{ .compatible = "ti,pcm5121", },
-	{ .compatible = "ti,pcm5122", },
-	{ }
-};
-MODULE_DEVICE_TABLE(of, pcm512x_of_match);
-
-static int pcm512x_probe(struct device *dev, struct regmap *regmap)
+int pcm512x_probe(struct device *dev, struct regmap *regmap)
 {
 	struct pcm512x_priv *pcm512x;
 	int i, ret;
@@ -463,8 +490,6 @@ static int pcm512x_probe(struct device *dev, struct regmap *regmap)
 		goto err_pm;
 	}
 
-	dev_info(dev, "Completed initialisation - pcm512x_probe");
-
 	return 0;
 
 err_pm:
@@ -477,8 +502,9 @@ err:
 				     pcm512x->supplies);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(pcm512x_probe);
 
-static void pcm512x_remove(struct device *dev)
+void pcm512x_remove(struct device *dev)
 {
 	struct pcm512x_priv *pcm512x = dev_get_drvdata(dev);
 
@@ -489,8 +515,8 @@ static void pcm512x_remove(struct device *dev)
 	regulator_bulk_disable(ARRAY_SIZE(pcm512x->supplies),
 			       pcm512x->supplies);
 }
+EXPORT_SYMBOL_GPL(pcm512x_remove);
 
-/* TODO
 static int pcm512x_suspend(struct device *dev)
 {
 	struct pcm512x_priv *pcm512x = dev_get_drvdata(dev);
@@ -553,125 +579,10 @@ static int pcm512x_resume(struct device *dev)
 	return 0;
 }
 
-// END OF PCM512x_suspend and resume calls TODO
-*/
-
-static const struct dev_pm_ops pcm512x_pm_ops = {
+const struct dev_pm_ops pcm512x_pm_ops = {
 	SET_RUNTIME_PM_OPS(pcm512x_suspend, pcm512x_resume, NULL)
 };
-
-#if IS_ENABLED(CONFIG_I2C)
-static int pcm512x_i2c_probe(struct i2c_client *i2c,
-			     const struct i2c_device_id *id)
-{
-	struct regmap *regmap;
-
-	regmap = devm_regmap_init_i2c(i2c, &pcm512x_regmap);
-	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
-
-	return pcm512x_probe(&i2c->dev, regmap);
-}
-
-static int pcm512x_i2c_remove(struct i2c_client *i2c)
-{
-	pcm512x_remove(&i2c->dev);
-	return 0;
-}
-
-static const struct i2c_device_id pcm512x_i2c_id[] = {
-	{ "pcm5121", },
-	{ "pcm5122", },
-	{ }
-};
-MODULE_DEVICE_TABLE(i2c, pcm512x_i2c_id);
-
-static struct i2c_driver pcm512x_i2c_driver = {
-	.probe 		= pcm512x_i2c_probe,
-	.remove 	= pcm512x_i2c_remove,
-	.id_table	= pcm512x_i2c_id,
-	.driver		= {
-		.name	= "pcm512x",
-		.owner	= THIS_MODULE,
-		.of_match_table = pcm512x_of_match,
-		.pm     = &pcm512x_pm_ops,
-	},
-};
-#endif
-
-#if defined(CONFIG_SPI_MASTER)
-static int pcm512x_spi_probe(struct spi_device *spi)
-{
-	struct regmap *regmap;
-	int ret;
-
-	regmap = devm_regmap_init_spi(spi, &pcm512x_regmap);
-	if (IS_ERR(regmap)) {
-		ret = PTR_ERR(regmap);
-		return ret;
-	}
-
-	return pcm512x_probe(&spi->dev, regmap);
-}
-
-static int pcm512x_spi_remove(struct spi_device *spi)
-{
-	pcm512x_remove(&spi->dev);
-	return 0;
-}
-
-static const struct spi_device_id pcm512x_spi_id[] = {
-	{ "pcm5121", },
-	{ "pcm5122", },
-	{ },
-};
-MODULE_DEVICE_TABLE(spi, pcm512x_spi_id);
-
-static struct spi_driver pcm512x_spi_driver = {
-	.probe		= pcm512x_spi_probe,
-	.remove		= pcm512x_spi_remove,
-	.id_table	= pcm512x_spi_id,
-	.driver = {
-		.name	= "pcm512x",
-		.owner	= THIS_MODULE,
-		.of_match_table = pcm512x_of_match,
-		.pm     = &pcm512x_pm_ops,
-	},
-};
-#endif
-
-static int __init pcm512x_modinit(void)
-{
-	int ret = 0;
-
-#if IS_ENABLED(CONFIG_I2C)
-	ret = i2c_add_driver(&pcm512x_i2c_driver);
-	if (ret) {
-		printk(KERN_ERR "Failed to register pcm512x I2C driver: %d\n",
-		       ret);
-	}
-#endif
-#if defined(CONFIG_SPI_MASTER)
-	ret = spi_register_driver(&pcm512x_spi_driver);
-	if (ret != 0) {
-		printk(KERN_ERR "Failed to register pcm512x SPI driver: %d\n",
-		       ret);
-	}
-#endif
-	return ret;
-}
-module_init(pcm512x_modinit);
-
-static void __exit pcm512x_exit(void)
-{
-#if IS_ENABLED(CONFIG_I2C)
-	i2c_del_driver(&pcm512x_i2c_driver);
-#endif
-#if defined(CONFIG_SPI_MASTER)
-	spi_unregister_driver(&pcm512x_spi_driver);
-#endif
-}
-module_exit(pcm512x_exit);
+EXPORT_SYMBOL_GPL(pcm512x_pm_ops);
 
 MODULE_DESCRIPTION("ASoC PCM512x codec driver");
 MODULE_AUTHOR("Mark Brown <broonie@linaro.org>");
