@@ -44,8 +44,8 @@ static struct snd_soc_ops snd_rpi_rpi_dac_ops = {
 
 static struct snd_soc_dai_link snd_rpi_rpi_dac_dai[] = {
 {
-	.name		= "HifiBerry Mini",
-	.stream_name	= "HifiBerry Mini HiFi",
+	.name		= "RPi-DAC",
+	.stream_name	= "RPi-DAC HiFi",
 	.cpu_dai_name	= "bcm2708-i2s.0",
 	.codec_dai_name	= "pcm1794a-hifi",
 	.platform_name	= "bcm2708-i2s.0",
