@@ -57,8 +57,7 @@ static int fbswap = 0;     /* module parameter */
 static u32 dma_busy_wait_threshold = 1<<15;
 module_param(dma_busy_wait_threshold, int, 0644);
 MODULE_PARM_DESC(dma_busy_wait_threshold, "Busy-wait for DMA completion below this area");
-
-/* this data structure describes each frame buffer device we find */
+#include <mach/vcio.h>
 
 struct fbinfo_s {
 	u32 xres, yres, xres_virtual, yres_virtual;
@@ -375,11 +374,38 @@ static int bcm2708_fb_setcolreg(unsigned int regno, unsigned int red,
 	}
 	return regno > 255;
 }
+/* tag part of the message */
+struct vc_msg_tag {
+	uint32_t tag_id;       	/* the message id */
+	uint32_t buffer_size; 	/* size of the buffer (which in this case is always 4 bytes) */
+	uint32_t data_size;	/* amount of data being sent or received */
+	uint32_t blank_mode;		/* the ID of the clock/voltage to get or set */
+	uint32_t reserved;	/* the value (e.g. rate (in Hz)) to set */
+};
 
+/* message structure to be sent to videocore */
+struct vc_msg {
+	uint32_t size;		/* simply, sizeof(struct vc_msg) */
+	uint32_t unused;	/* unused in the blankscreen message */
+	struct vc_msg_tag tag;	/* the tag structure above to make */
+	uint32_t end_tag;	/* an end identifier, should be set to NULL */
+};
 static int bcm2708_fb_blank(int blank_mode, struct fb_info *info)
 {
-	/*print_debug("bcm2708_fb_blank\n"); */
-	return -1;
+	int result;
+	struct vc_msg msg;
+	pr_info("bcm2708_fb_blank blank_mode=%d\n",blank_mode);
+	memset(&msg, 0, sizeof msg);
+	msg.tag.tag_id = VCMSG_SET_BLANK_SCREEN;
+	msg.size = sizeof msg;
+	msg.tag.buffer_size = 4;
+	msg.tag.data_size = 4;
+	msg.tag.blank_mode = blank_mode ; 
+	// send the message
+	result = bcm_mailbox_property(&msg, sizeof msg);
+	pr_info("bcm2708_fb_blank result=%d msg.tag.blank_mode=%d\n",result,msg.tag.blank_mode);
+	return result;
+
 }
 
 static void bcm2708_fb_fillrect(struct fb_info *info,
