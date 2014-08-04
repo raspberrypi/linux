@@ -29,6 +29,13 @@ config SND_BCM2708_SOC_HIFIBERRY_DIGI
         help
          Say Y or M if you want to add support for HifiBerry Digi S/PDIF output board.
 
+config SND_BCM2708_SOC_HIFIBERRY_AMP
+        tristate "Support for the HifiBerry Amp"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+        select SND_SOC_TAS5713
+        help
+         Say Y or M if you want to add support for the HifiBerry Amp amplifier board.
+
 config SND_BCM2708_SOC_RPI_DAC
         tristate "Support for RPi-DAC"
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
