@@ -14,6 +14,7 @@ vc4-y := \
 	vc4_plane.o \
 	vc4_v3d.o \
 	vc4_validate.o \
+	vc4_validate_shaders.o \
 	$()
 
 vc4-$(CONFIG_DEBUG_FS) += vc4_debugfs.o

@@ -84,25 +84,36 @@ to_vc4_plane(struct drm_plane *plane)
 #define HVS_READ(offset) readl(vc4->hvs->regs + offset)
 #define HVS_WRITE(offset, val) writel(val, vc4->hvs->regs + offset)
 
+enum vc4_bo_mode {
+	VC4_MODE_UNDECIDED,
+	VC4_MODE_TILE_ALLOC,
+	VC4_MODE_TSDA,
+	VC4_MODE_RENDER,
+	VC4_MODE_SHADER,
+};
+
+struct vc4_bo_exec_state {
+	struct drm_gem_cma_object *bo;
+	enum vc4_bo_mode mode;
+};
+
 struct exec_info {
+	/* Kernel-space copy of the ioctl arguments */
+	struct drm_vc4_submit_cl *args;
+
 	/* This is the array of BOs that were looked up at the start of exec.
 	 * Command validation will use indices into this array.
 	 */
-	struct drm_gem_cma_object **bo;
+	struct vc4_bo_exec_state *bo;
 	uint32_t bo_count;
 
-	/* Current indices into @bo loaded by the non-hardware packet
-	 * that passes in indices.  This can be used even without
-	 * checking that we've seen one of those packets, because
-	 * @bo_count is always >= 1, and this struct is initialized to
-	 * 0.
+	/* Current unvalidated indices into @bo loaded by the non-hardware
+	 * VC4_PACKET_GEM_HANDLES.
 	 */
 	uint32_t bo_index[2];
-	uint32_t max_width, max_height;
 
-	/**
-	 * This is the BO where we store the validated command lists
-	 * and shader records.
+	/* This is the BO where we store the validated command lists, shader
+	 * records, and uniforms.
 	 */
 	struct drm_gem_cma_object *exec_bo;
 
@@ -115,6 +126,10 @@ struct exec_info {
 	struct vc4_shader_state {
 		uint8_t packet;
 		uint32_t addr;
+		/* Maximum vertex index referenced by any primitive using this
+		 * shader state.
+		 */
+		uint32_t max_index;
 	} *shader_state;
 
 	/** How many shader states the user declared they were using. */
@@ -122,13 +137,74 @@ struct exec_info {
 	/** How many shader state records the validator has seen. */
 	uint32_t shader_state_count;
 
+	bool found_tile_binning_mode_config_packet;
+	bool found_tile_rendering_mode_config_packet;
+	bool found_start_tile_binning_packet;
+	uint8_t bin_tiles_x, bin_tiles_y;
+	uint32_t fb_width, fb_height;
+	uint32_t tile_alloc_init_block_size;
+	struct drm_gem_cma_object *tile_alloc_bo;
+
 	/**
 	 * Computed addresses pointing into exec_bo where we start the
 	 * bin thread (ct0) and render thread (ct1).
 	 */
 	uint32_t ct0ca, ct0ea;
 	uint32_t ct1ca, ct1ea;
-	uint32_t shader_paddr;
+
+	/* Pointers to the shader recs.  These paddr gets incremented as CL
+	 * packets are relocated in validate_gl_shader_state, and the vaddrs
+	 * (u and v) get incremented and size decremented as the shader recs
+	 * themselves are validated.
+	 */
+	void *shader_rec_u;
+	void *shader_rec_v;
+	uint32_t shader_rec_p;
+	uint32_t shader_rec_size;
+
+	/* Pointers to the uniform data.  These pointers are incremented, and
+	 * size decremented, as each batch of uniforms is uploaded.
+	 */
+	void *uniforms_u;
+	void *uniforms_v;
+	uint32_t uniforms_p;
+	uint32_t uniforms_size;
+};
+
+/**
+ * struct vc4_texture_sample_info - saves the offsets into the UBO for texture
+ * setup parameters.
+ *
+ * This will be used at draw time to relocate the reference to the texture
+ * contents in p0, and validate that the offset combined with
+ * width/height/stride/etc. from p1 and p2/p3 doesn't sample outside the BO.
+ * Note that the hardware treats unprovided config parameters as 0, so not all
+ * of them need to be set up for every texure sample, and we'll store ~0 as
+ * the offset to mark the unused ones.
+ *
+ * See the VC4 3D architecture guide page 41 ("Texture and Memory Lookup Unit
+ * Setup") for definitions of the texture parameters.
+ */
+struct vc4_texture_sample_info {
+	uint32_t p_offset[4];
+};
+
+/**
+ * struct vc4_validated_shader_info - information about validated shaders that
+ * needs to be used from command list validation.
+ *
+ * For a given shader, each time a shader state record references it, we need
+ * to verify that the shader doesn't read more uniforms than the shader state
+ * record's uniform BO pointer can provide, and we need to apply relocations
+ * and validate the shader state record's uniforms that define the texture
+ * samples.
+ */
+struct vc4_validated_shader_info
+{
+	uint32_t uniforms_size;
+	uint32_t uniforms_src_size;
+	uint32_t num_texture_samples;
+	struct vc4_texture_sample_info *texture_samples;
 };
 
 /* vc4_bo.c */
@@ -197,8 +273,8 @@ vc4_validate_cl(struct drm_device *dev,
 		struct exec_info *exec);
 
 int
-vc4_validate_shader_recs(struct drm_device *dev,
-			 void *validated,
-			 void *unvalidated,
-			 uint32_t len,
-			 struct exec_info *exec);
+vc4_validate_shader_recs(struct drm_device *dev, struct exec_info *exec);
+
+struct vc4_validated_shader_info *
+vc4_validate_shader(struct drm_gem_cma_object *shader_obj,
+                    uint32_t start_offset);

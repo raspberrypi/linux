@@ -72,8 +72,23 @@ enum vc4_packet {
         VC4_PACKET_TILE_RENDERING_MODE_CONFIG = 113,
         VC4_PACKET_CLEAR_COLORS = 114,
         VC4_PACKET_TILE_COORDINATES = 115,
-        GEM_HANDLES = 254,
+
+        /* Not an actual hardware packet -- this is what we use to put
+         * references to GEM bos in the command stream, since we need the u32
+         * int the actual address packet in order to store the offset from the
+         * start of the BO.
+         */
+        VC4_PACKET_GEM_HANDLES = 254,
 } __attribute__ ((__packed__));
+
+/** @{
+ * Bits used by packets like VC4_PACKET_STORE_TILE_BUFFER_GENERAL and
+ * VC4_PACKET_TILE_RENDERING_MODE_CONFIG.
+*/
+#define VC4_TILING_FORMAT_LINEAR    0
+#define VC4_TILING_FORMAT_T         1
+#define VC4_TILING_FORMAT_LT        2
+/** @} */
 
 /** @{
  *
@@ -100,6 +115,7 @@ enum vc4_packet {
 #define VC4_LOADSTORE_TILE_BUFFER_RGBA8888         (0 << 0)
 #define VC4_LOADSTORE_TILE_BUFFER_BGR565_DITHER    (1 << 0)
 #define VC4_LOADSTORE_TILE_BUFFER_BGR565           (2 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_MASK             (3 << 0)
 /** @} */
 
 /** @{
@@ -111,9 +127,10 @@ enum vc4_packet {
 #define VC4_STORE_TILE_BUFFER_MODE_DECIMATE_X4     (1 << 6)
 #define VC4_STORE_TILE_BUFFER_MODE_DECIMATE_X16    (2 << 6)
 
-#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_RASTER    (0 << 4)
-#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_T         (1 << 4)
-#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_LT        (2 << 4)
+/** The values of the field are VC4_TILING_FORMAT_* */
+#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_MASK      (3 << 4)
+#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_SHIFT     4
+
 
 #define VC4_LOADSTORE_TILE_BUFFER_NONE             (0 << 0)
 #define VC4_LOADSTORE_TILE_BUFFER_COLOR            (1 << 0)
@@ -188,9 +205,9 @@ enum vc4_packet {
 #define VC4_RENDER_CONFIG_COVERAGE_MODE            (1 << 9)
 #define VC4_RENDER_CONFIG_ENABLE_VG_MASK           (1 << 8)
 
-#define VC4_RENDER_CONFIG_MEMORY_FORMAT_LINEAR     (0 << 6)
-#define VC4_RENDER_CONFIG_MEMORY_FORMAT_T          (1 << 6)
-#define VC4_RENDER_CONFIG_MEMORY_FORMAT_LT         (2 << 6)
+/** The values of the field are VC4_TILING_FORMAT_* */
+#define VC4_RENDER_CONFIG_MEMORY_FORMAT_MASK       (3 << 6)
+#define VC4_RENDER_CONFIG_MEMORY_FORMAT_SHIFT      6
 
 #define VC4_RENDER_CONFIG_DECIMATE_MODE_1X         (0 << 4)
 #define VC4_RENDER_CONFIG_DECIMATE_MODE_4X         (1 << 4)
@@ -199,6 +216,7 @@ enum vc4_packet {
 #define VC4_RENDER_CONFIG_FORMAT_BGR565            (0 << 2)
 #define VC4_RENDER_CONFIG_FORMAT_RGBA8888          (1 << 2)
 #define VC4_RENDER_CONFIG_FORMAT_BGR565_DITHERED   (2 << 2)
+#define VC4_RENDER_CONFIG_FORMAT_MASK              (3 << 2)
 
 #define VC4_RENDER_CONFIG_TILE_BUFFER_64BIT        (1 << 1)
 #define VC4_RENDER_CONFIG_MS_MODE_4X               (1 << 0)

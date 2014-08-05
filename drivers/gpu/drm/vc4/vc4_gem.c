@@ -179,9 +179,9 @@ vc4_submit(struct drm_device *dev, struct exec_info *args)
 static int
 vc4_cl_lookup_bos(struct drm_device *dev,
 		  struct drm_file *file_priv,
-		  struct drm_vc4_submit_cl *args,
 		  struct exec_info *exec)
 {
+	struct drm_vc4_submit_cl *args = exec->args;
 	uint32_t *handles;
 	int ret = 0;
 	int i;
@@ -196,7 +196,7 @@ vc4_cl_lookup_bos(struct drm_device *dev,
 		return -EINVAL;
 	}
 
-	exec->bo = kcalloc(exec->bo_count, sizeof(struct drm_gem_object *),
+	exec->bo = kcalloc(exec->bo_count, sizeof(struct vc4_bo_exec_state),
 			   GFP_KERNEL);
 	if (!exec->bo) {
 		DRM_ERROR("Failed to allocate validated BO pointers\n");
@@ -226,7 +226,7 @@ vc4_cl_lookup_bos(struct drm_device *dev,
 			ret = -EINVAL;
 			goto fail;
 		}
-		exec->bo[i] = (struct drm_gem_cma_object *)bo;
+		exec->bo[i].bo = (struct drm_gem_cma_object *)bo;
 	}
 
 fail:
@@ -235,23 +235,25 @@ fail:
 }
 
 static int
-vc4_cl_validate(struct drm_device *dev, struct drm_vc4_submit_cl *args,
-		struct exec_info *exec)
+vc4_cl_validate(struct drm_device *dev, struct exec_info *exec)
 {
+	struct drm_vc4_submit_cl *args = exec->args;
 	void *temp = NULL;
-	void *bin, *render, *shader_rec;
+	void *bin, *render;
 	int ret = 0;
 	uint32_t bin_offset = 0;
-	uint32_t render_offset = bin_offset + args->bin_cl_len;
+	uint32_t render_offset = bin_offset + args->bin_cl_size;
 	uint32_t shader_rec_offset = roundup(render_offset +
-					     args->render_cl_len, 16);
-	uint32_t exec_size = shader_rec_offset + args->shader_record_len;
+					     args->render_cl_size, 16);
+	uint32_t uniforms_offset = shader_rec_offset + args->shader_rec_size;
+	uint32_t exec_size = uniforms_offset + args->uniforms_size;
 	uint32_t temp_size = exec_size + (sizeof(struct vc4_shader_state) *
-					  args->shader_record_count);
+					  args->shader_rec_count);
 
 	if (shader_rec_offset < render_offset ||
-	    exec_size < shader_rec_offset ||
-	    args->shader_record_count >= (UINT_MAX /
+	    uniforms_offset < shader_rec_offset ||
+	    exec_size < uniforms_offset ||
+	    args->shader_rec_count >= (UINT_MAX /
 					  sizeof(struct vc4_shader_state)) ||
 	    temp_size < exec_size) {
 		DRM_ERROR("overflow in exec arguments\n");
@@ -274,26 +276,34 @@ vc4_cl_validate(struct drm_device *dev, struct drm_vc4_submit_cl *args,
 	}
 	bin = temp + bin_offset;
 	render = temp + render_offset;
-	shader_rec = temp + shader_rec_offset;
+	exec->shader_rec_u = temp + shader_rec_offset;
+	exec->uniforms_u = temp + uniforms_offset;
 	exec->shader_state = temp + exec_size;
-	exec->shader_state_size = args->shader_record_count;
+	exec->shader_state_size = args->shader_rec_count;
 
-	ret = copy_from_user(bin, args->bin_cl, args->bin_cl_len);
+	ret = copy_from_user(bin, args->bin_cl, args->bin_cl_size);
 	if (ret) {
 		DRM_ERROR("Failed to copy in bin cl\n");
 		goto fail;
 	}
 
-	ret = copy_from_user(render, args->render_cl, args->render_cl_len);
+	ret = copy_from_user(render, args->render_cl, args->render_cl_size);
 	if (ret) {
 		DRM_ERROR("Failed to copy in render cl\n");
 		goto fail;
 	}
 
-	ret = copy_from_user(shader_rec, args->shader_records,
-			     args->shader_record_len);
+	ret = copy_from_user(exec->shader_rec_u, args->shader_rec,
+			     args->shader_rec_size);
 	if (ret) {
 		DRM_ERROR("Failed to copy in shader recs\n");
+		goto fail;
+	}
+
+	ret = copy_from_user(exec->uniforms_u, args->uniforms,
+			     args->uniforms_size);
+	if (ret) {
+		DRM_ERROR("Failed to copy in uniforms cl\n");
 		goto fail;
 	}
 
@@ -306,15 +316,20 @@ vc4_cl_validate(struct drm_device *dev, struct drm_vc4_submit_cl *args,
 	}
 
 	exec->ct0ca = exec->exec_bo->paddr + bin_offset;
-	exec->ct0ea = exec->ct0ca + args->bin_cl_len;
 	exec->ct1ca = exec->exec_bo->paddr + render_offset;
-	exec->ct1ea = exec->ct1ca + args->render_cl_len;
-	exec->shader_paddr = exec->exec_bo->paddr + shader_rec_offset;
+
+	exec->shader_rec_v = exec->exec_bo->vaddr + shader_rec_offset;
+	exec->shader_rec_p = exec->exec_bo->paddr + shader_rec_offset;
+	exec->shader_rec_size = args->shader_rec_size;
+
+	exec->uniforms_v = exec->exec_bo->vaddr + uniforms_offset;
+	exec->uniforms_p = exec->exec_bo->paddr + uniforms_offset;
+	exec->uniforms_size = args->uniforms_size;
 
 	ret = vc4_validate_cl(dev,
 			      exec->exec_bo->vaddr + bin_offset,
 			      bin,
-			      args->bin_cl_len,
+			      args->bin_cl_size,
 			      true,
 			      exec);
 	if (ret)
@@ -323,17 +338,13 @@ vc4_cl_validate(struct drm_device *dev, struct drm_vc4_submit_cl *args,
 	ret = vc4_validate_cl(dev,
 			      exec->exec_bo->vaddr + render_offset,
 			      render,
-			      args->render_cl_len,
+			      args->render_cl_size,
 			      false,
 			      exec);
 	if (ret)
 		goto fail;
 
-	ret = vc4_validate_shader_recs(dev,
-				       exec->exec_bo->vaddr + shader_rec_offset,
-				       shader_rec,
-				       args->shader_record_len,
-				       exec);
+	ret = vc4_validate_shader_recs(dev, exec);
 
 fail:
 	kfree(temp);
@@ -349,20 +360,20 @@ int
 vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 		    struct drm_file *file_priv)
 {
-	struct drm_vc4_submit_cl *args = data;
 	struct exec_info exec;
 	int ret;
 	int i;
 
 	memset(&exec, 0, sizeof(exec));
+	exec.args = data;
 
 	mutex_lock(&dev->struct_mutex);
 
-	ret = vc4_cl_lookup_bos(dev, file_priv, args, &exec);
+	ret = vc4_cl_lookup_bos(dev, file_priv, &exec);
 	if (ret)
 		goto fail;
 
-	ret = vc4_cl_validate(dev, args, &exec);
+	ret = vc4_cl_validate(dev, &exec);
 	if (ret)
 		goto fail;
 
@@ -375,7 +386,7 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 fail:
 	if (exec.bo) {
 		for (i = 0; i < exec.bo_count; i++)
-			drm_gem_object_unreference(&exec.bo[i]->base);
+			drm_gem_object_unreference(&exec.bo[i].bo->base);
 		kfree(exec.bo);
 	}
 
