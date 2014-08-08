@@ -124,6 +124,8 @@ typedef struct {
 	_IOW(VCHIQ_IOC_MAGIC,  14, VCHIQ_SET_SERVICE_OPTION_T)
 #define VCHIQ_IOC_DUMP_PHYS_MEM \
 	_IOW(VCHIQ_IOC_MAGIC,  15, VCHIQ_DUMP_MEM_T)
-#define VCHIQ_IOC_MAX                  15
+#define VCHIQ_IOC_LIB_VERSION          _IO(VCHIQ_IOC_MAGIC,   16)
+#define VCHIQ_IOC_CLOSE_DELIVERED      _IO(VCHIQ_IOC_MAGIC,   17)
+#define VCHIQ_IOC_MAX                  17
 
 #endif

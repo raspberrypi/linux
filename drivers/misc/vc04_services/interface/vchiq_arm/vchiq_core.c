@@ -224,6 +224,31 @@ find_service_for_instance(VCHIQ_INSTANCE_T instance,
 }
 
 VCHIQ_SERVICE_T *
+find_closed_service_for_instance(VCHIQ_INSTANCE_T instance,
+	VCHIQ_SERVICE_HANDLE_T handle) {
+	VCHIQ_SERVICE_T *service;
+
+	spin_lock(&service_spinlock);
+	service = handle_to_service(handle);
+	if (service &&
+		((service->srvstate == VCHIQ_SRVSTATE_FREE) ||
+		 (service->srvstate == VCHIQ_SRVSTATE_CLOSED)) &&
+		(service->handle == handle) &&
+		(service->instance == instance)) {
+		BUG_ON(service->ref_count == 0);
+		service->ref_count++;
+	} else
+		service = NULL;
+	spin_unlock(&service_spinlock);
+
+	if (!service)
+		vchiq_log_info(vchiq_core_log_level,
+			"Invalid service handle 0x%x", handle);
+
+	return service;
+}
+
+VCHIQ_SERVICE_T *
 next_service_by_instance(VCHIQ_STATE_T *state, VCHIQ_INSTANCE_T instance,
 	int *pidx)
 {
@@ -2632,6 +2657,7 @@ vchiq_open_service_internal(VCHIQ_SERVICE_T *service, int client_id)
 		VCHIQ_MAKE_MSG(VCHIQ_MSG_OPEN, service->localport, 0),
 		&body, 1, sizeof(payload), 1);
 	if (status == VCHIQ_SUCCESS) {
+		/* Wait for the ACK/NAK */
 		if (down_interruptible(&service->remove_event) != 0) {
 			status = VCHIQ_RETRY;
 			vchiq_release_service_internal(service);

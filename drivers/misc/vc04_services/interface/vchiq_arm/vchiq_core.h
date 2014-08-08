@@ -605,6 +605,10 @@ find_service_for_instance(VCHIQ_INSTANCE_T instance,
 	VCHIQ_SERVICE_HANDLE_T handle);
 
 extern VCHIQ_SERVICE_T *
+find_closed_service_for_instance(VCHIQ_INSTANCE_T instance,
+	VCHIQ_SERVICE_HANDLE_T handle);
+
+extern VCHIQ_SERVICE_T *
 next_service_by_instance(VCHIQ_STATE_T *state, VCHIQ_INSTANCE_T instance,
 	int *pidx);
 
