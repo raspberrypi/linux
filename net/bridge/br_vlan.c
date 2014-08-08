@@ -136,7 +136,7 @@ static struct sk_buff *br_vlan_untag(struct sk_buff *skb)
 	}
 
 	skb->vlan_tci = 0;
-	skb = vlan_untag(skb);
+	skb = skb_vlan_untag(skb);
 	if (skb)
 		skb->vlan_tci = 0;
 
