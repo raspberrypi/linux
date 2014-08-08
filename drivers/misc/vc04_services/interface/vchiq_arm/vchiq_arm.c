@@ -113,13 +113,15 @@ typedef struct user_service_struct {
 	VCHIQ_SERVICE_T *service;
 	void *userdata;
 	VCHIQ_INSTANCE_T instance;
-	int is_vchi;
-	int dequeue_pending;
+	char is_vchi;
+	char dequeue_pending;
+	char close_pending;
 	int message_available_pos;
 	int msg_insert;
 	int msg_remove;
 	struct semaphore insert_event;
 	struct semaphore remove_event;
+	struct semaphore close_event;
 	VCHIQ_HEADER_T * msg_queue[MSG_QUEUE_SIZE];
 } USER_SERVICE_T;
 
@@ -142,6 +144,7 @@ struct vchiq_instance_struct {
 	int closing;
 	int pid;
 	int mark;
+	int use_close_delivered;
 
 	struct list_head bulk_waiter_list;
 	struct mutex bulk_waiter_list_mutex;
@@ -179,7 +182,9 @@ static const char *const ioctl_names[] = {
 	"USE_SERVICE",
 	"RELEASE_SERVICE",
 	"SET_SERVICE_OPTION",
-	"DUMP_PHYS_MEM"
+	"DUMP_PHYS_MEM",
+	"LIB_VERSION",
+	"CLOSE_DELIVERED"
 };
 
 vchiq_static_assert((sizeof(ioctl_names)/sizeof(ioctl_names[0])) ==
@@ -231,10 +236,13 @@ add_completion(VCHIQ_INSTANCE_T instance, VCHIQ_REASON_T reason,
 	completion->service_userdata = user_service->service;
 	completion->bulk_userdata = bulk_userdata;
 
-	if (reason == VCHIQ_SERVICE_CLOSED)
+	if (reason == VCHIQ_SERVICE_CLOSED) {
 		/* Take an extra reference, to be held until
 		   this CLOSED notification is delivered. */
 		lock_service(user_service->service);
+		if (instance->use_close_delivered)
+			user_service->close_pending = 1;
+	}
 
 	/* A write barrier is needed here to ensure that the entire completion
 		record is written out before the insert point. */
@@ -281,10 +289,10 @@ service_callback(VCHIQ_REASON_T reason, VCHIQ_HEADER_T *header,
 		return VCHIQ_SUCCESS;
 
 	vchiq_log_trace(vchiq_arm_log_level,
-		"service_callback - service %lx(%d), reason %d, header %lx, "
+		"service_callback - service %lx(%d,%p), reason %d, header %lx, "
 		"instance %lx, bulk_userdata %lx",
 		(unsigned long)user_service,
-		service->localport,
+		service->localport, user_service->userdata,
 		reason, (unsigned long)header,
 		(unsigned long)instance, (unsigned long)bulk_userdata);
 
@@ -371,10 +379,31 @@ user_service_free(void *userdata)
 
 /****************************************************************************
 *
+*   close_delivered
+*
+***************************************************************************/
+static void close_delivered(USER_SERVICE_T *user_service)
+{
+	vchiq_log_info(vchiq_arm_log_level,
+		"close_delivered(handle=%x)",
+		user_service->service->handle);
+
+	WARN_ON(user_service->close_pending == 0);
+
+	/* Allow the underlying service to be culled */
+	unlock_service(user_service->service);
+
+	/* Wake the user-thread blocked in close_ or remove_service */
+	up(&user_service->close_event);
+
+	user_service->close_pending = 0;
+}
+
+/****************************************************************************
+*
 *   vchiq_ioctl
 *
 ***************************************************************************/
-
 static long
 vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -485,14 +514,16 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			user_service->service = service;
 			user_service->userdata = userdata;
 			user_service->instance = instance;
-			user_service->is_vchi = args.is_vchi;
+			user_service->is_vchi = (args.is_vchi != 0);
 			user_service->dequeue_pending = 0;
+			user_service->close_pending = 0;
 			user_service->message_available_pos =
 				instance->completion_remove - 1;
 			user_service->msg_insert = 0;
 			user_service->msg_remove = 0;
 			sema_init(&user_service->insert_event, 0);
 			sema_init(&user_service->remove_event, 0);
+			sema_init(&user_service->close_event, 0);
 
 			if (args.is_open) {
 				status = vchiq_open_service_internal
@@ -526,8 +557,24 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		VCHIQ_SERVICE_HANDLE_T handle = (VCHIQ_SERVICE_HANDLE_T)arg;
 
 		service = find_service_for_instance(instance, handle);
-		if (service != NULL)
-			status = vchiq_close_service(service->handle);
+		if (service != NULL) {
+			USER_SERVICE_T *user_service =
+				(USER_SERVICE_T *)service->base.userdata;
+			/* close_pending is false on first entry, and when the
+                           wait in vchiq_close_service has been interrupted. */
+			if (!user_service->close_pending) {
+				status = vchiq_close_service(service->handle);
+				if (status != VCHIQ_SUCCESS)
+					break;
+			}
+
+			/* close_pending is true once the underlying service
+			   has been closed until the client library calls the
+			   CLOSE_DELIVERED ioctl, signalling close_event. */
+			if (user_service->close_pending &&
+				down_interruptible(&user_service->close_event))
+				status = VCHIQ_RETRY;
+		}
 		else
 			ret = -EINVAL;
 	} break;
@@ -536,8 +583,24 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		VCHIQ_SERVICE_HANDLE_T handle = (VCHIQ_SERVICE_HANDLE_T)arg;
 
 		service = find_service_for_instance(instance, handle);
-		if (service != NULL)
-			status = vchiq_remove_service(service->handle);
+		if (service != NULL) {
+			USER_SERVICE_T *user_service =
+				(USER_SERVICE_T *)service->base.userdata;
+			/* close_pending is false on first entry, and when the
+                           wait in vchiq_close_service has been interrupted. */
+			if (!user_service->close_pending) {
+				status = vchiq_remove_service(service->handle);
+				if (status != VCHIQ_SUCCESS)
+					break;
+			}
+
+			/* close_pending is true once the underlying service
+			   has been closed until the client library calls the
+			   CLOSE_DELIVERED ioctl, signalling close_event. */
+			if (user_service->close_pending &&
+				down_interruptible(&user_service->close_event))
+				status = VCHIQ_RETRY;
+		}
 		else
 			ret = -EINVAL;
 	} break;
@@ -804,8 +867,9 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					completion->header = msgbuf;
 				}
 
-				if (completion->reason ==
-					VCHIQ_SERVICE_CLOSED)
+				if ((completion->reason ==
+					VCHIQ_SERVICE_CLOSED) &&
+					!instance->use_close_delivered)
 					unlock_service(service);
 
 				if (copy_to_user((void __user *)(
@@ -981,6 +1045,28 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 		dump_phys_mem(args.virt_addr, args.num_bytes);
+	} break;
+
+	case VCHIQ_IOC_LIB_VERSION: {
+		unsigned int lib_version = (unsigned int)arg;
+
+		if (lib_version < VCHIQ_VERSION_MIN)
+			ret = -EINVAL;
+		else if (lib_version >= VCHIQ_VERSION_CLOSE_DELIVERED)
+			instance->use_close_delivered = 1;
+	} break;
+
+	case VCHIQ_IOC_CLOSE_DELIVERED: {
+		VCHIQ_SERVICE_HANDLE_T handle = (VCHIQ_SERVICE_HANDLE_T)arg;
+
+		service = find_closed_service_for_instance(instance, handle);
+		if (service != NULL) {
+			USER_SERVICE_T *user_service =
+				(USER_SERVICE_T *)service->base.userdata;
+			close_delivered(user_service);
+		}
+		else
+			ret = -EINVAL;
 	} break;
 
 	default:
@@ -1170,7 +1256,15 @@ vchiq_release(struct inode *inode, struct file *file)
 				(MAX_COMPLETIONS - 1)];
 			service = completion->service_userdata;
 			if (completion->reason == VCHIQ_SERVICE_CLOSED)
+			{
+				USER_SERVICE_T *user_service =
+					service->base.userdata;
+
+				/* Wake any blocked user-thread */
+				if (instance->use_close_delivered)
+					up(&user_service->close_event);
 				unlock_service(service);
+			}
 			instance->completion_remove++;
 		}
 

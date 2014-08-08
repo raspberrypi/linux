@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2012 Broadcom. All rights reserved.
+ * Copyright (c) 2010-2014 Broadcom. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,10 +36,16 @@
 
 #define VCHIQ_MAGIC              VCHIQ_MAKE_FOURCC('V', 'C', 'H', 'I')
 /* The version of VCHIQ - change with any non-trivial change */
-#define VCHIQ_VERSION            6
+#define VCHIQ_VERSION            7
 /* The minimum compatible version - update to match VCHIQ_VERSION with any
 ** incompatible change */
 #define VCHIQ_VERSION_MIN        3
+
+/* The version that introduced the VCHIQ_IOC_LIB_VERSION ioctl */
+#define VCHIQ_VERSION_LIB_VERSION 7
+
+/* The version that introduced the VCHIQ_IOC_CLOSE_DELIVERED ioctl */
+#define VCHIQ_VERSION_CLOSE_DELIVERED 7
 
 #define VCHIQ_MAX_STATES         1
 #define VCHIQ_MAX_SERVICES       4096
