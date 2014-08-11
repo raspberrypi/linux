@@ -92,6 +92,11 @@ enum vc4_bo_mode {
 	VC4_MODE_SHADER,
 };
 
+struct vc4_bo_list_entry {
+	struct list_head head;
+	struct drm_gem_cma_object *bo;
+};
+
 struct vc4_bo_exec_state {
 	struct drm_gem_cma_object *bo;
 	enum vc4_bo_mode mode;
@@ -116,6 +121,12 @@ struct exec_info {
 	 * records, and uniforms.
 	 */
 	struct drm_gem_cma_object *exec_bo;
+
+	/* List of struct vc4_list_bo_entry allocated to accomodate
+	 * binner overflow.  These will be freed when the exec is
+	 * done.
+	 */
+	struct list_head overflow_list;
 
 	/**
 	 * This tracks the per-shader-record state (packet 64) that
