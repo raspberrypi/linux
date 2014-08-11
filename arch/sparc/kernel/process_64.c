@@ -305,6 +305,9 @@ static void __global_pmu_self(int this_cpu)
 	struct global_pmu_snapshot *pp;
 	int i, num;
 
+	if (!pcr_ops)
+		return;
+
 	pp = &global_cpu_snapshot[this_cpu].pmu;
 
 	num = 1;
