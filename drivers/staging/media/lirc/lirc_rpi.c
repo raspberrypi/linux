@@ -41,6 +41,8 @@
 #include <mach/gpio.h>
 #include <linux/gpio.h>
 
+#include <linux/platform_data/bcm2708.h>
+
 #define LIRC_DRIVER_NAME "lirc_rpi"
 #define RBUF_LEN 256
 #define LIRC_TRANSMITTER_LATENCY 50
@@ -62,6 +64,8 @@
 
 /* set the default GPIO input pin */
 static int gpio_in_pin = 18;
+/* set the default pull behaviour for input pin */
+static int gpio_in_pull = BCM2708_PULL_DOWN;
 /* set the default GPIO output pin */
 static int gpio_out_pin = 17;
 /* enable debugging messages */
@@ -318,6 +322,7 @@ static int init_port(void)
 		goto exit_gpio_free_out_pin;
 	}
 
+	bcm2708_gpio_setpull(gpiochip, gpio_in_pin, gpio_in_pull);
 	gpiochip->direction_input(gpiochip, gpio_in_pin);
 	gpiochip->direction_output(gpiochip, gpio_out_pin, 1);
 	gpiochip->set(gpiochip, gpio_out_pin, invert);
@@ -665,6 +670,10 @@ MODULE_PARM_DESC(gpio_out_pin, "GPIO output/transmitter pin number of the BCM"
 module_param(gpio_in_pin, int, S_IRUGO);
 MODULE_PARM_DESC(gpio_in_pin, "GPIO input pin number of the BCM processor."
 		 " (default 18");
+
+module_param(gpio_in_pull, int, S_IRUGO);
+MODULE_PARM_DESC(gpio_in_pull, "GPIO input pin pull configuration."
+		 " (0 = off, 1 = up, 2 = down, default down)");
 
 module_param(sense, int, S_IRUGO);
 MODULE_PARM_DESC(sense, "Override autodetection of IR receiver circuit"
