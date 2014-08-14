@@ -11,6 +11,7 @@
 
 #include <linux/spinlock.h>
 #include <linux/module.h>
+#include <linux/delay.h>
 #include <linux/list.h>
 #include <linux/io.h>
 #include <linux/irq.h>
@@ -20,6 +21,8 @@
 #include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <mach/platform.h>
+
+#include <linux/platform_data/bcm2708.h>
 
 #define BCM_GPIO_DRIVER_NAME "bcm2708_gpio"
 #define DRIVER_NAME BCM_GPIO_DRIVER_NAME
@@ -130,6 +133,41 @@ static void bcm2708_gpio_set(struct gpio_chip *gc, unsigned offset, int value)
 	else
 		writel(1 << gpio_field_offset, gpio->base + GPIOCLR(gpio_bank));
 }
+
+/**********************
+ * extension to configure pullups
+ */
+int bcm2708_gpio_setpull(struct gpio_chip *gc, unsigned offset,
+		bcm2708_gpio_pull_t value)
+{
+	struct bcm2708_gpio *gpio = container_of(gc, struct bcm2708_gpio, gc);
+	unsigned gpio_bank = offset / 32;
+	unsigned gpio_field_offset = (offset - 32 * gpio_bank);
+
+	if (offset >= BCM2708_NR_GPIOS)
+		return -EINVAL;
+
+	switch (value) {
+	case BCM2708_PULL_UP:
+		writel(2, gpio->base + GPIOUD(0));
+		break;
+	case BCM2708_PULL_DOWN:
+		writel(1, gpio->base + GPIOUD(0));
+		break;
+	case BCM2708_PULL_OFF:
+		writel(0, gpio->base + GPIOUD(0));
+		break;
+	}
+
+	udelay(5);
+	writel(1 << gpio_field_offset, gpio->base + GPIOUDCLK(gpio_bank));
+	udelay(5);
+	writel(0, gpio->base + GPIOUD(0));
+	writel(0 << gpio_field_offset, gpio->base + GPIOUDCLK(gpio_bank));
+
+	return 0;
+}
+EXPORT_SYMBOL(bcm2708_gpio_setpull);
 
 /*************************************************************************************************************************
  * bcm2708 GPIO IRQ
