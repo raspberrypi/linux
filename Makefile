@@ -1,8 +1,8 @@
 VERSION = 3
 PATCHLEVEL = 16
-SUBLEVEL = 0
+SUBLEVEL = 1
 EXTRAVERSION =
-NAME = Shuffling Zombie Juror
+NAME = Museum of Fishiegoodies
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
