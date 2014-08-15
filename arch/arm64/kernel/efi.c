@@ -464,6 +464,8 @@ static int __init arm64_enter_virtual_mode(void)
 
 	set_bit(EFI_RUNTIME_SERVICES, &efi.flags);
 
+	efi.runtime_version = efi.systab->hdr.revision;
+
 	return 0;
 }
 early_initcall(arm64_enter_virtual_mode);
