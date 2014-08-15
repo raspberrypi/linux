@@ -942,6 +942,7 @@ struct drm_radeon_cs_chunk {
 };
 
 /* drm_radeon_cs_reloc.flags */
+#define RADEON_RELOC_PRIO_MASK		(0xf << 0)
 
 struct drm_radeon_cs_reloc {
 	uint32_t		handle;
