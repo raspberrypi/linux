@@ -4,6 +4,35 @@
 
 comment "MMC/SD/SDIO Host Controller Drivers"
 
+config MMC_BCM2835
+	tristate "MMC support on BCM2835"
+	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
+	help
+	  This selects the MMC Interface on BCM2835.
+
+	  If you have a controller with this interface, say Y or M here.
+
+	  If unsure, say N.
+
+config MMC_BCM2835_DMA
+	bool "DMA support on BCM2835 Arasan controller"
+	depends on MMC_BCM2835
+	help
+	  Enable DMA support on the Arasan SDHCI controller in Broadcom 2708
+	  based chips.
+
+	  If unsure, say N.
+
+config MMC_BCM2835_PIO_DMA_BARRIER
+	int "Block count limit for PIO transfers"
+	depends on MMC_BCM2835 && MMC_BCM2835_DMA
+	range 0 256
+	default 2
+	help
+	  The inclusive limit in bytes under which PIO will be used instead of DMA
+
+	  If unsure, say 2 here.
+
 config MMC_ARMMMCI
 	tristate "ARM AMBA Multimedia Card Interface support"
 	depends on ARM_AMBA
