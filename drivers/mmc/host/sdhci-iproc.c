@@ -197,6 +197,7 @@ static const struct sdhci_ops sdhci_iproc_32only_ops = {
 	.write_b = sdhci_iproc_writeb,
 	.set_clock = sdhci_set_clock,
 	.get_max_clock = sdhci_iproc_get_max_clock,
+	.set_power = sdhci_set_power_and_bus_voltage,
 	.set_bus_width = sdhci_set_bus_width,
 	.reset = sdhci_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
