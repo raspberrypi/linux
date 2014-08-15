@@ -420,7 +420,8 @@ static void bcm2708_fb_copyarea(struct fb_info *info,
 	int pixels = region->width * region->height;
 
 	/* Fallback to cfb_copyarea() if we don't like something */
-	if (bytes_per_pixel > 4 ||
+	if (in_atomic() ||
+	    bytes_per_pixel > 4 ||
 	    info->var.xres * info->var.yres > 1920 * 1200 ||
 	    region->width <= 0 || region->width > info->var.xres ||
 	    region->height <= 0 || region->height > info->var.yres ||
