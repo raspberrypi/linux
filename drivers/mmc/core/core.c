@@ -2229,7 +2229,8 @@ EXPORT_SYMBOL(mmc_erase);
 int mmc_can_erase(struct mmc_card *card)
 {
 	if ((card->host->caps & MMC_CAP_ERASE) &&
-	    (card->csd.cmdclass & CCC_ERASE) && card->erase_size)
+	    (card->csd.cmdclass & CCC_ERASE) && card->erase_size &&
+	    !(card->quirks & MMC_QUIRK_ERASE_BROKEN))
 		return 1;
 	return 0;
 }
