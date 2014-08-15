@@ -166,6 +166,13 @@ static DEFINE_MUTEX(open_lock);
 module_param(perdev_minors, int, 0444);
 MODULE_PARM_DESC(perdev_minors, "Minors numbers to allocate per device");
 
+/*
+ * Allow quirks to be overridden for the current card
+ */
+static char *card_quirks;
+module_param(card_quirks, charp, 0644);
+MODULE_PARM_DESC(card_quirks, "Force the use of the indicated quirks (a bitfield)");
+
 static inline int mmc_blk_part_switch(struct mmc_card *card,
 				      unsigned int part_type);
 
@@ -2904,6 +2911,7 @@ static int mmc_blk_probe(struct mmc_card *card)
 {
 	struct mmc_blk_data *md, *part_md;
 	char cap_str[10];
+	char quirk_str[24];
 
 	/*
 	 * Check that the card supports the command class(es) we need.
@@ -2911,7 +2919,16 @@ static int mmc_blk_probe(struct mmc_card *card)
 	if (!(card->csd.cmdclass & CCC_BLOCK_READ))
 		return -ENODEV;
 
-	mmc_fixup_device(card, mmc_blk_fixups);
+	if (card_quirks) {
+		unsigned long quirks;
+		if (kstrtoul(card_quirks, 0, &quirks) == 0)
+			card->quirks = (unsigned int)quirks;
+		else
+			pr_err("mmc_block: Invalid card_quirks parameter '%s'\n",
+			       card_quirks);
+	}
+	else
+		mmc_fixup_device(card, mmc_blk_fixups);
 
 	card->complete_wq = alloc_workqueue("mmc_complete",
 					WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
@@ -2926,9 +2943,14 @@ static int mmc_blk_probe(struct mmc_card *card)
 
 	string_get_size((u64)get_capacity(md->disk), 512, STRING_UNITS_2,
 			cap_str, sizeof(cap_str));
-	pr_info("%s: %s %s %s %s\n",
+	if (card->quirks)
+		snprintf(quirk_str, sizeof(quirk_str),
+			 " (quirks 0x%08x)", card->quirks);
+	else
+		quirk_str[0] = '\0';
+	pr_info("%s: %s %s %s%s%s\n",
 		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
-		cap_str, md->read_only ? "(ro)" : "");
+		cap_str, md->read_only ? " (ro)" : "", quirk_str);
 
 	if (mmc_blk_alloc_parts(card, md))
 		goto out;
