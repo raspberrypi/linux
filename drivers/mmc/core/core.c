@@ -1861,7 +1861,8 @@ EXPORT_SYMBOL(mmc_erase);
 
 bool mmc_card_can_erase(struct mmc_card *card)
 {
-	return (card->csd.cmdclass & CCC_ERASE && card->erase_size);
+	return (card->csd.cmdclass & CCC_ERASE && card->erase_size) &&
+	    !(card->quirks & MMC_QUIRK_ERASE_BROKEN);
 }
 EXPORT_SYMBOL(mmc_card_can_erase);
 
