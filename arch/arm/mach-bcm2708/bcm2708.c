@@ -414,6 +414,34 @@ static struct platform_device bcm2708_systemtimer_device = {
 		},
 };
 
+#ifdef CONFIG_MMC_BCM2835	/* Arasan emmc SD (new) */
+static struct resource bcm2835_emmc_resources[] = {
+	[0] = {
+	       .start = EMMC_BASE,
+	       .end = EMMC_BASE + SZ_256 - 1,	/* we only need this area */
+	       /* the memory map actually makes SZ_4K available  */
+	       .flags = IORESOURCE_MEM,
+	       },
+	[1] = {
+	       .start = IRQ_ARASANSDIO,
+	       .end = IRQ_ARASANSDIO,
+	       .flags = IORESOURCE_IRQ,
+	       },
+};
+
+static u64 bcm2835_emmc_dmamask = 0xffffffffUL;
+
+struct platform_device bcm2835_emmc_device = {
+	.name = "mmc-bcm2835",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(bcm2835_emmc_resources),
+	.resource = bcm2835_emmc_resources,
+	.dev = {
+		.dma_mask = &bcm2835_emmc_dmamask,
+		.coherent_dma_mask = 0xffffffffUL},
+};
+#endif /* CONFIG_MMC_BCM2835 */
+
 static struct resource bcm2708_powerman_resources[] = {
 	[0] = {
 	       .start = PM_BASE,
@@ -794,6 +822,9 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_uart1_device);
 	bcm_register_device(&bcm2708_powerman_device);
 
+#ifdef CONFIG_MMC_BCM2835
+	bcm_register_device(&bcm2835_emmc_device);
+#endif
 	bcm2708_init_led();
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
 		bcm_register_device(&bcm2708_alsa_devices[i]);
