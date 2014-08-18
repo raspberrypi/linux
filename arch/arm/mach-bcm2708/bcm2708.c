@@ -92,7 +92,7 @@ static unsigned disk_led_active_low = 1;
 static unsigned reboot_part = 0;
 static unsigned w1_gpio_pin = W1_GPIO;
 static unsigned w1_gpio_pullup = W1_PULLUP;
-static unsigned bcm2835_mmc = 0;
+static unsigned bcm2835_mmc = 1;
 
 static void __init bcm2708_init_led(void);
 
