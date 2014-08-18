@@ -4393,6 +4393,11 @@ static int cgroup_mkdir(struct kernfs_node *parent_kn, const char *name,
 	struct kernfs_node *kn;
 	int ssid, ret;
 
+	/* Do not accept '\n' to prevent making /proc/<pid>/cgroup unparsable.
+	 */
+	if (strchr(name, '\n'))
+		return -EINVAL;
+
 	parent = cgroup_kn_lock_live(parent_kn);
 	if (!parent)
 		return -ENODEV;
