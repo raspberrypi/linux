@@ -55,9 +55,10 @@ extern bool microframe_schedule;
 void dwc_otg_hcd_qh_free(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 {
 	dwc_otg_qtd_t *qtd, *qtd_tmp;
+	dwc_irqflags_t flags;
 
 	/* Free each QTD in the QTD list */
-	DWC_SPINLOCK(hcd->lock);
+	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 	DWC_CIRCLEQ_FOREACH_SAFE(qtd, qtd_tmp, &qh->qtd_list, qtd_list_entry) {
 		DWC_CIRCLEQ_REMOVE(&qh->qtd_list, qtd, qtd_list_entry);
 		dwc_otg_hcd_qtd_free(qtd);
@@ -76,7 +77,7 @@ void dwc_otg_hcd_qh_free(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	}
 
 	DWC_FREE(qh);
-	DWC_SPINUNLOCK(hcd->lock);
+	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 	return;
 }
 
