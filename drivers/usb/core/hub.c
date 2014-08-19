@@ -4619,9 +4619,7 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 			if (status != -ENODEV &&
 				port1 != unreliable_port &&
 				printk_ratelimit())
-				dev_err(&udev->dev, "connect-debounce failed, port %d disabled\n",
-					port1);
-
+				dev_err(&port_dev->dev, "connect-debounce failed\n");
 			portstatus &= ~USB_PORT_STAT_CONNECTION;
 			unreliable_port = port1;
 		} else {
