@@ -951,8 +951,13 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 	int i;
 	dwc_hc_t *channel;
 
+#if (defined(DWC_LINUX) && defined(CONFIG_DEBUG_SPINLOCK))
+	DWC_SPINLOCK_ALLOC_LINUX_DEBUG(hcd->lock);
+	DWC_SPINLOCK_ALLOC_LINUX_DEBUG(hcd->channel_lock);
+#else
 	hcd->lock = DWC_SPINLOCK_ALLOC();
 	hcd->channel_lock = DWC_SPINLOCK_ALLOC();
+#endif
         DWC_DEBUGPL(DBG_HCDV, "init of HCD %p given core_if %p\n",
                     hcd, core_if);
 	if (!hcd->lock) {

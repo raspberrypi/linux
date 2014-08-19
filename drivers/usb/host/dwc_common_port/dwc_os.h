@@ -59,6 +59,7 @@ extern "C" {
 # ifdef CONFIG_DEBUG_MUTEXES
 #  include <linux/mutex.h>
 # endif
+# include <linux/spinlock.h>
 # include <linux/errno.h>
 # include <stdarg.h>
 #endif
@@ -1039,9 +1040,22 @@ typedef unsigned long dwc_irqflags_t;
 /** Returns an initialized lock variable.  This function should allocate and
  * initialize the OS-specific data structure used for locking.  This data
  * structure is to be used for the DWC_LOCK and DWC_UNLOCK functions and should
- * be freed by the DWC_FREE_LOCK when it is no longer used. */
+ * be freed by the DWC_FREE_LOCK when it is no longer used.
+ *
+ * For Linux Spinlock Debugging make it macro because the debugging routines use
+ * the symbol name to determine recursive locking. Using a wrapper function
+ * makes it falsely think recursive locking occurs. */
+#if defined(DWC_LINUX) && defined(CONFIG_DEBUG_SPINLOCK)
+#define DWC_SPINLOCK_ALLOC_LINUX_DEBUG(lock) ({ \
+	lock = DWC_ALLOC(sizeof(spinlock_t)); \
+	if (lock) { \
+		spin_lock_init((spinlock_t *)lock); \
+	} \
+})
+#else
 extern dwc_spinlock_t *DWC_SPINLOCK_ALLOC(void);
 #define dwc_spinlock_alloc(_ctx_) DWC_SPINLOCK_ALLOC()
+#endif
 
 /** Frees an initialized lock variable. */
 extern void DWC_SPINLOCK_FREE(dwc_spinlock_t *lock);
