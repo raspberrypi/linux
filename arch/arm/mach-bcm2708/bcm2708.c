@@ -60,10 +60,17 @@
 #include "armctrl.h"
 #include "clock.h"
 
+#include <linux/mfd/arizona/pdata.h>
+#include <linux/regulator/machine.h>
+#include <linux/regulator/fixed.h>
+
 #ifdef CONFIG_BCM_VC_CMA
 #include <linux/broadcom/vc_cma.h>
 #endif
 
+#define GPIO_WM5102_IRQ 27
+#define GPIO_WM5102_RST 17
+#define GPIO_WM5102_LDOEN 22
 
 /* Effectively we have an IOMMU (ARM<->VideoCore map) that is set up to
  * give us IO access only to 64Mbytes of physical memory (26 bits).  We could
@@ -587,13 +594,16 @@ static struct spi_board_info bcm2708_spi_devices[] = {
 		.bus_num = 0,
 		.chip_select = 0,
 		.mode = SPI_MODE_0,
-	}, {
+	},
+#if !defined (CONFIG_SND_BCM2708_SOC_RPI_CODEC_WSP_MODULE) && !defined (CONFIG_SND_BCM2708_SOC_RPI_CODEC_WSP)
+	 {
 		.modalias = "spidev",
 		.max_speed_hz = 500000,
 		.bus_num = 0,
 		.chip_select = 1,
 		.mode = SPI_MODE_0,
 	}
+#endif
 #endif
 };
 #endif
@@ -645,7 +655,7 @@ static struct platform_device bcm2835_thermal_device = {
 	.name = "bcm2835_thermal",
 };
 
-#ifdef CONFIG_SND_BCM2708_SOC_I2S_MODULE
+#if defined(CONFIG_SND_BCM2708_SOC_I2S_MODULE) || defined(CONFIG_SND_BCM2708_SOC_I2S)
 static struct resource bcm2708_i2s_resources[] = {
 	{
 		.start = I2S_BASE,
@@ -665,6 +675,138 @@ static struct platform_device bcm2708_i2s_device = {
 	.num_resources = ARRAY_SIZE(bcm2708_i2s_resources),
 	.resource = bcm2708_i2s_resources,
 };
+#endif
+
+#if defined(CONFIG_REGULATOR_FIXED_VOLTAGE_MODULE) || defined(CONFIG_REGULATOR_FIXED_VOLTAGE)
+static struct regulator_consumer_supply dc1v8_consumers[] = {
+	REGULATOR_SUPPLY("LDOVDD", "spi0.1"),
+	REGULATOR_SUPPLY("AVDD", "spi0.1"),
+	REGULATOR_SUPPLY("DBVDD1", "spi0.1"),
+	REGULATOR_SUPPLY("CPVDD", "spi0.1"),
+	REGULATOR_SUPPLY("DBVDD2", "wm5102-codec"),
+	REGULATOR_SUPPLY("DBVDD3", "wm5102-codec"),
+	REGULATOR_SUPPLY("CPVDD", "wm5102-codec"),
+	REGULATOR_SUPPLY("PVDD", "1-003a"),
+	REGULATOR_SUPPLY("DVDD", "1-003a"),
+};
+
+static struct regulator_init_data dc1v8_data = {
+	.constraints = {
+		.always_on = 1,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(dc1v8_consumers),
+	.consumer_supplies = dc1v8_consumers,
+};
+
+static struct fixed_voltage_config dc1v8vdd_pdata = {
+	.supply_name = "DC_1V8",
+	.microvolts = 1800000,
+	.init_data = &dc1v8_data,
+	.gpio = -1,
+};
+
+static struct platform_device dc1v8_device = {
+	.name		= "reg-fixed-voltage",
+	.id		= 0,
+	.dev = {
+		.platform_data = &dc1v8vdd_pdata,
+	},
+};
+
+static struct regulator_consumer_supply dc5v_consumers[] = {
+	REGULATOR_SUPPLY("SPKVDDL", "wm5102-codec"),
+	REGULATOR_SUPPLY("SPKVDDR", "wm5102-codec"),
+};
+
+static struct regulator_init_data dc5v_data = {
+	.constraints = {
+		.always_on = 1,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(dc5v_consumers),
+	.consumer_supplies = dc5v_consumers,
+};
+
+static struct fixed_voltage_config dc5vvdd_pdata = {
+	.supply_name = "DC_5V",
+	.microvolts = 5000000,
+	.init_data = &dc5v_data,
+	.gpio = -1,
+};
+
+static struct platform_device dc5v_device = {
+	.name		= "reg-fixed-voltage",
+	.id		= 1,
+	.dev = {
+		.platform_data = &dc5vvdd_pdata,
+	},
+};
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_RPI_CODEC_WSP_MODULE) || defined(CONFIG_SND_BCM2708_SOC_RPI_CODEC_WSP)
+#include <linux/mfd/arizona/registers.h>
+
+static struct resource bcm2708_clock_resources[] = {
+	{
+		.start = GPIO_BASE,
+		.end = GPIO_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = GPxCLT_BASE,
+		.end = GPxCLT_BASE + 0x14,
+		.flags = IORESOURCE_MEM,
+	}
+};
+
+static struct platform_device snd_rpi_wsp_device = {
+	.name = "snd-rpi-wsp",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(bcm2708_clock_resources),
+	.resource = bcm2708_clock_resources,
+};
+
+static struct arizona_micd_config wm5102_micd[] = {
+	{ 0, 1 << ARIZONA_MICD_BIAS_SRC_SHIFT, 0 },
+};
+
+static struct arizona_pdata snd_rpi_wsp_spi_platform_data = {
+	.reset = GPIO_WM5102_RST,
+	.ldoena = GPIO_WM5102_LDOEN,
+	.irq_flags = IRQF_TRIGGER_HIGH,
+	.gpio_defaults = {
+		[2] = 0x04, /* OPCLK */
+		[3] = 0x3d, /* ASYNC OPCLK */
+	},
+	.micd_configs = wm5102_micd,
+	.num_micd_configs = ARRAY_SIZE(wm5102_micd),
+	.dmic_ref = {
+		[1] = ARIZONA_DMIC_MICBIAS2,
+	},
+	.inmode = {
+		[1] = ARIZONA_INMODE_DMIC,
+		[2] = ARIZONA_INMODE_SE,
+	},
+	.clk32k_src = ARIZONA_32KZ_NONE,
+};
+
+static struct spi_board_info __initdata snd_rpi_wsp_spi_devices[] = {
+	{
+		.modalias = "wm5102",
+		.platform_data = &snd_rpi_wsp_spi_platform_data,
+		.max_speed_hz = 500000,
+		.bus_num = 0,
+		.chip_select = 1,
+		.mode = SPI_MODE_0,
+		.irq = GPIO_WM5102_IRQ,
+	}
+};
+
+static struct i2c_board_info __initdata snd_rpi_wsp_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("wm8804", 0x3A),
+	},
+};
+
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
@@ -889,7 +1031,7 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2835_hwmon_device);
 	bcm_register_device(&bcm2835_thermal_device);
 
-#ifdef CONFIG_SND_BCM2708_SOC_I2S_MODULE
+#if defined(CONFIG_SND_BCM2708_SOC_I2S_MODULE) || defined(CONFIG_SND_BCM2708_SOC_I2S)
 	bcm_register_device(&bcm2708_i2s_device);
 #endif
 
@@ -924,6 +1066,17 @@ void __init bcm2708_init(void)
         i2c_register_board_info(1, snd_pcm512x_i2c_devices, ARRAY_SIZE(snd_pcm512x_i2c_devices));
 #endif
 
+#if defined(CONFIG_REGULATOR_FIXED_VOLTAGE_MODULE) || defined(CONFIG_REGULATOR_FIXED_VOLTAGE)
+	bcm_register_device(&dc1v8_device);
+	bcm_register_device(&dc5v_device);
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_RPI_CODEC_WSP_MODULE) || defined(CONFIG_SND_BCM2708_SOC_RPI_CODEC_WSP)
+	bcm_register_device(&snd_rpi_wsp_device);
+	spi_register_board_info(snd_rpi_wsp_spi_devices, ARRAY_SIZE(snd_rpi_wsp_spi_devices));
+	i2c_register_board_info(1, snd_rpi_wsp_i2c_devices,
+		ARRAY_SIZE(snd_rpi_wsp_i2c_devices));
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];
