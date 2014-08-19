@@ -309,7 +309,7 @@ static int usb_parse_interface(struct device *ddev, int cfgno,
 	struct usb_interface_cache *intfc;
 	struct usb_host_interface *alt;
 	int i, n;
-	int len, retval;
+	int retval;
 	int num_ep, num_ep_orig;
 
 	d = (struct usb_interface_descriptor *) buffer;
@@ -371,8 +371,7 @@ static int usb_parse_interface(struct device *ddev, int cfgno,
 
 	if (num_ep > 0) {
 		/* Can't allocate 0 bytes */
-		len = sizeof(struct usb_host_endpoint) * num_ep;
-		alt->endpoint = kzalloc(len, GFP_KERNEL);
+		alt->endpoint = kcalloc(num_ep, sizeof(struct usb_host_endpoint), GFP_KERNEL);
 		if (!alt->endpoint)
 			return -ENOMEM;
 	}
@@ -674,13 +673,11 @@ int usb_get_configuration(struct usb_device *dev)
 		return -EINVAL;
 	}
 
-	length = ncfg * sizeof(struct usb_host_config);
-	dev->config = kzalloc(length, GFP_KERNEL);
+	dev->config = kcalloc(ncfg, sizeof(struct usb_host_config), GFP_KERNEL);
 	if (!dev->config)
 		goto err2;
 
-	length = ncfg * sizeof(char *);
-	dev->rawdescriptors = kzalloc(length, GFP_KERNEL);
+	dev->rawdescriptors = kcalloc(ncfg, sizeof(char *), GFP_KERNEL);
 	if (!dev->rawdescriptors)
 		goto err2;
 
