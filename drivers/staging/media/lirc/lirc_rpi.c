@@ -38,6 +38,7 @@
 #include <linux/spinlock.h>
 #include <media/lirc.h>
 #include <media/lirc_dev.h>
+#include <mach/gpio.h>
 #include <linux/gpio.h>
 
 #define LIRC_DRIVER_NAME "lirc_rpi"
@@ -80,9 +81,6 @@ struct irq_data *irqdata;
 static long send_pulse(unsigned long length);
 static void send_space(long length);
 static void lirc_rpi_exit(void);
-
-int valid_gpio_pins[] = { 0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 17, 18, 21,
-	22, 23, 24, 25 ,27, 28, 29, 30, 31 };
 
 static struct platform_device *lirc_rpi_dev;
 static struct timeval lasttv = { 0, 0 };
@@ -599,24 +597,13 @@ static void lirc_rpi_exit(void)
 
 static int __init lirc_rpi_init_module(void)
 {
-	int result, i;
+	int result;
 
 	result = lirc_rpi_init();
 	if (result)
 		return result;
 
-	/* check if the module received valid gpio pin numbers */
-	result = 0;
-	if (gpio_in_pin != gpio_out_pin) {
-		for(i = 0; (i < ARRAY_SIZE(valid_gpio_pins)) && (result != 2); i++) {
-			if (gpio_in_pin == valid_gpio_pins[i] ||
-			   gpio_out_pin == valid_gpio_pins[i]) {
-				result++;
-			}
-		}
-	}
-
-	if (result != 2) {
+	if (gpio_in_pin >= BCM2708_NR_GPIOS || gpio_out_pin >= BCM2708_NR_GPIOS) {
 		result = -EINVAL;
 		printk(KERN_ERR LIRC_DRIVER_NAME
 		       ": invalid GPIO pin(s) specified!\n");
@@ -673,13 +660,11 @@ MODULE_LICENSE("GPL");
 
 module_param(gpio_out_pin, int, S_IRUGO);
 MODULE_PARM_DESC(gpio_out_pin, "GPIO output/transmitter pin number of the BCM"
-		 " processor. Valid pin numbers are: 0, 1, 4, 8, 7, 9, 10, 11,"
-		 " 14, 15, 17, 18, 21, 22, 23, 24, 25, default 17");
+		 " processor. (default 17");
 
 module_param(gpio_in_pin, int, S_IRUGO);
 MODULE_PARM_DESC(gpio_in_pin, "GPIO input pin number of the BCM processor."
-		 " Valid pin numbers are: 0, 1, 4, 8, 7, 9, 10, 11, 14, 15,"
-		 " 17, 18, 21, 22, 23, 24, 25, default 18");
+		 " (default 18");
 
 module_param(sense, int, S_IRUGO);
 MODULE_PARM_DESC(sense, "Override autodetection of IR receiver circuit"
