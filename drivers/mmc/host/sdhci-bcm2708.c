@@ -69,6 +69,9 @@
 #define DMA_SDHCI_BASE	 0x7e300000  /* EMMC register block on Videocore */
 #define DMA_SDHCI_BUFFER (DMA_SDHCI_BASE + SDHCI_BUFFER)
 
+#define MAX_LITE_TRANSFER 32768
+#define MAX_NORMAL_TRANSFER 1073741824
+
 #define BCM2708_SDHCI_SLEEP_TIMEOUT 1000   /* msecs */
 
 /* Mhz clock that the EMMC core is running at. Should match the platform clockman settings */
@@ -446,29 +449,39 @@ static void schci_bcm2708_cb_read(struct sdhci_bcm2708_priv *host,
 				  dma_addr_t dma_addr, unsigned len,
 				  int /*bool*/ is_last)
 {
-	struct bcm2708_dma_cb *cb = &host->cb_base[ix];
-        unsigned char dmawaits = host->dma_waits;
+	struct bcm2708_dma_cb *cb;
+	unsigned char dmawaits = host->dma_waits;
+	unsigned i, max_size;
 
-	cb->info   = BCM2708_DMA_PER_MAP(BCM2708_DMA_DREQ_EMMC) |
-		     BCM2708_DMA_WAITS(dmawaits) |
-		     BCM2708_DMA_S_DREQ	 |
-		     BCM2708_DMA_D_WIDTH |
-		     BCM2708_DMA_D_INC;
-	cb->src	   = DMA_SDHCI_BUFFER;	/* DATA register DMA address */
-	cb->dst	   = dma_addr;
-	cb->length = len;
-	cb->stride = 0;
+	if (host->dma_chan >= 8) /* we have a LITE channel */
+		max_size = MAX_LITE_TRANSFER;
+	else
+		max_size = MAX_NORMAL_TRANSFER;
 
-	if (is_last) {
-		cb->info |= BCM2708_DMA_INT_EN |
-		     BCM2708_DMA_WAIT_RESP;
-		cb->next = 0;
-	} else
-		cb->next = host->cb_handle +
-			   (ix+1)*sizeof(struct bcm2708_dma_cb);
+	for (i = 0; i < len; i += max_size) {
+		cb = &host->cb_base[ix+i/max_size];
 
-	cb->pad[0] = 0;
-	cb->pad[1] = 0;
+		cb->info   = BCM2708_DMA_PER_MAP(BCM2708_DMA_DREQ_EMMC) |
+				 BCM2708_DMA_WAITS(dmawaits) |
+				 BCM2708_DMA_WAIT_RESP |
+				 BCM2708_DMA_S_DREQ	 |
+				 BCM2708_DMA_D_WIDTH |
+				 BCM2708_DMA_D_INC;
+		cb->src	   = DMA_SDHCI_BUFFER;	/* DATA register DMA address */
+		cb->dst	   = dma_addr + (dma_addr_t)i;
+		cb->length = min(len-i, max_size);
+		cb->stride = 0;
+
+		if (is_last && len-i <= max_size) {
+			cb->info |= BCM2708_DMA_INT_EN;
+			cb->next = 0;
+		} else
+			cb->next = host->cb_handle +
+				(ix+1 + i/max_size)*sizeof(struct bcm2708_dma_cb);
+
+		cb->pad[0] = 0;
+		cb->pad[1] = 0;
+	}
 }
 
 static void schci_bcm2708_cb_write(struct sdhci_bcm2708_priv *host,
@@ -477,30 +490,42 @@ static void schci_bcm2708_cb_write(struct sdhci_bcm2708_priv *host,
 				   int /*bool*/ is_last)
 {
 	struct bcm2708_dma_cb *cb = &host->cb_base[ix];
-        unsigned char dmawaits = host->dma_waits;
+	unsigned char dmawaits = host->dma_waits;
+	unsigned i, max_size;
+
+	if (host->dma_chan >= 8) /* we have a LITE channel */
+		max_size = MAX_LITE_TRANSFER;
+	else
+		max_size = MAX_NORMAL_TRANSFER;
 
 	/* We can make arbitrarily large writes as long as we specify DREQ to
-	   pace the delivery of bytes to the Arasan hardware */
-	cb->info   = BCM2708_DMA_PER_MAP(BCM2708_DMA_DREQ_EMMC) |
-		     BCM2708_DMA_WAITS(dmawaits) |
-		     BCM2708_DMA_D_DREQ	 |
-		     BCM2708_DMA_S_WIDTH |
-		     BCM2708_DMA_S_INC;
-	cb->src	   = dma_addr;
-	cb->dst	   = DMA_SDHCI_BUFFER;	/* DATA register DMA address */
-	cb->length = len;
-	cb->stride = 0;
+	   pace the delivery of bytes to the Arasan hardware. However we need
+	   to take care when using LITE channels */
 
-	if (is_last) {
-		cb->info |= BCM2708_DMA_INT_EN |
-		     BCM2708_DMA_WAIT_RESP;
-		cb->next = 0;
-	} else
-		cb->next = host->cb_handle +
-			   (ix+1)*sizeof(struct bcm2708_dma_cb);
+	for (i = 0; i < len; i += max_size) {
+		cb = &host->cb_base[ix+i/max_size];
 
-	cb->pad[0] = 0;
-	cb->pad[1] = 0;
+		cb->info   = BCM2708_DMA_PER_MAP(BCM2708_DMA_DREQ_EMMC) |
+				 BCM2708_DMA_WAITS(dmawaits) |
+				 BCM2708_DMA_WAIT_RESP |
+				 BCM2708_DMA_D_DREQ	 |
+				 BCM2708_DMA_S_WIDTH |
+				 BCM2708_DMA_S_INC;
+		cb->src	   = dma_addr + (dma_addr_t)i;
+		cb->dst	   = DMA_SDHCI_BUFFER;	/* DATA register DMA address */
+		cb->length = min(len-i, max_size);
+		cb->stride = 0;
+
+		if (is_last && len-i <= max_size) {
+			cb->info |= BCM2708_DMA_INT_EN;
+			cb->next = 0;
+		} else
+			cb->next = host->cb_handle +
+				(ix+1 + i/max_size)*sizeof(struct bcm2708_dma_cb);
+
+		cb->pad[0] = 0;
+		cb->pad[1] = 0;
+	}
 }
 
 
@@ -1406,5 +1431,3 @@ MODULE_PARM_DESC(missing_status, "Use the missing status quirk");
 MODULE_PARM_DESC(spurious_crc_acmd51, "Use the spurious crc quirk for reading SCR (ACMD51)");
 MODULE_PARM_DESC(enable_llm, "Enable low-latency mode");
 MODULE_PARM_DESC(extra_messages, "Enable more sdcard warning messages");
-
-
