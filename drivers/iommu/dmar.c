@@ -677,8 +677,7 @@ static int __init dmar_acpi_dev_scope_init(void)
 				       andd->object_name);
 				continue;
 			}
-			acpi_bus_get_device(h, &adev);
-			if (!adev) {
+			if (acpi_bus_get_device(h, &adev)) {
 				pr_err("Failed to get device for ACPI object %s\n",
 				       andd->object_name);
 				continue;
