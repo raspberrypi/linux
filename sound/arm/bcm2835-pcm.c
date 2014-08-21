@@ -504,11 +504,11 @@ int snd_bcm2835_new_pcm(bcm2835_chip_t * chip)
 			&snd_bcm2835_playback_ops);
 
 	/* pre-allocation of buffers */
-	/* NOTE: this may fail */
+	/* NOTE: this may fail      size_t size = snd_bcm2835_playback_hw.buffer_bytes_max;  */
 	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_CONTINUOUS,
 					      snd_dma_continuous_data
-					      (GFP_KERNEL), 64 * 1024,
-					      64 * 1024);
+					      (GFP_KERNEL), snd_bcm2835_playback_hw.buffer_bytes_max, snd_bcm2835_playback_hw.buffer_bytes_max);
+
 
 	mutex_unlock(&chip->audio_mutex);
 	audio_info(" .. OUT\n");
@@ -537,9 +537,11 @@ int snd_bcm2835_new_spdif_pcm(bcm2835_chip_t * chip)
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK,
 			&snd_bcm2835_playback_spdif_ops);
 
+	/* pre-allocation of buffers */
+	/* NOTE: this may fail - size_t size = snd_bcm2835_playback_spdif_hw.buffer_bytes_max;  */*/
 	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_CONTINUOUS,
 					      snd_dma_continuous_data (GFP_KERNEL),
-					      64 * 1024, 64 * 1024);
+					      snd_bcm2835_playback_spdif_hw.buffer_bytes_max, snd_bcm2835_playback_spdif_hw.buffer_bytes_max);
 	mutex_unlock(&chip->audio_mutex);
 	audio_info(" .. OUT\n");
 
