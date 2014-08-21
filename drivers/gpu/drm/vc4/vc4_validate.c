@@ -47,6 +47,53 @@
 	void *validated,				\
 	void *untrusted
 
+
+/** Return the width in pixels of a 64-byte microtile. */
+static uint32_t
+utile_width(int cpp)
+{
+	switch (cpp) {
+	case 1:
+	case 2:
+		return 8;
+	case 4:
+		return 4;
+	case 8:
+		return 2;
+	default:
+		DRM_ERROR("unknown cpp: %d\n", cpp);
+		return 1;
+	}
+}
+
+/** Return the height in pixels of a 64-byte microtile. */
+static uint32_t
+utile_height(int cpp)
+{
+	switch (cpp) {
+	case 1:
+		return 8;
+	case 2:
+	case 4:
+	case 8:
+		return 4;
+	default:
+		DRM_ERROR("unknown cpp: %d\n", cpp);
+		return 1;
+	}
+}
+
+/**
+ * The texture unit decides what tiling format a particular miplevel is using
+ * this function, so we lay out our miptrees accordingly.
+ */
+static bool
+size_is_lt(uint32_t width, uint32_t height, int cpp)
+{
+	return (width <= 4 * utile_width(cpp) ||
+		height <= 4 * utile_height(cpp));
+}
+
 static bool
 vc4_use_bo(struct exec_info *exec,
 	   uint32_t hindex,
@@ -105,26 +152,9 @@ check_tex_size(struct exec_info *exec, struct drm_gem_cma_object *fbo,
 	       uint32_t offset, uint8_t tiling_format,
 	       uint32_t width, uint32_t height, uint8_t cpp)
 {
-	uint32_t width_align, height_align;
-	uint32_t aligned_row_len, aligned_h, size;
-
-	switch (tiling_format) {
-	case VC4_TILING_FORMAT_LINEAR:
-		width_align = 16;
-		height_align = 1;
-		break;
-	case VC4_TILING_FORMAT_T:
-		width_align = 128;
-		height_align = 32;
-		break;
-	case VC4_TILING_FORMAT_LT:
-		width_align = 16;
-		height_align = 4;
-		break;
-	default:
-		DRM_ERROR("buffer tiling %d unsupported\n", tiling_format);
-		return false;
-	}
+	uint32_t aligned_width, aligned_height, stride, size;
+	uint32_t utile_w = utile_width(cpp);
+	uint32_t utile_h = utile_height(cpp);
 
 	/* The values are limited by the packet/texture parameter bitfields,
 	 * so we don't need to worry as much about integer overflow.
@@ -132,20 +162,40 @@ check_tex_size(struct exec_info *exec, struct drm_gem_cma_object *fbo,
 	BUG_ON(width > 65535);
 	BUG_ON(height > 65535);
 
-	aligned_row_len = roundup(width * cpp, width_align);
-	aligned_h = roundup(height, height_align);
-
-	if (INT_MAX / aligned_row_len < aligned_h) {
-		DRM_ERROR("Overflow in fbo size (%d * %d)\n",
-			  aligned_row_len, aligned_h);
+	switch (tiling_format) {
+	case VC4_TILING_FORMAT_LINEAR:
+		aligned_width = roundup(width, 16 / cpp);
+		aligned_height = height;
+		break;
+	case VC4_TILING_FORMAT_T:
+		aligned_width = roundup(width, utile_w * 8);
+		aligned_height = roundup(height, utile_h * 8);
+		break;
+	case VC4_TILING_FORMAT_LT:
+		aligned_width = roundup(width, utile_w);
+		aligned_height = roundup(height, utile_h);
+		break;
+	default:
+		DRM_ERROR("buffer tiling %d unsupported\n", tiling_format);
 		return false;
 	}
-	size = aligned_row_len * aligned_h;
+
+	stride = aligned_width * cpp;
+
+	if (INT_MAX / stride < aligned_height) {
+		DRM_ERROR("Overflow in fbo size (%dx%d -> %dx%d)\n",
+			  width, height,
+			  aligned_width, aligned_height);
+		return false;
+	}
+	size = stride * aligned_height;
 
 	if (size + offset < size ||
 	    size + offset > fbo->base.size) {
-		DRM_ERROR("Overflow in %dx%d fbo size (%d + %d > %d)\n",
-			  width, height, size, offset, fbo->base.size);
+		DRM_ERROR("Overflow in %dx%d (%dx%d) fbo size (%d + %d > %d)\n",
+			  width, height,
+			  aligned_width, aligned_height,
+			  size, offset, fbo->base.size);
 		return false;
 	}
 
@@ -703,11 +753,12 @@ reloc_tex(struct exec_info *exec,
 	uint32_t p1 = *(uint32_t *)(uniform_data_u + sample->p_offset[1]);
 	uint32_t *validated_p0 = exec->uniforms_v + sample->p_offset[0];
 	uint32_t offset = p0 & ~0xfff;
-	uint32_t miplevels = (p0 & 0x15);
+	uint32_t miplevels = (p0 & 15);
 	uint32_t width = (p1 >> 8) & 2047;
 	uint32_t height = (p1 >> 20) & 2047;
-	uint32_t type, cpp, tiling_format;
+	uint32_t cpp, tiling_format, utile_w, utile_h;
 	uint32_t i;
+	enum vc4_texture_data_type type;
 
 	if (width == 0)
 		width = 2048;
@@ -722,40 +773,44 @@ reloc_tex(struct exec_info *exec,
 	type = ((p0 >> 4) & 15) | ((p1 >> 31) << 4);
 
 	switch (type) {
-	case 0: /* RGBA8888 */
-	case 1: /* RGBX8888 */
-	case 16: /* RGBA32R */
+	case VC4_TEXTURE_TYPE_RGBA8888:
+	case VC4_TEXTURE_TYPE_RGBX8888:
+	case VC4_TEXTURE_TYPE_RGBA32R:
 		cpp = 4;
 		break;
-	case 2: /* RGBA4444 */
-	case 3: /* RGBA5551 */
-	case 4: /* RGB565 */
-	case 7: /* LUMALPHA */
-	case 9: /* S16F */
-	case 11: /* S16 */
+	case VC4_TEXTURE_TYPE_RGBA4444:
+	case VC4_TEXTURE_TYPE_RGBA5551:
+	case VC4_TEXTURE_TYPE_RGB565:
+	case VC4_TEXTURE_TYPE_LUMALPHA:
+	case VC4_TEXTURE_TYPE_S16F:
+	case VC4_TEXTURE_TYPE_S16:
 		cpp = 2;
 		break;
-	case 5: /* LUMINANCE */
-	case 6: /* ALPHA */
-	case 10: /* S8 */
+	case VC4_TEXTURE_TYPE_LUMINANCE:
+	case VC4_TEXTURE_TYPE_ALPHA:
+	case VC4_TEXTURE_TYPE_S8:
 		cpp = 1;
 		break;
-	case 8: /* ETC1 */
-	case 12: /* BW1 */
-	case 13: /* A4 */
-	case 14: /* A1 */
-	case 15: /* RGBA64 */
-	case 17: /* YUV422R */
+	case VC4_TEXTURE_TYPE_ETC1:
+	case VC4_TEXTURE_TYPE_BW1:
+	case VC4_TEXTURE_TYPE_A4:
+	case VC4_TEXTURE_TYPE_A1:
+	case VC4_TEXTURE_TYPE_RGBA64:
+	case VC4_TEXTURE_TYPE_YUV422R:
 	default:
 		DRM_ERROR("Texture format %d unsupported\n", type);
 		return false;
 	}
+	utile_w = utile_width(cpp);
+	utile_h = utile_height(cpp);
 
-	if (type == 16) {
+	if (type == VC4_TEXTURE_TYPE_RGBA32R) {
 		tiling_format = VC4_TILING_FORMAT_LINEAR;
 	} else {
-		DRM_ERROR("Tiling formats not yet supported\n");
-		return false;
+		if (size_is_lt(width, height, cpp))
+			tiling_format = VC4_TILING_FORMAT_LT;
+		else
+			tiling_format = VC4_TILING_FORMAT_T;
 	}
 
 	if (!vc4_use_bo(exec, texture_handle_index, VC4_MODE_RENDER, &tex))
@@ -770,17 +825,44 @@ reloc_tex(struct exec_info *exec,
 	 * sure there is actually space in the BO.
 	 */
 	for (i = 1; i <= miplevels; i++) {
-		uint32_t level_width = roundup(max(width >> i, 1u), 16 / cpp);
+		uint32_t level_width = max(width >> i, 1u);
 		uint32_t level_height = max(height >> i, 1u);
-		uint32_t level_size = level_width * level_height * cpp;
+		uint32_t aligned_width, aligned_height;
+		uint32_t level_size;
+
+		/* Once the levels get small enough, they drop from T to LT. */
+		if (tiling_format == VC4_TILING_FORMAT_T &&
+		    size_is_lt(level_width, level_height, cpp)) {
+			tiling_format = VC4_TILING_FORMAT_LT;
+		}
+
+		switch (tiling_format) {
+		case VC4_TILING_FORMAT_T:
+			aligned_width = roundup(level_width, utile_w * 8);
+			aligned_height = roundup(level_height, utile_h * 8);
+			break;
+		case VC4_TILING_FORMAT_LT:
+			aligned_width = roundup(level_width, utile_w);
+			aligned_height = roundup(level_height, utile_h);
+			break;
+		default:
+			aligned_width = roundup(level_width, 16 / cpp);
+			aligned_height = height;
+			break;
+		}
+
+		level_size = aligned_width * cpp * aligned_height;
 
 		if (offset < level_size) {
-			DRM_ERROR("Level %d (%dx%d) size %db overflowed "
-				  "buffer bounds (offset %d)\n",
+			DRM_ERROR("Level %d (%dx%d -> %dx%d) size %db "
+				  "overflowed buffer bounds (offset %d)\n",
 				  i, level_width, level_height,
+				  aligned_width, aligned_height,
 				  level_size, offset);
 			return false;
 		}
+
+		offset -= level_size;
 	}
 
 	*validated_p0 = tex->paddr + p0;

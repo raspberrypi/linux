@@ -255,6 +255,7 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj,
 		case QPU_SIG_NONE:
 		case QPU_SIG_WAIT_FOR_SCOREBOARD:
 		case QPU_SIG_SCOREBOARD_UNLOCK:
+		case QPU_SIG_COLOR_LOAD:
 		case QPU_SIG_LOAD_TMU0:
 		case QPU_SIG_LOAD_TMU1:
 			if (!check_instruction_writes(inst, validated_shader,

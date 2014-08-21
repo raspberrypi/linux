@@ -221,4 +221,26 @@ enum vc4_packet {
 #define VC4_RENDER_CONFIG_TILE_BUFFER_64BIT        (1 << 1)
 #define VC4_RENDER_CONFIG_MS_MODE_4X               (1 << 0)
 
+
+enum vc4_texture_data_type {
+        VC4_TEXTURE_TYPE_RGBA8888 = 0,
+        VC4_TEXTURE_TYPE_RGBX8888 = 1,
+        VC4_TEXTURE_TYPE_RGBA4444 = 2,
+        VC4_TEXTURE_TYPE_RGBA5551 = 3,
+        VC4_TEXTURE_TYPE_RGB565 = 4,
+        VC4_TEXTURE_TYPE_LUMINANCE = 5,
+        VC4_TEXTURE_TYPE_ALPHA = 6,
+        VC4_TEXTURE_TYPE_LUMALPHA = 7,
+        VC4_TEXTURE_TYPE_ETC1 = 8,
+        VC4_TEXTURE_TYPE_S16F = 9,
+        VC4_TEXTURE_TYPE_S8 = 10,
+        VC4_TEXTURE_TYPE_S16 = 11,
+        VC4_TEXTURE_TYPE_BW1 = 12,
+        VC4_TEXTURE_TYPE_A4 = 13,
+        VC4_TEXTURE_TYPE_A1 = 14,
+        VC4_TEXTURE_TYPE_RGBA64 = 15,
+        VC4_TEXTURE_TYPE_RGBA32R = 16,
+        VC4_TEXTURE_TYPE_YUV422R = 17,
+};
+
 #endif /* VC4_PACKET_H */
