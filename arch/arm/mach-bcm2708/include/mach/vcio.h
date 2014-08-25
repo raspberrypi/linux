@@ -33,6 +33,13 @@
 #define MBOX_CHAN_PROPERTY 8 /* for use by the property channel */
 #define MBOX_CHAN_COUNT    9
 
+enum {
+	VCMSG_PROCESS_REQUEST 		= 0x00000000
+};
+enum {
+	VCMSG_REQUEST_SUCCESSFUL 	= 0x80000000,
+	VCMSG_REQUEST_FAILED 		= 0x80000001
+};
 /* Mailbox property tags */
 enum {
 	VCMSG_PROPERTY_END               = 0x00000000,
@@ -136,6 +143,6 @@ extern int /*rc*/ bcm_mailbox_property(void *data, int size);
 /*
  * The name of the device file
  */
-#define DEVICE_FILE_NAME "char_dev"
+#define DEVICE_FILE_NAME "vcio"
 
 #endif
