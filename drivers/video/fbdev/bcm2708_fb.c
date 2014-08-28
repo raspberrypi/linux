@@ -375,13 +375,36 @@ static int bcm2708_fb_setcolreg(unsigned int regno, unsigned int red,
 	}
 	return regno > 255;
 }
-
 static int bcm2708_fb_blank(int blank_mode, struct fb_info *info)
 {
-	/*print_debug("bcm2708_fb_blank\n"); */
-	return -1;
-}
+	s32 result = -1 ; 
+	u32 p[7];
+	if ( 	(blank_mode == FB_BLANK_NORMAL) || 
+		(blank_mode == FB_BLANK_UNBLANK)) {
+		
+		pr_info("bcm2708_fb_blank blank_mode=%d\n",blank_mode);
+		
+		
+		p[0] = 28; //  size = sizeof u32 * length of p
+		p[1] = VCMSG_PROCESS_REQUEST; // process request
+		p[2] = VCMSG_SET_BLANK_SCREEN; // (the tag id)
+		p[3] = 4; // (size of the response buffer)
+		p[4] = 4; // (size of the request data)
+		p[5] = blank_mode;
+		p[6] = VCMSG_PROPERTY_END; // end tag
+	
+		bcm_mailbox_property(&p, p[0]);
+	
+		pr_info("bcm2708_fb_blank returns=%d p[1]=0x%x\n",p[5],p[1]);
+	
+		if ( p[1] == VCMSG_REQUEST_SUCCESSFUL )
+			result = 0 ; 
+	    
+	}
+	return result;
 
+
+}
 static void bcm2708_fb_fillrect(struct fb_info *info,
 				const struct fb_fillrect *rect)
 {
