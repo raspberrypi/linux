@@ -337,7 +337,7 @@ static void bcm2708_i2s_setup_gpio(void)
 	/* SPI is on different GPIOs on different boards */
         /* for Raspberry Pi B+, this is pin GPIO18-21, for original on 28-31 */
 	if (bcm2708_i2s_gpio==BCM2708_I2S_GPIO_AUTO) {	
-		if (system_rev >= 0x10) {
+		if ((system_rev & 0xffffff) >= 0x10) {
 			/* Model B+ */
 			pinconfig=BCM2708_I2S_GPIO_PIN18;
 		} else {
