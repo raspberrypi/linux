@@ -42,7 +42,7 @@
 #include <linux/io.h>
 #include <linux/spinlock.h>
 
-#ifndef CONFIG_OF
+#ifndef CONFIG_ARCH_BCM2835
 
 /* dma manager */
 #include <mach/dma.h>
@@ -710,7 +710,7 @@ static int bcm2835_dma_control(struct dma_chan *chan, enum dma_ctrl_cmd cmd,
 	}
 }
 
-#ifdef CONFIG_OF
+#ifdef CONFIG_ARCH_BCM2835
 static int bcm2835_dma_chan_init(struct bcm2835_dmadev *d, int chan_id, int irq)
 {
 	struct bcm2835_chan *c;
@@ -773,7 +773,7 @@ static const struct of_device_id bcm2835_dma_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, bcm2835_dma_of_match);
 
-#ifdef CONFIG_OF
+#ifdef CONFIG_ARCH_BCM2835
 static struct dma_chan *bcm2835_dma_xlate(struct of_phandle_args *spec,
 					   struct of_dma *ofdma)
 {
@@ -806,7 +806,7 @@ static int bcm2835_dma_device_slave_caps(struct dma_chan *dchan,
 static int bcm2835_dma_probe(struct platform_device *pdev)
 {
 	struct bcm2835_dmadev *od;
-#ifdef CONFIG_OF
+#ifdef CONFIG_ARCH_BCM2835
 	struct resource *res;
 	void __iomem *base;
 	uint32_t chans_available;
@@ -819,10 +819,10 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	if (!pdev->dev.dma_mask)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 
-	/* If CONFIG_OF is selected, device tree is used */
+	/* If CONFIG_ARCH_BCM2835 is selected, device tree is used */
 	/* hence the difference between probing */
 
-#ifndef CONFIG_OF
+#ifndef CONFIG_ARCH_BCM2835
 
 	rc = dma_set_mask(&pdev->dev, DMA_BIT_MASK(32));
 	if (rc)
@@ -976,7 +976,7 @@ static int bcm2835_dma_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifndef CONFIG_OF
+#ifndef CONFIG_ARCH_BCM2835
 
 
 static struct platform_driver bcm2835_dma_driver = {
