@@ -42,7 +42,7 @@
 #include "sdhci.h"
 
 
-#ifndef CONFIG_OF
+#ifndef CONFIG_ARCH_BCM2835
  #define BCM2835_CLOCK_FREQ 250000000
 #endif
 
@@ -662,7 +662,7 @@ void bcm2835_mmc_send_command(struct bcm2835_host *host, struct mmc_command *cmd
 	}
 
 	timeout = jiffies;
-#ifdef CONFIG_OF
+#ifdef CONFIG_ARCH_BCM2835
 	if (!cmd->data && cmd->busy_timeout > 9000)
 		timeout += DIV_ROUND_UP(cmd->busy_timeout, 1000) * HZ + HZ;
 	else
@@ -962,7 +962,7 @@ static irqreturn_t bcm2835_mmc_irq(int irq, void *dev_id)
 	struct bcm2835_host *host = dev_id;
 	u32 intmask, mask, unexpected = 0;
 	int max_loops = 16;
-#ifndef CONFIG_OF
+#ifndef CONFIG_ARCH_BCM2835
 	int cardint = 0;
 #endif
 
@@ -993,7 +993,7 @@ static irqreturn_t bcm2835_mmc_irq(int irq, void *dev_id)
 				mmc_hostname(host->mmc));
 
 		if (intmask & SDHCI_INT_CARD_INT) {
-#ifndef CONFIG_OF
+#ifndef CONFIG_ARCH_BCM2835
 			cardint = 1;
 #else
 			bcm2835_mmc_enable_sdio_irq_nolock(host, false);
@@ -1026,7 +1026,7 @@ out:
 		bcm2835_mmc_dumpregs(host);
 	}
 
-#ifndef CONFIG_OF
+#ifndef CONFIG_ARCH_BCM2835
 	if (cardint)
 		mmc_signal_sdio_irq(host->mmc);
 #endif
@@ -1034,7 +1034,7 @@ out:
 	return result;
 }
 
-#ifdef CONFIG_OF
+#ifdef CONFIG_ARCH_BCM2835
 static irqreturn_t bcm2835_mmc_thread_irq(int irq, void *dev_id)
 {
 	struct bcm2835_host *host = dev_id;
@@ -1288,7 +1288,7 @@ int bcm2835_mmc_add_host(struct bcm2835_host *host)
 
 	/* SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK */
 	host->timeout_clk = mmc->f_max / 1000;
-#ifdef CONFIG_OF
+#ifdef CONFIG_ARCH_BCM2835
 	mmc->max_busy_timeout = (1 << 27) / host->timeout_clk;
 #endif
 	/* host controller capabilities */
@@ -1345,7 +1345,7 @@ int bcm2835_mmc_add_host(struct bcm2835_host *host)
 	init_waitqueue_head(&host->buf_ready_int);
 
 	bcm2835_mmc_init(host, 0);
-#ifndef CONFIG_OF
+#ifndef CONFIG_ARCH_BCM2835
 	ret = request_irq(host->irq, bcm2835_mmc_irq, 0 /*IRQF_SHARED*/,
 				  mmc_hostname(mmc), host);
 #else
@@ -1374,7 +1374,7 @@ untasklet:
 static int bcm2835_mmc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-#ifdef CONFIG_OF
+#ifdef CONFIG_ARCH_BCM2835
 	struct device_node *node = dev->of_node;
 	struct clk *clk;
 #endif
@@ -1383,7 +1383,7 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 
 	int ret;
 	struct mmc_host *mmc;
-#if !defined(CONFIG_OF) && !defined(FORCE_PIO)
+#if !defined(CONFIG_ARCH_BCM2835) && !defined(FORCE_PIO)
 	dma_cap_mask_t mask;
 #endif
 
@@ -1408,7 +1408,7 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 
 	host->phys_addr = iomem->start + BCM2835_VCMMU_SHIFT;
 
-#ifndef CONFIG_OF
+#ifndef CONFIG_ARCH_BCM2835
 #ifndef FORCE_PIO
 	dma_cap_zero(mask);
 	/* we don't care about the channel, any would work */
@@ -1458,7 +1458,7 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 	}
 
 
-#ifndef CONFIG_OF
+#ifndef CONFIG_ARCH_BCM2835
 	mmc->caps |= MMC_CAP_4_BIT_DATA;
 #else
 	mmc_of_parse(mmc);
