@@ -35,6 +35,7 @@
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/spi/spi.h>
+#include <linux/gpio/machine.h>
 #include <linux/w1-gpio.h>
 
 #include <linux/version.h>
@@ -92,6 +93,8 @@ static unsigned disk_led_active_low = 1;
 static unsigned reboot_part = 0;
 static unsigned w1_gpio_pin = W1_GPIO;
 static unsigned w1_gpio_pullup = W1_PULLUP;
+
+static unsigned use_dt = 0;
 
 static void __init bcm2708_init_led(void);
 
@@ -514,7 +517,6 @@ static struct platform_device bcm2708_alsa_devices[] = {
 	       },
 };
 
-#ifndef CONFIG_OF
 static struct resource bcm2708_spi_resources[] = {
 	{
 		.start = SPI0_BASE,
@@ -538,7 +540,6 @@ static struct platform_device bcm2708_spi_device = {
 		.dma_mask = &bcm2708_spi_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON)},
 };
-#endif
 
 #ifdef CONFIG_BCM2708_SPIDEV
 static struct spi_board_info bcm2708_spi_devices[] = {
@@ -560,7 +561,6 @@ static struct spi_board_info bcm2708_spi_devices[] = {
 };
 #endif
 
-#ifndef CONFIG_OF
 static struct resource bcm2708_bsc0_resources[] = {
 	{
 		.start = BSC0_BASE,
@@ -599,7 +599,6 @@ static struct platform_device bcm2708_bsc1_device = {
 	.num_resources = ARRAY_SIZE(bcm2708_bsc1_resources),
 	.resource = bcm2708_bsc1_resources,
 };
-#endif
 
 static struct platform_device bcm2835_hwmon_device = {
 	.name = "bcm2835_hwmon",
@@ -609,7 +608,7 @@ static struct platform_device bcm2835_thermal_device = {
 	.name = "bcm2835_thermal",
 };
 
-#ifdef CONFIG_SND_BCM2708_SOC_I2S_MODULE
+#if defined(CONFIG_SND_BCM2708_SOC_I2S) || defined(CONFIG_SND_BCM2708_SOC_I2S_MODULE)
 static struct resource bcm2708_i2s_resources[] = {
 	{
 		.start = I2S_BASE,
@@ -731,14 +730,14 @@ int __init bcm_register_device(struct platform_device *pdev)
 }
 
 /*
- * Use this macro for platform devices that are present in the Device Tree.
- * This way the device is only added on non-DT builds.
+ * Use these macros for platform and i2c devices that are present in the
+ * Device Tree. This way the devices are only added on non-DT systems.
  */
-#ifdef CONFIG_OF
-#define bcm_register_device_dt(pdev)
-#else
-#define bcm_register_device_dt(pdev) bcm_register_device(pdev)
-#endif
+#define bcm_register_device_dt(pdev) \
+    if (!use_dt) bcm_register_device(pdev)
+
+#define i2c_register_board_info_dt(busnum, info, n) \
+    if (!use_dt) i2c_register_board_info(busnum, info, n)
 
 int calc_rsts(int partition)
 {
@@ -814,7 +813,9 @@ static void __init bcm2708_dt_init(void)
 	ret = of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 	if (ret) {
 		pr_err("of_platform_populate failed: %d\n", ret);
-		BUG();
+		/* Proceed as if CONFIG_OF was not defined */
+	} else {
+		use_dt = 1;
 	}
 }
 #else
@@ -842,7 +843,7 @@ void __init bcm2708_init(void)
 #if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
 	w1_gpio_pdata.pin = w1_gpio_pin;
 	w1_gpio_pdata.ext_pullup_enable_pin = w1_gpio_pullup;
-	platform_device_register(&w1_device);
+	bcm_register_device_dt(&w1_device);
 #endif
 	bcm_register_device(&bcm2708_systemtimer_device);
 	bcm_register_device(&bcm2708_fb_device);
@@ -857,46 +858,45 @@ void __init bcm2708_init(void)
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
 		bcm_register_device(&bcm2708_alsa_devices[i]);
 
+	bcm_register_device(&bcm2835_hwmon_device);
+	bcm_register_device(&bcm2835_thermal_device);
+
 	bcm_register_device_dt(&bcm2708_spi_device);
 	bcm_register_device_dt(&bcm2708_bsc0_device);
 	bcm_register_device_dt(&bcm2708_bsc1_device);
 
-	bcm_register_device(&bcm2835_hwmon_device);
-	bcm_register_device(&bcm2835_thermal_device);
-
-#ifdef CONFIG_SND_BCM2708_SOC_I2S_MODULE
-	bcm_register_device(&bcm2708_i2s_device);
+#if defined(CONFIG_SND_BCM2708_SOC_I2S) || defined(CONFIG_SND_BCM2708_SOC_I2S_MODULE)
+	bcm_register_device_dt(&bcm2708_i2s_device);
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
-        bcm_register_device(&snd_hifiberry_dac_device);
-        bcm_register_device(&snd_pcm5102a_codec_device);
+        bcm_register_device_dt(&snd_hifiberry_dac_device);
+        bcm_register_device_dt(&snd_pcm5102a_codec_device);
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS_MODULE)
-        bcm_register_device(&snd_rpi_hifiberry_dacplus_device);
-        i2c_register_board_info(1, snd_pcm512x_hbdacplus_i2c_devices, ARRAY_SIZE(snd_pcm512x_hbdacplus_i2c_devices));
+        bcm_register_device_dt(&snd_rpi_hifiberry_dacplus_device);
+        i2c_register_board_info_dt(1, snd_pcm512x_hbdacplus_i2c_devices, ARRAY_SIZE(snd_pcm512x_hbdacplus_i2c_devices));
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI_MODULE)
-        bcm_register_device(&snd_hifiberry_digi_device);
-        i2c_register_board_info(1, snd_wm8804_i2c_devices, ARRAY_SIZE(snd_wm8804_i2c_devices));
+        bcm_register_device_dt(&snd_hifiberry_digi_device);
+        i2c_register_board_info_dt(1, snd_wm8804_i2c_devices, ARRAY_SIZE(snd_wm8804_i2c_devices));
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP_MODULE)
-        bcm_register_device(&snd_hifiberry_amp_device);
-        i2c_register_board_info(1, snd_tas5713_i2c_devices, ARRAY_SIZE(snd_tas5713_i2c_devices));
+        bcm_register_device_dt(&snd_hifiberry_amp_device);
+        i2c_register_board_info_dt(1, snd_tas5713_i2c_devices, ARRAY_SIZE(snd_tas5713_i2c_devices));
 #endif
 
-
 #if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
-        bcm_register_device(&snd_rpi_dac_device);
-        bcm_register_device(&snd_pcm1794a_codec_device);
+        bcm_register_device_dt(&snd_rpi_dac_device);
+        bcm_register_device_dt(&snd_pcm1794a_codec_device);
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) || defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC_MODULE)
-        bcm_register_device(&snd_rpi_iqaudio_dac_device);
-        i2c_register_board_info(1, snd_pcm512x_i2c_devices, ARRAY_SIZE(snd_pcm512x_i2c_devices));
+        bcm_register_device_dt(&snd_rpi_iqaudio_dac_device);
+        i2c_register_board_info_dt(1, snd_pcm512x_i2c_devices, ARRAY_SIZE(snd_pcm512x_i2c_devices));
 #endif
 
 
@@ -1040,9 +1040,9 @@ static struct platform_device bcm2708_led_device = {
 
 static void __init bcm2708_init_led(void)
 {
-  bcm2708_leds[0].gpio = disk_led_gpio;
-  bcm2708_leds[0].active_low = disk_led_active_low;
-  platform_device_register(&bcm2708_led_device);
+	bcm2708_leds[0].gpio = disk_led_gpio;
+	bcm2708_leds[0].active_low = disk_led_active_low;
+	bcm_register_device_dt(&bcm2708_led_device);
 }
 #else
 static inline void bcm2708_init_led(void)
