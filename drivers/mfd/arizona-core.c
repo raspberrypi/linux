@@ -147,9 +147,6 @@ int arizona_dvfs_down(struct arizona *arizona, unsigned int flags)
 
 	mutex_lock(&arizona->subsys_max_lock);
 
-	if ((arizona->subsys_max_rq & flags) != flags)
-		dev_warn(arizona->dev, "Unbalanced DVFS down: %x\n", flags);
-
 	arizona->subsys_max_rq &= ~flags;
 
 	if (arizona->subsys_max_rq == 0) {
