@@ -493,15 +493,19 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 		divf = dividend & BCM2708_CLK_DIVF_MASK;
 	}
 
-	/* Set clock divider */
-	regmap_write(dev->clk_regmap, BCM2708_CLK_PCMDIV_REG, BCM2708_CLK_PASSWD
-			| BCM2708_CLK_DIVI(divi)
-			| BCM2708_CLK_DIVF(divf));
+	/* Clock should only be set up here if CPU is clock master */
+	if (((dev->fmt & SND_SOC_DAIFMT_MASTER_MASK) == SND_SOC_DAIFMT_CBS_CFS) ||
+	    ((dev->fmt & SND_SOC_DAIFMT_MASTER_MASK) == SND_SOC_DAIFMT_CBS_CFM)) {
+		/* Set clock divider */
+		regmap_write(dev->clk_regmap, BCM2708_CLK_PCMDIV_REG, BCM2708_CLK_PASSWD
+				| BCM2708_CLK_DIVI(divi)
+				| BCM2708_CLK_DIVF(divf));
 
-	/* Setup clock, but don't start it yet */
-	regmap_write(dev->clk_regmap, BCM2708_CLK_PCMCTL_REG, BCM2708_CLK_PASSWD
-			| BCM2708_CLK_MASH(mash)
-			| BCM2708_CLK_SRC(clk_src));
+		/* Setup clock, but don't start it yet */
+		regmap_write(dev->clk_regmap, BCM2708_CLK_PCMCTL_REG, BCM2708_CLK_PASSWD
+				| BCM2708_CLK_MASH(mash)
+				| BCM2708_CLK_SRC(clk_src));
+	}
 
 	/* Setup the frame format */
 	format = BCM2708_I2S_CHEN;
@@ -981,12 +985,19 @@ static int bcm2708_i2s_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id bcm2708_i2s_of_match[] = {
+	{ .compatible = "brcm,bcm2708-i2s", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, bcm2708_i2s_of_match);
+
 static struct platform_driver bcm2708_i2s_driver = {
 	.probe		= bcm2708_i2s_probe,
 	.remove		= bcm2708_i2s_remove,
 	.driver		= {
 		.name	= "bcm2708-i2s",
 		.owner	= THIS_MODULE,
+		.of_match_table = bcm2708_i2s_of_match,
 	},
 };
 
