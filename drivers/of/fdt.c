@@ -1083,8 +1083,12 @@ static struct debugfs_blob_wrapper flat_dt_blob;
 
 static int __init of_flat_dt_debugfs_export_fdt(void)
 {
-	struct dentry *d = debugfs_create_dir("device-tree", NULL);
+	struct dentry *d;
 
+	if (!initial_boot_params)
+		return -ENOENT;
+
+	d = debugfs_create_dir("device-tree", NULL);
 	if (!d)
 		return -ENOENT;
 
