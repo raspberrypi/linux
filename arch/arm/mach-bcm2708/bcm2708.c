@@ -95,6 +95,7 @@ static unsigned reboot_part = 0;
 static unsigned w1_gpio_pin = W1_GPIO;
 static unsigned w1_gpio_pullup = W1_PULLUP;
 static int pps_gpio_pin = -1;
+static bool vc_i2c_override = false;
 
 static unsigned use_dt = 0;
 
@@ -890,8 +891,15 @@ void __init bcm2708_init(void)
 		bcm_register_device(&bcm2708_alsa_devices[i]);
 
 	bcm_register_device_dt(&bcm2708_spi_device);
-	bcm_register_device_dt(&bcm2708_bsc0_device);
-	bcm_register_device_dt(&bcm2708_bsc1_device);
+
+	if (vc_i2c_override) {
+		bcm_register_device_dt(&bcm2708_bsc0_device);
+		bcm_register_device_dt(&bcm2708_bsc1_device);
+	} else if ((boardrev & 0xffffff) == 0x2 || (boardrev & 0xffffff) == 0x3) {
+		bcm_register_device_dt(&bcm2708_bsc0_device);
+	} else {
+		bcm_register_device_dt(&bcm2708_bsc1_device);
+	}
 
 	bcm_register_device(&bcm2835_hwmon_device);
 	bcm_register_device(&bcm2835_thermal_device);
@@ -1126,3 +1134,5 @@ module_param(w1_gpio_pin, uint, 0644);
 module_param(w1_gpio_pullup, uint, 0644);
 module_param(pps_gpio_pin, int, 0644);
 MODULE_PARM_DESC(pps_gpio_pin, "Set GPIO pin to reserve for PPS");
+module_param(vc_i2c_override, bool, 0644);
+MODULE_PARM_DESC(vc_i2c_override, "Allow the use of VC's I2C peripheral.");
