@@ -1015,6 +1015,7 @@ static u32 select_bucket_index(struct nfs4_filelayout_segment *fl, u32 j)
 
 /* The generic layer is about to remove the req from the commit list.
  * If this will make the bucket empty, it will need to put the lseg reference.
+ * Note this is must be called holding the inode (/cinfo) lock
  */
 static void
 filelayout_clear_request_commit(struct nfs_page *req,
@@ -1022,7 +1023,6 @@ filelayout_clear_request_commit(struct nfs_page *req,
 {
 	struct pnfs_layout_segment *freeme = NULL;
 
-	spin_lock(cinfo->lock);
 	if (!test_and_clear_bit(PG_COMMIT_TO_DS, &req->wb_flags))
 		goto out;
 	cinfo->ds->nwritten--;
@@ -1037,8 +1037,7 @@ filelayout_clear_request_commit(struct nfs_page *req,
 	}
 out:
 	nfs_request_remove_commit_list(req, cinfo);
-	spin_unlock(cinfo->lock);
-	pnfs_put_lseg(freeme);
+	pnfs_put_lseg_async(freeme);
 }
 
 static struct list_head *
