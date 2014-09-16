@@ -396,10 +396,10 @@ static int bcm2708_fb_blank(int blank_mode, struct fb_info *info)
 	
 		bcm_mailbox_property(&p, p[0]);
 	
-		pr_info("bcm2708_fb_blank(%d) returns=%d p[1]=0x%x\n", blank_mode, p[5], p[1]);
-	
 		if ( p[1] == VCMSG_REQUEST_SUCCESSFUL )
 			result = 0;
+		else
+			pr_err("bcm2708_fb_blank(%d) returns=%d p[1]=0x%x\n", blank_mode, p[5], p[1]);
 	}
 	return result;
 }
@@ -410,7 +410,8 @@ static int bcm2708_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info 
 	info->var.xoffset = var->xoffset;
 	info->var.yoffset = var->yoffset;
 	result = bcm2708_fb_set_par(info);
-	pr_info("bcm2708_fb_pan_display(%d,%d) returns=%d\n", var->xoffset, var->yoffset, result);
+	if (result != 0)
+		pr_err("bcm2708_fb_pan_display(%d,%d) returns=%d\n", var->xoffset, var->yoffset, result);
 	return result;
 }
 
