@@ -728,7 +728,7 @@ static void intel_hdmi_get_config(struct intel_encoder *encoder,
 	if (tmp & HDMI_MODE_SELECT_HDMI)
 		pipe_config->has_hdmi_sink = true;
 
-	if (tmp & HDMI_MODE_SELECT_HDMI)
+	if (tmp & SDVO_AUDIO_ENABLE)
 		pipe_config->has_audio = true;
 
 	pipe_config->adjusted_mode.flags |= flags;
