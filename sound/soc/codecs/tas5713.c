@@ -180,14 +180,6 @@ static int tas5713_probe(struct snd_soc_codec *codec)
 
 	tas5713 = snd_soc_codec_get_drvdata(codec);
 
-	codec->control_data = tas5713->regmap;
-
-	ret = snd_soc_codec_set_cache_io(codec, 8, 8, SND_SOC_REGMAP);
-	if (ret < 0) {
-		dev_err(codec->dev, "Failed to set cache i/o: %d\n", ret);
-		return ret;
-	}
-
 	// Reset error
 	ret = snd_soc_write(codec, TAS5713_ERROR_STATUS, 0x00);
 
