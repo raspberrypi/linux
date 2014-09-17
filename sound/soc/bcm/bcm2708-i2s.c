@@ -40,6 +40,7 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#include <mach/gpio.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -318,6 +319,26 @@ static int bcm2708_i2s_set_dai_bclk_ratio(struct snd_soc_dai *dai,
 	return 0;
 }
 
+
+static int bcm2708_i2s_set_function(unsigned offset, int function)
+{
+	#define GPIOFSEL(x)  (0x00+(x)*4)
+	void __iomem *gpio = __io_address(GPIO_BASE);
+	unsigned alt = function <= 3 ? function + 4: function == 4 ? 3 : 2;
+	unsigned gpiodir;
+	unsigned gpio_bank = offset / 10;
+	unsigned gpio_field_offset = (offset - 10 * gpio_bank) * 3;
+
+	if (offset >= BCM2708_NR_GPIOS)
+		return -EINVAL;
+
+	gpiodir = readl(gpio + GPIOFSEL(gpio_bank));
+	gpiodir &= ~(7 << gpio_field_offset);
+	gpiodir |= alt << gpio_field_offset;
+	writel(gpiodir, gpio + GPIOFSEL(gpio_bank));
+	return 0;
+}
+
 static void bcm2708_i2s_setup_gpio(void)
 {
 	/*
@@ -326,13 +347,7 @@ static void bcm2708_i2s_setup_gpio(void)
 	 * TODO Better way would be to handle
 	 * this in the device tree!
 	 */
-#define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
-#define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
-
-	unsigned int *gpio;
 	int pin,pinconfig,startpin,alt;
-
-	gpio = ioremap(GPIO_BASE, SZ_16K);
 
 	/* SPI is on different GPIOs on different boards */
         /* for Raspberry Pi B+, this is pin GPIO18-21, for original on 28-31 */
@@ -361,12 +376,8 @@ static void bcm2708_i2s_setup_gpio(void)
 
 	/* configure I2S pins to correct ALT mode */
 	for (pin = startpin; pin <= startpin+3; pin++) {
-                INP_GPIO(pin);		/* set mode to GPIO input first */
-                SET_GPIO_ALT(pin, alt);	/* set mode to ALT  */
+		bcm2708_i2s_set_function(pin, alt);
 	}
-	
-#undef INP_GPIO
-#undef SET_GPIO_ALT
 }
 
 static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
