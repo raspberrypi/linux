@@ -295,7 +295,7 @@ validate_loadstore_tile_buffer_general(VALIDATE_ARGS)
 	if (!vc4_use_handle(exec, 0, VC4_MODE_RENDER, &fbo))
 		return -EINVAL;
 
-	offset = *(uint32_t *)(untrusted + 2);
+	offset = *(uint32_t *)(untrusted + 2) & ~0xf;
 
 	if (!check_tex_size(exec, fbo, offset,
 			    ((packet_b0 &
