@@ -152,7 +152,6 @@ check_register_write(struct vc4_validated_shader_info *validated_shader,
 
 	case QPU_W_HOST_INT:
 	case QPU_W_TMU_NOSWAP:
-	case QPU_W_TLB_STENCIL_SETUP:
 	case QPU_W_TLB_ALPHA_MASK:
 	case QPU_W_MUTEX_RELEASE:
 		/* XXX: I haven't thought about these, so don't support them
@@ -172,6 +171,9 @@ check_register_write(struct vc4_validated_shader_info *validated_shader,
 		 * triggered by QPU_W_VPM_ADDR writes.
 		 */
 		return true;
+
+	case QPU_W_TLB_STENCIL_SETUP:
+                return true;
 	}
 
 	return true;
