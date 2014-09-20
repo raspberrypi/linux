@@ -329,6 +329,9 @@ struct v4l2_fh;
  * @retry_start_streaming: start_streaming() was called, but there were not enough
  *		buffers queued. If set, then retry calling start_streaming when
  *		queuing a new buffer.
+ * @waiting_for_buffers: used in poll() to check if vb2 is still waiting for
+ *		buffers. Only set for capture queues if qbuf has not yet been
+ *		called since poll() needs to return POLLERR in that situation.
  * @fileio:	file io emulator internal data, used only if emulator is active
  */
 struct vb2_queue {
@@ -362,6 +365,7 @@ struct vb2_queue {
 
 	unsigned int			streaming:1;
 	unsigned int			retry_start_streaming:1;
+	unsigned int			waiting_for_buffers:1;
 
 	struct vb2_fileio_data		*fileio;
 };
