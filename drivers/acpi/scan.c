@@ -2184,6 +2184,9 @@ static void acpi_bus_attach(struct acpi_device *device)
  ok:
 	list_for_each_entry(child, &device->children, node)
 		acpi_bus_attach(child);
+
+	if (device->handler && device->handler->hotplug.notify_online)
+		device->handler->hotplug.notify_online(device);
 }
 
 /**
