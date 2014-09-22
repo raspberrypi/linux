@@ -6528,7 +6528,7 @@ insert:
 		 * extent causing the -EEXIST.
 		 */
 		if (start >= extent_map_end(existing) ||
-		    start + len <= existing->start) {
+		    start <= existing->start) {
 			/*
 			 * The existing extent map is the one nearest to
 			 * the [start, start + len) range which overlaps
