@@ -16,7 +16,15 @@ config BCM_VC_CMA
 
 config BCM_VC_SM
 	tristate "VMCS Shared Memory"
+	depends on CMA && BRCM_CHAR_DRIVERS
 	default n
 	help
 	Support for the VC shared memory on the Broadcom reference
 	design. Uses the VCHIQ stack.
+
+config BCM_VC_LMK
+	tristate "Videocore Low-Memory-Killer"
+	depends on CMA && BRCM_CHAR_DRIVERS
+	default n
+        help
+          Helper for low-memory-killer aware of videocore memory comsumption.
