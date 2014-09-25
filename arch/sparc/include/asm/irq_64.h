@@ -37,7 +37,7 @@
  *
  * ino_bucket->irq allocation is made during {sun4v_,}build_irq().
  */
-#define NR_IRQS    255
+#define NR_IRQS		(2048)
 
 extern void irq_install_pre_handler(int irq,
 				    void (*func)(unsigned int, void *, void *),
@@ -57,11 +57,8 @@ extern unsigned int sun4u_build_msi(u32 portid, unsigned int *irq_p,
 				    unsigned long iclr_base);
 extern void sun4u_destroy_msi(unsigned int irq);
 
-extern unsigned char irq_alloc(unsigned int dev_handle,
-				    unsigned int dev_ino);
-#ifdef CONFIG_PCI_MSI
-extern void irq_free(unsigned int irq);
-#endif
+unsigned int irq_alloc(unsigned int dev_handle, unsigned int dev_ino);
+void irq_free(unsigned int irq);
 
 extern void __init init_IRQ(void);
 extern void fixup_irqs(void);
