@@ -74,6 +74,7 @@ try_adding_overflow_memory(struct drm_device *dev, struct exec_info *exec)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct vc4_bo_list_entry *entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+	int ret;
 
 	if (!entry)
 		return -ENOMEM;
@@ -90,6 +91,18 @@ try_adding_overflow_memory(struct drm_device *dev, struct exec_info *exec)
 
 	V3D_WRITE(V3D_BPOA, entry->bo->paddr);
 	V3D_WRITE(V3D_BPOS, entry->bo->base.size);
+
+	/* Wait for the hardware to ack our supplied memory before
+	 * continuing.  There's an ugly race here where if the
+	 * hardware gets the request and continues on to overflow
+	 * again before we read the reg, we'll time out.
+	 */
+	ret = wait_for((V3D_READ(V3D_PCS) & V3D_BMOOM) == 0, 1000);
+	if (ret) {
+		DRM_ERROR("Timed out waiting for hardware to ack "
+			  "overflow memory\n");
+		return ret;
+	}
 
 	return 0;
 }
