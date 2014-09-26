@@ -1184,6 +1184,9 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	dwc_otg_qtd_t *qtd;
 	dwc_otg_hcd_urb_t *urb;
 	void* ptr = NULL;
+	uint32_t intr_enable;
+	unsigned long flags;
+	gintmsk_data_t gintmsk = { .d32 = 0, };
 
 	qtd = DWC_CIRCLEQ_FIRST(&qh->qtd_list);
 
@@ -1409,6 +1412,20 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		hc->desc_list_addr = qh->desc_list_dma;
 
 	dwc_otg_hc_init(hcd->core_if, hc);
+
+	local_irq_save(flags);
+	local_fiq_disable();
+	fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+	/* Enable the top level host channel interrupt. */
+	intr_enable = (1 << hc->hc_num);
+	DWC_MODIFY_REG32(&hcd->core_if->host_if->host_global_regs->haintmsk, 0, intr_enable);
+
+	/* Make sure host channel interrupts are enabled. */
+	gintmsk.b.hcintr = 1;
+	DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, 0, gintmsk.d32);
+	fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
+	local_fiq_enable();
+	local_irq_restore(flags);
 	hc->qh = qh;
 }
 
@@ -1659,6 +1676,7 @@ int fiq_fsm_queue_isoc_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	fiq_print(FIQDBG_INT, hcd->fiq_state, "%08x", st->hcdma_copy.d32);
 	hfnum.d32 = DWC_READ_REG32(&hcd->core_if->host_if->host_global_regs->hfnum);
 	local_fiq_disable();
+	fiq_fsm_spin_lock(&hcd->fiq_state->lock);
 	DWC_WRITE_REG32(&hc_regs->hctsiz, st->hctsiz_copy.d32);
 	DWC_WRITE_REG32(&hc_regs->hcsplt, st->hcsplt_copy.d32);
 	DWC_WRITE_REG32(&hc_regs->hcdma, st->hcdma_copy.d32);
@@ -1676,6 +1694,7 @@ int fiq_fsm_queue_isoc_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	}
 	mb();
 	st->hcchar_copy.b.chen = 0;
+	fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 	local_fiq_enable();
 	return 0;
 }
@@ -1811,7 +1830,7 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	DWC_WRITE_REG32(&hc_regs->hcintmsk, st->hcintmsk_copy.d32);
 
 	local_fiq_disable();
-	mb();
+	fiq_fsm_spin_lock(&hcd->fiq_state->lock);
 
 	if (hc->ep_type & 0x1) {
 		hfnum.d32 = DWC_READ_REG32(&hcd->core_if->host_if->host_global_regs->hfnum);
@@ -1909,7 +1928,7 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 		st->hcchar_copy.b.chen = 1;
 		DWC_WRITE_REG32(&hc_regs->hcchar, st->hcchar_copy.d32);
 	}
-	mb();
+	fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 	local_fiq_enable();
 	return 0;
 }
