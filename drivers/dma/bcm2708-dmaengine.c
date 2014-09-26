@@ -859,7 +859,7 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 		void __iomem *chan_base;
 		int chan_id;
 
-		chan_id = bcm_dma_chan_alloc(BCM_DMA_FEATURE_LITE,
+		chan_id = bcm_dma_chan_alloc(BCM_DMA_FEATURE_FAST,
 			&chan_base,
 			&irq);
 
