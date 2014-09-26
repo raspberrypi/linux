@@ -120,13 +120,22 @@ typedef struct {
 	volatile void* intstat;
 } mphi_regs_t;
 
-
 enum fiq_debug_level {
 	FIQDBG_SCHED = (1 << 0),
 	FIQDBG_INT   = (1 << 1),
 	FIQDBG_ERR   = (1 << 2),
 	FIQDBG_PORTHUB = (1 << 3),
 };
+
+typedef struct {
+	union {
+		uint32_t slock;
+		struct _tickets {
+			uint16_t owner;
+			uint16_t next;
+		} tickets;
+	};
+} fiq_lock_t;
 
 struct fiq_state;
 
@@ -324,6 +333,7 @@ struct fiq_channel_state {
  * It contains top-level state information.
  */
 struct fiq_state {
+	fiq_lock_t lock;
 	mphi_regs_t mphi_regs;
 	void *dwc_regs_base;
 	dma_addr_t dma_base;
@@ -341,6 +351,10 @@ struct fiq_state {
 #endif
 	struct fiq_channel_state channel[0];
 };
+
+extern void fiq_fsm_spin_lock(fiq_lock_t *lock);
+
+extern void fiq_fsm_spin_unlock(fiq_lock_t *lock);
 
 extern int fiq_fsm_too_late(struct fiq_state *st, int n);
 
