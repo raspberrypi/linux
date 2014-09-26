@@ -75,6 +75,46 @@ void notrace _fiq_print(enum fiq_debug_level dbg_lvl, volatile struct fiq_state 
 }
 
 /**
+ * fiq_fsm_spin_lock() - ARMv6+ bare bones spinlock
+ * Must be called with local interrupts and FIQ disabled.
+ */
+inline void fiq_fsm_spin_lock(fiq_lock_t *lock)
+{
+	unsigned long tmp;
+	uint32_t newval;
+	fiq_lock_t lockval;
+	smp_mb__before_spinlock();
+	/* Nested locking, yay. If we are on the same CPU as the fiq, then the disable
+	 * will be sufficient. If we are on a different CPU, then the lock protects us. */
+	prefetchw(&lock->slock);
+	asm volatile (
+	"1:     ldrex   %0, [%3]\n"
+	"       add     %1, %0, %4\n"
+	"       strex   %2, %1, [%3]\n"
+	"       teq     %2, #0\n"
+	"       bne     1b"
+	: "=&r" (lockval), "=&r" (newval), "=&r" (tmp)
+	: "r" (&lock->slock), "I" (1 << 16)
+	: "cc");
+
+	while (lockval.tickets.next != lockval.tickets.owner) {
+		wfe();
+		lockval.tickets.owner = ACCESS_ONCE(lock->tickets.owner);
+	}
+	smp_mb();
+}
+
+/**
+ * fiq_fsm_spin_unlock() - ARMv6+ bare bones spinunlock
+ */
+inline void fiq_fsm_spin_unlock(fiq_lock_t *lock)
+{
+	smp_mb();
+	lock->tickets.owner++;
+	dsb_sev();
+}
+
+/**
  * fiq_fsm_restart_channel() - Poke channel enable bit for a split transaction
  * @channel: channel to re-enable
  */
@@ -1142,6 +1182,7 @@ void notrace dwc_otg_fiq_fsm(struct fiq_state *state, int num_channels)
 	gintsts_handled.d32 = 0;
 	haint_handled.d32 = 0;
 
+	fiq_fsm_spin_lock(&state->lock);
 	gintsts.d32 = FIQ_READ(state->dwc_regs_base + GINTSTS);
 	gintmsk.d32 = FIQ_READ(state->dwc_regs_base + GINTMSK);
 	gintsts.d32 &= gintmsk.d32;
@@ -1231,7 +1272,7 @@ void notrace dwc_otg_fiq_fsm(struct fiq_state *state, int num_channels)
 
 	}
 	state->fiq_done++;
-	mb();
+	fiq_fsm_spin_unlock(&state->lock);
 }
 
 
@@ -1253,6 +1294,7 @@ void notrace dwc_otg_fiq_nop(struct fiq_state *state)
 	gintmsk_data_t gintmsk;
 	hfnum_data_t hfnum;
 
+	fiq_fsm_spin_lock(&state->lock);
 	hfnum.d32 = FIQ_READ(state->dwc_regs_base + HFNUM);
 	gintsts.d32 = FIQ_READ(state->dwc_regs_base + GINTSTS);
 	gintmsk.d32 = FIQ_READ(state->dwc_regs_base + GINTMSK);
@@ -1290,5 +1332,5 @@ void notrace dwc_otg_fiq_nop(struct fiq_state *state)
 
 	}
 	state->fiq_done++;
-	mb();
+	fiq_fsm_spin_unlock(&state->lock);
 }
