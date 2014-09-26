@@ -48,9 +48,12 @@
 #define SLOT_QUEUE_INDEX_FROM_POS(pos) \
 	((int)((unsigned int)(pos) / VCHIQ_SLOT_SIZE))
 
-
 #define BULK_INDEX(x) (x & (VCHIQ_NUM_SERVICE_BULKS - 1))
 
+#define SRVTRACE_LEVEL(srv) \
+	(((srv) && (srv)->trace) ? VCHIQ_LOG_TRACE : vchiq_core_msg_log_level)
+#define SRVTRACE_ENABLED(srv, lev) \
+	(((srv) && (srv)->trace) || (vchiq_core_msg_log_level >= (lev)))
 
 struct vchiq_open_payload {
 	int fourcc;
@@ -875,8 +878,8 @@ queue_message(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 					return VCHIQ_ERROR;
 				}
 				if (i == 0) {
-					if (vchiq_core_msg_log_level >=
-						VCHIQ_LOG_INFO)
+					if (SRVTRACE_ENABLED(service,
+							VCHIQ_LOG_INFO))
 						vchiq_log_dump_mem("Sent", 0,
 							header->data + pos,
 							min(64u,
@@ -942,7 +945,7 @@ queue_message(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 			? service->base.fourcc
 			: VCHIQ_MAKE_FOURCC('?', '?', '?', '?');
 
-		vchiq_log_info(vchiq_core_msg_log_level,
+		vchiq_log_info(SRVTRACE_LEVEL(service),
 			"Sent Msg %s(%u) to %c%c%c%c s:%u d:%d len:%d",
 			msg_type_str(VCHIQ_MSG_TYPE(msgid)),
 			VCHIQ_MSG_TYPE(msgid),
@@ -1334,11 +1337,11 @@ resolve_bulks(VCHIQ_SERVICE_T *service, VCHIQ_BULK_QUEUE_T *queue)
 		vchiq_transfer_bulk(bulk);
 		mutex_unlock(&state->bulk_transfer_mutex);
 
-		if (vchiq_core_msg_log_level >= VCHIQ_LOG_INFO) {
+		if (SRVTRACE_ENABLED(service, VCHIQ_LOG_INFO)) {
 			const char *header = (queue == &service->bulk_tx) ?
 				"Send Bulk to" : "Recv Bulk from";
 			if (bulk->actual != VCHIQ_BULK_ACTUAL_ABORTED)
-				vchiq_log_info(vchiq_core_msg_log_level,
+				vchiq_log_info(SRVTRACE_LEVEL(service),
 					"%s %c%c%c%c d:%d len:%d %x<->%x",
 					header,
 					VCHIQ_FOURCC_AS_4CHARS(
@@ -1348,7 +1351,7 @@ resolve_bulks(VCHIQ_SERVICE_T *service, VCHIQ_BULK_QUEUE_T *queue)
 					(unsigned int)bulk->data,
 					(unsigned int)bulk->remote_data);
 			else
-				vchiq_log_info(vchiq_core_msg_log_level,
+				vchiq_log_info(SRVTRACE_LEVEL(service),
 					"%s %c%c%c%c d:%d ABORTED - tx len:%d,"
 					" rx len:%d %x<->%x",
 					header,
@@ -1395,7 +1398,7 @@ abort_outstanding_bulks(VCHIQ_SERVICE_T *service, VCHIQ_BULK_QUEUE_T *queue)
 		if (queue->process != queue->local_insert) {
 			vchiq_complete_bulk(bulk);
 
-			vchiq_log_info(vchiq_core_msg_log_level,
+			vchiq_log_info(SRVTRACE_LEVEL(service),
 				"%s %c%c%c%c d:%d ABORTED - tx len:%d, "
 				"rx len:%d",
 				is_tx ? "Send Bulk to" : "Recv Bulk from",
@@ -1681,13 +1684,13 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 			break;
 		}
 
-		if (vchiq_core_msg_log_level >= VCHIQ_LOG_INFO) {
+		if (SRVTRACE_ENABLED(service, VCHIQ_LOG_INFO)) {
 			int svc_fourcc;
 
 			svc_fourcc = service
 				? service->base.fourcc
 				: VCHIQ_MAKE_FOURCC('?', '?', '?', '?');
-			vchiq_log_info(vchiq_core_msg_log_level,
+			vchiq_log_info(SRVTRACE_LEVEL(service),
 				"Rcvd Msg %s(%u) from %c%c%c%c s:%d d:%d "
 				"len:%d",
 				msg_type_str(type), type,
@@ -2529,6 +2532,7 @@ vchiq_add_service_internal(VCHIQ_STATE_T *state,
 		service->auto_close    = 1;
 		service->sync          = 0;
 		service->closing       = 0;
+		service->trace         = 0;
 		atomic_set(&service->poll_flags, 0);
 		service->version       = params->version;
 		service->version_min   = params->version_min;
@@ -3537,6 +3541,11 @@ vchiq_set_service_option(VCHIQ_SERVICE_HANDLE_T handle,
 				service->sync = value;
 				status = VCHIQ_SUCCESS;
 			}
+			break;
+
+		case VCHIQ_SERVICE_OPTION_TRACE:
+			service->trace = value;
+			status = VCHIQ_SUCCESS;
 			break;
 
 		default:

@@ -110,7 +110,18 @@ typedef enum
    VCHI_CALLBACK_REASON_MAX
 } VCHI_CALLBACK_REASON_T;
 
-//Calback used by all services / bulk transfers
+// service control options
+typedef enum
+{
+   VCHI_SERVICE_OPTION_MIN,
+
+   VCHI_SERVICE_OPTION_TRACE,
+
+   VCHI_SERVICE_OPTION_MAX
+} VCHI_SERVICE_OPTION_T;
+
+
+//Callback used by all services / bulk transfers
 typedef void (*VCHI_CALLBACK_T)( void *callback_param, //my service local param
                                  VCHI_CALLBACK_REASON_T reason,
                                  void *handle ); //for transmitting msg's only

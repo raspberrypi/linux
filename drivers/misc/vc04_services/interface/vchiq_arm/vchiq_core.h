@@ -294,6 +294,7 @@ typedef struct vchiq_service_struct {
 	char auto_close;
 	char sync;
 	char closing;
+	char trace;
 	atomic_t poll_flags;
 	short version;
 	short version_min;
