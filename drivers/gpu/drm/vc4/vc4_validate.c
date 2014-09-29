@@ -847,7 +847,7 @@ reloc_tex(struct exec_info *exec,
 			break;
 		default:
 			aligned_width = roundup(level_width, 16 / cpp);
-			aligned_height = height;
+			aligned_height = level_height;
 			break;
 		}
 
