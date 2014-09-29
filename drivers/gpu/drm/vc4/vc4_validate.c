@@ -751,6 +751,10 @@ reloc_tex(struct exec_info *exec,
 	struct drm_gem_cma_object *tex;
 	uint32_t p0 = *(uint32_t *)(uniform_data_u + sample->p_offset[0]);
 	uint32_t p1 = *(uint32_t *)(uniform_data_u + sample->p_offset[1]);
+	uint32_t p2 = (sample->p_offset[2] != ~0 ?
+		       *(uint32_t *)(uniform_data_u + sample->p_offset[2]) : 0);
+	uint32_t p3 = (sample->p_offset[3] != ~0 ?
+		       *(uint32_t *)(uniform_data_u + sample->p_offset[3]) : 0);
 	uint32_t *validated_p0 = exec->uniforms_v + sample->p_offset[0];
 	uint32_t offset = p0 & ~0xfff;
 	uint32_t miplevels = (p0 & 15);
@@ -758,6 +762,7 @@ reloc_tex(struct exec_info *exec,
 	uint32_t height = (p1 >> 20) & 2047;
 	uint32_t cpp, tiling_format, utile_w, utile_h;
 	uint32_t i;
+	uint32_t cube_map_stride = 0;
 	enum vc4_texture_data_type type;
 
 	if (width == 0)
@@ -766,8 +771,20 @@ reloc_tex(struct exec_info *exec,
 		height = 2048;
 
 	if (p0 & (1 << 9)) {
-		DRM_ERROR("Cube maps unsupported\n");
-		return false;
+		if ((p2 & (3 << 30)) == (1 << 30))
+			cube_map_stride = p2 & 0x3ffff000;
+		if ((p3 & (3 << 30)) == (1 << 30)) {
+			if (cube_map_stride) {
+				DRM_ERROR("Cube map stride set twice\n");
+				return false;
+			}
+
+			cube_map_stride = p3 & 0x3ffff000;
+		}
+		if (!cube_map_stride) {
+			DRM_ERROR("Cube map stride not set\n");
+			return false;
+		}
 	}
 
 	type = ((p0 >> 4) & 15) | ((p1 >> 31) << 4);
@@ -816,8 +833,8 @@ reloc_tex(struct exec_info *exec,
 	if (!vc4_use_bo(exec, texture_handle_index, VC4_MODE_RENDER, &tex))
 		return false;
 
-	if (!check_tex_size(exec, tex, offset, tiling_format,
-			    width, height, cpp)) {
+	if (!check_tex_size(exec, tex, offset + cube_map_stride * 5,
+			    tiling_format, width, height, cpp)) {
 		return false;
 	}
 
