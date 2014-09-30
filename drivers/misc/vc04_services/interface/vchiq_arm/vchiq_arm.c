@@ -388,15 +388,15 @@ static void close_delivered(USER_SERVICE_T *user_service)
 		"close_delivered(handle=%x)",
 		user_service->service->handle);
 
-	WARN_ON(user_service->close_pending == 0);
+	if (user_service->close_pending) {
+		/* Allow the underlying service to be culled */
+		unlock_service(user_service->service);
 
-	/* Allow the underlying service to be culled */
-	unlock_service(user_service->service);
+		/* Wake the user-thread blocked in close_ or remove_service */
+		up(&user_service->close_event);
 
-	/* Wake the user-thread blocked in close_ or remove_service */
-	up(&user_service->close_event);
-
-	user_service->close_pending = 0;
+		user_service->close_pending = 0;
+	}
 }
 
 /****************************************************************************
