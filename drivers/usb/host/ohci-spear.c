@@ -53,7 +53,7 @@ static int ohci_spear_start(struct usb_hcd *hcd)
 	create_debug_files(ohci);
 
 #ifdef DEBUG
-	ohci_dump(ohci, 1);
+	ohci_dump(ohci);
 #endif
 	return 0;
 }
