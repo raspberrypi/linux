@@ -629,6 +629,8 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 	regmap_update_bits(dev->i2s_regmap, BCM2708_I2S_CS_A_REG,
 			BCM2708_I2S_RXTHR(1)
 			| BCM2708_I2S_TXTHR(1)
+			//FIXME if driver adds U24_LE PCM format support
+			| BCM2708_I2S_RXSEX  //sign-extend received data
 			| BCM2708_I2S_DMAEN, 0xffffffff);
 
 	regmap_update_bits(dev->i2s_regmap, BCM2708_I2S_DREQ_A_REG,
