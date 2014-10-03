@@ -534,7 +534,8 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 		format |= BCM2708_I2S_CH2(BCM2708_I2S_CHPOS(ch2pos));
 		break;
 	case 1:
-		format = BCM2708_I2S_CH1(format) | BCM2708_I2S_CH2(format^BCM2708_I2S_CHEN);
+		//ch1 ok for mono rx, but glitch with mono tx; ch2 works for both rx and tx
+		format = BCM2708_I2S_CH1(format^BCM2708_I2S_CHEN) | BCM2708_I2S_CH2(format);
 		format |= BCM2708_I2S_CH1(BCM2708_I2S_CHPOS(ch1pos));
 		format |= BCM2708_I2S_CH2(BCM2708_I2S_CHPOS(ch2pos));
 		break;
@@ -797,7 +798,7 @@ static struct snd_soc_dai_driver bcm2708_i2s_dai = {
 	.name	= "bcm2708-i2s",
 	.probe	= bcm2708_i2s_dai_probe,
 	.playback = {
-		.channels_min = 2,
+		.channels_min = 1,
 		.channels_max = 2,
 		.rates =	SNDRV_PCM_RATE_8000_192000,
 		.formats =	SNDRV_PCM_FMTBIT_S16_LE
