@@ -129,7 +129,7 @@ struct bcm2835_desc {
 #define BCM2835_DMA_PER_MAP(x)	((x) << 16)
 #define	BCM2835_DMA_WAITS(x)	(((x)&0x1f) << 21)
 
-#define SDHCI_BCM_DMA_WAITS 0  /* delays slowing DMA transfers: 0-31 */
+#define SDHCI_BCM_DMA_WAITS 20  /* delays slowing DMA transfers: 0-31 */
 
 #define BCM2835_DMA_DATA_TYPE_S8	1
 #define BCM2835_DMA_DATA_TYPE_S16	2
