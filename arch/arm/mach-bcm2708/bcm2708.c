@@ -331,6 +331,31 @@ static struct platform_device bcm2708_vcio_device = {
 		},
 };
 
+#ifdef CONFIG_BCM2708_GPIO
+#define BCM_GPIO_DRIVER_NAME "bcm2708_gpio"
+
+static struct resource bcm2708_gpio_resources[] = {
+	[0] = {			/* general purpose I/O */
+	       .start = GPIO_BASE,
+	       .end = GPIO_BASE + SZ_4K - 1,
+	       .flags = IORESOURCE_MEM,
+	       },
+};
+
+static u64 gpio_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
+
+static struct platform_device bcm2708_gpio_device = {
+	.name = BCM_GPIO_DRIVER_NAME,
+	.id = -1,		/* only one VideoCore I/O area */
+	.resource = bcm2708_gpio_resources,
+	.num_resources = ARRAY_SIZE(bcm2708_gpio_resources),
+	.dev = {
+		.dma_mask = &gpio_dmamask,
+		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON),
+		},
+};
+#endif
+
 static struct resource bcm2708_systemtimer_resources[] = {
 	[0] = {			/* system timer access */
 	       .start = ST_BASE,
@@ -473,6 +498,9 @@ void __init bcm2708_init(void)
 
 	bcm_register_device(&bcm2708_dmaman_device);
 	bcm_register_device(&bcm2708_vcio_device);
+#ifdef CONFIG_BCM2708_GPIO
+	bcm_register_device(&bcm2708_gpio_device);
+#endif
 	bcm_register_device(&bcm2708_systemtimer_device);
 	bcm_register_device(&bcm2708_fb_device);
 	bcm_register_device(&bcm2708_usb_device);
