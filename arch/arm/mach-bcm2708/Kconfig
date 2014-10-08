@@ -20,6 +20,14 @@ config BCM2708_DT
 	help
 	  Enable Device Tree support for BCM2708
 
+config BCM2708_GPIO
+	bool "BCM2708 gpio support"
+	depends on MACH_BCM2708
+	select ARCH_REQUIRE_GPIOLIB
+        default y
+	help
+	  Include support for the Broadcom(R) BCM2708 gpio.
+
 config BCM2708_NOL2CACHE
 	bool "Videocore L2 cache disable"
 	depends on MACH_BCM2708
