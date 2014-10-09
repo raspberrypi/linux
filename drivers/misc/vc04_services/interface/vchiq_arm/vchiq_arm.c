@@ -1,4 +1,5 @@
 /**
+ * Copyright (c) 2014 Raspberry Pi (Trading) Ltd. All rights reserved.
  * Copyright (c) 2010-2012 Broadcom. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,12 +45,12 @@
 #include <linux/bug.h>
 #include <linux/semaphore.h>
 #include <linux/list.h>
-#include <linux/proc_fs.h>
 
 #include "vchiq_core.h"
 #include "vchiq_ioctl.h"
 #include "vchiq_arm.h"
 #include "vchiq_killable.h"
+#include "vchiq_debugfs.h"
 
 #define DEVICE_NAME "vchiq"
 
@@ -105,8 +106,6 @@ static const char *const resume_state_names[] = {
 
 
 static void suspend_timer_callback(unsigned long context);
-static int vchiq_proc_add_instance(VCHIQ_INSTANCE_T instance);
-static void vchiq_proc_remove_instance(VCHIQ_INSTANCE_T instance);
 
 
 typedef struct user_service_struct {
@@ -145,11 +144,12 @@ struct vchiq_instance_struct {
 	int pid;
 	int mark;
 	int use_close_delivered;
+	int trace;
 
 	struct list_head bulk_waiter_list;
 	struct mutex bulk_waiter_list_mutex;
 
-	struct proc_dir_entry *proc_entry;
+	VCHIQ_DEBUGFS_NODE_T debugfs_node;
 };
 
 typedef struct dump_context_struct {
@@ -1135,7 +1135,7 @@ vchiq_open(struct inode *inode, struct file *file)
 		instance->state = state;
 		instance->pid = current->tgid;
 
-		ret = vchiq_proc_add_instance(instance);
+		ret = vchiq_debugfs_add_instance(instance);
 		if (ret != 0) {
 			kfree(instance);
 			return ret;
@@ -1288,7 +1288,7 @@ vchiq_release(struct inode *inode, struct file *file)
 			}
 		}
 
-		vchiq_proc_remove_instance(instance);
+		vchiq_debugfs_remove_instance(instance);
 
 		kfree(instance);
 		file->private_data = NULL;
@@ -2542,6 +2542,52 @@ vchiq_release_service_internal(VCHIQ_SERVICE_T *service)
 	return vchiq_release_internal(service->state, service);
 }
 
+VCHIQ_DEBUGFS_NODE_T *
+vchiq_instance_get_debugfs_node(VCHIQ_INSTANCE_T instance)
+{
+	return &instance->debugfs_node;
+}
+
+int
+vchiq_instance_get_use_count(VCHIQ_INSTANCE_T instance)
+{
+	VCHIQ_SERVICE_T *service;
+	int use_count = 0, i;
+	i = 0;
+	while ((service = next_service_by_instance(instance->state,
+		instance, &i)) != NULL) {
+		use_count += service->service_use_count;
+		unlock_service(service);
+	}
+	return use_count;
+}
+
+int
+vchiq_instance_get_pid(VCHIQ_INSTANCE_T instance)
+{
+	return instance->pid;
+}
+
+int
+vchiq_instance_get_trace(VCHIQ_INSTANCE_T instance)
+{
+	return instance->trace;
+}
+
+void
+vchiq_instance_set_trace(VCHIQ_INSTANCE_T instance, int trace)
+{
+	VCHIQ_SERVICE_T *service;
+	int i;
+	i = 0;
+	while ((service = next_service_by_instance(instance->state,
+		instance, &i)) != NULL) {
+		service->trace = trace;
+		unlock_service(service);
+	}
+	instance->trace = (trace != 0);
+}
+
 static void suspend_timer_callback(unsigned long context)
 {
 	VCHIQ_STATE_T *state = (VCHIQ_STATE_T *)context;
@@ -2757,10 +2803,10 @@ vchiq_init(void)
 	int err;
 	void *ptr_err;
 
-	/* create proc entries */
-	err = vchiq_proc_init();
+	/* create debugfs entries */
+	err = vchiq_debugfs_init();
 	if (err != 0)
-		goto failed_proc_init;
+		goto failed_debugfs_init;
 
 	err = alloc_chrdev_region(&vchiq_devid, VCHIQ_MINOR, 1, DEVICE_NAME);
 	if (err != 0) {
@@ -2810,80 +2856,10 @@ failed_class_create:
 failed_cdev_add:
 	unregister_chrdev_region(vchiq_devid, 1);
 failed_alloc_chrdev:
-	vchiq_proc_deinit();
-failed_proc_init:
+	vchiq_debugfs_deinit();
+failed_debugfs_init:
 	vchiq_log_warning(vchiq_arm_log_level, "could not load vchiq");
 	return err;
-}
-
-static int vchiq_instance_get_use_count(VCHIQ_INSTANCE_T instance)
-{
-	VCHIQ_SERVICE_T *service;
-	int use_count = 0, i;
-	i = 0;
-	while ((service = next_service_by_instance(instance->state,
-		instance, &i)) != NULL) {
-		use_count += service->service_use_count;
-		unlock_service(service);
-	}
-	return use_count;
-}
-
-/* read the per-process use-count */
-static int proc_read_use_count(char *page, char **start,
-			       off_t off, int count,
-			       int *eof, void *data)
-{
-	VCHIQ_INSTANCE_T instance = data;
-	int len, use_count;
-
-	use_count = vchiq_instance_get_use_count(instance);
-	len = snprintf(page+off, count, "%d\n", use_count);
-
-	return len;
-}
-
-/* add an instance (process) to the proc entries */
-static int vchiq_proc_add_instance(VCHIQ_INSTANCE_T instance)
-{
-#if 1
-	return 0;
-#else
-	char pidstr[32];
-	struct proc_dir_entry *top, *use_count;
-	struct proc_dir_entry *clients = vchiq_clients_top();
-	int pid = instance->pid;
-
-	snprintf(pidstr, sizeof(pidstr), "%d", pid);
-	top = proc_mkdir(pidstr, clients);
-	if (!top)
-		goto fail_top;
-
-	use_count = create_proc_read_entry("use_count",
-					   0444, top,
-					   proc_read_use_count,
-					   instance);
-	if (!use_count)
-		goto fail_use_count;
-
-	instance->proc_entry = top;
-
-	return 0;
-
-fail_use_count:
-	remove_proc_entry(top->name, clients);
-fail_top:
-	return -ENOMEM;
-#endif
-}
-
-static void vchiq_proc_remove_instance(VCHIQ_INSTANCE_T instance)
-{
-#if 0
-	struct proc_dir_entry *clients = vchiq_clients_top();
-	remove_proc_entry("use_count", instance->proc_entry);
-	remove_proc_entry(instance->proc_entry->name, clients);
-#endif
 }
 
 /****************************************************************************
