@@ -675,6 +675,10 @@ module_param(gpio_in_pull, int, S_IRUGO);
 MODULE_PARM_DESC(gpio_in_pull, "GPIO input pin pull configuration."
 		 " (0 = off, 1 = up, 2 = down, default down)");
 
+module_param(gpio_in_pull, int, S_IRUGO);
+MODULE_PARM_DESC(gpio_in_pull, "GPIO input pin pull configuration."
+		 " (0 = off, 1 = up, 2 = down, default down)");
+
 module_param(sense, int, S_IRUGO);
 MODULE_PARM_DESC(sense, "Override autodetection of IR receiver circuit"
 		 " (0 = active high, 1 = active low )");
