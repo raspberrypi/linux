@@ -70,6 +70,7 @@
 #define I2S_BASE                 (BCM2708_PERI_BASE + 0x203000) /* I2S */
 #define SPI0_BASE		 (BCM2708_PERI_BASE + 0x204000) /* SPI0 */
 #define BSC0_BASE		 (BCM2708_PERI_BASE + 0x205000) /* BSC0 I2C/TWI */
+#define PWM_BASE		 (BCM2708_PERI_BASE + 0x20C000)
 #define UART1_BASE               (BCM2708_PERI_BASE + 0x215000) /* Uart 1 */
 #define EMMC_BASE                (BCM2708_PERI_BASE + 0x300000) /* eMMC interface */
 #define SMI_BASE		 (BCM2708_PERI_BASE + 0x600000) /* SMI */

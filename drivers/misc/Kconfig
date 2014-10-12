@@ -4,6 +4,10 @@
 
 menu "Misc devices"
 
+config BCM2835_WS2812
+	bool "Support DMA user access to WS2812 LEDs"
+	
+
 config SENSORS_LIS3LV02D
 	tristate
 	depends on INPUT
