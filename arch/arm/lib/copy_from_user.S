@@ -90,11 +90,12 @@
 
 	.text
 
-ENTRY(arm_copy_from_user)
+ENTRY(__copy_from_user_std)
+WEAK(arm_copy_from_user)
 
 #include "copy_template.S"
 
-ENDPROC(arm_copy_from_user)
+ENDPROC(__copy_from_user_std)
 EXPORT_SYMBOL(arm_copy_from_user)
 
 	.pushsection .fixup,"ax"

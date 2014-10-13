@@ -173,6 +173,13 @@ config ARCH_BCM_53573
 	  The base chip is BCM53573 and there are some packaging modifications
 	  like BCM47189 and BCM47452.
 
+config ARCH_BCM2835_COPY_USER
+	bool "Enable optimized __copy_to_user and __copy_from_user"
+	depends on ARCH_BCM2835
+	default y
+	help
+	  Optimized versions of __copy_to_user and __copy_from_user for Pi1.
+
 config ARCH_BCM2708
 	bool "Broadcom BCM2708 family"
 	depends on ARCH_MULTI_V6
