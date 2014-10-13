@@ -89,11 +89,13 @@
 
 	.text
 
-ENTRY(__copy_from_user)
+ENTRY(__copy_from_user_std)
+WEAK(__copy_from_user)
 
 #include "copy_template.S"
 
 ENDPROC(__copy_from_user)
+ENDPROC(__copy_from_user_std)
 
 	.pushsection .fixup,"ax"
 	.align 0
