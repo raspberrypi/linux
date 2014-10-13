@@ -22,6 +22,14 @@
 #include <asm/current.h>
 #include <asm/page.h>
 
+#ifndef COPY_FROM_USER_THRESHOLD
+#define COPY_FROM_USER_THRESHOLD 64
+#endif
+
+#ifndef COPY_TO_USER_THRESHOLD
+#define COPY_TO_USER_THRESHOLD 64
+#endif
+
 static int
 pin_page_for_write(const void __user *_addr, pte_t **ptep, spinlock_t **ptlp)
 {
@@ -85,7 +93,44 @@ pin_page_for_write(const void __user *_addr, pte_t **ptep, spinlock_t **ptlp)
 	return 1;
 }
 
-static unsigned long noinline
+static int
+pin_page_for_read(const void __user *_addr, pte_t **ptep, spinlock_t **ptlp)
+{
+	unsigned long addr = (unsigned long)_addr;
+	pgd_t *pgd;
+	pmd_t *pmd;
+	pte_t *pte;
+	pud_t *pud;
+	spinlock_t *ptl;
+
+	pgd = pgd_offset(current->mm, addr);
+	if (unlikely(pgd_none(*pgd) || pgd_bad(*pgd)))
+	{
+		return 0;
+	}
+	pud = pud_offset(pgd, addr);
+	if (unlikely(pud_none(*pud) || pud_bad(*pud)))
+	{
+		return 0;
+	}
+
+	pmd = pmd_offset(pud, addr);
+	if (unlikely(pmd_none(*pmd) || pmd_bad(*pmd)))
+		return 0;
+
+	pte = pte_offset_map_lock(current->mm, pmd, addr, &ptl);
+	if (unlikely(!pte_present(*pte) || !pte_young(*pte))) {
+		pte_unmap_unlock(pte, ptl);
+		return 0;
+	}
+
+	*ptep = pte;
+	*ptlp = ptl;
+
+	return 1;
+}
+
+unsigned long noinline
 __copy_to_user_memcpy(void __user *to, const void *from, unsigned long n)
 {
 	unsigned long ua_flags;
@@ -138,6 +183,54 @@ out:
 	return n;
 }
 
+unsigned long noinline
+__copy_from_user_memcpy(void *to, const void __user *from, unsigned long n)
+{
+	int atomic;
+
+	if (unlikely(segment_eq(get_fs(), KERNEL_DS))) {
+		memcpy(to, (const void *)from, n);
+		return 0;
+	}
+
+	/* the mmap semaphore is taken only if not in an atomic context */
+	atomic = in_atomic();
+
+	if (!atomic)
+		down_read(&current->mm->mmap_sem);
+	while (n) {
+		pte_t *pte;
+		spinlock_t *ptl;
+		int tocopy;
+
+		while (!pin_page_for_read(from, &pte, &ptl)) {
+			char temp;
+			if (!atomic)
+				up_read(&current->mm->mmap_sem);
+			if (__get_user(temp, (char __user *)from))
+				goto out;
+			if (!atomic)
+				down_read(&current->mm->mmap_sem);
+		}
+
+		tocopy = (~(unsigned long)from & ~PAGE_MASK) + 1;
+		if (tocopy > n)
+			tocopy = n;
+
+		memcpy(to, (const void *)from, tocopy);
+		to += tocopy;
+		from += tocopy;
+		n -= tocopy;
+
+		pte_unmap_unlock(pte, ptl);
+	}
+	if (!atomic)
+		up_read(&current->mm->mmap_sem);
+
+out:
+	return n;
+}
+
 unsigned long
 arm_copy_to_user(void __user *to, const void *from, unsigned long n)
 {
@@ -148,7 +241,7 @@ arm_copy_to_user(void __user *to, const void *from, unsigned long n)
 	 * With frame pointer disabled, tail call optimization kicks in
 	 * as well making this test almost invisible.
 	 */
-	if (n < 64) {
+	if (n < COPY_TO_USER_THRESHOLD) {
 		unsigned long ua_flags = uaccess_save_and_enable();
 		n = __copy_to_user_std(to, from, n);
 		uaccess_restore(ua_flags);
@@ -156,6 +249,21 @@ arm_copy_to_user(void __user *to, const void *from, unsigned long n)
 		n = __copy_to_user_memcpy(to, from, n);
 	}
 	return n;
+}
+
+unsigned long __must_check
+arm_copy_from_user(void *to, const void __user *from, unsigned long n)
+{
+	/*
+	 * This test is stubbed out of the main function above to keep
+	 * the overhead for small copies low by avoiding a large
+	 * register dump on the stack just to reload them right away.
+	 * With frame pointer disabled, tail call optimization kicks in
+	 * as well making this test almost invisible.
+	 */
+	if (n < COPY_FROM_USER_THRESHOLD)
+		return __copy_from_user_std(to, from, n);
+	return __copy_from_user_memcpy(to, from, n);
 }
 	
 static unsigned long noinline
