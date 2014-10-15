@@ -853,6 +853,7 @@ static const struct regmap_config bcm2708_regmap_config[] = {
 		.precious_reg = bcm2708_i2s_precious_reg,
 		.volatile_reg = bcm2708_i2s_volatile_reg,
 		.cache_type = REGCACHE_RBTREE,
+		.name = "i2s",
 	},
 	{
 		.reg_bits = 32,
@@ -861,6 +862,7 @@ static const struct regmap_config bcm2708_regmap_config[] = {
 		.max_register = BCM2708_CLK_PCMDIV_REG,
 		.volatile_reg = bcm2708_clk_volatile_reg,
 		.cache_type = REGCACHE_RBTREE,
+		.name = "clk",
 	},
 };
 
