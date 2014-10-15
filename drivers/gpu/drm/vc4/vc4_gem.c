@@ -182,6 +182,10 @@ vc4_flush_caches(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
+	/* Flush the GPU L2 caches.  These caches sit on top of system
+	 * L3 (the 128kb or so shared with the CPU), and are
+	 * non-allocating in the L3.
+	 */
 	V3D_WRITE(V3D_L2CACTL,
 		  V3D_L2CACTL_L2CCLR);
 
@@ -190,6 +194,12 @@ vc4_flush_caches(struct drm_device *dev)
 		  VC4_SET_FIELD(0xf, V3D_SLCACTL_T0CC) |
 		  VC4_SET_FIELD(0xf, V3D_SLCACTL_UCC) |
 		  VC4_SET_FIELD(0xf, V3D_SLCACTL_ICC));
+
+	/* Flush the CPU L1/L2 caches.  Since the GPU reads from L3
+	 * don't snoop up the L1/L2, we have to either do this or
+	 * manually clflush the cachelines we (and userspace) dirtied.
+	 */
+	flush_cache_all();
 
 	barrier();
 }
