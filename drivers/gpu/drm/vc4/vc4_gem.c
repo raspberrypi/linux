@@ -66,7 +66,7 @@ thread_stopped(struct drm_device *dev, uint32_t thread)
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
 	barrier();
-	return !(V3D_READ(V3D_CTNCS(thread)) & V3D_CTRUN);
+	return !(V3D_READ(V3D_PCS) & (0x3 << thread));
 }
 
 static int
