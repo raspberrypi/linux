@@ -202,6 +202,12 @@ static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 
 	vc4_v3d_init_hw(drm);
 
+	ret = drm_irq_install(drm, platform_get_irq(pdev, 0));
+	if (ret) {
+		DRM_ERROR("Failed to install IRQ handler\n");
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -210,6 +216,8 @@ static void vc4_v3d_unbind(struct device *dev, struct device *master,
 {
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dev *vc4 = to_vc4_dev(drm);
+
+	drm_irq_uninstall(drm);
 
 	vc4->v3d = NULL;
 }

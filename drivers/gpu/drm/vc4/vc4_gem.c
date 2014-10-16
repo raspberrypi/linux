@@ -38,6 +38,8 @@ vc4_reset(struct drm_device *dev)
 	DRM_INFO("Resetting GPU.\n");
 	vc4_v3d_set_power(vc4, false);
 	vc4_v3d_set_power(vc4, true);
+
+	vc4_irq_reset(dev);
 }
 
 static void
@@ -69,75 +71,14 @@ thread_stopped(struct drm_device *dev, uint32_t thread)
 }
 
 static int
-try_adding_overflow_memory(struct drm_device *dev, struct exec_info *exec)
-{
-	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	struct vc4_bo_list_entry *entry = kmalloc(sizeof(*entry), GFP_KERNEL);
-	int ret;
-
-	if (!entry)
-		return -ENOMEM;
-
-	entry->bo = drm_gem_cma_create(dev, 256 * 1024);
-	if (IS_ERR(entry->bo)) {
-		int ret = PTR_ERR(entry->bo);
-		DRM_ERROR("Couldn't allocate binner overflow mem\n");
-		kfree(entry);
-		return ret;
-	}
-
-	list_add_tail(&entry->head, &exec->overflow_list);
-
-	V3D_WRITE(V3D_BPOA, entry->bo->paddr);
-	V3D_WRITE(V3D_BPOS, entry->bo->base.size);
-
-	/* Wait for the hardware to ack our supplied memory before
-	 * continuing.  There's an ugly race here where if the
-	 * hardware gets the request and continues on to overflow
-	 * again before we read the reg, we'll time out.
-	 */
-	ret = wait_for((V3D_READ(V3D_PCS) & V3D_BMOOM) == 0, 1000);
-	if (ret) {
-		DRM_ERROR("Timed out waiting for hardware to ack "
-			  "overflow memory\n");
-		return ret;
-	}
-
-	return 0;
-}
-
-static bool
-vc4_job_finished(struct drm_device *dev, struct exec_info *exec)
-{
-	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	bool stopped = thread_stopped(dev, 1);
-
-	/* If the thread is merely paused waiting for overflow memory,
-	 * hand some to it so we can make progress.
-	 */
-	if (V3D_READ(V3D_PCS) & V3D_BMOOM) {
-		int ret = try_adding_overflow_memory(dev, exec);
-		return ret != 0;
-	}
-
-	return stopped;
-}
-
-static int
 wait_for_job(struct drm_device *dev, struct exec_info *exec)
 {
-	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	int ret;
 
-	ret = wait_for(vc4_job_finished(dev, exec), 1000);
+	ret = wait_for(thread_stopped(dev, 1), 1000);
 	if (ret) {
 		DRM_ERROR("timeout waiting for render thread idle\n");
 		return ret;
-	}
-
-	if (V3D_READ(V3D_PCS) & V3D_BMOOM) {
-		DRM_ERROR("binner oom and stopped.\n");
-		return -EINVAL;
 	}
 
 	return 0;
@@ -383,13 +324,13 @@ int
 vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 		    struct drm_file *file_priv)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct exec_info exec;
 	int ret;
 	int i;
 
 	memset(&exec, 0, sizeof(exec));
 	exec.args = data;
-	INIT_LIST_HEAD(&exec.overflow_list);
 
 	mutex_lock(&dev->struct_mutex);
 
@@ -414,10 +355,18 @@ fail:
 		kfree(exec.bo);
 	}
 
-	while (!list_empty(&exec.overflow_list)) {
+	/* Release all but the very last overflow list entry (which is
+	 * still sitting in the BPOS/BPOA registers for use by the
+	 * next job).
+	 */
+	while (true) {
 		struct vc4_bo_list_entry *entry =
-			list_first_entry(&exec.overflow_list,
+			list_first_entry(&vc4->overflow_list,
 					 struct vc4_bo_list_entry, head);
+
+		if (entry->head.next == &vc4->overflow_list)
+			break;
+
 		drm_gem_object_unreference(&entry->bo->base);
 		list_del(&entry->head);
 		kfree(entry);

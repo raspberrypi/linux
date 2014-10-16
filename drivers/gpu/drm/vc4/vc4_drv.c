@@ -58,6 +58,8 @@ vc4_drm_load(struct drm_device *dev, unsigned long flags)
 	if (!vc4)
 		return -ENOMEM;
 
+	INIT_LIST_HEAD(&vc4->overflow_list);
+
 	vc4->firmware_node = of_parse_phandle(dev->dev->of_node, "firmware", 0);
 	if (!vc4->firmware_node) {
 		DRM_ERROR("Failed to parse firmware node.\n");
@@ -114,10 +116,16 @@ static const struct drm_ioctl_desc vc4_drm_ioctls[] = {
 static struct drm_driver vc4_drm_driver = {
 	.driver_features = (DRIVER_MODESET |
 			    DRIVER_GEM |
+			    DRIVER_HAVE_IRQ |
 			    DRIVER_PRIME),
 	.load = vc4_drm_load,
 	.unload = vc4_drm_unload,
 	.set_busid = drm_platform_set_busid,
+
+	.irq_handler = vc4_irq,
+	.irq_preinstall = vc4_irq_preinstall,
+	.irq_postinstall = vc4_irq_postinstall,
+	.irq_uninstall = vc4_irq_uninstall,
 
 	.enable_vblank = vc4_enable_vblank,
 	.disable_vblank = vc4_disable_vblank,
