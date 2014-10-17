@@ -268,7 +268,7 @@ validate_loadstore_tile_buffer_general(VALIDATE_ARGS)
 	uint32_t packet_b1 = *(uint8_t *)(untrusted + 1);
 	struct drm_gem_cma_object *fbo;
 	uint32_t buffer_type = packet_b0 & 0xf;
-	uint32_t offset, cpp;
+	uint32_t untrusted_address, offset, cpp;
 
 	switch (buffer_type) {
 	case VC4_LOADSTORE_TILE_BUFFER_NONE:
@@ -295,7 +295,8 @@ validate_loadstore_tile_buffer_general(VALIDATE_ARGS)
 	if (!vc4_use_handle(exec, 0, VC4_MODE_RENDER, &fbo))
 		return -EINVAL;
 
-	offset = *(uint32_t *)(untrusted + 2) & ~0xf;
+	untrusted_address = *(uint32_t *)(untrusted + 2);
+	offset = untrusted_address & ~0xf;
 
 	if (!check_tex_size(exec, fbo, offset,
 			    ((packet_b0 &
@@ -305,7 +306,8 @@ validate_loadstore_tile_buffer_general(VALIDATE_ARGS)
 		return -EINVAL;
 	}
 
-	*(uint32_t *)(validated + 2) = offset + fbo->paddr;
+	*(uint32_t *)(validated + 2) = (offset + fbo->paddr +
+					(untrusted_address & 0xf));
 
 	return 0;
 }
