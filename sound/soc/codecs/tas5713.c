@@ -346,7 +346,6 @@ static struct i2c_driver tas5713_i2c_driver = {
 static int __init tas5713_modinit(void)
 {
 	int ret = 0;
-	int err = -1;
 
 	ret = i2c_add_driver(&tas5713_i2c_driver);
 	if (ret) {

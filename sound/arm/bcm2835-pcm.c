@@ -214,15 +214,20 @@ static int snd_bcm2835_playback_close(struct snd_pcm_substream *substream)
 {
 	/* the hardware-specific codes will be here */
 
+	bcm2835_chip_t *chip;
+	struct snd_pcm_runtime *runtime;
+	bcm2835_alsa_stream_t *alsa_stream;
+
 	audio_info(" .. IN\n");
-	bcm2835_chip_t *chip = snd_pcm_substream_chip(substream);
+
+	chip = snd_pcm_substream_chip(substream);
 	if(mutex_lock_interruptible(&chip->audio_mutex))
 	{
 		audio_error("Interrupted whilst waiting for lock\n");
 		return -EINTR;
 	}
-	struct snd_pcm_runtime *runtime = substream->runtime;
-	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
+	runtime = substream->runtime;
+	alsa_stream = runtime->private_data;
 
 	audio_info("Alsa close\n");
 
