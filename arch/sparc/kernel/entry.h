@@ -66,13 +66,10 @@ struct pause_patch_entry {
 extern struct pause_patch_entry __pause_3insn_patch,
 	__pause_3insn_patch_end;
 
-extern void __init per_cpu_patch(void);
 extern void sun4v_patch_1insn_range(struct sun4v_1insn_patch_entry *,
 				    struct sun4v_1insn_patch_entry *);
 extern void sun4v_patch_2insn_range(struct sun4v_2insn_patch_entry *,
 				    struct sun4v_2insn_patch_entry *);
-extern void __init sun4v_patch(void);
-extern void __init boot_cpu_id_too_large(int cpu);
 extern unsigned int dcache_parity_tl1_occurred;
 extern unsigned int icache_parity_tl1_occurred;
 
