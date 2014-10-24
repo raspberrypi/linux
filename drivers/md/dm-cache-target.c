@@ -786,8 +786,8 @@ static void migration_success_pre_commit(struct dm_cache_migration *mg)
 	struct cache *cache = mg->cache;
 
 	if (mg->writeback) {
-		cell_defer(cache, mg->old_ocell, false);
 		clear_dirty(cache, mg->old_oblock, mg->cblock);
+		cell_defer(cache, mg->old_ocell, false);
 		cleanup_migration(mg);
 		return;
 
@@ -839,8 +839,8 @@ static void migration_success_post_commit(struct dm_cache_migration *mg)
 			cleanup_migration(mg);
 
 	} else {
-		cell_defer(cache, mg->new_ocell, true);
 		clear_dirty(cache, mg->new_oblock, mg->cblock);
+		cell_defer(cache, mg->new_ocell, true);
 		cleanup_migration(mg);
 	}
 }

@@ -282,6 +282,15 @@ static void dwc_dostart(struct dw_dma_chan *dwc, struct dw_desc *first)
 	channel_set_bit(dw, CH_EN, dwc->mask);
 }
 
+static void dwc_dostart_first_queued(struct dw_dma_chan *dwc)
+{
+	if (list_empty(&dwc->queue))
+		return;
+
+	list_move(dwc->queue.next, &dwc->active_list);
+	dwc_dostart(dwc, dwc_first_active(dwc));
+}
+
 /*----------------------------------------------------------------------*/
 
 static void
@@ -357,10 +366,7 @@ static void dwc_complete_all(struct dw_dma *dw, struct dw_dma_chan *dwc)
 	 * the completed ones.
 	 */
 	list_splice_init(&dwc->active_list, &list);
-	if (!list_empty(&dwc->queue)) {
-		list_move(dwc->queue.next, &dwc->active_list);
-		dwc_dostart(dwc, dwc_first_active(dwc));
-	}
+	dwc_dostart_first_queued(dwc);
 
 	spin_unlock_irqrestore(&dwc->lock, flags);
 
@@ -490,10 +496,7 @@ static void dwc_scan_descriptors(struct dw_dma *dw, struct dw_dma_chan *dwc)
 	/* Try to continue after resetting the channel... */
 	dwc_chan_disable(dw, dwc);
 
-	if (!list_empty(&dwc->queue)) {
-		list_move(dwc->queue.next, &dwc->active_list);
-		dwc_dostart(dwc, dwc_first_active(dwc));
-	}
+	dwc_dostart_first_queued(dwc);
 	spin_unlock_irqrestore(&dwc->lock, flags);
 }
 
@@ -700,17 +703,9 @@ static dma_cookie_t dwc_tx_submit(struct dma_async_tx_descriptor *tx)
 	 * possible, perhaps even appending to those already submitted
 	 * for DMA. But this is hard to do in a race-free manner.
 	 */
-	if (list_empty(&dwc->active_list)) {
-		dev_vdbg(chan2dev(tx->chan), "%s: started %u\n", __func__,
-				desc->txd.cookie);
-		list_add_tail(&desc->desc_node, &dwc->active_list);
-		dwc_dostart(dwc, dwc_first_active(dwc));
-	} else {
-		dev_vdbg(chan2dev(tx->chan), "%s: queued %u\n", __func__,
-				desc->txd.cookie);
 
-		list_add_tail(&desc->desc_node, &dwc->queue);
-	}
+	dev_vdbg(chan2dev(tx->chan), "%s: queued %u\n", __func__, desc->txd.cookie);
+	list_add_tail(&desc->desc_node, &dwc->queue);
 
 	spin_unlock_irqrestore(&dwc->lock, flags);
 
@@ -1116,9 +1111,12 @@ dwc_tx_status(struct dma_chan *chan,
 static void dwc_issue_pending(struct dma_chan *chan)
 {
 	struct dw_dma_chan	*dwc = to_dw_dma_chan(chan);
+	unsigned long		flags;
 
-	if (!list_empty(&dwc->queue))
-		dwc_scan_descriptors(to_dw_dma(chan->device), dwc);
+	spin_lock_irqsave(&dwc->lock, flags);
+	if (list_empty(&dwc->active_list))
+		dwc_dostart_first_queued(dwc);
+	spin_unlock_irqrestore(&dwc->lock, flags);
 }
 
 static int dwc_alloc_chan_resources(struct dma_chan *chan)
