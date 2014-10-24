@@ -123,6 +123,7 @@ static int __init cma_activate_area(struct cma *cma)
 
 err:
 	kfree(cma->bitmap);
+	cma->count = 0;
 	return -EINVAL;
 }
 
