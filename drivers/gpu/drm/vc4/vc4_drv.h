@@ -197,6 +197,7 @@ struct exec_info {
  * Setup") for definitions of the texture parameters.
  */
 struct vc4_texture_sample_info {
+	bool is_direct;
 	uint32_t p_offset[4];
 };
 

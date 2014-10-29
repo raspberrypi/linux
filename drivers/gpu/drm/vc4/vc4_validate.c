@@ -767,6 +767,23 @@ reloc_tex(struct exec_info *exec,
 	uint32_t cube_map_stride = 0;
 	enum vc4_texture_data_type type;
 
+	if (!vc4_use_bo(exec, texture_handle_index, VC4_MODE_RENDER, &tex))
+		return false;
+
+	if (sample->is_direct) {
+		uint32_t remaining_size = tex->base.size - p0;
+		if (p0 > tex->base.size - 4) {
+			DRM_ERROR("UBO offset greater than UBO size\n");
+			return false;
+		}
+		if (p1 > remaining_size - 4) {
+			DRM_ERROR("UBO clamp would allow reads outside of UBO\n");
+			return false;
+		}
+		*validated_p0 = tex->paddr + p0;
+		return true;
+	}
+
 	if (width == 0)
 		width = 2048;
 	if (height == 0)
@@ -831,9 +848,6 @@ reloc_tex(struct exec_info *exec,
 		else
 			tiling_format = VC4_TILING_FORMAT_T;
 	}
-
-	if (!vc4_use_bo(exec, texture_handle_index, VC4_MODE_RENDER, &tex))
-		return false;
 
 	if (!check_tex_size(exec, tex, offset + cube_map_stride * 5,
 			    tiling_format, width, height, cpp)) {

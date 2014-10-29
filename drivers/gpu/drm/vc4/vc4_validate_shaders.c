@@ -50,7 +50,38 @@
 struct vc4_shader_validation_state {
 	struct vc4_texture_sample_info tmu_setup[2];
 	int tmu_write_count[2];
+
+	/* For registers that were last written to by a MIN instruction with
+	 * one argument being a uniform, the address of the uniform.
+	 * Otherwise, ~0.
+	 *
+	 * This is used for the validation of direct address memory reads.
+	 */
+	uint32_t live_clamp_offsets[32 + 32 + 4];
 };
+
+static uint32_t
+waddr_to_live_reg_index(uint32_t waddr, bool is_b)
+{
+	if (waddr < 32) {
+		if (is_b)
+			return 32 + waddr;
+		else
+			return waddr;
+	} else if (waddr <= QPU_W_ACC3) {
+
+		return 64 + waddr - QPU_W_ACC0;
+	} else {
+		return ~0;
+	}
+}
+
+static bool
+is_tmu_submit(uint32_t waddr)
+{
+	return (waddr == QPU_W_TMU0_S ||
+		waddr == QPU_W_TMU1_S);
+}
 
 static bool
 is_tmu_write(uint32_t waddr)
@@ -74,27 +105,86 @@ record_validated_texture_sample(struct vc4_validated_shader_info *validated_shad
 	if (!temp_samples)
 		return false;
 
-	memcpy(temp_samples[s].p_offset,
-	       validation_state->tmu_setup[tmu].p_offset,
-	       validation_state->tmu_write_count[tmu] * sizeof(uint32_t));
-	for (i = validation_state->tmu_write_count[tmu]; i < 4; i++)
-		temp_samples[s].p_offset[i] = ~0;
+	memcpy(&temp_samples[s],
+	       &validation_state->tmu_setup[tmu],
+	       sizeof(*temp_samples));
 
 	validated_shader->num_texture_samples = s + 1;
 	validated_shader->texture_samples = temp_samples;
+
+	for (i = 0; i < 4; i++)
+		validation_state->tmu_setup[tmu].p_offset[i] = ~0;
 
 	return true;
 }
 
 static bool
-check_tmu_write(struct vc4_validated_shader_info *validated_shader,
+check_tmu_write(uint64_t inst,
+		struct vc4_validated_shader_info *validated_shader,
 		struct vc4_shader_validation_state *validation_state,
-		uint32_t waddr)
+		bool is_mul)
 {
+	uint32_t waddr = (is_mul ?
+			  QPU_GET_FIELD(inst, QPU_WADDR_MUL) :
+			  QPU_GET_FIELD(inst, QPU_WADDR_ADD));
+	uint32_t raddr_a = QPU_GET_FIELD(inst, QPU_RADDR_A);
+	uint32_t raddr_b = QPU_GET_FIELD(inst, QPU_RADDR_B);
 	int tmu = waddr > QPU_W_TMU0_B;
+	bool submit = is_tmu_submit(waddr);
+	bool is_direct = submit && validation_state->tmu_write_count[tmu] == 0;
 
-	if (!is_tmu_write(waddr))
-		return true;
+	if (is_direct) {
+		uint32_t add_a = QPU_GET_FIELD(inst, QPU_ADD_A);
+		uint32_t add_b = QPU_GET_FIELD(inst, QPU_ADD_B);
+		uint32_t clamp_offset = ~0;
+
+		/* Make sure that this texture load is an add of the base
+		 * address of the UBO to a clamped offset within the UBO.
+		 */
+		if (is_mul ||
+		    QPU_GET_FIELD(inst, QPU_OP_ADD) != QPU_A_ADD) {
+			DRM_ERROR("direct TMU load wasn't an add\n");
+			return false;
+		}
+
+		/* We assert that the the clamped address is the first
+		 * argument, and the UBO base address is the second argument.
+		 * This is arbitrary, but simpler than supporting flipping the
+		 * two either way.
+		 */
+		if (add_a == QPU_MUX_A) {
+			clamp_offset = validation_state->live_clamp_offsets[raddr_a];
+		} else if (add_a == QPU_MUX_B) {
+			clamp_offset = validation_state->live_clamp_offsets[32 + raddr_b];
+		} else if (add_a <= QPU_MUX_R4) {
+			clamp_offset = validation_state->live_clamp_offsets[64 + add_a];
+		}
+
+		if (clamp_offset == ~0) {
+			DRM_ERROR("direct TMU load wasn't clamped\n");
+			return false;
+		}
+
+		/* Store the clamp value's offset in p1 (see reloc_tex() in
+		 * vc4_validate.c).
+		 */
+		validation_state->tmu_setup[tmu].p_offset[1] =
+			clamp_offset;
+
+		if (!(add_b == QPU_MUX_A && raddr_a == QPU_R_UNIF) &&
+		    !(add_b == QPU_MUX_B && raddr_b == QPU_R_UNIF)) {
+			DRM_ERROR("direct TMU load didn't add to a uniform\n");
+			return false;
+		}
+
+		validation_state->tmu_setup[tmu].is_direct = true;
+	} else {
+		if (raddr_a == QPU_R_UNIF || raddr_b == QPU_R_UNIF) {
+			DRM_ERROR("uniform read in the same instruction as "
+				  "texture setup.\n");
+			return false;
+		}
+	}
 
 	if (validation_state->tmu_write_count[tmu] >= 4) {
 		DRM_ERROR("TMU%d got too many parameters before dispatch\n",
@@ -104,9 +194,13 @@ check_tmu_write(struct vc4_validated_shader_info *validated_shader,
 	validation_state->tmu_setup[tmu].p_offset[validation_state->tmu_write_count[tmu]] =
 		validated_shader->uniforms_size;
 	validation_state->tmu_write_count[tmu]++;
-	validated_shader->uniforms_size += 4;
+	/* Since direct uses a RADDR uniform reference, it will get counted in
+	 * check_instruction_reads()
+	 */
+	if (!is_direct)
+		validated_shader->uniforms_size += 4;
 
-	if (waddr == QPU_W_TMU0_S || waddr == QPU_W_TMU1_S) {
+	if (submit) {
 		if (!record_validated_texture_sample(validated_shader,
 						     validation_state, tmu)) {
 			return false;
@@ -119,10 +213,17 @@ check_tmu_write(struct vc4_validated_shader_info *validated_shader,
 }
 
 static bool
-check_register_write(struct vc4_validated_shader_info *validated_shader,
+check_register_write(uint64_t inst,
+		     struct vc4_validated_shader_info *validated_shader,
 		     struct vc4_shader_validation_state *validation_state,
-		     uint32_t waddr)
+		     bool is_mul)
 {
+	uint32_t waddr = (is_mul ?
+			  QPU_GET_FIELD(inst, QPU_WADDR_MUL) :
+			  QPU_GET_FIELD(inst, QPU_WADDR_ADD));
+	bool is_b = is_mul != ((inst & QPU_PM) != 0);
+	uint32_t live_reg_index;
+
 	switch (waddr) {
 	case QPU_W_UNIFORMS_ADDRESS:
 		/* XXX: We'll probably need to support this for reladdr, but
@@ -147,8 +248,8 @@ check_register_write(struct vc4_validated_shader_info *validated_shader,
 	case QPU_W_TMU1_T:
 	case QPU_W_TMU1_R:
 	case QPU_W_TMU1_B:
-		return check_tmu_write(validated_shader, validation_state,
-				       waddr);
+		return check_tmu_write(inst, validated_shader, validation_state,
+				       is_mul);
 
 	case QPU_W_HOST_INT:
 	case QPU_W_TMU_NOSWAP:
@@ -176,7 +277,42 @@ check_register_write(struct vc4_validated_shader_info *validated_shader,
                 return true;
 	}
 
+	/* Clear out the live offset clamp tracking for the written register.
+	 * If this particular instruction is setting up an offset clamp, it'll
+	 * get tracked immediately after we return.
+	 */
+	live_reg_index = waddr_to_live_reg_index(waddr, is_b);
+	if (live_reg_index != ~0)
+		validation_state->live_clamp_offsets[live_reg_index] = ~0;
+
 	return true;
+}
+
+static void
+track_live_clamps(uint64_t inst,
+		  struct vc4_validated_shader_info *validated_shader,
+		  struct vc4_shader_validation_state *validation_state)
+{
+	uint32_t waddr_add = QPU_GET_FIELD(inst, QPU_WADDR_ADD);
+	uint32_t add_b = QPU_GET_FIELD(inst, QPU_ADD_B);
+	uint32_t raddr_a = QPU_GET_FIELD(inst, QPU_RADDR_A);
+	uint32_t raddr_b = QPU_GET_FIELD(inst, QPU_RADDR_B);
+	bool pm = inst & QPU_PM;
+	uint32_t live_reg_index;
+
+	if (QPU_GET_FIELD(inst, QPU_OP_ADD) != QPU_A_MIN)
+		return;
+
+	if (!(add_b == QPU_MUX_A && raddr_a == QPU_R_UNIF) &&
+	    !(add_b == QPU_MUX_B && raddr_b == QPU_R_UNIF)) {
+		return;
+	}
+
+	live_reg_index = waddr_to_live_reg_index(waddr_add, pm);
+	if (live_reg_index != ~0) {
+		validation_state->live_clamp_offsets[live_reg_index] =
+			validated_shader->uniforms_size;
+	}
 }
 
 static bool
@@ -186,33 +322,30 @@ check_instruction_writes(uint64_t inst,
 {
 	uint32_t waddr_add = QPU_GET_FIELD(inst, QPU_WADDR_ADD);
 	uint32_t waddr_mul = QPU_GET_FIELD(inst, QPU_WADDR_MUL);
+	bool ok;
 
 	if (is_tmu_write(waddr_add) && is_tmu_write(waddr_mul)) {
 		DRM_ERROR("ADD and MUL both set up textures\n");
 		return false;
 	}
 
-	return (check_register_write(validated_shader, validation_state, waddr_add) &&
-		check_register_write(validated_shader, validation_state, waddr_mul));
+	ok = (check_register_write(inst, validated_shader, validation_state, false) &&
+	      check_register_write(inst, validated_shader, validation_state, true));
+
+	track_live_clamps(inst, validated_shader, validation_state);
+
+	return ok;
 }
 
 static bool
 check_instruction_reads(uint64_t inst,
 			struct vc4_validated_shader_info *validated_shader)
 {
-	uint32_t waddr_add = QPU_GET_FIELD(inst, QPU_WADDR_ADD);
-	uint32_t waddr_mul = QPU_GET_FIELD(inst, QPU_WADDR_MUL);
 	uint32_t raddr_a = QPU_GET_FIELD(inst, QPU_RADDR_A);
 	uint32_t raddr_b = QPU_GET_FIELD(inst, QPU_RADDR_B);
 
 	if (raddr_a == QPU_R_UNIF ||
 	    raddr_b == QPU_R_UNIF) {
-		if (is_tmu_write(waddr_add) || is_tmu_write(waddr_mul)) {
-			DRM_ERROR("uniform read in the same instruction as "
-				  "texture setup");
-			return false;
-		}
-
 		/* This can't overflow the uint32_t, because we're reading 8
 		 * bytes of instruction to increment by 4 here, so we'd
 		 * already be OOM.
@@ -233,8 +366,14 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj,
 	uint64_t *shader;
 	struct vc4_validated_shader_info *validated_shader;
 	struct vc4_shader_validation_state validation_state;
+	int i;
 
 	memset(&validation_state, 0, sizeof(validation_state));
+
+	for (i = 0; i < 8; i++)
+		validation_state.tmu_setup[i / 4].p_offset[i % 4] = ~0;
+	for (i = 0; i < ARRAY_SIZE(validation_state.live_clamp_offsets); i++)
+		validation_state.live_clamp_offsets[i] = ~0;
 
 	if (start_offset + sizeof(uint64_t) > shader_obj->base.size) {
 		DRM_ERROR("shader starting at %d outside of BO sized %d\n",
