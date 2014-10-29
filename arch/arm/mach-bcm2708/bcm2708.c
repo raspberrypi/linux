@@ -754,6 +754,19 @@ static struct i2c_board_info __initdata snd_pcm512x_i2c_devices[] = {
 };
 #endif
 
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_PROTO_MODULE
+static struct platform_device snd_rpi_proto_device = {
+        .name = "snd-rpi-proto",
+        .id = 0,
+        .num_resources = 0,
+};
+static struct i2c_board_info __initdata snd_rpi_proto_i2c_devices[] = {
+        {
+                I2C_BOARD_INFO("wm8731", 0x1a)
+        },
+};
+#endif
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -922,6 +935,10 @@ void __init bcm2708_init(void)
 #if defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) || defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC_MODULE)
         bcm_register_device(&snd_rpi_iqaudio_dac_device);
         i2c_register_board_info(1, snd_pcm512x_i2c_devices, ARRAY_SIZE(snd_pcm512x_i2c_devices));
+#endif
+#if defined(CONFIG_SND_BCM2708_SOC_RPI_CODEC_PROTO_MODULE)
+	bcm_register_device(&snd_rpi_proto_device);
+	i2c_register_board_info(1, snd_rpi_proto_i2c_devices, ARRAY_SIZE(snd_rpi_proto_i2c_devices));
 #endif
 
 
