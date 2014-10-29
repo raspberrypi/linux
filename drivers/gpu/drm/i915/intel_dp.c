@@ -3354,9 +3354,10 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 		}
 	}
 
-	/* Training Pattern 3 support */
+	/* Training Pattern 3 support, both source and sink */
 	if (intel_dp->dpcd[DP_DPCD_REV] >= 0x12 &&
-	    intel_dp->dpcd[DP_MAX_LANE_COUNT] & DP_TPS3_SUPPORTED) {
+	    intel_dp->dpcd[DP_MAX_LANE_COUNT] & DP_TPS3_SUPPORTED &&
+	    (IS_HASWELL(dev) || INTEL_INFO(dev)->gen >= 8)) {
 		intel_dp->use_tps3 = true;
 		DRM_DEBUG_KMS("Displayport TPS3 supported");
 	} else
