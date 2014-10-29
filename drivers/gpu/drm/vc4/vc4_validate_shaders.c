@@ -399,6 +399,7 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj,
 		case QPU_SIG_COLOR_LOAD:
 		case QPU_SIG_LOAD_TMU0:
 		case QPU_SIG_LOAD_TMU1:
+		case QPU_SIG_PROG_END:
 			if (!check_instruction_writes(inst, validated_shader,
 						      &validation_state)) {
 				DRM_ERROR("Bad write at ip %d\n", ip);
@@ -408,6 +409,11 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj,
 			if (!check_instruction_reads(inst, validated_shader))
 				goto fail;
 
+			if (sig == QPU_SIG_PROG_END) {
+				found_shader_end = true;
+				shader_end_ip = ip;
+			}
+
 			break;
 
 		case QPU_SIG_LOAD_IMM:
@@ -416,11 +422,6 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj,
 				DRM_ERROR("Bad LOAD_IMM write at ip %d\n", ip);
 				goto fail;
 			}
-			break;
-
-		case QPU_SIG_PROG_END:
-			found_shader_end = true;
-			shader_end_ip = ip;
 			break;
 
 		default:
