@@ -186,9 +186,9 @@ static ssize_t modalias_show(struct device *dev, struct device_attribute *attr, 
 }
 static DEVICE_ATTR_RO(modalias);
 
-static ssize_t enabled_store(struct device *dev,
-			     struct device_attribute *attr, const char *buf,
-			     size_t count)
+static ssize_t enable_store(struct device *dev,
+			    struct device_attribute *attr, const char *buf,
+			    size_t count)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
 	unsigned long val;
@@ -212,15 +212,15 @@ static ssize_t enabled_store(struct device *dev,
 	return result < 0 ? result : count;
 }
 
-static ssize_t enabled_show(struct device *dev,
-			    struct device_attribute *attr, char *buf)
+static ssize_t enable_show(struct device *dev,
+			   struct device_attribute *attr, char *buf)
 {
 	struct pci_dev *pdev;
 
 	pdev = to_pci_dev (dev);
 	return sprintf (buf, "%u\n", atomic_read(&pdev->enable_cnt));
 }
-static DEVICE_ATTR_RW(enabled);
+static DEVICE_ATTR_RW(enable);
 
 #ifdef CONFIG_NUMA
 static ssize_t
@@ -526,7 +526,7 @@ static struct attribute *pci_dev_attrs[] = {
 #endif
 	&dev_attr_dma_mask_bits.attr,
 	&dev_attr_consistent_dma_mask_bits.attr,
-	&dev_attr_enabled.attr,
+	&dev_attr_enable.attr,
 	&dev_attr_broken_parity_status.attr,
 	&dev_attr_msi_bus.attr,
 #if defined(CONFIG_PM_RUNTIME) && defined(CONFIG_ACPI)
