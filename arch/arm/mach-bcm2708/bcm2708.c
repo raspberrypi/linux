@@ -37,6 +37,7 @@
 #include <linux/spi/spi.h>
 #include <linux/gpio/machine.h>
 #include <linux/w1-gpio.h>
+#include <linux/pps-gpio.h>
 
 #include <linux/version.h>
 #include <linux/clkdev.h>
@@ -92,6 +93,7 @@ static unsigned reboot_part = 0;
 static unsigned w1_gpio_pin = W1_GPIO;
 static unsigned w1_gpio_pullup = W1_PULLUP;
 static bool vc_i2c_override = false;
+static int pps_gpio_pin = -1;
 
 static unsigned use_dt = 0;
 
@@ -324,6 +326,19 @@ static struct platform_device w1_device = {
 	.dev.platform_data = &w1_gpio_pdata,
 };
 #endif
+
+static struct pps_gpio_platform_data pps_gpio_info = {
+	.assert_falling_edge = false,
+	.capture_clear = false,
+	.gpio_pin = -1,
+	.gpio_label = "PPS",
+};
+
+static struct platform_device pps_gpio_device = {
+	.name = "pps-gpio",
+	.id = PLATFORM_DEVID_NONE,
+	.dev.platform_data = &pps_gpio_info,
+};
 
 static u64 fb_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
 
@@ -860,6 +875,16 @@ void __init bcm2708_init(void)
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device_dt(&bcm2708_gpio_device);
 #endif
+
+#if defined(CONFIG_PPS_CLIENT_GPIO) || defined(CONFIG_PPS_CLIENT_GPIO_MODULE)
+	if (!use_dt && (pps_gpio_pin >= 0)) {
+		pr_info("bcm2708: GPIO %d setup as pps-gpio device\n", pps_gpio_pin);
+		pps_gpio_info.gpio_pin = pps_gpio_pin;
+		pps_gpio_device.id = pps_gpio_pin;
+		bcm_register_device(&pps_gpio_device);
+	}
+#endif
+
 #if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
 	w1_gpio_pdata.pin = w1_gpio_pin;
 	w1_gpio_pdata.ext_pullup_enable_pin = w1_gpio_pullup;
@@ -1116,3 +1141,5 @@ module_param(w1_gpio_pin, uint, 0644);
 module_param(w1_gpio_pullup, uint, 0644);
 module_param(vc_i2c_override, bool, 0644);
 MODULE_PARM_DESC(vc_i2c_override, "Allow the use of VC's I2C peripheral.");
+module_param(pps_gpio_pin, int, 0644);
+MODULE_PARM_DESC(pps_gpio_pin, "Set GPIO pin to reserve for PPS");
