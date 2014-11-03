@@ -962,8 +962,6 @@ static void ip6gre_tnl_link_config(struct ip6_tnl *t, int set_mtu)
 	else
 		dev->flags &= ~IFF_POINTOPOINT;
 
-	dev->iflink = p->link;
-
 	/* Precalculate GRE options length */
 	if (t->parms.o_flags&(GRE_CSUM|GRE_KEY|GRE_SEQ)) {
 		if (t->parms.o_flags&GRE_CSUM)
@@ -1273,6 +1271,7 @@ static int ip6gre_tunnel_init(struct net_device *dev)
 		u64_stats_init(&ip6gre_tunnel_stats->syncp);
 	}
 
+	dev->iflink = tunnel->parms.link;
 
 	return 0;
 }
@@ -1473,6 +1472,8 @@ static int ip6gre_tap_init(struct net_device *dev)
 		ip6gre_tap_stats = per_cpu_ptr(dev->tstats, i);
 		u64_stats_init(&ip6gre_tap_stats->syncp);
 	}
+
+	dev->iflink = tunnel->parms.link;
 
 	return 0;
 }
