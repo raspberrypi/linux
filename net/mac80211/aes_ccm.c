@@ -54,6 +54,9 @@ int ieee80211_aes_ccm_decrypt(struct crypto_aead *tfm, u8 *b_0, u8 *aad,
 
 	memset(&aead_req, 0, sizeof(aead_req));
 
+	if (data_len == 0)
+		return -EINVAL;
+
 	sg_init_one(&pt, data, data_len);
 	sg_init_one(&assoc, &aad[2], be16_to_cpup((__be16 *)aad));
 	sg_init_table(ct, 2);
