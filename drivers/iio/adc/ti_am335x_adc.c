@@ -155,7 +155,7 @@ static int tiadc_read_raw(struct iio_dev *indio_dev,
 		if (time_after(jiffies, timeout))
 			return -EAGAIN;
 		}
-	map_val = chan->channel + TOTAL_CHANNELS;
+	map_val = adc_dev->channel_step[chan->scan_index];
 
 	/*
 	 * When the sub-system is first enabled,
