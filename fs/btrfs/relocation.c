@@ -732,7 +732,8 @@ again:
 		err = ret;
 		goto out;
 	}
-	BUG_ON(!ret || !path1->slots[0]);
+	ASSERT(ret);
+	ASSERT(path1->slots[0]);
 
 	path1->slots[0]--;
 
@@ -742,10 +743,10 @@ again:
 		 * the backref was added previously when processing
 		 * backref of type BTRFS_TREE_BLOCK_REF_KEY
 		 */
-		BUG_ON(!list_is_singular(&cur->upper));
+		ASSERT(list_is_singular(&cur->upper));
 		edge = list_entry(cur->upper.next, struct backref_edge,
 				  list[LOWER]);
-		BUG_ON(!list_empty(&edge->list[UPPER]));
+		ASSERT(list_empty(&edge->list[UPPER]));
 		exist = edge->node[UPPER];
 		/*
 		 * add the upper level block to pending list if we need
@@ -827,7 +828,7 @@ again:
 					cur->cowonly = 1;
 			}
 #else
-		BUG_ON(key.type == BTRFS_EXTENT_REF_V0_KEY);
+		ASSERT(key.type != BTRFS_EXTENT_REF_V0_KEY);
 		if (key.type == BTRFS_SHARED_BLOCK_REF_KEY) {
 #endif
 			if (key.objectid == key.offset) {
@@ -836,7 +837,7 @@ again:
 				 * backref of this type.
 				 */
 				root = find_reloc_root(rc, cur->bytenr);
-				BUG_ON(!root);
+				ASSERT(root);
 				cur->root = root;
 				break;
 			}
@@ -864,7 +865,7 @@ again:
 			} else {
 				upper = rb_entry(rb_node, struct backref_node,
 						 rb_node);
-				BUG_ON(!upper->checked);
+				ASSERT(upper->checked);
 				INIT_LIST_HEAD(&edge->list[UPPER]);
 			}
 			list_add_tail(&edge->list[LOWER], &cur->upper);
@@ -888,7 +889,7 @@ again:
 
 		if (btrfs_root_level(&root->root_item) == cur->level) {
 			/* tree root */
-			BUG_ON(btrfs_root_bytenr(&root->root_item) !=
+			ASSERT(btrfs_root_bytenr(&root->root_item) ==
 			       cur->bytenr);
 			if (should_ignore_root(root))
 				list_add(&cur->list, &useless);
@@ -923,7 +924,7 @@ again:
 		need_check = true;
 		for (; level < BTRFS_MAX_LEVEL; level++) {
 			if (!path2->nodes[level]) {
-				BUG_ON(btrfs_root_bytenr(&root->root_item) !=
+				ASSERT(btrfs_root_bytenr(&root->root_item) ==
 				       lower->bytenr);
 				if (should_ignore_root(root))
 					list_add(&lower->list, &useless);
@@ -972,12 +973,15 @@ again:
 					need_check = false;
 					list_add_tail(&edge->list[UPPER],
 						      &list);
-				} else
+				} else {
+					if (upper->checked)
+						need_check = true;
 					INIT_LIST_HEAD(&edge->list[UPPER]);
+				}
 			} else {
 				upper = rb_entry(rb_node, struct backref_node,
 						 rb_node);
-				BUG_ON(!upper->checked);
+				ASSERT(upper->checked);
 				INIT_LIST_HEAD(&edge->list[UPPER]);
 				if (!upper->owner)
 					upper->owner = btrfs_header_owner(eb);
@@ -1021,7 +1025,7 @@ next:
 	 * everything goes well, connect backref nodes and insert backref nodes
 	 * into the cache.
 	 */
-	BUG_ON(!node->checked);
+	ASSERT(node->checked);
 	cowonly = node->cowonly;
 	if (!cowonly) {
 		rb_node = tree_insert(&cache->rb_root, node->bytenr,
@@ -1057,8 +1061,21 @@ next:
 			continue;
 		}
 
-		BUG_ON(!upper->checked);
-		BUG_ON(cowonly != upper->cowonly);
+		if (!upper->checked) {
+			/*
+			 * Still want to blow up for developers since this is a
+			 * logic bug.
+			 */
+			ASSERT(0);
+			err = -EINVAL;
+			goto out;
+		}
+		if (cowonly != upper->cowonly) {
+			ASSERT(0);
+			err = -EINVAL;
+			goto out;
+		}
+
 		if (!cowonly) {
 			rb_node = tree_insert(&cache->rb_root, upper->bytenr,
 					      &upper->rb_node);
@@ -1081,7 +1098,7 @@ next:
 	while (!list_empty(&useless)) {
 		upper = list_entry(useless.next, struct backref_node, list);
 		list_del_init(&upper->list);
-		BUG_ON(!list_empty(&upper->upper));
+		ASSERT(list_empty(&upper->upper));
 		if (upper == node)
 			node = NULL;
 		if (upper->lowest) {
@@ -1114,29 +1131,45 @@ out:
 	if (err) {
 		while (!list_empty(&useless)) {
 			lower = list_entry(useless.next,
-					   struct backref_node, upper);
-			list_del_init(&lower->upper);
+					   struct backref_node, list);
+			list_del_init(&lower->list);
 		}
-		upper = node;
-		INIT_LIST_HEAD(&list);
-		while (upper) {
-			if (RB_EMPTY_NODE(&upper->rb_node)) {
-				list_splice_tail(&upper->upper, &list);
-				free_backref_node(cache, upper);
-			}
-
-			if (list_empty(&list))
-				break;
-
-			edge = list_entry(list.next, struct backref_edge,
-					  list[LOWER]);
+		while (!list_empty(&list)) {
+			edge = list_first_entry(&list, struct backref_edge,
+						list[UPPER]);
+			list_del(&edge->list[UPPER]);
 			list_del(&edge->list[LOWER]);
+			lower = edge->node[LOWER];
 			upper = edge->node[UPPER];
 			free_backref_edge(cache, edge);
+
+			/*
+			 * Lower is no longer linked to any upper backref nodes
+			 * and isn't in the cache, we can free it ourselves.
+			 */
+			if (list_empty(&lower->upper) &&
+			    RB_EMPTY_NODE(&lower->rb_node))
+				list_add(&lower->list, &useless);
+
+			if (!RB_EMPTY_NODE(&upper->rb_node))
+				continue;
+
+			/* Add this guy's upper edges to the list to proces */
+			list_for_each_entry(edge, &upper->upper, list[LOWER])
+				list_add_tail(&edge->list[UPPER], &list);
+			if (list_empty(&upper->upper))
+				list_add(&upper->list, &useless);
+		}
+
+		while (!list_empty(&useless)) {
+			lower = list_entry(useless.next,
+					   struct backref_node, list);
+			list_del_init(&lower->list);
+			free_backref_node(cache, lower);
 		}
 		return ERR_PTR(err);
 	}
-	BUG_ON(node && node->detached);
+	ASSERT(!node || !node->detached);
 	return node;
 }
 

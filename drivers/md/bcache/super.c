@@ -1235,6 +1235,9 @@ int bch_flash_dev_create(struct cache_set *c, uint64_t size)
 	if (test_bit(CACHE_SET_STOPPING, &c->flags))
 		return -EINTR;
 
+	if (!test_bit(CACHE_SET_RUNNING, &c->flags))
+		return -EPERM;
+
 	u = uuid_find_empty(c);
 	if (!u) {
 		pr_err("Can't create volume, no room for UUID");
@@ -1300,8 +1303,11 @@ static void cache_set_free(struct closure *cl)
 	bch_journal_free(c);
 
 	for_each_cache(ca, c, i)
-		if (ca)
+		if (ca) {
+			ca->set = NULL;
+			c->cache[ca->sb.nr_this_dev] = NULL;
 			kobject_put(&ca->kobj);
+		}
 
 	free_pages((unsigned long) c->uuids, ilog2(bucket_pages(c)));
 	free_pages((unsigned long) c->sort, ilog2(bucket_pages(c)));
@@ -1637,6 +1643,7 @@ static void run_cache_set(struct cache_set *c)
 
 	flash_devs_run(c);
 
+	set_bit(CACHE_SET_RUNNING, &c->flags);
 	return;
 err_unlock_gc:
 	closure_set_stopped(&c->gc.cl);
@@ -1722,8 +1729,10 @@ void bch_cache_release(struct kobject *kobj)
 {
 	struct cache *ca = container_of(kobj, struct cache, kobj);
 
-	if (ca->set)
+	if (ca->set) {
+		BUG_ON(ca->set->cache[ca->sb.nr_this_dev] != ca);
 		ca->set->cache[ca->sb.nr_this_dev] = NULL;
+	}
 
 	bch_cache_allocator_exit(ca);
 
@@ -1794,7 +1803,7 @@ err:
 }
 
 static void register_cache(struct cache_sb *sb, struct page *sb_page,
-				  struct block_device *bdev, struct cache *ca)
+				struct block_device *bdev, struct cache *ca)
 {
 	char name[BDEVNAME_SIZE];
 	const char *err = "cannot allocate memory";
