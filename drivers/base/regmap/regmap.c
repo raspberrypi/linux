@@ -1403,8 +1403,10 @@ int regmap_bulk_write(struct regmap *map, unsigned int reg, const void *val,
 	if (val_bytes == 1) {
 		wval = (void *)val;
 	} else {
-		if (!val_count)
-			return -EINVAL;
+		if (!val_count) {
+			ret = -EINVAL;
+			goto out;
+		}
 
 		wval = kmemdup(val, val_count * val_bytes, GFP_KERNEL);
 		if (!wval) {
