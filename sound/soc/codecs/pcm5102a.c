@@ -47,12 +47,19 @@ static int pcm5102a_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id pcm5102a_of_match[] = {
+	{ .compatible = "ti,pcm5102a", },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, pcm5102a_of_match);
+
 static struct platform_driver pcm5102a_codec_driver = {
 	.probe 		= pcm5102a_probe,
 	.remove 	= pcm5102a_remove,
 	.driver		= {
 		.name	= "pcm5102a-codec",
 		.owner	= THIS_MODULE,
+		.of_match_table = pcm5102a_of_match,
 	},
 };
 
