@@ -7,11 +7,8 @@
 	interrupt-parent = <&intc>;
 
 	chosen {
-		/*
-		   bootargs must be 1024 characters long because the
-		   VC bootloader can't expand it
-		*/
-		bootargs = "console=ttyAMA0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ";
+		/* No padding required - the boot loader can do that. */
+		bootargs = "";
 	};
 
 	soc {
@@ -37,6 +34,17 @@
 
 			interrupt-controller;
 			#interrupt-cells = <2>;
+		};
+
+		i2s: i2s@7e203000 {
+			compatible = "brcm,bcm2708-i2s";
+			reg = <0x7e203000 0x20>,
+			      <0x7e101098 0x02>;
+
+			//dmas = <&dma 2>,
+			//       <&dma 3>;
+			dma-names = "tx", "rx";
+			status = "disabled";
 		};
 
 		spi0: spi@7e204000 {
