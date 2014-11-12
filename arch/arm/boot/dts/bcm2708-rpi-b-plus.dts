@@ -4,7 +4,7 @@
 
 / {
 	compatible = "brcm,bcm2708";
-	model = "Raspberry Pi Model B";
+	model = "Raspberry Pi Model B+";
 
 	aliases {
 		spi0 = &spi0;
@@ -36,7 +36,7 @@
 	};
 
 	i2s_pins: i2s {
-		brcm,pins = <28 29 30 31>;
+		brcm,pins = <18 19 20 21>;
 		brcm,function = <4>; /* alt0 */
 	};
 };
