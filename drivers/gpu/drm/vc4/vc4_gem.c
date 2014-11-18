@@ -61,21 +61,37 @@ submit_cl(struct drm_device *dev, uint32_t thread, uint32_t start, uint32_t end)
 	barrier();
 }
 
-static bool
-thread_stopped(struct drm_device *dev, uint32_t thread)
+static int
+vc4_wait_for_job(struct drm_device *dev, struct exec_info *exec,
+		 unsigned timeout)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	int ret = 0;
+	unsigned long timeout_expire;
+	DEFINE_WAIT(wait);
 
-	barrier();
-	return !(V3D_READ(V3D_PCS) & (0x3 << thread));
-}
+	if (vc4->frame_done)
+		return 0;
 
-static int
-wait_for_job(struct drm_device *dev, struct exec_info *exec)
-{
-	int ret;
+	timeout_expire = jiffies + msecs_to_jiffies(timeout);
 
-	ret = wait_for(thread_stopped(dev, 1), 1000);
+	for (;;) {
+		prepare_to_wait(&vc4->frame_done_queue, &wait,
+				TASK_UNINTERRUPTIBLE);
+
+		if (time_after_eq(jiffies, timeout_expire)) {
+			ret = -ETIME;
+			break;
+		}
+
+		if (vc4->frame_done)
+			break;
+
+		schedule_timeout(timeout_expire - jiffies);
+	}
+
+	finish_wait(&vc4->frame_done_queue, &wait);
+
 	if (ret) {
 		DRM_ERROR("timeout waiting for render thread idle\n");
 		return ret;
@@ -125,10 +141,11 @@ vc4_submit(struct drm_device *dev, struct exec_info *exec)
 	V3D_WRITE(V3D_BPOA, 0);
 	V3D_WRITE(V3D_BPOS, 0);
 
+	vc4->frame_done = false;
 	submit_cl(dev, 0, ct0ca, ct0ea);
 	submit_cl(dev, 1, ct1ca, ct1ea);
 
-	ret = wait_for_job(dev, exec);
+	ret = vc4_wait_for_job(dev, exec, 1000);
 	if (ret)
 		return ret;
 

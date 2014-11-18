@@ -19,6 +19,9 @@ struct vc4_dev {
 	struct vc4_crtc *crtc[3];
 	struct vc4_v3d *v3d;
 
+	wait_queue_head_t frame_done_queue;
+	bool frame_done;
+
 	/* List of struct vc4_list_bo_entry allocated to accomodate
 	 * binner overflow.  These will be freed when the exec is
 	 * done.
