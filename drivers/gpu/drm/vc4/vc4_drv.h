@@ -151,6 +151,8 @@ struct exec_info {
 	bool found_tile_binning_mode_config_packet;
 	bool found_tile_rendering_mode_config_packet;
 	bool found_start_tile_binning_packet;
+	bool found_increment_semaphore_packet;
+	bool found_wait_on_semaphore_packet;
 	uint8_t bin_tiles_x, bin_tiles_y;
 	uint32_t fb_width, fb_height;
 	uint32_t tile_alloc_init_block_size;

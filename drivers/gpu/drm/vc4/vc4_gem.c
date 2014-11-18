@@ -107,10 +107,10 @@ try_adding_overflow_memory(struct drm_device *dev, struct exec_info *exec)
 }
 
 static bool
-vc4_bin_finished(struct drm_device *dev, struct exec_info *exec)
+vc4_job_finished(struct drm_device *dev, struct exec_info *exec)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	bool stopped = thread_stopped(dev, 0);
+	bool stopped = thread_stopped(dev, 1);
 
 	/* If the thread is merely paused waiting for overflow memory,
 	 * hand some to it so we can make progress.
@@ -124,34 +124,20 @@ vc4_bin_finished(struct drm_device *dev, struct exec_info *exec)
 }
 
 static int
-wait_for_bin_thread(struct drm_device *dev, struct exec_info *exec)
+wait_for_job(struct drm_device *dev, struct exec_info *exec)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	int ret;
 
-	ret = wait_for(vc4_bin_finished(dev, exec), 1000);
+	ret = wait_for(vc4_job_finished(dev, exec), 1000);
 	if (ret) {
-		DRM_ERROR("timeout waiting for bin thread idle\n");
+		DRM_ERROR("timeout waiting for render thread idle\n");
 		return ret;
 	}
 
 	if (V3D_READ(V3D_PCS) & V3D_BMOOM) {
 		DRM_ERROR("binner oom and stopped.\n");
 		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int
-wait_for_render_thread(struct drm_device *dev)
-{
-	int ret;
-
-	ret = wait_for(thread_stopped(dev, 1), 1000);
-	if (ret) {
-		DRM_ERROR("timeout waiting for render thread idle\n");
-		return ret;
 	}
 
 	return 0;
@@ -199,20 +185,9 @@ vc4_submit(struct drm_device *dev, struct exec_info *exec)
 	V3D_WRITE(V3D_BPOS, 0);
 
 	submit_cl(dev, 0, ct0ca, ct0ea);
-
-	ret = wait_for_bin_thread(dev, exec);
-	if (ret)
-		return ret;
-
-	WARN_ON(!thread_stopped(dev, 0));
-	if (V3D_READ(V3D_CTNCS(0)) & V3D_CTERR) {
-		DRM_ERROR("thread 0 stopped with error\n");
-		return -EINVAL;
-	}
-
 	submit_cl(dev, 1, ct1ca, ct1ea);
 
-	ret = wait_for_render_thread(dev);
+	ret = wait_for_job(dev, exec);
 	if (ret)
 		return ret;
 

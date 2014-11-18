@@ -203,6 +203,18 @@ check_tex_size(struct exec_info *exec, struct drm_gem_cma_object *fbo,
 }
 
 static int
+validate_flush_all(VALIDATE_ARGS)
+{
+	if (exec->found_increment_semaphore_packet) {
+		DRM_ERROR("VC4_PACKET_FLUSH_ALL after "
+			  "VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int
 validate_start_tile_binning(VALIDATE_ARGS)
 {
 	if (exec->found_start_tile_binning_packet) {
@@ -220,6 +232,41 @@ validate_start_tile_binning(VALIDATE_ARGS)
 }
 
 static int
+validate_increment_semaphore(VALIDATE_ARGS)
+{
+	if (exec->found_increment_semaphore_packet) {
+		DRM_ERROR("Duplicate VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
+	}
+	exec->found_increment_semaphore_packet = true;
+
+	/* Once we've found the semaphore increment, there should be one FLUSH
+	 * then the end of the command list.  The FLUSH actually triggers the
+	 * increment, so we only need to make sure there
+	 */
+
+	return 0;
+}
+
+static int
+validate_wait_on_semaphore(VALIDATE_ARGS)
+{
+	if (exec->found_wait_on_semaphore_packet) {
+		DRM_ERROR("Duplicate VC4_PACKET_WAIT_ON_SEMAPHORE\n");
+		return -EINVAL;
+	}
+	exec->found_wait_on_semaphore_packet = true;
+
+	if (!exec->found_increment_semaphore_packet) {
+		DRM_ERROR("VC4_PACKET_WAIT_ON_SEMAPHORE without "
+			  "VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int
 validate_branch_to_sublist(VALIDATE_ARGS)
 {
 	struct drm_gem_cma_object *target;
@@ -230,6 +277,11 @@ validate_branch_to_sublist(VALIDATE_ARGS)
 
 	if (target != exec->tile_alloc_bo) {
 		DRM_ERROR("Jumping to BOs other than tile alloc unsupported\n");
+		return -EINVAL;
+	}
+
+	if (!exec->found_wait_on_semaphore_packet) {
+		DRM_ERROR("Jumping to tile alloc before binning finished.\n");
 		return -EINVAL;
 	}
 
@@ -322,6 +374,11 @@ validate_indexed_prim_list(VALIDATE_ARGS)
 	uint32_t index_size = (*(uint8_t *)(untrusted + 0) >> 4) ? 2 : 1;
 	struct vc4_shader_state *shader_state;
 
+	if (exec->found_increment_semaphore_packet) {
+		DRM_ERROR("Drawing after VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
+	}
+
 	/* Check overflow condition */
 	if (exec->shader_state_count == 0) {
 		DRM_ERROR("shader state must precede primitives\n");
@@ -354,6 +411,11 @@ validate_gl_array_primitive(VALIDATE_ARGS)
 	uint32_t base_index = *(uint32_t *)(untrusted + 5);
 	uint32_t max_index;
 	struct vc4_shader_state *shader_state;
+
+	if (exec->found_increment_semaphore_packet) {
+		DRM_ERROR("Drawing after VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
+	}
 
 	/* Check overflow condition */
 	if (exec->shader_state_count == 0) {
@@ -600,10 +662,10 @@ static const struct cmd_info {
 	[VC4_PACKET_HALT] = { 1, 1, 1, "halt", NULL },
 	[VC4_PACKET_NOP] = { 1, 1, 1, "nop", NULL },
 	[VC4_PACKET_FLUSH] = { 1, 1, 1, "flush", NULL },
-	[VC4_PACKET_FLUSH_ALL] = { 1, 0, 1, "flush all state", NULL },
+	[VC4_PACKET_FLUSH_ALL] = { 1, 0, 1, "flush all state", validate_flush_all },
 	[VC4_PACKET_START_TILE_BINNING] = { 1, 0, 1, "start tile binning", validate_start_tile_binning },
-	[VC4_PACKET_INCREMENT_SEMAPHORE] = { 1, 0, 1, "increment semaphore", NULL },
-	[VC4_PACKET_WAIT_ON_SEMAPHORE] = { 1, 1, 1, "wait on semaphore", NULL },
+	[VC4_PACKET_INCREMENT_SEMAPHORE] = { 1, 0, 1, "increment semaphore", validate_increment_semaphore },
+	[VC4_PACKET_WAIT_ON_SEMAPHORE] = { 0, 1, 1, "wait on semaphore", validate_wait_on_semaphore },
 	/* BRANCH_TO_SUB_LIST is actually supported in the binner as well, but
 	 * we only use it from the render CL in order to jump into the tile
 	 * allocation BO.
@@ -735,6 +797,15 @@ vc4_validate_cl(struct drm_device *dev,
 	} else {
 		if (!exec->found_tile_rendering_mode_config_packet) {
 			DRM_ERROR("Render CL missing VC4_PACKET_TILE_RENDERING_MODE_CONFIG\n");
+			return -EINVAL;
+		}
+
+		/* Make sure that they actually consumed the semaphore
+		 * increment from the bin CL.  Otherwise a later submit would
+		 * have render execute immediately.
+		 */
+		if (!exec->found_wait_on_semaphore_packet) {
+			DRM_ERROR("Render CL missing VC4_PACKET_WAIT_ON_SEMAPHORE\n");
 			return -EINVAL;
 		}
 		exec->ct1ea = exec->ct1ca + dst_offset;
