@@ -112,7 +112,7 @@ struct vc4_bo_exec_state {
 	enum vc4_bo_mode mode;
 };
 
-struct exec_info {
+struct vc4_exec_info {
 	/* Kernel-space copy of the ioctl arguments */
 	struct drm_vc4_submit_cl *args;
 
@@ -323,10 +323,10 @@ vc4_validate_cl(struct drm_device *dev,
 		void *unvalidated,
 		uint32_t len,
 		bool is_bin,
-		struct exec_info *exec);
+		struct vc4_exec_info *exec);
 
 int
-vc4_validate_shader_recs(struct drm_device *dev, struct exec_info *exec);
+vc4_validate_shader_recs(struct drm_device *dev, struct vc4_exec_info *exec);
 
 struct vc4_validated_shader_info *
 vc4_validate_shader(struct drm_gem_cma_object *shader_obj,

@@ -62,7 +62,7 @@ submit_cl(struct drm_device *dev, uint32_t thread, uint32_t start, uint32_t end)
 }
 
 static int
-vc4_wait_for_job(struct drm_device *dev, struct exec_info *exec,
+vc4_wait_for_job(struct drm_device *dev, struct vc4_exec_info *exec,
 		 unsigned timeout)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
@@ -128,7 +128,7 @@ vc4_flush_caches(struct drm_device *dev)
 }
 
 static int
-vc4_submit(struct drm_device *dev, struct exec_info *exec)
+vc4_submit(struct drm_device *dev, struct vc4_exec_info *exec)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	uint32_t ct0ca = exec->ct0ca, ct0ea = exec->ct0ea;
@@ -160,7 +160,7 @@ vc4_submit(struct drm_device *dev, struct exec_info *exec)
 static int
 vc4_cl_lookup_bos(struct drm_device *dev,
 		  struct drm_file *file_priv,
-		  struct exec_info *exec)
+		  struct vc4_exec_info *exec)
 {
 	struct drm_vc4_submit_cl *args = exec->args;
 	uint32_t *handles;
@@ -216,7 +216,7 @@ fail:
 }
 
 static int
-vc4_cl_validate(struct drm_device *dev, struct exec_info *exec)
+vc4_cl_validate(struct drm_device *dev, struct vc4_exec_info *exec)
 {
 	struct drm_vc4_submit_cl *args = exec->args;
 	void *temp = NULL;
@@ -342,7 +342,7 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 		    struct drm_file *file_priv)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	struct exec_info exec;
+	struct vc4_exec_info exec;
 	int ret;
 	int i;
 

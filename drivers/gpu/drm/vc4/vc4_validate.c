@@ -43,7 +43,7 @@
 #include "vc4_packet.h"
 
 #define VALIDATE_ARGS \
-	struct exec_info *exec,				\
+	struct vc4_exec_info *exec,			\
 	void *validated,				\
 	void *untrusted
 
@@ -95,7 +95,7 @@ size_is_lt(uint32_t width, uint32_t height, int cpp)
 }
 
 static bool
-vc4_use_bo(struct exec_info *exec,
+vc4_use_bo(struct vc4_exec_info *exec,
 	   uint32_t hindex,
 	   enum vc4_bo_mode mode,
 	   struct drm_gem_cma_object **obj)
@@ -123,7 +123,7 @@ vc4_use_bo(struct exec_info *exec,
 }
 
 static bool
-vc4_use_handle(struct exec_info *exec,
+vc4_use_handle(struct vc4_exec_info *exec,
 	       uint32_t gem_handles_packet_index,
 	       enum vc4_bo_mode mode,
 	       struct drm_gem_cma_object **obj)
@@ -148,7 +148,7 @@ gl_shader_rec_size(uint32_t pointer_bits)
 }
 
 static bool
-check_tex_size(struct exec_info *exec, struct drm_gem_cma_object *fbo,
+check_tex_size(struct vc4_exec_info *exec, struct drm_gem_cma_object *fbo,
 	       uint32_t offset, uint8_t tiling_format,
 	       uint32_t width, uint32_t height, uint8_t cpp)
 {
@@ -657,7 +657,8 @@ static const struct cmd_info {
 	bool render;
 	uint16_t len;
 	const char *name;
-	int (*func)(struct exec_info *exec, void *validated, void *untrusted);
+	int (*func)(struct vc4_exec_info *exec, void *validated,
+		    void *untrusted);
 } cmd_info[] = {
 	[VC4_PACKET_HALT] = { 1, 1, 1, "halt", NULL },
 	[VC4_PACKET_NOP] = { 1, 1, 1, "nop", NULL },
@@ -720,7 +721,7 @@ vc4_validate_cl(struct drm_device *dev,
 		void *unvalidated,
 		uint32_t len,
 		bool is_bin,
-		struct exec_info *exec)
+		struct vc4_exec_info *exec)
 {
 	uint32_t dst_offset = 0;
 	uint32_t src_offset = 0;
@@ -815,7 +816,7 @@ vc4_validate_cl(struct drm_device *dev,
 }
 
 static bool
-reloc_tex(struct exec_info *exec,
+reloc_tex(struct vc4_exec_info *exec,
 	  void *uniform_data_u,
 	  struct vc4_texture_sample_info *sample,
 	  uint32_t texture_handle_index)
@@ -976,7 +977,7 @@ reloc_tex(struct exec_info *exec,
 
 static int
 validate_shader_rec(struct drm_device *dev,
-		    struct exec_info *exec,
+		    struct vc4_exec_info *exec,
 		    struct vc4_shader_state *state)
 {
 	uint32_t *src_handles;
@@ -1158,7 +1159,7 @@ fail:
 
 int
 vc4_validate_shader_recs(struct drm_device *dev,
-			 struct exec_info *exec)
+			 struct vc4_exec_info *exec)
 {
 	uint32_t i;
 	int ret = 0;
