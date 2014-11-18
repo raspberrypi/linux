@@ -2450,9 +2450,9 @@ static void bond_loadbalance_arp_mon(struct work_struct *work)
 		if (!rtnl_trylock())
 			goto re_arm;
 
-		if (slave_state_changed) {
+		if (slave_state_changed)
 			bond_slave_state_change(bond);
-		} else if (do_failover) {
+		if (do_failover) {
 			/* the bond_select_active_slave must hold RTNL
 			 * and curr_slave_lock for write.
 			 */
