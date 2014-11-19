@@ -27,8 +27,13 @@
 #include <drm/drm.h>
 
 #define DRM_VC4_SUBMIT_CL                         0x00
+#define DRM_VC4_WAIT_SEQNO                        0x01
+#define DRM_VC4_WAIT_BO                           0x02
 
 #define DRM_IOCTL_VC4_SUBMIT_CL           DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_SUBMIT_CL, struct drm_vc4_submit_cl)
+#define DRM_IOCTL_VC4_WAIT_SEQNO          DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_WAIT_SEQNO, struct drm_vc4_wait_seqno)
+#define DRM_IOCTL_VC4_WAIT_BO             DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_WAIT_BO, struct drm_vc4_wait_bo)
+
 
 /**
  * struct drm_vc4_submit_cl - ioctl argument for submitting commands to the 3D
@@ -109,6 +114,39 @@ struct drm_vc4_submit_cl {
 
 	/* Number of BO handles passed in (size is that times 4). */
 	uint32_t bo_handle_count;
+
+	uint32_t pad;
+
+	/* Returned value of the seqno of this render job (for the
+	 * wait ioctl).
+	 */
+	uint64_t seqno;
+};
+
+/**
+ * struct drm_vc4_wait_seqno - ioctl argument for waiting for
+ * DRM_VC4_SUBMIT_CL completion using its returned seqno.
+ *
+ * timeout_ns is the timeout in nanoseconds, where "0" means "don't
+ * block, just return the status."
+ */
+struct drm_vc4_wait_seqno {
+	uint64_t seqno;
+	uint64_t timeout_ns;
+};
+
+/**
+ * struct drm_vc4_wait_bo - ioctl argument for waiting for
+ * completion of the last DRM_VC4_SUBMIT_CL on a BO.
+ *
+ * This is useful for cases where multiple processes might be
+ * rendering to a BO and you want to wait for all rendering to be
+ * completed.
+ */
+struct drm_vc4_wait_bo {
+	uint32_t handle;
+	uint32_t pad;
+	uint64_t timeout_ns;
 };
 
 #endif /* _UAPI_VC4_DRM_H_ */

@@ -49,6 +49,12 @@ vc4_reset(struct drm_device *dev)
 	vc4_v3d_set_power(vc4, true);
 
 	vc4_irq_reset(dev);
+
+	/* Rearm the hangcheck -- another job might have been waiting
+	 * for our hung one to get kicked off, and vc4_irq_reset()
+	 * would have started it.
+	 */
+	vc4_queue_hangcheck(dev);
 }
 
 static void
@@ -68,7 +74,7 @@ vc4_hangcheck_elapsed(unsigned long data)
 	uint32_t ct0ca, ct1ca;
 
 	/* If idle, we can stop watching for hangs. */
-	if (vc4->frame_done)
+	if (list_empty(&vc4->job_list))
 		return;
 
 	ct0ca = V3D_READ(V3D_CTNCA(0));
@@ -112,37 +118,44 @@ submit_cl(struct drm_device *dev, uint32_t thread, uint32_t start, uint32_t end)
 }
 
 static int
-vc4_wait_for_job(struct drm_device *dev, struct vc4_exec_info *exec,
-		 unsigned timeout)
+vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	int ret = 0;
 	unsigned long timeout_expire;
 	DEFINE_WAIT(wait);
 
-	if (vc4->frame_done)
+	if (vc4->finished_seqno >= seqno)
 		return 0;
 
-	timeout_expire = jiffies + msecs_to_jiffies(timeout);
+	if (timeout_ns == 0)
+		return -ETIME;
+
+	timeout_expire = jiffies + nsecs_to_jiffies(timeout_ns);
 
 	for (;;) {
-		prepare_to_wait(&vc4->frame_done_queue, &wait,
-				TASK_UNINTERRUPTIBLE);
+		prepare_to_wait(&vc4->job_wait_queue, &wait,
+				TASK_INTERRUPTIBLE);
+
+		if (signal_pending(current)) {
+			ret = -ERESTARTSYS;
+			break;
+		}
 
 		if (time_after_eq(jiffies, timeout_expire)) {
 			ret = -ETIME;
 			break;
 		}
 
-		if (vc4->frame_done)
+		if (vc4->finished_seqno >= seqno)
 			break;
 
 		schedule_timeout(timeout_expire - jiffies);
 	}
 
-	finish_wait(&vc4->frame_done_queue, &wait);
+	finish_wait(&vc4->job_wait_queue, &wait);
 
-	if (ret) {
+	if (ret && ret != -ERESTARTSYS) {
 		DRM_ERROR("timeout waiting for render thread idle\n");
 		return ret;
 	}
@@ -177,13 +190,19 @@ vc4_flush_caches(struct drm_device *dev)
 	barrier();
 }
 
-static int
-vc4_submit(struct drm_device *dev, struct vc4_exec_info *exec)
+/* Sets the registers for the next job to be actually be executed in
+ * the hardware.
+ *
+ * The job_lock should be held during this.
+ */
+void
+vc4_submit_next_job(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	uint32_t ct0ca = exec->ct0ca, ct0ea = exec->ct0ea;
-	uint32_t ct1ca = exec->ct1ca, ct1ea = exec->ct1ea;
-	int ret;
+	struct vc4_exec_info *exec = vc4_first_job(vc4);
+
+	if (!exec)
+		return;
 
 	vc4_flush_caches(dev);
 
@@ -191,17 +210,57 @@ vc4_submit(struct drm_device *dev, struct vc4_exec_info *exec)
 	V3D_WRITE(V3D_BPOA, 0);
 	V3D_WRITE(V3D_BPOS, 0);
 
-	vc4->frame_done = false;
-	submit_cl(dev, 0, ct0ca, ct0ea);
-	submit_cl(dev, 1, ct1ca, ct1ea);
+	submit_cl(dev, 0, exec->ct0ca, exec->ct0ea);
+	submit_cl(dev, 1, exec->ct1ca, exec->ct1ea);
+}
 
-	vc4_queue_hangcheck(dev);
+static void
+vc4_update_bo_seqnos(struct vc4_exec_info *exec, uint64_t seqno)
+{
+	struct vc4_bo *bo;
+	unsigned i;
 
-	ret = vc4_wait_for_job(dev, exec, 10000);
-	if (ret)
-		return ret;
+	for (i = 0; i < exec->bo_count; i++) {
+		bo = to_vc4_bo(&exec->bo[i].bo->base);
+		bo->seqno = seqno;
+	}
 
-	return 0;
+	list_for_each_entry(bo, &exec->unref_list, unref_head) {
+		bo->seqno = seqno;
+	}
+}
+
+/* Queues a struct vc4_exec_info for execution.  If no job is
+ * currently executing, then submits it.
+ *
+ * Unlike most GPUs, our hardware only handles one command list at a
+ * time.  To queue multiple jobs at once, we'd need to edit the
+ * previous command list to have a jump to the new one at the end, and
+ * then bump the end address.  That's a change for a later date,
+ * though.
+ */
+static void
+vc4_queue_submit(struct drm_device *dev, struct vc4_exec_info *exec)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	uint64_t seqno = ++vc4->emit_seqno;
+
+	exec->seqno = seqno;
+	vc4_update_bo_seqnos(exec, seqno);
+
+	spin_lock(&vc4->job_lock);
+	list_add_tail(&exec->head, &vc4->job_list);
+
+	/* If no job was executing, kick ours off.  Otherwise, it'll
+	 * get started when the previous job's frame done interrupt
+	 * occurs.
+	 */
+	if (vc4_first_job(vc4) == exec) {
+		vc4_submit_next_job(dev);
+		vc4_queue_hangcheck(dev);
+	}
+
+	spin_unlock(&vc4->job_lock);
 }
 
 /**
@@ -348,6 +407,9 @@ vc4_cl_validate(struct drm_device *dev, struct vc4_exec_info *exec)
 		goto fail;
 	}
 
+	list_add_tail(&to_vc4_bo(&exec->exec_bo->base)->unref_head,
+		      &exec->unref_list);
+
 	exec->ct0ca = exec->exec_bo->paddr + bin_offset;
 	exec->ct1ca = exec->exec_bo->paddr + render_offset;
 
@@ -384,6 +446,88 @@ fail:
 	return ret;
 }
 
+static void
+vc4_complete_exec(struct vc4_exec_info *exec)
+{
+	unsigned i;
+
+	if (exec->bo) {
+		for (i = 0; i < exec->bo_count; i++)
+			drm_gem_object_unreference(&exec->bo[i].bo->base);
+		kfree(exec->bo);
+	}
+
+	while (!list_empty(&exec->unref_list)) {
+		struct vc4_bo *bo = list_first_entry(&exec->unref_list,
+						     struct vc4_bo, unref_head);
+		list_del(&bo->unref_head);
+		drm_gem_object_unreference(&bo->base.base);
+	}
+
+	kfree(exec);
+}
+
+/* Scheduled when any job has been completed, this walks the list of
+ * jobs that had completed and unrefs their BOs and frees their exec
+ * structs.
+ */
+static void
+vc4_job_done_work(struct work_struct *work)
+{
+	struct vc4_dev *vc4 =
+		container_of(work, struct vc4_dev, job_done_work);
+	struct drm_device *dev = vc4->dev;
+
+	/* Need the struct lock for drm_gem_object_unreference(). */
+	mutex_lock(&dev->struct_mutex);
+
+	spin_lock(&vc4->job_lock);
+	while (!list_empty(&vc4->job_done_list)) {
+		struct vc4_exec_info *exec =
+			list_first_entry(&vc4->job_done_list,
+					 struct vc4_exec_info, head);
+		list_del(&exec->head);
+
+		spin_unlock(&vc4->job_lock);
+		vc4_complete_exec(exec);
+		spin_lock(&vc4->job_lock);
+	}
+	spin_unlock(&vc4->job_lock);
+
+	mutex_unlock(&dev->struct_mutex);
+}
+
+int
+vc4_wait_seqno_ioctl(struct drm_device *dev, void *data,
+		     struct drm_file *file_priv)
+{
+	struct drm_vc4_wait_seqno *args = data;
+
+	return vc4_wait_for_seqno(dev, args->seqno, args->timeout_ns);
+}
+
+int
+vc4_wait_bo_ioctl(struct drm_device *dev, void *data,
+		  struct drm_file *file_priv)
+{
+	int ret;
+	struct drm_vc4_wait_bo *args = data;
+	struct drm_gem_object *gem_obj;
+	struct vc4_bo *bo;
+
+	gem_obj = drm_gem_object_lookup(dev, file_priv, args->handle);
+	if (!gem_obj) {
+		DRM_ERROR("Failed to look up GEM BO %d\n", args->handle);
+		return -EINVAL;
+	}
+	bo = to_vc4_bo(gem_obj);
+
+	ret = vc4_wait_for_seqno(dev, bo->seqno, args->timeout_ns);
+
+	drm_gem_object_unreference(gem_obj);
+	return ret;
+}
+
 /**
  * Submits a command list to the VC4.
  *
@@ -394,52 +538,44 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 		    struct drm_file *file_priv)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	struct vc4_exec_info exec;
+	struct drm_vc4_submit_cl *args = data;
+	struct vc4_exec_info *exec;
 	int ret;
-	int i;
 
-	memset(&exec, 0, sizeof(exec));
-	exec.args = data;
+	exec = kcalloc(1, sizeof(*exec), GFP_KERNEL);
+	if (!exec) {
+		DRM_ERROR("malloc failure on exec struct\n");
+		return -ENOMEM;
+	}
+
+	exec->args = args;
+	INIT_LIST_HEAD(&exec->unref_list);
 
 	mutex_lock(&dev->struct_mutex);
 
-	ret = vc4_cl_lookup_bos(dev, file_priv, &exec);
+	ret = vc4_cl_lookup_bos(dev, file_priv, exec);
 	if (ret)
 		goto fail;
 
-	ret = vc4_cl_validate(dev, &exec);
+	ret = vc4_cl_validate(dev, exec);
 	if (ret)
 		goto fail;
 
-	ret = vc4_submit(dev, &exec);
-	if (ret)
-		goto fail;
+	/* Return the seqno for our job. */
+	args->seqno = vc4->emit_seqno;
+
+	/* Clear this out of the struct we'll be putting in the queue,
+	 * since it's part of our stack.
+	 */
+	exec->args = NULL;
+
+	vc4_queue_submit(dev, exec);
+
+	mutex_unlock(&dev->struct_mutex);
+	return 0;
 
 fail:
-	if (exec.bo) {
-		for (i = 0; i < exec.bo_count; i++)
-			drm_gem_object_unreference(&exec.bo[i].bo->base);
-		kfree(exec.bo);
-	}
-
-	/* Release all but the very last overflow list entry (which is
-	 * still sitting in the BPOS/BPOA registers for use by the
-	 * next job).
-	 */
-	while (true) {
-		struct vc4_bo_list_entry *entry =
-			list_first_entry(&vc4->overflow_list,
-					 struct vc4_bo_list_entry, head);
-
-		if (entry->head.next == &vc4->overflow_list)
-			break;
-
-		drm_gem_object_unreference(&entry->bo->base);
-		list_del(&entry->head);
-		kfree(entry);
-	}
-
-	drm_gem_object_unreference(&exec.exec_bo->base);
+	vc4_complete_exec(exec);
 
 	mutex_unlock(&dev->struct_mutex);
 
@@ -451,10 +587,14 @@ vc4_gem_init(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
-	INIT_LIST_HEAD(&vc4->overflow_list);
+	INIT_LIST_HEAD(&vc4->job_list);
+	INIT_LIST_HEAD(&vc4->job_done_list);
+	spin_lock_init(&vc4->job_lock);
 
 	INIT_WORK(&vc4->hangcheck.reset_work, vc4_reset_work);
 	setup_timer(&vc4->hangcheck.timer,
 		    vc4_hangcheck_elapsed,
 		    (unsigned long) dev);
+
+	INIT_WORK(&vc4->job_done_work, vc4_job_done_work);
 }

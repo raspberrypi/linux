@@ -35,26 +35,70 @@ vc4_overflow_mem_work(struct work_struct *work)
 	struct vc4_dev *vc4 =
 		container_of(work, struct vc4_dev, overflow_mem_work);
 	struct drm_device *dev = vc4->dev;
-	struct vc4_bo_list_entry *entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+	struct drm_gem_cma_object *cma_obj;
+	struct vc4_bo *bo;
 
-	if (!entry) {
-		DRM_ERROR("Couldn't allocate binner overflow mem record\n");
-		return;
-	}
-
-	entry->bo = drm_gem_cma_create(dev, 256 * 1024);
-	if (IS_ERR(entry->bo)) {
+	cma_obj = drm_gem_cma_create(dev, 256 * 1024);
+	if (IS_ERR(cma_obj)) {
 		DRM_ERROR("Couldn't allocate binner overflow mem\n");
-		kfree(entry);
 		return;
 	}
+	bo = to_vc4_bo(&cma_obj->base);
 
-	list_add_tail(&entry->head, &vc4->overflow_list);
+	/* If there's a job executing currently, then our previous
+	 * overflow allocation is getting used in that job and we need
+	 * to queue it to be released when the job is done.  But if no
+	 * job is executing at all, then we can free the old overflow
+	 * object direcctly.
+	 *
+	 * No lock necessary for this pointer since we're the only
+	 * ones that update the pointer, and our workqueue won't
+	 * reenter.
+	 */
+	if (vc4->overflow_mem) {
+		struct vc4_exec_info *current_exec;
+		spin_lock(&vc4->job_lock);
+		current_exec = vc4_first_job(vc4);
+		if (current_exec) {
+			vc4->overflow_mem->seqno = vc4->finished_seqno + 1;
+			list_add_tail(&vc4->overflow_mem->unref_head,
+				      &current_exec->unref_list);
+			vc4->overflow_mem = NULL;
+		}
+		spin_unlock(&vc4->job_lock);
+	}
 
-	V3D_WRITE(V3D_BPOA, entry->bo->paddr);
-	V3D_WRITE(V3D_BPOS, entry->bo->base.size);
+	if (vc4->overflow_mem) {
+		drm_gem_object_unreference_unlocked(&vc4->overflow_mem->base.base);
+	}
+	vc4->overflow_mem = bo;
+
+	V3D_WRITE(V3D_BPOA, cma_obj->paddr);
+	V3D_WRITE(V3D_BPOS, cma_obj->base.size);
 	V3D_WRITE(V3D_INTDIS, 0);
 	V3D_WRITE(V3D_INTCTL, V3D_INT_OUTOMEM);
+}
+
+static void
+vc4_irq_finish_job(struct drm_device *dev)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_exec_info *exec = vc4_first_job(vc4);
+
+	spin_lock(&vc4->job_lock);
+	if (!exec) {
+		spin_unlock(&vc4->job_lock);
+		return;
+	}
+
+	vc4->finished_seqno++;
+	list_move_tail(&exec->head, &vc4->job_done_list);
+	vc4_submit_next_job(dev);
+
+	spin_unlock(&vc4->job_lock);
+
+	wake_up_all(&vc4->job_wait_queue);
+	schedule_work(&vc4->job_done_work);
 }
 
 irqreturn_t
@@ -74,8 +118,7 @@ vc4_irq(int irq, void *arg)
 	}
 
 	if (intctl & V3D_INT_FRDONE) {
-		vc4->frame_done = true;
-		wake_up_all(&vc4->frame_done_queue);
+		vc4_irq_finish_job(dev);
 	}
 
 	return intctl ? IRQ_HANDLED : IRQ_NONE;
@@ -86,7 +129,7 @@ vc4_irq_preinstall(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
-	init_waitqueue_head(&vc4->frame_done_queue);
+	init_waitqueue_head(&vc4->job_wait_queue);
 	INIT_WORK(&vc4->overflow_mem_work, vc4_overflow_mem_work);
 
 	/* Clear any pending interrupts someone might have left around
@@ -136,6 +179,5 @@ void vc4_irq_reset(struct drm_device *dev)
 	V3D_WRITE(V3D_INTDIS, 0);
 	V3D_WRITE(V3D_INTENA, V3D_DRIVER_IRQS);
 
-	vc4->frame_done = true;
-	wake_up_all(&vc4->frame_done_queue);
+	vc4_irq_finish_job(dev);
 }

@@ -19,14 +19,35 @@ struct vc4_dev {
 	struct vc4_crtc *crtc[3];
 	struct vc4_v3d *v3d;
 
-	wait_queue_head_t frame_done_queue;
-	bool frame_done;
-
-	/* List of struct vc4_list_bo_entry allocated to accomodate
-	 * binner overflow.  These will be freed when the exec is
-	 * done.
+	/* Sequence number for the last job queued in job_list.
+	 * Starts at 0 (no jobs emitted).
 	 */
-	struct list_head overflow_list;
+	uint64_t emit_seqno;
+
+	/* Sequence number for the last completed job on the GPU.
+	 * Starts at 0 (no jobs completed).
+	 */
+	uint64_t finished_seqno;
+
+	/* List of all struct vc4_exec_info for jobs to be executed.
+	 * The first job in the list is the one currently programmed
+	 * into ct0ca/ct1ca for execution.
+	 */
+	struct list_head job_list;
+	/* List of the finished vc4_exec_infos waiting to be freed by
+	 * job_done_work.
+	 */
+	struct list_head job_done_list;
+	spinlock_t job_lock;
+	wait_queue_head_t job_wait_queue;
+	struct work_struct job_done_work;
+
+	/* The binner overflow memory that's currently set up in
+	 * BPOA/BPOS registers.  When overflow occurs and a new one is
+	 * allocated, the previous one will be moved to
+	 * vc4->current_exec's free list.
+	 */
+	struct vc4_bo *overflow_mem;
 	struct work_struct overflow_mem_work;
 
 	struct {
@@ -44,6 +65,9 @@ to_vc4_dev(struct drm_device *dev)
 
 struct vc4_bo {
 	struct drm_gem_cma_object base;
+	/* seqno of the last job to render to this BO. */
+	uint64_t seqno;
+	struct list_head unref_head;
 };
 
 static inline struct vc4_bo *
@@ -108,17 +132,15 @@ enum vc4_bo_mode {
 	VC4_MODE_SHADER,
 };
 
-struct vc4_bo_list_entry {
-	struct list_head head;
-	struct drm_gem_cma_object *bo;
-};
-
 struct vc4_bo_exec_state {
 	struct drm_gem_cma_object *bo;
 	enum vc4_bo_mode mode;
 };
 
 struct vc4_exec_info {
+	/* Sequence number for this bin/render job. */
+	uint64_t seqno;
+
 	/* Kernel-space copy of the ioctl arguments */
 	struct drm_vc4_submit_cl *args;
 
@@ -127,6 +149,14 @@ struct vc4_exec_info {
 	 */
 	struct vc4_bo_exec_state *bo;
 	uint32_t bo_count;
+
+	/* Pointers for our position in vc4->job_list */
+	struct list_head head;
+
+	/* List of other BOs used in the job that need to be released
+	 * once the job is complete.
+	 */
+	struct list_head unref_list;
 
 	/* Current unvalidated indices into @bo loaded by the non-hardware
 	 * VC4_PACKET_GEM_HANDLES.
@@ -193,6 +223,14 @@ struct vc4_exec_info {
 	uint32_t uniforms_p;
 	uint32_t uniforms_size;
 };
+
+static inline struct vc4_exec_info *
+vc4_first_job(struct vc4_dev *vc4)
+{
+	if (list_empty(&vc4->job_list))
+		return NULL;
+	return list_first_entry(&vc4->job_list, struct vc4_exec_info, head);
+}
 
 /**
  * struct vc4_texture_sample_info - saves the offsets into the UBO for texture
@@ -285,6 +323,11 @@ void __iomem *vc4_ioremap_regs(struct platform_device *dev, int index);
 void vc4_gem_init(struct drm_device *dev);
 int vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 			struct drm_file *file_priv);
+int vc4_wait_seqno_ioctl(struct drm_device *dev, void *data,
+			 struct drm_file *file_priv);
+int vc4_wait_bo_ioctl(struct drm_device *dev, void *data,
+		      struct drm_file *file_priv);
+void vc4_submit_next_job(struct drm_device *dev);
 
 /* vc4_hdmi.c */
 void vc4_hdmi_register(void);

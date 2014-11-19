@@ -111,6 +111,8 @@ static const struct file_operations vc4_drm_fops = {
 
 static const struct drm_ioctl_desc vc4_drm_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(VC4_SUBMIT_CL, vc4_submit_cl_ioctl, 0),
+	DRM_IOCTL_DEF_DRV(VC4_WAIT_SEQNO, vc4_wait_seqno_ioctl, 0),
+	DRM_IOCTL_DEF_DRV(VC4_WAIT_BO, vc4_wait_bo_ioctl, 0),
 };
 
 static struct drm_driver vc4_drm_driver = {
@@ -156,6 +158,8 @@ static struct drm_driver vc4_drm_driver = {
 	.ioctls = vc4_drm_ioctls,
 	.num_ioctls = ARRAY_SIZE(vc4_drm_ioctls),
 	.fops = &vc4_drm_fops,
+
+	.gem_obj_size = sizeof(struct vc4_bo),
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
