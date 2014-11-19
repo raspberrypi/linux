@@ -623,6 +623,7 @@ struct drm_driver {
 
 	u32 driver_features;
 	int dev_priv_size;
+	size_t gem_obj_size;
 	const struct drm_ioctl_desc *ioctls;
 	int num_ioctls;
 	const struct file_operations *fops;
