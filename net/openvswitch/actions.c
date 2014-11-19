@@ -184,7 +184,9 @@ static int push_vlan(struct sk_buff *skb, const struct ovs_action_push_vlan *vla
 		/* push down current VLAN tag */
 		current_tag = vlan_tx_tag_get(skb);
 
-		if (!__vlan_put_tag(skb, skb->vlan_proto, current_tag))
+		skb = vlan_insert_tag_set_proto(skb, skb->vlan_proto,
+						current_tag);
+		if (!skb)
 			return -ENOMEM;
 
 		if (skb->ip_summed == CHECKSUM_COMPLETE)
