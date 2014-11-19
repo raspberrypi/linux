@@ -58,8 +58,11 @@ __drm_gem_cma_create(struct drm_device *drm, size_t size)
 	struct drm_gem_cma_object *cma_obj;
 	struct drm_gem_object *gem_obj;
 	int ret;
+	size_t obj_size = (drm->driver->gem_obj_size ?
+			   drm->driver->gem_obj_size :
+			   sizeof(*cma_obj));
 
-	cma_obj = kzalloc(sizeof(*cma_obj), GFP_KERNEL);
+	cma_obj = kzalloc(obj_size, GFP_KERNEL);
 	if (!cma_obj)
 		return ERR_PTR(-ENOMEM);
 
