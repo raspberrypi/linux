@@ -31,6 +31,15 @@
 #include "vc4_regs.h"
 
 static void
+vc4_queue_hangcheck(struct drm_device *dev)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	mod_timer(&vc4->hangcheck.timer,
+		  round_jiffies_up(jiffies + msecs_to_jiffies(100)));
+}
+
+static void
 vc4_reset(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
@@ -40,6 +49,47 @@ vc4_reset(struct drm_device *dev)
 	vc4_v3d_set_power(vc4, true);
 
 	vc4_irq_reset(dev);
+}
+
+static void
+vc4_reset_work(struct work_struct *work)
+{
+	struct vc4_dev *vc4 =
+		container_of(work, struct vc4_dev, hangcheck.reset_work);
+
+	vc4_reset(vc4->dev);
+}
+
+static void
+vc4_hangcheck_elapsed(unsigned long data)
+{
+	struct drm_device *dev = (struct drm_device *)data;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	uint32_t ct0ca, ct1ca;
+
+	/* If idle, we can stop watching for hangs. */
+	if (vc4->frame_done)
+		return;
+
+	ct0ca = V3D_READ(V3D_CTNCA(0));
+	ct1ca = V3D_READ(V3D_CTNCA(1));
+
+	/* If we've made any progress in execution, rearm the timer
+	 * and wait.
+	 */
+	if (ct0ca != vc4->hangcheck.last_ct0ca ||
+	    ct1ca != vc4->hangcheck.last_ct1ca) {
+		vc4->hangcheck.last_ct0ca = ct0ca;
+		vc4->hangcheck.last_ct1ca = ct1ca;
+		vc4_queue_hangcheck(dev);
+		return;
+	}
+
+	/* We've gone too long with no progress, reset.  This has to
+	 * be done from a work struct, since resetting can sleep and
+	 * this timer hook isn't allowed to.
+	 */
+	schedule_work(&vc4->hangcheck.reset_work);
 }
 
 static void
@@ -145,7 +195,9 @@ vc4_submit(struct drm_device *dev, struct vc4_exec_info *exec)
 	submit_cl(dev, 0, ct0ca, ct0ea);
 	submit_cl(dev, 1, ct1ca, ct1ea);
 
-	ret = vc4_wait_for_job(dev, exec, 1000);
+	vc4_queue_hangcheck(dev);
+
+	ret = vc4_wait_for_job(dev, exec, 10000);
 	if (ret)
 		return ret;
 
@@ -360,10 +412,8 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 		goto fail;
 
 	ret = vc4_submit(dev, &exec);
-	if (ret) {
-		vc4_reset(dev);
+	if (ret)
 		goto fail;
-	}
 
 fail:
 	if (exec.bo) {
@@ -394,4 +444,17 @@ fail:
 	mutex_unlock(&dev->struct_mutex);
 
 	return ret;
+}
+
+void
+vc4_gem_init(struct drm_device *dev)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	INIT_LIST_HEAD(&vc4->overflow_list);
+
+	INIT_WORK(&vc4->hangcheck.reset_work, vc4_reset_work);
+	setup_timer(&vc4->hangcheck.timer,
+		    vc4_hangcheck_elapsed,
+		    (unsigned long) dev);
 }

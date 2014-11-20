@@ -58,8 +58,6 @@ vc4_drm_load(struct drm_device *dev, unsigned long flags)
 	if (!vc4)
 		return -ENOMEM;
 
-	INIT_LIST_HEAD(&vc4->overflow_list);
-
 	vc4->firmware_node = of_parse_phandle(dev->dev->of_node, "firmware", 0);
 	if (!vc4->firmware_node) {
 		DRM_ERROR("Failed to parse firmware node.\n");
@@ -80,6 +78,8 @@ vc4_drm_load(struct drm_device *dev, unsigned long flags)
 	ret = component_bind_all(dev->dev, dev);
 	if (ret)
 		return ret;
+
+	vc4_gem_init(dev);
 
 	vc4_kms_load(dev);
 

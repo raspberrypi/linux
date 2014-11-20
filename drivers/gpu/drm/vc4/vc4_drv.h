@@ -28,6 +28,12 @@ struct vc4_dev {
 	 */
 	struct list_head overflow_list;
 	struct work_struct overflow_mem_work;
+
+	struct {
+		uint32_t last_ct0ca, last_ct1ca;
+		struct timer_list timer;
+		struct work_struct reset_work;
+	} hangcheck;
 };
 
 static inline struct vc4_dev *
@@ -276,6 +282,7 @@ void vc4_debugfs_cleanup(struct drm_minor *minor);
 void __iomem *vc4_ioremap_regs(struct platform_device *dev, int index);
 
 /* vc4_gem.c */
+void vc4_gem_init(struct drm_device *dev);
 int vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 			struct drm_file *file_priv);
 
