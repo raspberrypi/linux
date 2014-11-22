@@ -318,7 +318,6 @@ reread:
 	 * Initialize the mount structure from the superblock.
 	 */
 	xfs_sb_from_disk(&mp->m_sb, XFS_BUF_TO_SBP(bp));
-	xfs_sb_quota_from_disk(&mp->m_sb);
 
 	/*
 	 * We must be able to do sector-sized and sector-aligned IO.
