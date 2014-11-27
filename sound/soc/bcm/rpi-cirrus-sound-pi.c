@@ -434,6 +434,23 @@ static int snd_rpi_wsp_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int dai_link2_params_fixup(struct snd_soc_dapm_widget *w, int event)
+{
+	struct snd_soc_card *card = &snd_rpi_wsp;
+	struct wm5102_machine_priv *priv = snd_soc_card_get_drvdata(card);
+	struct snd_soc_pcm_stream *config = w->params;
+
+	if (event == SND_SOC_DAPM_PRE_PMU) {
+		config->rate_min = priv->wm8804_sr;
+		config->rate_max = priv->wm8804_sr;
+	} else if (event == SND_SOC_DAPM_PRE_PMD) {
+		config->rate_min = RPI_WLF_SR;
+		config->rate_max = RPI_WLF_SR;
+	}
+
+	return 0;
+}
+
 static int snd_rpi_wsp_hw_free(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -498,6 +515,7 @@ static struct snd_soc_dai_link snd_rpi_wsp_dai[] = {
 			| SND_SOC_DAIFMT_CBM_CFM,
 		.ignore_suspend = 1,
 		.params = &dai_link2_params,
+		.params_fixup = dai_link2_params_fixup,
 	},
 };
 
