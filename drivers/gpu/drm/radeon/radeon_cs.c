@@ -226,14 +226,11 @@ static int radeon_cs_get_ring(struct radeon_cs_parser *p, u32 ring, s32 priority
 
 static void radeon_cs_sync_rings(struct radeon_cs_parser *p)
 {
-	int i;
+	struct radeon_cs_reloc *reloc;
 
-	for (i = 0; i < p->nrelocs; i++) {
-		if (!p->relocs[i].robj)
-			continue;
-
+	list_for_each_entry(reloc, &p->validated, tv.head) {
 		radeon_semaphore_sync_to(p->ib.semaphore,
-					 p->relocs[i].robj->tbo.sync_obj);
+					 reloc->robj->tbo.sync_obj);
 	}
 }
 
