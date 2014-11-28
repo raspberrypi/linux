@@ -171,6 +171,11 @@ static const unsigned int bcm2708_clk_freq[BCM2708_CLK_SRC_HDMI+1] = {
 /* I2S pin configuration */
 static int bcm2708_i2s_gpio=BCM2708_I2S_GPIO_AUTO;
 
+static bool use_mmap = 1;
+module_param(use_mmap, bool, S_IRUGO);
+MODULE_PARM_DESC(use_mmap, "Use MMAP");
+
+
 /* General device struct */
 struct bcm2708_i2s_dev {
 	struct device				*dev;
@@ -870,7 +875,7 @@ static const struct snd_soc_component_driver bcm2708_i2s_component = {
 	.name		= "bcm2708-i2s-comp",
 };
 
-static const struct snd_pcm_hardware bcm2708_pcm_hardware = {
+static struct snd_pcm_hardware bcm2708_pcm_hardware = {
 	.info			= SNDRV_PCM_INFO_INTERLEAVED |
 				  SNDRV_PCM_INFO_JOINT_DUPLEX,
 	.formats		= SNDRV_PCM_FMTBIT_S16_LE |
@@ -960,6 +965,11 @@ static int bcm2708_i2s_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Could not register DAI: %d\n", ret);
 		ret = -ENOMEM;
 		return ret;
+	}
+
+	if (use_mmap) {
+		bcm2708_pcm_hardware.info |= SNDRV_PCM_INFO_MMAP;
+		bcm2708_pcm_hardware.info |= SNDRV_PCM_INFO_MMAP_VALID;
 	}
 
 	ret = snd_dmaengine_pcm_register(&pdev->dev,
