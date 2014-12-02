@@ -76,6 +76,7 @@ vc4_overflow_mem_work(struct work_struct *work)
 	V3D_WRITE(V3D_BPOA, cma_obj->paddr);
 	V3D_WRITE(V3D_BPOS, cma_obj->base.size);
 	V3D_WRITE(V3D_INTDIS, 0);
+	V3D_WRITE(V3D_INTENA, V3D_DRIVER_IRQS);
 	V3D_WRITE(V3D_INTCTL, V3D_INT_OUTOMEM);
 }
 
