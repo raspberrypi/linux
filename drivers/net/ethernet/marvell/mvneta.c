@@ -1524,6 +1524,7 @@ static int mvneta_tx(struct sk_buff *skb, struct net_device *dev)
 	struct mvneta_tx_queue *txq = &pp->txqs[txq_id];
 	struct mvneta_tx_desc *tx_desc;
 	struct netdev_queue *nq;
+	int len = skb->len;
 	int frags = 0;
 	u32 tx_cmd;
 
@@ -1584,7 +1585,7 @@ out:
 	if (frags > 0) {
 		u64_stats_update_begin(&pp->tx_stats.syncp);
 		pp->tx_stats.packets++;
-		pp->tx_stats.bytes += skb->len;
+		pp->tx_stats.bytes += len;
 		u64_stats_update_end(&pp->tx_stats.syncp);
 
 	} else {
