@@ -945,19 +945,38 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 
 	/* Retrieve command line */
 	p = of_get_flat_dt_prop(node, "bootargs", &l);
-	if (p != NULL && l > 0)
-		strlcpy(data, p, min((int)l, COMMAND_LINE_SIZE));
 
 	/*
 	 * CONFIG_CMDLINE is meant to be a default in case nothing else
 	 * managed to set the command line, unless CONFIG_CMDLINE_FORCE
 	 * is set in which case we override whatever was found earlier.
+	 *
+	 * However, it can be useful to be able to treat the default as
+	 * a starting point to be extended using CONFIG_CMDLINE_EXTEND.
 	 */
+	((char *)data)[0] = '\0';
+
 #ifdef CONFIG_CMDLINE
-#ifndef CONFIG_CMDLINE_FORCE
-	if (!((char *)data)[0])
+	strlcpy(data, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
+
+	if (p != NULL && l > 0)	{
+#if defined(CONFIG_CMDLINE_EXTEND)
+		int len = strlen(data);
+		if (len > 0) {
+			strlcat(data, " ", COMMAND_LINE_SIZE);
+			len++;
+		}
+		strlcpy((char *)data + len, p, min((int)l, COMMAND_LINE_SIZE - len));
+#elif defined(CONFIG_CMDLINE_FORCE)
+		pr_warning("Ignoring bootargs property (using the default kernel command line)\n");
+#else
+		/* Neither extend nor force - just override */
+		strlcpy(data, p, min((int)l, COMMAND_LINE_SIZE));
 #endif
-		strlcpy(data, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
+	}
+#else /* CONFIG_CMDLINE */
+	if (p != NULL && l > 0)	{
+		strlcpy(data, p, min((int)l, COMMAND_LINE_SIZE));
 #endif /* CONFIG_CMDLINE */
 
 	pr_debug("Command line is: %s\n", (char*)data);
