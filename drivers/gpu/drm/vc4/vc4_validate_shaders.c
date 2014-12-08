@@ -221,7 +221,7 @@ check_register_write(uint64_t inst,
 	uint32_t waddr = (is_mul ?
 			  QPU_GET_FIELD(inst, QPU_WADDR_MUL) :
 			  QPU_GET_FIELD(inst, QPU_WADDR_ADD));
-	bool is_b = is_mul != ((inst & QPU_PM) != 0);
+	bool is_b = is_mul != ((inst & QPU_WS) != 0);
 	uint32_t live_reg_index;
 
 	switch (waddr) {
@@ -297,7 +297,7 @@ track_live_clamps(uint64_t inst,
 	uint32_t add_b = QPU_GET_FIELD(inst, QPU_ADD_B);
 	uint32_t raddr_a = QPU_GET_FIELD(inst, QPU_RADDR_A);
 	uint32_t raddr_b = QPU_GET_FIELD(inst, QPU_RADDR_B);
-	bool pm = inst & QPU_PM;
+	bool is_b = inst & QPU_WS;
 	uint32_t live_reg_index;
 
 	if (QPU_GET_FIELD(inst, QPU_OP_ADD) != QPU_A_MIN)
@@ -308,7 +308,7 @@ track_live_clamps(uint64_t inst,
 		return;
 	}
 
-	live_reg_index = waddr_to_live_reg_index(waddr_add, pm);
+	live_reg_index = waddr_to_live_reg_index(waddr_add, is_b);
 	if (live_reg_index != ~0) {
 		validation_state->live_clamp_offsets[live_reg_index] =
 			validated_shader->uniforms_size;
