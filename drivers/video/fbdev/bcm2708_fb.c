@@ -268,12 +268,6 @@ static int bcm2708_fb_check_var(struct fb_var_screeninfo *var,
 	else if (var->vmode & FB_VMODE_INTERLACED)
 		yres = (yres + 1) / 2;
 
-	if (var->xres * yres > 1920 * 1200) {
-		pr_err("bcm2708_fb_check_var: ERROR: Pixel size >= 1920x1200; "
-		       "special treatment required! (TODO)\n");
-		return -EINVAL;
-	}
-
 	return 0;
 }
 
@@ -481,7 +475,8 @@ static void bcm2708_fb_copyarea(struct fb_info *info,
 	int pixels = region->width * region->height;
 
 	/* Fallback to cfb_copyarea() if we don't like something */
-	if (bytes_per_pixel > 4 ||
+	if (in_atomic() ||
+	    bytes_per_pixel > 4 ||
 	    info->var.xres * info->var.yres > 1920 * 1200 ||
 	    region->width <= 0 || region->width > info->var.xres ||
 	    region->height <= 0 || region->height > info->var.yres ||
