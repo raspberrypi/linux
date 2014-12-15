@@ -391,7 +391,7 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 	struct bcm2835_desc *d;
 	dma_addr_t dev_addr;
 	unsigned int es, sync_type;
-	unsigned int frame;
+	unsigned int frame, max_size;
 
 	/* Grab configuration */
 	if (!is_slave_direction(direction)) {
@@ -424,7 +424,14 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 		return NULL;
 
 	d->dir = direction;
-	d->frames = buf_len / period_len;
+
+	if (c->ch >= 8) /* we have a LITE channel */
+		max_size = MAX_LITE_TRANSFER;
+	else
+		max_size = MAX_NORMAL_TRANSFER;
+	period_len = min(period_len, max_size);
+
+	d->frames = (buf_len-1) / period_len + 1;
 
 	/* Allocate memory for control blocks */
 	d->control_block_size = d->frames * sizeof(struct bcm2835_dma_cb);
@@ -469,7 +476,11 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 				BCM2835_DMA_PER_MAP(c->cfg.slave_id);
 
 		/* Length of a frame */
-		control_block->length = period_len;
+		if (frame != d->frames-1)
+			control_block->length = period_len;
+		else
+			control_block->length = buf_len - (d->frames - 1) * period_len;
+
 		d->size += control_block->length;
 
 		/*
