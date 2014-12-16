@@ -79,3 +79,13 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2s_pins>;
 };
+
+
+/ {
+	__overrides__ {
+		    i2s = <&i2s>,"status";
+		    spi = <&spi0>,"status";
+		    i2c0 = <&i2c0>,"status";
+		    i2c1 = <&i2c1>,"status";
+	};
+};
