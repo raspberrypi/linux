@@ -784,7 +784,6 @@ struct kvm_s390_interrupt_info *kvm_s390_get_io_int(struct kvm *kvm,
 
 	if ((!schid && !cr6) || (schid && cr6))
 		return NULL;
-	mutex_lock(&kvm->lock);
 	fi = &kvm->arch.float_int;
 	spin_lock(&fi->lock);
 	inti = NULL;
@@ -812,7 +811,6 @@ struct kvm_s390_interrupt_info *kvm_s390_get_io_int(struct kvm *kvm,
 	if (list_empty(&fi->list))
 		atomic_set(&fi->active, 0);
 	spin_unlock(&fi->lock);
-	mutex_unlock(&kvm->lock);
 	return inti;
 }
 
@@ -825,7 +823,6 @@ static int __inject_vm(struct kvm *kvm, struct kvm_s390_interrupt_info *inti)
 	int sigcpu;
 	int rc = 0;
 
-	mutex_lock(&kvm->lock);
 	fi = &kvm->arch.float_int;
 	spin_lock(&fi->lock);
 	if (fi->irq_count >= KVM_S390_MAX_FLOAT_IRQS) {
@@ -868,7 +865,6 @@ static int __inject_vm(struct kvm *kvm, struct kvm_s390_interrupt_info *inti)
 	kvm_s390_vcpu_wakeup(kvm_get_vcpu(kvm, sigcpu));
 unlock_fi:
 	spin_unlock(&fi->lock);
-	mutex_unlock(&kvm->lock);
 	return rc;
 }
 
@@ -1029,7 +1025,6 @@ void kvm_s390_clear_float_irqs(struct kvm *kvm)
 	struct kvm_s390_float_interrupt *fi;
 	struct kvm_s390_interrupt_info	*n, *inti = NULL;
 
-	mutex_lock(&kvm->lock);
 	fi = &kvm->arch.float_int;
 	spin_lock(&fi->lock);
 	list_for_each_entry_safe(inti, n, &fi->list, list) {
@@ -1039,7 +1034,6 @@ void kvm_s390_clear_float_irqs(struct kvm *kvm)
 	fi->irq_count = 0;
 	atomic_set(&fi->active, 0);
 	spin_unlock(&fi->lock);
-	mutex_unlock(&kvm->lock);
 }
 
 static inline int copy_irq_to_user(struct kvm_s390_interrupt_info *inti,
@@ -1079,7 +1073,6 @@ static int get_all_floating_irqs(struct kvm *kvm, __u8 *buf, __u64 len)
 	int ret = 0;
 	int n = 0;
 
-	mutex_lock(&kvm->lock);
 	fi = &kvm->arch.float_int;
 	spin_lock(&fi->lock);
 
@@ -1098,7 +1091,6 @@ static int get_all_floating_irqs(struct kvm *kvm, __u8 *buf, __u64 len)
 	}
 
 	spin_unlock(&fi->lock);
-	mutex_unlock(&kvm->lock);
 
 	return ret < 0 ? ret : n;
 }
