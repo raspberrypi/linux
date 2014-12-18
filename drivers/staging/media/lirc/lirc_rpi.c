@@ -41,6 +41,7 @@
 #include <media/lirc_dev.h>
 #include <mach/gpio.h>
 #include <linux/gpio.h>
+#include <linux/of_platform.h>
 
 #include <linux/platform_data/bcm2708.h>
 
@@ -303,32 +304,117 @@ static int is_right_chip(struct gpio_chip *chip, void *data)
 	return 0;
 }
 
+static inline int read_bool_property(const struct device_node *np,
+				     const char *propname,
+				     bool *out_value)
+{
+	u32 value = 0;
+	int err = of_property_read_u32(np, propname, &value);
+	if (err == 0)
+		*out_value = (value != 0);
+	return err;
+}
+
+static void read_pin_settings(struct device_node *node)
+{
+	u32 pin;
+	int index;
+
+	for (index = 0;
+	     of_property_read_u32_index(
+		     node,
+		     "brcm,pins",
+		     index,
+		     &pin) == 0;
+	     index++) {
+		u32 function;
+		int err;
+		err = of_property_read_u32_index(
+			node,
+			"brcm,function",
+			index,
+			&function);
+		if (err == 0) {
+			if (function == 1) /* Output */
+				gpio_out_pin = pin;
+			else if (function == 0) /* Input */
+				gpio_in_pin = pin;
+		}
+	}
+}
+
 static int init_port(void)
 {
 	int i, nlow, nhigh, ret;
+	struct device_node *node;
+
+	node = lirc_rpi_dev->dev.of_node;
 
 	gpiochip = gpiochip_find("bcm2708_gpio", is_right_chip);
 
-	if (!gpiochip)
+	/*
+	 * Because of the lack of a setpull function, only support
+	 * pinctrl-bcm2835 if using device tree.
+	*/
+	if (!gpiochip && node)
+		gpiochip = gpiochip_find("pinctrl-bcm2835", is_right_chip);
+
+	if (!gpiochip) {
+		pr_err(LIRC_DRIVER_NAME ": gpio chip not found!\n");
 		return -ENODEV;
-
-	if (gpio_request(gpio_out_pin, LIRC_DRIVER_NAME " ir/out")) {
-		printk(KERN_ALERT LIRC_DRIVER_NAME
-		       ": cant claim gpio pin %d\n", gpio_out_pin);
-		ret = -ENODEV;
-		goto exit_init_port;
 	}
 
-	if (gpio_request(gpio_in_pin, LIRC_DRIVER_NAME " ir/in")) {
-		printk(KERN_ALERT LIRC_DRIVER_NAME
-		       ": cant claim gpio pin %d\n", gpio_in_pin);
-		ret = -ENODEV;
-		goto exit_gpio_free_out_pin;
+	if (node) {
+		struct device_node *pins_node;
+
+		pins_node = of_parse_phandle(node, "pinctrl-0", 0);
+		if (!pins_node) {
+			printk(KERN_ERR LIRC_DRIVER_NAME
+			       ": pinctrl settings not found!\n");
+			ret = -EINVAL;
+			goto exit_init_port;
+		}
+
+		read_pin_settings(pins_node);
+
+		of_property_read_u32(node, "rpi,sense", &sense);
+
+		read_bool_property(node, "rpi,softcarrier", &softcarrier);
+
+		read_bool_property(node, "rpi,invert", &invert);
+
+		read_bool_property(node, "rpi,debug", &debug);
+
+	}
+	else
+	{
+		if (gpio_in_pin >= BCM2708_NR_GPIOS ||
+		    gpio_out_pin >= BCM2708_NR_GPIOS) {
+			ret = -EINVAL;
+			printk(KERN_ERR LIRC_DRIVER_NAME
+			       ": invalid GPIO pin(s) specified!\n");
+			goto exit_init_port;
+		}
+
+		if (gpio_request(gpio_out_pin, LIRC_DRIVER_NAME " ir/out")) {
+			printk(KERN_ALERT LIRC_DRIVER_NAME
+			       ": cant claim gpio pin %d\n", gpio_out_pin);
+			ret = -ENODEV;
+			goto exit_init_port;
+		}
+
+		if (gpio_request(gpio_in_pin, LIRC_DRIVER_NAME " ir/in")) {
+			printk(KERN_ALERT LIRC_DRIVER_NAME
+			       ": cant claim gpio pin %d\n", gpio_in_pin);
+			ret = -ENODEV;
+			goto exit_gpio_free_out_pin;
+		}
+
+		bcm2708_gpio_setpull(gpiochip, gpio_in_pin, gpio_in_pull);
+		gpiochip->direction_input(gpiochip, gpio_in_pin);
+		gpiochip->direction_output(gpiochip, gpio_out_pin, 1);
 	}
 
-	bcm2708_gpio_setpull(gpiochip, gpio_in_pin, gpio_in_pull);
-	gpiochip->direction_input(gpiochip, gpio_in_pin);
-	gpiochip->direction_output(gpiochip, gpio_out_pin, 1);
 	gpiochip->set(gpiochip, gpio_out_pin, invert);
 
 	irq_num = gpiochip->to_irq(gpiochip, gpio_in_pin);
@@ -522,15 +608,23 @@ static struct lirc_driver driver = {
 	.owner		= THIS_MODULE,
 };
 
+static const struct of_device_id lirc_rpi_of_match[] = {
+	{ .compatible = "rpi,lirc-rpi", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, lirc_rpi_of_match);
+
 static struct platform_driver lirc_rpi_driver = {
 	.driver = {
 		.name   = LIRC_DRIVER_NAME,
 		.owner  = THIS_MODULE,
+		.of_match_table = of_match_ptr(lirc_rpi_of_match),
 	},
 };
 
 static int __init lirc_rpi_init(void)
 {
+	struct device_node *node;
 	int result;
 
 	/* Init read buffer. */
@@ -545,15 +639,26 @@ static int __init lirc_rpi_init(void)
 		goto exit_buffer_free;
 	}
 
-	lirc_rpi_dev = platform_device_alloc(LIRC_DRIVER_NAME, 0);
-	if (!lirc_rpi_dev) {
-		result = -ENOMEM;
-		goto exit_driver_unregister;
-	}
+	node = of_find_compatible_node(NULL, NULL,
+				       lirc_rpi_of_match[0].compatible);
 
-	result = platform_device_add(lirc_rpi_dev);
-	if (result)
-		goto exit_device_put;
+	if (node) {
+		/* DT-enabled */
+		lirc_rpi_dev = of_find_device_by_node(node);
+		WARN_ON(lirc_rpi_dev->dev.of_node != node);
+		of_node_put(node);
+	}
+	else {
+		lirc_rpi_dev = platform_device_alloc(LIRC_DRIVER_NAME, 0);
+		if (!lirc_rpi_dev) {
+			result = -ENOMEM;
+			goto exit_driver_unregister;
+		}
+
+		result = platform_device_add(lirc_rpi_dev);
+		if (result)
+			goto exit_device_put;
+	}
 
 	return 0;
 
@@ -584,13 +689,6 @@ static int __init lirc_rpi_init_module(void)
 	result = lirc_rpi_init();
 	if (result)
 		return result;
-
-	if (gpio_in_pin >= BCM2708_NR_GPIOS || gpio_out_pin >= BCM2708_NR_GPIOS) {
-		result = -EINVAL;
-		printk(KERN_ERR LIRC_DRIVER_NAME
-		       ": invalid GPIO pin(s) specified!\n");
-		goto exit_rpi;
-	}
 
 	result = init_port();
 	if (result < 0)
