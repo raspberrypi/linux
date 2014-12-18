@@ -90,6 +90,16 @@ static int bcm2708_set_function(struct gpio_chip *gc, unsigned offset,
 	return 0;
 }
 
+static int bcm2708_gpio_request(struct gpio_chip *chip, unsigned offset)
+{
+	return pinctrl_request_gpio(chip->base + offset);
+}
+
+static void bcm2708_gpio_free(struct gpio_chip *chip, unsigned offset)
+{
+	pinctrl_free_gpio(chip->base + offset);
+}
+
 static int bcm2708_gpio_dir_in(struct gpio_chip *gc, unsigned offset)
 {
 	return bcm2708_set_function(gc, offset, GPIO_FSEL_INPUT);
@@ -345,6 +355,8 @@ static int bcm2708_gpio_probe(struct platform_device *dev)
 	ucb->gc.ngpio = BCM2708_NR_GPIOS;
 	ucb->gc.owner = THIS_MODULE;
 
+	ucb->gc.request = bcm2708_gpio_request;
+	ucb->gc.free = bcm2708_gpio_free;
 	ucb->gc.direction_input = bcm2708_gpio_dir_in;
 	ucb->gc.direction_output = bcm2708_gpio_dir_out;
 	ucb->gc.get = bcm2708_gpio_get;
