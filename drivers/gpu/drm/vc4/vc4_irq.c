@@ -35,15 +35,13 @@ vc4_overflow_mem_work(struct work_struct *work)
 	struct vc4_dev *vc4 =
 		container_of(work, struct vc4_dev, overflow_mem_work);
 	struct drm_device *dev = vc4->dev;
-	struct drm_gem_cma_object *cma_obj;
 	struct vc4_bo *bo;
 
-	cma_obj = drm_gem_cma_create(dev, 256 * 1024);
-	if (IS_ERR(cma_obj)) {
+	bo = vc4_bo_create(dev, 256 * 1024);
+	if (!bo) {
 		DRM_ERROR("Couldn't allocate binner overflow mem\n");
 		return;
 	}
-	bo = to_vc4_bo(&cma_obj->base);
 
 	/* If there's a job executing currently, then our previous
 	 * overflow allocation is getting used in that job and we need
@@ -73,8 +71,8 @@ vc4_overflow_mem_work(struct work_struct *work)
 	}
 	vc4->overflow_mem = bo;
 
-	V3D_WRITE(V3D_BPOA, cma_obj->paddr);
-	V3D_WRITE(V3D_BPOS, cma_obj->base.size);
+	V3D_WRITE(V3D_BPOA, bo->base.paddr);
+	V3D_WRITE(V3D_BPOS, bo->base.base.size);
 	V3D_WRITE(V3D_INTDIS, 0);
 	V3D_WRITE(V3D_INTENA, V3D_DRIVER_IRQS);
 	V3D_WRITE(V3D_INTCTL, V3D_INT_OUTOMEM);

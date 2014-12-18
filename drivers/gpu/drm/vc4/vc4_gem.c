@@ -341,6 +341,7 @@ vc4_cl_validate(struct drm_device *dev, struct vc4_exec_info *exec)
 	uint32_t exec_size = uniforms_offset + args->uniforms_size;
 	uint32_t temp_size = exec_size + (sizeof(struct vc4_shader_state) *
 					  args->shader_rec_count);
+	struct vc4_bo *bo;
 
 	if (shader_rec_offset < render_offset ||
 	    uniforms_offset < shader_rec_offset ||
@@ -399,13 +400,13 @@ vc4_cl_validate(struct drm_device *dev, struct vc4_exec_info *exec)
 		goto fail;
 	}
 
-	exec->exec_bo = drm_gem_cma_create(dev, exec_size);
-	if (IS_ERR(exec->exec_bo)) {
+	bo = vc4_bo_create(dev, 256 * 1024);
+	if (!bo) {
 		DRM_ERROR("Couldn't allocate BO for exec\n");
 		ret = PTR_ERR(exec->exec_bo);
-		exec->exec_bo = NULL;
 		goto fail;
 	}
+	exec->exec_bo = &bo->base;
 
 	list_add_tail(&to_vc4_bo(&exec->exec_bo->base)->unref_head,
 		      &exec->unref_list);
@@ -597,4 +598,6 @@ vc4_gem_init(struct drm_device *dev)
 		    (unsigned long) dev);
 
 	INIT_WORK(&vc4->job_done_work, vc4_job_done_work);
+
+	vc4_bo_cache_init(dev);
 }
