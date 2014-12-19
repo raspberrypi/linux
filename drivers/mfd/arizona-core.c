@@ -94,6 +94,94 @@ int arizona_clk32k_disable(struct arizona *arizona)
 }
 EXPORT_SYMBOL_GPL(arizona_clk32k_disable);
 
+int arizona_dvfs_up(struct arizona *arizona, unsigned int flags)
+{
+	unsigned int new_flags;
+	int ret = 0;
+
+	mutex_lock(&arizona->subsys_max_lock);
+
+	new_flags = arizona->subsys_max_rq | flags;
+
+	if (arizona->subsys_max_rq != new_flags) {
+		switch (arizona->type) {
+		case WM5102:
+		case WM8997:
+			ret = regulator_set_voltage(arizona->dcvdd,
+						    1800000, 1800000);
+			if (ret != 0) {
+				dev_err(arizona->dev,
+					"Failed to set DCVDD (DVFS up): %d\n",
+					ret);
+				goto err;
+			}
+
+			ret = regmap_update_bits(arizona->regmap,
+					ARIZONA_DYNAMIC_FREQUENCY_SCALING_1,
+					ARIZONA_SUBSYS_MAX_FREQ, 1);
+			if (ret != 0) {
+				dev_err(arizona->dev,
+					"Failed to enable subsys max: %d\n",
+					ret);
+				regulator_set_voltage(arizona->dcvdd,
+						      1200000, 1800000);
+				goto err;
+			}
+			break;
+
+		default:
+			break;
+		}
+
+		arizona->subsys_max_rq = new_flags;
+	}
+err:
+	mutex_unlock(&arizona->subsys_max_lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(arizona_dvfs_up);
+
+int arizona_dvfs_down(struct arizona *arizona, unsigned int flags)
+{
+	int ret = 0;
+
+	mutex_lock(&arizona->subsys_max_lock);
+
+	if ((arizona->subsys_max_rq & flags) != flags)
+		dev_warn(arizona->dev, "Unbalanced DVFS down: %x\n", flags);
+
+	arizona->subsys_max_rq &= ~flags;
+
+	if (arizona->subsys_max_rq == 0) {
+		switch (arizona->type) {
+		case WM5102:
+		case WM8997:
+			ret = regmap_update_bits(arizona->regmap,
+					ARIZONA_DYNAMIC_FREQUENCY_SCALING_1,
+					ARIZONA_SUBSYS_MAX_FREQ, 0);
+			if (ret != 0)
+				dev_err(arizona->dev,
+					"Failed to disable subsys max: %d\n",
+					ret);
+
+			ret = regulator_set_voltage(arizona->dcvdd,
+						    1200000, 1800000);
+			if (ret != 0)
+				dev_err(arizona->dev,
+					"Failed to set DCVDD (DVFS down): %d\n",
+					ret);
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	mutex_unlock(&arizona->subsys_max_lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(arizona_dvfs_down);
+
 static irqreturn_t arizona_clkgen_err(int irq, void *data)
 {
 	struct arizona *arizona = data;
@@ -819,6 +907,7 @@ int arizona_dev_init(struct arizona *arizona)
 
 	dev_set_drvdata(arizona->dev, arizona);
 	mutex_init(&arizona->clk_lock);
+	mutex_init(&arizona->subsys_max_lock);
 
 	if (dev_get_platdata(arizona->dev))
 		memcpy(&arizona->pdata, dev_get_platdata(arizona->dev),
