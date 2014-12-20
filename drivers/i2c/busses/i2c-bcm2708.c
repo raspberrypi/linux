@@ -265,9 +265,10 @@ static int bcm2708_i2c_master_xfer(struct i2c_adapter *adap,
 	bi->nmsgs = num;
 	bi->error = false;
 
-	spin_unlock_irqrestore(&bi->lock, flags);
-
 	bcm2708_bsc_setup(bi);
+
+	/* unlockig _after_ the setup to avoid races with the interrupt routine */
+	spin_unlock_irqrestore(&bi->lock, flags);
 
 	ret = wait_for_completion_timeout(&bi->done,
 			msecs_to_jiffies(I2C_TIMEOUT_MS));
