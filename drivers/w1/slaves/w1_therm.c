@@ -62,10 +62,15 @@ module_param_named(strong_pullup, w1_strong_pullup, int, 0);
 static ssize_t w1_slave_show(struct device *device,
 	struct device_attribute *attr, char *buf);
 
+static ssize_t temp_show(struct device *device,
+	struct device_attribute *attr, char *buf);
+
 static DEVICE_ATTR_RO(w1_slave);
+static DEVICE_ATTR_RO(temp);
 
 static struct attribute *w1_therm_attrs[] = {
 	&dev_attr_w1_slave.attr,
+	&dev_attr_temp.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(w1_therm);
@@ -274,6 +279,34 @@ static ssize_t w1_slave_show(struct device *device,
 	mutex_unlock(&dev->bus_mutex);
 
 	return PAGE_SIZE - c;
+}
+
+static ssize_t temp_show(struct device *device,
+	struct device_attribute *attr, char *buf)
+{
+	struct w1_slave *sl = dev_to_w1_slave(device);
+	struct w1_master *dev = sl->master;
+	u8 rom[9], verdict;
+	int i, temp;
+
+	i = mutex_lock_interruptible(&dev->bus_mutex);
+	if (i != 0)
+		return i;
+
+	memset(rom, 0, sizeof(rom));
+
+	verdict = read_rom(device, rom);
+
+	if (verdict < 0)
+		return verdict;
+
+	mutex_unlock(&dev->bus_mutex);
+
+	if (!verdict)
+		return -EIO;
+
+	temp = w1_convert_temp(rom, sl->family->fid);
+	return snprintf(buf, PAGE_SIZE, "%d\n", temp);
 }
 
 static int __init w1_therm_init(void)
