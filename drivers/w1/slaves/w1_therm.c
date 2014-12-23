@@ -171,25 +171,14 @@ static inline int w1_convert_temp(u8 rom[9], u8 fid)
 	return 0;
 }
 
-
-static ssize_t w1_slave_show(struct device *device,
-	struct device_attribute *attr, char *buf)
+static int read_rom(struct device *device, u8 rom[9])
 {
 	struct w1_slave *sl = dev_to_w1_slave(device);
 	struct w1_master *dev = sl->master;
-	u8 rom[9], crc, verdict, external_power;
 	int i, max_trying = 10;
-	ssize_t c = PAGE_SIZE;
-
-	i = mutex_lock_interruptible(&dev->bus_mutex);
-	if (i != 0)
-		return i;
-
-	memset(rom, 0, sizeof(rom));
+	u8 crc, external_power;
 
 	while (max_trying--) {
-
-		verdict = 0;
 		crc = 0;
 
 		if (!w1_reset_select_slave(sl)) {
@@ -240,18 +229,38 @@ static ssize_t w1_slave_show(struct device *device,
 				crc = w1_calc_crc8(rom, 8);
 
 				if (rom[8] == crc)
-					verdict = 1;
+					return 1;
 			}
 		}
-
-		if (verdict)
-			break;
 	}
+
+	return 0;
+}
+
+static ssize_t w1_slave_show(struct device *device,
+	struct device_attribute *attr, char *buf)
+{
+	struct w1_slave *sl = dev_to_w1_slave(device);
+	struct w1_master *dev = sl->master;
+	u8 rom[9], verdict;
+	int i;
+	ssize_t c = PAGE_SIZE;
+
+	i = mutex_lock_interruptible(&dev->bus_mutex);
+	if (i != 0)
+		return i;
+
+	memset(rom, 0, sizeof(rom));
+
+	verdict = read_rom(device, rom);
+	if (verdict < 0)
+		/* Propagate errors to upper layers */
+		return verdict;
 
 	for (i = 0; i < 9; ++i)
 		c -= snprintf(buf + PAGE_SIZE - c, c, "%02x ", rom[i]);
 	c -= snprintf(buf + PAGE_SIZE - c, c, ": crc=%02x %s\n",
-			   crc, (verdict) ? "YES" : "NO");
+			   w1_calc_crc8(rom, 8), (verdict) ? "YES" : "NO");
 	if (verdict)
 		memcpy(sl->rom, rom, sizeof(sl->rom));
 	else
