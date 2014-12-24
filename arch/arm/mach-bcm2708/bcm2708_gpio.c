@@ -21,7 +21,9 @@
 #include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <mach/platform.h>
-
+#ifdef CONFIG_BCM2708_DT
+#include <linux/pinctrl/consumer.h>
+#endif
 #include <linux/platform_data/bcm2708.h>
 
 #define BCM_GPIO_DRIVER_NAME "bcm2708_gpio"
