@@ -1003,7 +1003,7 @@ validate_shader_rec(struct drm_device *dev,
 	struct drm_gem_cma_object *bo[ARRAY_SIZE(gl_relocs) + 8];
 	uint32_t nr_attributes = 0, nr_fixed_relocs, nr_relocs, packet_size;
 	int i;
-	struct vc4_validated_shader_info *validated_shader = NULL;
+	struct vc4_validated_shader_info *validated_shader;
 
 	if (state->packet == VC4_PACKET_NV_SHADER_STATE) {
 		relocs = nv_relocs;
@@ -1080,7 +1080,6 @@ validate_shader_rec(struct drm_device *dev,
 				goto fail;
 			}
 
-			kfree(validated_shader);
 			validated_shader = vc4_validate_shader(bo[i]);
 			if (!validated_shader)
 				goto fail;
@@ -1153,12 +1152,9 @@ validate_shader_rec(struct drm_device *dev,
 		*(uint32_t *)(pkt_v + o) = vbo->paddr + offset;
 	}
 
-	kfree(validated_shader);
-
 	return 0;
 
 fail:
-	kfree(validated_shader);
 	return -EINVAL;
 }
 

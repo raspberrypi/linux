@@ -369,6 +369,7 @@ check_instruction_reads(uint64_t inst,
 struct vc4_validated_shader_info *
 vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 {
+	struct vc4_bo *shader_bo = to_vc4_bo(&shader_obj->base);
 	bool found_shader_end = false;
 	int shader_end_ip = 0;
 	uint32_t ip, max_ip;
@@ -376,6 +377,9 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 	struct vc4_validated_shader_info *validated_shader;
 	struct vc4_shader_validation_state validation_state;
 	int i;
+
+	if (shader_bo->validated_shader)
+		return shader_bo->validated_shader;
 
 	memset(&validation_state, 0, sizeof(validation_state));
 
@@ -456,6 +460,7 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 		(validated_shader->uniforms_size +
 		 4 * validated_shader->num_texture_samples);
 
+	shader_bo->validated_shader = validated_shader;
 	return validated_shader;
 
 fail:

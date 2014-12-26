@@ -174,6 +174,9 @@ vc4_free_object(struct drm_gem_object *gem_bo)
 		return;
 	}
 
+	kfree(bo->validated_shader);
+	bo->validated_shader = NULL;
+
 	bo->free_time = jiffies;
 	list_add(&bo->size_head, cache_list);
 	list_add(&bo->unref_head, &vc4->bo_cache.time_list);

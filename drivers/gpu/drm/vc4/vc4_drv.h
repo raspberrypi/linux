@@ -99,6 +99,9 @@ struct vc4_bo {
 
 	/* List entry for the BO's position in vc4_dev->bo_cache.size_list */
 	struct list_head size_head;
+
+	/* Cached state from validation of the shader code. */
+	struct vc4_validated_shader_info *validated_shader;
 };
 
 static inline struct vc4_bo *
