@@ -25,10 +25,15 @@
 		};
 
 		gpio: gpio {
-			compatible = "brcm,bcm2708-pinctrl";
+			compatible = "brcm,bcm2835-gpio";
 			reg = <0x7e200000 0xb4>;
+			interrupts = <2 17>, <2 18>;
+
 			gpio-controller;
 			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
 		};
 
 		i2s: i2s@7e203000 {
