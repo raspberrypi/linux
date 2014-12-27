@@ -202,7 +202,7 @@ int __init armctrl_init(void __iomem * base, unsigned int irq_start,
 {
 	unsigned int irq;
 
-	for (irq = 0; irq < NR_IRQS; irq++) {
+	for (irq = 0; irq < BCM2708_ALLOC_IRQS; irq++) {
 		unsigned int data = irq;
 		if (irq >= INTERRUPT_JPEG && irq <= INTERRUPT_ARASANSDIO)
 			data = remap_irqs[irq - INTERRUPT_JPEG];
