@@ -84,7 +84,7 @@ static void armctrl_unmask_irq(struct irq_data *d)
 #ifdef CONFIG_OF
 
 #define NR_IRQS_BANK0           21
-#define NR_BANKS                3 + 1 /* bank 3 is used for GPIO interrupts */
+#define NR_BANKS                3
 #define IRQS_PER_BANK           32
 
 /* from drivers/irqchip/irq-bcm2835.c */
@@ -108,10 +108,8 @@ static int armctrl_xlate(struct irq_domain *d, struct device_node *ctrlr,
 		*out_hwirq = ARM_IRQ0_BASE + intspec[1];
 	else if (intspec[0] == 1)
 		*out_hwirq = ARM_IRQ1_BASE + intspec[1];
-	else if (intspec[0] == 2)
-		*out_hwirq = ARM_IRQ2_BASE + intspec[1];
 	else
-		*out_hwirq = GPIO_IRQ_START + intspec[1];
+		*out_hwirq = ARM_IRQ2_BASE + intspec[1];
 
 	/* reverse remap_irqs[] */
 	switch (*out_hwirq) {
