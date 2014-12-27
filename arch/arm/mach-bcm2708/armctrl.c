@@ -167,7 +167,8 @@ void __init armctrl_dt_init(void)
 	if (!np)
 		return;
 
-        domain = irq_domain_add_legacy(np, NR_IRQS, IRQ_ARMCTRL_START, 0,
+	domain = irq_domain_add_legacy(np, BCM2708_ALLOC_IRQS,
+					IRQ_ARMCTRL_START, 0,
 					&armctrl_ops, NULL);
         WARN_ON(!domain);
 }
@@ -298,7 +299,7 @@ int __init armctrl_init(void __iomem * base, unsigned int irq_start,
 {
 	unsigned int irq;
 
-	for (irq = 0; irq < NR_IRQS; irq++) {
+	for (irq = 0; irq < BCM2708_ALLOC_IRQS; irq++) {
 		unsigned int data = irq;
 		if (irq >= INTERRUPT_JPEG && irq <= INTERRUPT_ARASANSDIO)
 			data = remap_irqs[irq - INTERRUPT_JPEG];
