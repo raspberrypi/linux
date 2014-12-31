@@ -1074,9 +1074,14 @@ validate_shader_rec(struct drm_device *dev,
 
 		switch (relocs[i].type) {
 		case RELOC_CODE:
+			if (src_offset != 0) {
+				DRM_ERROR("Shaders must be at offset 0 of "
+					  "the BO.\n");
+				goto fail;
+			}
+
 			kfree(validated_shader);
-			validated_shader = vc4_validate_shader(bo[i],
-							       src_offset);
+			validated_shader = vc4_validate_shader(bo[i]);
 			if (!validated_shader)
 				goto fail;
 

@@ -367,8 +367,7 @@ check_instruction_reads(uint64_t inst,
 }
 
 struct vc4_validated_shader_info *
-vc4_validate_shader(struct drm_gem_cma_object *shader_obj,
-		    uint32_t start_offset)
+vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 {
 	bool found_shader_end = false;
 	int shader_end_ip = 0;
@@ -385,14 +384,8 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj,
 	for (i = 0; i < ARRAY_SIZE(validation_state.live_clamp_offsets); i++)
 		validation_state.live_clamp_offsets[i] = ~0;
 
-	if (start_offset + sizeof(uint64_t) > shader_obj->base.size) {
-		DRM_ERROR("shader starting at %d outside of BO sized %d\n",
-			  start_offset,
-			  shader_obj->base.size);
-		return NULL;
-	}
-	shader = shader_obj->vaddr + start_offset;
-	max_ip = (shader_obj->base.size - start_offset) / sizeof(uint64_t);
+	shader = shader_obj->vaddr;
+	max_ip = shader_obj->base.size / sizeof(uint64_t);
 
 	validated_shader = kcalloc(sizeof(*validated_shader), 1, GFP_KERNEL);
 	if (!validated_shader)
@@ -449,9 +442,8 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj,
 	}
 
 	if (ip == max_ip) {
-		DRM_ERROR("shader starting at %d failed to terminate before "
+		DRM_ERROR("shader failed to terminate before "
 			  "shader BO end at %d\n",
-			  start_offset,
 			  shader_obj->base.size);
 		goto fail;
 	}

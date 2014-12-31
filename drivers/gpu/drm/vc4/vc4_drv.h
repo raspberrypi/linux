@@ -418,5 +418,4 @@ int
 vc4_validate_shader_recs(struct drm_device *dev, struct vc4_exec_info *exec);
 
 struct vc4_validated_shader_info *
-vc4_validate_shader(struct drm_gem_cma_object *shader_obj,
-                    uint32_t start_offset);
+vc4_validate_shader(struct drm_gem_cma_object *shader_obj);
