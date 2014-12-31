@@ -177,6 +177,12 @@ vc4_free_object(struct drm_gem_object *gem_bo)
 	kfree(bo->validated_shader);
 	bo->validated_shader = NULL;
 
+	/* If the BO was exported, and it's made it to this point,
+	 * then the dmabuf usage has been completely finished (so it's
+	 * safe now to let it turn into a shader again).
+	 */
+	bo->dma_buf_import_export = false;
+
 	bo->free_time = jiffies;
 	list_add(&bo->size_head, cache_list);
 	list_add(&bo->unref_head, &vc4->bo_cache.time_list);
@@ -216,4 +222,34 @@ vc4_bo_cache_init(struct drm_device *dev)
 	setup_timer(&vc4->bo_cache.time_timer,
 		    vc4_bo_cache_time_timer,
 		    (unsigned long) dev);
+}
+
+struct drm_gem_object *
+vc4_prime_import(struct drm_device *dev, struct dma_buf *dma_buf)
+{
+	struct drm_gem_object *obj = drm_gem_prime_import(dev, dma_buf);
+
+	if (!IS_ERR_OR_NULL(obj)) {
+		struct vc4_bo *bo = to_vc4_bo(obj);
+		bo->dma_buf_import_export = true;
+	}
+
+	return obj;
+}
+
+struct dma_buf *
+vc4_prime_export(struct drm_device *dev, struct drm_gem_object *obj, int flags)
+{
+	struct vc4_bo *bo = to_vc4_bo(obj);
+
+	mutex_lock(&dev->struct_mutex);
+	if (bo->validated_shader) {
+		mutex_unlock(&dev->struct_mutex);
+		DRM_ERROR("Attempting to export shader BO\n");
+		return ERR_PTR(-EINVAL);
+	}
+	bo->dma_buf_import_export = true;
+	mutex_unlock(&dev->struct_mutex);
+
+	return drm_gem_prime_export(dev, obj, flags);
 }

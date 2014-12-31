@@ -369,6 +369,7 @@ check_instruction_reads(uint64_t inst,
 struct vc4_validated_shader_info *
 vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(shader_obj->base.dev);
 	struct vc4_bo *shader_bo = to_vc4_bo(&shader_obj->base);
 	bool found_shader_end = false;
 	int shader_end_ip = 0;
@@ -386,6 +387,11 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 	 */
 	if (shader_bo->seqno > vc4->finished_seqno) {
 		DRM_ERROR("shader BO is currently busy on the GPU.\n");
+		return NULL;
+	}
+
+	if (shader_bo->dma_buf_import_export) {
+		DRM_ERROR("shader BO was exported through dmabuf.\n");
 		return NULL;
 	}
 

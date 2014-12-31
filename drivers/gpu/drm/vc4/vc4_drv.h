@@ -102,6 +102,11 @@ struct vc4_bo {
 
 	/* Cached state from validation of the shader code. */
 	struct vc4_validated_shader_info *validated_shader;
+
+	/* Set if the buffer has been either imported or exported via
+	 * dmabufs.  Used for shader mapping security checks.
+	 */
+	bool dma_buf_import_export;
 };
 
 static inline struct vc4_bo *
@@ -353,6 +358,10 @@ struct vc4_bo *vc4_bo_create(struct drm_device *dev, size_t size);
 int vc4_dumb_create(struct drm_file *file_priv,
 		    struct drm_device *dev,
 		    struct drm_mode_create_dumb *args);
+struct drm_gem_object *vc4_prime_import(struct drm_device *dev,
+					struct dma_buf *dma_buf);
+struct dma_buf *vc4_prime_export(struct drm_device *dev,
+				 struct drm_gem_object *obj, int flags);
 
 /* vc4_debugfs.c */
 int vc4_debugfs_init(struct drm_minor *minor);
