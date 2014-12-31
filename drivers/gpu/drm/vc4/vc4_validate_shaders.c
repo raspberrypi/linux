@@ -381,6 +381,14 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 	if (shader_bo->validated_shader)
 		return shader_bo->validated_shader;
 
+	/* Our validation relies on nothing modifying the shader
+	 * contents after us, so just ban sending us busy BOs.
+	 */
+	if (shader_bo->seqno > vc4->finished_seqno) {
+		DRM_ERROR("shader BO is currently busy on the GPU.\n");
+		return NULL;
+	}
+
 	memset(&validation_state, 0, sizeof(validation_state));
 
 	for (i = 0; i < 8; i++)
