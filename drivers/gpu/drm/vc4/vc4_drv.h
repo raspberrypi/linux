@@ -352,6 +352,7 @@ void vc4_disable_vblank(struct drm_device *dev, int crtc_id);
 #define wait_for(COND, MS) _wait_for(COND, MS, 1)
 
 /* vc4_bo.c */
+extern const struct vm_operations_struct vc4_vm_ops;
 void vc4_bo_cache_init(struct drm_device *dev);
 void vc4_free_object(struct drm_gem_object *gem_obj);
 struct vc4_bo *vc4_bo_create(struct drm_device *dev, size_t size);
@@ -362,6 +363,8 @@ struct drm_gem_object *vc4_prime_import(struct drm_device *dev,
 					struct dma_buf *dma_buf);
 struct dma_buf *vc4_prime_export(struct drm_device *dev,
 				 struct drm_gem_object *obj, int flags);
+int vc4_mmap(struct file *filp, struct vm_area_struct *vma);
+void vc4_force_user_unmap(struct drm_gem_object *gem_obj);
 
 /* vc4_debugfs.c */
 int vc4_debugfs_init(struct drm_minor *minor);
@@ -379,6 +382,8 @@ int vc4_wait_seqno_ioctl(struct drm_device *dev, void *data,
 int vc4_wait_bo_ioctl(struct drm_device *dev, void *data,
 		      struct drm_file *file_priv);
 void vc4_submit_next_job(struct drm_device *dev);
+int vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno,
+		       uint64_t timeout_ns);
 
 /* vc4_hdmi.c */
 void vc4_hdmi_register(void);

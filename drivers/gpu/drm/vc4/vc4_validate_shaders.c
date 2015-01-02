@@ -382,6 +382,8 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 	if (shader_bo->validated_shader)
 		return shader_bo->validated_shader;
 
+	vc4_force_user_unmap(&shader_obj->base);
+
 	/* Our validation relies on nothing modifying the shader
 	 * contents after us, so just ban sending us busy BOs.
 	 */

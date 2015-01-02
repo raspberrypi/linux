@@ -117,7 +117,7 @@ submit_cl(struct drm_device *dev, uint32_t thread, uint32_t start, uint32_t end)
 	barrier();
 }
 
-static int
+int
 vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
