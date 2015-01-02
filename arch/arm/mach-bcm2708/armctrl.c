@@ -84,7 +84,7 @@ static void armctrl_unmask_irq(struct irq_data *d)
 #ifdef CONFIG_OF
 
 #define NR_IRQS_BANK0           21
-#define NR_BANKS                3 + 1 /* bank 3 is used for GPIO interrupts */
+#define NR_BANKS                3
 #define IRQS_PER_BANK           32
 
 /* from drivers/irqchip/irq-bcm2835.c */
@@ -108,10 +108,8 @@ static int armctrl_xlate(struct irq_domain *d, struct device_node *ctrlr,
 		*out_hwirq = ARM_IRQ0_BASE + intspec[1];
 	else if (intspec[0] == 1)
 		*out_hwirq = ARM_IRQ1_BASE + intspec[1];
-	else if (intspec[0] == 2)
-		*out_hwirq = ARM_IRQ2_BASE + intspec[1];
 	else
-		*out_hwirq = GPIO_IRQ_START + intspec[1];
+		*out_hwirq = ARM_IRQ2_BASE + intspec[1];
 
 	/* reverse remap_irqs[] */
 	switch (*out_hwirq) {
@@ -167,7 +165,8 @@ void __init armctrl_dt_init(void)
 	if (!np)
 		return;
 
-        domain = irq_domain_add_legacy(np, NR_IRQS, IRQ_ARMCTRL_START, 0,
+	domain = irq_domain_add_legacy(np, BCM2708_ALLOC_IRQS,
+					IRQ_ARMCTRL_START, 0,
 					&armctrl_ops, NULL);
         WARN_ON(!domain);
 }
@@ -298,7 +297,7 @@ int __init armctrl_init(void __iomem * base, unsigned int irq_start,
 {
 	unsigned int irq;
 
-	for (irq = 0; irq < NR_IRQS; irq++) {
+	for (irq = 0; irq < BCM2708_ALLOC_IRQS; irq++) {
 		unsigned int data = irq;
 		if (irq >= INTERRUPT_JPEG && irq <= INTERRUPT_ARASANSDIO)
 			data = remap_irqs[irq - INTERRUPT_JPEG];
