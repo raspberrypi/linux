@@ -1,0 +1,130 @@
+// Definitions for Cirrus audio card
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			aliases {
+				ldo0 = &ldo0;
+				ldo1 = &ldo1;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "wlf,rpi-wm5102";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			wlf_pins: wlf_pins {
+				brcm,pins = <17 22 27>;
+				brcm,function = <1 1 0>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target-path = "/soc";
+		__overlay__ {
+
+			ldo1: ldo1 {
+				compatible = "regulator-fixed";
+				regulator-name = "DC_5V";
+				regulator-min-microvolt = <5000000>;
+				regulator-max-microvolt = <5000000>;
+				enable-active-high;
+				regulator-always-on;
+			};
+
+			ldo0: ldo0 {
+				compatible = "regulator-fixed";
+				regulator-name = "DC_1V8";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				enable-active-high;
+				regulator-always-on;
+			};
+		};
+	};
+
+	fragment@5 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			spidev@1{
+				status = "disabled";
+			};
+
+			wm5102@1{
+				compatible = "wlf,wm5102";
+				reg = <1>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				spi-max-frequency = <500000>;
+
+				LDOVDD-supply = <&ldo0>;
+				AVDD-supply = <&ldo0>;
+				DBVDD1-supply = <&ldo0>;
+				DBVDD2-supply = <&ldo0>;
+				DBVDD3-supply = <&ldo0>;
+				CPVDD-supply = <&ldo0>;
+				SPKVDDL-supply = <&ldo1>;
+				SPKVDDR-supply = <&ldo1>;
+
+				wlf,reset = <&gpio 17 0>;
+				wlf,ldoena = <&gpio 22 0>;
+				wlf,gpio-defaults = <
+					0x000fffff
+					0x000fffff
+					0x000fffff
+					0x000fffff
+					0x000fffff
+				>;
+				wlf,micd-configs = <0 1 0>;
+				wlf,dmic-ref = <0 2 0 0>;
+				wlf,clk32k-src = <3>;
+				wlf,inmode = <0 2 1 0>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@6 {
+		target = <&i2c1>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			wm8804@3a {
+				#sound-dai-cells = <0>;
+				compatible = "wlf,wm8804";
+				reg = <0x3a>;
+				status = "okay";
+				PVDD-supply = <&ldo0>;
+				DVDD-supply = <&ldo0>;
+			};
+		};
+	};
+};

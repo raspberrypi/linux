@@ -586,6 +586,20 @@ static int snd_rpi_wsp_probe(struct platform_device *pdev)
 
 	snd_soc_card_set_drvdata(&snd_rpi_wsp, wm5102);
 
+	if (pdev->dev.of_node) {
+	    struct device_node *i2s_node;
+	    struct snd_soc_dai_link *dai = &snd_rpi_wsp_dai[0];
+	    i2s_node = of_parse_phandle(pdev->dev.of_node,
+					"i2s-controller", 0);
+
+	    if (i2s_node) {
+		dai->cpu_dai_name = NULL;
+		dai->cpu_of_node = i2s_node;
+		dai->platform_name = NULL;
+		dai->platform_of_node = i2s_node;
+	    }
+	}
+
 	snd_rpi_wsp.dev = &pdev->dev;
 	ret = snd_soc_register_card(&snd_rpi_wsp);
 	if (ret) {
@@ -607,10 +621,19 @@ static int snd_rpi_wsp_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_OF
+static const struct of_device_id snd_rpi_wsp_of_match[] = {
+		{ .compatible = "wlf,rpi-wm5102", },
+		{},
+};
+MODULE_DEVICE_TABLE(of, snd_rpi_wsp_of_match);
+#endif /* CONFIG_OF */
+
 static struct platform_driver snd_rpi_wsp_driver = {
 	.driver = {
 		.name   = "snd-rpi-wsp",
 		.owner  = THIS_MODULE,
+		.of_match_table = of_match_ptr(snd_rpi_wsp_of_match),
 	},
 	.probe	  = snd_rpi_wsp_probe,
 	.remove	 = snd_rpi_wsp_remove,

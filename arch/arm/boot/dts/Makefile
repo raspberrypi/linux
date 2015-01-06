@@ -77,6 +77,7 @@ dtb-$(RPI_DT_OVERLAYS) += hy28a-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += hy28b-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += iqaudio-dac-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += iqaudio-dacplus-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += rpi-cirrus-wm5102-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += lirc-rpi-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += mz61581-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pcf2127-rtc-overlay.dtb

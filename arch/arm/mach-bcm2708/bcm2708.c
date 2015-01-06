@@ -882,6 +882,9 @@ int __init bcm_register_device(struct platform_device *pdev)
 #define i2c_register_board_info_dt(busnum, info, n) \
     if (!use_dt) i2c_register_board_info(busnum, info, n)
 
+#define spi_register_board_info_dt(info, n) \
+    if (!use_dt) spi_register_board_info(info, n)
+
 int calc_rsts(int partition)
 {
 	return PM_PASSWORD |
@@ -1060,14 +1063,14 @@ void __init bcm2708_init(void)
 #endif
 
 #if defined(CONFIG_REGULATOR_FIXED_VOLTAGE_MODULE) || defined(CONFIG_REGULATOR_FIXED_VOLTAGE)
-	bcm_register_device(&dc1v8_device);
-	bcm_register_device(&dc5v_device);
+	bcm_register_device_dt(&dc1v8_device);
+	bcm_register_device_dt(&dc5v_device);
 #endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_RPI_CODEC_WSP_MODULE) || defined(CONFIG_SND_BCM2708_SOC_RPI_CODEC_WSP)
-	bcm_register_device(&snd_rpi_wsp_device);
-	spi_register_board_info(snd_rpi_wsp_spi_devices, ARRAY_SIZE(snd_rpi_wsp_spi_devices));
-	i2c_register_board_info(1, snd_rpi_wsp_i2c_devices,
+	bcm_register_device_dt(&snd_rpi_wsp_device);
+	spi_register_board_info_dt(snd_rpi_wsp_spi_devices, ARRAY_SIZE(snd_rpi_wsp_spi_devices));
+	i2c_register_board_info_dt(1, snd_rpi_wsp_i2c_devices,
 		ARRAY_SIZE(snd_rpi_wsp_i2c_devices));
 #endif
 
