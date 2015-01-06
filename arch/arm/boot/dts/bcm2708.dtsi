@@ -11,7 +11,7 @@
 		bootargs = "";
 	};
 
-	soc {
+	soc: soc {
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -75,6 +75,15 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
+		};
+
+		leds: leds {
+			compatible = "gpio-leds";
+
+			act_led: act {
+				label = "ACT";
+				linux,default-trigger = "mmc0";
+			};
 		};
 	};
 
