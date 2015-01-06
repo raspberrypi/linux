@@ -7,11 +7,14 @@
 	model = "Raspberry Pi Model B";
 
 	aliases {
+		soc = &soc;
 		spi0 = &spi0;
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
 		i2s  = &i2s;
 		gpio = &gpio;
+		intc = &intc;
+		leds = &leds;
 		sound = &sound;
 	};
 
@@ -80,12 +83,19 @@
 	pinctrl-0 = <&i2s_pins>;
 };
 
+&act_led {
+	gpios = <&gpio 16 1>;
+};
 
 / {
 	__overrides__ {
-		    i2s = <&i2s>,"status";
-		    spi = <&spi0>,"status";
-		    i2c0 = <&i2c0>,"status";
-		    i2c1 = <&i2c1>,"status";
+		i2s = <&i2s>,"status";
+		spi = <&spi0>,"status";
+		i2c0 = <&i2c0>,"status";
+		i2c1 = <&i2c1>,"status";
+
+		act_led_gpio = <&act_led>,"gpios:4";
+		act_led_activelow = <&act_led>,"gpios:8";
+		act_led_trigger = <&act_led>,"linux,default-trigger";
 	};
 };
