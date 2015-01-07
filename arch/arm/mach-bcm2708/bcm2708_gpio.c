@@ -285,8 +285,8 @@ static irqreturn_t bcm2708_gpio_interrupt(int irq, void *dev_id)
 		for_each_set_bit(i, &edsr, 32) {
 			gpio = i + bank * 32;
 			generic_handle_irq(gpio_to_irq(gpio));
+			writel(1<<i,__io_address(GPIO_BASE) + GPIOEDS(bank));
 		}
-		writel(0xffffffff, __io_address(GPIO_BASE) + GPIOEDS(bank));
 	}
 	return IRQ_HANDLED;
 }
