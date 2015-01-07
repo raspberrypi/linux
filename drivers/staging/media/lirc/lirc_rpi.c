@@ -344,12 +344,21 @@ static int init_port(void)
 	int i, nlow, nhigh, ret, irq;
 	struct device_node *node;
 
+	node = lirc_rpi_dev->dev.of_node;
+
 	gpiochip = gpiochip_find("bcm2708_gpio", is_right_chip);
 
-	if (!gpiochip)
-		return -ENODEV;
+	/*
+	 * Because of the lack of a setpull function, only support
+	 * pinctrl-bcm2835 if using device tree.
+	*/
+	if (!gpiochip && node)
+		gpiochip = gpiochip_find("pinctrl-bcm2835", is_right_chip);
 
-	node = lirc_rpi_dev->dev.of_node;
+	if (!gpiochip) {
+		pr_err(LIRC_DRIVER_NAME ": gpio chip not found!\n");
+		return -ENODEV;
+	}
 
 	if (node) {
 		struct device_node *pins_node;
