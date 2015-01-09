@@ -245,9 +245,6 @@ static irqreturn_t irq_handler(int i, void *blah, struct pt_regs *regs)
 	/* use the GPIO signal level */
 	signal = gpiochip->get(gpiochip, gpio_in_pin);
 
-	/* unmask the irq */
-	enable_irq(irq_num);
-
 	if (sense != -1) {
 		/* get current time */
 		do_gettimeofday(&tv);
@@ -445,8 +442,6 @@ static int init_port(void)
 
 	return 0;
 
-	gpio_free(gpio_in_pin);
-
 	exit_gpio_free_out_pin:
 	gpio_free(gpio_out_pin);
 
@@ -463,7 +458,8 @@ static int set_use_inc(void *data)
 	do_gettimeofday(&lasttv);
 
 	result = request_irq(irq_num,
-			     (irq_handler_t) irq_handler, 0,
+			     (irq_handler_t) irq_handler,
+			     IRQ_TYPE_EDGE_RISING | IRQ_TYPE_EDGE_FALLING,
 			     LIRC_DRIVER_NAME, (void*) 0);
 
 	switch (result) {
@@ -484,12 +480,6 @@ static int set_use_inc(void *data)
 
 	/* initialize pulse/space widths */
 	init_timing_params(duty_cycle, freq);
-
-	/* GPIO Pin Falling/Rising Edge Detect Enable */
-	irq_set_irq_type(irq_num, IRQ_TYPE_EDGE_RISING | IRQ_TYPE_EDGE_FALLING);
-
-	/* enable the irq */
-	enable_irq(irq_num);
 
 	return 0;
 }
@@ -678,7 +668,8 @@ static int __init lirc_rpi_init(void)
 
 static void lirc_rpi_exit(void)
 {
-	platform_device_unregister(lirc_rpi_dev);
+	if (!lirc_rpi_dev->dev.of_node)
+		platform_device_unregister(lirc_rpi_dev);
 	platform_driver_unregister(&lirc_rpi_driver);
 	lirc_buffer_free(&rbuf);
 }
@@ -722,12 +713,13 @@ static int __init lirc_rpi_init_module(void)
 
 static void __exit lirc_rpi_exit_module(void)
 {
+	lirc_unregister_driver(driver.minor);
+
 	gpio_free(gpio_out_pin);
 	gpio_free(gpio_in_pin);
 
 	lirc_rpi_exit();
 
-	lirc_unregister_driver(driver.minor);
 	printk(KERN_INFO LIRC_DRIVER_NAME ": cleaned up module\n");
 }
 
