@@ -43,6 +43,8 @@
 #define GPIOUD(x)    (0x94+(x)*4)
 #define GPIOUDCLK(x) (0x98+(x)*4)
 
+#define GPIO_BANKS 2
+
 enum { GPIO_FSEL_INPUT, GPIO_FSEL_OUTPUT,
 	GPIO_FSEL_ALT5, GPIO_FSEL_ALT_4,
 	GPIO_FSEL_ALT0, GPIO_FSEL_ALT1,
@@ -239,8 +241,6 @@ static void bcm2708_gpio_irq_unmask(struct irq_data *d)
 	unsigned long high    = readl(gpio->base + GPIOHEN(gb));
 	unsigned long low     = readl(gpio->base + GPIOLEN(gb));
 
-	writel(1 << go, gpio->base + GPIOEDS(gb));
-
 	if (gpio->rising[gb] & (1 << go)) {
 		writel(rising |  (1 << go), gpio->base + GPIOREN(gb));
 	} else {
@@ -281,12 +281,24 @@ static irqreturn_t bcm2708_gpio_interrupt(int irq, void *dev_id)
 	unsigned bank;
 	int i;
 	unsigned gpio;
-	for (bank = 0; bank <= 1; bank++) {
+	unsigned level_bits;
+	struct bcm2708_gpio *gpio_data = dev_id;
+
+	for (bank = 0; bank < GPIO_BANKS; bank++) {
 		edsr = readl(__io_address(GPIO_BASE) + GPIOEDS(bank));
+		level_bits = gpio_data->high[bank] | gpio_data->low[bank];
+
 		for_each_set_bit(i, &edsr, 32) {
 			gpio = i + bank * 32;
+			/* ack edge triggered IRQs immediately */
+			if (!(level_bits & (1<<i)))
+				writel(1<<i,
+				       __io_address(GPIO_BASE) + GPIOEDS(bank));
 			generic_handle_irq(gpio_to_irq(gpio));
-			writel(1<<i,__io_address(GPIO_BASE) + GPIOEDS(bank));
+			/* ack level triggered IRQ after handling them */
+			if (level_bits & (1<<i))
+				writel(1<<i,
+				       __io_address(GPIO_BASE) + GPIOEDS(bank));
 		}
 	}
 	return IRQ_HANDLED;
@@ -306,9 +318,12 @@ static void bcm2708_gpio_irq_init(struct bcm2708_gpio *ucb)
 
 	for (irq = GPIO_IRQ_START; irq < (GPIO_IRQ_START + GPIO_IRQS); irq++) {
 		irq_set_chip_data(irq, ucb);
-		irq_set_chip(irq, &bcm2708_irqchip);
+		irq_set_chip_and_handler(irq, &bcm2708_irqchip,
+					 handle_simple_irq);
 		set_irq_flags(irq, IRQF_VALID);
 	}
+
+	bcm2708_gpio_irq.dev_id = ucb;
 	setup_irq(IRQ_GPIO3, &bcm2708_gpio_irq);
 }
 
@@ -324,6 +339,7 @@ static int bcm2708_gpio_probe(struct platform_device *dev)
 {
 	struct bcm2708_gpio *ucb;
 	struct resource *res;
+	int bank;
 	int err = 0;
 
 	printk(KERN_INFO DRIVER_NAME ": bcm2708_gpio_probe %p\n", dev);
@@ -352,11 +368,19 @@ static int bcm2708_gpio_probe(struct platform_device *dev)
 	ucb->gc.set = bcm2708_gpio_set;
 	ucb->gc.can_sleep = 0;
 
+	for (bank = 0; bank < GPIO_BANKS; bank++) {
+		writel(0, ucb->base + GPIOREN(bank));
+		writel(0, ucb->base + GPIOFEN(bank));
+		writel(0, ucb->base + GPIOHEN(bank));
+		writel(0, ucb->base + GPIOLEN(bank));
+		writel(0, ucb->base + GPIOAREN(bank));
+		writel(0, ucb->base + GPIOAFEN(bank));
+		writel(~0, ucb->base + GPIOEDS(bank));
+	}
+
 	bcm2708_gpio_irq_init(ucb);
 
 	err = gpiochip_add(&ucb->gc);
-	if (err)
-		goto err;
 
 err:
 	return err;
