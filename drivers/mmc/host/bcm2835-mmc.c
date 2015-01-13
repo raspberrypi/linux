@@ -772,6 +772,11 @@ static void bcm2835_mmc_finish_command(struct bcm2835_host *host)
 	if (host->cmd == host->mrq->sbc) {
 		host->cmd = NULL;
 		bcm2835_mmc_send_command(host, host->mrq->cmd);
+
+		if (host->mrq->cmd->data && host->use_dma) {
+			/* DMA transfer starts now, PIO starts after interrupt */
+			bcm2835_mmc_transfer_dma(host);
+		}
 	} else {
 
 		/* Processed actual command. */
@@ -1129,11 +1134,16 @@ static void bcm2835_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	WARN_ON(host->mrq != NULL);
 
 	host->mrq = mrq;
-	bcm2835_mmc_send_command(host, mrq->cmd);
+
+	if (mrq->sbc && !(host->flags & SDHCI_AUTO_CMD23))
+		bcm2835_mmc_send_command(host, mrq->sbc);
+	else
+		bcm2835_mmc_send_command(host, mrq->cmd);
+
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
 
-	if (mrq->cmd->data && host->use_dma) {
+	if (!(mrq->sbc && !(host->flags & SDHCI_AUTO_CMD23)) && mrq->cmd->data && host->use_dma) {
 		/* DMA transfer starts now, PIO starts after interrupt */
 		bcm2835_mmc_transfer_dma(host);
 	}
