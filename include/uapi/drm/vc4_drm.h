@@ -56,7 +56,7 @@ struct drm_vc4_submit_cl {
 	 * then writes out the state updates and draw calls necessary per tile
 	 * to the tile allocation BO.
 	 */
-	void __user *bin_cl;
+	uint64_t bin_cl;
 
 	/* Pointer to the render command list.
 	 *
@@ -66,7 +66,7 @@ struct drm_vc4_submit_cl {
 	 * stored rendering for that tile, then store the tile's state back to
 	 * memory.
 	 */
-	void __user *render_cl;
+	uint64_t render_cl;
 
 	/* Pointer to the shader records.
 	 *
@@ -77,7 +77,7 @@ struct drm_vc4_submit_cl {
 	 * and an attribute count), so those BO indices into bo_handles are
 	 * just stored as uint32_ts before each shader record passed in.
 	 */
-	void __user *shader_rec;
+	uint64_t shader_rec;
 
 	/* Pointer to uniform data and texture handles for the textures
 	 * referenced by the shader.
@@ -93,8 +93,8 @@ struct drm_vc4_submit_cl {
 	 * because the kernel has to determine the sizes anyway during shader
 	 * code validation.
 	 */
-	void __user *uniforms;
-	void __user *bo_handles;
+	uint64_t uniforms;
+	uint64_t bo_handles;
 
 	/* Size in bytes of the binner command list. */
 	uint32_t bin_cl_size;
