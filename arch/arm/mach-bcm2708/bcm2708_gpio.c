@@ -21,6 +21,7 @@
 #include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <mach/platform.h>
+#include <linux/pinctrl/consumer.h>
 
 #include <linux/platform_data/bcm2708.h>
 
@@ -88,16 +89,6 @@ static int bcm2708_set_function(struct gpio_chip *gc, unsigned offset,
 	gpiodir = readl(gpio->base + GPIOFSEL(gpio_bank));
 
 	return 0;
-}
-
-static int bcm2708_gpio_request(struct gpio_chip *chip, unsigned offset)
-{
-	return pinctrl_request_gpio(chip->base + offset);
-}
-
-static void bcm2708_gpio_free(struct gpio_chip *chip, unsigned offset)
-{
-	pinctrl_free_gpio(chip->base + offset);
 }
 
 static int bcm2708_gpio_dir_in(struct gpio_chip *gc, unsigned offset)
@@ -295,8 +286,8 @@ static irqreturn_t bcm2708_gpio_interrupt(int irq, void *dev_id)
 		for_each_set_bit(i, &edsr, 32) {
 			gpio = i + bank * 32;
 			generic_handle_irq(gpio_to_irq(gpio));
+			writel(1<<i,__io_address(GPIO_BASE) + GPIOEDS(bank));
 		}
-		writel(0xffffffff, __io_address(GPIO_BASE) + GPIOEDS(bank));
 	}
 	return IRQ_HANDLED;
 }
@@ -355,8 +346,6 @@ static int bcm2708_gpio_probe(struct platform_device *dev)
 	ucb->gc.ngpio = BCM2708_NR_GPIOS;
 	ucb->gc.owner = THIS_MODULE;
 
-	ucb->gc.request = bcm2708_gpio_request;
-	ucb->gc.free = bcm2708_gpio_free;
 	ucb->gc.direction_input = bcm2708_gpio_dir_in;
 	ucb->gc.direction_output = bcm2708_gpio_dir_out;
 	ucb->gc.get = bcm2708_gpio_get;
@@ -381,7 +370,7 @@ static int bcm2708_gpio_remove(struct platform_device *dev)
 
 	printk(KERN_ERR DRIVER_NAME ": bcm2708_gpio_remove %p\n", dev);
 
-	err = gpiochip_remove(&ucb->gc);
+	gpiochip_remove(&ucb->gc);
 
 	platform_set_drvdata(dev, NULL);
 	kfree(ucb);
