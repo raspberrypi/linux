@@ -115,6 +115,7 @@ struct drm_vc4_submit_cl {
 	/* Number of BO handles passed in (size is that times 4). */
 	uint32_t bo_handle_count;
 
+	uint32_t flags;
 	uint32_t pad;
 
 	/* Returned value of the seqno of this render job (for the

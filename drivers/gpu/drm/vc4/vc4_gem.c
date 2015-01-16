@@ -550,6 +550,9 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 	struct vc4_exec_info *exec;
 	int ret;
 
+	if (args->flags != 0)
+		return -EINVAL;
+
 	exec = kcalloc(1, sizeof(*exec), GFP_KERNEL);
 	if (!exec) {
 		DRM_ERROR("malloc failure on exec struct\n");
