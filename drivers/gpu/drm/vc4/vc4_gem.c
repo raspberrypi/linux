@@ -505,13 +505,31 @@ vc4_job_done_work(struct work_struct *work)
 	mutex_unlock(&dev->struct_mutex);
 }
 
+static int
+vc4_wait_for_seqno_ioctl_helper(struct drm_device *dev,
+				uint64_t seqno,
+				uint64_t *timeout_ns)
+{
+	unsigned long start = jiffies;
+	int ret = vc4_wait_for_seqno(dev, seqno, *timeout_ns);
+
+	if (ret == -EINTR || ret == -ERESTARTSYS) {
+		uint64_t delta = jiffies_to_nsecs(jiffies - start);
+		if (*timeout_ns >= delta)
+			*timeout_ns -= delta;
+	}
+
+	return ret;
+}
+
 int
 vc4_wait_seqno_ioctl(struct drm_device *dev, void *data,
 		     struct drm_file *file_priv)
 {
 	struct drm_vc4_wait_seqno *args = data;
 
-	return vc4_wait_for_seqno(dev, args->seqno, args->timeout_ns);
+	return vc4_wait_for_seqno_ioctl_helper(dev, args->seqno,
+					       &args->timeout_ns);
 }
 
 int
@@ -530,7 +548,7 @@ vc4_wait_bo_ioctl(struct drm_device *dev, void *data,
 	}
 	bo = to_vc4_bo(gem_obj);
 
-	ret = vc4_wait_for_seqno(dev, bo->seqno, args->timeout_ns);
+	ret = vc4_wait_for_seqno_ioctl_helper(dev, bo->seqno, &args->timeout_ns);
 
 	drm_gem_object_unreference(gem_obj);
 	return ret;
