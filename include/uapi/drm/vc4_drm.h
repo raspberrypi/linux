@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014 Broadcom
+ * Copyright © 2014-2015 Broadcom
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -29,10 +29,14 @@
 #define DRM_VC4_SUBMIT_CL                         0x00
 #define DRM_VC4_WAIT_SEQNO                        0x01
 #define DRM_VC4_WAIT_BO                           0x02
+#define DRM_VC4_CREATE_BO                         0x03
+#define DRM_VC4_MMAP_BO                           0x04
 
 #define DRM_IOCTL_VC4_SUBMIT_CL           DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_SUBMIT_CL, struct drm_vc4_submit_cl)
 #define DRM_IOCTL_VC4_WAIT_SEQNO          DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_WAIT_SEQNO, struct drm_vc4_wait_seqno)
 #define DRM_IOCTL_VC4_WAIT_BO             DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_WAIT_BO, struct drm_vc4_wait_bo)
+#define DRM_IOCTL_VC4_CREATE_BO           DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_CREATE_BO, struct drm_vc4_create_bo)
+#define DRM_IOCTL_VC4_MMAP_BO             DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_MMAP_BO, struct drm_vc4_mmap_bo)
 
 
 /**
@@ -148,6 +152,39 @@ struct drm_vc4_wait_bo {
 	uint32_t handle;
 	uint32_t pad;
 	uint64_t timeout_ns;
+};
+
+/**
+ * struct drm_vc4_create_bo - ioctl argument for creating VC4 BOs.
+ *
+ * There are currently no values for the flags argument, but it may be
+ * used in a future extension.
+ */
+struct drm_vc4_create_bo {
+	uint32_t size;
+	uint32_t flags;
+	/** Returned GEM handle for the BO. */
+	uint32_t handle;
+	uint32_t pad;
+};
+
+/**
+ * struct drm_vc4_mmap_bo - ioctl argument for mapping VC4 BOs.
+ *
+ * This doesn't actually perform an mmap.  Instead, it returns the
+ * offset you need to use in an mmap on the DRM device node.  This
+ * means that tools like valgrind end up knowing about the mapped
+ * memory.
+ *
+ * There are currently no values for the flags argument, but it may be
+ * used in a future extension.
+ */
+struct drm_vc4_mmap_bo {
+	/** Handle for the object being mapped. */
+	uint32_t handle;
+	uint32_t flags;
+	/** offset into the drm node to use for subsequent mmap call. */
+	uint64_t offset;
 };
 
 #endif /* _UAPI_VC4_DRM_H_ */
