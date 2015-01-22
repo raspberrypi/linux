@@ -407,7 +407,9 @@ static void hcd_init_fiq(void *cookie)
 		DWC_ERROR("Can't claim FIQ");
 		BUG();
 	}
-	DWC_WARN("FIQ at 0x%08x", (fiq_fsm_enable ? (int)&dwc_otg_fiq_fsm : (int)&dwc_otg_fiq_nop));
+	DWC_WARN("FIQ on core %d at 0x%08x",
+				smp_processor_id(),
+				(fiq_fsm_enable ? (int)&dwc_otg_fiq_fsm : (int)&dwc_otg_fiq_nop));
 	DWC_WARN("FIQ ASM at 0x%08x length %d", (int)&_dwc_otg_fiq_stub, (int)(&_dwc_otg_fiq_stub_end - &_dwc_otg_fiq_stub));
 		set_fiq_handler((void *) &_dwc_otg_fiq_stub, &_dwc_otg_fiq_stub_end - &_dwc_otg_fiq_stub);
 	memset(&regs,0,sizeof(regs));
@@ -510,9 +512,14 @@ int hcd_init(dwc_bus_dev_t *_dev)
 		goto error2;
 	}
 
-	if (fiq_enable)
-		smp_call_function_single(0, hcd_init_fiq, otg_dev, 1);
-
+	if (fiq_enable) {
+		if (num_online_cpus() > 1) {
+			/* bcm2709: can run the FIQ on a separate core to IRQs */
+			smp_call_function_single(1, hcd_init_fiq, otg_dev, 1);
+		} else {
+			smp_call_function_single(0, hcd_init_fiq, otg_dev, 1);
+		}
+	}
 
 	otg_dev->hcd->otg_dev = otg_dev;
 	hcd->self.otg_port = dwc_otg_hcd_otg_port(dwc_otg_hcd);
