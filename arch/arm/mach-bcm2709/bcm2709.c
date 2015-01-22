@@ -338,6 +338,16 @@ static struct resource bcm2708_usb_resources[] = {
 		.end = IRQ_USB,
 		.flags = IORESOURCE_IRQ,
 		},
+	[4] = {
+		.start = ARM_LOCAL_BASE,
+		.end = ARM_LOCAL_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+		},
+	[5] = {
+		.start = IRQ_ARM_LOCAL_MAILBOX1,
+		.end = IRQ_ARM_LOCAL_MAILBOX1,
+		.flags = IORESOURCE_IRQ
+	},
 };
 
 
