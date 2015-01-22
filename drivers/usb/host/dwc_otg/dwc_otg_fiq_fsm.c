@@ -78,6 +78,7 @@ void notrace _fiq_print(enum fiq_debug_level dbg_lvl, volatile struct fiq_state 
  * fiq_fsm_spin_lock() - ARMv6+ bare bones spinlock
  * Must be called with local interrupts and FIQ disabled.
  */
+#ifdef CONFIG_ARCH_BCM2709
 inline void fiq_fsm_spin_lock(fiq_lock_t *lock)
 {
 	unsigned long tmp;
@@ -103,16 +104,23 @@ inline void fiq_fsm_spin_lock(fiq_lock_t *lock)
 	}
 	smp_mb();
 }
+#else
+inline void fiq_fsm_spin_lock(fiq_lock_t *lock) { }
+#endif
 
 /**
  * fiq_fsm_spin_unlock() - ARMv6+ bare bones spinunlock
  */
+#ifdef CONFIG_ARCH_BCM2709
 inline void fiq_fsm_spin_unlock(fiq_lock_t *lock)
 {
 	smp_mb();
 	lock->tickets.owner++;
 	dsb_sev();
 }
+#else
+inline void fiq_fsm_spin_unlock(fiq_lock_t *lock) { }
+#endif
 
 /**
  * fiq_fsm_restart_channel() - Poke channel enable bit for a split transaction
