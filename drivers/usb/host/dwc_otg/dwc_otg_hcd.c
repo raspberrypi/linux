@@ -1928,6 +1928,7 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 		st->hcchar_copy.b.chen = 1;
 		DWC_WRITE_REG32(&hc_regs->hcchar, st->hcchar_copy.d32);
 	}
+	mb();
 	fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 	local_fiq_enable();
 	return 0;

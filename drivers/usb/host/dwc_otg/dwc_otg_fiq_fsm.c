@@ -1280,6 +1280,7 @@ void notrace dwc_otg_fiq_fsm(struct fiq_state *state, int num_channels)
 
 	}
 	state->fiq_done++;
+	mb();
 	fiq_fsm_spin_unlock(&state->lock);
 }
 
@@ -1340,5 +1341,6 @@ void notrace dwc_otg_fiq_nop(struct fiq_state *state)
 
 	}
 	state->fiq_done++;
+	mb();
 	fiq_fsm_spin_unlock(&state->lock);
 }
