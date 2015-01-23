@@ -12,6 +12,15 @@ ifeq ($(CONFIG_BCM2709_DT),y)
    RPI_DT_OVERLAYS=y
 endif
 
+dtb-$(RPI_DT_OVERLAYS) += hifiberry-dac-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += hifiberry-dacplus-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += hifiberry-digi-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += iqaudio-dac-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += iqaudio-dacplus-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += lirc-rpi-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += w1-gpio-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += w1-gpio-pullup-overlay.dtb
+
 dtb-$(CONFIG_MACH_ASM9260) += \
 	alphascale-asm9260-devkit.dtb
 # Keep at91 dtb files sorted alphabetically for each SoC
