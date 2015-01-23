@@ -182,33 +182,40 @@ static int tas5713_probe(struct snd_soc_codec *codec)
 
 	// Reset error
 	ret = snd_soc_write(codec, TAS5713_ERROR_STATUS, 0x00);
+	if (ret < 0) return ret;
 
 	// Trim oscillator
-    ret = snd_soc_write(codec, TAS5713_OSC_TRIM, 0x00);
+	ret = snd_soc_write(codec, TAS5713_OSC_TRIM, 0x00);
+	if (ret < 0) return ret;
 	msleep(1000);
 
 	// Reset error
 	ret = snd_soc_write(codec, TAS5713_ERROR_STATUS, 0x00);
+	if (ret < 0) return ret;
 
 	// Clock mode: 44/48kHz, MCLK=64xfs
 	ret = snd_soc_write(codec, TAS5713_CLOCK_CTRL, 0x60);
+	if (ret < 0) return ret;
 
 	// I2S 24bit
 	ret = snd_soc_write(codec, TAS5713_SERIAL_DATA_INTERFACE, 0x05);
+	if (ret < 0) return ret;
 
 	// Unmute
 	ret = snd_soc_write(codec, TAS5713_SYSTEM_CTRL2, 0x00);
+	if (ret < 0) return ret;
 	ret = snd_soc_write(codec, TAS5713_SOFT_MUTE, 0x00);
+	if (ret < 0) return ret;
 
 	// Set volume to 0db
 	ret = snd_soc_write(codec, TAS5713_VOL_MASTER, 0x00);
+	if (ret < 0) return ret;
 
 	// Now start programming the default initialization sequence
 	for (i = 0; i < ARRAY_SIZE(tas5713_init_sequence); ++i) {
 		ret = i2c_master_send(i2c,
 				     tas5713_init_sequence[i].data,
 				     tas5713_init_sequence[i].size);
-
 		if (ret < 0) {
 			printk(KERN_INFO "TAS5713 CODEC PROBE: InitSeq returns: %d\n", ret);
 		}
@@ -216,7 +223,7 @@ static int tas5713_probe(struct snd_soc_codec *codec)
 
 	// Unmute
 	ret = snd_soc_write(codec, TAS5713_SYSTEM_CTRL2, 0x00);
-
+	if (ret < 0) return ret;
 
 	return 0;
 }
