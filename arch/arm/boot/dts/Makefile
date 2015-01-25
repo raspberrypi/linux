@@ -58,6 +58,7 @@ dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b-plus.dtb
 dtb-$(CONFIG_BCM2708_DT) += hifiberry-dac-overlay.dtb
 dtb-$(CONFIG_BCM2708_DT) += hifiberry-dacplus-overlay.dtb
 dtb-$(CONFIG_BCM2708_DT) += hifiberry-digi-overlay.dtb
+dtb-$(CONFIG_BCM2708_DT) += hifiberry-amp-overlay.dtb
 dtb-$(CONFIG_BCM2708_DT) += iqaudio-dac-overlay.dtb
 dtb-$(CONFIG_BCM2708_DT) += iqaudio-dacplus-overlay.dtb
 dtb-$(CONFIG_BCM2708_DT) += lirc-rpi-overlay.dtb
