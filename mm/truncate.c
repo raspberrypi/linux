@@ -41,8 +41,10 @@ static void clear_shadow_entry(struct address_space *mapping, pgoff_t index,
 		goto unlock;
 	if (*slot != entry)
 		goto unlock;
+	local_lock(shadow_nodes_lock);
 	__radix_tree_replace(&mapping->page_tree, node, slot, NULL,
-			     workingset_update_node, mapping);
+			     __workingset_update_node, mapping);
+	local_unlock(shadow_nodes_lock);
 	mapping->nrexceptional--;
 unlock:
 	spin_unlock_irq(&mapping->tree_lock);
