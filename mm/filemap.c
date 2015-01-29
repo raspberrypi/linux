@@ -110,6 +110,7 @@
  * ->i_mmap_rwsem
  *   ->tasklist_lock            (memory_failure, collect_procs_ao)
  */
+DECLARE_LOCAL_IRQ_LOCK(shadow_nodes_lock);
 
 static int page_cache_tree_insert(struct address_space *mapping,
 				  struct page *page, void **shadowp)
@@ -133,8 +134,10 @@ static int page_cache_tree_insert(struct address_space *mapping,
 		if (shadowp)
 			*shadowp = p;
 	}
+	local_lock(shadow_nodes_lock);
 	__radix_tree_replace(&mapping->page_tree, node, slot, page,
-			     workingset_update_node, mapping);
+			     __workingset_update_node, mapping);
+	local_unlock(shadow_nodes_lock);
 	mapping->nrpages++;
 	return 0;
 }
@@ -151,6 +154,7 @@ static void page_cache_tree_delete(struct address_space *mapping,
 	VM_BUG_ON_PAGE(PageTail(page), page);
 	VM_BUG_ON_PAGE(nr != 1 && shadow, page);
 
+	local_lock(shadow_nodes_lock);
 	for (i = 0; i < nr; i++) {
 		struct radix_tree_node *node;
 		void **slot;
@@ -162,8 +166,9 @@ static void page_cache_tree_delete(struct address_space *mapping,
 
 		radix_tree_clear_tags(&mapping->page_tree, node, slot);
 		__radix_tree_replace(&mapping->page_tree, node, slot, shadow,
-				     workingset_update_node, mapping);
+				     __workingset_update_node, mapping);
 	}
+	local_unlock(shadow_nodes_lock);
 
 	if (shadow) {
 		mapping->nrexceptional += nr;
