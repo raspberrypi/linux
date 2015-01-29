@@ -338,9 +338,10 @@ out:
  * point where they would still be useful.
  */
 
-static struct list_lru shadow_nodes;
+static struct list_lru __shadow_nodes;
+DEFINE_LOCAL_IRQ_LOCK(shadow_nodes_lock);
 
-void workingset_update_node(struct radix_tree_node *node, void *private)
+void __workingset_update_node(struct radix_tree_node *node, void *private)
 {
 	struct address_space *mapping = private;
 
@@ -358,10 +359,10 @@ void workingset_update_node(struct radix_tree_node *node, void *private)
 	 */
 	if (node->count && node->count == node->exceptional) {
 		if (list_empty(&node->private_list))
-			list_lru_add(&shadow_nodes, &node->private_list);
+			list_lru_add(&__shadow_nodes, &node->private_list);
 	} else {
 		if (!list_empty(&node->private_list))
-			list_lru_del(&shadow_nodes, &node->private_list);
+			list_lru_del(&__shadow_nodes, &node->private_list);
 	}
 }
 
@@ -373,9 +374,9 @@ static unsigned long count_shadow_nodes(struct shrinker *shrinker,
 	unsigned long cache;
 
 	/* list_lru lock nests inside IRQ-safe mapping->tree_lock */
-	local_irq_disable();
-	nodes = list_lru_shrink_count(&shadow_nodes, sc);
-	local_irq_enable();
+	local_lock_irq(shadow_nodes_lock);
+	nodes = list_lru_shrink_count(&__shadow_nodes, sc);
+	local_unlock_irq(shadow_nodes_lock);
 
 	/*
 	 * Approximate a reasonable limit for the radix tree nodes
@@ -475,15 +476,15 @@ static enum lru_status shadow_lru_isolate(struct list_head *item,
 		goto out_invalid;
 	inc_lruvec_page_state(virt_to_page(node), WORKINGSET_NODERECLAIM);
 	__radix_tree_delete_node(&mapping->page_tree, node,
-				 workingset_update_node, mapping);
+				 __workingset_update_node, mapping);
 
 out_invalid:
 	spin_unlock(&mapping->tree_lock);
 	ret = LRU_REMOVED_RETRY;
 out:
-	local_irq_enable();
+	local_unlock_irq(shadow_nodes_lock);
 	cond_resched();
-	local_irq_disable();
+	local_lock_irq(shadow_nodes_lock);
 	spin_lock(lru_lock);
 	return ret;
 }
@@ -494,9 +495,9 @@ static unsigned long scan_shadow_nodes(struct shrinker *shrinker,
 	unsigned long ret;
 
 	/* list_lru lock nests inside IRQ-safe mapping->tree_lock */
-	local_irq_disable();
-	ret = list_lru_shrink_walk(&shadow_nodes, sc, shadow_lru_isolate, NULL);
-	local_irq_enable();
+	local_lock_irq(shadow_nodes_lock);
+	ret = list_lru_shrink_walk(&__shadow_nodes, sc, shadow_lru_isolate, NULL);
+	local_unlock_irq(shadow_nodes_lock);
 	return ret;
 }
 
@@ -534,7 +535,7 @@ static int __init workingset_init(void)
 	pr_info("workingset: timestamp_bits=%d max_order=%d bucket_order=%u\n",
 	       timestamp_bits, max_order, bucket_order);
 
-	ret = __list_lru_init(&shadow_nodes, true, &shadow_nodes_key);
+	ret = __list_lru_init(&__shadow_nodes, true, &shadow_nodes_key);
 	if (ret)
 		goto err;
 	ret = register_shrinker(&workingset_shadow_shrinker);
@@ -542,7 +543,7 @@ static int __init workingset_init(void)
 		goto err_list_lru;
 	return 0;
 err_list_lru:
-	list_lru_destroy(&shadow_nodes);
+	list_lru_destroy(&__shadow_nodes);
 err:
 	return ret;
 }
