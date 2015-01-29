@@ -134,6 +134,9 @@ typedef __u32 __bitwise req_flags_t;
  */
 struct request {
 	struct list_head queuelist;
+#ifdef CONFIG_PREEMPT_RT_FULL
+	struct work_struct work;
+#endif
 	union {
 		struct __call_single_data csd;
 		u64 fifo_time;
