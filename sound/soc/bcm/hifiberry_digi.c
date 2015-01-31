@@ -26,6 +26,11 @@
 
 #include "../codecs/wm8804.h"
 
+static short int auto_shutdown_output = 0;
+module_param(auto_shutdown_output, short, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(auto_shutdown_output, "Shutdown SP/DIF output if playback is stopped");
+
+
 static int samplerate=44100;
 
 static int snd_rpi_hifiberry_digi_init(struct snd_soc_pcm_runtime *rtd)
@@ -37,6 +42,25 @@ static int snd_rpi_hifiberry_digi_init(struct snd_soc_pcm_runtime *rtd)
 
 	return 0;
 }
+
+static int snd_rpi_hifiberry_digi_startup(struct snd_pcm_substream *substream) {
+	/* turn on digital output */
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_codec *codec = rtd->codec;
+	snd_soc_update_bits(codec, WM8804_PWRDN, 0x3c, 0x00);
+	return 0;
+}
+
+static void snd_rpi_hifiberry_digi_shutdown(struct snd_pcm_substream *substream) {
+	/* turn off output */
+	if (auto_shutdown_output) {
+		/* turn off output */
+		struct snd_soc_pcm_runtime *rtd = substream->private_data;
+		struct snd_soc_codec *codec = rtd->codec;
+		snd_soc_update_bits(codec, WM8804_PWRDN, 0x3c, 0x3c);
+	}
+}
+
 
 static int snd_rpi_hifiberry_digi_hw_params(struct snd_pcm_substream *substream,
 				       struct snd_pcm_hw_params *params)
@@ -70,7 +94,8 @@ static int snd_rpi_hifiberry_digi_hw_params(struct snd_pcm_substream *substream,
 			break;
 		default:
 			dev_err(codec->dev,
-			"Failed to set WM8804 SYSCLK, unsupported samplerate\n");
+			"Failed to set WM8804 SYSCLK, unsupported samplerate %d\n",
+			samplerate);
 	}
 
 	snd_soc_dai_set_clkdiv(codec_dai, WM8804_MCLK_DIV, mclk_div);
@@ -96,6 +121,8 @@ static int snd_rpi_hifiberry_digi_hw_params(struct snd_pcm_substream *substream,
 /* machine stream operations */
 static struct snd_soc_ops snd_rpi_hifiberry_digi_ops = {
 	.hw_params = snd_rpi_hifiberry_digi_hw_params,
+        .startup = snd_rpi_hifiberry_digi_startup,
+        .shutdown = snd_rpi_hifiberry_digi_shutdown,
 };
 
 static struct snd_soc_dai_link snd_rpi_hifiberry_digi_dai[] = {
