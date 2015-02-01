@@ -12,6 +12,7 @@ ifeq ($(CONFIG_BCM2709_DT),y)
    RPI_DT_OVERLAYS=y
 endif
 
+dtb-$(RPI_DT_OVERLAYS) += ds1307-rtc-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += hifiberry-dac-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += hifiberry-dacplus-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += hifiberry-digi-overlay.dtb
