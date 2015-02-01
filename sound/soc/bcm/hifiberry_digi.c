@@ -80,6 +80,7 @@ static int snd_rpi_hifiberry_digi_hw_params(struct snd_pcm_substream *substream,
 	samplerate = params_rate(params);
 
 	switch (samplerate) {
+		case 32000:
 		case 44100:
 		case 48000:
 		case 88200:
