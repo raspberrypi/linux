@@ -63,18 +63,19 @@ ifeq ($(CONFIG_BCM2709_DT),y)
 endif
 dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b.dtb
 dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b-plus.dtb
-dtb-$(CONFIG_BCM2708_DT) += hifiberry-dac-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += hifiberry-dacplus-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += hifiberry-digi-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += hifiberry-amp-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += iqaudio-dac-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += iqaudio-dacplus-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += lirc-rpi-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += pcf8523-rtc-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += pps-gpio-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += ds1307-rtc-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += w1-gpio-overlay.dtb
-dtb-$(CONFIG_BCM2708_DT) += w1-gpio-pullup-overlay.dtb
+dtb-$(CONFIG_BCM2709_DT) += bcm2709-rpi-2-b.dtb
+dtb-$(RPI_DT_OVERLAYS) += ds1307-rtc-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += hifiberry-dac-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += hifiberry-dacplus-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += hifiberry-digi-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += hifiberry-amp-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += iqaudio-dac-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += iqaudio-dacplus-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += lirc-rpi-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += pcf8523-rtc-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += w1-gpio-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += w1-gpio-pullup-overlay.dtb
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2835-rpi-b.dtb
 
 dtb-$(CONFIG_ARCH_BCM_5301X) += bcm4708-netgear-r6250.dtb
