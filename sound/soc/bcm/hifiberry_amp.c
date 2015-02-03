@@ -65,12 +65,32 @@ static struct snd_soc_card snd_rpi_hifiberry_amp = {
 	.num_links    = ARRAY_SIZE(snd_rpi_hifiberry_amp_dai),
 };
 
+static const struct of_device_id snd_rpi_hifiberry_amp_of_match[] = {
+        { .compatible = "hifiberry,hifiberry-amp", },
+        {},
+};
+MODULE_DEVICE_TABLE(of, snd_rpi_hifiberry_amp_of_match);
+
 
 static int snd_rpi_hifiberry_amp_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 
 	snd_rpi_hifiberry_amp.dev = &pdev->dev;
+
+        if (pdev->dev.of_node) {
+            struct device_node *i2s_node;
+            struct snd_soc_dai_link *dai = &snd_rpi_hifiberry_amp_dai[0];
+            i2s_node = of_parse_phandle(pdev->dev.of_node,
+                                        "i2s-controller", 0);
+
+            if (i2s_node) {
+                dai->cpu_dai_name = NULL;
+                dai->cpu_of_node = i2s_node;
+                dai->platform_name = NULL;
+                dai->platform_of_node = i2s_node;
+            }
+        }
 
 	ret = snd_soc_register_card(&snd_rpi_hifiberry_amp);
 
@@ -92,6 +112,7 @@ static struct platform_driver snd_rpi_hifiberry_amp_driver = {
         .driver = {
                 .name   = "snd-hifiberry-amp",
                 .owner  = THIS_MODULE,
+		.of_match_table = snd_rpi_hifiberry_amp_of_match,
         },
         .probe          = snd_rpi_hifiberry_amp_probe,
         .remove         = snd_rpi_hifiberry_amp_remove,
