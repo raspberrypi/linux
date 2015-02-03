@@ -632,6 +632,41 @@ error:
 	return ret;
 }
 
+static int arizona_of_read_u32_array(struct arizona *arizona,
+				     const char *prop, bool mandatory,
+				     u32 *data, size_t num)
+{
+	int ret;
+
+	ret = of_property_read_u32_array(arizona->dev->of_node, prop,
+					 data, num);
+
+	if (ret >= 0)
+		return 0;
+
+	switch (ret) {
+	case -EINVAL:
+		if (mandatory)
+			dev_err(arizona->dev,
+				"Mandatory DT property %s is missing\n",
+				prop);
+		break;
+	default:
+		dev_err(arizona->dev,
+			"DT property %s is malformed: %d\n",
+			prop, ret);
+	}
+
+	return ret;
+}
+
+static int arizona_of_read_u32(struct arizona *arizona,
+			       const char* prop, bool mandatory,
+			       u32 *data)
+{
+	return arizona_of_read_u32_array(arizona, prop, mandatory, data, 1);
+}
+
 static int arizona_of_get_core_pdata(struct arizona *arizona)
 {
 	struct arizona_pdata *pdata = &arizona->pdata;
@@ -670,6 +705,9 @@ static int arizona_of_get_core_pdata(struct arizona *arizona)
 
 	arizona_of_get_micd_ranges(arizona, "wlf,micd-ranges");
 	arizona_of_get_micd_configs(arizona, "wlf,micd-configs");
+
+	arizona_of_read_u32_array(arizona, "wlf,dmic-ref", false,
+				  pdata->dmic_ref, ARRAY_SIZE(pdata->dmic_ref));
 
 	of_property_for_each_u32(arizona->dev->of_node, "wlf,inmode", prop,
 				 cur, val) {
