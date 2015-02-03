@@ -35,6 +35,8 @@ Optional properties:
 
   - wlf,reset : GPIO specifier for the GPIO controlling /RESET
   - wlf,ldoena : GPIO specifier for the GPIO controlling LDOENA
+  - wlf,clk32k-src : set input source for codec 32kHz clock.
+      0 = default, 1 = MCLK1, 2 = MCLK2, 3 = None
 
   - wlf,micd-ranges : Microphone detection level and key configuration, this
     field can be of variable length but should always be a multiple of 2 cells
