@@ -165,7 +165,15 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 
 			gintmsk_data_t gintmsk = { .b.portintr = 1};
 			retval |= dwc_otg_hcd_handle_port_intr(dwc_otg_hcd);
-			DWC_MODIFY_REG32(&core_if->core_global_regs->gintmsk, 0, gintmsk.d32);
+			if (fiq_enable) {
+				local_fiq_disable();
+				fiq_fsm_spin_lock(&dwc_otg_hcd->fiq_state->lock);
+				DWC_MODIFY_REG32(&dwc_otg_hcd->core_if->core_global_regs->gintmsk, 0, gintmsk.d32);
+				fiq_fsm_spin_unlock(&dwc_otg_hcd->fiq_state->lock);
+				local_fiq_enable();
+			} else {
+				DWC_MODIFY_REG32(&dwc_otg_hcd->core_if->core_global_regs->gintmsk, 0, gintmsk.d32);
+			}
 		}
 		if (gintsts.b.hcintr) {
 			retval |= dwc_otg_hcd_handle_hc_intr(dwc_otg_hcd);
@@ -1069,7 +1077,15 @@ static void halt_channel(dwc_otg_hcd_t * hcd,
 			 * be processed.
 			 */
 			gintmsk.b.nptxfempty = 1;
-			DWC_MODIFY_REG32(&global_regs->gintmsk, 0, gintmsk.d32);
+			if (fiq_enable) {
+				local_fiq_disable();
+				fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+				DWC_MODIFY_REG32(&global_regs->gintmsk, 0, gintmsk.d32);
+				fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
+				local_fiq_enable();
+			} else {
+				DWC_MODIFY_REG32(&global_regs->gintmsk, 0, gintmsk.d32);
+			}
 		} else {
 			/*
 			 * Move the QH from the periodic queued schedule to
@@ -1086,7 +1102,15 @@ static void halt_channel(dwc_otg_hcd_t * hcd,
 			 * processed.
 			 */
 			gintmsk.b.ptxfempty = 1;
-			DWC_MODIFY_REG32(&global_regs->gintmsk, 0, gintmsk.d32);
+			if (fiq_enable) {
+				local_fiq_disable();
+				fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+				DWC_MODIFY_REG32(&global_regs->gintmsk, 0, gintmsk.d32);
+				fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
+				local_fiq_enable();
+			} else {
+				DWC_MODIFY_REG32(&global_regs->gintmsk, 0, gintmsk.d32);
+			}
 		}
 	}
 }

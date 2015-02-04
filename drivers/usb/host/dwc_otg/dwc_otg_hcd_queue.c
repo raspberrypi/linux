@@ -683,8 +683,15 @@ int dwc_otg_hcd_qh_add(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		status = schedule_periodic(hcd, qh);
 		if ( !hcd->periodic_qh_count ) {
 			intr_mask.b.sofintr = 1;
-			DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk,
-								intr_mask.d32, intr_mask.d32);
+			if (fiq_enable) {
+				local_fiq_disable();
+				fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, intr_mask.d32, intr_mask.d32);
+				fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
+				local_fiq_enable();
+			} else {
+				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, intr_mask.d32, intr_mask.d32);
+			}
 		}
 		hcd->periodic_qh_count++;
 	}
@@ -745,8 +752,15 @@ void dwc_otg_hcd_qh_remove(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		hcd->periodic_qh_count--;
 		if( !hcd->periodic_qh_count && !fiq_fsm_enable ) {
 			intr_mask.b.sofintr = 1;
-				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk,
-									intr_mask.d32, 0);
+			if (fiq_enable) {
+				local_fiq_disable();
+				fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, intr_mask.d32, 0);
+				fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
+				local_fiq_enable();
+			} else {
+				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, intr_mask.d32, 0);
+			}
 		}
 	}
 }
