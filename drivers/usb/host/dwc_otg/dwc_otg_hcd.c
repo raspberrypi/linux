@@ -2447,9 +2447,16 @@ void dwc_otg_hcd_queue_transactions(dwc_otg_hcd_t * hcd,
 			 */
 			gintmsk_data_t gintmsk = {.d32 = 0 };
 			gintmsk.b.nptxfempty = 1;
-			DWC_MODIFY_REG32(&hcd->core_if->
-					 core_global_regs->gintmsk, gintmsk.d32,
-					 0);
+
+			if (fiq_enable) {
+				local_fiq_disable();
+				fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, gintmsk.d32, 0);
+				fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
+				local_fiq_enable();
+			} else {
+				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, gintmsk.d32, 0);
+			}
 		}
 	}
 }
