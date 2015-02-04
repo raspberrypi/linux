@@ -23,10 +23,14 @@
 #include "../w1.h"
 #include "../w1_int.h"
 
-static int w1_gpio_pullup = -1;
-static int w1_gpio_pullup_orig = -1;
+static int w1_gpio_pullup = 0;
+static int w1_gpio_pullup_orig = 0;
 module_param_named(pullup, w1_gpio_pullup, int, 0);
-MODULE_PARM_DESC(pullup, "GPIO pin pullup number");
+MODULE_PARM_DESC(pullup, "Enable parasitic power (power on data) mode");
+static int w1_gpio_pullup_pin = -1;
+static int w1_gpio_pullup_pin_orig = -1;
+module_param_named(extpullup, w1_gpio_pullup_pin, int, 0);
+MODULE_PARM_DESC(extpullup, "GPIO external pullup pin number");
 static int w1_gpio_pin = -1;
 static int w1_gpio_pin_orig = -1;
 module_param_named(gpiopin, w1_gpio_pin, int, 0);
@@ -99,6 +103,7 @@ static int w1_gpio_probe_dt(struct platform_device *pdev)
 	struct w1_gpio_platform_data *pdata = dev_get_platdata(&pdev->dev);
 	struct device_node *np = pdev->dev.of_node;
 	int gpio;
+	u32 value;
 
 	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
@@ -106,6 +111,9 @@ static int w1_gpio_probe_dt(struct platform_device *pdev)
 
 	if (of_get_property(np, "linux,open-drain", NULL))
 		pdata->is_open_drain = 1;
+
+	if (of_property_read_u32(np, "rpi,parasitic-power", &value) == 0)
+	    pdata->parasitic_power = (value != 0);
 
 	gpio = of_get_gpio(np, 0);
 	if (gpio < 0) {
@@ -122,7 +130,7 @@ static int w1_gpio_probe_dt(struct platform_device *pdev)
 	if (gpio == -EPROBE_DEFER)
 		return gpio;
 	/* ignore other errors as the pullup gpio is optional */
-	pdata->ext_pullup_enable_pin = gpio;
+	pdata->ext_pullup_enable_pin = (gpio >= 0) ? gpio : -1;
 
 	pdev->dev.platform_data = pdata;
 
@@ -158,17 +166,20 @@ static int w1_gpio_probe(struct platform_device *pdev)
 	}
 
 	w1_gpio_pin_orig = pdata->pin;
-	w1_gpio_pullup_orig = pdata->ext_pullup_enable_pin;
+	w1_gpio_pullup_pin_orig = pdata->ext_pullup_enable_pin;
+	w1_gpio_pullup_orig = pdata->parasitic_power;
 
 	if(gpio_is_valid(w1_gpio_pin)) {
 		pdata->pin = w1_gpio_pin;
 		pdata->ext_pullup_enable_pin = -1;
+		pdata->parasitic_power = -1;
 	}
-	if(gpio_is_valid(w1_gpio_pullup)) {
-		pdata->ext_pullup_enable_pin = w1_gpio_pullup;
+	pdata->parasitic_power |= w1_gpio_pullup;
+	if(gpio_is_valid(w1_gpio_pullup_pin)) {
+		pdata->ext_pullup_enable_pin = w1_gpio_pullup_pin;
 	}
 
-	dev_info(&pdev->dev, "gpio pin %d, gpio pullup pin %d\n", pdata->pin, pdata->ext_pullup_enable_pin);
+	dev_info(&pdev->dev, "gpio pin %d, external pullup pin %d, parasitic power %d\n", pdata->pin, pdata->ext_pullup_enable_pin, pdata->parasitic_power);
 
 	err = devm_gpio_request(&pdev->dev, pdata->pin, "w1");
 	if (err) {
@@ -199,10 +210,10 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		master->set_pullup = w1_gpio_set_pullup;
 	}
 
-	if (gpio_is_valid(w1_gpio_pullup)) {
+	if (pdata->parasitic_power) {
 		if (pdata->is_open_drain)
-			printk(KERN_ERR "w1-gpio 'pullup' option "
-			       "doesn't work with open drain GPIO\n");
+			printk(KERN_ERR "w1-gpio 'pullup'(parasitic power) "
+			       "option doesn't work with open drain GPIO\n");
 		else
 			master->bitbang_pullup = w1_gpio_bitbang_pullup;
 	}
@@ -238,7 +249,8 @@ static int w1_gpio_remove(struct platform_device *pdev)
 	w1_remove_master_device(master);
 
 	pdata->pin = w1_gpio_pin_orig;
-	pdata->ext_pullup_enable_pin = w1_gpio_pullup_orig;
+	pdata->ext_pullup_enable_pin = w1_gpio_pullup_pin_orig;
+	pdata->parasitic_power = w1_gpio_pullup_orig;
 
 	return 0;
 }
