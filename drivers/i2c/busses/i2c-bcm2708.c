@@ -337,11 +337,17 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 		return PTR_ERR(clk);
 	}
 
+	err = clk_prepare_enable(clk);
+	if (err) {
+		dev_err(&pdev->dev, "could not enable clk: %d\n", err);
+		goto out_clk_put;
+	}
+
 	bcm2708_i2c_init_pinmode(pdev->id);
 
 	bi = kzalloc(sizeof(*bi), GFP_KERNEL);
 	if (!bi)
-		goto out_clk_put;
+		goto out_clk_disable;
 
 	platform_set_drvdata(pdev, bi);
 
@@ -412,6 +418,8 @@ out_iounmap:
 	iounmap(bi->base);
 out_free_bi:
 	kfree(bi);
+out_clk_disable:
+	clk_disable_unprepare(clk);
 out_clk_put:
 	clk_put(clk);
 	return err;
@@ -426,7 +434,7 @@ static int bcm2708_i2c_remove(struct platform_device *pdev)
 	i2c_del_adapter(&bi->adapter);
 	free_irq(bi->irq, bi);
 	iounmap(bi->base);
-	clk_disable(bi->clk);
+	clk_disable_unprepare(bi->clk);
 	clk_put(bi->clk);
 	kfree(bi);
 
