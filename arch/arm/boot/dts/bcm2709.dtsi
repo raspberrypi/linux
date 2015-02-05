@@ -115,6 +115,7 @@
 			     <3 1>, // PHYS_NONSECURE_PPI
 			     <3 3>, // VIRT_PPI
 			     <3 2>; // HYP_PPI
+		always-on;
 	};
 
 	cpus: cpus {
