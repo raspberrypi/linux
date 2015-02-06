@@ -20,6 +20,7 @@ dtb-$(RPI_DT_OVERLAYS) += hifiberry-amp-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += iqaudio-dac-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += iqaudio-dacplus-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += lirc-rpi-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += pcf2127-rtc-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pcf8523-rtc-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-overlay.dtb
