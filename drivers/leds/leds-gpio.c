@@ -50,8 +50,15 @@ static void gpio_led_set(struct led_classdev *led_cdev,
 		led_dat->platform_gpio_blink_set(led_dat->gpiod, level,
 						 NULL, NULL);
 		led_dat->blinking = 0;
+	} else if (led_dat->cdev.flags & SET_GPIO_INPUT) {
+		gpiod_direction_input(led_dat->gpiod);
+		led_dat->cdev.flags &= ~SET_GPIO_INPUT;
+	} else if (led_dat->cdev.flags & SET_GPIO_OUTPUT) {
+		gpiod_direction_output(led_dat->gpiod, level);
+		led_dat->cdev.flags &= ~SET_GPIO_OUTPUT;
 	} else {
-		if (led_dat->can_sleep)
+		if (led_dat->can_sleep ||
+			(led_dat->cdev.flags & (SET_GPIO_INPUT | SET_GPIO_OUTPUT) ))
 			gpiod_set_value_cansleep(led_dat->gpiod, level);
 		else
 			gpiod_set_value(led_dat->gpiod, level);
@@ -63,6 +70,13 @@ static int gpio_led_set_blocking(struct led_classdev *led_cdev,
 {
 	gpio_led_set(led_cdev, value);
 	return 0;
+}
+
+static enum led_brightness gpio_led_get(struct led_classdev *led_cdev)
+{
+	struct gpio_led_data *led_dat =
+		container_of(led_cdev, struct gpio_led_data, cdev);
+	return gpiod_get_value_cansleep(led_dat->gpiod) ? LED_FULL : LED_OFF;
 }
 
 static int gpio_blink_set(struct led_classdev *led_cdev,
@@ -93,6 +107,7 @@ static int create_gpio_led(const struct gpio_led *template,
 		led_dat->platform_gpio_blink_set = blink_set;
 		led_dat->cdev.blink_set = gpio_blink_set;
 	}
+	led_dat->cdev.brightness_get = gpio_led_get;
 	if (template->default_state == LEDS_GPIO_DEFSTATE_KEEP) {
 		state = gpiod_get_value_cansleep(led_dat->gpiod);
 		if (state < 0)
