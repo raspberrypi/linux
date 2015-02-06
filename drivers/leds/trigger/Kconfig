@@ -116,6 +116,13 @@ config LEDS_TRIGGER_CAMERA
 	  This enables direct flash/torch on/off by the driver, kernel space.
 	  If unsure, say Y.
 
+config LEDS_TRIGGER_INPUT
+	tristate "LED Input Trigger"
+	depends on LEDS_TRIGGERS
+	help
+	  This allows the GPIOs assigned to be LEDs to be initialised to inputs.
+	  If unsure, say Y.
+
 config LEDS_TRIGGER_PANIC
 	bool "LED Panic Trigger"
 	help
