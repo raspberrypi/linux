@@ -50,6 +50,9 @@ struct led_classdev {
 #define LED_PANIC_INDICATOR	BIT(20)
 #define LED_BRIGHT_HW_CHANGED	BIT(21)
 #define LED_RETAIN_AT_SHUTDOWN	BIT(22)
+	/* Additions for Raspberry Pi PWR LED */
+#define SET_GPIO_INPUT		BIT(30)
+#define SET_GPIO_OUTPUT		BIT(31)
 
 	/* set_brightness_work / blink_timer flags, atomic, private. */
 	unsigned long		work_flags;
