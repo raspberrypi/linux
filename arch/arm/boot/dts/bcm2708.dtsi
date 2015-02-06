@@ -81,7 +81,7 @@
 			compatible = "gpio-leds";
 
 			act_led: act {
-				label = "ACT";
+				label = "led0";
 				linux,default-trigger = "mmc0";
 			};
 		};
