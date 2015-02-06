@@ -109,6 +109,9 @@ struct led_classdev {
 #define LED_INIT_DEFAULT_TRIGGER BIT(23)
 #define LED_REJECT_NAME_CONFLICT BIT(24)
 #define LED_MULTI_COLOR		BIT(25)
+	/* Additions for Raspberry Pi PWR LED */
+#define SET_GPIO_INPUT		BIT(30)
+#define SET_GPIO_OUTPUT		BIT(31)
 
 	/* set_brightness_work / blink_timer flags, atomic, private. */
 	unsigned long		work_flags;
