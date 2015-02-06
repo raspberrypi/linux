@@ -50,6 +50,9 @@ struct led_classdev {
 #define LED_SYSFS_DISABLE	(1 << 22)
 #define LED_DEV_CAP_FLASH	(1 << 23)
 #define LED_HW_PLUGGABLE	(1 << 24)
+	/* Additions for Raspberry Pi PWR LED */
+#define SET_GPIO_INPUT		(1 << 30)
+#define SET_GPIO_OUTPUT		(1 << 31)
 
 	/* Set LED brightness level
 	 * Must not sleep. Use brightness_set_blocking for drivers
