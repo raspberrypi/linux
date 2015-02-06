@@ -79,11 +79,10 @@
 
 		leds: leds {
 			compatible = "gpio-leds";
+		};
 
-			act_led: act {
-				label = "ACT";
-				linux,default-trigger = "mmc0";
-			};
+		arm-pmu {
+			compatible = "arm,arm1176-pmu";
 		};
 	};
 
