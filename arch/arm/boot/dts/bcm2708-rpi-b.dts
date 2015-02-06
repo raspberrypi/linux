@@ -83,8 +83,12 @@
 	pinctrl-0 = <&i2s_pins>;
 };
 
-&act_led {
-	gpios = <&gpio 16 1>;
+&leds {
+	act_led: act {
+		label = "led0";
+		linux,default-trigger = "mmc0";
+		gpios = <&gpio 16 1>;
+	};
 };
 
 / {
