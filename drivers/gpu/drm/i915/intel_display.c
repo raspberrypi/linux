@@ -2358,13 +2358,19 @@ static bool intel_alloc_plane_obj(struct intel_crtc *crtc,
 	struct drm_device *dev = crtc->base.dev;
 	struct drm_i915_gem_object *obj = NULL;
 	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
-	u32 base = plane_config->base;
+	u32 base_aligned = round_down(plane_config->base, PAGE_SIZE);
+	u32 size_aligned = round_up(plane_config->base + plane_config->size,
+				    PAGE_SIZE);
+
+	size_aligned -= base_aligned;
 
 	if (plane_config->size == 0)
 		return false;
 
-	obj = i915_gem_object_create_stolen_for_preallocated(dev, base, base,
-							     plane_config->size);
+	obj = i915_gem_object_create_stolen_for_preallocated(dev,
+							     base_aligned,
+							     base_aligned,
+							     size_aligned);
 	if (!obj)
 		return false;
 
@@ -6383,8 +6389,7 @@ static void i9xx_get_plane_config(struct intel_crtc *crtc,
 	aligned_height = intel_align_height(dev, crtc->base.primary->fb->height,
 					    plane_config->tiled);
 
-	plane_config->size = PAGE_ALIGN(crtc->base.primary->fb->pitches[0] *
-					aligned_height);
+	plane_config->size = crtc->base.primary->fb->pitches[0] * aligned_height;
 
 	DRM_DEBUG_KMS("pipe/plane %d/%d with fb: size=%dx%d@%d, offset=%x, pitch %d, size 0x%x\n",
 		      pipe, plane, crtc->base.primary->fb->width,
@@ -7424,8 +7429,7 @@ static void ironlake_get_plane_config(struct intel_crtc *crtc,
 	aligned_height = intel_align_height(dev, crtc->base.primary->fb->height,
 					    plane_config->tiled);
 
-	plane_config->size = PAGE_ALIGN(crtc->base.primary->fb->pitches[0] *
-					aligned_height);
+	plane_config->size = crtc->base.primary->fb->pitches[0] * aligned_height;
 
 	DRM_DEBUG_KMS("pipe/plane %d/%d with fb: size=%dx%d@%d, offset=%x, pitch %d, size 0x%x\n",
 		      pipe, plane, crtc->base.primary->fb->width,
