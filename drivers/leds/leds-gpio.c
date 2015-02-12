@@ -42,6 +42,13 @@ static void gpio_led_work(struct work_struct *work)
 		led_dat->platform_gpio_blink_set(led_dat->gpiod,
 					led_dat->new_level, NULL, NULL);
 		led_dat->blinking = 0;
+	} else if (led_dat->cdev.flags & SET_GPIO_INPUT) {
+		gpiod_direction_input(led_dat->gpiod);
+		led_dat->cdev.flags &= ~SET_GPIO_INPUT;
+	}
+	else if (led_dat->cdev.flags & SET_GPIO_OUTPUT) {
+		gpiod_direction_output(led_dat->gpiod, led_dat->new_level);
+		led_dat->cdev.flags &= ~SET_GPIO_OUTPUT;
 	} else
 		gpiod_set_value_cansleep(led_dat->gpiod, led_dat->new_level);
 }
@@ -62,7 +69,8 @@ static void gpio_led_set(struct led_classdev *led_cdev,
 	 * seem to have a reliable way to know if we're already in one; so
 	 * let's just assume the worst.
 	 */
-	if (led_dat->can_sleep) {
+	if (led_dat->can_sleep ||
+	    (led_dat->cdev.flags & (SET_GPIO_INPUT | SET_GPIO_OUTPUT) )) {
 		led_dat->new_level = level;
 		schedule_work(&led_dat->work);
 	} else {
