@@ -18,27 +18,16 @@
 #include <linux/gpio.h>
 #include "../leds.h"
 
-/* This is a hack to get at the private 'gpio' member */
-
-struct gpio_led_data {
-	struct led_classdev cdev;
-	unsigned gpio;
-};
-
 static void input_trig_activate(struct led_classdev *led_cdev)
 {
-	struct gpio_led_data *led_dat =
-		container_of(led_cdev, struct gpio_led_data, cdev);
-	if (gpio_is_valid(led_dat->gpio))
-		gpio_direction_input(led_dat->gpio);
+	led_cdev->flags |= SET_GPIO_INPUT;
+	led_set_brightness_async(led_cdev, 0);
 }
 
 static void input_trig_deactivate(struct led_classdev *led_cdev)
 {
-	struct gpio_led_data *led_dat =
-		container_of(led_cdev, struct gpio_led_data, cdev);
-	if (gpio_is_valid(led_dat->gpio))
-		gpio_direction_output(led_dat->gpio, 0);
+	led_cdev->flags |= SET_GPIO_OUTPUT;
+	led_set_brightness_async(led_cdev, 0);
 }
 
 static struct led_trigger input_led_trigger = {
