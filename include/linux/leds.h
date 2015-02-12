@@ -46,6 +46,9 @@ struct led_classdev {
 #define LED_SYSFS_DISABLE	(1 << 20)
 #define SET_BRIGHTNESS_ASYNC	(1 << 21)
 #define SET_BRIGHTNESS_SYNC	(1 << 22)
+	/* Additions for Raspberry Pi PWR LED */
+#define SET_GPIO_INPUT		(1 << 23)
+#define SET_GPIO_OUTPUT		(1 << 24)
 
 	/* Set LED brightness level */
 	/* Must not sleep, use a workqueue if needed */
