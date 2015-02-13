@@ -20,6 +20,7 @@
 #include <linux/u64_stats_sync.h>
 #include <linux/workqueue.h>
 #include <linux/bpf-cgroup.h>
+#include <linux/swork.h>
 
 #ifdef CONFIG_CGROUPS
 
@@ -157,6 +158,7 @@ struct cgroup_subsys_state {
 
 	/* percpu_ref killing and RCU release */
 	struct work_struct destroy_work;
+	struct swork_event destroy_swork;
 	struct rcu_work destroy_rwork;
 
 	/*
