@@ -31,6 +31,7 @@
 #include <linux/kernel.h>
 #include <linux/time.h>
 #include <linux/timex.h>
+#include <linux/timekeeping.h>
 #include <linux/string.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
@@ -107,6 +108,13 @@ static void safe_udelay(unsigned long usecs)
 	udelay(usecs);
 }
 
+static unsigned long read_current_us(void)
+{
+	struct timespec now;
+	getnstimeofday(&now);
+	return (now.tv_sec * 1000000) + (now.tv_nsec/1000);
+}
+
 static int init_timing_params(unsigned int new_duty_cycle,
 	unsigned int new_freq)
 {
@@ -135,7 +143,7 @@ static long send_pulse_softcarrier(unsigned long length)
 	length *= 1000;
 
 	actual = 0; target = 0; flag = 0;
-	read_current_timer(&actual_us);
+	actual_us = read_current_us();
 
 	while (actual < length) {
 		if (flag) {
@@ -153,7 +161,7 @@ static long send_pulse_softcarrier(unsigned long length)
 		 */
 		if  ((int)(target_us - actual_us) > 0)
 			udelay(target_us - actual_us);
-		read_current_timer(&actual_us);
+		actual_us = read_current_us();
 		actual += (actual_us - initial_us) * 1000;
 		flag = !flag;
 	}
