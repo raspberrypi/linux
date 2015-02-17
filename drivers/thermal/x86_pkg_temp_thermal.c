@@ -29,6 +29,7 @@
 #include <linux/pm.h>
 #include <linux/thermal.h>
 #include <linux/debugfs.h>
+#include <linux/swork.h>
 #include <asm/cpu_device_id.h>
 #include <asm/mce.h>
 
@@ -329,7 +330,7 @@ static void pkg_thermal_schedule_work(int cpu, struct delayed_work *work)
 	schedule_delayed_work_on(cpu, work, ms);
 }
 
-static int pkg_thermal_notify(u64 msr_val)
+static void pkg_thermal_notify_work(struct swork_event *event)
 {
 	int cpu = smp_processor_id();
 	struct pkg_device *pkgdev;
@@ -348,8 +349,46 @@ static int pkg_thermal_notify(u64 msr_val)
 	}
 
 	spin_unlock_irqrestore(&pkg_temp_lock, flags);
+}
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+static struct swork_event notify_work;
+
+static int pkg_thermal_notify_work_init(void)
+{
+	int err;
+
+	err = swork_get();
+	if (err)
+		return err;
+
+	INIT_SWORK(&notify_work, pkg_thermal_notify_work);
 	return 0;
 }
+
+static void pkg_thermal_notify_work_cleanup(void)
+{
+	swork_put();
+}
+
+static int pkg_thermal_notify(u64 msr_val)
+{
+	swork_queue(&notify_work);
+	return 0;
+}
+
+#else  /* !CONFIG_PREEMPT_RT_FULL */
+
+static int pkg_thermal_notify_work_init(void) { return 0; }
+
+static void pkg_thermal_notify_work_cleanup(void) {  }
+
+static int pkg_thermal_notify(u64 msr_val)
+{
+	pkg_thermal_notify_work(NULL);
+	return 0;
+}
+#endif /* CONFIG_PREEMPT_RT_FULL */
 
 static int pkg_temp_thermal_device_add(unsigned int cpu)
 {
@@ -515,10 +554,15 @@ static int __init pkg_temp_thermal_init(void)
 	if (!x86_match_cpu(pkg_temp_thermal_ids))
 		return -ENODEV;
 
+	if (!pkg_thermal_notify_work_init())
+		return -ENODEV;
+
 	max_packages = topology_max_packages();
 	packages = kzalloc(max_packages * sizeof(struct pkg_device *), GFP_KERNEL);
-	if (!packages)
-		return -ENOMEM;
+	if (!packages) {
+		ret = -ENOMEM;
+		goto err;
+	}
 
 	ret = cpuhp_setup_state(CPUHP_AP_ONLINE_DYN, "thermal/x86_pkg:online",
 				pkg_thermal_cpu_online,	pkg_thermal_cpu_offline);
@@ -536,6 +580,7 @@ static int __init pkg_temp_thermal_init(void)
 	return 0;
 
 err:
+	pkg_thermal_notify_work_cleanup();
 	kfree(packages);
 	return ret;
 }
@@ -549,6 +594,7 @@ static void __exit pkg_temp_thermal_exit(void)
 	cpuhp_remove_state(pkg_thermal_hp_state);
 	debugfs_remove_recursive(debugfs);
 	kfree(packages);
+	pkg_thermal_notify_work_cleanup();
 }
 module_exit(pkg_temp_thermal_exit)
 
