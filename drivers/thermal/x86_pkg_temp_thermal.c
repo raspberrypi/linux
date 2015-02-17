@@ -29,6 +29,7 @@
 #include <linux/pm.h>
 #include <linux/thermal.h>
 #include <linux/debugfs.h>
+#include <linux/kthread.h>
 #include <asm/cpu_device_id.h>
 #include <asm/mce.h>
 
@@ -329,7 +330,7 @@ static void pkg_thermal_schedule_work(int cpu, struct delayed_work *work)
 	schedule_delayed_work_on(cpu, work, ms);
 }
 
-static int pkg_thermal_notify(u64 msr_val)
+static void pkg_thermal_notify_work(struct kthread_work *work)
 {
 	int cpu = smp_processor_id();
 	struct pkg_device *pkgdev;
@@ -348,8 +349,32 @@ static int pkg_thermal_notify(u64 msr_val)
 	}
 
 	spin_unlock_irqrestore(&pkg_temp_lock, flags);
+}
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+static DEFINE_KTHREAD_WORK(notify_work, pkg_thermal_notify_work);
+
+static int pkg_thermal_notify(u64 msr_val)
+{
+	kthread_schedule_work(&notify_work);
 	return 0;
 }
+
+static void pkg_thermal_notify_flush(void)
+{
+	kthread_flush_work(&notify_work);
+}
+
+#else  /* !CONFIG_PREEMPT_RT_FULL */
+
+static void pkg_thermal_notify_flush(void) { }
+
+static int pkg_thermal_notify(u64 msr_val)
+{
+	pkg_thermal_notify_work(NULL);
+	return 0;
+}
+#endif /* CONFIG_PREEMPT_RT_FULL */
 
 static int pkg_temp_thermal_device_add(unsigned int cpu)
 {
@@ -548,6 +573,7 @@ static void __exit pkg_temp_thermal_exit(void)
 	platform_thermal_package_rate_control = NULL;
 
 	cpuhp_remove_state(pkg_thermal_hp_state);
+	pkg_thermal_notify_flush();
 	debugfs_remove_recursive(debugfs);
 	kfree(packages);
 }
