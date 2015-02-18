@@ -58,6 +58,8 @@
 #define LOG_DBG(fmt, ...) \
 	if (vc_cma_debug) \
 		printk(KERN_INFO fmt "\n", ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...) \
+	printk(KERN_INFO fmt "\n", ##__VA_ARGS__)
 #define LOG_ERR(fmt, ...) \
 	printk(KERN_ERR fmt "\n", ##__VA_ARGS__)
 
@@ -119,6 +121,10 @@ unsigned int vc_cma_initial;
 unsigned int vc_cma_chunks;
 unsigned int vc_cma_chunks_used;
 unsigned int vc_cma_chunks_reserved;
+
+
+void *vc_cma_dma_alloc;
+unsigned int vc_cma_dma_size;
 
 static int in_loud_error;
 
@@ -198,8 +204,17 @@ void vc_cma_reserve(void)
 	 * size from the end of memory
 	 */
 	if (vc_cma_size) {
-		if (dma_declare_contiguous(NULL /*&vc_cma_device.dev*/, vc_cma_size,
+		if (dma_declare_contiguous(&vc_cma_device.dev, vc_cma_size,
 					   vc_cma_base, 0) == 0) {
+			if (!dev_get_cma_area(NULL)) {
+				/* There is no default CMA area - make this
+				   the default */
+				struct cma *vc_cma_area = dev_get_cma_area(
+					&vc_cma_device.dev);
+				dma_contiguous_set_default(vc_cma_area);
+				LOG_INFO("vc_cma_reserve - using vc_cma as "
+					 "the default contiguous DMA area");
+			}
 		} else {
 			LOG_ERR("vc_cma: dma_declare_contiguous(%x,%x) failed",
 				vc_cma_size, (unsigned int)vc_cma_base);
@@ -309,6 +324,9 @@ static int vc_cma_show_info(struct seq_file *m, void *v)
 		seq_printf(m, "     PID %5d: %d bytes\n", user->pid,
 			   user->reserve);
 	}
+	seq_printf(m, "   dma_alloc  : %p (%d pages)\n",
+		   vc_cma_dma_alloc ? page_address(vc_cma_dma_alloc) : 0,
+		   vc_cma_dma_size);
 
 	seq_printf(m, "\n");
 
@@ -348,31 +366,33 @@ static int vc_cma_proc_write(struct file *file,
 #define FREE_STR "free"
 #define DEBUG_STR "debug"
 #define RESERVE_STR "reserve"
+#define DMA_ALLOC_STR "dma_alloc"
+#define DMA_FREE_STR "dma_free"
 	if (strncmp(input_str, ALLOC_STR, strlen(ALLOC_STR)) == 0) {
-		int size;
+		int alloc_size;
 		char *p = input_str + strlen(ALLOC_STR);
 
 		while (*p == ' ')
 			p++;
-		size = memparse(p, NULL);
-		LOG_ERR("/proc/vc-cma: alloc %d", size);
-		if (size)
+		alloc_size = memparse(p, NULL);
+		LOG_INFO("/proc/vc-cma: alloc %d", alloc_size);
+		if (alloc_size)
 			send_vc_msg(VC_CMA_MSG_REQUEST_FREE,
-				    size / VC_CMA_CHUNK_SIZE, 0);
+				    alloc_size / VC_CMA_CHUNK_SIZE, 0);
 		else
 			LOG_ERR("invalid size '%s'", p);
 		rc = size;
 	} else if (strncmp(input_str, FREE_STR, strlen(FREE_STR)) == 0) {
-		int size;
+		int alloc_size;
 		char *p = input_str + strlen(FREE_STR);
 
 		while (*p == ' ')
 			p++;
-		size = memparse(p, NULL);
-		LOG_ERR("/proc/vc-cma: free %d", size);
-		if (size)
+		alloc_size = memparse(p, NULL);
+		LOG_INFO("/proc/vc-cma: free %d", alloc_size);
+		if (alloc_size)
 			send_vc_msg(VC_CMA_MSG_REQUEST_ALLOC,
-				    size / VC_CMA_CHUNK_SIZE, 0);
+				    alloc_size / VC_CMA_CHUNK_SIZE, 0);
 		else
 			LOG_ERR("invalid size '%s'", p);
 		rc = size;
@@ -384,18 +404,46 @@ static int vc_cma_proc_write(struct file *file,
 			vc_cma_debug = 1;
 		else if ((strcmp(p, "off") == 0) || (strcmp(p, "0") == 0))
 			vc_cma_debug = 0;
-		LOG_ERR("/proc/vc-cma: debug %s", vc_cma_debug ? "on" : "off");
+		LOG_INFO("/proc/vc-cma: debug %s", vc_cma_debug ? "on" : "off");
 		rc = size;
 	} else if (strncmp(input_str, RESERVE_STR, strlen(RESERVE_STR)) == 0) {
-		int size;
+		int alloc_size;
 		int reserved;
 		char *p = input_str + strlen(RESERVE_STR);
 		while (*p == ' ')
 			p++;
-		size = memparse(p, NULL);
+		alloc_size = memparse(p, NULL);
 
-		reserved = vc_cma_set_reserve(size, current->tgid);
+		reserved = vc_cma_set_reserve(alloc_size, current->tgid);
 		rc = (reserved >= 0) ? size : reserved;
+	} else if (strncmp(input_str, DMA_ALLOC_STR, strlen(DMA_ALLOC_STR)) == 0) {
+		int alloc_size;
+		char *p = input_str + strlen(DMA_ALLOC_STR);
+		while (*p == ' ')
+			p++;
+		alloc_size = memparse(p, NULL);
+
+		if (vc_cma_dma_alloc) {
+		    dma_release_from_contiguous(NULL, vc_cma_dma_alloc,
+						vc_cma_dma_size);
+		    vc_cma_dma_alloc = NULL;
+		    vc_cma_dma_size = 0;
+		}
+		vc_cma_dma_alloc = dma_alloc_from_contiguous(NULL, alloc_size, 0);
+		vc_cma_dma_size = (vc_cma_dma_alloc ? alloc_size : 0);
+		if (vc_cma_dma_alloc)
+			LOG_INFO("dma_alloc(%d pages) -> %p", alloc_size, page_address(vc_cma_dma_alloc));
+		else
+			LOG_ERR("dma_alloc(%d pages) failed", alloc_size);
+		rc = size;
+	} else if (strncmp(input_str, DMA_FREE_STR, strlen(DMA_FREE_STR)) == 0) {
+		if (vc_cma_dma_alloc) {
+		    dma_release_from_contiguous(NULL, vc_cma_dma_alloc,
+						vc_cma_dma_size);
+		    vc_cma_dma_alloc = NULL;
+		    vc_cma_dma_size = 0;
+		}
+		rc = size;
 	}
 
 out:
@@ -526,7 +574,7 @@ static int vc_cma_alloc_chunks(int num_chunks, struct cma_msg *reply)
 		uint8_t *chunk_addr;
 		size_t chunk_size = PAGES_PER_CHUNK << PAGE_SHIFT;
 
-		chunk = dma_alloc_from_contiguous(NULL /*&vc_cma_device.dev*/,
+		chunk = dma_alloc_from_contiguous(&vc_cma_device.dev,
 						  PAGES_PER_CHUNK,
 						  VC_CMA_CHUNK_ORDER);
 		if (!chunk)
@@ -548,7 +596,7 @@ static int vc_cma_alloc_chunks(int num_chunks, struct cma_msg *reply)
 				"bad SPARSEMEM configuration?",
 				__func__, (unsigned int)page_to_phys(chunk),
 				vc_cma_base, vc_cma_base + vc_cma_size - 1);
-			LOG_ERR("%s: dev->cma_area = %p\n", __func__,
+			LOG_ERR("%s: dev->cma_area = %p", __func__,
 				(void*)0/*vc_cma_device.dev.cma_area*/);
 			LOG_ERR("%s: ===============================",
 				__func__);
@@ -672,7 +720,7 @@ static int cma_worker_proc(void *param)
 					}
 
 					if (!dma_release_from_contiguous
-					    (NULL /*&vc_cma_device.dev*/, page,
+					    (&vc_cma_device.dev, page,
 					     PAGES_PER_CHUNK)) {
 						LOG_ERR
 						    ("CMA_MSG_FREE - failed to "
@@ -1023,12 +1071,12 @@ static int vc_cma_init(void)
 	if (!check_cma_config())
 		goto out_release;
 
-	printk(KERN_INFO "vc-cma: Videocore CMA driver\n");
-	printk(KERN_INFO "vc-cma: vc_cma_base      = 0x%08x\n", vc_cma_base);
-	printk(KERN_INFO "vc-cma: vc_cma_size      = 0x%08x (%u MiB)\n",
-	       vc_cma_size, vc_cma_size / (1024 * 1024));
-	printk(KERN_INFO "vc-cma: vc_cma_initial   = 0x%08x (%u MiB)\n",
-	       vc_cma_initial, vc_cma_initial / (1024 * 1024));
+	LOG_INFO("vc-cma: Videocore CMA driver");
+	LOG_INFO("vc-cma: vc_cma_base      = 0x%08x", vc_cma_base);
+	LOG_INFO("vc-cma: vc_cma_size      = 0x%08x (%u MiB)",
+		 vc_cma_size, vc_cma_size / (1024 * 1024));
+	LOG_INFO("vc-cma: vc_cma_initial   = 0x%08x (%u MiB)",
+		 vc_cma_initial, vc_cma_initial / (1024 * 1024));
 
 	vc_cma_base_page = phys_to_page(vc_cma_base);
 
@@ -1038,7 +1086,7 @@ static int vc_cma_init(void)
 		for (vc_cma_chunks_used = 0;
 		     vc_cma_chunks_used < chunks_needed; vc_cma_chunks_used++) {
 			struct page *chunk;
-			chunk = dma_alloc_from_contiguous(NULL /*&vc_cma_device.dev*/,
+			chunk = dma_alloc_from_contiguous(&vc_cma_device.dev,
 							  PAGES_PER_CHUNK,
 							  VC_CMA_CHUNK_ORDER);
 			if (!chunk)
