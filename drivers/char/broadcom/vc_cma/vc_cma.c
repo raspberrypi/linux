@@ -590,12 +590,13 @@ static int vc_cma_alloc_chunks(int num_chunks, struct cma_msg *reply)
 		BUG_ON(((page_to_phys(chunk) - vc_cma_base) %
 			VC_CMA_CHUNK_SIZE) != 0);
 		if (chunk_num >= vc_cma_chunks) {
+			phys_addr_t _pa = vc_cma_base + vc_cma_size - 1;
 			LOG_ERR("%s: ===============================",
 				__func__);
-			LOG_ERR("%s: chunk phys %x, vc_cma %x-%x - "
+			LOG_ERR("%s: chunk phys %x, vc_cma %pa-%pa - "
 				"bad SPARSEMEM configuration?",
 				__func__, (unsigned int)page_to_phys(chunk),
-				vc_cma_base, vc_cma_base + vc_cma_size - 1);
+				&vc_cma_base, &_pa);
 			LOG_ERR("%s: dev->cma_area = %p", __func__,
 				(void*)0/*vc_cma_device.dev.cma_area*/);
 			LOG_ERR("%s: ===============================",
@@ -722,11 +723,12 @@ static int cma_worker_proc(void *param)
 					if (!dma_release_from_contiguous
 					    (&vc_cma_device.dev, page,
 					     PAGES_PER_CHUNK)) {
+						phys_addr_t _pa = page_to_phys(page);
 						LOG_ERR
 						    ("CMA_MSG_FREE - failed to "
-						     "release chunk %d (phys %x, "
+						     "release chunk %d (phys %pa, "
 						     "page %x)", chunk_num,
-						     page_to_phys(page),
+						     &_pa,
 						     (unsigned int)page);
 					}
 					vc_cma_chunks_used--;
@@ -1072,7 +1074,7 @@ static int vc_cma_init(void)
 		goto out_release;
 
 	LOG_INFO("vc-cma: Videocore CMA driver");
-	LOG_INFO("vc-cma: vc_cma_base      = 0x%08x", vc_cma_base);
+	LOG_INFO("vc-cma: vc_cma_base      = %pa", &vc_cma_base);
 	LOG_INFO("vc-cma: vc_cma_size      = 0x%08x (%u MiB)",
 		 vc_cma_size, vc_cma_size / (1024 * 1024));
 	LOG_INFO("vc-cma: vc_cma_initial   = 0x%08x (%u MiB)",
