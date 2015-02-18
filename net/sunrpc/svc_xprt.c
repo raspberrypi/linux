@@ -396,7 +396,7 @@ void svc_xprt_do_enqueue(struct svc_xprt *xprt)
 		goto out;
 	}
 
-	cpu = get_cpu();
+	cpu = get_cpu_light();
 	pool = svc_pool_for_cpu(xprt->xpt_server, cpu);
 
 	atomic_long_inc(&pool->sp_stats.packets);
@@ -432,7 +432,7 @@ redo_search:
 
 		atomic_long_inc(&pool->sp_stats.threads_woken);
 		wake_up_process(rqstp->rq_task);
-		put_cpu();
+		put_cpu_light();
 		goto out;
 	}
 	rcu_read_unlock();
@@ -453,7 +453,7 @@ redo_search:
 		goto redo_search;
 	}
 	rqstp = NULL;
-	put_cpu();
+	put_cpu_light();
 out:
 	trace_svc_xprt_do_enqueue(xprt, rqstp);
 }
