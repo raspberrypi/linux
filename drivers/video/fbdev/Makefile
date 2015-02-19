@@ -5,6 +5,7 @@
 # Each configuration option enables a list of files.
 
 obj-y				+= core/
+obj-y 				+= fbtft/
 
 obj-$(CONFIG_EXYNOS_VIDEO)     += exynos/
 
