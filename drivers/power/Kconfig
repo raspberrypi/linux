@@ -75,6 +75,11 @@ config BATTERY_88PM860X
 	help
 	  Say Y here to enable battery monitor for Marvell 88PM860x chip.
 
+config RPI_POWER_SWITCH
+	tristate "Raspberry Pi GPIO power switch"
+	help
+	  Use a GPIO as a pseudo power switch.
+
 config BATTERY_DS2760
 	tristate "DS2760 battery driver (HP iPAQ & others)"
 	depends on W1 && W1_SLAVE_DS2760
