@@ -208,6 +208,7 @@ static int _div_round_closest(struct clk_divider *divider,
 		unsigned long parent_rate, unsigned long rate)
 {
 	int up, down, div;
+	unsigned long up_rate, down_rate;
 
 	up = down = div = DIV_ROUND_CLOSEST(parent_rate, rate);
 
@@ -219,7 +220,10 @@ static int _div_round_closest(struct clk_divider *divider,
 		down = _round_down_table(divider->table, div);
 	}
 
-	return (up - div) <= (div - down) ? up : down;
+	up_rate = DIV_ROUND_UP(parent_rate, up);
+	down_rate = DIV_ROUND_UP(parent_rate, down);
+
+	return (rate - up_rate) <= (down_rate - rate) ? up : down;
 }
 
 static int _div_round(struct clk_divider *divider, unsigned long parent_rate,
