@@ -106,6 +106,7 @@ vc4_irq(int irq, void *arg)
 	struct drm_device *dev = arg;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	uint32_t intctl;
+	irqreturn_t status = IRQ_NONE;
 
 	barrier();
 	intctl = V3D_READ(V3D_INTCTL);
@@ -114,13 +115,15 @@ vc4_irq(int irq, void *arg)
 	if (intctl & V3D_INT_OUTOMEM) {
 		V3D_WRITE(V3D_INTDIS, V3D_INT_OUTOMEM);
 		schedule_work(&vc4->overflow_mem_work);
+		status = IRQ_HANDLED;
 	}
 
 	if (intctl & V3D_INT_FRDONE) {
 		vc4_irq_finish_job(dev);
+		status = IRQ_HANDLED;
 	}
 
-	return intctl ? IRQ_HANDLED : IRQ_NONE;
+	return status;
 }
 
 void
