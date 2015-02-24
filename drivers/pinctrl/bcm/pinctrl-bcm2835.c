@@ -1098,6 +1098,7 @@ static struct platform_driver bcm2835_pinctrl_driver = {
 	.probe = bcm2835_pinctrl_probe,
 	.driver = {
 		.name = MODULE_NAME,
+		.owner = THIS_MODULE,
 		.of_match_table = bcm2835_pinctrl_match,
 		.suppress_bind_attrs = true,
 	},
