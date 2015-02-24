@@ -100,7 +100,7 @@ static const struct file_operations vc4_drm_fops = {
 	.open = drm_open,
 	.release = drm_release,
 	.unlocked_ioctl = drm_ioctl,
-	.mmap = vc4_mmap,
+	.mmap = drm_gem_cma_mmap,
 	.poll = drm_poll,
 	.read = drm_read,
 #ifdef CONFIG_COMPAT
@@ -116,7 +116,6 @@ static const struct drm_ioctl_desc vc4_drm_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(VC4_CREATE_BO, vc4_create_bo_ioctl, 0),
 	DRM_IOCTL_DEF_DRV(VC4_MMAP_BO, vc4_mmap_bo_ioctl, 0),
 };
-
 
 static struct drm_driver vc4_drm_driver = {
 	.driver_features = (DRIVER_MODESET |
@@ -142,7 +141,7 @@ static struct drm_driver vc4_drm_driver = {
 #endif
 
 	.gem_free_object = vc4_free_object,
-	.gem_vm_ops = &vc4_vm_ops,
+	.gem_vm_ops = &drm_gem_cma_vm_ops,
 
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
