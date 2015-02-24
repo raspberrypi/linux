@@ -199,9 +199,6 @@ static int request_one_gpio(struct device *dev,
 	if (of_find_property(node, name, NULL)) {
 	  gpio = of_get_named_gpio_flags(node, name, index, &of_flags);
 
-	printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
-	printk(KERN_ALERT "GPIO = %d\n", gpio);
-
 	  if (gpio == -ENOENT)
 	    return 0;
 	  if (gpio == -EPROBE_DEFER)
@@ -220,7 +217,6 @@ static int request_one_gpio(struct device *dev,
 	  }
 	  if (gpiop)
 		*gpiop = gpio;
-	  printk(KERN_ALERT "%s: '%s' = GPIO%d\n", __func__, name, gpio);
 	}
 	return ret;
 }
@@ -239,15 +235,13 @@ static int ft6x06_parse_dt(struct device *dev,
 	pdata->reset_gpio = of_get_named_gpio_flags(np, "reset-gpio",
 				0, &pdata->reset_gpio);
 
-printk(KERN_ALERT "RST GPIO = %d\n", pdata->reset_gpio);
+//	printk(KERN_ALERT "RST GPIO = %d\n", pdata->reset_gpio);
 
 //	if (pdata->reset_gpio < 0)
 //		return pdata->reset_gpio;
 
 	pdata->irq_gpio = of_get_named_gpio_flags(np, "irq-gpio",
 				0, &pdata->irq_gpio);
-
-printk(KERN_ALERT "IRQ GPIO = %d\n", pdata->irq_gpio);
 
 /*
 	pdata->irq_gpio = request_one_gpio(dev, "irq-gpio",
@@ -257,7 +251,7 @@ printk(KERN_ALERT "IRQ GPIO = %d\n", pdata->irq_gpio);
 	if (pdata->irq_gpio < 0)
 		return pdata->irq_gpio;
 
-	
+
 	return 0;
 }
 #else
@@ -276,8 +270,6 @@ static int ft6x06_ts_probe(struct i2c_client *client,
 	struct input_dev *input_dev;
 	int err = 0;
 
-printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
-
 	if (client->dev.of_node) {
 		pdata = devm_kzalloc(&client->dev,
 			sizeof(struct ft6x06_platform_data), GFP_KERNEL);
@@ -285,15 +277,11 @@ printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 			dev_err(&client->dev, "Failed to allocate memory\n");
 			return -ENOMEM;
 		}
-printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 		err = ft6x06_parse_dt(&client->dev, pdata);
-printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 		if (err)
 			return err;
 	} else {
-printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 		pdata = (struct ft6x06_platform_data *)client->dev.platform_data;
-printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 	}
 
 	if (!pdata) {
@@ -301,14 +289,10 @@ printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 		return -EINVAL;
 	}
 
-printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
-
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		err = -ENODEV;
 		goto exit_check_functionality_failed;
 	}
-
-printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 
 	ft6x06_ts = kzalloc(sizeof(struct ft6x06_ts_data), GFP_KERNEL);
 
@@ -316,8 +300,6 @@ printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 		err = -ENOMEM;
 		goto exit_alloc_data_failed;
 	}
-
-printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 
 	i2c_set_clientdata(client, ft6x06_ts);
 	ft6x06_ts->client = client;
@@ -337,8 +319,6 @@ printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 	}
 #endif
 
-printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
-
 /* ???
 	err = devm_gpio_request_one(&client->dev, pdata->irq_gpio,
 				GPIOF_DIR_IN, "ft6x06 irq");
@@ -347,9 +327,7 @@ printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 		goto exit_request_reset;
 	}
 */
-	printk(KERN_ALERT "IRQ gpio is %d", pdata->irq_gpio);
 	ft6x06_ts->irq = gpio_to_irq(pdata->irq_gpio);
-	printk(KERN_ALERT "IRQ # is %d", ft6x06_ts->irq);
 
 	err = devm_request_threaded_irq(&client->dev, ft6x06_ts->irq,
 					NULL, ft6x06_ts_interrupt,
@@ -382,10 +360,11 @@ printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 			     ABS_MT_POSITION_Y, 0, ft6x06_ts->y_max, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, PRESS_MAX, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, PRESS_MAX, 0, 0);
-	input_set_abs_params(input_dev, ABS_X, 0, ft6x06_ts->x_max, 0, 0);
-	input_set_abs_params(input_dev, ABS_Y, 0, ft6x06_ts->y_max, 0, 0);
 	input_set_abs_params(input_dev,
 			     ABS_MT_TRACKING_ID, 0, CFG_MAX_TOUCH_POINTS, 0, 0);
+	input_set_abs_params(input_dev, ABS_X, 0, ft6x06_ts->x_max, 0, 0);
+	input_set_abs_params(input_dev, ABS_Y, 0, ft6x06_ts->y_max, 0, 0);
+	input_set_abs_params(input_dev, ABS_PRESSURE, 0, PRESS_MAX, 0, 0);
 
 	set_bit(EV_KEY, input_dev->evbit);
 	set_bit(EV_ABS, input_dev->evbit);
@@ -502,12 +481,10 @@ static struct i2c_driver ft6x06_ts_driver = {
 static int __init ft6x06_ts_init(void)
 {
 	int ret;
-	printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 	ret = i2c_add_driver(&ft6x06_ts_driver);
 	if (ret)
 		pr_err("Adding ft6x06 driver failed (errno = %d)\n", ret);
 
-	printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 	return ret;
 }
 
