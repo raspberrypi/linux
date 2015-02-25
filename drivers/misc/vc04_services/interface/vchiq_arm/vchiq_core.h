@@ -402,6 +402,7 @@ struct vchiq_state_struct {
 	int initialised;
 	VCHIQ_CONNSTATE_T conn_state;
 	int is_master;
+	short version_common;
 
 	VCHIQ_SHARED_STATE_T *local;
 	VCHIQ_SHARED_STATE_T *remote;
