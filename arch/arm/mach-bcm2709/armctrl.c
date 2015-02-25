@@ -76,6 +76,8 @@ static void armctrl_mask_irq(struct irq_data *d)
 	} else if (d->irq >= ARM_IRQ1_BASE && d->irq < ARM_IRQ_LOCAL_BASE) {
 		unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
 		writel(1 << (data & 0x1f), __io_address(disables[(data >> 5) & 0x3]));
+	} else if (d->irq == INTERRUPT_ARM_LOCAL_PMU_FAST) {
+		writel(0xf, __io_address(ARM_LOCAL_PM_ROUTING_CLR));
 	} else { printk("%s: %d\n", __func__, d->irq); BUG(); }
 }
 
@@ -119,6 +121,8 @@ static void armctrl_unmask_irq(struct irq_data *d)
 	} else if (d->irq >= ARM_IRQ1_BASE && d->irq < ARM_IRQ_LOCAL_BASE) {
 		unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
 		writel(1 << (data & 0x1f), __io_address(enables[(data >> 5) & 0x3]));
+	} else if (d->irq == INTERRUPT_ARM_LOCAL_PMU_FAST) {
+		writel(0xf, __io_address(ARM_LOCAL_PM_ROUTING_SET));
 	} else { printk("%s: %d\n", __func__, d->irq); BUG(); }
 }
 
@@ -145,7 +149,7 @@ static int armctrl_xlate(struct irq_domain *d, struct device_node *ctrlr,
         if (WARN_ON(intspec[0] == 0 && intspec[1] >= NR_IRQS_BANK0))
                 return -EINVAL;
 
-        if (WARN_ON(intspec[0] == 3 && intspec[1] > 3 && intspec[1] != 5))
+        if (WARN_ON(intspec[0] == 3 && intspec[1] > 3 && intspec[1] != 5 && intspec[1] != 9))
                 return -EINVAL;
 
 	if (intspec[0] == 0)
