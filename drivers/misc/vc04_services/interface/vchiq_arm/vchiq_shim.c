@@ -738,6 +738,9 @@ int32_t vchi_service_set_option(const VCHI_SERVICE_HANDLE_T handle,
 	case VCHI_SERVICE_OPTION_TRACE:
 		vchiq_option = VCHIQ_SERVICE_OPTION_TRACE;
 		break;
+	case VCHI_SERVICE_OPTION_SYNCHRONOUS:
+		vchiq_option = VCHIQ_SERVICE_OPTION_SYNCHRONOUS;
+		break;
 	default:
 		service = NULL;
 		break;
