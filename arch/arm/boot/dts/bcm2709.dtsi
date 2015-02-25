@@ -80,6 +80,11 @@
 		leds: leds {
 			compatible = "gpio-leds";
 		};
+
+		arm-pmu {
+			compatible = "arm,cortex-a7-pmu";
+			interrupts = <3 9>;
+		};
 	};
 
 	clocks {
