@@ -1029,6 +1029,8 @@ static int bcm2835_pinctrl_probe(struct platform_device *pdev)
 		int len;
 		char *name;
 		pc->irq[i] = irq_of_parse_and_map(np, i);
+		if (pc->irq[i] == 0)
+			break;
 		pc->irq_data[i].pc = pc;
 		pc->irq_data[i].irqgroup = i;
 
