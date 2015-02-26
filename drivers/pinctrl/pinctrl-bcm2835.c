@@ -1095,6 +1095,7 @@ static struct platform_driver bcm2835_pinctrl_driver = {
 	.remove = bcm2835_pinctrl_remove,
 	.driver = {
 		.name = MODULE_NAME,
+		.owner = THIS_MODULE,
 		.of_match_table = bcm2835_pinctrl_match,
 	},
 };
