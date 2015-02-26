@@ -77,6 +77,7 @@ dtb-$(RPI_DT_OVERLAYS) += lirc-rpi-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pcf2127-rtc-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pcf8523-rtc-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += rpi-display-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-pullup-overlay.dtb
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2835-rpi-b.dtb
