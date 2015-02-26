@@ -774,7 +774,7 @@ static int vidioc_g_fbuf(struct file *file, void *fh,
 	a->fmt.bytesperline = (preview_port->es.video.width * 3)>>1;
 	a->fmt.sizeimage = (preview_port->es.video.width *
 			       preview_port->es.video.height * 3)>>1;
-	a->fmt.colorspace = V4L2_COLORSPACE_JPEG;
+	a->fmt.colorspace = V4L2_COLORSPACE_SMPTE170M;
 
 	return 0;
 }
@@ -860,8 +860,10 @@ static int vidioc_g_fmt_vid_cap(struct file *file, void *priv,
 
 	if (dev->capture.fmt->fourcc == V4L2_PIX_FMT_RGB24)
 		f->fmt.pix.colorspace = V4L2_COLORSPACE_SRGB;
-	else
+	else if (dev->capture.fmt->fourcc == V4L2_PIX_FMT_JPEG)
 		f->fmt.pix.colorspace = V4L2_COLORSPACE_JPEG;
+	else
+		f->fmt.pix.colorspace = V4L2_COLORSPACE_SMPTE170M;
 	f->fmt.pix.priv = 0;
 
 	v4l2_dump_pix_format(1, bcm2835_v4l2_debug, &dev->v4l2_dev, &f->fmt.pix,
@@ -904,10 +906,12 @@ static int vidioc_try_fmt_vid_cap(struct file *file, void *priv,
 	    f->fmt.pix.sizeimage < MIN_BUFFER_SIZE)
 		f->fmt.pix.sizeimage = MIN_BUFFER_SIZE;
 
-	if (dev->capture.fmt->fourcc == V4L2_PIX_FMT_RGB24)
+	if (f->fmt.pix.pixelformat == V4L2_PIX_FMT_RGB24)
 		f->fmt.pix.colorspace = V4L2_COLORSPACE_SRGB;
-	else
+	else if (f->fmt.pix.pixelformat == V4L2_PIX_FMT_JPEG)
 		f->fmt.pix.colorspace = V4L2_COLORSPACE_JPEG;
+	else
+		f->fmt.pix.colorspace = V4L2_COLORSPACE_SMPTE170M;
 	f->fmt.pix.priv = 0;
 
 	v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
