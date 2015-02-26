@@ -19,6 +19,7 @@ dtb-$(RPI_DT_OVERLAYS) += hifiberry-dac-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += hifiberry-dacplus-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += hifiberry-digi-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += hifiberry-amp-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += hy28a-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += iqaudio-dac-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += iqaudio-dacplus-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += lirc-rpi-overlay.dtb
