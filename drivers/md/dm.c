@@ -2887,6 +2887,7 @@ void dm_internal_suspend(struct mapped_device *md)
 	flush_workqueue(md->wq);
 	dm_wait_for_completion(md, TASK_UNINTERRUPTIBLE);
 }
+EXPORT_SYMBOL_GPL(dm_internal_suspend);
 
 void dm_internal_resume(struct mapped_device *md)
 {
@@ -2898,6 +2899,7 @@ void dm_internal_resume(struct mapped_device *md)
 done:
 	mutex_unlock(&md->suspend_lock);
 }
+EXPORT_SYMBOL_GPL(dm_internal_resume);
 
 /*-----------------------------------------------------------------
  * Event notification.
