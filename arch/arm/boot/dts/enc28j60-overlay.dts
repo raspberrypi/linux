@@ -1,0 +1,29 @@
+// Overlay for the Microchip ENC28J60 Ethernet Controller
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			status = "okay";
+
+			spidev@0{
+				status = "disabled";
+			};
+
+			enc28j60@0{
+				compatible = "microchip,enc28j60";
+				reg = <0>; /* CE0 */
+				spi-max-frequency = <12000000>;
+				status = "okay";
+			};
+		};
+	};
+};
