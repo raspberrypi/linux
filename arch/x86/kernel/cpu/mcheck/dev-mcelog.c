@@ -14,6 +14,7 @@
 #include <linux/slab.h>
 #include <linux/kmod.h>
 #include <linux/poll.h>
+#include <linux/swork.h>
 
 #include "mce-internal.h"
 
@@ -86,12 +87,42 @@ static void mce_do_trigger(struct work_struct *work)
 
 static DECLARE_WORK(mce_trigger_work, mce_do_trigger);
 
-
-void mce_work_trigger(void)
+static void __mce_work_trigger(struct swork_event *event)
 {
 	if (mce_helper[0])
 		schedule_work(&mce_trigger_work);
 }
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+static bool notify_work_ready __read_mostly;
+static struct swork_event notify_work;
+
+static int mce_notify_work_init(void)
+{
+	int err;
+
+	err = swork_get();
+	if (err)
+		return err;
+
+	INIT_SWORK(&notify_work, __mce_work_trigger);
+	notify_work_ready = true;
+	return 0;
+}
+
+void mce_work_trigger(void)
+{
+	if (notify_work_ready)
+		swork_queue(&notify_work);
+}
+
+#else
+void mce_work_trigger(void)
+{
+	__mce_work_trigger(NULL);
+}
+static inline int mce_notify_work_init(void) { return 0; }
+#endif
 
 static ssize_t
 show_trigger(struct device *s, struct device_attribute *attr, char *buf)
@@ -356,7 +387,7 @@ static __init int dev_mcelog_init_device(void)
 
 		return err;
 	}
-
+	mce_notify_work_init();
 	mce_register_decode_chain(&dev_mcelog_nb);
 	return 0;
 }
