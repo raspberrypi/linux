@@ -1630,10 +1630,21 @@ static int enc28j60_remove(struct spi_device *spi)
 	return 0;
 }
 
+#ifdef CONFIG_OF
+static const struct of_device_id enc28j60_of_match[] = {
+	{ .compatible = "microchip,enc28j60", },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, enc28j60_of_match);
+#endif
+
 static struct spi_driver enc28j60_driver = {
 	.driver = {
 		   .name = DRV_NAME,
 		   .owner = THIS_MODULE,
+#ifdef CONFIG_OF
+		   .of_match_table = enc28j60_of_match,
+#endif
 	 },
 	.probe = enc28j60_probe,
 	.remove = enc28j60_remove,
