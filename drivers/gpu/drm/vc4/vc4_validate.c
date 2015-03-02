@@ -1,0 +1,958 @@
+/*
+ * Copyright © 2014 Broadcom
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the next
+ * paragraph) shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ */
+
+/**
+ * Command list validator for VC4.
+ *
+ * The VC4 has no IOMMU between it and system memory.  So, a user with
+ * access to execute command lists could escalate privilege by
+ * overwriting system memory (drawing to it as a framebuffer) or
+ * reading system memory it shouldn't (reading it as a texture, or
+ * uniform data, or vertex data).
+ *
+ * This validates command lists to ensure that all accesses are within
+ * the bounds of the GEM objects referenced.  It explicitly whitelists
+ * packets, and looks at the offsets in any address fields to make
+ * sure they're constrained within the BOs they reference.
+ *
+ * Note that because of the validation that's happening anyway, this
+ * is where GEM relocation processing happens.
+ */
+
+#include "uapi/drm/vc4_drm.h"
+#include "vc4_drv.h"
+#include "vc4_packet.h"
+
+#define VALIDATE_ARGS \
+	struct vc4_exec_info *exec,			\
+	void *validated,				\
+	void *untrusted
+
+
+/** Return the width in pixels of a 64-byte microtile. */
+static uint32_t
+utile_width(int cpp)
+{
+	switch (cpp) {
+	case 1:
+	case 2:
+		return 8;
+	case 4:
+		return 4;
+	case 8:
+		return 2;
+	default:
+		DRM_ERROR("unknown cpp: %d\n", cpp);
+		return 1;
+	}
+}
+
+/** Return the height in pixels of a 64-byte microtile. */
+static uint32_t
+utile_height(int cpp)
+{
+	switch (cpp) {
+	case 1:
+		return 8;
+	case 2:
+	case 4:
+	case 8:
+		return 4;
+	default:
+		DRM_ERROR("unknown cpp: %d\n", cpp);
+		return 1;
+	}
+}
+
+/**
+ * The texture unit decides what tiling format a particular miplevel is using
+ * this function, so we lay out our miptrees accordingly.
+ */
+static bool
+size_is_lt(uint32_t width, uint32_t height, int cpp)
+{
+	return (width <= 4 * utile_width(cpp) ||
+		height <= 4 * utile_height(cpp));
+}
+
+bool
+vc4_use_bo(struct vc4_exec_info *exec,
+	   uint32_t hindex,
+	   enum vc4_bo_mode mode,
+	   struct drm_gem_cma_object **obj)
+{
+	*obj = NULL;
+
+	if (hindex >= exec->bo_count) {
+		DRM_ERROR("BO index %d greater than BO count %d\n",
+			  hindex, exec->bo_count);
+		return false;
+	}
+
+	if (exec->bo[hindex].mode != mode) {
+		if (exec->bo[hindex].mode == VC4_MODE_UNDECIDED) {
+			exec->bo[hindex].mode = mode;
+		} else {
+			DRM_ERROR("BO index %d reused with mode %d vs %d\n",
+				  hindex, exec->bo[hindex].mode, mode);
+			return false;
+		}
+	}
+
+	*obj = exec->bo[hindex].bo;
+	return true;
+}
+
+static bool
+vc4_use_handle(struct vc4_exec_info *exec,
+	       uint32_t gem_handles_packet_index,
+	       enum vc4_bo_mode mode,
+	       struct drm_gem_cma_object **obj)
+{
+	return vc4_use_bo(exec, exec->bo_index[gem_handles_packet_index],
+			  mode, obj);
+}
+
+static uint32_t
+gl_shader_rec_size(uint32_t pointer_bits)
+{
+	uint32_t attribute_count = pointer_bits & 7;
+	bool extended = pointer_bits & 8;
+
+	if (attribute_count == 0)
+		attribute_count = 8;
+
+	if (extended)
+		return 100 + attribute_count * 4;
+	else
+		return 36 + attribute_count * 8;
+}
+
+bool
+vc4_check_tex_size(struct vc4_exec_info *exec, struct drm_gem_cma_object *fbo,
+		   uint32_t offset, uint8_t tiling_format,
+		   uint32_t width, uint32_t height, uint8_t cpp)
+{
+	uint32_t aligned_width, aligned_height, stride, size;
+	uint32_t utile_w = utile_width(cpp);
+	uint32_t utile_h = utile_height(cpp);
+
+	/* The shaded vertex format stores signed 12.4 fixed point
+	 * (-2048,2047) offsets from the viewport center, so we should
+	 * never have a render target larger than 4096.  The texture
+	 * unit can only sample from 2048x2048, so it's even more
+	 * restricted.  This lets us avoid worrying about overflow in
+	 * our math.
+	 */
+	if (width > 4096 || height > 4096) {
+		DRM_ERROR("Surface dimesions (%d,%d) too large", width, height);
+		return false;
+	}
+
+	switch (tiling_format) {
+	case VC4_TILING_FORMAT_LINEAR:
+		aligned_width = round_up(width, utile_w);
+		aligned_height = height;
+		break;
+	case VC4_TILING_FORMAT_T:
+		aligned_width = round_up(width, utile_w * 8);
+		aligned_height = round_up(height, utile_h * 8);
+		break;
+	case VC4_TILING_FORMAT_LT:
+		aligned_width = round_up(width, utile_w);
+		aligned_height = round_up(height, utile_h);
+		break;
+	default:
+		DRM_ERROR("buffer tiling %d unsupported\n", tiling_format);
+		return false;
+	}
+
+	stride = aligned_width * cpp;
+	size = stride * aligned_height;
+
+	if (size + offset < size ||
+	    size + offset > fbo->base.size) {
+		DRM_ERROR("Overflow in %dx%d (%dx%d) fbo size (%d + %d > %d)\n",
+			  width, height,
+			  aligned_width, aligned_height,
+			  size, offset, fbo->base.size);
+		return false;
+	}
+
+	return true;
+}
+
+static int
+validate_flush_all(VALIDATE_ARGS)
+{
+	if (exec->found_increment_semaphore_packet) {
+		DRM_ERROR("VC4_PACKET_FLUSH_ALL after "
+			  "VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int
+validate_start_tile_binning(VALIDATE_ARGS)
+{
+	if (exec->found_start_tile_binning_packet) {
+		DRM_ERROR("Duplicate VC4_PACKET_START_TILE_BINNING\n");
+		return -EINVAL;
+	}
+	exec->found_start_tile_binning_packet = true;
+
+	if (!exec->found_tile_binning_mode_config_packet) {
+		DRM_ERROR("missing VC4_PACKET_TILE_BINNING_MODE_CONFIG\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int
+validate_increment_semaphore(VALIDATE_ARGS)
+{
+	if (exec->found_increment_semaphore_packet) {
+		DRM_ERROR("Duplicate VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
+	}
+	exec->found_increment_semaphore_packet = true;
+
+	/* Once we've found the semaphore increment, there should be one FLUSH
+	 * then the end of the command list.  The FLUSH actually triggers the
+	 * increment, so we only need to make sure there
+	 */
+
+	return 0;
+}
+
+static int
+validate_indexed_prim_list(VALIDATE_ARGS)
+{
+	struct drm_gem_cma_object *ib;
+	uint32_t length = *(uint32_t *)(untrusted + 1);
+	uint32_t offset = *(uint32_t *)(untrusted + 5);
+	uint32_t max_index = *(uint32_t *)(untrusted + 9);
+	uint32_t index_size = (*(uint8_t *)(untrusted + 0) >> 4) ? 2 : 1;
+	struct vc4_shader_state *shader_state;
+
+	if (exec->found_increment_semaphore_packet) {
+		DRM_ERROR("Drawing after VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
+	}
+
+	/* Check overflow condition */
+	if (exec->shader_state_count == 0) {
+		DRM_ERROR("shader state must precede primitives\n");
+		return -EINVAL;
+	}
+	shader_state = &exec->shader_state[exec->shader_state_count - 1];
+
+	if (max_index > shader_state->max_index)
+		shader_state->max_index = max_index;
+
+	if (!vc4_use_handle(exec, 0, VC4_MODE_RENDER, &ib))
+		return -EINVAL;
+
+	if (offset > ib->base.size ||
+	    (ib->base.size - offset) / index_size < length) {
+		DRM_ERROR("IB access overflow (%d + %d*%d > %d)\n",
+			  offset, length, index_size, ib->base.size);
+		return -EINVAL;
+	}
+
+	*(uint32_t *)(validated + 5) = ib->paddr + offset;
+
+	return 0;
+}
+
+static int
+validate_gl_array_primitive(VALIDATE_ARGS)
+{
+	uint32_t length = *(uint32_t *)(untrusted + 1);
+	uint32_t base_index = *(uint32_t *)(untrusted + 5);
+	uint32_t max_index;
+	struct vc4_shader_state *shader_state;
+
+	if (exec->found_increment_semaphore_packet) {
+		DRM_ERROR("Drawing after VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
+	}
+
+	/* Check overflow condition */
+	if (exec->shader_state_count == 0) {
+		DRM_ERROR("shader state must precede primitives\n");
+		return -EINVAL;
+	}
+	shader_state = &exec->shader_state[exec->shader_state_count - 1];
+
+	if (length + base_index < length) {
+		DRM_ERROR("primitive vertex count overflow\n");
+		return -EINVAL;
+	}
+	max_index = length + base_index - 1;
+
+	if (max_index > shader_state->max_index)
+		shader_state->max_index = max_index;
+
+	return 0;
+}
+
+static int
+validate_gl_shader_state(VALIDATE_ARGS)
+{
+	uint32_t i = exec->shader_state_count++;
+
+	if (i >= exec->shader_state_size) {
+		DRM_ERROR("More requests for shader states than declared\n");
+		return -EINVAL;
+	}
+
+	exec->shader_state[i].packet = VC4_PACKET_GL_SHADER_STATE;
+	exec->shader_state[i].addr = *(uint32_t *)untrusted;
+	exec->shader_state[i].max_index = 0;
+
+	if (exec->shader_state[i].addr & ~0xf) {
+		DRM_ERROR("high bits set in GL shader rec reference\n");
+		return -EINVAL;
+	}
+
+	*(uint32_t *)validated = (exec->shader_rec_p +
+				  exec->shader_state[i].addr);
+
+	exec->shader_rec_p +=
+		roundup(gl_shader_rec_size(exec->shader_state[i].addr), 16);
+
+	return 0;
+}
+
+static int
+validate_nv_shader_state(VALIDATE_ARGS)
+{
+	uint32_t i = exec->shader_state_count++;
+
+	if (i >= exec->shader_state_size) {
+		DRM_ERROR("More requests for shader states than declared\n");
+		return -EINVAL;
+	}
+
+	exec->shader_state[i].packet = VC4_PACKET_NV_SHADER_STATE;
+	exec->shader_state[i].addr = *(uint32_t *)untrusted;
+
+	if (exec->shader_state[i].addr & 15) {
+		DRM_ERROR("NV shader state address 0x%08x misaligned\n",
+			  exec->shader_state[i].addr);
+		return -EINVAL;
+	}
+
+	*(uint32_t *)validated = (exec->shader_state[i].addr +
+				  exec->shader_rec_p);
+
+	return 0;
+}
+
+static int
+validate_tile_binning_config(VALIDATE_ARGS)
+{
+	struct drm_device *dev = exec->exec_bo->base.dev;
+	uint8_t flags;
+	uint32_t tile_state_size, tile_alloc_size;
+	uint32_t tile_count;
+
+	if (exec->found_tile_binning_mode_config_packet) {
+		DRM_ERROR("Duplicate VC4_PACKET_TILE_BINNING_MODE_CONFIG\n");
+		return -EINVAL;
+	}
+	exec->found_tile_binning_mode_config_packet = true;
+
+	exec->bin_tiles_x = *(uint8_t *)(untrusted + 12);
+	exec->bin_tiles_y = *(uint8_t *)(untrusted + 13);
+	tile_count = exec->bin_tiles_x * exec->bin_tiles_y;
+	flags = *(uint8_t *)(untrusted + 14);
+
+	if (exec->bin_tiles_x == 0 ||
+	    exec->bin_tiles_y == 0) {
+		DRM_ERROR("Tile binning config of %dx%d too small\n",
+			  exec->bin_tiles_x, exec->bin_tiles_y);
+		return -EINVAL;
+	}
+
+	if (flags & (VC4_BIN_CONFIG_DB_NON_MS |
+		     VC4_BIN_CONFIG_TILE_BUFFER_64BIT |
+		     VC4_BIN_CONFIG_MS_MODE_4X)) {
+		DRM_ERROR("unsupported bining config flags 0x%02x\n", flags);
+		return -EINVAL;
+	}
+
+	/* The tile state data array is 48 bytes per tile, and we put it at
+	 * the start of a BO containing both it and the tile alloc.
+	 */
+	tile_state_size = 48 * tile_count;
+
+	/* Since the tile alloc array will follow us, align. */
+	exec->tile_alloc_offset = roundup(tile_state_size, 4096);
+
+	*(uint8_t *)(validated + 14) =
+		((flags & ~(VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE_MASK |
+			    VC4_BIN_CONFIG_ALLOC_BLOCK_SIZE_MASK)) |
+		 VC4_BIN_CONFIG_AUTO_INIT_TSDA |
+		 VC4_SET_FIELD(VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE_32,
+			       VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE) |
+		 VC4_SET_FIELD(VC4_BIN_CONFIG_ALLOC_BLOCK_SIZE_128,
+			       VC4_BIN_CONFIG_ALLOC_BLOCK_SIZE));
+
+	/* Initial block size. */
+	tile_alloc_size = 32 * tile_count;
+
+	/*
+	 * The initial allocation gets rounded to the next 256 bytes before
+	 * the hardware starts fulfilling further allocations.
+	 */
+	tile_alloc_size = roundup(tile_alloc_size, 256);
+
+	/* Add space for the extra allocations.  This is what gets used first,
+	 * before overflow memory.  It must have at least 4096 bytes, but we
+	 * want to avoid overflow memory usage if possible.
+	 */
+	tile_alloc_size += 1024 * 1024;
+
+	exec->tile_bo = &vc4_bo_create(dev, exec->tile_alloc_offset +
+				       tile_alloc_size)->base;
+	if (!exec->tile_bo)
+		return -ENOMEM;
+	list_add_tail(&to_vc4_bo(&exec->tile_bo->base)->unref_head,
+		     &exec->unref_list);
+
+	/* tile alloc address. */
+	*(uint32_t *)(validated + 0) = (exec->tile_bo->paddr +
+					exec->tile_alloc_offset);
+	/* tile alloc size. */
+	*(uint32_t *)(validated + 4) = tile_alloc_size;
+	/* tile state address. */
+	*(uint32_t *)(validated + 8) = exec->tile_bo->paddr;
+
+	return 0;
+}
+
+static int
+validate_gem_handles(VALIDATE_ARGS)
+{
+	memcpy(exec->bo_index, untrusted, sizeof(exec->bo_index));
+	return 0;
+}
+
+#define VC4_DEFINE_PACKET(packet, name, func) \
+	[packet] = { packet ## _SIZE, name, func }
+
+static const struct cmd_info {
+	uint16_t len;
+	const char *name;
+	int (*func)(struct vc4_exec_info *exec, void *validated,
+		    void *untrusted);
+} cmd_info[] = {
+	VC4_DEFINE_PACKET(VC4_PACKET_HALT, "halt", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_NOP, "nop", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_FLUSH, "flush", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_FLUSH_ALL, "flush all state", validate_flush_all),
+	VC4_DEFINE_PACKET(VC4_PACKET_START_TILE_BINNING, "start tile binning", validate_start_tile_binning),
+	VC4_DEFINE_PACKET(VC4_PACKET_INCREMENT_SEMAPHORE, "increment semaphore", validate_increment_semaphore),
+
+	VC4_DEFINE_PACKET(VC4_PACKET_GL_INDEXED_PRIMITIVE, "Indexed Primitive List", validate_indexed_prim_list),
+
+	VC4_DEFINE_PACKET(VC4_PACKET_GL_ARRAY_PRIMITIVE, "Vertex Array Primitives", validate_gl_array_primitive),
+
+	/* This is only used by clipped primitives (packets 48 and 49), which
+	 * we don't support parsing yet.
+	 */
+	VC4_DEFINE_PACKET(VC4_PACKET_PRIMITIVE_LIST_FORMAT, "primitive list format", NULL),
+
+	VC4_DEFINE_PACKET(VC4_PACKET_GL_SHADER_STATE, "GL Shader State", validate_gl_shader_state),
+	VC4_DEFINE_PACKET(VC4_PACKET_NV_SHADER_STATE, "NV Shader State", validate_nv_shader_state),
+
+	VC4_DEFINE_PACKET(VC4_PACKET_CONFIGURATION_BITS, "configuration bits", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_FLAT_SHADE_FLAGS, "flat shade flags", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_POINT_SIZE, "point size", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_LINE_WIDTH, "line width", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_RHT_X_BOUNDARY, "RHT X boundary", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_DEPTH_OFFSET, "Depth Offset", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_CLIP_WINDOW, "Clip Window", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_VIEWPORT_OFFSET, "Viewport Offset", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_CLIPPER_XY_SCALING, "Clipper XY Scaling", NULL),
+	/* Note: The docs say this was also 105, but it was 106 in the
+	 * initial userland code drop.
+	 */
+	VC4_DEFINE_PACKET(VC4_PACKET_CLIPPER_Z_SCALING, "Clipper Z Scale and Offset", NULL),
+
+	VC4_DEFINE_PACKET(VC4_PACKET_TILE_BINNING_MODE_CONFIG, "tile binning configuration", validate_tile_binning_config),
+
+	VC4_DEFINE_PACKET(VC4_PACKET_GEM_HANDLES, "GEM handles", validate_gem_handles),
+};
+
+int
+vc4_validate_bin_cl(struct drm_device *dev,
+		    void *validated,
+		    void *unvalidated,
+		    struct vc4_exec_info *exec)
+{
+	uint32_t len = exec->args->bin_cl_size;
+	uint32_t dst_offset = 0;
+	uint32_t src_offset = 0;
+
+	while (src_offset < len) {
+		void *dst_pkt = validated + dst_offset;
+		void *src_pkt = unvalidated + src_offset;
+		u8 cmd = *(uint8_t *)src_pkt;
+		const struct cmd_info *info;
+
+		if (cmd > ARRAY_SIZE(cmd_info)) {
+			DRM_ERROR("0x%08x: packet %d out of bounds\n",
+				  src_offset, cmd);
+			return -EINVAL;
+		}
+
+		info = &cmd_info[cmd];
+		if (!info->name) {
+			DRM_ERROR("0x%08x: packet %d invalid\n",
+				  src_offset, cmd);
+			return -EINVAL;
+		}
+
+#if 0
+		DRM_INFO("0x%08x: packet %d (%s) size %d processing...\n",
+			 src_offset, cmd, info->name, info->len);
+#endif
+
+		if (src_offset + info->len > len) {
+			DRM_ERROR("0x%08x: packet %d (%s) length 0x%08x "
+				  "exceeds bounds (0x%08x)\n",
+				  src_offset, cmd, info->name, info->len,
+				  src_offset + len);
+			return -EINVAL;
+		}
+
+		if (cmd != VC4_PACKET_GEM_HANDLES)
+			memcpy(dst_pkt, src_pkt, info->len);
+
+		if (info->func && info->func(exec,
+					     dst_pkt + 1,
+					     src_pkt + 1)) {
+			DRM_ERROR("0x%08x: packet %d (%s) failed to "
+				  "validate\n",
+				  src_offset, cmd, info->name);
+			return -EINVAL;
+		}
+
+		src_offset += info->len;
+		/* GEM handle loading doesn't produce HW packets. */
+		if (cmd != VC4_PACKET_GEM_HANDLES)
+			dst_offset += info->len;
+
+		/* When the CL hits halt, it'll stop reading anything else. */
+		if (cmd == VC4_PACKET_HALT)
+			break;
+	}
+
+	exec->ct0ea = exec->ct0ca + dst_offset;
+
+	if (!exec->found_start_tile_binning_packet) {
+		DRM_ERROR("Bin CL missing VC4_PACKET_START_TILE_BINNING\n");
+		return -EINVAL;
+	}
+
+	if (!exec->found_increment_semaphore_packet) {
+		DRM_ERROR("Bin CL missing VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static bool
+reloc_tex(struct vc4_exec_info *exec,
+	  void *uniform_data_u,
+	  struct vc4_texture_sample_info *sample,
+	  uint32_t texture_handle_index)
+
+{
+	struct drm_gem_cma_object *tex;
+	uint32_t p0 = *(uint32_t *)(uniform_data_u + sample->p_offset[0]);
+	uint32_t p1 = *(uint32_t *)(uniform_data_u + sample->p_offset[1]);
+	uint32_t p2 = (sample->p_offset[2] != ~0 ?
+		       *(uint32_t *)(uniform_data_u + sample->p_offset[2]) : 0);
+	uint32_t p3 = (sample->p_offset[3] != ~0 ?
+		       *(uint32_t *)(uniform_data_u + sample->p_offset[3]) : 0);
+	uint32_t *validated_p0 = exec->uniforms_v + sample->p_offset[0];
+	uint32_t offset = p0 & VC4_TEX_P0_OFFSET_MASK;
+	uint32_t miplevels = VC4_GET_FIELD(p0, VC4_TEX_P0_MIPLVLS);
+	uint32_t width = VC4_GET_FIELD(p1, VC4_TEX_P1_WIDTH);
+	uint32_t height = VC4_GET_FIELD(p1, VC4_TEX_P1_HEIGHT);
+	uint32_t cpp, tiling_format, utile_w, utile_h;
+	uint32_t i;
+	uint32_t cube_map_stride = 0;
+	enum vc4_texture_data_type type;
+
+	if (!vc4_use_bo(exec, texture_handle_index, VC4_MODE_RENDER, &tex))
+		return false;
+
+	if (sample->is_direct) {
+		uint32_t remaining_size = tex->base.size - p0;
+		if (p0 > tex->base.size - 4) {
+			DRM_ERROR("UBO offset greater than UBO size\n");
+			goto fail;
+		}
+		if (p1 > remaining_size - 4) {
+			DRM_ERROR("UBO clamp would allow reads outside of UBO\n");
+			goto fail;
+		}
+		*validated_p0 = tex->paddr + p0;
+		return true;
+	}
+
+	if (width == 0)
+		width = 2048;
+	if (height == 0)
+		height = 2048;
+
+	if (p0 & VC4_TEX_P0_CMMODE_MASK) {
+		if (VC4_GET_FIELD(p2, VC4_TEX_P2_PTYPE) ==
+		    VC4_TEX_P2_PTYPE_CUBE_MAP_STRIDE)
+			cube_map_stride = p2 & VC4_TEX_P2_CMST_MASK;
+		if (VC4_GET_FIELD(p3, VC4_TEX_P2_PTYPE) ==
+		    VC4_TEX_P2_PTYPE_CUBE_MAP_STRIDE) {
+			if (cube_map_stride) {
+				DRM_ERROR("Cube map stride set twice\n");
+				goto fail;
+			}
+
+			cube_map_stride = p3 & VC4_TEX_P2_CMST_MASK;
+		}
+		if (!cube_map_stride) {
+			DRM_ERROR("Cube map stride not set\n");
+			goto fail;
+		}
+	}
+
+	type = (VC4_GET_FIELD(p0, VC4_TEX_P0_TYPE) |
+		(VC4_GET_FIELD(p1, VC4_TEX_P1_TYPE4) << 4));
+
+	switch (type) {
+	case VC4_TEXTURE_TYPE_RGBA8888:
+	case VC4_TEXTURE_TYPE_RGBX8888:
+	case VC4_TEXTURE_TYPE_RGBA32R:
+		cpp = 4;
+		break;
+	case VC4_TEXTURE_TYPE_RGBA4444:
+	case VC4_TEXTURE_TYPE_RGBA5551:
+	case VC4_TEXTURE_TYPE_RGB565:
+	case VC4_TEXTURE_TYPE_LUMALPHA:
+	case VC4_TEXTURE_TYPE_S16F:
+	case VC4_TEXTURE_TYPE_S16:
+		cpp = 2;
+		break;
+	case VC4_TEXTURE_TYPE_LUMINANCE:
+	case VC4_TEXTURE_TYPE_ALPHA:
+	case VC4_TEXTURE_TYPE_S8:
+		cpp = 1;
+		break;
+	case VC4_TEXTURE_TYPE_ETC1:
+	case VC4_TEXTURE_TYPE_BW1:
+	case VC4_TEXTURE_TYPE_A4:
+	case VC4_TEXTURE_TYPE_A1:
+	case VC4_TEXTURE_TYPE_RGBA64:
+	case VC4_TEXTURE_TYPE_YUV422R:
+	default:
+		DRM_ERROR("Texture format %d unsupported\n", type);
+		goto fail;
+	}
+	utile_w = utile_width(cpp);
+	utile_h = utile_height(cpp);
+
+	if (type == VC4_TEXTURE_TYPE_RGBA32R) {
+		tiling_format = VC4_TILING_FORMAT_LINEAR;
+	} else {
+		if (size_is_lt(width, height, cpp))
+			tiling_format = VC4_TILING_FORMAT_LT;
+		else
+			tiling_format = VC4_TILING_FORMAT_T;
+	}
+
+	if (!vc4_check_tex_size(exec, tex, offset + cube_map_stride * 5,
+				tiling_format, width, height, cpp)) {
+		goto fail;
+	}
+
+	/* The mipmap levels are stored before the base of the texture.  Make
+	 * sure there is actually space in the BO.
+	 */
+	for (i = 1; i <= miplevels; i++) {
+		uint32_t level_width = max(width >> i, 1u);
+		uint32_t level_height = max(height >> i, 1u);
+		uint32_t aligned_width, aligned_height;
+		uint32_t level_size;
+
+		/* Once the levels get small enough, they drop from T to LT. */
+		if (tiling_format == VC4_TILING_FORMAT_T &&
+		    size_is_lt(level_width, level_height, cpp)) {
+			tiling_format = VC4_TILING_FORMAT_LT;
+		}
+
+		switch (tiling_format) {
+		case VC4_TILING_FORMAT_T:
+			aligned_width = round_up(level_width, utile_w * 8);
+			aligned_height = round_up(level_height, utile_h * 8);
+			break;
+		case VC4_TILING_FORMAT_LT:
+			aligned_width = round_up(level_width, utile_w);
+			aligned_height = round_up(level_height, utile_h);
+			break;
+		default:
+			aligned_width = round_up(level_width, utile_w);
+			aligned_height = level_height;
+			break;
+		}
+
+		level_size = aligned_width * cpp * aligned_height;
+
+		if (offset < level_size) {
+			DRM_ERROR("Level %d (%dx%d -> %dx%d) size %db "
+				  "overflowed buffer bounds (offset %d)\n",
+				  i, level_width, level_height,
+				  aligned_width, aligned_height,
+				  level_size, offset);
+			goto fail;
+		}
+
+		offset -= level_size;
+	}
+
+	*validated_p0 = tex->paddr + p0;
+
+	return true;
+ fail:
+	DRM_INFO("Texture p0 at %d: 0x%08x\n", sample->p_offset[0], p0);
+	DRM_INFO("Texture p1 at %d: 0x%08x\n", sample->p_offset[1], p1);
+	DRM_INFO("Texture p2 at %d: 0x%08x\n", sample->p_offset[2], p2);
+	DRM_INFO("Texture p3 at %d: 0x%08x\n", sample->p_offset[3], p3);
+	return false;
+}
+
+static int
+validate_shader_rec(struct drm_device *dev,
+		    struct vc4_exec_info *exec,
+		    struct vc4_shader_state *state)
+{
+	uint32_t *src_handles;
+	void *pkt_u, *pkt_v;
+	enum shader_rec_reloc_type {
+		RELOC_CODE,
+		RELOC_VBO,
+	};
+	struct shader_rec_reloc {
+		enum shader_rec_reloc_type type;
+		uint32_t offset;
+	};
+	static const struct shader_rec_reloc gl_relocs[] = {
+		{ RELOC_CODE, 4 },  /* fs */
+		{ RELOC_CODE, 16 }, /* vs */
+		{ RELOC_CODE, 28 }, /* cs */
+	};
+	static const struct shader_rec_reloc nv_relocs[] = {
+		{ RELOC_CODE, 4 }, /* fs */
+		{ RELOC_VBO, 12 }
+	};
+	const struct shader_rec_reloc *relocs;
+	struct drm_gem_cma_object *bo[ARRAY_SIZE(gl_relocs) + 8];
+	uint32_t nr_attributes = 0, nr_fixed_relocs, nr_relocs, packet_size;
+	int i;
+	struct vc4_validated_shader_info *validated_shader;
+
+	if (state->packet == VC4_PACKET_NV_SHADER_STATE) {
+		relocs = nv_relocs;
+		nr_fixed_relocs = ARRAY_SIZE(nv_relocs);
+
+		packet_size = 16;
+	} else {
+		relocs = gl_relocs;
+		nr_fixed_relocs = ARRAY_SIZE(gl_relocs);
+
+		nr_attributes = state->addr & 0x7;
+		if (nr_attributes == 0)
+			nr_attributes = 8;
+		packet_size = gl_shader_rec_size(state->addr);
+	}
+	nr_relocs = nr_fixed_relocs + nr_attributes;
+
+	if (nr_relocs * 4 > exec->shader_rec_size) {
+		DRM_ERROR("overflowed shader recs reading %d handles "
+			  "from %d bytes left\n",
+			  nr_relocs, exec->shader_rec_size);
+		return -EINVAL;
+	}
+	src_handles = exec->shader_rec_u;
+	exec->shader_rec_u += nr_relocs * 4;
+	exec->shader_rec_size -= nr_relocs * 4;
+
+	if (packet_size > exec->shader_rec_size) {
+		DRM_ERROR("overflowed shader recs copying %db packet "
+			  "from %d bytes left\n",
+			  packet_size, exec->shader_rec_size);
+		return -EINVAL;
+	}
+	pkt_u = exec->shader_rec_u;
+	pkt_v = exec->shader_rec_v;
+	memcpy(pkt_v, pkt_u, packet_size);
+	exec->shader_rec_u += packet_size;
+	/* Shader recs have to be aligned to 16 bytes (due to the attribute
+	 * flags being in the low bytes), so round the next validated shader
+	 * rec address up.  This should be safe, since we've got so many
+	 * relocations in a shader rec packet.
+	 */
+	BUG_ON(roundup(packet_size, 16) - packet_size > nr_relocs * 4);
+	exec->shader_rec_v += roundup(packet_size, 16);
+	exec->shader_rec_size -= packet_size;
+
+	for (i = 0; i < nr_relocs; i++) {
+		enum vc4_bo_mode mode;
+
+		if (i < nr_fixed_relocs && relocs[i].type == RELOC_CODE)
+			mode = VC4_MODE_SHADER;
+		else
+			mode = VC4_MODE_RENDER;
+
+		if (!vc4_use_bo(exec, src_handles[i], mode, &bo[i])) {
+			return false;
+		}
+	}
+
+	for (i = 0; i < nr_fixed_relocs; i++) {
+		uint32_t o = relocs[i].offset;
+		uint32_t src_offset = *(uint32_t *)(pkt_u + o);
+		uint32_t *texture_handles_u;
+		void *uniform_data_u;
+		uint32_t tex;
+
+		*(uint32_t *)(pkt_v + o) = bo[i]->paddr + src_offset;
+
+		switch (relocs[i].type) {
+		case RELOC_CODE:
+			if (src_offset != 0) {
+				DRM_ERROR("Shaders must be at offset 0 of "
+					  "the BO.\n");
+				goto fail;
+			}
+
+			validated_shader = to_vc4_bo(&bo[i]->base)->validated_shader;
+			if (!validated_shader)
+				goto fail;
+
+			if (validated_shader->uniforms_src_size >
+			    exec->uniforms_size) {
+				DRM_ERROR("Uniforms src buffer overflow\n");
+				goto fail;
+			}
+
+			texture_handles_u = exec->uniforms_u;
+			uniform_data_u = (texture_handles_u +
+					  validated_shader->num_texture_samples);
+
+			memcpy(exec->uniforms_v, uniform_data_u,
+			       validated_shader->uniforms_size);
+
+			for (tex = 0;
+			     tex < validated_shader->num_texture_samples;
+			     tex++) {
+				if (!reloc_tex(exec,
+					       uniform_data_u,
+					       &validated_shader->texture_samples[tex],
+					       texture_handles_u[tex])) {
+					goto fail;
+				}
+			}
+
+			*(uint32_t *)(pkt_v + o + 4) = exec->uniforms_p;
+
+			exec->uniforms_u += validated_shader->uniforms_src_size;
+			exec->uniforms_v += validated_shader->uniforms_size;
+			exec->uniforms_p += validated_shader->uniforms_size;
+
+			break;
+
+		case RELOC_VBO:
+			break;
+		}
+	}
+
+	for (i = 0; i < nr_attributes; i++) {
+		struct drm_gem_cma_object *vbo = bo[nr_fixed_relocs + i];
+		uint32_t o = 36 + i * 8;
+		uint32_t offset = *(uint32_t *)(pkt_u + o + 0);
+		uint32_t attr_size = *(uint8_t *)(pkt_u + o + 4) + 1;
+		uint32_t stride = *(uint8_t *)(pkt_u + o + 5);
+		uint32_t max_index;
+
+		if (state->addr & 0x8)
+			stride |= (*(uint32_t *)(pkt_u + 100 + i * 4)) & ~0xff;
+
+		if (vbo->base.size < offset ||
+		    vbo->base.size - offset < attr_size) {
+			DRM_ERROR("BO offset overflow (%d + %d > %d)\n",
+				  offset, attr_size, vbo->base.size);
+			return -EINVAL;
+		}
+
+		if (stride != 0) {
+			max_index = ((vbo->base.size - offset - attr_size) /
+				     stride);
+			if (state->max_index > max_index) {
+				DRM_ERROR("primitives use index %d out of supplied %d\n",
+					  state->max_index, max_index);
+				return -EINVAL;
+			}
+		}
+
+		*(uint32_t *)(pkt_v + o) = vbo->paddr + offset;
+	}
+
+	return 0;
+
+fail:
+	return -EINVAL;
+}
+
+int
+vc4_validate_shader_recs(struct drm_device *dev,
+			 struct vc4_exec_info *exec)
+{
+	uint32_t i;
+	int ret = 0;
+
+	for (i = 0; i < exec->shader_state_count; i++) {
+		ret = validate_shader_rec(dev, exec, &exec->shader_state[i]);
+		if (ret)
+			return ret;
+	}
+
+	return ret;
+}
