@@ -25,7 +25,13 @@
 
 static int snd_rpi_iqaudio_dac_init(struct snd_soc_pcm_runtime *rtd)
 {
-// NOT USED	struct snd_soc_codec *codec = rtd->codec;
+	int ret;
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_codec *codec = rtd->codec;
+
+	ret = snd_soc_limit_volume(codec, "Digital Playback Volume", 207);
+	if (ret < 0)
+		dev_warn(card->dev, "Failed to set volume limit: %d\n", ret);
 
 	return 0;
 }
