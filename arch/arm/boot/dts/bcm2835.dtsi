@@ -158,6 +158,51 @@
 		arm-pmu {
 			compatible = "arm,arm1176-pmu";
 		};
+
+		v3d: brcm,vc4-v3d@7ec00000 {
+			compatible = "brcm,vc4-v3d";
+			reg = <0x7ec00000 0x1000>;
+			interrupts = <1 10>;
+		};
+
+		hdmi: brcm,vc4-hdmi@7e902000 {
+			compatible = "brcm,vc4-hdmi";
+			reg = <0x7e902000 0x600>;
+			interrupts = <2 8>, <2 9>;
+			crtc = <&pv2>;
+		};
+
+		pv0: brcm,vc4-pixelvalve@7e206000 {
+			compatible = "brcm,vc4-pixelvalve";
+			reg = <0x7e206000 0x100>;
+			interrupts = <2 13>; /* pwa2 */
+		};
+
+		pv1: brcm,vc4-pixelvalve@7e207000 {
+			compatible = "brcm,vc4-pixelvalve";
+			reg = <0x7e207000 0x100>;
+			interrupts = <2 14>; /* pwa1 */
+		};
+
+		pv2: brcm,vc4-pixelvalve@7e807000 {
+			compatible = "brcm,vc4-pixelvalve";
+			reg = <0x7e807000 0x100>;
+			interrupts = <2 10>; /* pixelvalve */
+		};
+
+		hvs: brcm,hvs@7e400000 {
+			compatible = "brcm,vc4-hvs";
+			reg = <0x7e400000 0x6000>;
+		};
+
+		vc4: vc4@0x7e4c0000 {
+			compatible = "brcm,vc4";
+
+			gpus = <&gpu>;
+			crtcs = <&pv0>, <&pv1>, <&pv2>;
+			encoders = <&hdmi>;
+			hvss = <&hvs>;
+		};
 	};
 
 	clocks {

@@ -56,3 +56,7 @@
 	status = "okay";
 	bus-width = <4>;
 };
+
+&vc4 {
+	firmware = <&firmware>;
+};
