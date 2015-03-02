@@ -198,7 +198,7 @@
 		vc4: vc4@0x7e4c0000 {
 			compatible = "brcm,vc4";
 
-			gpus = <&gpu>;
+			gpus = <&v3d>;
 			crtcs = <&pv0>, <&pv1>, <&pv2>;
 			encoders = <&hdmi>;
 			hvss = <&hvs>;
