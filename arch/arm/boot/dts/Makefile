@@ -33,6 +33,7 @@ dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-display-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-pullup-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += spi-bcm2835-overlay.dtb
 
 dtb-$(CONFIG_MACH_ASM9260) += \
 	alphascale-asm9260-devkit.dtb
