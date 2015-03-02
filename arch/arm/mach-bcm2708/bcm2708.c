@@ -312,11 +312,12 @@ static struct plat_serial8250_port bcm2708_uart1_platform_data[] = {
 	{
 	 .mapbase = UART1_BASE + 0x40,
 	 .irq = IRQ_AUX,
-	 .uartclk = 125000000,
+	 .uartclk = 500000000,
 	 .regshift = 2,
 	 .iotype = UPIO_MEM,
-	 .flags = UPF_FIXED_TYPE | UPF_IOREMAP | UPF_SKIP_TEST,
-	 .type = PORT_8250,
+	 .flags = UPF_SHARE_IRQ | UPF_FIXED_TYPE | UPF_FIXED_PORT |
+		UPF_IOREMAP | UPF_SKIP_TEST,
+	 .type = PORT_16550,
 	 },
 	{},
 };
