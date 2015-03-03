@@ -561,6 +561,9 @@ static int arizona_of_get_core_pdata(struct arizona *arizona)
 		count++;
 	}
 
+	arizona_of_read_u32(arizona, "wlf,irq_gpio", false,
+				&pdata->irq_gpio);
+
 	return 0;
 }
 
