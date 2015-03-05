@@ -24,7 +24,9 @@
 #include <linux/workqueue.h>
 
 
+/* the BCM2709 redefines this for us right!
 #define BCM2708_PERI_BASE	0x20000000
+*/
 #define GPIO_BASE		(BCM2708_PERI_BASE + 0x200000)
 
 #define GPPUD (gpio_reg+0x94)
@@ -123,6 +125,7 @@ static int raw_gpio_set(int gpio, int val) {
  * This function will actually Call /sbin/shutdown when the switch gets hit.
  */
 static void initiate_shutdown(struct work_struct *work) {
+	int ret;
 	char *cmd = "/sbin/shutdown";
 	char *argv[] = {
 		cmd,
@@ -150,7 +153,7 @@ static void initiate_shutdown(struct work_struct *work) {
 //printk(KERN_ALERT "DEBUG: Passed %s %d \n",__FUNCTION__,__LINE__);
 
 
-	int ret = call_usermodehelper(cmd, argv, envp, UMH_WAIT_PROC);
+	ret = call_usermodehelper(cmd, argv, envp, UMH_WAIT_PROC);
 
 //printk(KERN_ALERT "returned %d\n", ret);
 
