@@ -217,9 +217,9 @@
 #define FIQ_IRQS	(128)
 #define GPIO_IRQ_START	(HARD_IRQS + FIQ_IRQS)
 #define GPIO_IRQS	(32*5)
-#define SPARE_ALLOC_IRQS      32
+#define SPARE_ALLOC_IRQS      64
 #define BCM2708_ALLOC_IRQS    (HARD_IRQS+FIQ_IRQS+GPIO_IRQS+SPARE_ALLOC_IRQS)
-#define FREE_IRQS             32
+#define FREE_IRQS             128
 #define NR_IRQS               (BCM2708_ALLOC_IRQS+FREE_IRQS)
 
 #endif /* _BCM2708_IRQS_H_ */
