@@ -503,8 +503,6 @@ static int bad_syscall(int n, struct pt_regs *regs)
 	return regs->ARM_r0;
 }
 
-static long do_cache_op_restart(struct restart_block *);
-
 static inline int
 __do_cache_op(unsigned long start, unsigned long end)
 {
@@ -513,24 +511,8 @@ __do_cache_op(unsigned long start, unsigned long end)
 	do {
 		unsigned long chunk = min(PAGE_SIZE, end - start);
 
-		if (signal_pending(current)) {
-			struct thread_info *ti = current_thread_info();
-
-			ti->restart_block = (struct restart_block) {
-				.fn	= do_cache_op_restart,
-			};
-
-			ti->arm_restart_block = (struct arm_restart_block) {
-				{
-					.cache = {
-						.start	= start,
-						.end	= end,
-					},
-				},
-			};
-
-			return -ERESTART_RESTARTBLOCK;
-		}
+		if (fatal_signal_pending(current))
+			return 0;
 
 		ret = flush_cache_user_range(start, start + chunk);
 		if (ret)
@@ -541,15 +523,6 @@ __do_cache_op(unsigned long start, unsigned long end)
 	} while (start < end);
 
 	return 0;
-}
-
-static long do_cache_op_restart(struct restart_block *unused)
-{
-	struct arm_restart_block *restart_block;
-
-	restart_block = &current_thread_info()->arm_restart_block;
-	return __do_cache_op(restart_block->cache.start,
-			     restart_block->cache.end);
 }
 
 static inline int
@@ -571,7 +544,6 @@ do_cache_op(unsigned long start, unsigned long end, int flags)
 #define NR(x) ((__ARM_NR_##x) - __ARM_NR_BASE)
 asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 {
-	struct thread_info *thread = current_thread_info();
 	siginfo_t info;
 
 	if ((no >> 16) != (__ARM_NR_BASE>> 16))
@@ -622,21 +594,7 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 		return regs->ARM_r0;
 
 	case NR(set_tls):
-		thread->tp_value[0] = regs->ARM_r0;
-		if (tls_emu)
-			return 0;
-		if (has_tls_reg) {
-			asm ("mcr p15, 0, %0, c13, c0, 3"
-				: : "r" (regs->ARM_r0));
-		} else {
-			/*
-			 * User space must never try to access this directly.
-			 * Expect your app to break eventually if you do so.
-			 * The user helper at 0xffff0fe0 must be used instead.
-			 * (see entry-armv.S for details)
-			 */
-			*((unsigned int *)0xffff0ff0) = regs->ARM_r0;
-		}
+		set_tls(regs->ARM_r0);
 		return 0;
 
 #ifdef CONFIG_NEEDS_SYSCALL_FOR_CMPXCHG

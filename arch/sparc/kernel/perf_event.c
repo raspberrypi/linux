@@ -1662,7 +1662,8 @@ static bool __init supported_pmu(void)
 		sparc_pmu = &niagara2_pmu;
 		return true;
 	}
-	if (!strcmp(sparc_pmu_type, "niagara4")) {
+	if (!strcmp(sparc_pmu_type, "niagara4") ||
+	    !strcmp(sparc_pmu_type, "niagara5")) {
 		sparc_pmu = &niagara4_pmu;
 		return true;
 	}
@@ -1671,9 +1672,12 @@ static bool __init supported_pmu(void)
 
 int __init init_hw_perf_events(void)
 {
+	int err;
+
 	pr_info("Performance events: ");
 
-	if (!supported_pmu()) {
+	err = pcr_arch_init();
+	if (err || !supported_pmu()) {
 		pr_cont("No support for PMU type '%s'\n", sparc_pmu_type);
 		return 0;
 	}
@@ -1685,7 +1689,7 @@ int __init init_hw_perf_events(void)
 
 	return 0;
 }
-early_initcall(init_hw_perf_events);
+pure_initcall(init_hw_perf_events);
 
 void perf_callchain_kernel(struct perf_callchain_entry *entry,
 			   struct pt_regs *regs)

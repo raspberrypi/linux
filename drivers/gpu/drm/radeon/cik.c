@@ -3343,8 +3343,8 @@ static int cik_cp_gfx_start(struct radeon_device *rdev)
 	/* init the CE partitions.  CE only used for gfx on CIK */
 	radeon_ring_write(ring, PACKET3(PACKET3_SET_BASE, 2));
 	radeon_ring_write(ring, PACKET3_BASE_INDEX(CE_PARTITION_BASE));
-	radeon_ring_write(ring, 0xc000);
-	radeon_ring_write(ring, 0xc000);
+	radeon_ring_write(ring, 0x8000);
+	radeon_ring_write(ring, 0x8000);
 
 	/* setup clear context state */
 	radeon_ring_write(ring, PACKET3(PACKET3_PREAMBLE_CNTL, 0));
@@ -3764,7 +3764,7 @@ struct bonaire_mqd
  */
 static int cik_cp_compute_resume(struct radeon_device *rdev)
 {
-	int r, i, idx;
+	int r, i, j, idx;
 	u32 tmp;
 	bool use_doorbell = true;
 	u64 hqd_gpu_addr;
@@ -3887,7 +3887,7 @@ static int cik_cp_compute_resume(struct radeon_device *rdev)
 		mqd->queue_state.cp_hqd_pq_wptr= 0;
 		if (RREG32(CP_HQD_ACTIVE) & 1) {
 			WREG32(CP_HQD_DEQUEUE_REQUEST, 1);
-			for (i = 0; i < rdev->usec_timeout; i++) {
+			for (j = 0; j < rdev->usec_timeout; j++) {
 				if (!(RREG32(CP_HQD_ACTIVE) & 1))
 					break;
 				udelay(1);
@@ -8104,6 +8104,9 @@ void dce8_bandwidth_update(struct radeon_device *rdev)
 	struct drm_display_mode *mode = NULL;
 	u32 num_heads = 0, lb_size;
 	int i;
+
+	if (!rdev->mode_info.mode_config_initialized)
+		return;
 
 	radeon_update_display_priority(rdev);
 

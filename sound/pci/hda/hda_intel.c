@@ -748,6 +748,54 @@ static inline void mark_runtime_wc(struct azx *chip, struct azx_dev *azx_dev,
 }
 #endif
 
+#ifdef CONFIG_SND_HDA_I915
+/* Intel HSW/BDW display HDA controller Extended Mode registers.
+ * EM4 (M value) and EM5 (N Value) are used to convert CDClk (Core Display
+ * Clock) to 24MHz BCLK: BCLK = CDCLK * M / N
+ * The values will be lost when the display power well is disabled.
+ */
+#define ICH6_REG_EM4			0x100c
+#define ICH6_REG_EM5			0x1010
+
+static void haswell_set_bclk(struct azx *chip)
+{
+	int cdclk_freq;
+	unsigned int bclk_m, bclk_n;
+
+	cdclk_freq = haswell_get_cdclk();
+	if (cdclk_freq < 0)
+		return;
+
+	switch (cdclk_freq) {
+	case 337500:
+		bclk_m = 16;
+		bclk_n = 225;
+		break;
+
+	case 450000:
+	default: /* default CDCLK 450MHz */
+		bclk_m = 4;
+		bclk_n = 75;
+		break;
+
+	case 540000:
+		bclk_m = 4;
+		bclk_n = 90;
+		break;
+
+	case 675000:
+		bclk_m = 8;
+		bclk_n = 225;
+		break;
+	}
+
+	azx_writew(chip, EM4, bclk_m);
+	azx_writew(chip, EM5, bclk_n);
+}
+#else
+static inline void haswell_set_bclk(struct azx *chip) {}
+#endif
+
 static int azx_acquire_irq(struct azx *chip, int do_disconnect);
 static int azx_send_cmd(struct hda_bus *bus, unsigned int val);
 /*
@@ -2951,8 +2999,10 @@ static int azx_resume(struct device *dev)
 	if (chip->disabled || chip->init_failed)
 		return 0;
 
-	if (chip->driver_caps & AZX_DCAPS_I915_POWERWELL)
+	if (chip->driver_caps & AZX_DCAPS_I915_POWERWELL) {
 		hda_display_power(true);
+		haswell_set_bclk(chip);
+	}
 	pci_set_power_state(pci, PCI_D0);
 	pci_restore_state(pci);
 	if (pci_enable_device(pci) < 0) {
@@ -3015,8 +3065,10 @@ static int azx_runtime_resume(struct device *dev)
 	if (!(chip->driver_caps & AZX_DCAPS_PM_RUNTIME))
 		return 0;
 
-	if (chip->driver_caps & AZX_DCAPS_I915_POWERWELL)
+	if (chip->driver_caps & AZX_DCAPS_I915_POWERWELL) {
 		hda_display_power(true);
+		haswell_set_bclk(chip);
+	}
 
 	/* Read STATESTS before controller reset */
 	status = azx_readw(chip, STATESTS);
@@ -3744,6 +3796,10 @@ static int azx_first_init(struct azx *chip)
 
 	/* initialize chip */
 	azx_init_pci(chip);
+
+	if (chip->driver_caps & AZX_DCAPS_I915_POWERWELL)
+		haswell_set_bclk(chip);
+
 	azx_init_chip(chip, (probe_only[dev] & 2) == 0);
 
 	/* codec detection */
@@ -3902,8 +3958,12 @@ static int azx_probe_continue(struct azx *chip)
 			snd_printk(KERN_ERR SFX "Error request power-well from i915\n");
 			goto out_free;
 		}
+		err = hda_display_power(true);
+		if (err < 0) {
+			snd_printk(KERN_ERR SFX "Cannot turn on display power on i915\n");
+			goto out_free;
+		}
 #endif
-		hda_display_power(true);
 	}
 
 	err = azx_first_init(chip);
@@ -4025,6 +4085,9 @@ static DEFINE_PCI_DEVICE_TABLE(azx_ids) = {
 	/* BayTrail */
 	{ PCI_DEVICE(0x8086, 0x0f04),
 	  .driver_data = AZX_DRIVER_PCH | AZX_DCAPS_INTEL_PCH_NOPM },
+	/* Braswell */
+	{ PCI_DEVICE(0x8086, 0x2284),
+	  .driver_data = AZX_DRIVER_PCH | AZX_DCAPS_INTEL_PCH },
 	/* ICH */
 	{ PCI_DEVICE(0x8086, 0x2668),
 	  .driver_data = AZX_DRIVER_ICH | AZX_DCAPS_OLD_SSYNC |

@@ -947,6 +947,12 @@ cifs_is_read_op(__u32 oplock)
 	return oplock == OPLOCK_READ;
 }
 
+static bool
+cifs_dir_needs_close(struct cifsFileInfo *cfile)
+{
+	return !cfile->srch_inf.endOfSearch && !cfile->invalidHandle;
+}
+
 struct smb_version_operations smb1_operations = {
 	.send_cancel = send_nt_cancel,
 	.compare_fids = cifs_compare_fids,
@@ -1014,6 +1020,7 @@ struct smb_version_operations smb1_operations = {
 	.push_mand_locks = cifs_push_mandatory_locks,
 	.query_mf_symlink = open_query_close_cifs_symlink,
 	.is_read_op = cifs_is_read_op,
+	.dir_needs_close = cifs_dir_needs_close,
 #ifdef CONFIG_CIFS_XATTR
 	.query_all_EAs = CIFSSMBQAllEAs,
 	.set_EA = CIFSSMBSetEA,

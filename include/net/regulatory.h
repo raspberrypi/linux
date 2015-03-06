@@ -106,7 +106,7 @@ struct ieee80211_reg_rule {
 struct ieee80211_regdomain {
 	struct rcu_head rcu_head;
 	u32 n_reg_rules;
-	char alpha2[2];
+	char alpha2[3];
 	u8 dfs_region;
 	struct ieee80211_reg_rule reg_rules[];
 };

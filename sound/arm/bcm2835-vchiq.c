@@ -555,7 +555,7 @@ int bcm2835_audio_set_ctls(bcm2835_chip_t * chip)
 					LOG_ERR("Couldn't set the controls for stream %d\n", i);
 					ret = -1;
 				 }
-			else LOG_ERR(" Controls set for stream %d\n", i);
+			else LOG_DBG(" Controls set for stream %d\n", i);
 		}
 	}
 	LOG_DBG(" .. OUT ret=%d\n", ret);

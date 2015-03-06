@@ -677,6 +677,7 @@ static int bcm2708_fb_register(struct bcm2708_fb *fb)
 	 */
 
 	fb_set_var(&fb->fb, &fb->fb.var);
+	bcm2708_fb_set_par(&fb->fb);
 
 	print_debug("BCM2708FB: registering framebuffer (%dx%d@%d) (%d)\n", fbwidth
 		fbheight, fbdepth, fbswap);

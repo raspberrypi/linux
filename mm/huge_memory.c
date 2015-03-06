@@ -192,7 +192,7 @@ retry:
 	preempt_disable();
 	if (cmpxchg(&huge_zero_page, NULL, zero_page)) {
 		preempt_enable();
-		__free_page(zero_page);
+		__free_pages(zero_page, compound_order(zero_page));
 		goto retry;
 	}
 
@@ -224,7 +224,7 @@ static unsigned long shrink_huge_zero_page_scan(struct shrinker *shrink,
 	if (atomic_cmpxchg(&huge_zero_refcount, 1, 0) == 1) {
 		struct page *zero_page = xchg(&huge_zero_page, NULL);
 		BUG_ON(zero_page == NULL);
-		__free_page(zero_page);
+		__free_pages(zero_page, compound_order(zero_page));
 		return HPAGE_PMD_NR;
 	}
 
@@ -757,14 +757,6 @@ static inline struct page *alloc_hugepage_vma(int defrag,
 	return alloc_pages_vma(alloc_hugepage_gfpmask(defrag, extra_gfp),
 			       HPAGE_PMD_ORDER, vma, haddr, nd);
 }
-
-#ifndef CONFIG_NUMA
-static inline struct page *alloc_hugepage(int defrag)
-{
-	return alloc_pages(alloc_hugepage_gfpmask(defrag, 0),
-			   HPAGE_PMD_ORDER);
-}
-#endif
 
 static bool set_huge_zero_page(pgtable_t pgtable, struct mm_struct *mm,
 		struct vm_area_struct *vma, unsigned long haddr, pmd_t *pmd,
@@ -1549,15 +1541,22 @@ pmd_t *page_check_address_pmd(struct page *page,
 			      unsigned long address,
 			      enum page_check_address_pmd_flag flag)
 {
+	pgd_t *pgd;
+	pud_t *pud;
 	pmd_t *pmd, *ret = NULL;
 
 	if (address & ~HPAGE_PMD_MASK)
 		goto out;
 
-	pmd = mm_find_pmd(mm, address);
-	if (!pmd)
+	pgd = pgd_offset(mm, address);
+	if (!pgd_present(*pgd))
 		goto out;
-	if (pmd_none(*pmd))
+	pud = pud_offset(pgd, address);
+	if (!pud_present(*pud))
+		goto out;
+	pmd = pmd_offset(pud, address);
+
+	if (!pmd_present(*pmd))
 		goto out;
 	if (pmd_page(*pmd) != page)
 		goto out;
@@ -1748,21 +1747,24 @@ static int __split_huge_page_map(struct page *page,
 	if (pmd) {
 		pgtable = pgtable_trans_huge_withdraw(mm, pmd);
 		pmd_populate(mm, &_pmd, pgtable);
+		if (pmd_write(*pmd))
+			BUG_ON(page_mapcount(page) != 1);
 
 		haddr = address;
 		for (i = 0; i < HPAGE_PMD_NR; i++, haddr += PAGE_SIZE) {
 			pte_t *pte, entry;
 			BUG_ON(PageCompound(page+i));
+			/*
+			 * Note that pmd_numa is not transferred deliberately
+			 * to avoid any possibility that pte_numa leaks to
+			 * a PROT_NONE VMA by accident.
+			 */
 			entry = mk_pte(page + i, vma->vm_page_prot);
 			entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 			if (!pmd_write(*pmd))
 				entry = pte_wrprotect(entry);
-			else
-				BUG_ON(page_mapcount(page) != 1);
 			if (!pmd_young(*pmd))
 				entry = pte_mkold(entry);
-			if (pmd_numa(*pmd))
-				entry = pte_mknuma(entry);
 			pte = pte_offset_map(&_pmd, haddr);
 			BUG_ON(!pte_none(*pte));
 			set_pte_at(mm, haddr, pte, entry);
@@ -2197,7 +2199,58 @@ static void khugepaged_alloc_sleep(void)
 			msecs_to_jiffies(khugepaged_alloc_sleep_millisecs));
 }
 
+static int khugepaged_node_load[MAX_NUMNODES];
+
+static bool khugepaged_scan_abort(int nid)
+{
+	int i;
+
+	/*
+	 * If zone_reclaim_mode is disabled, then no extra effort is made to
+	 * allocate memory locally.
+	 */
+	if (!zone_reclaim_mode)
+		return false;
+
+	/* If there is a count for this node already, it must be acceptable */
+	if (khugepaged_node_load[nid])
+		return false;
+
+	for (i = 0; i < MAX_NUMNODES; i++) {
+		if (!khugepaged_node_load[i])
+			continue;
+		if (node_distance(nid, i) > RECLAIM_DISTANCE)
+			return true;
+	}
+	return false;
+}
+
 #ifdef CONFIG_NUMA
+static int khugepaged_find_target_node(void)
+{
+	static int last_khugepaged_target_node = NUMA_NO_NODE;
+	int nid, target_node = 0, max_value = 0;
+
+	/* find first node with max normal pages hit */
+	for (nid = 0; nid < MAX_NUMNODES; nid++)
+		if (khugepaged_node_load[nid] > max_value) {
+			max_value = khugepaged_node_load[nid];
+			target_node = nid;
+		}
+
+	/* do some balance if several nodes have the same hit record */
+	if (target_node <= last_khugepaged_target_node)
+		for (nid = last_khugepaged_target_node + 1; nid < MAX_NUMNODES;
+				nid++)
+			if (max_value == khugepaged_node_load[nid]) {
+				target_node = nid;
+				break;
+			}
+
+	last_khugepaged_target_node = target_node;
+	return target_node;
+}
+
 static bool khugepaged_prealloc_page(struct page **hpage, bool *wait)
 {
 	if (IS_ERR(*hpage)) {
@@ -2231,9 +2284,8 @@ static struct page
 	 * mmap_sem in read mode is good idea also to allow greater
 	 * scalability.
 	 */
-	*hpage  = alloc_hugepage_vma(khugepaged_defrag(), vma, address,
-				      node, __GFP_OTHER_NODE);
-
+	*hpage = alloc_pages_exact_node(node, alloc_hugepage_gfpmask(
+		khugepaged_defrag(), __GFP_OTHER_NODE), HPAGE_PMD_ORDER);
 	/*
 	 * After allocating the hugepage, release the mmap_sem read lock in
 	 * preparation for taking it in write mode.
@@ -2249,6 +2301,17 @@ static struct page
 	return *hpage;
 }
 #else
+static int khugepaged_find_target_node(void)
+{
+	return 0;
+}
+
+static inline struct page *alloc_hugepage(int defrag)
+{
+	return alloc_pages(alloc_hugepage_gfpmask(defrag, 0),
+			   HPAGE_PMD_ORDER);
+}
+
 static struct page *khugepaged_alloc_hugepage(bool *wait)
 {
 	struct page *hpage;
@@ -2352,8 +2415,6 @@ static void collapse_huge_page(struct mm_struct *mm,
 	pmd = mm_find_pmd(mm, address);
 	if (!pmd)
 		goto out;
-	if (pmd_trans_huge(*pmd))
-		goto out;
 
 	anon_vma_lock_write(vma->anon_vma);
 
@@ -2452,9 +2513,8 @@ static int khugepaged_scan_pmd(struct mm_struct *mm,
 	pmd = mm_find_pmd(mm, address);
 	if (!pmd)
 		goto out;
-	if (pmd_trans_huge(*pmd))
-		goto out;
 
+	memset(khugepaged_node_load, 0, sizeof(khugepaged_node_load));
 	pte = pte_offset_map_lock(mm, pmd, address, &ptl);
 	for (_address = address, _pte = pte; _pte < pte+HPAGE_PMD_NR;
 	     _pte++, _address += PAGE_SIZE) {
@@ -2471,12 +2531,15 @@ static int khugepaged_scan_pmd(struct mm_struct *mm,
 		if (unlikely(!page))
 			goto out_unmap;
 		/*
-		 * Chose the node of the first page. This could
-		 * be more sophisticated and look at more pages,
-		 * but isn't for now.
+		 * Record which node the original page is from and save this
+		 * information to khugepaged_node_load[].
+		 * Khupaged will allocate hugepage from the node has the max
+		 * hit record.
 		 */
-		if (node == NUMA_NO_NODE)
-			node = page_to_nid(page);
+		node = page_to_nid(page);
+		if (khugepaged_scan_abort(node))
+			goto out_unmap;
+		khugepaged_node_load[node]++;
 		VM_BUG_ON(PageCompound(page));
 		if (!PageLRU(page) || PageLocked(page) || !PageAnon(page))
 			goto out_unmap;
@@ -2491,9 +2554,11 @@ static int khugepaged_scan_pmd(struct mm_struct *mm,
 		ret = 1;
 out_unmap:
 	pte_unmap_unlock(pte, ptl);
-	if (ret)
+	if (ret) {
+		node = khugepaged_find_target_node();
 		/* collapse_huge_page will return with the mmap_sem released */
 		collapse_huge_page(mm, address, hpage, vma, node);
+	}
 out:
 	return ret;
 }
@@ -2801,12 +2866,22 @@ void split_huge_page_pmd_mm(struct mm_struct *mm, unsigned long address,
 static void split_huge_page_address(struct mm_struct *mm,
 				    unsigned long address)
 {
+	pgd_t *pgd;
+	pud_t *pud;
 	pmd_t *pmd;
 
 	VM_BUG_ON(!(address & ~HPAGE_PMD_MASK));
 
-	pmd = mm_find_pmd(mm, address);
-	if (!pmd)
+	pgd = pgd_offset(mm, address);
+	if (!pgd_present(*pgd))
+		return;
+
+	pud = pud_offset(pgd, address);
+	if (!pud_present(*pud))
+		return;
+
+	pmd = pmd_offset(pud, address);
+	if (!pmd_present(*pmd))
 		return;
 	/*
 	 * Caller holds the mmap_sem write mode, so a huge pmd cannot

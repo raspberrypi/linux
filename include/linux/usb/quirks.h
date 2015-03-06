@@ -41,4 +41,13 @@
  */
 #define USB_QUIRK_LINEAR_UFRAME_INTR_BINTERVAL	0x00000080
 
+/* device generates spurious wakeup, ignore remote wakeup capability */
+#define USB_QUIRK_IGNORE_REMOTE_WAKEUP	0x00000200
+
+/* device generates spurious wakeup, ignore remote wakeup capability */
+#define USB_QUIRK_IGNORE_REMOTE_WAKEUP	0x00000200
+
+/* device can't handle device_qualifier descriptor requests */
+#define USB_QUIRK_DEVICE_QUALIFIER	0x00000100
+
 #endif /* __LINUX_USB_QUIRKS_H */

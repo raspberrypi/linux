@@ -250,6 +250,9 @@ struct mem_cgroup {
 	/* vmpressure notifications */
 	struct vmpressure vmpressure;
 
+	/* css_online() has been completed */
+	int initialized;
+
 	/*
 	 * the counter to account for mem+swap usage.
 	 */
@@ -1089,9 +1092,23 @@ skip_node:
 	 * skipping css reference should be safe.
 	 */
 	if (next_css) {
-		if ((next_css == &root->css) ||
-		    ((next_css->flags & CSS_ONLINE) && css_tryget(next_css)))
-			return mem_cgroup_from_css(next_css);
+		struct mem_cgroup *memcg = mem_cgroup_from_css(next_css);
+
+		if (next_css == &root->css)
+			return memcg;
+
+		if (css_tryget(next_css)) {
+			if (memcg->initialized) {
+				/*
+				 * Make sure the memcg is initialized:
+				 * mem_cgroup_css_online() orders the the
+				 * initialization against setting the flag.
+				 */
+				smp_rmb();
+				return memcg;
+			}
+			css_put(next_css);
+		}
 
 		prev_css = next_css;
 		goto skip_node;
@@ -6331,6 +6348,16 @@ mem_cgroup_css_online(struct cgroup_subsys_state *css)
 
 	error = memcg_init_kmem(memcg, &mem_cgroup_subsys);
 	mutex_unlock(&memcg_create_mutex);
+
+	if (!error) {
+		/*
+		 * Make sure the memcg is initialized: mem_cgroup_iter()
+		 * orders reading memcg->initialized against its callers
+		 * reading the memcg members.
+		 */
+		smp_wmb();
+		memcg->initialized = 1;
+	}
 	return error;
 }
 

@@ -464,8 +464,6 @@ void kvm_exit(void);
 
 void kvm_get_kvm(struct kvm *kvm);
 void kvm_put_kvm(struct kvm *kvm);
-void update_memslots(struct kvm_memslots *slots, struct kvm_memory_slot *new,
-		     u64 last_generation);
 
 static inline struct kvm_memslots *kvm_memslots(struct kvm *kvm)
 {

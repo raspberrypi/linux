@@ -211,6 +211,8 @@ struct dentry_operations {
 #define DCACHE_LRU_LIST		0x80000
 #define DCACHE_DENTRY_KILLED	0x100000
 
+#define DCACHE_MAY_FREE			0x00800000
+
 extern seqlock_t rename_lock;
 
 static inline int dname_external(const struct dentry *dentry)

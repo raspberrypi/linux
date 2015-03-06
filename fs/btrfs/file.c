@@ -426,13 +426,8 @@ static noinline int btrfs_copy_from_user(loff_t pos, int num_pages,
 		struct page *page = prepared_pages[pg];
 		/*
 		 * Copy data from userspace to the current page
-		 *
-		 * Disable pagefault to avoid recursive lock since
-		 * the pages are already locked
 		 */
-		pagefault_disable();
 		copied = iov_iter_copy_from_user_atomic(page, i, offset, count);
-		pagefault_enable();
 
 		/* Flush processor's dcache for this page */
 		flush_dcache_page(page);
@@ -476,11 +471,12 @@ static void btrfs_drop_pages(struct page **pages, size_t num_pages)
 	for (i = 0; i < num_pages; i++) {
 		/* page checked is some magic around finding pages that
 		 * have been modified without going through btrfs_set_page_dirty
-		 * clear it here
+		 * clear it here. There should be no need to mark the pages
+		 * accessed as prepare_pages should have marked them accessed
+		 * in prepare_pages via find_or_create_page()
 		 */
 		ClearPageChecked(pages[i]);
 		unlock_page(pages[i]);
-		mark_page_accessed(pages[i]);
 		page_cache_release(pages[i]);
 	}
 }

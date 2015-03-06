@@ -1650,9 +1650,11 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 		case VCHIQ_MSG_BULK_RX_DONE:
 		case VCHIQ_MSG_BULK_TX_DONE:
 			service = find_service_by_port(state, localport);
-			if ((!service || service->remoteport != remoteport) &&
-				(localport == 0) &&
-				(type == VCHIQ_MSG_CLOSE)) {
+			if ((!service ||
+			     ((service->remoteport != remoteport) &&
+			      (service->remoteport != VCHIQ_PORT_FREE))) &&
+			    (localport == 0) &&
+			    (type == VCHIQ_MSG_CLOSE)) {
 				/* This could be a CLOSE from a client which
 				   hadn't yet received the OPENACK - look for
 				   the connected service */

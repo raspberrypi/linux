@@ -1,4 +1,5 @@
 /**
+ * Copyright (c) 2014 Raspberry Pi (Trading) Ltd. All rights reserved.
  * Copyright (c) 2010-2012 Broadcom. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,6 +39,7 @@
 #include <linux/semaphore.h>
 #include <linux/atomic.h>
 #include "vchiq_core.h"
+#include "vchiq_debugfs.h"
 
 
 enum vc_suspend_status {
@@ -155,8 +157,7 @@ vchiq_check_resume(VCHIQ_STATE_T *state);
 
 extern void
 vchiq_check_suspend(VCHIQ_STATE_T *state);
-
-extern VCHIQ_STATUS_T
+ VCHIQ_STATUS_T
 vchiq_use_service(VCHIQ_SERVICE_HANDLE_T handle);
 
 extern VCHIQ_STATUS_T
@@ -192,21 +193,31 @@ vchiq_use_internal(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 extern VCHIQ_STATUS_T
 vchiq_release_internal(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service);
 
-void
+extern VCHIQ_DEBUGFS_NODE_T *
+vchiq_instance_get_debugfs_node(VCHIQ_INSTANCE_T instance);
+
+extern int
+vchiq_instance_get_use_count(VCHIQ_INSTANCE_T instance);
+
+extern int
+vchiq_instance_get_pid(VCHIQ_INSTANCE_T instance);
+
+extern int
+vchiq_instance_get_trace(VCHIQ_INSTANCE_T instance);
+
+extern void
+vchiq_instance_set_trace(VCHIQ_INSTANCE_T instance, int trace);
+
+extern void
 set_suspend_state(VCHIQ_ARM_STATE_T *arm_state,
 	enum vc_suspend_status new_state);
 
-void
+extern void
 set_resume_state(VCHIQ_ARM_STATE_T *arm_state,
 	enum vc_resume_status new_state);
 
-void
+extern void
 start_suspend_timer(VCHIQ_ARM_STATE_T *arm_state);
-
-extern int vchiq_proc_init(void);
-extern void vchiq_proc_deinit(void);
-extern struct proc_dir_entry *vchiq_proc_top(void);
-extern struct proc_dir_entry *vchiq_clients_top(void);
 
 
 #endif /* VCHIQ_ARM_H */

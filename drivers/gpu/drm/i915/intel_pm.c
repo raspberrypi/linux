@@ -5347,24 +5347,26 @@ static void __intel_set_power_well(struct drm_device *dev, bool enable)
 static struct i915_power_well *hsw_pwr;
 
 /* Display audio driver power well request */
-void i915_request_power_well(void)
+int i915_request_power_well(void)
 {
-	if (WARN_ON(!hsw_pwr))
-		return;
+	if (!hsw_pwr)
+		return -ENODEV;
 
 	spin_lock_irq(&hsw_pwr->lock);
 	if (!hsw_pwr->count++ &&
 			!hsw_pwr->i915_request)
 		__intel_set_power_well(hsw_pwr->device, true);
 	spin_unlock_irq(&hsw_pwr->lock);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(i915_request_power_well);
 
 /* Display audio driver power well release */
-void i915_release_power_well(void)
+int i915_release_power_well(void)
 {
-	if (WARN_ON(!hsw_pwr))
-		return;
+	if (!hsw_pwr)
+		return -ENODEV;
+
 
 	spin_lock_irq(&hsw_pwr->lock);
 	WARN_ON(!hsw_pwr->count);
@@ -5372,8 +5374,29 @@ void i915_release_power_well(void)
 		       !hsw_pwr->i915_request)
 		__intel_set_power_well(hsw_pwr->device, false);
 	spin_unlock_irq(&hsw_pwr->lock);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(i915_release_power_well);
+
+/*
+ * Private interface for the audio driver to get CDCLK in kHz.
+ *
+ * Caller must request power well using i915_request_power_well() prior to
+ * making the call.
+ */
+int i915_get_cdclk_freq(void)
+{
+	struct drm_i915_private *dev_priv;
+
+	if (!hsw_pwr)
+		return -ENODEV;
+
+	dev_priv = container_of(hsw_pwr, struct drm_i915_private,
+				power_well);
+
+	return intel_ddi_get_cdclk_freq(dev_priv);
+}
+EXPORT_SYMBOL_GPL(i915_get_cdclk_freq);
 
 int i915_init_power_well(struct drm_device *dev)
 {
