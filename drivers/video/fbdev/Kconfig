@@ -2,8 +2,6 @@
 # fbdev configuration
 #
 
-source "drivers/video/fbdev/fbtft/Kconfig"
-
 menuconfig FB
 	tristate "Support for frame buffer devices"
 	select FB_CMDLINE
