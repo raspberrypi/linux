@@ -613,7 +613,7 @@ no_timer:
 	__unset_cpu_idle(vcpu);
 	vcpu->srcu_idx = srcu_read_lock(&vcpu->kvm->srcu);
 
-	hrtimer_try_to_cancel(&vcpu->arch.ckc_timer);
+	hrtimer_cancel(&vcpu->arch.ckc_timer);
 	return 0;
 }
 
@@ -633,10 +633,20 @@ void kvm_s390_vcpu_wakeup(struct kvm_vcpu *vcpu)
 enum hrtimer_restart kvm_s390_idle_wakeup(struct hrtimer *timer)
 {
 	struct kvm_vcpu *vcpu;
+	u64 now, sltime;
 
 	vcpu = container_of(timer, struct kvm_vcpu, arch.ckc_timer);
-	kvm_s390_vcpu_wakeup(vcpu);
+	now = get_tod_clock_fast() + vcpu->arch.sie_block->epoch;
+	sltime = tod_to_ns(vcpu->arch.sie_block->ckc - now);
 
+	/*
+	 * If the monotonic clock runs faster than the tod clock we might be
+	 * woken up too early and have to go back to sleep to avoid deadlocks.
+	 */
+	if (vcpu->arch.sie_block->ckc > now &&
+	    hrtimer_forward_now(timer, ns_to_ktime(sltime)))
+		return HRTIMER_RESTART;
+	kvm_s390_vcpu_wakeup(vcpu);
 	return HRTIMER_NORESTART;
 }
 
@@ -840,6 +850,8 @@ static int __inject_vm(struct kvm *kvm, struct kvm_s390_interrupt_info *inti)
 		list_add_tail(&inti->list, &iter->list);
 	}
 	atomic_set(&fi->active, 1);
+	if (atomic_read(&kvm->online_vcpus) == 0)
+		goto unlock_fi;
 	sigcpu = find_first_bit(fi->idle_mask, KVM_MAX_VCPUS);
 	if (sigcpu == KVM_MAX_VCPUS) {
 		do {
@@ -864,6 +876,7 @@ int kvm_s390_inject_vm(struct kvm *kvm,
 		       struct kvm_s390_interrupt *s390int)
 {
 	struct kvm_s390_interrupt_info *inti;
+	int rc;
 
 	inti = kzalloc(sizeof(*inti), GFP_KERNEL);
 	if (!inti)
@@ -911,7 +924,10 @@ int kvm_s390_inject_vm(struct kvm *kvm,
 	trace_kvm_s390_inject_vm(s390int->type, s390int->parm, s390int->parm64,
 				 2);
 
-	return __inject_vm(kvm, inti);
+	rc = __inject_vm(kvm, inti);
+	if (rc)
+		kfree(inti);
+	return rc;
 }
 
 void kvm_s390_reinject_io_int(struct kvm *kvm,

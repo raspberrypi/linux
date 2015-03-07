@@ -112,6 +112,38 @@ static int mv_conf_mbus_windows(struct platform_device *pdev,
 	return 0;
 }
 
+static int armada_38x_quirks(struct platform_device *pdev,
+			     struct sdhci_host *host)
+{
+	struct device_node *np = pdev->dev.of_node;
+
+	host->quirks |= SDHCI_QUIRK_MISSING_CAPS;
+	/*
+	 * According to erratum 'FE-2946959' both SDR50 and DDR50
+	 * modes require specific clock adjustments in SDIO3
+	 * Configuration register, if the adjustment is not done,
+	 * remove them from the capabilities.
+	 */
+	host->caps1 = sdhci_readl(host, SDHCI_CAPABILITIES_1);
+	host->caps1 &= ~(SDHCI_SUPPORT_SDR50 | SDHCI_SUPPORT_DDR50);
+
+	/*
+	 * According to erratum 'ERR-7878951' Armada 38x SDHCI
+	 * controller has different capabilities than the ones shown
+	 * in its registers
+	 */
+	host->caps = sdhci_readl(host, SDHCI_CAPABILITIES);
+	if (of_property_read_bool(np, "no-1-8-v")) {
+		host->caps &= ~SDHCI_CAN_VDD_180;
+		host->mmc->caps &= ~MMC_CAP_1_8V_DDR;
+	} else {
+		host->caps &= ~SDHCI_CAN_VDD_330;
+	}
+	host->caps1 &= ~(SDHCI_SUPPORT_SDR104 | SDHCI_USE_SDR50_TUNING);
+
+	return 0;
+}
+
 static void pxav3_reset(struct sdhci_host *host, u8 mask)
 {
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
@@ -261,8 +293,8 @@ static struct sdhci_pxa_platdata *pxav3_get_mmc_pdata(struct device *dev)
 	if (!pdata)
 		return NULL;
 
-	of_property_read_u32(np, "mrvl,clk-delay-cycles", &clk_delay_cycles);
-	if (clk_delay_cycles > 0)
+	if (!of_property_read_u32(np, "mrvl,clk-delay-cycles",
+				  &clk_delay_cycles))
 		pdata->clk_delay_cycles = clk_delay_cycles;
 
 	return pdata;
@@ -295,7 +327,13 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 	if (IS_ERR(host))
 		return PTR_ERR(host);
 
+	/* enable 1/8V DDR capable */
+	host->mmc->caps |= MMC_CAP_1_8V_DDR;
+
 	if (of_device_is_compatible(np, "marvell,armada-380-sdhci")) {
+		ret = armada_38x_quirks(pdev, host);
+		if (ret < 0)
+			goto err_clk_get;
 		ret = mv_conf_mbus_windows(pdev, mv_mbus_dram_info());
 		if (ret < 0)
 			goto err_mbus_win;
@@ -313,9 +351,6 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 	}
 	pltfm_host->clk = clk;
 	clk_prepare_enable(clk);
-
-	/* enable 1/8V DDR capable */
-	host->mmc->caps |= MMC_CAP_1_8V_DDR;
 
 	match = of_match_device(of_match_ptr(sdhci_pxav3_of_match), &pdev->dev);
 	if (match) {
@@ -355,10 +390,11 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 		}
 	}
 
-	pm_runtime_enable(&pdev->dev);
-	pm_runtime_get_sync(&pdev->dev);
+	pm_runtime_get_noresume(&pdev->dev);
+	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_set_autosuspend_delay(&pdev->dev, PXAV3_RPM_DELAY_MS);
 	pm_runtime_use_autosuspend(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
 	pm_suspend_ignore_children(&pdev->dev, 1);
 
 	ret = sdhci_add_host(host);
@@ -381,8 +417,8 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 	return 0;
 
 err_add_host:
-	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
+	pm_runtime_put_noidle(&pdev->dev);
 err_of_parse:
 err_cd_req:
 	clk_disable_unprepare(clk);
