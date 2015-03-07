@@ -30,6 +30,7 @@
 			rpi_display_pins: rpi_display_pins {
 				brcm,pins = <18 23 24 25>;
 				brcm,function = <1 1 1 0>; /* out out out in */
+				brcm,pull = <0 0 0 2>; /* - - - up */
 			};
 		};
 	};
