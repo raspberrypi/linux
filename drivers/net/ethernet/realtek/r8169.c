@@ -5062,8 +5062,6 @@ static void rtl_hw_reset(struct rtl8169_private *tp)
 	RTL_W8(ChipCmd, CmdReset);
 
 	rtl_udelay_loop_wait_low(tp, &rtl_chipcmd_cond, 100, 100);
-
-	netdev_reset_queue(tp->dev);
 }
 
 static void rtl_request_uncached_firmware(struct rtl8169_private *tp)
@@ -7073,8 +7071,6 @@ static netdev_tx_t rtl8169_start_xmit(struct sk_buff *skb,
 
 	txd->opts2 = cpu_to_le32(opts[1]);
 
-	netdev_sent_queue(dev, skb->len);
-
 	skb_tx_timestamp(skb);
 
 	wmb();
@@ -7174,7 +7170,6 @@ static void rtl8169_pcierr_interrupt(struct net_device *dev)
 static void rtl_tx(struct net_device *dev, struct rtl8169_private *tp)
 {
 	unsigned int dirty_tx, tx_left;
-	unsigned int bytes_compl = 0, pkts_compl = 0;
 
 	dirty_tx = tp->dirty_tx;
 	smp_rmb();
@@ -7193,8 +7188,10 @@ static void rtl_tx(struct net_device *dev, struct rtl8169_private *tp)
 		rtl8169_unmap_tx_skb(&tp->pci_dev->dev, tx_skb,
 				     tp->TxDescArray + entry);
 		if (status & LastFrag) {
-			pkts_compl++;
-			bytes_compl += tx_skb->skb->len;
+			u64_stats_update_begin(&tp->tx_stats.syncp);
+			tp->tx_stats.packets++;
+			tp->tx_stats.bytes += tx_skb->skb->len;
+			u64_stats_update_end(&tp->tx_stats.syncp);
 			dev_kfree_skb_any(tx_skb->skb);
 			tx_skb->skb = NULL;
 		}
@@ -7203,13 +7200,6 @@ static void rtl_tx(struct net_device *dev, struct rtl8169_private *tp)
 	}
 
 	if (tp->dirty_tx != dirty_tx) {
-		netdev_completed_queue(tp->dev, pkts_compl, bytes_compl);
-
-		u64_stats_update_begin(&tp->tx_stats.syncp);
-		tp->tx_stats.packets += pkts_compl;
-		tp->tx_stats.bytes += bytes_compl;
-		u64_stats_update_end(&tp->tx_stats.syncp);
-
 		tp->dirty_tx = dirty_tx;
 		/* Sync with rtl8169_start_xmit:
 		 * - publish dirty_tx ring index (write barrier)
