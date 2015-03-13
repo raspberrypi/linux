@@ -23,6 +23,8 @@
 #include <linux/amba/serial.h>
 #include <mach/hardware.h>
 
+#ifdef CONFIG_BCM2708_UNCOMPRESS_INFO
+
 #define UART_BAUD 115200
 
 #define BCM2708_UART_DR   __io(UART0_BASE + UART01x_DR)
@@ -82,3 +84,12 @@ static inline void arch_decomp_setup(void)
  * nothing to do
  */
 #define arch_decomp_wdog()
+
+#else /* CONFIG_BCM2708_UNCOMPRESS_INFO */
+
+#define putc(c)
+#define flush()
+#define arch_decomp_setup()
+#define arch_decomp_wdog()
+
+#endif /* CONFIG_BCM2708_UNCOMPRESS_INFO */
