@@ -200,6 +200,12 @@ static int __release_resource(struct resource *old, bool release_child)
 {
 	struct resource *tmp, **p, *chd;
 
+	if (!old->parent) {
+		WARN(old->sibling, "sibling but no parent");
+		if (old->sibling)
+			return -EINVAL;
+		return 0;
+	}
 	p = &old->parent->child;
 	for (;;) {
 		tmp = *p;
