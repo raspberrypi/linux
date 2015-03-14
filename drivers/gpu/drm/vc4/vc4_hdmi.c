@@ -27,6 +27,7 @@
 /* General HDMI hardware state. */
 struct vc4_hdmi {
 	struct platform_device *pdev;
+	struct i2c_adapter *ddc;
 	void __iomem *regs;
 };
 
@@ -118,43 +119,16 @@ static void vc4_hdmi_connector_destroy(struct drm_connector *connector)
 	drm_connector_cleanup(connector);
 }
 
-static const u8 edid_1920_1080[] = {
-	0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00,
-	0x31, 0xd8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x05, 0x16, 0x01, 0x03, 0x6d, 0x32, 0x1c, 0x78,
-	0xea, 0x5e, 0xc0, 0xa4, 0x59, 0x4a, 0x98, 0x25,
-	0x20, 0x50, 0x54, 0x00, 0x00, 0x00, 0xd1, 0xc0,
-	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02, 0x3a,
-	0x80, 0x18, 0x71, 0x38, 0x2d, 0x40, 0x58, 0x2c,
-	0x45, 0x00, 0xf4, 0x19, 0x11, 0x00, 0x00, 0x1e,
-	0x00, 0x00, 0x00, 0xff, 0x00, 0x4c, 0x69, 0x6e,
-	0x75, 0x78, 0x20, 0x23, 0x30, 0x0a, 0x20, 0x20,
-	0x20, 0x20, 0x00, 0x00, 0x00, 0xfd, 0x00, 0x3b,
-	0x3d, 0x42, 0x44, 0x0f, 0x00, 0x0a, 0x20, 0x20,
-	0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00, 0xfc,
-	0x00, 0x4c, 0x69, 0x6e, 0x75, 0x78, 0x20, 0x46,
-	0x48, 0x44, 0x0a, 0x20, 0x20, 0x20, 0x00, 0x05,
-};
-
-static int vc4_get_fixed_edid_block(void *data, u8 *buf, unsigned int block,
-				    size_t len)
-{
-	if (block != 0)
-		return -EINVAL;
-	if (len > sizeof(edid_1920_1080))
-		return -EINVAL;
-	memcpy(buf, edid_1920_1080, len);
-	return 0;
-}
-
-
 static int vc4_hdmi_connector_get_modes(struct drm_connector *connector)
 {
+	struct drm_device *dev = connector->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	int ret = 0;
+	struct edid *edid;
 
-	struct edid *edid = drm_do_get_edid(connector, vc4_get_fixed_edid_block,
-					    NULL);
+	edid = drm_get_edid(connector, vc4->hdmi->ddc);
+	if (!edid)
+		return -ENODEV;
 
 	drm_mode_connector_update_edid_property(connector, edid);
 	ret = drm_add_edid_modes(connector, edid);
@@ -381,6 +355,7 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dev *vc4 = drm->dev_private;
 	struct vc4_hdmi *hdmi;
+	struct device_node *ddc_node;
 
 	hdmi = devm_kzalloc(dev, sizeof(*hdmi), GFP_KERNEL);
 	if (!hdmi)
@@ -390,6 +365,19 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	hdmi->regs = vc4_ioremap_regs(pdev);
 	if (IS_ERR(hdmi->regs))
 		return PTR_ERR(hdmi->regs);
+
+	/* DDC i2c driver */
+	ddc_node = of_parse_phandle(dev->of_node, "ddc", 0);
+	if (!ddc_node) {
+		DRM_ERROR("Failed to find ddc node in device tree\n");
+		return -ENODEV;
+	}
+
+	hdmi->ddc = of_find_i2c_adapter_by_node(ddc_node);
+	if (!hdmi->ddc) {
+		DRM_ERROR("Failed to get ddc i2c adapter by node\n");
+		return -EPROBE_DEFER;
+	}
 
 	vc4->hdmi = hdmi;
 
@@ -401,6 +389,8 @@ static void vc4_hdmi_unbind(struct device *dev, struct device *master,
 {
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dev *vc4 = drm->dev_private;
+
+	put_device(&vc4->hdmi->ddc->dev);
 
 	vc4->hdmi = NULL;
 }
