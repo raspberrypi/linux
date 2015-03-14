@@ -149,6 +149,15 @@
 			status = "disabled";
 		};
 
+		i2c2: i2c@7e805000 {
+			compatible = "brcm,bcm2835-i2c";
+			reg = <0x7e805000 0x1000>;
+			interrupts = <2 21>;
+			clocks = <&clk_i2c>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
 		usb@7e980000 {
 			compatible = "brcm,bcm2835-usb";
 			reg = <0x7e980000 0x10000>;
@@ -169,6 +178,7 @@
 			compatible = "brcm,vc4-hdmi";
 			reg = <0x7e902000 0x600>;
 			interrupts = <2 8>, <2 9>;
+			ddc = <&i2c2>;
 			crtc = <&pv2>;
 		};
 
