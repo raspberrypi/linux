@@ -20,6 +20,7 @@
 #include "drm_crtc_helper.h"
 #include "drm_edid.h"
 #include "linux/component.h"
+#include "linux/of_gpio.h"
 #include "linux/of_platform.h"
 #include "vc4_drv.h"
 #include "vc4_regs.h"
@@ -29,6 +30,7 @@ struct vc4_hdmi {
 	struct platform_device *pdev;
 	struct i2c_adapter *ddc;
 	void __iomem *regs;
+	int hpd_gpio;
 };
 
 /* VC4 HDMI encoder KMS struct */
@@ -110,7 +112,20 @@ static void vc4_hdmi_dump_regs(struct drm_device *dev)
 static enum drm_connector_status
 vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 {
-	return connector_status_connected;
+	struct drm_device *dev = connector->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	if (vc4->hdmi->hpd_gpio) {
+		if (gpio_get_value(vc4->hdmi->hpd_gpio))
+			return connector_status_connected;
+		else
+			return connector_status_disconnected;
+	}
+
+	if (HDMI_READ(VC4_HDMI_HOTPLUG) & VC4_HDMI_HOTPLUG_CONNECTED)
+		return connector_status_connected;
+	else
+		return connector_status_disconnected;
 }
 
 static void vc4_hdmi_connector_destroy(struct drm_connector *connector)
@@ -356,6 +371,7 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	struct vc4_dev *vc4 = drm->dev_private;
 	struct vc4_hdmi *hdmi;
 	struct device_node *ddc_node;
+	u32 value;
 
 	hdmi = devm_kzalloc(dev, sizeof(*hdmi), GFP_KERNEL);
 	if (!hdmi)
@@ -377,6 +393,15 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	if (!hdmi->ddc) {
 		DRM_ERROR("Failed to get ddc i2c adapter by node\n");
 		return -EPROBE_DEFER;
+	}
+
+	/* Only use the GPIO HPD pin if present in the DT, otherwise
+	 * we'll use the HDMI core's register.
+	 */
+	if (of_find_property(dev->of_node, "hpd-gpio", &value)) {
+		hdmi->hpd_gpio = of_get_named_gpio(dev->of_node, "hpd-gpio", 0);
+		if (hdmi->hpd_gpio < 0)
+			return hdmi->hpd_gpio;
 	}
 
 	vc4->hdmi = hdmi;
