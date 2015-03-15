@@ -1,4 +1,5 @@
 #include <dt-bindings/pinctrl/bcm2835.h>
+#include <dt-bindings/gpio/gpio.h>
 #include "skeleton.dtsi"
 
 / {
@@ -179,6 +180,7 @@
 			reg = <0x7e902000 0x600>;
 			interrupts = <2 8>, <2 9>;
 			ddc = <&i2c2>;
+			hpd-gpio = <&gpio 46 GPIO_ACTIVE_HIGH>;
 			crtc = <&pv2>;
 		};
 
