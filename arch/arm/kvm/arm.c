@@ -936,11 +936,15 @@ static int init_hyp_mode(void)
 	/*
 	 * Init HYP view of VGIC
 	 */
+#ifdef CONFIG_KVM_ARM_VGIC_EMU
+	err = kvm_vgic_emu_hyp_init();
+#else
 	err = kvm_vgic_hyp_init();
+#endif
 	if (err)
 		goto out_free_context;
 
-#ifdef CONFIG_KVM_ARM_VGIC
+#if defined(CONFIG_KVM_ARM_VGIC) || defined(CONFIG_KVM_ARM_VGIC_EMU)
 		vgic_present = true;
 #endif
 

@@ -402,7 +402,7 @@ vcpu	.req	r0		@ vcpu pointer always in r0
  * Assumes vcpu pointer in vcpu reg
  */
 .macro save_vgic_state
-#ifdef CONFIG_KVM_ARM_VGIC
+#if defined(CONFIG_KVM_ARM_VGIC) || defined(CONFIG_KVM_ARM_VGIC_EMU)
 	/* Get VGIC VCTRL base into r2 */
 	ldr	r2, [vcpu, #VCPU_KVM]
 	ldr	r2, [r2, #KVM_VGIC_VCTRL]
@@ -469,7 +469,7 @@ ARM_BE8(rev	r6, r6	)
  * Assumes vcpu pointer in vcpu reg
  */
 .macro restore_vgic_state
-#ifdef CONFIG_KVM_ARM_VGIC
+#if defined(CONFIG_KVM_ARM_VGIC) || defined(CONFIG_KVM_ARM_VGIC_EMU)
 	/* Get VGIC VCTRL base into r2 */
 	ldr	r2, [vcpu, #VCPU_KVM]
 	ldr	r2, [r2, #KVM_VGIC_VCTRL]

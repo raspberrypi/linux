@@ -60,9 +60,19 @@ config KVM_ARM_VGIC
 	---help---
 	  Adds support for a hardware assisted, in-kernel GIC emulation.
 
+config KVM_ARM_VGIC_EMU
+	bool "KVM support for Emulated GIC"
+	depends on KVM_ARM_HOST
+	depends on !KVM_ARM_VGIC
+	select HAVE_KVM_IRQCHIP
+	default y
+	---help---
+	  Adds support for in-kernel GIC emulation, for boards without
+	  a GIC with virtualization extensions.
+
 config KVM_ARM_TIMER
 	bool "KVM support for Architected Timers"
-	depends on KVM_ARM_VGIC && ARM_ARCH_TIMER
+	depends on (KVM_ARM_VGIC || KVM_ARM_VGIC_EMU) && ARM_ARCH_TIMER
 	select HAVE_KVM_IRQCHIP
 	default y
 	---help---

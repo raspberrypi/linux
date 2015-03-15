@@ -135,7 +135,7 @@ struct vgic_params {
 };
 
 struct vgic_dist {
-#ifdef CONFIG_KVM_ARM_VGIC
+#if defined(CONFIG_KVM_ARM_VGIC) || defined(CONFIG_KVM_ARM_VGIC_EMU)
 	spinlock_t		lock;
 	bool			in_kernel;
 	bool			ready;
@@ -239,7 +239,7 @@ struct vgic_v3_cpu_if {
 };
 
 struct vgic_cpu {
-#ifdef CONFIG_KVM_ARM_VGIC
+#if defined(CONFIG_KVM_ARM_VGIC) || defined(CONFIG_KVM_ARM_VGIC_EMU)
 	/* per IRQ to LR mapping */
 	u8		*vgic_irq_lr_map;
 
@@ -271,9 +271,10 @@ struct kvm_vcpu;
 struct kvm_run;
 struct kvm_exit_mmio;
 
-#ifdef CONFIG_KVM_ARM_VGIC
+#if defined(CONFIG_KVM_ARM_VGIC) || defined(CONFIG_KVM_ARM_VGIC_EMU)
 int kvm_vgic_addr(struct kvm *kvm, unsigned long type, u64 *addr, bool write);
 int kvm_vgic_hyp_init(void);
+int kvm_vgic_emu_hyp_init(void);
 int kvm_vgic_init(struct kvm *kvm);
 int kvm_vgic_create(struct kvm *kvm);
 void kvm_vgic_destroy(struct kvm *kvm);
