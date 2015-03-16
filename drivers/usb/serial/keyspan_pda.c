@@ -61,6 +61,7 @@ struct keyspan_pda_private {
 /* For Xircom PGSDB9 and older Entregra version of the same device */
 #define XIRCOM_VENDOR_ID		0x085a
 #define XIRCOM_FAKE_ID			0x8027
+#define XIRCOM_FAKE_ID_2                0x8025 /* "PGMFHUB" serial */
 #define ENTREGRA_VENDOR_ID		0x1645
 #define ENTREGRA_FAKE_ID		0x8093
 
@@ -70,6 +71,7 @@ static const struct usb_device_id id_table_combined[] = {
 #endif
 #ifdef XIRCOM
 	{ USB_DEVICE(XIRCOM_VENDOR_ID, XIRCOM_FAKE_ID) },
+	{ USB_DEVICE(XIRCOM_VENDOR_ID, XIRCOM_FAKE_ID_2) },
 	{ USB_DEVICE(ENTREGRA_VENDOR_ID, ENTREGRA_FAKE_ID) },
 #endif
 	{ USB_DEVICE(KEYSPAN_VENDOR_ID, KEYSPAN_PDA_ID) },
@@ -93,6 +95,7 @@ static const struct usb_device_id id_table_fake[] = {
 #ifdef XIRCOM
 static const struct usb_device_id id_table_fake_xircom[] = {
 	{ USB_DEVICE(XIRCOM_VENDOR_ID, XIRCOM_FAKE_ID) },
+	{ USB_DEVICE(XIRCOM_VENDOR_ID, XIRCOM_FAKE_ID_2) },
 	{ USB_DEVICE(ENTREGRA_VENDOR_ID, ENTREGRA_FAKE_ID) },
 	{ }
 };
