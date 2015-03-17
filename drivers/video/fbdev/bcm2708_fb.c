@@ -424,10 +424,10 @@ static int bcm2708_ioctl(struct fb_info *info, unsigned int cmd, unsigned long a
 
 		bcm_mailbox_property(&p, p[0]);
 
-		pr_info("bcm2708_fb_ioctl %x,%lx returns=%d p[1]=0x%x\n", cmd, arg, p[5], p[1]);
-
 		if ( p[1] == VCMSG_REQUEST_SUCCESSFUL )
 			result = 0;
+		else
+			pr_err("bcm2708_fb_ioctl %x,%lx returns=%d p[1]=0x%x\n", cmd, arg, p[5], p[1]);
 	}
 	return result;
 }
