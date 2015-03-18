@@ -1462,6 +1462,14 @@ int kvm_vgic_create(struct kvm *kvm)
 	kvm->arch.vgic.vgic_dist_base = VGIC_ADDR_UNDEF;
 	kvm->arch.vgic.vgic_cpu_base = VGIC_ADDR_UNDEF;
 
+	for_each_set_bit(i, actpen_percpu, VGIC_NR_PRIVATE_IRQS) {
+		clear_bit(i, actpen_percpu);
+	}
+
+	for_each_set_bit(i, actpen_shared, VGIC_NR_SHARED_IRQS) {
+		clear_bit(i, actpen_shared);
+	}
+
 out_unlock:
 	for (; vcpu_lock_idx >= 0; vcpu_lock_idx--) {
 		vcpu = kvm_get_vcpu(kvm, vcpu_lock_idx);
