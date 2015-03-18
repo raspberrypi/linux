@@ -74,24 +74,41 @@ static int snd_rpi_hifiberry_digi_hw_params(struct snd_pcm_substream *substream,
 
 	long mclk_freq=0;
 	int mclk_div=1;
+	int sampling_freq=1;
 
 	int ret;
 
 	samplerate = params_rate(params);
 
+	if (samplerate<=96000) {
+		mclk_freq=samplerate*256;
+		mclk_div=WM8804_MCLKDIV_256FS;
+	} else {
+		mclk_freq=samplerate*128;
+		mclk_div=WM8804_MCLKDIV_128FS;
+	}
+	
 	switch (samplerate) {
 		case 32000:
+			sampling_freq=0x03;
+			break;
 		case 44100:
+			sampling_freq=0x00;
+			break;
 		case 48000:
+			sampling_freq=0x02;
+			break;
 		case 88200:
+			sampling_freq=0x08;
+			break;
 		case 96000:
-			mclk_freq=samplerate*256;
-			mclk_div=WM8804_MCLKDIV_256FS;
+			sampling_freq=0x0a;
 			break;
 		case 176400:
+			sampling_freq=0x0c;
+			break;
 		case 192000:
-			mclk_freq=samplerate*128;
-			mclk_div=WM8804_MCLKDIV_128FS;
+			sampling_freq=0x0e;
 			break;
 		default:
 			dev_err(substream->pcm->dev,
@@ -115,6 +132,9 @@ static int snd_rpi_hifiberry_digi_hw_params(struct snd_pcm_substream *substream,
 
 	/* Power on */
 	snd_soc_update_bits(codec, WM8804_PWRDN, 0x9, 0);
+
+	/* set sampling frequency status bits */
+	snd_soc_update_bits(codec, WM8804_SPDTX4, 0x0f, sampling_freq);
 
 	return snd_soc_dai_set_bclk_ratio(cpu_dai,64);
 }
