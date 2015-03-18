@@ -60,3 +60,11 @@ config SND_BCM2708_SOC_IQAUDIO_DAC
 	select SND_SOC_PCM512x_I2C
 	help
 	  Say Y or M if you want to add support for IQaudIO-DAC.
+
+config SND_BCM2708_SOC_RPI_CODEC_WSP
+	tristate "Support for Cirrus sound pi"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_WM5102
+	select SND_SOC_WM8804
+	help
+	  Say Y or M if you want to add support for Cirrus sound pi
