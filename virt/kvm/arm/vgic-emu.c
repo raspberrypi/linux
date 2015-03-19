@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2015 Sergio L. Pascual <slp@sinrega.org>
  * Copyright (C) 2012 ARM Ltd.
  * Author: Marc Zyngier <marc.zyngier@arm.com>
  *
