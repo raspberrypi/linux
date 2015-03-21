@@ -32,6 +32,11 @@
 				reg = <0x68>;
 				status = "disable";
 			};
+			pcf8563: pcf8563@51 {
+				compatible = "nxp,pcf8563";
+				reg = <0x51>;
+				status = "disable";
+			};
 		};
 	};
 	__overrides__ {
@@ -39,5 +44,6 @@
 		ds3231 = <&ds3231>,"status";
 		pcf2127 = <&pcf2127>,"status";
 		pcf8523 = <&pcf8523>,"status";
+		pcf8563 = <&pcf8563>,"status";
 	};
 };
