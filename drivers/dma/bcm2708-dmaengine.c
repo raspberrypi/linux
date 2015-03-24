@@ -995,35 +995,7 @@ static struct platform_driver bcm2835_dma_driver = {
 	},
 };
 
-static struct platform_device *pdev;
-
-static const struct platform_device_info bcm2835_dma_dev_info = {
-	.name = "bcm2708-dmaengine",
-	.id = -1,
-};
-
-static int bcm2835_dma_init(void)
-{
-	int rc = platform_driver_register(&bcm2835_dma_driver);
-
-	if (rc == 0) {
-		pdev = platform_device_register_full(&bcm2835_dma_dev_info);
-		if (IS_ERR(pdev)) {
-			platform_driver_unregister(&bcm2835_dma_driver);
-			rc = PTR_ERR(pdev);
-		}
-	}
-
-	return rc;
-}
-module_init(bcm2835_dma_init); /* preferable to subsys_initcall */
-
-static void __exit bcm2835_dma_exit(void)
-{
-	platform_device_unregister(pdev);
-	platform_driver_unregister(&bcm2835_dma_driver);
-}
-module_exit(bcm2835_dma_exit);
+module_platform_driver(bcm2835_dma_driver);
 
 #else
 
