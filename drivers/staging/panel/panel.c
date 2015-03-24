@@ -275,11 +275,11 @@ static unsigned char lcd_bits[LCD_PORTS][LCD_BITS][BIT_STATES];
  * LCD types
  */
 #define LCD_TYPE_NONE		0
-#define LCD_TYPE_OLD		1
-#define LCD_TYPE_KS0074		2
-#define LCD_TYPE_HANTRONIX	3
-#define LCD_TYPE_NEXCOM		4
-#define LCD_TYPE_CUSTOM		5
+#define LCD_TYPE_CUSTOM		1
+#define LCD_TYPE_OLD		2
+#define LCD_TYPE_KS0074		3
+#define LCD_TYPE_HANTRONIX	4
+#define LCD_TYPE_NEXCOM		5
 
 /*
  * keypad types
