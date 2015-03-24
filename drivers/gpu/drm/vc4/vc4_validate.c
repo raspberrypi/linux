@@ -164,7 +164,7 @@ check_tex_size(struct vc4_exec_info *exec, struct drm_gem_cma_object *fbo,
 
 	switch (tiling_format) {
 	case VC4_TILING_FORMAT_LINEAR:
-		aligned_width = roundup(width, 16 / cpp);
+		aligned_width = roundup(width, utile_w);
 		aligned_height = height;
 		break;
 	case VC4_TILING_FORMAT_T:
@@ -951,7 +951,7 @@ reloc_tex(struct vc4_exec_info *exec,
 			aligned_height = roundup(level_height, utile_h);
 			break;
 		default:
-			aligned_width = roundup(level_width, 16 / cpp);
+			aligned_width = roundup(level_width, utile_w);
 			aligned_height = level_height;
 			break;
 		}
