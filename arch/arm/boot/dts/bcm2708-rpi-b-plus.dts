@@ -44,6 +44,11 @@
 	};
 };
 
+&mmc {
+	status = "okay";
+	bus-width = <4>;
+};
+
 &spi0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi0_pins>;
