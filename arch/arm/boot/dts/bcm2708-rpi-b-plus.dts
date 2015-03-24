@@ -16,6 +16,7 @@
 		intc = &intc;
 		leds = &leds;
 		sound = &sound;
+		uart = &uart;
 	};
 
 	sound: sound {
@@ -42,6 +43,10 @@
 		brcm,pins = <18 19 20 21>;
 		brcm,function = <4>; /* alt0 */
 	};
+};
+
+&uart {
+	status = "okay";
 };
 
 &spi0 {
@@ -99,6 +104,7 @@
 
 / {
 	__overrides__ {
+		uart = <&uart>,"status";
 		i2s = <&i2s>,"status";
 		spi = <&spi0>,"status";
 		i2c0 = <&i2c0>,"status";
