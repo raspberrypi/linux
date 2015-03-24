@@ -36,6 +36,17 @@
 			#interrupt-cells = <2>;
 		};
 
+		mmc: mmc@7e300000 {
+			compatible = "brcm,bcm2835-mmc";
+			reg = <0x7e300000 0x100>;
+			interrupts = <2 30>;
+			clocks = <&clk_mmc>;
+			//dmas = <&dma 11>,
+			//       <&dma 11>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
+
 		i2s: i2s@7e203000 {
 			compatible = "brcm,bcm2708-i2s";
 			reg = <0x7e203000 0x20>,
@@ -90,6 +101,14 @@
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <0>;
+
+		clk_mmc: clock@0 {
+			compatible = "fixed-clock";
+			reg = <0>;
+			#clock-cells = <0>;
+			clock-output-names = "mmc";
+			clock-frequency = <250000000>;
+		};
 
 		clk_i2c: i2c {
 			compatible = "fixed-clock";
