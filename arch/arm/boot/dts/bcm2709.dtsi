@@ -17,6 +17,11 @@
 		#size-cells = <1>;
 		ranges = <0x7e000000 0x3f000000 0x01000000>;
 
+		dma: dma@7e007000 {
+			compatible = "brcm,bcm2835-dma";
+			#dma-cells = <1>;
+		};
+
 		intc: interrupt-controller {
 			compatible = "brcm,bcm2708-armctrl-ic";
 			reg = <0x7e00b200 0x200>;
