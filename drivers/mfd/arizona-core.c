@@ -94,6 +94,91 @@ int arizona_clk32k_disable(struct arizona *arizona)
 }
 EXPORT_SYMBOL_GPL(arizona_clk32k_disable);
 
+int arizona_dvfs_up(struct arizona *arizona, unsigned int flags)
+{
+	unsigned int new_flags;
+	int ret = 0;
+
+	mutex_lock(&arizona->subsys_max_lock);
+
+	new_flags = arizona->subsys_max_rq | flags;
+
+	if (arizona->subsys_max_rq != new_flags) {
+		switch (arizona->type) {
+		case WM5102:
+		case WM8997:
+			ret = regulator_set_voltage(arizona->dcvdd,
+						    1800000, 1800000);
+			if (ret != 0) {
+				dev_err(arizona->dev,
+					"Failed to set DCVDD (DVFS up): %d\n",
+					ret);
+				goto err;
+			}
+
+			ret = regmap_update_bits(arizona->regmap,
+					ARIZONA_DYNAMIC_FREQUENCY_SCALING_1,
+					ARIZONA_SUBSYS_MAX_FREQ, 1);
+			if (ret != 0) {
+				dev_err(arizona->dev,
+					"Failed to enable subsys max: %d\n",
+					ret);
+				regulator_set_voltage(arizona->dcvdd,
+						      1200000, 1800000);
+				goto err;
+			}
+			break;
+
+		default:
+			break;
+		}
+
+		arizona->subsys_max_rq = new_flags;
+	}
+err:
+	mutex_unlock(&arizona->subsys_max_lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(arizona_dvfs_up);
+
+int arizona_dvfs_down(struct arizona *arizona, unsigned int flags)
+{
+	int ret = 0;
+
+	mutex_lock(&arizona->subsys_max_lock);
+
+	arizona->subsys_max_rq &= ~flags;
+
+	if (arizona->subsys_max_rq == 0) {
+		switch (arizona->type) {
+		case WM5102:
+		case WM8997:
+			ret = regmap_update_bits(arizona->regmap,
+					ARIZONA_DYNAMIC_FREQUENCY_SCALING_1,
+					ARIZONA_SUBSYS_MAX_FREQ, 0);
+			if (ret != 0)
+				dev_err(arizona->dev,
+					"Failed to disable subsys max: %d\n",
+					ret);
+
+			ret = regulator_set_voltage(arizona->dcvdd,
+						    1200000, 1800000);
+			if (ret != 0)
+				dev_err(arizona->dev,
+					"Failed to set DCVDD (DVFS down): %d\n",
+					ret);
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	mutex_unlock(&arizona->subsys_max_lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(arizona_dvfs_down);
+
 static irqreturn_t arizona_clkgen_err(int irq, void *data)
 {
 	struct arizona *arizona = data;
@@ -519,6 +604,154 @@ int arizona_of_get_named_gpio(struct arizona *arizona, const char *prop,
 }
 EXPORT_SYMBOL_GPL(arizona_of_get_named_gpio);
 
+static int arizona_of_get_u32_num_groups(struct arizona *arizona,
+					const char *prop,
+					int group_size)
+{
+	int len_prop;
+	int num_groups;
+
+	if (!of_get_property(arizona->dev->of_node, prop, &len_prop))
+		return -EINVAL;
+
+	num_groups =  len_prop / (group_size * sizeof(u32));
+
+	if (num_groups * group_size * sizeof(u32) != len_prop) {
+		dev_err(arizona->dev,
+			"DT property %s is malformed: %d\n",
+			prop, -EOVERFLOW);
+		return -EOVERFLOW;
+	}
+
+	return num_groups;
+}
+
+static int arizona_of_get_micd_ranges(struct arizona *arizona,
+				      const char *prop)
+{
+	int nranges;
+	int i, j;
+	int ret = 0;
+	u32 value;
+	struct arizona_micd_range *micd_ranges;
+
+	nranges = arizona_of_get_u32_num_groups(arizona, prop, 2);
+	if (nranges < 0)
+		return nranges;
+
+	micd_ranges = devm_kzalloc(arizona->dev,
+				   nranges * sizeof(struct arizona_micd_range),
+				   GFP_KERNEL);
+
+	for (i = 0, j = 0; i < nranges; ++i) {
+		ret = of_property_read_u32_index(arizona->dev->of_node,
+						 prop, j++, &value);
+		if (ret < 0)
+			goto error;
+		micd_ranges[i].max = value;
+
+		ret = of_property_read_u32_index(arizona->dev->of_node,
+						 prop, j++, &value);
+		if (ret < 0)
+			goto error;
+		micd_ranges[i].key = value;
+	}
+
+	arizona->pdata.micd_ranges = micd_ranges;
+	arizona->pdata.num_micd_ranges = nranges;
+
+	return ret;
+
+error:
+	devm_kfree(arizona->dev, micd_ranges);
+	dev_err(arizona->dev, "DT property %s is malformed: %d\n", prop, ret);
+	return ret;
+}
+
+static int arizona_of_get_micd_configs(struct arizona *arizona,
+				       const char *prop)
+{
+	int nconfigs;
+	int i, j;
+	int ret = 0;
+	u32 value;
+	struct arizona_micd_config *micd_configs;
+
+	nconfigs = arizona_of_get_u32_num_groups(arizona, prop, 3);
+	if (nconfigs < 0)
+		return nconfigs;
+
+	micd_configs = devm_kzalloc(arizona->dev,
+				    nconfigs *
+				    sizeof(struct arizona_micd_config),
+				    GFP_KERNEL);
+
+	for (i = 0, j = 0; i < nconfigs; ++i) {
+		ret = of_property_read_u32_index(arizona->dev->of_node,
+						 prop, j++, &value);
+		if (ret < 0)
+			goto error;
+		micd_configs[i].src = value;
+
+		ret = of_property_read_u32_index(arizona->dev->of_node,
+						 prop, j++, &value);
+		if (ret < 0)
+			goto error;
+		micd_configs[i].bias = value;
+
+		ret = of_property_read_u32_index(arizona->dev->of_node,
+						 prop, j++, &value);
+		if (ret < 0)
+			goto error;
+		micd_configs[i].gpio = value;
+	}
+
+	arizona->pdata.micd_configs = micd_configs;
+	arizona->pdata.num_micd_configs = nconfigs;
+
+	return ret;
+
+error:
+	devm_kfree(arizona->dev, micd_configs);
+	dev_err(arizona->dev, "DT property %s is malformed: %d\n", prop, ret);
+	return ret;
+}
+
+static int arizona_of_read_u32_array(struct arizona *arizona,
+				     const char *prop, bool mandatory,
+				     u32 *data, size_t num)
+{
+	int ret;
+
+	ret = of_property_read_u32_array(arizona->dev->of_node, prop,
+					 data, num);
+
+	if (ret >= 0)
+		return 0;
+
+	switch (ret) {
+	case -EINVAL:
+		if (mandatory)
+			dev_err(arizona->dev,
+				"Mandatory DT property %s is missing\n",
+				prop);
+		break;
+	default:
+		dev_err(arizona->dev,
+			"DT property %s is malformed: %d\n",
+			prop, ret);
+	}
+
+	return ret;
+}
+
+static int arizona_of_read_u32(struct arizona *arizona,
+			       const char* prop, bool mandatory,
+			       u32 *data)
+{
+	return arizona_of_read_u32_array(arizona, prop, mandatory, data, 1);
+}
+
 static int arizona_of_get_core_pdata(struct arizona *arizona)
 {
 	struct arizona_pdata *pdata = &arizona->pdata;
@@ -552,6 +785,15 @@ static int arizona_of_get_core_pdata(struct arizona *arizona)
 			ret);
 	}
 
+	arizona_of_read_u32(arizona, "wlf,clk32k-src", false,
+				&pdata->clk32k_src);
+
+	arizona_of_get_micd_ranges(arizona, "wlf,micd-ranges");
+	arizona_of_get_micd_configs(arizona, "wlf,micd-configs");
+
+	arizona_of_read_u32_array(arizona, "wlf,dmic-ref", false,
+				  pdata->dmic_ref, ARRAY_SIZE(pdata->dmic_ref));
+
 	of_property_for_each_u32(arizona->dev->of_node, "wlf,inmode", prop,
 				 cur, val) {
 		if (count == ARRAY_SIZE(arizona->pdata.inmode))
@@ -560,6 +802,9 @@ static int arizona_of_get_core_pdata(struct arizona *arizona)
 		arizona->pdata.inmode[count] = val;
 		count++;
 	}
+
+	arizona_of_read_u32(arizona, "wlf,irq_gpio", false,
+				&pdata->irq_gpio);
 
 	return 0;
 }
@@ -659,6 +904,7 @@ int arizona_dev_init(struct arizona *arizona)
 
 	dev_set_drvdata(arizona->dev, arizona);
 	mutex_init(&arizona->clk_lock);
+	mutex_init(&arizona->subsys_max_lock);
 
 	if (dev_get_platdata(arizona->dev))
 		memcpy(&arizona->pdata, dev_get_platdata(arizona->dev),
