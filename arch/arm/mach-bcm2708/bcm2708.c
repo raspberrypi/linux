@@ -1020,10 +1020,11 @@ void __init bcm2708_init(void)
         i2c_register_board_info_dt(1, snd_pcm512x_i2c_devices, ARRAY_SIZE(snd_pcm512x_i2c_devices));
 #endif
 
-
-	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
-		struct amba_device *d = amba_devs[i];
-		amba_device_register(d, &iomem_resource);
+	if (!use_dt) {
+		for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
+			struct amba_device *d = amba_devs[i];
+			amba_device_register(d, &iomem_resource);
+		}
 	}
 	system_rev = boardrev;
 	system_serial_low = serial;
