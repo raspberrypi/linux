@@ -589,21 +589,6 @@ validate_tile_rendering_mode_config(VALIDATE_ARGS)
 	exec->fb_width = *(uint16_t *)(untrusted + 4);
 	exec->fb_height = *(uint16_t *)(untrusted + 6);
 
-	/* Make sure that the fb width/height matches the binning config -- we
-	 * rely on being able to interchange these for various assertions.
-	 * (Within a tile, loads and stores will be clipped to the
-	 * width/height, but we allow load/storing to any binned tile).
-	 */
-	if (exec->fb_width <= (exec->bin_tiles_x - 1) * 64 ||
-	    exec->fb_width > exec->bin_tiles_x * 64 ||
-	    exec->fb_height <= (exec->bin_tiles_y - 1) * 64 ||
-	    exec->fb_height > exec->bin_tiles_y * 64) {
-		DRM_ERROR("bin config %dx%d doesn't match FB %dx%d\n",
-			  exec->bin_tiles_x, exec->bin_tiles_y,
-			  exec->fb_width, exec->fb_height);
-		return -EINVAL;
-	}
-
 	flags = *(uint16_t *)(untrusted + 8);
 	if ((flags & VC4_RENDER_CONFIG_FORMAT_MASK) ==
 	    VC4_RENDER_CONFIG_FORMAT_RGBA8888) {
@@ -632,13 +617,9 @@ validate_tile_coordinates(VALIDATE_ARGS)
 	uint8_t tile_x = *(uint8_t *)(untrusted + 0);
 	uint8_t tile_y = *(uint8_t *)(untrusted + 1);
 
-	if (tile_x >= exec->bin_tiles_x ||
-	    tile_y >= exec->bin_tiles_y) {
-		DRM_ERROR("Tile coordinates %d,%d > bin config %d,%d\n",
-			  tile_x,
-			  tile_y,
-			  exec->bin_tiles_x,
-			  exec->bin_tiles_y);
+	if (tile_x * 64 >= exec->fb_width || tile_y * 64 >= exec->fb_height) {
+		DRM_ERROR("Tile coordinates %d,%d > render config %dx%d\n",
+			  tile_x, tile_y, exec->fb_width, exec->fb_height);
 		return -EINVAL;
 	}
 
