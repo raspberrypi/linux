@@ -243,6 +243,7 @@ void __init bcm2709_init_clocks(void)
 	bcm2709_register_clkdev(clk, "dev:f1");
 
 	clk = bcm2709_clk_register("sdhost_clk", 250000000);
+	bcm2709_register_clkdev(clk, "mmc-bcm2835.0");
 	bcm2709_register_clkdev(clk, "bcm2708_spi.0");
 	bcm2709_register_clkdev(clk, "bcm2708_i2c.0");
 	bcm2709_register_clkdev(clk, "bcm2708_i2c.1");
