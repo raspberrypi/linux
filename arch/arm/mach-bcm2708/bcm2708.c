@@ -885,7 +885,7 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_powerman_device);
 
 #ifdef CONFIG_MMC_BCM2835
-	bcm_register_device(&bcm2835_emmc_device);
+	bcm_register_device_dt(&bcm2835_emmc_device);
 #endif
 	bcm2708_init_led();
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
