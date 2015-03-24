@@ -42,10 +42,6 @@
 #include "sdhci.h"
 
 
-#ifndef CONFIG_ARCH_BCM2835
- #define BCM2835_CLOCK_FREQ 250000000
-#endif
-
 #define DRIVER_NAME "mmc-bcm2835"
 
 #define DBG(f, x...) \
@@ -1370,18 +1366,12 @@ untasklet:
 static int bcm2835_mmc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-#ifdef CONFIG_ARCH_BCM2835
 	struct device_node *node = dev->of_node;
 	struct clk *clk;
-#endif
 	struct resource *iomem;
 	struct bcm2835_host *host = NULL;
-
 	int ret;
 	struct mmc_host *mmc;
-#if !defined(CONFIG_ARCH_BCM2835) && !defined(FORCE_PIO)
-	dma_cap_mask_t mask;
-#endif
 
 	iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!iomem) {
@@ -1404,30 +1394,29 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 
 	host->phys_addr = iomem->start + BCM2835_VCMMU_SHIFT;
 
-#ifndef CONFIG_ARCH_BCM2835
 #ifndef FORCE_PIO
-	dma_cap_zero(mask);
-	/* we don't care about the channel, any would work */
-	dma_cap_set(DMA_SLAVE, mask);
+	if (node) {
+		host->dma_chan_tx = of_dma_request_slave_channel(node, "tx");
+		host->dma_chan_rx = of_dma_request_slave_channel(node, "rx");
+	} else {
+		dma_cap_mask_t mask;
 
-	host->dma_chan_tx = dma_request_channel(mask, NULL, NULL);
-	host->dma_chan_rx = dma_request_channel(mask, NULL, NULL);
+		dma_cap_zero(mask);
+		/* we don't care about the channel, any would work */
+		dma_cap_set(DMA_SLAVE, mask);
+		host->dma_chan_tx = dma_request_channel(mask, NULL, NULL);
+		host->dma_chan_rx = dma_request_channel(mask, NULL, NULL);
+	}
 #endif
-	host->max_clk = BCM2835_CLOCK_FREQ;
-
-#else
-#ifndef FORCE_PIO
-	host->dma_chan_tx = of_dma_request_slave_channel(node, "tx");
-	host->dma_chan_rx = of_dma_request_slave_channel(node, "rx");
-#endif
-	clk = of_clk_get(node, 0);
+	clk = devm_clk_get(dev, NULL);
 	if (IS_ERR(clk)) {
-		dev_err(dev, "get CLOCK failed\n");
+		dev_err(dev, "could not get clk\n");
 		ret = PTR_ERR(clk);
 		goto out;
 	}
-	host->max_clk = (clk_get_rate(clk));
-#endif
+
+	host->max_clk = clk_get_rate(clk);
+
 	host->irq = platform_get_irq(pdev, 0);
 
 	if (!request_mem_region(iomem->start, resource_size(iomem),
@@ -1453,12 +1442,10 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 		goto out;
 	}
 
-
-#ifndef CONFIG_ARCH_BCM2835
-	mmc->caps |= MMC_CAP_4_BIT_DATA;
-#else
-	mmc_of_parse(mmc);
-#endif
+	if (node)
+		mmc_of_parse(mmc);
+	else
+		mmc->caps |= MMC_CAP_4_BIT_DATA;
 	host->timeout = msecs_to_jiffies(1000);
 	spin_lock_init(&host->lock);
 	mmc->ops = &bcm2835_ops;
