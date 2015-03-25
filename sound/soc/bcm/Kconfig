@@ -54,6 +54,13 @@ config SND_BCM2708_SOC_RPI_DAC
         help
          Say Y or M if you want to add support for RPi-DAC.
 
+config SND_BCM2708_SOC_RPI_PROTO
+	tristate "Support for Rpi-PROTO"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_WM8731
+	help
+	  Say Y or M if you want to add support for Audio Codec Board PROTO (WM8731).
+
 config SND_BCM2708_SOC_IQAUDIO_DAC
 	tristate "Support for IQaudIO-DAC"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
