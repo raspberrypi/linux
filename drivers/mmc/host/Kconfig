@@ -33,6 +33,16 @@ config MMC_BCM2835_PIO_DMA_BARRIER
 
 	  If unsure, say 2 here.
 
+config MMC_BCM2835_SDHOST
+	tristate "Support for the SDHost controller on BCM2708/9"
+	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
+	help
+	  This selects the SDHost controller on BCM2835/6.
+
+	  If you have a controller with this interface, say Y or M here.
+
+	  If unsure, say N.
+
 config MMC_ARMMMCI
 	tristate "ARM AMBA Multimedia Card Interface support"
 	depends on ARM_AMBA
