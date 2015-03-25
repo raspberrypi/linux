@@ -25,6 +25,7 @@ obj-$(CONFIG_MMC_SDHCI_MILBEAUT)	+= sdhci-milbeaut.o
 obj-$(CONFIG_MMC_SDHCI_SPEAR)	+= sdhci-spear.o
 obj-$(CONFIG_MMC_SDHCI_AM654)	+= sdhci_am654.o
 obj-$(CONFIG_MMC_BCM2835_MMC)	+= bcm2835-mmc.o
+obj-$(CONFIG_MMC_BCM2835_SDHOST)	+= bcm2835-sdhost.o
 obj-$(CONFIG_MMC_WBSD)		+= wbsd.o
 obj-$(CONFIG_MMC_AU1X)		+= au1xmmc.o
 obj-$(CONFIG_MMC_ALCOR)	+= alcor.o
