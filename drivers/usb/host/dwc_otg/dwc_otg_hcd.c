@@ -1414,8 +1414,12 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	dwc_otg_hc_init(hcd->core_if, hc);
 
 	local_irq_save(flags);
-	local_fiq_disable();
-	fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+
+	if (fiq_enable) {
+		local_fiq_disable();
+		fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+	}
+
 	/* Enable the top level host channel interrupt. */
 	intr_enable = (1 << hc->hc_num);
 	DWC_MODIFY_REG32(&hcd->core_if->host_if->host_global_regs->haintmsk, 0, intr_enable);
@@ -1423,8 +1427,12 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	/* Make sure host channel interrupts are enabled. */
 	gintmsk.b.hcintr = 1;
 	DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, 0, gintmsk.d32);
-	fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
-	local_fiq_enable();
+
+	if (fiq_enable) {
+		fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
+		local_fiq_enable();
+	}
+	
 	local_irq_restore(flags);
 	hc->qh = qh;
 }
