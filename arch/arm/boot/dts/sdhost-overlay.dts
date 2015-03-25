@@ -1,0 +1,75 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&soc>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			sdhost: sdhost@7e202000 {
+				compatible = "brcm,bcm2835-sdhost";
+				reg = <0x7e202000 0x100>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&sdhost_pins>;
+				interrupts = <2 24>;
+				clocks = <&clk_sdhost>;
+				//dmas = <&dma 13>,
+				//       <&dma 13>;
+				dma-names = "tx", "rx";
+				brcm,delay-after-stop = <0>;
+				brcm,overclock-50 = <0>;
+				status = "okay";
+			};
+
+			clocks {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				clk_sdhost: clock@3 {
+					compatible = "fixed-clock";
+					reg = <0>;
+					#clock-cells = <0>;
+					clock-output-names = "sdhost";
+					clock-frequency = <250000000>;
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			sdhost_pins: sdhost_pins {
+				brcm,pins = <48 49 50 51 52 53>;
+				brcm,function = <4>; /* alt0 */
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&mmc>;
+		__overlay__ {
+			/* Find a way to disable the other driver */
+			compatible = "";
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
+		target-path = "/__overrides__";
+		__overlay__ {
+			sdhost_freq      = <&clk_sdhost>,"clock-frequency:0";
+		};
+	};
+
+	__overrides__ {
+		delay_after_stop = <&sdhost>,"brcm,delay-after-stop:0";
+		overclock_50     = <&sdhost>,"brcm,overclock-50:0";
+		force_pio        = <&sdhost>,"brcm,force-pio?";
+		sdhost_freq      = <&clk_sdhost>,"clock-frequency:0";
+	};
+};
