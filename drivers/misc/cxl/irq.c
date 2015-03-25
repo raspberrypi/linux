@@ -174,6 +174,7 @@ static irqreturn_t cxl_irq(int irq, void *data)
 		}
 
 		cxl_ack_irq(ctx, CXL_PSL_TFC_An_A, 0);
+		return IRQ_HANDLED;
 	}
 	if (dsisr & CXL_PSL_DSISR_An_OC)
 		pr_devel("CXL interrupt: OS Context Warning\n");

@@ -315,9 +315,10 @@ i915_gem_set_tiling(struct drm_device *dev, void *data,
 		return -EINVAL;
 	}
 
+	mutex_lock(&dev->struct_mutex);
 	if (i915_gem_obj_is_pinned(obj) || obj->framebuffer_references) {
-		drm_gem_object_unreference_unlocked(&obj->base);
-		return -EBUSY;
+		ret = -EBUSY;
+		goto err;
 	}
 
 	if (args->tiling_mode == I915_TILING_NONE) {
@@ -349,7 +350,6 @@ i915_gem_set_tiling(struct drm_device *dev, void *data,
 		}
 	}
 
-	mutex_lock(&dev->struct_mutex);
 	if (args->tiling_mode != obj->tiling_mode ||
 	    args->stride != obj->stride) {
 		/* We need to rebind the object if its current allocation
@@ -395,6 +395,7 @@ i915_gem_set_tiling(struct drm_device *dev, void *data,
 		obj->bit_17 = NULL;
 	}
 
+err:
 	drm_gem_object_unreference(&obj->base);
 	mutex_unlock(&dev->struct_mutex);
 
