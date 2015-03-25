@@ -34,6 +34,7 @@ dtb-$(RPI_DT_OVERLAYS) += piscreen-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pitft28-resistive-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-display-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += sdhost-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-pullup-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-bcm2835-overlay.dtb
