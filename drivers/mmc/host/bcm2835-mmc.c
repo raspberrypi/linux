@@ -42,10 +42,6 @@
 #include "sdhci.h"
 
 
-#ifndef CONFIG_ARCH_BCM2835
- #define BCM2835_CLOCK_FREQ 250000000
-#endif
-
 #define DRIVER_NAME "mmc-bcm2835"
 
 #define DBG(f, x...) \
@@ -1265,19 +1261,17 @@ static void bcm2835_mmc_tasklet_finish(unsigned long param)
 
 int bcm2835_mmc_add_host(struct bcm2835_host *host)
 {
-	struct mmc_host *mmc;
+	struct mmc_host *mmc = host->mmc;
+	struct device *dev = mmc->parent;
 #ifndef FORCE_PIO
 	struct dma_slave_config cfg;
 #endif
 	int ret;
 
-	mmc = host->mmc;
-
 	bcm2835_mmc_reset(host, SDHCI_RESET_ALL);
 
 	host->clk_mul = 0;
 
-	mmc->ops = &bcm2835_ops;
 	mmc->f_max = host->max_clk;
 	mmc->f_max = host->max_clk;
 	mmc->f_min = host->max_clk / SDHCI_MAX_DIV_SPEC_300;
@@ -1295,17 +1289,17 @@ int bcm2835_mmc_add_host(struct bcm2835_host *host)
 
 	spin_lock_init(&host->lock);
 
-
 #ifdef FORCE_PIO
-	pr_info("Forcing PIO mode\n");
+	dev_info(dev, "Forcing PIO mode\n");
 	host->have_dma = false;
 #else
-	if (!host->dma_chan_tx || !host->dma_chan_rx ||
-	IS_ERR(host->dma_chan_tx) || IS_ERR(host->dma_chan_rx)) {
-		pr_err("%s: Unable to initialise DMA channels. Falling back to PIO\n", DRIVER_NAME);
+	if (IS_ERR_OR_NULL(host->dma_chan_tx) ||
+	    IS_ERR_OR_NULL(host->dma_chan_rx)) {
+		dev_err(dev, "%s: Unable to initialise DMA channels. Falling back to PIO\n",
+			DRIVER_NAME);
 		host->have_dma = false;
 	} else {
-		pr_info("DMA channels allocated for the MMC driver");
+		dev_info(dev, "DMA channels allocated");
 		host->have_dma = true;
 
 		cfg.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
@@ -1323,8 +1317,6 @@ int bcm2835_mmc_add_host(struct bcm2835_host *host)
 		ret = dmaengine_slave_config(host->dma_chan_rx, &cfg);
 	}
 #endif
-
-
 	mmc->max_segs = 128;
 	mmc->max_req_size = 524288;
 	mmc->max_seg_size = mmc->max_req_size;
@@ -1342,22 +1334,20 @@ int bcm2835_mmc_add_host(struct bcm2835_host *host)
 
 	bcm2835_mmc_init(host, 0);
 #ifndef CONFIG_ARCH_BCM2835
-	ret = request_irq(host->irq, bcm2835_mmc_irq, 0 /*IRQF_SHARED*/,
-				  mmc_hostname(mmc), host);
+	ret = devm_request_irq(dev, host->irq, bcm2835_mmc_irq, 0,
+			       mmc_hostname(mmc), host);
 #else
-	ret = request_threaded_irq(host->irq, bcm2835_mmc_irq, bcm2835_mmc_thread_irq,
-				   IRQF_SHARED,	mmc_hostname(mmc), host);
+	ret = devm_request_threaded_irq(dev, host->irq, bcm2835_mmc_irq,
+					bcm2835_mmc_thread_irq, IRQF_SHARED,
+					mmc_hostname(mmc), host);
 #endif
 	if (ret) {
-		pr_err("%s: Failed to request IRQ %d: %d\n",
-		       mmc_hostname(mmc), host->irq, ret);
+		dev_err(dev, "Failed to request IRQ %d: %d\n", host->irq, ret);
 		goto untasklet;
 	}
 
 	mmiowb();
 	mmc_add_host(mmc);
-
-	pr_info("Load BCM2835 MMC driver\n");
 
 	return 0;
 
@@ -1370,118 +1360,83 @@ untasklet:
 static int bcm2835_mmc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-#ifdef CONFIG_ARCH_BCM2835
 	struct device_node *node = dev->of_node;
 	struct clk *clk;
-#endif
 	struct resource *iomem;
-	struct bcm2835_host *host = NULL;
-
-	int ret;
+	struct bcm2835_host *host;
 	struct mmc_host *mmc;
-#if !defined(CONFIG_ARCH_BCM2835) && !defined(FORCE_PIO)
-	dma_cap_mask_t mask;
-#endif
+	int ret;
 
-	iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!iomem) {
-		ret = -ENOMEM;
-		goto err;
-	}
+	mmc = mmc_alloc_host(sizeof(*host), dev);
+	if (!mmc)
+		return -ENOMEM;
 
-	if (resource_size(iomem) < 0x100)
-		dev_err(&pdev->dev, "Invalid iomem size!\n");
-
-	mmc = mmc_alloc_host(sizeof(struct bcm2835_host), dev);
+	mmc->ops = &bcm2835_ops;
 	host = mmc_priv(mmc);
 	host->mmc = mmc;
+	host->timeout = msecs_to_jiffies(1000);
+	spin_lock_init(&host->lock);
 
-
-	if (IS_ERR(host)) {
-		ret = PTR_ERR(host);
+	iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	host->ioaddr = devm_ioremap_resource(dev, iomem);
+	if (IS_ERR(host->ioaddr)) {
+		ret = PTR_ERR(host->ioaddr);
 		goto err;
 	}
 
 	host->phys_addr = iomem->start + BCM2835_VCMMU_SHIFT;
 
-#ifndef CONFIG_ARCH_BCM2835
 #ifndef FORCE_PIO
-	dma_cap_zero(mask);
-	/* we don't care about the channel, any would work */
-	dma_cap_set(DMA_SLAVE, mask);
+	if (node) {
+		host->dma_chan_tx = of_dma_request_slave_channel(node, "tx");
+		host->dma_chan_rx = of_dma_request_slave_channel(node, "rx");
+	} else {
+		dma_cap_mask_t mask;
 
-	host->dma_chan_tx = dma_request_channel(mask, NULL, NULL);
-	host->dma_chan_rx = dma_request_channel(mask, NULL, NULL);
+		dma_cap_zero(mask);
+		/* we don't care about the channel, any would work */
+		dma_cap_set(DMA_SLAVE, mask);
+		host->dma_chan_tx = dma_request_channel(mask, NULL, NULL);
+		host->dma_chan_rx = dma_request_channel(mask, NULL, NULL);
+	}
 #endif
-	host->max_clk = BCM2835_CLOCK_FREQ;
-
-#else
-#ifndef FORCE_PIO
-	host->dma_chan_tx = of_dma_request_slave_channel(node, "tx");
-	host->dma_chan_rx = of_dma_request_slave_channel(node, "rx");
-#endif
-	clk = of_clk_get(node, 0);
+	clk = devm_clk_get(dev, NULL);
 	if (IS_ERR(clk)) {
-		dev_err(dev, "get CLOCK failed\n");
+		dev_err(dev, "could not get clk\n");
 		ret = PTR_ERR(clk);
-		goto out;
+		goto err;
 	}
-	host->max_clk = (clk_get_rate(clk));
-#endif
+
+	host->max_clk = clk_get_rate(clk);
+
 	host->irq = platform_get_irq(pdev, 0);
-
-	if (!request_mem_region(iomem->start, resource_size(iomem),
-		mmc_hostname(host->mmc))) {
-		dev_err(&pdev->dev, "cannot request region\n");
-		ret = -EBUSY;
-		goto err_request;
-	}
-
-	host->ioaddr = ioremap(iomem->start, resource_size(iomem));
-	if (!host->ioaddr) {
-		dev_err(&pdev->dev, "failed to remap registers\n");
-		ret = -ENOMEM;
-		goto err_remap;
-	}
-
-	platform_set_drvdata(pdev, host);
-
-
 	if (host->irq <= 0) {
 		dev_err(dev, "get IRQ failed\n");
 		ret = -EINVAL;
-		goto out;
+		goto err;
 	}
 
+	if (node)
+		mmc_of_parse(mmc);
+	else
+		mmc->caps |= MMC_CAP_4_BIT_DATA;
 
-#ifndef CONFIG_ARCH_BCM2835
-	mmc->caps |= MMC_CAP_4_BIT_DATA;
-#else
-	mmc_of_parse(mmc);
-#endif
-	host->timeout = msecs_to_jiffies(1000);
-	spin_lock_init(&host->lock);
-	mmc->ops = &bcm2835_ops;
-	return bcm2835_mmc_add_host(host);
+	ret = bcm2835_mmc_add_host(host);
+	if (ret)
+		goto err;
 
+	platform_set_drvdata(pdev, host);
 
-err_remap:
-	release_mem_region(iomem->start, resource_size(iomem));
-err_request:
-	mmc_free_host(host->mmc);
+	return 0;
 err:
-	dev_err(&pdev->dev, "%s failed %d\n", __func__, ret);
-	return ret;
-out:
-	if (mmc)
-		mmc_free_host(mmc);
+	mmc_free_host(mmc);
+
 	return ret;
 }
 
 static int bcm2835_mmc_remove(struct platform_device *pdev)
 {
 	struct bcm2835_host *host = platform_get_drvdata(pdev);
-	struct resource *iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	unsigned long flags;
 	int dead;
 	u32 scratch;
@@ -1519,8 +1474,6 @@ static int bcm2835_mmc_remove(struct platform_device *pdev)
 
 	tasklet_kill(&host->finish_tasklet);
 
-	iounmap(host->ioaddr);
-	release_mem_region(iomem->start, resource_size(iomem));
 	mmc_free_host(host->mmc);
 	platform_set_drvdata(pdev, NULL);
 

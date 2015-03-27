@@ -612,8 +612,6 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_slave_sg(
 				control_block->info |= sync_type;
 
 			/* Setup DREQ channel */
-			c->dreq = c->cfg.slave_id; /* DREQ loaded from config */
-
 			if (c->dreq != 0)
 				control_block->info |=
 					BCM2835_DMA_PER_MAP(c->dreq);
@@ -656,6 +654,8 @@ static int bcm2835_dma_slave_config(struct bcm2835_chan *c,
 	}
 
 	c->cfg = *cfg;
+	if (!c->dreq)
+		c->dreq = cfg->slave_id;
 
 	return 0;
 }
@@ -734,8 +734,6 @@ static int bcm2835_dma_chan_init(struct bcm2835_dmadev *d, int chan_id, int irq)
 	vchan_init(&c->vc, &d->ddev);
 	INIT_LIST_HEAD(&c->node);
 
-	d->ddev.chancnt++;
-
 	c->chan_base = BCM2835_DMA_CHANIO(d->base, chan_id);
 	c->ch = chan_id;
 	c->irq_number = irq;
@@ -756,8 +754,6 @@ static int bcm2708_dma_chan_init(struct bcm2835_dmadev *d,
 	c->vc.desc_free = bcm2835_dma_desc_free;
 	vchan_init(&c->vc, &d->ddev);
 	INIT_LIST_HEAD(&c->node);
-
-	d->ddev.chancnt++;
 
 	c->chan_base = chan_base;
 	c->ch = chan_id;
@@ -784,7 +780,6 @@ static const struct of_device_id bcm2835_dma_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, bcm2835_dma_of_match);
 
-#ifdef CONFIG_ARCH_BCM2835
 static struct dma_chan *bcm2835_dma_xlate(struct of_phandle_args *spec,
 					   struct of_dma *ofdma)
 {
@@ -800,7 +795,6 @@ static struct dma_chan *bcm2835_dma_xlate(struct of_phandle_args *spec,
 
 	return chan;
 }
-#endif
 
 static int bcm2835_dma_device_slave_caps(struct dma_chan *dchan,
 	struct dma_slave_caps *caps)
@@ -881,6 +875,17 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 		if (rc)
 			goto err_no_dma;
 	}
+
+	if (pdev->dev.of_node) {
+		rc = of_dma_controller_register(pdev->dev.of_node,
+						bcm2835_dma_xlate, od);
+		if (rc) {
+			dev_err(&pdev->dev,
+				"Failed to register DMA controller\n");
+			goto err_no_dma;
+		}
+	}
+
 #else
 	rc = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
 	if (rc)
@@ -987,63 +992,17 @@ static int bcm2835_dma_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifndef CONFIG_ARCH_BCM2835
-
-
 static struct platform_driver bcm2835_dma_driver = {
 	.probe	= bcm2835_dma_probe,
 	.remove	= bcm2835_dma_remove,
 	.driver = {
 		.name = "bcm2708-dmaengine",
 		.owner = THIS_MODULE,
-	},
-};
-
-static struct platform_device *pdev;
-
-static const struct platform_device_info bcm2835_dma_dev_info = {
-	.name = "bcm2708-dmaengine",
-	.id = -1,
-};
-
-static int bcm2835_dma_init(void)
-{
-	int rc = platform_driver_register(&bcm2835_dma_driver);
-
-	if (rc == 0) {
-		pdev = platform_device_register_full(&bcm2835_dma_dev_info);
-		if (IS_ERR(pdev)) {
-			platform_driver_unregister(&bcm2835_dma_driver);
-			rc = PTR_ERR(pdev);
-		}
-	}
-
-	return rc;
-}
-module_init(bcm2835_dma_init); /* preferable to subsys_initcall */
-
-static void __exit bcm2835_dma_exit(void)
-{
-	platform_device_unregister(pdev);
-	platform_driver_unregister(&bcm2835_dma_driver);
-}
-module_exit(bcm2835_dma_exit);
-
-#else
-
-static struct platform_driver bcm2835_dma_driver = {
-	.probe	= bcm2835_dma_probe,
-	.remove	= bcm2835_dma_remove,
-	.driver = {
-		.name = "bcm2835-dma",
-		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(bcm2835_dma_of_match),
 	},
 };
 
 module_platform_driver(bcm2835_dma_driver);
-
-#endif
 
 MODULE_ALIAS("platform:bcm2835-dma");
 MODULE_DESCRIPTION("BCM2835 DMA engine driver");

@@ -233,6 +233,7 @@ void __init bcm2708_init_clocks(void)
 	bcm2708_register_clkdev(clk, "dev:f1");
 
 	clk = bcm2708_clk_register("sdhost_clk", 250000000);
+	bcm2708_register_clkdev(clk, "mmc-bcm2835.0");
 	bcm2708_register_clkdev(clk, "bcm2708_spi.0");
 	bcm2708_register_clkdev(clk, "bcm2708_i2c.0");
 	bcm2708_register_clkdev(clk, "bcm2708_i2c.1");
@@ -260,6 +261,11 @@ static struct platform_device bcm2708_dmaman_device = {
 	.id = 0,		/* first bcm2708_dma */
 	.resource = bcm2708_dmaman_resources,
 	.num_resources = ARRAY_SIZE(bcm2708_dmaman_resources),
+};
+
+static struct platform_device bcm2708_dmaengine_device = {
+	.name = "bcm2708-dmaengine",
+	.id = -1,
 };
 
 #if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
@@ -852,6 +858,7 @@ void __init bcm2708_init(void)
 	bcm2708_dt_init();
 
 	bcm_register_device(&bcm2708_dmaman_device);
+	bcm_register_device_dt(&bcm2708_dmaengine_device);
 	bcm_register_device(&bcm2708_vcio_device);
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device_dt(&bcm2708_gpio_device);
@@ -878,7 +885,7 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_powerman_device);
 
 #ifdef CONFIG_MMC_BCM2835
-	bcm_register_device(&bcm2835_emmc_device);
+	bcm_register_device_dt(&bcm2835_emmc_device);
 #endif
 	bcm2708_init_led();
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
