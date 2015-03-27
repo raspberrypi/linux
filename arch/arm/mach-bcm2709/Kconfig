@@ -46,4 +46,11 @@ config BCM2708_SPIDEV
 	default y
 	help
 	  Binds spidev driver to the SPI0 master
+
+config BCM2708_UNCOMPRESS_INFO
+	bool "Enable uncompress info on UART"
+	depends on MACH_BCM2709
+	default y
+	help
+	  Enables the "Uncompressing Linux..." message on the UART on startup
 endmenu
