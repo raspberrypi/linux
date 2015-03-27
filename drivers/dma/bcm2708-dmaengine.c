@@ -612,8 +612,6 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_slave_sg(
 				control_block->info |= sync_type;
 
 			/* Setup DREQ channel */
-			c->dreq = c->cfg.slave_id; /* DREQ loaded from config */
-
 			if (c->dreq != 0)
 				control_block->info |=
 					BCM2835_DMA_PER_MAP(c->dreq);
@@ -656,6 +654,8 @@ static int bcm2835_dma_slave_config(struct bcm2835_chan *c,
 	}
 
 	c->cfg = *cfg;
+	if (!c->dreq)
+		c->dreq = cfg->slave_id;
 
 	return 0;
 }
