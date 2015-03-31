@@ -171,6 +171,8 @@
 # define PV_CONTROL_CLR_AT_START		(1 << 14)
 # define PV_CONTROL_TRIGGER_UNDERFLOW		(1 << 13)
 # define PV_CONTROL_WAIT_HSTART			(1 << 12)
+# define PV_CONTROL_CLK_SELECT_DSI		0
+# define PV_CONTROL_CLK_SELECT_DPI_SMI_HDMI	1
 # define PV_CONTROL_CLK_SELECT_MASK		VC4_MASK(3, 2)
 # define PV_CONTROL_CLK_SELECT_SHIFT		2
 # define PV_CONTROL_FIFO_CLR			(1 << 1)
@@ -212,7 +214,7 @@
 #define PV_INTEN				0x24
 #define PV_INTSTAT				0x28
 # define PV_INT_VID_IDLE			(1 << 9)
-# define PV_INT_VFP_END			(1 << 8)
+# define PV_INT_VFP_END				(1 << 8)
 # define PV_INT_VFP_START			(1 << 7)
 # define PV_INT_VACT_START			(1 << 6)
 # define PV_INT_VBP_START			(1 << 5)
@@ -226,7 +228,7 @@
 # define PV_STAT_IDLE				(1 << 8)
 # define PV_STAT_RUNNING_MASK			VC4_MASK(7, 0)
 
-#define PV_DSI_HACT				0x30
+#define PV_HACT_ACT				0x30
 
 #define SCALER_DISPCTRL                         0x00000000
 #define SCALER_DISPSTAT                         0x00000004

@@ -36,6 +36,7 @@ static const struct {
 	CRTC_REG(PV_INTEN),
 	CRTC_REG(PV_INTSTAT),
 	CRTC_REG(PV_STAT),
+	CRTC_REG(PV_HACT_ACT),
 };
 
 static void
@@ -63,8 +64,89 @@ static bool vc4_crtc_mode_fixup(struct drm_crtc *crtc,
 	return true;
 }
 
+static u32 vc4_get_fifo_full_level(u32 format)
+{
+	static const u32 fifo_len_bytes = 64;
+	static const u32 hvs_latency_pix = 6;
+
+	switch(format) {
+	case PV_CONTROL_FORMAT_DSIV_16:
+	case PV_CONTROL_FORMAT_DSIC_16:
+		return fifo_len_bytes - 2 * hvs_latency_pix;
+	case PV_CONTROL_FORMAT_DSIV_18:
+		return fifo_len_bytes - 14;
+	case PV_CONTROL_FORMAT_24:
+	case PV_CONTROL_FORMAT_DSIV_24:
+	default:
+		return fifo_len_bytes - 3 * hvs_latency_pix;
+	}
+}
+
 static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 {
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct drm_crtc_state *state = crtc->state;
+	struct drm_display_mode *mode = &state->adjusted_mode;
+	u32 vactive = (mode->vdisplay >>
+		       ((mode->flags & DRM_MODE_FLAG_INTERLACE) ? 1 : 0));
+	u32 format = PV_CONTROL_FORMAT_24;
+	bool debug_dump_regs = false;
+
+	if (debug_dump_regs) {
+		DRM_INFO("CRTC %d regs before:\n", drm_crtc_index(crtc));
+		vc4_crtc_dump_regs(vc4_crtc);
+	}
+
+	/* Reset the PV fifo. */
+	CRTC_WRITE(PV_CONTROL, 0);
+	CRTC_WRITE(PV_CONTROL, PV_CONTROL_FIFO_CLR | PV_CONTROL_EN);
+	CRTC_WRITE(PV_CONTROL, 0);
+
+	CRTC_WRITE(PV_HORZA,
+		   VC4_SET_FIELD(mode->htotal - mode->hsync_end,
+				 PV_HORZA_HBP) |
+		   VC4_SET_FIELD(mode->hsync_end - mode->hsync_start,
+				 PV_HORZA_HSYNC));
+	CRTC_WRITE(PV_HORZB,
+		   VC4_SET_FIELD(mode->hsync_start - mode->hdisplay,
+				 PV_HORZB_HFP) |
+		   VC4_SET_FIELD(mode->hdisplay, PV_HORZB_HACTIVE));
+
+	CRTC_WRITE(PV_VERTA,
+		   VC4_SET_FIELD(mode->vtotal - mode->vsync_end,
+				 PV_VERTA_VBP) |
+		   VC4_SET_FIELD(mode->vsync_end - mode->vsync_start,
+				 PV_VERTA_VSYNC));
+	CRTC_WRITE(PV_VERTB,
+		   VC4_SET_FIELD(mode->vsync_start - mode->vdisplay,
+				 PV_VERTB_VFP) |
+		   VC4_SET_FIELD(vactive, PV_VERTB_VACTIVE));
+	if (mode->flags & DRM_MODE_FLAG_INTERLACE) {
+		/* Write PV_VERTA_EVEN/VERTB_EVEN */
+	}
+
+	CRTC_WRITE(PV_HACT_ACT, mode->hdisplay);
+
+	CRTC_WRITE(PV_CONTROL,
+		   VC4_SET_FIELD(format, PV_CONTROL_FORMAT) |
+		   VC4_SET_FIELD(vc4_get_fifo_full_level(format),
+				 PV_CONTROL_FIFO_LEVEL) |
+		   PV_CONTROL_CLR_AT_START |
+		   PV_CONTROL_TRIGGER_UNDERFLOW |
+		   PV_CONTROL_WAIT_HSTART |
+		   PV_CONTROL_CLK_MUX_EN |
+		   VC4_SET_FIELD(PV_CONTROL_CLK_SELECT_DPI_SMI_HDMI,
+				 PV_CONTROL_CLK_SELECT) |
+		   PV_CONTROL_FIFO_CLR |
+		   PV_CONTROL_EN);
+
+	CRTC_WRITE(PV_V_CONTROL,
+		   PV_VCONTROL_CONTINUOUS);
+
+	if (debug_dump_regs) {
+		DRM_INFO("CRTC %d regs after:\n", drm_crtc_index(crtc));
+		vc4_crtc_dump_regs(vc4_crtc);
+	}
 }
 
 static void vc4_crtc_disable(struct drm_crtc *crtc)
@@ -133,37 +215,17 @@ static void vc4_crtc_atomic_begin(struct drm_crtc *crtc)
 {
 }
 
-static u32 vc4_get_fifo_full_level(u32 format)
-{
-	static const u32 fifo_len_bytes = 64;
-	static const u32 hvs_latency_pix = 6;
-
-	switch(format) {
-	case PV_CONTROL_FORMAT_DSIV_16:
-	case PV_CONTROL_FORMAT_DSIC_16:
-		return fifo_len_bytes - 2 * hvs_latency_pix;
-	case PV_CONTROL_FORMAT_DSIV_18:
-		return fifo_len_bytes - 14;
-	case PV_CONTROL_FORMAT_24:
-	case PV_CONTROL_FORMAT_DSIV_24:
-	default:
-		return fifo_len_bytes - 3 * hvs_latency_pix;
-	}
-}
-
 static void vc4_crtc_atomic_flush(struct drm_crtc *crtc)
 {
 	struct drm_device *dev = crtc->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
-	struct drm_display_mode *mode = &crtc->hwmode;
 	struct drm_plane *plane;
 	bool debug_dump_regs = false;
 	u32 __iomem *dlist_next = vc4_crtc->dlist;
 
 	if (debug_dump_regs) {
-		DRM_INFO("CRTC regs before:\n");
-		vc4_crtc_dump_regs(vc4_crtc);
+		DRM_INFO("CRTC %d HVS before:\n", drm_crtc_index(crtc));
 		vc4_hvs_dump_state(dev);
 	}
 
@@ -199,48 +261,8 @@ static void vc4_crtc_atomic_flush(struct drm_crtc *crtc)
 		vc4_crtc->dlist = dlist_next;
 	}
 
-	if (0) {
-		u32 verta = (VC4_SET_FIELD(mode->vtotal - mode->vdisplay,
-					   PV_VERTA_VBP) |
-			     VC4_SET_FIELD(mode->vsync_start, PV_VERTA_VSYNC));
-		u32 vertb = (VC4_SET_FIELD(0, PV_VERTB_VFP),
-			     VC4_SET_FIELD(mode->vdisplay, PV_VERTB_VACTIVE));
-		u32 format = PV_CONTROL_FORMAT_24;
-
-		CRTC_WRITE(PV_HORZA,
-			   VC4_SET_FIELD(mode->htotal - mode->hdisplay,
-					 PV_HORZA_HBP) |
-			   VC4_SET_FIELD(mode->hsync_start, PV_HORZA_HSYNC));
-		CRTC_WRITE(PV_HORZB,
-			   VC4_SET_FIELD(0, PV_HORZB_HFP) |
-			   VC4_SET_FIELD(mode->hdisplay, PV_HORZB_HACTIVE));
-
-		CRTC_WRITE(PV_VERTA, verta);
-		CRTC_WRITE(PV_VERTB, vertb);
-		CRTC_WRITE(PV_VERTA_EVEN, verta);
-		CRTC_WRITE(PV_VERTB_EVEN, vertb);
-
-		CRTC_WRITE(PV_DSI_HACT, mode->htotal - mode->hdisplay);
-
-		CRTC_WRITE(PV_CONTROL,
-			   VC4_SET_FIELD(format, PV_CONTROL_FORMAT) |
-			   VC4_SET_FIELD(vc4_get_fifo_full_level(format),
-					 PV_CONTROL_FIFO_LEVEL) |
-			   PV_CONTROL_CLR_AT_START |
-			   PV_CONTROL_TRIGGER_UNDERFLOW |
-			   PV_CONTROL_WAIT_HSTART |
-			   PV_CONTROL_CLK_MUX_EN |
-			   VC4_SET_FIELD(0, PV_CONTROL_CLK_SELECT) |
-			   PV_CONTROL_FIFO_CLR |
-			   PV_CONTROL_EN);
-
-		CRTC_WRITE(PV_V_CONTROL,
-			   PV_VCONTROL_CONTINUOUS);
-	}
-
 	if (debug_dump_regs) {
-		DRM_INFO("CRTC regs after:\n");
-		vc4_crtc_dump_regs(vc4_crtc);
+		DRM_INFO("CRTC %d HVS after:\n", drm_crtc_index(crtc));
 		vc4_hvs_dump_state(dev);
 	}
 }
