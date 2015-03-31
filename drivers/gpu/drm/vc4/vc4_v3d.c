@@ -184,7 +184,7 @@ static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 
 	v3d->pdev = pdev;
 
-	v3d->regs = vc4_ioremap_regs(pdev);
+	v3d->regs = vc4_ioremap_regs(pdev, 0);
 	if (IS_ERR(v3d->regs))
 		return PTR_ERR(v3d->regs);
 

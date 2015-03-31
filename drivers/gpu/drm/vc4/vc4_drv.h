@@ -82,8 +82,6 @@ to_vc4_plane(struct drm_plane *plane)
 #define V3D_WRITE(offset, val) writel(val, vc4->v3d->regs + offset)
 #define HVS_READ(offset) readl(vc4->hvs->regs + offset)
 #define HVS_WRITE(offset, val) writel(val, vc4->hvs->regs + offset)
-#define HDMI_READ(offset) readl(vc4->hdmi->regs + offset)
-#define HDMI_WRITE(offset, val) writel(val, vc4->hdmi->regs + offset)
 
 /* vc4_bo.c */
 void vc4_free_object(struct drm_gem_object *gem_obj);
@@ -105,7 +103,7 @@ int vc4_debugfs_init(struct drm_minor *minor);
 void vc4_debugfs_cleanup(struct drm_minor *minor);
 
 /* vc4_drv.c */
-void __iomem *vc4_ioremap_regs(struct platform_device *dev);
+void __iomem *vc4_ioremap_regs(struct platform_device *dev, int index);
 
 /* vc4_hdmi.c */
 void vc4_hdmi_register(void);

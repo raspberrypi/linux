@@ -30,12 +30,12 @@
  * We assume only one register range per device, so we use index 0.
  */
 void __iomem *
-vc4_ioremap_regs(struct platform_device *dev)
+vc4_ioremap_regs(struct platform_device *dev, int index)
 {
 	struct resource *res;
 	void __iomem *map;
 
-	res = platform_get_resource(dev, IORESOURCE_MEM, 0);
+	res = platform_get_resource(dev, IORESOURCE_MEM, index);
 	map = devm_ioremap_resource(&dev->dev, res);
 	if (IS_ERR(map)) {
 		int ret = PTR_ERR(map);

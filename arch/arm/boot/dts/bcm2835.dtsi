@@ -177,7 +177,8 @@
 
 		hdmi: brcm,vc4-hdmi@7e902000 {
 			compatible = "brcm,vc4-hdmi";
-			reg = <0x7e902000 0x600>;
+			reg = <0x7e902000 0x600>,
+			      <0x7e808000 0x100>;
 			interrupts = <2 8>, <2 9>;
 			ddc = <&i2c2>;
 			hpd-gpio = <&gpio 46 GPIO_ACTIVE_HIGH>;

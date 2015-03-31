@@ -22,6 +22,7 @@
 #include "linux/component.h"
 #include "linux/of_gpio.h"
 #include "linux/of_platform.h"
+#include "soc/bcm2835/raspberrypi-firmware-property.h"
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 
@@ -29,13 +30,19 @@
 struct vc4_hdmi {
 	struct platform_device *pdev;
 	struct i2c_adapter *ddc;
-	void __iomem *regs;
+	void __iomem *hdmicore_regs;
+	void __iomem *hd_regs;
 	int hpd_gpio;
 };
+#define HDMI_READ(offset) readl(vc4->hdmi->hdmicore_regs + offset)
+#define HDMI_WRITE(offset, val) writel(val, vc4->hdmi->hdmicore_regs + offset)
+#define HD_READ(offset) readl(vc4->hdmi->hd_regs + offset)
+#define HD_WRITE(offset, val) writel(val, vc4->hdmi->hd_regs + offset)
 
 /* VC4 HDMI encoder KMS struct */
 struct vc4_hdmi_encoder {
 	struct drm_encoder base;
+	bool hdmi_monitor;
 };
 static inline struct vc4_hdmi_encoder *
 to_vc4_hdmi_encoder(struct drm_encoder *encoder)
@@ -69,13 +76,21 @@ static const struct {
 	HDMI_REG(VC4_HDMI_SW_RESET_CONTROL),
 	HDMI_REG(VC4_HDMI_HOTPLUG_INT),
 	HDMI_REG(VC4_HDMI_HOTPLUG),
-	HDMI_REG(VC4_HDMI_FIFO_CTL),
 	HDMI_REG(VC4_HDMI_HORZA),
 	HDMI_REG(VC4_HDMI_HORZB),
+	HDMI_REG(VC4_HDMI_FIFO_CTL),
+	HDMI_REG(VC4_HDMI_SCHEDULER_CONTROL),
 	HDMI_REG(VC4_HDMI_VERTA0),
 	HDMI_REG(VC4_HDMI_VERTA1),
 	HDMI_REG(VC4_HDMI_VERTB0),
 	HDMI_REG(VC4_HDMI_VERTB1),
+	HDMI_REG(VC4_HDMI_TX_PHY_RESET_CTL),
+};
+static const struct {
+	u32 reg;
+	const char *name;
+} hd_regs[] = {
+	HDMI_REG(VC4_HD_VID_CTL),
 };
 
 #ifdef CONFIG_DEBUG_FS
@@ -92,6 +107,12 @@ int vc4_hdmi_debugfs_regs(struct seq_file *m, void *unused)
 			   HDMI_READ(hdmi_regs[i].reg));
 	}
 
+	for (i = 0; i < ARRAY_SIZE(hd_regs); i++) {
+		seq_printf(m, "%s (0x%04x): 0x%08x\n",
+			   hd_regs[i].name, hd_regs[i].reg,
+			   HD_READ(hd_regs[i].reg));
+	}
+
 	return 0;
 }
 #endif /* CONFIG_DEBUG_FS */
@@ -106,6 +127,11 @@ static void vc4_hdmi_dump_regs(struct drm_device *dev)
 		DRM_INFO("0x%04x (%s): 0x%08x\n",
 			 hdmi_regs[i].reg, hdmi_regs[i].name,
 			 HDMI_READ(hdmi_regs[i].reg));
+	}
+	for (i = 0; i < ARRAY_SIZE(hd_regs); i++) {
+		DRM_INFO("0x%04x (%s): 0x%08x\n",
+			 hd_regs[i].reg, hd_regs[i].name,
+			 HDMI_READ(hd_regs[i].reg));
 	}
 }
 
@@ -136,6 +162,10 @@ static void vc4_hdmi_connector_destroy(struct drm_connector *connector)
 
 static int vc4_hdmi_connector_get_modes(struct drm_connector *connector)
 {
+	struct vc4_hdmi_connector *vc4_connector =
+		to_vc4_hdmi_connector(connector);
+	struct drm_encoder *encoder = vc4_connector->encoder;
+	struct vc4_hdmi_encoder *vc4_encoder = to_vc4_hdmi_encoder(encoder);
 	struct drm_device *dev = connector->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	int ret = 0;
@@ -145,6 +175,7 @@ static int vc4_hdmi_connector_get_modes(struct drm_connector *connector)
 	if (!edid)
 		return -ENODEV;
 
+	vc4_encoder->hdmi_monitor = drm_detect_hdmi_monitor(edid);
 	drm_mode_connector_update_edid_property(connector, edid);
 	ret = drm_add_edid_modes(connector, edid);
 
@@ -231,57 +262,128 @@ static bool vc4_hdmi_encoder_mode_fixup(struct drm_encoder *encoder,
 	return true;
 }
 
-static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
-				      struct drm_display_mode *mode,
-				      struct drm_display_mode *adjusted_mode)
+/*
+ * Asks the firmware to set the pixel clock.
+ *
+ * This should probably be in a separate firmware clock provider
+ * driver.
+ */
+static void
+vc4_set_pixel_clock(struct vc4_dev *vc4, u32 clock)
 {
+	u32 packet[2];
+	int ret;
+
+	packet[0] = 9; /* Pixel clock. */
+	packet[1] = clock;
+
+	ret = rpi_firmware_property(vc4->firmware_node,
+				    RPI_FIRMWARE_SET_CLOCK_RATE,
+				    &packet, sizeof(packet));
+
+	if (ret)
+		DRM_ERROR("Failed to set pixel clock: %d\n", ret);
+}
+
+static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
+				      struct drm_display_mode *unadjusted_mode,
+				      struct drm_display_mode *mode)
+{
+	struct vc4_hdmi_encoder *vc4_encoder = to_vc4_hdmi_encoder(encoder);
 	struct drm_device *dev = encoder->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	bool debug_dump_regs = false;
-
-	mode = adjusted_mode;
+	bool hsync_pos = !(mode->flags & DRM_MODE_FLAG_NHSYNC);
+	bool vsync_pos = !(mode->flags & DRM_MODE_FLAG_NVSYNC);
+	u32 vactive = (mode->vdisplay >>
+		       ((mode->flags & DRM_MODE_FLAG_INTERLACE) ? 1 : 0));
+	u32 verta = (VC4_SET_FIELD(mode->vsync_end - mode->vsync_start,
+				   VC4_HDMI_VERTA_VSP) |
+		     VC4_SET_FIELD(mode->vsync_start - mode->vdisplay,
+				   VC4_HDMI_VERTA_VFP) |
+		     VC4_SET_FIELD(vactive, VC4_HDMI_VERTA_VAL));
+	u32 vertb = (VC4_SET_FIELD(0, VC4_HDMI_VERTB_VSPO) |
+		     VC4_SET_FIELD(mode->vtotal - mode->vsync_end,
+				   VC4_HDMI_VERTB_VBP));
 
 	if (debug_dump_regs) {
 		DRM_INFO("HDMI regs before:\n");
 		vc4_hdmi_dump_regs(dev);
 	}
 
-	if (0) {
-		bool hsync_pos = !(mode->flags & DRM_MODE_FLAG_NHSYNC);
-		bool vsync_pos = !(mode->flags & DRM_MODE_FLAG_NVSYNC);
-		u32 vactive = (mode->vdisplay >>
-			       (mode->flags & DRM_MODE_FLAG_INTERLACE) ? 1 : 0);
-		u32 verta = (VC4_SET_FIELD(mode->vsync_start,
-					   VC4_HDMI_VERTA_VFP) |
-			     VC4_SET_FIELD(mode->vsync_end - mode->vsync_start,
-					   VC4_HDMI_VERTA_VSP) |
-			     VC4_SET_FIELD(vactive, VC4_HDMI_VERTA_VAL));
+	HDMI_WRITE(VC4_HDMI_TX_PHY_RESET_CTL, 0xf << 16);
 
-		HDMI_WRITE(VC4_HDMI_HORZA,
-			   (vsync_pos ? VC4_HDMI_HORZA_VPOS : 0) |
-			   (hsync_pos ? VC4_HDMI_HORZA_HPOS : 0));
-		HDMI_WRITE(VC4_HDMI_HORZB,
-			   VC4_SET_FIELD(mode->htotal - mode->hdisplay,
-					 VC4_HDMI_HORZB_HBP) |
-			   VC4_SET_FIELD(mode->hsync_end - mode->hsync_start,
-					 VC4_HDMI_HORZB_HSP) |
-			   0 /* XXX: HFP? */);
-		HDMI_WRITE(VC4_HDMI_VERTA0, verta);
-		HDMI_WRITE(VC4_HDMI_VERTA1, verta);
-		HDMI_WRITE(VC4_HDMI_VERTB0,
-			   VC4_SET_FIELD(mode->vsync_start,
-					 VC4_HDMI_VERTB_VSPO) |
-			   VC4_SET_FIELD(mode->vtotal - mode->vdisplay,
-					 VC4_HDMI_VERTB_VBP));
-		HDMI_WRITE(VC4_HDMI_VERTB1,
-			   VC4_SET_FIELD(mode->vsync_start,
-					 VC4_HDMI_VERTB_VSPO) |
-			   VC4_SET_FIELD(mode->vtotal - mode->vsync_end,
-					 VC4_HDMI_VERTB_VBP));
+	/* XXX: Pixel valve must be stopped. */
+	HD_WRITE(VC4_HD_VID_CTL, 0);
+	/* XXX: Set state machine clock. */
 
-		/* XXX: HD VID CTL */
-		HDMI_WRITE(VC4_HDMI_FIFO_CTL, VC4_HDMI_FIFO_CTL_MASTER_SLAVE_N);
-		/* XXX: HD CSC CTL */
+	if (0) /* XXX: Kills the screen. */
+		vc4_set_pixel_clock(vc4, mode->clock * 1000);
+
+	HDMI_WRITE(VC4_HDMI_SCHEDULER_CONTROL,
+		   HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) |
+		   VC4_HDMI_SCHEDULER_CONTROL_MANUAL_FORMAT |
+		   VC4_HDMI_SCHEDULER_CONTROL_IGNORE_VSYNC_PREDICTS);
+
+	HDMI_WRITE(VC4_HDMI_HORZA,
+		   (vsync_pos ? VC4_HDMI_HORZA_VPOS : 0) |
+		   (hsync_pos ? VC4_HDMI_HORZA_HPOS : 0) |
+		   VC4_SET_FIELD(mode->hdisplay, VC4_HDMI_HORZA_HAP));
+
+	HDMI_WRITE(VC4_HDMI_HORZB,
+		   VC4_SET_FIELD(mode->htotal - mode->hsync_end,
+				 VC4_HDMI_HORZB_HBP) |
+		   VC4_SET_FIELD(mode->hsync_end - mode->hsync_start,
+				 VC4_HDMI_HORZB_HSP) |
+		   VC4_SET_FIELD(mode->hsync_start - mode->hdisplay,
+				 VC4_HDMI_HORZB_HFP));
+
+	HDMI_WRITE(VC4_HDMI_VERTA0, verta);
+	HDMI_WRITE(VC4_HDMI_VERTA1, verta);
+
+	HDMI_WRITE(VC4_HDMI_VERTB0, vertb);
+	HDMI_WRITE(VC4_HDMI_VERTB1, vertb);
+
+	/* XXX: HD VID CTL set up sync polarities  */
+	HDMI_WRITE(VC4_HDMI_FIFO_CTL, VC4_HDMI_FIFO_CTL_MASTER_SLAVE_N);
+	/* XXX: HD CSC CTL = 0x20 */
+
+	/* XXX: Wait for video. */
+
+	/* XXX: Enable pixel valve. */
+	HDMI_WRITE(VC4_HDMI_TX_PHY_RESET_CTL, 0);
+	HD_WRITE(VC4_HD_VID_CTL,
+		 VC4_HD_VID_CTL_ENABLE |
+		 VC4_HD_VID_CTL_UNDERFLOW_ENABLE |
+		 VC4_HD_VID_CTL_FRAME_COUNTER_RESET);
+
+	if (vc4_encoder->hdmi_monitor) {
+		HDMI_WRITE(VC4_HDMI_SCHEDULER_CONTROL,
+			   HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) |
+			   VC4_HDMI_SCHEDULER_CONTROL_MODE_HDMI);
+	} else {
+		HDMI_WRITE(VC4_HDMI_RAM_PACKET_CONFIG,
+			   HDMI_READ(VC4_HDMI_RAM_PACKET_CONFIG) &
+			   ~(VC4_HDMI_RAM_PACKET_ENABLE));
+		HDMI_WRITE(VC4_HDMI_SCHEDULER_CONTROL,
+			   HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) &
+			   ~VC4_HDMI_SCHEDULER_CONTROL_MODE_HDMI);
+	}
+
+	/* Wait for set pending done. */
+
+	if (vc4_encoder->hdmi_monitor) {
+		WARN_ON(!(HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) &
+			  VC4_HDMI_SCHEDULER_CONTROL_HDMI_ACTIVE));
+		HDMI_WRITE(VC4_HDMI_SCHEDULER_CONTROL,
+			   HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) |
+			   VC4_HDMI_SCHEDULER_CONTROL_VERT_ALWAYS_KEEPOUT);
+
+		/* XXX: Set up HDMI_RAM_PACKET_CONFIG (1 << 16) and
+		 * set up infoframe.
+		 */
+
+		/* XXX: Set up drift fifo? */
 	}
 
 	if (debug_dump_regs) {
@@ -378,9 +480,13 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 		return -ENOMEM;
 
 	hdmi->pdev = pdev;
-	hdmi->regs = vc4_ioremap_regs(pdev);
-	if (IS_ERR(hdmi->regs))
-		return PTR_ERR(hdmi->regs);
+	hdmi->hdmicore_regs = vc4_ioremap_regs(pdev, 0);
+	if (IS_ERR(hdmi->hdmicore_regs))
+		return PTR_ERR(hdmi->hdmicore_regs);
+
+	hdmi->hd_regs = vc4_ioremap_regs(pdev, 1);
+	if (IS_ERR(hdmi->hd_regs))
+		return PTR_ERR(hdmi->hd_regs);
 
 	/* DDC i2c driver */
 	ddc_node = of_parse_phandle(dev->of_node, "ddc", 0);

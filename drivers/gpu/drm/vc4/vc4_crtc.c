@@ -323,7 +323,7 @@ static int vc4_crtc_bind(struct device *dev, struct device *master, void *data)
 		return -ENOMEM;
 	crtc = &vc4_crtc->base;
 
-	vc4_crtc->regs = vc4_ioremap_regs(pdev);
+	vc4_crtc->regs = vc4_ioremap_regs(pdev, 0);
 	if (IS_ERR(vc4_crtc->regs))
 		return PTR_ERR(vc4_crtc->regs);
 

@@ -260,41 +260,71 @@
 #define SCALER_DLIST_START                      0x00002000
 #define SCALER_DLIST_SIZE                       0x00004000
 
-#define VC4_HDMI_CORE_REV			0x00
-#define VC4_HDMI_SW_RESET_CONTROL		0x04
-#define VC4_HDMI_HOTPLUG_INT			0x08
+#define VC4_HDMI_CORE_REV			0x000
+#define VC4_HDMI_SW_RESET_CONTROL		0x004
+#define VC4_HDMI_HOTPLUG_INT			0x008
 
-#define VC4_HDMI_HOTPLUG			0x0c
+#define VC4_HDMI_HOTPLUG			0x00c
 # define VC4_HDMI_HOTPLUG_CONNECTED		(1 << 0)
 
-#define VC4_HDMI_HORZA				0xc4
+#define VC4_HDMI_RAM_PACKET_CONFIG		0x0a0
+# define VC4_HDMI_RAM_PACKET_ENABLE		(1 << 16)
+
+#define VC4_HDMI_HORZA				0x0c4
 # define VC4_HDMI_HORZA_VPOS			(1 << 14)
 # define VC4_HDMI_HORZA_HPOS			(1 << 13)
+/* Horizontal active pixels (hdisplay). */
+# define VC4_HDMI_HORZA_HAP_MASK		VC4_MASK(12, 0)
+# define VC4_HDMI_HORZA_HAP_SHIFT		0
 
-#define VC4_HDMI_HORZB				0xc8
+#define VC4_HDMI_HORZB				0x0c8
+/* Horizontal pack porch (htotal - hsync_end). */
 # define VC4_HDMI_HORZB_HBP_MASK		VC4_MASK(29, 20)
 # define VC4_HDMI_HORZB_HBP_SHIFT		20
+/* Horizontal sync pulse (hsync_end - hsync_start). */
 # define VC4_HDMI_HORZB_HSP_MASK		VC4_MASK(19, 10)
 # define VC4_HDMI_HORZB_HSP_SHIFT		10
+/* Horizontal front porch (hsync_start - hdisplay). */
+# define VC4_HDMI_HORZB_HFP_MASK		VC4_MASK(9, 0)
+# define VC4_HDMI_HORZB_HFP_SHIFT		0
 
-#define VC4_HDMI_FIFO_CTL			0x5c
+#define VC4_HDMI_FIFO_CTL			0x05c
 # define VC4_HDMI_FIFO_CTL_MASTER_SLAVE_N	(1 << 0)
 
-#define VC4_HDMI_VERTA0				0xcc
-#define VC4_HDMI_VERTA1				0xd4
+#define VC4_HDMI_SCHEDULER_CONTROL		0x0c0
+# define VC4_HDMI_SCHEDULER_CONTROL_MANUAL_FORMAT (1 << 15)
+# define VC4_HDMI_SCHEDULER_CONTROL_IGNORE_VSYNC_PREDICTS (1 << 5)
+# define VC4_HDMI_SCHEDULER_CONTROL_VERT_ALWAYS_KEEPOUT	(1 << 3)
+# define VC4_HDMI_SCHEDULER_CONTROL_HDMI_ACTIVE	(1 << 1)
+# define VC4_HDMI_SCHEDULER_CONTROL_MODE_HDMI	(1 << 0)
+
+#define VC4_HDMI_VERTA0				0x0cc
+#define VC4_HDMI_VERTA1				0x0d4
+/* Vertical sync pulse (vsync_end - vsync_start). */
 # define VC4_HDMI_VERTA_VSP_MASK		VC4_MASK(24, 20)
 # define VC4_HDMI_VERTA_VSP_SHIFT		20
+/* Vertical front porch (vsync_start - vdisplay). */
 # define VC4_HDMI_VERTA_VFP_MASK		VC4_MASK(19, 13)
 # define VC4_HDMI_VERTA_VFP_SHIFT		13
+/* Vertical active lines (vdisplay). */
 # define VC4_HDMI_VERTA_VAL_MASK		VC4_MASK(12, 0)
 # define VC4_HDMI_VERTA_VAL_SHIFT		0
 
-#define VC4_HDMI_VERTB0				0xd0
-#define VC4_HDMI_VERTB1				0xd8
+#define VC4_HDMI_VERTB0				0x0d0
+#define VC4_HDMI_VERTB1				0x0d8
+/* Vertical sync pulse offset (for interlaced) */
 # define VC4_HDMI_VERTB_VSPO_MASK		VC4_MASK(21, 9)
 # define VC4_HDMI_VERTB_VSPO_SHIFT		9
+/* Vertical pack porch (vtotal - vsync_end). */
 # define VC4_HDMI_VERTB_VBP_MASK		VC4_MASK(8, 0)
 # define VC4_HDMI_VERTB_VBP_SHIFT		0
+
+#define VC4_HDMI_TX_PHY_RESET_CTL		0x2c0
+
+#define VC4_HD_VID_CTL				0x038
+# define VC4_HD_VID_CTL_ENABLE			(1 << 31)
+# define VC4_HD_VID_CTL_UNDERFLOW_ENABLE	(1 << 30)
+# define VC4_HD_VID_CTL_FRAME_COUNTER_RESET	(1 << 29)
 
 /* HVS display list information. */
 #define HVS_BOOTLOADER_DLIST_END                32

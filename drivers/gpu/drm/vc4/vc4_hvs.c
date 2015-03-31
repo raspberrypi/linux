@@ -99,7 +99,7 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 
 	hvs->pdev = pdev;
 
-	hvs->regs = vc4_ioremap_regs(pdev);
+	hvs->regs = vc4_ioremap_regs(pdev, 0);
 	if (IS_ERR(hvs->regs))
 		return PTR_ERR(hvs->regs);
 
