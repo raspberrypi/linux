@@ -1,0 +1,209 @@
+/*
+ * Copyright 2015 Calao-systems
+ *
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
+
+/*
+ * Pinball board is manufactured by calao-systems.
+ * More info at : http://www.pinballboard.org/
+ */
+
+/dts-v1/;
+
+/include/ "bcm2708.dtsi"
+
+/ {
+	compatible = "brcm,bcm2708";
+	model = "Pinball board";
+
+	clocks {
+		can0_osc: can0_osc {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <20000000>;
+		};
+
+		duart_clk: duart_clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <14745600>;
+		};
+	};
+
+	aliases {
+		soc = &soc;
+		spi0 = &spi0;
+		i2c0 = &i2c0;
+		i2c1 = &i2c1;
+		i2s  = &i2s;
+		gpio = &gpio;
+		intc = &intc;
+		leds = &leds;
+		sound = &sound;
+	};
+
+	sound: sound {
+		compatible = "hifiberry,hifiberry-digi";
+		i2s-controller = <&i2s>;
+	};
+
+	gpio_keys: gpio_keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&button1>;
+
+		button@40 {
+			label = "GPIO KEY_ENTER";
+			linux,code = <28>;
+			gpios = <&gpio 40 1>;
+			gpio-key,wakeup;
+		};
+	};
+
+};
+
+&gpio {
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0 &uart1>;
+
+	uart0: uart0 {
+		brcm,pins = <36 37>;
+		brcm,function = <6>; /* alt2 */
+	};
+
+	uart1: uart1 {
+		brcm,pins = <14 15>;
+		brcm,function = <2>; /* alt5 */
+	};
+
+	spi0_pins: spi0_pins {
+		brcm,pins = <7 8 9 10 11>;
+		brcm,function = <4>; /* alt0 */
+	};
+
+	i2c0_pins: i2c0 {
+		brcm,pins = <0 1>;
+		brcm,function = <4>;
+	};
+
+	i2c1_pins: i2c1 {
+		brcm,pins = <2 3>;
+		brcm,function = <4>;
+	};
+
+	i2s_pins: i2s {
+		brcm,pins = <28 29 31>;
+		brcm,function = <6>; /* alt2 */
+	};
+
+	button1: button1 {
+		brcm,pins = <40>;
+		brcm,function = <0>; /* in */
+		brcm,pull = <2>; /* up */
+	};
+
+};
+
+&spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi0_pins>;
+
+	can0: mcp2515@0 {
+		compatible = "microchip,mcp2515";
+		reg = <0>;
+		clocks = <&can0_osc>;
+		irq-gpio = <&gpio 33 0x2>;
+		interrupts = <33 2>;
+		interrupt-parent = <&gpio>;
+		interrupt-controller;
+		spi-max-frequency = <10000000>;
+	};
+
+	max3109: max3109@1 {
+		compatible = "maxim,max3109";
+		reg = <1>;
+		clocks = <&duart_clk>;
+		clock-names = "osc";
+		irq-gpio = <&gpio 13 0x2>;
+		interrupts = <13 2>;
+		interrupt-parent = <&gpio>;
+		interrupt-controller;
+		gpio-controller;
+		#gpio-cells = <2>;
+		spi-max-frequency = <26000000>;
+	};
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_pins>;
+	clock-frequency = <100000>;
+
+	pca9536@41 {
+		compatible = "nxp,pca9536";
+		reg = <0x41>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+
+	at24@50 {
+		compatible = "at24,24c02";
+		pagesize = <16>;
+		reg = <0x50>;
+	};
+
+	rtc@68 {
+		compatible = "dallas,ds3232";
+		reg = <0x68>;
+	};
+
+	wm8804@3b {
+		#sound-dai-cells = <0>;
+		compatible = "wlf,wm8804";
+		reg = <0x3b>;
+	};
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+	clock-frequency = <100000>;
+};
+
+&i2s {
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s_pins>;
+};
+
+&leds {
+	act_led: act {
+		label = "led0";
+		linux,default-trigger = "heartbeat";
+		gpios = <&gpio 30 1>;
+	};
+};
+
+/ {
+	__overrides__ {
+		i2s = <&i2s>,"status";
+		spi = <&spi0>,"status";
+		i2c0 = <&i2c0>,"status";
+		i2c1 = <&i2c1>,"status";
+		i2c0_baudrate = <&i2c0>,"clock-frequency:0";
+		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
+
+		act_led_gpio = <&act_led>,"gpios:4";
+		act_led_activelow = <&act_led>,"gpios:8";
+		act_led_trigger = <&act_led>,"linux,default-trigger";
+	};
+};
