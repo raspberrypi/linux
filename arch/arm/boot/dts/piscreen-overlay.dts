@@ -75,7 +75,6 @@
 			piscreen-ts@1 {
 				compatible = "ti,ads7846";
 				reg = <1>;
-
 				spi-max-frequency = <2000000>;
 				interrupts = <17 2>; /* high-to-low edge triggered */
 				interrupt-parent = <&gpio>;
