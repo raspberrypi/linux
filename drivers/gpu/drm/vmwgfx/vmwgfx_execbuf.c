@@ -2778,13 +2778,11 @@ int vmw_execbuf_ioctl(struct drm_device *dev, void *data,
 				  NULL, arg->command_size, arg->throttle_us,
 				  (void __user *)(unsigned long)arg->fence_rep,
 				  NULL);
-
+	ttm_read_unlock(&dev_priv->reservation_sem);
 	if (unlikely(ret != 0))
-		goto out_unlock;
+		return ret;
 
 	vmw_kms_cursor_post_execbuf(dev_priv);
 
-out_unlock:
-	ttm_read_unlock(&dev_priv->reservation_sem);
-	return ret;
+	return 0;
 }
