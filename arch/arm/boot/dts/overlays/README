@@ -329,6 +329,8 @@ Params: speed                    Display SPI bus speed
 
         debug                    Debug output level {0-7}
 
+        xohms                    Touchpanel sensitivity (X-plate resistance)
+
 
 Name:   pitft28-resistive
 Info:   Adafruit PiTFT 2.8" resistive touch screen
