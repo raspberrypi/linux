@@ -72,7 +72,7 @@
 					0x1000029>;
 			};
 
-			piscreen-ts@1 {
+			piscreen_ts: piscreen-ts@1 {
 				compatible = "ti,ads7846";
 				reg = <1>;
 
@@ -91,5 +91,6 @@
 		rotate =	<&piscreen>,"rotate:0";
 		fps =		<&piscreen>,"fps:0";
 		debug =		<&piscreen>,"debug:0";
+		xohms =		<&piscreen_ts>,"ti,x-plate-ohms;0";
 	};
 };
