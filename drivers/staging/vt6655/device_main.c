@@ -988,10 +988,8 @@ static void device_free_tx_buf(struct vnt_private *pDevice, PSTxDesc pDesc)
 				 PCI_DMA_TODEVICE);
 	}
 
-	if (pTDInfo->byFlags & TD_FLAGS_NETIF_SKB)
+	if (skb)
 		ieee80211_tx_status_irqsafe(pDevice->hw, skb);
-	else
-		dev_kfree_skb_irq(skb);
 
 	pTDInfo->skb_dma = 0;
 	pTDInfo->skb = NULL;
