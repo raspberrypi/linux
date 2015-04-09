@@ -121,8 +121,6 @@ int geneve_xmit_skb(struct geneve_sock *gs, struct rtable *rt,
 	int min_headroom;
 	int err;
 
-	skb = udp_tunnel_handle_offloads(skb, !gs->sock->sk->sk_no_check_tx);
-
 	min_headroom = LL_RESERVED_SPACE(rt->dst.dev) + rt->dst.header_len
 			+ GENEVE_BASE_HLEN + opt_len + sizeof(struct iphdr)
 			+ (vlan_tx_tag_present(skb) ? VLAN_HLEN : 0);
@@ -134,6 +132,10 @@ int geneve_xmit_skb(struct geneve_sock *gs, struct rtable *rt,
 	skb = vlan_hwaccel_push_inside(skb);
 	if (unlikely(!skb))
 		return -ENOMEM;
+
+	skb = udp_tunnel_handle_offloads(skb, !gs->sock->sk->sk_no_check_tx);
+	if (IS_ERR(skb))
+		return PTR_ERR(skb);
 
 	gnvh = (struct genevehdr *)__skb_push(skb, sizeof(*gnvh) + opt_len);
 	geneve_build_header(gnvh, tun_flags, vni, opt_len, opt);

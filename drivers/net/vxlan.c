@@ -1578,12 +1578,6 @@ static int vxlan6_xmit_skb(struct vxlan_sock *vs,
 	int err;
 	bool udp_sum = !udp_get_no_check6_tx(vs->sock->sk);
 
-	skb = udp_tunnel_handle_offloads(skb, udp_sum);
-	if (IS_ERR(skb)) {
-		err = -EINVAL;
-		goto err;
-	}
-
 	skb_scrub_packet(skb, xnet);
 
 	min_headroom = LL_RESERVED_SPACE(dst->dev) + dst->header_len
@@ -1600,6 +1594,12 @@ static int vxlan6_xmit_skb(struct vxlan_sock *vs,
 	skb = vlan_hwaccel_push_inside(skb);
 	if (WARN_ON(!skb)) {
 		err = -ENOMEM;
+		goto err;
+	}
+
+	skb = udp_tunnel_handle_offloads(skb, udp_sum);
+	if (IS_ERR(skb)) {
+		err = -EINVAL;
 		goto err;
 	}
 
@@ -1628,10 +1628,6 @@ int vxlan_xmit_skb(struct vxlan_sock *vs,
 	int err;
 	bool udp_sum = !vs->sock->sk->sk_no_check_tx;
 
-	skb = udp_tunnel_handle_offloads(skb, udp_sum);
-	if (IS_ERR(skb))
-		return PTR_ERR(skb);
-
 	min_headroom = LL_RESERVED_SPACE(rt->dst.dev) + rt->dst.header_len
 			+ VXLAN_HLEN + sizeof(struct iphdr)
 			+ (vlan_tx_tag_present(skb) ? VLAN_HLEN : 0);
@@ -1646,6 +1642,10 @@ int vxlan_xmit_skb(struct vxlan_sock *vs,
 	skb = vlan_hwaccel_push_inside(skb);
 	if (WARN_ON(!skb))
 		return -ENOMEM;
+
+	skb = udp_tunnel_handle_offloads(skb, udp_sum);
+	if (IS_ERR(skb))
+		return PTR_ERR(skb);
 
 	vxh = (struct vxlanhdr *) __skb_push(skb, sizeof(*vxh));
 	vxh->vx_flags = htonl(VXLAN_FLAGS);
