@@ -2403,7 +2403,7 @@ static noinline int btrfs_ioctl_snap_destroy(struct file *file,
 			"Attempt to delete subvolume %llu during send",
 			dest->root_key.objectid);
 		err = -EPERM;
-		goto out_dput;
+		goto out_unlock_inode;
 	}
 
 	d_invalidate(dentry);
@@ -2498,6 +2498,7 @@ out_up_write:
 				root_flags & ~BTRFS_ROOT_SUBVOL_DEAD);
 		spin_unlock(&dest->root_item_lock);
 	}
+out_unlock_inode:
 	mutex_unlock(&inode->i_mutex);
 	if (!err) {
 		shrink_dcache_sb(root->fs_info->sb);
