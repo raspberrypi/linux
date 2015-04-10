@@ -287,7 +287,7 @@ validate_branch_to_sublist(VALIDATE_ARGS)
 
 	offset = *(uint32_t *)(untrusted + 0);
 	if (offset % exec->tile_alloc_init_block_size ||
-	    offset / exec->tile_alloc_init_block_size >
+	    offset / exec->tile_alloc_init_block_size >=
 	    exec->bin_tiles_x * exec->bin_tiles_y) {
 		DRM_ERROR("VC4_PACKET_BRANCH_TO_SUB_LIST must jump to initial "
 			  "tile allocation space.\n");
