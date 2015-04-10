@@ -428,6 +428,7 @@ vc4_validate_cl(struct drm_device *dev,
 		void *unvalidated,
 		uint32_t len,
 		bool is_bin,
+		bool has_bin,
 		struct vc4_exec_info *exec);
 
 int

@@ -702,6 +702,7 @@ vc4_validate_cl(struct drm_device *dev,
 		void *unvalidated,
 		uint32_t len,
 		bool is_bin,
+		bool has_bin,
 		struct vc4_exec_info *exec)
 {
 	uint32_t dst_offset = 0;
@@ -772,7 +773,7 @@ vc4_validate_cl(struct drm_device *dev,
 	if (is_bin) {
 		exec->ct0ea = exec->ct0ca + dst_offset;
 
-		if (!exec->found_start_tile_binning_packet) {
+		if (has_bin && !exec->found_start_tile_binning_packet) {
 			DRM_ERROR("Bin CL missing VC4_PACKET_START_TILE_BINNING\n");
 			return -EINVAL;
 		}
@@ -786,8 +787,10 @@ vc4_validate_cl(struct drm_device *dev,
 		 * increment from the bin CL.  Otherwise a later submit would
 		 * have render execute immediately.
 		 */
-		if (!exec->found_wait_on_semaphore_packet) {
-			DRM_ERROR("Render CL missing VC4_PACKET_WAIT_ON_SEMAPHORE\n");
+		if (exec->found_wait_on_semaphore_packet != has_bin) {
+			DRM_ERROR("Render CL %s VC4_PACKET_WAIT_ON_SEMAPHORE\n",
+				  exec->found_wait_on_semaphore_packet ?
+				  "has" : "missing");
 			return -EINVAL;
 		}
 		exec->ct1ea = exec->ct1ca + dst_offset;
