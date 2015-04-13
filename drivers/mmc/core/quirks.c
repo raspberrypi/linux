@@ -71,6 +71,7 @@ static const struct mmc_fixup mmc_fixup_methods[] = {
 
 void mmc_fixup_device(struct mmc_card *card, const struct mmc_fixup *table)
 {
+	extern unsigned mmc_debug;
 	const struct mmc_fixup *f;
 	u64 rev = cid_rev_card(card);
 
@@ -98,6 +99,7 @@ void mmc_fixup_device(struct mmc_card *card, const struct mmc_fixup *table)
 	/* SDHCI on BCM2708 - bug causes a certain sequence of CMD23 operations to fail.
 	 * Disable this flag for all cards (fall-back to CMD25/CMD18 multi-block transfers).
 	 */
+	if (mmc_debug & (1<<13))
 	card->quirks |= MMC_QUIRK_BLK_NO_CMD23;
 }
 EXPORT_SYMBOL(mmc_fixup_device);
