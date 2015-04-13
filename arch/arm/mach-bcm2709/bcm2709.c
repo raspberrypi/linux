@@ -636,6 +636,115 @@ static struct platform_device bcm2835_thermal_device = {
 	.name = "bcm2835_thermal",
 };
 
+#if defined(CONFIG_SND_BCM2708_SOC_I2S) || defined(CONFIG_SND_BCM2708_SOC_I2S_MODULE)
+static struct resource bcm2708_i2s_resources[] = {
+	{
+		.start = I2S_BASE,
+		.end = I2S_BASE + 0x20,
+		.flags = IORESOURCE_MEM,
+	},
+        {
+		.start = PCM_CLOCK_BASE,
+		.end = PCM_CLOCK_BASE + 0x02,
+		.flags = IORESOURCE_MEM,
+	}
+};
+
+static struct platform_device bcm2708_i2s_device = {
+	.name = "bcm2708-i2s",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(bcm2708_i2s_resources),
+	.resource = bcm2708_i2s_resources,
+};
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
+static struct platform_device snd_hifiberry_dac_device = {
+        .name = "snd-hifiberry-dac",
+        .id = 0,
+        .num_resources = 0,
+};
+
+static struct platform_device snd_pcm5102a_codec_device = {
+        .name = "pcm5102a-codec",
+        .id = -1,
+        .num_resources = 0,
+};
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS_MODULE)
+static struct platform_device snd_rpi_hifiberry_dacplus_device = {
+        .name = "snd-rpi-hifiberry-dacplus",
+        .id = 0,
+        .num_resources = 0,
+};
+
+static struct i2c_board_info __initdata snd_pcm512x_hbdacplus_i2c_devices[] = {
+        {
+                I2C_BOARD_INFO("pcm5122", 0x4d)
+        },
+};
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI_MODULE)
+static struct platform_device snd_hifiberry_digi_device = {
+        .name = "snd-hifiberry-digi",
+        .id = 0,
+        .num_resources = 0,
+};
+
+static struct i2c_board_info __initdata snd_wm8804_i2c_devices[] = {
+        {
+                I2C_BOARD_INFO("wm8804", 0x3b)
+        },
+};
+
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP_MODULE)
+static struct platform_device snd_hifiberry_amp_device = {
+        .name = "snd-hifiberry-amp",
+        .id = 0,
+        .num_resources = 0,
+};
+
+static struct i2c_board_info __initdata snd_tas5713_i2c_devices[] = {
+        {
+                I2C_BOARD_INFO("tas5713", 0x1b)
+        },
+};
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
+static struct platform_device snd_rpi_dac_device = {
+        .name = "snd-rpi-dac",
+        .id = 0,
+        .num_resources = 0,
+};
+
+static struct platform_device snd_pcm1794a_codec_device = {
+        .name = "pcm1794a-codec",
+        .id = -1,
+        .num_resources = 0,
+};
+#endif
+
+
+#if defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) || defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC_MODULE)
+static struct platform_device snd_rpi_iqaudio_dac_device = {
+        .name = "snd-rpi-iqaudio-dac",
+        .id = 0,
+        .num_resources = 0,
+};
+
+// Use the actual device name rather than generic driver name
+static struct i2c_board_info __initdata snd_pcm512x_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("pcm5122", 0x4c)
+	},
+};
+#endif
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -799,6 +908,40 @@ void __init bcm2709_init(void)
 	}
 
 	bcm_register_device_dt(&bcm2835_thermal_device);
+
+#if defined(CONFIG_SND_BCM2708_SOC_I2S) || defined(CONFIG_SND_BCM2708_SOC_I2S_MODULE)
+	bcm_register_device_dt(&bcm2708_i2s_device);
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
+        bcm_register_device_dt(&snd_hifiberry_dac_device);
+        bcm_register_device_dt(&snd_pcm5102a_codec_device);
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS_MODULE)
+        bcm_register_device_dt(&snd_rpi_hifiberry_dacplus_device);
+        i2c_register_board_info_dt(1, snd_pcm512x_hbdacplus_i2c_devices, ARRAY_SIZE(snd_pcm512x_hbdacplus_i2c_devices));
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI_MODULE)
+        bcm_register_device_dt(&snd_hifiberry_digi_device);
+        i2c_register_board_info_dt(1, snd_wm8804_i2c_devices, ARRAY_SIZE(snd_wm8804_i2c_devices));
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP_MODULE)
+        bcm_register_device_dt(&snd_hifiberry_amp_device);
+        i2c_register_board_info_dt(1, snd_tas5713_i2c_devices, ARRAY_SIZE(snd_tas5713_i2c_devices));
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_RPI_DAC) || defined(CONFIG_SND_BCM2708_SOC_RPI_DAC_MODULE)
+        bcm_register_device_dt(&snd_rpi_dac_device);
+        bcm_register_device_dt(&snd_pcm1794a_codec_device);
+#endif
+
+#if defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) || defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC_MODULE)
+        bcm_register_device_dt(&snd_rpi_iqaudio_dac_device);
+        i2c_register_board_info_dt(1, snd_pcm512x_i2c_devices, ARRAY_SIZE(snd_pcm512x_i2c_devices));
+#endif
 
 	if (!use_dt) {
 		for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {

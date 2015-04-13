@@ -173,6 +173,21 @@ static int snd_rpi_hifiberry_digi_probe(struct platform_device *pdev)
 	int ret = 0;
 
 	snd_rpi_hifiberry_digi.dev = &pdev->dev;
+
+	if (pdev->dev.of_node) {
+	    struct device_node *i2s_node;
+	    struct snd_soc_dai_link *dai = &snd_rpi_hifiberry_digi_dai[0];
+	    i2s_node = of_parse_phandle(pdev->dev.of_node,
+					"i2s-controller", 0);
+
+	    if (i2s_node) {
+		dai->cpu_dai_name = NULL;
+		dai->cpu_of_node = i2s_node;
+		dai->platform_name = NULL;
+		dai->platform_of_node = i2s_node;
+	    }
+	}
+
 	ret = snd_soc_register_card(&snd_rpi_hifiberry_digi);
 	if (ret)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
@@ -185,10 +200,17 @@ static int snd_rpi_hifiberry_digi_remove(struct platform_device *pdev)
 	return snd_soc_unregister_card(&snd_rpi_hifiberry_digi);
 }
 
+static const struct of_device_id snd_rpi_hifiberry_digi_of_match[] = {
+	{ .compatible = "hifiberry,hifiberry-digi", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, snd_rpi_hifiberry_digi_of_match);
+
 static struct platform_driver snd_rpi_hifiberry_digi_driver = {
 	.driver = {
 		.name   = "snd-hifiberry-digi",
 		.owner  = THIS_MODULE,
+		.of_match_table = snd_rpi_hifiberry_digi_of_match,
 	},
 	.probe          = snd_rpi_hifiberry_digi_probe,
 	.remove         = snd_rpi_hifiberry_digi_remove,
