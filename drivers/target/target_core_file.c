@@ -273,7 +273,7 @@ static int fd_do_prot_rw(struct se_cmd *cmd, struct fd_prot *fd_prot,
 		     se_dev->prot_length;
 
 	if (!is_write) {
-		fd_prot->prot_buf = vzalloc(prot_size);
+		fd_prot->prot_buf = kzalloc(prot_size, GFP_KERNEL);
 		if (!fd_prot->prot_buf) {
 			pr_err("Unable to allocate fd_prot->prot_buf\n");
 			return -ENOMEM;
@@ -285,9 +285,10 @@ static int fd_do_prot_rw(struct se_cmd *cmd, struct fd_prot *fd_prot,
 					   fd_prot->prot_sg_nents, GFP_KERNEL);
 		if (!fd_prot->prot_sg) {
 			pr_err("Unable to allocate fd_prot->prot_sg\n");
-			vfree(fd_prot->prot_buf);
+			kfree(fd_prot->prot_buf);
 			return -ENOMEM;
 		}
+		sg_init_table(fd_prot->prot_sg, fd_prot->prot_sg_nents);
 		size = prot_size;
 
 		for_each_sg(fd_prot->prot_sg, sg, fd_prot->prot_sg_nents, i) {
@@ -317,7 +318,7 @@ static int fd_do_prot_rw(struct se_cmd *cmd, struct fd_prot *fd_prot,
 
 	if (is_write || ret < 0) {
 		kfree(fd_prot->prot_sg);
-		vfree(fd_prot->prot_buf);
+		kfree(fd_prot->prot_buf);
 	}
 
 	return ret;
@@ -652,11 +653,11 @@ fd_execute_rw(struct se_cmd *cmd, struct scatterlist *sgl, u32 sgl_nents,
 						 0, fd_prot.prot_sg, 0);
 			if (rc) {
 				kfree(fd_prot.prot_sg);
-				vfree(fd_prot.prot_buf);
+				kfree(fd_prot.prot_buf);
 				return rc;
 			}
 			kfree(fd_prot.prot_sg);
-			vfree(fd_prot.prot_buf);
+			kfree(fd_prot.prot_buf);
 		}
 	} else {
 		memset(&fd_prot, 0, sizeof(struct fd_prot));
@@ -672,7 +673,7 @@ fd_execute_rw(struct se_cmd *cmd, struct scatterlist *sgl, u32 sgl_nents,
 						  0, fd_prot.prot_sg, 0);
 			if (rc) {
 				kfree(fd_prot.prot_sg);
-				vfree(fd_prot.prot_buf);
+				kfree(fd_prot.prot_buf);
 				return rc;
 			}
 		}
@@ -708,7 +709,7 @@ fd_execute_rw(struct se_cmd *cmd, struct scatterlist *sgl, u32 sgl_nents,
 
 	if (ret < 0) {
 		kfree(fd_prot.prot_sg);
-		vfree(fd_prot.prot_buf);
+		kfree(fd_prot.prot_buf);
 		return TCM_LOGICAL_UNIT_COMMUNICATION_FAILURE;
 	}
 
