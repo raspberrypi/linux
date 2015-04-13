@@ -71,6 +71,8 @@ pr_debug(DRIVER_NAME " [%s()]: " f, __func__, ## x)
 #define BCM2835_VCMMU_SHIFT		(0x7E000000 - BCM2708_PERI_BASE)
 
 
+static unsigned mmc_debug;
+
 struct bcm2835_host {
 	spinlock_t				lock;
 
@@ -131,20 +133,94 @@ struct bcm2835_host {
 };
 
 
+static inline u32 bcm2835_mmc_axi_outstanding_reads(void)
+{
+#ifdef CONFIG_ARCH_BCM2709
+	u32 r = readl(__io_address(ARM_LOCAL_AXI_COUNT));
+#else
+	u32 r = 0;
+#endif
+	return (r >> 0) & 0x3ff;
+}
+
+static inline u32 bcm2835_mmc_axi_outstanding_writes(void)
+{
+#ifdef CONFIG_ARCH_BCM2709
+	u32 r = readl(__io_address(ARM_LOCAL_AXI_COUNT));
+#else
+	u32 r = 0;
+#endif
+	return (r >> 16) & 0x3ff;
+}
+
 static inline void bcm2835_mmc_writel(struct bcm2835_host *host, u32 val, int reg)
 {
+	u32 delay;
+	if (mmc_debug & (1<<0))
+		while (bcm2835_mmc_axi_outstanding_reads() > 1)
+			cpu_relax();
+	if (mmc_debug & (1<<1))
+		while (bcm2835_mmc_axi_outstanding_writes() > 0)
+			cpu_relax();
+
 	writel(val, host->ioaddr + reg);
 	udelay(BCM2835_SDHCI_WRITE_DELAY(max(host->clock, MIN_FREQ)));
+
+	delay = ((mmc_debug >> 16) & 0xf) << ((mmc_debug >> 20) & 0xf);
+	if (delay)
+		udelay(delay);
+
+	if (mmc_debug & (1<<2))
+		while (bcm2835_mmc_axi_outstanding_reads() > 1)
+			cpu_relax();
+	if (mmc_debug & (1<<3))
+		while (bcm2835_mmc_axi_outstanding_writes() > 0)
+			cpu_relax();
 }
 
 static inline void mmc_raw_writel(struct bcm2835_host *host, u32 val, int reg)
 {
+	u32 delay;
+	if (mmc_debug & (1<<4))
+		while (bcm2835_mmc_axi_outstanding_reads() > 1)
+			cpu_relax();
+	if (mmc_debug & (1<<5))
+		while (bcm2835_mmc_axi_outstanding_writes() > 0)
+			cpu_relax();
+
 	writel(val, host->ioaddr + reg);
+
+	delay = ((mmc_debug >> 24) & 0xf) << ((mmc_debug >> 28) & 0xf);
+	if (delay)
+		udelay(delay);
+
+	if (mmc_debug & (1<<6))
+		while (bcm2835_mmc_axi_outstanding_reads() > 1)
+			cpu_relax();
+	if (mmc_debug & (1<<7))
+		while (bcm2835_mmc_axi_outstanding_writes() > 0)
+			cpu_relax();
 }
 
 static inline u32 bcm2835_mmc_readl(struct bcm2835_host *host, int reg)
 {
-	return readl(host->ioaddr + reg);
+	u32 ret;
+	if (mmc_debug & (1<<8))
+		while (bcm2835_mmc_axi_outstanding_reads() > 1)
+			cpu_relax();
+	if (mmc_debug & (1<<9))
+		while (bcm2835_mmc_axi_outstanding_writes() > 0)
+			cpu_relax();
+
+	ret = readl(host->ioaddr + reg);
+
+	if (mmc_debug & (1<<10))
+		while (bcm2835_mmc_axi_outstanding_reads() > 1)
+			cpu_relax();
+	if (mmc_debug & (1<<11))
+		while (bcm2835_mmc_axi_outstanding_writes() > 0)
+			cpu_relax();
+	return ret;
 }
 
 static inline void bcm2835_mmc_writew(struct bcm2835_host *host, u16 val, int reg)
@@ -1263,9 +1339,7 @@ int bcm2835_mmc_add_host(struct bcm2835_host *host)
 {
 	struct mmc_host *mmc = host->mmc;
 	struct device *dev = mmc->parent;
-#ifndef FORCE_PIO
 	struct dma_slave_config cfg;
-#endif
 	int ret;
 
 	bcm2835_mmc_reset(host, SDHCI_RESET_ALL);
@@ -1289,10 +1363,11 @@ int bcm2835_mmc_add_host(struct bcm2835_host *host)
 
 	spin_lock_init(&host->lock);
 
-#ifdef FORCE_PIO
+dev_info(dev, "mmc_debug:%x\n", mmc_debug);
+if (mmc_debug & (1<<12)) {
 	dev_info(dev, "Forcing PIO mode\n");
 	host->have_dma = false;
-#else
+} else {
 	if (IS_ERR_OR_NULL(host->dma_chan_tx) ||
 	    IS_ERR_OR_NULL(host->dma_chan_rx)) {
 		dev_err(dev, "%s: Unable to initialise DMA channels. Falling back to PIO\n",
@@ -1316,7 +1391,7 @@ int bcm2835_mmc_add_host(struct bcm2835_host *host)
 		cfg.dst_addr = 0;
 		ret = dmaengine_slave_config(host->dma_chan_rx, &cfg);
 	}
-#endif
+}
 	mmc->max_segs = 128;
 	mmc->max_req_size = 524288;
 	mmc->max_seg_size = mmc->max_req_size;
@@ -1386,7 +1461,7 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 
 	host->phys_addr = iomem->start + BCM2835_VCMMU_SHIFT;
 
-#ifndef FORCE_PIO
+if (!(mmc_debug & (1<<12))) {
 	if (node) {
 		host->dma_chan_tx = of_dma_request_slave_channel(node, "tx");
 		host->dma_chan_rx = of_dma_request_slave_channel(node, "rx");
@@ -1399,7 +1474,7 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 		host->dma_chan_tx = dma_request_channel(mask, NULL, NULL);
 		host->dma_chan_rx = dma_request_channel(mask, NULL, NULL);
 	}
-#endif
+}
 	clk = devm_clk_get(dev, NULL);
 	if (IS_ERR(clk)) {
 		dev_err(dev, "could not get clk\n");
@@ -1500,6 +1575,7 @@ static struct platform_driver bcm2835_mmc_driver = {
 };
 module_platform_driver(bcm2835_mmc_driver);
 
+module_param(mmc_debug, uint, 0644);
 MODULE_ALIAS("platform:mmc-bcm2835");
 MODULE_DESCRIPTION("BCM2835 SDHCI driver");
 MODULE_LICENSE("GPL v2");
