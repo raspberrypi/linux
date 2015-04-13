@@ -90,6 +90,21 @@ static int snd_rpi_hifiberry_dacplus_probe(struct platform_device *pdev)
 	int ret = 0;
 
 	snd_rpi_hifiberry_dacplus.dev = &pdev->dev;
+
+	if (pdev->dev.of_node) {
+	    struct device_node *i2s_node;
+	    struct snd_soc_dai_link *dai = &snd_rpi_hifiberry_dacplus_dai[0];
+	    i2s_node = of_parse_phandle(pdev->dev.of_node,
+					"i2s-controller", 0);
+
+	    if (i2s_node) {
+		dai->cpu_dai_name = NULL;
+		dai->cpu_of_node = i2s_node;
+		dai->platform_name = NULL;
+		dai->platform_of_node = i2s_node;
+	    }
+	}
+
 	ret = snd_soc_register_card(&snd_rpi_hifiberry_dacplus);
 	if (ret)
 		dev_err(&pdev->dev,
@@ -103,10 +118,17 @@ static int snd_rpi_hifiberry_dacplus_remove(struct platform_device *pdev)
 	return snd_soc_unregister_card(&snd_rpi_hifiberry_dacplus);
 }
 
+static const struct of_device_id snd_rpi_hifiberry_dacplus_of_match[] = {
+	{ .compatible = "hifiberry,hifiberry-dacplus", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, snd_rpi_hifiberry_dacplus_of_match);
+
 static struct platform_driver snd_rpi_hifiberry_dacplus_driver = {
 	.driver = {
 		.name   = "snd-rpi-hifiberry-dacplus",
 		.owner  = THIS_MODULE,
+		.of_match_table = snd_rpi_hifiberry_dacplus_of_match,
 	},
 	.probe          = snd_rpi_hifiberry_dacplus_probe,
 	.remove         = snd_rpi_hifiberry_dacplus_remove,
