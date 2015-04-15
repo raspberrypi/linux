@@ -1596,7 +1596,7 @@ config SLAB_FREELIST_HARDENED
 
 config SLUB_CPU_PARTIAL
 	default y
-	depends on SLUB && SMP
+	depends on SLUB && SMP && !PREEMPT_RT_FULL
 	bool "SLUB per cpu partial cache"
 	help
 	  Per cpu partial caches accellerate objects allocation and freeing
