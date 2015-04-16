@@ -154,7 +154,7 @@ vc4_v3d_set_power(struct vc4_dev *vc4, bool on)
 {
 	u32 packet = on;
 
-	return rpi_firmware_property(vc4->firmware_node,
+	return rpi_firmware_property(vc4->dev->dev,
 				     RPI_FIRMWARE_SET_ENABLE_QPU,
 				     &packet, sizeof(packet));
 }

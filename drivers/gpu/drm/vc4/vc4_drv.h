@@ -12,8 +12,6 @@
 struct vc4_dev {
 	struct drm_device *dev;
 
-	struct device_node *firmware_node;
-
 	struct vc4_hdmi *hdmi;
 	struct vc4_hvs *hvs;
 	struct vc4_crtc *crtc[3];

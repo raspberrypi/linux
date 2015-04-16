@@ -50,24 +50,12 @@ vc4_ioremap_regs(struct platform_device *dev, int index)
 static int
 vc4_drm_load(struct drm_device *dev, unsigned long flags)
 {
-	struct platform_device *firmware_pdev;
 	struct vc4_dev *vc4;
 	int ret;
 
 	vc4 = devm_kzalloc(dev->dev, sizeof(*vc4), GFP_KERNEL);
 	if (!vc4)
 		return -ENOMEM;
-
-	vc4->firmware_node = of_parse_phandle(dev->dev->of_node, "firmware", 0);
-	if (!vc4->firmware_node) {
-		DRM_ERROR("Failed to parse firmware node.\n");
-		return -EINVAL;
-	}
-	firmware_pdev = of_find_device_by_node(vc4->firmware_node);
-	if (!platform_get_drvdata(firmware_pdev)) {
-		DRM_DEBUG("firmware device not probed yet.\n");
-		return -EPROBE_DEFER;
-	}
 
 	dev_set_drvdata(dev->dev, dev);
 	vc4->dev = dev;

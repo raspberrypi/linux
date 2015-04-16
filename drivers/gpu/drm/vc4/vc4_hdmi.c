@@ -20,7 +20,6 @@
 #include "drm_crtc_helper.h"
 #include "drm_edid.h"
 #include "linux/component.h"
-#include "linux/of_gpio.h"
 #include "linux/of_platform.h"
 #include "soc/bcm2835/raspberrypi-firmware-property.h"
 #include "vc4_drv.h"
@@ -32,7 +31,6 @@ struct vc4_hdmi {
 	struct i2c_adapter *ddc;
 	void __iomem *hdmicore_regs;
 	void __iomem *hd_regs;
-	int hpd_gpio;
 };
 #define HDMI_READ(offset) readl(vc4->hdmi->hdmicore_regs + offset)
 #define HDMI_WRITE(offset, val) writel(val, vc4->hdmi->hdmicore_regs + offset)
@@ -145,12 +143,10 @@ vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 	struct drm_device *dev = connector->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
-	if (vc4->hdmi->hpd_gpio) {
-		if (gpio_get_value(vc4->hdmi->hpd_gpio))
-			return connector_status_connected;
-		else
-			return connector_status_disconnected;
-	}
+	/* Disable the HPD detect for now, since it doesn't work on
+	 * the downstream kernel.
+	 */
+	return connector_status_connected;
 
 	if (HDMI_READ(VC4_HDMI_HOTPLUG) & VC4_HDMI_HOTPLUG_CONNECTED)
 		return connector_status_connected;
@@ -281,7 +277,7 @@ vc4_set_pixel_clock(struct vc4_dev *vc4, u32 clock)
 	packet[0] = 8; /* Pixel clock. */
 	packet[1] = clock;
 
-	ret = rpi_firmware_property(vc4->firmware_node,
+	ret = rpi_firmware_property(vc4->dev->dev,
 				    RPI_FIRMWARE_SET_CLOCK_RATE,
 				    &packet, sizeof(packet));
 
@@ -494,7 +490,6 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	struct vc4_dev *vc4 = drm->dev_private;
 	struct vc4_hdmi *hdmi;
 	struct device_node *ddc_node;
-	u32 value;
 
 	hdmi = devm_kzalloc(dev, sizeof(*hdmi), GFP_KERNEL);
 	if (!hdmi)
@@ -520,15 +515,6 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	if (!hdmi->ddc) {
 		DRM_ERROR("Failed to get ddc i2c adapter by node\n");
 		return -EPROBE_DEFER;
-	}
-
-	/* Only use the GPIO HPD pin if present in the DT, otherwise
-	 * we'll use the HDMI core's register.
-	 */
-	if (of_find_property(dev->of_node, "hpd-gpio", &value)) {
-		hdmi->hpd_gpio = of_get_named_gpio(dev->of_node, "hpd-gpio", 0);
-		if (hdmi->hpd_gpio < 0)
-			return hdmi->hpd_gpio;
 	}
 
 	vc4->hdmi = hdmi;
