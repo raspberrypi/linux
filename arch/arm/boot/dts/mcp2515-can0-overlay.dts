@@ -62,7 +62,7 @@
         };
     };
     __overrides__ {
-        oscillator = <&can0_osc>,"oscillator-frequency";
+        oscillator = <&can0_osc>,"clock-frequency:0";
         spimaxfrequency = <&can0>,"spi-max-frequency:0";
         interrupt = <&can0_pins>,"brcm,pins:0",<&can0>,"interrupts:0";
     };
