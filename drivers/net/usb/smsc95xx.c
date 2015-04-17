@@ -76,7 +76,7 @@ struct smsc95xx_priv {
 	struct usbnet *dev;
 };
 
-static bool turbo_mode = true;
+static bool turbo_mode = false;
 module_param(turbo_mode, bool, 0644);
 MODULE_PARM_DESC(turbo_mode, "Enable multiple frames per Rx transaction");
 
