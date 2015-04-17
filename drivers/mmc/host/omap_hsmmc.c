@@ -1832,7 +1832,9 @@ static int omap_hsmmc_disable_fclk(struct mmc_host *mmc)
 }
 
 static int omap_hsmmc_multi_io_quirk(struct mmc_card *card,
-				     unsigned int direction, int blk_size)
+				     unsigned int direction,
+				     u32 blk_pos,
+				     int blk_size)
 {
 	/* This controller can't do multiblock reads due to hw bugs */
 	if (direction == MMC_DATA_READ)

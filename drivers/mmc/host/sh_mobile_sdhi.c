@@ -139,7 +139,9 @@ static int sh_mobile_sdhi_write16_hook(struct tmio_mmc_host *host, int addr)
 }
 
 static int sh_mobile_sdhi_multi_io_quirk(struct mmc_card *card,
-					 unsigned int direction, int blk_size)
+					 unsigned int direction,
+					 u32 blk_pos,
+					 int blk_size)
 {
 	/*
 	 * In Renesas controllers, when performing a
