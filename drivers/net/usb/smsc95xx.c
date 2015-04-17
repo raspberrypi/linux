@@ -70,7 +70,7 @@ struct smsc95xx_priv {
 	u8 suspend_flags;
 };
 
-static bool turbo_mode = true;
+static bool turbo_mode = false;
 module_param(turbo_mode, bool, 0644);
 MODULE_PARM_DESC(turbo_mode, "Enable multiple frames per Rx transaction");
 
