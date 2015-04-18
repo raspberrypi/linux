@@ -71,7 +71,7 @@ pr_debug(DRIVER_NAME " [%s()]: " f, __func__, ## x)
 #define BCM2835_VCMMU_SHIFT		(0x7E000000 - BCM2708_PERI_BASE)
 
 
-static unsigned mmc_debug;
+/*static */unsigned mmc_debug;
 
 struct bcm2835_host {
 	spinlock_t				lock;

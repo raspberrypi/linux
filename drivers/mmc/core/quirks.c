@@ -98,6 +98,8 @@ void mmc_fixup_device(struct mmc_card *card, const struct mmc_fixup *table)
 	/* SDHCI on BCM2708 - bug causes a certain sequence of CMD23 operations to fail.
 	 * Disable this flag for all cards (fall-back to CMD25/CMD18 multi-block transfers).
 	 */
+	extern unsigned mmc_debug;
+	if (!(mmc_debug & (1<<13)))
 	card->quirks |= MMC_QUIRK_BLK_NO_CMD23;
 }
 EXPORT_SYMBOL(mmc_fixup_device);
