@@ -127,11 +127,14 @@ static int snd_bcm2835_playback_open_generic(
 	audio_info("Alsa open (%d)\n", substream->number);
 	idx = substream->number;
 
-	if (spdif && chip->opened != 0)
-		return -EBUSY;
-	else if (!spdif && (chip->opened & (1 << idx)))
-		return -EBUSY;
-
+	if (spdif && chip->opened != 0) {
+		err = -EBUSY;
+		goto out;
+	}
+	else if (!spdif && (chip->opened & (1 << idx))) {
+		err = -EBUSY;
+		goto out;
+	}
 	if (idx > MAX_SUBSTREAMS) {
 		audio_error
 		    ("substream(%d) device doesn't exist max(%d) substreams allowed\n",
@@ -170,7 +173,7 @@ static int snd_bcm2835_playback_open_generic(
 	err = bcm2835_audio_open(alsa_stream);
 	if (err != 0) {
 		kfree(alsa_stream);
-		return err;
+		goto out;
 	}
 	runtime->private_data = alsa_stream;
 	runtime->private_free = snd_bcm2835_playback_free;
@@ -497,7 +500,7 @@ int snd_bcm2835_new_pcm(bcm2835_chip_t * chip)
 	err =
 	    snd_pcm_new(chip->card, "bcm2835 ALSA", 0, MAX_SUBSTREAMS, 0, &pcm);
 	if (err < 0)
-		return err;
+		goto out;
 	pcm->private_data = chip;
 	strcpy(pcm->name, "bcm2835 ALSA");
 	chip->pcm = pcm;
@@ -515,6 +518,7 @@ int snd_bcm2835_new_pcm(bcm2835_chip_t * chip)
 					      (GFP_KERNEL), 64 * 1024,
 					      64 * 1024);
 
+out:
 	mutex_unlock(&chip->audio_mutex);
 	audio_info(" .. OUT\n");
 
@@ -534,7 +538,7 @@ int snd_bcm2835_new_spdif_pcm(bcm2835_chip_t * chip)
 	}
 	err = snd_pcm_new(chip->card, "bcm2835 ALSA", 1, 1, 0, &pcm);
 	if (err < 0)
-		return err;
+		goto out;
 
 	pcm->private_data = chip;
 	strcpy(pcm->name, "bcm2835 IEC958/HDMI");
@@ -545,6 +549,7 @@ int snd_bcm2835_new_spdif_pcm(bcm2835_chip_t * chip)
 	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_CONTINUOUS,
 					      snd_dma_continuous_data (GFP_KERNEL),
 					      64 * 1024, 64 * 1024);
+out:
 	mutex_unlock(&chip->audio_mutex);
 	audio_info(" .. OUT\n");
 
