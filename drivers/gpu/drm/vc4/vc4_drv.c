@@ -75,11 +75,11 @@ vc4_drm_load(struct drm_device *dev, unsigned long flags)
 
 	drm_mode_config_init(dev);
 
+	vc4_gem_init(dev);
+
 	ret = component_bind_all(dev->dev, dev);
 	if (ret)
 		return ret;
-
-	vc4_gem_init(dev);
 
 	vc4_kms_load(dev);
 
