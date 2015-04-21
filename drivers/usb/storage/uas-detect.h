@@ -81,6 +81,9 @@ static int uas_use_uas_driver(struct usb_interface *intf,
 			flags |= US_FL_IGNORE_UAS;
 		} else if (usb_ss_max_streams(&eps[1]->ss_ep_comp) == 32) {
 			flags |= US_FL_IGNORE_UAS;
+		} else {
+			/* ASM1053, these have issues with large transfers */
+			flags |= US_FL_MAX_SECTORS_240;
 		}
 	}
 
