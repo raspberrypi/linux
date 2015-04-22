@@ -343,7 +343,7 @@ static int32_t vc_vchi_audio_deinit(AUDIO_INSTANCE_T * instance)
 
 		success = vchi_service_close(instance->vchi_handle[i]);
 		if (success != 0) {
-			LOG_ERR
+			LOG_DBG
 			    ("%s: failed to close VCHI service connection (status=%d)\n",
 			     __func__, success);
 		}
@@ -513,7 +513,7 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 	/* We are expecting a reply from the videocore */
 	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
 	if (ret) {
-		LOG_ERR("%s: failed on waiting for event (status=%d)\n",
+		LOG_DBG("%s: failed on waiting for event (status=%d)\n",
 			__func__, success);
 		goto unlock;
 	}
@@ -617,7 +617,7 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	/* We are expecting a reply from the videocore */
 	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
 	if (ret) {
-		LOG_ERR("%s: failed on waiting for event (status=%d)\n",
+		LOG_DBG("%s: failed on waiting for event (status=%d)\n",
 			__func__, success);
 		goto unlock;
 	}
@@ -763,7 +763,7 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 
 	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
 	if (ret) {
-		LOG_ERR("%s: failed on waiting for event (status=%d)\n",
+		LOG_DBG("%s: failed on waiting for event (status=%d)\n",
 			__func__, success);
 		goto unlock;
 	}
