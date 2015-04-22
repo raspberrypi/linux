@@ -1,6 +1,18 @@
 config RTL8192CU
 	tristate "Realtek 8192C USB WiFi"
-	depends on USB
+	depends on MAC80211 && USB
+	select CFG80211_WEXT
+	select WIRELESS_EXT
+	select WEXT_PRIV
 	---help---
-	  Help message of RTL8192CU
+	  This option adds the Realtek RTL8192CU USB device such as Edimax EW-7811Un.
 
+if RTL8192CU
+
+config AP_MODE
+	bool "Realtek RTL8192CU AP mode"
+	default y
+	---help---
+	This option enables Access Point mode.
+
+endif
