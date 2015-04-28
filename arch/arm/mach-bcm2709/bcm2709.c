@@ -56,7 +56,6 @@
 #include <asm/mach/map.h>
 
 #include <mach/timex.h>
-#include <mach/dma.h>
 #include <mach/vcio.h>
 #include <mach/system.h>
 
@@ -267,15 +266,77 @@ static struct resource bcm2708_dmaman_resources[] = {
 };
 
 static struct platform_device bcm2708_dmaman_device = {
-	.name = BCM_DMAMAN_DRIVER_NAME,
+	.name = "bcm2708_dma",
 	.id = 0,		/* first bcm2708_dma */
 	.resource = bcm2708_dmaman_resources,
 	.num_resources = ARRAY_SIZE(bcm2708_dmaman_resources),
 };
 
+static struct resource bcm2708_dmaengine_resources[] = {
+	{
+		.start = DMA_BASE,
+		.end = DMA_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = IRQ_DMA0,
+		.end = IRQ_DMA0,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA1,
+		.end = IRQ_DMA1,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA2,
+		.end = IRQ_DMA2,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA3,
+		.end = IRQ_DMA3,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA4,
+		.end = IRQ_DMA4,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA5,
+		.end = IRQ_DMA5,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA6,
+		.end = IRQ_DMA6,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA7,
+		.end = IRQ_DMA7,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA8,
+		.end = IRQ_DMA8,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA9,
+		.end = IRQ_DMA9,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA10,
+		.end = IRQ_DMA10,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA11,
+		.end = IRQ_DMA11,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.start = IRQ_DMA12,
+		.end = IRQ_DMA12,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
 static struct platform_device bcm2708_dmaengine_device = {
 	.name = "bcm2708-dmaengine",
 	.id = -1,
+	.resource = bcm2708_dmaengine_resources,
+	.num_resources = ARRAY_SIZE(bcm2708_dmaengine_resources),
 };
 
 #if defined(CONFIG_W1_MASTER_GPIO) || defined(CONFIG_W1_MASTER_GPIO_MODULE)
