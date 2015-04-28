@@ -247,21 +247,6 @@ static struct amba_device *amba_devs[] __initdata = {
 	&uart0_device,
 };
 
-static struct resource bcm2708_dmaman_resources[] = {
-	{
-	 .start = DMA_BASE,
-	 .end = DMA_BASE + SZ_4K - 1,
-	 .flags = IORESOURCE_MEM,
-	 }
-};
-
-static struct platform_device bcm2708_dmaman_device = {
-	.name = "bcm2708_dma",
-	.id = 0,		/* first bcm2708_dma */
-	.resource = bcm2708_dmaman_resources,
-	.num_resources = ARRAY_SIZE(bcm2708_dmaman_resources),
-};
-
 static struct resource bcm2708_dmaengine_resources[] = {
 	{
 		.start = DMA_BASE,
@@ -919,7 +904,6 @@ void __init bcm2708_init(void)
 	bcm2708_init_clocks();
 	bcm2708_dt_init();
 
-	bcm_register_device(&bcm2708_dmaman_device);
 	bcm_register_device_dt(&bcm2708_dmaengine_device);
 	bcm_register_device(&bcm2708_vcio_device);
 #ifdef CONFIG_BCM2708_GPIO
