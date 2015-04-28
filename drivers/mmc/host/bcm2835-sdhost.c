@@ -182,6 +182,7 @@ struct bcm2835_host {
 
 	int				max_delay;	/* maximum length of time spent waiting */
 	struct timeval			stop_time;	/* when the last stop was issued */
+	u32				delay_after_stop; /* minimum time between stop and subsequent data transfer */
 };
 
 
@@ -701,16 +702,19 @@ void bcm2835_sdhost_send_command(struct bcm2835_host *host, struct mmc_command *
 	}
 
 	if (cmd->data) {
-		struct timeval now;
-		int time_since_stop;
-		do_gettimeofday(&now);
-		time_since_stop = (now.tv_sec - host->stop_time.tv_sec);
-		if (time_since_stop < 2) {
-			/* Possibly less than one second */
-			time_since_stop = time_since_stop * 1000000 +
-				(now.tv_usec - host->stop_time.tv_usec);
-			if (time_since_stop < 850)
-				udelay(850 - time_since_stop);
+		if (host->delay_after_stop) {
+			struct timeval now;
+			int time_since_stop;
+			do_gettimeofday(&now);
+			time_since_stop = (now.tv_sec - host->stop_time.tv_sec);
+			if (time_since_stop < 2) {
+				/* Possibly less than one second */
+				time_since_stop = time_since_stop * 1000000 +
+					(now.tv_usec - host->stop_time.tv_usec);
+				if (time_since_stop < host->delay_after_stop)
+					udelay(host->delay_after_stop -
+					       time_since_stop);
+			}
 		}
 
 		if (cmd->data->flags & MMC_DATA_WRITE)
@@ -792,7 +796,8 @@ static void bcm2835_sdhost_transfer_complete(struct bcm2835_host *host)
 	     !host->mrq->sbc)) {
 		host->flush_fifo = 1;
 		bcm2835_sdhost_send_command(host, data->stop);
-		do_gettimeofday(&host->stop_time);
+		if (host->delay_after_stop)
+			do_gettimeofday(&host->stop_time);
 		if (!host->use_busy)
 			bcm2835_sdhost_finish_command(host);
 	} else {
@@ -1527,6 +1532,9 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 	mmc_add_host(mmc);
 
 	pr_info("Load BCM2835 SDHost driver\n");
+	if (host->delay_after_stop)
+		pr_info("BCM2835 SDHost: delay_after_stop=%dus\n",
+			host->delay_after_stop);
 
 	return 0;
 
@@ -1589,6 +1597,12 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (node) {
+		/* Read any custom properties */
+		of_property_read_u32(node,
+				     "brcm,delay_after_stop",
+				     &host->delay_after_stop);
+	}
 	clk = devm_clk_get(dev, NULL);
 	if (IS_ERR(clk)) {
 		dev_err(dev, "could not get clk\n");
