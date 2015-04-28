@@ -37,26 +37,304 @@
 #include <linux/interrupt.h>
 #include <linux/list.h>
 #include <linux/module.h>
+#include <linux/platform_data/dma-bcm2708.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/spinlock.h>
-
-#ifndef CONFIG_ARCH_BCM2835
-
-/* dma manager */
-#include <mach/dma.h>
-
-//#define DMA_COMPLETE DMA_SUCCESS
-
-#endif
-
 #include <linux/of.h>
 #include <linux/of_dma.h>
 
 #include "virt-dma.h"
 
 static unsigned dma_debug;
+
+/*
+ * Legacy DMA API
+ */
+
+#ifdef CONFIG_DMA_BCM2708_LEGACY
+
+#define CACHE_LINE_MASK 31
+#define DEFAULT_DMACHAN_BITMAP 0x10  /* channel 4 only */
+
+/* valid only for channels 0 - 14, 15 has its own base address */
+#define BCM2708_DMA_CHAN(n)	((n) << 8) /* base address */
+#define BCM2708_DMA_CHANIO(dma_base, n) \
+	((void __iomem *)((char *)(dma_base) + BCM2708_DMA_CHAN(n)))
+
+struct vc_dmaman {
+	void __iomem *dma_base;
+	u32 chan_available; /* bitmap of available channels */
+	u32 has_feature[BCM_DMA_FEATURE_COUNT]; /* bitmap of feature presence */
+	struct mutex lock;
+};
+
+static struct device *dmaman_dev;	/* we assume there's only one! */
+static struct vc_dmaman *g_dmaman;	/* DMA manager */
+static int dmachans = -1;		/* module parameter */
+
+/* DMA Auxiliary Functions */
+
+/* A DMA buffer on an arbitrary boundary may separate a cache line into a
+   section inside the DMA buffer and another section outside it.
+   Even if we flush DMA buffers from the cache there is always the chance that
+   during a DMA someone will access the part of a cache line that is outside
+   the DMA buffer - which will then bring in unwelcome data.
+   Without being able to dictate our own buffer pools we must insist that
+   DMA buffers consist of a whole number of cache lines.
+*/
+extern int bcm_sg_suitable_for_dma(struct scatterlist *sg_ptr, int sg_len)
+{
+	int i;
+
+	for (i = 0; i < sg_len; i++) {
+		if (sg_ptr[i].offset & CACHE_LINE_MASK ||
+		    sg_ptr[i].length & CACHE_LINE_MASK)
+			return 0;
+	}
+
+	return 1;
+}
+EXPORT_SYMBOL_GPL(bcm_sg_suitable_for_dma);
+
+extern void bcm_dma_start(void __iomem *dma_chan_base,
+			  dma_addr_t control_block)
+{
+	dsb();	/* ARM data synchronization (push) operation */
+
+	writel(control_block, dma_chan_base + BCM2708_DMA_ADDR);
+	writel(BCM2708_DMA_ACTIVE, dma_chan_base + BCM2708_DMA_CS);
+}
+EXPORT_SYMBOL_GPL(bcm_dma_start);
+
+extern void bcm_dma_wait_idle(void __iomem *dma_chan_base)
+{
+	dsb();
+
+	/* ugly busy wait only option for now */
+	while (readl(dma_chan_base + BCM2708_DMA_CS) & BCM2708_DMA_ACTIVE)
+		cpu_relax();
+}
+EXPORT_SYMBOL_GPL(bcm_dma_wait_idle);
+
+extern bool bcm_dma_is_busy(void __iomem *dma_chan_base)
+{
+	dsb();
+
+	return readl(dma_chan_base + BCM2708_DMA_CS) & BCM2708_DMA_ACTIVE;
+}
+EXPORT_SYMBOL_GPL(bcm_dma_is_busy);
+
+/* Complete an ongoing DMA (assuming its results are to be ignored)
+   Does nothing if there is no DMA in progress.
+   This routine waits for the current AXI transfer to complete before
+   terminating the current DMA. If the current transfer is hung on a DREQ used
+   by an uncooperative peripheral the AXI transfer may never complete.	In this
+   case the routine times out and return a non-zero error code.
+   Use of this routine doesn't guarantee that the ongoing or aborted DMA
+   does not produce an interrupt.
+*/
+extern int bcm_dma_abort(void __iomem *dma_chan_base)
+{
+	unsigned long int cs;
+	int rc = 0;
+
+	cs = readl(dma_chan_base + BCM2708_DMA_CS);
+
+	if (BCM2708_DMA_ACTIVE & cs) {
+		long int timeout = 10000;
+
+		/* write 0 to the active bit - pause the DMA */
+		writel(0, dma_chan_base + BCM2708_DMA_CS);
+
+		/* wait for any current AXI transfer to complete */
+		while (0 != (cs & BCM2708_DMA_ISPAUSED) && --timeout >= 0)
+			cs = readl(dma_chan_base + BCM2708_DMA_CS);
+
+		if (0 != (cs & BCM2708_DMA_ISPAUSED)) {
+			/* we'll un-pause when we set of our next DMA */
+			rc = -ETIMEDOUT;
+
+		} else if (BCM2708_DMA_ACTIVE & cs) {
+			/* terminate the control block chain */
+			writel(0, dma_chan_base + BCM2708_DMA_NEXTCB);
+
+			/* abort the whole DMA */
+			writel(BCM2708_DMA_ABORT | BCM2708_DMA_ACTIVE,
+			       dma_chan_base + BCM2708_DMA_CS);
+		}
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL_GPL(bcm_dma_abort);
+
+ /* DMA Manager Device Methods */
+
+static void vc_dmaman_init(struct vc_dmaman *dmaman, void __iomem *dma_base,
+			   u32 chans_available)
+{
+	dmaman->dma_base = dma_base;
+	dmaman->chan_available = chans_available;
+	dmaman->has_feature[BCM_DMA_FEATURE_FAST_ORD] = 0x0c;  /* 2 & 3 */
+	dmaman->has_feature[BCM_DMA_FEATURE_BULK_ORD] = 0x01;  /* 0 */
+	dmaman->has_feature[BCM_DMA_FEATURE_NORMAL_ORD] = 0xfe;  /* 1 to 7 */
+	dmaman->has_feature[BCM_DMA_FEATURE_LITE_ORD] = 0x7f00;  /* 8 to 14 */
+}
+
+static int vc_dmaman_chan_alloc(struct vc_dmaman *dmaman,
+				unsigned preferred_feature_set)
+{
+	u32 chans;
+	int chan = 0;
+	int feature;
+
+	chans = dmaman->chan_available;
+	for (feature = 0; feature < BCM_DMA_FEATURE_COUNT; feature++)
+		/* select the subset of available channels with the desired
+		   feature so long as some of the candidate channels have that
+		   feature */
+		if ((preferred_feature_set & (1 << feature)) &&
+		    (chans & dmaman->has_feature[feature]))
+			chans &= dmaman->has_feature[feature];
+
+	if (!chans)
+		return -ENOENT;
+
+	/* return the ordinal of the first channel in the bitmap */
+	while (chans != 0 && (chans & 1) == 0) {
+		chans >>= 1;
+		chan++;
+	}
+	/* claim the channel */
+	dmaman->chan_available &= ~(1 << chan);
+
+	return chan;
+}
+
+static int vc_dmaman_chan_free(struct vc_dmaman *dmaman, int chan)
+{
+	if (chan < 0)
+		return -EINVAL;
+
+	if ((1 << chan) & dmaman->chan_available)
+		return -EIDRM;
+
+	dmaman->chan_available |= (1 << chan);
+
+	return 0;
+}
+
+/* DMA Manager Monitor */
+
+extern int bcm_dma_chan_alloc(unsigned preferred_feature_set,
+			      void __iomem **out_dma_base, int *out_dma_irq)
+{
+	struct vc_dmaman *dmaman = g_dmaman;
+	struct platform_device *pdev = to_platform_device(dmaman_dev);
+	struct resource *r;
+	int chan;
+
+	if (!dmaman_dev)
+		return -ENODEV;
+
+	mutex_lock(&dmaman->lock);
+	chan = vc_dmaman_chan_alloc(dmaman, preferred_feature_set);
+	if (chan < 0)
+		goto out;
+
+	r = platform_get_resource(pdev, IORESOURCE_IRQ, (unsigned int)chan);
+	if (!r) {
+		dev_err(dmaman_dev, "failed to get irq for DMA channel %d\n",
+			chan);
+		vc_dmaman_chan_free(dmaman, chan);
+		chan = -ENOENT;
+		goto out;
+	}
+
+	*out_dma_base = BCM2708_DMA_CHANIO(dmaman->dma_base, chan);
+	*out_dma_irq = r->start;
+	dev_dbg(dmaman_dev,
+		"Legacy API allocated channel=%d, base=%p, irq=%i\n",
+		chan, *out_dma_base, *out_dma_irq);
+
+out:
+	mutex_unlock(&dmaman->lock);
+
+	return chan;
+}
+EXPORT_SYMBOL_GPL(bcm_dma_chan_alloc);
+
+extern int bcm_dma_chan_free(int channel)
+{
+	struct vc_dmaman *dmaman = g_dmaman;
+	int rc;
+
+	if (!dmaman_dev)
+		return -ENODEV;
+
+	mutex_lock(&dmaman->lock);
+	rc = vc_dmaman_chan_free(dmaman, channel);
+	mutex_unlock(&dmaman->lock);
+
+	return rc;
+}
+EXPORT_SYMBOL_GPL(bcm_dma_chan_free);
+
+static int bcm_dmaman_probe(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct vc_dmaman *dmaman;
+	struct resource *r;
+	void __iomem *dma_base;
+	uint32_t val;
+
+	if (!of_property_read_u32(dev->of_node,
+				  "brcm,dma-channel-mask", &val))
+		dmachans = val;
+	else if (dmachans == -1)
+		dmachans = DEFAULT_DMACHAN_BITMAP;
+
+	dmaman = devm_kzalloc(dev, sizeof(*dmaman), GFP_KERNEL);
+	if (!dmaman)
+		return -ENOMEM;
+
+	mutex_init(&dmaman->lock);
+	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	dma_base = devm_ioremap_resource(dev, r);
+	if (IS_ERR(dma_base))
+		return PTR_ERR(dma_base);
+
+	vc_dmaman_init(dmaman, dma_base, dmachans);
+	g_dmaman = dmaman;
+	dmaman_dev = dev;
+
+	dev_info(dev, "DMA legacy API manager at %p, dmachans=0x%x\n",
+		 dma_base, dmachans);
+
+	return 0;
+}
+
+static int bcm_dmaman_remove(struct platform_device *pdev)
+{
+	dmaman_dev = NULL;
+
+	return 0;
+}
+
+#else /* CONFIG_DMA_BCM2708_LEGACY */
+
+static int bcm_dmaman_remove(struct platform_device *pdev)
+{
+	return 0;
+}
+
+#endif /* CONFIG_DMA_BCM2708_LEGACY */
+
+/*
+ * DMA engine
+ */
 
 struct bcm2835_dmadev {
 	struct dma_device ddev;
@@ -709,7 +987,7 @@ static int bcm2835_dma_terminate_all(struct dma_chan *chan)
 	return 0;
 }
 
-#ifdef CONFIG_ARCH_BCM2835
+#ifndef CONFIG_DMA_BCM2708_LEGACY
 static int bcm2835_dma_chan_init(struct bcm2835_dmadev *d, int chan_id, int irq)
 {
 	struct bcm2835_chan *c;
@@ -787,7 +1065,7 @@ static struct dma_chan *bcm2835_dma_xlate(struct of_phandle_args *spec,
 static int bcm2835_dma_probe(struct platform_device *pdev)
 {
 	struct bcm2835_dmadev *od;
-#ifdef CONFIG_ARCH_BCM2835
+#ifndef CONFIG_DMA_BCM2708_LEGACY
 	struct resource *res;
 	void __iomem *base;
 	uint32_t chans_available;
@@ -800,10 +1078,7 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	if (!pdev->dev.dma_mask)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 
-	/* If CONFIG_ARCH_BCM2835 is selected, device tree is used */
-	/* hence the difference between probing */
-
-#ifndef CONFIG_ARCH_BCM2835
+#ifdef CONFIG_DMA_BCM2708_LEGACY
 
 	rc = dma_set_mask(&pdev->dev, DMA_BIT_MASK(32));
 	if (rc)
@@ -814,6 +1089,10 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	od = devm_kzalloc(&pdev->dev, sizeof(*od), GFP_KERNEL);
 	if (!od)
 		return -ENOMEM;
+
+	rc = bcm_dmaman_probe(pdev);
+	if (rc)
+		return rc;
 
 	pdev->dev.dma_parms = &od->dma_parms;
 	dma_set_max_seg_size(&pdev->dev, 0x3FFFFFFF);
@@ -971,6 +1250,7 @@ static int bcm2835_dma_remove(struct platform_device *pdev)
 
 	dma_async_device_unregister(&od->ddev);
 	bcm2835_dma_free(od);
+	bcm_dmaman_remove(pdev);
 
 	return 0;
 }
@@ -985,9 +1265,30 @@ static struct platform_driver bcm2835_dma_driver = {
 	},
 };
 
-module_platform_driver(bcm2835_dma_driver);
+static int bcm2835_init(void)
+{
+	return platform_driver_register(&bcm2835_dma_driver);
+}
+
+static void bcm2835_exit(void)
+{
+	platform_driver_unregister(&bcm2835_dma_driver);
+}
+
+/*
+ * Load after serial driver (arch_initcall) so we see the messages if it fails,
+ * but before drivers (module_init) that need a DMA channel.
+ */
+subsys_initcall(bcm2835_init);
+module_exit(bcm2835_exit);
 
 module_param(dma_debug, uint, 0644);
+#ifdef CONFIG_DMA_BCM2708_LEGACY
+/* Keep backward compatibility: dma.dmachans= */
+#undef MODULE_PARAM_PREFIX
+#define MODULE_PARAM_PREFIX "dma."
+module_param(dmachans, int, 0644);
+#endif
 MODULE_ALIAS("platform:bcm2835-dma");
 MODULE_DESCRIPTION("BCM2835 DMA engine driver");
 MODULE_AUTHOR("Florian Meier <florian.meier@koalo.de>");
