@@ -99,7 +99,7 @@ vchiq_platform_init(VCHIQ_STATE_T *state)
 	frag_mem_size = PAGE_ALIGN(sizeof(FRAGMENTS_T) * MAX_FRAGMENTS);
 
 	g_slot_mem = dma_alloc_coherent(NULL, g_slot_mem_size + frag_mem_size,
-		&g_slot_phys, GFP_ATOMIC);
+		&g_slot_phys, GFP_KERNEL);
 
 	if (!g_slot_mem) {
 		vchiq_log_error(vchiq_arm_log_level,
