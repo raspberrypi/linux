@@ -1401,7 +1401,6 @@ static void mmc_blk_rw_rq_prep(struct mmc_queue_req *mqrq,
 			brq->data.blocks = card->host->ops->multi_io_quirk(card,
 						(rq_data_dir(req) == READ) ?
 						MMC_DATA_READ : MMC_DATA_WRITE,
-						brq->cmd.arg,
 						brq->data.blocks);
 	}
 
