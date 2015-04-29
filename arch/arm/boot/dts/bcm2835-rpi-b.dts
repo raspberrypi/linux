@@ -57,7 +57,7 @@
 	clock-frequency = <100000>;
 };
 
-&sdhci {
+&mmc {
 	status = "okay";
 	bus-width = <4>;
 };
