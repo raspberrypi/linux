@@ -56,7 +56,6 @@
 #include <asm/mach/map.h>
 
 #include <mach/timex.h>
-#include <mach/vcio.h>
 #include <mach/system.h>
 
 #include <linux/delay.h>
@@ -433,17 +432,21 @@ static struct platform_device bcm2708_usb_device = {
 };
 
 static struct resource bcm2708_vcio_resources[] = {
-	[0] = {			/* mailbox/semaphore/doorbell access */
-	       .start = MCORE_BASE,
-	       .end = MCORE_BASE + SZ_4K - 1,
-	       .flags = IORESOURCE_MEM,
-	       },
+	{
+		.start = ARMCTRL_0_MAIL0_BASE,
+		.end = ARMCTRL_0_MAIL0_BASE + SZ_64 - 1,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = IRQ_ARM_MAILBOX,
+		.end = IRQ_ARM_MAILBOX,
+		.flags = IORESOURCE_IRQ,
+	},
 };
 
 static u64 vcio_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
 
 static struct platform_device bcm2708_vcio_device = {
-	.name = BCM_VCIO_DRIVER_NAME,
+	.name = "bcm2708_vcio",
 	.id = -1,		/* only one VideoCore I/O area */
 	.resource = bcm2708_vcio_resources,
 	.num_resources = ARRAY_SIZE(bcm2708_vcio_resources),
