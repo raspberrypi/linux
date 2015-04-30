@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #ifndef _MACH_BCM2708_VCIO_H
 #define _MACH_BCM2708_VCIO_H
@@ -34,12 +30,14 @@
 #define MBOX_CHAN_COUNT    9
 
 enum {
-	VCMSG_PROCESS_REQUEST 		= 0x00000000
+	VCMSG_PROCESS_REQUEST		= 0x00000000
 };
+
 enum {
-	VCMSG_REQUEST_SUCCESSFUL 	= 0x80000000,
-	VCMSG_REQUEST_FAILED 		= 0x80000001
+	VCMSG_REQUEST_SUCCESSFUL	= 0x80000000,
+	VCMSG_REQUEST_FAILED		= 0x80000001
 };
+
 /* Mailbox property tags */
 enum {
 	VCMSG_PROPERTY_END               = 0x00000000,

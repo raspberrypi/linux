@@ -37,8 +37,7 @@
 #include <mach/vcio.h>
 #include <mach/platform.h>
 
-#include <asm/uaccess.h>
-
+#include <linux/uaccess.h>
 
 #define DRIVER_NAME BCM_VCIO_DRIVER_NAME
 
@@ -61,7 +60,9 @@
 #define MBOX_DATA28_LSB(msg)		(((uint32_t)msg) >> 4)
 
 #define MBOX_MAGIC 0xd0d0c0de
-static struct class *vcio_class = NULL;
+
+static struct class *vcio_class;
+
 struct vc_mailbox {
 	struct device *dev;	/* parent device */
 	void __iomem *status;
@@ -102,9 +103,9 @@ static int mbox_write(struct vc_mailbox *mbox, unsigned chan, uint32_t data28)
 {
 	int rc;
 
-	if (mbox->magic != MBOX_MAGIC)
+	if (mbox->magic != MBOX_MAGIC) {
 		rc = -EINVAL;
-	else {
+	} else {
 		/* wait for the mailbox FIFO to have some space in it */
 		while (0 != (readl(mbox->status) & ARM_MS_FULL))
 			cpu_relax();
@@ -119,9 +120,9 @@ static int mbox_read(struct vc_mailbox *mbox, unsigned chan, uint32_t *data28)
 {
 	int rc;
 
-	if (mbox->magic != MBOX_MAGIC)
+	if (mbox->magic != MBOX_MAGIC) {
 		rc = -EINVAL;
-	else {
+	} else {
 		down(&mbox->sema[chan]);
 		*data28 = MBOX_DATA28(mbox->msg[chan]);
 		mbox->msg[chan] = 0;
@@ -133,17 +134,18 @@ static int mbox_read(struct vc_mailbox *mbox, unsigned chan, uint32_t *data28)
 static irqreturn_t mbox_irq(int irq, void *dev_id)
 {
 	/* wait for the mailbox FIFO to have some data in it */
-	struct vc_mailbox *mbox = (struct vc_mailbox *) dev_id;
+	struct vc_mailbox *mbox = (struct vc_mailbox *)dev_id;
 	int status = readl(mbox->status);
 	int ret = IRQ_NONE;
 
 	while (!(status & ARM_MS_EMPTY)) {
 		uint32_t msg = readl(mbox->read);
 		int chan = MBOX_CHAN(msg);
+
 		if (chan < MBOX_CHAN_COUNT) {
 			if (mbox->msg[chan]) {
 				/* Overflow */
-				printk(KERN_ERR DRIVER_NAME
+				pr_err(DRIVER_NAME
 				       ": mbox chan %d overflow - drop %08x\n",
 				       chan, msg);
 			} else {
@@ -151,7 +153,7 @@ static irqreturn_t mbox_irq(int irq, void *dev_id)
 				up(&mbox->sema[chan]);
 			}
 		} else {
-			printk(KERN_ERR DRIVER_NAME
+			pr_err(DRIVER_NAME
 			       ": invalid channel selector (msg %08x)\n", msg);
 		}
 		ret = IRQ_HANDLED;
@@ -174,9 +176,9 @@ static struct device *mbox_dev;	/* we assume there's only one! */
 
 static int dev_mbox_write(struct device *dev, unsigned chan, uint32_t data28)
 {
+	struct vc_mailbox *mailbox = dev_get_drvdata(dev);
 	int rc;
 
-	struct vc_mailbox *mailbox = dev_get_drvdata(dev);
 	device_lock(dev);
 	rc = mbox_write(mailbox, chan, data28);
 	device_unlock(dev);
@@ -186,9 +188,9 @@ static int dev_mbox_write(struct device *dev, unsigned chan, uint32_t data28)
 
 static int dev_mbox_read(struct device *dev, unsigned chan, uint32_t *data28)
 {
+	struct vc_mailbox *mailbox = dev_get_drvdata(dev);
 	int rc;
 
-	struct vc_mailbox *mailbox = dev_get_drvdata(dev);
 	device_lock(dev);
 	rc = mbox_read(mailbox, chan, data28);
 	device_unlock(dev);
@@ -221,41 +223,36 @@ static void dev_mbox_register(const char *dev_name, struct device *dev)
 
 static int mbox_copy_from_user(void *dst, const void *src, int size)
 {
-	if ( (uint32_t)src < TASK_SIZE)
-	{
+	if ((uint32_t)src < TASK_SIZE)
 		return copy_from_user(dst, src, size);
-	}
-	else
-	{
-		memcpy( dst, src, size );
-		return 0;
-	}
+
+	memcpy(dst, src, size);
+
+	return 0;
 }
 
 static int mbox_copy_to_user(void *dst, const void *src, int size)
 {
-	if ( (uint32_t)dst < TASK_SIZE)
-	{
+	if ((uint32_t)dst < TASK_SIZE)
 		return copy_to_user(dst, src, size);
-	}
-	else
-	{
-		memcpy( dst, src, size );
-		return 0;
-	}
+
+	memcpy(dst, src, size);
+
+	return 0;
 }
 
 static DEFINE_MUTEX(mailbox_lock);
 extern int bcm_mailbox_property(void *data, int size)
 {
 	uint32_t success;
-	dma_addr_t mem_bus;				/* the memory address accessed from videocore */
-	void *mem_kern;					/* the memory address accessed from driver */
+	dma_addr_t mem_bus; /* the memory address accessed from videocore */
+	void *mem_kern;     /* the memory address accessed from driver */
 	int s = 0;
 
-        mutex_lock(&mailbox_lock);
+	mutex_lock(&mailbox_lock);
 	/* allocate some memory for the messages communicating with GPU */
-	mem_kern = dma_alloc_coherent(NULL, PAGE_ALIGN(size), &mem_bus, GFP_ATOMIC);
+	mem_kern = dma_alloc_coherent(NULL, PAGE_ALIGN(size), &mem_bus,
+				      GFP_ATOMIC);
 	if (mem_kern) {
 		/* create the message */
 		mbox_copy_from_user(mem_kern, data, size);
@@ -263,9 +260,8 @@ extern int bcm_mailbox_property(void *data, int size)
 		/* send the message */
 		wmb();
 		s = bcm_mailbox_write(MBOX_CHAN_PROPERTY, (uint32_t)mem_bus);
-		if (s == 0) {
+		if (s == 0)
 			s = bcm_mailbox_read(MBOX_CHAN_PROPERTY, &success);
-		}
 		if (s == 0) {
 			/* copy the response */
 			rmb();
@@ -276,9 +272,9 @@ extern int bcm_mailbox_property(void *data, int size)
 		s = -ENOMEM;
 	}
 	if (s != 0)
-		printk(KERN_ERR DRIVER_NAME ": %s failed (%d)\n", __func__, s);
+		pr_err(DRIVER_NAME ": %s failed (%d)\n", __func__, s);
 
-        mutex_unlock(&mailbox_lock);
+	mutex_unlock(&mailbox_lock);
 	return s;
 }
 EXPORT_SYMBOL_GPL(bcm_mailbox_property);
@@ -291,7 +287,7 @@ EXPORT_SYMBOL_GPL(bcm_mailbox_property);
  * Is the device open right now? Used to prevent
  * concurent access into the same device
  */
-static int Device_Open = 0;
+static bool device_is_open;
 
 /*
  * This is called whenever a process attempts to open the device file
@@ -301,10 +297,10 @@ static int device_open(struct inode *inode, struct file *file)
 	/*
 	 * We don't want to talk to two processes at the same time
 	 */
-	if (Device_Open)
+	if (device_is_open)
 		return -EBUSY;
 
-	Device_Open++;
+	device_is_open = true;
 	/*
 	 * Initialize the message
 	 */
@@ -317,7 +313,7 @@ static int device_release(struct inode *inode, struct file *file)
 	/*
 	 * We're now ready for our next caller
 	 */
-	Device_Open--;
+	device_is_open = false;
 
 	module_put(THIS_MODULE);
 	return 0;
@@ -333,9 +329,8 @@ static int device_release(struct inode *inode, struct file *file)
  * calling process), the ioctl call returns the output of this function.
  *
  */
-static long device_ioctl(struct file *file,	/* see include/linux/fs.h */
-		 unsigned int ioctl_num,	/* number and param for ioctl */
-		 unsigned long ioctl_param)
+static long device_ioctl(struct file *file, unsigned int ioctl_num,
+			 unsigned long ioctl_param)
 {
 	unsigned size;
 	/*
@@ -348,11 +343,10 @@ static long device_ioctl(struct file *file,	/* see include/linux/fs.h */
 		 * to be the device's message.  Get the parameter given to
 		 * ioctl by the process.
 		 */
-		mbox_copy_from_user(&size, (void *)ioctl_param, sizeof size);
+		mbox_copy_from_user(&size, (void *)ioctl_param, sizeof(size));
 		return bcm_mailbox_property((void *)ioctl_param, size);
-		break;
 	default:
-		printk(KERN_ERR DRIVER_NAME "unknown ioctl: %d\n", ioctl_num);
+		pr_err(DRIVER_NAME "unknown ioctl: %d\n", ioctl_num);
 		return -EINVAL;
 	}
 
@@ -368,7 +362,7 @@ static long device_ioctl(struct file *file,	/* see include/linux/fs.h */
  * the devices table, it can't be local to
  * init_module. NULL is for unimplemented functios.
  */
-struct file_operations fops = {
+const struct file_operations fops = {
 	.unlocked_ioctl = device_ioctl,
 	.open = device_open,
 	.release = device_release,	/* a.k.a. close */
@@ -380,17 +374,15 @@ static int bcm_vcio_probe(struct platform_device *pdev)
 	struct vc_mailbox *mailbox;
 
 	mailbox = kzalloc(sizeof(*mailbox), GFP_KERNEL);
-	if (NULL == mailbox) {
-		printk(KERN_ERR DRIVER_NAME ": failed to allocate "
-		       "mailbox memory\n");
+	if (!mailbox) {
 		ret = -ENOMEM;
 	} else {
 		struct resource *res;
 
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-		if (res == NULL) {
-			printk(KERN_ERR DRIVER_NAME ": failed to obtain memory "
-			       "resource\n");
+		if (!res) {
+			pr_err(DRIVER_NAME
+			       ": failed to obtain memory resource\n");
 			ret = -ENODEV;
 			kfree(mailbox);
 		} else {
@@ -402,8 +394,8 @@ static int bcm_vcio_probe(struct platform_device *pdev)
 
 			mbox_irqaction.dev_id = mailbox;
 			setup_irq(IRQ_ARM_MAILBOX, &mbox_irqaction);
-			printk(KERN_INFO DRIVER_NAME ": mailbox at %p\n",
-			       __io_address(ARM_0_MAIL0_RD));
+			dev_info(&pdev->dev, "mailbox at %p\n",
+				 __io_address(ARM_0_MAIL0_RD));
 		}
 	}
 
@@ -417,17 +409,18 @@ static int bcm_vcio_probe(struct platform_device *pdev)
 		 * Negative values signify an error
 		 */
 		if (ret < 0) {
-			printk(KERN_ERR DRIVER_NAME
-			       "Failed registering the character device %d\n", ret);
+			pr_err(DRIVER_NAME
+			       "Failed registering the character device %d\n",
+			       ret);
 			return ret;
 		}
 		vcio_class = class_create(THIS_MODULE, BCM_VCIO_DRIVER_NAME);
 		if (IS_ERR(vcio_class)) {
-		    ret = PTR_ERR(vcio_class);
-		   return ret ;
+			ret = PTR_ERR(vcio_class);
+			return ret;
 		}
 		device_create(vcio_class, NULL, MKDEV(MAJOR_NUM, 0), NULL,
-                      "vcio");
+			      "vcio");
 	}
 	return ret;
 }
@@ -456,20 +449,18 @@ static int __init bcm_mbox_init(void)
 {
 	int ret;
 
-	printk(KERN_INFO "mailbox: Broadcom VideoCore Mailbox driver\n");
+	pr_info("mailbox: Broadcom VideoCore Mailbox driver\n");
 
 	ret = platform_driver_register(&bcm_mbox_driver);
-	if (ret != 0) {
-		printk(KERN_ERR DRIVER_NAME ": failed to register "
-		       "on platform\n");
-	}
+	if (ret)
+		pr_err(DRIVER_NAME ": failed to register on platform\n");
 
 	return ret;
 }
 
 static void __exit bcm_mbox_exit(void)
 {
-	device_destroy(vcio_class,MKDEV(MAJOR_NUM, 0));
+	device_destroy(vcio_class, MKDEV(MAJOR_NUM, 0));
 	class_destroy(vcio_class);
 	unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
 	platform_driver_unregister(&bcm_mbox_driver);
