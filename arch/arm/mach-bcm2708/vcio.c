@@ -21,13 +21,10 @@
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/ioctl.h>
-#include <linux/irq.h>
 #include <linux/platform_device.h>
-#include <linux/slab.h>
 #include <linux/uaccess.h>
 
 #include <mach/vcio.h>
-#include <mach/platform.h>
 
 #define DRIVER_NAME "bcm2708_vcio"
 #define DEVICE_FILE_NAME "vcio"
@@ -60,12 +57,9 @@ struct vc_mailbox {
 	uint32_t magic;
 };
 
-static void mbox_init(struct vc_mailbox *mbox_out, struct device *dev,
-		      uint32_t addr_mbox)
+static void mbox_init(struct vc_mailbox *mbox_out)
 {
 	int i;
-
-	mbox_out->regs = __io_address(addr_mbox);
 
 	for (i = 0; i < MBOX_CHAN_COUNT; i++) {
 		mbox_out->msg[i] = 0;
@@ -104,7 +98,7 @@ static int mbox_read(struct vc_mailbox *mbox, unsigned chan, uint32_t *data28)
 	return 0;
 }
 
-static irqreturn_t mbox_irq(int irq, void *dev_id)
+static irqreturn_t mbox_irq_handler(int irq, void *dev_id)
 {
 	/* wait for the mailbox FIFO to have some data in it */
 	struct vc_mailbox *mbox = (struct vc_mailbox *)dev_id;
@@ -133,12 +127,6 @@ static irqreturn_t mbox_irq(int irq, void *dev_id)
 	}
 	return ret;
 }
-
-static struct irqaction mbox_irqaction = {
-	.name = "ARM Mailbox IRQ",
-	.flags = IRQF_DISABLED | IRQF_IRQPOLL,
-	.handler = mbox_irq,
-};
 
 /* Mailbox Methods */
 
@@ -185,11 +173,6 @@ extern int bcm_mailbox_read(unsigned chan, uint32_t *data28)
 	return dev_mbox_read(mbox_dev, chan, data28);
 }
 EXPORT_SYMBOL_GPL(bcm_mailbox_read);
-
-static void dev_mbox_register(const char *dev_name, struct device *dev)
-{
-	mbox_dev = dev;
-}
 
 static int mbox_copy_from_user(void *dst, const void *src, int size)
 {
@@ -329,67 +312,83 @@ const struct file_operations fops = {
 
 static int bcm_vcio_probe(struct platform_device *pdev)
 {
-	int ret = 0;
+	struct device *dev = &pdev->dev;
+	struct device *vdev;
 	struct vc_mailbox *mailbox;
+	struct resource *res;
+	int irq, ret;
 
-	mailbox = kzalloc(sizeof(*mailbox), GFP_KERNEL);
-	if (!mailbox) {
-		ret = -ENOMEM;
-	} else {
-		struct resource *res;
+	mailbox = devm_kzalloc(dev, sizeof(*mailbox), GFP_KERNEL);
+	if (!mailbox)
+		return -ENOMEM;
 
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-		if (!res) {
-			pr_err(DRIVER_NAME
-			       ": failed to obtain memory resource\n");
-			ret = -ENODEV;
-			kfree(mailbox);
-		} else {
-			/* should be based on the registers from res really */
-			mbox_init(mailbox, &pdev->dev, ARM_0_MAIL0_RD);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	mailbox->regs = devm_ioremap_resource(dev, res);
+	if (IS_ERR(mailbox->regs))
+		return PTR_ERR(mailbox->regs);
 
-			platform_set_drvdata(pdev, mailbox);
-			dev_mbox_register(DRIVER_NAME, &pdev->dev);
-
-			mbox_irqaction.dev_id = mailbox;
-			setup_irq(IRQ_ARM_MAILBOX, &mbox_irqaction);
-			dev_info(&pdev->dev, "mailbox at %p\n",
-				 __io_address(ARM_0_MAIL0_RD));
-		}
+	irq = platform_get_irq(pdev, 0);
+	ret = devm_request_irq(dev, irq, mbox_irq_handler,
+			       IRQF_DISABLED | IRQF_IRQPOLL,
+			       dev_name(dev), mailbox);
+	if (ret) {
+		dev_err(dev, "Interrupt request failed %d\n", ret);
+		return ret;
 	}
 
-	if (ret == 0) {
-		ret = register_chrdev(MAJOR_NUM, DEVICE_FILE_NAME, &fops);
-		if (ret < 0) {
-			pr_err(DRIVER_NAME
-			       "Failed registering the character device %d\n",
-			       ret);
-			return ret;
-		}
-		vcio_class = class_create(THIS_MODULE, DRIVER_NAME);
-		if (IS_ERR(vcio_class)) {
-			ret = PTR_ERR(vcio_class);
-			return ret;
-		}
-		device_create(vcio_class, NULL, MKDEV(MAJOR_NUM, 0), NULL,
-			      "vcio");
+	ret = register_chrdev(MAJOR_NUM, DEVICE_FILE_NAME, &fops);
+	if (ret < 0) {
+		pr_err("Character device registration failed %d\n", ret);
+		return ret;
 	}
+
+	vcio_class = class_create(THIS_MODULE, DRIVER_NAME);
+	if (IS_ERR(vcio_class)) {
+		ret = PTR_ERR(vcio_class);
+		pr_err("Class creation failed %d\n", ret);
+		goto err_class;
+	}
+
+	vdev = device_create(vcio_class, NULL, MKDEV(MAJOR_NUM, 0), NULL,
+			     "vcio");
+	if (IS_ERR(vdev)) {
+		ret = PTR_ERR(vdev);
+		pr_err("Device creation failed %d\n", ret);
+		goto err_dev;
+	}
+
+	mbox_init(mailbox);
+	platform_set_drvdata(pdev, mailbox);
+	mbox_dev = dev;
+
+	dev_info(dev, "mailbox at %p\n", mailbox->regs);
+
+	return 0;
+
+err_dev:
+	class_destroy(vcio_class);
+err_class:
+	unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
+
 	return ret;
 }
 
 static int bcm_vcio_remove(struct platform_device *pdev)
 {
-	struct vc_mailbox *mailbox = platform_get_drvdata(pdev);
-
 	mbox_dev = NULL;
 	platform_set_drvdata(pdev, NULL);
-	kfree(mailbox);
 	device_destroy(vcio_class, MKDEV(MAJOR_NUM, 0));
 	class_destroy(vcio_class);
 	unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
 
 	return 0;
 }
+
+static const struct of_device_id bcm_vcio_of_match_table[] = {
+	{ .compatible = "brcm,bcm2708-vcio", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, bcm_vcio_of_match_table);
 
 static struct platform_driver bcm_mbox_driver = {
 	.probe = bcm_vcio_probe,
@@ -398,6 +397,7 @@ static struct platform_driver bcm_mbox_driver = {
 	.driver = {
 		   .name = DRIVER_NAME,
 		   .owner = THIS_MODULE,
+		   .of_match_table = bcm_vcio_of_match_table,
 		   },
 };
 
