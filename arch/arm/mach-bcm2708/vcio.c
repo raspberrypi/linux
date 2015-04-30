@@ -33,12 +33,12 @@
 #define DEVICE_FILE_NAME "vcio"
 
 /* offsets from a mail box base address */
-#define MAIL_WRT	0x00	/* write - and next 4 words */
-#define MAIL_RD		0x00	/* read - and next 4 words */
-#define MAIL_POL	0x10	/* read without popping the fifo */
-#define MAIL_SND	0x14	/* sender ID (bottom two bits) */
-#define MAIL_STA	0x18	/* status */
-#define MAIL_CNF	0x1C	/* configuration */
+#define MAIL0_RD	0x00	/* read - and next 4 words */
+#define MAIL0_POL	0x10	/* read without popping the fifo */
+#define MAIL0_SND	0x14	/* sender ID (bottom two bits) */
+#define MAIL0_STA	0x18	/* status */
+#define MAIL0_CNF	0x1C	/* configuration */
+#define MAIL1_WRT	0x20	/* write - and next 4 words */
 
 #define MBOX_MSG(chan, data28)		(((data28) & ~0xf) | ((chan) & 0xf))
 #define MBOX_MSG_LSB(chan, data28) (((data28) << 4) | ((chan) & 0xf))
@@ -54,10 +54,7 @@
 static struct class *vcio_class;
 
 struct vc_mailbox {
-	void __iomem *status;
-	void __iomem *config;
-	void __iomem *read;
-	void __iomem *write;
+	void __iomem *regs;
 	uint32_t msg[MBOX_CHAN_COUNT];
 	struct semaphore sema[MBOX_CHAN_COUNT];
 	uint32_t magic;
@@ -68,13 +65,7 @@ static void mbox_init(struct vc_mailbox *mbox_out, struct device *dev,
 {
 	int i;
 
-	mbox_out->status = __io_address(addr_mbox + MAIL_STA);
-	mbox_out->config = __io_address(addr_mbox + MAIL_CNF);
-	mbox_out->read = __io_address(addr_mbox + MAIL_RD);
-	/* Write to the other mailbox */
-	mbox_out->write =
-	    __io_address((addr_mbox ^ ARM_0_MAIL0_WRT ^ ARM_0_MAIL1_WRT) +
-			 MAIL_WRT);
+	mbox_out->regs = __io_address(addr_mbox);
 
 	for (i = 0; i < MBOX_CHAN_COUNT; i++) {
 		mbox_out->msg[i] = 0;
@@ -82,7 +73,7 @@ static void mbox_init(struct vc_mailbox *mbox_out, struct device *dev,
 	}
 
 	/* Enable the interrupt on data reception */
-	writel(ARM_MC_IHAVEDATAIRQEN, mbox_out->config);
+	writel(ARM_MC_IHAVEDATAIRQEN, mbox_out->regs + MAIL0_CNF);
 
 	mbox_out->magic = MBOX_MAGIC;
 }
@@ -93,10 +84,10 @@ static int mbox_write(struct vc_mailbox *mbox, unsigned chan, uint32_t data28)
 		return -EINVAL;
 
 	/* wait for the mailbox FIFO to have some space in it */
-	while (0 != (readl(mbox->status) & ARM_MS_FULL))
+	while (0 != (readl(mbox->regs + MAIL0_STA) & ARM_MS_FULL))
 		cpu_relax();
 
-	writel(MBOX_MSG(chan, data28), mbox->write);
+	writel(MBOX_MSG(chan, data28), mbox->regs + MAIL1_WRT);
 
 	return 0;
 }
@@ -117,11 +108,11 @@ static irqreturn_t mbox_irq(int irq, void *dev_id)
 {
 	/* wait for the mailbox FIFO to have some data in it */
 	struct vc_mailbox *mbox = (struct vc_mailbox *)dev_id;
-	int status = readl(mbox->status);
+	int status = readl(mbox->regs + MAIL0_STA);
 	int ret = IRQ_NONE;
 
 	while (!(status & ARM_MS_EMPTY)) {
-		uint32_t msg = readl(mbox->read);
+		uint32_t msg = readl(mbox->regs + MAIL0_RD);
 		int chan = MBOX_CHAN(msg);
 
 		if (chan < MBOX_CHAN_COUNT) {
@@ -138,7 +129,7 @@ static irqreturn_t mbox_irq(int irq, void *dev_id)
 			       ": invalid channel selector (msg %08x)\n", msg);
 		}
 		ret = IRQ_HANDLED;
-		status = readl(mbox->status);
+		status = readl(mbox->regs + MAIL0_STA);
 	}
 	return ret;
 }
