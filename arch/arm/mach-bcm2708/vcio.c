@@ -403,15 +403,7 @@ static struct platform_driver bcm_mbox_driver = {
 
 static int __init bcm_mbox_init(void)
 {
-	int ret;
-
-	pr_info("mailbox: Broadcom VideoCore Mailbox driver\n");
-
-	ret = platform_driver_register(&bcm_mbox_driver);
-	if (ret)
-		pr_err(DRIVER_NAME ": failed to register on platform\n");
-
-	return ret;
+	return platform_driver_register(&bcm_mbox_driver);
 }
 
 static void __exit bcm_mbox_exit(void)
@@ -425,4 +417,3 @@ module_exit(bcm_mbox_exit);
 MODULE_AUTHOR("Gray Girling");
 MODULE_DESCRIPTION("ARM I/O to VideoCore processor");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("platform:bcm-mbox");
