@@ -84,34 +84,28 @@ static void mbox_init(struct vc_mailbox *mbox_out, struct device *dev,
 
 static int mbox_write(struct vc_mailbox *mbox, unsigned chan, uint32_t data28)
 {
-	int rc;
+	if (mbox->magic != MBOX_MAGIC)
+		return -EINVAL;
 
-	if (mbox->magic != MBOX_MAGIC) {
-		rc = -EINVAL;
-	} else {
-		/* wait for the mailbox FIFO to have some space in it */
-		while (0 != (readl(mbox->status) & ARM_MS_FULL))
-			cpu_relax();
+	/* wait for the mailbox FIFO to have some space in it */
+	while (0 != (readl(mbox->status) & ARM_MS_FULL))
+		cpu_relax();
 
-		writel(MBOX_MSG(chan, data28), mbox->write);
-		rc = 0;
-	}
-	return rc;
+	writel(MBOX_MSG(chan, data28), mbox->write);
+
+	return 0;
 }
 
 static int mbox_read(struct vc_mailbox *mbox, unsigned chan, uint32_t *data28)
 {
-	int rc;
+	if (mbox->magic != MBOX_MAGIC)
+		return -EINVAL;
 
-	if (mbox->magic != MBOX_MAGIC) {
-		rc = -EINVAL;
-	} else {
-		down(&mbox->sema[chan]);
-		*data28 = MBOX_DATA28(mbox->msg[chan]);
-		mbox->msg[chan] = 0;
-		rc = 0;
-	}
-	return rc;
+	down(&mbox->sema[chan]);
+	*data28 = MBOX_DATA28(mbox->msg[chan]);
+	mbox->msg[chan] = 0;
+
+	return 0;
 }
 
 static irqreturn_t mbox_irq(int irq, void *dev_id)
@@ -180,19 +174,19 @@ static int dev_mbox_read(struct device *dev, unsigned chan, uint32_t *data28)
 
 extern int bcm_mailbox_write(unsigned chan, uint32_t data28)
 {
-	if (mbox_dev)
-		return dev_mbox_write(mbox_dev, chan, data28);
-	else
+	if (!mbox_dev)
 		return -ENODEV;
+
+	return dev_mbox_write(mbox_dev, chan, data28);
 }
 EXPORT_SYMBOL_GPL(bcm_mailbox_write);
 
 extern int bcm_mailbox_read(unsigned chan, uint32_t *data28)
 {
-	if (mbox_dev)
-		return dev_mbox_read(mbox_dev, chan, data28);
-	else
+	if (!mbox_dev)
 		return -ENODEV;
+
+	return dev_mbox_read(mbox_dev, chan, data28);
 }
 EXPORT_SYMBOL_GPL(bcm_mailbox_read);
 
