@@ -12,38 +12,23 @@
  * VideoCore processor
  */
 
-#if defined(CONFIG_SERIAL_BCM_MBOX_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
-#define SUPPORT_SYSRQ
-#endif
-
-#include <linux/module.h>
-#include <linux/console.h>
-#include <linux/serial_core.h>
-#include <linux/serial.h>
-#include <linux/errno.h>
 #include <linux/device.h>
-#include <linux/init.h>
-#include <linux/mm.h>
 #include <linux/dma-mapping.h>
-#include <linux/platform_device.h>
-#include <linux/sysrq.h>
-#include <linux/delay.h>
-#include <linux/slab.h>
+#include <linux/module.h>
+#include <linux/errno.h>
+#include <linux/fs.h>
+#include <linux/init.h>
 #include <linux/interrupt.h>
-#include <linux/irq.h>
-
 #include <linux/io.h>
+#include <linux/irq.h>
+#include <linux/platform_device.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
 
 #include <mach/vcio.h>
 #include <mach/platform.h>
 
-#include <linux/uaccess.h>
-
 #define DRIVER_NAME BCM_VCIO_DRIVER_NAME
-
-/* ----------------------------------------------------------------------
- *	Mailbox
- * -------------------------------------------------------------------- */
 
 /* offsets from a mail box base address */
 #define MAIL_WRT	0x00	/* write - and next 4 words */
@@ -64,7 +49,6 @@
 static struct class *vcio_class;
 
 struct vc_mailbox {
-	struct device *dev;	/* parent device */
 	void __iomem *status;
 	void __iomem *config;
 	void __iomem *read;
@@ -79,7 +63,6 @@ static void mbox_init(struct vc_mailbox *mbox_out, struct device *dev,
 {
 	int i;
 
-	mbox_out->dev = dev;
 	mbox_out->status = __io_address(addr_mbox + MAIL_STA);
 	mbox_out->config = __io_address(addr_mbox + MAIL_CNF);
 	mbox_out->read = __io_address(addr_mbox + MAIL_RD);
@@ -144,7 +127,6 @@ static irqreturn_t mbox_irq(int irq, void *dev_id)
 
 		if (chan < MBOX_CHAN_COUNT) {
 			if (mbox->msg[chan]) {
-				/* Overflow */
 				pr_err(DRIVER_NAME
 				       ": mbox chan %d overflow - drop %08x\n",
 				       chan, msg);
@@ -168,9 +150,7 @@ static struct irqaction mbox_irqaction = {
 	.handler = mbox_irq,
 };
 
-/* ----------------------------------------------------------------------
- *	Mailbox Methods
- * -------------------------------------------------------------------- */
+/* Mailbox Methods */
 
 static struct device *mbox_dev;	/* we assume there's only one! */
 
@@ -279,9 +259,7 @@ extern int bcm_mailbox_property(void *data, int size)
 }
 EXPORT_SYMBOL_GPL(bcm_mailbox_property);
 
-/* ----------------------------------------------------------------------
- *	Platform Device for Mailbox
- * -------------------------------------------------------------------- */
+/* Platform Device for Mailbox */
 
 /*
  * Is the device open right now? Used to prevent
@@ -289,33 +267,26 @@ EXPORT_SYMBOL_GPL(bcm_mailbox_property);
  */
 static bool device_is_open;
 
-/*
- * This is called whenever a process attempts to open the device file
- */
+/* This is called whenever a process attempts to open the device file */
 static int device_open(struct inode *inode, struct file *file)
 {
-	/*
-	 * We don't want to talk to two processes at the same time
-	 */
+	/* We don't want to talk to two processes at the same time */
 	if (device_is_open)
 		return -EBUSY;
 
 	device_is_open = true;
-	/*
-	 * Initialize the message
-	 */
 	try_module_get(THIS_MODULE);
+
 	return 0;
 }
 
 static int device_release(struct inode *inode, struct file *file)
 {
-	/*
-	 * We're now ready for our next caller
-	 */
+	/* We're now ready for our next caller */
 	device_is_open = false;
 
 	module_put(THIS_MODULE);
+
 	return 0;
 }
 
@@ -333,9 +304,7 @@ static long device_ioctl(struct file *file, unsigned int ioctl_num,
 			 unsigned long ioctl_param)
 {
 	unsigned size;
-	/*
-	 * Switch according to the ioctl called
-	 */
+
 	switch (ioctl_num) {
 	case IOCTL_MBOX_PROPERTY:
 		/*
@@ -400,14 +369,7 @@ static int bcm_vcio_probe(struct platform_device *pdev)
 	}
 
 	if (ret == 0) {
-		/*
-		 * Register the character device
-		 */
 		ret = register_chrdev(MAJOR_NUM, DEVICE_FILE_NAME, &fops);
-
-		/*
-		 * Negative values signify an error
-		 */
 		if (ret < 0) {
 			pr_err(DRIVER_NAME
 			       "Failed registering the character device %d\n",
