@@ -391,8 +391,12 @@ static int bcm_vcio_remove(struct platform_device *pdev)
 {
 	struct vc_mailbox *mailbox = platform_get_drvdata(pdev);
 
+	mbox_dev = NULL;
 	platform_set_drvdata(pdev, NULL);
 	kfree(mailbox);
+	device_destroy(vcio_class, MKDEV(MAJOR_NUM, 0));
+	class_destroy(vcio_class);
+	unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
 
 	return 0;
 }
@@ -422,9 +426,6 @@ static int __init bcm_mbox_init(void)
 
 static void __exit bcm_mbox_exit(void)
 {
-	device_destroy(vcio_class, MKDEV(MAJOR_NUM, 0));
-	class_destroy(vcio_class);
-	unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
 	platform_driver_unregister(&bcm_mbox_driver);
 }
 
