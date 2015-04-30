@@ -20,6 +20,7 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/ioctl.h>
 #include <linux/irq.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
@@ -28,7 +29,8 @@
 #include <mach/vcio.h>
 #include <mach/platform.h>
 
-#define DRIVER_NAME BCM_VCIO_DRIVER_NAME
+#define DRIVER_NAME "bcm2708_vcio"
+#define DEVICE_FILE_NAME "vcio"
 
 /* offsets from a mail box base address */
 #define MAIL_WRT	0x00	/* write - and next 4 words */
@@ -45,6 +47,9 @@
 #define MBOX_DATA28_LSB(msg)		(((uint32_t)msg) >> 4)
 
 #define MBOX_MAGIC 0xd0d0c0de
+
+#define MAJOR_NUM 100
+#define IOCTL_MBOX_PROPERTY _IOWR(MAJOR_NUM, 0, char *)
 
 static struct class *vcio_class;
 
@@ -370,7 +375,7 @@ static int bcm_vcio_probe(struct platform_device *pdev)
 			       ret);
 			return ret;
 		}
-		vcio_class = class_create(THIS_MODULE, BCM_VCIO_DRIVER_NAME);
+		vcio_class = class_create(THIS_MODULE, DRIVER_NAME);
 		if (IS_ERR(vcio_class)) {
 			ret = PTR_ERR(vcio_class);
 			return ret;
