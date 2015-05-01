@@ -6,6 +6,12 @@ menuconfig MAILBOX
 	  signals. Say Y if your platform supports hardware mailboxes.
 
 if MAILBOX
+config BCM2708_MBOX
+	bool "Broadcom BCM2708 Mailbox (vcio)"
+	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
+	help
+	  Broadcom BCM2708 Mailbox (vcio)
+
 config PL320_MBOX
 	bool "ARM PL320 Mailbox"
 	depends on ARM_AMBA
