@@ -164,6 +164,7 @@ static inline void bcm2835_mmc_writel(struct bcm2835_host *host, u32 val, int re
 		while (bcm2835_mmc_axi_outstanding_writes() > 0)
 			cpu_relax();
 
+	WARN_ON(!spin_is_locked(&host->lock));
 	writel(val, host->ioaddr + reg);
 	udelay(BCM2835_SDHCI_WRITE_DELAY(max(host->clock, MIN_FREQ)));
 
@@ -189,6 +190,7 @@ static inline void mmc_raw_writel(struct bcm2835_host *host, u32 val, int reg)
 		while (bcm2835_mmc_axi_outstanding_writes() > 0)
 			cpu_relax();
 
+	WARN_ON(!spin_is_locked(&host->lock));
 	writel(val, host->ioaddr + reg);
 
 	delay = ((mmc_debug >> 24) & 0xf) << ((mmc_debug >> 28) & 0xf);
@@ -213,6 +215,7 @@ static inline u32 bcm2835_mmc_readl(struct bcm2835_host *host, int reg)
 		while (bcm2835_mmc_axi_outstanding_writes() > 0)
 			cpu_relax();
 
+	WARN_ON(!spin_is_locked(&host->lock));
 	ret = readl(host->ioaddr + reg);
 
 	if (mmc_debug & (1<<10))
@@ -586,11 +589,14 @@ static void bcm2835_mmc_transfer_dma(struct bcm2835_host *host)
 		dev_err(mmc_dev(host->mmc), "dma_map_sg returned zero length\n");
 	}
 	if (desc) {
+		unsigned long flags;
+		spin_lock_irqsave(&host->lock, flags);
 		bcm2835_mmc_unsignal_irqs(host, SDHCI_INT_DATA_AVAIL |
 						    SDHCI_INT_SPACE_AVAIL);
 		host->tx_desc = desc;
 		desc->callback = bcm2835_mmc_dma_complete;
 		desc->callback_param = host;
+		spin_unlock_irqrestore(&host->lock, flags);
 		dmaengine_submit(desc);
 		dma_async_issue_pending(dma_chan);
 	}
@@ -1349,7 +1355,7 @@ static void bcm2835_mmc_tasklet_finish(unsigned long param)
 
 
 
-int bcm2835_mmc_add_host(struct bcm2835_host *host)
+static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 {
 	struct mmc_host *mmc = host->mmc;
 	struct device *dev = mmc->parent;
@@ -1374,8 +1380,6 @@ int bcm2835_mmc_add_host(struct bcm2835_host *host)
 	MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED | MMC_CAP_4_BIT_DATA;
 
 	host->flags = SDHCI_AUTO_CMD23;
-
-	spin_lock_init(&host->lock);
 
 dev_info(dev, "mmc_debug:%x mmc_debug2:%x\n", mmc_debug, mmc_debug2);
 if (mmc_debug & (1<<12)) {
