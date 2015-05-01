@@ -115,7 +115,7 @@
 #ifdef CONFIG_MMC_BCM2835_SDHOST_PIO_DMA_BARRIER
 #define PIO_DMA_BARRIER CONFIG_MMC_BCM2835_SDHOST_PIO_DMA_BARRIER
 #else
-#define PIO_DMA_BARRIER 00
+#define PIO_DMA_BARRIER 0
 #endif
 
 #define MIN_FREQ 400000
@@ -176,6 +176,7 @@ struct bcm2835_host {
 	struct dma_chan			*dma_chan_rx;		/* DMA channel for reads */
 	struct dma_chan			*dma_chan_tx;		/* DMA channel for writes */
 
+	bool				allow_dma;
 	bool				have_dma;
 	bool				use_dma;
 	/*end of DMA part*/
@@ -621,7 +622,8 @@ static void bcm2835_sdhost_prepare_data(struct bcm2835_host *host, struct mmc_co
 	bcm2835_sdhost_set_transfer_irqs(host);
 
 	bcm2835_sdhost_write(host, data->blksz, SDHBCT);
-	bcm2835_sdhost_write(host, data->blocks, SDHBLC);
+	if (host->use_dma)
+		bcm2835_sdhost_write(host, data->blocks, SDHBLC);
 
 	BUG_ON(!host->data);
 }
@@ -1235,53 +1237,41 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 
 			 623->400KHz/27.8MHz
 			 reset value (507)->491159/50MHz
+
+	   BUT, the 3-bit clock divisor in data mode is too small if the
+	   core clock is higher than 250MHz, so instead use the SLOW_CARD
+	   configuration bit to force the use of the ident clock divisor
+	   at all times.
 	*/
 
 	host->mmc->actual_clock = 0;
 
-	if (clock <= 400000) {
-		/* It's an ident clock - don't worry about the lower bits */
-		host->slow_card = true;
-		if (clock < 100000) {
-			/* Can't stop the clock, but make it as slow as possible
-			 * to show willing
-			 */
-			host->cdiv = SDCDIV_MAX_CDIV;
-			bcm2835_sdhost_write(host, host->cdiv, SDCDIV);
-			return;
-		}
-		div = host->max_clk / clock;
-		if ((host->max_clk / div) > 400000)
-			div++;
-		div -= 2;
-
-		if (div > SDCDIV_MAX_CDIV)
-			div = SDCDIV_MAX_CDIV;
-
-		host->mmc->actual_clock = host->max_clk / (div + 2);
-	} else {
-		/* It's a data clock - choose the lower bits, and make
-		   the upper bits vaguely sensible */
-		host->slow_card = false;
-
-		for (div = 0x0; div < 0x7; div++) {
-			if ((host->max_clk / (div + 2)) <= clock)
-				break;
-		}
-
-		host->mmc->actual_clock = host->max_clk / (div + 2);
-
-		div |= (((host->max_clk / 400000) - 2) & ~0x7);
-		if ((host->max_clk / (div + 2)) > 400000)
-			div += 0x8;
+	if (clock < 100000) {
+	    /* Can't stop the clock, but make it as slow as possible
+	     * to show willing
+	     */
+	    host->cdiv = SDCDIV_MAX_CDIV;
+	    bcm2835_sdhost_write(host, host->cdiv, SDCDIV);
+	    return;
 	}
+
+	div = host->max_clk / clock;
+	if (div < 2)
+		div = 2;
+	if ((host->max_clk / div) > clock)
+		div++;
+	div -= 2;
+
+	if (div > SDCDIV_MAX_CDIV)
+	    div = SDCDIV_MAX_CDIV;
+
+	host->mmc->actual_clock = host->max_clk / (div + 2);
 
 	host->cdiv = div;
 	bcm2835_sdhost_write(host, host->cdiv, SDCDIV);
 
-	pr_debug(DRIVER_NAME ": cdiv=%x (actual clock %d, data clock %d)\n",
-		 host->cdiv, host->mmc->actual_clock,
-		 host->max_clk / ((div & 0x7) + 2));
+	pr_debug(DRIVER_NAME ": clock=%d -> max_clk=%d, cdiv=%x (actual clock %d)\n",
+		 clock, host->max_clk, host->cdiv, host->mmc->actual_clock);
 }
 
 static void bcm2835_sdhost_request(struct mmc_host *mmc, struct mmc_request *mrq)
@@ -1347,7 +1337,6 @@ static void bcm2835_sdhost_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	spin_lock_irqsave(&host->lock, flags);
 
-	pr_debug("host->clock = %d\n", host->clock);
 	if (!ios->clock || ios->clock != host->clock) {
 		bcm2835_sdhost_set_clock(host, ios->clock);
 		host->clock = ios->clock;
@@ -1360,9 +1349,8 @@ static void bcm2835_sdhost_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	host->hcfg |= SDHCFG_WIDE_INT_BUS;
 
-	host->hcfg &= ~SDHCFG_SLOW_CARD;
-	if (host->slow_card || !ALLOW_FAST)
-		host->hcfg |= SDHCFG_SLOW_CARD;
+	/* Disable clever clock switching, to cope with fast core clocks */
+	host->hcfg |= SDHCFG_SLOW_CARD;
 
 	bcm2835_sdhost_write(host, host->hcfg, SDHCFG);
 
@@ -1390,7 +1378,7 @@ static int bcm2835_sdhost_multi_io_quirk(struct mmc_card *card,
 }
 
 
-static struct mmc_host_ops bcm2835_ops = {
+static struct mmc_host_ops bcm2835_sdhost_ops = {
 	.request = bcm2835_sdhost_request,
 	.set_ios = bcm2835_sdhost_set_ios,
 	.enable_sdio_irq = bcm2835_sdhost_enable_sdio_irq,
@@ -1454,8 +1442,6 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 
 	bcm2835_sdhost_reset(host);
 
-	mmc->ops = &bcm2835_ops;
-	mmc->f_max = host->max_clk;
 	mmc->f_max = host->max_clk;
 	mmc->f_min = host->max_clk / SDCDIV_MAX_CDIV;
 
@@ -1465,14 +1451,14 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 	mmc->max_busy_timeout = (1 << 27) / host->timeout_clk;
 #endif
 	/* host controller capabilities */
-	mmc->caps = /*XXX MMC_CAP_SDIO_IRQ |*/ MMC_CAP_4_BIT_DATA |
+	mmc->caps |= /* MMC_CAP_SDIO_IRQ |*/ MMC_CAP_4_BIT_DATA |
 		MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED |
 		MMC_CAP_NEEDS_POLL |
 		(ALLOW_CMD23 * MMC_CAP_CMD23);
 
 	spin_lock_init(&host->lock);
 
-	if (ALLOW_DMA) {
+	if (host->allow_dma) {
 		if (!host->dma_chan_tx || !host->dma_chan_rx ||
 		    IS_ERR(host->dma_chan_tx) || IS_ERR(host->dma_chan_rx)) {
 			pr_err("%s: Unable to initialise DMA channels. Falling back to PIO\n", DRIVER_NAME);
@@ -1559,7 +1545,7 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 	if (!mmc)
 		return -ENOMEM;
 
-	mmc->ops = &bcm2835_ops;
+	mmc->ops = &bcm2835_sdhost_ops;
 	host = mmc_priv(mmc);
 	host->mmc = mmc;
 	host->timeout = msecs_to_jiffies(1000);
@@ -1578,7 +1564,18 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 		 (unsigned long)iomem->start,
 		 (unsigned long)host->phys_addr);
 
-	if (ALLOW_DMA) {
+	host->allow_dma = ALLOW_DMA;
+
+	if (node) {
+		/* Read any custom properties */
+		of_property_read_u32(node,
+				     "brcm,delay-after-stop",
+				     &host->delay_after_stop);
+		host->allow_dma = ALLOW_DMA &&
+			!of_property_read_bool(node, "brcm,force-pio");
+	}
+
+	if (host->allow_dma) {
 		if (node) {
 			host->dma_chan_tx =
 				of_dma_request_slave_channel(node, "tx");
@@ -1597,12 +1594,6 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (node) {
-		/* Read any custom properties */
-		of_property_read_u32(node,
-				     "brcm,delay_after_stop",
-				     &host->delay_after_stop);
-	}
 	clk = devm_clk_get(dev, NULL);
 	if (IS_ERR(clk)) {
 		dev_err(dev, "could not get clk\n");

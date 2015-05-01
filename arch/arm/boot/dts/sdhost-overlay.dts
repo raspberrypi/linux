@@ -18,7 +18,7 @@
 				dmas = <&dma 13>,
 				       <&dma 13>;
 				dma-names = "tx", "rx";
-				brcm,delay_after_stop = <0>;
+				brcm,delay-after-stop = <0>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&sdhost_pins>;
 				status = "okay";
@@ -58,7 +58,16 @@
 		};
 	};
 
+	fragment@3 {
+		target-path = "/__overrides__";
+		__overlay__ {
+			sdhost_freq      = <&clk_sdhost>,"clock-frequency:0";
+		};
+	};
+
 	__overrides__ {
-		delay_after_stop = <&sdhost>,"brcm,delay_after_stop:0";
+		delay_after_stop = <&sdhost>,"brcm,delay-after-stop:0";
+		force_pio        = <&sdhost>,"brcm,force-pio?";
+		sdhost_freq      = <&clk_sdhost>,"clock-frequency:0";
 	};
 };
