@@ -890,7 +890,7 @@ void __init bcm2709_init(void)
 	bcm2709_dt_init();
 
 	bcm_register_device_dt(&bcm2708_dmaengine_device);
-	bcm_register_device(&bcm2708_vcio_device);
+	bcm_register_device_dt(&bcm2708_vcio_device);
 	bcm_register_device_dt(&bcm2708_vchiq_device);
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device_dt(&bcm2708_gpio_device);
