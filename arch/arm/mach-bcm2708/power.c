@@ -189,7 +189,11 @@ static void __exit bcm_power_exit(void)
 	bcm_mailbox_write(MBOX_CHAN_POWER, 0);
 }
 
-arch_initcall(bcm_power_init);	/* Initialize early */
+/*
+ * Load after the mailbox driver is initialized (arch_initcall),
+ * but before depending drivers (module_init).
+ */
+subsys_initcall(bcm_power_init);
 module_exit(bcm_power_exit);
 
 MODULE_AUTHOR("Phil Elwell");
