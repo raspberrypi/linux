@@ -36,6 +36,12 @@
 			#interrupt-cells = <2>;
 		};
 
+		mailbox: mailbox@7e00b800 {
+			compatible = "brcm,bcm2708-vcio";
+			reg = <0x7e00b880 0x40>;
+			interrupts = <0 1>;
+		};
+
 		gpio: gpio {
 			compatible = "brcm,bcm2835-gpio";
 			reg = <0x7e200000 0xb4>;
