@@ -17,9 +17,9 @@
 #include <linux/init.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
+#include <linux/platform_data/mailbox-bcm2708.h>
 #include <linux/platform_device.h>
 #include <linux/sysfs.h>
-#include <mach/vcio.h>
 #include <linux/slab.h>
 #include <linux/err.h>
 

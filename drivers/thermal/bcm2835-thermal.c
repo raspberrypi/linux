@@ -15,10 +15,10 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/platform_data/mailbox-bcm2708.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/sysfs.h>
-#include <mach/vcio.h>
 #include <linux/thermal.h>
 
 

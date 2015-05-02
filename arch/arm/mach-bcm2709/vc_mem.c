@@ -22,6 +22,7 @@
 #include <linux/debugfs.h>
 #include <asm/uaccess.h>
 #include <linux/dma-mapping.h>
+#include <linux/platform_data/mailbox-bcm2708.h>
 
 #ifdef CONFIG_ARCH_KONA
 #include <chal/chal_ipc.h>
@@ -31,7 +32,6 @@
 #endif
 
 #include "mach/vc_mem.h"
-#include <mach/vcio.h>
 
 #define DRIVER_NAME  "vc-mem"
 
