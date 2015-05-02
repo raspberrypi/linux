@@ -26,7 +26,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/cpufreq.h>
-#include <mach/vcio.h>
+#include <linux/platform_data/mailbox-bcm2708.h>
 
 /* ---------- DEFINES ---------- */
 /*#define CPUFREQ_DEBUG_ENABLE*/		/* enable debugging */
