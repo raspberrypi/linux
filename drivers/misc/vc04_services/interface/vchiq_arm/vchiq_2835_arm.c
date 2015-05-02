@@ -40,13 +40,13 @@
 #include <linux/dma-mapping.h>
 #include <linux/version.h>
 #include <linux/io.h>
+#include <linux/platform_data/mailbox-bcm2708.h>
 #include <linux/uaccess.h>
 #include <asm/pgtable.h>
 
 #include <mach/irqs.h>
 
 #include <mach/platform.h>
-#include <mach/vcio.h>
 
 #define TOTAL_SLOTS (VCHIQ_SLOT_ZERO_SLOTS + 2 * 32)
 

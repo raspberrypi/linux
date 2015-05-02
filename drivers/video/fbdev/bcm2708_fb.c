@@ -24,6 +24,7 @@
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/list.h>
+#include <linux/platform_data/mailbox-bcm2708.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/printk.h>
@@ -32,7 +33,6 @@
 
 #include <mach/dma.h>
 #include <mach/platform.h>
-#include <mach/vcio.h>
 
 #include <asm/sizes.h>
 #include <linux/io.h>
