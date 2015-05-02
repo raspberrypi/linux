@@ -6,7 +6,7 @@
  */
 
 #include <linux/module.h>
-#include <mach/vcio.h>
+#include <linux/platform_data/mailbox-bcm2708.h>
 
 #ifdef ECLIPSE_IGNORE
 
