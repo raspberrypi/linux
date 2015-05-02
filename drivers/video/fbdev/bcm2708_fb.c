@@ -325,8 +325,8 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 			/* the console may currently be locked */
 			console_trylock();
 			console_unlock();
-
-			BUG();		/* what can we do here */
+			pr_err("bcm2708_fb_set_par: Failed to set screen_base\n");
+			return -EIO;
 		}
 	}
 	print_debug
@@ -677,7 +677,9 @@ static int bcm2708_fb_register(struct bcm2708_fb *fb)
 	 */
 
 	fb_set_var(&fb->fb, &fb->fb.var);
-	bcm2708_fb_set_par(&fb->fb);
+	ret = bcm2708_fb_set_par(&fb->fb);
+	if (ret)
+		return ret;
 
 	print_debug("BCM2708FB: registering framebuffer (%dx%d@%d) (%d)\n", fbwidth,
 		fbheight, fbdepth, fbswap);
