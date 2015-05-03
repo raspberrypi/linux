@@ -7,12 +7,3 @@ config RTL8192CU
 	---help---
 	  This option adds the Realtek RTL8192CU USB device such as Edimax EW-7811Un.
 
-if RTL8192CU
-
-config AP_MODE
-	bool "Realtek RTL8192CU AP mode"
-	default y
-	---help---
-	This option enables Access Point mode.
-
-endif
