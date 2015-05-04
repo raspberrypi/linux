@@ -424,6 +424,7 @@ static void update_vttbr(struct kvm *kvm)
 
 static int kvm_vcpu_first_run_init(struct kvm_vcpu *vcpu)
 {
+	struct kvm *kvm = vcpu->kvm;
 	int ret;
 
 	if (likely(vcpu->arch.has_run_once))
@@ -435,11 +436,19 @@ static int kvm_vcpu_first_run_init(struct kvm_vcpu *vcpu)
 	 * Map the VGIC hardware resources before running a vcpu the first
 	 * time on this VM.
 	 */
-	if (unlikely(!vgic_initialized(vcpu->kvm))) {
-		ret = kvm_vgic_map_resources(vcpu->kvm);
+	if (unlikely(!vgic_initialized(kvm))) {
+		ret = kvm_vgic_map_resources(kvm);
 		if (ret)
 			return ret;
 	}
+
+	/*
+	 * Enable the arch timers only if we have an in-kernel VGIC
+	 * and it has been properly initialized, since we cannot handle
+	 * interrupts from the virtual timer with a userspace gic.
+	 */
+	if (irqchip_in_kernel(kvm) && vgic_initialized(kvm))
+		kvm_timer_enable(kvm);
 
 	return 0;
 }
