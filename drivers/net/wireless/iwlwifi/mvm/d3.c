@@ -1860,15 +1860,15 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 	/* get the BSS vif pointer again */
 	vif = iwl_mvm_get_bss_vif(mvm);
 	if (IS_ERR_OR_NULL(vif))
-		goto out_unlock;
+		goto err;
 
 	ret = iwl_trans_d3_resume(mvm->trans, &d3_status, test);
 	if (ret)
-		goto out_unlock;
+		goto err;
 
 	if (d3_status != IWL_D3_STATUS_ALIVE) {
 		IWL_INFO(mvm, "Device was reset during suspend\n");
-		goto out_unlock;
+		goto err;
 	}
 
 	/* query SRAM first in case we want event logging */
@@ -1886,7 +1886,8 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 	/* has unlocked the mutex, so skip that */
 	goto out;
 
- out_unlock:
+err:
+	iwl_mvm_free_nd(mvm);
 	mutex_unlock(&mvm->mutex);
 
  out:
