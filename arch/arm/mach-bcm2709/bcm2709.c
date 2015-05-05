@@ -1197,6 +1197,7 @@ static void __init board_reserve(void)
 }
 
 
+#ifdef CONFIG_SMP
 #include <linux/smp.h>
 
 #include <mach/hardware.h>
@@ -1299,6 +1300,7 @@ struct smp_operations  bcm2709_smp_ops __initdata = {
 	.smp_secondary_init	= bcm2709_secondary_init,
 	.smp_boot_secondary	= bcm2709_boot_secondary,
 };
+#endif
 
 static const char * const bcm2709_compat[] = {
 	"brcm,bcm2709",
@@ -1308,7 +1310,9 @@ static const char * const bcm2709_compat[] = {
 
 MACHINE_START(BCM2709, "BCM2709")
     /* Maintainer: Broadcom Europe Ltd. */
+#ifdef CONFIG_SMP
 	.smp		= smp_ops(bcm2709_smp_ops),
+#endif
 	.map_io = bcm2709_map_io,
 	.init_irq = bcm2709_init_irq,
 	.init_time = bcm2709_timer_init,
@@ -1321,7 +1325,9 @@ MACHINE_END
 
 MACHINE_START(BCM2708, "BCM2709")
     /* Maintainer: Broadcom Europe Ltd. */
+#ifdef CONFIG_SMP
 	.smp		= smp_ops(bcm2709_smp_ops),
+#endif
 	.map_io = bcm2709_map_io,
 	.init_irq = bcm2709_init_irq,
 	.init_time = bcm2709_timer_init,
