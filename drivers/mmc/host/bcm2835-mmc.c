@@ -344,11 +344,7 @@ static void bcm2835_mmc_dumpregs(struct bcm2835_host *host)
 static void bcm2835_mmc_reset(struct bcm2835_host *host, u8 mask)
 {
 	unsigned long timeout;
-	unsigned long flags;
 
-	BUG_ON(spin_is_locked(&host->lock));
-
-	spin_lock_irqsave(&host->lock, flags);
 	bcm2835_mmc_writeb(host, mask, SDHCI_SOFTWARE_RESET, 0);
 
 	if (mask & SDHCI_RESET_ALL)
@@ -366,9 +362,7 @@ static void bcm2835_mmc_reset(struct bcm2835_host *host, u8 mask)
 			goto exit;
 		}
 		timeout--;
-		spin_unlock_irqrestore(&host->lock, flags);
 		mdelay(1);
-		spin_lock_irqsave(&host->lock, flags);
 	}
 
 	if (100-timeout > 10 && 100-timeout > host->max_delay) {
@@ -378,14 +372,12 @@ static void bcm2835_mmc_reset(struct bcm2835_host *host, u8 mask)
 exit:
 	if ((mmc_debug & (1<<15)))
 		bcm2835_mmc_writeb(host, TIMEOUT_VAL, SDHCI_TIMEOUT_CONTROL, 1);
-	spin_unlock_irqrestore(&host->lock, flags);
 }
 
 static void bcm2835_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios);
 
 static void bcm2835_mmc_init(struct bcm2835_host *host, int soft)
 {
-	unsigned long flags;
 	if (soft)
 		bcm2835_mmc_reset(host, SDHCI_RESET_CMD|SDHCI_RESET_DATA);
 	else
@@ -397,10 +389,8 @@ static void bcm2835_mmc_init(struct bcm2835_host *host, int soft)
 		    SDHCI_INT_TIMEOUT | SDHCI_INT_DATA_END |
 		    SDHCI_INT_RESPONSE;
 
-	spin_lock_irqsave(&host->lock, flags);
 	bcm2835_mmc_writel(host, host->ier, SDHCI_INT_ENABLE, 3);
 	bcm2835_mmc_writel(host, host->ier, SDHCI_SIGNAL_ENABLE, 3);
-	spin_unlock_irqrestore(&host->lock, flags);
 
 	if (soft) {
 		/* force clock reconfiguration */
@@ -1349,10 +1339,8 @@ static void bcm2835_mmc_tasklet_finish(unsigned long param)
 		 (mrq->data && (mrq->data->error ||
 		  (mrq->data->stop && mrq->data->stop->error))))) {
 
-		spin_unlock_irqrestore(&host->lock, flags);
 		bcm2835_mmc_reset(host, SDHCI_RESET_CMD);
 		bcm2835_mmc_reset(host, SDHCI_RESET_DATA);
-		spin_lock_irqsave(&host->lock, flags);
 	}
 
 	host->mrq = NULL;
