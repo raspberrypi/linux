@@ -35,7 +35,7 @@
 	ldr	\irqstat, = __io_address(ARM_LOCAL_IRQ_PENDING0)	@ local interrupt source
 	add	\irqstat, \irqstat, \base, lsl #2
 	ldr	\tmp, [\irqstat]
-
+#ifdef CONFIG_SMP
 	/* test for mailbox0 (IPI) interrupt */
 	tst	\tmp, #0x10
 	beq	1030f
@@ -53,7 +53,7 @@
 	mov	r1, sp
 	adr	lr, BSYM(1b)
 	b	do_IPI
-
+#endif
 1030:
 	/* check gpu interrupt */
 	tst	\tmp, #0x100
