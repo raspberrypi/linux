@@ -240,7 +240,7 @@ static inline void bcm2835_mmc_writew(struct bcm2835_host *host, u16 val, int re
 
 }
 
-static inline void bcm2835_mmc_writeb(struct bcm2835_host *host, u8 val, int reg, int from)
+static inline void bcm2835_mmc_writeb(struct bcm2835_host *host, u8 val, int reg)
 {
 	u32 oldval = bcm2835_mmc_readl(host, reg & ~3);
 	u32 byte_num = reg & 3;
@@ -248,16 +248,7 @@ static inline void bcm2835_mmc_writeb(struct bcm2835_host *host, u8 val, int reg
 	u32 mask = 0xff << byte_shift;
 	u32 newval = (oldval & ~mask) | (val << byte_shift);
 
-        if ((reg & ~3) == 0x28) // SDHCI_HOST_CONTROL, SDHCI_POWER_CONTROL, SDHCI_BLOCK_GAP_CONTROL, SDHCI_WAKE_UP_CONTROL
-        {
-		WARN_ON(oldval & ((1<<16)|(1<<17)));
-        }
-        else if ((reg & ~3) == 0x2C) // SDHCI_CLOCK_CONTROL, SDHCI_TIMEOUT_CONTROL, SDHCI_SOFTWARE_RESET
-        {
-		WARN_ON(oldval & ((1<<24)|(1<<25)|(1<<26)));
-        }
-
-	bcm2835_mmc_writel(host, newval, reg & ~3, from + 10);
+	bcm2835_mmc_writel(host, newval, reg & ~3, 1);
 }
 
 
@@ -342,7 +333,7 @@ static void bcm2835_mmc_reset(struct bcm2835_host *host, u8 mask)
 {
 	unsigned long timeout;
 
-	bcm2835_mmc_writeb(host, mask, SDHCI_SOFTWARE_RESET, 0);
+	bcm2835_mmc_writeb(host, mask, SDHCI_SOFTWARE_RESET);
 
 	if (mask & SDHCI_RESET_ALL)
 		host->clock = 0;
@@ -356,7 +347,7 @@ static void bcm2835_mmc_reset(struct bcm2835_host *host, u8 mask)
 			pr_err("%s: Reset 0x%x never completed.\n",
 				mmc_hostname(host->mmc), (int)mask);
 			bcm2835_mmc_dumpregs(host);
-			goto exit;
+			return;
 		}
 		timeout--;
 		mdelay(1);
@@ -366,9 +357,6 @@ static void bcm2835_mmc_reset(struct bcm2835_host *host, u8 mask)
 		host->max_delay = 100-timeout;
 		pr_warning("Warning: MMC controller hung for %d ms\n", host->max_delay);
 	}
-exit:
-	if ((mmc_debug & (1<<15)))
-		bcm2835_mmc_writeb(host, TIMEOUT_VAL, SDHCI_TIMEOUT_CONTROL, 1);
 }
 
 static void bcm2835_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios);
@@ -621,10 +609,9 @@ static void bcm2835_mmc_prepare_data(struct bcm2835_host *host, struct mmc_comma
 
 	WARN_ON(host->data);
 
-	if (!(mmc_debug & (1<<14)))
 	if (data || (cmd->flags & MMC_RSP_BUSY)) {
 		count = TIMEOUT_VAL;
-		bcm2835_mmc_writeb(host, count, SDHCI_TIMEOUT_CONTROL, 1);
+		bcm2835_mmc_writeb(host, count, SDHCI_TIMEOUT_CONTROL);
 	}
 
 	if (!data)
@@ -1250,7 +1237,7 @@ static void bcm2835_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	if (host->pwr != SDHCI_POWER_330) {
 		host->pwr = SDHCI_POWER_330;
-		bcm2835_mmc_writeb(host, SDHCI_POWER_330 | SDHCI_POWER_ON, SDHCI_POWER_CONTROL, 2);
+		bcm2835_mmc_writeb(host, SDHCI_POWER_330 | SDHCI_POWER_ON, SDHCI_POWER_CONTROL);
 	}
 
 	ctrl = bcm2835_mmc_readb(host, SDHCI_HOST_CONTROL);
@@ -1265,7 +1252,7 @@ static void bcm2835_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	ctrl &= ~SDHCI_CTRL_HISPD; /* NO_HISPD_BIT */
 
 
-	bcm2835_mmc_writeb(host, ctrl, SDHCI_HOST_CONTROL, 3);
+	bcm2835_mmc_writeb(host, ctrl, SDHCI_HOST_CONTROL);
 	/*
 	 * We only need to set Driver Strength if the
 	 * preset value enable is not set.
@@ -1286,7 +1273,7 @@ static void bcm2835_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	/* Re-enable SD Clock */
 	bcm2835_mmc_set_clock(host, host->clock);
-	bcm2835_mmc_writeb(host, ctrl, SDHCI_HOST_CONTROL, 4);
+	bcm2835_mmc_writeb(host, ctrl, SDHCI_HOST_CONTROL);
 
 	mmiowb();
 
