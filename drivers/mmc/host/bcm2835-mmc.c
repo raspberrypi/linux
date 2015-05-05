@@ -1493,8 +1493,8 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 
 if (!(mmc_debug & (1<<12))) {
 	if (node) {
-		host->dma_chan_tx = of_dma_request_slave_channel(node, "tx");
-		host->dma_chan_rx = of_dma_request_slave_channel(node, "rx");
+		host->dma_chan_tx = dma_request_slave_channel(dev, "tx");
+		host->dma_chan_rx = dma_request_slave_channel(dev, "rx");
 	} else {
 		dma_cap_mask_t mask;
 
