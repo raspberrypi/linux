@@ -1103,7 +1103,7 @@ static void __init bcm2709_timer_init(void)
 	/*
 	 * Make irqs happen for the system timer
 	 */
-	setup_irq(IRQ_TIMER3, &bcm2708_timer_irq);
+	setup_irq(IRQ_TIMER3, &bcm2709_timer_irq);
 
 	sched_clock_register(bcm2709_read_sched_clock, 32, STC_FREQ_HZ);
 
@@ -1117,7 +1117,7 @@ static void __init bcm2709_timer_init(void)
 	timer0_clockevent.cpumask = cpumask_of(0);
 	clockevents_register_device(&timer0_clockevent);
 
-	register_current_timer_delay(&bcm2708_delay_timer);
+	register_current_timer_delay(&bcm2709_delay_timer);
 }
 
 #else
