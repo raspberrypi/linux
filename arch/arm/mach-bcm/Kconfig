@@ -115,6 +115,7 @@ config ARCH_BCM2835
 	select ARM_TIMER_SP804
 	select CLKSRC_OF
 	select FIQ
+	select MFD_SYSCON if ARCH_MULTI_V7
 	select PINCTRL
 	select PINCTRL_BCM2835
 	help
