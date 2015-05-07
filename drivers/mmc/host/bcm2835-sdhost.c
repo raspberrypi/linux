@@ -1041,13 +1041,14 @@ static u32 bcm2835_sdhost_data_irq(struct bcm2835_host *host, u32 intmask)
 		host->cmd->error = -EILSEQ;
 
 	/* Use the block interrupt for writes after the first block */
-	if (!(host->data->flags & MMC_DATA_READ)) {
+	if (host->data->flags & MMC_DATA_WRITE) {
 		host->hcfg &= ~(SDHCFG_DATA_IRPT_EN);
 		host->hcfg |= SDHCFG_BLOCK_IRPT_EN;
 		bcm2835_sdhost_write(host, host->hcfg, SDHCFG);
 		if (host->data->error)
 			bcm2835_sdhost_finish_data(host);
-		bcm2835_sdhost_transfer_pio(host);
+		else
+			bcm2835_sdhost_transfer_pio(host);
 	} else {
 		if (!host->data->error) {
 			bcm2835_sdhost_transfer_pio(host);
@@ -1132,11 +1133,11 @@ static irqreturn_t bcm2835_sdhost_irq(int irq, void *dev_id)
 			bcm2835_sdhost_dumpregs(host);
 		}
 
-		if (loops)
-			early |= handled;
-
 		if (!handled)
 			break;
+
+		if (loops)
+			early |= handled;
 
 		result = IRQ_HANDLED;
 
