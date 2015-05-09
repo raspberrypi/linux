@@ -2334,6 +2334,8 @@ unlock:
 	return err;
 }
 
+static bool fs_fully_visible(struct file_system_type *fs_type);
+
 /*
  * create a new mount for userspace and request it to be added into the
  * namespace's tree
@@ -2364,6 +2366,10 @@ static int do_new_mount(struct path *path, const char *fstype, int flags,
 		if (!(type->fs_flags & FS_USERNS_DEV_MOUNT)) {
 			flags |= MS_NODEV;
 			mnt_flags |= MNT_NODEV | MNT_LOCK_NODEV;
+		}
+		if (type->fs_flags & FS_USERNS_VISIBLE) {
+			if (!fs_fully_visible(type))
+				return -EPERM;
 		}
 	}
 
@@ -3166,7 +3172,7 @@ bool current_chrooted(void)
 	return chrooted;
 }
 
-bool fs_fully_visible(struct file_system_type *type)
+static bool fs_fully_visible(struct file_system_type *type)
 {
 	struct mnt_namespace *ns = current->nsproxy->mnt_ns;
 	struct mount *mnt;
