@@ -320,8 +320,9 @@ static inline struct sk_buff *vlan_insert_tag(struct sk_buff *skb,
 }
 
 /**
- * __vlan_put_tag - regular VLAN tag inserting
+ * vlan_insert_tag_set_proto - regular VLAN tag inserting
  * @skb: skbuff to tag
+ * @vlan_proto: VLAN encapsulation protocol
  * @vlan_tci: VLAN TCI to insert
  *
  * Inserts the VLAN tag into @skb as part of the payload
@@ -330,12 +331,47 @@ static inline struct sk_buff *vlan_insert_tag(struct sk_buff *skb,
  * Following the skb_unshare() example, in case of error, the calling function
  * doesn't have to worry about freeing the original skb.
  */
-static inline struct sk_buff *__vlan_put_tag(struct sk_buff *skb,
-					     __be16 vlan_proto, u16 vlan_tci)
+static inline struct sk_buff *vlan_insert_tag_set_proto(struct sk_buff *skb,
+							__be16 vlan_proto,
+							u16 vlan_tci)
 {
 	skb = vlan_insert_tag(skb, vlan_proto, vlan_tci);
 	if (skb)
 		skb->protocol = vlan_proto;
+	return skb;
+}
+
+/*
+ * __vlan_hwaccel_push_inside - pushes vlan tag to the payload
+ * @skb: skbuff to tag
+ *
+ * Pushes the VLAN tag from @skb->vlan_tci inside to the payload.
+ *
+ * Following the skb_unshare() example, in case of error, the calling function
+ * doesn't have to worry about freeing the original skb.
+ */
+static inline struct sk_buff *__vlan_hwaccel_push_inside(struct sk_buff *skb)
+{
+	skb = vlan_insert_tag_set_proto(skb, skb->vlan_proto,
+					vlan_tx_tag_get(skb));
+	if (likely(skb))
+		skb->vlan_tci = 0;
+	return skb;
+}
+/*
+ * vlan_hwaccel_push_inside - pushes vlan tag to the payload
+ * @skb: skbuff to tag
+ *
+ * Checks is tag is present in @skb->vlan_tci and if it is, it pushes the
+ * VLAN tag from @skb->vlan_tci inside to the payload.
+ *
+ * Following the skb_unshare() example, in case of error, the calling function
+ * doesn't have to worry about freeing the original skb.
+ */
+static inline struct sk_buff *vlan_hwaccel_push_inside(struct sk_buff *skb)
+{
+	if (vlan_tx_tag_present(skb))
+		skb = __vlan_hwaccel_push_inside(skb);
 	return skb;
 }
 
@@ -354,24 +390,6 @@ static inline struct sk_buff *__vlan_hwaccel_put_tag(struct sk_buff *skb,
 	skb->vlan_proto = vlan_proto;
 	skb->vlan_tci = VLAN_TAG_PRESENT | vlan_tci;
 	return skb;
-}
-
-/**
- * vlan_put_tag - inserts VLAN tag according to device features
- * @skb: skbuff to tag
- * @vlan_tci: VLAN TCI to insert
- *
- * Assumes skb->dev is the target that will xmit this frame.
- * Returns a VLAN tagged skb.
- */
-static inline struct sk_buff *vlan_put_tag(struct sk_buff *skb,
-					   __be16 vlan_proto, u16 vlan_tci)
-{
-	if (vlan_hw_offload_capable(skb->dev->features, vlan_proto)) {
-		return __vlan_hwaccel_put_tag(skb, vlan_proto, vlan_tci);
-	} else {
-		return __vlan_put_tag(skb, vlan_proto, vlan_tci);
-	}
 }
 
 /**

@@ -2663,12 +2663,8 @@ static struct sk_buff *validate_xmit_vlan(struct sk_buff *skb,
 					  netdev_features_t features)
 {
 	if (vlan_tx_tag_present(skb) &&
-	    !vlan_hw_offload_capable(features, skb->vlan_proto)) {
-		skb = __vlan_put_tag(skb, skb->vlan_proto,
-				     vlan_tx_tag_get(skb));
-		if (skb)
-			skb->vlan_tci = 0;
-	}
+	    !vlan_hw_offload_capable(features, skb->vlan_proto))
+		skb = __vlan_hwaccel_push_inside(skb);
 	return skb;
 }
 
@@ -2857,7 +2853,9 @@ static void skb_update_prio(struct sk_buff *skb)
 #define skb_update_prio(skb)
 #endif
 
-static DEFINE_PER_CPU(int, xmit_recursion);
+DEFINE_PER_CPU(int, xmit_recursion);
+EXPORT_SYMBOL(xmit_recursion);
+
 #define RECURSION_LIMIT 10
 
 /**

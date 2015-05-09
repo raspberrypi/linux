@@ -1578,10 +1578,6 @@ static int vxlan6_xmit_skb(struct vxlan_sock *vs,
 	int err;
 	bool udp_sum = !udp_get_no_check6_tx(vs->sock->sk);
 
-	skb = udp_tunnel_handle_offloads(skb, udp_sum);
-	if (IS_ERR(skb))
-		return -EINVAL;
-
 	skb_scrub_packet(skb, xnet);
 
 	min_headroom = LL_RESERVED_SPACE(dst->dev) + dst->header_len
@@ -1590,16 +1586,21 @@ static int vxlan6_xmit_skb(struct vxlan_sock *vs,
 
 	/* Need space for new headers (invalidates iph ptr) */
 	err = skb_cow_head(skb, min_headroom);
-	if (unlikely(err))
-		return err;
+	if (unlikely(err)) {
+		kfree_skb(skb);
+		goto err;
+	}
 
-	if (vlan_tx_tag_present(skb)) {
-		if (WARN_ON(!__vlan_put_tag(skb,
-					    skb->vlan_proto,
-					    vlan_tx_tag_get(skb))))
-			return -ENOMEM;
+	skb = vlan_hwaccel_push_inside(skb);
+	if (WARN_ON(!skb)) {
+		err = -ENOMEM;
+		goto err;
+	}
 
-		skb->vlan_tci = 0;
+	skb = udp_tunnel_handle_offloads(skb, udp_sum);
+	if (IS_ERR(skb)) {
+		err = -EINVAL;
+		goto err;
 	}
 
 	vxh = (struct vxlanhdr *) __skb_push(skb, sizeof(*vxh));
@@ -1611,6 +1612,9 @@ static int vxlan6_xmit_skb(struct vxlan_sock *vs,
 	udp_tunnel6_xmit_skb(vs->sock, dst, skb, dev, saddr, daddr, prio,
 			     ttl, src_port, dst_port);
 	return 0;
+err:
+	dst_release(dst);
+	return err;
 }
 #endif
 
@@ -1624,27 +1628,24 @@ int vxlan_xmit_skb(struct vxlan_sock *vs,
 	int err;
 	bool udp_sum = !vs->sock->sk->sk_no_check_tx;
 
-	skb = udp_tunnel_handle_offloads(skb, udp_sum);
-	if (IS_ERR(skb))
-		return -EINVAL;
-
 	min_headroom = LL_RESERVED_SPACE(rt->dst.dev) + rt->dst.header_len
 			+ VXLAN_HLEN + sizeof(struct iphdr)
 			+ (vlan_tx_tag_present(skb) ? VLAN_HLEN : 0);
 
 	/* Need space for new headers (invalidates iph ptr) */
 	err = skb_cow_head(skb, min_headroom);
-	if (unlikely(err))
+	if (unlikely(err)) {
+		kfree_skb(skb);
 		return err;
-
-	if (vlan_tx_tag_present(skb)) {
-		if (WARN_ON(!__vlan_put_tag(skb,
-					    skb->vlan_proto,
-					    vlan_tx_tag_get(skb))))
-			return -ENOMEM;
-
-		skb->vlan_tci = 0;
 	}
+
+	skb = vlan_hwaccel_push_inside(skb);
+	if (WARN_ON(!skb))
+		return -ENOMEM;
+
+	skb = udp_tunnel_handle_offloads(skb, udp_sum);
+	if (IS_ERR(skb))
+		return PTR_ERR(skb);
 
 	vxh = (struct vxlanhdr *) __skb_push(skb, sizeof(*vxh));
 	vxh->vx_flags = htonl(VXLAN_FLAGS);
@@ -1786,9 +1787,12 @@ static void vxlan_xmit_one(struct sk_buff *skb, struct net_device *dev,
 				     tos, ttl, df, src_port, dst_port,
 				     htonl(vni << 8),
 				     !net_eq(vxlan->net, dev_net(vxlan->dev)));
-
-		if (err < 0)
+		if (err < 0) {
+			/* skb is already freed. */
+			skb = NULL;
 			goto rt_tx_error;
+		}
+
 		iptunnel_xmit_stats(err, &dev->stats, dev->tstats);
 #if IS_ENABLED(CONFIG_IPV6)
 	} else {

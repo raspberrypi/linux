@@ -2143,8 +2143,8 @@ static void bond_arp_send(struct net_device *slave_dev, int arp_op,
 
 		netdev_dbg(slave_dev, "inner tag: proto %X vid %X\n",
 			   ntohs(outer_tag->vlan_proto), tags->vlan_id);
-		skb = __vlan_put_tag(skb, tags->vlan_proto,
-				     tags->vlan_id);
+		skb = vlan_insert_tag_set_proto(skb, tags->vlan_proto,
+						tags->vlan_id);
 		if (!skb) {
 			net_err_ratelimited("failed to insert inner VLAN tag\n");
 			return;
@@ -2156,12 +2156,8 @@ static void bond_arp_send(struct net_device *slave_dev, int arp_op,
 	if (outer_tag->vlan_id) {
 		netdev_dbg(slave_dev, "outer tag: proto %X vid %X\n",
 			   ntohs(outer_tag->vlan_proto), outer_tag->vlan_id);
-		skb = vlan_put_tag(skb, outer_tag->vlan_proto,
-				   outer_tag->vlan_id);
-		if (!skb) {
-			net_err_ratelimited("failed to insert outer VLAN tag\n");
-			return;
-		}
+		__vlan_hwaccel_put_tag(skb, outer_tag->vlan_proto,
+				       outer_tag->vlan_id);
 	}
 
 xmit:
@@ -3799,7 +3795,8 @@ static inline int bond_slave_override(struct bonding *bond,
 	/* Find out if any slaves have the same mapping as this skb. */
 	bond_for_each_slave_rcu(bond, slave, iter) {
 		if (slave->queue_id == skb->queue_mapping) {
-			if (bond_slave_can_tx(slave)) {
+			if (bond_slave_is_up(slave) &&
+			    slave->link == BOND_LINK_UP) {
 				bond_dev_queue_xmit(bond, skb, slave->dev);
 				return 0;
 			}

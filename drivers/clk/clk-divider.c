@@ -129,12 +129,6 @@ static unsigned long clk_divider_recalc_rate(struct clk_hw *hw,
 	return DIV_ROUND_UP(parent_rate, div);
 }
 
-/*
- * The reverse of DIV_ROUND_UP: The maximum number which
- * divided by m is r
- */
-#define MULT_ROUND_UP(r, m) ((r) * (m) + (m) - 1)
-
 static bool _is_valid_table_div(const struct clk_div_table *table,
 							 unsigned int div)
 {
@@ -208,6 +202,7 @@ static int _div_round_closest(struct clk_divider *divider,
 		unsigned long parent_rate, unsigned long rate)
 {
 	int up, down, div;
+	unsigned long up_rate, down_rate;
 
 	up = down = div = DIV_ROUND_CLOSEST(parent_rate, rate);
 
@@ -219,7 +214,10 @@ static int _div_round_closest(struct clk_divider *divider,
 		down = _round_down_table(divider->table, div);
 	}
 
-	return (up - div) <= (div - down) ? up : down;
+	up_rate = DIV_ROUND_UP(parent_rate, up);
+	down_rate = DIV_ROUND_UP(parent_rate, down);
+
+	return (rate - up_rate) <= (down_rate - rate) ? up : down;
 }
 
 static int _div_round(struct clk_divider *divider, unsigned long parent_rate,
@@ -300,7 +298,7 @@ static int clk_divider_bestdiv(struct clk_hw *hw, unsigned long rate,
 			return i;
 		}
 		parent_rate = __clk_round_rate(__clk_get_parent(hw->clk),
-				MULT_ROUND_UP(rate, i));
+					       rate * i);
 		now = DIV_ROUND_UP(parent_rate, i);
 		if (_is_best_div(divider, rate, now, best)) {
 			bestdiv = i;
