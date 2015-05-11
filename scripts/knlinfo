@@ -1,0 +1,168 @@
+#!/usr/bin/env perl
+# ----------------------------------------------------------------------
+# knlinfo by Phil Elwell for Raspberry Pi
+#
+# (c) 2014,2015 Raspberry Pi (Trading) Limited <info@raspberrypi.org>
+#
+# Licensed under the terms of the GNU General Public License.
+# ----------------------------------------------------------------------
+
+use strict;
+use integer;
+
+use Fcntl ":seek";
+
+my $trailer_magic = 'RPTL';
+
+my %atom_formats =
+(
+    'DTOK' => \&format_bool,
+    'KVer' => \&format_string,
+    '283x' => \&format_bool,
+);
+
+if (@ARGV != 1)
+{
+	print ("Usage: knlinfo <kernel image>\n");
+	exit(1);
+}
+
+my $kernel_file = $ARGV[0];
+
+
+my ($atoms, $pos) = read_trailer($kernel_file);
+
+exit(1) if (!$atoms);
+
+printf("Kernel trailer found at %d/0x%x:\n", $pos, $pos);
+
+foreach my $atom (@$atoms)
+{
+    printf("  %s: %s\n", $atom->[0], format_atom($atom));
+}
+
+exit(0);
+
+sub read_trailer
+{
+	my ($kernel_file) = @_;
+	my $fh;
+
+	if (!open($fh, '<', $kernel_file))
+	{
+		print ("* Failed to open '$kernel_file'\n");
+		return undef;
+	}
+
+	if (!seek($fh, -12, SEEK_END))
+	{
+		print ("* seek error in '$kernel_file'\n");
+		return undef;
+	}
+
+	my $last_bytes;
+	sysread($fh, $last_bytes, 12);
+
+	my ($trailer_len, $data_len, $magic) = unpack('VVa4', $last_bytes);
+
+	if (($magic ne $trailer_magic) || ($data_len != 4))
+	{
+		print ("* no trailer\n");
+		return undef;
+	}
+	if (!seek($fh, -12, SEEK_END))
+	{
+		print ("* seek error in '$kernel_file'\n");
+		return undef;
+	}
+
+	$trailer_len -= 12;
+
+	while ($trailer_len > 0)
+	{
+		if ($trailer_len < 8)
+		{
+			print ("* truncated atom header in trailer\n");
+			return undef;
+		}
+		if (!seek($fh, -8, SEEK_CUR))
+		{
+			print ("* seek error in '$kernel_file'\n");
+			return undef;
+		}
+		$trailer_len -= 8;
+
+		my $atom_hdr;
+		sysread($fh, $atom_hdr, 8);
+		my ($atom_len, $atom_type) = unpack('Va4', $atom_hdr);
+
+		if ($trailer_len < $atom_len)
+		{
+			print ("* truncated atom data in trailer\n");
+			return undef;
+		}
+
+		my $rounded_len = (($atom_len + 3) & ~3);
+		if (!seek($fh, -(8 + $rounded_len), SEEK_CUR))
+		{
+			print ("* seek error in '$kernel_file'\n");
+			return undef;
+		}
+		$trailer_len -= $rounded_len;
+
+		my $atom_data;
+		sysread($fh, $atom_data, $atom_len);
+
+		if (!seek($fh, -$atom_len, SEEK_CUR))
+		{
+			print ("* seek error in '$kernel_file'\n");
+			return undef;
+		}
+
+		push @$atoms, [ $atom_type, $atom_data ];
+	}
+
+ 	if (($$atoms[-1][0] eq "\x00\x00\x00\x00") &&
+	    ($$atoms[-1][1] eq ""))
+	{
+		pop @$atoms;
+	}
+	else
+	{
+		print ("* end marker missing from trailer\n");
+	}
+
+	return ($atoms, tell($fh));
+}
+
+sub format_atom
+{
+    my ($atom) = @_;
+
+    my $format_func = $atom_formats{$atom->[0]} || \&format_hex;
+    return $format_func->($atom->[1]);
+}
+
+sub format_bool
+{
+    my ($data) = @_;
+    return unpack('V', $data) ? 'true' : 'false';
+}
+
+sub format_int
+{
+    my ($data) = @_;
+    return unpack('V', $data);
+}
+
+sub format_string
+{
+    my ($data) = @_;
+    return '"'.$data.'"';
+}
+
+sub format_hex
+{
+    my ($data) = @_;
+    return unpack('H*', $data);
+}
