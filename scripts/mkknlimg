@@ -1,0 +1,265 @@
+#!/usr/bin/env perl
+# ----------------------------------------------------------------------
+# mkknlimg by Phil Elwell for Raspberry Pi
+# based on extract-ikconfig by Dick Streefland
+#
+# (c) 2009,2010 Dick Streefland <dick@streefland.net>
+# (c) 2014,2015 Raspberry Pi (Trading) Limited <info@raspberrypi.org>
+#
+# Licensed under the terms of the GNU General Public License.
+# ----------------------------------------------------------------------
+
+use strict;
+use warnings;
+use integer;
+
+use constant FLAG_PI   => 0x01;
+use constant FLAG_DTOK => 0x02;
+use constant FLAG_DDTK => 0x04;
+use constant FLAG_270X => 0x08;
+use constant FLAG_283X => 0x10;
+
+my $trailer_magic = 'RPTL';
+
+my $tmpfile1 = "/tmp/mkknlimg_$$.1";
+my $tmpfile2 = "/tmp/mkknlimg_$$.2";
+
+my $dtok = 0;
+my $ddtk = 0;
+my $is_270x = 0;
+my $is_283x = 0;
+
+while (@ARGV && ($ARGV[0] =~ /^-/))
+{
+    my $arg = shift(@ARGV);
+    if ($arg eq '--dtok')
+    {
+	$dtok = 1;
+    }
+    elsif ($arg eq '--ddtk')
+    {
+	$ddtk = 1;
+    }
+    elsif ($arg eq '--270x')
+    {
+	$is_270x = 1;
+    }
+    elsif ($arg eq '--283x')
+    {
+	$is_283x = 1;
+    }
+    else
+    {
+	print ("* Unknown option '$arg'\n");
+	usage();
+    }
+}
+
+usage() if (@ARGV != 2);
+
+my $kernel_file = $ARGV[0];
+my $out_file = $ARGV[1];
+
+if (! -r $kernel_file)
+{
+    print ("* File '$kernel_file' not found\n");
+    usage();
+}
+
+my $wanted_strings =
+{
+	'bcm2708_fb' => FLAG_PI | FLAG_270X,
+	'brcm,bcm2835-mmc' => FLAG_PI,
+	'brcm,bcm2835-sdhost' => FLAG_PI,
+	'brcm,bcm2708-pinctrl' => FLAG_PI | FLAG_DTOK,
+	'brcm,bcm2835-gpio' => FLAG_PI | FLAG_DTOK,
+	'brcm,bcm2708' => FLAG_PI | FLAG_DTOK | FLAG_270X,
+	'brcm,bcm2709' => FLAG_PI | FLAG_DTOK | FLAG_270X,
+	'brcm,bcm2835' => FLAG_PI | FLAG_DTOK | FLAG_283X,
+	'brcm,bcm2836' => FLAG_PI | FLAG_DTOK | FLAG_283X,
+	'of_cfs_init' => FLAG_DTOK | FLAG_DDTK,
+	'vc_cma_init' => FLAG_PI | FLAG_270X,
+	'vc-mem' => FLAG_PI | FLAG_270X,
+};
+
+my $res = try_extract($kernel_file, $tmpfile1);
+$res ||= try_decompress('\037\213\010', 'xy',    'gunzip', 0,
+			$kernel_file, $tmpfile1, $tmpfile2);
+$res ||= try_decompress('\3757zXZ\000', 'abcde', 'unxz --single-stream', -1,
+			$kernel_file, $tmpfile1, $tmpfile2);
+$res ||= try_decompress('BZh',          'xy',    'bunzip2', 0,
+			$kernel_file, $tmpfile1, $tmpfile2);
+$res ||= try_decompress('\135\0\0\0',   'xxx',   'unlzma', 0,
+			$kernel_file, $tmpfile1, $tmpfile2);
+$res ||= try_decompress('\211\114\132', 'xy',    'lzop -d', 0,
+			$kernel_file, $tmpfile1, $tmpfile2);
+$res ||= try_decompress('\002\041\114\030', 'xy',    'lz4 -d', 1,
+			$kernel_file, $tmpfile1, $tmpfile2);
+
+my $append_trailer;
+my $trailer;
+my $kver = '?';
+
+$append_trailer = 1;
+
+if ($res)
+{
+    $kver = $res->{'kver'} || '?';
+    my $flags = $res->{'flags'};
+    print("Version: $kver\n");
+
+    if ($flags & FLAG_PI)
+    {
+	$dtok ||= ($flags & FLAG_DTOK) != 0;
+	$is_270x ||= ($flags & FLAG_270X) != 0;
+	$is_283x ||= ($flags & FLAG_283X) != 0;
+	$ddtk ||= ($flags & FLAG_DDTK) != 0;
+    }
+    else
+    {
+	print ("* This doesn't look like a Raspberry Pi kernel.\n");
+    }
+}
+elsif (!$dtok)
+{
+    print ("* Is this a valid kernel?\n");
+}
+
+if ($append_trailer)
+{
+    printf("DT: %s\n", $dtok ? "y" : "n");
+    printf("DDT: %s\n", $ddtk ? "y" : "n");
+    printf("270x: %s\n", $is_270x ? "y" : "n");
+    printf("283x: %s\n", $is_283x ? "y" : "n");
+
+    my @atoms;
+
+    push @atoms, [ $trailer_magic, pack('V', 0) ];
+    push @atoms, [ 'KVer', $kver ];
+    push @atoms, [ 'DTOK', pack('V', $dtok) ];
+    push @atoms, [ 'DDTK', pack('V', $ddtk) ];
+    push @atoms, [ '270X', pack('V', $is_270x) ];
+    push @atoms, [ '283X', pack('V', $is_283x) ];
+    push @atoms, [ '283x', pack('V', $is_283x && !$is_270x) ];
+
+    $trailer = pack_trailer(\@atoms);
+    $atoms[0]->[1] = pack('V', length($trailer));
+
+    $trailer = pack_trailer(\@atoms);
+}
+
+my $ofh;
+my $total_len = 0;
+
+if ($out_file eq $kernel_file)
+{
+    die "* Failed to open '$out_file' for append\n"
+	if (!open($ofh, '>>', $out_file));
+    $total_len = tell($ofh);
+}
+else
+{
+    die "* Failed to open '$kernel_file'\n"
+	if (!open(my $ifh, '<', $kernel_file));
+    die "* Failed to create '$out_file'\n"
+	if (!open($ofh, '>', $out_file));
+
+    my $copybuf;
+    while (1)
+    {
+	my $bytes = sysread($ifh, $copybuf, 64*1024);
+	last if (!$bytes);
+	syswrite($ofh, $copybuf, $bytes);
+	$total_len += $bytes;
+    }
+    close($ifh);
+}
+
+if ($trailer)
+{
+    # Pad to word-alignment
+    syswrite($ofh, "\x000\x000\x000", (-$total_len & 0x3));
+    syswrite($ofh, $trailer);
+}
+
+close($ofh);
+
+exit($trailer ? 0 : 1);
+
+END {
+	unlink($tmpfile1) if ($tmpfile1);
+	unlink($tmpfile2) if ($tmpfile2);
+}
+
+
+sub usage
+{
+	print ("Usage: mkknlimg [--dtok] [--270x] [--283x] <vmlinux|zImage|bzImage> <outfile>\n");
+	exit(1);
+}
+
+sub try_extract
+{
+	my ($knl, $tmp) = @_;
+
+	my $ver = `strings "$knl" | grep -a -E "^Linux version [1-9]"`;
+
+	return undef if (!$ver);
+
+	chomp($ver);
+
+	my $res = { 'kver'=>$ver };
+	$res->{'flags'} = strings_to_flags($knl, $wanted_strings);
+
+	return $res;
+}
+
+
+sub try_decompress
+{
+	my ($magic, $subst, $zcat, $idx, $knl, $tmp1, $tmp2) = @_;
+
+	my $pos = `tr "$magic\n$subst" "\n$subst=" < "$knl" | grep -abo "^$subst"`;
+	if ($pos)
+	{
+		chomp($pos);
+		$pos = (split(/[\r\n]+/, $pos))[$idx];
+		return undef if (!defined($pos));
+		$pos =~ s/:.*[\r\n]*$//s;
+		my $cmd = "tail -c+$pos \"$knl\" | $zcat > $tmp2 2> /dev/null";
+		my $err = (system($cmd) >> 8);
+		return undef if (($err != 0) && ($err != 2));
+
+		return try_extract($tmp2, $tmp1);
+	}
+
+	return undef;
+}
+
+sub strings_to_flags
+{
+	my ($knl, $strings) = @_;
+	my $string_pattern = '^('.join('|', keys(%$strings)).')$';
+	my $flags = 0;
+
+	my @matches = `strings \"$knl\" | grep -E \"$string_pattern\"`;
+	foreach my $match (@matches)
+	{
+	    chomp($match);
+	    $flags |= $strings->{$match};
+	}
+
+	return $flags;
+}
+
+sub pack_trailer
+{
+	my ($atoms) = @_;
+	my $trailer = pack('VV', 0, 0);
+	for (my $i = $#$atoms; $i>=0; $i--)
+	{
+		my $atom = $atoms->[$i];
+		$trailer .= pack('a*x!4Va4', $atom->[1], length($atom->[1]), $atom->[0]);
+	}
+	return $trailer;
+}
