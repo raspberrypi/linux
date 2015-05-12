@@ -63,6 +63,7 @@ ifeq ($(CONFIG_BCM2709_DT),y)
 endif
 dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b.dtb
 dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b-plus.dtb
+dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-cm.dtb
 dtb-$(CONFIG_BCM2709_DT) += bcm2709-rpi-2-b.dtb
 dtb-$(RPI_DT_OVERLAYS) += ads7846-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += bmp085_i2c-sensor-overlay.dtb
