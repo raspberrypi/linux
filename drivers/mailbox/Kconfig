@@ -56,8 +56,25 @@ config PCC
 
 config ALTERA_MBOX
 	tristate "Altera Mailbox"
+	depends on HAS_IOMEM
 	help
 	  An implementation of the Altera Mailbox soft core. It is used
 	  to send message between processors. Say Y here if you want to use the
 	  Altera mailbox support.
+
+config BCM2835_MBOX
+	tristate "BCM2835 Mailbox"
+	depends on ARCH_BCM2835
+	help
+	  An implementation of the BCM2385 Mailbox.  It is used to invoke
+	  the services of the Videocore. Say Y here if you want to use the
+	  BCM2835 Mailbox.
+
+config TEGRA_XUSB_MBOX
+	tristate "NVIDIA Tegra XUSB Mailbox"
+	depends on MFD_TEGRA_XUSB
+	help
+	  Mailbox driver for the XUSB complex found on NVIDIA Tegra124 and
+	  later SoCs.  The XUSB mailbox is used to communicate between the
+	  XUSB microcontroller and the host processor.
 endif

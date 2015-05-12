@@ -1,0 +1,30 @@
+NVIDIA Tegra XUSB mailbox
+=========================
+
+The Tegra XUSB mailbox is used by the Tegra xHCI controller's firmware to
+communicate requests to the host and PHY drivers.
+
+Refer to ./mailbox.txt for generic information about mailbox device-tree
+bindings.
+
+Required properties:
+--------------------
+ - compatible: For Tegra124, must contain "nvidia,tegra124-xusb-mbox".
+   Otherwise, must contain '"nvidia,<chip>-xusb-mbox",
+   "nvidia,tegra124-xusb-mbox"' where <chip> is tegra132.
+ - #mbox-cells: Should be 0.  There is only one physical channel.
+
+Example:
+--------
+	mailbox {
+		compatible = "nvidia,tegra124-xusb-mbox";
+
+		#mbox-cells = <0>;
+	};
+
+	usb-host {
+		...
+		mboxes = <&xusb_mbox>;
+		mbox-names = "xusb";
+		...
+	};
