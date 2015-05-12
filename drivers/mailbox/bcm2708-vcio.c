@@ -35,6 +35,7 @@
 #define MAIL0_STA	0x18	/* status */
 #define MAIL0_CNF	0x1C	/* configuration */
 #define MAIL1_WRT	0x20	/* write - and next 4 words */
+#define MAIL1_STA	0x38	/* status */
 
 /* On MACH_BCM270x these come through <linux/interrupt.h> (arm_control.h ) */
 #ifndef ARM_MS_EMPTY
@@ -85,7 +86,7 @@ static int mbox_write(struct vc_mailbox *mbox, unsigned chan, uint32_t data28)
 		return -EINVAL;
 
 	/* wait for the mailbox FIFO to have some space in it */
-	while (0 != (readl(mbox->regs + MAIL0_STA) & ARM_MS_FULL))
+	while (0 != (readl(mbox->regs + MAIL1_STA) & ARM_MS_FULL))
 		cpu_relax();
 
 	writel(MBOX_MSG(chan, data28), mbox->regs + MAIL1_WRT);
