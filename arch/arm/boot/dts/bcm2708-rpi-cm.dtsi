@@ -1,0 +1,30 @@
+/include/ "bcm2708.dtsi"
+
+/ {
+	aliases {
+		soc = &soc;
+		gpio = &gpio;
+		intc = &intc;
+		leds = &leds;
+		sound = &sound;
+	};
+
+	sound: sound {
+	};
+};
+
+&leds {
+	act_led: act {
+		label = "led0";
+		linux,default-trigger = "mmc0";
+		gpios = <&gpio 47 0>;
+	};
+};
+
+/ {
+	__overrides__ {
+		act_led_gpio = <&act_led>,"gpios:4";
+		act_led_activelow = <&act_led>,"gpios:8";
+		act_led_trigger = <&act_led>,"linux,default-trigger";
+	};
+};
