@@ -671,6 +671,13 @@ config TOUCHSCREEN_EDT_FT5X06
 	  To compile this driver as a module, choose M here: the
 	  module will be called edt-ft5x06.
 
+config TOUCHSCREEN_RPI_FT5406
+	tristate "Raspberry Pi FT5406 driver"
+	depends on RASPBERRYPI_FIRMWARE
+	help
+	  Say Y here to enable the Raspberry Pi memory based FT5406 device
+
+
 config TOUCHSCREEN_MIGOR
 	tristate "Renesas MIGO-R touchscreen"
 	depends on (SH_MIGOR || COMPILE_TEST) && I2C
