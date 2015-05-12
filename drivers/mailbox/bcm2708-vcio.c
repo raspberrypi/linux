@@ -212,7 +212,7 @@ extern int bcm_mailbox_property(void *data, int size)
 	mutex_lock(&mailbox_lock);
 	/* allocate some memory for the messages communicating with GPU */
 	mem_kern = dma_alloc_coherent(NULL, PAGE_ALIGN(size), &mem_bus,
-				      GFP_ATOMIC);
+				      GFP_KERNEL);
 	if (mem_kern) {
 		/* create the message */
 		mbox_copy_from_user(mem_kern, data, size);
