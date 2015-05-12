@@ -115,6 +115,7 @@ enum {
 	VCMSG_SET_TRANSFORM              = 0x0004800d,
 	VCMSG_TST_VSYNC                  = 0x0004400e,
 	VCMSG_SET_VSYNC                  = 0x0004800e,
+	VCMSG_GET_TOUCHBUF               = 0x0004000f,
 	VCMSG_SET_CURSOR_INFO            = 0x00008010,
 	VCMSG_SET_CURSOR_STATE           = 0x00008011,
 };
