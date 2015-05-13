@@ -106,7 +106,7 @@ enum rpi_firmware_property_tag {
 	RPI_FIRMWARE_GET_DMA_CHANNELS =                       0x00060001,
 };
 
-int rpi_firmware_property(struct device_node *of_node,
+int rpi_firmware_property(struct device *dev,
 			  u32 tag, void *data, size_t len);
-int rpi_firmware_property_list(struct device_node *of_node,
+int rpi_firmware_property_list(struct device *dev,
 			       void *data, size_t tag_size);
