@@ -131,6 +131,8 @@ struct bcm2835_host {
 #define SDHCI_AUTO_CMD12	(1<<6)	/* Auto CMD12 support */
 #define SDHCI_AUTO_CMD23	(1<<7)	/* Auto CMD23 support */
 #define SDHCI_SDIO_IRQ_ENABLED	(1<<9)	/* SDIO irq enabled */
+
+	u32				overclock_50;	/* frequency to use when 50MHz is requested (in MHz) */
 };
 
 
@@ -1086,7 +1088,10 @@ void bcm2835_mmc_set_clock(struct bcm2835_host *host, unsigned int clock)
 	int real_div = div, clk_mul = 1;
 	u16 clk = 0;
 	unsigned long timeout;
+	unsigned int input_clock = clock;
 
+	if (host->overclock_50 && (clock == 50000000))
+		clock = host->overclock_50 * 1000000;
 
 	host->mmc->actual_clock = 0;
 
@@ -1110,7 +1115,12 @@ void bcm2835_mmc_set_clock(struct bcm2835_host *host, unsigned int clock)
 	div >>= 1;
 
 	if (real_div)
-		host->mmc->actual_clock = (host->max_clk * clk_mul) / real_div;
+		clock = (host->max_clk * clk_mul) / real_div;
+	host->mmc->actual_clock = clock;
+
+	if (clock > input_clock)
+		pr_warn("%s: Overclocking to %dHz\n",
+			mmc_hostname(host->mmc), clock);
 
 	clk |= (div & SDHCI_DIV_MASK) << SDHCI_DIVIDER_SHIFT;
 	clk |= ((div & SDHCI_DIV_HI_MASK) >> SDHCI_DIV_MASK_LEN)
@@ -1177,6 +1187,9 @@ static void bcm2835_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	u8 ctrl;
 	u16 clk, ctrl_2;
 
+	pr_debug("bcm2835_mmc_set_ios: clock %d, pwr %d, bus_width %d, timing %d, vdd %d, drv_type %d\n",
+		 ios->clock, ios->power_mode, ios->bus_width,
+		 ios->timing, ios->signal_voltage, ios->drv_type);
 
 	spin_lock_irqsave(&host->lock, flags);
 
@@ -1444,10 +1457,16 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	if (node)
+	if (node) {
 		mmc_of_parse(mmc);
-	else
+
+		/* Read any custom properties */
+		of_property_read_u32(node,
+				     "brcm,overclock-50",
+				     &host->overclock_50);
+	} else {
 		mmc->caps |= MMC_CAP_4_BIT_DATA;
+	}
 
 	ret = bcm2835_mmc_add_host(host);
 	if (ret)
