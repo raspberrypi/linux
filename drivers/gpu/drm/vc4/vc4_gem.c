@@ -245,11 +245,12 @@ vc4_queue_submit(struct drm_device *dev, struct vc4_exec_info *exec)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	uint64_t seqno = ++vc4->emit_seqno;
+	unsigned long irqflags;
 
 	exec->seqno = seqno;
 	vc4_update_bo_seqnos(exec, seqno);
 
-	spin_lock(&vc4->job_lock);
+	spin_lock_irqsave(&vc4->job_lock, irqflags);
 	list_add_tail(&exec->head, &vc4->job_list);
 
 	/* If no job was executing, kick ours off.  Otherwise, it'll
@@ -261,7 +262,7 @@ vc4_queue_submit(struct drm_device *dev, struct vc4_exec_info *exec)
 		vc4_queue_hangcheck(dev);
 	}
 
-	spin_unlock(&vc4->job_lock);
+	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 }
 
 /**
@@ -488,22 +489,23 @@ vc4_job_done_work(struct work_struct *work)
 	struct vc4_dev *vc4 =
 		container_of(work, struct vc4_dev, job_done_work);
 	struct drm_device *dev = vc4->dev;
+	unsigned long irqflags;
 
 	/* Need the struct lock for drm_gem_object_unreference(). */
 	mutex_lock(&dev->struct_mutex);
 
-	spin_lock(&vc4->job_lock);
+	spin_lock_irqsave(&vc4->job_lock, irqflags);
 	while (!list_empty(&vc4->job_done_list)) {
 		struct vc4_exec_info *exec =
 			list_first_entry(&vc4->job_done_list,
 					 struct vc4_exec_info, head);
 		list_del(&exec->head);
 
-		spin_unlock(&vc4->job_lock);
+		spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 		vc4_complete_exec(exec);
-		spin_lock(&vc4->job_lock);
+		spin_lock_irqsave(&vc4->job_lock, irqflags);
 	}
-	spin_unlock(&vc4->job_lock);
+	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 
 	mutex_unlock(&dev->struct_mutex);
 }

@@ -55,7 +55,9 @@ vc4_overflow_mem_work(struct work_struct *work)
 	 */
 	if (vc4->overflow_mem) {
 		struct vc4_exec_info *current_exec;
-		spin_lock(&vc4->job_lock);
+		unsigned long irqflags;
+
+		spin_lock_irqsave(&vc4->job_lock, irqflags);
 		current_exec = vc4_first_job(vc4);
 		if (current_exec) {
 			vc4->overflow_mem->seqno = vc4->finished_seqno + 1;
@@ -63,7 +65,7 @@ vc4_overflow_mem_work(struct work_struct *work)
 				      &current_exec->unref_list);
 			vc4->overflow_mem = NULL;
 		}
-		spin_unlock(&vc4->job_lock);
+		spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 	}
 
 	if (vc4->overflow_mem) {
