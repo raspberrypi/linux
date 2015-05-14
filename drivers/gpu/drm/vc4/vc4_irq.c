@@ -37,7 +37,9 @@ vc4_overflow_mem_work(struct work_struct *work)
 	struct drm_device *dev = vc4->dev;
 	struct vc4_bo *bo;
 
+	mutex_lock(&dev->struct_mutex);
 	bo = vc4_bo_create(dev, 256 * 1024);
+	mutex_unlock(&dev->struct_mutex);
 	if (!bo) {
 		DRM_ERROR("Couldn't allocate binner overflow mem\n");
 		return;
