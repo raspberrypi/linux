@@ -1,0 +1,11 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2708";
+
+	__overrides__ {
+		overclock_50     = <&mmc>,"brcm,overclock-50:0";
+		force_pio        = <&mmc>,"brcm,force-pio?";
+	};
+};
