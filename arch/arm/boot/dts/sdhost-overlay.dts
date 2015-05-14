@@ -13,14 +13,15 @@
 			sdhost: sdhost@7e202000 {
 				compatible = "brcm,bcm2835-sdhost";
 				reg = <0x7e202000 0x100>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&sdhost_pins>;
 				interrupts = <2 24>;
 				clocks = <&clk_sdhost>;
 				dmas = <&dma 13>,
 				       <&dma 13>;
 				dma-names = "tx", "rx";
 				brcm,delay-after-stop = <0>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&sdhost_pins>;
+				brcm,overclock-50 = <0>;
 				status = "okay";
 			};
 
@@ -67,6 +68,7 @@
 
 	__overrides__ {
 		delay_after_stop = <&sdhost>,"brcm,delay-after-stop:0";
+		overclock_50     = <&sdhost>,"brcm,overclock-50:0";
 		force_pio        = <&sdhost>,"brcm,force-pio?";
 		sdhost_freq      = <&clk_sdhost>,"clock-frequency:0";
 	};
