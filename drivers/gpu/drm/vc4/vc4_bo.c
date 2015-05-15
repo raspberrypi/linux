@@ -63,6 +63,20 @@ vc4_get_cache_list_for_size(struct drm_device *dev, size_t size)
 	return &vc4->bo_cache.size_list[page_index];
 }
 
+static void
+vc4_bo_cache_purge(struct drm_device *dev)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	while (!list_empty(&vc4->bo_cache.time_list)) {
+		struct vc4_bo *bo = list_last_entry(&vc4->bo_cache.time_list,
+						    struct vc4_bo, unref_head);
+		list_del(&bo->unref_head);
+		list_del(&bo->size_head);
+		drm_gem_cma_free_object(&bo->base.base);
+	}
+}
+
 struct vc4_bo *
 vc4_bo_create(struct drm_device *dev, size_t size)
 {
@@ -87,10 +101,17 @@ vc4_bo_create(struct drm_device *dev, size_t size)
 
 	/* Otherwise, make a new BO. */
 	cma_obj = drm_gem_cma_create(dev, size);
-	if (IS_ERR(cma_obj))
-		return NULL;
-	else
-		return to_vc4_bo(&cma_obj->base);
+	if (IS_ERR(cma_obj)) {
+		/* If we've run out of CMA memory, kill the cache of
+		 * CMA allocations we've got laying around and try again.
+		 */
+		vc4_bo_cache_purge(dev);
+		cma_obj = drm_gem_cma_create(dev, size);
+		if (IS_ERR(cma_obj))
+			return NULL;
+	}
+
+	return to_vc4_bo(&cma_obj->base);
 }
 
 int
