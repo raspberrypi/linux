@@ -18,10 +18,35 @@
 #include "vc4_drv.h"
 #include "uapi/drm/vc4_drm.h"
 
+static struct {
+	u32 num_allocated;
+	u32 size_allocated;
+	u32 num_cached;
+	u32 size_cached;
+} bo_stats;
+
 static uint32_t
 bo_page_index(size_t size)
 {
 	return (size / PAGE_SIZE) - 1;
+}
+
+static void
+vc4_bo_destroy(struct vc4_bo *bo)
+{
+	bo_stats.num_allocated--;
+	bo_stats.size_allocated -= bo->base.base.size;
+	drm_gem_cma_free_object(&bo->base.base);
+}
+
+static void
+vc4_bo_remove_from_cache(struct vc4_bo *bo)
+{
+	bo_stats.num_cached--;
+	bo_stats.size_cached -= bo->base.base.size;
+
+	list_del(&bo->unref_head);
+	list_del(&bo->size_head);
 }
 
 static struct list_head *
@@ -71,9 +96,8 @@ vc4_bo_cache_purge(struct drm_device *dev)
 	while (!list_empty(&vc4->bo_cache.time_list)) {
 		struct vc4_bo *bo = list_last_entry(&vc4->bo_cache.time_list,
 						    struct vc4_bo, unref_head);
-		list_del(&bo->unref_head);
-		list_del(&bo->size_head);
-		drm_gem_cma_free_object(&bo->base.base);
+		vc4_bo_remove_from_cache(bo);
+		vc4_bo_destroy(bo);
 	}
 }
 
@@ -90,8 +114,7 @@ vc4_bo_create(struct drm_device *dev, size_t size)
 		if (!list_empty(&vc4->bo_cache.size_list[page_index])) {
 			bo = list_first_entry(&vc4->bo_cache.size_list[page_index],
 					      struct vc4_bo, size_head);
-			list_del(&bo->size_head);
-			list_del(&bo->unref_head);
+			vc4_bo_remove_from_cache(bo);
 		}
 	}
 	if (bo) {
@@ -110,6 +133,9 @@ vc4_bo_create(struct drm_device *dev, size_t size)
 		if (IS_ERR(cma_obj))
 			return NULL;
 	}
+
+	bo_stats.num_allocated++;
+	bo_stats.size_allocated += size;
 
 	return to_vc4_bo(&cma_obj->base);
 }
@@ -157,9 +183,8 @@ vc4_bo_cache_free_old(struct drm_device *dev)
 			return;
 		}
 
-		list_del(&bo->unref_head);
-		list_del(&bo->size_head);
-		drm_gem_cma_free_object(&bo->base.base);
+		vc4_bo_remove_from_cache(bo);
+		vc4_bo_destroy(bo);
 	}
 }
 
@@ -179,19 +204,19 @@ vc4_free_object(struct drm_gem_object *gem_bo)
 	/* If the object references someone else's memory, we can't cache it.
 	 */
 	if (gem_bo->import_attach) {
-		drm_gem_cma_free_object(gem_bo);
+		vc4_bo_destroy(bo);
 		return;
 	}
 
 	/* Don't cache if it was publicly named. */
 	if (gem_bo->name) {
-		drm_gem_cma_free_object(gem_bo);
+		vc4_bo_destroy(bo);
 		return;
 	}
 
 	cache_list = vc4_get_cache_list_for_size(dev, gem_bo->size);
 	if (!cache_list) {
-		drm_gem_cma_free_object(gem_bo);
+		vc4_bo_destroy(bo);
 		return;
 	}
 
@@ -207,6 +232,9 @@ vc4_free_object(struct drm_gem_object *gem_bo)
 	bo->free_time = jiffies;
 	list_add(&bo->size_head, cache_list);
 	list_add(&bo->unref_head, &vc4->bo_cache.time_list);
+
+	bo_stats.num_cached++;
+	bo_stats.size_cached += gem_bo->size;
 
 	vc4_bo_cache_free_old(dev);
 }
@@ -318,3 +346,30 @@ vc4_mmap_bo_ioctl(struct drm_device *dev, void *data,
 	drm_gem_object_unreference(gem_obj);
 	return 0;
 }
+
+#ifdef CONFIG_DEBUG_FS
+int vc4_bo_stats_debugfs(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+
+	mutex_lock(&dev->struct_mutex);
+
+	seq_printf(m, "num bos allocated: %d\n",
+		   bo_stats.num_allocated);
+	seq_printf(m, "size bos allocated: %dkb\n",
+		   bo_stats.size_allocated / 1024);
+	seq_printf(m, "num bos used: %d\n",
+		   bo_stats.num_allocated - bo_stats.num_cached);
+	seq_printf(m, "size bos used: %dkb\n",
+		   (bo_stats.size_allocated - bo_stats.size_cached) / 1024);
+	seq_printf(m, "num bos cached: %d\n",
+		   bo_stats.num_cached);
+	seq_printf(m, "size bos cached: %dkb\n",
+		   bo_stats.size_cached / 1024);
+
+	mutex_unlock(&dev->struct_mutex);
+
+	return 0;
+}
+#endif

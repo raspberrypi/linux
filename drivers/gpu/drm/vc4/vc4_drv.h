@@ -366,6 +366,7 @@ int vc4_create_bo_ioctl(struct drm_device *dev, void *data,
 			struct drm_file *file_priv);
 int vc4_mmap_bo_ioctl(struct drm_device *dev, void *data,
 		      struct drm_file *file_priv);
+int vc4_bo_stats_debugfs(struct seq_file *m, void *unused);
 
 /* vc4_debugfs.c */
 int vc4_debugfs_init(struct drm_minor *minor);
