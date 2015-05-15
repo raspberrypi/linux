@@ -766,16 +766,17 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 						   !(usb_pipein(urb->pipe))));
 
 	buf = urb->transfer_buffer;
-	if (hcd->self.uses_dma) {
+	if (hcd->self.uses_dma && !buf && urb->transfer_buffer_length) {
 		/*
 		 * Calculate virtual address from physical address,
 		 * because some class driver may not fill transfer_buffer.
 		 * In Buffer DMA mode virual address is used,
 		 * when handling non DWORD aligned buffers.
 		 */
-		//buf = phys_to_virt(urb->transfer_dma);
-                // DMA addresses are bus addresses not physical addresses!
-                buf = dma_to_virt(&urb->dev->dev, urb->transfer_dma);
+		buf = (void *)__bus_to_virt((unsigned long)urb->transfer_dma);
+		dev_warn_once(&urb->dev->dev,
+			      "USB transfer_buffer was NULL, will use __bus_to_virt(%pad)=%p\n",
+			      &urb->transfer_dma, buf);
 	}
 
 	if (!(urb->transfer_flags & URB_NO_INTERRUPT))
