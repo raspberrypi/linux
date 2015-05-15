@@ -200,6 +200,12 @@ static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 		return -EINVAL;
 	}
 
+	/* Reset the binner overflow address/size at setup, to be sure
+	 * we don't reuse an old one.
+	 */
+	V3D_WRITE(V3D_BPOA, 0);
+	V3D_WRITE(V3D_BPOS, 0);
+
 	vc4_v3d_init_hw(drm);
 
 	ret = drm_irq_install(drm, platform_get_irq(pdev, 0));
@@ -218,6 +224,13 @@ static void vc4_v3d_unbind(struct device *dev, struct device *master,
 	struct vc4_dev *vc4 = to_vc4_dev(drm);
 
 	drm_irq_uninstall(drm);
+
+	/* Disable the binner's overflow memory address, so the next
+	 * driver probe (if any) doesn't try to reuse our old
+	 * allocation.
+	 */
+	V3D_WRITE(V3D_BPOA, 0);
+	V3D_WRITE(V3D_BPOS, 0);
 
 	vc4->v3d = NULL;
 }

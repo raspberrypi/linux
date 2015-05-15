@@ -25,6 +25,23 @@ static struct {
 	u32 size_cached;
 } bo_stats;
 
+static void
+vc4_bo_stats_dump(void)
+{
+	DRM_INFO("num bos allocated: %d\n",
+		 bo_stats.num_allocated);
+	DRM_INFO("size bos allocated: %dkb\n",
+		 bo_stats.size_allocated / 1024);
+	DRM_INFO("num bos used: %d\n",
+		 bo_stats.num_allocated - bo_stats.num_cached);
+	DRM_INFO("size bos used: %dkb\n",
+		 (bo_stats.size_allocated - bo_stats.size_cached) / 1024);
+	DRM_INFO("num bos cached: %d\n",
+		 bo_stats.num_cached);
+	DRM_INFO("size bos cached: %dkb\n",
+		 bo_stats.size_cached / 1024);
+}
+
 static uint32_t
 bo_page_index(size_t size)
 {
@@ -88,7 +105,7 @@ vc4_get_cache_list_for_size(struct drm_device *dev, size_t size)
 	return &vc4->bo_cache.size_list[page_index];
 }
 
-static void
+void
 vc4_bo_cache_purge(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
@@ -271,6 +288,22 @@ vc4_bo_cache_init(struct drm_device *dev)
 	setup_timer(&vc4->bo_cache.time_timer,
 		    vc4_bo_cache_time_timer,
 		    (unsigned long) dev);
+}
+
+void
+vc4_bo_cache_destroy(struct drm_device *dev)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	del_timer(&vc4->bo_cache.time_timer);
+	cancel_work_sync(&vc4->bo_cache.time_work);
+
+	vc4_bo_cache_purge(dev);
+
+	if (bo_stats.num_allocated) {
+		DRM_ERROR("Destroying BO cache while BOs still allocated:\n");
+		vc4_bo_stats_dump();
+	}
 }
 
 struct drm_gem_object *

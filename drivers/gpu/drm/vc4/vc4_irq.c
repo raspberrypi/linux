@@ -167,13 +167,13 @@ vc4_irq_uninstall(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
-	cancel_work_sync(&vc4->overflow_mem_work);
-
 	V3D_WRITE(V3D_INTENA, 0);
 	V3D_WRITE(V3D_INTDIS, 0);
 
 	/* Clear any pending interrupts we might have left. */
 	V3D_WRITE(V3D_INTCTL, V3D_DRIVER_IRQS);
+
+	cancel_work_sync(&vc4->overflow_mem_work);
 }
 
 /** Reinitializes interrupt registers when a GPU reset is performed. */

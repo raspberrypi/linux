@@ -353,6 +353,7 @@ void vc4_disable_vblank(struct drm_device *dev, int crtc_id);
 
 /* vc4_bo.c */
 void vc4_bo_cache_init(struct drm_device *dev);
+void vc4_bo_cache_destroy(struct drm_device *dev);
 void vc4_free_object(struct drm_gem_object *gem_obj);
 struct vc4_bo *vc4_bo_create(struct drm_device *dev, size_t size);
 int vc4_dumb_create(struct drm_file *file_priv,
@@ -377,6 +378,7 @@ void __iomem *vc4_ioremap_regs(struct platform_device *dev, int index);
 
 /* vc4_gem.c */
 void vc4_gem_init(struct drm_device *dev);
+void vc4_gem_destroy(struct drm_device *dev);
 int vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 			struct drm_file *file_priv);
 int vc4_wait_seqno_ioctl(struct drm_device *dev, void *data,
