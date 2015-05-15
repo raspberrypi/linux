@@ -812,6 +812,7 @@ static int bcm2835_dma_device_slave_caps(struct dma_chan *dchan,
 	caps->src_addr_widths = BIT(DMA_SLAVE_BUSWIDTH_4_BYTES);
 	caps->dstn_addr_widths = BIT(DMA_SLAVE_BUSWIDTH_4_BYTES);
 	caps->directions = BIT(DMA_DEV_TO_MEM) | BIT(DMA_MEM_TO_DEV);
+	caps->residue_granularity = DMA_RESIDUE_GRANULARITY_BURST;
 	caps->cmd_pause = false;
 	caps->cmd_terminate = true;
 
