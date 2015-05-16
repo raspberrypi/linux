@@ -1052,7 +1052,7 @@ static int netlink_insert(struct sock *sk, u32 portid)
 	struct netlink_table *table = &nl_table[sk->sk_protocol];
 	int err;
 
-	lock_sock(sk);
+	mutex_lock(&table->hash.mutex);
 
 	err = -EBUSY;
 	if (nlk_sk(sk)->portid)
@@ -1074,7 +1074,7 @@ static int netlink_insert(struct sock *sk, u32 portid)
 	}
 
 err:
-	release_sock(sk);
+	mutex_unlock(&table->hash.mutex);
 	return err;
 }
 
@@ -1083,10 +1083,12 @@ static void netlink_remove(struct sock *sk)
 	struct netlink_table *table;
 
 	table = &nl_table[sk->sk_protocol];
+	mutex_lock(&table->hash.mutex);
 	if (rhashtable_remove(&table->hash, &nlk_sk(sk)->node)) {
 		WARN_ON(atomic_read(&sk->sk_refcnt) == 1);
 		__sock_put(sk);
 	}
+	mutex_unlock(&table->hash.mutex);
 
 	netlink_table_grab();
 	if (nlk_sk(sk)->subscriptions) {
