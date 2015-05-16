@@ -1069,6 +1069,7 @@ static int netlink_insert(struct sock *sk, u32 portid)
 	err = 0;
 	if (!__netlink_insert(table, sk)) {
 		err = -EADDRINUSE;
+		nlk_sk(sk)->portid = 0;
 		sock_put(sk);
 	}
 
