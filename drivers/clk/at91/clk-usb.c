@@ -58,8 +58,6 @@ static unsigned long at91sam9x5_clk_usb_recalc_rate(struct clk_hw *hw,
 
 static long at91sam9x5_clk_usb_determine_rate(struct clk_hw *hw,
 					      unsigned long rate,
-					      unsigned long min_rate,
-					      unsigned long max_rate,
 					      unsigned long *best_parent_rate,
 					      struct clk_hw **best_parent_hw)
 {
