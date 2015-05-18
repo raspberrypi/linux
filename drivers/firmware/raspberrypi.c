@@ -64,7 +64,12 @@ rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data)
 	return ret;
 }
 
-/*
+/**
+ * rpi_firmware_property_list - Submit firmware property list
+ * @of_node:	Pointer to the firmware Device Tree node.
+ * @data:	Buffer holding tags.
+ * @tag_size:	Size of tags buffer.
+ *
  * Submits a set of concatenated tags to the VPU firmware through the
  * mailbox property interface.
  *
@@ -119,13 +124,19 @@ int rpi_firmware_property_list(struct device_node *of_node,
 		ret = -EINVAL;
 	}
 
-	dma_free_coherent(NULL, PAGE_ALIGN(size), buf, bus_addr);
+	dma_free_coherent(fw->cl.dev, PAGE_ALIGN(size), buf, bus_addr);
 
 	return ret;
 }
 EXPORT_SYMBOL_GPL(rpi_firmware_property_list);
 
-/*
+/**
+ * rpi_firmware_property - Submit single firmware property
+ * @of_node:	Pointer to the firmware Device Tree node.
+ * @tag:	One of enum_mbox_property_tag.
+ * @tag_data:	Tag data buffer.
+ * @buf_size:	Buffer size.
+ *
  * Submits a single tag to the VPU firmware through the mailbox
  * property interface.
  *
@@ -162,7 +173,6 @@ EXPORT_SYMBOL_GPL(rpi_firmware_property);
 static int rpi_firmware_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	int ret = 0;
 	struct rpi_firmware *fw;
 
 	fw = devm_kzalloc(dev, sizeof(*fw), GFP_KERNEL);
@@ -175,11 +185,7 @@ static int rpi_firmware_probe(struct platform_device *pdev)
 
 	fw->chan = mbox_request_channel(&fw->cl, 0);
 	if (IS_ERR(fw->chan)) {
-		ret = PTR_ERR(fw->chan);
-		/* An -EBUSY from the core means it couldn't find our
-		 * channel, because the mailbox driver hadn't
-		 * registered yet.
-		 */
+		int ret = PTR_ERR(fw->chan);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get mbox channel: %d\n", ret);
 		return ret;
