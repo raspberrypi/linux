@@ -133,6 +133,7 @@ struct bcm2835_host {
 #define SDHCI_SDIO_IRQ_ENABLED	(1<<9)	/* SDIO irq enabled */
 
 	u32				overclock_50;	/* frequency to use when 50MHz is requested (in MHz) */
+	u32				max_overclock;	/* Highest reported */
 };
 
 
@@ -1091,7 +1092,7 @@ void bcm2835_mmc_set_clock(struct bcm2835_host *host, unsigned int clock)
 	unsigned int input_clock = clock;
 
 	if (host->overclock_50 && (clock == 50000000))
-		clock = host->overclock_50 * 1000000;
+		clock = host->overclock_50 * 1000000 + 999999;
 
 	host->mmc->actual_clock = 0;
 
@@ -1118,9 +1119,11 @@ void bcm2835_mmc_set_clock(struct bcm2835_host *host, unsigned int clock)
 		clock = (host->max_clk * clk_mul) / real_div;
 	host->mmc->actual_clock = clock;
 
-	if (clock > input_clock)
+	if ((clock > input_clock) && (clock > host->max_overclock)) {
 		pr_warn("%s: Overclocking to %dHz\n",
 			mmc_hostname(host->mmc), clock);
+		host->max_overclock = clock;
+	}
 
 	clk |= (div & SDHCI_DIV_MASK) << SDHCI_DIVIDER_SHIFT;
 	clk |= ((div & SDHCI_DIV_HI_MASK) >> SDHCI_DIV_MASK_LEN)
