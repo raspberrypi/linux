@@ -49,3 +49,7 @@
 	status = "okay";
 	bus-width = <4>;
 };
+
+&fb {
+	status = "okay";
+};
