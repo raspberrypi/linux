@@ -24,16 +24,13 @@
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/list.h>
+#include <linux/platform_data/dma-bcm2708.h>
 #include <linux/platform_data/mailbox-bcm2708.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/printk.h>
 #include <linux/console.h>
 #include <linux/debugfs.h>
-
-#include <mach/dma.h>
-#include <mach/platform.h>
-
 #include <asm/sizes.h>
 #include <linux/io.h>
 #include <linux/dma-mapping.h>
@@ -628,7 +625,7 @@ static int bcm2708_fb_register(struct bcm2708_fb *fb)
 	void *mem;
 
 	mem =
-	    dma_alloc_coherent(NULL, PAGE_ALIGN(sizeof(*fb->info)), &dma,
+	    dma_alloc_coherent(&fb->dev->dev, PAGE_ALIGN(sizeof(*fb->info)), &dma,
 			       GFP_KERNEL);
 
 	if (NULL == mem) {
@@ -783,12 +780,19 @@ static int bcm2708_fb_remove(struct platform_device *dev)
 	return 0;
 }
 
+static const struct of_device_id bcm2708_fb_of_match_table[] = {
+	{ .compatible = "brcm,bcm2708-fb", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, bcm2708_fb_of_match_table);
+
 static struct platform_driver bcm2708_fb_driver = {
 	.probe = bcm2708_fb_probe,
 	.remove = bcm2708_fb_remove,
 	.driver = {
 		   .name = DRIVER_NAME,
 		   .owner = THIS_MODULE,
+		   .of_match_table = bcm2708_fb_of_match_table,
 		   },
 };
 
