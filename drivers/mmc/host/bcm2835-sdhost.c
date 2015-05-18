@@ -185,6 +185,7 @@ struct bcm2835_host {
 	struct timeval			stop_time;	/* when the last stop was issued */
 	u32				delay_after_stop; /* minimum time between stop and subsequent data transfer */
 	u32				overclock_50;	/* frequency to use when 50MHz is requested (in MHz) */
+	u32				max_overclock;	/* Highest reported */
 };
 
 
@@ -1227,7 +1228,7 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 	unsigned int input_clock = clock;
 
 	if (host->overclock_50 && (clock == 50000000))
-		clock = host->overclock_50 * 1000000;
+		clock = host->overclock_50 * 1000000 + 999999;
 
 	/* The SDCDIV register has 11 bits, and holds (div - 2).
 	   But in data mode the max is 50MHz wihout a minimum, and only the
@@ -1274,9 +1275,11 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 	clock = host->max_clk / (div + 2);
 	host->mmc->actual_clock = clock;
 
-	if (clock > input_clock)
+	if ((clock > input_clock) && (clock > host->max_overclock)) {
 		pr_warn("%s: Overclocking to %dHz\n",
 			mmc_hostname(host->mmc), clock);
+		host->max_overclock = clock;
+	}
 
 	host->cdiv = div;
 	bcm2835_sdhost_write(host, host->cdiv, SDCDIV);
