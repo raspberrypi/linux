@@ -15,21 +15,19 @@ enum rpi_firmware_property_status {
 	RPI_FIRMWARE_STATUS_ERROR =   0x80000001,
 };
 
+/**
+ * struct rpi_firmware_property_tag_header - Firmware property tag header
+ * @tag:		One of enum_mbox_property_tag.
+ * @buf_size:		The number of bytes in the value buffer following this
+ *			struct.
+ * @req_resp_size:	On submit, the length of the request (though it doesn't
+ *			appear to be currently used by the firmware).  On return,
+ *			the length of the response (always 4 byte aligned), with
+ *			the low bit set.
+ */
 struct rpi_firmware_property_tag_header {
-	/* One of enum_mbox_property_tag. */
 	u32 tag;
-
-	/* The number of bytes in the value buffer following this
-	 * struct.
-	 */
 	u32 buf_size;
-
-	/*
-	 * On submit, the length of the request (though it doesn't
-	 * appear to be currently used by the firmware).  On return,
-	 * the length of the response (always 4 byte aligned), with
-	 * the low bit set.
-	 */
 	u32 req_resp_size;
 };
 

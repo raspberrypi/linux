@@ -3,14 +3,12 @@ Raspberry Pi VideoCore firmware driver
 Required properties:
 
 - compatible:		Should be "rasbperrypi,firmware"
-- mboxes:		Single-entry list which specifies which mailbox
-			  controller and channel is used.  See
-			  Documentation/devicetree/bindings/mailbox/mailbox.txt
-			  for the semantics of this property
+- mboxes:		Phandle to the firmware device's Mailbox.
+			  (See: ../mailbox/mailbox.txt for more information)
 
 Example:
 
 firmware {
-	compatible = "rasbperrypi,firmware";
+	compatible = "raspberrypi,firmware";
 	mboxes = <&mailbox>;
 };
