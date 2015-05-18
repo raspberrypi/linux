@@ -36,6 +36,16 @@
 			#interrupt-cells = <2>;
 		};
 
+		uart: uart@7e201000 {
+			compatible = "arm,primecell", "arm,pl011";
+			reg = <0x7e201000 0x1000>;
+			interrupts = <2 25>;
+			clocks = <&clk_uart>;
+			clock-names = "apb_pclk";
+			arm,primecell-periphid = <0x00241011>;
+			status = "disabled";
+		};
+
 		i2s: i2s@7e203000 {
 			compatible = "brcm,bcm2708-i2s";
 			reg = <0x7e203000 0x20>,
@@ -91,7 +101,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		clk_i2c: i2c {
+		clk_i2c: clock@1 {
 			compatible = "fixed-clock";
 			reg = <1>;
 			#clock-cells = <0>;
@@ -104,6 +114,14 @@
 			#clock-cells = <0>;
 			clock-output-names = "spi";
 			clock-frequency = <250000000>;
+		};
+
+		clk_uart: clock@3 {
+			compatible = "fixed-clock";
+			reg = <3>;
+			#clock-cells = <0>;
+			clock-output-names = "uart";
+			clock-frequency = <3000000>;
 		};
 	};
 };
