@@ -109,6 +109,11 @@
 		leds: leds {
 			compatible = "gpio-leds";
 		};
+
+		fb: fb {
+			compatible = "brcm,bcm2708-fb";
+			status = "disabled";
+		};
 	};
 
 	clocks {
