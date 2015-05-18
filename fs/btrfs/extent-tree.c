@@ -8548,7 +8548,9 @@ int btrfs_set_block_group_ro(struct btrfs_root *root,
 out:
 	if (cache->flags & BTRFS_BLOCK_GROUP_SYSTEM) {
 		alloc_flags = update_block_group_flags(root, cache->flags);
+		lock_chunks(root->fs_info->chunk_root);
 		check_system_chunk(trans, root, alloc_flags);
+		unlock_chunks(root->fs_info->chunk_root);
 	}
 
 	btrfs_end_transaction(trans, root);
