@@ -311,7 +311,6 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 		vc4_hdmi_dump_regs(dev);
 	}
 
-	HDMI_WRITE(VC4_HDMI_TX_PHY_RESET_CTL, 0xf << 16);
 
 	/* XXX: Pixel valve must be stopped. */
 	HD_WRITE(VC4_HD_VID_CTL, 0);
@@ -351,7 +350,7 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 	/* XXX: Wait for video. */
 
 	/* XXX: Enable pixel valve. */
-	HDMI_WRITE(VC4_HDMI_TX_PHY_RESET_CTL, 0);
+
 	HD_WRITE(VC4_HD_VID_CTL,
 		 VC4_HD_VID_CTL_ENABLE |
 		 VC4_HD_VID_CTL_UNDERFLOW_ENABLE |
@@ -394,10 +393,18 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 
 static void vc4_hdmi_encoder_disable(struct drm_encoder *encoder)
 {
+	struct drm_device *dev = encoder->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	HDMI_WRITE(VC4_HDMI_TX_PHY_RESET_CTL, 0xf << 16);
 }
 
 static void vc4_hdmi_encoder_enable(struct drm_encoder *encoder)
 {
+	struct drm_device *dev = encoder->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	HDMI_WRITE(VC4_HDMI_TX_PHY_RESET_CTL, 0);
 }
 
 static const struct drm_encoder_helper_funcs vc4_hdmi_encoder_helper_funcs = {
