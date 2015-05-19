@@ -25,6 +25,11 @@
 	};
 };
 
+&mmc {
+	status = "okay";
+	bus-width = <4>;
+};
+
 / {
 	__overrides__ {
 		act_led_gpio = <&act_led>,"gpios:4";
