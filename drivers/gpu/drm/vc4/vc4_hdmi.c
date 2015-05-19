@@ -278,7 +278,7 @@ vc4_set_pixel_clock(struct vc4_dev *vc4, u32 clock)
 	u32 packet[2];
 	int ret;
 
-	packet[0] = 9; /* Pixel clock. */
+	packet[0] = 8; /* Pixel clock. */
 	packet[1] = clock;
 
 	ret = rpi_firmware_property(vc4->firmware_node,
@@ -319,8 +319,7 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 	HD_WRITE(VC4_HD_VID_CTL, 0);
 	/* XXX: Set state machine clock. */
 
-	if (0) /* XXX: Kills the screen. */
-		vc4_set_pixel_clock(vc4, mode->clock * 1000);
+	vc4_set_pixel_clock(vc4, mode->clock * 1000);
 
 	HDMI_WRITE(VC4_HDMI_SCHEDULER_CONTROL,
 		   HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) |
