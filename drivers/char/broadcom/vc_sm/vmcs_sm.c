@@ -2732,6 +2732,55 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		break;
 
+	/* Flush/Invalidate the cache for a given mapping. */
+	case VMCS_SM_CMD_CLEAN_INVALID:
+		{
+			int i;
+			struct vmcs_sm_ioctl_clean_invalid ioparam;
+
+			/* Get parameter data. */
+			if (copy_from_user(&ioparam,
+					   (void *)arg, sizeof(ioparam)) != 0) {
+				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
+						__func__, cmdnr);
+				ret = -EFAULT;
+				goto out;
+			}
+			for (i=0; i<sizeof ioparam.s/sizeof *ioparam.s; i++) {
+				switch (ioparam.s[i].cmd) {
+					default: case 0: break; /* NOOP */
+					case 1:	/* L1/L2 invalidate virtual range */
+					case 2: /* L1/L2 clean physical range */
+					case 3: /* L1/L2 clean+invalidate all */
+					{
+						/* Locate resource from GUID.
+						 */
+						resource =
+						    vmcs_sm_acquire_resource(file_data, ioparam.s[i].handle);
+
+						if ((resource != NULL) && resource->res_cached) {
+							unsigned long base = ioparam.s[i].addr & ~(PAGE_SIZE-1);
+							unsigned long end = (ioparam.s[i].addr + ioparam.s[i].size + PAGE_SIZE-1) & ~(PAGE_SIZE-1);
+							resource->res_stats[ioparam.s[i].cmd == 1 ? INVALID:FLUSH]++;
+
+							/* L1/L2 cache flush */
+							down_read(&current->mm->mmap_sem);
+							vcsm_vma_cache_clean_page_range(base, end);
+							up_read(&current->mm->mmap_sem);
+						} else if (resource == NULL) {
+							ret = -EINVAL;
+							goto out;
+						}
+
+						if (resource)
+							vmcs_sm_release_resource(resource, 0);
+					}
+					break;
+				}
+			}
+		}
+		break;
+
 	default:
 		{
 			ret = -EINVAL;
