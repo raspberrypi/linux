@@ -346,13 +346,17 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 	HDMI_WRITE(VC4_HDMI_VERTB0, vertb);
 	HDMI_WRITE(VC4_HDMI_VERTB1, vertb);
 
-	/* XXX: HD VID CTL set up sync polarities  */
+	HD_WRITE(VC4_HD_VID_CTL,
+		 (vsync_pos ? 0 : VC4_HD_VID_CTL_VSYNC_LOW) |
+		 (hsync_pos ? 0 : VC4_HD_VID_CTL_HSYNC_LOW));
+
 	HDMI_WRITE(VC4_HDMI_FIFO_CTL, VC4_HDMI_FIFO_CTL_MASTER_SLAVE_N);
 	/* XXX: HD CSC CTL = 0x20 */
 
 	/* XXX: Wait for video. */
 
 	HD_WRITE(VC4_HD_VID_CTL,
+		 HD_READ(VC4_HD_VID_CTL) |
 		 VC4_HD_VID_CTL_ENABLE |
 		 VC4_HD_VID_CTL_UNDERFLOW_ENABLE |
 		 VC4_HD_VID_CTL_FRAME_COUNTER_RESET);

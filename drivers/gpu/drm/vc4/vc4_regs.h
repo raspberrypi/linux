@@ -330,6 +330,8 @@
 # define VC4_HD_VID_CTL_ENABLE			(1 << 31)
 # define VC4_HD_VID_CTL_UNDERFLOW_ENABLE	(1 << 30)
 # define VC4_HD_VID_CTL_FRAME_COUNTER_RESET	(1 << 29)
+# define VC4_HD_VID_CTL_VSYNC_LOW		(1 << 28)
+# define VC4_HD_VID_CTL_HSYNC_LOW		(1 << 27)
 
 #define VC4_HD_CSC_CTL				0x040
 #define VC4_HD_FRAME_COUNT			0x068
