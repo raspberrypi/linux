@@ -69,10 +69,24 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 static void vc4_crtc_disable(struct drm_crtc *crtc)
 {
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+
+	CRTC_WRITE(PV_V_CONTROL,
+		   CRTC_READ(PV_V_CONTROL) & ~PV_VCONTROL_VIDEN);
+
+	if (drm_crtc_index(crtc) == 0) {
+		do {
+			cpu_relax();
+		} while (CRTC_READ(PV_STAT) & (PV_STAT_RUNNING_MASK));
+	}
 }
 
 static void vc4_crtc_enable(struct drm_crtc *crtc)
 {
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+
+	CRTC_WRITE(PV_V_CONTROL,
+		   CRTC_READ(PV_V_CONTROL) | PV_VCONTROL_VIDEN);
 }
 
 static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
@@ -193,13 +207,6 @@ static void vc4_crtc_atomic_flush(struct drm_crtc *crtc)
 			     VC4_SET_FIELD(mode->vdisplay, PV_VERTB_VACTIVE));
 		u32 format = PV_CONTROL_FORMAT_24;
 
-		CRTC_WRITE(PV_V_CONTROL,
-			   CRTC_READ(PV_V_CONTROL) & ~PV_VCONTROL_VIDEN);
-
-		do {
-			/* XXX SLEEP */
-		} while (CRTC_READ(PV_STAT) & (PV_STAT_RUNNING_MASK));
-
 		CRTC_WRITE(PV_HORZA,
 			   VC4_SET_FIELD(mode->htotal - mode->hdisplay,
 					 PV_HORZA_HBP) |
@@ -228,8 +235,7 @@ static void vc4_crtc_atomic_flush(struct drm_crtc *crtc)
 			   PV_CONTROL_EN);
 
 		CRTC_WRITE(PV_V_CONTROL,
-			   PV_VCONTROL_CONTINUOUS |
-			   PV_VCONTROL_VIDEN);
+			   PV_VCONTROL_CONTINUOUS);
 	}
 
 	if (debug_dump_regs) {

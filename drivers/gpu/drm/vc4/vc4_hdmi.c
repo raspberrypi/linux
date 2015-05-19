@@ -312,7 +312,6 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 	}
 
 
-	/* XXX: Pixel valve must be stopped. */
 	HD_WRITE(VC4_HD_VID_CTL, 0);
 	/* XXX: Set state machine clock. */
 
@@ -348,8 +347,6 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 	/* XXX: HD CSC CTL = 0x20 */
 
 	/* XXX: Wait for video. */
-
-	/* XXX: Enable pixel valve. */
 
 	HD_WRITE(VC4_HD_VID_CTL,
 		 VC4_HD_VID_CTL_ENABLE |
