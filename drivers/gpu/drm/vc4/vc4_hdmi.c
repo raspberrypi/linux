@@ -358,13 +358,17 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 	HD_WRITE(VC4_HD_VID_CTL,
 		 HD_READ(VC4_HD_VID_CTL) |
 		 VC4_HD_VID_CTL_ENABLE |
-		 VC4_HD_VID_CTL_UNDERFLOW_ENABLE |
 		 VC4_HD_VID_CTL_FRAME_COUNTER_RESET);
 
 	if (vc4_encoder->hdmi_monitor) {
 		HDMI_WRITE(VC4_HDMI_SCHEDULER_CONTROL,
 			   HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) |
 			   VC4_HDMI_SCHEDULER_CONTROL_MODE_HDMI);
+
+		while (!(HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) &
+			 VC4_HDMI_SCHEDULER_CONTROL_HDMI_ACTIVE)) {
+			cpu_relax();
+		}
 	} else {
 		HDMI_WRITE(VC4_HDMI_RAM_PACKET_CONFIG,
 			   HDMI_READ(VC4_HDMI_RAM_PACKET_CONFIG) &
@@ -372,9 +376,12 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 		HDMI_WRITE(VC4_HDMI_SCHEDULER_CONTROL,
 			   HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) &
 			   ~VC4_HDMI_SCHEDULER_CONTROL_MODE_HDMI);
-	}
 
-	/* Wait for set pending done. */
+		while (HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) &
+		       VC4_HDMI_SCHEDULER_CONTROL_HDMI_ACTIVE) {
+			cpu_relax();
+		}
+	}
 
 	if (vc4_encoder->hdmi_monitor) {
 		WARN_ON(!(HDMI_READ(VC4_HDMI_SCHEDULER_CONTROL) &
