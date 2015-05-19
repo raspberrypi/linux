@@ -61,6 +61,8 @@ enum vmcs_sm_cmd_e {
 	VMCS_SM_CMD_HOST_WALK_PID_ALLOC,
 	VMCS_SM_CMD_HOST_WALK_PID_MAP,
 
+	VMCS_SM_CMD_CLEAN_INVALID,
+
 	VMCS_SM_CMD_LAST	/* Do no delete */
 };
 
@@ -163,6 +165,16 @@ struct vmcs_sm_ioctl_cache {
 	unsigned int size;
 };
 
+struct vmcs_sm_ioctl_clean_invalid {
+	/* user -> kernel */
+	struct {
+		unsigned int cmd;
+		unsigned int handle;
+		unsigned int addr;
+		unsigned int size;
+	} s[8];
+};
+
 /* IOCTL numbers */
 #define VMCS_SM_IOCTL_MEM_ALLOC\
 	_IOR(VMCS_SM_MAGIC_TYPE, VMCS_SM_CMD_ALLOC,\
@@ -191,6 +203,9 @@ struct vmcs_sm_ioctl_cache {
 #define VMCS_SM_IOCTL_MEM_INVALID\
 	_IOR(VMCS_SM_MAGIC_TYPE, VMCS_SM_CMD_INVALID,\
 	 struct vmcs_sm_ioctl_cache)
+#define VMCS_SM_IOCTL_MEM_CLEAN_INVALID\
+	_IOR(VMCS_SM_MAGIC_TYPE, VMCS_SM_CMD_CLEAN_INVALID,\
+	 struct vmcs_sm_ioctl_clean_invalid)
 
 #define VMCS_SM_IOCTL_SIZE_USR_HDL\
 	_IOR(VMCS_SM_MAGIC_TYPE, VMCS_SM_CMD_SIZE_USR_HANDLE,\
