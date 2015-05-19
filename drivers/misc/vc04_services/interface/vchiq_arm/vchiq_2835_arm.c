@@ -35,22 +35,17 @@
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/interrupt.h>
-#include <linux/irq.h>
 #include <linux/pagemap.h>
 #include <linux/dma-mapping.h>
 #include <linux/version.h>
 #include <linux/io.h>
 #include <linux/platform_data/mailbox-bcm2708.h>
+#include <linux/platform_device.h>
 #include <linux/uaccess.h>
 #include <asm/pgtable.h>
 
-#include <mach/irqs.h>
-
-#include <mach/platform.h>
-
 #define TOTAL_SLOTS (VCHIQ_SLOT_ZERO_SLOTS + 2 * 32)
 
-#define VCHIQ_DOORBELL_IRQ IRQ_ARM_DOORBELL_0
 #define VCHIQ_ARM_ADDRESS(x) ((void *)__virt_to_bus((unsigned)x))
 
 #include "vchiq_arm.h"
@@ -60,14 +55,15 @@
 
 #define MAX_FRAGMENTS (VCHIQ_NUM_CURRENT_BULKS * 2)
 
+#define BELL0	0x00
+#define BELL2	0x08
+
 typedef struct vchiq_2835_state_struct {
    int inited;
    VCHIQ_ARM_STATE_T arm_state;
 } VCHIQ_2835_ARM_STATE_T;
 
-static char *g_slot_mem;
-static int g_slot_mem_size;
-dma_addr_t g_slot_phys;
+static void __iomem *g_regs;
 static FRAGMENTS_T *g_fragments_base;
 static FRAGMENTS_T *g_free_fragments;
 struct semaphore g_free_fragments_sema;
@@ -86,43 +82,40 @@ create_pagelist(char __user *buf, size_t count, unsigned short type,
 static void
 free_pagelist(PAGELIST_T *pagelist, int actual);
 
-int __init
-vchiq_platform_init(VCHIQ_STATE_T *state)
+int vchiq_platform_init(struct platform_device *pdev, VCHIQ_STATE_T *state)
 {
+	struct device *dev = &pdev->dev;
 	VCHIQ_SLOT_ZERO_T *vchiq_slot_zero;
-	int frag_mem_size;
-	int err;
-	int i;
+	struct resource *res;
+	void *slot_mem;
+	dma_addr_t slot_phys;
+	int slot_mem_size, frag_mem_size;
+	int err, irq, i;
 
 	/* Allocate space for the channels in coherent memory */
-	g_slot_mem_size = PAGE_ALIGN(TOTAL_SLOTS * VCHIQ_SLOT_SIZE);
+	slot_mem_size = PAGE_ALIGN(TOTAL_SLOTS * VCHIQ_SLOT_SIZE);
 	frag_mem_size = PAGE_ALIGN(sizeof(FRAGMENTS_T) * MAX_FRAGMENTS);
 
-	g_slot_mem = dma_alloc_coherent(NULL, g_slot_mem_size + frag_mem_size,
-		&g_slot_phys, GFP_KERNEL);
-
-	if (!g_slot_mem) {
-		vchiq_log_error(vchiq_arm_log_level,
-			"Unable to allocate channel memory");
-		err = -ENOMEM;
-		goto failed_alloc;
+	slot_mem = dmam_alloc_coherent(dev, slot_mem_size + frag_mem_size,
+				       &slot_phys, GFP_KERNEL);
+	if (!slot_mem) {
+		dev_err(dev, "could not allocate DMA memory\n");
+		return -ENOMEM;
 	}
 
-	WARN_ON(((int)g_slot_mem & (PAGE_SIZE - 1)) != 0);
+	WARN_ON(((int)slot_mem & (PAGE_SIZE - 1)) != 0);
 
-	vchiq_slot_zero = vchiq_init_slots(g_slot_mem, g_slot_mem_size);
-	if (!vchiq_slot_zero) {
-		err = -EINVAL;
-		goto failed_init_slots;
-	}
+	vchiq_slot_zero = vchiq_init_slots(slot_mem, slot_mem_size);
+	if (!vchiq_slot_zero)
+		return -EINVAL;
 
 	vchiq_slot_zero->platform_data[VCHIQ_PLATFORM_FRAGMENTS_OFFSET_IDX] =
-		(int)g_slot_phys + g_slot_mem_size;
+		(int)slot_phys + slot_mem_size;
 	vchiq_slot_zero->platform_data[VCHIQ_PLATFORM_FRAGMENTS_COUNT_IDX] =
 		MAX_FRAGMENTS;
 
-	g_fragments_base = (FRAGMENTS_T *)(g_slot_mem + g_slot_mem_size);
-	g_slot_mem_size += frag_mem_size;
+	g_fragments_base = (FRAGMENTS_T *)(slot_mem + slot_mem_size);
+	slot_mem_size += frag_mem_size;
 
 	g_free_fragments = g_fragments_base;
 	for (i = 0; i < (MAX_FRAGMENTS - 1); i++) {
@@ -132,53 +125,45 @@ vchiq_platform_init(VCHIQ_STATE_T *state)
 	*(FRAGMENTS_T **)&g_fragments_base[i] = NULL;
 	sema_init(&g_free_fragments_sema, MAX_FRAGMENTS);
 
-	if (vchiq_init_state(state, vchiq_slot_zero, 0/*slave*/) !=
-		VCHIQ_SUCCESS) {
-		err = -EINVAL;
-		goto failed_vchiq_init;
+	if (vchiq_init_state(state, vchiq_slot_zero, 0) != VCHIQ_SUCCESS)
+		return -EINVAL;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	g_regs = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(g_regs))
+		return PTR_ERR(g_regs);
+
+	irq = platform_get_irq(pdev, 0);
+	if (irq <= 0) {
+		dev_err(dev, "failed to get IRQ\n");
+		return irq;
 	}
 
-	err = request_irq(VCHIQ_DOORBELL_IRQ, vchiq_doorbell_irq,
-		IRQF_IRQPOLL, "VCHIQ doorbell",
-		state);
-	if (err < 0) {
-		vchiq_log_error(vchiq_arm_log_level, "%s: failed to register "
-			"irq=%d err=%d", __func__,
-			VCHIQ_DOORBELL_IRQ, err);
-		goto failed_request_irq;
+	err = devm_request_irq(dev, irq, vchiq_doorbell_irq, IRQF_IRQPOLL,
+			       "VCHIQ doorbell", state);
+	if (err) {
+		dev_err(dev, "failed to register irq=%d\n", irq);
+		return err;
 	}
 
 	/* Send the base address of the slots to VideoCore */
 
 	dsb(); /* Ensure all writes have completed */
 
-	bcm_mailbox_write(MBOX_CHAN_VCHIQ, (unsigned int)g_slot_phys);
+	err = bcm_mailbox_write(MBOX_CHAN_VCHIQ, (unsigned int)slot_phys);
+	if (err) {
+		dev_err(dev, "mailbox write failed\n");
+		return err;
+	}
 
 	vchiq_log_info(vchiq_arm_log_level,
-		"vchiq_init - done (slots %x, phys %x)",
-		(unsigned int)vchiq_slot_zero, g_slot_phys);
+		"vchiq_init - done (slots %x, phys %pad)",
+		(unsigned int)vchiq_slot_zero, &slot_phys);
 
-   vchiq_call_connected_callbacks();
+	vchiq_call_connected_callbacks();
 
    return 0;
-
-failed_request_irq:
-failed_vchiq_init:
-failed_init_slots:
-   dma_free_coherent(NULL, g_slot_mem_size, g_slot_mem, g_slot_phys);
-
-failed_alloc:
-   return err;
 }
-
-void __exit
-vchiq_platform_exit(VCHIQ_STATE_T *state)
-{
-   free_irq(VCHIQ_DOORBELL_IRQ, state);
-   dma_free_coherent(NULL, g_slot_mem_size,
-                     g_slot_mem, g_slot_phys);
-}
-
 
 VCHIQ_STATUS_T
 vchiq_platform_init_state(VCHIQ_STATE_T *state)
@@ -213,11 +198,8 @@ remote_event_signal(REMOTE_EVENT_T *event)
 
 	dsb();         /* data barrier operation */
 
-	if (event->armed) {
-		/* trigger vc interrupt */
-
-		writel(0, __io_address(ARM_0_BELL2));
-	}
+	if (event->armed)
+		writel(0, g_regs + BELL2); /* trigger vc interrupt */
 }
 
 int
@@ -341,7 +323,7 @@ vchiq_doorbell_irq(int irq, void *dev_id)
 	unsigned int status;
 
 	/* Read (and clear) the doorbell */
-	status = readl(__io_address(ARM_0_BELL0));
+	status = readl(g_regs + BELL0);
 
 	if (status & 0x4) {  /* Was the doorbell rung? */
 		remote_event_pollall(state);

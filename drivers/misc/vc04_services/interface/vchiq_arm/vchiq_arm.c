@@ -45,6 +45,7 @@
 #include <linux/bug.h>
 #include <linux/semaphore.h>
 #include <linux/list.h>
+#include <linux/platform_device.h>
 
 #include "vchiq_core.h"
 #include "vchiq_ioctl.h"
@@ -2790,15 +2791,7 @@ void vchiq_platform_conn_state_changed(VCHIQ_STATE_T *state,
 	}
 }
 
-
-/****************************************************************************
-*
-*   vchiq_init - called when the module is loaded.
-*
-***************************************************************************/
-
-static int __init
-vchiq_init(void)
+static int vchiq_probe(struct platform_device *pdev)
 {
 	int err;
 	void *ptr_err;
@@ -2835,7 +2828,7 @@ vchiq_init(void)
 	if (IS_ERR(ptr_err))
 		goto failed_device_create;
 
-	err = vchiq_platform_init(&g_state);
+	err = vchiq_platform_init(pdev, &g_state);
 	if (err != 0)
 		goto failed_platform_init;
 
@@ -2862,23 +2855,32 @@ failed_debugfs_init:
 	return err;
 }
 
-/****************************************************************************
-*
-*   vchiq_exit - called when the module is unloaded.
-*
-***************************************************************************/
-
-static void __exit
-vchiq_exit(void)
+static int vchiq_remove(struct platform_device *pdev)
 {
-	vchiq_platform_exit(&g_state);
 	device_destroy(vchiq_class, vchiq_devid);
 	class_destroy(vchiq_class);
 	cdev_del(&vchiq_cdev);
 	unregister_chrdev_region(vchiq_devid, 1);
+
+	return 0;
 }
 
-module_init(vchiq_init);
-module_exit(vchiq_exit);
+static const struct of_device_id vchiq_of_match[] = {
+	{ .compatible = "brcm,bcm2835-vchiq", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, vchiq_of_match);
+
+static struct platform_driver vchiq_driver = {
+	.driver = {
+		.name = "bcm2835_vchiq",
+		.owner = THIS_MODULE,
+		.of_match_table = vchiq_of_match,
+	},
+	.probe = vchiq_probe,
+	.remove = vchiq_remove,
+};
+module_platform_driver(vchiq_driver);
+
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Broadcom Corporation");

@@ -36,6 +36,7 @@
 #define VCHIQ_ARM_H
 
 #include <linux/mutex.h>
+#include <linux/platform_device.h>
 #include <linux/semaphore.h>
 #include <linux/atomic.h>
 #include "vchiq_core.h"
@@ -128,11 +129,7 @@ typedef struct vchiq_arm_state_struct {
 extern int vchiq_arm_log_level;
 extern int vchiq_susp_log_level;
 
-extern int __init
-vchiq_platform_init(VCHIQ_STATE_T *state);
-
-extern void __exit
-vchiq_platform_exit(VCHIQ_STATE_T *state);
+int vchiq_platform_init(struct platform_device *pdev, VCHIQ_STATE_T *state);
 
 extern VCHIQ_STATE_T *
 vchiq_get_state(void);
