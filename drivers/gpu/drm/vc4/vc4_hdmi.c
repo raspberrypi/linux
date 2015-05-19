@@ -90,7 +90,11 @@ static const struct {
 	u32 reg;
 	const char *name;
 } hd_regs[] = {
+	HDMI_REG(VC4_HD_M_CTL),
+	HDMI_REG(VC4_HD_MAI_CTL),
 	HDMI_REG(VC4_HD_VID_CTL),
+	HDMI_REG(VC4_HD_CSC_CTL),
+	HDMI_REG(VC4_HD_FRAME_COUNT),
 };
 
 #ifdef CONFIG_DEBUG_FS
@@ -131,7 +135,7 @@ static void vc4_hdmi_dump_regs(struct drm_device *dev)
 	for (i = 0; i < ARRAY_SIZE(hd_regs); i++) {
 		DRM_INFO("0x%04x (%s): 0x%08x\n",
 			 hd_regs[i].reg, hd_regs[i].name,
-			 HDMI_READ(hd_regs[i].reg));
+			 HD_READ(hd_regs[i].reg));
 	}
 }
 
