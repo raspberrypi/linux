@@ -382,7 +382,8 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 		goto out_clk_put;
 	}
 
-	bcm2708_i2c_init_pinmode(pdev->id);
+	if (!pdev->dev.of_node)
+		bcm2708_i2c_init_pinmode(pdev->id);
 
 	bi = kzalloc(sizeof(*bi), GFP_KERNEL);
 	if (!bi)
