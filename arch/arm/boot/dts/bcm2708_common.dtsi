@@ -3,6 +3,13 @@
 / {
 	interrupt-parent = <&intc>;
 
+	/* Onboard audio */
+	audio: audio {
+		compatible = "brcm,bcm2835-audio";
+		brcm,pwm-channels = <8>;
+		status = "disabled";
+	};
+
 	soc: soc {
 		compatible = "simple-bus";
 		#address-cells = <1>;
