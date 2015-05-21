@@ -14,6 +14,12 @@
 			linux,default-trigger = "heartbeat";
 		};
 	};
+
+	/* Onboard audio */
+	audio: audio {
+		compatible = "brcm,bcm2835-audio";
+		brcm,pwm-channels = <8>;
+	};
 };
 
 &gpio {
