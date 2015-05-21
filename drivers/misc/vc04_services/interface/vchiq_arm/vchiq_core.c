@@ -1782,7 +1782,7 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 				service->remoteport);
 			break;
 		case VCHIQ_MSG_DATA:
-			vchiq_log_trace(vchiq_core_log_level,
+			vchiq_log_info(vchiq_core_log_level,
 				"%d: prs DATA@%x,%x (%d->%d)",
 				state->id, (unsigned int)header, size,
 				remoteport, localport);
