@@ -987,7 +987,7 @@ void __init bcm2709_init(void)
 #endif
 	bcm2709_init_led();
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
-		bcm_register_device(&bcm2708_alsa_devices[i]);
+		bcm_register_device_dt(&bcm2708_alsa_devices[i]);
 
 	bcm_register_device_dt(&bcm2708_spi_device);
 

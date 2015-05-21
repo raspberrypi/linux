@@ -17,6 +17,7 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/module.h>
+#include <linux/of.h>
 
 #include "bcm2835.h"
 
@@ -81,12 +82,95 @@ static int snd_bcm2835_create(struct snd_card *card,
 	return 0;
 }
 
+static int snd_bcm2835_alsa_probe_dt(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	bcm2835_chip_t *chip;
+	struct snd_card *card;
+	u32 numchans;
+	int err, i;
+
+	err = of_property_read_u32(dev->of_node, "brcm,pwm-channels",
+				   &numchans);
+	if (err) {
+		dev_err(dev, "Failed to get DT property 'brcm,pwm-channels'");
+		return err;
+	}
+
+	if (numchans == 0 || numchans > MAX_SUBSTREAMS) {
+		numchans = MAX_SUBSTREAMS;
+		dev_warn(dev, "Illegal 'brcm,pwm-channels' value, will use %u\n",
+			 numchans);
+	}
+
+	err = snd_card_new(NULL, -1, NULL, THIS_MODULE, 0, &card);
+	if (err) {
+		dev_err(dev, "Failed to create soundcard structure\n");
+		return err;
+	}
+
+	snd_card_set_dev(card, dev);
+	strcpy(card->driver, "bcm2835");
+	strcpy(card->shortname, "bcm2835 ALSA");
+	sprintf(card->longname, "%s", card->shortname);
+
+	err = snd_bcm2835_create(card, pdev, &chip);
+	if (err < 0) {
+		dev_err(dev, "Failed to create bcm2835 chip\n");
+		goto err_free;
+	}
+
+	err = snd_bcm2835_new_pcm(chip);
+	if (err < 0) {
+		dev_err(dev, "Failed to create new bcm2835 pcm device\n");
+		goto err_free;
+	}
+
+	err = snd_bcm2835_new_spdif_pcm(chip);
+	if (err < 0) {
+		dev_err(dev, "Failed to create new bcm2835 spdif pcm device\n");
+		goto err_free;
+	}
+
+	err = snd_bcm2835_new_ctl(chip);
+	if (err < 0) {
+		dev_err(dev, "Failed to create new bcm2835 ctl\n");
+		goto err_free;
+	}
+
+	for (i = 0; i < numchans; i++) {
+		chip->avail_substreams |= (1 << i);
+		chip->pdev[i] = pdev;
+	}
+
+	err = snd_card_register(card);
+	if (err) {
+		dev_err(dev, "Failed to register bcm2835 ALSA card \n");
+		goto err_free;
+	}
+
+	g_card = card;
+	g_chip = chip;
+	platform_set_drvdata(pdev, card);
+	audio_info("bcm2835 ALSA card created with %u channels\n", numchans);
+
+	return 0;
+
+err_free:
+	snd_card_free(card);
+
+	return err;
+}
+
 static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 {
 	static int dev;
 	bcm2835_chip_t *chip;
 	struct snd_card *card;
 	int err;
+
+	if (pdev->dev.of_node)
+		return snd_bcm2835_alsa_probe_dt(pdev);
 
 	if (dev >= MAX_SUBSTREAMS)
 		return -ENODEV;
@@ -224,6 +308,12 @@ static int snd_bcm2835_alsa_resume(struct platform_device *pdev)
 
 #endif
 
+static const struct of_device_id snd_bcm2835_of_match_table[] = {
+	{ .compatible = "brcm,bcm2835-audio", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, snd_bcm2835_of_match_table);
+
 static struct platform_driver bcm2835_alsa0_driver = {
 	.probe = snd_bcm2835_alsa_probe,
 	.remove = snd_bcm2835_alsa_remove,
@@ -234,6 +324,7 @@ static struct platform_driver bcm2835_alsa0_driver = {
 	.driver = {
 		   .name = "bcm2835_AUD0",
 		   .owner = THIS_MODULE,
+		   .of_match_table = snd_bcm2835_of_match_table,
 		   },
 };
 
