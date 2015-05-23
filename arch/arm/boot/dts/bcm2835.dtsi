@@ -6,7 +6,7 @@
 	interrupt-parent = <&intc>;
 
 	chosen {
-		bootargs = "earlyprintk console=ttyAMA0";
+		bootargs = "";
 	};
 
 	soc {
