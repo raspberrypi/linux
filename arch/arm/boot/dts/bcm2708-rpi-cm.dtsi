@@ -34,6 +34,10 @@
 	status = "okay";
 };
 
+&audio {
+	status = "okay";
+};
+
 / {
 	__overrides__ {
 		act_led_gpio = <&act_led>,"gpios:4";
