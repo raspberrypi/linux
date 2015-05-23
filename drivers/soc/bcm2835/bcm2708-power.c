@@ -15,8 +15,7 @@
 #include <linux/semaphore.h>
 #include <linux/bug.h>
 #include <linux/platform_data/mailbox-bcm2708.h>
-#include <mach/power.h>
-#include <mach/arm_power.h>
+#include <soc/bcm2835/power.h>
 
 #define DRIVER_NAME "bcm2708_power"
 
