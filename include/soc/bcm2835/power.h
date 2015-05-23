@@ -1,25 +1,18 @@
 /*
- *  linux/arch/arm/mach-bcm2708/include/mach/arm_power.h
- *
  *  Copyright (C) 2010 Broadcom
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * This device provides a shared mechanism for controlling the power to
+ * VideoCore subsystems.
  */
 
-#ifndef _ARM_POWER_H
-#define _ARM_POWER_H
+#ifndef _BCM2708_POWER_H
+#define _BCM2708_POWER_H
+
+#include <linux/types.h>
 
 /* Use meaningful names on each side */
 #ifdef __VIDEOCORE__
@@ -58,5 +51,11 @@ enum {
 	PREFIX(POWER_MASK) = (1 << PREFIX(POWER_MAX)) - 1,
 	PREFIX(POWER_NONE) = 0
 };
+
+typedef unsigned int BCM_POWER_HANDLE_T;
+
+extern int bcm_power_open(BCM_POWER_HANDLE_T *handle);
+extern int bcm_power_request(BCM_POWER_HANDLE_T handle, uint32_t request);
+extern int bcm_power_close(BCM_POWER_HANDLE_T handle);
 
 #endif
