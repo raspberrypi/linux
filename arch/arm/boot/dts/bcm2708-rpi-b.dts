@@ -116,5 +116,7 @@
 		act_led_gpio = <&act_led>,"gpios:4";
 		act_led_activelow = <&act_led>,"gpios:8";
 		act_led_trigger = <&act_led>,"linux,default-trigger";
+
+		audio = <&audio>,"status";
 	};
 };
