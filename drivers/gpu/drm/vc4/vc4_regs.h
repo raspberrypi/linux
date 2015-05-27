@@ -241,6 +241,10 @@
 #define SCALER_DISPLIST1                        0x00000024
 #define SCALER_DISPLIST2                        0x00000028
 #define SCALER_DISPLSTAT                        0x0000002c
+#define SCALER_DISPLISTX(x)			(SCALER_DISPLIST0 +	\
+						 (x) * (SCALER_DISPLIST1 - \
+							SCALER_DISPLIST0))
+
 #define SCALER_DISPLACT0                        0x00000030
 #define SCALER_DISPLACT1                        0x00000034
 #define SCALER_DISPLACT2                        0x00000038

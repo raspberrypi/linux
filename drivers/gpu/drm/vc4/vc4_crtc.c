@@ -248,12 +248,12 @@ static void vc4_crtc_atomic_flush(struct drm_crtc *crtc)
 		 * SCALER_CTL0_END, just in case, though.
 		 */
 		writel(SCALER_CTL0_END, vc4->hvs->dlist);
-		HVS_WRITE(vc4_crtc->displist_reg, 0);
+		HVS_WRITE(SCALER_DISPLISTX(vc4_crtc->channel), 0);
 	} else {
 		writel(SCALER_CTL0_END, dlist_next);
 		dlist_next++;
 
-		HVS_WRITE(vc4_crtc->displist_reg,
+		HVS_WRITE(SCALER_DISPLISTX(vc4_crtc->channel),
 			  (u32 *)vc4_crtc->dlist - (u32 *)vc4->hvs->dlist);
 
 		/* Make the next display list start after ours. */
@@ -367,14 +367,14 @@ static int vc4_crtc_bind(struct device *dev, struct device *master, void *data)
 	 */
 	switch (drm_crtc_index(crtc)) {
 	case 0:
-		vc4_crtc->displist_reg = SCALER_DISPLIST0;
+		vc4_crtc->channel = 0;
 		break;
 	case 1:
-		vc4_crtc->displist_reg = SCALER_DISPLIST2;
+		vc4_crtc->channel = 2;
 		break;
 	default:
 	case 2:
-		vc4_crtc->displist_reg = SCALER_DISPLIST1;
+		vc4_crtc->channel = 1;
 		break;
 	}
 

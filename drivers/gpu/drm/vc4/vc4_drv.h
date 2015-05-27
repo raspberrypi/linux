@@ -51,7 +51,8 @@ struct vc4_crtc {
 	struct drm_crtc base;
 	void __iomem *regs;
 
-	u32 displist_reg;
+	/* Which HVS channel we're using for our CRTC. */
+	int channel;
 
 	/*
 	 * Pointer to the actual hardware display list memory for the
