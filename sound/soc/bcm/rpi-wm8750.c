@@ -24,7 +24,7 @@
 #include "../codecs/wm8750.h"
 
 static const unsigned int wm8750_rates_12288000[] = {
-	8000, 32000, 48000, 96000,
+	8000, 12000, 16000, 24000, 32000, 48000, 96000,
 };
 
 static struct snd_pcm_hw_constraint_list wm8750_constraints_12288000 = {
@@ -92,7 +92,7 @@ static struct snd_soc_dai_link snd_rpi_proto_dai[] = {
 
 /* audio machine driver */
 static struct snd_soc_card snd_rpi_proto = {
-	.name		= "snd_rpi_proto",
+	.name		= "snd_rpi_wm8750",
 	.dai_link	= snd_rpi_proto_dai,
 	.num_links	= ARRAY_SIZE(snd_rpi_proto_dai),
 };
