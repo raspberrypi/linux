@@ -151,24 +151,90 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	}
 }
 
+static void
+require_hvs_enabled(struct drm_device *dev)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	WARN_ON_ONCE((HVS_READ(SCALER_DISPCTRL) & SCALER_DISPCTRL_ENABLE) !=
+		     SCALER_DISPCTRL_ENABLE);
+}
+
 static void vc4_crtc_disable(struct drm_crtc *crtc)
 {
+	struct drm_device *dev = crtc->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+
+	require_hvs_enabled(dev);
 
 	CRTC_WRITE(PV_V_CONTROL,
 		   CRTC_READ(PV_V_CONTROL) & ~PV_VCONTROL_VIDEN);
+
+	/* Without a wait here, we end up with a black screen and the
+	 * scaler fifo empty warning triggering during
+	 * vc4_crtc_enable().
+	 */
+	msleep(30);
 
 	if (drm_crtc_index(crtc) == 0) {
 		do {
 			cpu_relax();
 		} while (CRTC_READ(PV_STAT) & (PV_STAT_RUNNING_MASK));
 	}
+
+	if (HVS_READ(SCALER_DISPCTRLX(vc4_crtc->channel)) &
+	    SCALER_DISPCTRLX_ENABLE) {
+		HVS_WRITE(SCALER_DISPCTRLX(vc4_crtc->channel),
+			  SCALER_DISPCTRLX_RESET);
+
+		/*
+		 * While the docs say that reset is self-clearing, it
+		 * seems it doesn't actually.
+		 */
+		HVS_WRITE(SCALER_DISPCTRLX(vc4_crtc->channel), 0);
+	}
+
+	/* Once we leave, the scaler should be disabled and its fifo empty. */
+
+	WARN_ON_ONCE(HVS_READ(SCALER_DISPCTRLX(vc4_crtc->channel)) &
+		     SCALER_DISPCTRLX_RESET);
+
+	WARN_ON_ONCE(VC4_GET_FIELD(HVS_READ(SCALER_DISPSTATX(vc4_crtc->channel)),
+				   SCALER_DISPSTATX_MODE) !=
+		     SCALER_DISPSTATX_MODE_DISABLED);
+
+	WARN_ON_ONCE((HVS_READ(SCALER_DISPSTATX(vc4_crtc->channel)) &
+		      (SCALER_DISPSTATX_FULL | SCALER_DISPSTATX_EMPTY)) !=
+		     SCALER_DISPSTATX_EMPTY);
 }
 
 static void vc4_crtc_enable(struct drm_crtc *crtc)
 {
+	struct drm_device *dev = crtc->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct drm_crtc_state *state = crtc->state;
+	struct drm_display_mode *mode = &state->adjusted_mode;
 
+	require_hvs_enabled(dev);
+
+	/* Turn on the scaler, which will wait for vstart to start
+	 * compositing.
+	 */
+	HVS_WRITE(SCALER_DISPCTRLX(vc4_crtc->channel),
+		  VC4_SET_FIELD(mode->hdisplay, SCALER_DISPCTRLX_WIDTH) |
+		  VC4_SET_FIELD(mode->vdisplay, SCALER_DISPCTRLX_HEIGHT) |
+		  SCALER_DISPCTRLX_ENABLE);
+
+	/* The FIFO should still be empty at this point, since the PV
+	 * is disabled, and thus we haven't seen the start.
+	 */
+	WARN_ON_ONCE((HVS_READ(SCALER_DISPSTATX(vc4_crtc->channel)) &
+		      (SCALER_DISPSTATX_FULL | SCALER_DISPSTATX_EMPTY)) !=
+		     SCALER_DISPSTATX_EMPTY);
+
+	/* Turn on the pixel valve, which will emit the vstart signal. */
 	CRTC_WRITE(PV_V_CONTROL,
 		   CRTC_READ(PV_V_CONTROL) | PV_VCONTROL_VIDEN);
 }

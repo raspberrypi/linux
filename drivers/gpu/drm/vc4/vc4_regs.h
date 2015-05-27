@@ -231,6 +231,9 @@
 #define PV_HACT_ACT				0x30
 
 #define SCALER_DISPCTRL                         0x00000000
+/* Global register for clock gating the HVS */
+# define SCALER_DISPCTRL_ENABLE			(1 << 31)
+
 #define SCALER_DISPSTAT                         0x00000004
 #define SCALER_DISPID                           0x00000008
 #define SCALER_DISPECTRL                        0x0000000c
@@ -249,14 +252,35 @@
 #define SCALER_DISPLACT1                        0x00000034
 #define SCALER_DISPLACT2                        0x00000038
 #define SCALER_DISPCTRL0                        0x00000040
+# define SCALER_DISPCTRLX_ENABLE		(1 << 31)
+# define SCALER_DISPCTRLX_RESET			(1 << 30)
+# define SCALER_DISPCTRLX_WIDTH_MASK		VC4_MASK(23, 12)
+# define SCALER_DISPCTRLX_WIDTH_SHIFT		12
+# define SCALER_DISPCTRLX_HEIGHT_MASK		VC4_MASK(11, 0)
+# define SCALER_DISPCTRLX_HEIGHT_SHIFT		0
+
 #define SCALER_DISPBKGND0                       0x00000044
 #define SCALER_DISPSTAT0                        0x00000048
 #define SCALER_DISPBASE0                        0x0000004c
+# define SCALER_DISPSTATX_MODE_MASK		VC4_MASK(31, 30)
+# define SCALER_DISPSTATX_MODE_SHIFT		30
+# define SCALER_DISPSTATX_MODE_DISABLED		0
+# define SCALER_DISPSTATX_MODE_INIT		1
+# define SCALER_DISPSTATX_MODE_RUN		2
+# define SCALER_DISPSTATX_MODE_EOF		3
+# define SCALER_DISPSTATX_FULL			(1 << 29)
+# define SCALER_DISPSTATX_EMPTY			(1 << 28)
 #define SCALER_DISPCTRL1                        0x00000050
 #define SCALER_DISPBKGND1                       0x00000054
 #define SCALER_DISPSTAT1                        0x00000058
+#define SCALER_DISPSTATX(x)			(SCALER_DISPSTAT0 +        \
+						 (x) * (SCALER_DISPSTAT1 - \
+							SCALER_DISPSTAT0))
 #define SCALER_DISPBASE1                        0x0000005c
 #define SCALER_DISPCTRL2                        0x00000060
+#define SCALER_DISPCTRLX(x)			(SCALER_DISPCTRL0 +        \
+						 (x) * (SCALER_DISPCTRL1 - \
+							SCALER_DISPCTRL0))
 #define SCALER_DISPBKGND2                       0x00000064
 #define SCALER_DISPSTAT2                        0x00000068
 #define SCALER_DISPBASE2                        0x0000006c
