@@ -88,17 +88,12 @@ vc4_irq_finish_job(struct drm_device *dev)
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct vc4_exec_info *exec = vc4_first_job(vc4);
 
-	spin_lock(&vc4->job_lock);
-	if (!exec) {
-		spin_unlock(&vc4->job_lock);
+	if (!exec)
 		return;
-	}
 
 	vc4->finished_seqno++;
 	list_move_tail(&exec->head, &vc4->job_done_list);
 	vc4_submit_next_job(dev);
-
-	spin_unlock(&vc4->job_lock);
 
 	wake_up_all(&vc4->job_wait_queue);
 	schedule_work(&vc4->job_done_work);
@@ -123,7 +118,9 @@ vc4_irq(int irq, void *arg)
 	}
 
 	if (intctl & V3D_INT_FRDONE) {
+		spin_lock(&vc4->job_lock);
 		vc4_irq_finish_job(dev);
+		spin_unlock(&vc4->job_lock);
 		status = IRQ_HANDLED;
 	}
 
@@ -180,10 +177,13 @@ vc4_irq_uninstall(struct drm_device *dev)
 void vc4_irq_reset(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	unsigned long irqflags;
 
 	V3D_WRITE(V3D_INTCTL, V3D_DRIVER_IRQS);
 	V3D_WRITE(V3D_INTDIS, 0);
 	V3D_WRITE(V3D_INTENA, V3D_DRIVER_IRQS);
 
+	spin_lock_irqsave(&vc4->job_lock, irqflags);
 	vc4_irq_finish_job(dev);
+	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 }
