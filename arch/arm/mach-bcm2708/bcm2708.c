@@ -718,6 +718,19 @@ static struct platform_device snd_pcm1794a_codec_device = {
 };
 #endif
 
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_WM8750_MODULE
+static struct platform_device snd_rpi_wm8750_device = {
+	.name = "snd-rpi-wm8750",
+	.id = 0,
+	.num_resources = 0,
+};
+
+static struct platform_device snd_rpi_wm8750_codec_device = {
+	.name = "wm8750-codec",
+	.id = -1,
+	.num_resources = 0,
+};
+#endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) || defined(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC_MODULE)
 static struct platform_device snd_rpi_iqaudio_dac_device = {
