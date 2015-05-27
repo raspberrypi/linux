@@ -67,3 +67,10 @@ config SND_BCM2708_SOC_IQAUDIO_DAC
 	select SND_SOC_PCM512x_I2C
 	help
 	  Say Y or M if you want to add support for IQaudIO-DAC.
+
+config SND_BCM2708_SOC_RPI_WM8750
+	tristate "Support for Rpi-WM8750"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_WM8750
+	help
+	  Say Y or M if you want to add support for Audio Codec Board WM8750.
