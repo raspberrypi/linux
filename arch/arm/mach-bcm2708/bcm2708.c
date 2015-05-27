@@ -933,6 +933,10 @@ void __init bcm2708_init(void)
         i2c_register_board_info_dt(1, snd_pcm512x_i2c_devices, ARRAY_SIZE(snd_pcm512x_i2c_devices));
 #endif
 
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_WM8750_MODULE
+	bcm_register_device(&snd_rpi_wm8750_device);
+	i2c_register_board_info(1, snd_rpi_wm8750_i2c_devices, ARRAY_SIZE(snd_rpi_wm8750_i2c_devices));
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];
