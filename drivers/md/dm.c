@@ -1889,8 +1889,8 @@ static int map_request(struct dm_target *ti, struct request *rq,
 			dm_kill_unmapped_request(rq, r);
 			return r;
 		}
-		if (IS_ERR(clone))
-			return DM_MAPIO_REQUEUE;
+		if (r != DM_MAPIO_REMAPPED)
+			return r;
 		if (setup_clone(clone, rq, tio, GFP_KERNEL)) {
 			/* -ENOMEM */
 			ti->type->release_clone_rq(clone);
