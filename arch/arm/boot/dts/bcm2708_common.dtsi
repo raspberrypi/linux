@@ -84,13 +84,21 @@
 		};
 
 		spi0: spi@7e204000 {
-			compatible = "brcm,bcm2708-spi";
+			compatible = "brcm,bcm2835-spi";
 			reg = <0x7e204000 0x1000>;
 			interrupts = <2 22>;
 			clocks = <&clk_spi>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
+			/* the dma channels */
+			dmas = <&dma 6>, <&dma 7>;
+			dma-names = "tx", "rx";
+			/* the chipselects used - <0> means native GPIO
+			 * add more gpios if necessary as <&gpio 6 1>
+			 * (but do not forget to make them output!)
+			 */
+			cs-gpios = <0>, <0>;
 		};
 
 		i2c0: i2c@7e205000 {
