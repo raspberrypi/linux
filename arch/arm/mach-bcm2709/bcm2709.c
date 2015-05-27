@@ -918,8 +918,14 @@ void __init bcm2709_init(void)
 #endif
 	bcm2709_init_led();
 	bcm2709_init_uart1();
-	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
-		bcm_register_device_dt(&bcm2708_alsa_devices[i]);
+
+	/* Only create the platform devices for the ALSA driver in the
+	   absence of an enabled "audio" DT node */
+	if (!use_dt ||
+	    !of_device_is_available(of_find_node_by_path("/audio"))) {
+		for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
+			bcm_register_device(&bcm2708_alsa_devices[i]);
+	}
 
 	bcm_register_device_dt(&bcm2708_spi_device);
 
