@@ -10,8 +10,10 @@
 		gpio = &gpio;
 		intc = &intc;
 		leds = &leds;
+		audio = &audio;
 		sound = &sound;
 		uart0 = &uart0;
+		clocks = &clocks;
 	};
 
 	sound: sound {
