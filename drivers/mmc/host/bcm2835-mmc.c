@@ -1441,18 +1441,15 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 		host->dma_chan_rx = of_dma_request_slave_channel(node, "rx");
 	}
 
-	if (!host->dma_chan_tx || !host->dma_chan_rx) {
+	if (IS_ERR_OR_NULL(host->dma_chan_tx) ||
+	    IS_ERR_OR_NULL(host->dma_chan_rx)) {
 		dma_cap_mask_t mask;
 
 		dma_cap_zero(mask);
 		/* we don't care about the channel, any would work */
 		dma_cap_set(DMA_SLAVE, mask);
-		if (!host->dma_chan_tx)
-			host->dma_chan_tx =
-				dma_request_channel(mask, NULL, NULL);
-		if (!host->dma_chan_rx)
-			host->dma_chan_rx =
-				dma_request_channel(mask, NULL, NULL);
+		host->dma_chan_tx = dma_request_channel(mask, NULL, NULL);
+		host->dma_chan_rx = dma_request_channel(mask, NULL, NULL);
 	}
 #endif
 	clk = devm_clk_get(dev, NULL);
