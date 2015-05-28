@@ -1436,13 +1436,10 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 	host->phys_addr = iomem->start + BCM2835_VCMMU_SHIFT;
 
 #ifndef FORCE_PIO
-	if (node) {
+	if (node && of_property_read_bool(node, "dmas")) {
 		host->dma_chan_tx = of_dma_request_slave_channel(node, "tx");
 		host->dma_chan_rx = of_dma_request_slave_channel(node, "rx");
-	}
-
-	if (IS_ERR_OR_NULL(host->dma_chan_tx) ||
-	    IS_ERR_OR_NULL(host->dma_chan_rx)) {
+	} else {
 		dma_cap_mask_t mask;
 
 		dma_cap_zero(mask);
