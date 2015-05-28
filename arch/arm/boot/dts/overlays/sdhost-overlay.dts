@@ -24,23 +24,26 @@
 				brcm,overclock-50 = <0>;
 				status = "okay";
 			};
-
-			clocks {
-				#address-cells = <1>;
-				#size-cells = <0>;
-
-				clk_sdhost: clock@3 {
-					compatible = "fixed-clock";
-					reg = <0>;
-					#clock-cells = <0>;
-					clock-output-names = "sdhost";
-					clock-frequency = <250000000>;
-				};
-			};
 		};
 	};
 
 	fragment@1 {
+		target = <&clocks>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			clk_sdhost: sdhost {
+				compatible = "fixed-clock";
+				reg = <0>;
+				#clock-cells = <0>;
+				clock-output-names = "sdhost";
+				clock-frequency = <250000000>;
+			};
+		};
+	};
+
+	fragment@2 {
 		target = <&gpio>;
 		__overlay__ {
 			sdhost_pins: sdhost_pins {
@@ -50,7 +53,7 @@
 		};
 	};
 
-	fragment@2 {
+	fragment@3 {
 		target = <&mmc>;
 		__overlay__ {
 			/* Find a way to disable the other driver */
@@ -59,7 +62,7 @@
 		};
 	};
 
-	fragment@3 {
+	fragment@4 {
 		target-path = "/__overrides__";
 		__overlay__ {
 			sdhost_freq      = <&clk_sdhost>,"clock-frequency:0";
