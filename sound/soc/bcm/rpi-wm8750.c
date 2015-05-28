@@ -5,6 +5,10 @@
  * Author:      Guillaume Trannoy, <guillaume.trannoy@gmail.com>
  *	      Copyright 2015
  *
+ * based on rpi-proto.c
+ * Author:      Florian Meier, <koalo@koalo.de>
+ *	      Copyright 2013
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -82,7 +86,7 @@ static struct snd_soc_dai_link snd_rpi_wm8750_dai[] = {
 	.cpu_dai_name	= "bcm2708-i2s.0",
 	.codec_dai_name	= "wm8750-hifi",
 	.platform_name	= "bcm2708-i2s.0",
-	.codec_name	= "wm8750.1-001a",
+	.codec_name	= "wm8750-codec",
 	.dai_fmt	= SND_SOC_DAIFMT_I2S
 				| SND_SOC_DAIFMT_NB_NF
 				| SND_SOC_DAIFMT_CBM_CFM,
