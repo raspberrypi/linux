@@ -338,6 +338,23 @@
 # define VC4_HD_VID_CTL_HSYNC_LOW		(1 << 27)
 
 #define VC4_HD_CSC_CTL				0x040
+# define VC4_HD_CSC_CTL_ORDER_MASK		VC4_MASK(7, 5)
+# define VC4_HD_CSC_CTL_ORDER_SHIFT		5
+# define VC4_HD_CSC_CTL_ORDER_RGB		0
+# define VC4_HD_CSC_CTL_ORDER_BGR		1
+# define VC4_HD_CSC_CTL_ORDER_BRG		2
+# define VC4_HD_CSC_CTL_ORDER_GRB		3
+# define VC4_HD_CSC_CTL_ORDER_GBR		4
+# define VC4_HD_CSC_CTL_ORDER_RBG		5
+# define VC4_HD_CSC_CTL_PADMSB			(1 << 4)
+# define VC4_HD_CSC_CTL_MODE_MASK		VC4_MASK(3, 2)
+# define VC4_HD_CSC_CTL_MODE_SHIFT		2
+# define VC4_HD_CSC_CTL_MODE_RGB_TO_SD_YPRPB	0
+# define VC4_HD_CSC_CTL_MODE_RGB_TO_HD_YPRPB	1
+# define VC4_HD_CSC_CTL_MODE_CUSTOM		2
+# define VC4_HD_CSC_CTL_RGB2YCC			(1 << 1)
+# define VC4_HD_CSC_CTL_ENABLE			(1 << 0)
+
 #define VC4_HD_FRAME_COUNT			0x068
 
 /* HVS display list information. */

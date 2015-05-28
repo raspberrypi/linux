@@ -349,8 +349,11 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 		 (vsync_pos ? 0 : VC4_HD_VID_CTL_VSYNC_LOW) |
 		 (hsync_pos ? 0 : VC4_HD_VID_CTL_HSYNC_LOW));
 
+	/* The RGB order applies even when CSC is disabled. */
+	HD_WRITE(VC4_HD_CSC_CTL, VC4_SET_FIELD(VC4_HD_CSC_CTL_ORDER_BGR,
+					       VC4_HD_CSC_CTL_ORDER));
+
 	HDMI_WRITE(VC4_HDMI_FIFO_CTL, VC4_HDMI_FIFO_CTL_MASTER_SLAVE_N);
-	/* XXX: HD CSC CTL = 0x20 */
 
 	/* XXX: Wait for video. */
 
