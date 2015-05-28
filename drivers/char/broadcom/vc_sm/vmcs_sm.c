@@ -15,6 +15,7 @@
 /* ---- Include Files ----------------------------------------------------- */
 
 #include <linux/cdev.h>
+#include <linux/broadcom/vc_mem.h>
 #include <linux/device.h>
 #include <linux/debugfs.h>
 #include <linux/dma-mapping.h>
@@ -34,8 +35,6 @@
 #include <linux/seq_file.h>
 #include <linux/types.h>
 #include <asm/cacheflush.h>
-
-#include <vc_mem.h>
 
 #include "vchiq_connected.h"
 #include "vc_vchi_sm.h"

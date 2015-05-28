@@ -25,13 +25,6 @@ config BCM2708_GPIO
 	help
 	  Include support for the Broadcom(R) BCM2709 gpio.
 
-config BCM2708_VCMEM
-	bool "Videocore Memory"
-	depends on MACH_BCM2709
-        default y
-        help
-          Helper for videocore memory access and total size allocation.
-
 config BCM2708_NOL2CACHE
 	bool "Videocore L2 cache disable"
 	depends on MACH_BCM2709
