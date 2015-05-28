@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 # ----------------------------------------------------------------------
 # mkknlimg by Phil Elwell for Raspberry Pi
-# based on extract-ikconfig Dick Streefland
+# based on extract-ikconfig by Dick Streefland
 #
 # (c) 2009,2010 Dick Streefland <dick@streefland.net>
 # (c) 2014,2015 Raspberry Pi (Trading) Limited <info@raspberrypi.org>
@@ -19,6 +19,7 @@ my $tmpfile1 = "/tmp/mkknlimg_$$.1";
 my $tmpfile2 = "/tmp/mkknlimg_$$.2";
 
 my $dtok = 0;
+my $is_283x = 0;
 
 while (@ARGV && ($ARGV[0] =~ /^-/))
 {
@@ -26,6 +27,10 @@ while (@ARGV && ($ARGV[0] =~ /^-/))
     if ($arg eq '--dtok')
     {
 	$dtok = 1;
+    }
+    elsif ($arg eq '--283x')
+    {
+	$is_283x = 1;
     }
     else
     {
@@ -47,15 +52,18 @@ if (! -r $kernel_file)
 
 my @wanted_config_lines =
 (
-	'CONFIG_BCM2708_DT'
+	'CONFIG_BCM2708_DT',
+	'CONFIG_ARCH_BCM2835'
 );
 
 my @wanted_strings =
 (
 	'bcm2708_fb',
+	'brcm,bcm2835-mmc',
+	'brcm,bcm2835-sdhost',
 	'brcm,bcm2708-pinctrl',
 	'brcm,bcm2835-gpio',
-	'of_find_property'
+	'brcm,bcm2835-pm-wdt'
 );
 
 my $res = try_extract($kernel_file, $tmpfile1);
@@ -86,11 +94,16 @@ if ($res)
     $append_trailer = $dtok;
     if (!$dtok)
     {
-	if (config_bool($res, 'bcm2708_fb'))
+	if (config_bool($res, 'bcm2708_fb') ||
+	    config_bool($res, 'brcm,bcm2835-mmc') ||
+	    config_bool($res, 'brcm,bcm2835-sdhost'))
 	{
 	    $dtok ||= config_bool($res, 'CONFIG_BCM2708_DT');
+	    $dtok ||= config_bool($res, 'CONFIG_ARCH_BCM2835');
 	    $dtok ||= config_bool($res, 'brcm,bcm2708-pinctrl');
 	    $dtok ||= config_bool($res, 'brcm,bcm2835-gpio');
+	    $is_283x ||= config_bool($res, 'CONFIG_ARCH_BCM2835');
+	    $is_283x ||= config_bool($res, 'brcm,bcm2835-pm-wdt');
 	    $append_trailer = 1;
 	}
 	else
@@ -107,12 +120,14 @@ elsif (!$dtok)
 if ($append_trailer)
 {
     printf("DT: %s\n", $dtok ? "y" : "n");
+    printf("283x: %s\n", $is_283x ? "y" : "n");
 
     my @atoms;
 
     push @atoms, [ $trailer_magic, pack('V', 0) ];
     push @atoms, [ 'KVer', $kver ];
     push @atoms, [ 'DTOK', pack('V', $dtok) ];
+    push @atoms, [ '283x', pack('V', $is_283x) ];
 
     $trailer = pack_trailer(\@atoms);
     $atoms[0]->[1] = pack('V', length($trailer));
@@ -166,7 +181,7 @@ END {
 
 sub usage
 {
-	print ("Usage: mkknlimg [--dtok] <vmlinux|zImage|bzImage> <outfile>\n");
+	print ("Usage: mkknlimg [--dtok] [--283x] <vmlinux|zImage|bzImage> <outfile>\n");
 	exit(1);
 }
 

@@ -18,6 +18,7 @@ my %atom_formats =
 (
     'DTOK' => \&format_bool,
     'KVer' => \&format_string,
+    '283x' => \&format_bool,
 );
 
 if (@ARGV != 1)
