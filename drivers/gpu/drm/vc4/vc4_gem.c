@@ -311,18 +311,21 @@ vc4_cl_lookup_bos(struct drm_device *dev,
 		goto fail;
 	}
 
+	spin_lock(&file_priv->table_lock);
 	for (i = 0; i < exec->bo_count; i++) {
-		struct drm_gem_object *bo;
-
-		bo = drm_gem_object_lookup(dev, file_priv, handles[i]);
+		struct drm_gem_object *bo = idr_find(&file_priv->object_idr,
+						     handles[i]);
 		if (!bo) {
 			DRM_ERROR("Failed to look up GEM BO %d: %d\n",
 				  i, handles[i]);
 			ret = -EINVAL;
+			spin_unlock(&file_priv->table_lock);
 			goto fail;
 		}
+		drm_gem_object_reference(bo);
 		exec->bo[i].bo = (struct drm_gem_cma_object *)bo;
 	}
+	spin_unlock(&file_priv->table_lock);
 
 fail:
 	kfree(handles);
