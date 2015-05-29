@@ -142,15 +142,18 @@ vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns)
 			break;
 		}
 
-		if (time_after_eq(jiffies, timeout_expire)) {
-			ret = -ETIME;
-			break;
-		}
-
 		if (vc4->finished_seqno >= seqno)
 			break;
 
-		schedule_timeout(timeout_expire - jiffies);
+		if (timeout_ns != ~0ull) {
+			if (time_after_eq(jiffies, timeout_expire)) {
+				ret = -ETIME;
+				break;
+			}
+			schedule_timeout(timeout_expire - jiffies);
+		} else {
+			schedule();
+		}
 	}
 
 	finish_wait(&vc4->job_wait_queue, &wait);
@@ -513,7 +516,7 @@ vc4_wait_for_seqno_ioctl_helper(struct drm_device *dev,
 	unsigned long start = jiffies;
 	int ret = vc4_wait_for_seqno(dev, seqno, *timeout_ns);
 
-	if (ret == -EINTR || ret == -ERESTARTSYS) {
+	if ((ret == -EINTR || ret == -ERESTARTSYS) && *timeout_ns != ~0ull) {
 		uint64_t delta = jiffies_to_nsecs(jiffies - start);
 		if (*timeout_ns >= delta)
 			*timeout_ns -= delta;
