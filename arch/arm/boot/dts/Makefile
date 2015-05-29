@@ -1,5 +1,20 @@
 ifeq ($(CONFIG_OF),y)
 
+dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b.dtb
+dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b-plus.dtb
+dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-cm.dtb
+dtb-$(CONFIG_BCM2709_DT) += bcm2709-rpi-2-b.dtb
+
+# Raspberry Pi
+ifeq ($(CONFIG_BCM2708_DT),y)
+   RPI_DT_OVERLAYS=y
+endif
+ifeq ($(CONFIG_BCM2709_DT),y)
+   RPI_DT_OVERLAYS=y
+endif
+
+subdir-$(RPI_DT_OVERLAYS)  += overlays
+
 # Keep at91 dtb files sorted alphabetically for each SoC
 # rm9200
 dtb-$(CONFIG_ARCH_AT91) += at91rm9200ek.dtb
@@ -53,48 +68,6 @@ dtb-$(CONFIG_ARCH_AT91)	+= at91-sama5d4ek.dtb
 
 dtb-$(CONFIG_ARCH_ATLAS6) += atlas6-evb.dtb
 dtb-$(CONFIG_ARCH_AXXIA) += axm5516-amarillo.dtb
-
-# Raspberry Pi
-ifeq ($(CONFIG_BCM2708_DT),y)
-   RPI_DT_OVERLAYS=y
-endif
-ifeq ($(CONFIG_BCM2709_DT),y)
-   RPI_DT_OVERLAYS=y
-endif
-dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b.dtb
-dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b-plus.dtb
-dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-cm.dtb
-dtb-$(CONFIG_BCM2709_DT) += bcm2709-rpi-2-b.dtb
-dtb-$(RPI_DT_OVERLAYS) += ads7846-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += bmp085_i2c-sensor-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += ds1307-rtc-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += enc28j60-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += i2c-rtc-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hifiberry-dac-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hifiberry-dacplus-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hifiberry-digi-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hifiberry-amp-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hy28a-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hy28b-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += iqaudio-dac-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += iqaudio-dacplus-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += rpi-dac-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += rpi-proto-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += lirc-rpi-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += mmc-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += mz61581-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += pcf2127-rtc-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += pcf8523-rtc-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += piscreen-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += pitft28-resistive-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += rpi-display-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += sdhost-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += tinylcd35-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += w1-gpio-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += w1-gpio-pullup-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += spi-bcm2835-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += mcp2515-can0-overlay.dtb
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2835-rpi-b.dtb
 
 dtb-$(CONFIG_ARCH_BCM_5301X) += bcm4708-netgear-r6250.dtb
@@ -573,6 +546,7 @@ endif
 # *.dtb used to be generated in the directory above. Clean out the
 # old build results so people don't accidentally use them.
 dtbs: $(addprefix $(obj)/, $(dtb-y))
+	$(Q)$(MAKE) $(build)=arch/arm/boot/dts/overlays
 	$(Q)rm -f $(obj)/../*.dtb
 
 clean-files := *.dtb
