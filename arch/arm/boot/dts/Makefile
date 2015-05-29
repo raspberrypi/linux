@@ -13,36 +13,7 @@ ifeq ($(CONFIG_BCM2709_DT),y)
    RPI_DT_OVERLAYS=y
 endif
 
-dtb-$(RPI_DT_OVERLAYS) += ads7846-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += bmp085_i2c-sensor-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += ds1307-rtc-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += enc28j60-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += i2c-rtc-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hifiberry-dac-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hifiberry-dacplus-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hifiberry-digi-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hifiberry-amp-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hy28a-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += hy28b-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += iqaudio-dac-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += iqaudio-dacplus-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += rpi-dac-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += rpi-proto-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += lirc-rpi-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += mmc-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += mz61581-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += pcf2127-rtc-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += pcf8523-rtc-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += piscreen-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += pitft28-resistive-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += rpi-display-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += sdhost-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += tinylcd35-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += w1-gpio-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += w1-gpio-pullup-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += spi-bcm2835-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += spi-bcm2708-overlay.dtb
+subdir-$(RPI_DT_OVERLAYS)  += overlays
 
 dtb-$(CONFIG_MACH_ASM9260) += \
 	alphascale-asm9260-devkit.dtb
