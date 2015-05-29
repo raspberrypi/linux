@@ -180,14 +180,6 @@ vc4_flush_caches(struct drm_device *dev)
 		  VC4_SET_FIELD(0xf, V3D_SLCACTL_T0CC) |
 		  VC4_SET_FIELD(0xf, V3D_SLCACTL_UCC) |
 		  VC4_SET_FIELD(0xf, V3D_SLCACTL_ICC));
-
-	/* Flush the CPU L1/L2 caches.  Since the GPU reads from L3
-	 * don't snoop up the L1/L2, we have to either do this or
-	 * manually clflush the cachelines we (and userspace) dirtied.
-	 */
-	flush_cache_all();
-
-	barrier();
 }
 
 /* Sets the registers for the next job to be actually be executed in
