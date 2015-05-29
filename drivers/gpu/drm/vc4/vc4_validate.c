@@ -156,11 +156,17 @@ check_tex_size(struct vc4_exec_info *exec, struct drm_gem_cma_object *fbo,
 	uint32_t utile_w = utile_width(cpp);
 	uint32_t utile_h = utile_height(cpp);
 
-	/* The values are limited by the packet/texture parameter bitfields,
-	 * so we don't need to worry as much about integer overflow.
+	/* The shaded vertex format stores signed 12.4 fixed point
+	 * (-2048,2047) offsets from the viewport center, so we should
+	 * never have a render target larger than 4096.  The texture
+	 * unit can only sample from 2048x2048, so it's even more
+	 * restricted.  This lets us avoid worrying about overflow in
+	 * our math.
 	 */
-	BUG_ON(width > 65535);
-	BUG_ON(height > 65535);
+	if (width > 4096 || height > 4096) {
+		DRM_ERROR("Surface dimesions (%d,%d) too large", width, height);
+		return false;
+	}
 
 	switch (tiling_format) {
 	case VC4_TILING_FORMAT_LINEAR:
@@ -181,13 +187,6 @@ check_tex_size(struct vc4_exec_info *exec, struct drm_gem_cma_object *fbo,
 	}
 
 	stride = aligned_width * cpp;
-
-	if (INT_MAX / stride < aligned_height) {
-		DRM_ERROR("Overflow in fbo size (%dx%d -> %dx%d)\n",
-			  width, height,
-			  aligned_width, aligned_height);
-		return false;
-	}
 	size = stride * aligned_height;
 
 	if (size + offset < size ||
