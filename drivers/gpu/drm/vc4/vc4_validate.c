@@ -269,14 +269,11 @@ validate_wait_on_semaphore(VALIDATE_ARGS)
 static int
 validate_branch_to_sublist(VALIDATE_ARGS)
 {
-	struct drm_gem_cma_object *target;
 	uint32_t offset;
 
-	if (!vc4_use_handle(exec, 0, VC4_MODE_TILE_ALLOC, &target))
-		return -EINVAL;
-
-	if (target != exec->tile_alloc_bo) {
-		DRM_ERROR("Jumping to BOs other than tile alloc unsupported\n");
+	if (!exec->tile_alloc_bo) {
+		DRM_ERROR("VC4_PACKET_BRANCH_TO_SUB_LIST seen before "
+			  "binner setup\n");
 		return -EINVAL;
 	}
 
@@ -293,7 +290,7 @@ validate_branch_to_sublist(VALIDATE_ARGS)
 		return -EINVAL;
 	}
 
-	*(uint32_t *)(validated + 0) = target->paddr + offset;
+	*(uint32_t *)(validated + 0) = exec->tile_alloc_bo->paddr + offset;
 
 	return 0;
 }
