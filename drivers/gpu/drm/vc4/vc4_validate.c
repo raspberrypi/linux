@@ -170,16 +170,16 @@ check_tex_size(struct vc4_exec_info *exec, struct drm_gem_cma_object *fbo,
 
 	switch (tiling_format) {
 	case VC4_TILING_FORMAT_LINEAR:
-		aligned_width = roundup(width, utile_w);
+		aligned_width = round_up(width, utile_w);
 		aligned_height = height;
 		break;
 	case VC4_TILING_FORMAT_T:
-		aligned_width = roundup(width, utile_w * 8);
-		aligned_height = roundup(height, utile_h * 8);
+		aligned_width = round_up(width, utile_w * 8);
+		aligned_height = round_up(height, utile_h * 8);
 		break;
 	case VC4_TILING_FORMAT_LT:
-		aligned_width = roundup(width, utile_w);
-		aligned_height = roundup(height, utile_h);
+		aligned_width = round_up(width, utile_w);
+		aligned_height = round_up(height, utile_h);
 		break;
 	default:
 		DRM_ERROR("buffer tiling %d unsupported\n", tiling_format);
@@ -927,15 +927,15 @@ reloc_tex(struct vc4_exec_info *exec,
 
 		switch (tiling_format) {
 		case VC4_TILING_FORMAT_T:
-			aligned_width = roundup(level_width, utile_w * 8);
-			aligned_height = roundup(level_height, utile_h * 8);
+			aligned_width = round_up(level_width, utile_w * 8);
+			aligned_height = round_up(level_height, utile_h * 8);
 			break;
 		case VC4_TILING_FORMAT_LT:
-			aligned_width = roundup(level_width, utile_w);
-			aligned_height = roundup(level_height, utile_h);
+			aligned_width = round_up(level_width, utile_w);
+			aligned_height = round_up(level_height, utile_h);
 			break;
 		default:
-			aligned_width = roundup(level_width, utile_w);
+			aligned_width = round_up(level_width, utile_w);
 			aligned_height = level_height;
 			break;
 		}
