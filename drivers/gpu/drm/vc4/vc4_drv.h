@@ -234,7 +234,8 @@ struct vc4_exec_info {
 	bool found_wait_on_semaphore_packet;
 	uint8_t bin_tiles_x, bin_tiles_y;
 	uint32_t fb_width, fb_height;
-	uint32_t tile_alloc_init_block_size;
+	uint32_t tile_alloc_init_block_mask;
+	uint32_t tile_alloc_init_block_last;
 	struct drm_gem_cma_object *tile_alloc_bo;
 
 	/**

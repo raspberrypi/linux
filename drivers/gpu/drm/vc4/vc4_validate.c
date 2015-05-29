@@ -286,9 +286,8 @@ validate_branch_to_sublist(VALIDATE_ARGS)
 	}
 
 	offset = *(uint32_t *)(untrusted + 0);
-	if (offset % exec->tile_alloc_init_block_size ||
-	    offset / exec->tile_alloc_init_block_size >=
-	    exec->bin_tiles_x * exec->bin_tiles_y) {
+	if (offset & exec->tile_alloc_init_block_mask ||
+	    offset > exec->tile_alloc_init_block_last) {
 		DRM_ERROR("VC4_PACKET_BRANCH_TO_SUB_LIST must jump to initial "
 			  "tile allocation space.\n");
 		return -EINVAL;
@@ -496,6 +495,7 @@ validate_tile_binning_config(VALIDATE_ARGS)
 	struct drm_gem_cma_object *tile_state_data_array;
 	uint8_t flags;
 	uint32_t tile_allocation_size;
+	uint32_t tile_alloc_init_block_size;
 
 	if (!vc4_use_handle(exec, 0, VC4_MODE_TILE_ALLOC, &tile_allocation) ||
 	    !vc4_use_handle(exec, 1, VC4_MODE_TSDA, &tile_state_data_array))
@@ -547,15 +547,19 @@ validate_tile_binning_config(VALIDATE_ARGS)
 	*(uint32_t *)validated = tile_allocation->paddr;
 	exec->tile_alloc_bo = tile_allocation;
 
-	exec->tile_alloc_init_block_size = 1 << (5 + ((flags >> 5) & 3));
+	tile_alloc_init_block_size = 1 << (5 + ((flags >> 5) & 3));
 	if (exec->bin_tiles_x * exec->bin_tiles_y *
-	    exec->tile_alloc_init_block_size > tile_allocation_size) {
+	    tile_alloc_init_block_size > tile_allocation_size) {
 		DRM_ERROR("tile init exceeds tile alloc size (%d vs %d)\n",
 			  exec->bin_tiles_x * exec->bin_tiles_y *
-			  exec->tile_alloc_init_block_size,
+			  tile_alloc_init_block_size,
 			  tile_allocation_size);
 		return -EINVAL;
 	}
+	exec->tile_alloc_init_block_mask = tile_alloc_init_block_size - 1;
+	exec->tile_alloc_init_block_last = tile_alloc_init_block_size *
+		(exec->bin_tiles_x * exec->bin_tiles_y - 1);
+
 	if (*(uint32_t *)(untrusted + 8) != 0) {
 		DRM_ERROR("TSDA offset != 0 unsupported\n");
 		return -EINVAL;
