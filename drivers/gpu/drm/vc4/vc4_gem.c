@@ -604,6 +604,13 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 	args->seqno = vc4->emit_seqno;
 
 	mutex_unlock(&dev->struct_mutex);
+
+	/* To keep any client from getting too far ahead (particularly
+	 * a problem when BO caching is involved), we wait on the
+	 * previous rendering before returning to userspace.
+	 */
+	vc4_wait_for_seqno(dev, args->seqno - 1, ~0ull);
+
 	return 0;
 
 fail:
