@@ -593,15 +593,15 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 	if (ret)
 		goto fail;
 
-	/* Return the seqno for our job. */
-	args->seqno = vc4->emit_seqno;
-
 	/* Clear this out of the struct we'll be putting in the queue,
 	 * since it's part of our stack.
 	 */
 	exec->args = NULL;
 
 	vc4_queue_submit(dev, exec);
+
+	/* Return the seqno for our job. */
+	args->seqno = vc4->emit_seqno;
 
 	mutex_unlock(&dev->struct_mutex);
 	return 0;
