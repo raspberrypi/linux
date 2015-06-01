@@ -955,7 +955,7 @@ void __init bcm2708_init(void)
 #endif
 	bcm_register_device(&bcm2708_systemtimer_device);
 	bcm_register_device_dt(&bcm2708_fb_device);
-	bcm_register_device(&bcm2708_usb_device);
+	bcm_register_device_dt(&bcm2708_usb_device);
 	bcm_register_device(&bcm2708_uart1_device);
 	bcm_register_device(&bcm2708_powerman_device);
 
