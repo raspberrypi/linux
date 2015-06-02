@@ -170,6 +170,10 @@
 			reg = <0x7e00b840 0xf>;
 			interrupts = <0 2>;
 		};
+
+		thermal: thermal {
+			compatible = "brcm,bcm2835-thermal";
+		};
 	};
 
 	clocks {

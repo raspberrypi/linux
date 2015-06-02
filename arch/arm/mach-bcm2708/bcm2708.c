@@ -984,7 +984,7 @@ void __init bcm2708_init(void)
 	}
 
 	bcm_register_device(&bcm2835_hwmon_device);
-	bcm_register_device(&bcm2835_thermal_device);
+	bcm_register_device_dt(&bcm2835_thermal_device);
 
 #if defined(CONFIG_SND_BCM2708_SOC_I2S) || defined(CONFIG_SND_BCM2708_SOC_I2S_MODULE)
 	bcm_register_device_dt(&bcm2708_i2s_device);

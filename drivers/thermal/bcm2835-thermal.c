@@ -167,13 +167,19 @@ static struct thermal_zone_device_ops ops  = {
 	.get_mode = bcm2835_get_mode,
 };
 
-/* Thermal Driver */
+static const struct of_device_id bcm2835_thermal_of_match_table[] = {
+	{ .compatible = "brcm,bcm2835-thermal", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, bcm2835_thermal_of_match_table);
+
 static struct platform_driver bcm2835_thermal_driver = {
 	.probe = bcm2835_thermal_probe,
 	.remove = bcm2835_thermal_remove,
 	.driver = {
 				.name = "bcm2835_thermal",
 				.owner = THIS_MODULE,
+				.of_match_table = bcm2835_thermal_of_match_table,
 			},
 };
 
