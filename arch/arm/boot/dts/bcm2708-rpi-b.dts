@@ -114,5 +114,7 @@
 		act_led_trigger = <&act_led>,"linux,default-trigger";
 
 		audio = <&audio>,"status";
+		watchdog = <&watchdog>,"status";
+		random = <&random>,"status";
 	};
 };
