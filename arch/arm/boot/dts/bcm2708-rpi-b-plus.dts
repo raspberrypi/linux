@@ -124,5 +124,7 @@
 		pwr_led_trigger = <&pwr_led>,"linux,default-trigger";
 
 		audio = <&audio>,"status";
+		watchdog = <&watchdog>,"status";
+		random = <&random>,"status";
 	};
 };

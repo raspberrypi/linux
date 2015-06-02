@@ -43,6 +43,18 @@
 			#interrupt-cells = <2>;
 		};
 
+		watchdog: watchdog@7e100000 {
+			compatible = "brcm,bcm2835-pm-wdt";
+			reg = <0x7e100000 0x28>;
+			status = "disabled";
+		};
+
+		random: rng@7e104000 {
+			compatible = "brcm,bcm2835-rng";
+			reg = <0x7e104000 0x10>;
+			status = "disabled";
+		};
+
 		mailbox: mailbox@7e00b800 {
 			compatible = "brcm,bcm2708-vcio";
 			reg = <0x7e00b880 0x40>;
