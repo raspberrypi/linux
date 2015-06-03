@@ -12,6 +12,9 @@ endif
 ifeq ($(CONFIG_BCM2709_DT),y)
    RPI_DT_OVERLAYS=y
 endif
+ifeq ($(CONFIG_ARCH_BCM2835),y)
+   RPI_DT_OVERLAYS=y
+endif
 
 subdir-$(RPI_DT_OVERLAYS)  += overlays
 
