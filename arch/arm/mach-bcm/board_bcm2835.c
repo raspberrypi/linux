@@ -65,8 +65,6 @@ static void __init bcm2835_init(void)
 		system_rev = val;
 	if (!of_property_read_u64(np, "linux,serial", &val64))
 		system_serial_low = val64;
-
-	bcm2835_init_uart1();
 }
 
 static const char * const bcm2835_compat[] = {
