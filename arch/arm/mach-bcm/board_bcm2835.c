@@ -16,13 +16,23 @@
 #include <linux/irqchip.h>
 #include <linux/of_address.h>
 #include <linux/clk/bcm2835.h>
+#include <asm/system_info.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
 static void __init bcm2835_init(void)
 {
+	struct device_node *np = of_find_node_by_path("/system");
+	u32 val;
+	u64 val64;
+
 	bcm2835_init_clocks();
+
+	if (!of_property_read_u32(np, "linux,revision", &val))
+		system_rev = val;
+	if (!of_property_read_u64(np, "linux,serial", &val64))
+		system_serial_low = val64;
 }
 
 static const char * const bcm2835_compat[] = {
