@@ -27,6 +27,13 @@
 		};
 	};
 
+	soc {
+		firmware: firmware {
+			compatible = "raspberrypi,bcm2835-firmware";
+			mboxes = <&mailbox>;
+		};
+	};
+
 	/* Onboard audio */
 	audio: audio {
 		compatible = "brcm,bcm2835-audio";
