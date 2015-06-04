@@ -147,6 +147,13 @@ config QCOM_SCM_64
 	def_bool y
 	depends on QCOM_SCM && ARM64
 
+config RASPBERRYPI_FIRMWARE
+	tristate "Raspberry Pi Firmware Driver"
+	depends on BCM2835_MBOX
+	help
+	  This option enables support for communicating with the firmware on the
+	  Raspberry Pi.
+
 source "drivers/firmware/broadcom/Kconfig"
 source "drivers/firmware/google/Kconfig"
 source "drivers/firmware/efi/Kconfig"
