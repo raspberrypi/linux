@@ -46,7 +46,7 @@
 
 #define TOTAL_SLOTS (VCHIQ_SLOT_ZERO_SLOTS + 2 * 32)
 
-#define VCHIQ_ARM_ADDRESS(x) ((void *)__virt_to_bus((unsigned)x))
+#define VCHIQ_ARM_ADDRESS(x) ((void *)((char *)x + g_virt_to_bus_offset))
 
 #include "vchiq_arm.h"
 #include "vchiq_2835.h"
@@ -66,7 +66,8 @@ typedef struct vchiq_2835_state_struct {
 static void __iomem *g_regs;
 static FRAGMENTS_T *g_fragments_base;
 static FRAGMENTS_T *g_free_fragments;
-struct semaphore g_free_fragments_sema;
+static struct semaphore g_free_fragments_sema;
+static unsigned long g_virt_to_bus_offset;
 
 extern int vchiq_arm_log_level;
 
@@ -91,6 +92,8 @@ int vchiq_platform_init(struct platform_device *pdev, VCHIQ_STATE_T *state)
 	dma_addr_t slot_phys;
 	int slot_mem_size, frag_mem_size;
 	int err, irq, i;
+
+	g_virt_to_bus_offset = virt_to_dma(dev, (void *)0);
 
 	/* Allocate space for the channels in coherent memory */
 	slot_mem_size = PAGE_ALIGN(TOTAL_SLOTS * VCHIQ_SLOT_SIZE);
