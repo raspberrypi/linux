@@ -84,6 +84,17 @@
 			status = "disabled";
 		};
 
+		uart0: uart@7e201000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x7e201000 0x1000>;
+			interrupts = <2 25>;
+			clocks = <&clk_uart0 &clk_apb_p>;
+			clock-names = "uartclk","apb_pclk";
+			arm,primecell-periphid = <0x00241011>; // For an explanation, see
+			// https://github.com/raspberrypi/linux/commit/13731d862cf5219216533a3b0de052cee4cc5038
+			status = "disabled";
+		};
+
 		i2s: i2s@7e203000 {
 			compatible = "brcm,bcm2708-i2s";
 			reg = <0x7e203000 0x20>,
@@ -187,6 +198,22 @@
 			#clock-cells = <0>;
 			clock-output-names = "spi";
 			clock-frequency = <250000000>;
+		};
+
+		clk_uart0: clock@3 {
+			compatible = "fixed-clock";
+			reg = <3>;
+			#clock-cells = <0>;
+			clock-output-names = "uart0_pclk";
+			clock-frequency = <3000000>;
+		};
+
+		clk_apb_p: clock@4 {
+			compatible = "fixed-clock";
+			reg = <4>;
+			#clock-cells = <0>;
+			clock-output-names = "apb_pclk";
+			clock-frequency = <126000000>;
 		};
 	};
 };
