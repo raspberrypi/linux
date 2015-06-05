@@ -25,7 +25,7 @@ struct drr_class {
 
 	struct gnet_stats_basic_packed		bstats;
 	struct gnet_stats_queue		qstats;
-	struct gnet_stats_rate_est	rate_est;
+	struct gnet_stats_rate_est64	rate_est;
 	struct list_head		alist;
 	struct Qdisc			*qdisc;
 
@@ -35,7 +35,7 @@ struct drr_class {
 
 struct drr_sched {
 	struct list_head		active;
-	struct tcf_proto		*filter_list;
+	struct tcf_proto __rcu		*filter_list;
 	struct Qdisc_class_hash		clhash;
 };
 
@@ -88,7 +88,8 @@ static int drr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 
 	if (cl != NULL) {
 		if (tca[TCA_RATE]) {
-			err = gen_replace_estimator(&cl->bstats, &cl->rate_est,
+			err = gen_replace_estimator(&cl->bstats, NULL,
+						    &cl->rate_est,
 						    qdisc_root_sleeping_lock(sch),
 						    tca[TCA_RATE]);
 			if (err)
@@ -116,7 +117,7 @@ static int drr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		cl->qdisc = &noop_qdisc;
 
 	if (tca[TCA_RATE]) {
-		err = gen_replace_estimator(&cl->bstats, &cl->rate_est,
+		err = gen_replace_estimator(&cl->bstats, NULL, &cl->rate_est,
 					    qdisc_root_sleeping_lock(sch),
 					    tca[TCA_RATE]);
 		if (err) {
@@ -184,7 +185,8 @@ static void drr_put_class(struct Qdisc *sch, unsigned long arg)
 		drr_destroy_class(sch, cl);
 }
 
-static struct tcf_proto **drr_tcf_chain(struct Qdisc *sch, unsigned long cl)
+static struct tcf_proto __rcu **drr_tcf_chain(struct Qdisc *sch,
+					      unsigned long cl)
 {
 	struct drr_sched *q = qdisc_priv(sch);
 
@@ -260,7 +262,8 @@ static int drr_dump_class(struct Qdisc *sch, unsigned long arg,
 	nest = nla_nest_start(skb, TCA_OPTIONS);
 	if (nest == NULL)
 		goto nla_put_failure;
-	NLA_PUT_U32(skb, TCA_DRR_QUANTUM, cl->quantum);
+	if (nla_put_u32(skb, TCA_DRR_QUANTUM, cl->quantum))
+		goto nla_put_failure;
 	return nla_nest_end(skb, nest);
 
 nla_put_failure:
@@ -272,17 +275,16 @@ static int drr_dump_class_stats(struct Qdisc *sch, unsigned long arg,
 				struct gnet_dump *d)
 {
 	struct drr_class *cl = (struct drr_class *)arg;
+	__u32 qlen = cl->qdisc->q.qlen;
 	struct tc_drr_stats xstats;
 
 	memset(&xstats, 0, sizeof(xstats));
-	if (cl->qdisc->q.qlen) {
+	if (qlen)
 		xstats.deficit = cl->deficit;
-		cl->qdisc->qstats.qlen = cl->qdisc->q.qlen;
-	}
 
-	if (gnet_stats_copy_basic(d, &cl->bstats) < 0 ||
+	if (gnet_stats_copy_basic(d, NULL, &cl->bstats) < 0 ||
 	    gnet_stats_copy_rate_est(d, &cl->bstats, &cl->rate_est) < 0 ||
-	    gnet_stats_copy_queue(d, &cl->qdisc->qstats) < 0)
+	    gnet_stats_copy_queue(d, NULL, &cl->qdisc->qstats, qlen) < 0)
 		return -1;
 
 	return gnet_stats_copy_app(d, &xstats, sizeof(xstats));
@@ -292,14 +294,13 @@ static void drr_walk(struct Qdisc *sch, struct qdisc_walker *arg)
 {
 	struct drr_sched *q = qdisc_priv(sch);
 	struct drr_class *cl;
-	struct hlist_node *n;
 	unsigned int i;
 
 	if (arg->stop)
 		return;
 
 	for (i = 0; i < q->clhash.hashsize; i++) {
-		hlist_for_each_entry(cl, n, &q->clhash.hash[i], common.hnode) {
+		hlist_for_each_entry(cl, &q->clhash.hash[i], common.hnode) {
 			if (arg->count < arg->skip) {
 				arg->count++;
 				continue;
@@ -319,6 +320,7 @@ static struct drr_class *drr_classify(struct sk_buff *skb, struct Qdisc *sch,
 	struct drr_sched *q = qdisc_priv(sch);
 	struct drr_class *cl;
 	struct tcf_result res;
+	struct tcf_proto *fl;
 	int result;
 
 	if (TC_H_MAJ(skb->priority ^ sch->handle) == 0) {
@@ -328,7 +330,8 @@ static struct drr_class *drr_classify(struct sk_buff *skb, struct Qdisc *sch,
 	}
 
 	*qerr = NET_XMIT_SUCCESS | __NET_XMIT_BYPASS;
-	result = tc_classify(skb, q->filter_list, &res);
+	fl = rcu_dereference_bh(q->filter_list);
+	result = tc_classify(skb, fl, &res);
 	if (result >= 0) {
 #ifdef CONFIG_NET_CLS_ACT
 		switch (result) {
@@ -351,12 +354,12 @@ static int drr_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 {
 	struct drr_sched *q = qdisc_priv(sch);
 	struct drr_class *cl;
-	int err;
+	int err = 0;
 
 	cl = drr_classify(skb, sch, &err);
 	if (cl == NULL) {
 		if (err & __NET_XMIT_BYPASS)
-			sch->qstats.drops++;
+			qdisc_qstats_drop(sch);
 		kfree_skb(skb);
 		return err;
 	}
@@ -365,7 +368,7 @@ static int drr_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 	if (unlikely(err != NET_XMIT_SUCCESS)) {
 		if (net_xmit_drop_count(err)) {
 			cl->qstats.drops++;
-			sch->qstats.drops++;
+			qdisc_qstats_drop(sch);
 		}
 		return err;
 	}
@@ -374,8 +377,6 @@ static int drr_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 		list_add_tail(&cl->alist, &q->active);
 		cl->deficit = cl->quantum;
 	}
-
-	bstats_update(&cl->bstats, skb);
 
 	sch->q.qlen++;
 	return err;
@@ -393,8 +394,10 @@ static struct sk_buff *drr_dequeue(struct Qdisc *sch)
 	while (1) {
 		cl = list_first_entry(&q->active, struct drr_class, alist);
 		skb = cl->qdisc->ops->peek(cl->qdisc);
-		if (skb == NULL)
+		if (skb == NULL) {
+			qdisc_warn_nonwc(__func__, cl->qdisc);
 			goto out;
+		}
 
 		len = qdisc_pkt_len(skb);
 		if (len <= cl->deficit) {
@@ -402,6 +405,8 @@ static struct sk_buff *drr_dequeue(struct Qdisc *sch)
 			skb = qdisc_dequeue_peeked(cl->qdisc);
 			if (cl->qdisc->q.qlen == 0)
 				list_del(&cl->alist);
+
+			bstats_update(&cl->bstats, skb);
 			qdisc_bstats_update(sch, skb);
 			sch->q.qlen--;
 			return skb;
@@ -450,11 +455,10 @@ static void drr_reset_qdisc(struct Qdisc *sch)
 {
 	struct drr_sched *q = qdisc_priv(sch);
 	struct drr_class *cl;
-	struct hlist_node *n;
 	unsigned int i;
 
 	for (i = 0; i < q->clhash.hashsize; i++) {
-		hlist_for_each_entry(cl, n, &q->clhash.hash[i], common.hnode) {
+		hlist_for_each_entry(cl, &q->clhash.hash[i], common.hnode) {
 			if (cl->qdisc->q.qlen)
 				list_del(&cl->alist);
 			qdisc_reset(cl->qdisc);
@@ -467,13 +471,13 @@ static void drr_destroy_qdisc(struct Qdisc *sch)
 {
 	struct drr_sched *q = qdisc_priv(sch);
 	struct drr_class *cl;
-	struct hlist_node *n, *next;
+	struct hlist_node *next;
 	unsigned int i;
 
 	tcf_destroy_chain(&q->filter_list);
 
 	for (i = 0; i < q->clhash.hashsize; i++) {
-		hlist_for_each_entry_safe(cl, n, next, &q->clhash.hash[i],
+		hlist_for_each_entry_safe(cl, next, &q->clhash.hash[i],
 					  common.hnode)
 			drr_destroy_class(sch, cl);
 	}

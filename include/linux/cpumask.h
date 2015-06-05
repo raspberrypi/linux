@@ -9,6 +9,7 @@
 #include <linux/kernel.h>
 #include <linux/threads.h>
 #include <linux/bitmap.h>
+#include <linux/bug.h>
 
 typedef struct cpumask { DECLARE_BITMAP(bits, NR_CPUS); } cpumask_t;
 
@@ -20,6 +21,14 @@ typedef struct cpumask { DECLARE_BITMAP(bits, NR_CPUS); } cpumask_t;
  * a macro so it's const-correct.
  */
 #define cpumask_bits(maskp) ((maskp)->bits)
+
+/**
+ * cpumask_pr_args - printf args to output a cpumask
+ * @maskp: cpumask to be printed
+ *
+ * Can be used to provide arguments for '%*pb[l]' when printing a cpumask.
+ */
+#define cpumask_pr_args(maskp)		nr_cpu_ids, cpumask_bits(maskp)
 
 #if NR_CPUS == 1
 #define nr_cpu_ids		1
@@ -141,6 +150,13 @@ static inline unsigned int cpumask_any_but(const struct cpumask *mask,
 	return 1;
 }
 
+static inline int cpumask_set_cpu_local_first(int i, int numa_node, cpumask_t *dstp)
+{
+	set_bit(0, cpumask_bits(dstp));
+
+	return 0;
+}
+
 #define for_each_cpu(cpu, mask)			\
 	for ((cpu) = 0; (cpu) < 1; (cpu)++, (void)mask)
 #define for_each_cpu_not(cpu, mask)		\
@@ -191,6 +207,7 @@ static inline unsigned int cpumask_next_zero(int n, const struct cpumask *srcp)
 
 int cpumask_next_and(int n, const struct cpumask *, const struct cpumask *);
 int cpumask_any_but(const struct cpumask *mask, unsigned int cpu);
+int cpumask_set_cpu_local_first(int i, int numa_node, cpumask_t *dstp);
 
 /**
  * for_each_cpu - iterate over every cpu in a mask
@@ -271,6 +288,8 @@ static inline void cpumask_clear_cpu(int cpu, struct cpumask *dstp)
  * @cpu: cpu number (< nr_cpu_ids)
  * @cpumask: the cpumask pointer
  *
+ * Returns 1 if @cpu is set in @cpumask, else returns 0
+ *
  * No static inline type checking - see Subtlety (1) above.
  */
 #define cpumask_test_cpu(cpu, cpumask) \
@@ -280,6 +299,8 @@ static inline void cpumask_clear_cpu(int cpu, struct cpumask *dstp)
  * cpumask_test_and_set_cpu - atomically test and set a cpu in a cpumask
  * @cpu: cpu number (< nr_cpu_ids)
  * @cpumask: the cpumask pointer
+ *
+ * Returns 1 if @cpu is set in old bitmap of @cpumask, else returns 0
  *
  * test_and_set_bit wrapper for cpumasks.
  */
@@ -292,6 +313,8 @@ static inline int cpumask_test_and_set_cpu(int cpu, struct cpumask *cpumask)
  * cpumask_test_and_clear_cpu - atomically test and clear a cpu in a cpumask
  * @cpu: cpu number (< nr_cpu_ids)
  * @cpumask: the cpumask pointer
+ *
+ * Returns 1 if @cpu is set in old bitmap of @cpumask, else returns 0
  *
  * test_and_clear_bit wrapper for cpumasks.
  */
@@ -323,6 +346,8 @@ static inline void cpumask_clear(struct cpumask *dstp)
  * @dstp: the cpumask result
  * @src1p: the first input
  * @src2p: the second input
+ *
+ * If *@dstp is empty, returns 0, else returns 1
  */
 static inline int cpumask_and(struct cpumask *dstp,
 			       const struct cpumask *src1p,
@@ -364,6 +389,8 @@ static inline void cpumask_xor(struct cpumask *dstp,
  * @dstp: the cpumask result
  * @src1p: the first input
  * @src2p: the second input
+ *
+ * If *@dstp is empty, returns 0, else returns 1
  */
 static inline int cpumask_andnot(struct cpumask *dstp,
 				  const struct cpumask *src1p,
@@ -413,6 +440,8 @@ static inline bool cpumask_intersects(const struct cpumask *src1p,
  * cpumask_subset - (*src1p & ~*src2p) == 0
  * @src1p: the first input
  * @src2p: the second input
+ *
+ * Returns 1 if *@src1p is a subset of *@src2p, else returns 0
  */
 static inline int cpumask_subset(const struct cpumask *src1p,
 				 const struct cpumask *src2p)
@@ -518,21 +547,6 @@ static inline void cpumask_copy(struct cpumask *dstp,
 #define cpumask_of(cpu) (get_cpu_mask(cpu))
 
 /**
- * cpumask_scnprintf - print a cpumask into a string as comma-separated hex
- * @buf: the buffer to sprintf into
- * @len: the length of the buffer
- * @srcp: the cpumask to print
- *
- * If len is zero, returns zero.  Otherwise returns the length of the
- * (nul-terminated) @buf string.
- */
-static inline int cpumask_scnprintf(char *buf, int len,
-				    const struct cpumask *srcp)
-{
-	return bitmap_scnprintf(buf, len, cpumask_bits(srcp), nr_cpumask_bits);
-}
-
-/**
  * cpumask_parse_user - extract a cpumask from a user string
  * @buf: the buffer to extract from
  * @len: the length of the buffer
@@ -543,7 +557,7 @@ static inline int cpumask_scnprintf(char *buf, int len,
 static inline int cpumask_parse_user(const char __user *buf, int len,
 				     struct cpumask *dstp)
 {
-	return bitmap_parse_user(buf, len, cpumask_bits(dstp), nr_cpumask_bits);
+	return bitmap_parse_user(buf, len, cpumask_bits(dstp), nr_cpu_ids);
 }
 
 /**
@@ -558,36 +572,34 @@ static inline int cpumask_parselist_user(const char __user *buf, int len,
 				     struct cpumask *dstp)
 {
 	return bitmap_parselist_user(buf, len, cpumask_bits(dstp),
-							nr_cpumask_bits);
+				     nr_cpu_ids);
 }
 
 /**
- * cpulist_scnprintf - print a cpumask into a string as comma-separated list
- * @buf: the buffer to sprintf into
- * @len: the length of the buffer
- * @srcp: the cpumask to print
- *
- * If len is zero, returns zero.  Otherwise returns the length of the
- * (nul-terminated) @buf string.
- */
-static inline int cpulist_scnprintf(char *buf, int len,
-				    const struct cpumask *srcp)
-{
-	return bitmap_scnlistprintf(buf, len, cpumask_bits(srcp),
-				    nr_cpumask_bits);
-}
-
-/**
- * cpulist_parse_user - extract a cpumask from a user string of ranges
+ * cpumask_parse - extract a cpumask from from a string
  * @buf: the buffer to extract from
- * @len: the length of the buffer
+ * @dstp: the cpumask to set.
+ *
+ * Returns -errno, or 0 for success.
+ */
+static inline int cpumask_parse(const char *buf, struct cpumask *dstp)
+{
+	char *nl = strchr(buf, '\n');
+	unsigned int len = nl ? (unsigned int)(nl - buf) : strlen(buf);
+
+	return bitmap_parse(buf, len, cpumask_bits(dstp), nr_cpu_ids);
+}
+
+/**
+ * cpulist_parse - extract a cpumask from a user string of ranges
+ * @buf: the buffer to extract from
  * @dstp: the cpumask to set.
  *
  * Returns -errno, or 0 for success.
  */
 static inline int cpulist_parse(const char *buf, struct cpumask *dstp)
 {
-	return bitmap_parselist(buf, cpumask_bits(dstp), nr_cpumask_bits);
+	return bitmap_parselist(buf, cpumask_bits(dstp), nr_cpu_ids);
 }
 
 /**
@@ -631,9 +643,18 @@ static inline size_t cpumask_size(void)
  *
  * This code makes NR_CPUS length memcopy and brings to a memory corruption.
  * cpumask_copy() provide safe copy functionality.
+ *
+ * Note that there is another evil here: If you define a cpumask_var_t
+ * as a percpu variable then the way to obtain the address of the cpumask
+ * structure differently influences what this_cpu_* operation needs to be
+ * used. Please use this_cpu_cpumask_var_t in those cases. The direct use
+ * of this_cpu_ptr() or this_cpu_read() will lead to failures when the
+ * other type of cpumask_var_t implementation is configured.
  */
 #ifdef CONFIG_CPUMASK_OFFSTACK
 typedef struct cpumask *cpumask_var_t;
+
+#define this_cpu_cpumask_var_ptr(x) this_cpu_read(x)
 
 bool alloc_cpumask_var_node(cpumask_var_t *mask, gfp_t flags, int node);
 bool alloc_cpumask_var(cpumask_var_t *mask, gfp_t flags);
@@ -645,6 +666,8 @@ void free_bootmem_cpumask_var(cpumask_var_t mask);
 
 #else
 typedef struct cpumask cpumask_var_t[1];
+
+#define this_cpu_cpumask_var_ptr(x) this_cpu_ptr(x)
 
 static inline bool alloc_cpumask_var(cpumask_var_t *mask, gfp_t flags)
 {
@@ -757,18 +780,29 @@ static inline const struct cpumask *get_cpu_mask(unsigned int cpu)
 }
 #endif /* NR_CPUS > BITS_PER_LONG */
 
+/**
+ * cpumap_print_to_pagebuf  - copies the cpumask into the buffer either
+ *	as comma-separated list of cpus or hex values of cpumask
+ * @list: indicates whether the cpumap must be list
+ * @mask: the cpumask to copy
+ * @buf: the buffer to copy into
+ *
+ * Returns the length of the (null-terminated) @buf string, zero if
+ * nothing is copied.
+ */
+static inline ssize_t
+cpumap_print_to_pagebuf(bool list, char *buf, const struct cpumask *mask)
+{
+	return bitmap_print_to_pagebuf(list, buf, cpumask_bits(mask),
+				      nr_cpu_ids);
+}
+
 /*
  *
  * From here down, all obsolete.  Use cpumask_ variants!
  *
  */
 #ifndef CONFIG_DISABLE_OBSOLETE_CPUMASK_FUNCTIONS
-/* These strip const, as traditionally they weren't const. */
-#define cpu_possible_map	(*(cpumask_t *)cpu_possible_mask)
-#define cpu_online_map		(*(cpumask_t *)cpu_online_mask)
-#define cpu_present_map		(*(cpumask_t *)cpu_present_mask)
-#define cpu_active_map		(*(cpumask_t *)cpu_active_mask)
-
 #define cpumask_of_cpu(cpu) (*get_cpu_mask(cpu))
 
 #define CPU_MASK_LAST_WORD BITMAP_LAST_WORD_MASK(NR_CPUS)
@@ -809,11 +843,10 @@ static inline const struct cpumask *get_cpu_mask(unsigned int cpu)
 #else /* NR_CPUS > 1 */
 int __first_cpu(const cpumask_t *srcp);
 int __next_cpu(int n, const cpumask_t *srcp);
-int __any_online_cpu(const cpumask_t *mask);
 
 #define first_cpu(src)		__first_cpu(&(src))
 #define next_cpu(n, src)	__next_cpu((n), &(src))
-#define any_online_cpu(mask) __any_online_cpu(&(mask))
+#define any_online_cpu(mask) cpumask_any_and(&mask, cpu_online_mask)
 #define for_each_cpu_mask(cpu, mask)			\
 	for ((cpu) = -1;				\
 		(cpu) = next_cpu((cpu), (mask)),	\
@@ -849,13 +882,13 @@ static inline void __cpu_clear(int cpu, volatile cpumask_t *dstp)
 }
 
 #define cpus_setall(dst) __cpus_setall(&(dst), NR_CPUS)
-static inline void __cpus_setall(cpumask_t *dstp, int nbits)
+static inline void __cpus_setall(cpumask_t *dstp, unsigned int nbits)
 {
 	bitmap_fill(dstp->bits, nbits);
 }
 
 #define cpus_clear(dst) __cpus_clear(&(dst), NR_CPUS)
-static inline void __cpus_clear(cpumask_t *dstp, int nbits)
+static inline void __cpus_clear(cpumask_t *dstp, unsigned int nbits)
 {
 	bitmap_zero(dstp->bits, nbits);
 }
@@ -871,21 +904,21 @@ static inline int __cpu_test_and_set(int cpu, cpumask_t *addr)
 
 #define cpus_and(dst, src1, src2) __cpus_and(&(dst), &(src1), &(src2), NR_CPUS)
 static inline int __cpus_and(cpumask_t *dstp, const cpumask_t *src1p,
-					const cpumask_t *src2p, int nbits)
+					const cpumask_t *src2p, unsigned int nbits)
 {
 	return bitmap_and(dstp->bits, src1p->bits, src2p->bits, nbits);
 }
 
 #define cpus_or(dst, src1, src2) __cpus_or(&(dst), &(src1), &(src2), NR_CPUS)
 static inline void __cpus_or(cpumask_t *dstp, const cpumask_t *src1p,
-					const cpumask_t *src2p, int nbits)
+					const cpumask_t *src2p, unsigned int nbits)
 {
 	bitmap_or(dstp->bits, src1p->bits, src2p->bits, nbits);
 }
 
 #define cpus_xor(dst, src1, src2) __cpus_xor(&(dst), &(src1), &(src2), NR_CPUS)
 static inline void __cpus_xor(cpumask_t *dstp, const cpumask_t *src1p,
-					const cpumask_t *src2p, int nbits)
+					const cpumask_t *src2p, unsigned int nbits)
 {
 	bitmap_xor(dstp->bits, src1p->bits, src2p->bits, nbits);
 }
@@ -893,40 +926,40 @@ static inline void __cpus_xor(cpumask_t *dstp, const cpumask_t *src1p,
 #define cpus_andnot(dst, src1, src2) \
 				__cpus_andnot(&(dst), &(src1), &(src2), NR_CPUS)
 static inline int __cpus_andnot(cpumask_t *dstp, const cpumask_t *src1p,
-					const cpumask_t *src2p, int nbits)
+					const cpumask_t *src2p, unsigned int nbits)
 {
 	return bitmap_andnot(dstp->bits, src1p->bits, src2p->bits, nbits);
 }
 
 #define cpus_equal(src1, src2) __cpus_equal(&(src1), &(src2), NR_CPUS)
 static inline int __cpus_equal(const cpumask_t *src1p,
-					const cpumask_t *src2p, int nbits)
+					const cpumask_t *src2p, unsigned int nbits)
 {
 	return bitmap_equal(src1p->bits, src2p->bits, nbits);
 }
 
 #define cpus_intersects(src1, src2) __cpus_intersects(&(src1), &(src2), NR_CPUS)
 static inline int __cpus_intersects(const cpumask_t *src1p,
-					const cpumask_t *src2p, int nbits)
+					const cpumask_t *src2p, unsigned int nbits)
 {
 	return bitmap_intersects(src1p->bits, src2p->bits, nbits);
 }
 
 #define cpus_subset(src1, src2) __cpus_subset(&(src1), &(src2), NR_CPUS)
 static inline int __cpus_subset(const cpumask_t *src1p,
-					const cpumask_t *src2p, int nbits)
+					const cpumask_t *src2p, unsigned int nbits)
 {
 	return bitmap_subset(src1p->bits, src2p->bits, nbits);
 }
 
 #define cpus_empty(src) __cpus_empty(&(src), NR_CPUS)
-static inline int __cpus_empty(const cpumask_t *srcp, int nbits)
+static inline int __cpus_empty(const cpumask_t *srcp, unsigned int nbits)
 {
 	return bitmap_empty(srcp->bits, nbits);
 }
 
 #define cpus_weight(cpumask) __cpus_weight(&(cpumask), NR_CPUS)
-static inline int __cpus_weight(const cpumask_t *srcp, int nbits)
+static inline int __cpus_weight(const cpumask_t *srcp, unsigned int nbits)
 {
 	return bitmap_weight(srcp->bits, nbits);
 }

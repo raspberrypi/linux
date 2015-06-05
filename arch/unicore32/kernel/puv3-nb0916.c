@@ -54,6 +54,7 @@ static struct platform_pwm_backlight_data nb0916_backlight_data = {
 	.max_brightness	= 100,
 	.dft_brightness	= 100,
 	.pwm_period_ns	= 70 * 1024,
+	.enable_gpio	= -1,
 };
 
 static struct gpio_keys_button nb0916_gpio_keys[] = {
@@ -111,19 +112,19 @@ int __init mach_nb0916_init(void)
 	platform_device_register_simple("PKUnity-v3-I2C", -1,
 			puv3_i2c_resources, ARRAY_SIZE(puv3_i2c_resources));
 
-	platform_device_register_data(&platform_bus, "pwm-backlight", -1,
+	platform_device_register_data(NULL, "pwm-backlight", -1,
 			&nb0916_backlight_data, sizeof(nb0916_backlight_data));
 
-	platform_device_register_data(&platform_bus, "gpio-keys", -1,
+	platform_device_register_data(NULL, "gpio-keys", -1,
 			&nb0916_gpio_button_data, sizeof(nb0916_gpio_button_data));
 
-	platform_device_register_resndata(&platform_bus, "physmap-flash", -1,
+	platform_device_register_resndata(NULL, "physmap-flash", -1,
 			&physmap_flash_resource, 1,
 			&physmap_flash_data, sizeof(physmap_flash_data));
 
 	if (request_irq(gpio_to_irq(GPI_LCD_CASE_OFF),
 		&nb0916_lcdcaseoff_handler,
-		IRQF_DISABLED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+		IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 		"NB0916 lcd case off", NULL) < 0) {
 
 		printk(KERN_DEBUG "LCD-Case-OFF IRQ %d not available\n",
@@ -131,7 +132,7 @@ int __init mach_nb0916_init(void)
 	}
 
 	if (request_irq(gpio_to_irq(GPI_OTP_INT), &nb0916_overheat_handler,
-		IRQF_DISABLED | IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+		IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 		"NB0916 overheating protection", NULL) < 0) {
 
 		printk(KERN_DEBUG "Overheating Protection IRQ %d not available\n",

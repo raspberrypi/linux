@@ -7,8 +7,6 @@
 
 extern struct tasklet_struct keyboard_tasklet;
 
-extern int shift_state;
-
 extern char *func_table[MAX_NR_FUNC];
 extern char func_buf[];
 extern char *funcbufptr;
@@ -38,10 +36,9 @@ struct kbd_struct {
 #define VC_CTRLRLOCK	KG_CTRLR 	/* ctrlr lock mode */
 	unsigned char slockstate; 	/* for `sticky' Shift, Ctrl, etc. */
 
-	unsigned char ledmode:2; 	/* one 2-bit value */
+	unsigned char ledmode:1;
 #define LED_SHOW_FLAGS 0        /* traditional state */
 #define LED_SHOW_IOCTL 1        /* only change leds upon ioctl */
-#define LED_SHOW_MEM 2          /* `heartbeat': peek into memory */
 
 	unsigned char ledflagstate:4;	/* flags, not lights */
 	unsigned char default_ledflagstate:4;
@@ -65,11 +62,8 @@ struct kbd_struct {
 #define VC_META		4	/* 0 - meta, 1 - meta=prefix with ESC */
 };
 
-extern struct kbd_struct kbd_table[];
-
 extern int kbd_init(void);
 
-extern unsigned char getledstate(void);
 extern void setledstate(struct kbd_struct *kbd, unsigned int led);
 
 extern int do_poke_blanked_console;
@@ -79,6 +73,7 @@ extern void (*kbd_ledfunc)(unsigned int led);
 extern int set_console(int nr);
 extern void schedule_console_callback(void);
 
+/* FIXME: review locking for vt.c callers */
 static inline void set_leds(void)
 {
 	tasklet_schedule(&keyboard_tasklet);
@@ -142,24 +137,10 @@ static inline void chg_vc_kbd_led(struct kbd_struct * kbd, int flag)
 
 struct console;
 
-int getkeycode(unsigned int scancode);
-int setkeycode(unsigned int scancode, unsigned int keycode);
 void compute_shiftstate(void);
 
 /* defkeymap.c */
 
 extern unsigned int keymap_count;
-
-/* console.c */
-
-static inline void con_schedule_flip(struct tty_struct *t)
-{
-	unsigned long flags;
-	spin_lock_irqsave(&t->buf.lock, flags);
-	if (t->buf.tail != NULL)
-		t->buf.tail->commit = t->buf.tail->used;
-	spin_unlock_irqrestore(&t->buf.lock, flags);
-	schedule_work(&t->buf.work);
-}
 
 #endif

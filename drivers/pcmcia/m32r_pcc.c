@@ -24,7 +24,6 @@
 #include <linux/bitops.h>
 #include <asm/irq.h>
 #include <asm/io.h>
-#include <asm/system.h>
 #include <asm/addrspace.h>
 
 #include <pcmcia/ss.h>
@@ -665,7 +664,6 @@ static struct pccard_operations pcc_operations = {
 static struct platform_driver pcc_driver = {
 	.driver = {
 		.name		= "pcc",
-		.owner		= THIS_MODULE,
 	},
 };
 

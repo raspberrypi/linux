@@ -24,7 +24,6 @@
 #include <linux/profile.h>
 #include <linux/smp.h>
 #include <asm/tlbflush.h>
-#include <asm/system.h>
 #include <asm/bitops.h>
 #include <asm/processor.h>
 #include <asm/bug.h>
@@ -79,9 +78,9 @@ void smp_flush_tlb(void *unused)
 	else
 		local_flush_tlb_page(flush_mm, flush_va);
 
-	smp_mb__before_clear_bit();
+	smp_mb__before_atomic();
 	cpumask_clear_cpu(cpu_id, &flush_cpumask);
-	smp_mb__after_clear_bit();
+	smp_mb__after_atomic();
 out:
 	put_cpu();
 }

@@ -15,6 +15,7 @@
 #include <linux/audit.h>
 
 #include "include/audit.h"
+#include "include/context.h"
 #include "include/resource.h"
 #include "include/policy.h"
 
@@ -23,13 +24,18 @@
  */
 #include "rlim_names.h"
 
+struct aa_fs_entry aa_fs_entry_rlimit[] = {
+	AA_FS_FILE_STRING("mask", AA_FS_RLIMIT_MASK),
+	{ }
+};
+
 /* audit callback for resource specific fields */
 static void audit_cb(struct audit_buffer *ab, void *va)
 {
 	struct common_audit_data *sa = va;
 
 	audit_log_format(ab, " rlimit=%s value=%lu",
-			 rlim_names[sa->aad.rlim.rlim], sa->aad.rlim.max);
+			 rlim_names[sa->aad->rlim.rlim], sa->aad->rlim.max);
 }
 
 /**
@@ -45,12 +51,14 @@ static int audit_resource(struct aa_profile *profile, unsigned int resource,
 			  unsigned long value, int error)
 {
 	struct common_audit_data sa;
+	struct apparmor_audit_data aad = {0,};
 
-	COMMON_AUDIT_DATA_INIT(&sa, NONE);
-	sa.aad.op = OP_SETRLIMIT,
-	sa.aad.rlim.rlim = resource;
-	sa.aad.rlim.max = value;
-	sa.aad.error = error;
+	sa.type = LSM_AUDIT_DATA_NONE;
+	sa.aad = &aad;
+	aad.op = OP_SETRLIMIT,
+	aad.rlim.rlim = resource;
+	aad.rlim.max = value;
+	aad.error = error;
 	return aa_audit(AUDIT_APPARMOR_AUTO, profile, GFP_KERNEL, &sa,
 			audit_cb);
 }
@@ -83,16 +91,24 @@ int aa_map_resource(int resource)
 int aa_task_setrlimit(struct aa_profile *profile, struct task_struct *task,
 		      unsigned int resource, struct rlimit *new_rlim)
 {
+	struct aa_profile *task_profile;
 	int error = 0;
 
+	rcu_read_lock();
+	task_profile = aa_get_profile(aa_cred_profile(__task_cred(task)));
+	rcu_read_unlock();
+
 	/* TODO: extend resource control to handle other (non current)
-	 * processes.  AppArmor rules currently have the implicit assumption
-	 * that the task is setting the resource of the current process
+	 * profiles.  AppArmor rules currently have the implicit assumption
+	 * that the task is setting the resource of a task confined with
+	 * the same profile.
 	 */
-	if ((task != current->group_leader) ||
+	if (profile != task_profile ||
 	    (profile->rlimits.mask & (1 << resource) &&
 	     new_rlim->rlim_max > profile->rlimits.limits[resource].rlim_max))
 		error = -EACCES;
+
+	aa_put_profile(task_profile);
 
 	return audit_resource(profile, resource, new_rlim->rlim_max, error);
 }

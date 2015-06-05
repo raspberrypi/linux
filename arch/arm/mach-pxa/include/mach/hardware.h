@@ -19,8 +19,8 @@
  * Workarounds for at least 2 errata so far require this.
  * The mapping is set in mach-pxa/generic.c.
  */
-#define UNCACHED_PHYS_0		0xff000000
-#define UNCACHED_ADDR		UNCACHED_PHYS_0
+#define UNCACHED_PHYS_0		0xfe000000
+#define UNCACHED_PHYS_0_SIZE	0x00100000
 
 /*
  * Intel PXA2xx internal register mapping:
@@ -40,7 +40,6 @@
 #define io_p2v(x) IOMEM(0xf2000000 + ((x) & 0x01ffffff) + (((x) & 0x1c000000) >> 1))
 
 #ifndef __ASSEMBLY__
-# define IOMEM(x) ((void __iomem *)(x))
 # define __REG(x)	(*((volatile u32 __iomem *)io_p2v(x)))
 
 /* With indexed regs we don't want to feed the index through io_p2v()
@@ -52,7 +51,6 @@
 
 #else
 
-# define IOMEM(x)	x 
 # define __REG(x)	io_p2v(x)
 # define __PREG(x)	io_v2p(x)
 
@@ -196,17 +194,6 @@
 #define __cpu_is_pxa935(id)	(0)
 #endif
 
-#ifdef CONFIG_CPU_PXA955
-#define __cpu_is_pxa955(id)				\
-	({						\
-		unsigned int _id = (id) >> 4 & 0xfff;	\
-		_id == 0x581 || _id == 0xc08		\
-			|| _id == 0xb76;		\
-	})
-#else
-#define __cpu_is_pxa955(id)	(0)
-#endif
-
 #define cpu_is_pxa210()					\
 	({						\
 		__cpu_is_pxa210(read_cpuid_id());	\
@@ -257,10 +244,6 @@
 		__cpu_is_pxa935(read_cpuid_id());	\
 	 })
 
-#define cpu_is_pxa955()					\
-	({						\
-		__cpu_is_pxa955(read_cpuid_id());	\
-	})
 
 
 /*
@@ -299,15 +282,6 @@
 #define __cpu_is_pxa93x(id)	(0)
 #endif
 
-#ifdef CONFIG_PXA95x
-#define __cpu_is_pxa95x(id)				\
-	({						\
-		__cpu_is_pxa955(id);			\
-	})
-#else
-#define __cpu_is_pxa95x(id)	(0)
-#endif
-
 #define cpu_is_pxa2xx()					\
 	({						\
 		__cpu_is_pxa2xx(read_cpuid_id());	\
@@ -323,10 +297,6 @@
 		__cpu_is_pxa93x(read_cpuid_id());	\
 	 })
 
-#define cpu_is_pxa95x()					\
-	({						\
-		__cpu_is_pxa95x(read_cpuid_id());	\
-	})
 
 /*
  * return current memory and LCD clock frequency in units of 10kHz
@@ -335,10 +305,6 @@ extern unsigned int get_memclk_frequency_10khz(void);
 
 /* return the clock tick rate of the OS timer */
 extern unsigned long get_clock_tick_rate(void);
-#endif
-
-#if defined(CONFIG_MACH_ARMCORE) && defined(CONFIG_PCI)
-#define ARCH_HAS_DMA_SET_COHERENT_MASK
 #endif
 
 #endif  /* _ASM_ARCH_HARDWARE_H */

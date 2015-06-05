@@ -8,14 +8,13 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/input.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/slab.h>
 
-#include <mach/pxa930_rotary.h>
+#include <linux/platform_data/keyboard-pxa930_rotary.h>
 
 #define SBCR	(0x04)
 #define ERCR	(0x0c)
@@ -82,9 +81,10 @@ static void pxa930_rotary_close(struct input_dev *dev)
 	clear_sbcr(r);
 }
 
-static int __devinit pxa930_rotary_probe(struct platform_device *pdev)
+static int pxa930_rotary_probe(struct platform_device *pdev)
 {
-	struct pxa930_rotary_platform_data *pdata = pdev->dev.platform_data;
+	struct pxa930_rotary_platform_data *pdata =
+			dev_get_platdata(&pdev->dev);
 	struct pxa930_rotary *r;
 	struct input_dev *input_dev;
 	struct resource *res;
@@ -174,14 +174,13 @@ failed_free:
 	return err;
 }
 
-static int __devexit pxa930_rotary_remove(struct platform_device *pdev)
+static int pxa930_rotary_remove(struct platform_device *pdev)
 {
 	struct pxa930_rotary *r = platform_get_drvdata(pdev);
 
 	free_irq(platform_get_irq(pdev, 0), r);
 	input_unregister_device(r->input_dev);
 	iounmap(r->mmio_base);
-	platform_set_drvdata(pdev, NULL);
 	kfree(r);
 
 	return 0;
@@ -190,23 +189,11 @@ static int __devexit pxa930_rotary_remove(struct platform_device *pdev)
 static struct platform_driver pxa930_rotary_driver = {
 	.driver		= {
 		.name	= "pxa930-rotary",
-		.owner	= THIS_MODULE,
 	},
 	.probe		= pxa930_rotary_probe,
-	.remove		= __devexit_p(pxa930_rotary_remove),
+	.remove		= pxa930_rotary_remove,
 };
-
-static int __init pxa930_rotary_init(void)
-{
-	return platform_driver_register(&pxa930_rotary_driver);
-}
-module_init(pxa930_rotary_init);
-
-static void __exit pxa930_rotary_exit(void)
-{
-	platform_driver_unregister(&pxa930_rotary_driver);
-}
-module_exit(pxa930_rotary_exit);
+module_platform_driver(pxa930_rotary_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Driver for PXA93x Enhanced Rotary Controller");

@@ -1,5 +1,5 @@
 /*
- *  linux/drivers/net/ehea/ehea.h
+ *  linux/drivers/net/ethernet/ibm/ehea/ehea.h
  *
  *  eHEA ethernet device driver for IBM eServer System p
  *
@@ -35,7 +35,6 @@
 #include <linux/if_vlan.h>
 
 #include <asm/ibmebus.h>
-#include <asm/abs_addr.h>
 #include <asm/io.h>
 
 #define DRV_NAME	"ehea"

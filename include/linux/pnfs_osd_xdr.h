@@ -5,7 +5,7 @@
  *  All rights reserved.
  *
  *  Benny Halevy <bhalevy@panasas.com>
- *  Boaz Harrosh <bharrosh@panasas.com>
+ *  Boaz Harrosh <ooo@electrozaur.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -40,7 +40,6 @@
 #define __PNFS_OSD_XDR_H__
 
 #include <linux/nfs_fs.h>
-#include <linux/nfs_page.h>
 
 /*
  * draft-ietf-nfsv4-minorversion-22

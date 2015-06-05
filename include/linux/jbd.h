@@ -27,7 +27,6 @@
 #include <linux/buffer_head.h>
 #include <linux/journal-head.h>
 #include <linux/stddef.h>
-#include <linux/bit_spinlock.h>
 #include <linux/mutex.h>
 #include <linux/timer.h>
 #include <linux/lockdep.h>
@@ -58,16 +57,13 @@
 #define JBD_EXPENSIVE_CHECKING
 extern u8 journal_enable_debug;
 
-#define jbd_debug(n, f, a...)						\
-	do {								\
-		if ((n) <= journal_enable_debug) {			\
-			printk (KERN_DEBUG "(%s, %d): %s: ",		\
-				__FILE__, __LINE__, __func__);	\
-			printk (f, ## a);				\
-		}							\
-	} while (0)
+void __jbd_debug(int level, const char *file, const char *func,
+		 unsigned int line, const char *fmt, ...);
+
+#define jbd_debug(n, fmt, a...) \
+	__jbd_debug((n), __FILE__, __func__, __LINE__, (fmt), ##a)
 #else
-#define jbd_debug(f, a...)	/**/
+#define jbd_debug(n, fmt, a...)    /**/
 #endif
 
 static inline void *jbd_alloc(size_t size, gfp_t flags)
@@ -78,7 +74,7 @@ static inline void *jbd_alloc(size_t size, gfp_t flags)
 static inline void jbd_free(void *ptr, size_t size)
 {
 	free_pages((unsigned long)ptr, get_order(size));
-};
+}
 
 #define JFS_MIN_JOURNAL_BLOCKS 1024
 
@@ -244,6 +240,31 @@ typedef struct journal_superblock_s
 
 #include <linux/fs.h>
 #include <linux/sched.h>
+
+enum jbd_state_bits {
+	BH_JBD			/* Has an attached ext3 journal_head */
+	  = BH_PrivateStart,
+	BH_JWrite,		/* Being written to log (@@@ DEBUGGING) */
+	BH_Freed,		/* Has been freed (truncated) */
+	BH_Revoked,		/* Has been revoked from the log */
+	BH_RevokeValid,		/* Revoked flag is valid */
+	BH_JBDDirty,		/* Is dirty but journaled */
+	BH_State,		/* Pins most journal_head state */
+	BH_JournalHead,		/* Pins bh->b_private and jh->b_bh */
+	BH_Unshadow,		/* Dummy bit, for BJ_Shadow wakeup filtering */
+	BH_JBDPrivateStart,	/* First bit available for private use by FS */
+};
+
+BUFFER_FNS(JBD, jbd)
+BUFFER_FNS(JWrite, jwrite)
+BUFFER_FNS(JBDDirty, jbddirty)
+TAS_BUFFER_FNS(JBDDirty, jbddirty)
+BUFFER_FNS(Revoked, revoked)
+TAS_BUFFER_FNS(Revoked, revoked)
+BUFFER_FNS(RevokeValid, revokevalid)
+TAS_BUFFER_FNS(RevokeValid, revokevalid)
+BUFFER_FNS(Freed, freed)
+
 #include <linux/jbd_common.h>
 
 #define J_ASSERT(assert)	BUG_ON(!(assert))
@@ -479,12 +500,6 @@ struct transaction_s
 	 * How many handles used this transaction? [t_handle_lock]
 	 */
 	int t_handle_count;
-
-	/*
-	 * This transaction is being forced and some process is
-	 * waiting for it to finish.
-	 */
-	unsigned int t_synchronous_commit:1;
 };
 
 /**
@@ -497,7 +512,6 @@ struct transaction_s
  * @j_format_version: Version of the superblock format
  * @j_state_lock: Protect the various scalars in the journal
  * @j_barrier_count:  Number of processes waiting to create a barrier lock
- * @j_barrier: The barrier lock itself
  * @j_running_transaction: The current running transaction..
  * @j_committing_transaction: the transaction we are pushing to disk
  * @j_checkpoint_transactions: a linked circular list of all transactions
@@ -532,6 +546,8 @@ struct transaction_s
  *  transaction
  * @j_commit_request: Sequence number of the most recent transaction wanting
  *     commit
+ * @j_commit_waited: Sequence number of the most recent transaction someone
+ *     is waiting for to commit.
  * @j_uuid: Uuid of client object.
  * @j_task: Pointer to the current commit thread for this journal
  * @j_max_transaction_buffers:  Maximum number of metadata buffers to allow in a
@@ -579,9 +595,6 @@ struct journal_s
 	 * Number of processes waiting to create a barrier lock [j_state_lock]
 	 */
 	int			j_barrier_count;
-
-	/* The barrier lock itself */
-	struct mutex		j_barrier;
 
 	/*
 	 * Transactions: The current running transaction...
@@ -698,6 +711,13 @@ struct journal_s
 	 * [j_state_lock]
 	 */
 	tid_t			j_commit_request;
+
+	/*
+	 * Sequence number of the most recent transaction someone is waiting
+	 * for to commit.
+	 * [j_state_lock]
+	 */
+	tid_t                   j_commit_waited;
 
 	/*
 	 * Journal uuid: identifies the object (filesystem, LVM volume etc)
@@ -841,7 +861,7 @@ extern void	 journal_release_buffer (handle_t *, struct buffer_head *);
 extern int	 journal_forget (handle_t *, struct buffer_head *);
 extern void	 journal_sync_buffer (struct buffer_head *);
 extern void	 journal_invalidatepage(journal_t *,
-				struct page *, unsigned long);
+				struct page *, unsigned int, unsigned int);
 extern int	 journal_try_to_free_buffers(journal_t *, struct page *, gfp_t);
 extern int	 journal_stop(handle_t *);
 extern int	 journal_flush (journal_t *);
@@ -865,7 +885,8 @@ extern int	   journal_destroy    (journal_t *);
 extern int	   journal_recover    (journal_t *journal);
 extern int	   journal_wipe       (journal_t *, int);
 extern int	   journal_skip_recovery	(journal_t *);
-extern void	   journal_update_superblock	(journal_t *, int);
+extern void	   journal_update_sb_log_tail	(journal_t *, tid_t, unsigned int,
+						 int);
 extern void	   journal_abort      (journal_t *, int);
 extern int	   journal_errno      (journal_t *);
 extern void	   journal_ack_err    (journal_t *);
@@ -887,7 +908,7 @@ extern struct kmem_cache *jbd_handle_cache;
 
 static inline handle_t *jbd_alloc_handle(gfp_t gfp_flags)
 {
-	return kmem_cache_alloc(jbd_handle_cache, gfp_flags);
+	return kmem_cache_zalloc(jbd_handle_cache, gfp_flags);
 }
 
 static inline void jbd_free_handle(handle_t *handle)
@@ -913,6 +934,7 @@ extern int	journal_set_revoke(journal_t *, unsigned int, tid_t);
 extern int	journal_test_revoke(journal_t *, unsigned int, tid_t);
 extern void	journal_clear_revoke(journal_t *);
 extern void	journal_switch_revoke_table(journal_t *journal);
+extern void	journal_clear_buffer_revoked_flags(journal_t *journal);
 
 /*
  * The log thread user interface:
@@ -933,15 +955,6 @@ int journal_trans_will_send_data_barrier(journal_t *journal, tid_t tid);
 void __log_wait_for_space(journal_t *journal);
 extern void	__journal_drop_transaction(journal_t *, transaction_t *);
 extern int	cleanup_journal_tail(journal_t *);
-
-/* Debugging code only: */
-
-#define jbd_ENOSYS() \
-do {								           \
-	printk (KERN_ERR "JBD unimplemented function %s\n", __func__); \
-	current->state = TASK_UNINTERRUPTIBLE;			           \
-	schedule();						           \
-} while (1)
 
 /*
  * is_journal_abort

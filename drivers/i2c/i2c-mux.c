@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/i2c-mux.h>
+#include <linux/of.h>
 
 /* multiplexer per channel data */
 struct i2c_mux_priv {
@@ -31,11 +32,12 @@ struct i2c_mux_priv {
 	struct i2c_algorithm algo;
 
 	struct i2c_adapter *parent;
-	void *mux_dev;	/* the mux chip/device */
-	u32  chan_id;	/* the channel id */
+	struct device *mux_dev;
+	void *mux_priv;
+	u32 chan_id;
 
-	int (*select)(struct i2c_adapter *, void *mux_dev, u32 chan_id);
-	int (*deselect)(struct i2c_adapter *, void *mux_dev, u32 chan_id);
+	int (*select)(struct i2c_adapter *, void *mux_priv, u32 chan_id);
+	int (*deselect)(struct i2c_adapter *, void *mux_priv, u32 chan_id);
 };
 
 static int i2c_mux_master_xfer(struct i2c_adapter *adap,
@@ -47,11 +49,11 @@ static int i2c_mux_master_xfer(struct i2c_adapter *adap,
 
 	/* Switch to the right mux port and perform the transfer. */
 
-	ret = priv->select(parent, priv->mux_dev, priv->chan_id);
+	ret = priv->select(parent, priv->mux_priv, priv->chan_id);
 	if (ret >= 0)
 		ret = parent->algo->master_xfer(parent, msgs, num);
 	if (priv->deselect)
-		priv->deselect(parent, priv->mux_dev, priv->chan_id);
+		priv->deselect(parent, priv->mux_priv, priv->chan_id);
 
 	return ret;
 }
@@ -67,12 +69,12 @@ static int i2c_mux_smbus_xfer(struct i2c_adapter *adap,
 
 	/* Select the right mux port and perform the transfer. */
 
-	ret = priv->select(parent, priv->mux_dev, priv->chan_id);
+	ret = priv->select(parent, priv->mux_priv, priv->chan_id);
 	if (ret >= 0)
 		ret = parent->algo->smbus_xfer(parent, addr, flags,
 					read_write, command, size, data);
 	if (priv->deselect)
-		priv->deselect(parent, priv->mux_dev, priv->chan_id);
+		priv->deselect(parent, priv->mux_priv, priv->chan_id);
 
 	return ret;
 }
@@ -86,14 +88,30 @@ static u32 i2c_mux_functionality(struct i2c_adapter *adap)
 	return parent->algo->functionality(parent);
 }
 
+/* Return all parent classes, merged */
+static unsigned int i2c_mux_parent_classes(struct i2c_adapter *parent)
+{
+	unsigned int class = 0;
+
+	do {
+		class |= parent->class;
+		parent = i2c_parent_is_i2c_adapter(parent);
+	} while (parent);
+
+	return class;
+}
+
 struct i2c_adapter *i2c_add_mux_adapter(struct i2c_adapter *parent,
-				void *mux_dev, u32 force_nr, u32 chan_id,
+				struct device *mux_dev,
+				void *mux_priv, u32 force_nr, u32 chan_id,
+				unsigned int class,
 				int (*select) (struct i2c_adapter *,
 					       void *, u32),
 				int (*deselect) (struct i2c_adapter *,
 						 void *, u32))
 {
 	struct i2c_mux_priv *priv;
+	char symlink_name[20];
 	int ret;
 
 	priv = kzalloc(sizeof(struct i2c_mux_priv), GFP_KERNEL);
@@ -103,6 +121,7 @@ struct i2c_adapter *i2c_add_mux_adapter(struct i2c_adapter *parent,
 	/* Set up private adapter data */
 	priv->parent = parent;
 	priv->mux_dev = mux_dev;
+	priv->mux_priv = mux_priv;
 	priv->chan_id = chan_id;
 	priv->select = select;
 	priv->deselect = deselect;
@@ -123,6 +142,35 @@ struct i2c_adapter *i2c_add_mux_adapter(struct i2c_adapter *parent,
 	priv->adap.algo = &priv->algo;
 	priv->adap.algo_data = priv;
 	priv->adap.dev.parent = &parent->dev;
+	priv->adap.retries = parent->retries;
+	priv->adap.timeout = parent->timeout;
+
+	/* Sanity check on class */
+	if (i2c_mux_parent_classes(parent) & class)
+		dev_err(&parent->dev,
+			"Segment %d behind mux can't share classes with ancestors\n",
+			chan_id);
+	else
+		priv->adap.class = class;
+
+	/*
+	 * Try to populate the mux adapter's of_node, expands to
+	 * nothing if !CONFIG_OF.
+	 */
+	if (mux_dev->of_node) {
+		struct device_node *child;
+		u32 reg;
+
+		for_each_child_of_node(mux_dev->of_node, child) {
+			ret = of_property_read_u32(child, "reg", &reg);
+			if (ret)
+				continue;
+			if (chan_id == reg) {
+				priv->adap.dev.of_node = child;
+				break;
+			}
+		}
+	}
 
 	if (force_nr) {
 		priv->adap.nr = force_nr;
@@ -138,6 +186,12 @@ struct i2c_adapter *i2c_add_mux_adapter(struct i2c_adapter *parent,
 		return NULL;
 	}
 
+	WARN(sysfs_create_link(&priv->adap.dev.kobj, &mux_dev->kobj, "mux_device"),
+			       "can't create symlink to mux device\n");
+
+	snprintf(symlink_name, sizeof(symlink_name), "channel-%u", chan_id);
+	WARN(sysfs_create_link(&mux_dev->kobj, &priv->adap.dev.kobj, symlink_name),
+			       "can't create symlink for channel %u\n", chan_id);
 	dev_info(&parent->dev, "Added multiplexed i2c bus %d\n",
 		 i2c_adapter_id(&priv->adap));
 
@@ -145,17 +199,17 @@ struct i2c_adapter *i2c_add_mux_adapter(struct i2c_adapter *parent,
 }
 EXPORT_SYMBOL_GPL(i2c_add_mux_adapter);
 
-int i2c_del_mux_adapter(struct i2c_adapter *adap)
+void i2c_del_mux_adapter(struct i2c_adapter *adap)
 {
 	struct i2c_mux_priv *priv = adap->algo_data;
-	int ret;
+	char symlink_name[20];
 
-	ret = i2c_del_adapter(adap);
-	if (ret < 0)
-		return ret;
+	snprintf(symlink_name, sizeof(symlink_name), "channel-%u", priv->chan_id);
+	sysfs_remove_link(&priv->mux_dev->kobj, symlink_name);
+
+	sysfs_remove_link(&priv->adap.dev.kobj, "mux_device");
+	i2c_del_adapter(adap);
 	kfree(priv);
-
-	return 0;
 }
 EXPORT_SYMBOL_GPL(i2c_del_mux_adapter);
 

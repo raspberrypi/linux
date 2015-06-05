@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2009-2010  Realtek Corporation.
+ * Copyright(c) 2009-2012  Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -27,8 +27,6 @@
  *
  *****************************************************************************/
 
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
-
 #include "../wifi.h"
 #include "reg.h"
 #include "def.h"
@@ -54,7 +52,7 @@ static void _rtl92s_get_powerbase(struct ieee80211_hw *hw, u8 *p_pwrlevel,
 	/* We only care about the path A for legacy. */
 	if (rtlefuse->eeprom_version < 2) {
 		pwrbase0 = pwrlevel[0] + (rtlefuse->legacy_httxpowerdiff & 0xf);
-	} else if (rtlefuse->eeprom_version >= 2) {
+	} else {
 		legacy_pwrdiff = rtlefuse->txpwr_legacyhtdiff
 						[RF90_PATH_A][chnl - 1];
 
@@ -123,13 +121,13 @@ static void _rtl92s_get_powerbase(struct ieee80211_hw *hw, u8 *p_pwrlevel,
 	}
 
 	if (rtlphy->current_chan_bw == HT_CHANNEL_WIDTH_20_40) {
-		RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD, ("40MHz finalpwr_idx "
-			"(A / B) = 0x%x / 0x%x\n", p_final_pwridx[0],
-			p_final_pwridx[1]));
+		RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
+			 "40MHz finalpwr_idx (A / B) = 0x%x / 0x%x\n",
+			 p_final_pwridx[0], p_final_pwridx[1]);
 	} else {
-		RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD, ("20MHz finalpwr_idx "
-			"(A / B) = 0x%x / 0x%x\n", p_final_pwridx[0],
-			 p_final_pwridx[1]));
+		RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
+			 "20MHz finalpwr_idx (A / B) = 0x%x / 0x%x\n",
+			 p_final_pwridx[0], p_final_pwridx[1]);
 	}
 }
 
@@ -153,9 +151,8 @@ static void _rtl92s_set_antennadiff(struct ieee80211_hw *hw,
 			ant_pwr_diff = -8;
 
 		RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-			 ("Antenna Diff from RF-B "
-			"to RF-A = %d (0x%x)\n", ant_pwr_diff,
-			 ant_pwr_diff & 0xf));
+			 "Antenna Diff from RF-B to RF-A = %d (0x%x)\n",
+			 ant_pwr_diff, ant_pwr_diff & 0xf);
 
 		ant_pwr_diff &= 0xf;
 	}
@@ -172,9 +169,8 @@ static void _rtl92s_set_antennadiff(struct ieee80211_hw *hw,
 	rtl_set_bbreg(hw, RFPGA0_TXGAINSTAGE, (BXBTXAGC | BXCTXAGC | BXDTXAGC),
 		      u4reg_val);
 
-	RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-		 ("Write BCD-Diff(0x%x) = 0x%x\n",
-		 RFPGA0_TXGAINSTAGE, u4reg_val));
+	RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD, "Write BCD-Diff(0x%x) = 0x%x\n",
+		 RFPGA0_TXGAINSTAGE, u4reg_val);
 }
 
 static void _rtl92s_get_txpower_writeval_byregulatory(struct ieee80211_hw *hw,
@@ -196,13 +192,11 @@ static void _rtl92s_get_txpower_writeval_byregulatory(struct ieee80211_hw *hw,
 		 * defined by Realtek for large power */
 		chnlgroup = 0;
 
-		writeval = rtlphy->mcs_txpwrlevel_origoffset
-				[chnlgroup][index] +
+		writeval = rtlphy->mcs_offset[chnlgroup][index] +
 				((index < 2) ? pwrbase0 : pwrbase1);
 
 		RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-			 ("RTK better performance, "
-			 "writeval = 0x%x\n", writeval));
+			 "RTK better performance, writeval = 0x%x\n", writeval);
 		break;
 	case 1:
 		/* Realtek regulatory increase power diff defined
@@ -211,8 +205,8 @@ static void _rtl92s_get_txpower_writeval_byregulatory(struct ieee80211_hw *hw,
 			writeval = ((index < 2) ? pwrbase0 : pwrbase1);
 
 			RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-				 ("Realtek regulatory, "
-				 "40MHz, writeval = 0x%x\n", writeval));
+				 "Realtek regulatory, 40MHz, writeval = 0x%x\n",
+				 writeval);
 		} else {
 			if (rtlphy->pwrgroup_cnt == 1)
 				chnlgroup = 0;
@@ -228,22 +222,20 @@ static void _rtl92s_get_txpower_writeval_byregulatory(struct ieee80211_hw *hw,
 					chnlgroup++;
 			}
 
-			writeval = rtlphy->mcs_txpwrlevel_origoffset
-					[chnlgroup][index]
+			writeval = rtlphy->mcs_offset[chnlgroup][index]
 					+ ((index < 2) ?
 					pwrbase0 : pwrbase1);
 
 			RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-				 ("Realtek regulatory, "
-				 "20MHz, writeval = 0x%x\n", writeval));
+				 "Realtek regulatory, 20MHz, writeval = 0x%x\n",
+				 writeval);
 		}
 		break;
 	case 2:
 		/* Better regulatory don't increase any power diff */
 		writeval = ((index < 2) ? pwrbase0 : pwrbase1);
 		RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-			 ("Better regulatory, "
-			 "writeval = 0x%x\n", writeval));
+			 "Better regulatory, writeval = 0x%x\n", writeval);
 		break;
 	case 3:
 		/* Customer defined power diff. increase power diff
@@ -252,19 +244,18 @@ static void _rtl92s_get_txpower_writeval_byregulatory(struct ieee80211_hw *hw,
 
 		if (rtlphy->current_chan_bw == HT_CHANNEL_WIDTH_20_40) {
 			RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-				("customer's limit, 40MHz = 0x%x\n",
-				rtlefuse->pwrgroup_ht40
-				[RF90_PATH_A][chnl - 1]));
+				 "customer's limit, 40MHz = 0x%x\n",
+				 rtlefuse->pwrgroup_ht40
+				 [RF90_PATH_A][chnl - 1]);
 		} else {
 			RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-				("customer's limit, 20MHz = 0x%x\n",
-				rtlefuse->pwrgroup_ht20
-				[RF90_PATH_A][chnl - 1]));
+				 "customer's limit, 20MHz = 0x%x\n",
+				 rtlefuse->pwrgroup_ht20
+				 [RF90_PATH_A][chnl - 1]);
 		}
 
 		for (i = 0; i < 4; i++) {
-			pwrdiff_limit[i] =
-				(u8)((rtlphy->mcs_txpwrlevel_origoffset
+			pwrdiff_limit[i] = (u8)((rtlphy->mcs_offset
 				[chnlgroup][index] & (0x7f << (i * 8)))
 				>> (i * 8));
 
@@ -274,7 +265,7 @@ static void _rtl92s_get_txpower_writeval_byregulatory(struct ieee80211_hw *hw,
 				    rtlefuse->pwrgroup_ht40
 				    [RF90_PATH_A][chnl - 1]) {
 					pwrdiff_limit[i] =
-					  rtlefuse->pwrgroup_ht20
+					  rtlefuse->pwrgroup_ht40
 					  [RF90_PATH_A][chnl - 1];
 				}
 			} else {
@@ -293,22 +284,19 @@ static void _rtl92s_get_txpower_writeval_byregulatory(struct ieee80211_hw *hw,
 				(pwrdiff_limit[1] << 8) |
 				(pwrdiff_limit[0]);
 		RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-			 ("Customer's limit = 0x%x\n",
-			 customer_limit));
+			 "Customer's limit = 0x%x\n", customer_limit);
 
 		writeval = customer_limit + ((index < 2) ?
 					     pwrbase0 : pwrbase1);
 		RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-			 ("Customer, writeval = "
-			 "0x%x\n", writeval));
+			 "Customer, writeval = 0x%x\n", writeval);
 		break;
 	default:
 		chnlgroup = 0;
-		writeval = rtlphy->mcs_txpwrlevel_origoffset[chnlgroup][index] +
+		writeval = rtlphy->mcs_offset[chnlgroup][index] +
 				((index < 2) ? pwrbase0 : pwrbase1);
 		RT_TRACE(rtlpriv, COMP_POWER, DBG_LOUD,
-			 ("RTK better performance, "
-			 "writeval = 0x%x\n", writeval));
+			 "RTK better performance, writeval = 0x%x\n", writeval);
 		break;
 	}
 
@@ -508,7 +496,7 @@ bool rtl92s_phy_rf6052_config(struct ieee80211_hw *hw)
 			break;
 		}
 
-		if (rtstatus != true) {
+		if (!rtstatus) {
 			pr_err("Radio[%d] Fail!!\n", rfpath);
 			goto fail;
 		}
@@ -541,8 +529,7 @@ void rtl92s_phy_rf6052_set_bandwidth(struct ieee80211_hw *hw, u8 bandwidth)
 		break;
 	default:
 		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
-			 ("unknown bandwidth: %#X\n",
-			 bandwidth));
+			 "unknown bandwidth: %#X\n", bandwidth);
 		break;
 	}
 }

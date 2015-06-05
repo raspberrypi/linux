@@ -22,6 +22,8 @@
 #include <asm/prom.h>
 #include <asm/pci-bridge.h>
 
+#include <asm-generic/pci-dma-compat.h>
+
 #define PCIBIOS_MIN_IO		0x1000
 #define PCIBIOS_MIN_MEM		0x10000000
 
@@ -41,24 +43,6 @@ struct pci_dev;
  * bus numbers (don't do that on ppc64 yet !)
  */
 #define pcibios_assign_all_busses()	0
-
-static inline void pcibios_set_master(struct pci_dev *dev)
-{
-	/* No special bus mastering setup handling */
-}
-
-static inline void pcibios_penalize_isa_irq(int irq, int active)
-{
-	/* We don't do dynamic PCI IRQ allocation */
-}
-
-#ifdef CONFIG_PCI
-extern void set_pci_dma_ops(struct dma_map_ops *dma_ops);
-extern struct dma_map_ops *get_pci_dma_ops(void);
-#else	/* CONFIG_PCI */
-#define set_pci_dma_ops(d)
-#define get_pci_dma_ops()	NULL
-#endif
 
 #ifdef CONFIG_PCI
 static inline void pci_dma_burst_advice(struct pci_dev *pdev,
@@ -99,14 +83,6 @@ extern int pci_mmap_legacy_page_range(struct pci_bus *bus,
  */
 #define PCI_DMA_BUS_IS_PHYS     (1)
 
-extern void pcibios_resource_to_bus(struct pci_dev *dev,
-			struct pci_bus_region *region,
-			struct resource *res);
-
-extern void pcibios_bus_to_resource(struct pci_dev *dev,
-			struct resource *res,
-			struct pci_bus_region *region);
-
 static inline struct resource *pcibios_select_root(struct pci_dev *pdev,
 			struct resource *res)
 {
@@ -138,8 +114,6 @@ extern void of_scan_pci_bridge(struct device_node *node,
 extern void of_scan_bus(struct device_node *node, struct pci_bus *bus);
 extern void of_rescan_bus(struct device_node *node, struct pci_bus *bus);
 
-extern int pci_read_irq_line(struct pci_dev *dev);
-
 extern int pci_bus_find_capability(struct pci_bus *bus,
 						unsigned int devfn, int cap);
 
@@ -163,8 +137,6 @@ extern void __init xilinx_pci_init(void);
 #else
 static inline void __init xilinx_pci_init(void) { return; }
 #endif
-
-#include <asm-generic/pci-dma-compat.h>
 
 #endif	/* __KERNEL__ */
 #endif /* __ASM_MICROBLAZE_PCI_H */

@@ -32,9 +32,7 @@
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/types.h>
-#include <acpi/acpi.h>
-#include <acpi/acpi_bus.h>
-#include <acpi/acpi_drivers.h>
+#include <linux/acpi.h>
 #include <linux/platform_device.h>
 
 #define GUID "C364AC71-36DB-495A-8494-B439D472A505"
@@ -187,7 +185,7 @@ static int __init tc1100_probe(struct platform_device *device)
 }
 
 
-static int __devexit tc1100_remove(struct platform_device *device)
+static int tc1100_remove(struct platform_device *device)
 {
 	sysfs_remove_group(&device->dev.kobj, &tc1100_attribute_group);
 
@@ -236,12 +234,11 @@ static const struct dev_pm_ops tc1100_pm_ops = {
 static struct platform_driver tc1100_driver = {
 	.driver = {
 		.name = "tc1100-wmi",
-		.owner = THIS_MODULE,
 #ifdef CONFIG_PM
 		.pm = &tc1100_pm_ops,
 #endif
 	},
-	.remove = __devexit_p(tc1100_remove),
+	.remove = tc1100_remove,
 };
 
 static int __init tc1100_init(void)

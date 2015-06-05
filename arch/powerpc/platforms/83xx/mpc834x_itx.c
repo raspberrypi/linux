@@ -25,7 +25,6 @@
 #include <linux/root_dev.h>
 #include <linux/of_platform.h>
 
-#include <asm/system.h>
 #include <linux/atomic.h>
 #include <asm/time.h>
 #include <asm/io.h>
@@ -39,7 +38,7 @@
 
 #include "mpc83xx.h"
 
-static struct of_device_id __initdata mpc834x_itx_ids[] = {
+static const struct of_device_id mpc834x_itx_ids[] __initconst = {
 	{ .compatible = "fsl,pq2pro-localbus", },
 	{},
 };

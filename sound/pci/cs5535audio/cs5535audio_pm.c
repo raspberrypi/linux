@@ -55,9 +55,9 @@ static void snd_cs5535audio_stop_hardware(struct cs5535audio *cs5535au)
 
 }
 
-int snd_cs5535audio_suspend(struct pci_dev *pci, pm_message_t state)
+static int snd_cs5535audio_suspend(struct device *dev)
 {
-	struct snd_card *card = pci_get_drvdata(pci);
+	struct snd_card *card = dev_get_drvdata(dev);
 	struct cs5535audio *cs5535au = card->private_data;
 	int i;
 
@@ -71,33 +71,16 @@ int snd_cs5535audio_suspend(struct pci_dev *pci, pm_message_t state)
 	}
 	/* save important regs, then disable aclink in hw */
 	snd_cs5535audio_stop_hardware(cs5535au);
-
-	if (pci_save_state(pci)) {
-		printk(KERN_ERR "cs5535audio: pci_save_state failed!\n");
-		return -EIO;
-	}
-	pci_disable_device(pci);
-	pci_set_power_state(pci, pci_choose_state(pci, state));
 	return 0;
 }
 
-int snd_cs5535audio_resume(struct pci_dev *pci)
+static int snd_cs5535audio_resume(struct device *dev)
 {
-	struct snd_card *card = pci_get_drvdata(pci);
+	struct snd_card *card = dev_get_drvdata(dev);
 	struct cs5535audio *cs5535au = card->private_data;
 	u32 tmp;
 	int timeout;
 	int i;
-
-	pci_set_power_state(pci, PCI_D0);
-	pci_restore_state(pci);
-	if (pci_enable_device(pci) < 0) {
-		printk(KERN_ERR "cs5535audio: pci_enable_device failed, "
-		       "disabling device\n");
-		snd_card_disconnect(card);
-		return -EIO;
-	}
-	pci_set_master(pci);
 
 	/* set LNK_WRM_RST to reset AC link */
 	cs_writel(cs5535au, ACC_CODEC_CNTL, ACC_CODEC_CNTL_LNK_WRM_RST);
@@ -111,7 +94,7 @@ int snd_cs5535audio_resume(struct pci_dev *pci)
 	} while (--timeout);
 
 	if (!timeout)
-		snd_printk(KERN_ERR "Failure getting AC Link ready\n");
+		dev_err(cs5535au->card->dev, "Failure getting AC Link ready\n");
 
 	/* set up rate regs, dma. actual initiation is done in trig */
 	for (i = 0; i < NUM_CS5535AUDIO_DMAS; i++) {
@@ -129,3 +112,4 @@ int snd_cs5535audio_resume(struct pci_dev *pci)
 	return 0;
 }
 
+SIMPLE_DEV_PM_OPS(snd_cs5535audio_pm, snd_cs5535audio_suspend, snd_cs5535audio_resume);

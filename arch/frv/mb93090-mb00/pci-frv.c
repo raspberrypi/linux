@@ -88,13 +88,13 @@ static void __init pcibios_allocate_bus_resources(struct list_head *bus_list)
 
 	/* Depth-First Search on bus tree */
 	for (ln=bus_list->next; ln != bus_list; ln=ln->next) {
-		bus = pci_bus_b(ln);
+		bus = list_entry(ln, struct pci_bus, node);
 		if ((dev = bus->self)) {
 			for (idx = PCI_BRIDGE_RESOURCES; idx < PCI_NUM_RESOURCES; idx++) {
 				r = &dev->resource[idx];
 				if (!r->start)
 					continue;
-				pci_claim_resource(dev, idx);
+				pci_claim_bridge_resource(dev, idx);
 			}
 		}
 		pcibios_allocate_bus_resources(&bus->children);
@@ -193,24 +193,4 @@ void __init pcibios_resource_survey(void)
 	pcibios_allocate_resources(0);
 	pcibios_allocate_resources(1);
 	pcibios_assign_resources();
-}
-
-/*
- *  If we set up a device for bus mastering, we need to check the latency
- *  timer as certain crappy BIOSes forget to set it properly.
- */
-unsigned int pcibios_max_latency = 255;
-
-void pcibios_set_master(struct pci_dev *dev)
-{
-	u8 lat;
-	pci_read_config_byte(dev, PCI_LATENCY_TIMER, &lat);
-	if (lat < 16)
-		lat = (64 <= pcibios_max_latency) ? 64 : pcibios_max_latency;
-	else if (lat > pcibios_max_latency)
-		lat = pcibios_max_latency;
-	else
-		return;
-	printk(KERN_DEBUG "PCI: Setting latency timer of device %s to %d\n", pci_name(dev), lat);
-	pci_write_config_byte(dev, PCI_LATENCY_TIMER, lat);
 }

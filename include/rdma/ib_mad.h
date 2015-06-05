@@ -40,6 +40,7 @@
 #include <linux/list.h>
 
 #include <rdma/ib_verbs.h>
+#include <uapi/rdma/ib_user_mad.h>
 
 /* Management base version */
 #define IB_MGMT_BASE_VERSION			1
@@ -76,6 +77,15 @@
 #define IB_BM_ATTR_MOD_RESP			cpu_to_be32(1)
 
 #define IB_MGMT_MAX_METHODS			128
+
+/* MAD Status field bit masks */
+#define IB_MGMT_MAD_STATUS_SUCCESS			0x0000
+#define IB_MGMT_MAD_STATUS_BUSY				0x0001
+#define IB_MGMT_MAD_STATUS_REDIRECT_REQD		0x0002
+#define IB_MGMT_MAD_STATUS_BAD_VERSION			0x0004
+#define IB_MGMT_MAD_STATUS_UNSUPPORTED_METHOD		0x0008
+#define IB_MGMT_MAD_STATUS_UNSUPPORTED_METHOD_ATTRIB	0x000c
+#define IB_MGMT_MAD_STATUS_INVALID_ATTRIB_VALUE		0x001c
 
 /* RMPP information */
 #define IB_MGMT_RMPP_VERSION			1
@@ -151,7 +161,7 @@ struct ib_rmpp_hdr {
 
 typedef u64 __bitwise ib_sa_comp_mask;
 
-#define IB_SA_COMP_MASK(n) ((__force ib_sa_comp_mask) cpu_to_be64(1ull << n))
+#define IB_SA_COMP_MASK(n) ((__force ib_sa_comp_mask) cpu_to_be64(1ull << (n)))
 
 /*
  * ib_sa_hdr and ib_sa_mad structures must be packed because they have
@@ -346,9 +356,13 @@ typedef void (*ib_mad_recv_handler)(struct ib_mad_agent *mad_agent,
  * @hi_tid: Access layer assigned transaction ID for this client.
  *   Unsolicited MADs sent by this client will have the upper 32-bits
  *   of their TID set to this value.
+ * @flags: registration flags
  * @port_num: Port number on which QP is registered
  * @rmpp_version: If set, indicates the RMPP version used by this agent.
  */
+enum {
+	IB_MAD_USER_RMPP = IB_USER_MAD_USER_RMPP,
+};
 struct ib_mad_agent {
 	struct ib_device	*device;
 	struct ib_qp		*qp;
@@ -358,6 +372,7 @@ struct ib_mad_agent {
 	ib_mad_snoop_handler	snoop_handler;
 	void			*context;
 	u32			hi_tid;
+	u32			flags;
 	u8			port_num;
 	u8			rmpp_version;
 };
@@ -417,6 +432,7 @@ struct ib_mad_recv_wc {
  *   in the range from 0x30 to 0x4f. Otherwise not used.
  * @method_mask: The caller will receive unsolicited MADs for any method
  *   where @method_mask = 1.
+ *
  */
 struct ib_mad_reg_req {
 	u8	mgmt_class;
@@ -442,6 +458,7 @@ struct ib_mad_reg_req {
  * @recv_handler: The completion callback routine invoked for a received
  *   MAD.
  * @context: User specified context associated with the registration.
+ * @registration_flags: Registration flags to set for this agent
  */
 struct ib_mad_agent *ib_register_mad_agent(struct ib_device *device,
 					   u8 port_num,
@@ -450,7 +467,8 @@ struct ib_mad_agent *ib_register_mad_agent(struct ib_device *device,
 					   u8 rmpp_version,
 					   ib_mad_send_handler send_handler,
 					   ib_mad_recv_handler recv_handler,
-					   void *context);
+					   void *context,
+					   u32 registration_flags);
 
 enum ib_mad_snoop_flags {
 	/*IB_MAD_SNOOP_POSTED_SENDS	   = 1,*/
@@ -651,5 +669,12 @@ void *ib_get_rmpp_segment(struct ib_mad_send_buf *send_buf, int seg_num);
  * @send_buf: Previously allocated send data buffer.
  */
 void ib_free_send_mad(struct ib_mad_send_buf *send_buf);
+
+/**
+ * ib_mad_kernel_rmpp_agent - Returns if the agent is performing RMPP.
+ * @agent: the agent in question
+ * @return: true if agent is performing rmpp, false otherwise.
+ */
+int ib_mad_kernel_rmpp_agent(struct ib_mad_agent *agent);
 
 #endif /* IB_MAD_H */

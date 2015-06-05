@@ -36,7 +36,6 @@
 #include <linux/serio.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/init.h>
 #include <linux/completion.h>
 #include <linux/slab.h>
 #include <linux/pci_ids.h>
@@ -474,7 +473,7 @@ static int hil_dev_connect(struct serio *serio, struct serio_driver *drv)
 	if (error)
 		goto bail1;
 
-	init_completion(&dev->cmd_done);
+	reinit_completion(&dev->cmd_done);
 	serio_write(serio, 0);
 	serio_write(serio, 0);
 	serio_write(serio, HIL_PKT_CMD >> 8);
@@ -483,7 +482,7 @@ static int hil_dev_connect(struct serio *serio, struct serio_driver *drv)
 	if (error)
 		goto bail1;
 
-	init_completion(&dev->cmd_done);
+	reinit_completion(&dev->cmd_done);
 	serio_write(serio, 0);
 	serio_write(serio, 0);
 	serio_write(serio, HIL_PKT_CMD >> 8);
@@ -492,7 +491,7 @@ static int hil_dev_connect(struct serio *serio, struct serio_driver *drv)
 	if (error)
 		goto bail1;
 
-	init_completion(&dev->cmd_done);
+	reinit_completion(&dev->cmd_done);
 	serio_write(serio, 0);
 	serio_write(serio, 0);
 	serio_write(serio, HIL_PKT_CMD >> 8);
@@ -583,15 +582,4 @@ static struct serio_driver hil_serio_drv = {
 	.interrupt	= hil_dev_interrupt
 };
 
-static int __init hil_dev_init(void)
-{
-	return serio_register_driver(&hil_serio_drv);
-}
-
-static void __exit hil_dev_exit(void)
-{
-	serio_unregister_driver(&hil_serio_drv);
-}
-
-module_init(hil_dev_init);
-module_exit(hil_dev_exit);
+module_serio_driver(hil_serio_drv);

@@ -34,9 +34,9 @@
 #include <mach/pxa25x.h>
 #include <mach/audio.h>
 #include <mach/palmtc.h>
-#include <mach/mmc.h>
-#include <mach/pxafb.h>
-#include <mach/irda.h>
+#include <linux/platform_data/mmc-pxamci.h>
+#include <linux/platform_data/video-pxafb.h>
+#include <linux/platform_data/irda-pxaficp.h>
 #include <mach/udc.h>
 
 #include "generic.h"
@@ -166,45 +166,12 @@ static inline void palmtc_keys_init(void) {}
  * Backlight
  ******************************************************************************/
 #if defined(CONFIG_BACKLIGHT_PWM) || defined(CONFIG_BACKLIGHT_PWM_MODULE)
-static int palmtc_backlight_init(struct device *dev)
-{
-	int ret;
-
-	ret = gpio_request(GPIO_NR_PALMTC_BL_POWER, "BL POWER");
-	if (ret)
-		goto err;
-	ret = gpio_direction_output(GPIO_NR_PALMTC_BL_POWER, 1);
-	if (ret)
-		goto err2;
-
-	return 0;
-
-err2:
-	gpio_free(GPIO_NR_PALMTC_BL_POWER);
-err:
-	return ret;
-}
-
-static int palmtc_backlight_notify(struct device *dev, int brightness)
-{
-	/* backlight is on when GPIO16 AF0 is high */
-	gpio_set_value(GPIO_NR_PALMTC_BL_POWER, brightness);
-	return brightness;
-}
-
-static void palmtc_backlight_exit(struct device *dev)
-{
-	gpio_free(GPIO_NR_PALMTC_BL_POWER);
-}
-
 static struct platform_pwm_backlight_data palmtc_backlight_data = {
 	.pwm_id		= 1,
 	.max_brightness	= PALMTC_MAX_INTENSITY,
 	.dft_brightness	= PALMTC_MAX_INTENSITY,
 	.pwm_period_ns	= PALMTC_PERIOD_NS,
-	.init		= palmtc_backlight_init,
-	.notify		= palmtc_backlight_notify,
-	.exit		= palmtc_backlight_exit,
+	.enable_gpio	= GPIO_NR_PALMTC_BL_POWER,
 };
 
 static struct platform_device palmtc_backlight = {
@@ -539,9 +506,10 @@ static void __init palmtc_init(void)
 MACHINE_START(PALMTC, "Palm Tungsten|C")
 	.atag_offset 	= 0x100,
 	.map_io		= pxa25x_map_io,
+	.nr_irqs	= PXA_NR_IRQS,
 	.init_irq	= pxa25x_init_irq,
 	.handle_irq	= pxa25x_handle_irq,
-	.timer		= &pxa_timer,
+	.init_time	= pxa_timer_init,
 	.init_machine	= palmtc_init,
 	.restart	= pxa_restart,
 MACHINE_END

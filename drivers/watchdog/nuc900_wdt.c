@@ -12,7 +12,6 @@
 #include <linux/bitops.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
-#include <linux/init.h>
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/kernel.h>
@@ -55,13 +54,12 @@ module_param(heartbeat, int, 0);
 MODULE_PARM_DESC(heartbeat, "Watchdog heartbeats in seconds. "
 	"(default = " __MODULE_STRING(WDT_HEARTBEAT) ")");
 
-static int nowayout = WATCHDOG_NOWAYOUT;
-module_param(nowayout, int, 0);
+static bool nowayout = WATCHDOG_NOWAYOUT;
+module_param(nowayout, bool, 0);
 MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started "
 	"(default=" __MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
 
 struct nuc900_wdt {
-	struct resource  *res;
 	struct clk	 *wdt_clock;
 	struct platform_device *pdev;
 	void __iomem	 *wdt_base;
@@ -72,7 +70,7 @@ struct nuc900_wdt {
 };
 
 static unsigned long nuc900wdt_busy;
-struct nuc900_wdt *nuc900_wdt;
+static struct nuc900_wdt *nuc900_wdt;
 
 static inline void nuc900_wdt_keepalive(void)
 {
@@ -242,11 +240,13 @@ static struct miscdevice nuc900wdt_miscdev = {
 	.fops		= &nuc900wdt_fops,
 };
 
-static int __devinit nuc900wdt_probe(struct platform_device *pdev)
+static int nuc900wdt_probe(struct platform_device *pdev)
 {
+	struct resource *res;
 	int ret = 0;
 
-	nuc900_wdt = kzalloc(sizeof(struct nuc900_wdt), GFP_KERNEL);
+	nuc900_wdt = devm_kzalloc(&pdev->dev, sizeof(*nuc900_wdt),
+				GFP_KERNEL);
 	if (!nuc900_wdt)
 		return -ENOMEM;
 
@@ -254,40 +254,23 @@ static int __devinit nuc900wdt_probe(struct platform_device *pdev)
 
 	spin_lock_init(&nuc900_wdt->wdt_lock);
 
-	nuc900_wdt->res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (nuc900_wdt->res == NULL) {
-		dev_err(&pdev->dev, "no memory resource specified\n");
-		ret = -ENOENT;
-		goto err_get;
-	}
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	nuc900_wdt->wdt_base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(nuc900_wdt->wdt_base))
+		return PTR_ERR(nuc900_wdt->wdt_base);
 
-	if (!request_mem_region(nuc900_wdt->res->start,
-				resource_size(nuc900_wdt->res), pdev->name)) {
-		dev_err(&pdev->dev, "failed to get memory region\n");
-		ret = -ENOENT;
-		goto err_get;
-	}
-
-	nuc900_wdt->wdt_base = ioremap(nuc900_wdt->res->start,
-					resource_size(nuc900_wdt->res));
-	if (nuc900_wdt->wdt_base == NULL) {
-		dev_err(&pdev->dev, "failed to ioremap() region\n");
-		ret = -EINVAL;
-		goto err_req;
-	}
-
-	nuc900_wdt->wdt_clock = clk_get(&pdev->dev, NULL);
+	nuc900_wdt->wdt_clock = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(nuc900_wdt->wdt_clock)) {
 		dev_err(&pdev->dev, "failed to find watchdog clock source\n");
-		ret = PTR_ERR(nuc900_wdt->wdt_clock);
-		goto err_map;
+		return PTR_ERR(nuc900_wdt->wdt_clock);
 	}
 
 	clk_enable(nuc900_wdt->wdt_clock);
 
 	setup_timer(&nuc900_wdt->timer, nuc900_wdt_timer_ping, 0);
 
-	if (misc_register(&nuc900wdt_miscdev)) {
+	ret = misc_register(&nuc900wdt_miscdev);
+	if (ret) {
 		dev_err(&pdev->dev, "err register miscdev on minor=%d (%d)\n",
 			WATCHDOG_MINOR, ret);
 		goto err_clk;
@@ -297,58 +280,29 @@ static int __devinit nuc900wdt_probe(struct platform_device *pdev)
 
 err_clk:
 	clk_disable(nuc900_wdt->wdt_clock);
-	clk_put(nuc900_wdt->wdt_clock);
-err_map:
-	iounmap(nuc900_wdt->wdt_base);
-err_req:
-	release_mem_region(nuc900_wdt->res->start,
-					resource_size(nuc900_wdt->res));
-err_get:
-	kfree(nuc900_wdt);
 	return ret;
 }
 
-static int __devexit nuc900wdt_remove(struct platform_device *pdev)
+static int nuc900wdt_remove(struct platform_device *pdev)
 {
 	misc_deregister(&nuc900wdt_miscdev);
 
 	clk_disable(nuc900_wdt->wdt_clock);
-	clk_put(nuc900_wdt->wdt_clock);
-
-	iounmap(nuc900_wdt->wdt_base);
-
-	release_mem_region(nuc900_wdt->res->start,
-					resource_size(nuc900_wdt->res));
-
-	kfree(nuc900_wdt);
 
 	return 0;
 }
 
 static struct platform_driver nuc900wdt_driver = {
 	.probe		= nuc900wdt_probe,
-	.remove		= __devexit_p(nuc900wdt_remove),
+	.remove		= nuc900wdt_remove,
 	.driver		= {
 		.name	= "nuc900-wdt",
-		.owner	= THIS_MODULE,
 	},
 };
 
-static int __init nuc900_wdt_init(void)
-{
-	return platform_driver_register(&nuc900wdt_driver);
-}
-
-static void __exit nuc900_wdt_exit(void)
-{
-	platform_driver_unregister(&nuc900wdt_driver);
-}
-
-module_init(nuc900_wdt_init);
-module_exit(nuc900_wdt_exit);
+module_platform_driver(nuc900wdt_driver);
 
 MODULE_AUTHOR("Wan ZongShun <mcuos.com@gmail.com>");
 MODULE_DESCRIPTION("Watchdog driver for NUC900");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS_MISCDEV(WATCHDOG_MINOR);
 MODULE_ALIAS("platform:nuc900-wdt");

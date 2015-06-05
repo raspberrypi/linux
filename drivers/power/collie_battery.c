@@ -26,6 +26,7 @@
 static DEFINE_MUTEX(bat_lock); /* protects gpio pins */
 static struct work_struct bat_work;
 static struct ucb1x00 *ucb;
+static int wakeup_enabled;
 
 struct collie_bat {
 	int status;
@@ -146,7 +147,7 @@ static void collie_bat_external_power_changed(struct power_supply *psy)
 
 static irqreturn_t collie_bat_gpio_isr(int irq, void *data)
 {
-	pr_info("collie_bat_gpio irq: %d\n", gpio_get_value(irq_to_gpio(irq)));
+	pr_info("collie_bat_gpio irq\n");
 	schedule_work(&bat_work);
 	return IRQ_HANDLED;
 }
@@ -277,30 +278,35 @@ static struct collie_bat collie_bat_bu = {
 	.adc_temp_divider = -1,
 };
 
-static struct {
-	int gpio;
-	char *name;
-	bool output;
-	int value;
-} gpios[] = {
-	{ COLLIE_GPIO_CO,		"main battery full",	0, 0 },
-	{ COLLIE_GPIO_MAIN_BAT_LOW,	"main battery low",	0, 0 },
-	{ COLLIE_GPIO_CHARGE_ON,	"main charge on",	1, 0 },
-	{ COLLIE_GPIO_MBAT_ON,		"main battery",		1, 0 },
-	{ COLLIE_GPIO_TMP_ON,		"main battery temp",	1, 0 },
-	{ COLLIE_GPIO_BBAT_ON,		"backup battery",	1, 0 },
+static struct gpio collie_batt_gpios[] = {
+	{ COLLIE_GPIO_CO,	    GPIOF_IN,		"main battery full" },
+	{ COLLIE_GPIO_MAIN_BAT_LOW, GPIOF_IN,		"main battery low" },
+	{ COLLIE_GPIO_CHARGE_ON,    GPIOF_OUT_INIT_LOW,	"main charge on" },
+	{ COLLIE_GPIO_MBAT_ON,	    GPIOF_OUT_INIT_LOW,	"main battery" },
+	{ COLLIE_GPIO_TMP_ON,	    GPIOF_OUT_INIT_LOW,	"main battery temp" },
+	{ COLLIE_GPIO_BBAT_ON,	    GPIOF_OUT_INIT_LOW,	"backup battery" },
 };
 
 #ifdef CONFIG_PM
-static int collie_bat_suspend(struct ucb1x00_dev *dev, pm_message_t state)
+static int collie_bat_suspend(struct ucb1x00_dev *dev)
 {
 	/* flush all pending status updates */
-	flush_work_sync(&bat_work);
+	flush_work(&bat_work);
+
+	if (device_may_wakeup(&dev->ucb->dev) &&
+	    collie_bat_main.status == POWER_SUPPLY_STATUS_CHARGING)
+		wakeup_enabled = !enable_irq_wake(gpio_to_irq(COLLIE_GPIO_CO));
+	else
+		wakeup_enabled = 0;
+
 	return 0;
 }
 
 static int collie_bat_resume(struct ucb1x00_dev *dev)
 {
+	if (wakeup_enabled)
+		disable_irq_wake(gpio_to_irq(COLLIE_GPIO_CO));
+
 	/* things may have changed while we were away */
 	schedule_work(&bat_work);
 	return 0;
@@ -310,32 +316,19 @@ static int collie_bat_resume(struct ucb1x00_dev *dev)
 #define collie_bat_resume NULL
 #endif
 
-static int __devinit collie_bat_probe(struct ucb1x00_dev *dev)
+static int collie_bat_probe(struct ucb1x00_dev *dev)
 {
 	int ret;
-	int i;
 
 	if (!machine_is_collie())
 		return -ENODEV;
 
 	ucb = dev->ucb;
 
-	for (i = 0; i < ARRAY_SIZE(gpios); i++) {
-		ret = gpio_request(gpios[i].gpio, gpios[i].name);
-		if (ret) {
-			i--;
-			goto err_gpio;
-		}
-
-		if (gpios[i].output)
-			ret = gpio_direction_output(gpios[i].gpio,
-					gpios[i].value);
-		else
-			ret = gpio_direction_input(gpios[i].gpio);
-
-		if (ret)
-			goto err_gpio;
-	}
+	ret = gpio_request_array(collie_batt_gpios,
+				 ARRAY_SIZE(collie_batt_gpios));
+	if (ret)
+		return ret;
 
 	mutex_init(&collie_bat_main.work_lock);
 
@@ -352,10 +345,15 @@ static int __devinit collie_bat_probe(struct ucb1x00_dev *dev)
 				collie_bat_gpio_isr,
 				IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 				"main full", &collie_bat_main);
-	if (!ret) {
-		schedule_work(&bat_work);
-		return 0;
-	}
+	if (ret)
+		goto err_irq;
+
+	device_init_wakeup(&ucb->dev, 1);
+	schedule_work(&bat_work);
+
+	return 0;
+
+err_irq:
 	power_supply_unregister(&collie_bat_bu.psy);
 err_psy_reg_bu:
 	power_supply_unregister(&collie_bat_main.psy);
@@ -363,19 +361,12 @@ err_psy_reg_main:
 
 	/* see comment in collie_bat_remove */
 	cancel_work_sync(&bat_work);
-
-	i--;
-err_gpio:
-	for (; i >= 0; i--)
-		gpio_free(gpios[i].gpio);
-
+	gpio_free_array(collie_batt_gpios, ARRAY_SIZE(collie_batt_gpios));
 	return ret;
 }
 
-static void __devexit collie_bat_remove(struct ucb1x00_dev *dev)
+static void collie_bat_remove(struct ucb1x00_dev *dev)
 {
-	int i;
-
 	free_irq(gpio_to_irq(COLLIE_GPIO_CO), &collie_bat_main);
 
 	power_supply_unregister(&collie_bat_bu.psy);
@@ -387,14 +378,12 @@ static void __devexit collie_bat_remove(struct ucb1x00_dev *dev)
 	 * unregistered now.
 	 */
 	cancel_work_sync(&bat_work);
-
-	for (i = ARRAY_SIZE(gpios) - 1; i >= 0; i--)
-		gpio_free(gpios[i].gpio);
+	gpio_free_array(collie_batt_gpios, ARRAY_SIZE(collie_batt_gpios));
 }
 
 static struct ucb1x00_driver collie_bat_driver = {
 	.add		= collie_bat_probe,
-	.remove		= __devexit_p(collie_bat_remove),
+	.remove		= collie_bat_remove,
 	.suspend	= collie_bat_suspend,
 	.resume		= collie_bat_resume,
 };

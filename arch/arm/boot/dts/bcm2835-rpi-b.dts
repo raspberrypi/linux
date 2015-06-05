@@ -1,0 +1,32 @@
+/dts-v1/;
+/include/ "bcm2835-rpi.dtsi"
+
+/ {
+	compatible = "raspberrypi,model-b", "brcm,bcm2835";
+	model = "Raspberry Pi Model B";
+
+};
+
+&gpio {
+	i2s_pins: i2s {
+		brcm,pins = <28 29 30 31>;
+		brcm,function = <4>; /* alt0 */
+	};
+};
+
+&i2s {
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s_pins>;
+};
+
+&act_led {
+	gpios = <&gpio 16 1>;
+};
+
+/ {
+	__overrides__ {
+		act_led_gpio = <&act_led>,"gpios:4";
+		act_led_activelow = <&act_led>,"gpios:8";
+	};
+};

@@ -1,0 +1,19 @@
+/include/ "bcm2708_common.dtsi"
+
+/ {
+	compatible = "brcm,bcm2708";
+	model = "BCM2708";
+
+	chosen {
+		/* No padding required - the boot loader can do that. */
+		bootargs = "";
+	};
+
+	soc {
+		ranges = <0x7e000000 0x20000000 0x01000000>;
+
+		arm-pmu {
+			compatible = "arm,arm1176-pmu";
+		};
+	};
+};

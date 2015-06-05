@@ -4,7 +4,7 @@
 
 menuconfig PMBUS
 	tristate "PMBus support"
-	depends on I2C && EXPERIMENTAL
+	depends on I2C
 	default n
 	help
 	  Say yes here if you want to enable PMBus support.
@@ -19,8 +19,8 @@ config SENSORS_PMBUS
 	default y
 	help
 	  If you say yes here you get hardware monitoring support for generic
-	  PMBus devices, including but not limited to ADP4000, BMR450, BMR451,
-	  BMR453, BMR454, NCP4200, and NCP4208.
+	  PMBus devices, including but not limited to ADP4000, BMR453, BMR454,
+	  MDT040, NCP4200, NCP4208, PDT003, PDT006, PDT012, UDT020, and TPS40400.
 
 	  This driver can also be built as a module. If so, the module will
 	  be called pmbus.
@@ -30,8 +30,8 @@ config SENSORS_ADM1275
 	default n
 	help
 	  If you say yes here you get hardware monitoring support for Analog
-	  Devices ADM1275 and ADM1276 Hot-Swap Controller and Digital Power
-	  Monitor.
+	  Devices ADM1075, ADM1275, and ADM1276 Hot-Swap Controller and Digital
+	  Power Monitors.
 
 	  This driver can also be built as a module. If so, the module will
 	  be called adm1275.
@@ -41,20 +41,27 @@ config SENSORS_LM25066
 	default n
 	help
 	  If you say yes here you get hardware monitoring support for National
-	  Semiconductor LM25066, LM5064, and LM5066.
+	  Semiconductor LM25056, LM25066, LM5064, and LM5066.
 
 	  This driver can also be built as a module. If so, the module will
 	  be called lm25066.
 
 config SENSORS_LTC2978
-	tristate "Linear Technologies LTC2978 and LTC3880"
+	tristate "Linear Technologies LTC2978 and compatibles"
 	default n
 	help
 	  If you say yes here you get hardware monitoring support for Linear
-	  Technology LTC2978 and LTC3880.
+	  Technology LTC2974, LTC2977, LTC2978, LTC3880, LTC3883, and LTM4676.
 
 	  This driver can also be built as a module. If so, the module will
 	  be called ltc2978.
+
+config SENSORS_LTC2978_REGULATOR
+	bool "Regulator support for LTC2978 and compatibles"
+	depends on SENSORS_LTC2978 && REGULATOR
+	help
+	  If you say yes here you get regulator support for Linear
+	  Technology LTC2974, LTC2977, LTC2978, LTC3880, LTC3883, and LTM4676.
 
 config SENSORS_MAX16064
 	tristate "Maxim MAX16064"
@@ -67,11 +74,11 @@ config SENSORS_MAX16064
 	  be called max16064.
 
 config SENSORS_MAX34440
-	tristate "Maxim MAX34440/MAX34441"
+	tristate "Maxim MAX34440 and compatibles"
 	default n
 	help
 	  If you say yes here you get hardware monitoring support for Maxim
-	  MAX34440 and MAX34441.
+	  MAX34440, MAX34441, MAX34446, MAX34460, and MAX34461.
 
 	  This driver can also be built as a module. If so, the module will
 	  be called max34440.
@@ -85,6 +92,16 @@ config SENSORS_MAX8688
 
 	  This driver can also be built as a module. If so, the module will
 	  be called max8688.
+
+config SENSORS_TPS40422
+	tristate "TI TPS40422"
+	default n
+	help
+	  If you say yes here you get hardware monitoring support for TI
+	  TPS40422.
+
+	  This driver can also be built as a module. If so, the module will
+	  be called tps40422.
 
 config SENSORS_UCD9000
 	tristate "TI UCD90120, UCD90124, UCD9090, UCD90910"
@@ -113,8 +130,9 @@ config SENSORS_ZL6100
 	default n
 	help
 	  If you say yes here you get hardware monitoring support for Intersil
-	  ZL2004, ZL2006, ZL2008, ZL2105, ZL2106, ZL6100, and ZL6105 Digital
-	  DC/DC Controllers.
+	  ZL2004, ZL2005, ZL2006, ZL2008, ZL2105, ZL2106, ZL6100, ZL6105,
+	  ZL9101M, and ZL9117M Digital DC/DC Controllers, as well as for
+	  Ericsson BMR450, BMR451, BMR462, BMR463, and BMR464.
 
 	  This driver can also be built as a module. If so, the module will
 	  be called zl6100.

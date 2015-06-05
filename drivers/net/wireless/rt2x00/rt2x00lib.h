@@ -14,9 +14,7 @@
 	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program; if not, write to the
-	Free Software Foundation, Inc.,
-	59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+	along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -33,6 +31,7 @@
 #define WATCHDOG_INTERVAL	round_jiffies_relative(HZ)
 #define LINK_TUNE_INTERVAL	round_jiffies_relative(HZ)
 #define AGC_INTERVAL		round_jiffies_relative(4 * HZ)
+#define VCO_INTERVAL		round_jiffies_relative(10 * HZ) /* 10 sec */
 
 /*
  * rt2x00_rate: Per rate device information
@@ -102,7 +101,7 @@ void rt2x00lib_config(struct rt2x00_dev *rt2x00dev,
  * rt2x00queue_alloc_rxskb - allocate a skb for RX purposes.
  * @entry: The entry for which the skb will be applicable.
  */
-struct sk_buff *rt2x00queue_alloc_rxskb(struct queue_entry *entry);
+struct sk_buff *rt2x00queue_alloc_rxskb(struct queue_entry *entry, gfp_t gfp);
 
 /**
  * rt2x00queue_free_skb - free a skb
@@ -145,7 +144,7 @@ void rt2x00queue_remove_l2pad(struct sk_buff *skb, unsigned int header_length);
  * @local: frame is not from mac80211
  */
 int rt2x00queue_write_tx_frame(struct data_queue *queue, struct sk_buff *skb,
-			       bool local);
+			       struct ieee80211_sta *sta, bool local);
 
 /**
  * rt2x00queue_update_beacon - Send new beacon from mac80211
@@ -278,10 +277,22 @@ void rt2x00link_stop_watchdog(struct rt2x00_dev *rt2x00dev);
 void rt2x00link_start_agc(struct rt2x00_dev *rt2x00dev);
 
 /**
+ * rt2x00link_start_vcocal - Start periodic VCO calibration
+ * @rt2x00dev: Pointer to &struct rt2x00_dev.
+ */
+void rt2x00link_start_vcocal(struct rt2x00_dev *rt2x00dev);
+
+/**
  * rt2x00link_stop_agc - Stop periodic gain calibration
  * @rt2x00dev: Pointer to &struct rt2x00_dev.
  */
 void rt2x00link_stop_agc(struct rt2x00_dev *rt2x00dev);
+
+/**
+ * rt2x00link_stop_vcocal - Stop periodic VCO calibration
+ * @rt2x00dev: Pointer to &struct rt2x00_dev.
+ */
+void rt2x00link_stop_vcocal(struct rt2x00_dev *rt2x00dev);
 
 /**
  * rt2x00link_register - Initialize link tuning & watchdog functionality

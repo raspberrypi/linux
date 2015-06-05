@@ -13,6 +13,38 @@
 #include <trace/events/rpm.h>
 #include "power.h"
 
+typedef int (*pm_callback_t)(struct device *);
+
+static pm_callback_t __rpm_get_callback(struct device *dev, size_t cb_offset)
+{
+	pm_callback_t cb;
+	const struct dev_pm_ops *ops;
+
+	if (dev->pm_domain)
+		ops = &dev->pm_domain->ops;
+	else if (dev->type && dev->type->pm)
+		ops = dev->type->pm;
+	else if (dev->class && dev->class->pm)
+		ops = dev->class->pm;
+	else if (dev->bus && dev->bus->pm)
+		ops = dev->bus->pm;
+	else
+		ops = NULL;
+
+	if (ops)
+		cb = *(pm_callback_t *)((void *)ops + cb_offset);
+	else
+		cb = NULL;
+
+	if (!cb && dev->driver && dev->driver->pm)
+		cb = *(pm_callback_t *)((void *)dev->driver->pm + cb_offset);
+
+	return cb;
+}
+
+#define RPM_GET_CALLBACK(dev, callback) \
+		__rpm_get_callback(dev, offsetof(struct dev_pm_ops, callback))
+
 static int rpm_resume(struct device *dev, int rpmflags);
 static int rpm_suspend(struct device *dev, int rpmflags);
 
@@ -124,6 +156,76 @@ unsigned long pm_runtime_autosuspend_expiration(struct device *dev)
 }
 EXPORT_SYMBOL_GPL(pm_runtime_autosuspend_expiration);
 
+static int dev_memalloc_noio(struct device *dev, void *data)
+{
+	return dev->power.memalloc_noio;
+}
+
+/*
+ * pm_runtime_set_memalloc_noio - Set a device's memalloc_noio flag.
+ * @dev: Device to handle.
+ * @enable: True for setting the flag and False for clearing the flag.
+ *
+ * Set the flag for all devices in the path from the device to the
+ * root device in the device tree if @enable is true, otherwise clear
+ * the flag for devices in the path whose siblings don't set the flag.
+ *
+ * The function should only be called by block device, or network
+ * device driver for solving the deadlock problem during runtime
+ * resume/suspend:
+ *
+ *     If memory allocation with GFP_KERNEL is called inside runtime
+ *     resume/suspend callback of any one of its ancestors(or the
+ *     block device itself), the deadlock may be triggered inside the
+ *     memory allocation since it might not complete until the block
+ *     device becomes active and the involed page I/O finishes. The
+ *     situation is pointed out first by Alan Stern. Network device
+ *     are involved in iSCSI kind of situation.
+ *
+ * The lock of dev_hotplug_mutex is held in the function for handling
+ * hotplug race because pm_runtime_set_memalloc_noio() may be called
+ * in async probe().
+ *
+ * The function should be called between device_add() and device_del()
+ * on the affected device(block/network device).
+ */
+void pm_runtime_set_memalloc_noio(struct device *dev, bool enable)
+{
+	static DEFINE_MUTEX(dev_hotplug_mutex);
+
+	mutex_lock(&dev_hotplug_mutex);
+	for (;;) {
+		bool enabled;
+
+		/* hold power lock since bitfield is not SMP-safe. */
+		spin_lock_irq(&dev->power.lock);
+		enabled = dev->power.memalloc_noio;
+		dev->power.memalloc_noio = enable;
+		spin_unlock_irq(&dev->power.lock);
+
+		/*
+		 * not need to enable ancestors any more if the device
+		 * has been enabled.
+		 */
+		if (enabled && enable)
+			break;
+
+		dev = dev->parent;
+
+		/*
+		 * clear flag of the parent device only if all the
+		 * children don't set the flag because ancestor's
+		 * flag was set by any one of the descendants.
+		 */
+		if (!dev || (!enable &&
+			     device_for_each_child(dev, NULL,
+						   dev_memalloc_noio)))
+			break;
+	}
+	mutex_unlock(&dev_hotplug_mutex);
+}
+EXPORT_SYMBOL_GPL(pm_runtime_set_memalloc_noio);
+
 /**
  * rpm_check_suspend_allowed - Test whether a device may be suspended.
  * @dev: Device to test.
@@ -147,6 +249,8 @@ static int rpm_check_suspend_allowed(struct device *dev)
 	    || (dev->power.request_pending
 			&& dev->power.request == RPM_REQ_RESUME))
 		retval = -EAGAIN;
+	else if (__dev_pm_qos_read_value(dev) < 0)
+		retval = -EPERM;
 	else if (dev->power.runtime_status == RPM_SUSPENDED)
 		retval = 1;
 
@@ -186,7 +290,8 @@ static int __rpm_callback(int (*cb)(struct device *), struct device *dev)
  * Check if the device's runtime PM status allows it to be suspended.  If
  * another idle notification has been started earlier, return immediately.  If
  * the RPM_ASYNC flag is set then queue an idle-notification request; otherwise
- * run the ->runtime_idle() callback directly.
+ * run the ->runtime_idle() callback directly. If the ->runtime_idle callback
+ * doesn't exist or if it returns 0, call rpm_suspend with the RPM_AUTO flag.
  *
  * This function must be called under dev->power.lock with interrupts disabled.
  */
@@ -221,11 +326,8 @@ static int rpm_idle(struct device *dev, int rpmflags)
 	/* Pending requests need to be canceled. */
 	dev->power.request = RPM_REQ_NONE;
 
-	if (dev->power.no_callbacks) {
-		/* Assume ->runtime_idle() callback would have suspended. */
-		retval = rpm_suspend(dev, rpmflags);
+	if (dev->power.no_callbacks)
 		goto out;
-	}
 
 	/* Carry out an asynchronous or a synchronous idle notification. */
 	if (rpmflags & RPM_ASYNC) {
@@ -234,31 +336,23 @@ static int rpm_idle(struct device *dev, int rpmflags)
 			dev->power.request_pending = true;
 			queue_work(pm_wq, &dev->power.work);
 		}
-		goto out;
+		trace_rpm_return_int(dev, _THIS_IP_, 0);
+		return 0;
 	}
 
 	dev->power.idle_notification = true;
 
-	if (dev->pm_domain)
-		callback = dev->pm_domain->ops.runtime_idle;
-	else if (dev->type && dev->type->pm)
-		callback = dev->type->pm->runtime_idle;
-	else if (dev->class && dev->class->pm)
-		callback = dev->class->pm->runtime_idle;
-	else if (dev->bus && dev->bus->pm)
-		callback = dev->bus->pm->runtime_idle;
-	else
-		callback = NULL;
+	callback = RPM_GET_CALLBACK(dev, runtime_idle);
 
 	if (callback)
-		__rpm_callback(callback, dev);
+		retval = __rpm_callback(callback, dev);
 
 	dev->power.idle_notification = false;
 	wake_up_all(&dev->power.wait_queue);
 
  out:
 	trace_rpm_return_int(dev, _THIS_IP_, retval);
-	return retval;
+	return retval ? retval : rpm_suspend(dev, rpmflags | RPM_AUTO);
 }
 
 /**
@@ -273,7 +367,24 @@ static int rpm_callback(int (*cb)(struct device *), struct device *dev)
 	if (!cb)
 		return -ENOSYS;
 
-	retval = __rpm_callback(cb, dev);
+	if (dev->power.memalloc_noio) {
+		unsigned int noio_flag;
+
+		/*
+		 * Deadlock might be caused if memory allocation with
+		 * GFP_KERNEL happens inside runtime_suspend and
+		 * runtime_resume callbacks of one block device's
+		 * ancestor or the block device itself. Network
+		 * device might be thought as part of iSCSI block
+		 * device, so network device and its ancestor should
+		 * be marked as memalloc_noio too.
+		 */
+		noio_flag = memalloc_noio_save();
+		retval = __rpm_callback(cb, dev);
+		memalloc_noio_restore(noio_flag);
+	} else {
+		retval = __rpm_callback(cb, dev);
+	}
 
 	dev->power.runtime_error = retval;
 	return retval != -EACCES ? retval : -EIO;
@@ -385,7 +496,6 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 		goto repeat;
 	}
 
-	dev->power.deferred_resume = false;
 	if (dev->power.no_callbacks)
 		goto no_callback;	/* Assume success. */
 
@@ -402,39 +512,12 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 
 	__update_runtime_status(dev, RPM_SUSPENDING);
 
-	if (dev->pm_domain)
-		callback = dev->pm_domain->ops.runtime_suspend;
-	else if (dev->type && dev->type->pm)
-		callback = dev->type->pm->runtime_suspend;
-	else if (dev->class && dev->class->pm)
-		callback = dev->class->pm->runtime_suspend;
-	else if (dev->bus && dev->bus->pm)
-		callback = dev->bus->pm->runtime_suspend;
-	else
-		callback = NULL;
+	callback = RPM_GET_CALLBACK(dev, runtime_suspend);
 
 	retval = rpm_callback(callback, dev);
-	if (retval) {
-		__update_runtime_status(dev, RPM_ACTIVE);
-		dev->power.deferred_resume = false;
-		if (retval == -EAGAIN || retval == -EBUSY) {
-			dev->power.runtime_error = 0;
+	if (retval)
+		goto fail;
 
-			/*
-			 * If the callback routine failed an autosuspend, and
-			 * if the last_busy time has been updated so that there
-			 * is a new autosuspend expiration time, automatically
-			 * reschedule another autosuspend.
-			 */
-			if ((rpmflags & RPM_AUTO) &&
-			    pm_runtime_autosuspend_expiration(dev) != 0)
-				goto repeat;
-		} else {
-			pm_runtime_cancel_pending(dev);
-		}
-		wake_up_all(&dev->power.wait_queue);
-		goto out;
-	}
  no_callback:
 	__update_runtime_status(dev, RPM_SUSPENDED);
 	pm_runtime_deactivate_timer(dev);
@@ -446,6 +529,7 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 	wake_up_all(&dev->power.wait_queue);
 
 	if (dev->power.deferred_resume) {
+		dev->power.deferred_resume = false;
 		rpm_resume(dev, 0);
 		retval = -EAGAIN;
 		goto out;
@@ -466,6 +550,28 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 	trace_rpm_return_int(dev, _THIS_IP_, retval);
 
 	return retval;
+
+ fail:
+	__update_runtime_status(dev, RPM_ACTIVE);
+	dev->power.deferred_resume = false;
+	wake_up_all(&dev->power.wait_queue);
+
+	if (retval == -EAGAIN || retval == -EBUSY) {
+		dev->power.runtime_error = 0;
+
+		/*
+		 * If the callback routine failed an autosuspend, and
+		 * if the last_busy time has been updated so that there
+		 * is a new autosuspend expiration time, automatically
+		 * reschedule another autosuspend.
+		 */
+		if ((rpmflags & RPM_AUTO) &&
+		    pm_runtime_autosuspend_expiration(dev) != 0)
+			goto repeat;
+	} else {
+		pm_runtime_cancel_pending(dev);
+	}
+	goto out;
 }
 
 /**
@@ -497,6 +603,9 @@ static int rpm_resume(struct device *dev, int rpmflags)
  repeat:
 	if (dev->power.runtime_error)
 		retval = -EINVAL;
+	else if (dev->power.disable_depth == 1 && dev->power.is_suspended
+	    && dev->power.runtime_status == RPM_ACTIVE)
+		retval = 1;
 	else if (dev->power.disable_depth > 0)
 		retval = -EACCES;
 	if (retval)
@@ -568,6 +677,7 @@ static int rpm_resume(struct device *dev, int rpmflags)
 		    || dev->parent->power.runtime_status == RPM_ACTIVE) {
 			atomic_inc(&dev->parent->power.child_count);
 			spin_unlock(&dev->parent->power.lock);
+			retval = 1;
 			goto no_callback;	/* Assume success. */
 		}
 		spin_unlock(&dev->parent->power.lock);
@@ -622,16 +732,7 @@ static int rpm_resume(struct device *dev, int rpmflags)
 
 	__update_runtime_status(dev, RPM_RESUMING);
 
-	if (dev->pm_domain)
-		callback = dev->pm_domain->ops.runtime_resume;
-	else if (dev->type && dev->type->pm)
-		callback = dev->type->pm->runtime_resume;
-	else if (dev->class && dev->class->pm)
-		callback = dev->class->pm->runtime_resume;
-	else if (dev->bus && dev->bus->pm)
-		callback = dev->bus->pm->runtime_resume;
-	else
-		callback = NULL;
+	callback = RPM_GET_CALLBACK(dev, runtime_resume);
 
 	retval = rpm_callback(callback, dev);
 	if (retval) {
@@ -645,7 +746,7 @@ static int rpm_resume(struct device *dev, int rpmflags)
 	}
 	wake_up_all(&dev->power.wait_queue);
 
-	if (!retval)
+	if (retval >= 0)
 		rpm_idle(dev, RPM_ASYNC);
 
  out:
@@ -1025,7 +1126,7 @@ EXPORT_SYMBOL_GPL(pm_runtime_barrier);
  * @dev: Device to handle.
  * @check_resume: If set, check if there's a resume request for the device.
  *
- * Increment power.disable_depth for the device and if was zero previously,
+ * Increment power.disable_depth for the device and if it was zero previously,
  * cancel all pending runtime PM requests for the device and wait for all
  * operations in progress to complete.  The device can be either active or
  * suspended after its runtime PM has been disabled.
@@ -1294,5 +1395,81 @@ void pm_runtime_remove(struct device *dev)
 	if (dev->power.runtime_status == RPM_ACTIVE)
 		pm_runtime_set_suspended(dev);
 	if (dev->power.irq_safe && dev->parent)
-		pm_runtime_put_sync(dev->parent);
+		pm_runtime_put(dev->parent);
 }
+
+/**
+ * pm_runtime_force_suspend - Force a device into suspend state if needed.
+ * @dev: Device to suspend.
+ *
+ * Disable runtime PM so we safely can check the device's runtime PM status and
+ * if it is active, invoke it's .runtime_suspend callback to bring it into
+ * suspend state. Keep runtime PM disabled to preserve the state unless we
+ * encounter errors.
+ *
+ * Typically this function may be invoked from a system suspend callback to make
+ * sure the device is put into low power state.
+ */
+int pm_runtime_force_suspend(struct device *dev)
+{
+	int (*callback)(struct device *);
+	int ret = 0;
+
+	pm_runtime_disable(dev);
+	if (pm_runtime_status_suspended(dev))
+		return 0;
+
+	callback = RPM_GET_CALLBACK(dev, runtime_suspend);
+
+	if (!callback) {
+		ret = -ENOSYS;
+		goto err;
+	}
+
+	ret = callback(dev);
+	if (ret)
+		goto err;
+
+	pm_runtime_set_suspended(dev);
+	return 0;
+err:
+	pm_runtime_enable(dev);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(pm_runtime_force_suspend);
+
+/**
+ * pm_runtime_force_resume - Force a device into resume state.
+ * @dev: Device to resume.
+ *
+ * Prior invoking this function we expect the user to have brought the device
+ * into low power state by a call to pm_runtime_force_suspend(). Here we reverse
+ * those actions and brings the device into full power. We update the runtime PM
+ * status and re-enables runtime PM.
+ *
+ * Typically this function may be invoked from a system resume callback to make
+ * sure the device is put into full power state.
+ */
+int pm_runtime_force_resume(struct device *dev)
+{
+	int (*callback)(struct device *);
+	int ret = 0;
+
+	callback = RPM_GET_CALLBACK(dev, runtime_resume);
+
+	if (!callback) {
+		ret = -ENOSYS;
+		goto out;
+	}
+
+	ret = callback(dev);
+	if (ret)
+		goto out;
+
+	pm_runtime_set_active(dev);
+	pm_runtime_mark_last_busy(dev);
+out:
+	pm_runtime_enable(dev);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(pm_runtime_force_resume);

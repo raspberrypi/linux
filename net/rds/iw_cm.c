@@ -590,8 +590,8 @@ void rds_iw_conn_shutdown(struct rds_connection *conn)
 			/* Actually this may happen quite frequently, when
 			 * an outgoing connect raced with an incoming connect.
 			 */
-			rdsdebug("rds_iw_conn_shutdown: failed to disconnect,"
-				   " cm: %p err %d\n", ic->i_cm_id, err);
+			rdsdebug("failed to disconnect, cm: %p err %d\n",
+				 ic->i_cm_id, err);
 		}
 
 		if (ic->i_cm_id->qp) {
@@ -694,7 +694,7 @@ int rds_iw_conn_alloc(struct rds_connection *conn, gfp_t gfp)
 	unsigned long flags;
 
 	/* XXX too lazy? */
-	ic = kzalloc(sizeof(struct rds_iw_connection), GFP_KERNEL);
+	ic = kzalloc(sizeof(struct rds_iw_connection), gfp);
 	if (!ic)
 		return -ENOMEM;
 

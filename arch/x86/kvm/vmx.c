@@ -18,6 +18,7 @@
 
 #include "irq.h"
 #include "mmu.h"
+#include "cpuid.h"
 
 #include <linux/kvm_host.h>
 #include <linux/module.h>
@@ -26,9 +27,11 @@
 #include <linux/highmem.h>
 #include <linux/sched.h>
 #include <linux/moduleparam.h>
+#include <linux/mod_devicetable.h>
 #include <linux/ftrace_event.h>
 #include <linux/slab.h>
 #include <linux/tboot.h>
+#include <linux/hrtimer.h>
 #include "kvm_cache_regs.h"
 #include "x86.h"
 
@@ -40,6 +43,9 @@
 #include <asm/i387.h>
 #include <asm/xcr.h>
 #include <asm/perf_event.h>
+#include <asm/debugreg.h>
+#include <asm/kexec.h>
+#include <asm/apic.h>
 
 #include "trace.h"
 
@@ -50,55 +56,69 @@
 MODULE_AUTHOR("Qumranet");
 MODULE_LICENSE("GPL");
 
-static int __read_mostly enable_vpid = 1;
+static const struct x86_cpu_id vmx_cpu_id[] = {
+	X86_FEATURE_MATCH(X86_FEATURE_VMX),
+	{}
+};
+MODULE_DEVICE_TABLE(x86cpu, vmx_cpu_id);
+
+static bool __read_mostly enable_vpid = 1;
 module_param_named(vpid, enable_vpid, bool, 0444);
 
-static int __read_mostly flexpriority_enabled = 1;
+static bool __read_mostly flexpriority_enabled = 1;
 module_param_named(flexpriority, flexpriority_enabled, bool, S_IRUGO);
 
-static int __read_mostly enable_ept = 1;
+static bool __read_mostly enable_ept = 1;
 module_param_named(ept, enable_ept, bool, S_IRUGO);
 
-static int __read_mostly enable_unrestricted_guest = 1;
+static bool __read_mostly enable_unrestricted_guest = 1;
 module_param_named(unrestricted_guest,
 			enable_unrestricted_guest, bool, S_IRUGO);
 
-static int __read_mostly emulate_invalid_guest_state = 0;
+static bool __read_mostly enable_ept_ad_bits = 1;
+module_param_named(eptad, enable_ept_ad_bits, bool, S_IRUGO);
+
+static bool __read_mostly emulate_invalid_guest_state = true;
 module_param(emulate_invalid_guest_state, bool, S_IRUGO);
 
-static int __read_mostly vmm_exclusive = 1;
+static bool __read_mostly vmm_exclusive = 1;
 module_param(vmm_exclusive, bool, S_IRUGO);
 
-static int __read_mostly yield_on_hlt = 1;
-module_param(yield_on_hlt, bool, S_IRUGO);
-
-static int __read_mostly fasteoi = 1;
+static bool __read_mostly fasteoi = 1;
 module_param(fasteoi, bool, S_IRUGO);
 
+static bool __read_mostly enable_apicv = 1;
+module_param(enable_apicv, bool, S_IRUGO);
+
+static bool __read_mostly enable_shadow_vmcs = 1;
+module_param_named(enable_shadow_vmcs, enable_shadow_vmcs, bool, S_IRUGO);
 /*
  * If nested=1, nested virtualization is supported, i.e., guests may use
  * VMX and be a hypervisor for its own guests. If nested=0, guests may not
  * use VMX instructions.
  */
-static int __read_mostly nested = 0;
+static bool __read_mostly nested = 0;
 module_param(nested, bool, S_IRUGO);
 
-#define KVM_GUEST_CR0_MASK_UNRESTRICTED_GUEST				\
-	(X86_CR0_WP | X86_CR0_NE | X86_CR0_NW | X86_CR0_CD)
-#define KVM_GUEST_CR0_MASK						\
-	(KVM_GUEST_CR0_MASK_UNRESTRICTED_GUEST | X86_CR0_PG | X86_CR0_PE)
-#define KVM_VM_CR0_ALWAYS_ON_UNRESTRICTED_GUEST				\
-	(X86_CR0_WP | X86_CR0_NE)
+static u64 __read_mostly host_xss;
+
+static bool __read_mostly enable_pml = 1;
+module_param_named(pml, enable_pml, bool, S_IRUGO);
+
+#define KVM_GUEST_CR0_MASK (X86_CR0_NW | X86_CR0_CD)
+#define KVM_VM_CR0_ALWAYS_ON_UNRESTRICTED_GUEST (X86_CR0_WP | X86_CR0_NE)
 #define KVM_VM_CR0_ALWAYS_ON						\
 	(KVM_VM_CR0_ALWAYS_ON_UNRESTRICTED_GUEST | X86_CR0_PG | X86_CR0_PE)
 #define KVM_CR4_GUEST_OWNED_BITS				      \
 	(X86_CR4_PVI | X86_CR4_DE | X86_CR4_PCE | X86_CR4_OSFXSR      \
-	 | X86_CR4_OSXMMEXCPT)
+	 | X86_CR4_OSXMMEXCPT | X86_CR4_TSD)
 
 #define KVM_PMODE_VM_CR4_ALWAYS_ON (X86_CR4_PAE | X86_CR4_VMXE)
 #define KVM_RMODE_VM_CR4_ALWAYS_ON (X86_CR4_VME | X86_CR4_PAE | X86_CR4_VMXE)
 
 #define RMODE_GUEST_OWNED_EFLAGS_BITS (~(X86_EFLAGS_IOPL | X86_EFLAGS_VM))
+
+#define VMX_MISC_EMULATED_PREEMPTION_TIMER_RATE 5
 
 /*
  * These 2 parameters are used to config the controls for Pause-Loop Exiting:
@@ -111,13 +131,33 @@ module_param(nested, bool, S_IRUGO);
  * Time is measured based on a counter that runs at the same rate as the TSC,
  * refer SDM volume 3b section 21.6.13 & 22.1.3.
  */
-#define KVM_VMX_DEFAULT_PLE_GAP    128
-#define KVM_VMX_DEFAULT_PLE_WINDOW 4096
+#define KVM_VMX_DEFAULT_PLE_GAP           128
+#define KVM_VMX_DEFAULT_PLE_WINDOW        4096
+#define KVM_VMX_DEFAULT_PLE_WINDOW_GROW   2
+#define KVM_VMX_DEFAULT_PLE_WINDOW_SHRINK 0
+#define KVM_VMX_DEFAULT_PLE_WINDOW_MAX    \
+		INT_MAX / KVM_VMX_DEFAULT_PLE_WINDOW_GROW
+
 static int ple_gap = KVM_VMX_DEFAULT_PLE_GAP;
 module_param(ple_gap, int, S_IRUGO);
 
 static int ple_window = KVM_VMX_DEFAULT_PLE_WINDOW;
 module_param(ple_window, int, S_IRUGO);
+
+/* Default doubles per-vcpu window every exit. */
+static int ple_window_grow = KVM_VMX_DEFAULT_PLE_WINDOW_GROW;
+module_param(ple_window_grow, int, S_IRUGO);
+
+/* Default resets per-vcpu window every exit to ple_window. */
+static int ple_window_shrink = KVM_VMX_DEFAULT_PLE_WINDOW_SHRINK;
+module_param(ple_window_shrink, int, S_IRUGO);
+
+/* Default is to compute the maximum so we can never overflow. */
+static int ple_window_actual_max = KVM_VMX_DEFAULT_PLE_WINDOW_MAX;
+static int ple_window_max        = KVM_VMX_DEFAULT_PLE_WINDOW_MAX;
+module_param(ple_window_max, int, S_IRUGO);
+
+extern const ulong vmx_return;
 
 #define NR_AUTOLOAD_MSRS 8
 #define VMCS02_POOL_SIZE 1
@@ -179,7 +219,13 @@ struct __packed vmcs12 {
 	u64 tsc_offset;
 	u64 virtual_apic_page_addr;
 	u64 apic_access_addr;
+	u64 posted_intr_desc_addr;
 	u64 ept_pointer;
+	u64 eoi_exit_bitmap0;
+	u64 eoi_exit_bitmap1;
+	u64 eoi_exit_bitmap2;
+	u64 eoi_exit_bitmap3;
+	u64 xss_exit_bitmap;
 	u64 guest_physical_address;
 	u64 vmcs_link_pointer;
 	u64 guest_ia32_debugctl;
@@ -190,6 +236,7 @@ struct __packed vmcs12 {
 	u64 guest_pdptr1;
 	u64 guest_pdptr2;
 	u64 guest_pdptr3;
+	u64 guest_bndcfgs;
 	u64 host_ia32_pat;
 	u64 host_ia32_efer;
 	u64 host_ia32_perf_global_ctrl;
@@ -289,8 +336,10 @@ struct __packed vmcs12 {
 	u32 guest_activity_state;
 	u32 guest_sysenter_cs;
 	u32 host_ia32_sysenter_cs;
-	u32 padding32[8]; /* room for future expansion */
+	u32 vmx_preemption_timer_value;
+	u32 padding32[7]; /* room for future expansion */
 	u16 virtual_processor_id;
+	u16 posted_intr_nv;
 	u16 guest_es_selector;
 	u16 guest_cs_selector;
 	u16 guest_ss_selector;
@@ -299,6 +348,7 @@ struct __packed vmcs12 {
 	u16 guest_gs_selector;
 	u16 guest_ldtr_selector;
 	u16 guest_tr_selector;
+	u16 guest_intr_status;
 	u16 host_es_selector;
 	u16 host_cs_selector;
 	u16 host_ss_selector;
@@ -336,12 +386,19 @@ struct vmcs02_list {
 struct nested_vmx {
 	/* Has the level1 guest done vmxon? */
 	bool vmxon;
+	gpa_t vmxon_ptr;
 
 	/* The guest-physical address of the current VMCS L1 keeps for L2 */
 	gpa_t current_vmptr;
 	/* The host-usable pointer to the above */
 	struct page *current_vmcs12_page;
 	struct vmcs12 *current_vmcs12;
+	struct vmcs *current_shadow_vmcs;
+	/*
+	 * Indicates if the shadow vmcs must be updated with the
+	 * data hold by vmcs12
+	 */
+	bool sync_shadow_vmcs;
 
 	/* vmcs02_list cache of VMCSs recently used to run L2 guests */
 	struct list_head vmcs02_pool;
@@ -354,13 +411,66 @@ struct nested_vmx {
 	 * we must keep them pinned while L2 runs.
 	 */
 	struct page *apic_access_page;
+	struct page *virtual_apic_page;
+	struct page *pi_desc_page;
+	struct pi_desc *pi_desc;
+	bool pi_pending;
+	u16 posted_intr_nv;
+	u64 msr_ia32_feature_control;
+
+	struct hrtimer preemption_timer;
+	bool preemption_timer_expired;
+
+	/* to migrate it to L2 if VM_ENTRY_LOAD_DEBUG_CONTROLS is off */
+	u64 vmcs01_debugctl;
+
+	u32 nested_vmx_procbased_ctls_low;
+	u32 nested_vmx_procbased_ctls_high;
+	u32 nested_vmx_true_procbased_ctls_low;
+	u32 nested_vmx_secondary_ctls_low;
+	u32 nested_vmx_secondary_ctls_high;
+	u32 nested_vmx_pinbased_ctls_low;
+	u32 nested_vmx_pinbased_ctls_high;
+	u32 nested_vmx_exit_ctls_low;
+	u32 nested_vmx_exit_ctls_high;
+	u32 nested_vmx_true_exit_ctls_low;
+	u32 nested_vmx_entry_ctls_low;
+	u32 nested_vmx_entry_ctls_high;
+	u32 nested_vmx_true_entry_ctls_low;
+	u32 nested_vmx_misc_low;
+	u32 nested_vmx_misc_high;
+	u32 nested_vmx_ept_caps;
 };
+
+#define POSTED_INTR_ON  0
+/* Posted-Interrupt Descriptor */
+struct pi_desc {
+	u32 pir[8];     /* Posted interrupt requested */
+	u32 control;	/* bit 0 of control is outstanding notification bit */
+	u32 rsvd[7];
+} __aligned(64);
+
+static bool pi_test_and_set_on(struct pi_desc *pi_desc)
+{
+	return test_and_set_bit(POSTED_INTR_ON,
+			(unsigned long *)&pi_desc->control);
+}
+
+static bool pi_test_and_clear_on(struct pi_desc *pi_desc)
+{
+	return test_and_clear_bit(POSTED_INTR_ON,
+			(unsigned long *)&pi_desc->control);
+}
+
+static int pi_test_and_set_pir(int vector, struct pi_desc *pi_desc)
+{
+	return test_and_set_bit(vector, (unsigned long *)pi_desc->pir);
+}
 
 struct vcpu_vmx {
 	struct kvm_vcpu       vcpu;
 	unsigned long         host_rsp;
 	u8                    fail;
-	u8                    cpl;
 	bool                  nmi_known_unmasked;
 	u32                   exit_intr_info;
 	u32                   idt_vectoring_info;
@@ -368,10 +478,13 @@ struct vcpu_vmx {
 	struct shared_msr_entry *guest_msrs;
 	int                   nmsrs;
 	int                   save_nmsrs;
+	unsigned long	      host_idt_base;
 #ifdef CONFIG_X86_64
 	u64 		      msr_host_kernel_gs_base;
 	u64 		      msr_guest_kernel_gs_base;
 #endif
+	u32 vm_entry_controls_shadow;
+	u32 vm_exit_controls_shadow;
 	/*
 	 * loaded_vmcs points to the VMCS currently used in this vcpu. For a
 	 * non-nested (L1) guest, it always points to vmcs01. For a nested
@@ -388,22 +501,27 @@ struct vcpu_vmx {
 	struct {
 		int           loaded;
 		u16           fs_sel, gs_sel, ldt_sel;
+#ifdef CONFIG_X86_64
+		u16           ds_sel, es_sel;
+#endif
 		int           gs_ldt_reload_needed;
 		int           fs_reload_needed;
+		u64           msr_host_bndcfgs;
+		unsigned long vmcs_host_cr4;	/* May not match real cr4 */
 	} host_state;
 	struct {
 		int vm86_active;
 		ulong save_rflags;
+		struct kvm_segment segs[8];
+	} rmode;
+	struct {
+		u32 bitmask; /* 4 bits per segment (1 bit per field) */
 		struct kvm_save_segment {
 			u16 selector;
 			unsigned long base;
 			u32 limit;
 			u32 ar;
-		} tr, es, ds, fs, gs;
-	} rmode;
-	struct {
-		u32 bitmask; /* 4 bits per segment (1 bit per field) */
-		struct kvm_save_segment seg[8];
+		} seg[8];
 	} segment_cache;
 	int vpid;
 	bool emulation_required;
@@ -416,8 +534,19 @@ struct vcpu_vmx {
 
 	bool rdtscp_enabled;
 
+	/* Posted interrupt descriptor */
+	struct pi_desc pi_desc;
+
 	/* Support for a guest hypervisor (nested VMX) */
 	struct nested_vmx nested;
+
+	/* Dynamic PLE window. */
+	int ple_window;
+	bool ple_window_dirty;
+
+	/* Support for PML */
+#define PML_ENTITY_NUM		512
+	struct page *pml_pg;
 };
 
 enum segment_cache_field {
@@ -439,8 +568,69 @@ static inline struct vcpu_vmx *to_vmx(struct kvm_vcpu *vcpu)
 #define FIELD64(number, name)	[number] = VMCS12_OFFSET(name), \
 				[number##_HIGH] = VMCS12_OFFSET(name)+4
 
-static unsigned short vmcs_field_to_offset_table[] = {
+
+static unsigned long shadow_read_only_fields[] = {
+	/*
+	 * We do NOT shadow fields that are modified when L0
+	 * traps and emulates any vmx instruction (e.g. VMPTRLD,
+	 * VMXON...) executed by L1.
+	 * For example, VM_INSTRUCTION_ERROR is read
+	 * by L1 if a vmx instruction fails (part of the error path).
+	 * Note the code assumes this logic. If for some reason
+	 * we start shadowing these fields then we need to
+	 * force a shadow sync when L0 emulates vmx instructions
+	 * (e.g. force a sync if VM_INSTRUCTION_ERROR is modified
+	 * by nested_vmx_failValid)
+	 */
+	VM_EXIT_REASON,
+	VM_EXIT_INTR_INFO,
+	VM_EXIT_INSTRUCTION_LEN,
+	IDT_VECTORING_INFO_FIELD,
+	IDT_VECTORING_ERROR_CODE,
+	VM_EXIT_INTR_ERROR_CODE,
+	EXIT_QUALIFICATION,
+	GUEST_LINEAR_ADDRESS,
+	GUEST_PHYSICAL_ADDRESS
+};
+static int max_shadow_read_only_fields =
+	ARRAY_SIZE(shadow_read_only_fields);
+
+static unsigned long shadow_read_write_fields[] = {
+	TPR_THRESHOLD,
+	GUEST_RIP,
+	GUEST_RSP,
+	GUEST_CR0,
+	GUEST_CR3,
+	GUEST_CR4,
+	GUEST_INTERRUPTIBILITY_INFO,
+	GUEST_RFLAGS,
+	GUEST_CS_SELECTOR,
+	GUEST_CS_AR_BYTES,
+	GUEST_CS_LIMIT,
+	GUEST_CS_BASE,
+	GUEST_ES_BASE,
+	GUEST_BNDCFGS,
+	CR0_GUEST_HOST_MASK,
+	CR0_READ_SHADOW,
+	CR4_READ_SHADOW,
+	TSC_OFFSET,
+	EXCEPTION_BITMAP,
+	CPU_BASED_VM_EXEC_CONTROL,
+	VM_ENTRY_EXCEPTION_ERROR_CODE,
+	VM_ENTRY_INTR_INFO_FIELD,
+	VM_ENTRY_INSTRUCTION_LEN,
+	VM_ENTRY_EXCEPTION_ERROR_CODE,
+	HOST_FS_BASE,
+	HOST_GS_BASE,
+	HOST_FS_SELECTOR,
+	HOST_GS_SELECTOR
+};
+static int max_shadow_read_write_fields =
+	ARRAY_SIZE(shadow_read_write_fields);
+
+static const unsigned short vmcs_field_to_offset_table[] = {
 	FIELD(VIRTUAL_PROCESSOR_ID, virtual_processor_id),
+	FIELD(POSTED_INTR_NV, posted_intr_nv),
 	FIELD(GUEST_ES_SELECTOR, guest_es_selector),
 	FIELD(GUEST_CS_SELECTOR, guest_cs_selector),
 	FIELD(GUEST_SS_SELECTOR, guest_ss_selector),
@@ -449,6 +639,7 @@ static unsigned short vmcs_field_to_offset_table[] = {
 	FIELD(GUEST_GS_SELECTOR, guest_gs_selector),
 	FIELD(GUEST_LDTR_SELECTOR, guest_ldtr_selector),
 	FIELD(GUEST_TR_SELECTOR, guest_tr_selector),
+	FIELD(GUEST_INTR_STATUS, guest_intr_status),
 	FIELD(HOST_ES_SELECTOR, host_es_selector),
 	FIELD(HOST_CS_SELECTOR, host_cs_selector),
 	FIELD(HOST_SS_SELECTOR, host_ss_selector),
@@ -465,7 +656,13 @@ static unsigned short vmcs_field_to_offset_table[] = {
 	FIELD64(TSC_OFFSET, tsc_offset),
 	FIELD64(VIRTUAL_APIC_PAGE_ADDR, virtual_apic_page_addr),
 	FIELD64(APIC_ACCESS_ADDR, apic_access_addr),
+	FIELD64(POSTED_INTR_DESC_ADDR, posted_intr_desc_addr),
 	FIELD64(EPT_POINTER, ept_pointer),
+	FIELD64(EOI_EXIT_BITMAP0, eoi_exit_bitmap0),
+	FIELD64(EOI_EXIT_BITMAP1, eoi_exit_bitmap1),
+	FIELD64(EOI_EXIT_BITMAP2, eoi_exit_bitmap2),
+	FIELD64(EOI_EXIT_BITMAP3, eoi_exit_bitmap3),
+	FIELD64(XSS_EXIT_BITMAP, xss_exit_bitmap),
 	FIELD64(GUEST_PHYSICAL_ADDRESS, guest_physical_address),
 	FIELD64(VMCS_LINK_POINTER, vmcs_link_pointer),
 	FIELD64(GUEST_IA32_DEBUGCTL, guest_ia32_debugctl),
@@ -476,6 +673,7 @@ static unsigned short vmcs_field_to_offset_table[] = {
 	FIELD64(GUEST_PDPTR1, guest_pdptr1),
 	FIELD64(GUEST_PDPTR2, guest_pdptr2),
 	FIELD64(GUEST_PDPTR3, guest_pdptr3),
+	FIELD64(GUEST_BNDCFGS, guest_bndcfgs),
 	FIELD64(HOST_IA32_PAT, host_ia32_pat),
 	FIELD64(HOST_IA32_EFER, host_ia32_efer),
 	FIELD64(HOST_IA32_PERF_GLOBAL_CTRL, host_ia32_perf_global_ctrl),
@@ -525,6 +723,7 @@ static unsigned short vmcs_field_to_offset_table[] = {
 	FIELD(GUEST_ACTIVITY_STATE, guest_activity_state),
 	FIELD(GUEST_SYSENTER_CS, guest_sysenter_cs),
 	FIELD(HOST_IA32_SYSENTER_CS, host_ia32_sysenter_cs),
+	FIELD(VMX_PREEMPTION_TIMER_VALUE, vmx_preemption_timer_value),
 	FIELD(CR0_GUEST_HOST_MASK, cr0_guest_host_mask),
 	FIELD(CR4_GUEST_HOST_MASK, cr4_guest_host_mask),
 	FIELD(CR0_READ_SHADOW, cr0_read_shadow),
@@ -568,12 +767,15 @@ static unsigned short vmcs_field_to_offset_table[] = {
 	FIELD(HOST_RSP, host_rsp),
 	FIELD(HOST_RIP, host_rip),
 };
-static const int max_vmcs_field = ARRAY_SIZE(vmcs_field_to_offset_table);
 
 static inline short vmcs_field_to_offset(unsigned long field)
 {
-	if (field >= max_vmcs_field || vmcs_field_to_offset_table[field] == 0)
-		return -1;
+	BUILD_BUG_ON(ARRAY_SIZE(vmcs_field_to_offset_table) > SHRT_MAX);
+
+	if (field >= ARRAY_SIZE(vmcs_field_to_offset_table) ||
+	    vmcs_field_to_offset_table[field] == 0)
+		return -ENOENT;
+
 	return vmcs_field_to_offset_table[field];
 }
 
@@ -585,10 +787,9 @@ static inline struct vmcs12 *get_vmcs12(struct kvm_vcpu *vcpu)
 static struct page *nested_get_page(struct kvm_vcpu *vcpu, gpa_t addr)
 {
 	struct page *page = gfn_to_page(vcpu->kvm, addr >> PAGE_SHIFT);
-	if (is_error_page(page)) {
-		kvm_release_page_clean(page);
+	if (is_error_page(page))
 		return NULL;
-	}
+
 	return page;
 }
 
@@ -602,11 +803,24 @@ static void nested_release_page_clean(struct page *page)
 	kvm_release_page_clean(page);
 }
 
+static unsigned long nested_ept_get_cr3(struct kvm_vcpu *vcpu);
 static u64 construct_eptp(unsigned long root_hpa);
 static void kvm_cpu_vmxon(u64 addr);
 static void kvm_cpu_vmxoff(void);
-static void vmx_set_cr3(struct kvm_vcpu *vcpu, unsigned long cr3);
+static bool vmx_mpx_supported(void);
+static bool vmx_xsaves_supported(void);
+static int vmx_vm_has_apicv(struct kvm *kvm);
 static int vmx_set_tss_addr(struct kvm *kvm, unsigned int addr);
+static void vmx_set_segment(struct kvm_vcpu *vcpu,
+			    struct kvm_segment *var, int seg);
+static void vmx_get_segment(struct kvm_vcpu *vcpu,
+			    struct kvm_segment *var, int seg);
+static bool guest_state_valid(struct kvm_vcpu *vcpu);
+static u32 vmx_segment_access_rights(struct kvm_segment *var);
+static void vmx_sync_pir_to_irr_dummy(struct kvm_vcpu *vcpu);
+static void copy_vmcs12_to_shadow(struct vcpu_vmx *vmx);
+static void copy_shadow_to_vmcs12(struct vcpu_vmx *vmx);
+static int alloc_identity_pagetable(struct kvm *kvm);
 
 static DEFINE_PER_CPU(struct vmcs *, vmxarea);
 static DEFINE_PER_CPU(struct vmcs *, current_vmcs);
@@ -621,6 +835,11 @@ static unsigned long *vmx_io_bitmap_a;
 static unsigned long *vmx_io_bitmap_b;
 static unsigned long *vmx_msr_bitmap_legacy;
 static unsigned long *vmx_msr_bitmap_longmode;
+static unsigned long *vmx_msr_bitmap_legacy_x2apic;
+static unsigned long *vmx_msr_bitmap_longmode_x2apic;
+static unsigned long *vmx_msr_bitmap_nested;
+static unsigned long *vmx_vmread_bitmap;
+static unsigned long *vmx_vmwrite_bitmap;
 
 static bool cpu_has_load_ia32_efer;
 static bool cpu_has_load_perf_global_ctrl;
@@ -652,7 +871,7 @@ static struct vmx_capability {
 		.ar_bytes = GUEST_##seg##_AR_BYTES,	   	\
 	}
 
-static struct kvm_vmx_segment_field {
+static const struct kvm_vmx_segment_field {
 	unsigned selector;
 	unsigned base;
 	unsigned limit;
@@ -682,7 +901,6 @@ static const u32 vmx_msr_index[] = {
 #endif
 	MSR_EFER, MSR_TSC_AUX, MSR_STAR,
 };
-#define NR_VMX_MSR ARRAY_SIZE(vmx_msr_index)
 
 static inline bool is_page_fault(u32 intr_info)
 {
@@ -745,6 +963,36 @@ static inline bool cpu_has_vmx_virtualize_apic_accesses(void)
 		SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES;
 }
 
+static inline bool cpu_has_vmx_virtualize_x2apic_mode(void)
+{
+	return vmcs_config.cpu_based_2nd_exec_ctrl &
+		SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE;
+}
+
+static inline bool cpu_has_vmx_apic_register_virt(void)
+{
+	return vmcs_config.cpu_based_2nd_exec_ctrl &
+		SECONDARY_EXEC_APIC_REGISTER_VIRT;
+}
+
+static inline bool cpu_has_vmx_virtual_intr_delivery(void)
+{
+	return vmcs_config.cpu_based_2nd_exec_ctrl &
+		SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY;
+}
+
+static inline bool cpu_has_vmx_posted_intr(void)
+{
+	return vmcs_config.pin_based_exec_ctrl & PIN_BASED_POSTED_INTR;
+}
+
+static inline bool cpu_has_vmx_apicv(void)
+{
+	return cpu_has_vmx_apic_register_virt() &&
+		cpu_has_vmx_virtual_intr_delivery() &&
+		cpu_has_vmx_posted_intr();
+}
+
 static inline bool cpu_has_vmx_flexpriority(void)
 {
 	return cpu_has_vmx_tpr_shadow() &&
@@ -754,16 +1002,6 @@ static inline bool cpu_has_vmx_flexpriority(void)
 static inline bool cpu_has_vmx_ept_execute_only(void)
 {
 	return vmx_capability.ept & VMX_EPT_EXECUTE_ONLY_BIT;
-}
-
-static inline bool cpu_has_vmx_eptp_uncacheable(void)
-{
-	return vmx_capability.ept & VMX_EPTP_UC_BIT;
-}
-
-static inline bool cpu_has_vmx_eptp_writeback(void)
-{
-	return vmx_capability.ept & VMX_EPTP_WB_BIT;
 }
 
 static inline bool cpu_has_vmx_ept_2m_page(void)
@@ -781,9 +1019,9 @@ static inline bool cpu_has_vmx_ept_4levels(void)
 	return vmx_capability.ept & VMX_EPT_PAGE_WALK_4_BIT;
 }
 
-static inline bool cpu_has_vmx_invept_individual_addr(void)
+static inline bool cpu_has_vmx_ept_ad_bits(void)
 {
-	return vmx_capability.ept & VMX_EPT_EXTENT_INDIVIDUAL_BIT;
+	return vmx_capability.ept & VMX_EPT_AD_BIT;
 }
 
 static inline bool cpu_has_vmx_invept_context(void)
@@ -841,6 +1079,12 @@ static inline bool cpu_has_vmx_rdtscp(void)
 		SECONDARY_EXEC_RDTSCP;
 }
 
+static inline bool cpu_has_vmx_invpcid(void)
+{
+	return vmcs_config.cpu_based_2nd_exec_ctrl &
+		SECONDARY_EXEC_ENABLE_INVPCID;
+}
+
 static inline bool cpu_has_virtual_nmis(void)
 {
 	return vmcs_config.pin_based_exec_ctrl & PIN_BASED_VIRTUAL_NMIS;
@@ -850,6 +1094,23 @@ static inline bool cpu_has_vmx_wbinvd_exit(void)
 {
 	return vmcs_config.cpu_based_2nd_exec_ctrl &
 		SECONDARY_EXEC_WBINVD_EXITING;
+}
+
+static inline bool cpu_has_vmx_shadow_vmcs(void)
+{
+	u64 vmx_msr;
+	rdmsrl(MSR_IA32_VMX_MISC, vmx_msr);
+	/* check if the cpu supports writing r/o exit information fields */
+	if (!(vmx_msr & MSR_IA32_VMX_MISC_VMWRITE_SHADOW_RO_FIELDS))
+		return false;
+
+	return vmcs_config.cpu_based_2nd_exec_ctrl &
+		SECONDARY_EXEC_SHADOW_VMCS;
+}
+
+static inline bool cpu_has_vmx_pml(void)
+{
+	return vmcs_config.cpu_based_2nd_exec_ctrl & SECONDARY_EXEC_ENABLE_PML;
 }
 
 static inline bool report_flexpriority(void)
@@ -869,10 +1130,46 @@ static inline bool nested_cpu_has2(struct vmcs12 *vmcs12, u32 bit)
 		(vmcs12->secondary_vm_exec_control & bit);
 }
 
-static inline bool nested_cpu_has_virtual_nmis(struct vmcs12 *vmcs12,
-	struct kvm_vcpu *vcpu)
+static inline bool nested_cpu_has_virtual_nmis(struct vmcs12 *vmcs12)
 {
 	return vmcs12->pin_based_vm_exec_control & PIN_BASED_VIRTUAL_NMIS;
+}
+
+static inline bool nested_cpu_has_preemption_timer(struct vmcs12 *vmcs12)
+{
+	return vmcs12->pin_based_vm_exec_control &
+		PIN_BASED_VMX_PREEMPTION_TIMER;
+}
+
+static inline int nested_cpu_has_ept(struct vmcs12 *vmcs12)
+{
+	return nested_cpu_has2(vmcs12, SECONDARY_EXEC_ENABLE_EPT);
+}
+
+static inline bool nested_cpu_has_xsaves(struct vmcs12 *vmcs12)
+{
+	return nested_cpu_has2(vmcs12, SECONDARY_EXEC_XSAVES) &&
+		vmx_xsaves_supported();
+}
+
+static inline bool nested_cpu_has_virt_x2apic_mode(struct vmcs12 *vmcs12)
+{
+	return nested_cpu_has2(vmcs12, SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE);
+}
+
+static inline bool nested_cpu_has_apic_reg_virt(struct vmcs12 *vmcs12)
+{
+	return nested_cpu_has2(vmcs12, SECONDARY_EXEC_APIC_REGISTER_VIRT);
+}
+
+static inline bool nested_cpu_has_vid(struct vmcs12 *vmcs12)
+{
+	return nested_cpu_has2(vmcs12, SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY);
+}
+
+static inline bool nested_cpu_has_posted_intr(struct vmcs12 *vmcs12)
+{
+	return vmcs12->pin_based_vm_exec_control & PIN_BASED_POSTED_INTR;
 }
 
 static inline bool is_exception(u32 intr_info)
@@ -881,7 +1178,9 @@ static inline bool is_exception(u32 intr_info)
 		== (INTR_TYPE_HARD_EXCEPTION | INTR_INFO_VALID_MASK);
 }
 
-static void nested_vmx_vmexit(struct kvm_vcpu *vcpu);
+static void nested_vmx_vmexit(struct kvm_vcpu *vcpu, u32 exit_reason,
+			      u32 exit_intr_info,
+			      unsigned long exit_qualification);
 static void nested_vmx_entry_failure(struct kvm_vcpu *vcpu,
 			struct vmcs12 *vmcs12,
 			u32 reason, unsigned long qualification);
@@ -965,6 +1264,46 @@ static void vmcs_load(struct vmcs *vmcs)
 		       vmcs, phys_addr);
 }
 
+#ifdef CONFIG_KEXEC
+/*
+ * This bitmap is used to indicate whether the vmclear
+ * operation is enabled on all cpus. All disabled by
+ * default.
+ */
+static cpumask_t crash_vmclear_enabled_bitmap = CPU_MASK_NONE;
+
+static inline void crash_enable_local_vmclear(int cpu)
+{
+	cpumask_set_cpu(cpu, &crash_vmclear_enabled_bitmap);
+}
+
+static inline void crash_disable_local_vmclear(int cpu)
+{
+	cpumask_clear_cpu(cpu, &crash_vmclear_enabled_bitmap);
+}
+
+static inline int crash_local_vmclear_enabled(int cpu)
+{
+	return cpumask_test_cpu(cpu, &crash_vmclear_enabled_bitmap);
+}
+
+static void crash_vmclear_local_loaded_vmcss(void)
+{
+	int cpu = raw_smp_processor_id();
+	struct loaded_vmcs *v;
+
+	if (!crash_local_vmclear_enabled(cpu))
+		return;
+
+	list_for_each_entry(v, &per_cpu(loaded_vmcss_on_cpu, cpu),
+			    loaded_vmcss_on_cpu_link)
+		vmcs_clear(v->vmcs);
+}
+#else
+static inline void crash_enable_local_vmclear(int cpu) { }
+static inline void crash_disable_local_vmclear(int cpu) { }
+#endif /* CONFIG_KEXEC */
+
 static void __loaded_vmcs_clear(void *arg)
 {
 	struct loaded_vmcs *loaded_vmcs = arg;
@@ -974,15 +1313,28 @@ static void __loaded_vmcs_clear(void *arg)
 		return; /* vcpu migration can race with cpu offline */
 	if (per_cpu(current_vmcs, cpu) == loaded_vmcs->vmcs)
 		per_cpu(current_vmcs, cpu) = NULL;
+	crash_disable_local_vmclear(cpu);
 	list_del(&loaded_vmcs->loaded_vmcss_on_cpu_link);
+
+	/*
+	 * we should ensure updating loaded_vmcs->loaded_vmcss_on_cpu_link
+	 * is before setting loaded_vmcs->vcpu to -1 which is done in
+	 * loaded_vmcs_init. Otherwise, other cpu can see vcpu = -1 fist
+	 * then adds the vmcs into percpu list before it is deleted.
+	 */
+	smp_wmb();
+
 	loaded_vmcs_init(loaded_vmcs);
+	crash_enable_local_vmclear(cpu);
 }
 
 static void loaded_vmcs_clear(struct loaded_vmcs *loaded_vmcs)
 {
-	if (loaded_vmcs->cpu != -1)
-		smp_call_function_single(
-			loaded_vmcs->cpu, __loaded_vmcs_clear, loaded_vmcs, 1);
+	int cpu = loaded_vmcs->cpu;
+
+	if (cpu != -1)
+		smp_call_function_single(cpu,
+			 __loaded_vmcs_clear, loaded_vmcs, 1);
 }
 
 static inline void vpid_sync_vcpu_single(struct vcpu_vmx *vmx)
@@ -1021,17 +1373,6 @@ static inline void ept_sync_context(u64 eptp)
 			__invept(VMX_EPT_EXTENT_CONTEXT, eptp, 0);
 		else
 			ept_sync_global();
-	}
-}
-
-static inline void ept_sync_individual_addr(u64 eptp, gpa_t gpa)
-{
-	if (enable_ept) {
-		if (cpu_has_vmx_invept_individual_addr())
-			__invept(VMX_EPT_EXTENT_INDIVIDUAL_ADDR,
-					eptp, gpa);
-		else
-			ept_sync_context(eptp);
 	}
 }
 
@@ -1107,6 +1448,62 @@ static void vmcs_clear_bits(unsigned long field, u32 mask)
 static void vmcs_set_bits(unsigned long field, u32 mask)
 {
 	vmcs_writel(field, vmcs_readl(field) | mask);
+}
+
+static inline void vm_entry_controls_init(struct vcpu_vmx *vmx, u32 val)
+{
+	vmcs_write32(VM_ENTRY_CONTROLS, val);
+	vmx->vm_entry_controls_shadow = val;
+}
+
+static inline void vm_entry_controls_set(struct vcpu_vmx *vmx, u32 val)
+{
+	if (vmx->vm_entry_controls_shadow != val)
+		vm_entry_controls_init(vmx, val);
+}
+
+static inline u32 vm_entry_controls_get(struct vcpu_vmx *vmx)
+{
+	return vmx->vm_entry_controls_shadow;
+}
+
+
+static inline void vm_entry_controls_setbit(struct vcpu_vmx *vmx, u32 val)
+{
+	vm_entry_controls_set(vmx, vm_entry_controls_get(vmx) | val);
+}
+
+static inline void vm_entry_controls_clearbit(struct vcpu_vmx *vmx, u32 val)
+{
+	vm_entry_controls_set(vmx, vm_entry_controls_get(vmx) & ~val);
+}
+
+static inline void vm_exit_controls_init(struct vcpu_vmx *vmx, u32 val)
+{
+	vmcs_write32(VM_EXIT_CONTROLS, val);
+	vmx->vm_exit_controls_shadow = val;
+}
+
+static inline void vm_exit_controls_set(struct vcpu_vmx *vmx, u32 val)
+{
+	if (vmx->vm_exit_controls_shadow != val)
+		vm_exit_controls_init(vmx, val);
+}
+
+static inline u32 vm_exit_controls_get(struct vcpu_vmx *vmx)
+{
+	return vmx->vm_exit_controls_shadow;
+}
+
+
+static inline void vm_exit_controls_setbit(struct vcpu_vmx *vmx, u32 val)
+{
+	vm_exit_controls_set(vmx, vm_exit_controls_get(vmx) | val);
+}
+
+static inline void vm_exit_controls_clearbit(struct vcpu_vmx *vmx, u32 val)
+{
+	vm_exit_controls_set(vmx, vm_exit_controls_get(vmx) & ~val);
 }
 
 static void vmx_segment_cache_clear(struct vcpu_vmx *vmx)
@@ -1193,11 +1590,11 @@ static void update_exception_bitmap(struct kvm_vcpu *vcpu)
 	vmcs_write32(EXCEPTION_BITMAP, eb);
 }
 
-static void clear_atomic_switch_msr_special(unsigned long entry,
-		unsigned long exit)
+static void clear_atomic_switch_msr_special(struct vcpu_vmx *vmx,
+		unsigned long entry, unsigned long exit)
 {
-	vmcs_clear_bits(VM_ENTRY_CONTROLS, entry);
-	vmcs_clear_bits(VM_EXIT_CONTROLS, exit);
+	vm_entry_controls_clearbit(vmx, entry);
+	vm_exit_controls_clearbit(vmx, exit);
 }
 
 static void clear_atomic_switch_msr(struct vcpu_vmx *vmx, unsigned msr)
@@ -1208,14 +1605,15 @@ static void clear_atomic_switch_msr(struct vcpu_vmx *vmx, unsigned msr)
 	switch (msr) {
 	case MSR_EFER:
 		if (cpu_has_load_ia32_efer) {
-			clear_atomic_switch_msr_special(VM_ENTRY_LOAD_IA32_EFER,
+			clear_atomic_switch_msr_special(vmx,
+					VM_ENTRY_LOAD_IA32_EFER,
 					VM_EXIT_LOAD_IA32_EFER);
 			return;
 		}
 		break;
 	case MSR_CORE_PERF_GLOBAL_CTRL:
 		if (cpu_has_load_perf_global_ctrl) {
-			clear_atomic_switch_msr_special(
+			clear_atomic_switch_msr_special(vmx,
 					VM_ENTRY_LOAD_IA32_PERF_GLOBAL_CTRL,
 					VM_EXIT_LOAD_IA32_PERF_GLOBAL_CTRL);
 			return;
@@ -1236,14 +1634,15 @@ static void clear_atomic_switch_msr(struct vcpu_vmx *vmx, unsigned msr)
 	vmcs_write32(VM_EXIT_MSR_LOAD_COUNT, m->nr);
 }
 
-static void add_atomic_switch_msr_special(unsigned long entry,
-		unsigned long exit, unsigned long guest_val_vmcs,
-		unsigned long host_val_vmcs, u64 guest_val, u64 host_val)
+static void add_atomic_switch_msr_special(struct vcpu_vmx *vmx,
+		unsigned long entry, unsigned long exit,
+		unsigned long guest_val_vmcs, unsigned long host_val_vmcs,
+		u64 guest_val, u64 host_val)
 {
 	vmcs_write64(guest_val_vmcs, guest_val);
 	vmcs_write64(host_val_vmcs, host_val);
-	vmcs_set_bits(VM_ENTRY_CONTROLS, entry);
-	vmcs_set_bits(VM_EXIT_CONTROLS, exit);
+	vm_entry_controls_setbit(vmx, entry);
+	vm_exit_controls_setbit(vmx, exit);
 }
 
 static void add_atomic_switch_msr(struct vcpu_vmx *vmx, unsigned msr,
@@ -1255,7 +1654,8 @@ static void add_atomic_switch_msr(struct vcpu_vmx *vmx, unsigned msr,
 	switch (msr) {
 	case MSR_EFER:
 		if (cpu_has_load_ia32_efer) {
-			add_atomic_switch_msr_special(VM_ENTRY_LOAD_IA32_EFER,
+			add_atomic_switch_msr_special(vmx,
+					VM_ENTRY_LOAD_IA32_EFER,
 					VM_EXIT_LOAD_IA32_EFER,
 					GUEST_IA32_EFER,
 					HOST_IA32_EFER,
@@ -1265,7 +1665,7 @@ static void add_atomic_switch_msr(struct vcpu_vmx *vmx, unsigned msr,
 		break;
 	case MSR_CORE_PERF_GLOBAL_CTRL:
 		if (cpu_has_load_perf_global_ctrl) {
-			add_atomic_switch_msr_special(
+			add_atomic_switch_msr_special(vmx,
 					VM_ENTRY_LOAD_IA32_PERF_GLOBAL_CTRL,
 					VM_EXIT_LOAD_IA32_PERF_GLOBAL_CTRL,
 					GUEST_IA32_PERF_GLOBAL_CTRL,
@@ -1281,7 +1681,7 @@ static void add_atomic_switch_msr(struct vcpu_vmx *vmx, unsigned msr,
 			break;
 
 	if (i == NR_AUTOLOAD_MSRS) {
-		printk_once(KERN_WARNING"Not enough mst switch entries. "
+		printk_once(KERN_WARNING "Not enough msr switch entries. "
 				"Can't add msr %x\n", msr);
 		return;
 	} else if (i == m->nr) {
@@ -1301,7 +1701,7 @@ static void reload_tss(void)
 	/*
 	 * VT restores TR but not its size.  Useless.
 	 */
-	struct desc_ptr *gdt = &__get_cpu_var(host_gdt);
+	struct desc_ptr *gdt = this_cpu_ptr(&host_gdt);
 	struct desc_struct *descs;
 
 	descs = (void *)gdt->address;
@@ -1317,7 +1717,7 @@ static bool update_transition_efer(struct vcpu_vmx *vmx, int efer_offset)
 	guest_efer = vmx->vcpu.arch.efer;
 
 	/*
-	 * NX is emulated; LMA and LME handled by hardware; SCE meaninless
+	 * NX is emulated; LMA and LME handled by hardware; SCE meaningless
 	 * outside long mode
 	 */
 	ignore_bits = EFER_NX | EFER_SCE;
@@ -1333,12 +1733,20 @@ static bool update_transition_efer(struct vcpu_vmx *vmx, int efer_offset)
 	vmx->guest_msrs[efer_offset].mask = ~ignore_bits;
 
 	clear_atomic_switch_msr(vmx, MSR_EFER);
-	/* On ept, can't emulate nx, and must switch nx atomically */
-	if (enable_ept && ((vmx->vcpu.arch.efer ^ host_efer) & EFER_NX)) {
+
+	/*
+	 * On EPT, we can't emulate NX, so we must switch EFER atomically.
+	 * On CPUs that support "load IA32_EFER", always switch EFER
+	 * atomically, since it's faster than switching it manually.
+	 */
+	if (cpu_has_load_ia32_efer ||
+	    (enable_ept && ((vmx->vcpu.arch.efer ^ host_efer) & EFER_NX))) {
 		guest_efer = vmx->vcpu.arch.efer;
 		if (!(guest_efer & EFER_LMA))
 			guest_efer &= ~EFER_LME;
-		add_atomic_switch_msr(vmx, MSR_EFER, guest_efer, host_efer);
+		if (guest_efer != host_efer)
+			add_atomic_switch_msr(vmx, MSR_EFER,
+					      guest_efer, host_efer);
 		return false;
 	}
 
@@ -1347,7 +1755,7 @@ static bool update_transition_efer(struct vcpu_vmx *vmx, int efer_offset)
 
 static unsigned long segment_base(u16 selector)
 {
-	struct desc_ptr *gdt = &__get_cpu_var(host_gdt);
+	struct desc_ptr *gdt = this_cpu_ptr(&host_gdt);
 	struct desc_struct *d;
 	unsigned long table_base;
 	unsigned long v;
@@ -1413,6 +1821,11 @@ static void vmx_save_host_state(struct kvm_vcpu *vcpu)
 	}
 
 #ifdef CONFIG_X86_64
+	savesegment(ds, vmx->host_state.ds_sel);
+	savesegment(es, vmx->host_state.es_sel);
+#endif
+
+#ifdef CONFIG_X86_64
 	vmcs_writel(HOST_FS_BASE, read_msr(MSR_FS_BASE));
 	vmcs_writel(HOST_GS_BASE, read_msr(MSR_GS_BASE));
 #else
@@ -1425,6 +1838,8 @@ static void vmx_save_host_state(struct kvm_vcpu *vcpu)
 	if (is_long_mode(&vmx->vcpu))
 		wrmsrl(MSR_KERNEL_GS_BASE, vmx->msr_guest_kernel_gs_base);
 #endif
+	if (boot_cpu_has(X86_FEATURE_MPX))
+		rdmsrl(MSR_IA32_BNDCFGS, vmx->host_state.msr_host_bndcfgs);
 	for (i = 0; i < vmx->save_nmsrs; ++i)
 		kvm_set_shared_msr(vmx->guest_msrs[i].index,
 				   vmx->guest_msrs[i].data,
@@ -1452,13 +1867,25 @@ static void __vmx_load_host_state(struct vcpu_vmx *vmx)
 	}
 	if (vmx->host_state.fs_reload_needed)
 		loadsegment(fs, vmx->host_state.fs_sel);
+#ifdef CONFIG_X86_64
+	if (unlikely(vmx->host_state.ds_sel | vmx->host_state.es_sel)) {
+		loadsegment(ds, vmx->host_state.ds_sel);
+		loadsegment(es, vmx->host_state.es_sel);
+	}
+#endif
 	reload_tss();
 #ifdef CONFIG_X86_64
 	wrmsrl(MSR_KERNEL_GS_BASE, vmx->msr_host_kernel_gs_base);
 #endif
-	if (current_thread_info()->status & TS_USEDFPU)
-		clts();
-	load_gdt(&__get_cpu_var(host_gdt));
+	if (vmx->host_state.msr_host_bndcfgs)
+		wrmsrl(MSR_IA32_BNDCFGS, vmx->host_state.msr_host_bndcfgs);
+	/*
+	 * If the FPU is not active (through the host task or
+	 * the guest vcpu), then restore the cr0.TS bit.
+	 */
+	if (!user_has_fpu() && !vmx->vcpu.guest_fpu_loaded)
+		stts();
+	load_gdt(this_cpu_ptr(&host_gdt));
 }
 
 static void vmx_load_host_state(struct vcpu_vmx *vmx)
@@ -1488,13 +1915,23 @@ static void vmx_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 	}
 
 	if (vmx->loaded_vmcs->cpu != cpu) {
-		struct desc_ptr *gdt = &__get_cpu_var(host_gdt);
+		struct desc_ptr *gdt = this_cpu_ptr(&host_gdt);
 		unsigned long sysenter_esp;
 
 		kvm_make_request(KVM_REQ_TLB_FLUSH, vcpu);
 		local_irq_disable();
+		crash_disable_local_vmclear(cpu);
+
+		/*
+		 * Read loaded_vmcs->cpu should be before fetching
+		 * loaded_vmcs->loaded_vmcss_on_cpu_link.
+		 * See the comments in __loaded_vmcs_clear().
+		 */
+		smp_rmb();
+
 		list_add(&vmx->loaded_vmcs->loaded_vmcss_on_cpu_link,
 			 &per_cpu(loaded_vmcss_on_cpu, cpu));
+		crash_enable_local_vmclear(cpu);
 		local_irq_enable();
 
 		/*
@@ -1604,7 +2041,6 @@ static unsigned long vmx_get_rflags(struct kvm_vcpu *vcpu)
 static void vmx_set_rflags(struct kvm_vcpu *vcpu, unsigned long rflags)
 {
 	__set_bit(VCPU_EXREG_RFLAGS, (ulong *)&vcpu->arch.regs_avail);
-	__clear_bit(VCPU_EXREG_CPL, (ulong *)&vcpu->arch.regs_avail);
 	to_vmx(vcpu)->rflags = rflags;
 	if (to_vmx(vcpu)->rmode.vm86_active) {
 		to_vmx(vcpu)->rmode.save_rflags = rflags;
@@ -1613,7 +2049,7 @@ static void vmx_set_rflags(struct kvm_vcpu *vcpu, unsigned long rflags)
 	vmcs_writel(GUEST_RFLAGS, rflags);
 }
 
-static u32 vmx_get_interrupt_shadow(struct kvm_vcpu *vcpu, int mask)
+static u32 vmx_get_interrupt_shadow(struct kvm_vcpu *vcpu)
 {
 	u32 interruptibility = vmcs_read32(GUEST_INTERRUPTIBILITY_INFO);
 	int ret = 0;
@@ -1623,7 +2059,7 @@ static u32 vmx_get_interrupt_shadow(struct kvm_vcpu *vcpu, int mask)
 	if (interruptibility & GUEST_INTR_STATE_MOV_SS)
 		ret |= KVM_X86_SHADOW_INT_MOV_SS;
 
-	return ret & mask;
+	return ret;
 }
 
 static void vmx_set_interrupt_shadow(struct kvm_vcpu *vcpu, int mask)
@@ -1654,33 +2090,20 @@ static void skip_emulated_instruction(struct kvm_vcpu *vcpu)
 	vmx_set_interrupt_shadow(vcpu, 0);
 }
 
-static void vmx_clear_hlt(struct kvm_vcpu *vcpu)
-{
-	/* Ensure that we clear the HLT state in the VMCS.  We don't need to
-	 * explicitly skip the instruction because if the HLT state is set, then
-	 * the instruction is already executing and RIP has already been
-	 * advanced. */
-	if (!yield_on_hlt &&
-	    vmcs_read32(GUEST_ACTIVITY_STATE) == GUEST_ACTIVITY_HLT)
-		vmcs_write32(GUEST_ACTIVITY_STATE, GUEST_ACTIVITY_ACTIVE);
-}
-
 /*
  * KVM wants to inject page-faults which it got to the guest. This function
  * checks whether in a nested guest, we need to inject them to L1 or L2.
- * This function assumes it is called with the exit reason in vmcs02 being
- * a #PF exception (this is the only case in which KVM injects a #PF when L2
- * is running).
  */
-static int nested_pf_handled(struct kvm_vcpu *vcpu)
+static int nested_vmx_check_exception(struct kvm_vcpu *vcpu, unsigned nr)
 {
 	struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
 
-	/* TODO: also check PFEC_MATCH/MASK, not just EB.PF. */
-	if (!(vmcs12->exception_bitmap & PF_VECTOR))
+	if (!(vmcs12->exception_bitmap & (1u << nr)))
 		return 0;
 
-	nested_vmx_vmexit(vcpu);
+	nested_vmx_vmexit(vcpu, to_vmx(vcpu)->exit_reason,
+			  vmcs_read32(VM_EXIT_INTR_INFO),
+			  vmcs_readl(EXIT_QUALIFICATION));
 	return 1;
 }
 
@@ -1691,8 +2114,8 @@ static void vmx_queue_exception(struct kvm_vcpu *vcpu, unsigned nr,
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	u32 intr_info = nr | INTR_INFO_VALID_MASK;
 
-	if (nr == PF_VECTOR && is_guest_mode(vcpu) &&
-		nested_pf_handled(vcpu))
+	if (!reinject && is_guest_mode(vcpu) &&
+	    nested_vmx_check_exception(vcpu, nr))
 		return;
 
 	if (has_error_code) {
@@ -1717,12 +2140,16 @@ static void vmx_queue_exception(struct kvm_vcpu *vcpu, unsigned nr,
 		intr_info |= INTR_TYPE_HARD_EXCEPTION;
 
 	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD, intr_info);
-	vmx_clear_hlt(vcpu);
 }
 
 static bool vmx_rdtscp_supported(void)
 {
 	return cpu_has_vmx_rdtscp();
+}
+
+static bool vmx_invpcid_supported(void)
+{
+	return cpu_has_vmx_invpcid() && enable_ept;
 }
 
 /*
@@ -1737,6 +2164,28 @@ static void move_msr_up(struct vcpu_vmx *vmx, int from, int to)
 	vmx->guest_msrs[from] = tmp;
 }
 
+static void vmx_set_msr_bitmap(struct kvm_vcpu *vcpu)
+{
+	unsigned long *msr_bitmap;
+
+	if (is_guest_mode(vcpu))
+		msr_bitmap = vmx_msr_bitmap_nested;
+	else if (irqchip_in_kernel(vcpu->kvm) &&
+		apic_x2apic_mode(vcpu->arch.apic)) {
+		if (is_long_mode(vcpu))
+			msr_bitmap = vmx_msr_bitmap_longmode_x2apic;
+		else
+			msr_bitmap = vmx_msr_bitmap_legacy_x2apic;
+	} else {
+		if (is_long_mode(vcpu))
+			msr_bitmap = vmx_msr_bitmap_longmode;
+		else
+			msr_bitmap = vmx_msr_bitmap_legacy;
+	}
+
+	vmcs_write64(MSR_BITMAP, __pa(msr_bitmap));
+}
+
 /*
  * Set up the vmcs to automatically save and restore system
  * msrs.  Don't touch the 64-bit msrs if the guest is in legacy
@@ -1745,9 +2194,7 @@ static void move_msr_up(struct vcpu_vmx *vmx, int from, int to)
 static void setup_msrs(struct vcpu_vmx *vmx)
 {
 	int save_nmsrs, index;
-	unsigned long *msr_bitmap;
 
-	vmx_load_host_state(vmx);
 	save_nmsrs = 0;
 #ifdef CONFIG_X86_64
 	if (is_long_mode(&vmx->vcpu)) {
@@ -1778,14 +2225,8 @@ static void setup_msrs(struct vcpu_vmx *vmx)
 
 	vmx->save_nmsrs = save_nmsrs;
 
-	if (cpu_has_vmx_msr_bitmap()) {
-		if (is_long_mode(&vmx->vcpu))
-			msr_bitmap = vmx_msr_bitmap_longmode;
-		else
-			msr_bitmap = vmx_msr_bitmap_legacy;
-
-		vmcs_write64(MSR_BITMAP, __pa(msr_bitmap));
-	}
+	if (cpu_has_vmx_msr_bitmap())
+		vmx_set_msr_bitmap(&vmx->vcpu);
 }
 
 /*
@@ -1805,11 +2246,10 @@ static u64 guest_read_tsc(void)
  * Like guest_read_tsc, but always returns L1's notion of the timestamp
  * counter, even if a nested guest (L2) is currently running.
  */
-u64 vmx_read_l1_tsc(struct kvm_vcpu *vcpu)
+static u64 vmx_read_l1_tsc(struct kvm_vcpu *vcpu, u64 host_tsc)
 {
-	u64 host_tsc, tsc_offset;
+	u64 tsc_offset;
 
-	rdtscll(host_tsc);
 	tsc_offset = is_guest_mode(vcpu) ?
 		to_vmx(vcpu)->nested.vmcs01_tsc_offset :
 		vmcs_read64(TSC_OFFSET);
@@ -1817,13 +2257,24 @@ u64 vmx_read_l1_tsc(struct kvm_vcpu *vcpu)
 }
 
 /*
- * Empty call-back. Needs to be implemented when VMX enables the SET_TSC_KHZ
- * ioctl. In this case the call-back should update internal vmx state to make
- * the changes effective.
+ * Engage any workarounds for mis-matched TSC rates.  Currently limited to
+ * software catchup for faster rates on slower CPUs.
  */
-static void vmx_set_tsc_khz(struct kvm_vcpu *vcpu, u32 user_tsc_khz)
+static void vmx_set_tsc_khz(struct kvm_vcpu *vcpu, u32 user_tsc_khz, bool scale)
 {
-	/* Nothing to do here */
+	if (!scale)
+		return;
+
+	if (user_tsc_khz > tsc_khz) {
+		vcpu->arch.tsc_catchup = 1;
+		vcpu->arch.tsc_always_catchup = 1;
+	} else
+		WARN(1, "user requested TSC rate below hardware speed\n");
+}
+
+static u64 vmx_read_tsc_offset(struct kvm_vcpu *vcpu)
+{
+	return vmcs_read64(TSC_OFFSET);
 }
 
 /*
@@ -1846,18 +2297,23 @@ static void vmx_write_tsc_offset(struct kvm_vcpu *vcpu, u64 offset)
 			(nested_cpu_has(vmcs12, CPU_BASED_USE_TSC_OFFSETING) ?
 			 vmcs12->tsc_offset : 0));
 	} else {
+		trace_kvm_write_tsc_offset(vcpu->vcpu_id,
+					   vmcs_read64(TSC_OFFSET), offset);
 		vmcs_write64(TSC_OFFSET, offset);
 	}
 }
 
-static void vmx_adjust_tsc_offset(struct kvm_vcpu *vcpu, s64 adjustment)
+static void vmx_adjust_tsc_offset(struct kvm_vcpu *vcpu, s64 adjustment, bool host)
 {
 	u64 offset = vmcs_read64(TSC_OFFSET);
+
 	vmcs_write64(TSC_OFFSET, offset + adjustment);
 	if (is_guest_mode(vcpu)) {
 		/* Even when running L2, the adjustment needs to apply to L1 */
 		to_vmx(vcpu)->nested.vmcs01_tsc_offset += adjustment;
-	}
+	} else
+		trace_kvm_write_tsc_offset(vcpu->vcpu_id, offset,
+					   offset + adjustment);
 }
 
 static u64 vmx_compute_tsc_offset(struct kvm_vcpu *vcpu, u64 target_tsc)
@@ -1891,15 +2347,8 @@ static inline bool nested_vmx_allowed(struct kvm_vcpu *vcpu)
  * if the corresponding bit in the (32-bit) control field *must* be on, and a
  * bit in the high half is on if the corresponding bit in the control field
  * may be on. See also vmx_control_verify().
- * TODO: allow these variables to be modified (downgraded) by module options
- * or other means.
  */
-static u32 nested_vmx_procbased_ctls_low, nested_vmx_procbased_ctls_high;
-static u32 nested_vmx_secondary_ctls_low, nested_vmx_secondary_ctls_high;
-static u32 nested_vmx_pinbased_ctls_low, nested_vmx_pinbased_ctls_high;
-static u32 nested_vmx_exit_ctls_low, nested_vmx_exit_ctls_high;
-static u32 nested_vmx_entry_ctls_low, nested_vmx_entry_ctls_high;
-static __init void nested_vmx_setup_ctls_msrs(void)
+static void nested_vmx_setup_ctls_msrs(struct vcpu_vmx *vmx)
 {
 	/*
 	 * Note that as a general rule, the high half of the MSRs (bits in
@@ -1917,37 +2366,77 @@ static __init void nested_vmx_setup_ctls_msrs(void)
 	 */
 
 	/* pin-based controls */
-	/*
-	 * According to the Intel spec, if bit 55 of VMX_BASIC is off (as it is
-	 * in our case), bits 1, 2 and 4 (i.e., 0x16) must be 1 in this MSR.
-	 */
-	nested_vmx_pinbased_ctls_low = 0x16 ;
-	nested_vmx_pinbased_ctls_high = 0x16 |
-		PIN_BASED_EXT_INTR_MASK | PIN_BASED_NMI_EXITING |
+	rdmsr(MSR_IA32_VMX_PINBASED_CTLS,
+		vmx->nested.nested_vmx_pinbased_ctls_low,
+		vmx->nested.nested_vmx_pinbased_ctls_high);
+	vmx->nested.nested_vmx_pinbased_ctls_low |=
+		PIN_BASED_ALWAYSON_WITHOUT_TRUE_MSR;
+	vmx->nested.nested_vmx_pinbased_ctls_high &=
+		PIN_BASED_EXT_INTR_MASK |
+		PIN_BASED_NMI_EXITING |
 		PIN_BASED_VIRTUAL_NMIS;
+	vmx->nested.nested_vmx_pinbased_ctls_high |=
+		PIN_BASED_ALWAYSON_WITHOUT_TRUE_MSR |
+		PIN_BASED_VMX_PREEMPTION_TIMER;
+	if (vmx_vm_has_apicv(vmx->vcpu.kvm))
+		vmx->nested.nested_vmx_pinbased_ctls_high |=
+			PIN_BASED_POSTED_INTR;
 
 	/* exit controls */
-	nested_vmx_exit_ctls_low = 0;
-	/* Note that guest use of VM_EXIT_ACK_INTR_ON_EXIT is not supported. */
+	rdmsr(MSR_IA32_VMX_EXIT_CTLS,
+		vmx->nested.nested_vmx_exit_ctls_low,
+		vmx->nested.nested_vmx_exit_ctls_high);
+	vmx->nested.nested_vmx_exit_ctls_low =
+		VM_EXIT_ALWAYSON_WITHOUT_TRUE_MSR;
+
+	vmx->nested.nested_vmx_exit_ctls_high &=
 #ifdef CONFIG_X86_64
-	nested_vmx_exit_ctls_high = VM_EXIT_HOST_ADDR_SPACE_SIZE;
-#else
-	nested_vmx_exit_ctls_high = 0;
+		VM_EXIT_HOST_ADDR_SPACE_SIZE |
 #endif
+		VM_EXIT_LOAD_IA32_PAT | VM_EXIT_SAVE_IA32_PAT;
+	vmx->nested.nested_vmx_exit_ctls_high |=
+		VM_EXIT_ALWAYSON_WITHOUT_TRUE_MSR |
+		VM_EXIT_LOAD_IA32_EFER | VM_EXIT_SAVE_IA32_EFER |
+		VM_EXIT_SAVE_VMX_PREEMPTION_TIMER | VM_EXIT_ACK_INTR_ON_EXIT;
+
+	if (vmx_mpx_supported())
+		vmx->nested.nested_vmx_exit_ctls_high |= VM_EXIT_CLEAR_BNDCFGS;
+
+	/* We support free control of debug control saving. */
+	vmx->nested.nested_vmx_true_exit_ctls_low =
+		vmx->nested.nested_vmx_exit_ctls_low &
+		~VM_EXIT_SAVE_DEBUG_CONTROLS;
 
 	/* entry controls */
 	rdmsr(MSR_IA32_VMX_ENTRY_CTLS,
-		nested_vmx_entry_ctls_low, nested_vmx_entry_ctls_high);
-	nested_vmx_entry_ctls_low = 0;
-	nested_vmx_entry_ctls_high &=
-		VM_ENTRY_LOAD_IA32_PAT | VM_ENTRY_IA32E_MODE;
+		vmx->nested.nested_vmx_entry_ctls_low,
+		vmx->nested.nested_vmx_entry_ctls_high);
+	vmx->nested.nested_vmx_entry_ctls_low =
+		VM_ENTRY_ALWAYSON_WITHOUT_TRUE_MSR;
+	vmx->nested.nested_vmx_entry_ctls_high &=
+#ifdef CONFIG_X86_64
+		VM_ENTRY_IA32E_MODE |
+#endif
+		VM_ENTRY_LOAD_IA32_PAT;
+	vmx->nested.nested_vmx_entry_ctls_high |=
+		(VM_ENTRY_ALWAYSON_WITHOUT_TRUE_MSR | VM_ENTRY_LOAD_IA32_EFER);
+	if (vmx_mpx_supported())
+		vmx->nested.nested_vmx_entry_ctls_high |= VM_ENTRY_LOAD_BNDCFGS;
+
+	/* We support free control of debug control loading. */
+	vmx->nested.nested_vmx_true_entry_ctls_low =
+		vmx->nested.nested_vmx_entry_ctls_low &
+		~VM_ENTRY_LOAD_DEBUG_CONTROLS;
 
 	/* cpu-based controls */
 	rdmsr(MSR_IA32_VMX_PROCBASED_CTLS,
-		nested_vmx_procbased_ctls_low, nested_vmx_procbased_ctls_high);
-	nested_vmx_procbased_ctls_low = 0;
-	nested_vmx_procbased_ctls_high &=
-		CPU_BASED_VIRTUAL_INTR_PENDING | CPU_BASED_USE_TSC_OFFSETING |
+		vmx->nested.nested_vmx_procbased_ctls_low,
+		vmx->nested.nested_vmx_procbased_ctls_high);
+	vmx->nested.nested_vmx_procbased_ctls_low =
+		CPU_BASED_ALWAYSON_WITHOUT_TRUE_MSR;
+	vmx->nested.nested_vmx_procbased_ctls_high &=
+		CPU_BASED_VIRTUAL_INTR_PENDING |
+		CPU_BASED_VIRTUAL_NMI_PENDING | CPU_BASED_USE_TSC_OFFSETING |
 		CPU_BASED_HLT_EXITING | CPU_BASED_INVLPG_EXITING |
 		CPU_BASED_MWAIT_EXITING | CPU_BASED_CR3_LOAD_EXITING |
 		CPU_BASED_CR3_STORE_EXITING |
@@ -1956,6 +2445,8 @@ static __init void nested_vmx_setup_ctls_msrs(void)
 #endif
 		CPU_BASED_MOV_DR_EXITING | CPU_BASED_UNCOND_IO_EXITING |
 		CPU_BASED_USE_IO_BITMAPS | CPU_BASED_MONITOR_EXITING |
+		CPU_BASED_RDPMC_EXITING | CPU_BASED_RDTSC_EXITING |
+		CPU_BASED_PAUSE_EXITING | CPU_BASED_TPR_SHADOW |
 		CPU_BASED_ACTIVATE_SECONDARY_CONTROLS;
 	/*
 	 * We can allow some features even when not supported by the
@@ -1963,14 +2454,58 @@ static __init void nested_vmx_setup_ctls_msrs(void)
 	 * can use it to avoid exits to L1 - even when L0 runs L2
 	 * without MSR bitmaps.
 	 */
-	nested_vmx_procbased_ctls_high |= CPU_BASED_USE_MSR_BITMAPS;
+	vmx->nested.nested_vmx_procbased_ctls_high |=
+		CPU_BASED_ALWAYSON_WITHOUT_TRUE_MSR |
+		CPU_BASED_USE_MSR_BITMAPS;
+
+	/* We support free control of CR3 access interception. */
+	vmx->nested.nested_vmx_true_procbased_ctls_low =
+		vmx->nested.nested_vmx_procbased_ctls_low &
+		~(CPU_BASED_CR3_LOAD_EXITING | CPU_BASED_CR3_STORE_EXITING);
 
 	/* secondary cpu-based controls */
 	rdmsr(MSR_IA32_VMX_PROCBASED_CTLS2,
-		nested_vmx_secondary_ctls_low, nested_vmx_secondary_ctls_high);
-	nested_vmx_secondary_ctls_low = 0;
-	nested_vmx_secondary_ctls_high &=
-		SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES;
+		vmx->nested.nested_vmx_secondary_ctls_low,
+		vmx->nested.nested_vmx_secondary_ctls_high);
+	vmx->nested.nested_vmx_secondary_ctls_low = 0;
+	vmx->nested.nested_vmx_secondary_ctls_high &=
+		SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES |
+		SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE |
+		SECONDARY_EXEC_APIC_REGISTER_VIRT |
+		SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY |
+		SECONDARY_EXEC_WBINVD_EXITING |
+		SECONDARY_EXEC_XSAVES;
+
+	if (enable_ept) {
+		/* nested EPT: emulate EPT also to L1 */
+		vmx->nested.nested_vmx_secondary_ctls_high |=
+			SECONDARY_EXEC_ENABLE_EPT;
+		vmx->nested.nested_vmx_ept_caps = VMX_EPT_PAGE_WALK_4_BIT |
+			 VMX_EPTP_WB_BIT | VMX_EPT_2MB_PAGE_BIT |
+			 VMX_EPT_INVEPT_BIT;
+		vmx->nested.nested_vmx_ept_caps &= vmx_capability.ept;
+		/*
+		 * For nested guests, we don't do anything specific
+		 * for single context invalidation. Hence, only advertise
+		 * support for global context invalidation.
+		 */
+		vmx->nested.nested_vmx_ept_caps |= VMX_EPT_EXTENT_GLOBAL_BIT;
+	} else
+		vmx->nested.nested_vmx_ept_caps = 0;
+
+	if (enable_unrestricted_guest)
+		vmx->nested.nested_vmx_secondary_ctls_high |=
+			SECONDARY_EXEC_UNRESTRICTED_GUEST;
+
+	/* miscellaneous data */
+	rdmsr(MSR_IA32_VMX_MISC,
+		vmx->nested.nested_vmx_misc_low,
+		vmx->nested.nested_vmx_misc_high);
+	vmx->nested.nested_vmx_misc_low &= VMX_MISC_SAVE_EFER_LMA;
+	vmx->nested.nested_vmx_misc_low |=
+		VMX_MISC_EMULATED_PREEMPTION_TIMER_RATE |
+		VMX_MISC_ACTIVITY_HLT;
+	vmx->nested.nested_vmx_misc_high = 0;
 }
 
 static inline bool vmx_control_verify(u32 control, u32 low, u32 high)
@@ -1986,29 +2521,12 @@ static inline u64 vmx_control_msr(u32 low, u32 high)
 	return low | ((u64)high << 32);
 }
 
-/*
- * If we allow our guest to use VMX instructions (i.e., nested VMX), we should
- * also let it use VMX-specific MSRs.
- * vmx_get_vmx_msr() and vmx_set_vmx_msr() return 1 when we handled a
- * VMX-specific MSR, or 0 when we haven't (and the caller should handle it
- * like all other MSRs).
- */
+/* Returns 0 on success, non-0 otherwise. */
 static int vmx_get_vmx_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 *pdata)
 {
-	if (!nested_vmx_allowed(vcpu) && msr_index >= MSR_IA32_VMX_BASIC &&
-		     msr_index <= MSR_IA32_VMX_TRUE_ENTRY_CTLS) {
-		/*
-		 * According to the spec, processors which do not support VMX
-		 * should throw a #GP(0) when VMX capability MSRs are read.
-		 */
-		kvm_queue_exception_e(vcpu, GP_VECTOR, 0);
-		return 1;
-	}
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
 
 	switch (msr_index) {
-	case MSR_IA32_FEATURE_CONTROL:
-		*pdata = 0;
-		break;
 	case MSR_IA32_VMX_BASIC:
 		/*
 		 * This MSR reports some information about VMX support. We
@@ -2016,32 +2534,50 @@ static int vmx_get_vmx_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 *pdata)
 		 * guest, and the VMCS structure we give it - not about the
 		 * VMX support of the underlying hardware.
 		 */
-		*pdata = VMCS12_REVISION |
+		*pdata = VMCS12_REVISION | VMX_BASIC_TRUE_CTLS |
 			   ((u64)VMCS12_SIZE << VMX_BASIC_VMCS_SIZE_SHIFT) |
 			   (VMX_BASIC_MEM_TYPE_WB << VMX_BASIC_MEM_TYPE_SHIFT);
 		break;
 	case MSR_IA32_VMX_TRUE_PINBASED_CTLS:
 	case MSR_IA32_VMX_PINBASED_CTLS:
-		*pdata = vmx_control_msr(nested_vmx_pinbased_ctls_low,
-					nested_vmx_pinbased_ctls_high);
+		*pdata = vmx_control_msr(
+			vmx->nested.nested_vmx_pinbased_ctls_low,
+			vmx->nested.nested_vmx_pinbased_ctls_high);
 		break;
 	case MSR_IA32_VMX_TRUE_PROCBASED_CTLS:
+		*pdata = vmx_control_msr(
+			vmx->nested.nested_vmx_true_procbased_ctls_low,
+			vmx->nested.nested_vmx_procbased_ctls_high);
+		break;
 	case MSR_IA32_VMX_PROCBASED_CTLS:
-		*pdata = vmx_control_msr(nested_vmx_procbased_ctls_low,
-					nested_vmx_procbased_ctls_high);
+		*pdata = vmx_control_msr(
+			vmx->nested.nested_vmx_procbased_ctls_low,
+			vmx->nested.nested_vmx_procbased_ctls_high);
 		break;
 	case MSR_IA32_VMX_TRUE_EXIT_CTLS:
+		*pdata = vmx_control_msr(
+			vmx->nested.nested_vmx_true_exit_ctls_low,
+			vmx->nested.nested_vmx_exit_ctls_high);
+		break;
 	case MSR_IA32_VMX_EXIT_CTLS:
-		*pdata = vmx_control_msr(nested_vmx_exit_ctls_low,
-					nested_vmx_exit_ctls_high);
+		*pdata = vmx_control_msr(
+			vmx->nested.nested_vmx_exit_ctls_low,
+			vmx->nested.nested_vmx_exit_ctls_high);
 		break;
 	case MSR_IA32_VMX_TRUE_ENTRY_CTLS:
+		*pdata = vmx_control_msr(
+			vmx->nested.nested_vmx_true_entry_ctls_low,
+			vmx->nested.nested_vmx_entry_ctls_high);
+		break;
 	case MSR_IA32_VMX_ENTRY_CTLS:
-		*pdata = vmx_control_msr(nested_vmx_entry_ctls_low,
-					nested_vmx_entry_ctls_high);
+		*pdata = vmx_control_msr(
+			vmx->nested.nested_vmx_entry_ctls_low,
+			vmx->nested.nested_vmx_entry_ctls_high);
 		break;
 	case MSR_IA32_VMX_MISC:
-		*pdata = 0;
+		*pdata = vmx_control_msr(
+			vmx->nested.nested_vmx_misc_low,
+			vmx->nested.nested_vmx_misc_high);
 		break;
 	/*
 	 * These MSRs specify bits which the guest must keep fixed (on or off)
@@ -2063,35 +2599,21 @@ static int vmx_get_vmx_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 *pdata)
 		*pdata = -1ULL;
 		break;
 	case MSR_IA32_VMX_VMCS_ENUM:
-		*pdata = 0x1f;
+		*pdata = 0x2e; /* highest index: VMX_PREEMPTION_TIMER_VALUE */
 		break;
 	case MSR_IA32_VMX_PROCBASED_CTLS2:
-		*pdata = vmx_control_msr(nested_vmx_secondary_ctls_low,
-					nested_vmx_secondary_ctls_high);
+		*pdata = vmx_control_msr(
+			vmx->nested.nested_vmx_secondary_ctls_low,
+			vmx->nested.nested_vmx_secondary_ctls_high);
 		break;
 	case MSR_IA32_VMX_EPT_VPID_CAP:
-		/* Currently, no nested ept or nested vpid */
-		*pdata = 0;
+		/* Currently, no nested vpid support */
+		*pdata = vmx->nested.nested_vmx_ept_caps;
 		break;
 	default:
-		return 0;
+		return 1;
 	}
 
-	return 1;
-}
-
-static int vmx_set_vmx_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 data)
-{
-	if (!nested_vmx_allowed(vcpu))
-		return 0;
-
-	if (msr_index == MSR_IA32_FEATURE_CONTROL)
-		/* TODO: the right thing. */
-		return 1;
-	/*
-	 * No need to treat VMX capability MSRs specially: If we don't handle
-	 * them, handle_wrmsr will #GP(0), which is correct (they are readonly)
-	 */
 	return 0;
 }
 
@@ -2137,17 +2659,32 @@ static int vmx_get_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 *pdata)
 	case MSR_IA32_SYSENTER_ESP:
 		data = vmcs_readl(GUEST_SYSENTER_ESP);
 		break;
+	case MSR_IA32_BNDCFGS:
+		if (!vmx_mpx_supported())
+			return 1;
+		data = vmcs_read64(GUEST_BNDCFGS);
+		break;
+	case MSR_IA32_FEATURE_CONTROL:
+		if (!nested_vmx_allowed(vcpu))
+			return 1;
+		data = to_vmx(vcpu)->nested.msr_ia32_feature_control;
+		break;
+	case MSR_IA32_VMX_BASIC ... MSR_IA32_VMX_VMFUNC:
+		if (!nested_vmx_allowed(vcpu))
+			return 1;
+		return vmx_get_vmx_msr(vcpu, msr_index, pdata);
+	case MSR_IA32_XSS:
+		if (!vmx_xsaves_supported())
+			return 1;
+		data = vcpu->arch.ia32_xss;
+		break;
 	case MSR_TSC_AUX:
 		if (!to_vmx(vcpu)->rdtscp_enabled)
 			return 1;
 		/* Otherwise falls through */
 	default:
-		vmx_load_host_state(to_vmx(vcpu));
-		if (vmx_get_vmx_msr(vcpu, msr_index, pdata))
-			return 0;
 		msr = find_msr_entry(to_vmx(vcpu), msr_index);
 		if (msr) {
-			vmx_load_host_state(to_vmx(vcpu));
 			data = msr->data;
 			break;
 		}
@@ -2158,21 +2695,24 @@ static int vmx_get_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 *pdata)
 	return 0;
 }
 
+static void vmx_leave_nested(struct kvm_vcpu *vcpu);
+
 /*
  * Writes msr value into into the appropriate "register".
  * Returns 0 on success, non-0 otherwise.
  * Assumes vcpu_load() was already called.
  */
-static int vmx_set_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 data)
+static int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	struct shared_msr_entry *msr;
 	int ret = 0;
+	u32 msr_index = msr_info->index;
+	u64 data = msr_info->data;
 
 	switch (msr_index) {
 	case MSR_EFER:
-		vmx_load_host_state(vmx);
-		ret = kvm_set_msr_common(vcpu, msr_index, data);
+		ret = kvm_set_msr_common(vcpu, msr_info);
 		break;
 #ifdef CONFIG_X86_64
 	case MSR_FS_BASE:
@@ -2197,16 +2737,53 @@ static int vmx_set_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 data)
 	case MSR_IA32_SYSENTER_ESP:
 		vmcs_writel(GUEST_SYSENTER_ESP, data);
 		break;
+	case MSR_IA32_BNDCFGS:
+		if (!vmx_mpx_supported())
+			return 1;
+		vmcs_write64(GUEST_BNDCFGS, data);
+		break;
 	case MSR_IA32_TSC:
-		kvm_write_tsc(vcpu, data);
+		kvm_write_tsc(vcpu, msr_info);
 		break;
 	case MSR_IA32_CR_PAT:
 		if (vmcs_config.vmentry_ctrl & VM_ENTRY_LOAD_IA32_PAT) {
+			if (!kvm_mtrr_valid(vcpu, MSR_IA32_CR_PAT, data))
+				return 1;
 			vmcs_write64(GUEST_IA32_PAT, data);
 			vcpu->arch.pat = data;
 			break;
 		}
-		ret = kvm_set_msr_common(vcpu, msr_index, data);
+		ret = kvm_set_msr_common(vcpu, msr_info);
+		break;
+	case MSR_IA32_TSC_ADJUST:
+		ret = kvm_set_msr_common(vcpu, msr_info);
+		break;
+	case MSR_IA32_FEATURE_CONTROL:
+		if (!nested_vmx_allowed(vcpu) ||
+		    (to_vmx(vcpu)->nested.msr_ia32_feature_control &
+		     FEATURE_CONTROL_LOCKED && !msr_info->host_initiated))
+			return 1;
+		vmx->nested.msr_ia32_feature_control = data;
+		if (msr_info->host_initiated && data == 0)
+			vmx_leave_nested(vcpu);
+		break;
+	case MSR_IA32_VMX_BASIC ... MSR_IA32_VMX_VMFUNC:
+		return 1; /* they are read-only */
+	case MSR_IA32_XSS:
+		if (!vmx_xsaves_supported())
+			return 1;
+		/*
+		 * The only supported bit as of Skylake is bit 8, but
+		 * it is not supported on KVM.
+		 */
+		if (data != 0)
+			return 1;
+		vcpu->arch.ia32_xss = data;
+		if (vcpu->arch.ia32_xss != host_xss)
+			add_atomic_switch_msr(vmx, MSR_IA32_XSS,
+				vcpu->arch.ia32_xss, host_xss);
+		else
+			clear_atomic_switch_msr(vmx, MSR_IA32_XSS);
 		break;
 	case MSR_TSC_AUX:
 		if (!vmx->rdtscp_enabled)
@@ -2216,15 +2793,21 @@ static int vmx_set_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 data)
 			return 1;
 		/* Otherwise falls through */
 	default:
-		if (vmx_set_vmx_msr(vcpu, msr_index, data))
-			break;
 		msr = find_msr_entry(vmx, msr_index);
 		if (msr) {
-			vmx_load_host_state(vmx);
+			u64 old_msr_data = msr->data;
 			msr->data = data;
+			if (msr - vmx->guest_msrs < vmx->save_nmsrs) {
+				preempt_disable();
+				ret = kvm_set_shared_msr(msr->index, msr->data,
+							 msr->mask);
+				preempt_enable();
+				if (ret)
+					msr->data = old_msr_data;
+			}
 			break;
 		}
-		ret = kvm_set_msr_common(vcpu, msr_index, data);
+		ret = kvm_set_msr_common(vcpu, msr_info);
 	}
 
 	return ret;
@@ -2247,16 +2830,6 @@ static void vmx_cache_reg(struct kvm_vcpu *vcpu, enum kvm_reg reg)
 	default:
 		break;
 	}
-}
-
-static void set_guest_debug(struct kvm_vcpu *vcpu, struct kvm_guest_debug *dbg)
-{
-	if (vcpu->guest_debug & KVM_GUESTDBG_USE_HW_BP)
-		vmcs_writel(GUEST_DR7, dbg->arch.debugreg[7]);
-	else
-		vmcs_writel(GUEST_DR7, vcpu->arch.dr7);
-
-	update_exception_bitmap(vcpu);
 }
 
 static __init int cpu_has_kvm_support(void)
@@ -2298,16 +2871,28 @@ static void kvm_cpu_vmxon(u64 addr)
 			: "memory", "cc");
 }
 
-static int hardware_enable(void *garbage)
+static int hardware_enable(void)
 {
 	int cpu = raw_smp_processor_id();
 	u64 phys_addr = __pa(per_cpu(vmxarea, cpu));
 	u64 old, test_bits;
 
-	if (read_cr4() & X86_CR4_VMXE)
+	if (cr4_read_shadow() & X86_CR4_VMXE)
 		return -EBUSY;
 
 	INIT_LIST_HEAD(&per_cpu(loaded_vmcss_on_cpu, cpu));
+
+	/*
+	 * Now we can enable the vmclear operation in kdump
+	 * since the loaded_vmcss_on_cpu list on this cpu
+	 * has been initialized.
+	 *
+	 * Though the cpu is not in VMX operation now, there
+	 * is no problem to enable the vmclear operation
+	 * for the loaded_vmcss_on_cpu list is empty!
+	 */
+	crash_enable_local_vmclear(cpu);
+
 	rdmsrl(MSR_IA32_FEATURE_CONTROL, old);
 
 	test_bits = FEATURE_CONTROL_LOCKED;
@@ -2319,14 +2904,14 @@ static int hardware_enable(void *garbage)
 		/* enable and lock */
 		wrmsrl(MSR_IA32_FEATURE_CONTROL, old | test_bits);
 	}
-	write_cr4(read_cr4() | X86_CR4_VMXE); /* FIXME: not cpu hotplug safe */
+	cr4_set_bits(X86_CR4_VMXE);
 
 	if (vmm_exclusive) {
 		kvm_cpu_vmxon(phys_addr);
 		ept_sync_global();
 	}
 
-	store_gdt(&__get_cpu_var(host_gdt));
+	native_store_gdt(this_cpu_ptr(&host_gdt));
 
 	return 0;
 }
@@ -2350,13 +2935,13 @@ static void kvm_cpu_vmxoff(void)
 	asm volatile (__ex(ASM_VMX_VMXOFF) : : : "cc");
 }
 
-static void hardware_disable(void *garbage)
+static void hardware_disable(void)
 {
 	if (vmm_exclusive) {
 		vmclear_local_loaded_vmcss();
 		kvm_cpu_vmxoff();
 	}
-	write_cr4(read_cr4() & ~X86_CR4_VMXE);
+	cr4_clear_bits(X86_CR4_VMXE);
 }
 
 static __init int adjust_vmx_controls(u32 ctl_min, u32 ctl_opt,
@@ -2396,13 +2981,7 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 	u32 _vmexit_control = 0;
 	u32 _vmentry_control = 0;
 
-	min = PIN_BASED_EXT_INTR_MASK | PIN_BASED_NMI_EXITING;
-	opt = PIN_BASED_VIRTUAL_NMIS;
-	if (adjust_vmx_controls(min, opt, MSR_IA32_VMX_PINBASED_CTLS,
-				&_pin_based_exec_control) < 0)
-		return -EIO;
-
-	min =
+	min = CPU_BASED_HLT_EXITING |
 #ifdef CONFIG_X86_64
 	      CPU_BASED_CR8_LOAD_EXITING |
 	      CPU_BASED_CR8_STORE_EXITING |
@@ -2414,10 +2993,8 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 	      CPU_BASED_USE_TSC_OFFSETING |
 	      CPU_BASED_MWAIT_EXITING |
 	      CPU_BASED_MONITOR_EXITING |
-	      CPU_BASED_INVLPG_EXITING;
-
-	if (yield_on_hlt)
-		min |= CPU_BASED_HLT_EXITING;
+	      CPU_BASED_INVLPG_EXITING |
+	      CPU_BASED_RDPMC_EXITING;
 
 	opt = CPU_BASED_TPR_SHADOW |
 	      CPU_BASED_USE_MSR_BITMAPS |
@@ -2433,12 +3010,19 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 	if (_cpu_based_exec_control & CPU_BASED_ACTIVATE_SECONDARY_CONTROLS) {
 		min2 = 0;
 		opt2 = SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES |
+			SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE |
 			SECONDARY_EXEC_WBINVD_EXITING |
 			SECONDARY_EXEC_ENABLE_VPID |
 			SECONDARY_EXEC_ENABLE_EPT |
 			SECONDARY_EXEC_UNRESTRICTED_GUEST |
 			SECONDARY_EXEC_PAUSE_LOOP_EXITING |
-			SECONDARY_EXEC_RDTSCP;
+			SECONDARY_EXEC_RDTSCP |
+			SECONDARY_EXEC_ENABLE_INVPCID |
+			SECONDARY_EXEC_APIC_REGISTER_VIRT |
+			SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY |
+			SECONDARY_EXEC_SHADOW_VMCS |
+			SECONDARY_EXEC_XSAVES |
+			SECONDARY_EXEC_ENABLE_PML;
 		if (adjust_vmx_controls(min2, opt2,
 					MSR_IA32_VMX_PROCBASED_CTLS2,
 					&_cpu_based_2nd_exec_control) < 0)
@@ -2449,6 +3033,13 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 				SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES))
 		_cpu_based_exec_control &= ~CPU_BASED_TPR_SHADOW;
 #endif
+
+	if (!(_cpu_based_exec_control & CPU_BASED_TPR_SHADOW))
+		_cpu_based_2nd_exec_control &= ~(
+				SECONDARY_EXEC_APIC_REGISTER_VIRT |
+				SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE |
+				SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY);
+
 	if (_cpu_based_2nd_exec_control & SECONDARY_EXEC_ENABLE_EPT) {
 		/* CR3 accesses and invlpg don't need to cause VM Exits when EPT
 		   enabled */
@@ -2459,17 +3050,29 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 		      vmx_capability.ept, vmx_capability.vpid);
 	}
 
-	min = 0;
+	min = VM_EXIT_SAVE_DEBUG_CONTROLS;
 #ifdef CONFIG_X86_64
 	min |= VM_EXIT_HOST_ADDR_SPACE_SIZE;
 #endif
-	opt = VM_EXIT_SAVE_IA32_PAT | VM_EXIT_LOAD_IA32_PAT;
+	opt = VM_EXIT_SAVE_IA32_PAT | VM_EXIT_LOAD_IA32_PAT |
+		VM_EXIT_ACK_INTR_ON_EXIT | VM_EXIT_CLEAR_BNDCFGS;
 	if (adjust_vmx_controls(min, opt, MSR_IA32_VMX_EXIT_CTLS,
 				&_vmexit_control) < 0)
 		return -EIO;
 
-	min = 0;
-	opt = VM_ENTRY_LOAD_IA32_PAT;
+	min = PIN_BASED_EXT_INTR_MASK | PIN_BASED_NMI_EXITING;
+	opt = PIN_BASED_VIRTUAL_NMIS | PIN_BASED_POSTED_INTR;
+	if (adjust_vmx_controls(min, opt, MSR_IA32_VMX_PINBASED_CTLS,
+				&_pin_based_exec_control) < 0)
+		return -EIO;
+
+	if (!(_cpu_based_2nd_exec_control &
+		SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY) ||
+		!(_vmexit_control & VM_EXIT_ACK_INTR_ON_EXIT))
+		_pin_based_exec_control &= ~PIN_BASED_POSTED_INTR;
+
+	min = VM_ENTRY_LOAD_DEBUG_CONTROLS;
+	opt = VM_ENTRY_LOAD_IA32_PAT | VM_ENTRY_LOAD_BNDCFGS;
 	if (adjust_vmx_controls(min, opt, MSR_IA32_VMX_ENTRY_CTLS,
 				&_vmentry_control) < 0)
 		return -EIO;
@@ -2542,6 +3145,9 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 		}
 	}
 
+	if (cpu_has_xsaves)
+		rdmsrl(MSR_IA32_XSS, host_xss);
+
 	return 0;
 }
 
@@ -2592,6 +3198,41 @@ static void free_kvm_area(void)
 	}
 }
 
+static void init_vmcs_shadow_fields(void)
+{
+	int i, j;
+
+	/* No checks for read only fields yet */
+
+	for (i = j = 0; i < max_shadow_read_write_fields; i++) {
+		switch (shadow_read_write_fields[i]) {
+		case GUEST_BNDCFGS:
+			if (!vmx_mpx_supported())
+				continue;
+			break;
+		default:
+			break;
+		}
+
+		if (j < i)
+			shadow_read_write_fields[j] =
+				shadow_read_write_fields[i];
+		j++;
+	}
+	max_shadow_read_write_fields = j;
+
+	/* shadowed fields guest access without vmexit */
+	for (i = 0; i < max_shadow_read_write_fields; i++) {
+		clear_bit(shadow_read_write_fields[i],
+			  vmx_vmwrite_bitmap);
+		clear_bit(shadow_read_write_fields[i],
+			  vmx_vmread_bitmap);
+	}
+	for (i = 0; i < max_shadow_read_only_fields; i++)
+		clear_bit(shadow_read_only_fields[i],
+			  vmx_vmread_bitmap);
+}
+
 static __init int alloc_kvm_area(void)
 {
 	int cpu;
@@ -2610,63 +3251,28 @@ static __init int alloc_kvm_area(void)
 	return 0;
 }
 
-static __init int hardware_setup(void)
+static bool emulation_required(struct kvm_vcpu *vcpu)
 {
-	if (setup_vmcs_config(&vmcs_config) < 0)
-		return -EIO;
-
-	if (boot_cpu_has(X86_FEATURE_NX))
-		kvm_enable_efer_bits(EFER_NX);
-
-	if (!cpu_has_vmx_vpid())
-		enable_vpid = 0;
-
-	if (!cpu_has_vmx_ept() ||
-	    !cpu_has_vmx_ept_4levels()) {
-		enable_ept = 0;
-		enable_unrestricted_guest = 0;
-	}
-
-	if (!cpu_has_vmx_unrestricted_guest())
-		enable_unrestricted_guest = 0;
-
-	if (!cpu_has_vmx_flexpriority())
-		flexpriority_enabled = 0;
-
-	if (!cpu_has_vmx_tpr_shadow())
-		kvm_x86_ops->update_cr8_intercept = NULL;
-
-	if (enable_ept && !cpu_has_vmx_ept_2m_page())
-		kvm_disable_largepages();
-
-	if (!cpu_has_vmx_ple())
-		ple_gap = 0;
-
-	if (nested)
-		nested_vmx_setup_ctls_msrs();
-
-	return alloc_kvm_area();
+	return emulate_invalid_guest_state && !guest_state_valid(vcpu);
 }
 
-static __exit void hardware_unsetup(void)
+static void fix_pmode_seg(struct kvm_vcpu *vcpu, int seg,
+		struct kvm_segment *save)
 {
-	free_kvm_area();
-}
-
-static void fix_pmode_dataseg(int seg, struct kvm_save_segment *save)
-{
-	struct kvm_vmx_segment_field *sf = &kvm_vmx_segment_fields[seg];
-
-	if (vmcs_readl(sf->base) == save->base && (save->base & AR_S_MASK)) {
-		vmcs_write16(sf->selector, save->selector);
-		vmcs_writel(sf->base, save->base);
-		vmcs_write32(sf->limit, save->limit);
-		vmcs_write32(sf->ar_bytes, save->ar);
-	} else {
-		u32 dpl = (vmcs_read16(sf->selector) & SELECTOR_RPL_MASK)
-			<< AR_DPL_SHIFT;
-		vmcs_write32(sf->ar_bytes, 0x93 | dpl);
+	if (!emulate_invalid_guest_state) {
+		/*
+		 * CS and SS RPL should be equal during guest entry according
+		 * to VMX spec, but in reality it is not always so. Since vcpu
+		 * is in the middle of the transition from real mode to
+		 * protected mode it is safe to assume that RPL 0 is a good
+		 * default value.
+		 */
+		if (seg == VCPU_SREG_CS || seg == VCPU_SREG_SS)
+			save->selector &= ~SELECTOR_RPL_MASK;
+		save->dpl = save->selector & SELECTOR_RPL_MASK;
+		save->s = 1;
 	}
+	vmx_set_segment(vcpu, save, seg);
 }
 
 static void enter_pmode(struct kvm_vcpu *vcpu)
@@ -2674,15 +3280,22 @@ static void enter_pmode(struct kvm_vcpu *vcpu)
 	unsigned long flags;
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 
-	vmx->emulation_required = 1;
+	/*
+	 * Update real mode segment cache. It may be not up-to-date if sement
+	 * register was written while vcpu was in a guest mode.
+	 */
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_ES], VCPU_SREG_ES);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_DS], VCPU_SREG_DS);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_FS], VCPU_SREG_FS);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_GS], VCPU_SREG_GS);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_SS], VCPU_SREG_SS);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_CS], VCPU_SREG_CS);
+
 	vmx->rmode.vm86_active = 0;
 
 	vmx_segment_cache_clear(vmx);
 
-	vmcs_write16(GUEST_TR_SELECTOR, vmx->rmode.tr.selector);
-	vmcs_writel(GUEST_TR_BASE, vmx->rmode.tr.base);
-	vmcs_write32(GUEST_TR_LIMIT, vmx->rmode.tr.limit);
-	vmcs_write32(GUEST_TR_AR_BYTES, vmx->rmode.tr.ar);
+	vmx_set_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_TR], VCPU_SREG_TR);
 
 	flags = vmcs_readl(GUEST_RFLAGS);
 	flags &= RMODE_GUEST_OWNED_EFLAGS_BITS;
@@ -2694,54 +3307,45 @@ static void enter_pmode(struct kvm_vcpu *vcpu)
 
 	update_exception_bitmap(vcpu);
 
-	if (emulate_invalid_guest_state)
-		return;
-
-	fix_pmode_dataseg(VCPU_SREG_ES, &vmx->rmode.es);
-	fix_pmode_dataseg(VCPU_SREG_DS, &vmx->rmode.ds);
-	fix_pmode_dataseg(VCPU_SREG_GS, &vmx->rmode.gs);
-	fix_pmode_dataseg(VCPU_SREG_FS, &vmx->rmode.fs);
-
-	vmx_segment_cache_clear(vmx);
-
-	vmcs_write16(GUEST_SS_SELECTOR, 0);
-	vmcs_write32(GUEST_SS_AR_BYTES, 0x93);
-
-	vmcs_write16(GUEST_CS_SELECTOR,
-		     vmcs_read16(GUEST_CS_SELECTOR) & ~SELECTOR_RPL_MASK);
-	vmcs_write32(GUEST_CS_AR_BYTES, 0x9b);
+	fix_pmode_seg(vcpu, VCPU_SREG_CS, &vmx->rmode.segs[VCPU_SREG_CS]);
+	fix_pmode_seg(vcpu, VCPU_SREG_SS, &vmx->rmode.segs[VCPU_SREG_SS]);
+	fix_pmode_seg(vcpu, VCPU_SREG_ES, &vmx->rmode.segs[VCPU_SREG_ES]);
+	fix_pmode_seg(vcpu, VCPU_SREG_DS, &vmx->rmode.segs[VCPU_SREG_DS]);
+	fix_pmode_seg(vcpu, VCPU_SREG_FS, &vmx->rmode.segs[VCPU_SREG_FS]);
+	fix_pmode_seg(vcpu, VCPU_SREG_GS, &vmx->rmode.segs[VCPU_SREG_GS]);
 }
 
-static gva_t rmode_tss_base(struct kvm *kvm)
+static void fix_rmode_seg(int seg, struct kvm_segment *save)
 {
-	if (!kvm->arch.tss_addr) {
-		struct kvm_memslots *slots;
-		gfn_t base_gfn;
+	const struct kvm_vmx_segment_field *sf = &kvm_vmx_segment_fields[seg];
+	struct kvm_segment var = *save;
 
-		slots = kvm_memslots(kvm);
-		base_gfn = slots->memslots[0].base_gfn +
-				 kvm->memslots->memslots[0].npages - 3;
-		return base_gfn << PAGE_SHIFT;
+	var.dpl = 0x3;
+	if (seg == VCPU_SREG_CS)
+		var.type = 0x3;
+
+	if (!emulate_invalid_guest_state) {
+		var.selector = var.base >> 4;
+		var.base = var.base & 0xffff0;
+		var.limit = 0xffff;
+		var.g = 0;
+		var.db = 0;
+		var.present = 1;
+		var.s = 1;
+		var.l = 0;
+		var.unusable = 0;
+		var.type = 0x3;
+		var.avl = 0;
+		if (save->base & 0xf)
+			printk_once(KERN_WARNING "kvm: segment base is not "
+					"paragraph aligned when entering "
+					"protected mode (seg=%d)", seg);
 	}
-	return kvm->arch.tss_addr;
-}
 
-static void fix_rmode_seg(int seg, struct kvm_save_segment *save)
-{
-	struct kvm_vmx_segment_field *sf = &kvm_vmx_segment_fields[seg];
-
-	save->selector = vmcs_read16(sf->selector);
-	save->base = vmcs_readl(sf->base);
-	save->limit = vmcs_read32(sf->limit);
-	save->ar = vmcs_read32(sf->ar_bytes);
-	vmcs_write16(sf->selector, save->base >> 4);
-	vmcs_write32(sf->base, save->base & 0xffff0);
-	vmcs_write32(sf->limit, 0xffff);
-	vmcs_write32(sf->ar_bytes, 0xf3);
-	if (save->base & 0xf)
-		printk_once(KERN_WARNING "kvm: segment base is not paragraph"
-			    " aligned when entering protected mode (seg=%d)",
-			    seg);
+	vmcs_write16(sf->selector, var.selector);
+	vmcs_write32(sf->base, var.base);
+	vmcs_write32(sf->limit, var.limit);
+	vmcs_write32(sf->ar_bytes, vmx_segment_access_rights(&var));
 }
 
 static void enter_rmode(struct kvm_vcpu *vcpu)
@@ -2749,34 +3353,28 @@ static void enter_rmode(struct kvm_vcpu *vcpu)
 	unsigned long flags;
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 
-	if (enable_unrestricted_guest)
-		return;
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_TR], VCPU_SREG_TR);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_ES], VCPU_SREG_ES);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_DS], VCPU_SREG_DS);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_FS], VCPU_SREG_FS);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_GS], VCPU_SREG_GS);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_SS], VCPU_SREG_SS);
+	vmx_get_segment(vcpu, &vmx->rmode.segs[VCPU_SREG_CS], VCPU_SREG_CS);
 
-	vmx->emulation_required = 1;
 	vmx->rmode.vm86_active = 1;
 
 	/*
 	 * Very old userspace does not call KVM_SET_TSS_ADDR before entering
-	 * vcpu. Call it here with phys address pointing 16M below 4G.
+	 * vcpu. Warn the user that an update is overdue.
 	 */
-	if (!vcpu->kvm->arch.tss_addr) {
+	if (!vcpu->kvm->arch.tss_addr)
 		printk_once(KERN_WARNING "kvm: KVM_SET_TSS_ADDR need to be "
 			     "called before entering vcpu\n");
-		srcu_read_unlock(&vcpu->kvm->srcu, vcpu->srcu_idx);
-		vmx_set_tss_addr(vcpu->kvm, 0xfeffd000);
-		vcpu->srcu_idx = srcu_read_lock(&vcpu->kvm->srcu);
-	}
 
 	vmx_segment_cache_clear(vmx);
 
-	vmx->rmode.tr.selector = vmcs_read16(GUEST_TR_SELECTOR);
-	vmx->rmode.tr.base = vmcs_readl(GUEST_TR_BASE);
-	vmcs_writel(GUEST_TR_BASE, rmode_tss_base(vcpu->kvm));
-
-	vmx->rmode.tr.limit = vmcs_read32(GUEST_TR_LIMIT);
+	vmcs_writel(GUEST_TR_BASE, vcpu->kvm->arch.tss_addr);
 	vmcs_write32(GUEST_TR_LIMIT, RMODE_TSS_SIZE - 1);
-
-	vmx->rmode.tr.ar = vmcs_read32(GUEST_TR_AR_BYTES);
 	vmcs_write32(GUEST_TR_AR_BYTES, 0x008b);
 
 	flags = vmcs_readl(GUEST_RFLAGS);
@@ -2788,25 +3386,13 @@ static void enter_rmode(struct kvm_vcpu *vcpu)
 	vmcs_writel(GUEST_CR4, vmcs_readl(GUEST_CR4) | X86_CR4_VME);
 	update_exception_bitmap(vcpu);
 
-	if (emulate_invalid_guest_state)
-		goto continue_rmode;
+	fix_rmode_seg(VCPU_SREG_SS, &vmx->rmode.segs[VCPU_SREG_SS]);
+	fix_rmode_seg(VCPU_SREG_CS, &vmx->rmode.segs[VCPU_SREG_CS]);
+	fix_rmode_seg(VCPU_SREG_ES, &vmx->rmode.segs[VCPU_SREG_ES]);
+	fix_rmode_seg(VCPU_SREG_DS, &vmx->rmode.segs[VCPU_SREG_DS]);
+	fix_rmode_seg(VCPU_SREG_GS, &vmx->rmode.segs[VCPU_SREG_GS]);
+	fix_rmode_seg(VCPU_SREG_FS, &vmx->rmode.segs[VCPU_SREG_FS]);
 
-	vmcs_write16(GUEST_SS_SELECTOR, vmcs_readl(GUEST_SS_BASE) >> 4);
-	vmcs_write32(GUEST_SS_LIMIT, 0xffff);
-	vmcs_write32(GUEST_SS_AR_BYTES, 0xf3);
-
-	vmcs_write32(GUEST_CS_AR_BYTES, 0xf3);
-	vmcs_write32(GUEST_CS_LIMIT, 0xffff);
-	if (vmcs_readl(GUEST_CS_BASE) == 0xffff0000)
-		vmcs_writel(GUEST_CS_BASE, 0xf0000);
-	vmcs_write16(GUEST_CS_SELECTOR, vmcs_readl(GUEST_CS_BASE) >> 4);
-
-	fix_rmode_seg(VCPU_SREG_ES, &vmx->rmode.es);
-	fix_rmode_seg(VCPU_SREG_DS, &vmx->rmode.ds);
-	fix_rmode_seg(VCPU_SREG_GS, &vmx->rmode.gs);
-	fix_rmode_seg(VCPU_SREG_FS, &vmx->rmode.fs);
-
-continue_rmode:
 	kvm_mmu_reset_context(vcpu);
 }
 
@@ -2825,14 +3411,10 @@ static void vmx_set_efer(struct kvm_vcpu *vcpu, u64 efer)
 	vmx_load_host_state(to_vmx(vcpu));
 	vcpu->arch.efer = efer;
 	if (efer & EFER_LMA) {
-		vmcs_write32(VM_ENTRY_CONTROLS,
-			     vmcs_read32(VM_ENTRY_CONTROLS) |
-			     VM_ENTRY_IA32E_MODE);
+		vm_entry_controls_setbit(to_vmx(vcpu), VM_ENTRY_IA32E_MODE);
 		msr->data = efer;
 	} else {
-		vmcs_write32(VM_ENTRY_CONTROLS,
-			     vmcs_read32(VM_ENTRY_CONTROLS) &
-			     ~VM_ENTRY_IA32E_MODE);
+		vm_entry_controls_clearbit(to_vmx(vcpu), VM_ENTRY_IA32E_MODE);
 
 		msr->data = efer & ~EFER_LME;
 	}
@@ -2860,9 +3442,7 @@ static void enter_lmode(struct kvm_vcpu *vcpu)
 
 static void exit_lmode(struct kvm_vcpu *vcpu)
 {
-	vmcs_write32(VM_ENTRY_CONTROLS,
-		     vmcs_read32(VM_ENTRY_CONTROLS)
-		     & ~VM_ENTRY_IA32E_MODE);
+	vm_entry_controls_clearbit(to_vmx(vcpu), VM_ENTRY_IA32E_MODE);
 	vmx_set_efer(vcpu, vcpu->arch.efer & ~EFER_LMA);
 }
 
@@ -2903,25 +3483,29 @@ static void vmx_decache_cr4_guest_bits(struct kvm_vcpu *vcpu)
 
 static void ept_load_pdptrs(struct kvm_vcpu *vcpu)
 {
+	struct kvm_mmu *mmu = vcpu->arch.walk_mmu;
+
 	if (!test_bit(VCPU_EXREG_PDPTR,
 		      (unsigned long *)&vcpu->arch.regs_dirty))
 		return;
 
 	if (is_paging(vcpu) && is_pae(vcpu) && !is_long_mode(vcpu)) {
-		vmcs_write64(GUEST_PDPTR0, vcpu->arch.mmu.pdptrs[0]);
-		vmcs_write64(GUEST_PDPTR1, vcpu->arch.mmu.pdptrs[1]);
-		vmcs_write64(GUEST_PDPTR2, vcpu->arch.mmu.pdptrs[2]);
-		vmcs_write64(GUEST_PDPTR3, vcpu->arch.mmu.pdptrs[3]);
+		vmcs_write64(GUEST_PDPTR0, mmu->pdptrs[0]);
+		vmcs_write64(GUEST_PDPTR1, mmu->pdptrs[1]);
+		vmcs_write64(GUEST_PDPTR2, mmu->pdptrs[2]);
+		vmcs_write64(GUEST_PDPTR3, mmu->pdptrs[3]);
 	}
 }
 
 static void ept_save_pdptrs(struct kvm_vcpu *vcpu)
 {
+	struct kvm_mmu *mmu = vcpu->arch.walk_mmu;
+
 	if (is_paging(vcpu) && is_pae(vcpu) && !is_long_mode(vcpu)) {
-		vcpu->arch.mmu.pdptrs[0] = vmcs_read64(GUEST_PDPTR0);
-		vcpu->arch.mmu.pdptrs[1] = vmcs_read64(GUEST_PDPTR1);
-		vcpu->arch.mmu.pdptrs[2] = vmcs_read64(GUEST_PDPTR2);
-		vcpu->arch.mmu.pdptrs[3] = vmcs_read64(GUEST_PDPTR3);
+		mmu->pdptrs[0] = vmcs_read64(GUEST_PDPTR0);
+		mmu->pdptrs[1] = vmcs_read64(GUEST_PDPTR1);
+		mmu->pdptrs[2] = vmcs_read64(GUEST_PDPTR2);
+		mmu->pdptrs[3] = vmcs_read64(GUEST_PDPTR3);
 	}
 
 	__set_bit(VCPU_EXREG_PDPTR,
@@ -2965,17 +3549,18 @@ static void vmx_set_cr0(struct kvm_vcpu *vcpu, unsigned long cr0)
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	unsigned long hw_cr0;
 
+	hw_cr0 = (cr0 & ~KVM_GUEST_CR0_MASK);
 	if (enable_unrestricted_guest)
-		hw_cr0 = (cr0 & ~KVM_GUEST_CR0_MASK_UNRESTRICTED_GUEST)
-			| KVM_VM_CR0_ALWAYS_ON_UNRESTRICTED_GUEST;
-	else
-		hw_cr0 = (cr0 & ~KVM_GUEST_CR0_MASK) | KVM_VM_CR0_ALWAYS_ON;
+		hw_cr0 |= KVM_VM_CR0_ALWAYS_ON_UNRESTRICTED_GUEST;
+	else {
+		hw_cr0 |= KVM_VM_CR0_ALWAYS_ON;
 
-	if (vmx->rmode.vm86_active && (cr0 & X86_CR0_PE))
-		enter_pmode(vcpu);
+		if (vmx->rmode.vm86_active && (cr0 & X86_CR0_PE))
+			enter_pmode(vcpu);
 
-	if (!vmx->rmode.vm86_active && !(cr0 & X86_CR0_PE))
-		enter_rmode(vcpu);
+		if (!vmx->rmode.vm86_active && !(cr0 & X86_CR0_PE))
+			enter_rmode(vcpu);
+	}
 
 #ifdef CONFIG_X86_64
 	if (vcpu->arch.efer & EFER_LME) {
@@ -2995,7 +3580,9 @@ static void vmx_set_cr0(struct kvm_vcpu *vcpu, unsigned long cr0)
 	vmcs_writel(CR0_READ_SHADOW, cr0);
 	vmcs_writel(GUEST_CR0, hw_cr0);
 	vcpu->arch.cr0 = cr0;
-	__clear_bit(VCPU_EXREG_CPL, (ulong *)&vcpu->arch.regs_avail);
+
+	/* depends on vcpu->arch.cr0 to be set to a new value */
+	vmx->emulation_required = emulation_required(vcpu);
 }
 
 static u64 construct_eptp(unsigned long root_hpa)
@@ -3005,6 +3592,8 @@ static u64 construct_eptp(unsigned long root_hpa)
 	/* TODO write the value reading from MSR */
 	eptp = VMX_EPT_DEFAULT_MT |
 		VMX_EPT_DEFAULT_GAW << VMX_EPT_GAW_EPTP_SHIFT;
+	if (enable_ept_ad_bits)
+		eptp |= VMX_EPT_AD_ENABLE_BIT;
 	eptp |= (root_hpa & PAGE_MASK);
 
 	return eptp;
@@ -3019,8 +3608,10 @@ static void vmx_set_cr3(struct kvm_vcpu *vcpu, unsigned long cr3)
 	if (enable_ept) {
 		eptp = construct_eptp(cr3);
 		vmcs_write64(EPT_POINTER, eptp);
-		guest_cr3 = is_paging(vcpu) ? kvm_read_cr3(vcpu) :
-			vcpu->kvm->arch.ept_identity_map_addr;
+		if (is_paging(vcpu) || is_guest_mode(vcpu))
+			guest_cr3 = kvm_read_cr3(vcpu);
+		else
+			guest_cr3 = vcpu->kvm->arch.ept_identity_map_addr;
 		ept_load_pdptrs(vcpu);
 	}
 
@@ -3030,8 +3621,16 @@ static void vmx_set_cr3(struct kvm_vcpu *vcpu, unsigned long cr3)
 
 static int vmx_set_cr4(struct kvm_vcpu *vcpu, unsigned long cr4)
 {
-	unsigned long hw_cr4 = cr4 | (to_vmx(vcpu)->rmode.vm86_active ?
-		    KVM_RMODE_VM_CR4_ALWAYS_ON : KVM_PMODE_VM_CR4_ALWAYS_ON);
+	/*
+	 * Pass through host's Machine Check Enable value to hw_cr4, which
+	 * is in force while we are in guest mode.  Do not let guests control
+	 * this bit, even if host CR4.MCE == 0.
+	 */
+	unsigned long hw_cr4 =
+		(cr4_read_shadow() & X86_CR4_MCE) |
+		(cr4 & ~X86_CR4_MCE) |
+		(to_vmx(vcpu)->rmode.vm86_active ?
+		 KVM_RMODE_VM_CR4_ALWAYS_ON : KVM_PMODE_VM_CR4_ALWAYS_ON);
 
 	if (cr4 & X86_CR4_VMXE) {
 		/*
@@ -3042,7 +3641,9 @@ static int vmx_set_cr4(struct kvm_vcpu *vcpu, unsigned long cr4)
 		 */
 		if (!nested_vmx_allowed(vcpu))
 			return 1;
-	} else if (to_vmx(vcpu)->nested.vmxon)
+	}
+	if (to_vmx(vcpu)->nested.vmxon &&
+	    ((cr4 & VMXON_CR4_ALWAYSON) != VMXON_CR4_ALWAYSON))
 		return 1;
 
 	vcpu->arch.cr4 = cr4;
@@ -3050,6 +3651,15 @@ static int vmx_set_cr4(struct kvm_vcpu *vcpu, unsigned long cr4)
 		if (!is_paging(vcpu)) {
 			hw_cr4 &= ~X86_CR4_PAE;
 			hw_cr4 |= X86_CR4_PSE;
+			/*
+			 * SMEP/SMAP is disabled if CPU is in non-paging mode
+			 * in hardware. However KVM always uses paging mode to
+			 * emulate guest non-paging mode with TDP.
+			 * To emulate this behavior, SMEP/SMAP needs to be
+			 * manually disabled when guest switches to non-paging
+			 * mode.
+			 */
+			hw_cr4 &= ~(X86_CR4_SMEP | X86_CR4_SMAP);
 		} else if (!(cr4 & X86_CR4_PAE)) {
 			hw_cr4 &= ~X86_CR4_PAE;
 		}
@@ -3064,46 +3674,37 @@ static void vmx_get_segment(struct kvm_vcpu *vcpu,
 			    struct kvm_segment *var, int seg)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
-	struct kvm_save_segment *save;
 	u32 ar;
 
-	if (vmx->rmode.vm86_active
-	    && (seg == VCPU_SREG_TR || seg == VCPU_SREG_ES
-		|| seg == VCPU_SREG_DS || seg == VCPU_SREG_FS
-		|| seg == VCPU_SREG_GS)
-	    && !emulate_invalid_guest_state) {
-		switch (seg) {
-		case VCPU_SREG_TR: save = &vmx->rmode.tr; break;
-		case VCPU_SREG_ES: save = &vmx->rmode.es; break;
-		case VCPU_SREG_DS: save = &vmx->rmode.ds; break;
-		case VCPU_SREG_FS: save = &vmx->rmode.fs; break;
-		case VCPU_SREG_GS: save = &vmx->rmode.gs; break;
-		default: BUG();
-		}
-		var->selector = save->selector;
-		var->base = save->base;
-		var->limit = save->limit;
-		ar = save->ar;
+	if (vmx->rmode.vm86_active && seg != VCPU_SREG_LDTR) {
+		*var = vmx->rmode.segs[seg];
 		if (seg == VCPU_SREG_TR
 		    || var->selector == vmx_read_guest_seg_selector(vmx, seg))
-			goto use_saved_rmode_seg;
+			return;
+		var->base = vmx_read_guest_seg_base(vmx, seg);
+		var->selector = vmx_read_guest_seg_selector(vmx, seg);
+		return;
 	}
 	var->base = vmx_read_guest_seg_base(vmx, seg);
 	var->limit = vmx_read_guest_seg_limit(vmx, seg);
 	var->selector = vmx_read_guest_seg_selector(vmx, seg);
 	ar = vmx_read_guest_seg_ar(vmx, seg);
-use_saved_rmode_seg:
-	if ((ar & AR_UNUSABLE_MASK) && !emulate_invalid_guest_state)
-		ar = 0;
+	var->unusable = (ar >> 16) & 1;
 	var->type = ar & 15;
 	var->s = (ar >> 4) & 1;
 	var->dpl = (ar >> 5) & 3;
-	var->present = (ar >> 7) & 1;
+	/*
+	 * Some userspaces do not preserve unusable property. Since usable
+	 * segment has to be present according to VMX spec we can use present
+	 * property to amend userspace bug by making unusable segment always
+	 * nonpresent. vmx_segment_access_rights() already marks nonpresent
+	 * segment as unusable.
+	 */
+	var->present = !var->unusable;
 	var->avl = (ar >> 12) & 1;
 	var->l = (ar >> 13) & 1;
 	var->db = (ar >> 14) & 1;
 	var->g = (ar >> 15) & 1;
-	var->unusable = (ar >> 16) & 1;
 }
 
 static u64 vmx_get_segment_base(struct kvm_vcpu *vcpu, int seg)
@@ -3117,33 +3718,23 @@ static u64 vmx_get_segment_base(struct kvm_vcpu *vcpu, int seg)
 	return vmx_read_guest_seg_base(to_vmx(vcpu), seg);
 }
 
-static int __vmx_get_cpl(struct kvm_vcpu *vcpu)
-{
-	if (!is_protmode(vcpu))
-		return 0;
-
-	if (!is_long_mode(vcpu)
-	    && (kvm_get_rflags(vcpu) & X86_EFLAGS_VM)) /* if virtual 8086 */
-		return 3;
-
-	return vmx_read_guest_seg_selector(to_vmx(vcpu), VCPU_SREG_CS) & 3;
-}
-
 static int vmx_get_cpl(struct kvm_vcpu *vcpu)
 {
-	if (!test_bit(VCPU_EXREG_CPL, (ulong *)&vcpu->arch.regs_avail)) {
-		__set_bit(VCPU_EXREG_CPL, (ulong *)&vcpu->arch.regs_avail);
-		to_vmx(vcpu)->cpl = __vmx_get_cpl(vcpu);
-	}
-	return to_vmx(vcpu)->cpl;
-}
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
 
+	if (unlikely(vmx->rmode.vm86_active))
+		return 0;
+	else {
+		int ar = vmx_read_guest_seg_ar(vmx, VCPU_SREG_SS);
+		return AR_DPL(ar);
+	}
+}
 
 static u32 vmx_segment_access_rights(struct kvm_segment *var)
 {
 	u32 ar;
 
-	if (var->unusable)
+	if (var->unusable || !var->present)
 		ar = 1 << 16;
 	else {
 		ar = var->type & 15;
@@ -3155,8 +3746,6 @@ static u32 vmx_segment_access_rights(struct kvm_segment *var)
 		ar |= (var->db & 1) << 14;
 		ar |= (var->g & 1) << 15;
 	}
-	if (ar == 0) /* a 0 value means unusable */
-		ar = AR_UNUSABLE_MASK;
 
 	return ar;
 }
@@ -3165,48 +3754,41 @@ static void vmx_set_segment(struct kvm_vcpu *vcpu,
 			    struct kvm_segment *var, int seg)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
-	struct kvm_vmx_segment_field *sf = &kvm_vmx_segment_fields[seg];
-	u32 ar;
+	const struct kvm_vmx_segment_field *sf = &kvm_vmx_segment_fields[seg];
 
 	vmx_segment_cache_clear(vmx);
 
-	if (vmx->rmode.vm86_active && seg == VCPU_SREG_TR) {
-		vmcs_write16(sf->selector, var->selector);
-		vmx->rmode.tr.selector = var->selector;
-		vmx->rmode.tr.base = var->base;
-		vmx->rmode.tr.limit = var->limit;
-		vmx->rmode.tr.ar = vmx_segment_access_rights(var);
-		return;
+	if (vmx->rmode.vm86_active && seg != VCPU_SREG_LDTR) {
+		vmx->rmode.segs[seg] = *var;
+		if (seg == VCPU_SREG_TR)
+			vmcs_write16(sf->selector, var->selector);
+		else if (var->s)
+			fix_rmode_seg(seg, &vmx->rmode.segs[seg]);
+		goto out;
 	}
+
 	vmcs_writel(sf->base, var->base);
 	vmcs_write32(sf->limit, var->limit);
 	vmcs_write16(sf->selector, var->selector);
-	if (vmx->rmode.vm86_active && var->s) {
-		/*
-		 * Hack real-mode segments into vm86 compatibility.
-		 */
-		if (var->base == 0xffff0000 && var->selector == 0xf000)
-			vmcs_writel(sf->base, 0xf0000);
-		ar = 0xf3;
-	} else
-		ar = vmx_segment_access_rights(var);
 
 	/*
 	 *   Fix the "Accessed" bit in AR field of segment registers for older
 	 * qemu binaries.
 	 *   IA32 arch specifies that at the time of processor reset the
 	 * "Accessed" bit in the AR field of segment registers is 1. And qemu
-	 * is setting it to 0 in the usedland code. This causes invalid guest
+	 * is setting it to 0 in the userland code. This causes invalid guest
 	 * state vmexit when "unrestricted guest" mode is turned on.
 	 *    Fix for this setup issue in cpu_reset is being pushed in the qemu
 	 * tree. Newer qemu binaries with that qemu fix would not need this
 	 * kvm hack.
 	 */
 	if (enable_unrestricted_guest && (seg != VCPU_SREG_LDTR))
-		ar |= 0x1; /* Accessed */
+		var->type |= 0x1; /* Accessed */
 
-	vmcs_write32(sf->ar_bytes, ar);
-	__clear_bit(VCPU_EXREG_CPL, (ulong *)&vcpu->arch.regs_avail);
+	vmcs_write32(sf->ar_bytes, vmx_segment_access_rights(var));
+
+out:
+	vmx->emulation_required = emulation_required(vcpu);
 }
 
 static void vmx_get_cs_db_l_bits(struct kvm_vcpu *vcpu, int *db, int *l)
@@ -3247,6 +3829,9 @@ static bool rmode_segment_valid(struct kvm_vcpu *vcpu, int seg)
 	u32 ar;
 
 	vmx_get_segment(vcpu, &var, seg);
+	var.dpl = 0x3;
+	if (seg == VCPU_SREG_CS)
+		var.type = 0x3;
 	ar = vmx_segment_access_rights(&var);
 
 	if (var.base != (var.selector << 4))
@@ -3388,8 +3973,11 @@ static bool cs_ss_rpl_check(struct kvm_vcpu *vcpu)
  */
 static bool guest_state_valid(struct kvm_vcpu *vcpu)
 {
+	if (enable_unrestricted_guest)
+		return true;
+
 	/* real mode guest state checks */
-	if (!is_protmode(vcpu)) {
+	if (!is_protmode(vcpu) || (vmx_get_rflags(vcpu) & X86_EFLAGS_VM)) {
 		if (!rmode_segment_valid(vcpu, VCPU_SREG_CS))
 			return false;
 		if (!rmode_segment_valid(vcpu, VCPU_SREG_SS))
@@ -3435,10 +4023,10 @@ static int init_rmode_tss(struct kvm *kvm)
 {
 	gfn_t fn;
 	u16 data = 0;
-	int r, idx, ret = 0;
+	int idx, r;
 
 	idx = srcu_read_lock(&kvm->srcu);
-	fn = rmode_tss_base(kvm) >> PAGE_SHIFT;
+	fn = kvm->arch.tss_addr >> PAGE_SHIFT;
 	r = kvm_clear_guest_page(kvm, fn, 0, PAGE_SIZE);
 	if (r < 0)
 		goto out;
@@ -3457,32 +4045,32 @@ static int init_rmode_tss(struct kvm *kvm)
 	r = kvm_write_guest_page(kvm, fn, &data,
 				 RMODE_TSS_SIZE - 2 * PAGE_SIZE - 1,
 				 sizeof(u8));
-	if (r < 0)
-		goto out;
-
-	ret = 1;
 out:
 	srcu_read_unlock(&kvm->srcu, idx);
-	return ret;
+	return r;
 }
 
 static int init_rmode_identity_map(struct kvm *kvm)
 {
-	int i, idx, r, ret;
+	int i, idx, r = 0;
 	pfn_t identity_map_pfn;
 	u32 tmp;
 
 	if (!enable_ept)
-		return 1;
-	if (unlikely(!kvm->arch.ept_identity_pagetable)) {
-		printk(KERN_ERR "EPT: identity-mapping pagetable "
-			"haven't been allocated!\n");
 		return 0;
-	}
+
+	/* Protect kvm->arch.ept_identity_pagetable_done. */
+	mutex_lock(&kvm->slots_lock);
+
 	if (likely(kvm->arch.ept_identity_pagetable_done))
-		return 1;
-	ret = 0;
+		goto out2;
+
 	identity_map_pfn = kvm->arch.ept_identity_map_addr >> PAGE_SHIFT;
+
+	r = alloc_identity_pagetable(kvm);
+	if (r < 0)
+		goto out2;
+
 	idx = srcu_read_lock(&kvm->srcu);
 	r = kvm_clear_guest_page(kvm, identity_map_pfn, 0, PAGE_SIZE);
 	if (r < 0)
@@ -3497,47 +4085,59 @@ static int init_rmode_identity_map(struct kvm *kvm)
 			goto out;
 	}
 	kvm->arch.ept_identity_pagetable_done = true;
-	ret = 1;
+
 out:
 	srcu_read_unlock(&kvm->srcu, idx);
-	return ret;
+
+out2:
+	mutex_unlock(&kvm->slots_lock);
+	return r;
 }
 
 static void seg_setup(int seg)
 {
-	struct kvm_vmx_segment_field *sf = &kvm_vmx_segment_fields[seg];
+	const struct kvm_vmx_segment_field *sf = &kvm_vmx_segment_fields[seg];
 	unsigned int ar;
 
 	vmcs_write16(sf->selector, 0);
 	vmcs_writel(sf->base, 0);
 	vmcs_write32(sf->limit, 0xffff);
-	if (enable_unrestricted_guest) {
-		ar = 0x93;
-		if (seg == VCPU_SREG_CS)
-			ar |= 0x08; /* code segment */
-	} else
-		ar = 0xf3;
+	ar = 0x93;
+	if (seg == VCPU_SREG_CS)
+		ar |= 0x08; /* code segment */
 
 	vmcs_write32(sf->ar_bytes, ar);
 }
 
 static int alloc_apic_access_page(struct kvm *kvm)
 {
+	struct page *page;
 	struct kvm_userspace_memory_region kvm_userspace_mem;
 	int r = 0;
 
 	mutex_lock(&kvm->slots_lock);
-	if (kvm->arch.apic_access_page)
+	if (kvm->arch.apic_access_page_done)
 		goto out;
 	kvm_userspace_mem.slot = APIC_ACCESS_PAGE_PRIVATE_MEMSLOT;
 	kvm_userspace_mem.flags = 0;
-	kvm_userspace_mem.guest_phys_addr = 0xfee00000ULL;
+	kvm_userspace_mem.guest_phys_addr = APIC_DEFAULT_PHYS_BASE;
 	kvm_userspace_mem.memory_size = PAGE_SIZE;
-	r = __kvm_set_memory_region(kvm, &kvm_userspace_mem, 0);
+	r = __kvm_set_memory_region(kvm, &kvm_userspace_mem);
 	if (r)
 		goto out;
 
-	kvm->arch.apic_access_page = gfn_to_page(kvm, 0xfee00);
+	page = gfn_to_page(kvm, APIC_DEFAULT_PHYS_BASE >> PAGE_SHIFT);
+	if (is_error_page(page)) {
+		r = -EFAULT;
+		goto out;
+	}
+
+	/*
+	 * Do not pin the page in memory, so that memory hot-unplug
+	 * is able to migrate it.
+	 */
+	put_page(page);
+	kvm->arch.apic_access_page_done = true;
 out:
 	mutex_unlock(&kvm->slots_lock);
 	return r;
@@ -3545,25 +4145,20 @@ out:
 
 static int alloc_identity_pagetable(struct kvm *kvm)
 {
+	/* Called with kvm->slots_lock held. */
+
 	struct kvm_userspace_memory_region kvm_userspace_mem;
 	int r = 0;
 
-	mutex_lock(&kvm->slots_lock);
-	if (kvm->arch.ept_identity_pagetable)
-		goto out;
+	BUG_ON(kvm->arch.ept_identity_pagetable_done);
+
 	kvm_userspace_mem.slot = IDENTITY_PAGETABLE_PRIVATE_MEMSLOT;
 	kvm_userspace_mem.flags = 0;
 	kvm_userspace_mem.guest_phys_addr =
 		kvm->arch.ept_identity_map_addr;
 	kvm_userspace_mem.memory_size = PAGE_SIZE;
-	r = __kvm_set_memory_region(kvm, &kvm_userspace_mem, 0);
-	if (r)
-		goto out;
+	r = __kvm_set_memory_region(kvm, &kvm_userspace_mem);
 
-	kvm->arch.ept_identity_pagetable = gfn_to_page(kvm,
-			kvm->arch.ept_identity_map_addr >> PAGE_SHIFT);
-out:
-	mutex_unlock(&kvm->slots_lock);
 	return r;
 }
 
@@ -3593,7 +4188,10 @@ static void free_vpid(struct vcpu_vmx *vmx)
 	spin_unlock(&vmx_vpid_lock);
 }
 
-static void __vmx_disable_intercept_for_msr(unsigned long *msr_bitmap, u32 msr)
+#define MSR_TYPE_R	1
+#define MSR_TYPE_W	2
+static void __vmx_disable_intercept_for_msr(unsigned long *msr_bitmap,
+						u32 msr, int type)
 {
 	int f = sizeof(unsigned long);
 
@@ -3606,20 +4204,252 @@ static void __vmx_disable_intercept_for_msr(unsigned long *msr_bitmap, u32 msr)
 	 * We can control MSRs 0x00000000-0x00001fff and 0xc0000000-0xc0001fff.
 	 */
 	if (msr <= 0x1fff) {
-		__clear_bit(msr, msr_bitmap + 0x000 / f); /* read-low */
-		__clear_bit(msr, msr_bitmap + 0x800 / f); /* write-low */
+		if (type & MSR_TYPE_R)
+			/* read-low */
+			__clear_bit(msr, msr_bitmap + 0x000 / f);
+
+		if (type & MSR_TYPE_W)
+			/* write-low */
+			__clear_bit(msr, msr_bitmap + 0x800 / f);
+
 	} else if ((msr >= 0xc0000000) && (msr <= 0xc0001fff)) {
 		msr &= 0x1fff;
-		__clear_bit(msr, msr_bitmap + 0x400 / f); /* read-high */
-		__clear_bit(msr, msr_bitmap + 0xc00 / f); /* write-high */
+		if (type & MSR_TYPE_R)
+			/* read-high */
+			__clear_bit(msr, msr_bitmap + 0x400 / f);
+
+		if (type & MSR_TYPE_W)
+			/* write-high */
+			__clear_bit(msr, msr_bitmap + 0xc00 / f);
+
+	}
+}
+
+static void __vmx_enable_intercept_for_msr(unsigned long *msr_bitmap,
+						u32 msr, int type)
+{
+	int f = sizeof(unsigned long);
+
+	if (!cpu_has_vmx_msr_bitmap())
+		return;
+
+	/*
+	 * See Intel PRM Vol. 3, 20.6.9 (MSR-Bitmap Address). Early manuals
+	 * have the write-low and read-high bitmap offsets the wrong way round.
+	 * We can control MSRs 0x00000000-0x00001fff and 0xc0000000-0xc0001fff.
+	 */
+	if (msr <= 0x1fff) {
+		if (type & MSR_TYPE_R)
+			/* read-low */
+			__set_bit(msr, msr_bitmap + 0x000 / f);
+
+		if (type & MSR_TYPE_W)
+			/* write-low */
+			__set_bit(msr, msr_bitmap + 0x800 / f);
+
+	} else if ((msr >= 0xc0000000) && (msr <= 0xc0001fff)) {
+		msr &= 0x1fff;
+		if (type & MSR_TYPE_R)
+			/* read-high */
+			__set_bit(msr, msr_bitmap + 0x400 / f);
+
+		if (type & MSR_TYPE_W)
+			/* write-high */
+			__set_bit(msr, msr_bitmap + 0xc00 / f);
+
+	}
+}
+
+/*
+ * If a msr is allowed by L0, we should check whether it is allowed by L1.
+ * The corresponding bit will be cleared unless both of L0 and L1 allow it.
+ */
+static void nested_vmx_disable_intercept_for_msr(unsigned long *msr_bitmap_l1,
+					       unsigned long *msr_bitmap_nested,
+					       u32 msr, int type)
+{
+	int f = sizeof(unsigned long);
+
+	if (!cpu_has_vmx_msr_bitmap()) {
+		WARN_ON(1);
+		return;
+	}
+
+	/*
+	 * See Intel PRM Vol. 3, 20.6.9 (MSR-Bitmap Address). Early manuals
+	 * have the write-low and read-high bitmap offsets the wrong way round.
+	 * We can control MSRs 0x00000000-0x00001fff and 0xc0000000-0xc0001fff.
+	 */
+	if (msr <= 0x1fff) {
+		if (type & MSR_TYPE_R &&
+		   !test_bit(msr, msr_bitmap_l1 + 0x000 / f))
+			/* read-low */
+			__clear_bit(msr, msr_bitmap_nested + 0x000 / f);
+
+		if (type & MSR_TYPE_W &&
+		   !test_bit(msr, msr_bitmap_l1 + 0x800 / f))
+			/* write-low */
+			__clear_bit(msr, msr_bitmap_nested + 0x800 / f);
+
+	} else if ((msr >= 0xc0000000) && (msr <= 0xc0001fff)) {
+		msr &= 0x1fff;
+		if (type & MSR_TYPE_R &&
+		   !test_bit(msr, msr_bitmap_l1 + 0x400 / f))
+			/* read-high */
+			__clear_bit(msr, msr_bitmap_nested + 0x400 / f);
+
+		if (type & MSR_TYPE_W &&
+		   !test_bit(msr, msr_bitmap_l1 + 0xc00 / f))
+			/* write-high */
+			__clear_bit(msr, msr_bitmap_nested + 0xc00 / f);
+
 	}
 }
 
 static void vmx_disable_intercept_for_msr(u32 msr, bool longmode_only)
 {
 	if (!longmode_only)
-		__vmx_disable_intercept_for_msr(vmx_msr_bitmap_legacy, msr);
-	__vmx_disable_intercept_for_msr(vmx_msr_bitmap_longmode, msr);
+		__vmx_disable_intercept_for_msr(vmx_msr_bitmap_legacy,
+						msr, MSR_TYPE_R | MSR_TYPE_W);
+	__vmx_disable_intercept_for_msr(vmx_msr_bitmap_longmode,
+						msr, MSR_TYPE_R | MSR_TYPE_W);
+}
+
+static void vmx_enable_intercept_msr_read_x2apic(u32 msr)
+{
+	__vmx_enable_intercept_for_msr(vmx_msr_bitmap_legacy_x2apic,
+			msr, MSR_TYPE_R);
+	__vmx_enable_intercept_for_msr(vmx_msr_bitmap_longmode_x2apic,
+			msr, MSR_TYPE_R);
+}
+
+static void vmx_disable_intercept_msr_read_x2apic(u32 msr)
+{
+	__vmx_disable_intercept_for_msr(vmx_msr_bitmap_legacy_x2apic,
+			msr, MSR_TYPE_R);
+	__vmx_disable_intercept_for_msr(vmx_msr_bitmap_longmode_x2apic,
+			msr, MSR_TYPE_R);
+}
+
+static void vmx_disable_intercept_msr_write_x2apic(u32 msr)
+{
+	__vmx_disable_intercept_for_msr(vmx_msr_bitmap_legacy_x2apic,
+			msr, MSR_TYPE_W);
+	__vmx_disable_intercept_for_msr(vmx_msr_bitmap_longmode_x2apic,
+			msr, MSR_TYPE_W);
+}
+
+static int vmx_vm_has_apicv(struct kvm *kvm)
+{
+	return enable_apicv && irqchip_in_kernel(kvm);
+}
+
+static int vmx_complete_nested_posted_interrupt(struct kvm_vcpu *vcpu)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	int max_irr;
+	void *vapic_page;
+	u16 status;
+
+	if (vmx->nested.pi_desc &&
+	    vmx->nested.pi_pending) {
+		vmx->nested.pi_pending = false;
+		if (!pi_test_and_clear_on(vmx->nested.pi_desc))
+			return 0;
+
+		max_irr = find_last_bit(
+			(unsigned long *)vmx->nested.pi_desc->pir, 256);
+
+		if (max_irr == 256)
+			return 0;
+
+		vapic_page = kmap(vmx->nested.virtual_apic_page);
+		if (!vapic_page) {
+			WARN_ON(1);
+			return -ENOMEM;
+		}
+		__kvm_apic_update_irr(vmx->nested.pi_desc->pir, vapic_page);
+		kunmap(vmx->nested.virtual_apic_page);
+
+		status = vmcs_read16(GUEST_INTR_STATUS);
+		if ((u8)max_irr > ((u8)status & 0xff)) {
+			status &= ~0xff;
+			status |= (u8)max_irr;
+			vmcs_write16(GUEST_INTR_STATUS, status);
+		}
+	}
+	return 0;
+}
+
+static inline bool kvm_vcpu_trigger_posted_interrupt(struct kvm_vcpu *vcpu)
+{
+#ifdef CONFIG_SMP
+	if (vcpu->mode == IN_GUEST_MODE) {
+		apic->send_IPI_mask(get_cpu_mask(vcpu->cpu),
+				POSTED_INTR_VECTOR);
+		return true;
+	}
+#endif
+	return false;
+}
+
+static int vmx_deliver_nested_posted_interrupt(struct kvm_vcpu *vcpu,
+						int vector)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+
+	if (is_guest_mode(vcpu) &&
+	    vector == vmx->nested.posted_intr_nv) {
+		/* the PIR and ON have been set by L1. */
+		kvm_vcpu_trigger_posted_interrupt(vcpu);
+		/*
+		 * If a posted intr is not recognized by hardware,
+		 * we will accomplish it in the next vmentry.
+		 */
+		vmx->nested.pi_pending = true;
+		kvm_make_request(KVM_REQ_EVENT, vcpu);
+		return 0;
+	}
+	return -1;
+}
+/*
+ * Send interrupt to vcpu via posted interrupt way.
+ * 1. If target vcpu is running(non-root mode), send posted interrupt
+ * notification to vcpu and hardware will sync PIR to vIRR atomically.
+ * 2. If target vcpu isn't running(root mode), kick it to pick up the
+ * interrupt from PIR in next vmentry.
+ */
+static void vmx_deliver_posted_interrupt(struct kvm_vcpu *vcpu, int vector)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	int r;
+
+	r = vmx_deliver_nested_posted_interrupt(vcpu, vector);
+	if (!r)
+		return;
+
+	if (pi_test_and_set_pir(vector, &vmx->pi_desc))
+		return;
+
+	r = pi_test_and_set_on(&vmx->pi_desc);
+	kvm_make_request(KVM_REQ_EVENT, vcpu);
+	if (r || !kvm_vcpu_trigger_posted_interrupt(vcpu))
+		kvm_vcpu_kick(vcpu);
+}
+
+static void vmx_sync_pir_to_irr(struct kvm_vcpu *vcpu)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+
+	if (!pi_test_and_clear_on(&vmx->pi_desc))
+		return;
+
+	kvm_apic_update_irr(vcpu, vmx->pi_desc.pir);
+}
+
+static void vmx_sync_pir_to_irr_dummy(struct kvm_vcpu *vcpu)
+{
+	return;
 }
 
 /*
@@ -3628,27 +4458,42 @@ static void vmx_disable_intercept_for_msr(u32 msr, bool longmode_only)
  * Note that host-state that does change is set elsewhere. E.g., host-state
  * that is set differently for each CPU is set in vmx_vcpu_load(), not here.
  */
-static void vmx_set_constant_host_state(void)
+static void vmx_set_constant_host_state(struct vcpu_vmx *vmx)
 {
 	u32 low32, high32;
 	unsigned long tmpl;
 	struct desc_ptr dt;
+	unsigned long cr4;
 
-	vmcs_writel(HOST_CR0, read_cr0() | X86_CR0_TS);  /* 22.2.3 */
-	vmcs_writel(HOST_CR4, read_cr4());  /* 22.2.3, 22.2.5 */
+	vmcs_writel(HOST_CR0, read_cr0() & ~X86_CR0_TS);  /* 22.2.3 */
 	vmcs_writel(HOST_CR3, read_cr3());  /* 22.2.3  FIXME: shadow tables */
 
+	/* Save the most likely value for this task's CR4 in the VMCS. */
+	cr4 = cr4_read_shadow();
+	vmcs_writel(HOST_CR4, cr4);			/* 22.2.3, 22.2.5 */
+	vmx->host_state.vmcs_host_cr4 = cr4;
+
 	vmcs_write16(HOST_CS_SELECTOR, __KERNEL_CS);  /* 22.2.4 */
+#ifdef CONFIG_X86_64
+	/*
+	 * Load null selectors, so we can avoid reloading them in
+	 * __vmx_load_host_state(), in case userspace uses the null selectors
+	 * too (the expected case).
+	 */
+	vmcs_write16(HOST_DS_SELECTOR, 0);
+	vmcs_write16(HOST_ES_SELECTOR, 0);
+#else
 	vmcs_write16(HOST_DS_SELECTOR, __KERNEL_DS);  /* 22.2.4 */
 	vmcs_write16(HOST_ES_SELECTOR, __KERNEL_DS);  /* 22.2.4 */
+#endif
 	vmcs_write16(HOST_SS_SELECTOR, __KERNEL_DS);  /* 22.2.4 */
 	vmcs_write16(HOST_TR_SELECTOR, GDT_ENTRY_TSS*8);  /* 22.2.4 */
 
 	native_store_idt(&dt);
 	vmcs_writel(HOST_IDTR_BASE, dt.address);   /* 22.2.4 */
+	vmx->host_idt_base = dt.address;
 
-	asm("mov $.Lkvm_vmx_return, %0" : "=r"(tmpl));
-	vmcs_writel(HOST_RIP, tmpl); /* 22.2.5 */
+	vmcs_writel(HOST_RIP, vmx_return); /* 22.2.5 */
 
 	rdmsr(MSR_IA32_SYSENTER_CS, low32, high32);
 	vmcs_write32(HOST_IA32_SYSENTER_CS, low32);
@@ -3672,9 +4517,22 @@ static void set_cr4_guest_host_mask(struct vcpu_vmx *vmx)
 	vmcs_writel(CR4_GUEST_HOST_MASK, ~vmx->vcpu.arch.cr4_guest_owned_bits);
 }
 
+static u32 vmx_pin_based_exec_ctrl(struct vcpu_vmx *vmx)
+{
+	u32 pin_based_exec_ctrl = vmcs_config.pin_based_exec_ctrl;
+
+	if (!vmx_vm_has_apicv(vmx->vcpu.kvm))
+		pin_based_exec_ctrl &= ~PIN_BASED_POSTED_INTR;
+	return pin_based_exec_ctrl;
+}
+
 static u32 vmx_exec_control(struct vcpu_vmx *vmx)
 {
 	u32 exec_control = vmcs_config.cpu_based_exec_ctrl;
+
+	if (vmx->vcpu.arch.switch_db_regs & KVM_DEBUGREG_WONT_EXIT)
+		exec_control &= ~CPU_BASED_MOV_DR_EXITING;
+
 	if (!vm_need_tpr_shadow(vmx->vcpu.kvm)) {
 		exec_control &= ~CPU_BASED_TPR_SHADOW;
 #ifdef CONFIG_X86_64
@@ -3699,11 +4557,26 @@ static u32 vmx_secondary_exec_control(struct vcpu_vmx *vmx)
 	if (!enable_ept) {
 		exec_control &= ~SECONDARY_EXEC_ENABLE_EPT;
 		enable_unrestricted_guest = 0;
+		/* Enable INVPCID for non-ept guests may cause performance regression. */
+		exec_control &= ~SECONDARY_EXEC_ENABLE_INVPCID;
 	}
 	if (!enable_unrestricted_guest)
 		exec_control &= ~SECONDARY_EXEC_UNRESTRICTED_GUEST;
 	if (!ple_gap)
 		exec_control &= ~SECONDARY_EXEC_PAUSE_LOOP_EXITING;
+	if (!vmx_vm_has_apicv(vmx->vcpu.kvm))
+		exec_control &= ~(SECONDARY_EXEC_APIC_REGISTER_VIRT |
+				  SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY);
+	exec_control &= ~SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE;
+	/* SECONDARY_EXEC_SHADOW_VMCS is enabled when L1 executes VMPTRLD
+	   (handle_vmptrld).
+	   We can NOT enable shadow_vmcs here because we don't have yet
+	   a current VMCS12
+	*/
+	exec_control &= ~SECONDARY_EXEC_SHADOW_VMCS;
+	/* PML is enabled/disabled in creating/destorying vcpu */
+	exec_control &= ~SECONDARY_EXEC_ENABLE_PML;
+
 	return exec_control;
 }
 
@@ -3712,12 +4585,13 @@ static void ept_set_mmio_spte_mask(void)
 	/*
 	 * EPT Misconfigurations can be generated if the value of bits 2:0
 	 * of an EPT paging-structure entry is 110b (write/execute).
-	 * Also, magic bits (0xffull << 49) is set to quickly identify mmio
+	 * Also, magic bits (0x3ull << 62) is set to quickly identify mmio
 	 * spte.
 	 */
-	kvm_mmu_set_mmio_spte_mask(0xffull << 49 | 0x6ull);
+	kvm_mmu_set_mmio_spte_mask((0x3ull << 62) | 0x6ull);
 }
 
+#define VMX_XSS_EXIT_BITMAP 0
 /*
  * Sets up the vmcs for emulated real mode.
  */
@@ -3732,14 +4606,17 @@ static int vmx_vcpu_setup(struct vcpu_vmx *vmx)
 	vmcs_write64(IO_BITMAP_A, __pa(vmx_io_bitmap_a));
 	vmcs_write64(IO_BITMAP_B, __pa(vmx_io_bitmap_b));
 
+	if (enable_shadow_vmcs) {
+		vmcs_write64(VMREAD_BITMAP, __pa(vmx_vmread_bitmap));
+		vmcs_write64(VMWRITE_BITMAP, __pa(vmx_vmwrite_bitmap));
+	}
 	if (cpu_has_vmx_msr_bitmap())
 		vmcs_write64(MSR_BITMAP, __pa(vmx_msr_bitmap_legacy));
 
 	vmcs_write64(VMCS_LINK_POINTER, -1ull); /* 22.3.1.5 */
 
 	/* Control */
-	vmcs_write32(PIN_BASED_VM_EXEC_CONTROL,
-		vmcs_config.pin_based_exec_ctrl);
+	vmcs_write32(PIN_BASED_VM_EXEC_CONTROL, vmx_pin_based_exec_ctrl(vmx));
 
 	vmcs_write32(CPU_BASED_VM_EXEC_CONTROL, vmx_exec_control(vmx));
 
@@ -3748,9 +4625,22 @@ static int vmx_vcpu_setup(struct vcpu_vmx *vmx)
 				vmx_secondary_exec_control(vmx));
 	}
 
+	if (vmx_vm_has_apicv(vmx->vcpu.kvm)) {
+		vmcs_write64(EOI_EXIT_BITMAP0, 0);
+		vmcs_write64(EOI_EXIT_BITMAP1, 0);
+		vmcs_write64(EOI_EXIT_BITMAP2, 0);
+		vmcs_write64(EOI_EXIT_BITMAP3, 0);
+
+		vmcs_write16(GUEST_INTR_STATUS, 0);
+
+		vmcs_write64(POSTED_INTR_NV, POSTED_INTR_VECTOR);
+		vmcs_write64(POSTED_INTR_DESC_ADDR, __pa((&vmx->pi_desc)));
+	}
+
 	if (ple_gap) {
 		vmcs_write32(PLE_GAP, ple_gap);
-		vmcs_write32(PLE_WINDOW, ple_window);
+		vmx->ple_window = ple_window;
+		vmx->ple_window_dirty = true;
 	}
 
 	vmcs_write32(PAGE_FAULT_ERROR_CODE_MASK, 0);
@@ -3759,7 +4649,7 @@ static int vmx_vcpu_setup(struct vcpu_vmx *vmx)
 
 	vmcs_write16(HOST_FS_SELECTOR, 0);            /* 22.2.4 */
 	vmcs_write16(HOST_GS_SELECTOR, 0);            /* 22.2.4 */
-	vmx_set_constant_host_state();
+	vmx_set_constant_host_state(vmx);
 #ifdef CONFIG_X86_64
 	rdmsrl(MSR_FS_BASE, a);
 	vmcs_writel(HOST_FS_BASE, a); /* 22.2.4 */
@@ -3787,7 +4677,7 @@ static int vmx_vcpu_setup(struct vcpu_vmx *vmx)
 		vmx->vcpu.arch.pat = host_pat;
 	}
 
-	for (i = 0; i < NR_VMX_MSR; ++i) {
+	for (i = 0; i < ARRAY_SIZE(vmx_msr_index); ++i) {
 		u32 index = vmx_msr_index[i];
 		u32 data_low, data_high;
 		int j = vmx->nmsrs;
@@ -3802,26 +4692,25 @@ static int vmx_vcpu_setup(struct vcpu_vmx *vmx)
 		++vmx->nmsrs;
 	}
 
-	vmcs_write32(VM_EXIT_CONTROLS, vmcs_config.vmexit_ctrl);
+
+	vm_exit_controls_init(vmx, vmcs_config.vmexit_ctrl);
 
 	/* 22.2.1, 20.8.1 */
-	vmcs_write32(VM_ENTRY_CONTROLS, vmcs_config.vmentry_ctrl);
+	vm_entry_controls_init(vmx, vmcs_config.vmentry_ctrl);
 
 	vmcs_writel(CR0_GUEST_HOST_MASK, ~0UL);
 	set_cr4_guest_host_mask(vmx);
 
-	kvm_write_tsc(&vmx->vcpu, 0);
+	if (vmx_xsaves_supported())
+		vmcs_write64(XSS_EXIT_BITMAP, VMX_XSS_EXIT_BITMAP);
 
 	return 0;
 }
 
-static int vmx_vcpu_reset(struct kvm_vcpu *vcpu)
+static void vmx_vcpu_reset(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
-	u64 msr;
-	int ret;
-
-	vcpu->arch.regs_avail = ~((1 << VCPU_REGS_RIP) | (1 << VCPU_REGS_RSP));
+	struct msr_data apic_base_msr;
 
 	vmx->rmode.vm86_active = 0;
 
@@ -3829,29 +4718,17 @@ static int vmx_vcpu_reset(struct kvm_vcpu *vcpu)
 
 	vmx->vcpu.arch.regs[VCPU_REGS_RDX] = get_rdx_init_val();
 	kvm_set_cr8(&vmx->vcpu, 0);
-	msr = 0xfee00000 | MSR_IA32_APICBASE_ENABLE;
+	apic_base_msr.data = APIC_DEFAULT_PHYS_BASE | MSR_IA32_APICBASE_ENABLE;
 	if (kvm_vcpu_is_bsp(&vmx->vcpu))
-		msr |= MSR_IA32_APICBASE_BSP;
-	kvm_set_apic_base(&vmx->vcpu, msr);
-
-	ret = fx_init(&vmx->vcpu);
-	if (ret != 0)
-		goto out;
+		apic_base_msr.data |= MSR_IA32_APICBASE_BSP;
+	apic_base_msr.host_initiated = true;
+	kvm_set_apic_base(&vmx->vcpu, &apic_base_msr);
 
 	vmx_segment_cache_clear(vmx);
 
 	seg_setup(VCPU_SREG_CS);
-	/*
-	 * GUEST_CS_BASE should really be 0xffff0000, but VT vm86 mode
-	 * insists on having GUEST_CS_BASE == GUEST_CS_SELECTOR << 4.  Sigh.
-	 */
-	if (kvm_vcpu_is_bsp(&vmx->vcpu)) {
-		vmcs_write16(GUEST_CS_SELECTOR, 0xf000);
-		vmcs_writel(GUEST_CS_BASE, 0x000f0000);
-	} else {
-		vmcs_write16(GUEST_CS_SELECTOR, vmx->vcpu.arch.sipi_vector << 8);
-		vmcs_writel(GUEST_CS_BASE, vmx->vcpu.arch.sipi_vector << 12);
-	}
+	vmcs_write16(GUEST_CS_SELECTOR, 0xf000);
+	vmcs_write32(GUEST_CS_BASE, 0xffff0000);
 
 	seg_setup(VCPU_SREG_DS);
 	seg_setup(VCPU_SREG_ES);
@@ -3874,13 +4751,7 @@ static int vmx_vcpu_reset(struct kvm_vcpu *vcpu)
 	vmcs_writel(GUEST_SYSENTER_EIP, 0);
 
 	vmcs_writel(GUEST_RFLAGS, 0x02);
-	if (kvm_vcpu_is_bsp(&vmx->vcpu))
-		kvm_rip_write(vcpu, 0xfff0);
-	else
-		kvm_rip_write(vcpu, 0);
-	kvm_register_write(vcpu, VCPU_REGS_RSP, 0);
-
-	vmcs_writel(GUEST_DR7, 0x400);
+	kvm_rip_write(vcpu, 0xfff0);
 
 	vmcs_writel(GUEST_GDTR_BASE, 0);
 	vmcs_write32(GUEST_GDTR_LIMIT, 0xffff);
@@ -3907,9 +4778,10 @@ static int vmx_vcpu_reset(struct kvm_vcpu *vcpu)
 		vmcs_write32(TPR_THRESHOLD, 0);
 	}
 
-	if (vm_need_virtualize_apic_accesses(vmx->vcpu.kvm))
-		vmcs_write64(APIC_ACCESS_ADDR,
-			     page_to_phys(vmx->vcpu.kvm->arch.apic_access_page));
+	kvm_make_request(KVM_REQ_APIC_PAGE_RELOAD, vcpu);
+
+	if (vmx_vm_has_apicv(vcpu->kvm))
+		memset(&vmx->pi_desc, 0, sizeof(struct pi_desc));
 
 	if (vmx->vpid != 0)
 		vmcs_write16(VIRTUAL_PROCESSOR_ID, vmx->vpid);
@@ -3922,14 +4794,6 @@ static int vmx_vcpu_reset(struct kvm_vcpu *vcpu)
 	update_exception_bitmap(&vmx->vcpu);
 
 	vpid_sync_context(vmx);
-
-	ret = 0;
-
-	/* HACK: Don't enable emulation on guest boot/reset */
-	vmx->emulation_required = 0;
-
-out:
-	return ret;
 }
 
 /*
@@ -3942,15 +4806,25 @@ static bool nested_exit_on_intr(struct kvm_vcpu *vcpu)
 		PIN_BASED_EXT_INTR_MASK;
 }
 
+/*
+ * In nested virtualization, check if L1 has set
+ * VM_EXIT_ACK_INTR_ON_EXIT
+ */
+static bool nested_exit_intr_ack_set(struct kvm_vcpu *vcpu)
+{
+	return get_vmcs12(vcpu)->vm_exit_controls &
+		VM_EXIT_ACK_INTR_ON_EXIT;
+}
+
+static bool nested_exit_on_nmi(struct kvm_vcpu *vcpu)
+{
+	return get_vmcs12(vcpu)->pin_based_vm_exec_control &
+		PIN_BASED_NMI_EXITING;
+}
+
 static void enable_irq_window(struct kvm_vcpu *vcpu)
 {
 	u32 cpu_based_vm_exec_control;
-	if (is_guest_mode(vcpu) && nested_exit_on_intr(vcpu))
-		/* We can get here when nested_run_pending caused
-		 * vmx_interrupt_allowed() to return false. In this case, do
-		 * nothing - the interrupt will be injected later.
-		 */
-		return;
 
 	cpu_based_vm_exec_control = vmcs_read32(CPU_BASED_VM_EXEC_CONTROL);
 	cpu_based_vm_exec_control |= CPU_BASED_VIRTUAL_INTR_PENDING;
@@ -3961,15 +4835,12 @@ static void enable_nmi_window(struct kvm_vcpu *vcpu)
 {
 	u32 cpu_based_vm_exec_control;
 
-	if (!cpu_has_virtual_nmis()) {
+	if (!cpu_has_virtual_nmis() ||
+	    vmcs_read32(GUEST_INTERRUPTIBILITY_INFO) & GUEST_INTR_STATE_STI) {
 		enable_irq_window(vcpu);
 		return;
 	}
 
-	if (vmcs_read32(GUEST_INTERRUPTIBILITY_INFO) & GUEST_INTR_STATE_STI) {
-		enable_irq_window(vcpu);
-		return;
-	}
 	cpu_based_vm_exec_control = vmcs_read32(CPU_BASED_VM_EXEC_CONTROL);
 	cpu_based_vm_exec_control |= CPU_BASED_VIRTUAL_NMI_PENDING;
 	vmcs_write32(CPU_BASED_VM_EXEC_CONTROL, cpu_based_vm_exec_control);
@@ -4000,7 +4871,6 @@ static void vmx_inject_irq(struct kvm_vcpu *vcpu)
 	} else
 		intr |= INTR_TYPE_EXT_INTR;
 	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD, intr);
-	vmx_clear_hlt(vcpu);
 }
 
 static void vmx_inject_nmi(struct kvm_vcpu *vcpu)
@@ -4032,17 +4902,6 @@ static void vmx_inject_nmi(struct kvm_vcpu *vcpu)
 	}
 	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD,
 			INTR_TYPE_NMI_INTR | INTR_INFO_VALID_MASK | NMI_VECTOR);
-	vmx_clear_hlt(vcpu);
-}
-
-static int vmx_nmi_allowed(struct kvm_vcpu *vcpu)
-{
-	if (!cpu_has_virtual_nmis() && to_vmx(vcpu)->soft_vnmi_blocked)
-		return 0;
-
-	return	!(vmcs_read32(GUEST_INTERRUPTIBILITY_INFO) &
-		  (GUEST_INTR_STATE_MOV_SS | GUEST_INTR_STATE_STI
-		   | GUEST_INTR_STATE_NMI));
 }
 
 static bool vmx_get_nmi_mask(struct kvm_vcpu *vcpu)
@@ -4074,20 +4933,23 @@ static void vmx_set_nmi_mask(struct kvm_vcpu *vcpu, bool masked)
 	}
 }
 
+static int vmx_nmi_allowed(struct kvm_vcpu *vcpu)
+{
+	if (to_vmx(vcpu)->nested.nested_run_pending)
+		return 0;
+
+	if (!cpu_has_virtual_nmis() && to_vmx(vcpu)->soft_vnmi_blocked)
+		return 0;
+
+	return	!(vmcs_read32(GUEST_INTERRUPTIBILITY_INFO) &
+		  (GUEST_INTR_STATE_MOV_SS | GUEST_INTR_STATE_STI
+		   | GUEST_INTR_STATE_NMI));
+}
+
 static int vmx_interrupt_allowed(struct kvm_vcpu *vcpu)
 {
-	if (is_guest_mode(vcpu) && nested_exit_on_intr(vcpu)) {
-		struct vmcs12 *vmcs12;
-		if (to_vmx(vcpu)->nested.nested_run_pending)
-			return 0;
-		nested_vmx_vmexit(vcpu);
-		vmcs12 = get_vmcs12(vcpu);
-		vmcs12->vm_exit_reason = EXIT_REASON_EXTERNAL_INTERRUPT;
-		vmcs12->vm_exit_intr_info = 0;
-		/* fall through to normal code, but now in L1, not L2 */
-	}
-
-	return (vmcs_readl(GUEST_RFLAGS) & X86_EFLAGS_IF) &&
+	return (!to_vmx(vcpu)->nested.nested_run_pending &&
+		vmcs_readl(GUEST_RFLAGS) & X86_EFLAGS_IF) &&
 		!(vmcs_read32(GUEST_INTERRUPTIBILITY_INFO) &
 			(GUEST_INTR_STATE_STI | GUEST_INTR_STATE_MOV_SS));
 }
@@ -4102,38 +4964,16 @@ static int vmx_set_tss_addr(struct kvm *kvm, unsigned int addr)
 		.flags = 0,
 	};
 
-	ret = kvm_set_memory_region(kvm, &tss_mem, 0);
+	ret = kvm_set_memory_region(kvm, &tss_mem);
 	if (ret)
 		return ret;
 	kvm->arch.tss_addr = addr;
-	if (!init_rmode_tss(kvm))
-		return  -ENOMEM;
-
-	return 0;
+	return init_rmode_tss(kvm);
 }
 
-static int handle_rmode_exception(struct kvm_vcpu *vcpu,
-				  int vec, u32 err_code)
+static bool rmode_exception(struct kvm_vcpu *vcpu, int vec)
 {
-	/*
-	 * Instruction with address size override prefix opcode 0x67
-	 * Cause the #SS fault with 0 error code in VM86 mode.
-	 */
-	if (((vec == GP_VECTOR) || (vec == SS_VECTOR)) && err_code == 0)
-		if (emulate_instruction(vcpu, 0) == EMULATE_DONE)
-			return 1;
-	/*
-	 * Forward all other exceptions that are valid in real mode.
-	 * FIXME: Breaks guest debugging in real mode, needs to be fixed with
-	 *        the required debugging infrastructure rework.
-	 */
 	switch (vec) {
-	case DB_VECTOR:
-		if (vcpu->guest_debug &
-		    (KVM_GUESTDBG_SINGLESTEP | KVM_GUESTDBG_USE_HW_BP))
-			return 0;
-		kvm_queue_exception(vcpu, vec);
-		return 1;
 	case BP_VECTOR:
 		/*
 		 * Update instruction length as we may reinject the exception
@@ -4142,7 +4982,12 @@ static int handle_rmode_exception(struct kvm_vcpu *vcpu,
 		to_vmx(vcpu)->vcpu.arch.event_exit_inst_len =
 			vmcs_read32(VM_EXIT_INSTRUCTION_LEN);
 		if (vcpu->guest_debug & KVM_GUESTDBG_USE_SW_BP)
-			return 0;
+			return false;
+		/* fall through */
+	case DB_VECTOR:
+		if (vcpu->guest_debug &
+			(KVM_GUESTDBG_SINGLESTEP | KVM_GUESTDBG_USE_HW_BP))
+			return false;
 		/* fall through */
 	case DE_VECTOR:
 	case OF_VECTOR:
@@ -4152,10 +4997,37 @@ static int handle_rmode_exception(struct kvm_vcpu *vcpu,
 	case SS_VECTOR:
 	case GP_VECTOR:
 	case MF_VECTOR:
-		kvm_queue_exception(vcpu, vec);
-		return 1;
+		return true;
+	break;
 	}
-	return 0;
+	return false;
+}
+
+static int handle_rmode_exception(struct kvm_vcpu *vcpu,
+				  int vec, u32 err_code)
+{
+	/*
+	 * Instruction with address size override prefix opcode 0x67
+	 * Cause the #SS fault with 0 error code in VM86 mode.
+	 */
+	if (((vec == GP_VECTOR) || (vec == SS_VECTOR)) && err_code == 0) {
+		if (emulate_instruction(vcpu, 0) == EMULATE_DONE) {
+			if (vcpu->arch.halt_request) {
+				vcpu->arch.halt_request = 0;
+				return kvm_emulate_halt(vcpu);
+			}
+			return 1;
+		}
+		return 0;
+	}
+
+	/*
+	 * Forward all other exceptions that are valid in real mode.
+	 * FIXME: Breaks guest debugging in real mode, needs to be fixed with
+	 *        the required debugging infrastructure rework.
+	 */
+	kvm_queue_exception(vcpu, vec);
+	return 1;
 }
 
 /*
@@ -4198,16 +5070,6 @@ static int handle_exception(struct kvm_vcpu *vcpu)
 	if (is_machine_check(intr_info))
 		return handle_machine_check(vcpu);
 
-	if ((vect_info & VECTORING_INFO_VALID_MASK) &&
-	    !is_page_fault(intr_info)) {
-		vcpu->run->exit_reason = KVM_EXIT_INTERNAL_ERROR;
-		vcpu->run->internal.suberror = KVM_INTERNAL_ERROR_SIMUL_EX;
-		vcpu->run->internal.ndata = 2;
-		vcpu->run->internal.data[0] = vect_info;
-		vcpu->run->internal.data[1] = intr_info;
-		return 0;
-	}
-
 	if ((intr_info & INTR_INFO_INTR_TYPE_MASK) == INTR_TYPE_NMI_INTR)
 		return 1;  /* already handled by vmx_vcpu_run() */
 
@@ -4226,6 +5088,22 @@ static int handle_exception(struct kvm_vcpu *vcpu)
 	error_code = 0;
 	if (intr_info & INTR_INFO_DELIVER_CODE_MASK)
 		error_code = vmcs_read32(VM_EXIT_INTR_ERROR_CODE);
+
+	/*
+	 * The #PF with PFEC.RSVD = 1 indicates the guest is accessing
+	 * MMIO, it is better to report an internal error.
+	 * See the comments in vmx_handle_exit.
+	 */
+	if ((vect_info & VECTORING_INFO_VALID_MASK) &&
+	    !(is_page_fault(intr_info) && !(error_code & PFERR_RSVD_MASK))) {
+		vcpu->run->exit_reason = KVM_EXIT_INTERNAL_ERROR;
+		vcpu->run->internal.suberror = KVM_INTERNAL_ERROR_SIMUL_EX;
+		vcpu->run->internal.ndata = 2;
+		vcpu->run->internal.data[0] = vect_info;
+		vcpu->run->internal.data[1] = intr_info;
+		return 0;
+	}
+
 	if (is_page_fault(intr_info)) {
 		/* EPT won't cause page fault directly */
 		BUG_ON(enable_ept);
@@ -4237,23 +5115,21 @@ static int handle_exception(struct kvm_vcpu *vcpu)
 		return kvm_mmu_page_fault(vcpu, cr2, error_code, NULL, 0);
 	}
 
-	if (vmx->rmode.vm86_active &&
-	    handle_rmode_exception(vcpu, intr_info & INTR_INFO_VECTOR_MASK,
-								error_code)) {
-		if (vcpu->arch.halt_request) {
-			vcpu->arch.halt_request = 0;
-			return kvm_emulate_halt(vcpu);
-		}
-		return 1;
-	}
-
 	ex_no = intr_info & INTR_INFO_VECTOR_MASK;
+
+	if (vmx->rmode.vm86_active && rmode_exception(vcpu, ex_no))
+		return handle_rmode_exception(vcpu, ex_no, error_code);
+
 	switch (ex_no) {
 	case DB_VECTOR:
 		dr6 = vmcs_readl(EXIT_QUALIFICATION);
 		if (!(vcpu->guest_debug &
 		      (KVM_GUESTDBG_SINGLESTEP | KVM_GUESTDBG_USE_HW_BP))) {
-			vcpu->arch.dr6 = dr6 | DR6_FIXED_1;
+			vcpu->arch.dr6 &= ~15;
+			vcpu->arch.dr6 |= dr6 | DR6_RTM;
+			if (!(dr6 & ~DR6_RESERVED)) /* icebp */
+				skip_emulated_instruction(vcpu);
+
 			kvm_queue_exception(vcpu, DB_VECTOR);
 			return 1;
 		}
@@ -4327,37 +5203,63 @@ vmx_patch_hypercall(struct kvm_vcpu *vcpu, unsigned char *hypercall)
 	hypercall[2] = 0xc1;
 }
 
-/* called to set cr0 as approriate for a mov-to-cr0 exit. */
+static bool nested_cr0_valid(struct kvm_vcpu *vcpu, unsigned long val)
+{
+	unsigned long always_on = VMXON_CR0_ALWAYSON;
+	struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
+
+	if (to_vmx(vcpu)->nested.nested_vmx_secondary_ctls_high &
+		SECONDARY_EXEC_UNRESTRICTED_GUEST &&
+	    nested_cpu_has2(vmcs12, SECONDARY_EXEC_UNRESTRICTED_GUEST))
+		always_on &= ~(X86_CR0_PE | X86_CR0_PG);
+	return (val & always_on) == always_on;
+}
+
+/* called to set cr0 as appropriate for a mov-to-cr0 exit. */
 static int handle_set_cr0(struct kvm_vcpu *vcpu, unsigned long val)
 {
-	if (to_vmx(vcpu)->nested.vmxon &&
-	    ((val & VMXON_CR0_ALWAYSON) != VMXON_CR0_ALWAYSON))
-		return 1;
-
 	if (is_guest_mode(vcpu)) {
+		struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
+		unsigned long orig_val = val;
+
 		/*
 		 * We get here when L2 changed cr0 in a way that did not change
 		 * any of L1's shadowed bits (see nested_vmx_exit_handled_cr),
-		 * but did change L0 shadowed bits. This can currently happen
-		 * with the TS bit: L0 may want to leave TS on (for lazy fpu
-		 * loading) while pretending to allow the guest to change it.
+		 * but did change L0 shadowed bits. So we first calculate the
+		 * effective cr0 value that L1 would like to write into the
+		 * hardware. It consists of the L2-owned bits from the new
+		 * value combined with the L1-owned bits from L1's guest_cr0.
 		 */
-		if (kvm_set_cr0(vcpu, (val & vcpu->arch.cr0_guest_owned_bits) |
-			 (vcpu->arch.cr0 & ~vcpu->arch.cr0_guest_owned_bits)))
+		val = (val & ~vmcs12->cr0_guest_host_mask) |
+			(vmcs12->guest_cr0 & vmcs12->cr0_guest_host_mask);
+
+		if (!nested_cr0_valid(vcpu, val))
 			return 1;
-		vmcs_writel(CR0_READ_SHADOW, val);
+
+		if (kvm_set_cr0(vcpu, val))
+			return 1;
+		vmcs_writel(CR0_READ_SHADOW, orig_val);
 		return 0;
-	} else
+	} else {
+		if (to_vmx(vcpu)->nested.vmxon &&
+		    ((val & VMXON_CR0_ALWAYSON) != VMXON_CR0_ALWAYSON))
+			return 1;
 		return kvm_set_cr0(vcpu, val);
+	}
 }
 
 static int handle_set_cr4(struct kvm_vcpu *vcpu, unsigned long val)
 {
 	if (is_guest_mode(vcpu)) {
-		if (kvm_set_cr4(vcpu, (val & vcpu->arch.cr4_guest_owned_bits) |
-			 (vcpu->arch.cr4 & ~vcpu->arch.cr4_guest_owned_bits)))
+		struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
+		unsigned long orig_val = val;
+
+		/* analogously to handle_set_cr0 */
+		val = (val & ~vmcs12->cr4_guest_host_mask) |
+			(vmcs12->guest_cr4 & vmcs12->cr4_guest_host_mask);
+		if (kvm_set_cr4(vcpu, val))
 			return 1;
-		vmcs_writel(CR4_READ_SHADOW, val);
+		vmcs_writel(CR4_READ_SHADOW, orig_val);
 		return 0;
 	} else
 		return kvm_set_cr4(vcpu, val);
@@ -4391,7 +5293,7 @@ static int handle_cr(struct kvm_vcpu *vcpu)
 	reg = (exit_qualification >> 8) & 15;
 	switch ((exit_qualification >> 4) & 3) {
 	case 0: /* mov to cr */
-		val = kvm_register_read(vcpu, reg);
+		val = kvm_register_readl(vcpu, reg);
 		trace_kvm_cr_write(cr, val);
 		switch (cr) {
 		case 0:
@@ -4408,7 +5310,7 @@ static int handle_cr(struct kvm_vcpu *vcpu)
 			return 1;
 		case 8: {
 				u8 cr8_prev = kvm_get_cr8(vcpu);
-				u8 cr8 = kvm_register_read(vcpu, reg);
+				u8 cr8 = (u8)val;
 				err = kvm_set_cr8(vcpu, cr8);
 				kvm_complete_insn_gp(vcpu, err);
 				if (irqchip_in_kernel(vcpu->kvm))
@@ -4418,7 +5320,7 @@ static int handle_cr(struct kvm_vcpu *vcpu)
 				vcpu->run->exit_reason = KVM_EXIT_SET_TPR;
 				return 0;
 			}
-		};
+		}
 		break;
 	case 2: /* clts */
 		handle_clts(vcpu);
@@ -4453,7 +5355,7 @@ static int handle_cr(struct kvm_vcpu *vcpu)
 		break;
 	}
 	vcpu->run->exit_reason = 0;
-	pr_unimpl(vcpu, "unhandled control register: op %d cr %d\n",
+	vcpu_unimpl(vcpu, "unhandled control register: op %d cr %d\n",
 	       (int)(exit_qualification >> 4) & 3, cr);
 	return 0;
 }
@@ -4461,13 +5363,20 @@ static int handle_cr(struct kvm_vcpu *vcpu)
 static int handle_dr(struct kvm_vcpu *vcpu)
 {
 	unsigned long exit_qualification;
-	int dr, reg;
+	int dr, dr7, reg;
+
+	exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
+	dr = exit_qualification & DEBUG_REG_ACCESS_NUM;
+
+	/* First, if DR does not exist, trigger UD */
+	if (!kvm_require_dr(vcpu, dr))
+		return 1;
 
 	/* Do not handle if the CPL > 0, will trigger GP on re-entry */
 	if (!kvm_require_cpl(vcpu, 0))
 		return 1;
-	dr = vmcs_readl(GUEST_DR7);
-	if (dr & DR7_GD) {
+	dr7 = vmcs_readl(GUEST_DR7);
+	if (dr7 & DR7_GD) {
 		/*
 		 * As the vm-exit takes precedence over the debug trap, we
 		 * need to emulate the latter, either for the host or the
@@ -4475,33 +5384,75 @@ static int handle_dr(struct kvm_vcpu *vcpu)
 		 */
 		if (vcpu->guest_debug & KVM_GUESTDBG_USE_HW_BP) {
 			vcpu->run->debug.arch.dr6 = vcpu->arch.dr6;
-			vcpu->run->debug.arch.dr7 = dr;
-			vcpu->run->debug.arch.pc =
-				vmcs_readl(GUEST_CS_BASE) +
-				vmcs_readl(GUEST_RIP);
+			vcpu->run->debug.arch.dr7 = dr7;
+			vcpu->run->debug.arch.pc = kvm_get_linear_rip(vcpu);
 			vcpu->run->debug.arch.exception = DB_VECTOR;
 			vcpu->run->exit_reason = KVM_EXIT_DEBUG;
 			return 0;
 		} else {
-			vcpu->arch.dr7 &= ~DR7_GD;
-			vcpu->arch.dr6 |= DR6_BD;
-			vmcs_writel(GUEST_DR7, vcpu->arch.dr7);
+			vcpu->arch.dr6 &= ~15;
+			vcpu->arch.dr6 |= DR6_BD | DR6_RTM;
 			kvm_queue_exception(vcpu, DB_VECTOR);
 			return 1;
 		}
 	}
 
-	exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
-	dr = exit_qualification & DEBUG_REG_ACCESS_NUM;
+	if (vcpu->guest_debug == 0) {
+		u32 cpu_based_vm_exec_control;
+
+		cpu_based_vm_exec_control = vmcs_read32(CPU_BASED_VM_EXEC_CONTROL);
+		cpu_based_vm_exec_control &= ~CPU_BASED_MOV_DR_EXITING;
+		vmcs_write32(CPU_BASED_VM_EXEC_CONTROL, cpu_based_vm_exec_control);
+
+		/*
+		 * No more DR vmexits; force a reload of the debug registers
+		 * and reenter on this instruction.  The next vmexit will
+		 * retrieve the full state of the debug registers.
+		 */
+		vcpu->arch.switch_db_regs |= KVM_DEBUGREG_WONT_EXIT;
+		return 1;
+	}
+
 	reg = DEBUG_REG_ACCESS_REG(exit_qualification);
 	if (exit_qualification & TYPE_MOV_FROM_DR) {
 		unsigned long val;
-		if (!kvm_get_dr(vcpu, dr, &val))
-			kvm_register_write(vcpu, reg, val);
+
+		if (kvm_get_dr(vcpu, dr, &val))
+			return 1;
+		kvm_register_write(vcpu, reg, val);
 	} else
-		kvm_set_dr(vcpu, dr, vcpu->arch.regs[reg]);
+		if (kvm_set_dr(vcpu, dr, kvm_register_readl(vcpu, reg)))
+			return 1;
+
 	skip_emulated_instruction(vcpu);
 	return 1;
+}
+
+static u64 vmx_get_dr6(struct kvm_vcpu *vcpu)
+{
+	return vcpu->arch.dr6;
+}
+
+static void vmx_set_dr6(struct kvm_vcpu *vcpu, unsigned long val)
+{
+}
+
+static void vmx_sync_dirty_debug_regs(struct kvm_vcpu *vcpu)
+{
+	u32 cpu_based_vm_exec_control;
+
+	get_debugreg(vcpu->arch.db[0], 0);
+	get_debugreg(vcpu->arch.db[1], 1);
+	get_debugreg(vcpu->arch.db[2], 2);
+	get_debugreg(vcpu->arch.db[3], 3);
+	get_debugreg(vcpu->arch.dr6, 6);
+	vcpu->arch.dr7 = vmcs_readl(GUEST_DR7);
+
+	vcpu->arch.switch_db_regs &= ~KVM_DEBUGREG_WONT_EXIT;
+
+	cpu_based_vm_exec_control = vmcs_read32(CPU_BASED_VM_EXEC_CONTROL);
+	cpu_based_vm_exec_control |= CPU_BASED_MOV_DR_EXITING;
+	vmcs_write32(CPU_BASED_VM_EXEC_CONTROL, cpu_based_vm_exec_control);
 }
 
 static void vmx_set_dr7(struct kvm_vcpu *vcpu, unsigned long val)
@@ -4537,11 +5488,15 @@ static int handle_rdmsr(struct kvm_vcpu *vcpu)
 
 static int handle_wrmsr(struct kvm_vcpu *vcpu)
 {
+	struct msr_data msr;
 	u32 ecx = vcpu->arch.regs[VCPU_REGS_RCX];
 	u64 data = (vcpu->arch.regs[VCPU_REGS_RAX] & -1u)
 		| ((u64)(vcpu->arch.regs[VCPU_REGS_RDX] & -1u) << 32);
 
-	if (vmx_set_msr(vcpu, ecx, data) != 0) {
+	msr.data = data;
+	msr.index = ecx;
+	msr.host_initiated = false;
+	if (kvm_set_msr(vcpu, &msr) != 0) {
 		trace_kvm_msr_write_ex(ecx, data);
 		kvm_inject_gp(vcpu, 0);
 		return 1;
@@ -4611,6 +5566,16 @@ static int handle_invlpg(struct kvm_vcpu *vcpu)
 	return 1;
 }
 
+static int handle_rdpmc(struct kvm_vcpu *vcpu)
+{
+	int err;
+
+	err = kvm_rdpmc(vcpu);
+	kvm_complete_insn_gp(vcpu, err);
+
+	return 1;
+}
+
 static int handle_wbinvd(struct kvm_vcpu *vcpu)
 {
 	skip_emulated_instruction(vcpu);
@@ -4625,6 +5590,20 @@ static int handle_xsetbv(struct kvm_vcpu *vcpu)
 
 	if (kvm_set_xcr(vcpu, index, new_bv) == 0)
 		skip_emulated_instruction(vcpu);
+	return 1;
+}
+
+static int handle_xsaves(struct kvm_vcpu *vcpu)
+{
+	skip_emulated_instruction(vcpu);
+	WARN(1, "this should never happen\n");
+	return 1;
+}
+
+static int handle_xrstors(struct kvm_vcpu *vcpu)
+{
+	skip_emulated_instruction(vcpu);
+	WARN(1, "this should never happen\n");
 	return 1;
 }
 
@@ -4651,6 +5630,26 @@ static int handle_apic_access(struct kvm_vcpu *vcpu)
 	return emulate_instruction(vcpu, 0) == EMULATE_DONE;
 }
 
+static int handle_apic_eoi_induced(struct kvm_vcpu *vcpu)
+{
+	unsigned long exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
+	int vector = exit_qualification & 0xff;
+
+	/* EOI-induced VM exit is trap-like and thus no need to adjust IP */
+	kvm_apic_set_eoi_accelerated(vcpu, vector);
+	return 1;
+}
+
+static int handle_apic_write(struct kvm_vcpu *vcpu)
+{
+	unsigned long exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
+	u32 offset = exit_qualification & 0xfff;
+
+	/* APIC-write VM exit is trap-like and thus no need to adjust IP */
+	kvm_apic_write_nodecode(vcpu, offset);
+	return 1;
+}
+
 static int handle_task_switch(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
@@ -4658,9 +5657,10 @@ static int handle_task_switch(struct kvm_vcpu *vcpu)
 	bool has_error_code = false;
 	u32 error_code = 0;
 	u16 tss_selector;
-	int reason, type, idt_v;
+	int reason, type, idt_v, idt_index;
 
 	idt_v = (vmx->idt_vectoring_info & VECTORING_INFO_VALID_MASK);
+	idt_index = (vmx->idt_vectoring_info & VECTORING_INFO_VECTOR_MASK);
 	type = (vmx->idt_vectoring_info & VECTORING_INFO_TYPE_MASK);
 
 	exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
@@ -4698,8 +5698,9 @@ static int handle_task_switch(struct kvm_vcpu *vcpu)
 		       type != INTR_TYPE_NMI_INTR))
 		skip_emulated_instruction(vcpu);
 
-	if (kvm_task_switch(vcpu, tss_selector, reason,
-				has_error_code, error_code) == EMULATE_FAIL) {
+	if (kvm_task_switch(vcpu, tss_selector,
+			    type == INTR_TYPE_SOFT_INTR ? idt_index : -1, reason,
+			    has_error_code, error_code) == EMULATE_FAIL) {
 		vcpu->run->exit_reason = KVM_EXIT_INTERNAL_ERROR;
 		vcpu->run->internal.suberror = KVM_INTERNAL_ERROR_EMULATION;
 		vcpu->run->internal.ndata = 0;
@@ -4707,7 +5708,7 @@ static int handle_task_switch(struct kvm_vcpu *vcpu)
 	}
 
 	/* clear all local breakpoint enable flags */
-	vmcs_writel(GUEST_DR7, vmcs_readl(GUEST_DR7) & ~55);
+	vmcs_writel(GUEST_DR7, vmcs_readl(GUEST_DR7) & ~0x155);
 
 	/*
 	 * TODO: What about debug traps on tss switch?
@@ -4721,14 +5722,10 @@ static int handle_ept_violation(struct kvm_vcpu *vcpu)
 {
 	unsigned long exit_qualification;
 	gpa_t gpa;
+	u32 error_code;
 	int gla_validity;
 
 	exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
-
-	if (exit_qualification & (1 << 6)) {
-		printk(KERN_ERR "EPT: GPA exceeds GAW!\n");
-		return -EINVAL;
-	}
 
 	gla_validity = (exit_qualification >> 7) & 0x3;
 	if (gla_validity != 0x3 && gla_validity != 0x1 && gla_validity != 0) {
@@ -4743,9 +5740,30 @@ static int handle_ept_violation(struct kvm_vcpu *vcpu)
 		return 0;
 	}
 
+	/*
+	 * EPT violation happened while executing iret from NMI,
+	 * "blocked by NMI" bit has to be set before next VM entry.
+	 * There are errata that may cause this bit to not be set:
+	 * AAK134, BY25.
+	 */
+	if (!(to_vmx(vcpu)->idt_vectoring_info & VECTORING_INFO_VALID_MASK) &&
+			cpu_has_virtual_nmis() &&
+			(exit_qualification & INTR_INFO_UNBLOCK_NMI))
+		vmcs_set_bits(GUEST_INTERRUPTIBILITY_INFO, GUEST_INTR_STATE_NMI);
+
 	gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
 	trace_kvm_page_fault(gpa, exit_qualification);
-	return kvm_mmu_page_fault(vcpu, gpa, exit_qualification & 0x3, NULL, 0);
+
+	/* It is a write fault? */
+	error_code = exit_qualification & PFERR_WRITE_MASK;
+	/* It is a fetch fault? */
+	error_code |= (exit_qualification << 2) & PFERR_FETCH_MASK;
+	/* ept page table is present? */
+	error_code |= (exit_qualification >> 3) & PFERR_PRESENT_MASK;
+
+	vcpu->arch.exit_qualification = exit_qualification;
+
+	return kvm_mmu_page_fault(vcpu, gpa, error_code, NULL, 0);
 }
 
 static u64 ept_rsvd_mask(u64 spte, int level)
@@ -4756,17 +5774,18 @@ static u64 ept_rsvd_mask(u64 spte, int level)
 	for (i = 51; i > boot_cpu_data.x86_phys_bits; i--)
 		mask |= (1ULL << i);
 
-	if (level > 2)
+	if (level == 4)
 		/* bits 7:3 reserved */
 		mask |= 0xf8;
-	else if (level == 2) {
-		if (spte & (1ULL << 7))
-			/* 2MB ref, bits 20:12 reserved */
-			mask |= 0x1ff000;
-		else
-			/* bits 6:3 reserved */
-			mask |= 0x78;
-	}
+	else if (spte & (1ULL << 7))
+		/*
+		 * 1GB/2MB page, bits 29:12 or 20:12 reserved respectively,
+		 * level == 1 if the hypervisor is using the ignored bit 7.
+		 */
+		mask |= (PAGE_SIZE << ((level - 1) * 9)) - PAGE_SIZE;
+	else if (level > 1)
+		/* bits 6:3 reserved */
+		mask |= 0x78;
 
 	return mask;
 }
@@ -4796,7 +5815,8 @@ static void ept_misconfig_inspect_spte(struct kvm_vcpu *vcpu, u64 spte,
 			WARN_ON(1);
 		}
 
-		if (level == 1 || (level == 2 && (spte & (1ULL << 7)))) {
+		/* bits 5:3 are _not_ reserved for large page or leaf page */
+		if ((rsvd_bits & 0x38) == 0) {
 			u64 ept_mem_type = (spte & 0x38) >> 3;
 
 			if (ept_mem_type == 2 || ept_mem_type == 3 ||
@@ -4816,12 +5836,20 @@ static int handle_ept_misconfig(struct kvm_vcpu *vcpu)
 	gpa_t gpa;
 
 	gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
+	if (!kvm_io_bus_write(vcpu->kvm, KVM_FAST_MMIO_BUS, gpa, 0, NULL)) {
+		skip_emulated_instruction(vcpu);
+		return 1;
+	}
 
 	ret = handle_mmio_page_fault_common(vcpu, gpa, true);
-	if (likely(ret == 1))
+	if (likely(ret == RET_MMIO_PF_EMULATE))
 		return x86_emulate_instruction(vcpu, gpa, 0, NULL, 0) ==
 					      EMULATE_DONE;
-	if (unlikely(!ret))
+
+	if (unlikely(ret == RET_MMIO_PF_INVALID))
+		return kvm_mmu_page_fault(vcpu, gpa, 0, NULL, 0);
+
+	if (unlikely(ret == RET_MMIO_PF_RETRY))
 		return 1;
 
 	/* It is the real ept misconfig */
@@ -4860,24 +5888,38 @@ static int handle_invalid_guest_state(struct kvm_vcpu *vcpu)
 	int ret = 1;
 	u32 cpu_exec_ctrl;
 	bool intr_window_requested;
+	unsigned count = 130;
 
 	cpu_exec_ctrl = vmcs_read32(CPU_BASED_VM_EXEC_CONTROL);
 	intr_window_requested = cpu_exec_ctrl & CPU_BASED_VIRTUAL_INTR_PENDING;
 
-	while (!guest_state_valid(vcpu)) {
-		if (intr_window_requested
-		    && (kvm_get_rflags(&vmx->vcpu) & X86_EFLAGS_IF))
+	while (vmx->emulation_required && count-- != 0) {
+		if (intr_window_requested && vmx_interrupt_allowed(vcpu))
 			return handle_interrupt_window(&vmx->vcpu);
 
-		err = emulate_instruction(vcpu, 0);
+		if (test_bit(KVM_REQ_EVENT, &vcpu->requests))
+			return 1;
 
-		if (err == EMULATE_DO_MMIO) {
+		err = emulate_instruction(vcpu, EMULTYPE_NO_REEXECUTE);
+
+		if (err == EMULATE_USER_EXIT) {
+			++vcpu->stat.mmio_exits;
 			ret = 0;
 			goto out;
 		}
 
-		if (err != EMULATE_DONE)
+		if (err != EMULATE_DONE) {
+			vcpu->run->exit_reason = KVM_EXIT_INTERNAL_ERROR;
+			vcpu->run->internal.suberror = KVM_INTERNAL_ERROR_EMULATION;
+			vcpu->run->internal.ndata = 0;
 			return 0;
+		}
+
+		if (vcpu->arch.halt_request) {
+			vcpu->arch.halt_request = 0;
+			ret = kvm_emulate_halt(vcpu);
+			goto out;
+		}
 
 		if (signal_pending(current))
 			goto out;
@@ -4885,9 +5927,303 @@ static int handle_invalid_guest_state(struct kvm_vcpu *vcpu)
 			schedule();
 	}
 
-	vmx->emulation_required = 0;
 out:
 	return ret;
+}
+
+static int __grow_ple_window(int val)
+{
+	if (ple_window_grow < 1)
+		return ple_window;
+
+	val = min(val, ple_window_actual_max);
+
+	if (ple_window_grow < ple_window)
+		val *= ple_window_grow;
+	else
+		val += ple_window_grow;
+
+	return val;
+}
+
+static int __shrink_ple_window(int val, int modifier, int minimum)
+{
+	if (modifier < 1)
+		return ple_window;
+
+	if (modifier < ple_window)
+		val /= modifier;
+	else
+		val -= modifier;
+
+	return max(val, minimum);
+}
+
+static void grow_ple_window(struct kvm_vcpu *vcpu)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	int old = vmx->ple_window;
+
+	vmx->ple_window = __grow_ple_window(old);
+
+	if (vmx->ple_window != old)
+		vmx->ple_window_dirty = true;
+
+	trace_kvm_ple_window_grow(vcpu->vcpu_id, vmx->ple_window, old);
+}
+
+static void shrink_ple_window(struct kvm_vcpu *vcpu)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	int old = vmx->ple_window;
+
+	vmx->ple_window = __shrink_ple_window(old,
+	                                      ple_window_shrink, ple_window);
+
+	if (vmx->ple_window != old)
+		vmx->ple_window_dirty = true;
+
+	trace_kvm_ple_window_shrink(vcpu->vcpu_id, vmx->ple_window, old);
+}
+
+/*
+ * ple_window_actual_max is computed to be one grow_ple_window() below
+ * ple_window_max. (See __grow_ple_window for the reason.)
+ * This prevents overflows, because ple_window_max is int.
+ * ple_window_max effectively rounded down to a multiple of ple_window_grow in
+ * this process.
+ * ple_window_max is also prevented from setting vmx->ple_window < ple_window.
+ */
+static void update_ple_window_actual_max(void)
+{
+	ple_window_actual_max =
+			__shrink_ple_window(max(ple_window_max, ple_window),
+			                    ple_window_grow, INT_MIN);
+}
+
+static __init int hardware_setup(void)
+{
+	int r = -ENOMEM, i, msr;
+
+	rdmsrl_safe(MSR_EFER, &host_efer);
+
+	for (i = 0; i < ARRAY_SIZE(vmx_msr_index); ++i)
+		kvm_define_shared_msr(i, vmx_msr_index[i]);
+
+	vmx_io_bitmap_a = (unsigned long *)__get_free_page(GFP_KERNEL);
+	if (!vmx_io_bitmap_a)
+		return r;
+
+	vmx_io_bitmap_b = (unsigned long *)__get_free_page(GFP_KERNEL);
+	if (!vmx_io_bitmap_b)
+		goto out;
+
+	vmx_msr_bitmap_legacy = (unsigned long *)__get_free_page(GFP_KERNEL);
+	if (!vmx_msr_bitmap_legacy)
+		goto out1;
+
+	vmx_msr_bitmap_legacy_x2apic =
+				(unsigned long *)__get_free_page(GFP_KERNEL);
+	if (!vmx_msr_bitmap_legacy_x2apic)
+		goto out2;
+
+	vmx_msr_bitmap_longmode = (unsigned long *)__get_free_page(GFP_KERNEL);
+	if (!vmx_msr_bitmap_longmode)
+		goto out3;
+
+	vmx_msr_bitmap_longmode_x2apic =
+				(unsigned long *)__get_free_page(GFP_KERNEL);
+	if (!vmx_msr_bitmap_longmode_x2apic)
+		goto out4;
+
+	if (nested) {
+		vmx_msr_bitmap_nested =
+			(unsigned long *)__get_free_page(GFP_KERNEL);
+		if (!vmx_msr_bitmap_nested)
+			goto out5;
+	}
+
+	vmx_vmread_bitmap = (unsigned long *)__get_free_page(GFP_KERNEL);
+	if (!vmx_vmread_bitmap)
+		goto out6;
+
+	vmx_vmwrite_bitmap = (unsigned long *)__get_free_page(GFP_KERNEL);
+	if (!vmx_vmwrite_bitmap)
+		goto out7;
+
+	memset(vmx_vmread_bitmap, 0xff, PAGE_SIZE);
+	memset(vmx_vmwrite_bitmap, 0xff, PAGE_SIZE);
+
+	/*
+	 * Allow direct access to the PC debug port (it is often used for I/O
+	 * delays, but the vmexits simply slow things down).
+	 */
+	memset(vmx_io_bitmap_a, 0xff, PAGE_SIZE);
+	clear_bit(0x80, vmx_io_bitmap_a);
+
+	memset(vmx_io_bitmap_b, 0xff, PAGE_SIZE);
+
+	memset(vmx_msr_bitmap_legacy, 0xff, PAGE_SIZE);
+	memset(vmx_msr_bitmap_longmode, 0xff, PAGE_SIZE);
+	if (nested)
+		memset(vmx_msr_bitmap_nested, 0xff, PAGE_SIZE);
+
+	if (setup_vmcs_config(&vmcs_config) < 0) {
+		r = -EIO;
+		goto out8;
+	}
+
+	if (boot_cpu_has(X86_FEATURE_NX))
+		kvm_enable_efer_bits(EFER_NX);
+
+	if (!cpu_has_vmx_vpid())
+		enable_vpid = 0;
+	if (!cpu_has_vmx_shadow_vmcs())
+		enable_shadow_vmcs = 0;
+	if (enable_shadow_vmcs)
+		init_vmcs_shadow_fields();
+
+	if (!cpu_has_vmx_ept() ||
+	    !cpu_has_vmx_ept_4levels()) {
+		enable_ept = 0;
+		enable_unrestricted_guest = 0;
+		enable_ept_ad_bits = 0;
+	}
+
+	if (!cpu_has_vmx_ept_ad_bits())
+		enable_ept_ad_bits = 0;
+
+	if (!cpu_has_vmx_unrestricted_guest())
+		enable_unrestricted_guest = 0;
+
+	if (!cpu_has_vmx_flexpriority())
+		flexpriority_enabled = 0;
+
+	/*
+	 * set_apic_access_page_addr() is used to reload apic access
+	 * page upon invalidation.  No need to do anything if not
+	 * using the APIC_ACCESS_ADDR VMCS field.
+	 */
+	if (!flexpriority_enabled)
+		kvm_x86_ops->set_apic_access_page_addr = NULL;
+
+	if (!cpu_has_vmx_tpr_shadow())
+		kvm_x86_ops->update_cr8_intercept = NULL;
+
+	if (enable_ept && !cpu_has_vmx_ept_2m_page())
+		kvm_disable_largepages();
+
+	if (!cpu_has_vmx_ple())
+		ple_gap = 0;
+
+	if (!cpu_has_vmx_apicv())
+		enable_apicv = 0;
+
+	if (enable_apicv)
+		kvm_x86_ops->update_cr8_intercept = NULL;
+	else {
+		kvm_x86_ops->hwapic_irr_update = NULL;
+		kvm_x86_ops->hwapic_isr_update = NULL;
+		kvm_x86_ops->deliver_posted_interrupt = NULL;
+		kvm_x86_ops->sync_pir_to_irr = vmx_sync_pir_to_irr_dummy;
+	}
+
+	vmx_disable_intercept_for_msr(MSR_FS_BASE, false);
+	vmx_disable_intercept_for_msr(MSR_GS_BASE, false);
+	vmx_disable_intercept_for_msr(MSR_KERNEL_GS_BASE, true);
+	vmx_disable_intercept_for_msr(MSR_IA32_SYSENTER_CS, false);
+	vmx_disable_intercept_for_msr(MSR_IA32_SYSENTER_ESP, false);
+	vmx_disable_intercept_for_msr(MSR_IA32_SYSENTER_EIP, false);
+	vmx_disable_intercept_for_msr(MSR_IA32_BNDCFGS, true);
+
+	memcpy(vmx_msr_bitmap_legacy_x2apic,
+			vmx_msr_bitmap_legacy, PAGE_SIZE);
+	memcpy(vmx_msr_bitmap_longmode_x2apic,
+			vmx_msr_bitmap_longmode, PAGE_SIZE);
+
+	if (enable_apicv) {
+		for (msr = 0x800; msr <= 0x8ff; msr++)
+			vmx_disable_intercept_msr_read_x2apic(msr);
+
+		/* According SDM, in x2apic mode, the whole id reg is used.
+		 * But in KVM, it only use the highest eight bits. Need to
+		 * intercept it */
+		vmx_enable_intercept_msr_read_x2apic(0x802);
+		/* TMCCT */
+		vmx_enable_intercept_msr_read_x2apic(0x839);
+		/* TPR */
+		vmx_disable_intercept_msr_write_x2apic(0x808);
+		/* EOI */
+		vmx_disable_intercept_msr_write_x2apic(0x80b);
+		/* SELF-IPI */
+		vmx_disable_intercept_msr_write_x2apic(0x83f);
+	}
+
+	if (enable_ept) {
+		kvm_mmu_set_mask_ptes(0ull,
+			(enable_ept_ad_bits) ? VMX_EPT_ACCESS_BIT : 0ull,
+			(enable_ept_ad_bits) ? VMX_EPT_DIRTY_BIT : 0ull,
+			0ull, VMX_EPT_EXECUTABLE_MASK);
+		ept_set_mmio_spte_mask();
+		kvm_enable_tdp();
+	} else
+		kvm_disable_tdp();
+
+	update_ple_window_actual_max();
+
+	/*
+	 * Only enable PML when hardware supports PML feature, and both EPT
+	 * and EPT A/D bit features are enabled -- PML depends on them to work.
+	 */
+	if (!enable_ept || !enable_ept_ad_bits || !cpu_has_vmx_pml())
+		enable_pml = 0;
+
+	if (!enable_pml) {
+		kvm_x86_ops->slot_enable_log_dirty = NULL;
+		kvm_x86_ops->slot_disable_log_dirty = NULL;
+		kvm_x86_ops->flush_log_dirty = NULL;
+		kvm_x86_ops->enable_log_dirty_pt_masked = NULL;
+	}
+
+	return alloc_kvm_area();
+
+out8:
+	free_page((unsigned long)vmx_vmwrite_bitmap);
+out7:
+	free_page((unsigned long)vmx_vmread_bitmap);
+out6:
+	if (nested)
+		free_page((unsigned long)vmx_msr_bitmap_nested);
+out5:
+	free_page((unsigned long)vmx_msr_bitmap_longmode_x2apic);
+out4:
+	free_page((unsigned long)vmx_msr_bitmap_longmode);
+out3:
+	free_page((unsigned long)vmx_msr_bitmap_legacy_x2apic);
+out2:
+	free_page((unsigned long)vmx_msr_bitmap_legacy);
+out1:
+	free_page((unsigned long)vmx_io_bitmap_b);
+out:
+	free_page((unsigned long)vmx_io_bitmap_a);
+
+    return r;
+}
+
+static __exit void hardware_unsetup(void)
+{
+	free_page((unsigned long)vmx_msr_bitmap_legacy_x2apic);
+	free_page((unsigned long)vmx_msr_bitmap_longmode_x2apic);
+	free_page((unsigned long)vmx_msr_bitmap_legacy);
+	free_page((unsigned long)vmx_msr_bitmap_longmode);
+	free_page((unsigned long)vmx_io_bitmap_b);
+	free_page((unsigned long)vmx_io_bitmap_a);
+	free_page((unsigned long)vmx_vmwrite_bitmap);
+	free_page((unsigned long)vmx_vmread_bitmap);
+	if (nested)
+		free_page((unsigned long)vmx_msr_bitmap_nested);
+
+	free_kvm_area();
 }
 
 /*
@@ -4896,16 +6232,31 @@ out:
  */
 static int handle_pause(struct kvm_vcpu *vcpu)
 {
+	if (ple_gap)
+		grow_ple_window(vcpu);
+
 	skip_emulated_instruction(vcpu);
 	kvm_vcpu_on_spin(vcpu);
 
 	return 1;
 }
 
-static int handle_invalid_op(struct kvm_vcpu *vcpu)
+static int handle_nop(struct kvm_vcpu *vcpu)
 {
-	kvm_queue_exception(vcpu, UD_VECTOR);
+	skip_emulated_instruction(vcpu);
 	return 1;
+}
+
+static int handle_mwait(struct kvm_vcpu *vcpu)
+{
+	printk_once(KERN_WARNING "kvm: MWAIT instruction emulated as NOP!\n");
+	return handle_nop(vcpu);
+}
+
+static int handle_monitor(struct kvm_vcpu *vcpu)
+{
+	printk_once(KERN_WARNING "kvm: MONITOR instruction emulated as NOP!\n");
+	return handle_nop(vcpu);
 }
 
 /*
@@ -4941,8 +6292,7 @@ static struct loaded_vmcs *nested_get_current_vmcs02(struct vcpu_vmx *vmx)
 	}
 
 	/* Create a new VMCS */
-	item = (struct vmcs02_list *)
-		kmalloc(sizeof(struct vmcs02_list), GFP_KERNEL);
+	item = kmalloc(sizeof(struct vmcs02_list), GFP_KERNEL);
 	if (!item)
 		return NULL;
 	item->vmcs02.vmcs = alloc_vmcs();
@@ -4973,131 +6323,88 @@ static void nested_free_vmcs02(struct vcpu_vmx *vmx, gpa_t vmptr)
 
 /*
  * Free all VMCSs saved for this vcpu, except the one pointed by
- * vmx->loaded_vmcs. These include the VMCSs in vmcs02_pool (except the one
- * currently used, if running L2), and vmcs01 when running L2.
+ * vmx->loaded_vmcs. We must be running L1, so vmx->loaded_vmcs
+ * must be &vmx->vmcs01.
  */
 static void nested_free_all_saved_vmcss(struct vcpu_vmx *vmx)
 {
 	struct vmcs02_list *item, *n;
+
+	WARN_ON(vmx->loaded_vmcs != &vmx->vmcs01);
 	list_for_each_entry_safe(item, n, &vmx->nested.vmcs02_pool, list) {
-		if (vmx->loaded_vmcs != &item->vmcs02)
-			free_loaded_vmcs(&item->vmcs02);
+		/*
+		 * Something will leak if the above WARN triggers.  Better than
+		 * a use-after-free.
+		 */
+		if (vmx->loaded_vmcs == &item->vmcs02)
+			continue;
+
+		free_loaded_vmcs(&item->vmcs02);
 		list_del(&item->list);
 		kfree(item);
+		vmx->nested.vmcs02_num--;
 	}
-	vmx->nested.vmcs02_num = 0;
-
-	if (vmx->loaded_vmcs != &vmx->vmcs01)
-		free_loaded_vmcs(&vmx->vmcs01);
 }
 
 /*
- * Emulate the VMXON instruction.
- * Currently, we just remember that VMX is active, and do not save or even
- * inspect the argument to VMXON (the so-called "VMXON pointer") because we
- * do not currently need to store anything in that guest-allocated memory
- * region. Consequently, VMCLEAR and VMPTRLD also do not verify that the their
- * argument is different from the VMXON pointer (which the spec says they do).
+ * The following 3 functions, nested_vmx_succeed()/failValid()/failInvalid(),
+ * set the success or error code of an emulated VMX instruction, as specified
+ * by Vol 2B, VMX Instruction Reference, "Conventions".
  */
-static int handle_vmon(struct kvm_vcpu *vcpu)
+static void nested_vmx_succeed(struct kvm_vcpu *vcpu)
 {
-	struct kvm_segment cs;
-	struct vcpu_vmx *vmx = to_vmx(vcpu);
-
-	/* The Intel VMX Instruction Reference lists a bunch of bits that
-	 * are prerequisite to running VMXON, most notably cr4.VMXE must be
-	 * set to 1 (see vmx_set_cr4() for when we allow the guest to set this).
-	 * Otherwise, we should fail with #UD. We test these now:
-	 */
-	if (!kvm_read_cr4_bits(vcpu, X86_CR4_VMXE) ||
-	    !kvm_read_cr0_bits(vcpu, X86_CR0_PE) ||
-	    (vmx_get_rflags(vcpu) & X86_EFLAGS_VM)) {
-		kvm_queue_exception(vcpu, UD_VECTOR);
-		return 1;
-	}
-
-	vmx_get_segment(vcpu, &cs, VCPU_SREG_CS);
-	if (is_long_mode(vcpu) && !cs.l) {
-		kvm_queue_exception(vcpu, UD_VECTOR);
-		return 1;
-	}
-
-	if (vmx_get_cpl(vcpu)) {
-		kvm_inject_gp(vcpu, 0);
-		return 1;
-	}
-
-	INIT_LIST_HEAD(&(vmx->nested.vmcs02_pool));
-	vmx->nested.vmcs02_num = 0;
-
-	vmx->nested.vmxon = true;
-
-	skip_emulated_instruction(vcpu);
-	return 1;
+	vmx_set_rflags(vcpu, vmx_get_rflags(vcpu)
+			& ~(X86_EFLAGS_CF | X86_EFLAGS_PF | X86_EFLAGS_AF |
+			    X86_EFLAGS_ZF | X86_EFLAGS_SF | X86_EFLAGS_OF));
 }
 
-/*
- * Intel's VMX Instruction Reference specifies a common set of prerequisites
- * for running VMX instructions (except VMXON, whose prerequisites are
- * slightly different). It also specifies what exception to inject otherwise.
- */
-static int nested_vmx_check_permission(struct kvm_vcpu *vcpu)
+static void nested_vmx_failInvalid(struct kvm_vcpu *vcpu)
 {
-	struct kvm_segment cs;
-	struct vcpu_vmx *vmx = to_vmx(vcpu);
-
-	if (!vmx->nested.vmxon) {
-		kvm_queue_exception(vcpu, UD_VECTOR);
-		return 0;
-	}
-
-	vmx_get_segment(vcpu, &cs, VCPU_SREG_CS);
-	if ((vmx_get_rflags(vcpu) & X86_EFLAGS_VM) ||
-	    (is_long_mode(vcpu) && !cs.l)) {
-		kvm_queue_exception(vcpu, UD_VECTOR);
-		return 0;
-	}
-
-	if (vmx_get_cpl(vcpu)) {
-		kvm_inject_gp(vcpu, 0);
-		return 0;
-	}
-
-	return 1;
+	vmx_set_rflags(vcpu, (vmx_get_rflags(vcpu)
+			& ~(X86_EFLAGS_PF | X86_EFLAGS_AF | X86_EFLAGS_ZF |
+			    X86_EFLAGS_SF | X86_EFLAGS_OF))
+			| X86_EFLAGS_CF);
 }
 
-/*
- * Free whatever needs to be freed from vmx->nested when L1 goes down, or
- * just stops using VMX.
- */
-static void free_nested(struct vcpu_vmx *vmx)
+static void nested_vmx_failValid(struct kvm_vcpu *vcpu,
+					u32 vm_instruction_error)
 {
-	if (!vmx->nested.vmxon)
+	if (to_vmx(vcpu)->nested.current_vmptr == -1ull) {
+		/*
+		 * failValid writes the error number to the current VMCS, which
+		 * can't be done there isn't a current VMCS.
+		 */
+		nested_vmx_failInvalid(vcpu);
 		return;
-	vmx->nested.vmxon = false;
-	if (vmx->nested.current_vmptr != -1ull) {
-		kunmap(vmx->nested.current_vmcs12_page);
-		nested_release_page(vmx->nested.current_vmcs12_page);
-		vmx->nested.current_vmptr = -1ull;
-		vmx->nested.current_vmcs12 = NULL;
 	}
-	/* Unpin physical memory we referred to in current vmcs02 */
-	if (vmx->nested.apic_access_page) {
-		nested_release_page(vmx->nested.apic_access_page);
-		vmx->nested.apic_access_page = 0;
-	}
-
-	nested_free_all_saved_vmcss(vmx);
+	vmx_set_rflags(vcpu, (vmx_get_rflags(vcpu)
+			& ~(X86_EFLAGS_CF | X86_EFLAGS_PF | X86_EFLAGS_AF |
+			    X86_EFLAGS_SF | X86_EFLAGS_OF))
+			| X86_EFLAGS_ZF);
+	get_vmcs12(vcpu)->vm_instruction_error = vm_instruction_error;
+	/*
+	 * We don't need to force a shadow sync because
+	 * VM_INSTRUCTION_ERROR is not shadowed
+	 */
 }
 
-/* Emulate the VMXOFF instruction */
-static int handle_vmoff(struct kvm_vcpu *vcpu)
+static void nested_vmx_abort(struct kvm_vcpu *vcpu, u32 indicator)
 {
-	if (!nested_vmx_check_permission(vcpu))
-		return 1;
-	free_nested(to_vmx(vcpu));
-	skip_emulated_instruction(vcpu);
-	return 1;
+	/* TODO: not to reset guest simply here. */
+	kvm_make_request(KVM_REQ_TRIPLE_FAULT, vcpu);
+	pr_warn("kvm: nested vmx abort, indicator %d\n", indicator);
+}
+
+static enum hrtimer_restart vmx_preemption_timer_fn(struct hrtimer *timer)
+{
+	struct vcpu_vmx *vmx =
+		container_of(timer, struct vcpu_vmx, nested.preemption_timer);
+
+	vmx->nested.preemption_timer_expired = true;
+	kvm_make_request(KVM_REQ_EVENT, &vmx->vcpu);
+	kvm_vcpu_kick(&vmx->vcpu);
+
+	return HRTIMER_NORESTART;
 }
 
 /*
@@ -5154,55 +6461,21 @@ static int get_vmx_mem_address(struct kvm_vcpu *vcpu,
 }
 
 /*
- * The following 3 functions, nested_vmx_succeed()/failValid()/failInvalid(),
- * set the success or error code of an emulated VMX instruction, as specified
- * by Vol 2B, VMX Instruction Reference, "Conventions".
+ * This function performs the various checks including
+ * - if it's 4KB aligned
+ * - No bits beyond the physical address width are set
+ * - Returns 0 on success or else 1
+ * (Intel SDM Section 30.3)
  */
-static void nested_vmx_succeed(struct kvm_vcpu *vcpu)
+static int nested_vmx_check_vmptr(struct kvm_vcpu *vcpu, int exit_reason,
+				  gpa_t *vmpointer)
 {
-	vmx_set_rflags(vcpu, vmx_get_rflags(vcpu)
-			& ~(X86_EFLAGS_CF | X86_EFLAGS_PF | X86_EFLAGS_AF |
-			    X86_EFLAGS_ZF | X86_EFLAGS_SF | X86_EFLAGS_OF));
-}
-
-static void nested_vmx_failInvalid(struct kvm_vcpu *vcpu)
-{
-	vmx_set_rflags(vcpu, (vmx_get_rflags(vcpu)
-			& ~(X86_EFLAGS_PF | X86_EFLAGS_AF | X86_EFLAGS_ZF |
-			    X86_EFLAGS_SF | X86_EFLAGS_OF))
-			| X86_EFLAGS_CF);
-}
-
-static void nested_vmx_failValid(struct kvm_vcpu *vcpu,
-					u32 vm_instruction_error)
-{
-	if (to_vmx(vcpu)->nested.current_vmptr == -1ull) {
-		/*
-		 * failValid writes the error number to the current VMCS, which
-		 * can't be done there isn't a current VMCS.
-		 */
-		nested_vmx_failInvalid(vcpu);
-		return;
-	}
-	vmx_set_rflags(vcpu, (vmx_get_rflags(vcpu)
-			& ~(X86_EFLAGS_CF | X86_EFLAGS_PF | X86_EFLAGS_AF |
-			    X86_EFLAGS_SF | X86_EFLAGS_OF))
-			| X86_EFLAGS_ZF);
-	get_vmcs12(vcpu)->vm_instruction_error = vm_instruction_error;
-}
-
-/* Emulate the VMCLEAR instruction */
-static int handle_vmclear(struct kvm_vcpu *vcpu)
-{
-	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	gva_t gva;
 	gpa_t vmptr;
-	struct vmcs12 *vmcs12;
-	struct page *page;
 	struct x86_exception e;
-
-	if (!nested_vmx_check_permission(vcpu))
-		return 1;
+	struct page *page;
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	int maxphyaddr = cpuid_maxphyaddr(vcpu);
 
 	if (get_vmx_mem_address(vcpu, vmcs_readl(EXIT_QUALIFICATION),
 			vmcs_read32(VMX_INSTRUCTION_INFO), &gva))
@@ -5214,18 +6487,269 @@ static int handle_vmclear(struct kvm_vcpu *vcpu)
 		return 1;
 	}
 
-	if (!IS_ALIGNED(vmptr, PAGE_SIZE)) {
-		nested_vmx_failValid(vcpu, VMXERR_VMCLEAR_INVALID_ADDRESS);
+	switch (exit_reason) {
+	case EXIT_REASON_VMON:
+		/*
+		 * SDM 3: 24.11.5
+		 * The first 4 bytes of VMXON region contain the supported
+		 * VMCS revision identifier
+		 *
+		 * Note - IA32_VMX_BASIC[48] will never be 1
+		 * for the nested case;
+		 * which replaces physical address width with 32
+		 *
+		 */
+		if (!PAGE_ALIGNED(vmptr) || (vmptr >> maxphyaddr)) {
+			nested_vmx_failInvalid(vcpu);
+			skip_emulated_instruction(vcpu);
+			return 1;
+		}
+
+		page = nested_get_page(vcpu, vmptr);
+		if (page == NULL ||
+		    *(u32 *)kmap(page) != VMCS12_REVISION) {
+			nested_vmx_failInvalid(vcpu);
+			kunmap(page);
+			skip_emulated_instruction(vcpu);
+			return 1;
+		}
+		kunmap(page);
+		vmx->nested.vmxon_ptr = vmptr;
+		break;
+	case EXIT_REASON_VMCLEAR:
+		if (!PAGE_ALIGNED(vmptr) || (vmptr >> maxphyaddr)) {
+			nested_vmx_failValid(vcpu,
+					     VMXERR_VMCLEAR_INVALID_ADDRESS);
+			skip_emulated_instruction(vcpu);
+			return 1;
+		}
+
+		if (vmptr == vmx->nested.vmxon_ptr) {
+			nested_vmx_failValid(vcpu,
+					     VMXERR_VMCLEAR_VMXON_POINTER);
+			skip_emulated_instruction(vcpu);
+			return 1;
+		}
+		break;
+	case EXIT_REASON_VMPTRLD:
+		if (!PAGE_ALIGNED(vmptr) || (vmptr >> maxphyaddr)) {
+			nested_vmx_failValid(vcpu,
+					     VMXERR_VMPTRLD_INVALID_ADDRESS);
+			skip_emulated_instruction(vcpu);
+			return 1;
+		}
+
+		if (vmptr == vmx->nested.vmxon_ptr) {
+			nested_vmx_failValid(vcpu,
+					     VMXERR_VMCLEAR_VMXON_POINTER);
+			skip_emulated_instruction(vcpu);
+			return 1;
+		}
+		break;
+	default:
+		return 1; /* shouldn't happen */
+	}
+
+	if (vmpointer)
+		*vmpointer = vmptr;
+	return 0;
+}
+
+/*
+ * Emulate the VMXON instruction.
+ * Currently, we just remember that VMX is active, and do not save or even
+ * inspect the argument to VMXON (the so-called "VMXON pointer") because we
+ * do not currently need to store anything in that guest-allocated memory
+ * region. Consequently, VMCLEAR and VMPTRLD also do not verify that the their
+ * argument is different from the VMXON pointer (which the spec says they do).
+ */
+static int handle_vmon(struct kvm_vcpu *vcpu)
+{
+	struct kvm_segment cs;
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	struct vmcs *shadow_vmcs;
+	const u64 VMXON_NEEDED_FEATURES = FEATURE_CONTROL_LOCKED
+		| FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX;
+
+	/* The Intel VMX Instruction Reference lists a bunch of bits that
+	 * are prerequisite to running VMXON, most notably cr4.VMXE must be
+	 * set to 1 (see vmx_set_cr4() for when we allow the guest to set this).
+	 * Otherwise, we should fail with #UD. We test these now:
+	 */
+	if (!kvm_read_cr4_bits(vcpu, X86_CR4_VMXE) ||
+	    !kvm_read_cr0_bits(vcpu, X86_CR0_PE) ||
+	    (vmx_get_rflags(vcpu) & X86_EFLAGS_VM)) {
+		kvm_queue_exception(vcpu, UD_VECTOR);
+		return 1;
+	}
+
+	vmx_get_segment(vcpu, &cs, VCPU_SREG_CS);
+	if (is_long_mode(vcpu) && !cs.l) {
+		kvm_queue_exception(vcpu, UD_VECTOR);
+		return 1;
+	}
+
+	if (vmx_get_cpl(vcpu)) {
+		kvm_inject_gp(vcpu, 0);
+		return 1;
+	}
+
+	if (nested_vmx_check_vmptr(vcpu, EXIT_REASON_VMON, NULL))
+		return 1;
+
+	if (vmx->nested.vmxon) {
+		nested_vmx_failValid(vcpu, VMXERR_VMXON_IN_VMX_ROOT_OPERATION);
 		skip_emulated_instruction(vcpu);
 		return 1;
 	}
 
-	if (vmptr == vmx->nested.current_vmptr) {
-		kunmap(vmx->nested.current_vmcs12_page);
-		nested_release_page(vmx->nested.current_vmcs12_page);
-		vmx->nested.current_vmptr = -1ull;
-		vmx->nested.current_vmcs12 = NULL;
+	if ((vmx->nested.msr_ia32_feature_control & VMXON_NEEDED_FEATURES)
+			!= VMXON_NEEDED_FEATURES) {
+		kvm_inject_gp(vcpu, 0);
+		return 1;
 	}
+
+	if (enable_shadow_vmcs) {
+		shadow_vmcs = alloc_vmcs();
+		if (!shadow_vmcs)
+			return -ENOMEM;
+		/* mark vmcs as shadow */
+		shadow_vmcs->revision_id |= (1u << 31);
+		/* init shadow vmcs */
+		vmcs_clear(shadow_vmcs);
+		vmx->nested.current_shadow_vmcs = shadow_vmcs;
+	}
+
+	INIT_LIST_HEAD(&(vmx->nested.vmcs02_pool));
+	vmx->nested.vmcs02_num = 0;
+
+	hrtimer_init(&vmx->nested.preemption_timer, CLOCK_MONOTONIC,
+		     HRTIMER_MODE_REL);
+	vmx->nested.preemption_timer.function = vmx_preemption_timer_fn;
+
+	vmx->nested.vmxon = true;
+
+	skip_emulated_instruction(vcpu);
+	nested_vmx_succeed(vcpu);
+	return 1;
+}
+
+/*
+ * Intel's VMX Instruction Reference specifies a common set of prerequisites
+ * for running VMX instructions (except VMXON, whose prerequisites are
+ * slightly different). It also specifies what exception to inject otherwise.
+ */
+static int nested_vmx_check_permission(struct kvm_vcpu *vcpu)
+{
+	struct kvm_segment cs;
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+
+	if (!vmx->nested.vmxon) {
+		kvm_queue_exception(vcpu, UD_VECTOR);
+		return 0;
+	}
+
+	vmx_get_segment(vcpu, &cs, VCPU_SREG_CS);
+	if ((vmx_get_rflags(vcpu) & X86_EFLAGS_VM) ||
+	    (is_long_mode(vcpu) && !cs.l)) {
+		kvm_queue_exception(vcpu, UD_VECTOR);
+		return 0;
+	}
+
+	if (vmx_get_cpl(vcpu)) {
+		kvm_inject_gp(vcpu, 0);
+		return 0;
+	}
+
+	return 1;
+}
+
+static inline void nested_release_vmcs12(struct vcpu_vmx *vmx)
+{
+	u32 exec_control;
+	if (vmx->nested.current_vmptr == -1ull)
+		return;
+
+	/* current_vmptr and current_vmcs12 are always set/reset together */
+	if (WARN_ON(vmx->nested.current_vmcs12 == NULL))
+		return;
+
+	if (enable_shadow_vmcs) {
+		/* copy to memory all shadowed fields in case
+		   they were modified */
+		copy_shadow_to_vmcs12(vmx);
+		vmx->nested.sync_shadow_vmcs = false;
+		exec_control = vmcs_read32(SECONDARY_VM_EXEC_CONTROL);
+		exec_control &= ~SECONDARY_EXEC_SHADOW_VMCS;
+		vmcs_write32(SECONDARY_VM_EXEC_CONTROL, exec_control);
+		vmcs_write64(VMCS_LINK_POINTER, -1ull);
+	}
+	vmx->nested.posted_intr_nv = -1;
+	kunmap(vmx->nested.current_vmcs12_page);
+	nested_release_page(vmx->nested.current_vmcs12_page);
+	vmx->nested.current_vmptr = -1ull;
+	vmx->nested.current_vmcs12 = NULL;
+}
+
+/*
+ * Free whatever needs to be freed from vmx->nested when L1 goes down, or
+ * just stops using VMX.
+ */
+static void free_nested(struct vcpu_vmx *vmx)
+{
+	if (!vmx->nested.vmxon)
+		return;
+
+	vmx->nested.vmxon = false;
+	nested_release_vmcs12(vmx);
+	if (enable_shadow_vmcs)
+		free_vmcs(vmx->nested.current_shadow_vmcs);
+	/* Unpin physical memory we referred to in current vmcs02 */
+	if (vmx->nested.apic_access_page) {
+		nested_release_page(vmx->nested.apic_access_page);
+		vmx->nested.apic_access_page = NULL;
+	}
+	if (vmx->nested.virtual_apic_page) {
+		nested_release_page(vmx->nested.virtual_apic_page);
+		vmx->nested.virtual_apic_page = NULL;
+	}
+	if (vmx->nested.pi_desc_page) {
+		kunmap(vmx->nested.pi_desc_page);
+		nested_release_page(vmx->nested.pi_desc_page);
+		vmx->nested.pi_desc_page = NULL;
+		vmx->nested.pi_desc = NULL;
+	}
+
+	nested_free_all_saved_vmcss(vmx);
+}
+
+/* Emulate the VMXOFF instruction */
+static int handle_vmoff(struct kvm_vcpu *vcpu)
+{
+	if (!nested_vmx_check_permission(vcpu))
+		return 1;
+	free_nested(to_vmx(vcpu));
+	skip_emulated_instruction(vcpu);
+	nested_vmx_succeed(vcpu);
+	return 1;
+}
+
+/* Emulate the VMCLEAR instruction */
+static int handle_vmclear(struct kvm_vcpu *vcpu)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	gpa_t vmptr;
+	struct vmcs12 *vmcs12;
+	struct page *page;
+
+	if (!nested_vmx_check_permission(vcpu))
+		return 1;
+
+	if (nested_vmx_check_vmptr(vcpu, EXIT_REASON_VMCLEAR, &vmptr))
+		return 1;
+
+	if (vmptr == vmx->nested.current_vmptr)
+		nested_release_vmcs12(vmx);
 
 	page = nested_get_page(vcpu, vmptr);
 	if (page == NULL) {
@@ -5292,33 +6816,149 @@ static inline int vmcs_field_readonly(unsigned long field)
  * some of the bits we return here (e.g., on 32-bit guests, only 32 bits of
  * 64-bit fields are to be returned).
  */
-static inline bool vmcs12_read_any(struct kvm_vcpu *vcpu,
-					unsigned long field, u64 *ret)
+static inline int vmcs12_read_any(struct kvm_vcpu *vcpu,
+				  unsigned long field, u64 *ret)
 {
 	short offset = vmcs_field_to_offset(field);
 	char *p;
 
 	if (offset < 0)
-		return 0;
+		return offset;
 
 	p = ((char *)(get_vmcs12(vcpu))) + offset;
 
 	switch (vmcs_field_type(field)) {
 	case VMCS_FIELD_TYPE_NATURAL_WIDTH:
 		*ret = *((natural_width *)p);
-		return 1;
+		return 0;
 	case VMCS_FIELD_TYPE_U16:
 		*ret = *((u16 *)p);
-		return 1;
+		return 0;
 	case VMCS_FIELD_TYPE_U32:
 		*ret = *((u32 *)p);
-		return 1;
+		return 0;
 	case VMCS_FIELD_TYPE_U64:
 		*ret = *((u64 *)p);
-		return 1;
+		return 0;
 	default:
-		return 0; /* can never happen. */
+		WARN_ON(1);
+		return -ENOENT;
 	}
+}
+
+
+static inline int vmcs12_write_any(struct kvm_vcpu *vcpu,
+				   unsigned long field, u64 field_value){
+	short offset = vmcs_field_to_offset(field);
+	char *p = ((char *) get_vmcs12(vcpu)) + offset;
+	if (offset < 0)
+		return offset;
+
+	switch (vmcs_field_type(field)) {
+	case VMCS_FIELD_TYPE_U16:
+		*(u16 *)p = field_value;
+		return 0;
+	case VMCS_FIELD_TYPE_U32:
+		*(u32 *)p = field_value;
+		return 0;
+	case VMCS_FIELD_TYPE_U64:
+		*(u64 *)p = field_value;
+		return 0;
+	case VMCS_FIELD_TYPE_NATURAL_WIDTH:
+		*(natural_width *)p = field_value;
+		return 0;
+	default:
+		WARN_ON(1);
+		return -ENOENT;
+	}
+
+}
+
+static void copy_shadow_to_vmcs12(struct vcpu_vmx *vmx)
+{
+	int i;
+	unsigned long field;
+	u64 field_value;
+	struct vmcs *shadow_vmcs = vmx->nested.current_shadow_vmcs;
+	const unsigned long *fields = shadow_read_write_fields;
+	const int num_fields = max_shadow_read_write_fields;
+
+	preempt_disable();
+
+	vmcs_load(shadow_vmcs);
+
+	for (i = 0; i < num_fields; i++) {
+		field = fields[i];
+		switch (vmcs_field_type(field)) {
+		case VMCS_FIELD_TYPE_U16:
+			field_value = vmcs_read16(field);
+			break;
+		case VMCS_FIELD_TYPE_U32:
+			field_value = vmcs_read32(field);
+			break;
+		case VMCS_FIELD_TYPE_U64:
+			field_value = vmcs_read64(field);
+			break;
+		case VMCS_FIELD_TYPE_NATURAL_WIDTH:
+			field_value = vmcs_readl(field);
+			break;
+		default:
+			WARN_ON(1);
+			continue;
+		}
+		vmcs12_write_any(&vmx->vcpu, field, field_value);
+	}
+
+	vmcs_clear(shadow_vmcs);
+	vmcs_load(vmx->loaded_vmcs->vmcs);
+
+	preempt_enable();
+}
+
+static void copy_vmcs12_to_shadow(struct vcpu_vmx *vmx)
+{
+	const unsigned long *fields[] = {
+		shadow_read_write_fields,
+		shadow_read_only_fields
+	};
+	const int max_fields[] = {
+		max_shadow_read_write_fields,
+		max_shadow_read_only_fields
+	};
+	int i, q;
+	unsigned long field;
+	u64 field_value = 0;
+	struct vmcs *shadow_vmcs = vmx->nested.current_shadow_vmcs;
+
+	vmcs_load(shadow_vmcs);
+
+	for (q = 0; q < ARRAY_SIZE(fields); q++) {
+		for (i = 0; i < max_fields[q]; i++) {
+			field = fields[q][i];
+			vmcs12_read_any(&vmx->vcpu, field, &field_value);
+
+			switch (vmcs_field_type(field)) {
+			case VMCS_FIELD_TYPE_U16:
+				vmcs_write16(field, (u16)field_value);
+				break;
+			case VMCS_FIELD_TYPE_U32:
+				vmcs_write32(field, (u32)field_value);
+				break;
+			case VMCS_FIELD_TYPE_U64:
+				vmcs_write64(field, (u64)field_value);
+				break;
+			case VMCS_FIELD_TYPE_NATURAL_WIDTH:
+				vmcs_writel(field, (long)field_value);
+				break;
+			default:
+				WARN_ON(1);
+				break;
+			}
+		}
+	}
+
+	vmcs_clear(shadow_vmcs);
+	vmcs_load(vmx->loaded_vmcs->vmcs);
 }
 
 /*
@@ -5349,9 +6989,9 @@ static int handle_vmread(struct kvm_vcpu *vcpu)
 		return 1;
 
 	/* Decode instruction info and find the field to read */
-	field = kvm_register_read(vcpu, (((vmx_instruction_info) >> 28) & 0xf));
+	field = kvm_register_readl(vcpu, (((vmx_instruction_info) >> 28) & 0xf));
 	/* Read the field, zero-extended to a u64 field_value */
-	if (!vmcs12_read_any(vcpu, field, &field_value)) {
+	if (vmcs12_read_any(vcpu, field, &field_value) < 0) {
 		nested_vmx_failValid(vcpu, VMXERR_UNSUPPORTED_VMCS_COMPONENT);
 		skip_emulated_instruction(vcpu);
 		return 1;
@@ -5362,7 +7002,7 @@ static int handle_vmread(struct kvm_vcpu *vcpu)
 	 * on the guest's mode (32 or 64 bit), not on the given field's length.
 	 */
 	if (vmx_instruction_info & (1u << 10)) {
-		kvm_register_write(vcpu, (((vmx_instruction_info) >> 3) & 0xf),
+		kvm_register_writel(vcpu, (((vmx_instruction_info) >> 3) & 0xf),
 			field_value);
 	} else {
 		if (get_vmx_mem_address(vcpu, exit_qualification,
@@ -5385,8 +7025,6 @@ static int handle_vmwrite(struct kvm_vcpu *vcpu)
 	gva_t gva;
 	unsigned long exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
 	u32 vmx_instruction_info = vmcs_read32(VMX_INSTRUCTION_INFO);
-	char *p;
-	short offset;
 	/* The value to write might be 32 or 64 bits, depending on L1's long
 	 * mode, and eventually we need to write that into a field of several
 	 * possible lengths. The code below first zero-extends the value to 64
@@ -5401,21 +7039,21 @@ static int handle_vmwrite(struct kvm_vcpu *vcpu)
 		return 1;
 
 	if (vmx_instruction_info & (1u << 10))
-		field_value = kvm_register_read(vcpu,
+		field_value = kvm_register_readl(vcpu,
 			(((vmx_instruction_info) >> 3) & 0xf));
 	else {
 		if (get_vmx_mem_address(vcpu, exit_qualification,
 				vmx_instruction_info, &gva))
 			return 1;
 		if (kvm_read_guest_virt(&vcpu->arch.emulate_ctxt, gva,
-			   &field_value, (is_long_mode(vcpu) ? 8 : 4), &e)) {
+			   &field_value, (is_64_bit_mode(vcpu) ? 8 : 4), &e)) {
 			kvm_inject_page_fault(vcpu, &e);
 			return 1;
 		}
 	}
 
 
-	field = kvm_register_read(vcpu, (((vmx_instruction_info) >> 28) & 0xf));
+	field = kvm_register_readl(vcpu, (((vmx_instruction_info) >> 28) & 0xf));
 	if (vmcs_field_readonly(field)) {
 		nested_vmx_failValid(vcpu,
 			VMXERR_VMWRITE_READ_ONLY_VMCS_COMPONENT);
@@ -5423,28 +7061,7 @@ static int handle_vmwrite(struct kvm_vcpu *vcpu)
 		return 1;
 	}
 
-	offset = vmcs_field_to_offset(field);
-	if (offset < 0) {
-		nested_vmx_failValid(vcpu, VMXERR_UNSUPPORTED_VMCS_COMPONENT);
-		skip_emulated_instruction(vcpu);
-		return 1;
-	}
-	p = ((char *) get_vmcs12(vcpu)) + offset;
-
-	switch (vmcs_field_type(field)) {
-	case VMCS_FIELD_TYPE_U16:
-		*(u16 *)p = field_value;
-		break;
-	case VMCS_FIELD_TYPE_U32:
-		*(u32 *)p = field_value;
-		break;
-	case VMCS_FIELD_TYPE_U64:
-		*(u64 *)p = field_value;
-		break;
-	case VMCS_FIELD_TYPE_NATURAL_WIDTH:
-		*(natural_width *)p = field_value;
-		break;
-	default:
+	if (vmcs12_write_any(vcpu, field, field_value) < 0) {
 		nested_vmx_failValid(vcpu, VMXERR_UNSUPPORTED_VMCS_COMPONENT);
 		skip_emulated_instruction(vcpu);
 		return 1;
@@ -5459,28 +7076,14 @@ static int handle_vmwrite(struct kvm_vcpu *vcpu)
 static int handle_vmptrld(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
-	gva_t gva;
 	gpa_t vmptr;
-	struct x86_exception e;
+	u32 exec_control;
 
 	if (!nested_vmx_check_permission(vcpu))
 		return 1;
 
-	if (get_vmx_mem_address(vcpu, vmcs_readl(EXIT_QUALIFICATION),
-			vmcs_read32(VMX_INSTRUCTION_INFO), &gva))
+	if (nested_vmx_check_vmptr(vcpu, EXIT_REASON_VMPTRLD, &vmptr))
 		return 1;
-
-	if (kvm_read_guest_virt(&vcpu->arch.emulate_ctxt, gva, &vmptr,
-				sizeof(vmptr), &e)) {
-		kvm_inject_page_fault(vcpu, &e);
-		return 1;
-	}
-
-	if (!IS_ALIGNED(vmptr, PAGE_SIZE)) {
-		nested_vmx_failValid(vcpu, VMXERR_VMPTRLD_INVALID_ADDRESS);
-		skip_emulated_instruction(vcpu);
-		return 1;
-	}
 
 	if (vmx->nested.current_vmptr != vmptr) {
 		struct vmcs12 *new_vmcs12;
@@ -5500,14 +7103,19 @@ static int handle_vmptrld(struct kvm_vcpu *vcpu)
 			skip_emulated_instruction(vcpu);
 			return 1;
 		}
-		if (vmx->nested.current_vmptr != -1ull) {
-			kunmap(vmx->nested.current_vmcs12_page);
-			nested_release_page(vmx->nested.current_vmcs12_page);
-		}
 
+		nested_release_vmcs12(vmx);
 		vmx->nested.current_vmptr = vmptr;
 		vmx->nested.current_vmcs12 = new_vmcs12;
 		vmx->nested.current_vmcs12_page = page;
+		if (enable_shadow_vmcs) {
+			exec_control = vmcs_read32(SECONDARY_VM_EXEC_CONTROL);
+			exec_control |= SECONDARY_EXEC_SHADOW_VMCS;
+			vmcs_write32(SECONDARY_VM_EXEC_CONTROL, exec_control);
+			vmcs_write64(VMCS_LINK_POINTER,
+				     __pa(vmx->nested.current_shadow_vmcs));
+			vmx->nested.sync_shadow_vmcs = true;
+		}
 	}
 
 	nested_vmx_succeed(vcpu);
@@ -5541,12 +7149,109 @@ static int handle_vmptrst(struct kvm_vcpu *vcpu)
 	return 1;
 }
 
+/* Emulate the INVEPT instruction */
+static int handle_invept(struct kvm_vcpu *vcpu)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	u32 vmx_instruction_info, types;
+	unsigned long type;
+	gva_t gva;
+	struct x86_exception e;
+	struct {
+		u64 eptp, gpa;
+	} operand;
+
+	if (!(vmx->nested.nested_vmx_secondary_ctls_high &
+	      SECONDARY_EXEC_ENABLE_EPT) ||
+	    !(vmx->nested.nested_vmx_ept_caps & VMX_EPT_INVEPT_BIT)) {
+		kvm_queue_exception(vcpu, UD_VECTOR);
+		return 1;
+	}
+
+	if (!nested_vmx_check_permission(vcpu))
+		return 1;
+
+	if (!kvm_read_cr0_bits(vcpu, X86_CR0_PE)) {
+		kvm_queue_exception(vcpu, UD_VECTOR);
+		return 1;
+	}
+
+	vmx_instruction_info = vmcs_read32(VMX_INSTRUCTION_INFO);
+	type = kvm_register_readl(vcpu, (vmx_instruction_info >> 28) & 0xf);
+
+	types = (vmx->nested.nested_vmx_ept_caps >> VMX_EPT_EXTENT_SHIFT) & 6;
+
+	if (!(types & (1UL << type))) {
+		nested_vmx_failValid(vcpu,
+				VMXERR_INVALID_OPERAND_TO_INVEPT_INVVPID);
+		return 1;
+	}
+
+	/* According to the Intel VMX instruction reference, the memory
+	 * operand is read even if it isn't needed (e.g., for type==global)
+	 */
+	if (get_vmx_mem_address(vcpu, vmcs_readl(EXIT_QUALIFICATION),
+			vmx_instruction_info, &gva))
+		return 1;
+	if (kvm_read_guest_virt(&vcpu->arch.emulate_ctxt, gva, &operand,
+				sizeof(operand), &e)) {
+		kvm_inject_page_fault(vcpu, &e);
+		return 1;
+	}
+
+	switch (type) {
+	case VMX_EPT_EXTENT_GLOBAL:
+		kvm_mmu_sync_roots(vcpu);
+		kvm_make_request(KVM_REQ_TLB_FLUSH, vcpu);
+		nested_vmx_succeed(vcpu);
+		break;
+	default:
+		/* Trap single context invalidation invept calls */
+		BUG_ON(1);
+		break;
+	}
+
+	skip_emulated_instruction(vcpu);
+	return 1;
+}
+
+static int handle_invvpid(struct kvm_vcpu *vcpu)
+{
+	kvm_queue_exception(vcpu, UD_VECTOR);
+	return 1;
+}
+
+static int handle_pml_full(struct kvm_vcpu *vcpu)
+{
+	unsigned long exit_qualification;
+
+	trace_kvm_pml_full(vcpu->vcpu_id);
+
+	exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
+
+	/*
+	 * PML buffer FULL happened while executing iret from NMI,
+	 * "blocked by NMI" bit has to be set before next VM entry.
+	 */
+	if (!(to_vmx(vcpu)->idt_vectoring_info & VECTORING_INFO_VALID_MASK) &&
+			cpu_has_virtual_nmis() &&
+			(exit_qualification & INTR_INFO_UNBLOCK_NMI))
+		vmcs_set_bits(GUEST_INTERRUPTIBILITY_INFO,
+				GUEST_INTR_STATE_NMI);
+
+	/*
+	 * PML buffer already flushed at beginning of VMEXIT. Nothing to do
+	 * here.., and there's no userspace involvement needed for PML.
+	 */
+	return 1;
+}
+
 /*
  * The exit handlers return 1 if the exit was handled fully and guest execution
  * may resume.  Otherwise they set the kvm_run parameter to indicate what needs
  * to be done to userspace and return 0.
  */
-static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
+static int (*const kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_EXCEPTION_NMI]           = handle_exception,
 	[EXIT_REASON_EXTERNAL_INTERRUPT]      = handle_external_interrupt,
 	[EXIT_REASON_TRIPLE_FAULT]            = handle_triple_fault,
@@ -5561,6 +7266,7 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_HLT]                     = handle_halt,
 	[EXIT_REASON_INVD]		      = handle_invd,
 	[EXIT_REASON_INVLPG]		      = handle_invlpg,
+	[EXIT_REASON_RDPMC]                   = handle_rdpmc,
 	[EXIT_REASON_VMCALL]                  = handle_vmcall,
 	[EXIT_REASON_VMCLEAR]	              = handle_vmclear,
 	[EXIT_REASON_VMLAUNCH]                = handle_vmlaunch,
@@ -5573,6 +7279,8 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_VMON]                    = handle_vmon,
 	[EXIT_REASON_TPR_BELOW_THRESHOLD]     = handle_tpr_below_threshold,
 	[EXIT_REASON_APIC_ACCESS]             = handle_apic_access,
+	[EXIT_REASON_APIC_WRITE]              = handle_apic_write,
+	[EXIT_REASON_EOI_INDUCED]             = handle_apic_eoi_induced,
 	[EXIT_REASON_WBINVD]                  = handle_wbinvd,
 	[EXIT_REASON_XSETBV]                  = handle_xsetbv,
 	[EXIT_REASON_TASK_SWITCH]             = handle_task_switch,
@@ -5580,12 +7288,60 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_EPT_VIOLATION]	      = handle_ept_violation,
 	[EXIT_REASON_EPT_MISCONFIG]           = handle_ept_misconfig,
 	[EXIT_REASON_PAUSE_INSTRUCTION]       = handle_pause,
-	[EXIT_REASON_MWAIT_INSTRUCTION]	      = handle_invalid_op,
-	[EXIT_REASON_MONITOR_INSTRUCTION]     = handle_invalid_op,
+	[EXIT_REASON_MWAIT_INSTRUCTION]	      = handle_mwait,
+	[EXIT_REASON_MONITOR_INSTRUCTION]     = handle_monitor,
+	[EXIT_REASON_INVEPT]                  = handle_invept,
+	[EXIT_REASON_INVVPID]                 = handle_invvpid,
+	[EXIT_REASON_XSAVES]                  = handle_xsaves,
+	[EXIT_REASON_XRSTORS]                 = handle_xrstors,
+	[EXIT_REASON_PML_FULL]		      = handle_pml_full,
 };
 
 static const int kvm_vmx_max_exit_handlers =
 	ARRAY_SIZE(kvm_vmx_exit_handlers);
+
+static bool nested_vmx_exit_handled_io(struct kvm_vcpu *vcpu,
+				       struct vmcs12 *vmcs12)
+{
+	unsigned long exit_qualification;
+	gpa_t bitmap, last_bitmap;
+	unsigned int port;
+	int size;
+	u8 b;
+
+	if (!nested_cpu_has(vmcs12, CPU_BASED_USE_IO_BITMAPS))
+		return nested_cpu_has(vmcs12, CPU_BASED_UNCOND_IO_EXITING);
+
+	exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
+
+	port = exit_qualification >> 16;
+	size = (exit_qualification & 7) + 1;
+
+	last_bitmap = (gpa_t)-1;
+	b = -1;
+
+	while (size > 0) {
+		if (port < 0x8000)
+			bitmap = vmcs12->io_bitmap_a;
+		else if (port < 0x10000)
+			bitmap = vmcs12->io_bitmap_b;
+		else
+			return 1;
+		bitmap += (port & 0x7fff) / 8;
+
+		if (last_bitmap != bitmap)
+			if (kvm_read_guest(vcpu->kvm, bitmap, &b, 1))
+				return 1;
+		if (b & (1 << (port & 7)))
+			return 1;
+
+		port++;
+		size--;
+		last_bitmap = bitmap;
+	}
+
+	return 0;
+}
 
 /*
  * Return 1 if we should exit from L2 to L1 to handle an MSR access access,
@@ -5599,7 +7355,7 @@ static bool nested_vmx_exit_handled_msr(struct kvm_vcpu *vcpu,
 	u32 msr_index = vcpu->arch.regs[VCPU_REGS_RCX];
 	gpa_t bitmap;
 
-	if (!nested_cpu_has(get_vmcs12(vcpu), CPU_BASED_USE_MSR_BITMAPS))
+	if (!nested_cpu_has(vmcs12, CPU_BASED_USE_MSR_BITMAPS))
 		return 1;
 
 	/*
@@ -5618,7 +7374,8 @@ static bool nested_vmx_exit_handled_msr(struct kvm_vcpu *vcpu,
 	/* Then read the msr_index'th bit from this bitmap: */
 	if (msr_index < 1024*8) {
 		unsigned char b;
-		kvm_read_guest(vcpu->kvm, bitmap + msr_index/8, &b, 1);
+		if (kvm_read_guest(vcpu->kvm, bitmap + msr_index/8, &b, 1))
+			return 1;
 		return 1 & (b >> (msr_index & 7));
 	} else
 		return 1; /* let L1 handle the wrong parameter */
@@ -5635,7 +7392,7 @@ static bool nested_vmx_exit_handled_cr(struct kvm_vcpu *vcpu,
 	unsigned long exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
 	int cr = exit_qualification & 15;
 	int reg = (exit_qualification >> 8) & 15;
-	unsigned long val = kvm_register_read(vcpu, reg);
+	unsigned long val = kvm_register_readl(vcpu, reg);
 
 	switch ((exit_qualification >> 4) & 3) {
 	case 0: /* mov to cr */
@@ -5712,10 +7469,17 @@ static bool nested_vmx_exit_handled_cr(struct kvm_vcpu *vcpu,
  */
 static bool nested_vmx_exit_handled(struct kvm_vcpu *vcpu)
 {
-	u32 exit_reason = vmcs_read32(VM_EXIT_REASON);
 	u32 intr_info = vmcs_read32(VM_EXIT_INTR_INFO);
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
+	u32 exit_reason = vmx->exit_reason;
+
+	trace_kvm_nested_vmexit(kvm_rip_read(vcpu), exit_reason,
+				vmcs_readl(EXIT_QUALIFICATION),
+				vmx->idt_vectoring_info,
+				intr_info,
+				vmcs_read32(VM_EXIT_INTR_ERROR_CODE),
+				KVM_ISA_VMX);
 
 	if (vmx->nested.nested_run_pending)
 		return 0;
@@ -5732,6 +7496,9 @@ static bool nested_vmx_exit_handled(struct kvm_vcpu *vcpu)
 			return 0;
 		else if (is_page_fault(intr_info))
 			return enable_ept;
+		else if (is_no_device(intr_info) &&
+			 !(vmcs12->guest_cr0 & X86_CR0_TS))
+			return 0;
 		return vmcs12->exception_bitmap &
 				(1u << (intr_info & INTR_INFO_VECTOR_MASK));
 	case EXIT_REASON_EXTERNAL_INTERRUPT:
@@ -5739,17 +7506,14 @@ static bool nested_vmx_exit_handled(struct kvm_vcpu *vcpu)
 	case EXIT_REASON_TRIPLE_FAULT:
 		return 1;
 	case EXIT_REASON_PENDING_INTERRUPT:
+		return nested_cpu_has(vmcs12, CPU_BASED_VIRTUAL_INTR_PENDING);
 	case EXIT_REASON_NMI_WINDOW:
-		/*
-		 * prepare_vmcs02() set the CPU_BASED_VIRTUAL_INTR_PENDING bit
-		 * (aka Interrupt Window Exiting) only when L1 turned it on,
-		 * so if we got a PENDING_INTERRUPT exit, this must be for L1.
-		 * Same for NMI Window Exiting.
-		 */
-		return 1;
+		return nested_cpu_has(vmcs12, CPU_BASED_VIRTUAL_NMI_PENDING);
 	case EXIT_REASON_TASK_SWITCH:
 		return 1;
 	case EXIT_REASON_CPUID:
+		if (kvm_register_read(vcpu, VCPU_REGS_RAX) == 0xa)
+			return 0;
 		return 1;
 	case EXIT_REASON_HLT:
 		return nested_cpu_has(vmcs12, CPU_BASED_HLT_EXITING);
@@ -5766,6 +7530,7 @@ static bool nested_vmx_exit_handled(struct kvm_vcpu *vcpu)
 	case EXIT_REASON_VMPTRST: case EXIT_REASON_VMREAD:
 	case EXIT_REASON_VMRESUME: case EXIT_REASON_VMWRITE:
 	case EXIT_REASON_VMOFF: case EXIT_REASON_VMON:
+	case EXIT_REASON_INVEPT: case EXIT_REASON_INVVPID:
 		/*
 		 * VMX instructions trap unconditionally. This allows L1 to
 		 * emulate them for its L2 guest, i.e., allows 3-level nesting!
@@ -5776,8 +7541,7 @@ static bool nested_vmx_exit_handled(struct kvm_vcpu *vcpu)
 	case EXIT_REASON_DR_ACCESS:
 		return nested_cpu_has(vmcs12, CPU_BASED_MOV_DR_EXITING);
 	case EXIT_REASON_IO_INSTRUCTION:
-		/* TODO: support IO bitmaps */
-		return 1;
+		return nested_vmx_exit_handled_io(vcpu, vmcs12);
 	case EXIT_REASON_MSR_READ:
 	case EXIT_REASON_MSR_WRITE:
 		return nested_vmx_exit_handled_msr(vcpu, vmcs12, exit_reason);
@@ -5794,17 +7558,42 @@ static bool nested_vmx_exit_handled(struct kvm_vcpu *vcpu)
 	case EXIT_REASON_MCE_DURING_VMENTRY:
 		return 0;
 	case EXIT_REASON_TPR_BELOW_THRESHOLD:
-		return 1;
+		return nested_cpu_has(vmcs12, CPU_BASED_TPR_SHADOW);
 	case EXIT_REASON_APIC_ACCESS:
 		return nested_cpu_has2(vmcs12,
 			SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES);
+	case EXIT_REASON_APIC_WRITE:
+	case EXIT_REASON_EOI_INDUCED:
+		/* apic_write and eoi_induced should exit unconditionally. */
+		return 1;
 	case EXIT_REASON_EPT_VIOLATION:
+		/*
+		 * L0 always deals with the EPT violation. If nested EPT is
+		 * used, and the nested mmu code discovers that the address is
+		 * missing in the guest EPT table (EPT12), the EPT violation
+		 * will be injected with nested_ept_inject_page_fault()
+		 */
+		return 0;
 	case EXIT_REASON_EPT_MISCONFIG:
+		/*
+		 * L2 never uses directly L1's EPT, but rather L0's own EPT
+		 * table (shadow on EPT) or a merged EPT table that L0 built
+		 * (EPT on EPT). So any problems with the structure of the
+		 * table is L0's fault.
+		 */
 		return 0;
 	case EXIT_REASON_WBINVD:
 		return nested_cpu_has2(vmcs12, SECONDARY_EXEC_WBINVD_EXITING);
 	case EXIT_REASON_XSETBV:
 		return 1;
+	case EXIT_REASON_XSAVES: case EXIT_REASON_XRSTORS:
+		/*
+		 * This should never happen, since it is not possible to
+		 * set XSS to a non-zero value---neither in L1 nor in L2.
+		 * If if it were, XSS would have to be checked against
+		 * the XSS exit bitmap in vmcs12.
+		 */
+		return nested_cpu_has2(vmcs12, SECONDARY_EXEC_XSAVES);
 	default:
 		return 1;
 	}
@@ -5814,6 +7603,89 @@ static void vmx_get_exit_info(struct kvm_vcpu *vcpu, u64 *info1, u64 *info2)
 {
 	*info1 = vmcs_readl(EXIT_QUALIFICATION);
 	*info2 = vmcs_read32(VM_EXIT_INTR_INFO);
+}
+
+static int vmx_enable_pml(struct vcpu_vmx *vmx)
+{
+	struct page *pml_pg;
+	u32 exec_control;
+
+	pml_pg = alloc_page(GFP_KERNEL | __GFP_ZERO);
+	if (!pml_pg)
+		return -ENOMEM;
+
+	vmx->pml_pg = pml_pg;
+
+	vmcs_write64(PML_ADDRESS, page_to_phys(vmx->pml_pg));
+	vmcs_write16(GUEST_PML_INDEX, PML_ENTITY_NUM - 1);
+
+	exec_control = vmcs_read32(SECONDARY_VM_EXEC_CONTROL);
+	exec_control |= SECONDARY_EXEC_ENABLE_PML;
+	vmcs_write32(SECONDARY_VM_EXEC_CONTROL, exec_control);
+
+	return 0;
+}
+
+static void vmx_disable_pml(struct vcpu_vmx *vmx)
+{
+	u32 exec_control;
+
+	ASSERT(vmx->pml_pg);
+	__free_page(vmx->pml_pg);
+	vmx->pml_pg = NULL;
+
+	exec_control = vmcs_read32(SECONDARY_VM_EXEC_CONTROL);
+	exec_control &= ~SECONDARY_EXEC_ENABLE_PML;
+	vmcs_write32(SECONDARY_VM_EXEC_CONTROL, exec_control);
+}
+
+static void vmx_flush_pml_buffer(struct vcpu_vmx *vmx)
+{
+	struct kvm *kvm = vmx->vcpu.kvm;
+	u64 *pml_buf;
+	u16 pml_idx;
+
+	pml_idx = vmcs_read16(GUEST_PML_INDEX);
+
+	/* Do nothing if PML buffer is empty */
+	if (pml_idx == (PML_ENTITY_NUM - 1))
+		return;
+
+	/* PML index always points to next available PML buffer entity */
+	if (pml_idx >= PML_ENTITY_NUM)
+		pml_idx = 0;
+	else
+		pml_idx++;
+
+	pml_buf = page_address(vmx->pml_pg);
+	for (; pml_idx < PML_ENTITY_NUM; pml_idx++) {
+		u64 gpa;
+
+		gpa = pml_buf[pml_idx];
+		WARN_ON(gpa & (PAGE_SIZE - 1));
+		mark_page_dirty(kvm, gpa >> PAGE_SHIFT);
+	}
+
+	/* reset PML index */
+	vmcs_write16(GUEST_PML_INDEX, PML_ENTITY_NUM - 1);
+}
+
+/*
+ * Flush all vcpus' PML buffer and update logged GPAs to dirty_bitmap.
+ * Called before reporting dirty_bitmap to userspace.
+ */
+static void kvm_flush_pml_buffers(struct kvm *kvm)
+{
+	int i;
+	struct kvm_vcpu *vcpu;
+	/*
+	 * We only need to kick vcpu out of guest mode here, as PML buffer
+	 * is flushed at beginning of all VMEXITs, and it's obvious that only
+	 * vcpus running in guest are possible to have unflushed GPAs in PML
+	 * buffer.
+	 */
+	kvm_for_each_vcpu(i, vcpu, kvm)
+		kvm_vcpu_kick(vcpu);
 }
 
 /*
@@ -5826,26 +7698,24 @@ static int vmx_handle_exit(struct kvm_vcpu *vcpu)
 	u32 exit_reason = vmx->exit_reason;
 	u32 vectoring_info = vmx->idt_vectoring_info;
 
+	/*
+	 * Flush logged GPAs PML buffer, this will make dirty_bitmap more
+	 * updated. Another good is, in kvm_vm_ioctl_get_dirty_log, before
+	 * querying dirty_bitmap, we only need to kick all vcpus out of guest
+	 * mode as if vcpus is in root mode, the PML buffer must has been
+	 * flushed already.
+	 */
+	if (enable_pml)
+		vmx_flush_pml_buffer(vmx);
+
 	/* If guest state is invalid, start emulating */
-	if (vmx->emulation_required && emulate_invalid_guest_state)
+	if (vmx->emulation_required)
 		return handle_invalid_guest_state(vcpu);
 
-	/*
-	 * the KVM_REQ_EVENT optimization bit is only on for one entry, and if
-	 * we did not inject a still-pending event to L1 now because of
-	 * nested_run_pending, we need to re-enable this bit.
-	 */
-	if (vmx->nested.nested_run_pending)
-		kvm_make_request(KVM_REQ_EVENT, vcpu);
-
-	if (!is_guest_mode(vcpu) && (exit_reason == EXIT_REASON_VMLAUNCH ||
-	    exit_reason == EXIT_REASON_VMRESUME))
-		vmx->nested.nested_run_pending = 1;
-	else
-		vmx->nested.nested_run_pending = 0;
-
 	if (is_guest_mode(vcpu) && nested_vmx_exit_handled(vcpu)) {
-		nested_vmx_vmexit(vcpu);
+		nested_vmx_vmexit(vcpu, exit_reason,
+				  vmcs_read32(VM_EXIT_INTR_INFO),
+				  vmcs_readl(EXIT_QUALIFICATION));
 		return 1;
 	}
 
@@ -5863,17 +7733,28 @@ static int vmx_handle_exit(struct kvm_vcpu *vcpu)
 		return 0;
 	}
 
+	/*
+	 * Note:
+	 * Do not try to fix EXIT_REASON_EPT_MISCONFIG if it caused by
+	 * delivery event since it indicates guest is accessing MMIO.
+	 * The vm-exit can be triggered again after return to guest that
+	 * will cause infinite loop.
+	 */
 	if ((vectoring_info & VECTORING_INFO_VALID_MASK) &&
 			(exit_reason != EXIT_REASON_EXCEPTION_NMI &&
 			exit_reason != EXIT_REASON_EPT_VIOLATION &&
-			exit_reason != EXIT_REASON_TASK_SWITCH))
-		printk(KERN_WARNING "%s: unexpected, valid vectoring info "
-		       "(0x%x) and exit reason is 0x%x\n",
-		       __func__, vectoring_info, exit_reason);
+			exit_reason != EXIT_REASON_TASK_SWITCH)) {
+		vcpu->run->exit_reason = KVM_EXIT_INTERNAL_ERROR;
+		vcpu->run->internal.suberror = KVM_INTERNAL_ERROR_DELIVERY_EV;
+		vcpu->run->internal.ndata = 2;
+		vcpu->run->internal.data[0] = vectoring_info;
+		vcpu->run->internal.data[1] = exit_reason;
+		return 0;
+	}
 
 	if (unlikely(!cpu_has_virtual_nmis() && vmx->soft_vnmi_blocked &&
 	    !(is_guest_mode(vcpu) && nested_cpu_has_virtual_nmis(
-	                                get_vmcs12(vcpu), vcpu)))) {
+					get_vmcs12(vcpu))))) {
 		if (vmx_interrupt_allowed(vcpu)) {
 			vmx->soft_vnmi_blocked = 0;
 		} else if (vmx->vnmi_blocked_time > 1000000000LL &&
@@ -5895,20 +7776,151 @@ static int vmx_handle_exit(struct kvm_vcpu *vcpu)
 	    && kvm_vmx_exit_handlers[exit_reason])
 		return kvm_vmx_exit_handlers[exit_reason](vcpu);
 	else {
-		vcpu->run->exit_reason = KVM_EXIT_UNKNOWN;
-		vcpu->run->hw.hardware_exit_reason = exit_reason;
+		WARN_ONCE(1, "vmx: unexpected exit reason 0x%x\n", exit_reason);
+		kvm_queue_exception(vcpu, UD_VECTOR);
+		return 1;
 	}
-	return 0;
 }
 
 static void update_cr8_intercept(struct kvm_vcpu *vcpu, int tpr, int irr)
 {
+	struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
+
+	if (is_guest_mode(vcpu) &&
+		nested_cpu_has(vmcs12, CPU_BASED_TPR_SHADOW))
+		return;
+
 	if (irr == -1 || tpr < irr) {
 		vmcs_write32(TPR_THRESHOLD, 0);
 		return;
 	}
 
 	vmcs_write32(TPR_THRESHOLD, irr);
+}
+
+static void vmx_set_virtual_x2apic_mode(struct kvm_vcpu *vcpu, bool set)
+{
+	u32 sec_exec_control;
+
+	/*
+	 * There is not point to enable virtualize x2apic without enable
+	 * apicv
+	 */
+	if (!cpu_has_vmx_virtualize_x2apic_mode() ||
+				!vmx_vm_has_apicv(vcpu->kvm))
+		return;
+
+	if (!vm_need_tpr_shadow(vcpu->kvm))
+		return;
+
+	sec_exec_control = vmcs_read32(SECONDARY_VM_EXEC_CONTROL);
+
+	if (set) {
+		sec_exec_control &= ~SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES;
+		sec_exec_control |= SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE;
+	} else {
+		sec_exec_control &= ~SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE;
+		sec_exec_control |= SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES;
+	}
+	vmcs_write32(SECONDARY_VM_EXEC_CONTROL, sec_exec_control);
+
+	vmx_set_msr_bitmap(vcpu);
+}
+
+static void vmx_set_apic_access_page_addr(struct kvm_vcpu *vcpu, hpa_t hpa)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+
+	/*
+	 * Currently we do not handle the nested case where L2 has an
+	 * APIC access page of its own; that page is still pinned.
+	 * Hence, we skip the case where the VCPU is in guest mode _and_
+	 * L1 prepared an APIC access page for L2.
+	 *
+	 * For the case where L1 and L2 share the same APIC access page
+	 * (flexpriority=Y but SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES clear
+	 * in the vmcs12), this function will only update either the vmcs01
+	 * or the vmcs02.  If the former, the vmcs02 will be updated by
+	 * prepare_vmcs02.  If the latter, the vmcs01 will be updated in
+	 * the next L2->L1 exit.
+	 */
+	if (!is_guest_mode(vcpu) ||
+	    !nested_cpu_has2(vmx->nested.current_vmcs12,
+			     SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES))
+		vmcs_write64(APIC_ACCESS_ADDR, hpa);
+}
+
+static void vmx_hwapic_isr_update(struct kvm *kvm, int isr)
+{
+	u16 status;
+	u8 old;
+
+	if (isr == -1)
+		isr = 0;
+
+	status = vmcs_read16(GUEST_INTR_STATUS);
+	old = status >> 8;
+	if (isr != old) {
+		status &= 0xff;
+		status |= isr << 8;
+		vmcs_write16(GUEST_INTR_STATUS, status);
+	}
+}
+
+static void vmx_set_rvi(int vector)
+{
+	u16 status;
+	u8 old;
+
+	if (vector == -1)
+		vector = 0;
+
+	status = vmcs_read16(GUEST_INTR_STATUS);
+	old = (u8)status & 0xff;
+	if ((u8)vector != old) {
+		status &= ~0xff;
+		status |= (u8)vector;
+		vmcs_write16(GUEST_INTR_STATUS, status);
+	}
+}
+
+static void vmx_hwapic_irr_update(struct kvm_vcpu *vcpu, int max_irr)
+{
+	if (!is_guest_mode(vcpu)) {
+		vmx_set_rvi(max_irr);
+		return;
+	}
+
+	if (max_irr == -1)
+		return;
+
+	/*
+	 * In guest mode.  If a vmexit is needed, vmx_check_nested_events
+	 * handles it.
+	 */
+	if (nested_exit_on_intr(vcpu))
+		return;
+
+	/*
+	 * Else, fall back to pre-APICv interrupt injection since L2
+	 * is run without virtual interrupt delivery.
+	 */
+	if (!kvm_event_needs_reinjection(vcpu) &&
+	    vmx_interrupt_allowed(vcpu)) {
+		kvm_queue_interrupt(vcpu, max_irr, false);
+		vmx_inject_irq(vcpu);
+	}
+}
+
+static void vmx_load_eoi_exitmap(struct kvm_vcpu *vcpu, u64 *eoi_exit_bitmap)
+{
+	if (!vmx_vm_has_apicv(vcpu->kvm))
+		return;
+
+	vmcs_write64(EOI_EXIT_BITMAP0, eoi_exit_bitmap[0]);
+	vmcs_write64(EOI_EXIT_BITMAP1, eoi_exit_bitmap[1]);
+	vmcs_write64(EOI_EXIT_BITMAP2, eoi_exit_bitmap[2]);
+	vmcs_write64(EOI_EXIT_BITMAP3, eoi_exit_bitmap[3]);
 }
 
 static void vmx_complete_atomic_exit(struct vcpu_vmx *vmx)
@@ -5933,6 +7945,64 @@ static void vmx_complete_atomic_exit(struct vcpu_vmx *vmx)
 		asm("int $2");
 		kvm_after_handle_nmi(&vmx->vcpu);
 	}
+}
+
+static void vmx_handle_external_intr(struct kvm_vcpu *vcpu)
+{
+	u32 exit_intr_info = vmcs_read32(VM_EXIT_INTR_INFO);
+
+	/*
+	 * If external interrupt exists, IF bit is set in rflags/eflags on the
+	 * interrupt stack frame, and interrupt will be enabled on a return
+	 * from interrupt handler.
+	 */
+	if ((exit_intr_info & (INTR_INFO_VALID_MASK | INTR_INFO_INTR_TYPE_MASK))
+			== (INTR_INFO_VALID_MASK | INTR_TYPE_EXT_INTR)) {
+		unsigned int vector;
+		unsigned long entry;
+		gate_desc *desc;
+		struct vcpu_vmx *vmx = to_vmx(vcpu);
+#ifdef CONFIG_X86_64
+		unsigned long tmp;
+#endif
+
+		vector =  exit_intr_info & INTR_INFO_VECTOR_MASK;
+		desc = (gate_desc *)vmx->host_idt_base + vector;
+		entry = gate_offset(*desc);
+		asm volatile(
+#ifdef CONFIG_X86_64
+			"mov %%" _ASM_SP ", %[sp]\n\t"
+			"and $0xfffffffffffffff0, %%" _ASM_SP "\n\t"
+			"push $%c[ss]\n\t"
+			"push %[sp]\n\t"
+#endif
+			"pushf\n\t"
+			"orl $0x200, (%%" _ASM_SP ")\n\t"
+			__ASM_SIZE(push) " $%c[cs]\n\t"
+			"call *%[entry]\n\t"
+			:
+#ifdef CONFIG_X86_64
+			[sp]"=&r"(tmp)
+#endif
+			:
+			[entry]"r"(entry),
+			[ss]"i"(__KERNEL_DS),
+			[cs]"i"(__KERNEL_CS)
+			);
+	} else
+		local_irq_enable();
+}
+
+static bool vmx_mpx_supported(void)
+{
+	return (vmcs_config.vmexit_ctrl & VM_EXIT_CLEAR_BNDCFGS) &&
+		(vmcs_config.vmentry_ctrl & VM_ENTRY_LOAD_BNDCFGS);
+}
+
+static bool vmx_xsaves_supported(void)
+{
+	return vmcs_config.cpu_based_2nd_exec_ctrl &
+		SECONDARY_EXEC_XSAVES;
 }
 
 static void vmx_recover_nmi_blocking(struct vcpu_vmx *vmx)
@@ -5977,7 +8047,7 @@ static void vmx_recover_nmi_blocking(struct vcpu_vmx *vmx)
 			ktime_to_ns(ktime_sub(ktime_get(), vmx->entry_time));
 }
 
-static void __vmx_complete_interrupts(struct vcpu_vmx *vmx,
+static void __vmx_complete_interrupts(struct kvm_vcpu *vcpu,
 				      u32 idt_vectoring_info,
 				      int instr_len_field,
 				      int error_code_field)
@@ -5988,46 +8058,43 @@ static void __vmx_complete_interrupts(struct vcpu_vmx *vmx,
 
 	idtv_info_valid = idt_vectoring_info & VECTORING_INFO_VALID_MASK;
 
-	vmx->vcpu.arch.nmi_injected = false;
-	kvm_clear_exception_queue(&vmx->vcpu);
-	kvm_clear_interrupt_queue(&vmx->vcpu);
+	vcpu->arch.nmi_injected = false;
+	kvm_clear_exception_queue(vcpu);
+	kvm_clear_interrupt_queue(vcpu);
 
 	if (!idtv_info_valid)
 		return;
 
-	kvm_make_request(KVM_REQ_EVENT, &vmx->vcpu);
+	kvm_make_request(KVM_REQ_EVENT, vcpu);
 
 	vector = idt_vectoring_info & VECTORING_INFO_VECTOR_MASK;
 	type = idt_vectoring_info & VECTORING_INFO_TYPE_MASK;
 
 	switch (type) {
 	case INTR_TYPE_NMI_INTR:
-		vmx->vcpu.arch.nmi_injected = true;
+		vcpu->arch.nmi_injected = true;
 		/*
 		 * SDM 3: 27.7.1.2 (September 2008)
 		 * Clear bit "block by NMI" before VM entry if a NMI
 		 * delivery faulted.
 		 */
-		vmx_set_nmi_mask(&vmx->vcpu, false);
+		vmx_set_nmi_mask(vcpu, false);
 		break;
 	case INTR_TYPE_SOFT_EXCEPTION:
-		vmx->vcpu.arch.event_exit_inst_len =
-			vmcs_read32(instr_len_field);
+		vcpu->arch.event_exit_inst_len = vmcs_read32(instr_len_field);
 		/* fall through */
 	case INTR_TYPE_HARD_EXCEPTION:
 		if (idt_vectoring_info & VECTORING_INFO_DELIVER_CODE_MASK) {
 			u32 err = vmcs_read32(error_code_field);
-			kvm_queue_exception_e(&vmx->vcpu, vector, err);
+			kvm_requeue_exception_e(vcpu, vector, err);
 		} else
-			kvm_queue_exception(&vmx->vcpu, vector);
+			kvm_requeue_exception(vcpu, vector);
 		break;
 	case INTR_TYPE_SOFT_INTR:
-		vmx->vcpu.arch.event_exit_inst_len =
-			vmcs_read32(instr_len_field);
+		vcpu->arch.event_exit_inst_len = vmcs_read32(instr_len_field);
 		/* fall through */
 	case INTR_TYPE_EXT_INTR:
-		kvm_queue_interrupt(&vmx->vcpu, vector,
-			type == INTR_TYPE_SOFT_INTR);
+		kvm_queue_interrupt(vcpu, vector, type == INTR_TYPE_SOFT_INTR);
 		break;
 	default:
 		break;
@@ -6036,18 +8103,14 @@ static void __vmx_complete_interrupts(struct vcpu_vmx *vmx,
 
 static void vmx_complete_interrupts(struct vcpu_vmx *vmx)
 {
-	if (is_guest_mode(&vmx->vcpu))
-		return;
-	__vmx_complete_interrupts(vmx, vmx->idt_vectoring_info,
+	__vmx_complete_interrupts(&vmx->vcpu, vmx->idt_vectoring_info,
 				  VM_EXIT_INSTRUCTION_LEN,
 				  IDT_VECTORING_ERROR_CODE);
 }
 
 static void vmx_cancel_injection(struct kvm_vcpu *vcpu)
 {
-	if (is_guest_mode(vcpu))
-		return;
-	__vmx_complete_interrupts(to_vmx(vcpu),
+	__vmx_complete_interrupts(vcpu,
 				  vmcs_read32(VM_ENTRY_INTR_INFO_FIELD),
 				  VM_ENTRY_INSTRUCTION_LEN,
 				  VM_ENTRY_EXCEPTION_ERROR_CODE);
@@ -6073,32 +8136,10 @@ static void atomic_switch_perf_msrs(struct vcpu_vmx *vmx)
 					msrs[i].host);
 }
 
-#ifdef CONFIG_X86_64
-#define R "r"
-#define Q "q"
-#else
-#define R "e"
-#define Q "l"
-#endif
-
 static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
-
-	if (is_guest_mode(vcpu) && !vmx->nested.nested_run_pending) {
-		struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
-		if (vmcs12->idt_vectoring_info_field &
-				VECTORING_INFO_VALID_MASK) {
-			vmcs_write32(VM_ENTRY_INTR_INFO_FIELD,
-				vmcs12->idt_vectoring_info_field);
-			vmcs_write32(VM_ENTRY_INSTRUCTION_LEN,
-				vmcs12->vm_exit_instruction_len);
-			if (vmcs12->idt_vectoring_info_field &
-					VECTORING_INFO_DELIVER_CODE_MASK)
-				vmcs_write32(VM_ENTRY_EXCEPTION_ERROR_CODE,
-					vmcs12->idt_vectoring_error_code);
-		}
-	}
+	unsigned long debugctlmsr, cr4;
 
 	/* Record the guest's net vcpu time for enforced NMI injections. */
 	if (unlikely(!cpu_has_virtual_nmis() && vmx->soft_vnmi_blocked))
@@ -6106,13 +8147,29 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 
 	/* Don't enter VMX if guest state is invalid, let the exit handler
 	   start emulation until we arrive back to a valid state */
-	if (vmx->emulation_required && emulate_invalid_guest_state)
+	if (vmx->emulation_required)
 		return;
+
+	if (vmx->ple_window_dirty) {
+		vmx->ple_window_dirty = false;
+		vmcs_write32(PLE_WINDOW, vmx->ple_window);
+	}
+
+	if (vmx->nested.sync_shadow_vmcs) {
+		copy_vmcs12_to_shadow(vmx);
+		vmx->nested.sync_shadow_vmcs = false;
+	}
 
 	if (test_bit(VCPU_REGS_RSP, (unsigned long *)&vcpu->arch.regs_dirty))
 		vmcs_writel(GUEST_RSP, vcpu->arch.regs[VCPU_REGS_RSP]);
 	if (test_bit(VCPU_REGS_RIP, (unsigned long *)&vcpu->arch.regs_dirty))
 		vmcs_writel(GUEST_RIP, vcpu->arch.regs[VCPU_REGS_RIP]);
+
+	cr4 = cr4_read_shadow();
+	if (unlikely(cr4 != vmx->host_state.vmcs_host_cr4)) {
+		vmcs_writel(HOST_CR4, cr4);
+		vmx->host_state.vmcs_host_cr4 = cr4;
+	}
 
 	/* When single-stepping over STI and MOV SS, we must clear the
 	 * corresponding interruptibility bits in the guest state. Otherwise
@@ -6123,34 +8180,35 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		vmx_set_interrupt_shadow(vcpu, 0);
 
 	atomic_switch_perf_msrs(vmx);
+	debugctlmsr = get_debugctlmsr();
 
 	vmx->__launched = vmx->loaded_vmcs->launched;
 	asm(
 		/* Store host registers */
-		"push %%"R"dx; push %%"R"bp;"
-		"push %%"R"cx \n\t" /* placeholder for guest rcx */
-		"push %%"R"cx \n\t"
-		"cmp %%"R"sp, %c[host_rsp](%0) \n\t"
+		"push %%" _ASM_DX "; push %%" _ASM_BP ";"
+		"push %%" _ASM_CX " \n\t" /* placeholder for guest rcx */
+		"push %%" _ASM_CX " \n\t"
+		"cmp %%" _ASM_SP ", %c[host_rsp](%0) \n\t"
 		"je 1f \n\t"
-		"mov %%"R"sp, %c[host_rsp](%0) \n\t"
+		"mov %%" _ASM_SP ", %c[host_rsp](%0) \n\t"
 		__ex(ASM_VMX_VMWRITE_RSP_RDX) "\n\t"
 		"1: \n\t"
 		/* Reload cr2 if changed */
-		"mov %c[cr2](%0), %%"R"ax \n\t"
-		"mov %%cr2, %%"R"dx \n\t"
-		"cmp %%"R"ax, %%"R"dx \n\t"
+		"mov %c[cr2](%0), %%" _ASM_AX " \n\t"
+		"mov %%cr2, %%" _ASM_DX " \n\t"
+		"cmp %%" _ASM_AX ", %%" _ASM_DX " \n\t"
 		"je 2f \n\t"
-		"mov %%"R"ax, %%cr2 \n\t"
+		"mov %%" _ASM_AX", %%cr2 \n\t"
 		"2: \n\t"
 		/* Check if vmlaunch of vmresume is needed */
 		"cmpl $0, %c[launched](%0) \n\t"
 		/* Load guest registers.  Don't clobber flags. */
-		"mov %c[rax](%0), %%"R"ax \n\t"
-		"mov %c[rbx](%0), %%"R"bx \n\t"
-		"mov %c[rdx](%0), %%"R"dx \n\t"
-		"mov %c[rsi](%0), %%"R"si \n\t"
-		"mov %c[rdi](%0), %%"R"di \n\t"
-		"mov %c[rbp](%0), %%"R"bp \n\t"
+		"mov %c[rax](%0), %%" _ASM_AX " \n\t"
+		"mov %c[rbx](%0), %%" _ASM_BX " \n\t"
+		"mov %c[rdx](%0), %%" _ASM_DX " \n\t"
+		"mov %c[rsi](%0), %%" _ASM_SI " \n\t"
+		"mov %c[rdi](%0), %%" _ASM_DI " \n\t"
+		"mov %c[rbp](%0), %%" _ASM_BP " \n\t"
 #ifdef CONFIG_X86_64
 		"mov %c[r8](%0),  %%r8  \n\t"
 		"mov %c[r9](%0),  %%r9  \n\t"
@@ -6161,24 +8219,24 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		"mov %c[r14](%0), %%r14 \n\t"
 		"mov %c[r15](%0), %%r15 \n\t"
 #endif
-		"mov %c[rcx](%0), %%"R"cx \n\t" /* kills %0 (ecx) */
+		"mov %c[rcx](%0), %%" _ASM_CX " \n\t" /* kills %0 (ecx) */
 
 		/* Enter guest mode */
-		"jne .Llaunched \n\t"
+		"jne 1f \n\t"
 		__ex(ASM_VMX_VMLAUNCH) "\n\t"
-		"jmp .Lkvm_vmx_return \n\t"
-		".Llaunched: " __ex(ASM_VMX_VMRESUME) "\n\t"
-		".Lkvm_vmx_return: "
+		"jmp 2f \n\t"
+		"1: " __ex(ASM_VMX_VMRESUME) "\n\t"
+		"2: "
 		/* Save guest registers, load host registers, keep flags */
-		"mov %0, %c[wordsize](%%"R"sp) \n\t"
+		"mov %0, %c[wordsize](%%" _ASM_SP ") \n\t"
 		"pop %0 \n\t"
-		"mov %%"R"ax, %c[rax](%0) \n\t"
-		"mov %%"R"bx, %c[rbx](%0) \n\t"
-		"pop"Q" %c[rcx](%0) \n\t"
-		"mov %%"R"dx, %c[rdx](%0) \n\t"
-		"mov %%"R"si, %c[rsi](%0) \n\t"
-		"mov %%"R"di, %c[rdi](%0) \n\t"
-		"mov %%"R"bp, %c[rbp](%0) \n\t"
+		"mov %%" _ASM_AX ", %c[rax](%0) \n\t"
+		"mov %%" _ASM_BX ", %c[rbx](%0) \n\t"
+		__ASM_SIZE(pop) " %c[rcx](%0) \n\t"
+		"mov %%" _ASM_DX ", %c[rdx](%0) \n\t"
+		"mov %%" _ASM_SI ", %c[rsi](%0) \n\t"
+		"mov %%" _ASM_DI ", %c[rdi](%0) \n\t"
+		"mov %%" _ASM_BP ", %c[rbp](%0) \n\t"
 #ifdef CONFIG_X86_64
 		"mov %%r8,  %c[r8](%0) \n\t"
 		"mov %%r9,  %c[r9](%0) \n\t"
@@ -6189,11 +8247,15 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		"mov %%r14, %c[r14](%0) \n\t"
 		"mov %%r15, %c[r15](%0) \n\t"
 #endif
-		"mov %%cr2, %%"R"ax   \n\t"
-		"mov %%"R"ax, %c[cr2](%0) \n\t"
+		"mov %%cr2, %%" _ASM_AX "   \n\t"
+		"mov %%" _ASM_AX ", %c[cr2](%0) \n\t"
 
-		"pop  %%"R"bp; pop  %%"R"dx \n\t"
+		"pop  %%" _ASM_BP "; pop  %%" _ASM_DX " \n\t"
 		"setbe %c[fail](%0) \n\t"
+		".pushsection .rodata \n\t"
+		".global vmx_return \n\t"
+		"vmx_return: " _ASM_PTR " 2b \n\t"
+		".popsection"
 	      : : "c"(vmx), "d"((unsigned long)HOST_RSP),
 		[launched]"i"(offsetof(struct vcpu_vmx, __launched)),
 		[fail]"i"(offsetof(struct vcpu_vmx, fail)),
@@ -6218,15 +8280,33 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		[cr2]"i"(offsetof(struct vcpu_vmx, vcpu.arch.cr2)),
 		[wordsize]"i"(sizeof(ulong))
 	      : "cc", "memory"
-		, R"ax", R"bx", R"di", R"si"
 #ifdef CONFIG_X86_64
+		, "rax", "rbx", "rdi", "rsi"
 		, "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+#else
+		, "eax", "ebx", "edi", "esi"
 #endif
 	      );
 
+	/* MSR_IA32_DEBUGCTLMSR is zeroed on vmexit. Restore it if needed */
+	if (debugctlmsr)
+		update_debugctlmsr(debugctlmsr);
+
+#ifndef CONFIG_X86_64
+	/*
+	 * The sysexit path does not restore ds/es, so we must set them to
+	 * a reasonable value ourselves.
+	 *
+	 * We can't defer this to vmx_load_host_state() since that function
+	 * may be executed in interrupt context, which saves and restore segments
+	 * around it, nullifying its effect.
+	 */
+	loadsegment(ds, __USER_DS);
+	loadsegment(es, __USER_DS);
+#endif
+
 	vcpu->arch.regs_avail = ~((1 << VCPU_REGS_RIP) | (1 << VCPU_REGS_RSP)
 				  | (1 << VCPU_EXREG_RFLAGS)
-				  | (1 << VCPU_EXREG_CPL)
 				  | (1 << VCPU_EXREG_PDPTR)
 				  | (1 << VCPU_EXREG_SEGMENTS)
 				  | (1 << VCPU_EXREG_CR3));
@@ -6234,36 +8314,51 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 
 	vmx->idt_vectoring_info = vmcs_read32(IDT_VECTORING_INFO_FIELD);
 
-	if (is_guest_mode(vcpu)) {
-		struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
-		vmcs12->idt_vectoring_info_field = vmx->idt_vectoring_info;
-		if (vmx->idt_vectoring_info & VECTORING_INFO_VALID_MASK) {
-			vmcs12->idt_vectoring_error_code =
-				vmcs_read32(IDT_VECTORING_ERROR_CODE);
-			vmcs12->vm_exit_instruction_len =
-				vmcs_read32(VM_EXIT_INSTRUCTION_LEN);
-		}
-	}
-
-	asm("mov %0, %%ds; mov %0, %%es" : : "r"(__USER_DS));
 	vmx->loaded_vmcs->launched = 1;
 
 	vmx->exit_reason = vmcs_read32(VM_EXIT_REASON);
 	trace_kvm_exit(vmx->exit_reason, vcpu, KVM_ISA_VMX);
+
+	/*
+	 * the KVM_REQ_EVENT optimization bit is only on for one entry, and if
+	 * we did not inject a still-pending event to L1 now because of
+	 * nested_run_pending, we need to re-enable this bit.
+	 */
+	if (vmx->nested.nested_run_pending)
+		kvm_make_request(KVM_REQ_EVENT, vcpu);
+
+	vmx->nested.nested_run_pending = 0;
 
 	vmx_complete_atomic_exit(vmx);
 	vmx_recover_nmi_blocking(vmx);
 	vmx_complete_interrupts(vmx);
 }
 
-#undef R
-#undef Q
+static void vmx_load_vmcs01(struct kvm_vcpu *vcpu)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	int cpu;
+
+	if (vmx->loaded_vmcs == &vmx->vmcs01)
+		return;
+
+	cpu = get_cpu();
+	vmx->loaded_vmcs = &vmx->vmcs01;
+	vmx_vcpu_put(vcpu);
+	vmx_vcpu_load(vcpu, cpu);
+	vcpu->cpu = cpu;
+	put_cpu();
+}
 
 static void vmx_free_vcpu(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 
+	if (enable_pml)
+		vmx_disable_pml(vmx);
 	free_vpid(vmx);
+	leave_guest_mode(vcpu);
+	vmx_load_vmcs01(vcpu);
 	free_nested(vmx);
 	free_loaded_vmcs(vmx->loaded_vmcs);
 	kfree(vmx->guest_msrs);
@@ -6287,6 +8382,9 @@ static struct kvm_vcpu *vmx_create_vcpu(struct kvm *kvm, unsigned int id)
 		goto free_vcpu;
 
 	vmx->guest_msrs = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	BUILD_BUG_ON(ARRAY_SIZE(vmx_msr_index) * sizeof(vmx->guest_msrs[0])
+		     > PAGE_SIZE);
+
 	err = -ENOMEM;
 	if (!vmx->guest_msrs) {
 		goto uninit_vcpu;
@@ -6310,29 +8408,44 @@ static struct kvm_vcpu *vmx_create_vcpu(struct kvm *kvm, unsigned int id)
 	put_cpu();
 	if (err)
 		goto free_vmcs;
-	if (vm_need_virtualize_apic_accesses(kvm))
+	if (vm_need_virtualize_apic_accesses(kvm)) {
 		err = alloc_apic_access_page(kvm);
 		if (err)
 			goto free_vmcs;
+	}
 
 	if (enable_ept) {
 		if (!kvm->arch.ept_identity_map_addr)
 			kvm->arch.ept_identity_map_addr =
 				VMX_EPT_IDENTITY_PAGETABLE_ADDR;
-		err = -ENOMEM;
-		if (alloc_identity_pagetable(kvm) != 0)
-			goto free_vmcs;
-		if (!init_rmode_identity_map(kvm))
+		err = init_rmode_identity_map(kvm);
+		if (err)
 			goto free_vmcs;
 	}
 
+	if (nested)
+		nested_vmx_setup_ctls_msrs(vmx);
+
+	vmx->nested.posted_intr_nv = -1;
 	vmx->nested.current_vmptr = -1ull;
 	vmx->nested.current_vmcs12 = NULL;
+
+	/*
+	 * If PML is turned on, failure on enabling PML just results in failure
+	 * of creating the vcpu, therefore we can simplify PML logic (by
+	 * avoiding dealing with cases, such as enabling PML partially on vcpus
+	 * for the guest, etc.
+	 */
+	if (enable_pml) {
+		err = vmx_enable_pml(vmx);
+		if (err)
+			goto free_vmcs;
+	}
 
 	return &vmx->vcpu;
 
 free_vmcs:
-	free_vmcs(vmx->loaded_vmcs->vmcs);
+	free_loaded_vmcs(vmx->loaded_vmcs);
 free_msrs:
 	kfree(vmx->guest_msrs);
 uninit_vcpu:
@@ -6379,8 +8492,7 @@ static u64 vmx_get_mt_mask(struct kvm_vcpu *vcpu, gfn_t gfn, bool is_mmio)
 	 */
 	if (is_mmio)
 		ret = MTRR_TYPE_UNCACHABLE << VMX_EPT_MT_EPTE_SHIFT;
-	else if (vcpu->kvm->arch.iommu_domain &&
-		!(vcpu->kvm->arch.iommu_flags & KVM_IOMMU_CACHE_COHERENCY))
+	else if (kvm_arch_has_noncoherent_dma(vcpu->kvm))
 		ret = kvm_get_guest_memory_type(vcpu, gfn) <<
 		      VMX_EPT_MT_EPTE_SHIFT;
 	else
@@ -6419,6 +8531,26 @@ static void vmx_cpuid_update(struct kvm_vcpu *vcpu)
 			}
 		}
 	}
+
+	/* Exposing INVPCID only when PCID is exposed */
+	best = kvm_find_cpuid_entry(vcpu, 0x7, 0);
+	if (vmx_invpcid_supported() &&
+	    best && (best->ebx & bit(X86_FEATURE_INVPCID)) &&
+	    guest_cpuid_has_pcid(vcpu)) {
+		exec_control = vmcs_read32(SECONDARY_VM_EXEC_CONTROL);
+		exec_control |= SECONDARY_EXEC_ENABLE_INVPCID;
+		vmcs_write32(SECONDARY_VM_EXEC_CONTROL,
+			     exec_control);
+	} else {
+		if (cpu_has_secondary_exec_ctrls()) {
+			exec_control = vmcs_read32(SECONDARY_VM_EXEC_CONTROL);
+			exec_control &= ~SECONDARY_EXEC_ENABLE_INVPCID;
+			vmcs_write32(SECONDARY_VM_EXEC_CONTROL,
+				     exec_control);
+		}
+		if (best)
+			best->ebx &= ~bit(X86_FEATURE_INVPCID);
+	}
 }
 
 static void vmx_set_supported_cpuid(u32 func, struct kvm_cpuid_entry2 *entry)
@@ -6427,10 +8559,477 @@ static void vmx_set_supported_cpuid(u32 func, struct kvm_cpuid_entry2 *entry)
 		entry->ecx |= bit(X86_FEATURE_VMX);
 }
 
+static void nested_ept_inject_page_fault(struct kvm_vcpu *vcpu,
+		struct x86_exception *fault)
+{
+	struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
+	u32 exit_reason;
+
+	if (fault->error_code & PFERR_RSVD_MASK)
+		exit_reason = EXIT_REASON_EPT_MISCONFIG;
+	else
+		exit_reason = EXIT_REASON_EPT_VIOLATION;
+	nested_vmx_vmexit(vcpu, exit_reason, 0, vcpu->arch.exit_qualification);
+	vmcs12->guest_physical_address = fault->address;
+}
+
+/* Callbacks for nested_ept_init_mmu_context: */
+
+static unsigned long nested_ept_get_cr3(struct kvm_vcpu *vcpu)
+{
+	/* return the page table to be shadowed - in our case, EPT12 */
+	return get_vmcs12(vcpu)->ept_pointer;
+}
+
+static void nested_ept_init_mmu_context(struct kvm_vcpu *vcpu)
+{
+	WARN_ON(mmu_is_nested(vcpu));
+	kvm_init_shadow_ept_mmu(vcpu,
+			to_vmx(vcpu)->nested.nested_vmx_ept_caps &
+			VMX_EPT_EXECUTE_ONLY_BIT);
+	vcpu->arch.mmu.set_cr3           = vmx_set_cr3;
+	vcpu->arch.mmu.get_cr3           = nested_ept_get_cr3;
+	vcpu->arch.mmu.inject_page_fault = nested_ept_inject_page_fault;
+
+	vcpu->arch.walk_mmu              = &vcpu->arch.nested_mmu;
+}
+
+static void nested_ept_uninit_mmu_context(struct kvm_vcpu *vcpu)
+{
+	vcpu->arch.walk_mmu = &vcpu->arch.mmu;
+}
+
+static bool nested_vmx_is_page_fault_vmexit(struct vmcs12 *vmcs12,
+					    u16 error_code)
+{
+	bool inequality, bit;
+
+	bit = (vmcs12->exception_bitmap & (1u << PF_VECTOR)) != 0;
+	inequality =
+		(error_code & vmcs12->page_fault_error_code_mask) !=
+		 vmcs12->page_fault_error_code_match;
+	return inequality ^ bit;
+}
+
+static void vmx_inject_page_fault_nested(struct kvm_vcpu *vcpu,
+		struct x86_exception *fault)
+{
+	struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
+
+	WARN_ON(!is_guest_mode(vcpu));
+
+	if (nested_vmx_is_page_fault_vmexit(vmcs12, fault->error_code))
+		nested_vmx_vmexit(vcpu, to_vmx(vcpu)->exit_reason,
+				  vmcs_read32(VM_EXIT_INTR_INFO),
+				  vmcs_readl(EXIT_QUALIFICATION));
+	else
+		kvm_inject_page_fault(vcpu, fault);
+}
+
+static bool nested_get_vmcs12_pages(struct kvm_vcpu *vcpu,
+					struct vmcs12 *vmcs12)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+
+	if (nested_cpu_has2(vmcs12, SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES)) {
+		/* TODO: Also verify bits beyond physical address width are 0 */
+		if (!PAGE_ALIGNED(vmcs12->apic_access_addr))
+			return false;
+
+		/*
+		 * Translate L1 physical address to host physical
+		 * address for vmcs02. Keep the page pinned, so this
+		 * physical address remains valid. We keep a reference
+		 * to it so we can release it later.
+		 */
+		if (vmx->nested.apic_access_page) /* shouldn't happen */
+			nested_release_page(vmx->nested.apic_access_page);
+		vmx->nested.apic_access_page =
+			nested_get_page(vcpu, vmcs12->apic_access_addr);
+	}
+
+	if (nested_cpu_has(vmcs12, CPU_BASED_TPR_SHADOW)) {
+		/* TODO: Also verify bits beyond physical address width are 0 */
+		if (!PAGE_ALIGNED(vmcs12->virtual_apic_page_addr))
+			return false;
+
+		if (vmx->nested.virtual_apic_page) /* shouldn't happen */
+			nested_release_page(vmx->nested.virtual_apic_page);
+		vmx->nested.virtual_apic_page =
+			nested_get_page(vcpu, vmcs12->virtual_apic_page_addr);
+
+		/*
+		 * Failing the vm entry is _not_ what the processor does
+		 * but it's basically the only possibility we have.
+		 * We could still enter the guest if CR8 load exits are
+		 * enabled, CR8 store exits are enabled, and virtualize APIC
+		 * access is disabled; in this case the processor would never
+		 * use the TPR shadow and we could simply clear the bit from
+		 * the execution control.  But such a configuration is useless,
+		 * so let's keep the code simple.
+		 */
+		if (!vmx->nested.virtual_apic_page)
+			return false;
+	}
+
+	if (nested_cpu_has_posted_intr(vmcs12)) {
+		if (!IS_ALIGNED(vmcs12->posted_intr_desc_addr, 64))
+			return false;
+
+		if (vmx->nested.pi_desc_page) { /* shouldn't happen */
+			kunmap(vmx->nested.pi_desc_page);
+			nested_release_page(vmx->nested.pi_desc_page);
+		}
+		vmx->nested.pi_desc_page =
+			nested_get_page(vcpu, vmcs12->posted_intr_desc_addr);
+		if (!vmx->nested.pi_desc_page)
+			return false;
+
+		vmx->nested.pi_desc =
+			(struct pi_desc *)kmap(vmx->nested.pi_desc_page);
+		if (!vmx->nested.pi_desc) {
+			nested_release_page_clean(vmx->nested.pi_desc_page);
+			return false;
+		}
+		vmx->nested.pi_desc =
+			(struct pi_desc *)((void *)vmx->nested.pi_desc +
+			(unsigned long)(vmcs12->posted_intr_desc_addr &
+			(PAGE_SIZE - 1)));
+	}
+
+	return true;
+}
+
+static void vmx_start_preemption_timer(struct kvm_vcpu *vcpu)
+{
+	u64 preemption_timeout = get_vmcs12(vcpu)->vmx_preemption_timer_value;
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+
+	if (vcpu->arch.virtual_tsc_khz == 0)
+		return;
+
+	/* Make sure short timeouts reliably trigger an immediate vmexit.
+	 * hrtimer_start does not guarantee this. */
+	if (preemption_timeout <= 1) {
+		vmx_preemption_timer_fn(&vmx->nested.preemption_timer);
+		return;
+	}
+
+	preemption_timeout <<= VMX_MISC_EMULATED_PREEMPTION_TIMER_RATE;
+	preemption_timeout *= 1000000;
+	do_div(preemption_timeout, vcpu->arch.virtual_tsc_khz);
+	hrtimer_start(&vmx->nested.preemption_timer,
+		      ns_to_ktime(preemption_timeout), HRTIMER_MODE_REL);
+}
+
+static int nested_vmx_check_msr_bitmap_controls(struct kvm_vcpu *vcpu,
+						struct vmcs12 *vmcs12)
+{
+	int maxphyaddr;
+	u64 addr;
+
+	if (!nested_cpu_has(vmcs12, CPU_BASED_USE_MSR_BITMAPS))
+		return 0;
+
+	if (vmcs12_read_any(vcpu, MSR_BITMAP, &addr)) {
+		WARN_ON(1);
+		return -EINVAL;
+	}
+	maxphyaddr = cpuid_maxphyaddr(vcpu);
+
+	if (!PAGE_ALIGNED(vmcs12->msr_bitmap) ||
+	   ((addr + PAGE_SIZE) >> maxphyaddr))
+		return -EINVAL;
+
+	return 0;
+}
+
+/*
+ * Merge L0's and L1's MSR bitmap, return false to indicate that
+ * we do not use the hardware.
+ */
+static inline bool nested_vmx_merge_msr_bitmap(struct kvm_vcpu *vcpu,
+					       struct vmcs12 *vmcs12)
+{
+	int msr;
+	struct page *page;
+	unsigned long *msr_bitmap;
+
+	if (!nested_cpu_has_virt_x2apic_mode(vmcs12))
+		return false;
+
+	page = nested_get_page(vcpu, vmcs12->msr_bitmap);
+	if (!page) {
+		WARN_ON(1);
+		return false;
+	}
+	msr_bitmap = (unsigned long *)kmap(page);
+	if (!msr_bitmap) {
+		nested_release_page_clean(page);
+		WARN_ON(1);
+		return false;
+	}
+
+	if (nested_cpu_has_virt_x2apic_mode(vmcs12)) {
+		if (nested_cpu_has_apic_reg_virt(vmcs12))
+			for (msr = 0x800; msr <= 0x8ff; msr++)
+				nested_vmx_disable_intercept_for_msr(
+					msr_bitmap,
+					vmx_msr_bitmap_nested,
+					msr, MSR_TYPE_R);
+		/* TPR is allowed */
+		nested_vmx_disable_intercept_for_msr(msr_bitmap,
+				vmx_msr_bitmap_nested,
+				APIC_BASE_MSR + (APIC_TASKPRI >> 4),
+				MSR_TYPE_R | MSR_TYPE_W);
+		if (nested_cpu_has_vid(vmcs12)) {
+			/* EOI and self-IPI are allowed */
+			nested_vmx_disable_intercept_for_msr(
+				msr_bitmap,
+				vmx_msr_bitmap_nested,
+				APIC_BASE_MSR + (APIC_EOI >> 4),
+				MSR_TYPE_W);
+			nested_vmx_disable_intercept_for_msr(
+				msr_bitmap,
+				vmx_msr_bitmap_nested,
+				APIC_BASE_MSR + (APIC_SELF_IPI >> 4),
+				MSR_TYPE_W);
+		}
+	} else {
+		/*
+		 * Enable reading intercept of all the x2apic
+		 * MSRs. We should not rely on vmcs12 to do any
+		 * optimizations here, it may have been modified
+		 * by L1.
+		 */
+		for (msr = 0x800; msr <= 0x8ff; msr++)
+			__vmx_enable_intercept_for_msr(
+				vmx_msr_bitmap_nested,
+				msr,
+				MSR_TYPE_R);
+
+		__vmx_enable_intercept_for_msr(
+				vmx_msr_bitmap_nested,
+				APIC_BASE_MSR + (APIC_TASKPRI >> 4),
+				MSR_TYPE_W);
+		__vmx_enable_intercept_for_msr(
+				vmx_msr_bitmap_nested,
+				APIC_BASE_MSR + (APIC_EOI >> 4),
+				MSR_TYPE_W);
+		__vmx_enable_intercept_for_msr(
+				vmx_msr_bitmap_nested,
+				APIC_BASE_MSR + (APIC_SELF_IPI >> 4),
+				MSR_TYPE_W);
+	}
+	kunmap(page);
+	nested_release_page_clean(page);
+
+	return true;
+}
+
+static int nested_vmx_check_apicv_controls(struct kvm_vcpu *vcpu,
+					   struct vmcs12 *vmcs12)
+{
+	if (!nested_cpu_has_virt_x2apic_mode(vmcs12) &&
+	    !nested_cpu_has_apic_reg_virt(vmcs12) &&
+	    !nested_cpu_has_vid(vmcs12) &&
+	    !nested_cpu_has_posted_intr(vmcs12))
+		return 0;
+
+	/*
+	 * If virtualize x2apic mode is enabled,
+	 * virtualize apic access must be disabled.
+	 */
+	if (nested_cpu_has_virt_x2apic_mode(vmcs12) &&
+	    nested_cpu_has2(vmcs12, SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES))
+		return -EINVAL;
+
+	/*
+	 * If virtual interrupt delivery is enabled,
+	 * we must exit on external interrupts.
+	 */
+	if (nested_cpu_has_vid(vmcs12) &&
+	   !nested_exit_on_intr(vcpu))
+		return -EINVAL;
+
+	/*
+	 * bits 15:8 should be zero in posted_intr_nv,
+	 * the descriptor address has been already checked
+	 * in nested_get_vmcs12_pages.
+	 */
+	if (nested_cpu_has_posted_intr(vmcs12) &&
+	   (!nested_cpu_has_vid(vmcs12) ||
+	    !nested_exit_intr_ack_set(vcpu) ||
+	    vmcs12->posted_intr_nv & 0xff00))
+		return -EINVAL;
+
+	/* tpr shadow is needed by all apicv features. */
+	if (!nested_cpu_has(vmcs12, CPU_BASED_TPR_SHADOW))
+		return -EINVAL;
+
+	return 0;
+}
+
+static int nested_vmx_check_msr_switch(struct kvm_vcpu *vcpu,
+				       unsigned long count_field,
+				       unsigned long addr_field,
+				       int maxphyaddr)
+{
+	u64 count, addr;
+
+	if (vmcs12_read_any(vcpu, count_field, &count) ||
+	    vmcs12_read_any(vcpu, addr_field, &addr)) {
+		WARN_ON(1);
+		return -EINVAL;
+	}
+	if (count == 0)
+		return 0;
+	if (!IS_ALIGNED(addr, 16) || addr >> maxphyaddr ||
+	    (addr + count * sizeof(struct vmx_msr_entry) - 1) >> maxphyaddr) {
+		pr_warn_ratelimited(
+			"nVMX: invalid MSR switch (0x%lx, %d, %llu, 0x%08llx)",
+			addr_field, maxphyaddr, count, addr);
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int nested_vmx_check_msr_switch_controls(struct kvm_vcpu *vcpu,
+						struct vmcs12 *vmcs12)
+{
+	int maxphyaddr;
+
+	if (vmcs12->vm_exit_msr_load_count == 0 &&
+	    vmcs12->vm_exit_msr_store_count == 0 &&
+	    vmcs12->vm_entry_msr_load_count == 0)
+		return 0; /* Fast path */
+	maxphyaddr = cpuid_maxphyaddr(vcpu);
+	if (nested_vmx_check_msr_switch(vcpu, VM_EXIT_MSR_LOAD_COUNT,
+					VM_EXIT_MSR_LOAD_ADDR, maxphyaddr) ||
+	    nested_vmx_check_msr_switch(vcpu, VM_EXIT_MSR_STORE_COUNT,
+					VM_EXIT_MSR_STORE_ADDR, maxphyaddr) ||
+	    nested_vmx_check_msr_switch(vcpu, VM_ENTRY_MSR_LOAD_COUNT,
+					VM_ENTRY_MSR_LOAD_ADDR, maxphyaddr))
+		return -EINVAL;
+	return 0;
+}
+
+static int nested_vmx_msr_check_common(struct kvm_vcpu *vcpu,
+				       struct vmx_msr_entry *e)
+{
+	/* x2APIC MSR accesses are not allowed */
+	if (apic_x2apic_mode(vcpu->arch.apic) && e->index >> 8 == 0x8)
+		return -EINVAL;
+	if (e->index == MSR_IA32_UCODE_WRITE || /* SDM Table 35-2 */
+	    e->index == MSR_IA32_UCODE_REV)
+		return -EINVAL;
+	if (e->reserved != 0)
+		return -EINVAL;
+	return 0;
+}
+
+static int nested_vmx_load_msr_check(struct kvm_vcpu *vcpu,
+				     struct vmx_msr_entry *e)
+{
+	if (e->index == MSR_FS_BASE ||
+	    e->index == MSR_GS_BASE ||
+	    e->index == MSR_IA32_SMM_MONITOR_CTL || /* SMM is not supported */
+	    nested_vmx_msr_check_common(vcpu, e))
+		return -EINVAL;
+	return 0;
+}
+
+static int nested_vmx_store_msr_check(struct kvm_vcpu *vcpu,
+				      struct vmx_msr_entry *e)
+{
+	if (e->index == MSR_IA32_SMBASE || /* SMM is not supported */
+	    nested_vmx_msr_check_common(vcpu, e))
+		return -EINVAL;
+	return 0;
+}
+
+/*
+ * Load guest's/host's msr at nested entry/exit.
+ * return 0 for success, entry index for failure.
+ */
+static u32 nested_vmx_load_msr(struct kvm_vcpu *vcpu, u64 gpa, u32 count)
+{
+	u32 i;
+	struct vmx_msr_entry e;
+	struct msr_data msr;
+
+	msr.host_initiated = false;
+	for (i = 0; i < count; i++) {
+		if (kvm_read_guest(vcpu->kvm, gpa + i * sizeof(e),
+				   &e, sizeof(e))) {
+			pr_warn_ratelimited(
+				"%s cannot read MSR entry (%u, 0x%08llx)\n",
+				__func__, i, gpa + i * sizeof(e));
+			goto fail;
+		}
+		if (nested_vmx_load_msr_check(vcpu, &e)) {
+			pr_warn_ratelimited(
+				"%s check failed (%u, 0x%x, 0x%x)\n",
+				__func__, i, e.index, e.reserved);
+			goto fail;
+		}
+		msr.index = e.index;
+		msr.data = e.value;
+		if (kvm_set_msr(vcpu, &msr)) {
+			pr_warn_ratelimited(
+				"%s cannot write MSR (%u, 0x%x, 0x%llx)\n",
+				__func__, i, e.index, e.value);
+			goto fail;
+		}
+	}
+	return 0;
+fail:
+	return i + 1;
+}
+
+static int nested_vmx_store_msr(struct kvm_vcpu *vcpu, u64 gpa, u32 count)
+{
+	u32 i;
+	struct vmx_msr_entry e;
+
+	for (i = 0; i < count; i++) {
+		if (kvm_read_guest(vcpu->kvm,
+				   gpa + i * sizeof(e),
+				   &e, 2 * sizeof(u32))) {
+			pr_warn_ratelimited(
+				"%s cannot read MSR entry (%u, 0x%08llx)\n",
+				__func__, i, gpa + i * sizeof(e));
+			return -EINVAL;
+		}
+		if (nested_vmx_store_msr_check(vcpu, &e)) {
+			pr_warn_ratelimited(
+				"%s check failed (%u, 0x%x, 0x%x)\n",
+				__func__, i, e.index, e.reserved);
+			return -EINVAL;
+		}
+		if (kvm_get_msr(vcpu, e.index, &e.value)) {
+			pr_warn_ratelimited(
+				"%s cannot read MSR (%u, 0x%x)\n",
+				__func__, i, e.index);
+			return -EINVAL;
+		}
+		if (kvm_write_guest(vcpu->kvm,
+				    gpa + i * sizeof(e) +
+					offsetof(struct vmx_msr_entry, value),
+				    &e.value, sizeof(e.value))) {
+			pr_warn_ratelimited(
+				"%s cannot write MSR (%u, 0x%x, 0x%llx)\n",
+				__func__, i, e.index, e.value);
+			return -EINVAL;
+		}
+	}
+	return 0;
+}
+
 /*
  * prepare_vmcs02 is called when the L1 guest hypervisor runs its nested
  * L2 guest. L1 has a vmcs for L2 (vmcs12), and this function "merges" it
- * with L0's requirements for its guest (a.k.a. vmsc01), so we can run the L2
+ * with L0's requirements for its guest (a.k.a. vmcs01), so we can run the L2
  * guest in a way that will both be appropriate to L1's requests, and our
  * needs. In addition to modifying the active vmcs (which is vmcs02), this
  * function also has additional necessary side-effects, like setting various
@@ -6478,7 +9077,13 @@ static void prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 	vmcs_writel(GUEST_GDTR_BASE, vmcs12->guest_gdtr_base);
 	vmcs_writel(GUEST_IDTR_BASE, vmcs12->guest_idtr_base);
 
-	vmcs_write64(GUEST_IA32_DEBUGCTL, vmcs12->guest_ia32_debugctl);
+	if (vmcs12->vm_entry_controls & VM_ENTRY_LOAD_DEBUG_CONTROLS) {
+		kvm_set_dr(vcpu, 7, vmcs12->guest_dr7);
+		vmcs_write64(GUEST_IA32_DEBUGCTL, vmcs12->guest_ia32_debugctl);
+	} else {
+		kvm_set_dr(vcpu, 7, vcpu->arch.dr7);
+		vmcs_write64(GUEST_IA32_DEBUGCTL, vmx->nested.vmcs01_debugctl);
+	}
 	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD,
 		vmcs12->vm_entry_intr_info_field);
 	vmcs_write32(VM_ENTRY_EXCEPTION_ERROR_CODE,
@@ -6487,20 +9092,41 @@ static void prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 		vmcs12->vm_entry_instruction_len);
 	vmcs_write32(GUEST_INTERRUPTIBILITY_INFO,
 		vmcs12->guest_interruptibility_info);
-	vmcs_write32(GUEST_ACTIVITY_STATE, vmcs12->guest_activity_state);
 	vmcs_write32(GUEST_SYSENTER_CS, vmcs12->guest_sysenter_cs);
-	vmcs_writel(GUEST_DR7, vmcs12->guest_dr7);
-	vmcs_writel(GUEST_RFLAGS, vmcs12->guest_rflags);
+	vmx_set_rflags(vcpu, vmcs12->guest_rflags);
 	vmcs_writel(GUEST_PENDING_DBG_EXCEPTIONS,
 		vmcs12->guest_pending_dbg_exceptions);
 	vmcs_writel(GUEST_SYSENTER_ESP, vmcs12->guest_sysenter_esp);
 	vmcs_writel(GUEST_SYSENTER_EIP, vmcs12->guest_sysenter_eip);
 
+	if (nested_cpu_has_xsaves(vmcs12))
+		vmcs_write64(XSS_EXIT_BITMAP, vmcs12->xss_exit_bitmap);
 	vmcs_write64(VMCS_LINK_POINTER, -1ull);
 
-	vmcs_write32(PIN_BASED_VM_EXEC_CONTROL,
-		(vmcs_config.pin_based_exec_ctrl |
-		 vmcs12->pin_based_vm_exec_control));
+	exec_control = vmcs12->pin_based_vm_exec_control;
+	exec_control |= vmcs_config.pin_based_exec_ctrl;
+	exec_control &= ~PIN_BASED_VMX_PREEMPTION_TIMER;
+
+	if (nested_cpu_has_posted_intr(vmcs12)) {
+		/*
+		 * Note that we use L0's vector here and in
+		 * vmx_deliver_nested_posted_interrupt.
+		 */
+		vmx->nested.posted_intr_nv = vmcs12->posted_intr_nv;
+		vmx->nested.pi_pending = false;
+		vmcs_write64(POSTED_INTR_NV, POSTED_INTR_VECTOR);
+		vmcs_write64(POSTED_INTR_DESC_ADDR,
+			page_to_phys(vmx->nested.pi_desc_page) +
+			(unsigned long)(vmcs12->posted_intr_desc_addr &
+			(PAGE_SIZE - 1)));
+	} else
+		exec_control &= ~PIN_BASED_POSTED_INTR;
+
+	vmcs_write32(PIN_BASED_VM_EXEC_CONTROL, exec_control);
+
+	vmx->nested.preemption_timer_expired = false;
+	if (nested_cpu_has_preemption_timer(vmcs12))
+		vmx_start_preemption_timer(vcpu);
 
 	/*
 	 * Whether page-faults are trapped is determined by a combination of
@@ -6528,26 +9154,18 @@ static void prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 		enable_ept ? vmcs12->page_fault_error_code_match : 0);
 
 	if (cpu_has_secondary_exec_ctrls()) {
-		u32 exec_control = vmx_secondary_exec_control(vmx);
+		exec_control = vmx_secondary_exec_control(vmx);
 		if (!vmx->rdtscp_enabled)
 			exec_control &= ~SECONDARY_EXEC_RDTSCP;
 		/* Take the following fields only from vmcs12 */
-		exec_control &= ~SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES;
+		exec_control &= ~(SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES |
+				  SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY |
+                                  SECONDARY_EXEC_APIC_REGISTER_VIRT);
 		if (nested_cpu_has(vmcs12,
 				CPU_BASED_ACTIVATE_SECONDARY_CONTROLS))
 			exec_control |= vmcs12->secondary_vm_exec_control;
 
 		if (exec_control & SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES) {
-			/*
-			 * Translate L1 physical address to host physical
-			 * address for vmcs02. Keep the page pinned, so this
-			 * physical address remains valid. We keep a reference
-			 * to it so we can release it later.
-			 */
-			if (vmx->nested.apic_access_page) /* shouldn't happen */
-				nested_release_page(vmx->nested.apic_access_page);
-			vmx->nested.apic_access_page =
-				nested_get_page(vcpu, vmcs12->apic_access_addr);
 			/*
 			 * If translation failed, no matter: This feature asks
 			 * to exit when accessing the given address, and if it
@@ -6560,6 +9178,24 @@ static void prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 			else
 				vmcs_write64(APIC_ACCESS_ADDR,
 				  page_to_phys(vmx->nested.apic_access_page));
+		} else if (!(nested_cpu_has_virt_x2apic_mode(vmcs12)) &&
+			    (vm_need_virtualize_apic_accesses(vmx->vcpu.kvm))) {
+			exec_control |=
+				SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES;
+			kvm_vcpu_reload_apic_access_page(vcpu);
+		}
+
+		if (exec_control & SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY) {
+			vmcs_write64(EOI_EXIT_BITMAP0,
+				vmcs12->eoi_exit_bitmap0);
+			vmcs_write64(EOI_EXIT_BITMAP1,
+				vmcs12->eoi_exit_bitmap1);
+			vmcs_write64(EOI_EXIT_BITMAP2,
+				vmcs12->eoi_exit_bitmap2);
+			vmcs_write64(EOI_EXIT_BITMAP3,
+				vmcs12->eoi_exit_bitmap3);
+			vmcs_write16(GUEST_INTR_STATUS,
+				vmcs12->guest_intr_status);
 		}
 
 		vmcs_write32(SECONDARY_VM_EXEC_CONTROL, exec_control);
@@ -6572,7 +9208,7 @@ static void prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 	 * Other fields are different per CPU, and will be set later when
 	 * vmx_vcpu_load() is called, and when vmx_save_host_state() is called.
 	 */
-	vmx_set_constant_host_state();
+	vmx_set_constant_host_state(vmx);
 
 	/*
 	 * HOST_RSP is normally set correctly in vmx_vcpu_run() just before
@@ -6588,11 +9224,24 @@ static void prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 	exec_control &= ~CPU_BASED_VIRTUAL_NMI_PENDING;
 	exec_control &= ~CPU_BASED_TPR_SHADOW;
 	exec_control |= vmcs12->cpu_based_vm_exec_control;
+
+	if (exec_control & CPU_BASED_TPR_SHADOW) {
+		vmcs_write64(VIRTUAL_APIC_PAGE_ADDR,
+				page_to_phys(vmx->nested.virtual_apic_page));
+		vmcs_write32(TPR_THRESHOLD, vmcs12->tpr_threshold);
+	}
+
+	if (cpu_has_vmx_msr_bitmap() &&
+	    exec_control & CPU_BASED_USE_MSR_BITMAPS) {
+		nested_vmx_merge_msr_bitmap(vcpu, vmcs12);
+		/* MSR_BITMAP will be set by following vmx_set_efer. */
+	} else
+		exec_control &= ~CPU_BASED_USE_MSR_BITMAPS;
+
 	/*
-	 * Merging of IO and MSR bitmaps not currently supported.
+	 * Merging of IO bitmap not currently supported.
 	 * Rather, exit every time.
 	 */
-	exec_control &= ~CPU_BASED_USE_MSR_BITMAPS;
 	exec_control &= ~CPU_BASED_USE_IO_BITMAPS;
 	exec_control |= CPU_BASED_UNCOND_IO_EXITING;
 
@@ -6606,19 +9255,31 @@ static void prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 	vcpu->arch.cr0_guest_owned_bits &= ~vmcs12->cr0_guest_host_mask;
 	vmcs_writel(CR0_GUEST_HOST_MASK, ~vcpu->arch.cr0_guest_owned_bits);
 
-	/* Note: IA32_MODE, LOAD_IA32_EFER are modified by vmx_set_efer below */
-	vmcs_write32(VM_EXIT_CONTROLS,
-		vmcs12->vm_exit_controls | vmcs_config.vmexit_ctrl);
-	vmcs_write32(VM_ENTRY_CONTROLS, vmcs12->vm_entry_controls |
+	/* L2->L1 exit controls are emulated - the hardware exit is to L0 so
+	 * we should use its exit controls. Note that VM_EXIT_LOAD_IA32_EFER
+	 * bits are further modified by vmx_set_efer() below.
+	 */
+	vmcs_write32(VM_EXIT_CONTROLS, vmcs_config.vmexit_ctrl);
+
+	/* vmcs12's VM_ENTRY_LOAD_IA32_EFER and VM_ENTRY_IA32E_MODE are
+	 * emulated by vmx_set_efer(), below.
+	 */
+	vm_entry_controls_init(vmx, 
+		(vmcs12->vm_entry_controls & ~VM_ENTRY_LOAD_IA32_EFER &
+			~VM_ENTRY_IA32E_MODE) |
 		(vmcs_config.vmentry_ctrl & ~VM_ENTRY_IA32E_MODE));
 
-	if (vmcs12->vm_entry_controls & VM_ENTRY_LOAD_IA32_PAT)
+	if (vmcs12->vm_entry_controls & VM_ENTRY_LOAD_IA32_PAT) {
 		vmcs_write64(GUEST_IA32_PAT, vmcs12->guest_ia32_pat);
-	else if (vmcs_config.vmentry_ctrl & VM_ENTRY_LOAD_IA32_PAT)
+		vcpu->arch.pat = vmcs12->guest_ia32_pat;
+	} else if (vmcs_config.vmentry_ctrl & VM_ENTRY_LOAD_IA32_PAT)
 		vmcs_write64(GUEST_IA32_PAT, vmx->vcpu.arch.pat);
 
 
 	set_cr4_guest_host_mask(vmx);
+
+	if (vmcs12->vm_entry_controls & VM_ENTRY_LOAD_BNDCFGS)
+		vmcs_write64(GUEST_BNDCFGS, vmcs12->guest_bndcfgs);
 
 	if (vmcs12->cpu_based_vm_exec_control & CPU_BASED_USE_TSC_OFFSETING)
 		vmcs_write64(TSC_OFFSET,
@@ -6636,9 +9297,14 @@ static void prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 		vmx_flush_tlb(vcpu);
 	}
 
+	if (nested_cpu_has_ept(vmcs12)) {
+		kvm_mmu_unload(vcpu);
+		nested_ept_init_mmu_context(vcpu);
+	}
+
 	if (vmcs12->vm_entry_controls & VM_ENTRY_LOAD_IA32_EFER)
 		vcpu->arch.efer = vmcs12->guest_ia32_efer;
-	if (vmcs12->vm_entry_controls & VM_ENTRY_IA32E_MODE)
+	else if (vmcs12->vm_entry_controls & VM_ENTRY_IA32E_MODE)
 		vcpu->arch.efer |= (EFER_LMA | EFER_LME);
 	else
 		vcpu->arch.efer &= ~(EFER_LMA | EFER_LME);
@@ -6663,6 +9329,19 @@ static void prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 	kvm_set_cr3(vcpu, vmcs12->guest_cr3);
 	kvm_mmu_reset_context(vcpu);
 
+	if (!enable_ept)
+		vcpu->arch.walk_mmu->inject_page_fault = vmx_inject_page_fault_nested;
+
+	/*
+	 * L1 may access the L2's PDPTR, so save them to construct vmcs12
+	 */
+	if (enable_ept) {
+		vmcs_write64(GUEST_PDPTR0, vmcs12->guest_pdptr0);
+		vmcs_write64(GUEST_PDPTR1, vmcs12->guest_pdptr1);
+		vmcs_write64(GUEST_PDPTR2, vmcs12->guest_pdptr2);
+		vmcs_write64(GUEST_PDPTR3, vmcs12->guest_pdptr3);
+	}
+
 	kvm_register_write(vcpu, VCPU_REGS_RSP, vmcs12->guest_rsp);
 	kvm_register_write(vcpu, VCPU_REGS_RIP, vmcs12->guest_rip);
 }
@@ -6677,6 +9356,8 @@ static int nested_vmx_run(struct kvm_vcpu *vcpu, bool launch)
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	int cpu;
 	struct loaded_vmcs *vmcs02;
+	bool ia32e;
+	u32 msr_entry_idx;
 
 	if (!nested_vmx_check_permission(vcpu) ||
 	    !nested_vmx_check_vmcs12(vcpu))
@@ -6684,6 +9365,9 @@ static int nested_vmx_run(struct kvm_vcpu *vcpu, bool launch)
 
 	skip_emulated_instruction(vcpu);
 	vmcs12 = get_vmcs12(vcpu);
+
+	if (enable_shadow_vmcs)
+		copy_shadow_to_vmcs12(vmx);
 
 	/*
 	 * The nested entry process starts with enforcing various prerequisites
@@ -6702,39 +9386,48 @@ static int nested_vmx_run(struct kvm_vcpu *vcpu, bool launch)
 		return 1;
 	}
 
-	if ((vmcs12->cpu_based_vm_exec_control & CPU_BASED_USE_MSR_BITMAPS) &&
-			!IS_ALIGNED(vmcs12->msr_bitmap, PAGE_SIZE)) {
+	if (vmcs12->guest_activity_state != GUEST_ACTIVITY_ACTIVE &&
+	    vmcs12->guest_activity_state != GUEST_ACTIVITY_HLT) {
+		nested_vmx_failValid(vcpu, VMXERR_ENTRY_INVALID_CONTROL_FIELD);
+		return 1;
+	}
+
+	if (!nested_get_vmcs12_pages(vcpu, vmcs12)) {
 		/*TODO: Also verify bits beyond physical address width are 0*/
 		nested_vmx_failValid(vcpu, VMXERR_ENTRY_INVALID_CONTROL_FIELD);
 		return 1;
 	}
 
-	if (nested_cpu_has2(vmcs12, SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES) &&
-			!IS_ALIGNED(vmcs12->apic_access_addr, PAGE_SIZE)) {
-		/*TODO: Also verify bits beyond physical address width are 0*/
+	if (nested_vmx_check_msr_bitmap_controls(vcpu, vmcs12)) {
 		nested_vmx_failValid(vcpu, VMXERR_ENTRY_INVALID_CONTROL_FIELD);
 		return 1;
 	}
 
-	if (vmcs12->vm_entry_msr_load_count > 0 ||
-	    vmcs12->vm_exit_msr_load_count > 0 ||
-	    vmcs12->vm_exit_msr_store_count > 0) {
-		pr_warn_ratelimited("%s: VMCS MSR_{LOAD,STORE} unsupported\n",
-				    __func__);
+	if (nested_vmx_check_apicv_controls(vcpu, vmcs12)) {
+		nested_vmx_failValid(vcpu, VMXERR_ENTRY_INVALID_CONTROL_FIELD);
+		return 1;
+	}
+
+	if (nested_vmx_check_msr_switch_controls(vcpu, vmcs12)) {
 		nested_vmx_failValid(vcpu, VMXERR_ENTRY_INVALID_CONTROL_FIELD);
 		return 1;
 	}
 
 	if (!vmx_control_verify(vmcs12->cpu_based_vm_exec_control,
-	      nested_vmx_procbased_ctls_low, nested_vmx_procbased_ctls_high) ||
+				vmx->nested.nested_vmx_true_procbased_ctls_low,
+				vmx->nested.nested_vmx_procbased_ctls_high) ||
 	    !vmx_control_verify(vmcs12->secondary_vm_exec_control,
-	      nested_vmx_secondary_ctls_low, nested_vmx_secondary_ctls_high) ||
+				vmx->nested.nested_vmx_secondary_ctls_low,
+				vmx->nested.nested_vmx_secondary_ctls_high) ||
 	    !vmx_control_verify(vmcs12->pin_based_vm_exec_control,
-	      nested_vmx_pinbased_ctls_low, nested_vmx_pinbased_ctls_high) ||
+				vmx->nested.nested_vmx_pinbased_ctls_low,
+				vmx->nested.nested_vmx_pinbased_ctls_high) ||
 	    !vmx_control_verify(vmcs12->vm_exit_controls,
-	      nested_vmx_exit_ctls_low, nested_vmx_exit_ctls_high) ||
+				vmx->nested.nested_vmx_true_exit_ctls_low,
+				vmx->nested.nested_vmx_exit_ctls_high) ||
 	    !vmx_control_verify(vmcs12->vm_entry_controls,
-	      nested_vmx_entry_ctls_low, nested_vmx_entry_ctls_high))
+				vmx->nested.nested_vmx_true_entry_ctls_low,
+				vmx->nested.nested_vmx_entry_ctls_high))
 	{
 		nested_vmx_failValid(vcpu, VMXERR_ENTRY_INVALID_CONTROL_FIELD);
 		return 1;
@@ -6747,7 +9440,7 @@ static int nested_vmx_run(struct kvm_vcpu *vcpu, bool launch)
 		return 1;
 	}
 
-	if (((vmcs12->guest_cr0 & VMXON_CR0_ALWAYSON) != VMXON_CR0_ALWAYSON) ||
+	if (!nested_cr0_valid(vcpu, vmcs12->guest_cr0) ||
 	    ((vmcs12->guest_cr4 & VMXON_CR4_ALWAYSON) != VMXON_CR4_ALWAYSON)) {
 		nested_vmx_entry_failure(vcpu, vmcs12,
 			EXIT_REASON_INVALID_STATE, ENTRY_FAIL_DEFAULT);
@@ -6757,6 +9450,45 @@ static int nested_vmx_run(struct kvm_vcpu *vcpu, bool launch)
 		nested_vmx_entry_failure(vcpu, vmcs12,
 			EXIT_REASON_INVALID_STATE, ENTRY_FAIL_VMCS_LINK_PTR);
 		return 1;
+	}
+
+	/*
+	 * If the load IA32_EFER VM-entry control is 1, the following checks
+	 * are performed on the field for the IA32_EFER MSR:
+	 * - Bits reserved in the IA32_EFER MSR must be 0.
+	 * - Bit 10 (corresponding to IA32_EFER.LMA) must equal the value of
+	 *   the IA-32e mode guest VM-exit control. It must also be identical
+	 *   to bit 8 (LME) if bit 31 in the CR0 field (corresponding to
+	 *   CR0.PG) is 1.
+	 */
+	if (vmcs12->vm_entry_controls & VM_ENTRY_LOAD_IA32_EFER) {
+		ia32e = (vmcs12->vm_entry_controls & VM_ENTRY_IA32E_MODE) != 0;
+		if (!kvm_valid_efer(vcpu, vmcs12->guest_ia32_efer) ||
+		    ia32e != !!(vmcs12->guest_ia32_efer & EFER_LMA) ||
+		    ((vmcs12->guest_cr0 & X86_CR0_PG) &&
+		     ia32e != !!(vmcs12->guest_ia32_efer & EFER_LME))) {
+			nested_vmx_entry_failure(vcpu, vmcs12,
+				EXIT_REASON_INVALID_STATE, ENTRY_FAIL_DEFAULT);
+			return 1;
+		}
+	}
+
+	/*
+	 * If the load IA32_EFER VM-exit control is 1, bits reserved in the
+	 * IA32_EFER MSR must be 0 in the field for that register. In addition,
+	 * the values of the LMA and LME bits in the field must each be that of
+	 * the host address-space size VM-exit control.
+	 */
+	if (vmcs12->vm_exit_controls & VM_EXIT_LOAD_IA32_EFER) {
+		ia32e = (vmcs12->vm_exit_controls &
+			 VM_EXIT_HOST_ADDR_SPACE_SIZE) != 0;
+		if (!kvm_valid_efer(vcpu, vmcs12->host_ia32_efer) ||
+		    ia32e != !!(vmcs12->host_ia32_efer & EFER_LMA) ||
+		    ia32e != !!(vmcs12->host_ia32_efer & EFER_LME)) {
+			nested_vmx_entry_failure(vcpu, vmcs12,
+				EXIT_REASON_INVALID_STATE, ENTRY_FAIL_DEFAULT);
+			return 1;
+		}
 	}
 
 	/*
@@ -6772,6 +9504,9 @@ static int nested_vmx_run(struct kvm_vcpu *vcpu, bool launch)
 
 	vmx->nested.vmcs01_tsc_offset = vmcs_read64(TSC_OFFSET);
 
+	if (!(vmcs12->vm_entry_controls & VM_ENTRY_LOAD_DEBUG_CONTROLS))
+		vmx->nested.vmcs01_debugctl = vmcs_read64(GUEST_IA32_DEBUGCTL);
+
 	cpu = get_cpu();
 	vmx->loaded_vmcs = vmcs02;
 	vmx_vcpu_put(vcpu);
@@ -6779,9 +9514,27 @@ static int nested_vmx_run(struct kvm_vcpu *vcpu, bool launch)
 	vcpu->cpu = cpu;
 	put_cpu();
 
-	vmcs12->launch_state = 1;
+	vmx_segment_cache_clear(vmx);
 
 	prepare_vmcs02(vcpu, vmcs12);
+
+	msr_entry_idx = nested_vmx_load_msr(vcpu,
+					    vmcs12->vm_entry_msr_load_addr,
+					    vmcs12->vm_entry_msr_load_count);
+	if (msr_entry_idx) {
+		leave_guest_mode(vcpu);
+		vmx_load_vmcs01(vcpu);
+		nested_vmx_entry_failure(vcpu, vmcs12,
+				EXIT_REASON_MSR_LOAD_FAIL, msr_entry_idx);
+		return 1;
+	}
+
+	vmcs12->launch_state = 1;
+
+	if (vmcs12->guest_activity_state == GUEST_ACTIVITY_HLT)
+		return kvm_emulate_halt(vcpu);
+
+	vmx->nested.nested_run_pending = 1;
 
 	/*
 	 * Note no nested_vmx_succeed or nested_vmx_fail here. At this point
@@ -6829,6 +9582,101 @@ vmcs12_guest_cr4(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 			vcpu->arch.cr4_guest_owned_bits));
 }
 
+static void vmcs12_save_pending_event(struct kvm_vcpu *vcpu,
+				       struct vmcs12 *vmcs12)
+{
+	u32 idt_vectoring;
+	unsigned int nr;
+
+	if (vcpu->arch.exception.pending && vcpu->arch.exception.reinject) {
+		nr = vcpu->arch.exception.nr;
+		idt_vectoring = nr | VECTORING_INFO_VALID_MASK;
+
+		if (kvm_exception_is_soft(nr)) {
+			vmcs12->vm_exit_instruction_len =
+				vcpu->arch.event_exit_inst_len;
+			idt_vectoring |= INTR_TYPE_SOFT_EXCEPTION;
+		} else
+			idt_vectoring |= INTR_TYPE_HARD_EXCEPTION;
+
+		if (vcpu->arch.exception.has_error_code) {
+			idt_vectoring |= VECTORING_INFO_DELIVER_CODE_MASK;
+			vmcs12->idt_vectoring_error_code =
+				vcpu->arch.exception.error_code;
+		}
+
+		vmcs12->idt_vectoring_info_field = idt_vectoring;
+	} else if (vcpu->arch.nmi_injected) {
+		vmcs12->idt_vectoring_info_field =
+			INTR_TYPE_NMI_INTR | INTR_INFO_VALID_MASK | NMI_VECTOR;
+	} else if (vcpu->arch.interrupt.pending) {
+		nr = vcpu->arch.interrupt.nr;
+		idt_vectoring = nr | VECTORING_INFO_VALID_MASK;
+
+		if (vcpu->arch.interrupt.soft) {
+			idt_vectoring |= INTR_TYPE_SOFT_INTR;
+			vmcs12->vm_entry_instruction_len =
+				vcpu->arch.event_exit_inst_len;
+		} else
+			idt_vectoring |= INTR_TYPE_EXT_INTR;
+
+		vmcs12->idt_vectoring_info_field = idt_vectoring;
+	}
+}
+
+static int vmx_check_nested_events(struct kvm_vcpu *vcpu, bool external_intr)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+
+	if (nested_cpu_has_preemption_timer(get_vmcs12(vcpu)) &&
+	    vmx->nested.preemption_timer_expired) {
+		if (vmx->nested.nested_run_pending)
+			return -EBUSY;
+		nested_vmx_vmexit(vcpu, EXIT_REASON_PREEMPTION_TIMER, 0, 0);
+		return 0;
+	}
+
+	if (vcpu->arch.nmi_pending && nested_exit_on_nmi(vcpu)) {
+		if (vmx->nested.nested_run_pending ||
+		    vcpu->arch.interrupt.pending)
+			return -EBUSY;
+		nested_vmx_vmexit(vcpu, EXIT_REASON_EXCEPTION_NMI,
+				  NMI_VECTOR | INTR_TYPE_NMI_INTR |
+				  INTR_INFO_VALID_MASK, 0);
+		/*
+		 * The NMI-triggered VM exit counts as injection:
+		 * clear this one and block further NMIs.
+		 */
+		vcpu->arch.nmi_pending = 0;
+		vmx_set_nmi_mask(vcpu, true);
+		return 0;
+	}
+
+	if ((kvm_cpu_has_interrupt(vcpu) || external_intr) &&
+	    nested_exit_on_intr(vcpu)) {
+		if (vmx->nested.nested_run_pending)
+			return -EBUSY;
+		nested_vmx_vmexit(vcpu, EXIT_REASON_EXTERNAL_INTERRUPT, 0, 0);
+		return 0;
+	}
+
+	return vmx_complete_nested_posted_interrupt(vcpu);
+}
+
+static u32 vmx_get_preemption_timer_value(struct kvm_vcpu *vcpu)
+{
+	ktime_t remaining =
+		hrtimer_get_remaining(&to_vmx(vcpu)->nested.preemption_timer);
+	u64 value;
+
+	if (ktime_to_ns(remaining) <= 0)
+		return 0;
+
+	value = ktime_to_ns(remaining) * vcpu->arch.virtual_tsc_khz;
+	do_div(value, 1000000);
+	return value >> VMX_MISC_EMULATED_PREEMPTION_TIMER_RATE;
+}
+
 /*
  * prepare_vmcs12 is part of what we need to do when the nested L2 guest exits
  * and we want to prepare to run its L1 parent. L1 keeps a vmcs for L2 (vmcs12),
@@ -6840,13 +9688,14 @@ vmcs12_guest_cr4(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
  * exit-information fields only. Other fields are modified by L1 with VMWRITE,
  * which already writes to vmcs12 directly.
  */
-void prepare_vmcs12(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
+static void prepare_vmcs12(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12,
+			   u32 exit_reason, u32 exit_intr_info,
+			   unsigned long exit_qualification)
 {
 	/* update guest state fields: */
 	vmcs12->guest_cr0 = vmcs12_guest_cr0(vcpu, vmcs12);
 	vmcs12->guest_cr4 = vmcs12_guest_cr4(vcpu, vmcs12);
 
-	kvm_get_dr(vcpu, 7, (unsigned long *)&vmcs12->guest_dr7);
 	vmcs12->guest_rsp = kvm_register_read(vcpu, VCPU_REGS_RSP);
 	vmcs12->guest_rip = kvm_register_read(vcpu, VCPU_REGS_RIP);
 	vmcs12->guest_rflags = vmcs_readl(GUEST_RFLAGS);
@@ -6888,38 +9737,99 @@ void prepare_vmcs12(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 	vmcs12->guest_gdtr_base = vmcs_readl(GUEST_GDTR_BASE);
 	vmcs12->guest_idtr_base = vmcs_readl(GUEST_IDTR_BASE);
 
-	vmcs12->guest_activity_state = vmcs_read32(GUEST_ACTIVITY_STATE);
 	vmcs12->guest_interruptibility_info =
 		vmcs_read32(GUEST_INTERRUPTIBILITY_INFO);
 	vmcs12->guest_pending_dbg_exceptions =
 		vmcs_readl(GUEST_PENDING_DBG_EXCEPTIONS);
+	if (vcpu->arch.mp_state == KVM_MP_STATE_HALTED)
+		vmcs12->guest_activity_state = GUEST_ACTIVITY_HLT;
+	else
+		vmcs12->guest_activity_state = GUEST_ACTIVITY_ACTIVE;
+
+	if (nested_cpu_has_preemption_timer(vmcs12)) {
+		if (vmcs12->vm_exit_controls &
+		    VM_EXIT_SAVE_VMX_PREEMPTION_TIMER)
+			vmcs12->vmx_preemption_timer_value =
+				vmx_get_preemption_timer_value(vcpu);
+		hrtimer_cancel(&to_vmx(vcpu)->nested.preemption_timer);
+	}
+
+	/*
+	 * In some cases (usually, nested EPT), L2 is allowed to change its
+	 * own CR3 without exiting. If it has changed it, we must keep it.
+	 * Of course, if L0 is using shadow page tables, GUEST_CR3 was defined
+	 * by L0, not L1 or L2, so we mustn't unconditionally copy it to vmcs12.
+	 *
+	 * Additionally, restore L2's PDPTR to vmcs12.
+	 */
+	if (enable_ept) {
+		vmcs12->guest_cr3 = vmcs_read64(GUEST_CR3);
+		vmcs12->guest_pdptr0 = vmcs_read64(GUEST_PDPTR0);
+		vmcs12->guest_pdptr1 = vmcs_read64(GUEST_PDPTR1);
+		vmcs12->guest_pdptr2 = vmcs_read64(GUEST_PDPTR2);
+		vmcs12->guest_pdptr3 = vmcs_read64(GUEST_PDPTR3);
+	}
+
+	if (nested_cpu_has_vid(vmcs12))
+		vmcs12->guest_intr_status = vmcs_read16(GUEST_INTR_STATUS);
+
+	vmcs12->vm_entry_controls =
+		(vmcs12->vm_entry_controls & ~VM_ENTRY_IA32E_MODE) |
+		(vm_entry_controls_get(to_vmx(vcpu)) & VM_ENTRY_IA32E_MODE);
+
+	if (vmcs12->vm_exit_controls & VM_EXIT_SAVE_DEBUG_CONTROLS) {
+		kvm_get_dr(vcpu, 7, (unsigned long *)&vmcs12->guest_dr7);
+		vmcs12->guest_ia32_debugctl = vmcs_read64(GUEST_IA32_DEBUGCTL);
+	}
 
 	/* TODO: These cannot have changed unless we have MSR bitmaps and
 	 * the relevant bit asks not to trap the change */
-	vmcs12->guest_ia32_debugctl = vmcs_read64(GUEST_IA32_DEBUGCTL);
-	if (vmcs12->vm_entry_controls & VM_EXIT_SAVE_IA32_PAT)
+	if (vmcs12->vm_exit_controls & VM_EXIT_SAVE_IA32_PAT)
 		vmcs12->guest_ia32_pat = vmcs_read64(GUEST_IA32_PAT);
+	if (vmcs12->vm_exit_controls & VM_EXIT_SAVE_IA32_EFER)
+		vmcs12->guest_ia32_efer = vcpu->arch.efer;
 	vmcs12->guest_sysenter_cs = vmcs_read32(GUEST_SYSENTER_CS);
 	vmcs12->guest_sysenter_esp = vmcs_readl(GUEST_SYSENTER_ESP);
 	vmcs12->guest_sysenter_eip = vmcs_readl(GUEST_SYSENTER_EIP);
+	if (vmx_mpx_supported())
+		vmcs12->guest_bndcfgs = vmcs_read64(GUEST_BNDCFGS);
+	if (nested_cpu_has_xsaves(vmcs12))
+		vmcs12->xss_exit_bitmap = vmcs_read64(XSS_EXIT_BITMAP);
 
 	/* update exit information fields: */
 
-	vmcs12->vm_exit_reason  = vmcs_read32(VM_EXIT_REASON);
-	vmcs12->exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
+	vmcs12->vm_exit_reason = exit_reason;
+	vmcs12->exit_qualification = exit_qualification;
 
-	vmcs12->vm_exit_intr_info = vmcs_read32(VM_EXIT_INTR_INFO);
-	vmcs12->vm_exit_intr_error_code = vmcs_read32(VM_EXIT_INTR_ERROR_CODE);
-	vmcs12->idt_vectoring_info_field =
-		vmcs_read32(IDT_VECTORING_INFO_FIELD);
-	vmcs12->idt_vectoring_error_code =
-		vmcs_read32(IDT_VECTORING_ERROR_CODE);
+	vmcs12->vm_exit_intr_info = exit_intr_info;
+	if ((vmcs12->vm_exit_intr_info &
+	     (INTR_INFO_VALID_MASK | INTR_INFO_DELIVER_CODE_MASK)) ==
+	    (INTR_INFO_VALID_MASK | INTR_INFO_DELIVER_CODE_MASK))
+		vmcs12->vm_exit_intr_error_code =
+			vmcs_read32(VM_EXIT_INTR_ERROR_CODE);
+	vmcs12->idt_vectoring_info_field = 0;
 	vmcs12->vm_exit_instruction_len = vmcs_read32(VM_EXIT_INSTRUCTION_LEN);
 	vmcs12->vmx_instruction_info = vmcs_read32(VMX_INSTRUCTION_INFO);
 
-	/* clear vm-entry fields which are to be cleared on exit */
-	if (!(vmcs12->vm_exit_reason & VMX_EXIT_REASONS_FAILED_VMENTRY))
+	if (!(vmcs12->vm_exit_reason & VMX_EXIT_REASONS_FAILED_VMENTRY)) {
+		/* vm_entry_intr_info_field is cleared on exit. Emulate this
+		 * instead of reading the real value. */
 		vmcs12->vm_entry_intr_info_field &= ~INTR_INFO_VALID_MASK;
+
+		/*
+		 * Transfer the event that L0 or L1 may wanted to inject into
+		 * L2 to IDT_VECTORING_INFO_FIELD.
+		 */
+		vmcs12_save_pending_event(vcpu, vmcs12);
+	}
+
+	/*
+	 * Drop what we picked up for L2 via vmx_complete_interrupts. It is
+	 * preserved above and would only end up incorrectly in L1.
+	 */
+	vcpu->arch.nmi_injected = false;
+	kvm_clear_exception_queue(vcpu);
+	kvm_clear_interrupt_queue(vcpu);
 }
 
 /*
@@ -6931,11 +9841,14 @@ void prepare_vmcs12(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
  * Failures During or After Loading Guest State").
  * This function should be called when the active VMCS is L1's (vmcs01).
  */
-void load_vmcs12_host_state(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
+static void load_vmcs12_host_state(struct kvm_vcpu *vcpu,
+				   struct vmcs12 *vmcs12)
 {
+	struct kvm_segment seg;
+
 	if (vmcs12->vm_exit_controls & VM_EXIT_LOAD_IA32_EFER)
 		vcpu->arch.efer = vmcs12->host_ia32_efer;
-	if (vmcs12->vm_exit_controls & VM_EXIT_HOST_ADDR_SPACE_SIZE)
+	else if (vmcs12->vm_exit_controls & VM_EXIT_HOST_ADDR_SPACE_SIZE)
 		vcpu->arch.efer |= (EFER_LMA | EFER_LME);
 	else
 		vcpu->arch.efer &= ~(EFER_LMA | EFER_LME);
@@ -6943,13 +9856,14 @@ void load_vmcs12_host_state(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 
 	kvm_register_write(vcpu, VCPU_REGS_RSP, vmcs12->host_rsp);
 	kvm_register_write(vcpu, VCPU_REGS_RIP, vmcs12->host_rip);
+	vmx_set_rflags(vcpu, X86_EFLAGS_FIXED);
 	/*
 	 * Note that calling vmx_set_cr0 is important, even if cr0 hasn't
 	 * actually changed, because it depends on the current state of
 	 * fpu_active (which may have changed).
 	 * Note that vmx_set_cr0 refers to efer set above.
 	 */
-	kvm_set_cr0(vcpu, vmcs12->host_cr0);
+	vmx_set_cr0(vcpu, vmcs12->host_cr0);
 	/*
 	 * If we did fpu_activate()/fpu_deactivate() during L2's run, we need
 	 * to apply the same changes to L1's vmcs. We just set cr0 correctly,
@@ -6966,9 +9880,13 @@ void load_vmcs12_host_state(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 	vcpu->arch.cr4_guest_owned_bits = ~vmcs_readl(CR4_GUEST_HOST_MASK);
 	kvm_set_cr4(vcpu, vmcs12->host_cr4);
 
-	/* shadow page tables on either EPT or shadow page tables */
+	nested_ept_uninit_mmu_context(vcpu);
+
 	kvm_set_cr3(vcpu, vmcs12->host_cr3);
 	kvm_mmu_reset_context(vcpu);
+
+	if (!enable_ept)
+		vcpu->arch.walk_mmu->inject_page_fault = kvm_inject_page_fault;
 
 	if (enable_vpid) {
 		/*
@@ -6985,22 +9903,74 @@ void load_vmcs12_host_state(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 	vmcs_writel(GUEST_SYSENTER_EIP, vmcs12->host_ia32_sysenter_eip);
 	vmcs_writel(GUEST_IDTR_BASE, vmcs12->host_idtr_base);
 	vmcs_writel(GUEST_GDTR_BASE, vmcs12->host_gdtr_base);
-	vmcs_writel(GUEST_TR_BASE, vmcs12->host_tr_base);
-	vmcs_writel(GUEST_GS_BASE, vmcs12->host_gs_base);
-	vmcs_writel(GUEST_FS_BASE, vmcs12->host_fs_base);
-	vmcs_write16(GUEST_ES_SELECTOR, vmcs12->host_es_selector);
-	vmcs_write16(GUEST_CS_SELECTOR, vmcs12->host_cs_selector);
-	vmcs_write16(GUEST_SS_SELECTOR, vmcs12->host_ss_selector);
-	vmcs_write16(GUEST_DS_SELECTOR, vmcs12->host_ds_selector);
-	vmcs_write16(GUEST_FS_SELECTOR, vmcs12->host_fs_selector);
-	vmcs_write16(GUEST_GS_SELECTOR, vmcs12->host_gs_selector);
-	vmcs_write16(GUEST_TR_SELECTOR, vmcs12->host_tr_selector);
 
-	if (vmcs12->vm_exit_controls & VM_EXIT_LOAD_IA32_PAT)
+	/* If not VM_EXIT_CLEAR_BNDCFGS, the L2 value propagates to L1.  */
+	if (vmcs12->vm_exit_controls & VM_EXIT_CLEAR_BNDCFGS)
+		vmcs_write64(GUEST_BNDCFGS, 0);
+
+	if (vmcs12->vm_exit_controls & VM_EXIT_LOAD_IA32_PAT) {
 		vmcs_write64(GUEST_IA32_PAT, vmcs12->host_ia32_pat);
+		vcpu->arch.pat = vmcs12->host_ia32_pat;
+	}
 	if (vmcs12->vm_exit_controls & VM_EXIT_LOAD_IA32_PERF_GLOBAL_CTRL)
 		vmcs_write64(GUEST_IA32_PERF_GLOBAL_CTRL,
 			vmcs12->host_ia32_perf_global_ctrl);
+
+	/* Set L1 segment info according to Intel SDM
+	    27.5.2 Loading Host Segment and Descriptor-Table Registers */
+	seg = (struct kvm_segment) {
+		.base = 0,
+		.limit = 0xFFFFFFFF,
+		.selector = vmcs12->host_cs_selector,
+		.type = 11,
+		.present = 1,
+		.s = 1,
+		.g = 1
+	};
+	if (vmcs12->vm_exit_controls & VM_EXIT_HOST_ADDR_SPACE_SIZE)
+		seg.l = 1;
+	else
+		seg.db = 1;
+	vmx_set_segment(vcpu, &seg, VCPU_SREG_CS);
+	seg = (struct kvm_segment) {
+		.base = 0,
+		.limit = 0xFFFFFFFF,
+		.type = 3,
+		.present = 1,
+		.s = 1,
+		.db = 1,
+		.g = 1
+	};
+	seg.selector = vmcs12->host_ds_selector;
+	vmx_set_segment(vcpu, &seg, VCPU_SREG_DS);
+	seg.selector = vmcs12->host_es_selector;
+	vmx_set_segment(vcpu, &seg, VCPU_SREG_ES);
+	seg.selector = vmcs12->host_ss_selector;
+	vmx_set_segment(vcpu, &seg, VCPU_SREG_SS);
+	seg.selector = vmcs12->host_fs_selector;
+	seg.base = vmcs12->host_fs_base;
+	vmx_set_segment(vcpu, &seg, VCPU_SREG_FS);
+	seg.selector = vmcs12->host_gs_selector;
+	seg.base = vmcs12->host_gs_base;
+	vmx_set_segment(vcpu, &seg, VCPU_SREG_GS);
+	seg = (struct kvm_segment) {
+		.base = vmcs12->host_tr_base,
+		.limit = 0x67,
+		.selector = vmcs12->host_tr_selector,
+		.type = 11,
+		.present = 1
+	};
+	vmx_set_segment(vcpu, &seg, VCPU_SREG_TR);
+
+	kvm_set_dr(vcpu, 7, 0x400);
+	vmcs_write64(GUEST_IA32_DEBUGCTL, 0);
+
+	if (cpu_has_vmx_msr_bitmap())
+		vmx_set_msr_bitmap(vcpu);
+
+	if (nested_vmx_load_msr(vcpu, vmcs12->vm_exit_msr_load_addr,
+				vmcs12->vm_exit_msr_load_count))
+		nested_vmx_abort(vcpu, VMX_ABORT_LOAD_HOST_MSR_FAIL);
 }
 
 /*
@@ -7008,21 +9978,44 @@ void load_vmcs12_host_state(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
  * and modify vmcs12 to make it see what it would expect to see there if
  * L2 was its real guest. Must only be called when in L2 (is_guest_mode())
  */
-static void nested_vmx_vmexit(struct kvm_vcpu *vcpu)
+static void nested_vmx_vmexit(struct kvm_vcpu *vcpu, u32 exit_reason,
+			      u32 exit_intr_info,
+			      unsigned long exit_qualification)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
-	int cpu;
 	struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
 
-	leave_guest_mode(vcpu);
-	prepare_vmcs12(vcpu, vmcs12);
+	/* trying to cancel vmlaunch/vmresume is a bug */
+	WARN_ON_ONCE(vmx->nested.nested_run_pending);
 
-	cpu = get_cpu();
-	vmx->loaded_vmcs = &vmx->vmcs01;
-	vmx_vcpu_put(vcpu);
-	vmx_vcpu_load(vcpu, cpu);
-	vcpu->cpu = cpu;
-	put_cpu();
+	leave_guest_mode(vcpu);
+	prepare_vmcs12(vcpu, vmcs12, exit_reason, exit_intr_info,
+		       exit_qualification);
+
+	if (nested_vmx_store_msr(vcpu, vmcs12->vm_exit_msr_store_addr,
+				 vmcs12->vm_exit_msr_store_count))
+		nested_vmx_abort(vcpu, VMX_ABORT_SAVE_GUEST_MSR_FAIL);
+
+	vmx_load_vmcs01(vcpu);
+
+	if ((exit_reason == EXIT_REASON_EXTERNAL_INTERRUPT)
+	    && nested_exit_intr_ack_set(vcpu)) {
+		int irq = kvm_cpu_get_interrupt(vcpu);
+		WARN_ON(irq < 0);
+		vmcs12->vm_exit_intr_info = irq |
+			INTR_INFO_VALID_MASK | INTR_TYPE_EXT_INTR;
+	}
+
+	trace_kvm_nested_vmexit_inject(vmcs12->vm_exit_reason,
+				       vmcs12->exit_qualification,
+				       vmcs12->idt_vectoring_info_field,
+				       vmcs12->vm_exit_intr_info,
+				       vmcs12->vm_exit_intr_error_code,
+				       KVM_ISA_VMX);
+
+	vm_entry_controls_init(vmx, vmcs_read32(VM_ENTRY_CONTROLS));
+	vm_exit_controls_init(vmx, vmcs_read32(VM_EXIT_CONTROLS));
+	vmx_segment_cache_clear(vmx);
 
 	/* if no vmcs02 cache requested, remove the one we used */
 	if (VMCS02_POOL_SIZE == 0)
@@ -7039,8 +10032,24 @@ static void nested_vmx_vmexit(struct kvm_vcpu *vcpu)
 	/* Unpin physical memory we referred to in vmcs02 */
 	if (vmx->nested.apic_access_page) {
 		nested_release_page(vmx->nested.apic_access_page);
-		vmx->nested.apic_access_page = 0;
+		vmx->nested.apic_access_page = NULL;
 	}
+	if (vmx->nested.virtual_apic_page) {
+		nested_release_page(vmx->nested.virtual_apic_page);
+		vmx->nested.virtual_apic_page = NULL;
+	}
+	if (vmx->nested.pi_desc_page) {
+		kunmap(vmx->nested.pi_desc_page);
+		nested_release_page(vmx->nested.pi_desc_page);
+		vmx->nested.pi_desc_page = NULL;
+		vmx->nested.pi_desc = NULL;
+	}
+
+	/*
+	 * We are now running in L2, mmu_notifier will force to reload the
+	 * page's hpa for L2 vmcs. Need to reload it for L1 before entering L1.
+	 */
+	kvm_vcpu_reload_apic_access_page(vcpu);
 
 	/*
 	 * Exiting from L2 to L1, we're now back to L1 which thinks it just
@@ -7052,6 +10061,21 @@ static void nested_vmx_vmexit(struct kvm_vcpu *vcpu)
 		nested_vmx_failValid(vcpu, vmcs_read32(VM_INSTRUCTION_ERROR));
 	} else
 		nested_vmx_succeed(vcpu);
+	if (enable_shadow_vmcs)
+		vmx->nested.sync_shadow_vmcs = true;
+
+	/* in case we halted in L2 */
+	vcpu->arch.mp_state = KVM_MP_STATE_RUNNABLE;
+}
+
+/*
+ * Forcibly leave nested mode in order to be able to reset the VCPU later on.
+ */
+static void vmx_leave_nested(struct kvm_vcpu *vcpu)
+{
+	if (is_guest_mode(vcpu))
+		nested_vmx_vmexit(vcpu, -1, 0, 0);
+	free_nested(to_vmx(vcpu));
 }
 
 /*
@@ -7069,6 +10093,8 @@ static void nested_vmx_entry_failure(struct kvm_vcpu *vcpu,
 	vmcs12->vm_exit_reason = reason | VMX_EXIT_REASONS_FAILED_VMENTRY;
 	vmcs12->exit_qualification = qualification;
 	nested_vmx_succeed(vcpu);
+	if (enable_shadow_vmcs)
+		to_vmx(vcpu)->nested.sync_shadow_vmcs = true;
 }
 
 static int vmx_check_intercept(struct kvm_vcpu *vcpu,
@@ -7076,6 +10102,37 @@ static int vmx_check_intercept(struct kvm_vcpu *vcpu,
 			       enum x86_intercept_stage stage)
 {
 	return X86EMUL_CONTINUE;
+}
+
+static void vmx_sched_in(struct kvm_vcpu *vcpu, int cpu)
+{
+	if (ple_gap)
+		shrink_ple_window(vcpu);
+}
+
+static void vmx_slot_enable_log_dirty(struct kvm *kvm,
+				     struct kvm_memory_slot *slot)
+{
+	kvm_mmu_slot_leaf_clear_dirty(kvm, slot);
+	kvm_mmu_slot_largepage_remove_write_access(kvm, slot);
+}
+
+static void vmx_slot_disable_log_dirty(struct kvm *kvm,
+				       struct kvm_memory_slot *slot)
+{
+	kvm_mmu_slot_set_dirty(kvm, slot);
+}
+
+static void vmx_flush_log_dirty(struct kvm *kvm)
+{
+	kvm_flush_pml_buffers(kvm);
+}
+
+static void vmx_enable_log_dirty_pt_masked(struct kvm *kvm,
+					   struct kvm_memory_slot *memslot,
+					   gfn_t offset, unsigned long mask)
+{
+	kvm_mmu_clear_dirty_pt_masked(kvm, memslot, offset, mask);
 }
 
 static struct kvm_x86_ops vmx_x86_ops = {
@@ -7096,7 +10153,7 @@ static struct kvm_x86_ops vmx_x86_ops = {
 	.vcpu_load = vmx_vcpu_load,
 	.vcpu_put = vmx_vcpu_put,
 
-	.set_guest_debug = set_guest_debug,
+	.update_db_bp_intercept = update_exception_bitmap,
 	.get_msr = vmx_get_msr,
 	.set_msr = vmx_set_msr,
 	.get_segment_base = vmx_get_segment_base,
@@ -7115,11 +10172,13 @@ static struct kvm_x86_ops vmx_x86_ops = {
 	.set_idt = vmx_set_idt,
 	.get_gdt = vmx_get_gdt,
 	.set_gdt = vmx_set_gdt,
+	.get_dr6 = vmx_get_dr6,
+	.set_dr6 = vmx_set_dr6,
 	.set_dr7 = vmx_set_dr7,
+	.sync_dirty_debug_regs = vmx_sync_dirty_debug_regs,
 	.cache_reg = vmx_cache_reg,
 	.get_rflags = vmx_get_rflags,
 	.set_rflags = vmx_set_rflags,
-	.fpu_activate = vmx_fpu_activate,
 	.fpu_deactivate = vmx_fpu_deactivate,
 
 	.tlb_flush = vmx_flush_tlb,
@@ -7141,6 +10200,14 @@ static struct kvm_x86_ops vmx_x86_ops = {
 	.enable_nmi_window = enable_nmi_window,
 	.enable_irq_window = enable_irq_window,
 	.update_cr8_intercept = update_cr8_intercept,
+	.set_virtual_x2apic_mode = vmx_set_virtual_x2apic_mode,
+	.set_apic_access_page_addr = vmx_set_apic_access_page_addr,
+	.vm_has_apicv = vmx_vm_has_apicv,
+	.load_eoi_exitmap = vmx_load_eoi_exitmap,
+	.hwapic_irr_update = vmx_hwapic_irr_update,
+	.hwapic_isr_update = vmx_hwapic_isr_update,
+	.sync_pir_to_irr = vmx_sync_pir_to_irr,
+	.deliver_posted_interrupt = vmx_deliver_posted_interrupt,
 
 	.set_tss_addr = vmx_set_tss_addr,
 	.get_tdp_level = get_ept_level,
@@ -7153,12 +10220,14 @@ static struct kvm_x86_ops vmx_x86_ops = {
 	.cpuid_update = vmx_cpuid_update,
 
 	.rdtscp_supported = vmx_rdtscp_supported,
+	.invpcid_supported = vmx_invpcid_supported,
 
 	.set_supported_cpuid = vmx_set_supported_cpuid,
 
 	.has_wbinvd_exit = cpu_has_vmx_wbinvd_exit,
 
 	.set_tsc_khz = vmx_set_tsc_khz,
+	.read_tsc_offset = vmx_read_tsc_offset,
 	.write_tsc_offset = vmx_write_tsc_offset,
 	.adjust_tsc_offset = vmx_adjust_tsc_offset,
 	.compute_tsc_offset = vmx_compute_tsc_offset,
@@ -7167,92 +10236,41 @@ static struct kvm_x86_ops vmx_x86_ops = {
 	.set_tdp_cr3 = vmx_set_cr3,
 
 	.check_intercept = vmx_check_intercept,
+	.handle_external_intr = vmx_handle_external_intr,
+	.mpx_supported = vmx_mpx_supported,
+	.xsaves_supported = vmx_xsaves_supported,
+
+	.check_nested_events = vmx_check_nested_events,
+
+	.sched_in = vmx_sched_in,
+
+	.slot_enable_log_dirty = vmx_slot_enable_log_dirty,
+	.slot_disable_log_dirty = vmx_slot_disable_log_dirty,
+	.flush_log_dirty = vmx_flush_log_dirty,
+	.enable_log_dirty_pt_masked = vmx_enable_log_dirty_pt_masked,
 };
 
 static int __init vmx_init(void)
 {
-	int r, i;
-
-	rdmsrl_safe(MSR_EFER, &host_efer);
-
-	for (i = 0; i < NR_VMX_MSR; ++i)
-		kvm_define_shared_msr(i, vmx_msr_index[i]);
-
-	vmx_io_bitmap_a = (unsigned long *)__get_free_page(GFP_KERNEL);
-	if (!vmx_io_bitmap_a)
-		return -ENOMEM;
-
-	vmx_io_bitmap_b = (unsigned long *)__get_free_page(GFP_KERNEL);
-	if (!vmx_io_bitmap_b) {
-		r = -ENOMEM;
-		goto out;
-	}
-
-	vmx_msr_bitmap_legacy = (unsigned long *)__get_free_page(GFP_KERNEL);
-	if (!vmx_msr_bitmap_legacy) {
-		r = -ENOMEM;
-		goto out1;
-	}
-
-	vmx_msr_bitmap_longmode = (unsigned long *)__get_free_page(GFP_KERNEL);
-	if (!vmx_msr_bitmap_longmode) {
-		r = -ENOMEM;
-		goto out2;
-	}
-
-	/*
-	 * Allow direct access to the PC debug port (it is often used for I/O
-	 * delays, but the vmexits simply slow things down).
-	 */
-	memset(vmx_io_bitmap_a, 0xff, PAGE_SIZE);
-	clear_bit(0x80, vmx_io_bitmap_a);
-
-	memset(vmx_io_bitmap_b, 0xff, PAGE_SIZE);
-
-	memset(vmx_msr_bitmap_legacy, 0xff, PAGE_SIZE);
-	memset(vmx_msr_bitmap_longmode, 0xff, PAGE_SIZE);
-
-	set_bit(0, vmx_vpid_bitmap); /* 0 is reserved for host */
-
-	r = kvm_init(&vmx_x86_ops, sizeof(struct vcpu_vmx),
-		     __alignof__(struct vcpu_vmx), THIS_MODULE);
+	int r = kvm_init(&vmx_x86_ops, sizeof(struct vcpu_vmx),
+                     __alignof__(struct vcpu_vmx), THIS_MODULE);
 	if (r)
-		goto out3;
+		return r;
 
-	vmx_disable_intercept_for_msr(MSR_FS_BASE, false);
-	vmx_disable_intercept_for_msr(MSR_GS_BASE, false);
-	vmx_disable_intercept_for_msr(MSR_KERNEL_GS_BASE, true);
-	vmx_disable_intercept_for_msr(MSR_IA32_SYSENTER_CS, false);
-	vmx_disable_intercept_for_msr(MSR_IA32_SYSENTER_ESP, false);
-	vmx_disable_intercept_for_msr(MSR_IA32_SYSENTER_EIP, false);
-
-	if (enable_ept) {
-		kvm_mmu_set_mask_ptes(0ull, 0ull, 0ull, 0ull,
-				VMX_EPT_EXECUTABLE_MASK);
-		ept_set_mmio_spte_mask();
-		kvm_enable_tdp();
-	} else
-		kvm_disable_tdp();
+#ifdef CONFIG_KEXEC
+	rcu_assign_pointer(crash_vmclear_loaded_vmcss,
+			   crash_vmclear_local_loaded_vmcss);
+#endif
 
 	return 0;
-
-out3:
-	free_page((unsigned long)vmx_msr_bitmap_longmode);
-out2:
-	free_page((unsigned long)vmx_msr_bitmap_legacy);
-out1:
-	free_page((unsigned long)vmx_io_bitmap_b);
-out:
-	free_page((unsigned long)vmx_io_bitmap_a);
-	return r;
 }
 
 static void __exit vmx_exit(void)
 {
-	free_page((unsigned long)vmx_msr_bitmap_legacy);
-	free_page((unsigned long)vmx_msr_bitmap_longmode);
-	free_page((unsigned long)vmx_io_bitmap_b);
-	free_page((unsigned long)vmx_io_bitmap_a);
+#ifdef CONFIG_KEXEC
+	RCU_INIT_POINTER(crash_vmclear_loaded_vmcss, NULL);
+	synchronize_rcu();
+#endif
 
 	kvm_exit();
 }

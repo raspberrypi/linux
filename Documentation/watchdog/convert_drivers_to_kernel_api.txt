@@ -59,6 +59,10 @@ Here is a overview of the functions and probably needed actions:
 	WDIOC_GETTIMEOUT:
 		No preparations needed
 
+	WDIOC_GETTIMELEFT:
+		It needs get_timeleft() callback to be defined. Otherwise it
+		will return EOPNOTSUPP
+
   Other IOCTLs can be served using the ioctl-callback. Note that this is mainly
   intended for porting old drivers; new drivers should not invent private IOCTLs.
   Private IOCTLs are processed first. When the callback returns with
@@ -161,6 +165,25 @@ Here is a simple example for a watchdog device:
 +       .info = &s3c2410_wdt_ident,
 +       .ops = &s3c2410wdt_ops,
 +};
+
+
+Handle the 'nowayout' feature
+-----------------------------
+
+A few drivers use nowayout statically, i.e. there is no module parameter for it
+and only CONFIG_WATCHDOG_NOWAYOUT determines if the feature is going to be
+used. This needs to be converted by initializing the status variable of the
+watchdog_device like this:
+
+        .status = WATCHDOG_NOWAYOUT_INIT_STATUS,
+
+Most drivers, however, also allow runtime configuration of nowayout, usually
+by adding a module parameter. The conversion for this would be something like:
+
+	watchdog_set_nowayout(&s3c2410_wdd, nowayout);
+
+The module parameter itself needs to stay, everything else related to nowayout
+can go, though. This will likely be some code in open(), close() or write().
 
 
 Register the watchdog device

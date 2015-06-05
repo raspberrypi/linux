@@ -1,5 +1,4 @@
 /*
- *  linux/arch/arm/mach-exynos4/headsmp.S
  *
  *  Cloned from linux/arch/arm/mach-realview/headsmp.S
  *
@@ -12,8 +11,6 @@
  */
 #include <linux/linkage.h>
 #include <linux/init.h>
-
-	__CPUINIT
 
 /*
  * exynos4 specific entry point for secondary CPUs.  This provides
@@ -36,6 +33,8 @@ pen:	ldr	r7, [r6]
 	 * should now contain the SVC stack for this core
 	 */
 	b	secondary_startup
+ENDPROC(exynos4_secondary_startup)
 
+	.align 2
 1:	.long	.
 	.long	pen_release

@@ -16,9 +16,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the
- * Free Software Foundation, Inc.,
- * 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/nfc.h>
@@ -30,7 +28,7 @@ static DEFINE_RWLOCK(proto_tab_lock);
 static const struct nfc_protocol *proto_tab[NFC_SOCKPROTO_MAX];
 
 static int nfc_sock_create(struct net *net, struct socket *sock, int proto,
-								int kern)
+			   int kern)
 {
 	int rc = -EPROTONOSUPPORT;
 

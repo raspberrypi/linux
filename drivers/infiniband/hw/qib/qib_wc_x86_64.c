@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2006, 2007, 2008, 2009 QLogic Corporation. All rights reserved.
+ * Copyright (c) 2012 Intel Corporation. All rights reserved.
+ * Copyright (c) 2006 - 2012 QLogic Corporation. All rights reserved.
  * Copyright (c) 2003, 2004, 2005, 2006 PathScale, Inc. All rights reserved.
  *
  * This software is available to you under a choice of one of two
@@ -71,6 +72,7 @@ int qib_enable_wc(struct qib_devdata *dd)
 	if (dd->piobcnt2k && dd->piobcnt4k) {
 		/* 2 sizes for chip */
 		unsigned long pio2kbase, pio4kbase;
+
 		pio2kbase = dd->piobufbase & 0xffffffffUL;
 		pio4kbase = (dd->piobufbase >> 32) & 0xffffffffUL;
 		if (pio2kbase < pio4kbase) {
@@ -90,7 +92,7 @@ int qib_enable_wc(struct qib_devdata *dd)
 	}
 
 	for (bits = 0; !(piolen & (1ULL << bits)); bits++)
-		/* do nothing */ ;
+		; /* do nothing */
 
 	if (piolen != (1ULL << bits)) {
 		piolen >>= bits;
@@ -99,13 +101,13 @@ int qib_enable_wc(struct qib_devdata *dd)
 		piolen = 1ULL << (bits + 1);
 	}
 	if (pioaddr & (piolen - 1)) {
-		u64 atmp;
-		atmp = pioaddr & ~(piolen - 1);
+		u64 atmp = pioaddr & ~(piolen - 1);
+
 		if (atmp < addr || (atmp + piolen) > (addr + len)) {
-			qib_dev_err(dd, "No way to align address/size "
-				    "(%llx/%llx), no WC mtrr\n",
-				    (unsigned long long) atmp,
-				    (unsigned long long) piolen << 1);
+			qib_dev_err(dd,
+				"No way to align address/size (%llx/%llx), no WC mtrr\n",
+				(unsigned long long) atmp,
+				(unsigned long long) piolen << 1);
 			ret = -ENODEV;
 		} else {
 			pioaddr = atmp;
@@ -120,8 +122,7 @@ int qib_enable_wc(struct qib_devdata *dd)
 		if (cookie < 0) {
 			{
 				qib_devinfo(dd->pcidev,
-					 "mtrr_add()  WC for PIO bufs "
-					 "failed (%d)\n",
+					 "mtrr_add()  WC for PIO bufs failed (%d)\n",
 					 cookie);
 				ret = -EINVAL;
 			}

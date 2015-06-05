@@ -39,5 +39,13 @@ config SND_PXA2XX_AC97
 	  Say Y or M if you want to support any AC97 codec attached to
 	  the PXA2xx AC97 interface.
 
+config SND_BCM2835
+	tristate "BCM2835 ALSA driver"
+	depends on (ARCH_BCM2708 || ARCH_BCM2709 || ARCH_BCM2835) \
+		   && BCM2708_VCHIQ && SND
+	select SND_PCM
+	help
+	  Say Y or M if you want to support BCM2835 Alsa pcm card driver
+
 endif	# SND_ARM
 

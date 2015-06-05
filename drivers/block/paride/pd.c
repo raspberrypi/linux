@@ -124,8 +124,9 @@
    by default.
 
 */
+#include <linux/types.h>
 
-static int verbose = 0;
+static bool verbose = 0;
 static int major = PD_MAJOR;
 static char *name = PD_NAME;
 static int cluster = 64;
@@ -453,7 +454,7 @@ static enum action do_pd_io_start(void)
 		if (pd_block + pd_count > get_capacity(pd_req->rq_disk))
 			return Fail;
 		pd_run = blk_rq_sectors(pd_req);
-		pd_buf = pd_req->buffer;
+		pd_buf = bio_data(pd_req->bio);
 		pd_retries = 0;
 		if (pd_cmd == READ)
 			return do_pd_read_start();
@@ -484,7 +485,7 @@ static int pd_next_buf(void)
 	spin_lock_irqsave(&pd_lock, saved_flags);
 	__blk_end_request_cur(pd_req, 0);
 	pd_count = blk_rq_cur_sectors(pd_req);
-	pd_buf = pd_req->buffer;
+	pd_buf = bio_data(pd_req->bio);
 	spin_unlock_irqrestore(&pd_lock, saved_flags);
 	return 0;
 }
@@ -721,6 +722,8 @@ static int pd_special_command(struct pd_unit *disk,
 	int err = 0;
 
 	rq = blk_get_request(disk->gd->queue, READ, __GFP_WAIT);
+	if (IS_ERR(rq))
+		return PTR_ERR(rq);
 
 	rq->cmd_type = REQ_TYPE_SPECIAL;
 	rq->special = func;
@@ -782,7 +785,7 @@ static int pd_ioctl(struct block_device *bdev, fmode_t mode,
 	}
 }
 
-static int pd_release(struct gendisk *p, fmode_t mode)
+static void pd_release(struct gendisk *p, fmode_t mode)
 {
 	struct pd_unit *disk = p->private_data;
 
@@ -790,8 +793,6 @@ static int pd_release(struct gendisk *p, fmode_t mode)
 	if (!--disk->access && disk->removable)
 		pd_special_command(disk, pd_door_unlock);
 	mutex_unlock(&pd_mutex);
-
-	return 0;
 }
 
 static unsigned int pd_check_events(struct gendisk *p, unsigned int clearing)

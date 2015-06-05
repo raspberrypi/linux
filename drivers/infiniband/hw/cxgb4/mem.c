@@ -30,16 +30,83 @@
  * SOFTWARE.
  */
 
+#include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <rdma/ib_umem.h>
 #include <linux/atomic.h>
 
 #include "iw_cxgb4.h"
 
+int use_dsgl = 0;
+module_param(use_dsgl, int, 0644);
+MODULE_PARM_DESC(use_dsgl, "Use DSGL for PBL/FastReg (default=0)");
+
 #define T4_ULPTX_MIN_IO 32
 #define C4IW_MAX_INLINE_SIZE 96
+#define T4_ULPTX_MAX_DMA 1024
+#define C4IW_INLINE_THRESHOLD 128
 
-static int write_adapter_mem(struct c4iw_rdev *rdev, u32 addr, u32 len,
-			     void *data)
+static int inline_threshold = C4IW_INLINE_THRESHOLD;
+module_param(inline_threshold, int, 0644);
+MODULE_PARM_DESC(inline_threshold, "inline vs dsgl threshold (default=128)");
+
+static int mr_exceeds_hw_limits(struct c4iw_dev *dev, u64 length)
+{
+	return (is_t4(dev->rdev.lldi.adapter_type) ||
+		is_t5(dev->rdev.lldi.adapter_type)) &&
+		length >= 8*1024*1024*1024ULL;
+}
+
+static int _c4iw_write_mem_dma_aligned(struct c4iw_rdev *rdev, u32 addr,
+				       u32 len, dma_addr_t data, int wait)
+{
+	struct sk_buff *skb;
+	struct ulp_mem_io *req;
+	struct ulptx_sgl *sgl;
+	u8 wr_len;
+	int ret = 0;
+	struct c4iw_wr_wait wr_wait;
+
+	addr &= 0x7FFFFFF;
+
+	if (wait)
+		c4iw_init_wr_wait(&wr_wait);
+	wr_len = roundup(sizeof(*req) + sizeof(*sgl), 16);
+
+	skb = alloc_skb(wr_len, GFP_KERNEL | __GFP_NOFAIL);
+	if (!skb)
+		return -ENOMEM;
+	set_wr_txq(skb, CPL_PRIORITY_CONTROL, 0);
+
+	req = (struct ulp_mem_io *)__skb_put(skb, wr_len);
+	memset(req, 0, wr_len);
+	INIT_ULPTX_WR(req, wr_len, 0, 0);
+	req->wr.wr_hi = cpu_to_be32(FW_WR_OP_V(FW_ULPTX_WR) |
+			(wait ? FW_WR_COMPL_F : 0));
+	req->wr.wr_lo = wait ? (__force __be64)(unsigned long) &wr_wait : 0L;
+	req->wr.wr_mid = cpu_to_be32(FW_WR_LEN16_V(DIV_ROUND_UP(wr_len, 16)));
+	req->cmd = cpu_to_be32(ULPTX_CMD_V(ULP_TX_MEM_WRITE));
+	req->cmd |= cpu_to_be32(T5_ULP_MEMIO_ORDER_V(1));
+	req->dlen = cpu_to_be32(ULP_MEMIO_DATA_LEN_V(len>>5));
+	req->len16 = cpu_to_be32(DIV_ROUND_UP(wr_len-sizeof(req->wr), 16));
+	req->lock_addr = cpu_to_be32(ULP_MEMIO_ADDR_V(addr));
+
+	sgl = (struct ulptx_sgl *)(req + 1);
+	sgl->cmd_nsge = cpu_to_be32(ULPTX_CMD_V(ULP_TX_SC_DSGL) |
+				    ULPTX_NSGE_V(1));
+	sgl->len0 = cpu_to_be32(len);
+	sgl->addr0 = cpu_to_be64(data);
+
+	ret = c4iw_ofld_send(rdev, skb);
+	if (ret)
+		return ret;
+	if (wait)
+		ret = c4iw_wait_for_reply(rdev, &wr_wait, 0, 0, __func__);
+	return ret;
+}
+
+static int _c4iw_write_mem_inline(struct c4iw_rdev *rdev, u32 addr, u32 len,
+				  void *data)
 {
 	struct sk_buff *skb;
 	struct ulp_mem_io *req;
@@ -47,6 +114,12 @@ static int write_adapter_mem(struct c4iw_rdev *rdev, u32 addr, u32 len,
 	u8 wr_len, *to_dp, *from_dp;
 	int copy_len, num_wqe, i, ret = 0;
 	struct c4iw_wr_wait wr_wait;
+	__be32 cmd = cpu_to_be32(ULPTX_CMD_V(ULP_TX_MEM_WRITE));
+
+	if (is_t4(rdev->lldi.adapter_type))
+		cmd |= cpu_to_be32(ULP_MEMIO_ORDER_F);
+	else
+		cmd |= cpu_to_be32(T5_ULP_MEMIO_IMM_F);
 
 	addr &= 0x7FFFFFF;
 	PDBG("%s addr 0x%x len %u\n", __func__, addr, len);
@@ -69,23 +142,23 @@ static int write_adapter_mem(struct c4iw_rdev *rdev, u32 addr, u32 len,
 		INIT_ULPTX_WR(req, wr_len, 0, 0);
 
 		if (i == (num_wqe-1)) {
-			req->wr.wr_hi = cpu_to_be32(FW_WR_OP(FW_ULPTX_WR) |
-						    FW_WR_COMPL(1));
+			req->wr.wr_hi = cpu_to_be32(FW_WR_OP_V(FW_ULPTX_WR) |
+						    FW_WR_COMPL_F);
 			req->wr.wr_lo = (__force __be64)(unsigned long) &wr_wait;
 		} else
-			req->wr.wr_hi = cpu_to_be32(FW_WR_OP(FW_ULPTX_WR));
+			req->wr.wr_hi = cpu_to_be32(FW_WR_OP_V(FW_ULPTX_WR));
 		req->wr.wr_mid = cpu_to_be32(
-				       FW_WR_LEN16(DIV_ROUND_UP(wr_len, 16)));
+				       FW_WR_LEN16_V(DIV_ROUND_UP(wr_len, 16)));
 
-		req->cmd = cpu_to_be32(ULPTX_CMD(ULP_TX_MEM_WRITE) | (1<<23));
-		req->dlen = cpu_to_be32(ULP_MEMIO_DATA_LEN(
+		req->cmd = cmd;
+		req->dlen = cpu_to_be32(ULP_MEMIO_DATA_LEN_V(
 				DIV_ROUND_UP(copy_len, T4_ULPTX_MIN_IO)));
 		req->len16 = cpu_to_be32(DIV_ROUND_UP(wr_len-sizeof(req->wr),
 						      16));
-		req->lock_addr = cpu_to_be32(ULP_MEMIO_ADDR(addr + i * 3));
+		req->lock_addr = cpu_to_be32(ULP_MEMIO_ADDR_V(addr + i * 3));
 
 		sc = (struct ulptx_idata *)(req + 1);
-		sc->cmd_more = cpu_to_be32(ULPTX_CMD(ULP_TX_SC_IMM));
+		sc->cmd_more = cpu_to_be32(ULPTX_CMD_V(ULP_TX_SC_IMM));
 		sc->len = cpu_to_be32(roundup(copy_len, T4_ULPTX_MIN_IO));
 
 		to_dp = (u8 *)(sc + 1);
@@ -105,6 +178,67 @@ static int write_adapter_mem(struct c4iw_rdev *rdev, u32 addr, u32 len,
 
 	ret = c4iw_wait_for_reply(rdev, &wr_wait, 0, 0, __func__);
 	return ret;
+}
+
+static int _c4iw_write_mem_dma(struct c4iw_rdev *rdev, u32 addr, u32 len, void *data)
+{
+	u32 remain = len;
+	u32 dmalen;
+	int ret = 0;
+	dma_addr_t daddr;
+	dma_addr_t save;
+
+	daddr = dma_map_single(&rdev->lldi.pdev->dev, data, len, DMA_TO_DEVICE);
+	if (dma_mapping_error(&rdev->lldi.pdev->dev, daddr))
+		return -1;
+	save = daddr;
+
+	while (remain > inline_threshold) {
+		if (remain < T4_ULPTX_MAX_DMA) {
+			if (remain & ~T4_ULPTX_MIN_IO)
+				dmalen = remain & ~(T4_ULPTX_MIN_IO-1);
+			else
+				dmalen = remain;
+		} else
+			dmalen = T4_ULPTX_MAX_DMA;
+		remain -= dmalen;
+		ret = _c4iw_write_mem_dma_aligned(rdev, addr, dmalen, daddr,
+						 !remain);
+		if (ret)
+			goto out;
+		addr += dmalen >> 5;
+		data += dmalen;
+		daddr += dmalen;
+	}
+	if (remain)
+		ret = _c4iw_write_mem_inline(rdev, addr, remain, data);
+out:
+	dma_unmap_single(&rdev->lldi.pdev->dev, save, len, DMA_TO_DEVICE);
+	return ret;
+}
+
+/*
+ * write len bytes of data into addr (32B aligned address)
+ * If data is NULL, clear len byte of memory to zero.
+ */
+static int write_adapter_mem(struct c4iw_rdev *rdev, u32 addr, u32 len,
+			     void *data)
+{
+	if (is_t5(rdev->lldi.adapter_type) && use_dsgl) {
+		if (len > inline_threshold) {
+			if (_c4iw_write_mem_dma(rdev, addr, len, data)) {
+				printk_ratelimited(KERN_WARNING
+						   "%s: dma map"
+						   " failure (non fatal)\n",
+						   pci_name(rdev->lldi.pdev));
+				return _c4iw_write_mem_inline(rdev, addr, len,
+							      data);
+			} else
+				return 0;
+		} else
+			return _c4iw_write_mem_inline(rdev, addr, len, data);
+	} else
+		return _c4iw_write_mem_inline(rdev, addr, len, data);
 }
 
 /*
@@ -131,10 +265,18 @@ static int write_tpt_entry(struct c4iw_rdev *rdev, u32 reset_tpt_entry,
 	stag_idx = (*stag) >> 8;
 
 	if ((!reset_tpt_entry) && (*stag == T4_STAG_UNSET)) {
-		stag_idx = c4iw_get_resource(&rdev->resource.tpt_fifo,
-					     &rdev->resource.tpt_fifo_lock);
-		if (!stag_idx)
+		stag_idx = c4iw_get_resource(&rdev->resource.tpt_table);
+		if (!stag_idx) {
+			mutex_lock(&rdev->stats.lock);
+			rdev->stats.stag.fail++;
+			mutex_unlock(&rdev->stats.lock);
 			return -ENOMEM;
+		}
+		mutex_lock(&rdev->stats.lock);
+		rdev->stats.stag.cur += 32;
+		if (rdev->stats.stag.cur > rdev->stats.stag.max)
+			rdev->stats.stag.max = rdev->stats.stag.cur;
+		mutex_unlock(&rdev->stats.lock);
 		*stag = (stag_idx << 8) | (atomic_inc_return(&key) & 0xff);
 	}
 	PDBG("%s stag_state 0x%0x type 0x%0x pdid 0x%0x, stag_idx 0x%x\n",
@@ -144,17 +286,17 @@ static int write_tpt_entry(struct c4iw_rdev *rdev, u32 reset_tpt_entry,
 	if (reset_tpt_entry)
 		memset(&tpt, 0, sizeof(tpt));
 	else {
-		tpt.valid_to_pdid = cpu_to_be32(F_FW_RI_TPTE_VALID |
-			V_FW_RI_TPTE_STAGKEY((*stag & M_FW_RI_TPTE_STAGKEY)) |
-			V_FW_RI_TPTE_STAGSTATE(stag_state) |
-			V_FW_RI_TPTE_STAGTYPE(type) | V_FW_RI_TPTE_PDID(pdid));
-		tpt.locread_to_qpid = cpu_to_be32(V_FW_RI_TPTE_PERM(perm) |
-			(bind_enabled ? F_FW_RI_TPTE_MWBINDEN : 0) |
-			V_FW_RI_TPTE_ADDRTYPE((zbva ? FW_RI_ZERO_BASED_TO :
+		tpt.valid_to_pdid = cpu_to_be32(FW_RI_TPTE_VALID_F |
+			FW_RI_TPTE_STAGKEY_V((*stag & FW_RI_TPTE_STAGKEY_M)) |
+			FW_RI_TPTE_STAGSTATE_V(stag_state) |
+			FW_RI_TPTE_STAGTYPE_V(type) | FW_RI_TPTE_PDID_V(pdid));
+		tpt.locread_to_qpid = cpu_to_be32(FW_RI_TPTE_PERM_V(perm) |
+			(bind_enabled ? FW_RI_TPTE_MWBINDEN_F : 0) |
+			FW_RI_TPTE_ADDRTYPE_V((zbva ? FW_RI_ZERO_BASED_TO :
 						      FW_RI_VA_BASED_TO))|
-			V_FW_RI_TPTE_PS(page_size));
+			FW_RI_TPTE_PS_V(page_size));
 		tpt.nosnoop_pbladdr = !pbl_size ? 0 : cpu_to_be32(
-			V_FW_RI_TPTE_PBLADDR(PBL_OFF(rdev, pbl_addr)>>3));
+			FW_RI_TPTE_PBLADDR_V(PBL_OFF(rdev, pbl_addr)>>3));
 		tpt.len_lo = cpu_to_be32((u32)(len & 0xffffffffUL));
 		tpt.va_hi = cpu_to_be32((u32)(to >> 32));
 		tpt.va_lo_fbo = cpu_to_be32((u32)(to & 0xffffffffUL));
@@ -165,9 +307,12 @@ static int write_tpt_entry(struct c4iw_rdev *rdev, u32 reset_tpt_entry,
 				(rdev->lldi.vr->stag.start >> 5),
 				sizeof(tpt), &tpt);
 
-	if (reset_tpt_entry)
-		c4iw_put_resource(&rdev->resource.tpt_fifo, stag_idx,
-				  &rdev->resource.tpt_fifo_lock);
+	if (reset_tpt_entry) {
+		c4iw_put_resource(&rdev->resource.tpt_table, stag_idx);
+		mutex_lock(&rdev->stats.lock);
+		rdev->stats.stag.cur -= 32;
+		mutex_unlock(&rdev->stats.lock);
+	}
 	return err;
 }
 
@@ -231,9 +376,11 @@ static int register_mem(struct c4iw_dev *rhp, struct c4iw_pd *php,
 	int ret;
 
 	ret = write_tpt_entry(&rhp->rdev, 0, &stag, 1, mhp->attr.pdid,
-			      FW_RI_STAG_NSMR, mhp->attr.perms,
+			      FW_RI_STAG_NSMR, mhp->attr.len ?
+			      mhp->attr.perms : 0,
 			      mhp->attr.mw_bind_enable, mhp->attr.zbva,
-			      mhp->attr.va_fbo, mhp->attr.len, shift - 12,
+			      mhp->attr.va_fbo, mhp->attr.len ?
+			      mhp->attr.len : -1, shift - 12,
 			      mhp->attr.pbl_size, mhp->attr.pbl_addr);
 	if (ret)
 		return ret;
@@ -398,6 +545,11 @@ int c4iw_reregister_phys_mem(struct ib_mr *mr, int mr_rereg_mask,
 			return ret;
 	}
 
+	if (mr_exceeds_hw_limits(rhp, total_size)) {
+		kfree(page_list);
+		return -EINVAL;
+	}
+
 	ret = reregister_mem(rhp, php, &mh, shift, npages);
 	kfree(page_list);
 	if (ret)
@@ -458,10 +610,16 @@ struct ib_mr *c4iw_register_phys_mem(struct ib_pd *pd,
 	if (ret)
 		goto err;
 
+	if (mr_exceeds_hw_limits(rhp, total_size)) {
+		kfree(page_list);
+		ret = -EINVAL;
+		goto err;
+	}
+
 	ret = alloc_pbl(mhp, npages);
 	if (ret) {
 		kfree(page_list);
-		goto err_pbl;
+		goto err;
 	}
 
 	ret = write_pbl(&mhp->rhp->rdev, page_list, mhp->attr.pbl_addr,
@@ -544,9 +702,9 @@ struct ib_mr *c4iw_reg_user_mr(struct ib_pd *pd, u64 start, u64 length,
 {
 	__be64 *pages;
 	int shift, n, len;
-	int i, j, k;
+	int i, k, entry;
 	int err = 0;
-	struct ib_umem_chunk *chunk;
+	struct scatterlist *sg;
 	struct c4iw_dev *rhp;
 	struct c4iw_pd *php;
 	struct c4iw_mr *mhp;
@@ -561,6 +719,10 @@ struct ib_mr *c4iw_reg_user_mr(struct ib_pd *pd, u64 start, u64 length,
 
 	php = to_c4iw_pd(pd);
 	rhp = php->rhp;
+
+	if (mr_exceeds_hw_limits(rhp, length))
+		return ERR_PTR(-EINVAL);
+
 	mhp = kzalloc(sizeof(*mhp), GFP_KERNEL);
 	if (!mhp)
 		return ERR_PTR(-ENOMEM);
@@ -576,10 +738,7 @@ struct ib_mr *c4iw_reg_user_mr(struct ib_pd *pd, u64 start, u64 length,
 
 	shift = ffs(mhp->umem->page_size) - 1;
 
-	n = 0;
-	list_for_each_entry(chunk, &mhp->umem->chunk_list, list)
-		n += chunk->nents;
-
+	n = mhp->umem->nmap;
 	err = alloc_pbl(mhp, n);
 	if (err)
 		goto err;
@@ -592,24 +751,22 @@ struct ib_mr *c4iw_reg_user_mr(struct ib_pd *pd, u64 start, u64 length,
 
 	i = n = 0;
 
-	list_for_each_entry(chunk, &mhp->umem->chunk_list, list)
-		for (j = 0; j < chunk->nmap; ++j) {
-			len = sg_dma_len(&chunk->page_list[j]) >> shift;
-			for (k = 0; k < len; ++k) {
-				pages[i++] = cpu_to_be64(sg_dma_address(
-					&chunk->page_list[j]) +
-					mhp->umem->page_size * k);
-				if (i == PAGE_SIZE / sizeof *pages) {
-					err = write_pbl(&mhp->rhp->rdev,
-					      pages,
-					      mhp->attr.pbl_addr + (n << 3), i);
-					if (err)
-						goto pbl_done;
-					n += i;
-					i = 0;
-				}
+	for_each_sg(mhp->umem->sg_head.sgl, sg, mhp->umem->nmap, entry) {
+		len = sg_dma_len(sg) >> shift;
+		for (k = 0; k < len; ++k) {
+			pages[i++] = cpu_to_be64(sg_dma_address(sg) +
+				mhp->umem->page_size * k);
+			if (i == PAGE_SIZE / sizeof *pages) {
+				err = write_pbl(&mhp->rhp->rdev,
+				      pages,
+				      mhp->attr.pbl_addr + (n << 3), i);
+				if (err)
+					goto pbl_done;
+				n += i;
+				i = 0;
 			}
 		}
+	}
 
 	if (i)
 		err = write_pbl(&mhp->rhp->rdev, pages,
@@ -643,7 +800,7 @@ err:
 	return ERR_PTR(err);
 }
 
-struct ib_mw *c4iw_alloc_mw(struct ib_pd *pd)
+struct ib_mw *c4iw_alloc_mw(struct ib_pd *pd, enum ib_mw_type type)
 {
 	struct c4iw_dev *rhp;
 	struct c4iw_pd *php;
@@ -651,6 +808,9 @@ struct ib_mw *c4iw_alloc_mw(struct ib_pd *pd)
 	u32 mmid;
 	u32 stag = 0;
 	int ret;
+
+	if (type != IB_MW_TYPE_1)
+		return ERR_PTR(-EINVAL);
 
 	php = to_c4iw_pd(pd);
 	rhp = php->rhp;
@@ -686,8 +846,8 @@ int c4iw_dealloc_mw(struct ib_mw *mw)
 	mhp = to_c4iw_mw(mw);
 	rhp = mhp->rhp;
 	mmid = (mw->rkey) >> 8;
-	deallocate_window(&rhp->rdev, mhp->attr.stag);
 	remove_handle(rhp, &rhp->mmidr, mmid);
+	deallocate_window(&rhp->rdev, mhp->attr.stag);
 	kfree(mhp);
 	PDBG("%s ib_mw %p mmid 0x%x ptr %p\n", __func__, mw, mmid, mhp);
 	return 0;
@@ -750,19 +910,27 @@ struct ib_fast_reg_page_list *c4iw_alloc_fastreg_pbl(struct ib_device *device,
 	struct c4iw_fr_page_list *c4pl;
 	struct c4iw_dev *dev = to_c4iw_dev(device);
 	dma_addr_t dma_addr;
-	int size = sizeof *c4pl + page_list_len * sizeof(u64);
+	int pll_len = roundup(page_list_len * sizeof(u64), 32);
 
-	c4pl = dma_alloc_coherent(&dev->rdev.lldi.pdev->dev, size,
-				  &dma_addr, GFP_KERNEL);
+	c4pl = kmalloc(sizeof(*c4pl), GFP_KERNEL);
 	if (!c4pl)
 		return ERR_PTR(-ENOMEM);
 
+	c4pl->ibpl.page_list = dma_alloc_coherent(&dev->rdev.lldi.pdev->dev,
+						  pll_len, &dma_addr,
+						  GFP_KERNEL);
+	if (!c4pl->ibpl.page_list) {
+		kfree(c4pl);
+		return ERR_PTR(-ENOMEM);
+	}
 	dma_unmap_addr_set(c4pl, mapping, dma_addr);
 	c4pl->dma_addr = dma_addr;
 	c4pl->dev = dev;
-	c4pl->size = size;
-	c4pl->ibpl.page_list = (u64 *)(c4pl + 1);
-	c4pl->ibpl.max_page_list_len = page_list_len;
+	c4pl->pll_len = pll_len;
+
+	PDBG("%s c4pl %p pll_len %u page_list %p dma_addr %pad\n",
+	     __func__, c4pl, c4pl->pll_len, c4pl->ibpl.page_list,
+	     &c4pl->dma_addr);
 
 	return &c4pl->ibpl;
 }
@@ -771,8 +939,14 @@ void c4iw_free_fastreg_pbl(struct ib_fast_reg_page_list *ibpl)
 {
 	struct c4iw_fr_page_list *c4pl = to_c4iw_fr_page_list(ibpl);
 
-	dma_free_coherent(&c4pl->dev->rdev.lldi.pdev->dev, c4pl->size,
-			  c4pl, dma_unmap_addr(c4pl, mapping));
+	PDBG("%s c4pl %p pll_len %u page_list %p dma_addr %pad\n",
+	     __func__, c4pl, c4pl->pll_len, c4pl->ibpl.page_list,
+	     &c4pl->dma_addr);
+
+	dma_free_coherent(&c4pl->dev->rdev.lldi.pdev->dev,
+			  c4pl->pll_len,
+			  c4pl->ibpl.page_list, dma_unmap_addr(c4pl, mapping));
+	kfree(c4pl);
 }
 
 int c4iw_dereg_mr(struct ib_mr *ib_mr)
@@ -789,12 +963,12 @@ int c4iw_dereg_mr(struct ib_mr *ib_mr)
 	mhp = to_c4iw_mr(ib_mr);
 	rhp = mhp->rhp;
 	mmid = mhp->attr.stag >> 8;
+	remove_handle(rhp, &rhp->mmidr, mmid);
 	dereg_mem(&rhp->rdev, mhp->attr.stag, mhp->attr.pbl_size,
 		       mhp->attr.pbl_addr);
 	if (mhp->attr.pbl_size)
 		c4iw_pblpool_free(&mhp->rhp->rdev, mhp->attr.pbl_addr,
 				  mhp->attr.pbl_size << 3);
-	remove_handle(rhp, &rhp->mmidr, mmid);
 	if (mhp->kva)
 		kfree((void *) (unsigned long) mhp->kva);
 	if (mhp->umem)

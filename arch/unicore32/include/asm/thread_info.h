@@ -79,7 +79,6 @@ struct thread_info {
 #ifdef CONFIG_UNICORE_FPU_F64
 	struct fp_state		fpstate __attribute__((aligned(8)));
 #endif
-	struct restart_block	restart_block;
 };
 
 #define INIT_THREAD_INFO(tsk)						\
@@ -89,9 +88,6 @@ struct thread_info {
 	.flags		= 0,						\
 	.preempt_count	= INIT_PREEMPT_COUNT,				\
 	.addr_limit	= KERNEL_DS,					\
-	.restart_block	= {						\
-		.fn	= do_no_restart_syscall,			\
-	},								\
 }
 
 #define init_thread_info	(init_thread_union.thread_info)
@@ -118,12 +114,6 @@ static inline struct thread_info *current_thread_info(void)
 #endif
 
 /*
- * We use bit 30 of the preempt_count to indicate that kernel
- * preemption is occurring.  See <asm/hardirq.h>.
- */
-#define PREEMPT_ACTIVE	0x40000000
-
-/*
  * thread information flags:
  *  TIF_SYSCALL_TRACE	- syscall trace active
  *  TIF_SIGPENDING	- signal pending
@@ -135,20 +125,18 @@ static inline struct thread_info *current_thread_info(void)
 #define TIF_NOTIFY_RESUME	2	/* callback before returning to user */
 #define TIF_SYSCALL_TRACE	8
 #define TIF_MEMDIE		18
-#define TIF_FREEZE		19
 #define TIF_RESTORE_SIGMASK	20
 
 #define _TIF_SIGPENDING		(1 << TIF_SIGPENDING)
 #define _TIF_NEED_RESCHED	(1 << TIF_NEED_RESCHED)
 #define _TIF_NOTIFY_RESUME	(1 << TIF_NOTIFY_RESUME)
 #define _TIF_SYSCALL_TRACE	(1 << TIF_SYSCALL_TRACE)
-#define _TIF_FREEZE		(1 << TIF_FREEZE)
-#define _TIF_RESTORE_SIGMASK	(1 << TIF_RESTORE_SIGMASK)
 
 /*
  * Change these and you break ASM code in entry-common.S
  */
-#define _TIF_WORK_MASK		0x000000ff
+#define _TIF_WORK_MASK \
+	(_TIF_SIGPENDING | _TIF_NEED_RESCHED | _TIF_NOTIFY_RESUME)
 
 #endif /* __KERNEL__ */
 #endif /* __UNICORE_THREAD_INFO_H__ */

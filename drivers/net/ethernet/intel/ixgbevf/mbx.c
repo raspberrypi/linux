@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel 82599 Virtual Function driver
-  Copyright(c) 1999 - 2010 Intel Corporation.
+  Copyright(c) 1999 - 2012 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -26,6 +26,7 @@
 *******************************************************************************/
 
 #include "mbx.h"
+#include "ixgbevf.h"
 
 /**
  *  ixgbevf_poll_for_msg - Wait for message notification
@@ -85,14 +86,17 @@ static s32 ixgbevf_poll_for_ack(struct ixgbe_hw *hw)
 static s32 ixgbevf_read_posted_mbx(struct ixgbe_hw *hw, u32 *msg, u16 size)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	s32 ret_val = IXGBE_ERR_MBX;
+	s32 ret_val = -IXGBE_ERR_MBX;
+
+	if (!mbx->ops.read)
+		goto out;
 
 	ret_val = ixgbevf_poll_for_msg(hw);
 
 	/* if ack received read message, otherwise we timed out */
 	if (!ret_val)
 		ret_val = mbx->ops.read(hw, msg, size);
-
+out:
 	return ret_val;
 }
 
@@ -108,7 +112,11 @@ static s32 ixgbevf_read_posted_mbx(struct ixgbe_hw *hw, u32 *msg, u16 size)
 static s32 ixgbevf_write_posted_mbx(struct ixgbe_hw *hw, u32 *msg, u16 size)
 {
 	struct ixgbe_mbx_info *mbx = &hw->mbx;
-	s32 ret_val;
+	s32 ret_val = -IXGBE_ERR_MBX;
+
+	/* exit if either we can't write or there isn't a defined timeout */
+	if (!mbx->ops.write || !mbx->timeout)
+		goto out;
 
 	/* send msg */
 	ret_val = mbx->ops.write(hw, msg, size);
@@ -116,7 +124,7 @@ static s32 ixgbevf_write_posted_mbx(struct ixgbe_hw *hw, u32 *msg, u16 size)
 	/* if msg sent wait until we receive an ack */
 	if (!ret_val)
 		ret_val = ixgbevf_poll_for_ack(hw);
-
+out:
 	return ret_val;
 }
 
@@ -328,7 +336,7 @@ static s32 ixgbevf_init_mbx_params_vf(struct ixgbe_hw *hw)
 	return 0;
 }
 
-struct ixgbe_mbx_operations ixgbevf_mbx_ops = {
+const struct ixgbe_mbx_operations ixgbevf_mbx_ops = {
 	.init_params   = ixgbevf_init_mbx_params_vf,
 	.read          = ixgbevf_read_mbx_vf,
 	.write         = ixgbevf_write_mbx_vf,

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005 - 2011 Emulex
+ * Copyright (C) 2005 - 2014 Emulex
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -31,12 +31,12 @@
 
 #define MPU_EP_CONTROL 		0
 
-/********** MPU semphore ******************/
-#define MPU_EP_SEMAPHORE_OFFSET		0xac
-#define MPU_EP_SEMAPHORE_IF_TYPE2_OFFSET	0x400
-#define EP_SEMAPHORE_POST_STAGE_MASK		0x0000FFFF
-#define EP_SEMAPHORE_POST_ERR_MASK		0x1
-#define EP_SEMAPHORE_POST_ERR_SHIFT		31
+/********** MPU semphore: used for SH & BE  *************/
+#define SLIPORT_SEMAPHORE_OFFSET_BEx		0xac  /* CSR BAR offset */
+#define SLIPORT_SEMAPHORE_OFFSET_SH		0x94  /* PCI-CFG offset */
+#define POST_STAGE_MASK				0x0000FFFF
+#define POST_ERR_MASK				0x1
+#define POST_ERR_SHIFT				31
 
 /* MPU semphore POST stage values */
 #define POST_STAGE_AWAITING_HOST_RDY 	0x1 /* FW awaiting goahead from host */
@@ -45,18 +45,27 @@
 #define POST_STAGE_ARMFW_RDY		0xc000	/* FW is done with POST */
 
 
-/* Lancer SLIPORT_CONTROL SLIPORT_STATUS registers */
+/* Lancer SLIPORT registers */
 #define SLIPORT_STATUS_OFFSET		0x404
 #define SLIPORT_CONTROL_OFFSET		0x408
 #define SLIPORT_ERROR1_OFFSET		0x40C
 #define SLIPORT_ERROR2_OFFSET		0x410
+#define PHYSDEV_CONTROL_OFFSET		0x414
 
 #define SLIPORT_STATUS_ERR_MASK		0x80000000
+#define SLIPORT_STATUS_DIP_MASK		0x02000000
 #define SLIPORT_STATUS_RN_MASK		0x01000000
 #define SLIPORT_STATUS_RDY_MASK		0x00800000
-
-
 #define SLI_PORT_CONTROL_IP_MASK	0x08000000
+#define PHYSDEV_CONTROL_FW_RESET_MASK	0x00000002
+#define PHYSDEV_CONTROL_DD_MASK		0x00000004
+#define PHYSDEV_CONTROL_INP_MASK	0x40000000
+
+#define SLIPORT_ERROR_NO_RESOURCE1	0x2
+#define SLIPORT_ERROR_NO_RESOURCE2	0x9
+
+#define SLIPORT_ERROR_FW_RESET1		0x2
+#define SLIPORT_ERROR_FW_RESET2		0x0
 
 /********* Memory BAR register ************/
 #define PCICFG_MEMBAR_CTRL_INT_CTRL_OFFSET 	0xfc
@@ -66,7 +75,11 @@
  * atomically without having to arbitrate for the PCI Interrupt Disable bit
  * with the OS.
  */
-#define MEMBAR_CTRL_INT_CTRL_HOSTINTR_MASK	(1 << 29) /* bit 29 */
+#define MEMBAR_CTRL_INT_CTRL_HOSTINTR_MASK	BIT(29) /* bit 29 */
+
+/********* PCI Function Capability *********/
+#define BE_FUNCTION_CAPS_RSS			0x2
+#define BE_FUNCTION_CAPS_SUPER_NIC		0x40
 
 /********* Power management (WOL) **********/
 #define PCICFG_PM_CONTROL_OFFSET		0x44
@@ -98,11 +111,8 @@
 #define SLI_INTF_REV_SHIFT			4
 #define SLI_INTF_FT_MASK			0x00000001
 
-
-/* SLI family */
-#define BE_SLI_FAMILY		0x0
-#define LANCER_A0_SLI_FAMILY	0xA
-
+#define SLI_INTF_TYPE_2		2
+#define SLI_INTF_TYPE_3		3
 
 /********* ISR0 Register offset **********/
 #define CEV_ISR0_OFFSET 			0xC18
@@ -161,68 +171,6 @@
 #define RETRIEVE_FAT	0
 #define QUERY_FAT	1
 
-/* Flashrom related descriptors */
-#define IMAGE_TYPE_FIRMWARE		160
-#define IMAGE_TYPE_BOOTCODE		224
-#define IMAGE_TYPE_OPTIONROM		32
-
-#define NUM_FLASHDIR_ENTRIES		32
-
-#define IMG_TYPE_ISCSI_ACTIVE		0
-#define IMG_TYPE_REDBOOT		1
-#define IMG_TYPE_BIOS			2
-#define IMG_TYPE_PXE_BIOS		3
-#define IMG_TYPE_FCOE_BIOS		8
-#define IMG_TYPE_ISCSI_BACKUP		9
-#define IMG_TYPE_FCOE_FW_ACTIVE		10
-#define IMG_TYPE_FCOE_FW_BACKUP 	11
-#define IMG_TYPE_NCSI_FW		13
-#define IMG_TYPE_PHY_FW			99
-#define TN_8022				13
-
-#define ILLEGAL_IOCTL_REQ		2
-#define FLASHROM_OPER_PHY_FLASH		9
-#define FLASHROM_OPER_PHY_SAVE		10
-#define FLASHROM_OPER_FLASH		1
-#define FLASHROM_OPER_SAVE		2
-#define FLASHROM_OPER_REPORT		4
-
-#define FLASH_IMAGE_MAX_SIZE_g2		(1310720) /* Max firmware image size */
-#define FLASH_BIOS_IMAGE_MAX_SIZE_g2	(262144)  /* Max OPTION ROM image sz */
-#define FLASH_REDBOOT_IMAGE_MAX_SIZE_g2	(262144)  /* Max Redboot image sz    */
-#define FLASH_IMAGE_MAX_SIZE_g3		(2097152) /* Max firmware image size */
-#define FLASH_BIOS_IMAGE_MAX_SIZE_g3	(524288)  /* Max OPTION ROM image sz */
-#define FLASH_REDBOOT_IMAGE_MAX_SIZE_g3	(1048576)  /* Max Redboot image sz    */
-#define FLASH_NCSI_IMAGE_MAX_SIZE_g3	(262144)
-#define FLASH_PHY_FW_IMAGE_MAX_SIZE_g3	262144
-
-#define FLASH_NCSI_MAGIC		(0x16032009)
-#define FLASH_NCSI_DISABLED		(0)
-#define FLASH_NCSI_ENABLED		(1)
-
-#define FLASH_NCSI_BITFILE_HDR_OFFSET	(0x600000)
-
-/* Offsets for components on Flash. */
-#define FLASH_iSCSI_PRIMARY_IMAGE_START_g2 (1048576)
-#define FLASH_iSCSI_BACKUP_IMAGE_START_g2  (2359296)
-#define FLASH_FCoE_PRIMARY_IMAGE_START_g2  (3670016)
-#define FLASH_FCoE_BACKUP_IMAGE_START_g2   (4980736)
-#define FLASH_iSCSI_BIOS_START_g2          (7340032)
-#define FLASH_PXE_BIOS_START_g2            (7864320)
-#define FLASH_FCoE_BIOS_START_g2           (524288)
-#define FLASH_REDBOOT_START_g2		  (0)
-
-#define FLASH_NCSI_START_g3		   (15990784)
-#define FLASH_iSCSI_PRIMARY_IMAGE_START_g3 (2097152)
-#define FLASH_iSCSI_BACKUP_IMAGE_START_g3  (4194304)
-#define FLASH_FCoE_PRIMARY_IMAGE_START_g3  (6291456)
-#define FLASH_FCoE_BACKUP_IMAGE_START_g3   (8388608)
-#define FLASH_iSCSI_BIOS_START_g3          (12582912)
-#define FLASH_PXE_BIOS_START_g3            (13107200)
-#define FLASH_FCoE_BIOS_START_g3           (13631488)
-#define FLASH_REDBOOT_START_g3             (262144)
-#define FLASH_PHY_FW_START_g3		   1310720
-
 /************* Rx Packet Type Encoding **************/
 #define BE_UNICAST_PACKET		0
 #define BE_MULTICAST_PACKET		1
@@ -245,10 +193,10 @@ struct be_eq_entry {
 /* TX Queue Descriptor */
 #define ETH_WRB_FRAG_LEN_MASK		0xFFFF
 struct be_eth_wrb {
-	u32 frag_pa_hi;		/* dword 0 */
-	u32 frag_pa_lo;		/* dword 1 */
-	u32 rsvd0;		/* dword 2 */
-	u32 frag_len;		/* dword 3: bits 0 - 15 */
+	__le32 frag_pa_hi;		/* dword 0 */
+	__le32 frag_pa_lo;		/* dword 1 */
+	u32 rsvd0;			/* dword 2 */
+	__le32 frag_len;		/* dword 3: bits 0 - 15 */
 } __packed;
 
 /* Pseudo amap definition for eth_hdr_wrb in which each bit of the
@@ -275,9 +223,26 @@ struct amap_eth_hdr_wrb {
 	u8 vlan_tag[16];
 } __packed;
 
+#define TX_HDR_WRB_COMPL		1		/* word 2 */
+#define TX_HDR_WRB_EVT			BIT(1)		/* word 2 */
+#define TX_HDR_WRB_NUM_SHIFT		13		/* word 2: bits 13:17 */
+#define TX_HDR_WRB_NUM_MASK		0x1F		/* word 2: bits 13:17 */
+
 struct be_eth_hdr_wrb {
-	u32 dw[4];
+	__le32 dw[4];
 };
+
+/********* Tx Compl Status Encoding *********/
+#define BE_TX_COMP_HDR_PARSE_ERR	0x2
+#define BE_TX_COMP_NDMA_ERR		0x3
+#define BE_TX_COMP_ACL_ERR		0x5
+
+#define LANCER_TX_COMP_LSO_ERR			0x1
+#define LANCER_TX_COMP_HSW_DROP_MAC_ERR		0x3
+#define LANCER_TX_COMP_HSW_DROP_VLAN_ERR	0x5
+#define LANCER_TX_COMP_QINQ_ERR			0x7
+#define LANCER_TX_COMP_PARITY_ERR		0xb
+#define LANCER_TX_COMP_DMA_ERR			0xd
 
 /* TX Compl Queue Descriptor */
 
@@ -332,14 +297,14 @@ struct amap_eth_rx_compl_v0 {
 	u8 ip_version;		/* dword 1 */
 	u8 macdst[6];		/* dword 1 */
 	u8 vtp;			/* dword 1 */
-	u8 rsvd0;		/* dword 1 */
+	u8 ip_frag;		/* dword 1 */
 	u8 fragndx[10];		/* dword 1 */
 	u8 ct[2];		/* dword 1 */
 	u8 sw;			/* dword 1 */
 	u8 numfrags[3];		/* dword 1 */
 	u8 rss_flush;		/* dword 2 */
 	u8 cast_enc[2];		/* dword 2 */
-	u8 vtm;			/* dword 2 */
+	u8 qnq;			/* dword 2 */
 	u8 rss_bank;		/* dword 2 */
 	u8 rsvd1[23];		/* dword 2 */
 	u8 lro_pkt;		/* dword 2 */
@@ -372,141 +337,18 @@ struct amap_eth_rx_compl_v1 {
 	u8 numfrags[3];		/* dword 1 */
 	u8 rss_flush;		/* dword 2 */
 	u8 cast_enc[2];		/* dword 2 */
-	u8 vtm;			/* dword 2 */
+	u8 qnq;			/* dword 2 */
 	u8 rss_bank;		/* dword 2 */
 	u8 port[2];		/* dword 2 */
 	u8 vntagp;		/* dword 2 */
 	u8 header_len[8];	/* dword 2 */
 	u8 header_split[2];	/* dword 2 */
-	u8 rsvd1[13];		/* dword 2 */
+	u8 rsvd1[12];		/* dword 2 */
+	u8 tunneled;
 	u8 valid;		/* dword 2 */
 	u8 rsshash[32];		/* dword 3 */
 } __packed;
 
 struct be_eth_rx_compl {
 	u32 dw[4];
-};
-
-struct mgmt_hba_attribs {
-	u8 flashrom_version_string[32];
-	u8 manufacturer_name[32];
-	u32 supported_modes;
-	u32 rsvd0[3];
-	u8 ncsi_ver_string[12];
-	u32 default_extended_timeout;
-	u8 controller_model_number[32];
-	u8 controller_description[64];
-	u8 controller_serial_number[32];
-	u8 ip_version_string[32];
-	u8 firmware_version_string[32];
-	u8 bios_version_string[32];
-	u8 redboot_version_string[32];
-	u8 driver_version_string[32];
-	u8 fw_on_flash_version_string[32];
-	u32 functionalities_supported;
-	u16 max_cdblength;
-	u8 asic_revision;
-	u8 generational_guid[16];
-	u8 hba_port_count;
-	u16 default_link_down_timeout;
-	u8 iscsi_ver_min_max;
-	u8 multifunction_device;
-	u8 cache_valid;
-	u8 hba_status;
-	u8 max_domains_supported;
-	u8 phy_port;
-	u32 firmware_post_status;
-	u32 hba_mtu[8];
-	u32 rsvd1[4];
-};
-
-struct mgmt_controller_attrib {
-	struct mgmt_hba_attribs hba_attribs;
-	u16 pci_vendor_id;
-	u16 pci_device_id;
-	u16 pci_sub_vendor_id;
-	u16 pci_sub_system_id;
-	u8 pci_bus_number;
-	u8 pci_device_number;
-	u8 pci_function_number;
-	u8 interface_type;
-	u64 unique_identifier;
-	u32 rsvd0[5];
-};
-
-struct controller_id {
-	u32 vendor;
-	u32 device;
-	u32 subvendor;
-	u32 subdevice;
-};
-
-struct flash_comp {
-	unsigned long offset;
-	int optype;
-	int size;
-};
-
-struct image_hdr {
-	u32 imageid;
-	u32 imageoffset;
-	u32 imagelength;
-	u32 image_checksum;
-	u8 image_version[32];
-};
-struct flash_file_hdr_g2 {
-	u8 sign[32];
-	u32 cksum;
-	u32 antidote;
-	struct controller_id cont_id;
-	u32 file_len;
-	u32 chunk_num;
-	u32 total_chunks;
-	u32 num_imgs;
-	u8 build[24];
-};
-
-struct flash_file_hdr_g3 {
-	u8 sign[52];
-	u8 ufi_version[4];
-	u32 file_len;
-	u32 cksum;
-	u32 antidote;
-	u32 num_imgs;
-	u8 build[24];
-	u8 rsvd[32];
-};
-
-struct flash_section_hdr {
-	u32 format_rev;
-	u32 cksum;
-	u32 antidote;
-	u32 build_no;
-	u8 id_string[64];
-	u32 active_entry_mask;
-	u32 valid_entry_mask;
-	u32 org_content_mask;
-	u32 rsvd0;
-	u32 rsvd1;
-	u32 rsvd2;
-	u32 rsvd3;
-	u32 rsvd4;
-};
-
-struct flash_section_entry {
-	u32 type;
-	u32 offset;
-	u32 pad_size;
-	u32 image_size;
-	u32 cksum;
-	u32 entry_point;
-	u32 rsvd0;
-	u32 rsvd1;
-	u8 ver_data[32];
-};
-
-struct flash_section_info {
-	u8 cookie[32];
-	struct flash_section_hdr fsec_hdr;
-	struct flash_section_entry fsec_entry[32];
 };

@@ -26,10 +26,15 @@
 #include <asm/ptrace.h>
 #include <asm/reg.h>
 
+/*
+ * Overload regs->result to specify whether we should use the MSR (result
+ * is zero) or the SIAR (result is non zero).
+ */
 #define perf_arch_fetch_caller_regs(regs, __ip)			\
 	do {							\
+		(regs)->result = 0;				\
 		(regs)->nip = __ip;				\
-		(regs)->gpr[1] = *(unsigned long *)__get_SP();	\
+		(regs)->gpr[1] = current_stack_pointer();	\
 		asm volatile("mfmsr %0" : "=r" ((regs)->msr));	\
 	} while (0)
 #endif

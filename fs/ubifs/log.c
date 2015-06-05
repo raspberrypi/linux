@@ -29,11 +29,7 @@
 
 #include "ubifs.h"
 
-#ifdef CONFIG_UBIFS_FS_DEBUG
 static int dbg_check_bud_bytes(struct ubifs_info *c);
-#else
-#define dbg_check_bud_bytes(c) 0
-#endif
 
 /**
  * ubifs_search_bud - search bud LEB.
@@ -110,10 +106,14 @@ static inline long long empty_log_bytes(const struct ubifs_info *c)
 	h = (long long)c->lhead_lnum * c->leb_size + c->lhead_offs;
 	t = (long long)c->ltail_lnum * c->leb_size;
 
-	if (h >= t)
+	if (h > t)
 		return c->log_bytes - h + t;
-	else
+	else if (h != t)
 		return t - h;
+	else if (c->lhead_lnum != c->ltail_lnum)
+		return 0;
+	else
+		return c->log_bytes;
 }
 
 /**
@@ -244,6 +244,7 @@ int ubifs_add_bud_to_log(struct ubifs_info *c, int jhead, int lnum, int offs)
 
 	if (c->lhead_offs > c->leb_size - c->ref_node_alsz) {
 		c->lhead_lnum = ubifs_next_log_lnum(c, c->lhead_lnum);
+		ubifs_assert(c->lhead_lnum != c->ltail_lnum);
 		c->lhead_offs = 0;
 	}
 
@@ -262,7 +263,7 @@ int ubifs_add_bud_to_log(struct ubifs_info *c, int jhead, int lnum, int offs)
 		 * an unclean reboot, because the target LEB might have been
 		 * unmapped, but not yet physically erased.
 		 */
-		err = ubifs_leb_map(c, bud->lnum, UBI_SHORTTERM);
+		err = ubifs_leb_map(c, bud->lnum);
 		if (err)
 			goto out_unlock;
 	}
@@ -270,7 +271,7 @@ int ubifs_add_bud_to_log(struct ubifs_info *c, int jhead, int lnum, int offs)
 	dbg_log("write ref LEB %d:%d",
 		c->lhead_lnum, c->lhead_offs);
 	err = ubifs_write_node(c, ref, UBIFS_REF_NODE_SZ, c->lhead_lnum,
-			       c->lhead_offs, UBI_SHORTTERM);
+			       c->lhead_offs);
 	if (err)
 		goto out_unlock;
 
@@ -319,17 +320,15 @@ static void remove_buds(struct ubifs_info *c)
 			 * heads (non-closed buds).
 			 */
 			c->cmt_bud_bytes += wbuf->offs - bud->start;
-			dbg_log("preserve %d:%d, jhead %s, bud bytes %d, "
-				"cmt_bud_bytes %lld", bud->lnum, bud->start,
-				dbg_jhead(bud->jhead), wbuf->offs - bud->start,
-				c->cmt_bud_bytes);
+			dbg_log("preserve %d:%d, jhead %s, bud bytes %d, cmt_bud_bytes %lld",
+				bud->lnum, bud->start, dbg_jhead(bud->jhead),
+				wbuf->offs - bud->start, c->cmt_bud_bytes);
 			bud->start = wbuf->offs;
 		} else {
 			c->cmt_bud_bytes += c->leb_size - bud->start;
-			dbg_log("remove %d:%d, jhead %s, bud bytes %d, "
-				"cmt_bud_bytes %lld", bud->lnum, bud->start,
-				dbg_jhead(bud->jhead), c->leb_size - bud->start,
-				c->cmt_bud_bytes);
+			dbg_log("remove %d:%d, jhead %s, bud bytes %d, cmt_bud_bytes %lld",
+				bud->lnum, bud->start, dbg_jhead(bud->jhead),
+				c->leb_size - bud->start, c->cmt_bud_bytes);
 			rb_erase(p1, &c->buds);
 			/*
 			 * If the commit does not finish, the recovery will need
@@ -410,19 +409,18 @@ int ubifs_log_start_commit(struct ubifs_info *c, int *ltail_lnum)
 	/* Switch to the next log LEB */
 	if (c->lhead_offs) {
 		c->lhead_lnum = ubifs_next_log_lnum(c, c->lhead_lnum);
+		ubifs_assert(c->lhead_lnum != c->ltail_lnum);
 		c->lhead_offs = 0;
 	}
 
-	if (c->lhead_offs == 0) {
-		/* Must ensure next LEB has been unmapped */
-		err = ubifs_leb_unmap(c, c->lhead_lnum);
-		if (err)
-			goto out;
-	}
+	/* Must ensure next LEB has been unmapped */
+	err = ubifs_leb_unmap(c, c->lhead_lnum);
+	if (err)
+		goto out;
 
 	len = ALIGN(len, c->min_io_size);
 	dbg_log("writing commit start at LEB %d:0, len %d", c->lhead_lnum, len);
-	err = ubifs_leb_write(c, c->lhead_lnum, cs, 0, len, UBI_SHORTTERM);
+	err = ubifs_leb_write(c, c->lhead_lnum, cs, 0, len);
 	if (err)
 		goto out;
 
@@ -453,9 +451,9 @@ out:
  * @ltail_lnum: new log tail LEB number
  *
  * This function is called on when the commit operation was finished. It
- * moves log tail to new position and unmaps LEBs which contain obsolete data.
- * Returns zero in case of success and a negative error code in case of
- * failure.
+ * moves log tail to new position and updates the master node so that it stores
+ * the new log tail LEB number. Returns zero in case of success and a negative
+ * error code in case of failure.
  */
 int ubifs_log_end_commit(struct ubifs_info *c, int ltail_lnum)
 {
@@ -483,7 +481,12 @@ int ubifs_log_end_commit(struct ubifs_info *c, int ltail_lnum)
 	spin_unlock(&c->buds_lock);
 
 	err = dbg_check_bud_bytes(c);
+	if (err)
+		goto out;
 
+	err = ubifs_write_master(c);
+
+out:
 	mutex_unlock(&c->log_mutex);
 	return err;
 }
@@ -580,27 +583,10 @@ static int done_already(struct rb_root *done_tree, int lnum)
  */
 static void destroy_done_tree(struct rb_root *done_tree)
 {
-	struct rb_node *this = done_tree->rb_node;
-	struct done_ref *dr;
+	struct done_ref *dr, *n;
 
-	while (this) {
-		if (this->rb_left) {
-			this = this->rb_left;
-			continue;
-		} else if (this->rb_right) {
-			this = this->rb_right;
-			continue;
-		}
-		dr = rb_entry(this, struct done_ref, rb);
-		this = rb_parent(this);
-		if (this) {
-			if (this->rb_left == &dr->rb)
-				this->rb_left = NULL;
-			else
-				this->rb_right = NULL;
-		}
+	rbtree_postorder_for_each_entry_safe(dr, n, done_tree, rb)
 		kfree(dr);
-	}
 }
 
 /**
@@ -623,7 +609,7 @@ static int add_node(struct ubifs_info *c, void *buf, int *lnum, int *offs,
 		int sz = ALIGN(*offs, c->min_io_size), err;
 
 		ubifs_pad(c, buf + *offs, sz - *offs);
-		err = ubifs_leb_change(c, *lnum, buf, sz, UBI_SHORTTERM);
+		err = ubifs_leb_change(c, *lnum, buf, sz);
 		if (err)
 			return err;
 		*lnum = ubifs_next_log_lnum(c, *lnum);
@@ -702,7 +688,7 @@ int ubifs_consolidate_log(struct ubifs_info *c)
 		int sz = ALIGN(offs, c->min_io_size);
 
 		ubifs_pad(c, buf + offs, sz - offs);
-		err = ubifs_leb_change(c, write_lnum, buf, sz, UBI_SHORTTERM);
+		err = ubifs_leb_change(c, write_lnum, buf, sz);
 		if (err)
 			goto out_free;
 		offs = ALIGN(offs, c->min_io_size);
@@ -733,8 +719,6 @@ out_free:
 	vfree(buf);
 	return err;
 }
-
-#ifdef CONFIG_UBIFS_FS_DEBUG
 
 /**
  * dbg_check_bud_bytes - make sure bud bytes calculation are all right.
@@ -767,5 +751,3 @@ static int dbg_check_bud_bytes(struct ubifs_info *c)
 
 	return err;
 }
-
-#endif /* CONFIG_UBIFS_FS_DEBUG */

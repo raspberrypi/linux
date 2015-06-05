@@ -157,9 +157,9 @@ static struct garp_attr *garp_attr_lookup(const struct garp_applicant *app,
 	while (parent) {
 		attr = rb_entry(parent, struct garp_attr, node);
 		d = garp_attr_cmp(attr, data, len, type);
-		if (d < 0)
+		if (d > 0)
 			parent = parent->rb_left;
-		else if (d > 0)
+		else if (d < 0)
 			parent = parent->rb_right;
 		else
 			return attr;
@@ -167,7 +167,8 @@ static struct garp_attr *garp_attr_lookup(const struct garp_applicant *app,
 	return NULL;
 }
 
-static void garp_attr_insert(struct garp_applicant *app, struct garp_attr *new)
+static struct garp_attr *garp_attr_create(struct garp_applicant *app,
+					  const void *data, u8 len, u8 type)
 {
 	struct rb_node *parent = NULL, **p = &app->gid.rb_node;
 	struct garp_attr *attr;
@@ -176,21 +177,16 @@ static void garp_attr_insert(struct garp_applicant *app, struct garp_attr *new)
 	while (*p) {
 		parent = *p;
 		attr = rb_entry(parent, struct garp_attr, node);
-		d = garp_attr_cmp(attr, new->data, new->dlen, new->type);
-		if (d < 0)
+		d = garp_attr_cmp(attr, data, len, type);
+		if (d > 0)
 			p = &parent->rb_left;
-		else if (d > 0)
+		else if (d < 0)
 			p = &parent->rb_right;
+		else {
+			/* The attribute already exists; re-use it. */
+			return attr;
+		}
 	}
-	rb_link_node(&new->node, parent, p);
-	rb_insert_color(&new->node, &app->gid);
-}
-
-static struct garp_attr *garp_attr_create(struct garp_applicant *app,
-					  const void *data, u8 len, u8 type)
-{
-	struct garp_attr *attr;
-
 	attr = kmalloc(sizeof(*attr) + len, GFP_ATOMIC);
 	if (!attr)
 		return attr;
@@ -198,7 +194,9 @@ static struct garp_attr *garp_attr_create(struct garp_applicant *app,
 	attr->type  = type;
 	attr->dlen  = len;
 	memcpy(attr->data, data, len);
-	garp_attr_insert(app, attr);
+
+	rb_link_node(&attr->node, parent, p);
+	rb_insert_color(&attr->node, &app->gid);
 	return attr;
 }
 
@@ -399,7 +397,7 @@ static void garp_join_timer_arm(struct garp_applicant *app)
 {
 	unsigned long delay;
 
-	delay = (u64)msecs_to_jiffies(garp_join_time) * net_random() >> 32;
+	delay = (u64)msecs_to_jiffies(garp_join_time) * prandom_u32() >> 32;
 	mod_timer(&app->join_timer, jiffies + delay);
 }
 
@@ -611,8 +609,12 @@ void garp_uninit_applicant(struct net_device *dev, struct garp_application *appl
 	/* Delete timer and generate a final TRANSMIT_PDU event to flush out
 	 * all pending messages before the applicant is gone. */
 	del_timer_sync(&app->join_timer);
+
+	spin_lock_bh(&app->lock);
 	garp_gid_event(app, GARP_EVENT_TRANSMIT_PDU);
 	garp_pdu_queue(app);
+	spin_unlock_bh(&app->lock);
+
 	garp_queue_xmit(app);
 
 	dev_mc_del(dev, appl->proto.group_address);

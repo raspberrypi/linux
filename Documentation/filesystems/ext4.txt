@@ -2,7 +2,7 @@
 Ext4 Filesystem
 ===============
 
-Ext4 is an an advanced level of the ext3 filesystem which incorporates
+Ext4 is an advanced level of the ext3 filesystem which incorporates
 scalability and reliability enhancements for supporting large filesystems
 (64 bit) in keeping with increasing disk capacities and state-of-the-art
 feature requirements.
@@ -144,14 +144,12 @@ journal_async_commit	Commit block can be written to disk without waiting
 			mount the device. This will enable 'journal_checksum'
 			internally.
 
-journal=update		Update the ext4 file system's journal to the current
-			format.
-
+journal_path=path
 journal_dev=devnum	When the external journal device's major/minor numbers
-			have changed, this option allows the user to specify
+			have changed, these options allow the user to specify
 			the new journal location.  The journal device is
-			identified through its new major/minor numbers encoded
-			in devnum.
+			identified through either its new major/minor numbers
+			encoded in devnum, or via a path to the device.
 
 norecovery		Don't load the journal on mounting.  Note that
 noload			if the filesystem was not unmounted cleanly,
@@ -203,12 +201,9 @@ inode_readahead_blks=n	This tuning parameter controls the maximum
 			table readahead algorithm will pre-read into
 			the buffer cache.  The default value is 32 blocks.
 
-nouser_xattr		Disables Extended User Attributes. If you have extended
-			attribute support enabled in the kernel configuration
-			(CONFIG_EXT4_FS_XATTR), extended attribute support
-			is enabled by default on mount. See the attr(5) manual
-			page and http://acl.bestbits.at/ for more information
-			about extended attributes.
+nouser_xattr		Disables Extended User Attributes.  See the
+			attr(5) manual page and http://acl.bestbits.at/
+			for more information about extended attributes.
 
 noacl			This option disables POSIX Access Control List
 			support. If ACL support is enabled in the kernel
@@ -308,7 +303,7 @@ min_batch_time=usec	This parameter sets the commit time (as
 			fast disks, at the cost of increasing latency.
 
 journal_ioprio=prio	The I/O priority (from 0 to 7, where 0 is the
-			highest priorty) which should be used for I/O
+			highest priority) which should be used for I/O
 			operations submitted by kjournald2 during a
 			commit operation.  This defaults to 3, which is
 			a slightly higher priority than the default I/O
@@ -343,7 +338,7 @@ noinit_itable		Do not initialize any uninitialized inode table
 init_itable=n		The lazy itable init code will wait n times the
 			number of milliseconds it took to zero out the
 			previous block group's inode table.  This
-			minimizes the impact on the systme performance
+			minimizes the impact on the system performance
 			while file system's inode table is being initialized.
 
 discard			Controls whether ext4 should issue discard/TRIM
@@ -355,11 +350,6 @@ nodiscard(*)		commands to the underlying block device when
 nouid32			Disables 32-bit UIDs and GIDs.  This is for
 			interoperability  with  older kernels which only
 			store and expect 16-bit values.
-
-resize			Allows to resize filesystem to the end of the last
-			existing block group, further resize has to be done
-			with resize2fs either online, or offline. It can be
-			used only with conjunction with remount.
 
 block_validity		This options allows to enables/disables the in-kernel
 noblock_validity	facility for tracking filesystem metadata blocks
@@ -383,8 +373,22 @@ dioread_nolock		locking. If the dioread_nolock option is specified
 			Because of the restrictions this options comprises
 			it is off by default (e.g. dioread_lock).
 
+max_dir_size_kb=n	This limits the size of directories so that any
+			attempt to expand them beyond the specified
+			limit in kilobytes will cause an ENOSPC error.
+			This is useful in memory constrained
+			environments, where a very large directory can
+			cause severe performance problems or even
+			provoke the Out Of Memory killer.  (For example,
+			if there is only 512mb memory available, a 176mb
+			directory may seriously cramp the system's style.)
+
 i_version		Enable 64-bit inode version support. This option is
 			off by default.
+
+dax			Use direct access (no page cache).  See
+			Documentation/filesystems/dax.txt.  Note that
+			this option is incompatible with data=journal.
 
 Data Mode
 =========
@@ -495,6 +499,17 @@ Files in /sys/fs/ext4/<devname>
  session_write_kbytes         This file is read-only and shows the number of
                               kilobytes of data that have been written to this
                               filesystem since it was mounted.
+
+ reserved_clusters            This is RW file and contains number of reserved
+                              clusters in the file system which will be used
+                              in the specific situations to avoid costly
+                              zeroout, unexpected ENOSPC, or possible data
+                              loss. The default is 2% or 4096 clusters,
+                              whichever is smaller and this can be changed
+                              however it can never exceed number of clusters
+                              in the file system. If there is not enough space
+                              for the reserved space when mounting the file
+                              mount will _not_ fail.
 ..............................................................................
 
 Ioctls
@@ -581,6 +596,23 @@ Table of Ext4 specific ioctls
 			      behaviour may change in the future as it is
 			      not necessary and has been done this way only
 			      for sake of simplicity.
+
+ EXT4_IOC_RESIZE_FS	      Resize the filesystem to a new size.  The number
+			      of blocks of resized filesystem is passed in via
+			      64 bit integer argument.  The kernel allocates
+			      bitmaps and inode table, the userspace tool thus
+			      just passes the new number of blocks.
+
+EXT4_IOC_SWAP_BOOT	      Swap i_blocks and associated attributes
+			      (like i_blocks, i_size, i_flags, ...) from
+			      the specified inode with inode
+			      EXT4_BOOT_LOADER_INO (#5). This is typically
+			      used to store a boot loader in a secure part of
+			      the filesystem, where it can't be changed by a
+			      normal user by accident.
+			      The data blocks of the previous boot loader
+			      will be associated with the given inode.
+
 ..............................................................................
 
 References

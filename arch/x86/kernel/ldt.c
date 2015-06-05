@@ -15,7 +15,6 @@
 #include <linux/vmalloc.h>
 #include <linux/uaccess.h>
 
-#include <asm/system.h>
 #include <asm/ldt.h>
 #include <asm/desc.h>
 #include <asm/mmu_context.h>
@@ -228,6 +227,11 @@ static int write_ldt(void __user *ptr, unsigned long bytecount, int oldmode)
 			memset(&ldt, 0, sizeof(ldt));
 			goto install;
 		}
+	}
+
+	if (!IS_ENABLED(CONFIG_X86_16BIT) && !ldt_info.seg_32bit) {
+		error = -EINVAL;
+		goto out_unlock;
 	}
 
 	fill_ldt(&ldt, &ldt_info);

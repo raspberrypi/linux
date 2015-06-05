@@ -50,14 +50,9 @@
  * by the buffer lock.
  */
 
-#include <linux/init.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/ext3_jbd.h>
-#include <linux/ext3_fs.h>
+#include "ext3.h"
 #include <linux/mbcache.h>
 #include <linux/quotaops.h>
-#include <linux/rwsem.h>
 #include "xattr.h"
 #include "acl.h"
 
@@ -107,8 +102,8 @@ static struct mb_cache *ext3_xattr_cache;
 static const struct xattr_handler *ext3_xattr_handler_map[] = {
 	[EXT3_XATTR_INDEX_USER]		     = &ext3_xattr_user_handler,
 #ifdef CONFIG_EXT3_FS_POSIX_ACL
-	[EXT3_XATTR_INDEX_POSIX_ACL_ACCESS]  = &ext3_xattr_acl_access_handler,
-	[EXT3_XATTR_INDEX_POSIX_ACL_DEFAULT] = &ext3_xattr_acl_default_handler,
+	[EXT3_XATTR_INDEX_POSIX_ACL_ACCESS]  = &posix_acl_access_xattr_handler,
+	[EXT3_XATTR_INDEX_POSIX_ACL_DEFAULT] = &posix_acl_default_xattr_handler,
 #endif
 	[EXT3_XATTR_INDEX_TRUSTED]	     = &ext3_xattr_trusted_handler,
 #ifdef CONFIG_EXT3_FS_SECURITY
@@ -120,8 +115,8 @@ const struct xattr_handler *ext3_xattr_handlers[] = {
 	&ext3_xattr_user_handler,
 	&ext3_xattr_trusted_handler,
 #ifdef CONFIG_EXT3_FS_POSIX_ACL
-	&ext3_xattr_acl_access_handler,
-	&ext3_xattr_acl_default_handler,
+	&posix_acl_access_xattr_handler,
+	&posix_acl_default_xattr_handler,
 #endif
 #ifdef CONFIG_EXT3_FS_SECURITY
 	&ext3_xattr_security_handler,
@@ -818,10 +813,10 @@ inserted:
 			ea_idebug(inode, "creating block %d", block);
 
 			new_bh = sb_getblk(sb, block);
-			if (!new_bh) {
+			if (unlikely(!new_bh)) {
 getblk_failed:
 				ext3_free_blocks(handle, inode, block, 1);
-				error = -EIO;
+				error = -ENOMEM;
 				goto cleanup;
 			}
 			lock_buffer(new_bh);

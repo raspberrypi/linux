@@ -1,7 +1,7 @@
 /*
  *  libata-sff.c - helper library for PCI IDE BMDMA
  *
- *  Maintained by:  Jeff Garzik <jgarzik@pobox.com>
+ *  Maintained by:  Tejun Heo <tj@kernel.org>
  *    		    Please ALWAYS copy linux-ide@vger.kernel.org
  *		    on emails.
  *
@@ -720,13 +720,13 @@ static void ata_pio_sector(struct ata_queued_cmd *qc)
 
 		/* FIXME: use a bounce buffer */
 		local_irq_save(flags);
-		buf = kmap_atomic(page, KM_IRQ0);
+		buf = kmap_atomic(page);
 
 		/* do the actual data transfer */
 		ap->ops->sff_data_xfer(qc->dev, buf + offset, qc->sect_size,
 				       do_write);
 
-		kunmap_atomic(buf, KM_IRQ0);
+		kunmap_atomic(buf);
 		local_irq_restore(flags);
 	} else {
 		buf = page_address(page);
@@ -865,13 +865,13 @@ next_sg:
 
 		/* FIXME: use bounce buffer */
 		local_irq_save(flags);
-		buf = kmap_atomic(page, KM_IRQ0);
+		buf = kmap_atomic(page);
 
 		/* do the actual data transfer */
 		consumed = ap->ops->sff_data_xfer(dev,  buf + offset,
 								count, rw);
 
-		kunmap_atomic(buf, KM_IRQ0);
+		kunmap_atomic(buf);
 		local_irq_restore(flags);
 	} else {
 		buf = page_address(page);
@@ -929,11 +929,11 @@ static void atapi_pio_bytes(struct ata_queued_cmd *qc)
 	bytes = (bc_hi << 8) | bc_lo;
 
 	/* shall be cleared to zero, indicating xfer of data */
-	if (unlikely(ireason & (1 << 0)))
+	if (unlikely(ireason & ATAPI_COD))
 		goto atapi_check;
 
 	/* make sure transfer direction matches expected */
-	i_write = ((ireason & (1 << 1)) == 0) ? 1 : 0;
+	i_write = ((ireason & ATAPI_IO) == 0) ? 1 : 0;
 	if (unlikely(do_write != i_write))
 		goto atapi_check;
 
@@ -1333,7 +1333,19 @@ void ata_sff_flush_pio_task(struct ata_port *ap)
 	DPRINTK("ENTER\n");
 
 	cancel_delayed_work_sync(&ap->sff_pio_task);
+
+	/*
+	 * We wanna reset the HSM state to IDLE.  If we do so without
+	 * grabbing the port lock, critical sections protected by it which
+	 * expect the HSM state to stay stable may get surprised.  For
+	 * example, we may set IDLE in between the time
+	 * __ata_sff_port_intr() checks for HSM_ST_IDLE and before it calls
+	 * ata_sff_hsm_move() causing ata_sff_hsm_move() to BUG().
+	 */
+	spin_lock_irq(ap->lock);
 	ap->hsm_task_state = HSM_ST_IDLE;
+	spin_unlock_irq(ap->lock);
+
 	ap->sff_pio_task_link = NULL;
 
 	if (ata_msg_ctl(ap))
@@ -2008,13 +2020,15 @@ static int ata_bus_softreset(struct ata_port *ap, unsigned int devmask,
 
 	DPRINTK("ata%u: bus reset via SRST\n", ap->print_id);
 
-	/* software reset.  causes dev0 to be selected */
-	iowrite8(ap->ctl, ioaddr->ctl_addr);
-	udelay(20);	/* FIXME: flush */
-	iowrite8(ap->ctl | ATA_SRST, ioaddr->ctl_addr);
-	udelay(20);	/* FIXME: flush */
-	iowrite8(ap->ctl, ioaddr->ctl_addr);
-	ap->last_ctl = ap->ctl;
+	if (ap->ioaddr.ctl_addr) {
+		/* software reset.  causes dev0 to be selected */
+		iowrite8(ap->ctl, ioaddr->ctl_addr);
+		udelay(20);	/* FIXME: flush */
+		iowrite8(ap->ctl | ATA_SRST, ioaddr->ctl_addr);
+		udelay(20);	/* FIXME: flush */
+		iowrite8(ap->ctl, ioaddr->ctl_addr);
+		ap->last_ctl = ap->ctl;
+	}
 
 	/* wait the port to become ready */
 	return ata_sff_wait_after_reset(&ap->link, devmask, deadline);
@@ -2214,10 +2228,6 @@ void ata_sff_error_handler(struct ata_port *ap)
 		ap->ops->sff_drain_fifo(qc);
 
 	spin_unlock_irqrestore(ap->lock, flags);
-
-	/* ignore ata_sff_softreset if ctl isn't accessible */
-	if (softreset == ata_sff_softreset && !ap->ioaddr.ctl_addr)
-		softreset = NULL;
 
 	/* ignore built-in hardresets if SCR access is not available */
 	if ((hardreset == sata_std_hardreset ||
@@ -2433,15 +2443,6 @@ int ata_pci_sff_activate_host(struct ata_host *host,
 		mask = (1 << 2) | (1 << 0);
 		if ((tmp8 & mask) != mask)
 			legacy_mode = 1;
-#if defined(CONFIG_NO_ATA_LEGACY)
-		/* Some platforms with PCI limits cannot address compat
-		   port space. In that case we punt if their firmware has
-		   left a device in compatibility mode */
-		if (legacy_mode) {
-			printk(KERN_ERR "ata: Compatibility mode ATA is not supported on this platform, skipping.\n");
-			return -EOPNOTSUPP;
-		}
-#endif
 	}
 
 	if (!devres_open_group(dev, NULL, GFP_KERNEL))

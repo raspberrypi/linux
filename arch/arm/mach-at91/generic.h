@@ -8,67 +8,37 @@
  * published by the Free Software Foundation.
  */
 
-#include <linux/clkdev.h>
+#ifndef _AT91_GENERIC_H
+#define _AT91_GENERIC_H
+
+#include <linux/of.h>
+#include <linux/reboot.h>
 
  /* Map io */
 extern void __init at91_map_io(void);
-extern void __init at91_init_sram(int bank, unsigned long base,
-				  unsigned int length);
-
- /* Processors */
-extern void __init at91rm9200_set_type(int type);
-extern void __init at91_initialize(unsigned long main_clock);
-extern void __init at91x40_initialize(unsigned long main_clock);
-
- /* Interrupts */
-extern void __init at91_init_irq_default(void);
-extern void __init at91_init_interrupts(unsigned int priority[]);
-extern void __init at91x40_init_interrupts(unsigned int priority[]);
-extern void __init at91_aic_init(unsigned int priority[]);
+extern void __init at91_alt_map_io(void);
 
  /* Timer */
-struct sys_timer;
-extern struct sys_timer at91rm9200_timer;
-extern struct sys_timer at91sam926x_timer;
-extern struct sys_timer at91x40_timer;
+extern void at91rm9200_timer_init(void);
 
- /* Clocks */
-/*
- * function to specify the clock of the default console. As we do not
- * use the device/driver bus, the dev_name is not intialize. So we need
- * to link the clock to a specific con_id only "usart"
- */
-extern void __init at91rm9200_set_console_clock(int id);
-extern void __init at91sam9260_set_console_clock(int id);
-extern void __init at91sam9261_set_console_clock(int id);
-extern void __init at91sam9263_set_console_clock(int id);
-extern void __init at91sam9rl_set_console_clock(int id);
-extern void __init at91sam9g45_set_console_clock(int id);
-extern void __init at91cap9_set_console_clock(int id);
-#ifdef CONFIG_AT91_PMC_UNIT
-extern int __init at91_clock_init(unsigned long main_clock);
+/* idle */
+extern void at91rm9200_idle(void);
+extern void at91sam9_idle(void);
+
+/* Matrix */
+extern void at91_ioremap_matrix(u32 base_addr);
+
+
+#ifdef CONFIG_PM
+extern void __init at91rm9200_pm_init(void);
+extern void __init at91sam9260_pm_init(void);
+extern void __init at91sam9g45_pm_init(void);
+extern void __init at91sam9x5_pm_init(void);
 #else
-static int inline at91_clock_init(unsigned long main_clock) { return 0; }
+static inline void __init at91rm9200_pm_init(void) { }
+static inline void __init at91sam9260_pm_init(void) { }
+static inline void __init at91sam9g45_pm_init(void) { }
+static inline void __init at91sam9x5_pm_init(void) { }
 #endif
-struct device;
 
- /* Power Management */
-extern void at91_irq_suspend(void);
-extern void at91_irq_resume(void);
-
-/* reset */
-extern void at91sam9_alt_restart(char, const char *);
-
- /* GPIO */
-#define AT91RM9200_PQFP		3	/* AT91RM9200 PQFP package has 3 banks */
-#define AT91RM9200_BGA		4	/* AT91RM9200 BGA package has 4 banks */
-
-struct at91_gpio_bank {
-	unsigned short id;		/* peripheral ID */
-	unsigned long offset;		/* offset from system peripheral base */
-	struct clk *clock;		/* associated clock */
-};
-extern void __init at91_gpio_init(struct at91_gpio_bank *, int nr_banks);
-extern void __init at91_gpio_irq_setup(void);
-
-extern int at91_extern_irq;
+#endif /* _AT91_GENERIC_H */

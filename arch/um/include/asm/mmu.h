@@ -6,13 +6,13 @@
 #ifndef __ARCH_UM_MMU_H
 #define __ARCH_UM_MMU_H
 
-#include "mm_id.h"
+#include <mm_id.h>
 #include <asm/mm_context.h>
 
 typedef struct mm_context {
 	struct mm_id id;
 	struct uml_arch_mm_context arch;
-	struct page **stub_pages;
+	struct page *stub_pages[2];
 } mm_context_t;
 
 extern void __switch_mm(struct mm_id * mm_idp);

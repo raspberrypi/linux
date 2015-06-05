@@ -43,11 +43,11 @@ MODULE_SUPPORTED_DEVICE("{{Analog Devices,AD1848},"
 
 static int index[SNDRV_CARDS] = SNDRV_DEFAULT_IDX;	/* Index 0-MAX */
 static char *id[SNDRV_CARDS] = SNDRV_DEFAULT_STR;	/* ID for this card */
-static int enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE;	/* Enable this card */
+static bool enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE;	/* Enable this card */
 static long port[SNDRV_CARDS] = SNDRV_DEFAULT_PORT;	/* PnP setup */
 static int irq[SNDRV_CARDS] = SNDRV_DEFAULT_IRQ;	/* 5,7,9,11,12,15 */
 static int dma1[SNDRV_CARDS] = SNDRV_DEFAULT_DMA;	/* 0,1,3,5,6,7 */
-static int thinkpad[SNDRV_CARDS];			/* Thinkpad special case */
+static bool thinkpad[SNDRV_CARDS];			/* Thinkpad special case */
 
 module_param_array(index, int, NULL, 0444);
 MODULE_PARM_DESC(index, "Index value for " CRD_NAME " soundcard.");
@@ -64,7 +64,7 @@ MODULE_PARM_DESC(dma1, "DMA1 # for " CRD_NAME " driver.");
 module_param_array(thinkpad, bool, NULL, 0444);
 MODULE_PARM_DESC(thinkpad, "Enable only for the onboard CS4248 of IBM Thinkpad 360/750/755 series.");
 
-static int __devinit snd_ad1848_match(struct device *dev, unsigned int n)
+static int snd_ad1848_match(struct device *dev, unsigned int n)
 {
 	if (!enable[n])
 		return 0;
@@ -84,14 +84,13 @@ static int __devinit snd_ad1848_match(struct device *dev, unsigned int n)
 	return 1;
 }
 
-static int __devinit snd_ad1848_probe(struct device *dev, unsigned int n)
+static int snd_ad1848_probe(struct device *dev, unsigned int n)
 {
 	struct snd_card *card;
 	struct snd_wss *chip;
-	struct snd_pcm *pcm;
 	int error;
 
-	error = snd_card_create(index[n], id[n], THIS_MODULE, 0, &card);
+	error = snd_card_new(dev, index[n], id[n], THIS_MODULE, 0, &card);
 	if (error < 0)
 		return error;
 
@@ -103,7 +102,7 @@ static int __devinit snd_ad1848_probe(struct device *dev, unsigned int n)
 
 	card->private_data = chip;
 
-	error = snd_wss_pcm(chip, 0, &pcm);
+	error = snd_wss_pcm(chip, 0);
 	if (error < 0)
 		goto out;
 
@@ -112,14 +111,12 @@ static int __devinit snd_ad1848_probe(struct device *dev, unsigned int n)
 		goto out;
 
 	strcpy(card->driver, "AD1848");
-	strcpy(card->shortname, pcm->name);
+	strcpy(card->shortname, chip->pcm->name);
 
 	sprintf(card->longname, "%s at 0x%lx, irq %d, dma %d",
-		pcm->name, chip->port, irq[n], dma1[n]);
+		chip->pcm->name, chip->port, irq[n], dma1[n]);
 	if (thinkpad[n])
 		strcat(card->longname, " [Thinkpad]");
-
-	snd_card_set_dev(card, dev);
 
 	error = snd_card_register(card);
 	if (error < 0)
@@ -132,10 +129,9 @@ out:	snd_card_free(card);
 	return error;
 }
 
-static int __devexit snd_ad1848_remove(struct device *dev, unsigned int n)
+static int snd_ad1848_remove(struct device *dev, unsigned int n)
 {
 	snd_card_free(dev_get_drvdata(dev));
-	dev_set_drvdata(dev, NULL);
 	return 0;
 }
 
@@ -164,7 +160,7 @@ static int snd_ad1848_resume(struct device *dev, unsigned int n)
 static struct isa_driver snd_ad1848_driver = {
 	.match		= snd_ad1848_match,
 	.probe		= snd_ad1848_probe,
-	.remove		= __devexit_p(snd_ad1848_remove),
+	.remove		= snd_ad1848_remove,
 #ifdef CONFIG_PM
 	.suspend	= snd_ad1848_suspend,
 	.resume		= snd_ad1848_resume,

@@ -179,6 +179,20 @@ static struct usbmix_name_map audigy2nx_map[] = {
 	{ 0 } /* terminator */
 };
 
+static struct usbmix_name_map mbox1_map[] = {
+	{ 1, "Clock" },
+	{ 0 } /* terminator */
+};
+
+static struct usbmix_selector_map c400_selectors[] = {
+	{
+		.id = 0x80,
+		.count = 2,
+		.names = (const char*[]) {"Internal", "SPDIF"}
+	},
+	{ 0 } /* terminator */
+};
+
 static struct usbmix_selector_map audigy2nx_selectors[] = {
 	{
 		.id = 14, /* Capture Source */
@@ -288,6 +302,15 @@ static struct usbmix_name_map scratch_live_map[] = {
 	{ 0 } /* terminator */
 };
 
+static struct usbmix_name_map ebox44_map[] = {
+	{ 4, NULL }, /* FU */
+	{ 6, NULL }, /* MU */
+	{ 7, NULL }, /* FU */
+	{ 10, NULL }, /* FU */
+	{ 11, NULL }, /* MU */
+	{ 0 }
+};
+
 /* "Gamesurround Muse Pocket LT" looks same like "Sound Blaster MP3+"
  *  most importand difference is SU[8], it should be set to "Capture Source"
  *  to make alsamixer and PA working properly.
@@ -302,6 +325,20 @@ static struct usbmix_name_map hercules_usb51_map[] = {
 	{ 13, "Mic Bypass Playback" },	/* FU, default "Mic Playback" */
 	{ 14, "Line Bypass Playback" },	/* FU, default "Line Playback" */
 	{ 0 }				/* terminator */
+};
+
+/* Plantronics Gamecom 780 has a broken volume control, better to disable it */
+static struct usbmix_name_map gamecom780_map[] = {
+	{ 9, NULL }, /* FU, speaker out */
+	{}
+};
+
+/* some (all?) SCMS USB3318 devices are affected by a firmware lock up
+ * when anything attempts to access FU 10 (control)
+ */
+static const struct usbmix_name_map scms_usb3318_map[] = {
+	{ 10, NULL },
+	{ 0 }
 };
 
 /*
@@ -332,6 +369,18 @@ static struct usbmix_ctl_map usbmix_ctl_maps[] = {
 		.map = audigy2nx_map,
 		.selector_map = audigy2nx_selectors,
 	},
+	{	/* Logitech, Inc. QuickCam Pro for Notebooks */
+		.id = USB_ID(0x046d, 0x0991),
+		.ignore_ctl_error = 1,
+	},
+	{	/* Logitech, Inc. QuickCam E 3500 */
+		.id = USB_ID(0x046d, 0x09a4),
+		.ignore_ctl_error = 1,
+	},
+	{	/* Plantronics GameCom 780 */
+		.id = USB_ID(0x047f, 0xc010),
+		.map = gamecom780_map,
+	},
 	{
 		/* Hercules DJ Console (Windows Edition) */
 		.id = USB_ID(0x06f8, 0xb000),
@@ -348,6 +397,14 @@ static struct usbmix_ctl_map usbmix_ctl_maps[] = {
 		 */
 		.id = USB_ID(0x06f8, 0xc000),
 		.map = hercules_usb51_map,
+	},
+	{
+		.id = USB_ID(0x0763, 0x2030),
+		.selector_map = c400_selectors,
+	},
+	{
+		.id = USB_ID(0x0763, 0x2031),
+		.selector_map = c400_selectors,
 	},
 	{
 		.id = USB_ID(0x08bb, 0x2702),
@@ -367,9 +424,27 @@ static struct usbmix_ctl_map usbmix_ctl_maps[] = {
 		.map = aureon_51_2_map,
 	},
 	{
+		.id = USB_ID(0x0dba, 0x1000),
+		.map = mbox1_map,
+	},
+	{
 		.id = USB_ID(0x13e5, 0x0001),
 		.map = scratch_live_map,
 		.ignore_ctl_error = 1,
+	},
+	{
+		.id = USB_ID(0x200c, 0x1018),
+		.map = ebox44_map,
+	},
+	{
+		/* KEF X300A */
+		.id = USB_ID(0x27ac, 0x1000),
+		.map = scms_usb3318_map,
+	},
+	{
+		/* Arcam rPAC */
+		.id = USB_ID(0x25c4, 0x0003),
+		.map = scms_usb3318_map,
 	},
 	{ 0 } /* terminator */
 };

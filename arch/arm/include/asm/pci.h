@@ -18,35 +18,11 @@ static inline int pcibios_assign_all_busses(void)
 }
 
 #ifdef CONFIG_PCI_DOMAINS
-static inline int pci_domain_nr(struct pci_bus *bus)
-{
-	struct pci_sys_data *root = bus->sysdata;
-
-	return root->domain;
-}
-
 static inline int pci_proc_domain(struct pci_bus *bus)
 {
 	return pci_domain_nr(bus);
 }
 #endif /* CONFIG_PCI_DOMAINS */
-
-#ifdef CONFIG_PCI_HOST_ITE8152
-/* ITE bridge requires setting latency timer to avoid early bus access
-   termination by PIC bus mater devices
-*/
-extern void pcibios_set_master(struct pci_dev *dev);
-#else
-static inline void pcibios_set_master(struct pci_dev *dev)
-{
-	/* No special bus mastering setup handling */
-}
-#endif
-
-static inline void pcibios_penalize_isa_irq(int irq, int active)
-{
-	/* We don't do dynamic PCI IRQ allocation */
-}
 
 /*
  * The PCI address space does equal the physical memory address space.
@@ -69,20 +45,9 @@ static inline void pci_dma_burst_advice(struct pci_dev *pdev,
 extern int pci_mmap_page_range(struct pci_dev *dev, struct vm_area_struct *vma,
                                enum pci_mmap_state mmap_state, int write_combine);
 
-extern void
-pcibios_resource_to_bus(struct pci_dev *dev, struct pci_bus_region *region,
-			 struct resource *res);
-
-extern void
-pcibios_bus_to_resource(struct pci_dev *dev, struct resource *res,
-			struct pci_bus_region *region);
-
-/*
- * Dummy implementation; always return 0.
- */
 static inline int pci_get_legacy_ide_irq(struct pci_dev *dev, int channel)
 {
-	return 0;
+	return channel ? 15 : 14;
 }
 
 #endif /* __KERNEL__ */

@@ -50,7 +50,7 @@ struct rds_ib_cache_head {
 };
 
 struct rds_ib_refill_cache {
-	struct rds_ib_cache_head *percpu;
+	struct rds_ib_cache_head __percpu *percpu;
 	struct list_head	 *xfer;
 	struct list_head	 *ready;
 };
@@ -186,8 +186,7 @@ struct rds_ib_device {
 	struct work_struct	free_work;
 };
 
-#define pcidev_to_node(pcidev) pcibus_to_node(pcidev->bus)
-#define ibdev_to_node(ibdev) pcidev_to_node(to_pci_dev(ibdev->dma_device))
+#define ibdev_to_node(ibdev) dev_to_node(ibdev->dma_device)
 #define rdsibdev_to_node(rdsibdev) ibdev_to_node(rdsibdev->dev)
 
 /* bits for i_ack_flags */
@@ -317,8 +316,7 @@ int rds_ib_recv_alloc_caches(struct rds_ib_connection *ic);
 void rds_ib_recv_free_caches(struct rds_ib_connection *ic);
 void rds_ib_recv_refill(struct rds_connection *conn, int prefill);
 void rds_ib_inc_free(struct rds_incoming *inc);
-int rds_ib_inc_copy_to_user(struct rds_incoming *inc, struct iovec *iov,
-			     size_t size);
+int rds_ib_inc_copy_to_user(struct rds_incoming *inc, struct iov_iter *to);
 void rds_ib_recv_cq_comp_handler(struct ib_cq *cq, void *context);
 void rds_ib_recv_tasklet_fn(unsigned long data);
 void rds_ib_recv_init_ring(struct rds_ib_connection *ic);

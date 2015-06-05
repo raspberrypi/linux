@@ -12,17 +12,23 @@
 #define __ASM_PROM_H
 
 #ifdef CONFIG_OF
+#include <linux/bug.h>
+#include <linux/io.h>
+#include <linux/types.h>
 #include <asm/bootinfo.h>
 
-extern int early_init_dt_scan_memory_arch(unsigned long node,
-	const char *uname, int depth, void *data);
-
-extern int reserve_mem_mach(unsigned long addr, unsigned long size);
-extern void free_mem_mach(unsigned long addr, unsigned long size);
-
 extern void device_tree_init(void);
+
+struct boot_param_header;
+
+extern void __dt_setup_arch(void *bph);
+extern int __dt_register_buses(const char *bus0, const char *bus1);
+
 #else /* CONFIG_OF */
 static inline void device_tree_init(void) { }
 #endif /* CONFIG_OF */
+
+extern char *mips_get_machine_name(void);
+extern void mips_set_machine_name(const char *name);
 
 #endif /* __ASM_PROM_H */

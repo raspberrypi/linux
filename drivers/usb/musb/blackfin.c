@@ -11,13 +11,14 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
-#include <linux/init.h>
 #include <linux/list.h>
 #include <linux/gpio.h>
 #include <linux/io.h>
+#include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
 #include <linux/prefetch.h>
+#include <linux/usb/usb_phy_generic.h>
 
 #include <asm/cacheflush.h>
 
@@ -28,13 +29,49 @@
 struct bfin_glue {
 	struct device		*dev;
 	struct platform_device	*musb;
+	struct platform_device	*phy;
 };
 #define glue_to_musb(g)		platform_get_drvdata(g->musb)
+
+static u32 bfin_fifo_offset(u8 epnum)
+{
+	return USB_OFFSET(USB_EP0_FIFO) + (epnum * 8);
+}
+
+static u8 bfin_readb(const void __iomem *addr, unsigned offset)
+{
+	return (u8)(bfin_read16(addr + offset));
+}
+
+static u16 bfin_readw(const void __iomem *addr, unsigned offset)
+{
+	return bfin_read16(addr + offset);
+}
+
+static u32 bfin_readl(const void __iomem *addr, unsigned offset)
+{
+	return (u32)(bfin_read16(addr + offset));
+}
+
+static void bfin_writeb(void __iomem *addr, unsigned offset, u8 data)
+{
+	bfin_write16(addr + offset, (u16)data);
+}
+
+static void bfin_writew(void __iomem *addr, unsigned offset, u16 data)
+{
+	bfin_write16(addr + offset, data);
+}
+
+static void bfin_writel(void __iomem *addr, unsigned offset, u32 data)
+{
+	bfin_write16(addr + offset, (u16)data);
+}
 
 /*
  * Load an endpoint's FIFO
  */
-void musb_write_fifo(struct musb_hw_ep *hw_ep, u16 len, const u8 *src)
+static void bfin_write_fifo(struct musb_hw_ep *hw_ep, u16 len, const u8 *src)
 {
 	struct musb *musb = hw_ep->musb;
 	void __iomem *fifo = hw_ep->fifo;
@@ -75,7 +112,7 @@ void musb_write_fifo(struct musb_hw_ep *hw_ep, u16 len, const u8 *src)
 		bfin_write16(USB_DMA_REG(epnum, USB_DMAx_CTRL), dma_reg);
 		SSYNC();
 
-		/* Wait for compelete */
+		/* Wait for complete */
 		while (!(bfin_read_USB_DMA_INTERRUPT() & (1 << epnum)))
 			cpu_relax();
 
@@ -98,7 +135,7 @@ void musb_write_fifo(struct musb_hw_ep *hw_ep, u16 len, const u8 *src)
 /*
  * Unload an endpoint's FIFO
  */
-void musb_read_fifo(struct musb_hw_ep *hw_ep, u16 len, u8 *dst)
+static void bfin_read_fifo(struct musb_hw_ep *hw_ep, u16 len, u8 *dst)
 {
 	struct musb *musb = hw_ep->musb;
 	void __iomem *fifo = hw_ep->fifo;
@@ -129,7 +166,7 @@ void musb_read_fifo(struct musb_hw_ep *hw_ep, u16 len, u8 *dst)
 		bfin_write16(USB_DMA_REG(epnum, USB_DMAx_CTRL), dma_reg);
 		SSYNC();
 
-		/* Wait for compelete */
+		/* Wait for complete */
 		while (!(bfin_read_USB_DMA_INTERRUPT() & (1 << epnum)))
 			cpu_relax();
 
@@ -183,8 +220,8 @@ static irqreturn_t blackfin_interrupt(int irq, void *__hci)
 	}
 
 	/* Start sampling ID pin, when plug is removed from MUSB */
-	if ((is_otg_enabled(musb) && (musb->xceiv->state == OTG_STATE_B_IDLE
-		|| musb->xceiv->state == OTG_STATE_A_WAIT_BCON)) ||
+	if ((musb->xceiv->otg->state == OTG_STATE_B_IDLE
+		|| musb->xceiv->otg->state == OTG_STATE_A_WAIT_BCON) ||
 		(musb->int_usb & MUSB_INTR_DISCONNECT && is_host_active(musb))) {
 		mod_timer(&musb_conn_timer, jiffies + TIMER_DELAY);
 		musb->a_wait_bcon = TIMER_DELAY;
@@ -203,7 +240,7 @@ static void musb_conn_timer_handler(unsigned long _musb)
 	static u8 toggle;
 
 	spin_lock_irqsave(&musb->lock, flags);
-	switch (musb->xceiv->state) {
+	switch (musb->xceiv->otg->state) {
 	case OTG_STATE_A_IDLE:
 	case OTG_STATE_A_WAIT_BCON:
 		/* Start a new session */
@@ -217,7 +254,7 @@ static void musb_conn_timer_handler(unsigned long _musb)
 
 		if (!(val & MUSB_DEVCTL_BDEVICE)) {
 			gpio_set_value(musb->config->gpio_vrsel, 1);
-			musb->xceiv->state = OTG_STATE_A_WAIT_BCON;
+			musb->xceiv->otg->state = OTG_STATE_A_WAIT_BCON;
 		} else {
 			gpio_set_value(musb->config->gpio_vrsel, 0);
 			/* Ignore VBUSERROR and SUSPEND IRQ */
@@ -227,18 +264,13 @@ static void musb_conn_timer_handler(unsigned long _musb)
 
 			val = MUSB_INTR_SUSPEND | MUSB_INTR_VBUSERROR;
 			musb_writeb(musb->mregs, MUSB_INTRUSB, val);
-			if (is_otg_enabled(musb))
-				musb->xceiv->state = OTG_STATE_B_IDLE;
-			else
-				musb_writeb(musb->mregs, MUSB_POWER, MUSB_POWER_HSENAB);
+			musb->xceiv->otg->state = OTG_STATE_B_IDLE;
 		}
 		mod_timer(&musb_conn_timer, jiffies + TIMER_DELAY);
 		break;
 	case OTG_STATE_B_IDLE:
-
-		if (!is_peripheral_enabled(musb))
-			break;
-		/* Start a new session.  It seems that MUSB needs taking
+		/*
+		 * Start a new session.  It seems that MUSB needs taking
 		 * some time to recognize the type of the plug inserted?
 		 */
 		val = musb_readw(musb->mregs, MUSB_DEVCTL);
@@ -248,7 +280,7 @@ static void musb_conn_timer_handler(unsigned long _musb)
 
 		if (!(val & MUSB_DEVCTL_BDEVICE)) {
 			gpio_set_value(musb->config->gpio_vrsel, 1);
-			musb->xceiv->state = OTG_STATE_A_WAIT_BCON;
+			musb->xceiv->otg->state = OTG_STATE_A_WAIT_BCON;
 		} else {
 			gpio_set_value(musb->config->gpio_vrsel, 0);
 
@@ -283,21 +315,18 @@ static void musb_conn_timer_handler(unsigned long _musb)
 		break;
 	default:
 		dev_dbg(musb->controller, "%s state not handled\n",
-			otg_state_string(musb->xceiv->state));
+			usb_otg_state_string(musb->xceiv->otg->state));
 		break;
 	}
 	spin_unlock_irqrestore(&musb->lock, flags);
 
 	dev_dbg(musb->controller, "state is %s\n",
-		otg_state_string(musb->xceiv->state));
+		usb_otg_state_string(musb->xceiv->otg->state));
 }
 
 static void bfin_musb_enable(struct musb *musb)
 {
-	if (!is_otg_enabled(musb) && is_host_enabled(musb)) {
-		mod_timer(&musb_conn_timer, jiffies + TIMER_DELAY);
-		musb->a_wait_bcon = TIMER_DELAY;
-	}
+	/* REVISIT is this really correct ? */
 }
 
 static void bfin_musb_disable(struct musb *musb)
@@ -313,19 +342,13 @@ static void bfin_musb_set_vbus(struct musb *musb, int is_on)
 
 	dev_dbg(musb->controller, "VBUS %s, devctl %02x "
 		/* otg %3x conf %08x prcm %08x */ "\n",
-		otg_state_string(musb->xceiv->state),
+		usb_otg_state_string(musb->xceiv->otg->state),
 		musb_readb(musb->mregs, MUSB_DEVCTL));
 }
 
-static int bfin_musb_set_power(struct otg_transceiver *x, unsigned mA)
+static int bfin_musb_set_power(struct usb_phy *x, unsigned mA)
 {
 	return 0;
-}
-
-static void bfin_musb_try_idle(struct musb *musb, unsigned long timeout)
-{
-	if (!is_otg_enabled(musb) && is_host_enabled(musb))
-		mod_timer(&musb_conn_timer, jiffies + TIMER_DELAY);
 }
 
 static int bfin_musb_vbus_status(struct musb *musb)
@@ -414,21 +437,18 @@ static int bfin_musb_init(struct musb *musb)
 	}
 	gpio_direction_output(musb->config->gpio_vrsel, 0);
 
-	usb_nop_xceiv_register();
-	musb->xceiv = otg_get_transceiver();
-	if (!musb->xceiv) {
+	musb->xceiv = usb_get_phy(USB_PHY_TYPE_USB2);
+	if (IS_ERR_OR_NULL(musb->xceiv)) {
 		gpio_free(musb->config->gpio_vrsel);
-		return -ENODEV;
+		return -EPROBE_DEFER;
 	}
 
 	bfin_musb_reg_init(musb);
 
-	if (is_host_enabled(musb)) {
-		setup_timer(&musb_conn_timer,
-			musb_conn_timer_handler, (unsigned long) musb);
-	}
-	if (is_peripheral_enabled(musb))
-		musb->xceiv->set_power = bfin_musb_set_power;
+	setup_timer(&musb_conn_timer, musb_conn_timer_handler,
+			(unsigned long) musb);
+
+	musb->xceiv->set_power = bfin_musb_set_power;
 
 	musb->isr = blackfin_interrupt;
 	musb->double_buffer_not_ok = true;
@@ -439,9 +459,8 @@ static int bfin_musb_init(struct musb *musb)
 static int bfin_musb_exit(struct musb *musb)
 {
 	gpio_free(musb->config->gpio_vrsel);
+	usb_put_phy(musb->xceiv);
 
-	otg_put_transceiver(musb->xceiv);
-	usb_nop_xceiv_unregister();
 	return 0;
 }
 
@@ -449,11 +468,19 @@ static const struct musb_platform_ops bfin_ops = {
 	.init		= bfin_musb_init,
 	.exit		= bfin_musb_exit,
 
+	.readb		= bfin_readb,
+	.writeb		= bfin_writeb,
+	.readw		= bfin_readw,
+	.writew		= bfin_writew,
+	.readl		= bfin_readl,
+	.writel		= bfin_writel,
+	.fifo_mode	= 2,
+	.read_fifo	= bfin_read_fifo,
+	.write_fifo	= bfin_write_fifo,
 	.enable		= bfin_musb_enable,
 	.disable	= bfin_musb_disable,
 
 	.set_mode	= bfin_musb_set_mode,
-	.try_idle	= bfin_musb_try_idle,
 
 	.vbus_status	= bfin_musb_vbus_status,
 	.set_vbus	= bfin_musb_set_vbus,
@@ -463,25 +490,22 @@ static const struct musb_platform_ops bfin_ops = {
 
 static u64 bfin_dmamask = DMA_BIT_MASK(32);
 
-static int __init bfin_probe(struct platform_device *pdev)
+static int bfin_probe(struct platform_device *pdev)
 {
-	struct musb_hdrc_platform_data	*pdata = pdev->dev.platform_data;
+	struct resource musb_resources[2];
+	struct musb_hdrc_platform_data	*pdata = dev_get_platdata(&pdev->dev);
 	struct platform_device		*musb;
 	struct bfin_glue		*glue;
 
 	int				ret = -ENOMEM;
 
-	glue = kzalloc(sizeof(*glue), GFP_KERNEL);
-	if (!glue) {
-		dev_err(&pdev->dev, "failed to allocate glue context\n");
+	glue = devm_kzalloc(&pdev->dev, sizeof(*glue), GFP_KERNEL);
+	if (!glue)
 		goto err0;
-	}
 
-	musb = platform_device_alloc("musb-hdrc", -1);
-	if (!musb) {
-		dev_err(&pdev->dev, "failed to allocate musb device\n");
-		goto err1;
-	}
+	musb = platform_device_alloc("musb-hdrc", PLATFORM_DEVID_AUTO);
+	if (!musb)
+		goto err0;
 
 	musb->dev.parent		= &pdev->dev;
 	musb->dev.dma_mask		= &bfin_dmamask;
@@ -492,10 +516,26 @@ static int __init bfin_probe(struct platform_device *pdev)
 
 	pdata->platform_ops		= &bfin_ops;
 
+	glue->phy = usb_phy_generic_register();
+	if (IS_ERR(glue->phy))
+		goto err1;
 	platform_set_drvdata(pdev, glue);
 
-	ret = platform_device_add_resources(musb, pdev->resource,
-			pdev->num_resources);
+	memset(musb_resources, 0x00, sizeof(*musb_resources) *
+			ARRAY_SIZE(musb_resources));
+
+	musb_resources[0].name = pdev->resource[0].name;
+	musb_resources[0].start = pdev->resource[0].start;
+	musb_resources[0].end = pdev->resource[0].end;
+	musb_resources[0].flags = pdev->resource[0].flags;
+
+	musb_resources[1].name = pdev->resource[1].name;
+	musb_resources[1].start = pdev->resource[1].start;
+	musb_resources[1].end = pdev->resource[1].end;
+	musb_resources[1].flags = pdev->resource[1].flags;
+
+	ret = platform_device_add_resources(musb, musb_resources,
+			ARRAY_SIZE(musb_resources));
 	if (ret) {
 		dev_err(&pdev->dev, "failed to add resources\n");
 		goto err2;
@@ -516,22 +556,21 @@ static int __init bfin_probe(struct platform_device *pdev)
 	return 0;
 
 err2:
-	platform_device_put(musb);
+	usb_phy_generic_unregister(glue->phy);
 
 err1:
-	kfree(glue);
+	platform_device_put(musb);
 
 err0:
 	return ret;
 }
 
-static int __exit bfin_remove(struct platform_device *pdev)
+static int bfin_remove(struct platform_device *pdev)
 {
 	struct bfin_glue		*glue = platform_get_drvdata(pdev);
 
-	platform_device_del(glue->musb);
-	platform_device_put(glue->musb);
-	kfree(glue);
+	platform_device_unregister(glue->musb);
+	usb_phy_generic_unregister(glue->phy);
 
 	return 0;
 }
@@ -563,37 +602,20 @@ static int bfin_resume(struct device *dev)
 
 	return 0;
 }
-
-static struct dev_pm_ops bfin_pm_ops = {
-	.suspend	= bfin_suspend,
-	.resume		= bfin_resume,
-};
-
-#define DEV_PM_OPS	&bfin_pm_ops
-#else
-#define DEV_PM_OPS	NULL
 #endif
 
+static SIMPLE_DEV_PM_OPS(bfin_pm_ops, bfin_suspend, bfin_resume);
+
 static struct platform_driver bfin_driver = {
-	.remove		= __exit_p(bfin_remove),
+	.probe		= bfin_probe,
+	.remove		= bfin_remove,
 	.driver		= {
 		.name	= "musb-blackfin",
-		.pm	= DEV_PM_OPS,
+		.pm	= &bfin_pm_ops,
 	},
 };
 
 MODULE_DESCRIPTION("Blackfin MUSB Glue Layer");
 MODULE_AUTHOR("Bryan Wy <cooloney@kernel.org>");
 MODULE_LICENSE("GPL v2");
-
-static int __init bfin_init(void)
-{
-	return platform_driver_probe(&bfin_driver, bfin_probe);
-}
-subsys_initcall(bfin_init);
-
-static void __exit bfin_exit(void)
-{
-	platform_driver_unregister(&bfin_driver);
-}
-module_exit(bfin_exit);
+module_platform_driver(bfin_driver);

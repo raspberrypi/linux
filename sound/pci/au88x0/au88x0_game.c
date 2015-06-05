@@ -92,15 +92,16 @@ static int vortex_game_open(struct gameport *gameport, int mode)
 	return 0;
 }
 
-static int __devinit vortex_gameport_register(vortex_t * vortex)
+static int vortex_gameport_register(vortex_t *vortex)
 {
 	struct gameport *gp;
 
 	vortex->gameport = gp = gameport_allocate_port();
 	if (!gp) {
-		printk(KERN_ERR "vortex: cannot allocate memory for gameport\n");
+		dev_err(vortex->card->dev,
+			"cannot allocate memory for gameport\n");
 		return -ENOMEM;
-	};
+	}
 
 	gameport_set_name(gp, "AU88x0 Gameport");
 	gameport_set_phys(gp, "pci%s/gameport0", pci_name(vortex->pci_dev));

@@ -51,7 +51,6 @@ struct thread_info {
 	__s32			preempt_count;	/* 0 => preemptable,< 0 => BUG*/
 
 	mm_segment_t		addr_limit;	/* thread address space */
-	struct restart_block    restart_block;
 
 	unsigned long		cpenable;
 
@@ -72,11 +71,8 @@ struct thread_info {
 #define TI_CPU		 0x00000010
 #define TI_PRE_COUNT	 0x00000014
 #define TI_ADDR_LIMIT	 0x00000018
-#define TI_RESTART_BLOCK 0x000001C
 
 #endif
-
-#define PREEMPT_ACTIVE		0x10000000
 
 /*
  * macros/functions for gaining access to the thread information structure
@@ -92,9 +88,6 @@ struct thread_info {
 	.cpu		= 0,			\
 	.preempt_count	= INIT_PREEMPT_COUNT,	\
 	.addr_limit	= KERNEL_DS,		\
-	.restart_block = {			\
-		.fn = do_no_restart_syscall,	\
-	},					\
 }
 
 #define init_thread_info	(init_thread_union.thread_info)
@@ -128,20 +121,14 @@ static inline struct thread_info *current_thread_info(void)
 #define TIF_SIGPENDING		1	/* signal pending */
 #define TIF_NEED_RESCHED	2	/* rescheduling necessary */
 #define TIF_SINGLESTEP		3	/* restore singlestep on return to user mode */
-#define TIF_IRET		4	/* return with iret */
 #define TIF_MEMDIE		5	/* is terminating due to OOM killer */
 #define TIF_RESTORE_SIGMASK	6	/* restore signal mask in do_signal() */
-#define TIF_POLLING_NRFLAG	16	/* true if poll_idle() is polling TIF_NEED_RESCHED */
-#define TIF_FREEZE		17	/* is freezing for suspend */
+#define TIF_NOTIFY_RESUME	7	/* callback before returning to user */
 
 #define _TIF_SYSCALL_TRACE	(1<<TIF_SYSCALL_TRACE)
 #define _TIF_SIGPENDING		(1<<TIF_SIGPENDING)
 #define _TIF_NEED_RESCHED	(1<<TIF_NEED_RESCHED)
 #define _TIF_SINGLESTEP		(1<<TIF_SINGLESTEP)
-#define _TIF_IRET		(1<<TIF_IRET)
-#define _TIF_POLLING_NRFLAG	(1<<TIF_POLLING_NRFLAG)
-#define _TIF_RESTORE_SIGMASK	(1<<TIF_RESTORE_SIGMASK)
-#define _TIF_FREEZE		(1<<TIF_FREEZE)
 
 #define _TIF_WORK_MASK		0x0000FFFE	/* work to do on interrupt/exception return */
 #define _TIF_ALLWORK_MASK	0x0000FFFF	/* work to do on any return to u-space */

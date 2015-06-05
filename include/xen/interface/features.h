@@ -41,6 +41,12 @@
 /* x86: Does this Xen host support the MMU_PT_UPDATE_PRESERVE_AD hypercall? */
 #define XENFEAT_mmu_pt_update_preserve_ad  5
 
+/*
+ * If set, GNTTABOP_map_grant_ref honors flags to be placed into guest kernel
+ * available pte bits.
+ */
+#define XENFEAT_gnttab_map_avail_bits      7
+
 /* x86: Does this Xen host support the HVM callback vector type? */
 #define XENFEAT_hvm_callback_vector        8
 
@@ -49,6 +55,9 @@
 
 /* x86: pirq can be used by HVM guests */
 #define XENFEAT_hvm_pirqs           10
+
+/* operation as Dom0 is supported */
+#define XENFEAT_dom0                      11
 
 #define XENFEAT_NR_SUBMAPS 1
 

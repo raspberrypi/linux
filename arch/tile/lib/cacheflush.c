@@ -12,6 +12,7 @@
  *   more details.
  */
 
+#include <linux/export.h>
 #include <asm/page.h>
 #include <asm/cacheflush.h>
 #include <arch/icache.h>
@@ -35,11 +36,26 @@ static inline void force_load(char *p)
  * core (if "!hfh") or homed via hash-for-home (if "hfh"), waiting
  * until the memory controller holds the flushed values.
  */
-void finv_buffer_remote(void *buffer, size_t size, int hfh)
+void __attribute__((optimize("omit-frame-pointer")))
+finv_buffer_remote(void *buffer, size_t size, int hfh)
 {
 	char *p, *base;
 	size_t step_size, load_count;
+
+	/*
+	 * On TILEPro the striping granularity is a fixed 8KB; on
+	 * TILE-Gx it is configurable, and we rely on the fact that
+	 * the hypervisor always configures maximum striping, so that
+	 * bits 9 and 10 of the PA are part of the stripe function, so
+	 * every 512 bytes we hit a striping boundary.
+	 *
+	 */
+#ifdef __tilegx__
+	const unsigned long STRIPE_WIDTH = 512;
+#else
 	const unsigned long STRIPE_WIDTH = 8192;
+#endif
+
 #ifdef __tilegx__
 	/*
 	 * On TILE-Gx, we must disable the dstream prefetcher before doing
@@ -74,7 +90,7 @@ void finv_buffer_remote(void *buffer, size_t size, int hfh)
 	 * memory, that one load would be sufficient, but since we may
 	 * be, we also need to back up to the last load issued to
 	 * another memory controller, which would be the point where
-	 * we crossed an 8KB boundary (the granularity of striping
+	 * we crossed a "striping" boundary (the granularity of striping
 	 * across memory controllers).  Keep backing up and doing this
 	 * until we are before the beginning of the buffer, or have
 	 * hit all the controllers.
@@ -88,12 +104,22 @@ void finv_buffer_remote(void *buffer, size_t size, int hfh)
 	 * every cache line on a full memory stripe on each
 	 * controller" that we simply do that, to simplify the logic.
 	 *
-	 * FIXME: See bug 9535 for some issues with this code.
+	 * On TILE-Gx the hash-for-home function is much more complex,
+	 * with the upshot being we can't readily guarantee we have
+	 * hit both entries in the 128-entry AMT that were hit by any
+	 * load in the entire range, so we just re-load them all.
+	 * With larger buffers, we may want to consider using a hypervisor
+	 * trap to issue loads directly to each hash-for-home tile for
+	 * each controller (doing it from Linux would trash the TLB).
 	 */
 	if (hfh) {
 		step_size = L2_CACHE_BYTES;
+#ifdef __tilegx__
+		load_count = (size + L2_CACHE_BYTES - 1) / L2_CACHE_BYTES;
+#else
 		load_count = (STRIPE_WIDTH / L2_CACHE_BYTES) *
 			      (1 << CHIP_LOG_NUM_MSHIMS());
+#endif
 	} else {
 		step_size = STRIPE_WIDTH;
 		load_count = (1 << CHIP_LOG_NUM_MSHIMS());
@@ -109,7 +135,7 @@ void finv_buffer_remote(void *buffer, size_t size, int hfh)
 
 	/* Figure out how far back we need to go. */
 	base = p - (step_size * (load_count - 2));
-	if ((long)base < (long)buffer)
+	if ((unsigned long)base < (unsigned long)buffer)
 		base = buffer;
 
 	/*
@@ -122,18 +148,21 @@ void finv_buffer_remote(void *buffer, size_t size, int hfh)
 		force_load(p);
 
 	/*
-	 * Repeat, but with inv's instead of loads, to get rid of the
+	 * Repeat, but with finv's instead of loads, to get rid of the
 	 * data we just loaded into our own cache and the old home L3.
-	 * No need to unroll since inv's don't target a register.
+	 * No need to unroll since finv's don't target a register.
+	 * The finv's are guaranteed not to actually flush the data in
+	 * the buffer back to their home, since we just read it, so the
+	 * lines are clean in cache; we will only invalidate those lines.
 	 */
 	p = (char *)buffer + size - 1;
-	__insn_inv(p);
+	__insn_finv(p);
 	p -= step_size;
 	p = (char *)((unsigned long)p | (step_size - 1));
 	for (; p >= base; p -= step_size)
-		__insn_inv(p);
+		__insn_finv(p);
 
-	/* Wait for the load+inv's (and thus finvs) to have completed. */
+	/* Wait for these finv's (and thus the first finvs) to be done. */
 	__insn_mf();
 
 #ifdef __tilegx__
@@ -141,3 +170,4 @@ void finv_buffer_remote(void *buffer, size_t size, int hfh)
 	__insn_mtspr(SPR_DSTREAM_PF, old_dstream_pf);
 #endif
 }
+EXPORT_SYMBOL_GPL(finv_buffer_remote);

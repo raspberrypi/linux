@@ -67,7 +67,7 @@ static inline bool txx9_dma_have_SMPCHN(void)
 
 /* Hardware register definitions. */
 struct txx9dmac_cregs {
-#if defined(CONFIG_32BIT) && !defined(CONFIG_64BIT_PHYS_ADDR)
+#if defined(CONFIG_32BIT) && !defined(CONFIG_PHYS_ADDR_T_64BIT)
 	TXX9_DMA_REG32(CHAR);	/* Chain Address Register */
 #else
 	u64 CHAR;		/* Chain Address Register */
@@ -172,7 +172,6 @@ struct txx9dmac_chan {
 	spinlock_t		lock;
 
 	/* these other elements are all protected by lock */
-	dma_cookie_t		completed;
 	struct list_head	active_list;
 	struct list_head	queue;
 	struct list_head	free_list;
@@ -202,7 +201,7 @@ static inline bool is_dmac64(const struct txx9dmac_chan *dc)
 #ifdef TXX9_DMA_USE_SIMPLE_CHAIN
 /* Hardware descriptor definition. (for simple-chain) */
 struct txx9dmac_hwdesc {
-#if defined(CONFIG_32BIT) && !defined(CONFIG_64BIT_PHYS_ADDR)
+#if defined(CONFIG_32BIT) && !defined(CONFIG_PHYS_ADDR_T_64BIT)
 	TXX9_DMA_REG32(CHAR);
 #else
 	u64 CHAR;

@@ -44,13 +44,14 @@ SECTIONS {
 	__fdt_blob : AT(ADDR(__fdt_blob) - LOAD_OFFSET) {
 		_fdt_start = . ;		/* place for fdt blob */
 		*(__fdt_blob) ;			/* Any link-placed DTB */
-	        . = _fdt_start + 0x4000;	/* Pad up to 16kbyte */
+	        . = _fdt_start + 0x8000;	/* Pad up to 32kbyte */
 		_fdt_end = . ;
 	}
 
 	. = ALIGN(16);
 	RODATA
 	EXCEPTION_TABLE(16)
+	NOTES
 
 	/*
 	 * sdata2 section can go anywhere, but must be word aligned
@@ -131,7 +132,6 @@ SECTIONS {
 			*(COMMON)
 		. = ALIGN (4) ;
 		__bss_stop = . ;
-		_ebss = . ;
 	}
 	. = ALIGN(PAGE_SIZE);
 	_end = .;

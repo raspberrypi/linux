@@ -12,14 +12,10 @@
 #ifndef __ASM_MACH_IRQS_H
 #define __ASM_MACH_IRQS_H
 
-#ifdef CONFIG_PXA_HAVE_ISA_IRQS
-#define PXA_ISA_IRQ(x)	(x)
-#define PXA_ISA_IRQ_NUM	(16)
-#else
-#define PXA_ISA_IRQ_NUM	(0)
-#endif
+#include <asm/irq.h>
 
-#define PXA_IRQ(x)	(PXA_ISA_IRQ_NUM + (x))
+#define PXA_ISA_IRQ(x)	(x)
+#define PXA_IRQ(x)	(NR_IRQS_LEGACY + (x))
 
 #define IRQ_SSP3	PXA_IRQ(0)	/* SSP3 service request */
 #define IRQ_MSL		PXA_IRQ(1)	/* MSL Interface interrupt */
@@ -84,14 +80,11 @@
 #define IRQ_PXA935_MMC0	PXA_IRQ(72)	/* MMC0 Controller (PXA935) */
 #define IRQ_PXA935_MMC1	PXA_IRQ(73)	/* MMC1 Controller (PXA935) */
 #define IRQ_PXA935_MMC2	PXA_IRQ(74)	/* MMC2 Controller (PXA935) */
-#define IRQ_PXA955_MMC3	PXA_IRQ(75)	/* MMC3 Controller (PXA955) */
 #define IRQ_U2P		PXA_IRQ(93)	/* USB PHY D+/D- Lines (PXA935) */
 
 #define PXA_GPIO_IRQ_BASE	PXA_IRQ(96)
-#define PXA_GPIO_IRQ_NUM	(192)
-
-#define GPIO_2_x_TO_IRQ(x)	(PXA_GPIO_IRQ_BASE + (x))
-#define IRQ_GPIO(x)	(((x) < 2) ? (IRQ_GPIO0 + (x)) : GPIO_2_x_TO_IRQ(x))
+#define PXA_NR_BUILTIN_GPIO	(192)
+#define PXA_GPIO_TO_IRQ(x)	(PXA_GPIO_IRQ_BASE + (x))
 
 /*
  * The following interrupts are for board specific purposes. Since
@@ -100,9 +93,9 @@
  * By default, no board IRQ is reserved. It should be finished in
  * custom board since sparse IRQ is already enabled.
  */
-#define IRQ_BOARD_START		(PXA_GPIO_IRQ_BASE + PXA_GPIO_IRQ_NUM)
+#define IRQ_BOARD_START		(PXA_GPIO_IRQ_BASE + PXA_NR_BUILTIN_GPIO)
 
-#define NR_IRQS			(IRQ_BOARD_START)
+#define PXA_NR_IRQS		(IRQ_BOARD_START)
 
 #ifndef __ASSEMBLY__
 struct irq_data;

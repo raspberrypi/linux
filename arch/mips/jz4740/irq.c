@@ -3,7 +3,7 @@
  *  JZ4740 platform IRQ support
  *
  *  This program is free software; you can redistribute it and/or modify it
- *  under  the terms of the GNU General  Public License as published by the
+ *  under  the terms of the GNU General	 Public License as published by the
  *  Free Software Foundation;  either version 2 of the License, or (at your
  *  option) any later version.
  *
@@ -30,6 +30,9 @@
 #include <asm/irq_cpu.h>
 
 #include <asm/mach-jz4740/base.h>
+#include <asm/mach-jz4740/irq.h>
+
+#include "irq.h"
 
 static void __iomem *jz_intc_base;
 

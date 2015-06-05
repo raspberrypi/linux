@@ -16,10 +16,6 @@
 #ifndef AT91_DBGU_H
 #define AT91_DBGU_H
 
-#define dbgu_readl(dbgu, field) \
-	__raw_readl(AT91_VA_BASE_SYS + dbgu + AT91_DBGU_ ## field)
-
-#ifdef AT91_DBGU
 #define AT91_DBGU_CR		(0x00)	/* Control Register */
 #define AT91_DBGU_MR		(0x04)	/* Mode Register */
 #define AT91_DBGU_IER		(0x08)	/* Interrupt Enable Register */
@@ -36,8 +32,6 @@
 #define AT91_DBGU_EXID		(0x44)	/* Chip ID Extension Register */
 #define AT91_DBGU_FNR		(0x48)	/* Force NTRST Register [SAM9 only] */
 #define		AT91_DBGU_FNTRST	(1 << 0)		/* Force NTRST */
-
-#endif /* AT91_DBGU */
 
 /*
  * Some AT91 parts that don't have full DEBUG units still support the ID

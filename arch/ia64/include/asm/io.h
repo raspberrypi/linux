@@ -71,7 +71,6 @@ extern unsigned int num_io_spaces;
 #include <asm/intrinsics.h>
 #include <asm/machvec.h>
 #include <asm/page.h>
-#include <asm/system.h>
 #include <asm-generic/iomap.h>
 
 /*
@@ -91,7 +90,7 @@ phys_to_virt (unsigned long address)
 
 #define ARCH_HAS_VALID_PHYS_ADDR_RANGE
 extern u64 kern_mem_attribute (unsigned long phys_addr, unsigned long size);
-extern int valid_phys_addr_range (unsigned long addr, size_t count); /* efi.c */
+extern int valid_phys_addr_range (phys_addr_t addr, size_t count); /* efi.c */
 extern int valid_mmap_phys_addr_range (unsigned long pfn, size_t count);
 
 /*
@@ -394,6 +393,10 @@ __writeq (unsigned long val, volatile void __iomem *addr)
 #define writew(v,a)	__writew((v), (a))
 #define writel(v,a)	__writel((v), (a))
 #define writeq(v,a)	__writeq((v), (a))
+#define writeb_relaxed(v,a)	__writeb((v), (a))
+#define writew_relaxed(v,a)	__writew((v), (a))
+#define writel_relaxed(v,a)	__writel((v), (a))
+#define writeq_relaxed(v,a)	__writeq((v), (a))
 #define __raw_writeb	writeb
 #define __raw_writew	writew
 #define __raw_writel	writel
@@ -425,7 +428,9 @@ extern void __iomem * ioremap(unsigned long offset, unsigned long size);
 extern void __iomem * ioremap_nocache (unsigned long offset, unsigned long size);
 extern void iounmap (volatile void __iomem *addr);
 extern void __iomem * early_ioremap (unsigned long phys_addr, unsigned long size);
+#define early_memremap(phys_addr, size)        early_ioremap(phys_addr, size)
 extern void early_iounmap (volatile void __iomem *addr, unsigned long size);
+#define early_memunmap(addr, size)             early_iounmap(addr, size)
 static inline void __iomem * ioremap_cache (unsigned long phys_addr, unsigned long size)
 {
 	return ioremap(phys_addr, size);

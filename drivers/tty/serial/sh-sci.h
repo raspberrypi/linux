@@ -9,19 +9,19 @@
 #define SCxSR_PER(port)		(((port)->type == PORT_SCI) ? SCI_PER    : SCIF_PER)
 #define SCxSR_BRK(port)		(((port)->type == PORT_SCI) ? 0x00       : SCIF_BRK)
 
-#define SCxSR_ERRORS(port)	(to_sci_port(port)->cfg->error_mask)
+#define SCxSR_ERRORS(port)	(to_sci_port(port)->error_mask)
 
 #if defined(CONFIG_CPU_SUBTYPE_SH7705) || \
     defined(CONFIG_CPU_SUBTYPE_SH7720) || \
     defined(CONFIG_CPU_SUBTYPE_SH7721) || \
     defined(CONFIG_ARCH_SH73A0) || \
-    defined(CONFIG_ARCH_SH7367) || \
-    defined(CONFIG_ARCH_SH7377) || \
-    defined(CONFIG_ARCH_SH7372)
-# define SCxSR_RDxF_CLEAR(port)	 (sci_in(port, SCxSR) & 0xfffc)
-# define SCxSR_ERROR_CLEAR(port) (sci_in(port, SCxSR) & 0xfd73)
-# define SCxSR_TDxE_CLEAR(port)	 (sci_in(port, SCxSR) & 0xffdf)
-# define SCxSR_BREAK_CLEAR(port) (sci_in(port, SCxSR) & 0xffe3)
+    defined(CONFIG_ARCH_SH7372) || \
+    defined(CONFIG_ARCH_R8A7740)
+
+# define SCxSR_RDxF_CLEAR(port)	 (serial_port_in(port, SCxSR) & 0xfffc)
+# define SCxSR_ERROR_CLEAR(port) (serial_port_in(port, SCxSR) & 0xfd73)
+# define SCxSR_TDxE_CLEAR(port)	 (serial_port_in(port, SCxSR) & 0xffdf)
+# define SCxSR_BREAK_CLEAR(port) (serial_port_in(port, SCxSR) & 0xffe3)
 #else
 # define SCxSR_RDxF_CLEAR(port)	 (((port)->type == PORT_SCI) ? 0xbc : 0x00fc)
 # define SCxSR_ERROR_CLEAR(port) (((port)->type == PORT_SCI) ? 0xc4 : 0x0073)

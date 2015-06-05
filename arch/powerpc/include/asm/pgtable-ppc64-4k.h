@@ -7,7 +7,7 @@
  */
 #define PTE_INDEX_SIZE  9
 #define PMD_INDEX_SIZE  7
-#define PUD_INDEX_SIZE  7
+#define PUD_INDEX_SIZE  9
 #define PGD_INDEX_SIZE  9
 
 #ifndef __ASSEMBLY__
@@ -19,7 +19,7 @@
 
 #define PTRS_PER_PTE	(1 << PTE_INDEX_SIZE)
 #define PTRS_PER_PMD	(1 << PMD_INDEX_SIZE)
-#define PTRS_PER_PUD	(1 << PMD_INDEX_SIZE)
+#define PTRS_PER_PUD	(1 << PUD_INDEX_SIZE)
 #define PTRS_PER_PGD	(1 << PGD_INDEX_SIZE)
 
 /* PMD_SHIFT determines what a second-level page table entry can map */
@@ -57,14 +57,28 @@
 #define pgd_present(pgd)	(pgd_val(pgd) != 0)
 #define pgd_clear(pgdp)		(pgd_val(*(pgdp)) = 0)
 #define pgd_page_vaddr(pgd)	(pgd_val(pgd) & ~PGD_MASKED_BITS)
-#define pgd_page(pgd)		virt_to_page(pgd_page_vaddr(pgd))
+
+#ifndef __ASSEMBLY__
+
+static inline pte_t pgd_pte(pgd_t pgd)
+{
+	return __pte(pgd_val(pgd));
+}
+
+static inline pgd_t pte_pgd(pte_t pte)
+{
+	return __pgd(pte_val(pte));
+}
+extern struct page *pgd_page(pgd_t pgd);
+
+#endif /* !__ASSEMBLY__ */
 
 #define pud_offset(pgdp, addr)	\
   (((pud_t *) pgd_page_vaddr(*(pgdp))) + \
     (((addr) >> PUD_SHIFT) & (PTRS_PER_PUD - 1)))
 
 #define pud_ERROR(e) \
-	printk("%s:%d: bad pud %08lx.\n", __FILE__, __LINE__, pud_val(e))
+	pr_err("%s:%d: bad pud %08lx.\n", __FILE__, __LINE__, pud_val(e))
 
 /*
  * On all 4K setups, remap_4k_pfn() equates to remap_pfn_range() */

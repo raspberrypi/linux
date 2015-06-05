@@ -3,7 +3,7 @@
  * This file contains the Linux/SCSI LLD virtual SCSI initiator driver
  * for emulated SAS initiator ports
  *
- * © Copyright 2011 RisingTide Systems LLC.
+ * © Copyright 2011-2013 Datera, Inc.
  *
  * Licensed to the Linux Foundation under the General Public License (GPL) version 2.
  *
@@ -33,14 +33,9 @@
 #include <scsi/scsi_cmnd.h>
 
 #include <target/target_core_base.h>
-#include <target/target_core_transport.h>
-#include <target/target_core_fabric_ops.h>
+#include <target/target_core_fabric.h>
 #include <target/target_core_fabric_configfs.h>
-#include <target/target_core_fabric_lib.h>
 #include <target/target_core_configfs.h>
-#include <target/target_core_device.h>
-#include <target/target_core_tpg.h>
-#include <target/target_core_tmr.h>
 
 #include "tcm_loop.h"
 
@@ -49,138 +44,12 @@
 /* Local pointer to allocated TCM configfs fabric module */
 static struct target_fabric_configfs *tcm_loop_fabric_configfs;
 
+static struct workqueue_struct *tcm_loop_workqueue;
 static struct kmem_cache *tcm_loop_cmd_cache;
 
 static int tcm_loop_hba_no_cnt;
 
-/*
- * Allocate a tcm_loop cmd descriptor from target_core_mod code
- *
- * Can be called from interrupt context in tcm_loop_queuecommand() below
- */
-static struct se_cmd *tcm_loop_allocate_core_cmd(
-	struct tcm_loop_hba *tl_hba,
-	struct se_portal_group *se_tpg,
-	struct scsi_cmnd *sc)
-{
-	struct se_cmd *se_cmd;
-	struct se_session *se_sess;
-	struct tcm_loop_nexus *tl_nexus = tl_hba->tl_nexus;
-	struct tcm_loop_cmd *tl_cmd;
-	int sam_task_attr;
-
-	if (!tl_nexus) {
-		scmd_printk(KERN_ERR, sc, "TCM_Loop I_T Nexus"
-				" does not exist\n");
-		set_host_byte(sc, DID_ERROR);
-		return NULL;
-	}
-	se_sess = tl_nexus->se_sess;
-
-	tl_cmd = kmem_cache_zalloc(tcm_loop_cmd_cache, GFP_ATOMIC);
-	if (!tl_cmd) {
-		pr_err("Unable to allocate struct tcm_loop_cmd\n");
-		set_host_byte(sc, DID_ERROR);
-		return NULL;
-	}
-	se_cmd = &tl_cmd->tl_se_cmd;
-	/*
-	 * Save the pointer to struct scsi_cmnd *sc
-	 */
-	tl_cmd->sc = sc;
-	/*
-	 * Locate the SAM Task Attr from struct scsi_cmnd *
-	 */
-	if (sc->device->tagged_supported) {
-		switch (sc->tag) {
-		case HEAD_OF_QUEUE_TAG:
-			sam_task_attr = MSG_HEAD_TAG;
-			break;
-		case ORDERED_QUEUE_TAG:
-			sam_task_attr = MSG_ORDERED_TAG;
-			break;
-		default:
-			sam_task_attr = MSG_SIMPLE_TAG;
-			break;
-		}
-	} else
-		sam_task_attr = MSG_SIMPLE_TAG;
-
-	/*
-	 * Initialize struct se_cmd descriptor from target_core_mod infrastructure
-	 */
-	transport_init_se_cmd(se_cmd, se_tpg->se_tpg_tfo, se_sess,
-			scsi_bufflen(sc), sc->sc_data_direction, sam_task_attr,
-			&tl_cmd->tl_sense_buf[0]);
-
-	if (scsi_bidi_cmnd(sc))
-		se_cmd->se_cmd_flags |= SCF_BIDI;
-
-	/*
-	 * Locate the struct se_lun pointer and attach it to struct se_cmd
-	 */
-	if (transport_lookup_cmd_lun(se_cmd, tl_cmd->sc->device->lun) < 0) {
-		kmem_cache_free(tcm_loop_cmd_cache, tl_cmd);
-		set_host_byte(sc, DID_NO_CONNECT);
-		return NULL;
-	}
-
-	return se_cmd;
-}
-
-/*
- * Called by struct target_core_fabric_ops->new_cmd_map()
- *
- * Always called in process context.  A non zero return value
- * here will signal to handle an exception based on the return code.
- */
-static int tcm_loop_new_cmd_map(struct se_cmd *se_cmd)
-{
-	struct tcm_loop_cmd *tl_cmd = container_of(se_cmd,
-				struct tcm_loop_cmd, tl_se_cmd);
-	struct scsi_cmnd *sc = tl_cmd->sc;
-	struct scatterlist *sgl_bidi = NULL;
-	u32 sgl_bidi_count = 0;
-	int ret;
-	/*
-	 * Allocate the necessary tasks to complete the received CDB+data
-	 */
-	ret = transport_generic_allocate_tasks(se_cmd, sc->cmnd);
-	if (ret != 0)
-		return ret;
-	/*
-	 * For BIDI commands, pass in the extra READ buffer
-	 * to transport_generic_map_mem_to_cmd() below..
-	 */
-	if (se_cmd->se_cmd_flags & SCF_BIDI) {
-		struct scsi_data_buffer *sdb = scsi_in(sc);
-
-		sgl_bidi = sdb->table.sgl;
-		sgl_bidi_count = sdb->table.nents;
-	}
-	/*
-	 * Because some userspace code via scsi-generic do not memset their
-	 * associated read buffers, go ahead and do that here for type
-	 * SCF_SCSI_CONTROL_SG_IO_CDB.  Also note that this is currently
-	 * guaranteed to be a single SGL for SCF_SCSI_CONTROL_SG_IO_CDB
-	 * by target core in transport_generic_allocate_tasks() ->
-	 * transport_generic_cmd_sequencer().
-	 */
-	if (se_cmd->se_cmd_flags & SCF_SCSI_CONTROL_SG_IO_CDB &&
-	    se_cmd->data_direction == DMA_FROM_DEVICE) {
-		struct scatterlist *sg = scsi_sglist(sc);
-		unsigned char *buf = kmap(sg_page(sg)) + sg->offset;
-
-		if (buf != NULL) {
-			memset(buf, 0, sg->length);
-			kunmap(sg_page(sg));
-		}
-	}
-
-	/* Tell the core about our preallocated memory */
-	return transport_generic_map_mem_to_cmd(se_cmd, scsi_sglist(sc),
-			scsi_sg_count(sc), sgl_bidi, sgl_bidi_count);
-}
+static int tcm_loop_queue_status(struct se_cmd *se_cmd);
 
 /*
  * Called from struct target_core_fabric_ops->check_stop_free()
@@ -192,7 +61,7 @@ static int tcm_loop_check_stop_free(struct se_cmd *se_cmd)
 	 * pointer.  These will be released directly in tcm_loop_device_reset()
 	 * with transport_generic_free_cmd().
 	 */
-	if (se_cmd->se_tmr_req)
+	if (se_cmd->se_cmd_flags & SCF_SCSI_TMR_CDB)
 		return 0;
 	/*
 	 * Release the struct se_cmd, which will make a callback to release
@@ -210,11 +79,10 @@ static void tcm_loop_release_cmd(struct se_cmd *se_cmd)
 	kmem_cache_free(tcm_loop_cmd_cache, tl_cmd);
 }
 
-static int tcm_loop_proc_info(struct Scsi_Host *host, char *buffer,
-				char **start, off_t offset,
-				int length, int inout)
+static int tcm_loop_show_info(struct seq_file *m, struct Scsi_Host *host)
 {
-	return sprintf(buffer, "tcm_loop_proc_info()\n");
+	seq_printf(m, "tcm_loop_proc_info()\n");
+	return 0;
 }
 
 static int tcm_loop_driver_probe(struct device *);
@@ -242,76 +110,106 @@ static struct device_driver tcm_loop_driverfs = {
  */
 struct device *tcm_loop_primary;
 
-/*
- * Copied from drivers/scsi/libfc/fc_fcp.c:fc_change_queue_depth() and
- * drivers/scsi/libiscsi.c:iscsi_change_queue_depth()
- */
-static int tcm_loop_change_queue_depth(
-	struct scsi_device *sdev,
-	int depth,
-	int reason)
+static void tcm_loop_submission_work(struct work_struct *work)
 {
-	switch (reason) {
-	case SCSI_QDEPTH_DEFAULT:
-		scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), depth);
-		break;
-	case SCSI_QDEPTH_QFULL:
-		scsi_track_queue_full(sdev, depth);
-		break;
-	case SCSI_QDEPTH_RAMP_UP:
-		scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), depth);
-		break;
-	default:
-		return -EOPNOTSUPP;
-	}
-	return sdev->queue_depth;
-}
-
-/*
- * Main entry point from struct scsi_host_template for incoming SCSI CDB+Data
- * from Linux/SCSI subsystem for SCSI low level device drivers (LLDs)
- */
-static int tcm_loop_queuecommand(
-	struct Scsi_Host *sh,
-	struct scsi_cmnd *sc)
-{
-	struct se_cmd *se_cmd;
-	struct se_portal_group *se_tpg;
+	struct tcm_loop_cmd *tl_cmd =
+		container_of(work, struct tcm_loop_cmd, work);
+	struct se_cmd *se_cmd = &tl_cmd->tl_se_cmd;
+	struct scsi_cmnd *sc = tl_cmd->sc;
+	struct tcm_loop_nexus *tl_nexus;
 	struct tcm_loop_hba *tl_hba;
 	struct tcm_loop_tpg *tl_tpg;
+	struct scatterlist *sgl_bidi = NULL;
+	u32 sgl_bidi_count = 0, transfer_length;
+	int rc;
 
-	pr_debug("tcm_loop_queuecommand() %d:%d:%d:%d got CDB: 0x%02x"
-		" scsi_buf_len: %u\n", sc->device->host->host_no,
-		sc->device->id, sc->device->channel, sc->device->lun,
-		sc->cmnd[0], scsi_bufflen(sc));
-	/*
-	 * Locate the tcm_loop_hba_t pointer
-	 */
 	tl_hba = *(struct tcm_loop_hba **)shost_priv(sc->device->host);
 	tl_tpg = &tl_hba->tl_hba_tpgs[sc->device->id];
+
 	/*
 	 * Ensure that this tl_tpg reference from the incoming sc->device->id
 	 * has already been configured via tcm_loop_make_naa_tpg().
 	 */
 	if (!tl_tpg->tl_hba) {
 		set_host_byte(sc, DID_NO_CONNECT);
+		goto out_done;
+	}
+	if (tl_tpg->tl_transport_status == TCM_TRANSPORT_OFFLINE) {
+		set_host_byte(sc, DID_TRANSPORT_DISRUPTED);
+		goto out_done;
+	}
+	tl_nexus = tl_tpg->tl_nexus;
+	if (!tl_nexus) {
+		scmd_printk(KERN_ERR, sc, "TCM_Loop I_T Nexus"
+				" does not exist\n");
+		set_host_byte(sc, DID_ERROR);
+		goto out_done;
+	}
+	if (scsi_bidi_cmnd(sc)) {
+		struct scsi_data_buffer *sdb = scsi_in(sc);
+
+		sgl_bidi = sdb->table.sgl;
+		sgl_bidi_count = sdb->table.nents;
+		se_cmd->se_cmd_flags |= SCF_BIDI;
+
+	}
+
+	transfer_length = scsi_transfer_length(sc);
+	if (!scsi_prot_sg_count(sc) &&
+	    scsi_get_prot_op(sc) != SCSI_PROT_NORMAL) {
+		se_cmd->prot_pto = true;
+		/*
+		 * loopback transport doesn't support
+		 * WRITE_GENERATE, READ_STRIP protection
+		 * information operations, go ahead unprotected.
+		 */
+		transfer_length = scsi_bufflen(sc);
+	}
+
+	rc = target_submit_cmd_map_sgls(se_cmd, tl_nexus->se_sess, sc->cmnd,
+			&tl_cmd->tl_sense_buf[0], tl_cmd->sc->device->lun,
+			transfer_length, TCM_SIMPLE_TAG,
+			sc->sc_data_direction, 0,
+			scsi_sglist(sc), scsi_sg_count(sc),
+			sgl_bidi, sgl_bidi_count,
+			scsi_prot_sglist(sc), scsi_prot_sg_count(sc));
+	if (rc < 0) {
+		set_host_byte(sc, DID_NO_CONNECT);
+		goto out_done;
+	}
+	return;
+
+out_done:
+	kmem_cache_free(tcm_loop_cmd_cache, tl_cmd);
+	sc->scsi_done(sc);
+	return;
+}
+
+/*
+ * ->queuecommand can be and usually is called from interrupt context, so
+ * defer the actual submission to a workqueue.
+ */
+static int tcm_loop_queuecommand(struct Scsi_Host *sh, struct scsi_cmnd *sc)
+{
+	struct tcm_loop_cmd *tl_cmd;
+
+	pr_debug("tcm_loop_queuecommand() %d:%d:%d:%llu got CDB: 0x%02x"
+		" scsi_buf_len: %u\n", sc->device->host->host_no,
+		sc->device->id, sc->device->channel, sc->device->lun,
+		sc->cmnd[0], scsi_bufflen(sc));
+
+	tl_cmd = kmem_cache_zalloc(tcm_loop_cmd_cache, GFP_ATOMIC);
+	if (!tl_cmd) {
+		pr_err("Unable to allocate struct tcm_loop_cmd\n");
+		set_host_byte(sc, DID_ERROR);
 		sc->scsi_done(sc);
 		return 0;
 	}
-	se_tpg = &tl_tpg->tl_se_tpg;
-	/*
-	 * Determine the SAM Task Attribute and allocate tl_cmd and
-	 * tl_cmd->tl_se_cmd from TCM infrastructure
-	 */
-	se_cmd = tcm_loop_allocate_core_cmd(tl_hba, se_tpg, sc);
-	if (!se_cmd) {
-		sc->scsi_done(sc);
-		return 0;
-	}
-	/*
-	 * Queue up the newly allocated to be processed in TCM thread context.
-	*/
-	transport_generic_handle_cdb_map(se_cmd);
+
+	tl_cmd->sc = sc;
+	tl_cmd->sc_cmd_tag = sc->request->tag;
+	INIT_WORK(&tl_cmd->work, tcm_loop_submission_work);
+	queue_work(tcm_loop_workqueue, &tl_cmd->work);
 	return 0;
 }
 
@@ -319,41 +217,31 @@ static int tcm_loop_queuecommand(
  * Called from SCSI EH process context to issue a LUN_RESET TMR
  * to struct scsi_device
  */
-static int tcm_loop_device_reset(struct scsi_cmnd *sc)
+static int tcm_loop_issue_tmr(struct tcm_loop_tpg *tl_tpg,
+			      int lun, int task, enum tcm_tmreq_table tmr)
 {
 	struct se_cmd *se_cmd = NULL;
-	struct se_portal_group *se_tpg;
 	struct se_session *se_sess;
-	struct tcm_loop_cmd *tl_cmd = NULL;
-	struct tcm_loop_hba *tl_hba;
+	struct se_portal_group *se_tpg;
 	struct tcm_loop_nexus *tl_nexus;
+	struct tcm_loop_cmd *tl_cmd = NULL;
 	struct tcm_loop_tmr *tl_tmr = NULL;
-	struct tcm_loop_tpg *tl_tpg;
-	int ret = FAILED;
-	/*
-	 * Locate the tcm_loop_hba_t pointer
-	 */
-	tl_hba = *(struct tcm_loop_hba **)shost_priv(sc->device->host);
+	int ret = TMR_FUNCTION_FAILED, rc;
+
 	/*
 	 * Locate the tl_nexus and se_sess pointers
 	 */
-	tl_nexus = tl_hba->tl_nexus;
+	tl_nexus = tl_tpg->tl_nexus;
 	if (!tl_nexus) {
 		pr_err("Unable to perform device reset without"
 				" active I_T Nexus\n");
-		return FAILED;
+		return ret;
 	}
-	se_sess = tl_nexus->se_sess;
-	/*
-	 * Locate the tl_tpg and se_tpg pointers from TargetID in sc->device->id
-	 */
-	tl_tpg = &tl_hba->tl_hba_tpgs[sc->device->id];
-	se_tpg = &tl_tpg->tl_se_tpg;
 
 	tl_cmd = kmem_cache_zalloc(tcm_loop_cmd_cache, GFP_KERNEL);
 	if (!tl_cmd) {
 		pr_err("Unable to allocate memory for tl_cmd\n");
-		return FAILED;
+		return ret;
 	}
 
 	tl_tmr = kzalloc(sizeof(struct tcm_loop_tmr), GFP_KERNEL);
@@ -364,27 +252,32 @@ static int tcm_loop_device_reset(struct scsi_cmnd *sc)
 	init_waitqueue_head(&tl_tmr->tl_tmr_wait);
 
 	se_cmd = &tl_cmd->tl_se_cmd;
+	se_tpg = &tl_tpg->tl_se_tpg;
+	se_sess = tl_tpg->tl_nexus->se_sess;
 	/*
 	 * Initialize struct se_cmd descriptor from target_core_mod infrastructure
 	 */
 	transport_init_se_cmd(se_cmd, se_tpg->se_tpg_tfo, se_sess, 0,
-				DMA_NONE, MSG_SIMPLE_TAG,
+				DMA_NONE, TCM_SIMPLE_TAG,
 				&tl_cmd->tl_sense_buf[0]);
-	/*
-	 * Allocate the LUN_RESET TMR
-	 */
-	se_cmd->se_tmr_req = core_tmr_alloc_req(se_cmd, tl_tmr,
-						TMR_LUN_RESET, GFP_KERNEL);
-	if (IS_ERR(se_cmd->se_tmr_req))
+
+	rc = core_tmr_alloc_req(se_cmd, tl_tmr, tmr, GFP_KERNEL);
+	if (rc < 0)
 		goto release;
+
+	if (tmr == TMR_ABORT_TASK)
+		se_cmd->se_tmr_req->ref_task_tag = task;
+
 	/*
-	 * Locate the underlying TCM struct se_lun from sc->device->lun
+	 * Locate the underlying TCM struct se_lun
 	 */
-	if (transport_lookup_tmr_lun(se_cmd, sc->device->lun) < 0)
+	if (transport_lookup_tmr_lun(se_cmd, lun) < 0) {
+		ret = TMR_LUN_DOES_NOT_EXIST;
 		goto release;
+	}
 	/*
-	 * Queue the TMR to TCM Core and sleep waiting for tcm_loop_queue_tm_rsp()
-	 * to wake us up.
+	 * Queue the TMR to TCM Core and sleep waiting for
+	 * tcm_loop_queue_tm_rsp() to wake us up.
 	 */
 	transport_generic_handle_tmr(se_cmd);
 	wait_event(tl_tmr->tl_tmr_wait, atomic_read(&tl_tmr->tmr_complete));
@@ -392,8 +285,7 @@ static int tcm_loop_device_reset(struct scsi_cmnd *sc)
 	 * The TMR LUN_RESET has completed, check the response status and
 	 * then release allocations.
 	 */
-	ret = (se_cmd->se_tmr_req->response == TMR_FUNCTION_COMPLETE) ?
-		SUCCESS : FAILED;
+	ret = se_cmd->se_tmr_req->response;
 release:
 	if (se_cmd)
 		transport_generic_free_cmd(se_cmd, 1);
@@ -403,40 +295,100 @@ release:
 	return ret;
 }
 
+static int tcm_loop_abort_task(struct scsi_cmnd *sc)
+{
+	struct tcm_loop_hba *tl_hba;
+	struct tcm_loop_tpg *tl_tpg;
+	int ret = FAILED;
+
+	/*
+	 * Locate the tcm_loop_hba_t pointer
+	 */
+	tl_hba = *(struct tcm_loop_hba **)shost_priv(sc->device->host);
+	tl_tpg = &tl_hba->tl_hba_tpgs[sc->device->id];
+	ret = tcm_loop_issue_tmr(tl_tpg, sc->device->lun,
+				 sc->request->tag, TMR_ABORT_TASK);
+	return (ret == TMR_FUNCTION_COMPLETE) ? SUCCESS : FAILED;
+}
+
+/*
+ * Called from SCSI EH process context to issue a LUN_RESET TMR
+ * to struct scsi_device
+ */
+static int tcm_loop_device_reset(struct scsi_cmnd *sc)
+{
+	struct tcm_loop_hba *tl_hba;
+	struct tcm_loop_tpg *tl_tpg;
+	int ret = FAILED;
+
+	/*
+	 * Locate the tcm_loop_hba_t pointer
+	 */
+	tl_hba = *(struct tcm_loop_hba **)shost_priv(sc->device->host);
+	tl_tpg = &tl_hba->tl_hba_tpgs[sc->device->id];
+
+	ret = tcm_loop_issue_tmr(tl_tpg, sc->device->lun,
+				 0, TMR_LUN_RESET);
+	return (ret == TMR_FUNCTION_COMPLETE) ? SUCCESS : FAILED;
+}
+
+static int tcm_loop_target_reset(struct scsi_cmnd *sc)
+{
+	struct tcm_loop_hba *tl_hba;
+	struct tcm_loop_tpg *tl_tpg;
+
+	/*
+	 * Locate the tcm_loop_hba_t pointer
+	 */
+	tl_hba = *(struct tcm_loop_hba **)shost_priv(sc->device->host);
+	if (!tl_hba) {
+		pr_err("Unable to perform device reset without"
+				" active I_T Nexus\n");
+		return FAILED;
+	}
+	/*
+	 * Locate the tl_tpg pointer from TargetID in sc->device->id
+	 */
+	tl_tpg = &tl_hba->tl_hba_tpgs[sc->device->id];
+	if (tl_tpg) {
+		tl_tpg->tl_transport_status = TCM_TRANSPORT_ONLINE;
+		return SUCCESS;
+	}
+	return FAILED;
+}
+
 static int tcm_loop_slave_alloc(struct scsi_device *sd)
 {
 	set_bit(QUEUE_FLAG_BIDI, &sd->request_queue->queue_flags);
 	return 0;
 }
 
-static int tcm_loop_slave_configure(struct scsi_device *sd)
-{
-	return 0;
-}
-
 static struct scsi_host_template tcm_loop_driver_template = {
-	.proc_info		= tcm_loop_proc_info,
+	.show_info		= tcm_loop_show_info,
 	.proc_name		= "tcm_loopback",
 	.name			= "TCM_Loopback",
 	.queuecommand		= tcm_loop_queuecommand,
-	.change_queue_depth	= tcm_loop_change_queue_depth,
+	.change_queue_depth	= scsi_change_queue_depth,
+	.eh_abort_handler = tcm_loop_abort_task,
 	.eh_device_reset_handler = tcm_loop_device_reset,
-	.can_queue		= TL_SCSI_CAN_QUEUE,
+	.eh_target_reset_handler = tcm_loop_target_reset,
+	.can_queue		= 1024,
 	.this_id		= -1,
-	.sg_tablesize		= TL_SCSI_SG_TABLESIZE,
-	.cmd_per_lun		= TL_SCSI_CMD_PER_LUN,
-	.max_sectors		= TL_SCSI_MAX_SECTORS,
+	.sg_tablesize		= 256,
+	.cmd_per_lun		= 1024,
+	.max_sectors		= 0xFFFF,
 	.use_clustering		= DISABLE_CLUSTERING,
 	.slave_alloc		= tcm_loop_slave_alloc,
-	.slave_configure	= tcm_loop_slave_configure,
 	.module			= THIS_MODULE,
+	.use_blk_tags		= 1,
+	.track_queue_depth	= 1,
 };
 
 static int tcm_loop_driver_probe(struct device *dev)
 {
 	struct tcm_loop_hba *tl_hba;
 	struct Scsi_Host *sh;
-	int error;
+	int error, host_prot;
 
 	tl_hba = to_tcm_loop_hba(dev);
 
@@ -459,6 +411,13 @@ static int tcm_loop_driver_probe(struct device *dev)
 	sh->max_lun = 0;
 	sh->max_channel = 0;
 	sh->max_cmd_len = TL_SCSI_MAX_CMD_LEN;
+
+	host_prot = SHOST_DIF_TYPE1_PROTECTION | SHOST_DIF_TYPE2_PROTECTION |
+		    SHOST_DIF_TYPE3_PROTECTION | SHOST_DIX_TYPE1_PROTECTION |
+		    SHOST_DIX_TYPE2_PROTECTION | SHOST_DIX_TYPE3_PROTECTION;
+
+	scsi_host_set_prot(sh, host_prot);
+	scsi_host_set_guard(sh, SHOST_DIX_GUARD_CRC);
 
 	error = scsi_add_host(sh, &tl_hba->dev);
 	if (error) {
@@ -564,8 +523,7 @@ static char *tcm_loop_get_fabric_name(void)
 
 static u8 tcm_loop_get_fabric_proto_ident(struct se_portal_group *se_tpg)
 {
-	struct tcm_loop_tpg *tl_tpg =
-			(struct tcm_loop_tpg *)se_tpg->se_tpg_fabric_ptr;
+	struct tcm_loop_tpg *tl_tpg = se_tpg->se_tpg_fabric_ptr;
 	struct tcm_loop_hba *tl_hba = tl_tpg->tl_hba;
 	/*
 	 * tl_proto_id is set at tcm_loop_configfs.c:tcm_loop_make_scsi_hba()
@@ -592,8 +550,7 @@ static u8 tcm_loop_get_fabric_proto_ident(struct se_portal_group *se_tpg)
 
 static char *tcm_loop_get_endpoint_wwn(struct se_portal_group *se_tpg)
 {
-	struct tcm_loop_tpg *tl_tpg =
-		(struct tcm_loop_tpg *)se_tpg->se_tpg_fabric_ptr;
+	struct tcm_loop_tpg *tl_tpg = se_tpg->se_tpg_fabric_ptr;
 	/*
 	 * Return the passed NAA identifier for the SAS Target Port
 	 */
@@ -602,8 +559,7 @@ static char *tcm_loop_get_endpoint_wwn(struct se_portal_group *se_tpg)
 
 static u16 tcm_loop_get_tag(struct se_portal_group *se_tpg)
 {
-	struct tcm_loop_tpg *tl_tpg =
-		(struct tcm_loop_tpg *)se_tpg->se_tpg_fabric_ptr;
+	struct tcm_loop_tpg *tl_tpg = se_tpg->se_tpg_fabric_ptr;
 	/*
 	 * This Tag is used when forming SCSI Name identifier in EVPD=1 0x83
 	 * to represent the SCSI Target Port.
@@ -623,8 +579,7 @@ static u32 tcm_loop_get_pr_transport_id(
 	int *format_code,
 	unsigned char *buf)
 {
-	struct tcm_loop_tpg *tl_tpg =
-			(struct tcm_loop_tpg *)se_tpg->se_tpg_fabric_ptr;
+	struct tcm_loop_tpg *tl_tpg = se_tpg->se_tpg_fabric_ptr;
 	struct tcm_loop_hba *tl_hba = tl_tpg->tl_hba;
 
 	switch (tl_hba->tl_proto_id) {
@@ -653,8 +608,7 @@ static u32 tcm_loop_get_pr_transport_id_len(
 	struct t10_pr_registration *pr_reg,
 	int *format_code)
 {
-	struct tcm_loop_tpg *tl_tpg =
-			(struct tcm_loop_tpg *)se_tpg->se_tpg_fabric_ptr;
+	struct tcm_loop_tpg *tl_tpg = se_tpg->se_tpg_fabric_ptr;
 	struct tcm_loop_hba *tl_hba = tl_tpg->tl_hba;
 
 	switch (tl_hba->tl_proto_id) {
@@ -687,8 +641,7 @@ static char *tcm_loop_parse_pr_out_transport_id(
 	u32 *out_tid_len,
 	char **port_nexus_ptr)
 {
-	struct tcm_loop_tpg *tl_tpg =
-			(struct tcm_loop_tpg *)se_tpg->se_tpg_fabric_ptr;
+	struct tcm_loop_tpg *tl_tpg = se_tpg->se_tpg_fabric_ptr;
 	struct tcm_loop_hba *tl_hba = tl_tpg->tl_hba;
 
 	switch (tl_hba->tl_proto_id) {
@@ -773,22 +726,6 @@ static u32 tcm_loop_get_inst_index(struct se_portal_group *se_tpg)
 	return 1;
 }
 
-static int tcm_loop_is_state_remove(struct se_cmd *se_cmd)
-{
-	/*
-	 * Assume struct scsi_cmnd is not in remove state..
-	 */
-	return 0;
-}
-
-static int tcm_loop_sess_logged_in(struct se_session *se_sess)
-{
-	/*
-	 * Assume that TL Nexus is always active
-	 */
-	return 1;
-}
-
 static u32 tcm_loop_sess_get_index(struct se_session *se_sess)
 {
 	return 1;
@@ -801,7 +738,10 @@ static void tcm_loop_set_default_node_attributes(struct se_node_acl *se_acl)
 
 static u32 tcm_loop_get_task_tag(struct se_cmd *se_cmd)
 {
-	return 1;
+	struct tcm_loop_cmd *tl_cmd = container_of(se_cmd,
+			struct tcm_loop_cmd, tl_se_cmd);
+
+	return tl_cmd->sc_cmd_tag;
 }
 
 static int tcm_loop_get_cmd_state(struct se_cmd *se_cmd)
@@ -822,19 +762,6 @@ static void tcm_loop_close_session(struct se_session *se_sess)
 	return;
 };
 
-static void tcm_loop_stop_session(
-	struct se_session *se_sess,
-	int sess_sleep,
-	int conn_sleep)
-{
-	return;
-}
-
-static void tcm_loop_fall_back_to_erl0(struct se_session *se_sess)
-{
-	return;
-}
-
 static int tcm_loop_write_pending(struct se_cmd *se_cmd)
 {
 	/*
@@ -846,7 +773,7 @@ static int tcm_loop_write_pending(struct se_cmd *se_cmd)
 	 * We now tell TCM to add this WRITE CDB directly into the TCM storage
 	 * object execution queue.
 	 */
-	transport_generic_process_write(se_cmd);
+	target_execute_cmd(se_cmd);
 	return 0;
 }
 
@@ -866,6 +793,9 @@ static int tcm_loop_queue_data_in(struct se_cmd *se_cmd)
 
 	sc->result = SAM_STAT_GOOD;
 	set_host_byte(sc, DID_OK);
+	if ((se_cmd->se_cmd_flags & SCF_OVERFLOW_BIT) ||
+	    (se_cmd->se_cmd_flags & SCF_UNDERFLOW_BIT))
+		scsi_set_resid(sc, se_cmd->residual_count);
 	sc->scsi_done(sc);
 	return 0;
 }
@@ -891,11 +821,14 @@ static int tcm_loop_queue_status(struct se_cmd *se_cmd)
 		sc->result = se_cmd->scsi_status;
 
 	set_host_byte(sc, DID_OK);
+	if ((se_cmd->se_cmd_flags & SCF_OVERFLOW_BIT) ||
+	    (se_cmd->se_cmd_flags & SCF_UNDERFLOW_BIT))
+		scsi_set_resid(sc, se_cmd->residual_count);
 	sc->scsi_done(sc);
 	return 0;
 }
 
-static int tcm_loop_queue_tm_rsp(struct se_cmd *se_cmd)
+static void tcm_loop_queue_tm_rsp(struct se_cmd *se_cmd)
 {
 	struct se_tmr_req *se_tmr = se_cmd->se_tmr_req;
 	struct tcm_loop_tmr *tl_tmr = se_tmr->fabric_tmr_ptr;
@@ -905,17 +838,11 @@ static int tcm_loop_queue_tm_rsp(struct se_cmd *se_cmd)
 	 */
 	atomic_set(&tl_tmr->tmr_complete, 1);
 	wake_up(&tl_tmr->tl_tmr_wait);
-	return 0;
 }
 
-static u16 tcm_loop_set_fabric_sense_len(struct se_cmd *se_cmd, u32 sense_length)
+static void tcm_loop_aborted_task(struct se_cmd *se_cmd)
 {
-	return 0;
-}
-
-static u16 tcm_loop_get_fabric_sense_len(void)
-{
-	return 0;
+	return;
 }
 
 static char *tcm_loop_dump_proto_id(struct tcm_loop_hba *tl_hba)
@@ -944,8 +871,7 @@ static int tcm_loop_port_link(
 				struct tcm_loop_tpg, tl_se_tpg);
 	struct tcm_loop_hba *tl_hba = tl_tpg->tl_hba;
 
-	atomic_inc(&tl_tpg->tl_tpg_port_count);
-	smp_mb__after_atomic_inc();
+	atomic_inc_mb(&tl_tpg->tl_tpg_port_count);
 	/*
 	 * Add Linux/SCSI struct scsi_device by HCTL
 	 */
@@ -979,8 +905,7 @@ static void tcm_loop_port_unlink(
 	scsi_remove_device(sd);
 	scsi_device_put(sd);
 
-	atomic_dec(&tl_tpg->tl_tpg_port_count);
-	smp_mb__after_atomic_dec();
+	atomic_dec_mb(&tl_tpg->tl_tpg_port_count);
 
 	pr_debug("TCM_Loop_ConfigFS: Port Unlink Successful\n");
 }
@@ -998,8 +923,8 @@ static int tcm_loop_make_nexus(
 	struct tcm_loop_nexus *tl_nexus;
 	int ret = -ENOMEM;
 
-	if (tl_tpg->tl_hba->tl_nexus) {
-		pr_debug("tl_tpg->tl_hba->tl_nexus already exists\n");
+	if (tl_tpg->tl_nexus) {
+		pr_debug("tl_tpg->tl_nexus already exists\n");
 		return -EEXIST;
 	}
 	se_tpg = &tl_tpg->tl_se_tpg;
@@ -1012,7 +937,7 @@ static int tcm_loop_make_nexus(
 	/*
 	 * Initialize the struct se_session pointer
 	 */
-	tl_nexus->se_sess = transport_init_session();
+	tl_nexus->se_sess = transport_init_session(TARGET_PROT_ALL);
 	if (IS_ERR(tl_nexus->se_sess)) {
 		ret = PTR_ERR(tl_nexus->se_sess);
 		goto out;
@@ -1028,13 +953,10 @@ static int tcm_loop_make_nexus(
 		transport_free_session(tl_nexus->se_sess);
 		goto out;
 	}
-	/*
-	 * Now, register the SAS I_T Nexus as active with the call to
-	 * transport_register_session()
-	 */
-	__transport_register_session(se_tpg, tl_nexus->se_sess->se_node_acl,
+	/* Now, register the SAS I_T Nexus as active. */
+	transport_register_session(se_tpg, tl_nexus->se_sess->se_node_acl,
 			tl_nexus->se_sess, tl_nexus);
-	tl_tpg->tl_hba->tl_nexus = tl_nexus;
+	tl_tpg->tl_nexus = tl_nexus;
 	pr_debug("TCM_Loop_ConfigFS: Established I_T Nexus to emulated"
 		" %s Initiator Port: %s\n", tcm_loop_dump_proto_id(tl_hba),
 		name);
@@ -1050,9 +972,8 @@ static int tcm_loop_drop_nexus(
 {
 	struct se_session *se_sess;
 	struct tcm_loop_nexus *tl_nexus;
-	struct tcm_loop_hba *tl_hba = tpg->tl_hba;
 
-	tl_nexus = tpg->tl_hba->tl_nexus;
+	tl_nexus = tpg->tl_nexus;
 	if (!tl_nexus)
 		return -ENODEV;
 
@@ -1068,13 +989,13 @@ static int tcm_loop_drop_nexus(
 	}
 
 	pr_debug("TCM_Loop_ConfigFS: Removing I_T Nexus to emulated"
-		" %s Initiator Port: %s\n", tcm_loop_dump_proto_id(tl_hba),
+		" %s Initiator Port: %s\n", tcm_loop_dump_proto_id(tpg->tl_hba),
 		tl_nexus->se_sess->se_node_acl->initiatorname);
 	/*
 	 * Release the SCSI I_T Nexus to the emulated SAS Target Port
 	 */
 	transport_deregister_session(tl_nexus->se_sess);
-	tpg->tl_hba->tl_nexus = NULL;
+	tpg->tl_nexus = NULL;
 	kfree(tl_nexus);
 	return 0;
 }
@@ -1090,7 +1011,7 @@ static ssize_t tcm_loop_tpg_show_nexus(
 	struct tcm_loop_nexus *tl_nexus;
 	ssize_t ret;
 
-	tl_nexus = tl_tpg->tl_hba->tl_nexus;
+	tl_nexus = tl_tpg->tl_nexus;
 	if (!tl_nexus)
 		return -ENODEV;
 
@@ -1181,14 +1102,62 @@ check_newline:
 
 TF_TPG_BASE_ATTR(tcm_loop, nexus, S_IRUGO | S_IWUSR);
 
+static ssize_t tcm_loop_tpg_show_transport_status(
+	struct se_portal_group *se_tpg,
+	char *page)
+{
+	struct tcm_loop_tpg *tl_tpg = container_of(se_tpg,
+			struct tcm_loop_tpg, tl_se_tpg);
+	const char *status = NULL;
+	ssize_t ret = -EINVAL;
+
+	switch (tl_tpg->tl_transport_status) {
+	case TCM_TRANSPORT_ONLINE:
+		status = "online";
+		break;
+	case TCM_TRANSPORT_OFFLINE:
+		status = "offline";
+		break;
+	default:
+		break;
+	}
+
+	if (status)
+		ret = snprintf(page, PAGE_SIZE, "%s\n", status);
+
+	return ret;
+}
+
+static ssize_t tcm_loop_tpg_store_transport_status(
+	struct se_portal_group *se_tpg,
+	const char *page,
+	size_t count)
+{
+	struct tcm_loop_tpg *tl_tpg = container_of(se_tpg,
+			struct tcm_loop_tpg, tl_se_tpg);
+
+	if (!strncmp(page, "online", 6)) {
+		tl_tpg->tl_transport_status = TCM_TRANSPORT_ONLINE;
+		return count;
+	}
+	if (!strncmp(page, "offline", 7)) {
+		tl_tpg->tl_transport_status = TCM_TRANSPORT_OFFLINE;
+		return count;
+	}
+	return -EINVAL;
+}
+
+TF_TPG_BASE_ATTR(tcm_loop, transport_status, S_IRUGO | S_IWUSR);
+
 static struct configfs_attribute *tcm_loop_tpg_attrs[] = {
 	&tcm_loop_tpg_nexus.attr,
+	&tcm_loop_tpg_transport_status.attr,
 	NULL,
 };
 
 /* Start items for tcm_loop_naa_cit */
 
-struct se_portal_group *tcm_loop_make_naa_tpg(
+static struct se_portal_group *tcm_loop_make_naa_tpg(
 	struct se_wwn *wwn,
 	struct config_group *group,
 	const char *name)
@@ -1233,7 +1202,7 @@ struct se_portal_group *tcm_loop_make_naa_tpg(
 	return &tl_tpg->tl_se_tpg;
 }
 
-void tcm_loop_drop_naa_tpg(
+static void tcm_loop_drop_naa_tpg(
 	struct se_portal_group *se_tpg)
 {
 	struct se_wwn *wwn = se_tpg->se_tpg_wwn;
@@ -1265,7 +1234,7 @@ void tcm_loop_drop_naa_tpg(
 
 /* Start items for tcm_loop_cit */
 
-struct se_wwn *tcm_loop_make_scsi_hba(
+static struct se_wwn *tcm_loop_make_scsi_hba(
 	struct target_fabric_configfs *tf,
 	struct config_group *group,
 	const char *name)
@@ -1335,7 +1304,7 @@ out:
 	return ERR_PTR(ret);
 }
 
-void tcm_loop_drop_scsi_hba(
+static void tcm_loop_drop_scsi_hba(
 	struct se_wwn *wwn)
 {
 	struct tcm_loop_hba *tl_hba = container_of(wwn,
@@ -1372,7 +1341,6 @@ static struct configfs_attribute *tcm_loop_wwn_attrs[] = {
 static int tcm_loop_register_configfs(void)
 {
 	struct target_fabric_configfs *fabric;
-	struct config_group *tf_cg;
 	int ret;
 	/*
 	 * Set the TCM Loop HBA counter to zero
@@ -1418,14 +1386,10 @@ static int tcm_loop_register_configfs(void)
 	/*
 	 * Used for setting up remaining TCM resources in process context
 	 */
-	fabric->tf_ops.new_cmd_map = &tcm_loop_new_cmd_map;
 	fabric->tf_ops.check_stop_free = &tcm_loop_check_stop_free;
 	fabric->tf_ops.release_cmd = &tcm_loop_release_cmd;
 	fabric->tf_ops.shutdown_session = &tcm_loop_shutdown_session;
 	fabric->tf_ops.close_session = &tcm_loop_close_session;
-	fabric->tf_ops.stop_session = &tcm_loop_stop_session;
-	fabric->tf_ops.fall_back_to_erl0 = &tcm_loop_fall_back_to_erl0;
-	fabric->tf_ops.sess_logged_in = &tcm_loop_sess_logged_in;
 	fabric->tf_ops.sess_get_index = &tcm_loop_sess_get_index;
 	fabric->tf_ops.sess_get_initiator_sid = NULL;
 	fabric->tf_ops.write_pending = &tcm_loop_write_pending;
@@ -1440,11 +1404,8 @@ static int tcm_loop_register_configfs(void)
 	fabric->tf_ops.queue_data_in = &tcm_loop_queue_data_in;
 	fabric->tf_ops.queue_status = &tcm_loop_queue_status;
 	fabric->tf_ops.queue_tm_rsp = &tcm_loop_queue_tm_rsp;
-	fabric->tf_ops.set_fabric_sense_len = &tcm_loop_set_fabric_sense_len;
-	fabric->tf_ops.get_fabric_sense_len = &tcm_loop_get_fabric_sense_len;
-	fabric->tf_ops.is_state_remove = &tcm_loop_is_state_remove;
+	fabric->tf_ops.aborted_task = &tcm_loop_aborted_task;
 
-	tf_cg = &fabric->tf_group;
 	/*
 	 * Setup function pointers for generic logic in target_core_fabric_configfs.c
 	 */
@@ -1463,11 +1424,11 @@ static int tcm_loop_register_configfs(void)
 	/*
 	 * Setup default attribute lists for various fabric->tf_cit_tmpl
 	 */
-	TF_CIT_TMPL(fabric)->tfc_wwn_cit.ct_attrs = tcm_loop_wwn_attrs;
-	TF_CIT_TMPL(fabric)->tfc_tpg_base_cit.ct_attrs = tcm_loop_tpg_attrs;
-	TF_CIT_TMPL(fabric)->tfc_tpg_attrib_cit.ct_attrs = NULL;
-	TF_CIT_TMPL(fabric)->tfc_tpg_param_cit.ct_attrs = NULL;
-	TF_CIT_TMPL(fabric)->tfc_tpg_np_base_cit.ct_attrs = NULL;
+	fabric->tf_cit_tmpl.tfc_wwn_cit.ct_attrs = tcm_loop_wwn_attrs;
+	fabric->tf_cit_tmpl.tfc_tpg_base_cit.ct_attrs = tcm_loop_tpg_attrs;
+	fabric->tf_cit_tmpl.tfc_tpg_attrib_cit.ct_attrs = NULL;
+	fabric->tf_cit_tmpl.tfc_tpg_param_cit.ct_attrs = NULL;
+	fabric->tf_cit_tmpl.tfc_tpg_np_base_cit.ct_attrs = NULL;
 	/*
 	 * Once fabric->tf_ops has been setup, now register the fabric for
 	 * use within TCM
@@ -1501,7 +1462,11 @@ static void tcm_loop_deregister_configfs(void)
 
 static int __init tcm_loop_fabric_init(void)
 {
-	int ret;
+	int ret = -ENOMEM;
+
+	tcm_loop_workqueue = alloc_workqueue("tcm_loop", 0, 0);
+	if (!tcm_loop_workqueue)
+		goto out;
 
 	tcm_loop_cmd_cache = kmem_cache_create("tcm_loop_cmd_cache",
 				sizeof(struct tcm_loop_cmd),
@@ -1510,20 +1475,27 @@ static int __init tcm_loop_fabric_init(void)
 	if (!tcm_loop_cmd_cache) {
 		pr_debug("kmem_cache_create() for"
 			" tcm_loop_cmd_cache failed\n");
-		return -ENOMEM;
+		goto out_destroy_workqueue;
 	}
 
 	ret = tcm_loop_alloc_core_bus();
 	if (ret)
-		return ret;
+		goto out_destroy_cache;
 
 	ret = tcm_loop_register_configfs();
-	if (ret) {
-		tcm_loop_release_core_bus();
-		return ret;
-	}
+	if (ret)
+		goto out_release_core_bus;
 
 	return 0;
+
+out_release_core_bus:
+	tcm_loop_release_core_bus();
+out_destroy_cache:
+	kmem_cache_destroy(tcm_loop_cmd_cache);
+out_destroy_workqueue:
+	destroy_workqueue(tcm_loop_workqueue);
+out:
+	return ret;
 }
 
 static void __exit tcm_loop_fabric_exit(void)
@@ -1531,6 +1503,7 @@ static void __exit tcm_loop_fabric_exit(void)
 	tcm_loop_deregister_configfs();
 	tcm_loop_release_core_bus();
 	kmem_cache_destroy(tcm_loop_cmd_cache);
+	destroy_workqueue(tcm_loop_workqueue);
 }
 
 MODULE_DESCRIPTION("TCM loopback virtual Linux/SCSI fabric module");

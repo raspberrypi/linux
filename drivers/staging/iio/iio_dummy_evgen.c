@@ -22,8 +22,8 @@
 #include <linux/sysfs.h>
 
 #include "iio_dummy_evgen.h"
-#include "iio.h"
-#include "sysfs.h"
+#include <linux/iio/iio.h>
+#include <linux/iio/sysfs.h>
 
 /* Fiddly bit of faking and irq without hardware */
 #define IIO_EVENTGEN_NO 10
@@ -32,7 +32,8 @@
  * @chip: irq chip we are faking
  * @base: base of irq range
  * @enabled: mask of which irqs are enabled
- * @inuse: mask of which irqs actually have anyone connected
+ * @inuse: mask of which irqs are connected
+ * @regs: irq regs we are faking
  * @lock: protect the evgen state
  */
 struct iio_dummy_eventgen {
@@ -40,6 +41,7 @@ struct iio_dummy_eventgen {
 	int base;
 	bool enabled[IIO_EVENTGEN_NO];
 	bool inuse[IIO_EVENTGEN_NO];
+	struct iio_dummy_regs regs[IIO_EVENTGEN_NO];
 	struct mutex lock;
 };
 
@@ -102,9 +104,13 @@ static int iio_dummy_evgen_create(void)
 int iio_dummy_evgen_get_irq(void)
 {
 	int i, ret = 0;
+
+	if (iio_evgen == NULL)
+		return -ENODEV;
+
 	mutex_lock(&iio_evgen->lock);
 	for (i = 0; i < IIO_EVENTGEN_NO; i++)
-		if (iio_evgen->inuse[i] == false) {
+		if (!iio_evgen->inuse[i]) {
 			ret = iio_evgen->base + i;
 			iio_evgen->inuse[i] = true;
 			break;
@@ -132,6 +138,12 @@ int iio_dummy_evgen_release_irq(int irq)
 }
 EXPORT_SYMBOL_GPL(iio_dummy_evgen_release_irq);
 
+struct iio_dummy_regs *iio_dummy_evgen_get_regs(int irq)
+{
+	return &iio_evgen->regs[irq - iio_evgen->base];
+}
+EXPORT_SYMBOL_GPL(iio_dummy_evgen_get_regs);
+
 static void iio_dummy_evgen_free(void)
 {
 	irq_free_descs(iio_evgen->base, IIO_EVENTGEN_NO);
@@ -149,6 +161,15 @@ static ssize_t iio_evgen_poke(struct device *dev,
 			      size_t len)
 {
 	struct iio_dev_attr *this_attr = to_iio_dev_attr(attr);
+	unsigned long event;
+	int ret;
+
+	ret = kstrtoul(buf, 10, &event);
+	if (ret)
+		return ret;
+
+	iio_evgen->regs[this_attr->address].reg_id   = this_attr->address;
+	iio_evgen->regs[this_attr->address].reg_data = event;
 
 	if (iio_evgen->enabled[this_attr->address])
 		handle_nested_irq(iio_evgen->base + this_attr->address);
@@ -198,6 +219,7 @@ static struct device iio_evgen_dev = {
 static __init int iio_dummy_evgen_init(void)
 {
 	int ret = iio_dummy_evgen_create();
+
 	if (ret < 0)
 		return ret;
 	device_initialize(&iio_evgen_dev);
@@ -212,6 +234,6 @@ static __exit void iio_dummy_evgen_exit(void)
 }
 module_exit(iio_dummy_evgen_exit);
 
-MODULE_AUTHOR("Jonathan Cameron <jic23@cam.ac.uk>");
+MODULE_AUTHOR("Jonathan Cameron <jic23@kernel.org>");
 MODULE_DESCRIPTION("IIO dummy driver");
 MODULE_LICENSE("GPL v2");

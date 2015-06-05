@@ -33,11 +33,7 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/sched.h>
 #include <linux/init.h>
-#include <linux/list.h>
-#include <linux/platform_device.h>
-#include <linux/io.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 
@@ -46,10 +42,6 @@
 #include "musb_core.h"
 #include "musb_debug.h"
 
-#ifdef CONFIG_ARCH_DAVINCI
-#include "davinci.h"
-#endif
-
 struct musb_register_map {
 	char			*name;
 	unsigned		offset;
@@ -57,33 +49,28 @@ struct musb_register_map {
 };
 
 static const struct musb_register_map musb_regmap[] = {
-	{ "FAddr",		0x00,	8 },
-	{ "Power",		0x01,	8 },
-	{ "Frame",		0x0c,	16 },
-	{ "Index",		0x0e,	8 },
-	{ "Testmode",		0x0f,	8 },
-	{ "TxMaxPp",		0x10,	16 },
-	{ "TxCSRp",		0x12,	16 },
-	{ "RxMaxPp",		0x14,	16 },
-	{ "RxCSR",		0x16,	16 },
-	{ "RxCount",		0x18,	16 },
-	{ "ConfigData",		0x1f,	8 },
-	{ "DevCtl",		0x60,	8 },
-	{ "MISC",		0x61,	8 },
-	{ "TxFIFOsz",		0x62,	8 },
-	{ "RxFIFOsz",		0x63,	8 },
-	{ "TxFIFOadd",		0x64,	16 },
-	{ "RxFIFOadd",		0x66,	16 },
-	{ "VControl",		0x68,	32 },
-	{ "HWVers",		0x6C,	16 },
-	{ "EPInfo",		0x78,	8 },
-	{ "RAMInfo",		0x79,	8 },
-	{ "LinkInfo",		0x7A,	8 },
-	{ "VPLen",		0x7B,	8 },
-	{ "HS_EOF1",		0x7C,	8 },
-	{ "FS_EOF1",		0x7D,	8 },
-	{ "LS_EOF1",		0x7E,	8 },
-	{ "SOFT_RST",		0x7F,	8 },
+	{ "FAddr",	MUSB_FADDR,	8 },
+	{ "Power",	MUSB_POWER,	8 },
+	{ "Frame",	MUSB_FRAME,	16 },
+	{ "Index",	MUSB_INDEX,	8 },
+	{ "Testmode",	MUSB_TESTMODE,	8 },
+	{ "TxMaxPp",	MUSB_TXMAXP,	16 },
+	{ "TxCSRp",	MUSB_TXCSR,	16 },
+	{ "RxMaxPp",	MUSB_RXMAXP,	16 },
+	{ "RxCSR",	MUSB_RXCSR,	16 },
+	{ "RxCount",	MUSB_RXCOUNT,	16 },
+	{ "IntrRxE",	MUSB_INTRRXE,	16 },
+	{ "IntrTxE",	MUSB_INTRTXE,	16 },
+	{ "IntrUsbE",	MUSB_INTRUSBE,	8 },
+	{ "DevCtl",	MUSB_DEVCTL,	8 },
+	{ "VControl",	0x68,		32 },
+	{ "HWVers",	0x69,		16 },
+	{ "LinkInfo",	MUSB_LINKINFO,	8 },
+	{ "VPLen",	MUSB_VPLEN,	8 },
+	{ "HS_EOF1",	MUSB_HS_EOF1,	8 },
+	{ "FS_EOF1",	MUSB_FS_EOF1,	8 },
+	{ "LS_EOF1",	MUSB_LS_EOF1,	8 },
+	{ "SOFT_RST",	0x7F,		8 },
 	{ "DMA_CNTLch0",	0x204,	16 },
 	{ "DMA_ADDRch0",	0x208,	32 },
 	{ "DMA_COUNTch0",	0x20C,	32 },
@@ -108,10 +95,18 @@ static const struct musb_register_map musb_regmap[] = {
 	{ "DMA_CNTLch7",	0x274,	16 },
 	{ "DMA_ADDRch7",	0x278,	32 },
 	{ "DMA_COUNTch7",	0x27C,	32 },
+#ifndef CONFIG_BLACKFIN
+	{ "ConfigData",	MUSB_CONFIGDATA,8 },
+	{ "BabbleCtl",	MUSB_BABBLE_CTL,8 },
+	{ "TxFIFOsz",	MUSB_TXFIFOSZ,	8 },
+	{ "RxFIFOsz",	MUSB_RXFIFOSZ,	8 },
+	{ "TxFIFOadd",	MUSB_TXFIFOADD,	16 },
+	{ "RxFIFOadd",	MUSB_RXFIFOADD,	16 },
+	{ "EPInfo",	MUSB_EPINFO,	8 },
+	{ "RAMInfo",	MUSB_RAMINFO,	8 },
+#endif
 	{  }	/* Terminating Entry */
 };
-
-static struct dentry *musb_debugfs_root;
 
 static int musb_regdump_show(struct seq_file *s, void *unused)
 {
@@ -201,33 +196,33 @@ static ssize_t musb_test_mode_write(struct file *file,
 
 	memset(buf, 0x00, sizeof(buf));
 
-	if (copy_from_user(&buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
+	if (copy_from_user(buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
 		return -EFAULT;
 
-	if (!strncmp(buf, "force host", 9))
+	if (strstarts(buf, "force host"))
 		test = MUSB_TEST_FORCE_HOST;
 
-	if (!strncmp(buf, "fifo access", 11))
+	if (strstarts(buf, "fifo access"))
 		test = MUSB_TEST_FIFO_ACCESS;
 
-	if (!strncmp(buf, "force full-speed", 15))
+	if (strstarts(buf, "force full-speed"))
 		test = MUSB_TEST_FORCE_FS;
 
-	if (!strncmp(buf, "force high-speed", 15))
+	if (strstarts(buf, "force high-speed"))
 		test = MUSB_TEST_FORCE_HS;
 
-	if (!strncmp(buf, "test packet", 10)) {
+	if (strstarts(buf, "test packet")) {
 		test = MUSB_TEST_PACKET;
 		musb_load_testpacket(musb);
 	}
 
-	if (!strncmp(buf, "test K", 6))
+	if (strstarts(buf, "test K"))
 		test = MUSB_TEST_K;
 
-	if (!strncmp(buf, "test J", 6))
+	if (strstarts(buf, "test J"))
 		test = MUSB_TEST_J;
 
-	if (!strncmp(buf, "test SE0 NAK", 12))
+	if (strstarts(buf, "test SE0 NAK"))
 		test = MUSB_TEST_SE0_NAK;
 
 	musb_writeb(musb->mregs, MUSB_TESTMODE, test);
@@ -243,33 +238,33 @@ static const struct file_operations musb_test_mode_fops = {
 	.release		= single_release,
 };
 
-int __init musb_init_debugfs(struct musb *musb)
+int musb_init_debugfs(struct musb *musb)
 {
 	struct dentry		*root;
 	struct dentry		*file;
 	int			ret;
 
-	root = debugfs_create_dir("musb", NULL);
-	if (IS_ERR(root)) {
-		ret = PTR_ERR(root);
+	root = debugfs_create_dir(dev_name(musb->controller), NULL);
+	if (!root) {
+		ret = -ENOMEM;
 		goto err0;
 	}
 
 	file = debugfs_create_file("regdump", S_IRUGO, root, musb,
 			&musb_regdump_fops);
-	if (IS_ERR(file)) {
-		ret = PTR_ERR(file);
+	if (!file) {
+		ret = -ENOMEM;
 		goto err1;
 	}
 
 	file = debugfs_create_file("testmode", S_IRUGO | S_IWUSR,
 			root, musb, &musb_test_mode_fops);
-	if (IS_ERR(file)) {
-		ret = PTR_ERR(file);
+	if (!file) {
+		ret = -ENOMEM;
 		goto err1;
 	}
 
-	musb_debugfs_root = root;
+	musb->debugfs_root = root;
 
 	return 0;
 
@@ -282,5 +277,5 @@ err0:
 
 void /* __init_or_exit */ musb_exit_debugfs(struct musb *musb)
 {
-	debugfs_remove_recursive(musb_debugfs_root);
+	debugfs_remove_recursive(musb->debugfs_root);
 }

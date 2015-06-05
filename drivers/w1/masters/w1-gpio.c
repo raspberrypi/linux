@@ -13,11 +13,48 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/w1-gpio.h>
+#include <linux/gpio.h>
+#include <linux/of_platform.h>
+#include <linux/of_gpio.h>
+#include <linux/err.h>
+#include <linux/of.h>
+#include <linux/delay.h>
 
 #include "../w1.h"
 #include "../w1_int.h"
 
-#include <asm/gpio.h>
+static int w1_gpio_pullup = 0;
+static int w1_gpio_pullup_orig = 0;
+module_param_named(pullup, w1_gpio_pullup, int, 0);
+MODULE_PARM_DESC(pullup, "Enable parasitic power (power on data) mode");
+static int w1_gpio_pullup_pin = -1;
+static int w1_gpio_pullup_pin_orig = -1;
+module_param_named(extpullup, w1_gpio_pullup_pin, int, 0);
+MODULE_PARM_DESC(extpullup, "GPIO external pullup pin number");
+static int w1_gpio_pin = -1;
+static int w1_gpio_pin_orig = -1;
+module_param_named(gpiopin, w1_gpio_pin, int, 0);
+MODULE_PARM_DESC(gpiopin, "GPIO pin number");
+
+static u8 w1_gpio_set_pullup(void *data, int delay)
+{
+	struct w1_gpio_platform_data *pdata = data;
+
+	if (delay) {
+		pdata->pullup_duration = delay;
+	} else {
+		if (pdata->pullup_duration) {
+			gpio_direction_output(pdata->pin, 1);
+
+			msleep(pdata->pullup_duration);
+
+			gpio_direction_input(pdata->pin);
+		}
+		pdata->pullup_duration = 0;
+	}
+
+	return 0;
+}
 
 static void w1_gpio_write_bit_dir(void *data, u8 bit)
 {
@@ -43,22 +80,123 @@ static u8 w1_gpio_read_bit(void *data)
 	return gpio_get_value(pdata->pin) ? 1 : 0;
 }
 
-static int __init w1_gpio_probe(struct platform_device *pdev)
+static void w1_gpio_bitbang_pullup(void *data, u8 on)
+{
+	struct w1_gpio_platform_data *pdata = data;
+
+	if (on)
+		gpio_direction_output(pdata->pin, 1);
+	else
+		gpio_direction_input(pdata->pin);
+}
+
+#if defined(CONFIG_OF)
+static struct of_device_id w1_gpio_dt_ids[] = {
+	{ .compatible = "w1-gpio" },
+	{}
+};
+MODULE_DEVICE_TABLE(of, w1_gpio_dt_ids);
+#endif
+
+static int w1_gpio_probe_dt(struct platform_device *pdev)
+{
+	struct w1_gpio_platform_data *pdata = dev_get_platdata(&pdev->dev);
+	struct device_node *np = pdev->dev.of_node;
+	int gpio;
+	u32 value;
+
+	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
+	if (!pdata)
+		return -ENOMEM;
+
+	if (of_get_property(np, "linux,open-drain", NULL))
+		pdata->is_open_drain = 1;
+
+	if (of_property_read_u32(np, "rpi,parasitic-power", &value) == 0)
+	    pdata->parasitic_power = (value != 0);
+
+	gpio = of_get_gpio(np, 0);
+	if (gpio < 0) {
+		if (gpio != -EPROBE_DEFER)
+			dev_err(&pdev->dev,
+					"Failed to parse gpio property for data pin (%d)\n",
+					gpio);
+
+		return gpio;
+	}
+	pdata->pin = gpio;
+
+	gpio = of_get_gpio(np, 1);
+	if (gpio == -EPROBE_DEFER)
+		return gpio;
+	/* ignore other errors as the pullup gpio is optional */
+	pdata->ext_pullup_enable_pin = (gpio >= 0) ? gpio : -1;
+
+	pdev->dev.platform_data = pdata;
+
+	return 0;
+}
+
+static int w1_gpio_probe(struct platform_device *pdev)
 {
 	struct w1_bus_master *master;
 	struct w1_gpio_platform_data *pdata = pdev->dev.platform_data;
 	int err;
 
-	if (!pdata)
+	if(pdata == NULL) {
+		if (of_have_populated_dt()) {
+			err = w1_gpio_probe_dt(pdev);
+			if (err < 0)
+				return err;
+		}
+	}
+
+	pdata = dev_get_platdata(&pdev->dev);
+
+	if (!pdata) {
+		dev_err(&pdev->dev, "No configuration data\n");
 		return -ENXIO;
+	}
 
-	master = kzalloc(sizeof(struct w1_bus_master), GFP_KERNEL);
-	if (!master)
+	master = devm_kzalloc(&pdev->dev, sizeof(struct w1_bus_master),
+			GFP_KERNEL);
+	if (!master) {
+		dev_err(&pdev->dev, "Out of memory\n");
 		return -ENOMEM;
+	}
 
-	err = gpio_request(pdata->pin, "w1");
-	if (err)
-		goto free_master;
+	w1_gpio_pin_orig = pdata->pin;
+	w1_gpio_pullup_pin_orig = pdata->ext_pullup_enable_pin;
+	w1_gpio_pullup_orig = pdata->parasitic_power;
+
+	if(gpio_is_valid(w1_gpio_pin)) {
+		pdata->pin = w1_gpio_pin;
+		pdata->ext_pullup_enable_pin = -1;
+		pdata->parasitic_power = -1;
+	}
+	pdata->parasitic_power |= w1_gpio_pullup;
+	if(gpio_is_valid(w1_gpio_pullup_pin)) {
+		pdata->ext_pullup_enable_pin = w1_gpio_pullup_pin;
+	}
+
+	dev_info(&pdev->dev, "gpio pin %d, external pullup pin %d, parasitic power %d\n", pdata->pin, pdata->ext_pullup_enable_pin, pdata->parasitic_power);
+
+	err = devm_gpio_request(&pdev->dev, pdata->pin, "w1");
+	if (err) {
+		dev_err(&pdev->dev, "gpio_request (pin) failed\n");
+		return err;
+	}
+
+	if (gpio_is_valid(pdata->ext_pullup_enable_pin)) {
+		err = devm_gpio_request_one(&pdev->dev,
+				pdata->ext_pullup_enable_pin, GPIOF_INIT_LOW,
+				"w1 pullup");
+		if (err < 0) {
+			dev_err(&pdev->dev, "gpio_request_one "
+					"(ext_pullup_enable_pin) failed\n");
+			return err;
+		}
+	}
 
 	master->data = pdata;
 	master->read_bit = w1_gpio_read_bit;
@@ -69,38 +207,50 @@ static int __init w1_gpio_probe(struct platform_device *pdev)
 	} else {
 		gpio_direction_input(pdata->pin);
 		master->write_bit = w1_gpio_write_bit_dir;
+		master->set_pullup = w1_gpio_set_pullup;
+	}
+
+	if (pdata->parasitic_power) {
+		if (pdata->is_open_drain)
+			printk(KERN_ERR "w1-gpio 'pullup'(parasitic power) "
+			       "option doesn't work with open drain GPIO\n");
+		else
+			master->bitbang_pullup = w1_gpio_bitbang_pullup;
 	}
 
 	err = w1_add_master_device(master);
-	if (err)
-		goto free_gpio;
+	if (err) {
+		dev_err(&pdev->dev, "w1_add_master device failed\n");
+		return err;
+	}
 
 	if (pdata->enable_external_pullup)
 		pdata->enable_external_pullup(1);
 
+	if (gpio_is_valid(pdata->ext_pullup_enable_pin))
+		gpio_set_value(pdata->ext_pullup_enable_pin, 1);
+
 	platform_set_drvdata(pdev, master);
 
 	return 0;
-
- free_gpio:
-	gpio_free(pdata->pin);
- free_master:
-	kfree(master);
-
-	return err;
 }
 
-static int __exit w1_gpio_remove(struct platform_device *pdev)
+static int w1_gpio_remove(struct platform_device *pdev)
 {
 	struct w1_bus_master *master = platform_get_drvdata(pdev);
-	struct w1_gpio_platform_data *pdata = pdev->dev.platform_data;
+	struct w1_gpio_platform_data *pdata = dev_get_platdata(&pdev->dev);
 
 	if (pdata->enable_external_pullup)
 		pdata->enable_external_pullup(0);
 
+	if (gpio_is_valid(pdata->ext_pullup_enable_pin))
+		gpio_set_value(pdata->ext_pullup_enable_pin, 0);
+
 	w1_remove_master_device(master);
-	gpio_free(pdata->pin);
-	kfree(master);
+
+	pdata->pin = w1_gpio_pin_orig;
+	pdata->ext_pullup_enable_pin = w1_gpio_pullup_pin_orig;
+	pdata->parasitic_power = w1_gpio_pullup_orig;
 
 	return 0;
 }
@@ -109,7 +259,7 @@ static int __exit w1_gpio_remove(struct platform_device *pdev)
 
 static int w1_gpio_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	struct w1_gpio_platform_data *pdata = pdev->dev.platform_data;
+	struct w1_gpio_platform_data *pdata = dev_get_platdata(&pdev->dev);
 
 	if (pdata->enable_external_pullup)
 		pdata->enable_external_pullup(0);
@@ -119,7 +269,7 @@ static int w1_gpio_suspend(struct platform_device *pdev, pm_message_t state)
 
 static int w1_gpio_resume(struct platform_device *pdev)
 {
-	struct w1_gpio_platform_data *pdata = pdev->dev.platform_data;
+	struct w1_gpio_platform_data *pdata = dev_get_platdata(&pdev->dev);
 
 	if (pdata->enable_external_pullup)
 		pdata->enable_external_pullup(1);
@@ -135,25 +285,15 @@ static int w1_gpio_resume(struct platform_device *pdev)
 static struct platform_driver w1_gpio_driver = {
 	.driver = {
 		.name	= "w1-gpio",
-		.owner	= THIS_MODULE,
+		.of_match_table = of_match_ptr(w1_gpio_dt_ids),
 	},
-	.remove	= __exit_p(w1_gpio_remove),
+	.probe = w1_gpio_probe,
+	.remove	= w1_gpio_remove,
 	.suspend = w1_gpio_suspend,
 	.resume = w1_gpio_resume,
 };
 
-static int __init w1_gpio_init(void)
-{
-	return platform_driver_probe(&w1_gpio_driver, w1_gpio_probe);
-}
-
-static void __exit w1_gpio_exit(void)
-{
-	platform_driver_unregister(&w1_gpio_driver);
-}
-
-module_init(w1_gpio_init);
-module_exit(w1_gpio_exit);
+module_platform_driver(w1_gpio_driver);
 
 MODULE_DESCRIPTION("GPIO w1 bus master driver");
 MODULE_AUTHOR("Ville Syrjala <syrjala@sci.fi>");

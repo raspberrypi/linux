@@ -15,7 +15,6 @@
 #include <linux/delay.h>
 #include <linux/string.h>
 #include <linux/init.h>
-#include <linux/bootmem.h>
 #include <linux/irq.h>
 
 #include <asm/sections.h>
@@ -543,7 +542,7 @@ static int __init maple_add_bridge(struct device_node *dev)
 }
 
 
-void __devinit maple_pci_irq_fixup(struct pci_dev *dev)
+void maple_pci_irq_fixup(struct pci_dev *dev)
 {
 	DBG(" -> maple_pci_irq_fixup\n");
 
@@ -620,7 +619,7 @@ void __init maple_pci_init(void)
 	}
 
 	/* Tell pci.c to not change any resource allocations.  */
-	pci_probe_only = 1;
+	pci_add_flags(PCI_PROBE_ONLY);
 }
 
 int maple_pci_get_legacy_ide_irq(struct pci_dev *pdev, int channel)
@@ -648,7 +647,7 @@ int maple_pci_get_legacy_ide_irq(struct pci_dev *pdev, int channel)
 	return irq;
 }
 
-static void __devinit quirk_ipr_msi(struct pci_dev *dev)
+static void quirk_ipr_msi(struct pci_dev *dev)
 {
 	/* Something prevents MSIs from the IPR from working on Bimini,
 	 * and the driver has no smarts to recover. So disable MSI

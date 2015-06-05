@@ -4,7 +4,7 @@
  *  JZ4740 setup code
  *
  *  This program is free software; you can redistribute it and/or modify it
- *  under  the terms of the GNU General  Public License as published by the
+ *  under  the terms of the GNU General	 Public License as published by the
  *  Free Software Foundation;  either version 2 of the License, or (at your
  *  option) any later version.
  *
@@ -32,7 +32,7 @@ static void __init jz4740_detect_mem(void)
 {
 	void __iomem *jz_emc_base;
 	u32 ctrl, bus, bank, rows, cols;
-	phys_t size;
+	phys_addr_t size;
 
 	jz_emc_base = ioremap(JZ4740_EMC_BASE_ADDR, 0x100);
 	ctrl = readl(jz_emc_base + JZ4740_EMC_SDRAM_CTRL);

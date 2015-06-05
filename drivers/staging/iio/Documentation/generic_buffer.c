@@ -18,6 +18,8 @@
  *
  */
 
+#define _GNU_SOURCE
+
 #include <unistd.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -28,12 +30,15 @@
 #include <linux/types.h>
 #include <string.h>
 #include <poll.h>
+#include <endian.h>
+#include <getopt.h>
+#include <inttypes.h>
 #include "iio_utils.h"
 
 /**
  * size_from_channelarray() - calculate the storage size of a scan
- * @channels: the channel info array
- * @num_channels: size of the channel info array
+ * @channels:		the channel info array
+ * @num_channels:	number of channels
  *
  * Has the side effect of filling the channels[i].location values used
  * in processing the buffer output.
@@ -42,6 +47,7 @@ int size_from_channelarray(struct iio_channel_info *channels, int num_channels)
 {
 	int bytes = 0;
 	int i = 0;
+
 	while (i < num_channels) {
 		if (bytes % channels[i].bytes == 0)
 			channels[i].location = bytes;
@@ -56,18 +62,27 @@ int size_from_channelarray(struct iio_channel_info *channels, int num_channels)
 
 void print2byte(int input, struct iio_channel_info *info)
 {
-	/* shift before conversion to avoid sign extension
-	   of left aligned data */
+	/* First swap if incorrect endian */
+	if (info->be)
+		input = be16toh((uint16_t)input);
+	else
+		input = le16toh((uint16_t)input);
+
+	/*
+	 * Shift before conversion to avoid sign extension
+	 * of left aligned data
+	 */
 	input = input >> info->shift;
 	if (info->is_signed) {
 		int16_t val = input;
+
 		val &= (1 << info->bits_used) - 1;
 		val = (int16_t)(val << (16 - info->bits_used)) >>
 			(16 - info->bits_used);
-		printf("%05f  ", val,
-		       (float)(val + info->offset)*info->scale);
+		printf("%05f ", ((float)val + info->offset)*info->scale);
 	} else {
 		uint16_t val = input;
+
 		val &= (1 << info->bits_used) - 1;
 		printf("%05f ", ((float)val + info->offset)*info->scale);
 	}
@@ -75,39 +90,50 @@ void print2byte(int input, struct iio_channel_info *info)
 /**
  * process_scan() - print out the values in SI units
  * @data:		pointer to the start of the scan
- * @infoarray:		information about the channels. Note
+ * @channels:		information about the channels. Note
  *  size_from_channelarray must have been called first to fill the
  *  location offsets.
- * @num_channels:	the number of active channels
+ * @num_channels:	number of channels
  **/
 void process_scan(char *data,
-		  struct iio_channel_info *infoarray,
+		  struct iio_channel_info *channels,
 		  int num_channels)
 {
 	int k;
+
 	for (k = 0; k < num_channels; k++)
-		switch (infoarray[k].bytes) {
+		switch (channels[k].bytes) {
 			/* only a few cases implemented so far */
 		case 2:
-			print2byte(*(uint16_t *)(data + infoarray[k].location),
-				   &infoarray[k]);
+			print2byte(*(uint16_t *)(data + channels[k].location),
+				   &channels[k]);
+			break;
+		case 4:
+			if (!channels[k].is_signed) {
+				uint32_t val = *(uint32_t *)
+					(data + channels[k].location);
+				printf("%05f ", ((float)val +
+						 channels[k].offset)*
+				       channels[k].scale);
+
+			}
 			break;
 		case 8:
-			if (infoarray[k].is_signed) {
+			if (channels[k].is_signed) {
 				int64_t val = *(int64_t *)
 					(data +
-					 infoarray[k].location);
-				if ((val >> infoarray[k].bits_used) & 1)
-					val = (val & infoarray[k].mask) |
-						~infoarray[k].mask;
+					 channels[k].location);
+				if ((val >> channels[k].bits_used) & 1)
+					val = (val & channels[k].mask) |
+						~channels[k].mask;
 				/* special case for timestamp */
-				if (infoarray[k].scale == 1.0f &&
-				    infoarray[k].offset == 0.0f)
-					printf(" %lld", val);
+				if (channels[k].scale == 1.0f &&
+				    channels[k].offset == 0.0f)
+					printf("%" PRId64 " ", val);
 				else
 					printf("%05f ", ((float)val +
-							 infoarray[k].offset)*
-					       infoarray[k].scale);
+							 channels[k].offset)*
+					       channels[k].scale);
 			}
 			break;
 		default:
@@ -122,10 +148,7 @@ int main(int argc, char **argv)
 	unsigned long timedelay = 1000000;
 	unsigned long buf_len = 128;
 
-
 	int ret, c, i, j, toread;
-
-	FILE *fp_ev;
 	int fp;
 
 	int num_channels;
@@ -139,11 +162,12 @@ int main(int argc, char **argv)
 	char *buffer_access;
 	int scan_size;
 	int noevents = 0;
+	int notrigger = 0;
 	char *dummy;
 
-	struct iio_channel_info *infoarray;
+	struct iio_channel_info *channels;
 
-	while ((c = getopt(argc, argv, "l:w:c:et:n:")) != -1) {
+	while ((c = getopt(argc, argv, "l:w:c:et:n:g")) != -1) {
 		switch (c) {
 		case 'n':
 			device_name = optarg;
@@ -164,6 +188,9 @@ int main(int argc, char **argv)
 		case 'l':
 			buf_len = strtoul(optarg, &dummy, 10);
 			break;
+		case 'g':
+			notrigger = 1;
+			break;
 		case '?':
 			return -1;
 		}
@@ -182,34 +209,38 @@ int main(int argc, char **argv)
 	printf("iio device number being used is %d\n", dev_num);
 
 	asprintf(&dev_dir_name, "%siio:device%d", iio_dir, dev_num);
-	if (trigger_name == NULL) {
-		/*
-		 * Build the trigger name. If it is device associated it's
-		 * name is <device_name>_dev[n] where n matches the device
-		 * number found above
-		 */
-		ret = asprintf(&trigger_name,
-			       "%s-dev%d", device_name, dev_num);
-		if (ret < 0) {
-			ret = -ENOMEM;
-			goto error_ret;
-		}
-	}
 
-	/* Verify the trigger exists */
-	trig_num = find_type_by_name(trigger_name, "trigger");
-	if (trig_num < 0) {
-		printf("Failed to find the trigger %s\n", trigger_name);
-		ret = -ENODEV;
-		goto error_free_triggername;
-	}
-	printf("iio trigger number being used is %d\n", trig_num);
+	if (!notrigger) {
+		if (trigger_name == NULL) {
+			/*
+			 * Build the trigger name. If it is device associated
+			 * its name is <device_name>_dev[n] where n matches
+			 * the device number found above.
+			 */
+			ret = asprintf(&trigger_name,
+				       "%s-dev%d", device_name, dev_num);
+			if (ret < 0) {
+				ret = -ENOMEM;
+				goto error_ret;
+			}
+		}
+
+		/* Verify the trigger exists */
+		trig_num = find_type_by_name(trigger_name, "trigger");
+		if (trig_num < 0) {
+			printf("Failed to find the trigger %s\n", trigger_name);
+			ret = -ENODEV;
+			goto error_free_triggername;
+		}
+		printf("iio trigger number being used is %d\n", trig_num);
+	} else
+		printf("trigger-less mode selected\n");
 
 	/*
 	 * Parse the files in scan_elements to identify what channels are
 	 * present
 	 */
-	ret = build_channel_array(dev_dir_name, &infoarray, &num_channels);
+	ret = build_channel_array(dev_dir_name, &channels, &num_channels);
 	if (ret) {
 		printf("Problem reading scan element information\n");
 		printf("diag %s\n", dev_dir_name);
@@ -227,14 +258,18 @@ int main(int argc, char **argv)
 		ret = -ENOMEM;
 		goto error_free_triggername;
 	}
-	printf("%s %s\n", dev_dir_name, trigger_name);
-	/* Set the device trigger to be the data rdy trigger found above */
-	ret = write_sysfs_string_and_verify("trigger/current_trigger",
-					dev_dir_name,
-					trigger_name);
-	if (ret < 0) {
-		printf("Failed to write current_trigger file\n");
-		goto error_free_buf_dir_name;
+
+	if (!notrigger) {
+		printf("%s %s\n", dev_dir_name, trigger_name);
+		/* Set the device trigger to be the data ready trigger found
+		 * above */
+		ret = write_sysfs_string_and_verify("trigger/current_trigger",
+						    dev_dir_name,
+						    trigger_name);
+		if (ret < 0) {
+			printf("Failed to write current_trigger file\n");
+			goto error_free_buf_dir_name;
+		}
 	}
 
 	/* Setup ring buffer parameters */
@@ -246,7 +281,7 @@ int main(int argc, char **argv)
 	ret = write_sysfs_int("enable", buf_dir_name, 1);
 	if (ret < 0)
 		goto error_free_buf_dir_name;
-	scan_size = size_from_channelarray(infoarray, num_channels);
+	scan_size = size_from_channelarray(channels, num_channels);
 	data = malloc(scan_size*buf_len);
 	if (!data) {
 		ret = -ENOMEM;
@@ -261,7 +296,7 @@ int main(int argc, char **argv)
 
 	/* Attempt to open non blocking the access dev */
 	fp = open(buffer_access, O_RDONLY | O_NONBLOCK);
-	if (fp == -1) { /*If it isn't there make the node */
+	if (fp == -1) { /* If it isn't there make the node */
 		printf("Failed to open %s\n", buffer_access);
 		ret = -errno;
 		goto error_free_buffer_access;
@@ -286,24 +321,28 @@ int main(int argc, char **argv)
 		read_size = read(fp,
 				 data,
 				 toread*scan_size);
-		if (read_size == -EAGAIN) {
-			printf("nothing available\n");
-			continue;
+		if (read_size < 0) {
+			if (errno == -EAGAIN) {
+				printf("nothing available\n");
+				continue;
+			} else
+				break;
 		}
 		for (i = 0; i < read_size/scan_size; i++)
 			process_scan(data + scan_size*i,
-				     infoarray,
+				     channels,
 				     num_channels);
 	}
 
-	/* Stop the ring buffer */
+	/* Stop the buffer */
 	ret = write_sysfs_int("enable", buf_dir_name, 0);
 	if (ret < 0)
 		goto error_close_buffer_access;
 
-	/* Disconnect from the trigger - just write a dummy name.*/
-	write_sysfs_string("trigger/current_trigger",
-			dev_dir_name, "NULL");
+	if (!notrigger)
+		/* Disconnect the trigger - just write a dummy name. */
+		write_sysfs_string("trigger/current_trigger",
+				   dev_dir_name, "NULL");
 
 error_close_buffer_access:
 	close(fp);

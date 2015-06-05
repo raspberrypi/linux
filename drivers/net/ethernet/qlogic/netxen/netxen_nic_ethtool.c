@@ -14,9 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston,
- * MA  02111-1307, USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  *
  * The full GNU General Public License is included in this distribution
  * in the file called "COPYING".
@@ -218,7 +216,7 @@ skip:
 			check_sfp_module = netif_running(dev) &&
 				adapter->has_link_events;
 		} else {
-			ecmd->supported |= (SUPPORTED_TP |SUPPORTED_Autoneg);
+			ecmd->supported |= (SUPPORTED_TP | SUPPORTED_Autoneg);
 			ecmd->advertising |=
 				(ADVERTISED_TP | ADVERTISED_Autoneg);
 			ecmd->port = PORT_TP;
@@ -246,6 +244,11 @@ skip:
 		default:
 			ecmd->port = -1;
 		}
+	}
+
+	if (!netif_running(dev) || !adapter->ahw.linkup) {
+		ecmd->duplex = DUPLEX_UNKNOWN;
+		ethtool_cmd_speed_set(ecmd, SPEED_UNKNOWN);
 	}
 
 	return 0;
@@ -376,7 +379,7 @@ static u32 netxen_nic_test_link(struct net_device *dev)
 
 static int
 netxen_nic_get_eeprom(struct net_device *dev, struct ethtool_eeprom *eeprom,
-		      u8 * bytes)
+		      u8 *bytes)
 {
 	struct netxen_adapter *adapter = netdev_priv(dev);
 	int offset;
@@ -483,30 +486,32 @@ netxen_nic_get_pauseparam(struct net_device *dev,
 	__u32 val;
 	int port = adapter->physical_port;
 
+	pause->autoneg = 0;
+
 	if (adapter->ahw.port_type == NETXEN_NIC_GBE) {
-		if ((port < 0) || (port > NETXEN_NIU_MAX_GBE_PORTS))
+		if ((port < 0) || (port >= NETXEN_NIU_MAX_GBE_PORTS))
 			return;
 		/* get flow control settings */
 		val = NXRD32(adapter, NETXEN_NIU_GB_MAC_CONFIG_0(port));
 		pause->rx_pause = netxen_gb_get_rx_flowctl(val);
 		val = NXRD32(adapter, NETXEN_NIU_GB_PAUSE_CTL);
 		switch (port) {
-			case 0:
-				pause->tx_pause = !(netxen_gb_get_gb0_mask(val));
-				break;
-			case 1:
-				pause->tx_pause = !(netxen_gb_get_gb1_mask(val));
-				break;
-			case 2:
-				pause->tx_pause = !(netxen_gb_get_gb2_mask(val));
-				break;
-			case 3:
-			default:
-				pause->tx_pause = !(netxen_gb_get_gb3_mask(val));
-				break;
+		case 0:
+			pause->tx_pause = !(netxen_gb_get_gb0_mask(val));
+			break;
+		case 1:
+			pause->tx_pause = !(netxen_gb_get_gb1_mask(val));
+			break;
+		case 2:
+			pause->tx_pause = !(netxen_gb_get_gb2_mask(val));
+			break;
+		case 3:
+		default:
+			pause->tx_pause = !(netxen_gb_get_gb3_mask(val));
+			break;
 		}
 	} else if (adapter->ahw.port_type == NETXEN_NIC_XGBE) {
-		if ((port < 0) || (port > NETXEN_NIU_MAX_XG_PORTS))
+		if ((port < 0) || (port >= NETXEN_NIU_MAX_XG_PORTS))
 			return;
 		pause->rx_pause = 1;
 		val = NXRD32(adapter, NETXEN_NIU_XG_PAUSE_CTL);
@@ -527,9 +532,14 @@ netxen_nic_set_pauseparam(struct net_device *dev,
 	struct netxen_adapter *adapter = netdev_priv(dev);
 	__u32 val;
 	int port = adapter->physical_port;
+
+	/* not supported */
+	if (pause->autoneg)
+		return -EINVAL;
+
 	/* read mode */
 	if (adapter->ahw.port_type == NETXEN_NIC_GBE) {
-		if ((port < 0) || (port > NETXEN_NIU_MAX_GBE_PORTS))
+		if ((port < 0) || (port >= NETXEN_NIU_MAX_GBE_PORTS))
 			return -EIO;
 		/* set flow control */
 		val = NXRD32(adapter, NETXEN_NIU_GB_MAC_CONFIG_0(port));
@@ -544,35 +554,35 @@ netxen_nic_set_pauseparam(struct net_device *dev,
 		/* set autoneg */
 		val = NXRD32(adapter, NETXEN_NIU_GB_PAUSE_CTL);
 		switch (port) {
-			case 0:
-				if (pause->tx_pause)
-					netxen_gb_unset_gb0_mask(val);
-				else
-					netxen_gb_set_gb0_mask(val);
-				break;
-			case 1:
-				if (pause->tx_pause)
-					netxen_gb_unset_gb1_mask(val);
-				else
-					netxen_gb_set_gb1_mask(val);
-				break;
-			case 2:
-				if (pause->tx_pause)
-					netxen_gb_unset_gb2_mask(val);
-				else
-					netxen_gb_set_gb2_mask(val);
-				break;
-			case 3:
-			default:
-				if (pause->tx_pause)
-					netxen_gb_unset_gb3_mask(val);
-				else
-					netxen_gb_set_gb3_mask(val);
-				break;
+		case 0:
+			if (pause->tx_pause)
+				netxen_gb_unset_gb0_mask(val);
+			else
+				netxen_gb_set_gb0_mask(val);
+			break;
+		case 1:
+			if (pause->tx_pause)
+				netxen_gb_unset_gb1_mask(val);
+			else
+				netxen_gb_set_gb1_mask(val);
+			break;
+		case 2:
+			if (pause->tx_pause)
+				netxen_gb_unset_gb2_mask(val);
+			else
+				netxen_gb_set_gb2_mask(val);
+			break;
+		case 3:
+		default:
+			if (pause->tx_pause)
+				netxen_gb_unset_gb3_mask(val);
+			else
+				netxen_gb_set_gb3_mask(val);
+			break;
 		}
 		NXWR32(adapter, NETXEN_NIU_GB_PAUSE_CTL, val);
 	} else if (adapter->ahw.port_type == NETXEN_NIC_XGBE) {
-		if ((port < 0) || (port > NETXEN_NIU_MAX_XG_PORTS))
+		if ((port < 0) || (port >= NETXEN_NIU_MAX_XG_PORTS))
 			return -EIO;
 		val = NXRD32(adapter, NETXEN_NIU_XG_PAUSE_CTL);
 		if (port == 0) {
@@ -631,7 +641,7 @@ static int netxen_get_sset_count(struct net_device *dev, int sset)
 
 static void
 netxen_nic_diag_test(struct net_device *dev, struct ethtool_test *eth_test,
-		     u64 * data)
+		     u64 *data)
 {
 	memset(data, 0, sizeof(uint64_t) * NETXEN_NIC_TEST_LEN);
 	if ((data[0] = netxen_nic_reg_test(dev)))
@@ -642,7 +652,7 @@ netxen_nic_diag_test(struct net_device *dev, struct ethtool_test *eth_test,
 }
 
 static void
-netxen_nic_get_strings(struct net_device *dev, u32 stringset, u8 * data)
+netxen_nic_get_strings(struct net_device *dev, u32 stringset, u8 *data)
 {
 	int index;
 
@@ -663,7 +673,7 @@ netxen_nic_get_strings(struct net_device *dev, u32 stringset, u8 * data)
 
 static void
 netxen_nic_get_ethtool_stats(struct net_device *dev,
-			     struct ethtool_stats *stats, u64 * data)
+			     struct ethtool_stats *stats, u64 *data)
 {
 	struct netxen_adapter *adapter = netdev_priv(dev);
 	int index;
@@ -812,6 +822,116 @@ static int netxen_get_intr_coalesce(struct net_device *netdev,
 	return 0;
 }
 
+static int
+netxen_get_dump_flag(struct net_device *netdev, struct ethtool_dump *dump)
+{
+	struct netxen_adapter *adapter = netdev_priv(netdev);
+	struct netxen_minidump *mdump = &adapter->mdump;
+	if (adapter->fw_mdump_rdy)
+		dump->len = mdump->md_dump_size;
+	else
+		dump->len = 0;
+
+	if (!mdump->md_enabled)
+		dump->flag = ETH_FW_DUMP_DISABLE;
+	else
+		dump->flag = mdump->md_capture_mask;
+
+	dump->version = adapter->fw_version;
+	return 0;
+}
+
+static int
+netxen_set_dump(struct net_device *netdev, struct ethtool_dump *val)
+{
+	int i;
+	struct netxen_adapter *adapter = netdev_priv(netdev);
+	struct netxen_minidump *mdump = &adapter->mdump;
+
+	switch (val->flag) {
+	case NX_FORCE_FW_DUMP_KEY:
+		if (!mdump->md_enabled) {
+			netdev_info(netdev, "FW dump not enabled\n");
+			return 0;
+		}
+		if (adapter->fw_mdump_rdy) {
+			netdev_info(netdev, "Previous dump not cleared, not forcing dump\n");
+			return 0;
+		}
+		netdev_info(netdev, "Forcing a fw dump\n");
+		nx_dev_request_reset(adapter);
+		break;
+	case NX_DISABLE_FW_DUMP:
+		if (mdump->md_enabled) {
+			netdev_info(netdev, "Disabling FW Dump\n");
+			mdump->md_enabled = 0;
+		}
+		break;
+	case NX_ENABLE_FW_DUMP:
+		if (!mdump->md_enabled) {
+			netdev_info(netdev, "Enabling FW dump\n");
+			mdump->md_enabled = 1;
+		}
+		break;
+	case NX_FORCE_FW_RESET:
+		netdev_info(netdev, "Forcing FW reset\n");
+		nx_dev_request_reset(adapter);
+		adapter->flags &= ~NETXEN_FW_RESET_OWNER;
+		break;
+	default:
+		for (i = 0; i < ARRAY_SIZE(FW_DUMP_LEVELS); i++) {
+			if (val->flag == FW_DUMP_LEVELS[i]) {
+				mdump->md_capture_mask = val->flag;
+				netdev_info(netdev,
+					"Driver mask changed to: 0x%x\n",
+					mdump->md_capture_mask);
+				return 0;
+			}
+		}
+		netdev_info(netdev,
+			"Invalid dump level: 0x%x\n", val->flag);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int
+netxen_get_dump_data(struct net_device *netdev, struct ethtool_dump *dump,
+			void *buffer)
+{
+	int i, copy_sz;
+	u32 *hdr_ptr, *data;
+	struct netxen_adapter *adapter = netdev_priv(netdev);
+	struct netxen_minidump *mdump = &adapter->mdump;
+
+
+	if (!adapter->fw_mdump_rdy) {
+		netdev_info(netdev, "Dump not available\n");
+		return -EINVAL;
+	}
+	/* Copy template header first */
+	copy_sz = mdump->md_template_size;
+	hdr_ptr = (u32 *) mdump->md_template;
+	data = buffer;
+	for (i = 0; i < copy_sz/sizeof(u32); i++)
+		*data++ = cpu_to_le32(*hdr_ptr++);
+
+	/* Copy captured dump data */
+	memcpy(buffer + copy_sz,
+		mdump->md_capture_buff + mdump->md_template_size,
+			mdump->md_capture_size);
+	dump->len = copy_sz + mdump->md_capture_size;
+	dump->flag = mdump->md_capture_mask;
+
+	/* Free dump area once data has been captured */
+	vfree(mdump->md_capture_buff);
+	mdump->md_capture_buff = NULL;
+	adapter->fw_mdump_rdy = 0;
+	netdev_info(netdev, "extracted the fw dump Successfully\n");
+	return 0;
+}
+
 const struct ethtool_ops netxen_nic_ethtool_ops = {
 	.get_settings = netxen_nic_get_settings,
 	.set_settings = netxen_nic_set_settings,
@@ -833,4 +953,7 @@ const struct ethtool_ops netxen_nic_ethtool_ops = {
 	.get_sset_count = netxen_get_sset_count,
 	.get_coalesce = netxen_get_intr_coalesce,
 	.set_coalesce = netxen_set_intr_coalesce,
+	.get_dump_flag = netxen_get_dump_flag,
+	.get_dump_data = netxen_get_dump_data,
+	.set_dump = netxen_set_dump,
 };

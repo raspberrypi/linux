@@ -73,8 +73,7 @@ int arch_setup_additional_pages(struct linux_binprm *bprm, int uses_interp)
 
 	ret = install_special_mapping(mm, addr, PAGE_SIZE,
 				      VM_READ | VM_EXEC |
-				      VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC |
-				      VM_ALWAYSDUMP,
+				      VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC,
 				      syscall_pages);
 	if (unlikely(ret))
 		goto up_fail;
@@ -92,19 +91,4 @@ const char *arch_vma_name(struct vm_area_struct *vma)
 		return "[vdso]";
 
 	return NULL;
-}
-
-struct vm_area_struct *get_gate_vma(struct mm_struct *mm)
-{
-	return NULL;
-}
-
-int in_gate_area(struct mm_struct *mm, unsigned long address)
-{
-	return 0;
-}
-
-int in_gate_area_no_mm(unsigned long address)
-{
-	return 0;
 }

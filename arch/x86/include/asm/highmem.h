@@ -38,17 +38,20 @@ extern unsigned long highstart_pfn, highend_pfn;
 /*
  * Ordering is:
  *
- * FIXADDR_TOP
- * 			fixed_addresses
- * FIXADDR_START
- * 			temp fixed addresses
- * FIXADDR_BOOT_START
- * 			Persistent kmap area
- * PKMAP_BASE
- * VMALLOC_END
- * 			Vmalloc area
- * VMALLOC_START
- * high_memory
+ * high memory on:			              high_memory off:
+ *    FIXADDR_TOP                                        FIXADDR_TOP
+ *        fixed addresses                                    fixed addresses
+ *    FIXADDR_START                                      FIXADDR_START
+ *        temp fixed addresses/persistent kmap area      VMALLOC_END
+ *    PKMAP_BASE                                             temp fixed addresses/vmalloc area
+ *    VMALLOC_END                                        VMALLOC_START
+ *        vmalloc area                                   high_memory
+ *    VMALLOC_START
+ *    high_memory
+ *
+ * The temp fixed area is only used during boot for early_ioremap(), and
+ * it is unused when the ioremap() is functional. vmalloc/pkmap area become
+ * available after early boot so the temp fixed area is available for re-use.
  */
 #define LAST_PKMAP_MASK (LAST_PKMAP-1)
 #define PKMAP_NR(virt)  ((virt-PKMAP_BASE) >> PAGE_SHIFT)
@@ -61,7 +64,7 @@ void *kmap(struct page *page);
 void kunmap(struct page *page);
 
 void *kmap_atomic_prot(struct page *page, pgprot_t prot);
-void *__kmap_atomic(struct page *page);
+void *kmap_atomic(struct page *page);
 void __kunmap_atomic(void *kvaddr);
 void *kmap_atomic_pfn(unsigned long pfn);
 void *kmap_atomic_prot_pfn(unsigned long pfn, pgprot_t prot);

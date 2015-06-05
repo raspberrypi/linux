@@ -26,18 +26,15 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <linux/bootmem.h>
-#include <linux/magic.h>
 #include <linux/module.h>
+
+#include <uapi/linux/magic.h>
 
 #define AR7_PARTS	4
 #define ROOT_OFFSET	0xe0000
 
 #define LOADER_MAGIC1	le32_to_cpu(0xfeedfa42)
 #define LOADER_MAGIC2	le32_to_cpu(0xfeed1281)
-
-#ifndef SQUASHFS_MAGIC
-#define SQUASHFS_MAGIC	0x73717368
-#endif
 
 struct ar7_bin_rec {
 	unsigned int checksum;
@@ -73,8 +70,8 @@ static int create_mtd_partitions(struct mtd_info *master,
 
 	do { /* Try 10 blocks starting from master->erasesize */
 		offset = pre_size;
-		master->read(master, offset,
-			     sizeof(header), &len, (uint8_t *)&header);
+		mtd_read(master, offset, sizeof(header), &len,
+			 (uint8_t *)&header);
 		if (!strncmp((char *)&header, "TIENV0.8", 8))
 			ar7_parts[1].offset = pre_size;
 		if (header.checksum == LOADER_MAGIC1)
@@ -95,16 +92,16 @@ static int create_mtd_partitions(struct mtd_info *master,
 	case LOADER_MAGIC1:
 		while (header.length) {
 			offset += sizeof(header) + header.length;
-			master->read(master, offset, sizeof(header),
-				     &len, (uint8_t *)&header);
+			mtd_read(master, offset, sizeof(header), &len,
+				 (uint8_t *)&header);
 		}
 		root_offset = offset + sizeof(header) + 4;
 		break;
 	case LOADER_MAGIC2:
 		while (header.length) {
 			offset += sizeof(header) + header.length;
-			master->read(master, offset, sizeof(header),
-				     &len, (uint8_t *)&header);
+			mtd_read(master, offset, sizeof(header), &len,
+				 (uint8_t *)&header);
 		}
 		root_offset = offset + sizeof(header) + 4 + 0xff;
 		root_offset &= ~(uint32_t)0xff;
@@ -114,8 +111,7 @@ static int create_mtd_partitions(struct mtd_info *master,
 		break;
 	}
 
-	master->read(master, root_offset,
-		sizeof(header), &len, (u8 *)&header);
+	mtd_read(master, root_offset, sizeof(header), &len, (u8 *)&header);
 	if (header.checksum != SQUASHFS_MAGIC) {
 		root_offset += master->erasesize - 1;
 		root_offset &= ~(master->erasesize - 1);
@@ -143,10 +139,17 @@ static struct mtd_part_parser ar7_parser = {
 
 static int __init ar7_parser_init(void)
 {
-	return register_mtd_parser(&ar7_parser);
+	register_mtd_parser(&ar7_parser);
+	return 0;
+}
+
+static void __exit ar7_parser_exit(void)
+{
+	deregister_mtd_parser(&ar7_parser);
 }
 
 module_init(ar7_parser_init);
+module_exit(ar7_parser_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR(	"Felix Fietkau <nbd@openwrt.org>, "

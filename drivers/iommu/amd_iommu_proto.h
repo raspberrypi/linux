@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009-2010 Advanced Micro Devices, Inc.
- * Author: Joerg Roedel <joerg.roedel@amd.com>
+ * Author: Joerg Roedel <jroedel@suse.de>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -31,6 +31,44 @@ extern int amd_iommu_init_devices(void);
 extern void amd_iommu_uninit_devices(void);
 extern void amd_iommu_init_notifier(void);
 extern void amd_iommu_init_api(void);
+
+/* Needed for interrupt remapping */
+extern int amd_iommu_prepare(void);
+extern int amd_iommu_enable(void);
+extern void amd_iommu_disable(void);
+extern int amd_iommu_reenable(int);
+extern int amd_iommu_enable_faulting(void);
+
+/* IOMMUv2 specific functions */
+struct iommu_domain;
+
+extern bool amd_iommu_v2_supported(void);
+extern int amd_iommu_register_ppr_notifier(struct notifier_block *nb);
+extern int amd_iommu_unregister_ppr_notifier(struct notifier_block *nb);
+extern void amd_iommu_domain_direct_map(struct iommu_domain *dom);
+extern int amd_iommu_domain_enable_v2(struct iommu_domain *dom, int pasids);
+extern int amd_iommu_flush_page(struct iommu_domain *dom, int pasid,
+				u64 address);
+extern int amd_iommu_flush_tlb(struct iommu_domain *dom, int pasid);
+extern int amd_iommu_domain_set_gcr3(struct iommu_domain *dom, int pasid,
+				     unsigned long cr3);
+extern int amd_iommu_domain_clear_gcr3(struct iommu_domain *dom, int pasid);
+extern struct iommu_domain *amd_iommu_get_v2_domain(struct pci_dev *pdev);
+
+/* IOMMU Performance Counter functions */
+extern bool amd_iommu_pc_supported(void);
+extern u8 amd_iommu_pc_get_max_banks(u16 devid);
+extern u8 amd_iommu_pc_get_max_counters(u16 devid);
+extern int amd_iommu_pc_get_set_reg_val(u16 devid, u8 bank, u8 cntr, u8 fxn,
+				    u64 *value, bool is_write);
+
+#define PPR_SUCCESS			0x0
+#define PPR_INVALID			0x1
+#define PPR_FAILURE			0xf
+
+extern int amd_iommu_complete_ppr(struct pci_dev *pdev, int pasid,
+				  int status, int tag);
+
 #ifndef CONFIG_AMD_IOMMU_STATS
 
 static inline void amd_iommu_stats_init(void) { }

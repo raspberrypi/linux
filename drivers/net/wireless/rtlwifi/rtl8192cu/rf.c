@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2009-2010  Realtek Corporation.
+ * Copyright(c) 2009-2012  Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -56,7 +56,7 @@ void rtl92cu_phy_rf6052_set_bandwidth(struct ieee80211_hw *hw, u8 bandwidth)
 		break;
 	default:
 		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
-			 ("unknown bandwidth: %#X\n", bandwidth));
+			 "unknown bandwidth: %#X\n", bandwidth);
 		break;
 	}
 }
@@ -85,17 +85,15 @@ void rtl92cu_phy_rf6052_set_cck_txpower(struct ieee80211_hw *hw,
 	if (mac->act_scanning) {
 		tx_agc[RF90_PATH_A] = 0x3f3f3f3f;
 		tx_agc[RF90_PATH_B] = 0x3f3f3f3f;
-		if (turbo_scanoff) {
-			for (idx1 = RF90_PATH_A; idx1 <= RF90_PATH_B; idx1++) {
-				tx_agc[idx1] = ppowerlevel[idx1] |
-				    (ppowerlevel[idx1] << 8) |
-				    (ppowerlevel[idx1] << 16) |
-				    (ppowerlevel[idx1] << 24);
-				if (rtlhal->interface == INTF_USB) {
-					if (tx_agc[idx1] > 0x20 &&
-					    rtlefuse->external_pa)
-						tx_agc[idx1] = 0x20;
-				}
+		for (idx1 = RF90_PATH_A; idx1 <= RF90_PATH_B; idx1++) {
+			tx_agc[idx1] = ppowerlevel[idx1] |
+			    (ppowerlevel[idx1] << 8) |
+			    (ppowerlevel[idx1] << 16) |
+			    (ppowerlevel[idx1] << 24);
+			if (rtlhal->interface == INTF_USB) {
+				if (tx_agc[idx1] > 0x20 &&
+				    rtlefuse->external_pa)
+					tx_agc[idx1] = 0x20;
 			}
 		}
 	} else {
@@ -104,10 +102,10 @@ void rtl92cu_phy_rf6052_set_cck_txpower(struct ieee80211_hw *hw,
 			tx_agc[RF90_PATH_A] = 0x10101010;
 			tx_agc[RF90_PATH_B] = 0x10101010;
 		} else if (rtlpriv->dm.dynamic_txhighpower_lvl ==
-			   TXHIGHPWRLEVEL_LEVEL1) {
+			   TXHIGHPWRLEVEL_LEVEL2) {
 			tx_agc[RF90_PATH_A] = 0x00000000;
 			tx_agc[RF90_PATH_B] = 0x00000000;
-		} else{
+		} else {
 			for (idx1 = RF90_PATH_A; idx1 <= RF90_PATH_B; idx1++) {
 				tx_agc[idx1] = ppowerlevel[idx1] |
 				    (ppowerlevel[idx1] << 8) |
@@ -115,15 +113,11 @@ void rtl92cu_phy_rf6052_set_cck_txpower(struct ieee80211_hw *hw,
 				    (ppowerlevel[idx1] << 24);
 			}
 			if (rtlefuse->eeprom_regulatory == 0) {
-				tmpval = (rtlphy->mcs_txpwrlevel_origoffset
-					[0][6]) +
-					(rtlphy->mcs_txpwrlevel_origoffset
-					[0][7] <<  8);
+				tmpval = (rtlphy->mcs_offset[0][6]) +
+					(rtlphy->mcs_offset[0][7] <<  8);
 				tx_agc[RF90_PATH_A] += tmpval;
-				tmpval = (rtlphy->mcs_txpwrlevel_origoffset
-					[0][14]) +
-					(rtlphy->mcs_txpwrlevel_origoffset
-					[0][15] << 24);
+				tmpval = (rtlphy->mcs_offset[0][14]) +
+					(rtlphy->mcs_offset[0][15] << 24);
 				tx_agc[RF90_PATH_B] += tmpval;
 			}
 		}
@@ -140,26 +134,26 @@ void rtl92cu_phy_rf6052_set_cck_txpower(struct ieee80211_hw *hw,
 	rtl_set_bbreg(hw, RTXAGC_A_CCK1_MCS32, MASKBYTE1, tmpval);
 
 	RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-		("CCK PWR 1M (rf-A) = 0x%x (reg 0x%x)\n", tmpval,
-		 RTXAGC_A_CCK1_MCS32));
+		"CCK PWR 1M (rf-A) = 0x%x (reg 0x%x)\n",
+		tmpval, RTXAGC_A_CCK1_MCS32);
 
 	tmpval = tx_agc[RF90_PATH_A] >> 8;
 	if (mac->mode == WIRELESS_MODE_B)
 		tmpval = tmpval & 0xff00ffff;
 	rtl_set_bbreg(hw, RTXAGC_B_CCK11_A_CCK2_11, 0xffffff00, tmpval);
 	RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-		("CCK PWR 2~11M (rf-A) = 0x%x (reg 0x%x)\n", tmpval,
-		 RTXAGC_B_CCK11_A_CCK2_11));
+		"CCK PWR 2~11M (rf-A) = 0x%x (reg 0x%x)\n",
+		tmpval, RTXAGC_B_CCK11_A_CCK2_11);
 	tmpval = tx_agc[RF90_PATH_B] >> 24;
 	rtl_set_bbreg(hw, RTXAGC_B_CCK11_A_CCK2_11, MASKBYTE0, tmpval);
 	RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-		("CCK PWR 11M (rf-B) = 0x%x (reg 0x%x)\n", tmpval,
-		 RTXAGC_B_CCK11_A_CCK2_11));
+		"CCK PWR 11M (rf-B) = 0x%x (reg 0x%x)\n",
+		tmpval, RTXAGC_B_CCK11_A_CCK2_11);
 	tmpval = tx_agc[RF90_PATH_B] & 0x00ffffff;
 	rtl_set_bbreg(hw, RTXAGC_B_CCK1_55_MCS32, 0xffffff00, tmpval);
 	RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-		("CCK PWR 1~5.5M (rf-B) = 0x%x (reg 0x%x)\n", tmpval,
-		 RTXAGC_B_CCK1_55_MCS32));
+		"CCK PWR 1~5.5M (rf-B) = 0x%x (reg 0x%x)\n",
+		tmpval, RTXAGC_B_CCK1_55_MCS32);
 }
 
 static void rtl92c_phy_get_power_base(struct ieee80211_hw *hw,
@@ -181,8 +175,8 @@ static void rtl92c_phy_get_power_base(struct ieee80211_hw *hw,
 		    (powerBase0 << 8) | powerBase0;
 		*(ofdmbase + i) = powerBase0;
 		RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-			(" [OFDM power base index rf(%c) = 0x%x]\n",
-			 ((i == 0) ? 'A' : 'B'), *(ofdmbase + i)));
+			" [OFDM power base index rf(%c) = 0x%x]\n",
+			i == 0 ? 'A' : 'B', *(ofdmbase + i));
 	}
 	for (i = 0; i < 2; i++) {
 		if (rtlphy->current_chan_bw == HT_CHANNEL_WIDTH_20) {
@@ -194,8 +188,8 @@ static void rtl92c_phy_get_power_base(struct ieee80211_hw *hw,
 		    (powerBase1 << 16) | (powerBase1 << 8) | powerBase1;
 		*(mcsbase + i) = powerBase1;
 		RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-			(" [MCS power base index rf(%c) = 0x%x]\n",
-			 ((i == 0) ? 'A' : 'B'), *(mcsbase + i)));
+			" [MCS power base index rf(%c) = 0x%x]\n",
+			i == 0 ? 'A' : 'B', *(mcsbase + i));
 	}
 }
 
@@ -215,12 +209,12 @@ static void _rtl92c_get_txpower_writeval_by_regulatory(struct ieee80211_hw *hw,
 		switch (rtlefuse->eeprom_regulatory) {
 		case 0:
 			chnlgroup = 0;
-			writeVal = rtlphy->mcs_txpwrlevel_origoffset
+			writeVal = rtlphy->mcs_offset
 			    [chnlgroup][index + (rf ? 8 : 0)]
 			    + ((index < 2) ? powerBase0[rf] : powerBase1[rf]);
 			RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-				("RTK better performance,writeVal(%c) = 0x%x\n",
-				((rf == 0) ? 'A' : 'B'), writeVal));
+				"RTK better performance,writeVal(%c) = 0x%x\n",
+				rf == 0 ? 'A' : 'B', writeVal);
 			break;
 		case 1:
 			if (rtlphy->pwrgroup_cnt == 1)
@@ -238,42 +232,39 @@ static void _rtl92c_get_txpower_writeval_by_regulatory(struct ieee80211_hw *hw,
 				else
 					chnlgroup += 4;
 			}
-			writeVal = rtlphy->mcs_txpwrlevel_origoffset
-					[chnlgroup][index +
+			writeVal = rtlphy->mcs_offset[chnlgroup][index +
 					(rf ? 8 : 0)] +
 					((index < 2) ? powerBase0[rf] :
 					powerBase1[rf]);
 			RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-				("Realtek regulatory, 20MHz, "
-				"writeVal(%c) = 0x%x\n",
-				((rf == 0) ? 'A' : 'B'), writeVal));
+				"Realtek regulatory, 20MHz, writeVal(%c) = 0x%x\n",
+				rf == 0 ? 'A' : 'B', writeVal);
 			break;
 		case 2:
 			writeVal = ((index < 2) ? powerBase0[rf] :
 				   powerBase1[rf]);
 			RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-				("Better regulatory,writeVal(%c) = 0x%x\n",
-				 ((rf == 0) ? 'A' : 'B'), writeVal));
+				"Better regulatory,writeVal(%c) = 0x%x\n",
+				rf == 0 ? 'A' : 'B', writeVal);
 			break;
 		case 3:
 			chnlgroup = 0;
 			if (rtlphy->current_chan_bw ==
 			    HT_CHANNEL_WIDTH_20_40) {
 				RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-					("customer's limit, 40MHzrf(%c) = "
-					"0x%x\n", ((rf == 0) ? 'A' : 'B'),
+					"customer's limit, 40MHzrf(%c) = 0x%x\n",
+					rf == 0 ? 'A' : 'B',
 					rtlefuse->pwrgroup_ht40[rf]
-					[channel - 1]));
+					[channel - 1]);
 			} else {
 				RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-					("customer's limit, 20MHz rf(%c) = "
-					"0x%x\n", ((rf == 0) ? 'A' : 'B'),
+					"customer's limit, 20MHz rf(%c) = 0x%x\n",
+					rf == 0 ? 'A' : 'B',
 					rtlefuse->pwrgroup_ht20[rf]
-					[channel - 1]));
+					[channel - 1]);
 			}
 			for (i = 0; i < 4; i++) {
-				pwr_diff_limit[i] =
-				    (u8) ((rtlphy->mcs_txpwrlevel_origoffset
+				pwr_diff_limit[i] = (u8) ((rtlphy->mcs_offset
 				    [chnlgroup][index + (rf ? 8 : 0)]
 				    & (0x7f << (i * 8))) >> (i * 8));
 				if (rtlphy->current_chan_bw ==
@@ -297,22 +288,22 @@ static void _rtl92c_get_txpower_writeval_by_regulatory(struct ieee80211_hw *hw,
 			    (pwr_diff_limit[2] << 16) |
 			    (pwr_diff_limit[1] << 8) | (pwr_diff_limit[0]);
 			RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-				("Customer's limit rf(%c) = 0x%x\n",
-				 ((rf == 0) ? 'A' : 'B'), customer_limit));
+				"Customer's limit rf(%c) = 0x%x\n",
+				rf == 0 ? 'A' : 'B', customer_limit);
 			writeVal = customer_limit + ((index < 2) ?
 				   powerBase0[rf] : powerBase1[rf]);
 			RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-				("Customer, writeVal rf(%c)= 0x%x\n",
-				 ((rf == 0) ? 'A' : 'B'), writeVal));
+				"Customer, writeVal rf(%c)= 0x%x\n",
+				rf == 0 ? 'A' : 'B', writeVal);
 			break;
 		default:
 			chnlgroup = 0;
-			writeVal = rtlphy->mcs_txpwrlevel_origoffset[chnlgroup]
+			writeVal = rtlphy->mcs_offset[chnlgroup]
 				   [index + (rf ? 8 : 0)] + ((index < 2) ?
 				   powerBase0[rf] : powerBase1[rf]);
-			RTPRINT(rtlpriv, FPHY, PHY_TXPWR, ("RTK better "
-				"performance, writeValrf(%c) = 0x%x\n",
-				((rf == 0) ? 'A' : 'B'), writeVal));
+			RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
+				"RTK better performance, writeValrf(%c) = 0x%x\n",
+				rf == 0 ? 'A' : 'B', writeVal);
 			break;
 		}
 		if (rtlpriv->dm.dynamic_txhighpower_lvl ==
@@ -365,7 +356,7 @@ static void _rtl92c_write_ofdm_power_reg(struct ieee80211_hw *hw,
 			regoffset = regoffset_b[index];
 		rtl_set_bbreg(hw, regoffset, MASKDWORD, writeVal);
 		RTPRINT(rtlpriv, FPHY, PHY_TXPWR,
-			("Set 0x%x = %08x\n", regoffset, writeVal));
+			"Set 0x%x = %08x\n", regoffset, writeVal);
 		if (((get_rf_type(rtlphy) == RF_2T2R) &&
 		     (regoffset == RTXAGC_A_MCS15_MCS12 ||
 		      regoffset == RTXAGC_B_MCS15_MCS12)) ||
@@ -380,7 +371,12 @@ static void _rtl92c_write_ofdm_power_reg(struct ieee80211_hw *hw,
 			    regoffset == RTXAGC_B_MCS07_MCS04)
 				regoffset = 0xc98;
 			for (i = 0; i < 3; i++) {
-				writeVal = (writeVal > 6) ? (writeVal - 6) : 0;
+				if (i != 2)
+					writeVal = (writeVal > 8) ?
+						   (writeVal - 8) : 0;
+				else
+					writeVal = (writeVal > 6) ?
+						   (writeVal - 6) : 0;
 				rtl_write_byte(rtlpriv, (u32)(regoffset + i),
 					      (u8)writeVal);
 			}
@@ -480,13 +476,13 @@ static bool _rtl92c_phy_rf6052_config_parafile(struct ieee80211_hw *hw)
 				      BRFSI_RFENV << 16, u4_regvalue);
 			break;
 		}
-		if (rtstatus != true) {
+		if (!rtstatus) {
 			RT_TRACE(rtlpriv, COMP_INIT, DBG_TRACE,
-				 ("Radio[%d] Fail!!", rfpath));
+				 "Radio[%d] Fail!!", rfpath);
 			goto phy_rf_cfg_fail;
 		}
 	}
-	RT_TRACE(rtlpriv, COMP_INIT, DBG_TRACE, ("<---\n"));
+	RT_TRACE(rtlpriv, COMP_INIT, DBG_TRACE, "<---\n");
 	return rtstatus;
 phy_rf_cfg_fail:
 	return rtstatus;

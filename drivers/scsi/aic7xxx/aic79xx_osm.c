@@ -341,10 +341,10 @@ MODULE_PARM_DESC(aic79xx,
 "				(0/256ms,1/128ms,2/64ms,3/32ms)\n"
 "	slowcrc			Turn on the SLOWCRC bit (Rev B only)\n"		 
 "\n"
-"	Sample /etc/modprobe.conf line:\n"
-"		Enable verbose logging\n"
-"		Set tag depth on Controller 2/Target 2 to 10 tags\n"
-"		Shorten the selection timeout to 128ms\n"
+"	Sample modprobe configuration file:\n"
+"	#	Enable verbose logging\n"
+"	#	Set tag depth on Controller 2/Target 2 to 10 tags\n"
+"	#	Shorten the selection timeout to 128ms\n"
 "\n"
 "	options aic79xx 'aic79xx=verbose.tag_info:{{}.{}.{..10}}.seltime:1'\n"
 );
@@ -906,7 +906,8 @@ struct scsi_host_template aic79xx_driver_template = {
 	.module			= THIS_MODULE,
 	.name			= "aic79xx",
 	.proc_name		= "aic79xx",
-	.proc_info		= ahd_linux_proc_info,
+	.show_info		= ahd_linux_show_info,
+	.write_info	 	= ahd_proc_write_seeprom,
 	.info			= ahd_linux_info,
 	.queuecommand		= ahd_linux_queue,
 	.eh_abort_handler	= ahd_linux_abort,
@@ -924,6 +925,7 @@ struct scsi_host_template aic79xx_driver_template = {
 	.slave_configure	= ahd_linux_slave_configure,
 	.target_alloc		= ahd_linux_target_alloc,
 	.target_destroy		= ahd_linux_target_destroy,
+	.use_blk_tags		= 1,
 };
 
 /******************************** Bus DMA *************************************/
@@ -1467,12 +1469,9 @@ ahd_platform_set_tags(struct ahd_softc *ahd, struct scsi_device *sdev,
 
 	switch ((dev->flags & (AHD_DEV_Q_BASIC|AHD_DEV_Q_TAGGED))) {
 	case AHD_DEV_Q_BASIC:
-		scsi_set_tag_type(sdev, MSG_SIMPLE_TASK);
-		scsi_activate_tcq(sdev, dev->openings + dev->active);
-		break;
 	case AHD_DEV_Q_TAGGED:
-		scsi_set_tag_type(sdev, MSG_ORDERED_TASK);
-		scsi_activate_tcq(sdev, dev->openings + dev->active);
+		scsi_change_queue_depth(sdev,
+				dev->openings + dev->active);
 		break;
 	default:
 		/*
@@ -1481,7 +1480,7 @@ ahd_platform_set_tags(struct ahd_softc *ahd, struct scsi_device *sdev,
 		 * serially on the controller/device.  This should
 		 * remove some latency.
 		 */
-		scsi_deactivate_tcq(sdev, 1);
+		scsi_change_queue_depth(sdev, 1);
 		break;
 	}
 }
@@ -1618,15 +1617,6 @@ ahd_linux_run_command(struct ahd_softc *ahd, struct ahd_linux_device *dev,
 	}
 
 	if ((dev->flags & (AHD_DEV_Q_TAGGED|AHD_DEV_Q_BASIC)) != 0) {
-		int	msg_bytes;
-		uint8_t tag_msgs[2];
-
-		msg_bytes = scsi_populate_tag_msg(cmd, tag_msgs);
-		if (msg_bytes && tag_msgs[0] != MSG_SIMPLE_TASK) {
-			hscb->control |= tag_msgs[0];
-			if (tag_msgs[0] == MSG_ORDERED_TASK)
-				dev->commands_since_idle_or_otag = 0;
-		} else
 		if (dev->commands_since_idle_or_otag == AHD_OTAG_THRESH
 		 && (dev->flags & AHD_DEV_Q_TAGGED) != 0) {
 			hscb->control |= MSG_ORDERED_TASK;
@@ -1702,19 +1692,13 @@ ahd_send_async(struct ahd_softc *ahd, char channel,
 	switch (code) {
 	case AC_TRANSFER_NEG:
 	{
-		char	buf[80];
 		struct  scsi_target *starget;
-		struct	info_str info;
 		struct	ahd_initiator_tinfo *tinfo;
 		struct	ahd_tmode_tstate *tstate;
 		unsigned int target_ppr_options;
 
 		BUG_ON(target == CAM_TARGET_WILDCARD);
 
-		info.buffer = buf;
-		info.length = sizeof(buf);
-		info.offset = 0;
-		info.pos = 0;
 		tinfo = ahd_fetch_transinfo(ahd, channel, ahd->our_id,
 					    target, &tstate);
 
@@ -2142,7 +2126,7 @@ ahd_linux_queue_cmd_complete(struct ahd_softc *ahd, struct scsi_cmnd *cmd)
 	if (do_fallback) {
 		printk("%s: device overrun (status %x) on %d:%d:%d\n",
 		       ahd_name(ahd), status, cmd->device->channel,
-		       cmd->device->id, cmd->device->lun);
+		       cmd->device->id, (u8)cmd->device->lun);
 	}
 
 	ahd_cmd_set_transaction_status(cmd, new_status);
@@ -2258,13 +2242,13 @@ ahd_linux_queue_abort_cmd(struct scsi_cmnd *cmd)
 	disconnected = TRUE;
 	if (ahd_search_qinfifo(ahd, cmd->device->id, 
 			       cmd->device->channel + 'A',
-			       cmd->device->lun, 
+			       cmd->device->lun,
 			       pending_scb->hscb->tag,
 			       ROLE_INITIATOR, CAM_REQ_ABORTED,
 			       SEARCH_COMPLETE) > 0) {
 		printk("%s:%d:%d:%d: Cmd aborted from QINFIFO\n",
 		       ahd_name(ahd), cmd->device->channel, 
-		       cmd->device->id, cmd->device->lun);
+		       cmd->device->id, (u8)cmd->device->lun);
 		retval = SUCCESS;
 		goto done;
 	}

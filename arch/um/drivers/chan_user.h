@@ -6,15 +6,13 @@
 #ifndef __CHAN_USER_H__
 #define __CHAN_USER_H__
 
-#include "init.h"
+#include <init.h>
 
 struct chan_opts {
 	void (*const announce)(char *dev_name, int dev);
 	char *xterm_title;
 	const int raw;
 };
-
-enum chan_init_pri { INIT_STATIC, INIT_ALL, INIT_ONE };
 
 struct chan_ops {
 	char *type;
@@ -40,10 +38,10 @@ extern int generic_window_size(int fd, void *unused, unsigned short *rows_out,
 			       unsigned short *cols_out);
 extern void generic_free(void *data);
 
-struct tty_struct;
-extern void register_winch(int fd,  struct tty_struct *tty);
+struct tty_port;
+extern void register_winch(int fd,  struct tty_port *port);
 extern void register_winch_irq(int fd, int tty_fd, int pid,
-			       struct tty_struct *tty, unsigned long stack);
+			       struct tty_port *port, unsigned long stack);
 
 #define __channel_help(fn, prefix) \
 __uml_help(fn, prefix "[0-9]*=<channel description>\n" \

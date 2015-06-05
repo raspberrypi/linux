@@ -7,6 +7,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+#include <linux/irq.h>
 #include <linux/gpio.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -21,20 +22,23 @@
 #include <linux/workqueue.h>
 #include <linux/delay.h>
 
-#include <mach/hardware.h>
+#include <linux/platform_data/keypad-omap.h>
+#include <linux/platform_data/lcd-mipid.h>
+#include <linux/platform_data/gpio-omap.h>
+#include <linux/platform_data/i2c-cbus-gpio.h>
+
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
-#include <plat/mux.h>
-#include <plat/usb.h>
-#include <plat/board.h>
-#include <plat/keypad.h>
+#include <mach/mux.h>
+
+#include <mach/hardware.h>
+#include <mach/usb.h>
+
 #include "common.h"
-#include <plat/hwa742.h>
-#include <plat/lcd_mipid.h>
-#include <plat/mmc.h>
-#include <plat/clock.h>
+#include "clock.h"
+#include "mmc.h"
 
 #define ADS7846_PENDOWN_GPIO	15
 
@@ -99,26 +103,16 @@ static struct mipid_platform_data nokia770_mipid_platform_data = {
 	.shutdown = mipid_shutdown,
 };
 
+static struct omap_lcd_config nokia770_lcd_config __initdata = {
+	.ctrl_name	= "hwa742",
+};
+
 static void __init mipid_dev_init(void)
 {
-	const struct omap_lcd_config *conf;
+	nokia770_mipid_platform_data.nreset_gpio = 13;
+	nokia770_mipid_platform_data.data_lines = 16;
 
-	conf = omap_get_config(OMAP_TAG_LCD, struct omap_lcd_config);
-	if (conf != NULL) {
-		nokia770_mipid_platform_data.nreset_gpio = conf->nreset_gpio;
-		nokia770_mipid_platform_data.data_lines = conf->data_lines;
-	}
-}
-
-static void __init ads7846_dev_init(void)
-{
-	if (gpio_request(ADS7846_PENDOWN_GPIO, "ADS7846 pendown") < 0)
-		printk(KERN_ERR "can't get ads7846 pen down GPIO\n");
-}
-
-static int ads7846_get_pendown_state(void)
-{
-	return !gpio_get_value(ADS7846_PENDOWN_GPIO);
+	omapfb_set_lcd_config(&nokia770_lcd_config);
 }
 
 static struct ads7846_platform_data nokia770_ads7846_platform_data __initdata = {
@@ -129,7 +123,7 @@ static struct ads7846_platform_data nokia770_ads7846_platform_data __initdata = 
 	.debounce_max	= 10,
 	.debounce_tol	= 3,
 	.debounce_rep	= 1,
-	.get_pendown_state	= ads7846_get_pendown_state,
+	.gpio_pendown	= ADS7846_PENDOWN_GPIO,
 };
 
 static struct spi_board_info nokia770_spi_board_info[] __initdata = {
@@ -145,19 +139,13 @@ static struct spi_board_info nokia770_spi_board_info[] __initdata = {
 		.bus_num        = 2,
 		.chip_select    = 0,
 		.max_speed_hz   = 2500000,
-		.irq		= OMAP_GPIO_IRQ(15),
 		.platform_data	= &nokia770_ads7846_platform_data,
 	},
-};
-
-static struct hwa742_platform_data nokia770_hwa742_platform_data = {
-	.te_connected		= 1,
 };
 
 static void __init hwa742_dev_init(void)
 {
 	clk_add_alias("hwa_sys_ck", NULL, "bclk", NULL);
-	omapfb_set_ctrl_platform_data(&nokia770_hwa742_platform_data);
 }
 
 /* assume no Mini-AB port */
@@ -168,6 +156,7 @@ static struct omap_usb_config nokia770_usb_config __initdata = {
 	.register_dev	= 1,
 	.hmc_mode	= 16,
 	.pins[0]	= 6,
+	.extcon		= "tahvo-usb",
 };
 
 #if defined(CONFIG_MMC_OMAP) || defined(CONFIG_MMC_OMAP_MODULE)
@@ -189,7 +178,6 @@ static int nokia770_mmc_get_cover_state(struct device *dev, int slot)
 
 static struct omap_mmc_platform_data nokia770_mmc2_data = {
 	.nr_slots                       = 1,
-	.dma_mask			= 0xffffffff,
 	.max_freq                       = 12000000,
 	.slots[0]       = {
 		.set_power		= nokia770_mmc_set_power,
@@ -228,6 +216,55 @@ static inline void nokia770_mmc_init(void)
 }
 #endif
 
+#if defined(CONFIG_I2C_CBUS_GPIO) || defined(CONFIG_I2C_CBUS_GPIO_MODULE)
+static struct i2c_cbus_platform_data nokia770_cbus_data = {
+	.clk_gpio = OMAP_MPUIO(9),
+	.dat_gpio = OMAP_MPUIO(10),
+	.sel_gpio = OMAP_MPUIO(11),
+};
+
+static struct platform_device nokia770_cbus_device = {
+	.name   = "i2c-cbus-gpio",
+	.id     = 2,
+	.dev    = {
+		.platform_data = &nokia770_cbus_data,
+	},
+};
+
+static struct i2c_board_info nokia770_i2c_board_info_2[] __initdata = {
+	{
+		I2C_BOARD_INFO("retu-mfd", 0x01),
+	},
+	{
+		I2C_BOARD_INFO("tahvo-mfd", 0x02),
+	},
+};
+
+static void __init nokia770_cbus_init(void)
+{
+	const int retu_irq_gpio = 62;
+	const int tahvo_irq_gpio = 40;
+
+	if (gpio_request_one(retu_irq_gpio, GPIOF_IN, "Retu IRQ"))
+		return;
+	if (gpio_request_one(tahvo_irq_gpio, GPIOF_IN, "Tahvo IRQ")) {
+		gpio_free(retu_irq_gpio);
+		return;
+	}
+	irq_set_irq_type(gpio_to_irq(retu_irq_gpio), IRQ_TYPE_EDGE_RISING);
+	irq_set_irq_type(gpio_to_irq(tahvo_irq_gpio), IRQ_TYPE_EDGE_RISING);
+	nokia770_i2c_board_info_2[0].irq = gpio_to_irq(retu_irq_gpio);
+	nokia770_i2c_board_info_2[1].irq = gpio_to_irq(tahvo_irq_gpio);
+	i2c_register_board_info(2, nokia770_i2c_board_info_2,
+				ARRAY_SIZE(nokia770_i2c_board_info_2));
+	platform_device_register(&nokia770_cbus_device);
+}
+#else /* CONFIG_I2C_CBUS_GPIO */
+static void __init nokia770_cbus_init(void)
+{
+}
+#endif /* CONFIG_I2C_CBUS_GPIO */
+
 static void __init omap_nokia770_init(void)
 {
 	/* On Nokia 770, the SleepX signal is masked with an
@@ -240,24 +277,25 @@ static void __init omap_nokia770_init(void)
 	omap_writew((omap_readw(0xfffb5004) & ~2), 0xfffb5004);
 
 	platform_add_devices(nokia770_devices, ARRAY_SIZE(nokia770_devices));
+	nokia770_spi_board_info[1].irq = gpio_to_irq(15);
 	spi_register_board_info(nokia770_spi_board_info,
 				ARRAY_SIZE(nokia770_spi_board_info));
 	omap_serial_init();
 	omap_register_i2c_bus(1, 100, NULL, 0);
 	hwa742_dev_init();
-	ads7846_dev_init();
 	mipid_dev_init();
 	omap1_usb_init(&nokia770_usb_config);
 	nokia770_mmc_init();
+	nokia770_cbus_init();
 }
 
 MACHINE_START(NOKIA770, "Nokia 770")
 	.atag_offset	= 0x100,
 	.map_io		= omap16xx_map_io,
 	.init_early     = omap1_init_early,
-	.reserve	= omap_reserve,
 	.init_irq	= omap1_init_irq,
 	.init_machine	= omap_nokia770_init,
-	.timer		= &omap1_timer,
+	.init_late	= omap1_init_late,
+	.init_time	= omap1_timer_init,
 	.restart	= omap1_restart,
 MACHINE_END

@@ -59,7 +59,6 @@
 #include <asm/sections.h>
 #include <asm/setup.h>
 #include <asm/smp.h>
-#include <asm/system.h>
 #include <asm/tlbflush.h>
 #include <asm/unistd.h>
 #include <asm/hpsim.h>
@@ -486,7 +485,7 @@ mark_bsp_online (void)
 {
 #ifdef CONFIG_SMP
 	/* If we register an early console, allow CPU 0 to printk */
-	cpu_set(smp_processor_id(), cpu_online_map);
+	set_cpu_online(smp_processor_id(), true);
 #endif
 }
 
@@ -749,7 +748,7 @@ const struct seq_operations cpuinfo_op = {
 #define MAX_BRANDS	8
 static char brandname[MAX_BRANDS][128];
 
-static char * __cpuinit
+static char *
 get_model_name(__u8 family, __u8 model)
 {
 	static int overflow;
@@ -779,7 +778,7 @@ get_model_name(__u8 family, __u8 model)
 	return "Unknown";
 }
 
-static void __cpuinit
+static void
 identify_cpu (struct cpuinfo_ia64 *c)
 {
 	union {
@@ -851,7 +850,7 @@ identify_cpu (struct cpuinfo_ia64 *c)
  * 2. the minimum of the i-cache stride sizes for "flush_icache_range()".
  * 3. the minimum of the cache stride sizes for "clflush_cache_range()".
  */
-static void __cpuinit
+static void
 get_cache_info(void)
 {
 	unsigned long line_size, max = 1;
@@ -916,10 +915,10 @@ get_cache_info(void)
  * cpu_init() initializes state that is per-CPU.  This function acts
  * as a 'CPU state barrier', nothing should get across.
  */
-void __cpuinit
+void
 cpu_init (void)
 {
-	extern void __cpuinit ia64_mmu_init (void *);
+	extern void ia64_mmu_init(void *);
 	static unsigned long max_num_phys_stacked = IA64_NUM_PHYS_STACK_REG;
 	unsigned long num_phys_stacked;
 	pal_vm_info_2_u_t vmi;
@@ -1052,7 +1051,6 @@ cpu_init (void)
 		max_num_phys_stacked = num_phys_stacked;
 	}
 	platform_cpu_init();
-	pm_idle = default_idle;
 }
 
 void __init
@@ -1065,6 +1063,8 @@ check_bugs (void)
 static int __init run_dmi_scan(void)
 {
 	dmi_scan_machine();
+	dmi_memdev_walk();
+	dmi_set_dump_stack_arch_desc();
 	return 0;
 }
 core_initcall(run_dmi_scan);

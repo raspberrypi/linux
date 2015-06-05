@@ -5,7 +5,7 @@
 #include <linux/kref.h>
 #include <linux/rbtree.h>
 
-#include "messenger.h"
+#include <linux/ceph/messenger.h>
 
 struct ceph_client;
 struct ceph_mount_args;
@@ -40,9 +40,9 @@ struct ceph_mon_request {
 };
 
 /*
- * ceph_mon_generic_request is being used for the statfs and poolop requests
- * which are bening done a bit differently because we need to get data back
- * to the caller
+ * ceph_mon_generic_request is being used for the statfs and
+ * mon_get_version requests which are being done a bit differently
+ * because we need to get data back to the caller
  */
 struct ceph_mon_generic_request {
 	struct kref kref;
@@ -50,7 +50,6 @@ struct ceph_mon_generic_request {
 	struct rb_node node;
 	int result;
 	void *buf;
-	int buf_len;
 	struct completion completion;
 	struct ceph_msg *request;  /* original request */
 	struct ceph_msg *reply;    /* and reply */
@@ -70,8 +69,7 @@ struct ceph_mon_client {
 	bool hunting;
 	int cur_mon;                       /* last monitor i contacted */
 	unsigned long sub_sent, sub_renew_after;
-	struct ceph_connection *con;
-	bool have_fsid;
+	struct ceph_connection con;
 
 	/* pending generic requests */
 	struct rb_root generic_request_tree;
@@ -105,18 +103,17 @@ extern int ceph_monc_got_mdsmap(struct ceph_mon_client *monc, u32 have);
 extern int ceph_monc_got_osdmap(struct ceph_mon_client *monc, u32 have);
 
 extern void ceph_monc_request_next_osdmap(struct ceph_mon_client *monc);
+extern int ceph_monc_wait_osdmap(struct ceph_mon_client *monc, u32 epoch,
+				 unsigned long timeout);
 
 extern int ceph_monc_do_statfs(struct ceph_mon_client *monc,
 			       struct ceph_statfs *buf);
 
+extern int ceph_monc_do_get_version(struct ceph_mon_client *monc,
+				    const char *what, u64 *newest);
+
 extern int ceph_monc_open_session(struct ceph_mon_client *monc);
 
 extern int ceph_monc_validate_auth(struct ceph_mon_client *monc);
-
-extern int ceph_monc_create_snapid(struct ceph_mon_client *monc,
-				   u32 pool, u64 *snapid);
-
-extern int ceph_monc_delete_snapid(struct ceph_mon_client *monc,
-				   u32 pool, u64 snapid);
 
 #endif

@@ -125,12 +125,7 @@ static void __init prealloc(struct ps3_prealloc *p)
 	if (!p->size)
 		return;
 
-	p->address = __alloc_bootmem(p->size, p->align, __pa(MAX_DMA_ADDRESS));
-	if (!p->address) {
-		printk(KERN_ERR "%s: Cannot allocate %s\n", __func__,
-		       p->name);
-		return;
-	}
+	p->address = memblock_virt_alloc(p->size, p->align);
 
 	printk(KERN_INFO "%s: %lu bytes at %p\n", p->name, p->size,
 	       p->address);
@@ -184,11 +179,15 @@ early_param("ps3flash", early_parse_ps3flash);
 #define prealloc_ps3flash_bounce_buffer()	do { } while (0)
 #endif
 
-static int ps3_set_dabr(unsigned long dabr)
+static int ps3_set_dabr(unsigned long dabr, unsigned long dabrx)
 {
-	enum {DABR_USER = 1, DABR_KERNEL = 2,};
+	/* Have to set at least one bit in the DABRX */
+	if (dabrx == 0 && dabr == 0)
+		dabrx = DABRX_USER;
+	/* hypervisor only allows us to set BTI, Kernel and user */
+	dabrx &= DABRX_BTI | DABRX_KERNEL | DABRX_USER;
 
-	return lv1_set_dabr(dabr, DABR_KERNEL | DABR_USER) ? -1 : 0;
+	return lv1_set_dabr(dabr, dabrx) ? -1 : 0;
 }
 
 static void __init ps3_setup_arch(void)
@@ -244,6 +243,7 @@ static int __init ps3_probe(void)
 	ps3_mm_init();
 	ps3_mm_vas_create(&htab_size);
 	ps3_hpte_init(htab_size);
+	pm_power_off = ps3_power_off;
 
 	DBG(" <- %s:%d\n", __func__, __LINE__);
 	return 1;
@@ -274,7 +274,6 @@ define_machine(ps3) {
 	.calibrate_decr			= ps3_calibrate_decr,
 	.progress			= ps3_progress,
 	.restart			= ps3_restart,
-	.power_off			= ps3_power_off,
 	.halt				= ps3_halt,
 #if defined(CONFIG_KEXEC)
 	.kexec_cpu_down			= ps3_kexec_cpu_down,

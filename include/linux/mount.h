@@ -42,66 +42,48 @@ struct mnt_namespace;
  * flag, consider how it interacts with shared mounts.
  */
 #define MNT_SHARED_MASK	(MNT_UNBINDABLE)
-#define MNT_PROPAGATION_MASK	(MNT_SHARED | MNT_UNBINDABLE)
+#define MNT_USER_SETTABLE_MASK  (MNT_NOSUID | MNT_NODEV | MNT_NOEXEC \
+				 | MNT_NOATIME | MNT_NODIRATIME | MNT_RELATIME \
+				 | MNT_READONLY)
+#define MNT_ATIME_MASK (MNT_NOATIME | MNT_NODIRATIME | MNT_RELATIME )
 
+#define MNT_INTERNAL_FLAGS (MNT_SHARED | MNT_WRITE_HOLD | MNT_INTERNAL | \
+			    MNT_DOOMED | MNT_SYNC_UMOUNT | MNT_MARKED)
 
 #define MNT_INTERNAL	0x4000
 
-struct mnt_pcp {
-	int mnt_count;
-	int mnt_writers;
-};
+#define MNT_LOCK_ATIME		0x040000
+#define MNT_LOCK_NOEXEC		0x080000
+#define MNT_LOCK_NOSUID		0x100000
+#define MNT_LOCK_NODEV		0x200000
+#define MNT_LOCK_READONLY	0x400000
+#define MNT_LOCKED		0x800000
+#define MNT_DOOMED		0x1000000
+#define MNT_SYNC_UMOUNT		0x2000000
+#define MNT_MARKED		0x4000000
+#define MNT_UMOUNT		0x8000000
 
 struct vfsmount {
-	struct list_head mnt_hash;
-	struct vfsmount *mnt_parent;	/* fs we are mounted on */
-	struct dentry *mnt_mountpoint;	/* dentry of mountpoint */
 	struct dentry *mnt_root;	/* root of the mounted tree */
 	struct super_block *mnt_sb;	/* pointer to superblock */
-#ifdef CONFIG_SMP
-	struct mnt_pcp __percpu *mnt_pcp;
-	atomic_t mnt_longterm;		/* how many of the refs are longterm */
-#else
-	int mnt_count;
-	int mnt_writers;
-#endif
-	struct list_head mnt_mounts;	/* list of children, anchored here */
-	struct list_head mnt_child;	/* and going through their mnt_child */
 	int mnt_flags;
-	/* 4 bytes hole on 64bits arches without fsnotify */
-#ifdef CONFIG_FSNOTIFY
-	__u32 mnt_fsnotify_mask;
-	struct hlist_head mnt_fsnotify_marks;
-#endif
-	const char *mnt_devname;	/* Name of device e.g. /dev/dsk/hda1 */
-	struct list_head mnt_list;
-	struct list_head mnt_expire;	/* link in fs-specific expiry list */
-	struct list_head mnt_share;	/* circular list of shared mounts */
-	struct list_head mnt_slave_list;/* list of slave mounts */
-	struct list_head mnt_slave;	/* slave list entry */
-	struct vfsmount *mnt_master;	/* slave is on master->mnt_slave_list */
-	struct mnt_namespace *mnt_ns;	/* containing namespace */
-	int mnt_id;			/* mount identifier */
-	int mnt_group_id;		/* peer group identifier */
-	int mnt_expiry_mark;		/* true if marked for expiry */
-	int mnt_pinned;
-	int mnt_ghosts;
 };
 
 struct file; /* forward dec */
+struct path;
 
 extern int mnt_want_write(struct vfsmount *mnt);
 extern int mnt_want_write_file(struct file *file);
 extern int mnt_clone_write(struct vfsmount *mnt);
 extern void mnt_drop_write(struct vfsmount *mnt);
+extern void mnt_drop_write_file(struct file *file);
 extern void mntput(struct vfsmount *mnt);
 extern struct vfsmount *mntget(struct vfsmount *mnt);
-extern void mnt_pin(struct vfsmount *mnt);
-extern void mnt_unpin(struct vfsmount *mnt);
+extern struct vfsmount *mnt_clone_internal(struct path *path);
 extern int __mnt_is_readonly(struct vfsmount *mnt);
 
-extern struct vfsmount *do_kern_mount(const char *fstype, int flags,
-				      const char *name, void *data);
+struct path;
+extern struct vfsmount *clone_private_mount(struct path *path);
 
 struct file_system_type;
 extern struct vfsmount *vfs_kern_mount(struct file_system_type *type,

@@ -31,7 +31,7 @@ __setup("lpj=", lpj_setup);
 #define DELAY_CALIBRATION_TICKS			((HZ < 100) ? 1 : (HZ/100))
 #define MAX_DIRECT_CALIBRATION_RETRIES		5
 
-static unsigned long __cpuinit calibrate_delay_direct(void)
+static unsigned long calibrate_delay_direct(void)
 {
 	unsigned long pre_start, start, post_start;
 	unsigned long pre_end, end, post_end;
@@ -166,7 +166,10 @@ static unsigned long __cpuinit calibrate_delay_direct(void)
 	return 0;
 }
 #else
-static unsigned long __cpuinit calibrate_delay_direct(void) {return 0;}
+static unsigned long calibrate_delay_direct(void)
+{
+	return 0;
+}
 #endif
 
 /*
@@ -180,7 +183,7 @@ static unsigned long __cpuinit calibrate_delay_direct(void) {return 0;}
  */
 #define LPS_PREC 8
 
-static unsigned long __cpuinit calibrate_delay_converge(void)
+static unsigned long calibrate_delay_converge(void)
 {
 	/* First stage - slowly accelerate to find initial bounds */
 	unsigned long lpj, lpj_base, ticks, loopadd, loopadd_base, chop_limit;
@@ -246,7 +249,29 @@ recalibrate:
 
 static DEFINE_PER_CPU(unsigned long, cpu_loops_per_jiffy) = { 0 };
 
-void __cpuinit calibrate_delay(void)
+/*
+ * Check if cpu calibration delay is already known. For example,
+ * some processors with multi-core sockets may have all cores
+ * with the same calibration delay.
+ *
+ * Architectures should override this function if a faster calibration
+ * method is available.
+ */
+unsigned long __attribute__((weak)) calibrate_delay_is_known(void)
+{
+	return 0;
+}
+
+/*
+ * Indicate the cpu delay calibration is done. This can be used by
+ * architectures to stop accepting delay timer registrations after this point.
+ */
+
+void __attribute__((weak)) calibration_delay_done(void)
+{
+}
+
+void calibrate_delay(void)
 {
 	unsigned long lpj;
 	static bool printed;
@@ -254,7 +279,8 @@ void __cpuinit calibrate_delay(void)
 
 	if (per_cpu(cpu_loops_per_jiffy, this_cpu)) {
 		lpj = per_cpu(cpu_loops_per_jiffy, this_cpu);
-		pr_info("Calibrating delay loop (skipped) "
+		if (!printed)
+			pr_info("Calibrating delay loop (skipped) "
 				"already calibrated this CPU");
 	} else if (preset_lpj) {
 		lpj = preset_lpj;
@@ -265,6 +291,8 @@ void __cpuinit calibrate_delay(void)
 		lpj = lpj_fine;
 		pr_info("Calibrating delay loop (skipped), "
 			"value calculated using timer frequency.. ");
+	} else if ((lpj = calibrate_delay_is_known())) {
+		;
 	} else if ((lpj = calibrate_delay_direct()) != 0) {
 		if (!printed)
 			pr_info("Calibrating delay using timer "
@@ -282,4 +310,6 @@ void __cpuinit calibrate_delay(void)
 
 	loops_per_jiffy = lpj;
 	printed = true;
+
+	calibration_delay_done();
 }

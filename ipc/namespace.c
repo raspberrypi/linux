@@ -12,11 +12,11 @@
 #include <linux/fs.h>
 #include <linux/mount.h>
 #include <linux/user_namespace.h>
-#include <linux/proc_fs.h>
+#include <linux/proc_ns.h>
 
 #include "util.h"
 
-static struct ipc_namespace *create_ipc_ns(struct task_struct *tsk,
+static struct ipc_namespace *create_ipc_ns(struct user_namespace *user_ns,
 					   struct ipc_namespace *old_ns)
 {
 	struct ipc_namespace *ns;
@@ -26,9 +26,17 @@ static struct ipc_namespace *create_ipc_ns(struct task_struct *tsk,
 	if (ns == NULL)
 		return ERR_PTR(-ENOMEM);
 
+	err = ns_alloc_inum(&ns->ns);
+	if (err) {
+		kfree(ns);
+		return ERR_PTR(err);
+	}
+	ns->ns.ops = &ipcns_operations;
+
 	atomic_set(&ns->count, 1);
 	err = mq_init_ns(ns);
 	if (err) {
+		ns_free_inum(&ns->ns);
 		kfree(ns);
 		return ERR_PTR(err);
 	}
@@ -38,27 +46,17 @@ static struct ipc_namespace *create_ipc_ns(struct task_struct *tsk,
 	msg_init_ns(ns);
 	shm_init_ns(ns);
 
-	/*
-	 * msgmni has already been computed for the new ipc ns.
-	 * Thus, do the ipcns creation notification before registering that
-	 * new ipcns in the chain.
-	 */
-	ipcns_notify(IPCNS_CREATED);
-	register_ipcns_notifier(ns);
-
-	ns->user_ns = get_user_ns(task_cred_xxx(tsk, user)->user_ns);
+	ns->user_ns = get_user_ns(user_ns);
 
 	return ns;
 }
 
 struct ipc_namespace *copy_ipcs(unsigned long flags,
-				struct task_struct *tsk)
+	struct user_namespace *user_ns, struct ipc_namespace *ns)
 {
-	struct ipc_namespace *ns = tsk->nsproxy->ipc_ns;
-
 	if (!(flags & CLONE_NEWIPC))
 		return get_ipc_ns(ns);
-	return create_ipc_ns(tsk, ns);
+	return create_ipc_ns(user_ns, ns);
 }
 
 /*
@@ -76,7 +74,7 @@ void free_ipcs(struct ipc_namespace *ns, struct ipc_ids *ids,
 	int next_id;
 	int total, in_use;
 
-	down_write(&ids->rw_mutex);
+	down_write(&ids->rwsem);
 
 	in_use = ids->in_use;
 
@@ -84,35 +82,23 @@ void free_ipcs(struct ipc_namespace *ns, struct ipc_ids *ids,
 		perm = idr_find(&ids->ipcs_idr, next_id);
 		if (perm == NULL)
 			continue;
-		ipc_lock_by_ptr(perm);
+		rcu_read_lock();
+		ipc_lock_object(perm);
 		free(ns, perm);
 		total++;
 	}
-	up_write(&ids->rw_mutex);
+	up_write(&ids->rwsem);
 }
 
 static void free_ipc_ns(struct ipc_namespace *ns)
 {
-	/*
-	 * Unregistering the hotplug notifier at the beginning guarantees
-	 * that the ipc namespace won't be freed while we are inside the
-	 * callback routine. Since the blocking_notifier_chain_XXX routines
-	 * hold a rw lock on the notifier list, unregister_ipcns_notifier()
-	 * won't take the rw lock before blocking_notifier_call_chain() has
-	 * released the rd lock.
-	 */
-	unregister_ipcns_notifier(ns);
 	sem_exit_ns(ns);
 	msg_exit_ns(ns);
 	shm_exit_ns(ns);
 	atomic_dec(&nr_ipc_ns);
 
-	/*
-	 * Do the ipcns removal notification after decrementing nr_ipc_ns in
-	 * order to have a correct value when recomputing msgmni.
-	 */
-	ipcns_notify(IPCNS_REMOVED);
 	put_user_ns(ns->user_ns);
+	ns_free_inum(&ns->ns);
 	kfree(ns);
 }
 
@@ -142,27 +128,37 @@ void put_ipc_ns(struct ipc_namespace *ns)
 	}
 }
 
-static void *ipcns_get(struct task_struct *task)
+static inline struct ipc_namespace *to_ipc_ns(struct ns_common *ns)
+{
+	return container_of(ns, struct ipc_namespace, ns);
+}
+
+static struct ns_common *ipcns_get(struct task_struct *task)
 {
 	struct ipc_namespace *ns = NULL;
 	struct nsproxy *nsproxy;
 
-	rcu_read_lock();
-	nsproxy = task_nsproxy(task);
+	task_lock(task);
+	nsproxy = task->nsproxy;
 	if (nsproxy)
 		ns = get_ipc_ns(nsproxy->ipc_ns);
-	rcu_read_unlock();
+	task_unlock(task);
 
-	return ns;
+	return ns ? &ns->ns : NULL;
 }
 
-static void ipcns_put(void *ns)
+static void ipcns_put(struct ns_common *ns)
 {
-	return put_ipc_ns(ns);
+	return put_ipc_ns(to_ipc_ns(ns));
 }
 
-static int ipcns_install(struct nsproxy *nsproxy, void *ns)
+static int ipcns_install(struct nsproxy *nsproxy, struct ns_common *new)
 {
+	struct ipc_namespace *ns = to_ipc_ns(new);
+	if (!ns_capable(ns->user_ns, CAP_SYS_ADMIN) ||
+	    !ns_capable(current_user_ns(), CAP_SYS_ADMIN))
+		return -EPERM;
+
 	/* Ditch state from the old ipc namespace */
 	exit_sem(current);
 	put_ipc_ns(nsproxy->ipc_ns);

@@ -16,27 +16,25 @@
 
 #include <asm/sizes.h>
 
-#if defined(CONFIG_ARCH_AT91RM9200)
-#include <mach/at91rm9200.h>
-#elif defined(CONFIG_ARCH_AT91SAM9260) || defined(CONFIG_ARCH_AT91SAM9G20)
-#include <mach/at91sam9260.h>
-#elif defined(CONFIG_ARCH_AT91SAM9261) || defined(CONFIG_ARCH_AT91SAM9G10)
-#include <mach/at91sam9261.h>
-#elif defined(CONFIG_ARCH_AT91SAM9263)
-#include <mach/at91sam9263.h>
-#elif defined(CONFIG_ARCH_AT91SAM9RL)
-#include <mach/at91sam9rl.h>
-#elif defined(CONFIG_ARCH_AT91SAM9G45)
-#include <mach/at91sam9g45.h>
-#elif defined(CONFIG_ARCH_AT91CAP9)
-#include <mach/at91cap9.h>
-#elif defined(CONFIG_ARCH_AT91X40)
-#include <mach/at91x40.h>
-#else
-#error "Unsupported AT91 processor"
-#endif
+/* DBGU base */
+/* rm9200, 9260/9g20, 9261/9g10, 9rl */
+#define AT91_BASE_DBGU0	0xfffff200
+/* 9263, 9g45, sama5d3 */
+#define AT91_BASE_DBGU1	0xffffee00
+/* sama5d4 */
+#define AT91_BASE_DBGU2	0xfc069000
 
-#if !defined(CONFIG_ARCH_AT91X40)
+#include <mach/at91rm9200.h>
+#include <mach/at91sam9260.h>
+#include <mach/at91sam9261.h>
+#include <mach/at91sam9263.h>
+#include <mach/at91sam9rl.h>
+#include <mach/at91sam9g45.h>
+#include <mach/at91sam9x5.h>
+#include <mach/at91sam9n12.h>
+#include <mach/sama5d3.h>
+#include <mach/sama5d4.h>
+
 /*
  * On all at91 except rm9200 and x40 have the System Controller starts
  * at address 0xffffc000 and has a size of 16KiB.
@@ -49,7 +47,18 @@
  * and map the same memory space
  */
 #define AT91_BASE_SYS	0xffffc000
-#endif
+
+/*
+ * On sama5d4 there is no system controller, we map some needed peripherals
+ */
+#define AT91_ALT_BASE_SYS	0xfc069000
+
+/*
+ * On all at91 have the Advanced Interrupt Controller starts at address
+ * 0xfffff000 and the Power Management Controller starts at 0xfffffc00
+ */
+#define AT91_AIC	0xfffff000
+#define AT91_PMC	0xfffffc00
 
 /*
  * Peripheral identifiers/interrupts.
@@ -63,32 +72,40 @@
  * to 0xFEF78000 .. 0xFF000000.  (544Kb)
  */
 #define AT91_IO_PHYS_BASE	0xFFF78000
-#define AT91_IO_VIRT_BASE	(0xFF000000 - AT91_IO_SIZE)
+#define AT91_IO_VIRT_BASE	IOMEM(0xFF000000 - AT91_IO_SIZE)
+
+/*
+ * On sama5d4, remap the peripherals from address 0xFC069000 .. 0xFC06F000
+ * to 0xFB069000 .. 0xFB06F000.  (24Kb)
+ */
+#define AT91_ALT_IO_PHYS_BASE	AT91_ALT_BASE_SYS
+#define AT91_ALT_IO_VIRT_BASE	IOMEM(0xFB069000)
 #else
 /*
  * Identity mapping for the non MMU case.
  */
 #define AT91_IO_PHYS_BASE	AT91_BASE_SYS
-#define AT91_IO_VIRT_BASE	AT91_IO_PHYS_BASE
+#define AT91_IO_VIRT_BASE	IOMEM(AT91_IO_PHYS_BASE)
+
+#define AT91_ALT_IO_PHYS_BASE	AT91_ALT_BASE_SYS
+#define AT91_ALT_IO_VIRT_BASE	IOMEM(AT91_ALT_BASE_SYS)
 #endif
 
 #define AT91_IO_SIZE		(0xFFFFFFFF - AT91_IO_PHYS_BASE + 1)
 
  /* Convert a physical IO address to virtual IO address */
 #define AT91_IO_P2V(x)		((x) - AT91_IO_PHYS_BASE + AT91_IO_VIRT_BASE)
+#define AT91_ALT_IO_P2V(x)	((x) - AT91_ALT_IO_PHYS_BASE + AT91_ALT_IO_VIRT_BASE)
 
 /*
  * Virtual to Physical Address mapping for IO devices.
  */
 #define AT91_VA_BASE_SYS	AT91_IO_P2V(AT91_BASE_SYS)
-#define AT91_VA_BASE_EMAC	AT91_IO_P2V(AT91RM9200_BASE_EMAC)
+#define AT91_ALT_VA_BASE_SYS	AT91_ALT_IO_P2V(AT91_ALT_BASE_SYS)
 
  /* Internal SRAM is mapped below the IO devices */
 #define AT91_SRAM_MAX		SZ_1M
 #define AT91_VIRT_BASE		(AT91_IO_VIRT_BASE - AT91_SRAM_MAX)
-
-/* Serial ports */
-#define ATMEL_MAX_UART		7		/* 6 USART3's and one DBGU port (SAM9260) */
 
 /* External Memory Map */
 #define AT91_CHIPSELECT_0	0x10000000
@@ -103,5 +120,15 @@
 /* Clocks */
 #define AT91_SLOW_CLOCK		32768		/* slow clock */
 
+/*
+ * FIXME: this is needed to communicate between the pinctrl driver and
+ * the PM implementation in the machine. Possibly part of the PM
+ * implementation should be moved down into the pinctrl driver and get
+ * called as part of the generic suspend/resume path.
+ */
+#ifndef __ASSEMBLY__
+extern void at91_pinctrl_gpio_suspend(void);
+extern void at91_pinctrl_gpio_resume(void);
+#endif
 
 #endif

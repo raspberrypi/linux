@@ -28,8 +28,9 @@
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/nand.h>
 #include <linux/mmc/host.h>
+#include <linux/usb/phy.h>
 
-#include <plat/mcspi.h>
+#include <linux/platform_data/spi-omap2-mcspi.h>
 #include <linux/spi/spi.h>
 
 #include <linux/spi/ads7846.h>
@@ -37,20 +38,19 @@
 #include <linux/regulator/machine.h>
 #include <linux/i2c/twl.h>
 
-#include <mach/hardware.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include <asm/mach/flash.h>
+#include <asm/system_info.h>
 
-#include <plat/board.h>
 #include "common.h"
-#include <plat/gpmc.h>
-#include <plat/nand.h>
-#include <plat/usb.h>
+#include "gpmc.h"
+#include <linux/platform_data/mtd-nand-omap2.h>
 
 #include "mux.h"
 #include "hsmmc.h"
+#include "board-flash.h"
 #include "common-board-devices.h"
 
 #include <asm/setup.h>
@@ -59,6 +59,8 @@
 #define OMAP3_TS_GPIO		162
 #define TB_BL_PWM_TIMER		9
 #define TB_KILL_POWER_GPIO	168
+
+#define	NAND_CS			0
 
 static unsigned long touchbook_revision;
 
@@ -100,6 +102,7 @@ static struct omap2_hsmmc_info mmc[] = {
 		.mmc		= 1,
 		.caps		= MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA,
 		.gpio_wp	= 29,
+		.deferred	= true,
 	},
 	{}	/* Terminator */
 };
@@ -117,15 +120,9 @@ static struct gpio_led gpio_leds[];
 static int touchbook_twl_gpio_setup(struct device *dev,
 		unsigned gpio, unsigned ngpio)
 {
-	if (system_rev >= 0x20 && system_rev <= 0x34301000) {
-		omap_mux_init_gpio(23, OMAP_PIN_INPUT);
-		mmc[0].gpio_wp = 23;
-	} else {
-		omap_mux_init_gpio(29, OMAP_PIN_INPUT);
-	}
 	/* gpio + 0 is "mmc0_cd" (input/IRQ) */
 	mmc[0].gpio_cd = gpio + 0;
-	omap2_hsmmc_init(mmc);
+	omap_hsmmc_late_init(mmc);
 
 	/* REVISIT: need ehci-omap hooks for external VBUS
 	 * power switch and overcurrent detect
@@ -143,9 +140,6 @@ static int touchbook_twl_gpio_setup(struct device *dev,
 }
 
 static struct twl4030_gpio_platform_data touchbook_gpio_data = {
-	.gpio_base	= OMAP_MAX_GPIO_LINES,
-	.irq_base	= TWL4030_GPIO_IRQ_BASE,
-	.irq_end	= TWL4030_GPIO_IRQ_END,
 	.use_leds	= true,
 	.pullups	= BIT(1),
 	.pulldowns	= BIT(2) | BIT(6) | BIT(7) | BIT(8) | BIT(13)
@@ -311,21 +305,22 @@ static struct omap_board_mux board_mux[] __initdata = {
 };
 #endif
 
+static struct usbhs_phy_data phy_data[] __initdata = {
+	{
+		.port = 2,
+		.reset_gpio = 147,
+		.vcc_gpio = -EINVAL,
+	},
+};
+
 static struct platform_device *omap3_touchbook_devices[] __initdata = {
 	&leds_gpio,
 	&keys_gpio,
 };
 
-static const struct usbhs_omap_board_data usbhs_bdata __initconst = {
-
+static struct usbhs_omap_platform_data usbhs_bdata __initdata = {
 	.port_mode[0] = OMAP_EHCI_PORT_MODE_PHY,
 	.port_mode[1] = OMAP_EHCI_PORT_MODE_PHY,
-	.port_mode[2] = OMAP_USBHS_PORT_MODE_UNUSED,
-
-	.phy_reset  = true,
-	.reset_gpio_port[0]  = -EINVAL,
-	.reset_gpio_port[1]  = 147,
-	.reset_gpio_port[2]  = -EINVAL
 };
 
 static void omap3_touchbook_poweroff(void)
@@ -341,7 +336,7 @@ static int __init early_touchbook_revision(char *p)
 	if (!p)
 		return 0;
 
-	return strict_strtoul(p, 10, &touchbook_revision);
+	return kstrtoul(p, 10, &touchbook_revision);
 }
 early_param("tbr", early_touchbook_revision);
 
@@ -350,6 +345,14 @@ static void __init omap3_touchbook_init(void)
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
 
 	pm_power_off = omap3_touchbook_poweroff;
+
+	if (system_rev >= 0x20 && system_rev <= 0x34301000) {
+		omap_mux_init_gpio(23, OMAP_PIN_INPUT);
+		mmc[0].gpio_wp = 23;
+	} else {
+		omap_mux_init_gpio(29, OMAP_PIN_INPUT);
+	}
+	omap_hsmmc_init(mmc);
 
 	omap3_touchbook_i2c_init();
 	platform_add_devices(omap3_touchbook_devices,
@@ -364,10 +367,14 @@ static void __init omap3_touchbook_init(void)
 
 	/* Touchscreen and accelerometer */
 	omap_ads7846_init(4, OMAP3_TS_GPIO, 310, &ads7846_pdata);
+	usb_bind_phy("musb-hdrc.0.auto", 0, "twl4030_usb");
 	usb_musb_init(NULL);
+
+	usbhs_init_phys(phy_data, ARRAY_SIZE(phy_data));
 	usbhs_init(&usbhs_bdata);
-	omap_nand_flash_init(NAND_BUSWIDTH_16, omap3touchbook_nand_partitions,
-			     ARRAY_SIZE(omap3touchbook_nand_partitions));
+	board_nand_init(omap3touchbook_nand_partitions,
+			ARRAY_SIZE(omap3touchbook_nand_partitions), NAND_CS,
+			NAND_BUSWIDTH_16, NULL);
 
 	/* Ensure SDRC pins are mux'd for self-refresh */
 	omap_mux_init_signal("sdrc_cke0", OMAP_PIN_OUTPUT);
@@ -381,8 +388,8 @@ MACHINE_START(TOUCHBOOK, "OMAP3 touchbook Board")
 	.map_io		= omap3_map_io,
 	.init_early	= omap3430_init_early,
 	.init_irq	= omap3_init_irq,
-	.handle_irq	= omap3_intc_handle_irq,
 	.init_machine	= omap3_touchbook_init,
-	.timer		= &omap3_secure_timer,
-	.restart	= omap_prcm_restart,
+	.init_late	= omap3430_init_late,
+	.init_time	= omap3_secure_sync32k_timer_init,
+	.restart	= omap3xxx_restart,
 MACHINE_END

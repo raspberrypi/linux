@@ -6,6 +6,7 @@
 ** Started 1/16/98 @ 2:22 am
 */
 
+#include <linux/init.h>
 #include <linux/mman.h>
 #include <linux/mm.h>
 #include <linux/kernel.h>
@@ -17,7 +18,6 @@
 
 #include <asm/setup.h>
 #include <asm/traps.h>
-#include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -123,7 +123,7 @@ void print_pte_vaddr (unsigned long vaddr)
 /*
  * Initialise the MMU emulator.
  */
-void mmu_emu_init(unsigned long bootmem_end)
+void __init mmu_emu_init(unsigned long bootmem_end)
 {
 	unsigned long seg, num;
 	int i,j;

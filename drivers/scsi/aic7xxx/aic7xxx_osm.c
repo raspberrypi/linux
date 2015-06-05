@@ -145,16 +145,6 @@ static struct scsi_transport_template *ahc_linux_transport_template = NULL;
 #endif
 
 /*
- * Control collection of SCSI transfer statistics for the /proc filesystem.
- *
- * NOTE: Do NOT enable this when running on kernels version 1.2.x and below.
- * NOTE: This does affect performance since it has to maintain statistics.
- */
-#ifdef CONFIG_AIC7XXX_PROC_STATS
-#define AIC7XXX_PROC_STATS
-#endif
-
-/*
  * To change the default number of tagged transactions allowed per-device,
  * add a line to the lilo.conf file like:
  * append="aic7xxx=verbose,tag_info:{{32,32,32,32},{32,32,32,32}}"
@@ -360,10 +350,10 @@ MODULE_PARM_DESC(aic7xxx,
 "	seltime:<int>		Selection Timeout\n"
 "				(0/256ms,1/128ms,2/64ms,3/32ms)\n"
 "\n"
-"	Sample /etc/modprobe.conf line:\n"
-"		Toggle EISA/VLB probing\n"
-"		Set tag depth on Controller 1/Target 1 to 10 tags\n"
-"		Shorten the selection timeout to 128ms\n"
+"	Sample modprobe configuration file:\n"
+"	#	Toggle EISA/VLB probing\n"
+"	#	Set tag depth on Controller 1/Target 1 to 10 tags\n"
+"	#	Shorten the selection timeout to 128ms\n"
 "\n"
 "	options aic7xxx 'aic7xxx=probe_eisa_vl.tag_info:{{}.{.10}}.seltime:1'\n"
 );
@@ -803,7 +793,8 @@ struct scsi_host_template aic7xxx_driver_template = {
 	.module			= THIS_MODULE,
 	.name			= "aic7xxx",
 	.proc_name		= "aic7xxx",
-	.proc_info		= ahc_linux_proc_info,
+	.show_info		= ahc_linux_show_info,
+	.write_info		= ahc_proc_write_seeprom,
 	.info			= ahc_linux_info,
 	.queuecommand		= ahc_linux_queue,
 	.eh_abort_handler	= ahc_linux_abort,
@@ -821,6 +812,7 @@ struct scsi_host_template aic7xxx_driver_template = {
 	.slave_configure	= ahc_linux_slave_configure,
 	.target_alloc		= ahc_linux_target_alloc,
 	.target_destroy		= ahc_linux_target_destroy,
+	.use_blk_tags		= 1,
 };
 
 /**************************** Tasklet Handler *********************************/
@@ -1343,13 +1335,9 @@ ahc_platform_set_tags(struct ahc_softc *ahc, struct scsi_device *sdev,
 	}
 	switch ((dev->flags & (AHC_DEV_Q_BASIC|AHC_DEV_Q_TAGGED))) {
 	case AHC_DEV_Q_BASIC:
-		scsi_set_tag_type(sdev, MSG_SIMPLE_TAG);
-		scsi_activate_tcq(sdev, dev->openings + dev->active);
-		break;
 	case AHC_DEV_Q_TAGGED:
-		scsi_set_tag_type(sdev, MSG_ORDERED_TAG);
-		scsi_activate_tcq(sdev, dev->openings + dev->active);
-		break;
+		scsi_change_queue_depth(sdev,
+				dev->openings + dev->active);
 	default:
 		/*
 		 * We allow the OS to queue 2 untagged transactions to
@@ -1357,7 +1345,7 @@ ahc_platform_set_tags(struct ahc_softc *ahc, struct scsi_device *sdev,
 		 * serially on the controller/device.  This should
 		 * remove some latency.
 		 */
-		scsi_deactivate_tcq(sdev, 2);
+		scsi_change_queue_depth(sdev, 2);
 		break;
 	}
 }
@@ -1456,7 +1444,7 @@ ahc_linux_run_command(struct ahc_softc *ahc, struct ahc_linux_device *dev,
 	 * we are storing a full busy target *lun*
 	 * table in SCB space.
 	 */
-	if (!blk_rq_tagged(cmd->request)
+	if (!(cmd->flags & SCMD_TAGGED)
 	    && (ahc->features & AHC_SCB_BTT) == 0) {
 		int target_offset;
 
@@ -1510,15 +1498,7 @@ ahc_linux_run_command(struct ahc_softc *ahc, struct ahc_linux_device *dev,
 	}
 
 	if ((dev->flags & (AHC_DEV_Q_TAGGED|AHC_DEV_Q_BASIC)) != 0) {
-		int	msg_bytes;
-		uint8_t tag_msgs[2];
-		
-		msg_bytes = scsi_populate_tag_msg(cmd, tag_msgs);
-		if (msg_bytes && tag_msgs[0] != MSG_SIMPLE_TASK) {
-			hscb->control |= tag_msgs[0];
-			if (tag_msgs[0] == MSG_ORDERED_TASK)
-				dev->commands_since_idle_or_otag = 0;
-		} else if (dev->commands_since_idle_or_otag == AHC_OTAG_THRESH
+		if (dev->commands_since_idle_or_otag == AHC_OTAG_THRESH
 				&& (dev->flags & AHC_DEV_Q_TAGGED) != 0) {
 			hscb->control |= MSG_ORDERED_TASK;
 			dev->commands_since_idle_or_otag = 0;
@@ -1631,10 +1611,8 @@ ahc_send_async(struct ahc_softc *ahc, char channel,
 	switch (code) {
 	case AC_TRANSFER_NEG:
 	{
-		char	buf[80];
 		struct	scsi_target *starget;
 		struct	ahc_linux_target *targ;
-		struct	info_str info;
 		struct	ahc_initiator_tinfo *tinfo;
 		struct	ahc_tmode_tstate *tstate;
 		int	target_offset;
@@ -1642,10 +1620,6 @@ ahc_send_async(struct ahc_softc *ahc, char channel,
 
 		BUG_ON(target == CAM_TARGET_WILDCARD);
 
-		info.buffer = buf;
-		info.length = sizeof(buf);
-		info.offset = 0;
-		info.pos = 0;
 		tinfo = ahc_fetch_transinfo(ahc, channel,
 						channel == 'A' ? ahc->our_id
 							       : ahc->our_id_b,
@@ -2125,7 +2099,7 @@ ahc_linux_queue_recovery_cmd(struct scsi_cmnd *cmd, scb_flag flag)
 		 */
 		printk("%s:%d:%d:%d: Is not an active device\n",
 		       ahc_name(ahc), cmd->device->channel, cmd->device->id,
-		       cmd->device->lun);
+		       (u8)cmd->device->lun);
 		retval = SUCCESS;
 		goto no_cmd;
 	}
@@ -2133,11 +2107,11 @@ ahc_linux_queue_recovery_cmd(struct scsi_cmnd *cmd, scb_flag flag)
 	if ((dev->flags & (AHC_DEV_Q_BASIC|AHC_DEV_Q_TAGGED)) == 0
 	 && ahc_search_untagged_queues(ahc, cmd, cmd->device->id,
 				       cmd->device->channel + 'A',
-				       cmd->device->lun,
+				       (u8)cmd->device->lun,
 				       CAM_REQ_ABORTED, SEARCH_COMPLETE) != 0) {
 		printk("%s:%d:%d:%d: Command found on untagged queue\n",
 		       ahc_name(ahc), cmd->device->channel, cmd->device->id,
-		       cmd->device->lun);
+		       (u8)cmd->device->lun);
 		retval = SUCCESS;
 		goto done;
 	}
@@ -2203,13 +2177,14 @@ ahc_linux_queue_recovery_cmd(struct scsi_cmnd *cmd, scb_flag flag)
 				       SEARCH_COMPLETE) > 0) {
 			printk("%s:%d:%d:%d: Cmd aborted from QINFIFO\n",
 			       ahc_name(ahc), cmd->device->channel,
-					cmd->device->id, cmd->device->lun);
+			       cmd->device->id, (u8)cmd->device->lun);
 			retval = SUCCESS;
 			goto done;
 		}
 	} else if (ahc_search_qinfifo(ahc, cmd->device->id,
 				      cmd->device->channel + 'A',
-				      cmd->device->lun, pending_scb->hscb->tag,
+				      cmd->device->lun,
+				      pending_scb->hscb->tag,
 				      ROLE_INITIATOR, /*status*/0,
 				      SEARCH_COUNT) > 0) {
 		disconnected = FALSE;

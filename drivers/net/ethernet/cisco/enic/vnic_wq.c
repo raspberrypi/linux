@@ -30,18 +30,13 @@
 static int vnic_wq_alloc_bufs(struct vnic_wq *wq)
 {
 	struct vnic_wq_buf *buf;
-	struct vnic_dev *vdev;
 	unsigned int i, j, count = wq->ring.desc_count;
 	unsigned int blks = VNIC_WQ_BUF_BLKS_NEEDED(count);
 
-	vdev = wq->vdev;
-
 	for (i = 0; i < blks; i++) {
 		wq->bufs[i] = kzalloc(VNIC_WQ_BUF_BLK_SZ(count), GFP_ATOMIC);
-		if (!wq->bufs[i]) {
-			pr_err("Failed to alloc wq_bufs\n");
+		if (!wq->bufs[i])
 			return -ENOMEM;
-		}
 	}
 
 	for (i = 0; i < blks; i++) {
@@ -52,11 +47,14 @@ static int vnic_wq_alloc_bufs(struct vnic_wq *wq)
 				wq->ring.desc_size * buf->index;
 			if (buf->index + 1 == count) {
 				buf->next = wq->bufs[0];
+				buf->next->prev = buf;
 				break;
 			} else if (j + 1 == VNIC_WQ_BUF_BLK_ENTRIES(count)) {
 				buf->next = wq->bufs[i + 1];
+				buf->next->prev = buf;
 			} else {
 				buf->next = buf + 1;
+				buf->next->prev = buf;
 				buf++;
 			}
 		}

@@ -5,12 +5,17 @@ config SND_TIMER
 config SND_PCM
 	tristate
 	select SND_TIMER
-	select GCD
+
+config SND_DMAENGINE_PCM
+	tristate
 
 config SND_HWDEP
 	tristate
 
 config SND_RAWMIDI
+	tristate
+
+config SND_COMPRESS_OFFLOAD
 	tristate
 
 # To be effective this also requires INPUT - users should say:
@@ -155,6 +160,15 @@ config SND_DYNAMIC_MINORS
 
 	  If you are unsure about this, say N here.
 
+config SND_MAX_CARDS
+	int "Max number of sound cards"
+	range 4 256
+	default 32
+	depends on SND_DYNAMIC_MINORS
+	help
+	  Specify the max number of sound cards that can be assigned
+	  on a single machine.
+
 config SND_SUPPORT_OLD_API
 	bool "Support old ALSA API"
 	default y
@@ -205,6 +219,9 @@ config SND_PCM_XRUN_DEBUG
 	  the process or driver which causes the scheduling gaps.
 
 config SND_VMASTER
+	bool
+
+config SND_KCTL_JACK
 	bool
 
 config SND_DMA_SGBUF

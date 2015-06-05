@@ -29,7 +29,6 @@
 #include <mach/smemc.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/system.h>
 #include <mach/pxa2xx-regs.h>
 #include <asm/mach-types.h>
 
@@ -298,7 +297,7 @@ static int pxa2xx_drv_pcmcia_probe(struct platform_device *dev)
 	}
 
 	clk = clk_get(&dev->dev, NULL);
-	if (!clk)
+	if (IS_ERR(clk))
 		return -ENODEV;
 
 	pxa2xx_drv_pcmcia_ops(ops);
@@ -318,31 +317,22 @@ static int pxa2xx_drv_pcmcia_probe(struct platform_device *dev)
 
 		skt->nr = ops->first + i;
 		skt->clk = clk;
-		skt->ops = ops;
-		skt->socket.owner = ops->owner;
-		skt->socket.dev.parent = &dev->dev;
-		skt->socket.pci_irq = NO_IRQ;
+		soc_pcmcia_init_one(skt, ops, &dev->dev);
 
 		ret = pxa2xx_drv_pcmcia_add_one(skt);
 		if (ret)
 			goto err1;
 	}
 
-	if (ret) {
-		while (--i >= 0)
-			soc_pcmcia_remove_one(&sinfo->skt[i]);
-		kfree(sinfo);
-		clk_put(clk);
-	} else {
-		pxa2xx_configure_sockets(&dev->dev);
-		dev_set_drvdata(&dev->dev, sinfo);
-	}
+	pxa2xx_configure_sockets(&dev->dev);
+	dev_set_drvdata(&dev->dev, sinfo);
 
 	return 0;
 
 err1:
 	while (--i >= 0)
 		soc_pcmcia_remove_one(&sinfo->skt[i]);
+	clk_put(clk);
 	kfree(sinfo);
 err0:
 	return ret;
@@ -378,7 +368,6 @@ static struct platform_driver pxa2xx_pcmcia_driver = {
 	.remove		= pxa2xx_drv_pcmcia_remove,
 	.driver		= {
 		.name	= "pxa2xx-pcmcia",
-		.owner	= THIS_MODULE,
 		.pm	= &pxa2xx_drv_pcmcia_pm_ops,
 	},
 };

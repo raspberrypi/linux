@@ -72,6 +72,7 @@ void flush_dcache_page(struct page *page)
 	addr = (unsigned long) page_address(page);
 	flush_data_cache_page(addr);
 }
+EXPORT_SYMBOL(flush_dcache_page);
 
 /* called by update_mmu_cache. */
 void __update_cache(struct vm_area_struct *vma, unsigned long address,
@@ -113,7 +114,7 @@ static inline void setup_protection_map(void)
 	protection_map[15] = PAGE_SHARED;
 }
 
-void __devinit cpu_cache_init(void)
+void cpu_cache_init(void)
 {
 	setup_protection_map();
 }
@@ -277,3 +278,4 @@ void flush_icache_range(unsigned long start, unsigned long end)
 		start += L1_CACHE_BYTES;
 	}
 }
+EXPORT_SYMBOL(flush_icache_range);

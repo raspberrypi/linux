@@ -304,7 +304,7 @@ static inline unsigned long fast_get_dcookie(struct path *path)
 	return cookie;
 }
 
-/* Look up the dcookie for the task's first VM_EXECUTABLE mapping,
+/* Look up the dcookie for the task's mm->exe_file,
  * which corresponds loosely to "application name". Also, determine
  * the offset for the SPU ELF object.  If computed offset is
  * non-zero, it implies an embedded SPU object; otherwise, it's a
@@ -321,7 +321,6 @@ get_exec_dcookie_and_offset(struct spu *spu, unsigned int *offsetp,
 {
 	unsigned long app_cookie = 0;
 	unsigned int my_offset = 0;
-	struct file *app = NULL;
 	struct vm_area_struct *vma;
 	struct mm_struct *mm = spu->mm;
 
@@ -330,16 +329,9 @@ get_exec_dcookie_and_offset(struct spu *spu, unsigned int *offsetp,
 
 	down_read(&mm->mmap_sem);
 
-	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if (!vma->vm_file)
-			continue;
-		if (!(vma->vm_flags & VM_EXECUTABLE))
-			continue;
-		app_cookie = fast_get_dcookie(&vma->vm_file->f_path);
-		pr_debug("got dcookie for %s\n",
-			 vma->vm_file->f_dentry->d_name.name);
-		app = vma->vm_file;
-		break;
+	if (mm->exe_file) {
+		app_cookie = fast_get_dcookie(&mm->exe_file->f_path);
+		pr_debug("got dcookie for %pD\n", mm->exe_file);
 	}
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
@@ -349,15 +341,14 @@ get_exec_dcookie_and_offset(struct spu *spu, unsigned int *offsetp,
 		if (!vma->vm_file)
 			goto fail_no_image_cookie;
 
-		pr_debug("Found spu ELF at %X(object-id:%lx) for file %s\n",
-			 my_offset, spu_ref,
-			 vma->vm_file->f_dentry->d_name.name);
+		pr_debug("Found spu ELF at %X(object-id:%lx) for file %pD\n",
+			 my_offset, spu_ref, vma->vm_file);
 		*offsetp = my_offset;
 		break;
 	}
 
 	*spu_bin_dcookie = fast_get_dcookie(&vma->vm_file->f_path);
-	pr_debug("got dcookie for %s\n", vma->vm_file->f_dentry->d_name.name);
+	pr_debug("got dcookie for %pD\n", vma->vm_file);
 
 	up_read(&mm->mmap_sem);
 

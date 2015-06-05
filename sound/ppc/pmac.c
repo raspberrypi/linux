@@ -20,7 +20,7 @@
  */
 
 
-#include <asm/io.h>
+#include <linux/io.h>
 #include <asm/irq.h>
 #include <linux/init.h>
 #include <linux/delay.h>
@@ -28,6 +28,8 @@
 #include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <linux/dma-mapping.h>
+#include <linux/of_address.h>
+#include <linux/of_irq.h>
 #include <sound/core.h>
 #include "pmac.h"
 #include <sound/pcm_params.h>
@@ -702,7 +704,7 @@ static struct snd_pcm_ops snd_pmac_capture_ops = {
 	.pointer =	snd_pmac_capture_pointer,
 };
 
-int __devinit snd_pmac_pcm_new(struct snd_pmac *chip)
+int snd_pmac_pcm_new(struct snd_pmac *chip)
 {
 	struct snd_pcm *pcm;
 	int err;
@@ -865,16 +867,11 @@ static int snd_pmac_free(struct snd_pmac *chip)
 	snd_pmac_dbdma_free(chip, &chip->capture.cmd);
 	snd_pmac_dbdma_free(chip, &chip->extra_dma);
 	snd_pmac_dbdma_free(chip, &emergency_dbdma);
-	if (chip->macio_base)
-		iounmap(chip->macio_base);
-	if (chip->latch_base)
-		iounmap(chip->latch_base);
-	if (chip->awacs)
-		iounmap(chip->awacs);
-	if (chip->playback.dma)
-		iounmap(chip->playback.dma);
-	if (chip->capture.dma)
-		iounmap(chip->capture.dma);
+	iounmap(chip->macio_base);
+	iounmap(chip->latch_base);
+	iounmap(chip->awacs);
+	iounmap(chip->playback.dma);
+	iounmap(chip->capture.dma);
 
 	if (chip->node) {
 		int i;
@@ -885,8 +882,7 @@ static int snd_pmac_free(struct snd_pmac *chip)
 		}
 	}
 
-	if (chip->pdev)
-		pci_dev_put(chip->pdev);
+	pci_dev_put(chip->pdev);
 	of_node_put(chip->node);
 	kfree(chip);
 	return 0;
@@ -907,7 +903,7 @@ static int snd_pmac_dev_free(struct snd_device *device)
  * check the machine support byteswap (little-endian)
  */
 
-static void __devinit detect_byte_swap(struct snd_pmac *chip)
+static void detect_byte_swap(struct snd_pmac *chip)
 {
 	struct device_node *mio;
 
@@ -933,7 +929,7 @@ static void __devinit detect_byte_swap(struct snd_pmac *chip)
 /*
  * detect a sound chip
  */
-static int __devinit snd_pmac_detect(struct snd_pmac *chip)
+static int snd_pmac_detect(struct snd_pmac *chip)
 {
 	struct device_node *sound;
 	struct device_node *dn;
@@ -990,9 +986,9 @@ static int __devinit snd_pmac_detect(struct snd_pmac *chip)
 		return -ENODEV;
 
 	if (!sound) {
-		sound = of_find_node_by_name(NULL, "sound");
-		while (sound && sound->parent != chip->node)
-			sound = of_find_node_by_name(sound, "sound");
+		for_each_node_by_name(sound, "sound")
+			if (sound->parent == chip->node)
+				break;
 	}
 	if (! sound) {
 		of_node_put(chip->node);
@@ -1146,7 +1142,7 @@ static int pmac_hp_detect_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static struct snd_kcontrol_new auto_mute_controls[] __devinitdata = {
+static struct snd_kcontrol_new auto_mute_controls[] = {
 	{ .iface = SNDRV_CTL_ELEM_IFACE_MIXER,
 	  .name = "Auto Mute Switch",
 	  .info = snd_pmac_boolean_mono_info,
@@ -1161,7 +1157,7 @@ static struct snd_kcontrol_new auto_mute_controls[] __devinitdata = {
 	},
 };
 
-int __devinit snd_pmac_add_automute(struct snd_pmac *chip)
+int snd_pmac_add_automute(struct snd_pmac *chip)
 {
 	int err;
 	chip->auto_mute = 1;
@@ -1178,7 +1174,7 @@ int __devinit snd_pmac_add_automute(struct snd_pmac *chip)
 /*
  * create and detect a pmac chip record
  */
-int __devinit snd_pmac_new(struct snd_card *card, struct snd_pmac **chip_return)
+int snd_pmac_new(struct snd_card *card, struct snd_pmac **chip_return)
 {
 	struct snd_pmac *chip;
 	struct device_node *np;

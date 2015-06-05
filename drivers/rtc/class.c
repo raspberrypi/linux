@@ -11,7 +11,10 @@
  * published by the Free Software Foundation.
 */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/rtc.h>
 #include <linux/kdev_t.h>
 #include <linux/idr.h>
@@ -31,28 +34,42 @@ static void rtc_device_release(struct device *dev)
 	kfree(rtc);
 }
 
-#if defined(CONFIG_PM) && defined(CONFIG_RTC_HCTOSYS_DEVICE)
+#ifdef CONFIG_RTC_HCTOSYS_DEVICE
+/* Result of the last RTC to system clock attempt. */
+int rtc_hctosys_ret = -ENODEV;
+#endif
 
+#if defined(CONFIG_PM_SLEEP) && defined(CONFIG_RTC_HCTOSYS_DEVICE)
 /*
  * On suspend(), measure the delta between one RTC and the
  * system's wall clock; restore it on resume().
  */
 
-static struct timespec old_rtc, old_system, old_delta;
+static struct timespec64 old_rtc, old_system, old_delta;
 
 
-static int rtc_suspend(struct device *dev, pm_message_t mesg)
+static int rtc_suspend(struct device *dev)
 {
 	struct rtc_device	*rtc = to_rtc_device(dev);
 	struct rtc_time		tm;
-	struct timespec		delta, delta_delta;
+	struct timespec64	delta, delta_delta;
+	int err;
+
+	if (has_persistent_clock())
+		return 0;
+
 	if (strcmp(dev_name(&rtc->dev), CONFIG_RTC_HCTOSYS_DEVICE) != 0)
 		return 0;
 
 	/* snapshot the current RTC and system time at suspend*/
-	rtc_read_time(rtc, &tm);
-	getnstimeofday(&old_system);
-	rtc_tm_to_time(&tm, &old_rtc.tv_sec);
+	err = rtc_read_time(rtc, &tm);
+	if (err < 0) {
+		pr_debug("%s:  fail to read rtc time\n", dev_name(&rtc->dev));
+		return 0;
+	}
+
+	getnstimeofday64(&old_system);
+	old_rtc.tv_sec = rtc_tm_to_time64(&tm);
 
 
 	/*
@@ -61,8 +78,8 @@ static int rtc_suspend(struct device *dev, pm_message_t mesg)
 	 * try to compensate so the difference in system time
 	 * and rtc time stays close to constant.
 	 */
-	delta = timespec_sub(old_system, old_rtc);
-	delta_delta = timespec_sub(delta, old_delta);
+	delta = timespec64_sub(old_system, old_rtc);
+	delta_delta = timespec64_sub(delta, old_delta);
 	if (delta_delta.tv_sec < -2 || delta_delta.tv_sec >= 2) {
 		/*
 		 * if delta_delta is too large, assume time correction
@@ -71,7 +88,7 @@ static int rtc_suspend(struct device *dev, pm_message_t mesg)
 		old_delta = delta;
 	} else {
 		/* Otherwise try to adjust old_system to compensate */
-		old_system = timespec_sub(old_system, delta_delta);
+		old_system = timespec64_sub(old_system, delta_delta);
 	}
 
 	return 0;
@@ -81,20 +98,30 @@ static int rtc_resume(struct device *dev)
 {
 	struct rtc_device	*rtc = to_rtc_device(dev);
 	struct rtc_time		tm;
-	struct timespec		new_system, new_rtc;
-	struct timespec		sleep_time;
+	struct timespec64	new_system, new_rtc;
+	struct timespec64	sleep_time;
+	int err;
 
+	if (has_persistent_clock())
+		return 0;
+
+	rtc_hctosys_ret = -ENODEV;
 	if (strcmp(dev_name(&rtc->dev), CONFIG_RTC_HCTOSYS_DEVICE) != 0)
 		return 0;
 
 	/* snapshot the current rtc and system time at resume */
-	getnstimeofday(&new_system);
-	rtc_read_time(rtc, &tm);
+	getnstimeofday64(&new_system);
+	err = rtc_read_time(rtc, &tm);
+	if (err < 0) {
+		pr_debug("%s:  fail to read rtc time\n", dev_name(&rtc->dev));
+		return 0;
+	}
+
 	if (rtc_valid_tm(&tm) != 0) {
 		pr_debug("%s:  bogus resume time\n", dev_name(&rtc->dev));
 		return 0;
 	}
-	rtc_tm_to_time(&tm, &new_rtc.tv_sec);
+	new_rtc.tv_sec = rtc_tm_to_time64(&tm);
 	new_rtc.tv_nsec = 0;
 
 	if (new_rtc.tv_sec < old_rtc.tv_sec) {
@@ -103,7 +130,7 @@ static int rtc_resume(struct device *dev)
 	}
 
 	/* calculate the RTC time delta (sleep time)*/
-	sleep_time = timespec_sub(new_rtc, old_rtc);
+	sleep_time = timespec64_sub(new_rtc, old_rtc);
 
 	/*
 	 * Since these RTC suspend/resume handlers are not called
@@ -112,17 +139,19 @@ static int rtc_resume(struct device *dev)
 	 * so subtract kernel run-time between rtc_suspend to rtc_resume
 	 * to keep things accurate.
 	 */
-	sleep_time = timespec_sub(sleep_time,
-			timespec_sub(new_system, old_system));
+	sleep_time = timespec64_sub(sleep_time,
+			timespec64_sub(new_system, old_system));
 
 	if (sleep_time.tv_sec >= 0)
-		timekeeping_inject_sleeptime(&sleep_time);
+		timekeeping_inject_sleeptime64(&sleep_time);
+	rtc_hctosys_ret = 0;
 	return 0;
 }
 
+static SIMPLE_DEV_PM_OPS(rtc_class_dev_pm_ops, rtc_suspend, rtc_resume);
+#define RTC_CLASS_DEV_PM_OPS	(&rtc_class_dev_pm_ops)
 #else
-#define rtc_suspend	NULL
-#define rtc_resume	NULL
+#define RTC_CLASS_DEV_PM_OPS	NULL
 #endif
 
 
@@ -141,12 +170,27 @@ struct rtc_device *rtc_device_register(const char *name, struct device *dev,
 {
 	struct rtc_device *rtc;
 	struct rtc_wkalrm alrm;
-	int id, err;
+	int of_id = -1, id = -1, err;
 
-	id = ida_simple_get(&rtc_ida, 0, 0, GFP_KERNEL);
+	if (dev->of_node)
+		of_id = of_alias_get_id(dev->of_node, "rtc");
+	else if (dev->parent && dev->parent->of_node)
+		of_id = of_alias_get_id(dev->parent->of_node, "rtc");
+
+	if (of_id >= 0) {
+		id = ida_simple_get(&rtc_ida, of_id, of_id + 1,
+				    GFP_KERNEL);
+		if (id < 0)
+			dev_warn(dev, "/aliases ID %d not available\n",
+				    of_id);
+	}
+
 	if (id < 0) {
-		err = id;
-		goto exit;
+		id = ida_simple_get(&rtc_ida, 0, 0, GFP_KERNEL);
+		if (id < 0) {
+			err = id;
+			goto exit;
+		}
 	}
 
 	rtc = kzalloc(sizeof(struct rtc_device), GFP_KERNEL);
@@ -244,15 +288,84 @@ void rtc_device_unregister(struct rtc_device *rtc)
 }
 EXPORT_SYMBOL_GPL(rtc_device_unregister);
 
+static void devm_rtc_device_release(struct device *dev, void *res)
+{
+	struct rtc_device *rtc = *(struct rtc_device **)res;
+
+	rtc_device_unregister(rtc);
+}
+
+static int devm_rtc_device_match(struct device *dev, void *res, void *data)
+{
+	struct rtc **r = res;
+
+	return *r == data;
+}
+
+/**
+ * devm_rtc_device_register - resource managed rtc_device_register()
+ * @dev: the device to register
+ * @name: the name of the device
+ * @ops: the rtc operations structure
+ * @owner: the module owner
+ *
+ * @return a struct rtc on success, or an ERR_PTR on error
+ *
+ * Managed rtc_device_register(). The rtc_device returned from this function
+ * are automatically freed on driver detach. See rtc_device_register()
+ * for more information.
+ */
+
+struct rtc_device *devm_rtc_device_register(struct device *dev,
+					const char *name,
+					const struct rtc_class_ops *ops,
+					struct module *owner)
+{
+	struct rtc_device **ptr, *rtc;
+
+	ptr = devres_alloc(devm_rtc_device_release, sizeof(*ptr), GFP_KERNEL);
+	if (!ptr)
+		return ERR_PTR(-ENOMEM);
+
+	rtc = rtc_device_register(name, dev, ops, owner);
+	if (!IS_ERR(rtc)) {
+		*ptr = rtc;
+		devres_add(dev, ptr);
+	} else {
+		devres_free(ptr);
+	}
+
+	return rtc;
+}
+EXPORT_SYMBOL_GPL(devm_rtc_device_register);
+
+/**
+ * devm_rtc_device_unregister - resource managed devm_rtc_device_unregister()
+ * @dev: the device to unregister
+ * @rtc: the RTC class device to unregister
+ *
+ * Deallocated a rtc allocated with devm_rtc_device_register(). Normally this
+ * function will not need to be called and the resource management code will
+ * ensure that the resource is freed.
+ */
+void devm_rtc_device_unregister(struct device *dev, struct rtc_device *rtc)
+{
+	int rc;
+
+	rc = devres_release(dev, devm_rtc_device_release,
+				devm_rtc_device_match, rtc);
+	WARN_ON(rc);
+}
+EXPORT_SYMBOL_GPL(devm_rtc_device_unregister);
+
 static int __init rtc_init(void)
 {
 	rtc_class = class_create(THIS_MODULE, "rtc");
 	if (IS_ERR(rtc_class)) {
-		printk(KERN_ERR "%s: couldn't create class\n", __FILE__);
+		pr_err("couldn't create class\n");
 		return PTR_ERR(rtc_class);
 	}
-	rtc_class->suspend = rtc_suspend;
-	rtc_class->resume = rtc_resume;
+	rtc_class->pm = RTC_CLASS_DEV_PM_OPS;
 	rtc_dev_init();
 	rtc_sysfs_init(rtc_class);
 	return 0;

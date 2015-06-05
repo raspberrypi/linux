@@ -28,6 +28,7 @@
 #include <asm/mach/map.h>
 #include <asm/mach/irq.h>
 #include <asm/irq.h>
+#include <asm/system_misc.h>
 
 #include <mach/hardware.h>
 #include <mach/regs-serial.h>
@@ -79,7 +80,7 @@ static DEFINE_CLK(timer4, 23);
 
 static struct clk_lookup nuc900_clkregs[] = {
 	DEF_CLKLOOK(&clk_lcd, "nuc900-lcd", NULL),
-	DEF_CLKLOOK(&clk_audio, "nuc900-audio", NULL),
+	DEF_CLKLOOK(&clk_audio, "nuc900-ac97", NULL),
 	DEF_CLKLOOK(&clk_fmi, "nuc900-fmi", NULL),
 	DEF_CLKLOOK(&clk_ms, "nuc900-fmi", "MS"),
 	DEF_CLKLOOK(&clk_sd, "nuc900-fmi", "SD"),
@@ -177,7 +178,8 @@ static int __init nuc900_set_cpufreq(char *str)
 	if (!*str)
 		return 0;
 
-	strict_strtoul(str, 0, &cpufreq);
+	if (kstrtoul(str, 0, &cpufreq))
+		return 0;
 
 	nuc900_clock_source(NULL, "ext");
 
@@ -229,9 +231,9 @@ void __init nuc900_init_clocks(void)
 #define	WTE	(1 << 7)
 #define	WTRE	(1 << 1)
 
-void nuc9xx_restart(char mode, const char *cmd)
+void nuc9xx_restart(enum reboot_mode mode, const char *cmd)
 {
-	if (mode == 's') {
+	if (mode == REBOOT_SOFT) {
 		/* Jump into ROM at address 0 */
 		soft_restart(0);
 	} else {

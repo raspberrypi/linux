@@ -18,15 +18,10 @@
  *  ANY THEORY OF LIABILITY, WHETHER IN  CONTRACT, STRICT LIABILITY, OR TORT
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- *  You should have received a copy of the  GNU General Public License along
- *  with this program; if not, write  to the Free Software Foundation, Inc.,
- *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
@@ -153,13 +148,6 @@ static inline u32 pmcmsptwi_clock_to_reg(
 	return ((clock->filter & 0xf) << 12) | (clock->clock & 0x03ff);
 }
 
-static inline void pmcmsptwi_reg_to_clock(
-			u32 reg, struct pmcmsptwi_clock *clock)
-{
-	clock->filter = (reg >> 12) & 0xf;
-	clock->clock = reg & 0x03ff;
-}
-
 static inline u32 pmcmsptwi_cfg_to_reg(const struct pmcmsptwi_cfg *cfg)
 {
 	return ((cfg->arbf & 0xf) << 12) |
@@ -270,7 +258,7 @@ static irqreturn_t pmcmsptwi_interrupt(int irq, void *ptr)
 /*
  * Probe for and register the device and return 0 if there is one.
  */
-static int __devinit pmcmsptwi_probe(struct platform_device *pldev)
+static int pmcmsptwi_probe(struct platform_device *pldev)
 {
 	struct resource *res;
 	int rc = -ENODEV;
@@ -306,8 +294,7 @@ static int __devinit pmcmsptwi_probe(struct platform_device *pldev)
 	pmcmsptwi_data.irq = platform_get_irq(pldev, 0);
 	if (pmcmsptwi_data.irq) {
 		rc = request_irq(pmcmsptwi_data.irq, &pmcmsptwi_interrupt,
-			IRQF_SHARED | IRQF_SAMPLE_RANDOM,
-			pldev->name, &pmcmsptwi_data);
+				 IRQF_SHARED, pldev->name, &pmcmsptwi_data);
 		if (rc == 0) {
 			/*
 			 * Enable 'DONE' interrupt only.
@@ -350,7 +337,6 @@ static int __devinit pmcmsptwi_probe(struct platform_device *pldev)
 	return 0;
 
 ret_unmap:
-	platform_set_drvdata(pldev, NULL);
 	if (pmcmsptwi_data.irq) {
 		pmcmsptwi_writel(0,
 			pmcmsptwi_data.iobase + MSP_TWI_INT_MSK_REG_OFFSET);
@@ -369,13 +355,12 @@ ret_err:
 /*
  * Release the device and return 0 if there is one.
  */
-static int __devexit pmcmsptwi_remove(struct platform_device *pldev)
+static int pmcmsptwi_remove(struct platform_device *pldev)
 {
 	struct resource *res;
 
 	i2c_del_adapter(&pmcmsptwi_adapter);
 
-	platform_set_drvdata(pldev, NULL);
 	if (pmcmsptwi_data.irq) {
 		pmcmsptwi_writel(0,
 			pmcmsptwi_data.iobase + MSP_TWI_INT_MSK_REG_OFFSET);
@@ -627,30 +612,16 @@ static struct i2c_adapter pmcmsptwi_adapter = {
 	.name		= DRV_NAME,
 };
 
-/* work with hotplug and coldplug */
-MODULE_ALIAS("platform:" DRV_NAME);
-
 static struct platform_driver pmcmsptwi_driver = {
 	.probe  = pmcmsptwi_probe,
-	.remove	= __devexit_p(pmcmsptwi_remove),
+	.remove	= pmcmsptwi_remove,
 	.driver = {
 		.name	= DRV_NAME,
-		.owner	= THIS_MODULE,
 	},
 };
 
-static int __init pmcmsptwi_init(void)
-{
-	return platform_driver_register(&pmcmsptwi_driver);
-}
-
-static void __exit pmcmsptwi_exit(void)
-{
-	platform_driver_unregister(&pmcmsptwi_driver);
-}
+module_platform_driver(pmcmsptwi_driver);
 
 MODULE_DESCRIPTION("PMC MSP TWI/SMBus/I2C driver");
 MODULE_LICENSE("GPL");
-
-module_init(pmcmsptwi_init);
-module_exit(pmcmsptwi_exit);
+MODULE_ALIAS("platform:" DRV_NAME);

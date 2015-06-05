@@ -17,17 +17,15 @@
 #ifndef __SOUND_AU88X0_H
 #define __SOUND_AU88X0_H
 
-#ifdef __KERNEL__
 #include <linux/pci.h>
-#include <asm/io.h>
+#include <linux/io.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/rawmidi.h>
 #include <sound/mpu401.h>
 #include <sound/hwdep.h>
 #include <sound/ac97_codec.h>
-
-#endif
+#include <sound/tlv.h>
 
 #ifndef CHIP_AU8820
 #include "au88x0_eq.h"
@@ -105,6 +103,15 @@
 #define MIX_SPDIF(x) (vortex->mixspdif[x])
 
 #define NR_WTPB 0x20		/* WT channels per each bank. */
+#define NR_PCM	0x10
+
+struct pcm_vol {
+	struct snd_kcontrol *kctl;
+	int active;
+	int dma;
+	int mixin[4];
+	int vol[4];
+};
 
 /* Structs */
 typedef struct {
@@ -167,6 +174,7 @@ struct snd_vortex {
 	/* Xtalk canceler */
 	int xt_mode;		/* 1: speakers, 0:headphones. */
 #endif
+	struct pcm_vol pcm_vol[NR_PCM];
 
 	int isquad;		/* cache of extended ID codec flag. */
 
@@ -233,12 +241,12 @@ static int vortex_core_init(vortex_t * card);
 static int vortex_core_shutdown(vortex_t * card);
 static void vortex_enable_int(vortex_t * card);
 static irqreturn_t vortex_interrupt(int irq, void *dev_id);
-static int vortex_alsafmt_aspfmt(int alsafmt);
+static int vortex_alsafmt_aspfmt(int alsafmt, vortex_t *v);
 
 /* Connection  stuff. */
 static void vortex_connect_default(vortex_t * vortex, int en);
 static int vortex_adb_allocroute(vortex_t * vortex, int dma, int nr_ch,
-				 int dir, int type);
+				 int dir, int type, int subdev);
 static char vortex_adb_checkinout(vortex_t * vortex, int resmap[], int out,
 				  int restype);
 #ifndef CHIP_AU8810
@@ -268,7 +276,7 @@ static void vortex_mix_setvolumebyte(vortex_t * vortex, unsigned char mix,
 static void vortex_Vort3D_enable(vortex_t * v);
 static void vortex_Vort3D_disable(vortex_t * v);
 static void vortex_Vort3D_connect(vortex_t * vortex, int en);
-static void vortex_Vort3D_InitializeSource(a3dsrc_t * a, int en);
+static void vortex_Vort3D_InitializeSource(a3dsrc_t *a, int en, vortex_t *v);
 #endif
 
 /* Driver stuff. */

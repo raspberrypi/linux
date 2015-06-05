@@ -1,7 +1,7 @@
 /*
  * i2c-smbus.h - SMBus extensions to the I2C protocol
  *
- * Copyright (C) 2010 Jean Delvare <khali@linux-fr.org>
+ * Copyright (C) 2010 Jean Delvare <jdelvare@suse.de>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301 USA.
  */
 
 #ifndef _LINUX_I2C_SMBUS_H

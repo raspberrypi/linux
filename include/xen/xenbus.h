@@ -70,6 +70,7 @@ struct xenbus_device {
 	struct device dev;
 	enum xenbus_state state;
 	struct completion down;
+	struct work_struct work;
 };
 
 static inline struct xenbus_device *to_xenbus_device(struct device *dev)
@@ -85,8 +86,7 @@ struct xenbus_device_id
 
 /* A xenbus driver. */
 struct xenbus_driver {
-	char *name;
-	struct module *owner;
+	const char *name;       /* defaults to ids[0].devicetype */
 	const struct xenbus_device_id *ids;
 	int (*probe)(struct xenbus_device *dev,
 		     const struct xenbus_device_id *id);
@@ -109,23 +109,14 @@ static inline struct xenbus_driver *to_xenbus_driver(struct device_driver *drv)
 int __must_check __xenbus_register_frontend(struct xenbus_driver *drv,
 					    struct module *owner,
 					    const char *mod_name);
-
-static inline int __must_check
-xenbus_register_frontend(struct xenbus_driver *drv)
-{
-	WARN_ON(drv->owner != THIS_MODULE);
-	return __xenbus_register_frontend(drv, THIS_MODULE, KBUILD_MODNAME);
-}
-
 int __must_check __xenbus_register_backend(struct xenbus_driver *drv,
 					   struct module *owner,
 					   const char *mod_name);
-static inline int __must_check
-xenbus_register_backend(struct xenbus_driver *drv)
-{
-	WARN_ON(drv->owner != THIS_MODULE);
-	return __xenbus_register_backend(drv, THIS_MODULE, KBUILD_MODNAME);
-}
+
+#define xenbus_register_frontend(drv) \
+	__xenbus_register_frontend(drv, THIS_MODULE, KBUILD_MODNAME)
+#define xenbus_register_backend(drv) \
+	__xenbus_register_backend(drv, THIS_MODULE, KBUILD_MODNAME)
 
 void xenbus_unregister_driver(struct xenbus_driver *drv);
 
@@ -152,9 +143,9 @@ int xenbus_transaction_start(struct xenbus_transaction *t);
 int xenbus_transaction_end(struct xenbus_transaction t, int abort);
 
 /* Single read and scanf: returns -errno or num scanned if > 0. */
+__scanf(4, 5)
 int xenbus_scanf(struct xenbus_transaction t,
-		 const char *dir, const char *node, const char *fmt, ...)
-	__attribute__((format(scanf, 4, 5)));
+		 const char *dir, const char *node, const char *fmt, ...);
 
 /* Single printf and write: returns -errno or 0. */
 __printf(4, 5)
@@ -219,7 +210,6 @@ int xenbus_unmap_ring(struct xenbus_device *dev,
 		      grant_handle_t handle, void *vaddr);
 
 int xenbus_alloc_evtchn(struct xenbus_device *dev, int *port);
-int xenbus_bind_evtchn(struct xenbus_device *dev, int remote_port, int *port);
 int xenbus_free_evtchn(struct xenbus_device *dev, int port);
 
 enum xenbus_state xenbus_read_driver_state(const char *path);

@@ -8,7 +8,7 @@
  * Copyright (C) 1994, 95, 96, 97, 98, 99, 2000, 01, 02, 03  Ralf Baechle
  * Copyright (C) 1996 Stoned Elipot
  * Copyright (C) 1999 Silicon Graphics, Inc.
- * Copyright (C) 2000, 2001, 2002, 2007  Maciej W. Rozycki
+ * Copyright (C) 2000, 2001, 2002, 2007	 Maciej W. Rozycki
  */
 #include <linux/init.h>
 #include <linux/ioport.h>
@@ -22,6 +22,10 @@
 #include <linux/console.h>
 #include <linux/pfn.h>
 #include <linux/debugfs.h>
+#include <linux/kexec.h>
+#include <linux/sizes.h>
+#include <linux/device.h>
+#include <linux/dma-contiguous.h>
 
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
@@ -31,7 +35,6 @@
 #include <asm/sections.h>
 #include <asm/setup.h>
 #include <asm/smp-ops.h>
-#include <asm/system.h>
 #include <asm/prom.h>
 
 struct cpuinfo_mips cpu_data[NR_CPUS] __read_mostly;
@@ -77,27 +80,43 @@ EXPORT_SYMBOL(mips_io_port_base);
 static struct resource code_resource = { .name = "Kernel code", };
 static struct resource data_resource = { .name = "Kernel data", };
 
-void __init add_memory_region(phys_t start, phys_t size, long type)
+static void *detect_magic __initdata = detect_memory_region;
+
+void __init add_memory_region(phys_addr_t start, phys_addr_t size, long type)
 {
 	int x = boot_mem_map.nr_map;
-	struct boot_mem_map_entry *prev = boot_mem_map.map + x - 1;
+	int i;
 
 	/* Sanity check */
 	if (start + size < start) {
-		pr_warning("Trying to add an invalid memory region, skipped\n");
+		pr_warn("Trying to add an invalid memory region, skipped\n");
 		return;
 	}
 
 	/*
-	 * Try to merge with previous entry if any.  This is far less than
-	 * perfect but is sufficient for most real world cases.
+	 * Try to merge with existing entry, if any.
 	 */
-	if (x && prev->addr + prev->size == start && prev->type == type) {
-		prev->size += size;
+	for (i = 0; i < boot_mem_map.nr_map; i++) {
+		struct boot_mem_map_entry *entry = boot_mem_map.map + i;
+		unsigned long top;
+
+		if (entry->type != type)
+			continue;
+
+		if (start + size < entry->addr)
+			continue;			/* no overlap */
+
+		if (entry->addr + entry->size < start)
+			continue;			/* no overlap */
+
+		top = max(entry->addr + entry->size, start + size);
+		entry->addr = min(entry->addr, start);
+		entry->size = top - entry->addr;
+
 		return;
 	}
 
-	if (x == BOOT_MEM_MAP_MAX) {
+	if (boot_mem_map.nr_map == BOOT_MEM_MAP_MAX) {
 		pr_err("Ooops! Too many entries in the memory map!\n");
 		return;
 	}
@@ -106,6 +125,25 @@ void __init add_memory_region(phys_t start, phys_t size, long type)
 	boot_mem_map.map[x].size = size;
 	boot_mem_map.map[x].type = type;
 	boot_mem_map.nr_map++;
+}
+
+void __init detect_memory_region(phys_addr_t start, phys_addr_t sz_min, phys_addr_t sz_max)
+{
+	void *dm = &detect_magic;
+	phys_addr_t size;
+
+	for (size = sz_min; size < sz_max; size <<= 1) {
+		if (!memcmp(dm, dm + size, sizeof(detect_magic)))
+			break;
+	}
+
+	pr_debug("Memory: %lluMB of RAM detected at 0x%llx (min: %lluMB, max: %lluMB)\n",
+		((unsigned long long) size) / SZ_1M,
+		(unsigned long long) start,
+		((unsigned long long) sz_min) / SZ_1M,
+		((unsigned long long) sz_max) / SZ_1M);
+
+	add_memory_region(start, size, BOOT_MEM_RAM);
 }
 
 static void __init print_memory_map(void)
@@ -121,6 +159,9 @@ static void __init print_memory_map(void)
 		switch (boot_mem_map.map[i].type) {
 		case BOOT_MEM_RAM:
 			printk(KERN_CONT "(usable)\n");
+			break;
+		case BOOT_MEM_INIT_RAM:
+			printk(KERN_CONT "(usable after init)\n");
 			break;
 		case BOOT_MEM_ROM_DATA:
 			printk(KERN_CONT "(ROM data)\n");
@@ -243,7 +284,7 @@ static unsigned long __init init_initrd(void)
  * Initialize the bootmem allocator. It also setup initrd related data
  * if needed.
  */
-#ifdef CONFIG_SGI_IP27
+#if defined(CONFIG_SGI_IP27) || (defined(CONFIG_CPU_LOONGSON3) && defined(CONFIG_NUMA))
 
 static void __init bootmem_init(void)
 {
@@ -261,12 +302,13 @@ static void __init bootmem_init(void)
 	int i;
 
 	/*
-	 * Init any data related to initrd. It's a nop if INITRD is
-	 * not selected. Once that done we can determine the low bound
-	 * of usable memory.
+	 * Sanity check any INITRD first. We don't take it into account
+	 * for bootmem setup initially, rely on the end-of-kernel-code
+	 * as our memory range starting point. Once bootmem is inited we
+	 * will reserve the area used for the initrd.
 	 */
-	reserved_end = max(init_initrd(),
-			   (unsigned long) PFN_UP(__pa_symbol(&_end)));
+	init_initrd();
+	reserved_end = (unsigned long) PFN_UP(__pa_symbol(&_end));
 
 	/*
 	 * max_low_pfn is not a number of pages. The number of pages
@@ -323,6 +365,14 @@ static void __init bootmem_init(void)
 		max_low_pfn = PFN_DOWN(HIGHMEM_START);
 	}
 
+#ifdef CONFIG_BLK_DEV_INITRD
+	/*
+	 * mapstart should be after initrd_end
+	 */
+	if (initrd_end)
+		mapstart = max(mapstart, (unsigned long)PFN_UP(__pa(initrd_end)));
+#endif
+
 	/*
 	 * Initialize the boot-time allocator with low memory only.
 	 */
@@ -362,15 +412,24 @@ static void __init bootmem_init(void)
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
 		unsigned long start, end, size;
 
-		/*
-		 * Reserve usable memory.
-		 */
-		if (boot_mem_map.map[i].type != BOOT_MEM_RAM)
-			continue;
-
 		start = PFN_UP(boot_mem_map.map[i].addr);
 		end   = PFN_DOWN(boot_mem_map.map[i].addr
 				    + boot_mem_map.map[i].size);
+
+		/*
+		 * Reserve usable memory.
+		 */
+		switch (boot_mem_map.map[i].type) {
+		case BOOT_MEM_RAM:
+			break;
+		case BOOT_MEM_INIT_RAM:
+			memory_present(0, start, end);
+			continue;
+		default:
+			/* Not usable memory */
+			continue;
+		}
+
 		/*
 		 * We are rounding up the start address of usable memory
 		 * and at the end of the usable range downwards.
@@ -419,13 +478,14 @@ static void __init bootmem_init(void)
  *  o bootmem_init()
  *  o sparse_init()
  *  o paging_init()
+ *  o dma_continguous_reserve()
  *
  * At this stage the bootmem allocator is ready to use.
  *
  * NOTE: historically plat_mem_setup did the entire platform initialization.
- *       This was rather impractical because it meant plat_mem_setup had to
+ *	 This was rather impractical because it meant plat_mem_setup had to
  * get away without any kind of memory allocator.  To keep old code from
- * breaking plat_setup was just renamed to plat_setup and a second platform
+ * breaking plat_setup was just renamed to plat_mem_setup and a second platform
  * initialization hook for anything else was introduced.
  */
 
@@ -433,7 +493,7 @@ static int usermem __initdata;
 
 static int __init early_parse_mem(char *p)
 {
-	unsigned long start, size;
+	phys_addr_t start, size;
 
 	/*
 	 * If a user specifies memory size, we
@@ -443,7 +503,7 @@ static int __init early_parse_mem(char *p)
 	if (usermem == 0) {
 		boot_mem_map.nr_map = 0;
 		usermem = 1;
- 	}
+	}
 	start = 0;
 	size = memparse(p, &p);
 	if (*p == '@')
@@ -454,12 +514,122 @@ static int __init early_parse_mem(char *p)
 }
 early_param("mem", early_parse_mem);
 
+#ifdef CONFIG_PROC_VMCORE
+unsigned long setup_elfcorehdr, setup_elfcorehdr_size;
+static int __init early_parse_elfcorehdr(char *p)
+{
+	int i;
+
+	setup_elfcorehdr = memparse(p, &p);
+
+	for (i = 0; i < boot_mem_map.nr_map; i++) {
+		unsigned long start = boot_mem_map.map[i].addr;
+		unsigned long end = (boot_mem_map.map[i].addr +
+				     boot_mem_map.map[i].size);
+		if (setup_elfcorehdr >= start && setup_elfcorehdr < end) {
+			/*
+			 * Reserve from the elf core header to the end of
+			 * the memory segment, that should all be kdump
+			 * reserved memory.
+			 */
+			setup_elfcorehdr_size = end - setup_elfcorehdr;
+			break;
+		}
+	}
+	/*
+	 * If we don't find it in the memory map, then we shouldn't
+	 * have to worry about it, as the new kernel won't use it.
+	 */
+	return 0;
+}
+early_param("elfcorehdr", early_parse_elfcorehdr);
+#endif
+
+static void __init arch_mem_addpart(phys_addr_t mem, phys_addr_t end, int type)
+{
+	phys_addr_t size;
+	int i;
+
+	size = end - mem;
+	if (!size)
+		return;
+
+	/* Make sure it is in the boot_mem_map */
+	for (i = 0; i < boot_mem_map.nr_map; i++) {
+		if (mem >= boot_mem_map.map[i].addr &&
+		    mem < (boot_mem_map.map[i].addr +
+			   boot_mem_map.map[i].size))
+			return;
+	}
+	add_memory_region(mem, size, type);
+}
+
+#ifdef CONFIG_KEXEC
+static inline unsigned long long get_total_mem(void)
+{
+	unsigned long long total;
+
+	total = max_pfn - min_low_pfn;
+	return total << PAGE_SHIFT;
+}
+
+static void __init mips_parse_crashkernel(void)
+{
+	unsigned long long total_mem;
+	unsigned long long crash_size, crash_base;
+	int ret;
+
+	total_mem = get_total_mem();
+	ret = parse_crashkernel(boot_command_line, total_mem,
+				&crash_size, &crash_base);
+	if (ret != 0 || crash_size <= 0)
+		return;
+
+	crashk_res.start = crash_base;
+	crashk_res.end	 = crash_base + crash_size - 1;
+}
+
+static void __init request_crashkernel(struct resource *res)
+{
+	int ret;
+
+	ret = request_resource(res, &crashk_res);
+	if (!ret)
+		pr_info("Reserving %ldMB of memory at %ldMB for crashkernel\n",
+			(unsigned long)((crashk_res.end -
+					 crashk_res.start + 1) >> 20),
+			(unsigned long)(crashk_res.start  >> 20));
+}
+#else /* !defined(CONFIG_KEXEC)		*/
+static void __init mips_parse_crashkernel(void)
+{
+}
+
+static void __init request_crashkernel(struct resource *res)
+{
+}
+#endif /* !defined(CONFIG_KEXEC)  */
+
 static void __init arch_mem_init(char **cmdline_p)
 {
+	struct memblock_region *reg;
 	extern void plat_mem_setup(void);
 
 	/* call board setup routine */
 	plat_mem_setup();
+
+	/*
+	 * Make sure all kernel memory is in the maps.  The "UP" and
+	 * "DOWN" are opposite for initdata since if it crosses over
+	 * into another memory section you don't want that to be
+	 * freed when the initdata is freed.
+	 */
+	arch_mem_addpart(PFN_DOWN(__pa_symbol(&_text)) << PAGE_SHIFT,
+			 PFN_UP(__pa_symbol(&_edata)) << PAGE_SHIFT,
+			 BOOT_MEM_RAM);
+	arch_mem_addpart(PFN_UP(__pa_symbol(&__init_begin)) << PAGE_SHIFT,
+			 PFN_DOWN(__pa_symbol(&__init_end)) << PAGE_SHIFT,
+			 BOOT_MEM_INIT_RAM);
 
 	pr_info("Determined physical RAM map:\n");
 	print_memory_map();
@@ -489,10 +659,32 @@ static void __init arch_mem_init(char **cmdline_p)
 	}
 
 	bootmem_init();
+#ifdef CONFIG_PROC_VMCORE
+	if (setup_elfcorehdr && setup_elfcorehdr_size) {
+		printk(KERN_INFO "kdump reserved memory at %lx-%lx\n",
+		       setup_elfcorehdr, setup_elfcorehdr_size);
+		reserve_bootmem(setup_elfcorehdr, setup_elfcorehdr_size,
+				BOOTMEM_DEFAULT);
+	}
+#endif
+
+	mips_parse_crashkernel();
+#ifdef CONFIG_KEXEC
+	if (crashk_res.start != crashk_res.end)
+		reserve_bootmem(crashk_res.start,
+				crashk_res.end - crashk_res.start + 1,
+				BOOTMEM_DEFAULT);
+#endif
 	device_tree_init();
 	sparse_init();
 	plat_swiotlb_setup();
 	paging_init();
+
+	dma_contiguous_reserve(PFN_PHYS(max_low_pfn));
+	/* Tell bootmem about cma reserved memblock section */
+	for_each_memblock(reserved, reg)
+		if (reg->size != 0)
+			reserve_bootmem(reg->base, reg->size, BOOTMEM_DEFAULT);
 }
 
 static void __init resource_init(void)
@@ -507,9 +699,6 @@ static void __init resource_init(void)
 	data_resource.start = __pa_symbol(&_etext);
 	data_resource.end = __pa_symbol(&_edata) - 1;
 
-	/*
-	 * Request address space for all standard RAM.
-	 */
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
 		struct resource *res;
 		unsigned long start, end;
@@ -524,6 +713,7 @@ static void __init resource_init(void)
 		res = alloc_bootmem(sizeof(struct resource));
 		switch (boot_mem_map.map[i].type) {
 		case BOOT_MEM_RAM:
+		case BOOT_MEM_INIT_RAM:
 		case BOOT_MEM_ROM_DATA:
 			res->name = "System RAM";
 			break;
@@ -545,8 +735,28 @@ static void __init resource_init(void)
 		 */
 		request_resource(res, &code_resource);
 		request_resource(res, &data_resource);
+		request_crashkernel(res);
 	}
 }
+
+#ifdef CONFIG_SMP
+static void __init prefill_possible_map(void)
+{
+	int i, possible = num_possible_cpus();
+
+	if (possible > nr_cpu_ids)
+		possible = nr_cpu_ids;
+
+	for (i = 0; i < possible; i++)
+		set_cpu_possible(i, true);
+	for (; i < NR_CPUS; i++)
+		set_cpu_possible(i, false);
+
+	nr_cpu_ids = possible;
+}
+#else
+static inline void prefill_possible_map(void) {}
+#endif
 
 void __init setup_arch(char **cmdline_p)
 {
@@ -571,6 +781,9 @@ void __init setup_arch(char **cmdline_p)
 
 	resource_init();
 	plat_smp_setup();
+	prefill_possible_map();
+
+	cpu_cache_init();
 }
 
 unsigned long kernelsp[NR_CPUS];

@@ -16,8 +16,8 @@
 #include "conf_space.h"
 #include "conf_space_quirks.h"
 
-static int permissive;
-module_param(permissive, bool, 0644);
+bool xen_pcibk_permissive;
+module_param_named(permissive, xen_pcibk_permissive, bool, 0644);
 
 /* This is where xen_pcibk_read_config_byte, xen_pcibk_read_config_word,
  * xen_pcibk_write_config_word, and xen_pcibk_write_config_byte are created. */
@@ -124,7 +124,7 @@ static inline u32 merge_value(u32 val, u32 new_val, u32 new_val_mask,
 	return val;
 }
 
-static int pcibios_err_to_errno(int err)
+static int xen_pcibios_err_to_errno(int err)
 {
 	switch (err) {
 	case PCIBIOS_SUCCESSFUL:
@@ -202,7 +202,7 @@ out:
 		       pci_name(dev), size, offset, value);
 
 	*ret_val = value;
-	return pcibios_err_to_errno(err);
+	return xen_pcibios_err_to_errno(err);
 }
 
 int xen_pcibk_config_write(struct pci_dev *dev, int offset, int size, u32 value)
@@ -262,7 +262,7 @@ int xen_pcibk_config_write(struct pci_dev *dev, int offset, int size, u32 value)
 		 * This means that some fields may still be read-only because
 		 * they have entries in the config_field list that intercept
 		 * the write and do nothing. */
-		if (dev_data->permissive || permissive) {
+		if (dev_data->permissive || xen_pcibk_permissive) {
 			switch (size) {
 			case 1:
 				err = pci_write_config_byte(dev, offset,
@@ -290,7 +290,7 @@ int xen_pcibk_config_write(struct pci_dev *dev, int offset, int size, u32 value)
 		}
 	}
 
-	return pcibios_err_to_errno(err);
+	return xen_pcibios_err_to_errno(err);
 }
 
 void xen_pcibk_config_free_dyn_fields(struct pci_dev *dev)

@@ -117,8 +117,7 @@ struct io_req {
 	u32	command;
 	u32	status;
 	u8	*pbuf;
-	struct semaphore sema;
-	void (*_async_io_callback)(struct _adapter *padater,
+	void (*_async_io_callback)(struct _adapter *padapter,
 				   struct io_req *pio_req, u8 *cnxt);
 	u8 *cnxt;
 };
@@ -167,7 +166,7 @@ struct reg_protocol_rd {
 	u32 Byte4Access:1;
 	u32 Byte2Access:1;
 	u32 Byte1Access:1;
-	u32 BurstMode:1 ;
+	u32 BurstMode:1;
 	u32 FixOrContinuous:1;
 	u32 Reserved4:16;
 	/*DW3*/
@@ -236,6 +235,7 @@ struct io_queue {
 static inline u32 _RND4(u32 sz)
 {
 	u32	val;
+
 	val = ((sz >> 2) + ((sz & 3) ? 1 : 0)) << 2;
 	return val;
 }

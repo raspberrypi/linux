@@ -16,11 +16,11 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/netfilter_bridge.h>
+#include <linux/neighbour.h>
+#include <net/arp.h>
 #include <linux/export.h>
+#include <linux/rculist.h>
 #include "br_private.h"
-
-/* Bridge group multicast address 802.1d (pg 51). */
-const u8 br_group_address[ETH_ALEN] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x00 };
 
 /* Hook for brouter */
 br_should_route_hook_t __rcu *br_should_route_hook __read_mostly;
@@ -30,18 +30,87 @@ static int br_pass_frame_up(struct sk_buff *skb)
 {
 	struct net_device *indev, *brdev = BR_INPUT_SKB_CB(skb)->brdev;
 	struct net_bridge *br = netdev_priv(brdev);
-	struct br_cpu_netstats *brstats = this_cpu_ptr(br->stats);
+	struct pcpu_sw_netstats *brstats = this_cpu_ptr(br->stats);
+	struct net_port_vlans *pv;
 
 	u64_stats_update_begin(&brstats->syncp);
 	brstats->rx_packets++;
 	brstats->rx_bytes += skb->len;
 	u64_stats_update_end(&brstats->syncp);
 
+	/* Bridge is just like any other port.  Make sure the
+	 * packet is allowed except in promisc modue when someone
+	 * may be running packet capture.
+	 */
+	pv = br_get_vlan_info(br);
+	if (!(brdev->flags & IFF_PROMISC) &&
+	    !br_allowed_egress(br, pv, skb)) {
+		kfree_skb(skb);
+		return NET_RX_DROP;
+	}
+
 	indev = skb->dev;
 	skb->dev = brdev;
+	skb = br_handle_vlan(br, pv, skb);
+	if (!skb)
+		return NET_RX_DROP;
 
 	return NF_HOOK(NFPROTO_BRIDGE, NF_BR_LOCAL_IN, skb, indev, NULL,
 		       netif_receive_skb);
+}
+
+static void br_do_proxy_arp(struct sk_buff *skb, struct net_bridge *br,
+			    u16 vid)
+{
+	struct net_device *dev = br->dev;
+	struct neighbour *n;
+	struct arphdr *parp;
+	u8 *arpptr, *sha;
+	__be32 sip, tip;
+
+	if (dev->flags & IFF_NOARP)
+		return;
+
+	if (!pskb_may_pull(skb, arp_hdr_len(dev))) {
+		dev->stats.tx_dropped++;
+		return;
+	}
+	parp = arp_hdr(skb);
+
+	if (parp->ar_pro != htons(ETH_P_IP) ||
+	    parp->ar_op != htons(ARPOP_REQUEST) ||
+	    parp->ar_hln != dev->addr_len ||
+	    parp->ar_pln != 4)
+		return;
+
+	arpptr = (u8 *)parp + sizeof(struct arphdr);
+	sha = arpptr;
+	arpptr += dev->addr_len;	/* sha */
+	memcpy(&sip, arpptr, sizeof(sip));
+	arpptr += sizeof(sip);
+	arpptr += dev->addr_len;	/* tha */
+	memcpy(&tip, arpptr, sizeof(tip));
+
+	if (ipv4_is_loopback(tip) ||
+	    ipv4_is_multicast(tip))
+		return;
+
+	n = neigh_lookup(&arp_tbl, &tip, dev);
+	if (n) {
+		struct net_bridge_fdb_entry *f;
+
+		if (!(n->nud_state & NUD_VALID)) {
+			neigh_release(n);
+			return;
+		}
+
+		f = __br_fdb_get(br, n->ha, vid);
+		if (f)
+			arp_send(ARPOP_REPLY, ETH_P_ARP, sip, skb->dev, tip,
+				 sha, n->ha, sha);
+
+		neigh_release(n);
+	}
 }
 
 /* note: already called with rcu_read_lock */
@@ -53,16 +122,22 @@ int br_handle_frame_finish(struct sk_buff *skb)
 	struct net_bridge_fdb_entry *dst;
 	struct net_bridge_mdb_entry *mdst;
 	struct sk_buff *skb2;
+	bool unicast = true;
+	u16 vid = 0;
 
 	if (!p || p->state == BR_STATE_DISABLED)
 		goto drop;
 
+	if (!br_allowed_ingress(p->br, nbp_get_vlan_info(p), skb, &vid))
+		goto out;
+
 	/* insert into forwarding database after filtering to avoid spoofing */
 	br = p->br;
-	br_fdb_update(br, p, eth_hdr(skb)->h_source);
+	if (p->flags & BR_LEARNING)
+		br_fdb_update(br, p, eth_hdr(skb)->h_source, vid, false);
 
 	if (!is_broadcast_ether_addr(dest) && is_multicast_ether_addr(dest) &&
-	    br_multicast_rcv(br, p, skb))
+	    br_multicast_rcv(br, p, skb, vid))
 		goto drop;
 
 	if (p->state == BR_STATE_LEARNING)
@@ -78,11 +153,18 @@ int br_handle_frame_finish(struct sk_buff *skb)
 
 	dst = NULL;
 
-	if (is_broadcast_ether_addr(dest))
+	if (is_broadcast_ether_addr(dest)) {
+		if (IS_ENABLED(CONFIG_INET) &&
+		    p->flags & BR_PROXYARP &&
+		    skb->protocol == htons(ETH_P_ARP))
+			br_do_proxy_arp(skb, br, vid);
+
 		skb2 = skb;
-	else if (is_multicast_ether_addr(dest)) {
-		mdst = br_mdb_get(br, skb);
-		if (mdst || BR_INPUT_SKB_CB_MROUTERS_ONLY(skb)) {
+		unicast = false;
+	} else if (is_multicast_ether_addr(dest)) {
+		mdst = br_mdb_get(br, skb, vid);
+		if ((mdst || BR_INPUT_SKB_CB_MROUTERS_ONLY(skb)) &&
+		    br_multicast_querier_exists(br, eth_hdr(skb))) {
 			if ((mdst && mdst->mglist) ||
 			    br_multicast_is_router(br))
 				skb2 = skb;
@@ -93,8 +175,10 @@ int br_handle_frame_finish(struct sk_buff *skb)
 		} else
 			skb2 = skb;
 
+		unicast = false;
 		br->dev->stats.multicast++;
-	} else if ((dst = __br_fdb_get(br, dest)) && dst->is_local) {
+	} else if ((dst = __br_fdb_get(br, dest, vid)) &&
+			dst->is_local) {
 		skb2 = skb;
 		/* Do not forward the packet since it's local. */
 		skb = NULL;
@@ -105,7 +189,7 @@ int br_handle_frame_finish(struct sk_buff *skb)
 			dst->used = jiffies;
 			br_forward(dst->dst, skb, skb2);
 		} else
-			br_flood_forward(br, skb, skb2);
+			br_flood_forward(br, skb, skb2, unicast);
 	}
 
 	if (skb2)
@@ -117,26 +201,18 @@ drop:
 	kfree_skb(skb);
 	goto out;
 }
+EXPORT_SYMBOL_GPL(br_handle_frame_finish);
 
 /* note: already called with rcu_read_lock */
 static int br_handle_local_finish(struct sk_buff *skb)
 {
 	struct net_bridge_port *p = br_port_get_rcu(skb->dev);
+	u16 vid = 0;
 
-	br_fdb_update(p->br, p, eth_hdr(skb)->h_source);
+	/* check if vlan is allowed, to avoid spoofing */
+	if (p->flags & BR_LEARNING && br_should_learn(p, skb, &vid))
+		br_fdb_update(p->br, p, eth_hdr(skb)->h_source, vid, false);
 	return 0;	 /* process further */
-}
-
-/* Does address match the link local multicast address.
- * 01:80:c2:00:00:0X
- */
-static inline int is_link_local(const unsigned char *dest)
-{
-	__be16 *a = (__be16 *)dest;
-	static const __be16 *b = (const __be16 *)br_group_address;
-	static const __be16 m = cpu_to_be16(0xfff0);
-
-	return ((a[0] ^ b[0]) | (a[1] ^ b[1]) | ((a[2] ^ b[2]) & m)) == 0;
 }
 
 /*
@@ -162,7 +238,9 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 
 	p = br_port_get_rcu(skb->dev);
 
-	if (unlikely(is_link_local(dest))) {
+	if (unlikely(is_link_local_ether_addr(dest))) {
+		u16 fwd_mask = p->br->group_fwd_mask_required;
+
 		/*
 		 * See IEEE 802.1D Table 7-10 Reserved addresses
 		 *
@@ -180,7 +258,8 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 		case 0x00:	/* Bridge Group Address */
 			/* If STP is turned off,
 			   then must forward to keep loop detection */
-			if (p->br->stp_enabled == BR_NO_STP)
+			if (p->br->stp_enabled == BR_NO_STP ||
+			    fwd_mask & (1u << dest[5]))
 				goto forward;
 			break;
 
@@ -189,7 +268,8 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 
 		default:
 			/* Allow selective forwarding for most other protocols */
-			if (p->br->group_fwd_mask & (1u << dest[5]))
+			fwd_mask |= p->br->group_fwd_mask;
+			if (fwd_mask & (1u << dest[5]))
 				goto forward;
 		}
 
@@ -216,7 +296,7 @@ forward:
 		}
 		/* fall through */
 	case BR_STATE_LEARNING:
-		if (!compare_ether_addr(p->br->dev->dev_addr, dest))
+		if (ether_addr_equal(p->br->dev->dev_addr, dest))
 			skb->pkt_type = PACKET_HOST;
 
 		NF_HOOK(NFPROTO_BRIDGE, NF_BR_PRE_ROUTING, skb, skb->dev, NULL,

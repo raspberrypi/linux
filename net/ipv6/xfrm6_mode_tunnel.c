@@ -49,8 +49,11 @@ static int xfrm6_mode_tunnel_output(struct xfrm_state *x, struct sk_buff *skb)
 	       sizeof(top_iph->flow_lbl));
 	top_iph->nexthdr = xfrm_af2proto(skb_dst(skb)->ops->family);
 
-	dsfield = XFRM_MODE_SKB_CB(skb)->tos;
-	dsfield = INET_ECN_encapsulate(dsfield, dsfield);
+	if (x->props.extra_flags & XFRM_SA_XFLAG_DONT_ENCAP_DSCP)
+		dsfield = 0;
+	else
+		dsfield = XFRM_MODE_SKB_CB(skb)->tos;
+	dsfield = INET_ECN_encapsulate(dsfield, XFRM_MODE_SKB_CB(skb)->tos);
 	if (x->props.flags & XFRM_STATE_NOECN)
 		dsfield &= ~INET_ECN_MASK;
 	ipv6_change_dsfield(top_iph, 0, dsfield);
@@ -60,18 +63,23 @@ static int xfrm6_mode_tunnel_output(struct xfrm_state *x, struct sk_buff *skb)
 	return 0;
 }
 
+#define for_each_input_rcu(head, handler)	\
+	for (handler = rcu_dereference(head);	\
+	     handler != NULL;			\
+	     handler = rcu_dereference(handler->next))
+
+
 static int xfrm6_mode_tunnel_input(struct xfrm_state *x, struct sk_buff *skb)
 {
 	int err = -EINVAL;
-	const unsigned char *old_mac;
 
 	if (XFRM_MODE_SKB_CB(skb)->protocol != IPPROTO_IPV6)
 		goto out;
 	if (!pskb_may_pull(skb, sizeof(struct ipv6hdr)))
 		goto out;
 
-	if (skb_cloned(skb) &&
-	    (err = pskb_expand_head(skb, 0, 0, GFP_ATOMIC)))
+	err = skb_unclone(skb, GFP_ATOMIC);
+	if (err)
 		goto out;
 
 	if (x->props.flags & XFRM_STATE_DECAP_DSCP)
@@ -80,10 +88,9 @@ static int xfrm6_mode_tunnel_input(struct xfrm_state *x, struct sk_buff *skb)
 	if (!(x->props.flags & XFRM_STATE_NOECN))
 		ipip6_ecn_decapsulate(skb);
 
-	old_mac = skb_mac_header(skb);
-	skb_set_mac_header(skb, -skb->mac_len);
-	memmove(skb_mac_header(skb), old_mac, skb->mac_len);
 	skb_reset_network_header(skb);
+	skb_mac_header_rebuild(skb);
+
 	err = 0;
 
 out:

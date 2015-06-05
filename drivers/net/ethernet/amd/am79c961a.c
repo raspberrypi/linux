@@ -1,5 +1,5 @@
 /*
- *  linux/drivers/net/am79c961.c
+ *  linux/drivers/net/ethernet/amd/am79c961a.c
  *
  *  by Russell King <rmk@arm.linux.org.uk> 1995-2001.
  *
@@ -30,7 +30,6 @@
 #include <linux/io.h>
 
 #include <mach/hardware.h>
-#include <asm/system.h>
 
 #define TX_BUFFERS 15
 #define RX_BUFFERS 25
@@ -473,7 +472,7 @@ am79c961_sendpacket(struct sk_buff *skb, struct net_device *dev)
 	if (am_readword(dev, priv->txhdr + (priv->txhead << 3) + 2) & TMD_OWN)
 		netif_stop_queue(dev);
 
-	dev_kfree_skb(skb);
+	dev_consume_skb_any(skb);
 
 	return NETDEV_TX_OK;
 }
@@ -516,7 +515,7 @@ am79c961_rx(struct net_device *dev, struct dev_priv *priv)
 		}
 
 		len = am_readword(dev, hdraddr + 6);
-		skb = dev_alloc_skb(len + 2);
+		skb = netdev_alloc_skb(dev, len + 2);
 
 		if (skb) {
 			skb_reserve(skb, 2);
@@ -529,7 +528,6 @@ am79c961_rx(struct net_device *dev, struct dev_priv *priv)
 			dev->stats.rx_packets++;
 		} else {
 			am_writeword (dev, hdraddr + 2, RMD_OWN);
-			printk (KERN_WARNING "%s: memory squeeze, dropping packet.\n", dev->name);
 			dev->stats.rx_dropped++;
 			break;
 		}
@@ -672,7 +670,7 @@ static const struct net_device_ops am79c961_netdev_ops = {
 #endif
 };
 
-static int __devinit am79c961_probe(struct platform_device *pdev)
+static int am79c961_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	struct net_device *dev;

@@ -1,6 +1,4 @@
 /*
- *  arch/s390/kernel/early.c
- *
  *    Copyright IBM Corp. 2007, 2009
  *    Author(s): Hongjie Yang <hongjie@us.ibm.com>,
  *		 Heiko Carstens <heiko.carstens@de.ibm.com>
@@ -14,7 +12,6 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/ctype.h>
-#include <linux/ftrace.h>
 #include <linux/lockdep.h>
 #include <linux/module.h>
 #include <linux/pfn.h>
@@ -29,6 +26,7 @@
 #include <asm/sysinfo.h>
 #include <asm/cpcmd.h>
 #include <asm/sclp.h>
+#include <asm/facility.h>
 #include "entry.h"
 
 /*
@@ -48,10 +46,10 @@ static void __init reset_tod_clock(void)
 {
 	u64 time;
 
-	if (store_clock(&time) == 0)
+	if (store_tod_clock(&time) == 0)
 		return;
 	/* TOD clock not running. Set the clock to Unix Epoch. */
-	if (set_clock(TOD_UNIX_EPOCH) != 0 || store_clock(&time) != 0)
+	if (set_tod_clock(TOD_UNIX_EPOCH) != 0 || store_tod_clock(&time) != 0)
 		disabled_wait(0);
 
 	sched_clock_base_cc = TOD_UNIX_EPOCH;
@@ -174,7 +172,7 @@ static noinline __init void create_kernel_nss(void)
 	}
 
 	/* re-initialize cputime accounting. */
-	sched_clock_base_cc = get_clock();
+	sched_clock_base_cc = get_tod_clock();
 	S390_lowcore.last_update_clock = sched_clock_base_cc;
 	S390_lowcore.last_update_timer = 0x7fffffffffffffffULL;
 	S390_lowcore.user_timer = 0;
@@ -207,6 +205,7 @@ static noinline __init void clear_bss_section(void)
  */
 static noinline __init void init_kernel_storage_key(void)
 {
+#if PAGE_DEFAULT_KEY
 	unsigned long end_pfn, init_pfn;
 
 	end_pfn = PFN_UP(__pa(&_end));
@@ -214,38 +213,63 @@ static noinline __init void init_kernel_storage_key(void)
 	for (init_pfn = 0 ; init_pfn < end_pfn; init_pfn++)
 		page_set_storage_key(init_pfn << PAGE_SHIFT,
 				     PAGE_DEFAULT_KEY, 0);
+#endif
 }
 
-static __initdata struct sysinfo_3_2_2 vmms __aligned(PAGE_SIZE);
+static __initdata char sysinfo_page[PAGE_SIZE] __aligned(PAGE_SIZE);
 
 static noinline __init void detect_machine_type(void)
 {
+	struct sysinfo_3_2_2 *vmms = (struct sysinfo_3_2_2 *)&sysinfo_page;
+
 	/* Check current-configuration-level */
-	if ((stsi(NULL, 0, 0, 0) >> 28) <= 2) {
+	if (stsi(NULL, 0, 0, 0) <= 2) {
 		S390_lowcore.machine_flags |= MACHINE_FLAG_LPAR;
 		return;
 	}
 	/* Get virtual-machine cpu information. */
-	if (stsi(&vmms, 3, 2, 2) == -ENOSYS || !vmms.count)
+	if (stsi(vmms, 3, 2, 2) || !vmms->count)
 		return;
 
 	/* Running under KVM? If not we assume z/VM */
-	if (!memcmp(vmms.vm[0].cpi, "\xd2\xe5\xd4", 3))
+	if (!memcmp(vmms->vm[0].cpi, "\xd2\xe5\xd4", 3))
 		S390_lowcore.machine_flags |= MACHINE_FLAG_KVM;
 	else
 		S390_lowcore.machine_flags |= MACHINE_FLAG_VM;
 }
 
-static __init void early_pgm_check_handler(void)
+static __init void setup_topology(void)
 {
-	unsigned long addr;
+#ifdef CONFIG_64BIT
+	int max_mnest;
+
+	if (!test_facility(11))
+		return;
+	S390_lowcore.machine_flags |= MACHINE_FLAG_TOPOLOGY;
+	for (max_mnest = 6; max_mnest > 1; max_mnest--) {
+		if (stsi(&sysinfo_page, 15, 1, max_mnest) == 0)
+			break;
+	}
+	topology_max_mnest = max_mnest;
+#endif
+}
+
+static void early_pgm_check_handler(void)
+{
 	const struct exception_table_entry *fixup;
+	unsigned long cr0, cr0_new;
+	unsigned long addr;
 
 	addr = S390_lowcore.program_old_psw.addr;
 	fixup = search_exception_tables(addr & PSW_ADDR_INSN);
 	if (!fixup)
 		disabled_wait(0);
-	S390_lowcore.program_old_psw.addr = fixup->fixup | PSW_ADDR_AMODE;
+	/* Disable low address protection before storing into lowcore. */
+	__ctl_store(cr0, 0, 0);
+	cr0_new = cr0 & ~(1UL << 28);
+	__ctl_load(cr0_new, 0, 0);
+	S390_lowcore.program_old_psw.addr = extable_fixup(fixup)|PSW_ADDR_AMODE;
+	__ctl_load(cr0, 0, 0);
 }
 
 static noinline __init void setup_lowcore_early(void)
@@ -262,35 +286,8 @@ static noinline __init void setup_lowcore_early(void)
 
 static noinline __init void setup_facility_list(void)
 {
-	unsigned long nr;
-
-	S390_lowcore.stfl_fac_list = 0;
-	asm volatile(
-		"	.insn	s,0xb2b10000,0(0)\n" /* stfl */
-		"0:\n"
-		EX_TABLE(0b,0b) : "=m" (S390_lowcore.stfl_fac_list));
-	memcpy(&S390_lowcore.stfle_fac_list, &S390_lowcore.stfl_fac_list, 4);
-	nr = 4;				/* # bytes stored by stfl */
-	if (test_facility(7)) {
-		/* More facility bits available with stfle */
-		register unsigned long reg0 asm("0") = MAX_FACILITY_BIT/64 - 1;
-		asm volatile(".insn s,0xb2b00000,%0" /* stfle */
-			     : "=m" (S390_lowcore.stfle_fac_list), "+d" (reg0)
-			     : : "cc");
-		nr = (reg0 + 1) * 8;	/* # bytes stored by stfle */
-	}
-	memset((char *) S390_lowcore.stfle_fac_list + nr, 0,
-	       MAX_FACILITY_BIT/8 - nr);
-}
-
-static noinline __init void setup_hpage(void)
-{
-#ifndef CONFIG_DEBUG_PAGEALLOC
-	if (!test_facility(2) || !test_facility(8))
-		return;
-	S390_lowcore.machine_flags |= MACHINE_FLAG_HPAGE;
-	__ctl_set_bit(0, 23);
-#endif
+	stfle(S390_lowcore.stfle_fac_list,
+	      ARRAY_SIZE(S390_lowcore.stfle_fac_list));
 }
 
 static __init void detect_mvpg(void)
@@ -380,20 +377,44 @@ static __init void detect_diag44(void)
 static __init void detect_machine_facilities(void)
 {
 #ifdef CONFIG_64BIT
+	if (test_facility(8)) {
+		S390_lowcore.machine_flags |= MACHINE_FLAG_EDAT1;
+		__ctl_set_bit(0, 23);
+	}
+	if (test_facility(78))
+		S390_lowcore.machine_flags |= MACHINE_FLAG_EDAT2;
 	if (test_facility(3))
 		S390_lowcore.machine_flags |= MACHINE_FLAG_IDTE;
-	if (test_facility(8))
-		S390_lowcore.machine_flags |= MACHINE_FLAG_PFMF;
-	if (test_facility(11))
-		S390_lowcore.machine_flags |= MACHINE_FLAG_TOPOLOGY;
-	if (test_facility(27))
-		S390_lowcore.machine_flags |= MACHINE_FLAG_MVCOS;
 	if (test_facility(40))
-		S390_lowcore.machine_flags |= MACHINE_FLAG_SPP;
-	if (test_facility(25))
-		S390_lowcore.machine_flags |= MACHINE_FLAG_STCKF;
+		S390_lowcore.machine_flags |= MACHINE_FLAG_LPP;
+	if (test_facility(50) && test_facility(73))
+		S390_lowcore.machine_flags |= MACHINE_FLAG_TE;
+	if (test_facility(51))
+		S390_lowcore.machine_flags |= MACHINE_FLAG_TLB_LC;
+	if (test_facility(129))
+		S390_lowcore.machine_flags |= MACHINE_FLAG_VX;
 #endif
 }
+
+static int __init cad_setup(char *str)
+{
+	int val;
+
+	get_option(&str, &val);
+	if (val && test_facility(128))
+		S390_lowcore.machine_flags |= MACHINE_FLAG_CAD;
+	return 0;
+}
+early_param("cad", cad_setup);
+
+static int __init cad_init(void)
+{
+	if (MACHINE_HAS_CAD)
+		/* Enable problem state CAD. */
+		__ctl_set_bit(2, 3);
+	return 0;
+}
+early_initcall(cad_init);
 
 static __init void rescue_initrd(void)
 {
@@ -434,18 +455,22 @@ static void __init append_to_cmdline(size_t (*ipl_data)(char *, size_t))
 	}
 }
 
-static void __init setup_boot_command_line(void)
+static inline int has_ebcdic_char(const char *str)
 {
 	int i;
 
-	/* convert arch command line to ascii */
-	for (i = 0; i < ARCH_COMMAND_LINE_SIZE; i++)
-		if (COMMAND_LINE[i] & 0x80)
-			break;
-	if (i < ARCH_COMMAND_LINE_SIZE)
-		EBCASC(COMMAND_LINE, ARCH_COMMAND_LINE_SIZE);
-	COMMAND_LINE[ARCH_COMMAND_LINE_SIZE-1] = 0;
+	for (i = 0; str[i]; i++)
+		if (str[i] & 0x80)
+			return 1;
+	return 0;
+}
 
+static void __init setup_boot_command_line(void)
+{
+	COMMAND_LINE[ARCH_COMMAND_LINE_SIZE - 1] = 0;
+	/* convert arch command line to ascii if necessary */
+	if (has_ebcdic_char(COMMAND_LINE))
+		EBCASC(COMMAND_LINE, ARCH_COMMAND_LINE_SIZE);
 	/* copy arch command line */
 	strlcpy(boot_command_line, strstrip(COMMAND_LINE),
 		ARCH_COMMAND_LINE_SIZE);
@@ -456,7 +481,6 @@ static void __init setup_boot_command_line(void)
 
 	append_to_cmdline(append_ipl_scpdata);
 }
-
 
 /*
  * Save ipl parameters, clear bss memory, initialize storage keys
@@ -471,7 +495,6 @@ void __init startup_init(void)
 	init_kernel_storage_key();
 	lockdep_init();
 	lockdep_off();
-	sort_main_extable();
 	setup_lowcore_early();
 	setup_facility_list();
 	detect_machine_type();
@@ -484,11 +507,7 @@ void __init startup_init(void)
 	detect_diag9c();
 	detect_diag44();
 	detect_machine_facilities();
-	setup_hpage();
-	sclp_facilities_detect();
-	detect_memory_layout(memory_chunk);
-#ifdef CONFIG_DYNAMIC_FTRACE
-	S390_lowcore.ftrace_func = (unsigned long)ftrace_caller;
-#endif
+	setup_topology();
+	sclp_early_detect();
 	lockdep_on();
 }

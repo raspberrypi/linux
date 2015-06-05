@@ -46,7 +46,7 @@ MODULE_SUPPORTED_DEVICE("{{Gravis,UltraSound Extreme}}");
 
 static int index[SNDRV_CARDS] = SNDRV_DEFAULT_IDX;	/* Index 0-MAX */
 static char *id[SNDRV_CARDS] = SNDRV_DEFAULT_STR;	/* ID for this card */
-static int enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE;	/* Enable this card */
+static bool enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE;	/* Enable this card */
 static long port[SNDRV_CARDS] = SNDRV_DEFAULT_PORT;	/* 0x220,0x240,0x260 */
 static long gf1_port[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS) - 1] = -1}; /* 0x210,0x220,0x230,0x240,0x250,0x260,0x270 */
 static long mpu_port[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS) - 1] = -1}; /* 0x300,0x310,0x320 */
@@ -89,13 +89,14 @@ MODULE_PARM_DESC(channels, "GF1 channels for " CRD_NAME " driver.");
 module_param_array(pcm_channels, int, NULL, 0444);
 MODULE_PARM_DESC(pcm_channels, "Reserved PCM channels for " CRD_NAME " driver.");
 
-static int __devinit snd_gusextreme_match(struct device *dev, unsigned int n)
+static int snd_gusextreme_match(struct device *dev, unsigned int n)
 {
 	return enable[n];
 }
 
-static int __devinit snd_gusextreme_es1688_create(struct snd_card *card,
-		struct snd_es1688 *chip, struct device *dev, unsigned int n)
+static int snd_gusextreme_es1688_create(struct snd_card *card,
+					struct snd_es1688 *chip,
+					struct device *dev, unsigned int n)
 {
 	static long possible_ports[] = {0x220, 0x240, 0x260};
 	static int possible_irqs[] = {5, 9, 10, 7, -1};
@@ -132,8 +133,9 @@ static int __devinit snd_gusextreme_es1688_create(struct snd_card *card,
 	return error;
 }
 
-static int __devinit snd_gusextreme_gus_card_create(struct snd_card *card,
-		struct device *dev, unsigned int n, struct snd_gus_card **rgus)
+static int snd_gusextreme_gus_card_create(struct snd_card *card,
+					  struct device *dev, unsigned int n,
+					  struct snd_gus_card **rgus)
 {
 	static int possible_irqs[] = {11, 12, 15, 9, 5, 7, 3, -1};
 	static int possible_dmas[] = {5, 6, 7, 3, 1, -1};
@@ -156,8 +158,8 @@ static int __devinit snd_gusextreme_gus_card_create(struct snd_card *card,
 			0, channels[n], pcm_channels[n], 0, rgus);
 }
 
-static int __devinit snd_gusextreme_detect(struct snd_gus_card *gus,
-	struct snd_es1688 *es1688)
+static int snd_gusextreme_detect(struct snd_gus_card *gus,
+				 struct snd_es1688 *es1688)
 {
 	unsigned long flags;
 	unsigned char d;
@@ -206,7 +208,7 @@ static int __devinit snd_gusextreme_detect(struct snd_gus_card *gus,
 	return 0;
 }
 
-static int __devinit snd_gusextreme_mixer(struct snd_card *card)
+static int snd_gusextreme_mixer(struct snd_card *card)
 {
 	struct snd_ctl_elem_id id1, id2;
 	int error;
@@ -232,7 +234,7 @@ static int __devinit snd_gusextreme_mixer(struct snd_card *card)
 	return 0;
 }
 
-static int __devinit snd_gusextreme_probe(struct device *dev, unsigned int n)
+static int snd_gusextreme_probe(struct device *dev, unsigned int n)
 {
 	struct snd_card *card;
 	struct snd_gus_card *gus;
@@ -240,8 +242,8 @@ static int __devinit snd_gusextreme_probe(struct device *dev, unsigned int n)
 	struct snd_opl3 *opl3;
 	int error;
 
-	error = snd_card_create(index[n], id[n], THIS_MODULE,
-				sizeof(struct snd_es1688), &card);
+	error = snd_card_new(dev, index[n], id[n], THIS_MODULE,
+			     sizeof(struct snd_es1688), &card);
 	if (error < 0)
 		return error;
 
@@ -282,7 +284,7 @@ static int __devinit snd_gusextreme_probe(struct device *dev, unsigned int n)
 	}
 	gus->codec_flag = 1;
 
-	error = snd_es1688_pcm(card, es1688, 0, NULL);
+	error = snd_es1688_pcm(card, es1688, 0);
 	if (error < 0)
 		goto out;
 
@@ -293,7 +295,7 @@ static int __devinit snd_gusextreme_probe(struct device *dev, unsigned int n)
 	snd_component_add(card, "ES1688");
 
 	if (pcm_channels[n] > 0) {
-		error = snd_gf1_pcm_new(gus, 1, 1, NULL);
+		error = snd_gf1_pcm_new(gus, 1, 1);
 		if (error < 0)
 			goto out;
 	}
@@ -326,8 +328,6 @@ static int __devinit snd_gusextreme_probe(struct device *dev, unsigned int n)
 		"irq %i&%i, dma %i&%i", es1688->port,
 		gus->gf1.irq, es1688->irq, gus->gf1.dma1, es1688->dma8);
 
-	snd_card_set_dev(card, dev);
-
 	error = snd_card_register(card);
 	if (error < 0)
 		goto out;
@@ -339,17 +339,16 @@ out:	snd_card_free(card);
 	return error;
 }
 
-static int __devexit snd_gusextreme_remove(struct device *dev, unsigned int n)
+static int snd_gusextreme_remove(struct device *dev, unsigned int n)
 {
 	snd_card_free(dev_get_drvdata(dev));
-	dev_set_drvdata(dev, NULL);
 	return 0;
 }
 
 static struct isa_driver snd_gusextreme_driver = {
 	.match		= snd_gusextreme_match,
 	.probe		= snd_gusextreme_probe,
-	.remove		= __devexit_p(snd_gusextreme_remove),
+	.remove		= snd_gusextreme_remove,
 #if 0	/* FIXME */
 	.suspend	= snd_gusextreme_suspend,
 	.resume		= snd_gusextreme_resume,

@@ -117,13 +117,8 @@ void r8712_recv_indicatepkt(struct _adapter *padapter,
 	if (skb == NULL)
 		goto _recv_indicatepkt_drop;
 	skb->data = precv_frame->u.hdr.rx_data;
-#ifdef NET_SKBUFF_DATA_USES_OFFSET
-	skb->tail = (sk_buff_data_t)(precv_frame->u.hdr.rx_tail -
-		     precv_frame->u.hdr.rx_head);
-#else
-	skb->tail = (sk_buff_data_t)precv_frame->u.hdr.rx_tail;
-#endif
 	skb->len = precv_frame->u.hdr.len;
+	skb_set_tail_pointer(skb, skb->len);
 	if ((pattrib->tcpchk_valid == 1) && (pattrib->tcp_chkrpt == 1))
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
 	else
@@ -140,20 +135,6 @@ _recv_indicatepkt_drop:
 	 if (precv_frame)
 		r8712_free_recvframe(precv_frame, pfree_recv_queue);
 	 precvpriv->rx_drop++;
-}
-
-void r8712_os_read_port(struct _adapter *padapter, struct recv_buf *precvbuf)
-{
-	struct recv_priv *precvpriv = &padapter->recvpriv;
-
-	precvbuf->ref_cnt--;
-	/*free skb in recv_buf*/
-	dev_kfree_skb_any(precvbuf->pskb);
-	precvbuf->pskb = NULL;
-	precvbuf->reuse = false;
-	if (precvbuf->irp_pending == false)
-		r8712_read_port(padapter, precvpriv->ff_hwaddr, 0,
-			 (unsigned char *)precvbuf);
 }
 
 static void _r8712_reordering_ctrl_timeout_handler (void *FunctionContext)

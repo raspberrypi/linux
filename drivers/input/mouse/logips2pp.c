@@ -155,9 +155,14 @@ static ssize_t ps2pp_attr_show_smartscroll(struct psmouse *psmouse,
 static ssize_t ps2pp_attr_set_smartscroll(struct psmouse *psmouse, void *data,
 					  const char *buf, size_t count)
 {
-	unsigned long value;
+	unsigned int value;
+	int err;
 
-	if (strict_strtoul(buf, 10, &value) || value > 1)
+	err = kstrtouint(buf, 10, &value);
+	if (err)
+		return err;
+
+	if (value > 1)
 		return -EINVAL;
 
 	ps2pp_set_smartscroll(psmouse, value);
@@ -215,7 +220,7 @@ static const struct ps2pp_info *get_model_info(unsigned char model)
 		{ 61,	PS2PP_KIND_MX,					/* MX700 */
 				PS2PP_WHEEL | PS2PP_SIDE_BTN | PS2PP_TASK_BTN |
 				PS2PP_EXTRA_BTN | PS2PP_NAV_BTN },
-		{ 66,	PS2PP_KIND_MX,					/* MX3100 reciver */
+		{ 66,	PS2PP_KIND_MX,					/* MX3100 receiver */
 				PS2PP_WHEEL | PS2PP_SIDE_BTN | PS2PP_TASK_BTN |
 				PS2PP_EXTRA_BTN | PS2PP_NAV_BTN | PS2PP_HWHEEL },
 		{ 72,	PS2PP_KIND_TRACKMAN,	0 },			/* T-CH11: TrackMan Marble */

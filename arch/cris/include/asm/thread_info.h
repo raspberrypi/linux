@@ -38,13 +38,10 @@ struct thread_info {
 					 	   0-0xBFFFFFFF for user-thead
 						   0-0xFFFFFFFF for kernel-thread
 						*/
-	struct restart_block    restart_block;
 	__u8			supervisor_stack[0];
 };
 
 #endif
-
-#define PREEMPT_ACTIVE		0x10000000
 
 /*
  * macros/functions for gaining access to the thread information structure
@@ -58,18 +55,9 @@ struct thread_info {
 	.cpu		= 0,				\
 	.preempt_count	= INIT_PREEMPT_COUNT,		\
 	.addr_limit	= KERNEL_DS,			\
-	.restart_block = {				\
-		       .fn = do_no_restart_syscall,	\
-	},						\
 }
 
 #define init_thread_info	(init_thread_union.thread_info)
-
-#define __HAVE_ARCH_THREAD_INFO_ALLOCATOR
-/* thread information allocation */
-#define alloc_thread_info_node(tsk, node)	\
-	((struct thread_info *) __get_free_pages(GFP_KERNEL, 1))
-#define free_thread_info(ti) free_pages((unsigned long) (ti), 1)
 
 #endif /* !__ASSEMBLY__ */
 
@@ -84,17 +72,12 @@ struct thread_info {
 #define TIF_SIGPENDING		2	/* signal pending */
 #define TIF_NEED_RESCHED	3	/* rescheduling necessary */
 #define TIF_RESTORE_SIGMASK	9	/* restore signal mask in do_signal() */
-#define TIF_POLLING_NRFLAG	16	/* true if poll_idle() is polling TIF_NEED_RESCHED */
 #define TIF_MEMDIE		17	/* is terminating due to OOM killer */
-#define TIF_FREEZE		18	/* is freezing for suspend */
 
 #define _TIF_SYSCALL_TRACE	(1<<TIF_SYSCALL_TRACE)
 #define _TIF_NOTIFY_RESUME	(1<<TIF_NOTIFY_RESUME)
 #define _TIF_SIGPENDING		(1<<TIF_SIGPENDING)
 #define _TIF_NEED_RESCHED	(1<<TIF_NEED_RESCHED)
-#define _TIF_RESTORE_SIGMASK	(1<<TIF_RESTORE_SIGMASK)
-#define _TIF_POLLING_NRFLAG	(1<<TIF_POLLING_NRFLAG)
-#define _TIF_FREEZE		(1<<TIF_FREEZE)
 
 #define _TIF_WORK_MASK		0x0000FFFE	/* work to do on interrupt/exception return */
 #define _TIF_ALLWORK_MASK	0x0000FFFF	/* work to do on any return to u-space */

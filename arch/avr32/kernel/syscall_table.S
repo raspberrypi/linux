@@ -15,7 +15,7 @@
 sys_call_table:
 	.long	sys_restart_syscall
 	.long	sys_exit
-	.long	__sys_fork
+	.long	sys_fork
 	.long	sys_read
 	.long	sys_write
 	.long	sys_open		/* 5 */
@@ -24,7 +24,7 @@ sys_call_table:
 	.long	sys_creat
 	.long	sys_link
 	.long	sys_unlink		/* 10 */
-	.long	__sys_execve
+	.long	sys_execve
 	.long	sys_chdir
 	.long	sys_time
 	.long	sys_mknod
@@ -57,7 +57,7 @@ sys_call_table:
 	.long	sys_dup
 	.long	sys_pipe
 	.long	sys_times
-	.long	__sys_clone
+	.long	sys_clone
 	.long	sys_brk			/* 45 */
 	.long	sys_setgid
 	.long	sys_getgid
@@ -115,7 +115,7 @@ sys_call_table:
 	.long	sys_statfs
 	.long	sys_fstatfs		/* 100 */
 	.long	sys_vhangup
-	.long	__sys_sigaltstack
+	.long	sys_sigaltstack
 	.long	sys_syslog
 	.long	sys_setitimer
 	.long	sys_getitimer		/* 105 */
@@ -127,7 +127,7 @@ sys_call_table:
 	.long	sys_newuname
 	.long	sys_adjtimex
 	.long	sys_mprotect
-	.long	__sys_vfork
+	.long	sys_vfork
 	.long	sys_init_module		/* 115 */
 	.long	sys_delete_module
 	.long	sys_quotactl
@@ -297,4 +297,41 @@ sys_call_table:
 	.long	sys_eventfd
 	.long	sys_recvmmsg
 	.long	sys_setns
+	.long	sys_pread64
+	.long	sys_pwrite64		/* 285 */
+	.long	sys_timerfd_create
+	.long	__sys_fallocate
+	.long	sys_timerfd_settime
+	.long	sys_timerfd_gettime
+	.long	sys_signalfd4		/* 290 */
+	.long	sys_eventfd2
+	.long	sys_epoll_create1
+	.long	sys_dup3
+	.long	sys_pipe2
+	.long	sys_inotify_init1	/* 295 */
+	.long	sys_preadv
+	.long	sys_pwritev
+	.long	sys_rt_tgsigqueueinfo
+	.long	sys_perf_event_open
+	.long	sys_recvmmsg		/* 300 */
+	.long	sys_fanotify_init
+	.long	__sys_fanotify_mark
+	.long	sys_prlimit64
+	.long	sys_name_to_handle_at
+	.long	sys_open_by_handle_at	/* 305 */
+	.long	sys_clock_adjtime
+	.long	sys_syncfs
+	.long	sys_sendmmsg
+	.long	__sys_process_vm_readv
+	.long	__sys_process_vm_writev	/* 310 */
+	.long	sys_kcmp
+	.long	sys_finit_module
+	.long	sys_sched_setattr
+	.long	sys_sched_getattr
+	.long	sys_renameat2		/* 315 */
+	.long	sys_seccomp
+	.long	sys_getrandom
+	.long	sys_memfd_create
+	.long	sys_bpf
+	.long	sys_execveat		/* 320 */
 	.long	sys_ni_syscall		/* r8 is saturated at nr_syscalls */

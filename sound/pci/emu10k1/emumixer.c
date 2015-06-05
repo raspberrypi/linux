@@ -83,7 +83,7 @@ static int snd_emu10k1_spdif_get_mask(struct snd_kcontrol *kcontrol,
  * Items labels in enum mixer controls assigning source data to
  * each destination
  */
-static char *emu1010_src_texts[] = { 
+static const char * const emu1010_src_texts[] = {
 	"Silence",
 	"Dock Mic A",
 	"Dock Mic B",
@@ -141,7 +141,7 @@ static char *emu1010_src_texts[] = {
 
 /* 1616(m) cardbus */
 
-static char *emu1616_src_texts[] = {
+static const char * const emu1616_src_texts[] = {
 	"Silence",
 	"Dock Mic A",
 	"Dock Mic B",
@@ -393,23 +393,11 @@ static int snd_emu1010_input_output_source_info(struct snd_kcontrol *kcontrol,
 						struct snd_ctl_elem_info *uinfo)
 {
 	struct snd_emu10k1 *emu = snd_kcontrol_chip(kcontrol);
-	char **items;
 
-	uinfo->type = SNDRV_CTL_ELEM_TYPE_ENUMERATED;
-	uinfo->count = 1;
-	if (emu->card_capabilities->emu_model == EMU_MODEL_EMU1616) {
-		uinfo->value.enumerated.items = 49;
-		items = emu1616_src_texts;
-	} else {
-		uinfo->value.enumerated.items = 53;
-		items = emu1010_src_texts;
-	}
-	if (uinfo->value.enumerated.item >= uinfo->value.enumerated.items)
-		uinfo->value.enumerated.item =
-			uinfo->value.enumerated.items - 1;
-	strcpy(uinfo->value.enumerated.name,
-	       items[uinfo->value.enumerated.item]);
-	return 0;
+	if (emu->card_capabilities->emu_model == EMU_MODEL_EMU1616)
+		return snd_ctl_enum_info(uinfo, 1, 49, emu1616_src_texts);
+	else
+		return snd_ctl_enum_info(uinfo, 1, 53, emu1010_src_texts);
 }
 
 static int snd_emu1010_output_source_get(struct snd_kcontrol *kcontrol,
@@ -510,7 +498,7 @@ static int snd_emu1010_input_source_put(struct snd_kcontrol *kcontrol,
 	.private_value = chid					\
 }
 
-static struct snd_kcontrol_new snd_emu1010_output_enum_ctls[] __devinitdata = {
+static struct snd_kcontrol_new snd_emu1010_output_enum_ctls[] = {
 	EMU1010_SOURCE_OUTPUT("Dock DAC1 Left Playback Enum", 0),
 	EMU1010_SOURCE_OUTPUT("Dock DAC1 Right Playback Enum", 1),
 	EMU1010_SOURCE_OUTPUT("Dock DAC2 Left Playback Enum", 2),
@@ -539,7 +527,7 @@ static struct snd_kcontrol_new snd_emu1010_output_enum_ctls[] __devinitdata = {
 
 
 /* 1616(m) cardbus */
-static struct snd_kcontrol_new snd_emu1616_output_enum_ctls[] __devinitdata = {
+static struct snd_kcontrol_new snd_emu1616_output_enum_ctls[] = {
 	EMU1010_SOURCE_OUTPUT("Dock DAC1 Left Playback Enum", 0),
 	EMU1010_SOURCE_OUTPUT("Dock DAC1 Right Playback Enum", 1),
 	EMU1010_SOURCE_OUTPUT("Dock DAC2 Left Playback Enum", 2),
@@ -571,7 +559,7 @@ static struct snd_kcontrol_new snd_emu1616_output_enum_ctls[] __devinitdata = {
 	.private_value = chid					\
 }
 
-static struct snd_kcontrol_new snd_emu1010_input_enum_ctls[] __devinitdata = {
+static struct snd_kcontrol_new snd_emu1010_input_enum_ctls[] = {
 	EMU1010_SOURCE_INPUT("DSP 0 Capture Enum", 0),
 	EMU1010_SOURCE_INPUT("DSP 1 Capture Enum", 1),
 	EMU1010_SOURCE_INPUT("DSP 2 Capture Enum", 2),
@@ -639,7 +627,7 @@ static int snd_emu1010_adc_pads_put(struct snd_kcontrol *kcontrol, struct snd_ct
 	.private_value = chid					\
 }
 
-static struct snd_kcontrol_new snd_emu1010_adc_pads[] __devinitdata = {
+static struct snd_kcontrol_new snd_emu1010_adc_pads[] = {
 	EMU1010_ADC_PADS("ADC1 14dB PAD Audio Dock Capture Switch", EMU_HANA_DOCK_ADC_PAD1),
 	EMU1010_ADC_PADS("ADC2 14dB PAD Audio Dock Capture Switch", EMU_HANA_DOCK_ADC_PAD2),
 	EMU1010_ADC_PADS("ADC3 14dB PAD Audio Dock Capture Switch", EMU_HANA_DOCK_ADC_PAD3),
@@ -687,7 +675,7 @@ static int snd_emu1010_dac_pads_put(struct snd_kcontrol *kcontrol, struct snd_ct
 	.private_value = chid					\
 }
 
-static struct snd_kcontrol_new snd_emu1010_dac_pads[] __devinitdata = {
+static struct snd_kcontrol_new snd_emu1010_dac_pads[] = {
 	EMU1010_DAC_PADS("DAC1 Audio Dock 14dB PAD Playback Switch", EMU_HANA_DOCK_DAC_PAD1),
 	EMU1010_DAC_PADS("DAC2 Audio Dock 14dB PAD Playback Switch", EMU_HANA_DOCK_DAC_PAD2),
 	EMU1010_DAC_PADS("DAC3 Audio Dock 14dB PAD Playback Switch", EMU_HANA_DOCK_DAC_PAD3),
@@ -699,19 +687,11 @@ static struct snd_kcontrol_new snd_emu1010_dac_pads[] __devinitdata = {
 static int snd_emu1010_internal_clock_info(struct snd_kcontrol *kcontrol,
 					  struct snd_ctl_elem_info *uinfo)
 {
-	static char *texts[4] = {
+	static const char * const texts[4] = {
 		"44100", "48000", "SPDIF", "ADAT"
 	};
 		
-	uinfo->type = SNDRV_CTL_ELEM_TYPE_ENUMERATED;
-	uinfo->count = 1;
-	uinfo->value.enumerated.items = 4;
-	if (uinfo->value.enumerated.item >= uinfo->value.enumerated.items)
-		uinfo->value.enumerated.item = uinfo->value.enumerated.items - 1;
-	strcpy(uinfo->value.enumerated.name, texts[uinfo->value.enumerated.item]);
-	return 0;
-	
-	
+	return snd_ctl_enum_info(uinfo, 1, 4, texts);
 }
 
 static int snd_emu1010_internal_clock_get(struct snd_kcontrol *kcontrol,
@@ -830,21 +810,15 @@ static int snd_audigy_i2c_capture_source_info(struct snd_kcontrol *kcontrol,
 					  struct snd_ctl_elem_info *uinfo)
 {
 #if 0
-	static char *texts[4] = {
+	static const char * const texts[4] = {
 		"Unknown1", "Unknown2", "Mic", "Line"
 	};
 #endif
-	static char *texts[2] = {
+	static const char * const texts[2] = {
 		"Mic", "Line"
 	};
 
-	uinfo->type = SNDRV_CTL_ELEM_TYPE_ENUMERATED;
-	uinfo->count = 1;
-	uinfo->value.enumerated.items = 2;
-	if (uinfo->value.enumerated.item > 1)
-                uinfo->value.enumerated.item = 1;
-	strcpy(uinfo->value.enumerated.name, texts[uinfo->value.enumerated.item]);
-	return 0;
+	return snd_ctl_enum_info(uinfo, 1, 2, texts);
 }
 
 static int snd_audigy_i2c_capture_source_get(struct snd_kcontrol *kcontrol,
@@ -989,7 +963,7 @@ static int snd_audigy_i2c_volume_put(struct snd_kcontrol *kcontrol,
 }
 
 
-static struct snd_kcontrol_new snd_audigy_i2c_volume_ctls[] __devinitdata = {
+static struct snd_kcontrol_new snd_audigy_i2c_volume_ctls[] = {
 	I2C_VOLUME("Mic Capture Volume", 0),
 	I2C_VOLUME("Line Capture Volume", 0)
 };
@@ -997,15 +971,9 @@ static struct snd_kcontrol_new snd_audigy_i2c_volume_ctls[] __devinitdata = {
 #if 0
 static int snd_audigy_spdif_output_rate_info(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_info *uinfo)
 {
-	static char *texts[] = {"44100", "48000", "96000"};
+	static const char * const texts[] = {"44100", "48000", "96000"};
 
-	uinfo->type = SNDRV_CTL_ELEM_TYPE_ENUMERATED;
-	uinfo->count = 1;
-	uinfo->value.enumerated.items = 3;
-	if (uinfo->value.enumerated.item >= uinfo->value.enumerated.items)
-		uinfo->value.enumerated.item = uinfo->value.enumerated.items - 1;
-	strcpy(uinfo->value.enumerated.name, texts[uinfo->value.enumerated.item]);
-	return 0;
+	return snd_ctl_enum_info(uinfo, 1, 3, texts);
 }
 
 static int snd_audigy_spdif_output_rate_get(struct snd_kcontrol *kcontrol,
@@ -1621,7 +1589,7 @@ static int snd_emu10k1_shared_spdif_put(struct snd_kcontrol *kcontrol,
 	return change;
 }
 
-static struct snd_kcontrol_new snd_emu10k1_shared_spdif __devinitdata =
+static struct snd_kcontrol_new snd_emu10k1_shared_spdif =
 {
 	.iface =	SNDRV_CTL_ELEM_IFACE_MIXER,
 	.name =		"SB Live Analog/Digital Output Jack",
@@ -1630,7 +1598,7 @@ static struct snd_kcontrol_new snd_emu10k1_shared_spdif __devinitdata =
 	.put =		snd_emu10k1_shared_spdif_put
 };
 
-static struct snd_kcontrol_new snd_audigy_shared_spdif __devinitdata =
+static struct snd_kcontrol_new snd_audigy_shared_spdif =
 {
 	.iface =	SNDRV_CTL_ELEM_IFACE_MIXER,
 	.name =		"Audigy Analog/Digital Output Jack",
@@ -1668,7 +1636,7 @@ static int snd_audigy_capture_boost_put(struct snd_kcontrol *kcontrol,
 	return snd_ac97_update(emu->ac97, AC97_REC_GAIN, val);
 }
 
-static struct snd_kcontrol_new snd_audigy_capture_boost __devinitdata =
+static struct snd_kcontrol_new snd_audigy_capture_boost =
 {
 	.iface =	SNDRV_CTL_ELEM_IFACE_MIXER,
 	.name =		"Analog Capture Boost",
@@ -1716,8 +1684,8 @@ static int rename_ctl(struct snd_card *card, const char *src, const char *dst)
 	return -ENOENT;
 }
 
-int __devinit snd_emu10k1_mixer(struct snd_emu10k1 *emu,
-				int pcm_device, int multi_device)
+int snd_emu10k1_mixer(struct snd_emu10k1 *emu,
+		      int pcm_device, int multi_device)
 {
 	int err, pcm;
 	struct snd_kcontrol *kctl;
@@ -1853,8 +1821,10 @@ int __devinit snd_emu10k1_mixer(struct snd_emu10k1 *emu,
 		if ((err = snd_ac97_mixer(pbus, &ac97, &emu->ac97)) < 0) {
 			if (emu->card_capabilities->ac97_chip == 1)
 				return err;
-			snd_printd(KERN_INFO "emu10k1: AC97 is optional on this board\n");
-			snd_printd(KERN_INFO"          Proceeding without ac97 mixers...\n");
+			dev_info(emu->card->dev,
+				 "AC97 is optional on this board\n");
+			dev_info(emu->card->dev,
+				 "Proceeding without ac97 mixers...\n");
 			snd_device_free(emu->card, pbus);
 			goto no_ac97; /* FIXME: get rid of ugly gotos.. */
 		}

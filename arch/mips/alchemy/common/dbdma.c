@@ -148,6 +148,50 @@ static dbdev_tab_t au1200_dbdev_tab[] __initdata = {
 	{ DSCR_CMD0_ALWAYS,   DEV_FLAGS_ANYUSE, 0, 0, 0x00000000, 0, 0 },
 };
 
+static dbdev_tab_t au1300_dbdev_tab[] __initdata = {
+	{ AU1300_DSCR_CMD0_UART0_TX, DEV_FLAGS_OUT, 0, 8,  0x10100004, 0, 0 },
+	{ AU1300_DSCR_CMD0_UART0_RX, DEV_FLAGS_IN,  0, 8,  0x10100000, 0, 0 },
+	{ AU1300_DSCR_CMD0_UART1_TX, DEV_FLAGS_OUT, 0, 8,  0x10101004, 0, 0 },
+	{ AU1300_DSCR_CMD0_UART1_RX, DEV_FLAGS_IN,  0, 8,  0x10101000, 0, 0 },
+	{ AU1300_DSCR_CMD0_UART2_TX, DEV_FLAGS_OUT, 0, 8,  0x10102004, 0, 0 },
+	{ AU1300_DSCR_CMD0_UART2_RX, DEV_FLAGS_IN,  0, 8,  0x10102000, 0, 0 },
+	{ AU1300_DSCR_CMD0_UART3_TX, DEV_FLAGS_OUT, 0, 8,  0x10103004, 0, 0 },
+	{ AU1300_DSCR_CMD0_UART3_RX, DEV_FLAGS_IN,  0, 8,  0x10103000, 0, 0 },
+
+	{ AU1300_DSCR_CMD0_SDMS_TX0, DEV_FLAGS_OUT, 4, 8,  0x10600000, 0, 0 },
+	{ AU1300_DSCR_CMD0_SDMS_RX0, DEV_FLAGS_IN,  4, 8,  0x10600004, 0, 0 },
+	{ AU1300_DSCR_CMD0_SDMS_TX1, DEV_FLAGS_OUT, 8, 8,  0x10601000, 0, 0 },
+	{ AU1300_DSCR_CMD0_SDMS_RX1, DEV_FLAGS_IN,  8, 8,  0x10601004, 0, 0 },
+
+	{ AU1300_DSCR_CMD0_AES_RX, DEV_FLAGS_IN ,   4, 32, 0x10300008, 0, 0 },
+	{ AU1300_DSCR_CMD0_AES_TX, DEV_FLAGS_OUT,   4, 32, 0x10300004, 0, 0 },
+
+	{ AU1300_DSCR_CMD0_PSC0_TX, DEV_FLAGS_OUT,  0, 16, 0x10a0001c, 0, 0 },
+	{ AU1300_DSCR_CMD0_PSC0_RX, DEV_FLAGS_IN,   0, 16, 0x10a0001c, 0, 0 },
+	{ AU1300_DSCR_CMD0_PSC1_TX, DEV_FLAGS_OUT,  0, 16, 0x10a0101c, 0, 0 },
+	{ AU1300_DSCR_CMD0_PSC1_RX, DEV_FLAGS_IN,   0, 16, 0x10a0101c, 0, 0 },
+	{ AU1300_DSCR_CMD0_PSC2_TX, DEV_FLAGS_OUT,  0, 16, 0x10a0201c, 0, 0 },
+	{ AU1300_DSCR_CMD0_PSC2_RX, DEV_FLAGS_IN,   0, 16, 0x10a0201c, 0, 0 },
+	{ AU1300_DSCR_CMD0_PSC3_TX, DEV_FLAGS_OUT,  0, 16, 0x10a0301c, 0, 0 },
+	{ AU1300_DSCR_CMD0_PSC3_RX, DEV_FLAGS_IN,   0, 16, 0x10a0301c, 0, 0 },
+
+	{ AU1300_DSCR_CMD0_LCD, DEV_FLAGS_ANYUSE,   0, 0,  0x00000000, 0, 0 },
+	{ AU1300_DSCR_CMD0_NAND_FLASH, DEV_FLAGS_IN, 0, 0, 0x00000000, 0, 0 },
+
+	{ AU1300_DSCR_CMD0_SDMS_TX2, DEV_FLAGS_OUT, 4, 8,  0x10602000, 0, 0 },
+	{ AU1300_DSCR_CMD0_SDMS_RX2, DEV_FLAGS_IN,  4, 8,  0x10602004, 0, 0 },
+
+	{ AU1300_DSCR_CMD0_CIM_SYNC, DEV_FLAGS_ANYUSE, 0, 0, 0x00000000, 0, 0 },
+
+	{ AU1300_DSCR_CMD0_UDMA, DEV_FLAGS_ANYUSE,  0, 32, 0x14001810, 0, 0 },
+
+	{ AU1300_DSCR_CMD0_DMA_REQ0, 0, 0, 0, 0x00000000, 0, 0 },
+	{ AU1300_DSCR_CMD0_DMA_REQ1, 0, 0, 0, 0x00000000, 0, 0 },
+
+	{ DSCR_CMD0_THROTTLE, DEV_FLAGS_ANYUSE, 0, 0, 0x00000000, 0, 0 },
+	{ DSCR_CMD0_ALWAYS,   DEV_FLAGS_ANYUSE, 0, 0, 0x00000000, 0, 0 },
+};
+
 /* 32 predefined plus 32 custom */
 #define DBDEV_TAB_SIZE		64
 
@@ -208,7 +252,7 @@ EXPORT_SYMBOL(au1xxx_ddma_del_device);
 u32 au1xxx_dbdma_chan_alloc(u32 srcid, u32 destid,
        void (*callback)(int, void *), void *callparam)
 {
-	unsigned long   flags;
+	unsigned long	flags;
 	u32		used, chan;
 	u32		dcp;
 	int		i;
@@ -297,7 +341,7 @@ u32 au1xxx_dbdma_chan_alloc(u32 srcid, u32 destid,
 			(dtp->dev_flags & DEV_FLAGS_SYNC))
 				i |= DDMA_CFG_SYNC;
 		cp->ddma_cfg = i;
-		au_sync();
+		wmb(); /* drain writebuffer */
 
 		/*
 		 * Return a non-zero value that can be used to find the channel
@@ -468,7 +512,7 @@ u32 au1xxx_dbdma_ring_alloc(u32 chanid, int entries)
 		break;
 	}
 
-	/* If source input is FIFO, set static address.	*/
+	/* If source input is FIFO, set static address. */
 	if (stp->dev_flags & DEV_FLAGS_IN) {
 		if (stp->dev_flags & DEV_FLAGS_BURSTABLE)
 			src1 |= DSCR_SRC1_SAM(DSCR_xAM_BURST);
@@ -587,11 +631,11 @@ u32 au1xxx_dbdma_put_source(u32 chanid, dma_addr_t buf, int nbytes, u32 flags)
 	 */
 	dma_cache_wback_inv((unsigned long)buf, nbytes);
 	dp->dscr_cmd0 |= DSCR_CMD0_V;	/* Let it rip */
-	au_sync();
+	wmb(); /* drain writebuffer */
 	dma_cache_wback_inv((unsigned long)dp, sizeof(*dp));
 	ctp->chan_ptr->ddma_dbell = 0;
 
-	/* Get next descriptor pointer.	*/
+	/* Get next descriptor pointer. */
 	ctp->put_ptr = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));
 
 	/* Return something non-zero. */
@@ -649,11 +693,11 @@ u32 au1xxx_dbdma_put_dest(u32 chanid, dma_addr_t buf, int nbytes, u32 flags)
 	 */
 	dma_cache_inv((unsigned long)buf, nbytes);
 	dp->dscr_cmd0 |= DSCR_CMD0_V;	/* Let it rip */
-	au_sync();
+	wmb(); /* drain writebuffer */
 	dma_cache_wback_inv((unsigned long)dp, sizeof(*dp));
 	ctp->chan_ptr->ddma_dbell = 0;
 
-	/* Get next descriptor pointer.	*/
+	/* Get next descriptor pointer. */
 	ctp->put_ptr = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));
 
 	/* Return something non-zero. */
@@ -698,7 +742,7 @@ u32 au1xxx_dbdma_get_dest(u32 chanid, void **buf, int *nbytes)
 	*nbytes = dp->dscr_cmd1;
 	rv = dp->dscr_stat;
 
-	/* Get next descriptor pointer.	*/
+	/* Get next descriptor pointer. */
 	ctp->get_ptr = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));
 
 	/* Return something non-zero. */
@@ -716,7 +760,7 @@ void au1xxx_dbdma_stop(u32 chanid)
 
 	cp = ctp->chan_ptr;
 	cp->ddma_cfg &= ~DDMA_CFG_EN;	/* Disable channel */
-	au_sync();
+	wmb(); /* drain writebuffer */
 	while (!(cp->ddma_stat & DDMA_STAT_H)) {
 		udelay(1);
 		halt_timeout++;
@@ -727,7 +771,7 @@ void au1xxx_dbdma_stop(u32 chanid)
 	}
 	/* clear current desc valid and doorbell */
 	cp->ddma_stat |= (DDMA_STAT_DB | DDMA_STAT_V);
-	au_sync();
+	wmb(); /* drain writebuffer */
 }
 EXPORT_SYMBOL(au1xxx_dbdma_stop);
 
@@ -745,9 +789,9 @@ void au1xxx_dbdma_start(u32 chanid)
 	cp = ctp->chan_ptr;
 	cp->ddma_desptr = virt_to_phys(ctp->cur_ptr);
 	cp->ddma_cfg |= DDMA_CFG_EN;	/* Enable channel */
-	au_sync();
+	wmb(); /* drain writebuffer */
 	cp->ddma_dbell = 0;
-	au_sync();
+	wmb(); /* drain writebuffer */
 }
 EXPORT_SYMBOL(au1xxx_dbdma_start);
 
@@ -788,7 +832,7 @@ u32 au1xxx_get_dma_residue(u32 chanid)
 
 	/* This is only valid if the channel is stopped. */
 	rv = cp->ddma_bytecnt;
-	au_sync();
+	wmb(); /* drain writebuffer */
 
 	return rv;
 }
@@ -824,7 +868,7 @@ static irqreturn_t dbdma_interrupt(int irq, void *dev_id)
 	au1x_dma_chan_t *cp;
 
 	intstat = dbdma_gptr->ddma_intstat;
-	au_sync();
+	wmb(); /* drain writebuffer */
 	chan_index = __ffs(intstat);
 
 	ctp = chan_tab_ptr[chan_index];
@@ -833,7 +877,7 @@ static irqreturn_t dbdma_interrupt(int irq, void *dev_id)
 
 	/* Reset interrupt. */
 	cp->ddma_irq = 0;
-	au_sync();
+	wmb(); /* drain writebuffer */
 
 	if (ctp->chan_callback)
 		ctp->chan_callback(irq, ctp->chan_callparam);
@@ -847,7 +891,7 @@ void au1xxx_dbdma_dump(u32 chanid)
 	chan_tab_t	 *ctp;
 	au1x_ddma_desc_t *dp;
 	dbdev_tab_t	 *stp, *dtp;
-	au1x_dma_chan_t  *cp;
+	au1x_dma_chan_t	 *cp;
 	u32 i		 = 0;
 
 	ctp = *((chan_tab_t **)chanid);
@@ -925,7 +969,7 @@ u32 au1xxx_dbdma_put_dscr(u32 chanid, au1x_ddma_desc_t *dscr)
 	dp->dscr_cmd0 |= dscr->dscr_cmd0 | DSCR_CMD0_V;
 	ctp->chan_ptr->ddma_dbell = 0;
 
-	/* Get next descriptor pointer.	*/
+	/* Get next descriptor pointer. */
 	ctp->put_ptr = phys_to_virt(DSCR_GET_NXTPTR(dp->dscr_nxtptr));
 
 	/* Return something non-zero. */
@@ -1017,10 +1061,9 @@ static int __init dbdma_setup(unsigned int irq, dbdev_tab_t *idtable)
 	dbdma_gptr->ddma_config = 0;
 	dbdma_gptr->ddma_throttle = 0;
 	dbdma_gptr->ddma_inten = 0xffff;
-	au_sync();
+	wmb(); /* drain writebuffer */
 
-	ret = request_irq(irq, dbdma_interrupt, IRQF_DISABLED, "dbdma",
-			  (void *)dbdma_gptr);
+	ret = request_irq(irq, dbdma_interrupt, 0, "dbdma", (void *)dbdma_gptr);
 	if (ret)
 		printk(KERN_ERR "Cannot grab DBDMA interrupt!\n");
 	else {
@@ -1038,6 +1081,8 @@ static int __init alchemy_dbdma_init(void)
 		return dbdma_setup(AU1550_DDMA_INT, au1550_dbdev_tab);
 	case ALCHEMY_CPU_AU1200:
 		return dbdma_setup(AU1200_DDMA_INT, au1200_dbdev_tab);
+	case ALCHEMY_CPU_AU1300:
+		return dbdma_setup(AU1300_DDMA_INT, au1300_dbdev_tab);
 	}
 	return 0;
 }

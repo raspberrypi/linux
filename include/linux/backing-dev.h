@@ -10,13 +10,15 @@
 
 #include <linux/percpu_counter.h>
 #include <linux/log2.h>
-#include <linux/proportions.h>
+#include <linux/flex_proportions.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/sched.h>
 #include <linux/timer.h>
 #include <linux/writeback.h>
 #include <linux/atomic.h>
+#include <linux/sysctl.h>
+#include <linux/workqueue.h>
 
 struct page;
 struct device;
@@ -26,13 +28,10 @@ struct dentry;
  * Bits in backing_dev_info.state
  */
 enum bdi_state {
-	BDI_pending,		/* On its way to being activated */
-	BDI_wb_alloc,		/* Default embedded wb allocated */
 	BDI_async_congested,	/* The async (write) queue is getting full */
 	BDI_sync_congested,	/* The sync queue is getting full */
 	BDI_registered,		/* bdi_register() was done */
 	BDI_writeback_running,	/* Writeback is in progress */
-	BDI_unused,		/* Available bits start here */
 };
 
 typedef int (congested_fn)(void *, int);
@@ -49,16 +48,14 @@ enum bdi_stat_item {
 
 struct bdi_writeback {
 	struct backing_dev_info *bdi;	/* our parent bdi */
-	unsigned int nr;
 
 	unsigned long last_old_flush;	/* last old data flush */
-	unsigned long last_active;	/* last time bdi thread was active */
 
-	struct task_struct *task;	/* writeback thread */
-	struct timer_list wakeup_timer; /* used for delayed bdi thread wakeup */
+	struct delayed_work dwork;	/* work item used for writeback */
 	struct list_head b_dirty;	/* dirty inodes */
 	struct list_head b_io;		/* parked for writeback */
 	struct list_head b_more_io;	/* parked for more writeback */
+	struct list_head b_dirty_time;	/* time stamps are dirty */
 	spinlock_t list_lock;		/* protects the b_* lists */
 };
 
@@ -89,14 +86,14 @@ struct backing_dev_info {
 	unsigned long dirty_ratelimit;
 	unsigned long balanced_dirty_ratelimit;
 
-	struct prop_local_percpu completions;
+	struct fprop_local_percpu completions;
 	int dirty_exceeded;
 
 	unsigned int min_ratio;
 	unsigned int max_ratio, max_prop_frac;
 
 	struct bdi_writeback wb;  /* default writeback info for this bdi */
-	spinlock_t wb_lock;	  /* protects work_list */
+	spinlock_t wb_lock;	  /* protects work_list & wb.dwork scheduling */
 
 	struct list_head work_list;
 
@@ -110,26 +107,28 @@ struct backing_dev_info {
 #endif
 };
 
-int bdi_init(struct backing_dev_info *bdi);
+struct backing_dev_info *inode_to_bdi(struct inode *inode);
+
+int __must_check bdi_init(struct backing_dev_info *bdi);
 void bdi_destroy(struct backing_dev_info *bdi);
 
+__printf(3, 4)
 int bdi_register(struct backing_dev_info *bdi, struct device *parent,
 		const char *fmt, ...);
 int bdi_register_dev(struct backing_dev_info *bdi, dev_t dev);
 void bdi_unregister(struct backing_dev_info *bdi);
-int bdi_setup_and_register(struct backing_dev_info *, char *, unsigned int);
+int __must_check bdi_setup_and_register(struct backing_dev_info *, char *);
 void bdi_start_writeback(struct backing_dev_info *bdi, long nr_pages,
 			enum wb_reason reason);
 void bdi_start_background_writeback(struct backing_dev_info *bdi);
-int bdi_writeback_thread(void *data);
+void bdi_writeback_workfn(struct work_struct *work);
 int bdi_has_dirty_io(struct backing_dev_info *bdi);
-void bdi_arm_supers_timer(void);
 void bdi_wakeup_thread_delayed(struct backing_dev_info *bdi);
-void bdi_lock_two(struct bdi_writeback *wb1, struct bdi_writeback *wb2);
 
 extern spinlock_t bdi_lock;
 extern struct list_head bdi_list;
-extern struct list_head bdi_pending_list;
+
+extern struct workqueue_struct *bdi_wq;
 
 static inline int wb_has_dirty_io(struct bdi_writeback *wb)
 {
@@ -232,42 +231,17 @@ int bdi_set_max_ratio(struct backing_dev_info *bdi, unsigned int max_ratio);
  * BDI_CAP_NO_ACCT_DIRTY:  Dirty pages shouldn't contribute to accounting
  * BDI_CAP_NO_WRITEBACK:   Don't write pages back
  * BDI_CAP_NO_ACCT_WB:     Don't automatically account writeback pages
- *
- * These flags let !MMU mmap() govern direct device mapping vs immediate
- * copying more easily for MAP_PRIVATE, especially for ROM filesystems.
- *
- * BDI_CAP_MAP_COPY:       Copy can be mapped (MAP_PRIVATE)
- * BDI_CAP_MAP_DIRECT:     Can be mapped directly (MAP_SHARED)
- * BDI_CAP_READ_MAP:       Can be mapped for reading
- * BDI_CAP_WRITE_MAP:      Can be mapped for writing
- * BDI_CAP_EXEC_MAP:       Can be mapped for execution
- *
- * BDI_CAP_SWAP_BACKED:    Count shmem/tmpfs objects as swap-backed.
+ * BDI_CAP_STRICTLIMIT:    Keep number of dirty pages below bdi threshold.
  */
 #define BDI_CAP_NO_ACCT_DIRTY	0x00000001
 #define BDI_CAP_NO_WRITEBACK	0x00000002
-#define BDI_CAP_MAP_COPY	0x00000004
-#define BDI_CAP_MAP_DIRECT	0x00000008
-#define BDI_CAP_READ_MAP	0x00000010
-#define BDI_CAP_WRITE_MAP	0x00000020
-#define BDI_CAP_EXEC_MAP	0x00000040
-#define BDI_CAP_NO_ACCT_WB	0x00000080
-#define BDI_CAP_SWAP_BACKED	0x00000100
-
-#define BDI_CAP_VMFLAGS \
-	(BDI_CAP_READ_MAP | BDI_CAP_WRITE_MAP | BDI_CAP_EXEC_MAP)
+#define BDI_CAP_NO_ACCT_WB	0x00000004
+#define BDI_CAP_STABLE_WRITES	0x00000008
+#define BDI_CAP_STRICTLIMIT	0x00000010
 
 #define BDI_CAP_NO_ACCT_AND_WRITEBACK \
 	(BDI_CAP_NO_WRITEBACK | BDI_CAP_NO_ACCT_DIRTY | BDI_CAP_NO_ACCT_WB)
 
-#if defined(VM_MAYREAD) && \
-	(BDI_CAP_READ_MAP != VM_MAYREAD || \
-	 BDI_CAP_WRITE_MAP != VM_MAYWRITE || \
-	 BDI_CAP_EXEC_MAP != VM_MAYEXEC)
-#error please change backing_dev_info::capabilities flags
-#endif
-
-extern struct backing_dev_info default_backing_dev_info;
 extern struct backing_dev_info noop_backing_dev_info;
 
 int writeback_in_progress(struct backing_dev_info *bdi);
@@ -304,6 +278,13 @@ void clear_bdi_congested(struct backing_dev_info *bdi, int sync);
 void set_bdi_congested(struct backing_dev_info *bdi, int sync);
 long congestion_wait(int sync, long timeout);
 long wait_iff_congested(struct zone *zone, int sync, long timeout);
+int pdflush_proc_obsolete(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos);
+
+static inline bool bdi_cap_stable_pages_required(struct backing_dev_info *bdi)
+{
+	return bdi->capabilities & BDI_CAP_STABLE_WRITES;
+}
 
 static inline bool bdi_cap_writeback_dirty(struct backing_dev_info *bdi)
 {
@@ -322,29 +303,14 @@ static inline bool bdi_cap_account_writeback(struct backing_dev_info *bdi)
 				      BDI_CAP_NO_WRITEBACK));
 }
 
-static inline bool bdi_cap_swap_backed(struct backing_dev_info *bdi)
-{
-	return bdi->capabilities & BDI_CAP_SWAP_BACKED;
-}
-
-static inline bool bdi_cap_flush_forker(struct backing_dev_info *bdi)
-{
-	return bdi == &default_backing_dev_info;
-}
-
 static inline bool mapping_cap_writeback_dirty(struct address_space *mapping)
 {
-	return bdi_cap_writeback_dirty(mapping->backing_dev_info);
+	return bdi_cap_writeback_dirty(inode_to_bdi(mapping->host));
 }
 
 static inline bool mapping_cap_account_dirty(struct address_space *mapping)
 {
-	return bdi_cap_account_dirty(mapping->backing_dev_info);
-}
-
-static inline bool mapping_cap_swap_backed(struct address_space *mapping)
-{
-	return bdi_cap_swap_backed(mapping->backing_dev_info);
+	return bdi_cap_account_dirty(inode_to_bdi(mapping->host));
 }
 
 static inline int bdi_sched_wait(void *word)

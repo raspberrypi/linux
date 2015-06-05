@@ -18,7 +18,7 @@
  *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
-#include <asm/io.h>
+#include <linux/io.h>
 #include <asm/irq.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -215,7 +215,7 @@ static struct snd_kcontrol_new snd_pmac_beep_mixer = {
 };
 
 /* Initialize beep stuff */
-int __devinit snd_pmac_attach_beep(struct snd_pmac *chip)
+int snd_pmac_attach_beep(struct snd_pmac *chip)
 {
 	struct pmac_beep *beep;
 	struct input_dev *input_dev;

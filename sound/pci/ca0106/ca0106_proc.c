@@ -64,13 +64,13 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/moduleparam.h>
+#include <linux/io.h>
 #include <sound/core.h>
 #include <sound/initval.h>
 #include <sound/pcm.h>
 #include <sound/ac97_codec.h>
 #include <sound/info.h>
 #include <sound/asoundef.h>
-#include <asm/io.h>
 
 #include "ca0106.h"
 
@@ -424,7 +424,7 @@ static void snd_ca0106_proc_i2c_write(struct snd_info_entry *entry,
         }
 }
 
-int __devinit snd_ca0106_proc_init(struct snd_ca0106 * emu)
+int snd_ca0106_proc_init(struct snd_ca0106 *emu)
 {
 	struct snd_info_entry *entry;
 	

@@ -95,8 +95,9 @@ static struct atmel_nand_data atstk1006_nand_data __initdata = {
 	.ale		= 22,
 	.rdy_pin	= GPIO_PIN_PB(30),
 	.enable_pin	= GPIO_PIN_PB(29),
+	.ecc_mode	= NAND_ECC_SOFT,
 	.parts		= nand_partitions,
-	.num_parts	= ARRAY_SIZE(num_partitions),
+	.num_parts	= ARRAY_SIZE(nand_partitions),
 };
 #endif
 
@@ -105,7 +106,7 @@ struct eth_addr {
 };
 
 static struct eth_addr __initdata hw_addr[2];
-static struct eth_platform_data __initdata eth_data[2] = {
+static struct macb_platform_data __initdata eth_data[2] = {
 	{
 		/*
 		 * The MDIO pullups on STK1000 are a bit too weak for

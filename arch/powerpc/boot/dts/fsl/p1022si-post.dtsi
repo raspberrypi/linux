@@ -35,13 +35,18 @@
 &lbc {
 	#address-cells = <2>;
 	#size-cells = <1>;
-	compatible = "fsl,p1022-elbc", "fsl,elbc", "simple-bus";
-	interrupts = <19 2 0 0>;
+	/*
+	 * The localbus on the P1022 is not a simple-bus because of the eLBC
+	 * pin muxing when the DIU is enabled.
+	 */
+	compatible = "fsl,p1022-elbc", "fsl,elbc";
+	interrupts = <19 2 0 0>,
+		     <16 2 0 0>;
 };
 
 /* controller at 0x9000 */
 &pci0 {
-	compatible = "fsl,p1022-pcie";
+	compatible = "fsl,mpc8548-pcie";
 	device_type = "pci";
 	#size-cells = <2>;
 	#address-cells = <3>;
@@ -69,7 +74,7 @@
 
 /* controller at 0xa000 */
 &pci1 {
-	compatible = "fsl,p1022-pcie";
+	compatible = "fsl,mpc8548-pcie";
 	device_type = "pci";
 	#size-cells = <2>;
 	#address-cells = <3>;
@@ -98,7 +103,7 @@
 
 /* controller at 0xb000 */
 &pci2 {
-	compatible = "fsl,p1022-pcie";
+	compatible = "fsl,mpc8548-pcie";
 	device_type = "pci";
 	#size-cells = <2>;
 	#address-cells = <3>;
@@ -199,11 +204,18 @@
 
 /include/ "pq3-dma-0.dtsi"
 /include/ "pq3-usb2-dr-0.dtsi"
+	usb@22000 {
+		compatible = "fsl-usb2-dr-v1.6", "fsl-usb2-dr";
+	};
 /include/ "pq3-usb2-dr-1.dtsi"
+	usb@23000 {
+		compatible = "fsl-usb2-dr-v1.6", "fsl-usb2-dr";
+	};
 
 /include/ "pq3-esdhc-0.dtsi"
 	sdhc@2e000 {
-		fsl,sdhci-auto-cmd12;
+		compatible = "fsl,p1022-esdhc", "fsl,esdhc";
+		sdhci,auto-cmd12;
 	};
 
 /include/ "pq3-sec3.3-0.dtsi"

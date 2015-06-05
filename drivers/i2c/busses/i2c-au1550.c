@@ -21,17 +21,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 #include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-#include <linux/init.h>
 #include <linux/errno.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
@@ -313,7 +308,7 @@ static void i2c_au1550_disable(struct i2c_au1550_data *priv)
  * Prior to calling us, the 50MHz clock frequency and routing
  * must have been set up for the PSC indicated by the adapter.
  */
-static int __devinit
+static int
 i2c_au1550_probe(struct platform_device *pdev)
 {
 	struct i2c_au1550_data *priv;
@@ -372,11 +367,10 @@ out:
 	return ret;
 }
 
-static int __devexit i2c_au1550_remove(struct platform_device *pdev)
+static int i2c_au1550_remove(struct platform_device *pdev)
 {
 	struct i2c_au1550_data *priv = platform_get_drvdata(pdev);
 
-	platform_set_drvdata(pdev, NULL);
 	i2c_del_adapter(&priv->adap);
 	i2c_au1550_disable(priv);
 	iounmap(priv->psc_base);
@@ -419,27 +413,15 @@ static const struct dev_pm_ops i2c_au1550_pmops = {
 static struct platform_driver au1xpsc_smbus_driver = {
 	.driver = {
 		.name	= "au1xpsc_smbus",
-		.owner	= THIS_MODULE,
 		.pm	= AU1XPSC_SMBUS_PMOPS,
 	},
 	.probe		= i2c_au1550_probe,
-	.remove		= __devexit_p(i2c_au1550_remove),
+	.remove		= i2c_au1550_remove,
 };
 
-static int __init i2c_au1550_init(void)
-{
-	return platform_driver_register(&au1xpsc_smbus_driver);
-}
-
-static void __exit i2c_au1550_exit(void)
-{
-	platform_driver_unregister(&au1xpsc_smbus_driver);
-}
+module_platform_driver(au1xpsc_smbus_driver);
 
 MODULE_AUTHOR("Dan Malek, Embedded Edge, LLC.");
 MODULE_DESCRIPTION("SMBus adapter Alchemy pb1550");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:au1xpsc_smbus");
-
-module_init (i2c_au1550_init);
-module_exit (i2c_au1550_exit);

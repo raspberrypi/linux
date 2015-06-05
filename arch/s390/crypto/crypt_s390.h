@@ -3,7 +3,7 @@
  *
  * Support for s390 cryptographic instructions.
  *
- *   Copyright IBM Corp. 2003,2007
+ *   Copyright IBM Corp. 2003, 2007
  *   Author(s): Thomas Spatzier
  *		Jan Glauber (jan.glauber@de.ibm.com)
  *
@@ -17,6 +17,7 @@
 #define _CRYPTO_ARCH_S390_CRYPT_S390_H
 
 #include <asm/errno.h>
+#include <asm/facility.h>
 
 #define CRYPT_S390_OP_MASK 0xFF00
 #define CRYPT_S390_FUNC_MASK 0x00FF

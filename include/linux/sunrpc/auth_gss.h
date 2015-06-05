@@ -69,8 +69,9 @@ struct gss_cl_ctx {
 	enum rpc_gss_proc	gc_proc;
 	u32			gc_seq;
 	spinlock_t		gc_seq_lock;
-	struct gss_ctx __rcu	*gc_gss_ctx;
+	struct gss_ctx		*gc_gss_ctx;
 	struct xdr_netobj	gc_wire_ctx;
+	struct xdr_netobj	gc_acceptor;
 	u32			gc_win;
 	unsigned long		gc_expiry;
 	struct rcu_head		gc_rcu;
@@ -82,8 +83,8 @@ struct gss_cred {
 	enum rpc_gss_svc	gc_service;
 	struct gss_cl_ctx __rcu	*gc_ctx;
 	struct gss_upcall_msg	*gc_upcall;
+	const char		*gc_principal;
 	unsigned long		gc_upcall_timestamp;
-	unsigned char		gc_machine_cred : 1;
 };
 
 #endif /* __KERNEL__ */

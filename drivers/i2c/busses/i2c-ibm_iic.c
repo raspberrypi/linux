@@ -36,13 +36,13 @@
 #include <linux/ioport.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
-#include <linux/init.h>
 #include <linux/interrupt.h>
 #include <asm/irq.h>
 #include <linux/io.h>
 #include <linux/i2c.h>
+#include <linux/of_address.h>
+#include <linux/of_irq.h>
 #include <linux/of_platform.h>
-#include <linux/of_i2c.h>
 
 #include "i2c-ibm_iic.h"
 
@@ -51,11 +51,11 @@
 MODULE_DESCRIPTION("IBM IIC driver v" DRIVER_VERSION);
 MODULE_LICENSE("GPL");
 
-static int iic_force_poll;
+static bool iic_force_poll;
 module_param(iic_force_poll, bool, 0);
 MODULE_PARM_DESC(iic_force_poll, "Force polling mode");
 
-static int iic_force_fast;
+static bool iic_force_fast;
 module_param(iic_force_fast, bool, 0);
 MODULE_PARM_DESC(iic_force_fast, "Force fast mode (400 kHz)");
 
@@ -660,7 +660,7 @@ static inline u8 iic_clckdiv(unsigned int opb)
 	return (u8)((opb + 9) / 10 - 1);
 }
 
-static int __devinit iic_request_irq(struct platform_device *ofdev,
+static int iic_request_irq(struct platform_device *ofdev,
 				     struct ibm_iic_private *dev)
 {
 	struct device_node *np = ofdev->dev.of_node;
@@ -691,7 +691,7 @@ static int __devinit iic_request_irq(struct platform_device *ofdev,
 /*
  * Register single IIC interface
  */
-static int __devinit iic_probe(struct platform_device *ofdev)
+static int iic_probe(struct platform_device *ofdev)
 {
 	struct device_node *np = ofdev->dev.of_node;
 	struct ibm_iic_private *dev;
@@ -705,7 +705,7 @@ static int __devinit iic_probe(struct platform_device *ofdev)
 		return -ENOMEM;
 	}
 
-	dev_set_drvdata(&ofdev->dev, dev);
+	platform_set_drvdata(ofdev, dev);
 
 	dev->vaddr = of_iomap(np, 0);
 	if (dev->vaddr == NULL) {
@@ -759,9 +759,6 @@ static int __devinit iic_probe(struct platform_device *ofdev)
 	dev_info(&ofdev->dev, "using %s mode\n",
 		 dev->fast_mode ? "fast (400 kHz)" : "standard (100 kHz)");
 
-	/* Now register all the child nodes */
-	of_i2c_register_devices(adap);
-
 	return 0;
 
 error_cleanup:
@@ -773,7 +770,6 @@ error_cleanup:
 	if (dev->vaddr)
 		iounmap(dev->vaddr);
 
-	dev_set_drvdata(&ofdev->dev, NULL);
 	kfree(dev);
 	return ret;
 }
@@ -781,11 +777,9 @@ error_cleanup:
 /*
  * Cleanup initialized IIC interface
  */
-static int __devexit iic_remove(struct platform_device *ofdev)
+static int iic_remove(struct platform_device *ofdev)
 {
-	struct ibm_iic_private *dev = dev_get_drvdata(&ofdev->dev);
-
-	dev_set_drvdata(&ofdev->dev, NULL);
+	struct ibm_iic_private *dev = platform_get_drvdata(ofdev);
 
 	i2c_del_adapter(&dev->adap);
 
@@ -808,22 +802,10 @@ static const struct of_device_id ibm_iic_match[] = {
 static struct platform_driver ibm_iic_driver = {
 	.driver = {
 		.name = "ibm-iic",
-		.owner = THIS_MODULE,
 		.of_match_table = ibm_iic_match,
 	},
 	.probe	= iic_probe,
-	.remove	= __devexit_p(iic_remove),
+	.remove	= iic_remove,
 };
 
-static int __init iic_init(void)
-{
-	return platform_driver_register(&ibm_iic_driver);
-}
-
-static void __exit iic_exit(void)
-{
-	platform_driver_unregister(&ibm_iic_driver);
-}
-
-module_init(iic_init);
-module_exit(iic_exit);
+module_platform_driver(ibm_iic_driver);

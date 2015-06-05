@@ -27,9 +27,8 @@
 	.section .altinstr_replacement, "ax", @progbits
 .Lmemcpy_c:
 	movq %rdi, %rax
-
-	movl %edx, %ecx
-	shrl $3, %ecx
+	movq %rdx, %rcx
+	shrq $3, %rcx
 	andl $7, %edx
 	rep movsq
 	movl %edx, %ecx
@@ -48,22 +47,20 @@
 	.section .altinstr_replacement, "ax", @progbits
 .Lmemcpy_c_e:
 	movq %rdi, %rax
-
-	movl %edx, %ecx
+	movq %rdx, %rcx
 	rep movsb
 	ret
 .Lmemcpy_e_e:
 	.previous
+
+.weak memcpy
 
 ENTRY(__memcpy)
 ENTRY(memcpy)
 	CFI_STARTPROC
 	movq %rdi, %rax
 
-	/*
-	 * Use 32bit CMP here to avoid long NOP padding.
-	 */
-	cmp  $0x20, %edx
+	cmpq $0x20, %rdx
 	jb .Lhandle_tail
 
 	/*
@@ -72,7 +69,7 @@ ENTRY(memcpy)
 	 */
 	cmp  %dil, %sil
 	jl .Lcopy_backward
-	subl $0x20, %edx
+	subq $0x20, %rdx
 .Lcopy_forward_loop:
 	subq $0x20,	%rdx
 
@@ -91,7 +88,7 @@ ENTRY(memcpy)
 	movq %r11,	3*8(%rdi)
 	leaq 4*8(%rdi),	%rdi
 	jae  .Lcopy_forward_loop
-	addq $0x20,	%rdx
+	addl $0x20,	%edx
 	jmp  .Lhandle_tail
 
 .Lcopy_backward:
@@ -103,7 +100,7 @@ ENTRY(memcpy)
 	subq $0x20,	%rdx
 	/*
 	 * At most 3 ALU operations in one cycle,
-	 * so append NOPS in the same 16bytes trunk.
+	 * so append NOPS in the same 16 bytes trunk.
 	 */
 	.p2align 4
 .Lcopy_backward_loop:
@@ -123,11 +120,11 @@ ENTRY(memcpy)
 	/*
 	 * Calculate copy position to head.
 	 */
-	addq $0x20,	%rdx
+	addl $0x20,	%edx
 	subq %rdx,	%rsi
 	subq %rdx,	%rdi
 .Lhandle_tail:
-	cmpq $16,	%rdx
+	cmpl $16,	%edx
 	jb   .Lless_16bytes
 
 	/*
@@ -144,7 +141,7 @@ ENTRY(memcpy)
 	retq
 	.p2align 4
 .Lless_16bytes:
-	cmpq $8,	%rdx
+	cmpl $8,	%edx
 	jb   .Lless_8bytes
 	/*
 	 * Move data from 8 bytes to 15 bytes.
@@ -156,7 +153,7 @@ ENTRY(memcpy)
 	retq
 	.p2align 4
 .Lless_8bytes:
-	cmpq $4,	%rdx
+	cmpl $4,	%edx
 	jb   .Lless_3bytes
 
 	/*
@@ -169,18 +166,19 @@ ENTRY(memcpy)
 	retq
 	.p2align 4
 .Lless_3bytes:
-	cmpl $0, %edx
-	je .Lend
+	subl $1, %edx
+	jb .Lend
 	/*
 	 * Move data from 1 bytes to 3 bytes.
 	 */
-.Lloop_1:
-	movb (%rsi), %r8b
-	movb %r8b, (%rdi)
-	incq %rdi
-	incq %rsi
-	decl %edx
-	jnz .Lloop_1
+	movzbl (%rsi), %ecx
+	jz .Lstore_1byte
+	movzbq 1(%rsi), %r8
+	movzbq (%rsi, %rdx), %r9
+	movb %r8b, 1(%rdi)
+	movb %r9b, (%rdi, %rdx)
+.Lstore_1byte:
+	movb %cl, (%rdi)
 
 .Lend:
 	retq
@@ -203,8 +201,8 @@ ENDPROC(__memcpy)
 	 * only outcome...
 	 */
 	.section .altinstructions, "a"
-	altinstruction_entry memcpy,.Lmemcpy_c,X86_FEATURE_REP_GOOD,\
+	altinstruction_entry __memcpy,.Lmemcpy_c,X86_FEATURE_REP_GOOD,\
 			     .Lmemcpy_e-.Lmemcpy_c,.Lmemcpy_e-.Lmemcpy_c
-	altinstruction_entry memcpy,.Lmemcpy_c_e,X86_FEATURE_ERMS, \
+	altinstruction_entry __memcpy,.Lmemcpy_c_e,X86_FEATURE_ERMS, \
 			     .Lmemcpy_e_e-.Lmemcpy_c_e,.Lmemcpy_e_e-.Lmemcpy_c_e
 	.previous

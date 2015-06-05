@@ -74,7 +74,7 @@ static int red_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 		break;
 
 	case RED_PROB_MARK:
-		sch->qstats.overlimits++;
+		qdisc_qstats_overlimit(sch);
 		if (!red_use_ecn(q) || !INET_ECN_set_ce(skb)) {
 			q->stats.prob_drop++;
 			goto congestion_drop;
@@ -84,7 +84,7 @@ static int red_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 		break;
 
 	case RED_HARD_MARK:
-		sch->qstats.overlimits++;
+		qdisc_qstats_overlimit(sch);
 		if (red_use_harddrop(q) || !red_use_ecn(q) ||
 		    !INET_ECN_set_ce(skb)) {
 			q->stats.forced_drop++;
@@ -100,7 +100,7 @@ static int red_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 		sch->q.qlen++;
 	} else if (net_xmit_drop_count(ret)) {
 		q->stats.pdrop++;
-		sch->qstats.drops++;
+		qdisc_qstats_drop(sch);
 	}
 	return ret;
 
@@ -142,7 +142,7 @@ static unsigned int red_drop(struct Qdisc *sch)
 
 	if (child->ops->drop && (len = child->ops->drop(child)) > 0) {
 		q->stats.other++;
-		sch->qstats.drops++;
+		qdisc_qstats_drop(sch);
 		sch->q.qlen--;
 		return len;
 	}
@@ -272,8 +272,9 @@ static int red_dump(struct Qdisc *sch, struct sk_buff *skb)
 	opts = nla_nest_start(skb, TCA_OPTIONS);
 	if (opts == NULL)
 		goto nla_put_failure;
-	NLA_PUT(skb, TCA_RED_PARMS, sizeof(opt), &opt);
-	NLA_PUT_U32(skb, TCA_RED_MAX_P, q->parms.max_P);
+	if (nla_put(skb, TCA_RED_PARMS, sizeof(opt), &opt) ||
+	    nla_put_u32(skb, TCA_RED_MAX_P, q->parms.max_P))
+		goto nla_put_failure;
 	return nla_nest_end(skb, opts);
 
 nla_put_failure:

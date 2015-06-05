@@ -45,7 +45,6 @@
 #include <linux/slab.h>
 #include <linux/tcp.h>
 #include <linux/types.h>
-#include <linux/version.h>
 #include <linux/wireless.h>
 #include <linux/etherdevice.h>
 #include <linux/uaccess.h>
@@ -54,7 +53,9 @@
 #include "rtllib.h"
 
 
-#define DRV_NAME "rtllib_92e"
+u32 rt_global_debug_component = COMP_ERR;
+EXPORT_SYMBOL(rt_global_debug_component);
+
 
 void _setup_timer(struct timer_list *ptimer, void *fun, unsigned long data)
 {
@@ -110,7 +111,7 @@ struct net_device *alloc_rtllib(int sizeof_priv)
 	dev = alloc_etherdev(sizeof(struct rtllib_device) + sizeof_priv);
 	if (!dev) {
 		RTLLIB_ERROR("Unable to network device.\n");
-		goto failed;
+		return NULL;
 	}
 	ieee = (struct rtllib_device *)netdev_priv_rsl(dev);
 	memset(ieee, 0, sizeof(struct rtllib_device)+sizeof_priv);
@@ -135,10 +136,6 @@ struct net_device *alloc_rtllib(int sizeof_priv)
 	ieee->host_decrypt = 1;
 	ieee->ieee802_1x = 1; /* Default to supporting 802.1x */
 
-	INIT_LIST_HEAD(&ieee->crypt_deinit_list);
-	_setup_timer(&ieee->crypt_deinit_timer,
-		    rtllib_crypt_deinit_handler,
-		    (unsigned long) ieee);
 	ieee->rtllib_ap_sec_type = rtllib_ap_sec_type;
 
 	spin_lock_init(&ieee->lock);
@@ -147,6 +144,9 @@ struct net_device *alloc_rtllib(int sizeof_priv)
 	spin_lock_init(&ieee->reorder_spinlock);
 	atomic_set(&(ieee->atm_chnlop), 0);
 	atomic_set(&(ieee->atm_swbw), 0);
+
+	/* SAM FIXME */
+	lib80211_crypt_info_init(&ieee->crypt_info, "RTLLIB", &ieee->lock);
 
 	ieee->bHalfNMode = false;
 	ieee->wpa_enabled = 0;
@@ -177,109 +177,85 @@ struct net_device *alloc_rtllib(int sizeof_priv)
 		ieee->last_packet_time[i] = 0;
 	}
 
-	rtllib_tkip_null();
-	rtllib_wep_null();
-	rtllib_ccmp_null();
-
 	return dev;
 
  failed:
-	if (dev)
-		free_netdev(dev);
+	free_netdev(dev);
 	return NULL;
 }
+EXPORT_SYMBOL(alloc_rtllib);
 
 void free_rtllib(struct net_device *dev)
 {
 	struct rtllib_device *ieee = (struct rtllib_device *)
 				      netdev_priv_rsl(dev);
-	int i;
 
 	kfree(ieee->pHTInfo);
 	ieee->pHTInfo = NULL;
 	rtllib_softmac_free(ieee);
-	del_timer_sync(&ieee->crypt_deinit_timer);
-	rtllib_crypt_deinit_entries(ieee, 1);
 
-	for (i = 0; i < WEP_KEYS; i++) {
-		struct rtllib_crypt_data *crypt = ieee->crypt[i];
-		if (crypt) {
-			if (crypt->ops)
-				crypt->ops->deinit(crypt->priv);
-			kfree(crypt);
-			ieee->crypt[i] = NULL;
-		}
-	}
+	lib80211_crypt_info_free(&ieee->crypt_info);
 
 	rtllib_networks_free(ieee);
 	free_netdev(dev);
 }
+EXPORT_SYMBOL(free_rtllib);
 
 u32 rtllib_debug_level;
-static int debug = \
-			    RTLLIB_DL_ERR
-			    ;
+static int debug = RTLLIB_DL_ERR;
 static struct proc_dir_entry *rtllib_proc;
 
-static int show_debug_level(char *page, char **start, off_t offset,
-			    int count, int *eof, void *data)
+static int show_debug_level(struct seq_file *m, void *v)
 {
-	return snprintf(page, count, "0x%08X\n", rtllib_debug_level);
+	return seq_printf(m, "0x%08X\n", rtllib_debug_level);
 }
 
-static int store_debug_level(struct file *file, const char __user *buffer,
-			     unsigned long count, void *data)
+static ssize_t write_debug_level(struct file *file, const char __user *buffer,
+			     size_t count, loff_t *ppos)
 {
-	char buf[] = "0x00000000";
-	unsigned long len = min((unsigned long)sizeof(buf) - 1, count);
-	char *p = (char *)buf;
 	unsigned long val;
+	int err = kstrtoul_from_user(buffer, count, 0, &val);
 
-	if (copy_from_user(buf, buffer, len))
-		return count;
-	buf[len] = 0;
-	if (p[1] == 'x' || p[1] == 'X' || p[0] == 'x' || p[0] == 'X') {
-		p++;
-		if (p[0] == 'x' || p[0] == 'X')
-			p++;
-		val = simple_strtoul(p, &p, 16);
-	} else
-		val = simple_strtoul(p, &p, 10);
-	if (p == buf)
-		printk(KERN_INFO DRV_NAME
-		       ": %s is not in hex or decimal form.\n", buf);
-	else
-		rtllib_debug_level = val;
-
-	return strnlen(buf, count);
+	if (err)
+		return err;
+	rtllib_debug_level = val;
+	return count;
 }
 
-int __init rtllib_init(void)
+static int open_debug_level(struct inode *inode, struct file *file)
+{
+	return single_open(file, show_debug_level, NULL);
+}
+
+static const struct file_operations fops = {
+	.open = open_debug_level,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.write = write_debug_level,
+	.release = single_release,
+};
+
+static int __init rtllib_init(void)
 {
 	struct proc_dir_entry *e;
 
 	rtllib_debug_level = debug;
-	rtllib_proc = create_proc_entry(DRV_NAME, S_IFDIR, init_net.proc_net);
+	rtllib_proc = proc_mkdir(DRV_NAME, init_net.proc_net);
 	if (rtllib_proc == NULL) {
 		RTLLIB_ERROR("Unable to create " DRV_NAME
 				" proc directory\n");
 		return -EIO;
 	}
-	e = create_proc_entry("debug_level", S_IFREG | S_IRUGO | S_IWUSR,
-			      rtllib_proc);
+	e = proc_create("debug_level", S_IRUGO | S_IWUSR, rtllib_proc, &fops);
 	if (!e) {
 		remove_proc_entry(DRV_NAME, init_net.proc_net);
 		rtllib_proc = NULL;
 		return -EIO;
 	}
-	e->read_proc = show_debug_level;
-	e->write_proc = store_debug_level;
-	e->data = NULL;
-
 	return 0;
 }
 
-void __exit rtllib_exit(void)
+static void __exit rtllib_exit(void)
 {
 	if (rtllib_proc) {
 		remove_proc_entry("debug_level", rtllib_proc);
@@ -287,3 +263,8 @@ void __exit rtllib_exit(void)
 		rtllib_proc = NULL;
 	}
 }
+
+module_init(rtllib_init);
+module_exit(rtllib_exit);
+
+MODULE_LICENSE("GPL");

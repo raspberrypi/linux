@@ -895,8 +895,8 @@ static void p4_pmu_disable_pebs(void)
 	 * So at moment let leave metrics turned on forever -- it's
 	 * ok for now but need to be revisited!
 	 *
-	 * (void)checking_wrmsrl(MSR_IA32_PEBS_ENABLE, (u64)0);
-	 * (void)checking_wrmsrl(MSR_P4_PEBS_MATRIX_VERT, (u64)0);
+	 * (void)wrmsrl_safe(MSR_IA32_PEBS_ENABLE, 0);
+	 * (void)wrmsrl_safe(MSR_P4_PEBS_MATRIX_VERT, 0);
 	 */
 }
 
@@ -909,14 +909,13 @@ static inline void p4_pmu_disable_event(struct perf_event *event)
 	 * state we need to clear P4_CCCR_OVF, otherwise interrupt get
 	 * asserted again and again
 	 */
-	(void)checking_wrmsrl(hwc->config_base,
-		(u64)(p4_config_unpack_cccr(hwc->config)) &
-			~P4_CCCR_ENABLE & ~P4_CCCR_OVF & ~P4_CCCR_RESERVED);
+	(void)wrmsrl_safe(hwc->config_base,
+		p4_config_unpack_cccr(hwc->config) & ~P4_CCCR_ENABLE & ~P4_CCCR_OVF & ~P4_CCCR_RESERVED);
 }
 
 static void p4_pmu_disable_all(void)
 {
-	struct cpu_hw_events *cpuc = &__get_cpu_var(cpu_hw_events);
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 	int idx;
 
 	for (idx = 0; idx < x86_pmu.num_counters; idx++) {
@@ -943,8 +942,8 @@ static void p4_pmu_enable_pebs(u64 config)
 
 	bind = &p4_pebs_bind_map[idx];
 
-	(void)checking_wrmsrl(MSR_IA32_PEBS_ENABLE,	(u64)bind->metric_pebs);
-	(void)checking_wrmsrl(MSR_P4_PEBS_MATRIX_VERT,	(u64)bind->metric_vert);
+	(void)wrmsrl_safe(MSR_IA32_PEBS_ENABLE,	(u64)bind->metric_pebs);
+	(void)wrmsrl_safe(MSR_P4_PEBS_MATRIX_VERT,	(u64)bind->metric_vert);
 }
 
 static void p4_pmu_enable_event(struct perf_event *event)
@@ -957,7 +956,7 @@ static void p4_pmu_enable_event(struct perf_event *event)
 	u64 escr_addr, cccr;
 
 	bind = &p4_event_bind_map[idx];
-	escr_addr = (u64)bind->escr_msr[thread];
+	escr_addr = bind->escr_msr[thread];
 
 	/*
 	 * - we dont support cascaded counters yet
@@ -978,14 +977,14 @@ static void p4_pmu_enable_event(struct perf_event *event)
 	 */
 	p4_pmu_enable_pebs(hwc->config);
 
-	(void)checking_wrmsrl(escr_addr, escr_conf);
-	(void)checking_wrmsrl(hwc->config_base,
+	(void)wrmsrl_safe(escr_addr, escr_conf);
+	(void)wrmsrl_safe(hwc->config_base,
 				(cccr & ~P4_CCCR_RESERVED) | P4_CCCR_ENABLE);
 }
 
 static void p4_pmu_enable_all(int added)
 {
-	struct cpu_hw_events *cpuc = &__get_cpu_var(cpu_hw_events);
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 	int idx;
 
 	for (idx = 0; idx < x86_pmu.num_counters; idx++) {
@@ -1005,9 +1004,7 @@ static int p4_pmu_handle_irq(struct pt_regs *regs)
 	int idx, handled = 0;
 	u64 val;
 
-	perf_sample_data_init(&data, 0);
-
-	cpuc = &__get_cpu_var(cpu_hw_events);
+	cpuc = this_cpu_ptr(&cpu_hw_events);
 
 	for (idx = 0; idx < x86_pmu.num_counters; idx++) {
 		int overflow;
@@ -1034,10 +1031,12 @@ static int p4_pmu_handle_irq(struct pt_regs *regs)
 		handled += overflow;
 
 		/* event overflow for sure */
-		data.period = event->hw.last_period;
+		perf_sample_data_init(&data, 0, hwc->last_period);
 
 		if (!x86_perf_event_set_period(event))
 			continue;
+
+
 		if (perf_event_overflow(event, &data, regs))
 			x86_pmu_stop(event, 0);
 	}
@@ -1258,7 +1257,24 @@ again:
 			pass++;
 			goto again;
 		}
-
+		/*
+		 * Perf does test runs to see if a whole group can be assigned
+		 * together succesfully.  There can be multiple rounds of this.
+		 * Unfortunately, p4_pmu_swap_config_ts touches the hwc->config
+		 * bits, such that the next round of group assignments will
+		 * cause the above p4_should_swap_ts to pass instead of fail.
+		 * This leads to counters exclusive to thread0 being used by
+		 * thread1.
+		 *
+		 * Solve this with a cheap hack, reset the idx back to -1 to
+		 * force a new lookup (p4_next_cntr) to get the right counter
+		 * for the right thread.
+		 *
+		 * This probably doesn't comply with the general spirit of how
+		 * perf wants to work, but P4 is special. :-(
+		 */
+		if (p4_should_swap_ts(hwc->config, cpu))
+			hwc->idx = -1;
 		p4_pmu_swap_config_ts(hwc, cpu);
 		if (assign)
 			assign[i] = cntr_idx;
@@ -1270,6 +1286,17 @@ reserve:
 done:
 	return num ? -EINVAL : 0;
 }
+
+PMU_FORMAT_ATTR(cccr, "config:0-31" );
+PMU_FORMAT_ATTR(escr, "config:32-62");
+PMU_FORMAT_ATTR(ht,   "config:63"   );
+
+static struct attribute *intel_p4_formats_attr[] = {
+	&format_attr_cccr.attr,
+	&format_attr_escr.attr,
+	&format_attr_ht.attr,
+	NULL,
+};
 
 static __initconst const struct x86_pmu p4_pmu = {
 	.name			= "Netburst P4/Xeon",
@@ -1305,14 +1332,17 @@ static __initconst const struct x86_pmu p4_pmu = {
 	 * the former idea is taken from OProfile code
 	 */
 	.perfctr_second_write	= 1,
+
+	.format_attrs		= intel_p4_formats_attr,
 };
 
 __init int p4_pmu_init(void)
 {
 	unsigned int low, high;
+	int i, reg;
 
 	/* If we get stripped -- indexing fails */
-	BUILD_BUG_ON(ARCH_P4_MAX_CCCR > X86_PMC_MAX_GENERIC);
+	BUILD_BUG_ON(ARCH_P4_MAX_CCCR > INTEL_PMC_MAX_GENERIC);
 
 	rdmsr(MSR_IA32_MISC_ENABLE, low, high);
 	if (!(low & (1 << 7))) {
@@ -1327,6 +1357,20 @@ __init int p4_pmu_init(void)
 	pr_cont("Netburst events, ");
 
 	x86_pmu = p4_pmu;
+
+	/*
+	 * Even though the counters are configured to interrupt a particular
+	 * logical processor when an overflow happens, testing has shown that
+	 * on kdump kernels (which uses a single cpu), thread1's counter
+	 * continues to run and will report an NMI on thread0.  Due to the
+	 * overflow bug, this leads to a stream of unknown NMIs.
+	 *
+	 * Solve this by zero'ing out the registers to mimic a reset.
+	 */
+	for (i = 0; i < x86_pmu.num_counters; i++) {
+		reg = x86_pmu_config_addr(i);
+		wrmsrl_safe(reg, 0ULL);
+	}
 
 	return 0;
 }

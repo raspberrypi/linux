@@ -12,7 +12,6 @@
 #include <asm/cacheops.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/system.h>
 #include <asm/mmu_context.h>
 #include <asm/r4kcache.h>
 
@@ -59,7 +58,7 @@ static void r5k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 
 static void r5k_sc_enable(void)
 {
-        unsigned long flags;
+	unsigned long flags;
 
 	local_irq_save(flags);
 	set_c0_config(R5K_CONF_SE);
@@ -69,7 +68,7 @@ static void r5k_sc_enable(void)
 
 static void r5k_sc_disable(void)
 {
-        unsigned long flags;
+	unsigned long flags;
 
 	local_irq_save(flags);
 	blast_r5000_scache();
@@ -82,7 +81,7 @@ static inline int __init r5k_sc_probe(void)
 	unsigned long config = read_c0_config();
 
 	if (config & CONF_SC)
-		return(0);
+		return 0;
 
 	scache_size = (512 * 1024) << ((config & R5K_CONF_SS) >> 20);
 
@@ -99,7 +98,7 @@ static struct bcache_ops r5k_sc_ops = {
 	.bc_inv = r5k_dma_cache_inv_sc
 };
 
-void __cpuinit r5k_sc_init(void)
+void r5k_sc_init(void)
 {
 	if (r5k_sc_probe()) {
 		r5k_sc_enable();

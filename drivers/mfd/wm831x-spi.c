@@ -21,7 +21,7 @@
 
 #include <linux/mfd/wm831x/core.h>
 
-static int __devinit wm831x_spi_probe(struct spi_device *spi)
+static int wm831x_spi_probe(struct spi_device *spi)
 {
 	const struct spi_device_id *id = spi_get_device_id(spi);
 	struct wm831x *wm831x;
@@ -30,31 +30,29 @@ static int __devinit wm831x_spi_probe(struct spi_device *spi)
 
 	type = (enum wm831x_parent)id->driver_data;
 
-	wm831x = kzalloc(sizeof(struct wm831x), GFP_KERNEL);
+	wm831x = devm_kzalloc(&spi->dev, sizeof(struct wm831x), GFP_KERNEL);
 	if (wm831x == NULL)
 		return -ENOMEM;
 
-	spi->bits_per_word = 16;
 	spi->mode = SPI_MODE_0;
 
-	dev_set_drvdata(&spi->dev, wm831x);
+	spi_set_drvdata(spi, wm831x);
 	wm831x->dev = &spi->dev;
 
-	wm831x->regmap = regmap_init_spi(spi, &wm831x_regmap_config);
+	wm831x->regmap = devm_regmap_init_spi(spi, &wm831x_regmap_config);
 	if (IS_ERR(wm831x->regmap)) {
 		ret = PTR_ERR(wm831x->regmap);
 		dev_err(wm831x->dev, "Failed to allocate register map: %d\n",
 			ret);
-		kfree(wm831x);
 		return ret;
 	}
 
 	return wm831x_device_init(wm831x, type, spi->irq);
 }
 
-static int __devexit wm831x_spi_remove(struct spi_device *spi)
+static int wm831x_spi_remove(struct spi_device *spi)
 {
-	struct wm831x *wm831x = dev_get_drvdata(&spi->dev);
+	struct wm831x *wm831x = spi_get_drvdata(spi);
 
 	wm831x_device_exit(wm831x);
 
@@ -68,16 +66,19 @@ static int wm831x_spi_suspend(struct device *dev)
 	return wm831x_device_suspend(wm831x);
 }
 
-static void wm831x_spi_shutdown(struct spi_device *spi)
+static int wm831x_spi_poweroff(struct device *dev)
 {
-	struct wm831x *wm831x = dev_get_drvdata(&spi->dev);
+	struct wm831x *wm831x = dev_get_drvdata(dev);
 
 	wm831x_device_shutdown(wm831x);
+
+	return 0;
 }
 
 static const struct dev_pm_ops wm831x_spi_pm = {
 	.freeze = wm831x_spi_suspend,
 	.suspend = wm831x_spi_suspend,
+	.poweroff = wm831x_spi_poweroff,
 };
 
 static const struct spi_device_id wm831x_spi_ids[] = {
@@ -90,19 +91,17 @@ static const struct spi_device_id wm831x_spi_ids[] = {
 	{ "wm8326", WM8326 },
 	{ },
 };
-MODULE_DEVICE_TABLE(spi, wm831x_spi_id);
+MODULE_DEVICE_TABLE(spi, wm831x_spi_ids);
 
 static struct spi_driver wm831x_spi_driver = {
 	.driver = {
 		.name	= "wm831x",
-		.bus	= &spi_bus_type,
 		.owner	= THIS_MODULE,
 		.pm	= &wm831x_spi_pm,
 	},
 	.id_table	= wm831x_spi_ids,
 	.probe		= wm831x_spi_probe,
-	.remove		= __devexit_p(wm831x_spi_remove),
-	.shutdown	= wm831x_spi_shutdown,
+	.remove		= wm831x_spi_remove,
 };
 
 static int __init wm831x_spi_init(void)

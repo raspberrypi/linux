@@ -2,7 +2,7 @@
  * CAIF Framing Layer.
  *
  * Copyright (C) ST-Ericsson AB 2010
- * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
+ * Author:	Sjur Brendeland
  * License terms: GNU General Public License (GPL) version 2
  */
 
@@ -28,7 +28,7 @@ struct cffrml {
 static int cffrml_receive(struct cflayer *layr, struct cfpkt *pkt);
 static int cffrml_transmit(struct cflayer *layr, struct cfpkt *pkt);
 static void cffrml_ctrlcmd(struct cflayer *layr, enum caif_ctrlcmd ctrl,
-				int phyid);
+			   int phyid);
 
 static u32 cffrml_rcv_error;
 static u32 cffrml_rcv_checsum_error;
@@ -84,7 +84,7 @@ static int cffrml_receive(struct cflayer *layr, struct cfpkt *pkt)
 	u16 tmp;
 	u16 len;
 	u16 hdrchks;
-	u16 pktchks;
+	int pktchks;
 	struct cffrml *this;
 	this = container_obj(layr);
 
@@ -167,7 +167,7 @@ static int cffrml_transmit(struct cflayer *layr, struct cfpkt *pkt)
 }
 
 static void cffrml_ctrlcmd(struct cflayer *layr, enum caif_ctrlcmd ctrl,
-					int phyid)
+			   int phyid)
 {
 	if (layr->up && layr->up->ctrlcmd)
 		layr->up->ctrlcmd(layr->up, ctrl, layr->id);
@@ -177,14 +177,14 @@ void cffrml_put(struct cflayer *layr)
 {
 	struct cffrml *this = container_obj(layr);
 	if (layr != NULL && this->pcpu_refcnt != NULL)
-		irqsafe_cpu_dec(*this->pcpu_refcnt);
+		this_cpu_dec(*this->pcpu_refcnt);
 }
 
 void cffrml_hold(struct cflayer *layr)
 {
 	struct cffrml *this = container_obj(layr);
 	if (layr != NULL && this->pcpu_refcnt != NULL)
-		irqsafe_cpu_inc(*this->pcpu_refcnt);
+		this_cpu_inc(*this->pcpu_refcnt);
 }
 
 int cffrml_refcnt_read(struct cflayer *layr)

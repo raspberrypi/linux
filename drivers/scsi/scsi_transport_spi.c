@@ -32,6 +32,7 @@
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_eh.h>
+#include <scsi/scsi_tcq.h>
 #include <scsi/scsi_transport.h>
 #include <scsi/scsi_transport_spi.h>
 
@@ -1010,10 +1011,10 @@ spi_dv_device(struct scsi_device *sdev)
 	u8 *buffer;
 	const int len = SPI_MAX_ECHO_BUFFER_SIZE*2;
 
-	if (unlikely(scsi_device_get(sdev)))
+	if (unlikely(spi_dv_in_progress(starget)))
 		return;
 
-	if (unlikely(spi_dv_in_progress(starget)))
+	if (unlikely(scsi_device_get(sdev)))
 		return;
 	spi_dv_in_progress(starget) = 1;
 
@@ -1206,6 +1207,28 @@ int spi_populate_ppr_msg(unsigned char *msg, int period, int offset,
 	return 8;
 }
 EXPORT_SYMBOL_GPL(spi_populate_ppr_msg);
+
+/**
+ * spi_populate_tag_msg - place a tag message in a buffer
+ * @msg:	pointer to the area to place the tag
+ * @cmd:	pointer to the scsi command for the tag
+ *
+ * Notes:
+ *	designed to create the correct type of tag message for the 
+ *	particular request.  Returns the size of the tag message.
+ *	May return 0 if TCQ is disabled for this device.
+ **/
+int spi_populate_tag_msg(unsigned char *msg, struct scsi_cmnd *cmd)
+{
+        if (cmd->flags & SCMD_TAGGED) {
+		*msg++ = SIMPLE_QUEUE_TAG;
+        	*msg++ = cmd->request->tag;
+        	return 2;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(spi_populate_tag_msg);
 
 #ifdef CONFIG_SCSI_CONSTANTS
 static const char * const one_byte_msgs[] = {
@@ -1434,7 +1457,7 @@ static int spi_host_configure(struct transport_container *tc,
 	(si->f->show_##name ? S_IRUGO : 0) | \
 	(si->f->set_##name ? S_IWUSR : 0)
 
-static mode_t target_attribute_is_visible(struct kobject *kobj,
+static umode_t target_attribute_is_visible(struct kobject *kobj,
 					  struct attribute *attr, int i)
 {
 	struct device *cdev = container_of(kobj, struct device, kobj);

@@ -24,8 +24,8 @@
 #include <asm/mach/arch.h>
 
 #include <mach/pxa930.h>
-#include <mach/pxafb.h>
-#include <plat/pxa27x_keypad.h>
+#include <linux/platform_data/video-pxafb.h>
+#include <linux/platform_data/keypad-pxa27x.h>
 
 #include "devices.h"
 #include "generic.h"
@@ -85,8 +85,8 @@ static struct resource smc91x_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start	= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO47)),
-		.end	= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO47)),
+		.start	= PXA_GPIO_TO_IRQ(mfp_to_gpio(MFP_PIN_GPIO47)),
+		.end	= PXA_GPIO_TO_IRQ(mfp_to_gpio(MFP_PIN_GPIO47)),
 		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE,
 	}
 };
@@ -106,7 +106,7 @@ static struct platform_device smc91x_device = {
 };
 
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
-static unsigned int tavorevb_matrix_key_map[] = {
+static const unsigned int tavorevb_matrix_key_map[] = {
 	/* KEY(row, col, key_code) */
 	KEY(0, 4, KEY_A), KEY(0, 5, KEY_B), KEY(0, 6, KEY_C),
 	KEY(1, 4, KEY_E), KEY(1, 5, KEY_F), KEY(1, 6, KEY_G),
@@ -147,11 +147,15 @@ static unsigned int tavorevb_matrix_key_map[] = {
 	KEY(3, 3, KEY_F23),	/* soft2 */
 };
 
+static struct matrix_keymap_data tavorevb_matrix_keymap_data = {
+	.keymap		= tavorevb_matrix_key_map,
+	.keymap_size	= ARRAY_SIZE(tavorevb_matrix_key_map),
+};
+
 static struct pxa27x_keypad_platform_data tavorevb_keypad_info = {
 	.matrix_key_rows	= 7,
 	.matrix_key_cols	= 7,
-	.matrix_key_map		= tavorevb_matrix_key_map,
-	.matrix_key_map_size	= ARRAY_SIZE(tavorevb_matrix_key_map),
+	.matrix_keymap_data	= &tavorevb_matrix_keymap_data,
 	.debounce_interval	= 30,
 };
 
@@ -171,6 +175,7 @@ static struct platform_pwm_backlight_data tavorevb_backlight_data[] = {
 		.max_brightness	= 100,
 		.dft_brightness	= 100,
 		.pwm_period_ns	= 100000,
+		.enable_gpio	= -1,
 	},
 	[1] = {
 		/* secondary backlight */
@@ -178,6 +183,7 @@ static struct platform_pwm_backlight_data tavorevb_backlight_data[] = {
 		.max_brightness	= 100,
 		.dft_brightness	= 100,
 		.pwm_period_ns	= 100000,
+		.enable_gpio	= -1,
 	},
 };
 
@@ -491,9 +497,10 @@ MACHINE_START(TAVOREVB, "PXA930 Evaluation Board (aka TavorEVB)")
 	/* Maintainer: Eric Miao <eric.miao@marvell.com> */
 	.atag_offset    = 0x100,
 	.map_io         = pxa3xx_map_io,
+	.nr_irqs	= PXA_NR_IRQS,
 	.init_irq       = pxa3xx_init_irq,
 	.handle_irq       = pxa3xx_handle_irq,
-	.timer          = &pxa_timer,
+	.init_time	= pxa_timer_init,
 	.init_machine   = tavorevb_init,
 	.restart	= pxa_restart,
 MACHINE_END

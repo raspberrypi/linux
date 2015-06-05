@@ -104,7 +104,7 @@ static char nfs_export_path[NFS_MAXPATHLEN + 1] __initdata = "";
 /* server:export path string passed to super.c */
 static char nfs_root_device[NFS_MAXPATHLEN + 1] __initdata = "";
 
-#ifdef RPC_DEBUG
+#ifdef NFS_DEBUG
 /*
  * When the "nfsrootdebug" kernel command line option is specified,
  * enable debugging messages for NFSROOT.
@@ -261,11 +261,11 @@ static int __init root_nfs_data(char *cmdline)
 	 */
 	len = snprintf(nfs_export_path, sizeof(nfs_export_path),
 				tmp, utsname()->nodename);
-	if (len > (int)sizeof(nfs_export_path))
+	if (len >= (int)sizeof(nfs_export_path))
 		goto out_devnametoolong;
 	len = snprintf(nfs_root_device, sizeof(nfs_root_device),
 				"%pI4:%s", &servaddr, nfs_export_path);
-	if (len > (int)sizeof(nfs_root_device))
+	if (len >= (int)sizeof(nfs_root_device))
 		goto out_devnametoolong;
 
 	retval = 0;

@@ -12,10 +12,11 @@
 
 #include <linux/bitops.h>
 #include <linux/spinlock.h>
+#include <linux/mm_types.h>
 #include <asm/processor.h>
 #include <asm/cache.h>
 
-struct vm_area_struct;
+extern spinlock_t pa_dbit_lock;
 
 /*
  * kern_addr_valid(ADDR) tests if ADDR is pointing to valid kernel
@@ -40,9 +41,21 @@ struct vm_area_struct;
         do{                                                     \
                 *(pteptr) = (pteval);                           \
         } while(0)
-#define set_pte_at(mm,addr,ptep,pteval) set_pte(ptep,pteval)
+
+extern void purge_tlb_entries(struct mm_struct *, unsigned long);
+
+#define set_pte_at(mm, addr, ptep, pteval)                      \
+	do {                                                    \
+		unsigned long flags;				\
+		spin_lock_irqsave(&pa_dbit_lock, flags);	\
+		set_pte(ptep, pteval);                          \
+		purge_tlb_entries(mm, addr);                    \
+		spin_unlock_irqrestore(&pa_dbit_lock, flags);	\
+	} while (0)
 
 #endif /* !__ASSEMBLY__ */
+
+#include <asm/page.h>
 
 #define pte_ERROR(e) \
 	printk("%s:%d: bad pte %08lx.\n", __FILE__, __LINE__, pte_val(e))
@@ -83,6 +96,7 @@ struct vm_area_struct;
 #if PT_NLEVELS == 3
 #define BITS_PER_PMD	(PAGE_SHIFT + PMD_ORDER - BITS_PER_PMD_ENTRY)
 #else
+#define __PAGETABLE_PMD_FOLDED
 #define BITS_PER_PMD	0
 #endif
 #define PTRS_PER_PMD    (1UL << BITS_PER_PMD)
@@ -121,7 +135,7 @@ struct vm_area_struct;
  * pgd entries used up by user/kernel:
  */
 
-#define FIRST_USER_ADDRESS	0
+#define FIRST_USER_ADDRESS	0UL
 
 /* NB: The tlb miss handlers make certain assumptions about the order */
 /*     of the following bits, so be careful (One example, bits 25-31  */
@@ -133,7 +147,6 @@ struct vm_area_struct;
 #define _PAGE_GATEWAY_BIT  28   /* (0x008) privilege promotion allowed */
 #define _PAGE_DMB_BIT      27   /* (0x010) Data Memory Break enable (B bit) */
 #define _PAGE_DIRTY_BIT    26   /* (0x020) Page Dirty (D bit) */
-#define _PAGE_FILE_BIT	_PAGE_DIRTY_BIT	/* overload this bit */
 #define _PAGE_REFTRAP_BIT  25   /* (0x040) Page Ref. Trap enable (T bit) */
 #define _PAGE_NO_CACHE_BIT 24   /* (0x080) Uncached Page (U bit) */
 #define _PAGE_ACCESSED_BIT 23   /* (0x100) Software: Page Accessed */
@@ -154,13 +167,6 @@ struct vm_area_struct;
 /* PFN_PTE_SHIFT defines the shift of a PTE value to access the PFN field */
 #define PFN_PTE_SHIFT		12
 
-
-/* this is how many bits may be used by the file functions */
-#define PTE_FILE_MAX_BITS	(BITS_PER_LONG - PTE_SHIFT)
-
-#define pte_to_pgoff(pte) (pte_val(pte) >> PTE_SHIFT)
-#define pgoff_to_pte(off) ((pte_t) { ((off) << PTE_SHIFT) | _PAGE_FILE })
-
 #define _PAGE_READ     (1 << xlate_pabit(_PAGE_READ_BIT))
 #define _PAGE_WRITE    (1 << xlate_pabit(_PAGE_WRITE_BIT))
 #define _PAGE_RW       (_PAGE_READ | _PAGE_WRITE)
@@ -173,7 +179,6 @@ struct vm_area_struct;
 #define _PAGE_ACCESSED (1 << xlate_pabit(_PAGE_ACCESSED_BIT))
 #define _PAGE_PRESENT  (1 << xlate_pabit(_PAGE_PRESENT_BIT))
 #define _PAGE_USER     (1 << xlate_pabit(_PAGE_USER_BIT))
-#define _PAGE_FILE     (1 << xlate_pabit(_PAGE_FILE_BIT))
 
 #define _PAGE_TABLE	(_PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE |  _PAGE_DIRTY | _PAGE_ACCESSED)
 #define _PAGE_CHG_MASK	(PAGE_MASK | _PAGE_ACCESSED | _PAGE_DIRTY)
@@ -331,7 +336,6 @@ static inline void pgd_clear(pgd_t * pgdp)	{ }
 static inline int pte_dirty(pte_t pte)		{ return pte_val(pte) & _PAGE_DIRTY; }
 static inline int pte_young(pte_t pte)		{ return pte_val(pte) & _PAGE_ACCESSED; }
 static inline int pte_write(pte_t pte)		{ return pte_val(pte) & _PAGE_WRITE; }
-static inline int pte_file(pte_t pte)		{ return pte_val(pte) & _PAGE_FILE; }
 static inline int pte_special(pte_t pte)	{ return 0; }
 
 static inline pte_t pte_mkclean(pte_t pte)	{ pte_val(pte) &= ~_PAGE_DIRTY; return pte; }
@@ -427,47 +431,46 @@ extern void update_mmu_cache(struct vm_area_struct *, unsigned long, pte_t *);
 
 static inline int ptep_test_and_clear_young(struct vm_area_struct *vma, unsigned long addr, pte_t *ptep)
 {
-#ifdef CONFIG_SMP
+	pte_t pte;
+	unsigned long flags;
+
 	if (!pte_young(*ptep))
 		return 0;
-	return test_and_clear_bit(xlate_pabit(_PAGE_ACCESSED_BIT), &pte_val(*ptep));
-#else
-	pte_t pte = *ptep;
-	if (!pte_young(pte))
-		return 0;
-	set_pte_at(vma->vm_mm, addr, ptep, pte_mkold(pte));
-	return 1;
-#endif
-}
 
-extern spinlock_t pa_dbit_lock;
+	spin_lock_irqsave(&pa_dbit_lock, flags);
+	pte = *ptep;
+	if (!pte_young(pte)) {
+		spin_unlock_irqrestore(&pa_dbit_lock, flags);
+		return 0;
+	}
+	set_pte(ptep, pte_mkold(pte));
+	purge_tlb_entries(vma->vm_mm, addr);
+	spin_unlock_irqrestore(&pa_dbit_lock, flags);
+	return 1;
+}
 
 struct mm_struct;
 static inline pte_t ptep_get_and_clear(struct mm_struct *mm, unsigned long addr, pte_t *ptep)
 {
 	pte_t old_pte;
+	unsigned long flags;
 
-	spin_lock(&pa_dbit_lock);
+	spin_lock_irqsave(&pa_dbit_lock, flags);
 	old_pte = *ptep;
 	pte_clear(mm,addr,ptep);
-	spin_unlock(&pa_dbit_lock);
+	purge_tlb_entries(mm, addr);
+	spin_unlock_irqrestore(&pa_dbit_lock, flags);
 
 	return old_pte;
 }
 
 static inline void ptep_set_wrprotect(struct mm_struct *mm, unsigned long addr, pte_t *ptep)
 {
-#ifdef CONFIG_SMP
-	unsigned long new, old;
-
-	do {
-		old = pte_val(*ptep);
-		new = pte_val(pte_wrprotect(__pte (old)));
-	} while (cmpxchg((unsigned long *) ptep, old, new) != old);
-#else
-	pte_t old_pte = *ptep;
-	set_pte_at(mm, addr, ptep, pte_wrprotect(old_pte));
-#endif
+	unsigned long flags;
+	spin_lock_irqsave(&pa_dbit_lock, flags);
+	set_pte(ptep, pte_wrprotect(*ptep));
+	purge_tlb_entries(mm, addr);
+	spin_unlock_irqrestore(&pa_dbit_lock, flags);
 }
 
 #define pte_same(A,B)	(pte_val(A) == pte_val(B))
@@ -494,14 +497,12 @@ static inline void ptep_set_wrprotect(struct mm_struct *mm, unsigned long addr, 
 #endif
 
 
-#define io_remap_pfn_range(vma, vaddr, pfn, size, prot)		\
-		remap_pfn_range(vma, vaddr, pfn, size, prot)
-
 #define pgprot_noncached(prot) __pgprot(pgprot_val(prot) | _PAGE_NO_CACHE)
 
 /* We provide our own get_unmapped_area to provide cache coherency */
 
 #define HAVE_ARCH_UNMAPPED_AREA
+#define HAVE_ARCH_UNMAPPED_AREA_TOPDOWN
 
 #define __HAVE_ARCH_PTEP_TEST_AND_CLEAR_YOUNG
 #define __HAVE_ARCH_PTEP_GET_AND_CLEAR

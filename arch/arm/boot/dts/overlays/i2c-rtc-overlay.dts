@@ -1,0 +1,49 @@
+// Definitions for several I2C based Real Time Clocks
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ds1307: ds1307@68 {
+				compatible = "maxim,ds1307";
+				reg = <0x68>;
+				status = "disable";
+			};
+			ds3231: ds3231@68 {
+				compatible = "maxim,ds3231";
+				reg = <0x68>;
+				status = "disable";
+			};
+			pcf2127: pcf2127@51 {
+				compatible = "nxp,pcf2127";
+				reg = <0x51>;
+				status = "disable";
+			};
+			pcf8523: pcf8523@68 {
+				compatible = "nxp,pcf8523";
+				reg = <0x68>;
+				status = "disable";
+			};
+			pcf8563: pcf8563@51 {
+				compatible = "nxp,pcf8563";
+				reg = <0x51>;
+				status = "disable";
+			};
+		};
+	};
+	__overrides__ {
+		ds1307 = <&ds1307>,"status";
+		ds3231 = <&ds3231>,"status";
+		pcf2127 = <&pcf2127>,"status";
+		pcf8523 = <&pcf8523>,"status";
+		pcf8563 = <&pcf8563>,"status";
+	};
+};

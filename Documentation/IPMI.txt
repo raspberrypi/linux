@@ -107,7 +107,7 @@ ipmi_si - A driver for various system interfaces.  This supports KCS,
 SMIC, and BT interfaces.  Unless you have an SMBus interface or your
 own custom interface, you probably need to use this.
 
-ipmi_smb - A driver for accessing BMCs on the SMBus. It uses the
+ipmi_ssif - A driver for accessing BMCs on the SMBus. It uses the
 I2C kernel driver's SMBus interfaces to send and receive IPMI messages
 over the SMBus.
 
@@ -360,33 +360,39 @@ You can change this at module load time (for a module) with:
 
   modprobe ipmi_si.o type=<type1>,<type2>....
        ports=<port1>,<port2>... addrs=<addr1>,<addr2>...
-       irqs=<irq1>,<irq2>... trydefaults=[0|1]
+       irqs=<irq1>,<irq2>...
        regspacings=<sp1>,<sp2>,... regsizes=<size1>,<size2>,...
        regshifts=<shift1>,<shift2>,...
        slave_addrs=<addr1>,<addr2>,...
        force_kipmid=<enable1>,<enable2>,...
        kipmid_max_busy_us=<ustime1>,<ustime2>,...
        unload_when_empty=[0|1]
+       trydefaults=[0|1] trydmi=[0|1] tryacpi=[0|1]
+       tryplatform=[0|1] trypci=[0|1]
 
-Each of these except si_trydefaults is a list, the first item for the
+Each of these except try... items is a list, the first item for the
 first interface, second item for the second interface, etc.
 
 The si_type may be either "kcs", "smic", or "bt".  If you leave it blank, it
 defaults to "kcs".
 
-If you specify si_addrs as non-zero for an interface, the driver will
+If you specify addrs as non-zero for an interface, the driver will
 use the memory address given as the address of the device.  This
 overrides si_ports.
 
-If you specify si_ports as non-zero for an interface, the driver will
+If you specify ports as non-zero for an interface, the driver will
 use the I/O port given as the device address.
 
-If you specify si_irqs as non-zero for an interface, the driver will
+If you specify irqs as non-zero for an interface, the driver will
 attempt to use the given interrupt for the device.
 
-si_trydefaults sets whether the standard IPMI interface at 0xca2 and
+trydefaults sets whether the standard IPMI interface at 0xca2 and
 any interfaces specified by ACPE are tried.  By default, the driver
 tries it, set this value to zero to turn this off.
+
+The other try... items disable discovery by their corresponding
+names.  These are all enabled by default, set them to zero to disable
+them.  The tryplatform disables openfirmware.
 
 The next three parameters have to do with register layout.  The
 registers used by the interfaces may not appear at successive
@@ -482,53 +488,62 @@ for specifying an interface.  Note that when removing an interface,
 only the first three parameters (si type, address type, and address)
 are used for the comparison.  Any options are ignored for removing.
 
-The SMBus Driver
-----------------
+The SMBus Driver (SSIF)
+-----------------------
 
 The SMBus driver allows up to 4 SMBus devices to be configured in the
-system.  By default, the driver will register any SMBus interfaces it finds
-in the I2C address range of 0x20 to 0x4f on any adapter.  You can change this
+system.  By default, the driver will only register with something it
+finds in DMI or ACPI tables.  You can change this
 at module load time (for a module) with:
 
-  modprobe ipmi_smb.o
-	addr=<adapter1>,<i2caddr1>[,<adapter2>,<i2caddr2>[,...]]
+  modprobe ipmi_ssif.o
+	addr=<i2caddr1>[,<i2caddr2>[,...]]
+	adapter=<adapter1>[,<adapter2>[...]]
 	dbg=<flags1>,<flags2>...
-	[defaultprobe=1] [dbg_probe=1]
+        slave_addrs=<addr1>,<addr2>,...
+	[dbg_probe=1]
 
-The addresses are specified in pairs, the first is the adapter ID and the
-second is the I2C address on that adapter.
+The addresses are normal I2C addresses.  The adapter is the string
+name of the adapter, as shown in /sys/class/i2c-adapter/i2c-<n>/name.
+It is *NOT* i2c-<n> itself.
 
 The debug flags are bit flags for each BMC found, they are:
 IPMI messages: 1, driver state: 2, timing: 4, I2C probe: 8
 
-Setting smb_defaultprobe to zero disabled the default probing of SMBus
-interfaces at address range 0x20 to 0x4f.  This means that only the
-BMCs specified on the smb_addr line will be detected.
-
-Setting smb_dbg_probe to 1 will enable debugging of the probing and
+Setting dbg_probe to 1 will enable debugging of the probing and
 detection process for BMCs on the SMBusses.
 
-Discovering the IPMI compliant BMC on the SMBus can cause devices
-on the I2C bus to fail. The SMBus driver writes a "Get Device ID" IPMI
+The slave_addrs specifies the IPMI address of the local BMC.  This is
+usually 0x20 and the driver defaults to that, but in case it's not, it
+can be specified when the driver starts up.
+
+Discovering the IPMI compliant BMC on the SMBus can cause devices on
+the I2C bus to fail. The SMBus driver writes a "Get Device ID" IPMI
 message as a block write to the I2C bus and waits for a response.
-This action can be detrimental to some I2C devices. It is highly recommended
-that the known I2c address be given to the SMBus driver in the smb_addr
-parameter. The default address range will not be used when a smb_addr
-parameter is provided.
+This action can be detrimental to some I2C devices. It is highly
+recommended that the known I2C address be given to the SMBus driver in
+the smb_addr parameter unless you have DMI or ACPI data to tell the
+driver what to use.
 
 When compiled into the kernel, the addresses can be specified on the
 kernel command line as:
 
-  ipmb_smb.addr=<adapter1>,<i2caddr1>[,<adapter2>,<i2caddr2>[,...]]
-	ipmi_smb.dbg=<flags1>,<flags2>...
-	ipmi_smb.defaultprobe=0 ipmi_smb.dbg_probe=1
+  ipmb_ssif.addr=<i2caddr1>[,<i2caddr2>[...]]
+	ipmi_ssif.adapter=<adapter1>[,<adapter2>[...]]
+	ipmi_ssif.dbg=<flags1>[,<flags2>[...]]
+	ipmi_ssif.dbg_probe=1
+        ipmi_ssif.slave_addrs=<addr1>[,<addr2>[...]]
 
 These are the same options as on the module command line.
 
-Note that you might need some I2C changes if CONFIG_IPMI_PANIC_EVENT
-is enabled along with this, so the I2C driver knows to run to
-completion during sending a panic event.
+The I2C driver does not support non-blocking access or polling, so
+this driver cannod to IPMI panic events, extend the watchdog at panic
+time, or other panic-related IPMI functions without special kernel
+patches and driver modifications.  You can get those at the openipmi
+web page.
 
+The driver supports a hot add and remove of interfaces through the I2C
+sysfs interface.
 
 Other Pieces
 ------------

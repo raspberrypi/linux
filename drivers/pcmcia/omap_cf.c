@@ -24,8 +24,8 @@
 #include <asm/io.h>
 #include <asm/sizes.h>
 
-#include <plat/mux.h>
-#include <plat/tc.h>
+#include <mach/mux.h>
+#include <mach/tc.h>
 
 
 /* NOTE:  don't expect this to support many I/O cards.  The 16xx chips have
@@ -334,7 +334,6 @@ static int __exit omap_cf_remove(struct platform_device *pdev)
 static struct platform_driver omap_cf_driver = {
 	.driver = {
 		.name	= (char *) driver_name,
-		.owner	= THIS_MODULE,
 	},
 	.remove		= __exit_p(omap_cf_remove),
 };

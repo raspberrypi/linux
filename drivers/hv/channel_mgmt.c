@@ -37,81 +37,6 @@ struct vmbus_channel_message_table_entry {
 	void (*message_handler)(struct vmbus_channel_message_header *msg);
 };
 
-#define MAX_MSG_TYPES                    4
-#define MAX_NUM_DEVICE_CLASSES_SUPPORTED 8
-
-static const uuid_le
-	supported_device_classes[MAX_NUM_DEVICE_CLASSES_SUPPORTED] = {
-	/* {ba6163d9-04a1-4d29-b605-72e2ffb1dc7f} */
-	/* Storage - SCSI */
-	{
-		.b  = {
-			0xd9, 0x63, 0x61, 0xba, 0xa1, 0x04, 0x29, 0x4d,
-			0xb6, 0x05, 0x72, 0xe2, 0xff, 0xb1, 0xdc, 0x7f
-		}
-	},
-
-	/* {F8615163-DF3E-46c5-913F-F2D2F965ED0E} */
-	/* Network */
-	{
-		.b = {
-			0x63, 0x51, 0x61, 0xF8, 0x3E, 0xDF, 0xc5, 0x46,
-			0x91, 0x3F, 0xF2, 0xD2, 0xF9, 0x65, 0xED, 0x0E
-		}
-	},
-
-	/* {CFA8B69E-5B4A-4cc0-B98B-8BA1A1F3F95A} */
-	/* Input */
-	{
-		.b = {
-			0x9E, 0xB6, 0xA8, 0xCF, 0x4A, 0x5B, 0xc0, 0x4c,
-			0xB9, 0x8B, 0x8B, 0xA1, 0xA1, 0xF3, 0xF9, 0x5A
-		}
-	},
-
-	/* {32412632-86cb-44a2-9b5c-50d1417354f5} */
-	/* IDE */
-	{
-		.b = {
-			0x32, 0x26, 0x41, 0x32, 0xcb, 0x86, 0xa2, 0x44,
-			0x9b, 0x5c, 0x50, 0xd1, 0x41, 0x73, 0x54, 0xf5
-		}
-	},
-	/* 0E0B6031-5213-4934-818B-38D90CED39DB */
-	/* Shutdown */
-	{
-		.b = {
-			0x31, 0x60, 0x0B, 0X0E, 0x13, 0x52, 0x34, 0x49,
-			0x81, 0x8B, 0x38, 0XD9, 0x0C, 0xED, 0x39, 0xDB
-		}
-	},
-	/* {9527E630-D0AE-497b-ADCE-E80AB0175CAF} */
-	/* TimeSync */
-	{
-		.b = {
-			0x30, 0xe6, 0x27, 0x95, 0xae, 0xd0, 0x7b, 0x49,
-			0xad, 0xce, 0xe8, 0x0a, 0xb0, 0x17, 0x5c, 0xaf
-		}
-	},
-	/* {57164f39-9115-4e78-ab55-382f3bd5422d} */
-	/* Heartbeat */
-	{
-		.b = {
-			0x39, 0x4f, 0x16, 0x57, 0x15, 0x91, 0x78, 0x4e,
-			0xab, 0x55, 0x38, 0x2f, 0x3b, 0xd5, 0x42, 0x2d
-		}
-	},
-	/* {A9A0F4E7-5A45-4d96-B827-8A841E8C03E6} */
-	/* KVP */
-	{
-		.b = {
-			0xe7, 0xf4, 0xa0, 0xa9, 0x45, 0x5a, 0x96, 0x4d,
-			0xb8, 0x27, 0x8a, 0x84, 0x1e, 0x8c, 0x3,  0xe6
-	}
-	},
-
-};
-
 
 /**
  * vmbus_prep_negotiate_resp() - Create default response for Hyper-V Negotiate message
@@ -121,40 +46,92 @@ static const uuid_le
  *
  * @icmsghdrp is of type &struct icmsg_hdr.
  * @negop is of type &struct icmsg_negotiate.
- * Set up and fill in default negotiate response message. This response can
- * come from both the vmbus driver and the hv_utils driver. The current api
- * will respond properly to both Windows 2008 and Windows 2008-R2 operating
- * systems.
+ * Set up and fill in default negotiate response message.
+ *
+ * The fw_version specifies the  framework version that
+ * we can support and srv_version specifies the service
+ * version we can support.
  *
  * Mainly used by Hyper-V drivers.
  */
-void vmbus_prep_negotiate_resp(struct icmsg_hdr *icmsghdrp,
-			       struct icmsg_negotiate *negop, u8 *buf)
+bool vmbus_prep_negotiate_resp(struct icmsg_hdr *icmsghdrp,
+				struct icmsg_negotiate *negop, u8 *buf,
+				int fw_version, int srv_version)
 {
-	if (icmsghdrp->icmsgtype == ICMSGTYPE_NEGOTIATE) {
-		icmsghdrp->icmsgsize = 0x10;
+	int icframe_major, icframe_minor;
+	int icmsg_major, icmsg_minor;
+	int fw_major, fw_minor;
+	int srv_major, srv_minor;
+	int i;
+	bool found_match = false;
 
-		negop = (struct icmsg_negotiate *)&buf[
-			sizeof(struct vmbuspipe_hdr) +
-			sizeof(struct icmsg_hdr)];
+	icmsghdrp->icmsgsize = 0x10;
+	fw_major = (fw_version >> 16);
+	fw_minor = (fw_version & 0xFFFF);
 
-		if (negop->icframe_vercnt == 2 &&
-		   negop->icversion_data[1].major == 3) {
-			negop->icversion_data[0].major = 3;
-			negop->icversion_data[0].minor = 0;
-			negop->icversion_data[1].major = 3;
-			negop->icversion_data[1].minor = 0;
-		} else {
-			negop->icversion_data[0].major = 1;
-			negop->icversion_data[0].minor = 0;
-			negop->icversion_data[1].major = 1;
-			negop->icversion_data[1].minor = 0;
+	srv_major = (srv_version >> 16);
+	srv_minor = (srv_version & 0xFFFF);
+
+	negop = (struct icmsg_negotiate *)&buf[
+		sizeof(struct vmbuspipe_hdr) +
+		sizeof(struct icmsg_hdr)];
+
+	icframe_major = negop->icframe_vercnt;
+	icframe_minor = 0;
+
+	icmsg_major = negop->icmsg_vercnt;
+	icmsg_minor = 0;
+
+	/*
+	 * Select the framework version number we will
+	 * support.
+	 */
+
+	for (i = 0; i < negop->icframe_vercnt; i++) {
+		if ((negop->icversion_data[i].major == fw_major) &&
+		   (negop->icversion_data[i].minor == fw_minor)) {
+			icframe_major = negop->icversion_data[i].major;
+			icframe_minor = negop->icversion_data[i].minor;
+			found_match = true;
 		}
+	}
 
+	if (!found_match)
+		goto fw_error;
+
+	found_match = false;
+
+	for (i = negop->icframe_vercnt;
+		 (i < negop->icframe_vercnt + negop->icmsg_vercnt); i++) {
+		if ((negop->icversion_data[i].major == srv_major) &&
+		   (negop->icversion_data[i].minor == srv_minor)) {
+			icmsg_major = negop->icversion_data[i].major;
+			icmsg_minor = negop->icversion_data[i].minor;
+			found_match = true;
+		}
+	}
+
+	/*
+	 * Respond with the framework and service
+	 * version numbers we can support.
+	 */
+
+fw_error:
+	if (!found_match) {
+		negop->icframe_vercnt = 0;
+		negop->icmsg_vercnt = 0;
+	} else {
 		negop->icframe_vercnt = 1;
 		negop->icmsg_vercnt = 1;
 	}
+
+	negop->icversion_data[0].major = icframe_major;
+	negop->icversion_data[0].minor = icframe_minor;
+	negop->icversion_data[1].major = icmsg_major;
+	negop->icversion_data[1].minor = icmsg_minor;
+	return found_match;
 }
+
 EXPORT_SYMBOL_GPL(vmbus_prep_negotiate_resp);
 
 /*
@@ -169,6 +146,10 @@ static struct vmbus_channel *alloc_channel(void)
 		return NULL;
 
 	spin_lock_init(&channel->inbound_lock);
+	spin_lock_init(&channel->lock);
+
+	INIT_LIST_HEAD(&channel->sc_list);
+	INIT_LIST_HEAD(&channel->percpu_list);
 
 	channel->controlwq = create_workqueue("hv_vmbus_ctl");
 	if (!channel->controlwq) {
@@ -208,7 +189,20 @@ static void free_channel(struct vmbus_channel *channel)
 	queue_work(vmbus_connection.work_queue, &channel->work);
 }
 
+static void percpu_channel_enq(void *arg)
+{
+	struct vmbus_channel *channel = arg;
+	int cpu = smp_processor_id();
 
+	list_add_tail(&channel->percpu_list, &hv_context.percpu_list[cpu]);
+}
+
+static void percpu_channel_deq(void *arg)
+{
+	struct vmbus_channel *channel = arg;
+
+	list_del(&channel->percpu_list);
+}
 
 /*
  * vmbus_process_rescind_offer -
@@ -219,8 +213,44 @@ static void vmbus_process_rescind_offer(struct work_struct *work)
 	struct vmbus_channel *channel = container_of(work,
 						     struct vmbus_channel,
 						     work);
+	unsigned long flags;
+	struct vmbus_channel *primary_channel;
+	struct vmbus_channel_relid_released msg;
+	struct device *dev;
 
-	vmbus_device_unregister(channel->device_obj);
+	if (channel->device_obj) {
+		dev = get_device(&channel->device_obj->device);
+		if (dev) {
+			vmbus_device_unregister(channel->device_obj);
+			put_device(dev);
+		}
+	}
+
+	memset(&msg, 0, sizeof(struct vmbus_channel_relid_released));
+	msg.child_relid = channel->offermsg.child_relid;
+	msg.header.msgtype = CHANNELMSG_RELID_RELEASED;
+	vmbus_post_msg(&msg, sizeof(struct vmbus_channel_relid_released));
+
+	if (channel->target_cpu != get_cpu()) {
+		put_cpu();
+		smp_call_function_single(channel->target_cpu,
+					 percpu_channel_deq, channel, true);
+	} else {
+		percpu_channel_deq(channel);
+		put_cpu();
+	}
+
+	if (channel->primary_channel == NULL) {
+		spin_lock_irqsave(&vmbus_connection.channel_lock, flags);
+		list_del(&channel->listentry);
+		spin_unlock_irqrestore(&vmbus_connection.channel_lock, flags);
+	} else {
+		primary_channel = channel->primary_channel;
+		spin_lock_irqsave(&primary_channel->lock, flags);
+		list_del(&channel->sc_list);
+		spin_unlock_irqrestore(&primary_channel->lock, flags);
+	}
+	free_channel(channel);
 }
 
 void vmbus_free_channels(void)
@@ -245,11 +275,9 @@ static void vmbus_process_offer(struct work_struct *work)
 							work);
 	struct vmbus_channel *channel;
 	bool fnew = true;
+	bool enq = false;
 	int ret;
 	unsigned long flags;
-
-	/* The next possible work is rescind handling */
-	INIT_WORK(&newchannel->work, vmbus_process_rescind_offer);
 
 	/* Make sure this is a new offer */
 	spin_lock_irqsave(&vmbus_connection.channel_lock, flags);
@@ -264,16 +292,64 @@ static void vmbus_process_offer(struct work_struct *work)
 		}
 	}
 
-	if (fnew)
+	if (fnew) {
 		list_add_tail(&newchannel->listentry,
 			      &vmbus_connection.chn_list);
+		enq = true;
+	}
 
 	spin_unlock_irqrestore(&vmbus_connection.channel_lock, flags);
 
-	if (!fnew) {
-		free_channel(newchannel);
-		return;
+	if (enq) {
+		if (newchannel->target_cpu != get_cpu()) {
+			put_cpu();
+			smp_call_function_single(newchannel->target_cpu,
+						 percpu_channel_enq,
+						 newchannel, true);
+		} else {
+			percpu_channel_enq(newchannel);
+			put_cpu();
+		}
 	}
+	if (!fnew) {
+		/*
+		 * Check to see if this is a sub-channel.
+		 */
+		if (newchannel->offermsg.offer.sub_channel_index != 0) {
+			/*
+			 * Process the sub-channel.
+			 */
+			newchannel->primary_channel = channel;
+			spin_lock_irqsave(&channel->lock, flags);
+			list_add_tail(&newchannel->sc_list, &channel->sc_list);
+			spin_unlock_irqrestore(&channel->lock, flags);
+
+			if (newchannel->target_cpu != get_cpu()) {
+				put_cpu();
+				smp_call_function_single(newchannel->target_cpu,
+							 percpu_channel_enq,
+							 newchannel, true);
+			} else {
+				percpu_channel_enq(newchannel);
+				put_cpu();
+			}
+
+			newchannel->state = CHANNEL_OPEN_STATE;
+			if (channel->sc_creation_callback != NULL)
+				channel->sc_creation_callback(newchannel);
+
+			goto done_init_rescind;
+		}
+
+		goto err_free_chan;
+	}
+
+	/*
+	 * This state is used to indicate a successful open
+	 * so that when we do close the channel normally, we
+	 * can cleanup properly
+	 */
+	newchannel->state = CHANNEL_OPEN_STATE;
 
 	/*
 	 * Start the process of binding this offer to the driver
@@ -284,6 +360,8 @@ static void vmbus_process_offer(struct work_struct *work)
 		&newchannel->offermsg.offer.if_type,
 		&newchannel->offermsg.offer.if_instance,
 		newchannel);
+	if (!newchannel->device_obj)
+		goto err_free_chan;
 
 	/*
 	 * Add the new device to the bus. This will kick off device-driver
@@ -299,16 +377,86 @@ static void vmbus_process_offer(struct work_struct *work)
 		list_del(&newchannel->listentry);
 		spin_unlock_irqrestore(&vmbus_connection.channel_lock, flags);
 		kfree(newchannel->device_obj);
-
-		free_channel(newchannel);
-	} else {
-		/*
-		 * This state is used to indicate a successful open
-		 * so that when we do close the channel normally, we
-		 * can cleanup properly
-		 */
-		newchannel->state = CHANNEL_OPEN_STATE;
+		goto err_free_chan;
 	}
+done_init_rescind:
+	spin_lock_irqsave(&newchannel->lock, flags);
+	/* The next possible work is rescind handling */
+	INIT_WORK(&newchannel->work, vmbus_process_rescind_offer);
+	/* Check if rescind offer was already received */
+	if (newchannel->rescind)
+		queue_work(newchannel->controlwq, &newchannel->work);
+	spin_unlock_irqrestore(&newchannel->lock, flags);
+	return;
+err_free_chan:
+	free_channel(newchannel);
+}
+
+enum {
+	IDE = 0,
+	SCSI,
+	NIC,
+	MAX_PERF_CHN,
+};
+
+/*
+ * This is an array of device_ids (device types) that are performance critical.
+ * We attempt to distribute the interrupt load for these devices across
+ * all available CPUs.
+ */
+static const struct hv_vmbus_device_id hp_devs[] = {
+	/* IDE */
+	{ HV_IDE_GUID, },
+	/* Storage - SCSI */
+	{ HV_SCSI_GUID, },
+	/* Network */
+	{ HV_NIC_GUID, },
+};
+
+
+/*
+ * We use this state to statically distribute the channel interrupt load.
+ */
+static u32  next_vp;
+
+/*
+ * Starting with Win8, we can statically distribute the incoming
+ * channel interrupt load by binding a channel to VCPU. We
+ * implement here a simple round robin scheme for distributing
+ * the interrupt load.
+ * We will bind channels that are not performance critical to cpu 0 and
+ * performance critical channels (IDE, SCSI and Network) will be uniformly
+ * distributed across all available CPUs.
+ */
+static void init_vp_index(struct vmbus_channel *channel, const uuid_le *type_guid)
+{
+	u32 cur_cpu;
+	int i;
+	bool perf_chn = false;
+	u32 max_cpus = num_online_cpus();
+
+	for (i = IDE; i < MAX_PERF_CHN; i++) {
+		if (!memcmp(type_guid->b, hp_devs[i].guid,
+				 sizeof(uuid_le))) {
+			perf_chn = true;
+			break;
+		}
+	}
+	if ((vmbus_proto_version == VERSION_WS2008) ||
+	    (vmbus_proto_version == VERSION_WIN7) || (!perf_chn)) {
+		/*
+		 * Prior to win8, all channel interrupts are
+		 * delivered on cpu 0.
+		 * Also if the channel is not a performance critical
+		 * channel, bind it to cpu 0.
+		 */
+		channel->target_cpu = 0;
+		channel->target_vp = 0;
+		return;
+	}
+	cur_cpu = (++next_vp % max_cpus);
+	channel->target_cpu = cur_cpu;
+	channel->target_vp = hv_context.vp_index[cur_cpu];
 }
 
 /*
@@ -319,25 +467,8 @@ static void vmbus_onoffer(struct vmbus_channel_message_header *hdr)
 {
 	struct vmbus_channel_offer_channel *offer;
 	struct vmbus_channel *newchannel;
-	uuid_le *guidtype;
-	uuid_le *guidinstance;
-	int i;
-	int fsupported = 0;
 
 	offer = (struct vmbus_channel_offer_channel *)hdr;
-	for (i = 0; i < MAX_NUM_DEVICE_CLASSES_SUPPORTED; i++) {
-		if (!uuid_le_cmp(offer->offer.if_type,
-				supported_device_classes[i])) {
-			fsupported = 1;
-			break;
-		}
-	}
-
-	if (!fsupported)
-		return;
-
-	guidtype = &offer->offer.if_type;
-	guidinstance = &offer->offer.if_instance;
 
 	/* Allocate the channel object and save this offer. */
 	newchannel = alloc_channel();
@@ -345,6 +476,35 @@ static void vmbus_onoffer(struct vmbus_channel_message_header *hdr)
 		pr_err("Unable to allocate channel object\n");
 		return;
 	}
+
+	/*
+	 * By default we setup state to enable batched
+	 * reading. A specific service can choose to
+	 * disable this prior to opening the channel.
+	 */
+	newchannel->batched_reading = true;
+
+	/*
+	 * Setup state for signalling the host.
+	 */
+	newchannel->sig_event = (struct hv_input_signal_event *)
+				(ALIGN((unsigned long)
+				&newchannel->sig_buf,
+				HV_HYPERCALL_PARAM_ALIGN));
+
+	newchannel->sig_event->connectionid.asu32 = 0;
+	newchannel->sig_event->connectionid.u.id = VMBUS_EVENT_CONNECTION_ID;
+	newchannel->sig_event->flag_number = 0;
+	newchannel->sig_event->rsvdz = 0;
+
+	if (vmbus_proto_version != VERSION_WS2008) {
+		newchannel->is_dedicated_interrupt =
+				(offer->is_dedicated_interrupt != 0);
+		newchannel->sig_event->connectionid.u.id =
+				offer->connection_id;
+	}
+
+	init_vp_index(newchannel, &offer->offer.if_type);
 
 	memcpy(&newchannel->offermsg, offer,
 	       sizeof(struct vmbus_channel_offer_channel));
@@ -364,6 +524,7 @@ static void vmbus_onoffer_rescind(struct vmbus_channel_message_header *hdr)
 {
 	struct vmbus_channel_rescind_offer *rescind;
 	struct vmbus_channel *channel;
+	unsigned long flags;
 
 	rescind = (struct vmbus_channel_rescind_offer *)hdr;
 	channel = relid2channel(rescind->child_relid);
@@ -372,9 +533,20 @@ static void vmbus_onoffer_rescind(struct vmbus_channel_message_header *hdr)
 		/* Just return here, no channel found */
 		return;
 
-	/* work is initialized for vmbus_process_rescind_offer() from
-	 * vmbus_process_offer() where the channel got created */
-	queue_work(channel->controlwq, &channel->work);
+	spin_lock_irqsave(&channel->lock, flags);
+	channel->rescind = true;
+	/*
+	 * channel->work.func != vmbus_process_rescind_offer means we are still
+	 * processing offer request and the rescind offer processing should be
+	 * postponed. It will be done at the very end of vmbus_process_offer()
+	 * as rescind flag is being checked there.
+	 */
+	if (channel->work.func == vmbus_process_rescind_offer)
+		/* work is initialized for vmbus_process_rescind_offer() from
+		 * vmbus_process_offer() where the channel got created */
+		queue_work(channel->controlwq, &channel->work);
+
+	spin_unlock_irqrestore(&channel->lock, flags);
 }
 
 /*
@@ -536,7 +708,6 @@ static void vmbus_onversion_response(
 {
 	struct vmbus_channel_msginfo *msginfo;
 	struct vmbus_channel_message_header *requestheader;
-	struct vmbus_channel_initiate_contact *initiate;
 	struct vmbus_channel_version_response *version_response;
 	unsigned long flags;
 
@@ -550,8 +721,6 @@ static void vmbus_onversion_response(
 
 		if (requestheader->msgtype ==
 		    CHANNELMSG_INITIATE_CONTACT) {
-			initiate =
-			(struct vmbus_channel_initiate_contact *)requestheader;
 			memcpy(&msginfo->response.version_response,
 			      version_response,
 			      sizeof(struct vmbus_channel_version_response));
@@ -618,15 +787,13 @@ int vmbus_request_offers(void)
 {
 	struct vmbus_channel_message_header *msg;
 	struct vmbus_channel_msginfo *msginfo;
-	int ret, t;
+	int ret;
 
 	msginfo = kmalloc(sizeof(*msginfo) +
 			  sizeof(struct vmbus_channel_message_header),
 			  GFP_KERNEL);
 	if (!msginfo)
 		return -ENOMEM;
-
-	init_completion(&msginfo->waitevent);
 
 	msg = (struct vmbus_channel_message_header *)msginfo->msg;
 
@@ -641,18 +808,94 @@ int vmbus_request_offers(void)
 		goto cleanup;
 	}
 
-	t = wait_for_completion_timeout(&msginfo->waitevent, 5*HZ);
-	if (t == 0) {
-		ret = -ETIMEDOUT;
-		goto cleanup;
-	}
-
-
-
 cleanup:
 	kfree(msginfo);
 
 	return ret;
 }
 
-/* eof */
+/*
+ * Retrieve the (sub) channel on which to send an outgoing request.
+ * When a primary channel has multiple sub-channels, we choose a
+ * channel whose VCPU binding is closest to the VCPU on which
+ * this call is being made.
+ */
+struct vmbus_channel *vmbus_get_outgoing_channel(struct vmbus_channel *primary)
+{
+	struct list_head *cur, *tmp;
+	int cur_cpu;
+	struct vmbus_channel *cur_channel;
+	struct vmbus_channel *outgoing_channel = primary;
+	int cpu_distance, new_cpu_distance;
+
+	if (list_empty(&primary->sc_list))
+		return outgoing_channel;
+
+	cur_cpu = hv_context.vp_index[get_cpu()];
+	put_cpu();
+	list_for_each_safe(cur, tmp, &primary->sc_list) {
+		cur_channel = list_entry(cur, struct vmbus_channel, sc_list);
+		if (cur_channel->state != CHANNEL_OPENED_STATE)
+			continue;
+
+		if (cur_channel->target_vp == cur_cpu)
+			return cur_channel;
+
+		cpu_distance = ((outgoing_channel->target_vp > cur_cpu) ?
+				(outgoing_channel->target_vp - cur_cpu) :
+				(cur_cpu - outgoing_channel->target_vp));
+
+		new_cpu_distance = ((cur_channel->target_vp > cur_cpu) ?
+				(cur_channel->target_vp - cur_cpu) :
+				(cur_cpu - cur_channel->target_vp));
+
+		if (cpu_distance < new_cpu_distance)
+			continue;
+
+		outgoing_channel = cur_channel;
+	}
+
+	return outgoing_channel;
+}
+EXPORT_SYMBOL_GPL(vmbus_get_outgoing_channel);
+
+static void invoke_sc_cb(struct vmbus_channel *primary_channel)
+{
+	struct list_head *cur, *tmp;
+	struct vmbus_channel *cur_channel;
+
+	if (primary_channel->sc_creation_callback == NULL)
+		return;
+
+	list_for_each_safe(cur, tmp, &primary_channel->sc_list) {
+		cur_channel = list_entry(cur, struct vmbus_channel, sc_list);
+
+		primary_channel->sc_creation_callback(cur_channel);
+	}
+}
+
+void vmbus_set_sc_create_callback(struct vmbus_channel *primary_channel,
+				void (*sc_cr_cb)(struct vmbus_channel *new_sc))
+{
+	primary_channel->sc_creation_callback = sc_cr_cb;
+}
+EXPORT_SYMBOL_GPL(vmbus_set_sc_create_callback);
+
+bool vmbus_are_subchannels_present(struct vmbus_channel *primary)
+{
+	bool ret;
+
+	ret = !list_empty(&primary->sc_list);
+
+	if (ret) {
+		/*
+		 * Invoke the callback on sub-channel creation.
+		 * This will present a uniform interface to the
+		 * clients.
+		 */
+		invoke_sc_cb(primary);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(vmbus_are_subchannels_present);

@@ -29,6 +29,7 @@
 /* Native ICP */
 #ifdef CONFIG_PPC_ICP_NATIVE
 extern int icp_native_init(void);
+extern void icp_native_flush_interrupt(void);
 #else
 static inline int icp_native_init(void) { return -ENODEV; }
 #endif
@@ -86,7 +87,7 @@ struct ics {
 extern unsigned int xics_default_server;
 extern unsigned int xics_default_distrib_server;
 extern unsigned int xics_interrupt_server_size;
-extern struct irq_host *xics_host;
+extern struct irq_domain *xics_host;
 
 struct xics_cppr {
 	unsigned char stack[MAX_NUM_PRIORITIES];
@@ -97,7 +98,7 @@ DECLARE_PER_CPU(struct xics_cppr, xics_cppr);
 
 static inline void xics_push_cppr(unsigned int vec)
 {
-	struct xics_cppr *os_cppr = &__get_cpu_var(xics_cppr);
+	struct xics_cppr *os_cppr = this_cpu_ptr(&xics_cppr);
 
 	if (WARN_ON(os_cppr->index >= MAX_NUM_PRIORITIES - 1))
 		return;
@@ -110,7 +111,7 @@ static inline void xics_push_cppr(unsigned int vec)
 
 static inline unsigned char xics_pop_cppr(void)
 {
-	struct xics_cppr *os_cppr = &__get_cpu_var(xics_cppr);
+	struct xics_cppr *os_cppr = this_cpu_ptr(&xics_cppr);
 
 	if (WARN_ON(os_cppr->index < 1))
 		return LOWEST_PRIORITY;
@@ -120,7 +121,7 @@ static inline unsigned char xics_pop_cppr(void)
 
 static inline void xics_set_base_cppr(unsigned char cppr)
 {
-	struct xics_cppr *os_cppr = &__get_cpu_var(xics_cppr);
+	struct xics_cppr *os_cppr = this_cpu_ptr(&xics_cppr);
 
 	/* we only really want to set the priority when there's
 	 * just one cppr value on the stack
@@ -132,7 +133,7 @@ static inline void xics_set_base_cppr(unsigned char cppr)
 
 static inline unsigned char xics_cppr_top(void)
 {
-	struct xics_cppr *os_cppr = &__get_cpu_var(xics_cppr);
+	struct xics_cppr *os_cppr = this_cpu_ptr(&xics_cppr);
 	
 	return os_cppr->stack[os_cppr->index];
 }
@@ -150,6 +151,7 @@ extern void xics_register_ics(struct ics *ics);
 extern void xics_teardown_cpu(void);
 extern void xics_kexec_teardown_cpu(int secondary);
 extern void xics_migrate_irqs_away(void);
+extern void icp_native_eoi(struct irq_data *d);
 #ifdef CONFIG_SMP
 extern int xics_get_irq_server(unsigned int virq, const struct cpumask *cpumask,
 			       unsigned int strict_check);

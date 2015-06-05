@@ -18,7 +18,6 @@
 #include <linux/kernel_stat.h>
 #include <linux/nmi.h>
 #include <asm/processor.h>
-#include <asm/system.h>
 #include <linux/atomic.h>
 #include <asm/intctl-regs.h>
 #include <asm/rtc-regs.h>
@@ -143,7 +142,7 @@ void watchdog_interrupt(struct pt_regs *regs, enum exception_code excep)
 	NMICR = NMICR_WDIF;
 
 	nmi_count(smp_processor_id())++;
-	kstat_incr_irqs_this_cpu(irq, irq_to_desc(irq));
+	kstat_incr_irq_this_cpu(irq);
 
 	for_each_online_cpu(cpu) {
 

@@ -160,9 +160,10 @@ static void __init himalaya_init(void)
 MACHINE_START(HIMALAYA, "HTC Himalaya")
 	.atag_offset = 0x100,
 	.map_io = pxa25x_map_io,
+	.nr_irqs = PXA_NR_IRQS,
 	.init_irq = pxa25x_init_irq,
 	.handle_irq = pxa25x_handle_irq,
 	.init_machine = himalaya_init,
-	.timer = &pxa_timer,
+	.init_time	= pxa_timer_init,
 	.restart	= pxa_restart,
 MACHINE_END

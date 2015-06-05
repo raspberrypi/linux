@@ -412,7 +412,6 @@ MODULE_ALIAS("platform:ax88796-pp");
 static struct platform_driver axdrv = {
 	.driver		= {
 		.name	= "ax88796-pp",
-		.owner	= THIS_MODULE,
 	},
 	.probe		= parport_ax88796_probe,
 	.remove		= parport_ax88796_remove,
@@ -420,18 +419,7 @@ static struct platform_driver axdrv = {
 	.resume		= parport_ax88796_resume,
 };
 
-static int __init parport_ax88796_init(void)
-{
-	return platform_driver_register(&axdrv);
-}
-
-static void __exit parport_ax88796_exit(void)
-{
-	platform_driver_unregister(&axdrv);
-}
-
-module_init(parport_ax88796_init)
-module_exit(parport_ax88796_exit)
+module_platform_driver(axdrv);
 
 MODULE_AUTHOR("Ben Dooks <ben@simtec.co.uk>");
 MODULE_DESCRIPTION("AX88796 Parport parallel port driver");

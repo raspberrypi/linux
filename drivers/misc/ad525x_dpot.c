@@ -64,7 +64,7 @@
  * Author: Chris Verges <chrisv@cyberswitching.com>
  *
  * derived from ad5252.c
- * Copyright (c) 2006 Michael Hennerich <hennerich@blackfin.uclinux.org>
+ * Copyright (c) 2006-2011 Michael Hennerich <hennerich@blackfin.uclinux.org>
  *
  * Licensed under the GPL-2 or later.
  */
@@ -72,11 +72,8 @@
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
-
-#define DRIVER_VERSION			"0.2"
 
 #include "ad525x_dpot.h"
 
@@ -179,6 +176,7 @@ static s32 dpot_read_i2c(struct dpot_data *dpot, u8 reg)
 {
 	int value;
 	unsigned ctrl = 0;
+
 	switch (dpot->uid) {
 	case DPOT_UID(AD5246_ID):
 	case DPOT_UID(AD5247_ID):
@@ -336,7 +334,6 @@ static s32 dpot_write_i2c(struct dpot_data *dpot, u8 reg, u16 value)
 	case DPOT_UID(AD5246_ID):
 	case DPOT_UID(AD5247_ID):
 		return dpot_write_d8(dpot, value);
-		break;
 
 	case DPOT_UID(AD5245_ID):
 	case DPOT_UID(AD5241_ID):
@@ -348,7 +345,6 @@ static s32 dpot_write_i2c(struct dpot_data *dpot, u8 reg, u16 value)
 		ctrl = ((reg & DPOT_RDAC_MASK) == DPOT_RDAC0) ?
 			0 : DPOT_AD5282_RDAC_AB;
 		return dpot_write_r8d8(dpot, ctrl, value);
-		break;
 	case DPOT_UID(AD5171_ID):
 	case DPOT_UID(AD5273_ID):
 		if (reg & DPOT_ADDR_OTP) {
@@ -358,7 +354,6 @@ static s32 dpot_write_i2c(struct dpot_data *dpot, u8 reg, u16 value)
 			ctrl = DPOT_AD5273_FUSE;
 		}
 		return dpot_write_r8d8(dpot, ctrl, value);
-		break;
 	case DPOT_UID(AD5172_ID):
 	case DPOT_UID(AD5173_ID):
 		ctrl = ((reg & DPOT_RDAC_MASK) == DPOT_RDAC0) ?
@@ -370,7 +365,6 @@ static s32 dpot_write_i2c(struct dpot_data *dpot, u8 reg, u16 value)
 			ctrl |= DPOT_AD5170_2_3_FUSE;
 		}
 		return dpot_write_r8d8(dpot, ctrl, value);
-		break;
 	case DPOT_UID(AD5170_ID):
 		if (reg & DPOT_ADDR_OTP) {
 			tmp = dpot_read_r8d16(dpot, tmp);
@@ -379,7 +373,6 @@ static s32 dpot_write_i2c(struct dpot_data *dpot, u8 reg, u16 value)
 			ctrl = DPOT_AD5170_2_3_FUSE;
 		}
 		return dpot_write_r8d8(dpot, ctrl, value);
-		break;
 	case DPOT_UID(AD5272_ID):
 	case DPOT_UID(AD5274_ID):
 		dpot_write_r8d8(dpot, DPOT_AD5270_1_2_4_CTRLREG << 2,
@@ -394,7 +387,6 @@ static s32 dpot_write_i2c(struct dpot_data *dpot, u8 reg, u16 value)
 
 		return dpot_write_r8d8(dpot, (DPOT_AD5270_1_2_4_RDAC << 2) |
 				       (value >> 8), value & 0xFF);
-		break;
 	default:
 		if (reg & DPOT_ADDR_CMD)
 			return dpot_write_d8(dpot, reg);
@@ -472,7 +464,7 @@ static ssize_t sysfs_set_reg(struct device *dev,
 		!test_bit(DPOT_RDAC_MASK & reg, data->otp_en_mask))
 		return -EPERM;
 
-	err = strict_strtoul(buf, 10, &value);
+	err = kstrtoul(buf, 10, &value);
 	if (err)
 		return err;
 
@@ -643,7 +635,7 @@ static const struct attribute_group ad525x_group_commands = {
 	.attrs = ad525x_attributes_commands,
 };
 
-__devinit int ad_dpot_add_files(struct device *dev,
+static int ad_dpot_add_files(struct device *dev,
 		unsigned features, unsigned rdac)
 {
 	int err = sysfs_create_file(&dev->kobj,
@@ -668,7 +660,7 @@ __devinit int ad_dpot_add_files(struct device *dev,
 	return err;
 }
 
-inline void ad_dpot_remove_files(struct device *dev,
+static inline void ad_dpot_remove_files(struct device *dev,
 		unsigned features, unsigned rdac)
 {
 	sysfs_remove_file(&dev->kobj,
@@ -687,8 +679,9 @@ inline void ad_dpot_remove_files(struct device *dev,
 	}
 }
 
-__devinit int ad_dpot_probe(struct device *dev,
-		struct ad_dpot_bus_data *bdata, const struct ad_dpot_id *id)
+int ad_dpot_probe(struct device *dev,
+		struct ad_dpot_bus_data *bdata, unsigned long devid,
+			    const char *name)
 {
 
 	struct dpot_data *data;
@@ -704,13 +697,13 @@ __devinit int ad_dpot_probe(struct device *dev,
 	mutex_init(&data->update_lock);
 
 	data->bdata = *bdata;
-	data->devid = id->devid;
+	data->devid = devid;
 
-	data->max_pos = 1 << DPOT_MAX_POS(data->devid);
+	data->max_pos = 1 << DPOT_MAX_POS(devid);
 	data->rdac_mask = data->max_pos - 1;
-	data->feat = DPOT_FEAT(data->devid);
-	data->uid = DPOT_UID(data->devid);
-	data->wipers = DPOT_WIPERS(data->devid);
+	data->feat = DPOT_FEAT(devid);
+	data->uid = DPOT_UID(devid);
+	data->wipers = DPOT_WIPERS(devid);
 
 	for (i = DPOT_RDAC0; i < MAX_RDACS; i++)
 		if (data->wipers & (1 << i)) {
@@ -731,7 +724,7 @@ __devinit int ad_dpot_probe(struct device *dev,
 	}
 
 	dev_info(dev, "%s %d-Position Digital Potentiometer registered\n",
-		 id->name, data->max_pos);
+		 name, data->max_pos);
 
 	return 0;
 
@@ -745,12 +738,12 @@ exit_free:
 	dev_set_drvdata(dev, NULL);
 exit:
 	dev_err(dev, "failed to create client for %s ID 0x%lX\n",
-			id->name, id->devid);
+		name, devid);
 	return err;
 }
 EXPORT_SYMBOL(ad_dpot_probe);
 
-__devexit int ad_dpot_remove(struct device *dev)
+int ad_dpot_remove(struct device *dev)
 {
 	struct dpot_data *data = dev_get_drvdata(dev);
 	int i;
@@ -770,4 +763,3 @@ MODULE_AUTHOR("Chris Verges <chrisv@cyberswitching.com>, "
 	      "Michael Hennerich <hennerich@blackfin.uclinux.org>");
 MODULE_DESCRIPTION("Digital potentiometer driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION(DRIVER_VERSION);

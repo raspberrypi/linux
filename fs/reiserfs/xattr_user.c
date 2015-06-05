@@ -1,10 +1,10 @@
-#include <linux/reiserfs_fs.h>
+#include "reiserfs.h"
 #include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/pagemap.h>
 #include <linux/xattr.h>
-#include <linux/reiserfs_xattr.h>
-#include <asm/uaccess.h>
+#include "xattr.h"
+#include <linux/uaccess.h>
 
 static int
 user_get(struct dentry *dentry, const char *name, void *buffer, size_t size,

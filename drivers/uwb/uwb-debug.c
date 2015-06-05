@@ -159,13 +159,6 @@ static int cmd_ie_rm(struct uwb_rc *rc, struct uwb_dbg_cmd_ie *ie_to_rm)
 	return uwb_rc_ie_rm(rc, ie_to_rm->data[0]);
 }
 
-static int command_open(struct inode *inode, struct file *file)
-{
-	file->private_data = inode->i_private;
-
-	return 0;
-}
-
 static ssize_t command_write(struct file *file, const char __user *buf,
 			 size_t len, loff_t *off)
 {
@@ -206,7 +199,7 @@ static ssize_t command_write(struct file *file, const char __user *buf,
 }
 
 static const struct file_operations command_fops = {
-	.open   = command_open,
+	.open	= simple_open,
 	.write  = command_write,
 	.read   = NULL,
 	.llseek = no_llseek,
@@ -224,7 +217,6 @@ static int reservations_print(struct seq_file *s, void *p)
 		struct uwb_dev_addr devaddr;
 		char owner[UWB_ADDR_STRSIZE], target[UWB_ADDR_STRSIZE];
 		bool is_owner;
-		char buf[72];
 
 		uwb_dev_addr_print(owner, sizeof(owner), &rsv->owner->dev_addr);
 		if (rsv->target.type == UWB_RSV_TARGET_DEV) {
@@ -241,8 +233,7 @@ static int reservations_print(struct seq_file *s, void *p)
 			   owner, target, uwb_rsv_state_str(rsv->state));
 		seq_printf(s, "  stream: %d  type: %s\n",
 			   rsv->stream, uwb_rsv_type_str(rsv->type));
-		bitmap_scnprintf(buf, sizeof(buf), rsv->mas.bm, UWB_NUM_MAS);
-		seq_printf(s, "  %s\n", buf);
+		seq_printf(s, "  %*pb\n", UWB_NUM_MAS, rsv->mas.bm);
 	}
 
 	mutex_unlock(&rc->rsvs_mutex);
@@ -266,14 +257,10 @@ static const struct file_operations reservations_fops = {
 static int drp_avail_print(struct seq_file *s, void *p)
 {
 	struct uwb_rc *rc = s->private;
-	char buf[72];
 
-	bitmap_scnprintf(buf, sizeof(buf), rc->drp_avail.global, UWB_NUM_MAS);
-	seq_printf(s, "global:  %s\n", buf);
-	bitmap_scnprintf(buf, sizeof(buf), rc->drp_avail.local, UWB_NUM_MAS);
-	seq_printf(s, "local:   %s\n", buf);
-	bitmap_scnprintf(buf, sizeof(buf), rc->drp_avail.pending, UWB_NUM_MAS);
-	seq_printf(s, "pending: %s\n", buf);
+	seq_printf(s, "global:  %*pb\n", UWB_NUM_MAS, rc->drp_avail.global);
+	seq_printf(s, "local:   %*pb\n", UWB_NUM_MAS, rc->drp_avail.local);
+	seq_printf(s, "pending: %*pb\n", UWB_NUM_MAS, rc->drp_avail.pending);
 
 	return 0;
 }

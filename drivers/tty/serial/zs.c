@@ -57,6 +57,7 @@
 #include <linux/ioport.h>
 #include <linux/irqflags.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/major.h>
 #include <linux/serial.h>
 #include <linux/serial_core.h>
@@ -67,7 +68,6 @@
 #include <linux/types.h>
 
 #include <linux/atomic.h>
-#include <asm/system.h>
 
 #include <asm/dec/interrupts.h>
 #include <asm/dec/ioasic_addrs.h>
@@ -603,7 +603,7 @@ static void zs_receive_chars(struct zs_port *zport)
 		uart_insert_char(uport, status, Rx_OVR, ch, flag);
 	}
 
-	tty_flip_buffer_push(uport->state->port.tty);
+	tty_flip_buffer_push(&uport->state->port);
 }
 
 static void zs_raw_transmit_chars(struct zs_port *zport)
@@ -923,7 +923,7 @@ static void zs_set_termios(struct uart_port *uport, struct ktermios *termios,
 	uport->read_status_mask = Rx_OVR;
 	if (termios->c_iflag & INPCK)
 		uport->read_status_mask |= FRM_ERR | PAR_ERR;
-	if (termios->c_iflag & (BRKINT | PARMRK))
+	if (termios->c_iflag & (IGNBRK | BRKINT | PARMRK))
 		uport->read_status_mask |= Rx_BRK;
 
 	uport->ignore_status_mask = 0;

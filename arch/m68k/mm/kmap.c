@@ -20,7 +20,6 @@
 #include <asm/page.h>
 #include <asm/pgalloc.h>
 #include <asm/io.h>
-#include <asm/system.h>
 
 #undef DEBUG
 
@@ -28,9 +27,9 @@
 
 /*
  * For 040/060 we can use the virtual memory area like other architectures,
- * but for 020/030 we want to use early termination page descriptor and we
+ * but for 020/030 we want to use early termination page descriptors and we
  * can't mix this with normal page descriptors, so we have to copy that code
- * (mm/vmalloc.c) and return appriorate aligned addresses.
+ * (mm/vmalloc.c) and return appropriately aligned addresses.
  */
 
 #ifdef CPU_M68040_OR_M68060_ONLY
@@ -225,7 +224,7 @@ void __iomem *__ioremap(unsigned long physaddr, unsigned long size, int cachefla
 EXPORT_SYMBOL(__ioremap);
 
 /*
- * Unmap a ioremap()ed region again
+ * Unmap an ioremap()ed region again
  */
 void iounmap(void __iomem *addr)
 {
@@ -242,8 +241,8 @@ EXPORT_SYMBOL(iounmap);
 
 /*
  * __iounmap unmaps nearly everything, so be careful
- * it doesn't free currently pointer/page tables anymore but it
- * wans't used anyway and might be added later.
+ * Currently it doesn't free pointer/page tables anymore but this
+ * wasn't used anyway and might be added later.
  */
 void __iounmap(void *addr, unsigned long size)
 {

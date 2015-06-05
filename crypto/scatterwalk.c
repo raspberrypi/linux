@@ -40,9 +40,9 @@ void scatterwalk_start(struct scatter_walk *walk, struct scatterlist *sg)
 }
 EXPORT_SYMBOL_GPL(scatterwalk_start);
 
-void *scatterwalk_map(struct scatter_walk *walk, int out)
+void *scatterwalk_map(struct scatter_walk *walk)
 {
-	return crypto_kmap(scatterwalk_page(walk), out) +
+	return kmap_atomic(scatterwalk_page(walk)) +
 	       offset_in_page(walk->offset);
 }
 EXPORT_SYMBOL_GPL(scatterwalk_map);
@@ -62,7 +62,7 @@ static void scatterwalk_pagedone(struct scatter_walk *walk, int out,
 		walk->offset += PAGE_SIZE - 1;
 		walk->offset &= PAGE_MASK;
 		if (walk->offset >= walk->sg->offset + walk->sg->length)
-			scatterwalk_start(walk, scatterwalk_sg_next(walk->sg));
+			scatterwalk_start(walk, sg_next(walk->sg));
 	}
 }
 
@@ -83,9 +83,9 @@ void scatterwalk_copychunks(void *buf, struct scatter_walk *walk,
 		if (len_this_page > nbytes)
 			len_this_page = nbytes;
 
-		vaddr = scatterwalk_map(walk, out);
+		vaddr = scatterwalk_map(walk);
 		memcpy_dir(buf, vaddr, len_this_page, out);
-		scatterwalk_unmap(vaddr, out);
+		scatterwalk_unmap(vaddr);
 
 		scatterwalk_advance(walk, len_this_page);
 
@@ -116,7 +116,7 @@ void scatterwalk_map_and_copy(void *buf, struct scatterlist *sg,
 			break;
 
 		offset += sg->length;
-		sg = scatterwalk_sg_next(sg);
+		sg = sg_next(sg);
 	}
 
 	scatterwalk_advance(&walk, start - offset);
@@ -124,3 +124,25 @@ void scatterwalk_map_and_copy(void *buf, struct scatterlist *sg,
 	scatterwalk_done(&walk, out, 0);
 }
 EXPORT_SYMBOL_GPL(scatterwalk_map_and_copy);
+
+int scatterwalk_bytes_sglen(struct scatterlist *sg, int num_bytes)
+{
+	int offset = 0, n = 0;
+
+	/* num_bytes is too small */
+	if (num_bytes < sg->length)
+		return -1;
+
+	do {
+		offset += sg->length;
+		n++;
+		sg = sg_next(sg);
+
+		/* num_bytes is too large */
+		if (unlikely(!sg && (num_bytes < offset)))
+			return -1;
+	} while (sg && (num_bytes > offset));
+
+	return n;
+}
+EXPORT_SYMBOL_GPL(scatterwalk_bytes_sglen);

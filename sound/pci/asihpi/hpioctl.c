@@ -1,7 +1,8 @@
 /*******************************************************************************
-
     AudioScience HPI driver
-    Copyright (C) 1997-2011  AudioScience Inc. <support@audioscience.com>
+    Common Linux HPI ioctl and module probe/remove functions
+
+    Copyright (C) 1997-2014  AudioScience Inc. <support@audioscience.com>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of version 2 of the GNU General Public License as
@@ -12,15 +13,11 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-
-Common Linux HPI ioctl and module probe/remove functions
 *******************************************************************************/
 #define SOURCEFILE_NAME "hpioctl.c"
 
 #include "hpi_internal.h"
+#include "hpi_version.h"
 #include "hpimsginit.h"
 #include "hpidebug.h"
 #include "hpimsgx.h"
@@ -28,9 +25,10 @@ Common Linux HPI ioctl and module probe/remove functions
 #include "hpicmn.h"
 
 #include <linux/fs.h>
+#include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <linux/moduleparam.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/pci.h>
 #include <linux/stringify.h>
 #include <linux/module.h>
@@ -65,9 +63,7 @@ static struct hpi_adapter adapters[HPI_MAX_ADAPTERS];
 static void hpi_send_recv_f(struct hpi_message *phm, struct hpi_response *phr,
 	struct file *file)
 {
-	int adapter = phm->adapter_index;
-
-	if ((adapter >= HPI_MAX_ADAPTERS || adapter < 0)
+	if ((phm->adapter_index >= HPI_MAX_ADAPTERS)
 		&& (phm->object != HPI_OBJ_SUBSYSTEM))
 		phr->error = HPI_ERROR_INVALID_OBJ_INDEX;
 	else
@@ -157,6 +153,8 @@ long asihpi_hpi_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		goto out;
 	}
 
+	res_max_size = min_t(size_t, res_max_size, sizeof(*hr));
+
 	switch (hm->h.function) {
 	case HPI_SUBSYS_CREATE_ADAPTER:
 	case HPI_ADAPTER_DELETE:
@@ -178,19 +176,14 @@ long asihpi_hpi_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	} else {
 		u16 __user *ptr = NULL;
 		u32 size = 0;
-		u32 adapter_present;
 		/* -1=no data 0=read from user mem, 1=write to user mem */
 		int wrflag = -1;
-		struct hpi_adapter *pa;
+		struct hpi_adapter *pa = NULL;
 
-		if (hm->h.adapter_index < HPI_MAX_ADAPTERS) {
+		if (hm->h.adapter_index < ARRAY_SIZE(adapters))
 			pa = &adapters[hm->h.adapter_index];
-			adapter_present = pa->type;
-		} else {
-			adapter_present = 0;
-		}
 
-		if (!adapter_present) {
+		if (!pa || !pa->adapter || !pa->adapter->type) {
 			hpi_init_response(&hr->r0, hm->h.object,
 				hm->h.function, HPI_ERROR_BAD_ADAPTER_NUMBER);
 
@@ -313,10 +306,39 @@ out:
 	return err;
 }
 
-int __devinit asihpi_adapter_probe(struct pci_dev *pci_dev,
-	const struct pci_device_id *pci_id)
+static int asihpi_irq_count;
+
+static irqreturn_t asihpi_isr(int irq, void *dev_id)
 {
-	int idx, nm;
+	struct hpi_adapter *a = dev_id;
+	int handled;
+
+	if (!a->adapter->irq_query_and_clear) {
+		pr_err("asihpi_isr ASI%04X:%d no handler\n", a->adapter->type,
+			a->adapter->index);
+		return IRQ_NONE;
+	}
+
+	handled = a->adapter->irq_query_and_clear(a->adapter, 0);
+
+	if (!handled)
+		return IRQ_NONE;
+
+	asihpi_irq_count++;
+	/* printk(KERN_INFO "asihpi_isr %d ASI%04X:%d irq handled\n",
+	   asihpi_irq_count, a->adapter->type, a->adapter->index); */
+
+	if (a->interrupt_callback)
+		a->interrupt_callback(a);
+
+	return IRQ_HANDLED;
+}
+
+int asihpi_adapter_probe(struct pci_dev *pci_dev,
+			 const struct pci_device_id *pci_id)
+{
+	int idx, nm, low_latency_mode = 0, irq_supported = 0;
+	int adapter_index;
 	unsigned int memlen;
 	struct hpi_message hm;
 	struct hpi_response hr;
@@ -331,7 +353,7 @@ int __devinit asihpi_adapter_probe(struct pci_dev *pci_dev,
 		pci_dev->subsystem_device, pci_dev->devfn);
 
 	if (pci_enable_device(pci_dev) < 0) {
-		dev_printk(KERN_ERR, &pci_dev->dev,
+		dev_err(&pci_dev->dev,
 			"pci_enable_device failed, disabling device\n");
 		return -EIO;
 	}
@@ -345,8 +367,6 @@ int __devinit asihpi_adapter_probe(struct pci_dev *pci_dev,
 
 	hm.adapter_index = HPI_ADAPTER_INDEX_INVALID;
 
-	adapter.pci = pci_dev;
-
 	nm = HPI_MAX_ADAPTER_MEM_SPACES;
 
 	for (idx = 0; idx < nm; idx++) {
@@ -355,18 +375,16 @@ int __devinit asihpi_adapter_probe(struct pci_dev *pci_dev,
 
 		if (pci_resource_flags(pci_dev, idx) & IORESOURCE_MEM) {
 			memlen = pci_resource_len(pci_dev, idx);
-			adapter.ap_remapped_mem_base[idx] =
+			pci.ap_mem_base[idx] =
 				ioremap(pci_resource_start(pci_dev, idx),
 				memlen);
-			if (!adapter.ap_remapped_mem_base[idx]) {
+			if (!pci.ap_mem_base[idx]) {
 				HPI_DEBUG_LOG(ERROR,
 					"ioremap failed, aborting\n");
 				/* unmap previously mapped pci mem space */
 				goto err;
 			}
 		}
-
-		pci.ap_mem_base[idx] = adapter.ap_remapped_mem_base[idx];
 	}
 
 	pci.pci_dev = pci_dev;
@@ -377,6 +395,9 @@ int __devinit asihpi_adapter_probe(struct pci_dev *pci_dev,
 	hpi_send_recv_ex(&hm, &hr, HOWNER_KERNEL);
 	if (hr.error)
 		goto err;
+
+	adapter_index = hr.u.s.adapter_index;
+	adapter.adapter = hpi_find_adapter(adapter_index);
 
 	if (prealloc_stream_buf) {
 		adapter.p_buffer = vmalloc(prealloc_stream_buf);
@@ -389,36 +410,99 @@ int __devinit asihpi_adapter_probe(struct pci_dev *pci_dev,
 		}
 	}
 
-	adapter.index = hr.u.s.adapter_index;
-	adapter.type = hr.u.s.adapter_type;
-
 	hpi_init_message_response(&hm, &hr, HPI_OBJ_ADAPTER,
 		HPI_ADAPTER_OPEN);
-	hm.adapter_index = adapter.index;
+	hm.adapter_index = adapter.adapter->index;
 	hpi_send_recv_ex(&hm, &hr, HOWNER_KERNEL);
 
-	if (hr.error)
+	if (hr.error) {
+		HPI_DEBUG_LOG(ERROR, "HPI_ADAPTER_OPEN failed, aborting\n");
 		goto err;
+	}
 
-	adapter.snd_card_asihpi = NULL;
+	/* Check if current mode == Low Latency mode */
+	hpi_init_message_response(&hm, &hr, HPI_OBJ_ADAPTER,
+		HPI_ADAPTER_GET_MODE);
+	hm.adapter_index = adapter.adapter->index;
+	hpi_send_recv_ex(&hm, &hr, HOWNER_KERNEL);
+
+	if (!hr.error
+		&& hr.u.ax.mode.adapter_mode == HPI_ADAPTER_MODE_LOW_LATENCY)
+		low_latency_mode = 1;
+	else
+		dev_info(&pci_dev->dev,
+			"Adapter at index %d is not in low latency mode\n",
+			adapter.adapter->index);
+
+	/* Check if IRQs are supported */
+	hpi_init_message_response(&hm, &hr, HPI_OBJ_ADAPTER,
+		HPI_ADAPTER_GET_PROPERTY);
+	hm.adapter_index = adapter.adapter->index;
+	hm.u.ax.property_set.property = HPI_ADAPTER_PROPERTY_SUPPORTS_IRQ;
+	hpi_send_recv_ex(&hm, &hr, HOWNER_KERNEL);
+	if (hr.error || !hr.u.ax.property_get.parameter1) {
+		dev_info(&pci_dev->dev,
+			"IRQs not supported by adapter at index %d\n",
+			adapter.adapter->index);
+	} else {
+		irq_supported = 1;
+	}
+
 	/* WARNING can't init mutex in 'adapter'
 	 * and then copy it to adapters[] ?!?!
 	 */
-	adapters[adapter.index] = adapter;
-	mutex_init(&adapters[adapter.index].mutex);
-	pci_set_drvdata(pci_dev, &adapters[adapter.index]);
+	adapters[adapter_index] = adapter;
+	mutex_init(&adapters[adapter_index].mutex);
+	pci_set_drvdata(pci_dev, &adapters[adapter_index]);
 
-	dev_printk(KERN_INFO, &pci_dev->dev,
-		"probe succeeded for ASI%04X HPI index %d\n", adapter.type,
-		adapter.index);
+	if (low_latency_mode && irq_supported) {
+		if (!adapter.adapter->irq_query_and_clear) {
+			dev_err(&pci_dev->dev,
+				"no IRQ handler for adapter %d, aborting\n",
+				adapter.adapter->index);
+			goto err;
+		}
+
+		/* Disable IRQ generation on DSP side by setting the rate to 0 */
+		hpi_init_message_response(&hm, &hr, HPI_OBJ_ADAPTER,
+			HPI_ADAPTER_SET_PROPERTY);
+		hm.adapter_index = adapter.adapter->index;
+		hm.u.ax.property_set.property = HPI_ADAPTER_PROPERTY_IRQ_RATE;
+		hm.u.ax.property_set.parameter1 = 0;
+		hm.u.ax.property_set.parameter2 = 0;
+		hpi_send_recv_ex(&hm, &hr, HOWNER_KERNEL);
+		if (hr.error) {
+			HPI_DEBUG_LOG(ERROR,
+				"HPI_ADAPTER_GET_MODE failed, aborting\n");
+			goto err;
+		}
+
+		/* Note: request_irq calls asihpi_isr here */
+		if (request_irq(pci_dev->irq, asihpi_isr, IRQF_SHARED,
+				"asihpi", &adapters[adapter_index])) {
+			dev_err(&pci_dev->dev, "request_irq(%d) failed\n",
+				pci_dev->irq);
+			goto err;
+		}
+
+		adapters[adapter_index].interrupt_mode = 1;
+
+		dev_info(&pci_dev->dev, "using irq %d\n", pci_dev->irq);
+		adapters[adapter_index].irq = pci_dev->irq;
+	} else {
+		dev_info(&pci_dev->dev, "using polled mode\n");
+	}
+
+	dev_info(&pci_dev->dev, "probe succeeded for ASI%04X HPI index %d\n",
+		 adapter.adapter->type, adapter_index);
 
 	return 0;
 
 err:
 	for (idx = 0; idx < HPI_MAX_ADAPTER_MEM_SPACES; idx++) {
-		if (adapter.ap_remapped_mem_base[idx]) {
-			iounmap(adapter.ap_remapped_mem_base[idx]);
-			adapter.ap_remapped_mem_base[idx] = NULL;
+		if (pci.ap_mem_base[idx]) {
+			iounmap(pci.ap_mem_base[idx]);
+			pci.ap_mem_base[idx] = NULL;
 		}
 	}
 
@@ -431,37 +515,46 @@ err:
 	return -ENODEV;
 }
 
-void __devexit asihpi_adapter_remove(struct pci_dev *pci_dev)
+void asihpi_adapter_remove(struct pci_dev *pci_dev)
 {
 	int idx;
 	struct hpi_message hm;
 	struct hpi_response hr;
 	struct hpi_adapter *pa;
+	struct hpi_pci pci;
+
 	pa = pci_get_drvdata(pci_dev);
+	pci = pa->adapter->pci;
+
+	/* Disable IRQ generation on DSP side */
+	hpi_init_message_response(&hm, &hr, HPI_OBJ_ADAPTER,
+		HPI_ADAPTER_SET_PROPERTY);
+	hm.adapter_index = pa->adapter->index;
+	hm.u.ax.property_set.property = HPI_ADAPTER_PROPERTY_IRQ_RATE;
+	hm.u.ax.property_set.parameter1 = 0;
+	hm.u.ax.property_set.parameter2 = 0;
+	hpi_send_recv_ex(&hm, &hr, HOWNER_KERNEL);
 
 	hpi_init_message_response(&hm, &hr, HPI_OBJ_ADAPTER,
 		HPI_ADAPTER_DELETE);
-	hm.adapter_index = pa->index;
+	hm.adapter_index = pa->adapter->index;
 	hpi_send_recv_ex(&hm, &hr, HOWNER_KERNEL);
 
 	/* unmap PCI memory space, mapped during device init. */
-	for (idx = 0; idx < HPI_MAX_ADAPTER_MEM_SPACES; idx++) {
-		if (pa->ap_remapped_mem_base[idx]) {
-			iounmap(pa->ap_remapped_mem_base[idx]);
-			pa->ap_remapped_mem_base[idx] = NULL;
-		}
-	}
+	for (idx = 0; idx < HPI_MAX_ADAPTER_MEM_SPACES; ++idx)
+		iounmap(pci.ap_mem_base[idx]);
 
-	if (pa->p_buffer)
-		vfree(pa->p_buffer);
+	if (pa->irq)
+		free_irq(pa->irq, pa);
 
-	pci_set_drvdata(pci_dev, NULL);
+	vfree(pa->p_buffer);
+
 	if (1)
-		dev_printk(KERN_INFO, &pci_dev->dev,
-			"remove %04x:%04x,%04x:%04x,%04x," " HPI index %d.\n",
-			pci_dev->vendor, pci_dev->device,
-			pci_dev->subsystem_vendor, pci_dev->subsystem_device,
-			pci_dev->devfn, pa->index);
+		dev_info(&pci_dev->dev,
+			 "remove %04x:%04x,%04x:%04x,%04x, HPI index %d\n",
+			 pci_dev->vendor, pci_dev->device,
+			 pci_dev->subsystem_vendor, pci_dev->subsystem_device,
+			 pci_dev->devfn, pa->adapter->index);
 
 	memset(pa, 0, sizeof(*pa));
 }

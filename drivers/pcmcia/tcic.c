@@ -47,7 +47,6 @@
 #include <linux/bitops.h>
 
 #include <asm/io.h>
-#include <asm/system.h>
 
 #include <pcmcia/ss.h>
 #include "tcic.h"
@@ -350,7 +349,6 @@ static int __init get_tcic_id(void)
 static struct platform_driver tcic_driver = {
 	.driver = {
 		.name = "tcic-pcmcia",
-		.owner		= THIS_MODULE,
 	},
 };
 

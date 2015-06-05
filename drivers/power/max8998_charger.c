@@ -19,7 +19,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <linux/module.h>
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -76,7 +75,7 @@ static int max8998_battery_get_property(struct power_supply *psy,
 	return 0;
 }
 
-static __devinit int max8998_battery_probe(struct platform_device *pdev)
+static int max8998_battery_probe(struct platform_device *pdev)
 {
 	struct max8998_dev *iodev = dev_get_drvdata(pdev->dev.parent);
 	struct max8998_platform_data *pdata = dev_get_platdata(iodev->dev);
@@ -89,7 +88,8 @@ static __devinit int max8998_battery_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	max8998 = kzalloc(sizeof(struct max8998_battery_data), GFP_KERNEL);
+	max8998 = devm_kzalloc(&pdev->dev, sizeof(struct max8998_battery_data),
+				GFP_KERNEL);
 	if (!max8998)
 		return -ENOMEM;
 
@@ -154,6 +154,7 @@ static __devinit int max8998_battery_probe(struct platform_device *pdev)
 	case 0:
 		dev_dbg(max8998->dev,
 			"Full Timeout not set: leave it unchanged.\n");
+		break;
 	default:
 		dev_err(max8998->dev, "Invalid Full Timeout value\n");
 		ret = -EINVAL;
@@ -174,45 +175,33 @@ static __devinit int max8998_battery_probe(struct platform_device *pdev)
 
 	return 0;
 err:
-	kfree(max8998);
 	return ret;
 }
 
-static int __devexit max8998_battery_remove(struct platform_device *pdev)
+static int max8998_battery_remove(struct platform_device *pdev)
 {
 	struct max8998_battery_data *max8998 = platform_get_drvdata(pdev);
 
 	power_supply_unregister(&max8998->battery);
-	kfree(max8998);
 
 	return 0;
 }
 
 static const struct platform_device_id max8998_battery_id[] = {
 	{ "max8998-battery", TYPE_MAX8998 },
+	{ }
 };
 
 static struct platform_driver max8998_battery_driver = {
 	.driver = {
 		.name = "max8998-battery",
-		.owner = THIS_MODULE,
 	},
 	.probe = max8998_battery_probe,
-	.remove = __devexit_p(max8998_battery_remove),
+	.remove = max8998_battery_remove,
 	.id_table = max8998_battery_id,
 };
 
-static int __init max8998_battery_init(void)
-{
-	return platform_driver_register(&max8998_battery_driver);
-}
-module_init(max8998_battery_init);
-
-static void __exit max8998_battery_cleanup(void)
-{
-	platform_driver_unregister(&max8998_battery_driver);
-}
-module_exit(max8998_battery_cleanup);
+module_platform_driver(max8998_battery_driver);
 
 MODULE_DESCRIPTION("MAXIM 8998 battery control driver");
 MODULE_AUTHOR("MyungJoo Ham <myungjoo.ham@samsung.com>");

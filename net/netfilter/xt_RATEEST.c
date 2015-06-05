@@ -43,12 +43,11 @@ static void xt_rateest_hash_insert(struct xt_rateest *est)
 struct xt_rateest *xt_rateest_lookup(const char *name)
 {
 	struct xt_rateest *est;
-	struct hlist_node *n;
 	unsigned int h;
 
 	h = xt_rateest_hash(name);
 	mutex_lock(&xt_rateest_mutex);
-	hlist_for_each_entry(est, n, &rateest_hash[h], list) {
+	hlist_for_each_entry(est, &rateest_hash[h], list) {
 		if (strcmp(est->name, name) == 0) {
 			est->refcnt++;
 			mutex_unlock(&xt_rateest_mutex);
@@ -137,7 +136,7 @@ static int xt_rateest_tg_checkentry(const struct xt_tgchk_param *par)
 	cfg.est.interval	= info->interval;
 	cfg.est.ewma_log	= info->ewma_log;
 
-	ret = gen_new_estimator(&est->bstats, &est->rstats,
+	ret = gen_new_estimator(&est->bstats, NULL, &est->rstats,
 				&est->lock, &cfg.opt);
 	if (ret < 0)
 		goto err2;

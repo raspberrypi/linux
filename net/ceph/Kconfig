@@ -1,8 +1,9 @@
 config CEPH_LIB
-        tristate "Ceph core library (EXPERIMENTAL)"
-	depends on INET && EXPERIMENTAL
+	tristate "Ceph core library"
+	depends on INET
 	select LIBCRC32C
 	select CRYPTO_AES
+	select CRYPTO_CBC
 	select CRYPTO
 	select KEYS
 	default n

@@ -3,13 +3,8 @@
  * Handler for storing security labels as extended attributes.
  */
 
-#include <linux/module.h>
-#include <linux/slab.h>
-#include <linux/string.h>
-#include <linux/fs.h>
-#include <linux/ext3_jbd.h>
-#include <linux/ext3_fs.h>
 #include <linux/security.h>
+#include "ext3.h"
 #include "xattr.h"
 
 static size_t
@@ -48,8 +43,9 @@ ext3_xattr_security_set(struct dentry *dentry, const char *name,
 			      name, value, size, flags);
 }
 
-int ext3_initxattrs(struct inode *inode, const struct xattr *xattr_array,
-		    void *fs_info)
+static int ext3_initxattrs(struct inode *inode,
+			   const struct xattr *xattr_array,
+			   void *fs_info)
 {
 	const struct xattr *xattr;
 	handle_t *handle = fs_info;

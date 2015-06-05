@@ -38,7 +38,6 @@
 #include <linux/serial.h>
 #include <linux/serial_reg.h>
 #include <linux/bitops.h>
-#include <asm/system.h>
 #include <asm/io.h>
 
 #include <pcmcia/cistpl.h>
@@ -63,7 +62,7 @@ MODULE_LICENSE("GPL");
 /* ======================== Local structures ======================== */
 
 
-typedef struct dtl1_info_t {
+struct dtl1_info {
 	struct pcmcia_device *p_dev;
 
 	struct hci_dev *hdev;
@@ -79,13 +78,10 @@ typedef struct dtl1_info_t {
 	unsigned long rx_state;
 	unsigned long rx_count;
 	struct sk_buff *rx_skb;
-} dtl1_info_t;
+};
 
 
 static int dtl1_config(struct pcmcia_device *link);
-static void dtl1_release(struct pcmcia_device *link);
-
-static void dtl1_detach(struct pcmcia_device *p_dev);
 
 
 /* Transmit states  */
@@ -98,11 +94,11 @@ static void dtl1_detach(struct pcmcia_device *p_dev);
 #define RECV_WAIT_DATA  1
 
 
-typedef struct {
+struct nsh {
 	u8 type;
 	u8 zero;
 	u16 len;
-} __packed nsh_t;	/* Nokia Specific Header */
+} __packed;	/* Nokia Specific Header */
 
 #define NSHL  4				/* Nokia Specific Header Length */
 
@@ -130,7 +126,7 @@ static int dtl1_write(unsigned int iobase, int fifo_size, __u8 *buf, int len)
 }
 
 
-static void dtl1_write_wakeup(dtl1_info_t *info)
+static void dtl1_write_wakeup(struct dtl1_info *info)
 {
 	if (!info) {
 		BT_ERR("Unknown device");
@@ -148,16 +144,17 @@ static void dtl1_write_wakeup(dtl1_info_t *info)
 	}
 
 	do {
-		register unsigned int iobase = info->p_dev->resource[0]->start;
+		unsigned int iobase = info->p_dev->resource[0]->start;
 		register struct sk_buff *skb;
-		register int len;
+		int len;
 
 		clear_bit(XMIT_WAKEUP, &(info->tx_state));
 
 		if (!pcmcia_dev_present(info->p_dev))
 			return;
 
-		if (!(skb = skb_dequeue(&(info->txq))))
+		skb = skb_dequeue(&(info->txq));
+		if (!skb)
 			break;
 
 		/* Send frame */
@@ -179,7 +176,7 @@ static void dtl1_write_wakeup(dtl1_info_t *info)
 }
 
 
-static void dtl1_control(dtl1_info_t *info, struct sk_buff *skb)
+static void dtl1_control(struct dtl1_info *info, struct sk_buff *skb)
 {
 	u8 flowmask = *(u8 *)skb->data;
 	int i;
@@ -202,10 +199,10 @@ static void dtl1_control(dtl1_info_t *info, struct sk_buff *skb)
 }
 
 
-static void dtl1_receive(dtl1_info_t *info)
+static void dtl1_receive(struct dtl1_info *info)
 {
 	unsigned int iobase;
-	nsh_t *nsh;
+	struct nsh *nsh;
 	int boguscount = 0;
 
 	if (!info) {
@@ -219,16 +216,18 @@ static void dtl1_receive(dtl1_info_t *info)
 		info->hdev->stat.byte_rx++;
 
 		/* Allocate packet */
-		if (info->rx_skb == NULL)
-			if (!(info->rx_skb = bt_skb_alloc(HCI_MAX_FRAME_SIZE, GFP_ATOMIC))) {
+		if (info->rx_skb == NULL) {
+			info->rx_skb = bt_skb_alloc(HCI_MAX_FRAME_SIZE, GFP_ATOMIC);
+			if (!info->rx_skb) {
 				BT_ERR("Can't allocate mem for new packet");
 				info->rx_state = RECV_WAIT_NSH;
 				info->rx_count = NSHL;
 				return;
 			}
+		}
 
 		*skb_put(info->rx_skb, 1) = inb(iobase + UART_RX);
-		nsh = (nsh_t *)info->rx_skb->data;
+		nsh = (struct nsh *)info->rx_skb->data;
 
 		info->rx_count--;
 
@@ -260,9 +259,8 @@ static void dtl1_receive(dtl1_info_t *info)
 				case 0x83:
 				case 0x84:
 					/* send frame to the HCI layer */
-					info->rx_skb->dev = (void *) info->hdev;
 					bt_cb(info->rx_skb)->pkt_type &= 0x0f;
-					hci_recv_frame(info->rx_skb);
+					hci_recv_frame(info->hdev, info->rx_skb);
 					break;
 				default:
 					/* unknown packet */
@@ -289,7 +287,7 @@ static void dtl1_receive(dtl1_info_t *info)
 
 static irqreturn_t dtl1_interrupt(int irq, void *dev_inst)
 {
-	dtl1_info_t *info = dev_inst;
+	struct dtl1_info *info = dev_inst;
 	unsigned int iobase;
 	unsigned char msr;
 	int boguscount = 0;
@@ -367,7 +365,7 @@ static int dtl1_hci_open(struct hci_dev *hdev)
 
 static int dtl1_hci_flush(struct hci_dev *hdev)
 {
-	dtl1_info_t *info = (dtl1_info_t *)(hdev->driver_data);
+	struct dtl1_info *info = hci_get_drvdata(hdev);
 
 	/* Drop TX queue */
 	skb_queue_purge(&(info->txq));
@@ -387,19 +385,11 @@ static int dtl1_hci_close(struct hci_dev *hdev)
 }
 
 
-static int dtl1_hci_send_frame(struct sk_buff *skb)
+static int dtl1_hci_send_frame(struct hci_dev *hdev, struct sk_buff *skb)
 {
-	dtl1_info_t *info;
-	struct hci_dev *hdev = (struct hci_dev *)(skb->dev);
+	struct dtl1_info *info = hci_get_drvdata(hdev);
 	struct sk_buff *s;
-	nsh_t nsh;
-
-	if (!hdev) {
-		BT_ERR("Frame for unknown HCI device (hdev=NULL)");
-		return -ENODEV;
-	}
-
-	info = (dtl1_info_t *)(hdev->driver_data);
+	struct nsh nsh;
 
 	switch (bt_cb(skb)->pkt_type) {
 	case HCI_COMMAND_PKT:
@@ -442,22 +432,11 @@ static int dtl1_hci_send_frame(struct sk_buff *skb)
 }
 
 
-static void dtl1_hci_destruct(struct hci_dev *hdev)
-{
-}
-
-
-static int dtl1_hci_ioctl(struct hci_dev *hdev, unsigned int cmd,  unsigned long arg)
-{
-	return -ENOIOCTLCMD;
-}
-
-
 
 /* ======================== Card services HCI interaction ======================== */
 
 
-static int dtl1_open(dtl1_info_t *info)
+static int dtl1_open(struct dtl1_info *info)
 {
 	unsigned long flags;
 	unsigned int iobase = info->p_dev->resource[0]->start;
@@ -483,17 +462,13 @@ static int dtl1_open(dtl1_info_t *info)
 	info->hdev = hdev;
 
 	hdev->bus = HCI_PCCARD;
-	hdev->driver_data = info;
+	hci_set_drvdata(hdev, info);
 	SET_HCIDEV_DEV(hdev, &info->p_dev->dev);
 
-	hdev->open     = dtl1_hci_open;
-	hdev->close    = dtl1_hci_close;
-	hdev->flush    = dtl1_hci_flush;
-	hdev->send     = dtl1_hci_send_frame;
-	hdev->destruct = dtl1_hci_destruct;
-	hdev->ioctl    = dtl1_hci_ioctl;
-
-	hdev->owner = THIS_MODULE;
+	hdev->open  = dtl1_hci_open;
+	hdev->close = dtl1_hci_close;
+	hdev->flush = dtl1_hci_flush;
+	hdev->send  = dtl1_hci_send_frame;
 
 	spin_lock_irqsave(&(info->lock), flags);
 
@@ -530,7 +505,7 @@ static int dtl1_open(dtl1_info_t *info)
 }
 
 
-static int dtl1_close(dtl1_info_t *info)
+static int dtl1_close(struct dtl1_info *info)
 {
 	unsigned long flags;
 	unsigned int iobase = info->p_dev->resource[0]->start;
@@ -559,10 +534,10 @@ static int dtl1_close(dtl1_info_t *info)
 
 static int dtl1_probe(struct pcmcia_device *link)
 {
-	dtl1_info_t *info;
+	struct dtl1_info *info;
 
 	/* Create new info device */
-	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	info = devm_kzalloc(&link->dev, sizeof(*info), GFP_KERNEL);
 	if (!info)
 		return -ENOMEM;
 
@@ -577,11 +552,10 @@ static int dtl1_probe(struct pcmcia_device *link)
 
 static void dtl1_detach(struct pcmcia_device *link)
 {
-	dtl1_info_t *info = link->priv;
+	struct dtl1_info *info = link->priv;
 
-	dtl1_release(link);
-
-	kfree(info);
+	dtl1_close(info);
+	pcmcia_disable_device(link);
 }
 
 static int dtl1_confcheck(struct pcmcia_device *p_dev, void *priv_data)
@@ -597,42 +571,33 @@ static int dtl1_confcheck(struct pcmcia_device *p_dev, void *priv_data)
 
 static int dtl1_config(struct pcmcia_device *link)
 {
-	dtl1_info_t *info = link->priv;
-	int i;
+	struct dtl1_info *info = link->priv;
+	int ret;
 
 	/* Look for a generic full-sized window */
 	link->resource[0]->end = 8;
-	if (pcmcia_loop_config(link, dtl1_confcheck, NULL) < 0)
+	ret = pcmcia_loop_config(link, dtl1_confcheck, NULL);
+	if (ret)
 		goto failed;
 
-	i = pcmcia_request_irq(link, dtl1_interrupt);
-	if (i != 0)
+	ret = pcmcia_request_irq(link, dtl1_interrupt);
+	if (ret)
 		goto failed;
 
-	i = pcmcia_enable_device(link);
-	if (i != 0)
+	ret = pcmcia_enable_device(link);
+	if (ret)
 		goto failed;
 
-	if (dtl1_open(info) != 0)
+	ret = dtl1_open(info);
+	if (ret)
 		goto failed;
 
 	return 0;
 
 failed:
-	dtl1_release(link);
-	return -ENODEV;
+	dtl1_detach(link);
+	return ret;
 }
-
-
-static void dtl1_release(struct pcmcia_device *link)
-{
-	dtl1_info_t *info = link->priv;
-
-	dtl1_close(info);
-
-	pcmcia_disable_device(link);
-}
-
 
 static const struct pcmcia_device_id dtl1_ids[] = {
 	PCMCIA_DEVICE_PROD_ID12("Nokia Mobile Phones", "DTL-1", 0xe1bfdd64, 0xe168480d),
@@ -650,17 +615,4 @@ static struct pcmcia_driver dtl1_driver = {
 	.remove		= dtl1_detach,
 	.id_table	= dtl1_ids,
 };
-
-static int __init init_dtl1_cs(void)
-{
-	return pcmcia_register_driver(&dtl1_driver);
-}
-
-
-static void __exit exit_dtl1_cs(void)
-{
-	pcmcia_unregister_driver(&dtl1_driver);
-}
-
-module_init(init_dtl1_cs);
-module_exit(exit_dtl1_cs);
+module_pcmcia_driver(dtl1_driver);

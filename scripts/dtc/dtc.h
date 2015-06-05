@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdarg.h>
 #include <assert.h>
 #include <ctype.h>
@@ -37,9 +38,9 @@
 #include "util.h"
 
 #ifdef DEBUG
-#define debug(fmt,args...)	printf(fmt, ##args)
+#define debug(...)	printf(__VA_ARGS__)
 #else
-#define debug(fmt,args...)
+#define debug(...)
 #endif
 
 
@@ -53,6 +54,7 @@ extern int reservenum;		/* Number of memory reservation slots */
 extern int minsize;		/* Minimum blob size */
 extern int padsize;		/* Additional padding to blob */
 extern int phandle_format;	/* Use linux,phandle or phandle properties */
+extern int symbol_fixup_support;/* enable symbols & fixup support */
 
 #define PHANDLE_LEGACY	0x1
 #define PHANDLE_EPAPR	0x2
@@ -65,7 +67,6 @@ typedef uint32_t cell_t;
 #define strneq(a, b, n)	(strncmp((a), (b), (n)) == 0)
 
 #define ALIGN(x, a)	(((x) + (a) - 1) & ~((a) - 1))
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 /* Data blobs */
 enum markertype {
@@ -88,7 +89,7 @@ struct data {
 };
 
 
-#define empty_data ((struct data){ /* all .members = 0 or NULL */ })
+#define empty_data ((struct data){ 0 /* all .members = 0 or NULL */ })
 
 #define for_each_marker(m) \
 	for (; (m); (m) = (m)->next)
@@ -109,6 +110,7 @@ struct data data_insert_at_marker(struct data d, struct marker *m,
 				  const void *p, int len);
 struct data data_merge(struct data d1, struct data d2);
 struct data data_append_cell(struct data d, cell_t word);
+struct data data_append_integer(struct data d, uint64_t word, int bits);
 struct data data_append_re(struct data d, const struct fdt_reserve_entry *re);
 struct data data_append_addr(struct data d, uint64_t addr);
 struct data data_append_byte(struct data d, uint8_t byte);
@@ -117,7 +119,7 @@ struct data data_append_align(struct data d, int align);
 
 struct data data_add_marker(struct data d, enum markertype type, char *ref);
 
-int data_is_one_string(struct data d);
+bool data_is_one_string(struct data d);
 
 /* DT constraints */
 
@@ -126,11 +128,32 @@ int data_is_one_string(struct data d);
 
 /* Live trees */
 struct label {
+	bool deleted;
 	char *label;
 	struct label *next;
 };
 
+struct fixup_entry {
+	int offset;
+	struct node *node;
+	struct property *prop;
+	struct fixup_entry *next;
+};
+
+struct fixup {
+	char *ref;
+	struct fixup_entry *entries;
+	struct fixup *next;
+};
+
+struct symbol {
+	struct label *label;
+	struct node *node;
+	struct symbol *next;
+};
+
 struct property {
+	bool deleted;
 	char *name;
 	struct data val;
 
@@ -140,6 +163,7 @@ struct property {
 };
 
 struct node {
+	bool deleted;
 	char *name;
 	struct property *proplist;
 	struct node *children;
@@ -154,30 +178,67 @@ struct node {
 	int addr_cells, size_cells;
 
 	struct label *labels;
+
+	int is_root;
+	int is_plugin;
+	struct fixup *fixups;
+	struct symbol *symbols;
+	struct fixup_entry *local_fixups;
 };
 
-#define for_each_label(l0, l) \
+#define for_each_label_withdel(l0, l) \
 	for ((l) = (l0); (l); (l) = (l)->next)
 
-#define for_each_property(n, p) \
+#define for_each_label(l0, l) \
+	for_each_label_withdel(l0, l) \
+		if (!(l)->deleted)
+
+#define for_each_property_withdel(n, p) \
 	for ((p) = (n)->proplist; (p); (p) = (p)->next)
 
-#define for_each_child(n, c)	\
+#define for_each_property(n, p) \
+	for_each_property_withdel(n, p) \
+		if (!(p)->deleted)
+
+#define for_each_child_withdel(n, c) \
 	for ((c) = (n)->children; (c); (c) = (c)->next_sibling)
 
+#define for_each_child(n, c) \
+	for_each_child_withdel(n, c) \
+		if (!(c)->deleted)
+
+#define for_each_fixup(n, f) \
+	for ((f) = (n)->fixups; (f); (f) = (f)->next)
+
+#define for_each_fixup_entry(f, fe) \
+	for ((fe) = (f)->entries; (fe); (fe) = (fe)->next)
+
+#define for_each_symbol(n, s) \
+	for ((s) = (n)->symbols; (s); (s) = (s)->next)
+
+#define for_each_local_fixup_entry(n, fe) \
+	for ((fe) = (n)->local_fixups; (fe); (fe) = (fe)->next)
+
 void add_label(struct label **labels, char *label);
+void delete_labels(struct label **labels);
 
 struct property *build_property(char *name, struct data val);
+struct property *build_property_delete(char *name);
 struct property *chain_property(struct property *first, struct property *list);
 struct property *reverse_properties(struct property *first);
 
 struct node *build_node(struct property *proplist, struct node *children);
+struct node *build_node_delete(void);
 struct node *name_node(struct node *node, char *name);
 struct node *chain_node(struct node *first, struct node *list);
 struct node *merge_nodes(struct node *old_node, struct node *new_node);
 
 void add_property(struct node *node, struct property *prop);
+void delete_property_by_name(struct node *node, char *name);
+void delete_property(struct property *prop);
 void add_child(struct node *parent, struct node *child);
+void delete_node_by_name(struct node *parent, char *name);
+void delete_node(struct node *node);
 
 const char *get_unitname(struct node *node);
 struct property *get_property(struct node *node, const char *propname);
@@ -224,7 +285,8 @@ void sort_tree(struct boot_info *bi);
 
 /* Checks */
 
-void process_checks(int force, struct boot_info *bi);
+void parse_checks_option(bool warn, bool error, const char *arg);
+void process_checks(bool force, struct boot_info *bi);
 
 /* Flattened trees */
 

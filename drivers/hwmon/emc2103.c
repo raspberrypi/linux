@@ -1,21 +1,21 @@
 /*
-    emc2103.c - Support for SMSC EMC2103
-    Copyright (c) 2010 SMSC
-
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-*/
+ * emc2103.c - Support for SMSC EMC2103
+ * Copyright (c) 2010 SMSC
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
 
 #include <linux/module.h>
 #include <linux/init.h>
@@ -48,14 +48,16 @@ static const u8 REG_TEMP_MAX[4] = { 0x34, 0x30, 0x31, 0x32 };
 /* equation 4 from datasheet: rpm = (3932160 * multipler) / count */
 #define FAN_RPM_FACTOR		3932160
 
-/* 2103-2 and 2103-4's 3rd temperature sensor can be connected to two diodes
+/*
+ * 2103-2 and 2103-4's 3rd temperature sensor can be connected to two diodes
  * in anti-parallel mode, and in this configuration both can be read
  * independently (so we have 4 temperature inputs).  The device can't
  * detect if it's connected in this mode, so we have to manually enable
  * it.  Default is to leave the device in the state it's already in (-1).
- * This parameter allows APD mode to be optionally forced on or off */
+ * This parameter allows APD mode to be optionally forced on or off
+ */
 static int apd = -1;
-module_param(apd, bool, 0);
+module_param(apd, bint, 0);
 MODULE_PARM_DESC(init, "Set to zero to disable anti-parallel diode mode");
 
 struct temperature {
@@ -64,7 +66,8 @@ struct temperature {
 };
 
 struct emc2103_data {
-	struct device		*hwmon_dev;
+	struct i2c_client	*client;
+	const struct		attribute_group *groups[4];
 	struct mutex		update_lock;
 	bool			valid;		/* registers are valid */
 	bool			fan_rpm_control;
@@ -144,8 +147,8 @@ static void read_fan_config_from_i2c(struct i2c_client *client)
 
 static struct emc2103_data *emc2103_update_device(struct device *dev)
 {
-	struct i2c_client *client = to_i2c_client(dev);
-	struct emc2103_data *data = i2c_get_clientdata(client);
+	struct emc2103_data *data = dev_get_drvdata(dev);
+	struct i2c_client *client = data->client;
 
 	mutex_lock(&data->update_lock);
 
@@ -240,17 +243,15 @@ static ssize_t set_temp_min(struct device *dev, struct device_attribute *da,
 			    const char *buf, size_t count)
 {
 	int nr = to_sensor_dev_attr(da)->index;
-	struct i2c_client *client = to_i2c_client(dev);
-	struct emc2103_data *data = i2c_get_clientdata(client);
+	struct emc2103_data *data = dev_get_drvdata(dev);
+	struct i2c_client *client = data->client;
 	long val;
 
-	int result = strict_strtol(buf, 10, &val);
+	int result = kstrtol(buf, 10, &val);
 	if (result < 0)
-		return -EINVAL;
+		return result;
 
-	val = DIV_ROUND_CLOSEST(val, 1000);
-	if ((val < -63) || (val > 127))
-		return -EINVAL;
+	val = clamp_val(DIV_ROUND_CLOSEST(val, 1000), -63, 127);
 
 	mutex_lock(&data->update_lock);
 	data->temp_min[nr] = val;
@@ -264,17 +265,15 @@ static ssize_t set_temp_max(struct device *dev, struct device_attribute *da,
 			    const char *buf, size_t count)
 {
 	int nr = to_sensor_dev_attr(da)->index;
-	struct i2c_client *client = to_i2c_client(dev);
-	struct emc2103_data *data = i2c_get_clientdata(client);
+	struct emc2103_data *data = dev_get_drvdata(dev);
+	struct i2c_client *client = data->client;
 	long val;
 
-	int result = strict_strtol(buf, 10, &val);
+	int result = kstrtol(buf, 10, &val);
 	if (result < 0)
-		return -EINVAL;
+		return result;
 
-	val = DIV_ROUND_CLOSEST(val, 1000);
-	if ((val < -63) || (val > 127))
-		return -EINVAL;
+	val = clamp_val(DIV_ROUND_CLOSEST(val, 1000), -63, 127);
 
 	mutex_lock(&data->update_lock);
 	data->temp_max[nr] = val;
@@ -302,21 +301,23 @@ show_fan_div(struct device *dev, struct device_attribute *da, char *buf)
 	return sprintf(buf, "%d\n", fan_div);
 }
 
-/* Note: we also update the fan target here, because its value is
-   determined in part by the fan clock divider.  This follows the principle
-   of least surprise; the user doesn't expect the fan target to change just
-   because the divider changed. */
+/*
+ * Note: we also update the fan target here, because its value is
+ * determined in part by the fan clock divider.  This follows the principle
+ * of least surprise; the user doesn't expect the fan target to change just
+ * because the divider changed.
+ */
 static ssize_t set_fan_div(struct device *dev, struct device_attribute *da,
 			   const char *buf, size_t count)
 {
 	struct emc2103_data *data = emc2103_update_device(dev);
-	struct i2c_client *client = to_i2c_client(dev);
+	struct i2c_client *client = data->client;
 	int new_range_bits, old_div = 8 / data->fan_multiplier;
 	long new_div;
 
-	int status = strict_strtol(buf, 10, &new_div);
+	int status = kstrtol(buf, 10, &new_div);
 	if (status < 0)
-		return -EINVAL;
+		return status;
 
 	if (new_div == old_div) /* No change */
 		return count;
@@ -345,7 +346,7 @@ static ssize_t set_fan_div(struct device *dev, struct device_attribute *da,
 		dev_dbg(&client->dev, "reg 0x%02x, err %d\n",
 			REG_FAN_CONF1, status);
 		mutex_unlock(&data->update_lock);
-		return -EIO;
+		return status;
 	}
 	status &= 0x9F;
 	status |= (new_range_bits << 5);
@@ -385,23 +386,22 @@ static ssize_t set_fan_target(struct device *dev, struct device_attribute *da,
 			      const char *buf, size_t count)
 {
 	struct emc2103_data *data = emc2103_update_device(dev);
-	struct i2c_client *client = to_i2c_client(dev);
-	long rpm_target;
+	struct i2c_client *client = data->client;
+	unsigned long rpm_target;
 
-	int result = strict_strtol(buf, 10, &rpm_target);
+	int result = kstrtoul(buf, 10, &rpm_target);
 	if (result < 0)
-		return -EINVAL;
+		return result;
 
 	/* Datasheet states 16384 as maximum RPM target (table 3.2) */
-	if ((rpm_target < 0) || (rpm_target > 16384))
-		return -EINVAL;
+	rpm_target = clamp_val(rpm_target, 0, 16384);
 
 	mutex_lock(&data->update_lock);
 
 	if (rpm_target == 0)
 		data->fan_target = 0x1fff;
 	else
-		data->fan_target = SENSORS_LIMIT(
+		data->fan_target = clamp_val(
 			(FAN_RPM_FACTOR * data->fan_multiplier) / rpm_target,
 			0, 0x1fff);
 
@@ -429,14 +429,14 @@ show_pwm_enable(struct device *dev, struct device_attribute *da, char *buf)
 static ssize_t set_pwm_enable(struct device *dev, struct device_attribute *da,
 			      const char *buf, size_t count)
 {
-	struct i2c_client *client = to_i2c_client(dev);
-	struct emc2103_data *data = i2c_get_clientdata(client);
+	struct emc2103_data *data = dev_get_drvdata(dev);
+	struct i2c_client *client = data->client;
 	long new_value;
 	u8 conf_reg;
 
-	int result = strict_strtol(buf, 10, &new_value);
+	int result = kstrtol(buf, 10, &new_value);
 	if (result < 0)
-		return -EINVAL;
+		return result;
 
 	mutex_lock(&data->update_lock);
 	switch (new_value) {
@@ -447,11 +447,15 @@ static ssize_t set_pwm_enable(struct device *dev, struct device_attribute *da,
 		data->fan_rpm_control = true;
 		break;
 	default:
-		mutex_unlock(&data->update_lock);
-		return -EINVAL;
+		count = -EINVAL;
+		goto err;
 	}
 
-	read_u8_from_i2c(client, REG_FAN_CONF1, &conf_reg);
+	result = read_u8_from_i2c(client, REG_FAN_CONF1, &conf_reg);
+	if (result) {
+		count = result;
+		goto err;
+	}
 
 	if (data->fan_rpm_control)
 		conf_reg |= 0x80;
@@ -459,7 +463,7 @@ static ssize_t set_pwm_enable(struct device *dev, struct device_attribute *da,
 		conf_reg &= ~0x80;
 
 	i2c_smbus_write_byte_data(client, REG_FAN_CONF1, conf_reg);
-
+err:
 	mutex_unlock(&data->update_lock);
 	return count;
 }
@@ -577,16 +581,19 @@ static int
 emc2103_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct emc2103_data *data;
-	int status;
+	struct device *hwmon_dev;
+	int status, idx = 0;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -EIO;
 
-	data = kzalloc(sizeof(struct emc2103_data), GFP_KERNEL);
+	data = devm_kzalloc(&client->dev, sizeof(struct emc2103_data),
+			    GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
 
 	i2c_set_clientdata(client, data);
+	data->client = client;
 	mutex_init(&data->update_lock);
 
 	/* 2103-2 and 2103-4 have 3 external diodes, 2103-1 has 1 */
@@ -600,7 +607,7 @@ emc2103_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		if (status < 0) {
 			dev_dbg(&client->dev, "reg 0x%02x, err %d\n", REG_CONF1,
 				status);
-			goto exit_free;
+			return status;
 		}
 
 		/* detect current state of hardware */
@@ -620,64 +627,22 @@ emc2103_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		}
 	}
 
-	/* Register sysfs hooks */
-	status = sysfs_create_group(&client->dev.kobj, &emc2103_group);
-	if (status)
-		goto exit_free;
+	/* sysfs hooks */
+	data->groups[idx++] = &emc2103_group;
+	if (data->temp_count >= 3)
+		data->groups[idx++] = &emc2103_temp3_group;
+	if (data->temp_count == 4)
+		data->groups[idx++] = &emc2103_temp4_group;
 
-	if (data->temp_count >= 3) {
-		status = sysfs_create_group(&client->dev.kobj,
-			&emc2103_temp3_group);
-		if (status)
-			goto exit_remove;
-	}
-
-	if (data->temp_count == 4) {
-		status = sysfs_create_group(&client->dev.kobj,
-			&emc2103_temp4_group);
-		if (status)
-			goto exit_remove_temp3;
-	}
-
-	data->hwmon_dev = hwmon_device_register(&client->dev);
-	if (IS_ERR(data->hwmon_dev)) {
-		status = PTR_ERR(data->hwmon_dev);
-		goto exit_remove_temp4;
-	}
+	hwmon_dev = devm_hwmon_device_register_with_groups(&client->dev,
+							   client->name, data,
+							   data->groups);
+	if (IS_ERR(hwmon_dev))
+		return PTR_ERR(hwmon_dev);
 
 	dev_info(&client->dev, "%s: sensor '%s'\n",
-		 dev_name(data->hwmon_dev), client->name);
+		 dev_name(hwmon_dev), client->name);
 
-	return 0;
-
-exit_remove_temp4:
-	if (data->temp_count == 4)
-		sysfs_remove_group(&client->dev.kobj, &emc2103_temp4_group);
-exit_remove_temp3:
-	if (data->temp_count >= 3)
-		sysfs_remove_group(&client->dev.kobj, &emc2103_temp3_group);
-exit_remove:
-	sysfs_remove_group(&client->dev.kobj, &emc2103_group);
-exit_free:
-	kfree(data);
-	return status;
-}
-
-static int emc2103_remove(struct i2c_client *client)
-{
-	struct emc2103_data *data = i2c_get_clientdata(client);
-
-	hwmon_device_unregister(data->hwmon_dev);
-
-	if (data->temp_count == 4)
-		sysfs_remove_group(&client->dev.kobj, &emc2103_temp4_group);
-
-	if (data->temp_count >= 3)
-		sysfs_remove_group(&client->dev.kobj, &emc2103_temp3_group);
-
-	sysfs_remove_group(&client->dev.kobj, &emc2103_group);
-
-	kfree(data);
 	return 0;
 }
 
@@ -716,25 +681,13 @@ static struct i2c_driver emc2103_driver = {
 		.name	= "emc2103",
 	},
 	.probe		= emc2103_probe,
-	.remove		= emc2103_remove,
 	.id_table	= emc2103_ids,
 	.detect		= emc2103_detect,
 	.address_list	= normal_i2c,
 };
 
-static int __init sensors_emc2103_init(void)
-{
-	return i2c_add_driver(&emc2103_driver);
-}
+module_i2c_driver(emc2103_driver);
 
-static void __exit sensors_emc2103_exit(void)
-{
-	i2c_del_driver(&emc2103_driver);
-}
-
-MODULE_AUTHOR("Steve Glendinning <steve.glendinning@smsc.com>");
+MODULE_AUTHOR("Steve Glendinning <steve.glendinning@shawell.net>");
 MODULE_DESCRIPTION("SMSC EMC2103 hwmon driver");
 MODULE_LICENSE("GPL");
-
-module_init(sensors_emc2103_init);
-module_exit(sensors_emc2103_exit);

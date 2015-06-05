@@ -1,31 +1,16 @@
 /*
- * Carsten Langgaard, carstenl@mips.com
- * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
- * ########################################################################
- *
- *  This program is free software; you can distribute it and/or modify it
- *  under the terms of the GNU General Public License (Version 2) as
- *  published by the Free Software Foundation.
- *
- *  This program is distributed in the hope it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- *  for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * ########################################################################
- *
- * Defines for the Malta interrupt controller.
- *
+ * Copyright (C) 2000,2012 MIPS Technologies, Inc.  All rights reserved.
+ *	Carsten Langgaard <carstenl@mips.com>
+ *	Steven J. Hill <sjhill@mips.com>
  */
 #ifndef _MIPS_MALTAINT_H
 #define _MIPS_MALTAINT_H
 
-#include <irq.h>
+#include <linux/irqchip/mips-gic.h>
 
 /*
  * Interrupts 0..15 are used for Malta ISA compatible interrupts
@@ -37,29 +22,28 @@
 #define MIPSCPU_INT_SW1		1
 #define MIPSCPU_INT_MB0		2
 #define MIPSCPU_INT_I8259A	MIPSCPU_INT_MB0
+#define MIPSCPU_INT_GIC		MIPSCPU_INT_MB0 /* GIC chained interrupt */
 #define MIPSCPU_INT_MB1		3
 #define MIPSCPU_INT_SMI		MIPSCPU_INT_MB1
-#define MIPSCPU_INT_IPI0	MIPSCPU_INT_MB1	/* GIC IPI */
 #define MIPSCPU_INT_MB2		4
-#define MIPSCPU_INT_IPI1	MIPSCPU_INT_MB2	/* GIC IPI */
 #define MIPSCPU_INT_MB3		5
 #define MIPSCPU_INT_COREHI	MIPSCPU_INT_MB3
 #define MIPSCPU_INT_MB4		6
 #define MIPSCPU_INT_CORELO	MIPSCPU_INT_MB4
 
 /*
- * Interrupts 64..127 are used for Soc-it Classic interrupts
+ * Interrupts 96..127 are used for Soc-it Classic interrupts
  */
-#define MSC01C_INT_BASE		64
+#define MSC01C_INT_BASE		96
 
 /* SOC-it Classic interrupt offsets */
 #define MSC01C_INT_TMR		0
 #define MSC01C_INT_PCI		1
 
 /*
- * Interrupts 64..127 are used for Soc-it EIC interrupts
+ * Interrupts 96..127 are used for Soc-it EIC interrupts
  */
-#define MSC01E_INT_BASE		64
+#define MSC01E_INT_BASE		96
 
 /* SOC-it EIC interrupt offsets */
 #define MSC01E_INT_SW0		1
@@ -78,30 +62,7 @@
 #define MSC01E_INT_PERFCTR	10
 #define MSC01E_INT_CPUCTR	11
 
-/* GIC's Nomenclature for Core Interrupt Pins on the Malta */
-#define GIC_CPU_INT0		0 /* Core Interrupt 2 	*/
-#define GIC_CPU_INT1		1 /* .			*/
-#define GIC_CPU_INT2		2 /* .			*/
-#define GIC_CPU_INT3		3 /* .			*/
-#define GIC_CPU_INT4		4 /* .			*/
-#define GIC_CPU_INT5		5 /* Core Interrupt 5   */
-
-#define GIC_EXT_INTR(x)		x
-
-/* External Interrupts used for IPI */
-#define GIC_IPI_EXT_INTR_RESCHED_VPE0	16
-#define GIC_IPI_EXT_INTR_CALLFNC_VPE0	17
-#define GIC_IPI_EXT_INTR_RESCHED_VPE1	18
-#define GIC_IPI_EXT_INTR_CALLFNC_VPE1	19
-#define GIC_IPI_EXT_INTR_RESCHED_VPE2	20
-#define GIC_IPI_EXT_INTR_CALLFNC_VPE2	21
-#define GIC_IPI_EXT_INTR_RESCHED_VPE3	22
-#define GIC_IPI_EXT_INTR_CALLFNC_VPE3	23
-
-#define MIPS_GIC_IRQ_BASE	(MIPS_CPU_IRQ_BASE + 8)
-
-#ifndef __ASSEMBLY__
-extern void maltaint_init(void);
-#endif
+/* GIC external interrupts */
+#define GIC_INT_I8259A		GIC_SHARED_TO_HWIRQ(3)
 
 #endif /* !(_MIPS_MALTAINT_H) */

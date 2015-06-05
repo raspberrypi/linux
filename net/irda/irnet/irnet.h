@@ -254,7 +254,7 @@
 #include <linux/init.h>
 
 #include <linux/ppp_defs.h>
-#include <linux/if_ppp.h>
+#include <linux/ppp-ioctl.h>
 #include <linux/ppp_channel.h>
 
 #include <net/irda/irda.h>
@@ -509,16 +509,11 @@ typedef struct irnet_ctrl_channel
  */
 
 /* -------------------------- IRDA PART -------------------------- */
-extern int
-	irda_irnet_create(irnet_socket *);	/* Initialise a IrNET socket */
-extern int
-	irda_irnet_connect(irnet_socket *);	/* Try to connect over IrDA */
-extern void
-	irda_irnet_destroy(irnet_socket *);	/* Teardown  a IrNET socket */
-extern int
-	irda_irnet_init(void);		/* Initialise IrDA part of IrNET */
-extern void
-	irda_irnet_cleanup(void);	/* Teardown IrDA part of IrNET */
+int irda_irnet_create(irnet_socket *);	/* Initialise an IrNET socket */
+int irda_irnet_connect(irnet_socket *);	/* Try to connect over IrDA */
+void irda_irnet_destroy(irnet_socket *);	/* Teardown an IrNET socket */
+int irda_irnet_init(void);		/* Initialise IrDA part of IrNET */
+void irda_irnet_cleanup(void);		/* Teardown IrDA part of IrNET */
 
 /**************************** VARIABLES ****************************/
 

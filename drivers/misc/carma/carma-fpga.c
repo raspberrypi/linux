@@ -88,6 +88,8 @@
  * interrupt source to the GPIO pin. Tada, we hid the interrupt. :)
  */
 
+#include <linux/of_address.h>
+#include <linux/of_irq.h>
 #include <linux/of_platform.h>
 #include <linux/dma-mapping.h>
 #include <linux/miscdevice.h>
@@ -96,15 +98,13 @@
 #include <linux/seq_file.h>
 #include <linux/highmem.h>
 #include <linux/debugfs.h>
+#include <linux/vmalloc.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/poll.h>
-#include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/kref.h>
 #include <linux/io.h>
-
-#include <media/videobuf-dma-sg.h>
 
 /* system controller registers */
 #define SYS_IRQ_SOURCE_CTL	0x24
@@ -141,7 +141,10 @@ struct fpga_info {
 
 struct data_buf {
 	struct list_head entry;
-	struct videobuf_dmabuf vb;
+	void *vaddr;
+	struct scatterlist *sglist;
+	int sglen;
+	int nr_pages;
 	size_t size;
 };
 
@@ -206,6 +209,68 @@ static void fpga_device_release(struct kref *ref)
  * Data Buffer Allocation Helpers
  */
 
+static int carma_dma_init(struct data_buf *buf, int nr_pages)
+{
+	struct page *pg;
+	int i;
+
+	buf->vaddr = vmalloc_32(nr_pages << PAGE_SHIFT);
+	if (NULL == buf->vaddr) {
+		pr_debug("vmalloc_32(%d pages) failed\n", nr_pages);
+		return -ENOMEM;
+	}
+
+	pr_debug("vmalloc is at addr 0x%08lx, size=%d\n",
+				(unsigned long)buf->vaddr,
+				nr_pages << PAGE_SHIFT);
+
+	memset(buf->vaddr, 0, nr_pages << PAGE_SHIFT);
+	buf->nr_pages = nr_pages;
+
+	buf->sglist = vzalloc(buf->nr_pages * sizeof(*buf->sglist));
+	if (NULL == buf->sglist)
+		goto vzalloc_err;
+
+	sg_init_table(buf->sglist, buf->nr_pages);
+	for (i = 0; i < buf->nr_pages; i++) {
+		pg = vmalloc_to_page(buf->vaddr + i * PAGE_SIZE);
+		if (NULL == pg)
+			goto vmalloc_to_page_err;
+		sg_set_page(&buf->sglist[i], pg, PAGE_SIZE, 0);
+	}
+	return 0;
+
+vmalloc_to_page_err:
+	vfree(buf->sglist);
+	buf->sglist = NULL;
+vzalloc_err:
+	vfree(buf->vaddr);
+	buf->vaddr = NULL;
+	return -ENOMEM;
+}
+
+static int carma_dma_map(struct device *dev, struct data_buf *buf)
+{
+	buf->sglen = dma_map_sg(dev, buf->sglist,
+			buf->nr_pages, DMA_FROM_DEVICE);
+
+	if (0 == buf->sglen) {
+		pr_warn("%s: dma_map_sg failed\n", __func__);
+		return -ENOMEM;
+	}
+	return 0;
+}
+
+static int carma_dma_unmap(struct device *dev, struct data_buf *buf)
+{
+	if (!buf->sglen)
+		return 0;
+
+	dma_unmap_sg(dev, buf->sglist, buf->sglen, DMA_FROM_DEVICE);
+	buf->sglen = 0;
+	return 0;
+}
+
 /**
  * data_free_buffer() - free a single data buffer and all allocated memory
  * @buf: the buffer to free
@@ -220,7 +285,8 @@ static void data_free_buffer(struct data_buf *buf)
 		return;
 
 	/* free all memory */
-	videobuf_dma_free(&buf->vb);
+	vfree(buf->sglist);
+	vfree(buf->vaddr);
 	kfree(buf);
 }
 
@@ -229,7 +295,7 @@ static void data_free_buffer(struct data_buf *buf)
  * @bytes: the number of bytes required
  *
  * This allocates all space needed for a data buffer. It must be mapped before
- * use in a DMA transaction using videobuf_dma_map().
+ * use in a DMA transaction using carma_dma_map().
  *
  * Returns NULL on failure
  */
@@ -251,9 +317,8 @@ static struct data_buf *data_alloc_buffer(const size_t bytes)
 	INIT_LIST_HEAD(&buf->entry);
 	buf->size = bytes;
 
-	/* allocate the videobuf */
-	videobuf_dma_init(&buf->vb);
-	ret = videobuf_dma_init_kernel(&buf->vb, DMA_FROM_DEVICE, nr_pages);
+	/* allocate the buffer */
+	ret = carma_dma_init(buf, nr_pages);
 	if (ret)
 		goto out_free_buf;
 
@@ -284,13 +349,13 @@ static void data_free_buffers(struct fpga_device *priv)
 
 	list_for_each_entry_safe(buf, tmp, &priv->free, entry) {
 		list_del_init(&buf->entry);
-		videobuf_dma_unmap(priv->dev, &buf->vb);
+		carma_dma_unmap(priv->dev, buf);
 		data_free_buffer(buf);
 	}
 
 	list_for_each_entry_safe(buf, tmp, &priv->used, entry) {
 		list_del_init(&buf->entry);
-		videobuf_dma_unmap(priv->dev, &buf->vb);
+		carma_dma_unmap(priv->dev, buf);
 		data_free_buffer(buf);
 	}
 
@@ -329,7 +394,7 @@ static int data_alloc_buffers(struct fpga_device *priv)
 			break;
 
 		/* map it for DMA */
-		ret = videobuf_dma_map(priv->dev, &buf->vb);
+		ret = carma_dma_map(priv->dev, buf);
 		if (ret) {
 			data_free_buffer(buf);
 			break;
@@ -560,6 +625,9 @@ static void data_enable_interrupts(struct fpga_device *priv)
 
 	/* flush the writes */
 	fpga_read_reg(priv, 0, MMAP_REG_STATUS);
+	fpga_read_reg(priv, 1, MMAP_REG_STATUS);
+	fpga_read_reg(priv, 2, MMAP_REG_STATUS);
+	fpga_read_reg(priv, 3, MMAP_REG_STATUS);
 
 	/* switch back to the external interrupt source */
 	iowrite32be(0x3F, priv->regs + SYS_IRQ_SOURCE_CTL);
@@ -591,8 +659,12 @@ static void data_dma_cb(void *data)
 	list_move_tail(&priv->inflight->entry, &priv->used);
 	priv->inflight = NULL;
 
-	/* clear the FPGA status and re-enable interrupts */
-	data_enable_interrupts(priv);
+	/*
+	 * If data dumping is still enabled, then clear the FPGA
+	 * status registers and re-enable FPGA interrupts
+	 */
+	if (priv->enabled)
+		data_enable_interrupts(priv);
 
 	spin_unlock_irqrestore(&priv->lock, flags);
 
@@ -624,9 +696,10 @@ static int data_submit_dma(struct fpga_device *priv, struct data_buf *buf)
 	struct dma_async_tx_descriptor *tx;
 	dma_cookie_t cookie;
 	dma_addr_t dst, src;
+	unsigned long dma_flags = 0;
 
-	dst_sg = buf->vb.sglist;
-	dst_nents = buf->vb.sglen;
+	dst_sg = buf->sglist;
+	dst_nents = buf->sglen;
 
 	src_sg = priv->corl_table.sgl;
 	src_nents = priv->corl_nents;
@@ -659,7 +732,7 @@ static int data_submit_dma(struct fpga_device *priv, struct data_buf *buf)
 	src = SYS_FPGA_BLOCK;
 	tx = chan->device->device_prep_dma_memcpy(chan, dst, src,
 						  REG_BLOCK_SIZE,
-						  DMA_PREP_INTERRUPT);
+						  dma_flags);
 	if (!tx) {
 		dev_err(priv->dev, "unable to prep SYS-FPGA DMA\n");
 		return -ENOMEM;
@@ -708,6 +781,15 @@ static irqreturn_t data_irq(int irq, void *dev_id)
 
 	spin_lock(&priv->lock);
 
+	/*
+	 * This is an error case that should never happen.
+	 *
+	 * If this driver has a bug and manages to re-enable interrupts while
+	 * a DMA is in progress, then we will hit this statement and should
+	 * start paying attention immediately.
+	 */
+	BUG_ON(priv->inflight != NULL);
+
 	/* hide the interrupt by switching the IRQ driver to GPIO */
 	data_disable_interrupts(priv);
 
@@ -733,7 +815,7 @@ static irqreturn_t data_irq(int irq, void *dev_id)
 	submitted = true;
 
 	/* Start the DMA Engine */
-	dma_async_memcpy_issue_pending(priv->chan);
+	dma_async_issue_pending(priv->chan);
 
 out:
 	/* If no DMA was submitted, re-enable interrupts */
@@ -762,11 +844,15 @@ out:
  */
 static int data_device_enable(struct fpga_device *priv)
 {
+	bool enabled;
 	u32 val;
 	int ret;
 
 	/* multiple enables are safe: they do nothing */
-	if (priv->enabled)
+	spin_lock_irq(&priv->lock);
+	enabled = priv->enabled;
+	spin_unlock_irq(&priv->lock);
+	if (enabled)
 		return 0;
 
 	/* check that the FPGAs are programmed */
@@ -797,6 +883,9 @@ static int data_device_enable(struct fpga_device *priv)
 		goto out_error;
 	}
 
+	/* prevent the FPGAs from generating interrupts */
+	data_disable_interrupts(priv);
+
 	/* hookup the irq handler */
 	ret = request_irq(priv->irq, data_irq, IRQF_SHARED, drv_name, priv);
 	if (ret) {
@@ -804,11 +893,13 @@ static int data_device_enable(struct fpga_device *priv)
 		goto out_error;
 	}
 
-	/* switch to the external FPGA IRQ line */
-	data_enable_interrupts(priv);
-
-	/* success, we're enabled */
+	/* allow the DMA callback to re-enable FPGA interrupts */
+	spin_lock_irq(&priv->lock);
 	priv->enabled = true;
+	spin_unlock_irq(&priv->lock);
+
+	/* allow the FPGAs to generate interrupts */
+	data_enable_interrupts(priv);
 	return 0;
 
 out_error:
@@ -834,40 +925,39 @@ out_error:
  */
 static int data_device_disable(struct fpga_device *priv)
 {
-	int ret;
+	spin_lock_irq(&priv->lock);
 
 	/* allow multiple disable */
-	if (!priv->enabled)
+	if (!priv->enabled) {
+		spin_unlock_irq(&priv->lock);
 		return 0;
+	}
 
-	/* switch to the internal GPIO IRQ line */
+	/*
+	 * Mark the device disabled
+	 *
+	 * This stops DMA callbacks from re-enabling interrupts
+	 */
+	priv->enabled = false;
+
+	/* prevent the FPGAs from generating interrupts */
 	data_disable_interrupts(priv);
+
+	/* wait until all ongoing DMA has finished */
+	while (priv->inflight != NULL) {
+		spin_unlock_irq(&priv->lock);
+		wait_event(priv->wait, priv->inflight == NULL);
+		spin_lock_irq(&priv->lock);
+	}
+
+	spin_unlock_irq(&priv->lock);
 
 	/* unhook the irq handler */
 	free_irq(priv->irq, priv);
 
-	/*
-	 * wait for all outstanding DMA to complete
-	 *
-	 * Device interrupts are disabled, therefore another buffer cannot
-	 * be marked inflight.
-	 */
-	ret = wait_event_interruptible(priv->wait, priv->inflight == NULL);
-	if (ret)
-		return ret;
-
 	/* free the correlation table */
 	sg_free_table(&priv->corl_table);
 	priv->corl_nents = 0;
-
-	/*
-	 * We are taking the spinlock not to protect priv->enabled, but instead
-	 * to make sure that there are no readers in the process of altering
-	 * the free or used lists while we are setting this flag.
-	 */
-	spin_lock_irq(&priv->lock);
-	priv->enabled = false;
-	spin_unlock_irq(&priv->lock);
 
 	/* free all buffers: the free and used lists are not being changed */
 	data_free_buffers(priv);
@@ -896,15 +986,6 @@ static unsigned int list_num_entries(struct list_head *list)
 static int data_debug_show(struct seq_file *f, void *offset)
 {
 	struct fpga_device *priv = f->private;
-	int ret;
-
-	/*
-	 * Lock the mutex first, so that we get an accurate value for enable
-	 * Lock the spinlock next, to get accurate list counts
-	 */
-	ret = mutex_lock_interruptible(&priv->mutex);
-	if (ret)
-		return ret;
 
 	spin_lock_irq(&priv->lock);
 
@@ -917,7 +998,6 @@ static int data_debug_show(struct seq_file *f, void *offset)
 	seq_printf(f, "num_dropped: %d\n", priv->num_dropped);
 
 	spin_unlock_irq(&priv->lock);
-	mutex_unlock(&priv->mutex);
 	return 0;
 }
 
@@ -938,10 +1018,7 @@ static int data_debugfs_init(struct fpga_device *priv)
 {
 	priv->dbg_entry = debugfs_create_file(drv_name, S_IRUGO, NULL, priv,
 					      &data_debug_fops);
-	if (IS_ERR(priv->dbg_entry))
-		return PTR_ERR(priv->dbg_entry);
-
-	return 0;
+	return PTR_ERR_OR_ZERO(priv->dbg_entry);
 }
 
 static void data_debugfs_exit(struct fpga_device *priv)
@@ -970,7 +1047,13 @@ static ssize_t data_en_show(struct device *dev, struct device_attribute *attr,
 			    char *buf)
 {
 	struct fpga_device *priv = dev_get_drvdata(dev);
-	return snprintf(buf, PAGE_SIZE, "%u\n", priv->enabled);
+	int ret;
+
+	spin_lock_irq(&priv->lock);
+	ret = snprintf(buf, PAGE_SIZE, "%u\n", priv->enabled);
+	spin_unlock_irq(&priv->lock);
+
+	return ret;
 }
 
 static ssize_t data_en_set(struct device *dev, struct device_attribute *attr,
@@ -980,12 +1063,13 @@ static ssize_t data_en_set(struct device *dev, struct device_attribute *attr,
 	unsigned long enable;
 	int ret;
 
-	ret = strict_strtoul(buf, 0, &enable);
+	ret = kstrtoul(buf, 0, &enable);
 	if (ret) {
 		dev_err(priv->dev, "unable to parse enable input\n");
-		return -EINVAL;
+		return ret;
 	}
 
+	/* protect against concurrent enable/disable */
 	ret = mutex_lock_interruptible(&priv->mutex);
 	if (ret)
 		return ret;
@@ -1079,6 +1163,7 @@ static ssize_t data_read(struct file *filp, char __user *ubuf, size_t count,
 	struct fpga_reader *reader = filp->private_data;
 	struct fpga_device *priv = reader->priv;
 	struct list_head *used = &priv->used;
+	bool drop_buffer = false;
 	struct data_buf *dbuf;
 	size_t avail;
 	void *data;
@@ -1113,7 +1198,7 @@ static ssize_t data_read(struct file *filp, char __user *ubuf, size_t count,
 	spin_unlock_irq(&priv->lock);
 
 	/* Buffers are always mapped: unmap it */
-	videobuf_dma_unmap(priv->dev, &dbuf->vb);
+	carma_dma_unmap(priv->dev, dbuf);
 
 	/* save the buffer for later */
 	reader->buf = dbuf;
@@ -1122,7 +1207,7 @@ static ssize_t data_read(struct file *filp, char __user *ubuf, size_t count,
 have_buffer:
 	/* Get the number of bytes available */
 	avail = dbuf->size - reader->buf_start;
-	data = dbuf->vb.vaddr + reader->buf_start;
+	data = dbuf->vaddr + reader->buf_start;
 
 	/* Get the number of bytes we can transfer */
 	count = min(count, avail);
@@ -1150,7 +1235,7 @@ have_buffer:
 	 * If it fails, we pretend that the read never happed and return
 	 * -EFAULT to userspace. The read will be retried.
 	 */
-	ret = videobuf_dma_map(priv->dev, &dbuf->vb);
+	ret = carma_dma_map(priv->dev, dbuf);
 	if (ret) {
 		dev_err(priv->dev, "unable to remap buffer for DMA\n");
 		return -EFAULT;
@@ -1166,10 +1251,12 @@ have_buffer:
 	 * One of two things has happened, the device is disabled, or the
 	 * device has been reconfigured underneath us. In either case, we
 	 * should just throw away the buffer.
+	 *
+	 * Lockdep complains if this is done under the spinlock, so we
+	 * handle it during the unlock path.
 	 */
 	if (!priv->enabled || dbuf->size != priv->bufsize) {
-		videobuf_dma_unmap(priv->dev, &dbuf->vb);
-		data_free_buffer(dbuf);
+		drop_buffer = true;
 		goto out_unlock;
 	}
 
@@ -1178,6 +1265,12 @@ have_buffer:
 
 out_unlock:
 	spin_unlock_irq(&priv->lock);
+
+	if (drop_buffer) {
+		carma_dma_unmap(priv->dev, dbuf);
+		data_free_buffer(dbuf);
+	}
+
 	return count;
 }
 
@@ -1213,8 +1306,6 @@ static int data_mmap(struct file *filp, struct vm_area_struct *vma)
 		return -EINVAL;
 	}
 
-	/* IO memory (stop cacheing) */
-	vma->vm_flags |= VM_IO | VM_RESERVED;
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
 	return io_remap_pfn_range(vma, vma->vm_start, addr, vsize,
@@ -1266,7 +1357,7 @@ static int data_of_probe(struct platform_device *op)
 		goto out_return;
 	}
 
-	dev_set_drvdata(&op->dev, priv);
+	platform_set_drvdata(op, priv);
 	priv->dev = &op->dev;
 	kref_init(&priv->ref);
 	mutex_init(&priv->mutex);
@@ -1370,7 +1461,7 @@ out_return:
 
 static int data_of_remove(struct platform_device *op)
 {
-	struct fpga_device *priv = dev_get_drvdata(&op->dev);
+	struct fpga_device *priv = platform_get_drvdata(op);
 	struct device *this_device = priv->miscdev.this_device;
 
 	/* remove all sysfs files, now the device cannot be re-enabled */
@@ -1406,27 +1497,11 @@ static struct platform_driver data_of_driver = {
 	.driver		= {
 		.name		= drv_name,
 		.of_match_table	= data_of_match,
-		.owner		= THIS_MODULE,
 	},
 };
 
-/*
- * Module Init / Exit
- */
-
-static int __init data_init(void)
-{
-	return platform_driver_register(&data_of_driver);
-}
-
-static void __exit data_exit(void)
-{
-	platform_driver_unregister(&data_of_driver);
-}
+module_platform_driver(data_of_driver);
 
 MODULE_AUTHOR("Ira W. Snyder <iws@ovro.caltech.edu>");
 MODULE_DESCRIPTION("CARMA DATA-FPGA Access Driver");
 MODULE_LICENSE("GPL");
-
-module_init(data_init);
-module_exit(data_exit);

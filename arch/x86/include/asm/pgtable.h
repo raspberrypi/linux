@@ -9,20 +9,23 @@
 /*
  * Macro to mark a page protection value as UC-
  */
-#define pgprot_noncached(prot)					\
-	((boot_cpu_data.x86 > 3)				\
-	 ? (__pgprot(pgprot_val(prot) | _PAGE_CACHE_UC_MINUS))	\
+#define pgprot_noncached(prot)						\
+	((boot_cpu_data.x86 > 3)					\
+	 ? (__pgprot(pgprot_val(prot) |					\
+		     cachemode2protval(_PAGE_CACHE_MODE_UC_MINUS)))	\
 	 : (prot))
 
 #ifndef __ASSEMBLY__
-
 #include <asm/x86_init.h>
+
+void ptdump_walk_pgd_level(struct seq_file *m, pgd_t *pgd);
 
 /*
  * ZERO_PAGE is a global shared page that is always zero: used
  * for zero-mapped memory areas etc..
  */
-extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)];
+extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)]
+	__visible;
 #define ZERO_PAGE(vaddr) (virt_to_page(empty_zero_page))
 
 extern spinlock_t pgd_lock;
@@ -97,6 +100,11 @@ static inline int pte_young(pte_t pte)
 	return pte_flags(pte) & _PAGE_ACCESSED;
 }
 
+static inline int pmd_dirty(pmd_t pmd)
+{
+	return pmd_flags(pmd) & _PAGE_DIRTY;
+}
+
 static inline int pmd_young(pmd_t pmd)
 {
 	return pmd_flags(pmd) & _PAGE_ACCESSED;
@@ -105,11 +113,6 @@ static inline int pmd_young(pmd_t pmd)
 static inline int pte_write(pte_t pte)
 {
 	return pte_flags(pte) & _PAGE_RW;
-}
-
-static inline int pte_file(pte_t pte)
-{
-	return pte_flags(pte) & _PAGE_FILE;
 }
 
 static inline int pte_huge(pte_t pte)
@@ -142,12 +145,16 @@ static inline unsigned long pmd_pfn(pmd_t pmd)
 	return (pmd_val(pmd) & PTE_PFN_MASK) >> PAGE_SHIFT;
 }
 
+static inline unsigned long pud_pfn(pud_t pud)
+{
+	return (pud_val(pud) & PTE_PFN_MASK) >> PAGE_SHIFT;
+}
+
 #define pte_page(pte)	pfn_to_page(pte_pfn(pte))
 
 static inline int pmd_large(pmd_t pte)
 {
-	return (pmd_flags(pte) & (_PAGE_PSE | _PAGE_PRESENT)) ==
-		(_PAGE_PSE | _PAGE_PRESENT);
+	return pmd_flags(pte) & _PAGE_PSE;
 }
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
@@ -203,7 +210,7 @@ static inline pte_t pte_mkexec(pte_t pte)
 
 static inline pte_t pte_mkdirty(pte_t pte)
 {
-	return pte_set_flags(pte, _PAGE_DIRTY);
+	return pte_set_flags(pte, _PAGE_DIRTY | _PAGE_SOFT_DIRTY);
 }
 
 static inline pte_t pte_mkyoung(pte_t pte)
@@ -267,7 +274,7 @@ static inline pmd_t pmd_wrprotect(pmd_t pmd)
 
 static inline pmd_t pmd_mkdirty(pmd_t pmd)
 {
-	return pmd_set_flags(pmd, _PAGE_DIRTY);
+	return pmd_set_flags(pmd, _PAGE_DIRTY | _PAGE_SOFT_DIRTY);
 }
 
 static inline pmd_t pmd_mkhuge(pmd_t pmd)
@@ -287,8 +294,31 @@ static inline pmd_t pmd_mkwrite(pmd_t pmd)
 
 static inline pmd_t pmd_mknotpresent(pmd_t pmd)
 {
-	return pmd_clear_flags(pmd, _PAGE_PRESENT);
+	return pmd_clear_flags(pmd, _PAGE_PRESENT | _PAGE_PROTNONE);
 }
+
+#ifdef CONFIG_HAVE_ARCH_SOFT_DIRTY
+static inline int pte_soft_dirty(pte_t pte)
+{
+	return pte_flags(pte) & _PAGE_SOFT_DIRTY;
+}
+
+static inline int pmd_soft_dirty(pmd_t pmd)
+{
+	return pmd_flags(pmd) & _PAGE_SOFT_DIRTY;
+}
+
+static inline pte_t pte_mksoft_dirty(pte_t pte)
+{
+	return pte_set_flags(pte, _PAGE_SOFT_DIRTY);
+}
+
+static inline pmd_t pmd_mksoft_dirty(pmd_t pmd)
+{
+	return pmd_set_flags(pmd, _PAGE_SOFT_DIRTY);
+}
+
+#endif /* CONFIG_HAVE_ARCH_SOFT_DIRTY */
 
 /*
  * Mask out unsupported bits in a present pgprot.  Non-present pgprots
@@ -354,8 +384,8 @@ static inline pgprot_t pgprot_modify(pgprot_t oldprot, pgprot_t newprot)
 #define canon_pgprot(p) __pgprot(massage_pgprot(p))
 
 static inline int is_new_memtype_allowed(u64 paddr, unsigned long size,
-					 unsigned long flags,
-					 unsigned long new_flags)
+					 enum page_cache_mode pcm,
+					 enum page_cache_mode new_pcm)
 {
 	/*
 	 * PAT type is always WB for untracked ranges, so no need to check.
@@ -369,10 +399,10 @@ static inline int is_new_memtype_allowed(u64 paddr, unsigned long size,
 	 * - request is uncached, return cannot be write-back
 	 * - request is write-combine, return cannot be write-back
 	 */
-	if ((flags == _PAGE_CACHE_UC_MINUS &&
-	     new_flags == _PAGE_CACHE_WB) ||
-	    (flags == _PAGE_CACHE_WC &&
-	     new_flags == _PAGE_CACHE_WB)) {
+	if ((pcm == _PAGE_CACHE_MODE_UC_MINUS &&
+	     new_pcm == _PAGE_CACHE_MODE_WB) ||
+	    (pcm == _PAGE_CACHE_MODE_WC &&
+	     new_pcm == _PAGE_CACHE_MODE_WB)) {
 		return 0;
 	}
 
@@ -384,13 +414,15 @@ pte_t *populate_extra_pte(unsigned long vaddr);
 #endif	/* __ASSEMBLY__ */
 
 #ifdef CONFIG_X86_32
-# include "pgtable_32.h"
+# include <asm/pgtable_32.h>
 #else
-# include "pgtable_64.h"
+# include <asm/pgtable_64.h>
 #endif
 
 #ifndef __ASSEMBLY__
 #include <linux/mm_types.h>
+#include <linux/mmdebug.h>
+#include <linux/log2.h>
 
 static inline int pte_none(pte_t pte)
 {
@@ -408,6 +440,19 @@ static inline int pte_present(pte_t a)
 	return pte_flags(a) & (_PAGE_PRESENT | _PAGE_PROTNONE);
 }
 
+#define pte_accessible pte_accessible
+static inline bool pte_accessible(struct mm_struct *mm, pte_t a)
+{
+	if (pte_flags(a) & _PAGE_PRESENT)
+		return true;
+
+	if ((pte_flags(a) & _PAGE_PROTNONE) &&
+			mm_tlb_flush_pending(mm))
+		return true;
+
+	return false;
+}
+
 static inline int pte_hidden(pte_t pte)
 {
 	return pte_flags(pte) & _PAGE_HIDDEN;
@@ -415,8 +460,32 @@ static inline int pte_hidden(pte_t pte)
 
 static inline int pmd_present(pmd_t pmd)
 {
-	return pmd_flags(pmd) & _PAGE_PRESENT;
+	/*
+	 * Checking for _PAGE_PSE is needed too because
+	 * split_huge_page will temporarily clear the present bit (but
+	 * the _PAGE_PSE flag will remain set at all times while the
+	 * _PAGE_PRESENT bit is clear).
+	 */
+	return pmd_flags(pmd) & (_PAGE_PRESENT | _PAGE_PROTNONE | _PAGE_PSE);
 }
+
+#ifdef CONFIG_NUMA_BALANCING
+/*
+ * These work without NUMA balancing but the kernel does not care. See the
+ * comment in include/asm-generic/pgtable.h
+ */
+static inline int pte_protnone(pte_t pte)
+{
+	return (pte_flags(pte) & (_PAGE_PROTNONE | _PAGE_PRESENT))
+		== _PAGE_PROTNONE;
+}
+
+static inline int pmd_protnone(pmd_t pmd)
+{
+	return (pmd_flags(pmd) & (_PAGE_PROTNONE | _PAGE_PRESENT))
+		== _PAGE_PROTNONE;
+}
+#endif /* CONFIG_NUMA_BALANCING */
 
 static inline int pmd_none(pmd_t pmd)
 {
@@ -481,9 +550,6 @@ static inline unsigned long pages_to_mb(unsigned long npg)
 {
 	return npg >> (20 - PAGE_SHIFT);
 }
-
-#define io_remap_pfn_range(vma, vaddr, pfn, size, prot)	\
-	remap_pfn_range(vma, vaddr, pfn, size, prot)
 
 #if PAGETABLE_LEVELS > 2
 static inline int pud_none(pud_t pud)
@@ -597,6 +663,8 @@ static inline int pgd_none(pgd_t pgd)
 #ifndef __ASSEMBLY__
 
 extern int direct_gbpages;
+void init_mem_mapping(void);
+void early_alloc_pgt_buf(void);
 
 /* local pte updates need not use xchg for locking */
 static inline pte_t native_local_ptep_get_and_clear(pte_t *ptep)
@@ -763,6 +831,49 @@ static inline void clone_pgd_range(pgd_t *dst, pgd_t *src, int count)
        memcpy(dst, src, count * sizeof(pgd_t));
 }
 
+#define PTE_SHIFT ilog2(PTRS_PER_PTE)
+static inline int page_level_shift(enum pg_level level)
+{
+	return (PAGE_SHIFT - PTE_SHIFT) + level * PTE_SHIFT;
+}
+static inline unsigned long page_level_size(enum pg_level level)
+{
+	return 1UL << page_level_shift(level);
+}
+static inline unsigned long page_level_mask(enum pg_level level)
+{
+	return ~(page_level_size(level) - 1);
+}
+
+/*
+ * The x86 doesn't have any external MMU info: the kernel page
+ * tables contain all the necessary information.
+ */
+static inline void update_mmu_cache(struct vm_area_struct *vma,
+		unsigned long addr, pte_t *ptep)
+{
+}
+static inline void update_mmu_cache_pmd(struct vm_area_struct *vma,
+		unsigned long addr, pmd_t *pmd)
+{
+}
+
+#ifdef CONFIG_HAVE_ARCH_SOFT_DIRTY
+static inline pte_t pte_swp_mksoft_dirty(pte_t pte)
+{
+	return pte_set_flags(pte, _PAGE_SWP_SOFT_DIRTY);
+}
+
+static inline int pte_swp_soft_dirty(pte_t pte)
+{
+	return pte_flags(pte) & _PAGE_SWP_SOFT_DIRTY;
+}
+
+static inline pte_t pte_swp_clear_soft_dirty(pte_t pte)
+{
+	return pte_clear_flags(pte, _PAGE_SWP_SOFT_DIRTY);
+}
+#endif
 
 #include <asm-generic/pgtable.h>
 #endif	/* __ASSEMBLY__ */

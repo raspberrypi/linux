@@ -48,7 +48,6 @@
 #include <linux/bitops.h>
 #include <asm/irq.h>
 #include <asm/io.h>
-#include <asm/system.h>
 
 #include <pcmcia/ss.h>
 
@@ -1234,7 +1233,6 @@ static struct pccard_operations pcic_operations = {
 static struct platform_driver i82365_driver = {
 	.driver = {
 		.name = "i82365",
-		.owner		= THIS_MODULE,
 	},
 };
 

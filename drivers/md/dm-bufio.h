@@ -63,6 +63,14 @@ void *dm_bufio_new(struct dm_bufio_client *c, sector_t block,
 		   struct dm_buffer **bp);
 
 /*
+ * Prefetch the specified blocks to the cache.
+ * The function starts to read the blocks and returns without waiting for
+ * I/O to finish.
+ */
+void dm_bufio_prefetch(struct dm_bufio_client *c,
+		       sector_t block, unsigned n_blocks);
+
+/*
  * Release a reference obtained with dm_bufio_{read,get,new}. The data
  * pointer and dm_buffer pointer is no longer valid after this call.
  */
@@ -99,6 +107,18 @@ int dm_bufio_issue_flush(struct dm_bufio_client *c);
  * block. dm_bufio_write_dirty_buffers is needed to commit the new block.
  */
 void dm_bufio_release_move(struct dm_buffer *b, sector_t new_block);
+
+/*
+ * Free the given buffer.
+ * This is just a hint, if the buffer is in use or dirty, this function
+ * does nothing.
+ */
+void dm_bufio_forget(struct dm_bufio_client *c, sector_t block);
+
+/*
+ * Set the minimum number of buffers before cleanup happens.
+ */
+void dm_bufio_set_minimum_buffers(struct dm_bufio_client *c, unsigned n);
 
 unsigned dm_bufio_get_block_size(struct dm_bufio_client *c);
 sector_t dm_bufio_get_device_size(struct dm_bufio_client *c);

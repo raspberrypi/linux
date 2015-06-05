@@ -1,5 +1,6 @@
 *.a
 *.aux
+*.bc
 *.bin
 *.bz2
 *.cis
@@ -21,6 +22,7 @@
 *.i
 *.jpeg
 *.ko
+*.ll
 *.log
 *.lst
 *.lzma
@@ -35,6 +37,7 @@
 *.out
 *.patch
 *.pdf
+*.plist
 *.png
 *.pot
 *.ps
@@ -66,7 +69,6 @@ GRTAGS
 GSYMS
 GTAGS
 Image
-Kerntypes
 Module.markers
 Module.symvers
 PENDING
@@ -151,7 +153,6 @@ keywords.c
 ksym.c*
 ksym.h*
 kxgettext
-lkc_defs.h
 lex.c
 lex.*.c
 linux
@@ -159,13 +160,11 @@ logo_*.c
 logo_*_clut224.c
 logo_*_mono.c
 lxdialog
-mach
 mach-types
 mach-types.h
 machtypes.h
 map
 map_hugetlb
-maui_boot.h
 media
 mconf
 miboot*
@@ -185,7 +184,6 @@ modversions.h*
 nconf
 ncscope.*
 offset.h
-offsets.h
 oui.c*
 page-types
 parse.c

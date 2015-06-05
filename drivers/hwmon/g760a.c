@@ -1,17 +1,17 @@
 /*
-    g760a - Driver for the Global Mixed-mode Technology Inc. G760A
-            fan speed PWM controller chip
-
-    Copyright (C) 2007  Herbert Valerio Riedel <hvr@gnu.org>
-
-    Complete datasheet is available at GMT's website:
-      http://www.gmt.com.tw/product/datasheet/EDS-760A.pdf 
-
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-*/
+ * g760a - Driver for the Global Mixed-mode Technology Inc. G760A
+ *	   fan speed PWM controller chip
+ *
+ * Copyright (C) 2007  Herbert Valerio Riedel <hvr@gnu.org>
+ *
+ * Complete datasheet is available at GMT's website:
+ * http://www.gmt.com.tw/product/datasheet/EDS-760A.pdf
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
 
 #include <linux/module.h>
 #include <linux/init.h>
@@ -23,12 +23,6 @@
 #include <linux/err.h>
 #include <linux/mutex.h>
 #include <linux/sysfs.h>
-
-static const struct i2c_device_id g760a_id[] = {
-	{ "g760a", 0 },
-	{ }
-};
-MODULE_DEVICE_TABLE(i2c, g760a_id);
 
 enum g760a_regs {
 	G760A_REG_SET_CNT = 0x00,
@@ -44,7 +38,6 @@ enum g760a_regs {
 
 struct g760a_data {
 	struct i2c_client *client;
-	struct device *hwmon_dev;
 	struct mutex update_lock;
 
 	/* board specific parameters */
@@ -59,7 +52,8 @@ struct g760a_data {
 	u8 act_cnt; /*   formula: cnt = (CLK * 30)/(rpm * P) */
 	u8 fan_sta; /* bit 0: set when actual fan speed more than 20%
 		     *   outside requested fan speed
-		     * bit 1: set when fan speed below 1920 rpm */
+		     * bit 1: set when fan speed below 1920 rpm
+		     */
 };
 
 #define G760A_DEFAULT_CLK 32768
@@ -73,20 +67,6 @@ static inline unsigned int rpm_from_cnt(u8 val, u32 clk, u16 div)
 	return ((val == 0x00) ? 0 : ((clk*30)/(val*div)));
 }
 
-/* new-style driver model */
-static int g760a_probe(struct i2c_client *client,
-			const struct i2c_device_id *id);
-static int g760a_remove(struct i2c_client *client);
-
-static struct i2c_driver g760a_driver = {
-	.driver = {
-		.name	= "g760a",
-	},
-	.probe	  = g760a_probe,
-	.remove	  = g760a_remove,
-	.id_table = g760a_id,
-};
-
 /* read/write wrappers */
 static int g760a_read_value(struct i2c_client *client, enum g760a_regs reg)
 {
@@ -99,14 +79,14 @@ static int g760a_write_value(struct i2c_client *client, enum g760a_regs reg,
 	return i2c_smbus_write_byte_data(client, reg, value);
 }
 
-/****************************************************************************
+/*
  * sysfs attributes
  */
 
 static struct g760a_data *g760a_update_client(struct device *dev)
 {
-	struct i2c_client *client = to_i2c_client(dev);
-	struct g760a_data *data = i2c_get_clientdata(client);
+	struct g760a_data *data = dev_get_drvdata(dev);
+	struct i2c_client *client = data->client;
 
 	mutex_lock(&data->update_lock);
 
@@ -162,15 +142,15 @@ static ssize_t get_pwm(struct device *dev, struct device_attribute *da,
 static ssize_t set_pwm(struct device *dev, struct device_attribute *da,
 		       const char *buf, size_t count)
 {
-	struct i2c_client *client = to_i2c_client(dev);
 	struct g760a_data *data = g760a_update_client(dev);
+	struct i2c_client *client = data->client;
 	unsigned long val;
 
-	if (strict_strtoul(buf, 10, &val))
+	if (kstrtoul(buf, 10, &val))
 		return -EINVAL;
 
 	mutex_lock(&data->update_lock);
-	data->set_cnt = PWM_TO_CNT(SENSORS_LIMIT(val, 0, 255));
+	data->set_cnt = PWM_TO_CNT(clamp_val(val, 0, 255));
 	g760a_write_value(client, G760A_REG_SET_CNT, data->set_cnt);
 	mutex_unlock(&data->update_lock);
 
@@ -181,36 +161,32 @@ static DEVICE_ATTR(pwm1, S_IWUSR | S_IRUGO, get_pwm, set_pwm);
 static DEVICE_ATTR(fan1_input, S_IRUGO, show_fan, NULL);
 static DEVICE_ATTR(fan1_alarm, S_IRUGO, show_fan_alarm, NULL);
 
-static struct attribute *g760a_attributes[] = {
+static struct attribute *g760a_attrs[] = {
 	&dev_attr_pwm1.attr,
 	&dev_attr_fan1_input.attr,
 	&dev_attr_fan1_alarm.attr,
 	NULL
 };
 
-static const struct attribute_group g760a_group = {
-	.attrs = g760a_attributes,
-};
+ATTRIBUTE_GROUPS(g760a);
 
-/****************************************************************************
+/*
  * new-style driver model code
  */
 
 static int g760a_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
+	struct device *dev = &client->dev;
 	struct g760a_data *data;
-	int err;
+	struct device *hwmon_dev;
 
-	if (!i2c_check_functionality(client->adapter,
-				     I2C_FUNC_SMBUS_BYTE_DATA))
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -EIO;
 
-	data = kzalloc(sizeof(struct g760a_data), GFP_KERNEL);
+	data = devm_kzalloc(dev, sizeof(struct g760a_data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
-
-	i2c_set_clientdata(client, data);
 
 	data->client = client;
 	mutex_init(&data->update_lock);
@@ -219,52 +195,28 @@ static int g760a_probe(struct i2c_client *client,
 	data->fan_div = G760A_DEFAULT_FAN_DIV;
 	data->clk = G760A_DEFAULT_CLK;
 
-	/* Register sysfs hooks */
-	err = sysfs_create_group(&client->dev.kobj, &g760a_group);
-	if (err)
-		goto error_sysfs_create_group;
-
-	data->hwmon_dev = hwmon_device_register(&client->dev);
-	if (IS_ERR(data->hwmon_dev)) {
-		err = PTR_ERR(data->hwmon_dev);
-		goto error_hwmon_device_register;
-	}
-
-	return 0;
-
-error_hwmon_device_register:
-	sysfs_remove_group(&client->dev.kobj, &g760a_group);
-error_sysfs_create_group:
-	kfree(data);
-
-	return err;
+	hwmon_dev = devm_hwmon_device_register_with_groups(dev, client->name,
+							   data,
+							   g760a_groups);
+	return PTR_ERR_OR_ZERO(hwmon_dev);
 }
 
-static int g760a_remove(struct i2c_client *client)
-{
-	struct g760a_data *data = i2c_get_clientdata(client);
-	hwmon_device_unregister(data->hwmon_dev);
-	sysfs_remove_group(&client->dev.kobj, &g760a_group);
-	kfree(data);
+static const struct i2c_device_id g760a_id[] = {
+	{ "g760a", 0 },
+	{ }
+};
+MODULE_DEVICE_TABLE(i2c, g760a_id);
 
-	return 0;
-}
+static struct i2c_driver g760a_driver = {
+	.driver = {
+		.name	= "g760a",
+	},
+	.probe	  = g760a_probe,
+	.id_table = g760a_id,
+};
 
-/* module management */
-
-static int __init g760a_init(void)
-{
-	return i2c_add_driver(&g760a_driver);
-}
-
-static void __exit g760a_exit(void)
-{
-	i2c_del_driver(&g760a_driver);
-}
+module_i2c_driver(g760a_driver);
 
 MODULE_AUTHOR("Herbert Valerio Riedel <hvr@gnu.org>");
 MODULE_DESCRIPTION("GMT G760A driver");
 MODULE_LICENSE("GPL");
-
-module_init(g760a_init);
-module_exit(g760a_exit);

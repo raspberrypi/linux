@@ -13,6 +13,7 @@
 #include <linux/platform_device.h>
 #include <linux/hw_random.h>
 #include <linux/delay.h>
+#include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <asm/io.h>
 
@@ -90,7 +91,7 @@ static struct hwrng ppc4xx_rng = {
 	.data_read = ppc4xx_rng_data_read,
 };
 
-static int __devinit ppc4xx_rng_probe(struct platform_device *dev)
+static int ppc4xx_rng_probe(struct platform_device *dev)
 {
 	void __iomem *rng_regs;
 	int err = 0;
@@ -111,7 +112,7 @@ static int __devinit ppc4xx_rng_probe(struct platform_device *dev)
 	return err;
 }
 
-static int __devexit ppc4xx_rng_remove(struct platform_device *dev)
+static int ppc4xx_rng_remove(struct platform_device *dev)
 {
 	void __iomem *rng_regs = (void __iomem *) ppc4xx_rng.priv;
 
@@ -132,24 +133,13 @@ static struct of_device_id ppc4xx_rng_match[] = {
 static struct platform_driver ppc4xx_rng_driver = {
 	.driver = {
 		.name = MODULE_NAME,
-		.owner = THIS_MODULE,
 		.of_match_table = ppc4xx_rng_match,
 	},
 	.probe = ppc4xx_rng_probe,
 	.remove = ppc4xx_rng_remove,
 };
 
-static int __init ppc4xx_rng_init(void)
-{
-	return platform_driver_register(&ppc4xx_rng_driver);
-}
-module_init(ppc4xx_rng_init);
-
-static void __exit ppc4xx_rng_exit(void)
-{
-	platform_driver_unregister(&ppc4xx_rng_driver);
-}
-module_exit(ppc4xx_rng_exit);
+module_platform_driver(ppc4xx_rng_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Josh Boyer <jwboyer@linux.vnet.ibm.com>");

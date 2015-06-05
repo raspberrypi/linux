@@ -31,12 +31,6 @@
 #define TRACE(c, fmt, ...)	do { } while (0)
 #endif
 
-enum checklevel {
-	IGNORE = 0,
-	WARN = 1,
-	ERROR = 2,
-};
-
 enum checkstatus {
 	UNCHECKED = 0,
 	PREREQ,
@@ -57,14 +51,14 @@ struct check {
 	node_check_fn node_fn;
 	prop_check_fn prop_fn;
 	void *data;
-	enum checklevel level;
+	bool warn, error;
 	enum checkstatus status;
-	int inprogress;
+	bool inprogress;
 	int num_prereqs;
 	struct check **prereq;
 };
 
-#define CHECK(nm, tfn, nfn, pfn, d, lvl, ...) \
+#define CHECK_ENTRY(nm, tfn, nfn, pfn, d, w, e, ...)	       \
 	static struct check *nm##_prereqs[] = { __VA_ARGS__ }; \
 	static struct check nm = { \
 		.name = #nm, \
@@ -72,20 +66,37 @@ struct check {
 		.node_fn = (nfn), \
 		.prop_fn = (pfn), \
 		.data = (d), \
-		.level = (lvl), \
+		.warn = (w), \
+		.error = (e), \
 		.status = UNCHECKED, \
 		.num_prereqs = ARRAY_SIZE(nm##_prereqs), \
 		.prereq = nm##_prereqs, \
 	};
+#define WARNING(nm, tfn, nfn, pfn, d, ...) \
+	CHECK_ENTRY(nm, tfn, nfn, pfn, d, true, false, __VA_ARGS__)
+#define ERROR(nm, tfn, nfn, pfn, d, ...) \
+	CHECK_ENTRY(nm, tfn, nfn, pfn, d, false, true, __VA_ARGS__)
+#define CHECK(nm, tfn, nfn, pfn, d, ...) \
+	CHECK_ENTRY(nm, tfn, nfn, pfn, d, false, false, __VA_ARGS__)
 
-#define TREE_CHECK(nm, d, lvl, ...) \
-	CHECK(nm, check_##nm, NULL, NULL, d, lvl, __VA_ARGS__)
-#define NODE_CHECK(nm, d, lvl, ...) \
-	CHECK(nm, NULL, check_##nm, NULL, d, lvl, __VA_ARGS__)
-#define PROP_CHECK(nm, d, lvl, ...) \
-	CHECK(nm, NULL, NULL, check_##nm, d, lvl, __VA_ARGS__)
-#define BATCH_CHECK(nm, lvl, ...) \
-	CHECK(nm, NULL, NULL, NULL, NULL, lvl, __VA_ARGS__)
+#define TREE_WARNING(nm, d, ...) \
+	WARNING(nm, check_##nm, NULL, NULL, d, __VA_ARGS__)
+#define TREE_ERROR(nm, d, ...) \
+	ERROR(nm, check_##nm, NULL, NULL, d, __VA_ARGS__)
+#define TREE_CHECK(nm, d, ...) \
+	CHECK(nm, check_##nm, NULL, NULL, d, __VA_ARGS__)
+#define NODE_WARNING(nm, d, ...) \
+	WARNING(nm, NULL, check_##nm, NULL, d,  __VA_ARGS__)
+#define NODE_ERROR(nm, d, ...) \
+	ERROR(nm, NULL, check_##nm, NULL, d, __VA_ARGS__)
+#define NODE_CHECK(nm, d, ...) \
+	CHECK(nm, NULL, check_##nm, NULL, d, __VA_ARGS__)
+#define PROP_WARNING(nm, d, ...) \
+	WARNING(nm, NULL, NULL, check_##nm, d, __VA_ARGS__)
+#define PROP_ERROR(nm, d, ...) \
+	ERROR(nm, NULL, NULL, check_##nm, d, __VA_ARGS__)
+#define PROP_CHECK(nm, d, ...) \
+	CHECK(nm, NULL, NULL, check_##nm, d, __VA_ARGS__)
 
 #ifdef __GNUC__
 static inline void check_msg(struct check *c, const char *fmt, ...) __attribute__((format (printf, 2, 3)));
@@ -95,13 +106,14 @@ static inline void check_msg(struct check *c, const char *fmt, ...)
 	va_list ap;
 	va_start(ap, fmt);
 
-	if ((c->level < WARN) || (c->level <= quiet))
-		return; /* Suppress message */
-
-	fprintf(stderr, "%s (%s): ",
-		(c->level == ERROR) ? "ERROR" : "Warning", c->name);
-	vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
+	if ((c->warn && (quiet < 1))
+	    || (c->error && (quiet < 2))) {
+		fprintf(stderr, "%s (%s): ",
+			(c->error) ? "ERROR" : "Warning", c->name);
+		vfprintf(stderr, fmt, ap);
+		fprintf(stderr, "\n");
+	}
+	va_end(ap);
 }
 
 #define FAIL(c, ...) \
@@ -130,9 +142,9 @@ static void check_nodes_props(struct check *c, struct node *dt, struct node *nod
 		check_nodes_props(c, dt, child);
 }
 
-static int run_check(struct check *c, struct node *dt)
+static bool run_check(struct check *c, struct node *dt)
 {
-	int error = 0;
+	bool error = false;
 	int i;
 
 	assert(!c->inprogress);
@@ -140,11 +152,11 @@ static int run_check(struct check *c, struct node *dt)
 	if (c->status != UNCHECKED)
 		goto out;
 
-	c->inprogress = 1;
+	c->inprogress = true;
 
 	for (i = 0; i < c->num_prereqs; i++) {
 		struct check *prq = c->prereq[i];
-		error |= run_check(prq, dt);
+		error = error || run_check(prq, dt);
 		if (prq->status != PASSED) {
 			c->status = PREREQ;
 			check_msg(c, "Failed prerequisite '%s'",
@@ -166,15 +178,22 @@ static int run_check(struct check *c, struct node *dt)
 	TRACE(c, "\tCompleted, status %d", c->status);
 
 out:
-	c->inprogress = 0;
-	if ((c->status != PASSED) && (c->level == ERROR))
-		error = 1;
+	c->inprogress = false;
+	if ((c->status != PASSED) && (c->error))
+		error = true;
 	return error;
 }
 
 /*
  * Utility check functions
  */
+
+/* A check which always fails, for testing purposes only */
+static inline void check_always_fail(struct check *c, struct node *dt)
+{
+	FAIL(c, "always_fail check");
+}
+TREE_CHECK(always_fail, NULL);
 
 static void check_is_string(struct check *c, struct node *root,
 			    struct node *node)
@@ -190,8 +209,10 @@ static void check_is_string(struct check *c, struct node *root,
 		FAIL(c, "\"%s\" property in %s is not a string",
 		     propname, node->fullpath);
 }
-#define CHECK_IS_STRING(nm, propname, lvl) \
-	CHECK(nm, NULL, check_is_string, NULL, (propname), (lvl))
+#define WARNING_IF_NOT_STRING(nm, propname) \
+	WARNING(nm, NULL, check_is_string, NULL, (propname))
+#define ERROR_IF_NOT_STRING(nm, propname) \
+	ERROR(nm, NULL, check_is_string, NULL, (propname))
 
 static void check_is_cell(struct check *c, struct node *root,
 			  struct node *node)
@@ -207,8 +228,10 @@ static void check_is_cell(struct check *c, struct node *root,
 		FAIL(c, "\"%s\" property in %s is not a single cell",
 		     propname, node->fullpath);
 }
-#define CHECK_IS_CELL(nm, propname, lvl) \
-	CHECK(nm, NULL, check_is_cell, NULL, (propname), (lvl))
+#define WARNING_IF_NOT_CELL(nm, propname) \
+	WARNING(nm, NULL, check_is_cell, NULL, (propname))
+#define ERROR_IF_NOT_CELL(nm, propname) \
+	ERROR(nm, NULL, check_is_cell, NULL, (propname))
 
 /*
  * Structural check functions
@@ -227,20 +250,24 @@ static void check_duplicate_node_names(struct check *c, struct node *dt,
 				FAIL(c, "Duplicate node name %s",
 				     child->fullpath);
 }
-NODE_CHECK(duplicate_node_names, NULL, ERROR);
+NODE_ERROR(duplicate_node_names, NULL);
 
 static void check_duplicate_property_names(struct check *c, struct node *dt,
 					   struct node *node)
 {
 	struct property *prop, *prop2;
 
-	for_each_property(node, prop)
-		for (prop2 = prop->next; prop2; prop2 = prop2->next)
+	for_each_property(node, prop) {
+		for (prop2 = prop->next; prop2; prop2 = prop2->next) {
+			if (prop2->deleted)
+				continue;
 			if (streq(prop->name, prop2->name))
 				FAIL(c, "Duplicate property name %s in %s",
 				     prop->name, node->fullpath);
+		}
+	}
 }
-NODE_CHECK(duplicate_property_names, NULL, ERROR);
+NODE_ERROR(duplicate_property_names, NULL);
 
 #define LOWERCASE	"abcdefghijklmnopqrstuvwxyz"
 #define UPPERCASE	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -256,7 +283,7 @@ static void check_node_name_chars(struct check *c, struct node *dt,
 		FAIL(c, "Bad character '%c' in node %s",
 		     node->name[n], node->fullpath);
 }
-NODE_CHECK(node_name_chars, PROPNODECHARS "@", ERROR);
+NODE_ERROR(node_name_chars, PROPNODECHARS "@");
 
 static void check_node_name_format(struct check *c, struct node *dt,
 				   struct node *node)
@@ -265,7 +292,7 @@ static void check_node_name_format(struct check *c, struct node *dt,
 		FAIL(c, "Node %s has multiple '@' characters in name",
 		     node->fullpath);
 }
-NODE_CHECK(node_name_format, NULL, ERROR, &node_name_chars);
+NODE_ERROR(node_name_format, NULL, &node_name_chars);
 
 static void check_property_name_chars(struct check *c, struct node *dt,
 				      struct node *node, struct property *prop)
@@ -276,7 +303,7 @@ static void check_property_name_chars(struct check *c, struct node *dt,
 		FAIL(c, "Bad character '%c' in property name \"%s\", node %s",
 		     prop->name[n], prop->name, node->fullpath);
 }
-PROP_CHECK(property_name_chars, PROPNODECHARS, ERROR);
+PROP_ERROR(property_name_chars, PROPNODECHARS);
 
 #define DESCLABEL_FMT	"%s%s%s%s%s"
 #define DESCLABEL_ARGS(node,prop,mark)		\
@@ -331,8 +358,8 @@ static void check_duplicate_label_prop(struct check *c, struct node *dt,
 	for_each_marker_of_type(m, LABEL)
 		check_duplicate_label(c, dt, m->ref, node, prop, m);
 }
-CHECK(duplicate_label, NULL, check_duplicate_label_node,
-      check_duplicate_label_prop, NULL, ERROR);
+ERROR(duplicate_label, NULL, check_duplicate_label_node,
+      check_duplicate_label_prop, NULL);
 
 static void check_explicit_phandles(struct check *c, struct node *root,
 				    struct node *node, struct property *prop)
@@ -391,7 +418,7 @@ static void check_explicit_phandles(struct check *c, struct node *root,
 
 	node->phandle = phandle;
 }
-PROP_CHECK(explicit_phandles, NULL, ERROR);
+PROP_ERROR(explicit_phandles, NULL);
 
 static void check_name_properties(struct check *c, struct node *root,
 				  struct node *node)
@@ -420,8 +447,8 @@ static void check_name_properties(struct check *c, struct node *root,
 		free(prop);
 	}
 }
-CHECK_IS_STRING(name_is_string, "name", ERROR);
-NODE_CHECK(name_properties, NULL, ERROR, &name_is_string);
+ERROR_IF_NOT_STRING(name_is_string, "name");
+NODE_ERROR(name_properties, NULL, &name_is_string);
 
 /*
  * Reference fixup functions
@@ -431,24 +458,95 @@ static void fixup_phandle_references(struct check *c, struct node *dt,
 				     struct node *node, struct property *prop)
 {
 	struct marker *m = prop->val.markers;
+	struct fixup *f, **fp;
+	struct fixup_entry *fe, **fep;
 	struct node *refnode;
 	cell_t phandle;
+	int has_phandle_refs;
+
+	has_phandle_refs = 0;
+	for_each_marker_of_type(m, REF_PHANDLE) {
+		has_phandle_refs = 1;
+		break;
+	}
+
+	if (!has_phandle_refs)
+		return;
 
 	for_each_marker_of_type(m, REF_PHANDLE) {
 		assert(m->offset + sizeof(cell_t) <= prop->val.len);
 
 		refnode = get_node_by_ref(dt, m->ref);
-		if (! refnode) {
+		if (!refnode && !symbol_fixup_support) {
 			FAIL(c, "Reference to non-existent node or label \"%s\"\n",
-			     m->ref);
+				m->ref);
 			continue;
 		}
 
-		phandle = get_node_phandle(dt, refnode);
-		*((cell_t *)(prop->val.val + m->offset)) = cpu_to_fdt32(phandle);
+		if (!refnode) {
+			/* allocate fixup entry */
+			fe = xmalloc(sizeof(*fe));
+
+			fe->node = node;
+			fe->prop = prop;
+			fe->offset = m->offset;
+			fe->next = NULL;
+
+			/* search for an already existing fixup */
+			for_each_fixup(dt, f)
+				if (strcmp(f->ref, m->ref) == 0)
+					break;
+
+			/* no fixup found, add new */
+			if (f == NULL) {
+				f = xmalloc(sizeof(*f));
+				f->ref = m->ref;
+				f->entries = NULL;
+				f->next = NULL;
+
+				/* add it to the tree */
+				fp = &dt->fixups;
+				while (*fp)
+					fp = &(*fp)->next;
+				*fp = f;
+			}
+
+			/* and now append fixup entry */
+			fep = &f->entries;
+			while (*fep)
+				fep = &(*fep)->next;
+			*fep = fe;
+
+			/* mark the entry as unresolved */
+			phandle = 0xdeadbeef;
+		} else {
+			phandle = get_node_phandle(dt, refnode);
+
+			/* if it's a plugin, we need to record it */
+			if (symbol_fixup_support && dt->is_plugin) {
+
+				/* allocate a new local fixup entry */
+				fe = xmalloc(sizeof(*fe));
+
+				fe->node = node;
+				fe->prop = prop;
+				fe->offset = m->offset;
+				fe->next = NULL;
+
+				/* append it to the local fixups */
+				fep = &dt->local_fixups;
+				while (*fep)
+					fep = &(*fep)->next;
+				*fep = fe;
+			}
+		}
+
+		*((cell_t *)(prop->val.val + m->offset)) =
+			cpu_to_fdt32(phandle);
 	}
+
 }
-CHECK(phandle_references, NULL, NULL, fixup_phandle_references, NULL, ERROR,
+ERROR(phandle_references, NULL, NULL, fixup_phandle_references, NULL,
       &duplicate_node_names, &explicit_phandles);
 
 static void fixup_path_references(struct check *c, struct node *dt,
@@ -473,19 +571,19 @@ static void fixup_path_references(struct check *c, struct node *dt,
 						  strlen(path) + 1);
 	}
 }
-CHECK(path_references, NULL, NULL, fixup_path_references, NULL, ERROR,
+ERROR(path_references, NULL, NULL, fixup_path_references, NULL,
       &duplicate_node_names);
 
 /*
  * Semantic checks
  */
-CHECK_IS_CELL(address_cells_is_cell, "#address-cells", WARN);
-CHECK_IS_CELL(size_cells_is_cell, "#size-cells", WARN);
-CHECK_IS_CELL(interrupt_cells_is_cell, "#interrupt-cells", WARN);
+WARNING_IF_NOT_CELL(address_cells_is_cell, "#address-cells");
+WARNING_IF_NOT_CELL(size_cells_is_cell, "#size-cells");
+WARNING_IF_NOT_CELL(interrupt_cells_is_cell, "#interrupt-cells");
 
-CHECK_IS_STRING(device_type_is_string, "device_type", WARN);
-CHECK_IS_STRING(model_is_string, "model", WARN);
-CHECK_IS_STRING(status_is_string, "status", WARN);
+WARNING_IF_NOT_STRING(device_type_is_string, "device_type");
+WARNING_IF_NOT_STRING(model_is_string, "model");
+WARNING_IF_NOT_STRING(status_is_string, "status");
 
 static void fixup_addr_size_cells(struct check *c, struct node *dt,
 				  struct node *node)
@@ -503,8 +601,8 @@ static void fixup_addr_size_cells(struct check *c, struct node *dt,
 	if (prop)
 		node->size_cells = propval_cell(prop);
 }
-CHECK(addr_size_cells, NULL, fixup_addr_size_cells, NULL, NULL, WARN,
-      &address_cells_is_cell, &size_cells_is_cell);
+WARNING(addr_size_cells, NULL, fixup_addr_size_cells, NULL, NULL,
+	&address_cells_is_cell, &size_cells_is_cell);
 
 #define node_addr_cells(n) \
 	(((n)->addr_cells == -1) ? 2 : (n)->addr_cells)
@@ -538,7 +636,7 @@ static void check_reg_format(struct check *c, struct node *dt,
 		     "(#address-cells == %d, #size-cells == %d)",
 		     node->fullpath, prop->val.len, addr_cells, size_cells);
 }
-NODE_CHECK(reg_format, NULL, WARN, &addr_size_cells);
+NODE_WARNING(reg_format, NULL, &addr_size_cells);
 
 static void check_ranges_format(struct check *c, struct node *dt,
 				struct node *node)
@@ -579,7 +677,7 @@ static void check_ranges_format(struct check *c, struct node *dt,
 		     p_addr_cells, c_addr_cells, c_size_cells);
 	}
 }
-NODE_CHECK(ranges_format, NULL, WARN, &addr_size_cells);
+NODE_WARNING(ranges_format, NULL, &addr_size_cells);
 
 /*
  * Style checks
@@ -598,15 +696,15 @@ static void check_avoid_default_addr_size(struct check *c, struct node *dt,
 	if (!reg && !ranges)
 		return;
 
-	if ((node->parent->addr_cells == -1))
+	if (node->parent->addr_cells == -1)
 		FAIL(c, "Relying on default #address-cells value for %s",
 		     node->fullpath);
 
-	if ((node->parent->size_cells == -1))
+	if (node->parent->size_cells == -1)
 		FAIL(c, "Relying on default #size-cells value for %s",
 		     node->fullpath);
 }
-NODE_CHECK(avoid_default_addr_size, NULL, WARN, &addr_size_cells);
+NODE_WARNING(avoid_default_addr_size, NULL, &addr_size_cells);
 
 static void check_obsolete_chosen_interrupt_controller(struct check *c,
 						       struct node *dt)
@@ -623,7 +721,46 @@ static void check_obsolete_chosen_interrupt_controller(struct check *c,
 		FAIL(c, "/chosen has obsolete \"interrupt-controller\" "
 		     "property");
 }
-TREE_CHECK(obsolete_chosen_interrupt_controller, NULL, WARN);
+TREE_WARNING(obsolete_chosen_interrupt_controller, NULL);
+
+static void check_auto_label_phandles(struct check *c, struct node *dt,
+				       struct node *node)
+{
+	struct label *l;
+	struct symbol *s, **sp;
+	int has_label;
+
+	if (!symbol_fixup_support)
+		return;
+
+	has_label = 0;
+	for_each_label(node->labels, l) {
+		has_label = 1;
+		break;
+	}
+
+	if (!has_label)
+		return;
+
+	/* force allocation of a phandle for this node */
+	(void)get_node_phandle(dt, node);
+
+	/* add the symbol */
+	for_each_label(node->labels, l) {
+
+		s = xmalloc(sizeof(*s));
+		s->label = l;
+		s->node = node;
+		s->next = NULL;
+
+		/* add it to the symbols list */
+		sp = &dt->symbols;
+		while (*sp)
+			sp = &((*sp)->next);
+		*sp = s;
+	}
+}
+NODE_WARNING(auto_label_phandles, NULL);
 
 static struct check *check_table[] = {
 	&duplicate_node_names, &duplicate_property_names,
@@ -642,9 +779,74 @@ static struct check *check_table[] = {
 
 	&avoid_default_addr_size,
 	&obsolete_chosen_interrupt_controller,
+
+	&auto_label_phandles,
+
+	&always_fail,
 };
 
-void process_checks(int force, struct boot_info *bi)
+static void enable_warning_error(struct check *c, bool warn, bool error)
+{
+	int i;
+
+	/* Raising level, also raise it for prereqs */
+	if ((warn && !c->warn) || (error && !c->error))
+		for (i = 0; i < c->num_prereqs; i++)
+			enable_warning_error(c->prereq[i], warn, error);
+
+	c->warn = c->warn || warn;
+	c->error = c->error || error;
+}
+
+static void disable_warning_error(struct check *c, bool warn, bool error)
+{
+	int i;
+
+	/* Lowering level, also lower it for things this is the prereq
+	 * for */
+	if ((warn && c->warn) || (error && c->error)) {
+		for (i = 0; i < ARRAY_SIZE(check_table); i++) {
+			struct check *cc = check_table[i];
+			int j;
+
+			for (j = 0; j < cc->num_prereqs; j++)
+				if (cc->prereq[j] == c)
+					disable_warning_error(cc, warn, error);
+		}
+	}
+
+	c->warn = c->warn && !warn;
+	c->error = c->error && !error;
+}
+
+void parse_checks_option(bool warn, bool error, const char *arg)
+{
+	int i;
+	const char *name = arg;
+	bool enable = true;
+
+	if ((strncmp(arg, "no-", 3) == 0)
+	    || (strncmp(arg, "no_", 3) == 0)) {
+		name = arg + 3;
+		enable = false;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(check_table); i++) {
+		struct check *c = check_table[i];
+
+		if (streq(c->name, name)) {
+			if (enable)
+				enable_warning_error(c, warn, error);
+			else
+				disable_warning_error(c, warn, error);
+			return;
+		}
+	}
+
+	die("Unrecognized check name \"%s\"\n", name);
+}
+
+void process_checks(bool force, struct boot_info *bi)
 {
 	struct node *dt = bi->dt;
 	int i;
@@ -653,7 +855,7 @@ void process_checks(int force, struct boot_info *bi)
 	for (i = 0; i < ARRAY_SIZE(check_table); i++) {
 		struct check *c = check_table[i];
 
-		if (c->level != IGNORE)
+		if (c->warn || c->error)
 			error = error || run_check(c, dt);
 	}
 

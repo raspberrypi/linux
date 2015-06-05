@@ -64,7 +64,7 @@ static int atlx_ioctl(struct net_device *netdev, struct ifreq *ifr, int cmd)
 	}
 }
 
-/*
+/**
  * atlx_set_mac - Change the Ethernet Address of the NIC
  * @netdev: network interface device structure
  * @p: pointer to an address structure
@@ -114,7 +114,7 @@ static void atlx_check_for_link(struct atlx_adapter *adapter)
 	schedule_work(&adapter->link_chg_task);
 }
 
-/*
+/**
  * atlx_set_multi - Multicast and Promiscuous mode set
  * @netdev: network interface device structure
  *
@@ -154,24 +154,31 @@ static void atlx_set_multi(struct net_device *netdev)
 	}
 }
 
-/*
+static inline void atlx_imr_set(struct atlx_adapter *adapter,
+				unsigned int imr)
+{
+	iowrite32(imr, adapter->hw.hw_addr + REG_IMR);
+	ioread32(adapter->hw.hw_addr + REG_IMR);
+}
+
+/**
  * atlx_irq_enable - Enable default interrupt generation settings
  * @adapter: board private structure
  */
 static void atlx_irq_enable(struct atlx_adapter *adapter)
 {
-	iowrite32(IMR_NORMAL_MASK, adapter->hw.hw_addr + REG_IMR);
-	ioread32(adapter->hw.hw_addr + REG_IMR);
+	atlx_imr_set(adapter, IMR_NORMAL_MASK);
+	adapter->int_enabled = true;
 }
 
-/*
+/**
  * atlx_irq_disable - Mask off interrupt generation on the NIC
  * @adapter: board private structure
  */
 static void atlx_irq_disable(struct atlx_adapter *adapter)
 {
-	iowrite32(0, adapter->hw.hw_addr + REG_IMR);
-	ioread32(adapter->hw.hw_addr + REG_IMR);
+	adapter->int_enabled = false;
+	atlx_imr_set(adapter, 0);
 	synchronize_irq(adapter->pdev->irq);
 }
 
@@ -185,7 +192,7 @@ static void atlx_clear_phy_int(struct atlx_adapter *adapter)
 	spin_unlock_irqrestore(&adapter->lock, flags);
 }
 
-/*
+/**
  * atlx_tx_timeout - Respond to a Tx Hang
  * @netdev: network interface device structure
  */
@@ -193,7 +200,7 @@ static void atlx_tx_timeout(struct net_device *netdev)
 {
 	struct atlx_adapter *adapter = netdev_priv(netdev);
 	/* Do the reset outside of interrupt context */
-	schedule_work(&adapter->tx_timeout_task);
+	schedule_work(&adapter->reset_dev_task);
 }
 
 /*
@@ -213,7 +220,7 @@ static void atlx_link_chg_task(struct work_struct *work)
 
 static void __atlx_vlan_mode(netdev_features_t features, u32 *ctrl)
 {
-	if (features & NETIF_F_HW_VLAN_RX) {
+	if (features & NETIF_F_HW_VLAN_CTAG_RX) {
 		/* enable VLAN tag insert/strip */
 		*ctrl |= MAC_CTRL_RMV_VLAN;
 	} else {
@@ -250,10 +257,10 @@ static netdev_features_t atlx_fix_features(struct net_device *netdev,
 	 * Since there is no support for separate rx/tx vlan accel
 	 * enable/disable make sure tx flag is always in same state as rx.
 	 */
-	if (features & NETIF_F_HW_VLAN_RX)
-		features |= NETIF_F_HW_VLAN_TX;
+	if (features & NETIF_F_HW_VLAN_CTAG_RX)
+		features |= NETIF_F_HW_VLAN_CTAG_TX;
 	else
-		features &= ~NETIF_F_HW_VLAN_TX;
+		features &= ~NETIF_F_HW_VLAN_CTAG_TX;
 
 	return features;
 }
@@ -263,7 +270,7 @@ static int atlx_set_features(struct net_device *netdev,
 {
 	netdev_features_t changed = netdev->features ^ features;
 
-	if (changed & NETIF_F_HW_VLAN_RX)
+	if (changed & NETIF_F_HW_VLAN_CTAG_RX)
 		atlx_vlan_mode(netdev, features);
 
 	return 0;

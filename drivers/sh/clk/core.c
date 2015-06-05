@@ -63,12 +63,12 @@ void clk_rate_table_build(struct clk *clk,
 		else
 			freq = clk->parent->rate * mult / div;
 
-		freq_table[i].index = i;
+		freq_table[i].driver_data = i;
 		freq_table[i].frequency = freq;
 	}
 
 	/* Termination entry */
-	freq_table[i].index = i;
+	freq_table[i].driver_data = i;
 	freq_table[i].frequency = CPUFREQ_TABLE_END;
 }
 
@@ -196,17 +196,11 @@ int clk_rate_table_find(struct clk *clk,
 			struct cpufreq_frequency_table *freq_table,
 			unsigned long rate)
 {
-	int i;
+	struct cpufreq_frequency_table *pos;
 
-	for (i = 0; freq_table[i].frequency != CPUFREQ_TABLE_END; i++) {
-		unsigned long freq = freq_table[i].frequency;
-
-		if (freq == CPUFREQ_ENTRY_INVALID)
-			continue;
-
-		if (freq == rate)
-			return i;
-	}
+	cpufreq_for_each_valid_entry(pos, freq_table)
+		if (pos->frequency == rate)
+			return pos - freq_table;
 
 	return -ENOENT;
 }
@@ -355,7 +349,7 @@ static int clk_establish_mapping(struct clk *clk)
 		 */
 		if (!clk->parent) {
 			clk->mapping = &dummy_mapping;
-			return 0;
+			goto out;
 		}
 
 		/*
@@ -384,6 +378,9 @@ static int clk_establish_mapping(struct clk *clk)
 	}
 
 	clk->mapping = mapping;
+out:
+	clk->mapped_reg = clk->mapping->base;
+	clk->mapped_reg += (phys_addr_t)clk->enable_reg - clk->mapping->phys;
 	return 0;
 }
 
@@ -402,10 +399,12 @@ static void clk_teardown_mapping(struct clk *clk)
 
 	/* Nothing to do */
 	if (mapping == &dummy_mapping)
-		return;
+		goto out;
 
 	kref_put(&mapping->ref, clk_destroy_mapping);
 	clk->mapping = NULL;
+out:
+	clk->mapped_reg = NULL;
 }
 
 int clk_register(struct clk *clk)
@@ -570,11 +569,7 @@ long clk_round_parent(struct clk *clk, unsigned long target,
 		return abs(target - *best_freq);
 	}
 
-	for (freq = parent->freq_table; freq->frequency != CPUFREQ_TABLE_END;
-	     freq++) {
-		if (freq->frequency == CPUFREQ_ENTRY_INVALID)
-			continue;
-
+	cpufreq_for_each_valid_entry(freq, parent->freq_table) {
 		if (unlikely(freq->frequency / target <= div_min - 1)) {
 			unsigned long freq_max;
 

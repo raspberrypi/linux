@@ -61,7 +61,7 @@ static void qpace_progress(char *s, unsigned short hex)
 	printk("*** %04x : %s\n", hex, s ? s : "");
 }
 
-static const struct of_device_id qpace_bus_ids[] __initdata = {
+static const struct of_device_id qpace_bus_ids[] __initconst = {
 	{ .type = "soc", },
 	{ .compatible = "soc", },
 	{ .type = "spider", },
@@ -127,6 +127,7 @@ static int __init qpace_probe(void)
 		return 0;
 
 	hpte_init_native();
+	pm_power_off = rtas_power_off;
 
 	return 1;
 }
@@ -137,7 +138,6 @@ define_machine(qpace) {
 	.setup_arch		= qpace_setup_arch,
 	.show_cpuinfo		= qpace_show_cpuinfo,
 	.restart		= rtas_restart,
-	.power_off		= rtas_power_off,
 	.halt			= rtas_halt,
 	.get_boot_time		= rtas_get_boot_time,
 	.get_rtc_time		= rtas_get_rtc_time,

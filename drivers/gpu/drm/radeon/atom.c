@@ -665,6 +665,8 @@ static void atom_op_delay(atom_exec_context *ctx, int *ptr, int arg)
 	SDEBUG("   count: %d\n", count);
 	if (arg == ATOM_UNIT_MICROSEC)
 		udelay(count);
+	else if (!drm_can_sleep())
+		mdelay(count);
 	else
 		msleep(count);
 }
@@ -1215,19 +1217,33 @@ free:
 	return ret;
 }
 
-int atom_execute_table(struct atom_context *ctx, int index, uint32_t * params)
+int atom_execute_table_scratch_unlocked(struct atom_context *ctx, int index, uint32_t * params)
 {
 	int r;
 
 	mutex_lock(&ctx->mutex);
+	/* reset data block */
+	ctx->data_block = 0;
 	/* reset reg block */
 	ctx->reg_block = 0;
 	/* reset fb window */
 	ctx->fb_base = 0;
 	/* reset io mode */
 	ctx->io_mode = ATOM_IO_MM;
+	/* reset divmul */
+	ctx->divmul[0] = 0;
+	ctx->divmul[1] = 0;
 	r = atom_execute_table_locked(ctx, index, params);
 	mutex_unlock(&ctx->mutex);
+	return r;
+}
+
+int atom_execute_table(struct atom_context *ctx, int index, uint32_t * params)
+{
+	int r;
+	mutex_lock(&ctx->scratch_mutex);
+	r = atom_execute_table_scratch_unlocked(ctx, index, params);
+	mutex_unlock(&ctx->scratch_mutex);
 	return r;
 }
 
@@ -1236,6 +1252,8 @@ static int atom_iio_len[] = { 1, 2, 3, 3, 3, 3, 4, 4, 4, 3 };
 static void atom_index_iio(struct atom_context *ctx, int base)
 {
 	ctx->iio = kzalloc(2 * 256, GFP_KERNEL);
+	if (!ctx->iio)
+		return;
 	while (CU8(base) == ATOM_IIO_START) {
 		ctx->iio[CU8(base + 1)] = base + 2;
 		base += 2;
@@ -1285,6 +1303,10 @@ struct atom_context *atom_parse(struct card_info *card, void *bios)
 	ctx->cmd_table = CU16(base + ATOM_ROM_CMD_PTR);
 	ctx->data_table = CU16(base + ATOM_ROM_DATA_PTR);
 	atom_index_iio(ctx, CU16(ctx->data_table + ATOM_DATA_IIO_PTR) + 4);
+	if (!ctx->iio) {
+		atom_destroy(ctx);
+		return NULL;
+	}
 
 	str = CSTR(CU16(base + ATOM_ROM_MSG_PTR));
 	while (*str && ((*str == '\n') || (*str == '\r')))
@@ -1304,8 +1326,11 @@ struct atom_context *atom_parse(struct card_info *card, void *bios)
 
 int atom_asic_init(struct atom_context *ctx)
 {
+	struct radeon_device *rdev = ctx->card->dev->dev_private;
 	int hwi = CU16(ctx->data_table + ATOM_DATA_FWI_PTR);
 	uint32_t ps[16];
+	int ret;
+
 	memset(ps, 0, 64);
 
 	ps[0] = cpu_to_le32(CU32(hwi + ATOM_FWI_DEFSCLK_PTR));
@@ -1315,13 +1340,22 @@ int atom_asic_init(struct atom_context *ctx)
 
 	if (!CU16(ctx->cmd_table + 4 + 2 * ATOM_CMD_INIT))
 		return 1;
-	return atom_execute_table(ctx, ATOM_CMD_INIT, ps);
+	ret = atom_execute_table(ctx, ATOM_CMD_INIT, ps);
+	if (ret)
+		return ret;
+
+	memset(ps, 0, 64);
+
+	if (rdev->family < CHIP_R600) {
+		if (CU16(ctx->cmd_table + 4 + 2 * ATOM_CMD_SPDFANCNTL))
+			atom_execute_table(ctx, ATOM_CMD_SPDFANCNTL, ps);
+	}
+	return ret;
 }
 
 void atom_destroy(struct atom_context *ctx)
 {
-	if (ctx->iio)
-		kfree(ctx->iio);
+	kfree(ctx->iio);
 	kfree(ctx);
 }
 
@@ -1374,10 +1408,10 @@ int atom_allocate_fb_scratch(struct atom_context *ctx)
 		firmware_usage = (struct _ATOM_VRAM_USAGE_BY_FIRMWARE *)(ctx->bios + data_offset);
 
 		DRM_DEBUG("atom firmware requested %08x %dkb\n",
-			  firmware_usage->asFirmwareVramReserveInfo[0].ulStartAddrUsedByFirmware,
-			  firmware_usage->asFirmwareVramReserveInfo[0].usFirmwareUseInKb);
+			  le32_to_cpu(firmware_usage->asFirmwareVramReserveInfo[0].ulStartAddrUsedByFirmware),
+			  le16_to_cpu(firmware_usage->asFirmwareVramReserveInfo[0].usFirmwareUseInKb));
 
-		usage_bytes = firmware_usage->asFirmwareVramReserveInfo[0].usFirmwareUseInKb * 1024;
+		usage_bytes = le16_to_cpu(firmware_usage->asFirmwareVramReserveInfo[0].usFirmwareUseInKb) * 1024;
 	}
 	ctx->scratch_size_bytes = 0;
 	if (usage_bytes == 0)

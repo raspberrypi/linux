@@ -11,7 +11,7 @@
  *     Define the pci_ops for TX3927.
  *
  * Much of the code is derived from the original DDB5074 port by
- * Geert Uytterhoeven <geert@sonycom.com>
+ * Geert Uytterhoeven <geert@linux-m68k.org>
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -225,7 +225,7 @@ void __init tx3927_setup_pcierr_irq(void)
 {
 	if (request_irq(TXX9_IRQ_BASE + TX3927_IR_PCI,
 			tx3927_pcierr_interrupt,
-			IRQF_DISABLED, "PCI error",
+			0, "PCI error",
 			(void *)TX3927_PCIC_REG))
 		printk(KERN_WARNING "Failed to request irq for PCIERR\n");
 }

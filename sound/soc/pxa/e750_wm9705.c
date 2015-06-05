@@ -70,29 +70,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"MIC1", NULL, "Mic (Internal)"},
 };
 
-static int e750_ac97_init(struct snd_soc_pcm_runtime *rtd)
-{
-	struct snd_soc_codec *codec = rtd->codec;
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
-
-	snd_soc_dapm_nc_pin(dapm, "LOUT");
-	snd_soc_dapm_nc_pin(dapm, "ROUT");
-	snd_soc_dapm_nc_pin(dapm, "PHONE");
-	snd_soc_dapm_nc_pin(dapm, "LINEINL");
-	snd_soc_dapm_nc_pin(dapm, "LINEINR");
-	snd_soc_dapm_nc_pin(dapm, "CDINL");
-	snd_soc_dapm_nc_pin(dapm, "CDINR");
-	snd_soc_dapm_nc_pin(dapm, "PCBEEP");
-	snd_soc_dapm_nc_pin(dapm, "MIC2");
-
-	snd_soc_dapm_new_controls(dapm, e750_dapm_widgets,
-					ARRAY_SIZE(e750_dapm_widgets));
-
-	snd_soc_dapm_add_routes(dapm, audio_map, ARRAY_SIZE(audio_map));
-
-	return 0;
-}
-
 static struct snd_soc_dai_link e750_dai[] = {
 	{
 		.name = "AC97",
@@ -101,7 +78,6 @@ static struct snd_soc_dai_link e750_dai[] = {
 		.codec_dai_name = "wm9705-hifi",
 		.platform_name = "pxa-pcm-audio",
 		.codec_name = "wm9705-codec",
-		.init = e750_ac97_init,
 		/* use ops to check startup state */
 	},
 	{
@@ -116,68 +92,65 @@ static struct snd_soc_dai_link e750_dai[] = {
 
 static struct snd_soc_card e750 = {
 	.name = "Toshiba e750",
+	.owner = THIS_MODULE,
 	.dai_link = e750_dai,
 	.num_links = ARRAY_SIZE(e750_dai),
+
+	.dapm_widgets = e750_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(e750_dapm_widgets),
+	.dapm_routes = audio_map,
+	.num_dapm_routes = ARRAY_SIZE(audio_map),
+	.fully_routed = true,
 };
 
-static struct platform_device *e750_snd_device;
+static struct gpio e750_audio_gpios[] = {
+	{ GPIO_E750_HP_AMP_OFF, GPIOF_OUT_INIT_HIGH, "Headphone amp" },
+	{ GPIO_E750_SPK_AMP_OFF, GPIOF_OUT_INIT_HIGH, "Speaker amp" },
+};
 
-static int __init e750_init(void)
+static int e750_probe(struct platform_device *pdev)
 {
+	struct snd_soc_card *card = &e750;
 	int ret;
 
-	if (!machine_is_e750())
-		return -ENODEV;
-
-	ret = gpio_request(GPIO_E750_HP_AMP_OFF,  "Headphone amp");
+	ret = gpio_request_array(e750_audio_gpios,
+				 ARRAY_SIZE(e750_audio_gpios));
 	if (ret)
 		return ret;
 
-	ret = gpio_request(GPIO_E750_SPK_AMP_OFF, "Speaker amp");
-	if (ret)
-		goto free_hp_amp_gpio;
+	card->dev = &pdev->dev;
 
-	ret = gpio_direction_output(GPIO_E750_HP_AMP_OFF, 1);
-	if (ret)
-		goto free_spk_amp_gpio;
-
-	ret = gpio_direction_output(GPIO_E750_SPK_AMP_OFF, 1);
-	if (ret)
-		goto free_spk_amp_gpio;
-
-	e750_snd_device = platform_device_alloc("soc-audio", -1);
-	if (!e750_snd_device) {
-		ret = -ENOMEM;
-		goto free_spk_amp_gpio;
+	ret = snd_soc_register_card(card);
+	if (ret) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
+			ret);
+		gpio_free_array(e750_audio_gpios, ARRAY_SIZE(e750_audio_gpios));
 	}
-
-	platform_set_drvdata(e750_snd_device, &e750);
-	ret = platform_device_add(e750_snd_device);
-
-	if (!ret)
-		return 0;
-
-/* Fail gracefully */
-	platform_device_put(e750_snd_device);
-free_spk_amp_gpio:
-	gpio_free(GPIO_E750_SPK_AMP_OFF);
-free_hp_amp_gpio:
-	gpio_free(GPIO_E750_HP_AMP_OFF);
-
 	return ret;
 }
 
-static void __exit e750_exit(void)
+static int e750_remove(struct platform_device *pdev)
 {
-	platform_device_unregister(e750_snd_device);
-	gpio_free(GPIO_E750_SPK_AMP_OFF);
-	gpio_free(GPIO_E750_HP_AMP_OFF);
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+
+	gpio_free_array(e750_audio_gpios, ARRAY_SIZE(e750_audio_gpios));
+	snd_soc_unregister_card(card);
+	return 0;
 }
 
-module_init(e750_init);
-module_exit(e750_exit);
+static struct platform_driver e750_driver = {
+	.driver		= {
+		.name	= "e750-audio",
+		.pm     = &snd_soc_pm_ops,
+	},
+	.probe		= e750_probe,
+	.remove		= e750_remove,
+};
+
+module_platform_driver(e750_driver);
 
 /* Module information */
 MODULE_AUTHOR("Ian Molton <spyro@f2s.com>");
 MODULE_DESCRIPTION("ALSA SoC driver for e750");
 MODULE_LICENSE("GPL v2");
+MODULE_ALIAS("platform:e750-audio");

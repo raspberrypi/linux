@@ -339,6 +339,23 @@ int i2400mu_bus_reset(struct i2400m *i2400m, enum i2400m_reset_type rt)
 	return result;
 }
 
+static void i2400mu_get_drvinfo(struct net_device *net_dev,
+                                struct ethtool_drvinfo *info)
+{
+	struct i2400m *i2400m = net_dev_to_i2400m(net_dev);
+	struct i2400mu *i2400mu = container_of(i2400m, struct i2400mu, i2400m);
+	struct usb_device *udev = i2400mu->usb_dev;
+
+	strlcpy(info->driver, KBUILD_MODNAME, sizeof(info->driver));
+	strlcpy(info->fw_version, i2400m->fw_name ? : "",
+		sizeof(info->fw_version));
+	usb_make_path(udev, info->bus_info, sizeof(info->bus_info));
+}
+
+static const struct ethtool_ops i2400mu_ethtool_ops = {
+	.get_drvinfo = i2400mu_get_drvinfo,
+	.get_link = ethtool_op_get_link,
+};
 
 static
 void i2400mu_netdev_setup(struct net_device *net_dev)
@@ -347,6 +364,7 @@ void i2400mu_netdev_setup(struct net_device *net_dev)
 	struct i2400mu *i2400mu = container_of(i2400m, struct i2400mu, i2400m);
 	i2400mu_init(i2400mu);
 	i2400m_netdev_setup(net_dev);
+	net_dev->ethtool_ops = &i2400mu_ethtool_ops;
 }
 
 
@@ -454,7 +472,7 @@ int i2400mu_probe(struct usb_interface *iface,
 
 	/* Allocate instance [calls i2400m_netdev_setup() on it]. */
 	result = -ENOMEM;
-	net_dev = alloc_netdev(sizeof(*i2400mu), "wmx%d",
+	net_dev = alloc_netdev(sizeof(*i2400mu), "wmx%d", NET_NAME_UNKNOWN,
 			       i2400mu_netdev_setup);
 	if (net_dev == NULL) {
 		dev_err(dev, "no memory for network device instance\n");
@@ -492,6 +510,9 @@ int i2400mu_probe(struct usb_interface *iface,
 	switch (id->idProduct) {
 	case USB_DEVICE_ID_I6050:
 	case USB_DEVICE_ID_I6050_2:
+	case USB_DEVICE_ID_I6150:
+	case USB_DEVICE_ID_I6150_2:
+	case USB_DEVICE_ID_I6150_3:
 	case USB_DEVICE_ID_I6250:
 		i2400mu->i6050 = 1;
 		break;
@@ -677,7 +698,7 @@ int i2400mu_resume(struct usb_interface *iface)
 	d_fnstart(3, dev, "(iface %p)\n", iface);
 	rmb();		/* see i2400m->updown's documentation  */
 	if (i2400m->updown == 0) {
-		d_printf(1, dev, "fw was down, no resume neeed\n");
+		d_printf(1, dev, "fw was down, no resume needed\n");
 		goto out;
 	}
 	d_printf(1, dev, "fw was up, resuming\n");
@@ -741,6 +762,9 @@ static
 struct usb_device_id i2400mu_id_table[] = {
 	{ USB_DEVICE(0x8086, USB_DEVICE_ID_I6050) },
 	{ USB_DEVICE(0x8086, USB_DEVICE_ID_I6050_2) },
+	{ USB_DEVICE(0x8087, USB_DEVICE_ID_I6150) },
+	{ USB_DEVICE(0x8087, USB_DEVICE_ID_I6150_2) },
+	{ USB_DEVICE(0x8087, USB_DEVICE_ID_I6150_3) },
 	{ USB_DEVICE(0x8086, USB_DEVICE_ID_I6250) },
 	{ USB_DEVICE(0x8086, 0x0181) },
 	{ USB_DEVICE(0x8086, 0x1403) },

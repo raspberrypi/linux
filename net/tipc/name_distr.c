@@ -1,7 +1,7 @@
 /*
  * net/tipc/name_distr.c: TIPC name distribution code
  *
- * Copyright (c) 2000-2006, Ericsson AB
+ * Copyright (c) 2000-2006, 2014, Ericsson AB
  * Copyright (c) 2005, 2010-2011, Wind River Systems
  * All rights reserved.
  *
@@ -38,47 +38,24 @@
 #include "link.h"
 #include "name_distr.h"
 
-#define ITEM_SIZE sizeof(struct distr_item)
+int sysctl_tipc_named_timeout __read_mostly = 2000;
 
 /**
- * struct distr_item - publication info distributed to other nodes
- * @type: name sequence type
- * @lower: name sequence lower bound
- * @upper: name sequence upper bound
- * @ref: publishing port reference
- * @key: publication key
- *
- * ===> All fields are stored in network byte order. <===
- *
- * First 3 fields identify (name or) name sequence being published.
- * Reference field uniquely identifies port that published name sequence.
- * Key field uniquely identifies publication, in the event a port has
- * multiple publications of the same name sequence.
- *
- * Note: There is no field that identifies the publishing node because it is
- * the same for all items contained within a publication message.
+ * struct tipc_dist_queue - queue holding deferred name table updates
  */
+static struct list_head tipc_dist_queue = LIST_HEAD_INIT(tipc_dist_queue);
 
-struct distr_item {
-	__be32 type;
-	__be32 lower;
-	__be32 upper;
-	__be32 ref;
-	__be32 key;
+struct distr_queue_item {
+	struct distr_item i;
+	u32 dtype;
+	u32 node;
+	unsigned long expires;
+	struct list_head next;
 };
-
-/**
- * List of externally visible publications by this node --
- * that is, all publications having scope > TIPC_NODE_SCOPE.
- */
-
-static LIST_HEAD(publ_root);
-static u32 publ_cnt;
 
 /**
  * publ_to_item - add publication info to a publication message
  */
-
 static void publ_to_item(struct distr_item *i, struct publication *p)
 {
 	i->type = htonl(p->type);
@@ -91,250 +68,368 @@ static void publ_to_item(struct distr_item *i, struct publication *p)
 /**
  * named_prepare_buf - allocate & initialize a publication message
  */
-
-static struct sk_buff *named_prepare_buf(u32 type, u32 size, u32 dest)
+static struct sk_buff *named_prepare_buf(struct net *net, u32 type, u32 size,
+					 u32 dest)
 {
+	struct tipc_net *tn = net_generic(net, tipc_net_id);
 	struct sk_buff *buf = tipc_buf_acquire(INT_H_SIZE + size);
 	struct tipc_msg *msg;
 
 	if (buf != NULL) {
 		msg = buf_msg(buf);
-		tipc_msg_init(msg, NAME_DISTRIBUTOR, type, INT_H_SIZE, dest);
+		tipc_msg_init(tn->own_addr, msg, NAME_DISTRIBUTOR, type,
+			      INT_H_SIZE, dest);
 		msg_set_size(msg, INT_H_SIZE + size);
 	}
 	return buf;
 }
 
-static void named_cluster_distribute(struct sk_buff *buf)
+void named_cluster_distribute(struct net *net, struct sk_buff *skb)
 {
-	struct sk_buff *buf_copy;
-	struct tipc_node *n_ptr;
+	struct tipc_net *tn = net_generic(net, tipc_net_id);
+	struct sk_buff *oskb;
+	struct tipc_node *node;
+	u32 dnode;
 
-	list_for_each_entry(n_ptr, &tipc_node_list, list) {
-		if (tipc_node_active_links(n_ptr)) {
-			buf_copy = skb_copy(buf, GFP_ATOMIC);
-			if (!buf_copy)
-				break;
-			msg_set_destnode(buf_msg(buf_copy), n_ptr->addr);
-			tipc_link_send(buf_copy, n_ptr->addr, n_ptr->addr);
-		}
+	rcu_read_lock();
+	list_for_each_entry_rcu(node, &tn->node_list, list) {
+		dnode = node->addr;
+		if (in_own_node(net, dnode))
+			continue;
+		if (!tipc_node_active_links(node))
+			continue;
+		oskb = skb_copy(skb, GFP_ATOMIC);
+		if (!oskb)
+			break;
+		msg_set_destnode(buf_msg(oskb), dnode);
+		tipc_link_xmit_skb(net, oskb, dnode, dnode);
 	}
+	rcu_read_unlock();
 
-	buf_discard(buf);
+	kfree_skb(skb);
 }
 
 /**
  * tipc_named_publish - tell other nodes about a new publication by this node
  */
-
-void tipc_named_publish(struct publication *publ)
+struct sk_buff *tipc_named_publish(struct net *net, struct publication *publ)
 {
+	struct tipc_net *tn = net_generic(net, tipc_net_id);
 	struct sk_buff *buf;
 	struct distr_item *item;
 
-	list_add_tail(&publ->local_list, &publ_root);
-	publ_cnt++;
+	list_add_tail_rcu(&publ->local_list,
+			  &tn->nametbl->publ_list[publ->scope]);
 
-	buf = named_prepare_buf(PUBLICATION, ITEM_SIZE, 0);
+	if (publ->scope == TIPC_NODE_SCOPE)
+		return NULL;
+
+	buf = named_prepare_buf(net, PUBLICATION, ITEM_SIZE, 0);
 	if (!buf) {
-		warn("Publication distribution failure\n");
-		return;
+		pr_warn("Publication distribution failure\n");
+		return NULL;
 	}
 
 	item = (struct distr_item *)msg_data(buf_msg(buf));
 	publ_to_item(item, publ);
-	named_cluster_distribute(buf);
+	return buf;
 }
 
 /**
  * tipc_named_withdraw - tell other nodes about a withdrawn publication by this node
  */
-
-void tipc_named_withdraw(struct publication *publ)
+struct sk_buff *tipc_named_withdraw(struct net *net, struct publication *publ)
 {
 	struct sk_buff *buf;
 	struct distr_item *item;
 
 	list_del(&publ->local_list);
-	publ_cnt--;
 
-	buf = named_prepare_buf(WITHDRAWAL, ITEM_SIZE, 0);
+	if (publ->scope == TIPC_NODE_SCOPE)
+		return NULL;
+
+	buf = named_prepare_buf(net, WITHDRAWAL, ITEM_SIZE, 0);
 	if (!buf) {
-		warn("Withdrawal distribution failure\n");
-		return;
+		pr_warn("Withdrawal distribution failure\n");
+		return NULL;
 	}
 
 	item = (struct distr_item *)msg_data(buf_msg(buf));
 	publ_to_item(item, publ);
-	named_cluster_distribute(buf);
+	return buf;
+}
+
+/**
+ * named_distribute - prepare name info for bulk distribution to another node
+ * @list: list of messages (buffers) to be returned from this function
+ * @dnode: node to be updated
+ * @pls: linked list of publication items to be packed into buffer chain
+ */
+static void named_distribute(struct net *net, struct sk_buff_head *list,
+			     u32 dnode, struct list_head *pls)
+{
+	struct publication *publ;
+	struct sk_buff *skb = NULL;
+	struct distr_item *item = NULL;
+	uint msg_dsz = (tipc_node_get_mtu(net, dnode, 0) / ITEM_SIZE) *
+			ITEM_SIZE;
+	uint msg_rem = msg_dsz;
+
+	list_for_each_entry(publ, pls, local_list) {
+		/* Prepare next buffer: */
+		if (!skb) {
+			skb = named_prepare_buf(net, PUBLICATION, msg_rem,
+						dnode);
+			if (!skb) {
+				pr_warn("Bulk publication failure\n");
+				return;
+			}
+			item = (struct distr_item *)msg_data(buf_msg(skb));
+		}
+
+		/* Pack publication into message: */
+		publ_to_item(item, publ);
+		item++;
+		msg_rem -= ITEM_SIZE;
+
+		/* Append full buffer to list: */
+		if (!msg_rem) {
+			__skb_queue_tail(list, skb);
+			skb = NULL;
+			msg_rem = msg_dsz;
+		}
+	}
+	if (skb) {
+		msg_set_size(buf_msg(skb), INT_H_SIZE + (msg_dsz - msg_rem));
+		skb_trim(skb, INT_H_SIZE + (msg_dsz - msg_rem));
+		__skb_queue_tail(list, skb);
+	}
 }
 
 /**
  * tipc_named_node_up - tell specified node about all publications by this node
  */
-
-void tipc_named_node_up(unsigned long nodearg)
+void tipc_named_node_up(struct net *net, u32 dnode)
 {
-	struct tipc_node *n_ptr;
-	struct tipc_link *l_ptr;
-	struct publication *publ;
-	struct distr_item *item = NULL;
-	struct sk_buff *buf = NULL;
-	struct list_head message_list;
-	u32 node = (u32)nodearg;
-	u32 left = 0;
-	u32 rest;
-	u32 max_item_buf = 0;
+	struct tipc_net *tn = net_generic(net, tipc_net_id);
+	struct sk_buff_head head;
 
-	/* compute maximum amount of publication data to send per message */
+	__skb_queue_head_init(&head);
 
-	read_lock_bh(&tipc_net_lock);
-	n_ptr = tipc_node_find(node);
-	if (n_ptr) {
-		tipc_node_lock(n_ptr);
-		l_ptr = n_ptr->active_links[0];
-		if (l_ptr)
-			max_item_buf = ((l_ptr->max_pkt - INT_H_SIZE) /
-				ITEM_SIZE) * ITEM_SIZE;
-		tipc_node_unlock(n_ptr);
-	}
-	read_unlock_bh(&tipc_net_lock);
-	if (!max_item_buf)
+	rcu_read_lock();
+	named_distribute(net, &head, dnode,
+			 &tn->nametbl->publ_list[TIPC_CLUSTER_SCOPE]);
+	named_distribute(net, &head, dnode,
+			 &tn->nametbl->publ_list[TIPC_ZONE_SCOPE]);
+	rcu_read_unlock();
+
+	tipc_link_xmit(net, &head, dnode, dnode);
+}
+
+static void tipc_publ_subscribe(struct net *net, struct publication *publ,
+				u32 addr)
+{
+	struct tipc_node *node;
+
+	if (in_own_node(net, addr))
 		return;
 
-	/* create list of publication messages, then send them as a unit */
-
-	INIT_LIST_HEAD(&message_list);
-
-	read_lock_bh(&tipc_nametbl_lock);
-	rest = publ_cnt * ITEM_SIZE;
-
-	list_for_each_entry(publ, &publ_root, local_list) {
-		if (!buf) {
-			left = (rest <= max_item_buf) ? rest : max_item_buf;
-			rest -= left;
-			buf = named_prepare_buf(PUBLICATION, left, node);
-			if (!buf) {
-				warn("Bulk publication distribution failure\n");
-				goto exit;
-			}
-			item = (struct distr_item *)msg_data(buf_msg(buf));
-		}
-		publ_to_item(item, publ);
-		item++;
-		left -= ITEM_SIZE;
-		if (!left) {
-			list_add_tail((struct list_head *)buf, &message_list);
-			buf = NULL;
-		}
+	node = tipc_node_find(net, addr);
+	if (!node) {
+		pr_warn("Node subscription rejected, unknown node 0x%x\n",
+			addr);
+		return;
 	}
-exit:
-	read_unlock_bh(&tipc_nametbl_lock);
 
-	tipc_link_send_names(&message_list, (u32)node);
+	tipc_node_lock(node);
+	list_add_tail(&publ->nodesub_list, &node->publ_list);
+	tipc_node_unlock(node);
+}
+
+static void tipc_publ_unsubscribe(struct net *net, struct publication *publ,
+				  u32 addr)
+{
+	struct tipc_node *node;
+
+	node = tipc_node_find(net, addr);
+	if (!node)
+		return;
+
+	tipc_node_lock(node);
+	list_del_init(&publ->nodesub_list);
+	tipc_node_unlock(node);
 }
 
 /**
- * named_purge_publ - remove publication associated with a failed node
+ * tipc_publ_purge - remove publication associated with a failed node
  *
  * Invoked for each publication issued by a newly failed node.
  * Removes publication structure from name table & deletes it.
- * In rare cases the link may have come back up again when this
- * function is called, and we have two items representing the same
- * publication. Nudge this item's key to distinguish it from the other.
  */
-
-static void named_purge_publ(struct publication *publ)
+static void tipc_publ_purge(struct net *net, struct publication *publ, u32 addr)
 {
+	struct tipc_net *tn = net_generic(net, tipc_net_id);
 	struct publication *p;
 
-	write_lock_bh(&tipc_nametbl_lock);
-	publ->key += 1222345;
-	p = tipc_nametbl_remove_publ(publ->type, publ->lower,
+	spin_lock_bh(&tn->nametbl_lock);
+	p = tipc_nametbl_remove_publ(net, publ->type, publ->lower,
 				     publ->node, publ->ref, publ->key);
 	if (p)
-		tipc_nodesub_unsubscribe(&p->subscr);
-	write_unlock_bh(&tipc_nametbl_lock);
+		tipc_publ_unsubscribe(net, p, addr);
+	spin_unlock_bh(&tn->nametbl_lock);
 
 	if (p != publ) {
-		err("Unable to remove publication from failed node\n"
-		    "(type=%u, lower=%u, node=0x%x, ref=%u, key=%u)\n",
-		    publ->type, publ->lower, publ->node, publ->ref, publ->key);
+		pr_err("Unable to remove publication from failed node\n"
+		       " (type=%u, lower=%u, node=0x%x, ref=%u, key=%u)\n",
+		       publ->type, publ->lower, publ->node, publ->ref,
+		       publ->key);
 	}
 
-	kfree(p);
+	kfree_rcu(p, rcu);
 }
 
-/**
- * tipc_named_recv - process name table update message sent by another node
- */
-
-void tipc_named_recv(struct sk_buff *buf)
+void tipc_publ_notify(struct net *net, struct list_head *nsub_list, u32 addr)
 {
-	struct publication *publ;
-	struct tipc_msg *msg = buf_msg(buf);
-	struct distr_item *item = (struct distr_item *)msg_data(msg);
-	u32 count = msg_data_sz(msg) / ITEM_SIZE;
+	struct publication *publ, *tmp;
 
-	write_lock_bh(&tipc_nametbl_lock);
-	while (count--) {
-		if (msg_type(msg) == PUBLICATION) {
-			publ = tipc_nametbl_insert_publ(ntohl(item->type),
-							ntohl(item->lower),
-							ntohl(item->upper),
-							TIPC_CLUSTER_SCOPE,
-							msg_orignode(msg),
-							ntohl(item->ref),
-							ntohl(item->key));
-			if (publ) {
-				tipc_nodesub_subscribe(&publ->subscr,
-						       msg_orignode(msg),
-						       publ,
-						       (net_ev_handler)
-						       named_purge_publ);
-			}
-		} else if (msg_type(msg) == WITHDRAWAL) {
-			publ = tipc_nametbl_remove_publ(ntohl(item->type),
-							ntohl(item->lower),
-							msg_orignode(msg),
-							ntohl(item->ref),
-							ntohl(item->key));
-
-			if (publ) {
-				tipc_nodesub_unsubscribe(&publ->subscr);
-				kfree(publ);
-			} else {
-				err("Unable to remove publication by node 0x%x\n"
-				    "(type=%u, lower=%u, ref=%u, key=%u)\n",
-				    msg_orignode(msg),
-				    ntohl(item->type), ntohl(item->lower),
-				    ntohl(item->ref), ntohl(item->key));
-			}
-		} else {
-			warn("Unrecognized name table message received\n");
-		}
-		item++;
-	}
-	write_unlock_bh(&tipc_nametbl_lock);
-	buf_discard(buf);
+	list_for_each_entry_safe(publ, tmp, nsub_list, nodesub_list)
+		tipc_publ_purge(net, publ, addr);
 }
 
 /**
- * tipc_named_reinit - re-initialize local publication list
+ * tipc_update_nametbl - try to process a nametable update and notify
+ *			 subscribers
+ *
+ * tipc_nametbl_lock must be held.
+ * Returns the publication item if successful, otherwise NULL.
+ */
+static bool tipc_update_nametbl(struct net *net, struct distr_item *i,
+				u32 node, u32 dtype)
+{
+	struct publication *publ = NULL;
+
+	if (dtype == PUBLICATION) {
+		publ = tipc_nametbl_insert_publ(net, ntohl(i->type),
+						ntohl(i->lower),
+						ntohl(i->upper),
+						TIPC_CLUSTER_SCOPE, node,
+						ntohl(i->ref), ntohl(i->key));
+		if (publ) {
+			tipc_publ_subscribe(net, publ, node);
+			return true;
+		}
+	} else if (dtype == WITHDRAWAL) {
+		publ = tipc_nametbl_remove_publ(net, ntohl(i->type),
+						ntohl(i->lower),
+						node, ntohl(i->ref),
+						ntohl(i->key));
+		if (publ) {
+			tipc_publ_unsubscribe(net, publ, node);
+			kfree_rcu(publ, rcu);
+			return true;
+		}
+	} else {
+		pr_warn("Unrecognized name table message received\n");
+	}
+	return false;
+}
+
+/**
+ * tipc_named_add_backlog - add a failed name table update to the backlog
+ *
+ */
+static void tipc_named_add_backlog(struct distr_item *i, u32 type, u32 node)
+{
+	struct distr_queue_item *e;
+	unsigned long now = get_jiffies_64();
+
+	e = kzalloc(sizeof(*e), GFP_ATOMIC);
+	if (!e)
+		return;
+	e->dtype = type;
+	e->node = node;
+	e->expires = now + msecs_to_jiffies(sysctl_tipc_named_timeout);
+	memcpy(e, i, sizeof(*i));
+	list_add_tail(&e->next, &tipc_dist_queue);
+}
+
+/**
+ * tipc_named_process_backlog - try to process any pending name table updates
+ * from the network.
+ */
+void tipc_named_process_backlog(struct net *net)
+{
+	struct distr_queue_item *e, *tmp;
+	char addr[16];
+	unsigned long now = get_jiffies_64();
+
+	list_for_each_entry_safe(e, tmp, &tipc_dist_queue, next) {
+		if (time_after(e->expires, now)) {
+			if (!tipc_update_nametbl(net, &e->i, e->node, e->dtype))
+				continue;
+		} else {
+			tipc_addr_string_fill(addr, e->node);
+			pr_warn_ratelimited("Dropping name table update (%d) of {%u, %u, %u} from %s key=%u\n",
+					    e->dtype, ntohl(e->i.type),
+					    ntohl(e->i.lower),
+					    ntohl(e->i.upper),
+					    addr, ntohl(e->i.key));
+		}
+		list_del(&e->next);
+		kfree(e);
+	}
+}
+
+/**
+ * tipc_named_rcv - process name table update messages sent by another node
+ */
+void tipc_named_rcv(struct net *net, struct sk_buff_head *inputq)
+{
+	struct tipc_net *tn = net_generic(net, tipc_net_id);
+	struct tipc_msg *msg;
+	struct distr_item *item;
+	uint count;
+	u32 node;
+	struct sk_buff *skb;
+	int mtype;
+
+	spin_lock_bh(&tn->nametbl_lock);
+	for (skb = skb_dequeue(inputq); skb; skb = skb_dequeue(inputq)) {
+		msg = buf_msg(skb);
+		mtype = msg_type(msg);
+		item = (struct distr_item *)msg_data(msg);
+		count = msg_data_sz(msg) / ITEM_SIZE;
+		node = msg_orignode(msg);
+		while (count--) {
+			if (!tipc_update_nametbl(net, item, node, mtype))
+				tipc_named_add_backlog(item, mtype, node);
+			item++;
+		}
+		kfree_skb(skb);
+		tipc_named_process_backlog(net);
+	}
+	spin_unlock_bh(&tn->nametbl_lock);
+}
+
+/**
+ * tipc_named_reinit - re-initialize local publications
  *
  * This routine is called whenever TIPC networking is enabled.
- * All existing publications by this node that have "cluster" or "zone" scope
- * are updated to reflect the node's new network address.
+ * All name table entries published by this node are updated to reflect
+ * the node's new network address.
  */
-
-void tipc_named_reinit(void)
+void tipc_named_reinit(struct net *net)
 {
+	struct tipc_net *tn = net_generic(net, tipc_net_id);
 	struct publication *publ;
+	int scope;
 
-	write_lock_bh(&tipc_nametbl_lock);
+	spin_lock_bh(&tn->nametbl_lock);
 
-	list_for_each_entry(publ, &publ_root, local_list)
-		publ->node = tipc_own_addr;
+	for (scope = TIPC_ZONE_SCOPE; scope <= TIPC_NODE_SCOPE; scope++)
+		list_for_each_entry_rcu(publ, &tn->nametbl->publ_list[scope],
+					local_list)
+			publ->node = tn->own_addr;
 
-	write_unlock_bh(&tipc_nametbl_lock);
+	spin_unlock_bh(&tn->nametbl_lock);
 }

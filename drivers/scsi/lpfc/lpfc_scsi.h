@@ -1,7 +1,7 @@
 /*******************************************************************
  * This file is part of the Emulex Linux Device Driver for         *
  * Fibre Channel Host Bus Adapters.                                *
- * Copyright (C) 2004-2006 Emulex.  All rights reserved.           *
+ * Copyright (C) 2004-2014 Emulex.  All rights reserved.           *
  * EMULEX and SLI are trademarks of Emulex.                        *
  * www.emulex.com                                                  *
  *                                                                 *
@@ -21,6 +21,7 @@
 #include <asm/byteorder.h>
 
 struct lpfc_hba;
+#define LPFC_FCP_CDB_LEN 16
 
 #define list_remove_head(list, entry, type, member)		\
 	do {							\
@@ -38,6 +39,20 @@ struct lpfc_hba;
 /* per-port data that is allocated in the FC transport for us */
 struct lpfc_rport_data {
 	struct lpfc_nodelist *pnode;	/* Pointer to the node structure. */
+};
+
+struct lpfc_device_id {
+	struct lpfc_name vport_wwpn;
+	struct lpfc_name target_wwpn;
+	uint64_t lun;
+};
+
+struct lpfc_device_data {
+	struct list_head listentry;
+	struct lpfc_rport_data *rport_data;
+	struct lpfc_device_id device_id;
+	bool oas_enabled;
+	bool available;
 };
 
 struct fcp_rsp {
@@ -72,6 +87,7 @@ struct fcp_rsp {
 #define RSP_RO_MISMATCH_ERR  0x03
 #define RSP_TM_NOT_SUPPORTED 0x04	/* Task mgmt function not supported */
 #define RSP_TM_NOT_COMPLETED 0x05	/* Task mgmt function not performed */
+#define RSP_TM_INVALID_LU    0x09	/* Task mgmt function to invalid LU */
 
 	uint32_t rspInfoRsvd;	/* FCP_RSP_INFO bytes 4-7 (reserved) */
 
@@ -102,7 +118,7 @@ struct fcp_cmnd {
 #define  WRITE_DATA      0x01	/* Bit 0 */
 #define  READ_DATA       0x02	/* Bit 1 */
 
-	uint8_t fcpCdb[16];	/* SRB cdb field is copied here */
+	uint8_t fcpCdb[LPFC_FCP_CDB_LEN]; /* SRB cdb field is copied here */
 	uint32_t fcpDl;		/* Total transfer length */
 
 };
@@ -149,9 +165,22 @@ struct lpfc_scsi_buf {
 	struct lpfc_iocbq cur_iocbq;
 	wait_queue_head_t *waitq;
 	unsigned long start_time;
+
+#ifdef CONFIG_SCSI_LPFC_DEBUG_FS
+	/* Used to restore any changes to protection data for error injection */
+	void *prot_data_segment;
+	uint32_t prot_data;
+	uint32_t prot_data_type;
+#define	LPFC_INJERR_REFTAG	1
+#define	LPFC_INJERR_APPTAG	2
+#define	LPFC_INJERR_GUARD	3
+#endif
 };
 
 #define LPFC_SCSI_DMA_EXT_SIZE 264
 #define LPFC_BPL_SIZE          1024
-
 #define MDAC_DIRECT_CMD                  0x22
+
+#define FIND_FIRST_OAS_LUN		 0
+#define NO_MORE_OAS_LUN			-1
+#define NOT_OAS_ENABLED_LUN		NO_MORE_OAS_LUN

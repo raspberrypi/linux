@@ -8,6 +8,7 @@
  * Copyright (C) 1997, 1998, 1999, 2000, 06 by Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
+#include <linux/compiler.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/timer.h>
@@ -19,18 +20,17 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/reboot.h>
-#include <asm/system.h>
 #include <asm/sgialib.h>
 #include <asm/sn/addrs.h>
 #include <asm/sn/arch.h>
 #include <asm/sn/gda.h>
 #include <asm/sn/sn0/hub.h>
 
-void machine_restart(char *command) __attribute__((noreturn));
-void machine_halt(void) __attribute__((noreturn));
-void machine_power_off(void) __attribute__((noreturn));
+void machine_restart(char *command) __noreturn;
+void machine_halt(void) __noreturn;
+void machine_power_off(void) __noreturn;
 
-#define noreturn while(1);				/* Silence gcc.  */
+#define noreturn while(1);				/* Silence gcc.	 */
 
 /* XXX How to pass the reboot command to the firmware??? */
 static void ip27_machine_restart(char *command)

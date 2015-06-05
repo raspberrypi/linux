@@ -141,19 +141,8 @@
 
 #define IPMI_WDOG_TIMER_NOT_INIT_RESP	0x80
 
-/* These are here until the real ones get into the watchdog.h interface. */
-#ifndef WDIOC_GETTIMEOUT
-#define	WDIOC_GETTIMEOUT        _IOW(WATCHDOG_IOCTL_BASE, 20, int)
-#endif
-#ifndef WDIOC_SET_PRETIMEOUT
-#define	WDIOC_SET_PRETIMEOUT     _IOW(WATCHDOG_IOCTL_BASE, 21, int)
-#endif
-#ifndef WDIOC_GET_PRETIMEOUT
-#define	WDIOC_GET_PRETIMEOUT     _IOW(WATCHDOG_IOCTL_BASE, 22, int)
-#endif
-
 static DEFINE_MUTEX(ipmi_watchdog_mutex);
-static int nowayout = WATCHDOG_NOWAYOUT;
+static bool nowayout = WATCHDOG_NOWAYOUT;
 
 static ipmi_user_t watchdog_user;
 static int watchdog_ifnum;
@@ -320,7 +309,7 @@ module_param(start_now, int, 0444);
 MODULE_PARM_DESC(start_now, "Set to 1 to start the watchdog as"
 		 "soon as the driver is loaded.");
 
-module_param(nowayout, int, 0644);
+module_param(nowayout, bool, 0644);
 MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started "
 		 "(default=CONFIG_WATCHDOG_NOWAYOUT)");
 
@@ -520,6 +509,7 @@ static void panic_halt_ipmi_heartbeat(void)
 	msg.cmd = IPMI_WDOG_RESET_TIMER;
 	msg.data = NULL;
 	msg.data_len = 0;
+	atomic_add(2, &panic_done_count);
 	rv = ipmi_request_supply_msgs(watchdog_user,
 				      (struct ipmi_addr *) &addr,
 				      0,
@@ -528,8 +518,8 @@ static void panic_halt_ipmi_heartbeat(void)
 				      &panic_halt_heartbeat_smi_msg,
 				      &panic_halt_heartbeat_recv_msg,
 				      1);
-	if (!rv)
-		atomic_add(2, &panic_done_count);
+	if (rv)
+		atomic_sub(2, &panic_done_count);
 }
 
 static struct ipmi_smi_msg panic_halt_smi_msg = {
@@ -553,16 +543,18 @@ static void panic_halt_ipmi_set_timeout(void)
 	/* Wait for the messages to be free. */
 	while (atomic_read(&panic_done_count) != 0)
 		ipmi_poll_interface(watchdog_user);
+	atomic_add(2, &panic_done_count);
 	rv = i_ipmi_set_timeout(&panic_halt_smi_msg,
 				&panic_halt_recv_msg,
 				&send_heartbeat_now);
-	if (!rv) {
-		atomic_add(2, &panic_done_count);
-		if (send_heartbeat_now)
-			panic_halt_ipmi_heartbeat();
-	} else
+	if (rv) {
+		atomic_sub(2, &panic_done_count);
 		printk(KERN_WARNING PFX
 		       "Unable to extend the watchdog timeout.");
+	} else {
+		if (send_heartbeat_now)
+			panic_halt_ipmi_heartbeat();
+	}
 	while (atomic_read(&panic_done_count) != 0)
 		ipmi_poll_interface(watchdog_user);
 }
@@ -729,7 +721,6 @@ static int ipmi_ioctl(struct file *file,
 			return -EFAULT;
 		return 0;
 
-	case WDIOC_SET_PRETIMEOUT:
 	case WDIOC_SETPRETIMEOUT:
 		i = copy_from_user(&val, argp, sizeof(int));
 		if (i)
@@ -737,7 +728,6 @@ static int ipmi_ioctl(struct file *file,
 		pretimeout = val;
 		return ipmi_set_timeout(IPMI_SET_TIMEOUT_HB_IF_NECESSARY);
 
-	case WDIOC_GET_PRETIMEOUT:
 	case WDIOC_GETPRETIMEOUT:
 		i = copy_to_user(argp, &pretimeout, sizeof(pretimeout));
 		if (i)
@@ -1164,7 +1154,7 @@ static int wdog_reboot_handler(struct notifier_block *this,
 		if (code == SYS_POWER_OFF || code == SYS_HALT) {
 			/* Disable the WDT if we are shutting down. */
 			ipmi_watchdog_state = WDOG_TIMEOUT_NONE;
-			panic_halt_ipmi_set_timeout();
+			ipmi_set_timeout(IPMI_SET_TIMEOUT_NO_HB);
 		} else if (ipmi_watchdog_state != WDOG_TIMEOUT_NONE) {
 			/* Set a long timer to let the reboot happens, but
 			   reboot if it hangs, but only if the watchdog
@@ -1172,7 +1162,7 @@ static int wdog_reboot_handler(struct notifier_block *this,
 			timeout = 120;
 			pretimeout = 0;
 			ipmi_watchdog_state = WDOG_TIMEOUT_RESET;
-			panic_halt_ipmi_set_timeout();
+			ipmi_set_timeout(IPMI_SET_TIMEOUT_NO_HB);
 		}
 	}
 	return NOTIFY_OK;

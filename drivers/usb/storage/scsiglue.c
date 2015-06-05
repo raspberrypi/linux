@@ -104,17 +104,9 @@ static int slave_alloc (struct scsi_device *sdev)
 	 */
 	blk_queue_update_dma_alignment(sdev->request_queue, (512 - 1));
 
-	/*
-	 * The UFI spec treates the Peripheral Qualifier bits in an
-	 * INQUIRY result as reserved and requires devices to set them
-	 * to 0.  However the SCSI spec requires these bits to be set
-	 * to 3 to indicate when a LUN is not present.
-	 *
-	 * Let the scanning code know if this target merely sets
-	 * Peripheral Device Type to 0x1f to indicate no LUN.
-	 */
-	if (us->subclass == USB_SC_UFI)
-		sdev->sdev_target->pdt_1f_for_no_lun = 1;
+	/* Tell the SCSI layer if we know there is more than one LUN */
+	if (us->protocol == USB_PR_BULK && us->max_lun > 0)
+		sdev->sdev_bflags |= BLIST_FORCELUN;
 
 	return 0;
 }
@@ -197,6 +189,15 @@ static int slave_configure(struct scsi_device *sdev)
 		 * page x08, so we will skip it. */
 		sdev->skip_ms_page_8 = 1;
 
+		/* Some devices don't handle VPD pages correctly */
+		sdev->skip_vpd_pages = 1;
+
+		/* Do not attempt to use REPORT SUPPORTED OPERATION CODES */
+		sdev->no_report_opcodes = 1;
+
+		/* Do not attempt to use WRITE SAME */
+		sdev->no_write_same = 1;
+
 		/* Some disks return the total number of blocks in response
 		 * to READ CAPACITY rather than the highest block number.
 		 * If this device makes that mistake, tell the sd driver. */
@@ -213,19 +214,18 @@ static int slave_configure(struct scsi_device *sdev)
 		if (us->fflags & US_FL_NO_READ_CAPACITY_16)
 			sdev->no_read_capacity_16 = 1;
 
+		/*
+		 * Many devices do not respond properly to READ_CAPACITY_16.
+		 * Tell the SCSI layer to try READ_CAPACITY_10 first.
+		 * However some USB 3.0 drive enclosures return capacity
+		 * modulo 2TB. Those must use READ_CAPACITY_16
+		 */
+		if (!(us->fflags & US_FL_NEEDS_CAP16))
+			sdev->try_rc_10_first = 1;
+
 		/* assume SPC3 or latter devices support sense size > 18 */
 		if (sdev->scsi_level > SCSI_SPC_2)
 			us->fflags |= US_FL_SANE_SENSE;
-
-		/* Some devices report a SCSI revision level above 2 but are
-		 * unable to handle the REPORT LUNS command (for which
-		 * support is mandatory at level 3).  Since we already have
-		 * a Get-Max-LUN request, we won't lose much by setting the
-		 * revision level down to 2.  The only devices that would be
-		 * affected are those with sparse LUNs. */
-		if (sdev->scsi_level > SCSI_2)
-			sdev->sdev_target->scsi_level =
-					sdev->scsi_level = SCSI_2;
 
 		/* USB-IDE bridges tend to report SK = 0x04 (Non-recoverable
 		 * Hardware Error) when any low-level error occurs,
@@ -241,7 +241,7 @@ static int slave_configure(struct scsi_device *sdev)
 
 		/* Some USB cardreaders have trouble reading an sdcard's last
 		 * sector in a larger then 1 sector read, since the performance
-		 * impact is negible we set this flag for all USB disks */
+		 * impact is negligible we set this flag for all USB disks */
 		sdev->last_sector_bug = 1;
 
 		/* Enable last-sector hacks for single-target devices using
@@ -251,6 +251,15 @@ static int slave_configure(struct scsi_device *sdev)
 					US_FL_SCM_MULT_TARG)) &&
 				us->protocol == USB_PR_BULK)
 			us->use_last_sector_hacks = 1;
+
+		/* Check if write cache default on flag is set or not */
+		if (us->fflags & US_FL_WRITE_CACHE)
+			sdev->wce_default_on = 1;
+
+		/* A few buggy USB-ATA bridges don't understand FUA */
+		if (us->fflags & US_FL_BROKEN_FUA)
+			sdev->broken_fua = 1;
+
 	} else {
 
 		/* Non-disk-type devices don't need to blacklist any pages
@@ -283,14 +292,39 @@ static int slave_configure(struct scsi_device *sdev)
 	return 0;
 }
 
+static int target_alloc(struct scsi_target *starget)
+{
+	struct us_data *us = host_to_us(dev_to_shost(starget->dev.parent));
+
+	/*
+	 * Some USB drives don't support REPORT LUNS, even though they
+	 * report a SCSI revision level above 2.  Tell the SCSI layer
+	 * not to issue that command; it will perform a normal sequential
+	 * scan instead.
+	 */
+	starget->no_report_luns = 1;
+
+	/*
+	 * The UFI spec treats the Peripheral Qualifier bits in an
+	 * INQUIRY result as reserved and requires devices to set them
+	 * to 0.  However the SCSI spec requires these bits to be set
+	 * to 3 to indicate when a LUN is not present.
+	 *
+	 * Let the scanning code know if this target merely sets
+	 * Peripheral Device Type to 0x1f to indicate no LUN.
+	 */
+	if (us->subclass == USB_SC_UFI)
+		starget->pdt_1f_for_no_lun = 1;
+
+	return 0;
+}
+
 /* queue a command */
 /* This is always called with scsi_lock(host) held */
 static int queuecommand_lck(struct scsi_cmnd *srb,
 			void (*done)(struct scsi_cmnd *))
 {
 	struct us_data *us = host_to_us(srb->device->host);
-
-	US_DEBUGP("%s called\n", __func__);
 
 	/* check for state-transition errors */
 	if (us->srb != NULL) {
@@ -301,7 +335,7 @@ static int queuecommand_lck(struct scsi_cmnd *srb,
 
 	/* fail the command if we are disconnecting */
 	if (test_bit(US_FLIDX_DISCONNECTING, &us->dflags)) {
-		US_DEBUGP("Fail command during disconnect\n");
+		usb_stor_dbg(us, "Fail command during disconnect\n");
 		srb->result = DID_NO_CONNECT << 16;
 		done(srb);
 		return 0;
@@ -326,7 +360,7 @@ static int command_abort(struct scsi_cmnd *srb)
 {
 	struct us_data *us = host_to_us(srb->device->host);
 
-	US_DEBUGP("%s called\n", __func__);
+	usb_stor_dbg(us, "%s called\n", __func__);
 
 	/* us->srb together with the TIMED_OUT, RESETTING, and ABORTING
 	 * bits are protected by the host lock. */
@@ -335,7 +369,7 @@ static int command_abort(struct scsi_cmnd *srb)
 	/* Is this command still active? */
 	if (us->srb != srb) {
 		scsi_unlock(us_to_host(us));
-		US_DEBUGP ("-- nothing to abort\n");
+		usb_stor_dbg(us, "-- nothing to abort\n");
 		return FAILED;
 	}
 
@@ -363,7 +397,7 @@ static int device_reset(struct scsi_cmnd *srb)
 	struct us_data *us = host_to_us(srb->device->host);
 	int result;
 
-	US_DEBUGP("%s called\n", __func__);
+	usb_stor_dbg(us, "%s called\n", __func__);
 
 	/* lock the device pointers and do the reset */
 	mutex_lock(&(us->dev_mutex));
@@ -379,7 +413,8 @@ static int bus_reset(struct scsi_cmnd *srb)
 	struct us_data *us = host_to_us(srb->device->host);
 	int result;
 
-	US_DEBUGP("%s called\n", __func__);
+	usb_stor_dbg(us, "%s called\n", __func__);
+
 	result = usb_stor_port_reset(us);
 	return result < 0 ? FAILED : SUCCESS;
 }
@@ -415,21 +450,20 @@ void usb_stor_report_bus_reset(struct us_data *us)
  * /proc/scsi/ functions
  ***********************************************************************/
 
+static int write_info(struct Scsi_Host *host, char *buffer, int length)
+{
+	/* if someone is sending us data, just throw it away */
+	return length;
+}
+
 /* we use this macro to help us write into the buffer */
 #undef SPRINTF
-#define SPRINTF(args...) \
-	do { if (pos < buffer+length) pos += sprintf(pos, ## args); } while (0)
+#define SPRINTF(args...) seq_printf(m, ## args)
 
-static int proc_info (struct Scsi_Host *host, char *buffer,
-		char **start, off_t offset, int length, int inout)
+static int show_info (struct seq_file *m, struct Scsi_Host *host)
 {
 	struct us_data *us = host_to_us(host);
-	char *pos = buffer;
 	const char *string;
-
-	/* if someone is sending us data, just throw it away */
-	if (inout)
-		return length;
 
 	/* print the controller name */
 	SPRINTF("   Host scsi%d: usb-storage\n", host->host_no);
@@ -460,28 +494,14 @@ static int proc_info (struct Scsi_Host *host, char *buffer,
 	SPRINTF("    Transport: %s\n", us->transport_name);
 
 	/* show the device flags */
-	if (pos < buffer + length) {
-		pos += sprintf(pos, "       Quirks:");
+	SPRINTF("       Quirks:");
 
 #define US_FLAG(name, value) \
-	if (us->fflags & value) pos += sprintf(pos, " " #name);
+	if (us->fflags & value) seq_printf(m, " " #name);
 US_DO_ALL_FLAGS
 #undef US_FLAG
-
-		*(pos++) = '\n';
-	}
-
-	/*
-	 * Calculate start of next buffer, and return value.
-	 */
-	*start = buffer + offset;
-
-	if ((pos - buffer) < offset)
-		return (0);
-	else if ((pos - buffer - offset) < length)
-		return (pos - buffer - offset);
-	else
-		return (length);
+	seq_putc(m, '\n');
+	return 0;
 }
 
 /***********************************************************************
@@ -489,7 +509,7 @@ US_DO_ALL_FLAGS
  ***********************************************************************/
 
 /* Output routine for the sysfs max_sectors file */
-static ssize_t show_max_sectors(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t max_sectors_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct scsi_device *sdev = to_scsi_device(dev);
 
@@ -497,7 +517,7 @@ static ssize_t show_max_sectors(struct device *dev, struct device_attribute *att
 }
 
 /* Input routine for the sysfs max_sectors file */
-static ssize_t store_max_sectors(struct device *dev, struct device_attribute *attr, const char *buf,
+static ssize_t max_sectors_store(struct device *dev, struct device_attribute *attr, const char *buf,
 		size_t count)
 {
 	struct scsi_device *sdev = to_scsi_device(dev);
@@ -507,16 +527,14 @@ static ssize_t store_max_sectors(struct device *dev, struct device_attribute *at
 		blk_queue_max_hw_sectors(sdev->request_queue, ms);
 		return count;
 	}
-	return -EINVAL;	
+	return -EINVAL;
 }
-
-static DEVICE_ATTR(max_sectors, S_IRUGO | S_IWUSR, show_max_sectors,
-		store_max_sectors);
+static DEVICE_ATTR_RW(max_sectors);
 
 static struct device_attribute *sysfs_device_attr_list[] = {
-		&dev_attr_max_sectors,
-		NULL,
-		};
+	&dev_attr_max_sectors,
+	NULL,
+};
 
 /*
  * this defines our host template, with which we'll allocate hosts
@@ -526,7 +544,8 @@ struct scsi_host_template usb_stor_host_template = {
 	/* basic userland interface stuff */
 	.name =				"usb-storage",
 	.proc_name =			"usb-storage",
-	.proc_info =			proc_info,
+	.show_info =			show_info,
+	.write_info =			write_info,
 	.info =				host_info,
 
 	/* command interface -- queued only */
@@ -546,6 +565,7 @@ struct scsi_host_template usb_stor_host_template = {
 
 	.slave_alloc =			slave_alloc,
 	.slave_configure =		slave_configure,
+	.target_alloc =			target_alloc,
 
 	/* lots of sg segments can be handled */
 	.sg_tablesize =			SCSI_MAX_SG_CHAIN_SEGMENTS,

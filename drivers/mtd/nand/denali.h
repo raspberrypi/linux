@@ -17,6 +17,9 @@
  *
  */
 
+#ifndef __DENALI_H__
+#define __DENALI_H__
+
 #include <linux/mtd/nand.h>
 
 #define DEVICE_RESET				0x0
@@ -400,28 +403,6 @@
 #define ONFI_BLOOM_TIME         1
 #define MODE5_WORKAROUND        0
 
-/* lld_nand.h */
-/*
- * NAND Flash Controller Device Driver
- * Copyright (c) 2009, Intel Corporation and its suppliers.
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
- *
- * This program is distributed in the hope it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
- *
- */
-
-#ifndef _LLD_NAND_
-#define _LLD_NAND_
 
 #define MODE_00    0x00000000
 #define MODE_01    0x04000000
@@ -455,17 +436,16 @@
 
 #define ECC_SECTOR_SIZE     512
 
-#define DENALI_BUF_SIZE		(NAND_MAX_PAGESIZE + NAND_MAX_OOBSIZE)
-
 struct nand_buf {
 	int head;
 	int tail;
-	uint8_t buf[DENALI_BUF_SIZE];
+	uint8_t *buf;
 	dma_addr_t dma_buf;
 };
 
 #define INTEL_CE4100	1
 #define INTEL_MRST	2
+#define DT		3
 
 struct denali_nand_info {
 	struct mtd_info mtd;
@@ -487,6 +467,7 @@ struct denali_nand_info {
 	uint32_t irq_status;
 	int irq_debug_array[32];
 	int idx;
+	int irq;
 
 	uint32_t devnum;	/* represent how many nands connected */
 	uint32_t fwblks; /* represent how many blocks FW used */
@@ -496,4 +477,7 @@ struct denali_nand_info {
 	uint32_t max_banks;
 };
 
-#endif /*_LLD_NAND_*/
+extern int denali_init(struct denali_nand_info *denali);
+extern void denali_remove(struct denali_nand_info *denali);
+
+#endif /* __DENALI_H__ */

@@ -34,7 +34,7 @@
  */
 static int sn_dma_supported(struct device *dev, u64 mask)
 {
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 
 	if (mask < 0x7fffffff)
 		return 0;
@@ -50,7 +50,7 @@ static int sn_dma_supported(struct device *dev, u64 mask)
  */
 int sn_dma_set_mask(struct device *dev, u64 dma_mask)
 {
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 
 	if (!sn_dma_supported(dev, dma_mask))
 		return 0;
@@ -76,7 +76,8 @@ EXPORT_SYMBOL(sn_dma_set_mask);
  * more information.
  */
 static void *sn_dma_alloc_coherent(struct device *dev, size_t size,
-				   dma_addr_t * dma_handle, gfp_t flags)
+				   dma_addr_t * dma_handle, gfp_t flags,
+				   struct dma_attrs *attrs)
 {
 	void *cpuaddr;
 	unsigned long phys_addr;
@@ -84,7 +85,7 @@ static void *sn_dma_alloc_coherent(struct device *dev, size_t size,
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct sn_pcibus_provider *provider = SN_PCIDEV_BUSPROVIDER(pdev);
 
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 
 	/*
 	 * Allocate the memory.
@@ -137,12 +138,12 @@ static void *sn_dma_alloc_coherent(struct device *dev, size_t size,
  * any associated IOMMU mappings.
  */
 static void sn_dma_free_coherent(struct device *dev, size_t size, void *cpu_addr,
-				 dma_addr_t dma_handle)
+				 dma_addr_t dma_handle, struct dma_attrs *attrs)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct sn_pcibus_provider *provider = SN_PCIDEV_BUSPROVIDER(pdev);
 
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 
 	provider->dma_unmap(pdev, dma_handle, 0);
 	free_pages((unsigned long)cpu_addr, get_order(size));
@@ -186,7 +187,7 @@ static dma_addr_t sn_dma_map_page(struct device *dev, struct page *page,
 
 	dmabarr = dma_get_attr(DMA_ATTR_WRITE_BARRIER, attrs);
 
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 
 	phys_addr = __pa(cpu_addr);
 	if (dmabarr)
@@ -222,7 +223,7 @@ static void sn_dma_unmap_page(struct device *dev, dma_addr_t dma_addr,
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct sn_pcibus_provider *provider = SN_PCIDEV_BUSPROVIDER(pdev);
 
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 
 	provider->dma_unmap(pdev, dma_addr, dir);
 }
@@ -246,7 +247,7 @@ static void sn_dma_unmap_sg(struct device *dev, struct scatterlist *sgl,
 	struct sn_pcibus_provider *provider = SN_PCIDEV_BUSPROVIDER(pdev);
 	struct scatterlist *sg;
 
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 
 	for_each_sg(sgl, sg, nhwentries, i) {
 		provider->dma_unmap(pdev, sg->dma_address, dir);
@@ -283,7 +284,7 @@ static int sn_dma_map_sg(struct device *dev, struct scatterlist *sgl,
 
 	dmabarr = dma_get_attr(DMA_ATTR_WRITE_BARRIER, attrs);
 
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 
 	/*
 	 * Setup a DMA address for each entry in the scatterlist.
@@ -322,26 +323,26 @@ static int sn_dma_map_sg(struct device *dev, struct scatterlist *sgl,
 static void sn_dma_sync_single_for_cpu(struct device *dev, dma_addr_t dma_handle,
 				       size_t size, enum dma_data_direction dir)
 {
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 }
 
 static void sn_dma_sync_single_for_device(struct device *dev, dma_addr_t dma_handle,
 					  size_t size,
 					  enum dma_data_direction dir)
 {
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 }
 
 static void sn_dma_sync_sg_for_cpu(struct device *dev, struct scatterlist *sg,
 				   int nelems, enum dma_data_direction dir)
 {
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 }
 
 static void sn_dma_sync_sg_for_device(struct device *dev, struct scatterlist *sg,
 				      int nelems, enum dma_data_direction dir)
 {
-	BUG_ON(dev->bus != &pci_bus_type);
+	BUG_ON(!dev_is_pci(dev));
 }
 
 static int sn_dma_mapping_error(struct device *dev, dma_addr_t dma_addr)
@@ -466,8 +467,8 @@ int sn_pci_legacy_write(struct pci_bus *bus, u16 port, u32 val, u8 size)
 }
 
 static struct dma_map_ops sn_dma_ops = {
-	.alloc_coherent		= sn_dma_alloc_coherent,
-	.free_coherent		= sn_dma_free_coherent,
+	.alloc			= sn_dma_alloc_coherent,
+	.free			= sn_dma_free_coherent,
 	.map_page		= sn_dma_map_page,
 	.unmap_page		= sn_dma_unmap_page,
 	.map_sg			= sn_dma_map_sg,

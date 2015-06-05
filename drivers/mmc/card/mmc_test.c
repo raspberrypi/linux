@@ -14,6 +14,7 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>
 #include <linux/slab.h>
+#include <linux/device.h>
 
 #include <linux/scatterlist.h>
 #include <linux/swap.h>		/* For nr_free_buffer_pages() */
@@ -31,6 +32,8 @@
 
 #define BUFFER_ORDER		2
 #define BUFFER_SIZE		(PAGE_SIZE << BUFFER_ORDER)
+
+#define TEST_ALIGN_END		8
 
 /*
  * Limit the test area size to the maximum MMC HC erase group size.  Note that
@@ -1174,7 +1177,7 @@ static int mmc_test_align_write(struct mmc_test_card *test)
 	int ret, i;
 	struct scatterlist sg;
 
-	for (i = 1;i < 4;i++) {
+	for (i = 1; i < TEST_ALIGN_END; i++) {
 		sg_init_one(&sg, test->buffer + i, 512);
 		ret = mmc_test_transfer(test, &sg, 1, 0, 1, 512, 1);
 		if (ret)
@@ -1189,7 +1192,7 @@ static int mmc_test_align_read(struct mmc_test_card *test)
 	int ret, i;
 	struct scatterlist sg;
 
-	for (i = 1;i < 4;i++) {
+	for (i = 1; i < TEST_ALIGN_END; i++) {
 		sg_init_one(&sg, test->buffer + i, 512);
 		ret = mmc_test_transfer(test, &sg, 1, 0, 1, 512, 0);
 		if (ret)
@@ -1216,7 +1219,7 @@ static int mmc_test_align_multi_write(struct mmc_test_card *test)
 	if (size < 1024)
 		return RESULT_UNSUP_HOST;
 
-	for (i = 1;i < 4;i++) {
+	for (i = 1; i < TEST_ALIGN_END; i++) {
 		sg_init_one(&sg, test->buffer + i, size);
 		ret = mmc_test_transfer(test, &sg, 1, 0, size/512, 512, 1);
 		if (ret)
@@ -1243,7 +1246,7 @@ static int mmc_test_align_multi_read(struct mmc_test_card *test)
 	if (size < 1024)
 		return RESULT_UNSUP_HOST;
 
-	for (i = 1;i < 4;i++) {
+	for (i = 1; i < TEST_ALIGN_END; i++) {
 		sg_init_one(&sg, test->buffer + i, size);
 		ret = mmc_test_transfer(test, &sg, 1, 0, size/512, 512, 0);
 		if (ret)
@@ -1581,6 +1584,7 @@ static int mmc_test_area_init(struct mmc_test_card *test, int erase, int fill)
 
 	t->max_segs = test->card->host->max_segs;
 	t->max_seg_sz = test->card->host->max_seg_size;
+	t->max_seg_sz -= t->max_seg_sz % 512;
 
 	t->max_tfr = t->max_sz;
 	if (t->max_tfr >> 9 > test->card->host->max_blk_count)
@@ -2338,20 +2342,16 @@ static int mmc_test_hw_reset(struct mmc_test_card *test)
 	struct mmc_host *host = card->host;
 	int err;
 
-	err = mmc_hw_reset_check(host);
-	if (!err)
-		return RESULT_OK;
-
-	if (err == -ENOSYS)
-		return RESULT_FAIL;
-
-	if (err != -EOPNOTSUPP)
-		return err;
-
-	if (!mmc_can_reset(card))
+	if (!mmc_card_mmc(card) || !mmc_can_reset(card))
 		return RESULT_UNSUP_CARD;
 
-	return RESULT_UNSUP_HOST;
+	err = mmc_hw_reset(host);
+	if (!err)
+		return RESULT_OK;
+	else if (err == -EOPNOTSUPP)
+		return RESULT_UNSUP_HOST;
+
+	return RESULT_FAIL;
 }
 
 static const struct mmc_test_case mmc_test_cases[] = {
@@ -2848,18 +2848,12 @@ static ssize_t mtf_test_write(struct file *file, const char __user *buf,
 	struct seq_file *sf = (struct seq_file *)file->private_data;
 	struct mmc_card *card = (struct mmc_card *)sf->private;
 	struct mmc_test_card *test;
-	char lbuf[12];
 	long testcase;
+	int ret;
 
-	if (count >= sizeof(lbuf))
-		return -EINVAL;
-
-	if (copy_from_user(lbuf, buf, count))
-		return -EFAULT;
-	lbuf[count] = '\0';
-
-	if (strict_strtol(lbuf, 10, &testcase))
-		return -EINVAL;
+	ret = kstrtol_from_user(buf, count, 10, &testcase);
+	if (ret)
+		return ret;
 
 	test = kzalloc(sizeof(struct mmc_test_card), GFP_KERNEL);
 	if (!test)
@@ -2949,7 +2943,7 @@ static void mmc_test_free_dbgfs_file(struct mmc_card *card)
 }
 
 static int __mmc_test_register_dbgfs_file(struct mmc_card *card,
-	const char *name, mode_t mode, const struct file_operations *fops)
+	const char *name, umode_t mode, const struct file_operations *fops)
 {
 	struct dentry *file = NULL;
 	struct mmc_test_dbgfs_file *df;
@@ -3002,8 +2996,9 @@ err:
 	return ret;
 }
 
-static int mmc_test_probe(struct mmc_card *card)
+static int mmc_test_probe(struct device *dev)
 {
+	struct mmc_card *card = mmc_dev_to_card(dev);
 	int ret;
 
 	if (!mmc_card_mmc(card) && !mmc_card_sd(card))
@@ -3018,18 +3013,25 @@ static int mmc_test_probe(struct mmc_card *card)
 	return 0;
 }
 
-static void mmc_test_remove(struct mmc_card *card)
+static int mmc_test_remove(struct device *dev)
 {
+	struct mmc_card *card = mmc_dev_to_card(dev);
+
 	mmc_test_free_result(card);
 	mmc_test_free_dbgfs_file(card);
+
+	return 0;
 }
 
-static struct mmc_driver mmc_driver = {
-	.drv		= {
-		.name	= "mmc_test",
-	},
+static void mmc_test_shutdown(struct device *dev)
+{
+}
+
+static struct device_driver mmc_driver = {
+	.name	= "mmc_test",
 	.probe		= mmc_test_probe,
 	.remove		= mmc_test_remove,
+	.shutdown	= mmc_test_shutdown,
 };
 
 static int __init mmc_test_init(void)

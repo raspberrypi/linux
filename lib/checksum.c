@@ -32,7 +32,7 @@
 /* Revised by Kenneth Albanowski for m68knommu. Basic problem: unaligned access
  kills, so most of the assembly has to go. */
 
-#include <linux/module.h>
+#include <linux/export.h>
 #include <net/checksum.h>
 
 #include <asm/byteorder.h>
@@ -102,6 +102,7 @@ out:
 }
 #endif
 
+#ifndef ip_fast_csum
 /*
  *	This is a version of ip_compute_csum() optimized for IP headers,
  *	which always checksum on 4 octet boundaries.
@@ -111,6 +112,7 @@ __sum16 ip_fast_csum(const void *iph, unsigned int ihl)
 	return (__force __sum16)~do_csum(iph, ihl*4);
 }
 EXPORT_SYMBOL(ip_fast_csum);
+#endif
 
 /*
  * computes the checksum of a memory block at buff, length len,
@@ -179,6 +181,15 @@ csum_partial_copy(const void *src, void *dst, int len, __wsum sum)
 EXPORT_SYMBOL(csum_partial_copy);
 
 #ifndef csum_tcpudp_nofold
+static inline u32 from64to32(u64 x)
+{
+	/* add up 32-bit and 32-bit for 32+c bit */
+	x = (x & 0xffffffff) + (x >> 32);
+	/* add up carry.. */
+	x = (x & 0xffffffff) + (x >> 32);
+	return (u32)x;
+}
+
 __wsum csum_tcpudp_nofold(__be32 saddr, __be32 daddr,
 			unsigned short len,
 			unsigned short proto,
@@ -193,8 +204,7 @@ __wsum csum_tcpudp_nofold(__be32 saddr, __be32 daddr,
 #else
 	s += (proto + len) << 8;
 #endif
-	s += (s >> 32);
-	return (__force __wsum)s;
+	return (__force __wsum)from64to32(s);
 }
 EXPORT_SYMBOL(csum_tcpudp_nofold);
 #endif

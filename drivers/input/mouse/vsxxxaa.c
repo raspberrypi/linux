@@ -82,7 +82,6 @@
 #include <linux/interrupt.h>
 #include <linux/input.h>
 #include <linux/serio.h>
-#include <linux/init.h>
 
 #define DRIVER_DESC "Driver for DEC VSXXX-AA and -GA mice and VSXXX-AB tablet"
 
@@ -129,7 +128,7 @@ static void vsxxxaa_drop_bytes(struct vsxxxaa *mouse, int num)
 	if (num >= mouse->count) {
 		mouse->count = 0;
 	} else {
-		memmove(mouse->buf, mouse->buf + num - 1, BUFLEN - num);
+		memmove(mouse->buf, mouse->buf + num, BUFLEN - num);
 		mouse->count -= num;
 	}
 }
@@ -548,16 +547,4 @@ static struct serio_driver vsxxxaa_drv = {
 	.disconnect	= vsxxxaa_disconnect,
 };
 
-static int __init vsxxxaa_init(void)
-{
-	return serio_register_driver(&vsxxxaa_drv);
-}
-
-static void __exit vsxxxaa_exit(void)
-{
-	serio_unregister_driver(&vsxxxaa_drv);
-}
-
-module_init(vsxxxaa_init);
-module_exit(vsxxxaa_exit);
-
+module_serio_driver(vsxxxaa_drv);

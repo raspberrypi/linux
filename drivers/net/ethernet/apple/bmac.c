@@ -607,8 +607,9 @@ bmac_init_tx_ring(struct bmac_data *bp)
 }
 
 static int
-bmac_init_rx_ring(struct bmac_data *bp)
+bmac_init_rx_ring(struct net_device *dev)
 {
+	struct bmac_data *bp = netdev_priv(dev);
 	volatile struct dbdma_regs __iomem *rd = bp->rx_dma;
 	int i;
 	struct sk_buff *skb;
@@ -618,7 +619,7 @@ bmac_init_rx_ring(struct bmac_data *bp)
 	       (N_RX_RING + 1) * sizeof(struct dbdma_cmd));
 	for (i = 0; i < N_RX_RING; i++) {
 		if ((skb = bp->rx_bufs[i]) == NULL) {
-			bp->rx_bufs[i] = skb = dev_alloc_skb(RX_BUFLEN+2);
+			bp->rx_bufs[i] = skb = netdev_alloc_skb(dev, RX_BUFLEN + 2);
 			if (skb != NULL)
 				skb_reserve(skb, 2);
 		}
@@ -722,7 +723,7 @@ static irqreturn_t bmac_rxdma_intr(int irq, void *dev_id)
 			++dev->stats.rx_dropped;
 		}
 		if ((skb = bp->rx_bufs[i]) == NULL) {
-			bp->rx_bufs[i] = skb = dev_alloc_skb(RX_BUFLEN+2);
+			bp->rx_bufs[i] = skb = netdev_alloc_skb(dev, RX_BUFLEN + 2);
 			if (skb != NULL)
 				skb_reserve(bp->rx_bufs[i], 2);
 		}
@@ -1015,7 +1016,6 @@ static void bmac_set_multicast(struct net_device *dev)
 static void bmac_set_multicast(struct net_device *dev)
 {
 	struct netdev_hw_addr *ha;
-	int i;
 	unsigned short rx_cfg;
 	u32 crc;
 
@@ -1029,13 +1029,11 @@ static void bmac_set_multicast(struct net_device *dev)
 		rx_cfg |= RxPromiscEnable;
 		bmwrite(dev, RXCFG, rx_cfg);
 	} else {
-		u16 hash_table[4];
+		u16 hash_table[4] = { 0 };
 
 		rx_cfg = bmread(dev, RXCFG);
 		rx_cfg &= ~RxPromiscEnable;
 		bmwrite(dev, RXCFG, rx_cfg);
-
-		for(i = 0; i < 4; i++) hash_table[i] = 0;
 
 		netdev_for_each_mc_addr(ha, dev) {
 			crc = ether_crc_le(6, ha->addr);
@@ -1208,7 +1206,7 @@ static void bmac_reset_and_enable(struct net_device *dev)
 	spin_lock_irqsave(&bp->lock, flags);
 	bmac_enable_and_reset_chip(dev);
 	bmac_init_tx_ring(bp);
-	bmac_init_rx_ring(bp);
+	bmac_init_rx_ring(dev);
 	bmac_init_chip(dev);
 	bmac_start_chip(dev);
 	bmwrite(dev, INTDISABLE, EnableNormal);
@@ -1218,12 +1216,12 @@ static void bmac_reset_and_enable(struct net_device *dev)
 	 * It seems that the bmac can't receive until it's transmitted
 	 * a packet.  So we give it a dummy packet to transmit.
 	 */
-	skb = dev_alloc_skb(ETHERMINPACKET);
+	skb = netdev_alloc_skb(dev, ETHERMINPACKET);
 	if (skb != NULL) {
 		data = skb_put(skb, ETHERMINPACKET);
 		memset(data, 0, ETHERMINPACKET);
-		memcpy(data, dev->dev_addr, 6);
-		memcpy(data+6, dev->dev_addr, 6);
+		memcpy(data, dev->dev_addr, ETH_ALEN);
+		memcpy(data + ETH_ALEN, dev->dev_addr, ETH_ALEN);
 		bmac_transmit_packet(skb, dev);
 	}
 	spin_unlock_irqrestore(&bp->lock, flags);
@@ -1243,7 +1241,7 @@ static const struct net_device_ops bmac_netdev_ops = {
 	.ndo_validate_addr	= eth_validate_addr,
 };
 
-static int __devinit bmac_probe(struct macio_dev *mdev, const struct of_device_id *match)
+static int bmac_probe(struct macio_dev *mdev, const struct of_device_id *match)
 {
 	int j, rev, ret;
 	struct bmac_data *bp;
@@ -1269,10 +1267,8 @@ static int __devinit bmac_probe(struct macio_dev *mdev, const struct of_device_i
 	memcpy(addr, prop_addr, sizeof(addr));
 
 	dev = alloc_etherdev(PRIV_BYTES);
-	if (!dev) {
-		printk(KERN_ERR "BMAC: alloc_etherdev failed, out of memory\n");
+	if (!dev)
 		return -ENOMEM;
-	}
 
 	bp = netdev_priv(dev);
 	SET_NETDEV_DEV(dev, &mdev->ofdev.dev);
@@ -1603,7 +1599,7 @@ bmac_proc_info(char *buffer, char **start, off_t offset, int length)
 }
 #endif
 
-static int __devexit bmac_remove(struct macio_dev *mdev)
+static int bmac_remove(struct macio_dev *mdev)
 {
 	struct net_device *dev = macio_get_drvdata(mdev);
 	struct bmac_data *bp = netdev_priv(dev);
@@ -1660,10 +1656,8 @@ static int __init bmac_init(void)
 {
 	if (bmac_emergency_rxbuf == NULL) {
 		bmac_emergency_rxbuf = kmalloc(RX_BUFLEN, GFP_KERNEL);
-		if (bmac_emergency_rxbuf == NULL) {
-			printk(KERN_ERR "BMAC: can't allocate emergency RX buffer\n");
+		if (bmac_emergency_rxbuf == NULL)
 			return -ENOMEM;
-		}
 	}
 
 	return macio_register_driver(&bmac_driver);

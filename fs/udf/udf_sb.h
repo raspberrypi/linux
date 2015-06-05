@@ -50,7 +50,7 @@
 #define UDF_SPARABLE_MAP15		0x1522U
 #define UDF_METADATA_MAP25		0x2511U
 
-#define UDF_INVALID_MODE		((mode_t)-1)
+#define UDF_INVALID_MODE		((umode_t)-1)
 
 #pragma pack(1) /* XXX(hch): Why?  This file just defines in-core structures */
 
@@ -80,10 +80,9 @@ struct udf_virtual_data {
 };
 
 struct udf_bitmap {
-	__u32			s_extLength;
 	__u32			s_extPosition;
-	__u16			s_nr_groups;
-	struct buffer_head 	**s_block_bitmap;
+	int			s_nr_groups;
+	struct buffer_head 	*s_block_bitmap[0];
 };
 
 struct udf_part_map {
@@ -127,11 +126,11 @@ struct udf_sb_info {
 	struct buffer_head	*s_lvid_bh;
 
 	/* Default permissions */
-	mode_t			s_umask;
-	gid_t			s_gid;
-	uid_t			s_uid;
-	mode_t			s_fmode;
-	mode_t			s_dmode;
+	umode_t			s_umask;
+	kgid_t			s_gid;
+	kuid_t			s_uid;
+	umode_t			s_fmode;
+	umode_t			s_dmode;
 	/* Lock protecting consistency of above permission settings */
 	rwlock_t		s_cred_lock;
 
@@ -163,7 +162,7 @@ static inline struct udf_sb_info *UDF_SB(struct super_block *sb)
 	return sb->s_fs_info;
 }
 
-struct logicalVolIntegrityDescImpUse *udf_sb_lvidiu(struct udf_sb_info *sbi);
+struct logicalVolIntegrityDescImpUse *udf_sb_lvidiu(struct super_block *sb);
 
 int udf_compute_nr_groups(struct super_block *sb, u32 partition);
 

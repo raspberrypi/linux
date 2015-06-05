@@ -13,9 +13,6 @@
 
 #include <asm/setup.h>
 
-#define io_remap_pfn_range(vma, vaddr, pfn, size, prot)		\
-		remap_pfn_range(vma, vaddr, pfn, size, prot)
-
 #ifndef __ASSEMBLY__
 extern int mem_init_done;
 #endif
@@ -43,10 +40,6 @@ extern int mem_init_done;
 #define __pte_to_swp_entry(pte)	((swp_entry_t) { pte_val(pte) })
 #define __swp_entry_to_pte(x)	((pte_t) { (x).val })
 
-#ifndef __ASSEMBLY__
-static inline int pte_file(pte_t pte) { return 0; }
-#endif /* __ASSEMBLY__ */
-
 #define ZERO_PAGE(vaddr)	({ BUG(); NULL; })
 
 #define swapper_pg_dir ((pgd_t *) NULL)
@@ -68,6 +61,8 @@ static inline int pte_file(pte_t pte) { return 0; }
 
 #include <asm-generic/4level-fixup.h>
 
+#define __PAGETABLE_PMD_FOLDED
+
 #ifdef __KERNEL__
 #ifndef __ASSEMBLY__
 
@@ -77,7 +72,7 @@ static inline int pte_file(pte_t pte) { return 0; }
 #include <asm/mmu.h>
 #include <asm/page.h>
 
-#define FIRST_USER_ADDRESS	0
+#define FIRST_USER_ADDRESS	0UL
 
 extern unsigned long va_to_phys(unsigned long address);
 extern pte_t *va_to_pte(unsigned long address);
@@ -94,8 +89,7 @@ static inline pte_t pte_mkspecial(pte_t pte)	{ return pte; }
 /* Start and end of the vmalloc area. */
 /* Make sure to map the vmalloc area above the pinned kernel memory area
    of 32Mb.  */
-#define VMALLOC_START	(CONFIG_KERNEL_START + \
-				max(32 * 1024 * 1024UL, memory_size))
+#define VMALLOC_START	(CONFIG_KERNEL_START + CONFIG_LOWMEM_SIZE)
 #define VMALLOC_END	ioremap_bot
 
 #endif /* __ASSEMBLY__ */
@@ -211,7 +205,6 @@ static inline pte_t pte_mkspecial(pte_t pte)	{ return pte; }
 
 /* Definitions for MicroBlaze. */
 #define	_PAGE_GUARDED	0x001	/* G: page is guarded from prefetch */
-#define _PAGE_FILE	0x001	/* when !present: nonlinear file mapping */
 #define _PAGE_PRESENT	0x002	/* software: PTE contains a translation */
 #define	_PAGE_NO_CACHE	0x004	/* I: caching is inhibited */
 #define	_PAGE_WRITETHRU	0x008	/* W: caching is write-through */
@@ -234,12 +227,6 @@ static inline pte_t pte_mkspecial(pte_t pte)	{ return pte; }
 #endif
 #ifndef _PAGE_SHARED
 #define _PAGE_SHARED	0
-#endif
-#ifndef _PAGE_HWWRITE
-#define _PAGE_HWWRITE	0
-#endif
-#ifndef _PAGE_HWEXEC
-#define _PAGE_HWEXEC	0
 #endif
 #ifndef _PAGE_EXEC
 #define _PAGE_EXEC	0
@@ -347,7 +334,6 @@ static inline int pte_write(pte_t pte) { return pte_val(pte) & _PAGE_RW; }
 static inline int pte_exec(pte_t pte)  { return pte_val(pte) & _PAGE_EXEC; }
 static inline int pte_dirty(pte_t pte) { return pte_val(pte) & _PAGE_DIRTY; }
 static inline int pte_young(pte_t pte) { return pte_val(pte) & _PAGE_ACCESSED; }
-static inline int pte_file(pte_t pte)  { return pte_val(pte) & _PAGE_FILE; }
 
 static inline void pte_uncache(pte_t pte) { pte_val(pte) |= _PAGE_NO_CACHE; }
 static inline void pte_cache(pte_t pte)   { pte_val(pte) &= ~_PAGE_NO_CACHE; }
@@ -509,11 +495,6 @@ static inline pmd_t *pmd_offset(pgd_t *dir, unsigned long address)
 
 #define pte_unmap(pte)		kunmap_atomic(pte)
 
-/* Encode and decode a nonlinear file mapping entry */
-#define PTE_FILE_MAX_BITS	29
-#define pte_to_pgoff(pte)	(pte_val(pte) >> 3)
-#define pgoff_to_pte(off)	((pte_t) { ((off) << 3) | _PAGE_FILE })
-
 extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
 
 /*
@@ -542,8 +523,6 @@ extern unsigned long iopa(unsigned long addr);
 
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */
 #define kern_addr_valid(addr)	(1)
-
-#define io_remap_page_range remap_page_range
 
 /*
  * No page table caches to initialise
@@ -577,6 +556,7 @@ void consistent_free(size_t size, void *vaddr);
 void consistent_sync(void *vaddr, size_t size, int direction);
 void consistent_sync_page(struct page *page, unsigned long offset,
 	size_t size, int direction);
+unsigned long consistent_virt_to_pfn(void *vaddr);
 
 void setup_memory(void);
 #endif /* __ASSEMBLY__ */

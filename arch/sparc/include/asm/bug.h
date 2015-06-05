@@ -5,7 +5,7 @@
 #include <linux/compiler.h>
 
 #ifdef CONFIG_DEBUG_BUGVERBOSE
-extern void do_BUG(const char *file, int line);
+void do_BUG(const char *file, int line);
 #define BUG() do {					\
 	do_BUG(__FILE__, __LINE__);			\
 	__builtin_trap();				\
@@ -18,5 +18,8 @@ extern void do_BUG(const char *file, int line);
 #endif
 
 #include <asm-generic/bug.h>
+
+struct pt_regs;
+void __noreturn die_if_kernel(char *str, struct pt_regs *regs);
 
 #endif

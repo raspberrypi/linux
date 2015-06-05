@@ -1,8 +1,7 @@
 /*
- *  drivers/s390/char/sclp_quiesce.c
  *     signal quiesce handler
  *
- *  (C) Copyright IBM Corp. 1999,2004
+ *  Copyright IBM Corp. 1999, 2004
  *  Author(s): Martin Schwidefsky <schwidefsky@de.ibm.com>
  *             Peter Oberparleiter <peter.oberparleiter@de.ibm.com>
  */
@@ -15,7 +14,6 @@
 #include <linux/reboot.h>
 #include <linux/atomic.h>
 #include <asm/ptrace.h>
-#include <asm/sigp.h>
 #include <asm/smp.h>
 
 #include "sclp.h"

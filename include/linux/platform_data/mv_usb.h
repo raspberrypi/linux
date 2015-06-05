@@ -34,17 +34,20 @@ struct mv_usb_addon_irq {
 };
 
 struct mv_usb_platform_data {
-	unsigned int		clknum;
-	char			**clkname;
 	struct mv_usb_addon_irq	*id;	/* Only valid for OTG. ID pin change*/
 	struct mv_usb_addon_irq	*vbus;	/* valid for OTG/UDC. VBUS change*/
 
 	/* only valid for HCD. OTG or Host only*/
 	unsigned int		mode;
 
-	int     (*phy_init)(unsigned int regbase);
-	void    (*phy_deinit)(unsigned int regbase);
-	int	(*set_vbus)(unsigned int vbus);
-};
+	/* This flag is used for that needs id pin checked by otg */
+	unsigned int    disable_otg_clock_gating:1;
+	/* Force a_bus_req to be asserted */
+	 unsigned int    otg_force_a_bus_req:1;
 
+	int	(*phy_init)(void __iomem *regbase);
+	void	(*phy_deinit)(void __iomem *regbase);
+	int	(*set_vbus)(unsigned int vbus);
+	int     (*private_init)(void __iomem *opregs, void __iomem *phyregs);
+};
 #endif

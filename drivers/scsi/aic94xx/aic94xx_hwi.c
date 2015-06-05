@@ -74,7 +74,7 @@ static void asd_init_phy_identify(struct asd_phy *phy)
 
 	memset(phy->identify_frame, 0, sizeof(*phy->identify_frame));
 
-	phy->identify_frame->dev_type = SAS_END_DEV;
+	phy->identify_frame->dev_type = SAS_END_DEVICE;
 	if (phy->sas_phy.role & PHY_ROLE_INITIATOR)
 		phy->identify_frame->initiator_bits = phy->sas_phy.iproto;
 	if (phy->sas_phy.role & PHY_ROLE_TARGET)
@@ -1200,8 +1200,7 @@ static void asd_start_scb_timers(struct list_head *list)
  * Case A: we can send the whole batch at once.  Increment "pending"
  * in the beginning of this function, when it is checked, in order to
  * eliminate races when this function is called by multiple processes.
- * Case B: should never happen if the managing layer considers
- * lldd_queue_size.
+ * Case B: should never happen.
  */
 int asd_post_ascb_list(struct asd_ha_struct *asd_ha, struct asd_ascb *ascb,
 		       int num)

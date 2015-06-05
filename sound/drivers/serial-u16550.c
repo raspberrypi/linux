@@ -37,14 +37,13 @@
 #include <linux/slab.h>
 #include <linux/ioport.h>
 #include <linux/module.h>
+#include <linux/io.h>
 #include <sound/core.h>
 #include <sound/rawmidi.h>
 #include <sound/initval.h>
 
 #include <linux/serial_reg.h>
 #include <linux/jiffies.h>
-
-#include <asm/io.h>
 
 MODULE_DESCRIPTION("MIDI serial u16550");
 MODULE_LICENSE("GPL");
@@ -69,7 +68,7 @@ static char *adaptor_names[] = {
 
 static int index[SNDRV_CARDS] = SNDRV_DEFAULT_IDX;	/* Index 0-MAX */
 static char *id[SNDRV_CARDS] = SNDRV_DEFAULT_STR;	/* ID for this card */
-static int enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE; /* Enable this card */
+static bool enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE; /* Enable this card */
 static long port[SNDRV_CARDS] = SNDRV_DEFAULT_PORT; /* 0x3f8,0x2f8,0x3e8,0x2e8 */
 static int irq[SNDRV_CARDS] = SNDRV_DEFAULT_IRQ; 	/* 3,4,5,7,9,10,11,14,15 */
 static int speed[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 38400}; /* 9600,19200,38400,57600,115200 */
@@ -77,7 +76,7 @@ static int base[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 115200}; /* baud bas
 static int outs[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 1};	 /* 1 to 16 */
 static int ins[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 1};	/* 1 to 16 */
 static int adaptor[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = SNDRV_SERIAL_SOUNDCANVAS};
-static int droponfull[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS -1)] = SNDRV_SERIAL_NORMALBUFF };
+static bool droponfull[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS -1)] = SNDRV_SERIAL_NORMALBUFF };
 
 module_param_array(index, int, NULL, 0444);
 MODULE_PARM_DESC(index, "Index value for Serial MIDI.");
@@ -174,9 +173,8 @@ static inline void snd_uart16550_add_timer(struct snd_uart16550 *uart)
 {
 	if (!uart->timer_running) {
 		/* timer 38600bps * 10bit * 16byte */
-		uart->buffer_timer.expires = jiffies + (HZ+255)/256;
+		mod_timer(&uart->buffer_timer, jiffies + (HZ + 255) / 256);
 		uart->timer_running = 1;
-		add_timer(&uart->buffer_timer);
 	}
 }
 
@@ -328,7 +326,7 @@ static void snd_uart16550_buffer_timer(unsigned long data)
  *  return 0 if found
  *  return negative error if not found
  */
-static int __devinit snd_uart16550_detect(struct snd_uart16550 *uart)
+static int snd_uart16550_detect(struct snd_uart16550 *uart)
 {
 	unsigned long io_base = uart->base;
 	int ok;
@@ -783,14 +781,14 @@ static int snd_uart16550_dev_free(struct snd_device *device)
 	return snd_uart16550_free(uart);
 }
 
-static int __devinit snd_uart16550_create(struct snd_card *card,
-				       unsigned long iobase,
-				       int irq,
-				       unsigned int speed,
-				       unsigned int base,
-				       int adaptor,
-				       int droponfull,
-				       struct snd_uart16550 **ruart)
+static int snd_uart16550_create(struct snd_card *card,
+				unsigned long iobase,
+				int irq,
+				unsigned int speed,
+				unsigned int base,
+				int adaptor,
+				int droponfull,
+				struct snd_uart16550 **ruart)
 {
 	static struct snd_device_ops ops = {
 		.dev_free =	snd_uart16550_dev_free,
@@ -830,9 +828,8 @@ static int __devinit snd_uart16550_create(struct snd_card *card,
 	uart->prev_in = 0;
 	uart->rstatus = 0;
 	memset(uart->prev_status, 0x80, sizeof(unsigned char) * SNDRV_SERIAL_MAX_OUTS);
-	init_timer(&uart->buffer_timer);
-	uart->buffer_timer.function = snd_uart16550_buffer_timer;
-	uart->buffer_timer.data = (unsigned long)uart;
+	setup_timer(&uart->buffer_timer, snd_uart16550_buffer_timer,
+		    (unsigned long)uart);
 	uart->timer_running = 0;
 
 	/* Register device */
@@ -863,7 +860,7 @@ static int __devinit snd_uart16550_create(struct snd_card *card,
 	return 0;
 }
 
-static void __devinit snd_uart16550_substreams(struct snd_rawmidi_str *stream)
+static void snd_uart16550_substreams(struct snd_rawmidi_str *stream)
 {
 	struct snd_rawmidi_substream *substream;
 
@@ -872,9 +869,9 @@ static void __devinit snd_uart16550_substreams(struct snd_rawmidi_str *stream)
 	}
 }
 
-static int __devinit snd_uart16550_rmidi(struct snd_uart16550 *uart, int device,
-				      int outs, int ins,
-				      struct snd_rawmidi **rmidi)
+static int snd_uart16550_rmidi(struct snd_uart16550 *uart, int device,
+			       int outs, int ins,
+			       struct snd_rawmidi **rmidi)
 {
 	struct snd_rawmidi *rrawmidi;
 	int err;
@@ -899,7 +896,7 @@ static int __devinit snd_uart16550_rmidi(struct snd_uart16550 *uart, int device,
 	return 0;
 }
 
-static int __devinit snd_serial_probe(struct platform_device *devptr)
+static int snd_serial_probe(struct platform_device *devptr)
 {
 	struct snd_card *card;
 	struct snd_uart16550 *uart;
@@ -942,7 +939,8 @@ static int __devinit snd_serial_probe(struct platform_device *devptr)
 		return -ENODEV;
 	}
 
-	err  = snd_card_create(index[dev], id[dev], THIS_MODULE, 0, &card);
+	err  = snd_card_new(&devptr->dev, index[dev], id[dev], THIS_MODULE,
+			    0, &card);
 	if (err < 0)
 		return err;
 
@@ -969,8 +967,6 @@ static int __devinit snd_serial_probe(struct platform_device *devptr)
 		uart->base,
 		uart->irq);
 
-	snd_card_set_dev(card, &devptr->dev);
-
 	if ((err = snd_card_register(card)) < 0)
 		goto _err;
 
@@ -982,10 +978,9 @@ static int __devinit snd_serial_probe(struct platform_device *devptr)
 	return err;
 }
 
-static int __devexit snd_serial_remove(struct platform_device *devptr)
+static int snd_serial_remove(struct platform_device *devptr)
 {
 	snd_card_free(platform_get_drvdata(devptr));
-	platform_set_drvdata(devptr, NULL);
 	return 0;
 }
 
@@ -993,9 +988,9 @@ static int __devexit snd_serial_remove(struct platform_device *devptr)
 
 static struct platform_driver snd_serial_driver = {
 	.probe		= snd_serial_probe,
-	.remove		= __devexit_p( snd_serial_remove),
+	.remove		=  snd_serial_remove,
 	.driver		= {
-		.name	= SND_SERIAL_DRIVER
+		.name	= SND_SERIAL_DRIVER,
 	},
 };
 

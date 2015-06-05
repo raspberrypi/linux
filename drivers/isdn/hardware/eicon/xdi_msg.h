@@ -1,6 +1,6 @@
 /* $Id: xdi_msg.h,v 1.1.2.2 2001/02/16 08:40:36 armin Exp $ */
 
-#ifndef __DIVA_XDI_UM_CFG_MESSSGE_H__
+#ifndef __DIVA_XDI_UM_CFG_MESSAGE_H__
 #define __DIVA_XDI_UM_CFG_MESSAGE_H__
 
 /*
@@ -80,7 +80,7 @@
 
 /*
   Set untranslated protocol code features
-  */
+*/
 #define DIVA_XDI_UM_CMD_SET_PROTOCOL_FEATURES	11
 
 typedef struct _diva_xdi_um_cfg_cmd_data_set_features {

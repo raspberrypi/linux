@@ -258,7 +258,7 @@ static void chrp_init_early(void)
 	struct device_node *node;
 	const char *property;
 
-	if (strstr(cmd_line, "console="))
+	if (strstr(boot_command_line, "console="))
 		return;
 	/* find the boot console from /chosen/stdout */
 	if (!of_chosen)
@@ -435,7 +435,8 @@ static void __init chrp_find_openpic(void)
 	if (len > 1)
 		isu_size = iranges[3];
 
-	chrp_mpic = mpic_alloc(np, opaddr, 0, isu_size, 0, " MPIC    ");
+	chrp_mpic = mpic_alloc(np, opaddr, MPIC_NO_RESET,
+			isu_size, 0, " MPIC    ");
 	if (chrp_mpic == NULL) {
 		printk(KERN_ERR "Failed to allocate MPIC structure\n");
 		goto bail;
@@ -573,8 +574,8 @@ chrp_init2(void)
 
 static int __init chrp_probe(void)
 {
- 	char *dtype = of_get_flat_dt_prop(of_get_flat_dt_root(),
- 					  "device_type", NULL);
+	const char *dtype = of_get_flat_dt_prop(of_get_flat_dt_root(),
+						"device_type", NULL);
  	if (dtype == NULL)
  		return 0;
  	if (strcmp(dtype, "chrp"))
@@ -583,6 +584,8 @@ static int __init chrp_probe(void)
 	ISA_DMA_THRESHOLD = ~0L;
 	DMA_MODE_READ = 0x44;
 	DMA_MODE_WRITE = 0x48;
+
+	pm_power_off = rtas_power_off;
 
 	return 1;
 }
@@ -596,7 +599,6 @@ define_machine(chrp) {
 	.show_cpuinfo		= chrp_show_cpuinfo,
 	.init_IRQ		= chrp_init_IRQ,
 	.restart		= rtas_restart,
-	.power_off		= rtas_power_off,
 	.halt			= rtas_halt,
 	.time_init		= chrp_time_init,
 	.set_rtc_time		= chrp_set_rtc_time,

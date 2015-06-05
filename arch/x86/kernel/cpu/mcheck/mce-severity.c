@@ -31,6 +31,7 @@
 
 enum context { IN_KERNEL = 1, IN_USER = 2 };
 enum ser { SER_REQUIRED = 1, NO_SER = 2 };
+enum exception { EXCP_CONTEXT = 1, NO_EXCP = 2 };
 
 static struct severity {
 	u64 mask;
@@ -40,6 +41,7 @@ static struct severity {
 	unsigned char mcgres;
 	unsigned char ser;
 	unsigned char context;
+	unsigned char excp;
 	unsigned char covered;
 	char *msg;
 } severities[] = {
@@ -48,13 +50,15 @@ static struct severity {
 #define  USER		.context = IN_USER
 #define  SER		.ser = SER_REQUIRED
 #define  NOSER		.ser = NO_SER
+#define  EXCP		.excp = EXCP_CONTEXT
+#define  NOEXCP		.excp = NO_EXCP
 #define  BITCLR(x)	.mask = x, .result = 0
 #define  BITSET(x)	.mask = x, .result = x
 #define  MCGMASK(x, y)	.mcgmask = x, .mcgres = y
 #define  MASK(x, y)	.mask = x, .result = y
 #define MCI_UC_S (MCI_STATUS_UC|MCI_STATUS_S)
 #define MCI_UC_SAR (MCI_STATUS_UC|MCI_STATUS_S|MCI_STATUS_AR)
-#define MCACOD 0xffff
+#define	MCI_ADDR (MCI_STATUS_ADDRV|MCI_STATUS_MISCV)
 
 	MCESEV(
 		NO, "Invalid",
@@ -62,7 +66,7 @@ static struct severity {
 		),
 	MCESEV(
 		NO, "Not enabled",
-		BITCLR(MCI_STATUS_EN)
+		EXCP, BITCLR(MCI_STATUS_EN)
 		),
 	MCESEV(
 		PANIC, "Processor context corrupt",
@@ -71,16 +75,20 @@ static struct severity {
 	/* When MCIP is not set something is very confused */
 	MCESEV(
 		PANIC, "MCIP not set in MCA handler",
-		MCGMASK(MCG_STATUS_MCIP, 0)
+		EXCP, MCGMASK(MCG_STATUS_MCIP, 0)
 		),
 	/* Neither return not error IP -- no chance to recover -> PANIC */
 	MCESEV(
 		PANIC, "Neither restart nor error IP",
-		MCGMASK(MCG_STATUS_RIPV|MCG_STATUS_EIPV, 0)
+		EXCP, MCGMASK(MCG_STATUS_RIPV|MCG_STATUS_EIPV, 0)
 		),
 	MCESEV(
 		PANIC, "In kernel and no restart IP",
-		KERNEL, MCGMASK(MCG_STATUS_RIPV, 0)
+		EXCP, KERNEL, MCGMASK(MCG_STATUS_RIPV, 0)
+		),
+	MCESEV(
+		DEFERRED, "Deferred error",
+		NOSER, MASK(MCI_STATUS_UC|MCI_STATUS_DEFERRED|MCI_STATUS_POISON, MCI_STATUS_DEFERRED)
 		),
 	MCESEV(
 		KEEP, "Corrected error",
@@ -89,7 +97,7 @@ static struct severity {
 
 	/* ignore OVER for UCNA */
 	MCESEV(
-		KEEP, "Uncorrected no action required",
+		UCNA, "Uncorrected no action required",
 		SER, MASK(MCI_UC_SAR, MCI_STATUS_UC)
 		),
 	MCESEV(
@@ -102,11 +110,29 @@ static struct severity {
 		SER, BITCLR(MCI_STATUS_S)
 		),
 
-	/* AR add known MCACODs here */
 	MCESEV(
 		PANIC, "Action required with lost events",
 		SER, BITSET(MCI_STATUS_OVER|MCI_UC_SAR)
 		),
+
+	/* known AR MCACODs: */
+#ifdef	CONFIG_MEMORY_FAILURE
+	MCESEV(
+		KEEP, "Action required but unaffected thread is continuable",
+		SER, MASK(MCI_STATUS_OVER|MCI_UC_SAR|MCI_ADDR, MCI_UC_SAR|MCI_ADDR),
+		MCGMASK(MCG_STATUS_RIPV|MCG_STATUS_EIPV, MCG_STATUS_RIPV)
+		),
+	MCESEV(
+		AR, "Action required: data load error in a user process",
+		SER, MASK(MCI_STATUS_OVER|MCI_UC_SAR|MCI_ADDR|MCACOD, MCI_UC_SAR|MCI_ADDR|MCACOD_DATA),
+		USER
+		),
+	MCESEV(
+		AR, "Action required: instruction fetch error in a user process",
+		SER, MASK(MCI_STATUS_OVER|MCI_UC_SAR|MCI_ADDR|MCACOD, MCI_UC_SAR|MCI_ADDR|MCACOD_INSTR),
+		USER
+		),
+#endif
 	MCESEV(
 		PANIC, "Action required: unknown MCACOD",
 		SER, MASK(MCI_STATUS_OVER|MCI_UC_SAR, MCI_UC_SAR)
@@ -115,11 +141,11 @@ static struct severity {
 	/* known AO MCACODs: */
 	MCESEV(
 		AO, "Action optional: memory scrubbing error",
-		SER, MASK(MCI_STATUS_OVER|MCI_UC_SAR|0xfff0, MCI_UC_S|0x00c0)
+		SER, MASK(MCI_STATUS_OVER|MCI_UC_SAR|MCACOD_SCRUBMSK, MCI_UC_S|MCACOD_SCRUB)
 		),
 	MCESEV(
 		AO, "Action optional: last level cache writeback error",
-		SER, MASK(MCI_STATUS_OVER|MCI_UC_SAR|MCACOD, MCI_UC_S|0x017a)
+		SER, MASK(MCI_STATUS_OVER|MCI_UC_SAR|MCACOD, MCI_UC_S|MCACOD_L3WB)
 		),
 	MCESEV(
 		SOME, "Action optional: unknown MCACOD",
@@ -145,19 +171,24 @@ static struct severity {
 };
 
 /*
- * If the EIPV bit is set, it means the saved IP is the
- * instruction which caused the MCE.
+ * If mcgstatus indicated that ip/cs on the stack were
+ * no good, then "m->cs" will be zero and we will have
+ * to assume the worst case (IN_KERNEL) as we actually
+ * have no idea what we were executing when the machine
+ * check hit.
+ * If we do have a good "m->cs" (or a faked one in the
+ * case we were executing in VM86 mode) we can use it to
+ * distinguish an exception taken in user from from one
+ * taken in the kernel.
  */
 static int error_context(struct mce *m)
 {
-	if (m->mcgstatus & MCG_STATUS_EIPV)
-		return (m->ip && (m->cs & 3) == 3) ? IN_USER : IN_KERNEL;
-	/* Unknown, assume kernel */
-	return IN_KERNEL;
+	return ((m->cs & 3) == 3) ? IN_USER : IN_KERNEL;
 }
 
-int mce_severity(struct mce *m, int tolerant, char **msg)
+int mce_severity(struct mce *m, int tolerant, char **msg, bool is_excp)
 {
+	enum exception excp = (is_excp ? EXCP_CONTEXT : NO_EXCP);
 	enum context ctx = error_context(m);
 	struct severity *s;
 
@@ -166,11 +197,13 @@ int mce_severity(struct mce *m, int tolerant, char **msg)
 			continue;
 		if ((m->mcgstatus & s->mcgmask) != s->mcgres)
 			continue;
-		if (s->ser == SER_REQUIRED && !mce_ser)
+		if (s->ser == SER_REQUIRED && !mca_cfg.ser)
 			continue;
-		if (s->ser == NO_SER && mce_ser)
+		if (s->ser == NO_SER && mca_cfg.ser)
 			continue;
 		if (s->context && ctx != s->context)
+			continue;
+		if (s->excp && excp != s->excp)
 			continue;
 		if (msg)
 			*msg = s->msg;

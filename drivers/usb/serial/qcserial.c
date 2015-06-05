@@ -22,36 +22,63 @@
 #define DRIVER_AUTHOR "Qualcomm Inc"
 #define DRIVER_DESC "Qualcomm USB Serial driver"
 
-static int debug;
+/* standard device layouts supported by this driver */
+enum qcserial_layouts {
+	QCSERIAL_G2K = 0,	/* Gobi 2000 */
+	QCSERIAL_G1K = 1,	/* Gobi 1000 */
+	QCSERIAL_SWI = 2,	/* Sierra Wireless */
+	QCSERIAL_HWI = 3,	/* Huawei */
+};
+
+#define DEVICE_G1K(v, p) \
+	USB_DEVICE(v, p), .driver_info = QCSERIAL_G1K
+#define DEVICE_SWI(v, p) \
+	USB_DEVICE(v, p), .driver_info = QCSERIAL_SWI
+#define DEVICE_HWI(v, p) \
+	USB_DEVICE(v, p), .driver_info = QCSERIAL_HWI
 
 static const struct usb_device_id id_table[] = {
-	{USB_DEVICE(0x05c6, 0x9211)},	/* Acer Gobi QDL device */
-	{USB_DEVICE(0x05c6, 0x9212)},	/* Acer Gobi Modem Device */
-	{USB_DEVICE(0x03f0, 0x1f1d)},	/* HP un2400 Gobi Modem Device */
-	{USB_DEVICE(0x03f0, 0x201d)},	/* HP un2400 Gobi QDL Device */
-	{USB_DEVICE(0x03f0, 0x371d)},	/* HP un2430 Mobile Broadband Module */
-	{USB_DEVICE(0x04da, 0x250d)},	/* Panasonic Gobi Modem device */
-	{USB_DEVICE(0x04da, 0x250c)},	/* Panasonic Gobi QDL device */
-	{USB_DEVICE(0x413c, 0x8172)},	/* Dell Gobi Modem device */
-	{USB_DEVICE(0x413c, 0x8171)},	/* Dell Gobi QDL device */
-	{USB_DEVICE(0x1410, 0xa001)},	/* Novatel Gobi Modem device */
-	{USB_DEVICE(0x1410, 0xa008)},	/* Novatel Gobi QDL device */
-	{USB_DEVICE(0x0b05, 0x1776)},	/* Asus Gobi Modem device */
-	{USB_DEVICE(0x0b05, 0x1774)},	/* Asus Gobi QDL device */
-	{USB_DEVICE(0x19d2, 0xfff3)},	/* ONDA Gobi Modem device */
-	{USB_DEVICE(0x19d2, 0xfff2)},	/* ONDA Gobi QDL device */
-	{USB_DEVICE(0x1557, 0x0a80)},	/* OQO Gobi QDL device */
-	{USB_DEVICE(0x05c6, 0x9001)},   /* Generic Gobi Modem device */
-	{USB_DEVICE(0x05c6, 0x9002)},	/* Generic Gobi Modem device */
-	{USB_DEVICE(0x05c6, 0x9202)},	/* Generic Gobi Modem device */
-	{USB_DEVICE(0x05c6, 0x9203)},	/* Generic Gobi Modem device */
-	{USB_DEVICE(0x05c6, 0x9222)},	/* Generic Gobi Modem device */
-	{USB_DEVICE(0x05c6, 0x9008)},	/* Generic Gobi QDL device */
-	{USB_DEVICE(0x05c6, 0x9009)},	/* Generic Gobi Modem device */
-	{USB_DEVICE(0x05c6, 0x9201)},	/* Generic Gobi QDL device */
-	{USB_DEVICE(0x05c6, 0x9221)},	/* Generic Gobi QDL device */
-	{USB_DEVICE(0x05c6, 0x9231)},	/* Generic Gobi QDL device */
-	{USB_DEVICE(0x1f45, 0x0001)},	/* Unknown Gobi QDL device */
+	/* Gobi 1000 devices */
+	{DEVICE_G1K(0x05c6, 0x9211)},	/* Acer Gobi QDL device */
+	{DEVICE_G1K(0x05c6, 0x9212)},	/* Acer Gobi Modem Device */
+	{DEVICE_G1K(0x03f0, 0x1f1d)},	/* HP un2400 Gobi Modem Device */
+	{DEVICE_G1K(0x03f0, 0x201d)},	/* HP un2400 Gobi QDL Device */
+	{DEVICE_G1K(0x04da, 0x250d)},	/* Panasonic Gobi Modem device */
+	{DEVICE_G1K(0x04da, 0x250c)},	/* Panasonic Gobi QDL device */
+	{DEVICE_G1K(0x413c, 0x8172)},	/* Dell Gobi Modem device */
+	{DEVICE_G1K(0x413c, 0x8171)},	/* Dell Gobi QDL device */
+	{DEVICE_G1K(0x1410, 0xa001)},	/* Novatel/Verizon USB-1000 */
+	{DEVICE_G1K(0x1410, 0xa002)},	/* Novatel Gobi Modem device */
+	{DEVICE_G1K(0x1410, 0xa003)},	/* Novatel Gobi Modem device */
+	{DEVICE_G1K(0x1410, 0xa004)},	/* Novatel Gobi Modem device */
+	{DEVICE_G1K(0x1410, 0xa005)},	/* Novatel Gobi Modem device */
+	{DEVICE_G1K(0x1410, 0xa006)},	/* Novatel Gobi Modem device */
+	{DEVICE_G1K(0x1410, 0xa007)},	/* Novatel Gobi Modem device */
+	{DEVICE_G1K(0x1410, 0xa008)},	/* Novatel Gobi QDL device */
+	{DEVICE_G1K(0x0b05, 0x1776)},	/* Asus Gobi Modem device */
+	{DEVICE_G1K(0x0b05, 0x1774)},	/* Asus Gobi QDL device */
+	{DEVICE_G1K(0x19d2, 0xfff3)},	/* ONDA Gobi Modem device */
+	{DEVICE_G1K(0x19d2, 0xfff2)},	/* ONDA Gobi QDL device */
+	{DEVICE_G1K(0x1557, 0x0a80)},	/* OQO Gobi QDL device */
+	{DEVICE_G1K(0x05c6, 0x9001)},   /* Generic Gobi Modem device */
+	{DEVICE_G1K(0x05c6, 0x9002)},	/* Generic Gobi Modem device */
+	{DEVICE_G1K(0x05c6, 0x9202)},	/* Generic Gobi Modem device */
+	{DEVICE_G1K(0x05c6, 0x9203)},	/* Generic Gobi Modem device */
+	{DEVICE_G1K(0x05c6, 0x9222)},	/* Generic Gobi Modem device */
+	{DEVICE_G1K(0x05c6, 0x9008)},	/* Generic Gobi QDL device */
+	{DEVICE_G1K(0x05c6, 0x9009)},	/* Generic Gobi Modem device */
+	{DEVICE_G1K(0x05c6, 0x9201)},	/* Generic Gobi QDL device */
+	{DEVICE_G1K(0x05c6, 0x9221)},	/* Generic Gobi QDL device */
+	{DEVICE_G1K(0x05c6, 0x9231)},	/* Generic Gobi QDL device */
+	{DEVICE_G1K(0x1f45, 0x0001)},	/* Unknown Gobi QDL device */
+	{DEVICE_G1K(0x1bc7, 0x900e)},	/* Telit Gobi QDL device */
+
+	/* Gobi 2000 devices */
+	{USB_DEVICE(0x1410, 0xa010)},	/* Novatel Gobi 2000 QDL device */
+	{USB_DEVICE(0x1410, 0xa011)},	/* Novatel Gobi 2000 QDL device */
+	{USB_DEVICE(0x1410, 0xa012)},	/* Novatel Gobi 2000 QDL device */
+	{USB_DEVICE(0x1410, 0xa013)},	/* Novatel Gobi 2000 QDL device */
+	{USB_DEVICE(0x1410, 0xa014)},	/* Novatel Gobi 2000 QDL device */
 	{USB_DEVICE(0x413c, 0x8185)},	/* Dell Gobi 2000 QDL device (N0218, VU936) */
 	{USB_DEVICE(0x413c, 0x8186)},	/* Dell Gobi 2000 Modem device (N0218, VU936) */
 	{USB_DEVICE(0x05c6, 0x9208)},	/* Generic Gobi 2000 QDL device */
@@ -86,143 +113,251 @@ static const struct usb_device_id id_table[] = {
 	{USB_DEVICE(0x16d8, 0x8002)},	/* CMDTech Gobi 2000 Modem device (VU922) */
 	{USB_DEVICE(0x05c6, 0x9204)},	/* Gobi 2000 QDL device */
 	{USB_DEVICE(0x05c6, 0x9205)},	/* Gobi 2000 Modem device */
+
+	/* Gobi 3000 devices */
+	{USB_DEVICE(0x03f0, 0x371d)},	/* HP un2430 Gobi 3000 QDL */
+	{USB_DEVICE(0x05c6, 0x920c)},	/* Gobi 3000 QDL */
+	{USB_DEVICE(0x05c6, 0x920d)},	/* Gobi 3000 Composite */
+	{USB_DEVICE(0x1410, 0xa020)},   /* Novatel Gobi 3000 QDL */
+	{USB_DEVICE(0x1410, 0xa021)},	/* Novatel Gobi 3000 Composite */
+	{USB_DEVICE(0x413c, 0x8193)},	/* Dell Gobi 3000 QDL */
+	{USB_DEVICE(0x413c, 0x8194)},	/* Dell Gobi 3000 Composite */
+	{USB_DEVICE(0x1199, 0x68a4)},	/* Sierra Wireless QDL */
+	{USB_DEVICE(0x1199, 0x68a5)},	/* Sierra Wireless Modem */
+	{USB_DEVICE(0x1199, 0x68a8)},	/* Sierra Wireless QDL */
+	{USB_DEVICE(0x1199, 0x68a9)},	/* Sierra Wireless Modem */
+	{USB_DEVICE(0x1199, 0x9010)},	/* Sierra Wireless Gobi 3000 QDL */
+	{USB_DEVICE(0x1199, 0x9012)},	/* Sierra Wireless Gobi 3000 QDL */
 	{USB_DEVICE(0x1199, 0x9013)},	/* Sierra Wireless Gobi 3000 Modem device (MC8355) */
+	{USB_DEVICE(0x1199, 0x9014)},	/* Sierra Wireless Gobi 3000 QDL */
+	{USB_DEVICE(0x1199, 0x9015)},	/* Sierra Wireless Gobi 3000 Modem device */
+	{USB_DEVICE(0x1199, 0x9018)},	/* Sierra Wireless Gobi 3000 QDL */
+	{USB_DEVICE(0x1199, 0x9019)},	/* Sierra Wireless Gobi 3000 Modem device */
+	{USB_DEVICE(0x1199, 0x901b)},	/* Sierra Wireless MC7770 */
+	{USB_DEVICE(0x12D1, 0x14F0)},	/* Sony Gobi 3000 QDL */
+	{USB_DEVICE(0x12D1, 0x14F1)},	/* Sony Gobi 3000 Composite */
+	{USB_DEVICE(0x0AF0, 0x8120)},	/* Option GTM681W */
+
+	/* non-Gobi Sierra Wireless devices */
+	{DEVICE_SWI(0x0f3d, 0x68a2)},	/* Sierra Wireless MC7700 */
+	{DEVICE_SWI(0x114f, 0x68a2)},	/* Sierra Wireless MC7750 */
+	{DEVICE_SWI(0x1199, 0x68a2)},	/* Sierra Wireless MC7710 */
+	{DEVICE_SWI(0x1199, 0x901c)},	/* Sierra Wireless EM7700 */
+	{DEVICE_SWI(0x1199, 0x901f)},	/* Sierra Wireless EM7355 */
+	{DEVICE_SWI(0x1199, 0x9040)},	/* Sierra Wireless Modem */
+	{DEVICE_SWI(0x1199, 0x9041)},	/* Sierra Wireless MC7305/MC7355 */
+	{DEVICE_SWI(0x1199, 0x9051)},	/* Netgear AirCard 340U */
+	{DEVICE_SWI(0x1199, 0x9053)},	/* Sierra Wireless Modem */
+	{DEVICE_SWI(0x1199, 0x9054)},	/* Sierra Wireless Modem */
+	{DEVICE_SWI(0x1199, 0x9055)},	/* Netgear AirCard 341U */
+	{DEVICE_SWI(0x1199, 0x9056)},	/* Sierra Wireless Modem */
+	{DEVICE_SWI(0x1199, 0x9060)},	/* Sierra Wireless Modem */
+	{DEVICE_SWI(0x1199, 0x9061)},	/* Sierra Wireless Modem */
+	{DEVICE_SWI(0x413c, 0x81a2)},	/* Dell Wireless 5806 Gobi(TM) 4G LTE Mobile Broadband Card */
+	{DEVICE_SWI(0x413c, 0x81a3)},	/* Dell Wireless 5570 HSPA+ (42Mbps) Mobile Broadband Card */
+	{DEVICE_SWI(0x413c, 0x81a4)},	/* Dell Wireless 5570e HSPA+ (42Mbps) Mobile Broadband Card */
+	{DEVICE_SWI(0x413c, 0x81a8)},	/* Dell Wireless 5808 Gobi(TM) 4G LTE Mobile Broadband Card */
+	{DEVICE_SWI(0x413c, 0x81a9)},	/* Dell Wireless 5808e Gobi(TM) 4G LTE Mobile Broadband Card */
+
+	/* Huawei devices */
+	{DEVICE_HWI(0x03f0, 0x581d)},	/* HP lt4112 LTE/HSPA+ Gobi 4G Modem (Huawei me906e) */
+
 	{ }				/* Terminating entry */
 };
 MODULE_DEVICE_TABLE(usb, id_table);
 
-static struct usb_driver qcdriver = {
-	.name			= "qcserial",
-	.probe			= usb_serial_probe,
-	.disconnect		= usb_serial_disconnect,
-	.id_table		= id_table,
-	.suspend		= usb_serial_suspend,
-	.resume			= usb_serial_resume,
-	.supports_autosuspend	= true,
-};
-
 static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 {
-	struct usb_wwan_intf_private *data;
 	struct usb_host_interface *intf = serial->interface->cur_altsetting;
+	struct device *dev = &serial->dev->dev;
 	int retval = -ENODEV;
 	__u8 nintf;
 	__u8 ifnum;
-
-	dbg("%s", __func__);
+	int altsetting = -1;
 
 	nintf = serial->dev->actconfig->desc.bNumInterfaces;
-	dbg("Num Interfaces = %d", nintf);
+	dev_dbg(dev, "Num Interfaces = %d\n", nintf);
 	ifnum = intf->desc.bInterfaceNumber;
-	dbg("This Interface = %d", ifnum);
+	dev_dbg(dev, "This Interface = %d\n", ifnum);
 
-	data = kzalloc(sizeof(struct usb_wwan_intf_private),
-					 GFP_KERNEL);
-	if (!data)
-		return -ENOMEM;
-
-	spin_lock_init(&data->susp_lock);
-
-	usb_enable_autosuspend(serial->dev);
-
-	switch (nintf) {
-	case 1:
+	if (nintf == 1) {
 		/* QDL mode */
 		/* Gobi 2000 has a single altsetting, older ones have two */
 		if (serial->interface->num_altsetting == 2)
 			intf = &serial->interface->altsetting[1];
 		else if (serial->interface->num_altsetting > 2)
-			break;
+			goto done;
 
 		if (intf->desc.bNumEndpoints == 2 &&
 		    usb_endpoint_is_bulk_in(&intf->endpoint[0].desc) &&
 		    usb_endpoint_is_bulk_out(&intf->endpoint[1].desc)) {
-			dbg("QDL port found");
+			dev_dbg(dev, "QDL port found\n");
 
-			if (serial->interface->num_altsetting == 1) {
+			if (serial->interface->num_altsetting == 1)
 				retval = 0; /* Success */
-				break;
-			}
-
-			retval = usb_set_interface(serial->dev, ifnum, 1);
-			if (retval < 0) {
-				dev_err(&serial->dev->dev,
-					"Could not set interface, error %d\n",
-					retval);
-				retval = -ENODEV;
-				kfree(data);
-			}
+			else
+				altsetting = 1;
 		}
-		break;
+		goto done;
 
-	case 3:
-	case 4:
-		/* Composite mode */
-		/* ifnum == 0 is a broadband network adapter */
-		if (ifnum == 1) {
-			/*
-			 * Diagnostics Monitor (serial line 9600 8N1)
-			 * Qualcomm DM protocol
-			 * use "libqcdm" (ModemManager) for communication
-			 */
-			dbg("Diagnostics Monitor found");
-			retval = usb_set_interface(serial->dev, ifnum, 0);
-			if (retval < 0) {
-				dev_err(&serial->dev->dev,
-					"Could not set interface, error %d\n",
-					retval);
-				retval = -ENODEV;
-				kfree(data);
-			}
-		} else if (ifnum == 2) {
-			dbg("Modem port found");
-			retval = usb_set_interface(serial->dev, ifnum, 0);
-			if (retval < 0) {
-				dev_err(&serial->dev->dev,
-					"Could not set interface, error %d\n",
-					retval);
-				retval = -ENODEV;
-				kfree(data);
-			}
-		} else if (ifnum==3) {
+	}
+
+	/* default to enabling interface */
+	altsetting = 0;
+
+	/*
+	 * Composite mode; don't bind to the QMI/net interface as that
+	 * gets handled by other drivers.
+	 */
+
+	switch (id->driver_info) {
+	case QCSERIAL_G1K:
+		/*
+		 * Gobi 1K USB layout:
+		 * 0: DM/DIAG (use libqcdm from ModemManager for communication)
+		 * 1: serial port (doesn't respond)
+		 * 2: AT-capable modem port
+		 * 3: QMI/net
+		 */
+		if (nintf < 3 || nintf > 4) {
+			dev_err(dev, "unknown number of interfaces: %d\n", nintf);
+			altsetting = -1;
+			goto done;
+		}
+
+		if (ifnum == 0) {
+			dev_dbg(dev, "Gobi 1K DM/DIAG interface found\n");
+			altsetting = 1;
+		} else if (ifnum == 2)
+			dev_dbg(dev, "Modem port found\n");
+		else
+			altsetting = -1;
+		break;
+	case QCSERIAL_G2K:
+		/*
+		 * Gobi 2K+ USB layout:
+		 * 0: QMI/net
+		 * 1: DM/DIAG (use libqcdm from ModemManager for communication)
+		 * 2: AT-capable modem port
+		 * 3: NMEA
+		 */
+		if (nintf < 3 || nintf > 4) {
+			dev_err(dev, "unknown number of interfaces: %d\n", nintf);
+			altsetting = -1;
+			goto done;
+		}
+
+		switch (ifnum) {
+		case 0:
+			/* Don't claim the QMI/net interface */
+			altsetting = -1;
+			break;
+		case 1:
+			dev_dbg(dev, "Gobi 2K+ DM/DIAG interface found\n");
+			break;
+		case 2:
+			dev_dbg(dev, "Modem port found\n");
+			break;
+		case 3:
 			/*
 			 * NMEA (serial line 9600 8N1)
 			 * # echo "\$GPS_START" > /dev/ttyUSBx
 			 * # echo "\$GPS_STOP"  > /dev/ttyUSBx
 			 */
-			dbg("NMEA GPS interface found");
-			retval = usb_set_interface(serial->dev, ifnum, 0);
-			if (retval < 0) {
-				dev_err(&serial->dev->dev,
-					"Could not set interface, error %d\n",
-					retval);
-				retval = -ENODEV;
-				kfree(data);
-			}
+			dev_dbg(dev, "Gobi 2K+ NMEA GPS interface found\n");
+			break;
 		}
 		break;
-
+	case QCSERIAL_SWI:
+		/*
+		 * Sierra Wireless layout:
+		 * 0: DM/DIAG (use libqcdm from ModemManager for communication)
+		 * 2: NMEA
+		 * 3: AT-capable modem port
+		 * 8: QMI/net
+		 */
+		switch (ifnum) {
+		case 0:
+			dev_dbg(dev, "DM/DIAG interface found\n");
+			break;
+		case 2:
+			dev_dbg(dev, "NMEA GPS interface found\n");
+			break;
+		case 3:
+			dev_dbg(dev, "Modem port found\n");
+			break;
+		default:
+			/* don't claim any unsupported interface */
+			altsetting = -1;
+			break;
+		}
+		break;
+	case QCSERIAL_HWI:
+		/*
+		 * Huawei layout:
+		 * 0: AT-capable modem port
+		 * 1: DM/DIAG
+		 * 2: AT-capable modem port
+		 * 3: CCID-compatible PCSC interface
+		 * 4: QMI/net
+		 * 5: NMEA
+		 */
+		switch (ifnum) {
+		case 0:
+		case 2:
+			dev_dbg(dev, "Modem port found\n");
+			break;
+		case 1:
+			dev_dbg(dev, "DM/DIAG interface found\n");
+			break;
+		case 5:
+			dev_dbg(dev, "NMEA GPS interface found\n");
+			break;
+		default:
+			/* don't claim any unsupported interface */
+			altsetting = -1;
+			break;
+		}
+		break;
 	default:
-		dev_err(&serial->dev->dev,
-			"unknown number of interfaces: %d\n", nintf);
-		kfree(data);
-		retval = -ENODEV;
+		dev_err(dev, "unsupported device layout type: %lu\n",
+			id->driver_info);
+		break;
 	}
 
-	/* Set serial->private if not returning -ENODEV */
-	if (retval != -ENODEV)
-		usb_set_serial_data(serial, data);
+done:
+	if (altsetting >= 0) {
+		retval = usb_set_interface(serial->dev, ifnum, altsetting);
+		if (retval < 0) {
+			dev_err(dev,
+				"Could not set interface, error %d\n",
+				retval);
+			retval = -ENODEV;
+		}
+	}
+
 	return retval;
+}
+
+static int qc_attach(struct usb_serial *serial)
+{
+	struct usb_wwan_intf_private *data;
+
+	data = kzalloc(sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	spin_lock_init(&data->susp_lock);
+
+	usb_set_serial_data(serial, data);
+
+	return 0;
 }
 
 static void qc_release(struct usb_serial *serial)
 {
 	struct usb_wwan_intf_private *priv = usb_get_serial_data(serial);
 
-	dbg("%s", __func__);
-
-	/* Call usb_wwan release & free the private data allocated in qcprobe */
-	usb_wwan_release(serial);
 	usb_set_serial_data(serial, NULL);
 	kfree(priv);
 }
@@ -234,7 +369,6 @@ static struct usb_serial_driver qcdevice = {
 	},
 	.description         = "Qualcomm USB modem",
 	.id_table            = id_table,
-	.usb_driver          = &qcdriver,
 	.num_ports           = 1,
 	.probe               = qcprobe,
 	.open		     = usb_wwan_open,
@@ -242,44 +376,22 @@ static struct usb_serial_driver qcdevice = {
 	.write		     = usb_wwan_write,
 	.write_room	     = usb_wwan_write_room,
 	.chars_in_buffer     = usb_wwan_chars_in_buffer,
-	.attach		     = usb_wwan_startup,
-	.disconnect	     = usb_wwan_disconnect,
+	.attach              = qc_attach,
 	.release	     = qc_release,
+	.port_probe          = usb_wwan_port_probe,
+	.port_remove	     = usb_wwan_port_remove,
 #ifdef CONFIG_PM
 	.suspend	     = usb_wwan_suspend,
 	.resume		     = usb_wwan_resume,
 #endif
 };
 
-static int __init qcinit(void)
-{
-	int retval;
+static struct usb_serial_driver * const serial_drivers[] = {
+	&qcdevice, NULL
+};
 
-	retval = usb_serial_register(&qcdevice);
-	if (retval)
-		return retval;
-
-	retval = usb_register(&qcdriver);
-	if (retval) {
-		usb_serial_deregister(&qcdevice);
-		return retval;
-	}
-
-	return 0;
-}
-
-static void __exit qcexit(void)
-{
-	usb_deregister(&qcdriver);
-	usb_serial_deregister(&qcdevice);
-}
-
-module_init(qcinit);
-module_exit(qcexit);
+module_usb_serial_driver(serial_drivers, id_table);
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL v2");
-
-module_param(debug, bool, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(debug, "Debug enabled or not");

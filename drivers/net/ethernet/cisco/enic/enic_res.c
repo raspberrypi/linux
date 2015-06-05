@@ -44,7 +44,7 @@ int enic_get_vnic_config(struct enic *enic)
 	struct vnic_enet_config *c = &enic->config;
 	int err;
 
-	err = vnic_dev_mac_addr(enic->vdev, enic->mac_addr);
+	err = vnic_dev_get_mac_addr(enic->vdev, enic->mac_addr);
 	if (err) {
 		dev_err(enic_get_dev(enic),
 			"Error getting MAC addr, %d\n", err);
@@ -71,6 +71,7 @@ int enic_get_vnic_config(struct enic *enic)
 	GET_CONFIG(intr_mode);
 	GET_CONFIG(intr_timer_usec);
 	GET_CONFIG(loop_tag);
+	GET_CONFIG(num_arfs);
 
 	c->wq_desc_count =
 		min_t(u32, ENIC_MAX_WQ_DESCS,

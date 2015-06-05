@@ -303,15 +303,12 @@ void rds_iw_inc_free(struct rds_incoming *inc)
 	BUG_ON(atomic_read(&rds_iw_allocation) < 0);
 }
 
-int rds_iw_inc_copy_to_user(struct rds_incoming *inc, struct iovec *first_iov,
-			    size_t size)
+int rds_iw_inc_copy_to_user(struct rds_incoming *inc, struct iov_iter *to)
 {
 	struct rds_iw_incoming *iwinc;
 	struct rds_page_frag *frag;
-	struct iovec *iov = first_iov;
 	unsigned long to_copy;
 	unsigned long frag_off = 0;
-	unsigned long iov_off = 0;
 	int copied = 0;
 	int ret;
 	u32 len;
@@ -320,37 +317,25 @@ int rds_iw_inc_copy_to_user(struct rds_incoming *inc, struct iovec *first_iov,
 	frag = list_entry(iwinc->ii_frags.next, struct rds_page_frag, f_item);
 	len = be32_to_cpu(inc->i_hdr.h_len);
 
-	while (copied < size && copied < len) {
+	while (iov_iter_count(to) && copied < len) {
 		if (frag_off == RDS_FRAG_SIZE) {
 			frag = list_entry(frag->f_item.next,
 					  struct rds_page_frag, f_item);
 			frag_off = 0;
 		}
-		while (iov_off == iov->iov_len) {
-			iov_off = 0;
-			iov++;
-		}
-
-		to_copy = min(iov->iov_len - iov_off, RDS_FRAG_SIZE - frag_off);
-		to_copy = min_t(size_t, to_copy, size - copied);
+		to_copy = min_t(unsigned long, iov_iter_count(to),
+				RDS_FRAG_SIZE - frag_off);
 		to_copy = min_t(unsigned long, to_copy, len - copied);
 
-		rdsdebug("%lu bytes to user [%p, %zu] + %lu from frag "
-			 "[%p, %lu] + %lu\n",
-			 to_copy, iov->iov_base, iov->iov_len, iov_off,
-			 frag->f_page, frag->f_offset, frag_off);
-
 		/* XXX needs + offset for multiple recvs per page */
-		ret = rds_page_copy_to_user(frag->f_page,
-					    frag->f_offset + frag_off,
-					    iov->iov_base + iov_off,
-					    to_copy);
-		if (ret) {
-			copied = ret;
-			break;
-		}
+		rds_stats_add(s_copy_to_user, to_copy);
+		ret = copy_page_to_iter(frag->f_page,
+					frag->f_offset + frag_off,
+					to_copy,
+					to);
+		if (ret != to_copy)
+			return -EFAULT;
 
-		iov_off += to_copy;
 		frag_off += to_copy;
 		copied += to_copy;
 	}
@@ -429,7 +414,7 @@ static void rds_iw_set_ack(struct rds_iw_connection *ic, u64 seq,
 {
 	atomic64_set(&ic->i_ack_next, seq);
 	if (ack_required) {
-		smp_mb__before_clear_bit();
+		smp_mb__before_atomic();
 		set_bit(IB_ACK_REQUESTED, &ic->i_ack_flags);
 	}
 }
@@ -437,7 +422,7 @@ static void rds_iw_set_ack(struct rds_iw_connection *ic, u64 seq,
 static u64 rds_iw_get_ack(struct rds_iw_connection *ic)
 {
 	clear_bit(IB_ACK_REQUESTED, &ic->i_ack_flags);
-	smp_mb__after_clear_bit();
+	smp_mb__after_atomic();
 
 	return atomic64_read(&ic->i_ack_next);
 }
@@ -598,7 +583,7 @@ static void rds_iw_cong_recv(struct rds_connection *conn,
 		to_copy = min(RDS_FRAG_SIZE - frag_off, PAGE_SIZE - map_off);
 		BUG_ON(to_copy & 7); /* Must be 64bit aligned. */
 
-		addr = kmap_atomic(frag->f_page, KM_SOFTIRQ0);
+		addr = kmap_atomic(frag->f_page);
 
 		src = addr + frag_off;
 		dst = (void *)map->m_page_addrs[map_page] + map_off;
@@ -608,7 +593,7 @@ static void rds_iw_cong_recv(struct rds_connection *conn,
 			uncongested |= ~(*src) & *dst;
 			*dst++ = *src++;
 		}
-		kunmap_atomic(addr, KM_SOFTIRQ0);
+		kunmap_atomic(addr);
 
 		copied += to_copy;
 
@@ -661,7 +646,7 @@ static void rds_iw_process_recv(struct rds_connection *conn,
 
 	if (byte_len < sizeof(struct rds_header)) {
 		rds_iw_conn_error(conn, "incoming message "
-		       "from %pI4 didn't inclue a "
+		       "from %pI4 didn't include a "
 		       "header, disconnecting and "
 		       "reconnecting\n",
 		       &conn->c_faddr);
@@ -754,8 +739,7 @@ static void rds_iw_process_recv(struct rds_connection *conn,
 			rds_iw_cong_recv(conn, iwinc);
 		else {
 			rds_recv_incoming(conn, conn->c_faddr, conn->c_laddr,
-					  &iwinc->ii_inc, GFP_ATOMIC,
-					  KM_SOFTIRQ0);
+					  &iwinc->ii_inc, GFP_ATOMIC);
 			state->ack_next = be64_to_cpu(hdr->h_sequence);
 			state->ack_next_valid = 1;
 		}

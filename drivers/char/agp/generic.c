@@ -29,7 +29,6 @@
  */
 #include <linux/module.h>
 #include <linux/pci.h>
-#include <linux/init.h>
 #include <linux/pagemap.h>
 #include <linux/miscdevice.h>
 #include <linux/pm.h>
@@ -98,17 +97,6 @@ void agp_alloc_page_array(size_t size, struct agp_memory *mem)
 	}
 }
 EXPORT_SYMBOL(agp_alloc_page_array);
-
-void agp_free_page_array(struct agp_memory *mem)
-{
-	if (is_vmalloc_addr(mem->pages)) {
-		vfree(mem->pages);
-	} else {
-		kfree(mem->pages);
-	}
-}
-EXPORT_SYMBOL(agp_free_page_array);
-
 
 static struct agp_memory *agp_create_user_memory(unsigned long num_agp_pages)
 {
@@ -514,12 +502,12 @@ static void agp_v2_parse_one(u32 *requested_mode, u32 *bridge_agpstat, u32 *vga_
 	switch (*bridge_agpstat & 7) {
 	case 4:
 		*bridge_agpstat |= (AGPSTAT2_2X | AGPSTAT2_1X);
-		printk(KERN_INFO PFX "BIOS bug. AGP bridge claims to only support x4 rate"
+		printk(KERN_INFO PFX "BIOS bug. AGP bridge claims to only support x4 rate. "
 			"Fixing up support for x2 & x1\n");
 		break;
 	case 2:
 		*bridge_agpstat |= AGPSTAT2_1X;
-		printk(KERN_INFO PFX "BIOS bug. AGP bridge claims to only support x2 rate"
+		printk(KERN_INFO PFX "BIOS bug. AGP bridge claims to only support x2 rate. "
 			"Fixing up support for x1\n");
 		break;
 	default:
@@ -693,7 +681,7 @@ static void agp_v3_parse_one(u32 *requested_mode, u32 *bridge_agpstat, u32 *vga_
 			*bridge_agpstat &= ~(AGPSTAT3_4X | AGPSTAT3_RSVD);
 			*vga_agpstat &= ~(AGPSTAT3_4X | AGPSTAT3_RSVD);
 		} else {
-			printk(KERN_INFO PFX "Fell back to AGPx4 mode because");
+			printk(KERN_INFO PFX "Fell back to AGPx4 mode because ");
 			if (!(*bridge_agpstat & AGPSTAT3_8X)) {
 				printk(KERN_INFO PFX "bridge couldn't do x8. bridge_agpstat:%x (orig=%x)\n",
 					*bridge_agpstat, origbridge);
@@ -956,9 +944,9 @@ int agp_generic_create_gatt_table(struct agp_bridge_data *bridge)
 	bridge->driver->cache_flush();
 #ifdef CONFIG_X86
 	if (set_memory_uc((unsigned long)table, 1 << page_order))
-		printk(KERN_WARNING "Could not set GATT table memory to UC!");
+		printk(KERN_WARNING "Could not set GATT table memory to UC!\n");
 
-	bridge->gatt_table = (void *)table;
+	bridge->gatt_table = (u32 __iomem *)table;
 #else
 	bridge->gatt_table = ioremap_nocache(virt_to_phys(table),
 					(PAGE_SIZE * (1 << page_order)));
@@ -1010,7 +998,6 @@ int agp_generic_free_gatt_table(struct agp_bridge_data *bridge)
 	case LVL2_APER_SIZE:
 		/* The generic routines can't deal with 2 level gatt's */
 		return -EINVAL;
-		break;
 	default:
 		page_order = 0;
 		break;
@@ -1077,7 +1064,6 @@ int agp_generic_insert_memory(struct agp_memory * mem, off_t pg_start, int type)
 	case LVL2_APER_SIZE:
 		/* The generic routines can't deal with 2 level gatt's */
 		return -EINVAL;
-		break;
 	default:
 		num_entries = 0;
 		break;
@@ -1398,8 +1384,8 @@ int agp3_generic_configure(void)
 
 	current_size = A_SIZE_16(agp_bridge->current_size);
 
-	pci_read_config_dword(agp_bridge->dev, AGP_APBASE, &temp);
-	agp_bridge->gart_bus_addr = (temp & PCI_BASE_ADDRESS_MEM_MASK);
+	agp_bridge->gart_bus_addr = pci_bus_address(agp_bridge->dev,
+						    AGP_APERTURE_BAR);
 
 	/* set aperture size */
 	pci_write_config_word(agp_bridge->dev, agp_bridge->capndx+AGPAPSIZE, current_size->size_value);

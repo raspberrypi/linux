@@ -9,8 +9,7 @@
 #ifndef __ASSEMBLY__
 
 #include <asm/ptrace-abi.h>
-#include <asm/user.h>
-#include "sysdep/ptrace.h"
+#include <sysdep/ptrace.h>
 
 struct pt_regs {
 	struct uml_pt_regs regs;
@@ -38,6 +37,8 @@ extern int putreg(struct task_struct *child, int regno, unsigned long value);
 
 extern int arch_copy_tls(struct task_struct *new);
 extern void clear_flushed_tls(struct task_struct *task);
+extern void syscall_trace_enter(struct pt_regs *regs);
+extern void syscall_trace_leave(struct pt_regs *regs);
 
 #endif
 

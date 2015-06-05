@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006 - 2009 Intel Corporation.  All rights reserved.
+ * Copyright (c) 2006 - 2011 Intel Corporation.  All rights reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -56,7 +56,7 @@ static u16 nes_read16_eeprom(void __iomem *addr, u16 offset);
 u32 mh_detected;
 u32 mh_pauses_sent;
 
-u32 nes_set_pau(struct nes_device *nesdev)
+static u32 nes_set_pau(struct nes_device *nesdev)
 {
 	u32 ret = 0;
 	u32 counter;
@@ -699,7 +699,7 @@ int nes_arp_table(struct nes_device *nesdev, u32 ip_addr, u8 *mac_addr, u32 acti
 
 		arp_index = 0;
 		err = nes_alloc_resource(nesadapter, nesadapter->allocated_arps,
-				nesadapter->arp_table_size, (u32 *)&arp_index, &nesadapter->next_arp_index);
+				nesadapter->arp_table_size, (u32 *)&arp_index, &nesadapter->next_arp_index, NES_RESOURCE_ARP);
 		if (err) {
 			nes_debug(NES_DBG_NETDEV, "nes_alloc_resource returned error = %u\n", err);
 			return err;

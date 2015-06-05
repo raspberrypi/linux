@@ -114,7 +114,7 @@ void __init replicate_kernel_text()
  * data structures on the first couple of pages of the first slot of each
  * node. If this is the case, getfirstfree(node) > getslotstart(node, 0).
  */
-pfn_t node_getfirstfree(cnodeid_t cnode)
+unsigned long node_getfirstfree(cnodeid_t cnode)
 {
 	unsigned long loadbase = REP_BASE;
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
@@ -125,8 +125,7 @@ pfn_t node_getfirstfree(cnodeid_t cnode)
 #endif
 	offset = PAGE_ALIGN((unsigned long)(&_end)) - loadbase;
 	if ((cnode == 0) || (cpu_isset(cnode, ktext_repmask)))
-		return (TO_NODE(nasid, offset) >> PAGE_SHIFT);
+		return TO_NODE(nasid, offset) >> PAGE_SHIFT;
 	else
-		return (KDM_TO_PHYS(PAGE_ALIGN(SYMMON_STK_ADDR(nasid, 0))) >>
-								PAGE_SHIFT);
+		return KDM_TO_PHYS(PAGE_ALIGN(SYMMON_STK_ADDR(nasid, 0))) >> PAGE_SHIFT;
 }

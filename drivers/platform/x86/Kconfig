@@ -26,6 +26,8 @@ config ACER_WMI
 	depends on RFKILL || RFKILL = n
 	depends on ACPI_WMI
 	select INPUT_SPARSEKMAP
+	# Acer WMI depends on ACPI_VIDEO when ACPI is enabled
+        select ACPI_VIDEO if ACPI
 	---help---
 	  This is a driver for newer Acer (and Wistron) laptops. It adds
 	  wireless radio and bluetooth control, and on some laptops,
@@ -36,7 +38,8 @@ config ACER_WMI
 
 config ACERHDF
 	tristate "Acer Aspire One temperature and fan driver"
-	depends on THERMAL && ACPI
+	depends on ACPI && THERMAL
+	select THERMAL_GOV_BANG_BANG
 	---help---
 	  This is a driver for Acer Aspire One netbooks. It allows to access
 	  the temperature sensor and to control the fan.
@@ -51,10 +54,21 @@ config ACERHDF
 	  If you have an Acer Aspire One netbook, say Y or M
 	  here.
 
+config ALIENWARE_WMI
+	tristate "Alienware Special feature control"
+	depends on ACPI
+	depends on LEDS_CLASS
+	depends on NEW_LEDS
+	depends on ACPI_WMI
+	---help---
+	 This is a driver for controlling Alienware BIOS driven
+	 features.  It exposes an interface for controlling the AlienFX
+	 zones on Alienware machines that don't contain a dedicated AlienFX
+	 USB MCU such as the X51 and X51-R2.
+
 config ASUS_LAPTOP
 	tristate "Asus Laptop Extras"
 	depends on ACPI
-	depends on !ACPI_ASUS
 	select LEDS_CLASS
 	select NEW_LEDS
 	select BACKLIGHT_CLASS_DEVICE
@@ -77,10 +91,9 @@ config ASUS_LAPTOP
 	  If you have an ACPI-compatible ASUS laptop, say Y or M here.
 
 config DELL_LAPTOP
-	tristate "Dell Laptop Extras (EXPERIMENTAL)"
+	tristate "Dell Laptop Extras"
 	depends on X86
 	depends on DCDBAS
-	depends on EXPERIMENTAL
 	depends on BACKLIGHT_CLASS_DEVICE
 	depends on RFKILL || RFKILL = n
 	depends on SERIO_I8042
@@ -90,7 +103,7 @@ config DELL_LAPTOP
 	default n
 	---help---
 	This driver adds support for rfkill and backlight control to Dell
-	laptops.
+	laptops (except for some models covered by the Compal driver).
 
 config DELL_WMI
 	tristate "Dell WMI extras"
@@ -114,6 +127,16 @@ config DELL_WMI_AIO
 
 	  To compile this driver as a module, choose M here: the module will
 	  be called dell-wmi-aio.
+
+config DELL_SMO8800
+	tristate "Dell Latitude freefall driver (ACPI SMO88XX)"
+	depends on ACPI
+	---help---
+	  Say Y here if you want to support SMO88XX freefall devices
+	  on Dell Latitude laptops.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called dell-smo8800.
 
 
 config FUJITSU_LAPTOP
@@ -143,10 +166,34 @@ config FUJITSU_LAPTOP_DEBUG
 
 	  If you are not sure, say N here.
 
+config FUJITSU_TABLET
+       tristate "Fujitsu Tablet Extras"
+       depends on ACPI
+       depends on INPUT
+       ---help---
+         This is a driver for tablets built by Fujitsu:
+
+           * Lifebook P1510/P1610/P1620/Txxxx
+           * Stylistic ST5xxx
+           * Possibly other Fujitsu tablet models
+
+         It adds support for the panel buttons, docking station detection,
+         tablet/notebook mode detection for convertible and
+         orientation detection for docked slates.
+
+         If you have a Fujitsu convertible or slate, say Y or M here.
+
+config AMILO_RFKILL
+	tristate "Fujitsu-Siemens Amilo rfkill support"
+	depends on RFKILL
+	depends on SERIO_I8042
+	---help---
+	  This is a driver for enabling wifi on some Fujitsu-Siemens Amilo
+	  laptops.
+
 config TC1100_WMI
-	tristate "HP Compaq TC1100 Tablet WMI Extras (EXPERIMENTAL)"
+	tristate "HP Compaq TC1100 Tablet WMI Extras"
 	depends on !X86_64
-	depends on EXPERIMENTAL
 	depends on ACPI
 	depends on ACPI_WMI
 	---help---
@@ -156,6 +203,7 @@ config TC1100_WMI
 config HP_ACCEL
 	tristate "HP laptop accelerometer"
 	depends on INPUT && ACPI
+	depends on SERIO_I8042
 	select SENSORS_LIS3LV02D
 	select NEW_LEDS
 	select LEDS_CLASS
@@ -170,6 +218,17 @@ config HP_ACCEL
 
 	  To compile this driver as a module, choose M here: the module will
 	  be called hp_accel.
+
+config HP_WIRELESS
+	tristate "HP wireless button"
+	depends on ACPI
+	depends on INPUT
+	help
+	 This driver provides supports for new HP wireless button for Windows 8.
+	 On such systems the driver should load automatically (via ACPI alias).
+
+	 To compile this driver as a module, choose M here: the module will
+	 be called hp-wireless.
 
 config HP_WMI
 	tristate "HP WMI extras"
@@ -218,23 +277,21 @@ config PANASONIC_LAPTOP
 	  R2, R3, R5, T2, W2 and Y2 series), say Y.
 
 config COMPAL_LAPTOP
-	tristate "Compal Laptop Extras"
+	tristate "Compal (and others) Laptop Extras"
 	depends on ACPI
 	depends on BACKLIGHT_CLASS_DEVICE
 	depends on RFKILL
 	depends on HWMON
 	depends on POWER_SUPPLY
 	---help---
-	  This is a driver for laptops built by Compal:
+	  This is a driver for laptops built by Compal, and some models by
+	  other brands (e.g. Dell, Toshiba).
 
-	  Compal FL90/IFL90
-	  Compal FL91/IFL91
-	  Compal FL92/JFL92
-	  Compal FT00/IFT00
+	  It adds support for rfkill, Bluetooth, WLAN and LCD brightness
+	  control.
 
-	  It adds support for Bluetooth, WLAN and LCD brightness control.
-
-	  If you have an Compal FL9x/IFL9x/FT00 laptop, say Y or M here.
+	  For a (possibly incomplete) list of supported laptops, please refer
+	  to: Documentation/platform/x86-laptop-drivers.txt
 
 config SONY_LAPTOP
 	tristate "Sony Laptop Extras"
@@ -262,9 +319,12 @@ config IDEAPAD_LAPTOP
 	tristate "Lenovo IdeaPad Laptop Extras"
 	depends on ACPI
 	depends on RFKILL && INPUT
+	depends on SERIO_I8042
+	depends on BACKLIGHT_CLASS_DEVICE
 	select INPUT_SPARSEKMAP
 	help
-	  This is a driver for the rfkill switches on Lenovo IdeaPad netbooks.
+	  This is a driver for Lenovo IdeaPad netbooks contains drivers for
+	  rfkill switch, hotkey, fan control and backlight control.
 
 config THINKPAD_ACPI
 	tristate "ThinkPad ACPI Laptop Extras"
@@ -436,10 +496,9 @@ config INTEL_MENLOW
 	  If unsure, say N.
 
 config EEEPC_LAPTOP
-	tristate "Eee PC Hotkey Driver (EXPERIMENTAL)"
+	tristate "Eee PC Hotkey Driver"
 	depends on ACPI
 	depends on INPUT
-	depends on EXPERIMENTAL
 	depends on RFKILL || RFKILL = n
 	depends on HOTPLUG_PCI
 	select BACKLIGHT_CLASS_DEVICE
@@ -458,14 +517,14 @@ config EEEPC_LAPTOP
 	  doesn't work on your Eee PC, try eeepc-wmi instead.
 
 config ASUS_WMI
-	tristate "ASUS WMI Driver (EXPERIMENTAL)"
+	tristate "ASUS WMI Driver"
 	depends on ACPI_WMI
 	depends on INPUT
 	depends on HWMON
-	depends on EXPERIMENTAL
 	depends on BACKLIGHT_CLASS_DEVICE
 	depends on RFKILL || RFKILL = n
 	depends on HOTPLUG_PCI
+	depends on ACPI_VIDEO || ACPI_VIDEO = n
 	select INPUT_SPARSEKMAP
 	select LEDS_CLASS
 	select NEW_LEDS
@@ -477,26 +536,26 @@ config ASUS_WMI
 	  be called asus-wmi.
 
 config ASUS_NB_WMI
-	tristate "Asus Notebook WMI Driver (EXPERIMENTAL)"
+	tristate "Asus Notebook WMI Driver"
 	depends on ASUS_WMI
 	---help---
 	  This is a driver for newer Asus notebooks. It adds extra features
 	  like wireless radio and bluetooth control, leds, hotkeys, backlight...
 
-	  For more informations, see
+	  For more information, see
 	  <file:Documentation/ABI/testing/sysfs-platform-asus-wmi>
 
 	  If you have an ACPI-WMI compatible Asus Notebook, say Y or M
 	  here.
 
 config EEEPC_WMI
-	tristate "Eee PC WMI Driver (EXPERIMENTAL)"
+	tristate "Eee PC WMI Driver"
 	depends on ASUS_WMI
 	---help---
 	  This is a driver for newer Eee PC laptops. It adds extra features
 	  like wireless radio and bluetooth control, leds, hotkeys, backlight...
 
-	  For more informations, see
+	  For more information, see
 	  <file:Documentation/ABI/testing/sysfs-platform-asus-wmi>
 
 	  If you have an ACPI-WMI compatible Eee PC laptop (>= 1000), say Y or M
@@ -535,38 +594,6 @@ config MSI_WMI
 	 To compile this driver as a module, choose M here: the module will
 	 be called msi-wmi.
 
-config ACPI_ASUS
-	tristate "ASUS/Medion Laptop Extras (DEPRECATED)"
-	depends on ACPI
-	select BACKLIGHT_CLASS_DEVICE
-	---help---
-	  This driver provides support for extra features of ACPI-compatible
-	  ASUS laptops. As some of Medion laptops are made by ASUS, it may also
-	  support some Medion laptops (such as 9675 for example).  It makes all
-	  the extra buttons generate standard ACPI events that go through
-	  /proc/acpi/events, and (on some models) adds support for changing the
-	  display brightness and output, switching the LCD backlight on and off,
-	  and most importantly, allows you to blink those fancy LEDs intended
-	  for reporting mail and wireless status.
-
-	  Note: display switching code is currently considered EXPERIMENTAL,
-	  toying with these values may even lock your machine.
-
-	  All settings are changed via /proc/acpi/asus directory entries. Owner
-	  and group for these entries can be set with asus_uid and asus_gid
-	  parameters.
-
-	  More information and a userspace daemon for handling the extra buttons
-	  at <http://acpi4asus.sf.net>.
-
-	  If you have an ACPI-compatible ASUS laptop, say Y or M here. This
-	  driver is still under development, so if your laptop is unsupported or
-	  something works not quite as expected, please use the mailing list
-	  available on the above page (acpi4asus-user@lists.sourceforge.net).
-
-	  NOTE: This driver is deprecated and will probably be removed soon,
-	  use asus-laptop instead.
-
 config TOPSTAR_LAPTOP
 	tristate "Topstar Laptop Extras"
 	depends on ACPI
@@ -580,11 +607,13 @@ config TOPSTAR_LAPTOP
 config ACPI_TOSHIBA
 	tristate "Toshiba Laptop Extras"
 	depends on ACPI
+	depends on ACPI_WMI
 	select LEDS_CLASS
 	select NEW_LEDS
 	depends on BACKLIGHT_CLASS_DEVICE
 	depends on INPUT
 	depends on RFKILL || RFKILL = n
+	depends on SERIO_I8042 || SERIO_I8042 = n
 	select INPUT_POLLDEV
 	select INPUT_SPARSEKMAP
 	---help---
@@ -625,6 +654,25 @@ config TOSHIBA_BT_RFKILL
 	  If you have a modern Toshiba laptop with a Bluetooth and an
 	  RFKill switch (such as the Portege R500), say Y.
 
+config TOSHIBA_HAPS
+	tristate "Toshiba HDD Active Protection Sensor"
+	depends on ACPI
+	---help---
+	  This driver adds support for the built-in accelerometer
+	  found on recent Toshiba laptops equiped with HID TOS620A
+	  device.
+
+	  This driver receives ACPI notify events 0x80 when the sensor
+	  detects a sudden move or a harsh vibration, as well as an
+	  ACPI notify event 0x81 whenever the movement or vibration has
+	  been stabilized.
+
+	  Also provides sysfs entries to get/set the desired protection
+	  level and reseting the HDD protection interface.
+
+	  If you have a recent Toshiba laptop with a built-in accelerometer
+	  device, say Y.
+
 config ACPI_CMPC
 	tristate "CMPC Laptop Extras"
 	depends on X86 && ACPI
@@ -639,7 +687,7 @@ config ACPI_CMPC
 
 config INTEL_SCU_IPC
 	bool "Intel SCU IPC Support"
-	depends on X86_MRST
+	depends on X86_INTEL_MID
 	default y
 	---help---
 	  IPC is used to bridge the communications between kernel and SCU on
@@ -672,32 +720,10 @@ config INTEL_MID_POWER_BUTTON
 
 config INTEL_MFLD_THERMAL
        tristate "Thermal driver for Intel Medfield platform"
-       depends on INTEL_SCU_IPC && THERMAL
+       depends on MFD_INTEL_MSIC && THERMAL
        help
          Say Y here to enable thermal driver support for the  Intel Medfield
          platform.
-
-config RAR_REGISTER
-	bool "Restricted Access Region Register Driver"
-	depends on PCI && X86_MRST
-	default n
-	---help---
-	  This driver allows other kernel drivers access to the
-	  contents of the restricted access region control registers.
-
-	  The restricted access region control registers
-	  (rar_registers) are used to pass address and
-	  locking information on restricted access regions
-	  to other drivers that use restricted access regions.
-
-	  The restricted access regions are regions of memory
-	  on the Intel MID Platform that are not accessible to
-	  the x86 processor, but are accessible to dedicated
-	  processors on board peripheral devices.
-
-	  The purpose of the restricted access regions is to
-	  protect sensitive data from compromise by unauthorized
-	  programs running on the x86 processor.
 
 config INTEL_IPS
 	tristate "Intel Intelligent Power Sharing"
@@ -708,6 +734,31 @@ config INTEL_IPS
 	  along with the CPU frequency and i915 drivers, provides that
 	  functionality.  If in doubt, say Y here; it will only load on
 	  supported platforms.
+
+config INTEL_IMR
+	bool "Intel Isolated Memory Region support"
+	default n
+	depends on X86_INTEL_QUARK && IOSF_MBI
+	---help---
+	  This option provides a means to manipulate Isolated Memory Regions.
+	  IMRs are a set of registers that define read and write access masks
+	  to prohibit certain system agents from accessing memory with 1 KiB
+	  granularity.
+
+	  IMRs make it possible to control read/write access to an address
+	  by hardware agents inside the SoC. Read and write masks can be
+	  defined for:
+		- eSRAM flush
+		- Dirty CPU snoop (write only)
+		- RMU access
+		- PCI Virtual Channel 0/Virtual Channel 1
+		- SMM mode
+		- Non SMM mode
+
+	  Quark contains a set of eight IMR registers and makes use of those
+	  registers during its bootup process.
+
+	  If you are running on a Galileo/Quark say Y here.
 
 config IBM_RTL
 	tristate "Device driver to enable PRTL support"
@@ -727,7 +778,7 @@ config IBM_RTL
 
 config XO1_RFKILL
 	tristate "OLPC XO-1 software RF kill switch"
-	depends on OLPC
+	depends on OLPC || COMPILE_TEST
 	depends on RFKILL
 	---help---
 	  Support for enabling/disabling the WLAN interface on the OLPC XO-1
@@ -735,6 +786,7 @@ config XO1_RFKILL
 
 config XO15_EBOOK
 	tristate "OLPC XO-1.5 ebook switch"
+	depends on OLPC || COMPILE_TEST
 	depends on ACPI && INPUT
 	---help---
 	  Support for the ebook switch on the OLPC XO-1.5 laptop.
@@ -744,13 +796,19 @@ config XO15_EBOOK
 
 config SAMSUNG_LAPTOP
 	tristate "Samsung Laptop driver"
-	depends on RFKILL && BACKLIGHT_CLASS_DEVICE && X86
+	depends on X86
+	depends on RFKILL || RFKILL = n
+	depends on ACPI_VIDEO || ACPI_VIDEO = n
+	depends on BACKLIGHT_CLASS_DEVICE
+	select LEDS_CLASS
+	select NEW_LEDS
 	---help---
 	  This module implements a driver for a wide range of different
 	  Samsung laptops.  It offers control over the different
-	  function keys, wireless LED, LCD backlight level, and
-	  sometimes provides a "performance_control" sysfs file to allow
-	  the performance level of the laptop to be changed.
+	  function keys, wireless LED, LCD backlight level.
+
+	  It may also provide some sysfs files described in
+	  <file:Documentation/ABI/testing/sysfs-platform-samsung-laptop>
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called samsung-laptop.
@@ -773,10 +831,57 @@ config INTEL_OAKTRAIL
 
 config SAMSUNG_Q10
 	tristate "Samsung Q10 Extras"
-	depends on SERIO_I8042
+	depends on ACPI
 	select BACKLIGHT_CLASS_DEVICE
 	---help---
 	  This driver provides support for backlight control on Samsung Q10
 	  and related laptops, including Dell Latitude X200.
+
+config APPLE_GMUX
+	tristate "Apple Gmux Driver"
+	depends on ACPI
+	depends on PNP
+	depends on BACKLIGHT_CLASS_DEVICE
+	depends on BACKLIGHT_APPLE=n || BACKLIGHT_APPLE
+	depends on ACPI_VIDEO=n || ACPI_VIDEO
+	---help---
+	  This driver provides support for the gmux device found on many
+	  Apple laptops, which controls the display mux for the hybrid
+	  graphics as well as the backlight. Currently only backlight
+	  control is supported by the driver.
+
+config INTEL_RST
+        tristate "Intel Rapid Start Technology Driver"
+	depends on ACPI
+	---help---
+	  This driver provides support for modifying paramaters on systems
+	  equipped with Intel's Rapid Start Technology. When put in an ACPI
+	  sleep state, these devices will wake after either a configured
+	  timeout or when the system battery reaches a critical state,
+	  automatically copying memory contents to disk. On resume, the
+	  firmware will copy the memory contents back to RAM and resume the OS
+	  as usual.
+
+config INTEL_SMARTCONNECT
+        tristate "Intel Smart Connect disabling driver"
+	depends on ACPI
+	---help---
+	  Intel Smart Connect is a technology intended to permit devices to
+	  update state by resuming for a short period of time at regular
+	  intervals. If a user enables this functionality under Windows and
+	  then reboots into Linux, the system may remain configured to resume
+	  on suspend. In the absence of any userspace to support it, the system
+	  will then remain awake until something triggers another suspend.
+
+	  This driver checks to determine whether the device has Intel Smart
+	  Connect enabled, and if so disables it.
+
+config PVPANIC
+	tristate "pvpanic device support"
+	depends on ACPI
+	---help---
+	  This driver provides support for the pvpanic device.  pvpanic is
+	  a paravirtualized device provided by QEMU; it lets a virtual machine
+	  (guest) communicate panic events to the host.
 
 endif # X86_PLATFORM_DEVICES

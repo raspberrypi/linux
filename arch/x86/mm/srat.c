@@ -42,15 +42,31 @@ static __init inline int srat_disabled(void)
 	return acpi_numa < 0;
 }
 
-/* Callback for SLIT parsing */
+/*
+ * Callback for SLIT parsing.  pxm_to_node() returns NUMA_NO_NODE for
+ * I/O localities since SRAT does not list them.  I/O localities are
+ * not supported at this point.
+ */
 void __init acpi_numa_slit_init(struct acpi_table_slit *slit)
 {
 	int i, j;
 
-	for (i = 0; i < slit->locality_count; i++)
-		for (j = 0; j < slit->locality_count; j++)
-			numa_set_distance(pxm_to_node(i), pxm_to_node(j),
+	for (i = 0; i < slit->locality_count; i++) {
+		const int from_node = pxm_to_node(i);
+
+		if (from_node == NUMA_NO_NODE)
+			continue;
+
+		for (j = 0; j < slit->locality_count; j++) {
+			const int to_node = pxm_to_node(j);
+
+			if (to_node == NUMA_NO_NODE)
+				continue;
+
+			numa_set_distance(from_node, to_node,
 				slit->entry[slit->locality_count * i + j]);
+		}
+	}
 }
 
 /* Callback for Proximity Domain -> x2APIC mapping */
@@ -70,7 +86,7 @@ acpi_numa_x2apic_affinity_init(struct acpi_srat_x2apic_cpu_affinity *pa)
 		return;
 	pxm = pa->proximity_domain;
 	apic_id = pa->apic_id;
-	if (!cpu_has_x2apic && (apic_id >= 0xff)) {
+	if (!apic->apic_id_valid(apic_id)) {
 		printk(KERN_INFO "SRAT: PXM %u -> X2APIC 0x%04x ignored\n",
 			 pxm, apic_id);
 		return;
@@ -109,6 +125,8 @@ acpi_numa_processor_affinity_init(struct acpi_srat_cpu_affinity *pa)
 	if ((pa->flags & ACPI_SRAT_CPU_ENABLED) == 0)
 		return;
 	pxm = pa->proximity_domain_lo;
+	if (acpi_srat_revision >= 2)
+		pxm |= *((unsigned int*)pa->proximity_domain_hi) << 8;
 	node = setup_node(pxm);
 	if (node < 0) {
 		printk(KERN_ERR "SRAT: Too many proximity domains %x\n", pxm);
@@ -140,40 +158,55 @@ static inline int save_add_info(void) {return 0;}
 #endif
 
 /* Callback for parsing of the Proximity Domain <-> Memory Area mappings */
-void __init
+int __init
 acpi_numa_memory_affinity_init(struct acpi_srat_mem_affinity *ma)
 {
 	u64 start, end;
+	u32 hotpluggable;
 	int node, pxm;
 
 	if (srat_disabled())
-		return;
-	if (ma->header.length != sizeof(struct acpi_srat_mem_affinity)) {
-		bad_srat();
-		return;
-	}
+		goto out_err;
+	if (ma->header.length != sizeof(struct acpi_srat_mem_affinity))
+		goto out_err_bad_srat;
 	if ((ma->flags & ACPI_SRAT_MEM_ENABLED) == 0)
-		return;
+		goto out_err;
+	hotpluggable = ma->flags & ACPI_SRAT_MEM_HOT_PLUGGABLE;
+	if (hotpluggable && !save_add_info())
+		goto out_err;
 
-	if ((ma->flags & ACPI_SRAT_MEM_HOT_PLUGGABLE) && !save_add_info())
-		return;
 	start = ma->base_address;
 	end = start + ma->length;
 	pxm = ma->proximity_domain;
+	if (acpi_srat_revision <= 1)
+		pxm &= 0xff;
+
 	node = setup_node(pxm);
 	if (node < 0) {
 		printk(KERN_ERR "SRAT: Too many proximity domains.\n");
-		bad_srat();
-		return;
+		goto out_err_bad_srat;
 	}
 
-	if (numa_add_memblk(node, start, end) < 0) {
-		bad_srat();
-		return;
-	}
+	if (numa_add_memblk(node, start, end) < 0)
+		goto out_err_bad_srat;
 
-	printk(KERN_INFO "SRAT: Node %u PXM %u %Lx-%Lx\n", node, pxm,
-	       start, end);
+	node_set(node, numa_nodes_parsed);
+
+	pr_info("SRAT: Node %u PXM %u [mem %#010Lx-%#010Lx]%s\n",
+		node, pxm,
+		(unsigned long long) start, (unsigned long long) end - 1,
+		hotpluggable ? " hotplug" : "");
+
+	/* Mark hotplug range in memblock. */
+	if (hotpluggable && memblock_mark_hotplug(start, ma->length))
+		pr_warn("SRAT: Failed to mark hotplug range [mem %#010Lx-%#010Lx] in memblock\n",
+			(unsigned long long)start, (unsigned long long)end - 1);
+
+	return 0;
+out_err_bad_srat:
+	bad_srat();
+out_err:
+	return -1;
 }
 
 void __init acpi_numa_arch_fixup(void) {}

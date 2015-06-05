@@ -50,13 +50,13 @@ static void inftl_add_mtd(struct mtd_blktrans_ops *tr, struct mtd_info *mtd)
 	struct INFTLrecord *inftl;
 	unsigned long temp;
 
-	if (mtd->type != MTD_NANDFLASH || mtd->size > UINT_MAX)
+	if (!mtd_type_is_nand(mtd) || mtd->size > UINT_MAX)
 		return;
 	/* OK, this is moderately ugly.  But probably safe.  Alternatives? */
 	if (memcmp(mtd->name, "DiskOnChip", 10))
 		return;
 
-	if (!mtd->block_isbad) {
+	if (!mtd->_block_isbad) {
 		printk(KERN_ERR
 "INFTL no longer supports the old DiskOnChip drivers loaded via docprobe.\n"
 "Please use the new diskonchip driver under the NAND subsystem.\n");
@@ -158,7 +158,7 @@ int inftl_read_oob(struct mtd_info *mtd, loff_t offs, size_t len,
 	ops.oobbuf = buf;
 	ops.datbuf = NULL;
 
-	res = mtd->read_oob(mtd, offs & ~(mtd->writesize - 1), &ops);
+	res = mtd_read_oob(mtd, offs & ~(mtd->writesize - 1), &ops);
 	*retlen = ops.oobretlen;
 	return res;
 }
@@ -178,7 +178,7 @@ int inftl_write_oob(struct mtd_info *mtd, loff_t offs, size_t len,
 	ops.oobbuf = buf;
 	ops.datbuf = NULL;
 
-	res = mtd->write_oob(mtd, offs & ~(mtd->writesize - 1), &ops);
+	res = mtd_write_oob(mtd, offs & ~(mtd->writesize - 1), &ops);
 	*retlen = ops.oobretlen;
 	return res;
 }
@@ -199,7 +199,7 @@ static int inftl_write(struct mtd_info *mtd, loff_t offs, size_t len,
 	ops.datbuf = buf;
 	ops.len = len;
 
-	res = mtd->write_oob(mtd, offs & ~(mtd->writesize - 1), &ops);
+	res = mtd_write_oob(mtd, offs & ~(mtd->writesize - 1), &ops);
 	*retlen = ops.retlen;
 	return res;
 }
@@ -343,14 +343,17 @@ static u16 INFTL_foldchain(struct INFTLrecord *inftl, unsigned thisVUC, unsigned
 		if (BlockMap[block] == BLOCK_NIL)
 			continue;
 
-		ret = mtd->read(mtd, (inftl->EraseSize * BlockMap[block]) +
-				(block * SECTORSIZE), SECTORSIZE, &retlen,
-				movebuf);
+		ret = mtd_read(mtd,
+			       (inftl->EraseSize * BlockMap[block]) + (block * SECTORSIZE),
+			       SECTORSIZE,
+			       &retlen,
+			       movebuf);
 		if (ret < 0 && !mtd_is_bitflip(ret)) {
-			ret = mtd->read(mtd,
-					(inftl->EraseSize * BlockMap[block]) +
-					(block * SECTORSIZE), SECTORSIZE,
-					&retlen, movebuf);
+			ret = mtd_read(mtd,
+				       (inftl->EraseSize * BlockMap[block]) + (block * SECTORSIZE),
+				       SECTORSIZE,
+				       &retlen,
+				       movebuf);
 			if (ret != -EIO)
 				pr_debug("INFTL: error went away on retry?\n");
 		}
@@ -914,7 +917,7 @@ foundit:
 	} else {
 		size_t retlen;
 		loff_t ptr = (thisEUN * inftl->EraseSize) + blockofs;
-		int ret = mtd->read(mtd, ptr, SECTORSIZE, &retlen, buffer);
+		int ret = mtd_read(mtd, ptr, SECTORSIZE, &retlen, buffer);
 
 		/* Handle corrected bit flips gracefully */
 		if (ret < 0 && !mtd_is_bitflip(ret))

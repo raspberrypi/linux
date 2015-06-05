@@ -854,8 +854,8 @@ static int ct_mixer_get_resources(struct ct_mixer *mixer)
 	for (i = 0; i < (NUM_CT_SUMS * CHN_NUM); i++) {
 		err = sum_mgr->get_sum(sum_mgr, &sum_desc, &sum);
 		if (err) {
-			printk(KERN_ERR "ctxfi:Failed to get sum resources for "
-					  "front output!\n");
+			dev_err(mixer->atc->card->dev,
+				"Failed to get sum resources for front output!\n");
 			break;
 		}
 		mixer->sums[i] = sum;
@@ -869,8 +869,8 @@ static int ct_mixer_get_resources(struct ct_mixer *mixer)
 	for (i = 0; i < (NUM_CT_AMIXERS * CHN_NUM); i++) {
 		err = amixer_mgr->get_amixer(amixer_mgr, &am_desc, &amixer);
 		if (err) {
-			printk(KERN_ERR "ctxfi:Failed to get amixer resources "
-			       "for mixer obj!\n");
+			dev_err(mixer->atc->card->dev,
+				"Failed to get amixer resources for mixer obj!\n");
 			break;
 		}
 		mixer->amixers[i] = amixer;
@@ -1118,7 +1118,7 @@ mixer_set_input_right(struct ct_mixer *mixer,
 	return 0;
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 static int mixer_resume(struct ct_mixer *mixer)
 {
 	int i, state;
@@ -1188,7 +1188,7 @@ int ct_mixer_create(struct ct_atc *atc, struct ct_mixer **rmixer)
 	mixer->get_output_ports = mixer_get_output_ports;
 	mixer->set_input_left = mixer_set_input_left;
 	mixer->set_input_right = mixer_set_input_right;
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 	mixer->resume = mixer_resume;
 #endif
 

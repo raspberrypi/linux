@@ -9,9 +9,9 @@
 #include <linux/kernel.h>
 #include <linux/of_platform.h>
 #include <linux/export.h>
+#include <asm/mpc5xxx.h>
 
-unsigned int
-mpc5xxx_get_bus_frequency(struct device_node *node)
+unsigned long mpc5xxx_get_bus_frequency(struct device_node *node)
 {
 	struct device_node *np;
 	const unsigned int *p_bus_freq = NULL;
@@ -26,8 +26,7 @@ mpc5xxx_get_bus_frequency(struct device_node *node)
 		of_node_put(node);
 		node = np;
 	}
-	if (node)
-		of_node_put(node);
+	of_node_put(node);
 
 	return p_bus_freq ? *p_bus_freq : 0;
 }

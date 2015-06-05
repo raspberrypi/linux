@@ -32,7 +32,9 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/pci.h>
+#include <asm/system_info.h>
 #include <mach/orion5x.h>
+#include <plat/orion-gpio.h>
 #include "common.h"
 #include "mpp.h"
 
@@ -85,7 +87,6 @@ static int __init dns323_pci_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
 
 static struct hw_pci dns323_pci __initdata = {
 	.nr_controllers = 2,
-	.swizzle	= pci_std_swizzle,
 	.setup		= orion5x_pci_sys_setup,
 	.scan		= orion5x_pci_sys_scan_bus,
 	.map_irq	= dns323_pci_map_irq,
@@ -252,27 +253,6 @@ error_fail:
  * GPIO LEDs (simple - doesn't use hardware blinking support)
  */
 
-#define ORION_BLINK_HALF_PERIOD 100 /* ms */
-
-static int dns323_gpio_blink_set(unsigned gpio, int state,
-	unsigned long *delay_on, unsigned long *delay_off)
-{
-
-	if (delay_on && delay_off && !*delay_on && !*delay_off)
-		*delay_on = *delay_off = ORION_BLINK_HALF_PERIOD;
-
-	switch(state) {
-	case GPIO_LED_NO_BLINK_LOW:
-	case GPIO_LED_NO_BLINK_HIGH:
-		orion_gpio_set_blink(gpio, 0);
-		gpio_set_value(gpio, state);
-		break;
-	case GPIO_LED_BLINK:
-		orion_gpio_set_blink(gpio, 1);
-	}
-	return 0;
-}
-
 static struct gpio_led dns323ab_leds[] = {
 	{
 		.name = "power:blue",
@@ -311,13 +291,13 @@ static struct gpio_led dns323c_leds[] = {
 static struct gpio_led_platform_data dns323ab_led_data = {
 	.num_leds	= ARRAY_SIZE(dns323ab_leds),
 	.leds		= dns323ab_leds,
-	.gpio_blink_set = dns323_gpio_blink_set,
+	.gpio_blink_set = orion_gpio_led_blink_set,
 };
 
 static struct gpio_led_platform_data dns323c_led_data = {
 	.num_leds	= ARRAY_SIZE(dns323c_leds),
 	.leds		= dns323c_leds,
-	.gpio_blink_set = dns323_gpio_blink_set,
+	.gpio_blink_set = orion_gpio_led_blink_set,
 };
 
 static struct platform_device dns323_gpio_leds = {
@@ -570,7 +550,7 @@ static int __init dns323_identify_rev(void)
 			break;
 	}
 	if (i >= 1000) {
-		pr_warning("DNS-323: Timeout accessing PHY, assuming rev B1\n");
+		pr_warn("DNS-323: Timeout accessing PHY, assuming rev B1\n");
 		return DNS323_REV_B1;
 	}
 	writel((3 << 21)	/* phy ID reg */ |
@@ -582,7 +562,7 @@ static int __init dns323_identify_rev(void)
 			break;
 	}
 	if (i >= 1000) {
-		pr_warning("DNS-323: Timeout reading PHY, assuming rev B1\n");
+		pr_warn("DNS-323: Timeout reading PHY, assuming rev B1\n");
 		return DNS323_REV_B1;
 	}
 	pr_debug("DNS-323: Ethernet PHY ID 0x%x\n", reg & 0xffff);
@@ -597,8 +577,8 @@ static int __init dns323_identify_rev(void)
 	case 0x0e10: /* MV88E1118 */
 		return DNS323_REV_C1;
 	default:
-		pr_warning("DNS-323: Unknown PHY ID 0x%04x, assuming rev B1\n",
-			   reg & 0xffff);
+		pr_warn("DNS-323: Unknown PHY ID 0x%04x, assuming rev B1\n",
+			reg & 0xffff);
 	}
 	return DNS323_REV_B1;
 }
@@ -631,7 +611,10 @@ static void __init dns323_init(void)
 	/* setup flash mapping
 	 * CS3 holds a 8 MB Spansion S29GL064M90TFIR4
 	 */
-	orion5x_setup_dev_boot_win(DNS323_NOR_BOOT_BASE, DNS323_NOR_BOOT_SIZE);
+	mvebu_mbus_add_window_by_id(ORION_MBUS_DEVBUS_BOOT_TARGET,
+				    ORION_MBUS_DEVBUS_BOOT_ATTR,
+				    DNS323_NOR_BOOT_BASE,
+				    DNS323_NOR_BOOT_SIZE);
 	platform_device_register(&dns323_nor_flash);
 
 	/* Sort out LEDs, Buttons and i2c devices */
@@ -659,6 +642,8 @@ static void __init dns323_init(void)
 		platform_device_register_simple("dns323c-fan", 0, NULL, 0);
 
 		/* Register fixup for the PHY LEDs */
+		if (!IS_BUILTIN(CONFIG_PHYLIB))
+			break;
 		phy_register_fixup_for_uid(MARVELL_PHY_ID_88E1118,
 					   MARVELL_PHY_ID_MASK,
 					   dns323c_phy_fixup);
@@ -721,7 +706,7 @@ static void __init dns323_init(void)
 		 * Note: AFAIK, rev B1 needs the same treatement but I'll let
 		 * somebody else test it.
 		 */
-		writel(0x5, ORION5X_SATA_VIRT_BASE | 0x2c);
+		writel(0x5, ORION5X_SATA_VIRT_BASE + 0x2c);
 		break;
 	}
 }
@@ -734,7 +719,7 @@ MACHINE_START(DNS323, "D-Link DNS-323")
 	.map_io		= orion5x_map_io,
 	.init_early	= orion5x_init_early,
 	.init_irq	= orion5x_init_irq,
-	.timer		= &orion5x_timer,
+	.init_time	= orion5x_timer_init,
 	.fixup		= tag_fixup_mem32,
 	.restart	= orion5x_restart,
 MACHINE_END

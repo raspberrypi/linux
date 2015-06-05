@@ -42,6 +42,7 @@
 #include <linux/completion.h>
 #include <linux/tracehook.h>
 #include <linux/slab.h>
+#include <linux/cpu.h>
 
 #include <asm/errno.h>
 #include <asm/intrinsics.h>
@@ -49,7 +50,6 @@
 #include <asm/perfmon.h>
 #include <asm/processor.h>
 #include <asm/signal.h>
-#include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/delay.h>
 
@@ -521,7 +521,7 @@ static pmu_config_t		*pmu_conf;
 pfm_sysctl_t pfm_sysctl;
 EXPORT_SYMBOL(pfm_sysctl);
 
-static ctl_table pfm_ctl_table[]={
+static struct ctl_table pfm_ctl_table[] = {
 	{
 		.procname	= "debug",
 		.data		= &pfm_sysctl.debug,
@@ -552,7 +552,7 @@ static ctl_table pfm_ctl_table[]={
 	},
 	{}
 };
-static ctl_table pfm_sysctl_dir[] = {
+static struct ctl_table pfm_sysctl_dir[] = {
 	{
 		.procname	= "perfmon",
 		.mode		= 0555,
@@ -560,7 +560,7 @@ static ctl_table pfm_sysctl_dir[] = {
 	},
  	{}
 };
-static ctl_table pfm_sysctl_root[] = {
+static struct ctl_table pfm_sysctl_root[] = {
 	{
 		.procname	= "kernel",
 		.mode		= 0555,
@@ -605,18 +605,6 @@ pfm_unprotect_ctx_ctxsw(pfm_context_t *x, unsigned long f)
 	spin_unlock(&(x)->ctx_lock);
 }
 
-static inline unsigned int
-pfm_do_munmap(struct mm_struct *mm, unsigned long addr, size_t len, int acct)
-{
-	return do_munmap(mm, addr, len);
-}
-
-static inline unsigned long 
-pfm_get_unmapped_area(struct file *file, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags, unsigned long exec)
-{
-	return get_unmapped_area(file, addr, len, pgoff, flags);
-}
-
 /* forward declaration */
 static const struct dentry_operations pfmfs_dentry_operations;
 
@@ -632,6 +620,7 @@ static struct file_system_type pfm_fs_type = {
 	.mount    = pfmfs_mount,
 	.kill_sb  = kill_anon_super,
 };
+MODULE_ALIAS_FS("pfmfs");
 
 DEFINE_PER_CPU(unsigned long, pfm_syst_info);
 DEFINE_PER_CPU(struct task_struct *, pmu_owner);
@@ -1334,8 +1323,6 @@ out:
 }
 EXPORT_SYMBOL(pfm_unregister_buffer_fmt);
 
-extern void update_pal_halt_status(int);
-
 static int
 pfm_reserve_session(struct task_struct *task, int is_syswide, unsigned int cpu)
 {
@@ -1383,9 +1370,9 @@ pfm_reserve_session(struct task_struct *task, int is_syswide, unsigned int cpu)
 		cpu));
 
 	/*
-	 * disable default_idle() to go to PAL_HALT
+	 * Force idle() into poll mode
 	 */
-	update_pal_halt_status(0);
+	cpu_idle_poll_ctrl(true);
 
 	UNLOCK_PFS(flags);
 
@@ -1442,11 +1429,8 @@ pfm_unreserve_session(pfm_context_t *ctx, int is_syswide, unsigned int cpu)
 		is_syswide,
 		cpu));
 
-	/*
-	 * if possible, enable default_idle() to go into PAL_HALT
-	 */
-	if (pfm_sessions.pfs_task_sessions == 0 && pfm_sessions.pfs_sys_sessions == 0)
-		update_pal_halt_status(1);
+	/* Undo forced polling. Last session reenables pal_halt */
+	cpu_idle_poll_ctrl(false);
 
 	UNLOCK_PFS(flags);
 
@@ -1459,8 +1443,9 @@ pfm_unreserve_session(pfm_context_t *ctx, int is_syswide, unsigned int cpu)
  * a PROTECT_CTX() section.
  */
 static int
-pfm_remove_smpl_mapping(struct task_struct *task, void *vaddr, unsigned long size)
+pfm_remove_smpl_mapping(void *vaddr, unsigned long size)
 {
+	struct task_struct *task = current;
 	int r;
 
 	/* sanity checks */
@@ -1474,13 +1459,8 @@ pfm_remove_smpl_mapping(struct task_struct *task, void *vaddr, unsigned long siz
 	/*
 	 * does the actual unmapping
 	 */
-	down_write(&task->mm->mmap_sem);
+	r = vm_munmap((unsigned long)vaddr, size);
 
-	DPRINT(("down_write done smpl_vaddr=%p size=%lu\n", vaddr, size));
-
-	r = pfm_do_munmap(task->mm, (unsigned long)vaddr, size, 0);
-
-	up_write(&task->mm->mmap_sem);
 	if (r !=0) {
 		printk(KERN_ERR "perfmon: [%d] unable to unmap sampling buffer @%p size=%lu\n", task_pid_nr(task), vaddr, size);
 	}
@@ -1946,7 +1926,7 @@ pfm_flush(struct file *filp, fl_owner_t id)
 	 * because some VM function reenables interrupts.
 	 *
 	 */
-	if (smpl_buf_vaddr) pfm_remove_smpl_mapping(current, smpl_buf_vaddr, smpl_buf_size);
+	if (smpl_buf_vaddr) pfm_remove_smpl_mapping(smpl_buf_vaddr, smpl_buf_size);
 
 	return 0;
 }
@@ -2165,32 +2145,16 @@ doit:
 	return 0;
 }
 
-static int
-pfm_no_open(struct inode *irrelevant, struct file *dontcare)
-{
-	DPRINT(("pfm_no_open called\n"));
-	return -ENXIO;
-}
-
-
-
 static const struct file_operations pfm_file_ops = {
 	.llseek		= no_llseek,
 	.read		= pfm_read,
 	.write		= pfm_write,
 	.poll		= pfm_poll,
 	.unlocked_ioctl = pfm_ioctl,
-	.open		= pfm_no_open,	/* special open code to disallow open via /proc */
 	.fasync		= pfm_fasync,
 	.release	= pfm_close,
 	.flush		= pfm_flush
 };
-
-static int
-pfmfs_delete_dentry(const struct dentry *dentry)
-{
-	return 1;
-}
 
 static char *pfmfs_dname(struct dentry *dentry, char *buffer, int buflen)
 {
@@ -2199,7 +2163,7 @@ static char *pfmfs_dname(struct dentry *dentry, char *buffer, int buflen)
 }
 
 static const struct dentry_operations pfmfs_dentry_operations = {
-	.d_delete = pfmfs_delete_dentry,
+	.d_delete = always_delete_dentry,
 	.d_dname = pfmfs_dname,
 };
 
@@ -2228,7 +2192,7 @@ pfm_alloc_file(pfm_context_t *ctx)
 	/*
 	 * allocate a new dcache entry
 	 */
-	path.dentry = d_alloc(pfmfs_mnt->mnt_sb->s_root, &this);
+	path.dentry = d_alloc(pfmfs_mnt->mnt_root, &this);
 	if (!path.dentry) {
 		iput(inode);
 		return ERR_PTR(-ENOMEM);
@@ -2238,9 +2202,9 @@ pfm_alloc_file(pfm_context_t *ctx)
 	d_add(path.dentry, inode);
 
 	file = alloc_file(&path, FMODE_READ, &pfm_file_ops);
-	if (!file) {
+	if (IS_ERR(file)) {
 		path_put(&path);
-		return ERR_PTR(-ENFILE);
+		return file;
 	}
 
 	file->f_flags = O_RDONLY;
@@ -2323,8 +2287,8 @@ pfm_smpl_buffer_alloc(struct task_struct *task, struct file *filp, pfm_context_t
 	 * partially initialize the vma for the sampling buffer
 	 */
 	vma->vm_mm	     = mm;
-	vma->vm_file	     = filp;
-	vma->vm_flags	     = VM_READ| VM_MAYREAD |VM_RESERVED;
+	vma->vm_file	     = get_file(filp);
+	vma->vm_flags	     = VM_READ|VM_MAYREAD|VM_DONTEXPAND|VM_DONTDUMP;
 	vma->vm_page_prot    = PAGE_READONLY; /* XXX may need to change */
 
 	/*
@@ -2344,8 +2308,8 @@ pfm_smpl_buffer_alloc(struct task_struct *task, struct file *filp, pfm_context_t
 	down_write(&task->mm->mmap_sem);
 
 	/* find some free area in address space, must have mmap sem held */
-	vma->vm_start = pfm_get_unmapped_area(NULL, 0, size, 0, MAP_PRIVATE|MAP_ANONYMOUS, 0);
-	if (vma->vm_start == 0UL) {
+	vma->vm_start = get_unmapped_area(NULL, 0, size, 0, MAP_PRIVATE|MAP_ANONYMOUS);
+	if (IS_ERR_VALUE(vma->vm_start)) {
 		DPRINT(("Cannot find unmapped area for size %ld\n", size));
 		up_write(&task->mm->mmap_sem);
 		goto error;
@@ -2362,15 +2326,12 @@ pfm_smpl_buffer_alloc(struct task_struct *task, struct file *filp, pfm_context_t
 		goto error;
 	}
 
-	get_file(filp);
-
 	/*
 	 * now insert the vma in the vm list for the process, must be
 	 * done with mmap lock held
 	 */
 	insert_vm_struct(mm, vma);
 
-	mm->total_vm  += size >> PAGE_SHIFT;
 	vm_stat_account(vma->vm_mm, vma->vm_flags, vma->vm_file,
 							vma_pages(vma));
 	up_write(&task->mm->mmap_sem);
@@ -2398,8 +2359,8 @@ static int
 pfm_bad_permissions(struct task_struct *task)
 {
 	const struct cred *tcred;
-	uid_t uid = current_uid();
-	gid_t gid = current_gid();
+	kuid_t uid = current_uid();
+	kgid_t gid = current_gid();
 	int ret;
 
 	rcu_read_lock();
@@ -2407,20 +2368,20 @@ pfm_bad_permissions(struct task_struct *task)
 
 	/* inspired by ptrace_attach() */
 	DPRINT(("cur: uid=%d gid=%d task: euid=%d suid=%d uid=%d egid=%d sgid=%d\n",
-		uid,
-		gid,
-		tcred->euid,
-		tcred->suid,
-		tcred->uid,
-		tcred->egid,
-		tcred->sgid));
+		from_kuid(&init_user_ns, uid),
+		from_kgid(&init_user_ns, gid),
+		from_kuid(&init_user_ns, tcred->euid),
+		from_kuid(&init_user_ns, tcred->suid),
+		from_kuid(&init_user_ns, tcred->uid),
+		from_kgid(&init_user_ns, tcred->egid),
+		from_kgid(&init_user_ns, tcred->sgid)));
 
-	ret = ((uid != tcred->euid)
-	       || (uid != tcred->suid)
-	       || (uid != tcred->uid)
-	       || (gid != tcred->egid)
-	       || (gid != tcred->sgid)
-	       || (gid != tcred->gid)) && !capable(CAP_SYS_PTRACE);
+	ret = ((!uid_eq(uid, tcred->euid))
+	       || (!uid_eq(uid, tcred->suid))
+	       || (!uid_eq(uid, tcred->uid))
+	       || (!gid_eq(gid, tcred->egid))
+	       || (!gid_eq(gid, tcred->sgid))
+	       || (!gid_eq(gid, tcred->gid))) && !capable(CAP_SYS_PTRACE);
 
 	rcu_read_unlock();
 	return ret;
@@ -2691,7 +2652,7 @@ pfm_context_create(pfm_context_t *ctx, void *arg, int count, struct pt_regs *reg
 
 	ret = -ENOMEM;
 
-	fd = get_unused_fd();
+	fd = get_unused_fd_flags(0);
 	if (fd < 0)
 		return fd;
 
@@ -4800,7 +4761,7 @@ recheck:
 asmlinkage long
 sys_perfmonctl (int fd, int cmd, void __user *arg, int count)
 {
-	struct file *file = NULL;
+	struct fd f = {NULL, 0};
 	pfm_context_t *ctx = NULL;
 	unsigned long flags = 0UL;
 	void *args_k = NULL;
@@ -4897,17 +4858,17 @@ restart_args:
 
 	ret = -EBADF;
 
-	file = fget(fd);
-	if (unlikely(file == NULL)) {
+	f = fdget(fd);
+	if (unlikely(f.file == NULL)) {
 		DPRINT(("invalid fd %d\n", fd));
 		goto error_args;
 	}
-	if (unlikely(PFM_IS_FILE(file) == 0)) {
+	if (unlikely(PFM_IS_FILE(f.file) == 0)) {
 		DPRINT(("fd %d not related to perfmon\n", fd));
 		goto error_args;
 	}
 
-	ctx = file->private_data;
+	ctx = f.file->private_data;
 	if (unlikely(ctx == NULL)) {
 		DPRINT(("no context for fd %d\n", fd));
 		goto error_args;
@@ -4937,8 +4898,8 @@ abort_locked:
 	if (call_made && PFM_CMD_RW_ARG(cmd) && copy_to_user(arg, args_k, base_sz*count)) ret = -EFAULT;
 
 error_args:
-	if (file)
-		fput(file);
+	if (f.file)
+		fdput(f);
 
 	kfree(args_k);
 
@@ -5670,24 +5631,8 @@ pfm_proc_show_header(struct seq_file *m)
 
 	list_for_each(pos, &pfm_buffer_fmt_list) {
 		entry = list_entry(pos, pfm_buffer_fmt_t, fmt_list);
-		seq_printf(m, "format                    : %02x-%02x-%02x-%02x-%02x-%02x-%02x-%02x-%02x-%02x-%02x-%02x-%02x-%02x-%02x-%02x %s\n",
-			entry->fmt_uuid[0],
-			entry->fmt_uuid[1],
-			entry->fmt_uuid[2],
-			entry->fmt_uuid[3],
-			entry->fmt_uuid[4],
-			entry->fmt_uuid[5],
-			entry->fmt_uuid[6],
-			entry->fmt_uuid[7],
-			entry->fmt_uuid[8],
-			entry->fmt_uuid[9],
-			entry->fmt_uuid[10],
-			entry->fmt_uuid[11],
-			entry->fmt_uuid[12],
-			entry->fmt_uuid[13],
-			entry->fmt_uuid[14],
-			entry->fmt_uuid[15],
-			entry->fmt_name);
+		seq_printf(m, "format                    : %16phD %s\n",
+			   entry->fmt_uuid, entry->fmt_name);
 	}
 	spin_unlock(&pfm_buffer_fmt_lock);
 
@@ -6432,7 +6377,6 @@ pfm_flush_pmds(struct task_struct *task, pfm_context_t *ctx)
 
 static struct irqaction perfmon_irqaction = {
 	.handler = pfm_interrupt_handler,
-	.flags   = IRQF_DISABLED,
 	.name    = "perfmon"
 };
 

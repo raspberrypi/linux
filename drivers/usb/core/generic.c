@@ -47,6 +47,9 @@ int usb_choose_configuration(struct usb_device *udev)
 	int insufficient_power = 0;
 	struct usb_host_config *c, *best;
 
+	if (usb_device_is_owned(udev))
+		return 0;
+
 	best = NULL;
 	c = udev->config;
 	num_configs = udev->descriptor.bNumConfigurations;
@@ -97,7 +100,7 @@ int usb_choose_configuration(struct usb_device *udev)
 		 */
 
 		/* Rule out configs that draw too much bus current */
-		if (c->desc.bMaxPower * 2 > udev->bus_mA) {
+		if (usb_get_max_power(udev, c) > udev->bus_mA) {
 			insufficient_power++;
 			continue;
 		}
@@ -149,9 +152,11 @@ int usb_choose_configuration(struct usb_device *udev)
 		dev_warn(&udev->dev,
 			"no configuration chosen from %d choice%s\n",
 			num_configs, plural(num_configs));
+		dev_warn(&udev->dev, "No support over %dmA\n", udev->bus_mA);
 	}
 	return i;
 }
+EXPORT_SYMBOL_GPL(usb_choose_configuration);
 
 static int generic_probe(struct usb_device *udev)
 {
@@ -160,15 +165,13 @@ static int generic_probe(struct usb_device *udev)
 	/* Choose and set the configuration.  This registers the interfaces
 	 * with the driver core and lets interface drivers bind to them.
 	 */
-	if (usb_device_is_owned(udev))
-		;		/* Don't configure if the device is owned */
-	else if (udev->authorized == 0)
+	if (udev->authorized == 0)
 		dev_err(&udev->dev, "Device is not authorized for usage\n");
 	else {
 		c = usb_choose_configuration(udev);
 		if (c >= 0) {
 			err = usb_set_configuration(udev, c);
-			if (err) {
+			if (err && err != -ENODEV) {
 				dev_err(&udev->dev, "can't set config #%d, error %d\n",
 					c, err);
 				/* This need not be fatal.  The user can try to

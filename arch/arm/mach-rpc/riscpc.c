@@ -20,6 +20,7 @@
 #include <linux/ata_platform.h>
 #include <linux/io.h>
 #include <linux/i2c.h>
+#include <linux/reboot.h>
 
 #include <asm/elf.h>
 #include <asm/mach-types.h>
@@ -28,6 +29,7 @@
 #include <asm/page.h>
 #include <asm/domain.h>
 #include <asm/setup.h>
+#include <asm/system_misc.h>
 
 #include <asm/mach/map.h>
 #include <asm/mach/arch.h>
@@ -98,15 +100,9 @@ static void __init rpc_map_io(void)
 }
 
 static struct resource acornfb_resources[] = {
-	{	/* VIDC */
-		.start		= 0x03400000,
-		.end		= 0x035fffff,
-		.flags		= IORESOURCE_MEM,
-	}, {
-		.start		= IRQ_VSYNCPULSE,
-		.end		= IRQ_VSYNCPULSE,
-		.flags		= IORESOURCE_IRQ,
-	},
+	/* VIDC */
+	DEFINE_RES_MEM(0x03400000, 0x00200000),
+	DEFINE_RES_IRQ(IRQ_VSYNCPULSE),
 };
 
 static struct platform_device acornfb_device = {
@@ -120,11 +116,7 @@ static struct platform_device acornfb_device = {
 };
 
 static struct resource iomd_resources[] = {
-	{
-		.start		= 0x03200000,
-		.end		= 0x0320ffff,
-		.flags		= IORESOURCE_MEM,
-	},
+	DEFINE_RES_MEM(0x03200000, 0x10000),
 };
 
 static struct platform_device iomd_device = {
@@ -134,18 +126,25 @@ static struct platform_device iomd_device = {
 	.resource		= iomd_resources,
 };
 
+static struct resource iomd_kart_resources[] = {
+	DEFINE_RES_IRQ(IRQ_KEYBOARDRX),
+	DEFINE_RES_IRQ(IRQ_KEYBOARDTX),
+};
+
 static struct platform_device kbd_device = {
 	.name			= "kart",
 	.id			= -1,
 	.dev			= {
 		.parent 	= &iomd_device.dev,
 	},
+	.num_resources		= ARRAY_SIZE(iomd_kart_resources),
+	.resource		= iomd_kart_resources,
 };
 
 static struct plat_serial8250_port serial_platform_data[] = {
 	{
 		.mapbase	= 0x03010fe0,
-		.irq		= 10,
+		.irq		= IRQ_SERIALPORT,
 		.uartclk	= 1843200,
 		.regshift	= 2,
 		.iotype		= UPIO_MEM,
@@ -167,21 +166,9 @@ static struct pata_platform_info pata_platform_data = {
 };
 
 static struct resource pata_resources[] = {
-	[0] = {
-		.start		= 0x030107c0,
-		.end		= 0x030107df,
-		.flags		= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start		= 0x03010fd8,
-		.end		= 0x03010fdb,
-		.flags		= IORESOURCE_MEM,
-	},
-	[2] = {
-		.start		= IRQ_HARDDISK,
-		.end		= IRQ_HARDDISK,
-		.flags		= IORESOURCE_IRQ,
-	},
+	DEFINE_RES_MEM(0x030107c0, 0x20),
+	DEFINE_RES_MEM(0x03010fd8, 0x04),
+	DEFINE_RES_IRQ(IRQ_HARDDISK),
 };
 
 static struct platform_device pata_device = {
@@ -215,7 +202,7 @@ static int __init rpc_init(void)
 
 arch_initcall(rpc_init);
 
-static void rpc_restart(char mode, const char *cmd)
+static void rpc_restart(enum reboot_mode mode, const char *cmd)
 {
 	iomd_writeb(0, IOMD_ROMCR0);
 
@@ -225,7 +212,7 @@ static void rpc_restart(char mode, const char *cmd)
 	soft_restart(0);
 }
 
-extern struct sys_timer ioc_timer;
+void ioc_timer_init(void);
 
 MACHINE_START(RISCPC, "Acorn-RiscPC")
 	/* Maintainer: Russell King */
@@ -234,6 +221,6 @@ MACHINE_START(RISCPC, "Acorn-RiscPC")
 	.reserve_lp1	= 1,
 	.map_io		= rpc_map_io,
 	.init_irq	= rpc_init_irq,
-	.timer		= &ioc_timer,
+	.init_time	= ioc_timer_init,
 	.restart	= rpc_restart,
 MACHINE_END

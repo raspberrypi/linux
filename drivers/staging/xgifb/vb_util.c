@@ -1,12 +1,4 @@
-#include <linux/io.h>
-#include <linux/types.h>
-
-#include "vb_def.h"
 #include "vgatypes.h"
-#include "vb_struct.h"
-
-#include "XGIfb.h"
-
 #include "vb_util.h"
 
 void xgifb_reg_set(unsigned long port, u8 index, u8 data)
@@ -17,11 +9,8 @@ void xgifb_reg_set(unsigned long port, u8 index, u8 data)
 
 u8 xgifb_reg_get(unsigned long port, u8 index)
 {
-	u8 data;
-
 	outb(index, port);
-	data = inb(port + 1);
-	return data;
+	return inb(port + 1);
 }
 
 void xgifb_reg_and_or(unsigned long port, u8 index,

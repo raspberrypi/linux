@@ -12,6 +12,7 @@
  */
 
 #include <linux/dma-mapping.h>
+#include <linux/memblock.h>
 #include <linux/pfn.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
@@ -20,7 +21,6 @@
 #include <asm/machdep.h>
 #include <asm/swiotlb.h>
 #include <asm/dma.h>
-#include <asm/abs_addr.h>
 
 unsigned int ppc_swiotlb_enable;
 
@@ -47,8 +47,9 @@ static u64 swiotlb_powerpc_get_required(struct device *dev)
  * for everything else.
  */
 struct dma_map_ops swiotlb_dma_ops = {
-	.alloc_coherent = dma_direct_alloc_coherent,
-	.free_coherent = dma_direct_free_coherent,
+	.alloc = dma_direct_alloc_coherent,
+	.free = dma_direct_free_coherent,
+	.mmap = dma_direct_mmap_coherent,
 	.map_sg = swiotlb_map_sg_attrs,
 	.unmap_sg = swiotlb_unmap_sg_attrs,
 	.dma_supported = swiotlb_dma_supported,
@@ -104,3 +105,27 @@ int __init swiotlb_setup_bus_notifier(void)
 			      &ppc_swiotlb_plat_bus_notifier);
 	return 0;
 }
+
+void __init swiotlb_detect_4g(void)
+{
+	if ((memblock_end_of_DRAM() - 1) > 0xffffffff) {
+		ppc_swiotlb_enable = 1;
+#ifdef CONFIG_ZONE_DMA32
+		limit_zone_pfn(ZONE_DMA32, (1ULL << 32) >> PAGE_SHIFT);
+#endif
+	}
+}
+
+static int __init swiotlb_late_init(void)
+{
+	if (ppc_swiotlb_enable) {
+		swiotlb_print_info();
+		set_pci_dma_ops(&swiotlb_dma_ops);
+		ppc_md.pci_dma_dev_setup = pci_dma_dev_setup_swiotlb;
+	} else {
+		swiotlb_free();
+	}
+
+	return 0;
+}
+subsys_initcall(swiotlb_late_init);

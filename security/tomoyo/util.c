@@ -492,13 +492,13 @@ static bool tomoyo_correct_word2(const char *string, size_t len)
 				if (d < '0' || d > '7' || e < '0' || e > '7')
 					break;
 				c = tomoyo_make_byte(c, d, e);
-				if (tomoyo_invalid(c))
-					continue; /* pattern is not \000 */
+				if (c <= ' ' || c >= 127)
+					continue;
 			}
 			goto out;
 		} else if (in_repetition && c == '/') {
 			goto out;
-		} else if (tomoyo_invalid(c)) {
+		} else if (c <= ' ' || c >= 127) {
 			goto out;
 		}
 	}
@@ -949,18 +949,13 @@ bool tomoyo_path_matches_pattern(const struct tomoyo_path_info *filename,
 const char *tomoyo_get_exe(void)
 {
 	struct mm_struct *mm = current->mm;
-	struct vm_area_struct *vma;
 	const char *cp = NULL;
 
 	if (!mm)
 		return NULL;
 	down_read(&mm->mmap_sem);
-	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file) {
-			cp = tomoyo_realpath_from_path(&vma->vm_file->f_path);
-			break;
-		}
-	}
+	if (mm->exe_file)
+		cp = tomoyo_realpath_from_path(&mm->exe_file->f_path);
 	up_read(&mm->mmap_sem);
 	return cp;
 }

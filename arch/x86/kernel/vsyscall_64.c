@@ -1,61 +1,42 @@
 /*
+ * Copyright (c) 2012-2014 Andy Lutomirski <luto@amacapital.net>
+ *
+ * Based on the original implementation which is:
  *  Copyright (C) 2001 Andrea Arcangeli <andrea@suse.de> SuSE
  *  Copyright 2003 Andi Kleen, SuSE Labs.
  *
- *  [ NOTE: this mechanism is now deprecated in favor of the vDSO. ]
+ *  Parts of the original code have been moved to arch/x86/vdso/vma.c
  *
- *  Thanks to hpa@transmeta.com for some useful hint.
- *  Special thanks to Ingo Molnar for his early experience with
- *  a different vsyscall implementation for Linux/IA32 and for the name.
+ * This file implements vsyscall emulation.  vsyscalls are a legacy ABI:
+ * Userspace can request certain kernel services by calling fixed
+ * addresses.  This concept is problematic:
  *
- *  vsyscall 1 is located at -10Mbyte, vsyscall 2 is located
- *  at virtual address -10Mbyte+1024bytes etc... There are at max 4
- *  vsyscalls. One vsyscall can reserve more than 1 slot to avoid
- *  jumping out of line if necessary. We cannot add more with this
- *  mechanism because older kernels won't return -ENOSYS.
+ * - It interferes with ASLR.
+ * - It's awkward to write code that lives in kernel addresses but is
+ *   callable by userspace at fixed addresses.
+ * - The whole concept is impossible for 32-bit compat userspace.
+ * - UML cannot easily virtualize a vsyscall.
  *
- *  Note: the concept clashes with user mode linux.  UML users should
- *  use the vDSO.
+ * As of mid-2014, I believe that there is no new userspace code that
+ * will use a vsyscall if the vDSO is present.  I hope that there will
+ * soon be no new userspace code that will ever use a vsyscall.
+ *
+ * The code in this file emulates vsyscalls when notified of a page
+ * fault to a vsyscall address.
  */
 
-#include <linux/time.h>
-#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/timer.h>
-#include <linux/seqlock.h>
-#include <linux/jiffies.h>
-#include <linux/sysctl.h>
-#include <linux/topology.h>
-#include <linux/clocksource.h>
-#include <linux/getcpu.h>
-#include <linux/cpu.h>
-#include <linux/smp.h>
-#include <linux/notifier.h>
 #include <linux/syscalls.h>
 #include <linux/ratelimit.h>
 
 #include <asm/vsyscall.h>
-#include <asm/pgtable.h>
-#include <asm/compat.h>
-#include <asm/page.h>
 #include <asm/unistd.h>
 #include <asm/fixmap.h>
-#include <asm/errno.h>
-#include <asm/io.h>
-#include <asm/segment.h>
-#include <asm/desc.h>
-#include <asm/topology.h>
-#include <asm/vgtod.h>
 #include <asm/traps.h>
 
 #define CREATE_TRACE_POINTS
 #include "vsyscall_trace.h"
-
-DEFINE_VVAR(int, vgetcpu_mode);
-DEFINE_VVAR(struct vsyscall_gtod_data, vsyscall_gtod_data) =
-{
-	.lock = __SEQLOCK_UNLOCKED(__vsyscall_gtod_data.lock),
-};
 
 static enum { EMULATE, NATIVE, NONE } vsyscall_mode = EMULATE;
 
@@ -78,59 +59,23 @@ static int __init vsyscall_setup(char *str)
 }
 early_param("vsyscall", vsyscall_setup);
 
-void update_vsyscall_tz(void)
-{
-	unsigned long flags;
-
-	write_seqlock_irqsave(&vsyscall_gtod_data.lock, flags);
-	/* sys_tz has changed */
-	vsyscall_gtod_data.sys_tz = sys_tz;
-	write_sequnlock_irqrestore(&vsyscall_gtod_data.lock, flags);
-}
-
-void update_vsyscall(struct timespec *wall_time, struct timespec *wtm,
-			struct clocksource *clock, u32 mult)
-{
-	unsigned long flags;
-
-	write_seqlock_irqsave(&vsyscall_gtod_data.lock, flags);
-
-	/* copy vsyscall data */
-	vsyscall_gtod_data.clock.vclock_mode	= clock->archdata.vclock_mode;
-	vsyscall_gtod_data.clock.cycle_last	= clock->cycle_last;
-	vsyscall_gtod_data.clock.mask		= clock->mask;
-	vsyscall_gtod_data.clock.mult		= mult;
-	vsyscall_gtod_data.clock.shift		= clock->shift;
-	vsyscall_gtod_data.wall_time_sec	= wall_time->tv_sec;
-	vsyscall_gtod_data.wall_time_nsec	= wall_time->tv_nsec;
-	vsyscall_gtod_data.wall_to_monotonic	= *wtm;
-	vsyscall_gtod_data.wall_time_coarse	= __current_kernel_time();
-
-	write_sequnlock_irqrestore(&vsyscall_gtod_data.lock, flags);
-}
-
 static void warn_bad_vsyscall(const char *level, struct pt_regs *regs,
 			      const char *message)
 {
-	static DEFINE_RATELIMIT_STATE(rs, DEFAULT_RATELIMIT_INTERVAL, DEFAULT_RATELIMIT_BURST);
-	struct task_struct *tsk;
-
-	if (!show_unhandled_signals || !__ratelimit(&rs))
+	if (!show_unhandled_signals)
 		return;
 
-	tsk = current;
-
-	printk("%s%s[%d] %s ip:%lx cs:%lx sp:%lx ax:%lx si:%lx di:%lx\n",
-	       level, tsk->comm, task_pid_nr(tsk),
-	       message, regs->ip, regs->cs,
-	       regs->sp, regs->ax, regs->si, regs->di);
+	printk_ratelimited("%s%s[%d] %s ip:%lx cs:%lx sp:%lx ax:%lx si:%lx di:%lx\n",
+			   level, current->comm, task_pid_nr(current),
+			   message, regs->ip, regs->cs,
+			   regs->sp, regs->ax, regs->si, regs->di);
 }
 
 static int addr_to_vsyscall_nr(unsigned long addr)
 {
 	int nr;
 
-	if ((addr & ~0xC00UL) != VSYSCALL_START)
+	if ((addr & ~0xC00UL) != VSYSCALL_ADDR)
 		return -EINVAL;
 
 	nr = (addr & 0xC00UL) >> 10;
@@ -153,7 +98,7 @@ static bool write_ok_or_segv(unsigned long ptr, size_t size)
 
 		thread->error_code	= 6;  /* user fault, no page, write */
 		thread->cr2		= ptr;
-		thread->trap_no		= 14;
+		thread->trap_nr		= X86_TRAP_PF;
 
 		memset(&info, 0, sizeof(info));
 		info.si_signo		= SIGSEGV;
@@ -172,7 +117,7 @@ bool emulate_vsyscall(struct pt_regs *regs, unsigned long address)
 {
 	struct task_struct *tsk;
 	unsigned long caller;
-	int vsyscall_nr;
+	int vsyscall_nr, syscall_nr, tmp;
 	int prev_sig_on_uaccess_error;
 	long ret;
 
@@ -206,8 +151,64 @@ bool emulate_vsyscall(struct pt_regs *regs, unsigned long address)
 	}
 
 	tsk = current;
-	if (seccomp_mode(&tsk->seccomp))
-		do_exit(SIGKILL);
+
+	/*
+	 * Check for access_ok violations and find the syscall nr.
+	 *
+	 * NULL is a valid user pointer (in the access_ok sense) on 32-bit and
+	 * 64-bit, so we don't need to special-case it here.  For all the
+	 * vsyscalls, NULL means "don't write anything" not "write it at
+	 * address 0".
+	 */
+	switch (vsyscall_nr) {
+	case 0:
+		if (!write_ok_or_segv(regs->di, sizeof(struct timeval)) ||
+		    !write_ok_or_segv(regs->si, sizeof(struct timezone))) {
+			ret = -EFAULT;
+			goto check_fault;
+		}
+
+		syscall_nr = __NR_gettimeofday;
+		break;
+
+	case 1:
+		if (!write_ok_or_segv(regs->di, sizeof(time_t))) {
+			ret = -EFAULT;
+			goto check_fault;
+		}
+
+		syscall_nr = __NR_time;
+		break;
+
+	case 2:
+		if (!write_ok_or_segv(regs->di, sizeof(unsigned)) ||
+		    !write_ok_or_segv(regs->si, sizeof(unsigned))) {
+			ret = -EFAULT;
+			goto check_fault;
+		}
+
+		syscall_nr = __NR_getcpu;
+		break;
+	}
+
+	/*
+	 * Handle seccomp.  regs->ip must be the original value.
+	 * See seccomp_send_sigsys and Documentation/prctl/seccomp_filter.txt.
+	 *
+	 * We could optimize the seccomp disabled case, but performance
+	 * here doesn't matter.
+	 */
+	regs->orig_ax = syscall_nr;
+	regs->ax = -ENOSYS;
+	tmp = secure_computing();
+	if ((!tmp && regs->orig_ax != syscall_nr) || regs->ip != address) {
+		warn_bad_vsyscall(KERN_DEBUG, regs,
+				  "seccomp tried to change syscall nr or ip");
+		do_exit(SIGSYS);
+	}
+	regs->orig_ax = -1;
+	if (tmp)
+		goto do_ret;  /* skip requested */
 
 	/*
 	 * With a real vsyscall, page faults cause SIGSEGV.  We want to
@@ -216,44 +217,28 @@ bool emulate_vsyscall(struct pt_regs *regs, unsigned long address)
 	prev_sig_on_uaccess_error = current_thread_info()->sig_on_uaccess_error;
 	current_thread_info()->sig_on_uaccess_error = 1;
 
-	/*
-	 * 0 is a valid user pointer (in the access_ok sense) on 32-bit and
-	 * 64-bit, so we don't need to special-case it here.  For all the
-	 * vsyscalls, 0 means "don't write anything" not "write it at
-	 * address 0".
-	 */
 	ret = -EFAULT;
 	switch (vsyscall_nr) {
 	case 0:
-		if (!write_ok_or_segv(regs->di, sizeof(struct timeval)) ||
-		    !write_ok_or_segv(regs->si, sizeof(struct timezone)))
-			break;
-
 		ret = sys_gettimeofday(
 			(struct timeval __user *)regs->di,
 			(struct timezone __user *)regs->si);
 		break;
 
 	case 1:
-		if (!write_ok_or_segv(regs->di, sizeof(time_t)))
-			break;
-
 		ret = sys_time((time_t __user *)regs->di);
 		break;
 
 	case 2:
-		if (!write_ok_or_segv(regs->di, sizeof(unsigned)) ||
-		    !write_ok_or_segv(regs->si, sizeof(unsigned)))
-			break;
-
 		ret = sys_getcpu((unsigned __user *)regs->di,
 				 (unsigned __user *)regs->si,
-				 0);
+				 NULL);
 		break;
 	}
 
 	current_thread_info()->sig_on_uaccess_error = prev_sig_on_uaccess_error;
 
+check_fault:
 	if (ret == -EFAULT) {
 		/* Bad news -- userspace fed a bad pointer to a vsyscall. */
 		warn_bad_vsyscall(KERN_INFO, regs,
@@ -272,10 +257,10 @@ bool emulate_vsyscall(struct pt_regs *regs, unsigned long address)
 
 	regs->ax = ret;
 
+do_ret:
 	/* Emulate a ret instruction. */
 	regs->ip = caller;
 	regs->sp += 8;
-
 	return true;
 
 sigsegv:
@@ -284,75 +269,67 @@ sigsegv:
 }
 
 /*
- * Assume __initcall executes before all user space. Hopefully kmod
- * doesn't violate that. We'll find out if it does.
+ * A pseudo VMA to allow ptrace access for the vsyscall page.  This only
+ * covers the 64bit vsyscall page now. 32bit has a real VMA now and does
+ * not need special handling anymore:
  */
-static void __cpuinit vsyscall_set_cpu(int cpu)
+static const char *gate_vma_name(struct vm_area_struct *vma)
 {
-	unsigned long d;
-	unsigned long node = 0;
-#ifdef CONFIG_NUMA
-	node = cpu_to_node(cpu);
+	return "[vsyscall]";
+}
+static struct vm_operations_struct gate_vma_ops = {
+	.name = gate_vma_name,
+};
+static struct vm_area_struct gate_vma = {
+	.vm_start	= VSYSCALL_ADDR,
+	.vm_end		= VSYSCALL_ADDR + PAGE_SIZE,
+	.vm_page_prot	= PAGE_READONLY_EXEC,
+	.vm_flags	= VM_READ | VM_EXEC,
+	.vm_ops		= &gate_vma_ops,
+};
+
+struct vm_area_struct *get_gate_vma(struct mm_struct *mm)
+{
+#ifdef CONFIG_IA32_EMULATION
+	if (!mm || mm->context.ia32_compat)
+		return NULL;
 #endif
-	if (cpu_has(&cpu_data(cpu), X86_FEATURE_RDTSCP))
-		write_rdtscp_aux((node << 12) | cpu);
-
-	/*
-	 * Store cpu number in limit so that it can be loaded quickly
-	 * in user space in vgetcpu. (12 bits for the CPU and 8 bits for the node)
-	 */
-	d = 0x0f40000000000ULL;
-	d |= cpu;
-	d |= (node & 0xf) << 12;
-	d |= (node >> 4) << 48;
-
-	write_gdt_entry(get_cpu_gdt_table(cpu), GDT_ENTRY_PER_CPU, &d, DESCTYPE_S);
+	if (vsyscall_mode == NONE)
+		return NULL;
+	return &gate_vma;
 }
 
-static void __cpuinit cpu_vsyscall_init(void *arg)
+int in_gate_area(struct mm_struct *mm, unsigned long addr)
 {
-	/* preemption should be already off */
-	vsyscall_set_cpu(raw_smp_processor_id());
+	struct vm_area_struct *vma = get_gate_vma(mm);
+
+	if (!vma)
+		return 0;
+
+	return (addr >= vma->vm_start) && (addr < vma->vm_end);
 }
 
-static int __cpuinit
-cpu_vsyscall_notifier(struct notifier_block *n, unsigned long action, void *arg)
+/*
+ * Use this when you have no reliable mm, typically from interrupt
+ * context. It is less reliable than using a task's mm and may give
+ * false positives.
+ */
+int in_gate_area_no_mm(unsigned long addr)
 {
-	long cpu = (long)arg;
-
-	if (action == CPU_ONLINE || action == CPU_ONLINE_FROZEN)
-		smp_call_function_single(cpu, cpu_vsyscall_init, NULL, 1);
-
-	return NOTIFY_DONE;
+	return vsyscall_mode != NONE && (addr & PAGE_MASK) == VSYSCALL_ADDR;
 }
 
 void __init map_vsyscall(void)
 {
 	extern char __vsyscall_page;
 	unsigned long physaddr_vsyscall = __pa_symbol(&__vsyscall_page);
-	extern char __vvar_page;
-	unsigned long physaddr_vvar_page = __pa_symbol(&__vvar_page);
 
-	__set_fixmap(VSYSCALL_FIRST_PAGE, physaddr_vsyscall,
-		     vsyscall_mode == NATIVE
-		     ? PAGE_KERNEL_VSYSCALL
-		     : PAGE_KERNEL_VVAR);
-	BUILD_BUG_ON((unsigned long)__fix_to_virt(VSYSCALL_FIRST_PAGE) !=
-		     (unsigned long)VSYSCALL_START);
+	if (vsyscall_mode != NONE)
+		__set_fixmap(VSYSCALL_PAGE, physaddr_vsyscall,
+			     vsyscall_mode == NATIVE
+			     ? PAGE_KERNEL_VSYSCALL
+			     : PAGE_KERNEL_VVAR);
 
-	__set_fixmap(VVAR_PAGE, physaddr_vvar_page, PAGE_KERNEL_VVAR);
-	BUILD_BUG_ON((unsigned long)__fix_to_virt(VVAR_PAGE) !=
-		     (unsigned long)VVAR_ADDRESS);
+	BUILD_BUG_ON((unsigned long)__fix_to_virt(VSYSCALL_PAGE) !=
+		     (unsigned long)VSYSCALL_ADDR);
 }
-
-static int __init vsyscall_init(void)
-{
-	BUG_ON(VSYSCALL_ADDR(0) != __fix_to_virt(VSYSCALL_FIRST_PAGE));
-
-	on_each_cpu(cpu_vsyscall_init, NULL, 1);
-	/* notifier priority > KVM */
-	hotcpu_notifier(cpu_vsyscall_notifier, 30);
-
-	return 0;
-}
-__initcall(vsyscall_init);

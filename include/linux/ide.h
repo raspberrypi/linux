@@ -14,20 +14,14 @@
 #include <linux/interrupt.h>
 #include <linux/bitops.h>
 #include <linux/bio.h>
-#include <linux/device.h>
 #include <linux/pci.h>
 #include <linux/completion.h>
 #include <linux/pm.h>
 #include <linux/mutex.h>
-#ifdef CONFIG_BLK_DEV_IDEACPI
-#include <acpi/acpi.h>
-#endif
-#include <asm/byteorder.h>
-#include <asm/system.h>
-#include <asm/io.h>
-
 /* for request_sense */
 #include <linux/cdrom.h>
+#include <asm/byteorder.h>
+#include <asm/io.h>
 
 #if defined(CONFIG_CRIS) || defined(CONFIG_FRV) || defined(CONFIG_MN10300)
 # define SUPPORT_VLB_SYNC 0
@@ -42,6 +36,8 @@
 #define ERROR_MAX	8	/* Max read/write errors per sector */
 #define ERROR_RESET	3	/* Reset controller every 4th retry */
 #define ERROR_RECAL	1	/* Recalibrate every 2nd retry */
+
+struct device;
 
 /* Error codes returned in rq->errors to the higher part of the driver. */
 enum {
@@ -920,7 +916,7 @@ __IDE_PROC_DEVSET(_name, _min, _max, NULL, NULL)
 
 typedef struct {
 	const char	*name;
-	mode_t		mode;
+	umode_t		mode;
 	const struct file_operations *proc_fops;
 } ide_proc_entry_t;
 
@@ -1514,7 +1510,7 @@ static inline void ide_set_max_pio(ide_drive_t *drive)
 
 char *ide_media_string(ide_drive_t *);
 
-extern struct device_attribute ide_dev_attrs[];
+extern const struct attribute_group *ide_dev_groups[];
 extern struct bus_type ide_bus_type;
 extern struct class *ide_port_class;
 

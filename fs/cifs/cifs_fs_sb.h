@@ -45,6 +45,7 @@
 #define CIFS_MOUNT_POSIXACL	0x100000 /* mirror of MS_POSIXACL in mnt_cifs_flags */
 #define CIFS_MOUNT_CIFS_BACKUPUID 0x200000 /* backup intent bit for a user */
 #define CIFS_MOUNT_CIFS_BACKUPGID 0x400000 /* backup intent bit for a group */
+#define CIFS_MOUNT_MAP_SFM_CHR	0x800000 /* SFM/MAC mapping for illegal chars */
 
 struct cifs_sb_info {
 	struct rb_root tlink_tree;
@@ -55,15 +56,16 @@ struct cifs_sb_info {
 	unsigned int wsize;
 	unsigned long actimeo; /* attribute cache timeout (jiffies) */
 	atomic_t active;
-	uid_t	mnt_uid;
-	gid_t	mnt_gid;
-	uid_t	mnt_backupuid;
-	gid_t	mnt_backupgid;
-	mode_t	mnt_file_mode;
-	mode_t	mnt_dir_mode;
+	kuid_t	mnt_uid;
+	kgid_t	mnt_gid;
+	kuid_t	mnt_backupuid;
+	kgid_t	mnt_backupgid;
+	umode_t	mnt_file_mode;
+	umode_t	mnt_dir_mode;
 	unsigned int mnt_cifs_flags;
 	char   *mountdata; /* options received at mount time or via DFS refs */
 	struct backing_dev_info bdi;
 	struct delayed_work prune_tlinks;
+	struct rcu_head rcu;
 };
 #endif				/* _CIFS_FS_SB_H */

@@ -1,6 +1,6 @@
-
 #include <linux/module.h>
 #include <linux/gfp.h>
+#include <linux/slab.h>
 #include <linux/pagemap.h>
 #include <linux/highmem.h>
 #include <linux/ceph/pagelist.h>
@@ -14,8 +14,10 @@ static void ceph_pagelist_unmap_tail(struct ceph_pagelist *pl)
 	}
 }
 
-int ceph_pagelist_release(struct ceph_pagelist *pl)
+void ceph_pagelist_release(struct ceph_pagelist *pl)
 {
+	if (!atomic_dec_and_test(&pl->refcnt))
+		return;
 	ceph_pagelist_unmap_tail(pl);
 	while (!list_empty(&pl->head)) {
 		struct page *page = list_first_entry(&pl->head, struct page,
@@ -24,7 +26,7 @@ int ceph_pagelist_release(struct ceph_pagelist *pl)
 		__free_page(page);
 	}
 	ceph_pagelist_free_reserve(pl);
-	return 0;
+	kfree(pl);
 }
 EXPORT_SYMBOL(ceph_pagelist_release);
 
@@ -72,8 +74,7 @@ int ceph_pagelist_append(struct ceph_pagelist *pl, const void *buf, size_t len)
 }
 EXPORT_SYMBOL(ceph_pagelist_append);
 
-/**
- * Allocate enough pages for a pagelist to append the given amount
+/* Allocate enough pages for a pagelist to append the given amount
  * of data without without allocating.
  * Returns: 0 on success, -ENOMEM on error.
  */
@@ -95,9 +96,7 @@ int ceph_pagelist_reserve(struct ceph_pagelist *pl, size_t space)
 }
 EXPORT_SYMBOL(ceph_pagelist_reserve);
 
-/**
- * Free any pages that have been preallocated.
- */
+/* Free any pages that have been preallocated. */
 int ceph_pagelist_free_reserve(struct ceph_pagelist *pl)
 {
 	while (!list_empty(&pl->free_list)) {
@@ -112,9 +111,7 @@ int ceph_pagelist_free_reserve(struct ceph_pagelist *pl)
 }
 EXPORT_SYMBOL(ceph_pagelist_free_reserve);
 
-/**
- * Create a truncation point.
- */
+/* Create a truncation point. */
 void ceph_pagelist_set_cursor(struct ceph_pagelist *pl,
 			      struct ceph_pagelist_cursor *c)
 {
@@ -124,8 +121,7 @@ void ceph_pagelist_set_cursor(struct ceph_pagelist *pl,
 }
 EXPORT_SYMBOL(ceph_pagelist_set_cursor);
 
-/**
- * Truncate a pagelist to the given point. Move extra pages to reserve.
+/* Truncate a pagelist to the given point. Move extra pages to reserve.
  * This won't sleep.
  * Returns: 0 on success,
  *          -EINVAL if the pagelist doesn't match the trunc point pagelist
@@ -140,8 +136,8 @@ int ceph_pagelist_truncate(struct ceph_pagelist *pl,
 	ceph_pagelist_unmap_tail(pl);
 	while (pl->head.prev != c->page_lru) {
 		page = list_entry(pl->head.prev, struct page, lru);
-		list_del(&page->lru);                /* remove from pagelist */
-		list_add_tail(&page->lru, &pl->free_list); /* add to reserve */
+		/* move from pagelist to reserve */
+		list_move_tail(&page->lru, &pl->free_list);
 		++pl->num_pages_free;
 	}
 	pl->room = c->room;

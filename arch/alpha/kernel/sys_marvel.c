@@ -13,7 +13,6 @@
 #include <linux/bitops.h>
 
 #include <asm/ptrace.h>
-#include <asm/system.h>
 #include <asm/dma.h>
 #include <asm/irq.h>
 #include <asm/mmu_context.h>
@@ -23,7 +22,6 @@
 #include <asm/hwrpb.h>
 #include <asm/tlbflush.h>
 #include <asm/vga.h>
-#include <asm/rtc.h>
 
 #include "proto.h"
 #include "err_impl.h"
@@ -318,8 +316,9 @@ marvel_init_irq(void)
 }
 
 static int 
-marvel_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
+marvel_map_irq(const struct pci_dev *cdev, u8 slot, u8 pin)
 {
+	struct pci_dev *dev = (struct pci_dev *)cdev;
 	struct pci_controller *hose = dev->sysdata;
 	struct io7_port *io7_port = hose->sysdata;
 	struct io7 *io7 = io7_port->io7;
@@ -384,7 +383,8 @@ marvel_init_pci(void)
 
 	marvel_register_error_handlers();
 
-	pci_probe_only = 1;
+	/* Indicate that we trust the console to configure things properly */
+	pci_set_flags(PCI_PROBE_ONLY);
 	common_init_pci();
 	locate_and_init_vga(NULL);
 
@@ -397,57 +397,6 @@ static void __init
 marvel_init_rtc(void)
 {
 	init_rtc_irq();
-}
-
-struct marvel_rtc_time {
-	struct rtc_time *time;
-	int retval;
-};
-
-#ifdef CONFIG_SMP
-static void
-smp_get_rtc_time(void *data)
-{
-	struct marvel_rtc_time *mrt = data;
-	mrt->retval = __get_rtc_time(mrt->time);
-}
-
-static void
-smp_set_rtc_time(void *data)
-{
-	struct marvel_rtc_time *mrt = data;
-	mrt->retval = __set_rtc_time(mrt->time);
-}
-#endif
-
-static unsigned int
-marvel_get_rtc_time(struct rtc_time *time)
-{
-#ifdef CONFIG_SMP
-	struct marvel_rtc_time mrt;
-
-	if (smp_processor_id() != boot_cpuid) {
-		mrt.time = time;
-		smp_call_function_single(boot_cpuid, smp_get_rtc_time, &mrt, 1);
-		return mrt.retval;
-	}
-#endif
-	return __get_rtc_time(time);
-}
-
-static int
-marvel_set_rtc_time(struct rtc_time *time)
-{
-#ifdef CONFIG_SMP
-	struct marvel_rtc_time mrt;
-
-	if (smp_processor_id() != boot_cpuid) {
-		mrt.time = time;
-		smp_call_function_single(boot_cpuid, smp_set_rtc_time, &mrt, 1);
-		return mrt.retval;
-	}
-#endif
-	return __set_rtc_time(time);
 }
 
 static void
@@ -491,8 +440,7 @@ struct alpha_machine_vector marvel_ev7_mv __initmv = {
 	.vector_name		= "MARVEL/EV7",
 	DO_EV7_MMU,
 	.rtc_port		= 0x70,
-	.rtc_get_time		= marvel_get_rtc_time,
-	.rtc_set_time		= marvel_set_rtc_time,
+	.rtc_boot_cpu_only	= 1,
 	DO_MARVEL_IO,
 	.machine_check		= marvel_machine_check,
 	.max_isa_dma_address	= ALPHA_MAX_ISA_DMA_ADDRESS,

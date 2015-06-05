@@ -1,17 +1,17 @@
        STMicroelectronics 10/100/1000 Synopsys Ethernet driver
 
-Copyright (C) 2007-2010  STMicroelectronics Ltd
+Copyright (C) 2007-2014  STMicroelectronics Ltd
 Author: Giuseppe Cavallaro <peppe.cavallaro@st.com>
 
 This is the driver for the MAC 10/100/1000 on-chip Ethernet controllers
 (Synopsys IP blocks).
 
-Currently this network device driver is for all STM embedded MAC/GMAC
+Currently this network device driver is for all STi embedded MAC/GMAC
 (i.e. 7xxx/5xxx SoCs), SPEAr (arm), Loongson1B (mips) and XLINX XC2V3000
 FF1152AMT0221 D1215994A VIRTEX FPGA board.
 
-DWC Ether MAC 10/100/1000 Universal version 3.60a (and older) and DWC Ether MAC 10/100
-Universal version 4.0 have been used for developing this driver.
+DWC Ether MAC 10/100/1000 Universal version 3.70a (and older) and DWC Ether
+MAC 10/100 Universal version 4.0 have been used for developing this driver.
 
 This driver supports both the platform bus and PCI.
 
@@ -22,6 +22,9 @@ The kernel configuration option is STMMAC_ETH:
  Device Drivers ---> Network device support ---> Ethernet (1000 Mbit) --->
  STMicroelectronics 10/100/1000 Ethernet driver (STMMAC_ETH)
 
+CONFIG_STMMAC_PLATFORM: is to enable the platform driver.
+CONFIG_STMMAC_PCI: is to enable the pci driver.
+
 2) Driver parameters list:
 	debug: message level (0: no output, 16: all);
 	phyaddr: to manually provide the physical address to the PHY device;
@@ -29,11 +32,11 @@ The kernel configuration option is STMMAC_ETH:
 	dma_txsize: DMA tx ring size;
 	buf_sz: DMA buffer size;
 	tc: control the HW FIFO threshold;
-	tx_coe: Enable/Disable Tx Checksum Offload engine;
 	watchdog: transmit timeout (in milliseconds);
 	flow_ctrl: Flow control ability [on/off];
 	pause: Flow Control Pause Time;
-	tmrate: timer period (only if timer optimisation is configured).
+	eee_timer: tx EEE timer;
+	chain_mode: select chain mode instead of ring.
 
 3) Command line options
 Driver parameters can be also passed in command line by using:
@@ -45,39 +48,34 @@ Driver parameters can be also passed in command line by using:
 The xmit method is invoked when the kernel needs to transmit a packet; it sets
 the descriptors in the ring and informs the DMA engine that there is a packet
 ready to be transmitted.
-Once the controller has finished transmitting the packet, an interrupt is
-triggered; So the driver will be able to release the socket buffers.
 By default, the driver sets the NETIF_F_SG bit in the features field of the
-net_device structure enabling the scatter/gather feature.
+net_device structure enabling the scatter-gather feature. This is true on
+chips and configurations where the checksum can be done in hardware.
+Once the controller has finished transmitting the packet, napi will be
+scheduled to release the transmit resources.
 
 4.2) Receive process
 When one or more packets are received, an interrupt happens. The interrupts
 are not queued so the driver has to scan all the descriptors in the ring during
 the receive process.
-This is based on NAPI so the interrupt handler signals only if there is work to be
-done, and it exits.
+This is based on NAPI so the interrupt handler signals only if there is work
+to be done, and it exits.
 Then the poll method will be scheduled at some future point.
 The incoming packets are stored, by the DMA, in a list of pre-allocated socket
-buffers in order to avoid the memcpy (Zero-copy).
+buffers in order to avoid the memcpy (zero-copy).
 
-4.3) Timer-Driver Interrupt
-Instead of having the device that asynchronously notifies the frame receptions, the
-driver configures a timer to generate an interrupt at regular intervals.
-Based on the granularity of the timer, the frames that are received by the device
-will experience different levels of latency. Some NICs have dedicated timer
-device to perform this task. STMMAC can use either the RTC device or the TMU
-channel 2  on STLinux platforms.
-The timers frequency can be passed to the driver as parameter; when change it,
-take care of both hardware capability and network stability/performance impact.
-Several performance tests on STM platforms showed this optimisation allows to spare
-the CPU while having the maximum throughput.
+4.3) Interrupt Mitigation
+The driver is able to mitigate the number of its DMA interrupts
+using NAPI for the reception on chips older than the 3.50.
+New chips have an HW RX-Watchdog used for this mitigation.
+Mitigation parameters can be tuned by ethtool.
 
 4.4) WOL
-Wake up on Lan feature through Magic and Unicast frames are supported for the GMAC
-core.
+Wake up on Lan feature through Magic and Unicast frames are supported for the
+GMAC core.
 
 4.5) DMA descriptors
-Driver handles both normal and enhanced descriptors. The latter has been only
+Driver handles both normal and alternate descriptors. The latter has been only
 tested on DWC Ether MAC 10/100/1000 Universal version 3.41a and later.
 
 STMMAC supports DMA descriptor to operate both in dual buffer (RING)
@@ -89,9 +87,20 @@ In CHAINED mode each descriptor will have pointer to next descriptor in
 the list, hence creating the explicit chaining in the descriptor itself,
 whereas such explicit chaining is not possible in RING mode.
 
+4.5.1) Extended descriptors
+	The extended descriptors give us information about the Ethernet payload
+	when it is carrying PTP packets or TCP/UDP/ICMP over IP.
+	These are not available on GMAC Synopsys chips older than the 3.50.
+	At probe time the driver will decide if these can be actually used.
+	This support also is mandatory for PTPv2 because the extra descriptors
+	are used for saving the hardware timestamps and Extended Status.
+
 4.6) Ethtool support
-Ethtool is supported. Driver statistics and internal errors can be taken using:
-ethtool -S ethX command. It is possible to dump registers etc.
+Ethtool is supported.
+
+For example, driver statistics (including RMON), internal errors can be taken
+using:
+  # ethtool -S ethX command
 
 4.7) Jumbo and Segmentation Offloading
 Jumbo frames are supported and tested for the GMAC.
@@ -99,47 +108,61 @@ The GSO has been also added but it's performed in software.
 LRO is not supported.
 
 4.8) Physical
-The driver is compatible with PAL to work with PHY and GPHY devices.
+The driver is compatible with Physical Abstraction Layer to be connected with
+PHY and GPHY devices.
 
 4.9) Platform information
-Several driver's information can be passed through the platform
-These are included in the include/linux/stmmac.h header file
-and detailed below as well:
+Several information can be passed through the platform and device-tree.
 
- struct plat_stmmacenet_data {
+struct plat_stmmacenet_data {
+	char *phy_bus_name;
 	int bus_id;
 	int phy_addr;
 	int interface;
 	struct stmmac_mdio_bus_data *mdio_bus_data;
-	int pbl;
+	struct stmmac_dma_cfg *dma_cfg;
 	int clk_csr;
 	int has_gmac;
 	int enh_desc;
 	int tx_coe;
+	int rx_coe;
 	int bugged_jumbo;
 	int pmt;
 	int force_sf_dma_mode;
+	int force_thresh_dma_mode;
+	int riwt_off;
+	int max_speed;
+	int maxmtu;
 	void (*fix_mac_speed)(void *priv, unsigned int speed);
 	void (*bus_setup)(void __iomem *ioaddr);
-	int (*init)(struct platform_device *pdev);
-	void (*exit)(struct platform_device *pdev);
+	void *(*setup)(struct platform_device *pdev);
+	void (*free)(struct platform_device *pdev, void *priv);
+	int (*init)(struct platform_device *pdev, void *priv);
+	void (*exit)(struct platform_device *pdev, void *priv);
+	void *custom_cfg;
+	void *custom_data;
 	void *bsp_priv;
- };
+};
 
 Where:
+ o phy_bus_name: phy bus name to attach to the stmmac.
  o bus_id: bus identifier.
  o phy_addr: the physical address can be passed from the platform.
 	    If it is set to -1 the driver will automatically
 	    detect it at run-time by probing all the 32 addresses.
  o interface: PHY device's interface.
  o mdio_bus_data: specific platform fields for the MDIO bus.
- o pbl: the Programmable Burst Length is maximum number of beats to
+ o dma_cfg: internal DMA parameters
+   o pbl: the Programmable Burst Length is maximum number of beats to
        be transferred in one DMA transaction.
        GMAC also enables the 4xPBL by default.
- o clk_csr: CSR Clock range selection.
+   o fixed_burst/mixed_burst/burst_len
+ o clk_csr: fixed CSR Clock range selection.
  o has_gmac: uses the GMAC core.
  o enh_desc: if sets the MAC will use the enhanced descriptor structure.
  o tx_coe: core is able to perform the tx csum in HW.
+ o rx_coe: the supports three check sum offloading engine types:
+	   type_1, type_2 (full csum) and no RX coe.
  o bugged_jumbo: some HWs are not able to perform the csum in HW for
 		over-sized frames due to limited buffer sizes.
 		Setting this flag the csum will be done in SW on
@@ -147,23 +170,29 @@ Where:
  o pmt: core has the embedded power module (optional).
  o force_sf_dma_mode: force DMA to use the Store and Forward mode
 		     instead of the Threshold.
+ o force_thresh_dma_mode: force DMA to use the Threshold mode other than
+		     the Store and Forward mode.
+ o riwt_off: force to disable the RX watchdog feature and switch to NAPI mode.
  o fix_mac_speed: this callback is used for modifying some syscfg registers
 		 (on ST SoCs) according to the link speed negotiated by the
 		 physical layer .
  o bus_setup: perform HW setup of the bus. For example, on some ST platforms
 	     this field is used to configure the AMBA  bridge to generate more
 	     efficient STBus traffic.
- o init/exit: callbacks used for calling a custom initialisation;
+ o setup/init/exit: callbacks used for calling a custom initialization;
 	     this is sometime necessary on some platforms (e.g. ST boxes)
 	     where the HW needs to have set some PIO lines or system cfg
-	     registers.
- o custom_cfg: this is a custom configuration that can be passed while
-	      initialising the resources.
+	     registers. setup should return a pointer to private data,
+	     which will be stored in bsp_priv, and then passed to init and
+	     exit callbacks. init/exit callbacks should not use or modify
+	     platform data.
+ o custom_cfg/custom_data: this is a custom configuration that can be passed
+			   while initializing the resources.
+ o bsp_priv: another private pointer.
 
-The we have:
+For MDIO bus The we have:
 
  struct stmmac_mdio_bus_data {
-	int bus_id;
 	int (*phy_reset)(void *priv);
 	unsigned int phy_mask;
 	int *irqs;
@@ -171,16 +200,32 @@ The we have:
  };
 
 Where:
- o bus_id: bus identifier;
  o phy_reset: hook to reset the phy device attached to the bus.
  o phy_mask: phy mask passed when register the MDIO bus within the driver.
  o irqs: list of IRQs, one per PHY.
  o probed_phy_irq: if irqs is NULL, use this for probed PHY.
 
+For DMA engine we have the following internal fields that should be
+tuned according to the HW capabilities.
+
+struct stmmac_dma_cfg {
+	int pbl;
+	int fixed_burst;
+	int burst_len_supported;
+};
+
+Where:
+ o pbl: Programmable Burst Length
+ o fixed_burst: program the DMA to use the fixed burst mode
+ o burst_len: this is the value we put in the register
+	      supported values are provided as macros in
+	      linux/stmmac.h header file.
+
+---
+
 Below an example how the structures above are using on ST platforms.
 
  static struct plat_stmmacenet_data stxYYY_ethernet_platform_data = {
-	.pbl = 32,
 	.has_gmac = 0,
 	.enh_desc = 0,
 	.fix_mac_speed = stxYYY_ethernet_fix_mac_speed,
@@ -203,9 +248,6 @@ there are two MAC cores: one MAC is for MDIO Bus/PHY emulation
 with fixed_link support.
 
 static struct stmmac_mdio_bus_data stmmac1_mdio_bus = {
-	.bus_id = 1,
-		|
-		|-> phy device on the bus_id 1
 	.phy_reset = phy_reset;
 		|
 		|-> function to provide the phy_reset on this board
@@ -225,26 +267,43 @@ and the second one, with a real PHY device attached to the bus,
 by using the stmmac_mdio_bus_data structure (to provide the id, the
 reset procedure etc).
 
-4.10) List of source files:
- o Kconfig
- o Makefile
- o stmmac_main.c: main network device driver;
- o stmmac_mdio.c: mdio functions;
- o stmmac_ethtool.c: ethtool support;
- o stmmac_timer.[ch]: timer code used for mitigating the driver dma interrupts
-		      Only tested on ST40 platforms based.
+Note that, starting from new chips, where it is available the HW capability
+register, many configurations are discovered at run-time for example to
+understand if EEE, HW csum, PTP, enhanced descriptor etc are actually
+available. As strategy adopted in this driver, the information from the HW
+capability register can replace what has been passed from the platform.
+
+4.10) Device-tree support.
+
+Please see the following document:
+	Documentation/devicetree/bindings/net/stmmac.txt
+
+and the stmmac_of_data structure inside the include/linux/stmmac.h header file.
+
+4.11) This is a summary of the content of some relevant files:
+ o stmmac_main.c: to implement the main network device driver;
+ o stmmac_mdio.c: to provide mdio functions;
+ o stmmac_pci: this the PCI driver;
+ o stmmac_platform.c: this the platform driver (OF supported)
+ o stmmac_ethtool.c: to implement the ethtool support;
  o stmmac.h: private driver structure;
  o common.h: common definitions and VFTs;
  o descs.h: descriptor structure definitions;
- o dwmac1000_core.c: GMAC core functions;
- o dwmac1000_dma.c:  dma functions for the GMAC chip;
- o dwmac1000.h: specific header file for the GMAC;
- o dwmac100_core: MAC 100 core and dma code;
- o dwmac100_dma.c: dma funtions for the MAC chip;
+ o dwmac1000_core.c: dwmac GiGa core functions;
+ o dwmac1000_dma.c: dma functions for the GMAC chip;
+ o dwmac1000.h: specific header file for the dwmac GiGa;
+ o dwmac100_core: dwmac 100 core code;
+ o dwmac100_dma.c: dma functions for the dwmac 100 chip;
  o dwmac1000.h: specific header file for the MAC;
- o dwmac_lib.c: generic DMA functions shared among chips
- o enh_desc.c: functions for handling enhanced descriptors
- o norm_desc.c: functions for handling normal descriptors
+ o dwmac_lib.c: generic DMA functions;
+ o enh_desc.c: functions for handling enhanced descriptors;
+ o norm_desc.c: functions for handling normal descriptors;
+ o chain_mode.c/ring_mode.c:: functions to manage RING/CHAINED modes;
+ o mmc_core.c/mmc.h: Management MAC Counters;
+ o stmmac_hwtstamp.c: HW timestamp support for PTP;
+ o stmmac_ptp.c: PTP 1588 clock;
+ o dwmac-<XXX>.c: these are for the platform glue-logic file; e.g. dwmac-sti.c
+   for STMicroelectronics SoCs.
 
 5) Debug Information
 
@@ -259,25 +318,52 @@ to get statistics: e.g. using: ethtool -S ethX
 (that shows the Management counters (MMC) if supported)
 or sees the MAC/DMA registers: e.g. using: ethtool -d ethX
 
-Compiling the Kernel with CONFIG_DEBUG_FS and enabling the
-STMMAC_DEBUG_FS option the driver will export the following
+Compiling the Kernel with CONFIG_DEBUG_FS the driver will export the following
 debugfs entries:
 
 /sys/kernel/debug/stmmaceth/descriptors_status
   To show the DMA TX/RX descriptor rings
 
-Developer can also use the "debug" module parameter to get
-further debug information.
+Developer can also use the "debug" module parameter to get further debug
+information (please see: NETIF Msg Level).
 
-In the end, there are other macros (that cannot be enabled
-via menuconfig) to turn-on the RX/TX DMA debugging,
-specific MAC core debug printk etc. Others to enable the
-debug in the TX and RX processes.
-All these are only useful during the developing stage
-and should never enabled inside the code for general usage.
-In fact, these can generate an huge amount of debug messages.
+6) Energy Efficient Ethernet
 
-6) TODO:
- o XGMAC is not supported.
- o Add the EEE - Energy Efficient Ethernet
- o Add the PTP - precision time protocol
+Energy Efficient Ethernet(EEE) enables IEEE 802.3 MAC sublayer along
+with a family of Physical layer to operate in the Low power Idle(LPI)
+mode. The EEE mode supports the IEEE 802.3 MAC operation at 100Mbps,
+1000Mbps & 10Gbps.
+
+The LPI mode allows power saving by switching off parts of the
+communication device functionality when there is no data to be
+transmitted & received. The system on both the side of the link can
+disable some functionalities & save power during the period of low-link
+utilization. The MAC controls whether the system should enter or exit
+the LPI mode & communicate this to PHY.
+
+As soon as the interface is opened, the driver verifies if the EEE can
+be supported. This is done by looking at both the DMA HW capability
+register and the PHY devices MCD registers.
+To enter in Tx LPI mode the driver needs to have a software timer
+that enable and disable the LPI mode when there is nothing to be
+transmitted.
+
+7) Precision Time Protocol (PTP)
+The driver supports the IEEE 1588-2002, Precision Time Protocol (PTP),
+which enables precise synchronization of clocks in measurement and
+control systems implemented with technologies such as network
+communication.
+
+In addition to the basic timestamp features mentioned in IEEE 1588-2002
+Timestamps, new GMAC cores support the advanced timestamp features.
+IEEE 1588-2008 that can be enabled when configure the Kernel.
+
+8) SGMII/RGMII supports
+New GMAC devices provide own way to manage RGMII/SGMII.
+This information is available at run-time by looking at the
+HW capability register. This means that the stmmac can manage
+auto-negotiation and link status w/o using the PHYLIB stuff
+In fact, the HW provides a subset of extended registers to
+restart the ANE, verify Full/Half duplex mode and Speed.
+Also thanks to these registers it is possible to look at the
+Auto-negotiated Link Parter Ability.

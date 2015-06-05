@@ -32,7 +32,6 @@
 #include <linux/tty.h>
 #include <linux/serial_core.h>
 
-#include <asm/system.h>
 #include <asm/time.h>
 #include <asm/machdep.h>
 #include <asm/prom.h>
@@ -108,11 +107,9 @@ static void __init mpc7448_hpc2_init_IRQ(void)
 	struct device_node *cascade_node = NULL;
 #endif
 
-	mpic = mpic_alloc(NULL, 0,
-			MPIC_BIG_ENDIAN | MPIC_WANTS_RESET |
+	mpic = mpic_alloc(NULL, 0, MPIC_BIG_ENDIAN |
 			MPIC_SPV_EOI | MPIC_NO_PTHROU_DIS | MPIC_REGSET_TSI108,
-			24,
-			NR_IRQS-4, /* num_sources used */
+			24, 0,
 			"Tsi108_PIC");
 
 	BUG_ON(mpic == NULL);
@@ -157,17 +154,6 @@ void mpc7448_hpc2_restart(char *cmd)
 	_nmask_and_or_msr(0, MSR_IP);
 
 	for (;;) ;		/* Spin until reset happens */
-}
-
-void mpc7448_hpc2_power_off(void)
-{
-	local_irq_disable();
-	for (;;) ;		/* No way to shut power off with software */
-}
-
-void mpc7448_hpc2_halt(void)
-{
-	mpc7448_hpc2_power_off();
 }
 
 /*

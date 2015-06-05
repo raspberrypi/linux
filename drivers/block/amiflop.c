@@ -63,7 +63,7 @@
 #include <linux/mutex.h>
 #include <linux/amifdreg.h>
 #include <linux/amifd.h>
-#include <linux/buffer_head.h>
+#include <linux/fs.h>
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
 #include <linux/interrupt.h>
@@ -343,7 +343,7 @@ static int fd_motor_on(int nr)
 		unit[nr].motor = 1;
 		fd_select(nr);
 
-		INIT_COMPLETION(motor_on_completion);
+		reinit_completion(&motor_on_completion);
 		motor_on_timer.data = nr;
 		mod_timer(&motor_on_timer, jiffies + HZ/2);
 
@@ -1406,7 +1406,7 @@ next_segment:
 
 		track = block / (floppy->dtype->sects * floppy->type->sect_mult);
 		sector = block % (floppy->dtype->sects * floppy->type->sect_mult);
-		data = rq->buffer + 512 * cnt;
+		data = bio_data(rq->bio) + 512 * cnt;
 #ifdef DEBUG
 		printk("access to track %d, sector %d, with buffer at "
 		       "0x%08lx\n", track, sector, data);
@@ -1634,7 +1634,7 @@ static int floppy_open(struct block_device *bdev, fmode_t mode)
 	return 0;
 }
 
-static int floppy_release(struct gendisk *disk, fmode_t mode)
+static void floppy_release(struct gendisk *disk, fmode_t mode)
 {
 	struct amiga_floppy_struct *p = disk->private_data;
 	int drive = p - unit;
@@ -1654,7 +1654,6 @@ static int floppy_release(struct gendisk *disk, fmode_t mode)
 	floppy_off (drive | 0x40000000);
 #endif
 	mutex_unlock(&amiflop_mutex);
-	return 0;
 }
 
 /*
@@ -1865,7 +1864,6 @@ static int __exit amiga_floppy_remove(struct platform_device *pdev)
 static struct platform_driver amiga_floppy_driver = {
 	.driver   = {
 		.name	= "amiga-floppy",
-		.owner	= THIS_MODULE,
 	},
 };
 

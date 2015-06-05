@@ -249,6 +249,7 @@ EXPORT_SYMBOL_GPL(speedstep_get_frequency);
  *                 DETECT SPEEDSTEP-CAPABLE PROCESSOR                *
  *********************************************************************/
 
+/* Keep in sync with the x86_cpu_id tables in the different modules */
 unsigned int speedstep_detect_processor(void)
 {
 	struct cpuinfo_x86 *c = &cpu_data(0);
@@ -399,6 +400,7 @@ unsigned int speedstep_get_freqs(enum speedstep_processor processor,
 
 	pr_debug("previous speed is %u\n", prev_speed);
 
+	preempt_disable();
 	local_irq_save(flags);
 
 	/* switch to low state */
@@ -463,6 +465,8 @@ unsigned int speedstep_get_freqs(enum speedstep_processor processor,
 
 out:
 	local_irq_restore(flags);
+	preempt_enable();
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(speedstep_get_freqs);

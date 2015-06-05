@@ -223,25 +223,25 @@ enum SD_RESPONSE_TYPE {
 #define FUN(c) (0x000007 & (c->arg>>28))
 #define REG(c) (0x01FFFF & (c->arg>>9))
 
-static int limit_speed_to_24_MHz;
+static bool limit_speed_to_24_MHz;
 module_param(limit_speed_to_24_MHz, bool, 0644);
 MODULE_PARM_DESC(limit_speed_to_24_MHz, "Limit Max SDIO Clock Speed to 24 MHz");
 
-static int pad_input_to_usb_pkt;
+static bool pad_input_to_usb_pkt;
 module_param(pad_input_to_usb_pkt, bool, 0644);
 MODULE_PARM_DESC(pad_input_to_usb_pkt,
 		 "Pad USB data input transfers to whole USB Packet");
 
-static int disable_offload_processing;
+static bool disable_offload_processing;
 module_param(disable_offload_processing, bool, 0644);
 MODULE_PARM_DESC(disable_offload_processing, "Disable Offload Processing");
 
-static int force_1_bit_data_xfers;
+static bool force_1_bit_data_xfers;
 module_param(force_1_bit_data_xfers, bool, 0644);
 MODULE_PARM_DESC(force_1_bit_data_xfers,
 		 "Force SDIO Data Transfers to 1-bit Mode");
 
-static int force_polling_for_irqs;
+static bool force_polling_for_irqs;
 module_param(force_polling_for_irqs, bool, 0644);
 MODULE_PARM_DESC(force_polling_for_irqs, "Force Polling for SDIO interrupts");
 
@@ -659,7 +659,7 @@ static void __vub300_irqpoll_response(struct vub300_mmc_host *vub300)
 static void __do_poll(struct vub300_mmc_host *vub300)
 {
 	/* cmd_mutex is held by vub300_pollwork_thread */
-	long commretval;
+	unsigned long commretval;
 	mod_timer(&vub300->inactivity_timer, jiffies + HZ);
 	init_completion(&vub300->irqpoll_complete);
 	send_irqpoll(vub300);
@@ -671,8 +671,6 @@ static void __do_poll(struct vub300_mmc_host *vub300)
 		vub300->usb_timed_out = 1;
 		usb_kill_urb(vub300->command_out_urb);
 		usb_kill_urb(vub300->command_res_urb);
-	} else if (commretval < 0) {
-		vub300_queue_poll_work(vub300, 1);
 	} else { /* commretval > 0 */
 		__vub300_irqpoll_response(vub300);
 	}
@@ -806,7 +804,7 @@ static void command_res_completed(struct urb *urb)
 		 * we suspect a buggy USB host controller
 		 */
 	} else if (!vub300->data) {
-		/* this means that the command (typically CMD52) suceeded */
+		/* this means that the command (typically CMD52) succeeded */
 	} else if (vub300->resp.common.header_type != 0x02) {
 		/*
 		 * this is an error response from the VUB300 chip
@@ -2079,7 +2077,7 @@ static void vub300_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	kref_put(&vub300->kref, vub300_delete);
 }
 
-void vub300_init_card(struct mmc_host *mmc, struct mmc_card *card)
+static void vub300_init_card(struct mmc_host *mmc, struct mmc_card *card)
 {				/* NOT irq */
 	struct vub300_mmc_host *vub300 = mmc_priv(mmc);
 	dev_info(&vub300->udev->dev, "NO host QUIRKS for this card\n");
@@ -2358,10 +2356,11 @@ error5:
 	 * which is contained at the end of struct mmc
 	 */
 error4:
-	usb_free_urb(command_out_urb);
-error1:
 	usb_free_urb(command_res_urb);
+error1:
+	usb_free_urb(command_out_urb);
 error0:
+	usb_put_dev(udev);
 	return retval;
 }
 
@@ -2391,26 +2390,12 @@ static void vub300_disconnect(struct usb_interface *interface)
 #ifdef CONFIG_PM
 static int vub300_suspend(struct usb_interface *intf, pm_message_t message)
 {
-	struct vub300_mmc_host *vub300 = usb_get_intfdata(intf);
-	if (!vub300 || !vub300->mmc) {
-		return 0;
-	} else {
-		struct mmc_host *mmc = vub300->mmc;
-		mmc_suspend_host(mmc);
-		return 0;
-	}
+	return 0;
 }
 
 static int vub300_resume(struct usb_interface *intf)
 {
-	struct vub300_mmc_host *vub300 = usb_get_intfdata(intf);
-	if (!vub300 || !vub300->mmc) {
-		return 0;
-	} else {
-		struct mmc_host *mmc = vub300->mmc;
-		mmc_resume_host(mmc);
-		return 0;
-	}
+	return 0;
 }
 #else
 #define vub300_suspend NULL

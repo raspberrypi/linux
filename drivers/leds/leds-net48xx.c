@@ -15,7 +15,7 @@
 #include <linux/platform_device.h>
 #include <linux/leds.h>
 #include <linux/err.h>
-#include <asm/io.h>
+#include <linux/io.h>
 #include <linux/nsc_gpio.h>
 #include <linux/scx200_gpio.h>
 #include <linux/module.h>
@@ -53,7 +53,6 @@ static struct platform_driver net48xx_led_driver = {
 	.remove		= net48xx_led_remove,
 	.driver		= {
 		.name		= DRVNAME,
-		.owner		= THIS_MODULE,
 	},
 };
 

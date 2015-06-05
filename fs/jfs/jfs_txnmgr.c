@@ -136,7 +136,6 @@ static inline void TXN_SLEEP_DROP_LOCK(wait_queue_head_t * event)
 	set_current_state(TASK_UNINTERRUPTIBLE);
 	TXN_UNLOCK();
 	io_schedule();
-	__set_current_state(TASK_RUNNING);
 	remove_wait_queue(event, &wait);
 }
 
@@ -2684,7 +2683,7 @@ void txAbort(tid_t tid, int dirty)
 	 * mark filesystem dirty
 	 */
 	if (dirty)
-		jfs_error(tblk->sb, "txAbort");
+		jfs_error(tblk->sb, "\n");
 
 	return;
 }
@@ -2800,7 +2799,7 @@ int jfs_lazycommit(void *arg)
 
 		if (freezing(current)) {
 			LAZY_UNLOCK(flags);
-			refrigerator();
+			try_to_freeze();
 		} else {
 			DECLARE_WAITQUEUE(wq, current);
 
@@ -2808,7 +2807,6 @@ int jfs_lazycommit(void *arg)
 			set_current_state(TASK_INTERRUPTIBLE);
 			LAZY_UNLOCK(flags);
 			schedule();
-			__set_current_state(TASK_RUNNING);
 			remove_wait_queue(&jfs_commit_thread_wait, &wq);
 		}
 	} while (!kthread_should_stop());
@@ -2977,12 +2975,9 @@ int jfs_sync(void *arg)
 				 * put back on the anon_list.
 				 */
 
-				/* Take off anon_list */
-				list_del(&jfs_ip->anon_inode_list);
-
-				/* Put on anon_list2 */
-				list_add(&jfs_ip->anon_inode_list,
-					 &TxAnchor.anon_list2);
+				/* Move from anon_list to anon_list2 */
+				list_move(&jfs_ip->anon_inode_list,
+					  &TxAnchor.anon_list2);
 
 				TXN_UNLOCK();
 				iput(ip);
@@ -2994,12 +2989,11 @@ int jfs_sync(void *arg)
 
 		if (freezing(current)) {
 			TXN_UNLOCK();
-			refrigerator();
+			try_to_freeze();
 		} else {
 			set_current_state(TASK_INTERRUPTIBLE);
 			TXN_UNLOCK();
 			schedule();
-			__set_current_state(TASK_RUNNING);
 		}
 	} while (!kthread_should_stop());
 

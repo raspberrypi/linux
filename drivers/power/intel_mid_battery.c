@@ -649,7 +649,7 @@ static void pmic_battery_handle_intrpt(struct work_struct *work)
  * PMIC battery initializes its internal data structue and other
  * infrastructure components for it to work as expected.
  */
-static __devinit int probe(int irq, struct device *dev)
+static int probe(int irq, struct device *dev)
 {
 	int retval = 0;
 	struct pmic_power_module_info *pbi;
@@ -739,7 +739,7 @@ wqueue_failed:
 	return retval;
 }
 
-static int __devinit platform_pmic_battery_probe(struct platform_device *pdev)
+static int platform_pmic_battery_probe(struct platform_device *pdev)
 {
 	return probe(pdev->id, &pdev->dev);
 }
@@ -754,9 +754,9 @@ static int __devinit platform_pmic_battery_probe(struct platform_device *pdev)
  * pmic_battery_probe.
  */
 
-static int __devexit platform_pmic_battery_remove(struct platform_device *pdev)
+static int platform_pmic_battery_remove(struct platform_device *pdev)
 {
-	struct pmic_power_module_info *pbi = dev_get_drvdata(&pdev->dev);
+	struct pmic_power_module_info *pbi = platform_get_drvdata(pdev);
 
 	free_irq(pbi->irq, pbi);
 	cancel_delayed_work_sync(&pbi->monitor_battery);
@@ -773,24 +773,12 @@ static int __devexit platform_pmic_battery_remove(struct platform_device *pdev)
 static struct platform_driver platform_pmic_battery_driver = {
 	.driver = {
 		.name = DRIVER_NAME,
-		.owner = THIS_MODULE,
 	},
 	.probe = platform_pmic_battery_probe,
-	.remove = __devexit_p(platform_pmic_battery_remove),
+	.remove = platform_pmic_battery_remove,
 };
 
-static int __init platform_pmic_battery_module_init(void)
-{
-	return platform_driver_register(&platform_pmic_battery_driver);
-}
-
-static void __exit platform_pmic_battery_module_exit(void)
-{
-	platform_driver_unregister(&platform_pmic_battery_driver);
-}
-
-module_init(platform_pmic_battery_module_init);
-module_exit(platform_pmic_battery_module_exit);
+module_platform_driver(platform_pmic_battery_driver);
 
 MODULE_AUTHOR("Nithish Mahalingam <nithish.mahalingam@intel.com>");
 MODULE_DESCRIPTION("Intel Moorestown PMIC Battery Driver");

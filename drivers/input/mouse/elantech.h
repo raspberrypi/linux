@@ -20,6 +20,7 @@
 #define ETP_FW_VERSION_QUERY		0x01
 #define ETP_CAPABILITIES_QUERY		0x02
 #define ETP_SAMPLE_QUERY		0x03
+#define ETP_RESOLUTION_QUERY		0x04
 
 /*
  * Command values for register reading or writing
@@ -93,6 +94,7 @@
 #define PACKET_V4_HEAD			0x05
 #define PACKET_V4_MOTION		0x06
 #define PACKET_V4_STATUS		0x07
+#define PACKET_TRACKPOINT		0x08
 
 /*
  * track up to 5 fingers for v4 hardware
@@ -113,6 +115,8 @@ struct finger_pos {
 };
 
 struct elantech_data {
+	struct input_dev *tp_dev;	/* Relative device for trackpoint */
+	char tp_phys[32];
 	unsigned char reg_07;
 	unsigned char reg_10;
 	unsigned char reg_11;
@@ -128,6 +132,8 @@ struct elantech_data {
 	bool paritycheck;
 	bool jumpy_cursor;
 	bool reports_pressure;
+	bool crc_enabled;
+	bool set_hw_resolution;
 	unsigned char hw_version;
 	unsigned int fw_version;
 	unsigned int single_finger_reports;
@@ -135,6 +141,8 @@ struct elantech_data {
 	unsigned int width;
 	struct finger_pos mt[ETP_MAX_FINGERS];
 	unsigned char parity[256];
+	int (*send_cmd)(struct psmouse *psmouse, unsigned char c, unsigned char *param);
+	void (*original_set_rate)(struct psmouse *psmouse, unsigned int rate);
 };
 
 #ifdef CONFIG_MOUSE_PS2_ELANTECH

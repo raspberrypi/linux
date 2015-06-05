@@ -19,35 +19,48 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #include <linux/gpio.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
-#include <linux/module.h>
-
-#include <asm/gpio.h>
-
-#include <mach/gpio-tegra.h>
-#include <mach/sdhci.h>
+#include <linux/mmc/slot-gpio.h>
 
 #include "sdhci-pltfm.h"
 
-static u32 tegra_sdhci_readl(struct sdhci_host *host, int reg)
-{
-	u32 val;
+/* Tegra SDHOST controller vendor register definitions */
+#define SDHCI_TEGRA_VENDOR_MISC_CTRL		0x120
+#define SDHCI_MISC_CTRL_ENABLE_SDR104		0x8
+#define SDHCI_MISC_CTRL_ENABLE_SDR50		0x10
+#define SDHCI_MISC_CTRL_ENABLE_SDHCI_SPEC_300	0x20
+#define SDHCI_MISC_CTRL_ENABLE_DDR50		0x200
 
-	if (unlikely(reg == SDHCI_PRESENT_STATE)) {
-		/* Use wp_gpio here instead? */
-		val = readl(host->ioaddr + reg);
-		return val | SDHCI_WRITE_PROTECT;
-	}
+#define NVQUIRK_FORCE_SDHCI_SPEC_200	BIT(0)
+#define NVQUIRK_ENABLE_BLOCK_GAP_DET	BIT(1)
+#define NVQUIRK_ENABLE_SDHCI_SPEC_300	BIT(2)
+#define NVQUIRK_DISABLE_SDR50		BIT(3)
+#define NVQUIRK_DISABLE_SDR104		BIT(4)
+#define NVQUIRK_DISABLE_DDR50		BIT(5)
+#define NVQUIRK_SHADOW_XFER_MODE_REG	BIT(6)
 
-	return readl(host->ioaddr + reg);
-}
+struct sdhci_tegra_soc_data {
+	const struct sdhci_pltfm_data *pdata;
+	u32 nvquirks;
+};
+
+struct sdhci_tegra {
+	const struct sdhci_tegra_soc_data *soc_data;
+	int power_gpio;
+};
 
 static u16 tegra_sdhci_readw(struct sdhci_host *host, int reg)
 {
-	if (unlikely(reg == SDHCI_HOST_VERSION)) {
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
+
+	if (unlikely((soc_data->nvquirks & NVQUIRK_FORCE_SDHCI_SPEC_200) &&
+			(reg == SDHCI_HOST_VERSION))) {
 		/* Erratum: Version register is invalid in HW. */
 		return SDHCI_SPEC_200;
 	}
@@ -55,8 +68,37 @@ static u16 tegra_sdhci_readw(struct sdhci_host *host, int reg)
 	return readw(host->ioaddr + reg);
 }
 
+static void tegra_sdhci_writew(struct sdhci_host *host, u16 val, int reg)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
+
+	if (soc_data->nvquirks & NVQUIRK_SHADOW_XFER_MODE_REG) {
+		switch (reg) {
+		case SDHCI_TRANSFER_MODE:
+			/*
+			 * Postpone this write, we must do it together with a
+			 * command write that is down below.
+			 */
+			pltfm_host->xfer_mode_shadow = val;
+			return;
+		case SDHCI_COMMAND:
+			writel((val << 16) | pltfm_host->xfer_mode_shadow,
+				host->ioaddr + SDHCI_TRANSFER_MODE);
+			return;
+		}
+	}
+
+	writew(val, host->ioaddr + reg);
+}
+
 static void tegra_sdhci_writel(struct sdhci_host *host, u32 val, int reg)
 {
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
+
 	/* Seems like we're getting spurious timeout and crc errors, so
 	 * disable signalling of them. In case of real errors software
 	 * timers should take care of eventually detecting them.
@@ -66,7 +108,8 @@ static void tegra_sdhci_writel(struct sdhci_host *host, u32 val, int reg)
 
 	writel(val, host->ioaddr + reg);
 
-	if (unlikely(reg == SDHCI_INT_ENABLE)) {
+	if (unlikely((soc_data->nvquirks & NVQUIRK_ENABLE_BLOCK_GAP_DET) &&
+			(reg == SDHCI_INT_ENABLE))) {
 		/* Erratum: Must enable block gap interrupt detection */
 		u8 gap_ctrl = readb(host->ioaddr + SDHCI_BLOCK_GAP_CONTROL);
 		if (val & SDHCI_INT_CARD_INT)
@@ -77,33 +120,44 @@ static void tegra_sdhci_writel(struct sdhci_host *host, u32 val, int reg)
 	}
 }
 
-static unsigned int tegra_sdhci_get_ro(struct sdhci_host *sdhci)
+static unsigned int tegra_sdhci_get_ro(struct sdhci_host *host)
 {
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhci);
-	struct tegra_sdhci_platform_data *plat = pltfm_host->priv;
-
-	if (!gpio_is_valid(plat->wp_gpio))
-		return -1;
-
-	return gpio_get_value(plat->wp_gpio);
+	return mmc_gpio_get_ro(host->mmc);
 }
 
-static irqreturn_t carddetect_irq(int irq, void *data)
-{
-	struct sdhci_host *sdhost = (struct sdhci_host *)data;
-
-	tasklet_schedule(&sdhost->card_tasklet);
-	return IRQ_HANDLED;
-};
-
-static int tegra_sdhci_8bit(struct sdhci_host *host, int bus_width)
+static void tegra_sdhci_reset(struct sdhci_host *host, u8 mask)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	struct tegra_sdhci_platform_data *plat = pltfm_host->priv;
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
+	u32 misc_ctrl;
+
+	sdhci_reset(host, mask);
+
+	if (!(mask & SDHCI_RESET_ALL))
+		return;
+
+	misc_ctrl = sdhci_readw(host, SDHCI_TEGRA_VENDOR_MISC_CTRL);
+	/* Erratum: Enable SDHCI spec v3.00 support */
+	if (soc_data->nvquirks & NVQUIRK_ENABLE_SDHCI_SPEC_300)
+		misc_ctrl |= SDHCI_MISC_CTRL_ENABLE_SDHCI_SPEC_300;
+	/* Don't advertise UHS modes which aren't supported yet */
+	if (soc_data->nvquirks & NVQUIRK_DISABLE_SDR50)
+		misc_ctrl &= ~SDHCI_MISC_CTRL_ENABLE_SDR50;
+	if (soc_data->nvquirks & NVQUIRK_DISABLE_DDR50)
+		misc_ctrl &= ~SDHCI_MISC_CTRL_ENABLE_DDR50;
+	if (soc_data->nvquirks & NVQUIRK_DISABLE_SDR104)
+		misc_ctrl &= ~SDHCI_MISC_CTRL_ENABLE_SDR104;
+	sdhci_writew(host, misc_ctrl, SDHCI_TEGRA_VENDOR_MISC_CTRL);
+}
+
+static void tegra_sdhci_set_bus_width(struct sdhci_host *host, int bus_width)
+{
 	u32 ctrl;
 
 	ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL);
-	if (plat->is_8bit && bus_width == MMC_BUS_WIDTH_8) {
+	if ((host->mmc->caps & MMC_CAP_8_BIT_DATA) &&
+	    (bus_width == MMC_BUS_WIDTH_8)) {
 		ctrl &= ~SDHCI_CTRL_4BITBUS;
 		ctrl |= SDHCI_CTRL_8BITBUS;
 	} else {
@@ -114,123 +168,131 @@ static int tegra_sdhci_8bit(struct sdhci_host *host, int bus_width)
 			ctrl &= ~SDHCI_CTRL_4BITBUS;
 	}
 	sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
-	return 0;
 }
 
-static struct sdhci_ops tegra_sdhci_ops = {
+static const struct sdhci_ops tegra_sdhci_ops = {
 	.get_ro     = tegra_sdhci_get_ro,
-	.read_l     = tegra_sdhci_readl,
 	.read_w     = tegra_sdhci_readw,
+	.write_w    = tegra_sdhci_writew,
 	.write_l    = tegra_sdhci_writel,
-	.platform_8bit_width = tegra_sdhci_8bit,
+	.set_clock  = sdhci_set_clock,
+	.set_bus_width = tegra_sdhci_set_bus_width,
+	.reset      = tegra_sdhci_reset,
+	.set_uhs_signaling = sdhci_set_uhs_signaling,
+	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 };
 
-static struct sdhci_pltfm_data sdhci_tegra_pdata = {
+static const struct sdhci_pltfm_data sdhci_tegra20_pdata = {
 	.quirks = SDHCI_QUIRK_BROKEN_TIMEOUT_VAL |
 		  SDHCI_QUIRK_SINGLE_POWER_WRITE |
 		  SDHCI_QUIRK_NO_HISPD_BIT |
-		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC,
+		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
+		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
 	.ops  = &tegra_sdhci_ops,
 };
 
-static const struct of_device_id sdhci_tegra_dt_match[] __devinitdata = {
-	{ .compatible = "nvidia,tegra20-sdhci", },
+static struct sdhci_tegra_soc_data soc_data_tegra20 = {
+	.pdata = &sdhci_tegra20_pdata,
+	.nvquirks = NVQUIRK_FORCE_SDHCI_SPEC_200 |
+		    NVQUIRK_ENABLE_BLOCK_GAP_DET,
+};
+
+static const struct sdhci_pltfm_data sdhci_tegra30_pdata = {
+	.quirks = SDHCI_QUIRK_BROKEN_TIMEOUT_VAL |
+		  SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
+		  SDHCI_QUIRK_SINGLE_POWER_WRITE |
+		  SDHCI_QUIRK_NO_HISPD_BIT |
+		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
+		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
+	.ops  = &tegra_sdhci_ops,
+};
+
+static struct sdhci_tegra_soc_data soc_data_tegra30 = {
+	.pdata = &sdhci_tegra30_pdata,
+	.nvquirks = NVQUIRK_ENABLE_SDHCI_SPEC_300 |
+		    NVQUIRK_DISABLE_SDR50 |
+		    NVQUIRK_DISABLE_SDR104,
+};
+
+static const struct sdhci_pltfm_data sdhci_tegra114_pdata = {
+	.quirks = SDHCI_QUIRK_BROKEN_TIMEOUT_VAL |
+		  SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
+		  SDHCI_QUIRK_SINGLE_POWER_WRITE |
+		  SDHCI_QUIRK_NO_HISPD_BIT |
+		  SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC |
+		  SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
+	.ops  = &tegra_sdhci_ops,
+};
+
+static struct sdhci_tegra_soc_data soc_data_tegra114 = {
+	.pdata = &sdhci_tegra114_pdata,
+	.nvquirks = NVQUIRK_DISABLE_SDR50 |
+		    NVQUIRK_DISABLE_DDR50 |
+		    NVQUIRK_DISABLE_SDR104 |
+		    NVQUIRK_SHADOW_XFER_MODE_REG,
+};
+
+static const struct of_device_id sdhci_tegra_dt_match[] = {
+	{ .compatible = "nvidia,tegra124-sdhci", .data = &soc_data_tegra114 },
+	{ .compatible = "nvidia,tegra114-sdhci", .data = &soc_data_tegra114 },
+	{ .compatible = "nvidia,tegra30-sdhci", .data = &soc_data_tegra30 },
+	{ .compatible = "nvidia,tegra20-sdhci", .data = &soc_data_tegra20 },
 	{}
 };
-MODULE_DEVICE_TABLE(of, sdhci_dt_ids);
+MODULE_DEVICE_TABLE(of, sdhci_tegra_dt_match);
 
-static struct tegra_sdhci_platform_data * __devinit sdhci_tegra_dt_parse_pdata(
-						struct platform_device *pdev)
+static int sdhci_tegra_parse_dt(struct device *dev)
 {
-	struct tegra_sdhci_platform_data *plat;
-	struct device_node *np = pdev->dev.of_node;
+	struct device_node *np = dev->of_node;
+	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 
-	if (!np)
-		return NULL;
-
-	plat = devm_kzalloc(&pdev->dev, sizeof(*plat), GFP_KERNEL);
-	if (!plat) {
-		dev_err(&pdev->dev, "Can't allocate platform data\n");
-		return NULL;
-	}
-
-	plat->cd_gpio = of_get_named_gpio(np, "cd-gpios", 0);
-	plat->wp_gpio = of_get_named_gpio(np, "wp-gpios", 0);
-	plat->power_gpio = of_get_named_gpio(np, "power-gpios", 0);
-	if (of_find_property(np, "support-8bit", NULL))
-		plat->is_8bit = 1;
-
-	return plat;
+	tegra_host->power_gpio = of_get_named_gpio(np, "power-gpios", 0);
+	return mmc_of_parse(host->mmc);
 }
 
-static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
+static int sdhci_tegra_probe(struct platform_device *pdev)
 {
-	struct sdhci_pltfm_host *pltfm_host;
-	struct tegra_sdhci_platform_data *plat;
+	const struct of_device_id *match;
+	const struct sdhci_tegra_soc_data *soc_data;
 	struct sdhci_host *host;
+	struct sdhci_pltfm_host *pltfm_host;
+	struct sdhci_tegra *tegra_host;
 	struct clk *clk;
 	int rc;
 
-	host = sdhci_pltfm_init(pdev, &sdhci_tegra_pdata);
+	match = of_match_device(sdhci_tegra_dt_match, &pdev->dev);
+	if (!match)
+		return -EINVAL;
+	soc_data = match->data;
+
+	host = sdhci_pltfm_init(pdev, soc_data->pdata, 0);
 	if (IS_ERR(host))
 		return PTR_ERR(host);
-
 	pltfm_host = sdhci_priv(host);
 
-	plat = pdev->dev.platform_data;
-
-	if (plat == NULL)
-		plat = sdhci_tegra_dt_parse_pdata(pdev);
-
-	if (plat == NULL) {
-		dev_err(mmc_dev(host->mmc), "missing platform data\n");
-		rc = -ENXIO;
-		goto err_no_plat;
+	tegra_host = devm_kzalloc(&pdev->dev, sizeof(*tegra_host), GFP_KERNEL);
+	if (!tegra_host) {
+		dev_err(mmc_dev(host->mmc), "failed to allocate tegra_host\n");
+		rc = -ENOMEM;
+		goto err_alloc_tegra_host;
 	}
+	tegra_host->soc_data = soc_data;
+	pltfm_host->priv = tegra_host;
 
-	pltfm_host->priv = plat;
+	rc = sdhci_tegra_parse_dt(&pdev->dev);
+	if (rc)
+		goto err_parse_dt;
 
-	if (gpio_is_valid(plat->power_gpio)) {
-		rc = gpio_request(plat->power_gpio, "sdhci_power");
+	if (gpio_is_valid(tegra_host->power_gpio)) {
+		rc = gpio_request(tegra_host->power_gpio, "sdhci_power");
 		if (rc) {
 			dev_err(mmc_dev(host->mmc),
 				"failed to allocate power gpio\n");
 			goto err_power_req;
 		}
-		tegra_gpio_enable(plat->power_gpio);
-		gpio_direction_output(plat->power_gpio, 1);
-	}
-
-	if (gpio_is_valid(plat->cd_gpio)) {
-		rc = gpio_request(plat->cd_gpio, "sdhci_cd");
-		if (rc) {
-			dev_err(mmc_dev(host->mmc),
-				"failed to allocate cd gpio\n");
-			goto err_cd_req;
-		}
-		tegra_gpio_enable(plat->cd_gpio);
-		gpio_direction_input(plat->cd_gpio);
-
-		rc = request_irq(gpio_to_irq(plat->cd_gpio), carddetect_irq,
-				 IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
-				 mmc_hostname(host->mmc), host);
-
-		if (rc)	{
-			dev_err(mmc_dev(host->mmc), "request irq error\n");
-			goto err_cd_irq_req;
-		}
-
-	}
-
-	if (gpio_is_valid(plat->wp_gpio)) {
-		rc = gpio_request(plat->wp_gpio, "sdhci_wp");
-		if (rc) {
-			dev_err(mmc_dev(host->mmc),
-				"failed to allocate wp gpio\n");
-			goto err_wp_req;
-		}
-		tegra_gpio_enable(plat->wp_gpio);
-		gpio_direction_input(plat->wp_gpio);
+		gpio_direction_output(tegra_host->power_gpio, 1);
 	}
 
 	clk = clk_get(mmc_dev(host->mmc), NULL);
@@ -239,13 +301,8 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 		rc = PTR_ERR(clk);
 		goto err_clk_get;
 	}
-	clk_enable(clk);
+	clk_prepare_enable(clk);
 	pltfm_host->clk = clk;
-
-	host->mmc->pm_caps = plat->pm_flags;
-
-	if (plat->is_8bit)
-		host->mmc->caps |= MMC_CAP_8_BIT_DATA;
 
 	rc = sdhci_add_host(host);
 	if (rc)
@@ -254,58 +311,31 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 	return 0;
 
 err_add_host:
-	clk_disable(pltfm_host->clk);
+	clk_disable_unprepare(pltfm_host->clk);
 	clk_put(pltfm_host->clk);
 err_clk_get:
-	if (gpio_is_valid(plat->wp_gpio)) {
-		tegra_gpio_disable(plat->wp_gpio);
-		gpio_free(plat->wp_gpio);
-	}
-err_wp_req:
-	if (gpio_is_valid(plat->cd_gpio))
-		free_irq(gpio_to_irq(plat->cd_gpio), host);
-err_cd_irq_req:
-	if (gpio_is_valid(plat->cd_gpio)) {
-		tegra_gpio_disable(plat->cd_gpio);
-		gpio_free(plat->cd_gpio);
-	}
-err_cd_req:
-	if (gpio_is_valid(plat->power_gpio)) {
-		tegra_gpio_disable(plat->power_gpio);
-		gpio_free(plat->power_gpio);
-	}
+	if (gpio_is_valid(tegra_host->power_gpio))
+		gpio_free(tegra_host->power_gpio);
 err_power_req:
-err_no_plat:
+err_parse_dt:
+err_alloc_tegra_host:
 	sdhci_pltfm_free(pdev);
 	return rc;
 }
 
-static int __devexit sdhci_tegra_remove(struct platform_device *pdev)
+static int sdhci_tegra_remove(struct platform_device *pdev)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	struct tegra_sdhci_platform_data *plat = pltfm_host->priv;
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 	int dead = (readl(host->ioaddr + SDHCI_INT_STATUS) == 0xffffffff);
 
 	sdhci_remove_host(host, dead);
 
-	if (gpio_is_valid(plat->wp_gpio)) {
-		tegra_gpio_disable(plat->wp_gpio);
-		gpio_free(plat->wp_gpio);
-	}
+	if (gpio_is_valid(tegra_host->power_gpio))
+		gpio_free(tegra_host->power_gpio);
 
-	if (gpio_is_valid(plat->cd_gpio)) {
-		free_irq(gpio_to_irq(plat->cd_gpio), host);
-		tegra_gpio_disable(plat->cd_gpio);
-		gpio_free(plat->cd_gpio);
-	}
-
-	if (gpio_is_valid(plat->power_gpio)) {
-		tegra_gpio_disable(plat->power_gpio);
-		gpio_free(plat->power_gpio);
-	}
-
-	clk_disable(pltfm_host->clk);
+	clk_disable_unprepare(pltfm_host->clk);
 	clk_put(pltfm_host->clk);
 
 	sdhci_pltfm_free(pdev);
@@ -316,26 +346,15 @@ static int __devexit sdhci_tegra_remove(struct platform_device *pdev)
 static struct platform_driver sdhci_tegra_driver = {
 	.driver		= {
 		.name	= "sdhci-tegra",
-		.owner	= THIS_MODULE,
 		.of_match_table = sdhci_tegra_dt_match,
 		.pm	= SDHCI_PLTFM_PMOPS,
 	},
 	.probe		= sdhci_tegra_probe,
-	.remove		= __devexit_p(sdhci_tegra_remove),
+	.remove		= sdhci_tegra_remove,
 };
 
-static int __init sdhci_tegra_init(void)
-{
-	return platform_driver_register(&sdhci_tegra_driver);
-}
-module_init(sdhci_tegra_init);
-
-static void __exit sdhci_tegra_exit(void)
-{
-	platform_driver_unregister(&sdhci_tegra_driver);
-}
-module_exit(sdhci_tegra_exit);
+module_platform_driver(sdhci_tegra_driver);
 
 MODULE_DESCRIPTION("SDHCI driver for Tegra");
-MODULE_AUTHOR(" Google, Inc.");
+MODULE_AUTHOR("Google, Inc.");
 MODULE_LICENSE("GPL v2");

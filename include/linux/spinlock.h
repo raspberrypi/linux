@@ -55,8 +55,8 @@
 #include <linux/kernel.h>
 #include <linux/stringify.h>
 #include <linux/bottom_half.h>
+#include <asm/barrier.h>
 
-#include <asm/system.h>
 
 /*
  * Must define these before including other files, inline functions need them
@@ -117,9 +117,27 @@ do {								\
 #endif /*arch_spin_is_contended*/
 #endif
 
-/* The lock does not imply full memory barrier. */
-#ifndef ARCH_HAS_SMP_MB_AFTER_LOCK
-static inline void smp_mb__after_lock(void) { smp_mb(); }
+/*
+ * Despite its name it doesn't necessarily has to be a full barrier.
+ * It should only guarantee that a STORE before the critical section
+ * can not be reordered with a LOAD inside this section.
+ * spin_lock() is the one-way barrier, this LOAD can not escape out
+ * of the region. So the default implementation simply ensures that
+ * a STORE can not move into the critical section, smp_wmb() should
+ * serialize it with another STORE done by spin_lock().
+ */
+#ifndef smp_mb__before_spinlock
+#define smp_mb__before_spinlock()	smp_wmb()
+#endif
+
+/*
+ * Place this after a lock-acquisition primitive to guarantee that
+ * an UNLOCK+LOCK pair act as a full barrier.  This guarantee applies
+ * if the UNLOCK and LOCK are executed by the same CPU or if the
+ * UNLOCK and LOCK operate on the same lock variable.
+ */
+#ifndef smp_mb__after_unlock_lock
+#define smp_mb__after_unlock_lock()	do { } while (0)
 #endif
 
 /**
@@ -172,6 +190,8 @@ static inline void do_raw_spin_unlock(raw_spinlock_t *lock) __releases(lock)
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 # define raw_spin_lock_nested(lock, subclass) \
 	_raw_spin_lock_nested(lock, subclass)
+# define raw_spin_lock_bh_nested(lock, subclass) \
+	_raw_spin_lock_bh_nested(lock, subclass)
 
 # define raw_spin_lock_nest_lock(lock, nest_lock)			\
 	 do {								\
@@ -179,8 +199,15 @@ static inline void do_raw_spin_unlock(raw_spinlock_t *lock) __releases(lock)
 		 _raw_spin_lock_nest_lock(lock, &(nest_lock)->dep_map);	\
 	 } while (0)
 #else
-# define raw_spin_lock_nested(lock, subclass)		_raw_spin_lock(lock)
+/*
+ * Always evaluate the 'subclass' argument to avoid that the compiler
+ * warns about set-but-not-used variables when building with
+ * CONFIG_DEBUG_LOCK_ALLOC=n and with W=1.
+ */
+# define raw_spin_lock_nested(lock, subclass)		\
+	_raw_spin_lock(((void)(subclass), (lock)))
 # define raw_spin_lock_nest_lock(lock, nest_lock)	_raw_spin_lock(lock)
+# define raw_spin_lock_bh_nested(lock, subclass)	_raw_spin_lock_bh(lock)
 #endif
 
 #if defined(CONFIG_SMP) || defined(CONFIG_DEBUG_SPINLOCK)
@@ -300,6 +327,11 @@ do {								\
 	raw_spin_lock_nested(spinlock_check(lock), subclass);	\
 } while (0)
 
+#define spin_lock_bh_nested(lock, subclass)			\
+do {								\
+	raw_spin_lock_bh_nested(spinlock_check(lock), subclass);\
+} while (0)
+
 #define spin_lock_nest_lock(lock, nest_lock)				\
 do {									\
 	raw_spin_lock_nest_lock(spinlock_check(lock), nest_lock);	\
@@ -375,10 +407,7 @@ static inline int spin_can_lock(spinlock_t *lock)
 	return raw_spin_can_lock(&lock->rlock);
 }
 
-static inline void assert_spin_locked(spinlock_t *lock)
-{
-	assert_raw_spin_locked(&lock->rlock);
-}
+#define assert_spin_locked(lock)	assert_raw_spin_locked(&(lock)->rlock)
 
 /*
  * Pull the atomic_t declaration:

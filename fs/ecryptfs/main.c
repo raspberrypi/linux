@@ -120,16 +120,15 @@ static int ecryptfs_init_lower_file(struct dentry *dentry,
 				    struct file **lower_file)
 {
 	const struct cred *cred = current_cred();
-	struct dentry *lower_dentry = ecryptfs_dentry_to_lower(dentry);
-	struct vfsmount *lower_mnt = ecryptfs_dentry_to_lower_mnt(dentry);
+	struct path *path = ecryptfs_dentry_to_lower_path(dentry);
 	int rc;
 
-	rc = ecryptfs_privileged_open(lower_file, lower_dentry, lower_mnt,
+	rc = ecryptfs_privileged_open(lower_file, path->dentry, path->mnt,
 				      cred);
 	if (rc) {
 		printk(KERN_ERR "Error opening lower file "
 		       "for lower_dentry [0x%p] and lower_mnt [0x%p]; "
-		       "rc = [%d]\n", lower_dentry, lower_mnt, rc);
+		       "rc = [%d]\n", path->dentry, path->mnt, rc);
 		(*lower_file) = NULL;
 	}
 	return rc;
@@ -162,6 +161,7 @@ void ecryptfs_put_lower_file(struct inode *inode)
 	inode_info = ecryptfs_inode_to_private(inode);
 	if (atomic_dec_and_mutex_lock(&inode_info->lower_file_count,
 				      &inode_info->lower_file_mutex)) {
+		filemap_write_and_wait(inode->i_mapping);
 		fput(inode_info->lower_file);
 		inode_info->lower_file = NULL;
 		mutex_unlock(&inode_info->lower_file_mutex);
@@ -279,6 +279,7 @@ static int ecryptfs_parse_options(struct ecryptfs_sb_info *sbi, char *options,
 	char *fnek_src;
 	char *cipher_key_bytes_src;
 	char *fn_cipher_key_bytes_src;
+	u8 cipher_code;
 
 	*check_ruid = 0;
 
@@ -406,7 +407,7 @@ static int ecryptfs_parse_options(struct ecryptfs_sb_info *sbi, char *options,
 	if (!cipher_name_set) {
 		int cipher_name_len = strlen(ECRYPTFS_DEFAULT_CIPHER);
 
-		BUG_ON(cipher_name_len >= ECRYPTFS_MAX_CIPHER_NAME_SIZE);
+		BUG_ON(cipher_name_len > ECRYPTFS_MAX_CIPHER_NAME_SIZE);
 		strcpy(mount_crypt_stat->global_default_cipher_name,
 		       ECRYPTFS_DEFAULT_CIPHER);
 	}
@@ -420,6 +421,18 @@ static int ecryptfs_parse_options(struct ecryptfs_sb_info *sbi, char *options,
 	    && !fn_cipher_key_bytes_set)
 		mount_crypt_stat->global_default_fn_cipher_key_bytes =
 			mount_crypt_stat->global_default_cipher_key_size;
+
+	cipher_code = ecryptfs_code_for_cipher_string(
+		mount_crypt_stat->global_default_cipher_name,
+		mount_crypt_stat->global_default_cipher_key_size);
+	if (!cipher_code) {
+		ecryptfs_printk(KERN_ERR,
+				"eCryptfs doesn't support cipher: %s",
+				mount_crypt_stat->global_default_cipher_name);
+		rc = -EINVAL;
+		goto out;
+	}
+
 	mutex_lock(&key_tfm_list_mutex);
 	if (!ecryptfs_tfm_exists(mount_crypt_stat->global_default_cipher_name,
 				 NULL)) {
@@ -480,6 +493,7 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags
 {
 	struct super_block *s;
 	struct ecryptfs_sb_info *sbi;
+	struct ecryptfs_mount_crypt_stat *mount_crypt_stat;
 	struct ecryptfs_dentry_info *root_info;
 	const char *err = "Getting sb failed";
 	struct inode *inode;
@@ -498,15 +512,15 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags
 		err = "Error parsing options";
 		goto out;
 	}
+	mount_crypt_stat = &sbi->mount_crypt_stat;
 
-	s = sget(fs_type, NULL, set_anon_super, NULL);
+	s = sget(fs_type, NULL, set_anon_super, flags, NULL);
 	if (IS_ERR(s)) {
 		rc = PTR_ERR(s);
 		goto out;
 	}
 
-	s->s_flags = flags;
-	rc = bdi_setup_and_register(&sbi->bdi, "ecryptfs", BDI_CAP_MAP_COPY);
+	rc = bdi_setup_and_register(&sbi->bdi, "ecryptfs");
 	if (rc)
 		goto out1;
 
@@ -532,27 +546,51 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags
 		goto out_free;
 	}
 
-	if (check_ruid && path.dentry->d_inode->i_uid != current_uid()) {
+	if (check_ruid && !uid_eq(path.dentry->d_inode->i_uid, current_uid())) {
 		rc = -EPERM;
 		printk(KERN_ERR "Mount of device (uid: %d) not owned by "
 		       "requested user (uid: %d)\n",
-		       path.dentry->d_inode->i_uid, current_uid());
+			i_uid_read(path.dentry->d_inode),
+			from_kuid(&init_user_ns, current_uid()));
 		goto out_free;
 	}
 
 	ecryptfs_set_superblock_lower(s, path.dentry->d_sb);
+
+	/**
+	 * Set the POSIX ACL flag based on whether they're enabled in the lower
+	 * mount.
+	 */
+	s->s_flags = flags & ~MS_POSIXACL;
+	s->s_flags |= path.dentry->d_sb->s_flags & MS_POSIXACL;
+
+	/**
+	 * Force a read-only eCryptfs mount when:
+	 *   1) The lower mount is ro
+	 *   2) The ecryptfs_encrypted_view mount option is specified
+	 */
+	if (path.dentry->d_sb->s_flags & MS_RDONLY ||
+	    mount_crypt_stat->flags & ECRYPTFS_ENCRYPTED_VIEW_ENABLED)
+		s->s_flags |= MS_RDONLY;
+
 	s->s_maxbytes = path.dentry->d_sb->s_maxbytes;
 	s->s_blocksize = path.dentry->d_sb->s_blocksize;
 	s->s_magic = ECRYPTFS_SUPER_MAGIC;
+	s->s_stack_depth = path.dentry->d_sb->s_stack_depth + 1;
+
+	rc = -EINVAL;
+	if (s->s_stack_depth > FILESYSTEM_MAX_STACK_DEPTH) {
+		pr_err("eCryptfs: maximum fs stacking depth exceeded\n");
+		goto out_free;
+	}
 
 	inode = ecryptfs_get_inode(path.dentry->d_inode, s);
 	rc = PTR_ERR(inode);
 	if (IS_ERR(inode))
 		goto out_free;
 
-	s->s_root = d_alloc_root(inode);
+	s->s_root = d_make_root(inode);
 	if (!s->s_root) {
-		iput(inode);
 		rc = -ENOMEM;
 		goto out_free;
 	}
@@ -564,8 +602,7 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags
 
 	/* ->kill_sb() will take care of root_info */
 	ecryptfs_set_dentry_private(s->s_root, root_info);
-	ecryptfs_set_dentry_lower(s->s_root, path.dentry);
-	ecryptfs_set_dentry_lower_mnt(s->s_root, path.mnt);
+	root_info->lower_path = path;
 
 	s->s_flags |= MS_ACTIVE;
 	return dget(s->s_root);
@@ -607,6 +644,7 @@ static struct file_system_type ecryptfs_fs_type = {
 	.kill_sb = ecryptfs_kill_block_super,
 	.fs_flags = 0
 };
+MODULE_ALIAS_FS("ecryptfs");
 
 /**
  * inode_info_init_once
@@ -683,16 +721,17 @@ static struct ecryptfs_cache_info {
 		.name = "ecryptfs_key_tfm_cache",
 		.size = sizeof(struct ecryptfs_key_tfm),
 	},
-	{
-		.cache = &ecryptfs_open_req_cache,
-		.name = "ecryptfs_open_req_cache",
-		.size = sizeof(struct ecryptfs_open_req),
-	},
 };
 
 static void ecryptfs_free_kmem_caches(void)
 {
 	int i;
+
+	/*
+	 * Make sure all delayed rcu free inodes are flushed before we
+	 * destroy cache.
+	 */
+	rcu_barrier();
 
 	for (i = 0; i < ARRAY_SIZE(ecryptfs_cache_infos); i++) {
 		struct ecryptfs_cache_info *info;
@@ -795,15 +834,10 @@ static int __init ecryptfs_init(void)
 		       "Failed to allocate one or more kmem_cache objects\n");
 		goto out;
 	}
-	rc = register_filesystem(&ecryptfs_fs_type);
-	if (rc) {
-		printk(KERN_ERR "Failed to register filesystem\n");
-		goto out_free_kmem_caches;
-	}
 	rc = do_sysfs_registration();
 	if (rc) {
 		printk(KERN_ERR "sysfs registration failed\n");
-		goto out_unregister_filesystem;
+		goto out_free_kmem_caches;
 	}
 	rc = ecryptfs_init_kthread();
 	if (rc) {
@@ -824,19 +858,24 @@ static int __init ecryptfs_init(void)
 		       "rc = [%d]\n", rc);
 		goto out_release_messaging;
 	}
+	rc = register_filesystem(&ecryptfs_fs_type);
+	if (rc) {
+		printk(KERN_ERR "Failed to register filesystem\n");
+		goto out_destroy_crypto;
+	}
 	if (ecryptfs_verbosity > 0)
 		printk(KERN_CRIT "eCryptfs verbosity set to %d. Secret values "
 			"will be written to the syslog!\n", ecryptfs_verbosity);
 
 	goto out;
+out_destroy_crypto:
+	ecryptfs_destroy_crypto();
 out_release_messaging:
 	ecryptfs_release_messaging();
 out_destroy_kthread:
 	ecryptfs_destroy_kthread();
 out_do_sysfs_unregistration:
 	do_sysfs_unregistration();
-out_unregister_filesystem:
-	unregister_filesystem(&ecryptfs_fs_type);
 out_free_kmem_caches:
 	ecryptfs_free_kmem_caches();
 out:

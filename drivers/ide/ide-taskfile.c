@@ -239,9 +239,6 @@ void ide_pio_bytes(ide_drive_t *drive, struct ide_cmd *cmd,
 		unsigned nr_bytes = min(len, cursg->length - cmd->cursg_ofs);
 		int page_is_high;
 
-		if (nr_bytes > PAGE_SIZE)
-			nr_bytes = PAGE_SIZE;
-
 		page = sg_page(cursg);
 		offset = cursg->offset + cmd->cursg_ofs;
 
@@ -249,11 +246,13 @@ void ide_pio_bytes(ide_drive_t *drive, struct ide_cmd *cmd,
 		page = nth_page(page, (offset >> PAGE_SHIFT));
 		offset %= PAGE_SIZE;
 
+		nr_bytes = min_t(unsigned, nr_bytes, (PAGE_SIZE - offset));
+
 		page_is_high = PageHighMem(page);
 		if (page_is_high)
 			local_irq_save(flags);
 
-		buf = kmap_atomic(page, KM_BIO_SRC_IRQ) + offset;
+		buf = kmap_atomic(page) + offset;
 
 		cmd->nleft -= nr_bytes;
 		cmd->cursg_ofs += nr_bytes;
@@ -269,7 +268,7 @@ void ide_pio_bytes(ide_drive_t *drive, struct ide_cmd *cmd,
 		else
 			hwif->tp_ops->input_data(drive, cmd, buf, nr_bytes);
 
-		kunmap_atomic(buf, KM_BIO_SRC_IRQ);
+		kunmap_atomic(buf);
 
 		if (page_is_high)
 			local_irq_restore(flags);

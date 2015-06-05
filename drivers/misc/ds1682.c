@@ -32,7 +32,6 @@
  */
 
 #include <linux/module.h>
-#include <linux/init.h>
 #include <linux/i2c.h>
 #include <linux/string.h>
 #include <linux/list.h>
@@ -86,7 +85,6 @@ static ssize_t ds1682_store(struct device *dev, struct device_attribute *attr,
 {
 	struct sensor_device_attribute_2 *sattr = to_sensor_dev_attr_2(attr);
 	struct i2c_client *client = to_i2c_client(dev);
-	char *endp;
 	u64 val;
 	__le32 val_le;
 	int rc;
@@ -94,8 +92,8 @@ static ssize_t ds1682_store(struct device *dev, struct device_attribute *attr,
 	dev_dbg(dev, "ds1682_store() called on %s\n", attr->attr.name);
 
 	/* Decode input */
-	val = simple_strtoull(buf, &endp, 0);
-	if (buf == endp) {
+	rc = kstrtoull(buf, 0, &val);
+	if (rc < 0) {
 		dev_dbg(dev, "input string not a number\n");
 		return -EINVAL;
 	}
@@ -250,19 +248,8 @@ static struct i2c_driver ds1682_driver = {
 	.id_table = ds1682_id,
 };
 
-static int __init ds1682_init(void)
-{
-	return i2c_add_driver(&ds1682_driver);
-}
-
-static void __exit ds1682_exit(void)
-{
-	i2c_del_driver(&ds1682_driver);
-}
+module_i2c_driver(ds1682_driver);
 
 MODULE_AUTHOR("Grant Likely <grant.likely@secretlab.ca>");
 MODULE_DESCRIPTION("DS1682 Elapsed Time Indicator driver");
 MODULE_LICENSE("GPL");
-
-module_init(ds1682_init);
-module_exit(ds1682_exit);

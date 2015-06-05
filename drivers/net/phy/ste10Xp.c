@@ -81,7 +81,8 @@ static int ste10Xp_ack_interrupt(struct phy_device *phydev)
 	return 0;
 }
 
-static struct phy_driver ste101p_pdriver = {
+static struct phy_driver ste10xp_pdriver[] = {
+{
 	.phy_id = STE101P_PHY_ID,
 	.phy_id_mask = 0xfffffff0,
 	.name = "STe101p",
@@ -95,9 +96,7 @@ static struct phy_driver ste101p_pdriver = {
 	.suspend = genphy_suspend,
 	.resume = genphy_resume,
 	.driver = {.owner = THIS_MODULE,}
-};
-
-static struct phy_driver ste100p_pdriver = {
+}, {
 	.phy_id = STE100P_PHY_ID,
 	.phy_id_mask = 0xffffffff,
 	.name = "STe100p",
@@ -111,26 +110,9 @@ static struct phy_driver ste100p_pdriver = {
 	.suspend = genphy_suspend,
 	.resume = genphy_resume,
 	.driver = {.owner = THIS_MODULE,}
-};
+} };
 
-static int __init ste10Xp_init(void)
-{
-	int retval;
-
-	retval = phy_driver_register(&ste100p_pdriver);
-	if (retval < 0)
-		return retval;
-	return phy_driver_register(&ste101p_pdriver);
-}
-
-static void __exit ste10Xp_exit(void)
-{
-	phy_driver_unregister(&ste100p_pdriver);
-	phy_driver_unregister(&ste101p_pdriver);
-}
-
-module_init(ste10Xp_init);
-module_exit(ste10Xp_exit);
+module_phy_driver(ste10xp_pdriver);
 
 static struct mdio_device_id __maybe_unused ste10Xp_tbl[] = {
 	{ STE101P_PHY_ID, 0xfffffff0 },

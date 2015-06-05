@@ -27,22 +27,23 @@
 #include <linux/i2c.h>
 #include <linux/errno.h>
 #include <linux/export.h>
+#include <linux/omapfb.h>
+#include <linux/platform_data/keypad-omap.h>
 
-#include <mach/hardware.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
-#include <plat/flash.h>
-#include <plat/mux.h>
-#include <plat/dma.h>
-#include <plat/irda.h>
-#include <plat/usb.h>
-#include <plat/tc.h>
-#include <plat/board.h>
+#include <mach/flash.h>
+#include <mach/mux.h>
+#include <linux/omap-dma.h>
+#include <mach/tc.h>
+#include <mach/board-sx1.h>
+
+#include <mach/hardware.h>
+#include <mach/usb.h>
+
 #include "common.h"
-#include <plat/keypad.h>
-#include <plat/board-sx1.h>
 
 /* Write to I2C device */
 int sx1_i2c_write_byte(u8 devaddr, u8 regoffset, u8 value)
@@ -225,39 +226,6 @@ static struct platform_device sx1_kp_device = {
 	.resource	= sx1_kp_resources,
 };
 
-/*----------- IRDA -------------------------*/
-
-static struct omap_irda_config sx1_irda_data = {
-	.transceiver_cap	= IR_SIRMODE,
-	.rx_channel		= OMAP_DMA_UART3_RX,
-	.tx_channel		= OMAP_DMA_UART3_TX,
-	.dest_start		= UART3_THR,
-	.src_start		= UART3_RHR,
-	.tx_trigger		= 0,
-	.rx_trigger		= 0,
-};
-
-static struct resource sx1_irda_resources[] = {
-	[0] = {
-		.start	= INT_UART3,
-		.end	= INT_UART3,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-static u64 irda_dmamask = 0xffffffff;
-
-static struct platform_device sx1_irda_device = {
-	.name		= "omapirda",
-	.id		= 0,
-	.dev		= {
-		.platform_data	= &sx1_irda_data,
-		.dma_mask	= &irda_dmamask,
-	},
-	.num_resources	= ARRAY_SIZE(sx1_irda_resources),
-	.resource	= sx1_irda_resources,
-};
-
 /*----------- MTD -------------------------*/
 
 static struct mtd_partition sx1_partitions[] = {
@@ -298,31 +266,6 @@ static struct physmap_flash_data sx1_flash_data = {
 	.nr_parts	= ARRAY_SIZE(sx1_partitions),
 };
 
-#ifdef CONFIG_SX1_OLD_FLASH
-/* MTD Intel StrataFlash - old flashes */
-static struct resource sx1_old_flash_resource[] = {
-	[0] = {
-		.start	= OMAP_CS0_PHYS,	/* Physical */
-		.end	= OMAP_CS0_PHYS + SZ_16M - 1,,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= OMAP_CS1_PHYS,
-		.end	= OMAP_CS1_PHYS + SZ_8M - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-};
-
-static struct platform_device sx1_flash_device = {
-	.name		= "physmap-flash",
-	.id		= 0,
-	.dev		= {
-		.platform_data	= &sx1_flash_data,
-	},
-	.num_resources	= 2,
-	.resource	= &sx1_old_flash_resource,
-};
-#else
 /* MTD Intel 4000 flash - new flashes */
 static struct resource sx1_new_flash_resource = {
 	.start		= OMAP_CS0_PHYS,
@@ -339,7 +282,6 @@ static struct platform_device sx1_flash_device = {
 	.num_resources	= 1,
 	.resource	= &sx1_new_flash_resource,
 };
-#endif
 
 /*----------- USB -------------------------*/
 
@@ -355,11 +297,6 @@ static struct omap_usb_config sx1_usb_config __initdata = {
 
 /*----------- LCD -------------------------*/
 
-static struct platform_device sx1_lcd_device = {
-	.name		= "lcd_sx1",
-	.id		= -1,
-};
-
 static struct omap_lcd_config sx1_lcd_config __initdata = {
 	.ctrl_name	= "internal",
 };
@@ -368,13 +305,6 @@ static struct omap_lcd_config sx1_lcd_config __initdata = {
 static struct platform_device *sx1_devices[] __initdata = {
 	&sx1_flash_device,
 	&sx1_kp_device,
-	&sx1_lcd_device,
-	&sx1_irda_device,
-};
-/*-----------------------------------------*/
-
-static struct omap_board_config_kernel sx1_config[] __initdata = {
-	{ OMAP_TAG_LCD,	&sx1_lcd_config },
 };
 
 /*-----------------------------------------*/
@@ -391,8 +321,6 @@ static void __init omap_sx1_init(void)
 
 	platform_add_devices(sx1_devices, ARRAY_SIZE(sx1_devices));
 
-	omap_board_config = sx1_config;
-	omap_board_config_size = ARRAY_SIZE(sx1_config);
 	omap_serial_init();
 	omap_register_i2c_bus(1, 100, NULL, 0);
 	omap1_usb_init(&sx1_usb_config);
@@ -406,15 +334,17 @@ static void __init omap_sx1_init(void)
 	gpio_direction_output(1, 1);	/*A_IRDA_OFF = 1 */
 	gpio_direction_output(11, 0);	/*A_SWITCH = 0 */
 	gpio_direction_output(15, 0);	/*A_USB_ON = 0 */
+
+	omapfb_set_lcd_config(&sx1_lcd_config);
 }
 
 MACHINE_START(SX1, "OMAP310 based Siemens SX1")
 	.atag_offset	= 0x100,
 	.map_io		= omap15xx_map_io,
 	.init_early     = omap1_init_early,
-	.reserve	= omap_reserve,
 	.init_irq	= omap1_init_irq,
 	.init_machine	= omap_sx1_init,
-	.timer		= &omap1_timer,
+	.init_late	= omap1_init_late,
+	.init_time	= omap1_timer_init,
 	.restart	= omap1_restart,
 MACHINE_END

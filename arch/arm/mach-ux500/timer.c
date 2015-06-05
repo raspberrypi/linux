@@ -7,62 +7,42 @@
 #include <linux/io.h>
 #include <linux/errno.h>
 #include <linux/clksrc-dbx500-prcmu.h>
+#include <linux/clocksource.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
 
-#include <asm/localtimer.h>
+#include "setup.h"
 
-#include <plat/mtu.h>
+#include "db8500-regs.h"
+#include "id.h"
 
-#include <mach/setup.h>
-#include <mach/hardware.h>
+static const struct of_device_id prcmu_timer_of_match[] __initconst = {
+	{ .compatible = "stericsson,db8500-prcmu-timer-4", },
+	{ },
+};
 
-static void __init ux500_timer_init(void)
+void __init ux500_timer_init(void)
 {
 	void __iomem *prcmu_timer_base;
+	void __iomem *tmp_base;
+	struct device_node *np;
 
-	if (cpu_is_u5500()) {
-#ifdef CONFIG_LOCAL_TIMERS
-		twd_base = __io_address(U5500_TWD_BASE);
-#endif
-		mtu_base = __io_address(U5500_MTU0_BASE);
-		prcmu_timer_base = __io_address(U5500_PRCMU_TIMER_3_BASE);
-	} else if (cpu_is_u8500()) {
-#ifdef CONFIG_LOCAL_TIMERS
-		twd_base = __io_address(U8500_TWD_BASE);
-#endif
-		mtu_base = __io_address(U8500_MTU0_BASE);
+	if (cpu_is_u8500_family() || cpu_is_ux540_family())
 		prcmu_timer_base = __io_address(U8500_PRCMU_TIMER_4_BASE);
-	} else {
+	else
 		ux500_unknown_soc();
-	}
 
-	/*
-	 * Here we register the timerblocks active in the system.
-	 * Localtimers (twd) is started when both cpu is up and running.
-	 * MTU register a clocksource, clockevent and sched_clock.
-	 * Since the MTU is located in the VAPE power domain
-	 * it will be cleared in sleep which makes it unsuitable.
-	 * We however need it as a timer tick (clockevent)
-	 * during boot to calibrate delay until twd is started.
-	 * RTC-RTT have problems as timer tick during boot since it is
-	 * depending on delay which is not yet calibrated. RTC-RTT is in the
-	 * always-on powerdomain and is used as clockevent instead of twd when
-	 * sleeping.
-	 * The PRCMU timer 4(3 for DB5500) register a clocksource and
-	 * sched_clock with higher rating then MTU since is always-on.
-	 *
-	 */
+	np = of_find_matching_node(NULL, prcmu_timer_of_match);
+	if (!np)
+		goto dt_fail;
 
-	nmdk_timer_init();
+	tmp_base = of_iomap(np, 0);
+	if (!tmp_base)
+		goto dt_fail;
+
+	prcmu_timer_base = tmp_base;
+
+dt_fail:
 	clksrc_dbx500_prcmu_init(prcmu_timer_base);
+	clocksource_of_init();
 }
-
-static void ux500_timer_reset(void)
-{
-	nmdk_clkevt_reset();
-	nmdk_clksrc_reset();
-}
-
-struct sys_timer ux500_timer = {
-	.init		= ux500_timer_init,
-	.resume		= ux500_timer_reset,
-};

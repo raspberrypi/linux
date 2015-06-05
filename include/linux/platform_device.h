@@ -14,16 +14,21 @@
 #include <linux/device.h>
 #include <linux/mod_devicetable.h>
 
+#define PLATFORM_DEVID_NONE	(-1)
+#define PLATFORM_DEVID_AUTO	(-2)
+
 struct mfd_cell;
 
 struct platform_device {
-	const char	* name;
+	const char	*name;
 	int		id;
+	bool		id_auto;
 	struct device	dev;
 	u32		num_resources;
-	struct resource	* resource;
+	struct resource	*resource;
 
 	const struct platform_device_id	*id_entry;
+	char *driver_override; /* Driver name to force a match */
 
 	/* MFD cell pointer */
 	struct mfd_cell *mfd_cell;
@@ -43,14 +48,18 @@ extern struct bus_type platform_bus_type;
 extern struct device platform_bus;
 
 extern void arch_setup_pdev_archdata(struct platform_device *);
-extern struct resource *platform_get_resource(struct platform_device *, unsigned int, unsigned int);
+extern struct resource *platform_get_resource(struct platform_device *,
+					      unsigned int, unsigned int);
 extern int platform_get_irq(struct platform_device *, unsigned int);
-extern struct resource *platform_get_resource_byname(struct platform_device *, unsigned int, const char *);
+extern struct resource *platform_get_resource_byname(struct platform_device *,
+						     unsigned int,
+						     const char *);
 extern int platform_get_irq_byname(struct platform_device *, const char *);
 extern int platform_add_devices(struct platform_device **, int);
 
 struct platform_device_info {
 		struct device *parent;
+		struct acpi_dev_node acpi_node;
 
 		const char *name;
 		int id;
@@ -156,7 +165,8 @@ extern struct platform_device *platform_device_alloc(const char *name, int id);
 extern int platform_device_add_resources(struct platform_device *pdev,
 					 const struct resource *res,
 					 unsigned int num);
-extern int platform_device_add_data(struct platform_device *pdev, const void *data, size_t size);
+extern int platform_device_add_data(struct platform_device *pdev,
+				    const void *data, size_t size);
 extern int platform_device_add(struct platform_device *pdev);
 extern void platform_device_del(struct platform_device *pdev);
 extern void platform_device_put(struct platform_device *pdev);
@@ -169,23 +179,36 @@ struct platform_driver {
 	int (*resume)(struct platform_device *);
 	struct device_driver driver;
 	const struct platform_device_id *id_table;
+	bool prevent_deferred_probe;
 };
 
-extern int platform_driver_register(struct platform_driver *);
+#define to_platform_driver(drv)	(container_of((drv), struct platform_driver, \
+				 driver))
+
+/*
+ * use a macro to avoid include chaining to get THIS_MODULE
+ */
+#define platform_driver_register(drv) \
+	__platform_driver_register(drv, THIS_MODULE)
+extern int __platform_driver_register(struct platform_driver *,
+					struct module *);
 extern void platform_driver_unregister(struct platform_driver *);
 
 /* non-hotpluggable platform devices may use this so that probe() and
  * its support may live in __init sections, conserving runtime memory.
  */
-extern int platform_driver_probe(struct platform_driver *driver,
-		int (*probe)(struct platform_device *));
+#define platform_driver_probe(drv, probe) \
+	__platform_driver_probe(drv, probe, THIS_MODULE)
+extern int __platform_driver_probe(struct platform_driver *driver,
+		int (*probe)(struct platform_device *), struct module *module);
 
 static inline void *platform_get_drvdata(const struct platform_device *pdev)
 {
 	return dev_get_drvdata(&pdev->dev);
 }
 
-static inline void platform_set_drvdata(struct platform_device *pdev, void *data)
+static inline void platform_set_drvdata(struct platform_device *pdev,
+					void *data)
 {
 	dev_set_drvdata(&pdev->dev, data);
 }
@@ -199,10 +222,30 @@ static inline void platform_set_drvdata(struct platform_device *pdev, void *data
 	module_driver(__platform_driver, platform_driver_register, \
 			platform_driver_unregister)
 
-extern struct platform_device *platform_create_bundle(struct platform_driver *driver,
-					int (*probe)(struct platform_device *),
-					struct resource *res, unsigned int n_res,
-					const void *data, size_t size);
+/* module_platform_driver_probe() - Helper macro for drivers that don't do
+ * anything special in module init/exit.  This eliminates a lot of
+ * boilerplate.  Each module may only use this macro once, and
+ * calling it replaces module_init() and module_exit()
+ */
+#define module_platform_driver_probe(__platform_driver, __platform_probe) \
+static int __init __platform_driver##_init(void) \
+{ \
+	return platform_driver_probe(&(__platform_driver), \
+				     __platform_probe);    \
+} \
+module_init(__platform_driver##_init); \
+static void __exit __platform_driver##_exit(void) \
+{ \
+	platform_driver_unregister(&(__platform_driver)); \
+} \
+module_exit(__platform_driver##_exit);
+
+#define platform_create_bundle(driver, probe, res, n_res, data, size) \
+	__platform_create_bundle(driver, probe, res, n_res, data, size, THIS_MODULE)
+extern struct platform_device *__platform_create_bundle(
+	struct platform_driver *driver, int (*probe)(struct platform_device *),
+	struct resource *res, unsigned int n_res,
+	const void *data, size_t size, struct module *module);
 
 /* early platform driver interface */
 struct early_platform_driver {
@@ -256,62 +299,34 @@ static inline char *early_platform_driver_setup_func(void)		\
 }
 #endif /* MODULE */
 
-#ifdef CONFIG_PM_SLEEP
-extern int platform_pm_prepare(struct device *dev);
-extern void platform_pm_complete(struct device *dev);
-#else
-#define platform_pm_prepare	NULL
-#define platform_pm_complete	NULL
-#endif
-
 #ifdef CONFIG_SUSPEND
 extern int platform_pm_suspend(struct device *dev);
-extern int platform_pm_suspend_noirq(struct device *dev);
 extern int platform_pm_resume(struct device *dev);
-extern int platform_pm_resume_noirq(struct device *dev);
 #else
 #define platform_pm_suspend		NULL
 #define platform_pm_resume		NULL
-#define platform_pm_suspend_noirq	NULL
-#define platform_pm_resume_noirq	NULL
 #endif
 
 #ifdef CONFIG_HIBERNATE_CALLBACKS
 extern int platform_pm_freeze(struct device *dev);
-extern int platform_pm_freeze_noirq(struct device *dev);
 extern int platform_pm_thaw(struct device *dev);
-extern int platform_pm_thaw_noirq(struct device *dev);
 extern int platform_pm_poweroff(struct device *dev);
-extern int platform_pm_poweroff_noirq(struct device *dev);
 extern int platform_pm_restore(struct device *dev);
-extern int platform_pm_restore_noirq(struct device *dev);
 #else
 #define platform_pm_freeze		NULL
 #define platform_pm_thaw		NULL
 #define platform_pm_poweroff		NULL
 #define platform_pm_restore		NULL
-#define platform_pm_freeze_noirq	NULL
-#define platform_pm_thaw_noirq		NULL
-#define platform_pm_poweroff_noirq	NULL
-#define platform_pm_restore_noirq	NULL
 #endif
 
 #ifdef CONFIG_PM_SLEEP
 #define USE_PLATFORM_PM_SLEEP_OPS \
-	.prepare = platform_pm_prepare, \
-	.complete = platform_pm_complete, \
 	.suspend = platform_pm_suspend, \
 	.resume = platform_pm_resume, \
 	.freeze = platform_pm_freeze, \
 	.thaw = platform_pm_thaw, \
 	.poweroff = platform_pm_poweroff, \
-	.restore = platform_pm_restore, \
-	.suspend_noirq = platform_pm_suspend_noirq, \
-	.resume_noirq = platform_pm_resume_noirq, \
-	.freeze_noirq = platform_pm_freeze_noirq, \
-	.thaw_noirq = platform_pm_thaw_noirq, \
-	.poweroff_noirq = platform_pm_poweroff_noirq, \
-	.restore_noirq = platform_pm_restore_noirq,
+	.restore = platform_pm_restore,
 #else
 #define USE_PLATFORM_PM_SLEEP_OPS
 #endif

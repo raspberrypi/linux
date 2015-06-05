@@ -5,7 +5,7 @@ config HAVE_ARCH_KGDB
 menuconfig KGDB
 	bool "KGDB: kernel debugger"
 	depends on HAVE_ARCH_KGDB
-	depends on DEBUG_KERNEL && EXPERIMENTAL
+	depends on DEBUG_KERNEL
 	help
 	  If you say Y here, it will be possible to remotely debug the
 	  kernel using gdb.  It is recommended but not required, that
@@ -22,6 +22,7 @@ config KGDB_SERIAL_CONSOLE
 	tristate "KGDB: use kgdb over the serial console"
 	select CONSOLE_POLL
 	select MAGIC_SYSRQ
+	depends on TTY
 	default y
 	help
 	  Share a serial console with kgdb. Sysrq-g must be used
@@ -63,8 +64,8 @@ config KGDB_LOW_LEVEL_TRAP
        default n
        help
          This will add an extra call back to kgdb for the breakpoint
-         exception handler on which will will allow kgdb to step
-         through a notify handler.
+         exception handler which will allow kgdb to step through a
+         notify handler.
 
 config KGDB_KDB
 	bool "KGDB_KDB: include kdb frontend for kgdb"
@@ -72,11 +73,54 @@ config KGDB_KDB
 	help
 	  KDB frontend for kernel
 
+config KDB_DEFAULT_ENABLE
+	hex "KDB: Select kdb command functions to be enabled by default"
+	depends on KGDB_KDB
+	default 0x1
+	help
+	  Specifiers which kdb commands are enabled by default. This may
+	  be set to 1 or 0 to enable all commands or disable almost all
+	  commands.
+
+	  Alternatively the following bitmask applies:
+
+	    0x0002 - allow arbitrary reads from memory and symbol lookup
+	    0x0004 - allow arbitrary writes to memory
+	    0x0008 - allow current register state to be inspected
+	    0x0010 - allow current register state to be modified
+	    0x0020 - allow passive inspection (backtrace, process list, lsmod)
+	    0x0040 - allow flow control management (breakpoint, single step)
+	    0x0080 - enable signalling of processes
+	    0x0100 - allow machine to be rebooted
+
+	  The config option merely sets the default at boot time. Both
+	  issuing 'echo X > /sys/module/kdb/parameters/cmd_enable' or
+          setting with kdb.cmd_enable=X kernel command line option will
+	  override the default settings.
+
 config KDB_KEYBOARD
 	bool "KGDB_KDB: keyboard as input device"
 	depends on VT && KGDB_KDB
 	default n
 	help
 	  KDB can use a PS/2 type keyboard for an input device
+
+config KDB_CONTINUE_CATASTROPHIC
+	int "KDB: continue after catastrophic errors"
+	depends on KGDB_KDB
+	default "0"
+	help
+	  This integer controls the behaviour of kdb when the kernel gets a
+	  catastrophic error, i.e. for a panic or oops.
+	  When KDB is active and a catastrophic error occurs, nothing extra
+	  will happen until you type 'go'.
+	  CONFIG_KDB_CONTINUE_CATASTROPHIC == 0 (default). The first time
+	  you type 'go', you will be warned by kdb. The secend time you type
+	  'go', KDB tries to continue. No guarantees that the
+	  kernel is still usable in this situation.
+	  CONFIG_KDB_CONTINUE_CATASTROPHIC == 1. KDB tries to continue.
+	  No guarantees that the kernel is still usable in this situation.
+	  CONFIG_KDB_CONTINUE_CATASTROPHIC == 2. KDB forces a reboot.
+	  If you are not sure, say 0.
 
 endif # KGDB

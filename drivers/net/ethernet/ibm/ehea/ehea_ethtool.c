@@ -1,5 +1,5 @@
 /*
- *  linux/drivers/net/ehea/ehea_ethtool.c
+ *  linux/drivers/net/ethernet/ibm/ehea/ehea_ethtool.c
  *
  *  eHEA ethernet device driver for IBM eServer System p
  *
@@ -63,8 +63,8 @@ static int ehea_get_settings(struct net_device *dev, struct ethtool_cmd *cmd)
 		cmd->duplex = port->full_duplex == 1 ?
 						     DUPLEX_FULL : DUPLEX_HALF;
 	} else {
-		speed = ~0;
-		cmd->duplex = -1;
+		speed = SPEED_UNKNOWN;
+		cmd->duplex = DUPLEX_UNKNOWN;
 	}
 	ethtool_cmd_speed_set(cmd, speed);
 
@@ -263,7 +263,7 @@ static void ehea_get_ethtool_stats(struct net_device *dev,
 		data[i++] = atomic_read(&port->port_res[k].swqe_avail);
 }
 
-const struct ethtool_ops ehea_ethtool_ops = {
+static const struct ethtool_ops ehea_ethtool_ops = {
 	.get_settings = ehea_get_settings,
 	.get_drvinfo = ehea_get_drvinfo,
 	.get_msglevel = ehea_get_msglevel,
@@ -278,5 +278,5 @@ const struct ethtool_ops ehea_ethtool_ops = {
 
 void ehea_set_ethtool_ops(struct net_device *netdev)
 {
-	SET_ETHTOOL_OPS(netdev, &ehea_ethtool_ops);
+	netdev->ethtool_ops = &ehea_ethtool_ops;
 }

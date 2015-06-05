@@ -35,44 +35,42 @@ void __cachefiles_printk_object(struct cachefiles_object *object,
 	struct fscache_cookie *cookie;
 	unsigned keylen, loop;
 
-	printk(KERN_ERR "%sobject: OBJ%x\n",
-	       prefix, object->fscache.debug_id);
-	printk(KERN_ERR "%sobjstate=%s fl=%lx wbusy=%x ev=%lx[%lx]\n",
-	       prefix, fscache_object_states[object->fscache.state],
+	pr_err("%sobject: OBJ%x\n", prefix, object->fscache.debug_id);
+	pr_err("%sobjstate=%s fl=%lx wbusy=%x ev=%lx[%lx]\n",
+	       prefix, object->fscache.state->name,
 	       object->fscache.flags, work_busy(&object->fscache.work),
-	       object->fscache.events,
-	       object->fscache.event_mask & FSCACHE_OBJECT_EVENTS_MASK);
-	printk(KERN_ERR "%sops=%u inp=%u exc=%u\n",
+	       object->fscache.events, object->fscache.event_mask);
+	pr_err("%sops=%u inp=%u exc=%u\n",
 	       prefix, object->fscache.n_ops, object->fscache.n_in_progress,
 	       object->fscache.n_exclusive);
-	printk(KERN_ERR "%sparent=%p\n",
+	pr_err("%sparent=%p\n",
 	       prefix, object->fscache.parent);
 
 	spin_lock(&object->fscache.lock);
 	cookie = object->fscache.cookie;
 	if (cookie) {
-		printk(KERN_ERR "%scookie=%p [pr=%p nd=%p fl=%lx]\n",
+		pr_err("%scookie=%p [pr=%p nd=%p fl=%lx]\n",
 		       prefix,
 		       object->fscache.cookie,
 		       object->fscache.cookie->parent,
 		       object->fscache.cookie->netfs_data,
 		       object->fscache.cookie->flags);
-		if (keybuf)
+		if (keybuf && cookie->def)
 			keylen = cookie->def->get_key(cookie->netfs_data, keybuf,
 						      CACHEFILES_KEYBUF_SIZE);
 		else
 			keylen = 0;
 	} else {
-		printk(KERN_ERR "%scookie=NULL\n", prefix);
+		pr_err("%scookie=NULL\n", prefix);
 		keylen = 0;
 	}
 	spin_unlock(&object->fscache.lock);
 
 	if (keylen) {
-		printk(KERN_ERR "%skey=[%u] '", prefix, keylen);
+		pr_err("%skey=[%u] '", prefix, keylen);
 		for (loop = 0; loop < keylen; loop++)
-			printk("%02x", keybuf[loop]);
-		printk("'\n");
+			pr_cont("%02x", keybuf[loop]);
+		pr_cont("'\n");
 	}
 }
 
@@ -104,8 +102,7 @@ static void cachefiles_mark_object_buried(struct cachefiles_cache *cache,
 	struct cachefiles_object *object;
 	struct rb_node *p;
 
-	_enter(",'%*.*s'",
-	       dentry->d_name.len, dentry->d_name.len, dentry->d_name.name);
+	_enter(",'%pd'", dentry);
 
 	write_lock(&cache->active_lock);
 
@@ -128,17 +125,15 @@ static void cachefiles_mark_object_buried(struct cachefiles_cache *cache,
 found_dentry:
 	kdebug("preemptive burial: OBJ%x [%s] %p",
 	       object->fscache.debug_id,
-	       fscache_object_states[object->fscache.state],
+	       object->fscache.state->name,
 	       dentry);
 
-	if (object->fscache.state < FSCACHE_OBJECT_DYING) {
-		printk(KERN_ERR "\n");
-		printk(KERN_ERR "CacheFiles: Error:"
-		       " Can't preemptively bury live object\n");
+	if (fscache_object_is_live(&object->fscache)) {
+		pr_err("\n");
+		pr_err("Error: Can't preemptively bury live object\n");
 		cachefiles_printk_object(object, NULL);
 	} else if (test_and_set_bit(CACHEFILES_OBJECT_BURIED, &object->flags)) {
-		printk(KERN_ERR "CacheFiles: Error:"
-		       " Object already preemptively buried\n");
+		pr_err("Error: Object already preemptively buried\n");
 	}
 
 	write_unlock(&cache->active_lock);
@@ -161,7 +156,7 @@ try_again:
 	write_lock(&cache->active_lock);
 
 	if (test_and_set_bit(CACHEFILES_OBJECT_ACTIVE, &object->flags)) {
-		printk(KERN_ERR "CacheFiles: Error: Object already active\n");
+		pr_err("Error: Object already active\n");
 		cachefiles_printk_object(object, NULL);
 		BUG();
 	}
@@ -193,10 +188,9 @@ try_again:
 	/* an old object from a previous incarnation is hogging the slot - we
 	 * need to wait for it to be destroyed */
 wait_for_old_object:
-	if (xobject->fscache.state < FSCACHE_OBJECT_DYING) {
-		printk(KERN_ERR "\n");
-		printk(KERN_ERR "CacheFiles: Error:"
-		       " Unexpected object collision\n");
+	if (fscache_object_is_live(&xobject->fscache)) {
+		pr_err("\n");
+		pr_err("Error: Unexpected object collision\n");
 		cachefiles_printk_object(object, xobject);
 		BUG();
 	}
@@ -242,9 +236,8 @@ wait_for_old_object:
 		}
 
 		if (timeout <= 0) {
-			printk(KERN_ERR "\n");
-			printk(KERN_ERR "CacheFiles: Error: Overlong"
-			       " wait for old active object to go away\n");
+			pr_err("\n");
+			pr_err("Error: Overlong wait for old active object to go away\n");
 			cachefiles_printk_object(object, xobject);
 			goto requeue;
 		}
@@ -279,14 +272,12 @@ static int cachefiles_bury_object(struct cachefiles_cache *cache,
 	char nbuffer[8 + 8 + 1];
 	int ret;
 
-	_enter(",'%*.*s','%*.*s'",
-	       dir->d_name.len, dir->d_name.len, dir->d_name.name,
-	       rep->d_name.len, rep->d_name.len, rep->d_name.name);
+	_enter(",'%pd','%pd'", dir, rep);
 
 	_debug("remove %p from %p", rep, dir);
 
 	/* non-directories can just be unlinked */
-	if (!S_ISDIR(rep->d_inode->i_mode)) {
+	if (!d_is_dir(rep)) {
 		_debug("unlink stale object");
 
 		path.mnt = cache->mnt;
@@ -295,7 +286,7 @@ static int cachefiles_bury_object(struct cachefiles_cache *cache,
 		if (ret < 0) {
 			cachefiles_io_error(cache, "Unlink security error");
 		} else {
-			ret = vfs_unlink(dir->d_inode, rep);
+			ret = vfs_unlink(dir->d_inode, rep, NULL);
 
 			if (preemptive)
 				cachefiles_mark_object_buried(cache, rep);
@@ -332,7 +323,7 @@ try_again:
 		return 0;
 	}
 
-	if (!S_ISDIR(cache->graveyard->d_inode->i_mode)) {
+	if (!d_can_lookup(cache->graveyard)) {
 		unlock_rename(cache->graveyard, dir);
 		cachefiles_io_error(cache, "Graveyard no longer a directory");
 		return -EIO;
@@ -392,12 +383,12 @@ try_again:
 	path.dentry = dir;
 	path_to_graveyard.mnt = cache->mnt;
 	path_to_graveyard.dentry = cache->graveyard;
-	ret = security_path_rename(&path, rep, &path_to_graveyard, grave);
+	ret = security_path_rename(&path, rep, &path_to_graveyard, grave, 0);
 	if (ret < 0) {
 		cachefiles_io_error(cache, "Rename security error %d", ret);
 	} else {
 		ret = vfs_rename(dir->d_inode, rep,
-				 cache->graveyard->d_inode, grave);
+				 cache->graveyard->d_inode, grave, NULL, 0);
 		if (ret != 0 && ret != -ENOMEM)
 			cachefiles_io_error(cache,
 					    "Rename failed with error %d", ret);
@@ -484,7 +475,7 @@ int cachefiles_walk_to_object(struct cachefiles_object *parent,
 	ASSERT(parent->dentry);
 	ASSERT(parent->dentry->d_inode);
 
-	if (!(S_ISDIR(parent->dentry->d_inode->i_mode))) {
+	if (!(d_is_dir(parent->dentry))) {
 		// TODO: convert file to dir
 		_leave("looking up in none directory");
 		return -ENOBUFS;
@@ -548,8 +539,8 @@ lookup_again:
 			_debug("mkdir -> %p{%p{ino=%lu}}",
 			       next, next->d_inode, next->d_inode->i_ino);
 
-		} else if (!S_ISDIR(next->d_inode->i_mode)) {
-			kerror("inode %lu is not a directory",
+		} else if (!d_can_lookup(next)) {
+			pr_err("inode %lu is not a directory\n",
 			       next->d_inode->i_ino);
 			ret = -ENOBUFS;
 			goto error;
@@ -567,7 +558,7 @@ lookup_again:
 			if (ret < 0)
 				goto create_error;
 			start = jiffies;
-			ret = vfs_create(dir->d_inode, next, S_IFREG, NULL);
+			ret = vfs_create(dir->d_inode, next, S_IFREG, true);
 			cachefiles_hist(cachefiles_create_histogram, start);
 			if (ret < 0)
 				goto create_error;
@@ -577,10 +568,10 @@ lookup_again:
 			_debug("create -> %p{%p{ino=%lu}}",
 			       next, next->d_inode, next->d_inode->i_ino);
 
-		} else if (!S_ISDIR(next->d_inode->i_mode) &&
-			   !S_ISREG(next->d_inode->i_mode)
+		} else if (!d_can_lookup(next) &&
+			   !d_is_reg(next)
 			   ) {
-			kerror("inode %lu is not a file or directory",
+			pr_err("inode %lu is not a file or directory\n",
 			       next->d_inode->i_ino);
 			ret = -ENOBUFS;
 			goto error;
@@ -603,8 +594,7 @@ lookup_again:
 	/* if we've found that the terminal object exists, then we need to
 	 * check its attributes and delete it if it's out of date */
 	if (!object->new) {
-		_debug("validate '%*.*s'",
-		       next->d_name.len, next->d_name.len, next->d_name.name);
+		_debug("validate '%pd'", next);
 
 		ret = cachefiles_check_object_xattr(object, auxdata);
 		if (ret == -ESTALE) {
@@ -646,12 +636,13 @@ lookup_again:
 		 * (this is used to keep track of culling, and atimes are only
 		 * updated by read, write and readdir but not lookup or
 		 * open) */
-		touch_atime(cache->mnt, next);
+		path.dentry = next;
+		touch_atime(&path);
 	}
 
 	/* open a file interface onto a data file */
 	if (object->type != FSCACHE_COOKIE_TYPE_INDEX) {
-		if (S_ISREG(object->dentry->d_inode->i_mode)) {
+		if (d_is_reg(object->dentry)) {
 			const struct address_space_operations *aops;
 
 			ret = -EPERM;
@@ -772,20 +763,20 @@ struct dentry *cachefiles_get_directory(struct cachefiles_cache *cache,
 	/* we need to make sure the subdir is a directory */
 	ASSERT(subdir->d_inode);
 
-	if (!S_ISDIR(subdir->d_inode->i_mode)) {
-		kerror("%s is not a directory", dirname);
+	if (!d_can_lookup(subdir)) {
+		pr_err("%s is not a directory\n", dirname);
 		ret = -EIO;
 		goto check_error;
 	}
 
 	ret = -EPERM;
-	if (!subdir->d_inode->i_op ||
-	    !subdir->d_inode->i_op->setxattr ||
+	if (!subdir->d_inode->i_op->setxattr ||
 	    !subdir->d_inode->i_op->getxattr ||
 	    !subdir->d_inode->i_op->lookup ||
 	    !subdir->d_inode->i_op->mkdir ||
 	    !subdir->d_inode->i_op->create ||
-	    !subdir->d_inode->i_op->rename ||
+	    (!subdir->d_inode->i_op->rename &&
+	     !subdir->d_inode->i_op->rename2) ||
 	    !subdir->d_inode->i_op->rmdir ||
 	    !subdir->d_inode->i_op->unlink)
 		goto check_error;
@@ -801,13 +792,13 @@ check_error:
 mkdir_error:
 	mutex_unlock(&dir->d_inode->i_mutex);
 	dput(subdir);
-	kerror("mkdir %s failed with error %d", dirname, ret);
+	pr_err("mkdir %s failed with error %d\n", dirname, ret);
 	return ERR_PTR(ret);
 
 lookup_error:
 	mutex_unlock(&dir->d_inode->i_mutex);
 	ret = PTR_ERR(subdir);
-	kerror("Lookup %s failed with error %d", dirname, ret);
+	pr_err("Lookup %s failed with error %d\n", dirname, ret);
 	return ERR_PTR(ret);
 
 nomem_d_alloc:
@@ -832,11 +823,11 @@ static struct dentry *cachefiles_check_active(struct cachefiles_cache *cache,
 	unsigned long start;
 	int ret;
 
-	//_enter(",%*.*s/,%s",
-	//       dir->d_name.len, dir->d_name.len, dir->d_name.name, filename);
+	//_enter(",%pd/,%s",
+	//       dir, filename);
 
 	/* look up the victim */
-	mutex_lock_nested(&dir->d_inode->i_mutex, 1);
+	mutex_lock_nested(&dir->d_inode->i_mutex, I_MUTEX_PARENT);
 
 	start = jiffies;
 	victim = lookup_one_len(filename, dir, strlen(filename));
@@ -897,7 +888,7 @@ lookup_error:
 	if (ret == -EIO) {
 		cachefiles_io_error(cache, "Lookup failed");
 	} else if (ret != -ENOMEM) {
-		kerror("Internal error: %d", ret);
+		pr_err("Internal error: %d\n", ret);
 		ret = -EIO;
 	}
 
@@ -915,8 +906,7 @@ int cachefiles_cull(struct cachefiles_cache *cache, struct dentry *dir,
 	struct dentry *victim;
 	int ret;
 
-	_enter(",%*.*s/,%s",
-	       dir->d_name.len, dir->d_name.len, dir->d_name.name, filename);
+	_enter(",%pd/,%s", dir, filename);
 
 	victim = cachefiles_check_active(cache, dir, filename);
 	if (IS_ERR(victim))
@@ -956,7 +946,7 @@ error:
 	}
 
 	if (ret != -ENOMEM) {
-		kerror("Internal error: %d", ret);
+		pr_err("Internal error: %d\n", ret);
 		ret = -EIO;
 	}
 
@@ -974,8 +964,8 @@ int cachefiles_check_in_use(struct cachefiles_cache *cache, struct dentry *dir,
 {
 	struct dentry *victim;
 
-	//_enter(",%*.*s/,%s",
-	//       dir->d_name.len, dir->d_name.len, dir->d_name.name, filename);
+	//_enter(",%pd/,%s",
+	//       dir, filename);
 
 	victim = cachefiles_check_active(cache, dir, filename);
 	if (IS_ERR(victim))

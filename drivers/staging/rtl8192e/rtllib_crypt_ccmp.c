@@ -9,7 +9,6 @@
  * more details.
  */
 
-#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -63,15 +62,14 @@ static void *rtllib_ccmp_init(int key_idx)
 {
 	struct rtllib_ccmp_data *priv;
 
-	priv = kmalloc(sizeof(*priv), GFP_ATOMIC);
+	priv = kzalloc(sizeof(*priv), GFP_ATOMIC);
 	if (priv == NULL)
 		goto fail;
-	memset(priv, 0, sizeof(*priv));
 	priv->key_idx = key_idx;
 
 	priv->tfm = (void *)crypto_alloc_cipher("aes", 0, CRYPTO_ALG_ASYNC);
 	if (IS_ERR(priv->tfm)) {
-		printk(KERN_DEBUG "rtllib_crypt_ccmp: could not allocate "
+		pr_debug("rtllib_crypt_ccmp: could not allocate "
 		       "crypto API aes\n");
 		priv->tfm = NULL;
 		goto fail;
@@ -92,6 +90,7 @@ fail:
 static void rtllib_ccmp_deinit(void *priv)
 {
 	struct rtllib_ccmp_data *_priv = priv;
+
 	if (_priv && _priv->tfm)
 		crypto_free_cipher((void *)_priv->tfm);
 	kfree(priv);
@@ -101,6 +100,7 @@ static void rtllib_ccmp_deinit(void *priv)
 static inline void xor_block(u8 *b, u8 *a, size_t len)
 {
 	int i;
+
 	for (i = 0; i < len; i++)
 		b[i] ^= a[i];
 }
@@ -278,7 +278,7 @@ static int rtllib_ccmp_decrypt(struct sk_buff *skb, int hdr_len, void *priv)
 	keyidx = pos[3];
 	if (!(keyidx & (1 << 5))) {
 		if (net_ratelimit()) {
-			printk(KERN_DEBUG "CCMP: received packet without ExtIV"
+			pr_debug("CCMP: received packet without ExtIV"
 			       " flag from %pM\n", hdr->addr2);
 		}
 		key->dot11RSNAStatsCCMPFormatErrors++;
@@ -286,13 +286,13 @@ static int rtllib_ccmp_decrypt(struct sk_buff *skb, int hdr_len, void *priv)
 	}
 	keyidx >>= 6;
 	if (key->key_idx != keyidx) {
-		printk(KERN_DEBUG "CCMP: RX tkey->key_idx=%d frame "
+		pr_debug("CCMP: RX tkey->key_idx=%d frame "
 		       "keyidx=%d priv=%p\n", key->key_idx, keyidx, priv);
 		return -6;
 	}
 	if (!key->key_set) {
 		if (net_ratelimit()) {
-			printk(KERN_DEBUG "CCMP: received packet from %pM"
+			pr_debug("CCMP: received packet from %pM"
 			       " with keyid=%d that does not have a configured"
 			       " key\n", hdr->addr2, keyidx);
 		}
@@ -341,7 +341,7 @@ static int rtllib_ccmp_decrypt(struct sk_buff *skb, int hdr_len, void *priv)
 
 		if (memcmp(mic, a, CCMP_MIC_LEN) != 0) {
 			if (net_ratelimit()) {
-				printk(KERN_DEBUG "CCMP: decrypt failed: STA="
+				pr_debug("CCMP: decrypt failed: STA="
 				" %pM\n", hdr->addr2);
 			}
 			key->dot11RSNAStatsCCMPDecryptErrors++;
@@ -414,28 +414,23 @@ static int rtllib_ccmp_get_key(void *key, int len, u8 *seq, void *priv)
 }
 
 
-static char *rtllib_ccmp_print_stats(char *p, void *priv)
+static void rtllib_ccmp_print_stats(struct seq_file *m, void *priv)
 {
 	struct rtllib_ccmp_data *ccmp = priv;
-	p += sprintf(p, "key[%d] alg=CCMP key_set=%d "
-		     "tx_pn=%pM rx_pn=%pM "
-		     "format_errors=%d replays=%d decrypt_errors=%d\n",
-		     ccmp->key_idx, ccmp->key_set,
-		     ccmp->tx_pn, ccmp->rx_pn,
-		     ccmp->dot11RSNAStatsCCMPFormatErrors,
-		     ccmp->dot11RSNAStatsCCMPReplays,
-		     ccmp->dot11RSNAStatsCCMPDecryptErrors);
 
-	return p;
+	seq_printf(m,
+		   "key[%d] alg=CCMP key_set=%d "
+		   "tx_pn=%pM rx_pn=%pM "
+		   "format_errors=%d replays=%d decrypt_errors=%d\n",
+		   ccmp->key_idx, ccmp->key_set,
+		   ccmp->tx_pn, ccmp->rx_pn,
+		   ccmp->dot11RSNAStatsCCMPFormatErrors,
+		   ccmp->dot11RSNAStatsCCMPReplays,
+		   ccmp->dot11RSNAStatsCCMPDecryptErrors);
 }
 
-void rtllib_ccmp_null(void)
-{
-	return;
-}
-
-static struct rtllib_crypto_ops rtllib_crypt_ccmp = {
-	.name			= "CCMP",
+static struct lib80211_crypto_ops rtllib_crypt_ccmp = {
+	.name			= "R-CCMP",
 	.init			= rtllib_ccmp_init,
 	.deinit			= rtllib_ccmp_deinit,
 	.encrypt_mpdu		= rtllib_ccmp_encrypt,
@@ -445,19 +440,24 @@ static struct rtllib_crypto_ops rtllib_crypt_ccmp = {
 	.set_key		= rtllib_ccmp_set_key,
 	.get_key		= rtllib_ccmp_get_key,
 	.print_stats		= rtllib_ccmp_print_stats,
-	.extra_prefix_len	= CCMP_HDR_LEN,
-	.extra_postfix_len	= CCMP_MIC_LEN,
+	.extra_mpdu_prefix_len = CCMP_HDR_LEN,
+	.extra_mpdu_postfix_len = CCMP_MIC_LEN,
 	.owner			= THIS_MODULE,
 };
 
 
-int __init rtllib_crypto_ccmp_init(void)
+static int __init rtllib_crypto_ccmp_init(void)
 {
-	return rtllib_register_crypto_ops(&rtllib_crypt_ccmp);
+	return lib80211_register_crypto_ops(&rtllib_crypt_ccmp);
 }
 
 
-void __exit rtllib_crypto_ccmp_exit(void)
+static void __exit rtllib_crypto_ccmp_exit(void)
 {
-	rtllib_unregister_crypto_ops(&rtllib_crypt_ccmp);
+	lib80211_unregister_crypto_ops(&rtllib_crypt_ccmp);
 }
+
+module_init(rtllib_crypto_ccmp_init);
+module_exit(rtllib_crypto_ccmp_exit);
+
+MODULE_LICENSE("GPL");

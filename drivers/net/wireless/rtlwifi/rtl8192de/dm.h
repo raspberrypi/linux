@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2009-2010  Realtek Corporation.
+ * Copyright(c) 2009-2012  Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -42,24 +42,11 @@
 #define BW_AUTO_SWITCH_HIGH_LOW			25
 #define BW_AUTO_SWITCH_LOW_HIGH			30
 
-#define DM_DIG_THRESH_HIGH			40
-#define DM_DIG_THRESH_LOW			35
-
-#define DM_FALSEALARM_THRESH_LOW		400
-#define DM_FALSEALARM_THRESH_HIGH		1000
-
-#define DM_DIG_MAX				0x3e
-#define DM_DIG_MIN				0x1c
-
 #define DM_DIG_FA_UPPER				0x32
 #define DM_DIG_FA_LOWER				0x20
 #define DM_DIG_FA_TH0				0x100
 #define DM_DIG_FA_TH1				0x400
 #define DM_DIG_FA_TH2				0x600
-
-#define DM_DIG_BACKOFF_MAX			12
-#define DM_DIG_BACKOFF_MIN			-4
-#define DM_DIG_BACKOFF_DEFAULT			10
 
 #define RXPATHSELECTION_SS_TH_lOW		30
 #define RXPATHSELECTION_DIFF_TH			18
@@ -87,55 +74,6 @@
 #define TX_POWER_NEAR_FIELD_THRESH_LVL1		67
 #define INDEX_MAPPING_NUM			13
 
-struct ps_t {
-	u8 pre_ccastate;
-	u8 cur_ccasate;
-
-	u8 pre_rfstate;
-	u8 cur_rfstate;
-
-	long rssi_val_min;
-};
-
-struct dig_t {
-	u8 dig_enable_flag;
-	u8 dig_ext_port_stage;
-
-	u32 rssi_lowthresh;
-	u32 rssi_highthresh;
-
-	u32 fa_lowthresh;
-	u32 fa_highthresh;
-
-	u8 cursta_connectctate;
-	u8 presta_connectstate;
-	u8 curmultista_connectstate;
-
-	u8 pre_igvalue;
-	u8 cur_igvalue;
-
-	char backoff_val;
-	char backoff_val_range_max;
-	char backoff_val_range_min;
-	u8 rx_gain_range_max;
-	u8 rx_gain_range_min;
-	u8 min_undecorated_pwdb_for_dm;
-	long last_min_undecorated_pwdb_for_dm;
-
-	u8 pre_cck_pd_state;
-	u8 cur_cck_pd_state;
-
-	u8 pre_cck_fa_state;
-	u8 cur_cck_fa_state;
-
-	u8 pre_ccastate;
-	u8 cur_ccasate;
-
-	u8 large_fa_hit;
-	u8 forbidden_igi;
-	u32 recover_cnt;
-};
-
 struct swat {
 	u8 failure_cnt;
 	u8 try_flag;
@@ -157,14 +95,6 @@ enum tag_dynamic_init_gain_operation_type_definition {
 	DIG_OP_TYPE_MAX
 };
 
-enum tag_cck_packet_detection_threshold_type_definition {
-	CCK_PD_STAGE_LOWRSSI = 0,
-	CCK_PD_STAGE_HIGHRSSI = 1,
-	CCK_FA_STAGE_LOW = 2,
-	CCK_FA_STAGE_HIGH = 3,
-	CCK_PD_STAGE_MAX = 4,
-};
-
 enum dm_1r_cca {
 	CCA_1R = 0,
 	CCA_2R = 1,
@@ -182,25 +112,6 @@ enum dm_sw_ant_switch {
 	ANS_ANTENNA_A = 2,
 	ANS_ANTENNA_MAX = 3,
 };
-
-enum dm_dig_ext_port_alg {
-	DIG_EXT_PORT_STAGE_0 = 0,
-	DIG_EXT_PORT_STAGE_1 = 1,
-	DIG_EXT_PORT_STAGE_2 = 2,
-	DIG_EXT_PORT_STAGE_3 = 3,
-	DIG_EXT_PORT_STAGE_MAX = 4,
-};
-
-enum dm_dig_connect {
-	DIG_STA_DISCONNECT = 0,
-	DIG_STA_CONNECT = 1,
-	DIG_STA_BEFORE_CONNECT = 2,
-	DIG_MULTISTA_DISCONNECT = 3,
-	DIG_MULTISTA_CONNECT = 4,
-	DIG_CONNECT_MAX
-};
-
-extern struct dig_t de_digtable;
 
 void rtl92d_dm_init(struct ieee80211_hw *hw);
 void rtl92d_dm_watchdog(struct ieee80211_hw *hw);

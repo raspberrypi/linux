@@ -22,6 +22,7 @@
 #include <linux/sunrpc/clnt.h>
 #include <linux/sunrpc/svcsock.h>
 #include <linux/sunrpc/metrics.h>
+#include <linux/rcupdate.h>
 
 #include "netns.h"
 
@@ -63,7 +64,7 @@ static int rpc_proc_show(struct seq_file *seq, void *v) {
 
 static int rpc_proc_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, rpc_proc_show, PDE(inode)->data);
+	return single_open(file, rpc_proc_show, PDE_DATA(inode));
 }
 
 static const struct file_operations rpc_proc_fops = {
@@ -115,7 +116,15 @@ EXPORT_SYMBOL_GPL(svc_seq_show);
  */
 struct rpc_iostats *rpc_alloc_iostats(struct rpc_clnt *clnt)
 {
-	return kcalloc(clnt->cl_maxproc, sizeof(struct rpc_iostats), GFP_KERNEL);
+	struct rpc_iostats *stats;
+	int i;
+
+	stats = kcalloc(clnt->cl_maxproc, sizeof(*stats), GFP_KERNEL);
+	if (stats) {
+		for (i = 0; i < clnt->cl_maxproc; i++)
+			spin_lock_init(&stats[i].om_lock);
+	}
+	return stats;
 }
 EXPORT_SYMBOL_GPL(rpc_alloc_iostats);
 
@@ -131,23 +140,21 @@ void rpc_free_iostats(struct rpc_iostats *stats)
 EXPORT_SYMBOL_GPL(rpc_free_iostats);
 
 /**
- * rpc_count_iostats - tally up per-task stats
+ * rpc_count_iostats_metrics - tally up per-task stats
  * @task: completed rpc_task
- *
- * Relies on the caller for serialization.
+ * @op_metrics: stat structure for OP that will accumulate stats from @task
  */
-void rpc_count_iostats(struct rpc_task *task)
+void rpc_count_iostats_metrics(const struct rpc_task *task,
+			       struct rpc_iostats *op_metrics)
 {
 	struct rpc_rqst *req = task->tk_rqstp;
-	struct rpc_iostats *stats;
-	struct rpc_iostats *op_metrics;
-	ktime_t delta;
+	ktime_t delta, now;
 
-	if (!task->tk_client || !task->tk_client->cl_metrics || !req)
+	if (!op_metrics || !req)
 		return;
 
-	stats = task->tk_client->cl_metrics;
-	op_metrics = &stats[task->tk_msg.rpc_proc->p_statidx];
+	now = ktime_get();
+	spin_lock(&op_metrics->om_lock);
 
 	op_metrics->om_ops++;
 	op_metrics->om_ntrans += req->rq_ntrans;
@@ -161,9 +168,26 @@ void rpc_count_iostats(struct rpc_task *task)
 
 	op_metrics->om_rtt = ktime_add(op_metrics->om_rtt, req->rq_rtt);
 
-	delta = ktime_sub(ktime_get(), task->tk_start);
+	delta = ktime_sub(now, task->tk_start);
 	op_metrics->om_execute = ktime_add(op_metrics->om_execute, delta);
+
+	spin_unlock(&op_metrics->om_lock);
 }
+EXPORT_SYMBOL_GPL(rpc_count_iostats_metrics);
+
+/**
+ * rpc_count_iostats - tally up per-task stats
+ * @task: completed rpc_task
+ * @stats: array of stat structures
+ *
+ * Uses the statidx from @task
+ */
+void rpc_count_iostats(const struct rpc_task *task, struct rpc_iostats *stats)
+{
+	rpc_count_iostats_metrics(task,
+				  &stats[task->tk_msg.rpc_proc->p_statidx]);
+}
+EXPORT_SYMBOL_GPL(rpc_count_iostats);
 
 static void _print_name(struct seq_file *seq, unsigned int op,
 			struct rpc_procinfo *procs)
@@ -179,7 +203,7 @@ static void _print_name(struct seq_file *seq, unsigned int op,
 void rpc_print_iostats(struct seq_file *seq, struct rpc_clnt *clnt)
 {
 	struct rpc_iostats *stats = clnt->cl_metrics;
-	struct rpc_xprt *xprt = clnt->cl_xprt;
+	struct rpc_xprt *xprt;
 	unsigned int op, maxproc = clnt->cl_maxproc;
 
 	if (!stats)
@@ -187,10 +211,13 @@ void rpc_print_iostats(struct seq_file *seq, struct rpc_clnt *clnt)
 
 	seq_printf(seq, "\tRPC iostats version: %s  ", RPC_IOSTATS_VERS);
 	seq_printf(seq, "p/v: %u/%u (%s)\n",
-			clnt->cl_prog, clnt->cl_vers, clnt->cl_protname);
+			clnt->cl_prog, clnt->cl_vers, clnt->cl_program->name);
 
+	rcu_read_lock();
+	xprt = rcu_dereference(clnt->cl_xprt);
 	if (xprt)
 		xprt->ops->print_stats(xprt, seq);
+	rcu_read_unlock();
 
 	seq_printf(seq, "\tper-op statistics\n");
 	for (op = 0; op < maxproc; op++) {
@@ -213,45 +240,46 @@ EXPORT_SYMBOL_GPL(rpc_print_iostats);
  * Register/unregister RPC proc files
  */
 static inline struct proc_dir_entry *
-do_register(const char *name, void *data, const struct file_operations *fops)
+do_register(struct net *net, const char *name, void *data,
+	    const struct file_operations *fops)
 {
 	struct sunrpc_net *sn;
 
 	dprintk("RPC:       registering /proc/net/rpc/%s\n", name);
-	sn = net_generic(&init_net, sunrpc_net_id);
+	sn = net_generic(net, sunrpc_net_id);
 	return proc_create_data(name, 0, sn->proc_net_rpc, fops, data);
 }
 
 struct proc_dir_entry *
-rpc_proc_register(struct rpc_stat *statp)
+rpc_proc_register(struct net *net, struct rpc_stat *statp)
 {
-	return do_register(statp->program->name, statp, &rpc_proc_fops);
+	return do_register(net, statp->program->name, statp, &rpc_proc_fops);
 }
 EXPORT_SYMBOL_GPL(rpc_proc_register);
 
 void
-rpc_proc_unregister(const char *name)
+rpc_proc_unregister(struct net *net, const char *name)
 {
 	struct sunrpc_net *sn;
 
-	sn = net_generic(&init_net, sunrpc_net_id);
+	sn = net_generic(net, sunrpc_net_id);
 	remove_proc_entry(name, sn->proc_net_rpc);
 }
 EXPORT_SYMBOL_GPL(rpc_proc_unregister);
 
 struct proc_dir_entry *
-svc_proc_register(struct svc_stat *statp, const struct file_operations *fops)
+svc_proc_register(struct net *net, struct svc_stat *statp, const struct file_operations *fops)
 {
-	return do_register(statp->program->pg_name, statp, fops);
+	return do_register(net, statp->program->pg_name, statp, fops);
 }
 EXPORT_SYMBOL_GPL(svc_proc_register);
 
 void
-svc_proc_unregister(const char *name)
+svc_proc_unregister(struct net *net, const char *name)
 {
 	struct sunrpc_net *sn;
 
-	sn = net_generic(&init_net, sunrpc_net_id);
+	sn = net_generic(net, sunrpc_net_id);
 	remove_proc_entry(name, sn->proc_net_rpc);
 }
 EXPORT_SYMBOL_GPL(svc_proc_unregister);

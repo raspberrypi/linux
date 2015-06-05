@@ -6,34 +6,14 @@
  * Authors: Felipe Balbi <balbi@ti.com>,
  *	    Sebastian Andrzej Siewior <bigeasy@linutronix.de>
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. The names of the above-listed copyright holders may not be used
- *    to endorse or promote products derived from this software without
- *    specific prior written permission.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2  of
+ * the License as published by the Free Software Foundation.
  *
- * ALTERNATIVELY, this software may be distributed under the terms of the
- * GNU General Public License ("GPL") version 2, as published by the Free
- * Software Foundation.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/kernel.h>
@@ -42,86 +22,74 @@
 #include <linux/pci.h>
 #include <linux/platform_device.h>
 
+#include "platform_data.h"
+
 /* FIXME define these in <linux/pci_ids.h> */
 #define PCI_VENDOR_ID_SYNOPSYS		0x16c3
 #define PCI_DEVICE_ID_SYNOPSYS_HAPSUSB3	0xabcd
+#define PCI_DEVICE_ID_INTEL_BYT		0x0f37
+#define PCI_DEVICE_ID_INTEL_MRFLD	0x119e
+#define PCI_DEVICE_ID_INTEL_BSW		0x22B7
+#define PCI_DEVICE_ID_INTEL_SPTLP	0x9d30
+#define PCI_DEVICE_ID_INTEL_SPTH	0xa130
 
-#define DWC3_PCI_DEVS_POSSIBLE	32
-
-struct dwc3_pci {
-	struct device		*dev;
-	struct platform_device	*dwc3;
-};
-
-static DECLARE_BITMAP(dwc3_pci_devs, DWC3_PCI_DEVS_POSSIBLE);
-
-static int dwc3_pci_get_device_id(struct dwc3_pci *glue)
+static int dwc3_pci_quirks(struct pci_dev *pdev)
 {
-	int		id;
+	if (pdev->vendor == PCI_VENDOR_ID_AMD &&
+	    pdev->device == PCI_DEVICE_ID_AMD_NL_USB) {
+		struct dwc3_platform_data pdata;
 
-again:
-	id = find_first_zero_bit(dwc3_pci_devs, DWC3_PCI_DEVS_POSSIBLE);
-	if (id < DWC3_PCI_DEVS_POSSIBLE) {
-		int old;
+		memset(&pdata, 0, sizeof(pdata));
 
-		old = test_and_set_bit(id, dwc3_pci_devs);
-		if (old)
-			goto again;
-	} else {
-		dev_err(glue->dev, "no space for new device\n");
-		id = -ENOMEM;
+		pdata.has_lpm_erratum = true;
+		pdata.lpm_nyet_threshold = 0xf;
+
+		pdata.u2exit_lfps_quirk = true;
+		pdata.u2ss_inp3_quirk = true;
+		pdata.req_p1p2p3_quirk = true;
+		pdata.del_p1p2p3_quirk = true;
+		pdata.del_phy_power_chg_quirk = true;
+		pdata.lfps_filter_quirk = true;
+		pdata.rx_detect_poll_quirk = true;
+
+		pdata.tx_de_emphasis_quirk = true;
+		pdata.tx_de_emphasis = 1;
+
+		/*
+		 * FIXME these quirks should be removed when AMD NL
+		 * taps out
+		 */
+		pdata.disable_scramble_quirk = true;
+		pdata.dis_u3_susphy_quirk = true;
+		pdata.dis_u2_susphy_quirk = true;
+
+		return platform_device_add_data(pci_get_drvdata(pdev), &pdata,
+						sizeof(pdata));
 	}
 
 	return 0;
 }
 
-static void dwc3_pci_put_device_id(struct dwc3_pci *glue, int id)
-{
-	int			ret;
-
-	if (id < 0)
-		return;
-
-	ret = test_bit(id, dwc3_pci_devs);
-	WARN(!ret, "Device: %s\nID %d not in use\n",
-			dev_driver_string(glue->dev), id);
-	clear_bit(id, dwc3_pci_devs);
-}
-
-static int __devinit dwc3_pci_probe(struct pci_dev *pci,
+static int dwc3_pci_probe(struct pci_dev *pci,
 		const struct pci_device_id *id)
 {
 	struct resource		res[2];
 	struct platform_device	*dwc3;
-	struct dwc3_pci		*glue;
-	int			ret = -ENOMEM;
-	int			devid;
+	int			ret;
+	struct device		*dev = &pci->dev;
 
-	glue = kzalloc(sizeof(*glue), GFP_KERNEL);
-	if (!glue) {
-		dev_err(&pci->dev, "not enough memory\n");
-		goto err0;
-	}
-
-	glue->dev	= &pci->dev;
-
-	ret = pci_enable_device(pci);
+	ret = pcim_enable_device(pci);
 	if (ret) {
-		dev_err(&pci->dev, "failed to enable pci device\n");
-		goto err1;
+		dev_err(dev, "failed to enable pci device\n");
+		return -ENODEV;
 	}
 
-	pci_set_power_state(pci, PCI_D0);
 	pci_set_master(pci);
 
-	devid = dwc3_pci_get_device_id(glue);
-	if (devid < 0)
-		goto err2;
-
-	dwc3 = platform_device_alloc("dwc3-pci", devid);
+	dwc3 = platform_device_alloc("dwc3", PLATFORM_DEVID_AUTO);
 	if (!dwc3) {
-		dev_err(&pci->dev, "couldn't allocate dwc3 device\n");
-		goto err3;
+		dev_err(dev, "couldn't allocate dwc3 device\n");
+		return -ENOMEM;
 	}
 
 	memset(res, 0x00, sizeof(struct resource) * ARRAY_SIZE(res));
@@ -137,83 +105,58 @@ static int __devinit dwc3_pci_probe(struct pci_dev *pci,
 
 	ret = platform_device_add_resources(dwc3, res, ARRAY_SIZE(res));
 	if (ret) {
-		dev_err(&pci->dev, "couldn't add resources to dwc3 device\n");
-		goto err4;
+		dev_err(dev, "couldn't add resources to dwc3 device\n");
+		return ret;
 	}
 
-	pci_set_drvdata(pci, glue);
+	pci_set_drvdata(pci, dwc3);
+	ret = dwc3_pci_quirks(pci);
+	if (ret)
+		goto err;
 
-	dma_set_coherent_mask(&dwc3->dev, pci->dev.coherent_dma_mask);
-
-	dwc3->dev.dma_mask = pci->dev.dma_mask;
-	dwc3->dev.dma_parms = pci->dev.dma_parms;
-	dwc3->dev.parent = &pci->dev;
-	glue->dwc3	= dwc3;
+	dwc3->dev.parent = dev;
 
 	ret = platform_device_add(dwc3);
 	if (ret) {
-		dev_err(&pci->dev, "failed to register dwc3 device\n");
-		goto err4;
+		dev_err(dev, "failed to register dwc3 device\n");
+		goto err;
 	}
 
 	return 0;
-
-err4:
-	pci_set_drvdata(pci, NULL);
+err:
 	platform_device_put(dwc3);
-
-err3:
-	dwc3_pci_put_device_id(glue, devid);
-
-err2:
-	pci_disable_device(pci);
-
-err1:
-	kfree(pci);
-
-err0:
 	return ret;
 }
 
-static void __devexit dwc3_pci_remove(struct pci_dev *pci)
+static void dwc3_pci_remove(struct pci_dev *pci)
 {
-	struct dwc3_pci	*glue = pci_get_drvdata(pci);
-
-	dwc3_pci_put_device_id(glue, glue->dwc3->id);
-	platform_device_unregister(glue->dwc3);
-	pci_set_drvdata(pci, NULL);
-	pci_disable_device(pci);
-	kfree(glue);
+	platform_device_unregister(pci_get_drvdata(pci));
 }
 
-static DEFINE_PCI_DEVICE_TABLE(dwc3_pci_id_table) = {
+static const struct pci_device_id dwc3_pci_id_table[] = {
 	{
 		PCI_DEVICE(PCI_VENDOR_ID_SYNOPSYS,
 				PCI_DEVICE_ID_SYNOPSYS_HAPSUSB3),
 	},
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_BSW), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_BYT), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_MRFLD), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_SPTLP), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_SPTH), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_NL_USB), },
 	{  }	/* Terminating Entry */
 };
 MODULE_DEVICE_TABLE(pci, dwc3_pci_id_table);
 
 static struct pci_driver dwc3_pci_driver = {
-	.name		= "pci-dwc3",
+	.name		= "dwc3-pci",
 	.id_table	= dwc3_pci_id_table,
 	.probe		= dwc3_pci_probe,
-	.remove		= __devexit_p(dwc3_pci_remove),
+	.remove		= dwc3_pci_remove,
 };
 
 MODULE_AUTHOR("Felipe Balbi <balbi@ti.com>");
-MODULE_LICENSE("Dual BSD/GPL");
+MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("DesignWare USB3 PCI Glue Layer");
 
-static int __devinit dwc3_pci_init(void)
-{
-	return pci_register_driver(&dwc3_pci_driver);
-}
-module_init(dwc3_pci_init);
-
-static void __exit dwc3_pci_exit(void)
-{
-	pci_unregister_driver(&dwc3_pci_driver);
-}
-module_exit(dwc3_pci_exit);
+module_pci_driver(dwc3_pci_driver);

@@ -130,15 +130,6 @@ parport_atari_data_forward(struct parport *p)
 static void
 parport_atari_data_reverse(struct parport *p)
 {
-#if 0 /* too dangerous, can kill sound chip */
-	unsigned long flags;
-
-	local_irq_save(flags);
-	/* Soundchip port B as input. */
-	sound_ym.rd_data_reg_sel = 7;
-	sound_ym.wd_data = sound_ym.rd_data_reg_sel & ~0x40;
-	local_irq_restore(flags);
-#endif
 }
 
 static struct parport_operations parport_atari_ops = {
@@ -201,8 +192,8 @@ static int __init parport_atari_init(void)
 					  &parport_atari_ops);
 		if (!p)
 			return -ENODEV;
-		if (request_irq(IRQ_MFP_BUSY, parport_irq_handler,
-				IRQ_TYPE_SLOW, p->name, p)) {
+		if (request_irq(IRQ_MFP_BUSY, parport_irq_handler, 0, p->name,
+				p)) {
 			parport_put_port (p);
 			return -ENODEV;
 		}

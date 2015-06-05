@@ -63,8 +63,8 @@ static int find_boot_record(struct NFTLrecord *nftl)
 
 		/* Check for ANAND header first. Then can whinge if it's found but later
 		   checks fail */
-		ret = mtd->read(mtd, block * nftl->EraseSize, SECTORSIZE,
-				&retlen, buf);
+		ret = mtd_read(mtd, block * nftl->EraseSize, SECTORSIZE,
+			       &retlen, buf);
 		/* We ignore ret in case the ECC of the MediaHeader is invalid
 		   (which is apparently acceptable) */
 		if (retlen != SECTORSIZE) {
@@ -89,9 +89,10 @@ static int find_boot_record(struct NFTLrecord *nftl)
 		}
 
 		/* To be safer with BIOS, also use erase mark as discriminant */
-		if ((ret = nftl_read_oob(mtd, block * nftl->EraseSize +
+		ret = nftl_read_oob(mtd, block * nftl->EraseSize +
 					 SECTORSIZE + 8, 8, &retlen,
-					 (char *)&h1) < 0)) {
+					 (char *)&h1);
+		if (ret < 0) {
 			printk(KERN_WARNING "ANAND header found at 0x%x in mtd%d, but OOB data read failed (err %d)\n",
 			       block * nftl->EraseSize, nftl->mbd.mtd->index, ret);
 			continue;
@@ -109,8 +110,9 @@ static int find_boot_record(struct NFTLrecord *nftl)
 		}
 
 		/* Finally reread to check ECC */
-		if ((ret = mtd->read(mtd, block * nftl->EraseSize, SECTORSIZE,
-				     &retlen, buf) < 0)) {
+		ret = mtd->read(mtd, block * nftl->EraseSize, SECTORSIZE,
+				&retlen, buf);
+		if (ret < 0) {
 			printk(KERN_NOTICE "ANAND header found at 0x%x in mtd%d, but ECC read failed (err %d)\n",
 			       block * nftl->EraseSize, nftl->mbd.mtd->index, ret);
 			continue;
@@ -228,9 +230,11 @@ device is already correct.
 The new DiskOnChip driver already scanned the bad block table.  Just query it.
 			if ((i & (SECTORSIZE - 1)) == 0) {
 				/* read one sector for every SECTORSIZE of blocks */
-				if ((ret = mtd->read(nftl->mbd.mtd, block * nftl->EraseSize +
-						     i + SECTORSIZE, SECTORSIZE, &retlen,
-						     buf)) < 0) {
+				ret = mtd->read(nftl->mbd.mtd,
+						block * nftl->EraseSize + i +
+						SECTORSIZE, SECTORSIZE,
+						&retlen, buf);
+				if (ret < 0) {
 					printk(KERN_NOTICE "Read of bad sector table failed (err %d)\n",
 					       ret);
 					kfree(nftl->ReplUnitTable);
@@ -242,7 +246,8 @@ The new DiskOnChip driver already scanned the bad block table.  Just query it.
 			if (buf[i & (SECTORSIZE - 1)] != 0xff)
 				nftl->ReplUnitTable[i] = BLOCK_RESERVED;
 #endif
-			if (nftl->mbd.mtd->block_isbad(nftl->mbd.mtd, i * nftl->EraseSize))
+			if (mtd_block_isbad(nftl->mbd.mtd,
+					    i * nftl->EraseSize))
 				nftl->ReplUnitTable[i] = BLOCK_RESERVED;
 		}
 
@@ -274,7 +279,7 @@ static int check_free_sectors(struct NFTLrecord *nftl, unsigned int address, int
 	int i;
 
 	for (i = 0; i < len; i += SECTORSIZE) {
-		if (mtd->read(mtd, address, SECTORSIZE, &retlen, buf))
+		if (mtd_read(mtd, address, SECTORSIZE, &retlen, buf))
 			return -1;
 		if (memcmpb(buf, 0xff, SECTORSIZE) != 0)
 			return -1;
@@ -326,7 +331,7 @@ int NFTL_formatblock(struct NFTLrecord *nftl, int block)
 	instr->mtd = nftl->mbd.mtd;
 	instr->addr = block * nftl->EraseSize;
 	instr->len = nftl->EraseSize;
-	mtd->erase(mtd, instr);
+	mtd_erase(mtd, instr);
 
 	if (instr->state == MTD_ERASE_FAILED) {
 		printk("Error while formatting block %d\n", block);
@@ -355,7 +360,7 @@ int NFTL_formatblock(struct NFTLrecord *nftl, int block)
 fail:
 	/* could not format, update the bad block table (caller is responsible
 	   for setting the ReplUnitTable to BLOCK_RESERVED on failure) */
-	nftl->mbd.mtd->block_markbad(nftl->mbd.mtd, instr->addr);
+	mtd_block_markbad(nftl->mbd.mtd, instr->addr);
 	return -1;
 }
 

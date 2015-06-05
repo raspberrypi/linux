@@ -109,7 +109,7 @@ struct lx_rmh {
 
 
 /* low-level dsp access */
-int __devinit lx_dsp_get_version(struct lx6464es *chip, u32 *rdsp_version);
+int lx_dsp_get_version(struct lx6464es *chip, u32 *rdsp_version);
 int lx_dsp_get_clock_frequency(struct lx6464es *chip, u32 *rfreq);
 int lx_dsp_set_granularity(struct lx6464es *chip, u32 gran);
 int lx_dsp_read_async_events(struct lx6464es *chip, u32 *data);
@@ -181,11 +181,9 @@ int lx_level_peaks(struct lx6464es *chip, int is_capture, int channels,
 
 /* interrupt handling */
 irqreturn_t lx_interrupt(int irq, void *dev_id);
+irqreturn_t lx_threaded_irq(int irq, void *dev_id);
 void lx_irq_enable(struct lx6464es *chip);
 void lx_irq_disable(struct lx6464es *chip);
-
-void lx_tasklet_capture(unsigned long data);
-void lx_tasklet_playback(unsigned long data);
 
 
 /* Stream Format Header Defines (for LIN and IEEE754) */

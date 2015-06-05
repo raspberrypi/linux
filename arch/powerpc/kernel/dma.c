@@ -11,9 +11,11 @@
 #include <linux/gfp.h>
 #include <linux/memblock.h>
 #include <linux/export.h>
+#include <linux/pci.h>
+#include <asm/vio.h>
 #include <asm/bug.h>
-#include <asm/abs_addr.h>
 #include <asm/machdep.h>
+#include <asm/swiotlb.h>
 
 /*
  * Generic direct DMA implementation
@@ -24,9 +26,22 @@
  * default the offset is PCI_DRAM_OFFSET.
  */
 
+static u64 __maybe_unused get_pfn_limit(struct device *dev)
+{
+	u64 pfn = (dev->coherent_dma_mask >> PAGE_SHIFT) + 1;
+	struct dev_archdata __maybe_unused *sd = &dev->archdata;
+
+#ifdef CONFIG_SWIOTLB
+	if (sd->max_direct_dma_addr && sd->dma_ops == &swiotlb_dma_ops)
+		pfn = min_t(u64, pfn, sd->max_direct_dma_addr >> PAGE_SHIFT);
+#endif
+
+	return pfn;
+}
 
 void *dma_direct_alloc_coherent(struct device *dev, size_t size,
-				dma_addr_t *dma_handle, gfp_t flag)
+				dma_addr_t *dma_handle, gfp_t flag,
+				struct dma_attrs *attrs)
 {
 	void *ret;
 #ifdef CONFIG_NOT_COHERENT_CACHE
@@ -38,6 +53,34 @@ void *dma_direct_alloc_coherent(struct device *dev, size_t size,
 #else
 	struct page *page;
 	int node = dev_to_node(dev);
+#ifdef CONFIG_FSL_SOC
+	u64 pfn = get_pfn_limit(dev);
+	int zone;
+
+	/*
+	 * This code should be OK on other platforms, but we have drivers that
+	 * don't set coherent_dma_mask. As a workaround we just ifdef it. This
+	 * whole routine needs some serious cleanup.
+	 */
+
+	zone = dma_pfn_limit_to_zone(pfn);
+	if (zone < 0) {
+		dev_err(dev, "%s: No suitable zone for pfn %#llx\n",
+			__func__, pfn);
+		return NULL;
+	}
+
+	switch (zone) {
+	case ZONE_DMA:
+		flag |= GFP_DMA;
+		break;
+#ifdef CONFIG_ZONE_DMA32
+	case ZONE_DMA32:
+		flag |= GFP_DMA32;
+		break;
+#endif
+	};
+#endif /* CONFIG_FSL_SOC */
 
 	/* ignore region specifiers */
 	flag  &= ~(__GFP_HIGHMEM);
@@ -47,20 +90,39 @@ void *dma_direct_alloc_coherent(struct device *dev, size_t size,
 		return NULL;
 	ret = page_address(page);
 	memset(ret, 0, size);
-	*dma_handle = virt_to_abs(ret) + get_dma_offset(dev);
+	*dma_handle = __pa(ret) + get_dma_offset(dev);
 
 	return ret;
 #endif
 }
 
 void dma_direct_free_coherent(struct device *dev, size_t size,
-			      void *vaddr, dma_addr_t dma_handle)
+			      void *vaddr, dma_addr_t dma_handle,
+			      struct dma_attrs *attrs)
 {
 #ifdef CONFIG_NOT_COHERENT_CACHE
 	__dma_free_coherent(size, vaddr);
 #else
 	free_pages((unsigned long)vaddr, get_order(size));
 #endif
+}
+
+int dma_direct_mmap_coherent(struct device *dev, struct vm_area_struct *vma,
+			     void *cpu_addr, dma_addr_t handle, size_t size,
+			     struct dma_attrs *attrs)
+{
+	unsigned long pfn;
+
+#ifdef CONFIG_NOT_COHERENT_CACHE
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	pfn = __dma_get_coherent_pfn((unsigned long)cpu_addr);
+#else
+	pfn = page_to_pfn(virt_to_page(cpu_addr));
+#endif
+	return remap_pfn_range(vma, vma->vm_start,
+			       pfn + vma->vm_pgoff,
+			       vma->vm_end - vma->vm_start,
+			       vma->vm_page_prot);
 }
 
 static int dma_direct_map_sg(struct device *dev, struct scatterlist *sgl,
@@ -150,8 +212,9 @@ static inline void dma_direct_sync_single(struct device *dev,
 #endif
 
 struct dma_map_ops dma_direct_ops = {
-	.alloc_coherent			= dma_direct_alloc_coherent,
-	.free_coherent			= dma_direct_free_coherent,
+	.alloc				= dma_direct_alloc_coherent,
+	.free				= dma_direct_free_coherent,
+	.mmap				= dma_direct_mmap_coherent,
 	.map_sg				= dma_direct_map_sg,
 	.unmap_sg			= dma_direct_unmap_sg,
 	.dma_supported			= dma_direct_dma_supported,
@@ -169,12 +232,10 @@ EXPORT_SYMBOL(dma_direct_ops);
 
 #define PREALLOC_DMA_DEBUG_ENTRIES (1 << 16)
 
-int dma_set_mask(struct device *dev, u64 dma_mask)
+int __dma_set_mask(struct device *dev, u64 dma_mask)
 {
 	struct dma_map_ops *dma_ops = get_dma_ops(dev);
 
-	if (ppc_md.dma_set_mask)
-		return ppc_md.dma_set_mask(dev, dma_mask);
 	if ((dma_ops != NULL) && (dma_ops->set_dma_mask != NULL))
 		return dma_ops->set_dma_mask(dev, dma_mask);
 	if (!dev->dma_mask || !dma_supported(dev, dma_mask))
@@ -182,14 +243,18 @@ int dma_set_mask(struct device *dev, u64 dma_mask)
 	*dev->dma_mask = dma_mask;
 	return 0;
 }
+
+int dma_set_mask(struct device *dev, u64 dma_mask)
+{
+	if (ppc_md.dma_set_mask)
+		return ppc_md.dma_set_mask(dev, dma_mask);
+	return __dma_set_mask(dev, dma_mask);
+}
 EXPORT_SYMBOL(dma_set_mask);
 
-u64 dma_get_required_mask(struct device *dev)
+u64 __dma_get_required_mask(struct device *dev)
 {
 	struct dma_map_ops *dma_ops = get_dma_ops(dev);
-
-	if (ppc_md.dma_get_required_mask)
-		return ppc_md.dma_get_required_mask(dev);
 
 	if (unlikely(dma_ops == NULL))
 		return 0;
@@ -199,30 +264,27 @@ u64 dma_get_required_mask(struct device *dev)
 
 	return DMA_BIT_MASK(8 * sizeof(dma_addr_t));
 }
+
+u64 dma_get_required_mask(struct device *dev)
+{
+	if (ppc_md.dma_get_required_mask)
+		return ppc_md.dma_get_required_mask(dev);
+
+	return __dma_get_required_mask(dev);
+}
 EXPORT_SYMBOL_GPL(dma_get_required_mask);
 
 static int __init dma_init(void)
 {
-       dma_debug_init(PREALLOC_DMA_DEBUG_ENTRIES);
+	dma_debug_init(PREALLOC_DMA_DEBUG_ENTRIES);
+#ifdef CONFIG_PCI
+	dma_debug_add_bus(&pci_bus_type);
+#endif
+#ifdef CONFIG_IBMVIO
+	dma_debug_add_bus(&vio_bus_type);
+#endif
 
        return 0;
 }
 fs_initcall(dma_init);
 
-int dma_mmap_coherent(struct device *dev, struct vm_area_struct *vma,
-		      void *cpu_addr, dma_addr_t handle, size_t size)
-{
-	unsigned long pfn;
-
-#ifdef CONFIG_NOT_COHERENT_CACHE
-	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-	pfn = __dma_get_coherent_pfn((unsigned long)cpu_addr);
-#else
-	pfn = page_to_pfn(virt_to_page(cpu_addr));
-#endif
-	return remap_pfn_range(vma, vma->vm_start,
-			       pfn + vma->vm_pgoff,
-			       vma->vm_end - vma->vm_start,
-			       vma->vm_page_prot);
-}
-EXPORT_SYMBOL_GPL(dma_mmap_coherent);

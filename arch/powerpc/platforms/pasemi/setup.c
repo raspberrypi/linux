@@ -32,13 +32,13 @@
 #include <linux/gfp.h>
 
 #include <asm/prom.h>
-#include <asm/system.h>
 #include <asm/iommu.h>
 #include <asm/machdep.h>
 #include <asm/mpic.h>
 #include <asm/smp.h>
 #include <asm/time.h>
 #include <asm/mmu.h>
+#include <asm/debug.h>
 
 #include <pcmcia/ss.h>
 #include <pcmcia/cistpl.h>
@@ -76,7 +76,7 @@ static void pas_restart(char *cmd)
 static arch_spinlock_t timebase_lock;
 static unsigned long timebase;
 
-static void __devinit pas_give_timebase(void)
+static void pas_give_timebase(void)
 {
 	unsigned long flags;
 
@@ -94,7 +94,7 @@ static void __devinit pas_give_timebase(void)
 	local_irq_restore(flags);
 }
 
-static void __devinit pas_take_timebase(void)
+static void pas_take_timebase(void)
 {
 	while (!timebase)
 		smp_rmb();
@@ -224,7 +224,7 @@ static __init void pas_init_IRQ(void)
 	openpic_addr = of_read_number(opprop, naddr);
 	printk(KERN_DEBUG "OpenPIC addr: %lx\n", openpic_addr);
 
-	mpic_flags = MPIC_LARGE_VECTORS | MPIC_NO_BIAS;
+	mpic_flags = MPIC_LARGE_VECTORS | MPIC_NO_BIAS | MPIC_NO_RESET;
 
 	nmiprop = of_get_property(mpic_node, "nmi-source", NULL);
 	if (nmiprop)
@@ -393,7 +393,7 @@ static inline void pasemi_pcmcia_init(void)
 #endif
 
 
-static struct of_device_id pasemi_bus_ids[] = {
+static const struct of_device_id pasemi_bus_ids[] = {
 	/* Unfortunately needed for legacy firmwares */
 	{ .type = "localbus", },
 	{ .type = "sdc", },

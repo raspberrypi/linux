@@ -10,6 +10,8 @@
  *
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/string.h>
 #include <linux/types.h>
 #include <linux/jffs2.h>
@@ -80,11 +82,6 @@ static inline int pullbit(struct pushpull *pp)
 
 	pp->ofs++;
 	return bit;
-}
-
-static inline int pulledbits(struct pushpull *pp)
-{
-	return pp->ofs;
 }
 
 

@@ -31,6 +31,7 @@
 #include <linux/in6.h>
 #include <linux/timer.h>
 #include <linux/io.h>
+#include <linux/u64_stats_sync.h>
 #include <asm/checksum.h>
 #include <asm/homecache.h>
 
@@ -87,13 +88,6 @@
 /* This should be at most 10226 (10240 - 14) if "jumbo" is set in LIPP. */
 /* ISSUE: This has not been thoroughly tested (except at 1500). */
 #define TILE_NET_MTU 1500
-
-/* HACK: Define to support GSO. */
-/* ISSUE: This may actually hurt performance of the TCP blaster. */
-/* #define TILE_NET_GSO */
-
-/* Define this to collapse "duplicate" acks. */
-/* #define IGNORE_DUP_ACKS */
 
 /* HACK: Define this to verify incoming packets. */
 /* #define TILE_NET_VERIFY_INGRESS */
@@ -156,10 +150,13 @@ struct tile_netio_queue {
  * Statistics counters for a specific cpu and device.
  */
 struct tile_net_stats_t {
-	u32 rx_packets;
-	u32 rx_bytes;
-	u32 tx_packets;
-	u32 tx_bytes;
+	struct u64_stats_sync syncp;
+	u64 rx_packets;		/* total packets received	*/
+	u64 tx_packets;		/* total packets transmitted	*/
+	u64 rx_bytes;		/* total bytes received 	*/
+	u64 tx_bytes;		/* total bytes transmitted	*/
+	u64 rx_errors;		/* packets truncated or marked bad by hw */
+	u64 rx_dropped;		/* packets not for us or intf not up */
 };
 
 
@@ -218,8 +215,6 @@ struct tile_net_priv {
 	int network_cpus_count;
 	/* Credits per network cpu. */
 	int network_cpus_credits;
-	/* Network stats. */
-	struct net_device_stats stats;
 	/* For NetIO bringup retries. */
 	struct delayed_work retry_work;
 	/* Quick access to per cpu data. */
@@ -342,6 +337,21 @@ inline int __netio_fastio1(u32 fastio_index, u32 arg0)
 }
 
 
+static void tile_net_return_credit(struct tile_net_cpu *info)
+{
+	struct tile_netio_queue *queue = &info->queue;
+	netio_queue_user_impl_t *qup = &queue->__user_part;
+
+	/* Return four credits after every fourth packet. */
+	if (--qup->__receive_credit_remaining == 0) {
+		u32 interval = qup->__receive_credit_interval;
+		qup->__receive_credit_remaining = interval;
+		__netio_fastio_return_credits(qup->__fastio_index, interval);
+	}
+}
+
+
+
 /*
  * Provide a linux buffer to LIPP.
  */
@@ -419,7 +429,7 @@ static bool tile_net_provide_needed_buffer(struct tile_net_cpu *info,
 #endif
 
 	/* Avoid "false sharing" with last cache line. */
-	/* ISSUE: This is already done by "dev_alloc_skb()". */
+	/* ISSUE: This is already done by "netdev_alloc_skb()". */
 	unsigned int len =
 		 (((small ? LIPP_SMALL_PACKET_SIZE : large_size) +
 		   CHIP_L2_LINE_SIZE() - 1) & -CHIP_L2_LINE_SIZE());
@@ -433,7 +443,7 @@ static bool tile_net_provide_needed_buffer(struct tile_net_cpu *info,
 	struct sk_buff **skb_ptr;
 
 	/* Request 96 extra bytes for alignment purposes. */
-	skb = dev_alloc_skb(len + padding);
+	skb = netdev_alloc_skb(info->napi.dev, len + padding);
 	if (skb == NULL)
 		return false;
 
@@ -612,79 +622,6 @@ static void tile_net_handle_egress_timer(unsigned long arg)
 }
 
 
-#ifdef IGNORE_DUP_ACKS
-
-/*
- * Help detect "duplicate" ACKs.  These are sequential packets (for a
- * given flow) which are exactly 66 bytes long, sharing everything but
- * ID=2@0x12, Hsum=2@0x18, Ack=4@0x2a, WinSize=2@0x30, Csum=2@0x32,
- * Tstamps=10@0x38.  The ID's are +1, the Hsum's are -1, the Ack's are
- * +N, and the Tstamps are usually identical.
- *
- * NOTE: Apparently truly duplicate acks (with identical "ack" values),
- * should not be collapsed, as they are used for some kind of flow control.
- */
-static bool is_dup_ack(char *s1, char *s2, unsigned int len)
-{
-	int i;
-
-	unsigned long long ignorable = 0;
-
-	/* Identification. */
-	ignorable |= (1ULL << 0x12);
-	ignorable |= (1ULL << 0x13);
-
-	/* Header checksum. */
-	ignorable |= (1ULL << 0x18);
-	ignorable |= (1ULL << 0x19);
-
-	/* ACK. */
-	ignorable |= (1ULL << 0x2a);
-	ignorable |= (1ULL << 0x2b);
-	ignorable |= (1ULL << 0x2c);
-	ignorable |= (1ULL << 0x2d);
-
-	/* WinSize. */
-	ignorable |= (1ULL << 0x30);
-	ignorable |= (1ULL << 0x31);
-
-	/* Checksum. */
-	ignorable |= (1ULL << 0x32);
-	ignorable |= (1ULL << 0x33);
-
-	for (i = 0; i < len; i++, ignorable >>= 1) {
-
-		if ((ignorable & 1) || (s1[i] == s2[i]))
-			continue;
-
-#ifdef TILE_NET_DEBUG
-		/* HACK: Mention non-timestamp diffs. */
-		if (i < 0x38 && i != 0x2f &&
-		    net_ratelimit())
-			pr_info("Diff at 0x%x\n", i);
-#endif
-
-		return false;
-	}
-
-#ifdef TILE_NET_NO_SUPPRESS_DUP_ACKS
-	/* HACK: Do not suppress truly duplicate ACKs. */
-	/* ISSUE: Is this actually necessary or helpful? */
-	if (s1[0x2a] == s2[0x2a] &&
-	    s1[0x2b] == s2[0x2b] &&
-	    s1[0x2c] == s2[0x2c] &&
-	    s1[0x2d] == s2[0x2d]) {
-		return false;
-	}
-#endif
-
-	return true;
-}
-
-#endif
-
-
-
 static void tile_net_discard_aux(struct tile_net_cpu *info, int index)
 {
 	struct tile_netio_queue *queue = &info->queue;
@@ -759,6 +696,7 @@ static bool tile_net_poll_aux(struct tile_net_cpu *info, int index)
 	netio_pkt_t *pkt = (netio_pkt_t *)((unsigned long) &qsp[1] + index);
 
 	netio_pkt_metadata_t *metadata = NETIO_PKT_METADATA(pkt);
+	netio_pkt_status_t pkt_status = NETIO_PKT_STATUS_M(metadata, pkt);
 
 	/* Extract the packet size.  FIXME: Shouldn't the second line */
 	/* get subtracted?  Mostly moot, since it should be "zero". */
@@ -791,50 +729,40 @@ static bool tile_net_poll_aux(struct tile_net_cpu *info, int index)
 #endif /* TILE_NET_DUMP_PACKETS */
 
 #ifdef TILE_NET_VERIFY_INGRESS
-	if (!NETIO_PKT_L4_CSUM_CORRECT_M(metadata, pkt) &&
-	    NETIO_PKT_L4_CSUM_CALCULATED_M(metadata, pkt)) {
-		/* Bug 6624: Includes UDP packets with a "zero" checksum. */
-		pr_warning("Bad L4 checksum on %d byte packet.\n", len);
-	}
-	if (!NETIO_PKT_L3_CSUM_CORRECT_M(metadata, pkt) &&
-	    NETIO_PKT_L3_CSUM_CALCULATED_M(metadata, pkt)) {
+	if (pkt_status == NETIO_PKT_STATUS_OVERSIZE && len >= 64) {
 		dump_packet(buf, len, "rx");
-		panic("Bad L3 checksum.");
-	}
-	switch (NETIO_PKT_STATUS_M(metadata, pkt)) {
-	case NETIO_PKT_STATUS_OVERSIZE:
-		if (len >= 64) {
-			dump_packet(buf, len, "rx");
-			panic("Unexpected OVERSIZE.");
-		}
-		break;
-	case NETIO_PKT_STATUS_BAD:
-		pr_warning("Unexpected BAD %ld byte packet.\n", len);
+		panic("Unexpected OVERSIZE.");
 	}
 #endif
 
 	filter = 0;
 
-	/* ISSUE: Filter TCP packets with "bad" checksums? */
-
-	if (!(dev->flags & IFF_UP)) {
+	if (pkt_status == NETIO_PKT_STATUS_BAD) {
+		/* Handle CRC error and hardware truncation. */
+		filter = 2;
+	} else if (!(dev->flags & IFF_UP)) {
 		/* Filter packets received before we're up. */
 		filter = 1;
-	} else if (NETIO_PKT_STATUS_M(metadata, pkt) == NETIO_PKT_STATUS_BAD) {
+	} else if (NETIO_PKT_ETHERTYPE_RECOGNIZED_M(metadata, pkt) &&
+		   pkt_status == NETIO_PKT_STATUS_UNDERSIZE) {
 		/* Filter "truncated" packets. */
-		filter = 1;
+		filter = 2;
 	} else if (!(dev->flags & IFF_PROMISC)) {
-		/* FIXME: Implement HW multicast filter. */
 		if (!is_multicast_ether_addr(buf)) {
 			/* Filter packets not for our address. */
 			const u8 *mine = dev->dev_addr;
-			filter = compare_ether_addr(mine, buf);
+			filter = !ether_addr_equal(mine, buf);
 		}
 	}
 
-	if (filter) {
+	u64_stats_update_begin(&stats->syncp);
 
-		/* ISSUE: Update "drop" statistics? */
+	if (filter != 0) {
+
+		if (filter == 1)
+			stats->rx_dropped++;
+		else
+			stats->rx_errors++;
 
 		tile_net_provide_linux_buffer(info, va, small);
 
@@ -864,19 +792,13 @@ static bool tile_net_poll_aux(struct tile_net_cpu *info, int index)
 
 		stats->rx_packets++;
 		stats->rx_bytes += len;
-
-		if (small)
-			info->num_needed_small_buffers++;
-		else
-			info->num_needed_large_buffers++;
 	}
 
-	/* Return four credits after every fourth packet. */
-	if (--qup->__receive_credit_remaining == 0) {
-		u32 interval = qup->__receive_credit_interval;
-		qup->__receive_credit_remaining = interval;
-		__netio_fastio_return_credits(qup->__fastio_index, interval);
-	}
+	u64_stats_update_end(&stats->syncp);
+
+	/* ISSUE: It would be nice to defer this until the packet has */
+	/* actually been processed. */
+	tile_net_return_credit(info);
 
 	/* Consume this packet. */
 	qup->__packet_receive_read = index2;
@@ -908,6 +830,9 @@ static int tile_net_poll(struct napi_struct *napi, int budget)
 	netio_queue_user_impl_t *qup = &queue->__user_part;
 
 	unsigned int work = 0;
+
+	if (budget <= 0)
+		goto done;
 
 	while (priv->active) {
 		int index = qup->__packet_receive_read;
@@ -1031,7 +956,7 @@ static int tile_net_open_aux(struct net_device *dev)
 	 */
 	if (hv_dev_pwrite(priv->hv_devhdl, 0, (HV_VirtAddr)&dummy,
 			  sizeof(dummy), NETIO_IPP_START_SHIM_OFF) < 0) {
-		pr_warning("Failed to start LIPP/LEPP.\n");
+		pr_warn("Failed to start LIPP/LEPP\n");
 		return -EIO;
 	}
 
@@ -1071,13 +996,13 @@ static void tile_net_register(void *dev_ptr)
 	PDEBUG("tile_net_register(queue_id %d)\n", queue_id);
 
 	if (!strcmp(dev->name, "xgbe0"))
-		info = &__get_cpu_var(hv_xgbe0);
+		info = this_cpu_ptr(&hv_xgbe0);
 	else if (!strcmp(dev->name, "xgbe1"))
-		info = &__get_cpu_var(hv_xgbe1);
+		info = this_cpu_ptr(&hv_xgbe1);
 	else if (!strcmp(dev->name, "gbe0"))
-		info = &__get_cpu_var(hv_gbe0);
+		info = this_cpu_ptr(&hv_gbe0);
 	else if (!strcmp(dev->name, "gbe1"))
-		info = &__get_cpu_var(hv_gbe1);
+		info = this_cpu_ptr(&hv_gbe1);
 	else
 		BUG();
 
@@ -1085,6 +1010,8 @@ static void tile_net_register(void *dev_ptr)
 	init_timer(&info->egress_timer);
 	info->egress_timer.data = (long)info;
 	info->egress_timer.function = tile_net_handle_egress_timer;
+
+	u64_stats_init(&info->stats.syncp);
 
 	priv->cpu[my_cpu] = info;
 
@@ -1543,7 +1470,7 @@ static int tile_net_drain_lipp_buffers(struct tile_net_priv *priv)
 
 	/* Drain all the LIPP buffers. */
 	while (true) {
-		int buffer;
+		unsigned int buffer;
 
 		/* NOTE: This should never fail. */
 		if (hv_dev_pread(priv->hv_devhdl, 0, (HV_VirtAddr)&buffer,
@@ -1707,7 +1634,7 @@ static unsigned int tile_net_tx_frags(lepp_frag_t *frags,
 		if (!hash_default) {
 			void *va = pfn_to_kaddr(pfn) + f->page_offset;
 			BUG_ON(PageHighMem(skb_frag_page(f)));
-			finv_buffer_remote(va, f->size, 0);
+			finv_buffer_remote(va, skb_frag_size(f), 0);
 		}
 
 		cpa = ((phys_addr_t)pfn << PAGE_SHIFT) + f->page_offset;
@@ -1735,8 +1662,8 @@ static unsigned int tile_net_tx_frags(lepp_frag_t *frags,
  * Sometimes, if "sendfile()" requires copying, we will be called with
  * "data" containing the header and payload, with "frags" being empty.
  *
- * In theory, "sh->nr_frags" could be 3, but in practice, it seems
- * that this will never actually happen.
+ * Sometimes, for example when using NFS over TCP, a single segment can
+ * span 3 fragments, which must be handled carefully in LEPP.
  *
  * See "emulate_large_send_offload()" for some reference code, which
  * does not handle checksumming.
@@ -1844,10 +1771,8 @@ static int tile_net_tx_tso(struct sk_buff *skb, struct net_device *dev)
 
 	spin_lock_irqsave(&priv->eq_lock, irqflags);
 
-	/*
-	 * Handle completions if needed to make room.
-	 * HACK: Spin until there is sufficient room.
-	 */
+	/* Handle completions if needed to make room. */
+	/* NOTE: Return NETDEV_TX_BUSY if there is still no room. */
 	if (lepp_num_free_comp_slots(eq) == 0) {
 		nolds = tile_net_lepp_grab_comps(eq, olds, wanted, 0);
 		if (nolds == 0) {
@@ -1861,6 +1786,7 @@ busy:
 	cmd_tail = eq->cmd_tail;
 
 	/* Prepare to advance, detecting full queue. */
+	/* NOTE: Return NETDEV_TX_BUSY if the queue is full. */
 	cmd_next = cmd_tail + cmd_size;
 	if (cmd_tail < cmd_head && cmd_next >= cmd_head)
 		goto busy;
@@ -1898,11 +1824,13 @@ busy:
 
 	/* Handle completions. */
 	for (i = 0; i < nolds; i++)
-		kfree_skb(olds[i]);
+		dev_consume_skb_any(olds[i]);
 
 	/* Update stats. */
+	u64_stats_update_begin(&stats->syncp);
 	stats->tx_packets += num_segs;
 	stats->tx_bytes += (num_segs * sh_len) + d_len;
+	u64_stats_update_end(&stats->syncp);
 
 	/* Make sure the egress timer is scheduled. */
 	tile_net_schedule_egress_timer(info);
@@ -1930,7 +1858,7 @@ static int tile_net_tx(struct sk_buff *skb, struct net_device *dev)
 
 	unsigned int csum_start = skb_checksum_start_offset(skb);
 
-	lepp_frag_t frags[LEPP_MAX_FRAGS];
+	lepp_frag_t frags[1 + MAX_SKB_FRAGS];
 
 	unsigned int num_frags;
 
@@ -1945,7 +1873,7 @@ static int tile_net_tx(struct sk_buff *skb, struct net_device *dev)
 	unsigned int cmd_head, cmd_tail, cmd_next;
 	unsigned int comp_tail;
 
-	lepp_cmd_t cmds[LEPP_MAX_FRAGS];
+	lepp_cmd_t cmds[1 + MAX_SKB_FRAGS];
 
 
 	/*
@@ -2023,10 +1951,8 @@ static int tile_net_tx(struct sk_buff *skb, struct net_device *dev)
 
 	spin_lock_irqsave(&priv->eq_lock, irqflags);
 
-	/*
-	 * Handle completions if needed to make room.
-	 * HACK: Spin until there is sufficient room.
-	 */
+	/* Handle completions if needed to make room. */
+	/* NOTE: Return NETDEV_TX_BUSY if there is still no room. */
 	if (lepp_num_free_comp_slots(eq) == 0) {
 		nolds = tile_net_lepp_grab_comps(eq, olds, wanted, 0);
 		if (nolds == 0) {
@@ -2040,6 +1966,7 @@ busy:
 	cmd_tail = eq->cmd_tail;
 
 	/* Copy the commands, or fail. */
+	/* NOTE: Return NETDEV_TX_BUSY if the queue is full. */
 	for (i = 0; i < num_frags; i++) {
 
 		/* Prepare to advance, detecting full queue. */
@@ -2081,11 +2008,13 @@ busy:
 
 	/* Handle completions. */
 	for (i = 0; i < nolds; i++)
-		kfree_skb(olds[i]);
+		dev_consume_skb_any(olds[i]);
 
 	/* HACK: Track "expanded" size for short packets (e.g. 42 < 60). */
+	u64_stats_update_begin(&stats->syncp);
 	stats->tx_packets++;
 	stats->tx_bytes += ((len >= ETH_ZLEN) ? len : ETH_ZLEN);
+	u64_stats_update_end(&stats->syncp);
 
 	/* Make sure the egress timer is scheduled. */
 	tile_net_schedule_egress_timer(info);
@@ -2122,30 +2051,51 @@ static int tile_net_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
  *
  * Returns the address of the device statistics structure.
  */
-static struct net_device_stats *tile_net_get_stats(struct net_device *dev)
+static struct rtnl_link_stats64 *tile_net_get_stats64(struct net_device *dev,
+		struct rtnl_link_stats64 *stats)
 {
 	struct tile_net_priv *priv = netdev_priv(dev);
-	u32 rx_packets = 0;
-	u32 tx_packets = 0;
-	u32 rx_bytes = 0;
-	u32 tx_bytes = 0;
+	u64 rx_packets = 0, tx_packets = 0;
+	u64 rx_bytes = 0, tx_bytes = 0;
+	u64 rx_errors = 0, rx_dropped = 0;
 	int i;
 
 	for_each_online_cpu(i) {
-		if (priv->cpu[i]) {
-			rx_packets += priv->cpu[i]->stats.rx_packets;
-			rx_bytes += priv->cpu[i]->stats.rx_bytes;
-			tx_packets += priv->cpu[i]->stats.tx_packets;
-			tx_bytes += priv->cpu[i]->stats.tx_bytes;
-		}
+		struct tile_net_stats_t *cpu_stats;
+		u64 trx_packets, ttx_packets, trx_bytes, ttx_bytes;
+		u64 trx_errors, trx_dropped;
+		unsigned int start;
+
+		if (priv->cpu[i] == NULL)
+			continue;
+		cpu_stats = &priv->cpu[i]->stats;
+
+		do {
+			start = u64_stats_fetch_begin_irq(&cpu_stats->syncp);
+			trx_packets = cpu_stats->rx_packets;
+			ttx_packets = cpu_stats->tx_packets;
+			trx_bytes   = cpu_stats->rx_bytes;
+			ttx_bytes   = cpu_stats->tx_bytes;
+			trx_errors  = cpu_stats->rx_errors;
+			trx_dropped = cpu_stats->rx_dropped;
+		} while (u64_stats_fetch_retry_irq(&cpu_stats->syncp, start));
+
+		rx_packets += trx_packets;
+		tx_packets += ttx_packets;
+		rx_bytes   += trx_bytes;
+		tx_bytes   += ttx_bytes;
+		rx_errors  += trx_errors;
+		rx_dropped += trx_dropped;
 	}
 
-	priv->stats.rx_packets = rx_packets;
-	priv->stats.rx_bytes = rx_bytes;
-	priv->stats.tx_packets = tx_packets;
-	priv->stats.tx_bytes = tx_bytes;
+	stats->rx_packets = rx_packets;
+	stats->tx_packets = tx_packets;
+	stats->rx_bytes   = rx_bytes;
+	stats->tx_bytes   = tx_bytes;
+	stats->rx_errors  = rx_errors;
+	stats->rx_dropped = rx_dropped;
 
-	return &priv->stats;
+	return stats;
 }
 
 
@@ -2186,7 +2136,7 @@ static int tile_net_set_mac_address(struct net_device *dev, void *p)
 	struct sockaddr *addr = p;
 
 	if (!is_valid_ether_addr(addr->sa_data))
-		return -EINVAL;
+		return -EADDRNOTAVAIL;
 
 	/* ISSUE: Note that "dev_addr" is now a pointer. */
 	memcpy(dev->dev_addr, addr->sa_data, dev->addr_len);
@@ -2254,22 +2204,41 @@ static int tile_net_get_mac(struct net_device *dev)
 		 * can't get its MAC address, we are most likely running
 		 * the simulator, so let's generate a random MAC address.
 		 */
-		random_ether_addr(dev->dev_addr);
+		eth_hw_addr_random(dev);
 	}
 
 	return 0;
 }
 
 
-static struct net_device_ops tile_net_ops = {
+#ifdef CONFIG_NET_POLL_CONTROLLER
+/*
+ * Polling 'interrupt' - used by things like netconsole to send skbs
+ * without having to re-enable interrupts. It's not called while
+ * the interrupt routine is executing.
+ */
+static void tile_net_netpoll(struct net_device *dev)
+{
+	struct tile_net_priv *priv = netdev_priv(dev);
+	disable_percpu_irq(priv->intr_id);
+	tile_net_handle_ingress_interrupt(priv->intr_id, dev);
+	enable_percpu_irq(priv->intr_id, 0);
+}
+#endif
+
+
+static const struct net_device_ops tile_net_ops = {
 	.ndo_open = tile_net_open,
 	.ndo_stop = tile_net_stop,
 	.ndo_start_xmit = tile_net_tx,
 	.ndo_do_ioctl = tile_net_ioctl,
-	.ndo_get_stats = tile_net_get_stats,
+	.ndo_get_stats64 = tile_net_get_stats64,
 	.ndo_change_mtu = tile_net_change_mtu,
 	.ndo_tx_timeout = tile_net_tx_timeout,
-	.ndo_set_mac_address = tile_net_set_mac_address
+	.ndo_set_mac_address = tile_net_set_mac_address,
+#ifdef CONFIG_NET_POLL_CONTROLLER
+	.ndo_poll_controller = tile_net_netpoll,
+#endif
 };
 
 
@@ -2281,39 +2250,30 @@ static struct net_device_ops tile_net_ops = {
  */
 static void tile_net_setup(struct net_device *dev)
 {
-	PDEBUG("tile_net_setup()\n");
+	netdev_features_t features = 0;
 
 	ether_setup(dev);
-
 	dev->netdev_ops = &tile_net_ops;
-
 	dev->watchdog_timeo = TILE_NET_TIMEOUT;
-
-	/* We want lockless xmit. */
-	dev->features |= NETIF_F_LLTX;
-
-	/* We support hardware tx checksums. */
-	dev->features |= NETIF_F_HW_CSUM;
-
-	/* We support scatter/gather. */
-	dev->features |= NETIF_F_SG;
-
-	/* We support TSO. */
-	dev->features |= NETIF_F_TSO;
-
-#ifdef TILE_NET_GSO
-	/* We support GSO. */
-	dev->features |= NETIF_F_GSO;
-#endif
-
-	if (hash_default)
-		dev->features |= NETIF_F_HIGHDMA;
-
-	/* ISSUE: We should support NETIF_F_UFO. */
-
 	dev->tx_queue_len = TILE_NET_TX_QUEUE_LEN;
-
 	dev->mtu = TILE_NET_MTU;
+
+	features |= NETIF_F_HW_CSUM;
+	features |= NETIF_F_SG;
+
+	/* We support TSO iff the HV supports sufficient frags. */
+	if (LEPP_MAX_FRAGS >= 1 + MAX_SKB_FRAGS)
+		features |= NETIF_F_TSO;
+
+	/* We can't support HIGHDMA without hash_default, since we need
+	 * to be able to finv() with a VA if we don't have hash_default.
+	 */
+	if (hash_default)
+		features |= NETIF_F_HIGHDMA;
+
+	dev->hw_features   |= features;
+	dev->vlan_features |= features;
+	dev->features      |= features;
 }
 
 
@@ -2332,7 +2292,8 @@ static struct net_device *tile_net_dev_init(const char *name)
 	 * tile_net_setup(), and saves "name".  Normally, "name" is a
 	 * template, instantiated by register_netdev(), but not for us.
 	 */
-	dev = alloc_netdev(sizeof(*priv), name, tile_net_setup);
+	dev = alloc_netdev(sizeof(*priv), name, NET_NAME_UNKNOWN,
+			   tile_net_setup);
 	if (!dev) {
 		pr_err("alloc_netdev(%s) failed\n", name);
 		return NULL;
@@ -2409,7 +2370,7 @@ static void tile_net_cleanup(void)
  */
 static int tile_net_init_module(void)
 {
-	pr_info("Tilera IPP Net Driver\n");
+	pr_info("Tilera Network Driver\n");
 
 	tile_net_devs[0] = tile_net_dev_init("xgbe0");
 	tile_net_devs[1] = tile_net_dev_init("xgbe1");
@@ -2438,8 +2399,7 @@ static int __init network_cpus_setup(char *str)
 {
 	int rc = cpulist_parse_crop(str, &network_cpus_map);
 	if (rc != 0) {
-		pr_warning("network_cpus=%s: malformed cpu list\n",
-		       str);
+		pr_warn("network_cpus=%s: malformed cpu list\n", str);
 	} else {
 
 		/* Remove dedicated cpus. */
@@ -2448,12 +2408,10 @@ static int __init network_cpus_setup(char *str)
 
 
 		if (cpumask_empty(&network_cpus_map)) {
-			pr_warning("Ignoring network_cpus='%s'.\n",
-			       str);
+			pr_warn("Ignoring network_cpus='%s'\n", str);
 		} else {
-			char buf[1024];
-			cpulist_scnprintf(buf, sizeof(buf), &network_cpus_map);
-			pr_info("Linux network CPUs: %s\n", buf);
+			pr_info("Linux network CPUs: %*pbl\n",
+				cpumask_pr_args(&network_cpus_map));
 			network_cpus_used = true;
 		}
 	}

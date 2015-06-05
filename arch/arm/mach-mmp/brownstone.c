@@ -14,6 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
+#include <linux/gpio-pxa.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/max8649.h>
 #include <linux/regulator/fixed.h>
@@ -28,7 +29,7 @@
 
 #include "common.h"
 
-#define BROWNSTONE_NR_IRQS	(IRQ_BOARD_START + 40)
+#define BROWNSTONE_NR_IRQS	(MMP_NR_IRQS + 40)
 
 #define GPIO_5V_ENABLE		(89)
 
@@ -104,6 +105,10 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO89_GPIO,
 };
 
+static struct pxa_gpio_platform_data mmp2_gpio_pdata = {
+	.irq_base	= MMP_GPIO_TO_IRQ(0),
+};
+
 static struct regulator_consumer_supply max8649_supply[] = {
 	REGULATOR_SUPPLY("vcc_core", NULL),
 };
@@ -158,7 +163,7 @@ static struct platform_device brownstone_v_5vp_device = {
 };
 
 static struct max8925_platform_data brownstone_max8925_info = {
-	.irq_base		= IRQ_BOARD_START,
+	.irq_base		= MMP_NR_IRQS,
 };
 
 static struct i2c_board_info brownstone_twsi1_info[] = {
@@ -202,6 +207,9 @@ static void __init brownstone_init(void)
 	/* on-chip devices */
 	mmp2_add_uart(1);
 	mmp2_add_uart(3);
+	platform_device_add_data(&mmp2_device_gpio, &mmp2_gpio_pdata,
+				 sizeof(struct pxa_gpio_platform_data));
+	platform_device_register(&mmp2_device_gpio);
 	mmp2_add_twsi(1, NULL, ARRAY_AND_SIZE(brownstone_twsi1_info));
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
 	mmp2_add_sdhost(2, &mmp2_sdh_platdata_mmc2); /* eMMC */
@@ -217,7 +225,7 @@ MACHINE_START(BROWNSTONE, "Brownstone Development Platform")
 	.map_io		= mmp_map_io,
 	.nr_irqs	= BROWNSTONE_NR_IRQS,
 	.init_irq	= mmp2_init_irq,
-	.timer		= &mmp2_timer,
+	.init_time	= mmp2_timer_init,
 	.init_machine	= brownstone_init,
 	.restart	= mmp_restart,
 MACHINE_END

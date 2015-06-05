@@ -11,8 +11,8 @@
 #include <asm/current.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include "kern_util.h"
-#include "os.h"
+#include <kern_util.h>
+#include <os.h>
 
 pte_t *virt_to_pte(struct mm_struct *mm, unsigned long addr)
 {
@@ -69,7 +69,7 @@ static int do_op_one_page(unsigned long addr, int len, int is_write,
 		return -1;
 
 	page = pte_page(*pte);
-	addr = (unsigned long) kmap_atomic(page, KM_UML_USERCOPY) +
+	addr = (unsigned long) kmap_atomic(page) +
 		(addr & ~PAGE_MASK);
 
 	current->thread.fault_catcher = &buf;
@@ -82,7 +82,7 @@ static int do_op_one_page(unsigned long addr, int len, int is_write,
 
 	current->thread.fault_catcher = NULL;
 
-	kunmap_atomic((void *)addr, KM_UML_USERCOPY);
+	kunmap_atomic((void *)addr);
 
 	return n;
 }
@@ -254,6 +254,6 @@ int strnlen_user(const void __user *str, int len)
 	n = buffer_op((unsigned long) str, len, 0, strnlen_chunk, &count);
 	if (n == 0)
 		return count + 1;
-	return -EFAULT;
+	return 0;
 }
 EXPORT_SYMBOL(strnlen_user);

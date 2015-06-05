@@ -29,6 +29,7 @@
 #include <xen/interface/io/fbif.h>
 #include <xen/interface/io/kbdif.h>
 #include <xen/xenbus.h>
+#include <xen/platform_pci.h>
 
 struct xenkbd_info {
 	struct input_dev *kbd;
@@ -104,7 +105,7 @@ static irqreturn_t input_handler(int rq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int __devinit xenkbd_probe(struct xenbus_device *dev,
+static int xenkbd_probe(struct xenbus_device *dev,
 				  const struct xenbus_device_id *id)
 {
 	int ret, i, abs;
@@ -284,7 +285,7 @@ static int xenkbd_connect_backend(struct xenbus_device *dev,
  error_evtchan:
 	xenbus_free_evtchn(dev, evtchn);
  error_grant:
-	gnttab_end_foreign_access_ref(info->gref, 0);
+	gnttab_end_foreign_access(info->gref, 0, 0UL);
 	info->gref = -1;
 	return ret;
 }
@@ -295,7 +296,7 @@ static void xenkbd_disconnect_backend(struct xenkbd_info *info)
 		unbind_from_irqhandler(info->irq, info);
 	info->irq = -1;
 	if (info->gref >= 0)
-		gnttab_end_foreign_access_ref(info->gref, 0);
+		gnttab_end_foreign_access(info->gref, 0, 0UL);
 	info->gref = -1;
 }
 
@@ -311,7 +312,6 @@ static void xenkbd_backend_changed(struct xenbus_device *dev,
 	case XenbusStateReconfiguring:
 	case XenbusStateReconfigured:
 	case XenbusStateUnknown:
-	case XenbusStateClosed:
 		break;
 
 	case XenbusStateInitWait:
@@ -350,6 +350,10 @@ InitWait:
 
 		break;
 
+	case XenbusStateClosed:
+		if (dev->state == XenbusStateClosed)
+			break;
+		/* Missed the backend's CLOSING state -- fallthrough */
 	case XenbusStateClosing:
 		xenbus_frontend_closed(dev);
 		break;
@@ -362,8 +366,6 @@ static const struct xenbus_device_id xenkbd_ids[] = {
 };
 
 static struct xenbus_driver xenkbd_driver = {
-	.name = "vkbd",
-	.owner = THIS_MODULE,
 	.ids = xenkbd_ids,
 	.probe = xenkbd_probe,
 	.remove = xenkbd_remove,
@@ -378,6 +380,9 @@ static int __init xenkbd_init(void)
 
 	/* Nothing to do if running in dom0. */
 	if (xen_initial_domain())
+		return -ENODEV;
+
+	if (!xen_has_pv_devices())
 		return -ENODEV;
 
 	return xenbus_register_frontend(&xenkbd_driver);

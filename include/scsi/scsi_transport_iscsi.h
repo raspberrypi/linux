@@ -39,6 +39,8 @@ struct iscsi_task;
 struct sockaddr;
 struct iscsi_iface;
 struct bsg_job;
+struct iscsi_bus_flash_session;
+struct iscsi_bus_flash_conn;
 
 /**
  * struct iscsi_transport - iSCSI Transport template
@@ -142,8 +144,30 @@ struct iscsi_transport {
 	int (*get_iface_param) (struct iscsi_iface *iface,
 				enum iscsi_param_type param_type,
 				int param, char *buf);
-	mode_t (*attr_is_visible)(int param_type, int param);
+	umode_t (*attr_is_visible)(int param_type, int param);
 	int (*bsg_request)(struct bsg_job *job);
+	int (*send_ping) (struct Scsi_Host *shost, uint32_t iface_num,
+			  uint32_t iface_type, uint32_t payload_size,
+			  uint32_t pid, struct sockaddr *dst_addr);
+	int (*get_chap) (struct Scsi_Host *shost, uint16_t chap_tbl_idx,
+			 uint32_t *num_entries, char *buf);
+	int (*delete_chap) (struct Scsi_Host *shost, uint16_t chap_tbl_idx);
+	int (*set_chap) (struct Scsi_Host *shost, void *data, int len);
+	int (*get_flashnode_param) (struct iscsi_bus_flash_session *fnode_sess,
+				    int param, char *buf);
+	int (*set_flashnode_param) (struct iscsi_bus_flash_session *fnode_sess,
+				    struct iscsi_bus_flash_conn *fnode_conn,
+				    void *data, int len);
+	int (*new_flashnode) (struct Scsi_Host *shost, const char *buf,
+			      int len);
+	int (*del_flashnode) (struct iscsi_bus_flash_session *fnode_sess);
+	int (*login_flashnode) (struct iscsi_bus_flash_session *fnode_sess,
+				struct iscsi_bus_flash_conn *fnode_conn);
+	int (*logout_flashnode) (struct iscsi_bus_flash_session *fnode_sess,
+				 struct iscsi_bus_flash_conn *fnode_conn);
+	int (*logout_flashnode_sid) (struct iscsi_cls_session *cls_sess);
+	int (*get_host_stats) (struct Scsi_Host *shost, char *buf, int len);
+	u8 (*check_protection)(struct iscsi_task *task, sector_t *sector);
 };
 
 /*
@@ -165,6 +189,17 @@ extern int iscsi_recv_pdu(struct iscsi_cls_conn *conn, struct iscsi_hdr *hdr,
 extern int iscsi_offload_mesg(struct Scsi_Host *shost,
 			      struct iscsi_transport *transport, uint32_t type,
 			      char *data, uint16_t data_size);
+
+extern void iscsi_post_host_event(uint32_t host_no,
+				  struct iscsi_transport *transport,
+				  enum iscsi_host_event_code code,
+				  uint32_t data_size,
+				  uint8_t *data);
+
+extern void iscsi_ping_comp_event(uint32_t host_no,
+				  struct iscsi_transport *transport,
+				  uint32_t status, uint32_t pid,
+				  uint32_t data_size, uint8_t *data);
 
 struct iscsi_cls_conn {
 	struct list_head conn_list;	/* item in connlist */
@@ -211,6 +246,11 @@ struct iscsi_cls_session {
 	unsigned int target_id;
 	bool ida_used;
 
+	/*
+	 * pid of userspace process that created session or -1 if
+	 * created by the kernel.
+	 */
+	pid_t creator;
 	int state;
 	int sid;				/* session id */
 	void *dd_data;				/* LLD private data */
@@ -233,6 +273,8 @@ struct iscsi_cls_host {
 	atomic_t nr_scans;
 	struct mutex mutex;
 	struct request_queue *bsg_q;
+	uint32_t port_speed;
+	uint32_t port_state;
 };
 
 #define iscsi_job_to_shost(_job) \
@@ -261,6 +303,112 @@ struct iscsi_iface {
 
 #define iscsi_iface_to_shost(_iface) \
 	dev_to_shost(_iface->dev.parent)
+
+
+struct iscsi_bus_flash_conn {
+	struct list_head conn_list;	/* item in connlist */
+	void *dd_data;			/* LLD private data */
+	struct iscsi_transport *transport;
+	struct device dev;		/* sysfs transport/container device */
+	/* iscsi connection parameters */
+	uint32_t		exp_statsn;
+	uint32_t		statsn;
+	unsigned		max_recv_dlength; /* initiator_max_recv_dsl*/
+	unsigned		max_xmit_dlength; /* target_max_recv_dsl */
+	unsigned		max_segment_size;
+	unsigned		tcp_xmit_wsf;
+	unsigned		tcp_recv_wsf;
+	int			hdrdgst_en;
+	int			datadgst_en;
+	int			port;
+	char			*ipaddress;
+	char			*link_local_ipv6_addr;
+	char			*redirect_ipaddr;
+	uint16_t		keepalive_timeout;
+	uint16_t		local_port;
+	uint8_t			snack_req_en;
+	/* tcp timestamp negotiation status */
+	uint8_t			tcp_timestamp_stat;
+	uint8_t			tcp_nagle_disable;
+	/* tcp window scale factor */
+	uint8_t			tcp_wsf_disable;
+	uint8_t			tcp_timer_scale;
+	uint8_t			tcp_timestamp_en;
+	uint8_t			ipv4_tos;
+	uint8_t			ipv6_traffic_class;
+	uint8_t			ipv6_flow_label;
+	uint8_t			fragment_disable;
+	/* Link local IPv6 address is assigned by firmware or driver */
+	uint8_t			is_fw_assigned_ipv6;
+};
+
+#define iscsi_dev_to_flash_conn(_dev) \
+	container_of(_dev, struct iscsi_bus_flash_conn, dev)
+
+#define iscsi_flash_conn_to_flash_session(_conn) \
+	iscsi_dev_to_flash_session(_conn->dev.parent)
+
+#define ISID_SIZE 6
+
+struct iscsi_bus_flash_session {
+	struct list_head sess_list;		/* item in session_list */
+	struct iscsi_transport *transport;
+	unsigned int target_id;
+	int flash_state;	/* persistent or non-persistent */
+	void *dd_data;				/* LLD private data */
+	struct device dev;	/* sysfs transport/container device */
+	/* iscsi session parameters */
+	unsigned		first_burst;
+	unsigned		max_burst;
+	unsigned short		max_r2t;
+	int			default_taskmgmt_timeout;
+	int			initial_r2t_en;
+	int			imm_data_en;
+	int			time2wait;
+	int			time2retain;
+	int			pdu_inorder_en;
+	int			dataseq_inorder_en;
+	int			erl;
+	int			tpgt;
+	char			*username;
+	char			*username_in;
+	char			*password;
+	char			*password_in;
+	char			*targetname;
+	char			*targetalias;
+	char			*portal_type;
+	uint16_t		tsid;
+	uint16_t		chap_in_idx;
+	uint16_t		chap_out_idx;
+	/* index of iSCSI discovery session if the entry is
+	 * discovered by iSCSI discovery session
+	 */
+	uint16_t		discovery_parent_idx;
+	/* indicates if discovery was done through iSNS discovery service
+	 * or through sendTarget */
+	uint16_t		discovery_parent_type;
+	/* Firmware auto sendtarget discovery disable */
+	uint8_t			auto_snd_tgt_disable;
+	uint8_t			discovery_sess;
+	/* indicates if this flashnode entry is enabled or disabled */
+	uint8_t			entry_state;
+	uint8_t			chap_auth_en;
+	/* enables firmware to auto logout the discovery session on discovery
+	 * completion
+	 */
+	uint8_t			discovery_logout_en;
+	uint8_t			bidi_chap_en;
+	/* makes authentication for discovery session optional */
+	uint8_t			discovery_auth_optional;
+	uint8_t			isid[ISID_SIZE];
+	uint8_t			is_boot_target;
+};
+
+#define iscsi_dev_to_flash_session(_dev) \
+	container_of(_dev, struct iscsi_bus_flash_session, dev)
+
+#define iscsi_flash_session_to_shost(_session) \
+	dev_to_shost(_session->dev.parent)
 
 /*
  * session and connection functions that can be used by HW iSCSI LLDs
@@ -302,5 +450,37 @@ extern struct iscsi_iface *iscsi_create_iface(struct Scsi_Host *shost,
 					      uint32_t iface_num, int dd_size);
 extern void iscsi_destroy_iface(struct iscsi_iface *iface);
 extern struct iscsi_iface *iscsi_lookup_iface(int handle);
+extern char *iscsi_get_port_speed_name(struct Scsi_Host *shost);
+extern char *iscsi_get_port_state_name(struct Scsi_Host *shost);
+extern int iscsi_is_session_dev(const struct device *dev);
 
+extern char *iscsi_get_discovery_parent_name(int parent_type);
+extern struct device *
+iscsi_find_flashnode(struct Scsi_Host *shost, void *data,
+		     int (*fn)(struct device *dev, void *data));
+
+extern struct iscsi_bus_flash_session *
+iscsi_create_flashnode_sess(struct Scsi_Host *shost, int index,
+			    struct iscsi_transport *transport, int dd_size);
+
+extern struct iscsi_bus_flash_conn *
+iscsi_create_flashnode_conn(struct Scsi_Host *shost,
+			    struct iscsi_bus_flash_session *fnode_sess,
+			    struct iscsi_transport *transport, int dd_size);
+
+extern void
+iscsi_destroy_flashnode_sess(struct iscsi_bus_flash_session *fnode_sess);
+
+extern void iscsi_destroy_all_flashnode(struct Scsi_Host *shost);
+extern int iscsi_flashnode_bus_match(struct device *dev,
+				     struct device_driver *drv);
+extern struct device *
+iscsi_find_flashnode_sess(struct Scsi_Host *shost, void *data,
+			  int (*fn)(struct device *dev, void *data));
+extern struct device *
+iscsi_find_flashnode_conn(struct iscsi_bus_flash_session *fnode_sess);
+
+extern char *
+iscsi_get_ipaddress_state_name(enum iscsi_ipaddress_state port_state);
+extern char *iscsi_get_router_state_name(enum iscsi_router_state router_state);
 #endif

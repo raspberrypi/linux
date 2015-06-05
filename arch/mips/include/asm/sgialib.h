@@ -11,6 +11,7 @@
 #ifndef _ASM_SGIALIB_H
 #define _ASM_SGIALIB_H
 
+#include <linux/compiler.h>
 #include <asm/sgiarcs.h>
 
 extern struct linux_romvec *romvec;
@@ -37,7 +38,7 @@ extern char prom_getchar(void);
  * in chain is CURR is NULL.
  */
 extern struct linux_mdesc *prom_getmdesc(struct linux_mdesc *curr);
-#define PROM_NULL_MDESC   ((struct linux_mdesc *) 0)
+#define PROM_NULL_MDESC	  ((struct linux_mdesc *) 0)
 
 /* Called by prom_init to setup the physical memory pmemblock
  * array.
@@ -70,8 +71,11 @@ extern LONG ArcRead(ULONG fd, PVOID buf, ULONG num, PULONG cnt);
 extern LONG ArcWrite(ULONG fd, PVOID buf, ULONG num, PULONG cnt);
 
 /* Misc. routines. */
-extern VOID ArcReboot(VOID) __attribute__((noreturn));
-extern VOID ArcEnterInteractiveMode(VOID) __attribute__((noreturn));
+extern VOID ArcHalt(VOID) __noreturn;
+extern VOID ArcPowerDown(VOID) __noreturn;
+extern VOID ArcRestart(VOID) __noreturn;
+extern VOID ArcReboot(VOID) __noreturn;
+extern VOID ArcEnterInteractiveMode(VOID) __noreturn;
 extern VOID ArcFlushAllCaches(VOID);
 extern DISPLAY_STATUS *ArcGetDisplayStatus(ULONG FileID);
 

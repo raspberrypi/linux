@@ -43,7 +43,7 @@
 
 int __init pcmcia_collie_init(struct device *dev);
 
-static int (*sa11x0_pcmcia_hw_init[])(struct device *dev) __devinitdata = {
+static int (*sa11x0_pcmcia_hw_init[])(struct device *dev) = {
 #ifdef CONFIG_SA1100_ASSABET
 	pcmcia_assabet_init,
 #endif
@@ -67,7 +67,7 @@ static int (*sa11x0_pcmcia_hw_init[])(struct device *dev) __devinitdata = {
 #endif
 };
 
-static int __devinit sa11x0_drv_pcmcia_probe(struct platform_device *dev)
+static int sa11x0_drv_pcmcia_probe(struct platform_device *dev)
 {
 	int i, ret = -ENODEV;
 
@@ -93,6 +93,7 @@ static int sa11x0_drv_pcmcia_remove(struct platform_device *dev)
 	for (i = 0; i < sinfo->nskt; i++)
 		soc_pcmcia_remove_one(&sinfo->skt[i]);
 
+	clk_put(sinfo->clk);
 	kfree(sinfo);
 	return 0;
 }
@@ -100,7 +101,6 @@ static int sa11x0_drv_pcmcia_remove(struct platform_device *dev)
 static struct platform_driver sa11x0_pcmcia_driver = {
 	.driver = {
 		.name		= "sa11x0-pcmcia",
-		.owner		= THIS_MODULE,
 	},
 	.probe		= sa11x0_drv_pcmcia_probe,
 	.remove		= sa11x0_drv_pcmcia_remove,

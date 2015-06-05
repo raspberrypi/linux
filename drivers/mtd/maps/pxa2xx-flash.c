@@ -13,7 +13,6 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -45,13 +44,11 @@ struct pxa2xx_flash_info {
 	struct map_info		map;
 };
 
+static const char * const probes[] = { "RedBoot", "cmdlinepart", NULL };
 
-static const char *probes[] = { "RedBoot", "cmdlinepart", NULL };
-
-
-static int __devinit pxa2xx_flash_probe(struct platform_device *pdev)
+static int pxa2xx_flash_probe(struct platform_device *pdev)
 {
-	struct flash_platform_data *flash = pdev->dev.platform_data;
+	struct flash_platform_data *flash = dev_get_platdata(&pdev->dev);
 	struct pxa2xx_flash_info *info;
 	struct resource *res;
 
@@ -63,7 +60,7 @@ static int __devinit pxa2xx_flash_probe(struct platform_device *pdev)
 	if (!info)
 		return -ENOMEM;
 
-	info->map.name = (char *) flash->name;
+	info->map.name = flash->name;
 	info->map.bankwidth = flash->width;
 	info->map.phys = res->start;
 	info->map.size = resource_size(res);
@@ -75,7 +72,7 @@ static int __devinit pxa2xx_flash_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 	info->map.cached =
-		ioremap_cached(info->map.phys, info->map.size);
+		ioremap_cache(info->map.phys, info->map.size);
 	if (!info->map.cached)
 		printk(KERN_WARNING "Failed to ioremap cached %s\n",
 		       info->map.name);
@@ -98,17 +95,16 @@ static int __devinit pxa2xx_flash_probe(struct platform_device *pdev)
 	}
 	info->mtd->owner = THIS_MODULE;
 
-	mtd_device_parse_register(info->mtd, probes, 0, flash->parts, flash->nr_parts);
+	mtd_device_parse_register(info->mtd, probes, NULL, flash->parts,
+				  flash->nr_parts);
 
 	platform_set_drvdata(pdev, info);
 	return 0;
 }
 
-static int __devexit pxa2xx_flash_remove(struct platform_device *dev)
+static int pxa2xx_flash_remove(struct platform_device *dev)
 {
 	struct pxa2xx_flash_info *info = platform_get_drvdata(dev);
-
-	platform_set_drvdata(dev, NULL);
 
 	mtd_device_unregister(info->mtd);
 
@@ -125,8 +121,8 @@ static void pxa2xx_flash_shutdown(struct platform_device *dev)
 {
 	struct pxa2xx_flash_info *info = platform_get_drvdata(dev);
 
-	if (info && info->mtd->suspend(info->mtd) == 0)
-		info->mtd->resume(info->mtd);
+	if (info && mtd_suspend(info->mtd) == 0)
+		mtd_resume(info->mtd);
 }
 #else
 #define pxa2xx_flash_shutdown NULL
@@ -135,25 +131,13 @@ static void pxa2xx_flash_shutdown(struct platform_device *dev)
 static struct platform_driver pxa2xx_flash_driver = {
 	.driver = {
 		.name		= "pxa2xx-flash",
-		.owner		= THIS_MODULE,
 	},
 	.probe		= pxa2xx_flash_probe,
-	.remove		= __devexit_p(pxa2xx_flash_remove),
+	.remove		= pxa2xx_flash_remove,
 	.shutdown	= pxa2xx_flash_shutdown,
 };
 
-static int __init init_pxa2xx_flash(void)
-{
-	return platform_driver_register(&pxa2xx_flash_driver);
-}
-
-static void __exit cleanup_pxa2xx_flash(void)
-{
-	platform_driver_unregister(&pxa2xx_flash_driver);
-}
-
-module_init(init_pxa2xx_flash);
-module_exit(cleanup_pxa2xx_flash);
+module_platform_driver(pxa2xx_flash_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Nicolas Pitre <nico@fluxnic.net>");

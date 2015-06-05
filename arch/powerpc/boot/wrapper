@@ -40,6 +40,7 @@ cacheit=
 binary=
 gzip=.gz
 pie=
+format=
 
 # cross-compilation prefix
 CROSS=
@@ -136,6 +137,14 @@ if [ -z "$kernel" ]; then
     kernel=vmlinux
 fi
 
+elfformat="`${CROSS}objdump -p "$kernel" | grep 'file format' | awk '{print $4}'`"
+case "$elfformat" in
+    elf64-powerpcle)	format=elf64lppc	;;
+    elf64-powerpc)	format=elf32ppc	;;
+    elf32-powerpc)	format=elf32ppc	;;
+esac
+
+
 platformo=$object/"$platform".o
 lds=$object/zImage.lds
 ext=strip
@@ -144,23 +153,36 @@ tmp=$tmpdir/zImage.$$.o
 ksection=.kernel:vmlinux.strip
 isection=.kernel:initrd
 link_address='0x400000'
+make_space=y
 
 case "$platform" in
+of)
+    platformo="$object/of.o $object/epapr.o"
+    make_space=n
+    ;;
 pseries)
-    platformo=$object/of.o
+    platformo="$object/pseries-head.o $object/of.o $object/epapr.o"
     link_address='0x4000000'
+    if [ "$format" != "elf32ppc" ]; then
+	link_address=
+	pie=-pie
+    fi
+    make_space=n
     ;;
 maple)
-    platformo=$object/of.o
+    platformo="$object/of.o $object/epapr.o"
     link_address='0x400000'
+    make_space=n
     ;;
 pmac|chrp)
-    platformo=$object/of.o
+    platformo="$object/of.o $object/epapr.o"
+    make_space=n
     ;;
 coff)
-    platformo="$object/crt0.o $object/of.o"
+    platformo="$object/crt0.o $object/of.o $object/epapr.o"
     lds=$object/zImage.coff.lds
     link_address='0x500000'
+    make_space=n
     pie=
     ;;
 miboot|uboot*)
@@ -210,6 +232,7 @@ ps3)
     ksection=.kernel:vmlinux.bin
     isection=.kernel:initrd
     link_address=''
+    make_space=n
     pie=
     ;;
 ep88xc|ep405|ep8248e)
@@ -247,12 +270,20 @@ gamecube|wii)
 treeboot-currituck)
     link_address='0x1000000'
     ;;
+treeboot-akebono)
+    link_address='0x1000000'
+    ;;
 treeboot-iss4xx-mpic)
     platformo="$object/treeboot-iss4xx.o"
     ;;
 epapr)
+    platformo="$object/epapr.o $object/epapr-wrapper.o"
     link_address='0x20000000'
     pie=-pie
+    ;;
+mvme5100)
+    platformo="$object/fixed-head.o $object/mvme5100.o"
+    binary=y
     ;;
 esac
 
@@ -278,17 +309,19 @@ else
     rm -f $vmz.$$
 fi
 
-# Round the size to next higher MB limit
-round_size=$(((strip_size + 0xfffff) & 0xfff00000))
+if [ "$make_space" = "y" ]; then
+	# Round the size to next higher MB limit
+	round_size=$(((strip_size + 0xfffff) & 0xfff00000))
 
-round_size=0x$(printf "%x" $round_size)
-link_addr=$(printf "%d" $link_address)
+	round_size=0x$(printf "%x" $round_size)
+	link_addr=$(printf "%d" $link_address)
 
-if [ $link_addr -lt $strip_size ]; then
-    echo "INFO: Uncompressed kernel (size 0x$(printf "%x\n" $strip_size))" \
-		"overlaps the address of the wrapper($link_address)"
-    echo "INFO: Fixing the link_address of wrapper to ($round_size)"
-    link_address=$round_size
+	if [ $link_addr -lt $strip_size ]; then
+	    echo "INFO: Uncompressed kernel (size 0x$(printf "%x\n" $strip_size))" \
+			"overlaps the address of the wrapper($link_address)"
+	    echo "INFO: Fixing the link_address of wrapper to ($round_size)"
+	    link_address=$round_size
+	fi
 fi
 
 vmz="$vmz$gzip"
@@ -362,7 +395,7 @@ if [ "$platform" != "miboot" ]; then
     if [ -n "$link_address" ] ; then
         text_start="-Ttext $link_address"
     fi
-    ${CROSS}ld -m elf32ppc -T $lds $text_start $pie -o "$ofile" \
+    ${CROSS}ld -m $format -T $lds $text_start $pie -o "$ofile" \
 	$platformo $tmp $object/wrapper.a
     rm $tmp
 fi

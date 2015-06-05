@@ -78,6 +78,14 @@ struct mmu_gather_batch {
 #define MAX_GATHER_BATCH	\
 	((PAGE_SIZE - sizeof(struct mmu_gather_batch)) / sizeof(void *))
 
+/*
+ * Limit the maximum number of mmu_gather batches to reduce a risk of soft
+ * lockups for non-preemptible kernels on huge machines when a lot of memory
+ * is zapped during unmapping.
+ * 10K pages freed at once should be safe even without a preemption point.
+ */
+#define MAX_GATHER_BATCH_COUNT	(10000UL/MAX_GATHER_BATCH)
+
 /* struct mmu_gather is an opaque type used by the mm code for passing around
  * any data needed by arch specific code for tlb_remove_page.
  */
@@ -86,34 +94,27 @@ struct mmu_gather {
 #ifdef CONFIG_HAVE_RCU_TABLE_FREE
 	struct mmu_table_batch	*batch;
 #endif
-	unsigned int		need_flush : 1,	/* Did free PTEs */
-				fast_mode  : 1; /* No batching   */
-
-	unsigned int		fullmm;
+	unsigned long		start;
+	unsigned long		end;
+	/* we are in the middle of an operation to clear
+	 * a full mm and can make some optimizations */
+	unsigned int		fullmm : 1,
+	/* we have performed an operation which
+	 * requires a complete flush of the tlb */
+				need_flush_all : 1;
 
 	struct mmu_gather_batch *active;
 	struct mmu_gather_batch	local;
 	struct page		*__pages[MMU_GATHER_BUNDLE];
+	unsigned int		batch_count;
 };
 
 #define HAVE_GENERIC_MMU_GATHER
 
-static inline int tlb_fast_mode(struct mmu_gather *tlb)
-{
-#ifdef CONFIG_SMP
-	return tlb->fast_mode;
-#else
-	/*
-	 * For UP we don't need to worry about TLB flush
-	 * and page free order so much..
-	 */
-	return 1;
-#endif
-}
-
-void tlb_gather_mmu(struct mmu_gather *tlb, struct mm_struct *mm, bool fullmm);
+void tlb_gather_mmu(struct mmu_gather *tlb, struct mm_struct *mm, unsigned long start, unsigned long end);
 void tlb_flush_mmu(struct mmu_gather *tlb);
-void tlb_finish_mmu(struct mmu_gather *tlb, unsigned long start, unsigned long end);
+void tlb_finish_mmu(struct mmu_gather *tlb, unsigned long start,
+							unsigned long end);
 int __tlb_remove_page(struct mmu_gather *tlb, struct page *page);
 
 /* tlb_remove_page
@@ -126,36 +127,92 @@ static inline void tlb_remove_page(struct mmu_gather *tlb, struct page *page)
 		tlb_flush_mmu(tlb);
 }
 
+static inline void __tlb_adjust_range(struct mmu_gather *tlb,
+				      unsigned long address)
+{
+	tlb->start = min(tlb->start, address);
+	tlb->end = max(tlb->end, address + PAGE_SIZE);
+}
+
+static inline void __tlb_reset_range(struct mmu_gather *tlb)
+{
+	if (tlb->fullmm) {
+		tlb->start = tlb->end = ~0;
+	} else {
+		tlb->start = TASK_SIZE;
+		tlb->end = 0;
+	}
+}
+
+/*
+ * In the case of tlb vma handling, we can optimise these away in the
+ * case where we're doing a full MM flush.  When we're doing a munmap,
+ * the vmas are adjusted to only cover the region to be torn down.
+ */
+#ifndef tlb_start_vma
+#define tlb_start_vma(tlb, vma) do { } while (0)
+#endif
+
+#define __tlb_end_vma(tlb, vma)					\
+	do {							\
+		if (!tlb->fullmm && tlb->end) {			\
+			tlb_flush(tlb);				\
+			__tlb_reset_range(tlb);			\
+		}						\
+	} while (0)
+
+#ifndef tlb_end_vma
+#define tlb_end_vma	__tlb_end_vma
+#endif
+
+#ifndef __tlb_remove_tlb_entry
+#define __tlb_remove_tlb_entry(tlb, ptep, address) do { } while (0)
+#endif
+
 /**
  * tlb_remove_tlb_entry - remember a pte unmapping for later tlb invalidation.
  *
- * Record the fact that pte's were really umapped in ->need_flush, so we can
- * later optimise away the tlb invalidate.   This helps when userspace is
- * unmapping already-unmapped pages, which happens quite a lot.
+ * Record the fact that pte's were really unmapped by updating the range,
+ * so we can later optimise away the tlb invalidate.   This helps when
+ * userspace is unmapping already-unmapped pages, which happens quite a lot.
  */
 #define tlb_remove_tlb_entry(tlb, ptep, address)		\
 	do {							\
-		tlb->need_flush = 1;				\
+		__tlb_adjust_range(tlb, address);		\
 		__tlb_remove_tlb_entry(tlb, ptep, address);	\
+	} while (0)
+
+/**
+ * tlb_remove_pmd_tlb_entry - remember a pmd mapping for later tlb invalidation
+ * This is a nop so far, because only x86 needs it.
+ */
+#ifndef __tlb_remove_pmd_tlb_entry
+#define __tlb_remove_pmd_tlb_entry(tlb, pmdp, address) do {} while (0)
+#endif
+
+#define tlb_remove_pmd_tlb_entry(tlb, pmdp, address)		\
+	do {							\
+		__tlb_adjust_range(tlb, address);		\
+		__tlb_remove_pmd_tlb_entry(tlb, pmdp, address);	\
 	} while (0)
 
 #define pte_free_tlb(tlb, ptep, address)			\
 	do {							\
-		tlb->need_flush = 1;				\
+		__tlb_adjust_range(tlb, address);		\
 		__pte_free_tlb(tlb, ptep, address);		\
 	} while (0)
 
 #ifndef __ARCH_HAS_4LEVEL_HACK
 #define pud_free_tlb(tlb, pudp, address)			\
 	do {							\
-		tlb->need_flush = 1;				\
+		__tlb_adjust_range(tlb, address);		\
 		__pud_free_tlb(tlb, pudp, address);		\
 	} while (0)
 #endif
 
 #define pmd_free_tlb(tlb, pmdp, address)			\
 	do {							\
-		tlb->need_flush = 1;				\
+		__tlb_adjust_range(tlb, address);		\
 		__pmd_free_tlb(tlb, pmdp, address);		\
 	} while (0)
 

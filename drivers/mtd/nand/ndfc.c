@@ -30,6 +30,7 @@
 #include <linux/mtd/ndfc.h>
 #include <linux/slab.h>
 #include <linux/mtd/mtd.h>
+#include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <asm/io.h>
 
@@ -140,18 +141,6 @@ static void ndfc_write_buf(struct mtd_info *mtd, const uint8_t *buf, int len)
 		out_be32(ndfc->ndfcbase + NDFC_DATA, *p++);
 }
 
-static int ndfc_verify_buf(struct mtd_info *mtd, const uint8_t *buf, int len)
-{
-	struct nand_chip *chip = mtd->priv;
-	struct ndfc_controller *ndfc = chip->priv;
-	uint32_t *p = (uint32_t *) buf;
-
-	for(;len > 0; len -= 4)
-		if (*p++ != in_be32(ndfc->ndfcbase + NDFC_DATA))
-			return -EFAULT;
-	return 0;
-}
-
 /*
  * Initialize chip structure
  */
@@ -172,13 +161,13 @@ static int ndfc_chip_init(struct ndfc_controller *ndfc,
 	chip->controller = &ndfc->ndfc_control;
 	chip->read_buf = ndfc_read_buf;
 	chip->write_buf = ndfc_write_buf;
-	chip->verify_buf = ndfc_verify_buf;
 	chip->ecc.correct = nand_correct_data;
 	chip->ecc.hwctl = ndfc_enable_hwecc;
 	chip->ecc.calculate = ndfc_calculate_ecc;
 	chip->ecc.mode = NAND_ECC_HW;
 	chip->ecc.size = 256;
 	chip->ecc.bytes = 3;
+	chip->ecc.strength = 1;
 	chip->priv = ndfc;
 
 	ndfc->mtd.priv = chip;
@@ -209,12 +198,13 @@ err:
 	return ret;
 }
 
-static int __devinit ndfc_probe(struct platform_device *ofdev)
+static int ndfc_probe(struct platform_device *ofdev)
 {
 	struct ndfc_controller *ndfc;
 	const __be32 *reg;
 	u32 ccr;
-	int err, len, cs;
+	u32 cs;
+	int err, len;
 
 	/* Read the reg property to get the chip select */
 	reg = of_get_property(ofdev->dev.of_node, "reg", &len);
@@ -268,7 +258,7 @@ static int __devinit ndfc_probe(struct platform_device *ofdev)
 	return 0;
 }
 
-static int __devexit ndfc_remove(struct platform_device *ofdev)
+static int ndfc_remove(struct platform_device *ofdev)
 {
 	struct ndfc_controller *ndfc = dev_get_drvdata(&ofdev->dev);
 
@@ -287,25 +277,13 @@ MODULE_DEVICE_TABLE(of, ndfc_match);
 static struct platform_driver ndfc_driver = {
 	.driver = {
 		.name = "ndfc",
-		.owner = THIS_MODULE,
 		.of_match_table = ndfc_match,
 	},
 	.probe = ndfc_probe,
-	.remove = __devexit_p(ndfc_remove),
+	.remove = ndfc_remove,
 };
 
-static int __init ndfc_nand_init(void)
-{
-	return platform_driver_register(&ndfc_driver);
-}
-
-static void __exit ndfc_nand_exit(void)
-{
-	platform_driver_unregister(&ndfc_driver);
-}
-
-module_init(ndfc_nand_init);
-module_exit(ndfc_nand_exit);
+module_platform_driver(ndfc_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Thomas Gleixner <tglx@linutronix.de>");

@@ -95,7 +95,7 @@ EXPORT_SYMBOL(dm355evm_msp_read);
  * Many of the msp430 pins are just used as fixed-direction GPIOs.
  * We could export a few more of them this way, if we wanted.
  */
-#define MSP_GPIO(bit,reg)	((DM355EVM_MSP_ ## reg) << 3 | (bit))
+#define MSP_GPIO(bit, reg)	((DM355EVM_MSP_ ## reg) << 3 | (bit))
 
 static const u8 msp_gpios[] = {
 	/* eight leds */
@@ -308,16 +308,15 @@ static int add_children(struct i2c_client *client)
 	for (i = 0; i < ARRAY_SIZE(config_inputs); i++) {
 		int gpio = dm355evm_msp_gpio.base + config_inputs[i].offset;
 
-		gpio_request(gpio, config_inputs[i].label);
-		gpio_direction_input(gpio);
+		gpio_request_one(gpio, GPIOF_IN, config_inputs[i].label);
 
 		/* make it easy for userspace to see these */
 		gpio_export(gpio, false);
 	}
 
 	/* MMC/SD inputs -- right after the last config input */
-	if (client->dev.platform_data) {
-		void (*mmcsd_setup)(unsigned) = client->dev.platform_data;
+	if (dev_get_platdata(&client->dev)) {
+		void (*mmcsd_setup)(unsigned) = dev_get_platdata(&client->dev);
 
 		mmcsd_setup(dm355evm_msp_gpio.base + 8 + 5);
 	}

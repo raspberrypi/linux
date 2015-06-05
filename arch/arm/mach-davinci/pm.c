@@ -19,6 +19,7 @@
 #include <asm/delay.h>
 #include <asm/io.h>
 
+#include <mach/common.h>
 #include <mach/da8xx.h>
 #include <mach/sram.h>
 #include <mach/pm.h>
@@ -147,13 +148,11 @@ static int __exit davinci_pm_remove(struct platform_device *pdev)
 static struct platform_driver davinci_pm_driver = {
 	.driver = {
 		.name	 = "pm-davinci",
-		.owner	 = THIS_MODULE,
 	},
 	.remove = __exit_p(davinci_pm_remove),
 };
 
-static int __init davinci_pm_init(void)
+int __init davinci_pm_init(void)
 {
 	return platform_driver_probe(&davinci_pm_driver, davinci_pm_probe);
 }
-late_initcall(davinci_pm_init);

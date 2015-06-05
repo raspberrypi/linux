@@ -23,12 +23,12 @@
 #include <asm/mpc52xx.h>
 
 /* MPC5200 device tree match tables */
-static struct of_device_id mpc52xx_xlb_ids[] __initdata = {
+static const struct of_device_id mpc52xx_xlb_ids[] __initconst = {
 	{ .compatible = "fsl,mpc5200-xlb", },
 	{ .compatible = "mpc5200-xlb", },
 	{}
 };
-static struct of_device_id mpc52xx_bus_ids[] __initdata = {
+static const struct of_device_id mpc52xx_bus_ids[] __initconst = {
 	{ .compatible = "fsl,mpc5200-immr", },
 	{ .compatible = "fsl,mpc5200b-immr", },
 	{ .compatible = "simple-bus", },
@@ -98,33 +98,31 @@ struct mpc52xx_gpio_wkup __iomem *wkup_gpio;
  *					of the localplus bus to the of_platform
  *					bus.
  */
-void __init
-mpc52xx_declare_of_platform_devices(void)
+void __init mpc52xx_declare_of_platform_devices(void)
 {
-	/* Find every child of the SOC node and add it to of_platform */
-	if (of_platform_bus_probe(NULL, mpc52xx_bus_ids, NULL))
-		printk(KERN_ERR __FILE__ ": "
-			"Error while probing of_platform bus\n");
+	/* Find all the 'platform' devices and register them. */
+	if (of_platform_populate(NULL, mpc52xx_bus_ids, NULL, NULL))
+		pr_err(__FILE__ ": Error while populating devices from DT\n");
 }
 
 /*
  * match tables used by mpc52xx_map_common_devices()
  */
-static struct of_device_id mpc52xx_gpt_ids[] __initdata = {
+static const struct of_device_id mpc52xx_gpt_ids[] __initconst = {
 	{ .compatible = "fsl,mpc5200-gpt", },
 	{ .compatible = "mpc5200-gpt", }, /* old */
 	{}
 };
-static struct of_device_id mpc52xx_cdm_ids[] __initdata = {
+static const struct of_device_id mpc52xx_cdm_ids[] __initconst = {
 	{ .compatible = "fsl,mpc5200-cdm", },
 	{ .compatible = "mpc5200-cdm", }, /* old */
 	{}
 };
-static const struct of_device_id mpc52xx_gpio_simple[] = {
+static const struct of_device_id mpc52xx_gpio_simple[] __initconst = {
 	{ .compatible = "fsl,mpc5200-gpio", },
 	{}
 };
-static const struct of_device_id mpc52xx_gpio_wkup[] = {
+static const struct of_device_id mpc52xx_gpio_wkup[] __initconst = {
 	{ .compatible = "fsl,mpc5200-gpio-wkup", },
 	{}
 };

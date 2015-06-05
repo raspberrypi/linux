@@ -5,9 +5,7 @@
 #include <string.h>
 
 #include "../../util/header.h"
-
-#define __stringify_1(x)        #x
-#define __stringify(x)          __stringify_1(x)
+#include "../../util/util.h"
 
 #define mfspr(rn)       ({unsigned long rval; \
 			 asm volatile("mfspr %0," __stringify(rn) \
@@ -25,7 +23,7 @@ get_cpuid(char *buffer, size_t sz)
 
 	pvr = mfspr(SPRN_PVR);
 
-	nb = snprintf(buffer, sz, "%lu,%lu$", PVR_VER(pvr), PVR_REV(pvr));
+	nb = scnprintf(buffer, sz, "%lu,%lu$", PVR_VER(pvr), PVR_REV(pvr));
 
 	/* look for end marker to ensure the entire data fit */
 	if (strchr(buffer, '$')) {

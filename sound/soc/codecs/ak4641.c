@@ -17,7 +17,7 @@
 #include <linux/gpio.h>
 #include <linux/pm.h>
 #include <linux/i2c.h>
-#include <linux/platform_device.h>
+#include <linux/regmap.h>
 #include <linux/slab.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -31,6 +31,7 @@
 
 /* codec private data */
 struct ak4641_priv {
+	struct regmap *regmap;
 	unsigned int sysclk;
 	int deemph;
 	int playback_fs;
@@ -39,12 +40,12 @@ struct ak4641_priv {
 /*
  * ak4641 register cache
  */
-static const u8 ak4641_reg[AK4641_CACHEREGNUM] = {
-	0x00, 0x80, 0x00, 0x80,
-	0x02, 0x00, 0x11, 0x05,
-	0x00, 0x00, 0x36, 0x10,
-	0x00, 0x00, 0x57, 0x00,
-	0x88, 0x88, 0x08, 0x08
+static const struct reg_default ak4641_reg_defaults[] = {
+	{  0, 0x00 }, {  1, 0x80 }, {  2, 0x00 }, {  3, 0x80 },
+	{  4, 0x02 }, {  5, 0x00 }, {  6, 0x11 }, {  7, 0x05 },
+	{  8, 0x00 }, {  9, 0x00 }, { 10, 0x36 }, { 11, 0x10 },
+	{ 12, 0x00 }, { 13, 0x00 }, { 14, 0x57 }, { 15, 0x00 },
+	{ 16, 0x88 }, { 17, 0x88 }, { 18, 0x08 }, { 19, 0x08 }
 };
 
 static const int deemph_settings[] = {44100, 0, 48000, 32000};
@@ -73,9 +74,9 @@ static int ak4641_set_deemph(struct snd_soc_codec *codec)
 static int ak4641_put_deemph(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 	struct ak4641_priv *ak4641 = snd_soc_codec_get_drvdata(codec);
-	int deemph = ucontrol->value.enumerated.item[0];
+	int deemph = ucontrol->value.integer.value[0];
 
 	if (deemph > 1)
 		return -EINVAL;
@@ -88,10 +89,10 @@ static int ak4641_put_deemph(struct snd_kcontrol *kcontrol,
 static int ak4641_get_deemph(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 	struct ak4641_priv *ak4641 = snd_soc_codec_get_drvdata(codec);
 
-	ucontrol->value.enumerated.item[0] = ak4641->deemph;
+	ucontrol->value.integer.value[0] = ak4641->deemph;
 	return 0;
 };
 
@@ -112,14 +113,14 @@ static const DECLARE_TLV_DB_SCALE(alc_tlv, -800, 50, 0);
 static const DECLARE_TLV_DB_SCALE(aux_in_tlv, -2100, 300, 0);
 
 
-static const struct soc_enum ak4641_mono_out_enum =
-	SOC_ENUM_SINGLE(AK4641_SIG1, 6, 2, ak4641_mono_out);
-static const struct soc_enum ak4641_hp_out_enum =
-	SOC_ENUM_SINGLE(AK4641_MODE2, 2, 2, ak4641_hp_out);
-static const struct soc_enum ak4641_mic_select_enum =
-	SOC_ENUM_SINGLE(AK4641_MIC, 1, 2, ak4641_mic_select);
-static const struct soc_enum ak4641_mic_or_dac_enum =
-	SOC_ENUM_SINGLE(AK4641_BTIF, 4, 2, ak4641_mic_or_dac);
+static SOC_ENUM_SINGLE_DECL(ak4641_mono_out_enum,
+			    AK4641_SIG1, 6, ak4641_mono_out);
+static SOC_ENUM_SINGLE_DECL(ak4641_hp_out_enum,
+			    AK4641_MODE2, 2, ak4641_hp_out);
+static SOC_ENUM_SINGLE_DECL(ak4641_mic_select_enum,
+			    AK4641_MIC, 1, ak4641_mic_select);
+static SOC_ENUM_SINGLE_DECL(ak4641_mic_or_dac_enum,
+			    AK4641_BTIF, 4, ak4641_mic_or_dac);
 
 static const struct snd_kcontrol_new ak4641_snd_controls[] = {
 	SOC_ENUM("Mono 1 Output", ak4641_mono_out_enum),
@@ -297,8 +298,7 @@ static int ak4641_i2s_hw_params(struct snd_pcm_substream *substream,
 				 struct snd_pcm_hw_params *params,
 				 struct snd_soc_dai *dai)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_codec *codec = dai->codec;
 	struct ak4641_priv *ak4641 = snd_soc_codec_get_drvdata(codec);
 	int rate = params_rate(params), fs = 256;
 	u8 mode2;
@@ -330,7 +330,7 @@ static int ak4641_i2s_hw_params(struct snd_pcm_substream *substream,
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		ak4641->playback_fs = rate;
 		ak4641_set_deemph(codec);
-	};
+	}
 
 	return 0;
 }
@@ -340,6 +340,7 @@ static int ak4641_pcm_set_dai_fmt(struct snd_soc_dai *codec_dai,
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
 	u8 btif;
+	int ret;
 
 	/* interface format */
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
@@ -359,7 +360,11 @@ static int ak4641_pcm_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		return -EINVAL;
 	}
 
-	return snd_soc_update_bits(codec, AK4641_BTIF, (0x3 << 5), btif);
+	ret = snd_soc_update_bits(codec, AK4641_BTIF, (0x3 << 5), btif);
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 
 static int ak4641_i2s_set_dai_fmt(struct snd_soc_dai *codec_dai,
@@ -393,6 +398,7 @@ static int ak4641_mute(struct snd_soc_dai *dai, int mute)
 static int ak4641_set_bias_level(struct snd_soc_codec *codec,
 	enum snd_soc_bias_level level)
 {
+	struct ak4641_priv *ak4641 = snd_soc_codec_get_drvdata(codec);
 	struct ak4641_platform_data *pdata = codec->dev->platform_data;
 	int ret;
 
@@ -414,7 +420,7 @@ static int ak4641_set_bias_level(struct snd_soc_codec *codec,
 				gpio_set_value(pdata->gpio_npdn, 1);
 			mdelay(1);
 
-			ret = snd_soc_cache_sync(codec);
+			ret = regcache_sync(ak4641->regmap);
 			if (ret) {
 				dev_err(codec->dev,
 					"Failed to sync cache: %d\n", ret);
@@ -430,7 +436,7 @@ static int ak4641_set_bias_level(struct snd_soc_codec *codec,
 			gpio_set_value(pdata->gpio_npdn, 0);
 		if (pdata && gpio_is_valid(pdata->gpio_power))
 			gpio_set_value(pdata->gpio_power, 0);
-		codec->cache_sync = 1;
+		regcache_mark_dirty(ak4641->regmap);
 		break;
 	}
 	codec->dapm.bias_level = level;
@@ -442,14 +448,14 @@ static int ak4641_set_bias_level(struct snd_soc_codec *codec,
 			 SNDRV_PCM_RATE_16000)
 #define AK4641_FORMATS	(SNDRV_PCM_FMTBIT_S16_LE)
 
-static struct snd_soc_dai_ops ak4641_i2s_dai_ops = {
+static const struct snd_soc_dai_ops ak4641_i2s_dai_ops = {
 	.hw_params    = ak4641_i2s_hw_params,
 	.set_fmt      = ak4641_i2s_set_dai_fmt,
 	.digital_mute = ak4641_mute,
 	.set_sysclk   = ak4641_set_dai_sysclk,
 };
 
-static struct snd_soc_dai_ops ak4641_pcm_dai_ops = {
+static const struct snd_soc_dai_ops ak4641_pcm_dai_ops = {
 	.hw_params    = NULL, /* rates are controlled by BT chip */
 	.set_fmt      = ak4641_pcm_set_dai_fmt,
 	.digital_mute = ak4641_mute,
@@ -499,23 +505,42 @@ static struct snd_soc_dai_driver ak4641_dai[] = {
 },
 };
 
-static int ak4641_suspend(struct snd_soc_codec *codec, pm_message_t state)
-{
-	ak4641_set_bias_level(codec, SND_SOC_BIAS_OFF);
-	return 0;
-}
+static struct snd_soc_codec_driver soc_codec_dev_ak4641 = {
+	.controls		= ak4641_snd_controls,
+	.num_controls		= ARRAY_SIZE(ak4641_snd_controls),
+	.dapm_widgets		= ak4641_dapm_widgets,
+	.num_dapm_widgets	= ARRAY_SIZE(ak4641_dapm_widgets),
+	.dapm_routes		= ak4641_audio_map,
+	.num_dapm_routes	= ARRAY_SIZE(ak4641_audio_map),
+	.set_bias_level		= ak4641_set_bias_level,
+	.suspend_bias_off	= true,
+};
 
-static int ak4641_resume(struct snd_soc_codec *codec)
-{
-	ak4641_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-	return 0;
-}
+static const struct regmap_config ak4641_regmap = {
+	.reg_bits = 8,
+	.val_bits = 8,
 
-static int ak4641_probe(struct snd_soc_codec *codec)
+	.max_register = AK4641_BTIF,
+	.reg_defaults = ak4641_reg_defaults,
+	.num_reg_defaults = ARRAY_SIZE(ak4641_reg_defaults),
+	.cache_type = REGCACHE_RBTREE,
+};
+
+static int ak4641_i2c_probe(struct i2c_client *i2c,
+			    const struct i2c_device_id *id)
 {
-	struct ak4641_platform_data *pdata = codec->dev->platform_data;
+	struct ak4641_platform_data *pdata = i2c->dev.platform_data;
+	struct ak4641_priv *ak4641;
 	int ret;
 
+	ak4641 = devm_kzalloc(&i2c->dev, sizeof(struct ak4641_priv),
+			      GFP_KERNEL);
+	if (!ak4641)
+		return -ENOMEM;
+
+	ak4641->regmap = devm_regmap_init_i2c(i2c, &ak4641_regmap);
+	if (IS_ERR(ak4641->regmap))
+		return PTR_ERR(ak4641->regmap);
 
 	if (pdata) {
 		if (gpio_is_valid(pdata->gpio_power)) {
@@ -535,18 +560,16 @@ static int ak4641_probe(struct snd_soc_codec *codec)
 		}
 	}
 
-	ret = snd_soc_codec_set_cache_io(codec, 8, 8, SND_SOC_I2C);
-	if (ret != 0) {
-		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
-		goto err_register;
-	}
+	i2c_set_clientdata(i2c, ak4641);
 
-	/* power on device */
-	ak4641_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
+	ret = snd_soc_register_codec(&i2c->dev, &soc_codec_dev_ak4641,
+				ak4641_dai, ARRAY_SIZE(ak4641_dai));
+	if (ret != 0)
+		goto err_gpio2;
 
 	return 0;
 
-err_register:
+err_gpio2:
 	if (pdata) {
 		if (gpio_is_valid(pdata->gpio_power))
 			gpio_set_value(pdata->gpio_power, 0);
@@ -560,11 +583,11 @@ err_out:
 	return ret;
 }
 
-static int ak4641_remove(struct snd_soc_codec *codec)
+static int ak4641_i2c_remove(struct i2c_client *i2c)
 {
-	struct ak4641_platform_data *pdata = codec->dev->platform_data;
+	struct ak4641_platform_data *pdata = i2c->dev.platform_data;
 
-	ak4641_set_bias_level(codec, SND_SOC_BIAS_OFF);
+	snd_soc_unregister_codec(&i2c->dev);
 
 	if (pdata) {
 		if (gpio_is_valid(pdata->gpio_power)) {
@@ -574,53 +597,7 @@ static int ak4641_remove(struct snd_soc_codec *codec)
 		if (gpio_is_valid(pdata->gpio_npdn))
 			gpio_free(pdata->gpio_npdn);
 	}
-	return 0;
-}
 
-
-static struct snd_soc_codec_driver soc_codec_dev_ak4641 = {
-	.probe			= ak4641_probe,
-	.remove			= ak4641_remove,
-	.suspend		= ak4641_suspend,
-	.resume			= ak4641_resume,
-	.controls		= ak4641_snd_controls,
-	.num_controls		= ARRAY_SIZE(ak4641_snd_controls),
-	.dapm_widgets		= ak4641_dapm_widgets,
-	.num_dapm_widgets	= ARRAY_SIZE(ak4641_dapm_widgets),
-	.dapm_routes		= ak4641_audio_map,
-	.num_dapm_routes	= ARRAY_SIZE(ak4641_audio_map),
-	.set_bias_level		= ak4641_set_bias_level,
-	.reg_cache_size		= ARRAY_SIZE(ak4641_reg),
-	.reg_word_size		= sizeof(u8),
-	.reg_cache_default	= ak4641_reg,
-	.reg_cache_step		= 1,
-};
-
-
-static int __devinit ak4641_i2c_probe(struct i2c_client *i2c,
-				      const struct i2c_device_id *id)
-{
-	struct ak4641_priv *ak4641;
-	int ret;
-
-	ak4641 = kzalloc(sizeof(struct ak4641_priv), GFP_KERNEL);
-	if (!ak4641)
-		return -ENOMEM;
-
-	i2c_set_clientdata(i2c, ak4641);
-
-	ret = snd_soc_register_codec(&i2c->dev, &soc_codec_dev_ak4641,
-				ak4641_dai, ARRAY_SIZE(ak4641_dai));
-	if (ret < 0)
-		kfree(ak4641);
-
-	return ret;
-}
-
-static int __devexit ak4641_i2c_remove(struct i2c_client *i2c)
-{
-	snd_soc_unregister_codec(&i2c->dev);
-	kfree(i2c_get_clientdata(i2c));
 	return 0;
 }
 
@@ -636,27 +613,11 @@ static struct i2c_driver ak4641_i2c_driver = {
 		.owner = THIS_MODULE,
 	},
 	.probe =    ak4641_i2c_probe,
-	.remove =   __devexit_p(ak4641_i2c_remove),
+	.remove =   ak4641_i2c_remove,
 	.id_table = ak4641_i2c_id,
 };
 
-static int __init ak4641_modinit(void)
-{
-	int ret;
-
-	ret = i2c_add_driver(&ak4641_i2c_driver);
-	if (ret != 0)
-		pr_err("Failed to register AK4641 I2C driver: %d\n", ret);
-
-	return ret;
-}
-module_init(ak4641_modinit);
-
-static void __exit ak4641_exit(void)
-{
-	i2c_del_driver(&ak4641_i2c_driver);
-}
-module_exit(ak4641_exit);
+module_i2c_driver(ak4641_i2c_driver);
 
 MODULE_DESCRIPTION("SoC AK4641 driver");
 MODULE_AUTHOR("Harald Welte <laforge@gnufiish.org>");

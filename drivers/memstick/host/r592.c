@@ -23,7 +23,7 @@
 #include <linux/swab.h>
 #include "r592.h"
 
-static int r592_enable_dma = 1;
+static bool r592_enable_dma = 1;
 static int debug;
 
 static const char *tpc_names[] = {
@@ -188,6 +188,7 @@ static void r592_host_reset(struct r592_device *dev)
 	r592_set_mode(dev, dev->parallel_mode);
 }
 
+#ifdef CONFIG_PM_SLEEP
 /* Disable all hardware interrupts */
 static void r592_clear_interrupts(struct r592_device *dev)
 {
@@ -195,6 +196,7 @@ static void r592_clear_interrupts(struct r592_device *dev)
 	r592_clear_reg_mask(dev, R592_REG_MSC, IRQ_ALL_ACK_MASK);
 	r592_clear_reg_mask(dev, R592_REG_MSC, IRQ_ALL_EN_MASK);
 }
+#endif
 
 /* Tests if there is an CRC error */
 static int r592_test_io_error(struct r592_device *dev)
@@ -290,7 +292,7 @@ static int r592_transfer_fifo_dma(struct r592_device *dev)
 	dbg_verbose("doing dma transfer");
 
 	dev->dma_error = 0;
-	INIT_COMPLETION(dev->dma_done);
+	reinit_completion(&dev->dma_done);
 
 	/* TODO: hidden assumption about nenth beeing always 1 */
 	sg_count = dma_map_sg(&dev->pci_dev->dev, &dev->req->sg, 1, is_write ?
@@ -454,7 +456,7 @@ static int r592_transfer_fifo_pio(struct r592_device *dev)
 /* Executes one TPC (data is read/written from small or large fifo) */
 static void r592_execute_tpc(struct r592_device *dev)
 {
-	bool is_write = dev->req->tpc >= MS_TPC_SET_RW_REG_ADRS;
+	bool is_write;
 	int len, error;
 	u32 status, reg;
 
@@ -463,6 +465,7 @@ static void r592_execute_tpc(struct r592_device *dev)
 		return;
 	}
 
+	is_write = dev->req->tpc >= MS_TPC_SET_RW_REG_ADRS;
 	len = dev->req->long_data ?
 		dev->req->sg.length : dev->req->data_len;
 
@@ -846,7 +849,7 @@ static void r592_remove(struct pci_dev *pdev)
 			dev->dummy_dma_page_physical_address);
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 static int r592_suspend(struct device *core_dev)
 {
 	struct pci_dev *pdev = to_pci_dev(core_dev);
@@ -869,9 +872,9 @@ static int r592_resume(struct device *core_dev)
 	r592_update_card_detect(dev);
 	return 0;
 }
-
-SIMPLE_DEV_PM_OPS(r592_pm_ops, r592_suspend, r592_resume);
 #endif
+
+static SIMPLE_DEV_PM_OPS(r592_pm_ops, r592_suspend, r592_resume);
 
 MODULE_DEVICE_TABLE(pci, r592_pci_id_tbl);
 
@@ -880,23 +883,10 @@ static struct pci_driver r852_pci_driver = {
 	.id_table	= r592_pci_id_tbl,
 	.probe		= r592_probe,
 	.remove		= r592_remove,
-#ifdef CONFIG_PM
 	.driver.pm	= &r592_pm_ops,
-#endif
 };
 
-static __init int r592_module_init(void)
-{
-	return pci_register_driver(&r852_pci_driver);
-}
-
-static void __exit r592_module_exit(void)
-{
-	pci_unregister_driver(&r852_pci_driver);
-}
-
-module_init(r592_module_init);
-module_exit(r592_module_exit);
+module_pci_driver(r852_pci_driver);
 
 module_param_named(enable_dma, r592_enable_dma, bool, S_IRUGO);
 MODULE_PARM_DESC(enable_dma, "Enable usage of the DMA (default)");

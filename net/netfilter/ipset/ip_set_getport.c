@@ -102,8 +102,24 @@ ip_set_get_ip4_port(const struct sk_buff *skb, bool src,
 	int protocol = iph->protocol;
 
 	/* See comments at tcp_match in ip_tables.c */
-	if (protocol <= 0 || (ntohs(iph->frag_off) & IP_OFFSET))
+	if (protocol <= 0)
 		return false;
+
+	if (ntohs(iph->frag_off) & IP_OFFSET)
+		switch (protocol) {
+		case IPPROTO_TCP:
+		case IPPROTO_SCTP:
+		case IPPROTO_UDP:
+		case IPPROTO_UDPLITE:
+		case IPPROTO_ICMP:
+			/* Port info not available for fragment offset > 0 */
+			return false;
+		default:
+			/* Other protocols doesn't have ports,
+			   so we can match fragments */
+			*proto = protocol;
+			return true;
+		}
 
 	return get_port(skb, protocol, protooff, src, port, proto);
 }
@@ -116,12 +132,12 @@ ip_set_get_ip6_port(const struct sk_buff *skb, bool src,
 {
 	int protoff;
 	u8 nexthdr;
-	__be16 frag_off;
+	__be16 frag_off = 0;
 
 	nexthdr = ipv6_hdr(skb)->nexthdr;
 	protoff = ipv6_skip_exthdr(skb, sizeof(struct ipv6hdr), &nexthdr,
 				   &frag_off);
-	if (protoff < 0)
+	if (protoff < 0 || (frag_off & htons(~0x7)) != 0)
 		return false;
 
 	return get_port(skb, nexthdr, protoff, src, port, proto);
@@ -136,10 +152,10 @@ ip_set_get_ip_port(const struct sk_buff *skb, u8 pf, bool src, __be16 *port)
 	u8 proto;
 
 	switch (pf) {
-	case AF_INET:
+	case NFPROTO_IPV4:
 		ret = ip_set_get_ip4_port(skb, src, port, &proto);
 		break;
-	case AF_INET6:
+	case NFPROTO_IPV6:
 		ret = ip_set_get_ip6_port(skb, src, port, &proto);
 		break;
 	default:

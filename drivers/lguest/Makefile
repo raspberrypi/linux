@@ -1,6 +1,3 @@
-# Guest requires the device configuration and probing code.
-obj-$(CONFIG_LGUEST_GUEST) += lguest_device.o
-
 # Host requires the other files, which can be a module.
 obj-$(CONFIG_LGUEST)	+= lg.o
 lg-y = core.o hypercalls.o page_tables.o interrupts_and_traps.o \
@@ -18,7 +15,7 @@ Mastery: PREFIX=M
 Beer:
 	@for f in Preparation Guest Drivers Launcher Host Switcher Mastery; do echo "{==- $$f -==}"; make -s $$f; done; echo "{==-==}"
 Preparation Preparation! Guest Drivers Launcher Host Switcher Mastery:
-	@sh ../../Documentation/virtual/lguest/extract $(PREFIX) `find ../../* -name '*.[chS]' -wholename '*lguest*'`
+	@sh ../../tools/lguest/extract $(PREFIX) `find ../../* -name '*.[chS]' -wholename '*lguest*'`
 Puppy:
 	@clear
 	@printf "      __  \n (___()'\`;\n /,    /\`\n \\\\\\\"--\\\\\\   \n"

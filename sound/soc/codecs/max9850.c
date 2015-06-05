@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/i2c.h>
+#include <linux/regmap.h>
 #include <linux/slab.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -27,18 +28,26 @@
 #include "max9850.h"
 
 struct max9850_priv {
+	struct regmap *regmap;
 	unsigned int sysclk;
 };
 
 /* max9850 register cache */
-static const u8 max9850_reg[MAX9850_CACHEREGNUM] = {
-	0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+static const struct reg_default max9850_reg[] = {
+	{  2, 0x0c },
+	{  3, 0x00 },
+	{  4, 0x00 },
+	{  5, 0x00 },
+	{  6, 0x00 },
+	{  7, 0x00 },
+	{  8, 0x00 },
+	{  9, 0x00 },
+	{ 10, 0x00 },
 };
 
 /* these registers are not used at the moment but provided for the sake of
  * completeness */
-static int max9850_volatile_register(struct snd_soc_codec *codec,
-		unsigned int reg)
+static bool max9850_volatile_register(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
 	case MAX9850_STATUSA:
@@ -48,6 +57,15 @@ static int max9850_volatile_register(struct snd_soc_codec *codec,
 		return 0;
 	}
 }
+
+static const struct regmap_config max9850_regmap = {
+	.reg_bits = 8,
+	.val_bits = 8,
+
+	.max_register = MAX9850_DIGITAL_AUDIO,
+	.volatile_reg = max9850_volatile_register,
+	.cache_type = REGCACHE_RBTREE,
+};
 
 static const unsigned int max9850_tlv[] = {
 	TLV_DB_RANGE_HEAD(4),
@@ -86,7 +104,7 @@ SND_SOC_DAPM_INPUT("INL"),
 SND_SOC_DAPM_INPUT("INR"),
 };
 
-static const struct snd_soc_dapm_route intercon[] = {
+static const struct snd_soc_dapm_route max9850_dapm_routes[] = {
 	/* output mixer */
 	{"Output Mixer", NULL, "DAC"},
 	{"Output Mixer", "Line In Switch", "Line Input"},
@@ -131,14 +149,14 @@ static int max9850_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_write(codec, MAX9850_LRCLK_MSB, (lrclk_div >> 8) & 0x7f);
 	snd_soc_write(codec, MAX9850_LRCLK_LSB, lrclk_div & 0xff);
 
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
+	switch (params_width(params)) {
+	case 16:
 		da = 0;
 		break;
-	case SNDRV_PCM_FORMAT_S20_3LE:
+	case 20:
 		da = 0x2;
 		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
+	case 24:
 		da = 0x3;
 		break;
 	default:
@@ -225,6 +243,7 @@ static int max9850_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 static int max9850_set_bias_level(struct snd_soc_codec *codec,
 				  enum snd_soc_bias_level level)
 {
+	struct max9850_priv *max9850 = snd_soc_codec_get_drvdata(codec);
 	int ret;
 
 	switch (level) {
@@ -234,7 +253,7 @@ static int max9850_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	case SND_SOC_BIAS_STANDBY:
 		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
-			ret = snd_soc_cache_sync(codec);
+			ret = regcache_sync(max9850->regmap);
 			if (ret) {
 				dev_err(codec->dev,
 					"Failed to sync cache: %d\n", ret);
@@ -254,7 +273,7 @@ static int max9850_set_bias_level(struct snd_soc_codec *codec,
 #define MAX9850_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE |\
 	SNDRV_PCM_FMTBIT_S24_LE)
 
-static struct snd_soc_dai_ops max9850_dai_ops = {
+static const struct snd_soc_dai_ops max9850_dai_ops = {
 	.hw_params	= max9850_hw_params,
 	.set_sysclk	= max9850_set_dai_sysclk,
 	.set_fmt	= max9850_set_dai_fmt,
@@ -272,36 +291,8 @@ static struct snd_soc_dai_driver max9850_dai = {
 	.ops = &max9850_dai_ops,
 };
 
-#ifdef CONFIG_PM
-static int max9850_suspend(struct snd_soc_codec *codec, pm_message_t state)
-{
-	max9850_set_bias_level(codec, SND_SOC_BIAS_OFF);
-
-	return 0;
-}
-
-static int max9850_resume(struct snd_soc_codec *codec)
-{
-	max9850_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-
-	return 0;
-}
-#else
-#define max9850_suspend NULL
-#define max9850_resume NULL
-#endif
-
 static int max9850_probe(struct snd_soc_codec *codec)
 {
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
-	int ret;
-
-	ret = snd_soc_codec_set_cache_io(codec, 8, 8, SND_SOC_I2C);
-	if (ret < 0) {
-		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
-		return ret;
-	}
-
 	/* enable zero-detect */
 	snd_soc_update_bits(codec, MAX9850_GENERAL_PURPOSE, 1, 1);
 	/* enable slew-rate control */
@@ -309,50 +300,47 @@ static int max9850_probe(struct snd_soc_codec *codec)
 	/* set slew-rate 125ms */
 	snd_soc_update_bits(codec, MAX9850_CHARGE_PUMP, 0xff, 0xc0);
 
-	snd_soc_dapm_new_controls(dapm, max9850_dapm_widgets,
-				  ARRAY_SIZE(max9850_dapm_widgets));
-	snd_soc_dapm_add_routes(dapm, intercon, ARRAY_SIZE(intercon));
-
-	snd_soc_add_controls(codec, max9850_controls,
-			ARRAY_SIZE(max9850_controls));
-
 	return 0;
 }
 
 static struct snd_soc_codec_driver soc_codec_dev_max9850 = {
 	.probe =	max9850_probe,
-	.suspend =	max9850_suspend,
-	.resume =	max9850_resume,
 	.set_bias_level = max9850_set_bias_level,
-	.reg_cache_size = ARRAY_SIZE(max9850_reg),
-	.reg_word_size = sizeof(u8),
-	.reg_cache_default = max9850_reg,
-	.volatile_register = max9850_volatile_register,
+	.suspend_bias_off = true,
+
+	.controls = max9850_controls,
+	.num_controls = ARRAY_SIZE(max9850_controls),
+	.dapm_widgets = max9850_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(max9850_dapm_widgets),
+	.dapm_routes = max9850_dapm_routes,
+	.num_dapm_routes = ARRAY_SIZE(max9850_dapm_routes),
 };
 
-static int __devinit max9850_i2c_probe(struct i2c_client *i2c,
-		const struct i2c_device_id *id)
+static int max9850_i2c_probe(struct i2c_client *i2c,
+			     const struct i2c_device_id *id)
 {
 	struct max9850_priv *max9850;
 	int ret;
 
-	max9850 = kzalloc(sizeof(struct max9850_priv), GFP_KERNEL);
+	max9850 = devm_kzalloc(&i2c->dev, sizeof(struct max9850_priv),
+			       GFP_KERNEL);
 	if (max9850 == NULL)
 		return -ENOMEM;
+
+	max9850->regmap = devm_regmap_init_i2c(i2c, &max9850_regmap);
+	if (IS_ERR(max9850->regmap))
+		return PTR_ERR(max9850->regmap);
 
 	i2c_set_clientdata(i2c, max9850);
 
 	ret = snd_soc_register_codec(&i2c->dev,
 			&soc_codec_dev_max9850, &max9850_dai, 1);
-	if (ret < 0)
-		kfree(max9850);
 	return ret;
 }
 
-static __devexit int max9850_i2c_remove(struct i2c_client *client)
+static int max9850_i2c_remove(struct i2c_client *client)
 {
 	snd_soc_unregister_codec(&client->dev);
-	kfree(i2c_get_clientdata(client));
 	return 0;
 }
 
@@ -368,21 +356,11 @@ static struct i2c_driver max9850_i2c_driver = {
 		.owner = THIS_MODULE,
 	},
 	.probe = max9850_i2c_probe,
-	.remove = __devexit_p(max9850_i2c_remove),
+	.remove = max9850_i2c_remove,
 	.id_table = max9850_i2c_id,
 };
 
-static int __init max9850_init(void)
-{
-	return i2c_add_driver(&max9850_i2c_driver);
-}
-module_init(max9850_init);
-
-static void __exit max9850_exit(void)
-{
-	i2c_del_driver(&max9850_i2c_driver);
-}
-module_exit(max9850_exit);
+module_i2c_driver(max9850_i2c_driver);
 
 MODULE_AUTHOR("Christian Glindkamp <christian.glindkamp@taskit.de>");
 MODULE_DESCRIPTION("ASoC MAX9850 codec driver");

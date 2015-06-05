@@ -1,0 +1,33 @@
+#
+# Broadcom char driver config
+#
+
+menuconfig BRCM_CHAR_DRIVERS
+	bool "Broadcom Char Drivers"
+	help
+	  Broadcom's char drivers
+
+if BRCM_CHAR_DRIVERS
+
+config BCM_VC_CMA
+	bool "Videocore CMA"
+	depends on CMA && BCM2708_VCHIQ
+	default n
+        help
+          Helper for videocore CMA access.
+
+config BCM_VC_SM
+	bool "VMCS Shared Memory"
+	select BCM2708_VCMEM
+	default n
+	help
+	Support for the VC shared memory on the Broadcom reference
+	design. Uses the VCHIQ stack.
+
+config BCM2708_VCMEM
+	bool "Videocore Memory"
+        default y
+        help
+          Helper for videocore memory access and total size allocation.
+
+endif

@@ -13,7 +13,7 @@
 
 #include <sound/soc.h>
 
-#include <plat/audio-simtec.h>
+#include <linux/platform_data/asoc-s3c24xx_simtec.h>
 
 #include "s3c24xx-i2s.h"
 #include "s3c24xx_simtec.h"
@@ -134,18 +134,18 @@ static const struct snd_kcontrol_new amp_unmute_controls[] = {
 
 void simtec_audio_init(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_card *card = rtd->card;
 
 	if (pdata->amp_gpio > 0) {
 		pr_debug("%s: adding amp routes\n", __func__);
 
-		snd_soc_add_controls(codec, amp_unmute_controls,
+		snd_soc_add_card_controls(card, amp_unmute_controls,
 				     ARRAY_SIZE(amp_unmute_controls));
 	}
 
 	if (pdata->amp_gain[0] > 0) {
 		pr_debug("%s: adding amp controls\n", __func__);
-		snd_soc_add_controls(codec, amp_gain_controls,
+		snd_soc_add_card_controls(card, amp_gain_controls,
 				     ARRAY_SIZE(amp_gain_controls));
 	}
 }
@@ -168,24 +168,6 @@ static int simtec_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int ret;
-
-	/* Set the CODEC as the bus clock master, I2S */
-	ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
-				  SND_SOC_DAIFMT_NB_NF |
-				  SND_SOC_DAIFMT_CBM_CFM);
-	if (ret) {
-		pr_err("%s: failed set cpu dai format\n", __func__);
-		return ret;
-	}
-
-	/* Set the CODEC as the bus clock master */
-	ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
-				  SND_SOC_DAIFMT_NB_NF |
-				  SND_SOC_DAIFMT_CBM_CFM);
-	if (ret) {
-		pr_err("%s: failed set codec dai format\n", __func__);
-		return ret;
-	}
 
 	ret = snd_soc_dai_set_sysclk(codec_dai, 0,
 				     CODEC_CLOCK, SND_SOC_CLOCK_IN);
@@ -313,13 +295,15 @@ const struct dev_pm_ops simtec_audio_pmops = {
 EXPORT_SYMBOL_GPL(simtec_audio_pmops);
 #endif
 
-int __devinit simtec_audio_core_probe(struct platform_device *pdev,
-				      struct snd_soc_card *card)
+int simtec_audio_core_probe(struct platform_device *pdev,
+			    struct snd_soc_card *card)
 {
 	struct platform_device *snd_dev;
 	int ret;
 
 	card->dai_link->ops = &simtec_snd_ops;
+	card->dai_link->dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+				  SND_SOC_DAIFMT_CBM_CFM;
 
 	pdata = pdev->dev.platform_data;
 	if (!pdata) {
@@ -371,7 +355,7 @@ err_clk:
 }
 EXPORT_SYMBOL_GPL(simtec_audio_core_probe);
 
-int __devexit simtec_audio_remove(struct platform_device *pdev)
+int simtec_audio_remove(struct platform_device *pdev)
 {
 	struct platform_device *snd_dev = platform_get_drvdata(pdev);
 

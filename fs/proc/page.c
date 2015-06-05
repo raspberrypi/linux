@@ -5,6 +5,7 @@
 #include <linux/ksm.h>
 #include <linux/mm.h>
 #include <linux/mmzone.h>
+#include <linux/huge_mm.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/hugetlb.h>
@@ -115,6 +116,24 @@ u64 stable_page_flags(struct page *page)
 		u |= 1 << KPF_COMPOUND_TAIL;
 	if (PageHuge(page))
 		u |= 1 << KPF_HUGE;
+	/*
+	 * PageTransCompound can be true for non-huge compound pages (slab
+	 * pages or pages allocated by drivers with __GFP_COMP) because it
+	 * just checks PG_head/PG_tail, so we need to check PageLRU/PageAnon
+	 * to make sure a given page is a thp, not a non-huge compound page.
+	 */
+	else if (PageTransCompound(page)) {
+		struct page *head = compound_head(page);
+
+		if (PageLRU(head) || PageAnon(head))
+			u |= 1 << KPF_THP;
+		else if (is_huge_zero_page(head)) {
+			u |= 1 << KPF_ZERO_PAGE;
+			u |= 1 << KPF_THP;
+		}
+	} else if (is_zero_pfn(page_to_pfn(page)))
+		u |= 1 << KPF_ZERO_PAGE;
+
 
 	/*
 	 * Caveats on high order pages: page->_count will only be set
@@ -123,6 +142,9 @@ u64 stable_page_flags(struct page *page)
 	 */
 	if (PageBuddy(page))
 		u |= 1 << KPF_BUDDY;
+
+	if (PageBalloon(page))
+		u |= 1 << KPF_BALLOON;
 
 	u |= kpf_copy_bit(k, KPF_LOCKED,	PG_locked);
 
@@ -209,4 +231,4 @@ static int __init proc_page_init(void)
 	proc_create("kpageflags", S_IRUSR, NULL, &proc_kpageflags_operations);
 	return 0;
 }
-module_init(proc_page_init);
+fs_initcall(proc_page_init);

@@ -5,7 +5,7 @@
  * under the terms of the GNU General Public License version 2 as published by
  * the Free Software Foundation.
  *
- * Copyright (c) 2009 Jonathan Cameron <jic23@cam.ac.uk>
+ * Copyright (c) 2009 Jonathan Cameron <jic23@kernel.org>
  *
  */
 
@@ -18,9 +18,9 @@
 #include <linux/sched.h>
 #include <linux/poll.h>
 
-#include "../iio.h"
-#include "../sysfs.h"
-#include "../buffer_generic.h"
+#include <linux/iio/iio.h>
+#include <linux/iio/sysfs.h>
+#include <linux/iio/buffer.h>
 #include "../ring_hw.h"
 #include "sca3000.h"
 
@@ -39,7 +39,6 @@ static int sca3000_read_data(struct sca3000_state *st,
 			    int len)
 {
 	int ret;
-	struct spi_message msg;
 	struct spi_transfer xfer[2] = {
 		{
 			.len = 1,
@@ -55,10 +54,7 @@ static int sca3000_read_data(struct sca3000_state *st,
 	}
 	xfer[1].rx_buf = *rx_p;
 	st->tx[0] = SCA3000_READ_REG(reg_address_high);
-	spi_message_init(&msg);
-	spi_message_add_tail(&xfer[0], &msg);
-	spi_message_add_tail(&xfer[1], &msg);
-	ret = spi_sync(st->us, &msg);
+	ret = spi_sync_transfer(st->us, xfer, ARRAY_SIZE(xfer));
 	if (ret) {
 		dev_err(get_device(&st->us->dev), "problem reading register");
 		goto error_free_rx;
@@ -121,7 +117,7 @@ static int sca3000_read_first_n_hw_rb(struct iio_buffer *r,
 		goto error_ret;
 
 	for (i = 0; i < num_read; i++)
-		*(((u16 *)rx) + i) = be16_to_cpup((u16 *)rx + i);
+		*(((u16 *)rx) + i) = be16_to_cpup((__be16 *)rx + i);
 
 	if (copy_to_user(buf, rx, num_read))
 		ret = -EFAULT;
@@ -133,21 +129,10 @@ error_ret:
 	return ret ? ret : num_read;
 }
 
-/* This is only valid with all 3 elements enabled */
-static int sca3000_ring_get_length(struct iio_buffer *r)
+static bool sca3000_ring_buf_data_available(struct iio_buffer *r)
 {
-	return 64;
+	return r->stufftoread;
 }
-
-/* only valid if resolution is kept at 11bits */
-static int sca3000_ring_get_bytes_per_datum(struct iio_buffer *r)
-{
-	return 6;
-}
-
-static IIO_BUFFER_ENABLE_ATTR;
-static IIO_BUFFER_BYTES_PER_DATUM_ATTR;
-static IIO_BUFFER_LENGTH_ATTR;
 
 /**
  * sca3000_query_ring_int() is the hardware ring status interrupt enabled
@@ -158,8 +143,7 @@ static ssize_t sca3000_query_ring_int(struct device *dev,
 {
 	struct iio_dev_attr *this_attr = to_iio_dev_attr(attr);
 	int ret, val;
-	struct iio_buffer *ring = dev_get_drvdata(dev);
-	struct iio_dev *indio_dev = ring->indio_dev;
+	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	struct sca3000_state *st = iio_priv(indio_dev);
 
 	mutex_lock(&st->lock);
@@ -180,15 +164,14 @@ static ssize_t sca3000_set_ring_int(struct device *dev,
 				      const char *buf,
 				      size_t len)
 {
-	struct iio_buffer *ring = dev_get_drvdata(dev);
-	struct iio_dev *indio_dev = ring->indio_dev;
+	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	struct sca3000_state *st = iio_priv(indio_dev);
 	struct iio_dev_attr *this_attr = to_iio_dev_attr(attr);
-	long val;
+	u8 val;
 	int ret;
 
 	mutex_lock(&st->lock);
-	ret = strict_strtol(buf, 10, &val);
+	ret = kstrtou8(buf, 10, &val);
 	if (ret)
 		goto error_ret;
 	ret = sca3000_read_data_short(st, SCA3000_REG_ADDR_INT_MASK, 1);
@@ -222,8 +205,7 @@ static ssize_t sca3000_show_buffer_scale(struct device *dev,
 					 struct device_attribute *attr,
 					 char *buf)
 {
-	struct iio_buffer *ring = dev_get_drvdata(dev);
-	struct iio_dev *indio_dev = ring->indio_dev;
+	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	struct sca3000_state *st = iio_priv(indio_dev);
 
 	return sprintf(buf, "0.%06d\n", 4*st->info->scale);
@@ -241,19 +223,11 @@ static IIO_DEVICE_ATTR(in_accel_scale,
  * only apply to the ring buffer.  At all times full rate and accuracy
  * is available via direct reading from registers.
  */
-static struct attribute *sca3000_ring_attributes[] = {
-	&dev_attr_length.attr,
-	&dev_attr_bytes_per_datum.attr,
-	&dev_attr_enable.attr,
+static const struct attribute *sca3000_ring_attributes[] = {
 	&iio_dev_attr_50_percent.dev_attr.attr,
 	&iio_dev_attr_75_percent.dev_attr.attr,
 	&iio_dev_attr_in_accel_scale.dev_attr.attr,
 	NULL,
-};
-
-static struct attribute_group sca3000_ring_attr = {
-	.attrs = sca3000_ring_attributes,
-	.name = "buffer",
 };
 
 static struct iio_buffer *sca3000_rb_allocate(struct iio_dev *indio_dev)
@@ -261,45 +235,50 @@ static struct iio_buffer *sca3000_rb_allocate(struct iio_dev *indio_dev)
 	struct iio_buffer *buf;
 	struct iio_hw_buffer *ring;
 
-	ring = kzalloc(sizeof *ring, GFP_KERNEL);
+	ring = kzalloc(sizeof(*ring), GFP_KERNEL);
 	if (!ring)
 		return NULL;
 
 	ring->private = indio_dev;
 	buf = &ring->buf;
 	buf->stufftoread = 0;
-	buf->attrs = &sca3000_ring_attr;
-	iio_buffer_init(buf, indio_dev);
+	buf->length = 64;
+	buf->attrs = sca3000_ring_attributes;
+	iio_buffer_init(buf);
 
 	return buf;
 }
 
-static inline void sca3000_rb_free(struct iio_buffer *r)
+static void sca3000_ring_release(struct iio_buffer *r)
 {
 	kfree(iio_to_hw_buf(r));
 }
 
 static const struct iio_buffer_access_funcs sca3000_ring_access_funcs = {
 	.read_first_n = &sca3000_read_first_n_hw_rb,
-	.get_length = &sca3000_ring_get_length,
-	.get_bytes_per_datum = &sca3000_ring_get_bytes_per_datum,
+	.data_available = sca3000_ring_buf_data_available,
+	.release = sca3000_ring_release,
 };
 
 int sca3000_configure_ring(struct iio_dev *indio_dev)
 {
-	indio_dev->buffer = sca3000_rb_allocate(indio_dev);
-	if (indio_dev->buffer == NULL)
+	struct iio_buffer *buffer;
+
+	buffer = sca3000_rb_allocate(indio_dev);
+	if (buffer == NULL)
 		return -ENOMEM;
 	indio_dev->modes |= INDIO_BUFFER_HARDWARE;
 
 	indio_dev->buffer->access = &sca3000_ring_access_funcs;
+
+	iio_device_attach_buffer(indio_dev, buffer);
 
 	return 0;
 }
 
 void sca3000_unconfigure_ring(struct iio_dev *indio_dev)
 {
-	sca3000_rb_free(indio_dev->buffer);
+	iio_buffer_put(indio_dev->buffer);
 }
 
 static inline
@@ -313,7 +292,7 @@ int __sca3000_hw_ring_state_set(struct iio_dev *indio_dev, bool state)
 	if (ret)
 		goto error_ret;
 	if (state) {
-		printk(KERN_INFO "supposedly enabling ring buffer\n");
+		dev_info(&indio_dev->dev, "supposedly enabling ring buffer\n");
 		ret = sca3000_write_reg(st,
 					SCA3000_REG_ADDR_MODE,
 					(st->rx[0] | SCA3000_RING_BUF_ENABLE));
@@ -350,7 +329,7 @@ static const struct iio_buffer_setup_ops sca3000_ring_setup_ops = {
 
 void sca3000_register_ring_funcs(struct iio_dev *indio_dev)
 {
-	indio_dev->buffer->setup_ops = &sca3000_ring_setup_ops;
+	indio_dev->setup_ops = &sca3000_ring_setup_ops;
 }
 
 /**

@@ -9,60 +9,66 @@
  * Copyright (C) 1999 Ralf Baechle (ralf@gnu.org)
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
+#include <linux/compiler.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/irqflags.h>
 
 #include <asm/bcache.h>
 
 #include <asm/fw/arc/types.h>
 #include <asm/sgialib.h>
 #include <asm/bootinfo.h>
-#include <asm/system.h>
 
-VOID
+VOID __noreturn
 ArcHalt(VOID)
 {
 	bc_disable();
 	local_irq_disable();
 	ARC_CALL0(halt);
-never:	goto never;
+
+	unreachable();
 }
 
-VOID
+VOID __noreturn
 ArcPowerDown(VOID)
 {
 	bc_disable();
 	local_irq_disable();
 	ARC_CALL0(pdown);
-never:	goto never;
+
+	unreachable();
 }
 
 /* XXX is this a soft reset basically? XXX */
-VOID
+VOID __noreturn
 ArcRestart(VOID)
 {
 	bc_disable();
 	local_irq_disable();
 	ARC_CALL0(restart);
-never:	goto never;
+
+	unreachable();
 }
 
-VOID
+VOID __noreturn
 ArcReboot(VOID)
 {
 	bc_disable();
 	local_irq_disable();
 	ARC_CALL0(reboot);
-never:	goto never;
+
+	unreachable();
 }
 
-VOID
+VOID __noreturn
 ArcEnterInteractiveMode(VOID)
 {
 	bc_disable();
 	local_irq_disable();
 	ARC_CALL0(imode);
-never:	goto never;
+
+	unreachable();
 }
 
 LONG

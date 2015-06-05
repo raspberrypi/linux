@@ -65,20 +65,6 @@ static int hx4700_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int ret = 0;
 
-	/* set codec DAI configuration */
-	ret = snd_soc_dai_set_fmt(codec_dai,
-			SND_SOC_DAIFMT_MSB | SND_SOC_DAIFMT_NB_NF |
-			SND_SOC_DAIFMT_CBS_CFS);
-	if (ret < 0)
-		return ret;
-
-	/* set cpu DAI configuration */
-	ret = snd_soc_dai_set_fmt(cpu_dai,
-			SND_SOC_DAIFMT_MSB | SND_SOC_DAIFMT_NB_NF |
-			SND_SOC_DAIFMT_CBS_CFS);
-	if (ret < 0)
-		return ret;
-
 	/* set the I2S system clock as output */
 	ret = snd_soc_dai_set_sysclk(cpu_dai, PXA2XX_I2S_SYSCLK, 0,
 			SND_SOC_CLOCK_OUT);
@@ -141,14 +127,7 @@ static const struct snd_soc_dapm_route hx4700_audio_map[] = {
 static int hx4700_ak4641_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int err;
-
-	/* NC codec pins */
-	/* FIXME: is anything connected here? */
-	snd_soc_dapm_nc_pin(dapm, "MOUT1");
-	snd_soc_dapm_nc_pin(dapm, "MICEXT");
-	snd_soc_dapm_nc_pin(dapm, "AUX");
 
 	/* Jack detection API stuff */
 	err = snd_soc_jack_new(codec, "Headphone Jack",
@@ -166,6 +145,13 @@ static int hx4700_ak4641_init(struct snd_soc_pcm_runtime *rtd)
 	return err;
 }
 
+static int hx4700_card_remove(struct snd_soc_card *card)
+{
+	snd_soc_jack_free_gpios(&hs_jack, 1, &hs_jack_gpio);
+
+	return 0;
+}
+
 /* hx4700 digital audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link hx4700_dai = {
 	.name = "ak4641",
@@ -175,18 +161,23 @@ static struct snd_soc_dai_link hx4700_dai = {
 	.platform_name = "pxa-pcm-audio",
 	.codec_name = "ak4641.0-0012",
 	.init = hx4700_ak4641_init,
+	.dai_fmt = SND_SOC_DAIFMT_MSB | SND_SOC_DAIFMT_NB_NF |
+		   SND_SOC_DAIFMT_CBS_CFS,
 	.ops = &hx4700_ops,
 };
 
 /* hx4700 audio machine driver */
 static struct snd_soc_card snd_soc_card_hx4700 = {
 	.name			= "iPAQ hx4700",
+	.owner			= THIS_MODULE,
+	.remove			= hx4700_card_remove,
 	.dai_link		= &hx4700_dai,
 	.num_links		= 1,
 	.dapm_widgets		= hx4700_dapm_widgets,
 	.num_dapm_widgets	= ARRAY_SIZE(hx4700_dapm_widgets),
 	.dapm_routes		= hx4700_audio_map,
 	.num_dapm_routes	= ARRAY_SIZE(hx4700_audio_map),
+	.fully_routed		= true,
 };
 
 static struct gpio hx4700_audio_gpios[] = {
@@ -194,7 +185,7 @@ static struct gpio hx4700_audio_gpios[] = {
 	{ GPIO92_HX4700_HP_DRIVER, GPIOF_OUT_INIT_LOW, "EP_POWER" },
 };
 
-static int __devinit hx4700_audio_probe(struct platform_device *pdev)
+static int hx4700_audio_probe(struct platform_device *pdev)
 {
 	int ret;
 
@@ -215,9 +206,8 @@ static int __devinit hx4700_audio_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int __devexit hx4700_audio_remove(struct platform_device *pdev)
+static int hx4700_audio_remove(struct platform_device *pdev)
 {
-	snd_soc_jack_free_gpios(&hs_jack, 1, &hs_jack_gpio);
 	snd_soc_unregister_card(&snd_soc_card_hx4700);
 
 	gpio_set_value(GPIO92_HX4700_HP_DRIVER, 0);
@@ -230,25 +220,13 @@ static int __devexit hx4700_audio_remove(struct platform_device *pdev)
 static struct platform_driver hx4700_audio_driver = {
 	.driver	= {
 		.name = "hx4700-audio",
-		.owner = THIS_MODULE,
 		.pm = &snd_soc_pm_ops,
 	},
 	.probe	= hx4700_audio_probe,
-	.remove	= __devexit_p(hx4700_audio_remove),
+	.remove	= hx4700_audio_remove,
 };
 
-static int __init hx4700_modinit(void)
-{
-	return platform_driver_register(&hx4700_audio_driver);
-}
-module_init(hx4700_modinit);
-
-static void __exit hx4700_modexit(void)
-{
-	platform_driver_unregister(&hx4700_audio_driver);
-}
-
-module_exit(hx4700_modexit);
+module_platform_driver(hx4700_audio_driver);
 
 MODULE_AUTHOR("Philipp Zabel");
 MODULE_DESCRIPTION("ALSA SoC iPAQ hx4700");

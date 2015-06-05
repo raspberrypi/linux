@@ -8,13 +8,13 @@
  * the Free Software Foundation version 2.
  */
 
-#include <acpi/acpi_bus.h>
-#include <acpi/acpi_drivers.h>
+#include <linux/acpi.h>
 #include <linux/wait.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/interrupt.h>
+#include <linux/dmi.h>
 #include "sbshc.h"
 
 #define PREFIX "ACPI: "
@@ -33,7 +33,7 @@ struct acpi_smb_hc {
 };
 
 static int acpi_smbus_hc_add(struct acpi_device *device);
-static int acpi_smbus_hc_remove(struct acpi_device *device, int type);
+static int acpi_smbus_hc_remove(struct acpi_device *device);
 
 static const struct acpi_device_id sbs_device_ids[] = {
 	{"ACPI0001", 0},
@@ -88,6 +88,8 @@ enum acpi_smb_offset {
 	ACPI_SMB_ALARM_DATA = 0x26,	/* 2 bytes alarm data */
 };
 
+static bool macbook;
+
 static inline int smb_hc_read(struct acpi_smb_hc *hc, u8 address, u8 *data)
 {
 	return ec_read(hc->offset + address, data);
@@ -133,6 +135,8 @@ static int acpi_smbus_transaction(struct acpi_smb_hc *hc, u8 protocol,
 	}
 
 	mutex_lock(&hc->lock);
+	if (macbook)
+		udelay(5);
 	if (smb_hc_read(hc, ACPI_SMB_PROTOCOL, &temp))
 		goto end;
 	if (temp) {
@@ -258,11 +262,28 @@ extern int acpi_ec_add_query_handler(struct acpi_ec *ec, u8 query_bit,
 			      acpi_handle handle, acpi_ec_query_func func,
 			      void *data);
 
+static int macbook_dmi_match(const struct dmi_system_id *d)
+{
+	pr_debug("Detected MacBook, enabling workaround\n");
+	macbook = true;
+	return 0;
+}
+
+static struct dmi_system_id acpi_smbus_dmi_table[] = {
+	{ macbook_dmi_match, "Apple MacBook", {
+	  DMI_MATCH(DMI_BOARD_VENDOR, "Apple"),
+	  DMI_MATCH(DMI_PRODUCT_NAME, "MacBook") },
+	},
+	{ },
+};
+
 static int acpi_smbus_hc_add(struct acpi_device *device)
 {
 	int status;
 	unsigned long long val;
 	struct acpi_smb_hc *hc;
+
+	dmi_check_system(acpi_smbus_dmi_table);
 
 	if (!device)
 		return -EINVAL;
@@ -296,7 +317,7 @@ static int acpi_smbus_hc_add(struct acpi_device *device)
 
 extern void acpi_ec_remove_query_handler(struct acpi_ec *ec, u8 query_bit);
 
-static int acpi_smbus_hc_remove(struct acpi_device *device, int type)
+static int acpi_smbus_hc_remove(struct acpi_device *device)
 {
 	struct acpi_smb_hc *hc;
 
@@ -310,23 +331,7 @@ static int acpi_smbus_hc_remove(struct acpi_device *device, int type)
 	return 0;
 }
 
-static int __init acpi_smb_hc_init(void)
-{
-	int result;
-
-	result = acpi_bus_register_driver(&acpi_smb_hc_driver);
-	if (result < 0)
-		return -ENODEV;
-	return 0;
-}
-
-static void __exit acpi_smb_hc_exit(void)
-{
-	acpi_bus_unregister_driver(&acpi_smb_hc_driver);
-}
-
-module_init(acpi_smb_hc_init);
-module_exit(acpi_smb_hc_exit);
+module_acpi_driver(acpi_smb_hc_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Alexey Starikovskiy");

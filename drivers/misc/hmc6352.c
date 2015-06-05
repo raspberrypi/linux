@@ -22,7 +22,6 @@
  */
 
 #include <linux/module.h>
-#include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/err.h>
@@ -46,8 +45,9 @@ static int compass_store(struct device *dev, const char *buf, size_t count,
 	int ret;
 	unsigned long val;
 
-	if (strict_strtoul(buf, 10, &val))
-		return -EINVAL;
+	ret = kstrtoul(buf, 10, &val);
+	if (ret)
+		return ret;
 	if (val >= strlen(map))
 		return -EINVAL;
 	mutex_lock(&compass_mutex);
@@ -148,18 +148,7 @@ static struct i2c_driver hmc6352_driver = {
 	.id_table = hmc6352_id,
 };
 
-static int __init sensor_hmc6352_init(void)
-{
-	return i2c_add_driver(&hmc6352_driver);
-}
-
-static void  __exit sensor_hmc6352_exit(void)
-{
-	i2c_del_driver(&hmc6352_driver);
-}
-
-module_init(sensor_hmc6352_init);
-module_exit(sensor_hmc6352_exit);
+module_i2c_driver(hmc6352_driver);
 
 MODULE_AUTHOR("Kalhan Trisal <kalhan.trisal@intel.com");
 MODULE_DESCRIPTION("hmc6352 Compass Driver");

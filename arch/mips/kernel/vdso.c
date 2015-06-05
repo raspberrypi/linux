@@ -16,9 +16,11 @@
 #include <linux/elf.h>
 #include <linux/vmalloc.h>
 #include <linux/unistd.h>
+#include <linux/random.h>
 
 #include <asm/vdso.h>
 #include <asm/uasm.h>
+#include <asm/processor.h>
 
 /*
  * Including <asm/unistd.h> would give use the 64-bit syscall numbers ...
@@ -67,7 +69,18 @@ subsys_initcall(init_vdso);
 
 static unsigned long vdso_addr(unsigned long start)
 {
-	return STACK_TOP;
+	unsigned long offset = 0UL;
+
+	if (current->flags & PF_RANDOMIZE) {
+		offset = get_random_int();
+		offset <<= PAGE_SHIFT;
+		if (TASK_IS_32BIT_ADDR)
+			offset &= 0xfffffful;
+		else
+			offset &= 0xffffffful;
+	}
+
+	return STACK_TOP + offset;
 }
 
 int arch_setup_additional_pages(struct linux_binprm *bprm, int uses_interp)
@@ -88,8 +101,7 @@ int arch_setup_additional_pages(struct linux_binprm *bprm, int uses_interp)
 
 	ret = install_special_mapping(mm, addr, PAGE_SIZE,
 				      VM_READ|VM_EXEC|
-				      VM_MAYREAD|VM_MAYWRITE|VM_MAYEXEC|
-				      VM_ALWAYSDUMP,
+				      VM_MAYREAD|VM_MAYWRITE|VM_MAYEXEC,
 				      &vdso_page);
 
 	if (ret)

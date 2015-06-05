@@ -21,7 +21,6 @@
 #include <linux/interrupt.h>
 #include <linux/of_platform.h>
 
-#include <asm/system.h>
 #include <asm/time.h>
 #include <asm/machdep.h>
 #include <asm/pci-bridge.h>
@@ -43,9 +42,7 @@
 
 void __init xes_mpc85xx_pic_init(void)
 {
-	struct mpic *mpic = mpic_alloc(NULL, 0,
-			  MPIC_WANTS_RESET |
-			  MPIC_BIG_ENDIAN | MPIC_BROKEN_FRR_NIRQS,
+	struct mpic *mpic = mpic_alloc(NULL, 0, MPIC_BIG_ENDIAN,
 			0, 256, " OpenPIC  ");
 	BUG_ON(mpic == NULL);
 	mpic_init(mpic);
@@ -114,18 +111,11 @@ static void xes_mpc85xx_fixups(void)
 	}
 }
 
-#ifdef CONFIG_PCI
-static int primary_phb_addr;
-#endif
-
 /*
  * Setup the architecture
  */
 static void __init xes_mpc85xx_setup_arch(void)
 {
-#ifdef CONFIG_PCI
-	struct device_node *np;
-#endif
 	struct device_node *root;
 	const char *model = "Unknown";
 
@@ -140,26 +130,14 @@ static void __init xes_mpc85xx_setup_arch(void)
 
 	xes_mpc85xx_fixups();
 
-#ifdef CONFIG_PCI
-	for_each_node_by_type(np, "pci") {
-		if (of_device_is_compatible(np, "fsl,mpc8540-pci") ||
-		    of_device_is_compatible(np, "fsl,mpc8548-pcie")) {
-			struct resource rsrc;
-			of_address_to_resource(np, 0, &rsrc);
-			if ((rsrc.start & 0xfffff) == primary_phb_addr)
-				fsl_add_bridge(np, 1);
-			else
-				fsl_add_bridge(np, 0);
-		}
-	}
-#endif
-
 	mpc85xx_smp_init();
+
+	fsl_pci_assign_primary();
 }
 
-machine_device_initcall(xes_mpc8572, mpc85xx_common_publish_devices);
-machine_device_initcall(xes_mpc8548, mpc85xx_common_publish_devices);
-machine_device_initcall(xes_mpc8540, mpc85xx_common_publish_devices);
+machine_arch_initcall(xes_mpc8572, mpc85xx_common_publish_devices);
+machine_arch_initcall(xes_mpc8548, mpc85xx_common_publish_devices);
+machine_arch_initcall(xes_mpc8540, mpc85xx_common_publish_devices);
 
 /*
  * Called very early, device-tree isn't unflattened
@@ -168,42 +146,21 @@ static int __init xes_mpc8572_probe(void)
 {
 	unsigned long root = of_get_flat_dt_root();
 
-	if (of_flat_dt_is_compatible(root, "xes,MPC8572")) {
-#ifdef CONFIG_PCI
-		primary_phb_addr = 0x8000;
-#endif
-		return 1;
-	} else {
-		return 0;
-	}
+	return of_flat_dt_is_compatible(root, "xes,MPC8572");
 }
 
 static int __init xes_mpc8548_probe(void)
 {
 	unsigned long root = of_get_flat_dt_root();
 
-	if (of_flat_dt_is_compatible(root, "xes,MPC8548")) {
-#ifdef CONFIG_PCI
-		primary_phb_addr = 0xb000;
-#endif
-		return 1;
-	} else {
-		return 0;
-	}
+	return of_flat_dt_is_compatible(root, "xes,MPC8548");
 }
 
 static int __init xes_mpc8540_probe(void)
 {
 	unsigned long root = of_get_flat_dt_root();
 
-	if (of_flat_dt_is_compatible(root, "xes,MPC8540")) {
-#ifdef CONFIG_PCI
-		primary_phb_addr = 0xb000;
-#endif
-		return 1;
-	} else {
-		return 0;
-	}
+	return of_flat_dt_is_compatible(root, "xes,MPC8540");
 }
 
 define_machine(xes_mpc8572) {
@@ -213,6 +170,7 @@ define_machine(xes_mpc8572) {
 	.init_IRQ		= xes_mpc85xx_pic_init,
 #ifdef CONFIG_PCI
 	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
+	.pcibios_fixup_phb      = fsl_pcibios_fixup_phb,
 #endif
 	.get_irq		= mpic_get_irq,
 	.restart		= fsl_rstcr_restart,
@@ -227,6 +185,7 @@ define_machine(xes_mpc8548) {
 	.init_IRQ		= xes_mpc85xx_pic_init,
 #ifdef CONFIG_PCI
 	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
+	.pcibios_fixup_phb      = fsl_pcibios_fixup_phb,
 #endif
 	.get_irq		= mpic_get_irq,
 	.restart		= fsl_rstcr_restart,
@@ -241,6 +200,7 @@ define_machine(xes_mpc8540) {
 	.init_IRQ		= xes_mpc85xx_pic_init,
 #ifdef CONFIG_PCI
 	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
+	.pcibios_fixup_phb      = fsl_pcibios_fixup_phb,
 #endif
 	.get_irq		= mpic_get_irq,
 	.restart		= fsl_rstcr_restart,

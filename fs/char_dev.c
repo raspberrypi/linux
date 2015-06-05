@@ -24,27 +24,6 @@
 
 #include "internal.h"
 
-/*
- * capabilities for /dev/mem, /dev/kmem and similar directly mappable character
- * devices
- * - permits shared-mmap for read, write and/or exec
- * - does not permit private mmap in NOMMU mode (can't do COW)
- * - no readahead or I/O queue unplugging required
- */
-struct backing_dev_info directly_mappable_cdev_bdi = {
-	.name = "char",
-	.capabilities	= (
-#ifdef CONFIG_MMU
-		/* permit private copies of the data to be taken */
-		BDI_CAP_MAP_COPY |
-#endif
-		/* permit direct mmap, for read, write or exec */
-		BDI_CAP_MAP_DIRECT |
-		BDI_CAP_READ_MAP | BDI_CAP_WRITE_MAP | BDI_CAP_EXEC_MAP |
-		/* no writeback happens */
-		BDI_CAP_NO_ACCT_AND_WRITEBACK),
-};
-
 static struct kobj_map *cdev_map;
 
 static DEFINE_MUTEX(chrdevs_lock);
@@ -117,7 +96,6 @@ __register_chrdev_region(unsigned int major, unsigned int baseminor,
 			goto out;
 		}
 		major = i;
-		ret = major;
 	}
 
 	cd->major = major;
@@ -272,7 +250,7 @@ int __register_chrdev(unsigned int major, unsigned int baseminor,
 	cd = __register_chrdev_region(major, baseminor, count, name);
 	if (IS_ERR(cd))
 		return PTR_ERR(cd);
-	
+
 	cdev = cdev_alloc();
 	if (!cdev)
 		goto out2;
@@ -280,7 +258,7 @@ int __register_chrdev(unsigned int major, unsigned int baseminor,
 	cdev->owner = fops->owner;
 	cdev->ops = fops;
 	kobject_set_name(&cdev->kobj, "%s", name);
-		
+
 	err = cdev_add(cdev, MKDEV(cd->major, baseminor), count);
 	if (err)
 		goto out;
@@ -368,6 +346,7 @@ void cdev_put(struct cdev *p)
  */
 static int chrdev_open(struct inode *inode, struct file *filp)
 {
+	const struct file_operations *fops;
 	struct cdev *p;
 	struct cdev *new = NULL;
 	int ret = 0;
@@ -400,12 +379,13 @@ static int chrdev_open(struct inode *inode, struct file *filp)
 		return ret;
 
 	ret = -ENXIO;
-	filp->f_op = fops_get(p->ops);
-	if (!filp->f_op)
+	fops = fops_get(p->ops);
+	if (!fops)
 		goto out_cdev_put;
 
+	replace_fops(filp, fops);
 	if (filp->f_op->open) {
-		ret = filp->f_op->open(inode,filp);
+		ret = filp->f_op->open(inode, filp);
 		if (ret)
 			goto out_cdev_put;
 	}
@@ -471,9 +451,19 @@ static int exact_lock(dev_t dev, void *data)
  */
 int cdev_add(struct cdev *p, dev_t dev, unsigned count)
 {
+	int error;
+
 	p->dev = dev;
 	p->count = count;
-	return kobj_map(cdev_map, dev, count, NULL, exact_match, exact_lock, p);
+
+	error = kobj_map(cdev_map, dev, count, NULL,
+			 exact_match, exact_lock, p);
+	if (error)
+		return error;
+
+	kobject_get(p->kobj.parent);
+
+	return 0;
 }
 
 static void cdev_unmap(dev_t dev, unsigned count)
@@ -498,14 +488,20 @@ void cdev_del(struct cdev *p)
 static void cdev_default_release(struct kobject *kobj)
 {
 	struct cdev *p = container_of(kobj, struct cdev, kobj);
+	struct kobject *parent = kobj->parent;
+
 	cdev_purge(p);
+	kobject_put(parent);
 }
 
 static void cdev_dynamic_release(struct kobject *kobj)
 {
 	struct cdev *p = container_of(kobj, struct cdev, kobj);
+	struct kobject *parent = kobj->parent;
+
 	cdev_purge(p);
 	kfree(p);
+	kobject_put(parent);
 }
 
 static struct kobj_type ktype_cdev_default = {
@@ -558,7 +554,6 @@ static struct kobject *base_probe(dev_t dev, int *part, void *data)
 void __init chrdev_init(void)
 {
 	cdev_map = kobj_map_init(base_probe, &chrdevs_lock);
-	bdi_init(&directly_mappable_cdev_bdi);
 }
 
 
@@ -572,4 +567,3 @@ EXPORT_SYMBOL(cdev_del);
 EXPORT_SYMBOL(cdev_add);
 EXPORT_SYMBOL(__register_chrdev);
 EXPORT_SYMBOL(__unregister_chrdev);
-EXPORT_SYMBOL(directly_mappable_cdev_bdi);

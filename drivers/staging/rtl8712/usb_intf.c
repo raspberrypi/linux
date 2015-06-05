@@ -30,17 +30,15 @@
 
 #include <linux/usb.h>
 #include <linux/module.h>
+#include <linux/firmware.h>
 
 #include "osdep_service.h"
 #include "drv_types.h"
 #include "recv_osdep.h"
 #include "xmit_osdep.h"
 #include "rtl8712_efuse.h"
-#include "usb_vendor_req.h"
 #include "usb_ops.h"
 #include "usb_osintf.h"
-
-#define DRVER  "v7_0.20100831"
 
 static struct usb_interface *pintf;
 
@@ -65,6 +63,8 @@ static struct usb_device_id rtl871x_usb_id_tbl[] = {
 	{USB_DEVICE(0x0B05, 0x1791)}, /* 11n mode disable */
 	/* Belkin */
 	{USB_DEVICE(0x050D, 0x945A)},
+	/* ISY IWL - Belkin clone */
+	{USB_DEVICE(0x050D, 0x11F1)},
 	/* Corega */
 	{USB_DEVICE(0x07AA, 0x0047)},
 	/* D-Link */
@@ -89,6 +89,7 @@ static struct usb_device_id rtl871x_usb_id_tbl[] = {
 	{USB_DEVICE(0x0DF6, 0x0045)},
 	{USB_DEVICE(0x0DF6, 0x0059)}, /* 11n mode disable */
 	{USB_DEVICE(0x0DF6, 0x004B)},
+	{USB_DEVICE(0x0DF6, 0x005B)},
 	{USB_DEVICE(0x0DF6, 0x005D)},
 	{USB_DEVICE(0x0DF6, 0x0063)},
 	/* Sweex */
@@ -100,14 +101,16 @@ static struct usb_device_id rtl871x_usb_id_tbl[] = {
 	/* - */
 	{USB_DEVICE(0x20F4, 0x646B)},
 	{USB_DEVICE(0x083A, 0xC512)},
+	{USB_DEVICE(0x25D4, 0x4CA1)},
+	{USB_DEVICE(0x25D4, 0x4CAB)},
 
 /* RTL8191SU */
 	/* Realtek */
 	{USB_DEVICE(0x0BDA, 0x8172)},
+	{USB_DEVICE(0x0BDA, 0x8192)},
 	/* Amigo */
 	{USB_DEVICE(0x0EB0, 0x9061)},
 	/* ASUS/EKB */
-	{USB_DEVICE(0x0BDA, 0x8172)},
 	{USB_DEVICE(0x13D3, 0x3323)},
 	{USB_DEVICE(0x13D3, 0x3311)}, /* 11n mode disable */
 	{USB_DEVICE(0x13D3, 0x3342)},
@@ -159,7 +162,6 @@ static struct usb_device_id rtl871x_usb_id_tbl[] = {
 /* RTL8192SU */
 	/* Realtek */
 	{USB_DEVICE(0x0BDA, 0x8174)},
-	{USB_DEVICE(0x0BDA, 0x8174)},
 	/* Belkin */
 	{USB_DEVICE(0x050D, 0x845A)},
 	/* Corega */
@@ -203,9 +205,9 @@ static int r871x_suspend(struct usb_interface *pusb_intf, pm_message_t state)
 {
 	struct net_device *pnetdev = usb_get_intfdata(pusb_intf);
 
-	printk(KERN_INFO "r8712: suspending...\n");
+	netdev_info(pnetdev, "Suspending...\n");
 	if (!pnetdev || !netif_running(pnetdev)) {
-		printk(KERN_INFO "r8712: unable to suspend\n");
+		netdev_info(pnetdev, "Unable to suspend\n");
 		return 0;
 	}
 	if (pnetdev->netdev_ops->ndo_stop)
@@ -219,9 +221,9 @@ static int r871x_resume(struct usb_interface *pusb_intf)
 {
 	struct net_device *pnetdev = usb_get_intfdata(pusb_intf);
 
-	printk(KERN_INFO "r8712: resuming...\n");
+	netdev_info(pnetdev,  "Resuming...\n");
 	if (!pnetdev || !netif_running(pnetdev)) {
-		printk(KERN_INFO "r8712: unable to resume\n");
+		netdev_info(pnetdev, "Unable to resume\n");
 		return 0;
 	}
 	netif_device_attach(pnetdev);
@@ -253,9 +255,6 @@ static struct drv_priv drvpriv = {
 static uint r8712_usb_dvobj_init(struct _adapter *padapter)
 {
 	uint	status = _SUCCESS;
-	struct	usb_device_descriptor		*pdev_desc;
-	struct	usb_host_config			*phost_conf;
-	struct	usb_config_descriptor		*pconf_desc;
 	struct	usb_host_interface		*phost_iface;
 	struct	usb_interface_descriptor	*piface_desc;
 	struct dvobj_priv *pdvobjpriv = &padapter->dvobjpriv;
@@ -263,24 +262,20 @@ static uint r8712_usb_dvobj_init(struct _adapter *padapter)
 
 	pdvobjpriv->padapter = padapter;
 	padapter->EepromAddressSize = 6;
-	pdev_desc = &pusbd->descriptor;
-	phost_conf = pusbd->actconfig;
-	pconf_desc = &phost_conf->desc;
 	phost_iface = &pintf->altsetting[0];
 	piface_desc = &phost_iface->desc;
 	pdvobjpriv->nr_endpoint = piface_desc->bNumEndpoints;
 	if (pusbd->speed == USB_SPEED_HIGH) {
 		pdvobjpriv->ishighspeed = true;
-		printk(KERN_INFO "r8712u: USB_SPEED_HIGH with %d endpoints\n",
-		       pdvobjpriv->nr_endpoint);
+		dev_info(&pusbd->dev, "r8712u: USB_SPEED_HIGH with %d endpoints\n",
+			 pdvobjpriv->nr_endpoint);
 	} else {
 		pdvobjpriv->ishighspeed = false;
-		printk(KERN_INFO "r8712u: USB_SPEED_LOW with %d endpoints\n",
-		       pdvobjpriv->nr_endpoint);
+		dev_info(&pusbd->dev, "r8712u: USB_SPEED_LOW with %d endpoints\n",
+			 pdvobjpriv->nr_endpoint);
 	}
 	if ((r8712_alloc_io_queue(padapter)) == _FAIL)
 		status = _FAIL;
-	sema_init(&(padapter->dvobjpriv.usb_suspend_sema), 0);
 	return status;
 }
 
@@ -291,13 +286,13 @@ static void r8712_usb_dvobj_deinit(struct _adapter *padapter)
 void rtl871x_intf_stop(struct _adapter *padapter)
 {
 	/*disable_hw_interrupt*/
-	if (padapter->bSurpriseRemoved == false) {
+	if (!padapter->bSurpriseRemoved) {
 		/*device still exists, so driver can do i/o operation
 		 * TODO: */
 	}
 
 	/* cancel in irp */
-	if (padapter->dvobjpriv.inirp_deinit != NULL)
+	if (padapter->dvobjpriv.inirp_deinit)
 		padapter->dvobjpriv.inirp_deinit(padapter);
 	/* cancel out irp */
 	r8712_usb_write_port_cancel(padapter);
@@ -317,7 +312,7 @@ void r871x_dev_unload(struct _adapter *padapter)
 		r8712_stop_drv_threads(padapter);
 
 		/*s5.*/
-		if (padapter->bSurpriseRemoved == false) {
+		if (!padapter->bSurpriseRemoved) {
 			padapter->hw_init_completed = false;
 			rtl8712_hal_deinit(padapter);
 		}
@@ -352,10 +347,9 @@ static void disable_ht_for_spec_devid(const struct usb_device_id *pdid,
 	}
 }
 
-static u8 key_2char2num(u8 hch, u8 lch)
-{
-	return (hex_to_bin(hch) << 4) | hex_to_bin(lch);
-}
+static const struct device_type wlan_type = {
+	.name = "wlan",
+};
 
 /*
  * drv_init() - a device potentially for us
@@ -372,7 +366,6 @@ static int r871xu_drv_init(struct usb_interface *pusb_intf,
 	struct net_device *pnetdev;
 	struct usb_device *udev;
 
-	printk(KERN_INFO "r8712u: DriverVersion: %s\n", DRVER);
 	/* In this probe function, O.S. will provide the usb interface pointer
 	 * to driver. We have to increase the reference count of the usb device
 	 * structure by using the usb_get_dev function.
@@ -389,8 +382,10 @@ static int r871xu_drv_init(struct usb_interface *pusb_intf,
 	pdvobjpriv = &padapter->dvobjpriv;
 	pdvobjpriv->padapter = padapter;
 	padapter->dvobjpriv.pusbdev = udev;
+	padapter->pusb_intf = pusb_intf;
 	usb_set_intfdata(pusb_intf, pnetdev);
 	SET_NETDEV_DEV(pnetdev, &pusb_intf->dev);
+	pnetdev->dev.type = &wlan_type;
 	/* step 2. */
 	padapter->dvobj_init = &r8712_usb_dvobj_init;
 	padapter->dvobj_deinit = &r8712_usb_dvobj_deinit;
@@ -400,7 +395,7 @@ static int r871xu_drv_init(struct usb_interface *pusb_intf,
 	/* step 3.
 	 * initialize the dvobj_priv
 	 */
-	if (padapter->dvobj_init == NULL)
+	if (!padapter->dvobj_init)
 			goto error;
 	else {
 		status = padapter->dvobj_init(padapter);
@@ -421,9 +416,9 @@ static int r871xu_drv_init(struct usb_interface *pusb_intf,
 		tmpU1b = r8712_read8(padapter, EE_9346CR);/*CR9346*/
 
 		/* To check system boot selection.*/
-		printk(KERN_INFO "r8712u: Boot from %s: Autoload %s\n",
-		       (tmpU1b & _9356SEL) ? "EEPROM" : "EFUSE",
-		       (tmpU1b & _EEPROM_EN) ? "OK" : "Failed");
+		dev_info(&udev->dev, "r8712u: Boot from %s: Autoload %s\n",
+			 (tmpU1b & _9356SEL) ? "EEPROM" : "EFUSE",
+			 (tmpU1b & _EEPROM_EN) ? "OK" : "Failed");
 
 		/* To check autoload success or not.*/
 		if (tmpU1b & _EEPROM_EN) {
@@ -463,20 +458,11 @@ static int r871xu_drv_init(struct usb_interface *pusb_intf,
 				r8712_efuse_pg_packet_read(padapter, offset,
 						     &pdata[i]);
 
-			if (r8712_initmac) {
-				/* Users specify the mac address */
-				int jj, kk;
-
-				for (jj = 0, kk = 0; jj < ETH_ALEN;
-				     jj++, kk += 3)
-					mac[jj] =
-					   key_2char2num(r8712_initmac[kk],
-					   r8712_initmac[kk + 1]);
-			} else {
+			if (!r8712_initmac || !mac_pton(r8712_initmac, mac)) {
 				/* Use the mac address stored in the Efuse
 				 * offset = 0x12 for usb in efuse
 				 */
-				memcpy(mac, &pdata[0x12], ETH_ALEN);
+				ether_addr_copy(mac, &pdata[0x12]);
 			}
 			eeprom_CustomerID = pdata[0x52];
 			switch (eeprom_CustomerID) {
@@ -531,8 +517,8 @@ static int r871xu_drv_init(struct usb_interface *pusb_intf,
 						 RT_CID_DEFAULT;
 				break;
 			}
-			printk(KERN_INFO "r8712u: CustomerID = 0x%.4x\n",
-			     padapter->eeprompriv.CustomerID);
+			dev_info(&udev->dev, "r8712u: CustomerID = 0x%.4x\n",
+				 padapter->eeprompriv.CustomerID);
 			/* Led mode */
 			switch (padapter->eeprompriv.CustomerID) {
 			case RT_CID_DEFAULT:
@@ -575,7 +561,7 @@ static int r871xu_drv_init(struct usb_interface *pusb_intf,
 		    ((mac[0] == 0x00) && (mac[1] == 0x00) &&
 		     (mac[2] == 0x00) && (mac[3] == 0x00) &&
 		     (mac[4] == 0x00) && (mac[5] == 0x00)) ||
-		     (AutoloadFail == false)) {
+		     (!AutoloadFail)) {
 			mac[0] = 0x00;
 			mac[1] = 0xe0;
 			mac[2] = 0x4c;
@@ -588,22 +574,23 @@ static int r871xu_drv_init(struct usb_interface *pusb_intf,
 			 * address by setting bit 1 of first octet.
 			 */
 			mac[0] &= 0xFE;
-			printk(KERN_INFO "r8712u: MAC Address from user = "
-			       "%pM\n", mac);
+			dev_info(&udev->dev,
+				"r8712u: MAC Address from user = %pM\n", mac);
 		} else
-			printk(KERN_INFO "r8712u: MAC Address from efuse = "
-			       "%pM\n", mac);
-		memcpy(pnetdev->dev_addr, mac, ETH_ALEN);
+			dev_info(&udev->dev,
+				"r8712u: MAC Address from efuse = %pM\n", mac);
+		ether_addr_copy(pnetdev->dev_addr, mac);
 	}
-	/* step 6. Tell the network stack we exist */
-	if (register_netdev(pnetdev) != 0)
+	/* step 6. Load the firmware asynchronously */
+	if (rtl871x_load_fw(padapter))
 		goto error;
 	spin_lock_init(&padapter->lockRxFF0Filter);
+	mutex_init(&padapter->mutex_start);
 	return 0;
 error:
 	usb_put_dev(udev);
 	usb_set_intfdata(pusb_intf, NULL);
-	if (padapter->dvobj_deinit != NULL)
+	if (padapter && padapter->dvobj_deinit != NULL)
 		padapter->dvobj_deinit(padapter);
 	if (pnetdev)
 		free_netdev(pnetdev);
@@ -615,34 +602,34 @@ error:
 static void r871xu_dev_remove(struct usb_interface *pusb_intf)
 {
 	struct net_device *pnetdev = usb_get_intfdata(pusb_intf);
-	struct _adapter *padapter = netdev_priv(pnetdev);
 	struct usb_device *udev = interface_to_usbdev(pusb_intf);
 
-	usb_set_intfdata(pusb_intf, NULL);
-	if (padapter) {
+	if (pnetdev) {
+		struct _adapter *padapter = netdev_priv(pnetdev);
+
+		usb_set_intfdata(pusb_intf, NULL);
+		release_firmware(padapter->fw);
+		/* never exit with a firmware callback pending */
+		wait_for_completion(&padapter->rtl8712_fw_ready);
 		if (drvpriv.drv_registered == true)
 			padapter->bSurpriseRemoved = true;
-		if (pnetdev != NULL) {
-			/* will call netdev_close() */
-			unregister_netdev(pnetdev);
-		}
+		unregister_netdev(pnetdev); /* will call netdev_close() */
 		flush_scheduled_work();
 		udelay(1);
-		/*Stop driver mlme relation timer */
+		/* Stop driver mlme relation timer */
 		r8712_stop_drv_timers(padapter);
 		r871x_dev_unload(padapter);
 		r8712_free_drv_sw(padapter);
+
+		/* decrease the reference count of the usb device structure
+		 * when disconnect */
+		usb_put_dev(udev);
 	}
-	usb_set_intfdata(pusb_intf, NULL);
-	/* decrease the reference count of the usb device structure
-	 * when disconnect */
-	usb_put_dev(udev);
-	/* If we didn't unplug usb dongle and remove/insert modlue, driver
+	/* If we didn't unplug usb dongle and remove/insert module, driver
 	 * fails on sitesurvey for the first time when device is up.
 	 * Reset usb port for sitesurvey fail issue. */
 	if (udev->state != USB_STATE_NOTATTACHED)
 		usb_reset_device(udev);
-	return;
 }
 
 static int __init r8712u_drv_entry(void)
@@ -655,7 +642,6 @@ static void __exit r8712u_drv_halt(void)
 {
 	drvpriv.drv_registered = false;
 	usb_deregister(&drvpriv.r871xu_drv);
-	printk(KERN_INFO "r8712u: Driver unloaded\n");
 }
 
 module_init(r8712u_drv_entry);

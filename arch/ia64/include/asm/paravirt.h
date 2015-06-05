@@ -75,7 +75,6 @@ void *paravirt_get_gate_section(void);
 #ifdef CONFIG_PARAVIRT_GUEST
 
 #define PARAVIRT_HYPERVISOR_TYPE_DEFAULT	0
-#define PARAVIRT_HYPERVISOR_TYPE_XEN		1
 
 #ifndef __ASSEMBLY__
 
@@ -281,9 +280,9 @@ paravirt_init_missing_ticks_accounting(int cpu)
 		pv_time_ops.init_missing_ticks_accounting(cpu);
 }
 
-struct jump_label_key;
-extern struct jump_label_key paravirt_steal_enabled;
-extern struct jump_label_key paravirt_steal_rq_enabled;
+struct static_key;
+extern struct static_key paravirt_steal_enabled;
+extern struct static_key paravirt_steal_rq_enabled;
 
 static inline int
 paravirt_do_steal_accounting(unsigned long *new_itm)

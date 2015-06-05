@@ -95,7 +95,7 @@ struct ppc64_tlb_batch {
 	unsigned long		index;
 	struct mm_struct	*mm;
 	real_pte_t		pte[PPC64_TLB_BATCH_NR];
-	unsigned long		vaddr[PPC64_TLB_BATCH_NR];
+	unsigned long		vpn[PPC64_TLB_BATCH_NR];
 	unsigned int		psize;
 	int			ssize;
 };
@@ -103,21 +103,18 @@ DECLARE_PER_CPU(struct ppc64_tlb_batch, ppc64_tlb_batch);
 
 extern void __flush_tlb_pending(struct ppc64_tlb_batch *batch);
 
-extern void hpte_need_flush(struct mm_struct *mm, unsigned long addr,
-			    pte_t *ptep, unsigned long pte, int huge);
-
 #define __HAVE_ARCH_ENTER_LAZY_MMU_MODE
 
 static inline void arch_enter_lazy_mmu_mode(void)
 {
-	struct ppc64_tlb_batch *batch = &__get_cpu_var(ppc64_tlb_batch);
+	struct ppc64_tlb_batch *batch = this_cpu_ptr(&ppc64_tlb_batch);
 
 	batch->active = 1;
 }
 
 static inline void arch_leave_lazy_mmu_mode(void)
 {
-	struct ppc64_tlb_batch *batch = &__get_cpu_var(ppc64_tlb_batch);
+	struct ppc64_tlb_batch *batch = this_cpu_ptr(&ppc64_tlb_batch);
 
 	if (batch->index)
 		__flush_tlb_pending(batch);
@@ -127,10 +124,12 @@ static inline void arch_leave_lazy_mmu_mode(void)
 #define arch_flush_lazy_mmu_mode()      do {} while (0)
 
 
-extern void flush_hash_page(unsigned long va, real_pte_t pte, int psize,
-			    int ssize, int local);
+extern void flush_hash_page(unsigned long vpn, real_pte_t pte, int psize,
+			    int ssize, unsigned long flags);
 extern void flush_hash_range(unsigned long number, int local);
-
+extern void flush_hash_hugepage(unsigned long vsid, unsigned long addr,
+				pmd_t *pmdp, unsigned int psize, int ssize,
+				unsigned long flags);
 
 static inline void local_flush_tlb_mm(struct mm_struct *mm)
 {
@@ -168,7 +167,8 @@ static inline void flush_tlb_kernel_range(unsigned long start,
 /* Private function for use by PCI IO mapping code */
 extern void __flush_hash_table_range(struct mm_struct *mm, unsigned long start,
 				     unsigned long end);
-
+extern void flush_tlb_pmd_range(struct mm_struct *mm, pmd_t *pmd,
+				unsigned long addr);
 #else
 #error Unsupported MMU type
 #endif

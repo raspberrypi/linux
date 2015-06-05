@@ -57,11 +57,16 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGES.
  */
+
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/export.h>
 #include <linux/moduleparam.h>
+#include <linux/vmalloc.h>
 
 #include <linux/seq_file.h>
 #include <linux/list.h>
+#include <linux/vmalloc.h>
 #include "debug.h"
 #include "ath5k.h"
 #include "reg.h"
@@ -69,13 +74,6 @@
 
 static unsigned int ath5k_debug;
 module_param_named(debug, ath5k_debug, uint, 0);
-
-
-static int ath5k_debugfs_open(struct inode *inode, struct file *file)
-{
-	file->private_data = inode->i_private;
-	return 0;
-}
 
 
 /* debugfs: registers */
@@ -249,15 +247,17 @@ static ssize_t write_file_beacon(struct file *file,
 	struct ath5k_hw *ah = file->private_data;
 	char buf[20];
 
-	if (copy_from_user(buf, userbuf, min(count, sizeof(buf))))
+	count = min_t(size_t, count, sizeof(buf) - 1);
+	if (copy_from_user(buf, userbuf, count))
 		return -EFAULT;
 
+	buf[count] = '\0';
 	if (strncmp(buf, "disable", 7) == 0) {
 		AR5K_REG_DISABLE_BITS(ah, AR5K_BEACON, AR5K_BEACON_ENABLE);
-		printk(KERN_INFO "debugfs disable beacons\n");
+		pr_info("debugfs disable beacons\n");
 	} else if (strncmp(buf, "enable", 6) == 0) {
 		AR5K_REG_ENABLE_BITS(ah, AR5K_BEACON, AR5K_BEACON_ENABLE);
-		printk(KERN_INFO "debugfs enable beacons\n");
+		pr_info("debugfs enable beacons\n");
 	}
 	return count;
 }
@@ -265,7 +265,7 @@ static ssize_t write_file_beacon(struct file *file,
 static const struct file_operations fops_beacon = {
 	.read = read_file_beacon,
 	.write = write_file_beacon,
-	.open = ath5k_debugfs_open,
+	.open = simple_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -285,7 +285,7 @@ static ssize_t write_file_reset(struct file *file,
 
 static const struct file_operations fops_reset = {
 	.write = write_file_reset,
-	.open = ath5k_debugfs_open,
+	.open = simple_open,
 	.owner = THIS_MODULE,
 	.llseek = noop_llseek,
 };
@@ -349,9 +349,11 @@ static ssize_t write_file_debug(struct file *file,
 	unsigned int i;
 	char buf[20];
 
-	if (copy_from_user(buf, userbuf, min(count, sizeof(buf))))
+	count = min_t(size_t, count, sizeof(buf) - 1);
+	if (copy_from_user(buf, userbuf, count))
 		return -EFAULT;
 
+	buf[count] = '\0';
 	for (i = 0; i < ARRAY_SIZE(dbg_info); i++) {
 		if (strncmp(buf, dbg_info[i].name,
 					strlen(dbg_info[i].name)) == 0) {
@@ -365,7 +367,7 @@ static ssize_t write_file_debug(struct file *file,
 static const struct file_operations fops_debug = {
 	.read = read_file_debug,
 	.write = write_file_debug,
-	.open = ath5k_debugfs_open,
+	.open = simple_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -452,24 +454,26 @@ static ssize_t write_file_antenna(struct file *file,
 	unsigned int i;
 	char buf[20];
 
-	if (copy_from_user(buf, userbuf, min(count, sizeof(buf))))
+	count = min_t(size_t, count, sizeof(buf) - 1);
+	if (copy_from_user(buf, userbuf, count))
 		return -EFAULT;
 
+	buf[count] = '\0';
 	if (strncmp(buf, "diversity", 9) == 0) {
 		ath5k_hw_set_antenna_mode(ah, AR5K_ANTMODE_DEFAULT);
-		printk(KERN_INFO "ath5k debug: enable diversity\n");
+		pr_info("debug: enable diversity\n");
 	} else if (strncmp(buf, "fixed-a", 7) == 0) {
 		ath5k_hw_set_antenna_mode(ah, AR5K_ANTMODE_FIXED_A);
-		printk(KERN_INFO "ath5k debugfs: fixed antenna A\n");
+		pr_info("debug: fixed antenna A\n");
 	} else if (strncmp(buf, "fixed-b", 7) == 0) {
 		ath5k_hw_set_antenna_mode(ah, AR5K_ANTMODE_FIXED_B);
-		printk(KERN_INFO "ath5k debug: fixed antenna B\n");
+		pr_info("debug: fixed antenna B\n");
 	} else if (strncmp(buf, "clear", 5) == 0) {
 		for (i = 0; i < ARRAY_SIZE(ah->stats.antenna_rx); i++) {
 			ah->stats.antenna_rx[i] = 0;
 			ah->stats.antenna_tx[i] = 0;
 		}
-		printk(KERN_INFO "ath5k debug: cleared antenna stats\n");
+		pr_info("debug: cleared antenna stats\n");
 	}
 	return count;
 }
@@ -477,7 +481,7 @@ static ssize_t write_file_antenna(struct file *file,
 static const struct file_operations fops_antenna = {
 	.read = read_file_antenna,
 	.write = write_file_antenna,
-	.open = ath5k_debugfs_open,
+	.open = simple_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -532,7 +536,7 @@ static ssize_t read_file_misc(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_misc = {
 	.read = read_file_misc,
-	.open = ath5k_debugfs_open,
+	.open = simple_open,
 	.owner = THIS_MODULE,
 };
 
@@ -623,9 +627,11 @@ static ssize_t write_file_frameerrors(struct file *file,
 	struct ath5k_statistics *st = &ah->stats;
 	char buf[20];
 
-	if (copy_from_user(buf, userbuf, min(count, sizeof(buf))))
+	count = min_t(size_t, count, sizeof(buf) - 1);
+	if (copy_from_user(buf, userbuf, count))
 		return -EFAULT;
 
+	buf[count] = '\0';
 	if (strncmp(buf, "clear", 5) == 0) {
 		st->rxerr_crc = 0;
 		st->rxerr_phy = 0;
@@ -639,7 +645,7 @@ static ssize_t write_file_frameerrors(struct file *file,
 		st->txerr_fifo = 0;
 		st->txerr_filt = 0;
 		st->tx_all_count = 0;
-		printk(KERN_INFO "ath5k debug: cleared frameerrors stats\n");
+		pr_info("debug: cleared frameerrors stats\n");
 	}
 	return count;
 }
@@ -647,7 +653,7 @@ static ssize_t write_file_frameerrors(struct file *file,
 static const struct file_operations fops_frameerrors = {
 	.read = read_file_frameerrors,
 	.write = write_file_frameerrors,
-	.open = ath5k_debugfs_open,
+	.open = simple_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -770,9 +776,11 @@ static ssize_t write_file_ani(struct file *file,
 	struct ath5k_hw *ah = file->private_data;
 	char buf[20];
 
-	if (copy_from_user(buf, userbuf, min(count, sizeof(buf))))
+	count = min_t(size_t, count, sizeof(buf) - 1);
+	if (copy_from_user(buf, userbuf, count))
 		return -EFAULT;
 
+	buf[count] = '\0';
 	if (strncmp(buf, "sens-low", 8) == 0) {
 		ath5k_ani_init(ah, ATH5K_ANI_MODE_MANUAL_HIGH);
 	} else if (strncmp(buf, "sens-high", 9) == 0) {
@@ -810,7 +818,7 @@ static ssize_t write_file_ani(struct file *file,
 static const struct file_operations fops_ani = {
 	.read = read_file_ani,
 	.write = write_file_ani,
-	.open = ath5k_debugfs_open,
+	.open = simple_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
 };
@@ -866,9 +874,11 @@ static ssize_t write_file_queue(struct file *file,
 	struct ath5k_hw *ah = file->private_data;
 	char buf[20];
 
-	if (copy_from_user(buf, userbuf, min(count, sizeof(buf))))
+	count = min_t(size_t, count, sizeof(buf) - 1);
+	if (copy_from_user(buf, userbuf, count))
 		return -EFAULT;
 
+	buf[count] = '\0';
 	if (strncmp(buf, "start", 5) == 0)
 		ieee80211_wake_queues(ah->hw);
 	else if (strncmp(buf, "stop", 4) == 0)
@@ -881,9 +891,103 @@ static ssize_t write_file_queue(struct file *file,
 static const struct file_operations fops_queue = {
 	.read = read_file_queue,
 	.write = write_file_queue,
-	.open = ath5k_debugfs_open,
+	.open = simple_open,
 	.owner = THIS_MODULE,
 	.llseek = default_llseek,
+};
+
+/* debugfs: eeprom */
+
+struct eeprom_private {
+	u16 *buf;
+	int len;
+};
+
+static int open_file_eeprom(struct inode *inode, struct file *file)
+{
+	struct eeprom_private *ep;
+	struct ath5k_hw *ah = inode->i_private;
+	bool res;
+	int i, ret;
+	u32 eesize;
+	u16 val, *buf;
+
+	/* Get eeprom size */
+
+	res = ath5k_hw_nvram_read(ah, AR5K_EEPROM_SIZE_UPPER, &val);
+	if (!res)
+		return -EACCES;
+
+	if (val == 0) {
+		eesize = AR5K_EEPROM_INFO_MAX + AR5K_EEPROM_INFO_BASE;
+	} else {
+		eesize = (val & AR5K_EEPROM_SIZE_UPPER_MASK) <<
+			AR5K_EEPROM_SIZE_ENDLOC_SHIFT;
+		ath5k_hw_nvram_read(ah, AR5K_EEPROM_SIZE_LOWER, &val);
+		eesize = eesize | val;
+	}
+
+	if (eesize > 4096)
+		return -EINVAL;
+
+	/* Create buffer and read in eeprom */
+
+	buf = vmalloc(eesize);
+	if (!buf) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	for (i = 0; i < eesize; ++i) {
+		AR5K_EEPROM_READ(i, val);
+		buf[i] = val;
+	}
+
+	/* Create private struct and assign to file */
+
+	ep = kmalloc(sizeof(*ep), GFP_KERNEL);
+	if (!ep) {
+		ret = -ENOMEM;
+		goto freebuf;
+	}
+
+	ep->buf = buf;
+	ep->len = i;
+
+	file->private_data = (void *)ep;
+
+	return 0;
+
+freebuf:
+	vfree(buf);
+err:
+	return ret;
+
+}
+
+static ssize_t read_file_eeprom(struct file *file, char __user *user_buf,
+				   size_t count, loff_t *ppos)
+{
+	struct eeprom_private *ep = file->private_data;
+
+	return simple_read_from_buffer(user_buf, count, ppos, ep->buf, ep->len);
+}
+
+static int release_file_eeprom(struct inode *inode, struct file *file)
+{
+	struct eeprom_private *ep = file->private_data;
+
+	vfree(ep->buf);
+	kfree(ep);
+
+	return 0;
+}
+
+static const struct file_operations fops_eeprom = {
+	.open = open_file_eeprom,
+	.read = read_file_eeprom,
+	.release = release_file_eeprom,
+	.owner = THIS_MODULE,
 };
 
 
@@ -912,6 +1016,8 @@ ath5k_debug_init_device(struct ath5k_hw *ah)
 			    &fops_antenna);
 
 	debugfs_create_file("misc", S_IRUSR, phydir, ah, &fops_misc);
+
+	debugfs_create_file("eeprom", S_IRUSR, phydir, ah, &fops_eeprom);
 
 	debugfs_create_file("frameerrors", S_IWUSR | S_IRUSR, phydir, ah,
 			    &fops_frameerrors);

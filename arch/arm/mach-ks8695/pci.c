@@ -38,8 +38,6 @@
 
 
 static int pci_dbg;
-static int pci_cfg_dbg;
-
 
 static void ks8695_pci_setupconfig(unsigned int bus_nr, unsigned int devfn, unsigned int where)
 {
@@ -59,75 +57,11 @@ static void ks8695_pci_setupconfig(unsigned int bus_nr, unsigned int devfn, unsi
 	}
 }
 
-
-/*
- * The KS8695 datasheet prohibits anything other than 32bit accesses
- * to the IO registers, so all our configuration must be done with
- * 32bit operations, and the correct bit masking and shifting.
- */
-
-static int ks8695_pci_readconfig(struct pci_bus *bus,
-			unsigned int devfn, int where, int size, u32 *value)
+static void __iomem *ks8695_pci_map_bus(struct pci_bus *bus, unsigned int devfn,
+					int where)
 {
 	ks8695_pci_setupconfig(bus->number, devfn, where);
-
-	*value = __raw_readl(KS8695_PCI_VA +  KS8695_PBCD);
-
-	switch (size) {
-		case 4:
-			break;
-		case 2:
-			*value = *value >> ((where & 2) * 8);
-			*value &= 0xffff;
-			break;
-		case 1:
-			*value = *value >> ((where & 3) * 8);
-			*value &= 0xff;
-			break;
-	}
-
-	if (pci_cfg_dbg) {
-		printk("read: %d,%08x,%02x,%d: %08x (%08x)\n",
-			bus->number, devfn, where, size, *value,
-			__raw_readl(KS8695_PCI_VA +  KS8695_PBCD));
-	}
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int ks8695_pci_writeconfig(struct pci_bus *bus,
-			unsigned int devfn, int where, int size, u32 value)
-{
-	unsigned long tmp;
-
-	if (pci_cfg_dbg) {
-		printk("write: %d,%08x,%02x,%d: %08x\n",
-			bus->number, devfn, where, size, value);
-	}
-
-	ks8695_pci_setupconfig(bus->number, devfn, where);
-
-	switch (size) {
-		case 4:
-			__raw_writel(value, KS8695_PCI_VA +  KS8695_PBCD);
-			break;
-		case 2:
-			tmp = __raw_readl(KS8695_PCI_VA +  KS8695_PBCD);
-			tmp &= ~(0xffff << ((where & 2) * 8));
-			tmp |= value << ((where & 2) * 8);
-
-			__raw_writel(tmp, KS8695_PCI_VA +  KS8695_PBCD);
-			break;
-		case 1:
-			tmp = __raw_readl(KS8695_PCI_VA +  KS8695_PBCD);
-			tmp &= ~(0xff << ((where & 3) * 8));
-			tmp |= value << ((where & 3) * 8);
-
-			__raw_writel(tmp, KS8695_PCI_VA +  KS8695_PBCD);
-			break;
-	}
-
-	return PCIBIOS_SUCCESSFUL;
+	return KS8695_PCI_VA +  KS8695_PBCD;
 }
 
 static void ks8695_local_writeconfig(int where, u32 value)
@@ -137,14 +71,10 @@ static void ks8695_local_writeconfig(int where, u32 value)
 }
 
 static struct pci_ops ks8695_pci_ops = {
-	.read	= ks8695_pci_readconfig,
-	.write	= ks8695_pci_writeconfig,
+	.map_bus = ks8695_pci_map_bus,
+	.read	= pci_generic_config_read32,
+	.write	= pci_generic_config_write32,
 };
-
-static struct pci_bus* __init ks8695_pci_scan_bus(int nr, struct pci_sys_data *sys)
-{
-	return pci_scan_bus(sys->busnr, &ks8695_pci_ops, sys);
-}
 
 static struct resource pci_mem = {
 	.name	= "PCI Memory space",
@@ -168,9 +98,8 @@ static int __init ks8695_pci_setup(int nr, struct pci_sys_data *sys)
 	request_resource(&iomem_resource, &pci_mem);
 	request_resource(&ioport_resource, &pci_io);
 
-	sys->resource[0] = &pci_io;
-	sys->resource[1] = &pci_mem;
-	sys->resource[2] = NULL;
+	pci_add_resource_offset(&sys->resources, &pci_io, sys->io_offset);
+	pci_add_resource_offset(&sys->resources, &pci_mem, sys->mem_offset);
 
 	/* Assign and enable processor bridge */
 	ks8695_local_writeconfig(PCI_BASE_ADDRESS_0, KS8695_PCIMEM_PA);
@@ -302,11 +231,10 @@ static void ks8695_show_pciregs(void)
 
 static struct hw_pci ks8695_pci __initdata = {
 	.nr_controllers	= 1,
+	.ops		= &ks8695_pci_ops,
 	.preinit	= ks8695_pci_preinit,
 	.setup		= ks8695_pci_setup,
-	.scan		= ks8695_pci_scan_bus,
 	.postinit	= NULL,
-	.swizzle	= pci_std_swizzle,
 	.map_irq	= NULL,
 };
 

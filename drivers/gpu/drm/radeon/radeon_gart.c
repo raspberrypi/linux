@@ -25,13 +25,42 @@
  *          Alex Deucher
  *          Jerome Glisse
  */
-#include "drmP.h"
-#include "radeon_drm.h"
+#include <drm/drmP.h>
+#include <drm/radeon_drm.h>
 #include "radeon.h"
-#include "radeon_reg.h"
+
+/*
+ * GART
+ * The GART (Graphics Aperture Remapping Table) is an aperture
+ * in the GPU's address space.  System pages can be mapped into
+ * the aperture and look like contiguous pages from the GPU's
+ * perspective.  A page table maps the pages in the aperture
+ * to the actual backing pages in system memory.
+ *
+ * Radeon GPUs support both an internal GART, as described above,
+ * and AGP.  AGP works similarly, but the GART table is configured
+ * and maintained by the northbridge rather than the driver.
+ * Radeon hw has a separate AGP aperture that is programmed to
+ * point to the AGP aperture provided by the northbridge and the
+ * requests are passed through to the northbridge aperture.
+ * Both AGP and internal GART can be used at the same time, however
+ * that is not currently supported by the driver.
+ *
+ * This file handles the common internal GART management.
+ */
 
 /*
  * Common GART table functions.
+ */
+/**
+ * radeon_gart_table_ram_alloc - allocate system ram for gart page table
+ *
+ * @rdev: radeon_device pointer
+ *
+ * Allocate system memory for GART page table
+ * (r1xx-r3xx, non-pcie r4xx, rs400).  These asics require the
+ * gart table to be in system memory.
+ * Returns 0 for success, -ENOMEM for failure.
  */
 int radeon_gart_table_ram_alloc(struct radeon_device *rdev)
 {
@@ -54,6 +83,15 @@ int radeon_gart_table_ram_alloc(struct radeon_device *rdev)
 	return 0;
 }
 
+/**
+ * radeon_gart_table_ram_free - free system ram for gart page table
+ *
+ * @rdev: radeon_device pointer
+ *
+ * Free system memory for GART page table
+ * (r1xx-r3xx, non-pcie r4xx, rs400).  These asics require the
+ * gart table to be in system memory.
+ */
 void radeon_gart_table_ram_free(struct radeon_device *rdev)
 {
 	if (rdev->gart.ptr == NULL) {
@@ -73,6 +111,16 @@ void radeon_gart_table_ram_free(struct radeon_device *rdev)
 	rdev->gart.table_addr = 0;
 }
 
+/**
+ * radeon_gart_table_vram_alloc - allocate vram for gart page table
+ *
+ * @rdev: radeon_device pointer
+ *
+ * Allocate video memory for GART page table
+ * (pcie r4xx, r5xx+).  These asics require the
+ * gart table to be in video memory.
+ * Returns 0 for success, error for failure.
+ */
 int radeon_gart_table_vram_alloc(struct radeon_device *rdev)
 {
 	int r;
@@ -80,7 +128,7 @@ int radeon_gart_table_vram_alloc(struct radeon_device *rdev)
 	if (rdev->gart.robj == NULL) {
 		r = radeon_bo_create(rdev, rdev->gart.table_size,
 				     PAGE_SIZE, true, RADEON_GEM_DOMAIN_VRAM,
-				     &rdev->gart.robj);
+				     0, NULL, NULL, &rdev->gart.robj);
 		if (r) {
 			return r;
 		}
@@ -88,6 +136,16 @@ int radeon_gart_table_vram_alloc(struct radeon_device *rdev)
 	return 0;
 }
 
+/**
+ * radeon_gart_table_vram_pin - pin gart page table in vram
+ *
+ * @rdev: radeon_device pointer
+ *
+ * Pin the GART page table in vram so it will not be moved
+ * by the memory manager (pcie r4xx, r5xx+).  These asics require the
+ * gart table to be in video memory.
+ * Returns 0 for success, error for failure.
+ */
 int radeon_gart_table_vram_pin(struct radeon_device *rdev)
 {
 	uint64_t gpu_addr;
@@ -107,9 +165,30 @@ int radeon_gart_table_vram_pin(struct radeon_device *rdev)
 		radeon_bo_unpin(rdev->gart.robj);
 	radeon_bo_unreserve(rdev->gart.robj);
 	rdev->gart.table_addr = gpu_addr;
+
+	if (!r) {
+		int i;
+
+		/* We might have dropped some GART table updates while it wasn't
+		 * mapped, restore all entries
+		 */
+		for (i = 0; i < rdev->gart.num_gpu_pages; i++)
+			radeon_gart_set_page(rdev, i, rdev->gart.pages_entry[i]);
+		mb();
+		radeon_gart_tlb_flush(rdev);
+	}
+
 	return r;
 }
 
+/**
+ * radeon_gart_table_vram_unpin - unpin gart page table in vram
+ *
+ * @rdev: radeon_device pointer
+ *
+ * Unpin the GART page table in vram (pcie r4xx, r5xx+).
+ * These asics require the gart table to be in video memory.
+ */
 void radeon_gart_table_vram_unpin(struct radeon_device *rdev)
 {
 	int r;
@@ -126,20 +205,35 @@ void radeon_gart_table_vram_unpin(struct radeon_device *rdev)
 	}
 }
 
+/**
+ * radeon_gart_table_vram_free - free gart page table vram
+ *
+ * @rdev: radeon_device pointer
+ *
+ * Free the video memory used for the GART page table
+ * (pcie r4xx, r5xx+).  These asics require the gart table to
+ * be in video memory.
+ */
 void radeon_gart_table_vram_free(struct radeon_device *rdev)
 {
 	if (rdev->gart.robj == NULL) {
 		return;
 	}
-	radeon_gart_table_vram_unpin(rdev);
 	radeon_bo_unref(&rdev->gart.robj);
 }
 
-
-
-
 /*
  * Common gart functions.
+ */
+/**
+ * radeon_gart_unbind - unbind pages from the gart page table
+ *
+ * @rdev: radeon_device pointer
+ * @offset: offset into the GPU's gart aperture
+ * @pages: number of pages to unbind
+ *
+ * Unbinds the requested pages from the gart page table and
+ * replaces them with the dummy page (all asics).
  */
 void radeon_gart_unbind(struct radeon_device *rdev, unsigned offset,
 			int pages)
@@ -147,7 +241,6 @@ void radeon_gart_unbind(struct radeon_device *rdev, unsigned offset,
 	unsigned t;
 	unsigned p;
 	int i, j;
-	u64 page_base;
 
 	if (!rdev->gart.ready) {
 		WARN(1, "trying to unbind memory from uninitialized GART !\n");
@@ -157,17 +250,13 @@ void radeon_gart_unbind(struct radeon_device *rdev, unsigned offset,
 	p = t / (PAGE_SIZE / RADEON_GPU_PAGE_SIZE);
 	for (i = 0; i < pages; i++, p++) {
 		if (rdev->gart.pages[p]) {
-			if (!rdev->gart.ttm_alloced[p])
-				pci_unmap_page(rdev->pdev, rdev->gart.pages_addr[p],
-						PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
 			rdev->gart.pages[p] = NULL;
-			rdev->gart.pages_addr[p] = rdev->dummy_page.addr;
-			page_base = rdev->gart.pages_addr[p];
 			for (j = 0; j < (PAGE_SIZE / RADEON_GPU_PAGE_SIZE); j++, t++) {
+				rdev->gart.pages_entry[t] = rdev->dummy_page.entry;
 				if (rdev->gart.ptr) {
-					radeon_gart_set_page(rdev, t, page_base);
+					radeon_gart_set_page(rdev, t,
+							     rdev->dummy_page.entry);
 				}
-				page_base += RADEON_GPU_PAGE_SIZE;
 			}
 		}
 	}
@@ -175,12 +264,27 @@ void radeon_gart_unbind(struct radeon_device *rdev, unsigned offset,
 	radeon_gart_tlb_flush(rdev);
 }
 
+/**
+ * radeon_gart_bind - bind pages into the gart page table
+ *
+ * @rdev: radeon_device pointer
+ * @offset: offset into the GPU's gart aperture
+ * @pages: number of pages to bind
+ * @pagelist: pages to bind
+ * @dma_addr: DMA addresses of pages
+ * @flags: RADEON_GART_PAGE_* flags
+ *
+ * Binds the requested pages to the gart page table
+ * (all asics).
+ * Returns 0 for success, -EINVAL for failure.
+ */
 int radeon_gart_bind(struct radeon_device *rdev, unsigned offset,
-		     int pages, struct page **pagelist, dma_addr_t *dma_addr)
+		     int pages, struct page **pagelist, dma_addr_t *dma_addr,
+		     uint32_t flags)
 {
 	unsigned t;
 	unsigned p;
-	uint64_t page_base;
+	uint64_t page_base, page_entry;
 	int i, j;
 
 	if (!rdev->gart.ready) {
@@ -191,30 +295,15 @@ int radeon_gart_bind(struct radeon_device *rdev, unsigned offset,
 	p = t / (PAGE_SIZE / RADEON_GPU_PAGE_SIZE);
 
 	for (i = 0; i < pages; i++, p++) {
-		/* we reverted the patch using dma_addr in TTM for now but this
-		 * code stops building on alpha so just comment it out for now */
-		if (0) { /*dma_addr[i] != DMA_ERROR_CODE) */
-			rdev->gart.ttm_alloced[p] = true;
-			rdev->gart.pages_addr[p] = dma_addr[i];
-		} else {
-			/* we need to support large memory configurations */
-			/* assume that unbind have already been call on the range */
-			rdev->gart.pages_addr[p] = pci_map_page(rdev->pdev, pagelist[i],
-							0, PAGE_SIZE,
-							PCI_DMA_BIDIRECTIONAL);
-			if (pci_dma_mapping_error(rdev->pdev, rdev->gart.pages_addr[p])) {
-				/* FIXME: failed to map page (return -ENOMEM?) */
-				radeon_gart_unbind(rdev, offset, pages);
-				return -ENOMEM;
-			}
-		}
 		rdev->gart.pages[p] = pagelist[i];
-		if (rdev->gart.ptr) {
-			page_base = rdev->gart.pages_addr[p];
-			for (j = 0; j < (PAGE_SIZE / RADEON_GPU_PAGE_SIZE); j++, t++) {
-				radeon_gart_set_page(rdev, t, page_base);
-				page_base += RADEON_GPU_PAGE_SIZE;
+		page_base = dma_addr[i];
+		for (j = 0; j < (PAGE_SIZE / RADEON_GPU_PAGE_SIZE); j++, t++) {
+			page_entry = radeon_gart_get_page_entry(page_base, flags);
+			rdev->gart.pages_entry[t] = page_entry;
+			if (rdev->gart.ptr) {
+				radeon_gart_set_page(rdev, t, page_entry);
 			}
+			page_base += RADEON_GPU_PAGE_SIZE;
 		}
 	}
 	mb();
@@ -222,25 +311,14 @@ int radeon_gart_bind(struct radeon_device *rdev, unsigned offset,
 	return 0;
 }
 
-void radeon_gart_restore(struct radeon_device *rdev)
-{
-	int i, j, t;
-	u64 page_base;
-
-	if (!rdev->gart.ptr) {
-		return;
-	}
-	for (i = 0, t = 0; i < rdev->gart.num_cpu_pages; i++) {
-		page_base = rdev->gart.pages_addr[i];
-		for (j = 0; j < (PAGE_SIZE / RADEON_GPU_PAGE_SIZE); j++, t++) {
-			radeon_gart_set_page(rdev, t, page_base);
-			page_base += RADEON_GPU_PAGE_SIZE;
-		}
-	}
-	mb();
-	radeon_gart_tlb_flush(rdev);
-}
-
+/**
+ * radeon_gart_init - init the driver info for managing the gart
+ *
+ * @rdev: radeon_device pointer
+ *
+ * Allocate the dummy page and init the gart driver info (all asics).
+ * Returns 0 for success, error for failure.
+ */
 int radeon_gart_init(struct radeon_device *rdev)
 {
 	int r, i;
@@ -262,44 +340,41 @@ int radeon_gart_init(struct radeon_device *rdev)
 	DRM_INFO("GART: num cpu pages %u, num gpu pages %u\n",
 		 rdev->gart.num_cpu_pages, rdev->gart.num_gpu_pages);
 	/* Allocate pages table */
-	rdev->gart.pages = kzalloc(sizeof(void *) * rdev->gart.num_cpu_pages,
-				   GFP_KERNEL);
+	rdev->gart.pages = vzalloc(sizeof(void *) * rdev->gart.num_cpu_pages);
 	if (rdev->gart.pages == NULL) {
 		radeon_gart_fini(rdev);
 		return -ENOMEM;
 	}
-	rdev->gart.pages_addr = kzalloc(sizeof(dma_addr_t) *
-					rdev->gart.num_cpu_pages, GFP_KERNEL);
-	if (rdev->gart.pages_addr == NULL) {
-		radeon_gart_fini(rdev);
-		return -ENOMEM;
-	}
-	rdev->gart.ttm_alloced = kzalloc(sizeof(bool) *
-					 rdev->gart.num_cpu_pages, GFP_KERNEL);
-	if (rdev->gart.ttm_alloced == NULL) {
+	rdev->gart.pages_entry = vmalloc(sizeof(uint64_t) *
+					 rdev->gart.num_gpu_pages);
+	if (rdev->gart.pages_entry == NULL) {
 		radeon_gart_fini(rdev);
 		return -ENOMEM;
 	}
 	/* set GART entry to point to the dummy page by default */
-	for (i = 0; i < rdev->gart.num_cpu_pages; i++) {
-		rdev->gart.pages_addr[i] = rdev->dummy_page.addr;
-	}
+	for (i = 0; i < rdev->gart.num_gpu_pages; i++)
+		rdev->gart.pages_entry[i] = rdev->dummy_page.entry;
 	return 0;
 }
 
+/**
+ * radeon_gart_fini - tear down the driver info for managing the gart
+ *
+ * @rdev: radeon_device pointer
+ *
+ * Tear down the gart driver info and free the dummy page (all asics).
+ */
 void radeon_gart_fini(struct radeon_device *rdev)
 {
-	if (rdev->gart.pages && rdev->gart.pages_addr && rdev->gart.ready) {
+	if (rdev->gart.ready) {
 		/* unbind pages */
 		radeon_gart_unbind(rdev, 0, rdev->gart.num_cpu_pages);
 	}
 	rdev->gart.ready = false;
-	kfree(rdev->gart.pages);
-	kfree(rdev->gart.pages_addr);
-	kfree(rdev->gart.ttm_alloced);
+	vfree(rdev->gart.pages);
+	vfree(rdev->gart.pages_entry);
 	rdev->gart.pages = NULL;
-	rdev->gart.pages_addr = NULL;
-	rdev->gart.ttm_alloced = NULL;
+	rdev->gart.pages_entry = NULL;
 
 	radeon_dummy_page_fini(rdev);
 }

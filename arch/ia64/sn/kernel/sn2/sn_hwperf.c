@@ -25,6 +25,7 @@
 
 #include <linux/fs.h>
 #include <linux/slab.h>
+#include <linux/export.h>
 #include <linux/vmalloc.h>
 #include <linux/seq_file.h>
 #include <linux/miscdevice.h>
@@ -976,7 +977,7 @@ int sn_hwperf_get_nearest_node(cnodeid_t node,
 	return e;
 }
 
-static int __devinit sn_hwperf_misc_register_init(void)
+static int sn_hwperf_misc_register_init(void)
 {
 	int e;
 

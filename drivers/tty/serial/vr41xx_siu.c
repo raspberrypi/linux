@@ -61,7 +61,7 @@
 static struct uart_port siu_uart_ports[SIU_PORTS_MAX] = {
 	[0 ... SIU_PORTS_MAX-1] = {
 		.lock	= __SPIN_LOCK_UNLOCKED(siu_uart_ports->lock),
-		.irq	= -1,
+		.irq	= 0,
 	},
 };
 
@@ -171,7 +171,7 @@ static inline unsigned int siu_check_type(struct uart_port *port)
 {
 	if (port->line == 0)
 		return PORT_VR41XX_SIU;
-	if (port->line == 1 && port->irq != -1)
+	if (port->line == 1 && port->irq)
 		return PORT_VR41XX_DSIU;
 
 	return PORT_UNKNOWN;
@@ -313,12 +313,10 @@ static void siu_break_ctl(struct uart_port *port, int ctl)
 
 static inline void receive_chars(struct uart_port *port, uint8_t *status)
 {
-	struct tty_struct *tty;
 	uint8_t lsr, ch;
 	char flag;
 	int max_count = RX_MAX_COUNT;
 
-	tty = port->state->port.tty;
 	lsr = *status;
 
 	do {
@@ -365,7 +363,7 @@ static inline void receive_chars(struct uart_port *port, uint8_t *status)
 		lsr = siu_read(port, UART_LSR);
 	} while ((lsr & UART_LSR_DR) && (max_count-- > 0));
 
-	tty_flip_buffer_push(tty);
+	tty_flip_buffer_push(&port->state->port);
 
 	*status = lsr;
 }
@@ -561,7 +559,7 @@ static void siu_set_termios(struct uart_port *port, struct ktermios *new,
 	port->read_status_mask = UART_LSR_THRE | UART_LSR_OE | UART_LSR_DR;
 	if (c_iflag & INPCK)
 		port->read_status_mask |= UART_LSR_FE | UART_LSR_PE;
-	if (c_iflag & (BRKINT | PARMRK))
+	if (c_iflag & (IGNBRK | BRKINT | PARMRK))
 		port->read_status_mask |= UART_LSR_BI;
 
 	port->ignore_status_mask = 0;
@@ -707,7 +705,7 @@ static int siu_init_ports(struct platform_device *pdev)
 {
 	struct uart_port *port;
 	struct resource *res;
-	int *type = pdev->dev.platform_data;
+	int *type = dev_get_platdata(&pdev->dev);
 	int i;
 
 	if (!type)
@@ -823,7 +821,7 @@ static struct console siu_console = {
 	.data	= &siu_uart_driver,
 };
 
-static int __devinit siu_console_init(void)
+static int siu_console_init(void)
 {
 	struct uart_port *port;
 	int i;
@@ -849,7 +847,6 @@ void __init vr41xx_siu_early_setup(struct uart_port *port)
 	siu_uart_ports[port->line].type = port->type;
 	siu_uart_ports[port->line].uartclk = SIU_BAUD_BASE * 16;
 	siu_uart_ports[port->line].mapbase = port->mapbase;
-	siu_uart_ports[port->line].mapbase = port->mapbase;
 	siu_uart_ports[port->line].ops = &siu_uart_ops;
 }
 
@@ -867,7 +864,7 @@ static struct uart_driver siu_uart_driver = {
 	.cons		= SERIAL_VR41XX_CONSOLE,
 };
 
-static int __devinit siu_probe(struct platform_device *dev)
+static int siu_probe(struct platform_device *dev)
 {
 	struct uart_port *port;
 	int num, i, retval;
@@ -901,7 +898,7 @@ static int __devinit siu_probe(struct platform_device *dev)
 	return 0;
 }
 
-static int __devexit siu_remove(struct platform_device *dev)
+static int siu_remove(struct platform_device *dev)
 {
 	struct uart_port *port;
 	int i;
@@ -952,27 +949,15 @@ static int siu_resume(struct platform_device *dev)
 
 static struct platform_driver siu_device_driver = {
 	.probe		= siu_probe,
-	.remove		= __devexit_p(siu_remove),
+	.remove		= siu_remove,
 	.suspend	= siu_suspend,
 	.resume		= siu_resume,
 	.driver		= {
 		.name	= "SIU",
-		.owner	= THIS_MODULE,
 	},
 };
 
-static int __init vr41xx_siu_init(void)
-{
-	return platform_driver_register(&siu_device_driver);
-}
-
-static void __exit vr41xx_siu_exit(void)
-{
-	platform_driver_unregister(&siu_device_driver);
-}
-
-module_init(vr41xx_siu_init);
-module_exit(vr41xx_siu_exit);
+module_platform_driver(siu_device_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:SIU");

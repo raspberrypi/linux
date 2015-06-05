@@ -65,19 +65,10 @@ struct au1xpsc_audio_dmadata {
 #define AU1XPSC_PERIOD_MIN_BYTES	1024
 #define AU1XPSC_BUFFER_MIN_BYTES	65536
 
-#define AU1XPSC_PCM_FMTS					\
-	(SNDRV_PCM_FMTBIT_S8     | SNDRV_PCM_FMTBIT_U8 |	\
-	 SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S16_BE |	\
-	 SNDRV_PCM_FMTBIT_U16_LE | SNDRV_PCM_FMTBIT_U16_BE |	\
-	 SNDRV_PCM_FMTBIT_S32_LE | SNDRV_PCM_FMTBIT_S32_BE |	\
-	 SNDRV_PCM_FMTBIT_U32_LE | SNDRV_PCM_FMTBIT_U32_BE |	\
-	 0)
-
 /* PCM hardware DMA capabilities - platform specific */
 static const struct snd_pcm_hardware au1xpsc_pcm_hardware = {
 	.info		  = SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID |
 			    SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BATCH,
-	.formats	  = AU1XPSC_PCM_FMTS,
 	.period_bytes_min = AU1XPSC_PERIOD_MIN_BYTES,
 	.period_bytes_max = 4096 * 1024 - 1,
 	.periods_min	  = 2,
@@ -324,11 +315,6 @@ static struct snd_pcm_ops au1xpsc_pcm_ops = {
 	.pointer	= au1xpsc_pcm_pointer,
 };
 
-static void au1xpsc_pcm_free_dma_buffers(struct snd_pcm *pcm)
-{
-	snd_pcm_lib_preallocate_free_for_all(pcm);
-}
-
 static int au1xpsc_pcm_new(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_card *card = rtd->card->snd_card;
@@ -341,36 +327,29 @@ static int au1xpsc_pcm_new(struct snd_soc_pcm_runtime *rtd)
 }
 
 /* au1xpsc audio platform */
-struct snd_soc_platform_driver au1xpsc_soc_platform = {
+static struct snd_soc_platform_driver au1xpsc_soc_platform = {
 	.ops		= &au1xpsc_pcm_ops,
 	.pcm_new	= au1xpsc_pcm_new,
-	.pcm_free	= au1xpsc_pcm_free_dma_buffers,
 };
 
-static int __devinit au1xpsc_pcm_drvprobe(struct platform_device *pdev)
+static int au1xpsc_pcm_drvprobe(struct platform_device *pdev)
 {
 	struct au1xpsc_audio_dmadata *dmadata;
-	int ret;
 
-	dmadata = kzalloc(2 * sizeof(struct au1xpsc_audio_dmadata), GFP_KERNEL);
+	dmadata = devm_kzalloc(&pdev->dev,
+			       2 * sizeof(struct au1xpsc_audio_dmadata),
+			       GFP_KERNEL);
 	if (!dmadata)
 		return -ENOMEM;
 
 	platform_set_drvdata(pdev, dmadata);
 
-	ret = snd_soc_register_platform(&pdev->dev, &au1xpsc_soc_platform);
-	if (ret)
-		kfree(dmadata);
-
-	return ret;
+	return snd_soc_register_platform(&pdev->dev, &au1xpsc_soc_platform);
 }
 
-static int __devexit au1xpsc_pcm_drvremove(struct platform_device *pdev)
+static int au1xpsc_pcm_drvremove(struct platform_device *pdev)
 {
-	struct au1xpsc_audio_dmadata *dmadata = platform_get_drvdata(pdev);
-
 	snd_soc_unregister_platform(&pdev->dev);
-	kfree(dmadata);
 
 	return 0;
 }
@@ -378,24 +357,12 @@ static int __devexit au1xpsc_pcm_drvremove(struct platform_device *pdev)
 static struct platform_driver au1xpsc_pcm_driver = {
 	.driver	= {
 		.name	= "au1xpsc-pcm",
-		.owner	= THIS_MODULE,
 	},
 	.probe		= au1xpsc_pcm_drvprobe,
-	.remove		= __devexit_p(au1xpsc_pcm_drvremove),
+	.remove		= au1xpsc_pcm_drvremove,
 };
 
-static int __init au1xpsc_audio_dbdma_load(void)
-{
-	return platform_driver_register(&au1xpsc_pcm_driver);
-}
-
-static void __exit au1xpsc_audio_dbdma_unload(void)
-{
-	platform_driver_unregister(&au1xpsc_pcm_driver);
-}
-
-module_init(au1xpsc_audio_dbdma_load);
-module_exit(au1xpsc_audio_dbdma_unload);
+module_platform_driver(au1xpsc_pcm_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Au12x0/Au1550 PSC Audio DMA driver");

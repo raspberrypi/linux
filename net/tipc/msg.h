@@ -1,7 +1,7 @@
 /*
  * net/tipc/msg.h: Include file for TIPC message header routines
  *
- * Copyright (c) 2000-2007, Ericsson AB
+ * Copyright (c) 2000-2007, 2014, Ericsson AB
  * Copyright (c) 2005-2008, 2010-2011, Wind River Systems
  * All rights reserved.
  *
@@ -37,15 +37,15 @@
 #ifndef _TIPC_MSG_H
 #define _TIPC_MSG_H
 
-#include "bearer.h"
+#include <linux/tipc.h>
 
 /*
  * Constants and routines used to read and write TIPC payload message headers
  *
  * Note: Some items are also used with TIPC internal message headers
  */
-
 #define TIPC_VERSION              2
+struct plist;
 
 /*
  * Payload message users are defined in TIPC's public API:
@@ -58,7 +58,6 @@
 /*
  * Payload message types
  */
-
 #define TIPC_CONN_MSG		0
 #define TIPC_MCAST_MSG		1
 #define TIPC_NAMED_MSG		2
@@ -67,7 +66,6 @@
 /*
  * Message header sizes
  */
-
 #define SHORT_H_SIZE              24	/* In-cluster basic payload message */
 #define BASIC_H_SIZE              32	/* Basic payload message */
 #define NAMED_H_SIZE              40	/* Named payload message */
@@ -80,11 +78,37 @@
 
 #define TIPC_MEDIA_ADDR_OFFSET	5
 
+/**
+ * TIPC message buffer code
+ *
+ * TIPC message buffer headroom reserves space for the worst-case
+ * link-level device header (in case the message is sent off-node).
+ *
+ * Note: Headroom should be a multiple of 4 to ensure the TIPC header fields
+ *       are word aligned for quicker access
+ */
+#define BUF_HEADROOM LL_MAX_HEADER
+
+struct tipc_skb_cb {
+	void *handle;
+	struct sk_buff *tail;
+	bool deferred;
+	bool wakeup_pending;
+	bool bundling;
+	u16 chain_sz;
+	u16 chain_imp;
+};
+
+#define TIPC_SKB_CB(__skb) ((struct tipc_skb_cb *)&((__skb)->cb[0]))
 
 struct tipc_msg {
 	__be32 hdr[15];
 };
 
+static inline struct tipc_msg *buf_msg(struct sk_buff *skb)
+{
+	return (struct tipc_msg *)skb->data;
+}
 
 static inline u32 msg_word(struct tipc_msg *m, u32 pos)
 {
@@ -121,7 +145,6 @@ static inline void msg_swap_words(struct tipc_msg *msg, u32 a, u32 b)
 /*
  * Word 0
  */
-
 static inline u32 msg_version(struct tipc_msg *m)
 {
 	return msg_bits(m, 0, 29, 7);
@@ -216,7 +239,6 @@ static inline void msg_set_size(struct tipc_msg *m, u32 sz)
 /*
  * Word 1
  */
-
 static inline u32 msg_type(struct tipc_msg *m)
 {
 	return msg_bits(m, 1, 29, 0x7);
@@ -291,7 +313,6 @@ static inline void msg_set_bcast_ack(struct tipc_msg *m, u32 n)
 /*
  * Word 2
  */
-
 static inline u32 msg_ack(struct tipc_msg *m)
 {
 	return msg_bits(m, 2, 16, 0xffff);
@@ -315,8 +336,6 @@ static inline void msg_set_seqno(struct tipc_msg *m, u32 n)
 /*
  * Words 3-10
  */
-
-
 static inline u32 msg_prevnode(struct tipc_msg *m)
 {
 	return msg_word(m, 3);
@@ -384,11 +403,6 @@ static inline void msg_set_destnode(struct tipc_msg *m, u32 a)
 	msg_set_word(m, 7, a);
 }
 
-static inline int msg_is_dest(struct tipc_msg *m, u32 d)
-{
-	return msg_short(m) || (msg_destnode(m) == d);
-}
-
 static inline u32 msg_nametype(struct tipc_msg *m)
 {
 	return msg_word(m, 8);
@@ -439,7 +453,6 @@ static inline struct tipc_msg *msg_get_wrapped(struct tipc_msg *m)
 	return (struct tipc_msg *)msg_data(m);
 }
 
-
 /*
  * Constants and routines used to read and write TIPC internal message headers
  */
@@ -447,7 +460,6 @@ static inline struct tipc_msg *msg_get_wrapped(struct tipc_msg *m)
 /*
  * Internal message users
  */
-
 #define  BCAST_PROTOCOL       5
 #define  MSG_BUNDLER          6
 #define  LINK_PROTOCOL        7
@@ -457,11 +469,11 @@ static inline struct tipc_msg *msg_get_wrapped(struct tipc_msg *m)
 #define  NAME_DISTRIBUTOR     11
 #define  MSG_FRAGMENTER       12
 #define  LINK_CONFIG          13
+#define  SOCK_WAKEUP          14       /* pseudo user */
 
 /*
  *  Connection management protocol message types
  */
-
 #define CONN_PROBE        0
 #define CONN_PROBE_REPLY  1
 #define CONN_ACK          2
@@ -469,14 +481,12 @@ static inline struct tipc_msg *msg_get_wrapped(struct tipc_msg *m)
 /*
  * Name distributor message types
  */
-
 #define PUBLICATION       0
 #define WITHDRAWAL        1
 
 /*
  * Segmentation message types
  */
-
 #define FIRST_FRAGMENT		0
 #define FRAGMENT		1
 #define LAST_FRAGMENT		2
@@ -484,7 +494,6 @@ static inline struct tipc_msg *msg_get_wrapped(struct tipc_msg *m)
 /*
  * Link management protocol message types
  */
-
 #define STATE_MSG		0
 #define RESET_MSG		1
 #define ACTIVATE_MSG		2
@@ -498,7 +507,6 @@ static inline struct tipc_msg *msg_get_wrapped(struct tipc_msg *m)
 /*
  * Config protocol message types
  */
-
 #define DSC_REQ_MSG		0
 #define DSC_RESP_MSG		1
 
@@ -506,7 +514,6 @@ static inline struct tipc_msg *msg_get_wrapped(struct tipc_msg *m)
 /*
  * Word 1
  */
-
 static inline u32 msg_seq_gap(struct tipc_msg *m)
 {
 	return msg_bits(m, 1, 16, 0x1fff);
@@ -517,11 +524,20 @@ static inline void msg_set_seq_gap(struct tipc_msg *m, u32 n)
 	msg_set_bits(m, 1, 16, 0x1fff, n);
 }
 
+static inline u32 msg_node_sig(struct tipc_msg *m)
+{
+	return msg_bits(m, 1, 0, 0xffff);
+}
+
+static inline void msg_set_node_sig(struct tipc_msg *m, u32 n)
+{
+	msg_set_bits(m, 1, 0, 0xffff, n);
+}
+
 
 /*
  * Word 2
  */
-
 static inline u32 msg_dest_domain(struct tipc_msg *m)
 {
 	return msg_word(m, 2);
@@ -556,7 +572,6 @@ static inline void msg_set_bcgap_to(struct tipc_msg *m, u32 n)
 /*
  * Word 4
  */
-
 static inline u32 msg_last_bcast(struct tipc_msg *m)
 {
 	return msg_bits(m, 4, 16, 0xffff);
@@ -565,12 +580,6 @@ static inline u32 msg_last_bcast(struct tipc_msg *m)
 static inline void msg_set_last_bcast(struct tipc_msg *m, u32 n)
 {
 	msg_set_bits(m, 4, 16, 0xffff, n);
-}
-
-
-static inline u32 msg_fragm_no(struct tipc_msg *m)
-{
-	return msg_bits(m, 4, 16, 0xffff);
 }
 
 static inline void msg_set_fragm_no(struct tipc_msg *m, u32 n)
@@ -587,12 +596,6 @@ static inline u32 msg_next_sent(struct tipc_msg *m)
 static inline void msg_set_next_sent(struct tipc_msg *m, u32 n)
 {
 	msg_set_bits(m, 4, 0, 0xffff, n);
-}
-
-
-static inline u32 msg_long_msgno(struct tipc_msg *m)
-{
-	return msg_bits(m, 4, 0, 0xffff);
 }
 
 static inline void msg_set_long_msgno(struct tipc_msg *m, u32 n)
@@ -623,7 +626,6 @@ static inline void msg_set_link_selector(struct tipc_msg *m, u32 n)
 /*
  * Word 5
  */
-
 static inline u32 msg_session(struct tipc_msg *m)
 {
 	return msg_bits(m, 5, 16, 0xffff);
@@ -692,7 +694,6 @@ static inline char *msg_media_addr(struct tipc_msg *m)
 /*
  * Word 9
  */
-
 static inline u32 msg_msgcnt(struct tipc_msg *m)
 {
 	return msg_bits(m, 9, 16, 0xffff);
@@ -733,11 +734,125 @@ static inline void msg_set_link_tolerance(struct tipc_msg *m, u32 n)
 	msg_set_bits(m, 9, 0, 0xffff, n);
 }
 
-u32 tipc_msg_tot_importance(struct tipc_msg *m);
-void tipc_msg_init(struct tipc_msg *m, u32 user, u32 type,
-			    u32 hsize, u32 destnode);
-int tipc_msg_build(struct tipc_msg *hdr, struct iovec const *msg_sect,
-		   u32 num_sect, unsigned int total_len,
-			    int max_size, int usrmem, struct sk_buff **buf);
+static inline u32 tipc_msg_tot_importance(struct tipc_msg *m)
+{
+	if ((msg_user(m) == MSG_FRAGMENTER) && (msg_type(m) == FIRST_FRAGMENT))
+		return msg_importance(msg_get_wrapped(m));
+	return msg_importance(m);
+}
+
+static inline u32 msg_tot_origport(struct tipc_msg *m)
+{
+	if ((msg_user(m) == MSG_FRAGMENTER) && (msg_type(m) == FIRST_FRAGMENT))
+		return msg_origport(msg_get_wrapped(m));
+	return msg_origport(m);
+}
+
+struct sk_buff *tipc_buf_acquire(u32 size);
+bool tipc_msg_reverse(u32 own_addr, struct sk_buff *buf, u32 *dnode,
+		      int err);
+void tipc_msg_init(u32 own_addr, struct tipc_msg *m, u32 user, u32 type,
+		   u32 hsize, u32 destnode);
+struct sk_buff *tipc_msg_create(uint user, uint type, uint hdr_sz,
+				uint data_sz, u32 dnode, u32 onode,
+				u32 dport, u32 oport, int errcode);
+int tipc_buf_append(struct sk_buff **headbuf, struct sk_buff **buf);
+bool tipc_msg_bundle(struct sk_buff_head *list, struct sk_buff *skb, u32 mtu);
+bool tipc_msg_make_bundle(struct sk_buff_head *list,
+			  struct sk_buff *skb, u32 mtu, u32 dnode);
+bool tipc_msg_extract(struct sk_buff *skb, struct sk_buff **iskb, int *pos);
+int tipc_msg_build(struct tipc_msg *mhdr, struct msghdr *m,
+		   int offset, int dsz, int mtu, struct sk_buff_head *list);
+bool tipc_msg_lookup_dest(struct net *net, struct sk_buff *skb, u32 *dnode,
+			  int *err);
+struct sk_buff *tipc_msg_reassemble(struct sk_buff_head *list);
+
+/* tipc_skb_peek(): peek and reserve first buffer in list
+ * @list: list to be peeked in
+ * Returns pointer to first buffer in list, if any
+ */
+static inline struct sk_buff *tipc_skb_peek(struct sk_buff_head *list,
+					    spinlock_t *lock)
+{
+	struct sk_buff *skb;
+
+	spin_lock_bh(lock);
+	skb = skb_peek(list);
+	if (skb)
+		skb_get(skb);
+	spin_unlock_bh(lock);
+	return skb;
+}
+
+/* tipc_skb_peek_port(): find a destination port, ignoring all destinations
+ *                       up to and including 'filter'.
+ * Note: ignoring previously tried destinations minimizes the risk of
+ *       contention on the socket lock
+ * @list: list to be peeked in
+ * @filter: last destination to be ignored from search
+ * Returns a destination port number, of applicable.
+ */
+static inline u32 tipc_skb_peek_port(struct sk_buff_head *list, u32 filter)
+{
+	struct sk_buff *skb;
+	u32 dport = 0;
+	bool ignore = true;
+
+	spin_lock_bh(&list->lock);
+	skb_queue_walk(list, skb) {
+		dport = msg_destport(buf_msg(skb));
+		if (!filter || skb_queue_is_last(list, skb))
+			break;
+		if (dport == filter)
+			ignore = false;
+		else if (!ignore)
+			break;
+	}
+	spin_unlock_bh(&list->lock);
+	return dport;
+}
+
+/* tipc_skb_dequeue(): unlink first buffer with dest 'dport' from list
+ * @list: list to be unlinked from
+ * @dport: selection criteria for buffer to unlink
+ */
+static inline struct sk_buff *tipc_skb_dequeue(struct sk_buff_head *list,
+					       u32 dport)
+{
+	struct sk_buff *_skb, *tmp, *skb = NULL;
+
+	spin_lock_bh(&list->lock);
+	skb_queue_walk_safe(list, _skb, tmp) {
+		if (msg_destport(buf_msg(_skb)) == dport) {
+			__skb_unlink(_skb, list);
+			skb = _skb;
+			break;
+		}
+	}
+	spin_unlock_bh(&list->lock);
+	return skb;
+}
+
+/* tipc_skb_queue_tail(): add buffer to tail of list;
+ * @list: list to be appended to
+ * @skb: buffer to append. Always appended
+ * @dport: the destination port of the buffer
+ * returns true if dport differs from previous destination
+ */
+static inline bool tipc_skb_queue_tail(struct sk_buff_head *list,
+				       struct sk_buff *skb, u32 dport)
+{
+	struct sk_buff *_skb = NULL;
+	bool rv = false;
+
+	spin_lock_bh(&list->lock);
+	_skb = skb_peek_tail(list);
+	if (!_skb || (msg_destport(buf_msg(_skb)) != dport) ||
+	    (skb_queue_len(list) > 32))
+		rv = true;
+	__skb_queue_tail(list, skb);
+	spin_unlock_bh(&list->lock);
+	return rv;
+}
 
 #endif

@@ -1,0 +1,7 @@
+/dts-v1/;
+
+/include/ "bcm2708-rpi-cm.dtsi"
+
+/ {
+	model = "Raspberry Pi Compute Module";
+};

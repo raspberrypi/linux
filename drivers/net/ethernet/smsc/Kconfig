@@ -5,8 +5,9 @@
 config NET_VENDOR_SMSC
 	bool "SMC (SMSC)/Western Digital devices"
 	default y
-	depends on ARM || ISA || MAC || ARM || MIPS || M32R || SUPERH || \
-		BLACKFIN || MN10300 || COLDFIRE || PCI || PCMCIA
+	depends on ARM || ARM64 || ATARI_ETHERNAT || BLACKFIN || COLDFIRE || \
+		   ISA || M32R || MAC || MIPS || MN10300 || NIOS2 || PCI || \
+		   PCMCIA || SUPERH || XTENSA
 	---help---
 	  If you have a network (Ethernet) card belonging to this class, say Y
 	  and read the Ethernet-HOWTO, available from
@@ -37,10 +38,10 @@ config SMC9194
 config SMC91X
 	tristate "SMC 91C9x/91C1xxx support"
 	select CRC32
-	select NET_CORE
 	select MII
-	depends on (ARM || M32R || SUPERH || MIPS || BLACKFIN || \
-		    MN10300 || COLDFIRE)
+	depends on !OF || GPIOLIB
+	depends on ARM || ARM64 || ATARI_ETHERNAT || BLACKFIN || COLDFIRE || \
+		   M32R || MIPS || MN10300 || NIOS2 || SUPERH || XTENSA
 	---help---
 	  This is a driver for SMC's 91x series of Ethernet chipsets,
 	  including the SMC91C94 and the SMC91C111. Say Y if you want it
@@ -57,7 +58,6 @@ config PCMCIA_SMC91C92
 	tristate "SMC 91Cxx PCMCIA support"
 	depends on PCMCIA
 	select CRC32
-	select NET_CORE
 	select MII
 	---help---
 	  Say Y here if you intend to attach an SMC 91Cxx compatible PCMCIA
@@ -70,7 +70,6 @@ config EPIC100
 	tristate "SMC EtherPower II"
 	depends on PCI
 	select CRC32
-	select NET_CORE
 	select MII
 	---help---
 	  This driver is for the SMC EtherPower II 9432 PCI Ethernet NIC,
@@ -81,7 +80,6 @@ config EPIC100
 config SMC911X
 	tristate "SMSC LAN911[5678] support"
 	select CRC32
-	select NET_CORE
 	select MII
 	depends on (ARM || SUPERH || MN10300)
 	---help---
@@ -97,9 +95,8 @@ config SMC911X
 
 config SMSC911X
 	tristate "SMSC LAN911x/LAN921x families embedded ethernet support"
-	depends on (ARM || SUPERH || BLACKFIN || MIPS || MN10300)
+	depends on HAS_IOMEM
 	select CRC32
-	select NET_CORE
 	select MII
 	select PHYLIB
 	---help---

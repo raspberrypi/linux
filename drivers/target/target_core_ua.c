@@ -3,8 +3,7 @@
  *
  * This file contains logic for SPC-3 Unit Attention emulation
  *
- * Copyright (c) 2009,2010 Rising Tide Systems
- * Copyright (c) 2009,2010 Linux-iSCSI.org
+ * (c) Copyright 2009-2013 Datera, Inc.
  *
  * Nicholas A. Bellinger <nab@kernel.org>
  *
@@ -30,19 +29,16 @@
 #include <scsi/scsi_cmnd.h>
 
 #include <target/target_core_base.h>
-#include <target/target_core_device.h>
-#include <target/target_core_transport.h>
-#include <target/target_core_fabric_ops.h>
+#include <target/target_core_fabric.h>
 #include <target/target_core_configfs.h>
 
+#include "target_core_internal.h"
 #include "target_core_alua.h"
-#include "target_core_hba.h"
 #include "target_core_pr.h"
 #include "target_core_ua.h"
 
-int core_scsi3_ua_check(
-	struct se_cmd *cmd,
-	unsigned char *cdb)
+sense_reason_t
+target_scsi3_ua_check(struct se_cmd *cmd)
 {
 	struct se_dev_entry *deve;
 	struct se_session *sess = cmd->se_sess;
@@ -55,7 +51,7 @@ int core_scsi3_ua_check(
 	if (!nacl)
 		return 0;
 
-	deve = &nacl->device_list[cmd->orig_fe_lun];
+	deve = nacl->device_list[cmd->orig_fe_lun];
 	if (!atomic_read(&deve->ua_count))
 		return 0;
 	/*
@@ -73,16 +69,14 @@ int core_scsi3_ua_check(
 	 *    was received, then the device server shall process the command
 	 *    and either:
 	 */
-	switch (cdb[0]) {
+	switch (cmd->t_task_cdb[0]) {
 	case INQUIRY:
 	case REPORT_LUNS:
 	case REQUEST_SENSE:
 		return 0;
 	default:
-		return -EINVAL;
+		return TCM_CHECK_CONDITION_UNIT_ATTENTION;
 	}
-
-	return -EINVAL;
 }
 
 int core_scsi3_ua_allocate(
@@ -104,7 +98,6 @@ int core_scsi3_ua_allocate(
 		pr_err("Unable to allocate struct se_ua\n");
 		return -ENOMEM;
 	}
-	INIT_LIST_HEAD(&ua->ua_dev_list);
 	INIT_LIST_HEAD(&ua->ua_nacl_list);
 
 	ua->ua_nacl = nacl;
@@ -112,7 +105,7 @@ int core_scsi3_ua_allocate(
 	ua->ua_ascq = ascq;
 
 	spin_lock_irq(&nacl->device_list_lock);
-	deve = &nacl->device_list[unpacked_lun];
+	deve = nacl->device_list[unpacked_lun];
 
 	spin_lock(&deve->ua_lock);
 	list_for_each_entry_safe(ua_p, ua_tmp, &deve->ua_list, ua_nacl_list) {
@@ -168,8 +161,7 @@ int core_scsi3_ua_allocate(
 		spin_unlock(&deve->ua_lock);
 		spin_unlock_irq(&nacl->device_list_lock);
 
-		atomic_inc(&deve->ua_count);
-		smp_mb__after_atomic_inc();
+		atomic_inc_mb(&deve->ua_count);
 		return 0;
 	}
 	list_add_tail(&ua->ua_nacl_list, &deve->ua_list);
@@ -181,8 +173,7 @@ int core_scsi3_ua_allocate(
 		nacl->se_tpg->se_tpg_tfo->get_fabric_name(), unpacked_lun,
 		asc, ascq);
 
-	atomic_inc(&deve->ua_count);
-	smp_mb__after_atomic_inc();
+	atomic_inc_mb(&deve->ua_count);
 	return 0;
 }
 
@@ -196,8 +187,7 @@ void core_scsi3_ua_release_all(
 		list_del(&ua->ua_nacl_list);
 		kmem_cache_free(se_ua_cache, ua);
 
-		atomic_dec(&deve->ua_count);
-		smp_mb__after_atomic_dec();
+		atomic_dec_mb(&deve->ua_count);
 	}
 	spin_unlock(&deve->ua_lock);
 }
@@ -222,7 +212,7 @@ void core_scsi3_ua_for_check_condition(
 		return;
 
 	spin_lock_irq(&nacl->device_list_lock);
-	deve = &nacl->device_list[cmd->orig_fe_lun];
+	deve = nacl->device_list[cmd->orig_fe_lun];
 	if (!atomic_read(&deve->ua_count)) {
 		spin_unlock_irq(&nacl->device_list_lock);
 		return;
@@ -239,7 +229,7 @@ void core_scsi3_ua_for_check_condition(
 		 * highest priority UNIT_ATTENTION and ASC/ASCQ without
 		 * clearing it.
 		 */
-		if (dev->se_sub_dev->se_dev_attrib.emulate_ua_intlck_ctrl != 0) {
+		if (dev->dev_attrib.emulate_ua_intlck_ctrl != 0) {
 			*asc = ua->ua_asc;
 			*ascq = ua->ua_ascq;
 			break;
@@ -257,8 +247,7 @@ void core_scsi3_ua_for_check_condition(
 		list_del(&ua->ua_nacl_list);
 		kmem_cache_free(se_ua_cache, ua);
 
-		atomic_dec(&deve->ua_count);
-		smp_mb__after_atomic_dec();
+		atomic_dec_mb(&deve->ua_count);
 	}
 	spin_unlock(&deve->ua_lock);
 	spin_unlock_irq(&nacl->device_list_lock);
@@ -267,8 +256,8 @@ void core_scsi3_ua_for_check_condition(
 		" INTLCK_CTRL: %d, mapped LUN: %u, got CDB: 0x%02x"
 		" reported ASC: 0x%02x, ASCQ: 0x%02x\n",
 		nacl->se_tpg->se_tpg_tfo->get_fabric_name(),
-		(dev->se_sub_dev->se_dev_attrib.emulate_ua_intlck_ctrl != 0) ? "Reporting" :
-		"Releasing", dev->se_sub_dev->se_dev_attrib.emulate_ua_intlck_ctrl,
+		(dev->dev_attrib.emulate_ua_intlck_ctrl != 0) ? "Reporting" :
+		"Releasing", dev->dev_attrib.emulate_ua_intlck_ctrl,
 		cmd->orig_fe_lun, cmd->t_task_cdb[0], *asc, *ascq);
 }
 
@@ -291,7 +280,7 @@ int core_scsi3_ua_clear_for_request_sense(
 		return -EINVAL;
 
 	spin_lock_irq(&nacl->device_list_lock);
-	deve = &nacl->device_list[cmd->orig_fe_lun];
+	deve = nacl->device_list[cmd->orig_fe_lun];
 	if (!atomic_read(&deve->ua_count)) {
 		spin_unlock_irq(&nacl->device_list_lock);
 		return -EPERM;
@@ -316,8 +305,7 @@ int core_scsi3_ua_clear_for_request_sense(
 		list_del(&ua->ua_nacl_list);
 		kmem_cache_free(se_ua_cache, ua);
 
-		atomic_dec(&deve->ua_count);
-		smp_mb__after_atomic_dec();
+		atomic_dec_mb(&deve->ua_count);
 	}
 	spin_unlock(&deve->ua_lock);
 	spin_unlock_irq(&nacl->device_list_lock);

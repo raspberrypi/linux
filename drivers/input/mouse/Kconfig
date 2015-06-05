@@ -17,7 +17,7 @@ config MOUSE_PS2
 	default y
 	select SERIO
 	select SERIO_LIBPS2
-	select SERIO_I8042 if X86
+	select SERIO_I8042 if ARCH_MIGHT_HAVE_PC_SERIO
 	select SERIO_GSCPS2 if GSC
 	help
 	  Say Y here if you have a PS/2 mouse connected to your system. This
@@ -53,7 +53,7 @@ config MOUSE_PS2_LOGIPS2PP
 	default y
 	depends on MOUSE_PS2
 	help
-	  Say Y here if you have a Logictech PS/2++ mouse connected to
+	  Say Y here if you have a Logitech PS/2++ mouse connected to
 	  your system.
 
 	  If unsure, say Y.
@@ -67,6 +67,16 @@ config MOUSE_PS2_SYNAPTICS
 	  your system.
 
 	  If unsure, say Y.
+
+config MOUSE_PS2_CYPRESS
+       bool "Cypress PS/2 mouse protocol extension" if EXPERT
+       default y
+       depends on MOUSE_PS2
+       help
+         Say Y here if you have a Cypress PS/2 Trackpad connected to
+         your system.
+
+         If unsure, say Y.
 
 config MOUSE_PS2_LIFEBOOK
 	bool "Fujitsu Lifebook PS/2 mouse protocol extension" if EXPERT
@@ -95,18 +105,11 @@ config MOUSE_PS2_ELANTECH
 	  Say Y here if you have an Elantech PS/2 touchpad connected
 	  to your system.
 
-	  Note that if you enable this driver you will need an updated
-	  X.org Synaptics driver that does not require ABS_PRESSURE
-	  reports from the touchpad (i.e. post 1.5.0 version). You can
-	  grab a patch for the driver here:
-
-	  http://userweb.kernel.org/~dtor/synaptics-no-abspressure.patch
-
-	  If unsure, say N.
-
 	  This driver exposes some configuration registers via sysfs
 	  entries. For further information,
 	  see <file:Documentation/input/elantech.txt>.
+
+	  If unsure, say N.
 
 config MOUSE_PS2_SENTELIC
 	bool "Sentelic Finger Sensing Pad PS/2 protocol extension"
@@ -135,6 +138,16 @@ config MOUSE_PS2_OLPC
 	  touchpad an HGPK.
 
 	  If unsure, say N.
+
+config MOUSE_PS2_FOCALTECH
+	bool "FocalTech PS/2 mouse protocol extension" if EXPERT
+	default y
+	depends on MOUSE_PS2
+	help
+	  Say Y here if you have a FocalTech PS/2 TouchPad connected to
+	  your system.
+
+	  If unsure, say Y.
 
 config MOUSE_SERIAL
 	tristate "Serial mouse"
@@ -192,6 +205,49 @@ config MOUSE_BCM5974
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called bcm5974.
+
+config MOUSE_CYAPA
+	tristate "Cypress APA I2C Trackpad support"
+	depends on I2C
+	select CRC_ITU_T
+	help
+	  This driver adds support for Cypress All Points Addressable (APA)
+	  I2C Trackpads, including the ones used in 2012 Samsung Chromebooks.
+
+	  Say Y here if you have a Cypress APA I2C Trackpad.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called cyapa.
+
+config MOUSE_ELAN_I2C
+	tristate "ELAN I2C Touchpad support"
+	depends on I2C
+	help
+	  This driver adds support for Elan I2C/SMbus Trackpads.
+
+	  Say Y here if you have a ELAN I2C/SMbus Touchpad.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called elan_i2c.
+
+config MOUSE_ELAN_I2C_I2C
+	bool "Enable I2C support"
+	depends on MOUSE_ELAN_I2C
+	default y
+	help
+	   Say Y here if Elan Touchpad in your system is connected to
+	   a standard I2C controller.
+
+	   If unsure, say Y.
+
+config MOUSE_ELAN_I2C_SMBUS
+	bool "Enable SMbus support"
+	depends on MOUSE_ELAN_I2C
+	help
+	   Say Y here if Elan Touchpad in your system is connected to
+	   a SMbus adapter.
+
+	   If unsure, say Y.
 
 config MOUSE_INPORT
 	tristate "InPort/MS/ATIXL busmouse"
@@ -273,7 +329,7 @@ config MOUSE_VSXXXAA
 
 config MOUSE_GPIO
 	tristate "GPIO mouse"
-	depends on GENERIC_GPIO
+	depends on GPIOLIB
 	select INPUT_POLLDEV
 	help
 	  This driver simulates a mouse on GPIO lines of various CPUs (and some
@@ -321,5 +377,34 @@ config MOUSE_SYNAPTICS_I2C
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_i2c.
+
+config MOUSE_SYNAPTICS_USB
+	tristate "Synaptics USB device support"
+	depends on USB_ARCH_HAS_HCD
+	select USB
+	help
+	  Say Y here if you want to use a Synaptics USB touchpad or pointing
+	  stick.
+
+	  While these devices emulate an USB mouse by default and can be used
+	  with standard usbhid driver, this driver, together with its X.Org
+	  counterpart, allows you to fully utilize capabilities of the device.
+	  More information can be found at:
+	  <http://jan-steinhoff.de/linux/synaptics-usb.html>
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called synaptics_usb.
+
+config MOUSE_NAVPOINT_PXA27x
+	tristate "Synaptics NavPoint (PXA27x SSP/SPI)"
+	depends on PXA27x && PXA_SSP
+	help
+	  This driver adds support for the Synaptics NavPoint touchpad connected
+	  to a PXA27x SSP port in SPI slave mode. The device emulates a mouse;
+	  a tap or tap-and-a-half drag gesture emulates the left mouse button.
+	  For example, use the xf86-input-evdev driver for an X pointing device.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called navpoint.
 
 endif

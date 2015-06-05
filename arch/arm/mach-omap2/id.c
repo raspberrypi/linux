@@ -18,18 +18,30 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/random.h>
+#include <linux/slab.h>
+
+#ifdef CONFIG_SOC_BUS
+#include <linux/sys_soc.h>
+#endif
 
 #include <asm/cputype.h>
 
 #include "common.h"
-#include <plat/cpu.h>
 
-#include <mach/id.h>
+#include "id.h"
 
+#include "soc.h"
 #include "control.h"
 
-static unsigned int omap_revision;
+#define OMAP4_SILICON_TYPE_STANDARD		0x01
+#define OMAP4_SILICON_TYPE_PERFORMANCE		0x02
 
+#define OMAP_SOC_MAX_NAME_LENGTH		16
+
+static unsigned int omap_revision;
+static char soc_name[OMAP_SOC_MAX_NAME_LENGTH];
+static char soc_rev[OMAP_SOC_MAX_NAME_LENGTH];
 u32 omap_features;
 
 unsigned int omap_rev(void)
@@ -44,10 +56,19 @@ int omap_type(void)
 
 	if (cpu_is_omap24xx()) {
 		val = omap_ctrl_readl(OMAP24XX_CONTROL_STATUS);
+	} else if (cpu_is_ti81xx()) {
+		val = omap_ctrl_readl(TI81XX_CONTROL_STATUS);
+	} else if (soc_is_am33xx() || soc_is_am43xx()) {
+		val = omap_ctrl_readl(AM33XX_CONTROL_STATUS);
 	} else if (cpu_is_omap34xx()) {
 		val = omap_ctrl_readl(OMAP343X_CONTROL_STATUS);
 	} else if (cpu_is_omap44xx()) {
 		val = omap_ctrl_readl(OMAP4_CTRL_MODULE_CORE_STATUS);
+	} else if (soc_is_omap54xx() || soc_is_dra7xx()) {
+		val = omap_ctrl_readl(OMAP5XXX_CONTROL_STATUS);
+		val &= OMAP5_DEVICETYPE_MASK;
+		val >>= 6;
+		goto out;
 	} else {
 		pr_err("Cannot detect omap type!\n");
 		goto out;
@@ -75,7 +96,7 @@ EXPORT_SYMBOL(omap_type);
 #define OMAP_TAP_DIE_ID_44XX_2	0x020c
 #define OMAP_TAP_DIE_ID_44XX_3	0x0210
 
-#define read_tap_reg(reg)	__raw_readl(tap_base  + (reg))
+#define read_tap_reg(reg)	readl_relaxed(tap_base  + (reg))
 
 struct omap_id {
 	u16	hawkeye;	/* Silicon type (Hawkeye id) */
@@ -98,7 +119,7 @@ static u16 tap_prod_id;
 
 void omap_get_die_id(struct omap_die_id *odi)
 {
-	if (cpu_is_omap44xx()) {
+	if (cpu_is_omap44xx() || soc_is_omap54xx() || soc_is_dra7xx()) {
 		odi->id_0 = read_tap_reg(OMAP_TAP_DIE_ID_44XX_0);
 		odi->id_1 = read_tap_reg(OMAP_TAP_DIE_ID_44XX_1);
 		odi->id_2 = read_tap_reg(OMAP_TAP_DIE_ID_44XX_2);
@@ -112,7 +133,18 @@ void omap_get_die_id(struct omap_die_id *odi)
 	odi->id_3 = read_tap_reg(OMAP_TAP_DIE_ID_3);
 }
 
-static void __init omap24xx_check_revision(void)
+static int __init omap_feed_randpool(void)
+{
+	struct omap_die_id odi;
+
+	/* Throw the die ID into the entropy pool at boot */
+	omap_get_die_id(&odi);
+	add_device_randomness(&odi, sizeof(odi));
+	return 0;
+}
+omap_device_initcall(omap_feed_randpool);
+
+void __init omap2xxx_check_revision(void)
 {
 	int i, j;
 	u32 idcode, prod_id;
@@ -154,16 +186,71 @@ static void __init omap24xx_check_revision(void)
 	}
 
 	if (j == ARRAY_SIZE(omap_ids)) {
-		printk(KERN_ERR "Unknown OMAP device type. "
-				"Handling it as OMAP%04x\n",
-				omap_ids[i].type >> 16);
+		pr_err("Unknown OMAP device type. Handling it as OMAP%04x\n",
+		       omap_ids[i].type >> 16);
 		j = i;
 	}
 
-	pr_info("OMAP%04x", omap_rev() >> 16);
+	sprintf(soc_name, "OMAP%04x", omap_rev() >> 16);
+	sprintf(soc_rev, "ES%x", (omap_rev() >> 12) & 0xf);
+
+	pr_info("%s", soc_name);
 	if ((omap_rev() >> 8) & 0x0f)
-		pr_info("ES%x", (omap_rev() >> 12) & 0xf);
+		pr_info("%s", soc_rev);
 	pr_info("\n");
+}
+
+#define OMAP3_SHOW_FEATURE(feat)		\
+	if (omap3_has_ ##feat())		\
+		printk(#feat" ");
+
+static void __init omap3_cpuinfo(void)
+{
+	const char *cpu_name;
+
+	/*
+	 * OMAP3430 and OMAP3530 are assumed to be same.
+	 *
+	 * OMAP3525, OMAP3515 and OMAP3503 can be detected only based
+	 * on available features. Upon detection, update the CPU id
+	 * and CPU class bits.
+	 */
+	if (cpu_is_omap3630()) {
+		cpu_name = "OMAP3630";
+	} else if (soc_is_am35xx()) {
+		cpu_name = (omap3_has_sgx()) ? "AM3517" : "AM3505";
+	} else if (cpu_is_ti816x()) {
+		cpu_name = "TI816X";
+	} else if (soc_is_am335x()) {
+		cpu_name =  "AM335X";
+	} else if (soc_is_am437x()) {
+		cpu_name =  "AM437x";
+	} else if (cpu_is_ti814x()) {
+		cpu_name = "TI814X";
+	} else if (omap3_has_iva() && omap3_has_sgx()) {
+		/* OMAP3430, OMAP3525, OMAP3515, OMAP3503 devices */
+		cpu_name = "OMAP3430/3530";
+	} else if (omap3_has_iva()) {
+		cpu_name = "OMAP3525";
+	} else if (omap3_has_sgx()) {
+		cpu_name = "OMAP3515";
+	} else {
+		cpu_name = "OMAP3503";
+	}
+
+	sprintf(soc_name, "%s", cpu_name);
+
+	/* Print verbose information */
+	pr_info("%s %s (", soc_name, soc_rev);
+
+	OMAP3_SHOW_FEATURE(l2cache);
+	OMAP3_SHOW_FEATURE(iva);
+	OMAP3_SHOW_FEATURE(sgx);
+	OMAP3_SHOW_FEATURE(neon);
+	OMAP3_SHOW_FEATURE(isp);
+	OMAP3_SHOW_FEATURE(192mhz_clk);
+
+	printk(")\n");
 }
 
 #define OMAP3_CHECK_FEATURE(status,feat)				\
@@ -172,7 +259,7 @@ static void __init omap24xx_check_revision(void)
 		omap_features |= OMAP3_HAS_ ##feat;			\
 	}
 
-static void __init omap3_check_features(void)
+void __init omap3xxx_check_features(void)
 {
 	u32 status;
 
@@ -196,43 +283,57 @@ static void __init omap3_check_features(void)
 	omap_features |= OMAP3_HAS_SDRC;
 
 	/*
+	 * am35x fixups:
+	 * - The am35x Chip ID register has bits 12, 7:5, and 3:2 marked as
+	 *   reserved and therefore return 0 when read.  Unfortunately,
+	 *   OMAP3_CHECK_FEATURE() will interpret some of those zeroes to
+	 *   mean that a feature is present even though it isn't so clear
+	 *   the incorrectly set feature bits.
+	 */
+	if (soc_is_am35xx())
+		omap_features &= ~(OMAP3_HAS_IVA | OMAP3_HAS_ISP);
+
+	/*
 	 * TODO: Get additional info (where applicable)
 	 *       e.g. Size of L2 cache.
 	 */
+
+	omap3_cpuinfo();
 }
 
-static void __init omap4_check_features(void)
+void __init omap4xxx_check_features(void)
 {
 	u32 si_type;
 
-	if (cpu_is_omap443x())
-		omap_features |= OMAP4_HAS_MPU_1GHZ;
+	si_type =
+	(read_tap_reg(OMAP4_CTRL_MODULE_CORE_STD_FUSE_PROD_ID_1) >> 16) & 0x03;
 
-
-	if (cpu_is_omap446x()) {
-		si_type =
-			read_tap_reg(OMAP4_CTRL_MODULE_CORE_STD_FUSE_PROD_ID_1);
-		switch ((si_type & (3 << 16)) >> 16) {
-		case 2:
-			/* High performance device */
-			omap_features |= OMAP4_HAS_MPU_1_5GHZ;
-			break;
-		case 1:
-		default:
-			/* Standard device */
-			omap_features |= OMAP4_HAS_MPU_1_2GHZ;
-			break;
-		}
-	}
+	if (si_type == OMAP4_SILICON_TYPE_PERFORMANCE)
+		omap_features = OMAP4_HAS_PERF_SILICON;
 }
 
-static void __init ti816x_check_features(void)
+void __init ti81xx_check_features(void)
 {
 	omap_features = OMAP3_HAS_NEON;
+	omap3_cpuinfo();
 }
 
-static void __init omap3_check_revision(const char **cpu_rev)
+void __init am33xx_check_features(void)
 {
+	u32 status;
+
+	omap_features = OMAP3_HAS_NEON;
+
+	status = omap_ctrl_readl(AM33XX_DEV_FEATURE);
+	if (status & AM33XX_SGX_MASK)
+		omap_features |= OMAP3_HAS_SGX;
+
+	omap3_cpuinfo();
+}
+
+void __init omap3xxx_check_revision(void)
+{
+	const char *cpu_rev;
 	u32 cpuid, idcode;
 	u16 hawkeye;
 	u8 rev;
@@ -242,10 +343,10 @@ static void __init omap3_check_revision(const char **cpu_rev)
 	 * If the processor type is Cortex-A8 and the revision is 0x0
 	 * it means its Cortex r0p0 which is 3430 ES1.0.
 	 */
-	cpuid = read_cpuid(CPUID_ID);
+	cpuid = read_cpuid_id();
 	if ((((cpuid >> 4) & 0xfff) == 0xc08) && ((cpuid & 0xf) == 0x0)) {
 		omap_revision = OMAP3430_REV_ES1_0;
-		*cpu_rev = "1.0";
+		cpu_rev = "1.0";
 		return;
 	}
 
@@ -266,26 +367,26 @@ static void __init omap3_check_revision(const char **cpu_rev)
 		case 0: /* Take care of early samples */
 		case 1:
 			omap_revision = OMAP3430_REV_ES2_0;
-			*cpu_rev = "2.0";
+			cpu_rev = "2.0";
 			break;
 		case 2:
 			omap_revision = OMAP3430_REV_ES2_1;
-			*cpu_rev = "2.1";
+			cpu_rev = "2.1";
 			break;
 		case 3:
 			omap_revision = OMAP3430_REV_ES3_0;
-			*cpu_rev = "3.0";
+			cpu_rev = "3.0";
 			break;
 		case 4:
 			omap_revision = OMAP3430_REV_ES3_1;
-			*cpu_rev = "3.1";
+			cpu_rev = "3.1";
 			break;
 		case 7:
 		/* FALLTHROUGH */
 		default:
 			/* Use the latest known revision as default */
 			omap_revision = OMAP3430_REV_ES3_1_2;
-			*cpu_rev = "3.1.2";
+			cpu_rev = "3.1.2";
 		}
 		break;
 	case 0xb868:
@@ -297,14 +398,14 @@ static void __init omap3_check_revision(const char **cpu_rev)
 		 */
 		switch (rev) {
 		case 0:
-			omap_revision = OMAP3517_REV_ES1_0;
-			*cpu_rev = "1.0";
+			omap_revision = AM35XX_REV_ES1_0;
+			cpu_rev = "1.0";
 			break;
 		case 1:
 		/* FALLTHROUGH */
 		default:
-			omap_revision = OMAP3517_REV_ES1_1;
-			*cpu_rev = "1.1";
+			omap_revision = AM35XX_REV_ES1_1;
+			cpu_rev = "1.1";
 		}
 		break;
 	case 0xb891:
@@ -313,42 +414,106 @@ static void __init omap3_check_revision(const char **cpu_rev)
 		switch(rev) {
 		case 0: /* Take care of early samples */
 			omap_revision = OMAP3630_REV_ES1_0;
-			*cpu_rev = "1.0";
+			cpu_rev = "1.0";
 			break;
 		case 1:
 			omap_revision = OMAP3630_REV_ES1_1;
-			*cpu_rev = "1.1";
+			cpu_rev = "1.1";
 			break;
 		case 2:
 		/* FALLTHROUGH */
 		default:
 			omap_revision = OMAP3630_REV_ES1_2;
-			*cpu_rev = "1.2";
+			cpu_rev = "1.2";
 		}
 		break;
 	case 0xb81e:
 		switch (rev) {
 		case 0:
 			omap_revision = TI8168_REV_ES1_0;
-			*cpu_rev = "1.0";
+			cpu_rev = "1.0";
 			break;
 		case 1:
+			omap_revision = TI8168_REV_ES1_1;
+			cpu_rev = "1.1";
+			break;
+		case 2:
+			omap_revision = TI8168_REV_ES2_0;
+			cpu_rev = "2.0";
+			break;
+		case 3:
+			/* FALLTHROUGH */
+		default:
+			omap_revision = TI8168_REV_ES2_1;
+			cpu_rev = "2.1";
+		}
+		break;
+	case 0xb944:
+		switch (rev) {
+		case 0:
+			omap_revision = AM335X_REV_ES1_0;
+			cpu_rev = "1.0";
+			break;
+		case 1:
+			omap_revision = AM335X_REV_ES2_0;
+			cpu_rev = "2.0";
+			break;
+		case 2:
 		/* FALLTHROUGH */
 		default:
-			omap_revision = TI8168_REV_ES1_1;
-			*cpu_rev = "1.1";
+			omap_revision = AM335X_REV_ES2_1;
+			cpu_rev = "2.1";
+			break;
+		}
+		break;
+	case 0xb98c:
+		switch (rev) {
+		case 0:
+			omap_revision = AM437X_REV_ES1_0;
+			cpu_rev = "1.0";
+			break;
+		case 1:
+			omap_revision = AM437X_REV_ES1_1;
+			cpu_rev = "1.1";
+			break;
+		case 2:
+		/* FALLTHROUGH */
+		default:
+			omap_revision = AM437X_REV_ES1_2;
+			cpu_rev = "1.2";
+			break;
+		}
+		break;
+	case 0xb8f2:
+		switch (rev) {
+		case 0:
+		/* FALLTHROUGH */
+		case 1:
+			omap_revision = TI8148_REV_ES1_0;
+			cpu_rev = "1.0";
+			break;
+		case 2:
+			omap_revision = TI8148_REV_ES2_0;
+			cpu_rev = "2.0";
+			break;
+		case 3:
+		/* FALLTHROUGH */
+		default:
+			omap_revision = TI8148_REV_ES2_1;
+			cpu_rev = "2.1";
 			break;
 		}
 		break;
 	default:
 		/* Unknown default to latest silicon rev as default */
 		omap_revision = OMAP3630_REV_ES1_2;
-		*cpu_rev = "1.2";
+		cpu_rev = "1.2";
 		pr_warn("Warning: unknown chip type; assuming OMAP3630ES1.2\n");
 	}
+	sprintf(soc_rev, "ES%s", cpu_rev);
 }
 
-static void __init omap4_check_revision(void)
+void __init omap4xxx_check_revision(void)
 {
 	u32 idcode;
 	u16 hawkeye;
@@ -367,8 +532,8 @@ static void __init omap4_check_revision(void)
 	 * Few initial 4430 ES2.0 samples IDCODE is same as ES1.0
 	 * Use ARM register to detect the correct ES version
 	 */
-	if (!rev && (hawkeye != 0xb94e)) {
-		idcode = read_cpuid(CPUID_ID);
+	if (!rev && (hawkeye != 0xb94e) && (hawkeye != 0xb975)) {
+		idcode = read_cpuid_id();
 		rev = (idcode & 0xf) - 1;
 	}
 
@@ -389,104 +554,131 @@ static void __init omap4_check_revision(void)
 			omap_revision = OMAP4430_REV_ES2_1;
 			break;
 		case 4:
-		default:
 			omap_revision = OMAP4430_REV_ES2_2;
+			break;
+		case 6:
+		default:
+			omap_revision = OMAP4430_REV_ES2_3;
 		}
 		break;
 	case 0xb94e:
 		switch (rev) {
 		case 0:
-		default:
 			omap_revision = OMAP4460_REV_ES1_0;
+			break;
+		case 2:
+		default:
+			omap_revision = OMAP4460_REV_ES1_1;
+			break;
+		}
+		break;
+	case 0xb975:
+		switch (rev) {
+		case 0:
+		default:
+			omap_revision = OMAP4470_REV_ES1_0;
 			break;
 		}
 		break;
 	default:
 		/* Unknown default to latest silicon rev as default */
-		omap_revision = OMAP4430_REV_ES2_2;
+		omap_revision = OMAP4430_REV_ES2_3;
 	}
 
-	pr_info("OMAP%04x ES%d.%d\n", omap_rev() >> 16,
-		((omap_rev() >> 12) & 0xf), ((omap_rev() >> 8) & 0xf));
+	sprintf(soc_name, "OMAP%04x", omap_rev() >> 16);
+	sprintf(soc_rev, "ES%d.%d", (omap_rev() >> 12) & 0xf,
+						(omap_rev() >> 8) & 0xf);
+	pr_info("%s %s\n", soc_name, soc_rev);
 }
 
-#define OMAP3_SHOW_FEATURE(feat)		\
-	if (omap3_has_ ##feat())		\
-		printk(#feat" ");
-
-static void __init omap3_cpuinfo(const char *cpu_rev)
+void __init omap5xxx_check_revision(void)
 {
-	const char *cpu_name;
+	u32 idcode;
+	u16 hawkeye;
+	u8 rev;
 
-	/*
-	 * OMAP3430 and OMAP3530 are assumed to be same.
-	 *
-	 * OMAP3525, OMAP3515 and OMAP3503 can be detected only based
-	 * on available features. Upon detection, update the CPU id
-	 * and CPU class bits.
-	 */
-	if (cpu_is_omap3630()) {
-		cpu_name = "OMAP3630";
-	} else if (cpu_is_omap3517()) {
-		/* AM35xx devices */
-		cpu_name = (omap3_has_sgx()) ? "AM3517" : "AM3505";
-	} else if (cpu_is_ti816x()) {
-		cpu_name = "TI816X";
-	} else if (omap3_has_iva() && omap3_has_sgx()) {
-		/* OMAP3430, OMAP3525, OMAP3515, OMAP3503 devices */
-		cpu_name = "OMAP3430/3530";
-	} else if (omap3_has_iva()) {
-		cpu_name = "OMAP3525";
-	} else if (omap3_has_sgx()) {
-		cpu_name = "OMAP3515";
-	} else {
-		cpu_name = "OMAP3503";
+	idcode = read_tap_reg(OMAP_TAP_IDCODE);
+	hawkeye = (idcode >> 12) & 0xffff;
+	rev = (idcode >> 28) & 0xff;
+	switch (hawkeye) {
+	case 0xb942:
+		switch (rev) {
+		case 0:
+			/* No support for ES1.0 Test chip */
+			BUG();
+		case 1:
+		default:
+			omap_revision = OMAP5430_REV_ES2_0;
+		}
+		break;
+
+	case 0xb998:
+		switch (rev) {
+		case 0:
+			/* No support for ES1.0 Test chip */
+			BUG();
+		case 1:
+		default:
+			omap_revision = OMAP5432_REV_ES2_0;
+		}
+		break;
+
+	default:
+		/* Unknown default to latest silicon rev as default*/
+		omap_revision = OMAP5430_REV_ES2_0;
 	}
 
-	/* Print verbose information */
-	pr_info("%s ES%s (", cpu_name, cpu_rev);
+	sprintf(soc_name, "OMAP%04x", omap_rev() >> 16);
+	sprintf(soc_rev, "ES%d.0", (omap_rev() >> 12) & 0xf);
 
-	OMAP3_SHOW_FEATURE(l2cache);
-	OMAP3_SHOW_FEATURE(iva);
-	OMAP3_SHOW_FEATURE(sgx);
-	OMAP3_SHOW_FEATURE(neon);
-	OMAP3_SHOW_FEATURE(isp);
-	OMAP3_SHOW_FEATURE(192mhz_clk);
-
-	printk(")\n");
+	pr_info("%s %s\n", soc_name, soc_rev);
 }
 
-/*
- * Try to detect the exact revision of the omap we're running on
- */
-void __init omap2_check_revision(void)
+void __init dra7xxx_check_revision(void)
 {
-	const char *cpu_rev;
+	u32 idcode;
+	u16 hawkeye;
+	u8 rev;
 
-	/*
-	 * At this point we have an idea about the processor revision set
-	 * earlier with omap2_set_globals_tap().
-	 */
-	if (cpu_is_omap24xx()) {
-		omap24xx_check_revision();
-	} else if (cpu_is_omap34xx()) {
-		omap3_check_revision(&cpu_rev);
+	idcode = read_tap_reg(OMAP_TAP_IDCODE);
+	hawkeye = (idcode >> 12) & 0xffff;
+	rev = (idcode >> 28) & 0xff;
+	switch (hawkeye) {
+	case 0xb990:
+		switch (rev) {
+		case 0:
+			omap_revision = DRA752_REV_ES1_0;
+			break;
+		case 1:
+		default:
+			omap_revision = DRA752_REV_ES1_1;
+		}
+		break;
 
-		/* TI816X doesn't have feature register */
-		if (!cpu_is_ti816x())
-			omap3_check_features();
-		else
-			ti816x_check_features();
+	case 0xb9bc:
+		switch (rev) {
+		case 0:
+			omap_revision = DRA722_REV_ES1_0;
+			break;
+		default:
+			/* If we have no new revisions */
+			omap_revision = DRA722_REV_ES1_0;
+			break;
+		}
+		break;
 
-		omap3_cpuinfo(cpu_rev);
-		return;
-	} else if (cpu_is_omap44xx()) {
-		omap4_check_revision();
-		omap4_check_features();
-		return;
-	} else {
-		pr_err("OMAP revision unknown, please fix!\n");
+	default:
+		/* Unknown default to latest silicon rev as default*/
+		pr_warn("%s: unknown idcode=0x%08x (hawkeye=0x%08x,rev=0x%x)\n",
+			__func__, idcode, hawkeye, rev);
+		omap_revision = DRA752_REV_ES1_1;
 	}
+
+	sprintf(soc_name, "DRA%03x", omap_rev() >> 16);
+	sprintf(soc_rev, "ES%d.%d", (omap_rev() >> 12) & 0xf,
+		(omap_rev() >> 8) & 0xf);
+
+	pr_info("%s %s\n", soc_name, soc_rev);
 }
 
 /*
@@ -496,13 +688,79 @@ void __init omap2_check_revision(void)
  * detect the exact revision later on in omap2_detect_revision() once map_io
  * is done.
  */
-void __init omap2_set_globals_tap(struct omap_globals *omap2_globals)
+void __init omap2_set_globals_tap(u32 class, void __iomem *tap)
 {
-	omap_revision = omap2_globals->class;
-	tap_base = omap2_globals->tap;
+	omap_revision = class;
+	tap_base = tap;
 
+	/* XXX What is this intended to do? */
 	if (cpu_is_omap34xx())
 		tap_prod_id = 0x0210;
 	else
 		tap_prod_id = 0x0208;
 }
+
+#ifdef CONFIG_SOC_BUS
+
+static const char * const omap_types[] = {
+	[OMAP2_DEVICE_TYPE_TEST]	= "TST",
+	[OMAP2_DEVICE_TYPE_EMU]		= "EMU",
+	[OMAP2_DEVICE_TYPE_SEC]		= "HS",
+	[OMAP2_DEVICE_TYPE_GP]		= "GP",
+	[OMAP2_DEVICE_TYPE_BAD]		= "BAD",
+};
+
+static const char * __init omap_get_family(void)
+{
+	if (cpu_is_omap24xx())
+		return kasprintf(GFP_KERNEL, "OMAP2");
+	else if (cpu_is_omap34xx())
+		return kasprintf(GFP_KERNEL, "OMAP3");
+	else if (cpu_is_omap44xx())
+		return kasprintf(GFP_KERNEL, "OMAP4");
+	else if (soc_is_omap54xx())
+		return kasprintf(GFP_KERNEL, "OMAP5");
+	else if (soc_is_am33xx() || soc_is_am335x())
+		return kasprintf(GFP_KERNEL, "AM33xx");
+	else if (soc_is_am43xx())
+		return kasprintf(GFP_KERNEL, "AM43xx");
+	else if (soc_is_dra7xx())
+		return kasprintf(GFP_KERNEL, "DRA7");
+	else
+		return kasprintf(GFP_KERNEL, "Unknown");
+}
+
+static ssize_t omap_get_type(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	return sprintf(buf, "%s\n", omap_types[omap_type()]);
+}
+
+static struct device_attribute omap_soc_attr =
+	__ATTR(type,  S_IRUGO, omap_get_type,  NULL);
+
+void __init omap_soc_device_init(void)
+{
+	struct device *parent;
+	struct soc_device *soc_dev;
+	struct soc_device_attribute *soc_dev_attr;
+
+	soc_dev_attr = kzalloc(sizeof(*soc_dev_attr), GFP_KERNEL);
+	if (!soc_dev_attr)
+		return;
+
+	soc_dev_attr->machine  = soc_name;
+	soc_dev_attr->family   = omap_get_family();
+	soc_dev_attr->revision = soc_rev;
+
+	soc_dev = soc_device_register(soc_dev_attr);
+	if (IS_ERR(soc_dev)) {
+		kfree(soc_dev_attr);
+		return;
+	}
+
+	parent = soc_device_to_device(soc_dev);
+	device_create_file(parent, &omap_soc_attr);
+}
+#endif /* CONFIG_SOC_BUS */

@@ -6,6 +6,10 @@ Supported chips:
     Prefix: 'zl2004'
     Addresses scanned: -
     Datasheet: http://www.intersil.com/data/fn/fn6847.pdf
+  * Intersil / Zilker Labs ZL2005
+    Prefix: 'zl2005'
+    Addresses scanned: -
+    Datasheet: http://www.intersil.com/data/fn/fn6848.pdf
   * Intersil / Zilker Labs ZL2006
     Prefix: 'zl2006'
     Addresses scanned: -
@@ -30,8 +34,27 @@ Supported chips:
     Prefix: 'zl6105'
     Addresses scanned: -
     Datasheet: http://www.intersil.com/data/fn/fn6906.pdf
+  * Intersil / Zilker Labs ZL9101M
+    Prefix: 'zl9101'
+    Addresses scanned: -
+    Datasheet: http://www.intersil.com/data/fn/fn7669.pdf
+  * Intersil / Zilker Labs ZL9117M
+    Prefix: 'zl9117'
+    Addresses scanned: -
+    Datasheet: http://www.intersil.com/data/fn/fn7914.pdf
+  * Ericsson BMR450, BMR451
+    Prefix: 'bmr450', 'bmr451'
+    Addresses scanned: -
+    Datasheet:
+http://archive.ericsson.net/service/internet/picov/get?DocNo=28701-EN/LZT146401
+  * Ericsson BMR462, BMR463, BMR464
+    Prefixes: 'bmr462', 'bmr463', 'bmr464'
+    Addresses scanned: -
+    Datasheet:
+http://archive.ericsson.net/service/internet/picov/get?DocNo=28701-EN/LZT146256
 
-Author: Guenter Roeck <guenter.roeck@ericsson.com>
+
+Author: Guenter Roeck <linux@roeck-us.net>
 
 
 Description
@@ -73,14 +96,12 @@ Module parameters
 delay
 -----
 
-Some Intersil/Zilker Labs DC-DC controllers require a minimum interval between
-I2C bus accesses. According to Intersil, the minimum interval is 2 ms, though
-1 ms appears to be sufficient and has not caused any problems in testing.
-The problem is known to affect ZL6100, ZL2105, and ZL2008. It is known not to
-affect ZL2004 and ZL6105. The driver automatically sets the interval to 1 ms
-except for ZL2004 and ZL6105. To enable manual override, the driver provides a
-writeable module parameter, 'delay', which can be used to set the interval to
-a value between 0 and 65,535 microseconds.
+Intersil/Zilker Labs DC-DC controllers require a minimum interval between I2C
+bus accesses. According to Intersil, the minimum interval is 2 ms, though 1 ms
+appears to be sufficient and has not caused any problems in testing. The problem
+is known to affect all currently supported chips. For manual override, the
+driver provides a writeable module parameter, 'delay', which can be used to set
+the interval to a value between 0 and 65,535 microseconds.
 
 
 Sysfs entries
@@ -93,19 +114,33 @@ in1_label		"vin"
 in1_input		Measured input voltage.
 in1_min			Minimum input voltage.
 in1_max			Maximum input voltage.
-in1_lcrit		Critical minumum input voltage.
+in1_lcrit		Critical minimum input voltage.
 in1_crit		Critical maximum input voltage.
 in1_min_alarm		Input voltage low alarm.
 in1_max_alarm		Input voltage high alarm.
 in1_lcrit_alarm		Input voltage critical low alarm.
 in1_crit_alarm		Input voltage critical high alarm.
 
-in2_label		"vout1"
-in2_input		Measured output voltage.
-in2_lcrit		Critical minumum output Voltage.
-in2_crit		Critical maximum output voltage.
-in2_lcrit_alarm		Critical output voltage critical low alarm.
-in2_crit_alarm		Critical output voltage critical high alarm.
+in2_label		"vmon"
+in2_input		Measured voltage on VMON (ZL2004) or VDRV (ZL9101M,
+			ZL9117M) pin. Reported voltage is 16x the voltage on the
+			pin (adjusted internally by the chip).
+in2_lcrit		Critical minimum VMON/VDRV Voltage.
+in2_crit		Critical maximum VMON/VDRV voltage.
+in2_lcrit_alarm		VMON/VDRV voltage critical low alarm.
+in2_crit_alarm		VMON/VDRV voltage critical high alarm.
+
+			vmon attributes are supported on ZL2004, ZL9101M,
+			and ZL9117M only.
+
+inX_label		"vout1"
+inX_input		Measured output voltage.
+inX_lcrit		Critical minimum output Voltage.
+inX_crit		Critical maximum output voltage.
+inX_lcrit_alarm		Critical output voltage critical low alarm.
+inX_crit_alarm		Critical output voltage critical high alarm.
+
+			X is 3 for ZL2004, ZL9101M, and ZL9117M, 2 otherwise.
 
 curr1_label		"iout1"
 curr1_input		Measured output current.

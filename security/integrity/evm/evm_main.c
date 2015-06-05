@@ -14,8 +14,11 @@
  *	evm_inode_removexattr, and evm_verifyxattr
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/module.h>
 #include <linux/crypto.h>
+#include <linux/audit.h>
 #include <linux/xattr.h>
 #include <linux/integrity.h>
 #include <linux/evm.h>
@@ -24,7 +27,12 @@
 
 int evm_initialized;
 
+static char *integrity_status_msg[] = {
+	"pass", "fail", "no_label", "no_xattrs", "unknown"
+};
 char *evm_hmac = "hmac(sha1)";
+char *evm_hash = "sha1";
+int evm_hmac_attrs;
 
 char *evm_config_xattrnames[] = {
 #ifdef CONFIG_SECURITY_SELINUX
@@ -32,6 +40,14 @@ char *evm_config_xattrnames[] = {
 #endif
 #ifdef CONFIG_SECURITY_SMACK
 	XATTR_NAME_SMACK,
+#ifdef CONFIG_EVM_EXTRA_SMACK_XATTRS
+	XATTR_NAME_SMACKEXEC,
+	XATTR_NAME_SMACKTRANSMUTE,
+	XATTR_NAME_SMACKMMAP,
+#endif
+#endif
+#ifdef CONFIG_IMA_APPRAISE
+	XATTR_NAME_IMA,
 #endif
 	XATTR_NAME_CAPS,
 	NULL
@@ -45,6 +61,37 @@ static int __init evm_set_fixmode(char *str)
 	return 0;
 }
 __setup("evm=", evm_set_fixmode);
+
+static void __init evm_init_config(void)
+{
+#ifdef CONFIG_EVM_ATTR_FSUUID
+	evm_hmac_attrs |= EVM_ATTR_FSUUID;
+#endif
+	pr_info("HMAC attrs: 0x%x\n", evm_hmac_attrs);
+}
+
+static int evm_find_protected_xattrs(struct dentry *dentry)
+{
+	struct inode *inode = dentry->d_inode;
+	char **xattr;
+	int error;
+	int count = 0;
+
+	if (!inode->i_op->getxattr)
+		return -EOPNOTSUPP;
+
+	for (xattr = evm_config_xattrnames; *xattr != NULL; xattr++) {
+		error = inode->i_op->getxattr(dentry, *xattr, NULL, 0);
+		if (error < 0) {
+			if (error == -ENODATA)
+				continue;
+			return error;
+		}
+		count++;
+	}
+
+	return count;
+}
 
 /*
  * evm_verify_hmac - calculate and compare the HMAC with the EVM xattr
@@ -65,32 +112,78 @@ static enum integrity_status evm_verify_hmac(struct dentry *dentry,
 					     size_t xattr_value_len,
 					     struct integrity_iint_cache *iint)
 {
-	struct evm_ima_xattr_data xattr_data;
+	struct evm_ima_xattr_data *xattr_data = NULL;
+	struct evm_ima_xattr_data calc;
 	enum integrity_status evm_status = INTEGRITY_PASS;
-	int rc;
+	int rc, xattr_len;
 
 	if (iint && iint->evm_status == INTEGRITY_PASS)
 		return iint->evm_status;
 
 	/* if status is not PASS, try to check again - against -ENOMEM */
 
-	rc = evm_calc_hmac(dentry, xattr_name, xattr_value,
-			   xattr_value_len, xattr_data.digest);
-	if (rc < 0) {
-		evm_status = (rc == -ENODATA)
-		    ? INTEGRITY_NOXATTRS : INTEGRITY_FAIL;
+	/* first need to know the sig type */
+	rc = vfs_getxattr_alloc(dentry, XATTR_NAME_EVM, (char **)&xattr_data, 0,
+				GFP_NOFS);
+	if (rc <= 0) {
+		evm_status = INTEGRITY_FAIL;
+		if (rc == -ENODATA) {
+			rc = evm_find_protected_xattrs(dentry);
+			if (rc > 0)
+				evm_status = INTEGRITY_NOLABEL;
+			else if (rc == 0)
+				evm_status = INTEGRITY_NOXATTRS; /* new file */
+		} else if (rc == -EOPNOTSUPP) {
+			evm_status = INTEGRITY_UNKNOWN;
+		}
 		goto out;
 	}
 
-	xattr_data.type = EVM_XATTR_HMAC;
-	rc = vfs_xattr_cmp(dentry, XATTR_NAME_EVM, (u8 *)&xattr_data,
-			   sizeof xattr_data, GFP_NOFS);
-	if (rc < 0)
-		evm_status = (rc == -ENODATA)
-		    ? INTEGRITY_NOLABEL : INTEGRITY_FAIL;
+	xattr_len = rc;
+
+	/* check value type */
+	switch (xattr_data->type) {
+	case EVM_XATTR_HMAC:
+		rc = evm_calc_hmac(dentry, xattr_name, xattr_value,
+				   xattr_value_len, calc.digest);
+		if (rc)
+			break;
+		rc = memcmp(xattr_data->digest, calc.digest,
+			    sizeof(calc.digest));
+		if (rc)
+			rc = -EINVAL;
+		break;
+	case EVM_IMA_XATTR_DIGSIG:
+		rc = evm_calc_hash(dentry, xattr_name, xattr_value,
+				xattr_value_len, calc.digest);
+		if (rc)
+			break;
+		rc = integrity_digsig_verify(INTEGRITY_KEYRING_EVM,
+					(const char *)xattr_data, xattr_len,
+					calc.digest, sizeof(calc.digest));
+		if (!rc) {
+			/* Replace RSA with HMAC if not mounted readonly and
+			 * not immutable
+			 */
+			if (!IS_RDONLY(dentry->d_inode) &&
+			    !IS_IMMUTABLE(dentry->d_inode))
+				evm_update_evmxattr(dentry, xattr_name,
+						    xattr_value,
+						    xattr_value_len);
+		}
+		break;
+	default:
+		rc = -EINVAL;
+		break;
+	}
+
+	if (rc)
+		evm_status = (rc == -ENODATA) ?
+				INTEGRITY_NOXATTRS : INTEGRITY_FAIL;
 out:
 	if (iint)
 		iint->evm_status = evm_status;
+	kfree(xattr_data);
 	return evm_status;
 }
 
@@ -194,9 +287,22 @@ static int evm_protect_xattr(struct dentry *dentry, const char *xattr_name,
 		if ((evm_status == INTEGRITY_PASS) ||
 		    (evm_status == INTEGRITY_NOXATTRS))
 			return 0;
-		return -EPERM;
+		goto out;
 	}
 	evm_status = evm_verify_current_integrity(dentry);
+	if (evm_status == INTEGRITY_NOXATTRS) {
+		struct integrity_iint_cache *iint;
+
+		iint = integrity_iint_find(dentry->d_inode);
+		if (iint && (iint->flags & IMA_NEW_FILE))
+			return 0;
+	}
+out:
+	if (evm_status != INTEGRITY_PASS)
+		integrity_audit_msg(AUDIT_INTEGRITY_METADATA, dentry->d_inode,
+				    dentry->d_name.name, "appraise_metadata",
+				    integrity_status_msg[evm_status],
+				    -EPERM, 0);
 	return evm_status == INTEGRITY_PASS ? 0 : -EPERM;
 }
 
@@ -207,12 +313,23 @@ static int evm_protect_xattr(struct dentry *dentry, const char *xattr_name,
  * @xattr_value: pointer to the new extended attribute value
  * @xattr_value_len: pointer to the new extended attribute value length
  *
- * Updating 'security.evm' requires CAP_SYS_ADMIN privileges and that
- * the current value is valid.
+ * Before allowing the 'security.evm' protected xattr to be updated,
+ * verify the existing value is valid.  As only the kernel should have
+ * access to the EVM encrypted key needed to calculate the HMAC, prevent
+ * userspace from writing HMAC value.  Writing 'security.evm' requires
+ * requires CAP_SYS_ADMIN privileges.
  */
 int evm_inode_setxattr(struct dentry *dentry, const char *xattr_name,
 		       const void *xattr_value, size_t xattr_value_len)
 {
+	const struct evm_ima_xattr_data *xattr_data = xattr_value;
+
+	if (strcmp(xattr_name, XATTR_NAME_EVM) == 0) {
+		if (!xattr_value_len)
+			return -EINVAL;
+		if (xattr_data->type != EVM_IMA_XATTR_DIGSIG)
+			return -EPERM;
+	}
 	return evm_protect_xattr(dentry, xattr_name, xattr_value,
 				 xattr_value_len);
 }
@@ -251,7 +368,6 @@ void evm_inode_post_setxattr(struct dentry *dentry, const char *xattr_name,
 		return;
 
 	evm_update_evmxattr(dentry, xattr_name, xattr_value, xattr_value_len);
-	return;
 }
 
 /**
@@ -271,7 +387,6 @@ void evm_inode_post_removexattr(struct dentry *dentry, const char *xattr_name)
 	mutex_lock(&inode->i_mutex);
 	evm_update_evmxattr(dentry, xattr_name, NULL, 0);
 	mutex_unlock(&inode->i_mutex);
-	return;
 }
 
 /**
@@ -289,6 +404,9 @@ int evm_inode_setattr(struct dentry *dentry, struct iattr *attr)
 	if ((evm_status == INTEGRITY_PASS) ||
 	    (evm_status == INTEGRITY_NOXATTRS))
 		return 0;
+	integrity_audit_msg(AUDIT_INTEGRITY_METADATA, dentry->d_inode,
+			    dentry->d_name.name, "appraise_metadata",
+			    integrity_status_msg[evm_status], -EPERM, 0);
 	return -EPERM;
 }
 
@@ -310,7 +428,6 @@ void evm_inode_post_setattr(struct dentry *dentry, int ia_valid)
 
 	if (ia_valid & (ATTR_MODE | ATTR_UID | ATTR_GID))
 		evm_update_evmxattr(dentry, NULL, NULL, 0);
-	return;
 }
 
 /*
@@ -337,7 +454,7 @@ int evm_inode_init_security(struct inode *inode,
 
 	evm_xattr->value = xattr_data;
 	evm_xattr->value_len = sizeof(*xattr_data);
-	evm_xattr->name = kstrdup(XATTR_EVM_SUFFIX, GFP_NOFS);
+	evm_xattr->name = XATTR_EVM_SUFFIX;
 	return 0;
 out:
 	kfree(xattr_data);
@@ -349,20 +466,17 @@ static int __init init_evm(void)
 {
 	int error;
 
+	evm_init_config();
+
 	error = evm_init_secfs();
 	if (error < 0) {
-		printk(KERN_INFO "EVM: Error registering secfs\n");
+		pr_info("Error registering secfs\n");
 		goto err;
 	}
+
+	return 0;
 err:
 	return error;
-}
-
-static void __exit cleanup_evm(void)
-{
-	evm_cleanup_secfs();
-	if (hmac_tfm)
-		crypto_free_shash(hmac_tfm);
 }
 
 /*
@@ -373,7 +487,7 @@ static int __init evm_display_config(void)
 	char **xattrname;
 
 	for (xattrname = evm_config_xattrnames; *xattrname != NULL; xattrname++)
-		printk(KERN_INFO "EVM: %s\n", *xattrname);
+		pr_info("%s\n", *xattrname);
 	return 0;
 }
 

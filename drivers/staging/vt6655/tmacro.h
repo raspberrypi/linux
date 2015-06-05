@@ -29,8 +29,6 @@
 #ifndef __TMACRO_H__
 #define __TMACRO_H__
 
-#include "ttype.h"
-
 /****** Common helper macros ***********************************************/
 
 #if !defined(LOBYTE)
@@ -58,5 +56,3 @@
 #endif
 
 #endif // __TMACRO_H__
-
-

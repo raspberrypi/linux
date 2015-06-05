@@ -11,6 +11,7 @@
 #include <linux/errno.h>
 #include <linux/slab.h>
 #include <linux/init.h>
+#include <linux/of.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
 
@@ -28,6 +29,15 @@ static struct mtd_chip_driver maprom_chipdrv = {
 	.module	= THIS_MODULE
 };
 
+static unsigned int default_erasesize(struct map_info *map)
+{
+	const __be32 *erase_size = NULL;
+
+	erase_size = of_get_property(map->device_node, "erase-size", NULL);
+
+	return !erase_size ? map->size : be32_to_cpu(*erase_size);
+}
+
 static struct mtd_info *map_rom_probe(struct map_info *map)
 {
 	struct mtd_info *mtd;
@@ -41,14 +51,15 @@ static struct mtd_info *map_rom_probe(struct map_info *map)
 	mtd->name = map->name;
 	mtd->type = MTD_ROM;
 	mtd->size = map->size;
-	mtd->get_unmapped_area = maprom_unmapped_area;
-	mtd->read = maprom_read;
-	mtd->write = maprom_write;
-	mtd->sync = maprom_nop;
-	mtd->erase = maprom_erase;
+	mtd->_get_unmapped_area = maprom_unmapped_area;
+	mtd->_read = maprom_read;
+	mtd->_write = maprom_write;
+	mtd->_sync = maprom_nop;
+	mtd->_erase = maprom_erase;
 	mtd->flags = MTD_CAP_ROM;
-	mtd->erasesize = map->size;
+	mtd->erasesize = default_erasesize(map);
 	mtd->writesize = 1;
+	mtd->writebufsize = 1;
 
 	__module_get(THIS_MODULE);
 	return mtd;
@@ -85,8 +96,7 @@ static void maprom_nop(struct mtd_info *mtd)
 
 static int maprom_write (struct mtd_info *mtd, loff_t to, size_t len, size_t *retlen, const u_char *buf)
 {
-	printk(KERN_NOTICE "maprom_write called\n");
-	return -EIO;
+	return -EROFS;
 }
 
 static int maprom_erase (struct mtd_info *mtd, struct erase_info *info)

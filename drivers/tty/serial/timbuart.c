@@ -91,16 +91,16 @@ static void timbuart_flush_buffer(struct uart_port *port)
 
 static void timbuart_rx_chars(struct uart_port *port)
 {
-	struct tty_struct *tty = port->state->port.tty;
+	struct tty_port *tport = &port->state->port;
 
 	while (ioread32(port->membase + TIMBUART_ISR) & RXDP) {
 		u8 ch = ioread8(port->membase + TIMBUART_RXFIFO);
 		port->icount.rx++;
-		tty_insert_flip_char(tty, ch, TTY_NORMAL);
+		tty_insert_flip_char(tport, ch, TTY_NORMAL);
 	}
 
 	spin_unlock(&port->lock);
-	tty_flip_buffer_push(port->state->port.tty);
+	tty_flip_buffer_push(tport);
 	spin_lock(&port->lock);
 
 	dev_dbg(port->dev, "%s - total read %d bytes\n",
@@ -162,7 +162,7 @@ static void timbuart_handle_tx_port(struct uart_port *port, u32 isr, u32 *ier)
 	dev_dbg(port->dev, "%s - leaving\n", __func__);
 }
 
-void timbuart_handle_rx_port(struct uart_port *port, u32 isr, u32 *ier)
+static void timbuart_handle_rx_port(struct uart_port *port, u32 isr, u32 *ier)
 {
 	if (isr & RXFLAGS) {
 		/* Some RX status is set */
@@ -184,7 +184,7 @@ void timbuart_handle_rx_port(struct uart_port *port, u32 isr, u32 *ier)
 	dev_dbg(port->dev, "%s - leaving\n", __func__);
 }
 
-void timbuart_tasklet(unsigned long arg)
+static void timbuart_tasklet(unsigned long arg)
 {
 	struct timbuart_port *uart = (struct timbuart_port *)arg;
 	u32 isr, ier = 0;
@@ -244,11 +244,6 @@ static void timbuart_mctrl_check(struct uart_port *port, u32 isr, u32 *ier)
 	*ier |= CTS_DELTA;
 }
 
-static void timbuart_enable_ms(struct uart_port *port)
-{
-	/* N/A */
-}
-
 static void timbuart_break_ctl(struct uart_port *port, int ctl)
 {
 	/* N/A */
@@ -278,6 +273,8 @@ static void timbuart_shutdown(struct uart_port *port)
 	dev_dbg(port->dev, "%s\n", __func__);
 	free_irq(port->irq, uart);
 	iowrite32(0, port->membase + TIMBUART_IER);
+
+	timbuart_flush_buffer(port);
 }
 
 static int get_bindex(int baud)
@@ -405,7 +402,6 @@ static struct uart_ops timbuart_ops = {
 	.start_tx = timbuart_start_tx,
 	.flush_buffer = timbuart_flush_buffer,
 	.stop_rx = timbuart_stop_rx,
-	.enable_ms = timbuart_enable_ms,
 	.break_ctl = timbuart_break_ctl,
 	.startup = timbuart_startup,
 	.shutdown = timbuart_shutdown,
@@ -426,7 +422,7 @@ static struct uart_driver timbuart_driver = {
 	.nr = 1
 };
 
-static int __devinit timbuart_probe(struct platform_device *dev)
+static int timbuart_probe(struct platform_device *dev)
 {
 	int err, irq;
 	struct timbuart_port *uart;
@@ -492,7 +488,7 @@ err_mem:
 	return err;
 }
 
-static int __devexit timbuart_remove(struct platform_device *dev)
+static int timbuart_remove(struct platform_device *dev)
 {
 	struct timbuart_port *uart = platform_get_drvdata(dev);
 
@@ -507,26 +503,12 @@ static int __devexit timbuart_remove(struct platform_device *dev)
 static struct platform_driver timbuart_platform_driver = {
 	.driver = {
 		.name	= "timb-uart",
-		.owner	= THIS_MODULE,
 	},
 	.probe		= timbuart_probe,
-	.remove		= __devexit_p(timbuart_remove),
+	.remove		= timbuart_remove,
 };
 
-/*--------------------------------------------------------------------------*/
-
-static int __init timbuart_init(void)
-{
-	return platform_driver_register(&timbuart_platform_driver);
-}
-
-static void __exit timbuart_exit(void)
-{
-	platform_driver_unregister(&timbuart_platform_driver);
-}
-
-module_init(timbuart_init);
-module_exit(timbuart_exit);
+module_platform_driver(timbuart_platform_driver);
 
 MODULE_DESCRIPTION("Timberdale UART driver");
 MODULE_LICENSE("GPL v2");

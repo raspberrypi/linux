@@ -36,7 +36,7 @@ MODULE_SUPPORTED_DEVICE("{{Creative Labs,SB 1.0/SB 2.0/SB Pro}}");
 
 static int index[SNDRV_CARDS] = SNDRV_DEFAULT_IDX;	/* Index 0-MAX */
 static char *id[SNDRV_CARDS] = SNDRV_DEFAULT_STR;	/* ID for this card */
-static int enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE;	/* Enable this card */
+static bool enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE;	/* Enable this card */
 static long port[SNDRV_CARDS] = SNDRV_DEFAULT_PORT;	/* 0x220,0x240,0x260 */
 static int irq[SNDRV_CARDS] = SNDRV_DEFAULT_IRQ;	/* 5,7,9,10 */
 static int dma8[SNDRV_CARDS] = SNDRV_DEFAULT_DMA;	/* 1,3 */
@@ -79,7 +79,7 @@ static void snd_sb8_free(struct snd_card *card)
 	release_and_free_resource(acard->fm_res);
 }
 
-static int __devinit snd_sb8_match(struct device *pdev, unsigned int dev)
+static int snd_sb8_match(struct device *pdev, unsigned int dev)
 {
 	if (!enable[dev])
 		return 0;
@@ -94,7 +94,7 @@ static int __devinit snd_sb8_match(struct device *pdev, unsigned int dev)
 	return 1;
 }
 
-static int __devinit snd_sb8_probe(struct device *pdev, unsigned int dev)
+static int snd_sb8_probe(struct device *pdev, unsigned int dev)
 {
 	struct snd_sb *chip;
 	struct snd_card *card;
@@ -102,8 +102,8 @@ static int __devinit snd_sb8_probe(struct device *pdev, unsigned int dev)
 	struct snd_opl3 *opl3;
 	int err;
 
-	err = snd_card_create(index[dev], id[dev], THIS_MODULE,
-			      sizeof(struct snd_sb8), &card);
+	err = snd_card_new(pdev, index[dev], id[dev], THIS_MODULE,
+			   sizeof(struct snd_sb8), &card);
 	if (err < 0)
 		return err;
 	acard = card->private_data;
@@ -157,7 +157,7 @@ static int __devinit snd_sb8_probe(struct device *pdev, unsigned int dev)
 		goto _err;
 	}
 
-	if ((err = snd_sb8dsp_pcm(chip, 0, NULL)) < 0)
+	if ((err = snd_sb8dsp_pcm(chip, 0)) < 0)
 		goto _err;
 
 	if ((err = snd_sbmixer_new(chip)) < 0)
@@ -182,7 +182,7 @@ static int __devinit snd_sb8_probe(struct device *pdev, unsigned int dev)
 			goto _err;
 	}
 
-	if ((err = snd_sb8dsp_midi(chip, 0, NULL)) < 0)
+	if ((err = snd_sb8dsp_midi(chip, 0)) < 0)
 		goto _err;
 
 	strcpy(card->driver, chip->hardware == SB_HW_PRO ? "SB Pro" : "SB8");
@@ -191,8 +191,6 @@ static int __devinit snd_sb8_probe(struct device *pdev, unsigned int dev)
 		chip->name,
 		chip->port,
 		irq[dev], dma8[dev]);
-
-	snd_card_set_dev(card, pdev);
 
 	if ((err = snd_card_register(card)) < 0)
 		goto _err;
@@ -205,10 +203,9 @@ static int __devinit snd_sb8_probe(struct device *pdev, unsigned int dev)
 	return err;
 }
 
-static int __devexit snd_sb8_remove(struct device *pdev, unsigned int dev)
+static int snd_sb8_remove(struct device *pdev, unsigned int dev)
 {
 	snd_card_free(dev_get_drvdata(pdev));
-	dev_set_drvdata(pdev, NULL);
 	return 0;
 }
 
@@ -244,7 +241,7 @@ static int snd_sb8_resume(struct device *dev, unsigned int n)
 static struct isa_driver snd_sb8_driver = {
 	.match		= snd_sb8_match,
 	.probe		= snd_sb8_probe,
-	.remove		= __devexit_p(snd_sb8_remove),
+	.remove		= snd_sb8_remove,
 #ifdef CONFIG_PM
 	.suspend	= snd_sb8_suspend,
 	.resume		= snd_sb8_resume,

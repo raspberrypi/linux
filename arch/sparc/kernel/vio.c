@@ -119,13 +119,17 @@ static struct bus_type vio_bus_type = {
 	.remove		= vio_device_remove,
 };
 
-int vio_register_driver(struct vio_driver *viodrv)
+int __vio_register_driver(struct vio_driver *viodrv, struct module *owner,
+			const char *mod_name)
 {
 	viodrv->driver.bus = &vio_bus_type;
+	viodrv->driver.name = viodrv->name;
+	viodrv->driver.owner = owner;
+	viodrv->driver.mod_name = mod_name;
 
 	return driver_register(&viodrv->driver);
 }
-EXPORT_SYMBOL(vio_register_driver);
+EXPORT_SYMBOL(__vio_register_driver);
 
 void vio_unregister_driver(struct vio_driver *viodrv)
 {
@@ -176,14 +180,25 @@ static void vio_fill_channel_info(struct mdesc_handle *hp, u64 mp,
 			vdev->tx_irq = sun4v_build_virq(cdev_cfg_handle, *irq);
 
 		irq = mdesc_get_property(hp, target, "rx-ino", NULL);
-		if (irq)
+		if (irq) {
 			vdev->rx_irq = sun4v_build_virq(cdev_cfg_handle, *irq);
+			vdev->rx_ino = *irq;
+		}
 
 		chan_id = mdesc_get_property(hp, target, "id", NULL);
 		if (chan_id)
 			vdev->channel_id = *chan_id;
 	}
 }
+
+int vio_set_intr(unsigned long dev_ino, int state)
+{
+	int err;
+
+	err = sun4v_vintr_set_valid(cdev_cfg_handle, dev_ino, state);
+	return err;
+}
+EXPORT_SYMBOL(vio_set_intr);
 
 static struct vio_dev *vio_create_one(struct mdesc_handle *hp, u64 mp,
 				      struct device *parent)
@@ -338,6 +353,7 @@ static void vio_remove(struct mdesc_handle *hp, u64 node)
 		printk(KERN_INFO "VIO: Removing device %s\n", dev_name(dev));
 
 		device_unregister(dev);
+		put_device(dev);
 	}
 }
 
@@ -439,7 +455,7 @@ static int __init vio_init(void)
 	root_vdev = vio_create_one(hp, root, NULL);
 	err = -ENODEV;
 	if (!root_vdev) {
-		printk(KERN_ERR "VIO: Coult not create root device.\n");
+		printk(KERN_ERR "VIO: Could not create root device.\n");
 		goto out_release;
 	}
 

@@ -138,7 +138,7 @@ static int dccp_transmit_skb(struct sock *sk, struct sk_buff *skb)
 
 		DCCP_INC_STATS(DCCP_MIB_OUTSEGS);
 
-		err = icsk->icsk_af_ops->queue_xmit(skb, &inet->cork.fl);
+		err = icsk->icsk_af_ops->queue_xmit(sk, skb, &inet->cork.fl);
 		return net_xmit_eval(err);
 	}
 	return -ENOBUFS;
@@ -214,6 +214,7 @@ void dccp_write_space(struct sock *sk)
  * dccp_wait_for_ccid  -  Await CCID send permission
  * @sk:    socket to wait for
  * @delay: timeout in jiffies
+ *
  * This is used by CCIDs which need to delay the send time in process context.
  */
 static int dccp_wait_for_ccid(struct sock *sk, unsigned long delay)
@@ -408,10 +409,10 @@ struct sk_buff *dccp_make_response(struct sock *sk, struct dst_entry *dst,
 	skb_dst_set(skb, dst_clone(dst));
 
 	dreq = dccp_rsk(req);
-	if (inet_rsk(req)->acked)	/* increase ISS upon retransmission */
-		dccp_inc_seqno(&dreq->dreq_iss);
+	if (inet_rsk(req)->acked)	/* increase GSS upon retransmission */
+		dccp_inc_seqno(&dreq->dreq_gss);
 	DCCP_SKB_CB(skb)->dccpd_type = DCCP_PKT_RESPONSE;
-	DCCP_SKB_CB(skb)->dccpd_seq  = dreq->dreq_iss;
+	DCCP_SKB_CB(skb)->dccpd_seq  = dreq->dreq_gss;
 
 	/* Resolve feature dependencies resulting from choice of CCID */
 	if (dccp_feat_server_ccid_dependencies(dreq))
@@ -423,14 +424,14 @@ struct sk_buff *dccp_make_response(struct sock *sk, struct dst_entry *dst,
 	/* Build and checksum header */
 	dh = dccp_zeroed_hdr(skb, dccp_header_size);
 
-	dh->dccph_sport	= inet_rsk(req)->loc_port;
-	dh->dccph_dport	= inet_rsk(req)->rmt_port;
+	dh->dccph_sport	= htons(inet_rsk(req)->ir_num);
+	dh->dccph_dport	= inet_rsk(req)->ir_rmt_port;
 	dh->dccph_doff	= (dccp_header_size +
 			   DCCP_SKB_CB(skb)->dccpd_opt_len) / 4;
 	dh->dccph_type	= DCCP_PKT_RESPONSE;
 	dh->dccph_x	= 1;
-	dccp_hdr_set_seq(dh, dreq->dreq_iss);
-	dccp_hdr_set_ack(dccp_hdr_ack_bits(skb), dreq->dreq_isr);
+	dccp_hdr_set_seq(dh, dreq->dreq_gss);
+	dccp_hdr_set_ack(dccp_hdr_ack_bits(skb), dreq->dreq_gsr);
 	dccp_hdr_response(skb)->dccph_resp_service = dreq->dreq_service;
 
 	dccp_csum_outgoing(skb);

@@ -5,7 +5,7 @@
  *  All rights reserved.
  *
  *  Benny Halevy <bhalevy@panasas.com>
- *  Boaz Harrosh <bharrosh@panasas.com>
+ *  Boaz Harrosh <ooo@electrozaur.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -37,6 +37,9 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <linux/kmod.h>
+#include <linux/moduleparam.h>
+#include <linux/ratelimit.h>
 #include <scsi/osd_initiator.h>
 #include "objlayout.h"
 
@@ -50,10 +53,10 @@ objlayout_alloc_layout_hdr(struct inode *inode, gfp_t gfp_flags)
 	struct objlayout *objlay;
 
 	objlay = kzalloc(sizeof(struct objlayout), gfp_flags);
-	if (objlay) {
-		spin_lock_init(&objlay->lock);
-		INIT_LIST_HEAD(&objlay->err_list);
-	}
+	if (!objlay)
+		return NULL;
+	spin_lock_init(&objlay->lock);
+	INIT_LIST_HEAD(&objlay->err_list);
 	dprintk("%s: Return %p\n", __func__, objlay);
 	return &objlay->pnfs_layout;
 }
@@ -145,18 +148,7 @@ end_offset(u64 start, u64 len)
 	return end >= start ? end : NFS4_MAX_UINT64;
 }
 
-/* last octet in a range */
-static inline u64
-last_byte_offset(u64 start, u64 len)
-{
-	u64 end;
-
-	BUG_ON(!len);
-	end = start + len;
-	return end > start ? end - 1 : NFS4_MAX_UINT64;
-}
-
-void _fix_verify_io_params(struct pnfs_layout_segment *lseg,
+static void _fix_verify_io_params(struct pnfs_layout_segment *lseg,
 			   struct page ***p_pages, unsigned *p_pgbase,
 			   u64 offset, unsigned long count)
 {
@@ -237,34 +229,36 @@ objlayout_io_set_result(struct objlayout_io_res *oir, unsigned index,
 static void _rpc_read_complete(struct work_struct *work)
 {
 	struct rpc_task *task;
-	struct nfs_read_data *rdata;
+	struct nfs_pgio_header *hdr;
 
 	dprintk("%s enter\n", __func__);
 	task = container_of(work, struct rpc_task, u.tk_work);
-	rdata = container_of(task, struct nfs_read_data, task);
+	hdr = container_of(task, struct nfs_pgio_header, task);
 
-	pnfs_ld_read_done(rdata);
+	pnfs_ld_read_done(hdr);
 }
 
 void
 objlayout_read_done(struct objlayout_io_res *oir, ssize_t status, bool sync)
 {
-	struct nfs_read_data *rdata = oir->rpcdata;
+	struct nfs_pgio_header *hdr = oir->rpcdata;
 
-	oir->status = rdata->task.tk_status = status;
+	oir->status = hdr->task.tk_status = status;
 	if (status >= 0)
-		rdata->res.count = status;
+		hdr->res.count = status;
+	else
+		hdr->pnfs_error = status;
 	objlayout_iodone(oir);
 	/* must not use oir after this point */
 
 	dprintk("%s: Return status=%zd eof=%d sync=%d\n", __func__,
-		status, rdata->res.eof, sync);
+		status, hdr->res.eof, sync);
 
 	if (sync)
-		pnfs_ld_read_done(rdata);
+		pnfs_ld_read_done(hdr);
 	else {
-		INIT_WORK(&rdata->task.u.tk_work, _rpc_read_complete);
-		schedule_work(&rdata->task.u.tk_work);
+		INIT_WORK(&hdr->task.u.tk_work, _rpc_read_complete);
+		schedule_work(&hdr->task.u.tk_work);
 	}
 }
 
@@ -272,37 +266,38 @@ objlayout_read_done(struct objlayout_io_res *oir, ssize_t status, bool sync)
  * Perform sync or async reads.
  */
 enum pnfs_try_status
-objlayout_read_pagelist(struct nfs_read_data *rdata)
+objlayout_read_pagelist(struct nfs_pgio_header *hdr)
 {
-	loff_t offset = rdata->args.offset;
-	size_t count = rdata->args.count;
+	struct inode *inode = hdr->inode;
+	loff_t offset = hdr->args.offset;
+	size_t count = hdr->args.count;
 	int err;
 	loff_t eof;
 
-	eof = i_size_read(rdata->inode);
+	eof = i_size_read(inode);
 	if (unlikely(offset + count > eof)) {
 		if (offset >= eof) {
 			err = 0;
-			rdata->res.count = 0;
-			rdata->res.eof = 1;
+			hdr->res.count = 0;
+			hdr->res.eof = 1;
 			/*FIXME: do we need to call pnfs_ld_read_done() */
 			goto out;
 		}
 		count = eof - offset;
 	}
 
-	rdata->res.eof = (offset + count) >= eof;
-	_fix_verify_io_params(rdata->lseg, &rdata->args.pages,
-			      &rdata->args.pgbase,
-			      rdata->args.offset, rdata->args.count);
+	hdr->res.eof = (offset + count) >= eof;
+	_fix_verify_io_params(hdr->lseg, &hdr->args.pages,
+			      &hdr->args.pgbase,
+			      hdr->args.offset, hdr->args.count);
 
 	dprintk("%s: inode(%lx) offset 0x%llx count 0x%Zx eof=%d\n",
-		__func__, rdata->inode->i_ino, offset, count, rdata->res.eof);
+		__func__, inode->i_ino, offset, count, hdr->res.eof);
 
-	err = objio_read_pagelist(rdata);
+	err = objio_read_pagelist(hdr);
  out:
 	if (unlikely(err)) {
-		rdata->pnfs_error = err;
+		hdr->pnfs_error = err;
 		dprintk("%s: Returned Error %d\n", __func__, err);
 		return PNFS_NOT_ATTEMPTED;
 	}
@@ -316,36 +311,38 @@ objlayout_read_pagelist(struct nfs_read_data *rdata)
 static void _rpc_write_complete(struct work_struct *work)
 {
 	struct rpc_task *task;
-	struct nfs_write_data *wdata;
+	struct nfs_pgio_header *hdr;
 
 	dprintk("%s enter\n", __func__);
 	task = container_of(work, struct rpc_task, u.tk_work);
-	wdata = container_of(task, struct nfs_write_data, task);
+	hdr = container_of(task, struct nfs_pgio_header, task);
 
-	pnfs_ld_write_done(wdata);
+	pnfs_ld_write_done(hdr);
 }
 
 void
 objlayout_write_done(struct objlayout_io_res *oir, ssize_t status, bool sync)
 {
-	struct nfs_write_data *wdata = oir->rpcdata;
+	struct nfs_pgio_header *hdr = oir->rpcdata;
 
-	oir->status = wdata->task.tk_status = status;
+	oir->status = hdr->task.tk_status = status;
 	if (status >= 0) {
-		wdata->res.count = status;
-		wdata->verf.committed = oir->committed;
+		hdr->res.count = status;
+		hdr->verf.committed = oir->committed;
+	} else {
+		hdr->pnfs_error = status;
 	}
 	objlayout_iodone(oir);
 	/* must not use oir after this point */
 
 	dprintk("%s: Return status %zd committed %d sync=%d\n", __func__,
-		status, wdata->verf.committed, sync);
+		status, hdr->verf.committed, sync);
 
 	if (sync)
-		pnfs_ld_write_done(wdata);
+		pnfs_ld_write_done(hdr);
 	else {
-		INIT_WORK(&wdata->task.u.tk_work, _rpc_write_complete);
-		schedule_work(&wdata->task.u.tk_work);
+		INIT_WORK(&hdr->task.u.tk_work, _rpc_write_complete);
+		schedule_work(&hdr->task.u.tk_work);
 	}
 }
 
@@ -353,18 +350,17 @@ objlayout_write_done(struct objlayout_io_res *oir, ssize_t status, bool sync)
  * Perform sync or async writes.
  */
 enum pnfs_try_status
-objlayout_write_pagelist(struct nfs_write_data *wdata,
-			 int how)
+objlayout_write_pagelist(struct nfs_pgio_header *hdr, int how)
 {
 	int err;
 
-	_fix_verify_io_params(wdata->lseg, &wdata->args.pages,
-			      &wdata->args.pgbase,
-			      wdata->args.offset, wdata->args.count);
+	_fix_verify_io_params(hdr->lseg, &hdr->args.pages,
+			      &hdr->args.pgbase,
+			      hdr->args.offset, hdr->args.count);
 
-	err = objio_write_pagelist(wdata, how);
+	err = objio_write_pagelist(hdr, how);
 	if (unlikely(err)) {
-		wdata->pnfs_error = err;
+		hdr->pnfs_error = err;
 		dprintk("%s: Returned Error %d\n", __func__, err);
 		return PNFS_NOT_ATTEMPTED;
 	}
@@ -486,9 +482,9 @@ encode_accumulated_error(struct objlayout *objlay, __be32 *p)
 			if (!ioerr->oer_errno)
 				continue;
 
-			printk(KERN_ERR "%s: err[%d]: errno=%d is_write=%d "
-				"dev(%llx:%llx) par=0x%llx obj=0x%llx "
-				"offset=0x%llx length=0x%llx\n",
+			printk(KERN_ERR "NFS: %s: err[%d]: errno=%d "
+				"is_write=%d dev(%llx:%llx) par=0x%llx "
+				"obj=0x%llx offset=0x%llx length=0x%llx\n",
 				__func__, i, ioerr->oer_errno,
 				ioerr->oer_iswrite,
 				_DEVID_LO(&ioerr->oer_component.oid_device_id),
@@ -578,72 +574,133 @@ loop_done:
 	dprintk("%s: Return\n", __func__);
 }
 
-
-/*
- * Get Device Info API for io engines
- */
-struct objlayout_deviceinfo {
-	struct page *page;
-	struct pnfs_osd_deviceaddr da; /* This must be last */
+enum {
+	OBJLAYOUT_MAX_URI_LEN = 256, OBJLAYOUT_MAX_OSDNAME_LEN = 64,
+	OBJLAYOUT_MAX_SYSID_HEX_LEN = OSD_SYSTEMID_LEN * 2 + 1,
+	OSD_LOGIN_UPCALL_PATHLEN  = 256
 };
 
-/* Initialize and call nfs_getdeviceinfo, then decode and return a
- * "struct pnfs_osd_deviceaddr *" Eventually objlayout_put_deviceinfo()
- * should be called.
- */
-int objlayout_get_deviceinfo(struct pnfs_layout_hdr *pnfslay,
-	struct nfs4_deviceid *d_id, struct pnfs_osd_deviceaddr **deviceaddr,
-	gfp_t gfp_flags)
+static char osd_login_prog[OSD_LOGIN_UPCALL_PATHLEN] = "/sbin/osd_login";
+
+module_param_string(osd_login_prog, osd_login_prog, sizeof(osd_login_prog),
+		    0600);
+MODULE_PARM_DESC(osd_login_prog, "Path to the osd_login upcall program");
+
+struct __auto_login {
+	char uri[OBJLAYOUT_MAX_URI_LEN];
+	char osdname[OBJLAYOUT_MAX_OSDNAME_LEN];
+	char systemid_hex[OBJLAYOUT_MAX_SYSID_HEX_LEN];
+};
+
+static int __objlayout_upcall(struct __auto_login *login)
 {
-	struct objlayout_deviceinfo *odi;
-	struct pnfs_device pd;
-	struct super_block *sb;
-	struct page *page, **pages;
-	u32 *p;
-	int err;
+	static char *envp[] = { "HOME=/",
+		"TERM=linux",
+		"PATH=/sbin:/usr/sbin:/bin:/usr/bin",
+		NULL
+	};
+	char *argv[8];
+	int ret;
 
-	page = alloc_page(gfp_flags);
-	if (!page)
-		return -ENOMEM;
-
-	pages = &page;
-	pd.pages = pages;
-
-	memcpy(&pd.dev_id, d_id, sizeof(*d_id));
-	pd.layout_type = LAYOUT_OSD2_OBJECTS;
-	pd.pages = &page;
-	pd.pgbase = 0;
-	pd.pglen = PAGE_SIZE;
-	pd.mincount = 0;
-
-	sb = pnfslay->plh_inode->i_sb;
-	err = nfs4_proc_getdeviceinfo(NFS_SERVER(pnfslay->plh_inode), &pd);
-	dprintk("%s nfs_getdeviceinfo returned %d\n", __func__, err);
-	if (err)
-		goto err_out;
-
-	p = page_address(page);
-	odi = kzalloc(sizeof(*odi), gfp_flags);
-	if (!odi) {
-		err = -ENOMEM;
-		goto err_out;
+	if (unlikely(!osd_login_prog[0])) {
+		dprintk("%s: osd_login_prog is disabled\n", __func__);
+		return -EACCES;
 	}
-	pnfs_osd_xdr_decode_deviceaddr(&odi->da, p);
-	odi->page = page;
-	*deviceaddr = &odi->da;
-	return 0;
 
-err_out:
-	__free_page(page);
-	return err;
+	dprintk("%s uri: %s\n", __func__, login->uri);
+	dprintk("%s osdname %s\n", __func__, login->osdname);
+	dprintk("%s systemid_hex %s\n", __func__, login->systemid_hex);
+
+	argv[0] = (char *)osd_login_prog;
+	argv[1] = "-u";
+	argv[2] = login->uri;
+	argv[3] = "-o";
+	argv[4] = login->osdname;
+	argv[5] = "-s";
+	argv[6] = login->systemid_hex;
+	argv[7] = NULL;
+
+	ret = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+	/*
+	 * Disable the upcall mechanism if we're getting an ENOENT or
+	 * EACCES error. The admin can re-enable it on the fly by using
+	 * sysfs to set the objlayoutdriver.osd_login_prog module parameter once
+	 * the problem has been fixed.
+	 */
+	if (ret == -ENOENT || ret == -EACCES) {
+		printk(KERN_ERR "PNFS-OBJ: %s was not found please set "
+			"objlayoutdriver.osd_login_prog kernel parameter!\n",
+			osd_login_prog);
+		osd_login_prog[0] = '\0';
+	}
+	dprintk("%s %s return value: %d\n", __func__, osd_login_prog, ret);
+
+	return ret;
 }
 
-void objlayout_put_deviceinfo(struct pnfs_osd_deviceaddr *deviceaddr)
+/* Assume dest is all zeros */
+static void __copy_nfsS_and_zero_terminate(struct nfs4_string s,
+					   char *dest, int max_len,
+					   const char *var_name)
 {
-	struct objlayout_deviceinfo *odi = container_of(deviceaddr,
-						struct objlayout_deviceinfo,
-						da);
+	if (!s.len)
+		return;
 
-	__free_page(odi->page);
-	kfree(odi);
+	if (s.len >= max_len) {
+		pr_warn_ratelimited(
+			"objlayout_autologin: %s: s.len(%d) >= max_len(%d)",
+			var_name, s.len, max_len);
+		s.len = max_len - 1; /* space for null terminator */
+	}
+
+	memcpy(dest, s.data, s.len);
+}
+
+/* Assume sysid is all zeros */
+static void _sysid_2_hex(struct nfs4_string s,
+		  char sysid[OBJLAYOUT_MAX_SYSID_HEX_LEN])
+{
+	int i;
+	char *cur;
+
+	if (!s.len)
+		return;
+
+	if (s.len != OSD_SYSTEMID_LEN) {
+		pr_warn_ratelimited(
+		    "objlayout_autologin: systemid_len(%d) != OSD_SYSTEMID_LEN",
+		    s.len);
+		if (s.len > OSD_SYSTEMID_LEN)
+			s.len = OSD_SYSTEMID_LEN;
+	}
+
+	cur = sysid;
+	for (i = 0; i < s.len; i++)
+		cur = hex_byte_pack(cur, s.data[i]);
+}
+
+int objlayout_autologin(struct pnfs_osd_deviceaddr *deviceaddr)
+{
+	int rc;
+	struct __auto_login login;
+
+	if (!deviceaddr->oda_targetaddr.ota_netaddr.r_addr.len)
+		return -ENODEV;
+
+	memset(&login, 0, sizeof(login));
+	__copy_nfsS_and_zero_terminate(
+		deviceaddr->oda_targetaddr.ota_netaddr.r_addr,
+		login.uri, sizeof(login.uri), "URI");
+
+	__copy_nfsS_and_zero_terminate(
+		deviceaddr->oda_osdname,
+		login.osdname, sizeof(login.osdname), "OSDNAME");
+
+	_sysid_2_hex(deviceaddr->oda_systemid, login.systemid_hex);
+
+	rc = __objlayout_upcall(&login);
+	if (rc > 0) /* script returns positive values */
+		rc = -ENODEV;
+
+	return rc;
 }

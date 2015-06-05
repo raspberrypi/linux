@@ -295,34 +295,6 @@
 #define PIPE_STATE_PENDING	3	/* Pipe has pending start */
 
 
-/* Debug initialization */
-#ifdef CONFIG_SND_DEBUG
-#define DE_INIT(x) snd_printk x
-#else
-#define DE_INIT(x)
-#endif
-
-/* Debug hw_params callbacks */
-#ifdef CONFIG_SND_DEBUG
-#define DE_HWP(x) snd_printk x
-#else
-#define DE_HWP(x)
-#endif
-
-/* Debug normal activity (open, start, stop...) */
-#ifdef CONFIG_SND_DEBUG
-#define DE_ACT(x) snd_printk x
-#else
-#define DE_ACT(x)
-#endif
-
-/* Debug midi activity */
-#ifdef CONFIG_SND_DEBUG
-#define DE_MID(x) snd_printk x
-#else
-#define DE_MID(x)
-#endif
-
 
 struct audiopipe {
 	volatile u32 *dma_counter;	/* Commpage register that contains
@@ -449,7 +421,7 @@ struct echoaudio {
 	volatile u32 __iomem *dsp_registers;	/* DSP's register base */
 	u32 active_mask;			/* Chs. active mask or
 						 * punks out */
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 	const struct firmware *fw_cache[8];	/* Cached firmwares */
 #endif
 
@@ -468,15 +440,16 @@ static int wait_handshake(struct echoaudio *chip);
 static int send_vector(struct echoaudio *chip, u32 command);
 static int get_firmware(const struct firmware **fw_entry,
 			struct echoaudio *chip, const short fw_index);
-static void free_firmware(const struct firmware *fw_entry);
+static void free_firmware(const struct firmware *fw_entry,
+			  struct echoaudio *chip);
 
 #ifdef ECHOCARD_HAS_MIDI
 static int enable_midi_input(struct echoaudio *chip, char enable);
 static void snd_echo_midi_output_trigger(
 			struct snd_rawmidi_substream *substream, int up);
 static int midi_service_irq(struct echoaudio *chip);
-static int __devinit snd_echo_midi_create(struct snd_card *card,
-					  struct echoaudio *chip);
+static int snd_echo_midi_create(struct snd_card *card,
+				struct echoaudio *chip);
 #endif
 
 

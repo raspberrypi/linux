@@ -1,82 +1,13 @@
 #ifndef _LINUX_PTRACE_H
 #define _LINUX_PTRACE_H
-/* ptrace.h */
-/* structs and defines to help the user use the ptrace system call. */
 
-/* has the defines to get at the registers. */
+#include <linux/compiler.h>		/* For unlikely.  */
+#include <linux/sched.h>		/* For struct task_struct.  */
+#include <linux/err.h>			/* for IS_ERR_VALUE */
+#include <linux/bug.h>			/* For BUG_ON.  */
+#include <linux/pid_namespace.h>	/* For task_active_pid_ns.  */
+#include <uapi/linux/ptrace.h>
 
-#define PTRACE_TRACEME		   0
-#define PTRACE_PEEKTEXT		   1
-#define PTRACE_PEEKDATA		   2
-#define PTRACE_PEEKUSR		   3
-#define PTRACE_POKETEXT		   4
-#define PTRACE_POKEDATA		   5
-#define PTRACE_POKEUSR		   6
-#define PTRACE_CONT		   7
-#define PTRACE_KILL		   8
-#define PTRACE_SINGLESTEP	   9
-
-#define PTRACE_ATTACH		  16
-#define PTRACE_DETACH		  17
-
-#define PTRACE_SYSCALL		  24
-
-/* 0x4200-0x4300 are reserved for architecture-independent additions.  */
-#define PTRACE_SETOPTIONS	0x4200
-#define PTRACE_GETEVENTMSG	0x4201
-#define PTRACE_GETSIGINFO	0x4202
-#define PTRACE_SETSIGINFO	0x4203
-
-/*
- * Generic ptrace interface that exports the architecture specific regsets
- * using the corresponding NT_* types (which are also used in the core dump).
- * Please note that the NT_PRSTATUS note type in a core dump contains a full
- * 'struct elf_prstatus'. But the user_regset for NT_PRSTATUS contains just the
- * elf_gregset_t that is the pr_reg field of 'struct elf_prstatus'. For all the
- * other user_regset flavors, the user_regset layout and the ELF core dump note
- * payload are exactly the same layout.
- *
- * This interface usage is as follows:
- *	struct iovec iov = { buf, len};
- *
- *	ret = ptrace(PTRACE_GETREGSET/PTRACE_SETREGSET, pid, NT_XXX_TYPE, &iov);
- *
- * On the successful completion, iov.len will be updated by the kernel,
- * specifying how much the kernel has written/read to/from the user's iov.buf.
- */
-#define PTRACE_GETREGSET	0x4204
-#define PTRACE_SETREGSET	0x4205
-
-#define PTRACE_SEIZE		0x4206
-#define PTRACE_INTERRUPT	0x4207
-#define PTRACE_LISTEN		0x4208
-
-/* flags in @data for PTRACE_SEIZE */
-#define PTRACE_SEIZE_DEVEL	0x80000000 /* temp flag for development */
-
-/* options set using PTRACE_SETOPTIONS */
-#define PTRACE_O_TRACESYSGOOD	0x00000001
-#define PTRACE_O_TRACEFORK	0x00000002
-#define PTRACE_O_TRACEVFORK	0x00000004
-#define PTRACE_O_TRACECLONE	0x00000008
-#define PTRACE_O_TRACEEXEC	0x00000010
-#define PTRACE_O_TRACEVFORKDONE	0x00000020
-#define PTRACE_O_TRACEEXIT	0x00000040
-
-#define PTRACE_O_MASK		0x0000007f
-
-/* Wait extended result codes for the above trace options.  */
-#define PTRACE_EVENT_FORK	1
-#define PTRACE_EVENT_VFORK	2
-#define PTRACE_EVENT_CLONE	3
-#define PTRACE_EVENT_EXEC	4
-#define PTRACE_EVENT_VFORK_DONE	5
-#define PTRACE_EVENT_EXIT	6
-#define PTRACE_EVENT_STOP	7
-
-#include <asm/ptrace.h>
-
-#ifdef __KERNEL__
 /*
  * Ptrace flags
  *
@@ -88,21 +19,21 @@
 #define PT_SEIZED	0x00010000	/* SEIZE used, enable new behavior */
 #define PT_PTRACED	0x00000001
 #define PT_DTRACE	0x00000002	/* delayed trace (used on m68k, i386) */
-#define PT_TRACESYSGOOD	0x00000004
-#define PT_PTRACE_CAP	0x00000008	/* ptracer can follow suid-exec */
+#define PT_PTRACE_CAP	0x00000004	/* ptracer can follow suid-exec */
 
+#define PT_OPT_FLAG_SHIFT	3
 /* PT_TRACE_* event enable flags */
-#define PT_EVENT_FLAG_SHIFT	4
-#define PT_EVENT_FLAG(event)	(1 << (PT_EVENT_FLAG_SHIFT + (event) - 1))
-
+#define PT_EVENT_FLAG(event)	(1 << (PT_OPT_FLAG_SHIFT + (event)))
+#define PT_TRACESYSGOOD		PT_EVENT_FLAG(0)
 #define PT_TRACE_FORK		PT_EVENT_FLAG(PTRACE_EVENT_FORK)
 #define PT_TRACE_VFORK		PT_EVENT_FLAG(PTRACE_EVENT_VFORK)
 #define PT_TRACE_CLONE		PT_EVENT_FLAG(PTRACE_EVENT_CLONE)
 #define PT_TRACE_EXEC		PT_EVENT_FLAG(PTRACE_EVENT_EXEC)
 #define PT_TRACE_VFORK_DONE	PT_EVENT_FLAG(PTRACE_EVENT_VFORK_DONE)
 #define PT_TRACE_EXIT		PT_EVENT_FLAG(PTRACE_EVENT_EXIT)
+#define PT_TRACE_SECCOMP	PT_EVENT_FLAG(PTRACE_EVENT_SECCOMP)
 
-#define PT_TRACE_MASK	0x000003f4
+#define PT_EXITKILL		(PTRACE_O_EXITKILL << PT_OPT_FLAG_SHIFT)
 
 /* single stepping state bits (used on ARM and PA-RISC) */
 #define PT_SINGLESTEP_BIT	31
@@ -110,27 +41,21 @@
 #define PT_BLOCKSTEP_BIT	30
 #define PT_BLOCKSTEP		(1<<PT_BLOCKSTEP_BIT)
 
-#include <linux/compiler.h>		/* For unlikely.  */
-#include <linux/sched.h>		/* For struct task_struct.  */
-
-
 extern long arch_ptrace(struct task_struct *child, long request,
 			unsigned long addr, unsigned long data);
 extern int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len);
 extern int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len);
 extern void ptrace_disable(struct task_struct *);
-extern int ptrace_check_attach(struct task_struct *task, bool ignore_state);
 extern int ptrace_request(struct task_struct *child, long request,
 			  unsigned long addr, unsigned long data);
 extern void ptrace_notify(int exit_code);
 extern void __ptrace_link(struct task_struct *child,
 			  struct task_struct *new_parent);
 extern void __ptrace_unlink(struct task_struct *child);
-extern void exit_ptrace(struct task_struct *tracer);
-#define PTRACE_MODE_READ   1
-#define PTRACE_MODE_ATTACH 2
-/* Returns 0 on success, -errno on denial. */
-extern int __ptrace_may_access(struct task_struct *task, unsigned int mode);
+extern void exit_ptrace(struct task_struct *tracer, struct list_head *dead);
+#define PTRACE_MODE_READ	0x01
+#define PTRACE_MODE_ATTACH	0x02
+#define PTRACE_MODE_NOAUDIT	0x04
 /* Returns true on success, false on denial. */
 extern bool ptrace_may_access(struct task_struct *task, unsigned int mode);
 
@@ -197,10 +122,42 @@ static inline void ptrace_event(int event, unsigned long message)
 	if (unlikely(ptrace_event_enabled(current, event))) {
 		current->ptrace_message = message;
 		ptrace_notify((event << 8) | SIGTRAP);
-	} else if (event == PTRACE_EVENT_EXEC && unlikely(current->ptrace)) {
+	} else if (event == PTRACE_EVENT_EXEC) {
 		/* legacy EXEC report via SIGTRAP */
-		send_sig(SIGTRAP, current, 0);
+		if ((current->ptrace & (PT_PTRACED|PT_SEIZED)) == PT_PTRACED)
+			send_sig(SIGTRAP, current, 0);
 	}
+}
+
+/**
+ * ptrace_event_pid - possibly stop for a ptrace event notification
+ * @event:	%PTRACE_EVENT_* value to report
+ * @pid:	process identifier for %PTRACE_GETEVENTMSG to return
+ *
+ * Check whether @event is enabled and, if so, report @event and @pid
+ * to the ptrace parent.  @pid is reported as the pid_t seen from the
+ * the ptrace parent's pid namespace.
+ *
+ * Called without locks.
+ */
+static inline void ptrace_event_pid(int event, struct pid *pid)
+{
+	/*
+	 * FIXME: There's a potential race if a ptracer in a different pid
+	 * namespace than parent attaches between computing message below and
+	 * when we acquire tasklist_lock in ptrace_stop().  If this happens,
+	 * the ptracer will get a bogus pid from PTRACE_GETEVENTMSG.
+	 */
+	unsigned long message = 0;
+	struct pid_namespace *ns;
+
+	rcu_read_lock();
+	ns = task_active_pid_ns(rcu_dereference(current->parent));
+	if (ns)
+		message = pid_nr_ns(pid, ns);
+	rcu_read_unlock();
+
+	ptrace_event(event, message);
 }
 
 /**
@@ -217,9 +174,6 @@ static inline void ptrace_init_task(struct task_struct *child, bool ptrace)
 {
 	INIT_LIST_HEAD(&child->ptrace_entry);
 	INIT_LIST_HEAD(&child->ptraced);
-#ifdef CONFIG_HAVE_HW_BREAKPOINT
-	atomic_set(&child->ptrace_bp_refcnt, 1);
-#endif
 	child->jobctl = 0;
 	child->ptrace = 0;
 	child->parent = child->real_parent;
@@ -263,6 +217,15 @@ static inline void ptrace_release_task(struct task_struct *task)
  * syscall handler, or something along those lines).
  */
 #define force_successful_syscall_return() do { } while (0)
+#endif
+
+#ifndef is_syscall_success
+/*
+ * On most systems we can tell if a syscall is a success based on if the retval
+ * is an error value.  On some systems like ia64 and powerpc they have different
+ * indicators of success/failure and must define their own.
+ */
+#define is_syscall_success(regs) (!IS_ERR_VALUE((unsigned long)(regs_return_value(regs))))
 #endif
 
 /*
@@ -371,6 +334,9 @@ static inline void user_single_step_siginfo(struct task_struct *tsk,
  * calling arch_ptrace_stop() when it would be superfluous.  For example,
  * if the thread has not been back to user mode since the last stop, the
  * thread state might indicate that nothing needs to be done.
+ *
+ * This is guaranteed to be invoked once before a task stops for ptrace and
+ * may include arch-specific operations necessary prior to a ptrace stop.
  */
 #define arch_ptrace_stop_needed(code, info)	(0)
 #endif
@@ -392,17 +358,29 @@ static inline void user_single_step_siginfo(struct task_struct *tsk,
 #define arch_ptrace_stop(code, info)		do { } while (0)
 #endif
 
+#ifndef current_pt_regs
+#define current_pt_regs() task_pt_regs(current)
+#endif
+
+#ifndef ptrace_signal_deliver
+#define ptrace_signal_deliver() ((void)0)
+#endif
+
+/*
+ * unlike current_pt_regs(), this one is equal to task_pt_regs(current)
+ * on *all* architectures; the only reason to have a per-arch definition
+ * is optimisation.
+ */
+#ifndef signal_pt_regs
+#define signal_pt_regs() task_pt_regs(current)
+#endif
+
+#ifndef current_user_stack_pointer
+#define current_user_stack_pointer() user_stack_pointer(current_pt_regs())
+#endif
+
 extern int task_current_syscall(struct task_struct *target, long *callno,
 				unsigned long args[6], unsigned int maxargs,
 				unsigned long *sp, unsigned long *pc);
-
-#ifdef CONFIG_HAVE_HW_BREAKPOINT
-extern int ptrace_get_breakpoints(struct task_struct *tsk);
-extern void ptrace_put_breakpoints(struct task_struct *tsk);
-#else
-static inline void ptrace_put_breakpoints(struct task_struct *tsk) { }
-#endif /* CONFIG_HAVE_HW_BREAKPOINT */
-
-#endif /* __KERNEL */
 
 #endif

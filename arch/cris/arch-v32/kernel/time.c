@@ -14,11 +14,11 @@
 #include <linux/init.h>
 #include <linux/threads.h>
 #include <linux/cpufreq.h>
+#include <linux/mm.h>
 #include <asm/types.h>
 #include <asm/signal.h>
 #include <asm/io.h>
 #include <asm/delay.h>
-#include <asm/rtc.h>
 #include <asm/irq.h>
 #include <asm/irq_regs.h>
 
@@ -57,7 +57,6 @@ static int __init etrax_init_cont_rotime(void)
 }
 arch_initcall(etrax_init_cont_rotime);
 
-
 unsigned long timer_regs[NR_CPUS] =
 {
 	regi_timer0,
@@ -67,12 +66,10 @@ unsigned long timer_regs[NR_CPUS] =
 };
 
 extern int set_rtc_mmss(unsigned long nowtime);
-extern int have_rtc;
 
 #ifdef CONFIG_CPU_FREQ
-static int
-cris_time_freq_notifier(struct notifier_block *nb, unsigned long val,
-			void *data);
+static int cris_time_freq_notifier(struct notifier_block *nb,
+				   unsigned long val, void *data);
 
 static struct notifier_block cris_time_freq_notifier_block = {
 	.notifier_call = cris_time_freq_notifier,
@@ -88,7 +85,6 @@ unsigned long get_ns_in_jiffie(void)
 	ns = (TIMER0_DIV - data) * 10;
 	return ns;
 }
-
 
 /* From timer MDS describing the hardware watchdog:
  * 4.3.1 Watchdog Operation
@@ -111,11 +107,20 @@ static short int watchdog_key = 42;  /* arbitrary 7 bit number */
  * is used though, so set this really low. */
 #define WATCHDOG_MIN_FREE_PAGES 8
 
+#if defined(CONFIG_ETRAX_WATCHDOG_NICE_DOGGY)
+/* for reliable NICE_DOGGY behaviour */
+static int bite_in_progress;
+#endif
+
 void reset_watchdog(void)
 {
 #if defined(CONFIG_ETRAX_WATCHDOG)
 	reg_timer_rw_wd_ctrl wd_ctrl = { 0 };
 
+#if defined(CONFIG_ETRAX_WATCHDOG_NICE_DOGGY)
+	if (unlikely(bite_in_progress))
+		return;
+#endif
 	/* Only keep watchdog happy as long as we have memory left! */
 	if(nr_free_pages() > WATCHDOG_MIN_FREE_PAGES) {
 		/* Reset the watchdog with the inverse of the old key */
@@ -150,7 +155,11 @@ void handle_watchdog_bite(struct pt_regs *regs)
 #if defined(CONFIG_ETRAX_WATCHDOG)
 	extern int cause_of_death;
 
+	nmi_enter();
 	oops_in_progress = 1;
+#if defined(CONFIG_ETRAX_WATCHDOG_NICE_DOGGY)
+	bite_in_progress = 1;
+#endif
 	printk(KERN_WARNING "Watchdog bite\n");
 
 	/* Check if forced restart or unexpected watchdog */
@@ -172,6 +181,7 @@ void handle_watchdog_bite(struct pt_regs *regs)
 	printk(KERN_WARNING "Oops: bitten by watchdog\n");
 	show_registers(regs);
 	oops_in_progress = 0;
+	printk("\n"); /* Flush mtdoops.  */
 #ifndef CONFIG_ETRAX_WATCHDOG_NICE_DOGGY
 	reset_watchdog();
 #endif
@@ -204,7 +214,7 @@ static inline irqreturn_t timer_interrupt(int irq, void *dev_id)
 	/* Reset watchdog otherwise it resets us! */
 	reset_watchdog();
 
-        /* Update statistics. */
+	/* Update statistics. */
 	update_process_times(user_mode(regs));
 
 	cris_do_profile(regs); /* Save profiling information */
@@ -215,15 +225,13 @@ static inline irqreturn_t timer_interrupt(int irq, void *dev_id)
 
 	/* Call the real timer interrupt handler */
 	xtime_update(1);
-        return IRQ_HANDLED;
+	return IRQ_HANDLED;
 }
 
-/* Timer is IRQF_SHARED so drivers can add stuff to the timer irq chain.
- * It needs to be IRQF_DISABLED to make the jiffies update work properly.
- */
+/* Timer is IRQF_SHARED so drivers can add stuff to the timer irq chain. */
 static struct irqaction irq_timer = {
 	.handler = timer_interrupt,
-	.flags = IRQF_SHARED | IRQF_DISABLED,
+	.flags = IRQF_SHARED,
 	.name = "timer"
 };
 
@@ -265,11 +273,6 @@ void __init time_init(void)
 	 */
 	loops_per_usec = 50;
 
-	if(RTC_INIT() < 0)
-		have_rtc = 0;
-	else
-		have_rtc = 1;
-
 	/* Start CPU local timer. */
 	cris_timer_init();
 
@@ -302,14 +305,13 @@ void __init time_init(void)
 
 #ifdef CONFIG_CPU_FREQ
 	cpufreq_register_notifier(&cris_time_freq_notifier_block,
-		CPUFREQ_TRANSITION_NOTIFIER);
+				  CPUFREQ_TRANSITION_NOTIFIER);
 #endif
 }
 
 #ifdef CONFIG_CPU_FREQ
-static int
-cris_time_freq_notifier(struct notifier_block *nb, unsigned long val,
-			void *data)
+static int cris_time_freq_notifier(struct notifier_block *nb,
+				   unsigned long val, void *data)
 {
 	struct cpufreq_freqs *freqs = data;
 	if (val == CPUFREQ_POSTCHANGE) {

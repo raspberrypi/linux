@@ -24,20 +24,19 @@ config ATP
 	select CRC32
 	---help---
 	  This is a network (Ethernet) device which attaches to your parallel
-	  port. Read <file:drivers/net/atp.c> as well as the Ethernet-HOWTO,
-	  available from <http://www.tldp.org/docs.html#howto>, if you
-	  want to use this.  If you intend to use this driver, you should have
-	  said N to the "Parallel printer support", because the two drivers
-	  don't like each other.
+	  port. Read <file:drivers/net/ethernet/realtek/atp.c> as well as the
+	  Ethernet-HOWTO, available from <http://www.tldp.org/docs.html#howto>,
+	  if you want to use this.  If you intend to use this driver, you
+	  should have said N to the "Parallel printer support", because the two
+	  drivers don't like each other.
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called atp.
 
 config 8139CP
-	tristate "RealTek RTL-8139 C+ PCI Fast Ethernet Adapter support (EXPERIMENTAL)"
-	depends on PCI && EXPERIMENTAL
+	tristate "RealTek RTL-8139 C+ PCI Fast Ethernet Adapter support"
+	depends on PCI
 	select CRC32
-	select NET_CORE
 	select MII
 	---help---
 	  This is a driver for the Fast Ethernet PCI network cards based on
@@ -52,7 +51,6 @@ config 8139TOO
 	tristate "RealTek RTL-8129/8130/8139 PCI Fast Ethernet Adapter support"
 	depends on PCI
 	select CRC32
-	select NET_CORE
 	select MII
 	---help---
 	  This is a driver for the Fast Ethernet PCI network cards based on
@@ -107,7 +105,6 @@ config R8169
 	depends on PCI
 	select FW_LOADER
 	select CRC32
-	select NET_CORE
 	select MII
 	---help---
 	  Say Y here if you have a Realtek 8169 PCI Gigabit Ethernet adapter.

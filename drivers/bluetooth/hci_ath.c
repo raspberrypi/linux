@@ -51,33 +51,22 @@ struct ath_struct {
 
 static int ath_wakeup_ar3k(struct tty_struct *tty)
 {
-	struct ktermios ktermios;
 	int status = tty->driver->ops->tiocmget(tty);
 
 	if (status & TIOCM_CTS)
 		return status;
 
-	/* Disable Automatic RTSCTS */
-	memcpy(&ktermios, tty->termios, sizeof(ktermios));
-	ktermios.c_cflag &= ~CRTSCTS;
-	tty_set_termios(tty, &ktermios);
-
 	/* Clear RTS first */
-	status = tty->driver->ops->tiocmget(tty);
+	tty->driver->ops->tiocmget(tty);
 	tty->driver->ops->tiocmset(tty, 0x00, TIOCM_RTS);
 	mdelay(20);
 
 	/* Set RTS, wake up board */
-	status = tty->driver->ops->tiocmget(tty);
+	tty->driver->ops->tiocmget(tty);
 	tty->driver->ops->tiocmset(tty, TIOCM_RTS, 0x00);
 	mdelay(20);
 
 	status = tty->driver->ops->tiocmget(tty);
-
-	/* Disable Automatic RTSCTS */
-	ktermios.c_cflag |= CRTSCTS;
-	status = tty_set_termios(tty, &ktermios);
-
 	return status;
 }
 
@@ -112,7 +101,7 @@ static int ath_open(struct hci_uart *hu)
 
 	BT_DBG("hu %p", hu);
 
-	ath = kzalloc(sizeof(*ath), GFP_ATOMIC);
+	ath = kzalloc(sizeof(*ath), GFP_KERNEL);
 	if (!ath)
 		return -ENOMEM;
 

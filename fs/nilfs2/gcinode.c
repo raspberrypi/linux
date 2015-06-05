@@ -172,7 +172,6 @@ int nilfs_init_gcinode(struct inode *inode)
 	inode->i_mode = S_IFREG;
 	mapping_set_gfp_mask(inode->i_mapping, GFP_NOFS);
 	inode->i_mapping->a_ops = &empty_aops;
-	inode->i_mapping->backing_dev_info = inode->i_sb->s_bdi;
 
 	ii->i_flags = 0;
 	nilfs_bmap_init_gc(ii->i_bmap);
@@ -191,6 +190,8 @@ void nilfs_remove_all_gcinodes(struct the_nilfs *nilfs)
 	while (!list_empty(head)) {
 		ii = list_first_entry(head, struct nilfs_inode_info, i_dirty);
 		list_del_init(&ii->i_dirty);
+		truncate_inode_pages(&ii->vfs_inode.i_data, 0);
+		nilfs_btnode_cache_clear(&ii->i_btnode_cache);
 		iput(&ii->vfs_inode);
 	}
 }

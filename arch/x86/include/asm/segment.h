@@ -23,6 +23,15 @@
 #define GDT_ENTRY_BOOT_TSS	(GDT_ENTRY_BOOT_CS + 2)
 #define __BOOT_TSS		(GDT_ENTRY_BOOT_TSS * 8)
 
+#define SEGMENT_RPL_MASK	0x3 /*
+				     * Bottom two bits of selector give the ring
+				     * privilege level
+				     */
+#define SEGMENT_TI_MASK		0x4 /* Bit 2 is table indicator (LDT/GDT) */
+#define USER_RPL		0x3 /* User mode is privilege level 3 */
+#define SEGMENT_LDT		0x4 /* LDT segment has TI set... */
+#define SEGMENT_GDT		0x0 /* ... GDT has it cleared */
+
 #ifdef CONFIG_X86_32
 /*
  * The layout of the per-CPU GDT under Linux:
@@ -125,16 +134,6 @@
 #define PNP_TS1    (GDT_ENTRY_PNPBIOS_TS1 * 8)	/* transfer data segment */
 #define PNP_TS2    (GDT_ENTRY_PNPBIOS_TS2 * 8)	/* another data segment */
 
-/* Bottom two bits of selector give the ring privilege level */
-#define SEGMENT_RPL_MASK	0x3
-/* Bit 2 is table indicator (LDT/GDT) */
-#define SEGMENT_TI_MASK		0x4
-
-/* User mode is privilege level 3 */
-#define USER_RPL		0x3
-/* LDT segment has TI set, GDT has it cleared */
-#define SEGMENT_LDT		0x4
-#define SEGMENT_GDT		0x0
 
 /*
  * Matching rules for certain types of segments.
@@ -192,27 +191,75 @@
 #define get_kernel_rpl()  0
 #endif
 
-/* User mode is privilege level 3 */
-#define USER_RPL		0x3
-/* LDT segment has TI set, GDT has it cleared */
-#define SEGMENT_LDT		0x4
-#define SEGMENT_GDT		0x0
-
-/* Bottom two bits of selector give the ring privilege level */
-#define SEGMENT_RPL_MASK	0x3
-/* Bit 2 is table indicator (LDT/GDT) */
-#define SEGMENT_TI_MASK		0x4
-
 #define IDT_ENTRIES 256
 #define NUM_EXCEPTION_VECTORS 32
+/* Bitmask of exception vectors which push an error code on the stack */
+#define EXCEPTION_ERRCODE_MASK  0x00027d00
 #define GDT_SIZE (GDT_ENTRIES * 8)
 #define GDT_ENTRY_TLS_ENTRIES 3
 #define TLS_SIZE (GDT_ENTRY_TLS_ENTRIES * 8)
 
 #ifdef __KERNEL__
 #ifndef __ASSEMBLY__
-extern const char early_idt_handlers[NUM_EXCEPTION_VECTORS][10];
+extern const char early_idt_handlers[NUM_EXCEPTION_VECTORS][2+2+5];
+#ifdef CONFIG_TRACING
+#define trace_early_idt_handlers early_idt_handlers
 #endif
-#endif
+
+/*
+ * Load a segment. Fall back on loading the zero
+ * segment if something goes wrong..
+ */
+#define loadsegment(seg, value)						\
+do {									\
+	unsigned short __val = (value);					\
+									\
+	asm volatile("						\n"	\
+		     "1:	movl %k0,%%" #seg "		\n"	\
+									\
+		     ".section .fixup,\"ax\"			\n"	\
+		     "2:	xorl %k0,%k0			\n"	\
+		     "		jmp 1b				\n"	\
+		     ".previous					\n"	\
+									\
+		     _ASM_EXTABLE(1b, 2b)				\
+									\
+		     : "+r" (__val) : : "memory");			\
+} while (0)
+
+/*
+ * Save a segment register away
+ */
+#define savesegment(seg, value)				\
+	asm("mov %%" #seg ",%0":"=r" (value) : : "memory")
+
+/*
+ * x86_32 user gs accessors.
+ */
+#ifdef CONFIG_X86_32
+#ifdef CONFIG_X86_32_LAZY_GS
+#define get_user_gs(regs)	(u16)({unsigned long v; savesegment(gs, v); v;})
+#define set_user_gs(regs, v)	loadsegment(gs, (unsigned long)(v))
+#define task_user_gs(tsk)	((tsk)->thread.gs)
+#define lazy_save_gs(v)		savesegment(gs, (v))
+#define lazy_load_gs(v)		loadsegment(gs, (v))
+#else	/* X86_32_LAZY_GS */
+#define get_user_gs(regs)	(u16)((regs)->gs)
+#define set_user_gs(regs, v)	do { (regs)->gs = (v); } while (0)
+#define task_user_gs(tsk)	(task_pt_regs(tsk)->gs)
+#define lazy_save_gs(v)		do { } while (0)
+#define lazy_load_gs(v)		do { } while (0)
+#endif	/* X86_32_LAZY_GS */
+#endif	/* X86_32 */
+
+static inline unsigned long get_limit(unsigned long segment)
+{
+	unsigned long __limit;
+	asm("lsll %1,%0" : "=r" (__limit) : "r" (segment));
+	return __limit + 1;
+}
+
+#endif /* !__ASSEMBLY__ */
+#endif /* __KERNEL__ */
 
 #endif /* _ASM_X86_SEGMENT_H */

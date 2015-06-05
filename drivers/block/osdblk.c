@@ -266,11 +266,10 @@ static struct bio *bio_chain_clone(struct bio *old_chain, gfp_t gfpmask)
 	struct bio *tmp, *new_chain = NULL, *tail = NULL;
 
 	while (old_chain) {
-		tmp = bio_kmalloc(gfpmask, old_chain->bi_max_vecs);
+		tmp = bio_clone_kmalloc(old_chain, gfpmask);
 		if (!tmp)
 			goto err_out;
 
-		__bio_clone(tmp, old_chain);
 		tmp->bi_bdev = NULL;
 		gfpmask &= ~__GFP_WAIT;
 		tmp->bi_next = NULL;
@@ -424,7 +423,7 @@ static int osdblk_init_disk(struct osdblk_device *osdev)
 	}
 
 	/* switch queue to TCQ mode; allocate tag map */
-	rc = blk_queue_init_tags(q, OSDBLK_MAX_REQ, NULL);
+	rc = blk_queue_init_tags(q, OSDBLK_MAX_REQ, NULL, BLK_TAG_ALLOC_FIFO);
 	if (rc) {
 		blk_cleanup_queue(q);
 		put_disk(disk);
@@ -599,7 +598,7 @@ static ssize_t class_osdblk_remove(struct class *c,
 	unsigned long ul;
 	struct list_head *tmp;
 
-	rc = strict_strtoul(buf, 10, &ul);
+	rc = kstrtoul(buf, 10, &ul);
 	if (rc)
 		return rc;
 

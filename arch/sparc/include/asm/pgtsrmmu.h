@@ -80,10 +80,6 @@
 #define SRMMU_PRIV         0x1c
 #define SRMMU_PRIV_RDONLY  0x18
 
-#define SRMMU_FILE         0x40	/* Implemented in software */
-
-#define SRMMU_PTE_FILE_SHIFT     8	/* == 32-PTE_FILE_MAX_BITS */
-
 #define SRMMU_CHG_MASK    (0xffffff00 | SRMMU_REF | SRMMU_DIRTY)
 
 /* SRMMU swap entry encoding
@@ -94,13 +90,13 @@
  * oooooooooooooooooootttttRRRRRRRR
  * fedcba9876543210fedcba9876543210
  *
- * The bottom 8 bits are reserved for protection and status bits, especially
- * FILE and PRESENT.
+ * The bottom 7 bits are reserved for protection and status bits, especially
+ * PRESENT.
  */
 #define SRMMU_SWP_TYPE_MASK	0x1f
-#define SRMMU_SWP_TYPE_SHIFT	SRMMU_PTE_FILE_SHIFT
-#define SRMMU_SWP_OFF_MASK	0x7ffff
-#define SRMMU_SWP_OFF_SHIFT	(SRMMU_PTE_FILE_SHIFT + 5)
+#define SRMMU_SWP_TYPE_SHIFT	7
+#define SRMMU_SWP_OFF_MASK	0xfffff
+#define SRMMU_SWP_OFF_SHIFT	(SRMMU_SWP_TYPE_SHIFT + 5)
 
 /* Some day I will implement true fine grained access bits for
  * user pages because the SRMMU gives us the capabilities to
@@ -139,6 +135,7 @@
 	 restore %g0, %g0, %g0;
 
 #ifndef __ASSEMBLY__
+extern unsigned long last_valid_pfn;
 
 /* This makes sense. Honest it does - Anton */
 /* XXX Yes but it's ugly as sin.  FIXME. -KMW */
@@ -148,78 +145,13 @@ extern void *srmmu_nocache_pool;
 #define __nocache_fix(VADDR) __va(__nocache_pa(VADDR))
 
 /* Accessing the MMU control register. */
-static inline unsigned int srmmu_get_mmureg(void)
-{
-        unsigned int retval;
-	__asm__ __volatile__("lda [%%g0] %1, %0\n\t" :
-			     "=r" (retval) :
-			     "i" (ASI_M_MMUREGS));
-	return retval;
-}
-
-static inline void srmmu_set_mmureg(unsigned long regval)
-{
-	__asm__ __volatile__("sta %0, [%%g0] %1\n\t" : :
-			     "r" (regval), "i" (ASI_M_MMUREGS) : "memory");
-
-}
-
-static inline void srmmu_set_ctable_ptr(unsigned long paddr)
-{
-	paddr = ((paddr >> 4) & SRMMU_CTX_PMASK);
-	__asm__ __volatile__("sta %0, [%1] %2\n\t" : :
-			     "r" (paddr), "r" (SRMMU_CTXTBL_PTR),
-			     "i" (ASI_M_MMUREGS) :
-			     "memory");
-}
-
-static inline unsigned long srmmu_get_ctable_ptr(void)
-{
-	unsigned int retval;
-
-	__asm__ __volatile__("lda [%1] %2, %0\n\t" :
-			     "=r" (retval) :
-			     "r" (SRMMU_CTXTBL_PTR),
-			     "i" (ASI_M_MMUREGS));
-	return (retval & SRMMU_CTX_PMASK) << 4;
-}
-
-static inline void srmmu_set_context(int context)
-{
-	__asm__ __volatile__("sta %0, [%1] %2\n\t" : :
-			     "r" (context), "r" (SRMMU_CTX_REG),
-			     "i" (ASI_M_MMUREGS) : "memory");
-}
-
-static inline int srmmu_get_context(void)
-{
-	register int retval;
-	__asm__ __volatile__("lda [%1] %2, %0\n\t" :
-			     "=r" (retval) :
-			     "r" (SRMMU_CTX_REG),
-			     "i" (ASI_M_MMUREGS));
-	return retval;
-}
-
-static inline unsigned int srmmu_get_fstatus(void)
-{
-	unsigned int retval;
-
-	__asm__ __volatile__("lda [%1] %2, %0\n\t" :
-			     "=r" (retval) :
-			     "r" (SRMMU_FAULT_STATUS), "i" (ASI_M_MMUREGS));
-	return retval;
-}
-
-static inline unsigned int srmmu_get_faddr(void)
-{
-	unsigned int retval;
-
-	__asm__ __volatile__("lda [%1] %2, %0\n\t" :
-			     "=r" (retval) :
-			     "r" (SRMMU_FAULT_ADDR), "i" (ASI_M_MMUREGS));
-	return retval;
-}
+unsigned int srmmu_get_mmureg(void);
+void srmmu_set_mmureg(unsigned long regval);
+void srmmu_set_ctable_ptr(unsigned long paddr);
+void srmmu_set_context(int context);
+int srmmu_get_context(void);
+unsigned int srmmu_get_fstatus(void);
+unsigned int srmmu_get_faddr(void);
 
 /* This is guaranteed on all SRMMU's. */
 static inline void srmmu_flush_whole_tlb(void)
@@ -229,59 +161,6 @@ static inline void srmmu_flush_whole_tlb(void)
 			     "i" (ASI_M_FLUSH_PROBE) : "memory");
 
 }
-
-/* These flush types are not available on all chips... */
-static inline void srmmu_flush_tlb_ctx(void)
-{
-	__asm__ __volatile__("sta %%g0, [%0] %1\n\t": :
-			     "r" (0x300),        /* Flush TLB ctx.. */
-			     "i" (ASI_M_FLUSH_PROBE) : "memory");
-
-}
-
-static inline void srmmu_flush_tlb_region(unsigned long addr)
-{
-	addr &= SRMMU_PGDIR_MASK;
-	__asm__ __volatile__("sta %%g0, [%0] %1\n\t": :
-			     "r" (addr | 0x200), /* Flush TLB region.. */
-			     "i" (ASI_M_FLUSH_PROBE) : "memory");
-
-}
-
-
-static inline void srmmu_flush_tlb_segment(unsigned long addr)
-{
-	addr &= SRMMU_REAL_PMD_MASK;
-	__asm__ __volatile__("sta %%g0, [%0] %1\n\t": :
-			     "r" (addr | 0x100), /* Flush TLB segment.. */
-			     "i" (ASI_M_FLUSH_PROBE) : "memory");
-
-}
-
-static inline void srmmu_flush_tlb_page(unsigned long page)
-{
-	page &= PAGE_MASK;
-	__asm__ __volatile__("sta %%g0, [%0] %1\n\t": :
-			     "r" (page),        /* Flush TLB page.. */
-			     "i" (ASI_M_FLUSH_PROBE) : "memory");
-
-}
-
-#ifndef CONFIG_SPARC_LEON
-static inline unsigned long srmmu_hwprobe(unsigned long vaddr)
-{
-	unsigned long retval;
-
-	vaddr &= PAGE_MASK;
-	__asm__ __volatile__("lda [%1] %2, %0\n\t" :
-			     "=r" (retval) :
-			     "r" (vaddr | 0x400), "i" (ASI_M_FLUSH_PROBE));
-
-	return retval;
-}
-#else
-#define srmmu_hwprobe(addr) srmmu_swprobe(addr, 0)
-#endif
 
 static inline int
 srmmu_get_pte (unsigned long addr)
@@ -293,9 +172,6 @@ srmmu_get_pte (unsigned long addr)
 				"r" ((addr & 0xfffff000) | 0x400), "i" (ASI_M_FLUSH_PROBE));
 	return entry;
 }
-
-extern unsigned long (*srmmu_read_physical)(unsigned long paddr);
-extern void (*srmmu_write_physical)(unsigned long paddr, unsigned long word);
 
 #endif /* !(__ASSEMBLY__) */
 

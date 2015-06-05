@@ -3,13 +3,13 @@
  * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
  *
  * Copyright (C) 2001 Ralf Baechle
- * Copyright (C) 2005  MIPS Technologies, Inc.  All rights reserved.
- *      Author: Maciej W. Rozycki <macro@mips.com>
+ * Copyright (C) 2005  MIPS Technologies, Inc.	All rights reserved.
+ *	Author: Maciej W. Rozycki <macro@mips.com>
  *
  * This file define the irq handler for MIPS CPU interrupts.
  *
- * This program is free software; you can redistribute  it and/or modify it
- * under  the terms of  the GNU General  Public License as published by the
+ * This program is free software; you can redistribute	it and/or modify it
+ * under  the terms of	the GNU General	 Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
  */
@@ -31,11 +31,12 @@
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/irq.h>
+#include <linux/irqdomain.h>
 
 #include <asm/irq_cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/mipsmtregs.h>
-#include <asm/system.h>
+#include <asm/setup.h>
 
 static inline void unmask_mips_irq(struct irq_data *d)
 {
@@ -56,6 +57,8 @@ static struct irq_chip mips_cpu_irq_controller = {
 	.irq_mask_ack	= mask_mips_irq,
 	.irq_unmask	= unmask_mips_irq,
 	.irq_eoi	= unmask_mips_irq,
+	.irq_disable	= mask_mips_irq,
+	.irq_enable	= unmask_mips_irq,
 };
 
 /*
@@ -92,25 +95,75 @@ static struct irq_chip mips_mt_cpu_irq_controller = {
 	.irq_mask_ack	= mips_mt_cpu_irq_ack,
 	.irq_unmask	= unmask_mips_irq,
 	.irq_eoi	= unmask_mips_irq,
+	.irq_disable	= mask_mips_irq,
+	.irq_enable	= unmask_mips_irq,
 };
 
-void __init mips_cpu_irq_init(void)
+asmlinkage void __weak plat_irq_dispatch(void)
 {
-	int irq_base = MIPS_CPU_IRQ_BASE;
-	int i;
+	unsigned long pending = read_c0_cause() & read_c0_status() & ST0_IM;
+	int irq;
+
+	if (!pending) {
+		spurious_interrupt();
+		return;
+	}
+
+	pending >>= CAUSEB_IP;
+	while (pending) {
+		irq = fls(pending) - 1;
+		do_IRQ(MIPS_CPU_IRQ_BASE + irq);
+		pending &= ~BIT(irq);
+	}
+}
+
+static int mips_cpu_intc_map(struct irq_domain *d, unsigned int irq,
+			     irq_hw_number_t hw)
+{
+	static struct irq_chip *chip;
+
+	if (hw < 2 && cpu_has_mipsmt) {
+		/* Software interrupts are used for MT/CMT IPI */
+		chip = &mips_mt_cpu_irq_controller;
+	} else {
+		chip = &mips_cpu_irq_controller;
+	}
+
+	if (cpu_has_vint)
+		set_vi_handler(hw, plat_irq_dispatch);
+
+	irq_set_chip_and_handler(irq, chip, handle_percpu_irq);
+
+	return 0;
+}
+
+static const struct irq_domain_ops mips_cpu_intc_irq_domain_ops = {
+	.map = mips_cpu_intc_map,
+	.xlate = irq_domain_xlate_onecell,
+};
+
+static void __init __mips_cpu_irq_init(struct device_node *of_node)
+{
+	struct irq_domain *domain;
 
 	/* Mask interrupts. */
 	clear_c0_status(ST0_IM);
 	clear_c0_cause(CAUSEF_IP);
 
-	/* Software interrupts are used for MT/CMT IPI */
-	for (i = irq_base; i < irq_base + 2; i++)
-		irq_set_chip_and_handler(i, cpu_has_mipsmt ?
-					 &mips_mt_cpu_irq_controller :
-					 &mips_cpu_irq_controller,
-					 handle_percpu_irq);
+	domain = irq_domain_add_legacy(of_node, 8, MIPS_CPU_IRQ_BASE, 0,
+				       &mips_cpu_intc_irq_domain_ops, NULL);
+	if (!domain)
+		panic("Failed to add irqdomain for MIPS CPU");
+}
 
-	for (i = irq_base + 2; i < irq_base + 8; i++)
-		irq_set_chip_and_handler(i, &mips_cpu_irq_controller,
-					 handle_percpu_irq);
+void __init mips_cpu_irq_init(void)
+{
+	__mips_cpu_irq_init(NULL);
+}
+
+int __init mips_cpu_irq_of_init(struct device_node *of_node,
+				struct device_node *parent)
+{
+	__mips_cpu_irq_init(of_node);
+	return 0;
 }

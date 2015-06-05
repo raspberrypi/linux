@@ -5,8 +5,9 @@
  * Version 2.  See the file COPYING for more details.
  */
 
-#include <linux/module.h>
+#include <linux/export.h>
 #include <linux/average.h>
+#include <linux/kernel.h>
 #include <linux/bug.h>
 #include <linux/log2.h>
 
@@ -52,8 +53,10 @@ EXPORT_SYMBOL(ewma_init);
  */
 struct ewma *ewma_add(struct ewma *avg, unsigned long val)
 {
-	avg->internal = avg->internal  ?
-		(((avg->internal << avg->weight) - avg->internal) +
+	unsigned long internal = ACCESS_ONCE(avg->internal);
+
+	ACCESS_ONCE(avg->internal) = internal ?
+		(((internal << avg->weight) - internal) +
 			(val << avg->factor)) >> avg->weight :
 		(val << avg->factor);
 	return avg;

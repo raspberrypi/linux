@@ -18,6 +18,7 @@
 #include <linux/mtd/nand_ecc.h>
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/mtd.h>
+#include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
 #include <linux/io.h>
@@ -152,9 +153,9 @@ static void fun_write_buf(struct mtd_info *mtd, const uint8_t *buf, int len)
 		fun_wait_rnb(fun);
 }
 
-static int __devinit fun_chip_init(struct fsl_upm_nand *fun,
-				   const struct device_node *upm_np,
-				   const struct resource *io_res)
+static int fun_chip_init(struct fsl_upm_nand *fun,
+			 const struct device_node *upm_np,
+			 const struct resource *io_res)
 {
 	int ret;
 	struct device_node *flash_np;
@@ -201,7 +202,7 @@ err:
 	return ret;
 }
 
-static int __devinit fun_probe(struct platform_device *ofdev)
+static int fun_probe(struct platform_device *ofdev)
 {
 	struct fsl_upm_nand *fun;
 	struct resource io_res;
@@ -318,7 +319,7 @@ err1:
 	return ret;
 }
 
-static int __devexit fun_remove(struct platform_device *ofdev)
+static int fun_remove(struct platform_device *ofdev)
 {
 	struct fsl_upm_nand *fun = dev_get_drvdata(&ofdev->dev);
 	int i;
@@ -346,24 +347,13 @@ MODULE_DEVICE_TABLE(of, of_fun_match);
 static struct platform_driver of_fun_driver = {
 	.driver = {
 		.name = "fsl,upm-nand",
-		.owner = THIS_MODULE,
 		.of_match_table = of_fun_match,
 	},
 	.probe		= fun_probe,
-	.remove		= __devexit_p(fun_remove),
+	.remove		= fun_remove,
 };
 
-static int __init fun_module_init(void)
-{
-	return platform_driver_register(&of_fun_driver);
-}
-module_init(fun_module_init);
-
-static void __exit fun_module_exit(void)
-{
-	platform_driver_unregister(&of_fun_driver);
-}
-module_exit(fun_module_exit);
+module_platform_driver(of_fun_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Anton Vorontsov <avorontsov@ru.mvista.com>");

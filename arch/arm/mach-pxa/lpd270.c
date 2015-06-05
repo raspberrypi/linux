@@ -24,6 +24,7 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <linux/pwm_backlight.h>
+#include <linux/smc91x.h>
 
 #include <asm/types.h>
 #include <asm/setup.h>
@@ -41,10 +42,10 @@
 #include <mach/pxa27x.h>
 #include <mach/lpd270.h>
 #include <mach/audio.h>
-#include <mach/pxafb.h>
-#include <mach/mmc.h>
-#include <mach/irda.h>
-#include <mach/ohci.h>
+#include <linux/platform_data/video-pxafb.h>
+#include <linux/platform_data/mmc-pxamci.h>
+#include <linux/platform_data/irda-pxaficp.h>
+#include <linux/platform_data/usb-ohci-pxa27x.h>
 #include <mach/smemc.h>
 
 #include "generic.h"
@@ -152,8 +153,8 @@ static void __init lpd270_init_irq(void)
 					 handle_level_irq);
 		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
 	}
-	irq_set_chained_handler(IRQ_GPIO(0), lpd270_irq_handler);
-	irq_set_irq_type(IRQ_GPIO(0), IRQ_TYPE_EDGE_FALLING);
+	irq_set_chained_handler(PXA_GPIO_TO_IRQ(0), lpd270_irq_handler);
+	irq_set_irq_type(PXA_GPIO_TO_IRQ(0), IRQ_TYPE_EDGE_FALLING);
 }
 
 
@@ -189,8 +190,12 @@ static struct resource smc91x_resources[] = {
 	[1] = {
 		.start	= LPD270_ETHERNET_IRQ,
 		.end	= LPD270_ETHERNET_IRQ,
-		.flags	= IORESOURCE_IRQ,
+		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE,
 	},
+};
+
+struct smc91x_platdata smc91x_platdata = {
+	.flags = SMC91X_USE_16BIT | SMC91X_NOWAIT,
 };
 
 static struct platform_device smc91x_device = {
@@ -198,6 +203,7 @@ static struct platform_device smc91x_device = {
 	.id		= 0,
 	.num_resources	= ARRAY_SIZE(smc91x_resources),
 	.resource	= smc91x_resources,
+	.dev.platform_data = &smc91x_platdata,
 };
 
 static struct resource lpd270_flash_resources[] = {
@@ -269,6 +275,7 @@ static struct platform_pwm_backlight_data lpd270_backlight_data = {
 	.max_brightness	= 1,
 	.dft_brightness	= 1,
 	.pwm_period_ns	= 78770,
+	.enable_gpio	= -1,
 };
 
 static struct platform_device lpd270_backlight_device = {
@@ -415,17 +422,17 @@ static struct pxafb_mach_info *lpd270_lcd_to_use;
 
 static int __init lpd270_set_lcd(char *str)
 {
-	if (!strnicmp(str, "lq057q3dc02", 11)) {
+	if (!strncasecmp(str, "lq057q3dc02", 11)) {
 		lpd270_lcd_to_use = &sharp_lq057q3dc02;
-	} else if (!strnicmp(str, "lq121s1dg31", 11)) {
+	} else if (!strncasecmp(str, "lq121s1dg31", 11)) {
 		lpd270_lcd_to_use = &sharp_lq121s1dg31;
-	} else if (!strnicmp(str, "lq036q1da01", 11)) {
+	} else if (!strncasecmp(str, "lq036q1da01", 11)) {
 		lpd270_lcd_to_use = &sharp_lq036q1da01;
-	} else if (!strnicmp(str, "lq64d343", 8)) {
+	} else if (!strncasecmp(str, "lq64d343", 8)) {
 		lpd270_lcd_to_use = &sharp_lq64d343;
-	} else if (!strnicmp(str, "lq10d368", 8)) {
+	} else if (!strncasecmp(str, "lq10d368", 8)) {
 		lpd270_lcd_to_use = &sharp_lq10d368;
-	} else if (!strnicmp(str, "lq035q7db02-20", 14)) {
+	} else if (!strncasecmp(str, "lq035q7db02-20", 14)) {
 		lpd270_lcd_to_use = &sharp_lq035q7db02_20;
 	} else {
 		printk(KERN_INFO "lpd270: unknown lcd panel [%s]\n", str);
@@ -503,7 +510,7 @@ MACHINE_START(LOGICPD_PXA270, "LogicPD PXA270 Card Engine")
 	.nr_irqs	= LPD270_NR_IRQS,
 	.init_irq	= lpd270_init_irq,
 	.handle_irq	= pxa27x_handle_irq,
-	.timer		= &pxa_timer,
+	.init_time	= pxa_timer_init,
 	.init_machine	= lpd270_init,
 	.restart	= pxa_restart,
 MACHINE_END

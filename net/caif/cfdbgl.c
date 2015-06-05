@@ -1,6 +1,6 @@
 /*
  * Copyright (C) ST-Ericsson AB 2010
- * Author:	Sjur Brendeland/sjur.brandeland@stericsson.com
+ * Author:	Sjur Brendeland
  * License terms: GNU General Public License (GPL) version 2
  */
 
@@ -41,8 +41,10 @@ static int cfdbgl_transmit(struct cflayer *layr, struct cfpkt *pkt)
 	struct caif_payload_info *info;
 	int ret;
 
-	if (!cfsrvl_ready(service, &ret))
+	if (!cfsrvl_ready(service, &ret)) {
+		cfpkt_destroy(pkt);
 		return ret;
+	}
 
 	/* Add info for MUX-layer to route the packet out */
 	info = cfpkt_info(pkt);

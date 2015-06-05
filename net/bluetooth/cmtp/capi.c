@@ -20,7 +20,7 @@
    SOFTWARE IS DISCLAIMED.
 */
 
-#include <linux/module.h>
+#include <linux/export.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/types.h>
@@ -253,8 +253,6 @@ static void cmtp_recv_interopmsg(struct cmtp_session *session, struct sk_buff *s
 			if (skb->len < CAPI_MSG_BASELEN + 15)
 				break;
 
-			controller = CAPIMSG_U32(skb->data, CAPI_MSG_BASELEN + 10);
-
 			if (!info && ctrl) {
 				int len = min_t(uint, CAPI_MANUFACTURER_LEN,
 						skb->data[CAPI_MSG_BASELEN + 14]);
@@ -270,8 +268,6 @@ static void cmtp_recv_interopmsg(struct cmtp_session *session, struct sk_buff *s
 			if (skb->len < CAPI_MSG_BASELEN + 32)
 				break;
 
-			controller = CAPIMSG_U32(skb->data, CAPI_MSG_BASELEN + 12);
-
 			if (!info && ctrl) {
 				ctrl->version.majorversion = CAPIMSG_U32(skb->data, CAPI_MSG_BASELEN + 16);
 				ctrl->version.minorversion = CAPIMSG_U32(skb->data, CAPI_MSG_BASELEN + 20);
@@ -284,8 +280,6 @@ static void cmtp_recv_interopmsg(struct cmtp_session *session, struct sk_buff *s
 		case CAPI_FUNCTION_GET_SERIAL_NUMBER:
 			if (skb->len < CAPI_MSG_BASELEN + 17)
 				break;
-
-			controller = CAPIMSG_U32(skb->data, CAPI_MSG_BASELEN + 12);
 
 			if (!info && ctrl) {
 				int len = min_t(uint, CAPI_SERIAL_LEN,
@@ -360,12 +354,6 @@ void cmtp_recv_capimsg(struct cmtp_session *session, struct sk_buff *skb)
 	if ((contr & 0x7f) == 0x01) {
 		contr = (contr & 0xffffff80) | session->num;
 		CAPIMSG_SETCONTROL(skb->data, contr);
-	}
-
-	if (!ctrl) {
-		BT_ERR("Can't find controller %d for message", session->num);
-		kfree_skb(skb);
-		return;
 	}
 
 	capi_ctr_handle_message(ctrl, appl, skb);
@@ -539,7 +527,7 @@ static int cmtp_proc_show(struct seq_file *m, void *v)
 
 static int cmtp_proc_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, cmtp_proc_show, PDE(inode)->data);
+	return single_open(file, cmtp_proc_show, PDE_DATA(inode));
 }
 
 static const struct file_operations cmtp_proc_fops = {

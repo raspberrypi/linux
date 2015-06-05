@@ -32,13 +32,11 @@
 #ifdef CONFIG_ETRAX_KMALLOCED_MODULES
 void *module_alloc(unsigned long size)
 {
-	if (size == 0)
-		return NULL;
 	return kmalloc(size, GFP_KERNEL);
 }
 
 /* Free memory returned from module_alloc */
-void module_free(struct module *mod, void *module_region)
+void module_memfree(void *module_region)
 {
 	kfree(module_region);
 }

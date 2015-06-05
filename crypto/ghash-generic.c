@@ -153,7 +153,6 @@ static struct shash_alg ghash_alg = {
 		.cra_blocksize		= GHASH_BLOCK_SIZE,
 		.cra_ctxsize		= sizeof(struct ghash_ctx),
 		.cra_module		= THIS_MODULE,
-		.cra_list		= LIST_HEAD_INIT(ghash_alg.base.cra_list),
 		.cra_exit		= ghash_exit_tfm,
 	},
 };
@@ -173,4 +172,5 @@ module_exit(ghash_mod_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("GHASH Message Digest Algorithm");
-MODULE_ALIAS("ghash");
+MODULE_ALIAS_CRYPTO("ghash");
+MODULE_ALIAS_CRYPTO("ghash-generic");

@@ -22,17 +22,17 @@ int prom_stdout;
 phandle prom_chosen_node;
 
 /* You must call prom_init() before you attempt to use any of the
- * routines in the prom library.  It returns 0 on success, 1 on
- * failure.  It gets passed the pointer to the PROM vector.
+ * routines in the prom library.
+ * It gets passed the pointer to the PROM vector.
  */
 
-extern void prom_cif_init(void *, void *);
+extern void prom_cif_init(void *);
 
-void __init prom_init(void *cif_handler, void *cif_stack)
+void __init prom_init(void *cif_handler)
 {
 	phandle node;
 
-	prom_cif_init(cif_handler, cif_stack);
+	prom_cif_init(cif_handler);
 
 	prom_chosen_node = prom_finddevice(prom_chosen_path);
 	if (!prom_chosen_node || (s32)prom_chosen_node == -1)

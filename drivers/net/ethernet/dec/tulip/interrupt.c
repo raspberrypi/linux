@@ -1,5 +1,5 @@
 /*
-	drivers/net/tulip/interrupt.c
+	drivers/net/ethernet/dec/tulip/interrupt.c
 
 	Copyright 2000,2001  The Linux Kernel Team
 	Written/copyright 1994-2001 by Donald Becker.
@@ -69,15 +69,21 @@ int tulip_refill_rx(struct net_device *dev)
 			struct sk_buff *skb;
 			dma_addr_t mapping;
 
-			skb = tp->rx_buffers[entry].skb = dev_alloc_skb(PKT_BUF_SZ);
+			skb = tp->rx_buffers[entry].skb =
+				netdev_alloc_skb(dev, PKT_BUF_SZ);
 			if (skb == NULL)
 				break;
 
 			mapping = pci_map_single(tp->pdev, skb->data, PKT_BUF_SZ,
 						 PCI_DMA_FROMDEVICE);
+			if (dma_mapping_error(&tp->pdev->dev, mapping)) {
+				dev_kfree_skb(skb);
+				tp->rx_buffers[entry].skb = NULL;
+				break;
+			}
+
 			tp->rx_buffers[entry].mapping = mapping;
 
-			skb->dev = dev;			/* Mark as being used by this device. */
 			tp->rx_ring[entry].buffer1 = cpu_to_le32(mapping);
 			refilled++;
 		}
@@ -202,7 +208,7 @@ int tulip_poll(struct napi_struct *napi, int budget)
                                /* Check if the packet is long enough to accept without copying
                                   to a minimally-sized skbuff. */
                                if (pkt_len < tulip_rx_copybreak &&
-                                   (skb = dev_alloc_skb(pkt_len + 2)) != NULL) {
+                                   (skb = netdev_alloc_skb(dev, pkt_len + 2)) != NULL) {
                                        skb_reserve(skb, 2);    /* 16 byte align the IP header */
                                        pci_dma_sync_single_for_cpu(tp->pdev,
 								   tp->rx_buffers[entry].mapping,
@@ -428,7 +434,7 @@ static int tulip_rx(struct net_device *dev)
 			/* Check if the packet is long enough to accept without copying
 			   to a minimally-sized skbuff. */
 			if (pkt_len < tulip_rx_copybreak &&
-			    (skb = dev_alloc_skb(pkt_len + 2)) != NULL) {
+			    (skb = netdev_alloc_skb(dev, pkt_len + 2)) != NULL) {
 				skb_reserve(skb, 2);	/* 16 byte align the IP header */
 				pci_dma_sync_single_for_cpu(tp->pdev,
 							    tp->rx_buffers[entry].mapping,

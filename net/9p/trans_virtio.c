@@ -26,6 +26,8 @@
  *
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/in.h>
 #include <linux/module.h>
 #include <linux/net.h>
@@ -37,6 +39,7 @@
 #include <linux/inet.h>
 #include <linux/idr.h>
 #include <linux/file.h>
+#include <linux/highmem.h>
 #include <linux/slab.h>
 #include <net/9p/9p.h>
 #include <linux/parser.h>
@@ -84,7 +87,7 @@ struct virtio_chan {
 	/* This is global limit. Since we don't have a global structure,
 	 * will be placing it in each channel.
 	 */
-	int p9_max_pages;
+	unsigned long p9_max_pages;
 	/* Scatterlist: can be too big for stack. */
 	struct scatterlist sg[VIRTQUEUE_NUM];
 
@@ -145,7 +148,7 @@ static void req_done(struct virtqueue *vq)
 	struct p9_req_t *req;
 	unsigned long flags;
 
-	P9_DPRINTK(P9_DEBUG_TRANS, ": request done\n");
+	p9_debug(P9_DEBUG_TRANS, ": request done\n");
 
 	while (1) {
 		spin_lock_irqsave(&chan->lock, flags);
@@ -158,11 +161,10 @@ static void req_done(struct virtqueue *vq)
 		spin_unlock_irqrestore(&chan->lock, flags);
 		/* Wakeup if anyone waiting for VirtIO ring space. */
 		wake_up(chan->vc_wq);
-		P9_DPRINTK(P9_DEBUG_TRANS, ": rc %p\n", rc);
-		P9_DPRINTK(P9_DEBUG_TRANS, ": lookup tag %d\n", rc->tag);
+		p9_debug(P9_DEBUG_TRANS, ": rc %p\n", rc);
+		p9_debug(P9_DEBUG_TRANS, ": lookup tag %d\n", rc->tag);
 		req = p9_tag_lookup(chan->client, rc->tag);
-		req->status = REQ_STATUS_RCVD;
-		p9_client_cb(chan->client, req);
+		p9_client_cb(chan->client, req, REQ_STATUS_RCVD);
 	}
 }
 
@@ -190,12 +192,15 @@ static int pack_sg_list(struct scatterlist *sg, int start,
 		s = rest_of_page(data);
 		if (s > count)
 			s = count;
+		BUG_ON(index > limit);
+		/* Make sure we don't terminate early. */
+		sg_unmark_end(&sg[index]);
 		sg_set_buf(&sg[index++], data, s);
 		count -= s;
 		data += s;
-		BUG_ON(index > limit);
 	}
-
+	if (index-start)
+		sg_mark_end(&sg[index - 1]);
 	return index-start;
 }
 
@@ -210,7 +215,7 @@ static int p9_virtio_cancel(struct p9_client *client, struct p9_req_t *req)
  * this takes a list of pages.
  * @sg: scatter/gather list to pack into
  * @start: which segment of the sg_list to start at
- * @**pdata: a list of pages to add into sg.
+ * @pdata: a list of pages to add into sg.
  * @nr_pages: number of pages to pack into the scatter/gather list
  * @data: data to pack into scatter/gather list
  * @count: amount of data to pack into the scatter/gather list
@@ -233,12 +238,17 @@ pack_sg_list_p(struct scatterlist *sg, int start, int limit,
 		s = rest_of_page(data);
 		if (s > count)
 			s = count;
+		/* Make sure we don't terminate early. */
+		sg_unmark_end(&sg[index]);
 		sg_set_page(&sg[index++], pdata[i++], s, data_off);
 		data_off = 0;
 		data += s;
 		count -= s;
 		nr_pages--;
 	}
+
+	if (index-start)
+		sg_mark_end(&sg[index - 1]);
 	return index - start;
 }
 
@@ -253,24 +263,31 @@ static int
 p9_virtio_request(struct p9_client *client, struct p9_req_t *req)
 {
 	int err;
-	int in, out;
+	int in, out, out_sgs, in_sgs;
 	unsigned long flags;
 	struct virtio_chan *chan = client->trans;
+	struct scatterlist *sgs[2];
 
-	P9_DPRINTK(P9_DEBUG_TRANS, "9p debug: virtio request\n");
+	p9_debug(P9_DEBUG_TRANS, "9p debug: virtio request\n");
 
 	req->status = REQ_STATUS_SENT;
 req_retry:
 	spin_lock_irqsave(&chan->lock, flags);
 
+	out_sgs = in_sgs = 0;
 	/* Handle out VirtIO ring buffers */
 	out = pack_sg_list(chan->sg, 0,
 			   VIRTQUEUE_NUM, req->tc->sdata, req->tc->size);
+	if (out)
+		sgs[out_sgs++] = chan->sg;
 
 	in = pack_sg_list(chan->sg, out,
 			  VIRTQUEUE_NUM, req->rc->sdata, req->rc->capacity);
+	if (in)
+		sgs[out_sgs + in_sgs++] = chan->sg + out;
 
-	err = virtqueue_add_buf(chan->vq, chan->sg, out, in, req->tc);
+	err = virtqueue_add_sgs(chan->vq, sgs, out_sgs, in_sgs, req->tc,
+				GFP_ATOMIC);
 	if (err < 0) {
 		if (err == -ENOSPC) {
 			chan->ring_bufs_avail = 0;
@@ -280,20 +297,19 @@ req_retry:
 			if (err  == -ERESTARTSYS)
 				return err;
 
-			P9_DPRINTK(P9_DEBUG_TRANS, "9p:Retry virtio request\n");
+			p9_debug(P9_DEBUG_TRANS, "Retry virtio request\n");
 			goto req_retry;
 		} else {
 			spin_unlock_irqrestore(&chan->lock, flags);
-			P9_DPRINTK(P9_DEBUG_TRANS,
-					"9p debug: "
-					"virtio rpc add_buf returned failure");
+			p9_debug(P9_DEBUG_TRANS,
+				 "virtio rpc add_sgs returned failure\n");
 			return -EIO;
 		}
 	}
 	virtqueue_kick(chan->vq);
 	spin_unlock_irqrestore(&chan->lock, flags);
 
-	P9_DPRINTK(P9_DEBUG_TRANS, "9p debug: virtio request kicked\n");
+	p9_debug(P9_DEBUG_TRANS, "virtio request kicked\n");
 	return 0;
 }
 
@@ -323,7 +339,10 @@ static int p9_get_mapped_pages(struct virtio_chan *chan,
 		int count = nr_pages;
 		while (nr_pages) {
 			s = rest_of_page(data);
-			pages[index++] = virt_to_page(data);
+			if (is_vmalloc_addr(data))
+				pages[index++] = vmalloc_to_page(data);
+			else
+				pages[index++] = kmap_to_page(data);
 			data += s;
 			nr_pages--;
 		}
@@ -348,13 +367,14 @@ p9_virtio_zc_request(struct p9_client *client, struct p9_req_t *req,
 		     char *uidata, char *uodata, int inlen,
 		     int outlen, int in_hdr_len, int kern_buf)
 {
-	int in, out, err;
+	int in, out, err, out_sgs, in_sgs;
 	unsigned long flags;
 	int in_nr_pages = 0, out_nr_pages = 0;
 	struct page **in_pages = NULL, **out_pages = NULL;
 	struct virtio_chan *chan = client->trans;
+	struct scatterlist *sgs[4];
 
-	P9_DPRINTK(P9_DEBUG_TRANS, "9p debug: virtio request\n");
+	p9_debug(P9_DEBUG_TRANS, "virtio request\n");
 
 	if (uodata) {
 		out_nr_pages = p9_nr_pages(uodata, outlen);
@@ -393,13 +413,22 @@ p9_virtio_zc_request(struct p9_client *client, struct p9_req_t *req,
 	req->status = REQ_STATUS_SENT;
 req_retry_pinned:
 	spin_lock_irqsave(&chan->lock, flags);
+
+	out_sgs = in_sgs = 0;
+
 	/* out data */
 	out = pack_sg_list(chan->sg, 0,
 			   VIRTQUEUE_NUM, req->tc->sdata, req->tc->size);
 
-	if (out_pages)
+	if (out)
+		sgs[out_sgs++] = chan->sg;
+
+	if (out_pages) {
+		sgs[out_sgs++] = chan->sg + out;
 		out += pack_sg_list_p(chan->sg, out, VIRTQUEUE_NUM,
 				      out_pages, out_nr_pages, uodata, outlen);
+	}
+		
 	/*
 	 * Take care of in data
 	 * For example TREAD have 11.
@@ -409,11 +438,18 @@ req_retry_pinned:
 	 */
 	in = pack_sg_list(chan->sg, out,
 			  VIRTQUEUE_NUM, req->rc->sdata, in_hdr_len);
-	if (in_pages)
+	if (in)
+		sgs[out_sgs + in_sgs++] = chan->sg + out;
+
+	if (in_pages) {
+		sgs[out_sgs + in_sgs++] = chan->sg + out + in;
 		in += pack_sg_list_p(chan->sg, out + in, VIRTQUEUE_NUM,
 				     in_pages, in_nr_pages, uidata, inlen);
+	}
 
-	err = virtqueue_add_buf(chan->vq, chan->sg, out, in, req->tc);
+	BUG_ON(out_sgs + in_sgs > ARRAY_SIZE(sgs));
+	err = virtqueue_add_sgs(chan->vq, sgs, out_sgs, in_sgs, req->tc,
+				GFP_ATOMIC);
 	if (err < 0) {
 		if (err == -ENOSPC) {
 			chan->ring_bufs_avail = 0;
@@ -423,20 +459,19 @@ req_retry_pinned:
 			if (err  == -ERESTARTSYS)
 				goto err_out;
 
-			P9_DPRINTK(P9_DEBUG_TRANS, "9p:Retry virtio request\n");
+			p9_debug(P9_DEBUG_TRANS, "Retry virtio request\n");
 			goto req_retry_pinned;
 		} else {
 			spin_unlock_irqrestore(&chan->lock, flags);
-			P9_DPRINTK(P9_DEBUG_TRANS,
-				   "9p debug: "
-				   "virtio rpc add_buf returned failure");
+			p9_debug(P9_DEBUG_TRANS,
+				 "virtio rpc add_sgs returned failure\n");
 			err = -EIO;
 			goto err_out;
 		}
 	}
 	virtqueue_kick(chan->vq);
 	spin_unlock_irqrestore(&chan->lock, flags);
-	P9_DPRINTK(P9_DEBUG_TRANS, "9p debug: virtio request kicked\n");
+	p9_debug(P9_DEBUG_TRANS, "virtio request kicked\n");
 	err = wait_event_interruptible(*req->wq,
 				       req->status >= REQ_STATUS_RCVD);
 	/*
@@ -489,9 +524,15 @@ static int p9_virtio_probe(struct virtio_device *vdev)
 	int err;
 	struct virtio_chan *chan;
 
+	if (!vdev->config->get) {
+		dev_err(&vdev->dev, "%s failure: config access disabled\n",
+			__func__);
+		return -EINVAL;
+	}
+
 	chan = kmalloc(sizeof(struct virtio_chan), GFP_KERNEL);
 	if (!chan) {
-		printk(KERN_ERR "9p: Failed to allocate virtio 9P channel\n");
+		pr_err("Failed to allocate virtio 9P channel\n");
 		err = -ENOMEM;
 		goto fail;
 	}
@@ -511,9 +552,7 @@ static int p9_virtio_probe(struct virtio_device *vdev)
 
 	chan->inuse = false;
 	if (virtio_has_feature(vdev, VIRTIO_9P_MOUNT_TAG)) {
-		vdev->config->get(vdev,
-				offsetof(struct virtio_9p_config, tag_len),
-				&tag_len, sizeof(tag_len));
+		virtio_cread(vdev, struct virtio_9p_config, tag_len, &tag_len);
 	} else {
 		err = -EINVAL;
 		goto out_free_vq;
@@ -523,8 +562,9 @@ static int p9_virtio_probe(struct virtio_device *vdev)
 		err = -ENOMEM;
 		goto out_free_vq;
 	}
-	vdev->config->get(vdev, offsetof(struct virtio_9p_config, tag),
-			tag, tag_len);
+
+	virtio_cread_bytes(vdev, offsetof(struct virtio_9p_config, tag),
+			   tag, tag_len);
 	chan->tag = tag;
 	chan->tag_len = tag_len;
 	err = sysfs_create_file(&(vdev->dev.kobj), &dev_attr_mount_tag.attr);
@@ -541,9 +581,15 @@ static int p9_virtio_probe(struct virtio_device *vdev)
 	/* Ceiling limit to avoid denial of service attacks */
 	chan->p9_max_pages = nr_free_buffer_pages()/4;
 
+	virtio_device_ready(vdev);
+
 	mutex_lock(&virtio_9p_lock);
 	list_add_tail(&chan->chan_list, &virtio_chan_list);
 	mutex_unlock(&virtio_9p_lock);
+
+	/* Let udev rules use the new mount_tag attribute. */
+	kobject_uevent(&(vdev->dev.kobj), KOBJ_CHANGE);
+
 	return 0;
 
 out_free_tag:
@@ -592,7 +638,7 @@ p9_virtio_create(struct p9_client *client, const char *devname, char *args)
 	mutex_unlock(&virtio_9p_lock);
 
 	if (!found) {
-		printk(KERN_ERR "9p: no channels available\n");
+		pr_err("no channels available\n");
 		return ret;
 	}
 
@@ -612,14 +658,32 @@ p9_virtio_create(struct p9_client *client, const char *devname, char *args)
 static void p9_virtio_remove(struct virtio_device *vdev)
 {
 	struct virtio_chan *chan = vdev->priv;
-
-	BUG_ON(chan->inuse);
-	vdev->config->del_vqs(vdev);
+	unsigned long warning_time;
 
 	mutex_lock(&virtio_9p_lock);
+
+	/* Remove self from list so we don't get new users. */
 	list_del(&chan->chan_list);
+	warning_time = jiffies;
+
+	/* Wait for existing users to close. */
+	while (chan->inuse) {
+		mutex_unlock(&virtio_9p_lock);
+		msleep(250);
+		if (time_after(jiffies, warning_time + 10 * HZ)) {
+			dev_emerg(&vdev->dev,
+				  "p9_virtio_remove: waiting for device in use.\n");
+			warning_time = jiffies;
+		}
+		mutex_lock(&virtio_9p_lock);
+	}
+
 	mutex_unlock(&virtio_9p_lock);
+
+	vdev->config->del_vqs(vdev);
+
 	sysfs_remove_file(&(vdev->dev.kobj), &dev_attr_mount_tag.attr);
+	kobject_uevent(&(vdev->dev.kobj), KOBJ_CHANGE);
 	kfree(chan->tag);
 	kfree(chan->vc_wq);
 	kfree(chan);
@@ -660,7 +724,7 @@ static struct p9_trans_module p9_virtio_trans = {
 	 * page in zero copy.
 	 */
 	.maxsize = PAGE_SIZE * (VIRTQUEUE_NUM - 3),
-	.def = 0,
+	.def = 1,
 	.owner = THIS_MODULE,
 };
 

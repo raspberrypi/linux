@@ -20,6 +20,7 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <asm/ist.h>
+#include <asm/cpu_device_id.h>
 
 #include "speedstep-lib.h"
 
@@ -41,9 +42,9 @@ static enum speedstep_processor speedstep_processor;
  * are in kHz for the time being.
  */
 static struct cpufreq_frequency_table speedstep_freqs[] = {
-	{SPEEDSTEP_HIGH,	0},
-	{SPEEDSTEP_LOW,		0},
-	{0,			CPUFREQ_TABLE_END},
+	{0, SPEEDSTEP_HIGH,	0},
+	{0, SPEEDSTEP_LOW,	0},
+	{0, 0,			CPUFREQ_TABLE_END},
 };
 
 #define GET_SPEEDSTEP_OWNER 0
@@ -140,38 +141,6 @@ static int speedstep_smi_get_freqs(unsigned int *low, unsigned int *high)
 }
 
 /**
- * speedstep_get_state - set the SpeedStep state
- * @state: processor frequency state (SPEEDSTEP_LOW or SPEEDSTEP_HIGH)
- *
- */
-static int speedstep_get_state(void)
-{
-	u32 function = GET_SPEEDSTEP_STATE;
-	u32 result, state, edi, command, dummy;
-
-	command = (smi_sig & 0xffffff00) | (smi_cmd & 0xff);
-
-	pr_debug("trying to determine current setting with command %x "
-		"at port %x\n", command, smi_port);
-
-	__asm__ __volatile__(
-		"push %%ebp\n"
-		"out %%al, (%%dx)\n"
-		"pop %%ebp\n"
-		: "=a" (result),
-		  "=b" (state), "=D" (edi),
-		  "=c" (dummy), "=d" (dummy), "=S" (dummy)
-		: "a" (command), "b" (function), "c" (0),
-		  "d" (smi_port), "S" (0), "D" (0)
-	);
-
-	pr_debug("state is %x, result is %x\n", state, result);
-
-	return state & 1;
-}
-
-
-/**
  * speedstep_set_state - set the SpeedStep state
  * @state: new processor frequency state (SPEEDSTEP_LOW or SPEEDSTEP_HIGH)
  *
@@ -187,6 +156,7 @@ static void speedstep_set_state(unsigned int state)
 		return;
 
 	/* Disable IRQs */
+	preempt_disable();
 	local_irq_save(flags);
 
 	command = (smi_sig & 0xffffff00) | (smi_cmd & 0xff);
@@ -197,9 +167,19 @@ static void speedstep_set_state(unsigned int state)
 
 	do {
 		if (retry) {
+			/*
+			 * We need to enable interrupts, otherwise the blockage
+			 * won't resolve.
+			 *
+			 * We disable preemption so that other processes don't
+			 * run. If other processes were running, they could
+			 * submit more DMA requests, making the blockage worse.
+			 */
 			pr_debug("retry %u, previous result %u, waiting...\n",
 					retry, result);
+			local_irq_enable();
 			mdelay(retry * 50);
+			local_irq_disable();
 		}
 		retry++;
 		__asm__ __volatile__(
@@ -216,6 +196,7 @@ static void speedstep_set_state(unsigned int state)
 
 	/* enable IRQs */
 	local_irq_restore(flags);
+	preempt_enable();
 
 	if (new_state == state)
 		pr_debug("change to %u MHz succeeded after %u tries "
@@ -234,53 +215,21 @@ static void speedstep_set_state(unsigned int state)
 /**
  * speedstep_target - set a new CPUFreq policy
  * @policy: new policy
- * @target_freq: new freq
- * @relation:
+ * @index: index of new freq
  *
  * Sets a new CPUFreq policy/freq.
  */
-static int speedstep_target(struct cpufreq_policy *policy,
-			unsigned int target_freq, unsigned int relation)
+static int speedstep_target(struct cpufreq_policy *policy, unsigned int index)
 {
-	unsigned int newstate = 0;
-	struct cpufreq_freqs freqs;
-
-	if (cpufreq_frequency_table_target(policy, &speedstep_freqs[0],
-				target_freq, relation, &newstate))
-		return -EINVAL;
-
-	freqs.old = speedstep_freqs[speedstep_get_state()].frequency;
-	freqs.new = speedstep_freqs[newstate].frequency;
-	freqs.cpu = 0; /* speedstep.c is UP only driver */
-
-	if (freqs.old == freqs.new)
-		return 0;
-
-	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
-	speedstep_set_state(newstate);
-	cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+	speedstep_set_state(index);
 
 	return 0;
-}
-
-
-/**
- * speedstep_verify - verifies a new CPUFreq policy
- * @policy: new policy
- *
- * Limit must be within speedstep_low_freq and speedstep_high_freq, with
- * at least one border included.
- */
-static int speedstep_verify(struct cpufreq_policy *policy)
-{
-	return cpufreq_frequency_table_verify(policy, &speedstep_freqs[0]);
 }
 
 
 static int speedstep_cpu_init(struct cpufreq_policy *policy)
 {
 	int result;
-	unsigned int speed, state;
 	unsigned int *low, *high;
 
 	/* capability check */
@@ -316,32 +265,8 @@ static int speedstep_cpu_init(struct cpufreq_policy *policy)
 			pr_debug("workaround worked.\n");
 	}
 
-	/* get current speed setting */
-	state = speedstep_get_state();
-	speed = speedstep_freqs[state].frequency;
-
-	pr_debug("currently at %s speed setting - %i MHz\n",
-		(speed == speedstep_freqs[SPEEDSTEP_LOW].frequency)
-		? "low" : "high",
-		(speed / 1000));
-
-	/* cpuinfo and default policy values */
 	policy->cpuinfo.transition_latency = CPUFREQ_ETERNAL;
-	policy->cur = speed;
-
-	result = cpufreq_frequency_table_cpuinfo(policy, speedstep_freqs);
-	if (result)
-		return result;
-
-	cpufreq_frequency_table_get_attr(speedstep_freqs, policy->cpu);
-
-	return 0;
-}
-
-static int speedstep_cpu_exit(struct cpufreq_policy *policy)
-{
-	cpufreq_frequency_table_put_attr(policy->cpu);
-	return 0;
+	return cpufreq_table_validate_and_show(policy, speedstep_freqs);
 }
 
 static unsigned int speedstep_get(unsigned int cpu)
@@ -362,22 +287,26 @@ static int speedstep_resume(struct cpufreq_policy *policy)
 	return result;
 }
 
-static struct freq_attr *speedstep_attr[] = {
-	&cpufreq_freq_attr_scaling_available_freqs,
-	NULL,
-};
-
 static struct cpufreq_driver speedstep_driver = {
 	.name		= "speedstep-smi",
-	.verify		= speedstep_verify,
-	.target		= speedstep_target,
+	.verify		= cpufreq_generic_frequency_table_verify,
+	.target_index	= speedstep_target,
 	.init		= speedstep_cpu_init,
-	.exit		= speedstep_cpu_exit,
 	.get		= speedstep_get,
 	.resume		= speedstep_resume,
-	.owner		= THIS_MODULE,
-	.attr		= speedstep_attr,
+	.attr		= cpufreq_generic_attr,
 };
+
+static const struct x86_cpu_id ss_smi_ids[] = {
+	{ X86_VENDOR_INTEL, 6, 0xb, },
+	{ X86_VENDOR_INTEL, 6, 0x8, },
+	{ X86_VENDOR_INTEL, 15, 2 },
+	{}
+};
+#if 0
+/* Not auto loaded currently */
+MODULE_DEVICE_TABLE(x86cpu, ss_smi_ids);
+#endif
 
 /**
  * speedstep_init - initializes the SpeedStep CPUFreq driver
@@ -388,6 +317,9 @@ static struct cpufreq_driver speedstep_driver = {
  */
 static int __init speedstep_init(void)
 {
+	if (!x86_match_cpu(ss_smi_ids))
+		return -ENODEV;
+
 	speedstep_processor = speedstep_detect_processor();
 
 	switch (speedstep_processor) {
@@ -404,8 +336,8 @@ static int __init speedstep_init(void)
 		return -ENODEV;
 	}
 
-	pr_debug("signature:0x%.8ulx, command:0x%.8ulx, "
-		"event:0x%.8ulx, perf_level:0x%.8ulx.\n",
+	pr_debug("signature:0x%.8x, command:0x%.8x, "
+		"event:0x%.8x, perf_level:0x%.8x.\n",
 		ist_info.signature, ist_info.command,
 		ist_info.event, ist_info.perf_level);
 

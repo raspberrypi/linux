@@ -41,7 +41,7 @@
 #define MPU401_ENTER_UART	0x3f
 #define MPU401_ACK		    0xfe
 
-static int __devinit snd_vortex_midi(vortex_t * vortex)
+static int snd_vortex_midi(vortex_t *vortex)
 {
 	struct snd_rawmidi *rmidi;
 	int temp, mode;
@@ -73,7 +73,7 @@ static int __devinit snd_vortex_midi(vortex_t * vortex)
 	/* Check if anything is OK. */
 	temp = hwread(vortex->mmio, VORTEX_MIDI_DATA);
 	if (temp != MPU401_ACK /*0xfe */ ) {
-		printk(KERN_ERR "midi port doesn't acknowledge!\n");
+		dev_err(vortex->card->dev, "midi port doesn't acknowledge!\n");
 		return -ENODEV;
 	}
 	/* Enable MPU401 interrupts. */
