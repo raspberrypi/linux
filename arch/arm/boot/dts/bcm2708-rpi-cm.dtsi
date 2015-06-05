@@ -11,6 +11,7 @@
 		intc = &intc;
 		leds = &leds;
 		sound = &sound;
+		uart0 = &uart0;
 	};
 
 	sound: sound {

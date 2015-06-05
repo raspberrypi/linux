@@ -185,10 +185,11 @@
 			clock-frequency = <250000000>;
 		};
 
-		clk_i2c: i2c {
+		clk_i2c: clock@1 {
 			compatible = "fixed-clock";
 			reg = <1>;
 			#clock-cells = <0>;
+			clock-output-names = "i2c";
 			clock-frequency = <250000000>;
 		};
 
