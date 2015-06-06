@@ -16,8 +16,6 @@ ifeq ($(CONFIG_ARCH_BCM2835),y)
    RPI_DT_OVERLAYS=y
 endif
 
-subdir-$(RPI_DT_OVERLAYS)  += overlays
-
 dtb-$(CONFIG_MACH_ASM9260) += \
 	alphascale-asm9260-devkit.dtb
 # Keep at91 dtb files sorted alphabetically for each SoC
@@ -676,3 +674,5 @@ clean-files	:= *.dtb
 ifeq ($(RPI_DT_OVERLAYS),y)
 	DTC_FLAGS ?= -@
 endif
+
+subdir-y  += overlays
