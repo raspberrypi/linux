@@ -353,28 +353,6 @@ static struct platform_device bcm2708_fb_device = {
 		},
 };
 
-static struct plat_serial8250_port bcm2708_uart1_platform_data[] = {
-	{
-	 .mapbase = UART1_BASE + 0x40,
-	 .irq = IRQ_AUX,
-	 .uartclk = 500000000,
-	 .regshift = 2,
-	 .iotype = UPIO_MEM,
-	 .flags = UPF_SHARE_IRQ | UPF_FIXED_TYPE | UPF_FIXED_PORT |
-		UPF_IOREMAP | UPF_SKIP_TEST,
-	 .type = PORT_16550,
-	 },
-	{},
-};
-
-static struct platform_device bcm2708_uart1_device = {
-	.name = "serial8250",
-	.id = PLAT8250_DEV_PLATFORM,
-	.dev = {
-		.platform_data = bcm2708_uart1_platform_data,
-		},
-};
-
 static struct resource bcm2708_usb_resources[] = {
 	[0] = {
 	       .start = USB_BASE,
@@ -901,6 +879,17 @@ static void bcm2708_power_off(void)
 	}
 }
 
+static void __init bcm2708_init_uart1(void)
+{
+	struct device_node *np;
+
+	np = of_find_compatible_node(NULL, NULL, "brcm,bcm2835-aux-uart");
+	if (of_device_is_available(np)) {
+		pr_info("bcm2708: Mini UART enabled\n");
+		writel(1, __io_address(UART1_BASE + 0x4));
+	}
+}
+
 #ifdef CONFIG_OF
 static void __init bcm2708_dt_init(void)
 {
@@ -956,13 +945,13 @@ void __init bcm2708_init(void)
 	bcm_register_device(&bcm2708_systemtimer_device);
 	bcm_register_device_dt(&bcm2708_fb_device);
 	bcm_register_device_dt(&bcm2708_usb_device);
-	bcm_register_device(&bcm2708_uart1_device);
 	bcm_register_device(&bcm2708_powerman_device);
 
 #ifdef CONFIG_MMC_BCM2835
 	bcm_register_device_dt(&bcm2835_emmc_device);
 #endif
 	bcm2708_init_led();
+	bcm2708_init_uart1();
 
 	/* Only create the platform devices for the ALSA driver in the
 	   absence of an enabled "audio" DT node */
