@@ -134,6 +134,16 @@
 			status = "disabled";
 		};
 
+		uart1: uart@7e215040 {
+			compatible = "brcm,bcm2835-aux-uart", "ns16550";
+			reg = <0x7e215040 0x40>;
+			interrupts = <1 29>;
+			clock-frequency = <500000000>;
+			reg-shift = <2>;
+			no-loopback-test;
+			status = "disabled";
+	        };
+
 		i2c1: i2c@7e804000 {
 			compatible = "brcm,bcm2708-i2c";
 			reg = <0x7e804000 0x1000>;
