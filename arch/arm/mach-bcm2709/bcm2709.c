@@ -718,10 +718,6 @@ static struct platform_device bcm2708_bsc1_device = {
 	.resource = bcm2708_bsc1_resources,
 };
 
-static struct platform_device bcm2835_hwmon_device = {
-	.name = "bcm2835_hwmon",
-};
-
 static struct platform_device bcm2835_thermal_device = {
 	.name = "bcm2835_thermal",
 };
@@ -1006,7 +1002,6 @@ void __init bcm2709_init(void)
 		bcm_register_device_dt(&bcm2708_bsc1_device);
 	}
 
-	bcm_register_device(&bcm2835_hwmon_device);
 	bcm_register_device_dt(&bcm2835_thermal_device);
 
 #if defined(CONFIG_SND_BCM2708_SOC_I2S) || defined(CONFIG_SND_BCM2708_SOC_I2S_MODULE)
