@@ -485,35 +485,6 @@ static struct platform_device bcm2708_gpio_device = {
 };
 #endif
 
-#ifdef SYSTEM_TIMER
-static struct resource bcm2708_systemtimer_resources[] = {
-	[0] = {			/* system timer access */
-	       .start = ST_BASE,
-	       .end = ST_BASE + SZ_4K - 1,
-	       .flags = IORESOURCE_MEM,
-	       },
-	{
-	 .start = IRQ_TIMER3,
-	 .end = IRQ_TIMER3,
-	 .flags = IORESOURCE_IRQ,
-	 }
-
-};
-
-static u64 systemtimer_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
-
-static struct platform_device bcm2708_systemtimer_device = {
-	.name = "bcm2708_systemtimer",
-	.id = -1,		/* only one VideoCore I/O area */
-	.resource = bcm2708_systemtimer_resources,
-	.num_resources = ARRAY_SIZE(bcm2708_systemtimer_resources),
-	.dev = {
-		.dma_mask = &systemtimer_dmamask,
-		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON),
-		},
-};
-#endif
-
 #ifdef CONFIG_MMC_BCM2835	/* Arasan emmc SD (new) */
 static struct resource bcm2835_emmc_resources[] = {
 	[0] = {
@@ -541,27 +512,6 @@ struct platform_device bcm2835_emmc_device = {
 		.coherent_dma_mask = 0xffffffffUL},
 };
 #endif /* CONFIG_MMC_BCM2835 */
-
-static struct resource bcm2708_powerman_resources[] = {
-	[0] = {
-	       .start = PM_BASE,
-	       .end = PM_BASE + SZ_256 - 1,
-	       .flags = IORESOURCE_MEM,
-	       },
-};
-
-static u64 powerman_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
-
-struct platform_device bcm2708_powerman_device = {
-	.name = "bcm2708_powerman",
-	.id = 0,
-	.num_resources = ARRAY_SIZE(bcm2708_powerman_resources),
-	.resource = bcm2708_powerman_resources,
-	.dev = {
-		.dma_mask = &powerman_dmamask,
-		.coherent_dma_mask = 0xffffffffUL},
-};
-
 
 static struct platform_device bcm2708_alsa_devices[] = {
 	[0] = {
@@ -960,12 +910,8 @@ void __init bcm2709_init(void)
 	w1_gpio_pdata.ext_pullup_enable_pin = w1_gpio_pullup;
 	bcm_register_device_dt(&w1_device);
 #endif
-#ifdef SYSTEM_TIMER
-	bcm_register_device(&bcm2708_systemtimer_device);
-#endif
 	bcm_register_device_dt(&bcm2708_fb_device);
 	bcm_register_device_dt(&bcm2708_usb_device);
-	bcm_register_device(&bcm2708_powerman_device);
 
 #ifdef CONFIG_MMC_BCM2835
 	bcm_register_device_dt(&bcm2835_emmc_device);
