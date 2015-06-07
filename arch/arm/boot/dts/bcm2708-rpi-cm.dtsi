@@ -13,6 +13,7 @@
 		audio = &audio;
 		sound = &sound;
 		uart0 = &uart0;
+		uart1 = &uart1;
 		clocks = &clocks;
 	};
 
