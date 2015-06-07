@@ -47,6 +47,14 @@ static bool swap_xy;
 module_param(swap_xy, bool, 0644);
 MODULE_PARM_DESC(swap_xy, "If set X and Y axes are swapped.");
 
+static bool invert_x;
+module_param(invert_x, bool, 0644);
+MODULE_PARM_DESC(invert_x, "Invert X axis.");
+
+static bool invert_y;
+module_param(invert_y, bool, 0644);
+MODULE_PARM_DESC(invert_y, "Invert Y axis.");
+
 static bool hwcalib_xy;
 module_param(hwcalib_xy, bool, 0644);
 MODULE_PARM_DESC(hwcalib_xy, "If set hw-calibrated X/Y are used if available");
@@ -1395,13 +1403,16 @@ static void usbtouch_process_pkt(struct usbtouch_usb *usbtouch,
 
 	input_report_key(usbtouch->input, BTN_TOUCH, usbtouch->touch);
 
-	if (swap_xy) {
-		input_report_abs(usbtouch->input, ABS_X, usbtouch->y);
-		input_report_abs(usbtouch->input, ABS_Y, usbtouch->x);
-	} else {
-		input_report_abs(usbtouch->input, ABS_X, usbtouch->x);
-		input_report_abs(usbtouch->input, ABS_Y, usbtouch->y);
-	}
+	if (swap_xy)
+		swap(usbtouch->y, usbtouch->x);
+	if (invert_x)
+		usbtouch->x = type->max_xc - usbtouch->x + type->min_xc;
+	if (invert_y)
+		usbtouch->y = type->max_yc - usbtouch->y + type->min_yc;
+
+	input_report_abs(usbtouch->input, ABS_X, usbtouch->x);
+	input_report_abs(usbtouch->input, ABS_Y, usbtouch->y);
+
 	if (type->max_press)
 		input_report_abs(usbtouch->input, ABS_PRESSURE, usbtouch->press);
 	input_sync(usbtouch->input);
