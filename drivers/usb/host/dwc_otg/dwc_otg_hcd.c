@@ -2020,7 +2020,7 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 		 * we hold off on bulk retransmissions to reduce NAK interrupt overhead for full-speed
 		 * cheeky devices that just hold off using NAKs
 		 */
-		if (nak_holdoff && qh->do_split) {
+		if (fiq_enable && nak_holdoff && qh->do_split) {
 			if (qh->nak_frame != 0xffff) {
 				uint16_t next_frame = dwc_frame_num_inc(qh->nak_frame, (qh->ep_type == UE_BULK) ? nak_holdoff : 8);
 				uint16_t frame = dwc_otg_hcd_get_frame_number(hcd);
