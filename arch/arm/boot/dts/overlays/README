@@ -78,6 +78,9 @@ Name:   <The base DTB>
 Info:   Configures the base Raspberry Pi hardware
 Load:   <loaded automatically>
 Params:
+        audio                    Set to "on" to disable the onboard ALSA audio
+                                 interface (default "off")
+
         i2c_arm                  Set to "on" to enable the ARM's i2c interface
                                  (default "off")
 
@@ -99,6 +102,14 @@ Params:
                                  (default "off")
 
         spi                      Set to "on" to enable the spi interfaces
+                                 (default "off")
+
+        random                   Set to "on" to enable the hardware random
+                                 number generator (default "off")
+
+        uart0                    Set to "off" to disable uart0 (default "on")
+
+        watchdog                 Set to "on" to enable the hardware watchdog
                                  (default "off")
 
         act_led_trigger          Choose which activity the LED tracks.
@@ -285,6 +296,16 @@ Params: gpio_out_pin             GPIO for output (default "17")
 
         debug                    "on" = enable additional debug messages
                                  (default "off")
+
+
+Name:   mcp2515-can0
+Info:   Configures the MCP2515 CAN controller
+Load:   dtoverlay=mcp2515-can0,<param>=<val>
+Params: oscillator               Clock frequency for the CAN controller (Hz)
+
+        spimaxfrequency          Maximum SPI frequence (Hz)
+
+        interrupt                GPIO for interrupt signal
 
 
 Name:   mmc
