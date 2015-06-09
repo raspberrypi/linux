@@ -432,5 +432,8 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Sean Cross <xobs@xoblo.gs> for Adafruit Industries <www.adafruit.com>");
 MODULE_ALIAS("platform:bcm2708_power_switch");
 module_param(gpio_pin, int, 0);
+MODULE_PARM_DESC(gpio_pin, "GPIO pin number of the BCM processor for shutdown switch (default 23)");
 module_param(led_pin, int, 0);
+MODULE_PARM_DESC(led_pin, "Pin for LED to pulse after shutdown (default 16)");
 module_param(mode, int, 0);
+MODULE_PARM_DESC(mode, "Shutdown switch mode (0 for button, 1 for switch)");
