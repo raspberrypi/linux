@@ -77,6 +77,7 @@ config BATTERY_88PM860X
 
 config RPI_POWER_SWITCH
 	tristate "Raspberry Pi GPIO power switch"
+	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
 	help
 	  Use a GPIO as a pseudo power switch.
 
