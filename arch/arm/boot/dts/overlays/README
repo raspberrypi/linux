@@ -418,7 +418,7 @@ Params: <None>
 
 
 Name:   tinylcd35
-Info:   3.5" Color TFT Display by www.tinlylcd.com
+Info:   3.5" Color TFT Display by www.tinylcd.com
         Options: Touch, RTC, keypad
 Load:   dtoverlay=tinylcd35,<param>=<val>
 Params: speed                    Display SPI bus speed
