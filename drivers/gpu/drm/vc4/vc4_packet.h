@@ -24,6 +24,8 @@
 #ifndef VC4_PACKET_H
 #define VC4_PACKET_H
 
+#include "vc4_regs.h" /* for VC4_MASK, VC4_GET_FIELD, VC4_SET_FIELD */
+
 enum vc4_packet {
         VC4_PACKET_HALT = 0,
         VC4_PACKET_NOP = 1,
@@ -81,6 +83,39 @@ enum vc4_packet {
         VC4_PACKET_GEM_HANDLES = 254,
 } __attribute__ ((__packed__));
 
+#define VC4_PACKET_HALT_SIZE						1
+#define VC4_PACKET_NOP_SIZE						1
+#define VC4_PACKET_FLUSH_SIZE						1
+#define VC4_PACKET_FLUSH_ALL_SIZE					1
+#define VC4_PACKET_START_TILE_BINNING_SIZE				1
+#define VC4_PACKET_INCREMENT_SEMAPHORE_SIZE				1
+#define VC4_PACKET_WAIT_ON_SEMAPHORE_SIZE				1
+#define VC4_PACKET_BRANCH_TO_SUB_LIST_SIZE				5
+#define VC4_PACKET_STORE_MS_TILE_BUFFER_SIZE				1
+#define VC4_PACKET_STORE_MS_TILE_BUFFER_AND_EOF_SIZE			1
+#define VC4_PACKET_STORE_TILE_BUFFER_GENERAL_SIZE			7
+#define VC4_PACKET_LOAD_TILE_BUFFER_GENERAL_SIZE			7
+#define VC4_PACKET_GL_INDEXED_PRIMITIVE_SIZE				14
+#define VC4_PACKET_GL_ARRAY_PRIMITIVE_SIZE				10
+#define VC4_PACKET_PRIMITIVE_LIST_FORMAT_SIZE				2
+#define VC4_PACKET_GL_SHADER_STATE_SIZE					5
+#define VC4_PACKET_NV_SHADER_STATE_SIZE					5
+#define VC4_PACKET_CONFIGURATION_BITS_SIZE				4
+#define VC4_PACKET_FLAT_SHADE_FLAGS_SIZE				5
+#define VC4_PACKET_POINT_SIZE_SIZE					5
+#define VC4_PACKET_LINE_WIDTH_SIZE					5
+#define VC4_PACKET_RHT_X_BOUNDARY_SIZE					3
+#define VC4_PACKET_DEPTH_OFFSET_SIZE					5
+#define VC4_PACKET_CLIP_WINDOW_SIZE					9
+#define VC4_PACKET_VIEWPORT_OFFSET_SIZE					5
+#define VC4_PACKET_CLIPPER_XY_SCALING_SIZE				9
+#define VC4_PACKET_CLIPPER_Z_SCALING_SIZE				9
+#define VC4_PACKET_TILE_BINNING_MODE_CONFIG_SIZE			16
+#define VC4_PACKET_TILE_RENDERING_MODE_CONFIG_SIZE			11
+#define VC4_PACKET_CLEAR_COLORS_SIZE					14
+#define VC4_PACKET_TILE_COORDINATES_SIZE				3
+#define VC4_PACKET_GEM_HANDLES_SIZE					9
+
 /** @{
  * Bits used by packets like VC4_PACKET_STORE_TILE_BUFFER_GENERAL and
  * VC4_PACKET_TILE_RENDERING_MODE_CONFIG.
@@ -96,6 +131,7 @@ enum vc4_packet {
  * VC4_PACKET_LOAD_TILE_BUFFER_GENERAL (low bits of the address)
  */
 
+#define VC4_LOADSTORE_TILE_BUFFER_EOF                  (1 << 3)
 #define VC4_LOADSTORE_TILE_BUFFER_DISABLE_FULL_VG_MASK (1 << 2)
 #define VC4_LOADSTORE_TILE_BUFFER_DISABLE_FULL_ZS      (1 << 1)
 #define VC4_LOADSTORE_TILE_BUFFER_DISABLE_FULL_COLOR   (1 << 0)
@@ -104,18 +140,19 @@ enum vc4_packet {
 
 /** @{
  *
- * byte 1 of VC4_PACKET_STORE_TILE_BUFFER_GENERAL and
+ * byte 0-1 of VC4_PACKET_STORE_TILE_BUFFER_GENERAL and
  * VC4_PACKET_LOAD_TILE_BUFFER_GENERAL
  */
-#define VC4_STORE_TILE_BUFFER_DISABLE_VG_MASK_CLEAR (1 << 7)
-#define VC4_STORE_TILE_BUFFER_DISABLE_ZS_CLEAR     (1 << 6)
-#define VC4_STORE_TILE_BUFFER_DISABLE_COLOR_CLEAR  (1 << 5)
-#define VC4_STORE_TILE_BUFFER_DISABLE_SWAP         (1 << 4)
+#define VC4_STORE_TILE_BUFFER_DISABLE_VG_MASK_CLEAR (1 << 15)
+#define VC4_STORE_TILE_BUFFER_DISABLE_ZS_CLEAR     (1 << 14)
+#define VC4_STORE_TILE_BUFFER_DISABLE_COLOR_CLEAR  (1 << 13)
+#define VC4_STORE_TILE_BUFFER_DISABLE_SWAP         (1 << 12)
 
-#define VC4_LOADSTORE_TILE_BUFFER_RGBA8888         (0 << 0)
-#define VC4_LOADSTORE_TILE_BUFFER_BGR565_DITHER    (1 << 0)
-#define VC4_LOADSTORE_TILE_BUFFER_BGR565           (2 << 0)
-#define VC4_LOADSTORE_TILE_BUFFER_MASK             (3 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_MASK      VC4_MASK(9, 8)
+#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_SHIFT     8
+#define VC4_LOADSTORE_TILE_BUFFER_RGBA8888         0
+#define VC4_LOADSTORE_TILE_BUFFER_BGR565_DITHER    1
+#define VC4_LOADSTORE_TILE_BUFFER_BGR565           2
 /** @} */
 
 /** @{
@@ -123,21 +160,24 @@ enum vc4_packet {
  * byte 0 of VC4_PACKET_STORE_TILE_BUFFER_GENERAL and
  * VC4_PACKET_LOAD_TILE_BUFFER_GENERAL
  */
+#define VC4_STORE_TILE_BUFFER_MODE_MASK            VC4_MASK(7, 6)
+#define VC4_STORE_TILE_BUFFER_MODE_SHIFT           6
 #define VC4_STORE_TILE_BUFFER_MODE_SAMPLE0         (0 << 6)
 #define VC4_STORE_TILE_BUFFER_MODE_DECIMATE_X4     (1 << 6)
 #define VC4_STORE_TILE_BUFFER_MODE_DECIMATE_X16    (2 << 6)
 
 /** The values of the field are VC4_TILING_FORMAT_* */
-#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_MASK      (3 << 4)
-#define VC4_LOADSTORE_TILE_BUFFER_FORMAT_SHIFT     4
+#define VC4_LOADSTORE_TILE_BUFFER_TILING_MASK      VC4_MASK(5, 4)
+#define VC4_LOADSTORE_TILE_BUFFER_TILING_SHIFT     4
 
-
-#define VC4_LOADSTORE_TILE_BUFFER_NONE             (0 << 0)
-#define VC4_LOADSTORE_TILE_BUFFER_COLOR            (1 << 0)
-#define VC4_LOADSTORE_TILE_BUFFER_ZS               (2 << 0)
-#define VC4_LOADSTORE_TILE_BUFFER_Z                (3 << 0)
-#define VC4_LOADSTORE_TILE_BUFFER_VG_MASK          (4 << 0)
-#define VC4_LOADSTORE_TILE_BUFFER_FULL             (5 << 0)
+#define VC4_LOADSTORE_TILE_BUFFER_BUFFER_MASK      VC4_MASK(2, 0)
+#define VC4_LOADSTORE_TILE_BUFFER_BUFFER_SHIFT     0
+#define VC4_LOADSTORE_TILE_BUFFER_NONE             0
+#define VC4_LOADSTORE_TILE_BUFFER_COLOR            1
+#define VC4_LOADSTORE_TILE_BUFFER_ZS               2
+#define VC4_LOADSTORE_TILE_BUFFER_Z                3
+#define VC4_LOADSTORE_TILE_BUFFER_VG_MASK          4
+#define VC4_LOADSTORE_TILE_BUFFER_FULL             5
 /** @} */
 
 #define VC4_INDEX_BUFFER_U8                        (0 << 4)
@@ -206,21 +246,28 @@ enum vc4_packet {
 #define VC4_RENDER_CONFIG_ENABLE_VG_MASK           (1 << 8)
 
 /** The values of the field are VC4_TILING_FORMAT_* */
-#define VC4_RENDER_CONFIG_MEMORY_FORMAT_MASK       (3 << 6)
+#define VC4_RENDER_CONFIG_MEMORY_FORMAT_MASK       VC4_MASK(7, 6)
 #define VC4_RENDER_CONFIG_MEMORY_FORMAT_SHIFT      6
 
 #define VC4_RENDER_CONFIG_DECIMATE_MODE_1X         (0 << 4)
 #define VC4_RENDER_CONFIG_DECIMATE_MODE_4X         (1 << 4)
 #define VC4_RENDER_CONFIG_DECIMATE_MODE_16X        (2 << 4)
 
-#define VC4_RENDER_CONFIG_FORMAT_BGR565            (0 << 2)
-#define VC4_RENDER_CONFIG_FORMAT_RGBA8888          (1 << 2)
-#define VC4_RENDER_CONFIG_FORMAT_BGR565_DITHERED   (2 << 2)
-#define VC4_RENDER_CONFIG_FORMAT_MASK              (3 << 2)
+#define VC4_RENDER_CONFIG_FORMAT_MASK              VC4_MASK(3, 2)
+#define VC4_RENDER_CONFIG_FORMAT_SHIFT             2
+#define VC4_RENDER_CONFIG_FORMAT_BGR565_DITHERED   0
+#define VC4_RENDER_CONFIG_FORMAT_RGBA8888          1
+#define VC4_RENDER_CONFIG_FORMAT_BGR565            2
 
 #define VC4_RENDER_CONFIG_TILE_BUFFER_64BIT        (1 << 1)
 #define VC4_RENDER_CONFIG_MS_MODE_4X               (1 << 0)
 
+#define VC4_PRIMITIVE_LIST_FORMAT_16_INDEX         (1 << 4)
+#define VC4_PRIMITIVE_LIST_FORMAT_32_XY            (3 << 4)
+#define VC4_PRIMITIVE_LIST_FORMAT_TYPE_POINTS      (0 << 0)
+#define VC4_PRIMITIVE_LIST_FORMAT_TYPE_LINES       (1 << 0)
+#define VC4_PRIMITIVE_LIST_FORMAT_TYPE_TRIANGLES   (2 << 0)
+#define VC4_PRIMITIVE_LIST_FORMAT_TYPE_RHT         (3 << 0)
 
 enum vc4_texture_data_type {
         VC4_TEXTURE_TYPE_RGBA8888 = 0,
@@ -242,5 +289,75 @@ enum vc4_texture_data_type {
         VC4_TEXTURE_TYPE_RGBA32R = 16,
         VC4_TEXTURE_TYPE_YUV422R = 17,
 };
+
+#define VC4_TEX_P0_OFFSET_MASK                     VC4_MASK(31, 12)
+#define VC4_TEX_P0_OFFSET_SHIFT                    12
+#define VC4_TEX_P0_CSWIZ_MASK                      VC4_MASK(11, 10)
+#define VC4_TEX_P0_CSWIZ_SHIFT                     10
+#define VC4_TEX_P0_CMMODE_MASK                     VC4_MASK(9, 9)
+#define VC4_TEX_P0_CMMODE_SHIFT                    9
+#define VC4_TEX_P0_FLIPY_MASK                      VC4_MASK(8, 8)
+#define VC4_TEX_P0_FLIPY_SHIFT                     8
+#define VC4_TEX_P0_TYPE_MASK                       VC4_MASK(7, 4)
+#define VC4_TEX_P0_TYPE_SHIFT                      4
+#define VC4_TEX_P0_MIPLVLS_MASK                    VC4_MASK(3, 0)
+#define VC4_TEX_P0_MIPLVLS_SHIFT                   0
+
+#define VC4_TEX_P1_TYPE4_MASK                      VC4_MASK(31, 31)
+#define VC4_TEX_P1_TYPE4_SHIFT                     31
+#define VC4_TEX_P1_HEIGHT_MASK                     VC4_MASK(30, 20)
+#define VC4_TEX_P1_HEIGHT_SHIFT                    20
+#define VC4_TEX_P1_ETCFLIP_MASK                    VC4_MASK(19, 19)
+#define VC4_TEX_P1_ETCFLIP_SHIFT                   19
+#define VC4_TEX_P1_WIDTH_MASK                      VC4_MASK(18, 8)
+#define VC4_TEX_P1_WIDTH_SHIFT                     8
+
+#define VC4_TEX_P1_MAGFILT_MASK                    VC4_MASK(7, 7)
+#define VC4_TEX_P1_MAGFILT_SHIFT                   7
+# define VC4_TEX_P1_MAGFILT_LINEAR                 0
+# define VC4_TEX_P1_MAGFILT_NEAREST                1
+
+#define VC4_TEX_P1_MINFILT_MASK                    VC4_MASK(6, 4)
+#define VC4_TEX_P1_MINFILT_SHIFT                   4
+# define VC4_TEX_P1_MINFILT_LINEAR                 0
+# define VC4_TEX_P1_MINFILT_NEAREST                1
+# define VC4_TEX_P1_MINFILT_NEAR_MIP_NEAR          2
+# define VC4_TEX_P1_MINFILT_NEAR_MIP_LIN           3
+# define VC4_TEX_P1_MINFILT_LIN_MIP_NEAR           4
+# define VC4_TEX_P1_MINFILT_LIN_MIP_LIN            5
+
+#define VC4_TEX_P1_WRAP_T_MASK                     VC4_MASK(3, 2)
+#define VC4_TEX_P1_WRAP_T_SHIFT                    2
+#define VC4_TEX_P1_WRAP_S_MASK                     VC4_MASK(1, 0)
+#define VC4_TEX_P1_WRAP_S_SHIFT                    0
+# define VC4_TEX_P1_WRAP_REPEAT                    0
+# define VC4_TEX_P1_WRAP_CLAMP                     1
+# define VC4_TEX_P1_WRAP_MIRROR                    2
+# define VC4_TEX_P1_WRAP_BORDER                    3
+
+#define VC4_TEX_P2_PTYPE_MASK                      VC4_MASK(31, 30)
+#define VC4_TEX_P2_PTYPE_SHIFT                     30
+# define VC4_TEX_P2_PTYPE_IGNORED                  0
+# define VC4_TEX_P2_PTYPE_CUBE_MAP_STRIDE          1
+# define VC4_TEX_P2_PTYPE_CHILD_IMAGE_DIMENSIONS   2
+# define VC4_TEX_P2_PTYPE_CHILD_IMAGE_OFFSETS      3
+
+/* VC4_TEX_P2_PTYPE_CUBE_MAP_STRIDE bits */
+#define VC4_TEX_P2_CMST_MASK                       VC4_MASK(29, 12)
+#define VC4_TEX_P2_CMST_SHIFT                      12
+#define VC4_TEX_P2_BSLOD_MASK                      VC4_MASK(0, 0)
+#define VC4_TEX_P2_BSLOD_SHIFT                     0
+
+/* VC4_TEX_P2_PTYPE_CHILD_IMAGE_DIMENSIONS */
+#define VC4_TEX_P2_CHEIGHT_MASK                    VC4_MASK(22, 12)
+#define VC4_TEX_P2_CHEIGHT_SHIFT                   12
+#define VC4_TEX_P2_CWIDTH_MASK                     VC4_MASK(10, 0)
+#define VC4_TEX_P2_CWIDTH_SHIFT                    0
+
+/* VC4_TEX_P2_PTYPE_CHILD_IMAGE_OFFSETS */
+#define VC4_TEX_P2_CYOFF_MASK                      VC4_MASK(22, 12)
+#define VC4_TEX_P2_CYOFF_SHIFT                     12
+#define VC4_TEX_P2_CXOFF_MASK                      VC4_MASK(10, 0)
+#define VC4_TEX_P2_CXOFF_SHIFT                     0
 
 #endif /* VC4_PACKET_H */

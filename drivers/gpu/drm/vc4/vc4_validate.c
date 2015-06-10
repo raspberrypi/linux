@@ -311,17 +311,18 @@ validate_branch_to_sublist(VALIDATE_ARGS)
 static int
 validate_loadstore_tile_buffer_general(VALIDATE_ARGS)
 {
-	uint32_t packet_b0 = *(uint8_t *)(untrusted + 0);
-	uint32_t packet_b1 = *(uint8_t *)(untrusted + 1);
+	uint16_t packet_b01 = *(uint16_t *)(untrusted + 0);
 	struct drm_gem_cma_object *fbo;
-	uint32_t buffer_type = packet_b0 & 0xf;
+	uint32_t buffer_type = VC4_GET_FIELD(packet_b01,
+					     VC4_LOADSTORE_TILE_BUFFER_BUFFER);
 	uint32_t untrusted_address, offset, cpp;
 
 	switch (buffer_type) {
 	case VC4_LOADSTORE_TILE_BUFFER_NONE:
 		return 0;
 	case VC4_LOADSTORE_TILE_BUFFER_COLOR:
-		if ((packet_b1 & VC4_LOADSTORE_TILE_BUFFER_MASK) ==
+		if (VC4_GET_FIELD(packet_b01,
+				  VC4_LOADSTORE_TILE_BUFFER_FORMAT) ==
 		    VC4_LOADSTORE_TILE_BUFFER_RGBA8888) {
 			cpp = 4;
 		} else {
@@ -346,9 +347,8 @@ validate_loadstore_tile_buffer_general(VALIDATE_ARGS)
 	offset = untrusted_address & ~0xf;
 
 	if (!check_tex_size(exec, fbo, offset,
-			    ((packet_b0 &
-			      VC4_LOADSTORE_TILE_BUFFER_FORMAT_MASK) >>
-			     VC4_LOADSTORE_TILE_BUFFER_FORMAT_SHIFT),
+			    VC4_GET_FIELD(packet_b01,
+					  VC4_LOADSTORE_TILE_BUFFER_TILING),
 			    exec->fb_width, exec->fb_height, cpp)) {
 		return -EINVAL;
 	}
@@ -590,7 +590,7 @@ validate_tile_rendering_mode_config(VALIDATE_ARGS)
 	exec->fb_height = *(uint16_t *)(untrusted + 6);
 
 	flags = *(uint16_t *)(untrusted + 8);
-	if ((flags & VC4_RENDER_CONFIG_FORMAT_MASK) ==
+	if (VC4_GET_FIELD(flags, VC4_RENDER_CONFIG_FORMAT) ==
 	    VC4_RENDER_CONFIG_FORMAT_RGBA8888) {
 		cpp = 4;
 	} else {
@@ -599,9 +599,8 @@ validate_tile_rendering_mode_config(VALIDATE_ARGS)
 
 	offset = *(uint32_t *)untrusted;
 	if (!check_tex_size(exec, fbo, offset,
-			    ((flags &
-			      VC4_RENDER_CONFIG_MEMORY_FORMAT_MASK) >>
-			     VC4_RENDER_CONFIG_MEMORY_FORMAT_SHIFT),
+			    VC4_GET_FIELD(flags,
+					  VC4_RENDER_CONFIG_MEMORY_FORMAT),
 			    exec->fb_width, exec->fb_height, cpp)) {
 		return -EINVAL;
 	}
@@ -633,6 +632,9 @@ validate_gem_handles(VALIDATE_ARGS)
 	return 0;
 }
 
+#define VC4_DEFINE_PACKET(packet, bin, render, name, func) \
+	[packet] = { bin, render, packet ## _SIZE, name, func }
+
 static const struct cmd_info {
 	bool bin;
 	bool render;
@@ -641,59 +643,59 @@ static const struct cmd_info {
 	int (*func)(struct vc4_exec_info *exec, void *validated,
 		    void *untrusted);
 } cmd_info[] = {
-	[VC4_PACKET_HALT] = { 1, 1, 1, "halt", NULL },
-	[VC4_PACKET_NOP] = { 1, 1, 1, "nop", NULL },
-	[VC4_PACKET_FLUSH] = { 1, 1, 1, "flush", NULL },
-	[VC4_PACKET_FLUSH_ALL] = { 1, 0, 1, "flush all state", validate_flush_all },
-	[VC4_PACKET_START_TILE_BINNING] = { 1, 0, 1, "start tile binning", validate_start_tile_binning },
-	[VC4_PACKET_INCREMENT_SEMAPHORE] = { 1, 0, 1, "increment semaphore", validate_increment_semaphore },
-	[VC4_PACKET_WAIT_ON_SEMAPHORE] = { 0, 1, 1, "wait on semaphore", validate_wait_on_semaphore },
+	VC4_DEFINE_PACKET(VC4_PACKET_HALT, 1, 1, "halt", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_NOP, 1, 1, "nop", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_FLUSH, 1, 1, "flush", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_FLUSH_ALL, 1, 0, "flush all state", validate_flush_all),
+	VC4_DEFINE_PACKET(VC4_PACKET_START_TILE_BINNING, 1, 0, "start tile binning", validate_start_tile_binning),
+	VC4_DEFINE_PACKET(VC4_PACKET_INCREMENT_SEMAPHORE, 1, 0, "increment semaphore", validate_increment_semaphore),
+	VC4_DEFINE_PACKET(VC4_PACKET_WAIT_ON_SEMAPHORE, 0, 1, "wait on semaphore", validate_wait_on_semaphore),
 	/* BRANCH_TO_SUB_LIST is actually supported in the binner as well, but
 	 * we only use it from the render CL in order to jump into the tile
 	 * allocation BO.
 	 */
-	[VC4_PACKET_BRANCH_TO_SUB_LIST] = { 0, 1, 5, "branch to sublist", validate_branch_to_sublist },
-	[VC4_PACKET_STORE_MS_TILE_BUFFER] = { 0, 1, 1, "store MS resolved tile color buffer", NULL },
-	[VC4_PACKET_STORE_MS_TILE_BUFFER_AND_EOF] = { 0, 1, 1, "store MS resolved tile color buffer and EOF", NULL },
+	VC4_DEFINE_PACKET(VC4_PACKET_BRANCH_TO_SUB_LIST, 0, 1, "branch to sublist", validate_branch_to_sublist),
+	VC4_DEFINE_PACKET(VC4_PACKET_STORE_MS_TILE_BUFFER, 0, 1, "store MS resolved tile color buffer", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_STORE_MS_TILE_BUFFER_AND_EOF, 0, 1, "store MS resolved tile color buffer and EOF", NULL),
 
-	[VC4_PACKET_STORE_TILE_BUFFER_GENERAL] = { 0, 1, 7, "Store Tile Buffer General", validate_loadstore_tile_buffer_general },
-	[VC4_PACKET_LOAD_TILE_BUFFER_GENERAL] = { 0, 1, 7, "Load Tile Buffer General", validate_loadstore_tile_buffer_general },
+	VC4_DEFINE_PACKET(VC4_PACKET_STORE_TILE_BUFFER_GENERAL, 0, 1, "Store Tile Buffer General", validate_loadstore_tile_buffer_general),
+	VC4_DEFINE_PACKET(VC4_PACKET_LOAD_TILE_BUFFER_GENERAL, 0, 1, "Load Tile Buffer General", validate_loadstore_tile_buffer_general),
 
-	[VC4_PACKET_GL_INDEXED_PRIMITIVE] = { 1, 1, 14, "Indexed Primitive List", validate_indexed_prim_list },
+	VC4_DEFINE_PACKET(VC4_PACKET_GL_INDEXED_PRIMITIVE, 1, 1, "Indexed Primitive List", validate_indexed_prim_list),
 
-	[VC4_PACKET_GL_ARRAY_PRIMITIVE] = { 1, 1, 10, "Vertex Array Primitives", validate_gl_array_primitive },
+	VC4_DEFINE_PACKET(VC4_PACKET_GL_ARRAY_PRIMITIVE, 1, 1, "Vertex Array Primitives", validate_gl_array_primitive),
 
 	/* This is only used by clipped primitives (packets 48 and 49), which
 	 * we don't support parsing yet.
 	 */
-	[VC4_PACKET_PRIMITIVE_LIST_FORMAT] = { 1, 1, 2, "primitive list format", NULL },
+	VC4_DEFINE_PACKET(VC4_PACKET_PRIMITIVE_LIST_FORMAT, 1, 1, "primitive list format", NULL),
 
-	[VC4_PACKET_GL_SHADER_STATE] = { 1, 1, 5, "GL Shader State", validate_gl_shader_state },
-	[VC4_PACKET_NV_SHADER_STATE] = { 1, 1, 5, "NV Shader State", validate_nv_shader_state },
+	VC4_DEFINE_PACKET(VC4_PACKET_GL_SHADER_STATE, 1, 1, "GL Shader State", validate_gl_shader_state),
+	VC4_DEFINE_PACKET(VC4_PACKET_NV_SHADER_STATE, 1, 1, "NV Shader State", validate_nv_shader_state),
 
-	[VC4_PACKET_CONFIGURATION_BITS] = { 1, 1, 4, "configuration bits", NULL },
-	[VC4_PACKET_FLAT_SHADE_FLAGS] = { 1, 1, 5, "flat shade flags", NULL },
-	[VC4_PACKET_POINT_SIZE] = { 1, 1, 5, "point size", NULL },
-	[VC4_PACKET_LINE_WIDTH] = { 1, 1, 5, "line width", NULL },
-	[VC4_PACKET_RHT_X_BOUNDARY] = { 1, 1, 3, "RHT X boundary", NULL },
-	[VC4_PACKET_DEPTH_OFFSET] = { 1, 1, 5, "Depth Offset", NULL },
-	[VC4_PACKET_CLIP_WINDOW] = { 1, 1, 9, "Clip Window", NULL },
-	[VC4_PACKET_VIEWPORT_OFFSET] = { 1, 1, 5, "Viewport Offset", NULL },
-	[VC4_PACKET_CLIPPER_XY_SCALING] = { 1, 1, 9, "Clipper XY Scaling", NULL },
+	VC4_DEFINE_PACKET(VC4_PACKET_CONFIGURATION_BITS, 1, 1, "configuration bits", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_FLAT_SHADE_FLAGS, 1, 1, "flat shade flags", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_POINT_SIZE, 1, 1, "point size", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_LINE_WIDTH, 1, 1, "line width", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_RHT_X_BOUNDARY, 1, 1, "RHT X boundary", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_DEPTH_OFFSET, 1, 1, "Depth Offset", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_CLIP_WINDOW, 1, 1, "Clip Window", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_VIEWPORT_OFFSET, 1, 1, "Viewport Offset", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_CLIPPER_XY_SCALING, 1, 1, "Clipper XY Scaling", NULL),
 	/* Note: The docs say this was also 105, but it was 106 in the
 	 * initial userland code drop.
 	 */
-	[VC4_PACKET_CLIPPER_Z_SCALING] = { 1, 1, 9, "Clipper Z Scale and Offset", NULL },
+	VC4_DEFINE_PACKET(VC4_PACKET_CLIPPER_Z_SCALING, 1, 1, "Clipper Z Scale and Offset", NULL),
 
-	[VC4_PACKET_TILE_BINNING_MODE_CONFIG] = { 1, 0, 16, "tile binning configuration", validate_tile_binning_config },
+	VC4_DEFINE_PACKET(VC4_PACKET_TILE_BINNING_MODE_CONFIG, 1, 0, "tile binning configuration", validate_tile_binning_config),
 
-	[VC4_PACKET_TILE_RENDERING_MODE_CONFIG] = { 0, 1, 11, "tile rendering mode configuration", validate_tile_rendering_mode_config},
+	VC4_DEFINE_PACKET(VC4_PACKET_TILE_RENDERING_MODE_CONFIG, 0, 1, "tile rendering mode configuration", validate_tile_rendering_mode_config),
 
-	[VC4_PACKET_CLEAR_COLORS] = { 0, 1, 14, "Clear Colors", NULL },
+	VC4_DEFINE_PACKET(VC4_PACKET_CLEAR_COLORS, 0, 1, "Clear Colors", NULL),
 
-	[VC4_PACKET_TILE_COORDINATES] = { 0, 1, 3, "Tile Coordinates", validate_tile_coordinates },
+	VC4_DEFINE_PACKET(VC4_PACKET_TILE_COORDINATES, 0, 1, "Tile Coordinates", validate_tile_coordinates),
 
-	[VC4_PACKET_GEM_HANDLES] = { 1, 1, 9, "GEM handles", validate_gem_handles },
+	VC4_DEFINE_PACKET(VC4_PACKET_GEM_HANDLES, 1, 1, "GEM handles", validate_gem_handles),
 };
 
 int
@@ -814,10 +816,10 @@ reloc_tex(struct vc4_exec_info *exec,
 	uint32_t p3 = (sample->p_offset[3] != ~0 ?
 		       *(uint32_t *)(uniform_data_u + sample->p_offset[3]) : 0);
 	uint32_t *validated_p0 = exec->uniforms_v + sample->p_offset[0];
-	uint32_t offset = p0 & ~0xfff;
-	uint32_t miplevels = (p0 & 15);
-	uint32_t width = (p1 >> 8) & 2047;
-	uint32_t height = (p1 >> 20) & 2047;
+	uint32_t offset = p0 & VC4_TEX_P0_OFFSET_MASK;
+	uint32_t miplevels = VC4_GET_FIELD(p0, VC4_TEX_P0_MIPLVLS);
+	uint32_t width = VC4_GET_FIELD(p1, VC4_TEX_P1_WIDTH);
+	uint32_t height = VC4_GET_FIELD(p1, VC4_TEX_P1_HEIGHT);
 	uint32_t cpp, tiling_format, utile_w, utile_h;
 	uint32_t i;
 	uint32_t cube_map_stride = 0;
@@ -845,16 +847,18 @@ reloc_tex(struct vc4_exec_info *exec,
 	if (height == 0)
 		height = 2048;
 
-	if (p0 & (1 << 9)) {
-		if ((p2 & (3 << 30)) == (1 << 30))
-			cube_map_stride = p2 & 0x3ffff000;
-		if ((p3 & (3 << 30)) == (1 << 30)) {
+	if (p0 & VC4_TEX_P0_CMMODE_MASK) {
+		if (VC4_GET_FIELD(p2, VC4_TEX_P2_PTYPE) ==
+		    VC4_TEX_P2_PTYPE_CUBE_MAP_STRIDE)
+			cube_map_stride = p2 & VC4_TEX_P2_CMST_MASK;
+		if (VC4_GET_FIELD(p3, VC4_TEX_P2_PTYPE) ==
+		    VC4_TEX_P2_PTYPE_CUBE_MAP_STRIDE) {
 			if (cube_map_stride) {
 				DRM_ERROR("Cube map stride set twice\n");
 				return false;
 			}
 
-			cube_map_stride = p3 & 0x3ffff000;
+			cube_map_stride = p3 & VC4_TEX_P2_CMST_MASK;
 		}
 		if (!cube_map_stride) {
 			DRM_ERROR("Cube map stride not set\n");
@@ -862,7 +866,8 @@ reloc_tex(struct vc4_exec_info *exec,
 		}
 	}
 
-	type = ((p0 >> 4) & 15) | ((p1 >> 31) << 4);
+	type = (VC4_GET_FIELD(p0, VC4_TEX_P0_TYPE) |
+		(VC4_GET_FIELD(p1, VC4_TEX_P1_TYPE4) << 4));
 
 	switch (type) {
 	case VC4_TEXTURE_TYPE_RGBA8888:

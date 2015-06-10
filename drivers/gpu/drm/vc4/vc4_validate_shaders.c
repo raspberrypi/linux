@@ -57,7 +57,8 @@ struct vc4_shader_validation_state {
 	 *
 	 * This is used for the validation of direct address memory reads.
 	 */
-	uint32_t live_clamp_offsets[32 + 32 + 4];
+	uint32_t live_min_clamp_offsets[32 + 32 + 4];
+	bool live_max_clamp_regs[32 + 32 + 4];
 };
 
 static uint32_t
@@ -71,6 +72,25 @@ waddr_to_live_reg_index(uint32_t waddr, bool is_b)
 	} else if (waddr <= QPU_W_ACC3) {
 
 		return 64 + waddr - QPU_W_ACC0;
+	} else {
+		return ~0;
+	}
+}
+
+static uint32_t
+raddr_add_a_to_live_reg_index(uint64_t inst)
+{
+	uint32_t sig = QPU_GET_FIELD(inst, QPU_SIG);
+	uint32_t add_a = QPU_GET_FIELD(inst, QPU_ADD_A);
+	uint32_t raddr_a = QPU_GET_FIELD(inst, QPU_RADDR_A);
+	uint32_t raddr_b = QPU_GET_FIELD(inst, QPU_RADDR_B);
+
+	if (add_a == QPU_MUX_A) {
+		return raddr_a;
+	} else if (add_a == QPU_MUX_B && sig != QPU_SIG_SMALL_IMM) {
+		return 32 + raddr_b;
+	} else if (add_a <= QPU_MUX_R3) {
+		return 64 + add_a;
 	} else {
 		return ~0;
 	}
@@ -135,9 +155,8 @@ check_tmu_write(uint64_t inst,
 	uint32_t sig = QPU_GET_FIELD(inst, QPU_SIG);
 
 	if (is_direct) {
-		uint32_t add_a = QPU_GET_FIELD(inst, QPU_ADD_A);
 		uint32_t add_b = QPU_GET_FIELD(inst, QPU_ADD_B);
-		uint32_t clamp_offset = ~0;
+		uint32_t clamp_reg, clamp_offset;
 
 		if (sig == QPU_SIG_SMALL_IMM) {
 			DRM_ERROR("direct TMU read used small immediate\n");
@@ -158,14 +177,13 @@ check_tmu_write(uint64_t inst,
 		 * This is arbitrary, but simpler than supporting flipping the
 		 * two either way.
 		 */
-		if (add_a == QPU_MUX_A) {
-			clamp_offset = validation_state->live_clamp_offsets[raddr_a];
-		} else if (add_a == QPU_MUX_B) {
-			clamp_offset = validation_state->live_clamp_offsets[32 + raddr_b];
-		} else if (add_a <= QPU_MUX_R4) {
-			clamp_offset = validation_state->live_clamp_offsets[64 + add_a];
+		clamp_reg = raddr_add_a_to_live_reg_index(inst);
+		if (clamp_reg == ~0) {
+			DRM_ERROR("direct TMU load wasn't clamped\n");
+			return false;
 		}
 
+		clamp_offset = validation_state->live_min_clamp_offsets[clamp_reg];
 		if (clamp_offset == ~0) {
 			DRM_ERROR("direct TMU load wasn't clamped\n");
 			return false;
@@ -228,8 +246,6 @@ check_register_write(uint64_t inst,
 	uint32_t waddr = (is_mul ?
 			  QPU_GET_FIELD(inst, QPU_WADDR_MUL) :
 			  QPU_GET_FIELD(inst, QPU_WADDR_ADD));
-	bool is_b = is_mul != ((inst & QPU_WS) != 0);
-	uint32_t live_reg_index;
 
 	switch (waddr) {
 	case QPU_W_UNIFORMS_ADDRESS:
@@ -284,14 +300,6 @@ check_register_write(uint64_t inst,
                 return true;
 	}
 
-	/* Clear out the live offset clamp tracking for the written register.
-	 * If this particular instruction is setting up an offset clamp, it'll
-	 * get tracked immediately after we return.
-	 */
-	live_reg_index = waddr_to_live_reg_index(waddr, is_b);
-	if (live_reg_index != ~0)
-		validation_state->live_clamp_offsets[live_reg_index] = ~0;
-
 	return true;
 }
 
@@ -300,26 +308,72 @@ track_live_clamps(uint64_t inst,
 		  struct vc4_validated_shader_info *validated_shader,
 		  struct vc4_shader_validation_state *validation_state)
 {
+	uint32_t op_add = QPU_GET_FIELD(inst, QPU_OP_ADD);
 	uint32_t waddr_add = QPU_GET_FIELD(inst, QPU_WADDR_ADD);
+	uint32_t waddr_mul = QPU_GET_FIELD(inst, QPU_WADDR_MUL);
+	uint32_t cond_add = QPU_GET_FIELD(inst, QPU_COND_ADD);
+	uint32_t add_a = QPU_GET_FIELD(inst, QPU_ADD_A);
 	uint32_t add_b = QPU_GET_FIELD(inst, QPU_ADD_B);
 	uint32_t raddr_a = QPU_GET_FIELD(inst, QPU_RADDR_A);
 	uint32_t raddr_b = QPU_GET_FIELD(inst, QPU_RADDR_B);
 	uint32_t sig = QPU_GET_FIELD(inst, QPU_SIG);
-	bool is_b = inst & QPU_WS;
-	uint32_t live_reg_index;
+	bool ws = inst & QPU_WS;
+	uint32_t lri_add_a, lri_add, lri_mul;
+	bool add_a_is_min_0;
 
-	if (QPU_GET_FIELD(inst, QPU_OP_ADD) != QPU_A_MIN)
-		return;
+	/* Check whether OP_ADD's A argumennt comes from a live MAX(x, 0),
+	 * before we clear previous live state.
+	 */
+	lri_add_a = raddr_add_a_to_live_reg_index(inst);
+	add_a_is_min_0 = (lri_add_a != ~0 &&
+			  validation_state->live_max_clamp_regs[lri_add_a]);
 
-	if (!(add_b == QPU_MUX_A && raddr_a == QPU_R_UNIF) &&
-	    !(add_b == QPU_MUX_B && raddr_b == QPU_R_UNIF &&
-	      sig != QPU_SIG_SMALL_IMM)) {
+	/* Clear live state for registers written by our instruction. */
+	lri_add = waddr_to_live_reg_index(waddr_add, ws);
+	lri_mul = waddr_to_live_reg_index(waddr_mul, !ws);
+	if (lri_mul != ~0) {
+		validation_state->live_max_clamp_regs[lri_mul] = false;
+		validation_state->live_min_clamp_offsets[lri_mul] = ~0;
+	}
+	if (lri_add != ~0) {
+		validation_state->live_max_clamp_regs[lri_add] = false;
+		validation_state->live_min_clamp_offsets[lri_add] = ~0;
+	} else {
+		/* Nothing further to do for live tracking, since only ADDs
+		 * generate new live clamp registers.
+		 */
 		return;
 	}
 
-	live_reg_index = waddr_to_live_reg_index(waddr_add, is_b);
-	if (live_reg_index != ~0) {
-		validation_state->live_clamp_offsets[live_reg_index] =
+	/* Now, handle remaining live clamp tracking for the ADD operation. */
+
+	if (cond_add != QPU_COND_ALWAYS)
+		return;
+
+	if (op_add == QPU_A_MAX) {
+		/* Track live clamps of a value to a minimum of 0 (in either
+		 * arg).
+		 */
+		if (sig != QPU_SIG_SMALL_IMM || raddr_b != 0 ||
+		    (add_a != QPU_MUX_B && add_b != QPU_MUX_B)) {
+			return;
+		}
+
+		validation_state->live_max_clamp_regs[lri_add] = true;
+	} if (op_add == QPU_A_MIN) {
+		/* Track live clamps of a value clamped to a minimum of 0 and
+		 * a maximum of some uniform's offset.
+		 */
+		if (!add_a_is_min_0)
+			return;
+
+		if (!(add_b == QPU_MUX_A && raddr_a == QPU_R_UNIF) &&
+		    !(add_b == QPU_MUX_B && raddr_b == QPU_R_UNIF &&
+		      sig != QPU_SIG_SMALL_IMM)) {
+			return;
+		}
+
+		validation_state->live_min_clamp_offsets[lri_add] =
 			validated_shader->uniforms_size;
 	}
 }
@@ -399,8 +453,8 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 
 	for (i = 0; i < 8; i++)
 		validation_state.tmu_setup[i / 4].p_offset[i % 4] = ~0;
-	for (i = 0; i < ARRAY_SIZE(validation_state.live_clamp_offsets); i++)
-		validation_state.live_clamp_offsets[i] = ~0;
+	for (i = 0; i < ARRAY_SIZE(validation_state.live_min_clamp_offsets); i++)
+		validation_state.live_min_clamp_offsets[i] = ~0;
 
 	shader = shader_obj->vaddr;
 	max_ip = shader_obj->base.size / sizeof(uint64_t);
