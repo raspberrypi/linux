@@ -18,6 +18,7 @@ config BCM_VC_CMA
 
 config BCM_VC_SM
 	bool "VMCS Shared Memory"
+	depends on BCM2708_VCHIQ
 	select BCM2708_VCMEM
 	default n
 	help
