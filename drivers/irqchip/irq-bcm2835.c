@@ -164,6 +164,12 @@ static void armctrl_unmask_irq(struct irq_data *d)
 		writel_relaxed(HWIRQ_BIT(d->hwirq),
 			       intc.enable[HWIRQ_BANK(d->hwirq)]);
 	}
+	if (d->hwirq >= NUMBER_IRQS)
+		writel_relaxed(REG_FIQ_ENABLE | hwirq_to_fiq(d->hwirq),
+			       intc.base + REG_FIQ_CONTROL);
+	else
+		writel_relaxed(HWIRQ_BIT(d->hwirq),
+			       intc.enable[HWIRQ_BANK(d->hwirq)]);
 }
 
 static struct irq_chip armctrl_chip = {
@@ -241,6 +247,7 @@ static int __init armctrl_of_init(struct device_node *node,
 		set_handle_irq(bcm2835_handle_irq);
 	}
 
+<<<<<<< HEAD
 	if (is_2836) {
 		intc.local_regmap =
 			syscon_regmap_lookup_by_compatible("brcm,bcm2836-arm-local");
@@ -250,6 +257,8 @@ static int __init armctrl_of_init(struct device_node *node,
 		}
 	}
 
+=======
+>>>>>>> f0d9e42... irqchip: bcm2835: Add FIQ support
 	/* Make a duplicate irq range which is used to enable FIQ */
 	for (b = 0; b < NR_BANKS; b++) {
 		for (i = 0; i < bank_irqs[b]; i++) {
@@ -257,7 +266,11 @@ static int __init armctrl_of_init(struct device_node *node,
 					MAKE_HWIRQ(b, i) + NUMBER_IRQS);
 			BUG_ON(irq <= 0);
 			irq_set_chip(irq, &armctrl_chip);
+<<<<<<< HEAD
 			irq_set_probe(irq);
+=======
+			set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
+>>>>>>> f0d9e42... irqchip: bcm2835: Add FIQ support
 		}
 	}
 	init_FIQ(FIQ_START);
