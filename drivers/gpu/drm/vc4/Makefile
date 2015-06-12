@@ -13,6 +13,7 @@ vc4-y := \
 	vc4_hvs.o \
 	vc4_irq.o \
 	vc4_plane.o \
+	vc4_render_cl.o \
 	vc4_v3d.o \
 	vc4_validate.o \
 	vc4_validate_shaders.o \

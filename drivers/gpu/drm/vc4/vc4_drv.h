@@ -228,14 +228,9 @@ struct vc4_exec_info {
 	uint32_t shader_state_count;
 
 	bool found_tile_binning_mode_config_packet;
-	bool found_tile_rendering_mode_config_packet;
 	bool found_start_tile_binning_packet;
 	bool found_increment_semaphore_packet;
-	bool found_wait_on_semaphore_packet;
 	uint8_t bin_tiles_x, bin_tiles_y;
-	uint32_t fb_width, fb_height;
-	uint32_t tile_alloc_init_block_mask;
-	uint32_t tile_alloc_init_block_last;
 	struct drm_gem_cma_object *tile_alloc_bo;
 
 	/**
@@ -430,16 +425,25 @@ int vc4_v3d_set_power(struct vc4_dev *vc4, bool on);
 
 /* vc4_validate.c */
 int
-vc4_validate_cl(struct drm_device *dev,
-		void *validated,
-		void *unvalidated,
-		uint32_t len,
-		bool is_bin,
-		bool has_bin,
-		struct vc4_exec_info *exec);
+vc4_validate_bin_cl(struct drm_device *dev,
+		    void *validated,
+		    void *unvalidated,
+		    struct vc4_exec_info *exec);
 
 int
 vc4_validate_shader_recs(struct drm_device *dev, struct vc4_exec_info *exec);
 
 struct vc4_validated_shader_info *
 vc4_validate_shader(struct drm_gem_cma_object *shader_obj);
+
+bool vc4_use_bo(struct vc4_exec_info *exec,
+		uint32_t hindex,
+		enum vc4_bo_mode mode,
+		struct drm_gem_cma_object **obj);
+
+int vc4_get_rcl(struct drm_device *dev, struct vc4_exec_info *exec);
+
+bool vc4_check_tex_size(struct vc4_exec_info *exec,
+			struct drm_gem_cma_object *fbo,
+			uint32_t offset, uint8_t tiling_format,
+			uint32_t width, uint32_t height, uint8_t cpp);

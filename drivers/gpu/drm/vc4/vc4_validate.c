@@ -39,6 +39,7 @@
  * is where GEM relocation processing happens.
  */
 
+#include "uapi/drm/vc4_drm.h"
 #include "vc4_drv.h"
 #include "vc4_packet.h"
 
@@ -94,7 +95,7 @@ size_is_lt(uint32_t width, uint32_t height, int cpp)
 		height <= 4 * utile_height(cpp));
 }
 
-static bool
+bool
 vc4_use_bo(struct vc4_exec_info *exec,
 	   uint32_t hindex,
 	   enum vc4_bo_mode mode,
@@ -147,10 +148,10 @@ gl_shader_rec_size(uint32_t pointer_bits)
 		return 36 + attribute_count * 8;
 }
 
-static bool
-check_tex_size(struct vc4_exec_info *exec, struct drm_gem_cma_object *fbo,
-	       uint32_t offset, uint8_t tiling_format,
-	       uint32_t width, uint32_t height, uint8_t cpp)
+bool
+vc4_check_tex_size(struct vc4_exec_info *exec, struct drm_gem_cma_object *fbo,
+		   uint32_t offset, uint8_t tiling_format,
+		   uint32_t width, uint32_t height, uint8_t cpp)
 {
 	uint32_t aligned_width, aligned_height, stride, size;
 	uint32_t utile_w = utile_width(cpp);
@@ -243,118 +244,6 @@ validate_increment_semaphore(VALIDATE_ARGS)
 	 * then the end of the command list.  The FLUSH actually triggers the
 	 * increment, so we only need to make sure there
 	 */
-
-	return 0;
-}
-
-static int
-validate_wait_on_semaphore(VALIDATE_ARGS)
-{
-	if (exec->found_wait_on_semaphore_packet) {
-		DRM_ERROR("Duplicate VC4_PACKET_WAIT_ON_SEMAPHORE\n");
-		return -EINVAL;
-	}
-	exec->found_wait_on_semaphore_packet = true;
-
-	if (!exec->found_increment_semaphore_packet) {
-		DRM_ERROR("VC4_PACKET_WAIT_ON_SEMAPHORE without "
-			  "VC4_PACKET_INCREMENT_SEMAPHORE\n");
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int
-validate_branch_to_sublist(VALIDATE_ARGS)
-{
-	uint32_t offset;
-
-	if (!exec->tile_alloc_bo) {
-		DRM_ERROR("VC4_PACKET_BRANCH_TO_SUB_LIST seen before "
-			  "binner setup\n");
-		return -EINVAL;
-	}
-
-	if (!exec->found_wait_on_semaphore_packet) {
-		DRM_ERROR("Jumping to tile alloc before binning finished.\n");
-		return -EINVAL;
-	}
-
-	offset = *(uint32_t *)(untrusted + 0);
-	if (offset & exec->tile_alloc_init_block_mask ||
-	    offset > exec->tile_alloc_init_block_last) {
-		DRM_ERROR("VC4_PACKET_BRANCH_TO_SUB_LIST must jump to initial "
-			  "tile allocation space.\n");
-		return -EINVAL;
-	}
-
-	*(uint32_t *)(validated + 0) = exec->tile_alloc_bo->paddr + offset;
-
-	return 0;
-}
-
-/**
- * validate_loadstore_tile_buffer_general() - Validation for
- * VC4_PACKET_LOAD_TILE_BUFFER_GENERAL and
- * VC4_PACKET_STORE_TILE_BUFFER_GENERAL.
- *
- * The two packets are nearly the same, except for the TLB-clearing management
- * bits not being present for loads.  Additionally, while stores are executed
- * immediately (using the current tile coordinates), loads are queued to be
- * executed when the tile coordinates packet occurs.
- *
- * Note that coordinates packets are validated to be within the declared
- * bin_x/y, which themselves are verified to match the rendering-configuration
- * FB width and height (which the hardware uses to clip loads and stores).
- */
-static int
-validate_loadstore_tile_buffer_general(VALIDATE_ARGS)
-{
-	uint16_t packet_b01 = *(uint16_t *)(untrusted + 0);
-	struct drm_gem_cma_object *fbo;
-	uint32_t buffer_type = VC4_GET_FIELD(packet_b01,
-					     VC4_LOADSTORE_TILE_BUFFER_BUFFER);
-	uint32_t untrusted_address, offset, cpp;
-
-	switch (buffer_type) {
-	case VC4_LOADSTORE_TILE_BUFFER_NONE:
-		return 0;
-	case VC4_LOADSTORE_TILE_BUFFER_COLOR:
-		if (VC4_GET_FIELD(packet_b01,
-				  VC4_LOADSTORE_TILE_BUFFER_FORMAT) ==
-		    VC4_LOADSTORE_TILE_BUFFER_RGBA8888) {
-			cpp = 4;
-		} else {
-			cpp = 2;
-		}
-		break;
-
-	case VC4_LOADSTORE_TILE_BUFFER_Z:
-	case VC4_LOADSTORE_TILE_BUFFER_ZS:
-		cpp = 4;
-		break;
-
-	default:
-		DRM_ERROR("Load/store type %d unsupported\n", buffer_type);
-		return -EINVAL;
-	}
-
-	if (!vc4_use_handle(exec, 0, VC4_MODE_RENDER, &fbo))
-		return -EINVAL;
-
-	untrusted_address = *(uint32_t *)(untrusted + 2);
-	offset = untrusted_address & ~0xf;
-
-	if (!check_tex_size(exec, fbo, offset,
-			    VC4_GET_FIELD(packet_b01,
-					  VC4_LOADSTORE_TILE_BUFFER_TILING),
-			    exec->fb_width, exec->fb_height, cpp)) {
-		return -EINVAL;
-	}
-
-	*(uint32_t *)(validated + 2) = (offset + fbo->paddr +
-					(untrusted_address & 0xf));
 
 	return 0;
 }
@@ -552,9 +441,6 @@ validate_tile_binning_config(VALIDATE_ARGS)
 			  tile_allocation_size);
 		return -EINVAL;
 	}
-	exec->tile_alloc_init_block_mask = tile_alloc_init_block_size - 1;
-	exec->tile_alloc_init_block_last = tile_alloc_init_block_size *
-		(exec->bin_tiles_x * exec->bin_tiles_y - 1);
 
 	if (*(uint32_t *)(untrusted + 8) != 0) {
 		DRM_ERROR("TSDA offset != 0 unsupported\n");
@@ -572,141 +458,66 @@ validate_tile_binning_config(VALIDATE_ARGS)
 }
 
 static int
-validate_tile_rendering_mode_config(VALIDATE_ARGS)
-{
-	struct drm_gem_cma_object *fbo;
-	uint32_t flags, offset, cpp;
-
-	if (exec->found_tile_rendering_mode_config_packet) {
-		DRM_ERROR("Duplicate VC4_PACKET_TILE_RENDERING_MODE_CONFIG\n");
-		return -EINVAL;
-	}
-	exec->found_tile_rendering_mode_config_packet = true;
-
-	if (!vc4_use_handle(exec, 0, VC4_MODE_RENDER, &fbo))
-		return -EINVAL;
-
-	exec->fb_width = *(uint16_t *)(untrusted + 4);
-	exec->fb_height = *(uint16_t *)(untrusted + 6);
-
-	flags = *(uint16_t *)(untrusted + 8);
-	if (VC4_GET_FIELD(flags, VC4_RENDER_CONFIG_FORMAT) ==
-	    VC4_RENDER_CONFIG_FORMAT_RGBA8888) {
-		cpp = 4;
-	} else {
-		cpp = 2;
-	}
-
-	offset = *(uint32_t *)untrusted;
-	if (!check_tex_size(exec, fbo, offset,
-			    VC4_GET_FIELD(flags,
-					  VC4_RENDER_CONFIG_MEMORY_FORMAT),
-			    exec->fb_width, exec->fb_height, cpp)) {
-		return -EINVAL;
-	}
-
-	*(uint32_t *)validated = fbo->paddr + offset;
-
-	return 0;
-}
-
-static int
-validate_tile_coordinates(VALIDATE_ARGS)
-{
-	uint8_t tile_x = *(uint8_t *)(untrusted + 0);
-	uint8_t tile_y = *(uint8_t *)(untrusted + 1);
-
-	if (tile_x * 64 >= exec->fb_width || tile_y * 64 >= exec->fb_height) {
-		DRM_ERROR("Tile coordinates %d,%d > render config %dx%d\n",
-			  tile_x, tile_y, exec->fb_width, exec->fb_height);
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int
 validate_gem_handles(VALIDATE_ARGS)
 {
 	memcpy(exec->bo_index, untrusted, sizeof(exec->bo_index));
 	return 0;
 }
 
-#define VC4_DEFINE_PACKET(packet, bin, render, name, func) \
-	[packet] = { bin, render, packet ## _SIZE, name, func }
+#define VC4_DEFINE_PACKET(packet, name, func) \
+	[packet] = { packet ## _SIZE, name, func }
 
 static const struct cmd_info {
-	bool bin;
-	bool render;
 	uint16_t len;
 	const char *name;
 	int (*func)(struct vc4_exec_info *exec, void *validated,
 		    void *untrusted);
 } cmd_info[] = {
-	VC4_DEFINE_PACKET(VC4_PACKET_HALT, 1, 1, "halt", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_NOP, 1, 1, "nop", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_FLUSH, 1, 1, "flush", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_FLUSH_ALL, 1, 0, "flush all state", validate_flush_all),
-	VC4_DEFINE_PACKET(VC4_PACKET_START_TILE_BINNING, 1, 0, "start tile binning", validate_start_tile_binning),
-	VC4_DEFINE_PACKET(VC4_PACKET_INCREMENT_SEMAPHORE, 1, 0, "increment semaphore", validate_increment_semaphore),
-	VC4_DEFINE_PACKET(VC4_PACKET_WAIT_ON_SEMAPHORE, 0, 1, "wait on semaphore", validate_wait_on_semaphore),
-	/* BRANCH_TO_SUB_LIST is actually supported in the binner as well, but
-	 * we only use it from the render CL in order to jump into the tile
-	 * allocation BO.
-	 */
-	VC4_DEFINE_PACKET(VC4_PACKET_BRANCH_TO_SUB_LIST, 0, 1, "branch to sublist", validate_branch_to_sublist),
-	VC4_DEFINE_PACKET(VC4_PACKET_STORE_MS_TILE_BUFFER, 0, 1, "store MS resolved tile color buffer", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_STORE_MS_TILE_BUFFER_AND_EOF, 0, 1, "store MS resolved tile color buffer and EOF", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_HALT, "halt", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_NOP, "nop", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_FLUSH, "flush", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_FLUSH_ALL, "flush all state", validate_flush_all),
+	VC4_DEFINE_PACKET(VC4_PACKET_START_TILE_BINNING, "start tile binning", validate_start_tile_binning),
+	VC4_DEFINE_PACKET(VC4_PACKET_INCREMENT_SEMAPHORE, "increment semaphore", validate_increment_semaphore),
 
-	VC4_DEFINE_PACKET(VC4_PACKET_STORE_TILE_BUFFER_GENERAL, 0, 1, "Store Tile Buffer General", validate_loadstore_tile_buffer_general),
-	VC4_DEFINE_PACKET(VC4_PACKET_LOAD_TILE_BUFFER_GENERAL, 0, 1, "Load Tile Buffer General", validate_loadstore_tile_buffer_general),
+	VC4_DEFINE_PACKET(VC4_PACKET_GL_INDEXED_PRIMITIVE, "Indexed Primitive List", validate_indexed_prim_list),
 
-	VC4_DEFINE_PACKET(VC4_PACKET_GL_INDEXED_PRIMITIVE, 1, 1, "Indexed Primitive List", validate_indexed_prim_list),
-
-	VC4_DEFINE_PACKET(VC4_PACKET_GL_ARRAY_PRIMITIVE, 1, 1, "Vertex Array Primitives", validate_gl_array_primitive),
+	VC4_DEFINE_PACKET(VC4_PACKET_GL_ARRAY_PRIMITIVE, "Vertex Array Primitives", validate_gl_array_primitive),
 
 	/* This is only used by clipped primitives (packets 48 and 49), which
 	 * we don't support parsing yet.
 	 */
-	VC4_DEFINE_PACKET(VC4_PACKET_PRIMITIVE_LIST_FORMAT, 1, 1, "primitive list format", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_PRIMITIVE_LIST_FORMAT, "primitive list format", NULL),
 
-	VC4_DEFINE_PACKET(VC4_PACKET_GL_SHADER_STATE, 1, 1, "GL Shader State", validate_gl_shader_state),
-	VC4_DEFINE_PACKET(VC4_PACKET_NV_SHADER_STATE, 1, 1, "NV Shader State", validate_nv_shader_state),
+	VC4_DEFINE_PACKET(VC4_PACKET_GL_SHADER_STATE, "GL Shader State", validate_gl_shader_state),
+	VC4_DEFINE_PACKET(VC4_PACKET_NV_SHADER_STATE, "NV Shader State", validate_nv_shader_state),
 
-	VC4_DEFINE_PACKET(VC4_PACKET_CONFIGURATION_BITS, 1, 1, "configuration bits", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_FLAT_SHADE_FLAGS, 1, 1, "flat shade flags", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_POINT_SIZE, 1, 1, "point size", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_LINE_WIDTH, 1, 1, "line width", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_RHT_X_BOUNDARY, 1, 1, "RHT X boundary", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_DEPTH_OFFSET, 1, 1, "Depth Offset", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_CLIP_WINDOW, 1, 1, "Clip Window", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_VIEWPORT_OFFSET, 1, 1, "Viewport Offset", NULL),
-	VC4_DEFINE_PACKET(VC4_PACKET_CLIPPER_XY_SCALING, 1, 1, "Clipper XY Scaling", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_CONFIGURATION_BITS, "configuration bits", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_FLAT_SHADE_FLAGS, "flat shade flags", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_POINT_SIZE, "point size", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_LINE_WIDTH, "line width", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_RHT_X_BOUNDARY, "RHT X boundary", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_DEPTH_OFFSET, "Depth Offset", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_CLIP_WINDOW, "Clip Window", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_VIEWPORT_OFFSET, "Viewport Offset", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_CLIPPER_XY_SCALING, "Clipper XY Scaling", NULL),
 	/* Note: The docs say this was also 105, but it was 106 in the
 	 * initial userland code drop.
 	 */
-	VC4_DEFINE_PACKET(VC4_PACKET_CLIPPER_Z_SCALING, 1, 1, "Clipper Z Scale and Offset", NULL),
+	VC4_DEFINE_PACKET(VC4_PACKET_CLIPPER_Z_SCALING, "Clipper Z Scale and Offset", NULL),
 
-	VC4_DEFINE_PACKET(VC4_PACKET_TILE_BINNING_MODE_CONFIG, 1, 0, "tile binning configuration", validate_tile_binning_config),
+	VC4_DEFINE_PACKET(VC4_PACKET_TILE_BINNING_MODE_CONFIG, "tile binning configuration", validate_tile_binning_config),
 
-	VC4_DEFINE_PACKET(VC4_PACKET_TILE_RENDERING_MODE_CONFIG, 0, 1, "tile rendering mode configuration", validate_tile_rendering_mode_config),
-
-	VC4_DEFINE_PACKET(VC4_PACKET_CLEAR_COLORS, 0, 1, "Clear Colors", NULL),
-
-	VC4_DEFINE_PACKET(VC4_PACKET_TILE_COORDINATES, 0, 1, "Tile Coordinates", validate_tile_coordinates),
-
-	VC4_DEFINE_PACKET(VC4_PACKET_GEM_HANDLES, 1, 1, "GEM handles", validate_gem_handles),
+	VC4_DEFINE_PACKET(VC4_PACKET_GEM_HANDLES, "GEM handles", validate_gem_handles),
 };
 
 int
-vc4_validate_cl(struct drm_device *dev,
-		void *validated,
-		void *unvalidated,
-		uint32_t len,
-		bool is_bin,
-		bool has_bin,
-		struct vc4_exec_info *exec)
+vc4_validate_bin_cl(struct drm_device *dev,
+		    void *validated,
+		    void *unvalidated,
+		    struct vc4_exec_info *exec)
 {
+	uint32_t len = exec->args->bin_cl_size;
 	uint32_t dst_offset = 0;
 	uint32_t src_offset = 0;
 
@@ -733,14 +544,6 @@ vc4_validate_cl(struct drm_device *dev,
 		DRM_INFO("0x%08x: packet %d (%s) size %d processing...\n",
 			 src_offset, cmd, info->name, info->len);
 #endif
-
-		if ((is_bin && !info->bin) ||
-		    (!is_bin && !info->render)) {
-			DRM_ERROR("0x%08x: packet %d (%s) invalid for %s\n",
-				  src_offset, cmd, info->name,
-				  is_bin ? "binner" : "render");
-			return -EINVAL;
-		}
 
 		if (src_offset + info->len > len) {
 			DRM_ERROR("0x%08x: packet %d (%s) length 0x%08x "
@@ -772,30 +575,16 @@ vc4_validate_cl(struct drm_device *dev,
 			break;
 	}
 
-	if (is_bin) {
-		exec->ct0ea = exec->ct0ca + dst_offset;
+	exec->ct0ea = exec->ct0ca + dst_offset;
 
-		if (has_bin && !exec->found_start_tile_binning_packet) {
-			DRM_ERROR("Bin CL missing VC4_PACKET_START_TILE_BINNING\n");
-			return -EINVAL;
-		}
-	} else {
-		if (!exec->found_tile_rendering_mode_config_packet) {
-			DRM_ERROR("Render CL missing VC4_PACKET_TILE_RENDERING_MODE_CONFIG\n");
-			return -EINVAL;
-		}
+	if (!exec->found_start_tile_binning_packet) {
+		DRM_ERROR("Bin CL missing VC4_PACKET_START_TILE_BINNING\n");
+		return -EINVAL;
+	}
 
-		/* Make sure that they actually consumed the semaphore
-		 * increment from the bin CL.  Otherwise a later submit would
-		 * have render execute immediately.
-		 */
-		if (exec->found_wait_on_semaphore_packet != has_bin) {
-			DRM_ERROR("Render CL %s VC4_PACKET_WAIT_ON_SEMAPHORE\n",
-				  exec->found_wait_on_semaphore_packet ?
-				  "has" : "missing");
-			return -EINVAL;
-		}
-		exec->ct1ea = exec->ct1ca + dst_offset;
+	if (!exec->found_increment_semaphore_packet) {
+		DRM_ERROR("Bin CL missing VC4_PACKET_INCREMENT_SEMAPHORE\n");
+		return -EINVAL;
 	}
 
 	return 0;
@@ -910,8 +699,8 @@ reloc_tex(struct vc4_exec_info *exec,
 			tiling_format = VC4_TILING_FORMAT_T;
 	}
 
-	if (!check_tex_size(exec, tex, offset + cube_map_stride * 5,
-			    tiling_format, width, height, cpp)) {
+	if (!vc4_check_tex_size(exec, tex, offset + cube_map_stride * 5,
+				tiling_format, width, height, cpp)) {
 		return false;
 	}
 
