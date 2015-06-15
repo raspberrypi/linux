@@ -409,8 +409,8 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 	if (csreg & (BCM2708_I2S_TXON | BCM2708_I2S_RXON))
 		return 0;
 
-
-	bcm2708_i2s_setup_gpio();
+	if (!dev->dev->of_node)
+		bcm2708_i2s_setup_gpio();
 
 	/*
 	 * Adjust the data length according to the format.
