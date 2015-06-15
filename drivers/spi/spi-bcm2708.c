@@ -386,14 +386,6 @@ static int bcm2708_spi_setup(struct spi_device *spi)
 	if (bs->stopping)
 		return -ESHUTDOWN;
 
-	if (!(spi->mode & SPI_NO_CS) &&
-			(spi->chip_select > spi->master->num_chipselect)) {
-		dev_dbg(&spi->dev,
-			"setup: invalid chipselect %u (%u defined)\n",
-			spi->chip_select, spi->master->num_chipselect);
-		return -EINVAL;
-	}
-
 	state = spi->controller_state;
 	if (!state) {
 		state = kzalloc(sizeof(*state), GFP_KERNEL);
@@ -496,7 +488,8 @@ static int bcm2708_spi_probe(struct platform_device *pdev)
 		return PTR_ERR(clk);
 	}
 
-	bcm2708_init_pinmode();
+	if (!pdev->dev.of_node)
+		bcm2708_init_pinmode();
 
 	master = spi_alloc_master(&pdev->dev, sizeof(*bs));
 	if (!master) {
