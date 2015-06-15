@@ -113,9 +113,9 @@ acpi_tb_acquire_table(struct acpi_table_desc *table_desc,
 	case ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL:
 	case ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL:
 
-		table =
-		    ACPI_CAST_PTR(struct acpi_table_header,
-				  table_desc->address);
+		table = ACPI_CAST_PTR(struct acpi_table_header,
+				      ACPI_PHYSADDR_TO_PTR(table_desc->
+							   address));
 		break;
 
 	default:
@@ -214,7 +214,8 @@ acpi_tb_acquire_temp_table(struct acpi_table_desc *table_desc,
 	case ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL:
 	case ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL:
 
-		table_header = ACPI_CAST_PTR(struct acpi_table_header, address);
+		table_header = ACPI_CAST_PTR(struct acpi_table_header,
+					     ACPI_PHYSADDR_TO_PTR(address));
 		if (!table_header) {
 			return (AE_NO_MEMORY);
 		}
@@ -398,14 +399,14 @@ acpi_tb_verify_temp_table(struct acpi_table_desc * table_desc, char *signature)
 					    table_desc->length);
 		if (ACPI_FAILURE(status)) {
 			ACPI_EXCEPTION((AE_INFO, AE_NO_MEMORY,
-					"%4.4s " ACPI_PRINTF_UINT
+					"%4.4s 0x%8.8X%8.8X"
 					" Attempted table install failed",
 					acpi_ut_valid_acpi_name(table_desc->
 								signature.
 								ascii) ?
 					table_desc->signature.ascii : "????",
-					ACPI_FORMAT_TO_UINT(table_desc->
-							    address)));
+					ACPI_FORMAT_UINT64(table_desc->
+							   address)));
 			goto invalidate_and_exit;
 		}
 	}
