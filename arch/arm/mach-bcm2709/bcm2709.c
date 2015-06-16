@@ -96,6 +96,7 @@ static unsigned w1_gpio_pin = W1_GPIO;
 static unsigned w1_gpio_pullup = W1_PULLUP;
 static bool vc_i2c_override = false;
 static int pps_gpio_pin = -1;
+unsigned force_core;
 
 static unsigned use_dt = 0;
 
@@ -1305,6 +1306,7 @@ MACHINE_START(BCM2708, "BCM2709")
 	.dt_compat = bcm2709_compat,
 MACHINE_END
 
+module_param(force_core, uint, 0644);
 module_param(boardrev, uint, 0644);
 module_param(serial, uint, 0644);
 module_param(uart_clock, uint, 0644);
