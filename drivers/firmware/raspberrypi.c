@@ -13,6 +13,7 @@
 #include <linux/mailbox_client.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
+#include <linux/platform_data/mailbox-bcm2708.h>
 #include <linux/platform_device.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
@@ -28,6 +29,7 @@ struct rpi_firmware {
 	u32 enabled;
 };
 
+static struct platform_device *g_pdev;
 static DEFINE_MUTEX(transaction_lock);
 
 static void response_callback(struct mbox_client *cl, void *msg)
@@ -43,20 +45,23 @@ static void response_callback(struct mbox_client *cl, void *msg)
 static int
 rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data)
 {
-	u32 message = MBOX_MSG(chan, data);
+	u32 message;
 	int ret;
 
 	WARN_ON(data & 0xf);
 
 	mutex_lock(&transaction_lock);
-	reinit_completion(&fw->c);
-	ret = mbox_send_message(fw->chan, &message);
-	if (ret >= 0) {
-		wait_for_completion(&fw->c);
-		ret = 0;
-	} else {
-		dev_err(fw->cl.dev, "mbox_send_message returned %d\n", ret);
+	wmb();
+	ret = bcm_mailbox_write(MBOX_CHAN_PROPERTY, (uint32_t)data);
+	if (ret) {
+		dev_err(fw->cl.dev, "bcm_mailbox_write returned %d\n", ret);
+		goto err_unlock;
 	}
+
+	ret = bcm_mailbox_read(MBOX_CHAN_PROPERTY, &message);
+	rmb();
+
+err_unlock:
 	mutex_unlock(&transaction_lock);
 
 	return ret;
@@ -196,16 +201,7 @@ static int rpi_firmware_probe(struct platform_device *pdev)
 	fw->cl.rx_callback = response_callback;
 	fw->cl.tx_block = true;
 
-	fw->chan = mbox_request_channel(&fw->cl, 0);
-	if (IS_ERR(fw->chan)) {
-		int ret = PTR_ERR(fw->chan);
-		if (ret != -EPROBE_DEFER)
-			dev_err(dev, "Failed to get mbox channel: %d\n", ret);
-		return ret;
-	}
-
-	init_completion(&fw->c);
-
+	g_pdev = pdev;
 	platform_set_drvdata(pdev, fw);
 
 	rpi_firmware_print_firmware_revision(fw);
@@ -215,9 +211,7 @@ static int rpi_firmware_probe(struct platform_device *pdev)
 
 static int rpi_firmware_remove(struct platform_device *pdev)
 {
-	struct rpi_firmware *fw = platform_get_drvdata(pdev);
-
-	mbox_free_channel(fw->chan);
+	g_pdev = NULL;
 
 	return 0;
 }
@@ -230,7 +224,7 @@ static int rpi_firmware_remove(struct platform_device *pdev)
  */
 struct rpi_firmware *rpi_firmware_get(struct device_node *firmware_node)
 {
-	struct platform_device *pdev = of_find_device_by_node(firmware_node);
+	struct platform_device *pdev = g_pdev;
 
 	if (!pdev)
 		return NULL;

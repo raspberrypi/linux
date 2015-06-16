@@ -134,7 +134,7 @@ config ISCSI_IBFT
 
 config RASPBERRYPI_FIRMWARE
 	tristate "Raspberry Pi Firmware Driver"
-	depends on BCM2835_MBOX
+	depends on BCM2708_MBOX
 	help
 	  This option enables support for communicating with the firmware on the
 	  Raspberry Pi.
