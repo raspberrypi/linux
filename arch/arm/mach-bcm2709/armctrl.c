@@ -45,6 +45,8 @@ static unsigned int remap_irqs[(INTERRUPT_ARASANSDIO + 1) - INTERRUPT_JPEG] = {
 	INTERRUPT_VC_ARASANSDIO
 };
 
+extern unsigned force_core;
+
 static void armctrl_mask_irq(struct irq_data *d)
 {
 	static const unsigned int disables[4] = {
@@ -92,7 +94,13 @@ static void armctrl_unmask_irq(struct irq_data *d)
 	int i;
 	if (d->irq >= FIQ_START) {
 		unsigned int data;
-		if (num_online_cpus() > 1) {
+		if (force_core) {
+			data = readl(__io_address(ARM_LOCAL_GPU_INT_ROUTING));
+			data &= ~0xc;
+			data |= ((force_core-1) << 2);
+			writel(data, __io_address(ARM_LOCAL_GPU_INT_ROUTING));
+		}
+		else if (num_online_cpus() > 1) {
 			data = readl(__io_address(ARM_LOCAL_GPU_INT_ROUTING));
 			data &= ~0xc;
 			data |= (1 << 2);
@@ -119,6 +127,13 @@ static void armctrl_unmask_irq(struct irq_data *d)
 		}
 #endif
 	} else if (d->irq >= ARM_IRQ1_BASE && d->irq < ARM_IRQ_LOCAL_BASE) {
+		if (force_core) {
+			unsigned int data;
+			data = readl(__io_address(ARM_LOCAL_GPU_INT_ROUTING));
+			data &= ~0x3;
+			data |= ((force_core-1) << 0);
+			writel(data, __io_address(ARM_LOCAL_GPU_INT_ROUTING));
+		}
 		unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
 		writel(1 << (data & 0x1f), __io_address(enables[(data >> 5) & 0x3]));
 	} else if (d->irq == INTERRUPT_ARM_LOCAL_PMU_FAST) {
