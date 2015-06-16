@@ -21,6 +21,25 @@
  * IN THE SOFTWARE.
  */
 
+/** DOC: Interrupt management for the V3D engine.
+ *
+ * We have an interrupt status register (V3D_INTCTL) which reports
+ * interrupts, and where writing 1 bits clears those interrupts.
+ * There are also a pair of interrupt registers
+ * (V3D_INTENA/V3D_INTDIS) where writing a 1 to their bits enables or
+ * disables that specific interrupt, and 0s written are ignored
+ * (reading either one returns the set of enabled interrupts).
+ *
+ * When we take a render frame interrupt, we need to wake the
+ * processes waiting for some frame to be done, and get the next frame
+ * submitted ASAP (so the hardware doesn't sit idle when there's work
+ * to do).
+ *
+ * When we take the binner out of memory interrupt, we need to
+ * allocate some new memory and pass it to the binner so that the
+ * current job can make progress.
+ */
+
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 
@@ -77,9 +96,8 @@ vc4_overflow_mem_work(struct work_struct *work)
 
 	V3D_WRITE(V3D_BPOA, bo->base.paddr);
 	V3D_WRITE(V3D_BPOS, bo->base.base.size);
-	V3D_WRITE(V3D_INTDIS, 0);
-	V3D_WRITE(V3D_INTENA, V3D_DRIVER_IRQS);
 	V3D_WRITE(V3D_INTCTL, V3D_INT_OUTOMEM);
+	V3D_WRITE(V3D_INTENA, V3D_INT_OUTOMEM);
 }
 
 static void
@@ -109,9 +127,15 @@ vc4_irq(int irq, void *arg)
 
 	barrier();
 	intctl = V3D_READ(V3D_INTCTL);
+
+	/* Acknowledge the interrupts we're handling here. The render
+	 * frame done interrupt will be cleared, while OUTOMEM will
+	 * stay high until the underlying cause is cleared.
+	 */
 	V3D_WRITE(V3D_INTCTL, intctl);
 
 	if (intctl & V3D_INT_OUTOMEM) {
+		/* Disable OUTOMEM until the work is done. */
 		V3D_WRITE(V3D_INTDIS, V3D_INT_OUTOMEM);
 		schedule_work(&vc4->overflow_mem_work);
 		status = IRQ_HANDLED;
@@ -146,15 +170,8 @@ vc4_irq_postinstall(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
-	/* Enable both the bin and render done interrupts, as well as
-	 * out of memory.  Eventually, we'll have the bin use internal
-	 * semaphores with render to sync between the two, but for now
-	 * we're driving that from the ARM.
-	 */
+	/* Enable both the render done and out of memory interrupts. */
 	V3D_WRITE(V3D_INTENA, V3D_DRIVER_IRQS);
-
-	/* No interrupts disabled. */
-	V3D_WRITE(V3D_INTDIS, 0);
 
 	return 0;
 }
@@ -164,8 +181,8 @@ vc4_irq_uninstall(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
-	V3D_WRITE(V3D_INTENA, 0);
-	V3D_WRITE(V3D_INTDIS, 0);
+	/* Disable sending interrupts for our driver's IRQs. */
+	V3D_WRITE(V3D_INTDIS, V3D_DRIVER_IRQS);
 
 	/* Clear any pending interrupts we might have left. */
 	V3D_WRITE(V3D_INTCTL, V3D_DRIVER_IRQS);
@@ -179,8 +196,15 @@ void vc4_irq_reset(struct drm_device *dev)
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	unsigned long irqflags;
 
+	/* Acknowledge any stale IRQs. */
 	V3D_WRITE(V3D_INTCTL, V3D_DRIVER_IRQS);
-	V3D_WRITE(V3D_INTDIS, 0);
+
+	/*
+	 * Turn all our interrupts on.  Binner out of memory is the
+	 * only one we expect to trigger at this point, since we've
+	 * just come from poweron and haven't supplied any overflow
+	 * memory yet.
+	 */
 	V3D_WRITE(V3D_INTENA, V3D_DRIVER_IRQS);
 
 	spin_lock_irqsave(&vc4->job_lock, irqflags);
