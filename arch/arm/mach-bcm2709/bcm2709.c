@@ -56,6 +56,7 @@
 /* command line parameters */
 static unsigned boardrev, serial;
 static unsigned reboot_part = 0;
+unsigned force_core;
 
 void __init bcm2709_init_irq(void)
 {
@@ -534,6 +535,7 @@ MACHINE_START(BCM2708, "BCM2709")
 	.dt_compat = bcm2709_compat,
 MACHINE_END
 
+module_param(force_core, uint, 0644);
 module_param(boardrev, uint, 0644);
 module_param(serial, uint, 0644);
 module_param(reboot_part, uint, 0644);
