@@ -37,6 +37,13 @@
 	/* External sound card */
 	sound: sound {
 	};
+
+	soc {
+		firmware: firmware {
+			compatible = "raspberrypi,bcm2835-firmware";
+			mboxes = <&mailbox>;
+		};
+	};
 };
 
 &gpio {
