@@ -12,8 +12,8 @@
 * consent.
 *****************************************************************************/
 
-#if !defined( VC_MEM_H )
-#define VC_MEM_H
+#ifndef _VC_MEM_H
+#define _VC_MEM_H
 
 #include <linux/ioctl.h>
 
@@ -32,4 +32,4 @@ extern unsigned int  mm_vc_mem_size;
 extern int vc_mem_get_current_size( void );
 #endif
 
-#endif  /* VC_MEM_H */
+#endif  /* _VC_MEM_H */
