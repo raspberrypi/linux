@@ -23,15 +23,7 @@
 #include <asm/uaccess.h>
 #include <linux/dma-mapping.h>
 #include <linux/platform_data/mailbox-bcm2708.h>
-
-#ifdef CONFIG_ARCH_KONA
-#include <chal/chal_ipc.h>
-#elif defined(CONFIG_ARCH_BCM2708) || defined(CONFIG_ARCH_BCM2709)
-#else
-#include <csp/chal_ipc.h>
-#endif
-
-#include "mach/vc_mem.h"
+#include <linux/broadcom/vc_mem.h>
 
 #define DRIVER_NAME  "vc-mem"
 
