@@ -408,7 +408,13 @@ Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock
 Load:   dtoverlay=sdhost,<param>=<val>
 Params: overclock_50             Clock (in MHz) to use when the MMC framework
                                  requests 50MHz
-        force_pio                Disable DMA support
+
+        force_pio                Disable DMA support (default off)
+
+        pio_limit                Number of blocks above which to use DMA
+                                 (default 2)
+
+        debug                    Enable debug output (default off)
 
 
 Name:   spi-bcm2708
