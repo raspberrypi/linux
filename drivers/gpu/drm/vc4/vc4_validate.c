@@ -376,15 +376,10 @@ validate_nv_shader_state(VALIDATE_ARGS)
 static int
 validate_tile_binning_config(VALIDATE_ARGS)
 {
-	struct drm_gem_cma_object *tile_allocation;
-	struct drm_gem_cma_object *tile_state_data_array;
+	struct drm_device *dev = exec->exec_bo->base.dev;
 	uint8_t flags;
-	uint32_t tile_allocation_size;
-	uint32_t tile_alloc_init_block_size;
-
-	if (!vc4_use_handle(exec, 0, VC4_MODE_TILE_ALLOC, &tile_allocation) ||
-	    !vc4_use_handle(exec, 1, VC4_MODE_TSDA, &tile_state_data_array))
-		return -EINVAL;
+	uint32_t tile_state_size, tile_alloc_size;
+	uint32_t tile_count;
 
 	if (exec->found_tile_binning_mode_config_packet) {
 		DRM_ERROR("Duplicate VC4_PACKET_TILE_BINNING_MODE_CONFIG\n");
@@ -394,21 +389,13 @@ validate_tile_binning_config(VALIDATE_ARGS)
 
 	exec->bin_tiles_x = *(uint8_t *)(untrusted + 12);
 	exec->bin_tiles_y = *(uint8_t *)(untrusted + 13);
+	tile_count = exec->bin_tiles_x * exec->bin_tiles_y;
 	flags = *(uint8_t *)(untrusted + 14);
 
 	if (exec->bin_tiles_x == 0 ||
 	    exec->bin_tiles_y == 0) {
 		DRM_ERROR("Tile binning config of %dx%d too small\n",
 			  exec->bin_tiles_x, exec->bin_tiles_y);
-		return -EINVAL;
-	}
-
-	/* Our validation relies on the user not getting to set up their own
-	 * tile state/tile allocation BO contents.
-	 */
-	if (!(flags & VC4_BIN_CONFIG_AUTO_INIT_TSDA)) {
-		DRM_ERROR("binning config missing "
-			  "VC4_BIN_CONFIG_AUTO_INIT_TSDA\n");
 		return -EINVAL;
 	}
 
@@ -419,40 +406,52 @@ validate_tile_binning_config(VALIDATE_ARGS)
 		return -EINVAL;
 	}
 
-	if (*(uint32_t *)(untrusted + 0) != 0) {
-		DRM_ERROR("tile allocation offset != 0 unsupported\n");
-		return -EINVAL;
-	}
-	tile_allocation_size = *(uint32_t *)(untrusted + 4);
-	if (tile_allocation_size > tile_allocation->base.size) {
-		DRM_ERROR("tile allocation size %d > BO size %d\n",
-			  tile_allocation_size, tile_allocation->base.size);
-		return -EINVAL;
-	}
-	*(uint32_t *)validated = tile_allocation->paddr;
-	exec->tile_alloc_bo = tile_allocation;
+	/* The tile state data array is 48 bytes per tile, and we put it at
+	 * the start of a BO containing both it and the tile alloc.
+	 */
+	tile_state_size = 48 * tile_count;
 
-	tile_alloc_init_block_size = 1 << (5 + ((flags >> 5) & 3));
-	if (exec->bin_tiles_x * exec->bin_tiles_y *
-	    tile_alloc_init_block_size > tile_allocation_size) {
-		DRM_ERROR("tile init exceeds tile alloc size (%d vs %d)\n",
-			  exec->bin_tiles_x * exec->bin_tiles_y *
-			  tile_alloc_init_block_size,
-			  tile_allocation_size);
-		return -EINVAL;
-	}
+	/* Since the tile alloc array will follow us, align. */
+	exec->tile_alloc_offset = roundup(tile_state_size, 4096);
 
-	if (*(uint32_t *)(untrusted + 8) != 0) {
-		DRM_ERROR("TSDA offset != 0 unsupported\n");
-		return -EINVAL;
-	}
-	if (exec->bin_tiles_x * exec->bin_tiles_y * 48 >
-	    tile_state_data_array->base.size) {
-		DRM_ERROR("TSDA of %db too small for %dx%d bin config\n",
-			  tile_state_data_array->base.size,
-			  exec->bin_tiles_x, exec->bin_tiles_y);
-	}
-	*(uint32_t *)(validated + 8) = tile_state_data_array->paddr;
+	*(uint8_t *)(validated + 14) =
+		((flags & ~(VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE_MASK |
+			    VC4_BIN_CONFIG_ALLOC_BLOCK_SIZE_MASK)) |
+		 VC4_BIN_CONFIG_AUTO_INIT_TSDA |
+		 VC4_SET_FIELD(VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE_32,
+			       VC4_BIN_CONFIG_ALLOC_INIT_BLOCK_SIZE) |
+		 VC4_SET_FIELD(VC4_BIN_CONFIG_ALLOC_BLOCK_SIZE_128,
+			       VC4_BIN_CONFIG_ALLOC_BLOCK_SIZE));
+
+	/* Initial block size. */
+	tile_alloc_size = 32 * tile_count;
+
+	/*
+	 * The initial allocation gets rounded to the next 256 bytes before
+	 * the hardware starts fulfilling further allocations.
+	 */
+	tile_alloc_size = roundup(tile_alloc_size, 256);
+
+	/* Add space for the extra allocations.  This is what gets used first,
+	 * before overflow memory.  It must have at least 4096 bytes, but we
+	 * want to avoid overflow memory usage if possible.
+	 */
+	tile_alloc_size += 1024 * 1024;
+
+	exec->tile_bo = &vc4_bo_create(dev, exec->tile_alloc_offset +
+				       tile_alloc_size)->base;
+	if (!exec->tile_bo)
+		return -ENOMEM;
+	list_add_tail(&to_vc4_bo(&exec->tile_bo->base)->unref_head,
+		     &exec->unref_list);
+
+	/* tile alloc address. */
+	*(uint32_t *)(validated + 0) = (exec->tile_bo->paddr +
+					exec->tile_alloc_offset);
+	/* tile alloc size. */
+	*(uint32_t *)(validated + 4) = tile_alloc_size;
+	/* tile state address. */
+	*(uint32_t *)(validated + 8) = exec->tile_bo->paddr;
 
 	return 0;
 }
