@@ -34,6 +34,7 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
+#include <linux/spi/spi.h>
 #include <linux/gpio/machine.h>
 
 #include <linux/version.h>
@@ -525,6 +526,50 @@ static struct platform_device bcm2708_alsa_devices[] = {
 	       },
 };
 
+static struct resource bcm2708_spi_resources[] = {
+	{
+		.start = SPI0_BASE,
+		.end = SPI0_BASE + SZ_256 - 1,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = IRQ_SPI,
+		.end = IRQ_SPI,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+
+static u64 bcm2708_spi_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
+static struct platform_device bcm2708_spi_device = {
+	.name = "bcm2708_spi",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(bcm2708_spi_resources),
+	.resource = bcm2708_spi_resources,
+	.dev = {
+		.dma_mask = &bcm2708_spi_dmamask,
+		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON)},
+};
+
+#ifdef CONFIG_BCM2708_SPIDEV
+static struct spi_board_info bcm2708_spi_devices[] = {
+#ifdef CONFIG_SPI_SPIDEV
+	{
+		.modalias = "spidev",
+		.max_speed_hz = 500000,
+		.bus_num = 0,
+		.chip_select = 0,
+		.mode = SPI_MODE_0,
+	}, {
+		.modalias = "spidev",
+		.max_speed_hz = 500000,
+		.bus_num = 0,
+		.chip_select = 1,
+		.mode = SPI_MODE_0,
+	}
+#endif
+};
+#endif
+
 static struct platform_device bcm2835_thermal_device = {
 	.name = "bcm2835_thermal",
 };
@@ -675,6 +720,8 @@ void __init bcm2709_init(void)
 	for (i = 0; i < ARRAY_SIZE(bcm2708_alsa_devices); i++)
 		bcm_register_device_dt(&bcm2708_alsa_devices[i]);
 
+	bcm_register_device_dt(&bcm2708_spi_device);
+
 	bcm_register_device_dt(&bcm2835_thermal_device);
 
 	if (!use_dt) {
@@ -685,6 +732,12 @@ void __init bcm2709_init(void)
 	}
 	system_rev = boardrev;
 	system_serial_low = serial;
+
+#ifdef CONFIG_BCM2708_SPIDEV
+	if (!use_dt)
+	    spi_register_board_info(bcm2708_spi_devices,
+				    ARRAY_SIZE(bcm2708_spi_devices));
+#endif
 }
 
 #ifdef SYSTEM_TIMER
