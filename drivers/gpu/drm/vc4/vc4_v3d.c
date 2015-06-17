@@ -232,6 +232,8 @@ static void vc4_v3d_unbind(struct device *dev, struct device *master,
 	V3D_WRITE(V3D_BPOA, 0);
 	V3D_WRITE(V3D_BPOS, 0);
 
+	vc4_v3d_set_power(vc4, false);
+
 	vc4->v3d = NULL;
 }
 
