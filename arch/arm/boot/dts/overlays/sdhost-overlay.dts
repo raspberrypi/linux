@@ -22,6 +22,7 @@
 				dma-names = "tx", "rx";
 				brcm,delay-after-stop = <0>;
 				brcm,overclock-50 = <0>;
+				brcm,pio-limit = <2>;
 				status = "okay";
 			};
 		};
@@ -70,9 +71,10 @@
 	};
 
 	__overrides__ {
-		delay_after_stop = <&sdhost>,"brcm,delay-after-stop:0";
 		overclock_50     = <&sdhost>,"brcm,overclock-50:0";
 		force_pio        = <&sdhost>,"brcm,force-pio?";
+		pio_limit        = <&sdhost>,"brcm,pio-limit:0";
+		debug            = <&sdhost>,"brcm,debug?";
 		sdhost_freq      = <&clk_sdhost>,"clock-frequency:0";
 	};
 };
