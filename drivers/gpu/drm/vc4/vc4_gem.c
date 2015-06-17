@@ -117,7 +117,7 @@ submit_cl(struct drm_device *dev, uint32_t thread, uint32_t start, uint32_t end)
 	barrier();
 }
 
-static int
+int
 vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
@@ -477,20 +477,10 @@ vc4_complete_exec(struct vc4_exec_info *exec)
 	kfree(exec);
 }
 
-/* Scheduled when any job has been completed, this walks the list of
- * jobs that had completed and unrefs their BOs and frees their exec
- * structs.
- */
-static void
-vc4_job_done_work(struct work_struct *work)
+void
+vc4_job_handle_completed(struct vc4_dev *vc4)
 {
-	struct vc4_dev *vc4 =
-		container_of(work, struct vc4_dev, job_done_work);
-	struct drm_device *dev = vc4->dev;
 	unsigned long irqflags;
-
-	/* Need the struct lock for drm_gem_object_unreference(). */
-	mutex_lock(&dev->struct_mutex);
 
 	spin_lock_irqsave(&vc4->job_lock, irqflags);
 	while (!list_empty(&vc4->job_done_list)) {
@@ -505,6 +495,22 @@ vc4_job_done_work(struct work_struct *work)
 	}
 	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 
+}
+
+/* Scheduled when any job has been completed, this walks the list of
+ * jobs that had completed and unrefs their BOs and frees their exec
+ * structs.
+ */
+static void
+vc4_job_done_work(struct work_struct *work)
+{
+	struct vc4_dev *vc4 =
+		container_of(work, struct vc4_dev, job_done_work);
+	struct drm_device *dev = vc4->dev;
+
+	/* Need the struct lock for drm_gem_object_unreference(). */
+	mutex_lock(&dev->struct_mutex);
+	vc4_job_handle_completed(vc4);
 	mutex_unlock(&dev->struct_mutex);
 }
 
