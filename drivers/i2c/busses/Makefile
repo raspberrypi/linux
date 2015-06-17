@@ -2,6 +2,8 @@
 # Makefile for the i2c bus drivers.
 #
 
+obj-$(CONFIG_I2C_BCM2708)	+= i2c-bcm2708.o
+
 # ACPI drivers
 obj-$(CONFIG_I2C_SCMI)		+= i2c-scmi.o
 
