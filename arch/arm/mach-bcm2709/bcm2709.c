@@ -85,6 +85,7 @@ static unsigned uart_clock = UART0_CLOCK;
 static unsigned disk_led_gpio = 16;
 static unsigned disk_led_active_low = 1;
 static unsigned reboot_part = 0;
+static bool vc_i2c_override = false;
 
 static unsigned use_dt = 0;
 
@@ -570,6 +571,45 @@ static struct spi_board_info bcm2708_spi_devices[] = {
 };
 #endif
 
+static struct resource bcm2708_bsc0_resources[] = {
+	{
+		.start = BSC0_BASE,
+		.end = BSC0_BASE + SZ_256 - 1,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = INTERRUPT_I2C,
+		.end = INTERRUPT_I2C,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+static struct platform_device bcm2708_bsc0_device = {
+	.name = "bcm2708_i2c",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(bcm2708_bsc0_resources),
+	.resource = bcm2708_bsc0_resources,
+};
+
+
+static struct resource bcm2708_bsc1_resources[] = {
+	{
+		.start = BSC1_BASE,
+		.end = BSC1_BASE + SZ_256 - 1,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = INTERRUPT_I2C,
+		.end = INTERRUPT_I2C,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+static struct platform_device bcm2708_bsc1_device = {
+	.name = "bcm2708_i2c",
+	.id = 1,
+	.num_resources = ARRAY_SIZE(bcm2708_bsc1_resources),
+	.resource = bcm2708_bsc1_resources,
+};
+
 static struct platform_device bcm2835_thermal_device = {
 	.name = "bcm2835_thermal",
 };
@@ -721,6 +761,15 @@ void __init bcm2709_init(void)
 		bcm_register_device_dt(&bcm2708_alsa_devices[i]);
 
 	bcm_register_device_dt(&bcm2708_spi_device);
+
+	if (vc_i2c_override) {
+		bcm_register_device_dt(&bcm2708_bsc0_device);
+		bcm_register_device_dt(&bcm2708_bsc1_device);
+	} else if ((boardrev & 0xffffff) == 0x2 || (boardrev & 0xffffff) == 0x3) {
+		bcm_register_device_dt(&bcm2708_bsc0_device);
+	} else {
+		bcm_register_device_dt(&bcm2708_bsc1_device);
+	}
 
 	bcm_register_device_dt(&bcm2835_thermal_device);
 
@@ -1061,3 +1110,5 @@ module_param(uart_clock, uint, 0644);
 module_param(disk_led_gpio, uint, 0644);
 module_param(disk_led_active_low, uint, 0644);
 module_param(reboot_part, uint, 0644);
+module_param(vc_i2c_override, bool, 0644);
+MODULE_PARM_DESC(vc_i2c_override, "Allow the use of VC's I2C peripheral.");
