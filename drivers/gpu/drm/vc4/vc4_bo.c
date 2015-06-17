@@ -124,7 +124,6 @@ vc4_bo_create(struct drm_device *dev, size_t unaligned_size)
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	uint32_t size = roundup(unaligned_size, PAGE_SIZE);
 	uint32_t page_index = bo_page_index(size);
-	struct vc4_bo *bo = NULL;
 	struct drm_gem_cma_object *cma_obj;
 
 	if (size == 0)
@@ -133,14 +132,13 @@ vc4_bo_create(struct drm_device *dev, size_t unaligned_size)
 	/* First, try to get a vc4_bo from the kernel BO cache. */
 	if (vc4->bo_cache.size_list_size > page_index) {
 		if (!list_empty(&vc4->bo_cache.size_list[page_index])) {
-			bo = list_first_entry(&vc4->bo_cache.size_list[page_index],
-					      struct vc4_bo, size_head);
+			struct vc4_bo *bo =
+				list_first_entry(&vc4->bo_cache.size_list[page_index],
+						 struct vc4_bo, size_head);
 			vc4_bo_remove_from_cache(bo);
+			kref_init(&bo->base.base.refcount);
+			return bo;
 		}
-	}
-	if (bo) {
-		kref_init(&bo->base.base.refcount);
-		return bo;
 	}
 
 	/* Otherwise, make a new BO. */
