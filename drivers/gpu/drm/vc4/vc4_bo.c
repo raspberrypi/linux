@@ -119,12 +119,16 @@ vc4_bo_cache_purge(struct drm_device *dev)
 }
 
 struct vc4_bo *
-vc4_bo_create(struct drm_device *dev, size_t size)
+vc4_bo_create(struct drm_device *dev, size_t unaligned_size)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	uint32_t size = roundup(unaligned_size, PAGE_SIZE);
 	uint32_t page_index = bo_page_index(size);
 	struct vc4_bo *bo = NULL;
 	struct drm_gem_cma_object *cma_obj;
+
+	if (size == 0)
+		return NULL;
 
 	/* First, try to get a vc4_bo from the kernel BO cache. */
 	if (vc4->bo_cache.size_list_size > page_index) {

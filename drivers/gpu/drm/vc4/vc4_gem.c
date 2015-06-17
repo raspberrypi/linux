@@ -407,7 +407,7 @@ vc4_cl_validate(struct drm_device *dev, struct vc4_exec_info *exec)
 		goto fail;
 	}
 
-	bo = vc4_bo_create(dev, 256 * 1024);
+	bo = vc4_bo_create(dev, exec_size);
 	if (!bo) {
 		DRM_ERROR("Couldn't allocate BO for exec\n");
 		ret = PTR_ERR(exec->exec_bo);
