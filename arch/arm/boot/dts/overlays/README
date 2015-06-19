@@ -260,6 +260,12 @@ Params: ds1307                   Select the DS1307 device
         pcf8563                  Select the PCF8563 device
 
 
+Name:   i2s-mmap
+Info:   Enables mmap support in the bcm2708-i2s driver
+Load:   dtoverlay=i2s-mmap
+Params: <None>
+
+
 Name:   iqaudio-dac
 Info:   Configures the IQaudio DAC audio card
 Load:   dtoverlay=iqaudio-dac
