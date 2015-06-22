@@ -35,6 +35,7 @@ dtb-$(RPI_DT_OVERLAYS) += pitft28-resistive-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-dac-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-display-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += rpi-ft5406-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-proto-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += sdhost-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-bcm2708-overlay.dtb
