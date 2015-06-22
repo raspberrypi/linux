@@ -3,11 +3,40 @@
 / {
 	interrupt-parent = <&intc>;
 
+	aliases {
+		audio = &audio;
+		sound = &sound;
+		soc = &soc;
+		dma = &dma;
+		intc = &intc;
+		watchdog = &watchdog;
+		random = &random;
+		mailbox = &mailbox;
+		gpio = &gpio;
+		uart0 = &uart0;
+		i2s  = &i2s;
+		spi0 = &spi0;
+		i2c0 = &i2c0;
+		uart1 = &uart1;
+		mmc = &mmc;
+		i2c1 = &i2c1;
+		usb = &usb;
+		leds = &leds;
+		fb = &fb;
+		vchiq = &vchiq;
+		thermal = &thermal;
+		clocks = &clocks;
+	};
+
 	/* Onboard audio */
 	audio: audio {
 		compatible = "brcm,bcm2835-audio";
 		brcm,pwm-channels = <8>;
 		status = "disabled";
+	};
+
+	/* External sound card */
+	sound: sound {
 	};
 
 	soc: soc {
@@ -43,6 +72,12 @@
 			#interrupt-cells = <2>;
 		};
 
+		mailbox: mailbox@7e00b800 {
+			compatible = "brcm,bcm2708-vcio";
+			reg = <0x7e00b880 0x40>;
+			interrupts = <0 1>;
+		};
+
 		watchdog: watchdog@7e100000 {
 			compatible = "brcm,bcm2835-pm-wdt";
 			reg = <0x7e100000 0x28>;
@@ -55,12 +90,6 @@
 			status = "disabled";
 		};
 
-		mailbox: mailbox@7e00b800 {
-			compatible = "brcm,bcm2708-vcio";
-			reg = <0x7e00b880 0x40>;
-			interrupts = <0 1>;
-		};
-
 		gpio: gpio {
 			compatible = "brcm,bcm2835-gpio";
 			reg = <0x7e200000 0xb4>;
@@ -71,17 +100,6 @@
 
 			interrupt-controller;
 			#interrupt-cells = <2>;
-		};
-
-		mmc: mmc@7e300000 {
-			compatible = "brcm,bcm2835-mmc";
-			reg = <0x7e300000 0x100>;
-			interrupts = <2 30>;
-			clocks = <&clk_mmc>;
-			dmas = <&dma 11>,
-			       <&dma 11>;
-			dma-names = "tx", "rx";
-			status = "disabled";
 		};
 
 		uart0: uart@7e201000 {
@@ -143,6 +161,17 @@
 			no-loopback-test;
 			status = "disabled";
 	        };
+
+		mmc: mmc@7e300000 {
+			compatible = "brcm,bcm2835-mmc";
+			reg = <0x7e300000 0x100>;
+			interrupts = <2 30>;
+			clocks = <&clk_mmc>;
+			dmas = <&dma 11>,
+			       <&dma 11>;
+			dma-names = "tx", "rx";
+			status = "disabled";
+		};
 
 		i2c1: i2c@7e804000 {
 			compatible = "brcm,bcm2708-i2c";
