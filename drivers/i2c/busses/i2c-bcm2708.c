@@ -407,8 +407,11 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 	case 1:
 		adap->class = I2C_CLASS_DDC;
 		break;
+	case 2:
+		adap->class = I2C_CLASS_DDC;
+		break;
 	default:
-		dev_err(&pdev->dev, "can only bind to BSC 0 or 1\n");
+		dev_err(&pdev->dev, "can only bind to BSC 0, 1 or 2\n");
 		err = -ENXIO;
 		goto out_free_bi;
 	}
