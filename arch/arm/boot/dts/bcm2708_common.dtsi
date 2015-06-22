@@ -20,6 +20,7 @@
 		uart1 = &uart1;
 		mmc = &mmc;
 		i2c1 = &i2c1;
+		i2c2 = &i2c2;
 		usb = &usb;
 		leds = &leds;
 		fb = &fb;
@@ -176,6 +177,19 @@
 		i2c1: i2c@7e804000 {
 			compatible = "brcm,bcm2708-i2c";
 			reg = <0x7e804000 0x1000>;
+			interrupts = <2 21>;
+			clocks = <&clk_i2c>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		i2c2: i2c@7e805000 {
+			// Beware - this is shared with the HDMI module.
+			// Careless use may break (really) your display.
+			// Caveat emptor.
+			compatible = "brcm,bcm2708-i2c";
+			reg = <0x7e805000 0x1000>;
 			interrupts = <2 21>;
 			clocks = <&clk_i2c>;
 			#address-cells = <1>;
