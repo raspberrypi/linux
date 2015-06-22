@@ -396,6 +396,11 @@ Params: speed                    Display SPI bus speed
 
         xohms                    Touchpanel sensitivity (X-plate resistance)
 
+Name:   rpi-ft5406
+Info:   Official Raspberry Pi display touchscreen
+Load:   dtoverlay=rpi-ft5406
+Params: <None>
+
 
 Name:   rpi-proto
 Info:   Configures the RPi Proto audio card
