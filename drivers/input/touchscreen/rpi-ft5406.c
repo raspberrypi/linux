@@ -184,7 +184,7 @@ static int ft5406_probe(struct platform_device *pdev)
 	
 	bcm_mailbox_property(&request, sizeof(request));
 	
-	if(request.request_code == VCMSG_REQUEST_SUCCESSFUL)
+	if(request.request_code == VCMSG_REQUEST_SUCCESSFUL && request.tag.val != 0)
 	{
 		dev_dbg(&pdev->dev, "Got TS buffer 0x%x\n", request.tag.val);
 	}
