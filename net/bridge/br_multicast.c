@@ -1071,7 +1071,7 @@ static int br_ip6_multicast_mld2_report(struct net_bridge *br,
 
 		err = br_ip6_multicast_add_group(br, port, &grec->grec_mca,
 						 vid);
-		if (!err)
+		if (err)
 			break;
 	}
 
@@ -1821,7 +1821,7 @@ static void br_multicast_query_expired(struct net_bridge *br,
 	if (query->startup_sent < br->multicast_startup_query_count)
 		query->startup_sent++;
 
-	RCU_INIT_POINTER(querier, NULL);
+	RCU_INIT_POINTER(querier->port, NULL);
 	br_multicast_send_query(br, NULL, query);
 	spin_unlock(&br->multicast_lock);
 }

@@ -5852,19 +5852,20 @@ long btrfs_ioctl_send(struct file *mnt_file, void __user *arg_)
 				ret = PTR_ERR(clone_root);
 				goto out;
 			}
-			clone_sources_to_rollback = i + 1;
 			spin_lock(&clone_root->root_item_lock);
-			clone_root->send_in_progress++;
-			if (!btrfs_root_readonly(clone_root)) {
+			if (!btrfs_root_readonly(clone_root) ||
+			    btrfs_root_dead(clone_root)) {
 				spin_unlock(&clone_root->root_item_lock);
 				srcu_read_unlock(&fs_info->subvol_srcu, index);
 				ret = -EPERM;
 				goto out;
 			}
+			clone_root->send_in_progress++;
 			spin_unlock(&clone_root->root_item_lock);
 			srcu_read_unlock(&fs_info->subvol_srcu, index);
 
 			sctx->clone_roots[i].root = clone_root;
+			clone_sources_to_rollback = i + 1;
 		}
 		vfree(clone_sources_tmp);
 		clone_sources_tmp = NULL;
