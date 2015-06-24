@@ -686,6 +686,8 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 {
 	int err;
 	struct gpio_chip *chip;
+	struct device_node *pins;
+	u32 pingroup_index;
 	/*
 	 * sanity checking the native-chipselects
 	 */
@@ -702,15 +704,42 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 			"setup: only two native chip-selects are supported\n");
 		return -EINVAL;
 	}
+
 	/* now translate native cs to GPIO */
+	/* first look for chip select pins in the devices pin groups */
+	for (pingroup_index = 0;
+	     (pins = of_parse_phandle(spi->master->dev.of_node,
+				     "pinctrl-0",
+				      pingroup_index)) != 0;
+	     pingroup_index++) {
+		u32 pin;
+		u32 pin_index;
+		for (pin_index = 0;
+		     of_property_read_u32_index(pins,
+						"brcm,pins",
+						pin_index,
+						&pin) == 0;
+		     pin_index++) {
+			if (((spi->chip_select == 0) &&
+			     ((pin == 8) || (pin == 36) || (pin == 46))) ||
+			    ((spi->chip_select == 1) &&
+			     ((pin == 7) || (pin == 35)))) {
+				spi->cs_gpio = pin;
+				break;
+			}
+		}
+		of_node_put(pins);
+	}
+	/* if that fails, assume GPIOs 7-11 are used */
+	if (!gpio_is_valid(spi->cs_gpio) ) {
+		/* get the gpio chip for the base */
+		chip = gpiochip_find("pinctrl-bcm2835", chip_match_name);
+		if (!chip)
+			return 0;
 
-	/* get the gpio chip for the base */
-	chip = gpiochip_find("pinctrl-bcm2835", chip_match_name);
-	if (!chip)
-		return 0;
-
-	/* and calculate the real CS */
-	spi->cs_gpio = chip->base + 8 - spi->chip_select;
+		/* and calculate the real CS */
+		spi->cs_gpio = chip->base + 8 - spi->chip_select;
+	}
 
 	/* and set up the "mode" and level */
 	dev_info(&spi->dev, "setting up native-CS%i as GPIO %i\n",
