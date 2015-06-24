@@ -173,6 +173,14 @@ Load:   dtoverlay=bmp085_i2c-sensor
 Params: <None>
 
 
+Name:   dht11
+Info:   Overlay for the DHT11/DHT21/DHT22 humidity/temperature sensors
+        Also sometimes found with the part number(s) AM230x.
+Load:   dtoverlay=dht11,<param>=<val>
+Params: gpiopin                  GPIO connected to the sensor's DATA output.
+                                 (default 4)
+
+
 [ The ds1307-rtc overlay has been deleted. See i2c-rtc. ]
 
 
