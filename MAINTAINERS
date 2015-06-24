@@ -2153,6 +2153,12 @@ T:	git git://git.kernel.org/pub/scm/linux/kernel/git/rpi/linux-rpi.git
 S:	Maintained
 N:	bcm2835
 
+BROADCOM BCM2835 DRM DRIVER
+M:	Eric Anholt <eric@anholt.net>
+T:	git git://github.com/anholt/linux
+S:	Maintained
+F:	drivers/gpu/drm/vc4/*
+
 BROADCOM BCM33XX MIPS ARCHITECTURE
 M:	Kevin Cernekee <cernekee@gmail.com>
 L:	linux-mips@linux-mips.org

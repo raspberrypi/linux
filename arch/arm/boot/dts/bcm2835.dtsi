@@ -1,4 +1,6 @@
-/include/ "skeleton.dtsi"
+#include <dt-bindings/pinctrl/bcm2835.h>
+#include <dt-bindings/gpio/gpio.h>
+#include "skeleton.dtsi"
 
 / {
 	compatible = "brcm,bcm2835";
@@ -119,7 +121,7 @@
 			status = "disabled";
 		};
 
-		i2c0: i2c@20205000 {
+		i2c0: i2c@7e205000 {
 			compatible = "brcm,bcm2835-i2c";
 			reg = <0x7e205000 0x1000>;
 			interrupts = <2 21>;
@@ -150,6 +152,15 @@
 			status = "disabled";
 		};
 
+		i2c2: i2c@7e805000 {
+			compatible = "brcm,bcm2835-i2c";
+			reg = <0x7e805000 0x1000>;
+			interrupts = <2 21>;
+			clocks = <&clk_i2c>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
 		usb: usb@7e980000 {
 			compatible = "brcm,bcm2835-usb";
 			reg = <0x7e980000 0x10000>;
@@ -173,6 +184,54 @@
 
 		thermal: thermal {
 			compatible = "brcm,bcm2835-thermal";
+		};
+
+		v3d: brcm,vc4-v3d@7ec00000 {
+			compatible = "brcm,vc4-v3d";
+			reg = <0x7ec00000 0x1000>;
+			interrupts = <1 10>;
+		};
+
+		hdmi: brcm,vc4-hdmi@7e902000 {
+			compatible = "brcm,vc4-hdmi";
+			reg = <0x7e902000 0x600>,
+			      <0x7e808000 0x100>;
+			interrupts = <2 8>, <2 9>;
+			ddc = <&i2c2>;
+			hpd-gpio = <&gpio 46 GPIO_ACTIVE_HIGH>;
+			crtc = <&pv2>;
+		};
+
+		pv0: brcm,vc4-pixelvalve@7e206000 {
+			compatible = "brcm,vc4-pixelvalve";
+			reg = <0x7e206000 0x100>;
+			interrupts = <2 13>; /* pwa2 */
+		};
+
+		pv1: brcm,vc4-pixelvalve@7e207000 {
+			compatible = "brcm,vc4-pixelvalve";
+			reg = <0x7e207000 0x100>;
+			interrupts = <2 14>; /* pwa1 */
+		};
+
+		pv2: brcm,vc4-pixelvalve@7e807000 {
+			compatible = "brcm,vc4-pixelvalve";
+			reg = <0x7e807000 0x100>;
+			interrupts = <2 10>; /* pixelvalve */
+		};
+
+		hvs: brcm,hvs@7e400000 {
+			compatible = "brcm,vc4-hvs";
+			reg = <0x7e400000 0x6000>;
+		};
+
+		vc4: vc4@0x7e4c0000 {
+			compatible = "brcm,vc4";
+
+			gpus = <&v3d>;
+			crtcs = <&pv0>, <&pv1>, <&pv2>;
+			encoders = <&hdmi>;
+			hvss = <&hvs>;
 		};
 	};
 

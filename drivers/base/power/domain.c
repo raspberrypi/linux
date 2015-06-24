@@ -2091,7 +2091,7 @@ EXPORT_SYMBOL_GPL(of_genpd_del_provider);
 struct generic_pm_domain *of_genpd_get_from_provider(
 					struct of_phandle_args *genpdspec)
 {
-	struct generic_pm_domain *genpd = ERR_PTR(-ENOENT);
+	struct generic_pm_domain *genpd = ERR_PTR(-EPROBE_DEFER);
 	struct of_genpd_provider *provider;
 
 	mutex_lock(&of_genpd_mutex);
