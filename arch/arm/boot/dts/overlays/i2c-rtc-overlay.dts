@@ -17,6 +17,11 @@
 				reg = <0x68>;
 				status = "disable";
 			};
+			mcp7941x: mcp7941x@6f {
+				compatible = "microchip,mcp7941x";
+				reg = <0x6f>;
+				status = "disable";
+			};
 			ds3231: ds3231@68 {
 				compatible = "maxim,ds3231";
 				reg = <0x68>;
@@ -42,6 +47,7 @@
 	__overrides__ {
 		ds1307 = <&ds1307>,"status";
 		ds3231 = <&ds3231>,"status";
+		mcp7941x = <&mcp7941x>,"status";
 		pcf2127 = <&pcf2127>,"status";
 		pcf8523 = <&pcf8523>,"status";
 		pcf8563 = <&pcf8563>,"status";

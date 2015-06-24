@@ -253,6 +253,8 @@ Params: ds1307                   Select the DS1307 device
 
         ds3231                   Select the DS3231 device
 
+        mcp7941x                 Select the MCP7941x device
+
         pcf2127                  Select the PCF2127 device
 
         pcf8523                  Select the PCF8523 device
@@ -395,6 +397,7 @@ Params: speed                    Display SPI bus speed
         debug                    Debug output level {0-7}
 
         xohms                    Touchpanel sensitivity (X-plate resistance)
+
 
 Name:   rpi-ft5406
 Info:   Official Raspberry Pi display touchscreen
