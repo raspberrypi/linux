@@ -50,9 +50,11 @@ static int gpio_poweroff_probe(struct platform_device *pdev)
 {
 	bool input = false;
 	enum gpiod_flags flags;
+	bool force = false;
 
 	/* If a pm_power_off function has already been added, leave it alone */
-	if (pm_power_off != NULL) {
+	force = of_property_read_bool(pdev->dev.of_node, "force");
+	if (!force && (pm_power_off != NULL)) {
 		dev_err(&pdev->dev,
 			"%s: pm_power_off function already registered\n",
 		       __func__);
