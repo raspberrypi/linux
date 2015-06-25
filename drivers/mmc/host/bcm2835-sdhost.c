@@ -161,8 +161,6 @@ struct bcm2835_host {
 
 	unsigned int			use_busy:1;		/* Wait for busy interrupt */
 
-	unsigned int			reduce_overclock:1;	/* ...at the next opportunity */
-
 	unsigned int			debug:1;		/* Enable debug output */
 
 	u32				thread_isr;
@@ -466,36 +464,25 @@ static void bcm2835_sdhost_dma_complete(void *param)
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
-static bool data_transfer_wait(struct bcm2835_host *host, const char *caller)
+static bool data_transfer_wait(struct bcm2835_host *host)
 {
 	unsigned long timeout = 1000000;
-	u32 hsts;
 	while (timeout)
 	{
-		hsts = bcm2835_sdhost_read(host, SDHSTS);
-		if (hsts & (SDHSTS_TRANSFER_ERROR_MASK |
-			    SDHSTS_DATA_FLAG)) {
-			bcm2835_sdhost_write(host, SDHSTS_TRANSFER_ERROR_MASK,
-					     SDHSTS);
+		u32 sdhsts = bcm2835_sdhost_read(host, SDHSTS);
+		if (sdhsts & SDHSTS_DATA_FLAG) {
+			bcm2835_sdhost_write(host, SDHSTS_DATA_FLAG, SDHSTS);
 			break;
 		}
 		timeout--;
 	}
-
-	if (hsts & (SDHSTS_CRC16_ERROR |
-		    SDHSTS_CRC7_ERROR |
-		    SDHSTS_FIFO_ERROR)) {
-		pr_err("%s: data error in %s - HSTS %x\n",
-		       mmc_hostname(host->mmc), caller, hsts);
-		host->data->error = -EILSEQ;
-		return false;
-	} else if ((timeout == 0) ||
-		   (hsts & (SDHSTS_CMD_TIME_OUT |
-			    SDHSTS_REW_TIME_OUT))) {
-		pr_err("%s: timeout in %s - HSTS %x\n",
-		       mmc_hostname(host->mmc), caller, hsts);
-		host->data->error = -ETIMEDOUT;
-		return false;
+	if (timeout == 0) {
+	    pr_err("%s: Data %s timeout\n",
+		   mmc_hostname(host->mmc),
+		   (host->data->flags & MMC_DATA_READ) ? "read" : "write");
+	    bcm2835_sdhost_dumpregs(host);
+	    host->data->error = -ETIMEDOUT;
+	    return false;
 	}
 	return true;
 }
@@ -523,7 +510,7 @@ static void bcm2835_sdhost_read_block_pio(struct bcm2835_host *host)
 		buf = (u32 *)host->sg_miter.addr;
 
 		while (len) {
-			if (!data_transfer_wait(host, "read_block_pio"))
+			if (!data_transfer_wait(host))
 				break;
 
 			*(buf++) = bcm2835_sdhost_read(host, SDDATA);
@@ -562,7 +549,7 @@ static void bcm2835_sdhost_write_block_pio(struct bcm2835_host *host)
 		buf = host->sg_miter.addr;
 
 		while (len) {
-			if (!data_transfer_wait(host, "write_block_pio"))
+			if (!data_transfer_wait(host))
 				break;
 
 			bcm2835_sdhost_write(host, *(buf++), SDDATA);
@@ -581,13 +568,33 @@ static void bcm2835_sdhost_write_block_pio(struct bcm2835_host *host)
 
 static void bcm2835_sdhost_transfer_pio(struct bcm2835_host *host)
 {
+	u32 sdhsts;
+	bool is_read;
 	BUG_ON(!host->data);
 
-	if (host->data->flags & MMC_DATA_READ) {
+	is_read = (host->data->flags & MMC_DATA_READ) != 0;
+	if (is_read)
 		bcm2835_sdhost_read_block_pio(host);
-	} else {
+	else
 		bcm2835_sdhost_write_block_pio(host);
 
+	sdhsts = bcm2835_sdhost_read(host, SDHSTS);
+	if (sdhsts & (SDHSTS_CRC16_ERROR |
+		      SDHSTS_CRC7_ERROR |
+		      SDHSTS_FIFO_ERROR)) {
+		pr_err("%s: %s transfer error - HSTS %x\n",
+		       mmc_hostname(host->mmc),
+		       is_read ? "read" : "write",
+		       sdhsts);
+		host->data->error = -EILSEQ;
+	} else if ((sdhsts & (SDHSTS_CMD_TIME_OUT |
+			      SDHSTS_REW_TIME_OUT))) {
+		pr_err("%s: %s timeout error - HSTS %x\n",
+		       mmc_hostname(host->mmc),
+		       is_read ? "read" : "write",
+		       sdhsts);
+		host->data->error = -ETIMEDOUT;
+	} else if (!is_read && !host->data->error) {
 		/* Start a timer in case a transfer error occurs because
 		   there is no error interrupt */
 		mod_timer(&host->pio_timer, jiffies + host->pio_timeout);
@@ -701,8 +708,9 @@ static void bcm2835_sdhost_prepare_data(struct bcm2835_host *host, struct mmc_co
 
 void bcm2835_sdhost_send_command(struct bcm2835_host *host, struct mmc_command *cmd)
 {
-	u32 sdcmd;
+	u32 sdcmd, sdhsts;
 	unsigned long timeout;
+	int delay;
 
 	WARN_ON(host->cmd);
 
@@ -719,8 +727,8 @@ void bcm2835_sdhost_send_command(struct bcm2835_host *host, struct mmc_command *
 			 mmc_hostname(host->mmc),
 			 cmd->opcode, cmd->arg, cmd->flags);
 
-	/* Wait max 10 ms */
-	timeout = 1000;
+	/* Wait max 100 ms */
+	timeout = 10000;
 
 	while (bcm2835_sdhost_read(host, SDCMD) & SDCMD_NEW_FLAG) {
 		if (timeout == 0) {
@@ -735,8 +743,9 @@ void bcm2835_sdhost_send_command(struct bcm2835_host *host, struct mmc_command *
 		udelay(10);
 	}
 
-	if ((1000-timeout)/100 > 1 && (1000-timeout)/100 > host->max_delay) {
-		host->max_delay = (1000-timeout)/100;
+	delay = (10000 - timeout)/100;
+	if (delay > host->max_delay) {
+		host->max_delay = delay;
 		pr_warning("%s: controller hung for %d ms\n",
 			   mmc_hostname(host->mmc),
 			   host->max_delay);
@@ -750,6 +759,11 @@ void bcm2835_sdhost_send_command(struct bcm2835_host *host, struct mmc_command *
 	mod_timer(&host->timer, timeout);
 
 	host->cmd = cmd;
+
+	/* Clear any error flags */
+	sdhsts = bcm2835_sdhost_read(host, SDHSTS);
+	if (sdhsts & SDHSTS_ERROR_MASK)
+		bcm2835_sdhost_write(host, sdhsts, SDHSTS);
 
 	bcm2835_sdhost_prepare_data(host, cmd);
 
@@ -876,7 +890,7 @@ static void bcm2835_sdhost_transfer_complete(struct bcm2835_host *host)
 static void bcm2835_sdhost_finish_command(struct bcm2835_host *host)
 {
 	u32 sdcmd;
-	int timeout = 1000;
+	unsigned long timeout;
 #ifdef DEBUG
 	struct timeval before, after;
 	int timediff = 0;
@@ -889,6 +903,8 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host)
 #ifdef DEBUG
 	do_gettimeofday(&before);
 #endif
+	/* Wait max 100 ms */
+	timeout = 10000;
 	for (sdcmd = bcm2835_sdhost_read(host, SDCMD);
 	     (sdcmd & SDCMD_NEW_FLAG) && timeout;
 	     timeout--) {
@@ -1049,9 +1065,9 @@ static void bcm2835_sdhost_pio_timeout(unsigned long data)
 	spin_lock_irqsave(&host->lock, flags);
 
 	if (host->data) {
-		u32 hsts = bcm2835_sdhost_read(host, SDHSTS);
+		u32 sdhsts = bcm2835_sdhost_read(host, SDHSTS);
 
-		if (hsts & SDHSTS_REW_TIME_OUT) {
+		if (sdhsts & SDHSTS_REW_TIME_OUT) {
 			pr_err("%s: transfer timeout\n",
 			       mmc_hostname(host->mmc));
 			if (host->debug)
@@ -1380,19 +1396,10 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 	if (host->debug)
 		pr_info("%s: set_clock(%d)\n", mmc_hostname(host->mmc), clock);
 
-	if ((clock == 0) && host->reduce_overclock) {
-		/* This is a reset following data corruption - reduce any
-		   overclock */
-		host->reduce_overclock = 0;
-		if (host->overclock_50 > 50) {
-			pr_warn("%s: reducing overclock due to errors\n",
-				mmc_hostname(host->mmc));
-			host->overclock_50--;
-		}
-	}
-
-	if (host->overclock_50 && (clock == 50*MHZ))
+	if ((host->overclock_50 > 50) &&
+	    (clock == 50*MHZ)) {
 		clock = host->overclock_50 * MHZ + (MHZ - 1);
+	}
 
 	/* The SDCDIV register has 11 bits, and holds (div - 2).
 	   But in data mode the max is 50MHz wihout a minimum, and only the
@@ -1450,11 +1457,12 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 			host->overclock = clock;
 		}
 	}
-	else if ((clock == 50 * MHZ) && host->overclock)
+	else if (host->overclock)
 	{
-		pr_warn("%s: cancelling overclock\n",
-			mmc_hostname(host->mmc));
 		host->overclock = 0;
+		if (clock == 50 * MHZ)
+			pr_warn("%s: cancelling overclock\n",
+				mmc_hostname(host->mmc));
 	}
 
 	host->cdiv = div;
@@ -1491,6 +1499,14 @@ static void bcm2835_sdhost_request(struct mmc_host *mmc, struct mmc_request *mrq
 				mmc_hostname(mmc),
 				cmd->opcode, cmd->arg, cmd->flags);
 	}
+
+	/* Reset the error statuses in case this is a retry */
+	if (mrq->cmd)
+		mrq->cmd->error = 0;
+	if (mrq->data)
+		mrq->data->error = 0;
+	if (mrq->stop)
+		mrq->stop->error = 0;
 
 	if (mrq->data && !is_power_of_2(mrq->data->blksz)) {
 		pr_err("%s: unsupported block size (%d bytes)\n",
@@ -1613,21 +1629,16 @@ static void bcm2835_sdhost_tasklet_finish(unsigned long param)
 
 	/* Drop the overclock after any data corruption, or after any
 	   error overclocked */
-	if (mrq->data && (mrq->data->error == -EILSEQ))
-		host->reduce_overclock = 1;
-	else if (host->overclock) {
-		/* Convert timeout errors while overclocked to data errors,
-		   because the system recovers better. */
-		if (mrq->cmd && mrq->cmd->error) {
-			host->reduce_overclock = 1;
-			if (mrq->cmd->error == -ETIMEDOUT)
-				mrq->cmd->error = -EILSEQ;
-		}
-
-		if (mrq->data && mrq->data->error) {
-			host->reduce_overclock = 1;
-			if (mrq->data->error == -ETIMEDOUT)
-				mrq->data->error = -EILSEQ;
+	if (host->overclock) {
+		if ((mrq->cmd && mrq->cmd->error) ||
+		    (mrq->data && mrq->data->error) ||
+		    (mrq->stop && mrq->stop->error)) {
+			host->overclock_50--;
+			pr_warn("%s: reducing overclock due to errors\n",
+				mmc_hostname(host->mmc));
+			bcm2835_sdhost_set_clock(host,50*MHZ);
+			mrq->cmd->error = -EILSEQ;
+			mrq->cmd->retries = 1;
 		}
 	}
 
@@ -1769,6 +1780,7 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 	host = mmc_priv(mmc);
 	host->mmc = mmc;
 	host->pio_timeout = msecs_to_jiffies(500);
+	host->max_delay = 1; /* Warn if over 1ms */
 	spin_lock_init(&host->lock);
 
 	iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
