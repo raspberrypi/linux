@@ -192,6 +192,19 @@ Params: int_pin                  GPIO used for INT (default 25)
         speed                    SPI bus speed (default 12000000)
 
 
+Name:   gpio-poweroff
+Info:   Drives a GPIO high or low on reboot
+Load:   gpio-poweroff,<param>=<val>
+Params: gpiopin                  GPIO for signalling (default 26)
+
+        active_low               Set if the power control device requires a
+                                 high->low transition to trigger a power-down.
+                                 Note that this will require the support of a
+                                 custom dt-blob.bin to prevent a power-down
+                                 during the boot process, and that a reboot
+                                 will also cause the pin to go low.
+
+
 Name:   hifiberry-amp
 Info:   Configures the HifiBerry Amp and Amp+ audio cards
 Load:   dtoverlay=hifiberry-amp
