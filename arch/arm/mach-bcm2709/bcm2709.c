@@ -304,29 +304,14 @@ static struct platform_device bcm2708_usb_device = {
 		},
 };
 
-static struct resource bcm2708_vcio_resources[] = {
-	{
-		.start = ARMCTRL_0_MAIL0_BASE,
-		.end = ARMCTRL_0_MAIL0_BASE + SZ_64 - 1,
-		.flags = IORESOURCE_MEM,
-	}, {
-		.start = IRQ_ARM_MAILBOX,
-		.end = IRQ_ARM_MAILBOX,
-		.flags = IORESOURCE_IRQ,
-	},
-};
+static u64 rpifw_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
 
-static u64 vcio_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
-
-static struct platform_device bcm2708_vcio_device = {
-	.name = "bcm2708_vcio",
-	.id = -1,		/* only one VideoCore I/O area */
-	.resource = bcm2708_vcio_resources,
-	.num_resources = ARRAY_SIZE(bcm2708_vcio_resources),
+static struct platform_device bcm2708_rpifw_device = {
+	.name = "raspberrypi-firmware",
 	.dev = {
-		.dma_mask = &vcio_dmamask,
+		.dma_mask = &rpifw_dmamask,
 		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON),
-		},
+	},
 };
 
 int __init bcm_register_device(struct platform_device *pdev)
@@ -458,7 +443,7 @@ void __init bcm2709_init(void)
 	bcm2709_init_clocks();
 	bcm2709_dt_init();
 
-	bcm_register_device(&bcm2708_vcio_device);
+	bcm_register_device_dt(&bcm2708_rpifw_device);
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device_dt(&bcm2708_gpio_device);
 #endif
