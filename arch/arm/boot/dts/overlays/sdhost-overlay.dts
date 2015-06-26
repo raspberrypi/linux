@@ -16,7 +16,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&sdhost_pins>;
 				interrupts = <2 24>;
-				clocks = <&clk_sdhost>;
+				clocks = <&clk_core>;
 				dmas = <&dma 13>,
 				       <&dma 13>;
 				dma-names = "tx", "rx";
@@ -29,22 +29,6 @@
 	};
 
 	fragment@1 {
-		target = <&clocks>;
-		__overlay__ {
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			clk_sdhost: sdhost {
-				compatible = "fixed-clock";
-				reg = <0>;
-				#clock-cells = <0>;
-				clock-output-names = "sdhost";
-				clock-frequency = <250000000>;
-			};
-		};
-	};
-
-	fragment@2 {
 		target = <&gpio>;
 		__overlay__ {
 			sdhost_pins: sdhost_pins {
@@ -54,7 +38,7 @@
 		};
 	};
 
-	fragment@3 {
+	fragment@2 {
 		target = <&mmc>;
 		__overlay__ {
 			/* Find a way to disable the other driver */
@@ -63,18 +47,10 @@
 		};
 	};
 
-	fragment@4 {
-		target-path = "/__overrides__";
-		__overlay__ {
-			sdhost_freq      = <&clk_sdhost>,"clock-frequency:0";
-		};
-	};
-
 	__overrides__ {
 		overclock_50     = <&sdhost>,"brcm,overclock-50:0";
 		force_pio        = <&sdhost>,"brcm,force-pio?";
 		pio_limit        = <&sdhost>,"brcm,pio-limit:0";
 		debug            = <&sdhost>,"brcm,debug?";
-		sdhost_freq      = <&clk_sdhost>,"clock-frequency:0";
 	};
 };
