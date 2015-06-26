@@ -25,7 +25,7 @@
 	};
 
 	__overrides__ {
-		txd1_pin = <&uart1_pins>,"brcm,pins:0;
-		rxd1_pin = <&uart1_pins>,"brcm,pins:4;
+		txd1_pin = <&uart1_pins>,"brcm,pins:0";
+		rxd1_pin = <&uart1_pins>,"brcm,pins:4";
 	};
 };
