@@ -19,6 +19,7 @@
 #define MBOX_MSG(chan, data28)		(((data28) & ~0xf) | ((chan) & 0xf))
 #define MBOX_CHAN(msg)			((msg) & 0xf)
 #define MBOX_DATA28(msg)		((msg) & ~0xf)
+#define MBOX_CHAN_VCHIQ			3
 #define MBOX_CHAN_PROPERTY		8
 
 struct rpi_firmware {
@@ -26,6 +27,7 @@ struct rpi_firmware {
 	struct mbox_chan *chan; /* The property channel. */
 	struct completion c;
 	u32 enabled;
+	u32 received;
 };
 
 static struct platform_device *g_pdev;
@@ -35,6 +37,7 @@ static DEFINE_MUTEX(transaction_lock);
 static void response_callback(struct mbox_client *cl, void *msg)
 {
 	struct rpi_firmware *fw = container_of(cl, struct rpi_firmware, cl);
+	fw->received = *(u32 *)msg;
 	complete(&fw->c);
 }
 
@@ -42,7 +45,7 @@ static void response_callback(struct mbox_client *cl, void *msg)
  * Sends a request to the firmware through the BCM2835 mailbox driver,
  * and synchronously waits for the reply.
  */
-static int
+int
 rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data)
 {
 	u32 message = MBOX_MSG(chan, data);
@@ -54,7 +57,8 @@ rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data)
 	reinit_completion(&fw->c);
 	ret = mbox_send_message(fw->chan, &message);
 	if (ret >= 0) {
-		wait_for_completion(&fw->c);
+		if (chan != MBOX_CHAN_VCHIQ)
+			wait_for_completion(&fw->c);
 		ret = 0;
 	} else {
 		dev_err(fw->cl.dev, "mbox_send_message returned %d\n", ret);
@@ -63,6 +67,13 @@ rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data)
 
 	return ret;
 }
+EXPORT_SYMBOL(rpi_firmware_transaction);
+
+u32 rpi_firmware_transaction_received(struct rpi_firmware *fw)
+{
+	return MBOX_DATA28(fw->received);
+}
+EXPORT_SYMBOL(rpi_firmware_transaction_received);
 
 /**
  * rpi_firmware_property_list - Submit firmware property list
