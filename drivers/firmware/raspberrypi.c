@@ -29,6 +29,8 @@ struct rpi_firmware {
 	u32 enabled;
 };
 
+static struct platform_device *g_pdev;
+
 static DEFINE_MUTEX(transaction_lock);
 
 static void response_callback(struct mbox_client *cl, void *msg)
@@ -249,6 +251,7 @@ static int rpi_firmware_probe(struct platform_device *pdev)
 	init_completion(&fw->c);
 
 	platform_set_drvdata(pdev, fw);
+	g_pdev = pdev;
 
 	rpi_firmware_print_firmware_revision(fw);
 	rpi_register_hwmon_driver(dev, fw);
@@ -276,6 +279,7 @@ static int rpi_firmware_remove(struct platform_device *pdev)
 	platform_device_unregister(rpi_clk);
 	rpi_clk = NULL;
 	mbox_free_channel(fw->chan);
+	g_pdev = NULL;
 
 	return 0;
 }
@@ -288,7 +292,7 @@ static int rpi_firmware_remove(struct platform_device *pdev)
  */
 struct rpi_firmware *rpi_firmware_get(struct device_node *firmware_node)
 {
-	struct platform_device *pdev = of_find_device_by_node(firmware_node);
+	struct platform_device *pdev = g_pdev;
 
 	if (!pdev)
 		return NULL;
@@ -312,7 +316,18 @@ static struct platform_driver rpi_firmware_driver = {
 	.shutdown	= rpi_firmware_shutdown,
 	.remove		= rpi_firmware_remove,
 };
-module_platform_driver(rpi_firmware_driver);
+
+static int __init rpi_firmware_init(void)
+{
+	return platform_driver_register(&rpi_firmware_driver);
+}
+subsys_initcall(rpi_firmware_init);
+
+static void __init rpi_firmware_exit(void)
+{
+	platform_driver_unregister(&rpi_firmware_driver);
+}
+module_exit(rpi_firmware_exit);
 
 MODULE_AUTHOR("Eric Anholt <eric@anholt.net>");
 MODULE_DESCRIPTION("Raspberry Pi firmware driver");
