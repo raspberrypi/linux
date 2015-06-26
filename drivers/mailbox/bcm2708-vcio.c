@@ -242,20 +242,9 @@ EXPORT_SYMBOL_GPL(bcm_mailbox_property);
 
 /* Platform Device for Mailbox */
 
-/*
- * Is the device open right now? Used to prevent
- * concurent access into the same device
- */
-static bool device_is_open;
-
 /* This is called whenever a process attempts to open the device file */
 static int device_open(struct inode *inode, struct file *file)
 {
-	/* We don't want to talk to two processes at the same time */
-	if (device_is_open)
-		return -EBUSY;
-
-	device_is_open = true;
 	try_module_get(THIS_MODULE);
 
 	return 0;
@@ -263,9 +252,6 @@ static int device_open(struct inode *inode, struct file *file)
 
 static int device_release(struct inode *inode, struct file *file)
 {
-	/* We're now ready for our next caller */
-	device_is_open = false;
-
 	module_put(THIS_MODULE);
 
 	return 0;
