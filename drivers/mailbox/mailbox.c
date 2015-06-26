@@ -304,12 +304,22 @@ struct mbox_chan *mbox_request_channel(struct mbox_client *cl, int index)
 	unsigned long flags;
 	int ret;
 
-	if (!dev || !dev->of_node) {
+	if (!dev) {
 		pr_debug("%s: No owner device node\n", __func__);
 		return ERR_PTR(-ENODEV);
 	}
 
 	mutex_lock(&con_mutex);
+
+	if (!dev->of_node) {
+		chan = ERR_PTR(-EPROBE_DEFER);
+		/* pick the first controller in the list */
+		list_for_each_entry(mbox, &mbox_cons, node) {
+			chan = &mbox->chans[0];
+			break;
+		}
+		goto skip_dt;
+	}
 
 	if (of_parse_phandle_with_args(dev->of_node, "mboxes",
 				       "#mbox-cells", index, &spec)) {
@@ -327,6 +337,7 @@ struct mbox_chan *mbox_request_channel(struct mbox_client *cl, int index)
 
 	of_node_put(spec.np);
 
+skip_dt:
 	if (IS_ERR(chan)) {
 		mutex_unlock(&con_mutex);
 		return chan;
