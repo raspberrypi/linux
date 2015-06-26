@@ -489,6 +489,14 @@ Params: speed                    Display SPI bus speed
                 dtoverlay=tinylcd35,touch,touchgpio=3
 
 
+Name:   uart1
+Info:   Enable uart1 in place of uart0
+Load:   dtoverlay=uart1,<param>=<val>
+Params: txd1_pin                 GPIO pin for TXD1 (14, 32 or 40 - default 14)
+
+        rxd1_pin                 GPIO pin for RXD1 (15, 33 or 41 - default 15)
+
+
 Name:   w1-gpio
 Info:   Configures the w1-gpio Onewire interface module.
         Use this overlay if you *don't* need a GPIO to drive an external pullup.
