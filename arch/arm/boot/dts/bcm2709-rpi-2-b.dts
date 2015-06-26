@@ -103,6 +103,7 @@
 	__overrides__ {
 		uart0 = <&uart0>,"status";
 		uart0_clkrate = <&clk_uart0>,"clock-frequency:0";
+		uart1_clkrate = <&uart1>,"clock-frequency:0";
 		i2s = <&i2s>,"status";
 		spi = <&spi0>,"status";
 		i2c0 = <&i2c0>,"status";
