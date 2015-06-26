@@ -22,6 +22,12 @@ config BCM2708_VCMEM
         help
           Helper for videocore memory access and total size allocation.
 
+config BCM_VCIO
+	tristate "Mailbox userspace access"
+	depends on BCM2835_MBOX
+	help
+	  Gives access to the mailbox property channel from userspace.
+
 endif
 
 config BCM_VC_SM
