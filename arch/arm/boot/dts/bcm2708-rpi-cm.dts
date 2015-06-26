@@ -14,5 +14,6 @@
 	__overrides__ {
 		uart0 = <&uart0>,"status";
 		uart0_clkrate = <&clk_uart0>,"clock-frequency:0";
+		core_freq = <&clk_core>,"clock-frequency:0";
 	};
 };
