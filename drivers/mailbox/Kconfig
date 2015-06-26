@@ -9,7 +9,7 @@ if MAILBOX
 
 config BCM2708_MBOX
 	bool "Broadcom BCM2708 Mailbox (vcio)"
-	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
+	depends on BCM2835_MBOX
 	help
 	  Broadcom BCM2708 Mailbox (vcio)
 
