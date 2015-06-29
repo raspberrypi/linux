@@ -144,6 +144,23 @@ vc4_plane_mode_set(struct drm_plane *plane, struct drm_plane_state *state)
 	struct drm_gem_cma_object *bo = drm_fb_cma_get_gem_obj(fb, 0);
 	u32 ctl0_offset = vc4_state->dlist_count;
 	const struct hvs_format *format = vc4_get_hvs_format(fb->pixel_format);
+	uint32_t offset = fb->offsets[0];
+	int crtc_x = state->crtc_x;
+	int crtc_y = state->crtc_y;
+	int crtc_w = state->crtc_w;
+	int crtc_h = state->crtc_h;
+
+	if (crtc_x < 0) {
+		offset += drm_format_plane_cpp(fb->pixel_format, 0) * -crtc_x;
+		crtc_w += crtc_x;
+		crtc_x = 0;
+	}
+
+	if (crtc_y < 0) {
+		offset += fb->pitches[0] * -crtc_y;
+		crtc_h += crtc_y;
+		crtc_y = 0;
+	}
 
 	vc4_dlist_write(vc4_state,
 			SCALER_CTL0_VALID |
@@ -154,8 +171,8 @@ vc4_plane_mode_set(struct drm_plane *plane, struct drm_plane_state *state)
 	/* Position Word 0: Image Positions and Alpha Value */
 	vc4_dlist_write(vc4_state,
 			VC4_SET_FIELD(0xff, SCALER_POS0_FIXED_ALPHA) |
-			VC4_SET_FIELD(state->crtc_x, SCALER_POS0_START_X) |
-			VC4_SET_FIELD(state->crtc_y, SCALER_POS0_START_Y));
+			VC4_SET_FIELD(crtc_x, SCALER_POS0_START_X) |
+			VC4_SET_FIELD(crtc_y, SCALER_POS0_START_Y));
 
 	/*
 	 * Position Word 1: Scaled Image Dimensions.
@@ -168,14 +185,14 @@ vc4_plane_mode_set(struct drm_plane *plane, struct drm_plane_state *state)
 				      SCALER_POS2_ALPHA_MODE_PIPELINE :
 				      SCALER_POS2_ALPHA_MODE_FIXED,
 				      SCALER_POS2_ALPHA_MODE) |
-			VC4_SET_FIELD(state->crtc_w, SCALER_POS2_WIDTH) |
-			VC4_SET_FIELD(state->crtc_h, SCALER_POS2_HEIGHT));
+			VC4_SET_FIELD(crtc_w, SCALER_POS2_WIDTH) |
+			VC4_SET_FIELD(crtc_h, SCALER_POS2_HEIGHT));
 
 	/* Position Word 3: Context.  Written by the HVS. */
 	vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 
 	/* Pointer Word 0: RGB / Y Pointer */
-	vc4_dlist_write(vc4_state, bo->paddr + fb->offsets[0]);
+	vc4_dlist_write(vc4_state, bo->paddr + offset);
 
 	/* Pointer Context Word 0: Written by the HVS */
 	vc4_dlist_write(vc4_state, 0xc0c0c0c0);
