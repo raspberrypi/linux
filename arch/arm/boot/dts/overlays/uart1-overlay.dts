@@ -24,6 +24,13 @@
 		};
 	};
 
+	fragment@2 {
+		target-path = "/chosen";
+		__overlay__ {
+			bootargs = "8250.nr_uarts=1";
+		};
+	};
+
 	__overrides__ {
 		txd1_pin = <&uart1_pins>,"brcm,pins:0";
 		rxd1_pin = <&uart1_pins>,"brcm,pins:4";
