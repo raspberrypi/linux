@@ -163,7 +163,7 @@ vc4_bo_create(struct drm_device *dev, size_t unaligned_size)
 			 * unreferenced BOs to the cache, and then
 			 * free the cache.
 			 */
-			vc4_wait_for_seqno(dev, vc4->emit_seqno, ~0ull);
+			vc4_wait_for_seqno(dev, vc4->emit_seqno, ~0ull, true);
 			vc4_job_handle_completed(vc4);
 			vc4_bo_cache_purge(dev);
 			break;

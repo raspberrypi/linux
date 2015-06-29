@@ -118,7 +118,8 @@ submit_cl(struct drm_device *dev, uint32_t thread, uint32_t start, uint32_t end)
 }
 
 int
-vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns)
+vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns,
+		   bool interruptible)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	int ret = 0;
@@ -135,9 +136,10 @@ vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns)
 
 	for (;;) {
 		prepare_to_wait(&vc4->job_wait_queue, &wait,
-				TASK_INTERRUPTIBLE);
+				interruptible ? TASK_INTERRUPTIBLE :
+				TASK_UNINTERRUPTIBLE);
 
-		if (signal_pending(current)) {
+		if (interruptible && signal_pending(current)) {
 			ret = -ERESTARTSYS;
 			break;
 		}
@@ -495,7 +497,7 @@ vc4_wait_for_seqno_ioctl_helper(struct drm_device *dev,
 				uint64_t *timeout_ns)
 {
 	unsigned long start = jiffies;
-	int ret = vc4_wait_for_seqno(dev, seqno, *timeout_ns);
+	int ret = vc4_wait_for_seqno(dev, seqno, *timeout_ns, true);
 
 	if ((ret == -EINTR || ret == -ERESTARTSYS) && *timeout_ns != ~0ull) {
 		uint64_t delta = jiffies_to_nsecs(jiffies - start);
@@ -600,7 +602,7 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 	 * a problem when BO caching is involved), we wait on the
 	 * previous rendering before returning to userspace.
 	 */
-	vc4_wait_for_seqno(dev, args->seqno - 1, ~0ull);
+	vc4_wait_for_seqno(dev, args->seqno - 1, ~0ull, true);
 
 	return 0;
 
