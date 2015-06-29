@@ -109,6 +109,7 @@ static const struct drm_ioctl_desc vc4_drm_ioctls[] = {
 
 static struct drm_driver vc4_drm_driver = {
 	.driver_features = (DRIVER_MODESET |
+			    DRIVER_ATOMIC |
 			    DRIVER_GEM |
 			    DRIVER_HAVE_IRQ |
 			    DRIVER_PRIME),
