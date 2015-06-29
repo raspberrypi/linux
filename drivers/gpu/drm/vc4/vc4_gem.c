@@ -458,6 +458,7 @@ void
 vc4_job_handle_completed(struct vc4_dev *vc4)
 {
 	unsigned long irqflags;
+	struct vc4_seqno_cb *cb, *cb_temp;
 
 	spin_lock_irqsave(&vc4->job_lock, irqflags);
 	while (!list_empty(&vc4->job_done_list)) {
@@ -472,6 +473,40 @@ vc4_job_handle_completed(struct vc4_dev *vc4)
 	}
 	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 
+	list_for_each_entry_safe(cb, cb_temp, &vc4->seqno_cb_list, work.entry) {
+		if (cb->seqno <= vc4->finished_seqno) {
+			list_del_init(&cb->work.entry);
+			schedule_work(&cb->work);
+		}
+	}
+}
+
+static void vc4_seqno_cb_work(struct work_struct *work)
+{
+	struct vc4_seqno_cb *cb = container_of(work, struct vc4_seqno_cb, work);
+	cb->func(cb);
+}
+
+int vc4_queue_seqno_cb(struct drm_device *dev,
+		       struct vc4_seqno_cb *cb, uint64_t seqno,
+		       void (*func)(struct vc4_seqno_cb *cb))
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	int ret = 0;
+
+	cb->func = func;
+	INIT_WORK(&cb->work, vc4_seqno_cb_work);
+
+	mutex_lock(&dev->struct_mutex);
+	if (seqno > vc4->finished_seqno) {
+		cb->seqno = seqno;
+		list_add_tail(&cb->work.entry, &vc4->seqno_cb_list);
+	} else {
+		schedule_work(&cb->work);
+	}
+	mutex_unlock(&dev->struct_mutex);
+
+	return ret;
 }
 
 /* Scheduled when any job has been completed, this walks the list of
@@ -621,6 +656,7 @@ vc4_gem_init(struct drm_device *dev)
 
 	INIT_LIST_HEAD(&vc4->job_list);
 	INIT_LIST_HEAD(&vc4->job_done_list);
+	INIT_LIST_HEAD(&vc4->seqno_cb_list);
 	spin_lock_init(&vc4->job_lock);
 
 	INIT_WORK(&vc4->hangcheck.reset_work, vc4_reset_work);

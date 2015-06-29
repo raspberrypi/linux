@@ -87,7 +87,6 @@ static int vc4_drm_unload(struct drm_device *dev)
 
 static void vc4_drm_preclose(struct drm_device *dev, struct drm_file *file)
 {
-	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_crtc *crtc;
 
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
