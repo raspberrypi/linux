@@ -29,6 +29,7 @@
 #include "uapi/drm/vc4_drm.h"
 #include "vc4_drv.h"
 #include "vc4_regs.h"
+#include "vc4_trace.h"
 
 static void
 vc4_queue_hangcheck(struct drm_device *dev)
@@ -134,6 +135,7 @@ vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns,
 
 	timeout_expire = jiffies + nsecs_to_jiffies(timeout_ns);
 
+	trace_vc4_wait_for_seqno_begin(dev, seqno, timeout_ns);
 	for (;;) {
 		prepare_to_wait(&vc4->job_wait_queue, &wait,
 				interruptible ? TASK_INTERRUPTIBLE :
@@ -159,6 +161,7 @@ vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns,
 	}
 
 	finish_wait(&vc4->job_wait_queue, &wait);
+	trace_vc4_wait_for_seqno_end(dev, seqno);
 
 	if (ret && ret != -ERESTARTSYS) {
 		DRM_ERROR("timeout waiting for render thread idle\n");
