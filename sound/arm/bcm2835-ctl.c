@@ -357,16 +357,16 @@ struct cea_channel_speaker_allocation {
  * Stolen from sound/pci/hda/patch_hdmi.c
  * (unlike the source, this uses SNDRV_* constants directly, as by the
  *  map_tables array in patch_hdmi.c)
- * Unknown entries use 0, which unfortunately is SNDRV_CHMAP_UNKNOWN instead
- * of SNDRV_CHMAP_NA.
+ * Entries which do not have a physical output channel use 0. Entries which
+ * require userspace to output silence use NA (SNDRV_CHMAP_NA).
  */
 static struct cea_channel_speaker_allocation channel_allocations[] = {
 /*			  channel:   7     6    5    4    3     2    1    0  */
 { .ca_index = 0x00,  .speakers = {   0,    0,   0,   0,   0,    0,  FR,  FL } },
 				 /* 2.1 */
-{ .ca_index = 0x01,  .speakers = {  NA,   NA,  NA,  NA,  NA,  LFE,  FR,  FL } },
+{ .ca_index = 0x01,  .speakers = {   0,    0,   0,   0,  NA,  LFE,  FR,  FL } },
 				 /* Dolby Surround */
-{ .ca_index = 0x02,  .speakers = {  NA,   NA,  NA,  NA,  FC,   NA,  FR,  FL } },
+{ .ca_index = 0x02,  .speakers = {   0,    0,   0,   0,  FC,   NA,  FR,  FL } },
 				 /* surround40 */
 { .ca_index = 0x08,  .speakers = {  NA,   NA,  RR,  RL,  NA,   NA,  FR,  FL } },
 				 /* surround41 */
