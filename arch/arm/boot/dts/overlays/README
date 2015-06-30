@@ -497,6 +497,14 @@ Params: txd1_pin                 GPIO pin for TXD1 (14, 32 or 40 - default 14)
         rxd1_pin                 GPIO pin for RXD1 (15, 33 or 41 - default 15)
 
 
+Name:   vga666
+Info:   Overlay for the Fen Logic VGA666 board
+        This uses GPIOs 2-21 (so no I2C), and activates the output 2-3 seconds
+        after the kernel has started.
+Load:   dtoverlay=vga666
+Params: <None>
+
+
 Name:   w1-gpio
 Info:   Configures the w1-gpio Onewire interface module.
         Use this overlay if you *don't* need a GPIO to drive an external pullup.
