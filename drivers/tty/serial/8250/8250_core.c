@@ -509,6 +509,8 @@ static void __init serial8250_isa_init_ports(void)
 
 	if (nr_uarts > UART_NR)
 		nr_uarts = UART_NR;
+	if (!nr_uarts)
+		return;
 
 	for (i = 0; i < nr_uarts; i++) {
 		struct uart_8250_port *up = &serial8250_ports[i];
