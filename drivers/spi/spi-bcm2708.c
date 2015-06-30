@@ -70,9 +70,9 @@
 #define SPI_CS_CS_10		0x00000002
 #define SPI_CS_CS_01		0x00000001
 
-#define SPI_TIMEOUT_MS	150
+#define SPI_TIMEOUT_MS		1000
 
-#define DRV_NAME	"bcm2708_spi"
+#define DRV_NAME		"bcm2708_spi"
 
 struct bcm2708_spi {
 	spinlock_t lock;
