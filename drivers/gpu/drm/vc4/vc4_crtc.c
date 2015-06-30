@@ -292,8 +292,8 @@ static irqreturn_t vc4_crtc_irq_handler(int irq, void *data)
 	irqreturn_t ret = IRQ_NONE;
 
 	if (stat & PV_INT_VFP_START) {
-		drm_crtc_handle_vblank(&vc4_crtc->base);
 		CRTC_WRITE(PV_INTSTAT, PV_INT_VFP_START);
+		drm_crtc_handle_vblank(&vc4_crtc->base);
 		ret = IRQ_HANDLED;
 	}
 
