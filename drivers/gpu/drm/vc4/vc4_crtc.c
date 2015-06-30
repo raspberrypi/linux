@@ -265,6 +265,19 @@ static void vc4_crtc_atomic_flush(struct drm_crtc *crtc)
 		DRM_INFO("CRTC %d HVS after:\n", drm_crtc_index(crtc));
 		vc4_hvs_dump_state(dev);
 	}
+
+	if (crtc->state->event) {
+		unsigned long flags;
+
+		crtc->state->event->pipe = drm_crtc_index(crtc);
+
+		WARN_ON(drm_crtc_vblank_get(crtc) != 0);
+
+		spin_lock_irqsave(&dev->event_lock, flags);
+		vc4_crtc->event = crtc->state->event;
+		spin_unlock_irqrestore(&dev->event_lock, flags);
+		crtc->state->event = NULL;
+	}
 }
 
 int vc4_enable_vblank(struct drm_device *dev, int crtc_id)
@@ -285,6 +298,21 @@ void vc4_disable_vblank(struct drm_device *dev, int crtc_id)
 	CRTC_WRITE(PV_INTEN, 0);
 }
 
+static void
+vc4_crtc_handle_page_flip(struct vc4_crtc *vc4_crtc)
+{
+	struct drm_crtc *crtc = &vc4_crtc->base;
+	struct drm_device *dev = crtc->dev;
+	unsigned long flags;
+
+	spin_lock_irqsave(&dev->event_lock, flags);
+	if (vc4_crtc->event) {
+		drm_crtc_send_vblank_event(crtc, vc4_crtc->event);
+		vc4_crtc->event = NULL;
+	}
+	spin_unlock_irqrestore(&dev->event_lock, flags);
+}
+
 static irqreturn_t vc4_crtc_irq_handler(int irq, void *data)
 {
 	struct vc4_crtc *vc4_crtc = data;
@@ -294,6 +322,7 @@ static irqreturn_t vc4_crtc_irq_handler(int irq, void *data)
 	if (stat & PV_INT_VFP_START) {
 		CRTC_WRITE(PV_INTSTAT, PV_INT_VFP_START);
 		drm_crtc_handle_vblank(&vc4_crtc->base);
+		vc4_crtc_handle_page_flip(vc4_crtc);
 		ret = IRQ_HANDLED;
 	}
 
@@ -321,6 +350,26 @@ static const struct drm_crtc_helper_funcs vc4_crtc_helper_funcs = {
 	.atomic_begin = vc4_crtc_atomic_begin,
 	.atomic_flush = vc4_crtc_atomic_flush,
 };
+
+/* Frees the page flip event when the DRM device is closed with the
+ * event still outstanding.
+ */
+void vc4_cancel_page_flip(struct drm_crtc *crtc, struct drm_file *file)
+{
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct drm_device *dev = crtc->dev;
+	unsigned long flags;
+
+	spin_lock_irqsave(&dev->event_lock, flags);
+
+	if (vc4_crtc->event && vc4_crtc->event->base.file_priv == file) {
+		vc4_crtc->event->base.destroy(&vc4_crtc->event->base);
+		drm_crtc_vblank_put(crtc);
+		vc4_crtc->event = NULL;
+	}
+
+	spin_unlock_irqrestore(&dev->event_lock, flags);
+}
 
 static int vc4_crtc_bind(struct device *dev, struct device *master, void *data)
 {

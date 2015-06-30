@@ -85,6 +85,15 @@ static int vc4_drm_unload(struct drm_device *dev)
 	return 0;
 }
 
+static void vc4_drm_preclose(struct drm_device *dev, struct drm_file *file)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct drm_crtc *crtc;
+
+	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
+		vc4_cancel_page_flip(crtc, file);
+}
+
 static const struct file_operations vc4_drm_fops = {
 	.owner = THIS_MODULE,
 	.open = drm_open,
@@ -116,6 +125,7 @@ static struct drm_driver vc4_drm_driver = {
 	.load = vc4_drm_load,
 	.unload = vc4_drm_unload,
 	.set_busid = drm_platform_set_busid,
+	.preclose = vc4_drm_preclose,
 
 	.irq_handler = vc4_irq,
 	.irq_preinstall = vc4_irq_preinstall,
