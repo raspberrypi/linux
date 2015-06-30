@@ -22,7 +22,7 @@
 				dma-names = "tx", "rx";
 				brcm,delay-after-stop = <0>;
 				brcm,overclock-50 = <0>;
-				brcm,pio-limit = <2>;
+				brcm,pio-limit = <1>;
 				status = "okay";
 			};
 		};
