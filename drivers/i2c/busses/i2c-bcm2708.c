@@ -67,10 +67,9 @@
 #define BSC_S_DONE		0x00000002
 #define BSC_S_TA		0x00000001
 
-#define I2C_TIMEOUT_MS	150
-#define I2C_WAIT_LOOP_COUNT 40
+#define I2C_WAIT_LOOP_COUNT	200
 
-#define DRV_NAME	"bcm2708_i2c"
+#define DRV_NAME		"bcm2708_i2c"
 
 static unsigned int baudrate = CONFIG_I2C_BCM2708_BAUDRATE;
 module_param(baudrate, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
@@ -305,7 +304,7 @@ static int bcm2708_i2c_master_xfer(struct i2c_adapter *adap,
 		goto error_timeout;
 	}
 
-	ret = wait_for_completion_timeout(&bi->done, msecs_to_jiffies(I2C_TIMEOUT_MS));
+	ret = wait_for_completion_timeout(&bi->done, adap->timeout);
 	if (ret == 0) {
 		dev_err(&adap->dev, "transfer timed out\n");
 		goto error_timeout;
