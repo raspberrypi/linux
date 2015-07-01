@@ -699,8 +699,7 @@ static void bcm2835_sdhost_prepare_data(struct bcm2835_host *host, struct mmc_co
 	bcm2835_sdhost_set_transfer_irqs(host);
 
 	bcm2835_sdhost_write(host, data->blksz, SDHBCT);
-	if (host->use_dma)
-		bcm2835_sdhost_write(host, data->blocks, SDHBLC);
+	bcm2835_sdhost_write(host, host->use_dma ? data->blocks : 0, SDHBLC);
 
 	BUG_ON(!host->data);
 }
