@@ -441,7 +441,7 @@ Params: overclock_50             Clock (in MHz) to use when the MMC framework
         force_pio                Disable DMA support (default off)
 
         pio_limit                Number of blocks above which to use DMA
-                                 (default 2)
+                                 (default 1)
 
         debug                    Enable debug output (default off)
 
