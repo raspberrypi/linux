@@ -30,6 +30,7 @@ struct mmal_fmt {
 	u32   mmal;
 	int   depth;
 	u32   mmal_component;  /* MMAL component index to be used to encode */
+	u32   ybbp;            /* depth of first Y plane for planar formats */
 };
 
 /* buffer for one video frame */
