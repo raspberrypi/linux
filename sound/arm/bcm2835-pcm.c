@@ -355,6 +355,9 @@ static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
 
 	audio_info(" .. IN\n");
 
+	if (mutex_lock_interruptible(&chip->audio_mutex))
+		return -EINTR;
+
 	/* notify the vchiq that it should enter spdif passthrough mode by
 	 * setting channels=0 (see
 	 * https://github.com/raspberrypi/linux/issues/528) */
@@ -390,6 +393,7 @@ static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
 		      alsa_stream->buffer_size, alsa_stream->period_size,
 		      alsa_stream->pos, runtime->frame_bits);
 
+	mutex_unlock(&chip->audio_mutex);
 	audio_info(" .. OUT\n");
 	return 0;
 }
