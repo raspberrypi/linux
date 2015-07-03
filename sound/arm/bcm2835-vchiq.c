@@ -55,6 +55,8 @@
 	#define LOG_DBG( fmt, arg... )
 #endif
 
+#define GENCMDSERVICE_MSGFIFO_SIZE 1024
+
 typedef struct opaque_AUDIO_INSTANCE_T {
 	uint32_t num_connections;
 	VCHI_SERVICE_HANDLE_T vchi_handle[VCHI_MAX_NUM_CONNECTIONS];
@@ -243,6 +245,39 @@ static void audio_vchi_callback(void *param,
 	LOG_DBG(" .. OUT\n");
 }
 
+static void audio_vchi_callback_gencmd(void *param,
+				       const VCHI_CALLBACK_REASON_T reason,
+				       void *msg_handle)
+{
+	AUDIO_INSTANCE_T *instance = (AUDIO_INSTANCE_T *) param;
+	int32_t status;
+	int32_t msg_len;
+	char response_buffer[GENCMDSERVICE_MSGFIFO_SIZE];
+	LOG_DBG(" .. IN instance=%p, handle=%p, alsa=%p, reason=%d, handle=%p\n",
+		instance, instance ? instance->vchi_handle[1] : NULL, instance ? instance->alsa_stream : NULL, reason, msg_handle);
+
+	if (reason != VCHI_CALLBACK_MSG_AVAILABLE) {
+		return;
+	}
+	if (!instance) {
+		LOG_ERR(" .. instance is null\n");
+		BUG();
+		return;
+  }
+  if (!instance->vchi_handle[1]) {
+		LOG_ERR(" .. instance->vchi_handle[0] is null\n");
+		BUG();
+		return;
+  }
+	status = vchi_msg_dequeue(instance->vchi_handle[1],
+				  response_buffer, sizeof response_buffer, &msg_len, VCHI_FLAGS_NONE);
+
+	instance->result = 0;
+	complete(&instance->msg_avail_comp);
+
+	LOG_DBG(" .. OUT\n");
+}
+
 static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 					    VCHI_CONNECTION_T **
 					    vchi_connections,
@@ -251,6 +286,7 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 	uint32_t i;
 	AUDIO_INSTANCE_T *instance;
 	int status;
+	int32_t services[] = {VC_AUDIO_SERVER_NAME, MAKE_FOURCC("GCMD")};
 
 	LOG_DBG("%s: start", __func__);
 
@@ -274,11 +310,11 @@ static AUDIO_INSTANCE_T *vc_vchi_audio_init(VCHI_INSTANCE_T vchi_instance,
 	for (i = 0; i < num_connections; i++) {
 		SERVICE_CREATION_T params = {
 			VCHI_VERSION_EX(VC_AUDIOSERV_VER, VC_AUDIOSERV_MIN_VER),
-			VC_AUDIO_SERVER_NAME,	// 4cc service code
+			services[i],	// 4cc service code
 			vchi_connections[i],	// passed in fn pointers
 			0,	// rx fifo size (unused)
 			0,	// tx fifo size (unused)
-			audio_vchi_callback,	// service callback
+			i ? audio_vchi_callback_gencmd : audio_vchi_callback,	// service callback
 			instance,	// service callback parameter
 			1,	//TODO: remove VCOS_FALSE,   // unaligned bulk recieves
 			1,	//TODO: remove VCOS_FALSE,   // unaligned bulk transmits
@@ -361,7 +397,7 @@ static int32_t vc_vchi_audio_deinit(AUDIO_INSTANCE_T * instance)
 static int bcm2835_audio_open_connection(bcm2835_alsa_stream_t * alsa_stream)
 {
 	static VCHI_INSTANCE_T vchi_instance;
-	static VCHI_CONNECTION_T *vchi_connection;
+	static VCHI_CONNECTION_T *vchi_connection[2];
 	static int initted;
 	AUDIO_INSTANCE_T *instance = alsa_stream->instance;
 	int ret;
@@ -400,7 +436,7 @@ static int bcm2835_audio_open_connection(bcm2835_alsa_stream_t * alsa_stream)
 	}
 
 	/* Initialize an instance of the audio service */
-	instance = vc_vchi_audio_init(vchi_instance, &vchi_connection, 1);
+	instance = vc_vchi_audio_init(vchi_instance, vchi_connection, 2);
 
 	if (instance == NULL) {
 		LOG_ERR("%s: failed to initialize audio service\n", __func__);
