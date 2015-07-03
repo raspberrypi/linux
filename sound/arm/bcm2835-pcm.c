@@ -231,6 +231,9 @@ static int snd_bcm2835_playback_open_generic(
 
 	chip->alsa_stream[idx] = alsa_stream;
 
+	if (!chip->opened)
+		chip->cea_chmap = -1;
+
 	chip->opened |= (1 << idx);
 	alsa_stream->open = 1;
 	alsa_stream->draining = 1;
