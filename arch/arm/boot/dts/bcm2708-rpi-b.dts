@@ -25,7 +25,7 @@
 
 	i2s_pins: i2s {
 		brcm,pins = <28 29 30 31>;
-		brcm,function = <4>; /* alt0 */
+		brcm,function = <6>; /* alt2 */
 	};
 };
 
