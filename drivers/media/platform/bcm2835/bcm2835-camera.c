@@ -88,12 +88,13 @@ static const struct v4l2_fract
 /* video formats */
 static struct mmal_fmt formats[] = {
 	{
-	 .name = "4:2:0, packed YUV",
+	 .name = "4:2:0, planar, YUV",
 	 .fourcc = V4L2_PIX_FMT_YUV420,
 	 .flags = 0,
 	 .mmal = MMAL_ENCODING_I420,
 	 .depth = 12,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 1,
 	 },
 	{
 	 .name = "4:2:2, packed, YUYV",
@@ -102,6 +103,7 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_YUYV,
 	 .depth = 16,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 2,
 	 },
 	{
 	 .name = "RGB24 (LE)",
@@ -110,6 +112,7 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_BGR24,
 	 .depth = 24,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 3,
 	 },
 	{
 	 .name = "JPEG",
@@ -118,6 +121,7 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_JPEG,
 	 .depth = 8,
 	 .mmal_component = MMAL_COMPONENT_IMAGE_ENCODE,
+	 .ybbp = 0,
 	 },
 	{
 	 .name = "H264",
@@ -126,6 +130,7 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_H264,
 	 .depth = 8,
 	 .mmal_component = MMAL_COMPONENT_VIDEO_ENCODE,
+	 .ybbp = 0,
 	 },
 	{
 	 .name = "MJPEG",
@@ -134,6 +139,7 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_MJPEG,
 	 .depth = 8,
 	 .mmal_component = MMAL_COMPONENT_VIDEO_ENCODE,
+	 .ybbp = 0,
 	 },
 	{
 	 .name = "4:2:2, packed, YVYU",
@@ -142,6 +148,7 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_YVYU,
 	 .depth = 16,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 2,
 	 },
 	{
 	 .name = "4:2:2, packed, VYUY",
@@ -150,6 +157,7 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_VYUY,
 	 .depth = 16,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 2,
 	 },
 	{
 	 .name = "4:2:2, packed, UYVY",
@@ -158,14 +166,16 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_UYVY,
 	 .depth = 16,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 2,
 	 },
 	{
-	 .name = "4:2:0, packed, NV12",
+	 .name = "4:2:0, planar, NV12",
 	 .fourcc = V4L2_PIX_FMT_NV12,
 	 .flags = 0,
 	 .mmal = MMAL_ENCODING_NV12,
 	 .depth = 12,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 1,
 	 },
 	{
 	 .name = "RGB24 (BE)",
@@ -174,22 +184,25 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_RGB24,
 	 .depth = 24,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 3,
 	 },
 	{
-	 .name = "4:2:0, packed YVU",
+	 .name = "4:2:0, planar, YVU",
 	 .fourcc = V4L2_PIX_FMT_YVU420,
 	 .flags = 0,
 	 .mmal = MMAL_ENCODING_YV12,
 	 .depth = 12,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 1,
 	 },
 	{
-	 .name = "4:2:0, packed, NV21",
+	 .name = "4:2:0, planar, NV21",
 	 .fourcc = V4L2_PIX_FMT_NV21,
 	 .flags = 0,
 	 .mmal = MMAL_ENCODING_NV21,
 	 .depth = 12,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 1,
 	 },
 	{
 	 .name = "RGB32 (BE)",
@@ -198,6 +211,7 @@ static struct mmal_fmt formats[] = {
 	 .mmal = MMAL_ENCODING_BGRA,
 	 .depth = 32,
 	 .mmal_component = MMAL_COMPONENT_CAMERA,
+	 .ybbp = 4,
 	 },
 };
 
@@ -771,7 +785,7 @@ static int vidioc_g_fbuf(struct file *file, void *fh,
 	a->fmt.width = preview_port->es.video.width;
 	a->fmt.height = preview_port->es.video.height;
 	a->fmt.pixelformat = V4L2_PIX_FMT_YUV420;
-	a->fmt.bytesperline = (preview_port->es.video.width * 3)>>1;
+	a->fmt.bytesperline = preview_port->es.video.width;
 	a->fmt.sizeimage = (preview_port->es.video.width *
 			       preview_port->es.video.height * 3)>>1;
 	a->fmt.colorspace = V4L2_COLORSPACE_SMPTE170M;
@@ -894,7 +908,7 @@ static int vidioc_try_fmt_vid_cap(struct file *file, void *priv,
 
 	v4l_bound_align_image(&f->fmt.pix.width, MIN_WIDTH, MAX_WIDTH, 1,
 			      &f->fmt.pix.height, MIN_HEIGHT, MAX_HEIGHT, 1, 0);
-	f->fmt.pix.bytesperline = (f->fmt.pix.width * mfmt->depth)>>3;
+	f->fmt.pix.bytesperline = f->fmt.pix.width * mfmt->ybbp;
 
 	/* Image buffer has to be padded to allow for alignment, even though
 	 * we then remove that padding before delivering the buffer.
