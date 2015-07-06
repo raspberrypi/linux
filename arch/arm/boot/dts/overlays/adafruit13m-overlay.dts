@@ -1,0 +1,71 @@
+/*
+ * adafruit13m-overlay.dts
+ *
+ * -------------------------------------------------
+ * 
+ * -------------------------------------------------
+ * Device---Driver-----BUS       GPIO's
+ * display  adafruit13m  spi0.0    25 24
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+
+			spidev@0{
+				status = "disabled";
+			};
+
+			spidev@1{
+				status = "disabled";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			adafruit13m_pins: adafruit13m_pins {
+				brcm,pins = <25 24>;
+				brcm,function = <1>; /* out */
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			adafruit13m: adafruit13m@0{
+				compatible = "solomon,ssd1306";
+				reg = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&adafruit13m_pins>;
+				spi-max-frequency = <6000000>;
+				buswidth = <8>;
+g				reset-gpios = <&gpio 25 0>;
+				dc-gpios = <&gpio 24 0>;
+				debug = <0>;
+
+			};
+
+		};
+	};
+
+	__overrides__ {
+		speed =      <&adafruit13m>,"spi-max-frequency:0";
+		rotate =     <&adafruit13m>,"rotate:0";
+		fps =        <&adafruit13m>,"fps:0";
+		debug =      <&adafruit13m>,"debug:0";
+	};
+};

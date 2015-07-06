@@ -45,6 +45,7 @@ dtb-$(RPI_DT_OVERLAYS) += tinylcd35-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += uart1-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-pullup-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += adafruit13m-overlay.dtb
 
 targets += dtbs dtbs_install
 targets += $(dtb-y)
