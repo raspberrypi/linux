@@ -6,6 +6,10 @@
  * -------------------------------------------------
  * Device---Driver-----BUS       GPIO's
  * display  adafruit13m  spi0.0    25 24
+
+ * Based on  tinylcd35-overlay.dts
+ *  5/3/2015  -- Noralf Trønnes     Initial Device tree framework
+ *  10/3/2015 -- tinylcd@gmail.com  added ds1307 support.
  */
 
 /dts-v1/;
@@ -53,7 +57,8 @@
 				pinctrl-0 = <&adafruit13m_pins>;
 				spi-max-frequency = <6000000>;
 				buswidth = <8>;
-g				reset-gpios = <&gpio 25 0>;
+				fps = <20>;
+				reset-gpios = <&gpio 25 0>;
 				dc-gpios = <&gpio 24 0>;
 				debug = <0>;
 
