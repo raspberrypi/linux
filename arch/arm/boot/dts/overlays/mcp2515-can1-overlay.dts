@@ -1,5 +1,5 @@
 /*
- * Device tree overlay for mcp251x/can0 on spi0.0
+ * Device tree overlay for mcp251x/can1 on spi0.0
  */
 
 /dts-v1/;
