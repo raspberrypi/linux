@@ -227,6 +227,7 @@
 		hvs: brcm,hvs@7e400000 {
 			compatible = "brcm,vc4-hvs";
 			reg = <0x7e400000 0x6000>;
+			interrupts = <2 1>;
 		};
 
 		vc4: vc4@0x7e4c0000 {
