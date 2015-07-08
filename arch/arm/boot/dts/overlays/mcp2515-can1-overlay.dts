@@ -1,5 +1,5 @@
 /*
- * Device tree overlay for mcp251x/can1 on spi0.0 @edited by petit_miner
+ * Device tree overlay for mcp251x/can1 on @edited by petit_miner
  */
 
 /dts-v1/;
@@ -49,8 +49,8 @@
             /* needed to avoid dtc warning */
             #address-cells = <1>;
             #size-cells = <0>;
-            can1: mcp2515@0 {
-                reg = <1s>;
+            can1: mcp2515@1s {
+                reg = <1>;
                 compatible = "microchip,mcp2515";
                 pinctrl-names = "default";
                 pinctrl-0 = <&can1_pins>;
@@ -64,6 +64,6 @@
     __overrides__ {
         oscillator = <&can1_osc>,"clock-frequency:0";
         spimaxfrequency = <&can1>,"spi-max-frequency:0";
-        interrupt = <&can1_pins>,"brcm,pins:0",<&can1>,"interrupts:0";
+        interrupt = <&can1_pins>,"brcm,pins:0",<&can1>,"interrupts:1";
     };
 };
