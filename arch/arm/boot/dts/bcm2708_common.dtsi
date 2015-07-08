@@ -218,6 +218,7 @@
 			compatible = "brcm,bcm2835-vchiq";
 			reg = <0x7e00b840 0xf>;
 			interrupts = <0 2>;
+			cache-line-size = <32>;
 		};
 
 		thermal: thermal {
@@ -269,5 +270,9 @@
 			clock-output-names = "apb_pclk";
 			clock-frequency = <126000000>;
 		};
+	};
+
+	__overrides__ {
+		cache_line_size = <&vchiq>, "cache-line-size:0";
 	};
 };
