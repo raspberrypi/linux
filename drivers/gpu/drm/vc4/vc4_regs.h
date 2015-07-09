@@ -225,8 +225,6 @@
 # define PV_INT_HSYNC_START			(1 << 0)
 
 #define PV_STAT					0x2c
-# define PV_STAT_IDLE				(1 << 8)
-# define PV_STAT_RUNNING_MASK			VC4_MASK(7, 0)
 
 #define PV_HACT_ACT				0x30
 
