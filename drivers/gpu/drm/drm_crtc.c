@@ -613,7 +613,7 @@ void drm_framebuffer_remove(struct drm_framebuffer *fb)
 	if (atomic_read(&fb->refcount.refcount) > 1) {
 		drm_modeset_lock_all(dev);
 		/* remove from any CRTC */
-		list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+		drm_for_each_crtc(crtc, dev) {
 			if (crtc->primary->fb == fb) {
 				/* should turn off the crtc */
 				memset(&set, 0, sizeof(struct drm_mode_set));
@@ -625,7 +625,7 @@ void drm_framebuffer_remove(struct drm_framebuffer *fb)
 			}
 		}
 
-		list_for_each_entry(plane, &dev->mode_config.plane_list, head) {
+		drm_for_each_plane(plane, dev) {
 			if (plane->fb == fb)
 				drm_plane_force_disable(plane);
 		}
@@ -1289,6 +1289,29 @@ unsigned int drm_plane_index(struct drm_plane *plane)
 EXPORT_SYMBOL(drm_plane_index);
 
 /**
+ * drm_plane_from_index - find the registered plane at an index
+ * @dev: DRM device
+ * @idx: index of registered plane to find for
+ *
+ * Given a plane index, return the registered plane from DRM device's
+ * list of planes with matching index.
+ */
+struct drm_plane *
+drm_plane_from_index(struct drm_device *dev, int idx)
+{
+	struct drm_plane *plane;
+	unsigned int i = 0;
+
+	drm_for_each_plane(plane, dev) {
+		if (i == idx)
+			return plane;
+		i++;
+	}
+	return NULL;
+}
+EXPORT_SYMBOL(drm_plane_from_index);
+
+/**
  * drm_plane_force_disable - Forcibly disable a plane
  * @plane: plane to disable
  *
@@ -1881,8 +1904,7 @@ int drm_mode_getresources(struct drm_device *dev, void *data,
 		copied = 0;
 		crtc_id = (uint32_t __user *)(unsigned long)card_res->crtc_id_ptr;
 		if (!mode_group) {
-			list_for_each_entry(crtc, &dev->mode_config.crtc_list,
-					    head) {
+			drm_for_each_crtc(crtc, dev) {
 				DRM_DEBUG_KMS("[CRTC:%d]\n", crtc->base.id);
 				if (put_user(crtc->base.id, crtc_id + copied)) {
 					ret = -EFAULT;
@@ -1908,9 +1930,7 @@ int drm_mode_getresources(struct drm_device *dev, void *data,
 		copied = 0;
 		encoder_id = (uint32_t __user *)(unsigned long)card_res->encoder_id_ptr;
 		if (!mode_group) {
-			list_for_each_entry(encoder,
-					    &dev->mode_config.encoder_list,
-					    head) {
+			drm_for_each_encoder(encoder, dev) {
 				DRM_DEBUG_KMS("[ENCODER:%d:%s]\n", encoder->base.id,
 						encoder->name);
 				if (put_user(encoder->base.id, encoder_id +
@@ -1939,9 +1959,7 @@ int drm_mode_getresources(struct drm_device *dev, void *data,
 		copied = 0;
 		connector_id = (uint32_t __user *)(unsigned long)card_res->connector_id_ptr;
 		if (!mode_group) {
-			list_for_each_entry(connector,
-					    &dev->mode_config.connector_list,
-					    head) {
+			drm_for_each_connector(connector, dev) {
 				DRM_DEBUG_KMS("[CONNECTOR:%d:%s]\n",
 					connector->base.id,
 					connector->name);
@@ -2230,7 +2248,7 @@ static struct drm_crtc *drm_encoder_get_crtc(struct drm_encoder *encoder)
 
 	/* For atomic drivers only state objects are synchronously updated and
 	 * protected by modeset locks, so check those first. */
-	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
+	drm_for_each_connector(connector, dev) {
 		if (!connector->state)
 			continue;
 
@@ -5051,9 +5069,10 @@ void drm_mode_config_reset(struct drm_device *dev)
 		if (encoder->funcs->reset)
 			encoder->funcs->reset(encoder);
 
-	list_for_each_entry(connector, &dev->mode_config.connector_list, head)
+	drm_for_each_connector(connector, dev) {
 		if (connector->funcs->reset)
 			connector->funcs->reset(connector);
+	}
 }
 EXPORT_SYMBOL(drm_mode_config_reset);
 
