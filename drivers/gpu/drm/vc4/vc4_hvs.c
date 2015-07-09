@@ -68,6 +68,34 @@ vc4_hvs_dump_state(struct drm_device *dev)
 	}
 }
 
+static irqreturn_t vc4_hvs_irq_handler(int irq, void *data)
+{
+	struct vc4_dev *vc4 = data;
+	u32 stat = HVS_READ(SCALER_DISPSTAT);
+	u32 irq_bits = stat & (SCALER_DISPSTAT_IRQSCL |
+			       SCALER_DISPSTAT_IRQDISP0 |
+			       SCALER_DISPSTAT_IRQDISP1 |
+			       SCALER_DISPSTAT_IRQDISP2 |
+			       SCALER_DISPSTAT_IRQSLVWR |
+			       SCALER_DISPSTAT_IRQSLVRD);
+	irqreturn_t ret = IRQ_NONE;
+
+	if (irq_bits != 0) {
+		DRM_ERROR("HVS reported error: SCALER_DISPSTAT = 0x%08x\n",
+			  stat);
+
+		/* Mask out whichever of the interrupt enable generated our
+		 * interrupt, so that the error only appears once for this
+		 * type of error
+		 */
+		HVS_WRITE(SCALER_DISPCTRL,
+			  HVS_READ(SCALER_DISPCTRL) & ~irq_bits);
+		ret = IRQ_HANDLED;
+	}
+
+	return ret;
+}
+
 #ifdef CONFIG_DEBUG_FS
 int vc4_hvs_debugfs_regs(struct seq_file *m, void *unused)
 {
@@ -92,6 +120,7 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dev *vc4 = drm->dev_private;
 	struct vc4_hvs *hvs = NULL;
+	int ret;
 
 	hvs = devm_kzalloc(&pdev->dev, sizeof(*hvs), GFP_KERNEL);
 	if (!hvs)
@@ -106,6 +135,30 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	hvs->dlist = hvs->regs + SCALER_DLIST_START;
 
 	vc4->hvs = hvs;
+
+	/* Disable any interrupts set by the firmware. */
+	HVS_WRITE(SCALER_DISPCTRL, SCALER_DISPCTRL_ENABLE);
+	/* Clear any previous interrupts. */
+	HVS_WRITE(SCALER_DISPSTAT, SCALER_DISPSTAT_IRQSCL);
+
+	ret = devm_request_irq(dev, platform_get_irq(pdev, 0),
+			       vc4_hvs_irq_handler, 0, "vc4 hvs", vc4);
+	if (ret)
+		return ret;
+
+	/* Turn on a bunch of interrupts for catching HW setup errors. */
+	HVS_WRITE(SCALER_DISPCTRL,
+		  SCALER_DISPCTRL_ENABLE |
+		  SCALER_DISPCTRL_DSP0EISLUR |
+		  SCALER_DISPCTRL_DSP1EISLUR |
+		  SCALER_DISPCTRL_DSP2EISLUR |
+		  SCALER_DISPCTRL_SLVRDEIRQ |
+		  SCALER_DISPCTRL_SLVWREIRQ |
+		  SCALER_DISPCTRL_DMAEIRQ |
+		  SCALER_DISPCTRL_DISP0EIRQ |
+		  SCALER_DISPCTRL_DISP1EIRQ |
+		  SCALER_DISPCTRL_DISP2EIRQ);
+
 	return 0;
 }
 
@@ -114,6 +167,9 @@ static void vc4_hvs_unbind(struct device *dev, struct device *master,
 {
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dev *vc4 = drm->dev_private;
+
+	HVS_WRITE(SCALER_DISPCTRL, SCALER_DISPCTRL_ENABLE);
+	HVS_WRITE(SCALER_DISPSTAT, SCALER_DISPSTAT_IRQSCL);
 
 	vc4->hvs = NULL;
 }
