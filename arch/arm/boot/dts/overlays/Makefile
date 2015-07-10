@@ -29,6 +29,7 @@ dtb-$(RPI_DT_OVERLAYS) += iqaudio-dac-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += iqaudio-dacplus-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += lirc-rpi-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += mcp2515-can0-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += mcp2515-can1-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += mmc-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += mz61581-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += piscreen-overlay.dtb
