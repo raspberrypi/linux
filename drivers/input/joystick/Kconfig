@@ -351,4 +351,12 @@ config JOYSTICK_PSXPAD_SPI_FF
 
 	  To drive rumble motor a dedicated power supply is required.
 
+config JOYSTICK_RPISENSE
+	tristate "Raspberry Pi Sense HAT joystick"
+	depends on GPIOLIB && INPUT
+	select MFD_RPISENSE_CORE
+
+	help
+	  This is the joystick driver for the Raspberry Pi Sense HAT
+
 endif
