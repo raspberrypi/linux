@@ -442,6 +442,12 @@ Load:   dtoverlay=rpi-proto
 Params: <None>
 
 
+Name:   rpi-sense
+Info:   Raspberry Pi Sense HAT
+Load:   dtoverlay=rpi-sense
+Params: <None>
+
+
 Name:   sdhost
 Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock
 Load:   dtoverlay=sdhost,<param>=<val>
