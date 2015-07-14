@@ -404,6 +404,7 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 			}
 		} else {
 			/* signal frame completion */
+			vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
 			complete(&dev->capture.frame_cmplt);
 		}
 	}
