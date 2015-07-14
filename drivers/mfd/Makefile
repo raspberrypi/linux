@@ -181,3 +181,5 @@ obj-$(CONFIG_MFD_RT5033)	+= rt5033.o
 
 intel-soc-pmic-objs		:= intel_soc_pmic_core.o intel_soc_pmic_crc.o
 obj-$(CONFIG_INTEL_SOC_PMIC)	+= intel-soc-pmic.o
+
+obj-$(CONFIG_MFD_RPISENSE_CORE)	+= rpisense-core.o
