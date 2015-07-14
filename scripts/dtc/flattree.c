@@ -262,6 +262,12 @@ static void flatten_tree(struct node *tree, struct emitter *emit,
 	struct property *prop;
 	struct node *child;
 	bool seen_name_prop = false;
+	struct symbol *sym;
+	struct fixup *f;
+	struct fixup_entry *fe;
+	char *name, *s;
+	const char *fullpath;
+	int namesz, nameoff, vallen;
 
 	if (tree->deleted)
 		return;
@@ -276,8 +282,6 @@ static void flatten_tree(struct node *tree, struct emitter *emit,
 	emit->align(etarget, sizeof(cell_t));
 
 	for_each_property(tree, prop) {
-		int nameoff;
-
 		if (streq(prop->name, "name"))
 			seen_name_prop = true;
 
@@ -310,6 +314,139 @@ static void flatten_tree(struct node *tree, struct emitter *emit,
 		flatten_tree(child, emit, etarget, strbuf, vi);
 	}
 
+	if (!symbol_fixup_support)
+		goto no_symbols;
+
+	/* add the symbol nodes (if any) */
+	if (tree->symbols) {
+
+		emit->beginnode(etarget, NULL);
+		emit->string(etarget, "__symbols__", 0);
+		emit->align(etarget, sizeof(cell_t));
+
+		for_each_symbol(tree, sym) {
+
+			vallen = strlen(sym->node->fullpath);
+
+			nameoff = stringtable_insert(strbuf, sym->label->label);
+
+			emit->property(etarget, NULL);
+			emit->cell(etarget, vallen + 1);
+			emit->cell(etarget, nameoff);
+
+			if ((vi->flags & FTF_VARALIGN) && vallen >= 8)
+				emit->align(etarget, 8);
+
+			emit->string(etarget, sym->node->fullpath,
+					strlen(sym->node->fullpath));
+			emit->align(etarget, sizeof(cell_t));
+		}
+
+		emit->endnode(etarget, NULL);
+	}
+
+	/* add the fixup nodes */
+	if (tree->fixups) {
+
+		/* emit the external fixups */
+		emit->beginnode(etarget, NULL);
+		emit->string(etarget, "__fixups__", 0);
+		emit->align(etarget, sizeof(cell_t));
+
+		for_each_fixup(tree, f) {
+
+			namesz = 0;
+			for_each_fixup_entry(f, fe) {
+				fullpath = fe->node->fullpath;
+				if (fullpath[0] == '\0')
+					fullpath = "/";
+				namesz += strlen(fullpath) + 1;
+				namesz += strlen(fe->prop->name) + 1;
+				namesz += 32;	/* space for :<number> + '\0' */
+			}
+
+			name = xmalloc(namesz);
+
+			s = name;
+			for_each_fixup_entry(f, fe) {
+				fullpath = fe->node->fullpath;
+				if (fullpath[0] == '\0')
+					fullpath = "/";
+				snprintf(s, name + namesz - s, "%s:%s:%d",
+						fullpath,
+						fe->prop->name, fe->offset);
+				s += strlen(s) + 1;
+			}
+
+			nameoff = stringtable_insert(strbuf, f->ref);
+			vallen = s - name - 1;
+
+			emit->property(etarget, NULL);
+			emit->cell(etarget, vallen + 1);
+			emit->cell(etarget, nameoff);
+
+			if ((vi->flags & FTF_VARALIGN) && vallen >= 8)
+				emit->align(etarget, 8);
+
+			emit->string(etarget, name, vallen);
+			emit->align(etarget, sizeof(cell_t));
+
+			free(name);
+		}
+
+		emit->endnode(etarget, tree->labels);
+	}
+
+	/* add the local fixup property */
+	if (tree->local_fixups) {
+
+		/* emit the external fixups */
+		emit->beginnode(etarget, NULL);
+		emit->string(etarget, "__local_fixups__", 0);
+		emit->align(etarget, sizeof(cell_t));
+
+		namesz = 0;
+		for_each_local_fixup_entry(tree, fe) {
+			fullpath = fe->node->fullpath;
+			if (fullpath[0] == '\0')
+				fullpath = "/";
+			namesz += strlen(fullpath) + 1;
+			namesz += strlen(fe->prop->name) + 1;
+			namesz += 32;	/* space for :<number> + '\0' */
+		}
+
+		name = xmalloc(namesz);
+
+		s = name;
+		for_each_local_fixup_entry(tree, fe) {
+			fullpath = fe->node->fullpath;
+			if (fullpath[0] == '\0')
+				fullpath = "/";
+			snprintf(s, name + namesz - s, "%s:%s:%d",
+					fullpath, fe->prop->name,
+					fe->offset);
+			s += strlen(s) + 1;
+		}
+
+		nameoff = stringtable_insert(strbuf, "fixup");
+		vallen = s - name - 1;
+
+		emit->property(etarget, NULL);
+		emit->cell(etarget, vallen + 1);
+		emit->cell(etarget, nameoff);
+
+		if ((vi->flags & FTF_VARALIGN) && vallen >= 8)
+			emit->align(etarget, 8);
+
+		emit->string(etarget, name, vallen);
+		emit->align(etarget, sizeof(cell_t));
+
+		free(name);
+
+		emit->endnode(etarget, tree->labels);
+	}
+
+no_symbols:
 	emit->endnode(etarget, tree->labels);
 }
 
