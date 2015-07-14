@@ -395,21 +395,21 @@ create_pagelist(char __user *buf, size_t count, unsigned short type,
 	if (is_vmalloc_addr(buf)) {
 		int dir = (type == PAGELIST_WRITE) ?
 			DMA_TO_DEVICE : DMA_FROM_DEVICE;
-		unsigned long length = pagelist->length;
-		unsigned int offset = pagelist->offset;
+		unsigned long length = count;
+		unsigned int off = offset;
 
 		for (actual_pages = 0; actual_pages < num_pages;
 		     actual_pages++) {
 			struct page *pg = vmalloc_to_page(buf + (actual_pages *
 								 PAGE_SIZE));
-			size_t bytes = PAGE_SIZE - offset;
+			size_t bytes = PAGE_SIZE - off;
 
 			if (bytes > length)
 				bytes = length;
 			pages[actual_pages] = pg;
-			dmac_map_area(page_address(pg) + offset, bytes, dir);
+			dmac_map_area(page_address(pg) + off, bytes, dir);
 			length -= bytes;
-			offset = 0;
+			off = 0;
 		}
 		*need_release = 0; /* do not try and release vmalloc pages */
 	} else {
