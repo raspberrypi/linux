@@ -412,4 +412,12 @@ config JOYSTICK_SENSEHAT
 	  To compile this driver as a module, choose M here: the
 	  module will be called sensehat_joystick.
 
+config JOYSTICK_RPISENSE
+	tristate "Raspberry Pi Sense HAT joystick"
+	depends on GPIOLIB && INPUT
+	select MFD_RPISENSE_CORE
+
+	help
+	  This is the joystick driver for the Raspberry Pi Sense HAT
+
 endif
