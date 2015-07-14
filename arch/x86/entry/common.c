@@ -152,6 +152,13 @@ static void exit_to_usermode_loop(struct pt_regs *regs, u32 cached_flags)
 		if (cached_flags & _TIF_NEED_RESCHED)
 			schedule();
 
+#ifdef ARCH_RT_DELAYS_SIGNAL_SEND
+		if (unlikely(current->forced_info.si_signo)) {
+			struct task_struct *t = current;
+			force_sig_info(t->forced_info.si_signo, &t->forced_info, t);
+			t->forced_info.si_signo = 0;
+		}
+#endif
 		if (cached_flags & _TIF_UPROBE)
 			uprobe_notify_resume(regs);
 
