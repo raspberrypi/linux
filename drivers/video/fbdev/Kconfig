@@ -2489,3 +2489,16 @@ config FB_SSD1307
 	help
 	  This driver implements support for the Solomon SSD1307
 	  OLED controller over I2C.
+
+config FB_RPISENSE
+	tristate "Raspberry Pi Sense HAT framebuffer"
+	depends on FB
+	select MFD_RPISENSE_CORE
+	select FB_SYS_FOPS
+	select FB_SYS_FILLRECT
+	select FB_SYS_COPYAREA
+	select FB_SYS_IMAGEBLIT
+	select FB_DEFERRED_IO
+
+	help
+	  This is the framebuffer driver for the Raspberry Pi Sense HAT
