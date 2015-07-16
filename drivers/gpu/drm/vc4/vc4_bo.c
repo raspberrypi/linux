@@ -51,6 +51,9 @@ bo_page_index(size_t size)
 static void
 vc4_bo_destroy(struct vc4_bo *bo)
 {
+	kfree(bo->validated_shader);
+	bo->validated_shader = NULL;
+
 	bo_stats.num_allocated--;
 	bo_stats.size_allocated -= bo->base.base.size;
 	drm_gem_cma_free_object(&bo->base.base);
