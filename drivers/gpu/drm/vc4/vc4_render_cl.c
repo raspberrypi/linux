@@ -209,7 +209,7 @@ static int vc4_create_rcl_bo(struct drm_device *dev, struct vc4_exec_info *exec,
 	}
 
 	if (setup->zs_write)
-		loop_body_size += VC4_PACKET_LOAD_TILE_BUFFER_GENERAL_SIZE;
+		loop_body_size += VC4_PACKET_STORE_TILE_BUFFER_GENERAL_SIZE;
 	if (setup->color_ms_write) {
 		if (setup->zs_write)
 			loop_body_size += VC4_PACKET_TILE_COORDINATES_SIZE;
