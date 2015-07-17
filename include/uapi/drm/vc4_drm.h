@@ -46,10 +46,13 @@ struct drm_vc4_submit_rcl_surface {
 	uint32_t hindex; /* Handle index, or ~0 if not present. */
 	uint32_t offset; /* Offset to start of buffer. */
 	/*
-         * Bits for either render config (color_ms_write) or load/store packet.
+         * Bits for either render config (color_write) or load/store packet.
+         * Bits should all be 0 for MSAA load/stores.
 	 */
 	uint16_t bits;
-	uint16_t pad;
+
+#define VC4_SUBMIT_RCL_SURFACE_READ_IS_FULL_RES		(1 << 0)
+	uint16_t flags;
 };
 
 /**
@@ -128,9 +131,11 @@ struct drm_vc4_submit_cl {
 	uint8_t max_x_tile;
 	uint8_t max_y_tile;
 	struct drm_vc4_submit_rcl_surface color_read;
-	struct drm_vc4_submit_rcl_surface color_ms_write;
+	struct drm_vc4_submit_rcl_surface color_write;
 	struct drm_vc4_submit_rcl_surface zs_read;
 	struct drm_vc4_submit_rcl_surface zs_write;
+	struct drm_vc4_submit_rcl_surface msaa_color_write;
+	struct drm_vc4_submit_rcl_surface msaa_zs_write;
 	uint32_t clear_color[2];
 	uint32_t clear_z;
 	uint8_t clear_s;
