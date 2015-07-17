@@ -684,6 +684,7 @@ static int bcm2835_dma_terminate_all(struct bcm2835_chan *c)
 	 * c->desc is NULL and exit.)
 	 */
 	if (c->desc) {
+		bcm2835_dma_desc_free(&c->desc->vd);
 		c->desc = NULL;
 		bcm2835_dma_abort(c->chan_base);
 
