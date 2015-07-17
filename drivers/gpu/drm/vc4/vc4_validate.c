@@ -863,7 +863,7 @@ validate_shader_rec(struct drm_device *dev,
 				goto fail;
 			}
 
-			validated_shader = vc4_validate_shader(bo[i]);
+			validated_shader = to_vc4_bo(&bo[i]->base)->validated_shader;
 			if (!validated_shader)
 				goto fail;
 

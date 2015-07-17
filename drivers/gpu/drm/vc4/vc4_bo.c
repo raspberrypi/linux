@@ -387,6 +387,56 @@ vc4_create_bo_ioctl(struct drm_device *dev, void *data,
 }
 
 int
+vc4_create_shader_bo_ioctl(struct drm_device *dev, void *data,
+			   struct drm_file *file_priv)
+{
+	struct drm_vc4_create_shader_bo *args = data;
+	struct vc4_bo *bo = NULL;
+	int ret;
+
+	if (args->size == 0)
+		return -EINVAL;
+
+	if (args->size % sizeof(u64) != 0)
+		return -EINVAL;
+
+	if (args->flags != 0) {
+		DRM_INFO("Unknown flags set: 0x%08x\n", args->flags);
+		return -EINVAL;
+	}
+
+	if (args->pad != 0) {
+		DRM_INFO("Pad set: 0x%08x\n", args->pad);
+		return -EINVAL;
+	}
+
+	mutex_lock(&dev->struct_mutex);
+	bo = vc4_bo_create(dev, roundup(args->size, PAGE_SIZE));
+	mutex_unlock(&dev->struct_mutex);
+	if (!bo)
+		return -ENOMEM;
+
+	ret = copy_from_user(bo->base.vaddr,
+			     (void __user *)(uintptr_t)args->data,
+			     args->size);
+	if (ret != 0)
+		goto fail;
+
+	bo->validated_shader = vc4_validate_shader(&bo->base);
+	if (!bo->validated_shader) {
+		ret = -EINVAL;
+		goto fail;
+	}
+
+	ret = drm_gem_handle_create(file_priv, &bo->base.base, &args->handle);
+
+ fail:
+	drm_gem_object_unreference_unlocked(&bo->base.base);
+
+	return ret;
+}
+
+int
 vc4_mmap_bo_ioctl(struct drm_device *dev, void *data,
 		  struct drm_file *file_priv)
 {
@@ -404,6 +454,65 @@ vc4_mmap_bo_ioctl(struct drm_device *dev, void *data,
 
 	drm_gem_object_unreference(gem_obj);
 	return 0;
+}
+
+int vc4_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+	struct drm_gem_object *gem_obj;
+	struct vc4_bo *bo;
+	int ret;
+
+	ret = drm_gem_mmap(filp, vma);
+	if (ret)
+		return ret;
+
+	gem_obj = vma->vm_private_data;
+	bo = to_vc4_bo(gem_obj);
+
+	if (bo->validated_shader) {
+		DRM_ERROR("mmaping of shader BOs not allowed.\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Clear the VM_PFNMAP flag that was set by drm_gem_mmap(), and set the
+	 * vm_pgoff (used as a fake buffer offset by DRM) to 0 as we want to map
+	 * the whole buffer.
+	 */
+	vma->vm_flags &= ~VM_PFNMAP;
+	vma->vm_pgoff = 0;
+
+	ret = dma_mmap_writecombine(bo->base.base.dev->dev, vma,
+				    bo->base.vaddr, bo->base.paddr,
+				    vma->vm_end - vma->vm_start);
+	if (ret)
+		drm_gem_vm_close(vma);
+
+	return ret;
+}
+
+int vc4_prime_mmap(struct drm_gem_object *obj, struct vm_area_struct *vma)
+{
+	struct vc4_bo *bo = to_vc4_bo(obj);
+
+	if (bo->validated_shader) {
+		DRM_ERROR("mmaping of shader BOs not allowed.\n");
+		return -EINVAL;
+	}
+
+	return drm_gem_cma_prime_mmap(obj, vma);
+}
+
+void *vc4_prime_vmap(struct drm_gem_object *obj)
+{
+	struct vc4_bo *bo = to_vc4_bo(obj);
+
+	if (bo->validated_shader) {
+		DRM_ERROR("mmaping of shader BOs not allowed.\n");
+		return ERR_PTR(-EINVAL);
+	}
+
+	return drm_gem_cma_prime_vmap(obj);
 }
 
 #ifdef CONFIG_DEBUG_FS
