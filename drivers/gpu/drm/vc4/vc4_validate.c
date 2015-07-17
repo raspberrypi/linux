@@ -361,9 +361,8 @@ validate_tile_binning_config(VALIDATE_ARGS)
 	}
 
 	if (flags & (VC4_BIN_CONFIG_DB_NON_MS |
-		     VC4_BIN_CONFIG_TILE_BUFFER_64BIT |
-		     VC4_BIN_CONFIG_MS_MODE_4X)) {
-		DRM_ERROR("unsupported bining config flags 0x%02x\n", flags);
+		     VC4_BIN_CONFIG_TILE_BUFFER_64BIT)) {
+		DRM_ERROR("unsupported binning config flags 0x%02x\n", flags);
 		return -EINVAL;
 	}
 
