@@ -123,6 +123,11 @@ enum vc4_packet {
 #define VC4_PACKET_TILE_COORDINATES_SIZE				3
 #define VC4_PACKET_GEM_HANDLES_SIZE					9
 
+/* Number of multisamples supported. */
+#define VC4_MAX_SAMPLES							4
+/* Size of a full resolution color or Z tile buffer load/store. */
+#define VC4_TILE_BUFFER_SIZE			(64 * 64 * 4)
+
 /** @{
  * Bits used by packets like VC4_PACKET_STORE_TILE_BUFFER_GENERAL and
  * VC4_PACKET_TILE_RENDERING_MODE_CONFIG.
@@ -137,10 +142,20 @@ enum vc4_packet {
  * low bits of VC4_PACKET_STORE_FULL_RES_TILE_BUFFER and
  * VC4_PACKET_LOAD_FULL_RES_TILE_BUFFER.
  */
-#define VC4_LOADSTORE_FULL_RES_EOF                     (1 << 3)
-#define VC4_LOADSTORE_FULL_RES_DISABLE_CLEAR_ALL       (1 << 2)
-#define VC4_LOADSTORE_FULL_RES_DISABLE_ZS              (1 << 1)
-#define VC4_LOADSTORE_FULL_RES_DISABLE_COLOR           (1 << 0)
+#define VC4_LOADSTORE_FULL_RES_EOF                     BIT(3)
+#define VC4_LOADSTORE_FULL_RES_DISABLE_CLEAR_ALL       BIT(2)
+#define VC4_LOADSTORE_FULL_RES_DISABLE_ZS              BIT(1)
+#define VC4_LOADSTORE_FULL_RES_DISABLE_COLOR           BIT(0)
+
+/** @{
+ *
+ * low bits of VC4_PACKET_STORE_FULL_RES_TILE_BUFFER and
+ * VC4_PACKET_LOAD_FULL_RES_TILE_BUFFER.
+ */
+#define VC4_LOADSTORE_FULL_RES_EOF                     BIT(3)
+#define VC4_LOADSTORE_FULL_RES_DISABLE_CLEAR_ALL       BIT(2)
+#define VC4_LOADSTORE_FULL_RES_DISABLE_ZS              BIT(1)
+#define VC4_LOADSTORE_FULL_RES_DISABLE_COLOR           BIT(0)
 
 /** @{
  *
