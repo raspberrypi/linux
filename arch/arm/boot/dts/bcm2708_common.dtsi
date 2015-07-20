@@ -230,6 +230,7 @@
 
 		thermal: thermal {
 			compatible = "brcm,bcm2835-thermal";
+			firmware = <&firmware>;
 		};
 	};
 
