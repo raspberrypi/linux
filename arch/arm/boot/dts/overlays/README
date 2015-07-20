@@ -78,7 +78,7 @@ Name:   <The base DTB>
 Info:   Configures the base Raspberry Pi hardware
 Load:   <loaded automatically>
 Params:
-        audio                    Set to "on" to disable the onboard ALSA audio
+        audio                    Set to "on" to enable the onboard ALSA audio
                                  interface (default "off")
 
         i2c_arm                  Set to "on" to enable the ARM's i2c interface
