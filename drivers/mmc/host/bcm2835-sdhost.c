@@ -1675,7 +1675,7 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 	/* host controller capabilities */
 	mmc->caps |= /* MMC_CAP_SDIO_IRQ |*/ MMC_CAP_4_BIT_DATA |
 		MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED |
-		MMC_CAP_NEEDS_POLL | MMC_CAP_HW_RESET |
+		MMC_CAP_NEEDS_POLL | MMC_CAP_HW_RESET | MMC_CAP_ERASE |
 		(ALLOW_CMD23 * MMC_CAP_CMD23);
 
 	spin_lock_init(&host->lock);
