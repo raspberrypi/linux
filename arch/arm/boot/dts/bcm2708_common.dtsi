@@ -225,6 +225,7 @@
 			reg = <0x7e00b840 0xf>;
 			interrupts = <0 2>;
 			cache-line-size = <32>;
+			firmware = <&firmware>;
 		};
 
 		thermal: thermal {
