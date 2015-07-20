@@ -226,7 +226,7 @@ comment "Frame buffer hardware drivers"
 
 config FB_BCM2708
 	tristate "BCM2708 framebuffer support"
-	depends on FB && ARM && BCM2708_MBOX
+	depends on FB && RASPBERRYPI_FIRMWARE
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
