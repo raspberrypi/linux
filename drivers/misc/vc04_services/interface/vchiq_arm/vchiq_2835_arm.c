@@ -39,11 +39,11 @@
 #include <linux/dma-mapping.h>
 #include <linux/version.h>
 #include <linux/io.h>
-#include <linux/platform_data/mailbox-bcm2708.h>
 #include <linux/platform_device.h>
 #include <linux/uaccess.h>
 #include <linux/of.h>
 #include <asm/pgtable.h>
+#include <soc/bcm2835/raspberrypi-firmware.h>
 
 #define TOTAL_SLOTS (VCHIQ_SLOT_ZERO_SLOTS + 2 * 32)
 
@@ -89,10 +89,12 @@ free_pagelist(PAGELIST_T *pagelist, int actual);
 int vchiq_platform_init(struct platform_device *pdev, VCHIQ_STATE_T *state)
 {
 	struct device *dev = &pdev->dev;
+	struct rpi_firmware *fw = platform_get_drvdata(pdev);
 	VCHIQ_SLOT_ZERO_T *vchiq_slot_zero;
 	struct resource *res;
 	void *slot_mem;
 	dma_addr_t slot_phys;
+	u32 channelbase;
 	int slot_mem_size, frag_mem_size;
 	int err, irq, i;
 
@@ -157,13 +159,12 @@ int vchiq_platform_init(struct platform_device *pdev, VCHIQ_STATE_T *state)
 	}
 
 	/* Send the base address of the slots to VideoCore */
-
-	dsb(); /* Ensure all writes have completed */
-
-	err = bcm_mailbox_write(MBOX_CHAN_VCHIQ, (unsigned int)slot_phys);
-	if (err) {
-		dev_err(dev, "mailbox write failed\n");
-		return err;
+	channelbase = slot_phys;
+	err = rpi_firmware_property(fw, RPI_FIRMWARE_VCHIQ_INIT,
+				    &channelbase, sizeof(channelbase));
+	if (err || channelbase) {
+		dev_err(dev, "failed to set channelbase\n");
+		return err ? : -ENXIO;
 	}
 
 	vchiq_log_info(vchiq_arm_log_level,
