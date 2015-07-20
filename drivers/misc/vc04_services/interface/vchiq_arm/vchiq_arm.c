@@ -45,7 +45,9 @@
 #include <linux/bug.h>
 #include <linux/semaphore.h>
 #include <linux/list.h>
+#include <linux/of.h>
 #include <linux/platform_device.h>
+#include <soc/bcm2835/raspberrypi-firmware.h>
 
 #include "vchiq_core.h"
 #include "vchiq_ioctl.h"
@@ -2793,8 +2795,23 @@ void vchiq_platform_conn_state_changed(VCHIQ_STATE_T *state,
 
 static int vchiq_probe(struct platform_device *pdev)
 {
+	struct device_node *fw_node;
+	struct rpi_firmware *fw;
 	int err;
 	void *ptr_err;
+
+	fw_node = of_parse_phandle(pdev->dev.of_node, "firmware", 0);
+/* Remove comment when booting without Device Tree is no longer supported
+	if (!fw_node) {
+		dev_err(&pdev->dev, "Missing firmware node\n");
+		return -ENOENT;
+	}
+*/
+	fw = rpi_firmware_get(fw_node);
+	if (!fw)
+		return -EPROBE_DEFER;
+
+	platform_set_drvdata(pdev, fw);
 
 	/* create debugfs entries */
 	err = vchiq_debugfs_init();
