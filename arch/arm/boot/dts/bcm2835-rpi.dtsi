@@ -32,6 +32,24 @@
 			compatible = "raspberrypi,bcm2835-firmware";
 			mboxes = <&mailbox>;
 		};
+
+		fb: fb {
+			compatible = "brcm,bcm2708-fb";
+			firmware = <&firmware>;
+		};
+
+		thermal: thermal {
+			compatible = "brcm,bcm2835-thermal";
+			firmware = <&firmware>;
+		};
+
+		vchiq: vchiq {
+			compatible = "brcm,bcm2835-vchiq";
+			reg = <0x7e00b840 0xf>;
+			interrupts = <0 2>;
+			cache-line-size = <32>;
+			firmware = <&firmware>;
+		};
 	};
 
 	/* Onboard audio */
@@ -99,10 +117,6 @@
 &mmc {
 	status = "okay";
 	bus-width = <4>;
-};
-
-&fb {
-	status = "okay";
 };
 
 / {
