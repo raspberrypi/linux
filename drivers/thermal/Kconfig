@@ -272,7 +272,7 @@ config INTEL_POWERCLAMP
 	  user interface is exposed via generic thermal framework.
 
 config THERMAL_BCM2835
-	depends on BCM2708_MBOX
+	depends on RASPBERRYPI_FIRMWARE
 	tristate "BCM2835 Thermal Driver"
 	help
 	  This will enable temperature monitoring for the Broadcom BCM2835
