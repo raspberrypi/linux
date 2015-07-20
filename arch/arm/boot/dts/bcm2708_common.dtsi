@@ -91,7 +91,7 @@
 			status = "disabled";
 		};
 
-		gpio: gpio {
+		gpio: gpio@7e200000 {
 			compatible = "brcm,bcm2835-gpio";
 			reg = <0x7e200000 0xb4>;
 			interrupts = <2 17>, <2 18>;
