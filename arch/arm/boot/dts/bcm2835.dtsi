@@ -160,21 +160,6 @@
 		arm-pmu {
 			compatible = "arm,arm1176-pmu";
 		};
-
-		fb: fb {
-			compatible = "brcm,bcm2708-fb";
-			status = "disabled";
-		};
-
-		vchiq: vchiq {
-			compatible = "brcm,bcm2835-vchiq";
-			reg = <0x7e00b840 0xf>;
-			interrupts = <0 2>;
-		};
-
-		thermal: thermal {
-			compatible = "brcm,bcm2835-thermal";
-		};
 	};
 
 	clocks {
