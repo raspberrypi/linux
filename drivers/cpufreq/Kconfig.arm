@@ -248,7 +248,7 @@ config ARM_SPEAR_CPUFREQ
 	  This adds the CPUFreq driver support for SPEAr SOCs.
 
 config ARM_BCM2835_CPUFREQ
-	depends on BCM2708_MBOX
+	depends on RASPBERRYPI_FIRMWARE
 	bool "BCM2835 Driver"
 	default y
 	help
