@@ -959,25 +959,32 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host)
 				mmc_hostname(host->mmc), sdcmd, sdhsts,
 				bcm2835_sdhost_read(host, SDEDM));
 
-		if (sdhsts & SDHSTS_CMD_TIME_OUT) {
-			switch (host->cmd->opcode) {
-			case 5: case 52: case 53:
-				/* Don't warn about SDIO commands */
-				break;
-			default:
-				pr_err("%s: command timeout\n",
-				       mmc_hostname(host->mmc));
-				break;
-			}
-			host->cmd->error = -ETIMEDOUT;
+		if ((sdhsts & SDHSTS_CRC7_ERROR) &&
+		    (host->cmd->opcode == 1)) {
+			if (host->debug)
+				pr_info("%s: ignoring CRC7 error for CMD1\n",
+					mmc_hostname(host->mmc));
 		} else {
-			pr_err("%s: unexpected command error\n",
-			       mmc_hostname(host->mmc));
-			bcm2835_sdhost_dumpregs(host);
-			host->cmd->error = -EIO;
+			if (sdhsts & SDHSTS_CMD_TIME_OUT) {
+				switch (host->cmd->opcode) {
+				case 5: case 52: case 53:
+					/* Don't warn about SDIO commands */
+					break;
+				default:
+					pr_err("%s: command timeout\n",
+					       mmc_hostname(host->mmc));
+					break;
+				}
+				host->cmd->error = -ETIMEDOUT;
+			} else {
+				pr_err("%s: unexpected command error\n",
+				       mmc_hostname(host->mmc));
+				bcm2835_sdhost_dumpregs(host);
+				host->cmd->error = -EIO;
+			}
+			tasklet_schedule(&host->finish_tasklet);
+			return;
 		}
-		tasklet_schedule(&host->finish_tasklet);
-		return;
 	}
 
 	if (host->cmd->flags & MMC_RSP_PRESENT) {
