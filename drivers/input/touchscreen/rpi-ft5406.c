@@ -21,7 +21,7 @@
 #include <linux/kthread.h>
 #include <linux/platform_device.h>
 #include <asm/io.h>
-#include <linux/platform_data/mailbox-bcm2708.h>
+#include <soc/bcm2835/raspberrypi-firmware.h>
 
 #define MAXIMUM_SUPPORTED_POINTS 10
 struct ft5406_regs {
@@ -47,23 +47,6 @@ struct ft5406 {
 	void __iomem           * ts_base;
 	struct ft5406_regs     * regs;
 	struct task_struct     * thread;
-};
-
-
-/* tag part of the message */
-struct vc_msg_tag {
-	uint32_t tag_id;		/* the message id */
-	uint32_t buffer_size;	/* size of the buffer (which in this case is always 8 bytes) */
-	uint32_t data_size;		/* amount of data being sent or received */
-	uint32_t val;           /* data buffer */
-};
-
-/* message structure to be sent to videocore */
-struct vc_msg {
-	uint32_t msg_size;		/* simply, sizeof(struct vc_msg) */
-	uint32_t request_code;	/* holds various information like the success and number of bytes returned (refer to mailboxes wiki) */
-	struct vc_msg_tag tag;	/* the tag structure above to make */
-	uint32_t end_tag;		/* an end identifier, should be set to NULL */
 };
 
 /* Thread to poll for touchscreen events
@@ -136,11 +119,37 @@ static int ft5406_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct input_dev * input_dev = input_allocate_device();
-	struct vc_msg request;
 	struct ft5406 * ts;
+	struct device_node *fw_node;
+	struct rpi_firmware *fw;
+	u32 touchbuf;
 	
 	dev_info(&pdev->dev, "Probing device\n");
 	
+	fw_node = of_parse_phandle(pdev->dev.of_node, "firmware", 0);
+	if (!fw_node) {
+		dev_err(&pdev->dev, "Missing firmware node\n");
+		return -ENOENT;
+	}
+
+	fw = rpi_firmware_get(fw_node);
+	if (!fw)
+		return -EPROBE_DEFER;
+
+	ret = rpi_firmware_property(fw, RPI_FIRMWARE_FRAMEBUFFER_GET_TOUCHBUF,
+				    &touchbuf, sizeof(touchbuf));
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to get touch buffer\n");
+		return ret;
+	}
+
+	if (!touchbuf) {
+		dev_err(&pdev->dev, "Touchscreen not detected\n");
+		return -ENODEV;
+	}
+
+	dev_dbg(&pdev->dev, "Got TS buffer 0x%x\n", touchbuf);
+
 	ts = kzalloc(sizeof(struct ft5406), GFP_KERNEL);
 
 	if (!ts || !input_dev) {
@@ -174,36 +183,15 @@ static int ft5406_probe(struct platform_device *pdev)
 		return ret;
 	}
 	
-	memset(&request, 0, sizeof request);
-
-	request.msg_size = sizeof request;
-	request.request_code = VCMSG_PROCESS_REQUEST;
-	request.tag.tag_id = VCMSG_GET_TOUCHBUF;
-	request.tag.buffer_size = 4;
-	request.tag.data_size = 4;
-	
-	bcm_mailbox_property(&request, sizeof(request));
-	
-	if(request.request_code == VCMSG_REQUEST_SUCCESSFUL && request.tag.val != 0)
-	{
-		dev_dbg(&pdev->dev, "Got TS buffer 0x%x\n", request.tag.val);
-	}
-	else
-	{
-		input_unregister_device(input_dev);
-		kzfree(ts);
-		return -1;
-	}
-	
 	// mmap the physical memory
-	request.tag.val &= ~0xc0000000;
-	ts->ts_base = ioremap(request.tag.val, sizeof(*ts->regs));
+	touchbuf &= ~0xc0000000;
+	ts->ts_base = ioremap(touchbuf, sizeof(*ts->regs));
 	if(ts->ts_base == NULL)
 	{
 		dev_err(&pdev->dev, "Failed to map physical address\n");
 		input_unregister_device(input_dev);
 		kzfree(ts);
-		return -1;	
+		return -ENOMEM;
 	}
 	
 	ts->regs = (struct ft5406_regs *) ts->ts_base;
