@@ -54,6 +54,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 .set prefetch_distance, 3
 
+ENTRY(mmiocpy)
 ENTRY(memcpy)
         memcpy  0
 ENDPROC(memcpy)
+ENDPROC(mmiocpy)

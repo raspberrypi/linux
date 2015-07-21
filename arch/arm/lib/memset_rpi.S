@@ -50,6 +50,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *  On exit:
  *  a1 preserved
  */
+ENTRY(mmioset)
 ENTRY(memset)
         S       .req    a1
         DAT0    .req    a2
@@ -119,3 +120,4 @@ ENTRY(memset)
         .unreq  DAT2
         .unreq  DAT3
 ENDPROC(memset)
+ENDPROC(mmioset)
