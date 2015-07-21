@@ -9,6 +9,7 @@
 		__overlay__ {
 			rpi_ft5406: rpi_ft5406 {
 				compatible = "rpi,rpi-ft5406";
+				firmware = <&firmware>;
 				status = "okay";
 			};
 		};
