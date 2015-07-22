@@ -1,0 +1,20 @@
+/*
+ * Device tree overlay for spi-bcm2835 to allow dma
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2836", "brcm,bcm2708", "brcm,bcm2709";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			dmas = <&dma 6>, <&dma 7>;
+			dma-names = "tx", "rx";
+		};
+	};
+ };
