@@ -515,6 +515,12 @@ Load:   dtoverlay=spi-bcm2835
 Params: <None>
 
 
+Name:   spi-dma
+Info:   enables dma modes for spi-bcm2835
+Load:   dtoverlay=spi-dma
+Params: <None>
+
+
 Name:   tinylcd35
 Info:   3.5" Color TFT Display by www.tinylcd.com
         Options: Touch, RTC, keypad
