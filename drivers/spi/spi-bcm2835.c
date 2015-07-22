@@ -609,6 +609,7 @@ static int bcm2835_spi_prepare_message(struct spi_master *master,
 	return 0;
 }
 
+#if 0
 static void bcm2835_spi_handle_err(struct spi_master *master,
 				   struct spi_message *msg)
 {
@@ -623,6 +624,7 @@ static void bcm2835_spi_handle_err(struct spi_master *master,
 	/* and reset */
 	bcm2835_spi_reset_hw(master);
 }
+#endif
 
 static void bcm2835_spi_set_cs(struct spi_device *spi, bool gpio_level)
 {
