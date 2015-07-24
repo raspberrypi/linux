@@ -723,6 +723,7 @@ static int dwc_otg_driver_probe(
 
 	memset(dwc_otg_device, 0, sizeof(*dwc_otg_device));
 	dwc_otg_device->os_dep.reg_offset = 0xFFFFFFFF;
+	dwc_otg_device->os_dep.platformdev = _dev;
 
 	/*
 	 * Map the DWC_otg Core memory into virtual address space.
