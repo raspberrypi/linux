@@ -7,12 +7,6 @@ menuconfig MAILBOX
 
 if MAILBOX
 
-config BCM2708_MBOX
-	bool "Broadcom BCM2708 Mailbox (vcio)"
-	depends on BCM2835_MBOX
-	help
-	  Broadcom BCM2708 Mailbox (vcio)
-
 config ARM_MHU
 	tristate "ARM MHU Mailbox"
 	depends on ARM_AMBA
