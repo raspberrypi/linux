@@ -36,7 +36,6 @@
 #include "dwc_otg_regs.h"
 
 #include <linux/jiffies.h>
-#include <mach/hardware.h>
 #include <asm/fiq.h>
 
 
