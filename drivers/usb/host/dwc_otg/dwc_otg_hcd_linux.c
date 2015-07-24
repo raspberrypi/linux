@@ -445,7 +445,11 @@ static void hcd_init_fiq(void *cookie)
 		DWC_WARN("MPHI periph has NOT been enabled");
 #endif
 	// Enable FIQ interrupt from USB peripheral
+#ifdef CONFIG_ARCH_BCM2835
+	enable_fiq(platform_get_irq(otg_dev->os_dep.platformdev, 1));
+#else
 	enable_fiq(INTERRUPT_VC_USB);
+#endif
 	local_fiq_enable();
 }
 
