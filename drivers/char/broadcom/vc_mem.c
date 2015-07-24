@@ -22,7 +22,6 @@
 #include <linux/debugfs.h>
 #include <asm/uaccess.h>
 #include <linux/dma-mapping.h>
-#include <linux/platform_data/mailbox-bcm2708.h>
 #include <linux/broadcom/vc_mem.h>
 
 #define DRIVER_NAME  "vc-mem"
