@@ -133,9 +133,6 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
-			/* the dma channels */
-			dmas = <&dma 6>, <&dma 7>;
-			dma-names = "tx", "rx";
 			/* the chipselects used - <0> means native GPIO
 			 * add more gpios if necessary as <&gpio 6 1>
 			 * (but do not forget to make them output!)
