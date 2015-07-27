@@ -1,9 +1,0 @@
-#
-# BCM2835 Soc drivers
-#
-config BCM2708_POWER
-        tristate "BCM2708 legacy power driver"
-        depends on (ARCH_BCM2708 || ARCH_BCM2709 || ARCH_BCM2835) && BCM2708_MBOX
-        default y
-        help
-          Turns on USB power and provides an API for controlling power.
