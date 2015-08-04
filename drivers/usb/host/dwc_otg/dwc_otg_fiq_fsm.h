@@ -260,12 +260,13 @@ struct fiq_dma_blob {
  * @iso_frame:	Pointer to the array of OTG URB iso_frame_descs.
  * @nrframes:	Total length of iso_frame_desc array
  * @index:	Current index (FIQ-maintained)
- *
+ * @stride:	Interval in uframes between HS isoc transactions
  */
 struct fiq_hs_isoc_info {
 	struct dwc_otg_hcd_iso_packet_desc *iso_desc;
 	unsigned int nrframes;
 	unsigned int index;
+	unsigned int stride;
 };
 
 /**
@@ -296,6 +297,8 @@ struct fiq_channel_state {
 	/* Hardware bug workaround: sometimes channel halt interrupts are
 	 * delayed until the next SOF. Keep track of when we expected to get interrupted. */
 	unsigned int expected_uframe;
+	/* number of uframes remaining (for interval > 1 HS isoc transfers) before next transfer */
+	unsigned int uframe_sleeps;
 	/* in/out for communicating number of dma buffers used, or number of ISOC to do */
 	unsigned int nrpackets;
 	struct fiq_dma_info dma_info;
