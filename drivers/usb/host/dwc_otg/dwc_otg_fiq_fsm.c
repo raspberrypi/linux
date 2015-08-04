@@ -615,8 +615,11 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 			break;
 
 		case FIQ_HS_ISOC_SLEEPING:
-			state->channel[n].fsm = FIQ_HS_ISOC_TURBO;
-			fiq_fsm_restart_channel(state, n, 0);
+			/* Is it time to wake this channel yet? */
+			if (--state->channel[n].uframe_sleeps == 0) {
+				state->channel[n].fsm = FIQ_HS_ISOC_TURBO;
+				fiq_fsm_restart_channel(state, n, 0);
+			}
 			break;
 
 		case FIQ_PER_SSPLIT_QUEUED:
@@ -624,7 +627,7 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 				break;
 			if(!fiq_fsm_tt_in_use(state, num_channels, n)) {
 				if (!fiq_fsm_too_late(state, n)) {
-					fiq_print(FIQDBG_INT, st, "SOF GO %01d", n);
+					fiq_print(FIQDBG_INT, state, "SOF GO %01d", n);
 					fiq_fsm_restart_channel(state, n, 0);
 					state->channel[n].fsm = FIQ_PER_SSPLIT_STARTED;
 				} else {
@@ -1069,8 +1072,14 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 		if (fiq_fsm_update_hs_isoc(state, n, hcint)) {
 			/* more transactions to come */
 			handled = 1;
-			restart = 1;
 			fiq_print(FIQDBG_INT, state, "HSISO M ");
+			/* For strided transfers, put ourselves to sleep */
+			if (st->hs_isoc_info.stride > 1) {
+				st->uframe_sleeps = st->hs_isoc_info.stride - 1;
+				st->fsm = FIQ_HS_ISOC_SLEEPING;
+			} else {
+				restart = 1;
+			}
 		} else {
 			st->fsm = FIQ_HS_ISOC_DONE;
 			fiq_print(FIQDBG_INT, state, "HSISO F ");
