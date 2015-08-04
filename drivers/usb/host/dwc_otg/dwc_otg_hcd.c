@@ -1678,6 +1678,9 @@ int fiq_fsm_queue_isoc_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 		}
 	}
 
+	st->hs_isoc_info.stride = qh->interval;
+	st->uframe_sleeps = 0;
+
 	fiq_print(FIQDBG_INT, hcd->fiq_state, "FSMQ  %01d ", hc->hc_num);
 	fiq_print(FIQDBG_INT, hcd->fiq_state, "%08x", st->hcchar_copy.d32);
 	fiq_print(FIQDBG_INT, hcd->fiq_state, "%08x", st->hctsiz_copy.d32);
@@ -1692,9 +1695,11 @@ int fiq_fsm_queue_isoc_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	DWC_WRITE_REG32(&hc_regs->hcintmsk, st->hcintmsk_copy.d32);
 	if (hfnum.b.frrem < PERIODIC_FRREM_BACKOFF) {
 		/* Prevent queueing near EOF1. Bad things happen if a periodic
-		 * split transaction is queued very close to EOF.
+		 * split transaction is queued very close to EOF. SOF interrupt handler
+		 * will wake this channel at the next interrupt.
 		 */
 		st->fsm = FIQ_HS_ISOC_SLEEPING;
+		st->uframe_sleeps = 1;
 	} else {
 		st->fsm = FIQ_HS_ISOC_TURBO;
 		st->hcchar_copy.b.chen = 1;
