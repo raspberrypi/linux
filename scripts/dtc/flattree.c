@@ -255,6 +255,204 @@ static int stringtable_insert(struct data *d, const char *str)
 	return i;
 }
 
+static void emit_local_fixups(struct node *tree, struct emitter *emit,
+		void *etarget, struct data *strbuf, struct version_info *vi,
+		struct node *node)
+{
+	struct fixup_entry *fe, *fen;
+	struct node *child;
+	int nameoff, count;
+	cell_t *buf;
+	struct data d;
+
+	if (node->emit_local_fixup_node) {
+
+		/* emit the external fixups (do not emit /) */
+		if (node != tree) {
+			emit->beginnode(etarget, NULL);
+			emit->string(etarget, node->name, 0);
+			emit->align(etarget, sizeof(cell_t));
+		}
+
+		for_each_local_fixup_entry(tree, fe) {
+			if (fe->node != node || fe->local_fixup_generated)
+				continue;
+
+			/* count the number of fixup entries */
+			count = 0;
+			for_each_local_fixup_entry(tree, fen) {
+				if (fen->prop != fe->prop)
+					continue;
+				fen->local_fixup_generated = true;
+				count++;
+			}
+
+			/* allocate buffer */
+			buf = xmalloc(count * sizeof(cell_t));
+
+			/* collect all the offsets in buffer */
+			count = 0;
+			for_each_local_fixup_entry(tree, fen) {
+				if (fen->prop != fe->prop)
+					continue;
+				fen->local_fixup_generated = true;
+				buf[count++] = cpu_to_fdt32(fen->offset);
+			}
+			d = empty_data;
+			d.len = count * sizeof(cell_t);
+			d.val = (char *)buf;
+
+			nameoff = stringtable_insert(strbuf, fe->prop->name);
+			emit->property(etarget, fe->prop->labels);
+			emit->cell(etarget, count * sizeof(cell_t));
+			emit->cell(etarget, nameoff);
+
+			if ((vi->flags & FTF_VARALIGN) &&
+					(count * sizeof(cell_t)) >= 8)
+				emit->align(etarget, 8);
+
+			emit->data(etarget, d);
+			emit->align(etarget, sizeof(cell_t));
+
+			free(buf);
+		}
+	}
+
+	for_each_child(node, child)
+		emit_local_fixups(tree, emit, etarget, strbuf, vi, child);
+
+	if (node->emit_local_fixup_node && node != tree)
+		emit->endnode(etarget, tree->labels);
+}
+
+static void emit_symbols_node(struct node *tree, struct emitter *emit,
+			      void *etarget, struct data *strbuf,
+			      struct version_info *vi)
+{
+	struct symbol *sym;
+	int nameoff, vallen;
+
+	/* do nothing if no symbols */
+	if (!tree->symbols)
+		return;
+
+	emit->beginnode(etarget, NULL);
+	emit->string(etarget, "__symbols__", 0);
+	emit->align(etarget, sizeof(cell_t));
+
+	for_each_symbol(tree, sym) {
+
+		vallen = strlen(sym->node->fullpath);
+
+		nameoff = stringtable_insert(strbuf, sym->label->label);
+
+		emit->property(etarget, NULL);
+		emit->cell(etarget, vallen + 1);
+		emit->cell(etarget, nameoff);
+
+		if ((vi->flags & FTF_VARALIGN) && vallen >= 8)
+			emit->align(etarget, 8);
+
+		emit->string(etarget, sym->node->fullpath,
+				strlen(sym->node->fullpath));
+		emit->align(etarget, sizeof(cell_t));
+	}
+
+	emit->endnode(etarget, NULL);
+}
+
+static void emit_local_fixups_node(struct node *tree, struct emitter *emit,
+				   void *etarget, struct data *strbuf,
+				   struct version_info *vi)
+{
+	struct fixup_entry *fe;
+	struct node *node;
+
+	/* do nothing if no local fixups */
+	if (!tree->local_fixups)
+		return;
+
+	/* mark all nodes that need a local fixup generated (and parents) */
+	for_each_local_fixup_entry(tree, fe) {
+		node = fe->node;
+		while (node != NULL && !node->emit_local_fixup_node) {
+			node->emit_local_fixup_node = true;
+			node = node->parent;
+		}
+	}
+
+	/* emit the local fixups node now */
+	emit->beginnode(etarget, NULL);
+	emit->string(etarget, "__local_fixups__", 0);
+	emit->align(etarget, sizeof(cell_t));
+
+	emit_local_fixups(tree, emit, etarget, strbuf, vi, tree);
+
+	emit->endnode(etarget, tree->labels);
+}
+
+static void emit_fixups_node(struct node *tree, struct emitter *emit,
+			     void *etarget, struct data *strbuf,
+			     struct version_info *vi)
+{
+	struct fixup *f;
+	struct fixup_entry *fe;
+	char *name, *s;
+	const char *fullpath;
+	int namesz, nameoff, vallen;
+
+	/* do nothing if no fixups */
+	if (!tree->fixups)
+		return;
+
+	/* emit the external fixups */
+	emit->beginnode(etarget, NULL);
+	emit->string(etarget, "__fixups__", 0);
+	emit->align(etarget, sizeof(cell_t));
+
+	for_each_fixup(tree, f) {
+
+		namesz = 0;
+		for_each_fixup_entry(f, fe) {
+			fullpath = fe->node->fullpath;
+			if (fullpath[0] == '\0')
+				fullpath = "/";
+			namesz += strlen(fullpath) + 1;
+			namesz += strlen(fe->prop->name) + 1;
+			namesz += 32;	/* space for :<number> + '\0' */
+		}
+
+		name = xmalloc(namesz);
+
+		s = name;
+		for_each_fixup_entry(f, fe) {
+			fullpath = fe->node->fullpath;
+			if (fullpath[0] == '\0')
+				fullpath = "/";
+			snprintf(s, name + namesz - s, "%s:%s:%d", fullpath,
+					fe->prop->name, fe->offset);
+			s += strlen(s) + 1;
+		}
+
+		nameoff = stringtable_insert(strbuf, f->ref);
+		vallen = s - name - 1;
+
+		emit->property(etarget, NULL);
+		emit->cell(etarget, vallen + 1);
+		emit->cell(etarget, nameoff);
+
+		if ((vi->flags & FTF_VARALIGN) && vallen >= 8)
+			emit->align(etarget, 8);
+
+		emit->string(etarget, name, vallen);
+		emit->align(etarget, sizeof(cell_t));
+
+		free(name);
+	}
+
+	emit->endnode(etarget, tree->labels);
+}
+
 static void flatten_tree(struct node *tree, struct emitter *emit,
 			 void *etarget, struct data *strbuf,
 			 struct version_info *vi)
@@ -309,6 +507,10 @@ static void flatten_tree(struct node *tree, struct emitter *emit,
 	for_each_child(tree, child) {
 		flatten_tree(child, emit, etarget, strbuf, vi);
 	}
+
+	emit_symbols_node(tree, emit, etarget, strbuf, vi);
+	emit_local_fixups_node(tree, emit, etarget, strbuf, vi);
+	emit_fixups_node(tree, emit, etarget, strbuf, vi);
 
 	emit->endnode(etarget, tree->labels);
 }
