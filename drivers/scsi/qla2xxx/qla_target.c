@@ -113,6 +113,7 @@ static void qlt_abort_cmd_on_host_reset(struct scsi_qla_host *vha,
 static void qlt_alloc_qfull_cmd(struct scsi_qla_host *vha,
 	struct atio_from_isp *atio, uint16_t status, int qfull);
 static void qlt_disable_vha(struct scsi_qla_host *vha);
+static void qlt_clear_tgt_db(struct qla_tgt *tgt);
 /*
  * Global Variables
  */
@@ -431,10 +432,10 @@ static int qlt_reset(struct scsi_qla_host *vha, void *iocb, int mcmd)
 
 	loop_id = le16_to_cpu(n->u.isp24.nport_handle);
 	if (loop_id == 0xFFFF) {
-#if 0 /* FIXME: Re-enable Global event handling.. */
 		/* Global event */
-		atomic_inc(&ha->tgt.qla_tgt->tgt_global_resets_count);
-		qlt_clear_tgt_db(ha->tgt.qla_tgt);
+		atomic_inc(&vha->vha_tgt.qla_tgt->tgt_global_resets_count);
+		qlt_clear_tgt_db(vha->vha_tgt.qla_tgt);
+#if 0 /* FIXME: do we need to choose a session here? */
 		if (!list_empty(&ha->tgt.qla_tgt->sess_list)) {
 			sess = list_entry(ha->tgt.qla_tgt->sess_list.next,
 			    typeof(*sess), sess_list_entry);
@@ -782,25 +783,20 @@ void qlt_fc_port_added(struct scsi_qla_host *vha, fc_port_t *fcport)
 
 void qlt_fc_port_deleted(struct scsi_qla_host *vha, fc_port_t *fcport)
 {
-	struct qla_hw_data *ha = vha->hw;
 	struct qla_tgt *tgt = vha->vha_tgt.qla_tgt;
 	struct qla_tgt_sess *sess;
-	unsigned long flags;
 
 	if (!vha->hw->tgt.tgt_ops)
 		return;
 
-	if (!tgt || (fcport->port_type != FCT_INITIATOR))
+	if (!tgt)
 		return;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
 	if (tgt->tgt_stop) {
-		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 		return;
 	}
 	sess = qlt_find_sess_by_port_name(tgt, fcport->port_name);
 	if (!sess) {
-		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 		return;
 	}
 
@@ -808,7 +804,6 @@ void qlt_fc_port_deleted(struct scsi_qla_host *vha, fc_port_t *fcport)
 
 	sess->local = 1;
 	qlt_schedule_sess_for_deletion(sess, false);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 }
 
 static inline int test_tgt_sess_count(struct qla_tgt *tgt)
@@ -2347,9 +2342,10 @@ int qlt_xmit_response(struct qla_tgt_cmd *cmd, int xmit_type,
 		res = qlt_build_ctio_crc2_pkt(&prm, vha);
 	else
 		res = qlt_24xx_build_ctio_pkt(&prm, vha);
-	if (unlikely(res != 0))
+	if (unlikely(res != 0)) {
+		vha->req->cnt += full_req_cnt;
 		goto out_unmap_unlock;
-
+	}
 
 	pkt = (struct ctio7_to_24xx *)prm.pkt;
 
@@ -2487,8 +2483,11 @@ int qlt_rdy_to_xfer(struct qla_tgt_cmd *cmd)
 	else
 		res = qlt_24xx_build_ctio_pkt(&prm, vha);
 
-	if (unlikely(res != 0))
+	if (unlikely(res != 0)) {
+		vha->req->cnt += prm.req_cnt;
 		goto out_unlock_free_unmap;
+	}
+
 	pkt = (struct ctio7_to_24xx *)prm.pkt;
 	pkt->u.status0.flags |= __constant_cpu_to_le16(CTIO7_FLAGS_DATA_OUT |
 	    CTIO7_FLAGS_STATUS_MODE_0);
@@ -2717,7 +2716,7 @@ static int __qlt_send_term_exchange(struct scsi_qla_host *vha,
 static void qlt_send_term_exchange(struct scsi_qla_host *vha,
 	struct qla_tgt_cmd *cmd, struct atio_from_isp *atio, int ha_locked)
 {
-	unsigned long flags;
+	unsigned long flags = 0;
 	int rc;
 
 	if (qlt_issue_marker(vha, ha_locked) < 0)
@@ -2733,17 +2732,18 @@ static void qlt_send_term_exchange(struct scsi_qla_host *vha,
 	rc = __qlt_send_term_exchange(vha, cmd, atio);
 	if (rc == -ENOMEM)
 		qlt_alloc_qfull_cmd(vha, atio, 0, 0);
-	spin_unlock_irqrestore(&vha->hw->hardware_lock, flags);
 
 done:
 	if (cmd && ((cmd->state != QLA_TGT_STATE_ABORTED) ||
 	    !cmd->cmd_sent_to_fw)) {
-		if (!ha_locked && !in_interrupt())
-			msleep(250); /* just in case */
-
-		qlt_unmap_sg(vha, cmd);
+		if (cmd->sg_mapped)
+			qlt_unmap_sg(vha, cmd);
 		vha->hw->tgt.tgt_ops->free_cmd(cmd);
 	}
+
+	if (!ha_locked)
+		spin_unlock_irqrestore(&vha->hw->hardware_lock, flags);
+
 	return;
 }
 
@@ -3347,6 +3347,11 @@ static struct qla_tgt_cmd *qlt_get_tag(scsi_qla_host_t *vha,
 	cmd->loop_id = sess->loop_id;
 	cmd->conf_compl_supported = sess->conf_compl_supported;
 
+	cmd->cmd_flags = 0;
+	cmd->jiffies_at_alloc = get_jiffies_64();
+
+	cmd->reset_count = vha->hw->chip_reset;
+
 	return cmd;
 }
 
@@ -3452,11 +3457,6 @@ static int qlt_handle_cmd_for_atio(struct scsi_qla_host *vha,
 		ha->tgt.tgt_ops->put_sess(sess);
 		return -ENOMEM;
 	}
-
-	cmd->cmd_flags = 0;
-	cmd->jiffies_at_alloc = get_jiffies_64();
-
-	cmd->reset_count = vha->hw->chip_reset;
 
 	cmd->cmd_in_wq = 1;
 	cmd->cmd_flags |= BIT_0;
