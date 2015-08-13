@@ -183,7 +183,6 @@
 #define MAXIRQNUM                      (32 + 32 + 20)
 #define MAXFIQNUM                      (32 + 32 + 20)
 
-#define MAX_TIMER                       2
 #define MAX_PERIOD                      699050
 #define TICKS_PER_uSEC                  1
 
