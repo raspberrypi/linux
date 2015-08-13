@@ -843,7 +843,6 @@ static void __init bcm2708_dt_init(void)
 {
 	int ret;
 
-	of_clk_init(NULL);
 	ret = of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 	if (ret) {
 		pr_err("of_platform_populate failed: %d\n", ret);
@@ -1043,6 +1042,12 @@ static struct delay_timer bcm2708_delay_timer = {
 
 static void __init bcm2708_timer_init(void)
 {
+	if (of_have_populated_dt()) {
+		of_clk_init(NULL);
+		clocksource_of_init();
+		return;
+	}
+
 	/* init high res timer */
 	bcm2708_clocksource_init();
 
