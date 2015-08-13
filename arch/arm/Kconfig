@@ -320,6 +320,8 @@ config ARCH_BCM2708
 	bool "Broadcom BCM2708 family"
 	select CPU_V6
 	select ARM_AMBA
+	select CLKSRC_MMIO
+	select CLKSRC_OF if OF
 	select HAVE_SCHED_CLOCK
 	select NEED_MACH_GPIO_H
 	select NEED_MACH_MEMORY_H
