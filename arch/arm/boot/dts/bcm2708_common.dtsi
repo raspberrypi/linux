@@ -74,9 +74,10 @@
 		};
 
 		mailbox: mailbox@7e00b800 {
-			compatible = "brcm,bcm2708-vcio";
+			compatible = "brcm,bcm2835-mbox";
 			reg = <0x7e00b880 0x40>;
 			interrupts = <0 1>;
+			#mbox-cells = <0>;
 		};
 
 		watchdog: watchdog@7e100000 {
@@ -205,12 +206,18 @@
 				     <1 9>;
 		};
 
+		firmware: firmware {
+			compatible = "raspberrypi,bcm2835-firmware";
+			mboxes = <&mailbox>;
+		};
+
 		leds: leds {
 			compatible = "gpio-leds";
 		};
 
 		fb: fb {
 			compatible = "brcm,bcm2708-fb";
+			firmware = <&firmware>;
 			status = "disabled";
 		};
 
@@ -219,10 +226,12 @@
 			reg = <0x7e00b840 0xf>;
 			interrupts = <0 2>;
 			cache-line-size = <32>;
+			firmware = <&firmware>;
 		};
 
 		thermal: thermal {
 			compatible = "brcm,bcm2835-thermal";
+			firmware = <&firmware>;
 		};
 	};
 

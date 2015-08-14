@@ -7,12 +7,6 @@ menuconfig MAILBOX
 
 if MAILBOX
 
-config BCM2708_MBOX
-	bool "Broadcom BCM2708 Mailbox (vcio)"
-	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
-	help
-	  Broadcom BCM2708 Mailbox (vcio)
-
 config ARM_MHU
 	tristate "ARM MHU Mailbox"
 	depends on ARM_AMBA
@@ -70,7 +64,7 @@ config ALTERA_MBOX
 
 config BCM2835_MBOX
 	tristate "BCM2835 Mailbox"
-	depends on ARCH_BCM2835
+	depends on ARCH_BCM2835 || ARCH_BCM2708 || ARCH_BCM2709
 	help
 	  An implementation of the BCM2385 Mailbox.  It is used to invoke
 	  the services of the Videocore. Say Y here if you want to use the
