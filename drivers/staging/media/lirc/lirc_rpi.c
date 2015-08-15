@@ -39,11 +39,12 @@
 #include <linux/spinlock.h>
 #include <media/lirc.h>
 #include <media/lirc_dev.h>
-#include <mach/gpio.h>
 #include <linux/gpio.h>
 #include <linux/of_platform.h>
-
 #include <linux/platform_data/bcm2708.h>
+#ifndef CONFIG_ARCH_BCM2835
+#include <mach/gpio.h>
+#endif
 
 #define LIRC_DRIVER_NAME "lirc_rpi"
 #define RBUF_LEN 256
@@ -388,6 +389,10 @@ static int init_port(void)
 	}
 	else
 	{
+#ifdef CONFIG_ARCH_BCM2835
+		ret = -EINVAL;
+		goto exit_init_port;
+#else
 		if (gpio_in_pin >= BCM2708_NR_GPIOS ||
 		    gpio_out_pin >= BCM2708_NR_GPIOS) {
 			ret = -EINVAL;
@@ -413,6 +418,7 @@ static int init_port(void)
 		bcm2708_gpio_setpull(gpiochip, gpio_in_pin, gpio_in_pull);
 		gpiochip->direction_input(gpiochip, gpio_in_pin);
 		gpiochip->direction_output(gpiochip, gpio_out_pin, 1);
+#endif
 	}
 
 	gpiochip->set(gpiochip, gpio_out_pin, invert);
