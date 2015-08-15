@@ -40,7 +40,9 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#ifndef CONFIG_ARCH_BCM2835
 #include <mach/gpio.h>
+#endif
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -320,6 +322,9 @@ static int bcm2708_i2s_set_dai_bclk_ratio(struct snd_soc_dai *dai,
 }
 
 
+#ifdef CONFIG_ARCH_BCM2835
+static void bcm2708_i2s_setup_gpio(void) { }
+#else
 static int bcm2708_i2s_set_function(unsigned offset, int function)
 {
 	#define GPIOFSEL(x)  (0x00+(x)*4)
@@ -379,6 +384,7 @@ static void bcm2708_i2s_setup_gpio(void)
 		bcm2708_i2s_set_function(pin, alt);
 	}
 }
+#endif
 
 static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 				 struct snd_pcm_hw_params *params,
