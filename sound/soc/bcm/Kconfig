@@ -10,7 +10,7 @@ config SND_BCM2835_SOC_I2S
 
 config SND_BCM2708_SOC_I2S
 	tristate "SoC Audio support for the Broadcom BCM2708 I2S module"
-	depends on MACH_BCM2708 || MACH_BCM2709
+	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
 	select REGMAP_MMIO
 	select SND_SOC_DMAENGINE_PCM
 	select SND_SOC_GENERIC_DMAENGINE_PCM
