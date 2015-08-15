@@ -1,9 +1,13 @@
 /dts-v1/;
-#include "bcm2835.dtsi"
+
+#include "bcm2835-rpi-cm.dtsi"
 
 / {
-	compatible = "raspberrypi,model-b-plus", "brcm,bcm2835";
-	model = "Raspberry Pi Model B+";
+	model = "Raspberry Pi Compute Module";
+};
+
+&uart0 {
+	status = "okay";
 };
 
 &gpio {
@@ -26,19 +30,6 @@
 		brcm,pins = <18 19 20 21>;
 		brcm,function = <4>; /* alt0 */
 	};
-};
-
-&mmc {
-	status = "okay";
-	bus-width = <4>;
-};
-
-&fb {
-	status = "okay";
-};
-
-&uart0 {
-	status = "okay";
 };
 
 &spi0 {
@@ -84,20 +75,6 @@
 	pinctrl-0 = <&i2s_pins>;
 };
 
-&leds {
-	act_led: act {
-		label = "led0";
-		linux,default-trigger = "mmc0";
-		gpios = <&gpio 47 0>;
-	};
-
-	pwr_led: pwr {
-		label = "led1";
-		linux,default-trigger = "input";
-		gpios = <&gpio 35 0>;
-	};
-};
-
 / {
 	__overrides__ {
 		uart0 = <&uart0>,"status";
@@ -112,17 +89,5 @@
 		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
 		i2c2_baudrate = <&i2c2>,"clock-frequency:0";
 		core_freq = <&clk_core>,"clock-frequency:0";
-
-		act_led_gpio = <&act_led>,"gpios:4";
-		act_led_activelow = <&act_led>,"gpios:8";
-		act_led_trigger = <&act_led>,"linux,default-trigger";
-
-		pwr_led_gpio = <&pwr_led>,"gpios:4";
-		pwr_led_activelow = <&pwr_led>,"gpios:8";
-		pwr_led_trigger = <&pwr_led>,"linux,default-trigger";
-
-		audio = <&audio>,"status";
-		watchdog = <&watchdog>,"status";
-		random = <&random>,"status";
 	};
 };
