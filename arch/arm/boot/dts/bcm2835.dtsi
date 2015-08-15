@@ -22,6 +22,11 @@
 		arm-pmu {
 			compatible = "arm,arm1176-pmu";
 		};
+
+		aux_enable: aux_enable@0x7e215004 {
+			compatible = "bcrm,bcm2835-aux-enable";
+			reg = <0x7e215004 0x04>;
+		};
 	};
 };
 
