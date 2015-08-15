@@ -10,7 +10,7 @@ comment "PC SMBus host controller drivers"
 
 config I2C_BCM2708
 	tristate "BCM2708 BSC"
-	depends on MACH_BCM2708 || MACH_BCM2709
+	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
 	help
 	  Enabling this option will add BSC (Broadcom Serial Controller)
 	  support for the BCM2708. BSC is a Broadcom proprietary bus compatible
