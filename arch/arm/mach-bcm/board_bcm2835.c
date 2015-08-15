@@ -22,6 +22,29 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
+/* Use this hack until a proper solution is agreed upon */
+static void __init bcm2835_init_uart1(void)
+{
+	struct device_node *np;
+
+	np = of_find_compatible_node(NULL, NULL, "brcm,bcm2835-aux-uart");
+	if (of_device_is_available(np)) {
+		np = of_find_compatible_node(NULL, NULL,
+					     "bcrm,bcm2835-aux-enable");
+		if (np) {
+			void __iomem *base = of_iomap(np, 0);
+
+			if (!base) {
+				pr_err("bcm2835: Failed enabling Mini UART\n");
+				return;
+			}
+
+			writel(1, base);
+			pr_info("bcm2835: Mini UART enabled\n");
+		}
+	}
+}
+
 static void __init bcm2835_init(void)
 {
 	struct device_node *np = of_find_node_by_path("/system");
@@ -42,6 +65,8 @@ static void __init bcm2835_init(void)
 		system_rev = val;
 	if (!of_property_read_u64(np, "linux,serial", &val64))
 		system_serial_low = val64;
+
+	bcm2835_init_uart1();
 }
 
 static const char * const bcm2835_compat[] = {
