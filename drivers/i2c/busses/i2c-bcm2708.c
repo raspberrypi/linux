@@ -96,6 +96,9 @@ struct bcm2708_i2c {
 	bool error;
 };
 
+#ifdef CONFIG_ARCH_BCM2835
+static void bcm2708_i2c_init_pinmode(int id) { }
+#else
 /*
  * This function sets the ALT mode on the I2C pins so that we can use them with
  * the BSC hardware.
@@ -123,6 +126,7 @@ static void bcm2708_i2c_init_pinmode(int id)
 #undef INP_GPIO
 #undef SET_GPIO_ALT
 }
+#endif
 
 static inline u32 bcm2708_rd(struct bcm2708_i2c *bi, unsigned reg)
 {
