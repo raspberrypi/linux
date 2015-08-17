@@ -519,6 +519,12 @@ Load:   dtoverlay=spi-bcm2835
 Params: <None>
 
 
+Name:   spi-gpio35-39
+Info:   move SPI function block to GPIO 35 to 39
+Load:   dtoverlay=spi-gpio35-39
+Params: <None>
+
+
 Name:   tinylcd35
 Info:   3.5" Color TFT Display by www.tinylcd.com
         Options: Touch, RTC, keypad
