@@ -9,8 +9,13 @@
 
 &gpio {
 	spi0_pins: spi0_pins {
-		brcm,pins = <7 8 9 10 11>;
+		brcm,pins = <9 10 11>;
 		brcm,function = <4>; /* alt0 */
+	};
+
+	spi0_cs_pins: spi0_cs_pins {
+		brcm,pins = <8 7>;
+		brcm,function = <1>; /* output */
 	};
 
 	i2c0_pins: i2c0 {
@@ -44,7 +49,8 @@
 
 &spi0 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&spi0_pins>;
+	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+	cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
 
 	spidev@0{
 		compatible = "spidev";

@@ -1,5 +1,5 @@
 /*
- * Device tree overlay to use spi-bcm2708
+ * Device tree overlay to move spi0 to gpio 35 to 39 on CM
  */
 
 /dts-v1/;
@@ -7,19 +7,25 @@
 
 / {
 	compatible = "brcm,bcm2835", "brcm,bcm2836", "brcm,bcm2708", "brcm,bcm2709";
-	/* setting up compatiblity to allow loading the spi-bcm2835 driver */
+
 	fragment@0 {
 		target = <&spi0>;
 		__overlay__ {
-			status = "okay";
-			compatible = "brcm,bcm2708-spi";
+			cs-gpios = <&gpio 36 1>, <&gpio 35 1>;
 		};
 	};
 
 	fragment@1 {
 		target = <&spi0_cs_pins>;
 		__overlay__ {
-			brcm,function = <4>; /* alt0 */
+			bcrm,pins = <36 35>;
+		};
+	};
+
+	fragment@2 {
+		target = <&spi0_pins>;
+		__overlay__ {
+			bcrm,pins = <37 38 39>;
 		};
 	};
 };
