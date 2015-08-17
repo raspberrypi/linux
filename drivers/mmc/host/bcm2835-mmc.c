@@ -684,12 +684,10 @@ void bcm2835_mmc_send_command(struct bcm2835_host *host, struct mmc_command *cmd
 	}
 
 	timeout = jiffies;
-#ifdef CONFIG_ARCH_BCM2835
 	if (!cmd->data && cmd->busy_timeout > 9000)
 		timeout += DIV_ROUND_UP(cmd->busy_timeout, 1000) * HZ + HZ;
 	else
-#endif
-	timeout += 10 * HZ;
+		timeout += 10 * HZ;
 	mod_timer(&host->timer, timeout);
 
 	host->cmd = cmd;
@@ -984,9 +982,6 @@ static irqreturn_t bcm2835_mmc_irq(int irq, void *dev_id)
 	struct bcm2835_host *host = dev_id;
 	u32 intmask, mask, unexpected = 0;
 	int max_loops = 16;
-#ifndef CONFIG_ARCH_BCM2835
-	int cardint = 0;
-#endif
 
 	spin_lock(&host->lock);
 
@@ -1015,13 +1010,9 @@ static irqreturn_t bcm2835_mmc_irq(int irq, void *dev_id)
 				mmc_hostname(host->mmc));
 
 		if (intmask & SDHCI_INT_CARD_INT) {
-#ifndef CONFIG_ARCH_BCM2835
-			cardint = 1;
-#else
 			bcm2835_mmc_enable_sdio_irq_nolock(host, false);
 			host->thread_isr |= SDHCI_INT_CARD_INT;
 			result = IRQ_WAKE_THREAD;
-#endif
 		}
 
 		intmask &= ~(SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE |
@@ -1048,15 +1039,9 @@ out:
 		bcm2835_mmc_dumpregs(host);
 	}
 
-#ifndef CONFIG_ARCH_BCM2835
-	if (cardint)
-		mmc_signal_sdio_irq(host->mmc);
-#endif
-
 	return result;
 }
 
-#ifdef CONFIG_ARCH_BCM2835
 static irqreturn_t bcm2835_mmc_thread_irq(int irq, void *dev_id)
 {
 	struct bcm2835_host *host = dev_id;
@@ -1079,7 +1064,6 @@ static irqreturn_t bcm2835_mmc_thread_irq(int irq, void *dev_id)
 
 	return isr ? IRQ_HANDLED : IRQ_NONE;
 }
-#endif
 
 
 
@@ -1323,12 +1307,13 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 
 	/* SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK */
 	host->timeout_clk = mmc->f_max / 1000;
-#ifdef CONFIG_ARCH_BCM2835
 	mmc->max_busy_timeout = (1 << 27) / host->timeout_clk;
-#endif
+
 	/* host controller capabilities */
 	mmc->caps = MMC_CAP_CMD23 | MMC_CAP_ERASE | MMC_CAP_NEEDS_POLL | MMC_CAP_SDIO_IRQ |
 	MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED | MMC_CAP_4_BIT_DATA;
+
+	mmc->caps2 |= MMC_CAP2_SDIO_IRQ_NOTHREAD;
 
 	host->flags = SDHCI_AUTO_CMD23;
 
@@ -1377,14 +1362,9 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 	init_waitqueue_head(&host->buf_ready_int);
 
 	bcm2835_mmc_init(host, 0);
-#ifndef CONFIG_ARCH_BCM2835
-	ret = devm_request_irq(dev, host->irq, bcm2835_mmc_irq, 0,
-			       mmc_hostname(mmc), host);
-#else
 	ret = devm_request_threaded_irq(dev, host->irq, bcm2835_mmc_irq,
 					bcm2835_mmc_thread_irq, IRQF_SHARED,
 					mmc_hostname(mmc), host);
-#endif
 	if (ret) {
 		dev_err(dev, "Failed to request IRQ %d: %d\n", host->irq, ret);
 		goto untasklet;

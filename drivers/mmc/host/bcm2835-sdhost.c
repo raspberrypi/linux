@@ -1283,9 +1283,7 @@ static irqreturn_t bcm2835_sdhost_irq(int irq, void *dev_id)
 	struct bcm2835_host *host = dev_id;
 	u32 unexpected = 0, early = 0;
 	int loops = 0;
-#ifndef CONFIG_ARCH_BCM2835
-	int cardint = 0;
-#endif
+
 	spin_lock(&host->lock);
 
 	for (loops = 0; loops < 1; loops++) {
@@ -1331,13 +1329,9 @@ static irqreturn_t bcm2835_sdhost_irq(int irq, void *dev_id)
 			handled |= bcm2835_sdhost_block_irq(host, intmask);
 
 		if (intmask & SDHSTS_SDIO_IRPT) {
-#ifndef CONFIG_ARCH_BCM2835
-			cardint = 1;
-#else
 			bcm2835_sdhost_enable_sdio_irq_nolock(host, false);
 			host->thread_isr |= SDHSTS_SDIO_IRPT;
 			result = IRQ_WAKE_THREAD;
-#endif
 		}
 
 		unexpected |= (intmask & ~handled);
@@ -1357,15 +1351,9 @@ static irqreturn_t bcm2835_sdhost_irq(int irq, void *dev_id)
 		bcm2835_sdhost_dumpregs(host);
 	}
 
-#ifndef CONFIG_ARCH_BCM2835
-	if (cardint)
-		mmc_signal_sdio_irq(host->mmc);
-#endif
-
 	return result;
 }
 
-#ifdef CONFIG_ARCH_BCM2835
 static irqreturn_t bcm2835_sdhost_thread_irq(int irq, void *dev_id)
 {
 	struct bcm2835_host *host = dev_id;
@@ -1390,7 +1378,6 @@ static irqreturn_t bcm2835_sdhost_thread_irq(int irq, void *dev_id)
 
 	return isr ? IRQ_HANDLED : IRQ_NONE;
 }
-#endif
 
 
 
@@ -1734,14 +1721,9 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 		    (unsigned long)host);
 
 	bcm2835_sdhost_init(host, 0);
-#ifndef CONFIG_ARCH_BCM2835
-	ret = request_irq(host->irq, bcm2835_sdhost_irq, 0 /*IRQF_SHARED*/,
-				  mmc_hostname(mmc), host);
-#else
 	ret = request_threaded_irq(host->irq, bcm2835_sdhost_irq,
 				   bcm2835_sdhost_thread_irq,
 				   IRQF_SHARED,	mmc_hostname(mmc), host);
-#endif
 	if (ret) {
 		pr_err("%s: failed to request IRQ %d: %d\n",
 		       mmc_hostname(mmc), host->irq, ret);
