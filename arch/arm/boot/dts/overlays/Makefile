@@ -45,6 +45,7 @@ dtb-$(RPI_DT_OVERLAYS) += rpi-sense-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += sdhost-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-bcm2708-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-bcm2835-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += spi-gpio35-39-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += tinylcd35-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += uart1-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += vga666-overlay.dtb
