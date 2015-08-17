@@ -410,6 +410,47 @@ Load:   dtoverlay=pps-gpio,<param>=<val>
 Params: gpiopin                  Input GPIO (default "18")
 
 
+Name:   pwm
+Info:   Configures a single PWM channel
+        Legal pin,function combinations for each channel:
+          PWM0: 12,4(Alt0) 18,2(Alt5) 40,4(Alt0)            52,5(Alt1)
+          PWM1: 13,4(Alt0) 19,2(Alt5) 41,4(Alt0) 45,4(Alt0) 53,5(Alt1)
+        N.B.:
+          1) Pin 18 is the only one available on all platforms, and
+             it is the one used by the I2S audio interface.
+             Pins 12 and 13 might be better choices on an A+, B+ or Pi2.
+          2) The onboard analogue audio output uses both PWM channels.
+          3) So be careful mixing audio and PWM.
+          4) Currently the clock must have been enabled and configured
+             by other means.
+Load:   dtoverlay=pwm-2chan,<param>=<val>
+Load:   dtoverlay=pwm,<param>=<val>
+Params: pin                      Output pin (default 18) - see table
+        func                     Pin function (default 2 = Alt5) - see above
+        clock                    PWM clock frequency (informational)
+
+
+Name:   pwm-2chan
+Info:   Configures both PWM channels
+        Legal pin,function combinations for each channel:
+          PWM0: 12,4(Alt0) 18,2(Alt5) 40,4(Alt0)            52,5(Alt1)
+          PWM1: 13,4(Alt0) 19,2(Alt5) 41,4(Alt0) 45,4(Alt0) 53,5(Alt1)
+        N.B.:
+          1) Pin 18 is the only one available on all platforms, and
+             it is the one used by the I2S audio interface.
+             Pins 12 and 13 might be better choices on an A+, B+ or Pi2.
+          2) The onboard analogue audio output uses both PWM channels.
+          3) So be careful mixing audio and PWM.
+          4) Currently the clock must have been enabled and configured
+             by other means.
+Load:   dtoverlay=pwm-2chan,<param>=<val>
+Params: pin                      Output pin (default 18) - see table
+        pin2                     Output pin for other channel (default 19)
+        func                     Pin function (default 2 = Alt5) - see above
+        func2                    Function for pin2 (default 2 = Alt5)
+        clock                    PWM clock frequency (informational)
+
+
 Name:   rpi-dac
 Info:   Configures the RPi DAC audio card
 Load:   dtoverlay=rpi-dac

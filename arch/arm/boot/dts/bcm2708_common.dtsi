@@ -154,6 +154,14 @@
 			status = "disabled";
 		};
 
+		pwm: pwm@7e20c000 {
+			compatible = "brcm,bcm2835-pwm";
+			reg = <0x7e20c000 0x28>;
+			clocks = <&clk_pwm>;
+			#pwm-cells = <2>;
+			status = "disabled";
+		};
+
 		uart1: uart@7e215040 {
 			compatible = "brcm,bcm2835-aux-uart", "ns16550";
 			reg = <0x7e215040 0x40>;
@@ -278,6 +286,14 @@
 			#clock-cells = <0>;
 			clock-output-names = "apb_pclk";
 			clock-frequency = <126000000>;
+		};
+
+		clk_pwm: clock@5 {
+			 compatible = "fixed-clock";
+			 reg = <3>;
+			 #clock-cells = <0>;
+			 clock-output-names = "pwm";
+			 clock-frequency = <100000000>;
 		};
 	};
 
