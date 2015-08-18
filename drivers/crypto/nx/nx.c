@@ -215,8 +215,15 @@ struct nx_sg *nx_walk_and_build(struct nx_sg       *nx_dst,
  * @delta:  is the amount we need to crop in order to bound the list.
  *
  */
-static long int trim_sg_list(struct nx_sg *sg, struct nx_sg *end, unsigned int delta)
+static long int trim_sg_list(struct nx_sg *sg,
+			     struct nx_sg *end,
+			     unsigned int delta,
+			     unsigned int *nbytes)
 {
+	long int oplen;
+	long int data_back;
+	unsigned int is_delta = delta;
+
 	while (delta && end > sg) {
 		struct nx_sg *last = end - 1;
 
@@ -228,54 +235,20 @@ static long int trim_sg_list(struct nx_sg *sg, struct nx_sg *end, unsigned int d
 			delta -= last->len;
 		}
 	}
-	return (sg - end) * sizeof(struct nx_sg);
-}
 
-/**
- * nx_sha_build_sg_list - walk and build sg list to sha modes
- *			  using right bounds and limits.
- * @nx_ctx: NX crypto context for the lists we're building
- * @nx_sg: current sg list in or out list
- * @op_len: current op_len to be used in order to build a sg list
- * @nbytes:  number or bytes to be processed
- * @offset: buf offset
- * @mode: SHA256 or SHA512
- */
-int nx_sha_build_sg_list(struct nx_crypto_ctx *nx_ctx,
-			  struct nx_sg 	      *nx_in_outsg,
-			  s64		      *op_len,
-			  unsigned int        *nbytes,
-			  u8 		      *offset,
-			  u32		      mode)
-{
-	unsigned int delta = 0;
-	unsigned int total = *nbytes;
-	struct nx_sg *nx_insg = nx_in_outsg;
-	unsigned int max_sg_len;
-
-	max_sg_len = min_t(u64, nx_ctx->ap->sglen,
-			nx_driver.of.max_sg_len/sizeof(struct nx_sg));
-	max_sg_len = min_t(u64, max_sg_len,
-			nx_ctx->ap->databytelen/NX_PAGE_SIZE);
-
-	*nbytes = min_t(u64, *nbytes, nx_ctx->ap->databytelen);
-	nx_insg = nx_build_sg_list(nx_insg, offset, nbytes, max_sg_len);
-
-	switch (mode) {
-	case NX_DS_SHA256:
-		if (*nbytes < total)
-			delta = *nbytes - (*nbytes & ~(SHA256_BLOCK_SIZE - 1));
-		break;
-	case NX_DS_SHA512:
-		if (*nbytes < total)
-			delta = *nbytes - (*nbytes & ~(SHA512_BLOCK_SIZE - 1));
-		break;
-	default:
-		return -EINVAL;
+	/* There are cases where we need to crop list in order to make it
+	 * a block size multiple, but we also need to align data. In order to
+	 * that we need to calculate how much we need to put back to be
+	 * processed
+	 */
+	oplen = (sg - end) * sizeof(struct nx_sg);
+	if (is_delta) {
+		data_back = (abs(oplen) / AES_BLOCK_SIZE) *  sg->len;
+		data_back = *nbytes - (data_back & ~(AES_BLOCK_SIZE - 1));
+		*nbytes -= data_back;
 	}
-	*op_len = trim_sg_list(nx_in_outsg, nx_insg, delta);
 
-	return 0;
+	return oplen;
 }
 
 /**
@@ -330,8 +303,8 @@ int nx_build_sg_lists(struct nx_crypto_ctx  *nx_ctx,
 	/* these lengths should be negative, which will indicate to phyp that
 	 * the input and output parameters are scatterlists, not linear
 	 * buffers */
-	nx_ctx->op.inlen = trim_sg_list(nx_ctx->in_sg, nx_insg, delta);
-	nx_ctx->op.outlen = trim_sg_list(nx_ctx->out_sg, nx_outsg, delta);
+	nx_ctx->op.inlen = trim_sg_list(nx_ctx->in_sg, nx_insg, delta, nbytes);
+	nx_ctx->op.outlen = trim_sg_list(nx_ctx->out_sg, nx_outsg, delta, nbytes);
 
 	return 0;
 }
@@ -662,12 +635,14 @@ static int nx_crypto_ctx_init(struct nx_crypto_ctx *nx_ctx, u32 fc, u32 mode)
 /* entry points from the crypto tfm initializers */
 int nx_crypto_ctx_aes_ccm_init(struct crypto_tfm *tfm)
 {
+	tfm->crt_aead.reqsize = sizeof(struct nx_ccm_rctx);
 	return nx_crypto_ctx_init(crypto_tfm_ctx(tfm), NX_FC_AES,
 				  NX_MODE_AES_CCM);
 }
 
 int nx_crypto_ctx_aes_gcm_init(struct crypto_tfm *tfm)
 {
+	tfm->crt_aead.reqsize = sizeof(struct nx_gcm_rctx);
 	return nx_crypto_ctx_init(crypto_tfm_ctx(tfm), NX_FC_AES,
 				  NX_MODE_AES_GCM);
 }
