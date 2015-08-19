@@ -74,6 +74,10 @@ behaviour. See the list of overlays below for a description of the parameters an
 The Overlay and Parameter Reference
 ===================================
 
+N.B. When editing this file, please preserve the indentation levels to make it simple to parse
+programmatically. NO HARD TABS.
+
+
 Name:   <The base DTB>
 Info:   Configures the base Raspberry Pi hardware
 Load:   <loaded automatically>
