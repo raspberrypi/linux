@@ -11,7 +11,7 @@
 	fragment@0 {
 		target = <&spi0>;
 		__overlay__ {
-			cs-gpios = <&gpio 36>, <&gpio 35>;
+			cs-gpios = <&gpio 36 1>, <&gpio 35 1>;
 		};
 	};
 
