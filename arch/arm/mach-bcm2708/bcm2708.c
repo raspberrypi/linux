@@ -25,6 +25,7 @@
 #include <linux/platform_device.h>
 #include <linux/syscore_ops.h>
 #include <linux/interrupt.h>
+#include <linux/irqchip.h>
 #include <linux/amba/bus.h>
 #include <linux/amba/clcd.h>
 #include <linux/clk-provider.h>
@@ -101,7 +102,10 @@ static void __init bcm2708_init_led(void);
 
 void __init bcm2708_init_irq(void)
 {
-	armctrl_init(__io_address(ARMCTRL_IC_BASE), 0, 0, 0);
+	if (of_have_populated_dt())
+		irqchip_init();
+	else
+		armctrl_init(__io_address(ARMCTRL_IC_BASE), 0, 0, 0);
 }
 
 static struct map_desc bcm2708_io_desc[] __initdata = {

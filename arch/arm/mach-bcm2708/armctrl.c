@@ -26,9 +26,21 @@
 #include <linux/irqdomain.h>
 #include <linux/of.h>
 
+#include <asm/exception.h>
 #include <asm/mach/irq.h>
 #include <mach/hardware.h>
 #include "armctrl.h"
+
+/* Mask out shortcut interrupts where they also appear in the regular bank */
+#define BANK0_HWIRQ	0x001ffcff
+#define BANK1_HWIRQ	BIT(8)
+#define BANK2_HWIRQ	BIT(9)
+#define BANK0_VALID_MASK \
+	(BANK0_HWIRQ + BANK1_HWIRQ + BANK2_HWIRQ)
+#define BANK1_VALID_MASK \
+	(~(BIT(7) | BIT(9) | BIT(10) | BIT(18) | BIT(19)))
+#define BANK2_VALID_MASK \
+	(~(BIT(21) | BIT(22) | BIT(23) | BIT(24) | BIT(25) | BIT(30)))
 
 /* For support of kernels >= 3.0 assume only one VIC for now*/
 static unsigned int remap_irqs[(INTERRUPT_ARASANSDIO + 1) - INTERRUPT_JPEG] = {
@@ -285,6 +297,59 @@ static struct irq_chip armctrl_chip = {
 	.irq_set_wake = armctrl_set_wake,
 };
 
+#ifdef CONFIG_MULTI_IRQ_HANDLER
+
+static void __exception_irq_entry armctrl_handle_irq(
+	struct pt_regs *regs)
+{
+	u32 stat;
+
+	while ((stat = readl_relaxed(__io_address(ARM_IRQ_PEND0)) &
+		BANK0_VALID_MASK)) {
+		u32 stat2;
+		u32 irq;
+
+		if (stat & BANK0_HWIRQ) {
+			irq = ARM_IRQ0_BASE + ffs(stat & BANK0_HWIRQ) - 1;
+		} else if (stat & BANK1_HWIRQ) {
+			stat2 = readl_relaxed(__io_address(ARM_IRQ_PEND1)) &
+				BANK1_VALID_MASK;
+			if (stat2)
+				irq = ARM_IRQ1_BASE +
+					ffs(stat2 & BANK1_VALID_MASK) - 1;
+			else
+				continue;
+		} else if (stat & BANK2_HWIRQ) {
+			stat2 = readl_relaxed(__io_address(ARM_IRQ_PEND2)) &
+				BANK2_VALID_MASK;
+			if (stat2)
+				irq = ARM_IRQ2_BASE +
+					ffs(stat2 & BANK2_VALID_MASK) - 1;
+			else
+				continue;
+		} else {
+			BUG();
+		}
+
+		handle_IRQ(irq, regs);
+	}
+}
+
+/* This function forces the interrupt numbers to be allocated sequentially,
+ * instead of with gaps due to the sparse BANK0, to make the offset from
+ * IRQs and FIQs constant (and equal to FIQ_START).
+ */
+unsigned int arch_dynirq_lower_bound(unsigned int from)
+{
+	if (from < 24)
+		return from + 24;
+	else if (from >= 104)
+		return from - 24;
+	return from;
+}
+
+#endif
+
 /**
  * armctrl_init - initialise a vectored interrupt controller
  * @base: iomem base address
@@ -308,6 +373,9 @@ int __init armctrl_init(void __iomem * base, unsigned int irq_start,
 		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
 	}
 
+#ifdef CONFIG_MULTI_IRQ_HANDLER
+	set_handle_irq(armctrl_handle_irq);
+#endif
 	armctrl_pm_register(base, irq_start, resume_sources);
 	init_FIQ(FIQ_START);
 	armctrl_dt_init();
