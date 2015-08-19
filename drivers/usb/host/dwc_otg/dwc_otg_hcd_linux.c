@@ -448,7 +448,12 @@ static void hcd_init_fiq(void *cookie)
 #ifdef CONFIG_ARCH_BCM2835
 	enable_fiq(platform_get_irq(otg_dev->os_dep.platformdev, 1));
 #else
-	enable_fiq(INTERRUPT_VC_USB);
+#ifdef CONFIG_MULTI_IRQ_HANDLER
+	if (otg_dev->os_dep.platformdev->dev.of_node)
+		enable_fiq(platform_get_irq(otg_dev->os_dep.platformdev, 1));
+	else
+#endif
+		enable_fiq(INTERRUPT_VC_USB);
 #endif
 	local_fiq_enable();
 }
