@@ -65,7 +65,7 @@
 			brcm,dma-channel-mask = <0x0f35>;
 		};
 
-		intc: interrupt-controller {
+		intc: interrupt-controller@7e00b200 {
 			compatible = "brcm,bcm2708-armctrl-ic";
 			reg = <0x7e00b200 0x200>;
 			interrupt-controller;

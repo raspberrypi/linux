@@ -24,3 +24,7 @@
 		};
 	};
 };
+
+&intc {
+	compatible = "brcm,bcm2835-armctrl-ic";
+};

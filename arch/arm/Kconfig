@@ -330,6 +330,7 @@ config ARCH_BCM2708
 	select GENERIC_CLOCKEVENTS
 	select ARM_ERRATA_411920
 	select MACH_BCM2708
+	select MULTI_IRQ_HANDLER
 	select VC4
 	select FIQ
 	help
