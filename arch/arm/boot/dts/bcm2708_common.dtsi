@@ -59,11 +59,10 @@
 				     <1 24>,
 				     <1 25>,
 				     <1 26>,
-				     <1 27>,
-				     <1 28>;
+				     <1 27>;
 
 			#dma-cells = <1>;
-			brcm,dma-channel-mask = <0x7f35>;
+			brcm,dma-channel-mask = <0x0f35>;
 		};
 
 		intc: interrupt-controller {
