@@ -184,7 +184,7 @@ static void vc_dmaman_init(struct vc_dmaman *dmaman, void __iomem *dma_base,
 }
 
 static int vc_dmaman_chan_alloc(struct vc_dmaman *dmaman,
-				unsigned preferred_feature_set)
+				unsigned required_feature_set)
 {
 	u32 chans;
 	int chan = 0;
@@ -193,10 +193,8 @@ static int vc_dmaman_chan_alloc(struct vc_dmaman *dmaman,
 	chans = dmaman->chan_available;
 	for (feature = 0; feature < BCM_DMA_FEATURE_COUNT; feature++)
 		/* select the subset of available channels with the desired
-		   feature so long as some of the candidate channels have that
-		   feature */
-		if ((preferred_feature_set & (1 << feature)) &&
-		    (chans & dmaman->has_feature[feature]))
+		   features */
+		if (required_feature_set & (1 << feature))
 			chans &= dmaman->has_feature[feature];
 
 	if (!chans)
@@ -228,7 +226,7 @@ static int vc_dmaman_chan_free(struct vc_dmaman *dmaman, int chan)
 
 /* DMA Manager Monitor */
 
-extern int bcm_dma_chan_alloc(unsigned preferred_feature_set,
+extern int bcm_dma_chan_alloc(unsigned required_feature_set,
 			      void __iomem **out_dma_base, int *out_dma_irq)
 {
 	struct vc_dmaman *dmaman = g_dmaman;
@@ -240,7 +238,7 @@ extern int bcm_dma_chan_alloc(unsigned preferred_feature_set,
 		return -ENODEV;
 
 	mutex_lock(&dmaman->lock);
-	chan = vc_dmaman_chan_alloc(dmaman, preferred_feature_set);
+	chan = vc_dmaman_chan_alloc(dmaman, required_feature_set);
 	if (chan < 0)
 		goto out;
 
@@ -442,6 +440,7 @@ static inline struct bcm2835_desc *to_bcm2835_dma_desc(
 	return container_of(t, struct bcm2835_desc, vd.tx);
 }
 
+#if 0
 static void dma_dumpregs(struct bcm2835_chan *c)
 {
 	pr_debug("-------------DMA DUMPREGS-------------\n");
@@ -457,6 +456,7 @@ static void dma_dumpregs(struct bcm2835_chan *c)
 		readl(c->chan_base + BCM2835_DMA_NEXTCB));
 	pr_debug("--------------------------------------\n");
 }
+#endif
 
 static void bcm2835_dma_desc_free(struct virt_dma_desc *vd)
 {
@@ -862,6 +862,7 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_slave_sg(
 		uint32_t len = sg_dma_len(sgent);
 
 		for (j = 0; j < len; j += max_size) {
+			u32 waits;
 			struct bcm2835_dma_cb *control_block =
 				&d->control_block_base[i+splitct];
 
@@ -879,7 +880,7 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_slave_sg(
 			}
 
 			/* Common part */
-			u32 waits = SDHCI_BCM_DMA_WAITS;
+			waits = SDHCI_BCM_DMA_WAITS;
 			if ((dma_debug >> 0) & 0x1f)
 				waits = (dma_debug >> 0) & 0x1f;
 			control_block->info |= BCM2835_DMA_WAITS(waits);
@@ -1074,6 +1075,14 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	int rc;
 	int i;
 	int irq;
+#ifdef CONFIG_DMA_BCM2708_LEGACY
+	static const u32 wanted_features[] = {
+		BCM_DMA_FEATURE_FAST,
+		BCM_DMA_FEATURE_NORMAL,
+		BCM_DMA_FEATURE_LITE
+	};
+	int j;
+#endif
 
 
 	if (!pdev->dev.dma_mask)
@@ -1120,20 +1129,24 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, od);
 
-	for (i = 0; i < 5; i++) {
+	for (i = 0, j = 0; j < ARRAY_SIZE(wanted_features);) {
+
 		void __iomem *chan_base;
 		int chan_id;
 
-		chan_id = bcm_dma_chan_alloc(BCM_DMA_FEATURE_LITE,
-			&chan_base,
-			&irq);
+		chan_id = bcm_dma_chan_alloc(wanted_features[j],
+					     &chan_base,
+					     &irq);
 
-		if (chan_id < 0)
-			break;
+		if (chan_id < 0) {
+			j++;
+			continue;
+		}
 
 		rc = bcm2708_dma_chan_init(od, chan_base, chan_id, irq);
 		if (rc)
 			goto err_no_dma;
+		i++;
 	}
 
 	if (pdev->dev.of_node) {
@@ -1145,6 +1158,8 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 			goto err_no_dma;
 		}
 	}
+
+	dev_info(&pdev->dev, "Initialized %i DMA channels (+ 1 legacy)\n", i);
 
 #else
 	rc = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
