@@ -22,6 +22,12 @@
 		arm-pmu {
 			compatible = "arm,arm1176-pmu";
 		};
+
+		gpiomem {
+			compatible = "brcm,bcm2835-gpiomem";
+			reg = <0x7e200000 0x1000>;
+			status = "okay";
+		};
 	};
 };
 
