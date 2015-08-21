@@ -16,6 +16,12 @@
 			compatible = "arm,cortex-a7-pmu";
 			interrupts = <3 9>;
 		};
+
+		gpiomem {
+			compatible = "brcm,bcm2835-gpiomem";
+			reg = <0x7e200000 0x1000>;
+			status = "okay";
+		};
 	};
 
 	timer {
