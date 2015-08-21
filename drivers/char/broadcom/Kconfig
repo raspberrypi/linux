@@ -16,3 +16,11 @@ config BCM2708_VCMEM
           Helper for videocore memory access and total size allocation.
 
 endif
+
+config BCM2835_DEVGPIOMEM
+	tristate "/dev/gpiomem rootless GPIO access via mmap() on the BCM2835"
+	default m
+	help
+		Provides users with root-free access to the GPIO registers
+		on the 2835. Calling mmap(/dev/gpiomem) will map the GPIO
+		register page to the user's pointer.
