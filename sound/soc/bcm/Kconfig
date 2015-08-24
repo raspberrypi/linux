@@ -67,3 +67,11 @@ config SND_BCM2708_SOC_IQAUDIO_DAC
 	select SND_SOC_PCM512x_I2C
 	help
 	  Say Y or M if you want to add support for IQaudIO-DAC.
+
+config SND_BCM2708_SOC_RASPIDAC3
+	tristate "Support for RaspiDAC Rev.3x"
+	depends on SND_BCM2708_SOC_I2S
+	select SND_SOC_PCM512x_I2C
+	select SND_SOC_TPA6130A2
+	help
+	  Say Y or M if you want to add support for RaspiDAC Rev.3x.
