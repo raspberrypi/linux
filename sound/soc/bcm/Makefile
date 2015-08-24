@@ -16,6 +16,7 @@ snd-soc-hifiberry-digi-objs := hifiberry_digi.o
 snd-soc-rpi-dac-objs := rpi-dac.o
 snd-soc-rpi-proto-objs := rpi-proto.o
 snd-soc-iqaudio-dac-objs := iqaudio-dac.o
+snd-soc-raspidac3-objs := raspidac3.o
 
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP) += snd-soc-hifiberry-amp.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) += snd-soc-hifiberry-dac.o
@@ -24,3 +25,4 @@ obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI) += snd-soc-hifiberry-digi.o
 obj-$(CONFIG_SND_BCM2708_SOC_RPI_DAC) += snd-soc-rpi-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_RPI_PROTO) += snd-soc-rpi-proto.o
 obj-$(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) += snd-soc-iqaudio-dac.o
+obj-$(CONFIG_SND_BCM2708_SOC_RASPIDAC3) += snd-soc-raspidac3.o
