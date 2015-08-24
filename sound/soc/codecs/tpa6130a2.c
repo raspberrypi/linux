@@ -4,6 +4,7 @@
  * Copyright (C) Nokia Corporation
  *
  * Author: Peter Ujfalusi <peter.ujfalusi@ti.com>
+ * Modified: Jan Grulich <jan@grulich.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -51,6 +52,8 @@ struct tpa6130a2_data {
 	u8 power_state:1;
 	enum tpa_model id;
 };
+
+static void tpa6130a2_channel_enable(u8 channel, int enable);
 
 static int tpa6130a2_i2c_read(int reg)
 {
@@ -189,7 +192,7 @@ exit:
 }
 
 static int tpa6130a2_get_volsw(struct snd_kcontrol *kcontrol,
-		struct snd_ctl_elem_value *ucontrol)
+			       struct snd_ctl_elem_value *ucontrol)
 {
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
@@ -218,7 +221,7 @@ static int tpa6130a2_get_volsw(struct snd_kcontrol *kcontrol,
 }
 
 static int tpa6130a2_put_volsw(struct snd_kcontrol *kcontrol,
-		struct snd_ctl_elem_value *ucontrol)
+			       struct snd_ctl_elem_value *ucontrol)
 {
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
@@ -255,8 +258,22 @@ static int tpa6130a2_put_volsw(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
+static int tpa6130a2_put_hp_sw(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	int enable = ucontrol->value.integer.value[0];
+	unsigned int state;
+
+	state = (tpa6130a2_read(TPA6130A2_REG_VOL_MUTE) & 0x80) == 0;
+	if (state == enable)
+		return 0; /* No change */
+
+	tpa6130a2_channel_enable(TPA6130A2_HP_EN_R | TPA6130A2_HP_EN_L, enable);
+	return 1; /* Changed */
+}
+
 /*
- * TPA6130 volume. From -59.5 to 4 dB with increasing step size when going
+ * TPA6130 volume. From -59.5 to +4.0 dB with increasing step size when going
  * down in gain.
  */
 static const DECLARE_TLV_DB_RANGE(tpa6130_tlv,
@@ -277,6 +294,9 @@ static const struct snd_kcontrol_new tpa6130a2_controls[] = {
 		       TPA6130A2_REG_VOL_MUTE, 0, 0x3f, 0,
 		       tpa6130a2_get_volsw, tpa6130a2_put_volsw,
 		       tpa6130_tlv),
+	SOC_SINGLE_EXT("TPA6130A2 Headphone Playback Switch",
+		       TPA6130A2_REG_VOL_MUTE, 7, 1, 1,
+		       tpa6130a2_get_volsw, tpa6130a2_put_hp_sw),
 };
 
 static const DECLARE_TLV_DB_RANGE(tpa6140_tlv,
@@ -290,6 +310,9 @@ static const struct snd_kcontrol_new tpa6140a2_controls[] = {
 		       TPA6130A2_REG_VOL_MUTE, 1, 0x1f, 0,
 		       tpa6130a2_get_volsw, tpa6130a2_put_volsw,
 		       tpa6140_tlv),
+	SOC_SINGLE_EXT("TPA6140A2 Headphone Playback Switch",
+		       TPA6130A2_REG_VOL_MUTE, 7, 1, 1,
+		       tpa6130a2_get_volsw, tpa6130a2_put_hp_sw),
 };
 
 /*
