@@ -455,6 +455,12 @@ Params: pin                      Output pin (default 18) - see table
         clock                    PWM clock frequency (informational)
 
 
+Name:   raspidac3
+Info:   Configures the RaspiDAV Rev.3x audio card
+Load:   dtoverlay=raspidac3
+Params: <None>
+
+
 Name:   rpi-dac
 Info:   Configures the RPi DAC audio card
 Load:   dtoverlay=rpi-dac
