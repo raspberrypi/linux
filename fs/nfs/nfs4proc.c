@@ -1220,6 +1220,7 @@ static void nfs_resync_open_stateid_locked(struct nfs4_state *state)
 }
 
 static void nfs_clear_open_stateid_locked(struct nfs4_state *state,
+		nfs4_stateid *arg_stateid,
 		nfs4_stateid *stateid, fmode_t fmode)
 {
 	clear_bit(NFS_O_RDWR_STATE, &state->flags);
@@ -1238,8 +1239,9 @@ static void nfs_clear_open_stateid_locked(struct nfs4_state *state,
 	if (stateid == NULL)
 		return;
 	/* Handle races with OPEN */
-	if (!nfs4_stateid_match_other(stateid, &state->open_stateid) ||
-	    !nfs4_stateid_is_newer(stateid, &state->open_stateid)) {
+	if (!nfs4_stateid_match_other(arg_stateid, &state->open_stateid) ||
+	    (nfs4_stateid_match_other(stateid, &state->open_stateid) &&
+	    !nfs4_stateid_is_newer(stateid, &state->open_stateid))) {
 		nfs_resync_open_stateid_locked(state);
 		return;
 	}
@@ -1248,10 +1250,12 @@ static void nfs_clear_open_stateid_locked(struct nfs4_state *state,
 	nfs4_stateid_copy(&state->open_stateid, stateid);
 }
 
-static void nfs_clear_open_stateid(struct nfs4_state *state, nfs4_stateid *stateid, fmode_t fmode)
+static void nfs_clear_open_stateid(struct nfs4_state *state,
+	nfs4_stateid *arg_stateid,
+	nfs4_stateid *stateid, fmode_t fmode)
 {
 	write_seqlock(&state->seqlock);
-	nfs_clear_open_stateid_locked(state, stateid, fmode);
+	nfs_clear_open_stateid_locked(state, arg_stateid, stateid, fmode);
 	write_sequnlock(&state->seqlock);
 	if (test_bit(NFS_STATE_RECLAIM_NOGRACE, &state->flags))
 		nfs4_schedule_state_manager(state->owner->so_server->nfs_client);
@@ -2684,7 +2688,8 @@ static void nfs4_close_done(struct rpc_task *task, void *data)
 				goto out_release;
 			}
 	}
-	nfs_clear_open_stateid(state, res_stateid, calldata->arg.fmode);
+	nfs_clear_open_stateid(state, &calldata->arg.stateid,
+			res_stateid, calldata->arg.fmode);
 out_release:
 	nfs_release_seqid(calldata->arg.seqid);
 	nfs_refresh_inode(calldata->inode, calldata->res.fattr);
