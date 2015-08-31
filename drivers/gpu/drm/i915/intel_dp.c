@@ -1134,7 +1134,7 @@ skl_edp_set_pll_config(struct intel_crtc_state *pipe_config)
 	pipe_config->dpll_hw_state.ctrl1 = ctrl1;
 }
 
-static void
+void
 hsw_dp_set_ddi_pll_sel(struct intel_crtc_state *pipe_config)
 {
 	memset(&pipe_config->dpll_hw_state, 0,
