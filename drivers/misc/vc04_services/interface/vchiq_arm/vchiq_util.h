@@ -60,6 +60,7 @@ typedef struct {
 	int size;
 	int read;
 	int write;
+	int initialized;
 
 	struct semaphore pop;
 	struct semaphore push;
