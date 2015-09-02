@@ -851,7 +851,7 @@ static int port_info_set(struct vchiq_mmal_instance *instance,
 	       sizeof(union mmal_es_specific_format));
 
 	m.u.port_info_set.format.extradata_size = port->format.extradata_size;
-	memcpy(rmsg->u.port_info_set.extradata, port->format.extradata,
+	memcpy(&m.u.port_info_set.extradata, port->format.extradata,
 	       port->format.extradata_size);
 
 	ret = send_synchronous_mmal_msg(instance, &m,
