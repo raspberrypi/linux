@@ -1368,8 +1368,8 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 	return 0;
 
 error:
-	vmcs_sm_release_resource(resource, 0);
 	resource->res_stats[MAP_FAIL]++;
+	vmcs_sm_release_resource(resource, 0);
 	return ret;
 }
 
