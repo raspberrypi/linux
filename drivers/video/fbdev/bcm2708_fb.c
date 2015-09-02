@@ -420,7 +420,7 @@ static int bcm2708_fb_blank(int blank_mode, struct fb_info *info)
 
 static int bcm2708_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 {
-	s32 result = -1;
+	s32 result;
 	info->var.xoffset = var->xoffset;
 	info->var.yoffset = var->yoffset;
 	result = bcm2708_fb_set_par(info);
