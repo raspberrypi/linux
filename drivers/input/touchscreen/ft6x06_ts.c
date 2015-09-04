@@ -423,7 +423,7 @@ static int ft6x06_ts_suspend(struct device *dev, pm_message_t mesg)
 
 static int ft6x06_ts_resume(struct device *dev)
 {
-	struct ft6x06_ts_data *ts = dev_get_drvdata(drv);
+	struct ft6x06_ts_data *ts = dev_get_drvdata(dev);
 	dev_dbg(&ts->client->dev, "[FTS]ft6x06 resume.\n");
 	if (gpio_is_valid(ts->pdata->reset_gpio)) {
 		gpio_set_value(ts->pdata->reset_gpio, 0);
