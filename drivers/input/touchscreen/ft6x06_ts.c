@@ -464,17 +464,16 @@ static struct of_device_id ft6x06_match_table[] = {
 #define ft6x06_match_table NULL
 #endif
 
-
 static struct i2c_driver ft6x06_ts_driver = {
 	.probe = ft6x06_ts_probe,
 	.remove = ft6x06_ts_remove,
 	.id_table = ft6x06_ts_id,
-	.suspend = ft6x06_ts_suspend,
-	.resume = ft6x06_ts_resume,
 	.driver = {
 		.name = FT6X06_NAME,
 		.owner = THIS_MODULE,
 		.of_match_table=ft6x06_match_table,
+		.suspend = ft6x06_ts_suspend,
+		.resume = ft6x06_ts_resume,
 	},
 };
 
