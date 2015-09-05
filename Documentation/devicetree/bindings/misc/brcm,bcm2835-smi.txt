@@ -1,0 +1,48 @@
+* Broadcom BCM2835 SMI driver.
+
+SMI or secondary memory interface is a peripheral specific to certain Broadcom
+SOCs, and is helpful for talking to things like parallel-interface displays
+and NAND flashes (in fact, most things with a parallel register interface).
+
+Required properties:
+- compatible: "brcm,bcm2835-smi"
+- reg: Should contain location and length of SMI registers and SMI clkman regs
+- interrupts: *the* SMI interrupt.
+- pinctrl-names: should be "default".
+- pinctrl-0: the phandle of the gpio pin node.
+- brcm,smi-clock-source: the clock source for clkman
+- brcm,smi-clock-divisor: the integer clock divisor for clkman
+- dmas: the dma controller phandle and the DREQ number (4 on a 2835)
+- dma-names: the name used by the driver to request its channel.
+  Should be "rx-tx".
+
+Optional properties:
+- None.
+
+Examples:
+
+8 data pin configuration:
+
+smi: smi@7e600000 {
+	compatible = "brcm,bcm2835-smi";
+	reg = <0x7e600000 0x44>, <0x7e1010b0 0x8>;
+	interrupts = <2 16>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&smi_pins>;
+	brcm,smi-clock-source = <6>;
+	brcm,smi-clock-divisor = <4>;
+	dmas = <&dma 4>;
+	dma-names = "rx-tx";
+
+	status = "okay";
+};
+
+smi_pins: smi_pins {
+	brcm,pins = <2 3 4 5 6 7 8 9 10 11 12 13 14 15>;
+	/* Alt 1: SMI */
+	brcm,function = <5 5 5 5 5 5 5 5 5 5 5 5 5 5>;
+	/* /CS, /WE and /OE are pulled high, as they are
+	   generally active low signals */
+	brcm,pull = <2 2 2 2 2 2 0 0 0 0 0 0 0 0>;
+};
+
