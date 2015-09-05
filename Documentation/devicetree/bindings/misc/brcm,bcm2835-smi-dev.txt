@@ -1,0 +1,17 @@
+* Broadcom BCM2835 SMI character device driver.
+
+SMI or secondary memory interface is a peripheral specific to certain Broadcom
+SOCs, and is helpful for talking to things like parallel-interface displays
+and NAND flashes (in fact, most things with a parallel register interface).
+
+This driver adds a character device which provides a user-space interface to
+an instance of the SMI driver.
+
+Required properties:
+- compatible: "brcm,bcm2835-smi-dev"
+- smi_handle: a phandle to the smi node.
+
+Optional properties:
+- None.
+
+
