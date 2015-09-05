@@ -35,3 +35,11 @@ config BCM2835_DEVGPIOMEM
 		on the 2835. Calling mmap(/dev/gpiomem) will map the GPIO
 		register page to the user's pointer.
 
+config BCM2835_SMI_DEV
+	tristate "Character device driver for BCM2835 Secondary Memory Interface"
+	depends on BCM2835_SMI
+	default m
+	help
+		This driver provides a character device interface (ioctl + read/write) to
+		Broadcom's Secondary Memory interface. The low-level functionality is provided
+		by the SMI driver itself.
