@@ -205,6 +205,17 @@
 			status = "disabled";
 		};
 
+		smi: smi@7e600000 {
+			compatible = "brcm,bcm2835-smi";
+			reg = <0x7e600000 0x44>, <0x7e1010b0 0x8>;
+			interrupts = <2 16>;
+			brcm,smi-clock-source = <6>;
+			brcm,smi-clock-divisor = <4>;
+			dmas = <&dma 4>;
+			dma-names = "rx-tx";
+			status = "disabled";
+		};
+
 		usb: usb@7e980000 {
 			compatible = "brcm,bcm2708-usb";
 			reg = <0x7e980000 0x10000>,
