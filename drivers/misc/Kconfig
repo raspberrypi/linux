@@ -10,6 +10,14 @@ config SENSORS_LIS3LV02D
 	depends on INPUT
 	select INPUT_POLLDEV
 
+config BCM2835_SMI
+	tristate "Broadcom 283x Secondary Memory Interface driver"
+	depends on ARCH_BCM2835
+	default m
+	help
+		Driver for enabling and using Broadcom's Secondary/Slow Memory Interface.
+		Appears as /dev/bcm2835_smi. For ioctl interface see drivers/misc/bcm2835_smi.h
+
 config AD525X_DPOT
 	tristate "Analog Devices Digital Potentiometers"
 	depends on (I2C || SPI) && SYSFS
