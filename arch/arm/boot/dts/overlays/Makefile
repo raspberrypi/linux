@@ -43,6 +43,7 @@ dtb-$(RPI_DT_OVERLAYS) += rpi-ft5406-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-proto-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-sense-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += sdhost-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += sdio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-bcm2708-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-bcm2835-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-gpio35-39-overlay.dtb
