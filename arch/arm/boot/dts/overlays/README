@@ -507,6 +507,21 @@ Params: overclock_50             Clock (in MHz) to use when the MMC framework
         debug                    Enable debug output (default off)
 
 
+Name:   sdio
+Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock,
+        and enables SDIO via GPIOs 22-27.
+Load:   dtoverlay=sdio,<param>=<val>
+Params: overclock_50             Clock (in MHz) to use when the MMC framework
+                                 requests 50MHz
+
+        force_pio                Disable DMA support (default off)
+
+        pio_limit                Number of blocks above which to use DMA
+                                 (default 1)
+
+        debug                    Enable debug output (default off)
+
+
 Name:   spi-bcm2708
 Info:   Selects the bcm2708-spi SPI driver
 Load:   dtoverlay=spi-bcm2708
