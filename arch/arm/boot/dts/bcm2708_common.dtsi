@@ -165,7 +165,7 @@
 			compatible = "brcm,bcm2835-aux-uart", "ns16550";
 			reg = <0x7e215040 0x40>;
 			interrupts = <1 29>;
-			clock-frequency = <500000000>;
+			clocks = <&clk_uart1>;
 			reg-shift = <2>;
 			no-loopback-test;
 			status = "disabled";
@@ -293,6 +293,14 @@
 			 #clock-cells = <0>;
 			 clock-output-names = "pwm";
 			 clock-frequency = <100000000>;
+		};
+
+		clk_uart1: clock@6 {
+			compatible = "fixed-factor-clock";
+			clocks = <&clk_core>;
+			#clock-cells = <0>;
+			clock-div = <1>;
+			clock-mult = <2>;
 		};
 	};
 
