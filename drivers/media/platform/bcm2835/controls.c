@@ -845,6 +845,8 @@ static int ctrl_set_scene_mode(struct bm2835_mmal_dev *dev,
 				break;
 			}
 		}
+		if (!scene)
+			return -EINVAL;
 		if (i >= ARRAY_SIZE(scene_configs))
 			return -EINVAL;
 
