@@ -12,8 +12,6 @@
 	fragment@0 {
 		target = <&spi0>;
 		__overlay__ {
-			/* does not work with spi-bcm2835 using software chip selects */
-			compatible = "brcm,bcm2708-spi";
 			status = "okay";
 
 			spidev@0{
