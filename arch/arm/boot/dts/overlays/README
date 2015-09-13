@@ -368,6 +368,8 @@ Params: speed                    Display SPI bus speed
 
         fps                      Delay between frame updates
 
+        txbuflen                 Transmit buffer length (default 32768)
+
         debug                    Debug output level {0-7}
 
         xohms                    Touchpanel sensitivity (X-plate resistance)
