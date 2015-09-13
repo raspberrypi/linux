@@ -57,6 +57,7 @@
 				bgr;
 				fps = <30>;
 				buswidth = <8>;
+				txbuflen = <32768>;
 
 				reset-gpios = <&gpio 15 0>;
 				dc-gpios = <&gpio 25 0>;
@@ -103,6 +104,7 @@
 		speed =   <&mz61581>, "spi-max-frequency:0";
 		rotate =  <&mz61581>, "rotate:0";
 		fps =     <&mz61581>, "fps:0";
+		txbuflen = <&mz61581>, "txbuflen:0";
 		debug =   <&mz61581>, "debug:0";
 		xohms =   <&mz61581_ts>,"ti,x-plate-ohms;0";
 	};
