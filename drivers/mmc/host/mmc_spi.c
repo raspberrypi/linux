@@ -1387,6 +1387,16 @@ static int mmc_spi_probe(struct spi_device *spi)
 	if (!host->data)
 		goto fail_nobuf1;
 
+	/* for some reason mmc_spi does not work with this enabled
+	 * it is not needed anyway, as the SPI framework does DMA
+	 * transfers now automatically
+	 * the patch that introduced this was:
+	 * commit 0589342c27944e50ebd7a54f5215002b6598b748
+	 * Author: Rob Herring <rob.herring@calxeda.com>
+	 * Date:   Tue Oct 29 23:36:46 2013 -0500
+	 *      of: set dma_mask to point to coherent_dma_mask
+	 */
+#if 0
 	if (spi->master->dev.parent->dma_mask) {
 		struct device	*dev = spi->master->dev.parent;
 
@@ -1402,6 +1412,7 @@ static int mmc_spi_probe(struct spi_device *spi)
 				host->data_dma, sizeof(*host->data),
 				DMA_BIDIRECTIONAL);
 	}
+#endif
 
 	/* setup message for status/busy readback */
 	spi_message_init(&host->readback);
