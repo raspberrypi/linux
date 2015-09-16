@@ -13,9 +13,6 @@ ifeq ($(CONFIG_ARCH_BCM2835),y)
 endif
 
 dtb-$(RPI_DT_OVERLAYS) += ads7846-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += smi-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += smi-dev-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += smi-nand-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += bmp085_i2c-sensor-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += dht11-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += enc28j60-overlay.dtb
@@ -48,6 +45,9 @@ dtb-$(RPI_DT_OVERLAYS) += rpi-proto-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-sense-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += sdhost-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += sdio-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += smi-dev-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += smi-nand-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += smi-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-bcm2708-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-bcm2835-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-gpio35-39-overlay.dtb
