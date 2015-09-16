@@ -530,6 +530,24 @@ Params: overclock_50             Clock (in MHz) to use when the MMC framework
         debug                    Enable debug output (default off)
 
 
+Name:   smi
+Info:   Enables the Secondary Memory Interface peripheral. Uses GPIOs 2-25!
+Load:   dtoverlay=smi
+Params: <None>
+
+
+Name:   smi-dev
+Info:   Enables the userspace interface for the SMI driver
+Load:   dtoverlay=smi-dev
+Params: <None>
+
+
+Name:   smi-nand
+Info:   Enables access to NAND flash via the SMI interface
+Load:   dtoverlay=smi-nand
+Params: <None>
+
+
 Name:   spi-bcm2708
 Info:   Selects the bcm2708-spi SPI driver
 Load:   dtoverlay=spi-bcm2708
