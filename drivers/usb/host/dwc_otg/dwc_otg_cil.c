@@ -192,7 +192,7 @@ dwc_otg_core_if_t *dwc_otg_cil_init(const uint32_t * reg_base_addr)
 		core_if->hptxfsiz.d32 =
 		DWC_READ_REG32(&core_if->core_global_regs->hptxfsiz);
 		gusbcfg.d32 =  DWC_READ_REG32(&core_if->core_global_regs->gusbcfg);
-		gusbcfg.b.force_host_mode = 0;
+		gusbcfg.b.force_host_mode = 1;
 		DWC_WRITE_REG32(&core_if->core_global_regs->gusbcfg, gusbcfg.d32);
 		dwc_mdelay(100);
 	}
