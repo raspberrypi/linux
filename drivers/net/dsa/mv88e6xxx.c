@@ -1387,6 +1387,7 @@ static int mv88e6xxx_setup_port(struct dsa_switch *ds, int port)
 		reg = _mv88e6xxx_reg_read(ds, REG_PORT(port), PORT_PCS_CTRL);
 		if (dsa_is_cpu_port(ds, port) ||
 		    ds->dsa_port_mask & (1 << port)) {
+			reg &= ~PORT_PCS_CTRL_UNFORCED;
 			reg |= PORT_PCS_CTRL_FORCE_LINK |
 				PORT_PCS_CTRL_LINK_UP |
 				PORT_PCS_CTRL_DUPLEX_FULL |
