@@ -112,6 +112,7 @@ static void rtw_dev_remove(struct usb_interface *pusb_intf);
 	{USB_DEVICE(0x4856, 0x0091)},/* NetweeN - Feixun */ \
 	{USB_DEVICE(0x0846, 0x9041)}, /* Netgear - Cameo */ \
 	{USB_DEVICE(0x0846, 0x9042)}, /* On Networks - N150MA */ \
+	{USB_DEVICE(0x0846, 0x9043)}, /* Netgear N150 -WNA1000M */ \
 	{USB_DEVICE(0x2019, 0x4902)},/* Planex - Etop */ \
 	{USB_DEVICE(0x2019, 0xAB2E)},/* SW-WF02-AD15 -Abocom */ \
 	{USB_DEVICE(0x2001, 0x330B)}, /* D-LINK - T&W */ \
