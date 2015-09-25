@@ -38,7 +38,7 @@
 		__overlay__ {
 			adafruit13m_pins: adafruit13m_pins {
 				brcm,pins = <25 24>;
-				brcm,function = <1>; /* out */
+				brcm,function = <1 1>; /* out */
 			};
 		};
 	};
