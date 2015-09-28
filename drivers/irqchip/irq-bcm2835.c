@@ -82,6 +82,7 @@
 #define NR_BANKS		3
 #define IRQS_PER_BANK		32
 #define NUMBER_IRQS		MAKE_HWIRQ(NR_BANKS, 0)
+#undef FIQ_START
 #define FIQ_START		(NR_IRQS_BANK0 + MAKE_HWIRQ(NR_BANKS - 1, 0))
 
 static const int reg_pending[] __initconst = { 0x00, 0x04, 0x08 };
@@ -256,7 +257,7 @@ static int __init armctrl_of_init(struct device_node *node,
 					MAKE_HWIRQ(b, i) + NUMBER_IRQS);
 			BUG_ON(irq <= 0);
 			irq_set_chip(irq, &armctrl_chip);
-			set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
+			irq_set_probe(irq);
 		}
 	}
 	init_FIQ(FIQ_START);
