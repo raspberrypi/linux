@@ -338,7 +338,6 @@ config ARCH_BCM2708
 
 config ARCH_BCM2709
 	bool "Broadcom BCM2709 family"
-	select ARCH_HAS_BARRIERS if SMP
 	select CPU_V7
 	select HAVE_SMP
 	select ARM_AMBA
