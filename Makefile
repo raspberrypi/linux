@@ -1,6 +1,6 @@
 VERSION = 4
 PATCHLEVEL = 2
-SUBLEVEL = 1
+SUBLEVEL = 2
 EXTRAVERSION =
 NAME = Hurr durr I'ma sheep
 
