@@ -778,13 +778,8 @@ int cxl_reset(struct cxl *adapter)
 {
 	struct pci_dev *dev = to_pci_dev(adapter->dev.parent);
 	int rc;
-	int i;
-	u32 val;
 
 	dev_info(&dev->dev, "CXL reset\n");
-
-	for (i = 0; i < adapter->slices; i++)
-		cxl_remove_afu(adapter->afu[i]);
 
 	/* pcie_warm_reset requests a fundamental pci reset which includes a
 	 * PERST assert/deassert.  PERST triggers a loading of the image
@@ -793,20 +788,6 @@ int cxl_reset(struct cxl *adapter)
 		dev_err(&dev->dev, "cxl: pcie_warm_reset failed\n");
 		return rc;
 	}
-
-	/* the PERST done above fences the PHB.  So, reset depends on EEH
-	 * to unbind the driver, tell Sapphire to reinit the PHB, and rebind
-	 * the driver.  Do an mmio read explictly to ensure EEH notices the
-	 * fenced PHB.  Retry for a few seconds before giving up. */
-	i = 0;
-	while (((val = mmio_read32be(adapter->p1_mmio)) != 0xffffffff) &&
-		(i < 5)) {
-		msleep(500);
-		i++;
-	}
-
-	if (val != 0xffffffff)
-		dev_err(&dev->dev, "cxl: PERST failed to trigger EEH\n");
 
 	return rc;
 }
@@ -1061,8 +1042,6 @@ static int cxl_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	struct cxl *adapter;
 	int slice;
 	int rc;
-
-	pci_dev_get(dev);
 
 	if (cxl_verbose)
 		dump_cxl_config_space(dev);
