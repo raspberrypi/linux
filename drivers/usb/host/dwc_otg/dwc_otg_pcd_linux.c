@@ -1187,7 +1187,9 @@ static void free_wrapper(struct gadget_wrapper *d)
 		/* should have been done already by driver model core */
 		DWC_WARN("driver '%s' is still registered\n",
 			 d->driver->driver.name);
+#ifdef CONFIG_USB_GADGET
 		usb_gadget_unregister_driver(d->driver);
+#endif
 	}
 
 	device_unregister(&d->gadget.dev);
@@ -1274,87 +1276,5 @@ void pcd_remove(dwc_bus_dev_t *_dev)
 	free_wrapper(gadget_wrapper);
 	otg_dev->pcd = 0;
 }
-
-/**
- * This function registers a gadget driver with the PCD.
- *
- * When a driver is successfully registered, it will receive control
- * requests including set_configuration(), which enables non-control
- * requests.  then usb traffic follows until a disconnect is reported.
- * then a host may connect again, or the driver might get unbound.
- *
- * @param driver The driver being registered
- * @param bind The bind function of gadget driver
- */
-
-int usb_gadget_probe_driver(struct usb_gadget_driver *driver)
-{
-	int retval;
-
-	DWC_DEBUGPL(DBG_PCD, "registering gadget driver '%s'\n",
-		    driver->driver.name);
-
-	if (!driver || driver->max_speed == USB_SPEED_UNKNOWN ||
-	    !driver->bind ||
-	    !driver->unbind || !driver->disconnect || !driver->setup) {
-		DWC_DEBUGPL(DBG_PCDV, "EINVAL\n");
-		return -EINVAL;
-	}
-	if (gadget_wrapper == 0) {
-		DWC_DEBUGPL(DBG_PCDV, "ENODEV\n");
-		return -ENODEV;
-	}
-	if (gadget_wrapper->driver != 0) {
-		DWC_DEBUGPL(DBG_PCDV, "EBUSY (%p)\n", gadget_wrapper->driver);
-		return -EBUSY;
-	}
-
-	/* hook up the driver */
-	gadget_wrapper->driver = driver;
-	gadget_wrapper->gadget.dev.driver = &driver->driver;
-
-	DWC_DEBUGPL(DBG_PCD, "bind to driver %s\n", driver->driver.name);
-	retval = driver->bind(&gadget_wrapper->gadget, gadget_wrapper->driver);
-	if (retval) {
-		DWC_ERROR("bind to driver %s --> error %d\n",
-			  driver->driver.name, retval);
-		gadget_wrapper->driver = 0;
-		gadget_wrapper->gadget.dev.driver = 0;
-		return retval;
-	}
-	DWC_DEBUGPL(DBG_ANY, "registered gadget driver '%s'\n",
-		    driver->driver.name);
-	return 0;
-}
-EXPORT_SYMBOL(usb_gadget_probe_driver);
-
-/**
- * This function unregisters a gadget driver
- *
- * @param driver The driver being unregistered
- */
-int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)
-{
-	//DWC_DEBUGPL(DBG_PCDV,"%s(%p)\n", __func__, _driver);
-
-	if (gadget_wrapper == 0) {
-		DWC_DEBUGPL(DBG_ANY, "%s Return(%d): s_pcd==0\n", __func__,
-			    -ENODEV);
-		return -ENODEV;
-	}
-	if (driver == 0 || driver != gadget_wrapper->driver) {
-		DWC_DEBUGPL(DBG_ANY, "%s Return(%d): driver?\n", __func__,
-			    -EINVAL);
-		return -EINVAL;
-	}
-
-	driver->unbind(&gadget_wrapper->gadget);
-	gadget_wrapper->driver = 0;
-
-	DWC_DEBUGPL(DBG_ANY, "unregistered driver '%s'\n", driver->driver.name);
-	return 0;
-}
-
-EXPORT_SYMBOL(usb_gadget_unregister_driver);
 
 #endif /* DWC_HOST_ONLY */
