@@ -6,6 +6,16 @@
 	compatible = "brcm,bcm2708";
 
 	fragment@0 {
+		target-path = "/clocks";
+		__overlay__ {
+			dacpro_osc: dacpro_osc {
+				compatible = "hifiberry,dacpro-clk";
+				#clock-cells = <0>;
+			};
+		};
+	};
+
+	fragment@1 {
 		target = <&sound>;
 		__overlay__ {
 			compatible = "hifiberry,hifiberry-dacplus";
@@ -14,14 +24,14 @@
 		};
 	};
 
-	fragment@1 {
+	fragment@2 {
 		target = <&i2s>;
 		__overlay__ {
 			status = "okay";
 		};
 	};
 
-	fragment@2 {
+	fragment@3 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -32,6 +42,7 @@
 				#sound-dai-cells = <0>;
 				compatible = "ti,pcm5122";
 				reg = <0x4d>;
+				clocks = <&dacpro_osc>;
 				status = "okay";
 			};
 		};
