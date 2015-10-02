@@ -856,7 +856,8 @@ static int pcm512x_set_dividers(struct snd_soc_dai *dai,
 	int fssp;
 	int gpio;
 
-	lrclk_div = snd_soc_params_to_frame_size(params);
+	lrclk_div = snd_pcm_format_physical_width(params_format(params))
+		* params_channels(params);
 	if (lrclk_div == 0) {
 		dev_err(dev, "No LRCLK?\n");
 		return -EINVAL;
