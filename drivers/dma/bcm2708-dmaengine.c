@@ -280,53 +280,35 @@ extern int bcm_dma_chan_free(int channel)
 }
 EXPORT_SYMBOL_GPL(bcm_dma_chan_free);
 
-static int bcm_dmaman_probe(struct platform_device *pdev)
+int bcm_dmaman_probe(struct platform_device *pdev, void __iomem *base,
+		     u32 chans_available)
 {
 	struct device *dev = &pdev->dev;
 	struct vc_dmaman *dmaman;
-	struct resource *r;
-	void __iomem *dma_base;
-	uint32_t val;
-
-	if (!of_property_read_u32(dev->of_node,
-				  "brcm,dma-channel-mask", &val))
-		dmachans = val;
-	else if (dmachans == -1)
-		dmachans = DEFAULT_DMACHAN_BITMAP;
 
 	dmaman = devm_kzalloc(dev, sizeof(*dmaman), GFP_KERNEL);
 	if (!dmaman)
 		return -ENOMEM;
 
 	mutex_init(&dmaman->lock);
-	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	dma_base = devm_ioremap_resource(dev, r);
-	if (IS_ERR(dma_base))
-		return PTR_ERR(dma_base);
-
-	vc_dmaman_init(dmaman, dma_base, dmachans);
+	vc_dmaman_init(dmaman, base, chans_available);
 	g_dmaman = dmaman;
 	dmaman_dev = dev;
 
 	dev_info(dev, "DMA legacy API manager at %p, dmachans=0x%x\n",
-		 dma_base, dmachans);
+		 base, chans_available);
 
 	return 0;
 }
+EXPORT_SYMBOL(bcm_dmaman_probe);
 
-static int bcm_dmaman_remove(struct platform_device *pdev)
+int bcm_dmaman_remove(struct platform_device *pdev)
 {
 	dmaman_dev = NULL;
 
 	return 0;
 }
-
-#else /* CONFIG_DMA_BCM2708_LEGACY */
-
-static int bcm_dmaman_remove(struct platform_device *pdev)
-{
-	return 0;
-}
+EXPORT_SYMBOL(bcm_dmaman_remove);
 
 #endif /* CONFIG_DMA_BCM2708_LEGACY */
 
@@ -1067,11 +1049,9 @@ static struct dma_chan *bcm2835_dma_xlate(struct of_phandle_args *spec,
 static int bcm2835_dma_probe(struct platform_device *pdev)
 {
 	struct bcm2835_dmadev *od;
-#ifndef CONFIG_DMA_BCM2708_LEGACY
 	struct resource *res;
 	void __iomem *base;
 	uint32_t chans_available;
-#endif
 	int rc;
 	int i;
 	int irq;
@@ -1088,6 +1068,11 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	if (!pdev->dev.dma_mask)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
+
 #ifdef CONFIG_DMA_BCM2708_LEGACY
 
 	rc = dma_set_mask(&pdev->dev, DMA_BIT_MASK(32));
@@ -1100,7 +1085,13 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	if (!od)
 		return -ENOMEM;
 
-	rc = bcm_dmaman_probe(pdev);
+	if (!of_property_read_u32(pdev->dev.of_node,
+				  "brcm,dma-channel-mask", &chans_available))
+		dmachans = chans_available;
+	else if (dmachans == -1)
+		dmachans = DEFAULT_DMACHAN_BITMAP;
+
+	rc = bcm_dmaman_probe(pdev, base, dmachans);
 	if (rc)
 		return rc;
 
@@ -1174,14 +1165,7 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	pdev->dev.dma_parms = &od->dma_parms;
 	dma_set_max_seg_size(&pdev->dev, 0x3FFFFFFF);
 
-
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(base))
-		return PTR_ERR(base);
-
 	od->base = base;
-
 
 	dma_cap_set(DMA_SLAVE, od->ddev.cap_mask);
 	dma_cap_set(DMA_PRIVATE, od->ddev.cap_mask);
