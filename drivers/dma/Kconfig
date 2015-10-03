@@ -108,7 +108,7 @@ config COH901318
 
 config DMA_BCM2835
 	tristate "BCM2835 DMA engine support"
-	depends on ARCH_BCM2835
+	depends on ARCH_BCM2835 || ARCH_BCM2708 || ARCH_BCM2709
 	select DMA_ENGINE
 	select DMA_VIRTUAL_CHANNELS
 
