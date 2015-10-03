@@ -73,6 +73,7 @@ struct bcm2708_dma_cb {
 };
 
 struct scatterlist;
+struct platform_device;
 
 #ifdef CONFIG_DMA_BCM2708_LEGACY
 
@@ -86,6 +87,10 @@ int bcm_dma_abort(void __iomem *dma_chan_base);
 int bcm_dma_chan_alloc(unsigned preferred_feature_set,
 		       void __iomem **out_dma_base, int *out_dma_irq);
 int bcm_dma_chan_free(int channel);
+
+int bcm_dmaman_probe(struct platform_device *pdev, void __iomem *base,
+		     u32 chans_available);
+int bcm_dmaman_remove(struct platform_device *pdev);
 
 #else /* CONFIG_DMA_BCM2708_LEGACY */
 
@@ -120,6 +125,17 @@ static inline int bcm_dma_chan_alloc(unsigned preferred_feature_set,
 static inline int bcm_dma_chan_free(int channel)
 {
 	return -EINVAL;
+}
+
+static inline int bcm_dmaman_probe(struct platform_device *pdev,
+				   void __iomem *base, u32 chans_available)
+{
+	return 0;
+}
+
+static inline int bcm_dmaman_remove(struct platform_device *pdev)
+{
+	return 0;
 }
 
 #endif /* CONFIG_DMA_BCM2708_LEGACY */
