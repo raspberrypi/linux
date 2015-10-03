@@ -37,6 +37,7 @@
 #include <linux/interrupt.h>
 #include <linux/list.h>
 #include <linux/module.h>
+#include <linux/platform_data/dma-bcm2708.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/io.h>
@@ -48,6 +49,7 @@
 
 #define BCM2835_DMA_MAX_DMA_CHAN_SUPPORTED 14
 #define BCM2835_DMA_CHAN_NAME_SIZE 8
+#define BCM2835_DMA_BULK_MASK  BIT(0)
 
 struct bcm2835_dmadev {
 	struct dma_device ddev;
@@ -932,6 +934,9 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
+	rc = bcm_dmaman_probe(pdev, base, BCM2835_DMA_BULK_MASK);
+	if (rc)
+		dev_err(&pdev->dev, "Failed to initialize the legacy API\n");
 
 	od->base = base;
 
@@ -969,6 +974,9 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 		rc = -EINVAL;
 		goto err_no_dma;
 	}
+
+	/* Channel 0 is used by the legacy API */
+	chans_available &= ~BCM2835_DMA_BULK_MASK;
 
 	/* get irqs for each channel that we support */
 	for (i = 0; i <= BCM2835_DMA_MAX_DMA_CHAN_SUPPORTED; i++) {
@@ -1044,6 +1052,7 @@ static int bcm2835_dma_remove(struct platform_device *pdev)
 {
 	struct bcm2835_dmadev *od = platform_get_drvdata(pdev);
 
+	bcm_dmaman_remove(pdev);
 	dma_async_device_unregister(&od->ddev);
 	bcm2835_dma_free(od);
 
@@ -1059,7 +1068,22 @@ static struct platform_driver bcm2835_dma_driver = {
 	},
 };
 
-module_platform_driver(bcm2835_dma_driver);
+static int bcm2835_dma_init(void)
+{
+	return platform_driver_register(&bcm2835_dma_driver);
+}
+
+static void bcm2835_dma_exit(void)
+{
+	platform_driver_unregister(&bcm2835_dma_driver);
+}
+
+/*
+ * Load after serial driver (arch_initcall) so we see the messages if it fails,
+ * but before drivers (module_init) that need a DMA channel.
+ */
+subsys_initcall(bcm2835_dma_init);
+module_exit(bcm2835_dma_exit);
 
 MODULE_ALIAS("platform:bcm2835-dma");
 MODULE_DESCRIPTION("BCM2835 DMA engine driver");
