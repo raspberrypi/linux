@@ -1025,7 +1025,7 @@ static void bcm2835_dma_free(struct bcm2835_dmadev *od)
 }
 
 static const struct of_device_id bcm2835_dma_of_match[] = {
-	{ .compatible = "brcm,bcm2835-dma", },
+	{ .compatible = "brcm,bcm2708-dma", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, bcm2835_dma_of_match);
