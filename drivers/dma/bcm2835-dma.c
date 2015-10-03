@@ -46,6 +46,9 @@
 
 #include "virt-dma.h"
 
+static unsigned dma_debug;
+module_param(dma_debug, uint, 0644);
+
 struct bcm2835_dmadev {
 	struct dma_device ddev;
 	spinlock_t lock;
@@ -571,6 +574,7 @@ bcm2835_dma_prep_slave_sg(struct dma_chan *chan,
 		unsigned int len = sg_dma_len(sgent);
 
 		for (j = 0; j < len; j += max_size) {
+			u32 waits;
 			struct bcm2835_dma_cb *control_block =
 				&d->control_block_base[i + split_cnt];
 
@@ -590,8 +594,10 @@ bcm2835_dma_prep_slave_sg(struct dma_chan *chan,
 			}
 
 			/* Common part */
-			control_block->info |=
-				BCM2835_DMA_WAITS(BCM2835_DMA_WAIT_CYCLES);
+			waits = BCM2835_DMA_WAIT_CYCLES;
+			if ((dma_debug >> 0) & 0x1f)
+				waits = (dma_debug >> 0) & 0x1f;
+			control_block->info |= BCM2835_DMA_WAITS(waits);
 			control_block->info |= BCM2835_DMA_WAIT_RESP;
 
 			/* Enable */
@@ -856,6 +862,7 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	}
 
 	dev_dbg(&pdev->dev, "Load BCM2835 DMA engine driver\n");
+	dev_info(&pdev->dev, "dma_debug:%x\n", dma_debug);
 
 	return 0;
 
