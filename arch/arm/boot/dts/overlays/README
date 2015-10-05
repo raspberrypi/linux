@@ -69,13 +69,14 @@ DT parameters:
 
 Parameters always have default values, although in some cases (e.g. "w1-gpio")
 it is necessary to provided multiple overlays in order to get the desired
-behaviour. See the list of overlays below for a description of the parameters and their defaults.
+behaviour. See the list of overlays below for a description of the parameters
+and their defaults.
 
 The Overlay and Parameter Reference
 ===================================
 
-N.B. When editing this file, please preserve the indentation levels to make it simple to parse
-programmatically. NO HARD TABS.
+N.B. When editing this file, please preserve the indentation levels to make it
+simple to parse programmatically. NO HARD TABS.
 
 
 Name:   <The base DTB>
@@ -149,7 +150,7 @@ Name:   ads7846
 Info:   ADS7846 Touch controller
 Load:   dtoverlay=ads7846,<param>=<val>
 Params: cs                       SPI bus Chip Select (default 1)
-        speed                    SPI bus speed (default 2Mhz, max 3.25MHz)
+        speed                    SPI bus speed (default 2MHz, max 3.25MHz)
         penirq                   GPIO used for PENIRQ. REQUIRED
         penirq_pull              Set GPIO pull (default 0=none, 2=pullup)
         swapxy                   Swap x and y axis
@@ -168,6 +169,18 @@ Params: cs                       SPI bus Chip Select (default 1)
         See: github.com/notro/fbtft/wiki/FBTFT-on-Raspian
         Device Tree binding document:
         www.kernel.org/doc/Documentation/devicetree/bindings/input/ads7846.txt
+
+
+Name:   at86rf233
+Info:   Configures the Atmel AT86RF233 802.15.4 low-power WPAN transceiver,
+        connected to spi0.0
+Load:   dtoverlay=at86rf233,<param>=<val>
+Params: interrupt                GPIO used for INT (default 23)
+        reset                    GPIO used for Reset (default 24)
+        sleep                    GPIO used for Sleep (default 25)
+        speed                    SPI bus speed in Hz (default 750000)
+        trim                     Fine tuning of the internal capacitance
+                                 arrays (0=+0pF, 15=+4.5pF, default 15)
 
 
 Name:   bmp085_i2c-sensor
