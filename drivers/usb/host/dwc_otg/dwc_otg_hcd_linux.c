@@ -402,6 +402,7 @@ static void hcd_init_fiq(void *cookie)
 	dwc_otg_device_t *otg_dev = cookie;
 	dwc_otg_hcd_t *dwc_otg_hcd = otg_dev->hcd;
 	struct pt_regs regs;
+	int irq;
 
 	if (claim_fiq(&fh)) {
 		DWC_ERROR("Can't claim FIQ");
@@ -445,16 +446,16 @@ static void hcd_init_fiq(void *cookie)
 		DWC_WARN("MPHI periph has NOT been enabled");
 #endif
 	// Enable FIQ interrupt from USB peripheral
-#ifdef CONFIG_ARCH_BCM2835
-	enable_fiq(platform_get_irq(otg_dev->os_dep.platformdev, 1));
-#else
 #ifdef CONFIG_MULTI_IRQ_HANDLER
-	if (otg_dev->os_dep.platformdev->dev.of_node)
-		enable_fiq(platform_get_irq(otg_dev->os_dep.platformdev, 1));
-	else
+	irq = platform_get_irq(otg_dev->os_dep.platformdev, 1);
+#else
+	irq = INTERRUPT_VC_USB;
 #endif
-		enable_fiq(INTERRUPT_VC_USB);
-#endif
+	if (irq < 0) {
+		DWC_ERROR("Can't get FIQ irq");
+		return;
+	}
+	enable_fiq(irq);
 	local_fiq_enable();
 }
 
