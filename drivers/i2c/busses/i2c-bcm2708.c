@@ -96,38 +96,6 @@ struct bcm2708_i2c {
 	bool error;
 };
 
-#ifdef CONFIG_ARCH_BCM2835
-static void bcm2708_i2c_init_pinmode(int id) { }
-#else
-/*
- * This function sets the ALT mode on the I2C pins so that we can use them with
- * the BSC hardware.
- *
- * FIXME: This is a hack. Use pinmux / pinctrl.
- */
-static void bcm2708_i2c_init_pinmode(int id)
-{
-#define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
-#define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
-
-	int pin;
-	u32 *gpio = ioremap(GPIO_BASE, SZ_16K);
-
-	BUG_ON(id != 0 && id != 1);
-	/* BSC0 is on GPIO 0 & 1, BSC1 is on GPIO 2 & 3 */
-	for (pin = id*2+0; pin <= id*2+1; pin++) {
-		printk("bcm2708_i2c_init_pinmode(%d,%d)\n", id, pin);
-		INP_GPIO(pin);		/* set mode to GPIO input first */
-		SET_GPIO_ALT(pin, 0);	/* set mode to ALT 0 */
-	}
-
-	iounmap(gpio);
-
-#undef INP_GPIO
-#undef SET_GPIO_ALT
-}
-#endif
-
 static inline u32 bcm2708_rd(struct bcm2708_i2c *bi, unsigned reg)
 {
 	return readl(bi->base + reg);
@@ -384,9 +352,6 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "could not enable clk: %d\n", err);
 		goto out_clk_put;
 	}
-
-	if (!pdev->dev.of_node)
-		bcm2708_i2c_init_pinmode(pdev->id);
 
 	bi = kzalloc(sizeof(*bi), GFP_KERNEL);
 	if (!bi)
