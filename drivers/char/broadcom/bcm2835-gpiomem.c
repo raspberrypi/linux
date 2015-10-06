@@ -143,7 +143,6 @@ static int bcm2835_gpiomem_probe(struct platform_device *pdev)
 	int err;
 	void *ptr_err;
 	struct device *dev = &pdev->dev;
-	struct device_node *node = dev->of_node;
 	struct resource *ioresource;
 
 	/* Allocate buffers and instance data */
@@ -156,6 +155,15 @@ static int bcm2835_gpiomem_probe(struct platform_device *pdev)
 	}
 
 	inst->dev = dev;
+
+	ioresource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (ioresource) {
+		inst->gpio_regs_phys = ioresource->start;
+	} else {
+		dev_err(inst->dev, "failed to get IO resource");
+		err = -ENOENT;
+		goto failed_get_resource;
+	}
 
 	/* Create character device entries */
 
@@ -187,20 +195,6 @@ static int bcm2835_gpiomem_probe(struct platform_device *pdev)
 	if (IS_ERR(ptr_err))
 		goto failed_device_create;
 
-	/* Get address from device tree if available (*_resource() correctly
-	   converts the bus address in device tree to a physical address),
-	   or use hardcoded offset + BCM2708_PERI_BASE if not.
-	   (In spite of its name 2708 actually seems to have the correct
-	   mach-dependent value on 2709 etc, as it is defined in
-	   mach-bcm270x/platform.h) */
-
-	if (node) {
-		ioresource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-		inst->gpio_regs_phys = ioresource->start;
-	} else {
-		inst->gpio_regs_phys = GPIO_BASE;
-	}
-
 	dev_info(inst->dev, "Initialised: Registers at 0x%08lx",
 		inst->gpio_regs_phys);
 
@@ -214,6 +208,7 @@ failed_class_create:
 failed_cdev_add:
 	unregister_chrdev_region(bcm2835_gpiomem_devid, 1);
 failed_alloc_chrdev:
+failed_get_resource:
 	kfree(inst);
 failed_inst_alloc:
 	dev_err(inst->dev, "could not load bcm2835_gpiomem");
