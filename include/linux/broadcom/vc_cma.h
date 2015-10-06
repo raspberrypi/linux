@@ -22,8 +22,15 @@
 #define VC_CMA_IOC_RESERVE _IO(VC_CMA_IOC_MAGIC, 0)
 
 #ifdef __KERNEL__
-extern void __init vc_cma_early_init(void);
-extern void __init vc_cma_reserve(void);
+
+#ifdef CONFIG_BCM_VC_CMA
+void vc_cma_early_init(void);
+void vc_cma_reserve(void);
+#else
+static inline void vc_cma_early_init(void) { }
+static inline void vc_cma_reserve(void) { }
+#endif
+
 #endif
 
 #endif /* VC_CMA_H */

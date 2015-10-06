@@ -189,7 +189,7 @@ static int early_vc_cma_mem(char *p)
 
 early_param("vc-cma-mem", early_vc_cma_mem);
 
-void vc_cma_early_init(void)
+void __init vc_cma_early_init(void)
 {
 	LOG_DBG("vc_cma_early_init - vc_cma_chunks = %d", vc_cma_chunks);
 	if (vc_cma_size) {
@@ -198,7 +198,7 @@ void vc_cma_early_init(void)
 	}
 }
 
-void vc_cma_reserve(void)
+void __init vc_cma_reserve(void)
 {
 	/* if vc_cma_size is set, then declare vc CMA area of the same
 	 * size from the end of memory
