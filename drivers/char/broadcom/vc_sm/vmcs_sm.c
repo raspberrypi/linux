@@ -39,7 +39,7 @@
 #include "vchiq_connected.h"
 #include "vc_vchi_sm.h"
 
-#include <vmcs_sm_ioctl.h>
+#include <linux/broadcom/vmcs_sm_ioctl.h>
 #include "vc_sm_knl.h"
 
 /* ---- Private Constants and Types --------------------------------------- */

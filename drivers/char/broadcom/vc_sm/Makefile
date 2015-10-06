@@ -1,6 +1,5 @@
 EXTRA_CFLAGS  += -Wall -Wstrict-prototypes -Wno-trigraphs -O2
 
-EXTRA_CFLAGS  += -I"./arch/arm/mach-bcm2708/include/mach"
 EXTRA_CFLAGS  += -I"drivers/misc/vc04_services"
 EXTRA_CFLAGS  += -I"drivers/misc/vc04_services/interface/vchi"
 EXTRA_CFLAGS  += -I"drivers/misc/vc04_services/interface/vchiq_arm"
