@@ -471,15 +471,8 @@ config TIMB_DMA
 	  Enable support for the Timberdale FPGA DMA engine.
 
 config DMA_BCM2708
-	tristate "BCM2708 DMA engine support"
-	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
-	select DMA_ENGINE
-	select DMA_VIRTUAL_CHANNELS
-
-config DMA_BCM2708_LEGACY
-	bool "BCM2708 DMA legacy API support"
-	depends on DMA_BCM2708
-	default y
+	tristate "BCM2708 DMA legacy API support"
+	depends on DMA_BCM2835
 
 config TI_CPPI41
 	tristate "AM33xx CPPI41 DMA support"
