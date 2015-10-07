@@ -146,6 +146,9 @@ static ssize_t show_freqdomain_cpus(struct cpufreq_policy *policy, char *buf)
 {
 	struct acpi_cpufreq_data *data = per_cpu(acfreq_data, policy->cpu);
 
+	if (unlikely(!data))
+		return -ENODEV;
+
 	return cpufreq_show_cpus(data->freqdomain_cpus, buf);
 }
 
