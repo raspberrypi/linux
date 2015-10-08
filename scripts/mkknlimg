@@ -50,12 +50,6 @@ if (! -r $kernel_file)
     usage();
 }
 
-my @wanted_config_lines =
-(
-	'CONFIG_BCM2708_DT',
-	'CONFIG_ARCH_BCM2835'
-);
-
 my @wanted_strings =
 (
 	'bcm2708_fb',
@@ -63,7 +57,8 @@ my @wanted_strings =
 	'brcm,bcm2835-sdhost',
 	'brcm,bcm2708-pinctrl',
 	'brcm,bcm2835-gpio',
-	'brcm,bcm2835-pm-wdt'
+	'brcm,bcm2835',
+	'brcm,bcm2836'
 );
 
 my $res = try_extract($kernel_file, $tmpfile1);
@@ -98,12 +93,11 @@ if ($res)
 	    config_bool($res, 'brcm,bcm2835-mmc') ||
 	    config_bool($res, 'brcm,bcm2835-sdhost'))
 	{
-	    $dtok ||= config_bool($res, 'CONFIG_BCM2708_DT');
-	    $dtok ||= config_bool($res, 'CONFIG_ARCH_BCM2835');
 	    $dtok ||= config_bool($res, 'brcm,bcm2708-pinctrl');
 	    $dtok ||= config_bool($res, 'brcm,bcm2835-gpio');
-	    $is_283x ||= config_bool($res, 'CONFIG_ARCH_BCM2835');
-	    $is_283x ||= config_bool($res, 'brcm,bcm2835-pm-wdt');
+	    $is_283x ||= config_bool($res, 'brcm,bcm2835');
+	    $is_283x ||= config_bool($res, 'brcm,bcm2836');
+	    $dtok ||= $is_283x;
 	    $append_trailer = 1;
 	}
 	else
@@ -203,31 +197,6 @@ sub try_extract
 	{
 	    chomp($match);
 	    $res->{$match} = 1;
-	}
-
-	my $config_pattern = '^('.join('|', @wanted_config_lines).')=(.*)$';
-	my $cf1 = 'IKCFG_ST\037\213\010';
-	my $cf2 = '0123456789';
-
-	my $pos = `tr "$cf1\n$cf2" "\n$cf2=" < "$knl" | grep -abo "^$cf2"`;
-	if ($pos)
-	{
-		$pos =~ s/:.*[\r\n]*$//s;
-		$pos += 8;
-		my $err = (system("tail -c+$pos \"$knl\" | zcat > $tmp 2> /dev/null") >> 8);
-		if (($err == 0) || ($err == 2))
-		{
-			if (open(my $fh, '<', $tmp))
-			{
-				while (my $line = <$fh>)
-				{
-					chomp($line);
-					$res->{$1} = $2 if ($line =~ /$config_pattern/);
-				}
-
-				close($fh);
-			}
-		}
 	}
 
 	return $res;
