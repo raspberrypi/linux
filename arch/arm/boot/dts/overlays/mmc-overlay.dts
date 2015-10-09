@@ -7,13 +7,13 @@
 	fragment@0 {
 		target = <&mmc>;
 
-		__overlay__ {
+		frag0: __overlay__ {
 			brcm,overclock-50 = <0>;
 		};
 	};
 
 	__overrides__ {
-		overclock_50     = <&mmc>,"brcm,overclock-50:0";
-		force_pio        = <&mmc>,"brcm,force-pio?";
+		overclock_50     = <&frag0>,"brcm,overclock-50:0";
+		force_pio        = <&frag0>,"brcm,force-pio?";
 	};
 };
