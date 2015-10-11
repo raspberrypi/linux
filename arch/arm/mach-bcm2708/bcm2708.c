@@ -20,7 +20,6 @@
 
 #include <linux/init.h>
 #include <linux/dma-mapping.h>
-#include <linux/irqchip.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <asm/system_info.h>
@@ -29,8 +28,6 @@
 #include <asm/mach/map.h>
 
 #include <mach/system.h>
-
-#include "armctrl.h"
 
 #include <linux/broadcom/vc_cma.h>
 
@@ -48,14 +45,6 @@
 /* command line parameters */
 static unsigned boardrev, serial;
 static unsigned reboot_part = 0;
-
-void __init bcm2708_init_irq(void)
-{
-	if (of_have_populated_dt())
-		irqchip_init();
-	else
-		armctrl_init(__io_address(ARMCTRL_IC_BASE), 0, 0, 0);
-}
 
 static struct map_desc bcm2708_io_desc[] __initdata = {
 	{
@@ -230,7 +219,6 @@ static const char * const bcm2708_compat[] = {
 MACHINE_START(BCM2708, "BCM2708")
     /* Maintainer: Broadcom Europe Ltd. */
 	.map_io = bcm2708_map_io,
-	.init_irq = bcm2708_init_irq,
 	.init_machine = bcm2708_init,
 	.init_early = bcm2708_init_early,
 	.reserve = board_reserve,

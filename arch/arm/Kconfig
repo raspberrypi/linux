@@ -330,6 +330,7 @@ config ARCH_BCM2708
 	select ARM_ERRATA_411920
 	select MACH_BCM2708
 	select MULTI_IRQ_HANDLER
+	select SPARSE_IRQ
 	select VC4
 	select FIQ
 	help
