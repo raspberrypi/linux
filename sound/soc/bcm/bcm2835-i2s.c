@@ -799,6 +799,25 @@ static const struct snd_soc_component_driver bcm2835_i2s_component = {
 	.name		= "bcm2835-i2s-comp",
 };
 
+static const struct snd_pcm_hardware bcm2835_pcm_hardware = {
+	.info			= SNDRV_PCM_INFO_INTERLEAVED |
+				  SNDRV_PCM_INFO_JOINT_DUPLEX,
+	.formats		= SNDRV_PCM_FMTBIT_S16_LE |
+				  SNDRV_PCM_FMTBIT_S24_LE |
+				  SNDRV_PCM_FMTBIT_S32_LE,
+	.period_bytes_min	= 32,
+	.period_bytes_max	= 64 * PAGE_SIZE,
+	.periods_min		= 2,
+	.periods_max		= 255,
+	.buffer_bytes_max	= 128 * PAGE_SIZE,
+};
+
+static const struct snd_dmaengine_pcm_config bcm2835_dmaengine_pcm_config = {
+	.prepare_slave_config = snd_dmaengine_pcm_prepare_slave_config,
+	.pcm_hardware = &bcm2835_pcm_hardware,
+	.prealloc_buffer_size = 256 * PAGE_SIZE,
+};
+
 static int bcm2835_i2s_probe(struct platform_device *pdev)
 {
 	struct bcm2835_i2s_dev *dev;
@@ -870,7 +889,9 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = devm_snd_dmaengine_pcm_register(&pdev->dev, NULL, 0);
+	ret = devm_snd_dmaengine_pcm_register(&pdev->dev,
+			&bcm2835_dmaengine_pcm_config,
+			SND_DMAENGINE_PCM_FLAG_COMPAT);
 	if (ret) {
 		dev_err(&pdev->dev, "Could not register PCM: %d\n", ret);
 		return ret;
