@@ -346,6 +346,9 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		data_length = 24;
 		bclk_ratio = 50;
 		break;
+	case SNDRV_PCM_FORMAT_S24_LE:
+		data_length = 24;
+		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		data_length = 32;
 		bclk_ratio = 100;
