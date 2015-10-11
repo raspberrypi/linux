@@ -159,10 +159,6 @@ static const unsigned int bcm2835_clk_freq[BCM2835_CLK_SRC_HDMI+1] = {
 #define BCM2835_I2S_INT_RXR		BIT(1)
 #define BCM2835_I2S_INT_TXW		BIT(0)
 
-/* I2S DMA interface */
-/* FIXME: Needs IOMMU support */
-#define BCM2835_VCMMU_SHIFT		(0x7E000000 - 0x20000000)
-
 /* General device struct */
 struct bcm2835_i2s_dev {
 	struct device				*dev;
@@ -344,23 +340,11 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		data_length = 16;
-<<<<<<< HEAD
-		bclk_ratio = 50;
-		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
-		data_length = 24;
-		bclk_ratio = 50;
-=======
 		bclk_ratio = 40;
->>>>>>> a3cf127... Revert "ASoC: bcm2835: move to use the clock framework"
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		data_length = 32;
-<<<<<<< HEAD
-		bclk_ratio = 100;
-=======
 		bclk_ratio = 80;
->>>>>>> a3cf127... Revert "ASoC: bcm2835: move to use the clock framework"
 		break;
 	default:
 		return -EINVAL;
@@ -423,27 +407,6 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		divf = dividend & BCM2835_CLK_DIVF_MASK;
 	}
 
-<<<<<<< HEAD
-	/* Clock should only be set up here if CPU is clock master */
-	switch (dev->fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-	case SND_SOC_DAIFMT_CBS_CFS:
-	case SND_SOC_DAIFMT_CBS_CFM:
-		/* Set clock divider */
-		regmap_write(dev->clk_regmap, BCM2835_CLK_PCMDIV_REG,
-				  BCM2835_CLK_PASSWD
-				| BCM2835_CLK_DIVI(divi)
-				| BCM2835_CLK_DIVF(divf));
-
-		/* Setup clock, but don't start it yet */
-		regmap_write(dev->clk_regmap, BCM2835_CLK_PCMCTL_REG,
-				  BCM2835_CLK_PASSWD
-				| BCM2835_CLK_MASH(mash)
-				| BCM2835_CLK_SRC(clk_src));
-		break;
-	default:
-		break;
-	}
-=======
 	/* Set clock divider */
 	regmap_write(dev->clk_regmap, BCM2835_CLK_PCMDIV_REG, BCM2835_CLK_PASSWD
 			| BCM2835_CLK_DIVI(divi)
@@ -453,7 +416,6 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	regmap_write(dev->clk_regmap, BCM2835_CLK_PCMCTL_REG, BCM2835_CLK_PASSWD
 			| BCM2835_CLK_MASH(mash)
 			| BCM2835_CLK_SRC(clk_src));
->>>>>>> a3cf127... Revert "ASoC: bcm2835: move to use the clock framework"
 
 	/* Setup the frame format */
 	format = BCM2835_I2S_CHEN;
@@ -811,10 +773,6 @@ static const struct regmap_config bcm2835_regmap_config[] = {
 		.precious_reg = bcm2835_i2s_precious_reg,
 		.volatile_reg = bcm2835_i2s_volatile_reg,
 		.cache_type = REGCACHE_RBTREE,
-<<<<<<< HEAD
-		.name = "i2s",
-=======
->>>>>>> a3cf127... Revert "ASoC: bcm2835: move to use the clock framework"
 	},
 	{
 		.reg_bits = 32,
@@ -823,10 +781,6 @@ static const struct regmap_config bcm2835_regmap_config[] = {
 		.max_register = BCM2835_CLK_PCMDIV_REG,
 		.volatile_reg = bcm2835_clk_volatile_reg,
 		.cache_type = REGCACHE_RBTREE,
-<<<<<<< HEAD
-		.name = "clk",
-=======
->>>>>>> a3cf127... Revert "ASoC: bcm2835: move to use the clock framework"
 	},
 };
 
@@ -860,7 +814,6 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 	int ret;
 	struct regmap *regmap[2];
 	struct resource *mem[2];
-<<<<<<< HEAD
 	const __be32 *addr;
 	dma_addr_t dma_reg_base;
 
@@ -870,23 +823,6 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	dma_reg_base = be32_to_cpup(addr);
-=======
-
-	/* Request both ioareas */
-	for (i = 0; i <= 1; i++) {
-		void __iomem *base;
-
-		mem[i] = platform_get_resource(pdev, IORESOURCE_MEM, i);
-		base = devm_ioremap_resource(&pdev->dev, mem[i]);
-		if (IS_ERR(base))
-			return PTR_ERR(base);
-
-		regmap[i] = devm_regmap_init_mmio(&pdev->dev, base,
-					    &bcm2835_regmap_config[i]);
-		if (IS_ERR(regmap[i]))
-			return PTR_ERR(regmap[i]);
-	}
->>>>>>> a3cf127... Revert "ASoC: bcm2835: move to use the clock framework"
 
 	if (of_property_read_bool(pdev->dev.of_node, "brcm,enable-mmap"))
 		bcm2835_pcm_hardware.info |=
@@ -902,43 +838,17 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 		if (IS_ERR(base))
 			return PTR_ERR(base);
 
-<<<<<<< HEAD
-		regmap[i] = devm_regmap_init_mmio(&pdev->dev, base,
-					    &bcm2835_regmap_config[i]);
-		if (IS_ERR(regmap[i]))
-			return PTR_ERR(regmap[i]);
-	}
-
-	if (of_property_read_bool(pdev->dev.of_node, "brcm,enable-mmap"))
-		bcm2835_pcm_hardware.info |=
-			SNDRV_PCM_INFO_MMAP |
-			SNDRV_PCM_INFO_MMAP_VALID;
-
-	dev = devm_kzalloc(&pdev->dev, sizeof(*dev),
-			   GFP_KERNEL);
-	if (!dev)
-		return -ENOMEM;
-
-=======
->>>>>>> a3cf127... Revert "ASoC: bcm2835: move to use the clock framework"
 	dev->i2s_regmap = regmap[0];
 	dev->clk_regmap = regmap[1];
 
 	/* Set the DMA address */
 	dev->dma_data[SNDRV_PCM_STREAM_PLAYBACK].addr =
-<<<<<<< HEAD
-		dma_reg_base + BCM2835_I2S_FIFO_A_REG;
-
-	dev->dma_data[SNDRV_PCM_STREAM_CAPTURE].addr =
-		dma_reg_base + BCM2835_I2S_FIFO_A_REG;
-=======
 		(dma_addr_t)mem[0]->start + BCM2835_I2S_FIFO_A_REG
 					  + BCM2835_VCMMU_SHIFT;
 
 	dev->dma_data[SNDRV_PCM_STREAM_CAPTURE].addr =
 		(dma_addr_t)mem[0]->start + BCM2835_I2S_FIFO_A_REG
 					  + BCM2835_VCMMU_SHIFT;
->>>>>>> a3cf127... Revert "ASoC: bcm2835: move to use the clock framework"
 
 	/* Set the bus width */
 	dev->dma_data[SNDRV_PCM_STREAM_PLAYBACK].addr_width =
