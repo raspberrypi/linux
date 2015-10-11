@@ -2,7 +2,7 @@ ifeq ($(CONFIG_OF),y)
 
 # Overlays for the Raspberry Pi platform
 
-ifeq ($(CONFIG_BCM2708_DT),y)
+ifeq ($(CONFIG_ARCH_BCM2708),y)
    RPI_DT_OVERLAYS=y
 endif
 ifeq ($(CONFIG_BCM2709_DT),y)

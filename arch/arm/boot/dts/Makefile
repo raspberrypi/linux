@@ -1,13 +1,13 @@
 ifeq ($(CONFIG_OF),y)
 
-dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b.dtb
-dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-b-plus.dtb
-dtb-$(CONFIG_BCM2708_DT) += bcm2708-rpi-cm.dtb
+dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-b.dtb
+dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-b-plus.dtb
+dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-cm.dtb
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2835-rpi-cm.dtb
 dtb-$(CONFIG_BCM2709_DT) += bcm2709-rpi-2-b.dtb
 
 # Raspberry Pi
-ifeq ($(CONFIG_BCM2708_DT),y)
+ifeq ($(CONFIG_ARCH_BCM2708),y)
    RPI_DT_OVERLAYS=y
 endif
 ifeq ($(CONFIG_BCM2709_DT),y)
