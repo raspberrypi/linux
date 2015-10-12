@@ -16,7 +16,10 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "linux/init.h"
+#include "linux/cma.h"
 #include "linux/component.h"
+#include "linux/dma-contiguous.h"
 #include "linux/pm_runtime.h"
 #include "vc4_drv.h"
 #include "vc4_regs.h"
@@ -185,7 +188,22 @@ static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dev *vc4 = to_vc4_dev(drm);
 	struct vc4_v3d *v3d = NULL;
+	struct cma *cma;
 	int ret;
+
+	cma = dev_get_cma_area(dev);
+	if (!cma)
+		return -EINVAL;
+
+	if ((cma_get_base(cma) & 0xf0000000) !=
+	    ((cma_get_base(cma) + cma_get_size(cma) - 1) & 0xf0000000)) {
+		DRM_ERROR("V3D requires that the CMA area (0x%08lx - 0x%08lx) "
+			  "not span a 256MB boundary, or memory corruption "
+			  "would happen.\n",
+			  (long)cma_get_base(cma),
+			  cma_get_base(cma) + cma_get_size(cma));
+		return -EINVAL;
+	}
 
 	v3d = devm_kzalloc(&pdev->dev, sizeof(*v3d), GFP_KERNEL);
 	if (!v3d)
