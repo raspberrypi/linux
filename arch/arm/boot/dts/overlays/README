@@ -178,7 +178,7 @@ Load:   dtoverlay=at86rf233,<param>=<val>
 Params: interrupt                GPIO used for INT (default 23)
         reset                    GPIO used for Reset (default 24)
         sleep                    GPIO used for Sleep (default 25)
-        speed                    SPI bus speed in Hz (default 750000)
+        speed                    SPI bus speed in Hz (default 6000000)
         trim                     Fine tuning of the internal capacitance
                                  arrays (0=+0pF, 15=+4.5pF, default 15)
 
