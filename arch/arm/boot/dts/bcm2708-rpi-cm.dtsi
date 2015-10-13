@@ -1,4 +1,4 @@
-/include/ "bcm2708.dtsi"
+#include "bcm2708.dtsi"
 
 &leds {
 	act_led: act {

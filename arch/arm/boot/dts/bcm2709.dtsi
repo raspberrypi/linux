@@ -1,4 +1,4 @@
-/include/ "bcm2708_common.dtsi"
+#include "bcm2708_common.dtsi"
 
 / {
 	compatible = "brcm,bcm2709";
