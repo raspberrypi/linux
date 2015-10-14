@@ -44,6 +44,7 @@
 #include <linux/of.h>
 #include <asm/pgtable.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
+#include "/home/dc4/projects/linux/arch/arm/mm/dma.h"
 
 #define dmac_map_area			__glue(_CACHE,_dma_map_area)
 #define dmac_unmap_area 		__glue(_CACHE,_dma_unmap_area)
