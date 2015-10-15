@@ -550,20 +550,6 @@ bool vb2_buffer_in_use(struct vb2_queue *q, struct vb2_buffer *vb)
 }
 EXPORT_SYMBOL(vb2_buffer_in_use);
 
-/*
- * __buffers_in_use() - return true if any buffers on the queue are in use and
- * the queue cannot be freed (by the means of REQBUFS(0)) call
- */
-static bool __buffers_in_use(struct vb2_queue *q)
-{
-	unsigned int buffer;
-	for (buffer = 0; buffer < q->num_buffers; ++buffer) {
-		if (vb2_buffer_in_use(q, q->bufs[buffer]))
-			return true;
-	}
-	return false;
-}
-
 void vb2_core_querybuf(struct vb2_queue *q, unsigned int index, void *pb)
 {
 	call_void_bufop(q, fill_user_buffer, q->bufs[index], pb);
@@ -670,16 +656,7 @@ int vb2_core_reqbufs(struct vb2_queue *q, enum vb2_memory memory,
 
 	if (*count == 0 || q->num_buffers != 0 ||
 	    (q->memory != VB2_MEMORY_UNKNOWN && q->memory != memory)) {
-		/*
-		 * We already have buffers allocated, so first check if they
-		 * are not in use and can be freed.
-		 */
 		mutex_lock(&q->mmap_lock);
-		if (q->memory == VB2_MEMORY_MMAP && __buffers_in_use(q)) {
-			mutex_unlock(&q->mmap_lock);
-			dprintk(1, "memory in use, cannot free\n");
-			return -EBUSY;
-		}
 
 		/*
 		 * Call queue_cancel to clean up any buffers in the PREPARED or
