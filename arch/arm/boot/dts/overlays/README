@@ -425,6 +425,20 @@ Params: speed                    Display SPI bus speed
         xohms                    Touchpanel sensitivity (X-plate resistance)
 
 
+Name:   piscreen2r
+Info:   PiScreen 2 with resistive TP display by OzzMaker.com
+Load:   dtoverlay=piscreen2r,<param>=<val>
+Params: speed                    Display SPI bus speed
+
+        rotate                   Display rotation {0,90,180,270}
+
+        fps                      Delay between frame updates
+
+        debug                    Debug output level {0-7}
+
+        xohms                    Touchpanel sensitivity (X-plate resistance)
+
+
 Name:   pitft28-resistive
 Info:   Adafruit PiTFT 2.8" resistive touch screen
 Load:   dtoverlay=pitft28-resistive,<param>=<val>
