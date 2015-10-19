@@ -49,7 +49,7 @@ struct vc4_dev {
 	} bo_stats;
 
 	/* Protects bo_cache and the BO stats. */
-	spinlock_t bo_lock;
+	struct mutex bo_lock;
 
 	/* Sequence number for the last job queued in job_list.
 	 * Starts at 0 (no jobs emitted).
