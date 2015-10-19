@@ -244,13 +244,15 @@ static void
 vc4_queue_submit(struct drm_device *dev, struct vc4_exec_info *exec)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	uint64_t seqno = ++vc4->emit_seqno;
+	uint64_t seqno;
 	unsigned long irqflags;
 
+	spin_lock_irqsave(&vc4->job_lock, irqflags);
+
+	seqno = ++vc4->emit_seqno;
 	exec->seqno = seqno;
 	vc4_update_bo_seqnos(exec, seqno);
 
-	spin_lock_irqsave(&vc4->job_lock, irqflags);
 	list_add_tail(&exec->head, &vc4->job_list);
 
 	/* If no job was executing, kick ours off.  Otherwise, it'll
@@ -608,8 +610,6 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 	exec->args = args;
 	INIT_LIST_HEAD(&exec->unref_list);
 
-	mutex_lock(&dev->struct_mutex);
-
 	ret = vc4_cl_lookup_bos(dev, file_priv, exec);
 	if (ret)
 		goto fail;
@@ -636,14 +636,10 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 	/* Return the seqno for our job. */
 	args->seqno = vc4->emit_seqno;
 
-	mutex_unlock(&dev->struct_mutex);
-
 	return 0;
 
 fail:
 	vc4_complete_exec(exec);
-
-	mutex_unlock(&dev->struct_mutex);
 
 	return ret;
 }
