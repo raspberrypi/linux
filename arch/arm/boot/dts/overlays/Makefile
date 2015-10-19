@@ -35,6 +35,7 @@ dtb-$(RPI_DT_OVERLAYS) += mcp2515-can1-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += mmc-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += mz61581-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += piscreen-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += piscreen2r-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pitft28-resistive-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pwm-overlay.dtb
