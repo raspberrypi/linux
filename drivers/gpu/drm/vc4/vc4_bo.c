@@ -215,7 +215,6 @@ vc4_bo_cache_free_old(struct drm_device *dev)
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	unsigned long expire_time = jiffies - msecs_to_jiffies(1000);
 
-	mutex_lock(&vc4->bo_lock);
 	while (!list_empty(&vc4->bo_cache.time_list)) {
 		struct vc4_bo *bo = list_last_entry(&vc4->bo_cache.time_list,
 						    struct vc4_bo, unref_head);
@@ -223,14 +222,12 @@ vc4_bo_cache_free_old(struct drm_device *dev)
 			mod_timer(&vc4->bo_cache.time_timer,
 				  round_jiffies_up(jiffies +
 						   msecs_to_jiffies(1000)));
-			mutex_unlock(&vc4->bo_lock);
 			return;
 		}
 
 		vc4_bo_remove_from_cache(bo);
 		vc4_bo_destroy(bo);
 	}
-	mutex_unlock(&vc4->bo_lock);
 }
 
 /* Called on the last userspace/kernel unreference of the BO.  Returns
@@ -245,29 +242,24 @@ void vc4_free_object(struct drm_gem_object *gem_bo)
 	struct vc4_bo *bo = to_vc4_bo(gem_bo);
 	struct list_head *cache_list;
 
+	mutex_lock(&vc4->bo_lock);
 	/* If the object references someone else's memory, we can't cache it.
 	 */
 	if (gem_bo->import_attach) {
-		mutex_lock(&vc4->bo_lock);
 		vc4_bo_destroy(bo);
-		mutex_unlock(&vc4->bo_lock);
-		return;
+		goto out;
 	}
 
 	/* Don't cache if it was publicly named. */
 	if (gem_bo->name) {
-		mutex_lock(&vc4->bo_lock);
 		vc4_bo_destroy(bo);
-		mutex_unlock(&vc4->bo_lock);
-		return;
+		goto out;
 	}
 
-	mutex_lock(&vc4->bo_lock);
 	cache_list = vc4_get_cache_list_for_size(dev, gem_bo->size);
 	if (!cache_list) {
 		vc4_bo_destroy(bo);
-		mutex_unlock(&vc4->bo_lock);
-		return;
+		goto out;
 	}
 
 	if (bo->validated_shader) {
@@ -282,9 +274,11 @@ void vc4_free_object(struct drm_gem_object *gem_bo)
 
 	vc4->bo_stats.num_cached++;
 	vc4->bo_stats.size_cached += gem_bo->size;
-	mutex_unlock(&vc4->bo_lock);
 
 	vc4_bo_cache_free_old(dev);
+
+out:
+	mutex_unlock(&vc4->bo_lock);
 }
 
 static void vc4_bo_cache_time_work(struct work_struct *work)
@@ -293,7 +287,9 @@ static void vc4_bo_cache_time_work(struct work_struct *work)
 		container_of(work, struct vc4_dev, bo_cache.time_work);
 	struct drm_device *dev = vc4->dev;
 
+	mutex_lock(&vc4->bo_lock);
 	vc4_bo_cache_free_old(dev);
+	mutex_unlock(&vc4->bo_lock);
 }
 
 static void vc4_bo_cache_time_timer(unsigned long data)
