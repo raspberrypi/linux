@@ -474,7 +474,6 @@ vc4_job_handle_completed(struct vc4_dev *vc4)
 		vc4_complete_exec(exec);
 		spin_lock_irqsave(&vc4->job_lock, irqflags);
 	}
-	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 
 	list_for_each_entry_safe(cb, cb_temp, &vc4->seqno_cb_list, work.entry) {
 		if (cb->seqno <= vc4->finished_seqno) {
@@ -482,6 +481,8 @@ vc4_job_handle_completed(struct vc4_dev *vc4)
 			schedule_work(&cb->work);
 		}
 	}
+
+	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 }
 
 static void vc4_seqno_cb_work(struct work_struct *work)
@@ -496,18 +497,19 @@ int vc4_queue_seqno_cb(struct drm_device *dev,
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	int ret = 0;
+	unsigned long irqflags;
 
 	cb->func = func;
 	INIT_WORK(&cb->work, vc4_seqno_cb_work);
 
-	mutex_lock(&dev->struct_mutex);
+	spin_lock_irqsave(&vc4->job_lock, irqflags);
 	if (seqno > vc4->finished_seqno) {
 		cb->seqno = seqno;
 		list_add_tail(&cb->work.entry, &vc4->seqno_cb_list);
 	} else {
 		schedule_work(&cb->work);
 	}
-	mutex_unlock(&dev->struct_mutex);
+	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 
 	return ret;
 }
