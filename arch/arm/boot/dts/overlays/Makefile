@@ -54,6 +54,7 @@ dtb-$(RPI_DT_OVERLAYS) += spi-bcm2835-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-gpio35-39-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += tinylcd35-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += uart1-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += vc4-kms-v3d-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += vga666-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += w1-gpio-pullup-overlay.dtb
