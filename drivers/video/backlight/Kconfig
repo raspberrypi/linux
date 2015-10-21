@@ -256,6 +256,13 @@ config BACKLIGHT_PWM
 	  If you have a LCD backlight adjustable by PWM, say Y to enable
 	  this driver.
 
+config BACKLIGHT_RPI
+	tristate "Raspberry Pi display firmware driven backlight"
+	depends on RASPBERRYPI_FIRMWARE
+	help
+	  If you have the Raspberry Pi DSI touchscreen display, say Y to
+	  enable the mailbox-controlled backlight driver.
+
 config BACKLIGHT_DA903X
 	tristate "Backlight Driver for DA9030/DA9034 using WLED"
 	depends on PMIC_DA903X
