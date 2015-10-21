@@ -38,6 +38,7 @@ dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pwm-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pwm-2chan-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += raspidac3-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += rpi-backlight-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-dac-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-display-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-ft5406-overlay.dtb
