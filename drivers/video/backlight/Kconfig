@@ -328,6 +328,13 @@ config BACKLIGHT_QCOM_WLED
 	  If you have the Qualcomm PMIC, say Y to enable a driver for the
 	  WLED block. Currently it supports PM8941 and PMI8998.
 
+config BACKLIGHT_RPI
+	tristate "Raspberry Pi display firmware driven backlight"
+	depends on RASPBERRYPI_FIRMWARE
+	help
+	  If you have the Raspberry Pi DSI touchscreen display, say Y to
+	  enable the mailbox-controlled backlight driver.
+
 config BACKLIGHT_RT4831
 	tristate "Richtek RT4831 Backlight Driver"
 	depends on MFD_RT4831
