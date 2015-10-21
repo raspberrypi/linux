@@ -476,6 +476,12 @@ Load:   dtoverlay=raspidac3
 Params: <None>
 
 
+Name:   rpi-backlight
+Info:   Raspberry Pi official display backlight driver
+Load:   dtoverlay=rpi-backlight
+Params: <None>
+
+
 Name:   rpi-dac
 Info:   Configures the RPi DAC audio card
 Load:   dtoverlay=rpi-dac
