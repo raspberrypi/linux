@@ -41,8 +41,11 @@
 #include <linux/of_irq.h>
 #include <linux/irqchip.h>
 #include <linux/irqdomain.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
 
 #include <asm/exception.h>
+#include <asm/mach/irq.h>
 
 /* Put the bank and irq (32 bits) into the hwirq */
 #define MAKE_HWIRQ(b, n)	(((b) << 5) | (n))
@@ -59,6 +62,9 @@
 #define BANK2_HWIRQ		BIT(9)
 #define BANK0_VALID_MASK	(BANK0_HWIRQ_MASK | BANK1_HWIRQ | BANK2_HWIRQ \
 					| SHORTCUT1_MASK | SHORTCUT2_MASK)
+
+#undef ARM_LOCAL_GPU_INT_ROUTING
+#define ARM_LOCAL_GPU_INT_ROUTING 0x0c
 
 #define REG_FIQ_CONTROL		0x0c
 #define FIQ_CONTROL_ENABLE	BIT(7)
@@ -86,6 +92,7 @@ struct armctrl_ic {
 	void __iomem *enable[NR_BANKS];
 	void __iomem *disable[NR_BANKS];
 	struct irq_domain *domain;
+	struct regmap *local_regmap;
 };
 
 static struct armctrl_ic intc __read_mostly;
@@ -119,12 +126,35 @@ static void armctrl_mask_irq(struct irq_data *d)
 
 static void armctrl_unmask_irq(struct irq_data *d)
 {
-	if (d->hwirq >= NUMBER_IRQS)
+	if (d->hwirq >= NUMBER_IRQS) {
+		if (num_online_cpus() > 1) {
+			unsigned int data;
+			int ret;
+
+			if (!intc.local_regmap) {
+				pr_err("FIQ is disabled due to missing regmap\n");
+				return;
+			}
+
+			ret = regmap_read(intc.local_regmap,
+					  ARM_LOCAL_GPU_INT_ROUTING, &data);
+			if (ret) {
+				pr_err("Failed to read int routing %d\n", ret);
+				return;
+			}
+
+			data &= ~0xc;
+			data |= (1 << 2);
+			regmap_write(intc.local_regmap,
+				     ARM_LOCAL_GPU_INT_ROUTING, data);
+		}
+
 		writel_relaxed(REG_FIQ_ENABLE | hwirq_to_fiq(d->hwirq),
 			       intc.base + REG_FIQ_CONTROL);
-	else
+	} else {
 		writel_relaxed(HWIRQ_BIT(d->hwirq),
 			       intc.enable[HWIRQ_BANK(d->hwirq)]);
+	}
 }
 
 static struct irq_chip armctrl_chip = {
@@ -213,6 +243,15 @@ static int __init armctrl_of_init(struct device_node *node,
 		irq_set_chained_handler(parent_irq, bcm2836_chained_handle_irq);
 	} else {
 		set_handle_irq(bcm2835_handle_irq);
+	}
+
+	if (is_2836) {
+		intc.local_regmap =
+			syscon_regmap_lookup_by_compatible("brcm,bcm2836-arm-local");
+		if (IS_ERR(intc.local_regmap)) {
+			pr_err("Failed to get local register map. FIQ is disabled for cpus > 1\n");
+			intc.local_regmap = NULL;
+		}
 	}
 
 	/* Make a duplicate irq range which is used to enable FIQ */
