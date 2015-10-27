@@ -554,18 +554,6 @@ Load:   dtoverlay=smi-nand
 Params: <None>
 
 
-Name:   spi-bcm2708
-Info:   Selects the bcm2708-spi SPI driver
-Load:   dtoverlay=spi-bcm2708
-Params: <None>
-
-
-Name:   spi-bcm2835
-Info:   Selects the bcm2835-spi SPI driver
-Load:   dtoverlay=spi-bcm2835
-Params: <None>
-
-
 Name:   spi-gpio35-39
 Info:   move SPI function block to GPIO 35 to 39
 Load:   dtoverlay=spi-gpio35-39
