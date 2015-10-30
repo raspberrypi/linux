@@ -32,6 +32,7 @@
 #define DRM_VC4_CREATE_BO                         0x03
 #define DRM_VC4_MMAP_BO                           0x04
 #define DRM_VC4_CREATE_SHADER_BO                  0x05
+#define DRM_VC4_GET_HANG_STATE                    0x06
 
 #define DRM_IOCTL_VC4_SUBMIT_CL           DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_SUBMIT_CL, struct drm_vc4_submit_cl)
 #define DRM_IOCTL_VC4_WAIT_SEQNO          DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_WAIT_SEQNO, struct drm_vc4_wait_seqno)
@@ -39,6 +40,7 @@
 #define DRM_IOCTL_VC4_CREATE_BO           DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_CREATE_BO, struct drm_vc4_create_bo)
 #define DRM_IOCTL_VC4_MMAP_BO             DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_MMAP_BO, struct drm_vc4_mmap_bo)
 #define DRM_IOCTL_VC4_CREATE_SHADER_BO    DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_CREATE_SHADER_BO, struct drm_vc4_create_shader_bo)
+#define DRM_IOCTL_VC4_GET_HANG_STATE      DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_GET_HANG_STATE, struct drm_vc4_get_hang_state)
 
 struct drm_vc4_submit_rcl_surface {
 	uint32_t hindex; /* Handle index, or ~0 if not present. */
@@ -224,6 +226,49 @@ struct drm_vc4_mmap_bo {
 	uint32_t flags;
 	/** offset into the drm node to use for subsequent mmap call. */
 	uint64_t offset;
+};
+
+struct drm_vc4_get_hang_state_bo {
+	uint32_t handle;
+	uint32_t paddr;
+	uint32_t size;
+	uint32_t pad;
+};
+
+/**
+ * struct drm_vc4_hang_state - ioctl argument for collecting state
+ * from a GPU hang for analysis.
+*/
+struct drm_vc4_get_hang_state {
+	/** Pointer to array of struct drm_vc4_get_hang_state_bo. */
+	uint64_t bo;
+	/**
+	 * On input, the size of the bo array.  Output is the number
+	 * of bos to be returned.
+	 */
+	uint32_t bo_count;
+
+	uint32_t start_bin, start_render;
+
+	uint32_t ct0ca, ct0ea;
+	uint32_t ct1ca, ct1ea;
+	uint32_t ct0cs, ct1cs;
+	uint32_t ct0ra0, ct1ra0;
+
+	uint32_t bpca, bpcs;
+	uint32_t bpoa, bpos;
+
+	uint32_t vpmbase;
+
+	uint32_t dbge;
+	uint32_t fdbgo;
+	uint32_t fdbgb;
+	uint32_t fdbgr;
+	uint32_t fdbgs;
+	uint32_t errstat;
+
+	/* Pad that we may save more registers into in the future. */
+	uint32_t pad[16];
 };
 
 #endif /* _UAPI_VC4_DRM_H_ */
