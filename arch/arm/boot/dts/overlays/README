@@ -287,9 +287,20 @@ Params: speed                    Display SPI bus speed
         ledgpio                  GPIO used to control backlight
 
 
+Name:   i2c-gpio
+Info:   Adds support for software i2c controller on gpio pins
+Load:   dtoverlay=i2c-gpio,<param>=<val>
+Params: i2c_gpio_sda             GPIO used for I2C data (default "23")
+
+        i2c_gpio_scl             GPIO used for I2C clock (default "24")
+
+        i2c_gpio_delay_us        Clock delay in microseconds
+                                 (default "2" = ~100kHz)
+
+
 Name:   i2c-rtc
 Info:   Adds support for a number of I2C Real Time Clock devices
-Load:   dtoverlay=i2c-rtc,<param>
+Load:   dtoverlay=i2c-rtc,<param>=<val>
 Params: ds1307                   Select the DS1307 device
 
         ds3231                   Select the DS3231 device
