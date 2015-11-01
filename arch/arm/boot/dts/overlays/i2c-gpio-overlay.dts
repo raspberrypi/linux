@@ -1,0 +1,28 @@
+// Overlay for i2c_gpio bitbanging host bus.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			i2c_gpio: i2c@0 {
+				compatible = "i2c-gpio";
+				gpios = <&gpio 23 0 /* sda */
+					 &gpio 24 0 /* scl */
+					>;
+				i2c-gpio,delay-us = <2>;        /* ~100 kHz */
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+		};
+	};
+	__overrides__ {
+		i2c_gpio_sda = <&i2c_gpio>,"gpios:4";
+		i2c_gpio_scl = <&i2c_gpio>,"gpios:16";
+		i2c_gpio_delay_us = <&i2c_gpio>,"i2c-gpio,delay-us:0";
+	};
+};
+
