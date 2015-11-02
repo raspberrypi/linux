@@ -601,6 +601,14 @@ Params: txd1_pin                 GPIO pin for TXD1 (14, 32 or 40 - default 14)
         rxd1_pin                 GPIO pin for RXD1 (15, 33 or 41 - default 15)
 
 
+Name:   vc4-kms-v3d
+Info:   Enable Eric Anholt's DRM VC4 HDMI/HVS/V3D driver. Running startx or
+        booting to GUI while this overlay is in use will cause interesting
+        lockups.
+Load:   dtoverlay=vc4-kms-v3d
+Params: <None>
+
+
 Name:   vga666
 Info:   Overlay for the Fen Logic VGA666 board
         This uses GPIOs 2-21 (so no I2C), and activates the output 2-3 seconds
