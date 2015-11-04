@@ -33,6 +33,7 @@
 #ifndef DWC_HOST_ONLY
 
 #include "dwc_otg_pcd.h"
+#include "dwc_otg_driver.h"
 
 #ifdef DWC_UTE_CFI
 #include "dwc_otg_cfi.h"
@@ -2143,6 +2144,7 @@ static inline int cfi_calc_desc_residue(dwc_otg_pcd_ep_t * ep)
  */
 static void complete_ep(dwc_otg_pcd_ep_t * ep)
 {
+	struct device *dev = otg_dev_to_device(ep->pcd->otg_dev);
 	dwc_otg_core_if_t *core_if = GET_CORE_IF(ep->pcd);
 	dwc_otg_dev_if_t *dev_if = core_if->dev_if;
 	dwc_otg_dev_in_ep_regs_t *in_ep_regs =
@@ -2484,7 +2486,7 @@ static void complete_ep(dwc_otg_pcd_ep_t * ep)
 			if (!ep->dwc_ep.is_in) {
 				dwc_memcpy(req->buf, req->dw_align_buf, req->length);
 			}
-			DWC_DMA_FREE(req->length, req->dw_align_buf,
+			DWC_DMA_FREE(dev, req->length, req->dw_align_buf,
 				     req->dw_align_buf_dma);
 		}
 

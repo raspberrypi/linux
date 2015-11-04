@@ -139,7 +139,7 @@ struct dwc_otg_pcd_function_ops {
  *
  * @param core_if The DWC_OTG Core
  */
-extern dwc_otg_pcd_t *dwc_otg_pcd_init(dwc_otg_core_if_t * core_if);
+extern dwc_otg_pcd_t *dwc_otg_pcd_init(struct device *dev, dwc_otg_core_if_t *core_if);
 
 /** Frees PCD allocated by dwc_otg_pcd_init
  *
