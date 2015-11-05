@@ -89,7 +89,7 @@
 	fragment@4 {
 		target-path = "/chosen";
 		__overlay__ {
-			bootargs = "cma=0x4000000";
+			bootargs = "cma=256M@512M";
 		};
 	};
 };
