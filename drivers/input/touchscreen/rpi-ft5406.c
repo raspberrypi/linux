@@ -65,7 +65,7 @@ static int ft5406_thread(void *arg)
 	while(!kthread_should_stop())
 	{
 		// 60fps polling
-		msleep(17);
+		msleep_interruptible(17);
 		memcpy_fromio(&regs, ts->regs, sizeof(*ts->regs));
 		writel(99, &ts->regs->num_points);
 		// Do not output if theres no new information (num_points is 99)
