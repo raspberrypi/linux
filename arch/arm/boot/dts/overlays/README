@@ -439,6 +439,28 @@ Params: speed                    Display SPI bus speed
         xohms                    Touchpanel sensitivity (X-plate resistance)
 
 
+Name:   pitft28-capacitive
+Info:   Adafruit PiTFT 2.8" capacitive touch screen
+Load:   dtoverlay=pitft28-capacitive,<param>=<val>
+Params: speed                    Display SPI bus speed
+
+        rotate                   Display rotation {0,90,180,270}
+
+        fps                      Delay between frame updates
+
+        debug                    Debug output level {0-7}
+
+        touch-sizex              Touchscreen size x (default 240)
+
+        touch-sizey              Touchscreen size y (default 320)
+
+        touch-invx               Touchscreen inverted x axis
+
+        touch-invy               Touchscreen inverted y axis
+
+        touch-swapxy             Touchscreen swapped x y axis
+
+
 Name:   pitft28-resistive
 Info:   Adafruit PiTFT 2.8" resistive touch screen
 Load:   dtoverlay=pitft28-resistive,<param>=<val>
