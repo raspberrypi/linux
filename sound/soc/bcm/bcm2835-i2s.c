@@ -806,16 +806,16 @@ static struct snd_pcm_hardware bcm2835_pcm_hardware = {
 				  SNDRV_PCM_FMTBIT_S24_LE |
 				  SNDRV_PCM_FMTBIT_S32_LE,
 	.period_bytes_min	= 32,
-	.period_bytes_max	= 64 * PAGE_SIZE,
+	.period_bytes_max	= SZ_64K - 4,
 	.periods_min		= 2,
 	.periods_max		= 255,
-	.buffer_bytes_max	= 128 * PAGE_SIZE,
+	.buffer_bytes_max	= SZ_512K,
 };
 
 static const struct snd_dmaengine_pcm_config bcm2835_dmaengine_pcm_config = {
 	.prepare_slave_config = snd_dmaengine_pcm_prepare_slave_config,
 	.pcm_hardware = &bcm2835_pcm_hardware,
-	.prealloc_buffer_size = 256 * PAGE_SIZE,
+	.prealloc_buffer_size = SZ_1M,
 };
 
 static int bcm2835_i2s_probe(struct platform_device *pdev)
