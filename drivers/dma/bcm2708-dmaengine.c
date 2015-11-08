@@ -710,7 +710,7 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 		max_size = MAX_NORMAL_TRANSFER;
 	period_len = min(period_len, max_size);
 
-	d->frames = (buf_len-1) / period_len + 1;
+	d->frames = DIV_ROUND_UP(buf_len, period_len);
 
 	/* Allocate memory for control blocks */
 	d->control_block_size = d->frames * sizeof(struct bcm2835_dma_cb);
