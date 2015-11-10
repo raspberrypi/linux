@@ -351,6 +351,10 @@ config ARCH_BCM2709
 	select MACH_BCM2709
 	select VC4
 	select FIQ
+	select USE_OF
+	select ARCH_REQUIRE_GPIOLIB
+	select PINCTRL
+	select PINCTRL_BCM2835
 	help
 	  This enables support for Broadcom BCM2709 boards.
 

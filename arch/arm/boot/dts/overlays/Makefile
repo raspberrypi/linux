@@ -5,7 +5,7 @@ ifeq ($(CONFIG_OF),y)
 ifeq ($(CONFIG_ARCH_BCM2708),y)
    RPI_DT_OVERLAYS=y
 endif
-ifeq ($(CONFIG_BCM2709_DT),y)
+ifeq ($(CONFIG_ARCH_BCM2709),y)
    RPI_DT_OVERLAYS=y
 endif
 ifeq ($(CONFIG_ARCH_BCM2835),y)
