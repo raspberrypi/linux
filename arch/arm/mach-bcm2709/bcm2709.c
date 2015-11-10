@@ -55,7 +55,6 @@
 #include <asm/mach/time.h>
 #include <asm/mach/map.h>
 
-#include <mach/timex.h>
 #include <mach/system.h>
 
 #include <linux/delay.h>
