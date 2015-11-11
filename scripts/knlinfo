@@ -18,6 +18,8 @@ my %atom_formats =
 (
     'DTOK' => \&format_bool,
     'KVer' => \&format_string,
+    '270X' => \&format_bool,
+    '283X' => \&format_bool,
     '283x' => \&format_bool,
 );
 
