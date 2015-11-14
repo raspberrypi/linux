@@ -16,6 +16,7 @@ dtb-$(RPI_DT_OVERLAYS) += ads7846-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += bmp085_i2c-sensor-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += dht11-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += enc28j60-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += gpio-ir-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += gpio-poweroff-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += hifiberry-amp-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += hifiberry-dac-overlay.dtb
