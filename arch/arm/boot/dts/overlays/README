@@ -196,6 +196,22 @@ Params: int_pin                  GPIO used for INT (default 25)
         speed                    SPI bus speed (default 12000000)
 
 
+Name:   gpio-ir
+Info:   Use GPIO pin as rc-core style infrared receiver input. The rc-core-
+        based gpio_ir_recv driver maps received keys directly to a
+        /dev/input/event* device, all decoding is done by the kernel - LIRC is
+        not required! The key mapping and other decoding parameters can be
+        configured by "ir-keytable" tool.
+Load:   dtoverlay=gpio-ir,<param>=<val>
+Params: gpio_pin                 Input pin number. Default is 18.
+
+        gpio_pull                Desired pull-up/down state (off, down, up)
+                                 Default is "down".
+
+        rc-map-name              Default rc keymap (can also be changed by
+                                 ir-keytable), defaults to "rc-rc6-mce"
+
+
 Name:   gpio-poweroff
 Info:   Drives a GPIO high or low on reboot
 Load:   dtoverlay=gpio-poweroff,<param>=<val>
@@ -308,7 +324,7 @@ Params: <None>
 Name:   lirc-rpi
 Info:   Configures lirc-rpi (Linux Infrared Remote Control for Raspberry Pi)
         Consult the module documentation for more details.
-Load:   dtoverlay=lirc-rpi,<param>=<val>,...
+Load:   dtoverlay=lirc-rpi,<param>=<val>
 Params: gpio_out_pin             GPIO for output (default "17")
 
         gpio_in_pin              GPIO for input (default "18")
