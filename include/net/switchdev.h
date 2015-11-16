@@ -268,7 +268,7 @@ static inline int switchdev_port_fdb_dump(struct sk_buff *skb,
 					  struct net_device *filter_dev,
 					  int idx)
 {
-	return -EOPNOTSUPP;
+       return idx;
 }
 
 #endif
