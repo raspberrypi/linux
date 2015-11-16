@@ -320,7 +320,7 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 		/* error in transfer */
 		if (buf != NULL) {
 			/* there was a buffer with the error so return it */
-			vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 		}
 		return;
 	} else if (length == 0) {
@@ -329,7 +329,7 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 			/* this should only ever happen if the port is
 			 * disabled and there are buffers still queued
 			 */
-			vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 			pr_debug("Empty buffer");
 		} else if (dev->capture.frame_count) {
 			/* grab another frame */
@@ -359,16 +359,16 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 
 				div =
 				    div_u64_rem(runtime_us, USEC_PER_SEC, &rem);
-				buf->vb.v4l2_buf.timestamp.tv_sec =
+				buf->vb.timestamp.tv_sec =
 				    dev->capture.kernel_start_ts.tv_sec - 1 +
 				    div;
-				buf->vb.v4l2_buf.timestamp.tv_usec =
+				buf->vb.timestamp.tv_usec =
 				    dev->capture.kernel_start_ts.tv_usec + rem;
 
-				if (buf->vb.v4l2_buf.timestamp.tv_usec >=
+				if (buf->vb.timestamp.tv_usec >=
 				    USEC_PER_SEC) {
-					buf->vb.v4l2_buf.timestamp.tv_sec++;
-					buf->vb.v4l2_buf.timestamp.tv_usec -=
+					buf->vb.timestamp.tv_sec++;
+					buf->vb.timestamp.tv_usec -=
 					    USEC_PER_SEC;
 				}
 				v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
@@ -379,15 +379,15 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 					 (int)dev->capture.kernel_start_ts.
 					 tv_usec,
 					 dev->capture.vc_start_timestamp, pts,
-					 (int)buf->vb.v4l2_buf.timestamp.tv_sec,
-					 (int)buf->vb.v4l2_buf.timestamp.
+					 (int)buf->vb.timestamp.tv_sec,
+					 (int)buf->vb.timestamp.
 					 tv_usec);
 			} else {
-				v4l2_get_timestamp(&buf->vb.v4l2_buf.timestamp);
+				v4l2_get_timestamp(&buf->vb.timestamp);
 			}
 
-			vb2_set_plane_payload(&buf->vb, 0, length);
-			vb2_buffer_done(&buf->vb, VB2_BUF_STATE_DONE);
+			vb2_set_plane_payload(&buf->vb.vb2_buf, 0, length);
+			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
 			if (mmal_flags & MMAL_BUFFER_HEADER_FLAG_EOS &&
 			    is_capturing(dev)) {
@@ -404,7 +404,7 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 			}
 		} else {
 			/* signal frame completion */
-			vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 			complete(&dev->capture.frame_cmplt);
 		}
 	}
@@ -466,14 +466,15 @@ static int disable_camera(struct bm2835_mmal_dev *dev)
 static void buffer_queue(struct vb2_buffer *vb)
 {
 	struct bm2835_mmal_dev *dev = vb2_get_drv_priv(vb->vb2_queue);
-	struct mmal_buffer *buf = container_of(vb, struct mmal_buffer, vb);
+	struct vb2_v4l2_buffer *vb2 = to_vb2_v4l2_buffer(vb);
+	struct mmal_buffer *buf = container_of(vb2, struct mmal_buffer, vb);
 	int ret;
 
 	v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
 		 "%s: dev:%p buf:%p\n", __func__, dev, buf);
 
-	buf->buffer = vb2_plane_vaddr(&buf->vb, 0);
-	buf->buffer_size = vb2_plane_size(&buf->vb, 0);
+	buf->buffer = vb2_plane_vaddr(&buf->vb.vb2_buf, 0);
+	buf->buffer_size = vb2_plane_size(&buf->vb.vb2_buf, 0);
 
 	ret = vchiq_mmal_submit_buffer(dev->instance, dev->capture.port, buf);
 	if (ret < 0)
