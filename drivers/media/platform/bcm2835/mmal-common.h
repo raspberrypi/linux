@@ -36,7 +36,7 @@ struct mmal_fmt {
 /* buffer for one video frame */
 struct mmal_buffer {
 	/* v4l buffer data -- must be first */
-	struct vb2_buffer	vb;
+	struct vb2_v4l2_buffer	vb;
 
 	/* list of buffers available */
 	struct list_head	list;
