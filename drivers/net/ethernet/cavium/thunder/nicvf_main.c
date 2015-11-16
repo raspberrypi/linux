@@ -1325,7 +1325,12 @@ err_disable_device:
 static void nicvf_remove(struct pci_dev *pdev)
 {
 	struct net_device *netdev = pci_get_drvdata(pdev);
-	struct nicvf *nic = netdev_priv(netdev);
+	struct nicvf *nic;
+
+	if (!netdev)
+		return;
+
+	nic = netdev_priv(netdev);
 
 	unregister_netdev(netdev);
 	nicvf_unregister_interrupts(nic);
