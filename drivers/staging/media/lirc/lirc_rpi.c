@@ -42,9 +42,6 @@
 #include <linux/gpio.h>
 #include <linux/of_platform.h>
 #include <linux/platform_data/bcm2708.h>
-#ifndef CONFIG_ARCH_BCM2835
-#include <mach/gpio.h>
-#endif
 
 #define LIRC_DRIVER_NAME "lirc_rpi"
 #define RBUF_LEN 256
@@ -346,7 +343,7 @@ static void read_pin_settings(struct device_node *node)
 
 static int init_port(void)
 {
-	int i, nlow, nhigh, ret;
+	int i, nlow, nhigh;
 	struct device_node *node;
 
 	node = lirc_rpi_dev->dev.of_node;
@@ -372,8 +369,7 @@ static int init_port(void)
 		if (!pins_node) {
 			printk(KERN_ERR LIRC_DRIVER_NAME
 			       ": pinctrl settings not found!\n");
-			ret = -EINVAL;
-			goto exit_init_port;
+			return -EINVAL;
 		}
 
 		read_pin_settings(pins_node);
@@ -386,39 +382,8 @@ static int init_port(void)
 
 		read_bool_property(node, "rpi,debug", &debug);
 
-	}
-	else
-	{
-#ifdef CONFIG_ARCH_BCM2835
-		ret = -EINVAL;
-		goto exit_init_port;
-#else
-		if (gpio_in_pin >= BCM2708_NR_GPIOS ||
-		    gpio_out_pin >= BCM2708_NR_GPIOS) {
-			ret = -EINVAL;
-			printk(KERN_ERR LIRC_DRIVER_NAME
-			       ": invalid GPIO pin(s) specified!\n");
-			goto exit_init_port;
-		}
-
-		if (gpio_request(gpio_out_pin, LIRC_DRIVER_NAME " ir/out")) {
-			printk(KERN_ALERT LIRC_DRIVER_NAME
-			       ": cant claim gpio pin %d\n", gpio_out_pin);
-			ret = -ENODEV;
-			goto exit_init_port;
-		}
-
-		if (gpio_request(gpio_in_pin, LIRC_DRIVER_NAME " ir/in")) {
-			printk(KERN_ALERT LIRC_DRIVER_NAME
-			       ": cant claim gpio pin %d\n", gpio_in_pin);
-			ret = -ENODEV;
-			goto exit_gpio_free_out_pin;
-		}
-
-		bcm2708_gpio_setpull(gpiochip, gpio_in_pin, gpio_in_pull);
-		gpiochip->direction_input(gpiochip, gpio_in_pin);
-		gpiochip->direction_output(gpiochip, gpio_out_pin, 1);
-#endif
+	} else {
+		return EINVAL;
 	}
 
 	gpiochip->set(gpiochip, gpio_out_pin, invert);
@@ -455,12 +420,6 @@ static int init_port(void)
 	}
 
 	return 0;
-
-	exit_gpio_free_out_pin:
-	gpio_free(gpio_out_pin);
-
-	exit_init_port:
-	return ret;
 }
 
 // called when the character device is opened

@@ -2,10 +2,10 @@ ifeq ($(CONFIG_OF),y)
 
 # Overlays for the Raspberry Pi platform
 
-ifeq ($(CONFIG_BCM2708_DT),y)
+ifeq ($(CONFIG_ARCH_BCM2708),y)
    RPI_DT_OVERLAYS=y
 endif
-ifeq ($(CONFIG_BCM2709_DT),y)
+ifeq ($(CONFIG_ARCH_BCM2709),y)
    RPI_DT_OVERLAYS=y
 endif
 ifeq ($(CONFIG_ARCH_BCM2835),y)
@@ -49,8 +49,6 @@ dtb-$(RPI_DT_OVERLAYS) += sdio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += smi-dev-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += smi-nand-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += smi-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += spi-bcm2708-overlay.dtb
-dtb-$(RPI_DT_OVERLAYS) += spi-bcm2835-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += spi-gpio35-39-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += tinylcd35-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += uart1-overlay.dtb
