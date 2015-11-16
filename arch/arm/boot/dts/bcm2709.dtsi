@@ -74,3 +74,7 @@
 		       <&v7_cpu3>, "clock-frequency:0";
 	};
 };
+
+&watchdog {
+	status = "okay";
+};
