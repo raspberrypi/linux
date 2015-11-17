@@ -442,8 +442,8 @@ static int bcm2708_ioctl(struct fb_info *info, unsigned int cmd, unsigned long a
 					    &dummy, sizeof(dummy));
 		break;
 	default:
-		dev_err(info->device, "Unknown ioctl 0x%x\n", cmd);
-		return -EINVAL;
+		dev_dbg(info->device, "Unknown ioctl 0x%x\n", cmd);
+		return -ENOTTY;
 	}
 
 	if (ret)
