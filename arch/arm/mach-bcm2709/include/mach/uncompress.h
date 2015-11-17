@@ -21,7 +21,7 @@
 
 #include <linux/io.h>
 #include <linux/amba/serial.h>
-#include <mach/hardware.h>
+#include <mach/platform.h>
 
 #define UART_BAUD 115200
 
