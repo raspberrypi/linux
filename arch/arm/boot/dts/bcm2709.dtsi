@@ -22,6 +22,14 @@
 			reg = <0x7e200000 0x1000>;
 			status = "okay";
 		};
+
+		local_intc: local_intc {
+			compatible = "brcm,bcm2836-l1-intc";
+			reg = <0x40000000 0x100>;
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			interrupt-parent = <&local_intc>;
+		};
 	};
 
 	timer {
@@ -77,4 +85,10 @@
 
 &watchdog {
 	status = "okay";
+};
+
+&intc {
+        compatible = "brcm,bcm2836-armctrl-ic";
+        interrupt-parent = <&local_intc>;
+        interrupts = <8>;
 };
