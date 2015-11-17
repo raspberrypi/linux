@@ -1,9 +1,9 @@
 /*
- *  arch/arm/mach-bcm2708/include/mach/system.h
+ *  arch/arm/mach-bcm2708/include/mach/hardware.h
+ *
+ *  This file contains the hardware definitions of the BCM2708 devices.
  *
  *  Copyright (C) 2010 Broadcom
- *  Copyright (C) 2003 ARM Limited
- *  Copyright (C) 2000 Deep Blue Solutions Ltd
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,20 +19,10 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-#ifndef __ASM_ARCH_SYSTEM_H
-#define __ASM_ARCH_SYSTEM_H
+#ifndef __ASM_ARCH_HARDWARE_H
+#define __ASM_ARCH_HARDWARE_H
 
-#include <linux/io.h>
-#include <mach/hardware.h>
+#include <asm/sizes.h>
 #include <mach/platform.h>
-
-static inline void arch_idle(void)
-{
-	/*
-	 * This should do all the clock switching
-	 * and wait for interrupt tricks
-	 */
-	cpu_do_idle();
-}
 
 #endif

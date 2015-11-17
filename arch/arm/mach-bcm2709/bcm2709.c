@@ -28,15 +28,19 @@
 #include <linux/of_platform.h>
 
 #include <asm/system_info.h>
+#include <mach/hardware.h>
 #include <asm/mach-types.h>
 #include <asm/cputype.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
-
 #include <mach/system.h>
 
+#include "armctrl.h"
+
 #include <linux/broadcom/vc_cma.h>
+
+//#define SYSTEM_TIMER
 
 /* Effectively we have an IOMMU (ARM<->VideoCore map) that is set up to
  * give us IO access only to 64Mbytes of physical memory (26 bits).  We could
@@ -52,6 +56,12 @@
 /* command line parameters */
 static unsigned boardrev, serial;
 static unsigned reboot_part = 0;
+unsigned force_core;
+
+void __init bcm2709_init_irq(void)
+{
+	armctrl_init(__io_address(ARMCTRL_IC_BASE), 0, 0, 0);
+}
 
 static struct map_desc bcm2709_io_desc[] __initdata = {
 	{
@@ -110,6 +120,54 @@ void __init bcm2709_map_io(void)
 {
 	iotable_init(bcm2709_io_desc, ARRAY_SIZE(bcm2709_io_desc));
 }
+
+#ifdef SYSTEM_TIMER
+
+/* The STC is a free running counter that increments at the rate of 1MHz */
+#define STC_FREQ_HZ 1000000
+
+static inline uint32_t timer_read(void)
+{
+	/* STC: a free running counter that increments at the rate of 1MHz */
+	return readl(__io_address(ST_BASE + 0x04));
+}
+
+static unsigned long bcm2709_read_current_timer(void)
+{
+	return timer_read();
+}
+
+static u64 notrace bcm2709_read_sched_clock(void)
+{
+	return timer_read();
+}
+
+static cycle_t clksrc_read(struct clocksource *cs)
+{
+	return timer_read();
+}
+
+static struct clocksource clocksource_stc = {
+	.name = "stc",
+	.rating = 300,
+	.read = clksrc_read,
+	.mask = CLOCKSOURCE_MASK(32),
+	.flags = CLOCK_SOURCE_IS_CONTINUOUS,
+};
+
+unsigned long frc_clock_ticks32(void)
+{
+	return timer_read();
+}
+
+static void __init bcm2709_clocksource_init(void)
+{
+	if (clocksource_register_hz(&clocksource_stc, STC_FREQ_HZ)) {
+		printk(KERN_ERR "timer: failed to initialize clock "
+		       "source %s\n", clocksource_stc.name);
+	}
+}
+#endif
 
 int calc_rsts(int partition)
 {
@@ -195,8 +253,7 @@ void __init bcm2709_init(void)
 
 	pm_power_off = bcm2709_power_off;
 
-	ret = of_platform_populate(NULL, of_default_bus_match_table, NULL,
-				   NULL);
+	ret = of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 	if (ret) {
 		pr_err("of_platform_populate failed: %d\n", ret);
 		BUG();
@@ -207,6 +264,105 @@ void __init bcm2709_init(void)
 	system_rev = boardrev;
 	system_serial_low = serial;
 }
+
+#ifdef SYSTEM_TIMER
+static void timer_set_mode(enum clock_event_mode mode,
+			   struct clock_event_device *clk)
+{
+	switch (mode) {
+	case CLOCK_EVT_MODE_ONESHOT: /* Leave the timer disabled, .set_next_event will enable it */
+	case CLOCK_EVT_MODE_SHUTDOWN:
+		break;
+	case CLOCK_EVT_MODE_PERIODIC:
+
+	case CLOCK_EVT_MODE_UNUSED:
+	case CLOCK_EVT_MODE_RESUME:
+
+	default:
+		printk(KERN_ERR "timer_set_mode: unhandled mode:%d\n",
+		       (int)mode);
+		break;
+	}
+
+}
+
+static int timer_set_next_event(unsigned long cycles,
+				struct clock_event_device *unused)
+{
+	unsigned long stc;
+	do {
+		stc = readl(__io_address(ST_BASE + 0x04));
+		/* We could take a FIQ here, which may push ST above STC3 */
+		writel(stc + cycles, __io_address(ST_BASE + 0x18));
+	} while ((signed long) cycles >= 0 &&
+				(signed long) (readl(__io_address(ST_BASE + 0x04)) - stc)
+				>= (signed long) cycles);
+	return 0;
+}
+
+static struct clock_event_device timer0_clockevent = {
+	.name = "timer0",
+	.shift = 32,
+	.features = CLOCK_EVT_FEAT_ONESHOT,
+	.set_mode = timer_set_mode,
+	.set_next_event = timer_set_next_event,
+};
+
+/*
+ * IRQ handler for the timer
+ */
+static irqreturn_t bcm2709_timer_interrupt(int irq, void *dev_id)
+{
+	struct clock_event_device *evt = &timer0_clockevent;
+
+	writel(1 << 3, __io_address(ST_BASE + 0x00));	/* stcs clear timer int */
+
+	evt->event_handler(evt);
+
+	return IRQ_HANDLED;
+}
+
+static struct irqaction bcm2709_timer_irq = {
+	.name = "BCM2709 Timer Tick",
+	.flags = IRQF_TIMER | IRQF_IRQPOLL,
+	.handler = bcm2709_timer_interrupt,
+};
+
+/*
+ * Set up timer interrupt, and return the current time in seconds.
+ */
+
+static struct delay_timer bcm2709_delay_timer = {
+	.read_current_timer = bcm2709_read_current_timer,
+	.freq = STC_FREQ_HZ,
+};
+
+static void __init bcm2709_timer_init(void)
+{
+	/* init high res timer */
+	bcm2709_clocksource_init();
+
+	/*
+	 * Make irqs happen for the system timer
+	 */
+	setup_irq(IRQ_TIMER3, &bcm2709_timer_irq);
+
+	sched_clock_register(bcm2709_read_sched_clock, 32, STC_FREQ_HZ);
+
+	timer0_clockevent.mult =
+	    div_sc(STC_FREQ_HZ, NSEC_PER_SEC, timer0_clockevent.shift);
+	timer0_clockevent.max_delta_ns =
+	    clockevent_delta2ns(0xffffffff, &timer0_clockevent);
+	timer0_clockevent.min_delta_ns =
+	    clockevent_delta2ns(0xf, &timer0_clockevent);
+
+	timer0_clockevent.cpumask = cpumask_of(0);
+	clockevents_register_device(&timer0_clockevent);
+
+	register_current_timer_delay(&bcm2709_delay_timer);
+}
+
+#else
 
 static void __init bcm2709_timer_init(void)
 {
@@ -220,6 +376,7 @@ static void __init bcm2709_timer_init(void)
 	clocksource_probe();
 }
 
+#endif
 
 void __init bcm2709_init_early(void)
 {
@@ -240,6 +397,7 @@ static void __init board_reserve(void)
 #ifdef CONFIG_SMP
 #include <linux/smp.h>
 
+#include <mach/hardware.h>
 #include <asm/cacheflush.h>
 #include <asm/smp_plat.h>
 int dc4=0;
@@ -353,6 +511,7 @@ MACHINE_START(BCM2709, "BCM2709")
 	.smp		= smp_ops(bcm2709_smp_ops),
 #endif
 	.map_io = bcm2709_map_io,
+	.init_irq = bcm2709_init_irq,
 	.init_time = bcm2709_timer_init,
 	.init_machine = bcm2709_init,
 	.init_early = bcm2709_init_early,
@@ -367,6 +526,7 @@ MACHINE_START(BCM2708, "BCM2709")
 	.smp		= smp_ops(bcm2709_smp_ops),
 #endif
 	.map_io = bcm2709_map_io,
+	.init_irq = bcm2709_init_irq,
 	.init_time = bcm2709_timer_init,
 	.init_machine = bcm2709_init,
 	.init_early = bcm2709_init_early,
@@ -375,6 +535,7 @@ MACHINE_START(BCM2708, "BCM2709")
 	.dt_compat = bcm2709_compat,
 MACHINE_END
 
+module_param(force_core, uint, 0644);
 module_param(boardrev, uint, 0644);
 module_param(serial, uint, 0644);
 module_param(reboot_part, uint, 0644);

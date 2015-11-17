@@ -351,8 +351,6 @@ config ARCH_BCM2709
 	select ARCH_HAS_CPUFREQ
 	select GENERIC_CLOCKEVENTS
 	select MACH_BCM2709
-	select MULTI_IRQ_HANDLER
-	select SPARSE_IRQ
 	select VC4
 	select FIQ
 	select USE_OF

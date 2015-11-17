@@ -1,9 +1,7 @@
 /*
- *  arch/arm/mach-bcm2708/include/mach/system.h
+ *  linux/arch/arm/mach-bcm2708/armctrl.h
  *
  *  Copyright (C) 2010 Broadcom
- *  Copyright (C) 2003 ARM Limited
- *  Copyright (C) 2000 Deep Blue Solutions Ltd
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,20 +17,11 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-#ifndef __ASM_ARCH_SYSTEM_H
-#define __ASM_ARCH_SYSTEM_H
 
-#include <linux/io.h>
-#include <mach/hardware.h>
-#include <mach/platform.h>
+#ifndef __BCM2708_ARMCTRL_H
+#define __BCM2708_ARMCTRL_H
 
-static inline void arch_idle(void)
-{
-	/*
-	 * This should do all the clock switching
-	 * and wait for interrupt tricks
-	 */
-	cpu_do_idle();
-}
+extern int __init armctrl_init(void __iomem * base, unsigned int irq_start,
+			       u32 armctrl_sources, u32 resume_sources);
 
 #endif
