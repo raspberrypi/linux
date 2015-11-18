@@ -104,18 +104,11 @@ submit_cl(struct drm_device *dev, uint32_t thread, uint32_t start, uint32_t end)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
-	/* Stop any existing thread and set state to "stopped at halt" */
-	V3D_WRITE(V3D_CTNCS(thread), V3D_CTRUN);
-	barrier();
-
-	V3D_WRITE(V3D_CTNCA(thread), start);
-	barrier();
-
-	/* Set the end address of the control list.  Writing this
-	 * register is what starts the job.
+	/* Set the current and end address of the control list.
+	 * Writing the end register is what starts the job.
 	 */
+	V3D_WRITE(V3D_CTNCA(thread), start);
 	V3D_WRITE(V3D_CTNEA(thread), end);
-	barrier();
 }
 
 int
@@ -439,10 +432,12 @@ fail:
 }
 
 static void
-vc4_complete_exec(struct vc4_exec_info *exec)
+vc4_complete_exec(struct drm_device *dev, struct vc4_exec_info *exec)
 {
 	unsigned i;
 
+	/* Need the struct lock for drm_gem_object_unreference(). */
+	mutex_lock(&dev->struct_mutex);
 	if (exec->bo) {
 		for (i = 0; i < exec->bo_count; i++)
 			drm_gem_object_unreference(&exec->bo[i].bo->base);
@@ -455,6 +450,7 @@ vc4_complete_exec(struct vc4_exec_info *exec)
 		list_del(&bo->unref_head);
 		drm_gem_object_unreference(&bo->base.base);
 	}
+	mutex_unlock(&dev->struct_mutex);
 
 	kfree(exec);
 }
@@ -473,7 +469,7 @@ vc4_job_handle_completed(struct vc4_dev *vc4)
 		list_del(&exec->head);
 
 		spin_unlock_irqrestore(&vc4->job_lock, irqflags);
-		vc4_complete_exec(exec);
+		vc4_complete_exec(vc4->dev, exec);
 		spin_lock_irqsave(&vc4->job_lock, irqflags);
 	}
 
@@ -525,12 +521,8 @@ vc4_job_done_work(struct work_struct *work)
 {
 	struct vc4_dev *vc4 =
 		container_of(work, struct vc4_dev, job_done_work);
-	struct drm_device *dev = vc4->dev;
 
-	/* Need the struct lock for drm_gem_object_unreference(). */
-	mutex_lock(&dev->struct_mutex);
 	vc4_job_handle_completed(vc4);
-	mutex_unlock(&dev->struct_mutex);
 }
 
 static int
@@ -639,7 +631,7 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 	return 0;
 
 fail:
-	vc4_complete_exec(exec);
+	vc4_complete_exec(vc4->dev, exec);
 
 	return ret;
 }
