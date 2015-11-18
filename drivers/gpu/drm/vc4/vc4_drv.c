@@ -127,7 +127,7 @@ static struct drm_driver vc4_drm_driver = {
 	.num_ioctls = ARRAY_SIZE(vc4_drm_ioctls),
 	.fops = &vc4_drm_fops,
 
-	.gem_obj_size = sizeof(struct vc4_bo),
+	//.gem_obj_size = sizeof(struct vc4_bo),
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
