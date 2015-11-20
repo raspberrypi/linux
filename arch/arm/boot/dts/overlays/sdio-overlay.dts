@@ -7,7 +7,7 @@
 
 	fragment@3 {
 		target = <&mmc>;
-		__overlay__ {
+		sdio_mmc: __overlay__ {
 			compatible = "brcm,bcm2835-mmc";
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdio_pins>;
@@ -25,5 +25,9 @@
 				brcm,pull = <0 2 2 2 2 2>;
 			};
 		};
+	};
+
+	__overrides__ {
+		poll_once = <&sdio_mmc>,"non-removable?";
 	};
 };
