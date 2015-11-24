@@ -159,8 +159,11 @@ static int tipc_udp_send_msg(struct net *net, struct sk_buff *skb,
 	struct sk_buff *clone;
 	struct rtable *rt;
 
-	if (skb_headroom(skb) < UDP_MIN_HEADROOM)
-		pskb_expand_head(skb, UDP_MIN_HEADROOM, 0, GFP_ATOMIC);
+	if (skb_headroom(skb) < UDP_MIN_HEADROOM) {
+		err = pskb_expand_head(skb, UDP_MIN_HEADROOM, 0, GFP_ATOMIC);
+		if (err)
+			goto tx_error;
+	}
 
 	clone = skb_clone(skb, GFP_ATOMIC);
 	skb_set_inner_protocol(clone, htons(ETH_P_TIPC));
