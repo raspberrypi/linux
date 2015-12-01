@@ -1268,6 +1268,7 @@ static int
 echo_copyout_lsm(struct lov_stripe_md *lsm, void *_ulsm, int ulsm_nob)
 {
 	struct lov_stripe_md *ulsm = _ulsm;
+	struct lov_oinfo **p;
 	int nob, i;
 
 	nob = offsetof(struct lov_stripe_md, lsm_oinfo[lsm->lsm_stripe_count]);
@@ -1277,9 +1278,10 @@ echo_copyout_lsm(struct lov_stripe_md *lsm, void *_ulsm, int ulsm_nob)
 	if (copy_to_user(ulsm, lsm, sizeof(*ulsm)))
 		return -EFAULT;
 
-	for (i = 0; i < lsm->lsm_stripe_count; i++) {
-		if (copy_to_user(ulsm->lsm_oinfo[i], lsm->lsm_oinfo[i],
-				      sizeof(lsm->lsm_oinfo[0])))
+	for (i = 0, p = lsm->lsm_oinfo; i < lsm->lsm_stripe_count; i++, p++) {
+		struct lov_oinfo __user *up;
+		if (get_user(up, ulsm->lsm_oinfo + i) ||
+		    copy_to_user(up, *p, sizeof(struct lov_oinfo)))
 			return -EFAULT;
 	}
 	return 0;
@@ -1287,9 +1289,10 @@ echo_copyout_lsm(struct lov_stripe_md *lsm, void *_ulsm, int ulsm_nob)
 
 static int
 echo_copyin_lsm(struct echo_device *ed, struct lov_stripe_md *lsm,
-		 void *ulsm, int ulsm_nob)
+		struct lov_stripe_md __user *ulsm, int ulsm_nob)
 {
 	struct echo_client_obd *ec = ed->ed_ec;
+	struct lov_oinfo **p;
 	int		     i;
 
 	if (ulsm_nob < sizeof(*lsm))
@@ -1305,11 +1308,10 @@ echo_copyin_lsm(struct echo_device *ed, struct lov_stripe_md *lsm,
 		return -EINVAL;
 
 
-	for (i = 0; i < lsm->lsm_stripe_count; i++) {
-		if (copy_from_user(lsm->lsm_oinfo[i],
-				       ((struct lov_stripe_md *)ulsm)-> \
-				       lsm_oinfo[i],
-				       sizeof(lsm->lsm_oinfo[0])))
+	for (i = 0, p = lsm->lsm_oinfo; i < lsm->lsm_stripe_count; i++, p++) {
+		struct lov_oinfo __user *up;
+		if (get_user(up, ulsm->lsm_oinfo + i) ||
+		    copy_from_user(*p, up, sizeof(struct lov_oinfo)))
 			return -EFAULT;
 	}
 	return 0;
