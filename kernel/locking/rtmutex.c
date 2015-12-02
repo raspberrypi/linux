@@ -1583,7 +1583,11 @@ int __sched rt_mutex_trylock(struct rt_mutex *lock)
 {
 	int ret;
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+	if (WARN_ON_ONCE(in_irq() || in_nmi()))
+#else
 	if (WARN_ON_ONCE(in_irq() || in_nmi() || in_serving_softirq()))
+#endif
 		return 0;
 
 	ret = rt_mutex_fasttrylock(lock, rt_mutex_slowtrylock);
