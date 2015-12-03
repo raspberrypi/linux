@@ -383,7 +383,7 @@ static int init_port(void)
 		read_bool_property(node, "rpi,debug", &debug);
 
 	} else {
-		return EINVAL;
+		return -EINVAL;
 	}
 
 	gpiochip->set(gpiochip, gpio_out_pin, invert);
