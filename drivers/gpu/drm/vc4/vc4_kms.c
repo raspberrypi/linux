@@ -132,6 +132,7 @@ static int vc4_atomic_commit(struct drm_device *dev,
 			struct drm_gem_cma_object *cma_bo =
 				drm_fb_cma_get_gem_obj(new_state->fb, 0);
 			struct vc4_bo *bo = to_vc4_bo(&cma_bo->base);
+
 			wait_seqno = max(bo->seqno, wait_seqno);
 		}
 	}

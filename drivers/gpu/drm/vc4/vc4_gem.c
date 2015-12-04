@@ -53,9 +53,8 @@ vc4_free_hang_state(struct drm_device *dev, struct vc4_hang_state *state)
 	unsigned int i;
 
 	mutex_lock(&dev->struct_mutex);
-	for (i = 0; i < state->user_state.bo_count; i++) {
+	for (i = 0; i < state->user_state.bo_count; i++)
 		drm_gem_object_unreference(state->bo[i]);
-	}
 	mutex_unlock(&dev->struct_mutex);
 
 	kfree(state);
@@ -65,10 +64,10 @@ int
 vc4_get_hang_state_ioctl(struct drm_device *dev, void *data,
 			 struct drm_file *file_priv)
 {
- 	struct drm_vc4_get_hang_state *get_state = data;
+	struct drm_vc4_get_hang_state *get_state = data;
 	struct drm_vc4_get_hang_state_bo *bo_state;
 	struct vc4_hang_state *kernel_state;
- 	struct drm_vc4_get_hang_state *state;
+	struct drm_vc4_get_hang_state *state;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	unsigned long irqflags;
 	u32 i;
@@ -107,6 +106,7 @@ vc4_get_hang_state_ioctl(struct drm_device *dev, void *data,
 	for (i = 0; i < state->bo_count; i++) {
 		struct vc4_bo *vc4_bo = to_vc4_bo(kernel_state->bo[i]);
 		u32 handle;
+
 		ret = drm_gem_handle_create(file_priv, kernel_state->bo[i],
 					    &handle);
 
@@ -124,7 +124,7 @@ vc4_get_hang_state_ioctl(struct drm_device *dev, void *data,
 			   state->bo_count * sizeof(*bo_state));
 	kfree(bo_state);
 
- err_free:
+err_free:
 
 	vc4_free_hang_state(dev, kernel_state);
 
@@ -578,7 +578,7 @@ vc4_get_bcl(struct drm_device *dev, struct vc4_exec_info *exec)
 		goto fail;
 	}
 
-	bo = vc4_bo_create(dev, exec_size);
+	bo = vc4_bo_create(dev, exec_size, true);
 	if (!bo) {
 		DRM_ERROR("Couldn't allocate BO for binning\n");
 		ret = PTR_ERR(exec->exec_bo);
@@ -668,6 +668,7 @@ vc4_job_handle_completed(struct vc4_dev *vc4)
 static void vc4_seqno_cb_work(struct work_struct *work)
 {
 	struct vc4_seqno_cb *cb = container_of(work, struct vc4_seqno_cb, work);
+
 	cb->func(cb);
 }
 
@@ -717,6 +718,7 @@ vc4_wait_for_seqno_ioctl_helper(struct drm_device *dev,
 
 	if ((ret == -EINTR || ret == -ERESTARTSYS) && *timeout_ns != ~0ull) {
 		uint64_t delta = jiffies_to_nsecs(jiffies - start);
+
 		if (*timeout_ns >= delta)
 			*timeout_ns -= delta;
 	}
@@ -750,9 +752,10 @@ vc4_wait_bo_ioctl(struct drm_device *dev, void *data,
 	}
 	bo = to_vc4_bo(gem_obj);
 
-	ret = vc4_wait_for_seqno_ioctl_helper(dev, bo->seqno, &args->timeout_ns);
+	ret = vc4_wait_for_seqno_ioctl_helper(dev, bo->seqno,
+					      &args->timeout_ns);
 
-	drm_gem_object_unreference(gem_obj);
+	drm_gem_object_unreference_unlocked(gem_obj);
 	return ret;
 }
 
@@ -793,7 +796,8 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 		if (ret)
 			goto fail;
 	} else {
-		exec->ct0ca = exec->ct0ea = 0;
+		exec->ct0ca = 0;
+		exec->ct0ea = 0;
 	}
 
 	ret = vc4_get_rcl(dev, exec);
@@ -831,7 +835,7 @@ vc4_gem_init(struct drm_device *dev)
 	INIT_WORK(&vc4->hangcheck.reset_work, vc4_reset_work);
 	setup_timer(&vc4->hangcheck.timer,
 		    vc4_hangcheck_elapsed,
-		    (unsigned long) dev);
+		    (unsigned long)dev);
 
 	INIT_WORK(&vc4->job_done_work, vc4_job_done_work);
 }
