@@ -63,7 +63,6 @@ static inline void rcl_u32(struct vc4_rcl_setup *setup, u32 val)
 	setup->next_offset += 4;
 }
 
-
 /*
  * Emits a no-op STORE_TILE_BUFFER_GENERAL.
  *
@@ -217,7 +216,7 @@ static int vc4_create_rcl_bo(struct drm_device *dev, struct vc4_exec_info *exec,
 	}
 	size += xtiles * ytiles * loop_body_size;
 
-	setup->rcl = &vc4_bo_create(dev, size)->base;
+	setup->rcl = &vc4_bo_create(dev, size, true)->base;
 	if (!setup->rcl)
 		return -ENOMEM;
 	list_add_tail(&to_vc4_bo(&setup->rcl->base)->unref_head,
@@ -256,6 +255,7 @@ static int vc4_create_rcl_bo(struct drm_device *dev, struct vc4_exec_info *exec,
 		for (x = min_x_tile; x <= max_x_tile; x++) {
 			bool first = (x == min_x_tile && y == min_y_tile);
 			bool last = (x == max_x_tile && y == max_y_tile);
+
 			emit_tile(exec, setup, x, y, first, last);
 		}
 	}

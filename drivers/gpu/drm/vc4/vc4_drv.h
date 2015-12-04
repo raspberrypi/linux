@@ -72,6 +72,9 @@ struct vc4_dev {
 	 * job_done_work.
 	 */
 	struct list_head job_done_list;
+	/* Spinlock used to synchronize the job_list and seqno
+	 * accesses between the IRQ handler and GEM ioctls.
+	 */
 	spinlock_t job_lock;
 	wait_queue_head_t job_wait_queue;
 	struct work_struct job_done_work;
@@ -318,8 +321,7 @@ struct vc4_texture_sample_info {
  * and validate the shader state record's uniforms that define the texture
  * samples.
  */
-struct vc4_validated_shader_info
-{
+struct vc4_validated_shader_info {
 	uint32_t uniforms_size;
 	uint32_t uniforms_src_size;
 	uint32_t num_texture_samples;
@@ -355,8 +357,10 @@ struct vc4_validated_shader_info
 #define wait_for(COND, MS) _wait_for(COND, MS, 1)
 
 /* vc4_bo.c */
+struct drm_gem_object *vc4_create_object(struct drm_device *dev, size_t size);
 void vc4_free_object(struct drm_gem_object *gem_obj);
-struct vc4_bo *vc4_bo_create(struct drm_device *dev, size_t size);
+struct vc4_bo *vc4_bo_create(struct drm_device *dev, size_t size,
+			     bool from_cache);
 int vc4_dumb_create(struct drm_file *file_priv,
 		    struct drm_device *dev,
 		    struct drm_mode_create_dumb *args);
@@ -432,7 +436,8 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 				 enum drm_plane_type type);
 u32 vc4_plane_write_dlist(struct drm_plane *plane, u32 __iomem *dlist);
 u32 vc4_plane_dlist_size(struct drm_plane_state *state);
-void vc4_plane_async_set_fb(struct drm_plane *plane, struct drm_framebuffer *fb);
+void vc4_plane_async_set_fb(struct drm_plane *plane,
+			    struct drm_framebuffer *fb);
 
 /* vc4_v3d.c */
 extern struct platform_driver vc4_v3d_driver;
@@ -450,9 +455,6 @@ vc4_validate_bin_cl(struct drm_device *dev,
 int
 vc4_validate_shader_recs(struct drm_device *dev, struct vc4_exec_info *exec);
 
-struct vc4_validated_shader_info *
-vc4_validate_shader(struct drm_gem_cma_object *shader_obj);
-
 bool vc4_use_bo(struct vc4_exec_info *exec,
 		uint32_t hindex,
 		enum vc4_bo_mode mode,
@@ -464,3 +466,7 @@ bool vc4_check_tex_size(struct vc4_exec_info *exec,
 			struct drm_gem_cma_object *fbo,
 			uint32_t offset, uint8_t tiling_format,
 			uint32_t width, uint32_t height, uint8_t cpp);
+
+/* vc4_validate_shader.c */
+struct vc4_validated_shader_info *
+vc4_validate_shader(struct drm_gem_cma_object *shader_obj);
