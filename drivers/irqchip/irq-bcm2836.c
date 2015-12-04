@@ -170,9 +170,10 @@ __exception_irq_entry bcm2836_arm_irqchip_handle_irq(struct pt_regs *regs)
 		u32 ipi = ffs(mbox_val) - 1;
 
 		writel(1 << ipi, mailbox0);
+		dsb();
 		handle_IPI(ipi, regs);
 #endif
-	} else {
+	} else if (stat) {
 		u32 hwirq = ffs(stat) - 1;
 
 		handle_IRQ(irq_linear_revmap(intc.domain, hwirq), regs);
