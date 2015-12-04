@@ -81,7 +81,8 @@ static const struct drm_ioctl_desc vc4_drm_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(VC4_CREATE_BO, vc4_create_bo_ioctl, 0),
 	DRM_IOCTL_DEF_DRV(VC4_MMAP_BO, vc4_mmap_bo_ioctl, 0),
 	DRM_IOCTL_DEF_DRV(VC4_CREATE_SHADER_BO, vc4_create_shader_bo_ioctl, 0),
-	DRM_IOCTL_DEF_DRV(VC4_GET_HANG_STATE, vc4_get_hang_state_ioctl, DRM_ROOT_ONLY),
+	DRM_IOCTL_DEF_DRV(VC4_GET_HANG_STATE, vc4_get_hang_state_ioctl,
+			  DRM_ROOT_ONLY),
 };
 
 static struct drm_driver vc4_drm_driver = {
@@ -107,6 +108,7 @@ static struct drm_driver vc4_drm_driver = {
 	.debugfs_cleanup = vc4_debugfs_cleanup,
 #endif
 
+	.gem_create_object = vc4_create_object,
 	.gem_free_object = vc4_free_object,
 	.gem_vm_ops = &drm_gem_cma_vm_ops,
 
@@ -127,8 +129,6 @@ static struct drm_driver vc4_drm_driver = {
 	.ioctls = vc4_drm_ioctls,
 	.num_ioctls = ARRAY_SIZE(vc4_drm_ioctls),
 	.fops = &vc4_drm_fops,
-
-	//.gem_obj_size = sizeof(struct vc4_bo),
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,

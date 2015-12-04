@@ -56,7 +56,7 @@ vc4_overflow_mem_work(struct work_struct *work)
 	struct drm_device *dev = vc4->dev;
 	struct vc4_bo *bo;
 
-	bo = vc4_bo_create(dev, 256 * 1024);
+	bo = vc4_bo_create(dev, 256 * 1024, true);
 	if (!bo) {
 		DRM_ERROR("Couldn't allocate binner overflow mem\n");
 		return;
@@ -87,9 +87,8 @@ vc4_overflow_mem_work(struct work_struct *work)
 		spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 	}
 
-	if (vc4->overflow_mem) {
+	if (vc4->overflow_mem)
 		drm_gem_object_unreference_unlocked(&vc4->overflow_mem->base.base);
-	}
 	vc4->overflow_mem = bo;
 
 	V3D_WRITE(V3D_BPOA, bo->base.paddr);
