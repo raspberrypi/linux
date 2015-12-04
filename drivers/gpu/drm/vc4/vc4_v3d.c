@@ -125,7 +125,7 @@ int vc4_v3d_debugfs_regs(struct seq_file *m, void *unused)
 
 int vc4_v3d_debugfs_ident(struct seq_file *m, void *unused)
 {
-	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_info_node *node = (struct drm_info_node *)m->private;
 	struct drm_device *dev = node->minor->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	uint32_t ident1 = V3D_READ(V3D_IDENT1);
@@ -133,11 +133,13 @@ int vc4_v3d_debugfs_ident(struct seq_file *m, void *unused)
 	uint32_t tups = VC4_GET_FIELD(ident1, V3D_IDENT1_TUPS);
 	uint32_t qups = VC4_GET_FIELD(ident1, V3D_IDENT1_QUPS);
 
-	seq_printf(m, "Revision:   %d\n", VC4_GET_FIELD(ident1, V3D_IDENT1_REV));
+	seq_printf(m, "Revision:   %d\n",
+		   VC4_GET_FIELD(ident1, V3D_IDENT1_REV));
 	seq_printf(m, "Slices:     %d\n", nslc);
 	seq_printf(m, "TMUs:       %d\n", nslc * tups);
 	seq_printf(m, "QPUs:       %d\n", nslc * qups);
-	seq_printf(m, "Semaphores: %d\n", VC4_GET_FIELD(ident1, V3D_IDENT1_NSEM));
+	seq_printf(m, "Semaphores: %d\n",
+		   VC4_GET_FIELD(ident1, V3D_IDENT1_NSEM));
 
 	return 0;
 }
@@ -218,7 +220,7 @@ static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 }
 
 static void vc4_v3d_unbind(struct device *dev, struct device *master,
-			    void *data)
+			   void *data)
 {
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dev *vc4 = to_vc4_dev(drm);
