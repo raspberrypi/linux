@@ -319,9 +319,9 @@
 		};
 
 		/* The oscillator is the root of the clock tree. */
-		clk_osc: clock@7 {
+		clk_osc: clock@6 {
 			compatible = "fixed-clock";
-			reg = <7>;
+			reg = <6>;
 			#clock-cells = <0>;
 			clock-output-names = "osc";
 			clock-frequency = <19200000>;
