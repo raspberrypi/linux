@@ -501,6 +501,7 @@ vc4_async_page_flip_complete(struct vc4_seqno_cb *cb)
 	vc4_plane_async_set_fb(plane, flip_state->fb);
 	if (flip_state->event) {
 		unsigned long flags;
+
 		spin_lock_irqsave(&dev->event_lock, flags);
 		drm_crtc_send_vblank_event(crtc, flip_state->event);
 		spin_unlock_irqrestore(&dev->event_lock, flags);
@@ -562,9 +563,9 @@ static int vc4_async_page_flip(struct drm_crtc *crtc,
 }
 
 static int vc4_page_flip(struct drm_crtc *crtc,
-		  struct drm_framebuffer *fb,
-		  struct drm_pending_vblank_event *event,
-		  uint32_t flags)
+			 struct drm_framebuffer *fb,
+			 struct drm_pending_vblank_event *event,
+			 uint32_t flags)
 {
 	if (flags & DRM_MODE_PAGE_FLIP_ASYNC)
 		return vc4_async_page_flip(crtc, fb, event, flags);
