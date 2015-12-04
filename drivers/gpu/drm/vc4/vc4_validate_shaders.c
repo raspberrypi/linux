@@ -24,24 +24,16 @@
 /**
  * DOC: Shader validator for VC4.
  *
- * The VC4 has no IOMMU between it and system memory.  So, a user with access
- * to execute shaders could escalate privilege by overwriting system memory
- * (using the VPM write address register in the general-purpose DMA mode) or
- * reading system memory it shouldn't (reading it as a texture, or uniform
- * data, or vertex data).
+ * The VC4 has no IOMMU between it and system memory, so a user with
+ * access to execute shaders could escalate privilege by overwriting
+ * system memory (using the VPM write address register in the
+ * general-purpose DMA mode) or reading system memory it shouldn't
+ * (reading it as a texture, or uniform data, or vertex data).
  *
- * This walks over a shader starting from some offset within a BO, ensuring
- * that its accesses are appropriately bounded, and recording how many texture
- * accesses are made and where so that we can do relocations for them in the
+ * This walks over a shader BO, ensuring that its accesses are
+ * appropriately bounded, and recording how many texture accesses are
+ * made and where so that we can do relocations for them in the
  * uniform stream.
- *
- * The kernel API has shaders stored in user-mapped BOs.  The BOs will be
- * forcibly unmapped from the process before validation, and any cache of
- * validated state will be flushed if the mapping is faulted back in.
- *
- * Storing the shaders in BOs means that the validation process will be slow
- * due to uncached reads, but since shaders are long-lived and shader BOs are
- * never actually modified, this shouldn't be a problem.
  */
 
 #include "vc4_drv.h"
@@ -70,7 +62,6 @@ waddr_to_live_reg_index(uint32_t waddr, bool is_b)
 		else
 			return waddr;
 	} else if (waddr <= QPU_W_ACC3) {
-
 		return 64 + waddr - QPU_W_ACC0;
 	} else {
 		return ~0;
@@ -85,15 +76,14 @@ raddr_add_a_to_live_reg_index(uint64_t inst)
 	uint32_t raddr_a = QPU_GET_FIELD(inst, QPU_RADDR_A);
 	uint32_t raddr_b = QPU_GET_FIELD(inst, QPU_RADDR_B);
 
-	if (add_a == QPU_MUX_A) {
+	if (add_a == QPU_MUX_A)
 		return raddr_a;
-	} else if (add_a == QPU_MUX_B && sig != QPU_SIG_SMALL_IMM) {
+	else if (add_a == QPU_MUX_B && sig != QPU_SIG_SMALL_IMM)
 		return 32 + raddr_b;
-	} else if (add_a <= QPU_MUX_R3) {
+	else if (add_a <= QPU_MUX_R3)
 		return 64 + add_a;
-	} else {
+	else
 		return ~0;
-	}
 }
 
 static bool
@@ -111,9 +101,9 @@ is_tmu_write(uint32_t waddr)
 }
 
 static bool
-record_validated_texture_sample(struct vc4_validated_shader_info *validated_shader,
-				struct vc4_shader_validation_state *validation_state,
-				int tmu)
+record_texture_sample(struct vc4_validated_shader_info *validated_shader,
+		      struct vc4_shader_validation_state *validation_state,
+		      int tmu)
 {
 	uint32_t s = validated_shader->num_texture_samples;
 	int i;
@@ -226,8 +216,8 @@ check_tmu_write(uint64_t inst,
 		validated_shader->uniforms_size += 4;
 
 	if (submit) {
-		if (!record_validated_texture_sample(validated_shader,
-						     validation_state, tmu)) {
+		if (!record_texture_sample(validated_shader,
+					   validation_state, tmu)) {
 			return false;
 		}
 
@@ -238,10 +228,10 @@ check_tmu_write(uint64_t inst,
 }
 
 static bool
-check_register_write(uint64_t inst,
-		     struct vc4_validated_shader_info *validated_shader,
-		     struct vc4_shader_validation_state *validation_state,
-		     bool is_mul)
+check_reg_write(uint64_t inst,
+		struct vc4_validated_shader_info *validated_shader,
+		struct vc4_shader_validation_state *validation_state,
+		bool is_mul)
 {
 	uint32_t waddr = (is_mul ?
 			  QPU_GET_FIELD(inst, QPU_WADDR_MUL) :
@@ -297,7 +287,7 @@ check_register_write(uint64_t inst,
 		return true;
 
 	case QPU_W_TLB_STENCIL_SETUP:
-                return true;
+		return true;
 	}
 
 	return true;
@@ -360,7 +350,7 @@ track_live_clamps(uint64_t inst,
 		}
 
 		validation_state->live_max_clamp_regs[lri_add] = true;
-	} if (op_add == QPU_A_MIN) {
+	} else if (op_add == QPU_A_MIN) {
 		/* Track live clamps of a value clamped to a minimum of 0 and
 		 * a maximum of some uniform's offset.
 		 */
@@ -392,8 +382,10 @@ check_instruction_writes(uint64_t inst,
 		return false;
 	}
 
-	ok = (check_register_write(inst, validated_shader, validation_state, false) &&
-	      check_register_write(inst, validated_shader, validation_state, true));
+	ok = (check_reg_write(inst, validated_shader, validation_state,
+			      false) &&
+	      check_reg_write(inst, validated_shader, validation_state,
+			      true));
 
 	track_live_clamps(inst, validated_shader, validation_state);
 
@@ -441,7 +433,7 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 	shader = shader_obj->vaddr;
 	max_ip = shader_obj->base.size / sizeof(uint64_t);
 
-	validated_shader = kcalloc(sizeof(*validated_shader), 1, GFP_KERNEL);
+	validated_shader = kcalloc(1, sizeof(*validated_shader), GFP_KERNEL);
 	if (!validated_shader)
 		return NULL;
 
@@ -497,7 +489,7 @@ vc4_validate_shader(struct drm_gem_cma_object *shader_obj)
 
 	if (ip == max_ip) {
 		DRM_ERROR("shader failed to terminate before "
-			  "shader BO end at %d\n",
+			  "shader BO end at %zd\n",
 			  shader_obj->base.size);
 		goto fail;
 	}
