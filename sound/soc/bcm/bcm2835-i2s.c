@@ -909,7 +909,6 @@ static const struct of_device_id bcm2835_i2s_of_match[] = {
 	{ .compatible = "brcm,bcm2835-i2s", },
 	{},
 };
-MODULE_DEVICE_TABLE(of, bcm2835_i2s_of_match);
 
 MODULE_DEVICE_TABLE(of, bcm2835_i2s_of_match);
 
