@@ -436,7 +436,8 @@ static int vc4_rcl_surface_setup(struct vc4_exec_info *exec,
 	if (surf->hindex == ~0)
 		return 0;
 
-	if (!vc4_use_bo(exec, surf->hindex, VC4_MODE_RENDER, obj))
+	*obj = vc4_use_bo(exec, surf->hindex);
+	if (!*obj)
 		return -EINVAL;
 
 	if (surf->flags & VC4_SUBMIT_RCL_SURFACE_READ_IS_FULL_RES) {
@@ -537,7 +538,8 @@ vc4_rcl_render_config_surface_setup(struct vc4_exec_info *exec,
 	if (surf->hindex == ~0)
 		return 0;
 
-	if (!vc4_use_bo(exec, surf->hindex, VC4_MODE_RENDER, obj))
+	*obj = vc4_use_bo(exec, surf->hindex);
+	if (!*obj)
 		return -EINVAL;
 
 	if (tiling > VC4_TILING_FORMAT_LT) {
