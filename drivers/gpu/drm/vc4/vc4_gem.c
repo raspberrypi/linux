@@ -169,8 +169,8 @@ vc4_save_hang_state(struct drm_device *dev)
 	}
 
 	for (i = 0; i < exec->bo_count; i++) {
-		drm_gem_object_reference(&exec->bo[i].bo->base);
-		kernel_state->bo[i] = &exec->bo[i].bo->base;
+		drm_gem_object_reference(&exec->bo[i]->base);
+		kernel_state->bo[i] = &exec->bo[i]->base;
 	}
 
 	list_for_each_entry(bo, &exec->unref_list, unref_head) {
@@ -397,7 +397,7 @@ vc4_update_bo_seqnos(struct vc4_exec_info *exec, uint64_t seqno)
 	unsigned i;
 
 	for (i = 0; i < exec->bo_count; i++) {
-		bo = to_vc4_bo(&exec->bo[i].bo->base);
+		bo = to_vc4_bo(&exec->bo[i]->base);
 		bo->seqno = seqno;
 	}
 
@@ -467,7 +467,7 @@ vc4_cl_lookup_bos(struct drm_device *dev,
 		return -EINVAL;
 	}
 
-	exec->bo = kcalloc(exec->bo_count, sizeof(struct vc4_bo_exec_state),
+	exec->bo = kcalloc(exec->bo_count, sizeof(struct drm_gem_cma_object *),
 			   GFP_KERNEL);
 	if (!exec->bo) {
 		DRM_ERROR("Failed to allocate validated BO pointers\n");
@@ -500,7 +500,7 @@ vc4_cl_lookup_bos(struct drm_device *dev,
 			goto fail;
 		}
 		drm_gem_object_reference(bo);
-		exec->bo[i].bo = (struct drm_gem_cma_object *)bo;
+		exec->bo[i] = (struct drm_gem_cma_object *)bo;
 	}
 	spin_unlock(&file_priv->table_lock);
 
@@ -591,6 +591,8 @@ vc4_get_bcl(struct drm_device *dev, struct vc4_exec_info *exec)
 
 	exec->ct0ca = exec->exec_bo->paddr + bin_offset;
 
+	exec->bin_u = bin;
+
 	exec->shader_rec_v = exec->exec_bo->vaddr + shader_rec_offset;
 	exec->shader_rec_p = exec->exec_bo->paddr + shader_rec_offset;
 	exec->shader_rec_size = args->shader_rec_size;
@@ -622,7 +624,7 @@ vc4_complete_exec(struct drm_device *dev, struct vc4_exec_info *exec)
 	mutex_lock(&dev->struct_mutex);
 	if (exec->bo) {
 		for (i = 0; i < exec->bo_count; i++)
-			drm_gem_object_unreference(&exec->bo[i].bo->base);
+			drm_gem_object_unreference(&exec->bo[i]->base);
 		kfree(exec->bo);
 	}
 
