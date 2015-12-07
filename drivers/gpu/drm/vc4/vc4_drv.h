@@ -189,17 +189,6 @@ to_vc4_encoder(struct drm_encoder *encoder)
 #define HVS_READ(offset) readl(vc4->hvs->regs + offset)
 #define HVS_WRITE(offset, val) writel(val, vc4->hvs->regs + offset)
 
-enum vc4_bo_mode {
-	VC4_MODE_UNDECIDED,
-	VC4_MODE_RENDER,
-	VC4_MODE_SHADER,
-};
-
-struct vc4_bo_exec_state {
-	struct drm_gem_cma_object *bo;
-	enum vc4_bo_mode mode;
-};
-
 struct vc4_exec_info {
 	/* Sequence number for this bin/render job. */
 	uint64_t seqno;
@@ -210,7 +199,7 @@ struct vc4_exec_info {
 	/* This is the array of BOs that were looked up at the start of exec.
 	 * Command validation will use indices into this array.
 	 */
-	struct vc4_bo_exec_state *bo;
+	struct drm_gem_cma_object **bo;
 	uint32_t bo_count;
 
 	/* Pointers for our position in vc4->job_list */
@@ -238,7 +227,6 @@ struct vc4_exec_info {
 	 * command lists.
 	 */
 	struct vc4_shader_state {
-		uint8_t packet;
 		uint32_t addr;
 		/* Maximum vertex index referenced by any primitive using this
 		 * shader state.
@@ -254,6 +242,7 @@ struct vc4_exec_info {
 	bool found_tile_binning_mode_config_packet;
 	bool found_start_tile_binning_packet;
 	bool found_increment_semaphore_packet;
+	bool found_flush;
 	uint8_t bin_tiles_x, bin_tiles_y;
 	struct drm_gem_cma_object *tile_bo;
 	uint32_t tile_alloc_offset;
@@ -264,6 +253,9 @@ struct vc4_exec_info {
 	 */
 	uint32_t ct0ca, ct0ea;
 	uint32_t ct1ca, ct1ea;
+
+	/* Pointer to the unvalidated bin CL (if present). */
+	void *bin_u;
 
 	/* Pointers to the shader recs.  These paddr gets incremented as CL
 	 * packets are relocated in validate_gl_shader_state, and the vaddrs
@@ -455,10 +447,8 @@ vc4_validate_bin_cl(struct drm_device *dev,
 int
 vc4_validate_shader_recs(struct drm_device *dev, struct vc4_exec_info *exec);
 
-bool vc4_use_bo(struct vc4_exec_info *exec,
-		uint32_t hindex,
-		enum vc4_bo_mode mode,
-		struct drm_gem_cma_object **obj);
+struct drm_gem_cma_object *vc4_use_bo(struct vc4_exec_info *exec,
+				      uint32_t hindex);
 
 int vc4_get_rcl(struct drm_device *dev, struct vc4_exec_info *exec);
 
