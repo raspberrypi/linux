@@ -5,52 +5,25 @@
 	compatible = "brcm,bcm2708";
 
 	fragment@0 {
-		target = <&soc>;
-		__overlay__ {
-			#address-cells = <1>;
-			#size-cells = <1>;
-
-			sdhost: sdhost@7e202000 {
-				compatible = "brcm,bcm2835-sdhost";
-				reg = <0x7e202000 0x100>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&sdhost_pins>;
-				interrupts = <2 24>;
-				clocks = <&clk_core>;
-				dmas = <&dma 13>,
-				       <&dma 13>;
-				dma-names = "tx", "rx";
-				brcm,delay-after-stop = <0>;
-				brcm,overclock-50 = <0>;
-				brcm,pio-limit = <1>;
-				status = "okay";
-			};
-		};
-	};
-
-	fragment@1 {
-		target = <&gpio>;
-		__overlay__ {
-			sdhost_pins: sdhost_pins {
-				brcm,pins = <48 49 50 51 52 53>;
-				brcm,function = <4>; /* alt0 */
-			};
-		};
-	};
-
-	fragment@2 {
 		target = <&mmc>;
 		__overlay__ {
-			/* Find a way to disable the other driver */
-			compatible = "";
 			status = "disabled";
 		};
 	};
 
+	fragment@1 {
+		target = <&sdhost>;
+		frag1: __overlay__ {
+			brcm,overclock-50 = <0>;
+			brcm,pio-limit = <1>;
+			status = "okay";
+		};
+	};
+
 	__overrides__ {
-		overclock_50     = <&sdhost>,"brcm,overclock-50:0";
-		force_pio        = <&sdhost>,"brcm,force-pio?";
-		pio_limit        = <&sdhost>,"brcm,pio-limit:0";
-		debug            = <&sdhost>,"brcm,debug?";
+		overclock_50     = <&frag1>,"brcm,overclock-50:0";
+		force_pio        = <&frag1>,"brcm,force-pio?";
+		pio_limit        = <&frag1>,"brcm,pio-limit:0";
+		debug            = <&frag1>,"brcm,debug?";
 	};
 };
