@@ -18,7 +18,7 @@
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
 static int bcm2835_thermal_get_property(struct thermal_zone_device *tz,
-					unsigned long *temp, u32 tag)
+					int *temp, u32 tag)
 {
 	struct rpi_firmware *fw = tz->devdata;
 	struct {
@@ -36,21 +36,21 @@ static int bcm2835_thermal_get_property(struct thermal_zone_device *tz,
 	}
 
 	*temp = packet.val;
-	dev_dbg(&tz->device, "%stemp=%lu\n",
+	dev_dbg(&tz->device, "%stemp=%d\n",
 		tag == RPI_FIRMWARE_GET_MAX_TEMPERATURE ? "max" : "", *temp);
 
 	return 0;
 }
 
 static int bcm2835_thermal_get_temp(struct thermal_zone_device *tz,
-				    unsigned long *temp)
+				    int *temp)
 {
 	return bcm2835_thermal_get_property(tz, temp,
 					    RPI_FIRMWARE_GET_TEMPERATURE);
 }
 
 static int bcm2835_thermal_get_max_temp(struct thermal_zone_device *tz,
-					int trip, unsigned long *temp)
+					int trip, int *temp)
 {
 	/*
 	 * The maximum safe temperature of the SoC.
