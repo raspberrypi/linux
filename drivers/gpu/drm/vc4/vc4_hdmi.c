@@ -507,8 +507,8 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	/* Only use the GPIO HPD pin if present in the DT, otherwise
 	 * we'll use the HDMI core's register.
 	 */
-	if (of_find_property(dev->of_node, "hpd-gpio", &value)) {
-		hdmi->hpd_gpio = of_get_named_gpio(dev->of_node, "hpd-gpio", 0);
+	if (of_find_property(dev->of_node, "hpd-gpios", &value)) {
+		hdmi->hpd_gpio = of_get_named_gpio(dev->of_node, "hpd-gpios", 0);
 		if (hdmi->hpd_gpio < 0) {
 			ret = hdmi->hpd_gpio;
 			goto err_unprepare_hsm;
