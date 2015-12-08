@@ -1,5 +1,12 @@
 #include "bcm2708.dtsi"
 
+&gpio {
+	sdhost_pins: sdhost_pins {
+		brcm,pins = <48 49 50 51 52 53>;
+		brcm,function = <4>; /* alt0 */
+	};
+};
+
 &leds {
 	act_led: act {
 		label = "led0";
@@ -8,9 +15,12 @@
 	};
 };
 
-&mmc {
-	status = "okay";
+&sdhost {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdhost_pins>;
 	bus-width = <4>;
+	non-removable;
+	status = "okay";
 };
 
 &fb {

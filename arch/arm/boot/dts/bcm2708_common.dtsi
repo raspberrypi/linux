@@ -14,6 +14,7 @@
 		mailbox = &mailbox;
 		gpio = &gpio;
 		uart0 = &uart0;
+		sdhost = &sdhost;
 		i2s  = &i2s;
 		spi0 = &spi0;
 		i2c0 = &i2c0;
@@ -123,6 +124,18 @@
 			clock-names = "uartclk","apb_pclk";
 			arm,primecell-periphid = <0x00241011>; // For an explanation, see
 			// https://github.com/raspberrypi/linux/commit/13731d862cf5219216533a3b0de052cee4cc5038
+			status = "disabled";
+		};
+
+		sdhost: sdhost@7e202000 {
+			compatible = "brcm,bcm2835-sdhost";
+			reg = <0x7e202000 0x100>;
+			interrupts = <2 24>;
+			clocks = <&clk_core>;
+			dmas = <&dma 13>,
+			       <&dma 13>;
+			dma-names = "tx", "rx";
+			brcm,pio-limit = <1>;
 			status = "disabled";
 		};
 

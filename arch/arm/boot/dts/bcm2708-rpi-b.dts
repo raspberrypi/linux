@@ -8,6 +8,11 @@
 };
 
 &gpio {
+	sdhost_pins: sdhost_pins {
+		brcm,pins = <48 49 50 51 52 53>;
+		brcm,function = <4>; /* alt0 */
+	};
+
 	spi0_pins: spi0_pins {
 		brcm,pins = <9 10 11>;
 		brcm,function = <4>; /* alt0 */
@@ -34,9 +39,11 @@
 	};
 };
 
-&mmc {
-	status = "okay";
+&sdhost {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdhost_pins>;
 	bus-width = <4>;
+	status = "okay";
 };
 
 &fb {
