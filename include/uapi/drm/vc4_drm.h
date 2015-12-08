@@ -24,7 +24,7 @@
 #ifndef _UAPI_VC4_DRM_H_
 #define _UAPI_VC4_DRM_H_
 
-#include <drm/drm.h>
+#include "drm.h"
 
 #define DRM_VC4_SUBMIT_CL                         0x00
 #define DRM_VC4_WAIT_SEQNO                        0x01
@@ -34,25 +34,25 @@
 #define DRM_VC4_CREATE_SHADER_BO                  0x05
 #define DRM_VC4_GET_HANG_STATE                    0x06
 
-#define DRM_IOCTL_VC4_SUBMIT_CL           DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_SUBMIT_CL, struct drm_vc4_submit_cl)
-#define DRM_IOCTL_VC4_WAIT_SEQNO          DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_WAIT_SEQNO, struct drm_vc4_wait_seqno)
-#define DRM_IOCTL_VC4_WAIT_BO             DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_WAIT_BO, struct drm_vc4_wait_bo)
-#define DRM_IOCTL_VC4_CREATE_BO           DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_CREATE_BO, struct drm_vc4_create_bo)
-#define DRM_IOCTL_VC4_MMAP_BO             DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_MMAP_BO, struct drm_vc4_mmap_bo)
-#define DRM_IOCTL_VC4_CREATE_SHADER_BO    DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_CREATE_SHADER_BO, struct drm_vc4_create_shader_bo)
-#define DRM_IOCTL_VC4_GET_HANG_STATE      DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_GET_HANG_STATE, struct drm_vc4_get_hang_state)
+#define DRM_IOCTL_VC4_SUBMIT_CL           DRM_IOWR(DRM_COMMAND_BASE + DRM_VC4_SUBMIT_CL, struct drm_vc4_submit_cl)
+#define DRM_IOCTL_VC4_WAIT_SEQNO          DRM_IOWR(DRM_COMMAND_BASE + DRM_VC4_WAIT_SEQNO, struct drm_vc4_wait_seqno)
+#define DRM_IOCTL_VC4_WAIT_BO             DRM_IOWR(DRM_COMMAND_BASE + DRM_VC4_WAIT_BO, struct drm_vc4_wait_bo)
+#define DRM_IOCTL_VC4_CREATE_BO           DRM_IOWR(DRM_COMMAND_BASE + DRM_VC4_CREATE_BO, struct drm_vc4_create_bo)
+#define DRM_IOCTL_VC4_MMAP_BO             DRM_IOWR(DRM_COMMAND_BASE + DRM_VC4_MMAP_BO, struct drm_vc4_mmap_bo)
+#define DRM_IOCTL_VC4_CREATE_SHADER_BO    DRM_IOWR(DRM_COMMAND_BASE + DRM_VC4_CREATE_SHADER_BO, struct drm_vc4_create_shader_bo)
+#define DRM_IOCTL_VC4_GET_HANG_STATE      DRM_IOWR(DRM_COMMAND_BASE + DRM_VC4_GET_HANG_STATE, struct drm_vc4_get_hang_state)
 
 struct drm_vc4_submit_rcl_surface {
-	uint32_t hindex; /* Handle index, or ~0 if not present. */
-	uint32_t offset; /* Offset to start of buffer. */
+	__u32 hindex; /* Handle index, or ~0 if not present. */
+	__u32 offset; /* Offset to start of buffer. */
 	/*
-         * Bits for either render config (color_write) or load/store packet.
-         * Bits should all be 0 for MSAA load/stores.
+	 * Bits for either render config (color_write) or load/store packet.
+	 * Bits should all be 0 for MSAA load/stores.
 	 */
-	uint16_t bits;
+	__u16 bits;
 
 #define VC4_SUBMIT_RCL_SURFACE_READ_IS_FULL_RES		(1 << 0)
-	uint16_t flags;
+	__u16 flags;
 };
 
 /**
@@ -76,7 +76,7 @@ struct drm_vc4_submit_cl {
 	 * then writes out the state updates and draw calls necessary per tile
 	 * to the tile allocation BO.
 	 */
-	uint64_t bin_cl;
+	__u64 bin_cl;
 
 	/* Pointer to the shader records.
 	 *
@@ -85,16 +85,16 @@ struct drm_vc4_submit_cl {
 	 * reference to the shader record has enough information to determine
 	 * how many pointers are necessary (fixed number for shaders/uniforms,
 	 * and an attribute count), so those BO indices into bo_handles are
-	 * just stored as uint32_ts before each shader record passed in.
+	 * just stored as __u32s before each shader record passed in.
 	 */
-	uint64_t shader_rec;
+	__u64 shader_rec;
 
 	/* Pointer to uniform data and texture handles for the textures
 	 * referenced by the shader.
 	 *
 	 * For each shader state record, there is a set of uniform data in the
 	 * order referenced by the record (FS, VS, then CS).  Each set of
-	 * uniform data has a uint32_t index into bo_handles per texture
+	 * uniform data has a __u32 index into bo_handles per texture
 	 * sample operation, in the order the QPU_W_TMUn_S writes appear in
 	 * the program.  Following the texture BO handle indices is the actual
 	 * uniform data.
@@ -103,52 +103,52 @@ struct drm_vc4_submit_cl {
 	 * because the kernel has to determine the sizes anyway during shader
 	 * code validation.
 	 */
-	uint64_t uniforms;
-	uint64_t bo_handles;
+	__u64 uniforms;
+	__u64 bo_handles;
 
 	/* Size in bytes of the binner command list. */
-	uint32_t bin_cl_size;
+	__u32 bin_cl_size;
 	/* Size in bytes of the set of shader records. */
-	uint32_t shader_rec_size;
+	__u32 shader_rec_size;
 	/* Number of shader records.
 	 *
 	 * This could just be computed from the contents of shader_records and
 	 * the address bits of references to them from the bin CL, but it
 	 * keeps the kernel from having to resize some allocations it makes.
 	 */
-	uint32_t shader_rec_count;
+	__u32 shader_rec_count;
 	/* Size in bytes of the uniform state. */
-	uint32_t uniforms_size;
+	__u32 uniforms_size;
 
 	/* Number of BO handles passed in (size is that times 4). */
-	uint32_t bo_handle_count;
+	__u32 bo_handle_count;
 
 	/* RCL setup: */
-	uint16_t width;
-	uint16_t height;
-	uint8_t min_x_tile;
-	uint8_t min_y_tile;
-	uint8_t max_x_tile;
-	uint8_t max_y_tile;
+	__u16 width;
+	__u16 height;
+	__u8 min_x_tile;
+	__u8 min_y_tile;
+	__u8 max_x_tile;
+	__u8 max_y_tile;
 	struct drm_vc4_submit_rcl_surface color_read;
 	struct drm_vc4_submit_rcl_surface color_write;
 	struct drm_vc4_submit_rcl_surface zs_read;
 	struct drm_vc4_submit_rcl_surface zs_write;
 	struct drm_vc4_submit_rcl_surface msaa_color_write;
 	struct drm_vc4_submit_rcl_surface msaa_zs_write;
-	uint32_t clear_color[2];
-	uint32_t clear_z;
-	uint8_t clear_s;
+	__u32 clear_color[2];
+	__u32 clear_z;
+	__u8 clear_s;
 
-	uint32_t pad:24;
+	__u32 pad:24;
 
 #define VC4_SUBMIT_CL_USE_CLEAR_COLOR			(1 << 0)
-	uint32_t flags;
+	__u32 flags;
 
 	/* Returned value of the seqno of this render job (for the
 	 * wait ioctl).
 	 */
-	uint64_t seqno;
+	__u64 seqno;
 };
 
 /**
@@ -159,8 +159,8 @@ struct drm_vc4_submit_cl {
  * block, just return the status."
  */
 struct drm_vc4_wait_seqno {
-	uint64_t seqno;
-	uint64_t timeout_ns;
+	__u64 seqno;
+	__u64 timeout_ns;
 };
 
 /**
@@ -172,9 +172,9 @@ struct drm_vc4_wait_seqno {
  * completed.
  */
 struct drm_vc4_wait_bo {
-	uint32_t handle;
-	uint32_t pad;
-	uint64_t timeout_ns;
+	__u32 handle;
+	__u32 pad;
+	__u64 timeout_ns;
 };
 
 /**
@@ -184,34 +184,11 @@ struct drm_vc4_wait_bo {
  * used in a future extension.
  */
 struct drm_vc4_create_bo {
-	uint32_t size;
-	uint32_t flags;
+	__u32 size;
+	__u32 flags;
 	/** Returned GEM handle for the BO. */
-	uint32_t handle;
-	uint32_t pad;
-};
-
-/**
- * struct drm_vc4_create_shader_bo - ioctl argument for creating VC4
- * shader BOs.
- *
- * Since allowing a shader to be overwritten while it's also being
- * executed from would allow privlege escalation, shaders must be
- * created using this ioctl, and they can't be mmapped later.
- */
-struct drm_vc4_create_shader_bo {
-	/* Size of the data argument. */
-	uint32_t size;
-	/* Flags, currently must be 0. */
-	uint32_t flags;
-
-	/* Pointer to the data. */
-	uint64_t data;
-
-	/** Returned GEM handle for the BO. */
-	uint32_t handle;
-	/* Pad, must be 0. */
-	uint32_t pad;
+	__u32 handle;
+	__u32 pad;
 };
 
 /**
@@ -227,17 +204,40 @@ struct drm_vc4_create_shader_bo {
  */
 struct drm_vc4_mmap_bo {
 	/** Handle for the object being mapped. */
-	uint32_t handle;
-	uint32_t flags;
+	__u32 handle;
+	__u32 flags;
 	/** offset into the drm node to use for subsequent mmap call. */
-	uint64_t offset;
+	__u64 offset;
+};
+
+/**
+ * struct drm_vc4_create_shader_bo - ioctl argument for creating VC4
+ * shader BOs.
+ *
+ * Since allowing a shader to be overwritten while it's also being
+ * executed from would allow privlege escalation, shaders must be
+ * created using this ioctl, and they can't be mmapped later.
+ */
+struct drm_vc4_create_shader_bo {
+	/* Size of the data argument. */
+	__u32 size;
+	/* Flags, currently must be 0. */
+	__u32 flags;
+
+	/* Pointer to the data. */
+	__u64 data;
+
+	/** Returned GEM handle for the BO. */
+	__u32 handle;
+	/* Pad, must be 0. */
+	__u32 pad;
 };
 
 struct drm_vc4_get_hang_state_bo {
-	uint32_t handle;
-	uint32_t paddr;
-	uint32_t size;
-	uint32_t pad;
+	__u32 handle;
+	__u32 paddr;
+	__u32 size;
+	__u32 pad;
 };
 
 /**
@@ -246,34 +246,34 @@ struct drm_vc4_get_hang_state_bo {
 */
 struct drm_vc4_get_hang_state {
 	/** Pointer to array of struct drm_vc4_get_hang_state_bo. */
-	uint64_t bo;
+	__u64 bo;
 	/**
 	 * On input, the size of the bo array.  Output is the number
 	 * of bos to be returned.
 	 */
-	uint32_t bo_count;
+	__u32 bo_count;
 
-	uint32_t start_bin, start_render;
+	__u32 start_bin, start_render;
 
-	uint32_t ct0ca, ct0ea;
-	uint32_t ct1ca, ct1ea;
-	uint32_t ct0cs, ct1cs;
-	uint32_t ct0ra0, ct1ra0;
+	__u32 ct0ca, ct0ea;
+	__u32 ct1ca, ct1ea;
+	__u32 ct0cs, ct1cs;
+	__u32 ct0ra0, ct1ra0;
 
-	uint32_t bpca, bpcs;
-	uint32_t bpoa, bpos;
+	__u32 bpca, bpcs;
+	__u32 bpoa, bpos;
 
-	uint32_t vpmbase;
+	__u32 vpmbase;
 
-	uint32_t dbge;
-	uint32_t fdbgo;
-	uint32_t fdbgb;
-	uint32_t fdbgr;
-	uint32_t fdbgs;
-	uint32_t errstat;
+	__u32 dbge;
+	__u32 fdbgo;
+	__u32 fdbgb;
+	__u32 fdbgr;
+	__u32 fdbgs;
+	__u32 errstat;
 
 	/* Pad that we may save more registers into in the future. */
-	uint32_t pad[16];
+	__u32 pad[16];
 };
 
 #endif /* _UAPI_VC4_DRM_H_ */
