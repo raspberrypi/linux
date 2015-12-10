@@ -37,7 +37,7 @@ typedef struct {
  * TIF_NOTIFY_RESUME and set up the signal to be sent on exit of the
  * trap.
  */
-#if defined(CONFIG_PREEMPT_RT_FULL) && defined(CONFIG_X86_64)
+#if defined(CONFIG_PREEMPT_RT_FULL)
 #define ARCH_RT_DELAYS_SIGNAL_SEND
 #endif
 
