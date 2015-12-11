@@ -19,9 +19,16 @@
 #define UART01x_FR     0x14
 #endif
 
+#define DEBUG_UART_P1_PHYS	0x20201000
+#define DEBUG_UART_P2_PHYS	0x3f201000
+
 #ifdef CONFIG_DEBUG_UART_PHYS
 		.macro	addruart, rp, rv, tmp
-		ldr	\rp, =CONFIG_DEBUG_UART_PHYS
+		ldr     \rp, =0x410fb767	@ ARM1176JZF-S r0p7
+		mrc	p15, 0, \tmp, c0, c0, 0	@ processor id
+		cmp     \tmp, \rp		@ Is it a Pi 1?
+		ldreq	\rp, =DEBUG_UART_P1_PHYS
+		ldrne	\rp, =DEBUG_UART_P2_PHYS
 		ldr	\rv, =CONFIG_DEBUG_UART_VIRT
 		.endm
 #endif
