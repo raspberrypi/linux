@@ -28,9 +28,11 @@
 	};
 };
 
-&mmc {
-	status = "okay";
+&sdhost {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdhost_pins>;
 	bus-width = <4>;
+	status = "okay";
 };
 
 &fb {
