@@ -279,7 +279,7 @@ static int drm_fbdev_cma_create(struct drm_fb_helper *helper,
 	if (!fbi) {
 		dev_err(dev->dev, "Failed to allocate framebuffer info.\n");
 		ret = -ENOMEM;
-		goto err_drm_gem_cma_free_object;
+		goto err_gem_free_object;
 	}
 
 	fbdev_cma->fb = drm_fb_cma_alloc(dev, &mode_cmd, &obj, 1);
@@ -322,8 +322,8 @@ err_drm_fb_cma_destroy:
 	drm_fb_cma_destroy(fb);
 err_framebuffer_release:
 	framebuffer_release(fbi);
-err_drm_gem_cma_free_object:
-	drm_gem_cma_free_object(&obj->base);
+err_gem_free_object:
+	dev->driver->gem_free_object(&obj->base);
 	return ret;
 }
 
