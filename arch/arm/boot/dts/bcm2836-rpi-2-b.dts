@@ -2,14 +2,109 @@
 #include "bcm2835.dtsi"
 
 / {
-	compatible = "raspberrypi,model-b-plus", "brcm,bcm2835";
-	model = "Raspberry Pi Model B+";
+	compatible = "raspberrypi,2-model-b", "brcm,bcm2836";
+	model = "Raspberry Pi 2 Model B";
+
+	soc {
+		ranges = <0x7e000000 0x3f000000 0x1000000>,
+			 <0x40000000 0x40000000 0x00001000>;
+		dma-ranges = <0xc0000000 0x00000000 0x3f000000>;
+
+		/delete-node/ timer@7e003000;
+		/delete-node/ arm-pmu;
+
+		arm-pmu {
+			compatible = "arm,cortex-a7-pmu";
+			interrupt-parent = <&local_intc>;
+			interrupts = <9>;
+		};
+	};
+
+	syscon@40000000 {
+	       compatible = "brcm,bcm2836-arm-local", "syscon";
+	       reg = <0x40000000 0x100>;
+	};
+
+	timer {
+		interrupt-parent = <&local_intc>;
+		compatible = "arm,armv7-timer";
+		clock-frequency = <19200000>;
+		interrupts = <0>, /* PHYS_SECURE_PPI */
+			     <1>, /* PHYS_NONSECURE_PPI */
+			     <3>, /* VIRT_PPI */
+			     <2>; /* HYP_PPI */
+		always-on;
+
+		clock {
+			compatible = "brcm,bcm2836-local-timer-clk";
+		};
+	};
+
+	local_intc: local_intc {
+		compatible = "brcm,bcm2836-l1-intc";
+		reg = <0x40000000 0x100>;
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		interrupt-parent = <&local_intc>;
+	};
+
+	cpus: cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		v7_cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf00>;
+			clock-frequency = <800000000>;
+		};
+
+		v7_cpu1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf01>;
+			clock-frequency = <800000000>;
+		};
+
+		v7_cpu2: cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf02>;
+			clock-frequency = <800000000>;
+		};
+
+		v7_cpu3: cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf03>;
+			clock-frequency = <800000000>;
+		};
+	};
 };
 
+&intc {
+	compatible = "brcm,bcm2836-armctrl-ic";
+	reg = <0x7e00b200 0x200>;
+	interrupt-parent = <&local_intc>;
+	interrupts = <8>;
+};
+
+/* from bcm2709-rpi-2-b.dts */
+
 &gpio {
-	spi0_pins: spi0_pins {
-		brcm,pins = <7 8 9 10 11>;
+	sdhost_pins: sdhost_pins {
+		brcm,pins = <48 49 50 51 52 53>;
 		brcm,function = <4>; /* alt0 */
+	};
+
+	spi0_pins: spi0_pins {
+		brcm,pins = <9 10 11>;
+		brcm,function = <4>; /* alt0 */
+	};
+
+	spi0_cs_pins: spi0_cs_pins {
+		brcm,pins = <8 7>;
+		brcm,function = <1>; /* output */
 	};
 
 	i2c0_pins: i2c0 {
@@ -45,7 +140,8 @@
 
 &spi0 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&spi0_pins>;
+	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+	cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
 
 	spidev@0{
 		compatible = "spidev";
@@ -104,7 +200,6 @@
 	__overrides__ {
 		uart0 = <&uart0>,"status";
 		uart0_clkrate = <&clk_uart0>,"clock-frequency:0";
-		uart1_clkrate = <&uart1>,"clock-frequency:0";
 		i2s = <&i2s>,"status";
 		spi = <&spi0>,"status";
 		i2c0 = <&i2c0>,"status";
@@ -124,7 +219,6 @@
 		pwr_led_trigger = <&pwr_led>,"linux,default-trigger";
 
 		audio = <&audio>,"status";
-		watchdog = <&watchdog>,"status";
 		random = <&random>,"status";
 	};
 };

@@ -54,6 +54,7 @@ struct bcm2835_wdt {
 
 static unsigned int heartbeat;
 static bool nowayout = WATCHDOG_NOWAYOUT;
+static unsigned int reboot_part;
 
 static int bcm2835_wdt_start(struct watchdog_device *wdog)
 {
@@ -119,12 +120,25 @@ static struct watchdog_device bcm2835_wdt_wdd = {
 	.timeout =	WDOG_TICKS_TO_SECS(PM_WDOG_TIME_SET),
 };
 
+static inline u32 calc_rsts(unsigned int partition)
+{
+	return PM_PASSWORD |
+		((partition & (1 << 0))  << 0) |
+		((partition & (1 << 1))  << 1) |
+		((partition & (1 << 2))  << 2) |
+		((partition & (1 << 3))  << 3) |
+		((partition & (1 << 4))  << 4) |
+		((partition & (1 << 5))  << 5);
+}
+
 static int
 bcm2835_restart(struct notifier_block *this, unsigned long mode, void *cmd)
 {
 	struct bcm2835_wdt *wdt = container_of(this, struct bcm2835_wdt,
 					       restart_handler);
 	u32 val;
+
+	writel_relaxed(calc_rsts(reboot_part), wdt->base + PM_RSTS);
 
 	/* use a timeout of 10 ticks (~150us) */
 	writel_relaxed(10 | PM_PASSWORD, wdt->base + PM_WDOG);
@@ -150,16 +164,8 @@ static void bcm2835_power_off(void)
 		of_find_compatible_node(NULL, NULL, "brcm,bcm2835-pm-wdt");
 	struct platform_device *pdev = of_find_device_by_node(np);
 	struct bcm2835_wdt *wdt = platform_get_drvdata(pdev);
-	u32 val;
 
-	/*
-	 * We set the watchdog hard reset bit here to distinguish this reset
-	 * from the normal (full) reset. bootcode.bin will not reboot after a
-	 * hard reset.
-	 */
-	val = readl_relaxed(wdt->base + PM_RSTS);
-	val |= PM_PASSWORD | PM_RSTS_RASPBERRYPI_HALT;
-	writel_relaxed(val, wdt->base + PM_RSTS);
+	reboot_part = 63;
 
 	/* Continue with normal reset mechanism */
 	bcm2835_restart(&wdt->restart_handler, REBOOT_HARD, NULL);
@@ -247,6 +253,9 @@ MODULE_PARM_DESC(heartbeat, "Initial watchdog heartbeat in seconds");
 module_param(nowayout, bool, 0);
 MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started (default="
 				__MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
+
+module_param(reboot_part, uint, 0644);
+MODULE_PARM_DESC(reboot_part, "Partition to boot from");
 
 MODULE_AUTHOR("Lubomir Rintel <lkundrak@v3.sk>");
 MODULE_DESCRIPTION("Driver for Broadcom BCM2835 watchdog timer");

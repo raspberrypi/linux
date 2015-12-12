@@ -12,15 +12,64 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/broadcom/vc_cma.h>
 #include <linux/init.h>
 #include <linux/irqchip.h>
+#include <linux/mfd/syscon.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/clk/bcm2835.h>
+#include <linux/regmap.h>
 #include <asm/system_info.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
+
+#define ARM_LOCAL_MAILBOX3_SET0 0x8c
+#define ARM_LOCAL_MAILBOX3_CLR0 0xcc
+
+#ifdef CONFIG_SMP
+static int __init bcm2836_smp_boot_secondary(unsigned int cpu,
+					     struct task_struct *idle)
+{
+	struct regmap *regmap;
+	int timeout = 20;
+
+	regmap = syscon_regmap_lookup_by_compatible("brcm,bcm2836-arm-local");
+	if (IS_ERR(regmap)) {
+		pr_err("Failed to get local register map for SMP\n");
+		return -ENOSYS;
+	}
+
+	dsb();
+	regmap_write(regmap, ARM_LOCAL_MAILBOX3_SET0 + 16 * cpu,
+		     virt_to_phys(secondary_startup));
+
+	while (true) {
+		int val;
+		int ret = regmap_read(regmap,
+				      ARM_LOCAL_MAILBOX3_CLR0 + 16 * cpu, &val);
+		if (ret)
+			return ret;
+		if (val == 0)
+			return 0;
+		if (timeout-- == 0)
+			return -ETIMEDOUT;
+		cpu_relax();
+	}
+
+	return 0;
+}
+
+struct smp_operations bcm2836_smp_ops __initdata = {
+	.smp_boot_secondary	= bcm2836_smp_boot_secondary,
+};
+#endif
+
+static void __init bcm2835_reserve(void)
+{
+	vc_cma_reserve();
+}
 
 /* Use this hack until a proper solution is agreed upon */
 static void __init bcm2835_init_uart1(void)
@@ -52,6 +101,8 @@ static void __init bcm2835_init(void)
 	u64 val64;
 	int ret;
 
+	vc_cma_early_init();
+
 	bcm2835_init_clocks();
 
 	ret = of_platform_populate(NULL, of_default_bus_match_table, NULL,
@@ -75,6 +126,19 @@ static const char * const bcm2835_compat[] = {
 };
 
 DT_MACHINE_START(BCM2835, "BCM2835")
+	.reserve = bcm2835_reserve,
 	.init_machine = bcm2835_init,
 	.dt_compat = bcm2835_compat
+MACHINE_END
+
+static const char * const bcm2836_compat[] = {
+	"brcm,bcm2836",
+	NULL
+};
+
+DT_MACHINE_START(BCM2836, "BCM2836")
+	.smp = smp_ops(bcm2836_smp_ops),
+	.reserve = bcm2835_reserve,
+	.init_machine = bcm2835_init,
+	.dt_compat = bcm2836_compat
 MACHINE_END

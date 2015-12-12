@@ -68,6 +68,13 @@ typedef struct dwc_otg_device {
 
 } dwc_otg_device_t;
 
+static inline struct device *otg_dev_to_device(dwc_otg_device_t *otg_dev)
+{
+	struct platform_device *pdev = otg_dev->os_dep.platformdev;
+
+	return &pdev->dev;
+}
+
 /*We must clear S3C24XX_EINTPEND external interrupt register
  * because after clearing in this register trigerred IRQ from
  * H/W core in kernel interrupt can be occured again before OTG

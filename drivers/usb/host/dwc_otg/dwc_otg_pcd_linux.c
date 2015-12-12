@@ -1203,11 +1203,12 @@ static void free_wrapper(struct gadget_wrapper *d)
 int pcd_init(dwc_bus_dev_t *_dev)
 {
 	dwc_otg_device_t *otg_dev = DWC_OTG_BUSDRVDATA(_dev);
+	struct device *dev = otg_dev_to_device(otg_dev);
 	int retval = 0;
 
 	DWC_DEBUGPL(DBG_PCDV, "%s(%p) otg_dev=%p\n", __func__, _dev, otg_dev);
 
-	otg_dev->pcd = dwc_otg_pcd_init(otg_dev->core_if);
+	otg_dev->pcd = dwc_otg_pcd_init(dev, otg_dev->core_if);
 
 	if (!otg_dev->pcd) {
 		DWC_ERROR("dwc_otg_pcd_init failed\n");

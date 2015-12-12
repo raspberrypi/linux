@@ -63,13 +63,6 @@ pr_debug(DRIVER_NAME " [%s()]: " f, __func__, ## x)
 #define TIMEOUT_VAL 0xE
 #define BCM2835_SDHCI_WRITE_DELAY(f)	(((2 * 1000000) / f) + 1)
 
-#ifndef BCM2708_PERI_BASE
- #define BCM2708_PERI_BASE 0x20000000
-#endif
-
-/* FIXME: Needs IOMMU support */
-#define BCM2835_VCMMU_SHIFT		(0x7E000000 - BCM2708_PERI_BASE)
-
 
 unsigned mmc_debug;
 unsigned mmc_debug2;
@@ -78,7 +71,7 @@ struct bcm2835_host {
 	spinlock_t				lock;
 
 	void __iomem			*ioaddr;
-	u32						phys_addr;
+	u32						bus_addr;
 
 	struct mmc_host			*mmc;
 
@@ -1338,11 +1331,11 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 
 		cfg.direction = DMA_MEM_TO_DEV;
 		cfg.src_addr = 0;
-		cfg.dst_addr = host->phys_addr + SDHCI_BUFFER;
+		cfg.dst_addr = host->bus_addr + SDHCI_BUFFER;
 		ret = dmaengine_slave_config(host->dma_chan_tx, &cfg);
 
 		cfg.direction = DMA_DEV_TO_MEM;
-		cfg.src_addr = host->phys_addr + SDHCI_BUFFER;
+		cfg.src_addr = host->bus_addr + SDHCI_BUFFER;
 		cfg.dst_addr = 0;
 		ret = dmaengine_slave_config(host->dma_chan_rx, &cfg);
 	}
@@ -1390,6 +1383,7 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 	struct resource *iomem;
 	struct bcm2835_host *host;
 	struct mmc_host *mmc;
+	const __be32 *addr;
 	int ret;
 
 	mmc = mmc_alloc_host(sizeof(*host), dev);
@@ -1409,7 +1403,16 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	host->phys_addr = iomem->start + BCM2835_VCMMU_SHIFT;
+	addr = of_get_address(node, 0, NULL, NULL);
+	if (!addr) {
+		dev_err(dev, "could not get DMA-register address\n");
+		return -ENODEV;
+	}
+	host->bus_addr = be32_to_cpup(addr);
+	pr_debug(" - ioaddr %lx, iomem->start %lx, bus_addr %lx\n",
+		 (unsigned long)host->ioaddr,
+		 (unsigned long)iomem->start,
+		 (unsigned long)host->bus_addr);
 
 #ifndef FORCE_PIO
 	if (node) {
