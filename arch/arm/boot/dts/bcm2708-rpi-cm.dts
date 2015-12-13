@@ -81,6 +81,10 @@
 	pinctrl-0 = <&i2s_pins>;
 };
 
+&random {
+	status = "okay";
+};
+
 / {
 	__overrides__ {
 		uart0 = <&uart0>,"status";

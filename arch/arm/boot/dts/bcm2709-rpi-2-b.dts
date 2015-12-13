@@ -98,6 +98,10 @@
 	pinctrl-0 = <&i2s_pins>;
 };
 
+&random {
+	status = "okay";
+};
+
 &leds {
 	act_led: act {
 		label = "led0";
