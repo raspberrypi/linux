@@ -352,7 +352,8 @@ static void h5_handle_internal_rx(struct hci_uart *hu)
 		h5_link_control(hu, conf_req, 3);
 	} else if (memcmp(data, conf_req, 2) == 0) {
 		h5_link_control(hu, conf_rsp, 2);
-		h5_link_control(hu, conf_req, 3);
+		if (h5->state != H5_ACTIVE)
+		    h5_link_control(hu, conf_req, 3);
 	} else if (memcmp(data, conf_rsp, 2) == 0) {
 		if (H5_HDR_LEN(hdr) > 2)
 			h5->tx_win = (data[2] & 0x07);
