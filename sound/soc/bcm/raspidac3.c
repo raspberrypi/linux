@@ -39,7 +39,7 @@ static int snd_rpi_raspidac3_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_update_bits(codec, PCM512x_GPIO_OUTPUT_4, 0xf, 0x02);
 	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08,0x00);
 
-	ret = snd_soc_limit_volume(codec, "Digital Playback Volume", 207);
+	ret = snd_soc_limit_volume(card, "Digital Playback Volume", 207);
 	if (ret < 0)
 		dev_warn(card->dev, "Failed to set volume limit: %d\n", ret);
 	else {
@@ -49,7 +49,7 @@ static int snd_rpi_raspidac3_init(struct snd_soc_pcm_runtime *rtd)
 		if (ret < 0)
 			dev_warn(card->dev, "Failed to add TPA6130A2 controls: %d\n",
 				 ret);
-		ret = snd_soc_limit_volume(codec,
+		ret = snd_soc_limit_volume(card,
 					   "TPA6130A2 Headphone Playback Volume",
 					   54);
 		if (ret < 0)
