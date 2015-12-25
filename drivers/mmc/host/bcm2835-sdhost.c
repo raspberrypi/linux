@@ -966,19 +966,15 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host)
 					mmc_hostname(host->mmc));
 		} else {
 			if (sdhsts & SDHSTS_CMD_TIME_OUT) {
-				switch (host->cmd->opcode) {
-				case 5: case 52: case 53:
-					/* Don't warn about SDIO commands */
-					break;
-				default:
-					pr_err("%s: command timeout\n",
-					       mmc_hostname(host->mmc));
-					break;
-				}
+				if (host->debug)
+					pr_err("%s: command %d timeout\n",
+					       mmc_hostname(host->mmc),
+					       host->cmd->opcode);
 				host->cmd->error = -ETIMEDOUT;
 			} else {
-				pr_err("%s: unexpected command error\n",
-				       mmc_hostname(host->mmc));
+				pr_err("%s: unexpected command %d error\n",
+				       mmc_hostname(host->mmc),
+				       host->cmd->opcode);
 				bcm2835_sdhost_dumpregs(host);
 				host->cmd->error = -EIO;
 			}
