@@ -71,7 +71,8 @@
 
 #define DRV_NAME		"bcm2708_i2c"
 
-static unsigned int baudrate = CONFIG_I2C_BCM2708_BAUDRATE;
+static unsigned int baudrate_default = CONFIG_I2C_BCM2708_BAUDRATE;
+static unsigned int baudrate;
 module_param(baudrate, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 MODULE_PARM_DESC(baudrate, "The I2C baudrate");
 
@@ -87,6 +88,7 @@ struct bcm2708_i2c {
 	int irq;
 	struct clk *clk;
 	u32 cdiv;
+	u32 clk_tout;
 
 	struct completion done;
 
@@ -126,7 +128,7 @@ static inline void bcm2708_bsc_fifo_fill(struct bcm2708_i2c *bi)
 
 static inline int bcm2708_bsc_setup(struct bcm2708_i2c *bi)
 {
-	u32 cdiv, s;
+	u32 cdiv, s, clk_tout;
 	u32 c = BSC_C_I2CEN | BSC_C_INTD | BSC_C_ST | BSC_C_CLEAR_1;
 	int wait_loops = I2C_WAIT_LOOP_COUNT;
 
@@ -134,12 +136,14 @@ static inline int bcm2708_bsc_setup(struct bcm2708_i2c *bi)
 	 * Use the value that we cached in the probe.
 	 */
 	cdiv = bi->cdiv;
+	clk_tout = bi->clk_tout;
 
 	if (bi->msg->flags & I2C_M_RD)
 		c |= BSC_C_INTR | BSC_C_READ;
 	else
 		c |= BSC_C_INTT;
 
+	bcm2708_wr(bi, BSC_CLKT, clk_tout);
 	bcm2708_wr(bi, BSC_DIV, cdiv);
 	bcm2708_wr(bi, BSC_A, bi->msg->addr);
 	bcm2708_wr(bi, BSC_DLEN, bi->msg->len);
@@ -312,21 +316,24 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 	struct bcm2708_i2c *bi;
 	struct i2c_adapter *adap;
 	unsigned long bus_hz;
-	u32 cdiv;
-
-	if (pdev->dev.of_node) {
-		u32 bus_clk_rate;
-		pdev->id = of_alias_get_id(pdev->dev.of_node, "i2c");
-		if (pdev->id < 0) {
-			dev_err(&pdev->dev, "alias is missing\n");
-			return -EINVAL;
+	u32 cdiv, clk_tout;
+	
+	if (!baudrate) {
+		baudrate = baudrate_default;
+		if (pdev->dev.of_node) {
+			u32 bus_clk_rate;
+			pdev->id = of_alias_get_id(pdev->dev.of_node, "i2c");
+			if (pdev->id < 0) {
+				dev_err(&pdev->dev, "alias is missing\n");
+				return -EINVAL;
+			}
+			if (!of_property_read_u32(pdev->dev.of_node,
+						"clock-frequency", &bus_clk_rate))
+				baudrate = bus_clk_rate;
+			else
+				dev_warn(&pdev->dev,
+					"Could not read clock-frequency property\n");
 		}
-		if (!of_property_read_u32(pdev->dev.of_node,
-					"clock-frequency", &bus_clk_rate))
-			baudrate = bus_clk_rate;
-		else
-			dev_warn(&pdev->dev,
-				"Could not read clock-frequency property\n");
 	}
 
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -417,7 +424,13 @@ static int bcm2708_i2c_probe(struct platform_device *pdev)
 		cdiv = 0xffff;
 		baudrate = bus_hz / cdiv;
 	}
+	
+ 	clk_tout = 35/1000*baudrate; //35ms timeout as per SMBus specs.
+ 	if (clk_tout > 0xffff)
+		clk_tout = 0xffff;
+	
 	bi->cdiv = cdiv;
+	bi->clk_tout = clk_tout;
 
 	dev_info(&pdev->dev, "BSC%d Controller at 0x%08lx (irq %d) (baudrate %d)\n",
 		pdev->id, (unsigned long)regs->start, irq, baudrate);
