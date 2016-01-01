@@ -1,5 +1,6 @@
 ifeq ($(CONFIG_OF),y)
 
+dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-zero.dtb
 dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-b.dtb
 dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-b-plus.dtb
 dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-cm.dtb
