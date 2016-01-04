@@ -18,8 +18,8 @@
 #include <linux/mfd/rpisense/joystick.h>
 #include <linux/mfd/rpisense/core.h>
 
-struct rpisense *rpisense;
-unsigned char keymap[5] = {KEY_DOWN, KEY_RIGHT, KEY_UP, KEY_ENTER, KEY_LEFT,};
+static struct rpisense *rpisense;
+static unsigned char keymap[5] = {KEY_DOWN, KEY_RIGHT, KEY_UP, KEY_ENTER, KEY_LEFT,};
 
 static void keys_work_fn(struct work_struct *work)
 {
