@@ -31,7 +31,7 @@ static bool lowlight;
 module_param(lowlight, bool, 0);
 MODULE_PARM_DESC(lowlight, "Reduce LED matrix brightness to one third");
 
-struct rpisense *rpisense;
+static struct rpisense *rpisense;
 
 struct rpisense_fb_param {
 	char __iomem *vmem;

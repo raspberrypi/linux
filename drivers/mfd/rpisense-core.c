@@ -23,7 +23,7 @@
 #include <linux/mfd/rpisense/core.h>
 #include <linux/slab.h>
 
-struct rpisense *rpisense;
+static struct rpisense *rpisense;
 
 static void rpisense_client_dev_register(struct rpisense *rpisense,
 					 const char *name,
