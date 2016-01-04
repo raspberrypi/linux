@@ -635,6 +635,20 @@ Params: overclock_50             Clock (in MHz) to use when the MMC framework
                                  (default on: polling once at boot-time)
 
 
+Name:   sdtweak
+Info:   Tunes the bcm2835-sdhost SD/MMC driver
+Load:   dtoverlay=sdtweak,<param>=<val>
+Params: overclock_50             Clock (in MHz) to use when the MMC framework
+                                 requests 50MHz
+
+        force_pio                Disable DMA support (default off)
+
+        pio_limit                Number of blocks above which to use DMA
+                                 (default 1)
+
+        debug                    Enable debug output (default off)
+
+
 Name:   smi
 Info:   Enables the Secondary Memory Interface peripheral. Uses GPIOs 2-25!
 Load:   dtoverlay=smi
