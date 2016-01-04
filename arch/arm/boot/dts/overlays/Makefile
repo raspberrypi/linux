@@ -53,6 +53,7 @@ dtb-$(RPI_DT_OVERLAYS) += rpi-proto-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-sense-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += sdhost-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += sdio-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += sdtweak-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += smi-dev-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += smi-nand-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += smi-overlay.dtb
