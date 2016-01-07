@@ -2581,7 +2581,7 @@ static int vxlan_newlink(struct net *src_net, struct net_device *dev,
 			 struct nlattr *tb[], struct nlattr *data[])
 {
 	struct vxlan_net *vn = net_generic(src_net, vxlan_net_id);
-	struct vxlan_dev *vxlan = netdev_priv(dev);
+	struct vxlan_dev *vxlan = netdev_priv(dev), *tmp;
 	struct vxlan_rdst *dst = &vxlan->default_dst;
 	__u32 vni;
 	int err;
@@ -2714,9 +2714,13 @@ static int vxlan_newlink(struct net *src_net, struct net_device *dev,
 	if (data[IFLA_VXLAN_REMCSUM_NOPARTIAL])
 		vxlan->flags |= VXLAN_F_REMCSUM_NOPARTIAL;
 
-	if (vxlan_find_vni(src_net, vni, use_ipv6 ? AF_INET6 : AF_INET,
-			   vxlan->dst_port, vxlan->flags)) {
-		pr_info("duplicate VNI %u\n", vni);
+	list_for_each_entry(tmp, &vn->vxlan_list, next) {
+		if (tmp->default_dst.remote_vni == vni &&
+		    (tmp->default_dst.remote_ip.sa.sa_family == AF_INET6 ||
+		     tmp->saddr.sa.sa_family == AF_INET6) == use_ipv6 &&
+		    tmp->dst_port == vxlan->dst_port &&
+		    (tmp->flags & VXLAN_F_RCV_FLAGS) ==
+		    (vxlan->flags & VXLAN_F_RCV_FLAGS))
 		return -EEXIST;
 	}
 
