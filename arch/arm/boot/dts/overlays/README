@@ -644,6 +644,18 @@ Params: speed                   Display SPI bus speed
         xohms                   Touchpanel sensitivity (X-plate resistance)
 
 
+Name:   pitft22
+Info:   Adafruit PiTFT 2.2" screen
+Load:   dtoverlay=pitft22,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+
 Name:   pitft28-capacitive
 Info:   Adafruit PiTFT 2.8" capacitive touch screen
 Load:   dtoverlay=pitft28-capacitive,<param>=<val>
