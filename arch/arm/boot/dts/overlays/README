@@ -110,7 +110,7 @@ Params:
                                  (default "off")
 
         random                   Set to "on" to enable the hardware random
-                                 number generator (default "off")
+                                 number generator (default "on")
 
         uart0                    Set to "off" to disable uart0 (default "on")
 
