@@ -634,6 +634,8 @@ Params: overclock_50             Clock (in MHz) to use when the MMC framework
         poll_once                Disable SDIO-device polling every second
                                  (default on: polling once at boot-time)
 
+        bus_width                Set the SDIO host bus width (default 4 bits)
+
 
 Name:   sdtweak
 Info:   Tunes the bcm2835-sdhost SD/MMC driver
