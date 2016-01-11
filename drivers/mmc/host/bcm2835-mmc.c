@@ -1329,7 +1329,7 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 	/* host controller capabilities */
 	mmc->caps |= MMC_CAP_CMD23 | MMC_CAP_ERASE | MMC_CAP_NEEDS_POLL |
 		MMC_CAP_SDIO_IRQ | MMC_CAP_SD_HIGHSPEED |
-		MMC_CAP_MMC_HIGHSPEED | MMC_CAP_4_BIT_DATA;
+		MMC_CAP_MMC_HIGHSPEED;
 
 	host->flags = SDHCI_AUTO_CMD23;
 
