@@ -15,7 +15,7 @@
  * core driver device
  */
 
-#define V4L2_CTRL_COUNT 28 /* number of v4l controls */
+#define V4L2_CTRL_COUNT 29 /* number of v4l controls */
 
 enum {
 	MMAL_COMPONENT_CAMERA = 0,
@@ -58,6 +58,8 @@ struct bm2835_mmal_dev {
 	enum mmal_parameter_exposuremeteringmode metering_mode;
 	unsigned int		  manual_shutter_speed;
 	bool			  exp_auto_priority;
+	bool manual_iso_enabled;
+	uint32_t iso;
 
 	/* allocated mmal instance and components */
 	struct vchiq_mmal_instance   *instance;

@@ -49,10 +49,13 @@ static const s64 ev_bias_qmenu[] = {
 	 4000
 };
 
-/* Supported ISO values
+/* Supported ISO values (*1000)
  * ISOO = auto ISO
  */
 static const s64 iso_qmenu[] = {
+	0, 100000, 200000, 400000, 800000,
+};
+static const uint32_t iso_values[] = {
 	0, 100, 200, 400, 800,
 };
 
@@ -201,7 +204,7 @@ static int ctrl_set_value(struct bm2835_mmal_dev *dev,
 					     &u32_value, sizeof(u32_value));
 }
 
-static int ctrl_set_value_menu(struct bm2835_mmal_dev *dev,
+static int ctrl_set_iso(struct bm2835_mmal_dev *dev,
 		      struct v4l2_ctrl *ctrl,
 		      const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl)
 {
@@ -211,12 +214,23 @@ static int ctrl_set_value_menu(struct bm2835_mmal_dev *dev,
 	if (ctrl->val > mmal_ctrl->max || ctrl->val < mmal_ctrl->min)
 		return 1;
 
+	if (ctrl->id == V4L2_CID_ISO_SENSITIVITY)
+		dev->iso = iso_values[ctrl->val];
+	else if (ctrl->id == V4L2_CID_ISO_SENSITIVITY_AUTO)
+		dev->manual_iso_enabled =
+				(ctrl->val == V4L2_ISO_SENSITIVITY_MANUAL ?
+							true :
+							false);
+
 	control = &dev->component[MMAL_COMPONENT_CAMERA]->control;
 
-	u32_value = mmal_ctrl->imenu[ctrl->val];
+	if (dev->manual_iso_enabled)
+		u32_value = dev->iso;
+	else
+		u32_value = 0;
 
 	return vchiq_mmal_port_parameter_set(dev->instance, control,
-					     mmal_ctrl->mmal_id,
+					     MMAL_PARAMETER_ISO,
 					     &u32_value, sizeof(u32_value));
 }
 
@@ -956,7 +970,14 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 		V4L2_CID_ISO_SENSITIVITY, MMAL_CONTROL_TYPE_INT_MENU,
 		0, ARRAY_SIZE(iso_qmenu) - 1, 0, 1, iso_qmenu,
 		MMAL_PARAMETER_ISO,
-		&ctrl_set_value_menu,
+		&ctrl_set_iso,
+		false
+	},
+	{
+		V4L2_CID_ISO_SENSITIVITY_AUTO, MMAL_CONTROL_TYPE_STD_MENU,
+		0, 1, V4L2_ISO_SENSITIVITY_AUTO, 1, NULL,
+		MMAL_PARAMETER_ISO,
+		&ctrl_set_iso,
 		false
 	},
 	{
