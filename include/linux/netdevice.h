@@ -2440,13 +2440,52 @@ void netdev_freemem(struct net_device *dev);
 void synchronize_net(void);
 int init_dummy_netdev(struct net_device *dev);
 
-DECLARE_PER_CPU(int, xmit_recursion);
 #define XMIT_RECURSION_LIMIT	10
+#ifdef CONFIG_PREEMPT_RT_FULL
+static inline int dev_recursion_level(void)
+{
+	return current->xmit_recursion;
+}
+
+static inline int xmit_rec_read(void)
+{
+	return current->xmit_recursion;
+}
+
+static inline void xmit_rec_inc(void)
+{
+	current->xmit_recursion++;
+}
+
+static inline void xmit_rec_dec(void)
+{
+	current->xmit_recursion--;
+}
+
+#else
+
+DECLARE_PER_CPU(int, xmit_recursion);
 
 static inline int dev_recursion_level(void)
 {
 	return this_cpu_read(xmit_recursion);
 }
+
+static inline int xmit_rec_read(void)
+{
+	return __this_cpu_read(xmit_recursion);
+}
+
+static inline void xmit_rec_inc(void)
+{
+	__this_cpu_inc(xmit_recursion);
+}
+
+static inline void xmit_rec_dec(void)
+{
+	__this_cpu_dec(xmit_recursion);
+}
+#endif
 
 struct net_device *dev_get_by_index(struct net *net, int ifindex);
 struct net_device *__dev_get_by_index(struct net *net, int ifindex);
