@@ -19,16 +19,19 @@
 
 #include "bcm2835.h"
 
+/* The hardware can not do much more num_channels*samplerate then this value */
+#define MAX_COMBINED_RATE 768000
+
 /* hardware definition */
 static struct snd_pcm_hardware snd_bcm2835_playback_hw = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
-		 SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID),
+		 SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID | SNDRV_PCM_INFO_BATCH),
 	.formats = SNDRV_PCM_FMTBIT_U8 | SNDRV_PCM_FMTBIT_S16_LE,
 	.rates = SNDRV_PCM_RATE_CONTINUOUS | SNDRV_PCM_RATE_8000_48000,
 	.rate_min = 8000,
-	.rate_max = 48000,
+	.rate_max = 192000,
 	.channels_min = 1,
-	.channels_max = 2,
+	.channels_max = 8,
 	.buffer_bytes_max = 128 * 1024,
 	.period_bytes_min =   1 * 1024,
 	.period_bytes_max = 128 * 1024,
@@ -43,9 +46,9 @@ static struct snd_pcm_hardware snd_bcm2835_playback_spdif_hw = {
 	.rates = SNDRV_PCM_RATE_CONTINUOUS | SNDRV_PCM_RATE_44100 |
 		SNDRV_PCM_RATE_48000,
 	.rate_min = 44100,
-	.rate_max = 48000,
+	.rate_max = 192000,
 	.channels_min = 2,
-	.channels_max = 2,
+	.channels_max = 8,
 	.buffer_bytes_max = 128 * 1024,
 	.period_bytes_min =   1 * 1024,
 	.period_bytes_max = 128 * 1024,
@@ -96,6 +99,8 @@ static irqreturn_t bcm2835_playback_fifo_irq(int irq, void *dev_id)
 		alsa_stream->pos %= alsa_stream->buffer_size;
 	}
 
+	alsa_stream->interpolate_start = ktime_get_ns();
+
 	if (alsa_stream->substream) {
 		if (new_period)
 			snd_pcm_period_elapsed(alsa_stream->substream);
@@ -105,6 +110,31 @@ static irqreturn_t bcm2835_playback_fifo_irq(int irq, void *dev_id)
 	audio_info(" .. OUT\n");
 
 	return IRQ_HANDLED;
+}
+
+
+static int rate_hw_constraint_rate(struct snd_pcm_hw_params *params,
+				   struct snd_pcm_hw_rule *rule)
+{
+	struct snd_interval *channels = hw_param_interval(params, SNDRV_PCM_HW_PARAM_CHANNELS);
+	struct snd_interval rates = {
+		.min = 8000,
+		.max = min(192000u, MAX_COMBINED_RATE / max(channels->min, 1u)),
+	};
+	struct snd_interval *rate = hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE);
+	return snd_interval_refine(rate, &rates);
+}
+
+static int rate_hw_constraint_channels(struct snd_pcm_hw_params *params,
+				       struct snd_pcm_hw_rule *rule)
+{
+	struct snd_interval *rate = hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval channels_interval = {
+		.min = 1,
+		.max = min(8u, MAX_COMBINED_RATE / max(rate->min, 1u)),
+	};
+	struct snd_interval *channels = hw_param_interval(params, SNDRV_PCM_HW_PARAM_CHANNELS);
+	return snd_interval_refine(channels, &channels_interval);
 }
 
 /* open callback */
@@ -188,7 +218,23 @@ static int snd_bcm2835_playback_open_generic(
 	snd_pcm_hw_constraint_step(runtime, 0, SNDRV_PCM_HW_PARAM_PERIOD_BYTES,
 				   16);
 
+	/* When playing PCM, pretend that we support the full range of channels
+	 * and sample rates. The GPU can't output it, but is able to resample
+	 * the data to a rate the hardware can handle it. This won't work with
+	 * compressed data; the resampler would just destroy it. */
+	if (spdif) {
+		err = snd_pcm_hw_rule_add(runtime, 0, SNDRV_PCM_HW_PARAM_RATE,
+					  rate_hw_constraint_rate, NULL,
+					  SNDRV_PCM_HW_PARAM_CHANNELS, -1);
+		err = snd_pcm_hw_rule_add(runtime, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
+					  rate_hw_constraint_channels, NULL,
+					  SNDRV_PCM_HW_PARAM_RATE, -1);
+	}
+
 	chip->alsa_stream[idx] = alsa_stream;
+
+	if (!chip->opened)
+		chip->cea_chmap = -1;
 
 	chip->opened |= (1 << idx);
 	alsa_stream->open = 1;
@@ -300,16 +346,13 @@ static int snd_bcm2835_pcm_hw_free(struct snd_pcm_substream *substream)
 	return snd_pcm_lib_free_pages(substream);
 }
 
-/* prepare callback */
-static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
+int snd_bcm2835_pcm_prepare_again(struct snd_pcm_substream *substream)
 {
 	bcm2835_chip_t *chip = snd_pcm_substream_chip(substream);
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
 	int channels;
 	int err;
-
-	audio_info(" .. IN\n");
 
 	/* notify the vchiq that it should enter spdif passthrough mode by
 	 * setting channels=0 (see
@@ -326,6 +369,23 @@ static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
 		audio_error(" error setting hw params\n");
 	}
 
+	return err;
+}
+
+/* prepare callback */
+static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
+{
+	bcm2835_chip_t *chip = snd_pcm_substream_chip(substream);
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
+
+	audio_info(" .. IN\n");
+
+	if (mutex_lock_interruptible(&chip->audio_mutex))
+		return -EINTR;
+
+	snd_bcm2835_pcm_prepare_again(substream);
+
 	bcm2835_audio_setup(alsa_stream);
 
 	/* in preparation of the stream, set the controls (volume level) of the stream */
@@ -341,11 +401,13 @@ static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
 	alsa_stream->buffer_size = snd_pcm_lib_buffer_bytes(substream);
 	alsa_stream->period_size = snd_pcm_lib_period_bytes(substream);
 	alsa_stream->pos = 0;
+	alsa_stream->interpolate_start = ktime_get_ns();
 
 	audio_debug("buffer_size=%d, period_size=%d pos=%d frame_bits=%d\n",
 		      alsa_stream->buffer_size, alsa_stream->period_size,
 		      alsa_stream->pos, runtime->frame_bits);
 
+	mutex_unlock(&chip->audio_mutex);
 	audio_info(" .. OUT\n");
 	return 0;
 }
@@ -436,6 +498,7 @@ snd_bcm2835_pcm_pointer(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
+	u64 now = ktime_get_ns();
 
 	audio_info(" .. IN\n");
 
@@ -443,6 +506,12 @@ snd_bcm2835_pcm_pointer(struct snd_pcm_substream *substream)
 		      frames_to_bytes(runtime, runtime->status->hw_ptr),
 		      frames_to_bytes(runtime, runtime->control->appl_ptr),
 		      alsa_stream->pos);
+
+	/* Give userspace better delay reporting by interpolating between GPU
+	 * notifications, assuming audio speed is close enough to the clock
+	 * used for ktime */
+	if (alsa_stream->interpolate_start && alsa_stream->interpolate_start < now)
+		runtime->delay = -(int)div_u64((now - alsa_stream->interpolate_start) * runtime->rate,  1000000000);
 
 	audio_info(" .. OUT\n");
 	return snd_pcm_indirect_playback_pointer(substream,
