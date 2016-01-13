@@ -12,7 +12,7 @@
 static const struct snd_pcm_hardware snd_bcm2835_playback_hw = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
 		 SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID |
-		 SNDRV_PCM_INFO_DRAIN_TRIGGER | SNDRV_PCM_INFO_SYNC_APPLPTR),
+		 SNDRV_PCM_INFO_DRAIN_TRIGGER | SNDRV_PCM_INFO_SYNC_APPLPTR | SNDRV_PCM_INFO_BATCH),
 	.formats = SNDRV_PCM_FMTBIT_U8 | SNDRV_PCM_FMTBIT_S16_LE,
 	.rates = SNDRV_PCM_RATE_CONTINUOUS | SNDRV_PCM_RATE_8000_48000,
 	.rate_min = 8000,
@@ -72,6 +72,8 @@ void bcm2835_playback_fifo(struct bcm2835_alsa_stream *alsa_stream,
 	pos += bytes;
 	pos %= alsa_stream->buffer_size;
 	atomic_set(&alsa_stream->pos, pos);
+
+	alsa_stream->interpolate_start = ktime_get_ns();
 
 	alsa_stream->period_offset += bytes;
 	if (alsa_stream->period_offset >= alsa_stream->period_size) {
@@ -243,6 +245,7 @@ static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
 	atomic_set(&alsa_stream->pos, 0);
 	alsa_stream->period_offset = 0;
 	alsa_stream->draining = false;
+	alsa_stream->interpolate_start = ktime_get_ns();
 
 	return 0;
 }
@@ -292,6 +295,13 @@ snd_bcm2835_pcm_pointer(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct bcm2835_alsa_stream *alsa_stream = runtime->private_data;
+	u64 now = ktime_get_ns();
+
+	/* Give userspace better delay reporting by interpolating between GPU
+	 * notifications, assuming audio speed is close enough to the clock
+	 * used for ktime */
+	if (alsa_stream->interpolate_start && alsa_stream->interpolate_start < now)
+		runtime->delay = -(int)div_u64((now - alsa_stream->interpolate_start) * runtime->rate,  1000000000);
 
 	return snd_pcm_indirect_playback_pointer(substream,
 		&alsa_stream->pcm_indirect,
