@@ -423,9 +423,16 @@ static struct cea_channel_speaker_allocation channel_allocations[] = {
 { .ca_index = 0x31,  .speakers = { FRW,  FLW,  RR,  RL,  FC,  LFE,  FR,  FL } },
 };
 
+static int uses_analogue(bcm2835_chip_t *chip)
+{
+	return chip->dest == 1;
+}
+
 static int snd_bcm2835_chmap_ctl_tlv(struct snd_kcontrol *kcontrol, int op_flag,
 				     unsigned int size, unsigned int __user *tlv)
 {
+	struct snd_pcm_chmap *info = snd_kcontrol_chip(kcontrol);
+	bcm2835_chip_t *chip = info->private_data;
 	unsigned int __user *dst;
 	int count = 0;
 	int i;
@@ -441,6 +448,9 @@ static int snd_bcm2835_chmap_ctl_tlv(struct snd_kcontrol *kcontrol, int op_flag,
 		int num_chs = 0;
 		int chs_bytes;
 		int c;
+
+		if (i > 0 && uses_analogue(chip))
+			break;
 
 		for (c = 0; c < 8; c++) {
 			if (ch->speakers[c])
@@ -552,6 +562,8 @@ static int snd_bcm2835_chmap_ctl_put(struct snd_kcontrol *kcontrol,
 		int matches = 1;
 		int cur = 0;
 		int x;
+		if (i > 0 && uses_analogue(chip))
+			break;
 		memset(remap, 0, sizeof(remap));
 		for (x = 0; x < substream->runtime->channels; x++) {
 			int sp = ucontrol->value.integer.value[x];
