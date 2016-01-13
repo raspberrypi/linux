@@ -133,6 +133,7 @@ struct bcm2835_alsa_stream {
 	unsigned int pos;
 	unsigned int buffer_size;
 	unsigned int period_size;
+	u64 interpolate_start;
 
 	atomic_t retrieved;
 	struct bcm2835_audio_instance *instance;
