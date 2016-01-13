@@ -231,6 +231,9 @@ static int snd_bcm2835_playback_open_generic(
 
 	chip->alsa_stream[idx] = alsa_stream;
 
+	if (!chip->opened)
+		chip->cea_chmap = -1;
+
 	chip->opened |= (1 << idx);
 	alsa_stream->open = 1;
 	alsa_stream->draining = 1;
@@ -341,16 +344,13 @@ static int snd_bcm2835_pcm_hw_free(struct snd_pcm_substream *substream)
 	return snd_pcm_lib_free_pages(substream);
 }
 
-/* prepare callback */
-static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
+int snd_bcm2835_pcm_prepare_again(struct snd_pcm_substream *substream)
 {
 	bcm2835_chip_t *chip = snd_pcm_substream_chip(substream);
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
 	int channels;
 	int err;
-
-	audio_info(" .. IN\n");
 
 	/* notify the vchiq that it should enter spdif passthrough mode by
 	 * setting channels=0 (see
@@ -366,6 +366,20 @@ static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
 	if (err < 0) {
 		audio_error(" error setting hw params\n");
 	}
+
+	return err;
+}
+
+/* prepare callback */
+static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
+{
+	bcm2835_chip_t *chip = snd_pcm_substream_chip(substream);
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
+
+	audio_info(" .. IN\n");
+
+	snd_bcm2835_pcm_prepare_again(substream);
 
 	bcm2835_audio_setup(alsa_stream);
 
