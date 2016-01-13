@@ -16,7 +16,7 @@
 #define _VC_AUDIO_DEFS_H_
 
 #define VC_AUDIOSERV_MIN_VER 1
-#define VC_AUDIOSERV_VER 2
+#define VC_AUDIOSERV_VER 3
 
 // FourCC code used for VCHI connection
 #define VC_AUDIO_SERVER_NAME  MAKE_FOURCC("AUDS")
@@ -36,6 +36,7 @@ typedef enum {
 	VC_AUDIO_MSG_TYPE_START,	// Configure audio
 	VC_AUDIO_MSG_TYPE_STOP,	// Configure audio
 	VC_AUDIO_MSG_TYPE_WRITE,	// Configure audio
+	VC_AUDIO_MSG_TYPE_LATENCY,	// request latency in cycles
 	VC_AUDIO_MSG_TYPE_MAX
 } VC_AUDIO_MSG_TYPE;
 
@@ -44,6 +45,7 @@ typedef struct {
 	uint32_t channels;
 	uint32_t samplerate;
 	uint32_t bps;
+	uint32_t channelmap;
 
 } VC_AUDIO_CONFIG_T;
 
@@ -84,6 +86,12 @@ typedef struct {
 	uint16_t max_packet;
 } VC_AUDIO_WRITE_T;
 
+// query latency in samples of sink
+typedef struct
+{
+	uint32_t dummy;
+} VC_AUDIO_LATENCY_T;
+
 // Generic result for a request (VC->HOST)
 typedef struct {
 	int32_t success;	// Success value
@@ -108,6 +116,7 @@ typedef struct {
 		VC_AUDIO_START_T start;
 		VC_AUDIO_STOP_T stop;
 		VC_AUDIO_WRITE_T write;
+		VC_AUDIO_LATENCY_T latency;
 		VC_AUDIO_RESULT_T result;
 		VC_AUDIO_COMPLETE_T complete;
 	} u;
