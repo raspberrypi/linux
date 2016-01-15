@@ -1772,8 +1772,11 @@ static int cleaner_kthread(void *arg)
 			goto sleep;
 		}
 
+		mutex_lock(&root->fs_info->cleaner_delayed_iput_mutex);
 		btrfs_run_delayed_iputs(root);
 		btrfs_delete_unused_bgs(root->fs_info);
+		mutex_unlock(&root->fs_info->cleaner_delayed_iput_mutex);
+
 		again = btrfs_clean_one_deleted_snapshot(root);
 		mutex_unlock(&root->fs_info->cleaner_mutex);
 
@@ -2491,8 +2494,8 @@ int open_ctree(struct super_block *sb,
 	mutex_init(&fs_info->unused_bg_unpin_mutex);
 	mutex_init(&fs_info->reloc_mutex);
 	mutex_init(&fs_info->delalloc_root_mutex);
+	mutex_init(&fs_info->cleaner_delayed_iput_mutex);
 	seqlock_init(&fs_info->profiles_lock);
-	init_rwsem(&fs_info->delayed_iput_sem);
 
 	init_completion(&fs_info->kobj_unregister);
 	INIT_LIST_HEAD(&fs_info->dirty_cowonly_roots);
