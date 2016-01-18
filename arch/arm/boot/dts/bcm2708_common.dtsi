@@ -86,6 +86,18 @@
 			status = "disabled";
 		};
 
+		cprman: cprman@7e101000 {
+			compatible = "brcm,bcm2835-cprman";
+			#clock-cells = <1>;
+			reg = <0x7e101000 0x2000>;
+
+			/* CPRMAN derives everything from the platform's
+			 * oscillator.
+			 */
+			clocks = <&clk_osc>;
+			status = "disabled";
+		};
+
 		random: rng@7e104000 {
 			compatible = "brcm,bcm2835-rng";
 			reg = <0x7e104000 0x10>;
@@ -318,6 +330,14 @@
 			#clock-cells = <0>;
 			clock-div = <1>;
 			clock-mult = <2>;
+		};
+
+		clk_osc: clock@6 {
+			compatible = "fixed-clock";
+			reg = <6>;
+			#clock-cells = <0>;
+			clock-output-names = "osc";
+			clock-frequency = <19200000>;
 		};
 	};
 
