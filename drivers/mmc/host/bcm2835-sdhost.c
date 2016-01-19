@@ -173,6 +173,9 @@ struct bcm2835_host {
 	u32				overclock_50;	/* frequency to use when 50MHz is requested (in MHz) */
 	u32				overclock;	/* Current frequency if overclocked, else zero */
 	u32				pio_limit;	/* Maximum block count for PIO (0 = always DMA) */
+
+	u32				sectors;	/* Cached card size in sectors */
+	u32				single_read_sectors[8];
 };
 
 
@@ -277,6 +280,9 @@ static void bcm2835_sdhost_reset_internal(struct bcm2835_host *host)
 {
 	u32 temp;
 
+	if (host->debug)
+		pr_info("%s: reset\n", mmc_hostname(host->mmc));
+
 	bcm2835_sdhost_set_power(host, false);
 
 	bcm2835_sdhost_write(host, 0, SDCMD);
@@ -299,6 +305,8 @@ static void bcm2835_sdhost_reset_internal(struct bcm2835_host *host)
 	bcm2835_sdhost_set_power(host, true);
 	mdelay(10);
 	host->clock = 0;
+	host->sectors = 0;
+	host->single_read_sectors[0] = ~0;
 	bcm2835_sdhost_write(host, host->hcfg, SDHCFG);
 	bcm2835_sdhost_write(host, host->cdiv, SDCDIV);
 	mmiowb();
@@ -309,8 +317,6 @@ static void bcm2835_sdhost_reset(struct mmc_host *mmc)
 {
 	struct bcm2835_host *host = mmc_priv(mmc);
 	unsigned long flags;
-	if (host->debug)
-		pr_info("%s: reset\n", mmc_hostname(mmc));
 	spin_lock_irqsave(&host->lock, flags);
 
 	bcm2835_sdhost_reset_internal(host);
@@ -675,6 +681,32 @@ static void bcm2835_sdhost_prepare_data(struct bcm2835_host *host, struct mmc_co
 	host->data_complete = 0;
 	host->flush_fifo = 0;
 	host->data->bytes_xfered = 0;
+
+	if (!host->sectors && host->mmc->card)
+	{
+		struct mmc_card *card = host->mmc->card;
+		if (!mmc_card_sd(card) && mmc_card_blockaddr(card)) {
+			/*
+			 * The EXT_CSD sector count is in number of 512 byte
+			 * sectors.
+			 */
+			host->sectors = card->ext_csd.sectors;
+			pr_err("%s: using ext_csd!\n", mmc_hostname(host->mmc));
+		} else {
+			/*
+			 * The CSD capacity field is in units of read_blkbits.
+			 * set_capacity takes units of 512 bytes.
+			 */
+			host->sectors = card->csd.capacity <<
+				(card->csd.read_blkbits - 9);
+		}
+		host->single_read_sectors[0] = host->sectors - 65;
+		host->single_read_sectors[1] = host->sectors - 64;
+		host->single_read_sectors[2] = host->sectors - 33;
+		host->single_read_sectors[3] = host->sectors - 32;
+		host->single_read_sectors[4] = host->sectors - 1;
+		host->single_read_sectors[5] = ~0; /* Safety net */
+	}
 
 	host->use_dma = host->have_dma && (data->blocks > host->pio_limit);
 	if (!host->use_dma) {
@@ -1246,6 +1278,10 @@ static u32 bcm2835_sdhost_block_irq(struct bcm2835_host *host, u32 intmask)
 
 			bcm2835_sdhost_finish_data(host);
 		} else {
+			/* Reset the timer */
+			mod_timer(&host->pio_timer,
+				  jiffies + host->pio_timeout);
+
 			bcm2835_sdhost_transfer_pio(host);
 
 			/* Reset the timer */
@@ -1450,8 +1486,8 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 	host->cdiv = div;
 	bcm2835_sdhost_write(host, host->cdiv, SDCDIV);
 
-	/* Set the timeout to 500ms */
-	bcm2835_sdhost_write(host, host->mmc->actual_clock/2, SDTOUT);
+	/* Set the timeout to 250ms */
+	bcm2835_sdhost_write(host, host->mmc->actual_clock/4, SDTOUT);
 
 	if (host->debug)
 		pr_info("%s: clock=%d -> max_clk=%d, cdiv=%x (actual clock %d)\n",
@@ -1566,13 +1602,20 @@ static int bcm2835_sdhost_multi_io_quirk(struct mmc_card *card,
 	   reading the final sector of the card as part of a multiple read
 	   problematic. Detect that case and shorten the read accordingly.
 	*/
-	/* csd.capacity is in weird units - convert to sectors */
-	u32 card_sectors = (card->csd.capacity << (card->csd.read_blkbits - 9));
+	struct bcm2835_host *host;
 
-	if ((direction == MMC_DATA_READ) &&
-	    ((blk_pos + blk_size) == card_sectors))
-		blk_size--;
+	host = mmc_priv(card->host);
 
+	if (direction == MMC_DATA_READ)
+	{
+		int i;
+		int sector;
+		for (i = 0; blk_pos > (sector = host->single_read_sectors[i]); i++)
+			continue;
+
+		if ((blk_pos + blk_size) > sector)
+			blk_size = (blk_pos == sector) ? 1 : (sector - blk_pos);
+	}
 	return blk_size;
 }
 
