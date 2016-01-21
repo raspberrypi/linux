@@ -5,6 +5,7 @@ dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-b-plus.dtb
 dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-cm.dtb
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2835-rpi-cm.dtb
 dtb-$(CONFIG_ARCH_BCM2709) += bcm2709-rpi-2-b.dtb
+dtb-$(CONFIG_ARCH_BCM2709) += bcm2710-rpi-3-b.dtb
 
 # Raspberry Pi
 ifeq ($(CONFIG_ARCH_BCM2708),y)
