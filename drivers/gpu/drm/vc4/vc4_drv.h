@@ -445,6 +445,7 @@ void vc4_job_handle_completed(struct vc4_dev *vc4);
 int vc4_queue_seqno_cb(struct drm_device *dev,
 		       struct vc4_seqno_cb *cb, uint64_t seqno,
 		       void (*func)(struct vc4_seqno_cb *cb));
+int vc4_gem_exec_debugfs(struct seq_file *m, void *arg);
 
 /* vc4_hdmi.c */
 extern struct platform_driver vc4_hdmi_driver;
