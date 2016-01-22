@@ -9,6 +9,7 @@
 		frag1: __overlay__ {
 			brcm,overclock-50 = <0>;
 			brcm,pio-limit = <1>;
+			brcm,debug-flags = <0>;
 		};
 	};
 
@@ -17,5 +18,6 @@
 		force_pio        = <&frag1>,"brcm,force-pio?";
 		pio_limit        = <&frag1>,"brcm,pio-limit:0";
 		debug            = <&frag1>,"brcm,debug?";
+		debug_flags      = <&frag1>,"brcm,debug-flags:0";
 	};
 };
