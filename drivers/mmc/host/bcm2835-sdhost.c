@@ -174,6 +174,8 @@ struct bcm2835_host {
 	u32				overclock;	/* Current frequency if overclocked, else zero */
 	u32				pio_limit;	/* Maximum block count for PIO (0 = always DMA) */
 
+	u32				debug_flags;
+
 	u32				sectors;	/* Cached card size in sectors */
 	u32				single_read_sectors[8];
 };
@@ -682,7 +684,7 @@ static void bcm2835_sdhost_prepare_data(struct bcm2835_host *host, struct mmc_co
 	host->flush_fifo = 0;
 	host->data->bytes_xfered = 0;
 
-	if (!host->sectors && host->mmc->card)
+	if (!host->sectors && host->mmc->card && !(host->debug_flags & 1))
 	{
 		struct mmc_card *card = host->mmc->card;
 		if (!mmc_card_sd(card) && mmc_card_blockaddr(card)) {
@@ -1486,8 +1488,8 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 	host->cdiv = div;
 	bcm2835_sdhost_write(host, host->cdiv, SDCDIV);
 
-	/* Set the timeout to 250ms */
-	bcm2835_sdhost_write(host, host->mmc->actual_clock/4, SDTOUT);
+	/* Set the timeout to 500ms */
+	bcm2835_sdhost_write(host, host->mmc->actual_clock/2, SDTOUT);
 
 	if (host->debug)
 		pr_info("%s: clock=%d -> max_clk=%d, cdiv=%x (actual clock %d)\n",
@@ -1606,8 +1608,16 @@ static int bcm2835_sdhost_multi_io_quirk(struct mmc_card *card,
 
 	host = mmc_priv(card->host);
 
-	if (direction == MMC_DATA_READ)
-	{
+	if (!host->sectors) {
+		/* csd.capacity is in weird units - convert to sectors */
+		u32 card_sectors = (card->csd.capacity << (card->csd.read_blkbits - 9));
+		if ((direction == MMC_DATA_READ) &&
+		    ((blk_pos + blk_size) == card_sectors))
+			blk_size--;
+		return blk_size;
+	}
+
+	if (direction == MMC_DATA_READ) {
 		int i;
 		int sector;
 		for (i = 0; blk_pos > (sector = host->single_read_sectors[i]); i++)
@@ -1838,7 +1848,13 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 		host->allow_dma = ALLOW_DMA &&
 			!of_property_read_bool(node, "brcm,force-pio");
 		host->debug = of_property_read_bool(node, "brcm,debug");
+		of_property_read_u32(node,
+				     "brcm,debug-flags",
+				     &host->debug_flags);
 	}
+
+	if (host->debug_flags)
+		dev_err(dev, "debug_flags=%x\n", host->debug_flags);
 
 	if (host->allow_dma) {
 		if (node) {
