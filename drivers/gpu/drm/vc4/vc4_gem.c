@@ -32,6 +32,20 @@
 #include "vc4_regs.h"
 #include "vc4_trace.h"
 
+#ifdef CONFIG_DEBUG_FS
+int vc4_gem_exec_debugfs(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *)m->private;
+	struct drm_device *dev = node->minor->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	seq_printf(m, "Emitted  seqno:   0x%016llx\n", vc4->emit_seqno);
+	seq_printf(m, "Finished seqno:   0x%016llx\n", vc4->finished_seqno);
+
+	return 0;
+}
+#endif /* CONFIG_DEBUG_FS */
+
 static void
 vc4_queue_hangcheck(struct drm_device *dev)
 {
