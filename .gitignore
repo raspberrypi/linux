@@ -150,6 +150,9 @@ x509.genkey
 /allrandom.config
 /allyes.config
 
+# tmp build/install directory for /gce-install.sh:
+/gce/
+
 # Kconfig savedefconfig output
 /defconfig
 
