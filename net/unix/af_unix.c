@@ -2131,6 +2131,7 @@ again:
 
 			if (signal_pending(current)) {
 				err = sock_intr_errno(timeo);
+				scm_destroy(&scm);
 				goto out;
 			}
 
