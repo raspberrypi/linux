@@ -38,9 +38,19 @@ static const struct i2c_device_id adau1977_i2c_ids[] = {
 };
 MODULE_DEVICE_TABLE(i2c, adau1977_i2c_ids);
 
+static const struct of_device_id adau1977_of_ids[] = {
+	{ .compatible = "adi,adau1977", },
+	{ .compatible = "adi,adau1978", },
+	{ .compatible = "adi,adau1979", },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, adau1977_of_ids);
+
+
 static struct i2c_driver adau1977_i2c_driver = {
 	.driver = {
 		.name = "adau1977",
+		.of_match_table = adau1977_of_ids,
 	},
 	.probe = adau1977_i2c_probe,
 	.id_table = adau1977_i2c_ids,
