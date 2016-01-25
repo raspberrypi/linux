@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config SND_RP1_AUDIO_OUT
+	tristate "PWM Audio Out from RP1"
+	select SND_SOC_GENERIC_DMAENGINE_PCM
+	select SND_SOC_SPDIF
+	help
+	 Say Y or M if you want to add support for PWM digital
+	 audio output from a Raspberry Pi 5, 500 or CM5.
+
+	 Output is from RP1 GPIOs pins 12 and 13 only, and additional
+	 components will be needed. It may be useful when HDMI, I2S
+	 or USB audio devices are unavailable, or for compatibility.
