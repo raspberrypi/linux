@@ -47,8 +47,6 @@
 #include "debug.h"
 #include "sdio.h"
 #include "of.h"
-#include "core.h"
-#include "common.h"
 
 #define SDIOH_API_ACCESS_RETRY_LIMIT	2
 
@@ -59,6 +57,7 @@
 /* Maximum milliseconds to wait for F2 to come up */
 #define SDIO_WAIT_F2RDY	3000
 
+#define BRCMF_DEFAULT_TXGLOM_SIZE	32  /* max tx frames in glom chain */
 #define BRCMF_DEFAULT_RXGLOM_SIZE	32  /* max rx frames in glom chain */
 
 struct brcmf_sdiod_freezer {
@@ -68,6 +67,10 @@ struct brcmf_sdiod_freezer {
 	wait_queue_head_t thread_freeze;
 	struct completion resumed;
 };
+
+static int brcmf_sdiod_txglomsz = BRCMF_DEFAULT_TXGLOM_SIZE;
+module_param_named(txglomsz, brcmf_sdiod_txglomsz, int, 0);
+MODULE_PARM_DESC(txglomsz, "maximum tx packet chain size [SDIO]");
 
 static irqreturn_t brcmf_sdiod_oob_irqhandler(int irq, void *dev_id)
 {
@@ -900,8 +903,7 @@ void brcmf_sdiod_sgtable_alloc(struct brcmf_sdio_dev *sdiodev)
 	if (!sdiodev->sg_support)
 		return;
 
-	nents = max_t(uint, BRCMF_DEFAULT_RXGLOM_SIZE,
-		      sdiodev->bus_if->drvr->settings->sdiod_txglomsz);
+	nents = max_t(uint, BRCMF_DEFAULT_RXGLOM_SIZE, brcmf_sdiod_txglomsz);
 	nents += (nents >> 4) + 1;
 
 	WARN_ON(nents > sdiodev->max_segment_count);
@@ -913,7 +915,7 @@ void brcmf_sdiod_sgtable_alloc(struct brcmf_sdio_dev *sdiodev)
 		sdiodev->sg_support = false;
 	}
 
-	sdiodev->txglomsz = sdiodev->bus_if->drvr->settings->sdiod_txglomsz;
+	sdiodev->txglomsz = brcmf_sdiod_txglomsz;
 }
 
 #ifdef CONFIG_PM_SLEEP
