@@ -2528,6 +2528,8 @@ static const struct usb_audio_quirk_flags_table quirk_flags_table[] = {
 		   QUIRK_FLAG_ALIGN_TRANSFER),
 	DEVICE_FLG(0x534d, 0x2109, /* MacroSilicon MS2109 */
 		   QUIRK_FLAG_ALIGN_TRANSFER),
+	DEVICE_FLG(0x09da, 0x2695, /* A4Tech FHD 1080p webcam */
+		   QUIRK_FLAG_DISABLE_AUTOSUSPEND | QUIRK_FLAG_GET_SAMPLE_RATE),
 	DEVICE_FLG(0x84ef, 0x0082, /* Hotone Audio Pulze Mini */
 		   QUIRK_FLAG_MIXER_PLAYBACK_LINEAR_VOL | QUIRK_FLAG_MIXER_CAPTURE_LINEAR_VOL),
 
