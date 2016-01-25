@@ -53,8 +53,8 @@ have its contents deleted (or commented out).
 Using Overlays
 ==============
 
-Overlays are loaded using the "dtoverlay" directive. As an example, consider the
-popular lirc-rpi module, the Linux Infrared Remote Control driver. In the
+Overlays are loaded using the "dtoverlay" directive. As an example, consider
+the popular lirc-rpi module, the Linux Infrared Remote Control driver. In the
 pre-DT world this would be loaded from /etc/modules, with an explicit
 "modprobe lirc-rpi" command, or programmatically by lircd. With DT enabled,
 this becomes a line in config.txt:
@@ -621,8 +621,11 @@ Name:   sdio
 Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock,
         and enables SDIO via GPIOs 22-27.
 Load:   dtoverlay=sdio,<param>=<val>
-Params: overclock_50             Clock (in MHz) to use when the MMC framework
+Params: overclock_50             SD Clock (in MHz) to use when the MMC framework
                                  requests 50MHz
+
+        sdio_overclock           SDIO Clock (in MHz) to use when the MMC
+                                 framework requests 50MHz
 
         force_pio                Disable DMA support (default off)
 
