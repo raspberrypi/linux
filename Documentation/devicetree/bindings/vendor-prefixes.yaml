@@ -220,6 +220,8 @@ patternProperties:
     description: Bitmain Technologies
   "^blaize,.*":
     description: Blaize, Inc.
+  "^blokaslabs,.*":
+    description: Vilniaus Blokas UAB
   "^blutek,.*":
     description: BluTek Power
   "^boe,.*":
