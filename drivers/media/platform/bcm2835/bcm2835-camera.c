@@ -352,6 +352,7 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 		if (dev->capture.frame_count) {
 			if (dev->capture.vc_start_timestamp != -1 &&
 			    pts != 0) {
+				struct timeval timestamp;
 				s64 runtime_us = pts -
 				    dev->capture.vc_start_timestamp;
 				u32 div = 0;
@@ -359,16 +360,16 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 
 				div =
 				    div_u64_rem(runtime_us, USEC_PER_SEC, &rem);
-				buf->vb.timestamp.tv_sec =
+				timestamp.tv_sec =
 				    dev->capture.kernel_start_ts.tv_sec - 1 +
 				    div;
-				buf->vb.timestamp.tv_usec =
+				timestamp.tv_usec =
 				    dev->capture.kernel_start_ts.tv_usec + rem;
 
-				if (buf->vb.timestamp.tv_usec >=
+				if (timestamp.tv_usec >=
 				    USEC_PER_SEC) {
-					buf->vb.timestamp.tv_sec++;
-					buf->vb.timestamp.tv_usec -=
+					timestamp.tv_sec++;
+					timestamp.tv_usec -=
 					    USEC_PER_SEC;
 				}
 				v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
@@ -379,11 +380,12 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 					 (int)dev->capture.kernel_start_ts.
 					 tv_usec,
 					 dev->capture.vc_start_timestamp, pts,
-					 (int)buf->vb.timestamp.tv_sec,
-					 (int)buf->vb.timestamp.
-					 tv_usec);
+					 (int)timestamp.tv_sec,
+					 (int)timestamp.tv_usec);
+				buf->vb.vb2_buf.timestamp = timestamp.tv_sec * 1000000000ULL +
+					timestamp.tv_usec * 1000ULL;
 			} else {
-				v4l2_get_timestamp(&buf->vb.timestamp);
+				buf->vb.vb2_buf.timestamp = ktime_get_ns();
 			}
 
 			vb2_set_plane_payload(&buf->vb.vb2_buf, 0, length);
