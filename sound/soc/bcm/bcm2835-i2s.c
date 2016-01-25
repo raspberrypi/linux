@@ -30,7 +30,6 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/module.h>
-#include <linux/of_address.h>
 #include <linux/slab.h>
 
 #include <sound/core.h>
@@ -150,8 +149,8 @@ static void bcm2835_i2s_stop_clock(struct bcm2835_i2s_dev *dev)
 	dev->clk_prepared = false;
 }
 
-static void bcm2835_i2s_clear_fifos(struct bcm2835_i2s_dev *dev,
-				    bool tx, bool rx)
+static int bcm2835_i2s_clear_fifos(struct bcm2835_i2s_dev *dev,
+				   bool tx, bool rx)
 {
 	int timeout = 1000;
 	uint32_t syncval;
@@ -188,8 +187,9 @@ static void bcm2835_i2s_clear_fifos(struct bcm2835_i2s_dev *dev,
 	/* Wait for 2 PCM clock cycles */
 
 	/*
-	 * Toggle the SYNC flag. After 2 PCM clock cycles it can be read back
-	 * FIXME: This does not seem to work for slave mode!
+	 * Toggle the SYNC flag. After 2 PCM clock cycles it can be read back.
+	 * The reset will timeout in clock consumer mode without an external
+	 * clock.
 	 */
 	regmap_read(dev->i2s_regmap, BCM2835_I2S_CS_A_REG, &syncval);
 	syncval &= BCM2835_I2S_SYNC;
@@ -205,7 +205,8 @@ static void bcm2835_i2s_clear_fifos(struct bcm2835_i2s_dev *dev,
 	}
 
 	if (!timeout)
-		dev_err(dev->dev, "I2S SYNC error!\n");
+		dev_err(dev->dev,
+			"FIFO clear timed out: no PCM clock (clock consumer with the provider not running?)\n");
 
 	/* Stop clock if it was not running before */
 	if (!clk_was_prepared)
@@ -214,6 +215,14 @@ static void bcm2835_i2s_clear_fifos(struct bcm2835_i2s_dev *dev,
 	/* Restore I2S state */
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
 			BCM2835_I2S_RXON | BCM2835_I2S_TXON, i2s_active_state);
+
+	/*
+	 * Without the SYNC round trip the FIFOs were not actually cleared:
+	 * starting DMA on top of a stale FIFO makes RX free-run (DREQ stuck
+	 * high, the same dead word re-read at bus speed) and the state then
+	 * survives further stream cycles. Fail the stream instead.
+	 */
+	return timeout ? 0 : -EIO;
 }
 
 static int bcm2835_i2s_set_dai_fmt(struct snd_soc_dai *dai,
@@ -589,6 +598,11 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 			| BCM2835_I2S_RX(0x20), 0xffffffff);
 
 	/* Clear FIFOs */
+	/*
+	 * May time out benignly here: on clock-consumer links the provider's
+	 * clocks are often not running yet at hw_params time; the clear that
+	 * must succeed is the one in .prepare.
+	 */
 	bcm2835_i2s_clear_fifos(dev, true, true);
 
 	dev_dbg(dev->dev,
@@ -620,6 +634,10 @@ static int bcm2835_i2s_prepare(struct snd_pcm_substream *substream,
 	struct bcm2835_i2s_dev *dev = snd_soc_dai_get_drvdata(dai);
 	uint32_t cs_reg;
 
+	snd_pcm_hw_constraint_minmax(substream->runtime,
+		SNDRV_PCM_HW_PARAM_PERIOD_BYTES, 256,
+					~0);
+
 	/*
 	 * Clear both FIFOs if the one that should be started
 	 * is not empty at the moment. This should only happen
@@ -633,7 +651,13 @@ static int bcm2835_i2s_prepare(struct snd_pcm_substream *substream,
 		bcm2835_i2s_clear_fifos(dev, true, false);
 	else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE
 			&& (cs_reg & BCM2835_I2S_RXD))
-		bcm2835_i2s_clear_fifos(dev, false, true);
+		/*
+		 * Stale RX data with no working clock cannot be cleared: DMA
+		 * would free-run over the dead FIFO (DREQ stuck high) and the
+		 * poisoned state survives stream cycles. Fail this capture
+		 * open instead of recording garbage.
+		 */
+		return bcm2835_i2s_clear_fifos(dev, false, true);
 
 	return 0;
 }
@@ -700,6 +724,10 @@ static int bcm2835_i2s_startup(struct snd_pcm_substream *substream,
 
 	/* Should this still be running stop it */
 	bcm2835_i2s_stop_clock(dev);
+
+	snd_pcm_hw_constraint_minmax(substream->runtime,
+				     SNDRV_PCM_HW_PARAM_PERIOD_BYTES,
+				     256, ~0);
 
 	/* Enable PCM block */
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
@@ -843,8 +871,7 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 	struct bcm2835_i2s_dev *dev;
 	int ret;
 	void __iomem *base;
-	const __be32 *addr;
-	dma_addr_t dma_base;
+	struct resource *res;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev),
 			   GFP_KERNEL);
@@ -859,7 +886,7 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 				     "could not get clk\n");
 
 	/* Request ioarea */
-	base = devm_platform_ioremap_resource(pdev, 0);
+	base = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
@@ -868,19 +895,11 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 	if (IS_ERR(dev->i2s_regmap))
 		return PTR_ERR(dev->i2s_regmap);
 
-	/* Set the DMA address - we have to parse DT ourselves */
-	addr = of_get_address(pdev->dev.of_node, 0, NULL, NULL);
-	if (!addr) {
-		dev_err(&pdev->dev, "could not get DMA-register address\n");
-		return -EINVAL;
-	}
-	dma_base = be32_to_cpup(addr);
-
 	dev->dma_data[SNDRV_PCM_STREAM_PLAYBACK].addr =
-		dma_base + BCM2835_I2S_FIFO_A_REG;
+		res->start + BCM2835_I2S_FIFO_A_REG;
 
 	dev->dma_data[SNDRV_PCM_STREAM_CAPTURE].addr =
-		dma_base + BCM2835_I2S_FIFO_A_REG;
+		res->start + BCM2835_I2S_FIFO_A_REG;
 
 	/* Set the bus width */
 	dev->dma_data[SNDRV_PCM_STREAM_PLAYBACK].addr_width =
