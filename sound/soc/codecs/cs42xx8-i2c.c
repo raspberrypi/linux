@@ -45,11 +45,18 @@ static struct i2c_device_id cs42xx8_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, cs42xx8_i2c_id);
 
+const struct of_device_id cs42xx8_i2c_of_match[] = {
+	{ .compatible = "cirrus,cs42448", .data = &cs42448_data, },
+	{ .compatible = "cirrus,cs42888", .data = &cs42888_data, },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, cs42xx8_i2c_of_match);
+
 static struct i2c_driver cs42xx8_i2c_driver = {
 	.driver = {
 		.name = "cs42xx8",
 		.pm = &cs42xx8_pm,
-		.of_match_table = cs42xx8_of_match,
+		.of_match_table = cs42xx8_i2c_of_match,
 	},
 	.probe = cs42xx8_i2c_probe,
 	.remove = cs42xx8_i2c_remove,
