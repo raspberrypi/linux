@@ -510,6 +510,16 @@ const struct cs42xx8_driver_data cs42888_data = {
 };
 EXPORT_SYMBOL_GPL(cs42888_data);
 
+const struct of_device_id cs42xx8_of_match[] = {
+	{ .compatible = "cirrus,cs42448", .data = &cs42448_data, },
+	{ .compatible = "cirrus,cs42888", .data = &cs42888_data, },
+	{ /* sentinel */ }
+};
+#if !IS_ENABLED(CONFIG_SND_SOC_CS42XX8_I2C)
+MODULE_DEVICE_TABLE(of, cs42xx8_of_match);
+EXPORT_SYMBOL_GPL(cs42xx8_of_match);
+#endif
+
 int cs42xx8_probe(struct device *dev, struct regmap *regmap, struct cs42xx8_driver_data *drvdata)
 {
 	struct cs42xx8_priv *cs42xx8;
