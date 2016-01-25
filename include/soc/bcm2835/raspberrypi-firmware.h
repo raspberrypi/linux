@@ -9,6 +9,8 @@
 #include <linux/types.h>
 #include <linux/of_device.h>
 
+#define RPI_FIRMWARE_CHAN_FB		1
+
 struct rpi_firmware;
 struct pci_dev;
 
@@ -166,5 +168,6 @@ static inline int rpi_firmware_init_vl805(struct pci_dev *pdev)
 	return 0;
 }
 #endif
+int rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data);
 
 #endif /* __SOC_RASPBERRY_FIRMWARE_H__ */
