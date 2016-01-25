@@ -1231,7 +1231,7 @@ found:
  * Returns 0 on success, otherwise a negative error code.
  */
 int snd_soc_runtime_set_dai_fmt(struct snd_soc_pcm_runtime *rtd,
-				unsigned int dai_fmt)
+	unsigned int dai_fmt)
 {
 	struct snd_soc_dai *cpu_dai;
 	struct snd_soc_dai *codec_dai;
@@ -1240,7 +1240,15 @@ int snd_soc_runtime_set_dai_fmt(struct snd_soc_pcm_runtime *rtd,
 	int ret;
 
 	for_each_rtd_codec_dais(rtd, i, codec_dai) {
-		ret = snd_soc_dai_set_fmt(codec_dai, dai_fmt);
+		unsigned int codec_dai_fmt = dai_fmt;
+
+		// there can only be one master when using multiple codecs
+		if (i && (codec_dai_fmt & SND_SOC_DAIFMT_MASTER_MASK)) {
+			codec_dai_fmt &= ~SND_SOC_DAIFMT_MASTER_MASK;
+			codec_dai_fmt |= SND_SOC_DAIFMT_CBS_CFS;
+		}
+
+		ret = snd_soc_dai_set_fmt(codec_dai, codec_dai_fmt);
 		if (ret != 0 && ret != -ENOTSUPP)
 			return ret;
 	}
@@ -1249,8 +1257,21 @@ int snd_soc_runtime_set_dai_fmt(struct snd_soc_pcm_runtime *rtd,
 	 * Flip the polarity for the "CPU" end of a CODEC<->CODEC link
 	 * the component which has non_legacy_dai_naming is Codec
 	 */
-	inv_dai_fmt = snd_soc_daifmt_clock_provider_fliped(dai_fmt);
-
+	inv_dai_fmt = dai_fmt & ~SND_SOC_DAIFMT_MASTER_MASK;
+	switch (dai_fmt & SND_SOC_DAIFMT_MASTER_MASK) {
+	case SND_SOC_DAIFMT_CBM_CFM:
+		inv_dai_fmt |= SND_SOC_DAIFMT_CBS_CFS;
+		break;
+	case SND_SOC_DAIFMT_CBM_CFS:
+		inv_dai_fmt |= SND_SOC_DAIFMT_CBS_CFM;
+		break;
+	case SND_SOC_DAIFMT_CBS_CFM:
+		inv_dai_fmt |= SND_SOC_DAIFMT_CBM_CFS;
+		break;
+	case SND_SOC_DAIFMT_CBS_CFS:
+		inv_dai_fmt |= SND_SOC_DAIFMT_CBM_CFM;
+		break;
+	}
 	for_each_rtd_cpu_dais(rtd, i, cpu_dai) {
 		unsigned int fmt = dai_fmt;
 
