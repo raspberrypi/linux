@@ -869,8 +869,14 @@ static int usb_audio_probe(struct usb_interface *intf,
 	if (ignore_ctl_error)
 		chip->quirk_flags |= QUIRK_FLAG_IGNORE_CTL_ERROR;
 
-	if (chip->quirk_flags & QUIRK_FLAG_DISABLE_AUTOSUSPEND)
+	if (chip->quirk_flags & QUIRK_FLAG_DISABLE_AUTOSUSPEND) {
+		/*
+		* Grab the interface, because on a webcam uvcvideo may race
+		* with snd-usb-audio during probe and re-enable autosuspend.
+		*/
+		usb_autopm_get_interface(intf);
 		usb_disable_autosuspend(interface_to_usbdev(intf));
+	}
 
 	/*
 	 * For devices with more than one control interface, we assume the
