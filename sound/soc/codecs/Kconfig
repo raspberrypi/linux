@@ -109,6 +109,7 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_ICS43432
 	imply SND_SOC_INNO_RK3036
 	imply SND_SOC_ISABELLE
+	imply SND_SOC_I_SABRE_CODEC
 	imply SND_SOC_JZ4740_CODEC
 	imply SND_SOC_JZ4725B_CODEC
 	imply SND_SOC_JZ4760_CODEC
@@ -116,6 +117,7 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_LM4857
 	imply SND_SOC_LM49453
 	imply SND_SOC_LOCHNAGAR_SC
+	imply SND_SOC_MA120X0P
 	imply SND_SOC_MAX98088
 	imply SND_SOC_MAX98090
 	imply SND_SOC_MAX98095
@@ -156,6 +158,7 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_PCM179X_SPI
 	imply SND_SOC_PCM186X_I2C
 	imply SND_SOC_PCM186X_SPI
+	imply SND_SOC_PCM1794A
 	imply SND_SOC_PCM3008
 	imply SND_SOC_PCM3060_I2C
 	imply SND_SOC_PCM3060_SPI
@@ -233,6 +236,7 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_TLV320ADCX140
 	imply SND_SOC_TLV320AIC23_I2C
 	imply SND_SOC_TLV320AIC23_SPI
+	imply SND_SOC_TAS5713
 	imply SND_SOC_TLV320AIC26
 	imply SND_SOC_TLV320AIC31XX
 	imply SND_SOC_TLV320AIC32X4_I2C
@@ -382,12 +386,12 @@ config SND_SOC_AD193X
 	tristate
 
 config SND_SOC_AD193X_SPI
-	tristate
+	tristate "Analog Devices AU193X CODEC - SPI"
 	depends on SPI_MASTER
 	select SND_SOC_AD193X
 
 config SND_SOC_AD193X_I2C
-	tristate
+	tristate "Analog Devices AU193X CODEC - I2C"
 	depends on I2C
 	select SND_SOC_AD193X
 
@@ -990,6 +994,13 @@ config SND_SOC_LOCHNAGAR_SC
 	  This driver support the sound card functionality of the Cirrus
 	  Logic Lochnagar audio development board.
 
+config SND_SOC_MA120X0P
+	tristate "Infineon Merus(TM) MA120X0P Multilevel Class-D Audio amplifiers"
+	depends on I2C
+	help
+		Enable support for Infineon MA120X0P Multilevel Class-D audio power
+		amplifiers.
+
 config SND_SOC_MADERA
 	tristate
 	default y if SND_SOC_CS47L15=y
@@ -1327,6 +1338,10 @@ config SND_SOC_RT5616
 	tristate "Realtek RT5616 CODEC"
 	depends on I2C
 
+config SND_SOC_PCM1794A
+	tristate
+	depends on I2C
+
 config SND_SOC_RT5631
 	tristate "Realtek ALC5631/RT5631 CODEC"
 	depends on I2C
@@ -1615,6 +1630,9 @@ config SND_SOC_TDA7419
 config SND_SOC_TFA9879
 	tristate "NXP Semiconductors TFA9879 amplifier"
 	depends on I2C
+
+config SND_SOC_TAS5713
+	tristate
 
 config SND_SOC_TFA989X
 	tristate "NXP/Goodix TFA989X (TFA1) amplifiers"
@@ -2160,5 +2178,9 @@ config SND_SOC_LPASS_TX_MACRO
 	select REGMAP_MMIO
 	select SND_SOC_LPASS_MACRO_COMMON
 	tristate "Qualcomm TX Macro in LPASS(Low Power Audio SubSystem)"
+
+config SND_SOC_I_SABRE_CODEC
+	tristate "Audiophonics I-SABRE Codec"
+	depends on I2C
 
 endmenu
