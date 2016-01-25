@@ -601,6 +601,7 @@ struct da7213_priv {
 	unsigned int mclk_rate;
 	unsigned int out_rate;
 	unsigned int fin_min_rate;
+	unsigned int bclk_ratio;
 	int clk_src;
 	bool master;
 	bool alc_calib_auto;
