@@ -63,6 +63,17 @@
 #define TER_TXSLOT_SHIFT	8
 #define TER_TXCHEN	BIT(0)
 
+#define DMACR_DMAEN_TX		BIT(17)
+#define DMACR_DMAEN_RX		BIT(16)
+#define DMACR_DMAEN_TXCH3	BIT(11)
+#define DMACR_DMAEN_TXCH2	BIT(10)
+#define DMACR_DMAEN_TXCH1	BIT(9)
+#define DMACR_DMAEN_TXCH0	BIT(8)
+#define DMACR_DMAEN_RXCH3	BIT(3)
+#define DMACR_DMAEN_RXCH2	BIT(2)
+#define DMACR_DMAEN_RXCH1	BIT(1)
+#define DMACR_DMAEN_RXCH0	BIT(0)
+
 /* I2SCOMPRegisters */
 #define I2S_COMP_PARAM_2	0x01F0
 #define I2S_COMP_PARAM_1	0x01F4
@@ -117,6 +128,7 @@ struct dw_i2s_dev {
 	unsigned int quirks;
 	unsigned int i2s_reg_comp1;
 	unsigned int i2s_reg_comp2;
+	unsigned int bclk_ratio;
 	struct device *dev;
 	u32 ccr;
 	u32 xfer_resolution;
