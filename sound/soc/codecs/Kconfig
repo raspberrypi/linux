@@ -126,6 +126,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_PCM179X_SPI if SPI_MASTER
 	select SND_SOC_PCM186X_I2C if I2C
 	select SND_SOC_PCM186X_SPI if SPI_MASTER
+	select SND_SOC_PCM1794A if I2C
 	select SND_SOC_PCM3008
 	select SND_SOC_PCM3060_I2C if I2C
 	select SND_SOC_PCM3060_SPI if SPI_MASTER
@@ -913,6 +914,10 @@ config SND_SOC_RT5514_SPI_BUILTIN
 
 config SND_SOC_RT5616
 	tristate "Realtek RT5616 CODEC"
+	depends on I2C
+
+config SND_SOC_PCM1794A
+	tristate
 	depends on I2C
 
 config SND_SOC_RT5631
