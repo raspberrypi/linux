@@ -12,6 +12,7 @@
 			pinctrl-0 = <&sdio_pins>;
 			non-removable;
 			bus-width = <4>;
+			brcm,overclock-50 = <0>;
 			status = "okay";
 		};
 	};
@@ -30,5 +31,6 @@
 	__overrides__ {
 		poll_once = <&sdio_mmc>,"non-removable?";
 		bus_width = <&sdio_mmc>,"bus-width:0";
+		sdio_overclock = <&sdio_mmc>,"brcm,overclock-50:0";
 	};
 };
