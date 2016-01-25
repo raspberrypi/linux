@@ -1476,8 +1476,16 @@ int snd_soc_runtime_set_dai_fmt(struct snd_soc_pcm_runtime *rtd,
 	 *	ext_fmt  includes 4
 	 */
 	for_each_rtd_codec_dais(rtd, i, codec_dai) {
+		unsigned int codec_dai_fmt = dai_fmt;
+
+		// there can only be one master when using multiple codecs
+		if (i && (codec_dai_fmt & SND_SOC_DAIFMT_MASTER_MASK)) {
+			codec_dai_fmt &= ~SND_SOC_DAIFMT_MASTER_MASK;
+			codec_dai_fmt |= SND_SOC_DAIFMT_CBS_CFS;
+		}
+
 		ext_fmt = rtd->dai_link->codecs[i].ext_fmt;
-		ret = snd_soc_dai_set_fmt(codec_dai, dai_fmt | ext_fmt);
+		ret = snd_soc_dai_set_fmt(codec_dai, codec_dai_fmt | ext_fmt);
 		if (ret != 0 && ret != -ENOTSUPP)
 			return ret;
 	}
