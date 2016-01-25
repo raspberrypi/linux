@@ -12,6 +12,8 @@
 #include <linux/types.h>
 #include <linux/of_device.h>
 
+#define RPI_FIRMWARE_CHAN_FB		1
+
 struct rpi_firmware;
 
 enum rpi_firmware_property_status {
@@ -75,6 +77,9 @@ enum rpi_firmware_property_tag {
 	RPI_FIRMWARE_GET_EDID_BLOCK =                         0x00030020,
 	RPI_FIRMWARE_GET_CUSTOMER_OTP =                       0x00030021,
 	RPI_FIRMWARE_GET_DOMAIN_STATE =                       0x00030030,
+	RPI_FIRMWARE_GET_THROTTLED =                          0x00030046,
+	RPI_FIRMWARE_GET_CLOCK_MEASURED =                     0x00030047,
+	RPI_FIRMWARE_NOTIFY_REBOOT =                          0x00030048,
 	RPI_FIRMWARE_SET_CLOCK_STATE =                        0x00038001,
 	RPI_FIRMWARE_SET_CLOCK_RATE =                         0x00038002,
 	RPI_FIRMWARE_SET_VOLTAGE =                            0x00038003,
@@ -157,5 +162,6 @@ static inline struct rpi_firmware *rpi_firmware_get(struct device_node *firmware
 	return NULL;
 }
 #endif
+int rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data);
 
 #endif /* __SOC_RASPBERRY_FIRMWARE_H__ */
