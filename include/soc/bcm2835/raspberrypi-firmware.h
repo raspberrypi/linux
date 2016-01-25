@@ -9,6 +9,8 @@
 #include <linux/types.h>
 #include <linux/of_device.h>
 
+#define RPI_FIRMWARE_CHAN_FB		1
+
 struct rpi_firmware;
 
 enum rpi_firmware_property_status {
@@ -196,5 +198,6 @@ static inline struct rpi_firmware *devm_rpi_firmware_get(struct device *dev,
 	return NULL;
 }
 #endif
+int rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data);
 
 #endif /* __SOC_RASPBERRY_FIRMWARE_H__ */
