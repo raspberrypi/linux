@@ -31,6 +31,20 @@
 #include "vc4_regs.h"
 #include "vc4_trace.h"
 
+#ifdef CONFIG_DEBUG_FS
+int vc4_gem_exec_debugfs(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *)m->private;
+	struct drm_device *dev = node->minor->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	seq_printf(m, "Emitted  seqno:   0x%016llx\n", vc4->emit_seqno);
+	seq_printf(m, "Finished seqno:   0x%016llx\n", vc4->finished_seqno);
+
+	return 0;
+}
+#endif /* CONFIG_DEBUG_FS */
+
 static void
 vc4_queue_hangcheck(struct drm_device *dev)
 {
@@ -338,12 +352,7 @@ vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns,
 	finish_wait(&vc4->job_wait_queue, &wait);
 	trace_vc4_wait_for_seqno_end(dev, seqno);
 
-	if (ret && ret != -ERESTARTSYS) {
-		DRM_ERROR("timeout waiting for render thread idle\n");
-		return ret;
-	}
-
-	return 0;
+	return ret;
 }
 
 static void
@@ -579,9 +588,9 @@ vc4_get_bcl(struct drm_device *dev, struct vc4_exec_info *exec)
 	}
 
 	bo = vc4_bo_create(dev, exec_size, true);
-	if (!bo) {
+	if (IS_ERR(bo)) {
 		DRM_ERROR("Couldn't allocate BO for binning\n");
-		ret = PTR_ERR(exec->exec_bo);
+		ret = PTR_ERR(bo);
 		goto fail;
 	}
 	exec->exec_bo = &bo->base;
@@ -746,6 +755,9 @@ vc4_wait_bo_ioctl(struct drm_device *dev, void *data,
 	struct drm_vc4_wait_bo *args = data;
 	struct drm_gem_object *gem_obj;
 	struct vc4_bo *bo;
+
+	if (args->pad != 0)
+		return -EINVAL;
 
 	gem_obj = drm_gem_object_lookup(dev, file_priv, args->handle);
 	if (!gem_obj) {
