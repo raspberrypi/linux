@@ -625,6 +625,14 @@ Params: pin                     Output pin (default 18) - see table
         clock                   PWM clock frequency (informational)
 
 
+Name:   qca7000
+Info:   I2SE's Evaluation Board for PLC Stamp micro
+Load:   dtoverlay=qca7000,<param>=<val>
+Params: int_pin                 GPIO pin for interrupt signal (default 23)
+
+        speed                   SPI bus speed (default 12 MHz)
+
+
 Name:   raspidac3
 Info:   Configures the RaspiDAV Rev.3x audio card
 Load:   dtoverlay=raspidac3
