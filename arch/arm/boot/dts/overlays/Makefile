@@ -42,6 +42,7 @@ dtb-$(RPI_DT_OVERLAYS) += pitft28-resistive-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pwm-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pwm-2chan-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += qca7000-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += raspidac3-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-backlight-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-dac-overlay.dtb
