@@ -132,7 +132,7 @@ struct airspy {
 	int            urbs_submitted;
 
 	/* USB control message buffer */
-	#define BUF_SIZE 24
+	#define BUF_SIZE 128
 	u8 buf[BUF_SIZE];
 
 	/* Current configuration */
