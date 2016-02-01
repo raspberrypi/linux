@@ -182,11 +182,6 @@ struct bcm2708_i2s_dev {
 	struct regmap *clk_regmap;
 };
 
-void bcm2708_i2s_set_gpio(int gpio) {
-	bcm2708_i2s_gpio=gpio;
-}
-EXPORT_SYMBOL(bcm2708_i2s_set_gpio);
-
 
 static void bcm2708_i2s_start_clock(struct bcm2708_i2s_dev *dev)
 {
@@ -1006,7 +1001,55 @@ static struct platform_driver bcm2708_i2s_driver = {
 	},
 };
 
-module_platform_driver(bcm2708_i2s_driver);
+
+/* define the device and register it when the module starts */
+
+static struct resource bcm2708_i2s_resources[] = {
+	{
+		.start = I2S_BASE,
+		.end = I2S_BASE + 0x20,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.start = PCM_CLOCK_BASE,
+		.end = PCM_CLOCK_BASE + 0x02,
+		.flags = IORESOURCE_MEM,
+	}
+};
+
+static struct platform_device bcm2708_i2s_platform_dev = {
+	.name = "bcm2708-i2s",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(bcm2708_i2s_resources),
+	.resource = bcm2708_i2s_resources,
+};
+
+int __init bcm2708_i2s_dev_init(void)
+{
+	int ret;
+
+	ret = platform_driver_register(&bcm2708_i2s_driver);
+	if (ret) {
+		pr_err("Unable to register i2s driver: %d\n", ret);
+		return ret;
+	}
+
+	ret = platform_device_register(&bcm2708_i2s_platform_dev);
+	if (ret)
+		pr_err("Unable to register bcm2708-i2s: %d\n", ret);
+
+	return ret;
+}
+
+void __exit bcm2708_i2s_dev_exit(void)
+{
+	platform_driver_unregister(&bcm2708_i2s_driver);
+	platform_device_unregister(&bcm2708_i2s_platform_dev);
+}
+
+module_init(bcm2708_i2s_dev_init);
+module_exit(bcm2708_i2s_dev_exit);
+
 
 MODULE_ALIAS("platform:bcm2708-i2s");
 MODULE_DESCRIPTION("BCM2708 I2S interface");

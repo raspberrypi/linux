@@ -662,28 +662,6 @@ static struct platform_device bcm2835_thermal_device = {
 	.name = "bcm2835_thermal",
 };
 
-#if defined(CONFIG_SND_BCM2708_SOC_I2S) || defined(CONFIG_SND_BCM2708_SOC_I2S_MODULE)
-static struct resource bcm2708_i2s_resources[] = {
-	{
-		.start = I2S_BASE,
-		.end = I2S_BASE + 0x20,
-		.flags = IORESOURCE_MEM,
-	},
-        {
-		.start = PCM_CLOCK_BASE,
-		.end = PCM_CLOCK_BASE + 0x02,
-		.flags = IORESOURCE_MEM,
-	}
-};
-
-static struct platform_device bcm2708_i2s_device = {
-	.name = "bcm2708-i2s",
-	.id = 0,
-	.num_resources = ARRAY_SIZE(bcm2708_i2s_resources),
-	.resource = bcm2708_i2s_resources,
-};
-#endif
-
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
 static struct platform_device snd_hifiberry_dac_device = {
         .name = "snd-hifiberry-dac",
@@ -951,10 +929,6 @@ void __init bcm2709_init(void)
 	}
 
 	bcm_register_device_dt(&bcm2835_thermal_device);
-
-#if defined(CONFIG_SND_BCM2708_SOC_I2S) || defined(CONFIG_SND_BCM2708_SOC_I2S_MODULE)
-	bcm_register_device_dt(&bcm2708_i2s_device);
-#endif
 
 #if defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) || defined(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC_MODULE)
         bcm_register_device_dt(&snd_hifiberry_dac_device);
