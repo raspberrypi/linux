@@ -8,6 +8,7 @@
 	fragment@3 {
 		target = <&mmc>;
 		sdio_mmc: __overlay__ {
+			compatible = "brcm,bcm2835-mmc";
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdio_pins>;
 			non-removable;
