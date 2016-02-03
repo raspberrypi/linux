@@ -43,6 +43,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdhost_pins>;
 	bus-width = <4>;
+	brcm,pio-limit = <0x7fffffff>;
 	status = "okay";
 };
 
