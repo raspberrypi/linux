@@ -23,14 +23,19 @@
 #include <sound/soc.h>
 #include <sound/jack.h>
 
+static bool digital_gain_0db_limit = true;
+
 static int snd_rpi_iqaudio_dac_init(struct snd_soc_pcm_runtime *rtd)
 {
-	int ret;
-	struct snd_soc_card *card = rtd->card;
+	if (digital_gain_0db_limit)
+	{
+		int ret;
+		struct snd_soc_card *card = rtd->card;
 
-	ret = snd_soc_limit_volume(card, "Digital Playback Volume", 207);
-	if (ret < 0)
-		dev_warn(card->dev, "Failed to set volume limit: %d\n", ret);
+		ret = snd_soc_limit_volume(card, "Digital Playback Volume", 207);
+		if (ret < 0)
+			dev_warn(card->dev, "Failed to set volume limit: %d\n", ret);
+	}
 
 	return 0;
 }
@@ -94,6 +99,9 @@ static int snd_rpi_iqaudio_dac_probe(struct platform_device *pdev)
 		dai->platform_name = NULL;
 		dai->platform_of_node = i2s_node;
 	    }
+
+	    digital_gain_0db_limit = !of_property_read_bool(pdev->dev.of_node,
+					"iqaudio,24db_digital_gain");
 	}
 
 	ret = snd_soc_register_card(&snd_rpi_iqaudio_dac);
