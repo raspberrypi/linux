@@ -48,6 +48,7 @@ struct pcm512x_priv {
 #define CLK_48EN_RATE 24576000UL
 
 static bool snd_rpi_hifiberry_is_dacpro;
+static bool digital_gain_0db_limit = true;
 
 static void snd_rpi_hifiberry_dacplus_select_clk(struct snd_soc_codec *codec,
 	int clk_id)
@@ -166,6 +167,16 @@ static int snd_rpi_hifiberry_dacplus_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_update_bits(codec, PCM512x_GPIO_EN, 0x08, 0x08);
 	snd_soc_update_bits(codec, PCM512x_GPIO_OUTPUT_4, 0x0f, 0x02);
 	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
+
+	if (digital_gain_0db_limit)
+	{
+		int ret;
+		struct snd_soc_card *card = rtd->card;
+
+		ret = snd_soc_limit_volume(card, "Digital Playback Volume", 207);
+		if (ret < 0)
+			dev_warn(card->dev, "Failed to set volume limit: %d\n", ret);
+	}
 
 	return 0;
 }
@@ -299,6 +310,9 @@ static int snd_rpi_hifiberry_dacplus_probe(struct platform_device *pdev)
 			dai->platform_name = NULL;
 			dai->platform_of_node = i2s_node;
 		}
+
+		digital_gain_0db_limit = !of_property_read_bool(
+			pdev->dev.of_node, "hifiberry,24db_digital_gain");
 	}
 
 	ret = snd_soc_register_card(&snd_rpi_hifiberry_dacplus);
