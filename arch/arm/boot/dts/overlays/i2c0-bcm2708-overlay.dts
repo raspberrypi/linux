@@ -1,0 +1,36 @@
+/*
+ * Device tree overlay for i2c_bcm2708, i2c0 bus
+ *
+ * Compile:
+ * dtc -@ -I dts -O dtb -o i2c0-bcm2708-overlay.dtb i2c0-bcm2708-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+/{
+   compatible = "brcm,bcm2708";
+
+   fragment@0 {
+      target = <&i2c0>;
+      __overlay__ {
+         pinctrl-0 = <&i2c0_pins>;
+         status = "okay";
+      };
+   };
+
+   fragment@1 {
+      target = <&gpio>;
+      __overlay__ {
+         i2c0_pins: i2c0 {
+            brcm,pins = <0 1>;
+            brcm,function = <4>; /* alt0 */
+         };
+      };
+   };
+
+   __overrides__ {
+      sda0_pin = <&i2c0_pins>,"brcm,pins:0";
+      scl0_pin = <&i2c0_pins>,"brcm,pins:4";
+   };
+};
