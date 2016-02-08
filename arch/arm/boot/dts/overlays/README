@@ -371,6 +371,22 @@ Params: ds1307                  Select the DS1307 device
         pcf8563                 Select the PCF8563 device
 
 
+Name:   i2c0-bcm2708
+Info:   Enable the i2c_bcm2708 driver for the i2c0 bus
+Load:   dtoverlay=i2c0-bcm2708,<param>=<val>
+Params: sda0_pin                GPIO pin for SDA0 (0, 28 [or 44] - default 0)
+        scl0_pin                GPIO pin for SCL0 (1, 29 [or 45] - default 1)
+
+
+Name:   i2c1-bcm2708
+Info:   Enable the i2c_bcm2708 driver for the i2c1 bus
+Load:   dtoverlay=i2c1-bcm2708,<param>=<val>
+Params: sda1_pin                GPIO pin for SDA1 (2 or 44 - default 2)
+        scl1_pin                GPIO pin for SCL1 (3 or 45 - default 3)
+        pin_func                Alternative pin function (4 (alt0), 6 (alt2) -
+                                default 4)
+
+
 Name:   i2s-mmap
 Info:   Enables mmap support in the bcm2708-i2s driver
 Load:   dtoverlay=i2s-mmap
