@@ -113,7 +113,6 @@ ip:
 	case htons(ETH_P_IPV6): {
 		const struct ipv6hdr *iph;
 		struct ipv6hdr _iph;
-		__be32 flow_label;
 
 ipv6:
 		iph = __skb_header_pointer(skb, nhoff, sizeof(_iph), data, hlen, &_iph);
@@ -130,8 +129,9 @@ ipv6:
 		flow->src = (__force __be32)ipv6_addr_hash(&iph->saddr);
 		flow->dst = (__force __be32)ipv6_addr_hash(&iph->daddr);
 
-		flow_label = ip6_flowlabel(iph);
-		if (flow_label) {
+		if (skb && ip6_flowlabel(iph)) {
+			__be32 flow_label = ip6_flowlabel(iph);
+
 			/* Awesome, IPv6 packet has a flow label so we can
 			 * use that to represent the ports without any
 			 * further dissection.
