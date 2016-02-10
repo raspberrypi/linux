@@ -19,6 +19,8 @@ struct vc4_dev {
 	struct vc4_crtc *crtc[3];
 	struct vc4_v3d *v3d;
 	struct vc4_dpi *dpi;
+	struct vc4_dsi *dsi0;
+	struct vc4_dsi *dsi1;
 
 	struct drm_fbdev_cma *fbdev;
 	struct rpi_firmware *firmware;
@@ -191,6 +193,8 @@ enum vc4_encoder_type {
 	VC4_ENCODER_TYPE_SMI,
 	VC4_ENCODER_TYPE_DPI,
 };
+
+#define VC4_DSI_USE_FIRMWARE_SETUP true
 
 struct vc4_encoder {
 	struct drm_encoder base;
@@ -428,6 +432,10 @@ void vc4_dump_regs32(const struct debugfs_reg32 *reg, unsigned int num_regs,
 /* vc4_dpi.c */
 extern struct platform_driver vc4_dpi_driver;
 int vc4_dpi_debugfs_regs(struct seq_file *m, void *unused);
+
+/* vc4_dsi.c */
+extern struct platform_driver vc4_dsi_driver;
+int vc4_dsi_debugfs_regs(struct seq_file *m, void *unused);
 
 /* vc4_gem.c */
 void vc4_gem_init(struct drm_device *dev);
