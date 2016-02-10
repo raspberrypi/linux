@@ -374,7 +374,7 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	bool is_dsi = (vc4_encoder->type == VC4_ENCODER_TYPE_DSI0 ||
 		       vc4_encoder->type == VC4_ENCODER_TYPE_DSI1);
 	u32 format = is_dsi ? PV_CONTROL_FORMAT_DSIV_24 : PV_CONTROL_FORMAT_24;
-	bool debug_dump_regs = true;
+	bool debug_dump_regs = false;
 
 	if (debug_dump_regs) {
 		DRM_INFO("CRTC %d regs before:\n", drm_crtc_index(crtc));
@@ -494,6 +494,19 @@ static void vc4_crtc_disable(struct drm_crtc *crtc)
 	/* Disable vblank irq handling before crtc is disabled. */
 	drm_crtc_vblank_off(crtc);
 
+	if (VC4_DSI_USE_FIRMWARE_SETUP &&
+	    (CRTC_READ(PV_V_CONTROL) & PV_VCONTROL_DSI)) {
+		/* Skip disabling the PV/HVS for the channel if it was
+		 * connected to the DSI panel and we're using the
+		 * firmware setup.  Instead, just set it to stuff
+		 * black in the composite output buffer.
+		 */
+		HVS_WRITE(SCALER_DISPBKGNDX(vc4_crtc->channel),
+			  HVS_READ(SCALER_DISPBKGNDX(vc4_crtc->channel)) |
+			  SCALER_DISPBKGND_FILL);
+		return;
+	}
+
 	CRTC_WRITE(PV_V_CONTROL,
 		   CRTC_READ(PV_V_CONTROL) & ~PV_VCONTROL_VIDEN);
 	ret = wait_for(!(CRTC_READ(PV_V_CONTROL) & PV_VCONTROL_VIDEN), 1);
@@ -581,8 +594,10 @@ static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 	if (hweight32(state->connector_mask) > 1)
 		return -EINVAL;
 
-	drm_atomic_crtc_state_for_each_plane_state(plane, plane_state, state)
-		dlist_count += vc4_plane_dlist_size(plane_state);
+	if (state->active) {
+		drm_atomic_crtc_state_for_each_plane_state(plane, plane_state, state)
+			dlist_count += vc4_plane_dlist_size(plane_state);
+	}
 
 	dlist_count++; /* Account for SCALER_CTL0_END. */
 
@@ -614,8 +629,10 @@ static void vc4_crtc_atomic_flush(struct drm_crtc *crtc,
 	}
 
 	/* Copy all the active planes' dlist contents to the hardware dlist. */
-	drm_atomic_crtc_for_each_plane(plane, crtc) {
-		dlist_next += vc4_plane_write_dlist(plane, dlist_next);
+	if (crtc->state->active) {
+		drm_atomic_crtc_for_each_plane(plane, crtc) {
+			dlist_next += vc4_plane_write_dlist(plane, dlist_next);
+		}
 	}
 
 	writel(SCALER_CTL0_END, dlist_next);
