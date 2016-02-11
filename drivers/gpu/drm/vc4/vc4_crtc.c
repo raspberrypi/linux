@@ -871,13 +871,13 @@ static const struct drm_crtc_helper_funcs vc4_crtc_helper_funcs = {
 };
 
 static const struct vc4_crtc_data pv0_data = {
-	.hvs_channel = 0,
+	.hvs_channel = 2,
 	.encoder0_type = VC4_ENCODER_TYPE_DSI0,
 	.encoder1_type = VC4_ENCODER_TYPE_DPI,
 };
 
 static const struct vc4_crtc_data pv1_data = {
-	.hvs_channel = 2,
+	.hvs_channel = 0,
 	.encoder0_type = VC4_ENCODER_TYPE_DSI1,
 	.encoder1_type = VC4_ENCODER_TYPE_SMI,
 };
