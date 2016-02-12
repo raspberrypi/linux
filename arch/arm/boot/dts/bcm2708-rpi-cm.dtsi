@@ -7,6 +7,13 @@
 	};
 };
 
+&gpio {
+	sdhost_pins: sdhost_pins {
+		brcm,pins = <48 49 50 51 52 53>;
+		brcm,function = <4>; /* alt0 */
+	};
+};
+
 &leds {
 	act_led: act {
 		label = "led0";
@@ -29,6 +36,8 @@
 
 / {
 	__overrides__ {
+		core_freq = <&clk_core>,"clock-frequency:0";
+
 		act_led_gpio = <&act_led>,"gpios:4";
 		act_led_activelow = <&act_led>,"gpios:8";
 		act_led_trigger = <&act_led>,"linux,default-trigger";
@@ -36,5 +45,9 @@
 		audio = <&audio>,"status";
 		watchdog = <&watchdog>,"status";
 		random = <&random>,"status";
+		sd_overclock = <&sdhost>,"brcm,overclock-50:0";
+		sd_force_pio = <&sdhost>,"brcm,force-pio?";
+		sd_pio_limit = <&sdhost>,"brcm,pio-limit:0";
+		sd_debug     = <&sdhost>,"brcm,debug";
 	};
 };
