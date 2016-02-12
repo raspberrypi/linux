@@ -112,6 +112,16 @@ Params:
         random                  Set to "on" to enable the hardware random
                                 number generator (default "on")
 
+        sd_overclock            Clock (in MHz) to use when the MMC framework
+                                requests 50MHz
+
+        sd_force_pio            Disable DMA support for SD driver (default off)
+
+        sd_pio_limit            Number of blocks above which to use DMA for
+                                SD card (default 1)
+
+        sd_debug                Enable debug output from SD driver (default off)
+
         uart0                   Set to "off" to disable uart0 (default "on")
 
         watchdog                Set to "on" to enable the hardware watchdog
@@ -443,7 +453,6 @@ Info:   Selects the bcm2835-mmc SD/MMC driver, optionally with overclock
 Load:   dtoverlay=mmc,<param>=<val>
 Params: overclock_50            Clock (in MHz) to use when the MMC framework
                                 requests 50MHz
-        force_pio               Disable DMA support
 
 
 Name:   mz61581

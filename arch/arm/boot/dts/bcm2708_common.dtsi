@@ -135,6 +135,7 @@
 			dmas = <&dma 13>,
 			       <&dma 13>;
 			dma-names = "tx", "rx";
+			brcm,overclock-50 = <0>;
 			brcm,pio-limit = <1>;
 			status = "disabled";
 		};
@@ -203,6 +204,7 @@
 			dmas = <&dma 11>,
 			       <&dma 11>;
 			dma-names = "tx", "rx";
+			brcm,overclock-50 = <0>;
 			status = "disabled";
 		};
 
