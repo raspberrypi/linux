@@ -737,6 +737,11 @@ static int update_urb_state_xfer_comp(dwc_hc_t * hc,
 					     DWC_OTG_HC_XFER_COMPLETE,
 					     &short_read);
 
+	if (urb->actual_length + xfer_length > urb->length) {
+		DWC_WARN("%s(): trimming xfer length\n", __func__);
+		xfer_length = urb->length - urb->actual_length;
+	}
+
 	/* non DWORD-aligned buffer case handling. */
 	if (hc->align_buff && xfer_length && hc->ep_is_in) {
 		dwc_memcpy(urb->buf + urb->actual_length, hc->qh->dw_align_buf,
@@ -1423,6 +1428,12 @@ static void update_urb_state_xfer_intr(dwc_hc_t * hc,
 {
 	uint32_t bytes_transferred = get_actual_xfer_length(hc, hc_regs, qtd,
 							    halt_status, NULL);
+
+	if (urb->actual_length + bytes_transferred > urb->length) {
+		DWC_WARN("%s(): trimming xfer length\n", __func__);
+		bytes_transferred = urb->length - urb->actual_length;
+	}
+
 	/* non DWORD-aligned buffer case handling. */
 	if (hc->align_buff && bytes_transferred && hc->ep_is_in) {
 		dwc_memcpy(urb->buf + urb->actual_length, hc->qh->dw_align_buf,
