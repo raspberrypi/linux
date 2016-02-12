@@ -6,14 +6,42 @@
 
 	fragment@0 {
 		target = <&mmc>;
-
 		frag0: __overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&mmc_pins>;
+			bus-width = <4>;
 			brcm,overclock-50 = <0>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&gpio>;
+		__overlay__ {
+			mmc_pins: mmc_pins {
+				brcm,pins = <48 49 50 51 52 53>;
+				brcm,function = <7>; /* alt3 */
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sdhost>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	/* Redirect the existing sd_overclock and sd_force_pio dtparams */
+	fragment@3 {
+		target-path = "/__overrides__";
+
+		__overlay__ {
+			sd_overclock = <&mmc>,"brcm,overclock-50:0";
 		};
 	};
 
 	__overrides__ {
 		overclock_50     = <&frag0>,"brcm,overclock-50:0";
-		force_pio        = <&frag0>,"brcm,force-pio?";
 	};
 };
