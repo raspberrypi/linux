@@ -54,6 +54,10 @@ int bcm2835_v4l2_debug;
 module_param_named(debug, bcm2835_v4l2_debug, int, 0644);
 MODULE_PARM_DESC(bcm2835_v4l2_debug, "Debug level 0-2");
 
+static int video_nr = -1;
+module_param_named(video_nr, video_nr, int, 0644);
+MODULE_PARM_DESC(video_nr, "videoX start number, -1 is autodetect");
+
 int max_video_width = MAX_VIDEO_MODE_WIDTH;
 int max_video_height = MAX_VIDEO_MODE_HEIGHT;
 module_param(max_video_width, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
@@ -1685,7 +1689,7 @@ static int __init bm2835_mmal_init_device(struct bm2835_mmal_dev *dev,
 	/* video device needs to be able to access instance data */
 	video_set_drvdata(vfd, dev);
 
-	ret = video_register_device(vfd, VFL_TYPE_GRABBER, -1);
+	ret = video_register_device(vfd, VFL_TYPE_GRABBER, video_nr);
 	if (ret < 0)
 		return ret;
 
