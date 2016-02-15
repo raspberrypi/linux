@@ -1121,11 +1121,13 @@ modules_install: _modinst_ _modinst_post
 PHONY += _modinst_
 _modinst_:
 	@rm -rf $(MODLIB)/kernel
-	@rm -f $(MODLIB)/source
+	@rm -rf $(MODLIB)/source
 	@mkdir -p $(MODLIB)/kernel
+	@mkdir -p $(MODLIB)/source
 	@ln -s `cd $(srctree) && /bin/pwd` $(MODLIB)/source
 	@if [ ! $(objtree) -ef  $(MODLIB)/build ]; then \
 		rm -f $(MODLIB)/build ; \
+		mkdir -p $(MODLIB)/build ; \
 		ln -s $(CURDIR) $(MODLIB)/build ; \
 	fi
 	@cp -f $(objtree)/modules.order $(MODLIB)/
