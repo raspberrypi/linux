@@ -874,15 +874,14 @@ static void bcm2835_sdhost_prepare_data(struct bcm2835_host *host, struct mmc_co
 	host->flush_fifo = 0;
 	host->data->bytes_xfered = 0;
 
-
 	if (!host->dma_desc) {
 		/* Use PIO */
-		int flags;
+		int flags = SG_MITER_ATOMIC;
 
 		if (data->flags & MMC_DATA_READ)
-			flags = SG_MITER_TO_SG;
+			flags |= SG_MITER_TO_SG;
 		else
-			flags = SG_MITER_FROM_SG;
+			flags |= SG_MITER_FROM_SG;
 		sg_miter_start(&host->sg_miter, data->sg, data->sg_len, flags);
 		host->blocks = data->blocks;
 	}
