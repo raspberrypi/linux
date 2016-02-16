@@ -165,6 +165,7 @@ ENTRY(cpu_do_resume)
 	 */
 	ubfx	x11, x11, #1, #1
 	msr	oslar_el1, x11
+	reset_pmuserenr_el0 x0			// Disable PMU access from EL0
 	mov	x0, x12
 	dsb	nsh		// Make sure local tlb invalidation completed
 	isb
@@ -202,7 +203,9 @@ ENTRY(__cpu_setup)
 
 	mov	x0, #3 << 20
 	msr	cpacr_el1, x0			// Enable FP/ASIMD
-	msr	mdscr_el1, xzr			// Reset mdscr_el1
+	mov	x0, #1 << 12			// Reset mdscr_el1 and disable
+	msr	mdscr_el1, x0			// access to the DCC from EL0
+	reset_pmuserenr_el0 x0			// Disable PMU access from EL0
 	/*
 	 * Memory region attributes for LPAE:
 	 *
