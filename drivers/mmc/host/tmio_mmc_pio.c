@@ -1001,9 +1001,7 @@ static int tmio_mmc_get_ro(struct mmc_host *mmc)
 }
 
 static int tmio_multi_io_quirk(struct mmc_card *card,
-			       unsigned int direction,
-			       u32 blk_pos,
-			       int blk_size)
+			       unsigned int direction, int blk_size)
 {
 	struct tmio_mmc_host *host = mmc_priv(card->host);
 

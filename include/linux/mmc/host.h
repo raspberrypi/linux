@@ -140,9 +140,7 @@ struct mmc_host_ops {
 	 * I/O. Returns the number of supported blocks for the request.
 	 */
 	int	(*multi_io_quirk)(struct mmc_card *card,
-				  unsigned int direction,
-				  u32 blk_pos,
-				  int blk_size);
+				  unsigned int direction, int blk_size);
 };
 
 struct mmc_card;
