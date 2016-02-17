@@ -738,7 +738,8 @@ static int update_urb_state_xfer_comp(dwc_hc_t * hc,
 					     &short_read);
 
 	if (urb->actual_length + xfer_length > urb->length) {
-		DWC_WARN("%s(): trimming xfer length\n", __func__);
+		printk_once(KERN_DEBUG "dwc_otg: DEVICE:%03d : %s:%d:trimming xfer length\n",
+			hc->dev_addr, __func__, __LINE__);
 		xfer_length = urb->length - urb->actual_length;
 	}
 
@@ -1430,7 +1431,8 @@ static void update_urb_state_xfer_intr(dwc_hc_t * hc,
 							    halt_status, NULL);
 
 	if (urb->actual_length + bytes_transferred > urb->length) {
-		DWC_WARN("%s(): trimming xfer length\n", __func__);
+		printk_once(KERN_DEBUG "dwc_otg: DEVICE:%03d : %s:%d:trimming xfer length\n",
+			hc->dev_addr, __func__, __LINE__);
 		bytes_transferred = urb->length - urb->actual_length;
 	}
 
