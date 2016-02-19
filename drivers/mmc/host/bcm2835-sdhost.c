@@ -239,8 +239,8 @@ static void log_init(void)
 	sdhost_log_buf = dma_zalloc_coherent(NULL, LOG_SIZE, &sdhost_log_addr,
 					     GFP_KERNEL);
 	if (sdhost_log_buf) {
-		pr_err("sdhost: log_buf @ %p (%x)\n",
-		       sdhost_log_buf, sdhost_log_addr);
+		pr_info("sdhost: log_buf @ %p (%x)\n",
+			sdhost_log_buf, sdhost_log_addr);
 		timer_base = ioremap_nocache(BCM2708_PERI_BASE + 0x3000, SZ_4K);
 		if (!timer_base)
 			pr_err("sdhost: failed to remap timer\n");
