@@ -20,6 +20,27 @@
 		brcm,pins = <8 7>;
 		brcm,function = <1>; /* output */
 	};
+	
+	
+	spi1_pins: spi1_pins {
+		brcm,pins = <19 20 21>;
+		brcm,function = <3>; /* alt4 */
+	};
+        
+	spi1_cs_pins: spi1_cs_pins {
+		brcm,pins = <18 17 16>;
+		brcm,function = <1>; /* output */
+	};
+        
+	spi2_pins: spi2_pins {
+		brcm,pins = <40 41 42>;
+		brcm,function = <3>; /* alt4 */
+	};
+        
+	spi2_cs_pins: spi2_cs_pins {
+		brcm,pins = <45 44 43>;
+		brcm,function = <1>; /* output */
+	};        	
 
 	i2c0_pins: i2c0 {
 		brcm,pins = <0 1>;
@@ -59,6 +80,66 @@
 	};
 };
 
+&spi1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi1_pins &spi1_cs_pins>;
+	cs-gpios = <&gpio 18 1>, <&gpio 17 1>, <&gpio 16 1>;
+
+	spidev@0{
+		compatible = "spidev";
+		reg = <0>;      /* CE0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <500000>;
+	};
+
+	spidev@1{
+		compatible = "spidev";
+		reg = <1>;      /* CE1 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <500000>;
+	};
+
+	spidev@2{
+		compatible = "spidev";
+		reg = <2>;      /* CE2 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <500000>;
+	};
+};
+
+&spi2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi2_pins &spi2_cs_pins>;
+	cs-gpios = <&gpio 45 1>, <&gpio 44 1>, <&gpio 43 1>;
+
+	spidev@0{
+		compatible = "spidev";
+		reg = <0>;      /* CE0 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <500000>;
+	};
+
+	spidev@1{
+		compatible = "spidev";
+		reg = <1>;      /* CE1 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <500000>;
+	};
+
+	spidev@2{
+		compatible = "spidev";
+		reg = <2>;      /* CE2 */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <500000>;
+	};
+};
+
 &i2c0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c0_pins>;
@@ -91,6 +172,8 @@
 		uart0_clkrate = <&clk_uart0>,"clock-frequency:0";
 		i2s = <&i2s>,"status";
 		spi = <&spi0>,"status";
+		spi1_aux = <&spi1>,"status";
+		spi2_aux = <&spi2>,"status";			
 		i2c0 = <&i2c0>,"status";
 		i2c1 = <&i2c1>,"status";
 		i2c2_iknowwhatimdoing = <&i2c2>,"status";
