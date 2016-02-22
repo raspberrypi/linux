@@ -1,3 +1,4 @@
+#include <dt-bindings/clock/bcm2835-aux.h>
 #include "skeleton.dtsi"
 
 / {
@@ -5,6 +6,7 @@
 
 	aliases {
 		audio = &audio;
+		aux = &aux;
 		sound = &sound;
 		soc = &soc;
 		dma = &dma;
@@ -19,6 +21,8 @@
 		spi0 = &spi0;
 		i2c0 = &i2c0;
 		uart1 = &uart1;
+		spi1 = &spi1;
+		spi2 = &spi2;
 		mmc = &mmc;
 		i2c1 = &i2c1;
 		i2c2 = &i2c2;
@@ -186,6 +190,14 @@
 			status = "disabled";
 		};
 
+		aux: aux@0x7e215004 {
+			compatible = "brcm,bcm2835-aux";
+			#clock-cells = <1>;
+			reg = <0x7e215000 0x8>;
+			clocks = <&clk_core>;
+			status = "disabled";
+		};
+
 		uart1: uart@7e215040 {
 			compatible = "brcm,bcm2835-aux-uart", "ns16550";
 			reg = <0x7e215040 0x40>;
@@ -194,7 +206,27 @@
 			reg-shift = <2>;
 			no-loopback-test;
 			status = "disabled";
-	        };
+		};
+
+		spi1: spi@7e215080 {
+			compatible = "brcm,bcm2835-aux-spi";
+			reg = <0x7e215080 0x40>, <0x7e215000 0x8>;
+			interrupts = <1 29>;
+			clocks = <&aux BCM2835_AUX_CLOCK_SPI1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		spi2: spi@7e2150C0 {
+			compatible = "brcm,bcm2835-aux-spi";
+			reg = <0x7e2150C0 0x40>, <0x7e215000 0x8>;
+			interrupts = <1 29>;
+			clocks = <&aux BCM2835_AUX_CLOCK_SPI2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
 
 		mmc: mmc@7e300000 {
 			compatible = "brcm,bcm2835-mmc";
