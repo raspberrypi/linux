@@ -713,6 +713,105 @@ Load:   dtoverlay=spi-gpio35-39
 Params: <None>
 
 
+Name:   spi1-1cs
+Info:   Enables spi1 with a single chip select (CS) line and associated spidev
+        dev node. The gpio pin number for the CS line and spidev device node
+        creation are configurable.
+        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
+              A+, B+, Zero and PI2 B; as well as the Compute Module.
+Load:   dtoverlay=spi1-1cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI1_CE0).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.0 (default
+                                is 'okay' or enabled).
+
+
+Name:   spi1-2cs
+Info:   Enables spi1 with two chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
+              A+, B+, Zero and PI2 B; as well as the Compute Module.
+Load:   dtoverlay=spi1-2cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI1_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 17 - BCM SPI1_CE1).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.0 (default
+                                is 'okay' or enabled).
+        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.1 (default
+                                is 'okay' or enabled).
+
+
+Name:   spi1-3cs
+Info:   Enables spi1 with three chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+        N.B.: spi1 is only accessible on devices with a 40pin header, eg:
+              A+, B+, Zero and PI2 B; as well as the Compute Module.
+Load:   dtoverlay=spi1-3cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI1_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 17 - BCM SPI1_CE1).
+        cs2_pin                 GPIO pin for CS2 (default 16 - BCM SPI1_CE2).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.0 (default
+                                is 'okay' or enabled).
+        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.1 (default
+                                is 'okay' or enabled).
+        cs2_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev1.2 (default
+                                is 'okay' or enabled).
+
+
+Name:   spi2-1cs
+Info:   Enables spi2 with a single chip select (CS) line and associated spidev
+        dev node. The gpio pin number for the CS line and spidev device node
+        creation are configurable.
+        N.B.: spi2 is only accessible with the Compute Module.
+Load:   dtoverlay=spi2-1cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.0 (default
+                                is 'okay' or enabled).
+
+
+Name:   spi2-2cs
+Info:   Enables spi2 with two chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+        N.B.: spi2 is only accessible with the Compute Module.
+Load:   dtoverlay=spi2-2cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 44 - BCM SPI2_CE1).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.0 (default
+                                is 'okay' or enabled).
+        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.1 (default
+                                is 'okay' or enabled).
+
+
+Name:   spi2-3cs
+Info:   Enables spi2 with three chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+        N.B.: spi2 is only accessible with the Compute Module.
+Load:   dtoverlay=spi2-3cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 44 - BCM SPI2_CE1).
+        cs2_pin                 GPIO pin for CS2 (default 45 - BCM SPI2_CE2).
+        cs0_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.0 (default
+                                is 'okay' or enabled).
+        cs1_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.1 (default
+                                is 'okay' or enabled).
+        cs2_spidev              Set to 'disabled' to stop the creation of a
+                                userspace device node /dev/spidev2.2 (default
+                                is 'okay' or enabled).
+
+
 Name:   tinylcd35
 Info:   3.5" Color TFT Display by www.tinylcd.com
         Options: Touch, RTC, keypad
