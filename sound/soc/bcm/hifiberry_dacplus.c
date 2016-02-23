@@ -287,6 +287,7 @@ static struct snd_soc_dai_link snd_rpi_hifiberry_dacplus_dai[] = {
 /* audio machine driver */
 static struct snd_soc_card snd_rpi_hifiberry_dacplus = {
 	.name         = "snd_rpi_hifiberry_dacplus",
+	.owner        = THIS_MODULE,
 	.dai_link     = snd_rpi_hifiberry_dacplus_dai,
 	.num_links    = ARRAY_SIZE(snd_rpi_hifiberry_dacplus_dai),
 };

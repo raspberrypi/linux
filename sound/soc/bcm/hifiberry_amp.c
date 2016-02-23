@@ -61,6 +61,7 @@ static struct snd_soc_dai_link snd_rpi_hifiberry_amp_dai[] = {
 
 static struct snd_soc_card snd_rpi_hifiberry_amp = {
 	.name         = "snd_rpi_hifiberry_amp",
+	.owner        = THIS_MODULE,
 	.dai_link     = snd_rpi_hifiberry_amp_dai,
 	.num_links    = ARRAY_SIZE(snd_rpi_hifiberry_amp_dai),
 };
