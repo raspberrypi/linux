@@ -2220,7 +2220,12 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 	if (uap == NULL)
 		return -ENOMEM;
 
+	/* Don't use DT serial<n> aliases - it causes the device to
+	   be renumbered to ttyAMA1 if it is the second serial port in the
+	   system, even though the other one is ttyS0. The 8250 driver
+	   doesn't use this logic, so always remains ttyS0.
 	i = pl011_probe_dt_alias(i, &dev->dev);
+	*/
 
 	base = devm_ioremap(&dev->dev, dev->res.start,
 			    resource_size(&dev->res));
