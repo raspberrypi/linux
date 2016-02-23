@@ -2752,7 +2752,12 @@ static int pl011_setup_port(struct device *dev, struct uart_amba_port *uap,
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
+	/* Don't use DT serial<n> aliases - it causes the device to
+	   be renumbered to ttyAMA1 if it is the second serial port in the
+	   system, even though the other one is ttyS0. The 8250 driver
+	   doesn't use this logic, so always remains ttyS0.
 	index = pl011_probe_dt_alias(index, dev);
+	*/
 
 	uap->old_cr = 0;
 	uap->port.dev = dev;
