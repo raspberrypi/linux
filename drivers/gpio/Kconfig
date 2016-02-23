@@ -237,6 +237,12 @@ config GPIO_BLZP1600
 	  The controller is based on the Verisilicon Microelectronics GPIO APB v0.2
 	  IP block.
 
+config GPIO_BCM_VIRT
+	bool "Broadcom Virt GPIO"
+	depends on OF_GPIO && RASPBERRYPI_FIRMWARE && (ARCH_BCM2835 || COMPILE_TEST)
+	help
+	  Turn on virtual GPIO support for Broadcom BCM283X chips.
+
 config GPIO_BRCMSTB
 	tristate "BRCMSTB GPIO support"
 	default y if (ARCH_BRCMSTB || BMIPS_GENERIC)
