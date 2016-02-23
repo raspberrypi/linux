@@ -194,6 +194,12 @@ config GPIO_BCM_XGS_IPROC
 	help
 	  Say yes here to enable GPIO support for Broadcom XGS iProc SoCs.
 
+config GPIO_BCM_VIRT
+	bool "Broadcom Virt GPIO"
+	depends on OF_GPIO && RASPBERRYPI_FIRMWARE && (ARCH_BCM2835 || COMPILE_TEST)
+	help
+	  Turn on virtual GPIO support for Broadcom BCM283X chips.
+
 config GPIO_BRCMSTB
 	tristate "BRCMSTB GPIO support"
 	default y if (ARCH_BRCMSTB || BMIPS_GENERIC)
