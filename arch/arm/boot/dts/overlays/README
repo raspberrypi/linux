@@ -709,6 +709,27 @@ Params: overclock_50            SD Clock (in MHz) to use when the MMC framework
         bus_width               Set the SDIO host bus width (default 4 bits)
 
 
+Name:   sdio-1bit
+Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock,
+        and enables 1-bit SDIO via GPIOs 22-25.
+Load:   dtoverlay=sdio-1bit,<param>=<val>
+Params: overclock_50            SD Clock (in MHz) to use when the MMC framework
+                                requests 50MHz
+
+        sdio_overclock          SDIO Clock (in MHz) to use when the MMC
+                                framework requests 50MHz
+
+        force_pio               Disable DMA support (default off)
+
+        pio_limit               Number of blocks above which to use DMA
+                                (default 1)
+
+        debug                   Enable debug output (default off)
+
+        poll_once               Disable SDIO-device polling every second
+                                (default on: polling once at boot-time)
+
+
 Name:   sdtweak
 Info:   Tunes the bcm2835-sdhost SD/MMC driver
 Load:   dtoverlay=sdtweak,<param>=<val>
