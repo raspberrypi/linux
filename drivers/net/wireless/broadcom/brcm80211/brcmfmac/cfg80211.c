@@ -2697,6 +2697,8 @@ brcmf_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *ndev,
 	 * preference in cfg struct to apply this to
 	 * FW later while initializing the dongle
 	 */
+	pr_info("power management disabled\n");
+	enabled = false;
 	cfg->pwr_save = enabled;
 	if (!check_vif_up(ifp->vif)) {
 
@@ -6762,12 +6764,18 @@ static s32 brcmf_translate_country_code(struct brcmf_pub *drvr, char alpha2[2],
 	struct brcmfmac_pd_cc *country_codes;
 	struct brcmfmac_pd_cc_entry *cc;
 	s32 found_index;
+	char ccode[BRCMF_COUNTRY_BUF_SZ];
+	int rev;
 	int i;
+
+	memcpy(ccode, alpha2, sizeof(ccode));
+	rev = -1;
 
 	country_codes = drvr->settings->country_codes;
 	if (!country_codes) {
-		brcmf_dbg(TRACE, "No country codes configured for device\n");
-		return -EINVAL;
+		brcmf_dbg(TRACE, "No country codes configured for device"
+				 " - use requested value\n");
+		goto use_input_value;
 	}
 
 	if ((alpha2[0] == ccreq->country_abbrev[0]) &&
@@ -6791,10 +6799,14 @@ static s32 brcmf_translate_country_code(struct brcmf_pub *drvr, char alpha2[2],
 		brcmf_dbg(TRACE, "No country code match found\n");
 		return -EINVAL;
 	}
-	memset(ccreq, 0, sizeof(*ccreq));
-	ccreq->rev = cpu_to_le32(country_codes->table[found_index].rev);
-	memcpy(ccreq->ccode, country_codes->table[found_index].cc,
+	rev = country_codes->table[found_index].rev;
+	memcpy(ccode, country_codes->table[found_index].cc,
 	       BRCMF_COUNTRY_BUF_SZ);
+
+use_input_value:
+	memset(ccreq, 0, sizeof(*ccreq));
+	ccreq->rev = cpu_to_le32(rev);
+	memcpy(ccreq->ccode, ccode, sizeof(ccode));
 	ccreq->country_abbrev[0] = alpha2[0];
 	ccreq->country_abbrev[1] = alpha2[1];
 	ccreq->country_abbrev[2] = 0;
