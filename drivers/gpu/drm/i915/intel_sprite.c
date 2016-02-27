@@ -36,6 +36,7 @@
 #include <drm/drm_rect.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_plane_helper.h>
+#include <linux/locallock.h>
 #include "intel_drv.h"
 #include "intel_frontbuffer.h"
 #include <drm/i915_drm.h>
@@ -59,6 +60,8 @@ int intel_usecs_to_scanlines(const struct drm_display_mode *adjusted_mode,
 #else
 #define VBLANK_EVASION_TIME_US 100
 #endif
+
+static DEFINE_LOCAL_IRQ_LOCK(pipe_update_lock);
 
 /**
  * intel_pipe_update_start() - start update of a set of display registers
@@ -107,7 +110,7 @@ void intel_pipe_update_start(const struct intel_crtc_state *new_crtc_state)
 	if (intel_psr_wait_for_idle(new_crtc_state))
 		DRM_ERROR("PSR idle timed out, atomic update may fail\n");
 
-	local_irq_disable();
+	local_lock_irq(pipe_update_lock);
 
 	crtc->debug.min_vbl = min;
 	crtc->debug.max_vbl = max;
@@ -131,11 +134,11 @@ void intel_pipe_update_start(const struct intel_crtc_state *new_crtc_state)
 			break;
 		}
 
-		local_irq_enable();
+		local_unlock_irq(pipe_update_lock);
 
 		timeout = schedule_timeout(timeout);
 
-		local_irq_disable();
+		local_lock_irq(pipe_update_lock);
 	}
 
 	finish_wait(wq, &wait);
@@ -168,7 +171,7 @@ void intel_pipe_update_start(const struct intel_crtc_state *new_crtc_state)
 	return;
 
 irq_disable:
-	local_irq_disable();
+	local_lock_irq(pipe_update_lock);
 }
 
 /**
@@ -204,7 +207,7 @@ void intel_pipe_update_end(struct intel_crtc_state *new_crtc_state)
 		new_crtc_state->base.event = NULL;
 	}
 
-	local_irq_enable();
+	local_unlock_irq(pipe_update_lock);
 
 	if (intel_vgpu_active(dev_priv))
 		return;
