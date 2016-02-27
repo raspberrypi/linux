@@ -1943,10 +1943,10 @@ static int __attach_device(struct iommu_dev_data *dev_data,
 	int ret;
 
 	/*
-	 * Must be called with IRQs disabled. Warn here to detect early
-	 * when its not.
+	 * Must be called with IRQs disabled on a non RT kernel. Warn here to
+	 * detect early when its not.
 	 */
-	WARN_ON(!irqs_disabled());
+	WARN_ON_NONRT(!irqs_disabled());
 
 	/* lock domain */
 	spin_lock(&domain->lock);
@@ -2114,10 +2114,10 @@ static void __detach_device(struct iommu_dev_data *dev_data)
 	struct protection_domain *domain;
 
 	/*
-	 * Must be called with IRQs disabled. Warn here to detect early
-	 * when its not.
+	 * Must be called with IRQs disabled on a non RT kernel. Warn here to
+	 * detect early when its not.
 	 */
-	WARN_ON(!irqs_disabled());
+	WARN_ON_NONRT(!irqs_disabled());
 
 	if (WARN_ON(!dev_data->domain))
 		return;
