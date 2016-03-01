@@ -337,19 +337,13 @@ static inline int eeh_check_failure(const volatile void __iomem *token)
 
 #define eeh_dev_check_failure(x) (0)
 
-static inline void eeh_addr_cache_build(void) { }
-
-static inline void eeh_add_device_early(struct pci_dn *pdn) { }
-
-static inline void eeh_add_device_tree_early(struct pci_dn *pdn) { }
-
-static inline void eeh_add_device_late(struct pci_dev *dev) { }
-
-static inline void eeh_add_device_tree_late(struct pci_bus *bus) { }
-
-static inline void eeh_add_sysfs_files(struct pci_bus *bus) { }
-
-static inline void eeh_remove_device(struct pci_dev *dev) { }
+#define eeh_addr_cache_build()
+#define eeh_add_device_early(pdn)
+#define eeh_add_device_tree_early(pdn)
+#define eeh_add_device_late(pdev)
+#define eeh_add_device_tree_late(pbus)
+#define eeh_add_sysfs_files(pbus)
+#define eeh_remove_device(pdev)
 
 #define EEH_POSSIBLE_ERROR(val, type) (0)
 #define EEH_IO_ERROR_VALUE(size) (-1UL)
