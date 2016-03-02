@@ -1,0 +1,48 @@
+/dts-v1/;
+/plugin/;
+
+/* Disable Bluetooth and restore UART0/ttyAMA0 over GPIOs 14 & 15.
+   To disable the systemd service that initialises the modem so it doesn't use
+   the UART:
+
+       sudo systemctl disable hciuart
+*/
+
+/{
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&uart1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
+		target = <&uart0>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart0_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&gpio>;
+		__overlay__ {
+			uart0_pins: uart0_pins {
+				brcm,pins = <14 15>;
+				brcm,function = <4>; /* alt0 */
+				brcm,pull = <0 2>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target-path = "/aliases";
+		__overlay__ {
+			serial0 = "/soc/uart@7e201000";
+			serial1 = "/soc/uart@7e215040";
+		};
+	};
+};
