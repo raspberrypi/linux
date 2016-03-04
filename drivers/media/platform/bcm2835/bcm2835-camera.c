@@ -360,8 +360,7 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 				div =
 				    div_u64_rem(runtime_us, USEC_PER_SEC, &rem);
 				buf->vb.timestamp.tv_sec =
-				    dev->capture.kernel_start_ts.tv_sec - 1 +
-				    div;
+				    dev->capture.kernel_start_ts.tv_sec + div;
 				buf->vb.timestamp.tv_usec =
 				    dev->capture.kernel_start_ts.tv_usec + rem;
 
