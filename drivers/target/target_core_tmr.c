@@ -71,7 +71,7 @@ void core_tmr_release_req(struct se_tmr_req *tmr)
 
 	if (dev) {
 		spin_lock_irqsave(&dev->se_tmr_lock, flags);
-		list_del(&tmr->tmr_list);
+		list_del_init(&tmr->tmr_list);
 		spin_unlock_irqrestore(&dev->se_tmr_lock, flags);
 	}
 
@@ -153,7 +153,7 @@ void core_tmr_abort_task(
 		cancel_work_sync(&se_cmd->work);
 		transport_wait_for_tasks(se_cmd);
 
-		target_put_sess_cmd(se_sess, se_cmd);
+		target_put_sess_cmd(se_cmd);
 		transport_cmd_finish_abort(se_cmd, true);
 
 		printk("ABORT_TASK: Sending TMR_FUNCTION_COMPLETE for"
@@ -175,9 +175,11 @@ static void core_tmr_drain_tmr_list(
 	struct list_head *preempt_and_abort_list)
 {
 	LIST_HEAD(drain_tmr_list);
+	struct se_session *sess;
 	struct se_tmr_req *tmr_p, *tmr_pp;
 	struct se_cmd *cmd;
 	unsigned long flags;
+	bool rc;
 	/*
 	 * Release all pending and outgoing TMRs aside from the received
 	 * LUN_RESET tmr..
@@ -203,17 +205,31 @@ static void core_tmr_drain_tmr_list(
 		if (target_check_cdb_and_preempt(preempt_and_abort_list, cmd))
 			continue;
 
+		sess = cmd->se_sess;
+		if (WARN_ON_ONCE(!sess))
+			continue;
+
+		spin_lock(&sess->sess_cmd_lock);
 		spin_lock(&cmd->t_state_lock);
 		if (!(cmd->transport_state & CMD_T_ACTIVE)) {
 			spin_unlock(&cmd->t_state_lock);
+			spin_unlock(&sess->sess_cmd_lock);
 			continue;
 		}
 		if (cmd->t_state == TRANSPORT_ISTATE_PROCESSING) {
 			spin_unlock(&cmd->t_state_lock);
+			spin_unlock(&sess->sess_cmd_lock);
 			continue;
 		}
+		cmd->transport_state |= CMD_T_ABORTED;
 		spin_unlock(&cmd->t_state_lock);
 
+		rc = kref_get_unless_zero(&cmd->cmd_kref);
+		spin_unlock(&sess->sess_cmd_lock);
+		if (!rc) {
+			printk("LUN_RESET TMR: non-zero kref_get_unless_zero\n");
+			continue;
+		}
 		list_move_tail(&tmr_p->tmr_list, &drain_tmr_list);
 	}
 	spin_unlock_irqrestore(&dev->se_tmr_lock, flags);
@@ -227,7 +243,11 @@ static void core_tmr_drain_tmr_list(
 			(preempt_and_abort_list) ? "Preempt" : "", tmr_p,
 			tmr_p->function, tmr_p->response, cmd->t_state);
 
+		cancel_work_sync(&cmd->work);
+		transport_wait_for_tasks(cmd);
+
 		transport_cmd_finish_abort(cmd, 1);
+		target_put_sess_cmd(cmd);
 	}
 }
 

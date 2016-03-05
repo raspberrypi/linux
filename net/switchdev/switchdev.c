@@ -15,6 +15,7 @@
 #include <linux/mutex.h>
 #include <linux/notifier.h>
 #include <linux/netdevice.h>
+#include <linux/rtnetlink.h>
 #include <net/ip_fib.h>
 #include <net/switchdev.h>
 
@@ -64,7 +65,6 @@ int netdev_switch_port_stp_update(struct net_device *dev, u8 state)
 }
 EXPORT_SYMBOL_GPL(netdev_switch_port_stp_update);
 
-static DEFINE_MUTEX(netdev_switch_mutex);
 static RAW_NOTIFIER_HEAD(netdev_switch_notif_chain);
 
 /**
@@ -79,9 +79,9 @@ int register_netdev_switch_notifier(struct notifier_block *nb)
 {
 	int err;
 
-	mutex_lock(&netdev_switch_mutex);
+	rtnl_lock();
 	err = raw_notifier_chain_register(&netdev_switch_notif_chain, nb);
-	mutex_unlock(&netdev_switch_mutex);
+	rtnl_unlock();
 	return err;
 }
 EXPORT_SYMBOL_GPL(register_netdev_switch_notifier);
@@ -97,9 +97,9 @@ int unregister_netdev_switch_notifier(struct notifier_block *nb)
 {
 	int err;
 
-	mutex_lock(&netdev_switch_mutex);
+	rtnl_lock();
 	err = raw_notifier_chain_unregister(&netdev_switch_notif_chain, nb);
-	mutex_unlock(&netdev_switch_mutex);
+	rtnl_unlock();
 	return err;
 }
 EXPORT_SYMBOL_GPL(unregister_netdev_switch_notifier);
@@ -113,16 +113,17 @@ EXPORT_SYMBOL_GPL(unregister_netdev_switch_notifier);
  *	Call all network notifier blocks. This should be called by driver
  *	when it needs to propagate hardware event.
  *	Return values are same as for atomic_notifier_call_chain().
+ *	rtnl_lock must be held.
  */
 int call_netdev_switch_notifiers(unsigned long val, struct net_device *dev,
 				 struct netdev_switch_notifier_info *info)
 {
 	int err;
 
+	ASSERT_RTNL();
+
 	info->dev = dev;
-	mutex_lock(&netdev_switch_mutex);
 	err = raw_notifier_call_chain(&netdev_switch_notif_chain, val, info);
-	mutex_unlock(&netdev_switch_mutex);
 	return err;
 }
 EXPORT_SYMBOL_GPL(call_netdev_switch_notifiers);

@@ -3384,12 +3384,14 @@ static void rocker_port_fdb_learn_work(struct work_struct *work)
 	info.addr = lw->addr;
 	info.vid = lw->vid;
 
+	rtnl_lock();
 	if (learned && removing)
 		call_netdev_switch_notifiers(NETDEV_SWITCH_FDB_DEL,
 					     lw->dev, &info.info);
 	else if (learned && !removing)
 		call_netdev_switch_notifiers(NETDEV_SWITCH_FDB_ADD,
 					     lw->dev, &info.info);
+	rtnl_unlock();
 
 	kfree(work);
 }
