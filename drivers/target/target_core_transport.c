@@ -1638,7 +1638,7 @@ bool target_stop_cmd(struct se_cmd *cmd, unsigned long *flags)
 void transport_generic_request_failure(struct se_cmd *cmd,
 		sense_reason_t sense_reason)
 {
-	int ret = 0;
+	int ret = 0, post_ret = 0;
 
 	pr_debug("-----[ Storage Engine Exception for cmd: %p ITT: 0x%08x"
 		" CDB: 0x%02x\n", cmd, cmd->se_tfo->get_task_tag(cmd),
@@ -1661,7 +1661,7 @@ void transport_generic_request_failure(struct se_cmd *cmd,
 	 */
 	if ((cmd->se_cmd_flags & SCF_COMPARE_AND_WRITE) &&
 	     cmd->transport_complete_callback)
-		cmd->transport_complete_callback(cmd, false);
+		cmd->transport_complete_callback(cmd, false, &post_ret);
 
 	switch (sense_reason) {
 	case TCM_NON_EXISTENT_LUN:
@@ -2056,11 +2056,13 @@ static void target_complete_ok_work(struct work_struct *work)
 	 */
 	if (cmd->transport_complete_callback) {
 		sense_reason_t rc;
+		bool caw = (cmd->se_cmd_flags & SCF_COMPARE_AND_WRITE);
+		bool zero_dl = !(cmd->data_length);
+		int post_ret = 0;
 
-		rc = cmd->transport_complete_callback(cmd, true);
-		if (!rc && !(cmd->se_cmd_flags & SCF_COMPARE_AND_WRITE_POST)) {
-			if ((cmd->se_cmd_flags & SCF_COMPARE_AND_WRITE) &&
-			    !cmd->data_length)
+		rc = cmd->transport_complete_callback(cmd, true, &post_ret);
+		if (!rc && !post_ret) {
+			if (caw && zero_dl)
 				goto queue_rsp;
 
 			return;
