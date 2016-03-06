@@ -329,7 +329,7 @@ static int core_scsi3_pr_seq_non_holder(
 			 * RESERVATION CONFLICT on some CDBs */
 
 	if (!se_sess->se_node_acl->device_list)
-		return;
+		return 0;
 
 	se_deve = se_sess->se_node_acl->device_list[cmd->orig_fe_lun];
 	/*
