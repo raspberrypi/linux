@@ -67,7 +67,9 @@
 				     <1 27>;
 
 			#dma-cells = <1>;
-			brcm,dma-channel-mask = <0x0f35>;
+			brcm,dma-channel-mask = <0x7f35>;
+			brcm,dma-channel-shared-mask = <0x7800>;
+			brcm,dma-shared-irq-index = <11>;
 		};
 
 		intc: interrupt-controller@7e00b200 {
