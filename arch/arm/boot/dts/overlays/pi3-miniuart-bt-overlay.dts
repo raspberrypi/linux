@@ -1,0 +1,61 @@
+/dts-v1/;
+/plugin/;
+
+/* Switch Pi3 Bluetooth function to use the mini-UART (ttyS0) and restore
+   UART0/ttyAMA0 over GPIOs 14 & 15. Note that this may reduce the maximum
+   usable baudrate.
+
+   It is also necessary to edit /lib/systemd/system/hciuart.server and
+   replace ttyAMA0 with ttyS0.
+
+   If cmdline.txt uses the alias serial0 to refer to the user-accessable port
+   then the firmware will replace with the appropriate port whether or not
+   this overlay is used.
+*/
+
+/{
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&uart0>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart0_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&uart1>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&gpio>;
+		__overlay__ {
+			uart0_pins: uart0_pins {
+				brcm,pins = <14 15>;
+				brcm,function = <4>; /* alt0 */
+				brcm,pull = <0 2>;
+			};
+
+			uart1_pins: uart1_pins {
+				brcm,pins = <32 33>;
+				brcm,function = <2>; /* alt5=UART1 */
+				brcm,pull = <0 0>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target-path = "/aliases";
+		__overlay__ {
+			serial0 = "/soc/uart@7e201000";
+			serial1 = "/soc/uart@7e215040";
+		};
+	};
+};
