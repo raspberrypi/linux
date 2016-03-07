@@ -873,15 +873,13 @@ queue_message(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 						error_count);
 					return VCHIQ_ERROR;
 				}
-				if (i == 0) {
-					if (SRVTRACE_ENABLED(service,
-							VCHIQ_LOG_INFO))
-						vchiq_log_dump_mem("Sent", 0,
-							header->data + pos,
-							min(64u,
-							elements[0].size));
-				}
 			}
+
+		if (SRVTRACE_ENABLED(service,
+				VCHIQ_LOG_INFO))
+			vchiq_log_dump_mem("Sent", 0,
+				header->data,
+				min(16, pos));
 
 		spin_lock(&quota_spinlock);
 		service_quota->message_use_count++;
@@ -1019,15 +1017,12 @@ queue_message_sync(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 						error_count);
 					return VCHIQ_ERROR;
 				}
-				if (i == 0) {
-					if (vchiq_sync_log_level >=
-						VCHIQ_LOG_TRACE)
-						vchiq_log_dump_mem("Sent Sync",
-							0, header->data + pos,
-							min(64u,
-							elements[0].size));
-				}
 			}
+
+		if (vchiq_sync_log_level >= VCHIQ_LOG_TRACE)
+			vchiq_log_dump_mem("Sent Sync",
+				0, header->data,
+				min(16, pos));
 
 		VCHIQ_SERVICE_STATS_INC(service, ctrl_tx_count);
 		VCHIQ_SERVICE_STATS_ADD(service, ctrl_tx_bytes, size);
@@ -1691,7 +1686,7 @@ parse_rx_slots(VCHIQ_STATE_T *state)
 				remoteport, localport, size);
 			if (size > 0)
 				vchiq_log_dump_mem("Rcvd", 0, header->data,
-					min(64, size));
+					min(16, size));
 		}
 
 		if (((unsigned long)header & VCHIQ_SLOT_MASK) +
@@ -2148,7 +2143,7 @@ sync_func(void *v)
 				remoteport, localport, size);
 			if (size > 0)
 				vchiq_log_dump_mem("Rcvd", 0, header->data,
-					min(64, size));
+					min(16, size));
 		}
 
 		switch (type) {
