@@ -2797,6 +2797,10 @@ static int iwl_mvm_mac_sched_scan_start(struct ieee80211_hw *hw,
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	int ret;
 
+	/* we don't support "match all" in the firmware */
+	if (!req->n_match_sets)
+		return -EOPNOTSUPP;
+
 	if (!(mvm->fw->ucode_capa.capa[0] & IWL_UCODE_TLV_CAPA_UMAC_SCAN)) {
 		ret = iwl_mvm_cancel_scan_wait_notif(mvm, IWL_MVM_SCAN_OS);
 		if (ret)
