@@ -136,9 +136,8 @@
 			reg = <0x7e202000 0x100>;
 			interrupts = <2 24>;
 			clocks = <&clk_core>;
-			dmas = <&dma 13>,
-			       <&dma 13>;
-			dma-names = "tx", "rx";
+			dmas = <&dma 13>;
+			dma-names = "rx-tx";
 			brcm,overclock-50 = <0>;
 			brcm,pio-limit = <1>;
 			status = "disabled";
