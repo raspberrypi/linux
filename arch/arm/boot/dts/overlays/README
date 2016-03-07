@@ -504,6 +504,16 @@ Load:   dtoverlay=pi3-disable-bt
 Params: <None>
 
 
+Name:   pi3-miniuart-bt
+Info:   Switch Pi3 Bluetooth function to use the mini-UART (ttyS0) and restore
+        UART0/ttyAMA0 over GPIOs 14 & 15. Note that this may reduce the maximum
+        usable baudrate.
+        N.B. It is also necessary to edit /lib/systemd/system/hciuart.server
+        and replace ttyAMA0 with ttyS0.
+Load:   dtoverlay=pi3-miniuart-bt
+Params: <None>
+
+
 Name:   piscreen
 Info:   PiScreen display by OzzMaker.com
 Load:   dtoverlay=piscreen,<param>=<val>
