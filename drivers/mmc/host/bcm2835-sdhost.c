@@ -185,9 +185,10 @@ struct bcm2835_host {
 	unsigned int			debug:1;		/* Enable debug output */
 
 	/*DMA part*/
-	struct dma_chan			*dma_chan_rx;		/* DMA channel for reads */
-	struct dma_chan			*dma_chan_tx;		/* DMA channel for writes */
-	struct dma_chan			*dma_chan;		/* Channel in used */
+	struct dma_chan			*dma_chan_rxtx;		/* DMA channel for reads and writes */
+	struct dma_chan			*dma_chan;		/* Channel in use */
+	struct dma_slave_config		dma_cfg_rx;
+	struct dma_slave_config		dma_cfg_tx;
 	struct dma_async_tx_descriptor	*dma_desc;
 	u32				dma_dir;
 	u32				drain_words;
@@ -771,12 +772,11 @@ static void bcm2835_sdhost_prepare_dma(struct bcm2835_host *host,
 	log_event("PRD<", (u32)data, 0);
 	pr_debug("bcm2835_sdhost_prepare_dma()\n");
 
+	dma_chan = host->dma_chan_rxtx;
 	if (data->flags & MMC_DATA_READ) {
-		dma_chan = host->dma_chan_rx;
 		dir_data = DMA_FROM_DEVICE;
 		dir_slave = DMA_DEV_TO_MEM;
 	} else {
-		dma_chan = host->dma_chan_tx;
 		dir_data = DMA_TO_DEVICE;
 		dir_slave = DMA_MEM_TO_DEV;
 	}
@@ -812,6 +812,12 @@ static void bcm2835_sdhost_prepare_dma(struct bcm2835_host *host,
 		}
 		host->drain_words = len/4;
 	}
+
+	/* The parameters have already been validated, so this will not fail */
+	(void)dmaengine_slave_config(dma_chan,
+				     (dir_data == DMA_FROM_DEVICE) ?
+				     &host->dma_cfg_rx :
+				     &host->dma_cfg_tx);
 
 	len = dma_map_sg(dma_chan->device->dev, data->sg, data->sg_len,
 			 dir_data);
@@ -1805,28 +1811,46 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 	spin_lock_init(&host->lock);
 
 	if (host->allow_dma) {
-		if (IS_ERR_OR_NULL(host->dma_chan_tx) ||
-		    IS_ERR_OR_NULL(host->dma_chan_rx)) {
-			pr_err("%s: unable to initialise DMA channels. "
+		if (IS_ERR_OR_NULL(host->dma_chan_rxtx)) {
+			pr_err("%s: unable to initialise DMA channel. "
 			       "Falling back to PIO\n",
 			       mmc_hostname(mmc));
 			host->use_dma = false;
 		} else {
-			host->use_dma = true;
-
 			cfg.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 			cfg.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 			cfg.slave_id = 13;		/* DREQ channel */
 
+			/* Validate the slave configurations */
+
 			cfg.direction = DMA_MEM_TO_DEV;
 			cfg.src_addr = 0;
 			cfg.dst_addr = host->bus_addr + SDDATA;
-			ret = dmaengine_slave_config(host->dma_chan_tx, &cfg);
 
-			cfg.direction = DMA_DEV_TO_MEM;
-			cfg.src_addr = host->bus_addr + SDDATA;
-			cfg.dst_addr = 0;
-			ret = dmaengine_slave_config(host->dma_chan_rx, &cfg);
+			ret = dmaengine_slave_config(host->dma_chan_rxtx, &cfg);
+
+			if (ret == 0) {
+				host->dma_cfg_tx = cfg;
+
+				cfg.direction = DMA_DEV_TO_MEM;
+				cfg.src_addr = host->bus_addr + SDDATA;
+				cfg.dst_addr = 0;
+
+				ret = dmaengine_slave_config(host->dma_chan_rxtx, &cfg);
+			}
+
+			if (ret == 0) {
+				host->dma_cfg_rx = cfg;
+
+				host->use_dma = true;
+			} else {
+				pr_err("%s: unable to configure DMA channel. "
+				       "Falling back to PIO\n",
+				       mmc_hostname(mmc));
+				dma_release_channel(host->dma_chan_rxtx);
+				host->dma_chan_rxtx = NULL;
+				host->use_dma = false;
+			}
 		}
 	} else {
 		host->use_dma = false;
@@ -1948,19 +1972,21 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 
 	if (host->allow_dma) {
 		if (node) {
-			host->dma_chan_tx =
-				dma_request_slave_channel(dev, "tx");
-			host->dma_chan_rx =
-				dma_request_slave_channel(dev, "rx");
+			host->dma_chan_rxtx =
+				dma_request_slave_channel(dev, "rx-tx");
+			if (!host->dma_chan_rxtx)
+				host->dma_chan_rxtx =
+					dma_request_slave_channel(dev, "tx");
+			if (!host->dma_chan_rxtx)
+				host->dma_chan_rxtx =
+					dma_request_slave_channel(dev, "rx");
 		} else {
 			dma_cap_mask_t mask;
 
 			dma_cap_zero(mask);
 			/* we don't care about the channel, any would work */
 			dma_cap_set(DMA_SLAVE, mask);
-			host->dma_chan_tx =
-				dma_request_channel(mask, NULL, NULL);
-			host->dma_chan_rx =
+			host->dma_chan_rxtx =
 				dma_request_channel(mask, NULL, NULL);
 		}
 	}
