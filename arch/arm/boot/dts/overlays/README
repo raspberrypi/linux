@@ -285,6 +285,12 @@ Load:   dtoverlay=hifiberry-digi
 Params: <None>
 
 
+Name:   sabreberry32-dac
+Info:   Configures the SabreBerry32 DAC audio card
+Load:   dtoverlay=sabreberry32-dac
+Params: <None>
+
+
 Name:   hy28a
 Info:   HY28A - 2.8" TFT LCD Display Module by HAOYU Electronics
         Default values match Texy's display shield
