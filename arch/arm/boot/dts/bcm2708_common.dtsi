@@ -232,9 +232,8 @@
 			reg = <0x7e300000 0x100>;
 			interrupts = <2 30>;
 			clocks = <&clk_mmc>;
-			dmas = <&dma 11>,
-			       <&dma 11>;
-			dma-names = "tx", "rx";
+			dmas = <&dma 11>;
+			dma-names = "rx-tx";
 			brcm,overclock-50 = <0>;
 			status = "disabled";
 		};
