@@ -644,14 +644,11 @@ Name:   rpi-display
 Info:   RPi-Display - 2.8" Touch Display by Watterott
 Load:   dtoverlay=rpi-display,<param>=<val>
 Params: speed                   Display SPI bus speed
-
         rotate                  Display rotation {0,90,180,270}
-
         fps                     Delay between frame updates
-
         debug                   Debug output level {0-7}
-
         xohms                   Touchpanel sensitivity (X-plate resistance)
+        swapxy                  Swap x and y axis
 
 
 Name:   rpi-ft5406
