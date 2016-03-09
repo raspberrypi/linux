@@ -52,7 +52,7 @@ config SND_BCM2708_SOC_SABREBERRY32_DAC
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
         select SND_SOC_SABRE9018Q2C
         help
-         Say Y or M if you want to add support for HifiBerry DAC.
+         Say Y or M if you want to add support for SabreBerry32 DAC.
 
 config SND_BCM2708_SOC_RPI_DAC
         tristate "Support for RPi-DAC"
