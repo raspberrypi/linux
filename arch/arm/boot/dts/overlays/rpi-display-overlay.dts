@@ -78,5 +78,6 @@
 		fps =     <&rpidisplay>,"fps:0";
 		debug =   <&rpidisplay>,"debug:0";
 		xohms =   <&rpidisplay_ts>,"ti,x-plate-ohms;0";
+		swapxy =  <&rpidisplay_ts>,"ti,swap-xy?";
 	};
 };
