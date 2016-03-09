@@ -126,6 +126,7 @@ static struct clocksource clksrc = {
 struct tc_clkevt_device {
 	struct clock_event_device	clkevt;
 	struct clk			*clk;
+	bool				clk_enabled;
 	void __iomem			*regs;
 };
 
@@ -143,6 +144,24 @@ static struct tc_clkevt_device *to_tc_clkevt(struct clock_event_device *clkevt)
  */
 static u32 timer_clock;
 
+static void tc_clk_disable(struct clock_event_device *d)
+{
+	struct tc_clkevt_device *tcd = to_tc_clkevt(d);
+
+	clk_disable(tcd->clk);
+	tcd->clk_enabled = false;
+}
+
+static void tc_clk_enable(struct clock_event_device *d)
+{
+	struct tc_clkevt_device *tcd = to_tc_clkevt(d);
+
+	if (tcd->clk_enabled)
+		return;
+	clk_enable(tcd->clk);
+	tcd->clk_enabled = true;
+}
+
 static int tc_shutdown(struct clock_event_device *d)
 {
 	struct tc_clkevt_device *tcd = to_tc_clkevt(d);
@@ -150,8 +169,14 @@ static int tc_shutdown(struct clock_event_device *d)
 
 	writel(0xff, regs + ATMEL_TC_REG(2, IDR));
 	writel(ATMEL_TC_CLKDIS, regs + ATMEL_TC_REG(2, CCR));
+	return 0;
+}
+
+static int tc_shutdown_clk_off(struct clock_event_device *d)
+{
+	tc_shutdown(d);
 	if (!clockevent_state_detached(d))
-		clk_disable(tcd->clk);
+		tc_clk_disable(d);
 
 	return 0;
 }
@@ -164,7 +189,7 @@ static int tc_set_oneshot(struct clock_event_device *d)
 	if (clockevent_state_oneshot(d) || clockevent_state_periodic(d))
 		tc_shutdown(d);
 
-	clk_enable(tcd->clk);
+	tc_clk_enable(d);
 
 	/* slow clock, count up to RC, then irq and stop */
 	writel(timer_clock | ATMEL_TC_CPCSTOP | ATMEL_TC_WAVE |
@@ -186,7 +211,7 @@ static int tc_set_periodic(struct clock_event_device *d)
 	/* By not making the gentime core emulate periodic mode on top
 	 * of oneshot, we get lower overhead and improved accuracy.
 	 */
-	clk_enable(tcd->clk);
+	tc_clk_enable(d);
 
 	/* slow clock, count up to RC, then irq and restart */
 	writel(timer_clock | ATMEL_TC_WAVE | ATMEL_TC_WAVESEL_UP_AUTO,
@@ -220,7 +245,7 @@ static struct tc_clkevt_device clkevt = {
 		/* Should be lower than at91rm9200's system timer */
 		.rating			= 125,
 		.set_next_event		= tc_next_event,
-		.set_state_shutdown	= tc_shutdown,
+		.set_state_shutdown	= tc_shutdown_clk_off,
 		.set_state_periodic	= tc_set_periodic,
 		.set_state_oneshot	= tc_set_oneshot,
 	},
