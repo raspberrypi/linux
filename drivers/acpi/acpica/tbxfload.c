@@ -83,6 +83,20 @@ acpi_status __init acpi_load_tables(void)
 				"While loading namespace from ACPI tables"));
 	}
 
+	if (!acpi_gbl_group_module_level_code) {
+		/*
+		 * Initialize the objects that remain uninitialized. This
+		 * runs the executable AML that may be part of the
+		 * declaration of these objects:
+		 * operation_regions, buffer_fields, Buffers, and Packages.
+		 */
+		status = acpi_ns_initialize_objects();
+		if (ACPI_FAILURE(status)) {
+			return_ACPI_STATUS(status);
+		}
+	}
+
+	acpi_gbl_reg_methods_enabled = TRUE;
 	return_ACPI_STATUS(status);
 }
 
