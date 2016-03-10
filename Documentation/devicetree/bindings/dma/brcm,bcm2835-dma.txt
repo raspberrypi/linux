@@ -17,6 +17,10 @@ Required properties:
 - brcm,dma-channel-mask: Bit mask representing the channels
 			 not used by the firmware in ascending order,
 			 i.e. first channel corresponds to LSB.
+- brcm,dma-channel-shared-mask: Bit mask representing the channels
+				that use a shared interrupt
+- brcm,dma-shared-irq-index: index of which of the interrupts mentioned
+			     above is the shared interrupt
 
 Example:
 
@@ -39,6 +43,8 @@ dma: dma@7e007000 {
 
 	#dma-cells = <1>;
 	brcm,dma-channel-mask = <0x7f35>;
+	brcm,dma-channel-shared-mask = <0x0780>;
+	brcm,dma-shared-irq-index = <11>;
 };
 
 DMA clients connected to the BCM2835 DMA controller must use the format
