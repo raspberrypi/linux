@@ -45,9 +45,9 @@
 	};
 
 	bt_pins: bt_pins {
-		brcm,pins =     <28 29 30 31 43>;
-		brcm,function = <6 6 6 6 4>;   /* alt2:PCM alt0:GPCLK2 */
-		brcm,pull =     <0 0 0 0 0>;
+		brcm,pins = <43>;
+		brcm,function = <4>; /* alt0:GPCLK2 */
+		brcm,pull = <0>;
 	};
 
 	uart0_pins: uart0_pins {

@@ -29,7 +29,7 @@
 		target = <&uart1>;
 		__overlay__ {
 			pinctrl-names = "default";
-			pinctrl-0 = <&uart1_pins>;
+			pinctrl-0 = <&uart1_pins &bt_pins>;
 			status = "okay";
 		};
 	};
