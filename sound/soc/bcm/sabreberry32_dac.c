@@ -16,12 +16,25 @@
 
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/delay.h>
 #include <sound/core.h>
+#include <sound/soc.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
-#include <sound/soc.h>
 
 #include "../codecs/sabre9018q2c.h"
+
+
+/* Sample Rate Type */
+#define SAMPLE_RATE_TYPE_44_1   0   /* 44.1/88.2/176.4kHz : 45.1584 MHz */
+#define SAMPLE_RATE_TYPE_48     1   /* 48/96/192kHz       : 49.152  MHz */
+
+/* Master Trim : -0.78dB */
+#define MASTER_TRIM_VALUE   (unsigned long)(0x7FFFFFFF * 0.914)
+
+
+// SabreBerry32 Master/Slave Mode Flag
+static bool master_mode = true;
 
 
 static int snd_rpi_sabreberry32_init(struct snd_soc_pcm_runtime *rtd)
@@ -34,16 +47,16 @@ static int snd_rpi_sabreberry32_init(struct snd_soc_pcm_runtime *rtd)
         return (-EINVAL);
     }
 
-#if (defined(MASTER_MODE) && (MASTER_MODE == 1))
-    /* Switch to Master Mode */
-    dev_info(codec->dev, "Master Mode\n");
-    snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x80, (1 << 7));
-    snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x60, (2 << 5));
-#else
-    /* Switch to Slave Mode */
-    dev_info(codec->dev, "Slave Mode\n");
-    snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x80, (0 << 7));
-#endif
+    if (master_mode) {
+        /* Switch to Master Mode */
+        dev_info(codec->dev, "Master Mode\n");
+        snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x80, (1 << 7));
+        snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x60, (2 << 5));
+    } else {
+        /* Switch to Slave Mode */
+        dev_info(codec->dev, "Slave Mode\n");
+        snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x80, (0 << 7));
+    }
 
     /* Initialize SABRE9018Q2C */
     snd_soc_update_bits(codec, SABRE9018Q2C_REG_8,  0x0F, 2 << 0);
@@ -164,13 +177,8 @@ static struct snd_soc_dai_link snd_rpi_sabreberry32_dai[] = {
         .codec_dai_name = "sabre9018q2c-dai",
         .platform_name  = "bcm2708-i2s.0",
         .codec_name     = "sabre9018q2c-i2c.1-0048",
-#if (defined(MASTER_MODE) && (MASTER_MODE == 1))
-        .dai_fmt        = SND_SOC_DAIFMT_I2S
-                            | SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM,
-#else
         .dai_fmt        = SND_SOC_DAIFMT_I2S
                             | SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS,
-#endif
         .init           = snd_rpi_sabreberry32_init,
         .ops            = &snd_rpi_sabreberry32_ops,
     }
@@ -205,7 +213,21 @@ static int snd_rpi_sabreberry32_probe(struct platform_device *pdev)
                     "Property 'i2s-controller' missing or invalid\n");
             return (-EINVAL);
         }
+
+        // Check SabreBerry32 Master/Slave Mode Configuration
+        master_mode = !of_property_read_bool(pdev->dev.of_node,
+                                                "takazine,slave");
+        if (master_mode) {
+            dai->dai_fmt = SND_SOC_DAIFMT_I2S
+                            | SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM;
+        } else {
+            dai->dai_fmt = SND_SOC_DAIFMT_I2S
+                            | SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS;
+        }
     }
+
+    /* Wait for registering codec driver */
+    mdelay(50);
 
     ret = snd_soc_register_card(&snd_rpi_sabreberry32);
     if (ret) {

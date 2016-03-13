@@ -18,17 +18,6 @@
 #define _SND_SOC_SABRE9018Q2C
 
 
-/* SABRE9018Q2C Master/Slave Mode Configuration */
-#define MASTER_MODE         1       /* 1 : Master Mode, 0 : Slave Mode */
-
-/* Sample Rate Type */
-#define SAMPLE_RATE_TYPE_44_1   0   /* 44.1/88.2/176.4kHz : 45.1584 MHz */
-#define SAMPLE_RATE_TYPE_48     1   /* 48/96/192kHz       : 49.152  MHz */
-
-/* Master Trim : -0.78dB */
-#define MASTER_TRIM_VALUE   (unsigned long)(0x7FFFFFFF * 0.914)
-
-
 /* SABRE9018Q2C Register Address */
 #define SABRE9018Q2C_REG_0          0
 #define SABRE9018Q2C_REG_1          1
