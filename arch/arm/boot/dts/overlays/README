@@ -287,7 +287,7 @@ Params: <None>
 
 Name:   sabreberry32-dac
 Info:   Configures the SabreBerry32 DAC audio card
-Load:   dtoverlay=sabreberry32-dac,<param>
+Load:   dtoverlay=sabreberry32-dac,<param>=<val>
 Params: slave                   DAC Master/Slave mode configuration.
                                 By add "slave" parameter, DAC operates Slave mode.
 

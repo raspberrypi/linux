@@ -7,7 +7,7 @@
 
 	fragment@0 {
 		target = <&sound>;
-		frag1: __overlay__ {
+		frag0: __overlay__ {
 			compatible = "takazine,sabreberry32";
 			i2s-controller = <&i2s>;
 			status = "okay";
@@ -38,6 +38,6 @@
 	};
 
 	__overrides__ {
-		slave = <&frag1>,"takazine,slave?";
+		slave = <&frag0>,"takazine,slave?";
 	};
 };

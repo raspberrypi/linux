@@ -28,125 +28,125 @@
 
 /* SABRE9018Q2C Codec Private Data */
 struct sabre9018q2c_priv {
-    struct regmap *regmap;
-    unsigned int fmt;
+	struct regmap *regmap;
+	unsigned int fmt;
 };
 
 
 /* SABRE9018Q2C Default Register Value */
 static const struct reg_default sabre9018q2c_reg_defaults[] = {
-    { SABRE9018Q2C_REG_0,   0x00 },
-    { SABRE9018Q2C_REG_1,   0x8C },
-    { SABRE9018Q2C_REG_4,   0x00 },
-    { SABRE9018Q2C_REG_5,   0x68 },
-    { SABRE9018Q2C_REG_6,   0x4A },
-    { SABRE9018Q2C_REG_7,   0x80 },
-    { SABRE9018Q2C_REG_8,   0x88 },
-    { SABRE9018Q2C_REG_10,  0x02 },
-    { SABRE9018Q2C_REG_11,  0x02 },
-    { SABRE9018Q2C_REG_12,  0x5A },
-    { SABRE9018Q2C_REG_13,  0x40 },
-    { SABRE9018Q2C_REG_14,  0x8A },
-    { SABRE9018Q2C_REG_15,  0x50 },
-    { SABRE9018Q2C_REG_16,  0x50 },
-    { SABRE9018Q2C_REG_17,  0xFF },
-    { SABRE9018Q2C_REG_18,  0xFF },
-    { SABRE9018Q2C_REG_19,  0xFF },
-    { SABRE9018Q2C_REG_20,  0x7F },
-    { SABRE9018Q2C_REG_21,  0x00 },
-    { SABRE9018Q2C_REG_30,  0x00 },
-    { SABRE9018Q2C_REG_39,  0x00 },
-    { SABRE9018Q2C_REG_40,  0x00 },
-    { SABRE9018Q2C_REG_41,  0x04 },
-    { SABRE9018Q2C_REG_42,  0x20 },
+	{ SABRE9018Q2C_REG_0,  0x00 },
+	{ SABRE9018Q2C_REG_1,  0x8C },
+	{ SABRE9018Q2C_REG_4,  0x00 },
+	{ SABRE9018Q2C_REG_5,  0x68 },
+	{ SABRE9018Q2C_REG_6,  0x4A },
+	{ SABRE9018Q2C_REG_7,  0x80 },
+	{ SABRE9018Q2C_REG_8,  0x88 },
+	{ SABRE9018Q2C_REG_10, 0x02 },
+	{ SABRE9018Q2C_REG_11, 0x02 },
+	{ SABRE9018Q2C_REG_12, 0x5A },
+	{ SABRE9018Q2C_REG_13, 0x40 },
+	{ SABRE9018Q2C_REG_14, 0x8A },
+	{ SABRE9018Q2C_REG_15, 0x50 },
+	{ SABRE9018Q2C_REG_16, 0x50 },
+	{ SABRE9018Q2C_REG_17, 0xFF },
+	{ SABRE9018Q2C_REG_18, 0xFF },
+	{ SABRE9018Q2C_REG_19, 0xFF },
+	{ SABRE9018Q2C_REG_20, 0x7F },
+	{ SABRE9018Q2C_REG_21, 0x00 },
+	{ SABRE9018Q2C_REG_30, 0x00 },
+	{ SABRE9018Q2C_REG_39, 0x00 },
+	{ SABRE9018Q2C_REG_40, 0x00 },
+	{ SABRE9018Q2C_REG_41, 0x04 },
+	{ SABRE9018Q2C_REG_42, 0x20 },
 };
 
 
 static bool sabre9018q2c_writeable(struct device *dev, unsigned int reg)
 {
-    switch (reg) {
-    case SABRE9018Q2C_REG_0:
-    case SABRE9018Q2C_REG_1:
-    case SABRE9018Q2C_REG_4:
-    case SABRE9018Q2C_REG_5:
-    case SABRE9018Q2C_REG_6:
-    case SABRE9018Q2C_REG_7:
-    case SABRE9018Q2C_REG_8:
-    case SABRE9018Q2C_REG_10:
-    case SABRE9018Q2C_REG_11:
-    case SABRE9018Q2C_REG_12:
-    case SABRE9018Q2C_REG_13:
-    case SABRE9018Q2C_REG_14:
-    case SABRE9018Q2C_REG_15:
-    case SABRE9018Q2C_REG_16:
-    case SABRE9018Q2C_REG_17:
-    case SABRE9018Q2C_REG_18:
-    case SABRE9018Q2C_REG_19:
-    case SABRE9018Q2C_REG_20:
-    case SABRE9018Q2C_REG_21:
-    case SABRE9018Q2C_REG_22:
-    case SABRE9018Q2C_REG_23:
-    case SABRE9018Q2C_REG_24:
-    case SABRE9018Q2C_REG_25:
-    case SABRE9018Q2C_REG_26:
-    case SABRE9018Q2C_REG_27:
-    case SABRE9018Q2C_REG_28:
-    case SABRE9018Q2C_REG_29:
-    case SABRE9018Q2C_REG_30:
-    case SABRE9018Q2C_REG_39:
-    case SABRE9018Q2C_REG_40:
-    case SABRE9018Q2C_REG_41:
-    case SABRE9018Q2C_REG_42:
-    case SABRE9018Q2C_REG_43:
-        return true;
+	switch (reg) {
+	case SABRE9018Q2C_REG_0:
+	case SABRE9018Q2C_REG_1:
+	case SABRE9018Q2C_REG_4:
+	case SABRE9018Q2C_REG_5:
+	case SABRE9018Q2C_REG_6:
+	case SABRE9018Q2C_REG_7:
+	case SABRE9018Q2C_REG_8:
+	case SABRE9018Q2C_REG_10:
+	case SABRE9018Q2C_REG_11:
+	case SABRE9018Q2C_REG_12:
+	case SABRE9018Q2C_REG_13:
+	case SABRE9018Q2C_REG_14:
+	case SABRE9018Q2C_REG_15:
+	case SABRE9018Q2C_REG_16:
+	case SABRE9018Q2C_REG_17:
+	case SABRE9018Q2C_REG_18:
+	case SABRE9018Q2C_REG_19:
+	case SABRE9018Q2C_REG_20:
+	case SABRE9018Q2C_REG_21:
+	case SABRE9018Q2C_REG_22:
+	case SABRE9018Q2C_REG_23:
+	case SABRE9018Q2C_REG_24:
+	case SABRE9018Q2C_REG_25:
+	case SABRE9018Q2C_REG_26:
+	case SABRE9018Q2C_REG_27:
+	case SABRE9018Q2C_REG_28:
+	case SABRE9018Q2C_REG_29:
+	case SABRE9018Q2C_REG_30:
+	case SABRE9018Q2C_REG_39:
+	case SABRE9018Q2C_REG_40:
+	case SABRE9018Q2C_REG_41:
+	case SABRE9018Q2C_REG_42:
+	case SABRE9018Q2C_REG_43:
+		return true;
 
-    default:
-        return false;
-    }
+	default:
+		return false;
+	}
 }
 
 static bool sabre9018q2c_readable(struct device *dev, unsigned int reg)
 {
-    switch (reg) {
-    case SABRE9018Q2C_REG_27:
-    case SABRE9018Q2C_REG_28:
-    case SABRE9018Q2C_REG_29:
-    case SABRE9018Q2C_REG_64:
-    case SABRE9018Q2C_REG_65:
-    case SABRE9018Q2C_REG_66:
-    case SABRE9018Q2C_REG_67:
-    case SABRE9018Q2C_REG_68:
-    case SABRE9018Q2C_REG_69:
-    case SABRE9018Q2C_REG_70:
-    case SABRE9018Q2C_REG_71:
-    case SABRE9018Q2C_REG_72:
-    case SABRE9018Q2C_REG_73:
-    case SABRE9018Q2C_REG_74:
-        return true;
+	switch (reg) {
+	case SABRE9018Q2C_REG_27:
+	case SABRE9018Q2C_REG_28:
+	case SABRE9018Q2C_REG_29:
+	case SABRE9018Q2C_REG_64:
+	case SABRE9018Q2C_REG_65:
+	case SABRE9018Q2C_REG_66:
+	case SABRE9018Q2C_REG_67:
+	case SABRE9018Q2C_REG_68:
+	case SABRE9018Q2C_REG_69:
+	case SABRE9018Q2C_REG_70:
+	case SABRE9018Q2C_REG_71:
+	case SABRE9018Q2C_REG_72:
+	case SABRE9018Q2C_REG_73:
+	case SABRE9018Q2C_REG_74:
+		return true;
 
-    default:
-        return false;
-    }
+	default:
+		return false;
+	}
 }
 
 static bool sabre9018q2c_volatile(struct device *dev, unsigned int reg)
 {
-    switch (reg) {
-    case SABRE9018Q2C_REG_65:
-    case SABRE9018Q2C_REG_66:
-    case SABRE9018Q2C_REG_67:
-    case SABRE9018Q2C_REG_68:
-    case SABRE9018Q2C_REG_69:
-    case SABRE9018Q2C_REG_70:
-    case SABRE9018Q2C_REG_71:
-    case SABRE9018Q2C_REG_72:
-    case SABRE9018Q2C_REG_73:
-    case SABRE9018Q2C_REG_74:
-        return true;
+	switch (reg) {
+	case SABRE9018Q2C_REG_65:
+	case SABRE9018Q2C_REG_66:
+	case SABRE9018Q2C_REG_67:
+	case SABRE9018Q2C_REG_68:
+	case SABRE9018Q2C_REG_69:
+	case SABRE9018Q2C_REG_70:
+	case SABRE9018Q2C_REG_71:
+	case SABRE9018Q2C_REG_72:
+	case SABRE9018Q2C_REG_73:
+	case SABRE9018Q2C_REG_74:
+		return true;
 
-    default:
-        return false;
-    }
+	default:
+		return false;
+	}
 }
 
 
@@ -156,20 +156,20 @@ static const DECLARE_TLV_DB_SCALE(volume_tlv, -12750, 50, 0);
 
 /* Filter Type */
 static const char * const filter_type_texts[] = {
-    "Fast Roll-Off",
-    "Slow Roll-Off",
-    "Minimum Phase",
+	"Fast Roll-Off",
+	"Slow Roll-Off",
+	"Minimum Phase",
 };
 
 static SOC_ENUM_SINGLE_DECL(sabre9018q2c_filter_type_enum,
-                                SABRE9018Q2C_REG_7, 5, filter_type_texts);
+							SABRE9018Q2C_REG_7, 5, filter_type_texts);
 
 
 /* Control */
 static const struct snd_kcontrol_new sabre9018q2c_controls[] = {
 SOC_DOUBLE_R_TLV("Playback Digital Volume",
-                SABRE9018Q2C_REG_15, SABRE9018Q2C_REG_16,
-                0, 0xFF, 1, volume_tlv),
+				SABRE9018Q2C_REG_15, SABRE9018Q2C_REG_16,
+				0, 0xFF, 1, volume_tlv),
 
 SOC_ENUM("Filter Type", sabre9018q2c_filter_type_enum),
 
@@ -178,271 +178,271 @@ SOC_DOUBLE("Mute Switch", SABRE9018Q2C_REG_7, 0, 1, 1, 0),
 
 
 static const u32 sabre9018q2c_dai_rates_master[] = {
-    44100, 48000, 88200, 96000, 176400, 192000
+	44100, 48000, 88200, 96000, 176400, 192000
 };
 
 static const struct snd_pcm_hw_constraint_list constraints_master = {
-    .list  = sabre9018q2c_dai_rates_master,
-    .count = ARRAY_SIZE(sabre9018q2c_dai_rates_master),
+	.list  = sabre9018q2c_dai_rates_master,
+	.count = ARRAY_SIZE(sabre9018q2c_dai_rates_master),
 };
 
 static const u32 sabre9018q2c_dai_rates_slave[] = {
-    8000, 11025, 16000, 22050, 32000,
-    44100, 48000, 64000, 88200, 96000, 176400, 192000
+	8000, 11025, 16000, 22050, 32000,
+	44100, 48000, 64000, 88200, 96000, 176400, 192000
 };
 
 static const struct snd_pcm_hw_constraint_list constraints_slave = {
-    .list  = sabre9018q2c_dai_rates_slave,
-    .count = ARRAY_SIZE(sabre9018q2c_dai_rates_slave),
+	.list  = sabre9018q2c_dai_rates_slave,
+	.count = ARRAY_SIZE(sabre9018q2c_dai_rates_slave),
 };
 
 static int sabre9018q2c_dai_startup_master(
-        struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
+		struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
 {
-    struct snd_soc_codec *codec = dai->codec;
-    int ret;
+	struct snd_soc_codec *codec = dai->codec;
+	int ret;
 
-    ret = snd_pcm_hw_constraint_list(substream->runtime,
-                    0, SNDRV_PCM_HW_PARAM_RATE, &constraints_master);
-    if (ret != 0) {
-        dev_err(codec->dev, "Failed to setup constraints: %d\n", ret);
-    }
+	ret = snd_pcm_hw_constraint_list(substream->runtime,
+					0, SNDRV_PCM_HW_PARAM_RATE, &constraints_master);
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to setup constraints: %d\n", ret);
+	}
 
-    return ret;
+	return ret;
 }
 
 static int sabre9018q2c_dai_startup_slave(
-        struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
+		struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
 {
-    struct snd_soc_codec *codec = dai->codec;
-    int ret;
+	struct snd_soc_codec *codec = dai->codec;
+	int ret;
 
-    ret = snd_pcm_hw_constraint_list(substream->runtime,
-                    0, SNDRV_PCM_HW_PARAM_RATE, &constraints_slave);
-    if (ret != 0) {
-        dev_err(codec->dev, "Failed to setup constraints: %d\n", ret);
-    }
+	ret = snd_pcm_hw_constraint_list(substream->runtime,
+					0, SNDRV_PCM_HW_PARAM_RATE, &constraints_slave);
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to setup constraints: %d\n", ret);
+	}
 
-    return ret;
+	return ret;
 }
 
 static int sabre9018q2c_dai_startup(
-        struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
+		struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
 {
-    struct snd_soc_codec     *codec        = dai->codec;
-    struct sabre9018q2c_priv *sabre9018q2c = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_codec     *codec        = dai->codec;
+	struct sabre9018q2c_priv *sabre9018q2c = snd_soc_codec_get_drvdata(codec);
 
-    switch (sabre9018q2c->fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-    case SND_SOC_DAIFMT_CBM_CFM:
-        return sabre9018q2c_dai_startup_master(substream, dai);
+	switch (sabre9018q2c->fmt & SND_SOC_DAIFMT_MASTER_MASK) {
+	case SND_SOC_DAIFMT_CBM_CFM:
+		return sabre9018q2c_dai_startup_master(substream, dai);
 
-    case SND_SOC_DAIFMT_CBS_CFS:
-        return sabre9018q2c_dai_startup_slave(substream, dai);
+	case SND_SOC_DAIFMT_CBS_CFS:
+		return sabre9018q2c_dai_startup_slave(substream, dai);
 
-    default:
-        return (-EINVAL);
-    }
+	default:
+		return (-EINVAL);
+	}
 }
 
 static int sabre9018q2c_hw_params(
-        struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params,
-        struct snd_soc_dai *dai)
+		struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params,
+		struct snd_soc_dai *dai)
 {
-    struct snd_soc_codec     *codec        = dai->codec;
-    struct sabre9018q2c_priv *sabre9018q2c = snd_soc_codec_get_drvdata(codec);
-    unsigned int daifmt;
+	struct snd_soc_codec     *codec        = dai->codec;
+	struct sabre9018q2c_priv *sabre9018q2c = snd_soc_codec_get_drvdata(codec);
+	unsigned int daifmt;
 
-    dev_dbg(codec->dev, "hw_params %u Hz, %u channels\n",
-            params_rate(params), params_channels(params));
+	dev_dbg(codec->dev, "hw_params %u Hz, %u channels\n",
+			params_rate(params), params_channels(params));
 
-    /* Check I2S Format (Bit Size) */
-    if (snd_pcm_format_width(params_format(params)) != 32) {
-        dev_err(codec->dev, "Bad frame size: %d\n",
-                snd_pcm_format_width(params_format(params)));
-        return (-EINVAL);
-    }
+	/* Check I2S Format (Bit Size) */
+	if (snd_pcm_format_width(params_format(params)) != 32) {
+		dev_err(codec->dev, "Bad frame size: %d\n",
+				snd_pcm_format_width(params_format(params)));
+		return (-EINVAL);
+	}
 
-    /* Check Master/Slave Mode */
-    daifmt = sabre9018q2c->fmt & SND_SOC_DAIFMT_MASTER_MASK;
-    if ((daifmt != SND_SOC_DAIFMT_CBS_CFS)
-            && (daifmt != SND_SOC_DAIFMT_CBM_CFM)) {
-        return (-EINVAL);
-    }
+	/* Check Master/Slave Mode */
+	daifmt = sabre9018q2c->fmt & SND_SOC_DAIFMT_MASTER_MASK;
+	if ((daifmt != SND_SOC_DAIFMT_CBS_CFS)
+			&& (daifmt != SND_SOC_DAIFMT_CBM_CFM)) {
+		return (-EINVAL);
+	}
 
-    return 0;
+	return 0;
 }
 
 static int sabre9018q2c_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
-    struct snd_soc_codec     *codec        = dai->codec;
-    struct sabre9018q2c_priv *sabre9018q2c = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_codec     *codec        = dai->codec;
+	struct sabre9018q2c_priv *sabre9018q2c = snd_soc_codec_get_drvdata(codec);
 
-    /* interface format */
-    switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
-    case SND_SOC_DAIFMT_I2S:
-        break;
+	/* interface format */
+	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
+	case SND_SOC_DAIFMT_I2S:
+		break;
 
-    case SND_SOC_DAIFMT_RIGHT_J:
-    case SND_SOC_DAIFMT_LEFT_J:
-    default:
-        return (-EINVAL);
-    }
+	case SND_SOC_DAIFMT_RIGHT_J:
+	case SND_SOC_DAIFMT_LEFT_J:
+	default:
+		return (-EINVAL);
+	}
 
-    /* clock inversion */
-    if ((fmt & SND_SOC_DAIFMT_INV_MASK) != SND_SOC_DAIFMT_NB_NF) {
-        return (-EINVAL);
-    }
+	/* clock inversion */
+	if ((fmt & SND_SOC_DAIFMT_INV_MASK) != SND_SOC_DAIFMT_NB_NF) {
+		return (-EINVAL);
+	}
 
-    /* Set Audio Data Format */
-    sabre9018q2c->fmt = fmt;
+	/* Set Audio Data Format */
+	sabre9018q2c->fmt = fmt;
 
-    return 0;
+	return 0;
 }
 
 static int sabre9018q2c_dac_mute(struct snd_soc_dai *dai, int mute)
 {
-    struct snd_soc_codec *codec = dai->codec;
+	struct snd_soc_codec *codec = dai->codec;
 
-    if (mute) {
-        snd_soc_update_bits(codec, SABRE9018Q2C_REG_7, 0x03, 0x03);
-    } else {
-        snd_soc_update_bits(codec, SABRE9018Q2C_REG_7, 0x03, 0x00);
-    }
+	if (mute) {
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_7, 0x03, 0x03);
+	} else {
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_7, 0x03, 0x00);
+	}
 
-    return 0;
+	return 0;
 }
 
 
 static const struct snd_soc_dai_ops sabre9018q2c_dai_ops = {
-    .startup      = sabre9018q2c_dai_startup,
-    .hw_params    = sabre9018q2c_hw_params,
-    .set_fmt      = sabre9018q2c_set_fmt,
-    .digital_mute = sabre9018q2c_dac_mute,
+	.startup      = sabre9018q2c_dai_startup,
+	.hw_params    = sabre9018q2c_hw_params,
+	.set_fmt      = sabre9018q2c_set_fmt,
+	.digital_mute = sabre9018q2c_dac_mute,
 };
 
 static struct snd_soc_dai_driver sabre9018q2c_dai = {
-    .name = "sabre9018q2c-dai",
-    .playback = {
-        .stream_name = "Playback",
-        .channels_min = 2,
-        .channels_max = 2,
-        .rates        = SNDRV_PCM_RATE_8000_192000,
-        .formats      = SNDRV_PCM_FMTBIT_S32_LE,
-    },
-    .ops = &sabre9018q2c_dai_ops,
+	.name = "sabre9018q2c-dai",
+	.playback = {
+		.stream_name = "Playback",
+		.channels_min = 2,
+		.channels_max = 2,
+		.rates        = SNDRV_PCM_RATE_8000_192000,
+		.formats      = SNDRV_PCM_FMTBIT_S32_LE,
+	},
+	.ops = &sabre9018q2c_dai_ops,
 };
 
 static struct snd_soc_codec_driver sabre9018q2c_codec_driver = {
-    .controls         = sabre9018q2c_controls,
-    .num_controls     = ARRAY_SIZE(sabre9018q2c_controls),
+	.controls         = sabre9018q2c_controls,
+	.num_controls     = ARRAY_SIZE(sabre9018q2c_controls),
 };
 
 
 static const struct regmap_config sabre9018q2c_regmap = {
-    .reg_bits         = 8,
-    .val_bits         = 8,
-    .max_register     = SABRE9018Q2C_MAX_REG,
+	.reg_bits         = 8,
+	.val_bits         = 8,
+	.max_register     = SABRE9018Q2C_MAX_REG,
 
-    .reg_defaults     = sabre9018q2c_reg_defaults,
-    .num_reg_defaults = ARRAY_SIZE(sabre9018q2c_reg_defaults),
+	.reg_defaults     = sabre9018q2c_reg_defaults,
+	.num_reg_defaults = ARRAY_SIZE(sabre9018q2c_reg_defaults),
 
-    .writeable_reg    = sabre9018q2c_writeable,
-    .readable_reg     = sabre9018q2c_readable,
-    .volatile_reg     = sabre9018q2c_volatile,
+	.writeable_reg    = sabre9018q2c_writeable,
+	.readable_reg     = sabre9018q2c_readable,
+	.volatile_reg     = sabre9018q2c_volatile,
 
-    .cache_type       = REGCACHE_RBTREE,
+	.cache_type       = REGCACHE_RBTREE,
 };
 
 
 bool sabre9018q2c_check_chip_id(struct snd_soc_codec *codec)
 {
-    unsigned int value;
+	unsigned int value;
 
-    value = snd_soc_read(codec, SABRE9018Q2C_REG_64);
+	value = snd_soc_read(codec, SABRE9018Q2C_REG_64);
 
-    /* Check Chip ID */
-    if (((value & 0x1C) >> 2) != 0) {
-        return false;
-    }
+	/* Check Chip ID */
+	if (((value & 0x1C) >> 2) != 0) {
+		return false;
+	}
 
-    return true;
+	return true;
 }
 EXPORT_SYMBOL_GPL(sabre9018q2c_check_chip_id);
 
 
 static int sabre9018q2c_probe(struct device *dev, struct regmap *regmap)
 {
-    struct sabre9018q2c_priv *sabre9018q2c;
-    int ret;
+	struct sabre9018q2c_priv *sabre9018q2c;
+	int ret;
 
-    sabre9018q2c = devm_kzalloc(dev, sizeof(*sabre9018q2c), GFP_KERNEL);
-    if (!sabre9018q2c) {
-        dev_err(dev, "devm_kzalloc");
-        return (-ENOMEM);
-    }
+	sabre9018q2c = devm_kzalloc(dev, sizeof(*sabre9018q2c), GFP_KERNEL);
+	if (!sabre9018q2c) {
+		dev_err(dev, "devm_kzalloc");
+		return (-ENOMEM);
+	}
 
-    sabre9018q2c->regmap = regmap;
+	sabre9018q2c->regmap = regmap;
 
-    dev_set_drvdata(dev, sabre9018q2c);
+	dev_set_drvdata(dev, sabre9018q2c);
 
-    ret = snd_soc_register_codec(dev,
-                    &sabre9018q2c_codec_driver, &sabre9018q2c_dai, 1);
-    if (ret != 0) {
-        dev_err(dev, "Failed to register CODEC: %d\n", ret);
-        return ret;
-    }
+	ret = snd_soc_register_codec(dev,
+					&sabre9018q2c_codec_driver, &sabre9018q2c_dai, 1);
+	if (ret != 0) {
+		dev_err(dev, "Failed to register CODEC: %d\n", ret);
+		return ret;
+	}
 
-    return 0;
+	return 0;
 }
 
 static void sabre9018q2c_remove(struct device *dev)
 {
-    snd_soc_unregister_codec(dev);
+	snd_soc_unregister_codec(dev);
 }
 
 
 static int sabre9018q2c_i2c_probe(
-        struct i2c_client *i2c, const struct i2c_device_id *id)
+		struct i2c_client *i2c, const struct i2c_device_id *id)
 {
-    struct regmap *regmap;
+	struct regmap *regmap;
 
-    regmap = devm_regmap_init_i2c(i2c, &sabre9018q2c_regmap);
-    if (IS_ERR(regmap)) {
-        return PTR_ERR(regmap);
-    }
+	regmap = devm_regmap_init_i2c(i2c, &sabre9018q2c_regmap);
+	if (IS_ERR(regmap)) {
+		return PTR_ERR(regmap);
+	}
 
-    return sabre9018q2c_probe(&i2c->dev, regmap);
+	return sabre9018q2c_probe(&i2c->dev, regmap);
 }
 
 static int sabre9018q2c_i2c_remove(struct i2c_client *i2c)
 {
-    sabre9018q2c_remove(&i2c->dev);
+	sabre9018q2c_remove(&i2c->dev);
 
-    return 0;
+	return 0;
 }
 
 
 static const struct i2c_device_id sabre9018q2c_i2c_id[] = {
-    { "sabre9018q2c", },
-    { }
+	{ "sabre9018q2c", },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, sabre9018q2c_i2c_id);
 
 static const struct of_device_id sabre9018q2c_of_match[] = {
-    { .compatible = "ess,sabre9018q2c", },
-    { }
+	{ .compatible = "ess,sabre9018q2c", },
+	{ }
 };
 MODULE_DEVICE_TABLE(of, sabre9018q2c_of_match);
 
 static struct i2c_driver sabre9018q2c_i2c_driver = {
-    .driver = {
-        .name           = "sabre9018q2c-i2c",
-        .owner          = THIS_MODULE,
-        .of_match_table = of_match_ptr(sabre9018q2c_of_match),
-    },
-    .probe    = sabre9018q2c_i2c_probe,
-    .remove   = sabre9018q2c_i2c_remove,
-    .id_table = sabre9018q2c_i2c_id,
+	.driver = {
+		.name           = "sabre9018q2c-i2c",
+		.owner          = THIS_MODULE,
+		.of_match_table = of_match_ptr(sabre9018q2c_of_match),
+	},
+	.probe    = sabre9018q2c_i2c_probe,
+	.remove   = sabre9018q2c_i2c_remove,
+	.id_table = sabre9018q2c_i2c_id,
 };
 module_i2c_driver(sabre9018q2c_i2c_driver);
 
