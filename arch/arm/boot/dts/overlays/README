@@ -920,6 +920,14 @@ Params: gpiopin                 GPIO for I/O (default "4")
         extpullup               GPIO for external pullup (default "5")
 
 
+Name:   wittypi
+Info:   Configures the wittypi RTC module.
+Load:   dtoverlay=wittypi,<param>=<val>
+Params: led_gpio                GPIO for LED (default "17")
+        led_trigger             Choose which activity the LED tracks (default
+                                "default-on")
+
+
 Troubleshooting
 ===============
 
