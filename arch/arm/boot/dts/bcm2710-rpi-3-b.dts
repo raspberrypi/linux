@@ -110,7 +110,7 @@
 	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
 	cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
 
-	spidev@0{
+	spidev0: spidev@0{
 		compatible = "spidev";
 		reg = <0>;	/* CE0 */
 		#address-cells = <1>;
@@ -118,7 +118,7 @@
 		spi-max-frequency = <500000>;
 	};
 
-	spidev@1{
+	spidev1: spidev@1{
 		compatible = "spidev";
 		reg = <1>;	/* CE1 */
 		#address-cells = <1>;
