@@ -523,6 +523,7 @@ static void fixup_phandle_references(struct check *c, struct node *dt,
 			fe->prop = prop;
 			fe->offset = m->offset;
 			fe->next = NULL;
+			fe->local_fixup_generated = false;
 
 			/* append it to the local fixups */
 			fep = &dt->local_fixups;
