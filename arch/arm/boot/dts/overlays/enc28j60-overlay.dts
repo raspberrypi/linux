@@ -14,10 +14,6 @@
 
 			status = "okay";
 
-			spidev@0{
-				status = "disabled";
-			};
-
 			eth1: enc28j60@0{
 				compatible = "microchip,enc28j60";
 				reg = <0>; /* CE0 */
@@ -32,6 +28,13 @@
 	};
 
 	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
 		target = <&gpio>;
 		__overlay__ {
 			eth1_pins: eth1_pins {
