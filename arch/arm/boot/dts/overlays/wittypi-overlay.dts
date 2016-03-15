@@ -37,7 +37,7 @@
 	};
 
 	__overrides__ {
-		led_gpio =		<&wittypi_led>,"gpios:4";
+		led_gpio =	<&wittypi_led>,"gpios:4";
 		led_trigger =	<&wittypi_led>,"linux,default-trigger";
 	};
 
