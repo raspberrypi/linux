@@ -13,18 +13,24 @@
 		target = <&spi0>;
 		__overlay__ {
 			status = "okay";
-
-			spidev@0{
-				status = "disabled";
-			};
-
-			spidev@1{
-				status = "disabled";
-			};
 		};
 	};
 
 	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
 		target = <&gpio>;
 		__overlay__ {
 			mz61581_pins: mz61581_pins {
@@ -34,7 +40,7 @@
 		};
 	};
 
-	fragment@2 {
+	fragment@4 {
 		target = <&spi0>;
 		__overlay__ {
 			/* needed to avoid dtc warning */
