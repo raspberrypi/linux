@@ -30,18 +30,24 @@
 		target = <&spi0>;
 		__overlay__ {
 			status = "okay";
-
-			spidev@0{
-				status = "disabled";
-			};
-
-			spidev@1{
-				status = "disabled";
-			};
 		};
 	};
 
 	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@3 {
 		target = <&gpio>;
 		__overlay__ {
 			tinylcd35_pins: tinylcd35_pins {
@@ -60,7 +66,7 @@
 		};
 	};
 
-	fragment@2 {
+	fragment@4 {
 		target = <&spi0>;
 		__overlay__ {
 			/* needed to avoid dtc warning */
@@ -124,7 +130,7 @@
 
 	/*  RTC    */
 
-	fragment@3 {
+	fragment@5 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -138,7 +144,7 @@
 		};
 	};
 
-	fragment@4 {
+	fragment@6 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -156,7 +162,7 @@
 	 * Values for input event code is found under the
 	 * 'Keys and buttons' heading in include/uapi/linux/input.h
 	 */
-	fragment@5 {
+	fragment@7 {
 		target-path = "/soc";
 		__overlay__ {
 			keypad: keypad {

@@ -12,14 +12,18 @@
         target = <&spi0>;
         __overlay__ {
             status = "okay";
-            spidev@0{
-                status = "disabled";
-            };
         };
     };
 
-    /* the interrupt pin of the can-controller */
     fragment@1 {
+	target = <&spidev0>;
+	__overlay__ {
+	    status = "disabled";
+	};
+    };
+
+    /* the interrupt pin of the can-controller */
+    fragment@2 {
         target = <&gpio>;
         __overlay__ {
             can0_pins: can0_pins {
@@ -30,7 +34,7 @@
     };
 
     /* the clock/oscillator of the can-controller */
-    fragment@2 {
+    fragment@3 {
         target-path = "/clocks";
         __overlay__ {
             /* external oscillator of mcp2515 on SPI0.0 */
@@ -43,7 +47,7 @@
     };
 
     /* the spi config of the can-controller itself binding everything together */
-    fragment@3 {
+    fragment@4 {
         target = <&spi0>;
         __overlay__ {
             /* needed to avoid dtc warning */

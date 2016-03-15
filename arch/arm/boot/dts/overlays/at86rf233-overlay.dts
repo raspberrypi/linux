@@ -14,10 +14,6 @@
 
 			status = "okay";
 
-			spidev@0{
-				status = "disabled";
-			};
-
 			lowpan0: at86rf233@0 {
 				compatible = "atmel,at86rf233";
 				reg = <0>;
@@ -32,6 +28,13 @@
 	};
 
 	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@2 {
 		target = <&gpio>;
 		__overlay__ {
 			lowpan0_pins: lowpan0_pins {
