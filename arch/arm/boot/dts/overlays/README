@@ -124,6 +124,9 @@ Params:
 
         uart0                   Set to "off" to disable uart0 (default "on")
 
+        uart1                   Set to "on" or "off" to enable or disable uart1
+                                (default varies)
+
         watchdog                Set to "on" to enable the hardware watchdog
                                 (default "off")
 
