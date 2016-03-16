@@ -47,6 +47,7 @@ static int snd_rpi_sabreberry32_init(struct snd_soc_pcm_runtime *rtd)
 		return (-EINVAL);
 	}
 
+	/* Change DAC Master/Slave Mode */
 	if (master_mode) {
 		/* Switch to Master Mode */
 		dev_info(codec->dev, "Master Mode\n");
@@ -55,13 +56,12 @@ static int snd_rpi_sabreberry32_init(struct snd_soc_pcm_runtime *rtd)
 	} else {
 		/* Switch to Slave Mode */
 		dev_info(codec->dev, "Slave Mode\n");
-		snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x80, (0 << 7));
 	}
 
 	/* Initialize SABRE9018Q2C */
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_8,  0x0F, 2 << 0);
+	snd_soc_update_bits(codec, SABRE9018Q2C_REG_8,  0xF0, 15 << 4);
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_1,  0x0C, 0 << 2);
-	snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x0F, 0 << 0);
 	snd_soc_write(codec, SABRE9018Q2C_REG_4,  0x06);
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_5,  0x80, 1 << 7);
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_5,  0x7F, 0x6F);
@@ -78,7 +78,6 @@ static int snd_rpi_sabreberry32_init(struct snd_soc_pcm_runtime *rtd)
 									0xFF, (MASTER_TRIM_VALUE >> 24));
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_7,  0xC0, 2 << 5);
 	snd_soc_write(codec, SABRE9018Q2C_REG_12, 0x1A);
-	snd_soc_update_bits(codec, SABRE9018Q2C_REG_12, 0xF0, 1 << 4);
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_13, 0x40, 0 << 6);
 	snd_soc_write(codec, SABRE9018Q2C_REG_23, 0x01);
 	snd_soc_write(codec, SABRE9018Q2C_REG_22, 0x10);
@@ -131,32 +130,46 @@ static int snd_rpi_sabreberry32_hw_params(
 	struct snd_soc_codec       *codec   = rtd->codec;
 	int bclk_ratio;
 	unsigned int div_mode;
+	unsigned int stop_div;
 
-	/* Change MCLK Source */
-	snd_rpi_sabreberry32_set_mclk(codec, params_rate(params));
+	/* Check DAC Master/Slave Mode */
+	if (master_mode) {
+		/* Change MCLK Source */
+		snd_rpi_sabreberry32_set_mclk(codec, params_rate(params));
+	}
 
-	/* Change MCLK Divider */
+	/* Change MCLK Divider & DPLL Lock FSR Number */
 	switch (params_rate(params))
 	{
 	case 44100:
 	case 48000:
 		div_mode = (2 << 5);
+		stop_div = 5;
 		break;
 
 	case 88200:
 	case 96000:
 		div_mode = (1 << 5);
+		stop_div = 5;
 		break;
 
 	case 176400:
 	case 192000:
 		div_mode = (0 << 5);
+		stop_div = 0;
 		break;
 
 	default:
 		return (-EINVAL);
 	}
-	snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x60, div_mode);
+
+	/* Check DAC Master/Slave Mode */
+	if (master_mode) {
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x60, div_mode);
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x0F, stop_div);
+	} else {
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x0F, stop_div);
+	}
 
 	bclk_ratio = snd_pcm_format_physical_width(
 							params_format(params)) * params_channels(params);
