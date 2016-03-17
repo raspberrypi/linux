@@ -46,6 +46,7 @@ struct pit_data {
 	u32		cycle;
 	u32		cnt;
 	unsigned int	irq;
+	bool		irq_requested;
 	struct clk	*mck;
 };
 
@@ -96,7 +97,10 @@ static int pit_clkevt_shutdown(struct clock_event_device *dev)
 
 	/* disable irq, leaving the clocksource active */
 	pit_write(data->base, AT91_PIT_MR, (data->cycle - 1) | AT91_PIT_PITEN);
-	free_irq(data->irq, data);
+	if (data->irq_requested) {
+		free_irq(data->irq, data);
+		data->irq_requested = false;
+	}
 	return 0;
 }
 
@@ -114,6 +118,8 @@ static int pit_clkevt_set_periodic(struct clock_event_device *dev)
 			  "at91_tick", data);
 	if (ret)
 		panic(pr_fmt("Unable to setup IRQ\n"));
+
+	data->irq_requested = true;
 
 	/* update clocksource counter */
 	data->cnt += data->cycle * PIT_PICNT(pit_read(data->base, AT91_PIT_PIVR));
