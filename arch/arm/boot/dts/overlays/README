@@ -360,6 +360,12 @@ Params: i2c_gpio_sda            GPIO used for I2C data (default "23")
                                 (default "2" = ~100kHz)
 
 
+Name:   i2c-mux-pca9548a
+Info:   Adds support for an NXP PCA9548A I2C multiplexer on i2c_arm
+Load:   dtoverlay=i2c-mux-pca9548a,<param>=<val>
+Params: addr                    I2C address of PCA9548A (default 0x70)
+
+
 Name:   i2c-rtc
 Info:   Adds support for a number of I2C Real Time Clock devices
 Load:   dtoverlay=i2c-rtc,<param>=<val>
