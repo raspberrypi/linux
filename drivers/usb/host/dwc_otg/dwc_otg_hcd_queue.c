@@ -56,6 +56,9 @@ void dwc_otg_hcd_qh_free(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 {
 	dwc_otg_qtd_t *qtd, *qtd_tmp;
 	dwc_irqflags_t flags;
+	uint32_t buf_size = 0;
+	uint8_t *align_buf_virt = NULL;
+	dwc_dma_t align_buf_dma;
 
 	/* Free each QTD in the QTD list */
 	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
@@ -67,17 +70,19 @@ void dwc_otg_hcd_qh_free(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	if (hcd->core_if->dma_desc_enable) {
 		dwc_otg_hcd_qh_free_ddma(hcd, qh);
 	} else if (qh->dw_align_buf) {
-		uint32_t buf_size;
 		if (qh->ep_type == UE_ISOCHRONOUS) {
 			buf_size = 4096;
 		} else {
 			buf_size = hcd->core_if->core_params->max_transfer_size;
 		}
-		DWC_DMA_FREE(buf_size, qh->dw_align_buf, qh->dw_align_buf_dma);
+		align_buf_virt = qh->dw_align_buf;
+		align_buf_dma = qh->dw_align_buf_dma;
 	}
 
 	DWC_FREE(qh);
 	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
+	if (align_buf_virt)
+		DWC_DMA_FREE(buf_size, align_buf_virt, align_buf_dma);
 	return;
 }
 
