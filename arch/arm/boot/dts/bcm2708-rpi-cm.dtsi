@@ -8,9 +8,9 @@
 };
 
 &gpio {
-	sdhost_pins: sdhost_pins {
+	mmc_pins: mmc_pins {
 		brcm,pins = <48 49 50 51 52 53>;
-		brcm,function = <4>; /* alt0 */
+		brcm,function = <7>; /* alt3 */
 	};
 };
 
@@ -22,12 +22,14 @@
 	};
 };
 
-&sdhost {
+
+&mmc {
 	pinctrl-names = "default";
-	pinctrl-0 = <&sdhost_pins>;
-	bus-width = <4>;
+	pinctrl-0 = <&mmc_pins>;
 	non-removable;
+	bus-width = <4>;
 	status = "okay";
+	brcm,overclock-50 = <0>;
 };
 
 &fb {
@@ -45,9 +47,6 @@
 		audio = <&audio>,"status";
 		watchdog = <&watchdog>,"status";
 		random = <&random>,"status";
-		sd_overclock = <&sdhost>,"brcm,overclock-50:0";
-		sd_force_pio = <&sdhost>,"brcm,force-pio?";
-		sd_pio_limit = <&sdhost>,"brcm,pio-limit:0";
-		sd_debug     = <&sdhost>,"brcm,debug";
+		sd_overclock = <&mmc>,"brcm,overclock-50:0";
 	};
 };
