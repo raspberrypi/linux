@@ -37,23 +37,24 @@
 	};
 
 	fragment@2 {
-		target = <&gpio>;
+		target = <&uart0_pins>;
 		__overlay__ {
-			uart0_pins: uart0_pins {
-				brcm,pins = <14 15>;
-				brcm,function = <4>; /* alt0 */
-				brcm,pull = <0 2>;
-			};
-
-			uart1_pins: uart1_pins {
-				brcm,pins = <32 33>;
-				brcm,function = <2>; /* alt5=UART1 */
-				brcm,pull = <0 2>;
-			};
+			brcm,pins;
+			brcm,function;
+			brcm,pull;
 		};
 	};
 
 	fragment@3 {
+		target = <&uart1_pins>;
+		__overlay__ {
+			brcm,pins = <32 33>;
+			brcm,function = <2>; /* alt5=UART1 */
+			brcm,pull = <0 2>;
+		};
+	};
+
+	fragment@4 {
 		target-path = "/aliases";
 		__overlay__ {
 			serial0 = "/soc/uart@7e201000";
