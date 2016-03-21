@@ -247,7 +247,7 @@ bool fiq_fsm_enable = true;
 //Bulk split-transaction NAK holdoff in microframes
 uint16_t nak_holdoff = 8;
 
-unsigned short fiq_fsm_mask = 0x07;
+unsigned short fiq_fsm_mask = 0x0F;
 
 /**
  * This function shows the Driver Version.
