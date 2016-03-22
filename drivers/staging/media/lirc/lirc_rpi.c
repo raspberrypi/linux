@@ -271,7 +271,7 @@ static irqreturn_t irq_handler(int i, void *blah, struct pt_regs *regs)
 			data = PULSE_MASK; /* really long time */
 			if (!(signal^sense)) {
 				/* sanity check */
-				printk(KERN_WARNING LIRC_DRIVER_NAME
+				printk(KERN_DEBUG LIRC_DRIVER_NAME
 				       ": AIEEEE: %d %d %lx %lx %lx %lx\n",
 				       signal, sense, tv.tv_sec, lasttv.tv_sec,
 				       tv.tv_usec, lasttv.tv_usec);
