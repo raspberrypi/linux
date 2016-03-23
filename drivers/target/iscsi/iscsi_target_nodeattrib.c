@@ -1,9 +1,7 @@
 /*******************************************************************************
  * This file contains the main functions related to Initiator Node Attributes.
  *
- * \u00a9 Copyright 2007-2011 RisingTide Systems LLC.
- *
- * Licensed to the Linux Foundation under the General Public License (GPL) version 2.
+ * (c) Copyright 2007-2013 Datera, Inc.
  *
  * Author: Nicholas A. Bellinger <nab@linux-iscsi.org>
  *
@@ -19,7 +17,6 @@
  ******************************************************************************/
 
 #include <target/target_core_base.h>
-#include <target/target_core_transport.h>
 
 #include "iscsi_target_core.h"
 #include "iscsi_target_device.h"
@@ -36,7 +33,8 @@ static inline char *iscsit_na_get_initiatorname(
 }
 
 void iscsit_set_default_node_attribues(
-	struct iscsi_node_acl *acl)
+	struct iscsi_node_acl *acl,
+	struct iscsi_portal_group *tpg)
 {
 	struct iscsi_node_attrib *a = &acl->node_attrib;
 
@@ -47,10 +45,10 @@ void iscsit_set_default_node_attribues(
 	a->random_datain_pdu_offsets = NA_RANDOM_DATAIN_PDU_OFFSETS;
 	a->random_datain_seq_offsets = NA_RANDOM_DATAIN_SEQ_OFFSETS;
 	a->random_r2t_offsets = NA_RANDOM_R2T_OFFSETS;
-	a->default_erl = NA_DEFAULT_ERL;
+	a->default_erl = tpg->tpg_attrib.default_erl;
 }
 
-extern int iscsit_na_dataout_timeout(
+int iscsit_na_dataout_timeout(
 	struct iscsi_node_acl *acl,
 	u32 dataout_timeout)
 {
@@ -75,7 +73,7 @@ extern int iscsit_na_dataout_timeout(
 	return 0;
 }
 
-extern int iscsit_na_dataout_timeout_retries(
+int iscsit_na_dataout_timeout_retries(
 	struct iscsi_node_acl *acl,
 	u32 dataout_timeout_retries)
 {
@@ -101,7 +99,7 @@ extern int iscsit_na_dataout_timeout_retries(
 	return 0;
 }
 
-extern int iscsit_na_nopin_timeout(
+int iscsit_na_nopin_timeout(
 	struct iscsi_node_acl *acl,
 	u32 nopin_timeout)
 {
@@ -135,7 +133,7 @@ extern int iscsit_na_nopin_timeout(
 		spin_lock_bh(&se_nacl->nacl_sess_lock);
 		se_sess = se_nacl->nacl_sess;
 		if (se_sess) {
-			sess = (struct iscsi_session *)se_sess->fabric_sess_ptr;
+			sess = se_sess->fabric_sess_ptr;
 
 			spin_lock(&sess->conn_lock);
 			list_for_each_entry(conn, &sess->sess_conn_list,
@@ -156,7 +154,7 @@ extern int iscsit_na_nopin_timeout(
 	return 0;
 }
 
-extern int iscsit_na_nopin_response_timeout(
+int iscsit_na_nopin_response_timeout(
 	struct iscsi_node_acl *acl,
 	u32 nopin_response_timeout)
 {
@@ -182,7 +180,7 @@ extern int iscsit_na_nopin_response_timeout(
 	return 0;
 }
 
-extern int iscsit_na_random_datain_pdu_offsets(
+int iscsit_na_random_datain_pdu_offsets(
 	struct iscsi_node_acl *acl,
 	u32 random_datain_pdu_offsets)
 {
@@ -202,7 +200,7 @@ extern int iscsit_na_random_datain_pdu_offsets(
 	return 0;
 }
 
-extern int iscsit_na_random_datain_seq_offsets(
+int iscsit_na_random_datain_seq_offsets(
 	struct iscsi_node_acl *acl,
 	u32 random_datain_seq_offsets)
 {
@@ -222,7 +220,7 @@ extern int iscsit_na_random_datain_seq_offsets(
 	return 0;
 }
 
-extern int iscsit_na_random_r2t_offsets(
+int iscsit_na_random_r2t_offsets(
 	struct iscsi_node_acl *acl,
 	u32 random_r2t_offsets)
 {
@@ -242,7 +240,7 @@ extern int iscsit_na_random_r2t_offsets(
 	return 0;
 }
 
-extern int iscsit_na_default_erl(
+int iscsit_na_default_erl(
 	struct iscsi_node_acl *acl,
 	u32 default_erl)
 {

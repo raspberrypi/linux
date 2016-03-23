@@ -27,20 +27,26 @@
 #ifndef __NOUVEAU_ENCODER_H__
 #define __NOUVEAU_ENCODER_H__
 
-#include "drm_encoder_slave.h"
-#include "nouveau_drv.h"
+#include <subdev/bios/dcb.h>
+
+#include <drm/drm_encoder_slave.h>
+#include "dispnv04/disp.h"
 
 #define NV_DPMS_CLEARED 0x80
+
+struct nouveau_i2c_port;
 
 struct nouveau_encoder {
 	struct drm_encoder_slave base;
 
-	struct dcb_entry *dcb;
+	struct dcb_output *dcb;
 	int or;
+	struct nouveau_i2c_port *i2c;
 
 	/* different to drm_encoder.crtc, this reflects what's
 	 * actually programmed on the hw, not the proposed crtc */
 	struct drm_crtc *crtc;
+	u32 ctrl;
 
 	struct drm_display_mode mode;
 	int last_dpms;
@@ -78,9 +84,10 @@ get_slave_funcs(struct drm_encoder *enc)
 	return to_encoder_slave(enc)->slave_funcs;
 }
 
+/* nouveau_dp.c */
+int nouveau_dp_detect(struct nouveau_encoder *);
+
 struct nouveau_connector *
 nouveau_encoder_connector_get(struct nouveau_encoder *encoder);
-int nv50_sor_create(struct drm_connector *, struct dcb_entry *);
-int nv50_dac_create(struct drm_connector *, struct dcb_entry *);
 
 #endif /* __NOUVEAU_ENCODER_H__ */

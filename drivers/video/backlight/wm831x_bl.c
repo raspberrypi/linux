@@ -111,6 +111,7 @@ static int wm831x_backlight_update_status(struct backlight_device *bl)
 static int wm831x_backlight_get_brightness(struct backlight_device *bl)
 {
 	struct wm831x_backlight_data *data = bl_get_data(bl);
+
 	return data->current_brightness;
 }
 
@@ -123,7 +124,7 @@ static const struct backlight_ops wm831x_backlight_ops = {
 static int wm831x_backlight_probe(struct platform_device *pdev)
 {
 	struct wm831x *wm831x = dev_get_drvdata(pdev->dev.parent);
-	struct wm831x_pdata *wm831x_pdata;
+	struct wm831x_pdata *wm831x_pdata = dev_get_platdata(pdev->dev.parent);
 	struct wm831x_backlight_pdata *pdata;
 	struct wm831x_backlight_data *data;
 	struct backlight_device *bl;
@@ -131,12 +132,10 @@ static int wm831x_backlight_probe(struct platform_device *pdev)
 	int ret, i, max_isel, isink_reg, dcdc_cfg;
 
 	/* We need platform data */
-	if (pdev->dev.parent->platform_data) {
-		wm831x_pdata = pdev->dev.parent->platform_data;
+	if (wm831x_pdata)
 		pdata = wm831x_pdata->backlight;
-	} else {
+	else
 		pdata = NULL;
-	}
 
 	if (!pdata) {
 		dev_err(&pdev->dev, "No platform data supplied\n");
@@ -186,7 +185,7 @@ static int wm831x_backlight_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
-	data = kzalloc(sizeof(*data), GFP_KERNEL);
+	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
 	if (data == NULL)
 		return -ENOMEM;
 
@@ -194,13 +193,13 @@ static int wm831x_backlight_probe(struct platform_device *pdev)
 	data->current_brightness = 0;
 	data->isink_reg = isink_reg;
 
+	memset(&props, 0, sizeof(props));
 	props.type = BACKLIGHT_RAW;
 	props.max_brightness = max_isel;
-	bl = backlight_device_register("wm831x", &pdev->dev, data,
-				       &wm831x_backlight_ops, &props);
+	bl = devm_backlight_device_register(&pdev->dev, "wm831x", &pdev->dev,
+					data, &wm831x_backlight_ops, &props);
 	if (IS_ERR(bl)) {
 		dev_err(&pdev->dev, "failed to register backlight\n");
-		kfree(data);
 		return PTR_ERR(bl);
 	}
 
@@ -211,42 +210,19 @@ static int wm831x_backlight_probe(struct platform_device *pdev)
 	/* Disable the DCDC if it was started so we can bootstrap */
 	wm831x_set_bits(wm831x, WM831X_DCDC_ENABLE, WM831X_DC4_ENA, 0);
 
-
 	backlight_update_status(bl);
 
-	return 0;
-}
-
-static int wm831x_backlight_remove(struct platform_device *pdev)
-{
-	struct backlight_device *bl = platform_get_drvdata(pdev);
-	struct wm831x_backlight_data *data = bl_get_data(bl);
-
-	backlight_device_unregister(bl);
-	kfree(data);
 	return 0;
 }
 
 static struct platform_driver wm831x_backlight_driver = {
 	.driver		= {
 		.name	= "wm831x-backlight",
-		.owner	= THIS_MODULE,
 	},
 	.probe		= wm831x_backlight_probe,
-	.remove		= wm831x_backlight_remove,
 };
 
-static int __init wm831x_backlight_init(void)
-{
-	return platform_driver_register(&wm831x_backlight_driver);
-}
-module_init(wm831x_backlight_init);
-
-static void __exit wm831x_backlight_exit(void)
-{
-	platform_driver_unregister(&wm831x_backlight_driver);
-}
-module_exit(wm831x_backlight_exit);
+module_platform_driver(wm831x_backlight_driver);
 
 MODULE_DESCRIPTION("Backlight Driver for WM831x PMICs");
 MODULE_AUTHOR("Mark Brown <broonie@opensource.wolfsonmicro.com");

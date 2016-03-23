@@ -111,7 +111,7 @@ static struct mdiobb_ctrl ep8248e_mdio_ctrl = {
 	.ops = &ep8248e_mdio_ops,
 };
 
-static int __devinit ep8248e_mdio_probe(struct platform_device *ofdev)
+static int ep8248e_mdio_probe(struct platform_device *ofdev)
 {
 	struct mii_bus *bus;
 	struct resource res;
@@ -298,7 +298,7 @@ static void __init ep8248e_setup_arch(void)
 		ppc_md.progress("ep8248e_setup_arch(), finish", 0);
 }
 
-static  __initdata struct of_device_id of_bus_ids[] = {
+static const struct of_device_id of_bus_ids[] __initconst = {
 	{ .compatible = "simple-bus", },
 	{ .compatible = "fsl,ep8248e-bcsr", },
 	{},

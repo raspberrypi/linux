@@ -2,6 +2,7 @@
  * pmbus.h - Common defines and structures for PMBus devices
  *
  * Copyright (c) 2010, 2011 Ericsson AB.
+ * Copyright (c) 2012 Guenter Roeck
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -146,31 +147,43 @@
  * code when reading or writing virtual registers.
  */
 #define PMBUS_VIRT_BASE			0x100
-#define PMBUS_VIRT_READ_TEMP_MIN	(PMBUS_VIRT_BASE + 0)
-#define PMBUS_VIRT_READ_TEMP_MAX	(PMBUS_VIRT_BASE + 1)
-#define PMBUS_VIRT_RESET_TEMP_HISTORY	(PMBUS_VIRT_BASE + 2)
-#define PMBUS_VIRT_READ_VIN_AVG		(PMBUS_VIRT_BASE + 3)
-#define PMBUS_VIRT_READ_VIN_MIN		(PMBUS_VIRT_BASE + 4)
-#define PMBUS_VIRT_READ_VIN_MAX		(PMBUS_VIRT_BASE + 5)
-#define PMBUS_VIRT_RESET_VIN_HISTORY	(PMBUS_VIRT_BASE + 6)
-#define PMBUS_VIRT_READ_IIN_AVG		(PMBUS_VIRT_BASE + 7)
-#define PMBUS_VIRT_READ_IIN_MIN		(PMBUS_VIRT_BASE + 8)
-#define PMBUS_VIRT_READ_IIN_MAX		(PMBUS_VIRT_BASE + 9)
-#define PMBUS_VIRT_RESET_IIN_HISTORY	(PMBUS_VIRT_BASE + 10)
-#define PMBUS_VIRT_READ_PIN_AVG		(PMBUS_VIRT_BASE + 11)
-#define PMBUS_VIRT_READ_PIN_MAX		(PMBUS_VIRT_BASE + 12)
-#define PMBUS_VIRT_RESET_PIN_HISTORY	(PMBUS_VIRT_BASE + 13)
-#define PMBUS_VIRT_READ_VOUT_AVG	(PMBUS_VIRT_BASE + 14)
-#define PMBUS_VIRT_READ_VOUT_MIN	(PMBUS_VIRT_BASE + 15)
-#define PMBUS_VIRT_READ_VOUT_MAX	(PMBUS_VIRT_BASE + 16)
-#define PMBUS_VIRT_RESET_VOUT_HISTORY	(PMBUS_VIRT_BASE + 17)
-#define PMBUS_VIRT_READ_IOUT_AVG	(PMBUS_VIRT_BASE + 18)
-#define PMBUS_VIRT_READ_IOUT_MIN	(PMBUS_VIRT_BASE + 19)
-#define PMBUS_VIRT_READ_IOUT_MAX	(PMBUS_VIRT_BASE + 20)
-#define PMBUS_VIRT_RESET_IOUT_HISTORY	(PMBUS_VIRT_BASE + 21)
-#define PMBUS_VIRT_READ_TEMP2_MIN	(PMBUS_VIRT_BASE + 22)
-#define PMBUS_VIRT_READ_TEMP2_MAX	(PMBUS_VIRT_BASE + 23)
-#define PMBUS_VIRT_RESET_TEMP2_HISTORY	(PMBUS_VIRT_BASE + 24)
+#define PMBUS_VIRT_READ_TEMP_AVG	(PMBUS_VIRT_BASE + 0)
+#define PMBUS_VIRT_READ_TEMP_MIN	(PMBUS_VIRT_BASE + 1)
+#define PMBUS_VIRT_READ_TEMP_MAX	(PMBUS_VIRT_BASE + 2)
+#define PMBUS_VIRT_RESET_TEMP_HISTORY	(PMBUS_VIRT_BASE + 3)
+#define PMBUS_VIRT_READ_VIN_AVG		(PMBUS_VIRT_BASE + 4)
+#define PMBUS_VIRT_READ_VIN_MIN		(PMBUS_VIRT_BASE + 5)
+#define PMBUS_VIRT_READ_VIN_MAX		(PMBUS_VIRT_BASE + 6)
+#define PMBUS_VIRT_RESET_VIN_HISTORY	(PMBUS_VIRT_BASE + 7)
+#define PMBUS_VIRT_READ_IIN_AVG		(PMBUS_VIRT_BASE + 8)
+#define PMBUS_VIRT_READ_IIN_MIN		(PMBUS_VIRT_BASE + 9)
+#define PMBUS_VIRT_READ_IIN_MAX		(PMBUS_VIRT_BASE + 10)
+#define PMBUS_VIRT_RESET_IIN_HISTORY	(PMBUS_VIRT_BASE + 11)
+#define PMBUS_VIRT_READ_PIN_AVG		(PMBUS_VIRT_BASE + 12)
+#define PMBUS_VIRT_READ_PIN_MAX		(PMBUS_VIRT_BASE + 13)
+#define PMBUS_VIRT_RESET_PIN_HISTORY	(PMBUS_VIRT_BASE + 14)
+#define PMBUS_VIRT_READ_POUT_AVG	(PMBUS_VIRT_BASE + 15)
+#define PMBUS_VIRT_READ_POUT_MAX	(PMBUS_VIRT_BASE + 16)
+#define PMBUS_VIRT_RESET_POUT_HISTORY	(PMBUS_VIRT_BASE + 17)
+#define PMBUS_VIRT_READ_VOUT_AVG	(PMBUS_VIRT_BASE + 18)
+#define PMBUS_VIRT_READ_VOUT_MIN	(PMBUS_VIRT_BASE + 19)
+#define PMBUS_VIRT_READ_VOUT_MAX	(PMBUS_VIRT_BASE + 20)
+#define PMBUS_VIRT_RESET_VOUT_HISTORY	(PMBUS_VIRT_BASE + 21)
+#define PMBUS_VIRT_READ_IOUT_AVG	(PMBUS_VIRT_BASE + 22)
+#define PMBUS_VIRT_READ_IOUT_MIN	(PMBUS_VIRT_BASE + 23)
+#define PMBUS_VIRT_READ_IOUT_MAX	(PMBUS_VIRT_BASE + 24)
+#define PMBUS_VIRT_RESET_IOUT_HISTORY	(PMBUS_VIRT_BASE + 25)
+#define PMBUS_VIRT_READ_TEMP2_AVG	(PMBUS_VIRT_BASE + 26)
+#define PMBUS_VIRT_READ_TEMP2_MIN	(PMBUS_VIRT_BASE + 27)
+#define PMBUS_VIRT_READ_TEMP2_MAX	(PMBUS_VIRT_BASE + 28)
+#define PMBUS_VIRT_RESET_TEMP2_HISTORY	(PMBUS_VIRT_BASE + 29)
+
+#define PMBUS_VIRT_READ_VMON		(PMBUS_VIRT_BASE + 30)
+#define PMBUS_VIRT_VMON_UV_WARN_LIMIT	(PMBUS_VIRT_BASE + 31)
+#define PMBUS_VIRT_VMON_OV_WARN_LIMIT	(PMBUS_VIRT_BASE + 32)
+#define PMBUS_VIRT_VMON_UV_FAULT_LIMIT	(PMBUS_VIRT_BASE + 33)
+#define PMBUS_VIRT_VMON_OV_FAULT_LIMIT	(PMBUS_VIRT_BASE + 34)
+#define PMBUS_VIRT_STATUS_VMON		(PMBUS_VIRT_BASE + 35)
 
 /*
  * CAPABILITY
@@ -312,6 +325,8 @@ enum pmbus_sensor_classes {
 #define PMBUS_HAVE_STATUS_TEMP	(1 << 15)
 #define PMBUS_HAVE_STATUS_FAN12	(1 << 16)
 #define PMBUS_HAVE_STATUS_FAN34	(1 << 17)
+#define PMBUS_HAVE_VMON		(1 << 18)
+#define PMBUS_HAVE_STATUS_VMON	(1 << 19)
 
 enum pmbus_data_format { linear = 0, direct, vid };
 
@@ -354,6 +369,7 @@ struct pmbus_driver_info {
 
 /* Function declarations */
 
+void pmbus_clear_cache(struct i2c_client *client);
 int pmbus_set_page(struct i2c_client *client, u8 page);
 int pmbus_read_word_data(struct i2c_client *client, u8 page, u8 reg);
 int pmbus_write_word_data(struct i2c_client *client, u8 page, u8 reg, u16 word);
@@ -364,7 +380,7 @@ bool pmbus_check_byte_register(struct i2c_client *client, int page, int reg);
 bool pmbus_check_word_register(struct i2c_client *client, int page, int reg);
 int pmbus_do_probe(struct i2c_client *client, const struct i2c_device_id *id,
 		   struct pmbus_driver_info *info);
-void pmbus_do_remove(struct i2c_client *client);
+int pmbus_do_remove(struct i2c_client *client);
 const struct pmbus_driver_info *pmbus_get_driver_info(struct i2c_client
 						      *client);
 

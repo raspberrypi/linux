@@ -125,7 +125,7 @@ static volatile u32 __iomem *psurge_start;
 static int psurge_type = PSURGE_NONE;
 
 /* irq for secondary cpus to report */
-static struct irq_host *psurge_host;
+static struct irq_domain *psurge_host;
 int psurge_secondary_virq;
 
 /*
@@ -176,7 +176,7 @@ static void smp_psurge_cause_ipi(int cpu, unsigned long data)
 	psurge_set_ipi(cpu);
 }
 
-static int psurge_host_map(struct irq_host *h, unsigned int virq,
+static int psurge_host_map(struct irq_domain *h, unsigned int virq,
 			 irq_hw_number_t hw)
 {
 	irq_set_chip_and_handler(virq, &dummy_irq_chip, handle_percpu_irq);
@@ -184,7 +184,7 @@ static int psurge_host_map(struct irq_host *h, unsigned int virq,
 	return 0;
 }
 
-struct irq_host_ops psurge_host_ops = {
+static const struct irq_domain_ops psurge_host_ops = {
 	.map	= psurge_host_map,
 };
 
@@ -192,8 +192,7 @@ static int psurge_secondary_ipi_init(void)
 {
 	int rc = -ENOMEM;
 
-	psurge_host = irq_alloc_host(NULL, IRQ_HOST_MAP_NOMAP, 0,
-		&psurge_host_ops, 0);
+	psurge_host = irq_domain_add_nomap(NULL, ~0, &psurge_host_ops, NULL);
 
 	if (psurge_host)
 		psurge_secondary_virq = irq_create_direct_mapping(psurge_host);
@@ -485,7 +484,7 @@ static void smp_core99_give_timebase(void)
 }
 
 
-static void __devinit smp_core99_take_timebase(void)
+static void smp_core99_take_timebase(void)
 {
 	unsigned long flags;
 
@@ -578,7 +577,7 @@ static void __init smp_core99_setup_i2c_hwsync(int ncpus)
 	int ok;
 
 	/* Look for the clock chip */
-	while ((cc = of_find_node_by_name(cc, "i2c-hwclock")) != NULL) {
+	for_each_node_by_name(cc, "i2c-hwclock") {
 		p = of_get_parent(cc);
 		ok = p && of_device_is_compatible(p, "uni-n-i2c");
 		of_node_put(p);
@@ -670,7 +669,7 @@ static void smp_core99_gpio_tb_freeze(int freeze)
 volatile static long int core99_l2_cache;
 volatile static long int core99_l3_cache;
 
-static void __devinit core99_init_caches(int cpu)
+static void core99_init_caches(int cpu)
 {
 #ifndef CONFIG_PPC64
 	if (!cpu_has_feature(CPU_FTR_L2CR))
@@ -802,7 +801,7 @@ static int __init smp_core99_probe(void)
 	return ncpus;
 }
 
-static int __devinit smp_core99_kick_cpu(int nr)
+static int smp_core99_kick_cpu(int nr)
 {
 	unsigned int save_vector;
 	unsigned long target, flags;
@@ -845,7 +844,7 @@ static int __devinit smp_core99_kick_cpu(int nr)
 	return 0;
 }
 
-static void __devinit smp_core99_setup_cpu(int cpu_nr)
+static void smp_core99_setup_cpu(int cpu_nr)
 {
 	/* Setup L2/L3 */
 	if (cpu_nr != 0)
@@ -886,7 +885,7 @@ static int smp_core99_cpu_notify(struct notifier_block *self,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata smp_core99_cpu_nb = {
+static struct notifier_block smp_core99_cpu_nb = {
 	.notifier_call	= smp_core99_cpu_notify,
 };
 #endif /* CONFIG_HOTPLUG_CPU */

@@ -6,7 +6,6 @@
  */
 
 #include <linux/module.h>
-#include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/pm.h>
@@ -90,9 +89,9 @@ static irqreturn_t bfin_rotary_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int __devinit bfin_rotary_probe(struct platform_device *pdev)
+static int bfin_rotary_probe(struct platform_device *pdev)
 {
-	struct bfin_rotary_platform_data *pdata = pdev->dev.platform_data;
+	struct bfin_rotary_platform_data *pdata = dev_get_platdata(&pdev->dev);
 	struct bfin_rot *rotary;
 	struct input_dev *input;
 	int error;
@@ -196,7 +195,7 @@ out1:
 	return error;
 }
 
-static int __devexit bfin_rotary_remove(struct platform_device *pdev)
+static int bfin_rotary_remove(struct platform_device *pdev)
 {
 	struct bfin_rot *rotary = platform_get_drvdata(pdev);
 
@@ -208,7 +207,6 @@ static int __devexit bfin_rotary_remove(struct platform_device *pdev)
 	peripheral_free_list(per_cnt);
 
 	kfree(rotary);
-	platform_set_drvdata(pdev, NULL);
 
 	return 0;
 }
@@ -255,7 +253,7 @@ static const struct dev_pm_ops bfin_rotary_pm_ops = {
 
 static struct platform_driver bfin_rotary_device_driver = {
 	.probe		= bfin_rotary_probe,
-	.remove		= __devexit_p(bfin_rotary_remove),
+	.remove		= bfin_rotary_remove,
 	.driver		= {
 		.name	= "bfin-rotary",
 		.owner	= THIS_MODULE,
@@ -264,18 +262,7 @@ static struct platform_driver bfin_rotary_device_driver = {
 #endif
 	},
 };
-
-static int __init bfin_rotary_init(void)
-{
-	return platform_driver_register(&bfin_rotary_device_driver);
-}
-module_init(bfin_rotary_init);
-
-static void __exit bfin_rotary_exit(void)
-{
-	platform_driver_unregister(&bfin_rotary_device_driver);
-}
-module_exit(bfin_rotary_exit);
+module_platform_driver(bfin_rotary_device_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Michael Hennerich <hennerich@blackfin.uclinux.org>");

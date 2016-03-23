@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -26,8 +27,6 @@
 #include <asm/machdep.h>
 #include <asm/ehv_pic.h>
 #include <asm/fsl_hcalls.h>
-
-#include "../../../kernel/irq/settings.h"
 
 static struct ehv_pic *global_ehv_pic;
 static DEFINE_SPINLOCK(ehv_pic_lock);
@@ -81,7 +80,7 @@ int ehv_pic_set_affinity(struct irq_data *d, const struct cpumask *dest,
 	ev_int_set_config(src, config, prio, cpuid);
 	spin_unlock_irqrestore(&ehv_pic_lock, flags);
 
-	return 0;
+	return IRQ_SET_MASK_OK;
 }
 
 static unsigned int ehv_pic_type_to_vecpri(unsigned int type)
@@ -112,17 +111,13 @@ static unsigned int ehv_pic_type_to_vecpri(unsigned int type)
 int ehv_pic_set_irq_type(struct irq_data *d, unsigned int flow_type)
 {
 	unsigned int src = virq_to_hw(d->irq);
-	struct irq_desc *desc = irq_to_desc(d->irq);
 	unsigned int vecpri, vold, vnew, prio, cpu_dest;
 	unsigned long flags;
 
 	if (flow_type == IRQ_TYPE_NONE)
 		flow_type = IRQ_TYPE_LEVEL_LOW;
 
-	irq_settings_clr_level(desc);
-	irq_settings_set_trigger_mask(desc, flow_type);
-	if (flow_type & (IRQ_TYPE_LEVEL_HIGH | IRQ_TYPE_LEVEL_LOW))
-		irq_settings_set_level(desc);
+	irqd_set_trigger_type(d, flow_type);
 
 	vecpri = ehv_pic_type_to_vecpri(flow_type);
 
@@ -143,7 +138,7 @@ int ehv_pic_set_irq_type(struct irq_data *d, unsigned int flow_type)
 	ev_int_set_config(src, vecpri, prio, cpu_dest);
 
 	spin_unlock_irqrestore(&ehv_pic_lock, flags);
-	return 0;
+	return IRQ_SET_MASK_OK_NOCOPY;
 }
 
 static struct irq_chip ehv_pic_irq_chip = {
@@ -182,13 +177,13 @@ unsigned int ehv_pic_get_irq(void)
 	return irq_linear_revmap(global_ehv_pic->irqhost, irq);
 }
 
-static int ehv_pic_host_match(struct irq_host *h, struct device_node *node)
+static int ehv_pic_host_match(struct irq_domain *h, struct device_node *node)
 {
 	/* Exact match, unless ehv_pic node is NULL */
 	return h->of_node == NULL || h->of_node == node;
 }
 
-static int ehv_pic_host_map(struct irq_host *h, unsigned int virq,
+static int ehv_pic_host_map(struct irq_domain *h, unsigned int virq,
 			 irq_hw_number_t hw)
 {
 	struct ehv_pic *ehv_pic = h->host_data;
@@ -217,7 +212,7 @@ static int ehv_pic_host_map(struct irq_host *h, unsigned int virq,
 	return 0;
 }
 
-static int ehv_pic_host_xlate(struct irq_host *h, struct device_node *ct,
+static int ehv_pic_host_xlate(struct irq_domain *h, struct device_node *ct,
 			   const u32 *intspec, unsigned int intsize,
 			   irq_hw_number_t *out_hwirq, unsigned int *out_flags)
 
@@ -248,7 +243,7 @@ static int ehv_pic_host_xlate(struct irq_host *h, struct device_node *ct,
 	return 0;
 }
 
-static struct irq_host_ops ehv_pic_host_ops = {
+static const struct irq_domain_ops ehv_pic_host_ops = {
 	.match = ehv_pic_host_match,
 	.map = ehv_pic_host_map,
 	.xlate = ehv_pic_host_xlate,
@@ -275,9 +270,8 @@ void __init ehv_pic_init(void)
 		return;
 	}
 
-	ehv_pic->irqhost = irq_alloc_host(np, IRQ_HOST_MAP_LINEAR,
-		NR_EHV_PIC_INTS, &ehv_pic_host_ops, 0);
-
+	ehv_pic->irqhost = irq_domain_add_linear(np, NR_EHV_PIC_INTS,
+						 &ehv_pic_host_ops, ehv_pic);
 	if (!ehv_pic->irqhost) {
 		of_node_put(np);
 		kfree(ehv_pic);
@@ -293,7 +287,6 @@ void __init ehv_pic_init(void)
 		of_node_put(np2);
 	}
 
-	ehv_pic->irqhost->host_data = ehv_pic;
 	ehv_pic->hc_irq = ehv_pic_irq_chip;
 	ehv_pic->hc_irq.irq_set_affinity = ehv_pic_set_affinity;
 	ehv_pic->coreint_flag = coreint_flag;

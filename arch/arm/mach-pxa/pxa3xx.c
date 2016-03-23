@@ -15,23 +15,25 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/gpio-pxa.h>
 #include <linux/pm.h>
 #include <linux/platform_device.h>
 #include <linux/irq.h>
 #include <linux/io.h>
+#include <linux/of.h>
 #include <linux/syscore_ops.h>
 #include <linux/i2c/pxa-i2c.h>
 
 #include <asm/mach/map.h>
 #include <asm/suspend.h>
 #include <mach/hardware.h>
-#include <mach/gpio-pxa.h>
 #include <mach/pxa3xx-regs.h>
 #include <mach/reset.h>
-#include <mach/ohci.h>
+#include <linux/platform_data/usb-ohci-pxa27x.h>
 #include <mach/pm.h>
 #include <mach/dma.h>
 #include <mach/smemc.h>
+#include <mach/irqs.h>
 
 #include "generic.h"
 #include "devices.h"
@@ -39,6 +41,8 @@
 
 #define PECR_IE(n)	((1 << ((n) * 2)) << 28)
 #define PECR_IS(n)	((1 << ((n) * 2)) << 29)
+
+extern void __init pxa_dt_irq_init(int (*fn)(struct irq_data *, unsigned int));
 
 static DEFINE_PXA3_CKEN(pxa3xx_ffuart, FFUART, 14857000, 1);
 static DEFINE_PXA3_CKEN(pxa3xx_btuart, BTUART, 14857000, 1);
@@ -56,6 +60,7 @@ static DEFINE_PXA3_CKEN(pxa3xx_pwm0, PWM0, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa3xx_pwm1, PWM1, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa3xx_mmc1, MMC1, 19500000, 0);
 static DEFINE_PXA3_CKEN(pxa3xx_mmc2, MMC2, 19500000, 0);
+static DEFINE_PXA3_CKEN(pxa3xx_gpio, GPIO, 13000000, 0);
 
 static DEFINE_CK(pxa3xx_lcd, LCD, &clk_pxa3xx_hsio_ops);
 static DEFINE_CK(pxa3xx_smemc, SMC, &clk_pxa3xx_smemc_ops);
@@ -79,15 +84,18 @@ static struct clk_lookup pxa3xx_clkregs[] = {
 	INIT_CLKREG(&clk_pxa3xx_usbh, "pxa27x-ohci", NULL),
 	INIT_CLKREG(&clk_pxa3xx_u2d, "pxa3xx-u2d", NULL),
 	INIT_CLKREG(&clk_pxa3xx_keypad, "pxa27x-keypad", NULL),
-	INIT_CLKREG(&clk_pxa3xx_ssp1, "pxa27x-ssp.0", NULL),
-	INIT_CLKREG(&clk_pxa3xx_ssp2, "pxa27x-ssp.1", NULL),
-	INIT_CLKREG(&clk_pxa3xx_ssp3, "pxa27x-ssp.2", NULL),
-	INIT_CLKREG(&clk_pxa3xx_ssp4, "pxa27x-ssp.3", NULL),
+	INIT_CLKREG(&clk_pxa3xx_ssp1, "pxa3xx-ssp.0", NULL),
+	INIT_CLKREG(&clk_pxa3xx_ssp2, "pxa3xx-ssp.1", NULL),
+	INIT_CLKREG(&clk_pxa3xx_ssp3, "pxa3xx-ssp.2", NULL),
+	INIT_CLKREG(&clk_pxa3xx_ssp4, "pxa3xx-ssp.3", NULL),
 	INIT_CLKREG(&clk_pxa3xx_pwm0, "pxa27x-pwm.0", NULL),
 	INIT_CLKREG(&clk_pxa3xx_pwm1, "pxa27x-pwm.1", NULL),
 	INIT_CLKREG(&clk_pxa3xx_mmc1, "pxa2xx-mci.0", NULL),
 	INIT_CLKREG(&clk_pxa3xx_mmc2, "pxa2xx-mci.1", NULL),
 	INIT_CLKREG(&clk_pxa3xx_smemc, "pxa2xx-pcmcia", NULL),
+	INIT_CLKREG(&clk_pxa3xx_gpio, "pxa3xx-gpio", NULL),
+	INIT_CLKREG(&clk_pxa3xx_gpio, "pxa93x-gpio", NULL),
+	INIT_CLKREG(&clk_dummy, "sa1100-rtc", NULL),
 };
 
 #ifdef CONFIG_PM
@@ -365,7 +373,8 @@ static struct irq_chip pxa_ext_wakeup_chip = {
 	.irq_set_type	= pxa_set_ext_wakeup_type,
 };
 
-static void __init pxa_init_ext_wakeup_irq(set_wake_t fn)
+static void __init pxa_init_ext_wakeup_irq(int (*fn)(struct irq_data *,
+					   unsigned int))
 {
 	int irq;
 
@@ -378,7 +387,7 @@ static void __init pxa_init_ext_wakeup_irq(set_wake_t fn)
 	pxa_ext_wakeup_chip.irq_set_wake = fn;
 }
 
-void __init pxa3xx_init_irq(void)
+static void __init __pxa3xx_init_irq(void)
 {
 	/* enable CP6 access */
 	u32 value;
@@ -386,16 +395,28 @@ void __init pxa3xx_init_irq(void)
 	value |= (1 << 6);
 	__asm__ __volatile__("mcr p15, 0, %0, c15, c1, 0\n": :"r"(value));
 
-	pxa_init_irq(56, pxa3xx_set_wake);
 	pxa_init_ext_wakeup_irq(pxa3xx_set_wake);
-	pxa_init_gpio(IRQ_GPIO_2_x, 2, 127, NULL);
 }
+
+void __init pxa3xx_init_irq(void)
+{
+	__pxa3xx_init_irq();
+	pxa_init_irq(56, pxa3xx_set_wake);
+}
+
+#ifdef CONFIG_OF
+void __init pxa3xx_dt_init_irq(void)
+{
+	__pxa3xx_init_irq();
+	pxa_dt_irq_init(pxa3xx_set_wake);
+}
+#endif	/* CONFIG_OF */
 
 static struct map_desc pxa3xx_io_desc[] __initdata = {
 	{	/* Mem Ctl */
 		.virtual	= (unsigned long)SMEMC_VIRT,
 		.pfn		= __phys_to_pfn(PXA3XX_SMEMC_BASE),
-		.length		= 0x00200000,
+		.length		= SMEMC_SIZE,
 		.type		= MT_DEVICE
 	}
 };
@@ -416,6 +437,10 @@ void __init pxa3xx_set_i2c_power_info(struct i2c_pxa_platform_data *info)
 	pxa_register_device(&pxa3xx_device_i2c_power, info);
 }
 
+static struct pxa_gpio_platform_data pxa3xx_gpio_pdata = {
+	.irq_base	= PXA_GPIO_TO_IRQ(0),
+};
+
 static struct platform_device *devices[] __initdata = {
 	&pxa27x_device_udc,
 	&pxa_device_pmu,
@@ -427,9 +452,9 @@ static struct platform_device *devices[] __initdata = {
 	&pxa_device_asoc_platform,
 	&sa1100_device_rtc,
 	&pxa_device_rtc,
-	&pxa27x_device_ssp1,
-	&pxa27x_device_ssp2,
-	&pxa27x_device_ssp3,
+	&pxa3xx_device_ssp1,
+	&pxa3xx_device_ssp2,
+	&pxa3xx_device_ssp3,
 	&pxa3xx_device_ssp4,
 	&pxa27x_device_pwm0,
 	&pxa27x_device_pwm1,
@@ -460,10 +485,20 @@ static int __init pxa3xx_init(void)
 
 		register_syscore_ops(&pxa_irq_syscore_ops);
 		register_syscore_ops(&pxa3xx_mfp_syscore_ops);
-		register_syscore_ops(&pxa_gpio_syscore_ops);
 		register_syscore_ops(&pxa3xx_clock_syscore_ops);
 
+		if (of_have_populated_dt())
+			return 0;
+
 		ret = platform_add_devices(devices, ARRAY_SIZE(devices));
+		if (ret)
+			return ret;
+		if (cpu_is_pxa300() || cpu_is_pxa310() || cpu_is_pxa320()) {
+			platform_device_add_data(&pxa3xx_device_gpio,
+						 &pxa3xx_gpio_pdata,
+						 sizeof(pxa3xx_gpio_pdata));
+			ret = platform_device_register(&pxa3xx_device_gpio);
+		}
 	}
 
 	return ret;

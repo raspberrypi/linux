@@ -3,7 +3,7 @@
  * temperature sensors
  * Copyright (C) 2007 IBM
  *
- * Author: Darrick J. Wong <djwong@us.ibm.com>
+ * Author: Darrick J. Wong <darrick.wong@oracle.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,12 +21,10 @@
  */
 
 #include <linux/module.h>
-#include <linux/jiffies.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/err.h>
 #include <linux/mutex.h>
-#include <linux/delay.h>
 #include <linux/log2.h>
 #include <linux/pci.h>
 #include <linux/platform_device.h>
@@ -159,8 +157,12 @@ static ssize_t store_amb_min(struct device *dev,
 {
 	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
 	struct i5k_amb_data *data = dev_get_drvdata(dev);
-	unsigned long temp = simple_strtoul(buf, NULL, 10) / 500;
+	unsigned long temp;
+	int ret = kstrtoul(buf, 10, &temp);
+	if (ret < 0)
+		return ret;
 
+	temp = temp / 500;
 	if (temp > 255)
 		temp = 255;
 
@@ -175,8 +177,12 @@ static ssize_t store_amb_mid(struct device *dev,
 {
 	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
 	struct i5k_amb_data *data = dev_get_drvdata(dev);
-	unsigned long temp = simple_strtoul(buf, NULL, 10) / 500;
+	unsigned long temp;
+	int ret = kstrtoul(buf, 10, &temp);
+	if (ret < 0)
+		return ret;
 
+	temp = temp / 500;
 	if (temp > 255)
 		temp = 255;
 
@@ -191,8 +197,12 @@ static ssize_t store_amb_max(struct device *dev,
 {
 	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
 	struct i5k_amb_data *data = dev_get_drvdata(dev);
-	unsigned long temp = simple_strtoul(buf, NULL, 10) / 500;
+	unsigned long temp;
+	int ret = kstrtoul(buf, 10, &temp);
+	if (ret < 0)
+		return ret;
 
+	temp = temp / 500;
 	if (temp > 255)
 		temp = 255;
 
@@ -250,7 +260,7 @@ static ssize_t show_label(struct device *dev,
 		       attr->index & DIMM_MASK);
 }
 
-static int __devinit i5k_amb_hwmon_init(struct platform_device *pdev)
+static int i5k_amb_hwmon_init(struct platform_device *pdev)
 {
 	int i, j, k, d = 0;
 	u16 c;
@@ -396,7 +406,7 @@ exit_remove:
 	return res;
 }
 
-static int __devinit i5k_amb_add(void)
+static int i5k_amb_add(void)
 {
 	int res = -ENODEV;
 
@@ -415,7 +425,7 @@ err:
 	return res;
 }
 
-static int __devinit i5k_find_amb_registers(struct i5k_amb_data *data,
+static int i5k_find_amb_registers(struct i5k_amb_data *data,
 					    unsigned long devid)
 {
 	struct pci_dev *pcidev;
@@ -449,7 +459,7 @@ out:
 	return res;
 }
 
-static int __devinit i5k_channel_probe(u16 *amb_present, unsigned long dev_id)
+static int i5k_channel_probe(u16 *amb_present, unsigned long dev_id)
 {
 	struct pci_dev *pcidev;
 	u16 val16;
@@ -478,14 +488,14 @@ out:
 static struct {
 	unsigned long err;
 	unsigned long fbd0;
-} chipset_ids[] __devinitdata  = {
+} chipset_ids[]  = {
 	{ PCI_DEVICE_ID_INTEL_5000_ERR, PCI_DEVICE_ID_INTEL_5000_FBD0 },
 	{ PCI_DEVICE_ID_INTEL_5400_ERR, PCI_DEVICE_ID_INTEL_5400_FBD0 },
 	{ 0, 0 }
 };
 
 #ifdef MODULE
-static struct pci_device_id i5k_amb_ids[] __devinitdata = {
+static struct pci_device_id i5k_amb_ids[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_5000_ERR) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_5400_ERR) },
 	{ 0, }
@@ -493,7 +503,7 @@ static struct pci_device_id i5k_amb_ids[] __devinitdata = {
 MODULE_DEVICE_TABLE(pci, i5k_amb_ids);
 #endif
 
-static int __devinit i5k_amb_probe(struct platform_device *pdev)
+static int i5k_amb_probe(struct platform_device *pdev)
 {
 	struct i5k_amb_data *data;
 	struct resource *reso;
@@ -546,7 +556,6 @@ static int __devinit i5k_amb_probe(struct platform_device *pdev)
 
 err_init_failed:
 	iounmap(data->amb_mmio);
-	platform_set_drvdata(pdev, NULL);
 err_map_failed:
 	release_mem_region(data->amb_base, data->amb_len);
 err:
@@ -554,7 +563,7 @@ err:
 	return res;
 }
 
-static int __devexit i5k_amb_remove(struct platform_device *pdev)
+static int i5k_amb_remove(struct platform_device *pdev)
 {
 	int i;
 	struct i5k_amb_data *data = platform_get_drvdata(pdev);
@@ -566,7 +575,6 @@ static int __devexit i5k_amb_remove(struct platform_device *pdev)
 	kfree(data->attrs);
 	iounmap(data->amb_mmio);
 	release_mem_region(data->amb_base, data->amb_len);
-	platform_set_drvdata(pdev, NULL);
 	kfree(data);
 	return 0;
 }
@@ -577,7 +585,7 @@ static struct platform_driver i5k_amb_driver = {
 		.name = DRVNAME,
 	},
 	.probe = i5k_amb_probe,
-	.remove = __devexit_p(i5k_amb_remove),
+	.remove = i5k_amb_remove,
 };
 
 static int __init i5k_amb_init(void)
@@ -601,7 +609,7 @@ static void __exit i5k_amb_exit(void)
 	platform_driver_unregister(&i5k_amb_driver);
 }
 
-MODULE_AUTHOR("Darrick J. Wong <djwong@us.ibm.com>");
+MODULE_AUTHOR("Darrick J. Wong <darrick.wong@oracle.com>");
 MODULE_DESCRIPTION("Intel 5000 chipset FB-DIMM AMB temperature sensor");
 MODULE_LICENSE("GPL");
 

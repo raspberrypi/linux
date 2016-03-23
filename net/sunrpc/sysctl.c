@@ -20,6 +20,8 @@
 #include <linux/sunrpc/stats.h>
 #include <linux/sunrpc/svc_xprt.h>
 
+#include "netns.h"
+
 /*
  * Declare the debug flags here
  */
@@ -38,7 +40,7 @@ EXPORT_SYMBOL_GPL(nlm_debug);
 #ifdef RPC_DEBUG
 
 static struct ctl_table_header *sunrpc_table_header;
-static ctl_table		sunrpc_table[];
+static struct ctl_table sunrpc_table[];
 
 void
 rpc_register_sysctl(void)
@@ -56,7 +58,7 @@ rpc_unregister_sysctl(void)
 	}
 }
 
-static int proc_do_xprt(ctl_table *table, int write,
+static int proc_do_xprt(struct ctl_table *table, int write,
 			void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	char tmpbuf[256];
@@ -71,7 +73,7 @@ static int proc_do_xprt(ctl_table *table, int write,
 }
 
 static int
-proc_dodebug(ctl_table *table, int write,
+proc_dodebug(struct ctl_table *table, int write,
 				void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	char		tmpbuf[20], c, *s;
@@ -110,7 +112,7 @@ proc_dodebug(ctl_table *table, int write,
 		*(unsigned int *) table->data = value;
 		/* Display the RPC tasks on writing to rpc_debug */
 		if (strcmp(table->procname, "rpc_debug") == 0)
-			rpc_show_tasks();
+			rpc_show_tasks(&init_net);
 	} else {
 		if (!access_ok(VERIFY_WRITE, buffer, left))
 			return -EFAULT;
@@ -133,7 +135,7 @@ done:
 }
 
 
-static ctl_table debug_table[] = {
+static struct ctl_table debug_table[] = {
 	{
 		.procname	= "rpc_debug",
 		.data		= &rpc_debug,
@@ -171,7 +173,7 @@ static ctl_table debug_table[] = {
 	{ }
 };
 
-static ctl_table sunrpc_table[] = {
+static struct ctl_table sunrpc_table[] = {
 	{
 		.procname	= "sunrpc",
 		.mode		= 0555,

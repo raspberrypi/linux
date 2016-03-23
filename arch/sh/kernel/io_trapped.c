@@ -15,7 +15,6 @@
 #include <linux/vmalloc.h>
 #include <linux/module.h>
 #include <linux/init.h>
-#include <asm/system.h>
 #include <asm/mmu_context.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -23,7 +22,7 @@
 
 #define TRAPPED_PAGES_MAX 16
 
-#ifdef CONFIG_HAS_IOPORT
+#ifdef CONFIG_HAS_IOPORT_MAP
 LIST_HEAD(trapped_io);
 EXPORT_SYMBOL_GPL(trapped_io);
 #endif
@@ -91,7 +90,7 @@ int register_trapped_io(struct trapped_io *tiop)
 	tiop->magic = IO_TRAPPED_MAGIC;
 	INIT_LIST_HEAD(&tiop->list);
 	spin_lock_irq(&trapped_lock);
-#ifdef CONFIG_HAS_IOPORT
+#ifdef CONFIG_HAS_IOPORT_MAP
 	if (flags & IORESOURCE_IO)
 		list_add(&tiop->list, &trapped_io);
 #endif

@@ -10,7 +10,7 @@ endif
 
 obj-y = bug.o bugs_$(BITS).o delay.o fault.o ksyms.o ldt.o \
 	ptrace_$(BITS).o ptrace_user.o setjmp_$(BITS).o signal.o \
-	stub_$(BITS).o stub_segv.o syscalls_$(BITS).o \
+	stub_$(BITS).o stub_segv.o \
 	sys_call_table_$(BITS).o sysrq_$(BITS).o tls_$(BITS).o \
 	mem_$(BITS).o subarch.o os-$(OS)/
 
@@ -25,7 +25,7 @@ subarch-$(CONFIG_HIGHMEM) += ../mm/highmem_32.o
 
 else
 
-obj-y += vdso/
+obj-y += syscalls_64.o vdso/
 
 subarch-y = ../lib/csum-partial_64.o ../lib/memcpy_64.o ../lib/thunk_64.o \
 		../lib/rwsem.o
@@ -37,7 +37,8 @@ subarch-$(CONFIG_MODULES) += ../kernel/module.o
 USER_OBJS := bugs_$(BITS).o ptrace_user.o fault.o
 
 extra-y += user-offsets.s
-$(obj)/user-offsets.s: c_flags = -Wp,-MD,$(depfile) $(USER_CFLAGS)
+$(obj)/user-offsets.s: c_flags = -Wp,-MD,$(depfile) $(USER_CFLAGS) \
+	-Iarch/x86/include/generated
 
 UNPROFILE_OBJS := stub_segv.o
 CFLAGS_stub_segv.o := $(CFLAGS_NO_HARDENING)

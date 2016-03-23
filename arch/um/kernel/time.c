@@ -10,10 +10,10 @@
 #include <linux/threads.h>
 #include <asm/irq.h>
 #include <asm/param.h>
-#include "kern_util.h"
-#include "os.h"
+#include <kern_util.h>
+#include <os.h>
 
-void timer_handler(int sig, struct uml_pt_regs *regs)
+void timer_handler(int sig, struct siginfo *unused_si, struct uml_pt_regs *regs)
 {
 	unsigned long flags;
 
@@ -82,7 +82,7 @@ static void __init setup_itimer(void)
 {
 	int err;
 
-	err = request_irq(TIMER_IRQ, um_timer, IRQF_DISABLED, "timer", NULL);
+	err = request_irq(TIMER_IRQ, um_timer, 0, "timer", NULL);
 	if (err != 0)
 		printk(KERN_ERR "register_timer : request_irq failed - "
 		       "errno = %d\n", -err);

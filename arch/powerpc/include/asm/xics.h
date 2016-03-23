@@ -29,6 +29,7 @@
 /* Native ICP */
 #ifdef CONFIG_PPC_ICP_NATIVE
 extern int icp_native_init(void);
+extern void icp_native_flush_interrupt(void);
 #else
 static inline int icp_native_init(void) { return -ENODEV; }
 #endif
@@ -86,7 +87,7 @@ struct ics {
 extern unsigned int xics_default_server;
 extern unsigned int xics_default_distrib_server;
 extern unsigned int xics_interrupt_server_size;
-extern struct irq_host *xics_host;
+extern struct irq_domain *xics_host;
 
 struct xics_cppr {
 	unsigned char stack[MAX_NUM_PRIORITIES];
@@ -150,6 +151,7 @@ extern void xics_register_ics(struct ics *ics);
 extern void xics_teardown_cpu(void);
 extern void xics_kexec_teardown_cpu(int secondary);
 extern void xics_migrate_irqs_away(void);
+extern void icp_native_eoi(struct irq_data *d);
 #ifdef CONFIG_SMP
 extern int xics_get_irq_server(unsigned int virq, const struct cpumask *cpumask,
 			       unsigned int strict_check);

@@ -32,8 +32,21 @@
 #include "the_nilfs.h"
 #include "bmap.h"
 
-/*
- * nilfs inode data in memory
+/**
+ * struct nilfs_inode_info - nilfs inode data in memory
+ * @i_flags: inode flags
+ * @i_state: dynamic state flags
+ * @i_bmap: pointer on i_bmap_data
+ * @i_bmap_data: raw block mapping
+ * @i_xattr: <TODO>
+ * @i_dir_start_lookup: page index of last successful search
+ * @i_cno: checkpoint number for GC inode
+ * @i_btnode_cache: cached pages of b-tree nodes
+ * @i_dirty: list for connecting dirty files
+ * @xattr_sem: semaphore for extended attributes processing
+ * @i_bh: buffer contains disk inode
+ * @i_root: root object of the current filesystem tree
+ * @vfs_inode: VFS inode object
  */
 struct nilfs_inode_info {
 	__u32 i_flags;
@@ -91,7 +104,7 @@ enum {
 					   constructor */
 	NILFS_I_COLLECTED,		/* All dirty blocks are collected */
 	NILFS_I_UPDATED,		/* The file has been written back */
-	NILFS_I_INODE_DIRTY,		/* write_inode is requested */
+	NILFS_I_INODE_SYNC,		/* dsync is not allowed for inode */
 	NILFS_I_BMAP,			/* has bmap and btnode_cache */
 	NILFS_I_GCINODE,		/* inode for GC, on memory only */
 };
@@ -128,7 +141,6 @@ enum {
  * @ti_save: Backup of journal_info field of task_struct
  * @ti_flags: Flags
  * @ti_count: Nest level
- * @ti_garbage:	List of inode to be put when releasing semaphore
  */
 struct nilfs_transaction_info {
 	u32			ti_magic;
@@ -137,7 +149,6 @@ struct nilfs_transaction_info {
 				   one of other filesystems has a bug. */
 	unsigned short		ti_flags;
 	unsigned short		ti_count;
-	struct list_head	ti_garbage;
 };
 
 /* ti_magic */
@@ -246,7 +257,7 @@ int nilfs_ioctl_prepare_clean_segments(struct the_nilfs *, struct nilfs_argv *,
 /* inode.c */
 void nilfs_inode_add_blocks(struct inode *inode, int n);
 void nilfs_inode_sub_blocks(struct inode *inode, int n);
-extern struct inode *nilfs_new_inode(struct inode *, int);
+extern struct inode *nilfs_new_inode(struct inode *, umode_t);
 extern void nilfs_free_inode(struct inode *);
 extern int nilfs_get_block(struct inode *, sector_t, struct buffer_head *, int);
 extern void nilfs_set_inode_flags(struct inode *);
@@ -260,18 +271,27 @@ struct inode *nilfs_iget(struct super_block *sb, struct nilfs_root *root,
 			 unsigned long ino);
 extern struct inode *nilfs_iget_for_gc(struct super_block *sb,
 				       unsigned long ino, __u64 cno);
-extern void nilfs_update_inode(struct inode *, struct buffer_head *);
+extern void nilfs_update_inode(struct inode *, struct buffer_head *, int);
 extern void nilfs_truncate(struct inode *);
 extern void nilfs_evict_inode(struct inode *);
 extern int nilfs_setattr(struct dentry *, struct iattr *);
+extern void nilfs_write_failed(struct address_space *mapping, loff_t to);
 int nilfs_permission(struct inode *inode, int mask);
 int nilfs_load_inode_block(struct inode *inode, struct buffer_head **pbh);
 extern int nilfs_inode_dirty(struct inode *);
 int nilfs_set_file_dirty(struct inode *inode, unsigned nr_dirty);
-extern int nilfs_mark_inode_dirty(struct inode *);
+extern int __nilfs_mark_inode_dirty(struct inode *, int);
 extern void nilfs_dirty_inode(struct inode *, int flags);
 int nilfs_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
 		 __u64 start, __u64 len);
+static inline int nilfs_mark_inode_dirty(struct inode *inode)
+{
+	return __nilfs_mark_inode_dirty(inode, I_DIRTY);
+}
+static inline int nilfs_mark_inode_dirty_sync(struct inode *inode)
+{
+	return __nilfs_mark_inode_dirty(inode, I_DIRTY_SYNC);
+}
 
 /* super.c */
 extern struct inode *nilfs_alloc_inode(struct super_block *);
@@ -305,6 +325,14 @@ int nilfs_gccache_submit_read_node(struct inode *, sector_t, __u64,
 int nilfs_gccache_wait_and_mark_dirty(struct buffer_head *);
 int nilfs_init_gcinode(struct inode *inode);
 void nilfs_remove_all_gcinodes(struct the_nilfs *nilfs);
+
+/* sysfs.c */
+int __init nilfs_sysfs_init(void);
+void nilfs_sysfs_exit(void);
+int nilfs_sysfs_create_device_group(struct super_block *);
+void nilfs_sysfs_delete_device_group(struct the_nilfs *);
+int nilfs_sysfs_create_snapshot_group(struct nilfs_root *);
+void nilfs_sysfs_delete_snapshot_group(struct nilfs_root *);
 
 /*
  * Inodes and files operations

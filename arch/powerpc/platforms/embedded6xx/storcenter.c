@@ -16,7 +16,6 @@
 #include <linux/initrd.h>
 #include <linux/of_platform.h>
 
-#include <asm/system.h>
 #include <asm/time.h>
 #include <asm/prom.h>
 #include <asm/mpic.h>
@@ -25,7 +24,7 @@
 #include "mpc10x.h"
 
 
-static __initdata struct of_device_id storcenter_of_bus[] = {
+static const struct of_device_id storcenter_of_bus[] __initconst = {
 	{ .name = "soc", },
 	{},
 };
@@ -84,8 +83,7 @@ static void __init storcenter_init_IRQ(void)
 {
 	struct mpic *mpic;
 
-	mpic = mpic_alloc(NULL, 0, MPIC_WANTS_RESET,
-			16, 32, " OpenPIC  ");
+	mpic = mpic_alloc(NULL, 0, 0, 16, 0, " OpenPIC  ");
 	BUG_ON(mpic == NULL);
 
 	/*

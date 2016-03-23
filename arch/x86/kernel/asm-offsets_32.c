@@ -3,6 +3,11 @@
 #include <linux/lguest.h>
 #include "../../../drivers/lguest/lg.h"
 
+#define __SYSCALL_I386(nr, sym, compat) [nr] = 1,
+static char syscalls[] = {
+#include <asm/syscalls_32.h>
+};
+
 /* workaround for a warning with -Wmissing-prototypes */
 void foo(void);
 
@@ -23,7 +28,6 @@ void foo(void)
 	OFFSET(CPUINFO_x86_vendor, cpuinfo_x86, x86_vendor);
 	OFFSET(CPUINFO_x86_model, cpuinfo_x86, x86_model);
 	OFFSET(CPUINFO_x86_mask, cpuinfo_x86, x86_mask);
-	OFFSET(CPUINFO_hard_math, cpuinfo_x86, hard_math);
 	OFFSET(CPUINFO_cpuid_level, cpuinfo_x86, cpuid_level);
 	OFFSET(CPUINFO_x86_capability, cpuinfo_x86, x86_capability);
 	OFFSET(CPUINFO_x86_vendor_id, cpuinfo_x86, x86_vendor_id);
@@ -55,6 +59,9 @@ void foo(void)
 	OFFSET(IA32_RT_SIGFRAME_sigcontext, rt_sigframe, uc.uc_mcontext);
 	BLANK();
 
+	OFFSET(saved_context_gdt_desc, saved_context, gdt_desc);
+	BLANK();
+
 	/* Offset from the sysenter stack to tss.sp0 */
 	DEFINE(TSS_sysenter_sp0, offsetof(struct tss_struct, x86_tss.sp0) -
 		 sizeof(struct tss_struct));
@@ -76,4 +83,7 @@ void foo(void)
 	OFFSET(LGUEST_PAGES_regs_errcode, lguest_pages, regs.errcode);
 	OFFSET(LGUEST_PAGES_regs, lguest_pages, regs);
 #endif
+	BLANK();
+	DEFINE(__NR_syscall_max, sizeof(syscalls) - 1);
+	DEFINE(NR_syscalls, sizeof(syscalls));
 }

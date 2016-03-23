@@ -17,7 +17,7 @@
 #include <linux/highmem.h>
 #include <linux/mutex.h>
 #include <linux/radix-tree.h>
-#include <linux/buffer_head.h> /* invalidate_bh_lrus() */
+#include <linux/fs.h>
 #include <linux/slab.h>
 
 #include <asm/uaccess.h>
@@ -117,13 +117,13 @@ static struct page *brd_insert_page(struct brd_device *brd, sector_t sector)
 
 	spin_lock(&brd->brd_lock);
 	idx = sector >> PAGE_SECTORS_SHIFT;
+	page->index = idx;
 	if (radix_tree_insert(&brd->brd_pages, idx, page)) {
 		__free_page(page);
 		page = radix_tree_lookup(&brd->brd_pages, idx);
 		BUG_ON(!page);
 		BUG_ON(page->index != idx);
-	} else
-		page->index = idx;
+	}
 	spin_unlock(&brd->brd_lock);
 
 	radix_tree_preload_end();
@@ -200,11 +200,11 @@ static int copy_to_brd_setup(struct brd_device *brd, sector_t sector, size_t n)
 
 	copy = min_t(size_t, n, PAGE_SIZE - offset);
 	if (!brd_insert_page(brd, sector))
-		return -ENOMEM;
+		return -ENOSPC;
 	if (copy < n) {
 		sector += copy >> SECTOR_SHIFT;
 		if (!brd_insert_page(brd, sector))
-			return -ENOMEM;
+			return -ENOSPC;
 	}
 	return 0;
 }
@@ -242,9 +242,9 @@ static void copy_to_brd(struct brd_device *brd, const void *src,
 	page = brd_lookup_page(brd, sector);
 	BUG_ON(!page);
 
-	dst = kmap_atomic(page, KM_USER1);
+	dst = kmap_atomic(page);
 	memcpy(dst + offset, src, copy);
-	kunmap_atomic(dst, KM_USER1);
+	kunmap_atomic(dst);
 
 	if (copy < n) {
 		src += copy;
@@ -253,9 +253,9 @@ static void copy_to_brd(struct brd_device *brd, const void *src,
 		page = brd_lookup_page(brd, sector);
 		BUG_ON(!page);
 
-		dst = kmap_atomic(page, KM_USER1);
+		dst = kmap_atomic(page);
 		memcpy(dst, src, copy);
-		kunmap_atomic(dst, KM_USER1);
+		kunmap_atomic(dst);
 	}
 }
 
@@ -273,9 +273,9 @@ static void copy_from_brd(void *dst, struct brd_device *brd,
 	copy = min_t(size_t, n, PAGE_SIZE - offset);
 	page = brd_lookup_page(brd, sector);
 	if (page) {
-		src = kmap_atomic(page, KM_USER1);
+		src = kmap_atomic(page);
 		memcpy(dst, src + offset, copy);
-		kunmap_atomic(src, KM_USER1);
+		kunmap_atomic(src);
 	} else
 		memset(dst, 0, copy);
 
@@ -285,9 +285,9 @@ static void copy_from_brd(void *dst, struct brd_device *brd,
 		copy = n - copy;
 		page = brd_lookup_page(brd, sector);
 		if (page) {
-			src = kmap_atomic(page, KM_USER1);
+			src = kmap_atomic(page);
 			memcpy(dst, src, copy);
-			kunmap_atomic(src, KM_USER1);
+			kunmap_atomic(src);
 		} else
 			memset(dst, 0, copy);
 	}
@@ -309,7 +309,7 @@ static int brd_do_bvec(struct brd_device *brd, struct page *page,
 			goto out;
 	}
 
-	mem = kmap_atomic(page, KM_USER0);
+	mem = kmap_atomic(page);
 	if (rw == READ) {
 		copy_from_brd(mem + off, brd, sector, len);
 		flush_dcache_page(page);
@@ -317,7 +317,7 @@ static int brd_do_bvec(struct brd_device *brd, struct page *page,
 		flush_dcache_page(page);
 		copy_to_brd(brd, mem + off, sector, len);
 	}
-	kunmap_atomic(mem, KM_USER0);
+	kunmap_atomic(mem);
 
 out:
 	return err;
@@ -328,19 +328,18 @@ static void brd_make_request(struct request_queue *q, struct bio *bio)
 	struct block_device *bdev = bio->bi_bdev;
 	struct brd_device *brd = bdev->bd_disk->private_data;
 	int rw;
-	struct bio_vec *bvec;
+	struct bio_vec bvec;
 	sector_t sector;
-	int i;
+	struct bvec_iter iter;
 	int err = -EIO;
 
-	sector = bio->bi_sector;
-	if (sector + (bio->bi_size >> SECTOR_SHIFT) >
-						get_capacity(bdev->bd_disk))
+	sector = bio->bi_iter.bi_sector;
+	if (bio_end_sector(bio) > get_capacity(bdev->bd_disk))
 		goto out;
 
 	if (unlikely(bio->bi_rw & REQ_DISCARD)) {
 		err = 0;
-		discard_from_brd(brd, sector, bio->bi_size);
+		discard_from_brd(brd, sector, bio->bi_iter.bi_size);
 		goto out;
 	}
 
@@ -348,10 +347,10 @@ static void brd_make_request(struct request_queue *q, struct bio *bio)
 	if (rw == READA)
 		rw = READ;
 
-	bio_for_each_segment(bvec, bio, i) {
-		unsigned int len = bvec->bv_len;
-		err = brd_do_bvec(brd, bvec->bv_page, len,
-					bvec->bv_offset, rw, sector);
+	bio_for_each_segment(bvec, bio, iter) {
+		unsigned int len = bvec.bv_len;
+		err = brd_do_bvec(brd, bvec.bv_page, len,
+					bvec.bv_offset, rw, sector);
 		if (err)
 			break;
 		sector += len >> SECTOR_SHIFT;
@@ -359,6 +358,15 @@ static void brd_make_request(struct request_queue *q, struct bio *bio)
 
 out:
 	bio_endio(bio, err);
+}
+
+static int brd_rw_page(struct block_device *bdev, sector_t sector,
+		       struct page *page, int rw)
+{
+	struct brd_device *brd = bdev->bd_disk->private_data;
+	int err = brd_do_bvec(brd, page, PAGE_CACHE_SIZE, 0, rw, sector);
+	page_endio(page, rw & WRITE, err);
+	return err;
 }
 
 #ifdef CONFIG_BLK_DEV_XIP
@@ -376,7 +384,7 @@ static int brd_direct_access(struct block_device *bdev, sector_t sector,
 		return -ERANGE;
 	page = brd_insert_page(brd, sector);
 	if (!page)
-		return -ENOMEM;
+		return -ENOSPC;
 	*kaddr = page_address(page);
 	*pfn = page_to_pfn(page);
 
@@ -402,14 +410,13 @@ static int brd_ioctl(struct block_device *bdev, fmode_t mode,
 	error = -EBUSY;
 	if (bdev->bd_openers <= 1) {
 		/*
-		 * Invalidate the cache first, so it isn't written
-		 * back to the device.
+		 * Kill the cache first, so it isn't written back to the
+		 * device.
 		 *
 		 * Another thread might instantiate more buffercache here,
 		 * but there is not much we can do to close that race.
 		 */
-		invalidate_bh_lrus();
-		truncate_inode_pages(bdev->bd_inode->i_mapping, 0);
+		kill_bdev(bdev);
 		brd_free_pages(brd);
 		error = 0;
 	}
@@ -421,6 +428,7 @@ static int brd_ioctl(struct block_device *bdev, fmode_t mode,
 
 static const struct block_device_operations brd_fops = {
 	.owner =		THIS_MODULE,
+	.rw_page =		brd_rw_page,
 	.ioctl =		brd_ioctl,
 #ifdef CONFIG_BLK_DEV_XIP
 	.direct_access =	brd_direct_access,
@@ -434,12 +442,15 @@ static int rd_nr;
 int rd_size = CONFIG_BLK_DEV_RAM_SIZE;
 static int max_part;
 static int part_shift;
+static int part_show = 0;
 module_param(rd_nr, int, S_IRUGO);
 MODULE_PARM_DESC(rd_nr, "Maximum number of brd devices");
 module_param(rd_size, int, S_IRUGO);
 MODULE_PARM_DESC(rd_size, "Size of each RAM disk in kbytes.");
 module_param(max_part, int, S_IRUGO);
 MODULE_PARM_DESC(max_part, "Maximum number of partitions per RAM disk");
+module_param(part_show, int, S_IRUGO);
+MODULE_PARM_DESC(part_show, "Control RAM disk visibility in /proc/partitions");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS_BLOCKDEV_MAJOR(RAMDISK_MAJOR);
 MODULE_ALIAS("rd");
@@ -493,7 +504,8 @@ static struct brd_device *brd_alloc(int i)
 	disk->fops		= &brd_fops;
 	disk->private_data	= brd;
 	disk->queue		= brd->brd_queue;
-	disk->flags |= GENHD_FL_SUPPRESS_PARTITION_INFO;
+	if (!part_show)
+		disk->flags |= GENHD_FL_SUPPRESS_PARTITION_INFO;
 	sprintf(disk->disk_name, "ram%d", i);
 	set_capacity(disk, rd_size * 2);
 
@@ -547,7 +559,7 @@ static struct kobject *brd_probe(dev_t dev, int *part, void *data)
 
 	mutex_lock(&brd_devices_mutex);
 	brd = brd_init_one(MINOR(dev) >> part_shift);
-	kobj = brd ? get_disk(brd->brd_disk) : ERR_PTR(-ENOMEM);
+	kobj = brd ? get_disk(brd->brd_disk) : NULL;
 	mutex_unlock(&brd_devices_mutex);
 
 	*part = 0;

@@ -2,6 +2,7 @@
 #include <linux/slab.h>
 #include <asm/processor.h>
 #include <asm/fpu.h>
+#include <asm/traps.h>
 
 int init_fpu(struct task_struct *tsk)
 {
@@ -43,7 +44,7 @@ void __fpu_state_restore(void)
 	restore_fpu(tsk);
 
 	task_thread_info(tsk)->status |= TS_USEDFPU;
-	tsk->fpu_counter++;
+	tsk->thread.fpu_counter++;
 }
 
 void fpu_state_restore(struct pt_regs *regs)

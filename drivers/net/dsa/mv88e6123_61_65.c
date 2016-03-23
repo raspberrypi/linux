@@ -8,24 +8,44 @@
  * (at your option) any later version.
  */
 
+#include <linux/delay.h>
+#include <linux/jiffies.h>
 #include <linux/list.h>
+#include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/phy.h>
 #include <net/dsa.h>
 #include "mv88e6xxx.h"
 
-static char *mv88e6123_61_65_probe(struct mii_bus *bus, int sw_addr)
+static char *mv88e6123_61_65_probe(struct device *host_dev, int sw_addr)
 {
+	struct mii_bus *bus = dsa_host_dev_to_mii_bus(host_dev);
 	int ret;
+
+	if (bus == NULL)
+		return NULL;
 
 	ret = __mv88e6xxx_reg_read(bus, sw_addr, REG_PORT(0), 0x03);
 	if (ret >= 0) {
-		ret &= 0xfff0;
-		if (ret == 0x1210)
+		if (ret == 0x1212)
+			return "Marvell 88E6123 (A1)";
+		if (ret == 0x1213)
+			return "Marvell 88E6123 (A2)";
+		if ((ret & 0xfff0) == 0x1210)
 			return "Marvell 88E6123";
-		if (ret == 0x1610)
+
+		if (ret == 0x1612)
+			return "Marvell 88E6161 (A1)";
+		if (ret == 0x1613)
+			return "Marvell 88E6161 (A2)";
+		if ((ret & 0xfff0) == 0x1610)
 			return "Marvell 88E6161";
-		if (ret == 0x1650)
+
+		if (ret == 0x1652)
+			return "Marvell 88E6165 (A1)";
+		if (ret == 0x1653)
+			return "Marvell 88e6165 (A2)";
+		if ((ret & 0xfff0) == 0x1650)
 			return "Marvell 88E6165";
 	}
 
@@ -36,36 +56,30 @@ static int mv88e6123_61_65_switch_reset(struct dsa_switch *ds)
 {
 	int i;
 	int ret;
+	unsigned long timeout;
 
-	/*
-	 * Set all ports to the disabled state.
-	 */
+	/* Set all ports to the disabled state. */
 	for (i = 0; i < 8; i++) {
 		ret = REG_READ(REG_PORT(i), 0x04);
 		REG_WRITE(REG_PORT(i), 0x04, ret & 0xfffc);
 	}
 
-	/*
-	 * Wait for transmit queues to drain.
-	 */
-	msleep(2);
+	/* Wait for transmit queues to drain. */
+	usleep_range(2000, 4000);
 
-	/*
-	 * Reset the switch.
-	 */
+	/* Reset the switch. */
 	REG_WRITE(REG_GLOBAL, 0x04, 0xc400);
 
-	/*
-	 * Wait up to one second for reset to complete.
-	 */
-	for (i = 0; i < 1000; i++) {
+	/* Wait up to one second for reset to complete. */
+	timeout = jiffies + 1 * HZ;
+	while (time_before(jiffies, timeout)) {
 		ret = REG_READ(REG_GLOBAL, 0x00);
 		if ((ret & 0xc800) == 0xc800)
 			break;
 
-		msleep(1);
+		usleep_range(1000, 2000);
 	}
-	if (i == 1000)
+	if (time_after(jiffies, timeout))
 		return -ETIMEDOUT;
 
 	return 0;
@@ -76,54 +90,45 @@ static int mv88e6123_61_65_setup_global(struct dsa_switch *ds)
 	int ret;
 	int i;
 
-	/*
-	 * Disable the PHY polling unit (since there won't be any
+	/* Disable the PHY polling unit (since there won't be any
 	 * external PHYs to poll), don't discard packets with
 	 * excessive collisions, and mask all interrupt sources.
 	 */
 	REG_WRITE(REG_GLOBAL, 0x04, 0x0000);
 
-	/*
-	 * Set the default address aging time to 5 minutes, and
+	/* Set the default address aging time to 5 minutes, and
 	 * enable address learn messages to be sent to all message
 	 * ports.
 	 */
 	REG_WRITE(REG_GLOBAL, 0x0a, 0x0148);
 
-	/*
-	 * Configure the priority mapping registers.
-	 */
+	/* Configure the priority mapping registers. */
 	ret = mv88e6xxx_config_prio(ds);
 	if (ret < 0)
 		return ret;
 
-	/*
-	 * Configure the upstream port, and configure the upstream
+	/* Configure the upstream port, and configure the upstream
 	 * port as the port to which ingress and egress monitor frames
 	 * are to be sent.
 	 */
 	REG_WRITE(REG_GLOBAL, 0x1a, (dsa_upstream_port(ds) * 0x1110));
 
-	/*
-	 * Disable remote management for now, and set the switch's
+	/* Disable remote management for now, and set the switch's
 	 * DSA device number.
 	 */
 	REG_WRITE(REG_GLOBAL, 0x1c, ds->index & 0x1f);
 
-	/*
-	 * Send all frames with destination addresses matching
+	/* Send all frames with destination addresses matching
 	 * 01:80:c2:00:00:2x to the CPU port.
 	 */
 	REG_WRITE(REG_GLOBAL2, 0x02, 0xffff);
 
-	/*
-	 * Send all frames with destination addresses matching
+	/* Send all frames with destination addresses matching
 	 * 01:80:c2:00:00:0x to the CPU port.
 	 */
 	REG_WRITE(REG_GLOBAL2, 0x03, 0xffff);
 
-	/*
-	 * Disable the loopback filter, disable flow control
+	/* Disable the loopback filter, disable flow control
 	 * messages, disable flood broadcast override, disable
 	 * removing of provider tags, disable ATU age violation
 	 * interrupts, disable tag flow control, force flow
@@ -132,9 +137,7 @@ static int mv88e6123_61_65_setup_global(struct dsa_switch *ds)
 	 */
 	REG_WRITE(REG_GLOBAL2, 0x05, 0x00ff);
 
-	/*
-	 * Program the DSA routing table.
-	 */
+	/* Program the DSA routing table. */
 	for (i = 0; i < 32; i++) {
 		int nexthop;
 
@@ -145,33 +148,24 @@ static int mv88e6123_61_65_setup_global(struct dsa_switch *ds)
 		REG_WRITE(REG_GLOBAL2, 0x06, 0x8000 | (i << 8) | nexthop);
 	}
 
-	/*
-	 * Clear all trunk masks.
-	 */
+	/* Clear all trunk masks. */
 	for (i = 0; i < 8; i++)
 		REG_WRITE(REG_GLOBAL2, 0x07, 0x8000 | (i << 12) | 0xff);
 
-	/*
-	 * Clear all trunk mappings.
-	 */
+	/* Clear all trunk mappings. */
 	for (i = 0; i < 16; i++)
 		REG_WRITE(REG_GLOBAL2, 0x08, 0x8000 | (i << 11));
 
-	/*
-	 * Disable ingress rate limiting by resetting all ingress
+	/* Disable ingress rate limiting by resetting all ingress
 	 * rate limit registers to their initial state.
 	 */
 	for (i = 0; i < 6; i++)
 		REG_WRITE(REG_GLOBAL2, 0x09, 0x9000 | (i << 8));
 
-	/*
-	 * Initialise cross-chip port VLAN table to reset defaults.
-	 */
+	/* Initialise cross-chip port VLAN table to reset defaults. */
 	REG_WRITE(REG_GLOBAL2, 0x0b, 0x9000);
 
-	/*
-	 * Clear the priority override table.
-	 */
+	/* Clear the priority override table. */
 	for (i = 0; i < 16; i++)
 		REG_WRITE(REG_GLOBAL2, 0x0f, 0x8000 | (i << 8));
 
@@ -185,8 +179,7 @@ static int mv88e6123_61_65_setup_port(struct dsa_switch *ds, int p)
 	int addr = REG_PORT(p);
 	u16 val;
 
-	/*
-	 * MAC Forcing register: don't force link, speed, duplex
+	/* MAC Forcing register: don't force link, speed, duplex
 	 * or flow control state to any particular values on physical
 	 * ports, but force the CPU port and all DSA ports to 1000 Mb/s
 	 * full duplex.
@@ -196,15 +189,13 @@ static int mv88e6123_61_65_setup_port(struct dsa_switch *ds, int p)
 	else
 		REG_WRITE(addr, 0x01, 0x0003);
 
-	/*
-	 * Do not limit the period of time that this port can be
+	/* Do not limit the period of time that this port can be
 	 * paused for by the remote end or the period of time that
 	 * this port can pause the remote end.
 	 */
 	REG_WRITE(addr, 0x02, 0x0000);
 
-	/*
-	 * Port Control: disable Drop-on-Unlock, disable Drop-on-Lock,
+	/* Port Control: disable Drop-on-Unlock, disable Drop-on-Lock,
 	 * disable Header mode, enable IGMP/MLD snooping, disable VLAN
 	 * tunneling, determine priority by looking at 802.1p and IP
 	 * priority fields (IP prio has precedence), and set STP state
@@ -220,7 +211,7 @@ static int mv88e6123_61_65_setup_port(struct dsa_switch *ds, int p)
 	 */
 	val = 0x0433;
 	if (dsa_is_cpu_port(ds, p)) {
-		if (ds->dst->tag_protocol == htons(ETH_P_EDSA))
+		if (ds->dst->tag_protocol == DSA_TAG_PROTO_EDSA)
 			val |= 0x3300;
 		else
 			val |= 0x0100;
@@ -231,14 +222,12 @@ static int mv88e6123_61_65_setup_port(struct dsa_switch *ds, int p)
 		val |= 0x000c;
 	REG_WRITE(addr, 0x04, val);
 
-	/*
-	 * Port Control 1: disable trunking.  Also, if this is the
+	/* Port Control 1: disable trunking.  Also, if this is the
 	 * CPU port, enable learn messages to be sent to this port.
 	 */
 	REG_WRITE(addr, 0x05, dsa_is_cpu_port(ds, p) ? 0x8000 : 0x0000);
 
-	/*
-	 * Port based VLAN map: give each port its own address
+	/* Port based VLAN map: give each port its own address
 	 * database, allow the CPU port to talk to each of the 'real'
 	 * ports, and allow each of the 'real' ports to only talk to
 	 * the upstream port.
@@ -250,14 +239,12 @@ static int mv88e6123_61_65_setup_port(struct dsa_switch *ds, int p)
 		val |= 1 << dsa_upstream_port(ds);
 	REG_WRITE(addr, 0x06, val);
 
-	/*
-	 * Default VLAN ID and priority: don't set a default VLAN
+	/* Default VLAN ID and priority: don't set a default VLAN
 	 * ID, and set the default packet priority to zero.
 	 */
 	REG_WRITE(addr, 0x07, 0x0000);
 
-	/*
-	 * Port Control 2: don't force a good FCS, set the maximum
+	/* Port Control 2: don't force a good FCS, set the maximum
 	 * frame size to 10240 bytes, don't let the switch add or
 	 * strip 802.1q tags, don't discard tagged or untagged frames
 	 * on this port, do a destination address lookup on all
@@ -267,48 +254,36 @@ static int mv88e6123_61_65_setup_port(struct dsa_switch *ds, int p)
 	 */
 	REG_WRITE(addr, 0x08, 0x2080);
 
-	/*
-	 * Egress rate control: disable egress rate control.
-	 */
+	/* Egress rate control: disable egress rate control. */
 	REG_WRITE(addr, 0x09, 0x0001);
 
-	/*
-	 * Egress rate control 2: disable egress rate control.
-	 */
+	/* Egress rate control 2: disable egress rate control. */
 	REG_WRITE(addr, 0x0a, 0x0000);
 
-	/*
-	 * Port Association Vector: when learning source addresses
+	/* Port Association Vector: when learning source addresses
 	 * of packets, add the address to the address database using
 	 * a port bitmap that has only the bit for this port set and
 	 * the other bits clear.
 	 */
 	REG_WRITE(addr, 0x0b, 1 << p);
 
-	/*
-	 * Port ATU control: disable limiting the number of address
+	/* Port ATU control: disable limiting the number of address
 	 * database entries that this port is allowed to use.
 	 */
 	REG_WRITE(addr, 0x0c, 0x0000);
 
-	/*
-	 * Priorit Override: disable DA, SA and VTU priority override.
-	 */
+	/* Priority Override: disable DA, SA and VTU priority override. */
 	REG_WRITE(addr, 0x0d, 0x0000);
 
-	/*
-	 * Port Ethertype: use the Ethertype DSA Ethertype value.
-	 */
+	/* Port Ethertype: use the Ethertype DSA Ethertype value. */
 	REG_WRITE(addr, 0x0f, ETH_P_EDSA);
 
-	/*
-	 * Tag Remap: use an identity 802.1p prio -> switch prio
+	/* Tag Remap: use an identity 802.1p prio -> switch prio
 	 * mapping.
 	 */
 	REG_WRITE(addr, 0x18, 0x3210);
 
-	/*
-	 * Tag Remap 2: use an identity 802.1p prio -> switch prio
+	/* Tag Remap 2: use an identity 802.1p prio -> switch prio
 	 * mapping.
 	 */
 	REG_WRITE(addr, 0x19, 0x7654);
@@ -318,7 +293,7 @@ static int mv88e6123_61_65_setup_port(struct dsa_switch *ds, int p)
 
 static int mv88e6123_61_65_setup(struct dsa_switch *ds)
 {
-	struct mv88e6xxx_priv_state *ps = (void *)(ds + 1);
+	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 	int i;
 	int ret;
 
@@ -420,7 +395,7 @@ static int mv88e6123_61_65_get_sset_count(struct dsa_switch *ds)
 }
 
 struct dsa_switch_driver mv88e6123_61_65_switch_driver = {
-	.tag_protocol		= cpu_to_be16(ETH_P_EDSA),
+	.tag_protocol		= DSA_TAG_PROTO_EDSA,
 	.priv_size		= sizeof(struct mv88e6xxx_priv_state),
 	.probe			= mv88e6123_61_65_probe,
 	.setup			= mv88e6123_61_65_setup,

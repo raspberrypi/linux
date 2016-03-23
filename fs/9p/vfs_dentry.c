@@ -43,31 +43,14 @@
 #include "fid.h"
 
 /**
- * v9fs_dentry_delete - called when dentry refcount equals 0
- * @dentry:  dentry in question
- *
- * By returning 1 here we should remove cacheing of unused
- * dentry components.
- *
- */
-
-static int v9fs_dentry_delete(const struct dentry *dentry)
-{
-	P9_DPRINTK(P9_DEBUG_VFS, " dentry: %s (%p)\n", dentry->d_name.name,
-									dentry);
-
-	return 1;
-}
-
-/**
  * v9fs_cached_dentry_delete - called when dentry refcount equals 0
  * @dentry:  dentry in question
  *
  */
 static int v9fs_cached_dentry_delete(const struct dentry *dentry)
 {
-	P9_DPRINTK(P9_DEBUG_VFS, " dentry: %s (%p)\n",
-		   dentry->d_name.name, dentry);
+	p9_debug(P9_DEBUG_VFS, " dentry: %pd (%p)\n",
+		 dentry, dentry);
 
 	/* Don't cache negative dentries */
 	if (!dentry->d_inode)
@@ -83,30 +66,21 @@ static int v9fs_cached_dentry_delete(const struct dentry *dentry)
 
 static void v9fs_dentry_release(struct dentry *dentry)
 {
-	struct v9fs_dentry *dent;
-	struct p9_fid *temp, *current_fid;
-
-	P9_DPRINTK(P9_DEBUG_VFS, " dentry: %s (%p)\n", dentry->d_name.name,
-									dentry);
-	dent = dentry->d_fsdata;
-	if (dent) {
-		list_for_each_entry_safe(current_fid, temp, &dent->fidlist,
-									dlist) {
-			p9_client_clunk(current_fid);
-		}
-
-		kfree(dent);
-		dentry->d_fsdata = NULL;
-	}
+	struct hlist_node *p, *n;
+	p9_debug(P9_DEBUG_VFS, " dentry: %pd (%p)\n",
+		 dentry, dentry);
+	hlist_for_each_safe(p, n, (struct hlist_head *)&dentry->d_fsdata)
+		p9_client_clunk(hlist_entry(p, struct p9_fid, dlist));
+	dentry->d_fsdata = NULL;
 }
 
-static int v9fs_lookup_revalidate(struct dentry *dentry, struct nameidata *nd)
+static int v9fs_lookup_revalidate(struct dentry *dentry, unsigned int flags)
 {
 	struct p9_fid *fid;
 	struct inode *inode;
 	struct v9fs_inode *v9inode;
 
-	if (nd->flags & LOOKUP_RCU)
+	if (flags & LOOKUP_RCU)
 		return -ECHILD;
 
 	inode = dentry->d_inode;
@@ -137,11 +111,12 @@ out_valid:
 
 const struct dentry_operations v9fs_cached_dentry_operations = {
 	.d_revalidate = v9fs_lookup_revalidate,
+	.d_weak_revalidate = v9fs_lookup_revalidate,
 	.d_delete = v9fs_cached_dentry_delete,
 	.d_release = v9fs_dentry_release,
 };
 
 const struct dentry_operations v9fs_dentry_operations = {
-	.d_delete = v9fs_dentry_delete,
+	.d_delete = always_delete_dentry,
 	.d_release = v9fs_dentry_release,
 };

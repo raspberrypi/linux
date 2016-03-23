@@ -6,15 +6,7 @@
  * (Reliable Autonomic Distributed Object Store).
  */
 
-#include "msgr.h"
-
-/*
- * osdmap encoding versions
- */
-#define CEPH_OSDMAP_INC_VERSION     5
-#define CEPH_OSDMAP_INC_VERSION_EXT 6
-#define CEPH_OSDMAP_VERSION         5
-#define CEPH_OSDMAP_VERSION_EXT     6
+#include <linux/ceph/msgr.h>
 
 /*
  * fs id
@@ -64,7 +56,7 @@ struct ceph_timespec {
  * placement group.
  * we encode this into one __le64.
  */
-struct ceph_pg {
+struct ceph_pg_v1 {
 	__le16 preferred; /* preferred primary osd */
 	__le16 ps;        /* placement seed */
 	__le32 pool;      /* object pool */
@@ -87,23 +79,11 @@ struct ceph_pg {
  *
  *  lpgp_num -- as above.
  */
-#define CEPH_PG_TYPE_REP     1
-#define CEPH_PG_TYPE_RAID4   2
-#define CEPH_PG_POOL_VERSION 2
-struct ceph_pg_pool {
-	__u8 type;                /* CEPH_PG_TYPE_* */
-	__u8 size;                /* number of osds in each pg */
-	__u8 crush_ruleset;       /* crush placement rule */
-	__u8 object_hash;         /* hash mapping object name to ps */
-	__le32 pg_num, pgp_num;   /* number of pg's */
-	__le32 lpg_num, lpgp_num; /* number of localized pg's */
-	__le32 last_change;       /* most recent epoch changed */
-	__le64 snap_seq;          /* seq for per-pool snapshot */
-	__le32 snap_epoch;        /* epoch of last snap */
-	__le32 num_snaps;
-	__le32 num_removed_snap_intervals; /* if non-empty, NO per-pool snaps */
-	__le64 auid;               /* who owns the pg */
-} __attribute__ ((packed));
+#define CEPH_NOPOOL  ((__u64) (-1))  /* pool id not defined */
+
+#define CEPH_POOL_TYPE_REP     1
+#define CEPH_POOL_TYPE_RAID4   2 /* never implemented */
+#define CEPH_POOL_TYPE_EC      3
 
 /*
  * stable_mod func is used to control number of placement groups.
@@ -126,7 +106,7 @@ static inline int ceph_stable_mod(int x, int b, int bmask)
  * object layout - how a given object should be stored.
  */
 struct ceph_object_layout {
-	struct ceph_pg ol_pgid;   /* raw pg, with _full_ ps precision. */
+	struct ceph_pg_v1 ol_pgid;   /* raw pg, with _full_ ps precision. */
 	__le32 ol_stripe_unit;    /* for per-object parity, if any */
 } __attribute__ ((packed));
 
@@ -143,12 +123,20 @@ struct ceph_eversion {
  */
 
 /* status bits */
-#define CEPH_OSD_EXISTS 1
-#define CEPH_OSD_UP     2
+#define CEPH_OSD_EXISTS  (1<<0)
+#define CEPH_OSD_UP      (1<<1)
+#define CEPH_OSD_AUTOOUT (1<<2)  /* osd was automatically marked out */
+#define CEPH_OSD_NEW     (1<<3)  /* osd is new, never marked in */
+
+extern const char *ceph_osd_state_name(int s);
 
 /* osd weights.  fixed point value: 0x10000 == 1.0 ("in"), 0 == "out" */
 #define CEPH_OSD_IN  0x10000
 #define CEPH_OSD_OUT 0
+
+/* osd primary-affinity.  fixed point value: 0x10000 == baseline */
+#define CEPH_OSD_MAX_PRIMARY_AFFINITY 0x10000
+#define CEPH_OSD_DEFAULT_PRIMARY_AFFINITY 0x10000
 
 
 /*
@@ -159,15 +147,32 @@ struct ceph_eversion {
 #define CEPH_OSDMAP_PAUSERD  (1<<2)  /* pause all reads */
 #define CEPH_OSDMAP_PAUSEWR  (1<<3)  /* pause all writes */
 #define CEPH_OSDMAP_PAUSEREC (1<<4)  /* pause recovery */
+#define CEPH_OSDMAP_NOUP     (1<<5)  /* block osd boot */
+#define CEPH_OSDMAP_NODOWN   (1<<6)  /* block osd mark-down/failure */
+#define CEPH_OSDMAP_NOOUT    (1<<7)  /* block osd auto mark-out */
+#define CEPH_OSDMAP_NOIN     (1<<8)  /* block osd auto mark-in */
+#define CEPH_OSDMAP_NOBACKFILL (1<<9) /* block osd backfill */
+#define CEPH_OSDMAP_NORECOVER (1<<10) /* block osd recovery and backfill */
+
+/*
+ * The error code to return when an OSD can't handle a write
+ * because it is too large.
+ */
+#define OSD_WRITETOOBIG EMSGSIZE
 
 /*
  * osd ops
+ *
+ * WARNING: do not use these op codes directly.  Use the helpers
+ * defined below instead.  In certain cases, op code behavior was
+ * redefined, resulting in special-cases in the helpers.
  */
 #define CEPH_OSD_OP_MODE       0xf000
 #define CEPH_OSD_OP_MODE_RD    0x1000
 #define CEPH_OSD_OP_MODE_WR    0x2000
 #define CEPH_OSD_OP_MODE_RMW   0x3000
 #define CEPH_OSD_OP_MODE_SUB   0x4000
+#define CEPH_OSD_OP_MODE_CACHE 0x8000
 
 #define CEPH_OSD_OP_TYPE       0x0f00
 #define CEPH_OSD_OP_TYPE_LOCK  0x0100
@@ -175,81 +180,137 @@ struct ceph_eversion {
 #define CEPH_OSD_OP_TYPE_ATTR  0x0300
 #define CEPH_OSD_OP_TYPE_EXEC  0x0400
 #define CEPH_OSD_OP_TYPE_PG    0x0500
+#define CEPH_OSD_OP_TYPE_MULTI 0x0600 /* multiobject */
+
+#define __CEPH_OSD_OP1(mode, nr) \
+	(CEPH_OSD_OP_MODE_##mode | (nr))
+
+#define __CEPH_OSD_OP(mode, type, nr) \
+	(CEPH_OSD_OP_MODE_##mode | CEPH_OSD_OP_TYPE_##type | (nr))
+
+#define __CEPH_FORALL_OSD_OPS(f)					    \
+	/** data **/							    \
+	/* read */							    \
+	f(READ,		__CEPH_OSD_OP(RD, DATA, 1),	"read")		    \
+	f(STAT,		__CEPH_OSD_OP(RD, DATA, 2),	"stat")		    \
+	f(MAPEXT,	__CEPH_OSD_OP(RD, DATA, 3),	"mapext")	    \
+									    \
+	/* fancy read */						    \
+	f(MASKTRUNC,	__CEPH_OSD_OP(RD, DATA, 4),	"masktrunc")	    \
+	f(SPARSE_READ,	__CEPH_OSD_OP(RD, DATA, 5),	"sparse-read")	    \
+									    \
+	f(NOTIFY,	__CEPH_OSD_OP(RD, DATA, 6),	"notify")	    \
+	f(NOTIFY_ACK,	__CEPH_OSD_OP(RD, DATA, 7),	"notify-ack")	    \
+									    \
+	/* versioning */						    \
+	f(ASSERT_VER,	__CEPH_OSD_OP(RD, DATA, 8),	"assert-version")   \
+									    \
+	f(LIST_WATCHERS, __CEPH_OSD_OP(RD, DATA, 9),	"list-watchers")    \
+									    \
+	f(LIST_SNAPS,	__CEPH_OSD_OP(RD, DATA, 10),	"list-snaps")	    \
+									    \
+	/* sync */							    \
+	f(SYNC_READ,	__CEPH_OSD_OP(RD, DATA, 11),	"sync_read")	    \
+									    \
+	/* write */							    \
+	f(WRITE,	__CEPH_OSD_OP(WR, DATA, 1),	"write")	    \
+	f(WRITEFULL,	__CEPH_OSD_OP(WR, DATA, 2),	"writefull")	    \
+	f(TRUNCATE,	__CEPH_OSD_OP(WR, DATA, 3),	"truncate")	    \
+	f(ZERO,		__CEPH_OSD_OP(WR, DATA, 4),	"zero")		    \
+	f(DELETE,	__CEPH_OSD_OP(WR, DATA, 5),	"delete")	    \
+									    \
+	/* fancy write */						    \
+	f(APPEND,	__CEPH_OSD_OP(WR, DATA, 6),	"append")	    \
+	f(STARTSYNC,	__CEPH_OSD_OP(WR, DATA, 7),	"startsync")	    \
+	f(SETTRUNC,	__CEPH_OSD_OP(WR, DATA, 8),	"settrunc")	    \
+	f(TRIMTRUNC,	__CEPH_OSD_OP(WR, DATA, 9),	"trimtrunc")	    \
+									    \
+	f(TMAPUP,	__CEPH_OSD_OP(RMW, DATA, 10),	"tmapup")	    \
+	f(TMAPPUT,	__CEPH_OSD_OP(WR, DATA, 11),	"tmapput")	    \
+	f(TMAPGET,	__CEPH_OSD_OP(RD, DATA, 12),	"tmapget")	    \
+									    \
+	f(CREATE,	__CEPH_OSD_OP(WR, DATA, 13),	"create")	    \
+	f(ROLLBACK,	__CEPH_OSD_OP(WR, DATA, 14),	"rollback")	    \
+									    \
+	f(WATCH,	__CEPH_OSD_OP(WR, DATA, 15),	"watch")	    \
+									    \
+	/* omap */							    \
+	f(OMAPGETKEYS,	__CEPH_OSD_OP(RD, DATA, 17),	"omap-get-keys")    \
+	f(OMAPGETVALS,	__CEPH_OSD_OP(RD, DATA, 18),	"omap-get-vals")    \
+	f(OMAPGETHEADER, __CEPH_OSD_OP(RD, DATA, 19),	"omap-get-header")  \
+	f(OMAPGETVALSBYKEYS, __CEPH_OSD_OP(RD, DATA, 20), "omap-get-vals-by-keys") \
+	f(OMAPSETVALS,	__CEPH_OSD_OP(WR, DATA, 21),	"omap-set-vals")    \
+	f(OMAPSETHEADER, __CEPH_OSD_OP(WR, DATA, 22),	"omap-set-header")  \
+	f(OMAPCLEAR,	__CEPH_OSD_OP(WR, DATA, 23),	"omap-clear")	    \
+	f(OMAPRMKEYS,	__CEPH_OSD_OP(WR, DATA, 24),	"omap-rm-keys")	    \
+	f(OMAP_CMP,	__CEPH_OSD_OP(RD, DATA, 25),	"omap-cmp")	    \
+									    \
+	/* tiering */							    \
+	f(COPY_FROM,	__CEPH_OSD_OP(WR, DATA, 26),	"copy-from")	    \
+	f(COPY_GET_CLASSIC, __CEPH_OSD_OP(RD, DATA, 27), "copy-get-classic") \
+	f(UNDIRTY,	__CEPH_OSD_OP(WR, DATA, 28),	"undirty")	    \
+	f(ISDIRTY,	__CEPH_OSD_OP(RD, DATA, 29),	"isdirty")	    \
+	f(COPY_GET,	__CEPH_OSD_OP(RD, DATA, 30),	"copy-get")	    \
+	f(CACHE_FLUSH,	__CEPH_OSD_OP(CACHE, DATA, 31),	"cache-flush")	    \
+	f(CACHE_EVICT,	__CEPH_OSD_OP(CACHE, DATA, 32),	"cache-evict")	    \
+	f(CACHE_TRY_FLUSH, __CEPH_OSD_OP(CACHE, DATA, 33), "cache-try-flush") \
+									    \
+	/* convert tmap to omap */					    \
+	f(TMAP2OMAP,	__CEPH_OSD_OP(RMW, DATA, 34),	"tmap2omap")	    \
+									    \
+	/* hints */							    \
+	f(SETALLOCHINT,	__CEPH_OSD_OP(WR, DATA, 35),	"set-alloc-hint")   \
+									    \
+	/** multi **/							    \
+	f(CLONERANGE,	__CEPH_OSD_OP(WR, MULTI, 1),	"clonerange")	    \
+	f(ASSERT_SRC_VERSION, __CEPH_OSD_OP(RD, MULTI, 2), "assert-src-version") \
+	f(SRC_CMPXATTR,	__CEPH_OSD_OP(RD, MULTI, 3),	"src-cmpxattr")	    \
+									    \
+	/** attrs **/							    \
+	/* read */							    \
+	f(GETXATTR,	__CEPH_OSD_OP(RD, ATTR, 1),	"getxattr")	    \
+	f(GETXATTRS,	__CEPH_OSD_OP(RD, ATTR, 2),	"getxattrs")	    \
+	f(CMPXATTR,	__CEPH_OSD_OP(RD, ATTR, 3),	"cmpxattr")	    \
+									    \
+	/* write */							    \
+	f(SETXATTR,	__CEPH_OSD_OP(WR, ATTR, 1),	"setxattr")	    \
+	f(SETXATTRS,	__CEPH_OSD_OP(WR, ATTR, 2),	"setxattrs")	    \
+	f(RESETXATTRS,	__CEPH_OSD_OP(WR, ATTR, 3),	"resetxattrs")	    \
+	f(RMXATTR,	__CEPH_OSD_OP(WR, ATTR, 4),	"rmxattr")	    \
+									    \
+	/** subop **/							    \
+	f(PULL,		__CEPH_OSD_OP1(SUB, 1),		"pull")		    \
+	f(PUSH,		__CEPH_OSD_OP1(SUB, 2),		"push")		    \
+	f(BALANCEREADS,	__CEPH_OSD_OP1(SUB, 3),		"balance-reads")    \
+	f(UNBALANCEREADS, __CEPH_OSD_OP1(SUB, 4),	"unbalance-reads")  \
+	f(SCRUB,	__CEPH_OSD_OP1(SUB, 5),		"scrub")	    \
+	f(SCRUB_RESERVE, __CEPH_OSD_OP1(SUB, 6),	"scrub-reserve")    \
+	f(SCRUB_UNRESERVE, __CEPH_OSD_OP1(SUB, 7),	"scrub-unreserve")  \
+	f(SCRUB_STOP,	__CEPH_OSD_OP1(SUB, 8),		"scrub-stop")	    \
+	f(SCRUB_MAP,	__CEPH_OSD_OP1(SUB, 9),		"scrub-map")	    \
+									    \
+	/** lock **/							    \
+	f(WRLOCK,	__CEPH_OSD_OP(WR, LOCK, 1),	"wrlock")	    \
+	f(WRUNLOCK,	__CEPH_OSD_OP(WR, LOCK, 2),	"wrunlock")	    \
+	f(RDLOCK,	__CEPH_OSD_OP(WR, LOCK, 3),	"rdlock")	    \
+	f(RDUNLOCK,	__CEPH_OSD_OP(WR, LOCK, 4),	"rdunlock")	    \
+	f(UPLOCK,	__CEPH_OSD_OP(WR, LOCK, 5),	"uplock")	    \
+	f(DNLOCK,	__CEPH_OSD_OP(WR, LOCK, 6),	"dnlock")	    \
+									    \
+	/** exec **/							    \
+	/* note: the RD bit here is wrong; see special-case below in helper */ \
+	f(CALL,		__CEPH_OSD_OP(RD, EXEC, 1),	"call")		    \
+									    \
+	/** pg **/							    \
+	f(PGLS,		__CEPH_OSD_OP(RD, PG, 1),	"pgls")		    \
+	f(PGLS_FILTER,	__CEPH_OSD_OP(RD, PG, 2),	"pgls-filter")	    \
+	f(PG_HITSET_LS,	__CEPH_OSD_OP(RD, PG, 3),	"pg-hitset-ls")	    \
+	f(PG_HITSET_GET, __CEPH_OSD_OP(RD, PG, 4),	"pg-hitset-get")
 
 enum {
-	/** data **/
-	/* read */
-	CEPH_OSD_OP_READ      = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 1,
-	CEPH_OSD_OP_STAT      = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 2,
-	CEPH_OSD_OP_MAPEXT    = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 3,
-
-	/* fancy read */
-	CEPH_OSD_OP_MASKTRUNC   = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 4,
-	CEPH_OSD_OP_SPARSE_READ = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 5,
-
-	CEPH_OSD_OP_NOTIFY    = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 6,
-	CEPH_OSD_OP_NOTIFY_ACK = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 7,
-
-	/* versioning */
-	CEPH_OSD_OP_ASSERT_VER = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 8,
-
-	/* write */
-	CEPH_OSD_OP_WRITE     = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 1,
-	CEPH_OSD_OP_WRITEFULL = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 2,
-	CEPH_OSD_OP_TRUNCATE  = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 3,
-	CEPH_OSD_OP_ZERO      = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 4,
-	CEPH_OSD_OP_DELETE    = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 5,
-
-	/* fancy write */
-	CEPH_OSD_OP_APPEND    = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 6,
-	CEPH_OSD_OP_STARTSYNC = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 7,
-	CEPH_OSD_OP_SETTRUNC  = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 8,
-	CEPH_OSD_OP_TRIMTRUNC = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 9,
-
-	CEPH_OSD_OP_TMAPUP  = CEPH_OSD_OP_MODE_RMW | CEPH_OSD_OP_TYPE_DATA | 10,
-	CEPH_OSD_OP_TMAPPUT = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 11,
-	CEPH_OSD_OP_TMAPGET = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_DATA | 12,
-
-	CEPH_OSD_OP_CREATE  = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 13,
-	CEPH_OSD_OP_ROLLBACK= CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 14,
-
-	CEPH_OSD_OP_WATCH   = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_DATA | 15,
-
-	/** attrs **/
-	/* read */
-	CEPH_OSD_OP_GETXATTR  = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_ATTR | 1,
-	CEPH_OSD_OP_GETXATTRS = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_ATTR | 2,
-	CEPH_OSD_OP_CMPXATTR  = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_ATTR | 3,
-
-	/* write */
-	CEPH_OSD_OP_SETXATTR  = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_ATTR | 1,
-	CEPH_OSD_OP_SETXATTRS = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_ATTR | 2,
-	CEPH_OSD_OP_RESETXATTRS = CEPH_OSD_OP_MODE_WR|CEPH_OSD_OP_TYPE_ATTR | 3,
-	CEPH_OSD_OP_RMXATTR   = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_ATTR | 4,
-
-	/** subop **/
-	CEPH_OSD_OP_PULL            = CEPH_OSD_OP_MODE_SUB | 1,
-	CEPH_OSD_OP_PUSH            = CEPH_OSD_OP_MODE_SUB | 2,
-	CEPH_OSD_OP_BALANCEREADS    = CEPH_OSD_OP_MODE_SUB | 3,
-	CEPH_OSD_OP_UNBALANCEREADS  = CEPH_OSD_OP_MODE_SUB | 4,
-	CEPH_OSD_OP_SCRUB           = CEPH_OSD_OP_MODE_SUB | 5,
-	CEPH_OSD_OP_SCRUB_RESERVE   = CEPH_OSD_OP_MODE_SUB | 6,
-	CEPH_OSD_OP_SCRUB_UNRESERVE = CEPH_OSD_OP_MODE_SUB | 7,
-	CEPH_OSD_OP_SCRUB_STOP      = CEPH_OSD_OP_MODE_SUB | 8,
-
-	/** lock **/
-	CEPH_OSD_OP_WRLOCK    = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_LOCK | 1,
-	CEPH_OSD_OP_WRUNLOCK  = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_LOCK | 2,
-	CEPH_OSD_OP_RDLOCK    = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_LOCK | 3,
-	CEPH_OSD_OP_RDUNLOCK  = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_LOCK | 4,
-	CEPH_OSD_OP_UPLOCK    = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_LOCK | 5,
-	CEPH_OSD_OP_DNLOCK    = CEPH_OSD_OP_MODE_WR | CEPH_OSD_OP_TYPE_LOCK | 6,
-
-	/** exec **/
-	CEPH_OSD_OP_CALL    = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_EXEC | 1,
-
-	/** pg **/
-	CEPH_OSD_OP_PGLS      = CEPH_OSD_OP_MODE_RD | CEPH_OSD_OP_TYPE_PG | 1,
+#define GENERATE_ENUM_ENTRY(op, opcode, str)	CEPH_OSD_OP_##op = (opcode),
+__CEPH_FORALL_OSD_OPS(GENERATE_ENUM_ENTRY)
+#undef GENERATE_ENUM_ENTRY
 };
 
 static inline int ceph_osd_op_type_lock(int op)
@@ -272,6 +333,10 @@ static inline int ceph_osd_op_type_pg(int op)
 {
 	return (op & CEPH_OSD_OP_TYPE) == CEPH_OSD_OP_TYPE_PG;
 }
+static inline int ceph_osd_op_type_multi(int op)
+{
+	return (op & CEPH_OSD_OP_TYPE) == CEPH_OSD_OP_TYPE_MULTI;
+}
 
 static inline int ceph_osd_op_mode_subop(int op)
 {
@@ -279,11 +344,12 @@ static inline int ceph_osd_op_mode_subop(int op)
 }
 static inline int ceph_osd_op_mode_read(int op)
 {
-	return (op & CEPH_OSD_OP_MODE) == CEPH_OSD_OP_MODE_RD;
+	return (op & CEPH_OSD_OP_MODE_RD) &&
+		op != CEPH_OSD_OP_CALL;
 }
 static inline int ceph_osd_op_mode_modify(int op)
 {
-	return (op & CEPH_OSD_OP_MODE) == CEPH_OSD_OP_MODE_WR;
+	return op & CEPH_OSD_OP_MODE_WR;
 }
 
 /*
@@ -292,10 +358,11 @@ static inline int ceph_osd_op_mode_modify(int op)
  */
 #define CEPH_OSD_TMAP_HDR 'h'
 #define CEPH_OSD_TMAP_SET 's'
+#define CEPH_OSD_TMAP_CREATE 'c' /* create key */
 #define CEPH_OSD_TMAP_RM  'r'
+#define CEPH_OSD_TMAP_RMSLOPPY 'R'
 
 extern const char *ceph_osd_op_name(int op);
-
 
 /*
  * osd op flags
@@ -303,23 +370,30 @@ extern const char *ceph_osd_op_name(int op);
  * An op may be READ, WRITE, or READ|WRITE.
  */
 enum {
-	CEPH_OSD_FLAG_ACK = 1,          /* want (or is) "ack" ack */
-	CEPH_OSD_FLAG_ONNVRAM = 2,      /* want (or is) "onnvram" ack */
-	CEPH_OSD_FLAG_ONDISK = 4,       /* want (or is) "ondisk" ack */
-	CEPH_OSD_FLAG_RETRY = 8,        /* resend attempt */
-	CEPH_OSD_FLAG_READ = 16,        /* op may read */
-	CEPH_OSD_FLAG_WRITE = 32,       /* op may write */
-	CEPH_OSD_FLAG_ORDERSNAP = 64,   /* EOLDSNAP if snapc is out of order */
-	CEPH_OSD_FLAG_PEERSTAT = 128,   /* msg includes osd_peer_stat */
-	CEPH_OSD_FLAG_BALANCE_READS = 256,
-	CEPH_OSD_FLAG_PARALLELEXEC = 512, /* execute op in parallel */
-	CEPH_OSD_FLAG_PGOP = 1024,      /* pg op, no object */
-	CEPH_OSD_FLAG_EXEC = 2048,      /* op may exec */
-	CEPH_OSD_FLAG_EXEC_PUBLIC = 4096, /* op may exec (public) */
+	CEPH_OSD_FLAG_ACK =            0x0001,  /* want (or is) "ack" ack */
+	CEPH_OSD_FLAG_ONNVRAM =        0x0002,  /* want (or is) "onnvram" ack */
+	CEPH_OSD_FLAG_ONDISK =         0x0004,  /* want (or is) "ondisk" ack */
+	CEPH_OSD_FLAG_RETRY =          0x0008,  /* resend attempt */
+	CEPH_OSD_FLAG_READ =           0x0010,  /* op may read */
+	CEPH_OSD_FLAG_WRITE =          0x0020,  /* op may write */
+	CEPH_OSD_FLAG_ORDERSNAP =      0x0040,  /* EOLDSNAP if snapc is out of order */
+	CEPH_OSD_FLAG_PEERSTAT_OLD =   0x0080,  /* DEPRECATED msg includes osd_peer_stat */
+	CEPH_OSD_FLAG_BALANCE_READS =  0x0100,
+	CEPH_OSD_FLAG_PARALLELEXEC =   0x0200,  /* execute op in parallel */
+	CEPH_OSD_FLAG_PGOP =           0x0400,  /* pg op, no object */
+	CEPH_OSD_FLAG_EXEC =           0x0800,  /* op may exec */
+	CEPH_OSD_FLAG_EXEC_PUBLIC =    0x1000,  /* DEPRECATED op may exec (public) */
+	CEPH_OSD_FLAG_LOCALIZE_READS = 0x2000,  /* read from nearby replica, if any */
+	CEPH_OSD_FLAG_RWORDERED =      0x4000,  /* order wrt concurrent reads */
+	CEPH_OSD_FLAG_IGNORE_CACHE =   0x8000,  /* ignore cache logic */
+	CEPH_OSD_FLAG_SKIPRWLOCKS =   0x10000,  /* skip rw locks */
+	CEPH_OSD_FLAG_IGNORE_OVERLAY = 0x20000, /* ignore pool overlay */
+	CEPH_OSD_FLAG_FLUSH =         0x40000,  /* this is part of flush */
 };
 
 enum {
 	CEPH_OSD_OP_FLAG_EXCL = 1,      /* EXCL object create */
+	CEPH_OSD_OP_FLAG_FAILOK = 2,    /* continue despite failure */
 };
 
 #define EOLDSNAPC    ERESTART  /* ORDERSNAP flag set; writer has old snapc*/
@@ -349,7 +423,7 @@ enum {
  */
 struct ceph_osd_op {
 	__le16 op;           /* CEPH_OSD_OP_* */
-	__le32 flags;        /* CEPH_OSD_FLAG_* */
+	__le32 flags;        /* CEPH_OSD_OP_FLAG_* */
 	union {
 		struct {
 			__le64 offset, length;
@@ -379,48 +453,17 @@ struct ceph_osd_op {
 			__le64 ver;
 			__u8 flag;	/* 0 = unwatch, 1 = watch */
 		} __attribute__ ((packed)) watch;
-};
+		struct {
+			__le64 offset, length;
+			__le64 src_offset;
+		} __attribute__ ((packed)) clonerange;
+		struct {
+			__le64 expected_object_size;
+			__le64 expected_write_size;
+		} __attribute__ ((packed)) alloc_hint;
+	};
 	__le32 payload_len;
 } __attribute__ ((packed));
-
-/*
- * osd request message header.  each request may include multiple
- * ceph_osd_op object operations.
- */
-struct ceph_osd_request_head {
-	__le32 client_inc;                 /* client incarnation */
-	struct ceph_object_layout layout;  /* pgid */
-	__le32 osdmap_epoch;               /* client's osdmap epoch */
-
-	__le32 flags;
-
-	struct ceph_timespec mtime;        /* for mutations only */
-	struct ceph_eversion reassert_version; /* if we are replaying op */
-
-	__le32 object_len;     /* length of object name */
-
-	__le64 snapid;         /* snapid to read */
-	__le64 snap_seq;       /* writer's snap context */
-	__le32 num_snaps;
-
-	__le16 num_ops;
-	struct ceph_osd_op ops[];  /* followed by ops[], obj, ticket, snaps */
-} __attribute__ ((packed));
-
-struct ceph_osd_reply_head {
-	__le32 client_inc;                /* client incarnation */
-	__le32 flags;
-	struct ceph_object_layout layout;
-	__le32 osdmap_epoch;
-	struct ceph_eversion reassert_version; /* for replaying uncommitted */
-
-	__le32 result;                    /* result code */
-
-	__le32 object_len;                /* length of object name */
-	__le32 num_ops;
-	struct ceph_osd_op ops[0];  /* ops[], object */
-} __attribute__ ((packed));
-
 
 
 #endif

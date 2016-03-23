@@ -15,6 +15,8 @@
 #include <linux/sunrpc/stats.h>
 #include <linux/lockd/lockd.h>
 
+#include <uapi/linux/nfs2.h>
+
 #define NLMDBG_FACILITY		NLMDBG_XDR
 
 #if (NLMCLNT_OHSIZE > XDR_MAX_NETOBJ)
@@ -59,10 +61,6 @@ static void nlm_compute_offsets(const struct nlm_lock *lock,
 				u32 *l_offset, u32 *l_len)
 {
 	const struct file_lock *fl = &lock->fl;
-
-	BUG_ON(fl->fl_start > NLM_OFFSET_MAX);
-	BUG_ON(fl->fl_end > NLM_OFFSET_MAX &&
-				fl->fl_end != OFFSET_MAX);
 
 	*l_offset = loff_t_to_s32(fl->fl_start);
 	if (fl->fl_end == OFFSET_MAX)
@@ -119,7 +117,6 @@ static void encode_netobj(struct xdr_stream *xdr,
 {
 	__be32 *p;
 
-	BUG_ON(length > XDR_MAX_NETOBJ);
 	p = xdr_reserve_space(xdr, 4 + length);
 	xdr_encode_opaque(p, data, length);
 }
@@ -153,7 +150,6 @@ out_overflow:
 static void encode_cookie(struct xdr_stream *xdr,
 			  const struct nlm_cookie *cookie)
 {
-	BUG_ON(cookie->len > NLM_MAXCOOKIELEN);
 	encode_netobj(xdr, (u8 *)&cookie->data, cookie->len);
 }
 
@@ -195,7 +191,6 @@ out_overflow:
  */
 static void encode_fh(struct xdr_stream *xdr, const struct nfs_fh *fh)
 {
-	BUG_ON(fh->size != NFS2_FHSIZE);
 	encode_netobj(xdr, (u8 *)&fh->data, NFS2_FHSIZE);
 }
 
@@ -223,7 +218,7 @@ static void encode_nlm_stat(struct xdr_stream *xdr,
 {
 	__be32 *p;
 
-	BUG_ON(be32_to_cpu(stat) > NLM_LCK_DENIED_GRACE_PERIOD);
+	WARN_ON_ONCE(be32_to_cpu(stat) > NLM_LCK_DENIED_GRACE_PERIOD);
 	p = xdr_reserve_space(xdr, 4);
 	*p = stat;
 }
@@ -236,7 +231,7 @@ static int decode_nlm_stat(struct xdr_stream *xdr,
 	p = xdr_inline_decode(xdr, 4);
 	if (unlikely(p == NULL))
 		goto out_overflow;
-	if (unlikely(*p > nlm_lck_denied_grace_period))
+	if (unlikely(ntohl(*p) > ntohl(nlm_lck_denied_grace_period)))
 		goto out_enum;
 	*stat = *p;
 	return 0;
@@ -330,7 +325,6 @@ static void encode_caller_name(struct xdr_stream *xdr, const char *name)
 	u32 length = strlen(name);
 	__be32 *p;
 
-	BUG_ON(length > NLM_MAXSTRLEN);
 	p = xdr_reserve_space(xdr, 4 + length);
 	xdr_encode_opaque(p, name, length);
 }
@@ -596,19 +590,19 @@ static struct rpc_procinfo	nlm_procedures[] = {
 	PROC(GRANTED_RES,	res,		norep),
 };
 
-static struct rpc_version	nlm_version1 = {
+static const struct rpc_version	nlm_version1 = {
 		.number		= 1,
 		.nrprocs	= ARRAY_SIZE(nlm_procedures),
 		.procs		= nlm_procedures,
 };
 
-static struct rpc_version	nlm_version3 = {
+static const struct rpc_version	nlm_version3 = {
 		.number		= 3,
 		.nrprocs	= ARRAY_SIZE(nlm_procedures),
 		.procs		= nlm_procedures,
 };
 
-static struct rpc_version	*nlm_versions[] = {
+static const struct rpc_version	*nlm_versions[] = {
 	[1] = &nlm_version1,
 	[3] = &nlm_version3,
 #ifdef CONFIG_LOCKD_V4
@@ -618,7 +612,7 @@ static struct rpc_version	*nlm_versions[] = {
 
 static struct rpc_stat		nlm_rpc_stats;
 
-struct rpc_program		nlm_program = {
+const struct rpc_program	nlm_program = {
 		.name		= "lockd",
 		.number		= NLM_PROGRAM,
 		.nrvers		= ARRAY_SIZE(nlm_versions),

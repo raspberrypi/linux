@@ -31,18 +31,17 @@
 
 /* create a new cifs key */
 static int
-cifs_spnego_key_instantiate(struct key *key, const void *data, size_t datalen)
+cifs_spnego_key_instantiate(struct key *key, struct key_preparsed_payload *prep)
 {
 	char *payload;
 	int ret;
 
 	ret = -ENOMEM;
-	payload = kmalloc(datalen, GFP_KERNEL);
+	payload = kmemdup(prep->data, prep->datalen, GFP_KERNEL);
 	if (!payload)
 		goto error;
 
 	/* attach the data */
-	memcpy(payload, data, datalen);
 	key->payload.data = payload;
 	ret = 0;
 
@@ -63,7 +62,6 @@ cifs_spnego_key_destroy(struct key *key)
 struct key_type cifs_spnego_key_type = {
 	.name		= "cifs.spnego",
 	.instantiate	= cifs_spnego_key_instantiate,
-	.match		= user_match,
 	.destroy	= cifs_spnego_key_destroy,
 	.describe	= user_describe,
 };
@@ -113,8 +111,10 @@ cifs_get_spnego_key(struct cifs_ses *sesInfo)
 		   MAX_MECH_STR_LEN +
 		   UID_KEY_LEN + (sizeof(uid_t) * 2) +
 		   CREDUID_KEY_LEN + (sizeof(uid_t) * 2) +
-		   USER_KEY_LEN + strlen(sesInfo->user_name) +
 		   PID_KEY_LEN + (sizeof(pid_t) * 2) + 1;
+
+	if (sesInfo->user_name)
+		desc_len += USER_KEY_LEN + strlen(sesInfo->user_name);
 
 	spnego_key = ERR_PTR(-ENOMEM);
 	description = kzalloc(desc_len, GFP_KERNEL);
@@ -147,18 +147,22 @@ cifs_get_spnego_key(struct cifs_ses *sesInfo)
 		goto out;
 
 	dp = description + strlen(description);
-	sprintf(dp, ";uid=0x%x", sesInfo->linux_uid);
+	sprintf(dp, ";uid=0x%x",
+		from_kuid_munged(&init_user_ns, sesInfo->linux_uid));
 
 	dp = description + strlen(description);
-	sprintf(dp, ";creduid=0x%x", sesInfo->cred_uid);
+	sprintf(dp, ";creduid=0x%x",
+		from_kuid_munged(&init_user_ns, sesInfo->cred_uid));
 
-	dp = description + strlen(description);
-	sprintf(dp, ";user=%s", sesInfo->user_name);
+	if (sesInfo->user_name) {
+		dp = description + strlen(description);
+		sprintf(dp, ";user=%s", sesInfo->user_name);
+	}
 
 	dp = description + strlen(description);
 	sprintf(dp, ";pid=0x%x", current->pid);
 
-	cFYI(1, "key description = %s", description);
+	cifs_dbg(FYI, "key description = %s\n", description);
 	spnego_key = request_key(&cifs_spnego_key_type, description, "");
 
 #ifdef CONFIG_CIFS_DEBUG2

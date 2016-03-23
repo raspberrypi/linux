@@ -46,46 +46,46 @@ For 32-bit we have the following conventions - kernel is built with
 
 */
 
-#include "dwarf2.h"
+#include <asm/dwarf2.h>
+
+#ifdef CONFIG_X86_64
 
 /*
- * 64-bit system call stack frame layout defines and helpers, for
- * assembly code (note that the seemingly unnecessary parentheses
- * are to prevent cpp from inserting spaces in expressions that get
- * passed to macros):
+ * 64-bit system call stack frame layout defines and helpers,
+ * for assembly code:
  */
 
-#define R15		  (0)
-#define R14		  (8)
-#define R13		 (16)
-#define R12		 (24)
-#define RBP		 (32)
-#define RBX		 (40)
+#define R15		  0
+#define R14		  8
+#define R13		 16
+#define R12		 24
+#define RBP		 32
+#define RBX		 40
 
 /* arguments: interrupts/non tracing syscalls only save up to here: */
-#define R11		 (48)
-#define R10		 (56)
-#define R9		 (64)
-#define R8		 (72)
-#define RAX		 (80)
-#define RCX		 (88)
-#define RDX		 (96)
-#define RSI		(104)
-#define RDI		(112)
-#define ORIG_RAX	(120)       /* + error_code */
+#define R11		 48
+#define R10		 56
+#define R9		 64
+#define R8		 72
+#define RAX		 80
+#define RCX		 88
+#define RDX		 96
+#define RSI		104
+#define RDI		112
+#define ORIG_RAX	120       /* + error_code */
 /* end of arguments */
 
 /* cpu exception frame or undefined in case of fast syscall: */
-#define RIP		(128)
-#define CS		(136)
-#define EFLAGS		(144)
-#define RSP		(152)
-#define SS		(160)
+#define RIP		128
+#define CS		136
+#define EFLAGS		144
+#define RSP		152
+#define SS		160
 
 #define ARGOFFSET	R11
 #define SWFRAME		ORIG_RAX
 
-	.macro SAVE_ARGS addskip=0, save_rcx=1, save_r891011=1
+	.macro SAVE_ARGS addskip=0, save_rcx=1, save_r891011=1, rax_enosys=0
 	subq  $9*8+\addskip, %rsp
 	CFI_ADJUST_CFA_OFFSET	9*8+\addskip
 	movq_cfi rdi, 8*8
@@ -96,7 +96,11 @@ For 32-bit we have the following conventions - kernel is built with
 	movq_cfi rcx, 5*8
 	.endif
 
+	.if \rax_enosys
+	movq $-ENOSYS, 4*8(%rsp)
+	.else
 	movq_cfi rax, 4*8
+	.endif
 
 	.if \save_r891011
 	movq_cfi r8,  3*8
@@ -194,3 +198,51 @@ For 32-bit we have the following conventions - kernel is built with
 	.macro icebp
 	.byte 0xf1
 	.endm
+
+#else /* CONFIG_X86_64 */
+
+/*
+ * For 32bit only simplified versions of SAVE_ALL/RESTORE_ALL. These
+ * are different from the entry_32.S versions in not changing the segment
+ * registers. So only suitable for in kernel use, not when transitioning
+ * from or to user space. The resulting stack frame is not a standard
+ * pt_regs frame. The main use case is calling C code from assembler
+ * when all the registers need to be preserved.
+ */
+
+	.macro SAVE_ALL
+	pushl_cfi %eax
+	CFI_REL_OFFSET eax, 0
+	pushl_cfi %ebp
+	CFI_REL_OFFSET ebp, 0
+	pushl_cfi %edi
+	CFI_REL_OFFSET edi, 0
+	pushl_cfi %esi
+	CFI_REL_OFFSET esi, 0
+	pushl_cfi %edx
+	CFI_REL_OFFSET edx, 0
+	pushl_cfi %ecx
+	CFI_REL_OFFSET ecx, 0
+	pushl_cfi %ebx
+	CFI_REL_OFFSET ebx, 0
+	.endm
+
+	.macro RESTORE_ALL
+	popl_cfi %ebx
+	CFI_RESTORE ebx
+	popl_cfi %ecx
+	CFI_RESTORE ecx
+	popl_cfi %edx
+	CFI_RESTORE edx
+	popl_cfi %esi
+	CFI_RESTORE esi
+	popl_cfi %edi
+	CFI_RESTORE edi
+	popl_cfi %ebp
+	CFI_RESTORE ebp
+	popl_cfi %eax
+	CFI_RESTORE eax
+	.endm
+
+#endif /* CONFIG_X86_64 */
+

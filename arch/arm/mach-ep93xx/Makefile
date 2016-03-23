@@ -2,11 +2,11 @@
 # Makefile for the linux kernel.
 #
 obj-y			:= core.o clock.o
-obj-m			:=
-obj-n			:=
-obj-			:=
 
 obj-$(CONFIG_EP93XX_DMA)	+= dma.o
+
+obj-$(CONFIG_CRUNCH)		+= crunch.o crunch-bits.o
+AFLAGS_crunch-bits.o		:= -Wa,-mcpu=ep9312
 
 obj-$(CONFIG_MACH_ADSSPHERE)	+= adssphere.o
 obj-$(CONFIG_MACH_EDB93XX)	+= edb93xx.o

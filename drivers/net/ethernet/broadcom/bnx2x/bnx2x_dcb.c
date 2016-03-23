@@ -1,6 +1,6 @@
 /* bnx2x_dcb.c: Broadcom Everest network driver.
  *
- * Copyright 2009-2011 Broadcom Corporation
+ * Copyright 2009-2013 Broadcom Corporation
  *
  * Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -12,7 +12,7 @@
  * license other than the GPL, without Broadcom's express prior written
  * consent.
  *
- * Maintained by: Eilon Greenstein <eilong@broadcom.com>
+ * Maintained by: Ariel Elior <ariel.elior@qlogic.com>
  * Written by: Dmitry Kravkov
  *
  */
@@ -30,10 +30,8 @@
 #include "bnx2x_dcb.h"
 
 /* forward declarations of dcbx related functions */
-static int bnx2x_dcbx_stop_hw_tx(struct bnx2x *bp);
 static void bnx2x_pfc_set_pfc(struct bnx2x *bp);
 static void bnx2x_dcbx_update_ets_params(struct bnx2x *bp);
-static int bnx2x_dcbx_resume_hw_tx(struct bnx2x *bp);
 static void bnx2x_dcbx_get_ets_pri_pg_tbl(struct bnx2x *bp,
 					  u32 *set_configuration_ets_pg,
 					  u32 *pri_pg_tbl);
@@ -91,25 +89,21 @@ static void bnx2x_pfc_set(struct bnx2x *bp)
 	/*
 	 * Rx COS configuration
 	 * Changing PFC RX configuration .
-	 * In RX COS0 will always be configured to lossy and COS1 to lossless
+	 * In RX COS0 will always be configured to lossless and COS1 to lossy
 	 */
 	for (i = 0 ; i < MAX_PFC_PRIORITIES ; i++) {
 		pri_bit = 1 << i;
 
-		if (pri_bit & DCBX_PFC_PRI_PAUSE_MASK(bp))
+		if (!(pri_bit & DCBX_PFC_PRI_PAUSE_MASK(bp)))
 			val |= 1 << (i * 4);
 	}
 
 	pfc_params.pkt_priority_to_cos = val;
 
 	/* RX COS0 */
-	pfc_params.llfc_low_priority_classes = 0;
+	pfc_params.llfc_low_priority_classes = DCBX_PFC_PRI_PAUSE_MASK(bp);
 	/* RX COS1 */
-	pfc_params.llfc_high_priority_classes = DCBX_PFC_PRI_PAUSE_MASK(bp);
-
-	/* BRB configuration */
-	pfc_params.cos0_pauseable = false;
-	pfc_params.cos1_pauseable = true;
+	pfc_params.llfc_high_priority_classes = 0;
 
 	bnx2x_acquire_phy_lock(bp);
 	bp->link_params.feature_config_flags |= FEATURE_CONFIG_PFC_ENABLED;
@@ -121,26 +115,6 @@ static void bnx2x_pfc_clear(struct bnx2x *bp)
 {
 	struct bnx2x_nig_brb_pfc_port_params nig_params = {0};
 	nig_params.pause_enable = 1;
-#ifdef BNX2X_SAFC
-	if (bp->flags & SAFC_TX_FLAG) {
-		u32 high = 0, low = 0;
-		int i;
-
-		for (i = 0; i < BNX2X_MAX_PRIORITY; i++) {
-			if (bp->pri_map[i] == 1)
-				high |= (1 << i);
-			if (bp->pri_map[i] == 0)
-				low |= (1 << i);
-		}
-
-		nig_params.llfc_low_priority_classes = high;
-		nig_params.llfc_low_priority_classes = low;
-
-		nig_params.pause_enable = 0;
-		nig_params.llfc_enable = 1;
-		nig_params.llfc_out_en = 1;
-	}
-#endif /* BNX2X_SAFC */
 	bnx2x_acquire_phy_lock(bp);
 	bp->link_params.feature_config_flags &= ~FEATURE_CONFIG_PFC_ENABLED;
 	bnx2x_update_pfc(&bp->link_params, &bp->link_vars, &nig_params);
@@ -167,27 +141,27 @@ static void  bnx2x_dump_dcbx_drv_param(struct bnx2x *bp,
 		   DCBX_PRI_PG_GET(features->ets.pri_pg_tbl, i));
 
 	/* pfc */
-	DP(NETIF_MSG_LINK, "dcbx_features.pfc.pri_en_bitmap %x\n",
+	DP(BNX2X_MSG_DCB, "dcbx_features.pfc.pri_en_bitmap %x\n",
 					features->pfc.pri_en_bitmap);
-	DP(NETIF_MSG_LINK, "dcbx_features.pfc.pfc_caps %x\n",
+	DP(BNX2X_MSG_DCB, "dcbx_features.pfc.pfc_caps %x\n",
 					features->pfc.pfc_caps);
-	DP(NETIF_MSG_LINK, "dcbx_features.pfc.enabled %x\n",
+	DP(BNX2X_MSG_DCB, "dcbx_features.pfc.enabled %x\n",
 					features->pfc.enabled);
 
-	DP(NETIF_MSG_LINK, "dcbx_features.app.default_pri %x\n",
+	DP(BNX2X_MSG_DCB, "dcbx_features.app.default_pri %x\n",
 					features->app.default_pri);
-	DP(NETIF_MSG_LINK, "dcbx_features.app.tc_supported %x\n",
+	DP(BNX2X_MSG_DCB, "dcbx_features.app.tc_supported %x\n",
 					features->app.tc_supported);
-	DP(NETIF_MSG_LINK, "dcbx_features.app.enabled %x\n",
+	DP(BNX2X_MSG_DCB, "dcbx_features.app.enabled %x\n",
 					features->app.enabled);
 	for (i = 0; i < DCBX_MAX_APP_PROTOCOL; i++) {
-		DP(NETIF_MSG_LINK,
+		DP(BNX2X_MSG_DCB,
 		   "dcbx_features.app.app_pri_tbl[%x].app_id %x\n",
 		   i, features->app.app_pri_tbl[i].app_id);
-		DP(NETIF_MSG_LINK,
+		DP(BNX2X_MSG_DCB,
 		   "dcbx_features.app.app_pri_tbl[%x].pri_bitmap %x\n",
 		   i, features->app.app_pri_tbl[i].pri_bitmap);
-		DP(NETIF_MSG_LINK,
+		DP(BNX2X_MSG_DCB,
 		   "dcbx_features.app.app_pri_tbl[%x].appBitfield %x\n",
 		   i, features->app.app_pri_tbl[i].appBitfield);
 	}
@@ -221,13 +195,16 @@ static void bnx2x_dcbx_get_ap_feature(struct bnx2x *bp,
 	u32 *ttp = bp->dcbx_port_params.app.traffic_type_priority;
 
 	if (GET_FLAGS(error, DCBX_LOCAL_APP_ERROR))
-		DP(NETIF_MSG_LINK, "DCBX_LOCAL_APP_ERROR\n");
+		DP(BNX2X_MSG_DCB, "DCBX_LOCAL_APP_ERROR\n");
 
 	if (GET_FLAGS(error, DCBX_LOCAL_APP_MISMATCH))
-		DP(NETIF_MSG_LINK, "DCBX_LOCAL_APP_MISMATCH\n");
+		DP(BNX2X_MSG_DCB, "DCBX_LOCAL_APP_MISMATCH\n");
 
+	if (GET_FLAGS(error, DCBX_REMOTE_APP_TLV_NOT_FOUND))
+		DP(BNX2X_MSG_DCB, "DCBX_REMOTE_APP_TLV_NOT_FOUND\n");
 	if (app->enabled &&
-	    !GET_FLAGS(error, DCBX_LOCAL_APP_ERROR | DCBX_LOCAL_APP_MISMATCH)) {
+	    !GET_FLAGS(error, DCBX_LOCAL_APP_ERROR | DCBX_LOCAL_APP_MISMATCH |
+			      DCBX_REMOTE_APP_TLV_NOT_FOUND)) {
 
 		bp->dcbx_port_params.app.enabled = true;
 
@@ -256,7 +233,7 @@ static void bnx2x_dcbx_get_ap_feature(struct bnx2x *bp,
 						LLFC_TRAFFIC_TYPE_ISCSI);
 		}
 	} else {
-		DP(NETIF_MSG_LINK, "DCBX_LOCAL_APP_DISABLED\n");
+		DP(BNX2X_MSG_DCB, "DCBX_LOCAL_APP_DISABLED\n");
 		bp->dcbx_port_params.app.enabled = false;
 		for (index = 0 ; index < LLFC_DRIVER_TRAFFIC_TYPE_MAX; index++)
 			ttp[index] = INVALID_TRAFFIC_TYPE_PRIORITY;
@@ -274,10 +251,11 @@ static void bnx2x_dcbx_get_ets_feature(struct bnx2x *bp,
 
 	memset(&pg_help_data, 0, sizeof(struct pg_help_data));
 
-
 	if (GET_FLAGS(error, DCBX_LOCAL_ETS_ERROR))
-		DP(NETIF_MSG_LINK, "DCBX_LOCAL_ETS_ERROR\n");
+		DP(BNX2X_MSG_DCB, "DCBX_LOCAL_ETS_ERROR\n");
 
+	if (GET_FLAGS(error, DCBX_REMOTE_ETS_TLV_NOT_FOUND))
+		DP(BNX2X_MSG_DCB, "DCBX_REMOTE_ETS_TLV_NOT_FOUND\n");
 
 	/* Clean up old settings of ets on COS */
 	for (i = 0; i < ARRAY_SIZE(bp->dcbx_port_params.ets.cos_params) ; i++) {
@@ -287,10 +265,10 @@ static void bnx2x_dcbx_get_ets_feature(struct bnx2x *bp,
 		cos_params[i].pri_bitmask = 0;
 	}
 
-	if (bp->dcbx_port_params.app.enabled &&
-	   !GET_FLAGS(error, DCBX_LOCAL_ETS_ERROR) &&
-	   ets->enabled) {
-		DP(NETIF_MSG_LINK, "DCBX_LOCAL_ETS_ENABLE\n");
+	if (bp->dcbx_port_params.app.enabled && ets->enabled &&
+	   !GET_FLAGS(error,
+		      DCBX_LOCAL_ETS_ERROR | DCBX_REMOTE_ETS_TLV_NOT_FOUND)) {
+		DP(BNX2X_MSG_DCB, "DCBX_LOCAL_ETS_ENABLE\n");
 		bp->dcbx_port_params.ets.enabled = true;
 
 		bnx2x_dcbx_get_ets_pri_pg_tbl(bp,
@@ -305,7 +283,7 @@ static void bnx2x_dcbx_get_ets_feature(struct bnx2x *bp,
 					   ets, pg_pri_orginal_spread);
 
 	} else {
-		DP(NETIF_MSG_LINK, "DCBX_LOCAL_ETS_DISABLED\n");
+		DP(BNX2X_MSG_DCB, "DCBX_LOCAL_ETS_DISABLED\n");
 		bp->dcbx_port_params.ets.enabled = false;
 		ets->pri_pg_tbl[0] = 0;
 
@@ -317,18 +295,19 @@ static void bnx2x_dcbx_get_ets_feature(struct bnx2x *bp,
 static void  bnx2x_dcbx_get_pfc_feature(struct bnx2x *bp,
 					struct dcbx_pfc_feature *pfc, u32 error)
 {
-
 	if (GET_FLAGS(error, DCBX_LOCAL_PFC_ERROR))
-		DP(NETIF_MSG_LINK, "DCBX_LOCAL_PFC_ERROR\n");
+		DP(BNX2X_MSG_DCB, "DCBX_LOCAL_PFC_ERROR\n");
 
-	if (bp->dcbx_port_params.app.enabled &&
-	   !GET_FLAGS(error, DCBX_LOCAL_PFC_ERROR | DCBX_LOCAL_PFC_MISMATCH) &&
-	   pfc->enabled) {
+	if (GET_FLAGS(error, DCBX_REMOTE_PFC_TLV_NOT_FOUND))
+		DP(BNX2X_MSG_DCB, "DCBX_REMOTE_PFC_TLV_NOT_FOUND\n");
+	if (bp->dcbx_port_params.app.enabled && pfc->enabled &&
+	   !GET_FLAGS(error, DCBX_LOCAL_PFC_ERROR | DCBX_LOCAL_PFC_MISMATCH |
+			     DCBX_REMOTE_PFC_TLV_NOT_FOUND)) {
 		bp->dcbx_port_params.pfc.enabled = true;
 		bp->dcbx_port_params.pfc.priority_non_pauseable_mask =
 			~(pfc->pri_en_bitmap);
 	} else {
-		DP(NETIF_MSG_LINK, "DCBX_LOCAL_PFC_DISABLED\n");
+		DP(BNX2X_MSG_DCB, "DCBX_LOCAL_PFC_DISABLED\n");
 		bp->dcbx_port_params.pfc.enabled = false;
 		bp->dcbx_port_params.pfc.priority_non_pauseable_mask = 0;
 	}
@@ -352,7 +331,7 @@ static void bnx2x_dcbx_map_nw(struct bnx2x *bp)
 	for (i = 0; i < ARRAY_SIZE(bp->dcbx_port_params.ets.cos_params); i++) {
 		if (cos_params[i].pri_bitmask & nw_prio) {
 			/* extend the bitmask with unmapped */
-			DP(NETIF_MSG_LINK,
+			DP(BNX2X_MSG_DCB,
 			   "cos %d extended with 0x%08x\n", i, unmapped);
 			cos_params[i].pri_bitmask |= unmapped;
 			break;
@@ -383,7 +362,6 @@ static int bnx2x_dcbx_read_mib(struct bnx2x *bp,
 	u32 mib_size, prefix_seq_num, suffix_seq_num;
 	struct lldp_remote_mib *remote_mib ;
 	struct lldp_local_mib  *local_mib;
-
 
 	switch (read_mib_type) {
 	case DCBX_READ_LOCAL_MIB:
@@ -430,8 +408,12 @@ static int bnx2x_dcbx_read_mib(struct bnx2x *bp,
 
 static void bnx2x_pfc_set_pfc(struct bnx2x *bp)
 {
+	int mfw_configured = SHMEM2_HAS(bp, drv_flags) &&
+			     GET_FLAGS(SHMEM2_RD(bp, drv_flags),
+				       1 << DRV_FLAGS_DCB_MFW_CONFIGURED);
+
 	if (bp->dcbx_port_params.pfc.enabled &&
-	    !(bp->dcbx_error & DCBX_REMOTE_MIB_ERROR))
+	    (!(bp->dcbx_error & DCBX_REMOTE_MIB_ERROR) || mfw_configured))
 		/*
 		 * 1. Fills up common PFC structures if required
 		 * 2. Configure NIG, MAC and BRB via the elink
@@ -441,30 +423,52 @@ static void bnx2x_pfc_set_pfc(struct bnx2x *bp)
 		bnx2x_pfc_clear(bp);
 }
 
-static int bnx2x_dcbx_stop_hw_tx(struct bnx2x *bp)
+int bnx2x_dcbx_stop_hw_tx(struct bnx2x *bp)
 {
-	struct bnx2x_func_state_params func_params = {0};
+	struct bnx2x_func_state_params func_params = {NULL};
+	int rc;
 
 	func_params.f_obj = &bp->func_obj;
 	func_params.cmd = BNX2X_F_CMD_TX_STOP;
 
-	DP(NETIF_MSG_LINK, "STOP TRAFFIC\n");
-	return bnx2x_func_state_change(bp, &func_params);
+	__set_bit(RAMROD_COMP_WAIT, &func_params.ramrod_flags);
+	__set_bit(RAMROD_RETRY, &func_params.ramrod_flags);
+
+	DP(BNX2X_MSG_DCB, "STOP TRAFFIC\n");
+
+	rc = bnx2x_func_state_change(bp, &func_params);
+	if (rc) {
+		BNX2X_ERR("Unable to hold traffic for HW configuration\n");
+		bnx2x_panic();
+	}
+
+	return rc;
 }
 
-static int bnx2x_dcbx_resume_hw_tx(struct bnx2x *bp)
+int bnx2x_dcbx_resume_hw_tx(struct bnx2x *bp)
 {
-	struct bnx2x_func_state_params func_params = {0};
+	struct bnx2x_func_state_params func_params = {NULL};
 	struct bnx2x_func_tx_start_params *tx_params =
 		&func_params.params.tx_start;
+	int rc;
 
 	func_params.f_obj = &bp->func_obj;
 	func_params.cmd = BNX2X_F_CMD_TX_START;
 
+	__set_bit(RAMROD_COMP_WAIT, &func_params.ramrod_flags);
+	__set_bit(RAMROD_RETRY, &func_params.ramrod_flags);
+
 	bnx2x_dcbx_fw_struct(bp, tx_params);
 
-	DP(NETIF_MSG_LINK, "START TRAFFIC\n");
-	return bnx2x_func_state_change(bp, &func_params);
+	DP(BNX2X_MSG_DCB, "START TRAFFIC\n");
+
+	rc = bnx2x_func_state_change(bp, &func_params);
+	if (rc) {
+		BNX2X_ERR("Unable to resume traffic after HW configuration\n");
+		bnx2x_panic();
+	}
+
+	return rc;
 }
 
 static void bnx2x_dcbx_2cos_limit_update_ets_config(struct bnx2x *bp)
@@ -529,7 +533,7 @@ static void bnx2x_dcbx_2cos_limit_update_ets_config(struct bnx2x *bp)
 /*
  * In E3B0 the configuration may have more than 2 COS.
  */
-void bnx2x_dcbx_update_ets_config(struct bnx2x *bp)
+static void bnx2x_dcbx_update_ets_config(struct bnx2x *bp)
 {
 	struct bnx2x_dcbx_pg_params *ets = &(bp->dcbx_port_params.ets);
 	struct bnx2x_ets_params ets_params = { 0 };
@@ -569,10 +573,14 @@ void bnx2x_dcbx_update_ets_config(struct bnx2x *bp)
 
 static void bnx2x_dcbx_update_ets_params(struct bnx2x *bp)
 {
+	int mfw_configured = SHMEM2_HAS(bp, drv_flags) &&
+			     GET_FLAGS(SHMEM2_RD(bp, drv_flags),
+				       1 << DRV_FLAGS_DCB_MFW_CONFIGURED);
+
 	bnx2x_ets_disabled(&bp->link_params, &bp->link_vars);
 
 	if (!bp->dcbx_port_params.ets.enabled ||
-	    (bp->dcbx_error & DCBX_REMOTE_MIB_ERROR))
+	    ((bp->dcbx_error & DCBX_REMOTE_MIB_ERROR) && !mfw_configured))
 		return;
 
 	if (CHIP_IS_E3B0(bp))
@@ -588,7 +596,7 @@ static int bnx2x_dcbx_read_shmem_remote_mib(struct bnx2x *bp)
 	u32 dcbx_remote_mib_offset = SHMEM2_RD(bp, dcbx_remote_mib_offset);
 	int rc;
 
-	DP(NETIF_MSG_LINK, "dcbx_remote_mib_offset 0x%x\n",
+	DP(BNX2X_MSG_DCB, "dcbx_remote_mib_offset 0x%x\n",
 	   dcbx_remote_mib_offset);
 
 	if (SHMEM_DCBX_REMOTE_MIB_NONE == dcbx_remote_mib_offset) {
@@ -600,7 +608,7 @@ static int bnx2x_dcbx_read_shmem_remote_mib(struct bnx2x *bp)
 				 DCBX_READ_REMOTE_MIB);
 
 	if (rc) {
-		BNX2X_ERR("Faild to read remote mib from FW\n");
+		BNX2X_ERR("Failed to read remote mib from FW\n");
 		return rc;
 	}
 
@@ -617,7 +625,7 @@ static int bnx2x_dcbx_read_shmem_neg_results(struct bnx2x *bp)
 	u32 dcbx_neg_res_offset = SHMEM2_RD(bp, dcbx_neg_res_offset);
 	int rc;
 
-	DP(NETIF_MSG_LINK, "dcbx_neg_res_offset 0x%x\n", dcbx_neg_res_offset);
+	DP(BNX2X_MSG_DCB, "dcbx_neg_res_offset 0x%x\n", dcbx_neg_res_offset);
 
 	if (SHMEM_DCBX_NEG_RES_NONE == dcbx_neg_res_offset) {
 		BNX2X_ERR("FW doesn't support dcbx_neg_res_offset\n");
@@ -628,7 +636,7 @@ static int bnx2x_dcbx_read_shmem_neg_results(struct bnx2x *bp)
 				 DCBX_READ_LOCAL_MIB);
 
 	if (rc) {
-		BNX2X_ERR("Faild to read local mib from FW\n");
+		BNX2X_ERR("Failed to read local mib from FW\n");
 		return rc;
 	}
 
@@ -637,7 +645,6 @@ static int bnx2x_dcbx_read_shmem_neg_results(struct bnx2x *bp)
 	bp->dcbx_error = local_mib.error;
 	return 0;
 }
-
 
 #ifdef BCM_DCBNL
 static inline
@@ -693,18 +700,17 @@ static inline void bnx2x_dcbx_update_tc_mapping(struct bnx2x *bp)
 			if (bp->dcbx_port_params.ets.cos_params[cos].pri_bitmask
 			    & (1 << prio)) {
 				bp->prio_to_cos[prio] = cos;
-				DP(NETIF_MSG_LINK,
+				DP(BNX2X_MSG_DCB,
 				   "tx_mapping %d --> %d\n", prio, cos);
 			}
 		}
 	}
 
 	/* setup tc must be called under rtnl lock, but we can't take it here
-	 * as we are handling an attetntion on a work queue which must be
+	 * as we are handling an attention on a work queue which must be
 	 * flushed at some rtnl-locked contexts (e.g. if down)
 	 */
-	if (!test_and_set_bit(BNX2X_SP_RTNL_SETUP_TC, &bp->sp_rtnl_state))
-		schedule_delayed_work(&bp->sp_rtnl_task, 0);
+	bnx2x_schedule_sp_rtnl(bp, BNX2X_SP_RTNL_SETUP_TC, 0);
 }
 
 void bnx2x_dcbx_set_params(struct bnx2x *bp, u32 state)
@@ -712,7 +718,7 @@ void bnx2x_dcbx_set_params(struct bnx2x *bp, u32 state)
 	switch (state) {
 	case BNX2X_DCBX_STATE_NEG_RECEIVED:
 		{
-			DP(NETIF_MSG_LINK, "BNX2X_DCBX_STATE_NEG_RECEIVED\n");
+			DP(BNX2X_MSG_DCB, "BNX2X_DCBX_STATE_NEG_RECEIVED\n");
 #ifdef BCM_DCBNL
 			/**
 			 * Delete app tlvs from dcbnl before reading new
@@ -720,7 +726,7 @@ void bnx2x_dcbx_set_params(struct bnx2x *bp, u32 state)
 			 */
 			bnx2x_dcbnl_update_applist(bp, true);
 
-			/* Read rmeote mib if dcbx is in the FW */
+			/* Read remote mib if dcbx is in the FW */
 			if (bnx2x_dcbx_read_shmem_remote_mib(bp))
 				return;
 #endif
@@ -735,7 +741,9 @@ void bnx2x_dcbx_set_params(struct bnx2x *bp, u32 state)
 						 bp->dcbx_error);
 
 			/* mark DCBX result for PMF migration */
-			bnx2x_update_drv_flags(bp, DRV_FLAGS_DCB_CONFIGURED, 1);
+			bnx2x_update_drv_flags(bp,
+					       1 << DRV_FLAGS_DCB_CONFIGURED,
+					       1);
 #ifdef BCM_DCBNL
 			/*
 			 * Add new app tlvs to dcbnl
@@ -749,26 +757,26 @@ void bnx2x_dcbx_set_params(struct bnx2x *bp, u32 state)
 			bnx2x_dcbx_update_tc_mapping(bp);
 
 			/*
-			 * allow other funtions to update their netdevices
+			 * allow other functions to update their netdevices
 			 * accordingly
 			 */
 			if (IS_MF(bp))
 				bnx2x_link_sync_notify(bp);
 
-			bnx2x_dcbx_stop_hw_tx(bp);
-
+			bnx2x_schedule_sp_rtnl(bp, BNX2X_SP_RTNL_TX_STOP, 0);
 			return;
 		}
 	case BNX2X_DCBX_STATE_TX_PAUSED:
-		DP(NETIF_MSG_LINK, "BNX2X_DCBX_STATE_TX_PAUSED\n");
+		DP(BNX2X_MSG_DCB, "BNX2X_DCBX_STATE_TX_PAUSED\n");
 		bnx2x_pfc_set_pfc(bp);
 
 		bnx2x_dcbx_update_ets_params(bp);
-		bnx2x_dcbx_resume_hw_tx(bp);
 
+		/* ets may affect cmng configuration: reinit it in hw */
+		bnx2x_set_local_cmng(bp);
 		return;
 	case BNX2X_DCBX_STATE_TX_RELEASED:
-		DP(NETIF_MSG_LINK, "BNX2X_DCBX_STATE_TX_RELEASED\n");
+		DP(BNX2X_MSG_DCB, "BNX2X_DCBX_STATE_TX_RELEASED\n");
 		bnx2x_fw_command(bp, DRV_MSG_CODE_DCBX_PMF_DRV_OK, 0);
 #ifdef BCM_DCBNL
 		/*
@@ -859,7 +867,7 @@ static void bnx2x_dcbx_admin_mib_updated_params(struct bnx2x *bp,
 			DCBX_PG_BW_SET(af->ets.pg_bw_tbl, i,
 				(u8)dp->admin_configuration_bw_precentage[i]);
 
-			DP(NETIF_MSG_LINK, "pg_bw_tbl[%d] = %02x\n",
+			DP(BNX2X_MSG_DCB, "pg_bw_tbl[%d] = %02x\n",
 			   i, DCBX_PG_BW_GET(af->ets.pg_bw_tbl, i));
 		}
 
@@ -867,11 +875,11 @@ static void bnx2x_dcbx_admin_mib_updated_params(struct bnx2x *bp,
 			DCBX_PRI_PG_SET(af->ets.pri_pg_tbl, i,
 					(u8)dp->admin_configuration_ets_pg[i]);
 
-			DP(NETIF_MSG_LINK, "pri_pg_tbl[%d] = %02x\n",
+			DP(BNX2X_MSG_DCB, "pri_pg_tbl[%d] = %02x\n",
 			   i, DCBX_PRI_PG_GET(af->ets.pri_pg_tbl, i));
 		}
 
-		/*For IEEE admin_recommendation_bw_precentage
+		/*For IEEE admin_recommendation_bw_percentage
 		 *For IEEE admin_recommendation_ets_pg */
 		af->pfc.pri_en_bitmap = (u8)dp->admin_pfc_bitmap;
 		for (i = 0; i < DCBX_CONFIG_MAX_APP_PROTOCOL; i++) {
@@ -903,13 +911,11 @@ static void bnx2x_dcbx_admin_mib_updated_params(struct bnx2x *bp,
 		}
 
 		af->app.default_pri = (u8)dp->admin_default_priority;
-
 	}
 
 	/* Write the data. */
 	bnx2x_write_data(bp, (u32 *)&admin_mib, offset,
 			 sizeof(struct lldp_admin_mib));
-
 }
 
 void bnx2x_dcbx_set_state(struct bnx2x *bp, bool dcb_on, u32 dcbx_enabled)
@@ -921,7 +927,7 @@ void bnx2x_dcbx_set_state(struct bnx2x *bp, bool dcb_on, u32 dcbx_enabled)
 		bp->dcb_state = false;
 		bp->dcbx_enabled = BNX2X_DCBX_ENABLED_INVALID;
 	}
-	DP(NETIF_MSG_LINK, "DCB state [%s:%s]\n",
+	DP(BNX2X_MSG_DCB, "DCB state [%s:%s]\n",
 	   dcb_on ? "ON" : "OFF",
 	   dcbx_enabled == BNX2X_DCBX_ENABLED_OFF ? "user-mode" :
 	   dcbx_enabled == BNX2X_DCBX_ENABLED_ON_NEG_OFF ? "on-chip static" :
@@ -943,30 +949,30 @@ void bnx2x_dcbx_init_params(struct bnx2x *bp)
 	bp->dcbx_config_params.admin_application_priority_tx_enable = 1;
 	bp->dcbx_config_params.admin_ets_reco_valid = 1;
 	bp->dcbx_config_params.admin_app_priority_willing = 1;
-	bp->dcbx_config_params.admin_configuration_bw_precentage[0] = 00;
-	bp->dcbx_config_params.admin_configuration_bw_precentage[1] = 50;
-	bp->dcbx_config_params.admin_configuration_bw_precentage[2] = 50;
+	bp->dcbx_config_params.admin_configuration_bw_precentage[0] = 100;
+	bp->dcbx_config_params.admin_configuration_bw_precentage[1] = 0;
+	bp->dcbx_config_params.admin_configuration_bw_precentage[2] = 0;
 	bp->dcbx_config_params.admin_configuration_bw_precentage[3] = 0;
 	bp->dcbx_config_params.admin_configuration_bw_precentage[4] = 0;
 	bp->dcbx_config_params.admin_configuration_bw_precentage[5] = 0;
 	bp->dcbx_config_params.admin_configuration_bw_precentage[6] = 0;
 	bp->dcbx_config_params.admin_configuration_bw_precentage[7] = 0;
-	bp->dcbx_config_params.admin_configuration_ets_pg[0] = 1;
+	bp->dcbx_config_params.admin_configuration_ets_pg[0] = 0;
 	bp->dcbx_config_params.admin_configuration_ets_pg[1] = 0;
 	bp->dcbx_config_params.admin_configuration_ets_pg[2] = 0;
-	bp->dcbx_config_params.admin_configuration_ets_pg[3] = 2;
+	bp->dcbx_config_params.admin_configuration_ets_pg[3] = 0;
 	bp->dcbx_config_params.admin_configuration_ets_pg[4] = 0;
 	bp->dcbx_config_params.admin_configuration_ets_pg[5] = 0;
 	bp->dcbx_config_params.admin_configuration_ets_pg[6] = 0;
 	bp->dcbx_config_params.admin_configuration_ets_pg[7] = 0;
-	bp->dcbx_config_params.admin_recommendation_bw_precentage[0] = 0;
-	bp->dcbx_config_params.admin_recommendation_bw_precentage[1] = 1;
-	bp->dcbx_config_params.admin_recommendation_bw_precentage[2] = 2;
+	bp->dcbx_config_params.admin_recommendation_bw_precentage[0] = 100;
+	bp->dcbx_config_params.admin_recommendation_bw_precentage[1] = 0;
+	bp->dcbx_config_params.admin_recommendation_bw_precentage[2] = 0;
 	bp->dcbx_config_params.admin_recommendation_bw_precentage[3] = 0;
-	bp->dcbx_config_params.admin_recommendation_bw_precentage[4] = 7;
-	bp->dcbx_config_params.admin_recommendation_bw_precentage[5] = 5;
-	bp->dcbx_config_params.admin_recommendation_bw_precentage[6] = 6;
-	bp->dcbx_config_params.admin_recommendation_bw_precentage[7] = 7;
+	bp->dcbx_config_params.admin_recommendation_bw_precentage[4] = 0;
+	bp->dcbx_config_params.admin_recommendation_bw_precentage[5] = 0;
+	bp->dcbx_config_params.admin_recommendation_bw_precentage[6] = 0;
+	bp->dcbx_config_params.admin_recommendation_bw_precentage[7] = 0;
 	bp->dcbx_config_params.admin_recommendation_ets_pg[0] = 0;
 	bp->dcbx_config_params.admin_recommendation_ets_pg[1] = 1;
 	bp->dcbx_config_params.admin_recommendation_ets_pg[2] = 2;
@@ -975,30 +981,21 @@ void bnx2x_dcbx_init_params(struct bnx2x *bp)
 	bp->dcbx_config_params.admin_recommendation_ets_pg[5] = 5;
 	bp->dcbx_config_params.admin_recommendation_ets_pg[6] = 6;
 	bp->dcbx_config_params.admin_recommendation_ets_pg[7] = 7;
-	bp->dcbx_config_params.admin_pfc_bitmap = 0x8; /* FCoE(3) enable */
-	bp->dcbx_config_params.admin_priority_app_table[0].valid = 1;
-	bp->dcbx_config_params.admin_priority_app_table[1].valid = 1;
+	bp->dcbx_config_params.admin_pfc_bitmap = 0x0;
+	bp->dcbx_config_params.admin_priority_app_table[0].valid = 0;
+	bp->dcbx_config_params.admin_priority_app_table[1].valid = 0;
 	bp->dcbx_config_params.admin_priority_app_table[2].valid = 0;
 	bp->dcbx_config_params.admin_priority_app_table[3].valid = 0;
-	bp->dcbx_config_params.admin_priority_app_table[0].priority = 3;
-	bp->dcbx_config_params.admin_priority_app_table[1].priority = 0;
-	bp->dcbx_config_params.admin_priority_app_table[2].priority = 0;
-	bp->dcbx_config_params.admin_priority_app_table[3].priority = 0;
-	bp->dcbx_config_params.admin_priority_app_table[0].traffic_type = 0;
-	bp->dcbx_config_params.admin_priority_app_table[1].traffic_type = 1;
-	bp->dcbx_config_params.admin_priority_app_table[2].traffic_type = 0;
-	bp->dcbx_config_params.admin_priority_app_table[3].traffic_type = 0;
-	bp->dcbx_config_params.admin_priority_app_table[0].app_id = 0x8906;
-	bp->dcbx_config_params.admin_priority_app_table[1].app_id = 3260;
-	bp->dcbx_config_params.admin_priority_app_table[2].app_id = 0;
-	bp->dcbx_config_params.admin_priority_app_table[3].app_id = 0;
-	bp->dcbx_config_params.admin_default_priority =
-		bp->dcbx_config_params.admin_priority_app_table[1].priority;
+	bp->dcbx_config_params.admin_default_priority = 0;
 }
 
-void bnx2x_dcbx_init(struct bnx2x *bp)
+void bnx2x_dcbx_init(struct bnx2x *bp, bool update_shmem)
 {
 	u32 dcbx_lldp_params_offset = SHMEM_LLDP_DCBX_PARAMS_NONE;
+
+	/* only PMF can send ADMIN msg to MFW in old MFW versions */
+	if ((!bp->port.pmf) && (!(bp->flags & BC_SUPPORTS_DCBX_MSG_NON_PMF)))
+		return;
 
 	if (bp->dcbx_enabled <= 0)
 		return;
@@ -1006,29 +1003,39 @@ void bnx2x_dcbx_init(struct bnx2x *bp)
 	/* validate:
 	 * chip of good for dcbx version,
 	 * dcb is wanted
-	 * the function is pmf
 	 * shmem2 contains DCBX support fields
 	 */
-	DP(NETIF_MSG_LINK, "dcb_state %d bp->port.pmf %d\n",
+	DP(BNX2X_MSG_DCB, "dcb_state %d bp->port.pmf %d\n",
 	   bp->dcb_state, bp->port.pmf);
 
-	if (bp->dcb_state == BNX2X_DCB_STATE_ON && bp->port.pmf &&
+	if (bp->dcb_state == BNX2X_DCB_STATE_ON &&
 	    SHMEM2_HAS(bp, dcbx_lldp_params_offset)) {
 		dcbx_lldp_params_offset =
 			SHMEM2_RD(bp, dcbx_lldp_params_offset);
 
-		DP(NETIF_MSG_LINK, "dcbx_lldp_params_offset 0x%x\n",
+		DP(BNX2X_MSG_DCB, "dcbx_lldp_params_offset 0x%x\n",
 		   dcbx_lldp_params_offset);
 
-		bnx2x_update_drv_flags(bp, DRV_FLAGS_DCB_CONFIGURED, 0);
+		bnx2x_update_drv_flags(bp, 1 << DRV_FLAGS_DCB_CONFIGURED, 0);
 
 		if (SHMEM_LLDP_DCBX_PARAMS_NONE != dcbx_lldp_params_offset) {
-			bnx2x_dcbx_admin_mib_updated_params(bp,
-				dcbx_lldp_params_offset);
+			/* need HW lock to avoid scenario of two drivers
+			 * writing in parallel to shmem
+			 */
+			bnx2x_acquire_hw_lock(bp,
+					      HW_LOCK_RESOURCE_DCBX_ADMIN_MIB);
+			if (update_shmem)
+				bnx2x_dcbx_admin_mib_updated_params(bp,
+					dcbx_lldp_params_offset);
 
 			/* Let HW start negotiation */
 			bnx2x_fw_command(bp,
 					 DRV_MSG_CODE_DCBX_ADMIN_PMF_MSG, 0);
+			/* release HW lock only after MFW acks that it finished
+			 * reading values from shmem
+			 */
+			bnx2x_release_hw_lock(bp,
+					      HW_LOCK_RESOURCE_DCBX_ADMIN_MIB);
 		}
 	}
 }
@@ -1039,38 +1046,36 @@ bnx2x_dcbx_print_cos_params(struct bnx2x *bp,
 	u8 pri = 0;
 	u8 cos = 0;
 
-	DP(NETIF_MSG_LINK,
+	DP(BNX2X_MSG_DCB,
 	   "pfc_fw_cfg->dcb_version %x\n", pfc_fw_cfg->dcb_version);
-	DP(NETIF_MSG_LINK,
-	   "pdev->params.dcbx_port_params.pfc."
-	   "priority_non_pauseable_mask %x\n",
+	DP(BNX2X_MSG_DCB,
+	   "pdev->params.dcbx_port_params.pfc.priority_non_pauseable_mask %x\n",
 	   bp->dcbx_port_params.pfc.priority_non_pauseable_mask);
 
 	for (cos = 0 ; cos < bp->dcbx_port_params.ets.num_of_cos ; cos++) {
-		DP(NETIF_MSG_LINK, "pdev->params.dcbx_port_params.ets."
-		   "cos_params[%d].pri_bitmask %x\n", cos,
-		   bp->dcbx_port_params.ets.cos_params[cos].pri_bitmask);
+		DP(BNX2X_MSG_DCB,
+		   "pdev->params.dcbx_port_params.ets.cos_params[%d].pri_bitmask %x\n",
+		   cos, bp->dcbx_port_params.ets.cos_params[cos].pri_bitmask);
 
-		DP(NETIF_MSG_LINK, "pdev->params.dcbx_port_params.ets."
-		   "cos_params[%d].bw_tbl %x\n", cos,
-		   bp->dcbx_port_params.ets.cos_params[cos].bw_tbl);
+		DP(BNX2X_MSG_DCB,
+		   "pdev->params.dcbx_port_params.ets.cos_params[%d].bw_tbl %x\n",
+		   cos, bp->dcbx_port_params.ets.cos_params[cos].bw_tbl);
 
-		DP(NETIF_MSG_LINK, "pdev->params.dcbx_port_params.ets."
-		   "cos_params[%d].strict %x\n", cos,
-		   bp->dcbx_port_params.ets.cos_params[cos].strict);
+		DP(BNX2X_MSG_DCB,
+		   "pdev->params.dcbx_port_params.ets.cos_params[%d].strict %x\n",
+		   cos, bp->dcbx_port_params.ets.cos_params[cos].strict);
 
-		DP(NETIF_MSG_LINK, "pdev->params.dcbx_port_params.ets."
-		   "cos_params[%d].pauseable %x\n", cos,
-		   bp->dcbx_port_params.ets.cos_params[cos].pauseable);
+		DP(BNX2X_MSG_DCB,
+		   "pdev->params.dcbx_port_params.ets.cos_params[%d].pauseable %x\n",
+		   cos, bp->dcbx_port_params.ets.cos_params[cos].pauseable);
 	}
 
 	for (pri = 0; pri < LLFC_DRIVER_TRAFFIC_TYPE_MAX; pri++) {
-		DP(NETIF_MSG_LINK,
-		   "pfc_fw_cfg->traffic_type_to_priority_cos[%d]."
-		   "priority %x\n", pri,
-		   pfc_fw_cfg->traffic_type_to_priority_cos[pri].priority);
+		DP(BNX2X_MSG_DCB,
+		   "pfc_fw_cfg->traffic_type_to_priority_cos[%d].priority %x\n",
+		   pri, pfc_fw_cfg->traffic_type_to_priority_cos[pri].priority);
 
-		DP(NETIF_MSG_LINK,
+		DP(BNX2X_MSG_DCB,
 		   "pfc_fw_cfg->traffic_type_to_priority_cos[%d].cos %x\n",
 		   pri, pfc_fw_cfg->traffic_type_to_priority_cos[pri].cos);
 	}
@@ -1084,7 +1089,7 @@ static void bnx2x_dcbx_get_num_pg_traf_type(struct bnx2x *bp,
 	bool pg_found  = false;
 	u32 i, traf_type, add_traf_type, add_pg;
 	u32 *ttp = bp->dcbx_port_params.app.traffic_type_priority;
-	struct pg_entry_help_data *data = help_data->data; /*shotcut*/
+	struct pg_entry_help_data *data = help_data->data; /*shortcut*/
 
 	/* Set to invalid */
 	for (i = 0; i < LLFC_DRIVER_TRAFFIC_TYPE_MAX; i++)
@@ -1117,7 +1122,7 @@ static void bnx2x_dcbx_get_num_pg_traf_type(struct bnx2x *bp,
 				help_data->num_of_pg++;
 			}
 		}
-		DP(NETIF_MSG_LINK,
+		DP(BNX2X_MSG_DCB,
 		   "add_traf_type %d pg_found %s num_of_pg %d\n",
 		   add_traf_type, (false == pg_found) ? "NO" : "YES",
 		   help_data->num_of_pg);
@@ -1180,7 +1185,8 @@ static void bnx2x_dcbx_separate_pauseable_from_non(struct bnx2x *bp,
 				DCBX_PG_BW_GET(ets->pg_bw_tbl, pg_entry));
 		else
 			/* If we join a group and one is strict
-			 * than the bw rulls */
+			 * than the bw rules
+			 */
 			cos_data->data[entry].strict =
 						BNX2X_DCBX_STRICT_COS_HIGHEST;
 	}
@@ -1188,7 +1194,6 @@ static void bnx2x_dcbx_separate_pauseable_from_non(struct bnx2x *bp,
 	    (0 == cos_data->data[1].pri_join_mask))
 		BNX2X_ERR("dcbx error: Both groups must have priorities\n");
 }
-
 
 #ifndef POWER_OF_2
 #define POWER_OF_2(x)	((0 != x) && (0 == (x & (x-1))))
@@ -1292,7 +1297,7 @@ static void bnx2x_dcbx_2cos_limit_cee_single_pg_to_cos_params(struct bnx2x *bp,
 		} else {
 			/* If there are only pauseable priorities or
 			 * only non-pauseable,* the lower priorities go
-			 * to the first queue and the higherpriorities go
+			 * to the first queue and the higher priorities go
 			 * to the second queue.
 			 */
 			cos_data->data[0].pausable =
@@ -1310,8 +1315,7 @@ static void bnx2x_dcbx_2cos_limit_cee_single_pg_to_cos_params(struct bnx2x *bp,
 			}
 
 			if (i == LLFC_DRIVER_TRAFFIC_TYPE_MAX)
-				BNX2X_ERR("Invalid value for pri_join_mask -"
-					  " could not find a priority\n");
+				BNX2X_ERR("Invalid value for pri_join_mask - could not find a priority\n");
 
 			cos_data->data[0].pri_join_mask = pri_mask_without_pri;
 			cos_data->data[1].pri_join_mask = pri_tested;
@@ -1493,7 +1497,7 @@ static void bnx2x_dcbx_2cos_limit_cee_three_pg_to_cos_params(
 		 * queue and one priority goes to the second queue.
 		 *
 		 * We will join this two cases:
-		 * if one is BW limited it will go to the secoend queue
+		 * if one is BW limited it will go to the second queue
 		 * otherwise the last priority will get it
 		 */
 
@@ -1513,7 +1517,8 @@ static void bnx2x_dcbx_2cos_limit_cee_three_pg_to_cos_params(
 				    false == b_found_strict)
 					/* last entry will be handled separately
 					 * If no priority is strict than last
-					 * enty goes to last queue.*/
+					 * entry goes to last queue.
+					 */
 					entry = 1;
 				cos_data->data[entry].pri_join_mask |=
 								pri_tested;
@@ -1525,14 +1530,14 @@ static void bnx2x_dcbx_2cos_limit_cee_three_pg_to_cos_params(
 				b_found_strict = true;
 				cos_data->data[1].pri_join_mask |= pri_tested;
 				/* If we join a group and one is strict
-				 * than the bw rulls */
+				 * than the bw rules
+				 */
 				cos_data->data[1].strict =
 					BNX2X_DCBX_STRICT_COS_HIGHEST;
 			}
 		}
 	}
 }
-
 
 static void bnx2x_dcbx_2cos_limit_cee_fill_cos_params(struct bnx2x *bp,
 				       struct pg_help_data *help_data,
@@ -1542,7 +1547,6 @@ static void bnx2x_dcbx_2cos_limit_cee_fill_cos_params(struct bnx2x *bp,
 				       u32 pri_join_mask,
 				       u8 num_of_dif_pri)
 {
-
 	/* default E2 settings */
 	cos_data->num_of_cos = DCBX_COS_MAX_NUM_E2;
 
@@ -1624,8 +1628,10 @@ static int bnx2x_dcbx_spread_strict_pri(struct bnx2x *bp,
 		num_of_app_pri--;
 	}
 
-	if (num_spread_of_entries)
+	if (num_spread_of_entries) {
+		BNX2X_ERR("Didn't succeed to spread strict priorities\n");
 		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -1636,7 +1642,6 @@ static u8 bnx2x_dcbx_cee_fill_strict_pri(struct bnx2x *bp,
 					 u8 num_spread_of_entries,
 					 u8 strict_app_pris)
 {
-
 	if (bnx2x_dcbx_spread_strict_pri(bp, cos_data, entry,
 					 num_spread_of_entries,
 					 strict_app_pris)) {
@@ -1673,8 +1678,7 @@ static void bnx2x_dcbx_cee_fill_cos_params(struct bnx2x *bp,
 	if (help_data->num_of_pg > DCBX_COS_MAX_NUM_E3B0) {
 		if (bnx2x_dcbx_join_pgs(bp, ets, help_data,
 					DCBX_COS_MAX_NUM_E3B0)) {
-			BNX2X_ERR("Unable to reduce the number of PGs -"
-				  "we will disables ETS\n");
+			BNX2X_ERR("Unable to reduce the number of PGs - we will disables ETS\n");
 			bnx2x_dcbx_ets_disabled_entry_data(bp, cos_data,
 							   pri_join_mask);
 			return;
@@ -1774,24 +1778,24 @@ static void bnx2x_dcbx_fill_cos_params(struct bnx2x *bp,
 				if (p->pauseable &&
 				    DCBX_PFC_PRI_GET_NON_PAUSE(bp,
 						p->pri_bitmask) != 0)
-					BNX2X_ERR("Inconsistent config for "
-						  "pausable COS %d\n", i);
+					BNX2X_ERR("Inconsistent config for pausable COS %d\n",
+						  i);
 
 				if (!p->pauseable &&
 				    DCBX_PFC_PRI_GET_PAUSE(bp,
 						p->pri_bitmask) != 0)
-					BNX2X_ERR("Inconsistent config for "
-						  "nonpausable COS %d\n", i);
+					BNX2X_ERR("Inconsistent config for nonpausable COS %d\n",
+						  i);
 			}
 		}
 
 		if (p->pauseable)
-			DP(NETIF_MSG_LINK, "COS %d PAUSABLE prijoinmask 0x%x\n",
+			DP(BNX2X_MSG_DCB, "COS %d PAUSABLE prijoinmask 0x%x\n",
 				  i, cos_data.data[i].pri_join_mask);
 		else
-			DP(NETIF_MSG_LINK, "COS %d NONPAUSABLE prijoinmask "
-					  "0x%x\n",
-				  i, cos_data.data[i].pri_join_mask);
+			DP(BNX2X_MSG_DCB,
+			   "COS %d NONPAUSABLE prijoinmask 0x%x\n",
+			   i, cos_data.data[i].pri_join_mask);
 	}
 
 	bp->dcbx_port_params.ets.num_of_cos = cos_data.num_of_cos ;
@@ -1806,7 +1810,7 @@ static void bnx2x_dcbx_get_ets_pri_pg_tbl(struct bnx2x *bp,
 	for (i = 0; i < DCBX_MAX_NUM_PRI_PG_ENTRIES; i++) {
 		set_configuration_ets_pg[i] = DCBX_PRI_PG_GET(pri_pg_tbl, i);
 
-		DP(NETIF_MSG_LINK, "set_configuration_ets_pg[%d] = 0x%x\n",
+		DP(BNX2X_MSG_DCB, "set_configuration_ets_pg[%d] = 0x%x\n",
 		   i, set_configuration_ets_pg[i]);
 	}
 }
@@ -1818,11 +1822,14 @@ static void bnx2x_dcbx_fw_struct(struct bnx2x *bp,
 	u8 cos = 0, pri = 0;
 	struct priority_cos *tt2cos;
 	u32 *ttp = bp->dcbx_port_params.app.traffic_type_priority;
+	int mfw_configured = SHMEM2_HAS(bp, drv_flags) &&
+			     GET_FLAGS(SHMEM2_RD(bp, drv_flags),
+				       1 << DRV_FLAGS_DCB_MFW_CONFIGURED);
 
 	memset(pfc_fw_cfg, 0, sizeof(*pfc_fw_cfg));
 
 	/* to disable DCB - the structure must be zeroed */
-	if (bp->dcbx_error & DCBX_REMOTE_MIB_ERROR)
+	if ((bp->dcbx_error & DCBX_REMOTE_MIB_ERROR) && !mfw_configured)
 		return;
 
 	/*shortcut*/
@@ -1853,11 +1860,11 @@ static void bnx2x_dcbx_fw_struct(struct bnx2x *bp,
 
 void bnx2x_dcbx_pmf_update(struct bnx2x *bp)
 {
-	/* if we need to syncronize DCBX result from prev PMF
+	/* if we need to synchronize DCBX result from prev PMF
 	 * read it from shmem and update bp and netdev accordingly
 	 */
 	if (SHMEM2_HAS(bp, drv_flags) &&
-	   GET_FLAGS(SHMEM2_RD(bp, drv_flags), DRV_FLAGS_DCB_CONFIGURED)) {
+	   GET_FLAGS(SHMEM2_RD(bp, drv_flags), 1 << DRV_FLAGS_DCB_CONFIGURED)) {
 		/* Read neg results if dcbx is in the FW */
 		if (bnx2x_dcbx_read_shmem_neg_results(bp))
 			return;
@@ -1881,7 +1888,6 @@ void bnx2x_dcbx_pmf_update(struct bnx2x *bp)
 		 * dcbx negotiation.
 		 */
 		bnx2x_dcbx_update_tc_mapping(bp);
-
 	}
 }
 
@@ -1902,14 +1908,21 @@ static inline bool bnx2x_dcbnl_set_valid(struct bnx2x *bp)
 static u8 bnx2x_dcbnl_get_state(struct net_device *netdev)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "state = %d\n", bp->dcb_state);
+	DP(BNX2X_MSG_DCB, "state = %d\n", bp->dcb_state);
 	return bp->dcb_state;
 }
 
 static u8 bnx2x_dcbnl_set_state(struct net_device *netdev, u8 state)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "state = %s\n", state ? "on" : "off");
+	DP(BNX2X_MSG_DCB, "state = %s\n", state ? "on" : "off");
+
+	/* Fail to set state to "enabled" if dcbx is disabled in nvram */
+	if (state && ((bp->dcbx_enabled == BNX2X_DCBX_ENABLED_OFF) ||
+		      (bp->dcbx_enabled == BNX2X_DCBX_ENABLED_INVALID))) {
+		DP(BNX2X_MSG_DCB, "Can not set dcbx to enabled while it is disabled in nvm\n");
+		return 1;
+	}
 
 	bnx2x_dcbx_set_state(bp, (state ? true : false), bp->dcbx_enabled);
 	return 0;
@@ -1919,15 +1932,15 @@ static void bnx2x_dcbnl_get_perm_hw_addr(struct net_device *netdev,
 					 u8 *perm_addr)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "GET-PERM-ADDR\n");
+	DP(BNX2X_MSG_DCB, "GET-PERM-ADDR\n");
 
 	/* first the HW mac address */
 	memcpy(perm_addr, netdev->dev_addr, netdev->addr_len);
 
-#ifdef BCM_CNIC
-	/* second SAN address */
-	memcpy(perm_addr+netdev->addr_len, bp->fip_mac, netdev->addr_len);
-#endif
+	if (CNIC_LOADED(bp))
+		/* second SAN address */
+		memcpy(perm_addr+netdev->addr_len, bp->fip_mac,
+		       netdev->addr_len);
 }
 
 static void bnx2x_dcbnl_set_pg_tccfg_tx(struct net_device *netdev, int prio,
@@ -1936,19 +1949,19 @@ static void bnx2x_dcbnl_set_pg_tccfg_tx(struct net_device *netdev, int prio,
 {
 	struct bnx2x *bp = netdev_priv(netdev);
 
-	DP(NETIF_MSG_LINK, "prio[%d] = %d\n", prio, pgid);
+	DP(BNX2X_MSG_DCB, "prio[%d] = %d\n", prio, pgid);
 	if (!bnx2x_dcbnl_set_valid(bp) || prio >= DCBX_MAX_NUM_PRI_PG_ENTRIES)
 		return;
 
 	/**
-	 * bw_pct ingnored -	band-width percentage devision between user
+	 * bw_pct ignored -	band-width percentage devision between user
 	 *			priorities within the same group is not
 	 *			standard and hence not supported
 	 *
-	 * prio_type igonred -	priority levels within the same group are not
+	 * prio_type ignored -	priority levels within the same group are not
 	 *			standard and hence are not supported. According
 	 *			to the standard pgid 15 is dedicated to strict
-	 *			prioirty traffic (on the port level).
+	 *			priority traffic (on the port level).
 	 *
 	 * up_map ignored
 	 */
@@ -1961,7 +1974,7 @@ static void bnx2x_dcbnl_set_pg_bwgcfg_tx(struct net_device *netdev,
 					 int pgid, u8 bw_pct)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "pgid[%d] = %d\n", pgid, bw_pct);
+	DP(BNX2X_MSG_DCB, "pgid[%d] = %d\n", pgid, bw_pct);
 
 	if (!bnx2x_dcbnl_set_valid(bp) || pgid >= DCBX_MAX_NUM_PG_BW_ENTRIES)
 		return;
@@ -1975,14 +1988,14 @@ static void bnx2x_dcbnl_set_pg_tccfg_rx(struct net_device *netdev, int prio,
 					u8 up_map)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "Nothing to set; No RX support\n");
+	DP(BNX2X_MSG_DCB, "Nothing to set; No RX support\n");
 }
 
 static void bnx2x_dcbnl_set_pg_bwgcfg_rx(struct net_device *netdev,
 					 int pgid, u8 bw_pct)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "Nothing to set; No RX support\n");
+	DP(BNX2X_MSG_DCB, "Nothing to set; No RX support\n");
 }
 
 static void bnx2x_dcbnl_get_pg_tccfg_tx(struct net_device *netdev, int prio,
@@ -1990,17 +2003,17 @@ static void bnx2x_dcbnl_get_pg_tccfg_tx(struct net_device *netdev, int prio,
 					u8 *up_map)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "prio = %d\n", prio);
+	DP(BNX2X_MSG_DCB, "prio = %d\n", prio);
 
 	/**
-	 * bw_pct ingnored -	band-width percentage devision between user
+	 * bw_pct ignored -	band-width percentage devision between user
 	 *			priorities within the same group is not
 	 *			standard and hence not supported
 	 *
-	 * prio_type igonred -	priority levels within the same group are not
+	 * prio_type ignored -	priority levels within the same group are not
 	 *			standard and hence are not supported. According
 	 *			to the standard pgid 15 is dedicated to strict
-	 *			prioirty traffic (on the port level).
+	 *			priority traffic (on the port level).
 	 *
 	 * up_map ignored
 	 */
@@ -2016,7 +2029,7 @@ static void bnx2x_dcbnl_get_pg_bwgcfg_tx(struct net_device *netdev,
 					 int pgid, u8 *bw_pct)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "pgid = %d\n", pgid);
+	DP(BNX2X_MSG_DCB, "pgid = %d\n", pgid);
 
 	*bw_pct = 0;
 
@@ -2031,7 +2044,7 @@ static void bnx2x_dcbnl_get_pg_tccfg_rx(struct net_device *netdev, int prio,
 					u8 *up_map)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "Nothing to get; No RX support\n");
+	DP(BNX2X_MSG_DCB, "Nothing to get; No RX support\n");
 
 	*prio_type = *pgid = *bw_pct = *up_map = 0;
 }
@@ -2040,7 +2053,7 @@ static void bnx2x_dcbnl_get_pg_bwgcfg_rx(struct net_device *netdev,
 					 int pgid, u8 *bw_pct)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "Nothing to get; No RX support\n");
+	DP(BNX2X_MSG_DCB, "Nothing to get; No RX support\n");
 
 	*bw_pct = 0;
 }
@@ -2049,22 +2062,24 @@ static void bnx2x_dcbnl_set_pfc_cfg(struct net_device *netdev, int prio,
 				    u8 setting)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "prio[%d] = %d\n", prio, setting);
+	DP(BNX2X_MSG_DCB, "prio[%d] = %d\n", prio, setting);
 
 	if (!bnx2x_dcbnl_set_valid(bp) || prio >= MAX_PFC_PRIORITIES)
 		return;
 
-	bp->dcbx_config_params.admin_pfc_bitmap |= ((setting ? 1 : 0) << prio);
-
-	if (setting)
+	if (setting) {
+		bp->dcbx_config_params.admin_pfc_bitmap |= (1 << prio);
 		bp->dcbx_config_params.admin_pfc_tx_enable = 1;
+	} else {
+		bp->dcbx_config_params.admin_pfc_bitmap &= ~(1 << prio);
+	}
 }
 
 static void bnx2x_dcbnl_get_pfc_cfg(struct net_device *netdev, int prio,
 				    u8 *setting)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "prio = %d\n", prio);
+	DP(BNX2X_MSG_DCB, "prio = %d\n", prio);
 
 	*setting = 0;
 
@@ -2077,25 +2092,24 @@ static void bnx2x_dcbnl_get_pfc_cfg(struct net_device *netdev, int prio,
 static u8 bnx2x_dcbnl_set_all(struct net_device *netdev)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	int rc = 0;
 
-	DP(NETIF_MSG_LINK, "SET-ALL\n");
+	DP(BNX2X_MSG_DCB, "SET-ALL\n");
 
 	if (!bnx2x_dcbnl_set_valid(bp))
 		return 1;
 
 	if (bp->recovery_state != BNX2X_RECOVERY_DONE) {
-		netdev_err(bp->dev, "Handling parity error recovery. "
-				"Try again later\n");
+		netdev_err(bp->dev,
+			   "Handling parity error recovery. Try again later\n");
 		return 1;
 	}
 	if (netif_running(bp->dev)) {
-		bnx2x_nic_unload(bp, UNLOAD_NORMAL);
-		rc = bnx2x_nic_load(bp, LOAD_NORMAL);
+		bnx2x_update_drv_flags(bp,
+				       1 << DRV_FLAGS_DCB_MFW_CONFIGURED,
+				       1);
+		bnx2x_dcbx_init(bp, true);
 	}
-	DP(NETIF_MSG_LINK, "set_dcbx_params done (%d)\n", rc);
-	if (rc)
-		return 1;
+	DP(BNX2X_MSG_DCB, "set_dcbx_params done\n");
 
 	return 0;
 }
@@ -2132,22 +2146,25 @@ static u8 bnx2x_dcbnl_get_cap(struct net_device *netdev, int capid, u8 *cap)
 			*cap = BNX2X_DCBX_CAPS;
 			break;
 		default:
-			rval = -EINVAL;
+			BNX2X_ERR("Non valid capability ID\n");
+			rval = 1;
 			break;
 		}
-	} else
-		rval = -EINVAL;
+	} else {
+		DP(BNX2X_MSG_DCB, "DCB disabled\n");
+		rval = 1;
+	}
 
-	DP(NETIF_MSG_LINK, "capid %d:%x\n", capid, *cap);
+	DP(BNX2X_MSG_DCB, "capid %d:%x\n", capid, *cap);
 	return rval;
 }
 
-static u8 bnx2x_dcbnl_get_numtcs(struct net_device *netdev, int tcid, u8 *num)
+static int bnx2x_dcbnl_get_numtcs(struct net_device *netdev, int tcid, u8 *num)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
 	u8 rval = 0;
 
-	DP(NETIF_MSG_LINK, "tcid %d\n", tcid);
+	DP(BNX2X_MSG_DCB, "tcid %d\n", tcid);
 
 	if (bp->dcb_state) {
 		switch (tcid) {
@@ -2160,26 +2177,29 @@ static u8 bnx2x_dcbnl_get_numtcs(struct net_device *netdev, int tcid, u8 *num)
 						  DCBX_COS_MAX_NUM_E2;
 			break;
 		default:
-			rval = -EINVAL;
+			BNX2X_ERR("Non valid TC-ID\n");
+			rval = 1;
 			break;
 		}
-	} else
-		rval = -EINVAL;
+	} else {
+		DP(BNX2X_MSG_DCB, "DCB disabled\n");
+		rval = 1;
+	}
 
 	return rval;
 }
 
-static u8 bnx2x_dcbnl_set_numtcs(struct net_device *netdev, int tcid, u8 num)
+static int bnx2x_dcbnl_set_numtcs(struct net_device *netdev, int tcid, u8 num)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "num tcs = %d; Not supported\n", num);
+	DP(BNX2X_MSG_DCB, "num tcs = %d; Not supported\n", num);
 	return -EINVAL;
 }
 
-static u8  bnx2x_dcbnl_get_pfc_state(struct net_device *netdev)
+static u8 bnx2x_dcbnl_get_pfc_state(struct net_device *netdev)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "state = %d\n", bp->dcbx_local_feat.pfc.enabled);
+	DP(BNX2X_MSG_DCB, "state = %d\n", bp->dcbx_local_feat.pfc.enabled);
 
 	if (!bp->dcb_state)
 		return 0;
@@ -2190,7 +2210,7 @@ static u8  bnx2x_dcbnl_get_pfc_state(struct net_device *netdev)
 static void bnx2x_dcbnl_set_pfc_state(struct net_device *netdev, u8 state)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "state = %s\n", state ? "on" : "off");
+	DP(BNX2X_MSG_DCB, "state = %s\n", state ? "on" : "off");
 
 	if (!bnx2x_dcbnl_set_valid(bp))
 		return;
@@ -2267,9 +2287,11 @@ static int bnx2x_set_admin_app_up(struct bnx2x *bp, u8 idtype, u16 idval, u8 up)
 		bnx2x_admin_app_set_ent(
 			&bp->dcbx_config_params.admin_priority_app_table[ff],
 			idtype, idval, up);
-	else
+	else {
 		/* app table is full */
+		BNX2X_ERR("Application table is too large\n");
 		return -EBUSY;
+	}
 
 	/* up configured, if not 0 make sure feature is enabled */
 	if (up)
@@ -2278,16 +2300,18 @@ static int bnx2x_set_admin_app_up(struct bnx2x *bp, u8 idtype, u16 idval, u8 up)
 	return 0;
 }
 
-static u8 bnx2x_dcbnl_set_app_up(struct net_device *netdev, u8 idtype,
-				 u16 idval, u8 up)
+static int bnx2x_dcbnl_set_app_up(struct net_device *netdev, u8 idtype,
+				  u16 idval, u8 up)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
 
-	DP(NETIF_MSG_LINK, "app_type %d, app_id %x, prio bitmap %d\n",
+	DP(BNX2X_MSG_DCB, "app_type %d, app_id %x, prio bitmap %d\n",
 	   idtype, idval, up);
 
-	if (!bnx2x_dcbnl_set_valid(bp))
+	if (!bnx2x_dcbnl_set_valid(bp)) {
+		DP(BNX2X_MSG_DCB, "dcbnl call not valid\n");
 		return -EINVAL;
+	}
 
 	/* verify idtype */
 	switch (idtype) {
@@ -2295,6 +2319,7 @@ static u8 bnx2x_dcbnl_set_app_up(struct net_device *netdev, u8 idtype,
 	case DCB_APP_IDTYPE_PORTNUM:
 		break;
 	default:
+		DP(BNX2X_MSG_DCB, "Wrong ID type\n");
 		return -EINVAL;
 	}
 	return bnx2x_set_admin_app_up(bp, idtype, idval, up);
@@ -2316,13 +2341,13 @@ static u8 bnx2x_dcbnl_get_dcbx(struct net_device *netdev)
 static u8 bnx2x_dcbnl_set_dcbx(struct net_device *netdev, u8 state)
 {
 	struct bnx2x *bp = netdev_priv(netdev);
-	DP(NETIF_MSG_LINK, "state = %02x\n", state);
+	DP(BNX2X_MSG_DCB, "state = %02x\n", state);
 
 	/* set dcbx mode */
 
 	if ((state & BNX2X_DCBX_CAPS) != state) {
-		BNX2X_ERR("Requested DCBX mode %x is beyond advertised "
-			  "capabilities\n", state);
+		BNX2X_ERR("Requested DCBX mode %x is beyond advertised capabilities\n",
+			  state);
 		return 1;
 	}
 
@@ -2346,7 +2371,7 @@ static u8 bnx2x_dcbnl_get_featcfg(struct net_device *netdev, int featid,
 	struct bnx2x *bp = netdev_priv(netdev);
 	u8 rval = 0;
 
-	DP(NETIF_MSG_LINK, "featid %d\n", featid);
+	DP(BNX2X_MSG_DCB, "featid %d\n", featid);
 
 	if (bp->dcb_state) {
 		*flags = 0;
@@ -2354,29 +2379,35 @@ static u8 bnx2x_dcbnl_get_featcfg(struct net_device *netdev, int featid,
 		case DCB_FEATCFG_ATTR_PG:
 			if (bp->dcbx_local_feat.ets.enabled)
 				*flags |= DCB_FEATCFG_ENABLE;
-			if (bp->dcbx_error & DCBX_LOCAL_ETS_ERROR)
+			if (bp->dcbx_error & (DCBX_LOCAL_ETS_ERROR |
+					      DCBX_REMOTE_MIB_ERROR))
 				*flags |= DCB_FEATCFG_ERROR;
 			break;
 		case DCB_FEATCFG_ATTR_PFC:
 			if (bp->dcbx_local_feat.pfc.enabled)
 				*flags |= DCB_FEATCFG_ENABLE;
 			if (bp->dcbx_error & (DCBX_LOCAL_PFC_ERROR |
-			    DCBX_LOCAL_PFC_MISMATCH))
+					      DCBX_LOCAL_PFC_MISMATCH |
+					      DCBX_REMOTE_MIB_ERROR))
 				*flags |= DCB_FEATCFG_ERROR;
 			break;
 		case DCB_FEATCFG_ATTR_APP:
 			if (bp->dcbx_local_feat.app.enabled)
 				*flags |= DCB_FEATCFG_ENABLE;
 			if (bp->dcbx_error & (DCBX_LOCAL_APP_ERROR |
-			    DCBX_LOCAL_APP_MISMATCH))
+					      DCBX_LOCAL_APP_MISMATCH |
+					      DCBX_REMOTE_MIB_ERROR))
 				*flags |= DCB_FEATCFG_ERROR;
 			break;
 		default:
-			rval = -EINVAL;
+			BNX2X_ERR("Non valid feature-ID\n");
+			rval = 1;
 			break;
 		}
-	} else
-		rval = -EINVAL;
+	} else {
+		DP(BNX2X_MSG_DCB, "DCB disabled\n");
+		rval = 1;
+	}
 
 	return rval;
 }
@@ -2387,7 +2418,7 @@ static u8 bnx2x_dcbnl_set_featcfg(struct net_device *netdev, int featid,
 	struct bnx2x *bp = netdev_priv(netdev);
 	u8 rval = 0;
 
-	DP(NETIF_MSG_LINK, "featid = %d flags = %02x\n", featid, flags);
+	DP(BNX2X_MSG_DCB, "featid = %d flags = %02x\n", featid, flags);
 
 	/* ignore the 'advertise' flag */
 	if (bnx2x_dcbnl_set_valid(bp)) {
@@ -2410,11 +2441,14 @@ static u8 bnx2x_dcbnl_set_featcfg(struct net_device *netdev, int featid,
 				flags & DCB_FEATCFG_WILLING ? 1 : 0;
 			break;
 		default:
-			rval = -EINVAL;
+			BNX2X_ERR("Non valid feature-ID\n");
+			rval = 1;
 			break;
 		}
-	} else
-		rval = -EINVAL;
+	} else {
+		DP(BNX2X_MSG_DCB, "dcbnl call not valid\n");
+		rval = 1;
+	}
 
 	return rval;
 }
@@ -2425,7 +2459,7 @@ static int bnx2x_peer_appinfo(struct net_device *netdev,
 	int i;
 	struct bnx2x *bp = netdev_priv(netdev);
 
-	DP(NETIF_MSG_LINK, "APP-INFO\n");
+	DP(BNX2X_MSG_DCB, "APP-INFO\n");
 
 	info->willing = (bp->dcbx_remote_flags & DCBX_APP_REM_WILLING) ?: 0;
 	info->error = (bp->dcbx_remote_flags & DCBX_APP_RX_ERROR) ?: 0;
@@ -2444,7 +2478,7 @@ static int bnx2x_peer_apptable(struct net_device *netdev,
 	int i, j;
 	struct bnx2x *bp = netdev_priv(netdev);
 
-	DP(NETIF_MSG_LINK, "APP-TABLE\n");
+	DP(BNX2X_MSG_DCB, "APP-TABLE\n");
 
 	for (i = 0, j = 0; i < DCBX_MAX_APP_PROTOCOL; i++) {
 		struct dcbx_app_priority_entry *ent =

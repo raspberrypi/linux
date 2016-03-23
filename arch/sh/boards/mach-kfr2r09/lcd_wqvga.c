@@ -251,8 +251,7 @@ static void display_on(void *sohandle,
 	write_memory_start(sohandle, so);
 }
 
-int kfr2r09_lcd_setup(void *board_data, void *sohandle,
-		      struct sh_mobile_lcdc_sys_bus_ops *so)
+int kfr2r09_lcd_setup(void *sohandle, struct sh_mobile_lcdc_sys_bus_ops *so)
 {
 	/* power on */
 	gpio_set_value(GPIO_PTF4, 0);  /* PROTECT/ -> L */
@@ -273,66 +272,7 @@ int kfr2r09_lcd_setup(void *board_data, void *sohandle,
 	return 0;
 }
 
-void kfr2r09_lcd_start(void *board_data, void *sohandle,
-		       struct sh_mobile_lcdc_sys_bus_ops *so)
+void kfr2r09_lcd_start(void *sohandle, struct sh_mobile_lcdc_sys_bus_ops *so)
 {
 	write_memory_start(sohandle, so);
-}
-
-#define CTRL_CKSW       0x10
-#define CTRL_C10        0x20
-#define CTRL_CPSW       0x80
-#define MAIN_MLED4      0x40
-#define MAIN_MSW        0x80
-
-static int kfr2r09_lcd_backlight(int on)
-{
-	struct i2c_adapter *a;
-	struct i2c_msg msg;
-	unsigned char buf[2];
-	int ret;
-
-	a = i2c_get_adapter(0);
-	if (!a)
-		return -ENODEV;
-
-	buf[0] = 0x00;
-	if (on)
-		buf[1] = CTRL_CPSW | CTRL_C10 | CTRL_CKSW;
-	else
-		buf[1] = 0;
-
-	msg.addr = 0x75;
-	msg.buf = buf;
-	msg.len = 2;
-	msg.flags = 0;
-	ret = i2c_transfer(a, &msg, 1);
-	if (ret != 1)
-		return -ENODEV;
-
-	buf[0] = 0x01;
-	if (on)
-		buf[1] = MAIN_MSW | MAIN_MLED4 | 0x0c;
-	else
-		buf[1] = 0;
-
-	msg.addr = 0x75;
-	msg.buf = buf;
-	msg.len = 2;
-	msg.flags = 0;
-	ret = i2c_transfer(a, &msg, 1);
-	if (ret != 1)
-		return -ENODEV;
-
-	return 0;
-}
-
-void kfr2r09_lcd_on(void *board_data, struct fb_info *info)
-{
-	kfr2r09_lcd_backlight(1);
-}
-
-void kfr2r09_lcd_off(void *board_data)
-{
-	kfr2r09_lcd_backlight(0);
 }

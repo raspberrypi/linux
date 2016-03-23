@@ -21,13 +21,11 @@
 #include <linux/exportfs.h>
 
 #ifdef CONFIG_XFS_QUOTA
-extern void xfs_qm_init(void);
+extern int xfs_qm_init(void);
 extern void xfs_qm_exit(void);
-# define vfs_initquota()	xfs_qm_init()
-# define vfs_exitquota()	xfs_qm_exit()
 #else
-# define vfs_initquota()	do { } while (0)
-# define vfs_exitquota()	do { } while (0)
+# define xfs_qm_init()	(0)
+# define xfs_qm_exit()	do { } while (0)
 #endif
 
 #ifdef CONFIG_XFS_POSIX_ACL
@@ -46,16 +44,6 @@ extern void xfs_qm_exit(void);
 # define XFS_REALTIME_STRING
 #endif
 
-#if XFS_BIG_BLKNOS
-# if XFS_BIG_INUMS
-#  define XFS_BIGFS_STRING	"large block/inode numbers, "
-# else
-#  define XFS_BIGFS_STRING	"large block numbers, "
-# endif
-#else
-# define XFS_BIGFS_STRING
-#endif
-
 #ifdef DEBUG
 # define XFS_DBG_STRING		"debug"
 #else
@@ -66,7 +54,6 @@ extern void xfs_qm_exit(void);
 #define XFS_BUILD_OPTIONS	XFS_ACL_STRING \
 				XFS_SECURITY_STRING \
 				XFS_REALTIME_STRING \
-				XFS_BIGFS_STRING \
 				XFS_DBG_STRING /* DBG must be last */
 
 struct xfs_inode;
@@ -76,7 +63,10 @@ struct block_device;
 
 extern __uint64_t xfs_max_file_offset(unsigned int);
 
+extern void xfs_flush_inodes(struct xfs_mount *mp);
 extern void xfs_blkdev_issue_flush(struct xfs_buftarg *);
+extern xfs_agnumber_t xfs_set_inode32(struct xfs_mount *, xfs_agnumber_t agcount);
+extern xfs_agnumber_t xfs_set_inode64(struct xfs_mount *, xfs_agnumber_t agcount);
 
 extern const struct export_operations xfs_export_operations;
 extern const struct xattr_handler *xfs_xattr_handlers[];

@@ -37,7 +37,6 @@
  *    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/seq_file.h>
@@ -48,15 +47,10 @@
 #define ADD(buf, off, max, fmt, args...)				\
 	off += snprintf(&buf[off], max - off, fmt, ##args);
 
-static int carl9170_debugfs_open(struct inode *inode, struct file *file)
-{
-	file->private_data = inode->i_private;
-	return 0;
-}
 
 struct carl9170_debugfs_fops {
 	unsigned int read_bufsize;
-	mode_t attr;
+	umode_t attr;
 	char *(*read)(struct ar9170 *ar, char *buf, size_t bufsize,
 		      ssize_t *len);
 	ssize_t (*write)(struct ar9170 *aru, const char *buf, size_t size);
@@ -178,7 +172,7 @@ static const struct carl9170_debugfs_fops carl_debugfs_##name ##_ops = {\
 	.attr = _attr,							\
 	.req_dev_state = _dstate,					\
 	.fops = {							\
-		.open	= carl9170_debugfs_open,			\
+		.open	= simple_open,					\
 		.read	= carl9170_debugfs_read,			\
 		.write	= carl9170_debugfs_write,			\
 		.owner	= THIS_MODULE					\
@@ -659,8 +653,8 @@ static ssize_t carl9170_debugfs_bug_write(struct ar9170 *ar, const char *buf,
 		goto out;
 
 	case 'P':
-		err = carl9170_set_channel(ar, ar->hw->conf.channel,
-			ar->hw->conf.channel_type, CARL9170_RFI_COLD);
+		err = carl9170_set_channel(ar, ar->hw->conf.chandef.chan,
+			cfg80211_get_chandef_type(&ar->hw->conf.chandef));
 		if (err < 0)
 			count = err;
 

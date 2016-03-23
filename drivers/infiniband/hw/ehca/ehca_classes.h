@@ -322,7 +322,7 @@ struct ehca_mr_pginfo {
 		} phy;
 		struct { /* type EHCA_MR_PGI_USER section */
 			struct ib_umem *region;
-			struct ib_umem_chunk *next_chunk;
+			struct scatterlist *next_sg;
 			u64 next_nmap;
 		} usr;
 		struct { /* type EHCA_MR_PGI_FMR section */
@@ -379,8 +379,8 @@ extern spinlock_t shca_list_lock;
 
 extern int ehca_static_rate;
 extern int ehca_port_act_time;
-extern int ehca_use_hp_mr;
-extern int ehca_scaling_code;
+extern bool ehca_use_hp_mr;
+extern bool ehca_scaling_code;
 extern int ehca_lock_hcalls;
 extern int ehca_nr_ports;
 extern int ehca_max_cq;

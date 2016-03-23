@@ -130,8 +130,8 @@ static int siu_pcm_wr_set(struct siu_port *port_info,
 	sg_dma_len(&sg) = size;
 	sg_dma_address(&sg) = buff;
 
-	desc = siu_stream->chan->device->device_prep_slave_sg(siu_stream->chan,
-		&sg, 1, DMA_TO_DEVICE, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+	desc = dmaengine_prep_slave_sg(siu_stream->chan,
+		&sg, 1, DMA_MEM_TO_DEV, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 	if (!desc) {
 		dev_err(dev, "Failed to allocate a dma descriptor\n");
 		return -ENOMEM;
@@ -139,7 +139,7 @@ static int siu_pcm_wr_set(struct siu_port *port_info,
 
 	desc->callback = siu_dma_tx_complete;
 	desc->callback_param = siu_stream;
-	cookie = desc->tx_submit(desc);
+	cookie = dmaengine_submit(desc);
 	if (cookie < 0) {
 		dev_err(dev, "Failed to submit a dma transfer\n");
 		return cookie;
@@ -180,8 +180,8 @@ static int siu_pcm_rd_set(struct siu_port *port_info,
 	sg_dma_len(&sg) = size;
 	sg_dma_address(&sg) = buff;
 
-	desc = siu_stream->chan->device->device_prep_slave_sg(siu_stream->chan,
-		&sg, 1, DMA_FROM_DEVICE, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+	desc = dmaengine_prep_slave_sg(siu_stream->chan,
+		&sg, 1, DMA_DEV_TO_MEM, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 	if (!desc) {
 		dev_err(dev, "Failed to allocate dma descriptor\n");
 		return -ENOMEM;
@@ -189,7 +189,7 @@ static int siu_pcm_rd_set(struct siu_port *port_info,
 
 	desc->callback = siu_dma_tx_complete;
 	desc->callback_param = siu_stream;
-	cookie = desc->tx_submit(desc);
+	cookie = dmaengine_submit(desc);
 	if (cookie < 0) {
 		dev_err(dev, "Failed to submit dma descriptor\n");
 		return cookie;
@@ -330,12 +330,9 @@ static bool filter(struct dma_chan *chan, void *slave)
 {
 	struct sh_dmae_slave *param = slave;
 
-	pr_debug("%s: slave ID %d\n", __func__, param->slave_id);
+	pr_debug("%s: slave ID %d\n", __func__, param->shdma_slave.slave_id);
 
-	if (unlikely(param->dma_dev != chan->device->dev))
-		return false;
-
-	chan->private = param;
+	chan->private = &param->shdma_slave;
 	return true;
 }
 
@@ -360,16 +357,15 @@ static int siu_pcm_open(struct snd_pcm_substream *ss)
 	if (ss->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		siu_stream = &port_info->playback;
 		param = &siu_stream->param;
-		param->slave_id = port ? pdata->dma_slave_tx_b :
+		param->shdma_slave.slave_id = port ? pdata->dma_slave_tx_b :
 			pdata->dma_slave_tx_a;
 	} else {
 		siu_stream = &port_info->capture;
 		param = &siu_stream->param;
-		param->slave_id = port ? pdata->dma_slave_rx_b :
+		param->shdma_slave.slave_id = port ? pdata->dma_slave_rx_b :
 			pdata->dma_slave_rx_a;
 	}
 
-	param->dma_dev = pdata->dma_dev;
 	/* Get DMA channel */
 	siu_stream->chan = dma_request_channel(mask, filter, param);
 	if (!siu_stream->chan) {

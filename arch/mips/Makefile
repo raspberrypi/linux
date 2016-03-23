@@ -93,6 +93,15 @@ LDFLAGS_vmlinux			+= -G 0 -static -n -nostdlib
 KBUILD_AFLAGS_MODULE		+= -mlong-calls
 KBUILD_CFLAGS_MODULE		+= -mlong-calls
 
+#
+# pass -msoft-float to GAS if it supports it.  However on newer binutils
+# (specifically newer than 2.24.51.20140728) we then also need to explicitly
+# set ".set hardfloat" in all files which manipulate floating point registers.
+#
+ifneq ($(call as-option,-Wa$(comma)-msoft-float,),)
+	cflags-y		+= -DGAS_HAS_SET_HARDFLOAT -Wa,-msoft-float
+endif
+
 cflags-y += -ffreestanding
 
 #
@@ -113,10 +122,25 @@ predef-le += -DMIPSEL -D_MIPSEL -D__MIPSEL -D__MIPSEL__
 cflags-$(CONFIG_CPU_BIG_ENDIAN)		+= $(shell $(CC) -dumpmachine |grep -q 'mips.*el-.*' && echo -EB $(undef-all) $(predef-be))
 cflags-$(CONFIG_CPU_LITTLE_ENDIAN)	+= $(shell $(CC) -dumpmachine |grep -q 'mips.*el-.*' || echo -EL $(undef-all) $(predef-le))
 
-cflags-$(CONFIG_CPU_HAS_SMARTMIPS)	+= $(call cc-option,-msmartmips)
+# For smartmips configurations, there are hundreds of warnings due to ISA overrides
+# in assembly and header files. smartmips is only supported for MIPS32r1 onwards
+# and there is no support for 64-bit. Various '.set mips2' or '.set mips3' or
+# similar directives in the kernel will spam the build logs with the following warnings:
+# Warning: the `smartmips' extension requires MIPS32 revision 1 or greater
+# or
+# Warning: the 64-bit MIPS architecture does not support the `smartmips' extension
+# Pass -Wa,--no-warn to disable all assembler warnings until the kernel code has
+# been fixed properly.
+cflags-$(CONFIG_CPU_HAS_SMARTMIPS)	+= $(call cc-option,-msmartmips) -Wa,--no-warn
+cflags-$(CONFIG_CPU_MICROMIPS) += $(call cc-option,-mmicromips)
 
 cflags-$(CONFIG_SB1XXX_CORELIS)	+= $(call cc-option,-mno-sched-prolog) \
 				   -fno-omit-frame-pointer
+
+ifeq ($(CONFIG_CPU_HAS_MSA),y)
+toolchain-msa	:= $(call cc-option-yn,-mhard-float -mfp64 -Wa$(comma)-mmsa)
+cflags-$(toolchain-msa)		+= -DTOOLCHAIN_SUPPORTS_MSA
+endif
 
 #
 # CPU-dependent compiler/assembler options for optimization.
@@ -145,10 +169,10 @@ cflags-$(CONFIG_CPU_NEVADA)	+= $(call cc-option,-march=rm5200,-march=r5000) \
 			-Wa,--trap
 cflags-$(CONFIG_CPU_RM7000)	+= $(call cc-option,-march=rm7000,-march=r5000) \
 			-Wa,--trap
-cflags-$(CONFIG_CPU_RM9000)	+= $(call cc-option,-march=rm9000,-march=r5000) \
-			-Wa,--trap
 cflags-$(CONFIG_CPU_SB1)	+= $(call cc-option,-march=sb1,-march=r5000) \
 			-Wa,--trap
+cflags-$(CONFIG_CPU_SB1)	+= $(call cc-option,-mno-mdmx)
+cflags-$(CONFIG_CPU_SB1)	+= $(call cc-option,-mno-mips3d)
 cflags-$(CONFIG_CPU_R8000)	+= -march=r8000 -Wa,--trap
 cflags-$(CONFIG_CPU_R10000)	+= $(call cc-option,-march=r10000,-march=r8000) \
 			-Wa,--trap
@@ -157,6 +181,7 @@ ifeq (,$(findstring march=octeon, $(cflags-$(CONFIG_CPU_CAVIUM_OCTEON))))
 cflags-$(CONFIG_CPU_CAVIUM_OCTEON) += -Wa,-march=octeon
 endif
 cflags-$(CONFIG_CAVIUM_CN63XXP1) += -Wa,-mfix-cn63xxp1
+cflags-$(CONFIG_CPU_BMIPS)	+= -march=mips32 -Wa,-mips32 -Wa,--trap
 
 cflags-$(CONFIG_CPU_R4000_WORKAROUNDS)	+= $(call cc-option,-mfix-r4000,)
 cflags-$(CONFIG_CPU_R4400_WORKAROUNDS)	+= $(call cc-option,-mfix-r4400,)
@@ -172,9 +197,9 @@ endif
 #
 # Firmware support
 #
-libs-$(CONFIG_ARC)		+= arch/mips/fw/arc/
-libs-$(CONFIG_CFE)		+= arch/mips/fw/cfe/
-libs-$(CONFIG_SNIPROM)		+= arch/mips/fw/sni/
+libs-$(CONFIG_FW_ARC)		+= arch/mips/fw/arc/
+libs-$(CONFIG_FW_CFE)		+= arch/mips/fw/cfe/
+libs-$(CONFIG_FW_SNIPROM)	+= arch/mips/fw/sni/
 libs-y				+= arch/mips/fw/lib/
 
 #
@@ -190,6 +215,12 @@ endif
 # Board-dependent options and extra files
 #
 include $(srctree)/arch/mips/Kbuild.platforms
+
+ifdef CONFIG_PHYSICAL_START
+load-y					= $(CONFIG_PHYSICAL_START)
+endif
+entry-y				= 0x$(shell $(NM) vmlinux 2>/dev/null \
+					| grep "\bkernel_entry\b" | cut -f1 -d \ )
 
 cflags-y			+= -I$(srctree)/arch/mips/include/asm/mach-generic
 drivers-$(CONFIG_PCI)		+= arch/mips/pci/
@@ -218,13 +249,16 @@ endif
 
 KBUILD_AFLAGS	+= $(cflags-y)
 KBUILD_CFLAGS	+= $(cflags-y)
-KBUILD_CPPFLAGS += -D"VMLINUX_LOAD_ADDRESS=$(load-y)"
-KBUILD_CPPFLAGS += -D"DATAOFFSET=$(if $(dataoffset-y),$(dataoffset-y),0)"
+KBUILD_CPPFLAGS += -DVMLINUX_LOAD_ADDRESS=$(load-y)
+KBUILD_CPPFLAGS += -DDATAOFFSET=$(if $(dataoffset-y),$(dataoffset-y),0)
+
+bootvars-y	= VMLINUX_LOAD_ADDRESS=$(load-y) \
+		  VMLINUX_ENTRY_ADDRESS=$(entry-y)
 
 LDFLAGS			+= -m $(ld-emul)
 
 ifdef CONFIG_MIPS
-CHECKFLAGS += $(shell $(CC) $(KBUILD_CFLAGS) -dM -E -xc /dev/null | \
+CHECKFLAGS += $(shell $(CC) $(KBUILD_CFLAGS) -dM -E -x c /dev/null | \
 	egrep -vw '__GNUC_(|MINOR_|PATCHLEVEL_)_' | \
 	sed -e "s/^\#define /-D'/" -e "s/ /'='/" -e "s/$$/'/")
 ifdef CONFIG_64BIT
@@ -234,9 +268,10 @@ endif
 
 OBJCOPYFLAGS		+= --remove-section=.reginfo
 
-head-y := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
+head-y := arch/mips/kernel/head.o
 
 libs-y			+= arch/mips/lib/
+libs-y			+= arch/mips/math-emu/
 
 # See arch/mips/Kbuild for content of core part of the kernel
 core-y += arch/mips/
@@ -246,9 +281,25 @@ drivers-$(CONFIG_OPROFILE)	+= arch/mips/oprofile/
 # suspend and hibernation support
 drivers-$(CONFIG_PM)	+= arch/mips/power/
 
+# boot image targets (arch/mips/boot/)
+boot-y			:= vmlinux.bin
+boot-y			+= vmlinux.ecoff
+boot-y			+= vmlinux.srec
+ifeq ($(shell expr $(load-y) \< 0xffffffff80000000 2> /dev/null), 0)
+boot-y			+= uImage
+boot-y			+= uImage.gz
+endif
+
+# compressed boot image targets (arch/mips/boot/compressed/)
+bootz-y			:= vmlinuz
+bootz-y			+= vmlinuz.bin
+bootz-y			+= vmlinuz.ecoff
+bootz-y			+= vmlinuz.srec
+
 ifdef CONFIG_LASAT
 rom.bin rom.sw: vmlinux
-	$(Q)$(MAKE) $(build)=arch/mips/lasat/image $@
+	$(Q)$(MAKE) $(build)=arch/mips/lasat/image \
+		$(bootvars-y) $@
 endif
 
 #
@@ -256,32 +307,50 @@ endif
 # Other need ECOFF, so we build a 32-bit ELF binary for them which we then
 # convert to ECOFF using elf2ecoff.
 #
+quiet_cmd_32 = OBJCOPY $@
+	cmd_32 = $(OBJCOPY) -O $(32bit-bfd) $(OBJCOPYFLAGS) $< $@
 vmlinux.32: vmlinux
-	$(OBJCOPY) -O $(32bit-bfd) $(OBJCOPYFLAGS) $< $@
-
-
-#obj-$(CONFIG_KPROBES)		+= kprobes.o
+	$(call cmd,32)
 
 #
 # The 64-bit ELF tools are pretty broken so at this time we generate 64-bit
 # ELF files from 32-bit files by conversion.
 #
+quiet_cmd_64 = OBJCOPY $@
+	cmd_64 = $(OBJCOPY) -O $(64bit-bfd) $(OBJCOPYFLAGS) $< $@
 vmlinux.64: vmlinux
-	$(OBJCOPY) -O $(64bit-bfd) $(OBJCOPYFLAGS) $< $@
+	$(call cmd,64)
 
 all:	$(all-y)
 
 # boot
-vmlinux.bin vmlinux.ecoff vmlinux.srec: $(vmlinux-32) FORCE
-	$(Q)$(MAKE) $(build)=arch/mips/boot VMLINUX=$(vmlinux-32) arch/mips/boot/$@
+$(boot-y): $(vmlinux-32) FORCE
+	$(Q)$(MAKE) $(build)=arch/mips/boot VMLINUX=$(vmlinux-32) \
+		$(bootvars-y) arch/mips/boot/$@
 
+ifdef CONFIG_SYS_SUPPORTS_ZBOOT
 # boot/compressed
-vmlinuz vmlinuz.bin vmlinuz.ecoff vmlinuz.srec: $(vmlinux-32) FORCE
+$(bootz-y): $(vmlinux-32) FORCE
 	$(Q)$(MAKE) $(build)=arch/mips/boot/compressed \
-	   VMLINUX_LOAD_ADDRESS=$(load-y) 32bit-bfd=$(32bit-bfd) $@
+		$(bootvars-y) 32bit-bfd=$(32bit-bfd) $@
+else
+vmlinuz: FORCE
+	@echo '   CONFIG_SYS_SUPPORTS_ZBOOT is not enabled'
+	/bin/false
+endif
 
 
 CLEAN_FILES += vmlinux.32 vmlinux.64
+
+# device-trees
+core-$(CONFIG_BUILTIN_DTB) += arch/mips/boot/dts/
+
+%.dtb %.dtb.S %.dtb.o: | scripts
+	$(Q)$(MAKE) $(build)=arch/mips/boot/dts arch/mips/boot/dts/$@
+
+PHONY += dtbs
+dtbs: scripts
+	$(Q)$(MAKE) $(build)=arch/mips/boot/dts dtbs
 
 archprepare:
 ifdef CONFIG_MIPS32_N32
@@ -315,6 +384,9 @@ define archhelp
 	echo '  vmlinuz.ecoff        - ECOFF zboot image'
 	echo '  vmlinuz.bin          - Raw binary zboot image'
 	echo '  vmlinuz.srec         - SREC zboot image'
+	echo '  uImage               - U-Boot image'
+	echo '  uImage.gz            - U-Boot image (gzip)'
+	echo '  dtbs                 - Device-tree blobs for enabled boards'
 	echo
 	echo '  These will be default as appropriate for a configured platform.'
 endef

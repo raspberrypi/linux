@@ -14,6 +14,9 @@
 #ifndef LINUX_MMC_DW_MMC_H
 #define LINUX_MMC_DW_MMC_H
 
+#include <linux/scatterlist.h>
+#include <linux/mmc/core.h>
+
 #define MAX_MCI_SLOTS	2
 
 enum dw_mci_state {
@@ -23,6 +26,8 @@ enum dw_mci_state {
 	STATE_DATA_BUSY,
 	STATE_SENDING_STOP,
 	STATE_DATA_ERROR,
+	STATE_SENDING_CMD11,
+	STATE_WAITING_CMD11_DONE,
 };
 
 enum {
@@ -40,7 +45,7 @@ struct mmc_data;
  * @lock: Spinlock protecting the queue and associated data.
  * @regs: Pointer to MMIO registers.
  * @sg: Scatterlist entry currently being processed by PIO code, if any.
- * @pio_offset: Offset into the current scatterlist entry.
+ * @sg_miter: PIO mapping scatterlist iterator.
  * @cur_slot: The slot which is currently using the controller.
  * @mrq: The request currently being processed on @cur_slot,
  *	or NULL if the controller is idle.
@@ -74,8 +79,12 @@ struct mmc_data;
  * @num_slots: Number of slots available.
  * @verid: Denote Version ID.
  * @data_offset: Set the offset of DATA register according to VERID.
- * @pdev: Platform device associated with the MMC controller.
+ * @dev: Device associated with the MMC controller.
  * @pdata: Platform data associated with the MMC controller.
+ * @drv_data: Driver specific data for identified variant of the controller
+ * @priv: Implementation defined private data.
+ * @biu_clk: Pointer to bus interface unit clock instance.
+ * @ciu_clk: Pointer to card interface unit clock instance.
  * @slot: Slots sharing this MMC controller.
  * @fifo_depth: depth of FIFO.
  * @data_shift: log2 of FIFO item size.
@@ -85,6 +94,8 @@ struct mmc_data;
  * @push_data: Pointer to FIFO push function.
  * @pull_data: Pointer to FIFO pull function.
  * @quirks: Set of quirks that apply to specific versions of the IP.
+ * @irq_flags: The flags to be passed to request_irq.
+ * @irq: The irq value to be passed to request_irq.
  *
  * Locking
  * =======
@@ -115,12 +126,16 @@ struct dw_mci {
 	void __iomem		*regs;
 
 	struct scatterlist	*sg;
-	unsigned int		pio_offset;
+	struct sg_mapping_iter	sg_miter;
 
 	struct dw_mci_slot	*cur_slot;
 	struct mmc_request	*mrq;
 	struct mmc_command	*cmd;
 	struct mmc_data		*data;
+	struct mmc_command	stop_abort;
+	unsigned int		prev_blksz;
+	unsigned char		timing;
+	struct workqueue_struct	*card_workqueue;
 
 	/* DMA interface members*/
 	int			use_dma;
@@ -128,7 +143,7 @@ struct dw_mci {
 
 	dma_addr_t		sg_dma;
 	void			*sg_cpu;
-	struct dw_mci_dma_ops	*dma_ops;
+	const struct dw_mci_dma_ops	*dma_ops;
 #ifdef CONFIG_MMC_DW_IDMAC
 	unsigned int		ring_size;
 #else
@@ -151,8 +166,12 @@ struct dw_mci {
 	u32			fifoth_val;
 	u16			verid;
 	u16			data_offset;
-	struct platform_device	*pdev;
+	struct device		*dev;
 	struct dw_mci_board	*pdata;
+	const struct dw_mci_drv_data	*drv_data;
+	void			*priv;
+	struct clk		*biu_clk;
+	struct clk		*ciu_clk;
 	struct dw_mci_slot	*slot[MAX_MCI_SLOTS];
 
 	/* FIFO push and pull */
@@ -171,7 +190,9 @@ struct dw_mci {
 	/* Workaround flags */
 	u32			quirks;
 
-	struct regulator	*vmmc;	/* Power regulator */
+	bool			vqmmc_enabled;
+	unsigned long		irq_flags; /* IRQ flags */
+	int			irq;
 };
 
 /* DMA ops for Internal/External DMAC interface */
@@ -194,7 +215,12 @@ struct dw_mci_dma_ops {
 #define DW_MCI_QUIRK_HIGHSPEED			BIT(2)
 /* Unreliable card detection */
 #define DW_MCI_QUIRK_BROKEN_CARD_DETECTION	BIT(3)
+/* No write protect */
+#define DW_MCI_QUIRK_NO_WRITE_PROTECT		BIT(4)
 
+/* Slot level quirks */
+/* This slot has no write protect */
+#define DW_MCI_SLOT_QUIRK_NO_WRITE_PROTECT	BIT(0)
 
 struct dma_pdata;
 
@@ -211,9 +237,11 @@ struct dw_mci_board {
 	u32 num_slots;
 
 	u32 quirks; /* Workaround / Quirk flags */
-	unsigned int bus_hz; /* Bus speed */
+	unsigned int bus_hz; /* Clock speed at the cclk_in pad */
 
-	unsigned int caps;	/* Capabilities */
+	u32 caps;	/* Capabilities */
+	u32 caps2;	/* More capabilities */
+	u32 pm_caps;	/* PM capabilities */
 	/*
 	 * Override fifo depth. If 0, autodetect it from the FIFOTH register,
 	 * but note that this may not be reliable after a bootloader has used
@@ -223,20 +251,6 @@ struct dw_mci_board {
 
 	/* delay in mS before detecting cards after interrupt */
 	u32 detect_delay_ms;
-
-	int (*init)(u32 slot_id, irq_handler_t , void *);
-	int (*get_ro)(u32 slot_id);
-	int (*get_cd)(u32 slot_id);
-	int (*get_ocr)(u32 slot_id);
-	int (*get_bus_wd)(u32 slot_id);
-	/*
-	 * Enable power to selected slot and set voltage to desired level.
-	 * Voltage levels are specified using MMC_VDD_xxx defines defined
-	 * in linux/mmc/host.h file.
-	 */
-	void (*setpower)(u32 slot_id, u32 volt);
-	void (*exit)(u32 slot_id);
-	void (*select_slot)(u32 slot_id);
 
 	struct dw_mci_dma_ops *dma_ops;
 	struct dma_pdata *data;

@@ -16,7 +16,6 @@
 
 #include <linux/cpufreq.h>
 #include <linux/delay.h>
-#include <linux/init.h>
 #include <linux/jiffies.h>
 #include <linux/kthread.h>
 #include <linux/oprofile.h>
@@ -34,7 +33,6 @@
 #include <asm/ptrace.h>
 #include <asm/reg.h>
 #include <asm/rtas.h>
-#include <asm/system.h>
 #include <asm/cell-regs.h>
 
 #include "../platforms/cell/interrupt.h"
@@ -1123,8 +1121,7 @@ oprof_cpufreq_notify(struct notifier_block *nb, unsigned long val, void *data)
 	int ret = 0;
 	struct cpufreq_freqs *frq = data;
 	if ((val == CPUFREQ_PRECHANGE && frq->old < frq->new) ||
-	    (val == CPUFREQ_POSTCHANGE && frq->old > frq->new) ||
-	    (val == CPUFREQ_RESUMECHANGE || val == CPUFREQ_SUSPENDCHANGE))
+	    (val == CPUFREQ_POSTCHANGE && frq->old > frq->new))
 		set_spu_profiling_frequency(frq->new, spu_cycle_reset);
 	return ret;
 }

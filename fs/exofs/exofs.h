@@ -2,7 +2,7 @@
  * Copyright (C) 2005, 2006
  * Avishay Traeger (avishay@gmail.com)
  * Copyright (C) 2008, 2009
- * Boaz Harrosh <bharrosh@panasas.com>
+ * Boaz Harrosh <ooo@electrozaur.com>
  *
  * Copyrights for code taken from ext2:
  *     Copyright (C) 1992, 1993, 1994, 1995
@@ -56,6 +56,9 @@
 struct exofs_dev {
 	struct ore_dev ored;
 	unsigned did;
+	unsigned urilen;
+	uint8_t *uri;
+	struct kobject ed_kobj;
 };
 /*
  * our extension to the in-memory superblock
@@ -73,6 +76,7 @@ struct exofs_sb_info {
 	struct ore_layout	layout;		/* Default files layout       */
 	struct ore_comp one_comp;		/* id & cred of partition id=0*/
 	struct ore_components oc;		/* comps for the partition    */
+	struct kobject	s_kobj;			/* holds per-sbi kobject      */
 };
 
 /*
@@ -154,7 +158,7 @@ int exofs_write_begin(struct file *file, struct address_space *mapping,
 		loff_t pos, unsigned len, unsigned flags,
 		struct page **pagep, void **fsdata);
 extern struct inode *exofs_iget(struct super_block *, unsigned long);
-struct inode *exofs_new_inode(struct inode *, int);
+struct inode *exofs_new_inode(struct inode *, umode_t);
 extern int exofs_write_inode(struct inode *, struct writeback_control *wbc);
 extern void exofs_evict_inode(struct inode *);
 
@@ -175,6 +179,16 @@ int exofs_set_link(struct inode *, struct exofs_dir_entry *, struct page *,
 void exofs_make_credential(u8 cred_a[OSD_CAP_LEN],
 			   const struct osd_obj_id *obj);
 int exofs_sbi_write_stats(struct exofs_sb_info *sbi);
+
+/* sys.c                 */
+int exofs_sysfs_init(void);
+void exofs_sysfs_uninit(void);
+int exofs_sysfs_sb_add(struct exofs_sb_info *sbi,
+		       struct exofs_dt_device_info *dt_dev);
+void exofs_sysfs_sb_del(struct exofs_sb_info *sbi);
+int exofs_sysfs_odev_add(struct exofs_dev *edev,
+			 struct exofs_sb_info *sbi);
+void exofs_sysfs_dbg_print(void);
 
 /*********************
  * operation vectors *

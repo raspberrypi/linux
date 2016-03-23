@@ -197,19 +197,14 @@ static int __init cs553x_init_one(int cs, int mmio, unsigned long adr)
 	}
 
 	/* Allocate memory for MTD device structure and private data */
-	new_mtd = kmalloc(sizeof(struct mtd_info) + sizeof(struct nand_chip), GFP_KERNEL);
+	new_mtd = kzalloc(sizeof(struct mtd_info) + sizeof(struct nand_chip), GFP_KERNEL);
 	if (!new_mtd) {
-		printk(KERN_WARNING "Unable to allocate CS553X NAND MTD device structure.\n");
 		err = -ENOMEM;
 		goto out;
 	}
 
 	/* Get pointer to private data */
 	this = (struct nand_chip *)(&new_mtd[1]);
-
-	/* Initialize structures */
-	memset(new_mtd, 0, sizeof(struct mtd_info));
-	memset(this, 0, sizeof(struct nand_chip));
 
 	/* Link the private data with the MTD structure */
 	new_mtd->priv = this;
@@ -237,10 +232,10 @@ static int __init cs553x_init_one(int cs, int mmio, unsigned long adr)
 	this->ecc.hwctl  = cs_enable_hwecc;
 	this->ecc.calculate = cs_calculate_ecc;
 	this->ecc.correct  = nand_correct_data;
+	this->ecc.strength = 1;
 
 	/* Enable the following for a flash based bad block table */
 	this->bbt_options = NAND_BBT_USE_FLASH;
-	this->options = NAND_NO_AUTOINCR;
 
 	/* Scan to find existence of the device */
 	if (nand_scan(new_mtd, 1)) {
@@ -313,7 +308,7 @@ static int __init cs553x_init(void)
 	for (i = 0; i < NR_CS553X_CONTROLLERS; i++) {
 		if (cs553x_mtd[i]) {
 			/* If any devices registered, return success. Else the last error. */
-			mtd_device_parse_register(cs553x_mtd[i], NULL, 0,
+			mtd_device_parse_register(cs553x_mtd[i], NULL, NULL,
 						  NULL, 0);
 			err = 0;
 		}

@@ -27,7 +27,7 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/input.h>
-#include <linux/io.h>
+#include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/gpio_keys.h>
 #include <linux/i2c.h>
@@ -36,20 +36,19 @@
 #include <linux/leds.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/ads7846.h>
+#include <linux/omapfb.h>
+#include <linux/platform_data/keypad-omap.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 
-#include <plat/omap7xx.h>
-#include "common.h"
-#include <plat/board.h>
-#include <plat/keypad.h>
-#include <plat/usb.h>
-#include <plat/mmc.h>
+#include <mach/omap7xx.h>
+#include "mmc.h"
 
 #include <mach/irqs.h>
+#include <mach/usb.h>
 
-#include <linux/delay.h>
+#include "common.h"
 
 /* LCD register definition */
 #define       OMAP_LCDC_CONTROL               (0xfffec000 + 0x00)
@@ -324,8 +323,6 @@ static struct platform_device gpio_leds_device = {
 
 static struct resource htcpld_resources[] = {
 	[0] = {
-		.start  = OMAP_GPIO_IRQ(HTCHERALD_GIRQ_BTNS),
-		.end    = OMAP_GPIO_IRQ(HTCHERALD_GIRQ_BTNS),
 		.flags  = IORESOURCE_IRQ,
 	},
 };
@@ -398,10 +395,6 @@ static struct omap_lcd_config htcherald_lcd_config __initdata = {
 	.ctrl_name	= "internal",
 };
 
-static struct omap_board_config_kernel htcherald_config[] __initdata = {
-	{ OMAP_TAG_LCD, &htcherald_lcd_config },
-};
-
 static struct platform_device lcd_device = {
 	.name           = "lcd_htcherald",
 	.id             = -1,
@@ -454,7 +447,6 @@ static struct spi_board_info __initdata htcherald_spi_board_info[] = {
 	{
 		.modalias		= "ads7846",
 		.platform_data		= &htcherald_ts_platform_data,
-		.irq			= OMAP_GPIO_IRQ(HTCHERALD_GPIO_TS),
 		.max_speed_hz		= 2500000,
 		.bus_num		= 2,
 		.chip_select		= 1,
@@ -483,8 +475,7 @@ static void __init htcherald_lcd_init(void)
 				break;
 		}
 		if (!tries)
-			printk(KERN_WARNING "Timeout waiting for end of frame "
-			       "-- LCD may not be available\n");
+			pr_err("Timeout waiting for end of frame -- LCD may not be available\n");
 
 		/* turn off DMA */
 		reg = omap_readw(OMAP_DMA_LCD_CCR);
@@ -580,8 +571,8 @@ static void __init htcherald_init(void)
 	printk(KERN_INFO "HTC Herald init.\n");
 
 	/* Do board initialization before we register all the devices */
-	omap_board_config = htcherald_config;
-	omap_board_config_size = ARRAY_SIZE(htcherald_config);
+	htcpld_resources[0].start = gpio_to_irq(HTCHERALD_GIRQ_BTNS);
+	htcpld_resources[0].end = gpio_to_irq(HTCHERALD_GIRQ_BTNS);
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 
 	htcherald_disable_watchdog();
@@ -589,6 +580,7 @@ static void __init htcherald_init(void)
 	htcherald_usb_enable();
 	omap1_usb_init(&htcherald_usb_config);
 
+	htcherald_spi_board_info[0].irq = gpio_to_irq(HTCHERALD_GPIO_TS);
 	spi_register_board_info(htcherald_spi_board_info,
 		ARRAY_SIZE(htcherald_spi_board_info));
 
@@ -598,6 +590,8 @@ static void __init htcherald_init(void)
 	htc_mmc_data[0] = &htc_mmc1_data;
 	omap1_init_mmc(htc_mmc_data, 1);
 #endif
+
+	omapfb_set_lcd_config(&htcherald_lcd_config);
 }
 
 MACHINE_START(HERALD, "HTC Herald")
@@ -606,9 +600,9 @@ MACHINE_START(HERALD, "HTC Herald")
 	.atag_offset    = 0x100,
 	.map_io         = htcherald_map_io,
 	.init_early     = omap1_init_early,
-	.reserve	= omap_reserve,
 	.init_irq       = omap1_init_irq,
 	.init_machine   = htcherald_init,
-	.timer          = &omap1_timer,
+	.init_late	= omap1_init_late,
+	.init_time	= omap1_timer_init,
 	.restart	= omap1_restart,
 MACHINE_END

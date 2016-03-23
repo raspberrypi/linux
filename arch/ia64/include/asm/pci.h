@@ -11,6 +11,14 @@
 #include <asm/scatterlist.h>
 #include <asm/hw_irq.h>
 
+struct pci_vector_struct {
+	__u16 segment;	/* PCI Segment number */
+	__u16 bus;	/* PCI Bus number */
+	__u32 pci_id;	/* ACPI split 16 bits device, 16 bits function (see section 6.1.1) */
+	__u8 pin;	/* PCI PIN (0 = A, 1 = B, 2 = C, 3 = D) */
+	__u32 irq;	/* IRQ assigned */
+};
+
 /*
  * Can be used to override the logic in pci_scan_bus for skipping already-configured bus
  * numbers - to be used for buggy BIOSes or architectures with incomplete PCI setup by the
@@ -41,18 +49,6 @@ struct pci_dev;
  */
 extern unsigned long ia64_max_iommu_merge_mask;
 #define PCI_DMA_BUS_IS_PHYS	(ia64_max_iommu_merge_mask == ~0UL)
-
-static inline void
-pcibios_set_master (struct pci_dev *dev)
-{
-	/* No special bus mastering setup handling */
-}
-
-static inline void
-pcibios_penalize_isa_irq (int irq, int active)
-{
-	/* We don't do dynamic PCI IRQ allocation */
-}
 
 #include <asm-generic/pci-dma-compat.h>
 
@@ -87,22 +83,20 @@ extern int pci_mmap_legacy_page_range(struct pci_bus *bus,
 #define pci_legacy_read platform_pci_legacy_read
 #define pci_legacy_write platform_pci_legacy_write
 
-struct pci_window {
-	struct resource resource;
-	u64 offset;
+struct iospace_resource {
+	struct list_head list;
+	struct resource res;
 };
 
 struct pci_controller {
-	void *acpi_handle;
+	struct acpi_device *companion;
 	void *iommu;
 	int segment;
-	int node;		/* nearest node with memory or -1 for global allocation */
-
-	unsigned int windows;
-	struct pci_window *window;
+	int node;		/* nearest node with memory or NUMA_NO_NODE for global allocation */
 
 	void *platform_data;
 };
+
 
 #define PCI_CONTROLLER(busdev) ((struct pci_controller *) busdev->sysdata)
 #define pci_domain_nr(busdev)    (PCI_CONTROLLER(busdev)->segment)
@@ -113,12 +107,6 @@ static inline int pci_proc_domain(struct pci_bus *bus)
 {
 	return (pci_domain_nr(bus) != 0);
 }
-
-extern void pcibios_resource_to_bus(struct pci_dev *dev,
-		struct pci_bus_region *region, struct resource *res);
-
-extern void pcibios_bus_to_resource(struct pci_dev *dev,
-		struct resource *res, struct pci_bus_region *region);
 
 static inline struct resource *
 pcibios_select_root(struct pci_dev *pdev, struct resource *res)

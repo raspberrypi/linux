@@ -46,6 +46,8 @@
 
 #include <xen/features.h>
 
+#define GNTTAB_RESERVED_XENSTORE 1
+
 /* NR_GRANT_FRAMES must be less than or equal to that configured in Xen */
 #define NR_GRANT_FRAMES 4
 
@@ -143,21 +145,41 @@ gnttab_set_unmap_op(struct gnttab_unmap_grant_ref *unmap, phys_addr_t addr,
 	unmap->dev_bus_addr = 0;
 }
 
-int arch_gnttab_map_shared(unsigned long *frames, unsigned long nr_gframes,
+int arch_gnttab_init(unsigned long nr_shared);
+int arch_gnttab_map_shared(xen_pfn_t *frames, unsigned long nr_gframes,
 			   unsigned long max_nr_gframes,
-			   struct grant_entry **__shared);
-void arch_gnttab_unmap_shared(struct grant_entry *shared,
-			      unsigned long nr_gframes);
+			   void **__shared);
+void arch_gnttab_unmap(void *shared, unsigned long nr_gframes);
 
-extern unsigned long xen_hvm_resume_frames;
+struct grant_frames {
+	xen_pfn_t *pfn;
+	unsigned int count;
+	void *vaddr;
+};
+extern struct grant_frames xen_auto_xlat_grant_frames;
 unsigned int gnttab_max_grant_frames(void);
+int gnttab_setup_auto_xlat_frames(phys_addr_t addr);
+void gnttab_free_auto_xlat_frames(void);
 
 #define gnttab_map_vaddr(map) ((void *)(map.host_virt_addr))
 
 int gnttab_map_refs(struct gnttab_map_grant_ref *map_ops,
-			struct gnttab_map_grant_ref *kmap_ops,
+		    struct gnttab_map_grant_ref *kmap_ops,
 		    struct page **pages, unsigned int count);
 int gnttab_unmap_refs(struct gnttab_unmap_grant_ref *unmap_ops,
+		      struct gnttab_map_grant_ref *kunmap_ops,
 		      struct page **pages, unsigned int count);
+
+/* Perform a batch of grant map/copy operations. Retry every batch slot
+ * for which the hypervisor returns GNTST_eagain. This is typically due
+ * to paged out target frames.
+ *
+ * Will retry for 1, 2, ... 255 ms, i.e. 256 times during 32 seconds.
+ *
+ * Return value in each iand every status field of the batch guaranteed
+ * to not be GNTST_eagain.
+ */
+void gnttab_batch_map(struct gnttab_map_grant_ref *batch, unsigned count);
+void gnttab_batch_copy(struct gnttab_copy *batch, unsigned count);
 
 #endif /* __ASM_GNTTAB_H__ */

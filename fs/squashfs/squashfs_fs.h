@@ -30,11 +30,6 @@
 
 /* size of metadata (inode and directory) blocks */
 #define SQUASHFS_METADATA_SIZE		8192
-#define SQUASHFS_METADATA_LOG		13
-
-/* default size of data blocks */
-#define SQUASHFS_FILE_SIZE		131072
-#define SQUASHFS_FILE_LOG		17
 
 /* default size of block device I/O */
 #ifdef CONFIG_SQUASHFS_4K_DEVBLK_SIZE
@@ -46,11 +41,11 @@
 #define SQUASHFS_FILE_MAX_SIZE		1048576
 #define SQUASHFS_FILE_MAX_LOG		20
 
-/* Max number of uids and gids */
-#define SQUASHFS_IDS			65536
-
 /* Max length of filename (not 255) */
 #define SQUASHFS_NAME_LEN		256
+
+/* Max value for directory header count*/
+#define SQUASHFS_DIR_COUNT		256
 
 #define SQUASHFS_INVALID_FRAG		(0xffffffffU)
 #define SQUASHFS_INVALID_XATTR		(0xffffffffU)
@@ -92,7 +87,7 @@
 #define SQUASHFS_COMP_OPTS(flags)		SQUASHFS_BIT(flags, \
 						SQUASHFS_COMP_OPT)
 
-/* Max number of types and file types */
+/* Inode types including extended types */
 #define SQUASHFS_DIR_TYPE		1
 #define SQUASHFS_REG_TYPE		2
 #define SQUASHFS_SYMLINK_TYPE		3
@@ -107,6 +102,9 @@
 #define SQUASHFS_LCHRDEV_TYPE		12
 #define SQUASHFS_LFIFO_TYPE		13
 #define SQUASHFS_LSOCKET_TYPE		14
+
+/* Max type value stored in directory entry */
+#define SQUASHFS_MAX_DIR_TYPE		7
 
 /* Xattr types */
 #define SQUASHFS_XATTR_USER             0
@@ -141,9 +139,6 @@
 
 #define SQUASHFS_MKINODE(A, B)		((long long)(((long long) (A)\
 					<< 16) + (B)))
-
-/* Translate between VFS mode and squashfs mode */
-#define SQUASHFS_MODE(A)		((A) & 0xfff)
 
 /* fragment and fragment table defines */
 #define SQUASHFS_FRAGMENT_BYTES(A)	\
@@ -214,11 +209,6 @@
 
 /* cached data constants for filesystem */
 #define SQUASHFS_CACHED_BLKS		8
-
-#define SQUASHFS_MAX_FILE_SIZE_LOG	64
-
-#define SQUASHFS_MAX_FILE_SIZE		(1LL << \
-					(SQUASHFS_MAX_FILE_SIZE_LOG - 2))
 
 /* meta index cache */
 #define SQUASHFS_META_INDEXES	(SQUASHFS_METADATA_SIZE / sizeof(unsigned int))

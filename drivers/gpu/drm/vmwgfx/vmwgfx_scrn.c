@@ -307,9 +307,10 @@ static int vmw_sou_crtc_set_config(struct drm_mode_set *set)
 
 		connector->encoder = NULL;
 		encoder->crtc = NULL;
-		crtc->fb = NULL;
+		crtc->primary->fb = NULL;
 		crtc->x = 0;
 		crtc->y = 0;
+		crtc->enabled = false;
 
 		vmw_sou_del_active(dev_priv, sou);
 
@@ -367,9 +368,10 @@ static int vmw_sou_crtc_set_config(struct drm_mode_set *set)
 
 		connector->encoder = NULL;
 		encoder->crtc = NULL;
-		crtc->fb = NULL;
+		crtc->primary->fb = NULL;
 		crtc->x = 0;
 		crtc->y = 0;
+		crtc->enabled = false;
 
 		return ret;
 	}
@@ -379,9 +381,10 @@ static int vmw_sou_crtc_set_config(struct drm_mode_set *set)
 	connector->encoder = encoder;
 	encoder->crtc = crtc;
 	crtc->mode = *mode;
-	crtc->fb = fb;
+	crtc->primary->fb = fb;
 	crtc->x = set->x;
 	crtc->y = set->y;
+	crtc->enabled = true;
 
 	return 0;
 }
@@ -394,6 +397,7 @@ static struct drm_crtc_funcs vmw_screen_object_crtc_funcs = {
 	.gamma_set = vmw_du_crtc_gamma_set,
 	.destroy = vmw_sou_crtc_destroy,
 	.set_config = vmw_sou_crtc_set_config,
+	.page_flip = vmw_du_page_flip,
 };
 
 /*
@@ -448,8 +452,8 @@ static int vmw_sou_init(struct vmw_private *dev_priv, unsigned unit)
 	sou->active_implicit = false;
 
 	sou->base.pref_active = (unit == 0);
-	sou->base.pref_width = 800;
-	sou->base.pref_height = 600;
+	sou->base.pref_width = dev_priv->initial_width;
+	sou->base.pref_height = dev_priv->initial_height;
 	sou->base.pref_mode = NULL;
 	sou->base.is_implicit = true;
 
@@ -463,11 +467,13 @@ static int vmw_sou_init(struct vmw_private *dev_priv, unsigned unit)
 	encoder->possible_crtcs = (1 << unit);
 	encoder->possible_clones = 0;
 
+	(void) drm_connector_register(connector);
+
 	drm_crtc_init(dev, crtc, &vmw_screen_object_crtc_funcs);
 
 	drm_mode_crtc_set_gamma_size(crtc, 256);
 
-	drm_connector_attach_property(connector,
+	drm_object_attach_property(&connector->base,
 				      dev->mode_config.dirty_info_property,
 				      1);
 
@@ -484,7 +490,7 @@ int vmw_kms_init_screen_object_display(struct vmw_private *dev_priv)
 		return -EINVAL;
 	}
 
-	if (!(dev_priv->fifo.capabilities & SVGA_FIFO_CAP_SCREEN_OBJECT_2)) {
+	if (!(dev_priv->capabilities & SVGA_CAP_SCREEN_OBJECT_2)) {
 		DRM_INFO("Not using screen objects,"
 			 " missing cap SCREEN_OBJECT_2\n");
 		return -ENOSYS;
@@ -534,4 +540,37 @@ int vmw_kms_close_screen_object_display(struct vmw_private *dev_priv)
 	kfree(dev_priv->sou_priv);
 
 	return 0;
+}
+
+/**
+ * Returns if this unit can be page flipped.
+ * Must be called with the mode_config mutex held.
+ */
+bool vmw_kms_screen_object_flippable(struct vmw_private *dev_priv,
+				     struct drm_crtc *crtc)
+{
+	struct vmw_screen_object_unit *sou = vmw_crtc_to_sou(crtc);
+
+	if (!sou->base.is_implicit)
+		return true;
+
+	if (dev_priv->sou_priv->num_implicit != 1)
+		return false;
+
+	return true;
+}
+
+/**
+ * Update the implicit fb to the current fb of this crtc.
+ * Must be called with the mode_config mutex held.
+ */
+void vmw_kms_screen_object_update_implicit_fb(struct vmw_private *dev_priv,
+					      struct drm_crtc *crtc)
+{
+	struct vmw_screen_object_unit *sou = vmw_crtc_to_sou(crtc);
+
+	BUG_ON(!sou->base.is_implicit);
+
+	dev_priv->sou_priv->implicit_fb =
+		vmw_framebuffer_to_vfb(sou->base.crtc.primary->fb);
 }

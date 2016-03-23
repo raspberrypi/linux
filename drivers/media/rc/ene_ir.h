@@ -185,7 +185,7 @@
 #define __dbg(level, format, ...)				\
 do {								\
 	if (debug >= level)					\
-		pr_debug(format "\n", ## __VA_ARGS__);		\
+		pr_info(format "\n", ## __VA_ARGS__);		\
 } while (0)
 
 #define dbg(format, ...)		__dbg(1, format, ## __VA_ARGS__)
@@ -227,7 +227,7 @@ struct ene_device {
 
 	/* TX buffer */
 	unsigned *tx_buffer;			/* input samples buffer*/
-	int tx_pos;				/* position in that bufer */
+	int tx_pos;				/* position in that buffer */
 	int tx_len;				/* current len of tx buffer */
 	int tx_done;				/* done transmitting */
 						/* one more sample pending*/

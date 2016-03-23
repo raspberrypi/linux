@@ -37,7 +37,6 @@
 #include <linux/fcntl.h>
 #include <linux/gfp.h>
 #include <linux/interrupt.h>
-#include <linux/init.h>
 #include <linux/ioport.h>
 #include <linux/in.h>
 #include <linux/string.h>
@@ -52,8 +51,6 @@
 #include <linux/bitrev.h>
 #include <linux/slab.h>
 
-#include <asm/bootinfo.h>
-#include <asm/system.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
 #include <asm/hwtest.h>
@@ -197,19 +194,19 @@ static const struct net_device_ops macsonic_netdev_ops = {
 	.ndo_set_mac_address	= eth_mac_addr,
 };
 
-static int __devinit macsonic_init(struct net_device *dev)
+static int macsonic_init(struct net_device *dev)
 {
 	struct sonic_local* lp = netdev_priv(dev);
 
 	/* Allocate the entire chunk of memory for the descriptors.
            Note that this cannot cross a 64K boundary. */
-	if ((lp->descriptors = dma_alloc_coherent(lp->device,
-	            SIZEOF_SONIC_DESC * SONIC_BUS_SCALE(lp->dma_bitmode),
-	            &lp->descriptors_laddr, GFP_KERNEL)) == NULL) {
-		printk(KERN_ERR "%s: couldn't alloc DMA memory for descriptors.\n",
-		       dev_name(lp->device));
+	lp->descriptors = dma_alloc_coherent(lp->device,
+					     SIZEOF_SONIC_DESC *
+					     SONIC_BUS_SCALE(lp->dma_bitmode),
+					     &lp->descriptors_laddr,
+					     GFP_KERNEL);
+	if (lp->descriptors == NULL)
 		return -ENOMEM;
-	}
 
 	/* Now set up the pointers to point to the appropriate places */
 	lp->cda = lp->descriptors;
@@ -246,7 +243,7 @@ static int __devinit macsonic_init(struct net_device *dev)
                           memcmp(mac, "\x00\x80\x19", 3) && \
                           memcmp(mac, "\x00\x05\x02", 3))
 
-static void __devinit mac_onboard_sonic_ethernet_addr(struct net_device *dev)
+static void mac_onboard_sonic_ethernet_addr(struct net_device *dev)
 {
 	struct sonic_local *lp = netdev_priv(dev);
 	const int prom_addr = ONBOARD_SONIC_PROM_BASE;
@@ -307,10 +304,10 @@ static void __devinit mac_onboard_sonic_ethernet_addr(struct net_device *dev)
 
 	printk(KERN_WARNING "macsonic: MAC address in CAM entry 15 "
 	                    "seems invalid, will use a random MAC\n");
-	random_ether_addr(dev->dev_addr);
+	eth_hw_addr_random(dev);
 }
 
-static int __devinit mac_onboard_sonic_probe(struct net_device *dev)
+static int mac_onboard_sonic_probe(struct net_device *dev)
 {
 	struct sonic_local* lp = netdev_priv(dev);
 	int sr;
@@ -421,9 +418,8 @@ static int __devinit mac_onboard_sonic_probe(struct net_device *dev)
 	return macsonic_init(dev);
 }
 
-static int __devinit mac_nubus_sonic_ethernet_addr(struct net_device *dev,
-						unsigned long prom_addr,
-						int id)
+static int mac_nubus_sonic_ethernet_addr(struct net_device *dev,
+					 unsigned long prom_addr, int id)
 {
 	int i;
 	for(i = 0; i < 6; i++)
@@ -436,7 +432,7 @@ static int __devinit mac_nubus_sonic_ethernet_addr(struct net_device *dev,
 	return 0;
 }
 
-static int __devinit macsonic_ident(struct nubus_dev *ndev)
+static int macsonic_ident(struct nubus_dev *ndev)
 {
 	if (ndev->dr_hw == NUBUS_DRHW_ASANTE_LC &&
 	    ndev->dr_sw == NUBUS_DRSW_SONIC_LC)
@@ -461,7 +457,7 @@ static int __devinit macsonic_ident(struct nubus_dev *ndev)
 	return -1;
 }
 
-static int __devinit mac_nubus_sonic_probe(struct net_device *dev)
+static int mac_nubus_sonic_probe(struct net_device *dev)
 {
 	static int slots;
 	struct nubus_dev* ndev = NULL;
@@ -574,7 +570,7 @@ static int __devinit mac_nubus_sonic_probe(struct net_device *dev)
 	return macsonic_init(dev);
 }
 
-static int __devinit mac_sonic_probe(struct platform_device *pdev)
+static int mac_sonic_probe(struct platform_device *pdev)
 {
 	struct net_device *dev;
 	struct sonic_local *lp;
@@ -620,7 +616,7 @@ MODULE_ALIAS("platform:macsonic");
 
 #include "sonic.c"
 
-static int __devexit mac_sonic_device_remove (struct platform_device *pdev)
+static int mac_sonic_device_remove(struct platform_device *pdev)
 {
 	struct net_device *dev = platform_get_drvdata(pdev);
 	struct sonic_local* lp = netdev_priv(dev);
@@ -635,7 +631,7 @@ static int __devexit mac_sonic_device_remove (struct platform_device *pdev)
 
 static struct platform_driver mac_sonic_driver = {
 	.probe  = mac_sonic_probe,
-	.remove = __devexit_p(mac_sonic_device_remove),
+	.remove = mac_sonic_device_remove,
 	.driver	= {
 		.name	= mac_sonic_string,
 		.owner	= THIS_MODULE,

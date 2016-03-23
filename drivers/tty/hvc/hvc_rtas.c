@@ -94,7 +94,7 @@ static int __init hvc_rtas_init(void)
 
 	/* Allocate an hvc_struct for the console device we instantiated
 	 * earlier.  Save off hp so that we can return it on exit */
-	hp = hvc_alloc(hvc_rtas_cookie, NO_IRQ, &hvc_rtas_get_put_ops, 16);
+	hp = hvc_alloc(hvc_rtas_cookie, 0, &hvc_rtas_get_put_ops, 16);
 	if (IS_ERR(hp))
 		return PTR_ERR(hp);
 
@@ -102,17 +102,7 @@ static int __init hvc_rtas_init(void)
 
 	return 0;
 }
-module_init(hvc_rtas_init);
-
-/* This will tear down the tty portion of the driver */
-static void __exit hvc_rtas_exit(void)
-{
-	/* Really the fun isn't over until the worker thread breaks down and
-	 * the tty cleans up */
-	if (hvc_rtas_dev)
-		hvc_remove(hvc_rtas_dev);
-}
-module_exit(hvc_rtas_exit);
+device_initcall(hvc_rtas_init);
 
 /* This will happen prior to module init.  There is no tty at this time? */
 static int __init hvc_rtas_console_init(void)

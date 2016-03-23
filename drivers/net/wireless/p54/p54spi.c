@@ -42,8 +42,7 @@
 
 MODULE_FIRMWARE("3826.arm");
 
-/*
- * gpios should be handled in board files and provided via platform data,
+/* gpios should be handled in board files and provided via platform data,
  * but because it's currently impossible for p54spi to have a header file
  * in include/linux, let's use module paramaters for now
  */
@@ -191,11 +190,10 @@ static int p54spi_request_eeprom(struct ieee80211_hw *dev)
 	const struct firmware *eeprom;
 	int ret;
 
-	/*
-	 * allow users to customize their eeprom.
+	/* allow users to customize their eeprom.
 	 */
 
-	ret = request_firmware(&eeprom, "3826.eeprom", &priv->spi->dev);
+	ret = request_firmware_direct(&eeprom, "3826.eeprom", &priv->spi->dev);
 	if (ret < 0) {
 #ifdef CONFIG_P54_SPI_DEFAULT_EEPROM
 		dev_info(&priv->spi->dev, "loading default eeprom...\n");
@@ -285,8 +283,7 @@ static void p54spi_power_on(struct p54s_priv *priv)
 	gpio_set_value(p54spi_gpio_power, 1);
 	enable_irq(gpio_to_irq(p54spi_gpio_irq));
 
-	/*
-	 * need to wait a while before device can be accessed, the length
+	/* need to wait a while before device can be accessed, the length
 	 * is just a guess
 	 */
 	msleep(10);
@@ -365,7 +362,8 @@ static int p54spi_rx(struct p54s_priv *priv)
 	/* Firmware may insert up to 4 padding bytes after the lmac header,
 	 * but it does not amend the size of SPI data transfer.
 	 * Such packets has correct data size in header, thus referencing
-	 * past the end of allocated skb. Reserve extra 4 bytes for this case */
+	 * past the end of allocated skb. Reserve extra 4 bytes for this case
+	 */
 	skb = dev_alloc_skb(len + 4);
 	if (!skb) {
 		p54spi_sleep(priv);
@@ -383,7 +381,8 @@ static int p54spi_rx(struct p54s_priv *priv)
 	}
 	p54spi_sleep(priv);
 	/* Put additional bytes to compensate for the possible
-	 * alignment-caused truncation */
+	 * alignment-caused truncation
+	 */
 	skb_put(skb, 4);
 
 	if (p54_rx(priv->hw, skb) == 0)
@@ -396,7 +395,7 @@ static int p54spi_rx(struct p54s_priv *priv)
 static irqreturn_t p54spi_interrupt(int irq, void *config)
 {
 	struct spi_device *spi = config;
-	struct p54s_priv *priv = dev_get_drvdata(&spi->dev);
+	struct p54s_priv *priv = spi_get_drvdata(spi);
 
 	ieee80211_queue_work(priv->hw, &priv->work);
 
@@ -595,7 +594,7 @@ static void p54spi_op_stop(struct ieee80211_hw *dev)
 	cancel_work_sync(&priv->work);
 }
 
-static int __devinit p54spi_probe(struct spi_device *spi)
+static int p54spi_probe(struct spi_device *spi)
 {
 	struct p54s_priv *priv = NULL;
 	struct ieee80211_hw *hw;
@@ -609,7 +608,7 @@ static int __devinit p54spi_probe(struct spi_device *spi)
 
 	priv = hw->priv;
 	priv->hw = hw;
-	dev_set_drvdata(&spi->dev, priv);
+	spi_set_drvdata(spi, priv);
 	priv->spi = spi;
 
 	spi->bits_per_word = 16;
@@ -618,30 +617,30 @@ static int __devinit p54spi_probe(struct spi_device *spi)
 	ret = spi_setup(spi);
 	if (ret < 0) {
 		dev_err(&priv->spi->dev, "spi_setup failed");
-		goto err_free_common;
+		goto err_free;
 	}
 
 	ret = gpio_request(p54spi_gpio_power, "p54spi power");
 	if (ret < 0) {
 		dev_err(&priv->spi->dev, "power GPIO request failed: %d", ret);
-		goto err_free_common;
+		goto err_free;
 	}
 
 	ret = gpio_request(p54spi_gpio_irq, "p54spi irq");
 	if (ret < 0) {
 		dev_err(&priv->spi->dev, "irq GPIO request failed: %d", ret);
-		goto err_free_common;
+		goto err_free_gpio_power;
 	}
 
 	gpio_direction_output(p54spi_gpio_power, 0);
 	gpio_direction_input(p54spi_gpio_irq);
 
 	ret = request_irq(gpio_to_irq(p54spi_gpio_irq),
-			  p54spi_interrupt, IRQF_DISABLED, "p54spi",
+			  p54spi_interrupt, 0, "p54spi",
 			  priv->spi);
 	if (ret < 0) {
 		dev_err(&priv->spi->dev, "request_irq() failed");
-		goto err_free_common;
+		goto err_free_gpio_irq;
 	}
 
 	irq_set_irq_type(gpio_to_irq(p54spi_gpio_irq), IRQ_TYPE_EDGE_RISING);
@@ -673,13 +672,19 @@ static int __devinit p54spi_probe(struct spi_device *spi)
 	return 0;
 
 err_free_common:
+	free_irq(gpio_to_irq(p54spi_gpio_irq), spi);
+err_free_gpio_irq:
+	gpio_free(p54spi_gpio_irq);
+err_free_gpio_power:
+	gpio_free(p54spi_gpio_power);
+err_free:
 	p54_free_common(priv->hw);
 	return ret;
 }
 
-static int __devexit p54spi_remove(struct spi_device *spi)
+static int p54spi_remove(struct spi_device *spi)
 {
-	struct p54s_priv *priv = dev_get_drvdata(&spi->dev);
+	struct p54s_priv *priv = spi_get_drvdata(spi);
 
 	p54_unregister_common(priv->hw);
 
@@ -704,30 +709,10 @@ static struct spi_driver p54spi_driver = {
 	},
 
 	.probe		= p54spi_probe,
-	.remove		= __devexit_p(p54spi_remove),
+	.remove		= p54spi_remove,
 };
 
-static int __init p54spi_init(void)
-{
-	int ret;
-
-	ret = spi_register_driver(&p54spi_driver);
-	if (ret < 0) {
-		printk(KERN_ERR "failed to register SPI driver: %d", ret);
-		goto out;
-	}
-
-out:
-	return ret;
-}
-
-static void __exit p54spi_exit(void)
-{
-	spi_unregister_driver(&p54spi_driver);
-}
-
-module_init(p54spi_init);
-module_exit(p54spi_exit);
+module_spi_driver(p54spi_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Christian Lamparter <chunkeey@web.de>");

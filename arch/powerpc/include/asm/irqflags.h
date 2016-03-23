@@ -20,9 +20,9 @@
  */
 #define TRACE_WITH_FRAME_BUFFER(func)		\
 	mflr	r0;				\
-	stdu	r1, -32(r1);			\
+	stdu	r1, -STACK_FRAME_OVERHEAD(r1);	\
 	std	r0, 16(r1);			\
-	stdu	r1, -32(r1);			\
+	stdu	r1, -STACK_FRAME_OVERHEAD(r1);	\
 	bl func;				\
 	ld	r1, 0(r1);			\
 	ld	r1, 0(r1);
@@ -32,31 +32,41 @@
 #endif
 
 /*
- * Most of the CPU's IRQ-state tracing is done from assembly code; we
- * have to call a C function so call a wrapper that saves all the
- * C-clobbered registers.
+ * These are calls to C code, so the caller must be prepared for volatiles to
+ * be clobbered.
  */
-#define TRACE_ENABLE_INTS	TRACE_WITH_FRAME_BUFFER(.trace_hardirqs_on)
-#define TRACE_DISABLE_INTS	TRACE_WITH_FRAME_BUFFER(.trace_hardirqs_off)
+#define TRACE_ENABLE_INTS	TRACE_WITH_FRAME_BUFFER(trace_hardirqs_on)
+#define TRACE_DISABLE_INTS	TRACE_WITH_FRAME_BUFFER(trace_hardirqs_off)
 
-#define TRACE_AND_RESTORE_IRQ_PARTIAL(en,skip)		\
-	cmpdi	en,0;					\
-	bne	95f;					\
-	stb	en,PACASOFTIRQEN(r13);			\
-	TRACE_WITH_FRAME_BUFFER(.trace_hardirqs_off)	\
-	b	skip;					\
-95:	TRACE_WITH_FRAME_BUFFER(.trace_hardirqs_on)	\
-	li	en,1;
-#define TRACE_AND_RESTORE_IRQ(en)		\
-	TRACE_AND_RESTORE_IRQ_PARTIAL(en,96f);	\
-	stb	en,PACASOFTIRQEN(r13);		\
-96:
+/*
+ * This is used by assembly code to soft-disable interrupts first and
+ * reconcile irq state.
+ *
+ * NB: This may call C code, so the caller must be prepared for volatiles to
+ * be clobbered.
+ */
+#define RECONCILE_IRQ_STATE(__rA, __rB)		\
+	lbz	__rA,PACASOFTIRQEN(r13);	\
+	lbz	__rB,PACAIRQHAPPENED(r13);	\
+	cmpwi	cr0,__rA,0;			\
+	li	__rA,0;				\
+	ori	__rB,__rB,PACA_IRQ_HARD_DIS;	\
+	stb	__rB,PACAIRQHAPPENED(r13);	\
+	beq	44f;				\
+	stb	__rA,PACASOFTIRQEN(r13);	\
+	TRACE_DISABLE_INTS;			\
+44:
+
 #else
 #define TRACE_ENABLE_INTS
 #define TRACE_DISABLE_INTS
-#define TRACE_AND_RESTORE_IRQ_PARTIAL(en,skip)
-#define TRACE_AND_RESTORE_IRQ(en)		\
-	stb	en,PACASOFTIRQEN(r13)
+
+#define RECONCILE_IRQ_STATE(__rA, __rB)		\
+	lbz	__rA,PACAIRQHAPPENED(r13);	\
+	li	__rB,0;				\
+	ori	__rA,__rA,PACA_IRQ_HARD_DIS;	\
+	stb	__rB,PACASOFTIRQEN(r13);	\
+	stb	__rA,PACAIRQHAPPENED(r13)
 #endif
 #endif
 

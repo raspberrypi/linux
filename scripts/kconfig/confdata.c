@@ -140,7 +140,9 @@ static int conf_set_sym_val(struct symbol *sym, int def, int def_flags, char *p)
 			sym->flags |= def_flags;
 			break;
 		}
-		conf_warning("symbol value '%s' invalid for %s", p, sym->name);
+		if (def != S_DEF_AUTO)
+			conf_warning("symbol value '%s' invalid for %s",
+				     p, sym->name);
 		return 1;
 	case S_OTHER:
 		if (*p != '"') {
@@ -161,7 +163,8 @@ static int conf_set_sym_val(struct symbol *sym, int def, int def_flags, char *p)
 			memmove(p2, p2 + 1, strlen(p2));
 		}
 		if (!p2) {
-			conf_warning("invalid string found");
+			if (def != S_DEF_AUTO)
+				conf_warning("invalid string found");
 			return 1;
 		}
 		/* fall through */
@@ -172,7 +175,9 @@ static int conf_set_sym_val(struct symbol *sym, int def, int def_flags, char *p)
 			sym->def[def].val = strdup(p);
 			sym->flags |= def_flags;
 		} else {
-			conf_warning("symbol value '%s' invalid for %s", p, sym->name);
+			if (def != S_DEF_AUTO)
+				conf_warning("symbol value '%s' invalid for %s",
+					     p, sym->name);
 			return 1;
 		}
 		break;
@@ -182,10 +187,66 @@ static int conf_set_sym_val(struct symbol *sym, int def, int def_flags, char *p)
 	return 0;
 }
 
+#define LINE_GROWTH 16
+static int add_byte(int c, char **lineptr, size_t slen, size_t *n)
+{
+	char *nline;
+	size_t new_size = slen + 1;
+	if (new_size > *n) {
+		new_size += LINE_GROWTH - 1;
+		new_size *= 2;
+		nline = realloc(*lineptr, new_size);
+		if (!nline)
+			return -1;
+
+		*lineptr = nline;
+		*n = new_size;
+	}
+
+	(*lineptr)[slen] = c;
+
+	return 0;
+}
+
+static ssize_t compat_getline(char **lineptr, size_t *n, FILE *stream)
+{
+	char *line = *lineptr;
+	size_t slen = 0;
+
+	for (;;) {
+		int c = getc(stream);
+
+		switch (c) {
+		case '\n':
+			if (add_byte(c, &line, slen, n) < 0)
+				goto e_out;
+			slen++;
+			/* fall through */
+		case EOF:
+			if (add_byte('\0', &line, slen, n) < 0)
+				goto e_out;
+			*lineptr = line;
+			if (slen == 0)
+				return -1;
+			return slen;
+		default:
+			if (add_byte(c, &line, slen, n) < 0)
+				goto e_out;
+			slen++;
+		}
+	}
+
+e_out:
+	line[slen-1] = '\0';
+	*lineptr = line;
+	return -1;
+}
+
 int conf_read_simple(const char *name, int def)
 {
 	FILE *in = NULL;
-	char line[1024];
+	char   *line = NULL;
+	size_t  line_asize = 0;
 	char *p, *p2;
 	struct symbol *sym;
 	int i, def_flags;
@@ -247,7 +308,7 @@ load:
 		}
 	}
 
-	while (fgets(line, sizeof(line), in)) {
+	while (compat_getline(&line, &line_asize, in) != -1) {
 		conf_lineno++;
 		sym = NULL;
 		if (line[0] == '#') {
@@ -335,6 +396,7 @@ setsym:
 			cs->def[def].tri = EXPR_OR(cs->def[def].tri, sym->def[def].tri);
 		}
 	}
+	free(line);
 	fclose(in);
 
 	if (modules_sym)
@@ -344,10 +406,8 @@ setsym:
 
 int conf_read(const char *name)
 {
-	struct symbol *sym, *choice_sym;
-	struct property *prop;
-	struct expr *e;
-	int i, flags;
+	struct symbol *sym;
+	int i;
 
 	sym_set_change_count(0);
 
@@ -357,7 +417,7 @@ int conf_read(const char *name)
 	for_all_symbols(i, sym) {
 		sym_calc_value(sym);
 		if (sym_is_choice(sym) || (sym->flags & SYMBOL_AUTO))
-			goto sym_ok;
+			continue;
 		if (sym_has_value(sym) && (sym->flags & SYMBOL_WRITE)) {
 			/* check that calculated value agrees with saved value */
 			switch (sym->type) {
@@ -366,30 +426,18 @@ int conf_read(const char *name)
 				if (sym->def[S_DEF_USER].tri != sym_get_tristate_value(sym))
 					break;
 				if (!sym_is_choice(sym))
-					goto sym_ok;
+					continue;
 				/* fall through */
 			default:
 				if (!strcmp(sym->curr.val, sym->def[S_DEF_USER].val))
-					goto sym_ok;
+					continue;
 				break;
 			}
 		} else if (!sym_has_value(sym) && !(sym->flags & SYMBOL_WRITE))
 			/* no previous value and not saved */
-			goto sym_ok;
+			continue;
 		conf_unsaved++;
 		/* maybe print value in verbose mode... */
-	sym_ok:
-		if (!sym_is_choice(sym))
-			continue;
-		/* The choice symbol only has a set value (and thus is not new)
-		 * if all its visible childs have values.
-		 */
-		prop = sym_get_choice_prop(sym);
-		flags = sym->flags;
-		expr_list_for_each_sym(prop->expr, e, choice_sym)
-			if (choice_sym->visible != no)
-				flags &= choice_sym->flags;
-		sym->flags &= flags | ~SYMBOL_DEF_USER;
 	}
 
 	for_all_symbols(i, sym) {
@@ -464,7 +512,7 @@ kconfig_print_comment(FILE *fp, const char *value, void *arg)
 		fprintf(fp, "#");
 		if (l) {
 			fprintf(fp, " ");
-			fwrite(p, l, 1, fp);
+			xfwrite(p, l, 1, fp);
 			p += l;
 		}
 		fprintf(fp, "\n");
@@ -537,7 +585,7 @@ header_print_comment(FILE *fp, const char *value, void *arg)
 		fprintf(fp, " *");
 		if (l) {
 			fprintf(fp, " ");
-			fwrite(p, l, 1, fp);
+			xfwrite(p, l, 1, fp);
 			p += l;
 		}
 		fprintf(fp, "\n");
@@ -550,35 +598,6 @@ header_print_comment(FILE *fp, const char *value, void *arg)
 static struct conf_printer header_printer_cb =
 {
 	.print_symbol = header_print_symbol,
-	.print_comment = header_print_comment,
-};
-
-/*
- * Generate the __enabled_CONFIG_* and __enabled_CONFIG_*_MODULE macros for
- * use by the IS_{ENABLED,BUILTIN,MODULE} macros. The _MODULE variant is
- * generated even for booleans so that the IS_ENABLED() macro works.
- */
-static void
-header_print__enabled_symbol(FILE *fp, struct symbol *sym, const char *value, void *arg)
-{
-
-	switch (sym->type) {
-	case S_BOOLEAN:
-	case S_TRISTATE: {
-		fprintf(fp, "#define __enabled_" CONFIG_ "%s %d\n",
-		    sym->name, (*value == 'y'));
-		fprintf(fp, "#define __enabled_" CONFIG_ "%s_MODULE %d\n",
-		    sym->name, (*value == 'm'));
-		break;
-	}
-	default:
-		break;
-	}
-}
-
-static struct conf_printer header__enabled_printer_cb =
-{
-	.print_symbol = header_print__enabled_symbol,
 	.print_comment = header_print_comment,
 };
 
@@ -963,16 +982,11 @@ int conf_write_autoconf(void)
 	conf_write_heading(out_h, &header_printer_cb, NULL);
 
 	for_all_symbols(i, sym) {
-		if (!sym->name)
-			continue;
-
 		sym_calc_value(sym);
-
-		conf_write_symbol(out_h, sym, &header__enabled_printer_cb, NULL);
-
-		if (!(sym->flags & SYMBOL_WRITE))
+		if (!(sym->flags & SYMBOL_WRITE) || !sym->name)
 			continue;
 
+		/* write symbol to auto.conf, tristate and header files */
 		conf_write_symbol(out, sym, &kconfig_printer_cb, (void *)1);
 
 		conf_write_symbol(tristate, sym, &tristate_printer_cb, (void *)1);
@@ -1031,7 +1045,7 @@ void conf_set_changed_callback(void (*fn)(void))
 	conf_changed_callback = fn;
 }
 
-static void randomize_choice_values(struct symbol *csym)
+static bool randomize_choice_values(struct symbol *csym)
 {
 	struct property *prop;
 	struct symbol *sym;
@@ -1044,7 +1058,7 @@ static void randomize_choice_values(struct symbol *csym)
 	 * In both cases stop.
 	 */
 	if (csym->curr.tri != yes)
-		return;
+		return false;
 
 	prop = sym_get_choice_prop(csym);
 
@@ -1068,13 +1082,18 @@ static void randomize_choice_values(struct symbol *csym)
 		else {
 			sym->def[S_DEF_USER].tri = no;
 		}
+		sym->flags |= SYMBOL_DEF_USER;
+		/* clear VALID to get value calculated */
+		sym->flags &= ~SYMBOL_VALID;
 	}
 	csym->flags |= SYMBOL_DEF_USER;
 	/* clear VALID to get value calculated */
 	csym->flags &= ~(SYMBOL_VALID);
+
+	return true;
 }
 
-static void set_all_choice_values(struct symbol *csym)
+void set_all_choice_values(struct symbol *csym)
 {
 	struct property *prop;
 	struct symbol *sym;
@@ -1091,20 +1110,66 @@ static void set_all_choice_values(struct symbol *csym)
 	}
 	csym->flags |= SYMBOL_DEF_USER;
 	/* clear VALID to get value calculated */
-	csym->flags &= ~(SYMBOL_VALID);
+	csym->flags &= ~(SYMBOL_VALID | SYMBOL_NEED_SET_CHOICE_VALUES);
 }
 
-void conf_set_all_new_symbols(enum conf_def_mode mode)
+bool conf_set_all_new_symbols(enum conf_def_mode mode)
 {
 	struct symbol *sym, *csym;
-	int i, cnt;
+	int i, cnt, pby, pty, ptm;	/* pby: probability of boolean  = y
+					 * pty: probability of tristate = y
+					 * ptm: probability of tristate = m
+					 */
+
+	pby = 50; pty = ptm = 33; /* can't go as the default in switch-case
+				   * below, otherwise gcc whines about
+				   * -Wmaybe-uninitialized */
+	if (mode == def_random) {
+		int n, p[3];
+		char *env = getenv("KCONFIG_PROBABILITY");
+		n = 0;
+		while( env && *env ) {
+			char *endp;
+			int tmp = strtol( env, &endp, 10 );
+			if( tmp >= 0 && tmp <= 100 ) {
+				p[n++] = tmp;
+			} else {
+				errno = ERANGE;
+				perror( "KCONFIG_PROBABILITY" );
+				exit( 1 );
+			}
+			env = (*endp == ':') ? endp+1 : endp;
+			if( n >=3 ) {
+				break;
+			}
+		}
+		switch( n ) {
+		case 1:
+			pby = p[0]; ptm = pby/2; pty = pby-ptm;
+			break;
+		case 2:
+			pty = p[0]; ptm = p[1]; pby = pty + ptm;
+			break;
+		case 3:
+			pby = p[0]; pty = p[1]; ptm = p[2];
+			break;
+		}
+
+		if( pty+ptm > 100 ) {
+			errno = ERANGE;
+			perror( "KCONFIG_PROBABILITY" );
+			exit( 1 );
+		}
+	}
+	bool has_changed = false;
 
 	for_all_symbols(i, sym) {
-		if (sym_has_value(sym))
+		if (sym_has_value(sym) || (sym->flags & SYMBOL_VALID))
 			continue;
 		switch (sym_get_type(sym)) {
 		case S_BOOLEAN:
 		case S_TRISTATE:
+			has_changed = true;
 			switch (mode) {
 			case def_yes:
 				sym->def[S_DEF_USER].tri = yes;
@@ -1113,11 +1178,21 @@ void conf_set_all_new_symbols(enum conf_def_mode mode)
 				sym->def[S_DEF_USER].tri = mod;
 				break;
 			case def_no:
-				sym->def[S_DEF_USER].tri = no;
+				if (sym->flags & SYMBOL_ALLNOCONFIG_Y)
+					sym->def[S_DEF_USER].tri = yes;
+				else
+					sym->def[S_DEF_USER].tri = no;
 				break;
 			case def_random:
-				cnt = sym_get_type(sym) == S_TRISTATE ? 3 : 2;
-				sym->def[S_DEF_USER].tri = (tristate)(rand() % cnt);
+				sym->def[S_DEF_USER].tri = no;
+				cnt = rand() % 100;
+				if (sym->type == S_TRISTATE) {
+					if (cnt < pty)
+						sym->def[S_DEF_USER].tri = yes;
+					else if (cnt < (pty+ptm))
+						sym->def[S_DEF_USER].tri = mod;
+				} else if (cnt < pby)
+					sym->def[S_DEF_USER].tri = yes;
 				break;
 			default:
 				continue;
@@ -1142,14 +1217,26 @@ void conf_set_all_new_symbols(enum conf_def_mode mode)
 	 * selected in a choice block and we set it to yes,
 	 * and the rest to no.
 	 */
+	if (mode != def_random) {
+		for_all_symbols(i, csym) {
+			if ((sym_is_choice(csym) && !sym_has_value(csym)) ||
+			    sym_is_choice_value(csym))
+				csym->flags |= SYMBOL_NEED_SET_CHOICE_VALUES;
+		}
+	}
+
 	for_all_symbols(i, csym) {
 		if (sym_has_value(csym) || !sym_is_choice(csym))
 			continue;
 
 		sym_calc_value(csym);
 		if (mode == def_random)
-			randomize_choice_values(csym);
-		else
+			has_changed = randomize_choice_values(csym);
+		else {
 			set_all_choice_values(csym);
+			has_changed = true;
+		}
 	}
+
+	return has_changed;
 }

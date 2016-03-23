@@ -17,7 +17,6 @@
 #include <linux/module.h>
 #include <net/tcp.h>
 
-
 #define BICTCP_BETA_SCALE    1024	/* Scale factor beta calculation
 					 * max_cwnd = snd_cwnd * beta
 					 */
@@ -46,11 +45,10 @@ MODULE_PARM_DESC(initial_ssthresh, "initial value of slow start threshold");
 module_param(smooth_part, int, 0644);
 MODULE_PARM_DESC(smooth_part, "log(B/(B*Smin))/log(B/(B-1))+B, # of RTT from Wmax-B to Wmax");
 
-
 /* BIC TCP Parameters */
 struct bictcp {
 	u32	cnt;		/* increase cwnd by 1 after ACKs */
-	u32 	last_max_cwnd;	/* last maximum snd_cwnd */
+	u32	last_max_cwnd;	/* last maximum snd_cwnd */
 	u32	loss_cwnd;	/* congestion window at last loss */
 	u32	last_cwnd;	/* the last snd_cwnd */
 	u32	last_time;	/* time when updated last_cwnd */
@@ -63,7 +61,6 @@ static inline void bictcp_reset(struct bictcp *ca)
 {
 	ca->cnt = 0;
 	ca->last_max_cwnd = 0;
-	ca->loss_cwnd = 0;
 	ca->last_cwnd = 0;
 	ca->last_time = 0;
 	ca->epoch_start = 0;
@@ -72,7 +69,11 @@ static inline void bictcp_reset(struct bictcp *ca)
 
 static void bictcp_init(struct sock *sk)
 {
-	bictcp_reset(inet_csk_ca(sk));
+	struct bictcp *ca = inet_csk_ca(sk);
+
+	bictcp_reset(ca);
+	ca->loss_cwnd = 0;
+
 	if (initial_ssthresh)
 		tcp_sk(sk)->snd_ssthresh = initial_ssthresh;
 }
@@ -100,7 +101,7 @@ static inline void bictcp_update(struct bictcp *ca, u32 cwnd)
 
 	/* binary increase */
 	if (cwnd < ca->last_max_cwnd) {
-		__u32 	dist = (ca->last_max_cwnd - cwnd)
+		__u32	dist = (ca->last_max_cwnd - cwnd)
 			/ BICTCP_B;
 
 		if (dist > max_increment)
@@ -127,7 +128,7 @@ static inline void bictcp_update(struct bictcp *ca, u32 cwnd)
 	}
 
 	/* if in slow start or link utilization is very low */
-	if (ca->loss_cwnd == 0) {
+	if (ca->last_max_cwnd == 0) {
 		if (ca->cnt > 20) /* increase cwnd 5% per RTT */
 			ca->cnt = 20;
 	}
@@ -137,21 +138,20 @@ static inline void bictcp_update(struct bictcp *ca, u32 cwnd)
 		ca->cnt = 1;
 }
 
-static void bictcp_cong_avoid(struct sock *sk, u32 ack, u32 in_flight)
+static void bictcp_cong_avoid(struct sock *sk, u32 ack, u32 acked)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct bictcp *ca = inet_csk_ca(sk);
 
-	if (!tcp_is_cwnd_limited(sk, in_flight))
+	if (!tcp_is_cwnd_limited(sk))
 		return;
 
 	if (tp->snd_cwnd <= tp->snd_ssthresh)
-		tcp_slow_start(tp);
+		tcp_slow_start(tp, acked);
 	else {
 		bictcp_update(ca, tp->snd_cwnd);
 		tcp_cong_avoid_ai(tp, ca->cnt);
 	}
-
 }
 
 /*
@@ -174,7 +174,6 @@ static u32 bictcp_recalc_ssthresh(struct sock *sk)
 
 	ca->loss_cwnd = tp->snd_cwnd;
 
-
 	if (tp->snd_cwnd <= low_window)
 		return max(tp->snd_cwnd >> 1U, 2U);
 	else
@@ -185,7 +184,8 @@ static u32 bictcp_undo_cwnd(struct sock *sk)
 {
 	const struct tcp_sock *tp = tcp_sk(sk);
 	const struct bictcp *ca = inet_csk_ca(sk);
-	return max(tp->snd_cwnd, ca->last_max_cwnd);
+
+	return max(tp->snd_cwnd, ca->loss_cwnd);
 }
 
 static void bictcp_state(struct sock *sk, u8 new_state)
@@ -203,11 +203,11 @@ static void bictcp_acked(struct sock *sk, u32 cnt, s32 rtt)
 
 	if (icsk->icsk_ca_state == TCP_CA_Open) {
 		struct bictcp *ca = inet_csk_ca(sk);
+
 		cnt -= ca->delayed_ack >> ACK_RATIO_SHIFT;
 		ca->delayed_ack += cnt;
 	}
 }
-
 
 static struct tcp_congestion_ops bictcp __read_mostly = {
 	.init		= bictcp_init,

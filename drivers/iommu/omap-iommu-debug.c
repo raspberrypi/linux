@@ -18,11 +18,11 @@
 #include <linux/uaccess.h>
 #include <linux/platform_device.h>
 #include <linux/debugfs.h>
+#include <linux/omap-iommu.h>
+#include <linux/platform_data/iommu-omap.h>
 
-#include <plat/iommu.h>
-#include <plat/iovmm.h>
-
-#include <plat/iopgtable.h>
+#include "omap-iopgtable.h"
+#include "omap-iommu.h"
 
 #define MAXCOLUMN 100 /* for short messages */
 
@@ -44,7 +44,8 @@ static ssize_t debug_read_ver(struct file *file, char __user *userbuf,
 static ssize_t debug_read_regs(struct file *file, char __user *userbuf,
 			       size_t count, loff_t *ppos)
 {
-	struct omap_iommu *obj = file->private_data;
+	struct device *dev = file->private_data;
+	struct omap_iommu *obj = dev_to_omap_iommu(dev);
 	char *p, *buf;
 	ssize_t bytes;
 
@@ -67,7 +68,8 @@ static ssize_t debug_read_regs(struct file *file, char __user *userbuf,
 static ssize_t debug_read_tlb(struct file *file, char __user *userbuf,
 			      size_t count, loff_t *ppos)
 {
-	struct omap_iommu *obj = file->private_data;
+	struct device *dev = file->private_data;
+	struct omap_iommu *obj = dev_to_omap_iommu(dev);
 	char *p, *buf;
 	ssize_t bytes, rest;
 
@@ -97,7 +99,8 @@ static ssize_t debug_write_pagetable(struct file *file,
 	struct iotlb_entry e;
 	struct cr_regs cr;
 	int err;
-	struct omap_iommu *obj = file->private_data;
+	struct device *dev = file->private_data;
+	struct omap_iommu *obj = dev_to_omap_iommu(dev);
 	char buf[MAXCOLUMN], *p = buf;
 
 	count = min(count, sizeof(buf));
@@ -184,7 +187,8 @@ out:
 static ssize_t debug_read_pagetable(struct file *file, char __user *userbuf,
 				    size_t count, loff_t *ppos)
 {
-	struct omap_iommu *obj = file->private_data;
+	struct device *dev = file->private_data;
+	struct omap_iommu *obj = dev_to_omap_iommu(dev);
 	char *p, *buf;
 	size_t bytes;
 
@@ -209,124 +213,9 @@ static ssize_t debug_read_pagetable(struct file *file, char __user *userbuf,
 	return bytes;
 }
 
-static ssize_t debug_read_mmap(struct file *file, char __user *userbuf,
-			       size_t count, loff_t *ppos)
-{
-	struct omap_iommu *obj = file->private_data;
-	char *p, *buf;
-	struct iovm_struct *tmp;
-	int uninitialized_var(i);
-	ssize_t bytes;
-
-	buf = (char *)__get_free_page(GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
-	p = buf;
-
-	p += sprintf(p, "%-3s %-8s %-8s %6s %8s\n",
-		     "No", "start", "end", "size", "flags");
-	p += sprintf(p, "-------------------------------------------------\n");
-
-	mutex_lock(&iommu_debug_lock);
-
-	list_for_each_entry(tmp, &obj->mmap, list) {
-		size_t len;
-		const char *str = "%3d %08x-%08x %6x %8x\n";
-		const int maxcol = 39;
-
-		len = tmp->da_end - tmp->da_start;
-		p += snprintf(p, maxcol, str,
-			      i, tmp->da_start, tmp->da_end, len, tmp->flags);
-
-		if (PAGE_SIZE - (p - buf) < maxcol)
-			break;
-		i++;
-	}
-
-	bytes = simple_read_from_buffer(userbuf, count, ppos, buf, p - buf);
-
-	mutex_unlock(&iommu_debug_lock);
-	free_page((unsigned long)buf);
-
-	return bytes;
-}
-
-static ssize_t debug_read_mem(struct file *file, char __user *userbuf,
-			      size_t count, loff_t *ppos)
-{
-	struct omap_iommu *obj = file->private_data;
-	char *p, *buf;
-	struct iovm_struct *area;
-	ssize_t bytes;
-
-	count = min_t(ssize_t, count, PAGE_SIZE);
-
-	buf = (char *)__get_free_page(GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
-	p = buf;
-
-	mutex_lock(&iommu_debug_lock);
-
-	area = omap_find_iovm_area(obj, (u32)ppos);
-	if (IS_ERR(area)) {
-		bytes = -EINVAL;
-		goto err_out;
-	}
-	memcpy(p, area->va, count);
-	p += count;
-
-	bytes = simple_read_from_buffer(userbuf, count, ppos, buf, p - buf);
-err_out:
-	mutex_unlock(&iommu_debug_lock);
-	free_page((unsigned long)buf);
-
-	return bytes;
-}
-
-static ssize_t debug_write_mem(struct file *file, const char __user *userbuf,
-			       size_t count, loff_t *ppos)
-{
-	struct omap_iommu *obj = file->private_data;
-	struct iovm_struct *area;
-	char *p, *buf;
-
-	count = min_t(size_t, count, PAGE_SIZE);
-
-	buf = (char *)__get_free_page(GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
-	p = buf;
-
-	mutex_lock(&iommu_debug_lock);
-
-	if (copy_from_user(p, userbuf, count)) {
-		count =  -EFAULT;
-		goto err_out;
-	}
-
-	area = omap_find_iovm_area(obj, (u32)ppos);
-	if (IS_ERR(area)) {
-		count = -EINVAL;
-		goto err_out;
-	}
-	memcpy(area->va, p, count);
-err_out:
-	mutex_unlock(&iommu_debug_lock);
-	free_page((unsigned long)buf);
-
-	return count;
-}
-
-static int debug_open_generic(struct inode *inode, struct file *file)
-{
-	file->private_data = inode->i_private;
-	return 0;
-}
-
 #define DEBUG_FOPS(name)						\
 	static const struct file_operations debug_##name##_fops = {	\
-		.open = debug_open_generic,				\
+		.open = simple_open,					\
 		.read = debug_read_##name,				\
 		.write = debug_write_##name,				\
 		.llseek = generic_file_llseek,				\
@@ -334,7 +223,7 @@ static int debug_open_generic(struct inode *inode, struct file *file)
 
 #define DEBUG_FOPS_RO(name)						\
 	static const struct file_operations debug_##name##_fops = {	\
-		.open = debug_open_generic,				\
+		.open = simple_open,					\
 		.read = debug_read_##name,				\
 		.llseek = generic_file_llseek,				\
 	};
@@ -343,46 +232,67 @@ DEBUG_FOPS_RO(ver);
 DEBUG_FOPS_RO(regs);
 DEBUG_FOPS_RO(tlb);
 DEBUG_FOPS(pagetable);
-DEBUG_FOPS_RO(mmap);
-DEBUG_FOPS(mem);
 
 #define __DEBUG_ADD_FILE(attr, mode)					\
 	{								\
 		struct dentry *dent;					\
 		dent = debugfs_create_file(#attr, mode, parent,		\
-					   obj, &debug_##attr##_fops);	\
+					   dev, &debug_##attr##_fops);	\
 		if (!dent)						\
 			return -ENOMEM;					\
 	}
 
-#define DEBUG_ADD_FILE(name) __DEBUG_ADD_FILE(name, 600)
-#define DEBUG_ADD_FILE_RO(name) __DEBUG_ADD_FILE(name, 400)
+#define DEBUG_ADD_FILE(name) __DEBUG_ADD_FILE(name, 0600)
+#define DEBUG_ADD_FILE_RO(name) __DEBUG_ADD_FILE(name, 0400)
 
 static int iommu_debug_register(struct device *dev, void *data)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct omap_iommu *obj = platform_get_drvdata(pdev);
+	struct omap_iommu_arch_data *arch_data;
 	struct dentry *d, *parent;
 
 	if (!obj || !obj->dev)
 		return -EINVAL;
 
+	arch_data = kzalloc(sizeof(*arch_data), GFP_KERNEL);
+	if (!arch_data)
+		return -ENOMEM;
+
+	arch_data->iommu_dev = obj;
+
+	dev->archdata.iommu = arch_data;
+
 	d = debugfs_create_dir(obj->name, iommu_debug_root);
 	if (!d)
-		return -ENOMEM;
+		goto nomem;
 	parent = d;
 
 	d = debugfs_create_u8("nr_tlb_entries", 400, parent,
 			      (u8 *)&obj->nr_tlb_entries);
 	if (!d)
-		return -ENOMEM;
+		goto nomem;
 
 	DEBUG_ADD_FILE_RO(ver);
 	DEBUG_ADD_FILE_RO(regs);
 	DEBUG_ADD_FILE_RO(tlb);
 	DEBUG_ADD_FILE(pagetable);
-	DEBUG_ADD_FILE_RO(mmap);
-	DEBUG_ADD_FILE(mem);
+
+	return 0;
+
+nomem:
+	kfree(arch_data);
+	return -ENOMEM;
+}
+
+static int iommu_debug_unregister(struct device *dev, void *data)
+{
+	if (!dev->archdata.iommu)
+		return 0;
+
+	kfree(dev->archdata.iommu);
+
+	dev->archdata.iommu = NULL;
 
 	return 0;
 }
@@ -411,6 +321,7 @@ module_init(iommu_debug_init)
 static void __exit iommu_debugfs_exit(void)
 {
 	debugfs_remove_recursive(iommu_debug_root);
+	omap_foreach_iommu_device(NULL, iommu_debug_unregister);
 }
 module_exit(iommu_debugfs_exit)
 

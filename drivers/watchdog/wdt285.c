@@ -16,6 +16,8 @@
  *
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/types.h>
@@ -32,6 +34,7 @@
 #include <mach/hardware.h>
 
 #include <asm/mach-types.h>
+#include <asm/system_info.h>
 #include <asm/hardware/dec21285.h>
 
 /*
@@ -49,7 +52,7 @@ static unsigned long timer_alive;
  */
 static void watchdog_fire(int irq, void *dev_id)
 {
-	printk(KERN_CRIT "Watchdog: Would Reboot.\n");
+	pr_crit("Would Reboot\n");
 	*CSR_TIMER4_CNTL = 0;
 	*CSR_TIMER4_CLR = 0;
 }
@@ -136,9 +139,8 @@ static const struct watchdog_info ident = {
 static long watchdog_ioctl(struct file *file, unsigned int cmd,
 			   unsigned long arg)
 {
-	unsigned int new_margin;
 	int __user *int_arg = (int __user *)arg;
-	int ret = -ENOTTY;
+	int new_margin, ret = -ENOTTY;
 
 	switch (cmd) {
 	case WDIOC_GETSUPPORT:
@@ -205,13 +207,11 @@ static int __init footbridge_watchdog_init(void)
 	if (retval < 0)
 		return retval;
 
-	printk(KERN_INFO
-		"Footbridge Watchdog Timer: 0.01, timer margin: %d sec\n",
-								soft_margin);
+	pr_info("Footbridge Watchdog Timer: 0.01, timer margin: %d sec\n",
+		soft_margin);
 
 	if (machine_is_cats())
-		printk(KERN_WARNING
-		  "Warning: Watchdog reset may not work on this machine.\n");
+		pr_warn("Warning: Watchdog reset may not work on this machine\n");
 	return 0;
 }
 
@@ -223,7 +223,6 @@ static void __exit footbridge_watchdog_exit(void)
 MODULE_AUTHOR("Phil Blundell <pb@nexus.co.uk>");
 MODULE_DESCRIPTION("Footbridge watchdog driver");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS_MISCDEV(WATCHDOG_MINOR);
 
 module_param(soft_margin, int, 0);
 MODULE_PARM_DESC(soft_margin, "Watchdog timeout in seconds");

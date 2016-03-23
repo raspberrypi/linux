@@ -101,7 +101,7 @@ out:
 }
 
 
-static struct of_device_id pmi_match[] = {
+static const struct of_device_id pmi_match[] = {
 	{ .type = "ibm,pmi", .name = "ibm,pmi" },
 	{ .type = "ibm,pmi" },
 	{},
@@ -214,18 +214,7 @@ static struct platform_driver pmi_of_platform_driver = {
 		.of_match_table = pmi_match,
 	},
 };
-
-static int __init pmi_module_init(void)
-{
-	return platform_driver_register(&pmi_of_platform_driver);
-}
-module_init(pmi_module_init);
-
-static void __exit pmi_module_exit(void)
-{
-	platform_driver_unregister(&pmi_of_platform_driver);
-}
-module_exit(pmi_module_exit);
+module_platform_driver(pmi_of_platform_driver);
 
 int pmi_send_message(pmi_message_t msg)
 {

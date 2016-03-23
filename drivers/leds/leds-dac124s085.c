@@ -69,7 +69,7 @@ static int dac124s085_probe(struct spi_device *spi)
 	struct dac124s085_led	*led;
 	int i, ret;
 
-	dac = kzalloc(sizeof(*dac), GFP_KERNEL);
+	dac = devm_kzalloc(&spi->dev, sizeof(*dac), GFP_KERNEL);
 	if (!dac)
 		return -ENOMEM;
 
@@ -101,8 +101,6 @@ eledcr:
 	while (i--)
 		led_classdev_unregister(&dac->leds[i].ldev);
 
-	spi_set_drvdata(spi, NULL);
-	kfree(dac);
 	return ret;
 }
 
@@ -116,9 +114,6 @@ static int dac124s085_remove(struct spi_device *spi)
 		cancel_work_sync(&dac->leds[i].work);
 	}
 
-	spi_set_drvdata(spi, NULL);
-	kfree(dac);
-
 	return 0;
 }
 
@@ -131,18 +126,7 @@ static struct spi_driver dac124s085_driver = {
 	},
 };
 
-static int __init dac124s085_leds_init(void)
-{
-	return spi_register_driver(&dac124s085_driver);
-}
-
-static void __exit dac124s085_leds_exit(void)
-{
-	spi_unregister_driver(&dac124s085_driver);
-}
-
-module_init(dac124s085_leds_init);
-module_exit(dac124s085_leds_exit);
+module_spi_driver(dac124s085_driver);
 
 MODULE_AUTHOR("Guennadi Liakhovetski <lg@denx.de>");
 MODULE_DESCRIPTION("DAC124S085 LED driver");

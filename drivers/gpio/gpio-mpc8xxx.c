@@ -14,6 +14,7 @@
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
+#include <linux/of_irq.h>
 #include <linux/gpio.h>
 #include <linux/slab.h>
 #include <linux/irq.h>
@@ -37,8 +38,8 @@ struct mpc8xxx_gpio_chip {
 	 * open drain mode safely
 	 */
 	u32 data;
-	struct irq_host *irq;
-	void *of_dev_id_data;
+	struct irq_domain *irq;
+	const void *of_dev_id_data;
 };
 
 static inline u32 mpc8xxx_gpio2mask(unsigned int gpio)
@@ -69,10 +70,14 @@ static int mpc8572_gpio_get(struct gpio_chip *gc, unsigned int gpio)
 	u32 val;
 	struct of_mm_gpio_chip *mm = to_of_mm_gpio_chip(gc);
 	struct mpc8xxx_gpio_chip *mpc8xxx_gc = to_mpc8xxx_gpio_chip(mm);
+	u32 out_mask, out_shadow;
 
-	val = in_be32(mm->regs + GPIO_DAT) & ~in_be32(mm->regs + GPIO_DIR);
+	out_mask = in_be32(mm->regs + GPIO_DIR);
 
-	return (val | mpc8xxx_gc->data) & mpc8xxx_gpio2mask(gpio);
+	val = in_be32(mm->regs + GPIO_DAT) & ~out_mask;
+	out_shadow = mpc8xxx_gc->data & out_mask;
+
+	return (val | out_shadow) & mpc8xxx_gpio2mask(gpio);
 }
 
 static int mpc8xxx_gpio_get(struct gpio_chip *gc, unsigned int gpio)
@@ -163,7 +168,8 @@ static void mpc8xxx_gpio_irq_cascade(unsigned int irq, struct irq_desc *desc)
 	if (mask)
 		generic_handle_irq(irq_linear_revmap(mpc8xxx_gc->irq,
 						     32 - ffs(mask)));
-	chip->irq_eoi(&desc->irq_data);
+	if (chip->irq_eoi)
+		chip->irq_eoi(&desc->irq_data);
 }
 
 static void mpc8xxx_irq_unmask(struct irq_data *d)
@@ -281,39 +287,23 @@ static struct irq_chip mpc8xxx_irq_chip = {
 	.irq_set_type	= mpc8xxx_irq_set_type,
 };
 
-static int mpc8xxx_gpio_irq_map(struct irq_host *h, unsigned int virq,
-				irq_hw_number_t hw)
+static int mpc8xxx_gpio_irq_map(struct irq_domain *h, unsigned int irq,
+				irq_hw_number_t hwirq)
 {
 	struct mpc8xxx_gpio_chip *mpc8xxx_gc = h->host_data;
 
 	if (mpc8xxx_gc->of_dev_id_data)
 		mpc8xxx_irq_chip.irq_set_type = mpc8xxx_gc->of_dev_id_data;
 
-	irq_set_chip_data(virq, h->host_data);
-	irq_set_chip_and_handler(virq, &mpc8xxx_irq_chip, handle_level_irq);
-	irq_set_irq_type(virq, IRQ_TYPE_NONE);
+	irq_set_chip_data(irq, h->host_data);
+	irq_set_chip_and_handler(irq, &mpc8xxx_irq_chip, handle_level_irq);
 
 	return 0;
 }
 
-static int mpc8xxx_gpio_irq_xlate(struct irq_host *h, struct device_node *ct,
-				  const u32 *intspec, unsigned int intsize,
-				  irq_hw_number_t *out_hwirq,
-				  unsigned int *out_flags)
-
-{
-	/* interrupt sense values coming from the device tree equal either
-	 * EDGE_FALLING or EDGE_BOTH
-	 */
-	*out_hwirq = intspec[0];
-	*out_flags = intspec[1];
-
-	return 0;
-}
-
-static struct irq_host_ops mpc8xxx_gpio_irq_ops = {
+static struct irq_domain_ops mpc8xxx_gpio_irq_ops = {
 	.map	= mpc8xxx_gpio_irq_map,
-	.xlate	= mpc8xxx_gpio_irq_xlate,
+	.xlate	= irq_domain_xlate_twocell,
 };
 
 static struct of_device_id mpc8xxx_gpio_ids[] __initdata = {
@@ -364,17 +354,14 @@ static void __init mpc8xxx_add_controller(struct device_node *np)
 	if (hwirq == NO_IRQ)
 		goto skip_irq;
 
-	mpc8xxx_gc->irq =
-		irq_alloc_host(np, IRQ_HOST_MAP_LINEAR, MPC8XXX_GPIO_PINS,
-			       &mpc8xxx_gpio_irq_ops, MPC8XXX_GPIO_PINS);
+	mpc8xxx_gc->irq = irq_domain_add_linear(np, MPC8XXX_GPIO_PINS,
+					&mpc8xxx_gpio_irq_ops, mpc8xxx_gc);
 	if (!mpc8xxx_gc->irq)
 		goto skip_irq;
 
 	id = of_match_node(mpc8xxx_gpio_ids, np);
 	if (id)
 		mpc8xxx_gc->of_dev_id_data = id->data;
-
-	mpc8xxx_gc->irq->host_data = mpc8xxx_gc;
 
 	/* ack and mask all irqs */
 	out_be32(mm_gc->regs + GPIO_IER, 0xffffffff);

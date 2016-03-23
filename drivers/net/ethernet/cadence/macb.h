@@ -10,10 +10,15 @@
 #ifndef _MACB_H
 #define _MACB_H
 
+#define MACB_GREGS_NBR 16
+#define MACB_GREGS_VERSION 1
+
 /* MACB register offsets */
 #define MACB_NCR				0x0000
 #define MACB_NCFGR				0x0004
 #define MACB_NSR				0x0008
+#define MACB_TAR				0x000c /* AT91RM9200 only */
+#define MACB_TCR				0x0010 /* AT91RM9200 only */
 #define MACB_TSR				0x0014
 #define MACB_RBQP				0x0018
 #define MACB_TBQP				0x001c
@@ -59,6 +64,30 @@
 #define MACB_TPQ				0x00bc
 #define MACB_USRIO				0x00c0
 #define MACB_WOL				0x00c4
+#define MACB_MID				0x00fc
+
+/* GEM register offsets. */
+#define GEM_NCFGR				0x0004
+#define GEM_USRIO				0x000c
+#define GEM_DMACFG				0x0010
+#define GEM_HRB					0x0080
+#define GEM_HRT					0x0084
+#define GEM_SA1B				0x0088
+#define GEM_SA1T				0x008C
+#define GEM_SA2B				0x0090
+#define GEM_SA2T				0x0094
+#define GEM_SA3B				0x0098
+#define GEM_SA3T				0x009C
+#define GEM_SA4B				0x00A0
+#define GEM_SA4T				0x00A4
+#define GEM_OTX					0x0100
+#define GEM_DCFG1				0x0280
+#define GEM_DCFG2				0x0284
+#define GEM_DCFG3				0x0288
+#define GEM_DCFG4				0x028c
+#define GEM_DCFG5				0x0290
+#define GEM_DCFG6				0x0294
+#define GEM_DCFG7				0x0298
 
 /* Bitfields in NCR */
 #define MACB_LB_OFFSET				0
@@ -115,6 +144,8 @@
 #define MACB_RTY_SIZE				1
 #define MACB_PAE_OFFSET				13
 #define MACB_PAE_SIZE				1
+#define MACB_RM9200_RMII_OFFSET			13 /* AT91RM9200 only */
+#define MACB_RM9200_RMII_SIZE			1  /* AT91RM9200 only */
 #define MACB_RBOF_OFFSET			14
 #define MACB_RBOF_SIZE				2
 #define MACB_RLCE_OFFSET			16
@@ -125,6 +156,38 @@
 #define MACB_EFRHD_SIZE				1
 #define MACB_IRXFCS_OFFSET			19
 #define MACB_IRXFCS_SIZE			1
+
+/* GEM specific NCFGR bitfields. */
+#define GEM_GBE_OFFSET				10
+#define GEM_GBE_SIZE				1
+#define GEM_CLK_OFFSET				18
+#define GEM_CLK_SIZE				3
+#define GEM_DBW_OFFSET				21
+#define GEM_DBW_SIZE				2
+#define GEM_RXCOEN_OFFSET			24
+#define GEM_RXCOEN_SIZE				1
+
+/* Constants for data bus width. */
+#define GEM_DBW32				0
+#define GEM_DBW64				1
+#define GEM_DBW128				2
+
+/* Bitfields in DMACFG. */
+#define GEM_FBLDO_OFFSET			0
+#define GEM_FBLDO_SIZE				5
+#define GEM_ENDIA_OFFSET			7
+#define GEM_ENDIA_SIZE				1
+#define GEM_RXBMS_OFFSET			8
+#define GEM_RXBMS_SIZE				2
+#define GEM_TXPBMS_OFFSET			10
+#define GEM_TXPBMS_SIZE				1
+#define GEM_TXCOEN_OFFSET			11
+#define GEM_TXCOEN_SIZE				1
+#define GEM_RXBS_OFFSET				16
+#define GEM_RXBS_SIZE				8
+#define GEM_DDRP_OFFSET				24
+#define GEM_DDRP_SIZE				1
+
 
 /* Bitfields in NSR */
 #define MACB_NSR_LINK_OFFSET			0
@@ -145,6 +208,8 @@
 #define MACB_TGO_SIZE				1
 #define MACB_BEX_OFFSET				4
 #define MACB_BEX_SIZE				1
+#define MACB_RM9200_BNQ_OFFSET			4 /* AT91RM9200 only */
+#define MACB_RM9200_BNQ_SIZE			1 /* AT91RM9200 only */
 #define MACB_COMP_OFFSET			5
 #define MACB_COMP_SIZE				1
 #define MACB_UND_OFFSET				6
@@ -213,6 +278,8 @@
 /* Bitfields in USRIO (AT91) */
 #define MACB_RMII_OFFSET			0
 #define MACB_RMII_SIZE				1
+#define GEM_RGMII_OFFSET			0	/* GEM gigabit mode */
+#define GEM_RGMII_SIZE				1
 #define MACB_CLKEN_OFFSET			1
 #define MACB_CLKEN_SIZE				1
 
@@ -228,17 +295,50 @@
 #define MACB_WOL_MTI_OFFSET			19
 #define MACB_WOL_MTI_SIZE			1
 
+/* Bitfields in MID */
+#define MACB_IDNUM_OFFSET			16
+#define MACB_IDNUM_SIZE				16
+#define MACB_REV_OFFSET				0
+#define MACB_REV_SIZE				16
+
+/* Bitfields in DCFG1. */
+#define GEM_IRQCOR_OFFSET			23
+#define GEM_IRQCOR_SIZE				1
+#define GEM_DBWDEF_OFFSET			25
+#define GEM_DBWDEF_SIZE				3
+
+/* Bitfields in DCFG2. */
+#define GEM_RX_PKT_BUFF_OFFSET			20
+#define GEM_RX_PKT_BUFF_SIZE			1
+#define GEM_TX_PKT_BUFF_OFFSET			21
+#define GEM_TX_PKT_BUFF_SIZE			1
+
 /* Constants for CLK */
 #define MACB_CLK_DIV8				0
 #define MACB_CLK_DIV16				1
 #define MACB_CLK_DIV32				2
 #define MACB_CLK_DIV64				3
 
+/* GEM specific constants for CLK. */
+#define GEM_CLK_DIV8				0
+#define GEM_CLK_DIV16				1
+#define GEM_CLK_DIV32				2
+#define GEM_CLK_DIV48				3
+#define GEM_CLK_DIV64				4
+#define GEM_CLK_DIV96				5
+
 /* Constants for MAN register */
 #define MACB_MAN_SOF				1
 #define MACB_MAN_WRITE				1
 #define MACB_MAN_READ				2
 #define MACB_MAN_CODE				2
+
+/* Capability mask bits */
+#define MACB_CAPS_ISR_CLEAR_ON_WRITE		0x00000001
+#define MACB_CAPS_FIFO_MODE			0x10000000
+#define MACB_CAPS_GIGABIT_MODE_AVAILABLE	0x20000000
+#define MACB_CAPS_SG_DISABLED			0x40000000
+#define MACB_CAPS_MACB_IS_GEM			0x80000000
 
 /* Bit manipulation macros */
 #define MACB_BIT(name)					\
@@ -254,13 +354,59 @@
 		    << MACB_##name##_OFFSET))		\
 	 | MACB_BF(name,value))
 
+#define GEM_BIT(name)					\
+	(1 << GEM_##name##_OFFSET)
+#define GEM_BF(name, value)				\
+	(((value) & ((1 << GEM_##name##_SIZE) - 1))	\
+	 << GEM_##name##_OFFSET)
+#define GEM_BFEXT(name, value)\
+	(((value) >> GEM_##name##_OFFSET)		\
+	 & ((1 << GEM_##name##_SIZE) - 1))
+#define GEM_BFINS(name, value, old)			\
+	(((old) & ~(((1 << GEM_##name##_SIZE) - 1)	\
+		    << GEM_##name##_OFFSET))		\
+	 | GEM_BF(name, value))
+
 /* Register access macros */
 #define macb_readl(port,reg)				\
 	__raw_readl((port)->regs + MACB_##reg)
 #define macb_writel(port,reg,value)			\
 	__raw_writel((value), (port)->regs + MACB_##reg)
+#define gem_readl(port, reg)				\
+	__raw_readl((port)->regs + GEM_##reg)
+#define gem_writel(port, reg, value)			\
+	__raw_writel((value), (port)->regs + GEM_##reg)
 
-struct dma_desc {
+/*
+ * Conditional GEM/MACB macros.  These perform the operation to the correct
+ * register dependent on whether the device is a GEM or a MACB.  For registers
+ * and bitfields that are common across both devices, use macb_{read,write}l
+ * to avoid the cost of the conditional.
+ */
+#define macb_or_gem_writel(__bp, __reg, __value) \
+	({ \
+		if (macb_is_gem((__bp))) \
+			gem_writel((__bp), __reg, __value); \
+		else \
+			macb_writel((__bp), __reg, __value); \
+	})
+
+#define macb_or_gem_readl(__bp, __reg) \
+	({ \
+		u32 __v; \
+		if (macb_is_gem((__bp))) \
+			__v = gem_readl((__bp), __reg); \
+		else \
+			__v = macb_readl((__bp), __reg); \
+		__v; \
+	})
+
+/**
+ * struct macb_dma_desc - Hardware DMA descriptor
+ * @addr: DMA address of data buffer
+ * @ctrl: Control and status bits
+ */
+struct macb_dma_desc {
 	u32	addr;
 	u32	ctrl;
 };
@@ -308,6 +454,14 @@ struct dma_desc {
 #define MACB_RX_BROADCAST_OFFSET		31
 #define MACB_RX_BROADCAST_SIZE			1
 
+/* RX checksum offload disabled: bit 24 clear in NCFGR */
+#define GEM_RX_TYPEID_MATCH_OFFSET		22
+#define GEM_RX_TYPEID_MATCH_SIZE		2
+
+/* RX checksum offload enabled: bit 24 set in NCFGR */
+#define GEM_RX_CSUM_OFFSET			22
+#define GEM_RX_CSUM_SIZE			2
+
 #define MACB_TX_FRMLEN_OFFSET			0
 #define MACB_TX_FRMLEN_SIZE			11
 #define MACB_TX_LAST_OFFSET			15
@@ -325,9 +479,32 @@ struct dma_desc {
 #define MACB_TX_USED_OFFSET			31
 #define MACB_TX_USED_SIZE			1
 
-struct ring_info {
+#define GEM_TX_FRMLEN_OFFSET			0
+#define GEM_TX_FRMLEN_SIZE			14
+
+/* Buffer descriptor constants */
+#define GEM_RX_CSUM_NONE			0
+#define GEM_RX_CSUM_IP_ONLY			1
+#define GEM_RX_CSUM_IP_TCP			2
+#define GEM_RX_CSUM_IP_UDP			3
+
+/* limit RX checksum offload to TCP and UDP packets */
+#define GEM_RX_CSUM_CHECKED_MASK		2
+
+/**
+ * struct macb_tx_skb - data about an skb which is being transmitted
+ * @skb: skb currently being transmitted, only set for the last buffer
+ *       of the frame
+ * @mapping: DMA address of the skb's fragment buffer
+ * @size: size of the DMA mapped buffer
+ * @mapped_as_page: true when buffer was mapped with skb_frag_dma_map(),
+ *                  false when buffer was mapped with dma_map_single()
+ */
+struct macb_tx_skb {
 	struct sk_buff		*skb;
 	dma_addr_t		mapping;
+	size_t			size;
+	bool			mapped_as_page;
 };
 
 /*
@@ -358,37 +535,132 @@ struct macb_stats {
 	u32	tx_pause_frames;
 };
 
+struct gem_stats {
+	u32	tx_octets_31_0;
+	u32	tx_octets_47_32;
+	u32	tx_frames;
+	u32	tx_broadcast_frames;
+	u32	tx_multicast_frames;
+	u32	tx_pause_frames;
+	u32	tx_64_byte_frames;
+	u32	tx_65_127_byte_frames;
+	u32	tx_128_255_byte_frames;
+	u32	tx_256_511_byte_frames;
+	u32	tx_512_1023_byte_frames;
+	u32	tx_1024_1518_byte_frames;
+	u32	tx_greater_than_1518_byte_frames;
+	u32	tx_underrun;
+	u32	tx_single_collision_frames;
+	u32	tx_multiple_collision_frames;
+	u32	tx_excessive_collisions;
+	u32	tx_late_collisions;
+	u32	tx_deferred_frames;
+	u32	tx_carrier_sense_errors;
+	u32	rx_octets_31_0;
+	u32	rx_octets_47_32;
+	u32	rx_frames;
+	u32	rx_broadcast_frames;
+	u32	rx_multicast_frames;
+	u32	rx_pause_frames;
+	u32	rx_64_byte_frames;
+	u32	rx_65_127_byte_frames;
+	u32	rx_128_255_byte_frames;
+	u32	rx_256_511_byte_frames;
+	u32	rx_512_1023_byte_frames;
+	u32	rx_1024_1518_byte_frames;
+	u32	rx_greater_than_1518_byte_frames;
+	u32	rx_undersized_frames;
+	u32	rx_oversize_frames;
+	u32	rx_jabbers;
+	u32	rx_frame_check_sequence_errors;
+	u32	rx_length_field_frame_errors;
+	u32	rx_symbol_errors;
+	u32	rx_alignment_errors;
+	u32	rx_resource_errors;
+	u32	rx_overruns;
+	u32	rx_ip_header_checksum_errors;
+	u32	rx_tcp_checksum_errors;
+	u32	rx_udp_checksum_errors;
+};
+
+struct macb;
+
+struct macb_or_gem_ops {
+	int	(*mog_alloc_rx_buffers)(struct macb *bp);
+	void	(*mog_free_rx_buffers)(struct macb *bp);
+	void	(*mog_init_rings)(struct macb *bp);
+	int	(*mog_rx)(struct macb *bp, int budget);
+};
+
+struct macb_config {
+	u32			caps;
+	unsigned int		dma_burst_length;
+};
+
 struct macb {
 	void __iomem		*regs;
 
 	unsigned int		rx_tail;
-	struct dma_desc		*rx_ring;
+	unsigned int		rx_prepared_head;
+	struct macb_dma_desc	*rx_ring;
+	struct sk_buff		**rx_skbuff;
 	void			*rx_buffers;
+	size_t			rx_buffer_size;
 
 	unsigned int		tx_head, tx_tail;
-	struct dma_desc		*tx_ring;
-	struct ring_info	*tx_skb;
+	struct macb_dma_desc	*tx_ring;
+	struct macb_tx_skb	*tx_skb;
 
 	spinlock_t		lock;
 	struct platform_device	*pdev;
 	struct clk		*pclk;
 	struct clk		*hclk;
+	struct clk		*tx_clk;
 	struct net_device	*dev;
 	struct napi_struct	napi;
+	struct work_struct	tx_error_task;
 	struct net_device_stats	stats;
-	struct macb_stats	hw_stats;
+	union {
+		struct macb_stats	macb;
+		struct gem_stats	gem;
+	}			hw_stats;
 
 	dma_addr_t		rx_ring_dma;
 	dma_addr_t		tx_ring_dma;
 	dma_addr_t		rx_buffers_dma;
 
-	unsigned int		rx_pending, tx_pending;
+	struct macb_or_gem_ops	macbgem_ops;
 
 	struct mii_bus		*mii_bus;
 	struct phy_device	*phy_dev;
 	unsigned int 		link;
 	unsigned int 		speed;
 	unsigned int 		duplex;
+
+	u32			caps;
+	unsigned int		dma_burst_length;
+
+	phy_interface_t		phy_interface;
+
+	/* AT91RM9200 transmit */
+	struct sk_buff *skb;			/* holds skb until xmit interrupt completes */
+	dma_addr_t skb_physaddr;		/* phys addr from pci_map_single */
+	int skb_length;				/* saved skb length for pci_unmap_single */
+	unsigned int		max_tx_length;
 };
+
+extern const struct ethtool_ops macb_ethtool_ops;
+
+int macb_mii_init(struct macb *bp);
+int macb_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
+struct net_device_stats *macb_get_stats(struct net_device *dev);
+void macb_set_rx_mode(struct net_device *dev);
+void macb_set_hwaddr(struct macb *bp);
+void macb_get_hwaddr(struct macb *bp);
+
+static inline bool macb_is_gem(struct macb *bp)
+{
+	return !!(bp->caps & MACB_CAPS_MACB_IS_GEM);
+}
 
 #endif /* _MACB_H */

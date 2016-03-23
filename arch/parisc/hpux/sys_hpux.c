@@ -136,16 +136,9 @@ struct hpux_ustat {
  */
 static int hpux_ustat(dev_t dev, struct hpux_ustat __user *ubuf)
 {
-	struct super_block *s;
 	struct hpux_ustat tmp;  /* Changed to hpux_ustat */
 	struct kstatfs sbuf;
-	int err = -EINVAL;
-
-	s = user_get_super(dev);
-	if (s == NULL)
-		goto out;
-	err = statfs_by_dentry(s->s_root, &sbuf);
-	drop_super(s);
+	int err = vfs_ustat(dev, &sbuf);
 	if (err)
 		goto out;
 
@@ -463,7 +456,7 @@ int hpux_sysfs(int opcode, unsigned long arg1, unsigned long arg2)
 		}
 
 		/* String could be altered by userspace after strlen_user() */
-		fsname[len] = '\0';
+		fsname[len - 1] = '\0';
 
 		printk(KERN_DEBUG "that is '%s' as (char *)\n", fsname);
 		if ( !strcmp(fsname, "hfs") ) {

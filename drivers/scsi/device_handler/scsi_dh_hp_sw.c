@@ -117,10 +117,10 @@ static int hp_sw_tur(struct scsi_device *sdev, struct hp_sw_dh_data *h)
 
 retry:
 	req = blk_get_request(sdev->request_queue, WRITE, GFP_NOIO);
-	if (!req)
+	if (IS_ERR(req))
 		return SCSI_DH_RES_TEMP_UNAVAIL;
 
-	req->cmd_type = REQ_TYPE_BLOCK_PC;
+	blk_rq_set_block_pc(req);
 	req->cmd_flags |= REQ_FAILFAST_DEV | REQ_FAILFAST_TRANSPORT |
 			  REQ_FAILFAST_DRIVER;
 	req->cmd_len = COMMAND_SIZE(TEST_UNIT_READY);
@@ -247,10 +247,10 @@ static int hp_sw_start_stop(struct hp_sw_dh_data *h)
 	struct request *req;
 
 	req = blk_get_request(h->sdev->request_queue, WRITE, GFP_ATOMIC);
-	if (!req)
+	if (IS_ERR(req))
 		return SCSI_DH_RES_TEMP_UNAVAIL;
 
-	req->cmd_type = REQ_TYPE_BLOCK_PC;
+	blk_rq_set_block_pc(req);
 	req->cmd_flags |= REQ_FAILFAST_DEV | REQ_FAILFAST_TRANSPORT |
 			  REQ_FAILFAST_DRIVER;
 	req->cmd_len = COMMAND_SIZE(START_STOP);
@@ -320,6 +320,24 @@ static const struct scsi_dh_devlist hp_sw_dh_data_list[] = {
 	{NULL, NULL},
 };
 
+static bool hp_sw_match(struct scsi_device *sdev)
+{
+	int i;
+
+	if (scsi_device_tpgs(sdev))
+		return false;
+
+	for (i = 0; hp_sw_dh_data_list[i].vendor; i++) {
+		if (!strncmp(sdev->vendor, hp_sw_dh_data_list[i].vendor,
+			strlen(hp_sw_dh_data_list[i].vendor)) &&
+		    !strncmp(sdev->model, hp_sw_dh_data_list[i].model,
+			strlen(hp_sw_dh_data_list[i].model))) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static int hp_sw_bus_attach(struct scsi_device *sdev);
 static void hp_sw_bus_detach(struct scsi_device *sdev);
 
@@ -331,6 +349,7 @@ static struct scsi_device_handler hp_sw_dh = {
 	.detach		= hp_sw_bus_detach,
 	.activate	= hp_sw_activate,
 	.prep_fn	= hp_sw_prep_fn,
+	.match		= hp_sw_match,
 };
 
 static int hp_sw_bus_attach(struct scsi_device *sdev)

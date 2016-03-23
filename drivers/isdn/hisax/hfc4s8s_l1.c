@@ -93,32 +93,32 @@ static struct pci_device_id hfc4s8s_ids[] = {
 	 .subdevice = 0x08b4,
 	 .driver_data =
 	 (unsigned long) &((hfc4s8s_param) {CHIP_ID_4S, CLOCKMODE_0, 4,
-					    "HFC-4S Evaluation Board"}),
-	 },
+				 "HFC-4S Evaluation Board"}),
+	},
 	{.vendor = PCI_VENDOR_ID_CCD,
 	 .device = PCI_DEVICE_ID_8S,
 	 .subvendor = 0x1397,
 	 .subdevice = 0x16b8,
 	 .driver_data =
 	 (unsigned long) &((hfc4s8s_param) {CHIP_ID_8S, CLOCKMODE_0, 8,
-					    "HFC-8S Evaluation Board"}),
-	 },
+				 "HFC-8S Evaluation Board"}),
+	},
 	{.vendor = PCI_VENDOR_ID_CCD,
 	 .device = PCI_DEVICE_ID_4S,
 	 .subvendor = 0x1397,
 	 .subdevice = 0xb520,
 	 .driver_data =
 	 (unsigned long) &((hfc4s8s_param) {CHIP_ID_4S, CLOCKMODE_1, 4,
-					    "IOB4ST"}),
-	 },
+				 "IOB4ST"}),
+	},
 	{.vendor = PCI_VENDOR_ID_CCD,
 	 .device = PCI_DEVICE_ID_8S,
 	 .subvendor = 0x1397,
 	 .subdevice = 0xb522,
 	 .driver_data =
 	 (unsigned long) &((hfc4s8s_param) {CHIP_ID_8S, CLOCKMODE_1, 8,
-					    "IOB8ST"}),
-	 },
+				 "IOB8ST"}),
+	},
 	{}
 };
 
@@ -197,108 +197,89 @@ typedef struct _hfc4s8s_hw {
 
 
 
-/***************************/
-/* inline function defines */
-/***************************/
-#ifdef HISAX_HFC4S8S_PCIMEM	/* inline functions memory mapped */
-
-/* memory write and dummy IO read to avoid PCI byte merge problems */
-#define Write_hfc8(a,b,c) {(*((volatile u_char *)(a->membase+b)) = c); inb(a->iobase+4);}
-/* memory write without dummy IO access for fifo data access */
-#define fWrite_hfc8(a,b,c) (*((volatile u_char *)(a->membase+b)) = c)
-#define Read_hfc8(a,b) (*((volatile u_char *)(a->membase+b)))
-#define Write_hfc16(a,b,c) (*((volatile unsigned short *)(a->membase+b)) = c)
-#define Read_hfc16(a,b) (*((volatile unsigned short *)(a->membase+b)))
-#define Write_hfc32(a,b,c) (*((volatile unsigned long *)(a->membase+b)) = c)
-#define Read_hfc32(a,b) (*((volatile unsigned long *)(a->membase+b)))
-#define wait_busy(a) {while ((Read_hfc8(a, R_STATUS) & M_BUSY));}
-#define PCI_ENA_MEMIO	0x03
-
-#else
-
 /* inline functions io mapped */
 static inline void
-SetRegAddr(hfc4s8s_hw * a, u_char b)
+SetRegAddr(hfc4s8s_hw *a, u_char b)
 {
 	outb(b, (a->iobase) + 4);
 }
 
 static inline u_char
-GetRegAddr(hfc4s8s_hw * a)
+GetRegAddr(hfc4s8s_hw *a)
 {
 	return (inb((volatile u_int) (a->iobase + 4)));
 }
 
 
 static inline void
-Write_hfc8(hfc4s8s_hw * a, u_char b, u_char c)
+Write_hfc8(hfc4s8s_hw *a, u_char b, u_char c)
 {
 	SetRegAddr(a, b);
 	outb(c, a->iobase);
 }
 
 static inline void
-fWrite_hfc8(hfc4s8s_hw * a, u_char c)
+fWrite_hfc8(hfc4s8s_hw *a, u_char c)
 {
 	outb(c, a->iobase);
 }
 
 static inline void
-Write_hfc16(hfc4s8s_hw * a, u_char b, u_short c)
+Write_hfc16(hfc4s8s_hw *a, u_char b, u_short c)
 {
 	SetRegAddr(a, b);
 	outw(c, a->iobase);
 }
 
 static inline void
-Write_hfc32(hfc4s8s_hw * a, u_char b, u_long c)
+Write_hfc32(hfc4s8s_hw *a, u_char b, u_long c)
 {
 	SetRegAddr(a, b);
 	outl(c, a->iobase);
 }
 
 static inline void
-fWrite_hfc32(hfc4s8s_hw * a, u_long c)
+fWrite_hfc32(hfc4s8s_hw *a, u_long c)
 {
 	outl(c, a->iobase);
 }
 
 static inline u_char
-Read_hfc8(hfc4s8s_hw * a, u_char b)
+Read_hfc8(hfc4s8s_hw *a, u_char b)
 {
 	SetRegAddr(a, b);
 	return (inb((volatile u_int) a->iobase));
 }
 
 static inline u_char
-fRead_hfc8(hfc4s8s_hw * a)
+fRead_hfc8(hfc4s8s_hw *a)
 {
 	return (inb((volatile u_int) a->iobase));
 }
 
 
 static inline u_short
-Read_hfc16(hfc4s8s_hw * a, u_char b)
+Read_hfc16(hfc4s8s_hw *a, u_char b)
 {
 	SetRegAddr(a, b);
 	return (inw((volatile u_int) a->iobase));
 }
 
 static inline u_long
-Read_hfc32(hfc4s8s_hw * a, u_char b)
+Read_hfc32(hfc4s8s_hw *a, u_char b)
 {
 	SetRegAddr(a, b);
 	return (inl((volatile u_int) a->iobase));
 }
 
 static inline u_long
-fRead_hfc32(hfc4s8s_hw * a)
+fRead_hfc32(hfc4s8s_hw *a)
 {
 	return (inl((volatile u_int) a->iobase));
 }
 
 static inline void
-wait_busy(hfc4s8s_hw * a)
+wait_busy(hfc4s8s_hw *a)
 {
 	SetRegAddr(a, R_STATUS);
 	while (inb((volatile u_int) a->iobase) & M_BUSY);
@@ -306,14 +287,12 @@ wait_busy(hfc4s8s_hw * a)
 
 #define PCI_ENA_REGIO	0x01
 
-#endif				/* HISAX_HFC4S8S_PCIMEM */
-
 /******************************************************/
 /* function to read critical counter registers that   */
 /* may be updated by the chip during read             */
 /******************************************************/
 static u_char
-Read_hfc8_stable(hfc4s8s_hw * hw, int reg)
+Read_hfc8_stable(hfc4s8s_hw *hw, int reg)
 {
 	u_char ref8;
 	u_char in8;
@@ -325,7 +304,7 @@ Read_hfc8_stable(hfc4s8s_hw * hw, int reg)
 }
 
 static int
-Read_hfc16_stable(hfc4s8s_hw * hw, int reg)
+Read_hfc16_stable(hfc4s8s_hw *hw, int reg)
 {
 	int ref16;
 	int in16;
@@ -349,67 +328,67 @@ dch_l2l1(struct hisax_d_if *iface, int pr, void *arg)
 
 	switch (pr) {
 
-		case (PH_DATA | REQUEST):
-			if (!l1->enabled) {
-				dev_kfree_skb(skb);
-				break;
-			}
-			spin_lock_irqsave(&l1->lock, flags);
-			skb_queue_tail(&l1->d_tx_queue, skb);
-			if ((skb_queue_len(&l1->d_tx_queue) == 1) &&
-			    (l1->tx_cnt <= 0)) {
-				l1->hw->mr.r_irq_fifo_blx[l1->st_num] |=
-				    0x10;
-				spin_unlock_irqrestore(&l1->lock, flags);
-				schedule_work(&l1->hw->tqueue);
-			} else
-				spin_unlock_irqrestore(&l1->lock, flags);
+	case (PH_DATA | REQUEST):
+		if (!l1->enabled) {
+			dev_kfree_skb(skb);
 			break;
+		}
+		spin_lock_irqsave(&l1->lock, flags);
+		skb_queue_tail(&l1->d_tx_queue, skb);
+		if ((skb_queue_len(&l1->d_tx_queue) == 1) &&
+		    (l1->tx_cnt <= 0)) {
+			l1->hw->mr.r_irq_fifo_blx[l1->st_num] |=
+				0x10;
+			spin_unlock_irqrestore(&l1->lock, flags);
+			schedule_work(&l1->hw->tqueue);
+		} else
+			spin_unlock_irqrestore(&l1->lock, flags);
+		break;
 
-		case (PH_ACTIVATE | REQUEST):
-			if (!l1->enabled)
-				break;
-			if (!l1->nt_mode) {
-				if (l1->l1_state < 6) {
-					spin_lock_irqsave(&l1->lock,
-							  flags);
-
-					Write_hfc8(l1->hw, R_ST_SEL,
-						   l1->st_num);
-					Write_hfc8(l1->hw, A_ST_WR_STA,
-						   0x60);
-					mod_timer(&l1->l1_timer,
-						  jiffies + L1_TIMER_T3);
-					spin_unlock_irqrestore(&l1->lock,
-							       flags);
-				} else if (l1->l1_state == 7)
-					l1->d_if.ifc.l1l2(&l1->d_if.ifc,
-							  PH_ACTIVATE |
-							  INDICATION,
-							  NULL);
-			} else {
-				if (l1->l1_state != 3) {
-					spin_lock_irqsave(&l1->lock,
-							  flags);
-					Write_hfc8(l1->hw, R_ST_SEL,
-						   l1->st_num);
-					Write_hfc8(l1->hw, A_ST_WR_STA,
-						   0x60);
-					spin_unlock_irqrestore(&l1->lock,
-							       flags);
-				} else if (l1->l1_state == 3)
-					l1->d_if.ifc.l1l2(&l1->d_if.ifc,
-							  PH_ACTIVATE |
-							  INDICATION,
-							  NULL);
-			}
+	case (PH_ACTIVATE | REQUEST):
+		if (!l1->enabled)
 			break;
+		if (!l1->nt_mode) {
+			if (l1->l1_state < 6) {
+				spin_lock_irqsave(&l1->lock,
+						  flags);
 
-		default:
-			printk(KERN_INFO
-			       "HFC-4S/8S: Unknown D-chan cmd 0x%x received, ignored\n",
-			       pr);
-			break;
+				Write_hfc8(l1->hw, R_ST_SEL,
+					   l1->st_num);
+				Write_hfc8(l1->hw, A_ST_WR_STA,
+					   0x60);
+				mod_timer(&l1->l1_timer,
+					  jiffies + L1_TIMER_T3);
+				spin_unlock_irqrestore(&l1->lock,
+						       flags);
+			} else if (l1->l1_state == 7)
+				l1->d_if.ifc.l1l2(&l1->d_if.ifc,
+						  PH_ACTIVATE |
+						  INDICATION,
+						  NULL);
+		} else {
+			if (l1->l1_state != 3) {
+				spin_lock_irqsave(&l1->lock,
+						  flags);
+				Write_hfc8(l1->hw, R_ST_SEL,
+					   l1->st_num);
+				Write_hfc8(l1->hw, A_ST_WR_STA,
+					   0x60);
+				spin_unlock_irqrestore(&l1->lock,
+						       flags);
+			} else if (l1->l1_state == 3)
+				l1->d_if.ifc.l1l2(&l1->d_if.ifc,
+						  PH_ACTIVATE |
+						  INDICATION,
+						  NULL);
+		}
+		break;
+
+	default:
+		printk(KERN_INFO
+		       "HFC-4S/8S: Unknown D-chan cmd 0x%x received, ignored\n",
+		       pr);
+		break;
 	}
 	if (!l1->enabled)
 		l1->d_if.ifc.l1l2(&l1->d_if.ifc,
@@ -430,199 +409,199 @@ bch_l2l1(struct hisax_if *ifc, int pr, void *arg)
 
 	switch (pr) {
 
-		case (PH_DATA | REQUEST):
-			if (!l1->enabled || (bch->mode == L1_MODE_NULL)) {
-				dev_kfree_skb(skb);
-				break;
-			}
-			spin_lock_irqsave(&l1->lock, flags);
-			skb_queue_tail(&bch->tx_queue, skb);
-			if (!bch->tx_skb && (bch->tx_cnt <= 0)) {
-				l1->hw->mr.r_irq_fifo_blx[l1->st_num] |=
-				    ((bch->bchan == 1) ? 1 : 4);
-				spin_unlock_irqrestore(&l1->lock, flags);
-				schedule_work(&l1->hw->tqueue);
-			} else
-				spin_unlock_irqrestore(&l1->lock, flags);
+	case (PH_DATA | REQUEST):
+		if (!l1->enabled || (bch->mode == L1_MODE_NULL)) {
+			dev_kfree_skb(skb);
+			break;
+		}
+		spin_lock_irqsave(&l1->lock, flags);
+		skb_queue_tail(&bch->tx_queue, skb);
+		if (!bch->tx_skb && (bch->tx_cnt <= 0)) {
+			l1->hw->mr.r_irq_fifo_blx[l1->st_num] |=
+				((bch->bchan == 1) ? 1 : 4);
+			spin_unlock_irqrestore(&l1->lock, flags);
+			schedule_work(&l1->hw->tqueue);
+		} else
+			spin_unlock_irqrestore(&l1->lock, flags);
+		break;
+
+	case (PH_ACTIVATE | REQUEST):
+	case (PH_DEACTIVATE | REQUEST):
+		if (!l1->enabled)
+			break;
+		if (pr == (PH_DEACTIVATE | REQUEST))
+			mode = L1_MODE_NULL;
+
+		switch (mode) {
+		case L1_MODE_HDLC:
+			spin_lock_irqsave(&l1->lock,
+					  flags);
+			l1->hw->mr.timer_usg_cnt++;
+			l1->hw->mr.
+				fifo_slow_timer_service[l1->
+							st_num]
+				|=
+				((bch->bchan ==
+				  1) ? 0x2 : 0x8);
+			Write_hfc8(l1->hw, R_FIFO,
+				   (l1->st_num * 8 +
+				    ((bch->bchan ==
+				      1) ? 0 : 2)));
+			wait_busy(l1->hw);
+			Write_hfc8(l1->hw, A_CON_HDLC, 0xc);	/* HDLC mode, flag fill, connect ST */
+			Write_hfc8(l1->hw, A_SUBCH_CFG, 0);	/* 8 bits */
+			Write_hfc8(l1->hw, A_IRQ_MSK, 1);	/* enable TX interrupts for hdlc */
+			Write_hfc8(l1->hw, A_INC_RES_FIFO, 2);	/* reset fifo */
+			wait_busy(l1->hw);
+
+			Write_hfc8(l1->hw, R_FIFO,
+				   (l1->st_num * 8 +
+				    ((bch->bchan ==
+				      1) ? 1 : 3)));
+			wait_busy(l1->hw);
+			Write_hfc8(l1->hw, A_CON_HDLC, 0xc);	/* HDLC mode, flag fill, connect ST */
+			Write_hfc8(l1->hw, A_SUBCH_CFG, 0);	/* 8 bits */
+			Write_hfc8(l1->hw, A_IRQ_MSK, 1);	/* enable RX interrupts for hdlc */
+			Write_hfc8(l1->hw, A_INC_RES_FIFO, 2);	/* reset fifo */
+
+			Write_hfc8(l1->hw, R_ST_SEL,
+				   l1->st_num);
+			l1->hw->mr.r_ctrl0 |=
+				(bch->bchan & 3);
+			Write_hfc8(l1->hw, A_ST_CTRL0,
+				   l1->hw->mr.r_ctrl0);
+			bch->mode = L1_MODE_HDLC;
+			spin_unlock_irqrestore(&l1->lock,
+					       flags);
+
+			bch->b_if.ifc.l1l2(&bch->b_if.ifc,
+					   PH_ACTIVATE |
+					   INDICATION,
+					   NULL);
 			break;
 
-		case (PH_ACTIVATE | REQUEST):
-		case (PH_DEACTIVATE | REQUEST):
-			if (!l1->enabled)
-				break;
-			if (pr == (PH_DEACTIVATE | REQUEST))
-				mode = L1_MODE_NULL;
+		case L1_MODE_TRANS:
+			spin_lock_irqsave(&l1->lock,
+					  flags);
+			l1->hw->mr.
+				fifo_rx_trans_enables[l1->
+						      st_num]
+				|=
+				((bch->bchan ==
+				  1) ? 0x2 : 0x8);
+			l1->hw->mr.timer_usg_cnt++;
+			Write_hfc8(l1->hw, R_FIFO,
+				   (l1->st_num * 8 +
+				    ((bch->bchan ==
+				      1) ? 0 : 2)));
+			wait_busy(l1->hw);
+			Write_hfc8(l1->hw, A_CON_HDLC, 0xf);	/* Transparent mode, 1 fill, connect ST */
+			Write_hfc8(l1->hw, A_SUBCH_CFG, 0);	/* 8 bits */
+			Write_hfc8(l1->hw, A_IRQ_MSK, 0);	/* disable TX interrupts */
+			Write_hfc8(l1->hw, A_INC_RES_FIFO, 2);	/* reset fifo */
+			wait_busy(l1->hw);
 
-			switch (mode) {
-				case L1_MODE_HDLC:
-					spin_lock_irqsave(&l1->lock,
-							  flags);
-					l1->hw->mr.timer_usg_cnt++;
-					l1->hw->mr.
-					    fifo_slow_timer_service[l1->
-								    st_num]
-					    |=
-					    ((bch->bchan ==
-					      1) ? 0x2 : 0x8);
-					Write_hfc8(l1->hw, R_FIFO,
-						   (l1->st_num * 8 +
-						    ((bch->bchan ==
-						      1) ? 0 : 2)));
-					wait_busy(l1->hw);
-					Write_hfc8(l1->hw, A_CON_HDLC, 0xc);	/* HDLC mode, flag fill, connect ST */
-					Write_hfc8(l1->hw, A_SUBCH_CFG, 0);	/* 8 bits */
-					Write_hfc8(l1->hw, A_IRQ_MSK, 1);	/* enable TX interrupts for hdlc */
-					Write_hfc8(l1->hw, A_INC_RES_FIFO, 2);	/* reset fifo */
-					wait_busy(l1->hw);
+			Write_hfc8(l1->hw, R_FIFO,
+				   (l1->st_num * 8 +
+				    ((bch->bchan ==
+				      1) ? 1 : 3)));
+			wait_busy(l1->hw);
+			Write_hfc8(l1->hw, A_CON_HDLC, 0xf);	/* Transparent mode, 1 fill, connect ST */
+			Write_hfc8(l1->hw, A_SUBCH_CFG, 0);	/* 8 bits */
+			Write_hfc8(l1->hw, A_IRQ_MSK, 0);	/* disable RX interrupts */
+			Write_hfc8(l1->hw, A_INC_RES_FIFO, 2);	/* reset fifo */
 
-					Write_hfc8(l1->hw, R_FIFO,
-						   (l1->st_num * 8 +
-						    ((bch->bchan ==
-						      1) ? 1 : 3)));
-					wait_busy(l1->hw);
-					Write_hfc8(l1->hw, A_CON_HDLC, 0xc);	/* HDLC mode, flag fill, connect ST */
-					Write_hfc8(l1->hw, A_SUBCH_CFG, 0);	/* 8 bits */
-					Write_hfc8(l1->hw, A_IRQ_MSK, 1);	/* enable RX interrupts for hdlc */
-					Write_hfc8(l1->hw, A_INC_RES_FIFO, 2);	/* reset fifo */
+			Write_hfc8(l1->hw, R_ST_SEL,
+				   l1->st_num);
+			l1->hw->mr.r_ctrl0 |=
+				(bch->bchan & 3);
+			Write_hfc8(l1->hw, A_ST_CTRL0,
+				   l1->hw->mr.r_ctrl0);
+			bch->mode = L1_MODE_TRANS;
+			spin_unlock_irqrestore(&l1->lock,
+					       flags);
 
-					Write_hfc8(l1->hw, R_ST_SEL,
-						   l1->st_num);
-					l1->hw->mr.r_ctrl0 |=
-					    (bch->bchan & 3);
-					Write_hfc8(l1->hw, A_ST_CTRL0,
-						   l1->hw->mr.r_ctrl0);
-					bch->mode = L1_MODE_HDLC;
-					spin_unlock_irqrestore(&l1->lock,
-							       flags);
-
-					bch->b_if.ifc.l1l2(&bch->b_if.ifc,
-							   PH_ACTIVATE |
-							   INDICATION,
-							   NULL);
-					break;
-
-				case L1_MODE_TRANS:
-					spin_lock_irqsave(&l1->lock,
-							  flags);
-					l1->hw->mr.
-					    fifo_rx_trans_enables[l1->
-								  st_num]
-					    |=
-					    ((bch->bchan ==
-					      1) ? 0x2 : 0x8);
-					l1->hw->mr.timer_usg_cnt++;
-					Write_hfc8(l1->hw, R_FIFO,
-						   (l1->st_num * 8 +
-						    ((bch->bchan ==
-						      1) ? 0 : 2)));
-					wait_busy(l1->hw);
-					Write_hfc8(l1->hw, A_CON_HDLC, 0xf);	/* Transparent mode, 1 fill, connect ST */
-					Write_hfc8(l1->hw, A_SUBCH_CFG, 0);	/* 8 bits */
-					Write_hfc8(l1->hw, A_IRQ_MSK, 0);	/* disable TX interrupts */
-					Write_hfc8(l1->hw, A_INC_RES_FIFO, 2);	/* reset fifo */
-					wait_busy(l1->hw);
-
-					Write_hfc8(l1->hw, R_FIFO,
-						   (l1->st_num * 8 +
-						    ((bch->bchan ==
-						      1) ? 1 : 3)));
-					wait_busy(l1->hw);
-					Write_hfc8(l1->hw, A_CON_HDLC, 0xf);	/* Transparent mode, 1 fill, connect ST */
-					Write_hfc8(l1->hw, A_SUBCH_CFG, 0);	/* 8 bits */
-					Write_hfc8(l1->hw, A_IRQ_MSK, 0);	/* disable RX interrupts */
-					Write_hfc8(l1->hw, A_INC_RES_FIFO, 2);	/* reset fifo */
-
-					Write_hfc8(l1->hw, R_ST_SEL,
-						   l1->st_num);
-					l1->hw->mr.r_ctrl0 |=
-					    (bch->bchan & 3);
-					Write_hfc8(l1->hw, A_ST_CTRL0,
-						   l1->hw->mr.r_ctrl0);
-					bch->mode = L1_MODE_TRANS;
-					spin_unlock_irqrestore(&l1->lock,
-							       flags);
-
-					bch->b_if.ifc.l1l2(&bch->b_if.ifc,
-							   PH_ACTIVATE |
-							   INDICATION,
-							   NULL);
-					break;
-
-				default:
-					if (bch->mode == L1_MODE_NULL)
-						break;
-					spin_lock_irqsave(&l1->lock,
-							  flags);
-					l1->hw->mr.
-					    fifo_slow_timer_service[l1->
-								    st_num]
-					    &=
-					    ~((bch->bchan ==
-					       1) ? 0x3 : 0xc);
-					l1->hw->mr.
-					    fifo_rx_trans_enables[l1->
-								  st_num]
-					    &=
-					    ~((bch->bchan ==
-					       1) ? 0x3 : 0xc);
-					l1->hw->mr.timer_usg_cnt--;
-					Write_hfc8(l1->hw, R_FIFO,
-						   (l1->st_num * 8 +
-						    ((bch->bchan ==
-						      1) ? 0 : 2)));
-					wait_busy(l1->hw);
-					Write_hfc8(l1->hw, A_IRQ_MSK, 0);	/* disable TX interrupts */
-					wait_busy(l1->hw);
-					Write_hfc8(l1->hw, R_FIFO,
-						   (l1->st_num * 8 +
-						    ((bch->bchan ==
-						      1) ? 1 : 3)));
-					wait_busy(l1->hw);
-					Write_hfc8(l1->hw, A_IRQ_MSK, 0);	/* disable RX interrupts */
-					Write_hfc8(l1->hw, R_ST_SEL,
-						   l1->st_num);
-					l1->hw->mr.r_ctrl0 &=
-					    ~(bch->bchan & 3);
-					Write_hfc8(l1->hw, A_ST_CTRL0,
-						   l1->hw->mr.r_ctrl0);
-					spin_unlock_irqrestore(&l1->lock,
-							       flags);
-
-					bch->mode = L1_MODE_NULL;
-					bch->b_if.ifc.l1l2(&bch->b_if.ifc,
-							   PH_DEACTIVATE |
-							   INDICATION,
-							   NULL);
-					if (bch->tx_skb) {
-						dev_kfree_skb(bch->tx_skb);
-						bch->tx_skb = NULL;
-					}
-					if (bch->rx_skb) {
-						dev_kfree_skb(bch->rx_skb);
-						bch->rx_skb = NULL;
-					}
-					skb_queue_purge(&bch->tx_queue);
-					bch->tx_cnt = 0;
-					bch->rx_ptr = NULL;
-					break;
-			}
-
-			/* timer is only used when at least one b channel */
-			/* is set up to transparent mode */
-			if (l1->hw->mr.timer_usg_cnt) {
-				Write_hfc8(l1->hw, R_IRQMSK_MISC,
-					   M_TI_IRQMSK);
-			} else {
-				Write_hfc8(l1->hw, R_IRQMSK_MISC, 0);
-			}
-
+			bch->b_if.ifc.l1l2(&bch->b_if.ifc,
+					   PH_ACTIVATE |
+					   INDICATION,
+					   NULL);
 			break;
 
 		default:
-			printk(KERN_INFO
-			       "HFC-4S/8S: Unknown B-chan cmd 0x%x received, ignored\n",
-			       pr);
+			if (bch->mode == L1_MODE_NULL)
+				break;
+			spin_lock_irqsave(&l1->lock,
+					  flags);
+			l1->hw->mr.
+				fifo_slow_timer_service[l1->
+							st_num]
+				&=
+				~((bch->bchan ==
+				   1) ? 0x3 : 0xc);
+			l1->hw->mr.
+				fifo_rx_trans_enables[l1->
+						      st_num]
+				&=
+				~((bch->bchan ==
+				   1) ? 0x3 : 0xc);
+			l1->hw->mr.timer_usg_cnt--;
+			Write_hfc8(l1->hw, R_FIFO,
+				   (l1->st_num * 8 +
+				    ((bch->bchan ==
+				      1) ? 0 : 2)));
+			wait_busy(l1->hw);
+			Write_hfc8(l1->hw, A_IRQ_MSK, 0);	/* disable TX interrupts */
+			wait_busy(l1->hw);
+			Write_hfc8(l1->hw, R_FIFO,
+				   (l1->st_num * 8 +
+				    ((bch->bchan ==
+				      1) ? 1 : 3)));
+			wait_busy(l1->hw);
+			Write_hfc8(l1->hw, A_IRQ_MSK, 0);	/* disable RX interrupts */
+			Write_hfc8(l1->hw, R_ST_SEL,
+				   l1->st_num);
+			l1->hw->mr.r_ctrl0 &=
+				~(bch->bchan & 3);
+			Write_hfc8(l1->hw, A_ST_CTRL0,
+				   l1->hw->mr.r_ctrl0);
+			spin_unlock_irqrestore(&l1->lock,
+					       flags);
+
+			bch->mode = L1_MODE_NULL;
+			bch->b_if.ifc.l1l2(&bch->b_if.ifc,
+					   PH_DEACTIVATE |
+					   INDICATION,
+					   NULL);
+			if (bch->tx_skb) {
+				dev_kfree_skb(bch->tx_skb);
+				bch->tx_skb = NULL;
+			}
+			if (bch->rx_skb) {
+				dev_kfree_skb(bch->rx_skb);
+				bch->rx_skb = NULL;
+			}
+			skb_queue_purge(&bch->tx_queue);
+			bch->tx_cnt = 0;
+			bch->rx_ptr = NULL;
 			break;
+		}
+
+		/* timer is only used when at least one b channel */
+		/* is set up to transparent mode */
+		if (l1->hw->mr.timer_usg_cnt) {
+			Write_hfc8(l1->hw, R_IRQMSK_MISC,
+				   M_TI_IRQMSK);
+		} else {
+			Write_hfc8(l1->hw, R_IRQMSK_MISC, 0);
+		}
+
+		break;
+
+	default:
+		printk(KERN_INFO
+		       "HFC-4S/8S: Unknown B-chan cmd 0x%x received, ignored\n",
+		       pr);
+		break;
 	}
 	if (!l1->enabled)
 		bch->b_if.ifc.l1l2(&bch->b_if.ifc,
@@ -724,26 +703,15 @@ rx_d_frame(struct hfc4s8s_l1 *l1p, int ech)
 				return;
 			} else {
 				/* read errornous D frame */
-
-#ifndef HISAX_HFC4S8S_PCIMEM
 				SetRegAddr(l1p->hw, A_FIFO_DATA0);
-#endif
 
 				while (z1 >= 4) {
-#ifdef HISAX_HFC4S8S_PCIMEM
-					Read_hfc32(l1p->hw, A_FIFO_DATA0);
-#else
 					fRead_hfc32(l1p->hw);
-#endif
 					z1 -= 4;
 				}
 
 				while (z1--)
-#ifdef HISAX_HFC4S8S_PCIMEM
-					Read_hfc8(l1p->hw, A_FIFO_DATA0);
-#else
 					fRead_hfc8(l1p->hw);
-#endif
 
 				Write_hfc8(l1p->hw, A_INC_RES_FIFO, 1);
 				wait_busy(l1p->hw);
@@ -753,27 +721,16 @@ rx_d_frame(struct hfc4s8s_l1 *l1p, int ech)
 
 		cp = skb->data;
 
-#ifndef HISAX_HFC4S8S_PCIMEM
 		SetRegAddr(l1p->hw, A_FIFO_DATA0);
-#endif
 
 		while (z1 >= 4) {
-#ifdef HISAX_HFC4S8S_PCIMEM
-			*((unsigned long *) cp) =
-			    Read_hfc32(l1p->hw, A_FIFO_DATA0);
-#else
 			*((unsigned long *) cp) = fRead_hfc32(l1p->hw);
-#endif
 			cp += 4;
 			z1 -= 4;
 		}
 
 		while (z1--)
-#ifdef HISAX_HFC4S8S_PCIMEM
-			*cp++ = Read_hfc8(l1p->hw, A_FIFO_DATA0);
-#else
 			*cp++ = fRead_hfc8(l1p->hw);
-#endif
 
 		Write_hfc8(l1p->hw, A_INC_RES_FIFO, 1);	/* increment f counter */
 		wait_busy(l1p->hw);
@@ -859,28 +816,17 @@ rx_b_frame(struct hfc4s8s_btype *bch)
 			wait_busy(l1->hw);
 			return;
 		}
-#ifndef HISAX_HFC4S8S_PCIMEM
 		SetRegAddr(l1->hw, A_FIFO_DATA0);
-#endif
 
 		while (z1 >= 4) {
-#ifdef HISAX_HFC4S8S_PCIMEM
 			*((unsigned long *) bch->rx_ptr) =
-			    Read_hfc32(l1->hw, A_FIFO_DATA0);
-#else
-			*((unsigned long *) bch->rx_ptr) =
-			    fRead_hfc32(l1->hw);
-#endif
+				fRead_hfc32(l1->hw);
 			bch->rx_ptr += 4;
 			z1 -= 4;
 		}
 
 		while (z1--)
-#ifdef HISAX_HFC4S8S_PCIMEM
-			*(bch->rx_ptr++) = Read_hfc8(l1->hw, A_FIFO_DATA0);
-#else
 			*(bch->rx_ptr++) = fRead_hfc8(l1->hw);
-#endif
 
 		if (hdlc_complete) {
 			/* increment f counter */
@@ -940,29 +886,17 @@ tx_d_frame(struct hfc4s8s_l1 *l1p)
 	if ((skb = skb_dequeue(&l1p->d_tx_queue))) {
 		cp = skb->data;
 		cnt = skb->len;
-#ifndef HISAX_HFC4S8S_PCIMEM
 		SetRegAddr(l1p->hw, A_FIFO_DATA0);
-#endif
 
 		while (cnt >= 4) {
-#ifdef HISAX_HFC4S8S_PCIMEM
-			fWrite_hfc32(l1p->hw, A_FIFO_DATA0,
-				     *(unsigned long *) cp);
-#else
 			SetRegAddr(l1p->hw, A_FIFO_DATA0);
 			fWrite_hfc32(l1p->hw, *(unsigned long *) cp);
-#endif
 			cp += 4;
 			cnt -= 4;
 		}
 
-#ifdef HISAX_HFC4S8S_PCIMEM
-		while (cnt--)
-			fWrite_hfc8(l1p->hw, A_FIFO_DATA0, *cp++);
-#else
 		while (cnt--)
 			fWrite_hfc8(l1p->hw, *cp++);
-#endif
 
 		l1p->tx_cnt = skb->truesize;
 		Write_hfc8(l1p->hw, A_INC_RES_FIFO, 1);	/* increment f counter */
@@ -996,7 +930,7 @@ tx_b_frame(struct hfc4s8s_btype *bch)
 		if (bch->mode == L1_MODE_HDLC) {
 			hdlc_num = Read_hfc8(l1->hw, A_F1) & MAX_F_CNT;
 			hdlc_num -=
-			    (Read_hfc8_stable(l1->hw, A_F2) & MAX_F_CNT);
+				(Read_hfc8_stable(l1->hw, A_F2) & MAX_F_CNT);
 			if (hdlc_num < 0)
 				hdlc_num += 16;
 			if (hdlc_num >= 15)
@@ -1008,7 +942,7 @@ tx_b_frame(struct hfc4s8s_btype *bch)
 			if (!(skb = skb_dequeue(&bch->tx_queue))) {
 				l1->hw->mr.fifo_slow_timer_service[l1->
 								   st_num]
-				    &= ~((bch->bchan == 1) ? 1 : 4);
+					&= ~((bch->bchan == 1) ? 1 : 4);
 				break;	/* list empty */
 			}
 			bch->tx_skb = skb;
@@ -1017,10 +951,10 @@ tx_b_frame(struct hfc4s8s_btype *bch)
 
 		if (!hdlc_num)
 			l1->hw->mr.fifo_slow_timer_service[l1->st_num] |=
-			    ((bch->bchan == 1) ? 1 : 4);
+				((bch->bchan == 1) ? 1 : 4);
 		else
 			l1->hw->mr.fifo_slow_timer_service[l1->st_num] &=
-			    ~((bch->bchan == 1) ? 1 : 4);
+				~((bch->bchan == 1) ? 1 : 4);
 
 		max = Read_hfc16_stable(l1->hw, A_Z2);
 		max -= Read_hfc16(l1->hw, A_Z1);
@@ -1037,26 +971,15 @@ tx_b_frame(struct hfc4s8s_btype *bch)
 		cp = skb->data + bch->tx_cnt;
 		bch->tx_cnt += cnt;
 
-#ifndef HISAX_HFC4S8S_PCIMEM
 		SetRegAddr(l1->hw, A_FIFO_DATA0);
-#endif
 		while (cnt >= 4) {
-#ifdef HISAX_HFC4S8S_PCIMEM
-			fWrite_hfc32(l1->hw, A_FIFO_DATA0,
-				     *(unsigned long *) cp);
-#else
 			fWrite_hfc32(l1->hw, *(unsigned long *) cp);
-#endif
 			cp += 4;
 			cnt -= 4;
 		}
 
 		while (cnt--)
-#ifdef HISAX_HFC4S8S_PCIMEM
-			fWrite_hfc8(l1->hw, A_FIFO_DATA0, *cp++);
-#else
 			fWrite_hfc8(l1->hw, *cp++);
-#endif
 
 		if (bch->tx_cnt >= skb->len) {
 			if (bch->mode == L1_MODE_HDLC) {
@@ -1106,8 +1029,8 @@ hfc4s8s_bh(struct work_struct *work)
 					Write_hfc8(l1p->hw, R_ST_SEL,
 						   l1p->st_num);
 					l1p->l1_state =
-					    Read_hfc8(l1p->hw,
-						      A_ST_RD_STA) & 0xf;
+						Read_hfc8(l1p->hw,
+							  A_ST_RD_STA) & 0xf;
 
 					if ((oldstate == 3)
 					    && (l1p->l1_state != 3))
@@ -1123,12 +1046,12 @@ hfc4s8s_bh(struct work_struct *work)
 						del_timer(&l1p->l1_timer);
 						if (l1p->l1_state == 3) {
 							l1p->d_if.ifc.
-							    l1l2(&l1p->
-								 d_if.ifc,
-								 PH_ACTIVATE
-								 |
-								 INDICATION,
-								 NULL);
+								l1l2(&l1p->
+								     d_if.ifc,
+								     PH_ACTIVATE
+								     |
+								     INDICATION,
+								     NULL);
 						}
 					} else {
 						/* allow transition */
@@ -1148,8 +1071,8 @@ hfc4s8s_bh(struct work_struct *work)
 					Write_hfc8(l1p->hw, R_ST_SEL,
 						   l1p->st_num);
 					l1p->l1_state =
-					    Read_hfc8(l1p->hw,
-						      A_ST_RD_STA) & 0xf;
+						Read_hfc8(l1p->hw,
+							  A_ST_RD_STA) & 0xf;
 
 					if (((l1p->l1_state == 3) &&
 					     ((oldstate == 7) ||
@@ -1165,26 +1088,26 @@ hfc4s8s_bh(struct work_struct *work)
 							del_timer(&l1p->
 								  l1_timer);
 							l1p->d_if.ifc.
-							    l1l2(&l1p->
-								 d_if.ifc,
-								 PH_ACTIVATE
-								 |
-								 INDICATION,
-								 NULL);
+								l1l2(&l1p->
+								     d_if.ifc,
+								     PH_ACTIVATE
+								     |
+								     INDICATION,
+								     NULL);
 							tx_d_frame(l1p);
 						}
 						if (l1p->l1_state == 3) {
 							if (oldstate != 3)
 								l1p->d_if.
-								    ifc.
-								    l1l2
-								    (&l1p->
-								     d_if.
-								     ifc,
-								     PH_DEACTIVATE
-								     |
-								     INDICATION,
-								     NULL);
+									ifc.
+									l1l2
+									(&l1p->
+									 d_if.
+									 ifc,
+									 PH_DEACTIVATE
+									 |
+									 INDICATION,
+									 NULL);
 						}
 					}
 					printk(KERN_INFO
@@ -1209,8 +1132,8 @@ hfc4s8s_bh(struct work_struct *work)
 			*fifo_stat |= hw->mr.fifo_rx_trans_enables[idx];
 			if (hw->fifo_sched_cnt <= 0) {
 				*fifo_stat |=
-				    hw->mr.fifo_slow_timer_service[l1p->
-								   st_num];
+					hw->mr.fifo_slow_timer_service[l1p->
+								       st_num];
 			}
 		}
 		/* ignore fifo 6 (TX E fifo) */
@@ -1281,20 +1204,16 @@ hfc4s8s_interrupt(int intno, void *dev_id)
 	if (!hw || !(hw->mr.r_irq_ctrl & M_GLOB_IRQ_EN))
 		return IRQ_NONE;
 
-#ifndef	HISAX_HFC4S8S_PCIMEM
 	/* read current selected regsister */
 	old_ioreg = GetRegAddr(hw);
-#endif
 
 	/* Layer 1 State change */
 	hw->mr.r_irq_statech |=
-	    (Read_hfc8(hw, R_SCI) & hw->mr.r_irqmsk_statchg);
+		(Read_hfc8(hw, R_SCI) & hw->mr.r_irqmsk_statchg);
 	if (!
 	    (b = (Read_hfc8(hw, R_STATUS) & (M_MISC_IRQSTA | M_FR_IRQSTA)))
-&& !hw->mr.r_irq_statech) {
-#ifndef	HISAX_HFC4S8S_PCIMEM
+	    && !hw->mr.r_irq_statech) {
 		SetRegAddr(hw, old_ioreg);
-#endif
 		return IRQ_NONE;
 	}
 
@@ -1322,9 +1241,7 @@ hfc4s8s_interrupt(int intno, void *dev_id)
 	/* queue the request to allow other cards to interrupt */
 	schedule_work(&hw->tqueue);
 
-#ifndef	HISAX_HFC4S8S_PCIMEM
 	SetRegAddr(hw, old_ioreg);
-#endif
 	return IRQ_HANDLED;
 }				/* hfc4s8s_interrupt */
 
@@ -1332,7 +1249,7 @@ hfc4s8s_interrupt(int intno, void *dev_id)
 /* reset the complete chip, don't release the chips irq but disable it */
 /***********************************************************************/
 static void
-chipreset(hfc4s8s_hw * hw)
+chipreset(hfc4s8s_hw *hw)
 {
 	u_long flags;
 
@@ -1361,7 +1278,7 @@ chipreset(hfc4s8s_hw * hw)
 /* disable/enable hardware in nt or te mode */
 /********************************************/
 static void
-hfc_hardware_enable(hfc4s8s_hw * hw, int enable, int nt_mode)
+hfc_hardware_enable(hfc4s8s_hw *hw, int enable, int nt_mode)
 {
 	u_long flags;
 	char if_name[40];
@@ -1468,37 +1385,28 @@ hfc_hardware_enable(hfc4s8s_hw * hw, int enable, int nt_mode)
 /* disable memory mapped ports / io ports */
 /******************************************/
 static void
-release_pci_ports(hfc4s8s_hw * hw)
+release_pci_ports(hfc4s8s_hw *hw)
 {
 	pci_write_config_word(hw->pdev, PCI_COMMAND, 0);
-#ifdef HISAX_HFC4S8S_PCIMEM
-	if (hw->membase)
-		iounmap((void *) hw->membase);
-#else
 	if (hw->iobase)
 		release_region(hw->iobase, 8);
-#endif
 }
 
 /*****************************************/
 /* enable memory mapped ports / io ports */
 /*****************************************/
 static void
-enable_pci_ports(hfc4s8s_hw * hw)
+enable_pci_ports(hfc4s8s_hw *hw)
 {
-#ifdef HISAX_HFC4S8S_PCIMEM
-	pci_write_config_word(hw->pdev, PCI_COMMAND, PCI_ENA_MEMIO);
-#else
 	pci_write_config_word(hw->pdev, PCI_COMMAND, PCI_ENA_REGIO);
-#endif
 }
 
 /*************************************/
 /* initialise the HFC-4s/8s hardware */
 /* return 0 on success.              */
 /*************************************/
-static int __devinit
-setup_instance(hfc4s8s_hw * hw)
+static int
+setup_instance(hfc4s8s_hw *hw)
 {
 	int err = -EIO;
 	int i;
@@ -1561,21 +1469,15 @@ setup_instance(hfc4s8s_hw * hw)
 		       hw->irq);
 		goto out;
 	}
-#ifdef HISAX_HFC4S8S_PCIMEM
-	printk(KERN_INFO
-	       "HFC-4S/8S: found PCI card at membase 0x%p, irq %d\n",
-	       hw->hw_membase, hw->irq);
-#else
 	printk(KERN_INFO
 	       "HFC-4S/8S: found PCI card at iobase 0x%x, irq %d\n",
 	       hw->iobase, hw->irq);
-#endif
 
 	hfc_hardware_enable(hw, 1, 0);
 
 	return (0);
 
-      out:
+out:
 	hw->irq = 0;
 	release_pci_ports(hw);
 	kfree(hw);
@@ -1585,7 +1487,7 @@ setup_instance(hfc4s8s_hw * hw)
 /*****************************************/
 /* PCI hotplug interface: probe new card */
 /*****************************************/
-static int __devinit
+static int
 hfc4s8s_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	int err = -ENOMEM;
@@ -1614,17 +1516,12 @@ hfc4s8s_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	hw->irq = pdev->irq;
 	hw->iobase = pci_resource_start(pdev, 0);
 
-#ifdef HISAX_HFC4S8S_PCIMEM
-	hw->hw_membase = (u_char *) pci_resource_start(pdev, 1);
-	hw->membase = ioremap((ulong) hw->hw_membase, 256);
-#else
 	if (!request_region(hw->iobase, 8, hw->card_name)) {
 		printk(KERN_INFO
-		       "HFC-4S/8S: failed to rquest address space at 0x%04x\n",
+		       "HFC-4S/8S: failed to request address space at 0x%04x\n",
 		       hw->iobase);
 		goto out;
 	}
-#endif
 
 	pci_set_drvdata(pdev, hw);
 	err = setup_instance(hw);
@@ -1632,7 +1529,7 @@ hfc4s8s_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		card_cnt++;
 	return (err);
 
-      out:
+out:
 	kfree(hw);
 	return (err);
 }
@@ -1640,7 +1537,7 @@ hfc4s8s_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 /**************************************/
 /* PCI hotplug interface: remove card */
 /**************************************/
-static void __devexit
+static void
 hfc4s8s_remove(struct pci_dev *pdev)
 {
 	hfc4s8s_hw *hw = pci_get_drvdata(pdev);
@@ -1660,10 +1557,10 @@ hfc4s8s_remove(struct pci_dev *pdev)
 }
 
 static struct pci_driver hfc4s8s_driver = {
-      .name	= "hfc4s8s_l1",
-      .probe	= hfc4s8s_probe,
-      .remove	= __devexit_p(hfc4s8s_remove),
-      .id_table	= hfc4s8s_ids,
+	.name	= "hfc4s8s_l1",
+	.probe	= hfc4s8s_probe,
+	.remove	= hfc4s8s_remove,
+	.id_table	= hfc4s8s_ids,
 };
 
 /**********************/
@@ -1688,16 +1585,8 @@ hfc4s8s_module_init(void)
 	}
 	printk(KERN_INFO "HFC-4S/8S: found %d cards\n", card_cnt);
 
-#if !defined(CONFIG_HOTPLUG)
-	if (err == 0) {
-		err = -ENODEV;
-		pci_unregister_driver(&hfc4s8s_driver);
-		goto out;
-	}
-#endif
-
 	return 0;
-      out:
+out:
 	return (err);
 }				/* hfc4s8s_init_hw */
 

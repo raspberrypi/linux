@@ -33,26 +33,27 @@ static const struct xt_table packet_filter = {
 };
 
 static unsigned int
-iptable_filter_hook(unsigned int hook, struct sk_buff *skb,
+iptable_filter_hook(const struct nf_hook_ops *ops, struct sk_buff *skb,
 		    const struct net_device *in, const struct net_device *out,
 		    int (*okfn)(struct sk_buff *))
 {
 	const struct net *net;
 
-	if (hook == NF_INET_LOCAL_OUT &&
+	if (ops->hooknum == NF_INET_LOCAL_OUT &&
 	    (skb->len < sizeof(struct iphdr) ||
 	     ip_hdrlen(skb) < sizeof(struct iphdr)))
 		/* root is playing with raw sockets. */
 		return NF_ACCEPT;
 
 	net = dev_net((in != NULL) ? in : out);
-	return ipt_do_table(skb, hook, in, out, net->ipv4.iptable_filter);
+	return ipt_do_table(skb, ops->hooknum, in, out,
+			    net->ipv4.iptable_filter);
 }
 
 static struct nf_hook_ops *filter_ops __read_mostly;
 
 /* Default to forward because I got too much mail already. */
-static bool forward = NF_ACCEPT;
+static bool forward = true;
 module_param(forward, bool, 0000);
 
 static int __net_init iptable_filter_net_init(struct net *net)
@@ -64,14 +65,12 @@ static int __net_init iptable_filter_net_init(struct net *net)
 		return -ENOMEM;
 	/* Entry 1 is the FORWARD hook */
 	((struct ipt_standard *)repl->entries)[1].target.verdict =
-		-forward - 1;
+		forward ? -NF_ACCEPT - 1 : -NF_DROP - 1;
 
 	net->ipv4.iptable_filter =
 		ipt_register_table(net, &packet_filter, repl);
 	kfree(repl);
-	if (IS_ERR(net->ipv4.iptable_filter))
-		return PTR_ERR(net->ipv4.iptable_filter);
-	return 0;
+	return PTR_ERR_OR_ZERO(net->ipv4.iptable_filter);
 }
 
 static void __net_exit iptable_filter_net_exit(struct net *net)
@@ -88,11 +87,6 @@ static int __init iptable_filter_init(void)
 {
 	int ret;
 
-	if (forward < 0 || forward > NF_MAX_VERDICT) {
-		pr_err("iptables forward must be 0 or 1\n");
-		return -EINVAL;
-	}
-
 	ret = register_pernet_subsys(&iptable_filter_net_ops);
 	if (ret < 0)
 		return ret;
@@ -101,13 +95,9 @@ static int __init iptable_filter_init(void)
 	filter_ops = xt_hook_link(&packet_filter, iptable_filter_hook);
 	if (IS_ERR(filter_ops)) {
 		ret = PTR_ERR(filter_ops);
-		goto cleanup_table;
+		unregister_pernet_subsys(&iptable_filter_net_ops);
 	}
 
-	return ret;
-
- cleanup_table:
-	unregister_pernet_subsys(&iptable_filter_net_ops);
 	return ret;
 }
 

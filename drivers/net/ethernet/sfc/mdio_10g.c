@@ -1,5 +1,5 @@
 /****************************************************************************
- * Driver for Solarflare Solarstorm network controllers and boards
+ * Driver for Solarflare network controllers and boards
  * Copyright 2006-2011 Solarflare Communications Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -228,7 +228,7 @@ void efx_mdio_set_mmds_lpower(struct efx_nic *efx,
 /**
  * efx_mdio_set_settings - Set (some of) the PHY settings over MDIO.
  * @efx:		Efx NIC
- * @ecmd: 		New settings
+ * @ecmd:		New settings
  */
 int efx_mdio_set_settings(struct efx_nic *efx, struct ethtool_cmd *ecmd)
 {

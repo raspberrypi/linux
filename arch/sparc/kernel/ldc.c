@@ -27,7 +27,7 @@
 #define DRV_MODULE_VERSION	"1.1"
 #define DRV_MODULE_RELDATE	"July 22, 2008"
 
-static char version[] __devinitdata =
+static char version[] =
 	DRV_MODULE_NAME ".c:v" DRV_MODULE_VERSION " (" DRV_MODULE_RELDATE ")\n";
 #define LDC_PACKET_SIZE		64
 
@@ -953,9 +953,8 @@ static HLIST_HEAD(ldc_channel_list);
 static int __ldc_channel_exists(unsigned long id)
 {
 	struct ldc_channel *lp;
-	struct hlist_node *n;
 
-	hlist_for_each_entry(lp, n, &ldc_channel_list, list) {
+	hlist_for_each_entry(lp, &ldc_channel_list, list) {
 		if (lp->id == id)
 			return 1;
 	}
@@ -1079,7 +1078,8 @@ static void ldc_iommu_release(struct ldc_channel *lp)
 
 struct ldc_channel *ldc_alloc(unsigned long id,
 			      const struct ldc_channel_config *cfgp,
-			      void *event_arg)
+			      void *event_arg,
+			      const char *name)
 {
 	struct ldc_channel *lp;
 	const struct ldc_mode_ops *mops;
@@ -1093,6 +1093,8 @@ struct ldc_channel *ldc_alloc(unsigned long id,
 
 	err = -EINVAL;
 	if (!cfgp)
+		goto out_err;
+	if (!name)
 		goto out_err;
 
 	switch (cfgp->mode) {
@@ -1186,6 +1188,21 @@ struct ldc_channel *ldc_alloc(unsigned long id,
 
 	INIT_HLIST_HEAD(&lp->mh_list);
 
+	snprintf(lp->rx_irq_name, LDC_IRQ_NAME_MAX, "%s RX", name);
+	snprintf(lp->tx_irq_name, LDC_IRQ_NAME_MAX, "%s TX", name);
+
+	err = request_irq(lp->cfg.rx_irq, ldc_rx, 0,
+			  lp->rx_irq_name, lp);
+	if (err)
+		goto out_free_txq;
+
+	err = request_irq(lp->cfg.tx_irq, ldc_tx, 0,
+			  lp->tx_irq_name, lp);
+	if (err) {
+		free_irq(lp->cfg.rx_irq, lp);
+		goto out_free_txq;
+	}
+
 	return lp;
 
 out_free_txq:
@@ -1238,32 +1255,13 @@ EXPORT_SYMBOL(ldc_free);
  * state.  This does not initiate a handshake, ldc_connect() does
  * that.
  */
-int ldc_bind(struct ldc_channel *lp, const char *name)
+int ldc_bind(struct ldc_channel *lp)
 {
 	unsigned long hv_err, flags;
 	int err = -EINVAL;
 
-	if (!name ||
-	    (lp->state != LDC_STATE_INIT))
+	if (lp->state != LDC_STATE_INIT)
 		return -EINVAL;
-
-	snprintf(lp->rx_irq_name, LDC_IRQ_NAME_MAX, "%s RX", name);
-	snprintf(lp->tx_irq_name, LDC_IRQ_NAME_MAX, "%s TX", name);
-
-	err = request_irq(lp->cfg.rx_irq, ldc_rx,
-			  IRQF_SAMPLE_RANDOM | IRQF_DISABLED,
-			  lp->rx_irq_name, lp);
-	if (err)
-		return err;
-
-	err = request_irq(lp->cfg.tx_irq, ldc_tx,
-			  IRQF_SAMPLE_RANDOM | IRQF_DISABLED,
-			  lp->tx_irq_name, lp);
-	if (err) {
-		free_irq(lp->cfg.rx_irq, lp);
-		return err;
-	}
-
 
 	spin_lock_irqsave(&lp->lock, flags);
 
@@ -1339,7 +1337,7 @@ int ldc_connect(struct ldc_channel *lp)
 	if (!(lp->flags & LDC_FLAG_ALLOCED_QUEUES) ||
 	    !(lp->flags & LDC_FLAG_REGISTERED_QUEUES) ||
 	    lp->hs_state != LDC_HS_OPEN)
-		err = -EINVAL;
+		err = ((lp->hs_state > LDC_HS_OPEN) ? 0 : -EINVAL);
 	else
 		err = start_handshake(lp);
 
@@ -2162,7 +2160,7 @@ int ldc_map_single(struct ldc_channel *lp,
 	state.pte_idx = (base - iommu->page_table);
 	state.nc = 0;
 	fill_cookies(&state, (pa & PAGE_MASK), (pa & ~PAGE_MASK), len);
-	BUG_ON(state.nc != 1);
+	BUG_ON(state.nc > ncookies);
 
 	return state.nc;
 }

@@ -16,8 +16,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/kernel.h>
@@ -34,7 +33,7 @@
 
 #include "mscan.h"
 
-static struct can_bittiming_const mscan_bittiming_const = {
+static const struct can_bittiming_const mscan_bittiming_const = {
 	.name = "mscan",
 	.tseg1_min = 4,
 	.tseg1_max = 16,
@@ -95,9 +94,9 @@ static int mscan_set_mode(struct net_device *dev, u8 mode)
 			 * any, at once.
 			 */
 			if (i >= MSCAN_SET_MODE_RETRIES)
-				dev_dbg(dev->dev.parent,
-					"device failed to enter sleep mode. "
-					"We proceed anyhow.\n");
+				netdev_dbg(dev,
+					   "device failed to enter sleep mode. "
+					   "We proceed anyhow.\n");
 			else
 				priv->can.state = CAN_STATE_SLEEPING;
 		}
@@ -213,7 +212,7 @@ static netdev_tx_t mscan_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	switch (hweight8(i)) {
 	case 0:
 		netif_stop_queue(dev);
-		dev_err(dev->dev.parent, "Tx Ring full when queue awake!\n");
+		netdev_err(dev, "Tx Ring full when queue awake!\n");
 		return NETDEV_TX_BUSY;
 	case 1:
 		/*
@@ -352,7 +351,7 @@ static void mscan_get_err_frame(struct net_device *dev, struct can_frame *frame,
 	struct net_device_stats *stats = &dev->stats;
 	enum can_state old_state;
 
-	dev_dbg(dev->dev.parent, "error interrupt (canrflg=%#x)\n", canrflg);
+	netdev_dbg(dev, "error interrupt (canrflg=%#x)\n", canrflg);
 	frame->can_id = CAN_ERR_FLAG;
 
 	if (canrflg & MSCAN_OVRIF) {
@@ -427,7 +426,7 @@ static int mscan_rx_poll(struct napi_struct *napi, int quota)
 		skb = alloc_can_skb(dev, &frame);
 		if (!skb) {
 			if (printk_ratelimit())
-				dev_notice(dev->dev.parent, "packet dropped\n");
+				netdev_notice(dev, "packet dropped\n");
 			stats->rx_dropped++;
 			out_8(&regs->canrflg, canrflg);
 			continue;
@@ -517,11 +516,7 @@ static irqreturn_t mscan_isr(int irq, void *dev_id)
 
 static int mscan_do_set_mode(struct net_device *dev, enum can_mode mode)
 {
-	struct mscan_priv *priv = netdev_priv(dev);
 	int ret = 0;
-
-	if (!priv->open_time)
-		return -EINVAL;
 
 	switch (mode) {
 	case CAN_MODE_START:
@@ -551,11 +546,22 @@ static int mscan_do_set_bittiming(struct net_device *dev)
 		BTR1_SET_TSEG2(bt->phase_seg2) |
 		BTR1_SET_SAM(priv->can.ctrlmode & CAN_CTRLMODE_3_SAMPLES));
 
-	dev_info(dev->dev.parent, "setting BTR0=0x%02x BTR1=0x%02x\n",
-		btr0, btr1);
+	netdev_info(dev, "setting BTR0=0x%02x BTR1=0x%02x\n", btr0, btr1);
 
 	out_8(&regs->canbtr0, btr0);
 	out_8(&regs->canbtr1, btr1);
+
+	return 0;
+}
+
+static int mscan_get_berr_counter(const struct net_device *dev,
+				  struct can_berr_counter *bec)
+{
+	struct mscan_priv *priv = netdev_priv(dev);
+	struct mscan_regs __iomem *regs = priv->reg_base;
+
+	bec->txerr = in_8(&regs->cantxerr);
+	bec->rxerr = in_8(&regs->canrxerr);
 
 	return 0;
 }
@@ -566,20 +572,29 @@ static int mscan_open(struct net_device *dev)
 	struct mscan_priv *priv = netdev_priv(dev);
 	struct mscan_regs __iomem *regs = priv->reg_base;
 
+	if (priv->clk_ipg) {
+		ret = clk_prepare_enable(priv->clk_ipg);
+		if (ret)
+			goto exit_retcode;
+	}
+	if (priv->clk_can) {
+		ret = clk_prepare_enable(priv->clk_can);
+		if (ret)
+			goto exit_dis_ipg_clock;
+	}
+
 	/* common open */
 	ret = open_candev(dev);
 	if (ret)
-		return ret;
+		goto exit_dis_can_clock;
 
 	napi_enable(&priv->napi);
 
 	ret = request_irq(dev->irq, mscan_isr, 0, dev->name, dev);
 	if (ret < 0) {
-		dev_err(dev->dev.parent, "failed to attach interrupt\n");
+		netdev_err(dev, "failed to attach interrupt\n");
 		goto exit_napi_disable;
 	}
-
-	priv->open_time = jiffies;
 
 	if (priv->can.ctrlmode & CAN_CTRLMODE_LISTENONLY)
 		setbits8(&regs->canctl1, MSCAN_LISTEN);
@@ -595,11 +610,17 @@ static int mscan_open(struct net_device *dev)
 	return 0;
 
 exit_free_irq:
-	priv->open_time = 0;
 	free_irq(dev->irq, dev);
 exit_napi_disable:
 	napi_disable(&priv->napi);
 	close_candev(dev);
+exit_dis_can_clock:
+	if (priv->clk_can)
+		clk_disable_unprepare(priv->clk_can);
+exit_dis_ipg_clock:
+	if (priv->clk_ipg)
+		clk_disable_unprepare(priv->clk_ipg);
+exit_retcode:
 	return ret;
 }
 
@@ -616,15 +637,20 @@ static int mscan_close(struct net_device *dev)
 	mscan_set_mode(dev, MSCAN_INIT_MODE);
 	close_candev(dev);
 	free_irq(dev->irq, dev);
-	priv->open_time = 0;
+
+	if (priv->clk_can)
+		clk_disable_unprepare(priv->clk_can);
+	if (priv->clk_ipg)
+		clk_disable_unprepare(priv->clk_ipg);
 
 	return 0;
 }
 
 static const struct net_device_ops mscan_netdev_ops = {
-       .ndo_open               = mscan_open,
-       .ndo_stop               = mscan_close,
-       .ndo_start_xmit         = mscan_start_xmit,
+	.ndo_open	= mscan_open,
+	.ndo_stop	= mscan_close,
+	.ndo_start_xmit	= mscan_start_xmit,
+	.ndo_change_mtu	= can_change_mtu,
 };
 
 int register_mscandev(struct net_device *dev, int mscan_clksrc)
@@ -639,8 +665,10 @@ int register_mscandev(struct net_device *dev, int mscan_clksrc)
 	else
 		ctl1 &= ~MSCAN_CLKSRC;
 
-	if (priv->type == MSCAN_TYPE_MPC5121)
+	if (priv->type == MSCAN_TYPE_MPC5121) {
+		priv->can.do_get_berr_counter = mscan_get_berr_counter;
 		ctl1 |= MSCAN_BORM; /* bus-off recovery upon request */
+	}
 
 	ctl1 |= MSCAN_CANE;
 	out_8(&regs->canctl1, ctl1);

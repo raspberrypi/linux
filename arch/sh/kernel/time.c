@@ -21,7 +21,6 @@
 #include <linux/smp.h>
 #include <linux/rtc.h>
 #include <asm/clock.h>
-#include <asm/hwblk.h>
 #include <asm/rtc.h>
 
 /* Dummy RTC ops */
@@ -81,10 +80,8 @@ static int __init rtc_generic_init(void)
 		return -ENODEV;
 
 	pdev = platform_device_register_simple("rtc-generic", -1, NULL, 0);
-	if (IS_ERR(pdev))
-		return PTR_ERR(pdev);
 
-	return 0;
+	return PTR_ERR_OR_ZERO(pdev);
 }
 module_init(rtc_generic_init);
 
@@ -110,7 +107,6 @@ void __init time_init(void)
 	if (board_time_init)
 		board_time_init();
 
-	hwblk_init();
 	clk_init();
 
 	late_time_init = sh_late_time_init;

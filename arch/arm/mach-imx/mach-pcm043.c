@@ -24,7 +24,7 @@
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <linux/i2c.h>
-#include <linux/i2c/at24.h>
+#include <linux/platform_data/at24.h>
 #include <linux/usb/otg.h>
 #include <linux/usb/ulpi.h>
 
@@ -33,13 +33,12 @@
 #include <asm/mach/time.h>
 #include <asm/mach/map.h>
 
-#include <mach/hardware.h>
-#include <mach/common.h>
-#include <mach/iomux-mx35.h>
-#include <mach/ulpi.h>
-#include <mach/audmux.h>
-
+#include "common.h"
 #include "devices-imx35.h"
+#include "ehci.h"
+#include "hardware.h"
+#include "iomux-mx35.h"
+#include "ulpi.h"
 
 static const struct fb_videomode fb_modedb[] = {
 	{
@@ -75,10 +74,6 @@ static const struct fb_videomode fb_modedb[] = {
 		.vmode		= FB_VMODE_NONINTERLACED,
 		.flag		= 0,
 	},
-};
-
-static const struct ipu_platform_data mx3_ipu_data __initconst = {
-	.irq_base = MXC_IPU_IRQ_START,
 };
 
 static struct mx3fb_platform_data mx3fb_pdata __initdata = {
@@ -331,18 +326,18 @@ static const struct fsl_usb2_platform_data otg_device_pdata __initconst = {
 	.phy_mode       = FSL_USB2_PHY_UTMI,
 };
 
-static int otg_mode_host;
+static bool otg_mode_host __initdata;
 
 static int __init pcm043_otg_mode(char *options)
 {
 	if (!strcmp(options, "host"))
-		otg_mode_host = 1;
+		otg_mode_host = true;
 	else if (!strcmp(options, "device"))
-		otg_mode_host = 0;
+		otg_mode_host = false;
 	else
 		pr_info("otg_mode neither \"host\" nor \"device\". "
 			"Defaulting to device\n");
-	return 0;
+	return 1;
 }
 __setup("otg_mode=", pcm043_otg_mode);
 
@@ -362,21 +357,9 @@ static void __init pcm043_init(void)
 
 	mxc_iomux_v3_setup_multiple_pads(pcm043_pads, ARRAY_SIZE(pcm043_pads));
 
-	mxc_audmux_v2_configure_port(3,
-			MXC_AUDMUX_V2_PTCR_SYN | /* 4wire mode */
-			MXC_AUDMUX_V2_PTCR_TFSEL(0) |
-			MXC_AUDMUX_V2_PTCR_TFSDIR,
-			MXC_AUDMUX_V2_PDCR_RXDSEL(0));
-
-	mxc_audmux_v2_configure_port(0,
-			MXC_AUDMUX_V2_PTCR_SYN | /* 4wire mode */
-			MXC_AUDMUX_V2_PTCR_TCSEL(3) |
-			MXC_AUDMUX_V2_PTCR_TCLKDIR, /* clock is output */
-			MXC_AUDMUX_V2_PDCR_RXDSEL(3));
-
 	imx35_add_fec(NULL);
 	platform_add_devices(devices, ARRAY_SIZE(devices));
-	imx35_add_imx2_wdt(NULL);
+	imx35_add_imx2_wdt();
 
 	imx35_add_imx_uart0(&uart_pdata);
 	imx35_add_mxc_nand(&pcm037_nand_board_info);
@@ -389,7 +372,7 @@ static void __init pcm043_init(void)
 
 	imx35_add_imx_i2c0(&pcm043_i2c0_data);
 
-	imx35_add_ipu_core(&mx3_ipu_data);
+	imx35_add_ipu_core();
 	imx35_add_mx3_sdc_fb(&mx3fb_pdata);
 
 	if (otg_mode_host) {
@@ -403,7 +386,7 @@ static void __init pcm043_init(void)
 	if (!otg_mode_host)
 		imx35_add_fsl_usb2_udc(&otg_device_pdata);
 
-	imx35_add_flexcan1(NULL);
+	imx35_add_flexcan1();
 	imx35_add_sdhci_esdhc_imx(0, &sd1_pdata);
 }
 
@@ -412,18 +395,13 @@ static void __init pcm043_timer_init(void)
 	mx35_clocks_init();
 }
 
-struct sys_timer pcm043_timer = {
-	.init	= pcm043_timer_init,
-};
-
 MACHINE_START(PCM043, "Phytec Phycore pcm043")
 	/* Maintainer: Pengutronix */
 	.atag_offset = 0x100,
 	.map_io = mx35_map_io,
 	.init_early = imx35_init_early,
 	.init_irq = mx35_init_irq,
-	.handle_irq = imx35_handle_irq,
-	.timer = &pcm043_timer,
+	.init_time = pcm043_timer_init,
 	.init_machine = pcm043_init,
 	.restart	= mxc_restart,
 MACHINE_END

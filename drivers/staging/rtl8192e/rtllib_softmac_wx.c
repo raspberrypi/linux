@@ -1,5 +1,5 @@
 /* IEEE 802.11 SoftMAC layer
- * Copyright (c) 2005 Andrea Merello <andreamrl@tiscali.it>
+ * Copyright (c) 2005 Andrea Merello <andrea.merello@gmail.com>
  *
  * Mostly extracted from the rtl8180-sa2400 driver for the
  * in-kernel generic ieee802.11 stack.
@@ -14,8 +14,9 @@
  */
 
 
+#include <linux/etherdevice.h>
+
 #include "rtllib.h"
-#include "rtl_core.h"
 #include "dot11d.h"
 /* FIXME: add A freqs */
 
@@ -25,6 +26,7 @@ const long rtllib_wlan_frequencies[] = {
 	2452, 2457, 2462, 2467,
 	2472, 2484
 };
+EXPORT_SYMBOL(rtllib_wlan_frequencies);
 
 
 int rtllib_wx_set_freq(struct rtllib_device *ieee, struct iw_request_info *a,
@@ -82,6 +84,7 @@ out:
 	up(&ieee->wx_sem);
 	return ret;
 }
+EXPORT_SYMBOL(rtllib_wx_set_freq);
 
 
 int rtllib_wx_get_freq(struct rtllib_device *ieee,
@@ -97,6 +100,7 @@ int rtllib_wx_get_freq(struct rtllib_device *ieee,
 	fwrq->e = 1;
 	return 0;
 }
+EXPORT_SYMBOL(rtllib_wx_get_freq);
 
 int rtllib_wx_get_wap(struct rtllib_device *ieee,
 			    struct iw_request_info *info,
@@ -125,6 +129,7 @@ int rtllib_wx_get_wap(struct rtllib_device *ieee,
 
 	return 0;
 }
+EXPORT_SYMBOL(rtllib_wx_get_wap);
 
 
 int rtllib_wx_set_wap(struct rtllib_device *ieee,
@@ -134,7 +139,6 @@ int rtllib_wx_set_wap(struct rtllib_device *ieee,
 {
 
 	int ret = 0;
-	u8 zero[] = {0, 0, 0, 0, 0, 0};
 	unsigned long flags;
 
 	short ifup = ieee->proto_started;
@@ -154,7 +158,7 @@ int rtllib_wx_set_wap(struct rtllib_device *ieee,
 		goto out;
 	}
 
-	if (memcmp(temp->sa_data, zero, ETH_ALEN) == 0) {
+	if (is_zero_ether_addr(temp->sa_data)) {
 		spin_lock_irqsave(&ieee->lock, flags);
 		memcpy(ieee->current_network.bssid, temp->sa_data, ETH_ALEN);
 		ieee->wap_set = 0;
@@ -174,7 +178,7 @@ int rtllib_wx_set_wap(struct rtllib_device *ieee,
 
 	ieee->cannot_notify = false;
 	memcpy(ieee->current_network.bssid, temp->sa_data, ETH_ALEN);
-	ieee->wap_set = (memcmp(temp->sa_data, zero, ETH_ALEN) != 0);
+	ieee->wap_set = !is_zero_ether_addr(temp->sa_data);
 
 	spin_unlock_irqrestore(&ieee->lock, flags);
 
@@ -184,6 +188,7 @@ out:
 	up(&ieee->wx_sem);
 	return ret;
 }
+EXPORT_SYMBOL(rtllib_wx_set_wap);
 
 int rtllib_wx_get_essid(struct rtllib_device *ieee, struct iw_request_info *a,
 			 union iwreq_data *wrqu, char *b)
@@ -220,6 +225,7 @@ out:
 	return ret;
 
 }
+EXPORT_SYMBOL(rtllib_wx_get_essid);
 
 int rtllib_wx_set_rate(struct rtllib_device *ieee,
 			     struct iw_request_info *info,
@@ -231,18 +237,21 @@ int rtllib_wx_set_rate(struct rtllib_device *ieee,
 	ieee->rate = target_rate/100000;
 	return 0;
 }
+EXPORT_SYMBOL(rtllib_wx_set_rate);
 
 int rtllib_wx_get_rate(struct rtllib_device *ieee,
 			     struct iw_request_info *info,
 			     union iwreq_data *wrqu, char *extra)
 {
 	u32 tmp_rate = 0;
+
 	tmp_rate = TxCountToDataRate(ieee,
 				     ieee->softmac_stats.CurrentShowTxate);
 	wrqu->bitrate.value = tmp_rate * 500000;
 
 	return 0;
 }
+EXPORT_SYMBOL(rtllib_wx_get_rate);
 
 
 int rtllib_wx_set_rts(struct rtllib_device *ieee,
@@ -259,6 +268,7 @@ int rtllib_wx_set_rts(struct rtllib_device *ieee,
 	}
 	return 0;
 }
+EXPORT_SYMBOL(rtllib_wx_set_rts);
 
 int rtllib_wx_get_rts(struct rtllib_device *ieee,
 			     struct iw_request_info *info,
@@ -269,6 +279,7 @@ int rtllib_wx_get_rts(struct rtllib_device *ieee,
 	wrqu->rts.disabled = (wrqu->rts.value == DEFAULT_RTS_THRESHOLD);
 	return 0;
 }
+EXPORT_SYMBOL(rtllib_wx_get_rts);
 
 int rtllib_wx_set_mode(struct rtllib_device *ieee, struct iw_request_info *a,
 			     union iwreq_data *wrqu, char *b)
@@ -314,6 +325,7 @@ out:
 	up(&ieee->wx_sem);
 	return set_mode_status;
 }
+EXPORT_SYMBOL(rtllib_wx_set_mode);
 
 void rtllib_wx_sync_scan_wq(void *data)
 {
@@ -323,7 +335,6 @@ void rtllib_wx_sync_scan_wq(void *data)
 	enum ht_extchnl_offset chan_offset = 0;
 	enum ht_channel_width bandwidth = 0;
 	int b40M = 0;
-	static int count;
 
 	if (!(ieee->softmac_features & IEEE_SOFTMAC_SCAN)) {
 		rtllib_start_scan_syncro(ieee, 0);
@@ -400,7 +411,6 @@ void rtllib_wx_sync_scan_wq(void *data)
 
 	rtllib_wake_all_queues(ieee);
 
-	count = 0;
 out:
 	up(&ieee->wx_sem);
 
@@ -428,6 +438,7 @@ out:
 	up(&ieee->wx_sem);
 	return ret;
 }
+EXPORT_SYMBOL(rtllib_wx_set_scan);
 
 int rtllib_wx_set_essid(struct rtllib_device *ieee,
 			struct iw_request_info *a,
@@ -468,7 +479,7 @@ int rtllib_wx_set_essid(struct rtllib_device *ieee,
 
 
 	/* this is just to be sure that the GET wx callback
-	 * has consisten infos. not needed otherwise
+	 * has consistent infos. not needed otherwise
 	 */
 	spin_lock_irqsave(&ieee->lock, flags);
 
@@ -490,6 +501,7 @@ out:
 	up(&ieee->wx_sem);
 	return ret;
 }
+EXPORT_SYMBOL(rtllib_wx_set_essid);
 
 int rtllib_wx_get_mode(struct rtllib_device *ieee, struct iw_request_info *a,
 		       union iwreq_data *wrqu, char *b)
@@ -497,6 +509,7 @@ int rtllib_wx_get_mode(struct rtllib_device *ieee, struct iw_request_info *a,
 	wrqu->mode = ieee->iw_mode;
 	return 0;
 }
+EXPORT_SYMBOL(rtllib_wx_get_mode);
 
 int rtllib_wx_set_rawtx(struct rtllib_device *ieee,
 			struct iw_request_info *info,
@@ -533,6 +546,7 @@ int rtllib_wx_set_rawtx(struct rtllib_device *ieee,
 
 	return 0;
 }
+EXPORT_SYMBOL(rtllib_wx_set_rawtx);
 
 int rtllib_wx_get_name(struct rtllib_device *ieee,
 			     struct iw_request_info *info,
@@ -548,6 +562,7 @@ int rtllib_wx_get_name(struct rtllib_device *ieee,
 		strcat(wrqu->name, "n");
 	return 0;
 }
+EXPORT_SYMBOL(rtllib_wx_get_name);
 
 
 /* this is mostly stolen from hostap */
@@ -560,7 +575,7 @@ int rtllib_wx_set_power(struct rtllib_device *ieee,
 	if ((!ieee->sta_wake_up) ||
 	    (!ieee->enter_sleep_state) ||
 	    (!ieee->ps_is_queue_empty)) {
-		RTLLIB_DEBUG(RTLLIB_DL_ERR, "%s(): PS mode is tryied to be use "
+		RTLLIB_DEBUG(RTLLIB_DL_ERR, "%s(): PS mode is tried to be use "
 			     "but driver missed a callback\n\n", __func__);
 		return -1;
 	}
@@ -605,14 +620,13 @@ exit:
 	return ret;
 
 }
+EXPORT_SYMBOL(rtllib_wx_set_power);
 
 /* this is stolen from hostap */
 int rtllib_wx_get_power(struct rtllib_device *ieee,
 				 struct iw_request_info *info,
 				 union iwreq_data *wrqu, char *extra)
 {
-	int ret = 0;
-
 	down(&ieee->wx_sem);
 
 	if (ieee->ps == RTLLIB_PS_DISABLED) {
@@ -640,6 +654,7 @@ int rtllib_wx_get_power(struct rtllib_device *ieee,
 
 exit:
 	up(&ieee->wx_sem);
-	return ret;
+	return 0;
 
 }
+EXPORT_SYMBOL(rtllib_wx_get_power);

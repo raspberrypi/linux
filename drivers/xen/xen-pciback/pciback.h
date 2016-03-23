@@ -41,6 +41,7 @@ struct xen_pcibk_device {
 
 struct xen_pcibk_dev_data {
 	struct list_head config_fields;
+	struct pci_saved_state *pci_saved_state;
 	unsigned int permissive:1;
 	unsigned int warned_on_write:1;
 	unsigned int enable_intx:1;
@@ -123,7 +124,7 @@ static inline int xen_pcibk_add_pci_dev(struct xen_pcibk_device *pdev,
 static inline void xen_pcibk_release_pci_dev(struct xen_pcibk_device *pdev,
 					     struct pci_dev *dev)
 {
-	if (xen_pcibk_backend && xen_pcibk_backend->free)
+	if (xen_pcibk_backend && xen_pcibk_backend->release)
 		return xen_pcibk_backend->release(pdev, dev);
 }
 

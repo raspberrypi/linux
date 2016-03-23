@@ -31,6 +31,7 @@
 # define ATMCI_MR_PDCFBYTE		(  1 << 13)	/* Force Byte Transfer */
 # define ATMCI_MR_PDCPADV		(  1 << 14)	/* Padding Value */
 # define ATMCI_MR_PDCMODE		(  1 << 15)	/* PDC-oriented Mode */
+# define ATMCI_MR_CLKODD(x)		((x) << 16)	/* LSB of Clock Divider */
 #define ATMCI_DTOR			0x0008	/* Data Timeout */
 # define ATMCI_DTOCYC(x)		((x) <<  0)	/* Data Timeout Cycles */
 # define ATMCI_DTOMUL(x)		((x) <<  4)	/* Data Timeout Multiplier */
@@ -138,5 +139,26 @@
 	__raw_readl((port)->regs + reg)
 #define atmci_writel(port,reg,value)			\
 	__raw_writel((value), (port)->regs + reg)
+
+/* On AVR chips the Peripheral DMA Controller is not connected to MCI. */
+#ifdef CONFIG_AVR32
+#	define ATMCI_PDC_CONNECTED	0
+#else
+#	define ATMCI_PDC_CONNECTED	1
+#endif
+
+/*
+ * Fix sconfig's burst size according to atmel MCI. We need to convert them as:
+ * 1 -> 0, 4 -> 1, 8 -> 2, 16 -> 3.
+ *
+ * This can be done by finding most significant bit set.
+ */
+static inline unsigned int atmci_convert_chksize(unsigned int maxburst)
+{
+	if (maxburst > 1)
+		return fls(maxburst) - 2;
+	else
+		return 0;
+}
 
 #endif /* __DRIVERS_MMC_ATMEL_MCI_H__ */

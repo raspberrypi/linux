@@ -9,12 +9,12 @@
 #include <linux/pfn.h>
 #include <linux/suspend.h>
 #include <linux/mm.h>
-#include <asm/system.h>
-
-/*
- * References to section boundaries
- */
-extern const void __nosave_begin, __nosave_end;
+#include <asm/ctl_reg.h>
+#include <asm/ipl.h>
+#include <asm/cio.h>
+#include <asm/pci.h>
+#include <asm/sections.h>
+#include "entry.h"
 
 /*
  * The restore of the saved pages in an hibernation image will set
@@ -41,6 +41,7 @@ struct page_key_data {
 static struct page_key_data *page_key_data;
 static struct page_key_data *page_key_rp, *page_key_wp;
 static unsigned long page_key_rx, page_key_wx;
+unsigned long suspend_zero_pages;
 
 /*
  * For each page in the hibernation image one additional byte is
@@ -137,6 +138,8 @@ int pfn_is_nosave(unsigned long pfn)
 {
 	unsigned long nosave_begin_pfn = PFN_DOWN(__pa(&__nosave_begin));
 	unsigned long nosave_end_pfn = PFN_DOWN(__pa(&__nosave_end));
+	unsigned long eshared_pfn = PFN_DOWN(__pa(&_eshared)) - 1;
+	unsigned long stext_pfn = PFN_DOWN(__pa(&_stext));
 
 	/* Always save lowcore pages (LC protection might be enabled). */
 	if (pfn <= LC_PAGES)
@@ -144,10 +147,42 @@ int pfn_is_nosave(unsigned long pfn)
 	if (pfn >= nosave_begin_pfn && pfn < nosave_end_pfn)
 		return 1;
 	/* Skip memory holes and read-only pages (NSS, DCSS, ...). */
+	if (pfn >= stext_pfn && pfn <= eshared_pfn)
+		return ipl_info.type == IPL_TYPE_NSS ? 1 : 0;
 	if (tprot(PFN_PHYS(pfn)))
 		return 1;
 	return 0;
 }
+
+/*
+ * PM notifier callback for suspend
+ */
+static int suspend_pm_cb(struct notifier_block *nb, unsigned long action,
+			 void *ptr)
+{
+	switch (action) {
+	case PM_SUSPEND_PREPARE:
+	case PM_HIBERNATION_PREPARE:
+		suspend_zero_pages = __get_free_pages(GFP_KERNEL, LC_ORDER);
+		if (!suspend_zero_pages)
+			return NOTIFY_BAD;
+		break;
+	case PM_POST_SUSPEND:
+	case PM_POST_HIBERNATION:
+		free_pages(suspend_zero_pages, LC_ORDER);
+		break;
+	default:
+		return NOTIFY_DONE;
+	}
+	return NOTIFY_OK;
+}
+
+static int __init suspend_pm_init(void)
+{
+	pm_notifier(suspend_pm_cb, 0);
+	return 0;
+}
+arch_initcall(suspend_pm_init);
 
 void save_processor_state(void)
 {
@@ -179,4 +214,12 @@ void restore_processor_state(void)
 	/* Enable lowcore protection */
 	__ctl_set_bit(0,28);
 	local_mcck_enable();
+}
+
+/* Called at the end of swsusp_arch_resume */
+void s390_early_resume(void)
+{
+	lgr_info_log();
+	channel_subsystem_reinit();
+	zpci_rescan();
 }

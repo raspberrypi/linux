@@ -1,5 +1,5 @@
 /****************************************************************************
- * Driver for Solarflare Solarstorm network controllers and boards
+ * Driver for Solarflare network controllers and boards
  * Copyright 2007-2011 Solarflare Communications Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -121,7 +121,7 @@
 #define GPHY_XCONTROL_REG	49152
 #define GPHY_ISOLATE_LBN	10
 #define GPHY_ISOLATE_WIDTH	1
-#define GPHY_DUPLEX_LBN	  	8
+#define GPHY_DUPLEX_LBN		8
 #define GPHY_DUPLEX_WIDTH	1
 #define GPHY_LOOPBACK_NEAR_LBN	14
 #define GPHY_LOOPBACK_NEAR_WIDTH 1

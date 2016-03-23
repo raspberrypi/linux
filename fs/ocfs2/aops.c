@@ -80,6 +80,7 @@ static int ocfs2_symlink_get_block(struct inode *inode, sector_t iblock,
 
 	if ((u64)iblock >= ocfs2_clusters_to_blocks(inode->i_sb,
 						    le32_to_cpu(fe->i_clusters))) {
+		err = -ENOMEM;
 		mlog(ML_ERROR, "block offset is outside the allocated size: "
 		     "%llu\n", (unsigned long long)iblock);
 		goto bail;
@@ -92,6 +93,7 @@ static int ocfs2_symlink_get_block(struct inode *inode, sector_t iblock,
 			    iblock;
 		buffer_cache_bh = sb_getblk(osb->sb, blkno);
 		if (!buffer_cache_bh) {
+			err = -ENOMEM;
 			mlog(ML_ERROR, "couldn't getblock for symlink!\n");
 			goto bail;
 		}
@@ -102,7 +104,7 @@ static int ocfs2_symlink_get_block(struct inode *inode, sector_t iblock,
 		 * copy, the data is still good. */
 		if (buffer_jbd(buffer_cache_bh)
 		    && ocfs2_inode_is_new(inode)) {
-			kaddr = kmap_atomic(bh_result->b_page, KM_USER0);
+			kaddr = kmap_atomic(bh_result->b_page);
 			if (!kaddr) {
 				mlog(ML_ERROR, "couldn't kmap!\n");
 				goto bail;
@@ -110,7 +112,7 @@ static int ocfs2_symlink_get_block(struct inode *inode, sector_t iblock,
 			memcpy(kaddr + (bh_result->b_size * iblock),
 			       buffer_cache_bh->b_data,
 			       bh_result->b_size);
-			kunmap_atomic(kaddr, KM_USER0);
+			kunmap_atomic(kaddr);
 			set_buffer_uptodate(bh_result);
 		}
 		brelse(buffer_cache_bh);
@@ -236,13 +238,13 @@ int ocfs2_read_inline_data(struct inode *inode, struct page *page,
 		return -EROFS;
 	}
 
-	kaddr = kmap_atomic(page, KM_USER0);
+	kaddr = kmap_atomic(page);
 	if (size)
 		memcpy(kaddr, di->id2.i_data.id_data, size);
 	/* Clear the remaining part of the page */
 	memset(kaddr + size, 0, PAGE_CACHE_SIZE - size);
 	flush_dcache_page(page);
-	kunmap_atomic(kaddr, KM_USER0);
+	kunmap_atomic(kaddr);
 
 	SetPageUptodate(page);
 
@@ -565,13 +567,10 @@ bail:
 static void ocfs2_dio_end_io(struct kiocb *iocb,
 			     loff_t offset,
 			     ssize_t bytes,
-			     void *private,
-			     int ret,
-			     bool is_async)
+			     void *private)
 {
-	struct inode *inode = iocb->ki_filp->f_path.dentry->d_inode;
+	struct inode *inode = file_inode(iocb->ki_filp);
 	int level;
-	wait_queue_head_t *wq = ocfs2_ioend_wq(inode);
 
 	/* this io's submitter should not have unlocked this before we could */
 	BUG_ON(!ocfs2_iocb_is_rw_locked(iocb));
@@ -582,51 +581,29 @@ static void ocfs2_dio_end_io(struct kiocb *iocb,
 	if (ocfs2_iocb_is_unaligned_aio(iocb)) {
 		ocfs2_iocb_clear_unaligned_aio(iocb);
 
-		if (atomic_dec_and_test(&OCFS2_I(inode)->ip_unaligned_aio) &&
-		    waitqueue_active(wq)) {
-			wake_up_all(wq);
-		}
+		mutex_unlock(&OCFS2_I(inode)->ip_unaligned_aio);
 	}
 
 	ocfs2_iocb_clear_rw_locked(iocb);
 
 	level = ocfs2_iocb_rw_locked_level(iocb);
 	ocfs2_rw_unlock(inode, level);
-
-	if (is_async)
-		aio_complete(iocb, ret, 0);
-	inode_dio_done(inode);
-}
-
-/*
- * ocfs2_invalidatepage() and ocfs2_releasepage() are shamelessly stolen
- * from ext3.  PageChecked() bits have been removed as OCFS2 does not
- * do journalled data.
- */
-static void ocfs2_invalidatepage(struct page *page, unsigned long offset)
-{
-	journal_t *journal = OCFS2_SB(page->mapping->host->i_sb)->journal->j_journal;
-
-	jbd2_journal_invalidatepage(journal, page, offset);
 }
 
 static int ocfs2_releasepage(struct page *page, gfp_t wait)
 {
-	journal_t *journal = OCFS2_SB(page->mapping->host->i_sb)->journal->j_journal;
-
 	if (!page_has_buffers(page))
 		return 0;
-	return jbd2_journal_try_to_free_buffers(journal, page, wait);
+	return try_to_free_buffers(page);
 }
 
 static ssize_t ocfs2_direct_IO(int rw,
 			       struct kiocb *iocb,
-			       const struct iovec *iov,
-			       loff_t offset,
-			       unsigned long nr_segs)
+			       struct iov_iter *iter,
+			       loff_t offset)
 {
 	struct file *file = iocb->ki_filp;
-	struct inode *inode = file->f_path.dentry->d_inode->i_mapping->host;
+	struct inode *inode = file_inode(file)->i_mapping->host;
 
 	/*
 	 * Fallback to buffered I/O if we see an inode without
@@ -640,7 +617,7 @@ static ssize_t ocfs2_direct_IO(int rw,
 		return 0;
 
 	return __blockdev_direct_IO(rw, iocb, inode, inode->i_sb->s_bdev,
-				    iov, offset, nr_segs,
+				    iter, offset,
 				    ocfs2_direct_IO_get_blocks,
 				    ocfs2_dio_end_io, NULL, 0);
 }
@@ -689,7 +666,7 @@ static void ocfs2_clear_page_regions(struct page *page,
 
 	ocfs2_figure_cluster_boundaries(osb, cpos, &cluster_start, &cluster_end);
 
-	kaddr = kmap_atomic(page, KM_USER0);
+	kaddr = kmap_atomic(page);
 
 	if (from || to) {
 		if (from > cluster_start)
@@ -700,7 +677,7 @@ static void ocfs2_clear_page_regions(struct page *page,
 		memset(kaddr + cluster_start, 0, cluster_end - cluster_start);
 	}
 
-	kunmap_atomic(kaddr, KM_USER0);
+	kunmap_atomic(kaddr);
 }
 
 /*
@@ -917,7 +894,7 @@ void ocfs2_unlock_and_free_pages(struct page **pages, int num_pages)
 	}
 }
 
-static void ocfs2_free_write_ctxt(struct ocfs2_write_ctxt *wc)
+static void ocfs2_unlock_pages(struct ocfs2_write_ctxt *wc)
 {
 	int i;
 
@@ -938,7 +915,11 @@ static void ocfs2_free_write_ctxt(struct ocfs2_write_ctxt *wc)
 		page_cache_release(wc->w_target_page);
 	}
 	ocfs2_unlock_and_free_pages(wc->w_pages, wc->w_num_pages);
+}
 
+static void ocfs2_free_write_ctxt(struct ocfs2_write_ctxt *wc)
+{
+	ocfs2_unlock_pages(wc);
 	brelse(wc->w_di_bh);
 	kfree(wc);
 }
@@ -1194,6 +1175,7 @@ static int ocfs2_grab_pages_for_write(struct address_space *mapping,
 				goto out;
 			}
 		}
+		wait_for_stable_page(wc->w_pages[i]);
 
 		if (index == target_index)
 			wc->w_target_page = wc->w_pages[i];
@@ -1503,8 +1485,16 @@ static int ocfs2_write_begin_inline(struct address_space *mapping,
 	handle_t *handle;
 	struct ocfs2_dinode *di = (struct ocfs2_dinode *)wc->w_di_bh->b_data;
 
+	handle = ocfs2_start_trans(osb, OCFS2_INODE_UPDATE_CREDITS);
+	if (IS_ERR(handle)) {
+		ret = PTR_ERR(handle);
+		mlog_errno(ret);
+		goto out;
+	}
+
 	page = find_or_create_page(mapping, 0, GFP_NOFS);
 	if (!page) {
+		ocfs2_commit_trans(osb, handle);
 		ret = -ENOMEM;
 		mlog_errno(ret);
 		goto out;
@@ -1515,13 +1505,6 @@ static int ocfs2_write_begin_inline(struct address_space *mapping,
 	 */
 	wc->w_pages[0] = wc->w_target_page = page;
 	wc->w_num_pages = 1;
-
-	handle = ocfs2_start_trans(osb, OCFS2_INODE_UPDATE_CREDITS);
-	if (IS_ERR(handle)) {
-		ret = PTR_ERR(handle);
-		mlog_errno(ret);
-		goto out;
-	}
 
 	ret = ocfs2_journal_access_di(handle, INODE_CACHE(inode), wc->w_di_bh,
 				      OCFS2_JOURNAL_ACCESS_WRITE);
@@ -1755,7 +1738,7 @@ try_again:
 		goto out;
 	} else if (ret == 1) {
 		clusters_need = wc->w_clen;
-		ret = ocfs2_refcount_cow(inode, filp, di_bh,
+		ret = ocfs2_refcount_cow(inode, di_bh,
 					 wc->w_cpos, wc->w_clen, UINT_MAX);
 		if (ret) {
 			mlog_errno(ret);
@@ -1806,8 +1789,7 @@ try_again:
 			data_ac->ac_resv = &OCFS2_I(inode)->ip_la_data_resv;
 
 		credits = ocfs2_calc_extend_credits(inode->i_sb,
-						    &di->id2.i_list,
-						    clusters_to_alloc);
+						    &di->id2.i_list);
 
 	}
 
@@ -1901,10 +1883,14 @@ out_commit:
 out:
 	ocfs2_free_write_ctxt(wc);
 
-	if (data_ac)
+	if (data_ac) {
 		ocfs2_free_alloc_context(data_ac);
-	if (meta_ac)
+		data_ac = NULL;
+	}
+	if (meta_ac) {
 		ocfs2_free_alloc_context(meta_ac);
+		meta_ac = NULL;
+	}
 
 	if (ret == -ENOSPC && try_free) {
 		/*
@@ -1981,9 +1967,9 @@ static void ocfs2_write_end_inline(struct inode *inode, loff_t pos,
 		}
 	}
 
-	kaddr = kmap_atomic(wc->w_target_page, KM_USER0);
+	kaddr = kmap_atomic(wc->w_target_page);
 	memcpy(di->id2.i_data.id_data + pos, kaddr + pos, *copied);
-	kunmap_atomic(kaddr, KM_USER0);
+	kunmap_atomic(kaddr);
 
 	trace_ocfs2_write_end_inline(
 	     (unsigned long long)OCFS2_I(inode)->ip_blkno,
@@ -2048,7 +2034,7 @@ int ocfs2_write_end_nolock(struct address_space *mapping,
 
 out_write_size:
 	pos += copied;
-	if (pos > inode->i_size) {
+	if (pos > i_size_read(inode)) {
 		i_size_write(inode, pos);
 		mark_inode_dirty(inode);
 	}
@@ -2057,13 +2043,22 @@ out_write_size:
 	inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	di->i_mtime = di->i_ctime = cpu_to_le64(inode->i_mtime.tv_sec);
 	di->i_mtime_nsec = di->i_ctime_nsec = cpu_to_le32(inode->i_mtime.tv_nsec);
+	ocfs2_update_inode_fsync_trans(handle, inode, 1);
 	ocfs2_journal_dirty(handle, wc->w_di_bh);
+
+	/* unlock pages before dealloc since it needs acquiring j_trans_barrier
+	 * lock, or it will cause a deadlock since journal commit threads holds
+	 * this lock and will ask for the page lock when flushing the data.
+	 * put it here to preserve the unlock order.
+	 */
+	ocfs2_unlock_pages(wc);
 
 	ocfs2_commit_trans(osb, handle);
 
 	ocfs2_run_deallocs(osb, &wc->w_dealloc);
 
-	ocfs2_free_write_ctxt(wc);
+	brelse(wc->w_di_bh);
+	kfree(wc);
 
 	return copied;
 }
@@ -2091,7 +2086,7 @@ const struct address_space_operations ocfs2_aops = {
 	.write_end		= ocfs2_write_end,
 	.bmap			= ocfs2_bmap,
 	.direct_IO		= ocfs2_direct_IO,
-	.invalidatepage		= ocfs2_invalidatepage,
+	.invalidatepage		= block_invalidatepage,
 	.releasepage		= ocfs2_releasepage,
 	.migratepage		= buffer_migrate_page,
 	.is_partially_uptodate	= block_is_partially_uptodate,

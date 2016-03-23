@@ -9,7 +9,6 @@
  * This file handles the architecture-dependent parts of process handling..
  */
 
-#include <linux/stackprotector.h>
 #include <linux/cpu.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
@@ -25,26 +24,23 @@
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <linux/reboot.h>
-#include <linux/init.h>
 #include <linux/mc146818rtc.h>
 #include <linux/module.h>
 #include <linux/kallsyms.h>
 #include <linux/ptrace.h>
 #include <linux/personality.h>
-#include <linux/tick.h>
 #include <linux/percpu.h>
 #include <linux/prctl.h>
 #include <linux/ftrace.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
 #include <linux/kdebug.h>
-#include <linux/cpuidle.h>
 
 #include <asm/pgtable.h>
-#include <asm/system.h>
 #include <asm/ldt.h>
 #include <asm/processor.h>
 #include <asm/i387.h>
+#include <asm/fpu-internal.h>
 #include <asm/desc.h>
 #ifdef CONFIG_MATH_EMULATION
 #include <asm/math_emu.h>
@@ -57,9 +53,10 @@
 #include <asm/idle.h>
 #include <asm/syscalls.h>
 #include <asm/debugreg.h>
-#include <asm/nmi.h>
+#include <asm/switch_to.h>
 
 asmlinkage void ret_from_fork(void) __asm__("ret_from_fork");
+asmlinkage void ret_from_kernel_thread(void) __asm__("ret_from_kernel_thread");
 
 /*
  * Return saved PC of a blocked thread.
@@ -67,62 +64,6 @@ asmlinkage void ret_from_fork(void) __asm__("ret_from_fork");
 unsigned long thread_saved_pc(struct task_struct *tsk)
 {
 	return ((unsigned long *)tsk->thread.sp)[3];
-}
-
-#ifndef CONFIG_SMP
-static inline void play_dead(void)
-{
-	BUG();
-}
-#endif
-
-/*
- * The idle thread. There's no useful work to be
- * done, so just try to conserve power and have a
- * low exit latency (ie sit in a loop waiting for
- * somebody to say that they'd like to reschedule)
- */
-void cpu_idle(void)
-{
-	int cpu = smp_processor_id();
-
-	/*
-	 * If we're the non-boot CPU, nothing set the stack canary up
-	 * for us.  CPU0 already has it initialized but no harm in
-	 * doing it again.  This is a good place for updating it, as
-	 * we wont ever return from this function (so the invalid
-	 * canaries already on the stack wont ever trigger).
-	 */
-	boot_init_stack_canary();
-
-	current_thread_info()->status |= TS_POLLING;
-
-	/* endless idle loop with no priority at all */
-	while (1) {
-		tick_nohz_idle_enter();
-		rcu_idle_enter();
-		while (!need_resched()) {
-
-			check_pgt_cache();
-			rmb();
-
-			if (cpu_is_offline(cpu))
-				play_dead();
-
-			local_touch_nmi();
-			local_irq_disable();
-			/* Don't trace irqs off for idle */
-			stop_critical_timings();
-			if (cpuidle_idle_call())
-				pm_idle();
-			start_critical_timings();
-		}
-		rcu_idle_exit();
-		tick_nohz_idle_exit();
-		preempt_enable_no_resched();
-		schedule();
-		preempt_disable();
-	}
 }
 
 void __show_regs(struct pt_regs *regs, int all)
@@ -141,8 +82,6 @@ void __show_regs(struct pt_regs *regs, int all)
 		savesegment(ss, ss);
 		savesegment(gs, gs);
 	}
-
-	show_regs_common();
 
 	printk(KERN_DEFAULT "EIP: %04x:[<%08lx>] EFLAGS: %08lx CPU: %d\n",
 			(u16)regs->cs, regs->ip, regs->flags,
@@ -170,11 +109,16 @@ void __show_regs(struct pt_regs *regs, int all)
 	get_debugreg(d1, 1);
 	get_debugreg(d2, 2);
 	get_debugreg(d3, 3);
-	printk(KERN_DEFAULT "DR0: %08lx DR1: %08lx DR2: %08lx DR3: %08lx\n",
-			d0, d1, d2, d3);
-
 	get_debugreg(d6, 6);
 	get_debugreg(d7, 7);
+
+	/* Only print out debug registers if they are in their non-default state. */
+	if ((d0 == 0) && (d1 == 0) && (d2 == 0) && (d3 == 0) &&
+	    (d6 == DR6_RESERVED) && (d7 == 0x400))
+		return;
+
+	printk(KERN_DEFAULT "DR0: %08lx DR1: %08lx DR2: %08lx DR3: %08lx\n",
+			d0, d1, d2, d3);
 	printk(KERN_DEFAULT "DR6: %08lx DR7: %08lx\n",
 			d6, d7);
 }
@@ -185,40 +129,44 @@ void release_thread(struct task_struct *dead_task)
 	release_vm86_irqs(dead_task);
 }
 
-/*
- * This gets called before we allocate a new thread and copy
- * the current task into it.
- */
-void prepare_to_copy(struct task_struct *tsk)
-{
-	unlazy_fpu(tsk);
-}
-
 int copy_thread(unsigned long clone_flags, unsigned long sp,
-	unsigned long unused,
-	struct task_struct *p, struct pt_regs *regs)
+	unsigned long arg, struct task_struct *p)
 {
-	struct pt_regs *childregs;
+	struct pt_regs *childregs = task_pt_regs(p);
 	struct task_struct *tsk;
 	int err;
 
-	childregs = task_pt_regs(p);
-	*childregs = *regs;
-	childregs->ax = 0;
-	childregs->sp = sp;
-
 	p->thread.sp = (unsigned long) childregs;
 	p->thread.sp0 = (unsigned long) (childregs+1);
+	memset(p->thread.ptrace_bps, 0, sizeof(p->thread.ptrace_bps));
+
+	if (unlikely(p->flags & PF_KTHREAD)) {
+		/* kernel thread */
+		memset(childregs, 0, sizeof(struct pt_regs));
+		p->thread.ip = (unsigned long) ret_from_kernel_thread;
+		task_user_gs(p) = __KERNEL_STACK_CANARY;
+		childregs->ds = __USER_DS;
+		childregs->es = __USER_DS;
+		childregs->fs = __KERNEL_PERCPU;
+		childregs->bx = sp;	/* function */
+		childregs->bp = arg;
+		childregs->orig_ax = -1;
+		childregs->cs = __KERNEL_CS | get_kernel_rpl();
+		childregs->flags = X86_EFLAGS_IF | X86_EFLAGS_FIXED;
+		p->thread.io_bitmap_ptr = NULL;
+		return 0;
+	}
+	*childregs = *current_pt_regs();
+	childregs->ax = 0;
+	if (sp)
+		childregs->sp = sp;
 
 	p->thread.ip = (unsigned long) ret_from_fork;
-
-	task_user_gs(p) = get_user_gs(regs);
+	task_user_gs(p) = get_user_gs(current_pt_regs());
 
 	p->thread.io_bitmap_ptr = NULL;
 	tsk = current;
 	err = -ENOMEM;
-
-	memset(p->thread.ptrace_bps, 0, sizeof(p->thread.ptrace_bps));
 
 	if (unlikely(test_tsk_thread_flag(tsk, TIF_IO_BITMAP))) {
 		p->thread.io_bitmap_ptr = kmemdup(tsk->thread.io_bitmap_ptr,
@@ -257,10 +205,12 @@ start_thread(struct pt_regs *regs, unsigned long new_ip, unsigned long new_sp)
 	regs->cs		= __USER_CS;
 	regs->ip		= new_ip;
 	regs->sp		= new_sp;
+	regs->flags		= X86_EFLAGS_IF;
 	/*
-	 * Free the old FP and other extended state
+	 * force it to the iret return path by making it look as if there was
+	 * some work pending.
 	 */
-	free_thread_xstate(current);
+	set_thread_flag(TIF_NOTIFY_RESUME);
 }
 EXPORT_SYMBOL_GPL(start_thread);
 
@@ -292,29 +242,18 @@ EXPORT_SYMBOL_GPL(start_thread);
  * the task-switch, and shows up in ret_from_fork in entry.S,
  * for example.
  */
-__notrace_funcgraph struct task_struct *
+__visible __notrace_funcgraph struct task_struct *
 __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 {
 	struct thread_struct *prev = &prev_p->thread,
 				 *next = &next_p->thread;
 	int cpu = smp_processor_id();
 	struct tss_struct *tss = &per_cpu(init_tss, cpu);
-	bool preload_fpu;
+	fpu_switch_t fpu;
 
 	/* never put a printk in __switch_to... printk() calls wake_up*() indirectly */
 
-	/*
-	 * If the task has used fpu the last 5 timeslices, just do a full
-	 * restore of the math state immediately to avoid the trap; the
-	 * chances of needing FPU soon are obviously high now
-	 */
-	preload_fpu = tsk_used_math(next_p) && next_p->fpu_counter > 5;
-
-	__unlazy_fpu(prev_p);
-
-	/* we're going to use this soon, after a few expensive things */
-	if (preload_fpu)
-		prefetch(next->fpu.state);
+	fpu = switch_fpu_prepare(prev_p, next_p, cpu);
 
 	/*
 	 * Reload esp0.
@@ -348,16 +287,19 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 		set_iopl_mask(next->iopl);
 
 	/*
+	 * If it were not for PREEMPT_ACTIVE we could guarantee that the
+	 * preempt_count of all tasks was equal here and this would not be
+	 * needed.
+	 */
+	task_thread_info(prev_p)->saved_preempt_count = this_cpu_read(__preempt_count);
+	this_cpu_write(__preempt_count, task_thread_info(next_p)->saved_preempt_count);
+
+	/*
 	 * Now maybe handle debug registers and/or IO bitmaps
 	 */
 	if (unlikely(task_thread_info(prev_p)->flags & _TIF_WORK_CTXSW_PREV ||
 		     task_thread_info(next_p)->flags & _TIF_WORK_CTXSW_NEXT))
 		__switch_to_xtra(prev_p, next_p, tss);
-
-	/* If we're going to preload the fpu context, make sure clts
-	   is run while we're batching the cpu state updates. */
-	if (preload_fpu)
-		clts();
 
 	/*
 	 * Leave lazy mode, flushing any hypercalls made here.
@@ -368,8 +310,9 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	 */
 	arch_end_context_switch(next_p);
 
-	if (preload_fpu)
-		__math_state_restore();
+	this_cpu_write(kernel_stack,
+		  (unsigned long)task_stack_page(next_p) +
+		  THREAD_SIZE - KERNEL_STACK_OFFSET);
 
 	/*
 	 * Restore %gs if needed (which is common)
@@ -377,7 +320,9 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	if (prev->gs | next->gs)
 		lazy_load_gs(next->gs);
 
-	percpu_write(current_task, next_p);
+	switch_fpu_finish(next_p, fpu);
+
+	this_cpu_write(current_task, next_p);
 
 	return prev_p;
 }

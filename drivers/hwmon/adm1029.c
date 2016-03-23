@@ -1,9 +1,9 @@
 /*
  * adm1029.c - Part of lm_sensors, Linux kernel modules for hardware monitoring
  *
- * Copyright (C) 2006 Corentin LABBE <corentin.labbe@geomatys.fr>
+ * Copyright (C) 2006 Corentin LABBE <clabbe.montjoie@gmail.com>
  *
- * Based on LM83 Driver by Jean Delvare <khali@linux-fr.org>
+ * Based on LM83 Driver by Jean Delvare <jdelvare@suse.de>
  *
  * Give only processor, motherboard temperatures and fan tachs
  * Very rare chip please let me know if you use it
@@ -78,7 +78,7 @@ static const unsigned short normal_i2c[] = { 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d,
 
 #define TEMP_FROM_REG(val)	((val) * 1000)
 
-#define DIV_FROM_REG(val)	( 1 << (((val) >> 6) - 1))
+#define DIV_FROM_REG(val)	(1 << (((val) >> 6) - 1))
 
 /* Registers to be checked by adm1029_update_device() */
 static const u8 ADM1029_REG_TEMP[] = {
@@ -106,45 +106,11 @@ static const u8 ADM1029_REG_FAN_DIV[] = {
 };
 
 /*
- * Functions declaration
- */
-
-static int adm1029_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id);
-static int adm1029_detect(struct i2c_client *client,
-			  struct i2c_board_info *info);
-static int adm1029_remove(struct i2c_client *client);
-static struct adm1029_data *adm1029_update_device(struct device *dev);
-static int adm1029_init_client(struct i2c_client *client);
-
-/*
- * Driver data (common to all clients)
- */
-
-static const struct i2c_device_id adm1029_id[] = {
-	{ "adm1029", 0 },
-	{ }
-};
-MODULE_DEVICE_TABLE(i2c, adm1029_id);
-
-static struct i2c_driver adm1029_driver = {
-	.class		= I2C_CLASS_HWMON,
-	.driver = {
-		.name = "adm1029",
-	},
-	.probe		= adm1029_probe,
-	.remove		= adm1029_remove,
-	.id_table	= adm1029_id,
-	.detect		= adm1029_detect,
-	.address_list	= normal_i2c,
-};
-
-/*
  * Client data (each client gets its own)
  */
 
 struct adm1029_data {
-	struct device *hwmon_dev;
+	struct i2c_client *client;
 	struct mutex update_lock;
 	char valid;		/* zero until following fields are valid */
 	unsigned long last_updated;	/* in jiffies */
@@ -154,6 +120,50 @@ struct adm1029_data {
 	u8 fan[ARRAY_SIZE(ADM1029_REG_FAN)];
 	u8 fan_div[ARRAY_SIZE(ADM1029_REG_FAN_DIV)];
 };
+
+/*
+ * function that update the status of the chips (temperature for example)
+ */
+static struct adm1029_data *adm1029_update_device(struct device *dev)
+{
+	struct adm1029_data *data = dev_get_drvdata(dev);
+	struct i2c_client *client = data->client;
+
+	mutex_lock(&data->update_lock);
+	/*
+	 * Use the "cache" Luke, don't recheck values
+	 * if there are already checked not a long time later
+	 */
+	if (time_after(jiffies, data->last_updated + HZ * 2)
+	 || !data->valid) {
+		int nr;
+
+		dev_dbg(&client->dev, "Updating adm1029 data\n");
+
+		for (nr = 0; nr < ARRAY_SIZE(ADM1029_REG_TEMP); nr++) {
+			data->temp[nr] =
+			    i2c_smbus_read_byte_data(client,
+						     ADM1029_REG_TEMP[nr]);
+		}
+		for (nr = 0; nr < ARRAY_SIZE(ADM1029_REG_FAN); nr++) {
+			data->fan[nr] =
+			    i2c_smbus_read_byte_data(client,
+						     ADM1029_REG_FAN[nr]);
+		}
+		for (nr = 0; nr < ARRAY_SIZE(ADM1029_REG_FAN_DIV); nr++) {
+			data->fan_div[nr] =
+			    i2c_smbus_read_byte_data(client,
+						     ADM1029_REG_FAN_DIV[nr]);
+		}
+
+		data->last_updated = jiffies;
+		data->valid = 1;
+	}
+
+	mutex_unlock(&data->update_lock);
+
+	return data;
+}
 
 /*
  * Sysfs stuff
@@ -197,11 +207,14 @@ show_fan_div(struct device *dev, struct device_attribute *devattr, char *buf)
 static ssize_t set_fan_div(struct device *dev,
 	    struct device_attribute *devattr, const char *buf, size_t count)
 {
-	struct i2c_client *client = to_i2c_client(dev);
-	struct adm1029_data *data = i2c_get_clientdata(client);
+	struct adm1029_data *data = dev_get_drvdata(dev);
+	struct i2c_client *client = data->client;
 	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
-	long val = simple_strtol(buf, NULL, 10);
 	u8 reg;
+	long val;
+	int ret = kstrtol(buf, 10, &val);
+	if (ret < 0)
+		return ret;
 
 	mutex_lock(&data->update_lock);
 
@@ -221,12 +234,16 @@ static ssize_t set_fan_div(struct device *dev,
 		break;
 	default:
 		mutex_unlock(&data->update_lock);
-		dev_err(&client->dev, "fan_div value %ld not "
-			"supported. Choose one of 1, 2 or 4!\n", val);
+		dev_err(&client->dev,
+			"fan_div value %ld not supported. Choose one of 1, 2 or 4!\n",
+			val);
 		return -EINVAL;
 	}
 	/* Update the value */
 	reg = (reg & 0x3F) | (val << 6);
+
+	/* Update the cache */
+	data->fan_div[attr->index] = reg;
 
 	/* Write value */
 	i2c_smbus_write_byte_data(client,
@@ -237,9 +254,9 @@ static ssize_t set_fan_div(struct device *dev,
 }
 
 /*
-Access rights on sysfs, S_IRUGO stand for Is Readable by User, Group and Others
-			S_IWUSR stand for Is Writable by User
-*/
+ * Access rights on sysfs. S_IRUGO: Is Readable by User, Group and Others
+ *			   S_IWUSR: Is Writable by User.
+ */
 static SENSOR_DEVICE_ATTR(temp1_input, S_IRUGO, show_temp, NULL, 0);
 static SENSOR_DEVICE_ATTR(temp2_input, S_IRUGO, show_temp, NULL, 1);
 static SENSOR_DEVICE_ATTR(temp3_input, S_IRUGO, show_temp, NULL, 2);
@@ -263,7 +280,7 @@ static SENSOR_DEVICE_ATTR(fan1_div, S_IRUGO | S_IWUSR,
 static SENSOR_DEVICE_ATTR(fan2_div, S_IRUGO | S_IWUSR,
 			  show_fan_div, set_fan_div, 1);
 
-static struct attribute *adm1029_attributes[] = {
+static struct attribute *adm1029_attrs[] = {
 	&sensor_dev_attr_temp1_input.dev_attr.attr,
 	&sensor_dev_attr_temp1_min.dev_attr.attr,
 	&sensor_dev_attr_temp1_max.dev_attr.attr,
@@ -282,9 +299,7 @@ static struct attribute *adm1029_attributes[] = {
 	NULL
 };
 
-static const struct attribute_group adm1029_group = {
-	.attrs = adm1029_attributes,
-};
+ATTRIBUTE_GROUPS(adm1029);
 
 /*
  * Real code
@@ -300,7 +315,8 @@ static int adm1029_detect(struct i2c_client *client,
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -ENODEV;
 
-	/* ADM1029 doesn't have CHIP ID, check just MAN ID
+	/*
+	 * ADM1029 doesn't have CHIP ID, check just MAN ID
 	 * For better detection we check also ADM1029_TEMP_DEVICES_INSTALLED,
 	 * ADM1029_REG_NB_FAN_SUPPORT and compare it with possible values
 	 * documented
@@ -318,10 +334,12 @@ static int adm1029_detect(struct i2c_client *client,
 		return -ENODEV;
 
 	if ((chip_id & 0xF0) != 0x00) {
-		/* There are no "official" CHIP ID, so actually
-		 * we use Major/Minor revision for that */
-		pr_info("adm1029: Unknown major revision %x, "
-			"please let us know\n", chip_id);
+		/*
+		 * There are no "official" CHIP ID, so actually
+		 * we use Major/Minor revision for that
+		 */
+		pr_info("Unknown major revision %x, please let us know\n",
+			chip_id);
 		return -ENODEV;
 	}
 
@@ -330,53 +348,10 @@ static int adm1029_detect(struct i2c_client *client,
 	return 0;
 }
 
-static int adm1029_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
-{
-	struct adm1029_data *data;
-	int err;
-
-	data = kzalloc(sizeof(struct adm1029_data), GFP_KERNEL);
-	if (!data) {
-		err = -ENOMEM;
-		goto exit;
-	}
-
-	i2c_set_clientdata(client, data);
-	mutex_init(&data->update_lock);
-
-	/*
-	 * Initialize the ADM1029 chip
-	 * Check config register
-	 */
-	if (adm1029_init_client(client) == 0) {
-		err = -ENODEV;
-		goto exit_free;
-	}
-
-	/* Register sysfs hooks */
-	if ((err = sysfs_create_group(&client->dev.kobj, &adm1029_group)))
-		goto exit_free;
-
-	data->hwmon_dev = hwmon_device_register(&client->dev);
-	if (IS_ERR(data->hwmon_dev)) {
-		err = PTR_ERR(data->hwmon_dev);
-		goto exit_remove_files;
-	}
-
-	return 0;
-
- exit_remove_files:
-	sysfs_remove_group(&client->dev.kobj, &adm1029_group);
- exit_free:
-	kfree(data);
- exit:
-	return err;
-}
-
 static int adm1029_init_client(struct i2c_client *client)
 {
 	u8 config;
+
 	config = i2c_smbus_read_byte_data(client, ADM1029_REG_CONFIG);
 	if ((config & 0x10) == 0) {
 		i2c_smbus_write_byte_data(client, ADM1029_REG_CONFIG,
@@ -391,79 +366,52 @@ static int adm1029_init_client(struct i2c_client *client)
 	return 1;
 }
 
-static int adm1029_remove(struct i2c_client *client)
+static int adm1029_probe(struct i2c_client *client,
+			 const struct i2c_device_id *id)
 {
-	struct adm1029_data *data = i2c_get_clientdata(client);
+	struct device *dev = &client->dev;
+	struct adm1029_data *data;
+	struct device *hwmon_dev;
 
-	hwmon_device_unregister(data->hwmon_dev);
-	sysfs_remove_group(&client->dev.kobj, &adm1029_group);
+	data = devm_kzalloc(dev, sizeof(struct adm1029_data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
 
-	kfree(data);
-	return 0;
-}
+	data->client = client;
+	mutex_init(&data->update_lock);
 
-/*
-function that update the status of the chips (temperature for example)
-*/
-static struct adm1029_data *adm1029_update_device(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct adm1029_data *data = i2c_get_clientdata(client);
-
-	mutex_lock(&data->update_lock);
 	/*
-	 * Use the "cache" Luke, don't recheck values
-	 * if there are already checked not a long time later
+	 * Initialize the ADM1029 chip
+	 * Check config register
 	 */
-	if (time_after(jiffies, data->last_updated + HZ * 2)
-	 || !data->valid) {
-		int nr;
+	if (adm1029_init_client(client) == 0)
+		return -ENODEV;
 
-		dev_dbg(&client->dev, "Updating adm1029 data\n");
-
-		for (nr = 0; nr < ARRAY_SIZE(ADM1029_REG_TEMP); nr++) {
-			data->temp[nr] =
-			    i2c_smbus_read_byte_data(client,
-						     ADM1029_REG_TEMP[nr]);
-		}
-		for (nr = 0; nr < ARRAY_SIZE(ADM1029_REG_FAN); nr++) {
-			data->fan[nr] =
-			    i2c_smbus_read_byte_data(client,
-						     ADM1029_REG_FAN[nr]);
-		}
-		for (nr = 0; nr < ARRAY_SIZE(ADM1029_REG_FAN_DIV); nr++) {
-			data->fan_div[nr] =
-			    i2c_smbus_read_byte_data(client,
-						     ADM1029_REG_FAN_DIV[nr]);
-		}
-
-		data->last_updated = jiffies;
-		data->valid = 1;
-	}
-
-	mutex_unlock(&data->update_lock);
-
-	return data;
+	hwmon_dev = devm_hwmon_device_register_with_groups(dev, client->name,
+							   data,
+							   adm1029_groups);
+	return PTR_ERR_OR_ZERO(hwmon_dev);
 }
 
-/*
-	Common module stuff
-*/
-static int __init sensors_adm1029_init(void)
-{
+static const struct i2c_device_id adm1029_id[] = {
+	{ "adm1029", 0 },
+	{ }
+};
+MODULE_DEVICE_TABLE(i2c, adm1029_id);
 
-	return i2c_add_driver(&adm1029_driver);
-}
+static struct i2c_driver adm1029_driver = {
+	.class		= I2C_CLASS_HWMON,
+	.driver = {
+		.name = "adm1029",
+	},
+	.probe		= adm1029_probe,
+	.id_table	= adm1029_id,
+	.detect		= adm1029_detect,
+	.address_list	= normal_i2c,
+};
 
-static void __exit sensors_adm1029_exit(void)
-{
+module_i2c_driver(adm1029_driver);
 
-	i2c_del_driver(&adm1029_driver);
-}
-
-MODULE_AUTHOR("Corentin LABBE <corentin.labbe@geomatys.fr>");
+MODULE_AUTHOR("Corentin LABBE <clabbe.montjoie@gmail.com>");
 MODULE_DESCRIPTION("adm1029 driver");
 MODULE_LICENSE("GPL v2");
-
-module_init(sensors_adm1029_init);
-module_exit(sensors_adm1029_exit);

@@ -68,9 +68,8 @@ static struct crypto_alg alg = {
 	.cra_flags		=	CRYPTO_ALG_TYPE_CIPHER,
 	.cra_blocksize		=	TF_BLOCK_SIZE,
 	.cra_ctxsize		=	sizeof(struct twofish_ctx),
-	.cra_alignmask		=	3,
+	.cra_alignmask		=	0,
 	.cra_module		=	THIS_MODULE,
-	.cra_list		=	LIST_HEAD_INIT(alg.cra_list),
 	.cra_u			=	{
 		.cipher = {
 			.cia_min_keysize	=	TF_MIN_KEY_SIZE,
@@ -97,5 +96,5 @@ module_exit(fini);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION ("Twofish Cipher Algorithm, asm optimized");
-MODULE_ALIAS("twofish");
-MODULE_ALIAS("twofish-asm");
+MODULE_ALIAS_CRYPTO("twofish");
+MODULE_ALIAS_CRYPTO("twofish-asm");

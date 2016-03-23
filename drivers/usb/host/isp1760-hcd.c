@@ -32,6 +32,13 @@ static struct kmem_cache *qtd_cachep;
 static struct kmem_cache *qh_cachep;
 static struct kmem_cache *urb_listitem_cachep;
 
+enum queue_head_types {
+	QH_CONTROL,
+	QH_BULK,
+	QH_INTERRUPT,
+	QH_END
+};
+
 struct isp1760_hcd {
 	u32 hcs_params;
 	spinlock_t		lock;
@@ -40,7 +47,7 @@ struct isp1760_hcd {
 	struct slotinfo		int_slots[32];
 	int			int_done_map;
 	struct memory_chunk memory_pool[BLOCKS];
-	struct list_head	controlqhs, bulkqhs, interruptqhs;
+	struct list_head	qh_list[QH_END];
 
 	/* periodic schedule support */
 #define	DEFAULT_I_TDPS		1024
@@ -406,12 +413,12 @@ static int priv_init(struct usb_hcd *hcd)
 {
 	struct isp1760_hcd		*priv = hcd_to_priv(hcd);
 	u32			hcc_params;
+	int i;
 
 	spin_lock_init(&priv->lock);
 
-	INIT_LIST_HEAD(&priv->interruptqhs);
-	INIT_LIST_HEAD(&priv->controlqhs);
-	INIT_LIST_HEAD(&priv->bulkqhs);
+	for (i = 0; i < QH_END; i++)
+		INIT_LIST_HEAD(&priv->qh_list[i]);
 
 	/*
 	 * hw default: 1K periodic list heads, one per frame.
@@ -925,14 +932,14 @@ static void enqueue_qtds(struct usb_hcd *hcd, struct isp1760_qh *qh)
 	}
 }
 
-void schedule_ptds(struct usb_hcd *hcd)
+static void schedule_ptds(struct usb_hcd *hcd)
 {
 	struct isp1760_hcd *priv;
 	struct isp1760_qh *qh, *qh_next;
 	struct list_head *ep_queue;
-	struct usb_host_endpoint *ep;
 	LIST_HEAD(urb_list);
 	struct urb_listitem *urb_listitem, *urb_listitem_next;
+	int i;
 
 	if (!hcd) {
 		WARN_ON(1);
@@ -944,28 +951,13 @@ void schedule_ptds(struct usb_hcd *hcd)
 	/*
 	 * check finished/retired xfers, transfer payloads, call urb_done()
 	 */
-	ep_queue = &priv->interruptqhs;
-	while (ep_queue) {
+	for (i = 0; i < QH_END; i++) {
+		ep_queue = &priv->qh_list[i];
 		list_for_each_entry_safe(qh, qh_next, ep_queue, qh_list) {
-			ep = list_entry(qh->qtd_list.next, struct isp1760_qtd,
-							qtd_list)->urb->ep;
 			collect_qtds(hcd, qh, &urb_list);
-			if (list_empty(&qh->qtd_list)) {
+			if (list_empty(&qh->qtd_list))
 				list_del(&qh->qh_list);
-				if (ep->hcpriv == NULL) {
-					/* Endpoint has been disabled, so we
-					can free the associated queue head. */
-					qh_free(qh);
-				}
-			}
 		}
-
-		if (ep_queue == &priv->interruptqhs)
-			ep_queue = &priv->controlqhs;
-		else if (ep_queue == &priv->controlqhs)
-			ep_queue = &priv->bulkqhs;
-		else
-			ep_queue = NULL;
 	}
 
 	list_for_each_entry_safe(urb_listitem, urb_listitem_next, &urb_list,
@@ -998,17 +990,10 @@ void schedule_ptds(struct usb_hcd *hcd)
 	 *
 	 * I'm sure this scheme could be improved upon!
 	 */
-	ep_queue = &priv->controlqhs;
-	while (ep_queue) {
+	for (i = 0; i < QH_END; i++) {
+		ep_queue = &priv->qh_list[i];
 		list_for_each_entry_safe(qh, qh_next, ep_queue, qh_list)
 			enqueue_qtds(hcd, qh);
-
-		if (ep_queue == &priv->controlqhs)
-			ep_queue = &priv->interruptqhs;
-		else if (ep_queue == &priv->interruptqhs)
-			ep_queue = &priv->bulkqhs;
-		else
-			ep_queue = NULL;
 	}
 }
 
@@ -1300,7 +1285,7 @@ leave:
 #define SLOT_CHECK_PERIOD 200
 static struct timer_list errata2_timer;
 
-void errata2_function(unsigned long data)
+static void errata2_function(unsigned long data)
 {
 	struct usb_hcd *hcd = (struct usb_hcd *) data;
 	struct isp1760_hcd *priv = hcd_to_priv(hcd);
@@ -1543,16 +1528,16 @@ static int isp1760_urb_enqueue(struct usb_hcd *hcd, struct urb *urb,
 
 	switch (usb_pipetype(urb->pipe)) {
 	case PIPE_CONTROL:
-		ep_queue = &priv->controlqhs;
+		ep_queue = &priv->qh_list[QH_CONTROL];
 		break;
 	case PIPE_BULK:
-		ep_queue = &priv->bulkqhs;
+		ep_queue = &priv->qh_list[QH_BULK];
 		break;
 	case PIPE_INTERRUPT:
 		if (urb->interval < 0)
 			return -EINVAL;
 		/* FIXME: Check bandwidth  */
-		ep_queue = &priv->interruptqhs;
+		ep_queue = &priv->qh_list[QH_INTERRUPT];
 		break;
 	case PIPE_ISOCHRONOUS:
 		dev_err(hcd->self.controller, "%s: isochronous USB packets "
@@ -1577,11 +1562,14 @@ static int isp1760_urb_enqueue(struct usb_hcd *hcd, struct urb *urb,
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		retval = -ESHUTDOWN;
+		qtd_list_free(&new_qtds);
 		goto out;
 	}
 	retval = usb_hcd_link_urb_to_ep(hcd, urb);
-	if (retval)
+	if (retval) {
+		qtd_list_free(&new_qtds);
 		goto out;
+	}
 
 	qh = urb->ep->hcpriv;
 	if (qh) {
@@ -1599,6 +1587,7 @@ static int isp1760_urb_enqueue(struct usb_hcd *hcd, struct urb *urb,
 		if (!qh) {
 			retval = -ENOMEM;
 			usb_hcd_unlink_urb_from_ep(hcd, urb);
+			qtd_list_free(&new_qtds);
 			goto out;
 		}
 		list_add_tail(&qh->qh_list, ep_queue);
@@ -1698,6 +1687,7 @@ static int isp1760_urb_dequeue(struct usb_hcd *hcd, struct urb *urb,
 	list_for_each_entry(qtd, &qh->qtd_list, qtd_list)
 		if (qtd->urb == urb) {
 			dequeue_urb_from_qtd(hcd, qh, qtd);
+			list_move(&qtd->qtd_list, &qh->qtd_list);
 			break;
 		}
 
@@ -1714,8 +1704,8 @@ static void isp1760_endpoint_disable(struct usb_hcd *hcd,
 {
 	struct isp1760_hcd *priv = hcd_to_priv(hcd);
 	unsigned long spinflags;
-	struct isp1760_qh *qh;
-	struct isp1760_qtd *qtd;
+	struct isp1760_qh *qh, *qh_iter;
+	int i;
 
 	spin_lock_irqsave(&priv->lock, spinflags);
 
@@ -1723,14 +1713,17 @@ static void isp1760_endpoint_disable(struct usb_hcd *hcd,
 	if (!qh)
 		goto out;
 
-	list_for_each_entry(qtd, &qh->qtd_list, qtd_list)
-		if (qtd->status != QTD_RETIRE) {
-			dequeue_urb_from_qtd(hcd, qh, qtd);
-			qtd->urb->status = -ECONNRESET;
-		}
+	WARN_ON(!list_empty(&qh->qtd_list));
 
+	for (i = 0; i < QH_END; i++)
+		list_for_each_entry(qh_iter, &priv->qh_list[i], qh_list)
+			if (qh_iter == qh) {
+				list_del(&qh_iter->qh_list);
+				i = QH_END;
+				break;
+			}
+	qh_free(qh);
 	ep->hcpriv = NULL;
-	/* Cannot free qh here since it will be parsed by schedule_ptds() */
 
 	schedule_ptds(hcd);
 
@@ -1746,7 +1739,7 @@ static int isp1760_hub_status_data(struct usb_hcd *hcd, char *buf)
 	int retval = 1;
 	unsigned long flags;
 
-	/* if !USB_SUSPEND, root hub timers won't get shut down ... */
+	/* if !PM_RUNTIME, root hub timers won't get shut down ... */
 	if (!HC_IS_RUNNING(hcd->state))
 		return 0;
 
@@ -1767,7 +1760,7 @@ static int isp1760_hub_status_data(struct usb_hcd *hcd, char *buf)
 
 	/*
 	 * Return status information even for ports with OWNER set.
-	 * Otherwise khubd wouldn't see the disconnect event when a
+	 * Otherwise hub_wq wouldn't see the disconnect event when a
 	 * high-speed device is switched over to the companion
 	 * controller by the user.
 	 */
@@ -1878,7 +1871,7 @@ static int isp1760_hub_control(struct usb_hcd *hcd, u16 typeReq,
 
 		/*
 		 * Even if OWNER is set, so the port is owned by the
-		 * companion controller, khubd needs to be able to clear
+		 * companion controller, hub_wq needs to be able to clear
 		 * the port-change status bits (especially
 		 * USB_PORT_STAT_C_CONNECTION).
 		 */
@@ -2007,7 +2000,7 @@ static int isp1760_hub_control(struct usb_hcd *hcd, u16 typeReq,
 					reg_read32(hcd->regs, HC_PORTSC1));
 		}
 		/*
-		 * Even if OWNER is set, there's no harm letting khubd
+		 * Even if OWNER is set, there's no harm letting hub_wq
 		 * see the wPortStatus values (they should all be 0 except
 		 * for PORT_POWER anyway).
 		 */
@@ -2188,7 +2181,7 @@ static const struct hc_driver isp1760_hc_driver = {
 
 int __init init_kmem_once(void)
 {
-	urb_listitem_cachep = kmem_cache_create("isp1760 urb_listitem",
+	urb_listitem_cachep = kmem_cache_create("isp1760_urb_listitem",
 			sizeof(struct urb_listitem), 0, SLAB_TEMPORARY |
 			SLAB_MEM_SPREAD, NULL);
 
@@ -2254,9 +2247,13 @@ struct usb_hcd *isp1760_register(phys_addr_t res_start, resource_size_t res_len,
 	hcd->rsrc_start = res_start;
 	hcd->rsrc_len = res_len;
 
+	/* This driver doesn't support wakeup requests */
+	hcd->cant_recv_wakeups = 1;
+
 	ret = usb_add_hcd(hcd, irq, irqflags);
 	if (ret)
 		goto err_unmap;
+	device_wakeup_enable(hcd->self.controller);
 
 	return hcd;
 

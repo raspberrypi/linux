@@ -36,8 +36,8 @@ struct autofs_info *autofs4_new_ino(struct autofs_sb_info *sbi)
 
 void autofs4_clean_ino(struct autofs_info *ino)
 {
-	ino->uid = 0;
-	ino->gid = 0;
+	ino->uid = GLOBAL_ROOT_UID;
+	ino->gid = GLOBAL_ROOT_GID;
 	ino->last_used = jiffies;
 }
 
@@ -56,34 +56,34 @@ void autofs4_kill_sb(struct super_block *sb)
 	 * just call kill_anon_super when we are called from
 	 * deactivate_super.
 	 */
-	if (!sbi)
-		goto out_kill_sb;
+	if (sbi) {
+		/* Free wait queues, close pipe */
+		autofs4_catatonic_mode(sbi);
+		put_pid(sbi->oz_pgrp);
+	}
 
-	/* Free wait queues, close pipe */
-	autofs4_catatonic_mode(sbi);
-
-	sb->s_fs_info = NULL;
-	kfree(sbi);
-
-out_kill_sb:
 	DPRINTK("shutting down");
 	kill_litter_super(sb);
+	if (sbi)
+		kfree_rcu(sbi, rcu);
 }
 
-static int autofs4_show_options(struct seq_file *m, struct vfsmount *mnt)
+static int autofs4_show_options(struct seq_file *m, struct dentry *root)
 {
-	struct autofs_sb_info *sbi = autofs4_sbi(mnt->mnt_sb);
-	struct inode *root_inode = mnt->mnt_sb->s_root->d_inode;
+	struct autofs_sb_info *sbi = autofs4_sbi(root->d_sb);
+	struct inode *root_inode = root->d_sb->s_root->d_inode;
 
 	if (!sbi)
 		return 0;
 
 	seq_printf(m, ",fd=%d", sbi->pipefd);
-	if (root_inode->i_uid != 0)
-		seq_printf(m, ",uid=%u", root_inode->i_uid);
-	if (root_inode->i_gid != 0)
-		seq_printf(m, ",gid=%u", root_inode->i_gid);
-	seq_printf(m, ",pgrp=%d", sbi->oz_pgrp);
+	if (!uid_eq(root_inode->i_uid, GLOBAL_ROOT_UID))
+		seq_printf(m, ",uid=%u",
+			from_kuid_munged(&init_user_ns, root_inode->i_uid));
+	if (!gid_eq(root_inode->i_gid, GLOBAL_ROOT_GID))
+		seq_printf(m, ",gid=%u",
+			from_kgid_munged(&init_user_ns, root_inode->i_gid));
+	seq_printf(m, ",pgrp=%d", pid_vnr(sbi->oz_pgrp));
 	seq_printf(m, ",timeout=%lu", sbi->exp_timeout/HZ);
 	seq_printf(m, ",minproto=%d", sbi->min_proto);
 	seq_printf(m, ",maxproto=%d", sbi->max_proto);
@@ -100,7 +100,7 @@ static int autofs4_show_options(struct seq_file *m, struct vfsmount *mnt)
 
 static void autofs4_evict_inode(struct inode *inode)
 {
-	end_writeback(inode);
+	clear_inode(inode);
 	kfree(inode->i_private);
 }
 
@@ -126,8 +126,9 @@ static const match_table_t tokens = {
 	{Opt_err, NULL}
 };
 
-static int parse_options(char *options, int *pipefd, uid_t *uid, gid_t *gid,
-		pid_t *pgrp, unsigned int *type, int *minproto, int *maxproto)
+static int parse_options(char *options, int *pipefd, kuid_t *uid, kgid_t *gid,
+			 int *pgrp, bool *pgrp_set, unsigned int *type,
+			 int *minproto, int *maxproto)
 {
 	char *p;
 	substring_t args[MAX_OPT_ARGS];
@@ -135,7 +136,6 @@ static int parse_options(char *options, int *pipefd, uid_t *uid, gid_t *gid,
 
 	*uid = current_uid();
 	*gid = current_gid();
-	*pgrp = task_pgrp_nr(current);
 
 	*minproto = AUTOFS_MIN_PROTO_VERSION;
 	*maxproto = AUTOFS_MAX_PROTO_VERSION;
@@ -159,17 +159,22 @@ static int parse_options(char *options, int *pipefd, uid_t *uid, gid_t *gid,
 		case Opt_uid:
 			if (match_int(args, &option))
 				return 1;
-			*uid = option;
+			*uid = make_kuid(current_user_ns(), option);
+			if (!uid_valid(*uid))
+				return 1;
 			break;
 		case Opt_gid:
 			if (match_int(args, &option))
 				return 1;
-			*gid = option;
+			*gid = make_kgid(current_user_ns(), option);
+			if (!gid_valid(*gid))
+				return 1;
 			break;
 		case Opt_pgrp:
 			if (match_int(args, &option))
 				return 1;
 			*pgrp = option;
+			*pgrp_set = true;
 			break;
 		case Opt_minproto:
 			if (match_int(args, &option))
@@ -205,10 +210,13 @@ int autofs4_fill_super(struct super_block *s, void *data, int silent)
 	int pipefd;
 	struct autofs_sb_info *sbi;
 	struct autofs_info *ino;
+	int pgrp = 0;
+	bool pgrp_set = false;
+	int ret = -EINVAL;
 
 	sbi = kzalloc(sizeof(*sbi), GFP_KERNEL);
 	if (!sbi)
-		goto fail_unlock;
+		return -ENOMEM;
 	DPRINTK("starting up, sbi = %p",sbi);
 
 	s->s_fs_info = sbi;
@@ -217,7 +225,7 @@ int autofs4_fill_super(struct super_block *s, void *data, int silent)
 	sbi->pipe = NULL;
 	sbi->catatonic = 1;
 	sbi->exp_timeout = 0;
-	sbi->oz_pgrp = task_pgrp_nr(current);
+	sbi->oz_pgrp = NULL;
 	sbi->sb = s;
 	sbi->version = 0;
 	sbi->sub_version = 0;
@@ -225,6 +233,7 @@ int autofs4_fill_super(struct super_block *s, void *data, int silent)
 	sbi->min_proto = 0;
 	sbi->max_proto = 0;
 	mutex_init(&sbi->wq_mutex);
+	mutex_init(&sbi->pipe_mutex);
 	spin_lock_init(&sbi->fs_lock);
 	sbi->queues = NULL;
 	spin_lock_init(&sbi->lookup_lock);
@@ -241,25 +250,35 @@ int autofs4_fill_super(struct super_block *s, void *data, int silent)
 	 * Get the root inode and dentry, but defer checking for errors.
 	 */
 	ino = autofs4_new_ino(sbi);
-	if (!ino)
+	if (!ino) {
+		ret = -ENOMEM;
 		goto fail_free;
+	}
 	root_inode = autofs4_get_inode(s, S_IFDIR | 0755);
-	if (!root_inode)
-		goto fail_ino;
-
-	root = d_alloc_root(root_inode);
+	root = d_make_root(root_inode);
 	if (!root)
-		goto fail_iput;
+		goto fail_ino;
 	pipe = NULL;
 
 	root->d_fsdata = ino;
 
 	/* Can this call block? */
 	if (parse_options(data, &pipefd, &root_inode->i_uid, &root_inode->i_gid,
-				&sbi->oz_pgrp, &sbi->type, &sbi->min_proto,
-				&sbi->max_proto)) {
+			  &pgrp, &pgrp_set, &sbi->type, &sbi->min_proto,
+			  &sbi->max_proto)) {
 		printk("autofs: called with bogus options\n");
 		goto fail_dput;
+	}
+
+	if (pgrp_set) {
+		sbi->oz_pgrp = find_get_pid(pgrp);
+		if (!sbi->oz_pgrp) {
+			pr_warn("autofs: could not find process group %d\n",
+				pgrp);
+			goto fail_dput;
+		}
+	} else {
+		sbi->oz_pgrp = get_task_pid(current, PIDTYPE_PGID);
 	}
 
 	if (autofs_type_trigger(sbi->type))
@@ -285,14 +304,15 @@ int autofs4_fill_super(struct super_block *s, void *data, int silent)
 		sbi->version = sbi->max_proto;
 	sbi->sub_version = AUTOFS_PROTO_SUBVERSION;
 
-	DPRINTK("pipe fd = %d, pgrp = %u", pipefd, sbi->oz_pgrp);
+	DPRINTK("pipe fd = %d, pgrp = %u", pipefd, pid_nr(sbi->oz_pgrp));
 	pipe = fget(pipefd);
-	
+
 	if (!pipe) {
 		printk("autofs: could not open pipe file descriptor\n");
 		goto fail_dput;
 	}
-	if (!pipe->f_op || !pipe->f_op->write)
+	ret = autofs_prepare_pipe(pipe);
+	if (ret < 0)
 		goto fail_fput;
 	sbi->pipe = pipe;
 	sbi->pipefd = pipefd;
@@ -314,19 +334,16 @@ fail_fput:
 fail_dput:
 	dput(root);
 	goto fail_free;
-fail_iput:
-	printk("autofs: get root dentry failed\n");
-	iput(root_inode);
 fail_ino:
 	kfree(ino);
 fail_free:
+	put_pid(sbi->oz_pgrp);
 	kfree(sbi);
 	s->s_fs_info = NULL;
-fail_unlock:
-	return -EINVAL;
+	return ret;
 }
 
-struct inode *autofs4_get_inode(struct super_block *sb, mode_t mode)
+struct inode *autofs4_get_inode(struct super_block *sb, umode_t mode)
 {
 	struct inode *inode = new_inode(sb);
 

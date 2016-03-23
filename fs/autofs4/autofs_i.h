@@ -74,11 +74,15 @@ struct autofs_info {
 	unsigned long last_used;
 	atomic_t count;
 
-	uid_t uid;
-	gid_t gid;
+	kuid_t uid;
+	kgid_t gid;
 };
 
 #define AUTOFS_INF_EXPIRING	(1<<0) /* dentry is in the process of expiring */
+#define AUTOFS_INF_NO_RCU	(1<<1) /* the dentry is being considered
+					* for expiry, so RCU_walk is
+					* not permitted
+					*/
 #define AUTOFS_INF_PENDING	(1<<2) /* dentry pending mount */
 
 struct autofs_wait_queue {
@@ -89,8 +93,8 @@ struct autofs_wait_queue {
 	struct qstr name;
 	u32 dev;
 	u64 ino;
-	uid_t uid;
-	gid_t gid;
+	kuid_t uid;
+	kgid_t gid;
 	pid_t pid;
 	pid_t tgid;
 	/* This is for status reporting upon return */
@@ -104,7 +108,7 @@ struct autofs_sb_info {
 	u32 magic;
 	int pipefd;
 	struct file *pipe;
-	pid_t oz_pgrp;
+	struct pid *oz_pgrp;
 	int catatonic;
 	int version;
 	int sub_version;
@@ -116,11 +120,13 @@ struct autofs_sb_info {
 	int needs_reghost;
 	struct super_block *sb;
 	struct mutex wq_mutex;
+	struct mutex pipe_mutex;
 	spinlock_t fs_lock;
 	struct autofs_wait_queue *queues; /* Wait queue pointer */
 	spinlock_t lookup_lock;
 	struct list_head active_list;
 	struct list_head expiring_list;
+	struct rcu_head rcu;
 };
 
 static inline struct autofs_sb_info *autofs4_sbi(struct super_block *sb)
@@ -138,29 +144,15 @@ static inline struct autofs_info *autofs4_dentry_ino(struct dentry *dentry)
    filesystem without "magic".) */
 
 static inline int autofs4_oz_mode(struct autofs_sb_info *sbi) {
-	return sbi->catatonic || task_pgrp_nr(current) == sbi->oz_pgrp;
+	return sbi->catatonic || task_pgrp(current) == sbi->oz_pgrp;
 }
 
-/* Does a dentry have some pending activity? */
-static inline int autofs4_ispending(struct dentry *dentry)
-{
-	struct autofs_info *inf = autofs4_dentry_ino(dentry);
-
-	if (inf->flags & AUTOFS_INF_PENDING)
-		return 1;
-
-	if (inf->flags & AUTOFS_INF_EXPIRING)
-		return 1;
-
-	return 0;
-}
-
-struct inode *autofs4_get_inode(struct super_block *, mode_t);
+struct inode *autofs4_get_inode(struct super_block *, umode_t);
 void autofs4_free_ino(struct autofs_info *);
 
 /* Expiration */
 int is_autofs4_dentry(struct dentry *);
-int autofs4_expire_wait(struct dentry *dentry);
+int autofs4_expire_wait(struct dentry *dentry, int rcu_walk);
 int autofs4_expire_run(struct super_block *, struct vfsmount *,
 			struct autofs_sb_info *,
 			struct autofs_packet_expire __user *);
@@ -189,55 +181,6 @@ extern const struct file_operations autofs4_root_operations;
 extern const struct dentry_operations autofs4_dentry_operations;
 
 /* VFS automount flags management functions */
-
-static inline void __managed_dentry_set_automount(struct dentry *dentry)
-{
-	dentry->d_flags |= DCACHE_NEED_AUTOMOUNT;
-}
-
-static inline void managed_dentry_set_automount(struct dentry *dentry)
-{
-	spin_lock(&dentry->d_lock);
-	__managed_dentry_set_automount(dentry);
-	spin_unlock(&dentry->d_lock);
-}
-
-static inline void __managed_dentry_clear_automount(struct dentry *dentry)
-{
-	dentry->d_flags &= ~DCACHE_NEED_AUTOMOUNT;
-}
-
-static inline void managed_dentry_clear_automount(struct dentry *dentry)
-{
-	spin_lock(&dentry->d_lock);
-	__managed_dentry_clear_automount(dentry);
-	spin_unlock(&dentry->d_lock);
-}
-
-static inline void __managed_dentry_set_transit(struct dentry *dentry)
-{
-	dentry->d_flags |= DCACHE_MANAGE_TRANSIT;
-}
-
-static inline void managed_dentry_set_transit(struct dentry *dentry)
-{
-	spin_lock(&dentry->d_lock);
-	__managed_dentry_set_transit(dentry);
-	spin_unlock(&dentry->d_lock);
-}
-
-static inline void __managed_dentry_clear_transit(struct dentry *dentry)
-{
-	dentry->d_flags &= ~DCACHE_MANAGE_TRANSIT;
-}
-
-static inline void managed_dentry_clear_transit(struct dentry *dentry)
-{
-	spin_lock(&dentry->d_lock);
-	__managed_dentry_clear_transit(dentry);
-	spin_unlock(&dentry->d_lock);
-}
-
 static inline void __managed_dentry_set_managed(struct dentry *dentry)
 {
 	dentry->d_flags |= (DCACHE_NEED_AUTOMOUNT|DCACHE_MANAGE_TRANSIT);
@@ -267,6 +210,17 @@ static inline void managed_dentry_clear_managed(struct dentry *dentry)
 int autofs4_fill_super(struct super_block *, void *, int);
 struct autofs_info *autofs4_new_ino(struct autofs_sb_info *);
 void autofs4_clean_ino(struct autofs_info *);
+
+static inline int autofs_prepare_pipe(struct file *pipe)
+{
+	if (!pipe->f_op->write)
+		return -EINVAL;
+	if (!S_ISFIFO(file_inode(pipe)->i_mode))
+		return -EINVAL;
+	/* We want a packet pipe */
+	pipe->f_flags |= O_DIRECT;
+	return 0;
+}
 
 /* Queue management functions */
 

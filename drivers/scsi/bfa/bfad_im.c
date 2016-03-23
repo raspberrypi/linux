@@ -73,9 +73,14 @@ bfa_cb_ioim_done(void *drv, struct bfad_ioim_s *dio,
 
 		break;
 
-	case BFI_IOIM_STS_ABORTED:
 	case BFI_IOIM_STS_TIMEDOUT:
+		host_status = DID_TIME_OUT;
+		cmnd->result = ScsiResult(host_status, 0);
+		break;
 	case BFI_IOIM_STS_PATHTOV:
+		host_status = DID_TRANSPORT_DISRUPTED;
+		cmnd->result = ScsiResult(host_status, 0);
+		break;
 	default:
 		host_status = DID_ERROR;
 		cmnd->result = ScsiResult(host_status, 0);
@@ -206,7 +211,7 @@ bfad_im_abort_handler(struct scsi_cmnd *cmnd)
 	spin_lock_irqsave(&bfad->bfad_lock, flags);
 	hal_io = (struct bfa_ioim_s *) cmnd->host_scribble;
 	if (!hal_io) {
-		/* IO has been completed, retrun success */
+		/* IO has been completed, return success */
 		rc = SUCCESS;
 		goto out;
 	}
@@ -523,20 +528,13 @@ bfad_im_scsi_host_alloc(struct bfad_s *bfad, struct bfad_im_port_s *im_port,
 	int error = 1;
 
 	mutex_lock(&bfad_mutex);
-	if (!idr_pre_get(&bfad_im_port_index, GFP_KERNEL)) {
+	error = idr_alloc(&bfad_im_port_index, im_port, 0, 0, GFP_KERNEL);
+	if (error < 0) {
 		mutex_unlock(&bfad_mutex);
-		printk(KERN_WARNING "idr_pre_get failure\n");
+		printk(KERN_WARNING "idr_alloc failure\n");
 		goto out;
 	}
-
-	error = idr_get_new(&bfad_im_port_index, im_port,
-					 &im_port->idr_id);
-	if (error) {
-		mutex_unlock(&bfad_mutex);
-		printk(KERN_WARNING "idr_get_new failure\n");
-		goto out;
-	}
-
+	im_port->idr_id = error;
 	mutex_unlock(&bfad_mutex);
 
 	im_port->shost = bfad_scsi_host_alloc(im_port, bfad);
@@ -687,25 +685,21 @@ bfa_status_t
 bfad_im_probe(struct bfad_s *bfad)
 {
 	struct bfad_im_s      *im;
-	bfa_status_t    rc = BFA_STATUS_OK;
 
 	im = kzalloc(sizeof(struct bfad_im_s), GFP_KERNEL);
-	if (im == NULL) {
-		rc = BFA_STATUS_ENOMEM;
-		goto ext;
-	}
+	if (im == NULL)
+		return BFA_STATUS_ENOMEM;
 
 	bfad->im = im;
 	im->bfad = bfad;
 
 	if (bfad_thread_workq(bfad) != BFA_STATUS_OK) {
 		kfree(im);
-		rc = BFA_STATUS_FAILED;
+		return BFA_STATUS_FAILED;
 	}
 
 	INIT_WORK(&im->aen_im_notify_work, bfad_aen_im_notify_handler);
-ext:
-	return rc;
+	return BFA_STATUS_OK;
 }
 
 void
@@ -918,22 +912,78 @@ bfad_get_itnim(struct bfad_im_port_s *im_port, int id)
 }
 
 /*
+ * Function is invoked from the SCSI Host Template slave_alloc() entry point.
+ * Has the logic to query the LUN Mask database to check if this LUN needs to
+ * be made visible to the SCSI mid-layer or not.
+ *
+ * Returns BFA_STATUS_OK if this LUN needs to be added to the OS stack.
+ * Returns -ENXIO to notify SCSI mid-layer to not add this LUN to the OS stack.
+ */
+static int
+bfad_im_check_if_make_lun_visible(struct scsi_device *sdev,
+				  struct fc_rport *rport)
+{
+	struct bfad_itnim_data_s *itnim_data =
+				(struct bfad_itnim_data_s *) rport->dd_data;
+	struct bfa_s *bfa = itnim_data->itnim->bfa_itnim->bfa;
+	struct bfa_rport_s *bfa_rport = itnim_data->itnim->bfa_itnim->rport;
+	struct bfa_lun_mask_s *lun_list = bfa_get_lun_mask_list(bfa);
+	int i = 0, ret = -ENXIO;
+
+	for (i = 0; i < MAX_LUN_MASK_CFG; i++) {
+		if (lun_list[i].state == BFA_IOIM_LUN_MASK_ACTIVE &&
+		    scsilun_to_int(&lun_list[i].lun) == sdev->lun &&
+		    lun_list[i].rp_tag == bfa_rport->rport_tag &&
+		    lun_list[i].lp_tag == (u8)bfa_rport->rport_info.lp_tag) {
+			ret = BFA_STATUS_OK;
+			break;
+		}
+	}
+	return ret;
+}
+
+/*
  * Scsi_Host template entry slave_alloc
  */
 static int
 bfad_im_slave_alloc(struct scsi_device *sdev)
 {
 	struct fc_rport *rport = starget_to_rport(scsi_target(sdev));
+	struct bfad_itnim_data_s *itnim_data;
+	struct bfa_s *bfa;
 
 	if (!rport || fc_remote_port_chkready(rport))
 		return -ENXIO;
 
+	itnim_data = (struct bfad_itnim_data_s *) rport->dd_data;
+	bfa = itnim_data->itnim->bfa_itnim->bfa;
+
+	if (bfa_get_lun_mask_status(bfa) == BFA_LUNMASK_ENABLED) {
+		/*
+		 * We should not mask LUN 0 - since this will translate
+		 * to no LUN / TARGET for SCSI ml resulting no scan.
+		 */
+		if (sdev->lun == 0) {
+			sdev->sdev_bflags |= BLIST_NOREPORTLUN |
+					     BLIST_SPARSELUN;
+			goto done;
+		}
+
+		/*
+		 * Query LUN Mask configuration - to expose this LUN
+		 * to the SCSI mid-layer or to mask it.
+		 */
+		if (bfad_im_check_if_make_lun_visible(sdev, rport) !=
+							BFA_STATUS_OK)
+			return -ENXIO;
+	}
+done:
 	sdev->hostdata = rport->dd_data;
 
 	return 0;
 }
 
-static u32
+u32
 bfad_im_supported_speeds(struct bfa_s *bfa)
 {
 	struct bfa_ioc_attr_s *ioc_attr;
@@ -992,7 +1042,7 @@ bfad_fc_host_init(struct bfad_im_port_s *im_port)
 	/* For fibre channel services type 0x20 */
 	fc_host_supported_fc4s(host)[7] = 1;
 
-	strncpy(symname, bfad->bfa_fcs.fabric.bport.port_cfg.sym_name.symname,
+	strlcpy(symname, bfad->bfa_fcs.fabric.bport.port_cfg.sym_name.symname,
 		BFA_SYMNAME_MAXLEN);
 	sprintf(fc_host_symbolic_name(host), "%s", symname);
 
@@ -1036,6 +1086,8 @@ bfad_im_fc_rport_add(struct bfad_im_port_s *im_port, struct bfad_itnim_s *itnim)
 	if ((fc_rport->scsi_target_id != -1)
 	    && (fc_rport->scsi_target_id < MAX_FCP_TARGET))
 		itnim->scsi_tgt_id = fc_rport->scsi_target_id;
+
+	itnim->channel = fc_rport->channel;
 
 	return;
 }
@@ -1160,6 +1212,15 @@ bfad_im_queuecommand_lck(struct scsi_cmnd *cmnd, void (*done) (struct scsi_cmnd 
 	rc = fc_remote_port_chkready(rport);
 	if (rc) {
 		cmnd->result = rc;
+		done(cmnd);
+		return 0;
+	}
+
+	if (bfad->bfad_flags & BFAD_EEH_BUSY) {
+		if (bfad->bfad_flags & BFAD_EEH_PCI_CHANNEL_IO_PERM_FAILURE)
+			cmnd->result = DID_NO_CONNECT << 16;
+		else
+			cmnd->result = DID_REQUEUE << 16;
 		done(cmnd);
 		return 0;
 	}

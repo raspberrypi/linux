@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2009-2010  Realtek Corporation.
+ * Copyright(c) 2009-2012  Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -114,9 +114,15 @@
 	LE_BITS_TO_4BYTE(((__pcmdfbhdr) + 4), 16, 4)
 #define	GET_C2H_CMD_FEEDBACK_CCX_SEQ(__pcmdfbhdr)	\
 	LE_BITS_TO_4BYTE(((__pcmdfbhdr) + 4), 20, 12)
+#define GET_RX_STATUS_DESC_BUFF_ADDR(__pdesc)			\
+	SHIFT_AND_MASK_LE(__pdesc + 24, 0, 32)
 
 #define CHIP_VER_B			BIT(4)
+#define CHIP_BONDING_IDENTIFIER(_value) (((_value) >> 22) & 0x3)
+#define CHIP_BONDING_92C_1T2R		0x1
+#define RF_TYPE_1T2R			BIT(1)
 #define CHIP_92C_BITMASK		BIT(0)
+#define CHIP_UNKNOWN			BIT(7)
 #define CHIP_92C_1T2R			0x03
 #define CHIP_92C			0x01
 #define CHIP_88C			0x00
@@ -141,23 +147,6 @@ enum version_8192c {
 	VERSION_NORMAL_UMC_CHIP_92C_1T2R_B_CUT = 0x73,
 	VERSION_UNKNOWN = 0x88,
 };
-
-#define CUT_VERSION_MASK		(BIT(6)|BIT(7))
-#define CHIP_VENDOR_UMC			BIT(5)
-#define CHIP_VENDOR_UMC_B_CUT		BIT(6) /* Chip version for ECO */
-#define IS_VENDOR_UMC_A_CUT(version)	((IS_CHIP_VENDOR_UMC(version)) ? \
-	((GET_CVID_CUT_VERSION(version)) ? false : true) : false)
-#define IS_CHIP_VER_B(version)  ((version & CHIP_VER_B) ? true : false)
-#define IS_VENDOR_UMC_A_CUT(version)	((IS_CHIP_VENDOR_UMC(version)) ? \
-	((GET_CVID_CUT_VERSION(version)) ? false : true) : false)
-#define IS_92C_SERIAL(version)  ((version & CHIP_92C_BITMASK) ? true : false)
-#define IS_CHIP_VENDOR_UMC(version)		\
-	((version & CHIP_VENDOR_UMC) ? true : false)
-#define GET_CVID_CUT_VERSION(version)	((version) & CUT_VERSION_MASK)
-#define IS_81xxC_VENDOR_UMC_B_CUT(version)		\
-	((IS_CHIP_VENDOR_UMC(version)) ? \
-	((GET_CVID_CUT_VERSION(version) == CHIP_VENDOR_UMC_B_CUT) ?	\
-	true : false) : false)
 
 enum rtl819x_loopback_e {
 	RTL819X_NO_LOOPBACK = 0,

@@ -32,7 +32,6 @@
 #include <asm/cputype.h>
 #include <asm/irq.h>
 #include <asm/sizes.h>
-#include <asm/system.h>
 #include <asm/mach/pci.h>
 #include <mach/hardware.h>
 
@@ -316,33 +315,6 @@ static int abort_handler(unsigned long addr, unsigned int fsr, struct pt_regs *r
 	return 0;
 }
 
-
-static int ixp4xx_needs_bounce(struct device *dev, dma_addr_t dma_addr, size_t size)
-{
-	return (dma_addr + size) >= SZ_64M;
-}
-
-/*
- * Setup DMA mask to 64MB on PCI devices. Ignore all other devices.
- */
-static int ixp4xx_pci_platform_notify(struct device *dev)
-{
-	if(dev->bus == &pci_bus_type) {
-		*dev->dma_mask =  SZ_64M - 1;
-		dev->coherent_dma_mask = SZ_64M - 1;
-		dmabounce_register_dev(dev, 2048, 4096, ixp4xx_needs_bounce);
-	}
-	return 0;
-}
-
-static int ixp4xx_pci_platform_notify_remove(struct device *dev)
-{
-	if(dev->bus == &pci_bus_type) {
-		dmabounce_unregister_dev(dev);
-	}
-	return 0;
-}
-
 void __init ixp4xx_pci_preinit(void)
 {
 	unsigned long cpuid = read_cpuid_id();
@@ -411,6 +383,7 @@ void __init ixp4xx_pci_preinit(void)
 		 * Enable the IO window to be way up high, at 0xfffffc00
 		 */
 		local_write_config(PCI_BASE_ADDRESS_5, 4, 0xfffffc01);
+		local_write_config(0x40, 4, 0x000080FF); /* No TRDY time limit */
 	} else {
 		printk("PCI: IXP4xx is target - No bus scan performed\n");
 	}
@@ -472,29 +445,11 @@ int ixp4xx_setup(int nr, struct pci_sys_data *sys)
 	request_resource(&ioport_resource, &res[0]);
 	request_resource(&iomem_resource, &res[1]);
 
-	sys->resource[0] = &res[0];
-	sys->resource[1] = &res[1];
-	sys->resource[2] = NULL;
-
-	platform_notify = ixp4xx_pci_platform_notify;
-	platform_notify_remove = ixp4xx_pci_platform_notify_remove;
+	pci_add_resource_offset(&sys->resources, &res[0], sys->io_offset);
+	pci_add_resource_offset(&sys->resources, &res[1], sys->mem_offset);
 
 	return 1;
 }
 
-struct pci_bus * __devinit ixp4xx_scan_bus(int nr, struct pci_sys_data *sys)
-{
-	return pci_scan_bus(sys->busnr, &ixp4xx_ops, sys);
-}
-
-int dma_set_coherent_mask(struct device *dev, u64 mask)
-{
-	if (mask >= SZ_64M - 1)
-		return 0;
-
-	return -EIO;
-}
-
 EXPORT_SYMBOL(ixp4xx_pci_read);
 EXPORT_SYMBOL(ixp4xx_pci_write);
-EXPORT_SYMBOL(dma_set_coherent_mask);

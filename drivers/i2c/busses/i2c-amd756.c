@@ -15,10 +15,6 @@
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 /*
@@ -41,7 +37,6 @@
 #include <linux/stddef.h>
 #include <linux/ioport.h>
 #include <linux/i2c.h>
-#include <linux/init.h>
 #include <linux/acpi.h>
 #include <linux/io.h>
 
@@ -324,8 +319,7 @@ static const struct pci_device_id amd756_ids[] = {
 
 MODULE_DEVICE_TABLE (pci, amd756_ids);
 
-static int __devinit amd756_probe(struct pci_dev *pdev,
-				  const struct pci_device_id *id)
+static int amd756_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int nforce = (id->driver_data == NFORCE);
 	int error;
@@ -397,7 +391,7 @@ static int __devinit amd756_probe(struct pci_dev *pdev,
 	return error;
 }
 
-static void __devexit amd756_remove(struct pci_dev *dev)
+static void amd756_remove(struct pci_dev *dev)
 {
 	i2c_del_adapter(&amd756_smbus);
 	release_region(amd756_ioport, SMB_IOSIZE);
@@ -407,24 +401,13 @@ static struct pci_driver amd756_driver = {
 	.name		= "amd756_smbus",
 	.id_table	= amd756_ids,
 	.probe		= amd756_probe,
-	.remove		= __devexit_p(amd756_remove),
+	.remove		= amd756_remove,
 };
 
-static int __init amd756_init(void)
-{
-	return pci_register_driver(&amd756_driver);
-}
-
-static void __exit amd756_exit(void)
-{
-	pci_unregister_driver(&amd756_driver);
-}
+module_pci_driver(amd756_driver);
 
 MODULE_AUTHOR("Merlin Hughes <merlin@merlin.org>");
 MODULE_DESCRIPTION("AMD756/766/768/8111 and nVidia nForce SMBus driver");
 MODULE_LICENSE("GPL");
 
 EXPORT_SYMBOL(amd756_smbus);
-
-module_init(amd756_init)
-module_exit(amd756_exit)

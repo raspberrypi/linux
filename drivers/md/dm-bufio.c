@@ -12,7 +12,6 @@
 #include <linux/dm-io.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
-#include <linux/version.h>
 #include <linux/shrinker.h>
 #include <linux/module.h>
 
@@ -105,6 +104,8 @@ struct dm_bufio_client {
 	struct list_head reserved_buffers;
 	unsigned need_reserved_buffers;
 
+	unsigned minimum_buffers;
+
 	struct hlist_head *cache_hash;
 	wait_queue_head_t free_buffer_wait;
 
@@ -146,6 +147,7 @@ struct dm_buffer {
 	unsigned long state;
 	unsigned long last_accessed;
 	struct dm_bufio_client *c;
+	struct list_head write_list;
 	struct bio bio;
 	struct bio_vec bio_vec[DM_BUFIO_INLINE_VECS];
 };
@@ -281,9 +283,7 @@ static void __cache_size_refresh(void)
 	BUG_ON(!mutex_is_locked(&dm_bufio_clients_lock));
 	BUG_ON(dm_bufio_client_count < 0);
 
-	dm_bufio_cache_size_latch = dm_bufio_cache_size;
-
-	barrier();
+	dm_bufio_cache_size_latch = ACCESS_ONCE(dm_bufio_cache_size);
 
 	/*
 	 * Use default if set to 0 and report the actual cache size used.
@@ -322,6 +322,9 @@ static void __cache_size_refresh(void)
 static void *alloc_buffer_data(struct dm_bufio_client *c, gfp_t gfp_mask,
 			       enum data_mode *data_mode)
 {
+	unsigned noio_flag;
+	void *ptr;
+
 	if (c->block_size <= DM_BUFIO_BLOCK_SIZE_SLAB_LIMIT) {
 		*data_mode = DATA_MODE_SLAB;
 		return kmem_cache_alloc(DM_BUFIO_CACHE(c), gfp_mask);
@@ -335,7 +338,26 @@ static void *alloc_buffer_data(struct dm_bufio_client *c, gfp_t gfp_mask,
 	}
 
 	*data_mode = DATA_MODE_VMALLOC;
-	return __vmalloc(c->block_size, gfp_mask, PAGE_KERNEL);
+
+	/*
+	 * __vmalloc allocates the data pages and auxiliary structures with
+	 * gfp_flags that were specified, but pagetables are always allocated
+	 * with GFP_KERNEL, no matter what was specified as gfp_mask.
+	 *
+	 * Consequently, we must set per-process flag PF_MEMALLOC_NOIO so that
+	 * all allocations done by this process (including pagetables) are done
+	 * as if GFP_NOIO was specified.
+	 */
+
+	if (gfp_mask & __GFP_NORETRY)
+		noio_flag = memalloc_noio_save();
+
+	ptr = __vmalloc(c->block_size, gfp_mask | __GFP_HIGHMEM, PAGE_KERNEL);
+
+	if (gfp_mask & __GFP_NORETRY)
+		memalloc_noio_restore(noio_flag);
+
+	return ptr;
 }
 
 /*
@@ -442,8 +464,8 @@ static void __relink_lru(struct dm_buffer *b, int dirty)
 	c->n_buffers[b->list_mode]--;
 	c->n_buffers[dirty]++;
 	b->list_mode = dirty;
-	list_del(&b->lru_list);
-	list_add(&b->lru_list, &c->lru[dirty]);
+	list_move(&b->lru_list, &c->lru[dirty]);
+	b->last_accessed = jiffies;
 }
 
 /*----------------------------------------------------------------
@@ -510,6 +532,19 @@ static void use_dmio(struct dm_buffer *b, int rw, sector_t block,
 		end_io(&b->bio, r);
 }
 
+static void inline_endio(struct bio *bio, int error)
+{
+	bio_end_io_t *end_fn = bio->bi_private;
+
+	/*
+	 * Reset the bio to free any attached resources
+	 * (e.g. bio integrity profiles).
+	 */
+	bio_reset(bio);
+
+	end_fn(bio, error);
+}
+
 static void use_inline_bio(struct dm_buffer *b, int rw, sector_t block,
 			   bio_end_io_t *end_io)
 {
@@ -519,9 +554,14 @@ static void use_inline_bio(struct dm_buffer *b, int rw, sector_t block,
 	bio_init(&b->bio);
 	b->bio.bi_io_vec = b->bio_vec;
 	b->bio.bi_max_vecs = DM_BUFIO_INLINE_VECS;
-	b->bio.bi_sector = block << b->c->sectors_per_block_bits;
+	b->bio.bi_iter.bi_sector = block << b->c->sectors_per_block_bits;
 	b->bio.bi_bdev = b->c->bdev;
-	b->bio.bi_end_io = end_io;
+	b->bio.bi_end_io = inline_endio;
+	/*
+	 * Use of .bi_private isn't a problem here because
+	 * the dm_buffer's inline bio is local to bufio.
+	 */
+	b->bio.bi_private = end_io;
 
 	/*
 	 * We assume that if len >= PAGE_SIZE ptr is page-aligned.
@@ -579,28 +619,18 @@ static void write_endio(struct bio *bio, int error)
 	struct dm_buffer *b = container_of(bio, struct dm_buffer, bio);
 
 	b->write_error = error;
-	if (error) {
+	if (unlikely(error)) {
 		struct dm_bufio_client *c = b->c;
 		(void)cmpxchg(&c->async_write_error, 0, error);
 	}
 
 	BUG_ON(!test_bit(B_WRITING, &b->state));
 
-	smp_mb__before_clear_bit();
+	smp_mb__before_atomic();
 	clear_bit(B_WRITING, &b->state);
-	smp_mb__after_clear_bit();
+	smp_mb__after_atomic();
 
 	wake_up_bit(&b->state, B_WRITING);
-}
-
-/*
- * This function is called when wait_on_bit is actually waiting.
- */
-static int do_io_schedule(void *word)
-{
-	io_schedule();
-
-	return 0;
 }
 
 /*
@@ -612,16 +642,33 @@ static int do_io_schedule(void *word)
  * - Submit our write and don't wait on it. We set B_WRITING indicating
  *   that there is a write in progress.
  */
-static void __write_dirty_buffer(struct dm_buffer *b)
+static void __write_dirty_buffer(struct dm_buffer *b,
+				 struct list_head *write_list)
 {
 	if (!test_bit(B_DIRTY, &b->state))
 		return;
 
 	clear_bit(B_DIRTY, &b->state);
-	wait_on_bit_lock(&b->state, B_WRITING,
-			 do_io_schedule, TASK_UNINTERRUPTIBLE);
+	wait_on_bit_lock_io(&b->state, B_WRITING, TASK_UNINTERRUPTIBLE);
 
-	submit_io(b, WRITE, b->block, write_endio);
+	if (!write_list)
+		submit_io(b, WRITE, b->block, write_endio);
+	else
+		list_add_tail(&b->write_list, write_list);
+}
+
+static void __flush_write_list(struct list_head *write_list)
+{
+	struct blk_plug plug;
+	blk_start_plug(&plug);
+	while (!list_empty(write_list)) {
+		struct dm_buffer *b =
+			list_entry(write_list->next, struct dm_buffer, write_list);
+		list_del(&b->write_list);
+		submit_io(b, WRITE, b->block, write_endio);
+		dm_bufio_cond_resched();
+	}
+	blk_finish_plug(&plug);
 }
 
 /*
@@ -636,9 +683,9 @@ static void __make_buffer_clean(struct dm_buffer *b)
 	if (!b->state)	/* fast case */
 		return;
 
-	wait_on_bit(&b->state, B_READING, do_io_schedule, TASK_UNINTERRUPTIBLE);
-	__write_dirty_buffer(b);
-	wait_on_bit(&b->state, B_WRITING, do_io_schedule, TASK_UNINTERRUPTIBLE);
+	wait_on_bit_io(&b->state, B_READING, TASK_UNINTERRUPTIBLE);
+	__write_dirty_buffer(b, NULL);
+	wait_on_bit_io(&b->state, B_WRITING, TASK_UNINTERRUPTIBLE);
 }
 
 /*
@@ -692,11 +739,17 @@ static void __wait_for_free_buffer(struct dm_bufio_client *c)
 
 	io_schedule();
 
-	set_task_state(current, TASK_RUNNING);
 	remove_wait_queue(&c->free_buffer_wait, &wait);
 
 	dm_bufio_lock(c);
 }
+
+enum new_flag {
+	NF_FRESH = 0,
+	NF_READ = 1,
+	NF_GET = 2,
+	NF_PREFETCH = 3
+};
 
 /*
  * Allocate a new buffer. If the allocation is not possible, wait until
@@ -704,7 +757,7 @@ static void __wait_for_free_buffer(struct dm_bufio_client *c)
  *
  * May drop the lock and regain it.
  */
-static struct dm_buffer *__alloc_buffer_wait_no_callback(struct dm_bufio_client *c)
+static struct dm_buffer *__alloc_buffer_wait_no_callback(struct dm_bufio_client *c, enum new_flag nf)
 {
 	struct dm_buffer *b;
 
@@ -727,6 +780,9 @@ static struct dm_buffer *__alloc_buffer_wait_no_callback(struct dm_bufio_client 
 				return b;
 		}
 
+		if (nf == NF_PREFETCH)
+			return NULL;
+
 		if (!list_empty(&c->reserved_buffers)) {
 			b = list_entry(c->reserved_buffers.next,
 				       struct dm_buffer, lru_list);
@@ -744,9 +800,12 @@ static struct dm_buffer *__alloc_buffer_wait_no_callback(struct dm_bufio_client 
 	}
 }
 
-static struct dm_buffer *__alloc_buffer_wait(struct dm_bufio_client *c)
+static struct dm_buffer *__alloc_buffer_wait(struct dm_bufio_client *c, enum new_flag nf)
 {
-	struct dm_buffer *b = __alloc_buffer_wait_no_callback(c);
+	struct dm_buffer *b = __alloc_buffer_wait_no_callback(c, nf);
+
+	if (!b)
+		return NULL;
 
 	if (c->alloc_callback)
 		c->alloc_callback(b);
@@ -771,7 +830,8 @@ static void __free_buffer_wake(struct dm_buffer *b)
 	wake_up(&c->free_buffer_wait);
 }
 
-static void __write_dirty_buffers_async(struct dm_bufio_client *c, int no_wait)
+static void __write_dirty_buffers_async(struct dm_bufio_client *c, int no_wait,
+					struct list_head *write_list)
 {
 	struct dm_buffer *b, *tmp;
 
@@ -787,7 +847,7 @@ static void __write_dirty_buffers_async(struct dm_bufio_client *c, int no_wait)
 		if (no_wait && test_bit(B_WRITING, &b->state))
 			return;
 
-		__write_dirty_buffer(b);
+		__write_dirty_buffer(b, write_list);
 		dm_bufio_cond_resched();
 	}
 }
@@ -801,7 +861,7 @@ static void __get_memory_limit(struct dm_bufio_client *c,
 {
 	unsigned long buffers;
 
-	if (dm_bufio_cache_size != dm_bufio_cache_size_latch) {
+	if (ACCESS_ONCE(dm_bufio_cache_size) != dm_bufio_cache_size_latch) {
 		mutex_lock(&dm_bufio_clients_lock);
 		__cache_size_refresh();
 		mutex_unlock(&dm_bufio_clients_lock);
@@ -810,8 +870,8 @@ static void __get_memory_limit(struct dm_bufio_client *c,
 	buffers = dm_bufio_cache_size_per_client >>
 		  (c->sectors_per_block_bits + SECTOR_SHIFT);
 
-	if (buffers < DM_BUFIO_MIN_BUFFERS)
-		buffers = DM_BUFIO_MIN_BUFFERS;
+	if (buffers < c->minimum_buffers)
+		buffers = c->minimum_buffers;
 
 	*limit_buffers = buffers;
 	*threshold_buffers = buffers * DM_BUFIO_WRITEBACK_PERCENT / 100;
@@ -822,7 +882,8 @@ static void __get_memory_limit(struct dm_bufio_client *c,
  * If we are over threshold_buffers, start freeing buffers.
  * If we're over "limit_buffers", block until we get under the limit.
  */
-static void __check_watermark(struct dm_bufio_client *c)
+static void __check_watermark(struct dm_bufio_client *c,
+			      struct list_head *write_list)
 {
 	unsigned long threshold_buffers, limit_buffers;
 
@@ -841,7 +902,7 @@ static void __check_watermark(struct dm_bufio_client *c)
 	}
 
 	if (c->n_buffers[LIST_DIRTY] > threshold_buffers)
-		__write_dirty_buffers_async(c, 1);
+		__write_dirty_buffers_async(c, 1, write_list);
 }
 
 /*
@@ -850,9 +911,8 @@ static void __check_watermark(struct dm_bufio_client *c)
 static struct dm_buffer *__find(struct dm_bufio_client *c, sector_t block)
 {
 	struct dm_buffer *b;
-	struct hlist_node *hn;
 
-	hlist_for_each_entry(b, hn, &c->cache_hash[DM_BUFIO_HASH(block)],
+	hlist_for_each_entry(b, &c->cache_hash[DM_BUFIO_HASH(block)],
 			     hash_list) {
 		dm_bufio_cond_resched();
 		if (b->block == block)
@@ -866,32 +926,24 @@ static struct dm_buffer *__find(struct dm_bufio_client *c, sector_t block)
  * Getting a buffer
  *--------------------------------------------------------------*/
 
-enum new_flag {
-	NF_FRESH = 0,
-	NF_READ = 1,
-	NF_GET = 2
-};
-
 static struct dm_buffer *__bufio_new(struct dm_bufio_client *c, sector_t block,
-				     enum new_flag nf, struct dm_buffer **bp,
-				     int *need_submit)
+				     enum new_flag nf, int *need_submit,
+				     struct list_head *write_list)
 {
 	struct dm_buffer *b, *new_b = NULL;
 
 	*need_submit = 0;
 
 	b = __find(c, block);
-	if (b) {
-		b->hold_count++;
-		__relink_lru(b, test_bit(B_DIRTY, &b->state) ||
-			     test_bit(B_WRITING, &b->state));
-		return b;
-	}
+	if (b)
+		goto found_buffer;
 
 	if (nf == NF_GET)
 		return NULL;
 
-	new_b = __alloc_buffer_wait(c);
+	new_b = __alloc_buffer_wait(c, nf);
+	if (!new_b)
+		return NULL;
 
 	/*
 	 * We've had a period where the mutex was unlocked, so need to
@@ -900,13 +952,10 @@ static struct dm_buffer *__bufio_new(struct dm_bufio_client *c, sector_t block,
 	b = __find(c, block);
 	if (b) {
 		__free_buffer_wake(new_b);
-		b->hold_count++;
-		__relink_lru(b, test_bit(B_DIRTY, &b->state) ||
-			     test_bit(B_WRITING, &b->state));
-		return b;
+		goto found_buffer;
 	}
 
-	__check_watermark(c);
+	__check_watermark(c, write_list);
 
 	b = new_b;
 	b->hold_count = 1;
@@ -923,6 +972,24 @@ static struct dm_buffer *__bufio_new(struct dm_bufio_client *c, sector_t block,
 	*need_submit = 1;
 
 	return b;
+
+found_buffer:
+	if (nf == NF_PREFETCH)
+		return NULL;
+	/*
+	 * Note: it is essential that we don't wait for the buffer to be
+	 * read if dm_bufio_get function is used. Both dm_bufio_get and
+	 * dm_bufio_prefetch can be used in the driver request routine.
+	 * If the user called both dm_bufio_prefetch and dm_bufio_get on
+	 * the same buffer, it would deadlock if we waited.
+	 */
+	if (nf == NF_GET && unlikely(test_bit(B_READING, &b->state)))
+		return NULL;
+
+	b->hold_count++;
+	__relink_lru(b, test_bit(B_DIRTY, &b->state) ||
+		     test_bit(B_WRITING, &b->state));
+	return b;
 }
 
 /*
@@ -937,9 +1004,9 @@ static void read_endio(struct bio *bio, int error)
 
 	BUG_ON(!test_bit(B_READING, &b->state));
 
-	smp_mb__before_clear_bit();
+	smp_mb__before_atomic();
 	clear_bit(B_READING, &b->state);
-	smp_mb__after_clear_bit();
+	smp_mb__after_atomic();
 
 	wake_up_bit(&b->state, B_READING);
 }
@@ -956,17 +1023,21 @@ static void *new_read(struct dm_bufio_client *c, sector_t block,
 	int need_submit;
 	struct dm_buffer *b;
 
+	LIST_HEAD(write_list);
+
 	dm_bufio_lock(c);
-	b = __bufio_new(c, block, nf, bp, &need_submit);
+	b = __bufio_new(c, block, nf, &need_submit, &write_list);
 	dm_bufio_unlock(c);
 
-	if (!b || IS_ERR(b))
+	__flush_write_list(&write_list);
+
+	if (!b)
 		return b;
 
 	if (need_submit)
 		submit_io(b, READ, b->block, read_endio);
 
-	wait_on_bit(&b->state, B_READING, do_io_schedule, TASK_UNINTERRUPTIBLE);
+	wait_on_bit_io(&b->state, B_READING, TASK_UNINTERRUPTIBLE);
 
 	if (b->read_error) {
 		int error = b->read_error;
@@ -1006,13 +1077,58 @@ void *dm_bufio_new(struct dm_bufio_client *c, sector_t block,
 }
 EXPORT_SYMBOL_GPL(dm_bufio_new);
 
+void dm_bufio_prefetch(struct dm_bufio_client *c,
+		       sector_t block, unsigned n_blocks)
+{
+	struct blk_plug plug;
+
+	LIST_HEAD(write_list);
+
+	BUG_ON(dm_bufio_in_request());
+
+	blk_start_plug(&plug);
+	dm_bufio_lock(c);
+
+	for (; n_blocks--; block++) {
+		int need_submit;
+		struct dm_buffer *b;
+		b = __bufio_new(c, block, NF_PREFETCH, &need_submit,
+				&write_list);
+		if (unlikely(!list_empty(&write_list))) {
+			dm_bufio_unlock(c);
+			blk_finish_plug(&plug);
+			__flush_write_list(&write_list);
+			blk_start_plug(&plug);
+			dm_bufio_lock(c);
+		}
+		if (unlikely(b != NULL)) {
+			dm_bufio_unlock(c);
+
+			if (need_submit)
+				submit_io(b, READ, b->block, read_endio);
+			dm_bufio_release(b);
+
+			dm_bufio_cond_resched();
+
+			if (!n_blocks)
+				goto flush_plug;
+			dm_bufio_lock(c);
+		}
+	}
+
+	dm_bufio_unlock(c);
+
+flush_plug:
+	blk_finish_plug(&plug);
+}
+EXPORT_SYMBOL_GPL(dm_bufio_prefetch);
+
 void dm_bufio_release(struct dm_buffer *b)
 {
 	struct dm_bufio_client *c = b->c;
 
 	dm_bufio_lock(c);
 
-	BUG_ON(test_bit(B_READING, &b->state));
 	BUG_ON(!b->hold_count);
 
 	b->hold_count--;
@@ -1025,6 +1141,7 @@ void dm_bufio_release(struct dm_buffer *b)
 		 * invalid buffer.
 		 */
 		if ((b->read_error || b->write_error) &&
+		    !test_bit(B_READING, &b->state) &&
 		    !test_bit(B_WRITING, &b->state) &&
 		    !test_bit(B_DIRTY, &b->state)) {
 			__unlink_buffer(b);
@@ -1042,6 +1159,8 @@ void dm_bufio_mark_buffer_dirty(struct dm_buffer *b)
 
 	dm_bufio_lock(c);
 
+	BUG_ON(test_bit(B_READING, &b->state));
+
 	if (!test_and_set_bit(B_DIRTY, &b->state))
 		__relink_lru(b, LIST_DIRTY);
 
@@ -1051,11 +1170,14 @@ EXPORT_SYMBOL_GPL(dm_bufio_mark_buffer_dirty);
 
 void dm_bufio_write_dirty_buffers_async(struct dm_bufio_client *c)
 {
+	LIST_HEAD(write_list);
+
 	BUG_ON(dm_bufio_in_request());
 
 	dm_bufio_lock(c);
-	__write_dirty_buffers_async(c, 0);
+	__write_dirty_buffers_async(c, 0, &write_list);
 	dm_bufio_unlock(c);
+	__flush_write_list(&write_list);
 }
 EXPORT_SYMBOL_GPL(dm_bufio_write_dirty_buffers_async);
 
@@ -1072,8 +1194,13 @@ int dm_bufio_write_dirty_buffers(struct dm_bufio_client *c)
 	unsigned long buffers_processed = 0;
 	struct dm_buffer *b, *tmp;
 
+	LIST_HEAD(write_list);
+
 	dm_bufio_lock(c);
-	__write_dirty_buffers_async(c, 0);
+	__write_dirty_buffers_async(c, 0, &write_list);
+	dm_bufio_unlock(c);
+	__flush_write_list(&write_list);
+	dm_bufio_lock(c);
 
 again:
 	list_for_each_entry_safe_reverse(b, tmp, &c->lru[LIST_DIRTY], lru_list) {
@@ -1089,15 +1216,13 @@ again:
 				dropped_lock = 1;
 				b->hold_count++;
 				dm_bufio_unlock(c);
-				wait_on_bit(&b->state, B_WRITING,
-					    do_io_schedule,
-					    TASK_UNINTERRUPTIBLE);
+				wait_on_bit_io(&b->state, B_WRITING,
+					       TASK_UNINTERRUPTIBLE);
 				dm_bufio_lock(c);
 				b->hold_count--;
 			} else
-				wait_on_bit(&b->state, B_WRITING,
-					    do_io_schedule,
-					    TASK_UNINTERRUPTIBLE);
+				wait_on_bit_io(&b->state, B_WRITING,
+					       TASK_UNINTERRUPTIBLE);
 		}
 
 		if (!test_bit(B_DIRTY, &b->state) &&
@@ -1141,7 +1266,7 @@ EXPORT_SYMBOL_GPL(dm_bufio_write_dirty_buffers);
 int dm_bufio_issue_flush(struct dm_bufio_client *c)
 {
 	struct dm_io_request io_req = {
-		.bi_rw = REQ_FLUSH,
+		.bi_rw = WRITE_FLUSH,
 		.mem.type = DM_IO_KMEM,
 		.mem.ptr.addr = NULL,
 		.client = c->dm_io,
@@ -1199,17 +1324,17 @@ retry:
 	BUG_ON(!b->hold_count);
 	BUG_ON(test_bit(B_READING, &b->state));
 
-	__write_dirty_buffer(b);
+	__write_dirty_buffer(b, NULL);
 	if (b->hold_count == 1) {
-		wait_on_bit(&b->state, B_WRITING,
-			    do_io_schedule, TASK_UNINTERRUPTIBLE);
+		wait_on_bit_io(&b->state, B_WRITING,
+			       TASK_UNINTERRUPTIBLE);
 		set_bit(B_DIRTY, &b->state);
 		__unlink_buffer(b);
 		__link_buffer(b, new_block, LIST_DIRTY);
 	} else {
 		sector_t old_block;
-		wait_on_bit_lock(&b->state, B_WRITING,
-				 do_io_schedule, TASK_UNINTERRUPTIBLE);
+		wait_on_bit_lock_io(&b->state, B_WRITING,
+				    TASK_UNINTERRUPTIBLE);
 		/*
 		 * Relink buffer to "new_block" so that write_callback
 		 * sees "new_block" as a block number.
@@ -1221,8 +1346,8 @@ retry:
 		__unlink_buffer(b);
 		__link_buffer(b, new_block, b->list_mode);
 		submit_io(b, WRITE, new_block, write_endio);
-		wait_on_bit(&b->state, B_WRITING,
-			    do_io_schedule, TASK_UNINTERRUPTIBLE);
+		wait_on_bit_io(&b->state, B_WRITING,
+			       TASK_UNINTERRUPTIBLE);
 		__unlink_buffer(b);
 		__link_buffer(b, old_block, b->list_mode);
 	}
@@ -1231,6 +1356,34 @@ retry:
 	dm_bufio_release(b);
 }
 EXPORT_SYMBOL_GPL(dm_bufio_release_move);
+
+/*
+ * Free the given buffer.
+ *
+ * This is just a hint, if the buffer is in use or dirty, this function
+ * does nothing.
+ */
+void dm_bufio_forget(struct dm_bufio_client *c, sector_t block)
+{
+	struct dm_buffer *b;
+
+	dm_bufio_lock(c);
+
+	b = __find(c, block);
+	if (b && likely(!b->hold_count) && likely(!b->state)) {
+		__unlink_buffer(b);
+		__free_buffer_wake(b);
+	}
+
+	dm_bufio_unlock(c);
+}
+EXPORT_SYMBOL(dm_bufio_forget);
+
+void dm_bufio_set_minimum_buffers(struct dm_bufio_client *c, unsigned n)
+{
+	c->minimum_buffers = n;
+}
+EXPORT_SYMBOL(dm_bufio_set_minimum_buffers);
 
 unsigned dm_bufio_get_block_size(struct dm_bufio_client *c)
 {
@@ -1299,70 +1452,83 @@ static void drop_buffers(struct dm_bufio_client *c)
 
 /*
  * Test if the buffer is unused and too old, and commit it.
- * At if noio is set, we must not do any I/O because we hold
- * dm_bufio_clients_lock and we would risk deadlock if the I/O gets rerouted to
- * different bufio client.
+ * And if GFP_NOFS is used, we must not do any I/O because we hold
+ * dm_bufio_clients_lock and we would risk deadlock if the I/O gets
+ * rerouted to different bufio client.
  */
 static int __cleanup_old_buffer(struct dm_buffer *b, gfp_t gfp,
 				unsigned long max_jiffies)
 {
 	if (jiffies - b->last_accessed < max_jiffies)
-		return 1;
+		return 0;
 
-	if (!(gfp & __GFP_IO)) {
+	if (!(gfp & __GFP_FS)) {
 		if (test_bit(B_READING, &b->state) ||
 		    test_bit(B_WRITING, &b->state) ||
 		    test_bit(B_DIRTY, &b->state))
-			return 1;
+			return 0;
 	}
 
 	if (b->hold_count)
-		return 1;
+		return 0;
 
 	__make_buffer_clean(b);
 	__unlink_buffer(b);
 	__free_buffer_wake(b);
 
-	return 0;
+	return 1;
 }
 
-static void __scan(struct dm_bufio_client *c, unsigned long nr_to_scan,
-		   struct shrink_control *sc)
+static long __scan(struct dm_bufio_client *c, unsigned long nr_to_scan,
+		   gfp_t gfp_mask)
 {
 	int l;
 	struct dm_buffer *b, *tmp;
+	long freed = 0;
 
 	for (l = 0; l < LIST_SIZE; l++) {
-		list_for_each_entry_safe_reverse(b, tmp, &c->lru[l], lru_list)
-			if (!__cleanup_old_buffer(b, sc->gfp_mask, 0) &&
-			    !--nr_to_scan)
-				return;
-		dm_bufio_cond_resched();
+		list_for_each_entry_safe_reverse(b, tmp, &c->lru[l], lru_list) {
+			freed += __cleanup_old_buffer(b, gfp_mask, 0);
+			if (!--nr_to_scan)
+				return freed;
+			dm_bufio_cond_resched();
+		}
 	}
+	return freed;
 }
 
-static int shrink(struct shrinker *shrinker, struct shrink_control *sc)
+static unsigned long
+dm_bufio_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
-	struct dm_bufio_client *c =
-	    container_of(shrinker, struct dm_bufio_client, shrinker);
-	unsigned long r;
-	unsigned long nr_to_scan = sc->nr_to_scan;
+	struct dm_bufio_client *c;
+	unsigned long freed;
 
-	if (sc->gfp_mask & __GFP_IO)
+	c = container_of(shrink, struct dm_bufio_client, shrinker);
+	if (sc->gfp_mask & __GFP_FS)
 		dm_bufio_lock(c);
 	else if (!dm_bufio_trylock(c))
-		return !nr_to_scan ? 0 : -1;
+		return SHRINK_STOP;
 
-	if (nr_to_scan)
-		__scan(c, nr_to_scan, sc);
-
-	r = c->n_buffers[LIST_CLEAN] + c->n_buffers[LIST_DIRTY];
-	if (r > INT_MAX)
-		r = INT_MAX;
-
+	freed  = __scan(c, sc->nr_to_scan, sc->gfp_mask);
 	dm_bufio_unlock(c);
+	return freed;
+}
 
-	return r;
+static unsigned long
+dm_bufio_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
+{
+	struct dm_bufio_client *c;
+	unsigned long count;
+
+	c = container_of(shrink, struct dm_bufio_client, shrinker);
+	if (sc->gfp_mask & __GFP_FS)
+		dm_bufio_lock(c);
+	else if (!dm_bufio_trylock(c))
+		return 0;
+
+	count = c->n_buffers[LIST_CLEAN] + c->n_buffers[LIST_DIRTY];
+	dm_bufio_unlock(c);
+	return count;
 }
 
 /*
@@ -1380,7 +1546,7 @@ struct dm_bufio_client *dm_bufio_client_create(struct block_device *bdev, unsign
 	BUG_ON(block_size < 1 << SECTOR_SHIFT ||
 	       (block_size & (block_size - 1)));
 
-	c = kmalloc(sizeof(*c), GFP_KERNEL);
+	c = kzalloc(sizeof(*c), GFP_KERNEL);
 	if (!c) {
 		r = -ENOMEM;
 		goto bad_client;
@@ -1414,6 +1580,8 @@ struct dm_bufio_client *dm_bufio_client_create(struct block_device *bdev, unsign
 	mutex_init(&c->lock);
 	INIT_LIST_HEAD(&c->reserved_buffers);
 	c->need_reserved_buffers = reserved_buffers;
+
+	c->minimum_buffers = DM_BUFIO_MIN_BUFFERS;
 
 	init_waitqueue_head(&c->free_buffer_wait);
 	c->async_write_error = 0;
@@ -1464,7 +1632,8 @@ struct dm_bufio_client *dm_bufio_client_create(struct block_device *bdev, unsign
 	__cache_size_refresh();
 	mutex_unlock(&dm_bufio_clients_lock);
 
-	c->shrinker.shrink = shrink;
+	c->shrinker.count_objects = dm_bufio_shrink_count;
+	c->shrinker.scan_objects = dm_bufio_shrink_scan;
 	c->shrinker.seeks = 1;
 	c->shrinker.batch = 0;
 	register_shrinker(&c->shrinker);
@@ -1536,10 +1705,8 @@ EXPORT_SYMBOL_GPL(dm_bufio_client_destroy);
 
 static void cleanup_old_buffers(void)
 {
-	unsigned long max_age = dm_bufio_max_age;
+	unsigned long max_age = ACCESS_ONCE(dm_bufio_max_age);
 	struct dm_bufio_client *c;
-
-	barrier();
 
 	if (max_age > ULONG_MAX / HZ)
 		max_age = ULONG_MAX / HZ;
@@ -1553,7 +1720,7 @@ static void cleanup_old_buffers(void)
 			struct dm_buffer *b;
 			b = list_entry(c->lru[LIST_CLEAN].prev,
 				       struct dm_buffer, lru_list);
-			if (__cleanup_old_buffer(b, 0, max_age * HZ))
+			if (!__cleanup_old_buffer(b, 0, max_age * HZ))
 				break;
 			dm_bufio_cond_resched();
 		}
@@ -1586,6 +1753,11 @@ static void work_fn(struct work_struct *w)
 static int __init dm_bufio_init(void)
 {
 	__u64 mem;
+
+	dm_bufio_allocated_kmem_cache = 0;
+	dm_bufio_allocated_get_free_pages = 0;
+	dm_bufio_allocated_vmalloc = 0;
+	dm_bufio_current_allocated = 0;
 
 	memset(&dm_bufio_caches, 0, sizeof dm_bufio_caches);
 	memset(&dm_bufio_cache_names, 0, sizeof dm_bufio_cache_names);

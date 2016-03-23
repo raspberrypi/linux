@@ -46,6 +46,7 @@ bool ccid_support_check(u8 const *ccid_array, u8 array_len)
  * ccid_get_builtin_ccids  -  Populate a list of built-in CCIDs
  * @ccid_array: pointer to copy into
  * @array_len: value to return length into
+ *
  * This function allocates memory - caller must see that it is freed after use.
  */
 int ccid_get_builtin_ccids(u8 **ccid_array, u8 *array_len)
@@ -98,7 +99,7 @@ static void ccid_kmem_cache_destroy(struct kmem_cache *slab)
 		kmem_cache_destroy(slab);
 }
 
-static int ccid_activate(struct ccid_operations *ccid_ops)
+static int __init ccid_activate(struct ccid_operations *ccid_ops)
 {
 	int err = -ENOBUFS;
 

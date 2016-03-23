@@ -21,7 +21,6 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
-#include <linux/init.h>
 #include <asm/io.h>
 #include <asm/byteorder.h>
 
@@ -53,6 +52,11 @@
 /* Atmel chips */
 #define AT49BV640D	0x02de
 #define AT49BV640DT	0x02db
+/* Sharp chips */
+#define LH28F640BFHE_PTTL90	0x00b0
+#define LH28F640BFHE_PBTL90	0x00b1
+#define LH28F640BFHE_PTTL70A	0x00b2
+#define LH28F640BFHE_PBTL70A	0x00b3
 
 static int cfi_intelext_read (struct mtd_info *, loff_t, size_t, size_t *, u_char *);
 static int cfi_intelext_write_words(struct mtd_info *, loff_t, size_t, size_t *, const u_char *);
@@ -69,10 +73,10 @@ static int cfi_intelext_read_fact_prot_reg (struct mtd_info *, loff_t, size_t, s
 static int cfi_intelext_read_user_prot_reg (struct mtd_info *, loff_t, size_t, size_t *, u_char *);
 static int cfi_intelext_write_user_prot_reg (struct mtd_info *, loff_t, size_t, size_t *, u_char *);
 static int cfi_intelext_lock_user_prot_reg (struct mtd_info *, loff_t, size_t);
-static int cfi_intelext_get_fact_prot_info (struct mtd_info *,
-					    struct otp_info *, size_t);
-static int cfi_intelext_get_user_prot_info (struct mtd_info *,
-					    struct otp_info *, size_t);
+static int cfi_intelext_get_fact_prot_info(struct mtd_info *, size_t,
+					   size_t *, struct otp_info *);
+static int cfi_intelext_get_user_prot_info(struct mtd_info *, size_t,
+					   size_t *, struct otp_info *);
 #endif
 static int cfi_intelext_suspend (struct mtd_info *);
 static void cfi_intelext_resume (struct mtd_info *);
@@ -87,7 +91,7 @@ static int cfi_intelext_partition_fixup(struct mtd_info *, struct cfi_private **
 
 static int cfi_intelext_point (struct mtd_info *mtd, loff_t from, size_t len,
 		     size_t *retlen, void **virt, resource_size_t *phys);
-static void cfi_intelext_unpoint(struct mtd_info *mtd, loff_t from, size_t len);
+static int cfi_intelext_unpoint(struct mtd_info *mtd, loff_t from, size_t len);
 
 static int chip_ready (struct map_info *map, struct flchip *chip, unsigned long adr, int mode);
 static int get_chip(struct map_info *map, struct flchip *chip, unsigned long adr, int mode);
@@ -259,12 +263,42 @@ static void fixup_st_m28w320cb(struct mtd_info *mtd)
 		(cfi->cfiq->EraseRegionInfo[1] & 0xffff0000) | 0x3e;
 };
 
+static int is_LH28F640BF(struct cfi_private *cfi)
+{
+	/* Sharp LH28F640BF Family */
+	if (cfi->mfr == CFI_MFR_SHARP && (
+	    cfi->id == LH28F640BFHE_PTTL90 || cfi->id == LH28F640BFHE_PBTL90 ||
+	    cfi->id == LH28F640BFHE_PTTL70A || cfi->id == LH28F640BFHE_PBTL70A))
+		return 1;
+	return 0;
+}
+
+static void fixup_LH28F640BF(struct mtd_info *mtd)
+{
+	struct map_info *map = mtd->priv;
+	struct cfi_private *cfi = map->fldrv_priv;
+	struct cfi_pri_intelext *extp = cfi->cmdset_priv;
+
+	/* Reset the Partition Configuration Register on LH28F640BF
+	 * to a single partition (PCR = 0x000): PCR is embedded into A0-A15. */
+	if (is_LH28F640BF(cfi)) {
+		printk(KERN_INFO "Reset Partition Config. Register: 1 Partition of 4 planes\n");
+		map_write(map, CMD(0x60), 0);
+		map_write(map, CMD(0x04), 0);
+
+		/* We have set one single partition thus
+		 * Simultaneous Operations are not allowed */
+		printk(KERN_INFO "cfi_cmdset_0001: Simultaneous Operations disabled\n");
+		extp->FeatureSupport &= ~512;
+	}
+}
+
 static void fixup_use_point(struct mtd_info *mtd)
 {
 	struct map_info *map = mtd->priv;
-	if (!mtd->point && map_is_linear(map)) {
-		mtd->point   = cfi_intelext_point;
-		mtd->unpoint = cfi_intelext_unpoint;
+	if (!mtd->_point && map_is_linear(map)) {
+		mtd->_point   = cfi_intelext_point;
+		mtd->_unpoint = cfi_intelext_unpoint;
 	}
 }
 
@@ -274,8 +308,8 @@ static void fixup_use_write_buffers(struct mtd_info *mtd)
 	struct cfi_private *cfi = map->fldrv_priv;
 	if (cfi->cfiq->BufWriteTimeoutTyp) {
 		printk(KERN_INFO "Using buffer write method\n" );
-		mtd->write = cfi_intelext_write_buffers;
-		mtd->writev = cfi_intelext_writev;
+		mtd->_write = cfi_intelext_write_buffers;
+		mtd->_writev = cfi_intelext_writev;
 	}
 }
 
@@ -310,6 +344,8 @@ static struct cfi_fixup cfi_fixup_table[] = {
 	{ CFI_MFR_ST, 0x00ba, /* M28W320CT */ fixup_st_m28w320ct },
 	{ CFI_MFR_ST, 0x00bb, /* M28W320CB */ fixup_st_m28w320cb },
 	{ CFI_MFR_INTEL, CFI_ID_ANY, fixup_unlock_powerup_lock },
+	{ CFI_MFR_SHARP, CFI_ID_ANY, fixup_unlock_powerup_lock },
+	{ CFI_MFR_SHARP, CFI_ID_ANY, fixup_LH28F640BF },
 	{ 0, 0, NULL }
 };
 
@@ -435,23 +471,21 @@ struct mtd_info *cfi_cmdset_0001(struct map_info *map, int primary)
 	int i;
 
 	mtd = kzalloc(sizeof(*mtd), GFP_KERNEL);
-	if (!mtd) {
-		printk(KERN_ERR "Failed to allocate memory for MTD device\n");
+	if (!mtd)
 		return NULL;
-	}
 	mtd->priv = map;
 	mtd->type = MTD_NORFLASH;
 
 	/* Fill in the default mtd operations */
-	mtd->erase   = cfi_intelext_erase_varsize;
-	mtd->read    = cfi_intelext_read;
-	mtd->write   = cfi_intelext_write_words;
-	mtd->sync    = cfi_intelext_sync;
-	mtd->lock    = cfi_intelext_lock;
-	mtd->unlock  = cfi_intelext_unlock;
-	mtd->is_locked = cfi_intelext_is_locked;
-	mtd->suspend = cfi_intelext_suspend;
-	mtd->resume  = cfi_intelext_resume;
+	mtd->_erase   = cfi_intelext_erase_varsize;
+	mtd->_read    = cfi_intelext_read;
+	mtd->_write   = cfi_intelext_write_words;
+	mtd->_sync    = cfi_intelext_sync;
+	mtd->_lock    = cfi_intelext_lock;
+	mtd->_unlock  = cfi_intelext_unlock;
+	mtd->_is_locked = cfi_intelext_is_locked;
+	mtd->_suspend = cfi_intelext_suspend;
+	mtd->_resume  = cfi_intelext_resume;
 	mtd->flags   = MTD_CAP_NORFLASH;
 	mtd->name    = map->name;
 	mtd->writesize = 1;
@@ -564,10 +598,8 @@ static struct mtd_info *cfi_intelext_setup(struct mtd_info *mtd)
 	mtd->numeraseregions = cfi->cfiq->NumEraseRegions * cfi->numchips;
 	mtd->eraseregions = kmalloc(sizeof(struct mtd_erase_region_info)
 			* mtd->numeraseregions, GFP_KERNEL);
-	if (!mtd->eraseregions) {
-		printk(KERN_ERR "Failed to allocate memory for MTD erase region info\n");
+	if (!mtd->eraseregions)
 		goto setup_err;
-	}
 
 	for (i=0; i<cfi->cfiq->NumEraseRegions; i++) {
 		unsigned long ernum, ersize;
@@ -600,12 +632,12 @@ static struct mtd_info *cfi_intelext_setup(struct mtd_info *mtd)
 	}
 
 #ifdef CONFIG_MTD_OTP
-	mtd->read_fact_prot_reg = cfi_intelext_read_fact_prot_reg;
-	mtd->read_user_prot_reg = cfi_intelext_read_user_prot_reg;
-	mtd->write_user_prot_reg = cfi_intelext_write_user_prot_reg;
-	mtd->lock_user_prot_reg = cfi_intelext_lock_user_prot_reg;
-	mtd->get_fact_prot_info = cfi_intelext_get_fact_prot_info;
-	mtd->get_user_prot_info = cfi_intelext_get_user_prot_info;
+	mtd->_read_fact_prot_reg = cfi_intelext_read_fact_prot_reg;
+	mtd->_read_user_prot_reg = cfi_intelext_read_user_prot_reg;
+	mtd->_write_user_prot_reg = cfi_intelext_write_user_prot_reg;
+	mtd->_lock_user_prot_reg = cfi_intelext_lock_user_prot_reg;
+	mtd->_get_fact_prot_info = cfi_intelext_get_fact_prot_info;
+	mtd->_get_user_prot_info = cfi_intelext_get_user_prot_info;
 #endif
 
 	/* This function has the potential to distort the reality
@@ -1017,8 +1049,6 @@ static void put_chip(struct map_info *map, struct flchip *chip, unsigned long ad
 	case FL_READY:
 	case FL_STATUS:
 	case FL_JEDEC_QUERY:
-		/* We should really make set_vpp() count, rather than doing this */
-		DISABLE_VPP(map);
 		break;
 	default:
 		printk(KERN_ERR "%s: put_chip() called with oldstate %d!!\n", map->name, chip->oldstate);
@@ -1324,7 +1354,7 @@ static int cfi_intelext_point(struct mtd_info *mtd, loff_t from, size_t len,
 	int chipnum;
 	int ret = 0;
 
-	if (!map->virt || (from + len > mtd->size))
+	if (!map->virt)
 		return -EINVAL;
 
 	/* Now lock the chip(s) to POINT state */
@@ -1334,7 +1364,6 @@ static int cfi_intelext_point(struct mtd_info *mtd, loff_t from, size_t len,
 	ofs = from - (chipnum << cfi->chipshift);
 
 	*virt = map->virt + cfi->chips[chipnum].start + ofs;
-	*retlen = 0;
 	if (phys)
 		*phys = map->phys + cfi->chips[chipnum].start + ofs;
 
@@ -1369,12 +1398,12 @@ static int cfi_intelext_point(struct mtd_info *mtd, loff_t from, size_t len,
 	return 0;
 }
 
-static void cfi_intelext_unpoint(struct mtd_info *mtd, loff_t from, size_t len)
+static int cfi_intelext_unpoint(struct mtd_info *mtd, loff_t from, size_t len)
 {
 	struct map_info *map = mtd->priv;
 	struct cfi_private *cfi = map->fldrv_priv;
 	unsigned long ofs;
-	int chipnum;
+	int chipnum, err = 0;
 
 	/* Now unlock the chip(s) POINT state */
 
@@ -1382,7 +1411,7 @@ static void cfi_intelext_unpoint(struct mtd_info *mtd, loff_t from, size_t len)
 	chipnum = (from >> cfi->chipshift);
 	ofs = from - (chipnum <<  cfi->chipshift);
 
-	while (len) {
+	while (len && !err) {
 		unsigned long thislen;
 		struct flchip *chip;
 
@@ -1400,8 +1429,10 @@ static void cfi_intelext_unpoint(struct mtd_info *mtd, loff_t from, size_t len)
 			chip->ref_point_counter--;
 			if(chip->ref_point_counter == 0)
 				chip->state = FL_READY;
-		} else
-			printk(KERN_ERR "%s: Warning: unpoint called on non pointed region\n", map->name); /* Should this give an error? */
+		} else {
+			printk(KERN_ERR "%s: Error: unpoint called on non pointed region\n", map->name);
+			err = -EINVAL;
+		}
 
 		put_chip(map, chip, chip->start);
 		mutex_unlock(&chip->mutex);
@@ -1410,6 +1441,8 @@ static void cfi_intelext_unpoint(struct mtd_info *mtd, loff_t from, size_t len)
 		ofs = 0;
 		chipnum++;
 	}
+
+	return err;
 }
 
 static inline int do_read_onechip(struct map_info *map, struct flchip *chip, loff_t adr, size_t len, u_char *buf)
@@ -1455,8 +1488,6 @@ static int cfi_intelext_read (struct mtd_info *mtd, loff_t from, size_t len, siz
 	/* ofs: offset within the first chip that the first read should start */
 	chipnum = (from >> cfi->chipshift);
 	ofs = from - (chipnum <<  cfi->chipshift);
-
-	*retlen = 0;
 
 	while (len) {
 		unsigned long thislen;
@@ -1551,7 +1582,8 @@ static int __xipram do_write_oneword(struct map_info *map, struct flchip *chip,
 	}
 
 	xip_enable(map, chip, adr);
- out:	put_chip(map, chip, adr);
+ out:	DISABLE_VPP(map);
+	put_chip(map, chip, adr);
 	mutex_unlock(&chip->mutex);
 	return ret;
 }
@@ -1564,10 +1596,6 @@ static int cfi_intelext_write_words (struct mtd_info *mtd, loff_t to , size_t le
 	int ret = 0;
 	int chipnum;
 	unsigned long ofs;
-
-	*retlen = 0;
-	if (!len)
-		return 0;
 
 	chipnum = to >> cfi->chipshift;
 	ofs = to  - (chipnum << cfi->chipshift);
@@ -1657,6 +1685,12 @@ static int __xipram do_write_buffer(struct map_info *map, struct flchip *chip,
 	adr += chip->start;
 	initial_adr = adr;
 	cmd_adr = adr & ~(wbufsize-1);
+
+	/* Sharp LH28F640BF chips need the first address for the
+	 * Page Buffer Program command. See Table 5 of
+	 * LH28F320BF, LH28F640BF, LH28F128BF Series (Appendix FUM00701) */
+	if (is_LH28F640BF(cfi))
+		cmd_adr = adr;
 
 	/* Let's determine this according to the interleave only once */
 	write_cmd = (cfi->cfiq->P_ID != P_ID_INTEL_PERFORMANCE) ? CMD(0xe8) : CMD(0xe9);
@@ -1794,7 +1828,8 @@ static int __xipram do_write_buffer(struct map_info *map, struct flchip *chip,
 	}
 
 	xip_enable(map, chip, cmd_adr);
- out:	put_chip(map, chip, cmd_adr);
+ out:	DISABLE_VPP(map);
+	put_chip(map, chip, cmd_adr);
 	mutex_unlock(&chip->mutex);
 	return ret;
 }
@@ -1813,7 +1848,6 @@ static int cfi_intelext_writev (struct mtd_info *mtd, const struct kvec *vecs,
 	for (i = 0; i < count; i++)
 		len += vecs[i].iov_len;
 
-	*retlen = 0;
 	if (!len)
 		return 0;
 
@@ -1932,6 +1966,7 @@ static int __xipram do_erase_oneblock(struct map_info *map, struct flchip *chip,
 			ret = -EIO;
 		} else if (chipstatus & 0x20 && retries--) {
 			printk(KERN_DEBUG "block erase failed at 0x%08lx: status 0x%lx. Retrying...\n", adr, chipstatus);
+			DISABLE_VPP(map);
 			put_chip(map, chip, adr);
 			mutex_unlock(&chip->mutex);
 			goto retry;
@@ -1944,7 +1979,8 @@ static int __xipram do_erase_oneblock(struct map_info *map, struct flchip *chip,
 	}
 
 	xip_enable(map, chip, adr);
- out:	put_chip(map, chip, adr);
+ out:	DISABLE_VPP(map);
+	put_chip(map, chip, adr);
 	mutex_unlock(&chip->mutex);
 	return ret;
 }
@@ -2045,7 +2081,7 @@ static int __xipram do_xxlock_oneblock(struct map_info *map, struct flchip *chip
 {
 	struct cfi_private *cfi = map->fldrv_priv;
 	struct cfi_pri_intelext *extp = cfi->cmdset_priv;
-	int udelay;
+	int mdelay;
 	int ret;
 
 	adr += chip->start;
@@ -2074,9 +2110,17 @@ static int __xipram do_xxlock_oneblock(struct map_info *map, struct flchip *chip
 	 * If Instant Individual Block Locking supported then no need
 	 * to delay.
 	 */
-	udelay = (!extp || !(extp->FeatureSupport & (1 << 5))) ? 1000000/HZ : 0;
+	/*
+	 * Unlocking may take up to 1.4 seconds on some Intel flashes. So
+	 * lets use a max of 1.5 seconds (1500ms) as timeout.
+	 *
+	 * See "Clear Block Lock-Bits Time" on page 40 in
+	 * "3 Volt Intel StrataFlash Memory" 28F128J3,28F640J3,28F320J3 manual
+	 * from February 2003
+	 */
+	mdelay = (!extp || !(extp->FeatureSupport & (1 << 5))) ? 1500 : 0;
 
-	ret = WAIT_TIMEOUT(map, chip, adr, udelay, udelay * 100);
+	ret = WAIT_TIMEOUT(map, chip, adr, mdelay, mdelay * 1000);
 	if (ret) {
 		map_write(map, CMD(0x70), adr);
 		chip->state = FL_STATUS;
@@ -2086,7 +2130,8 @@ static int __xipram do_xxlock_oneblock(struct map_info *map, struct flchip *chip
 	}
 
 	xip_enable(map, chip, adr);
-out:	put_chip(map, chip, adr);
+ out:	DISABLE_VPP(map);
+	put_chip(map, chip, adr);
 	mutex_unlock(&chip->mutex);
 	return ret;
 }
@@ -2392,24 +2437,19 @@ static int cfi_intelext_lock_user_prot_reg(struct mtd_info *mtd,
 				     NULL, do_otp_lock, 1);
 }
 
-static int cfi_intelext_get_fact_prot_info(struct mtd_info *mtd,
-					   struct otp_info *buf, size_t len)
-{
-	size_t retlen;
-	int ret;
+static int cfi_intelext_get_fact_prot_info(struct mtd_info *mtd, size_t len,
+					   size_t *retlen, struct otp_info *buf)
 
-	ret = cfi_intelext_otp_walk(mtd, 0, len, &retlen, (u_char *)buf, NULL, 0);
-	return ret ? : retlen;
+{
+	return cfi_intelext_otp_walk(mtd, 0, len, retlen, (u_char *)buf,
+				     NULL, 0);
 }
 
-static int cfi_intelext_get_user_prot_info(struct mtd_info *mtd,
-					   struct otp_info *buf, size_t len)
+static int cfi_intelext_get_user_prot_info(struct mtd_info *mtd, size_t len,
+					   size_t *retlen, struct otp_info *buf)
 {
-	size_t retlen;
-	int ret;
-
-	ret = cfi_intelext_otp_walk(mtd, 0, len, &retlen, (u_char *)buf, NULL, 1);
-	return ret ? : retlen;
+	return cfi_intelext_otp_walk(mtd, 0, len, retlen, (u_char *)buf,
+				     NULL, 1);
 }
 
 #endif
@@ -2483,7 +2523,7 @@ static int cfi_intelext_suspend(struct mtd_info *mtd)
 			   allowed to. Or should we return -EAGAIN, because the upper layers
 			   ought to have already shut down anything which was using the device
 			   anyway? The latter for now. */
-			printk(KERN_NOTICE "Flash device refused suspend due to active operation (state %d)\n", chip->oldstate);
+			printk(KERN_NOTICE "Flash device refused suspend due to active operation (state %d)\n", chip->state);
 			ret = -EAGAIN;
 		case FL_PM_SUSPENDED:
 			break;
@@ -2526,12 +2566,10 @@ static void cfi_intelext_restore_locks(struct mtd_info *mtd)
 		if (!region->lockmap)
 			continue;
 
-		for (block = 0; block < region->numblocks; block++) {
+		for_each_clear_bit(block, region->lockmap, region->numblocks) {
 			len = region->erasesize;
 			adr = region->offset + block * len;
-
-			if (!test_bit(block, region->lockmap))
-				cfi_intelext_unlock(mtd, adr, len);
+			cfi_intelext_unlock(mtd, adr, len);
 		}
 	}
 }
@@ -2552,6 +2590,8 @@ static void cfi_intelext_resume(struct mtd_info *mtd)
 
 		/* Go to known state. Chip may have been power cycled */
 		if (chip->state == FL_PM_SUSPENDED) {
+			/* Refresh LH28F640BF Partition Config. Register */
+			fixup_LH28F640BF(mtd);
 			map_write(map, CMD(0xFF), cfi->chips[i].start);
 			chip->oldstate = chip->state = FL_READY;
 			wake_up(&chip->wq);

@@ -25,7 +25,7 @@
 #include <linux/interrupt.h>
 #include <linux/sfi.h>
 #include <linux/module.h>
-#include <asm/mrst.h>
+#include <asm/intel-mid.h>
 #include <asm/intel_scu_ipc.h>
 
 /* IPC defines the following message types */
@@ -58,12 +58,48 @@
  *    message handler is called within firmware.
  */
 
-#define IPC_BASE_ADDR     0xFF11C000	/* IPC1 base register address */
-#define IPC_MAX_ADDR      0x100		/* Maximum IPC regisers */
 #define IPC_WWBUF_SIZE    20		/* IPC Write buffer Size */
 #define IPC_RWBUF_SIZE    20		/* IPC Read buffer Size */
-#define IPC_I2C_BASE      0xFF12B000	/* I2C control register base address */
-#define IPC_I2C_MAX_ADDR  0x10		/* Maximum I2C regisers */
+#define IPC_IOC	          0x100		/* IPC command register IOC bit */
+
+#define PCI_DEVICE_ID_LINCROFT		0x082a
+#define PCI_DEVICE_ID_PENWELL		0x080e
+#define PCI_DEVICE_ID_CLOVERVIEW	0x08ea
+#define PCI_DEVICE_ID_TANGIER		0x11a0
+
+/* intel scu ipc driver data*/
+struct intel_scu_ipc_pdata_t {
+	u32 ipc_base;
+	u32 i2c_base;
+	u32 ipc_len;
+	u32 i2c_len;
+	u8 irq_mode;
+};
+
+static struct intel_scu_ipc_pdata_t intel_scu_ipc_lincroft_pdata = {
+	.ipc_base = 0xff11c000,
+	.i2c_base = 0xff12b000,
+	.ipc_len = 0x100,
+	.i2c_len = 0x10,
+	.irq_mode = 0,
+};
+
+/* Penwell and Cloverview */
+static struct intel_scu_ipc_pdata_t intel_scu_ipc_penwell_pdata = {
+	.ipc_base = 0xff11c000,
+	.i2c_base = 0xff12b000,
+	.ipc_len = 0x100,
+	.i2c_len = 0x10,
+	.irq_mode = 1,
+};
+
+static struct intel_scu_ipc_pdata_t intel_scu_ipc_tangier_pdata = {
+	.ipc_base = 0xff009000,
+	.i2c_base  = 0xff00d000,
+	.ipc_len  = 0x100,
+	.i2c_len = 0x10,
+	.irq_mode = 0,
+};
 
 static int ipc_probe(struct pci_dev *dev, const struct pci_device_id *id);
 static void ipc_remove(struct pci_dev *pdev);
@@ -72,6 +108,8 @@ struct intel_scu_ipc_dev {
 	struct pci_dev *pdev;
 	void __iomem *ipc_base;
 	void __iomem *i2c_base;
+	struct completion cmd_complete;
+	u8 irq_mode;
 };
 
 static struct intel_scu_ipc_dev  ipcdev; /* Only one for now */
@@ -98,6 +136,10 @@ static DEFINE_MUTEX(ipclock); /* lock used to prevent multiple call to SCU */
  */
 static inline void ipc_command(u32 cmd) /* Send ipc command */
 {
+	if (ipcdev.irq_mode) {
+		reinit_completion(&ipcdev.cmd_complete);
+		writel(cmd | IPC_IOC, ipcdev.ipc_base);
+	}
 	writel(cmd, ipcdev.ipc_base);
 }
 
@@ -156,10 +198,34 @@ static inline int busy_loop(void) /* Wait till scu status is busy */
 	return 0;
 }
 
+/* Wait till ipc ioc interrupt is received or timeout in 3 HZ */
+static inline int ipc_wait_for_interrupt(void)
+{
+	int status;
+
+	if (!wait_for_completion_timeout(&ipcdev.cmd_complete, 3 * HZ)) {
+		struct device *dev = &ipcdev.pdev->dev;
+		dev_err(dev, "IPC timed out\n");
+		return -ETIMEDOUT;
+	}
+
+	status = ipc_read_status();
+
+	if ((status >> 1) & 1)
+		return -EIO;
+
+	return 0;
+}
+
+int intel_scu_ipc_check_status(void)
+{
+	return ipcdev.irq_mode ? ipc_wait_for_interrupt() : busy_loop();
+}
+
 /* Read/Write power control(PMIC in Langwell, MSIC in PenWell) registers */
 static int pwr_reg_rdwr(u16 *addr, u8 *data, u32 count, u32 op, u32 id)
 {
-	int i, nc, bytes, d;
+	int nc;
 	u32 offset = 0;
 	int err;
 	u8 cbuf[IPC_WWBUF_SIZE] = { };
@@ -174,55 +240,34 @@ static int pwr_reg_rdwr(u16 *addr, u8 *data, u32 count, u32 op, u32 id)
 		return -ENODEV;
 	}
 
-	if (platform != MRST_CPU_CHIP_PENWELL) {
-		bytes = 0;
-		d = 0;
-		for (i = 0; i < count; i++) {
-			cbuf[bytes++] = addr[i];
-			cbuf[bytes++] = addr[i] >> 8;
-			if (id != IPC_CMD_PCNTRL_R)
-				cbuf[bytes++] = data[d++];
-			if (id == IPC_CMD_PCNTRL_M)
-				cbuf[bytes++] = data[d++];
-		}
-		for (i = 0; i < bytes; i += 4)
-			ipc_data_writel(wbuf[i/4], i);
-		ipc_command(bytes << 16 |  id << 12 | 0 << 8 | op);
-	} else {
-		for (nc = 0; nc < count; nc++, offset += 2) {
-			cbuf[offset] = addr[nc];
-			cbuf[offset + 1] = addr[nc] >> 8;
-		}
-
-		if (id == IPC_CMD_PCNTRL_R) {
-			for (nc = 0, offset = 0; nc < count; nc++, offset += 4)
-				ipc_data_writel(wbuf[nc], offset);
-			ipc_command((count*2) << 16 |  id << 12 | 0 << 8 | op);
-		} else if (id == IPC_CMD_PCNTRL_W) {
-			for (nc = 0; nc < count; nc++, offset += 1)
-				cbuf[offset] = data[nc];
-			for (nc = 0, offset = 0; nc < count; nc++, offset += 4)
-				ipc_data_writel(wbuf[nc], offset);
-			ipc_command((count*3) << 16 |  id << 12 | 0 << 8 | op);
-		} else if (id == IPC_CMD_PCNTRL_M) {
-			cbuf[offset] = data[0];
-			cbuf[offset + 1] = data[1];
-			ipc_data_writel(wbuf[0], 0); /* Write wbuff */
-			ipc_command(4 << 16 |  id << 12 | 0 << 8 | op);
-		}
+	for (nc = 0; nc < count; nc++, offset += 2) {
+		cbuf[offset] = addr[nc];
+		cbuf[offset + 1] = addr[nc] >> 8;
 	}
 
-	err = busy_loop();
-	if (id == IPC_CMD_PCNTRL_R) { /* Read rbuf */
+	if (id == IPC_CMD_PCNTRL_R) {
+		for (nc = 0, offset = 0; nc < count; nc++, offset += 4)
+			ipc_data_writel(wbuf[nc], offset);
+		ipc_command((count*2) << 16 |  id << 12 | 0 << 8 | op);
+	} else if (id == IPC_CMD_PCNTRL_W) {
+		for (nc = 0; nc < count; nc++, offset += 1)
+			cbuf[offset] = data[nc];
+		for (nc = 0, offset = 0; nc < count; nc++, offset += 4)
+			ipc_data_writel(wbuf[nc], offset);
+		ipc_command((count*3) << 16 |  id << 12 | 0 << 8 | op);
+	} else if (id == IPC_CMD_PCNTRL_M) {
+		cbuf[offset] = data[0];
+		cbuf[offset + 1] = data[1];
+		ipc_data_writel(wbuf[0], 0); /* Write wbuff */
+		ipc_command(4 << 16 |  id << 12 | 0 << 8 | op);
+	}
+
+	err = intel_scu_ipc_check_status();
+	if (!err && id == IPC_CMD_PCNTRL_R) { /* Read rbuf */
 		/* Workaround: values are read as 0 without memcpy_fromio */
 		memcpy_fromio(cbuf, ipcdev.ipc_base + 0x90, 16);
-		if (platform != MRST_CPU_CHIP_PENWELL) {
-			for (nc = 0, offset = 2; nc < count; nc++, offset += 3)
-				data[nc] = ipc_data_readb(offset);
-		} else {
-			for (nc = 0; nc < count; nc++)
-				data[nc] = ipc_data_readb(nc);
-		}
+		for (nc = 0; nc < count; nc++)
+			data[nc] = ipc_data_readb(nc);
 	}
 	mutex_unlock(&ipclock);
 	return err;
@@ -412,7 +457,7 @@ int intel_scu_ipc_simple_command(int cmd, int sub)
 		return -ENODEV;
 	}
 	ipc_command(sub << 12 | cmd);
-	err = busy_loop();
+	err = intel_scu_ipc_check_status();
 	mutex_unlock(&ipclock);
 	return err;
 }
@@ -446,10 +491,12 @@ int intel_scu_ipc_command(int cmd, int sub, u32 *in, int inlen,
 		ipc_data_writel(*in++, 4 * i);
 
 	ipc_command((inlen << 16) | (sub << 12) | cmd);
-	err = busy_loop();
+	err = intel_scu_ipc_check_status();
 
-	for (i = 0; i < outlen; i++)
-		*out++ = ipc_data_readl(4 * i);
+	if (!err) {
+		for (i = 0; i < outlen; i++)
+			*out++ = ipc_data_readl(4 * i);
+	}
 
 	mutex_unlock(&ipclock);
 	return err;
@@ -503,148 +550,6 @@ int intel_scu_ipc_i2c_cntrl(u32 addr, u32 *data)
 }
 EXPORT_SYMBOL(intel_scu_ipc_i2c_cntrl);
 
-#define IPC_FW_LOAD_ADDR 0xFFFC0000 /* Storage location for FW image */
-#define IPC_FW_UPDATE_MBOX_ADDR 0xFFFFDFF4 /* Mailbox between ipc and scu */
-#define IPC_MAX_FW_SIZE 262144 /* 256K storage size for loading the FW image */
-#define IPC_FW_MIP_HEADER_SIZE 2048 /* Firmware MIP header size */
-/* IPC inform SCU to get ready for update process */
-#define IPC_CMD_FW_UPDATE_READY  0x10FE
-/* IPC inform SCU to go for update process */
-#define IPC_CMD_FW_UPDATE_GO     0x20FE
-/* Status code for fw update */
-#define IPC_FW_UPDATE_SUCCESS	0x444f4e45 /* Status code 'DONE' */
-#define IPC_FW_UPDATE_BADN	0x4241444E /* Status code 'BADN' */
-#define IPC_FW_TXHIGH		0x54784849 /* Status code 'IPC_FW_TXHIGH' */
-#define IPC_FW_TXLOW		0x54784c4f /* Status code 'IPC_FW_TXLOW' */
-
-struct fw_update_mailbox {
-	u32    status;
-	u32    scu_flag;
-	u32    driver_flag;
-};
-
-
-/**
- *	intel_scu_ipc_fw_update	-	 Firmware update utility
- *	@buffer: firmware buffer
- *	@length: size of firmware buffer
- *
- *	This function provides an interface to load the firmware into
- *	the SCU. Returns 0 on success or -1 on failure
- */
-int intel_scu_ipc_fw_update(u8 *buffer, u32 length)
-{
-	void __iomem *fw_update_base;
-	struct fw_update_mailbox __iomem *mailbox = NULL;
-	int retry_cnt = 0;
-	u32 status;
-
-	mutex_lock(&ipclock);
-	fw_update_base = ioremap_nocache(IPC_FW_LOAD_ADDR, (128*1024));
-	if (fw_update_base == NULL) {
-		mutex_unlock(&ipclock);
-		return -ENOMEM;
-	}
-	mailbox = ioremap_nocache(IPC_FW_UPDATE_MBOX_ADDR,
-					sizeof(struct fw_update_mailbox));
-	if (mailbox == NULL) {
-		iounmap(fw_update_base);
-		mutex_unlock(&ipclock);
-		return -ENOMEM;
-	}
-
-	ipc_command(IPC_CMD_FW_UPDATE_READY);
-
-	/* Intitialize mailbox */
-	writel(0, &mailbox->status);
-	writel(0, &mailbox->scu_flag);
-	writel(0, &mailbox->driver_flag);
-
-	/* Driver copies the 2KB MIP header to SRAM at 0xFFFC0000*/
-	memcpy_toio(fw_update_base, buffer, 0x800);
-
-	/* Driver sends "FW Update" IPC command (CMD_ID 0xFE; MSG_ID 0x02).
-	* Upon receiving this command, SCU will write the 2K MIP header
-	* from 0xFFFC0000 into NAND.
-	* SCU will write a status code into the Mailbox, and then set scu_flag.
-	*/
-
-	ipc_command(IPC_CMD_FW_UPDATE_GO);
-
-	/*Driver stalls until scu_flag is set */
-	while (readl(&mailbox->scu_flag) != 1) {
-		rmb();
-		mdelay(1);
-	}
-
-	/* Driver checks Mailbox status.
-	 * If the status is 'BADN', then abort (bad NAND).
-	 * If the status is 'IPC_FW_TXLOW', then continue.
-	 */
-	while (readl(&mailbox->status) != IPC_FW_TXLOW) {
-		rmb();
-		mdelay(10);
-	}
-	mdelay(10);
-
-update_retry:
-	if (retry_cnt > 5)
-		goto update_end;
-
-	if (readl(&mailbox->status) != IPC_FW_TXLOW)
-		goto update_end;
-	buffer = buffer + 0x800;
-	memcpy_toio(fw_update_base, buffer, 0x20000);
-	writel(1, &mailbox->driver_flag);
-	while (readl(&mailbox->scu_flag) == 1) {
-		rmb();
-		mdelay(1);
-	}
-
-	/* check for 'BADN' */
-	if (readl(&mailbox->status) == IPC_FW_UPDATE_BADN)
-		goto update_end;
-
-	while (readl(&mailbox->status) != IPC_FW_TXHIGH) {
-		rmb();
-		mdelay(10);
-	}
-	mdelay(10);
-
-	if (readl(&mailbox->status) != IPC_FW_TXHIGH)
-		goto update_end;
-
-	buffer = buffer + 0x20000;
-	memcpy_toio(fw_update_base, buffer, 0x20000);
-	writel(0, &mailbox->driver_flag);
-
-	while (mailbox->scu_flag == 0) {
-		rmb();
-		mdelay(1);
-	}
-
-	/* check for 'BADN' */
-	if (readl(&mailbox->status) == IPC_FW_UPDATE_BADN)
-		goto update_end;
-
-	if (readl(&mailbox->status) == IPC_FW_TXLOW) {
-		++retry_cnt;
-		goto update_retry;
-	}
-
-update_end:
-	status = readl(&mailbox->status);
-
-	iounmap(fw_update_base);
-	iounmap(mailbox);
-	mutex_unlock(&ipclock);
-
-	if (status == IPC_FW_UPDATE_SUCCESS)
-		return 0;
-	return -EIO;
-}
-EXPORT_SYMBOL(intel_scu_ipc_fw_update);
-
 /*
  * Interrupt handler gets called when ioc bit of IPC_COMMAND_REG set to 1
  * When ioc bit is set to 1, caller api must wait for interrupt handler called
@@ -654,6 +559,9 @@ EXPORT_SYMBOL(intel_scu_ipc_fw_update);
  */
 static irqreturn_t ioc(int irq, void *dev_id)
 {
+	if (ipcdev.irq_mode)
+		complete(&ipcdev.cmd_complete);
+
 	return IRQ_HANDLED;
 }
 
@@ -668,12 +576,16 @@ static irqreturn_t ioc(int irq, void *dev_id)
 static int ipc_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {
 	int err;
+	struct intel_scu_ipc_pdata_t *pdata;
 	resource_size_t pci_resource;
 
 	if (ipcdev.pdev)		/* We support only one SCU */
 		return -EBUSY;
 
+	pdata = (struct intel_scu_ipc_pdata_t *)id->driver_data;
+
 	ipcdev.pdev = pci_dev_get(dev);
+	ipcdev.irq_mode = pdata->irq_mode;
 
 	err = pci_enable_device(dev);
 	if (err)
@@ -687,14 +599,16 @@ static int ipc_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	if (!pci_resource)
 		return -ENOMEM;
 
+	init_completion(&ipcdev.cmd_complete);
+
 	if (request_irq(dev->irq, ioc, 0, "intel_scu_ipc", &ipcdev))
 		return -EBUSY;
 
-	ipcdev.ipc_base = ioremap_nocache(IPC_BASE_ADDR, IPC_MAX_ADDR);
+	ipcdev.ipc_base = ioremap_nocache(pdata->ipc_base, pdata->ipc_len);
 	if (!ipcdev.ipc_base)
 		return -ENOMEM;
 
-	ipcdev.i2c_base = ioremap_nocache(IPC_I2C_BASE, IPC_I2C_MAX_ADDR);
+	ipcdev.i2c_base = ioremap_nocache(pdata->i2c_base, pdata->i2c_len);
 	if (!ipcdev.i2c_base) {
 		iounmap(ipcdev.ipc_base);
 		return -ENOMEM;
@@ -726,10 +640,22 @@ static void ipc_remove(struct pci_dev *pdev)
 	intel_scu_devices_destroy();
 }
 
-static DEFINE_PCI_DEVICE_TABLE(pci_ids) = {
-	{PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x080e)},
-	{PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x082a)},
-	{ 0,}
+static const struct pci_device_id pci_ids[] = {
+	{
+		PCI_VDEVICE(INTEL, PCI_DEVICE_ID_LINCROFT),
+		(kernel_ulong_t)&intel_scu_ipc_lincroft_pdata,
+	}, {
+		PCI_VDEVICE(INTEL, PCI_DEVICE_ID_PENWELL),
+		(kernel_ulong_t)&intel_scu_ipc_penwell_pdata,
+	}, {
+		PCI_VDEVICE(INTEL, PCI_DEVICE_ID_CLOVERVIEW),
+		(kernel_ulong_t)&intel_scu_ipc_penwell_pdata,
+	}, {
+		PCI_VDEVICE(INTEL, PCI_DEVICE_ID_TANGIER),
+		(kernel_ulong_t)&intel_scu_ipc_tangier_pdata,
+	}, {
+		0,
+	}
 };
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
@@ -743,7 +669,7 @@ static struct pci_driver ipc_driver = {
 
 static int __init intel_scu_ipc_init(void)
 {
-	platform = mrst_identify_cpu();
+	platform = intel_mid_identify_cpu();
 	if (platform == 0)
 		return -ENODEV;
 	return  pci_register_driver(&ipc_driver);

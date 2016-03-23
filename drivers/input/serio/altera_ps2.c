@@ -12,7 +12,6 @@
  */
 
 #include <linux/module.h>
-#include <linux/init.h>
 #include <linux/input.h>
 #include <linux/serio.h>
 #include <linux/interrupt.h>
@@ -38,7 +37,7 @@ static irqreturn_t altera_ps2_rxint(int irq, void *dev_id)
 {
 	struct ps2if *ps2if = dev_id;
 	unsigned int status;
-	int handled = IRQ_NONE;
+	irqreturn_t handled = IRQ_NONE;
 
 	while ((status = readl(ps2if->base)) & 0xffff0000) {
 		serio_interrupt(ps2if->io, status & 0xff, 0);
@@ -75,13 +74,13 @@ static void altera_ps2_close(struct serio *io)
 {
 	struct ps2if *ps2if = io->port_data;
 
-	writel(0, ps2if->base); /* disable rx irq */
+	writel(0, ps2if->base + 4); /* disable rx irq */
 }
 
 /*
  * Add one device to this driver.
  */
-static int __devinit altera_ps2_probe(struct platform_device *pdev)
+static int altera_ps2_probe(struct platform_device *pdev)
 {
 	struct ps2if *ps2if;
 	struct serio *serio;
@@ -159,11 +158,10 @@ static int __devinit altera_ps2_probe(struct platform_device *pdev)
 /*
  * Remove one device from this driver.
  */
-static int __devexit altera_ps2_remove(struct platform_device *pdev)
+static int altera_ps2_remove(struct platform_device *pdev)
 {
 	struct ps2if *ps2if = platform_get_drvdata(pdev);
 
-	platform_set_drvdata(pdev, NULL);
 	serio_unregister_port(ps2if->io);
 	free_irq(ps2if->irq, ps2if);
 	iounmap(ps2if->base);
@@ -177,11 +175,10 @@ static int __devexit altera_ps2_remove(struct platform_device *pdev)
 #ifdef CONFIG_OF
 static const struct of_device_id altera_ps2_match[] = {
 	{ .compatible = "ALTR,ps2-1.0", },
+	{ .compatible = "altr,ps2-1.0", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, altera_ps2_match);
-#else /* CONFIG_OF */
-#define altera_ps2_match NULL
 #endif /* CONFIG_OF */
 
 /*
@@ -189,25 +186,14 @@ MODULE_DEVICE_TABLE(of, altera_ps2_match);
  */
 static struct platform_driver altera_ps2_driver = {
 	.probe		= altera_ps2_probe,
-	.remove		= __devexit_p(altera_ps2_remove),
+	.remove		= altera_ps2_remove,
 	.driver	= {
 		.name	= DRV_NAME,
 		.owner	= THIS_MODULE,
-		.of_match_table = altera_ps2_match,
+		.of_match_table = of_match_ptr(altera_ps2_match),
 	},
 };
-
-static int __init altera_ps2_init(void)
-{
-	return platform_driver_register(&altera_ps2_driver);
-}
-module_init(altera_ps2_init);
-
-static void __exit altera_ps2_exit(void)
-{
-	platform_driver_unregister(&altera_ps2_driver);
-}
-module_exit(altera_ps2_exit);
+module_platform_driver(altera_ps2_driver);
 
 MODULE_DESCRIPTION("Altera University Program PS2 controller driver");
 MODULE_AUTHOR("Thomas Chou <thomas@wytron.com.tw>");

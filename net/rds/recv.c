@@ -155,7 +155,7 @@ static void rds_recv_incoming_exthdrs(struct rds_incoming *inc, struct rds_sock 
  * tell us which roles the addrs in the conn are playing for this message.
  */
 void rds_recv_incoming(struct rds_connection *conn, __be32 saddr, __be32 daddr,
-		       struct rds_incoming *inc, gfp_t gfp, enum km_type km)
+		       struct rds_incoming *inc, gfp_t gfp)
 {
 	struct rds_sock *rs = NULL;
 	struct sock *sk;
@@ -402,7 +402,7 @@ int rds_recvmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 	struct rds_sock *rs = rds_sk_to_rs(sk);
 	long timeo;
 	int ret = 0, nonblock = msg_flags & MSG_DONTWAIT;
-	struct sockaddr_in *sin;
+	DECLARE_SOCKADDR(struct sockaddr_in *, sin, msg->msg_name);
 	struct rds_incoming *inc = NULL;
 
 	/* udp_recvmsg()->sock_recvtimeo() gets away without locking too.. */
@@ -479,12 +479,12 @@ int rds_recvmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg,
 
 		rds_stats_inc(s_recv_delivered);
 
-		sin = (struct sockaddr_in *)msg->msg_name;
 		if (sin) {
 			sin->sin_family = AF_INET;
 			sin->sin_port = inc->i_hdr.h_sport;
 			sin->sin_addr.s_addr = inc->i_saddr;
 			memset(sin->sin_zero, 0, sizeof(sin->sin_zero));
+			msg->msg_namelen = sizeof(*sin);
 		}
 		break;
 	}

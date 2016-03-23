@@ -32,9 +32,6 @@ static const struct snd_pcm_hardware nuc900_pcm_hardware = {
 					SNDRV_PCM_INFO_MMAP_VALID |
 					SNDRV_PCM_INFO_PAUSE |
 					SNDRV_PCM_INFO_RESUME,
-	.formats		= SNDRV_PCM_FMTBIT_S16_LE,
-	.channels_min		= 1,
-	.channels_max		= 2,
 	.buffer_bytes_max	= 4*1024,
 	.period_bytes_min	= 1*1024,
 	.period_bytes_max	= 4*1024,
@@ -314,16 +311,15 @@ static void nuc900_dma_free_dma_buffers(struct snd_pcm *pcm)
 	snd_pcm_lib_preallocate_free_for_all(pcm);
 }
 
-static u64 nuc900_pcm_dmamask = DMA_BIT_MASK(32);
 static int nuc900_dma_new(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_card *card = rtd->card->snd_card;
 	struct snd_pcm *pcm = rtd->pcm;
+	int ret;
 
-	if (!card->dev->dma_mask)
-		card->dev->dma_mask = &nuc900_pcm_dmamask;
-	if (!card->dev->coherent_dma_mask)
-		card->dev->coherent_dma_mask = DMA_BIT_MASK(32);
+	ret = dma_coerce_mask_and_coherent(card->dev, DMA_BIT_MASK(32));
+	if (ret)
+		return ret;
 
 	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV,
 		card->dev, 4 * 1024, (4 * 1024) - 1);
@@ -337,12 +333,12 @@ static struct snd_soc_platform_driver nuc900_soc_platform = {
 	.pcm_free	= nuc900_dma_free_dma_buffers,
 };
 
-static int __devinit nuc900_soc_platform_probe(struct platform_device *pdev)
+static int nuc900_soc_platform_probe(struct platform_device *pdev)
 {
 	return snd_soc_register_platform(&pdev->dev, &nuc900_soc_platform);
 }
 
-static int __devexit nuc900_soc_platform_remove(struct platform_device *pdev)
+static int nuc900_soc_platform_remove(struct platform_device *pdev)
 {
 	snd_soc_unregister_platform(&pdev->dev);
 	return 0;
@@ -355,20 +351,10 @@ static struct platform_driver nuc900_pcm_driver = {
 	},
 
 	.probe = nuc900_soc_platform_probe,
-	.remove = __devexit_p(nuc900_soc_platform_remove),
+	.remove = nuc900_soc_platform_remove,
 };
 
-static int __init nuc900_pcm_init(void)
-{
-	return platform_driver_register(&nuc900_pcm_driver);
-}
-module_init(nuc900_pcm_init);
-
-static void __exit nuc900_pcm_exit(void)
-{
-	platform_driver_unregister(&nuc900_pcm_driver);
-}
-module_exit(nuc900_pcm_exit);
+module_platform_driver(nuc900_pcm_driver);
 
 MODULE_AUTHOR("Wan ZongShun, <mcuos.com@gmail.com>");
 MODULE_DESCRIPTION("nuc900 Audio DMA module");

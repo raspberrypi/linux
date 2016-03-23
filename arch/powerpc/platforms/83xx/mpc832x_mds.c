@@ -1,5 +1,5 @@
 /*
- * Copyright (C) Freescale Semicondutor, Inc. 2006. All rights reserved.
+ * Copyright 2006 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Description:
  * MPC832xE MDS board specific routines.
@@ -26,7 +26,6 @@
 #include <linux/of_platform.h>
 #include <linux/of_device.h>
 
-#include <asm/system.h>
 #include <linux/atomic.h>
 #include <asm/time.h>
 #include <asm/io.h>

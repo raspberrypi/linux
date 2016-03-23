@@ -190,6 +190,9 @@ void mdio45_ethtool_gset_npage(const struct mdio_if_info *mdio,
 	int reg;
 	u32 speed;
 
+	BUILD_BUG_ON(MDIO_SUPPORTS_C22 != ETH_MDIO_SUPPORTS_C22);
+	BUILD_BUG_ON(MDIO_SUPPORTS_C45 != ETH_MDIO_SUPPORTS_C45);
+
 	ecmd->transceiver = XCVR_INTERNAL;
 	ecmd->phy_address = mdio->prtad;
 	ecmd->mdio_support =
@@ -337,34 +340,6 @@ void mdio45_ethtool_gset_npage(const struct mdio_if_info *mdio,
 	}
 }
 EXPORT_SYMBOL(mdio45_ethtool_gset_npage);
-
-/**
- * mdio45_ethtool_spauseparam_an - set auto-negotiated pause parameters
- * @mdio: MDIO interface
- * @ecmd: Ethtool request structure
- *
- * This function assumes that the PHY has an auto-negotiation MMD.  It
- * will enable and disable advertising of flow control as appropriate.
- */
-void mdio45_ethtool_spauseparam_an(const struct mdio_if_info *mdio,
-				   const struct ethtool_pauseparam *ecmd)
-{
-	int adv, old_adv;
-
-	WARN_ON(!(mdio->mmds & MDIO_DEVS_AN));
-
-	old_adv = mdio->mdio_read(mdio->dev, mdio->prtad, MDIO_MMD_AN,
-				  MDIO_AN_ADVERTISE);
-	adv = ((old_adv & ~(ADVERTISE_PAUSE_CAP | ADVERTISE_PAUSE_ASYM)) |
-	       mii_advertise_flowctrl((ecmd->rx_pause ? FLOW_CTRL_RX : 0) |
-				      (ecmd->tx_pause ? FLOW_CTRL_TX : 0)));
-	if (adv != old_adv) {
-		mdio->mdio_write(mdio->dev, mdio->prtad, MDIO_MMD_AN,
-				 MDIO_AN_ADVERTISE, adv);
-		mdio45_nway_restart(mdio);
-	}
-}
-EXPORT_SYMBOL(mdio45_ethtool_spauseparam_an);
 
 /**
  * mdio_mii_ioctl - MII ioctl interface for MDIO (clause 22 or 45) PHYs

@@ -108,10 +108,8 @@ static long st_receive(void *priv_data, struct sk_buff *skb)
 		return -EFAULT;
 	}
 
-	skb->dev = (void *) lhst->hdev;
-
 	/* Forward skb to HCI core layer */
-	err = hci_recv_frame(skb);
+	err = hci_recv_frame(lhst->hdev, skb);
 	if (err < 0) {
 		BT_ERR("Unable to push skb to HCI core(%d)", err);
 		return err;
@@ -161,7 +159,7 @@ static int ti_st_open(struct hci_dev *hdev)
 		return -EBUSY;
 
 	/* provide contexts for callbacks from ST */
-	hst = hdev->driver_data;
+	hst = hci_get_drvdata(hdev);
 
 	for (i = 0; i < MAX_BT_CHNL_IDS; i++) {
 		ti_st_proto[i].priv_data = hst;
@@ -236,7 +234,7 @@ done:
 static int ti_st_close(struct hci_dev *hdev)
 {
 	int err, i;
-	struct ti_st *hst = hdev->driver_data;
+	struct ti_st *hst = hci_get_drvdata(hdev);
 
 	if (!test_and_clear_bit(HCI_RUNNING, &hdev->flags))
 		return 0;
@@ -253,18 +251,15 @@ static int ti_st_close(struct hci_dev *hdev)
 	return err;
 }
 
-static int ti_st_send_frame(struct sk_buff *skb)
+static int ti_st_send_frame(struct hci_dev *hdev, struct sk_buff *skb)
 {
-	struct hci_dev *hdev;
 	struct ti_st *hst;
 	long len;
-
-	hdev = (struct hci_dev *)skb->dev;
 
 	if (!test_bit(HCI_RUNNING, &hdev->flags))
 		return -EBUSY;
 
-	hst = hdev->driver_data;
+	hst = hci_get_drvdata(hdev);
 
 	/* Prepend skb with frame type */
 	memcpy(skb_push(skb, 1), &bt_cb(skb)->pkt_type, 1);
@@ -291,47 +286,34 @@ static int ti_st_send_frame(struct sk_buff *skb)
 	return 0;
 }
 
-static void ti_st_destruct(struct hci_dev *hdev)
-{
-	BT_DBG("%s", hdev->name);
-	/* do nothing here, since platform remove
-	 * would free the hdev->driver_data
-	 */
-}
-
 static int bt_ti_probe(struct platform_device *pdev)
 {
 	static struct ti_st *hst;
 	struct hci_dev *hdev;
 	int err;
 
-	hst = kzalloc(sizeof(struct ti_st), GFP_KERNEL);
+	hst = devm_kzalloc(&pdev->dev, sizeof(struct ti_st), GFP_KERNEL);
 	if (!hst)
 		return -ENOMEM;
 
 	/* Expose "hciX" device to user space */
 	hdev = hci_alloc_dev();
-	if (!hdev) {
-		kfree(hst);
+	if (!hdev)
 		return -ENOMEM;
-	}
 
 	BT_DBG("hdev %p", hdev);
 
 	hst->hdev = hdev;
 	hdev->bus = HCI_UART;
-	hdev->driver_data = hst;
+	hci_set_drvdata(hdev, hst);
 	hdev->open = ti_st_open;
 	hdev->close = ti_st_close;
 	hdev->flush = NULL;
 	hdev->send = ti_st_send_frame;
-	hdev->destruct = ti_st_destruct;
-	hdev->owner = THIS_MODULE;
 
 	err = hci_register_dev(hdev);
 	if (err < 0) {
 		BT_ERR("Can't register HCI device error %d", err);
-		kfree(hst);
 		hci_free_dev(hdev);
 		return err;
 	}
@@ -357,7 +339,6 @@ static int bt_ti_remove(struct platform_device *pdev)
 	hci_unregister_dev(hdev);
 
 	hci_free_dev(hdev);
-	kfree(hst);
 
 	dev_set_drvdata(&pdev->dev, NULL);
 	return 0;
@@ -372,21 +353,7 @@ static struct platform_driver btwilink_driver = {
 	},
 };
 
-/* ------- Module Init/Exit interfaces ------ */
-static int __init btwilink_init(void)
-{
-	BT_INFO("Bluetooth Driver for TI WiLink - Version %s", VERSION);
-
-	return platform_driver_register(&btwilink_driver);
-}
-
-static void __exit btwilink_exit(void)
-{
-	platform_driver_unregister(&btwilink_driver);
-}
-
-module_init(btwilink_init);
-module_exit(btwilink_exit);
+module_platform_driver(btwilink_driver);
 
 /* ------ Module Info ------ */
 

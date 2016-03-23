@@ -449,7 +449,6 @@ static struct crypto_alg seed_alg = {
 	.cra_ctxsize		=	sizeof(struct seed_ctx),
 	.cra_alignmask		=	3,
 	.cra_module		=	THIS_MODULE,
-	.cra_list		=	LIST_HEAD_INIT(seed_alg.cra_list),
 	.cra_u			=	{
 		.cipher = {
 			.cia_min_keysize	=	SEED_KEY_SIZE,
@@ -477,3 +476,4 @@ module_exit(seed_fini);
 MODULE_DESCRIPTION("SEED Cipher Algorithm");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Hye-Shik Chang <perky@FreeBSD.org>, Kim Hyun <hkim@kisa.or.kr>");
+MODULE_ALIAS_CRYPTO("seed");

@@ -18,7 +18,6 @@
 ******************************************************************************/
 #include "rtllib.h"
 #include "rtl819x_BA.h"
-#include "rtl_core.h"
 
 static void ActivateBAEntry(struct rtllib_device *ieee, struct ba_record *pBA,
 			    u16 Time)
@@ -110,20 +109,20 @@ static struct sk_buff *rtllib_ADDBA(struct rtllib_device *ieee, u8 *Dst,
 	BAReq->frame_ctl = cpu_to_le16(RTLLIB_STYPE_MANAGE_ACT);
 
 	tag = (u8 *)skb_put(skb, 9);
-	*tag ++= ACT_CAT_BA;
-	*tag ++= type;
-	*tag ++= pBA->DialogToken;
+	*tag++ = ACT_CAT_BA;
+	*tag++ = type;
+	*tag++ = pBA->DialogToken;
 
 	if (ACT_ADDBARSP == type) {
 		RT_TRACE(COMP_DBG, "====>to send ADDBARSP\n");
-		tmp = cpu_to_le16(StatusCode);
+		tmp = StatusCode;
 		memcpy(tag, (u8 *)&tmp, 2);
 		tag += 2;
 	}
-	tmp = cpu_to_le16(pBA->BaParamSet.shortData);
+	tmp = pBA->BaParamSet.shortData;
 	memcpy(tag, (u8 *)&tmp, 2);
 	tag += 2;
-	tmp = cpu_to_le16(pBA->BaTimeoutValue);
+	tmp = pBA->BaTimeoutValue;
 	memcpy(tag, (u8 *)&tmp, 2);
 	tag += 2;
 
@@ -176,13 +175,13 @@ static struct sk_buff *rtllib_DELBA(struct rtllib_device *ieee, u8 *dst,
 
 	tag = (u8 *)skb_put(skb, 6);
 
-	*tag ++= ACT_CAT_BA;
-	*tag ++= ACT_DELBA;
+	*tag++ = ACT_CAT_BA;
+	*tag++ = ACT_DELBA;
 
-	tmp = cpu_to_le16(DelbaParamSet.shortData);
+	tmp = DelbaParamSet.shortData;
 	memcpy(tag, (u8 *)&tmp, 2);
 	tag += 2;
-	tmp = cpu_to_le16(ReasonCode);
+	tmp = ReasonCode;
 	memcpy(tag, (u8 *)&tmp, 2);
 	tag += 2;
 
@@ -197,6 +196,7 @@ static void rtllib_send_ADDBAReq(struct rtllib_device *ieee, u8 *dst,
 				 struct ba_record *pBA)
 {
 	struct sk_buff *skb = NULL;
+
 	skb = rtllib_ADDBA(ieee, dst, pBA, 0, ACT_ADDBAREQ);
 
 	if (skb) {
@@ -206,20 +206,19 @@ static void rtllib_send_ADDBAReq(struct rtllib_device *ieee, u8 *dst,
 		RTLLIB_DEBUG(RTLLIB_DL_ERR, "alloc skb error in function"
 			     " %s()\n", __func__);
 	}
-	return;
 }
 
 static void rtllib_send_ADDBARsp(struct rtllib_device *ieee, u8 *dst,
 				 struct ba_record *pBA, u16 StatusCode)
 {
 	struct sk_buff *skb = NULL;
+
 	skb = rtllib_ADDBA(ieee, dst, pBA, StatusCode, ACT_ADDBARSP);
 	if (skb)
 		softmac_mgmt_xmit(skb, ieee);
 	else
 		RTLLIB_DEBUG(RTLLIB_DL_ERR, "alloc skb error in function"
 			     " %s()\n", __func__);
-	return;
 }
 
 static void rtllib_send_DELBA(struct rtllib_device *ieee, u8 *dst,
@@ -227,13 +226,13 @@ static void rtllib_send_DELBA(struct rtllib_device *ieee, u8 *dst,
 			      u16 ReasonCode)
 {
 	struct sk_buff *skb = NULL;
+
 	skb = rtllib_DELBA(ieee, dst, pBA, TxRxSelect, ReasonCode);
 	if (skb)
 		softmac_mgmt_xmit(skb, ieee);
 	else
-		RTLLIB_DEBUG(RTLLIB_DL_ERR, "alloc skb error in func"
-			     "tion %s()\n", __func__);
-	return ;
+		RTLLIB_DEBUG(RTLLIB_DL_ERR, "alloc skb error in function"
+			     " %s()\n", __func__);
 }
 
 int rtllib_rx_ADDBAReq(struct rtllib_device *ieee, struct sk_buff *skb)
@@ -313,6 +312,7 @@ int rtllib_rx_ADDBAReq(struct rtllib_device *ieee, struct sk_buff *skb)
 OnADDBAReq_Fail:
 	{
 		struct ba_record BA;
+
 		BA.BaParamSet = *pBaParamSet;
 		BA.BaTimeoutValue = *pBaTimeoutVal;
 		BA.DialogToken = *pDialogToken;
@@ -373,7 +373,7 @@ int rtllib_rx_ADDBARsp(struct rtllib_device *ieee, struct sk_buff *skb)
 	pAdmittedBA = &pTS->TxAdmittedBARecord;
 
 
-	if ((pAdmittedBA->bValid == true)) {
+	if (pAdmittedBA->bValid == true) {
 		RTLLIB_DEBUG(RTLLIB_DL_BA, "OnADDBARsp(): Recv ADDBA Rsp."
 			     " Drop because already admit it!\n");
 		return -1;
@@ -417,6 +417,7 @@ int rtllib_rx_ADDBARsp(struct rtllib_device *ieee, struct sk_buff *skb)
 OnADDBARsp_Reject:
 	{
 		struct ba_record BA;
+
 		BA.BaParamSet = *pBaParamSet;
 		rtllib_send_DELBA(ieee, dst, &BA, TX_DIR, ReasonCode);
 		return 0;
@@ -562,5 +563,4 @@ void RxBaInactTimeout(unsigned long data)
 	rtllib_send_DELBA(ieee, pRxTs->TsCommonInfo.Addr,
 			  &pRxTs->RxAdmittedBARecord, RX_DIR,
 			  DELBA_REASON_TIMEOUT);
-	return ;
 }

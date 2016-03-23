@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) 82576 Virtual Function Linux driver
-  Copyright(c) 2009 - 2010 Intel Corporation.
+  Copyright(c) 2009 - 2012 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -154,7 +154,7 @@ static s32 e1000_reset_hw_vf(struct e1000_hw *hw)
 		ret_val = mbx->ops.read_posted(hw, msgbuf, 3);
 		if (!ret_val) {
 			if (msgbuf[0] == (E1000_VF_RESET | E1000_VT_MSGTYPE_ACK))
-				memcpy(hw->mac.perm_addr, addr, 6);
+				memcpy(hw->mac.perm_addr, addr, ETH_ALEN);
 			else
 				ret_val = -E1000_ERR_MAC_INIT;
 		}
@@ -246,7 +246,7 @@ static void e1000_update_mc_addr_list_vf(struct e1000_hw *hw,
 	for (i = 0; i < cnt; i++) {
 		hash_value = e1000_hash_mc_addr_vf(hw, mc_addr_list);
 		hash_list[i] = hash_value & 0x0FFFF;
-		mc_addr_list += ETH_ADDR_LEN;
+		mc_addr_list += ETH_ALEN;
 	}
 
 	mbx->ops.write_posted(hw, msgbuf, E1000_VFMAILBOX_SIZE);
@@ -283,7 +283,8 @@ static s32 e1000_set_vfta_vf(struct e1000_hw *hw, u16 vid, bool set)
 	return err;
 }
 
-/** e1000_rlpml_set_vf - Set the maximum receive packet length
+/**
+ *  e1000_rlpml_set_vf - Set the maximum receive packet length
  *  @hw: pointer to the HW structure
  *  @max_size: value to assign to max frame size
  **/
@@ -302,7 +303,7 @@ void e1000_rlpml_set_vf(struct e1000_hw *hw, u16 max_size)
  *  e1000_rar_set_vf - set device MAC address
  *  @hw: pointer to the HW structure
  *  @addr: pointer to the receive address
- *  @index receive address array register
+ *  @index: receive address array register
  **/
 static void e1000_rar_set_vf(struct e1000_hw *hw, u8 * addr, u32 index)
 {
@@ -313,7 +314,7 @@ static void e1000_rar_set_vf(struct e1000_hw *hw, u8 * addr, u32 index)
 
 	memset(msgbuf, 0, 12);
 	msgbuf[0] = E1000_VF_SET_MAC_ADDR;
-	memcpy(msg_addr, addr, 6);
+	memcpy(msg_addr, addr, ETH_ALEN);
 	ret_val = mbx->ops.write_posted(hw, msgbuf, 3);
 
 	if (!ret_val)
@@ -333,10 +334,7 @@ static void e1000_rar_set_vf(struct e1000_hw *hw, u8 * addr, u32 index)
  **/
 static s32 e1000_read_mac_addr_vf(struct e1000_hw *hw)
 {
-	int i;
-
-	for (i = 0; i < ETH_ADDR_LEN; i++)
-		hw->mac.addr[i] = hw->mac.perm_addr[i];
+	memcpy(hw->mac.addr, hw->mac.perm_addr, ETH_ALEN);
 
 	return E1000_SUCCESS;
 }

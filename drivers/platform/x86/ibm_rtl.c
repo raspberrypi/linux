@@ -33,6 +33,8 @@
 #include <linux/mutex.h>
 #include <asm/bios_ebda.h>
 
+#include <asm-generic/io-64-nonatomic-lo-hi.h>
+
 static bool force;
 module_param(force, bool, 0);
 MODULE_PARM_DESC(force, "Force driver load, ignore DMI data");
@@ -82,19 +84,6 @@ static void __iomem *ebda_map;
 static void __iomem *rtl_cmd_addr;
 static u8 rtl_cmd_type;
 static u8 rtl_cmd_width;
-
-#ifndef readq
-static inline __u64 readq(const volatile void __iomem *addr)
-{
-	const volatile u32 __iomem *p = addr;
-	u32 low, high;
-
-	low = readl(p);
-	high = readl(p + 1);
-
-	return low + ((u64)high << 32);
-}
-#endif
 
 static void __iomem *rtl_port_map(phys_addr_t addr, unsigned long len)
 {
@@ -255,7 +244,7 @@ static int __init ibm_rtl_init(void) {
 	if (force)
 		pr_warn("module loaded by force\n");
 	/* first ensure that we are running on IBM HW */
-	else if (efi_enabled || !dmi_check_system(ibm_rtl_dmi_table))
+	else if (efi_enabled(EFI_BOOT) || !dmi_check_system(ibm_rtl_dmi_table))
 		return -ENODEV;
 
 	/* Get the address for the Extended BIOS Data Area */

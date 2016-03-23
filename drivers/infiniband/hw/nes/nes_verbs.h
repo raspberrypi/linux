@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006 - 2009 Intel Corporation.  All rights reserved.
+ * Copyright (c) 2006 - 2011 Intel Corporation.  All rights reserved.
  * Copyright (c) 2005 Open Grid Computing, Inc. All rights reserved.
  *
  * This software is available to you under a choice of one of two
@@ -184,5 +184,6 @@ struct nes_qp {
 	u8                    pau_busy;
 	u8                    pau_pending;
 	u8                    pau_state;
+	__u64                 nesuqp_addr;
 };
 #endif			/* NES_VERBS_H */

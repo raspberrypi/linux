@@ -40,7 +40,7 @@ static int lpddr_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
 static int lpddr_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
 static int lpddr_point(struct mtd_info *mtd, loff_t adr, size_t len,
 			size_t *retlen, void **mtdbuf, resource_size_t *phys);
-static void lpddr_unpoint(struct mtd_info *mtd, loff_t adr, size_t len);
+static int lpddr_unpoint(struct mtd_info *mtd, loff_t adr, size_t len);
 static int get_chip(struct map_info *map, struct flchip *chip, int mode);
 static int chip_ready(struct map_info *map, struct flchip *chip, int mode);
 static void put_chip(struct map_info *map, struct flchip *chip);
@@ -55,34 +55,25 @@ struct mtd_info *lpddr_cmdset(struct map_info *map)
 	int i, j;
 
 	mtd = kzalloc(sizeof(*mtd), GFP_KERNEL);
-	if (!mtd) {
-		printk(KERN_ERR "Failed to allocate memory for MTD device\n");
+	if (!mtd)
 		return NULL;
-	}
 	mtd->priv = map;
 	mtd->type = MTD_NORFLASH;
 
 	/* Fill in the default mtd operations */
-	mtd->read = lpddr_read;
+	mtd->_read = lpddr_read;
 	mtd->type = MTD_NORFLASH;
 	mtd->flags = MTD_CAP_NORFLASH;
 	mtd->flags &= ~MTD_BIT_WRITEABLE;
-	mtd->erase = lpddr_erase;
-	mtd->write = lpddr_write_buffers;
-	mtd->writev = lpddr_writev;
-	mtd->read_oob = NULL;
-	mtd->write_oob = NULL;
-	mtd->sync = NULL;
-	mtd->lock = lpddr_lock;
-	mtd->unlock = lpddr_unlock;
-	mtd->suspend = NULL;
-	mtd->resume = NULL;
+	mtd->_erase = lpddr_erase;
+	mtd->_write = lpddr_write_buffers;
+	mtd->_writev = lpddr_writev;
+	mtd->_lock = lpddr_lock;
+	mtd->_unlock = lpddr_unlock;
 	if (map_is_linear(map)) {
-		mtd->point = lpddr_point;
-		mtd->unpoint = lpddr_unpoint;
+		mtd->_point = lpddr_point;
+		mtd->_unpoint = lpddr_unpoint;
 	}
-	mtd->block_isbad = NULL;
-	mtd->block_markbad = NULL;
 	mtd->size = 1 << lpddr->qinfo->DevSizeShift;
 	mtd->erasesize = 1 << lpddr->qinfo->UniformBlockSizeShift;
 	mtd->writesize = 1 << lpddr->qinfo->BufSizeShift;
@@ -395,7 +386,7 @@ static void put_chip(struct map_info *map, struct flchip *chip)
 	wake_up(&chip->wq);
 }
 
-int do_write_buffer(struct map_info *map, struct flchip *chip,
+static int do_write_buffer(struct map_info *map, struct flchip *chip,
 			unsigned long adr, const struct kvec **pvec,
 			unsigned long *pvec_seek, int len)
 {
@@ -476,7 +467,7 @@ int do_write_buffer(struct map_info *map, struct flchip *chip,
 	return ret;
 }
 
-int do_erase_oneblock(struct mtd_info *mtd, loff_t adr)
+static int do_erase_oneblock(struct mtd_info *mtd, loff_t adr)
 {
 	struct map_info *map = mtd->priv;
 	struct lpddr_private *lpddr = map->fldrv_priv;
@@ -537,14 +528,12 @@ static int lpddr_point(struct mtd_info *mtd, loff_t adr, size_t len,
 	struct flchip *chip = &lpddr->chips[chipnum];
 	int ret = 0;
 
-	if (!map->virt || (adr + len > mtd->size))
+	if (!map->virt)
 		return -EINVAL;
 
 	/* ofs: offset within the first chip that the first read should start */
 	ofs = adr - (chipnum << lpddr->chipshift);
-
 	*mtdbuf = (void *)map->virt + chip->start + ofs;
-	*retlen = 0;
 
 	while (len) {
 		unsigned long thislen;
@@ -582,11 +571,11 @@ static int lpddr_point(struct mtd_info *mtd, loff_t adr, size_t len,
 	return 0;
 }
 
-static void lpddr_unpoint (struct mtd_info *mtd, loff_t adr, size_t len)
+static int lpddr_unpoint (struct mtd_info *mtd, loff_t adr, size_t len)
 {
 	struct map_info *map = mtd->priv;
 	struct lpddr_private *lpddr = map->fldrv_priv;
-	int chipnum = adr >> lpddr->chipshift;
+	int chipnum = adr >> lpddr->chipshift, err = 0;
 	unsigned long ofs;
 
 	/* ofs: offset within the first chip that the first read should start */
@@ -610,9 +599,11 @@ static void lpddr_unpoint (struct mtd_info *mtd, loff_t adr, size_t len)
 			chip->ref_point_counter--;
 			if (chip->ref_point_counter == 0)
 				chip->state = FL_READY;
-		} else
+		} else {
 			printk(KERN_WARNING "%s: Warning: unpoint called on non"
 					"pointed region\n", map->name);
+			err = -EINVAL;
+		}
 
 		put_chip(map, chip);
 		mutex_unlock(&chip->mutex);
@@ -621,6 +612,8 @@ static void lpddr_unpoint (struct mtd_info *mtd, loff_t adr, size_t len)
 		ofs = 0;
 		chipnum++;
 	}
+
+	return err;
 }
 
 static int lpddr_write_buffers(struct mtd_info *mtd, loff_t to, size_t len,
@@ -644,13 +637,11 @@ static int lpddr_writev(struct mtd_info *mtd, const struct kvec *vecs,
 	int chipnum;
 	unsigned long ofs, vec_seek, i;
 	int wbufsize = 1 << lpddr->qinfo->BufSizeShift;
-
 	size_t len = 0;
 
 	for (i = 0; i < count; i++)
 		len += vecs[i].iov_len;
 
-	*retlen = 0;
 	if (!len)
 		return 0;
 
@@ -695,9 +686,6 @@ static int lpddr_erase(struct mtd_info *mtd, struct erase_info *instr)
 	ofs = instr->addr;
 	len = instr->len;
 
-	if (ofs > mtd->size || (len + ofs) > mtd->size)
-		return -EINVAL;
-
 	while (len > 0) {
 		ret = do_erase_oneblock(mtd, ofs);
 		if (ret)
@@ -713,7 +701,7 @@ static int lpddr_erase(struct mtd_info *mtd, struct erase_info *instr)
 
 #define DO_XXLOCK_LOCK		1
 #define DO_XXLOCK_UNLOCK	2
-int do_xxlock(struct mtd_info *mtd, loff_t adr, uint32_t len, int thunk)
+static int do_xxlock(struct mtd_info *mtd, loff_t adr, uint32_t len, int thunk)
 {
 	int ret = 0;
 	struct map_info *map = mtd->priv;
@@ -756,34 +744,6 @@ static int lpddr_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
 static int lpddr_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
 {
 	return do_xxlock(mtd, ofs, len, DO_XXLOCK_UNLOCK);
-}
-
-int word_program(struct map_info *map, loff_t adr, uint32_t curval)
-{
-    int ret;
-	struct lpddr_private *lpddr = map->fldrv_priv;
-	int chipnum = adr >> lpddr->chipshift;
-	struct flchip *chip = &lpddr->chips[chipnum];
-
-	mutex_lock(&chip->mutex);
-	ret = get_chip(map, chip, FL_WRITING);
-	if (ret) {
-		mutex_unlock(&chip->mutex);
-		return ret;
-	}
-
-	send_pfow_command(map, LPDDR_WORD_PROGRAM, adr, 0x00, (map_word *)&curval);
-
-	ret = wait_for_ready(map, chip, (1<<lpddr->qinfo->SingleWordProgTime));
-	if (ret)	{
-		printk(KERN_WARNING"%s word_program error at: %llx; val: %x\n",
-			map->name, adr, curval);
-		goto out;
-	}
-
-out:	put_chip(map, chip);
-	mutex_unlock(&chip->mutex);
-	return ret;
 }
 
 MODULE_LICENSE("GPL");

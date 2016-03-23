@@ -17,7 +17,6 @@
 #include <linux/export.h>
 #include <linux/crash_dump.h>
 #include <linux/delay.h>
-#include <linux/init.h>
 #include <linux/irq.h>
 #include <linux/types.h>
 
@@ -27,8 +26,8 @@
 #include <asm/kdump.h>
 #include <asm/prom.h>
 #include <asm/smp.h>
-#include <asm/system.h>
 #include <asm/setjmp.h>
+#include <asm/debug.h>
 
 /*
  * The primary CPU waits a while for all secondary CPUs to enter. This is to
@@ -46,7 +45,6 @@
 
 /* This keeps a track of which one is the crashing cpu. */
 int crashing_cpu = -1;
-static atomic_t cpus_in_crash;
 static int time_to_dump;
 
 #define CRASH_HANDLER_MAX 3
@@ -66,6 +64,7 @@ static int handle_fault(struct pt_regs *regs)
 
 #ifdef CONFIG_SMP
 
+static atomic_t cpus_in_crash;
 void crash_ipi_callback(struct pt_regs *regs)
 {
 	static cpumask_t cpus_state_saved = CPU_MASK_NONE;
@@ -82,7 +81,7 @@ void crash_ipi_callback(struct pt_regs *regs)
 	}
 
 	atomic_inc(&cpus_in_crash);
-	smp_mb__after_atomic_inc();
+	smp_mb__after_atomic();
 
 	/*
 	 * Starting the kdump boot.

@@ -28,9 +28,15 @@ static int coalesced_mmio_in_range(struct kvm_coalesced_mmio_dev *dev,
 	 * (addr,len) is fully included in
 	 * (zone->addr, zone->size)
 	 */
-
-	return (dev->zone.addr <= addr &&
-		addr + len <= dev->zone.addr + dev->zone.size);
+	if (len < 0)
+		return 0;
+	if (addr + len < addr)
+		return 0;
+	if (addr < dev->zone.addr)
+		return 0;
+	if (addr + len > dev->zone.addr + dev->zone.size)
+		return 0;
+	return 1;
 }
 
 static int coalesced_mmio_has_room(struct kvm_coalesced_mmio_dev *dev)
@@ -148,17 +154,13 @@ int kvm_vm_ioctl_register_coalesced_mmio(struct kvm *kvm,
 	list_add_tail(&dev->list, &kvm->coalesced_zones);
 	mutex_unlock(&kvm->slots_lock);
 
-	return ret;
+	return 0;
 
 out_free_dev:
 	mutex_unlock(&kvm->slots_lock);
-
 	kfree(dev);
 
-	if (dev == NULL)
-		return -ENXIO;
-
-	return 0;
+	return ret;
 }
 
 int kvm_vm_ioctl_unregister_coalesced_mmio(struct kvm *kvm,

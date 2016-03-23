@@ -391,7 +391,7 @@ static void fc_rport_work(struct work_struct *work)
  * If it appears we are already logged in, ADISC is used to verify
  * the setup.
  */
-int fc_rport_login(struct fc_rport_priv *rdata)
+static int fc_rport_login(struct fc_rport_priv *rdata)
 {
 	mutex_lock(&rdata->rp_mutex);
 
@@ -451,7 +451,7 @@ static void fc_rport_enter_delete(struct fc_rport_priv *rdata,
  * function will hold the rport lock, call an _enter_*
  * function and then unlock the rport.
  */
-int fc_rport_logoff(struct fc_rport_priv *rdata)
+static int fc_rport_logoff(struct fc_rport_priv *rdata)
 {
 	mutex_lock(&rdata->rp_mutex);
 
@@ -582,7 +582,7 @@ static void fc_rport_error(struct fc_rport_priv *rdata, struct fc_frame *fp)
 static void fc_rport_error_retry(struct fc_rport_priv *rdata,
 				 struct fc_frame *fp)
 {
-	unsigned long delay = FC_DEF_E_D_TOV;
+	unsigned long delay = msecs_to_jiffies(FC_DEF_E_D_TOV);
 
 	/* make sure this isn't an FC_EX_CLOSED error, never retry those */
 	if (PTR_ERR(fp) == -FC_EX_CLOSED)
@@ -653,8 +653,8 @@ static int fc_rport_login_complete(struct fc_rport_priv *rdata,
  * @fp:	    The FLOGI response frame
  * @rp_arg: The remote port that received the FLOGI response
  */
-void fc_rport_flogi_resp(struct fc_seq *sp, struct fc_frame *fp,
-			 void *rp_arg)
+static void fc_rport_flogi_resp(struct fc_seq *sp, struct fc_frame *fp,
+				void *rp_arg)
 {
 	struct fc_rport_priv *rdata = rp_arg;
 	struct fc_lport *lport = rdata->local_port;
@@ -926,6 +926,20 @@ err:
 	kref_put(&rdata->kref, rdata->local_port->tt.rport_destroy);
 }
 
+static bool
+fc_rport_compatible_roles(struct fc_lport *lport, struct fc_rport_priv *rdata)
+{
+	if (rdata->ids.roles == FC_PORT_ROLE_UNKNOWN)
+		return true;
+	if ((rdata->ids.roles & FC_PORT_ROLE_FCP_TARGET) &&
+	    (lport->service_params & FCP_SPPF_INIT_FCN))
+		return true;
+	if ((rdata->ids.roles & FC_PORT_ROLE_FCP_INITIATOR) &&
+	    (lport->service_params & FCP_SPPF_TARG_FCN))
+		return true;
+	return false;
+}
+
 /**
  * fc_rport_enter_plogi() - Send Port Login (PLOGI) request
  * @rdata: The remote port to send a PLOGI to
@@ -937,6 +951,12 @@ static void fc_rport_enter_plogi(struct fc_rport_priv *rdata)
 {
 	struct fc_lport *lport = rdata->local_port;
 	struct fc_frame *fp;
+
+	if (!fc_rport_compatible_roles(lport, rdata)) {
+		FC_RPORT_DBG(rdata, "PLOGI suppressed for incompatible role\n");
+		fc_rport_state_enter(rdata, RPORT_ST_PLOGI_WAIT);
+		return;
+	}
 
 	FC_RPORT_DBG(rdata, "Port entered PLOGI state from %s state\n",
 		     fc_rport_state(rdata));
@@ -1520,7 +1540,7 @@ reject:
  *
  * Locking Note: Called with the lport lock held.
  */
-void fc_rport_recv_req(struct fc_lport *lport, struct fc_frame *fp)
+static void fc_rport_recv_req(struct fc_lport *lport, struct fc_frame *fp)
 {
 	struct fc_seq_els_data els_data;
 
@@ -1646,6 +1666,13 @@ static void fc_rport_recv_plogi_req(struct fc_lport *lport,
 		rjt_data.explan = ELS_EXPL_NONE;
 		goto reject;
 	}
+	if (!fc_rport_compatible_roles(lport, rdata)) {
+		FC_RPORT_DBG(rdata, "Received PLOGI for incompatible role\n");
+		mutex_unlock(&rdata->rp_mutex);
+		rjt_data.reason = ELS_RJT_LOGIC;
+		rjt_data.explan = ELS_EXPL_NONE;
+		goto reject;
+	}
 
 	/*
 	 * Get session payload size from incoming PLOGI.
@@ -1678,7 +1705,7 @@ reject:
  * @rdata: The remote port that sent the PRLI request
  * @rx_fp: The PRLI request frame
  *
- * Locking Note: The rport lock is exected to be held before calling
+ * Locking Note: The rport lock is expected to be held before calling
  * this function.
  */
 static void fc_rport_recv_prli_req(struct fc_rport_priv *rdata,
@@ -1797,7 +1824,7 @@ drop:
  * @rdata: The remote port that sent the PRLO request
  * @rx_fp: The PRLO request frame
  *
- * Locking Note: The rport lock is exected to be held before calling
+ * Locking Note: The rport lock is expected to be held before calling
  * this function.
  */
 static void fc_rport_recv_prlo_req(struct fc_rport_priv *rdata,
@@ -1868,7 +1895,7 @@ drop:
  * @lport: The local port that received the LOGO request
  * @fp:	   The LOGO request frame
  *
- * Locking Note: The rport lock is exected to be held before calling
+ * Locking Note: The rport lock is expected to be held before calling
  * this function.
  */
 static void fc_rport_recv_logo_req(struct fc_lport *lport, struct fc_frame *fp)
@@ -1962,7 +1989,7 @@ static int fc_rport_fcp_prli(struct fc_rport_priv *rdata, u32 spp_len,
 		rdata->flags |= FC_RP_FLAGS_RETRY;
 	rdata->supported_classes = FC_COS_CLASS3;
 
-	if (!(lport->service_params & FC_RPORT_ROLE_FCP_INITIATOR))
+	if (!(lport->service_params & FCP_SPPF_INIT_FCN))
 		return 0;
 
 	spp->spp_flags |= rspp->spp_flags & FC_SPP_EST_IMG_PAIR;

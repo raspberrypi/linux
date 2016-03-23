@@ -10,7 +10,6 @@
  * by the Free Software Foundation.
  */
 
-#include <linux/init.h>
 #include <linux/pm.h>
 #include <linux/types.h>
 #include <linux/ioport.h>
@@ -20,6 +19,8 @@
 #include <linux/freezer.h>
 #include <linux/suspend.h>
 #include <linux/fsl_devices.h>
+#include <linux/of_address.h>
+#include <linux/of_irq.h>
 #include <linux/of_platform.h>
 #include <linux/export.h>
 
@@ -27,6 +28,7 @@
 #include <asm/io.h>
 #include <asm/time.h>
 #include <asm/mpc6xx.h>
+#include <asm/switch_to.h>
 
 #include <sysdev/fsl_soc.h>
 
@@ -319,13 +321,13 @@ static const struct platform_suspend_ops mpc83xx_suspend_ops = {
 	.end = mpc83xx_suspend_end,
 };
 
-static struct of_device_id pmc_match[];
+static const struct of_device_id pmc_match[];
 static int pmc_probe(struct platform_device *ofdev)
 {
 	const struct of_device_id *match;
 	struct device_node *np = ofdev->dev.of_node;
 	struct resource res;
-	struct pmc_type *type;
+	const struct pmc_type *type;
 	int ret = 0;
 
 	match = of_match_device(pmc_match, &ofdev->dev);
@@ -418,7 +420,7 @@ static struct pmc_type pmc_types[] = {
 	}
 };
 
-static struct of_device_id pmc_match[] = {
+static const struct of_device_id pmc_match[] = {
 	{
 		.compatible = "fsl,mpc8313-pmc",
 		.data = &pmc_types[0],

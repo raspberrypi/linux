@@ -135,7 +135,7 @@ static const struct file_operations tomoyo_self_operations = {
  */
 static int tomoyo_open(struct inode *inode, struct file *file)
 {
-	const int key = ((u8 *) file->f_path.dentry->d_inode->i_private)
+	const int key = ((u8 *) file_inode(file)->i_private)
 		- ((u8 *) NULL);
 	return tomoyo_open_control(key, file);
 }
@@ -143,23 +143,23 @@ static int tomoyo_open(struct inode *inode, struct file *file)
 /**
  * tomoyo_release - close() for /sys/kernel/security/tomoyo/ interface.
  *
- * @inode: Pointer to "struct inode".
  * @file:  Pointer to "struct file".
  *
- * Returns 0 on success, negative value otherwise.
  */
 static int tomoyo_release(struct inode *inode, struct file *file)
 {
-	return tomoyo_close_control(file->private_data);
+	tomoyo_close_control(file->private_data);
+	return 0;
 }
 
 /**
  * tomoyo_poll - poll() for /sys/kernel/security/tomoyo/ interface.
  *
  * @file: Pointer to "struct file".
- * @wait: Pointer to "poll_table".
+ * @wait: Pointer to "poll_table". Maybe NULL.
  *
- * Returns 0 on success, negative value otherwise.
+ * Returns POLLIN | POLLRDNORM | POLLOUT | POLLWRNORM if ready to read/write,
+ * POLLOUT | POLLWRNORM otherwise.
  */
 static unsigned int tomoyo_poll(struct file *file, poll_table *wait)
 {
@@ -224,7 +224,7 @@ static const struct file_operations tomoyo_operations = {
  *
  * Returns nothing.
  */
-static void __init tomoyo_create_entry(const char *name, const mode_t mode,
+static void __init tomoyo_create_entry(const char *name, const umode_t mode,
 				       struct dentry *parent, const u8 key)
 {
 	securityfs_create_file(name, mode, parent, ((u8 *) NULL) + key,

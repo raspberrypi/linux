@@ -54,7 +54,6 @@ static const char * osst_version = "0.99.4";
 #include <linux/mutex.h>
 #include <asm/uaccess.h>
 #include <asm/dma.h>
-#include <asm/system.h>
 
 /* The driver prints some debugging information on the console if DEBUG
    is defined and non-zero. */
@@ -363,10 +362,10 @@ static int osst_execute(struct osst_request *SRpnt, const unsigned char *cmd,
 	int write = (data_direction == DMA_TO_DEVICE);
 
 	req = blk_get_request(SRpnt->stp->device->request_queue, write, GFP_KERNEL);
-	if (!req)
+	if (IS_ERR(req))
 		return DRIVER_ERROR << 24;
 
-	req->cmd_type = REQ_TYPE_BLOCK_PC;
+	blk_rq_set_block_pc(req);
 	req->cmd_flags |= REQ_QUIET;
 
 	SRpnt->bio = NULL;

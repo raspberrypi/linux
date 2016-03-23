@@ -77,7 +77,7 @@ static struct fb_monspecs __initdata hammerhead_hda350t_monspecs = {
 	.dclkmax		= 10000000,
 };
 
-struct atmel_lcdfb_info __initdata hammerhead_lcdc_data = {
+struct atmel_lcdfb_pdata __initdata hammerhead_lcdc_data = {
 	.default_bpp		= 24,
 	.default_dmacon		= ATMEL_LCDC_DMAEN | ATMEL_LCDC_DMA2DEN,
 	.default_lcdcon2	= (ATMEL_LCDC_DISTYPE_TFT
@@ -102,7 +102,7 @@ struct eth_addr {
 };
 
 static struct eth_addr __initdata hw_addr[1];
-static struct eth_platform_data __initdata eth_data[1];
+static struct macb_platform_data __initdata eth_data[1];
 
 /*
  * The next two functions should go away as the boot loader is

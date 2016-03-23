@@ -6,6 +6,7 @@
 #include <linux/sunrpc/svcsock.h>
 #include <linux/sunrpc/svcauth.h>
 #include <linux/sunrpc/gss_api.h>
+#include <linux/sunrpc/addr.h>
 #include <linux/err.h>
 #include <linux/seq_file.h>
 #include <linux/hash.h>
@@ -14,9 +15,9 @@
 #include <net/sock.h>
 #include <net/ipv6.h>
 #include <linux/kernel.h>
+#include <linux/user_namespace.h>
 #define RPCDBG_FACILITY	RPCDBG_AUTH
 
-#include <linux/sunrpc/clnt.h>
 
 #include "netns.h"
 
@@ -103,23 +104,9 @@ static void ip_map_put(struct kref *kref)
 	kfree(im);
 }
 
-#if IP_HASHBITS == 8
-/* hash_long on a 64 bit machine is currently REALLY BAD for
- * IP addresses in reverse-endian (i.e. on a little-endian machine).
- * So use a trivial but reliable hash instead
- */
-static inline int hash_ip(__be32 ip)
+static inline int hash_ip6(const struct in6_addr *ip)
 {
-	int hash = (__force u32)ip ^ ((__force u32)ip>>16);
-	return (hash ^ (hash>>8)) & 0xff;
-}
-#endif
-static inline int hash_ip6(struct in6_addr ip)
-{
-	return (hash_ip(ip.s6_addr32[0]) ^
-		hash_ip(ip.s6_addr32[1]) ^
-		hash_ip(ip.s6_addr32[2]) ^
-		hash_ip(ip.s6_addr32[3]));
+	return hash_32(ipv6_addr_hash(ip), IP_HASHBITS);
 }
 static int ip_map_match(struct cache_head *corig, struct cache_head *cnew)
 {
@@ -170,11 +157,6 @@ static void ip_map_request(struct cache_detail *cd,
 	(*bpp)[-1] = '\n';
 }
 
-static int ip_map_upcall(struct cache_detail *cd, struct cache_head *h)
-{
-	return sunrpc_cache_pipe_upcall(cd, h, ip_map_request);
-}
-
 static struct ip_map *__ip_map_lookup(struct cache_detail *cd, char *class, struct in6_addr *addr);
 static int __ip_map_update(struct cache_detail *cd, struct ip_map *ipm, struct unix_domain *udom, time_t expiry);
 
@@ -211,7 +193,7 @@ static int ip_map_parse(struct cache_detail *cd,
 	len = qword_get(&mesg, buf, mlen);
 	if (len <= 0) return -EINVAL;
 
-	if (rpc_pton(buf, len, &address.sa, sizeof(address)) == 0)
+	if (rpc_pton(cd->net, buf, len, &address.sa, sizeof(address)) == 0)
 		return -EINVAL;
 	switch (address.sa.sa_family) {
 	case AF_INET:
@@ -300,7 +282,7 @@ static struct ip_map *__ip_map_lookup(struct cache_detail *cd, char *class,
 	ip.m_addr = *addr;
 	ch = sunrpc_cache_lookup(cd, &ip.h,
 				 hash_str(class, IP_HASHBITS) ^
-				 hash_ip6(*addr));
+				 hash_ip6(addr));
 
 	if (ch)
 		return container_of(ch, struct ip_map, h);
@@ -330,7 +312,7 @@ static int __ip_map_update(struct cache_detail *cd, struct ip_map *ipm,
 	ip.h.expiry_time = expiry;
 	ch = sunrpc_cache_update(cd, &ip.h, &ipm->h,
 				 hash_str(ipm->m_class, IP_HASHBITS) ^
-				 hash_ip6(ipm->m_addr));
+				 hash_ip6(&ipm->m_addr));
 	if (!ch)
 		return -ENOMEM;
 	cache_put(ch, cd);
@@ -346,17 +328,12 @@ static inline int ip_map_update(struct net *net, struct ip_map *ipm,
 	return __ip_map_update(sn->ip_map_cache, ipm, udom, expiry);
 }
 
-
-void svcauth_unix_purge(void)
+void svcauth_unix_purge(struct net *net)
 {
-	struct net *net;
+	struct sunrpc_net *sn;
 
-	for_each_net(net) {
-		struct sunrpc_net *sn;
-
-		sn = net_generic(net, sunrpc_net_id);
-		cache_purge(sn->ip_map_cache);
-	}
+	sn = net_generic(net, sunrpc_net_id);
+	cache_purge(sn->ip_map_cache);
 }
 EXPORT_SYMBOL_GPL(svcauth_unix_purge);
 
@@ -370,13 +347,13 @@ ip_map_cached_get(struct svc_xprt *xprt)
 		spin_lock(&xprt->xpt_lock);
 		ipm = xprt->xpt_auth_cache;
 		if (ipm != NULL) {
-			if (!cache_valid(&ipm->h)) {
+			sn = net_generic(xprt->xpt_net, sunrpc_net_id);
+			if (cache_is_expired(sn->ip_map_cache, &ipm->h)) {
 				/*
 				 * The entry has been invalidated since it was
 				 * remembered, e.g. by a second mount from the
 				 * same IP address.
 				 */
-				sn = net_generic(xprt->xpt_net, sunrpc_net_id);
 				xprt->xpt_auth_cache = NULL;
 				spin_unlock(&xprt->xpt_lock);
 				cache_put(&ipm->h, sn->ip_map_cache);
@@ -433,10 +410,14 @@ svcauth_unix_info_release(struct svc_xprt *xpt)
 
 struct unix_gid {
 	struct cache_head	h;
-	uid_t			uid;
+	kuid_t			uid;
 	struct group_info	*gi;
 };
-static struct cache_head	*gid_table[GID_HASHMAX];
+
+static int unix_gid_hash(kuid_t uid)
+{
+	return hash_long(from_kuid(&init_user_ns, uid), GID_HASHBITS);
+}
 
 static void unix_gid_put(struct kref *kref)
 {
@@ -452,7 +433,7 @@ static int unix_gid_match(struct cache_head *corig, struct cache_head *cnew)
 {
 	struct unix_gid *orig = container_of(corig, struct unix_gid, h);
 	struct unix_gid *new = container_of(cnew, struct unix_gid, h);
-	return orig->uid == new->uid;
+	return uid_eq(orig->uid, new->uid);
 }
 static void unix_gid_init(struct cache_head *cnew, struct cache_head *citem)
 {
@@ -484,24 +465,19 @@ static void unix_gid_request(struct cache_detail *cd,
 	char tuid[20];
 	struct unix_gid *ug = container_of(h, struct unix_gid, h);
 
-	snprintf(tuid, 20, "%u", ug->uid);
+	snprintf(tuid, 20, "%u", from_kuid(&init_user_ns, ug->uid));
 	qword_add(bpp, blen, tuid);
 	(*bpp)[-1] = '\n';
 }
 
-static int unix_gid_upcall(struct cache_detail *cd, struct cache_head *h)
-{
-	return sunrpc_cache_pipe_upcall(cd, h, unix_gid_request);
-}
-
-static struct unix_gid *unix_gid_lookup(uid_t uid);
-extern struct cache_detail unix_gid_cache;
+static struct unix_gid *unix_gid_lookup(struct cache_detail *cd, kuid_t uid);
 
 static int unix_gid_parse(struct cache_detail *cd,
 			char *mesg, int mlen)
 {
 	/* uid expiry Ngid gid0 gid1 ... gidN-1 */
-	int uid;
+	int id;
+	kuid_t uid;
 	int gids;
 	int rv;
 	int i;
@@ -509,13 +485,14 @@ static int unix_gid_parse(struct cache_detail *cd,
 	time_t expiry;
 	struct unix_gid ug, *ugp;
 
-	if (mlen <= 0 || mesg[mlen-1] != '\n')
+	if (mesg[mlen - 1] != '\n')
 		return -EINVAL;
 	mesg[mlen-1] = 0;
 
-	rv = get_int(&mesg, &uid);
+	rv = get_int(&mesg, &id);
 	if (rv)
 		return -EINVAL;
+	uid = make_kuid(&init_user_ns, id);
 	ug.uid = uid;
 
 	expiry = get_expiry(&mesg);
@@ -532,26 +509,30 @@ static int unix_gid_parse(struct cache_detail *cd,
 
 	for (i = 0 ; i < gids ; i++) {
 		int gid;
+		kgid_t kgid;
 		rv = get_int(&mesg, &gid);
 		err = -EINVAL;
 		if (rv)
 			goto out;
-		GROUP_AT(ug.gi, i) = gid;
+		kgid = make_kgid(&init_user_ns, gid);
+		if (!gid_valid(kgid))
+			goto out;
+		GROUP_AT(ug.gi, i) = kgid;
 	}
 
-	ugp = unix_gid_lookup(uid);
+	ugp = unix_gid_lookup(cd, uid);
 	if (ugp) {
 		struct cache_head *ch;
 		ug.h.flags = 0;
 		ug.h.expiry_time = expiry;
-		ch = sunrpc_cache_update(&unix_gid_cache,
+		ch = sunrpc_cache_update(cd,
 					 &ug.h, &ugp->h,
-					 hash_long(uid, GID_HASHBITS));
+					 unix_gid_hash(uid));
 		if (!ch)
 			err = -ENOMEM;
 		else {
 			err = 0;
-			cache_put(ch, &unix_gid_cache);
+			cache_put(ch, cd);
 		}
 	} else
 		err = -ENOMEM;
@@ -565,6 +546,7 @@ static int unix_gid_show(struct seq_file *m,
 			 struct cache_detail *cd,
 			 struct cache_head *h)
 {
+	struct user_namespace *user_ns = &init_user_ns;
 	struct unix_gid *ug;
 	int i;
 	int glen;
@@ -580,20 +562,19 @@ static int unix_gid_show(struct seq_file *m,
 	else
 		glen = 0;
 
-	seq_printf(m, "%u %d:", ug->uid, glen);
+	seq_printf(m, "%u %d:", from_kuid_munged(user_ns, ug->uid), glen);
 	for (i = 0; i < glen; i++)
-		seq_printf(m, " %d", GROUP_AT(ug->gi, i));
+		seq_printf(m, " %d", from_kgid_munged(user_ns, GROUP_AT(ug->gi, i)));
 	seq_printf(m, "\n");
 	return 0;
 }
 
-struct cache_detail unix_gid_cache = {
+static struct cache_detail unix_gid_cache_template = {
 	.owner		= THIS_MODULE,
 	.hash_size	= GID_HASHMAX,
-	.hash_table	= gid_table,
 	.name		= "auth.unix.gid",
 	.cache_put	= unix_gid_put,
-	.cache_upcall	= unix_gid_upcall,
+	.cache_request	= unix_gid_request,
 	.cache_parse	= unix_gid_parse,
 	.cache_show	= unix_gid_show,
 	.match		= unix_gid_match,
@@ -602,30 +583,60 @@ struct cache_detail unix_gid_cache = {
 	.alloc		= unix_gid_alloc,
 };
 
-static struct unix_gid *unix_gid_lookup(uid_t uid)
+int unix_gid_cache_create(struct net *net)
+{
+	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
+	struct cache_detail *cd;
+	int err;
+
+	cd = cache_create_net(&unix_gid_cache_template, net);
+	if (IS_ERR(cd))
+		return PTR_ERR(cd);
+	err = cache_register_net(cd, net);
+	if (err) {
+		cache_destroy_net(cd, net);
+		return err;
+	}
+	sn->unix_gid_cache = cd;
+	return 0;
+}
+
+void unix_gid_cache_destroy(struct net *net)
+{
+	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
+	struct cache_detail *cd = sn->unix_gid_cache;
+
+	sn->unix_gid_cache = NULL;
+	cache_purge(cd);
+	cache_unregister_net(cd, net);
+	cache_destroy_net(cd, net);
+}
+
+static struct unix_gid *unix_gid_lookup(struct cache_detail *cd, kuid_t uid)
 {
 	struct unix_gid ug;
 	struct cache_head *ch;
 
 	ug.uid = uid;
-	ch = sunrpc_cache_lookup(&unix_gid_cache, &ug.h,
-				 hash_long(uid, GID_HASHBITS));
+	ch = sunrpc_cache_lookup(cd, &ug.h, unix_gid_hash(uid));
 	if (ch)
 		return container_of(ch, struct unix_gid, h);
 	else
 		return NULL;
 }
 
-static struct group_info *unix_gid_find(uid_t uid, struct svc_rqst *rqstp)
+static struct group_info *unix_gid_find(kuid_t uid, struct svc_rqst *rqstp)
 {
 	struct unix_gid *ug;
 	struct group_info *gi;
 	int ret;
+	struct sunrpc_net *sn = net_generic(rqstp->rq_xprt->xpt_net,
+					    sunrpc_net_id);
 
-	ug = unix_gid_lookup(uid);
+	ug = unix_gid_lookup(sn->unix_gid_cache, uid);
 	if (!ug)
 		return ERR_PTR(-EAGAIN);
-	ret = cache_check(&unix_gid_cache, &ug->h, &rqstp->rq_chandle);
+	ret = cache_check(sn->unix_gid_cache, &ug->h, &rqstp->rq_chandle);
 	switch (ret) {
 	case -ENOENT:
 		return ERR_PTR(-ENOENT);
@@ -633,7 +644,7 @@ static struct group_info *unix_gid_find(uid_t uid, struct svc_rqst *rqstp)
 		return ERR_PTR(-ESHUTDOWN);
 	case 0:
 		gi = get_group_info(ug->gi);
-		cache_put(&ug->h, &unix_gid_cache);
+		cache_put(&ug->h, sn->unix_gid_cache);
 		return gi;
 	default:
 		return ERR_PTR(-EAGAIN);
@@ -718,6 +729,7 @@ svcauth_null_accept(struct svc_rqst *rqstp, __be32 *authp)
 	struct svc_cred	*cred = &rqstp->rq_cred;
 
 	cred->cr_group_info = NULL;
+	cred->cr_principal = NULL;
 	rqstp->rq_client = NULL;
 
 	if (argv->iov_len < 3*4)
@@ -735,8 +747,8 @@ svcauth_null_accept(struct svc_rqst *rqstp, __be32 *authp)
 	}
 
 	/* Signal that mapping to nobody uid/gid is required */
-	cred->cr_uid = (uid_t) -1;
-	cred->cr_gid = (gid_t) -1;
+	cred->cr_uid = INVALID_UID;
+	cred->cr_gid = INVALID_GID;
 	cred->cr_group_info = groups_alloc(0);
 	if (cred->cr_group_info == NULL)
 		return SVC_CLOSE; /* kmalloc failure - client must retry */
@@ -745,7 +757,7 @@ svcauth_null_accept(struct svc_rqst *rqstp, __be32 *authp)
 	svc_putnl(resv, RPC_AUTH_NULL);
 	svc_putnl(resv, 0);
 
-	rqstp->rq_flavor = RPC_AUTH_NULL;
+	rqstp->rq_cred.cr_flavor = RPC_AUTH_NULL;
 	return SVC_OK;
 }
 
@@ -783,6 +795,7 @@ svcauth_unix_accept(struct svc_rqst *rqstp, __be32 *authp)
 	int		len   = argv->iov_len;
 
 	cred->cr_group_info = NULL;
+	cred->cr_principal = NULL;
 	rqstp->rq_client = NULL;
 
 	if ((len -= 3*4) < 0)
@@ -795,17 +808,25 @@ svcauth_unix_accept(struct svc_rqst *rqstp, __be32 *authp)
 		goto badcred;
 	argv->iov_base = (void*)((__be32*)argv->iov_base + slen);	/* skip machname */
 	argv->iov_len -= slen*4;
-
-	cred->cr_uid = svc_getnl(argv);		/* uid */
-	cred->cr_gid = svc_getnl(argv);		/* gid */
+	/*
+	 * Note: we skip uid_valid()/gid_valid() checks here for
+	 * backwards compatibility with clients that use -1 id's.
+	 * Instead, -1 uid or gid is later mapped to the
+	 * (export-specific) anonymous id by nfsd_setuser.
+	 * Supplementary gid's will be left alone.
+	 */
+	cred->cr_uid = make_kuid(&init_user_ns, svc_getnl(argv)); /* uid */
+	cred->cr_gid = make_kgid(&init_user_ns, svc_getnl(argv)); /* gid */
 	slen = svc_getnl(argv);			/* gids length */
 	if (slen > 16 || (len -= (slen + 2)*4) < 0)
 		goto badcred;
 	cred->cr_group_info = groups_alloc(slen);
 	if (cred->cr_group_info == NULL)
 		return SVC_CLOSE;
-	for (i = 0; i < slen; i++)
-		GROUP_AT(cred->cr_group_info, i) = svc_getnl(argv);
+	for (i = 0; i < slen; i++) {
+		kgid_t kgid = make_kgid(&init_user_ns, svc_getnl(argv));
+		GROUP_AT(cred->cr_group_info, i) = kgid;
+	}
 	if (svc_getu32(argv) != htonl(RPC_AUTH_NULL) || svc_getu32(argv) != 0) {
 		*authp = rpc_autherr_badverf;
 		return SVC_DENIED;
@@ -815,7 +836,7 @@ svcauth_unix_accept(struct svc_rqst *rqstp, __be32 *authp)
 	svc_putnl(resv, RPC_AUTH_NULL);
 	svc_putnl(resv, 0);
 
-	rqstp->rq_flavor = RPC_AUTH_UNIX;
+	rqstp->rq_cred.cr_flavor = RPC_AUTH_UNIX;
 	return SVC_OK;
 
 badcred:
@@ -849,56 +870,45 @@ struct auth_ops svcauth_unix = {
 	.set_client	= svcauth_unix_set_client,
 };
 
+static struct cache_detail ip_map_cache_template = {
+	.owner		= THIS_MODULE,
+	.hash_size	= IP_HASHMAX,
+	.name		= "auth.unix.ip",
+	.cache_put	= ip_map_put,
+	.cache_request	= ip_map_request,
+	.cache_parse	= ip_map_parse,
+	.cache_show	= ip_map_show,
+	.match		= ip_map_match,
+	.init		= ip_map_init,
+	.update		= update,
+	.alloc		= ip_map_alloc,
+};
+
 int ip_map_cache_create(struct net *net)
 {
-	int err = -ENOMEM;
-	struct cache_detail *cd;
-	struct cache_head **tbl;
 	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
+	struct cache_detail *cd;
+	int err;
 
-	cd = kzalloc(sizeof(struct cache_detail), GFP_KERNEL);
-	if (cd == NULL)
-		goto err_cd;
-
-	tbl = kzalloc(IP_HASHMAX * sizeof(struct cache_head *), GFP_KERNEL);
-	if (tbl == NULL)
-		goto err_tbl;
-
-	cd->owner = THIS_MODULE,
-	cd->hash_size = IP_HASHMAX,
-	cd->hash_table = tbl,
-	cd->name = "auth.unix.ip",
-	cd->cache_put = ip_map_put,
-	cd->cache_upcall = ip_map_upcall,
-	cd->cache_parse = ip_map_parse,
-	cd->cache_show = ip_map_show,
-	cd->match = ip_map_match,
-	cd->init = ip_map_init,
-	cd->update = update,
-	cd->alloc = ip_map_alloc,
-
+	cd = cache_create_net(&ip_map_cache_template, net);
+	if (IS_ERR(cd))
+		return PTR_ERR(cd);
 	err = cache_register_net(cd, net);
-	if (err)
-		goto err_reg;
-
+	if (err) {
+		cache_destroy_net(cd, net);
+		return err;
+	}
 	sn->ip_map_cache = cd;
 	return 0;
-
-err_reg:
-	kfree(tbl);
-err_tbl:
-	kfree(cd);
-err_cd:
-	return err;
 }
 
 void ip_map_cache_destroy(struct net *net)
 {
-	struct sunrpc_net *sn;
+	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
+	struct cache_detail *cd = sn->ip_map_cache;
 
-	sn = net_generic(net, sunrpc_net_id);
-	cache_purge(sn->ip_map_cache);
-	cache_unregister_net(sn->ip_map_cache, net);
-	kfree(sn->ip_map_cache->hash_table);
-	kfree(sn->ip_map_cache);
+	sn->ip_map_cache = NULL;
+	cache_purge(cd);
+	cache_unregister_net(cd, net);
+	cache_destroy_net(cd, net);
 }

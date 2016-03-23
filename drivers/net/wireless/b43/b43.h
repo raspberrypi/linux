@@ -7,6 +7,7 @@
 #include <linux/hw_random.h>
 #include <linux/bcma/bcma.h>
 #include <linux/ssb/ssb.h>
+#include <linux/completion.h>
 #include <net/mac80211.h>
 
 #include "debugfs.h"
@@ -44,6 +45,7 @@
 #define B43_MMIO_RAM_DATA		0x134
 #define B43_MMIO_PS_STATUS		0x140
 #define B43_MMIO_RADIO_HWENABLED_HI	0x158
+#define B43_MMIO_MAC_HW_CAP		0x15C	/* MAC capabilities (corerev >= 13) */
 #define B43_MMIO_SHM_CONTROL		0x160
 #define B43_MMIO_SHM_DATA		0x164
 #define B43_MMIO_SHM_DATA_UNALIGNED	0x166
@@ -241,16 +243,20 @@ enum {
 #define B43_SHM_SH_PHYVER		0x0050	/* PHY version */
 #define B43_SHM_SH_PHYTYPE		0x0052	/* PHY type */
 #define B43_SHM_SH_ANTSWAP		0x005C	/* Antenna swap threshold */
-#define B43_SHM_SH_HOSTFLO		0x005E	/* Hostflags for ucode options (low) */
-#define B43_SHM_SH_HOSTFMI		0x0060	/* Hostflags for ucode options (middle) */
-#define B43_SHM_SH_HOSTFHI		0x0062	/* Hostflags for ucode options (high) */
+#define B43_SHM_SH_HOSTF1		0x005E	/* Hostflags 1 for ucode options */
+#define B43_SHM_SH_HOSTF2		0x0060	/* Hostflags 2 for ucode options */
+#define B43_SHM_SH_HOSTF3		0x0062	/* Hostflags 3 for ucode options */
 #define B43_SHM_SH_RFATT		0x0064	/* Current radio attenuation value */
 #define B43_SHM_SH_RADAR		0x0066	/* Radar register */
 #define B43_SHM_SH_PHYTXNOI		0x006E	/* PHY noise directly after TX (lower 8bit only) */
 #define B43_SHM_SH_RFRXSP1		0x0072	/* RF RX SP Register 1 */
+#define B43_SHM_SH_HOSTF4		0x0078	/* Hostflags 4 for ucode options */
 #define B43_SHM_SH_CHAN			0x00A0	/* Current channel (low 8bit only) */
 #define  B43_SHM_SH_CHAN_5GHZ		0x0100	/* Bit set, if 5 Ghz channel */
 #define  B43_SHM_SH_CHAN_40MHZ		0x0200	/* Bit set, if 40 Mhz channel width */
+#define B43_SHM_SH_MACHW_L		0x00C0	/* Location where the ucode expects the MAC capabilities */
+#define B43_SHM_SH_MACHW_H		0x00C2	/* Location where the ucode expects the MAC capabilities */
+#define B43_SHM_SH_HOSTF5		0x00D4	/* Hostflags 5 for ucode options */
 #define B43_SHM_SH_BCMCFIFOID		0x0108	/* Last posted cookie to the bcast/mcast FIFO */
 /* TSSI information */
 #define B43_SHM_SH_TSSI_CCK		0x0058	/* TSSI for last 4 CCK frames (32bit) */
@@ -282,7 +288,9 @@ enum {
 #define B43_SHM_SH_DTIMPER		0x0012	/* DTIM period */
 #define B43_SHM_SH_NOSLPZNATDTIM	0x004C	/* NOSLPZNAT DTIM */
 /* SHM_SHARED beacon/AP variables */
+#define B43_SHM_SH_BT_BASE0		0x0068	/* Beacon template base 0 */
 #define B43_SHM_SH_BTL0			0x0018	/* Beacon template length 0 */
+#define B43_SHM_SH_BT_BASE1		0x0468	/* Beacon template base 1 */
 #define B43_SHM_SH_BTL1			0x001A	/* Beacon template length 1 */
 #define B43_SHM_SH_BTSFOFF		0x001C	/* Beacon TSF offset */
 #define B43_SHM_SH_TIMBPOS		0x001E	/* TIM B position in beacon */
@@ -292,6 +300,7 @@ enum {
 #define B43_SHM_SH_LFFBLIM		0x0046	/* Long frame fallback retry limit */
 #define B43_SHM_SH_BEACPHYCTL		0x0054	/* Beacon PHY TX control word (see PHY TX control) */
 #define B43_SHM_SH_EXTNPHYCTL		0x00B0	/* Extended bytes for beacon PHY control (N) */
+#define B43_SHM_SH_BCN_LI		0x00B6	/* beacon listen interval */
 /* SHM_SHARED ACK/CTS control */
 #define B43_SHM_SH_ACKCTSPHYCTL		0x0022	/* ACK/CTS PHY control word (see PHY TX control) */
 /* SHM_SHARED probe response variables */
@@ -415,6 +424,8 @@ enum {
 #define B43_PHYTYPE_HT			0x07
 #define B43_PHYTYPE_LCN			0x08
 #define B43_PHYTYPE_LCNXN		0x09
+#define B43_PHYTYPE_LCN40		0x0a
+#define B43_PHYTYPE_AC			0x0b
 
 /* PHYRegisters */
 #define B43_PHY_ILT_A_CTRL		0x0072
@@ -450,6 +461,7 @@ enum {
 #define B43_MACCTL_RADIOLOCK		0x00080000	/* Radio lock */
 #define B43_MACCTL_BEACPROMISC		0x00100000	/* Beacon Promiscuous */
 #define B43_MACCTL_KEEP_BADPLCP		0x00200000	/* Keep frames with bad PLCP */
+#define B43_MACCTL_PHY_LOCK		0x00200000
 #define B43_MACCTL_KEEP_CTL		0x00400000	/* Keep control frames */
 #define B43_MACCTL_KEEP_BAD		0x00800000	/* Keep bad frames (FCS) */
 #define B43_MACCTL_PROMISC		0x01000000	/* Promiscuous mode */
@@ -467,6 +479,17 @@ enum {
 #define B43_MACCMD_DFQ_VALID		0x00000004	/* Directed frame queue valid (IBSS PS mode, ATIM) */
 #define B43_MACCMD_CCA			0x00000008	/* Clear channel assessment */
 #define B43_MACCMD_BGNOISE		0x00000010	/* Background noise */
+
+/* B43_MMIO_PSM_PHY_HDR bits */
+#define B43_PSM_HDR_MAC_PHY_RESET	0x00000001
+#define B43_PSM_HDR_MAC_PHY_CLOCK_EN	0x00000002
+#define B43_PSM_HDR_MAC_PHY_FORCE_CLK	0x00000004
+
+/* See BCMA_CLKCTLST_EXTRESREQ and BCMA_CLKCTLST_EXTRESST */
+#define B43_BCMA_CLKCTLST_80211_PLL_REQ	0x00000100
+#define B43_BCMA_CLKCTLST_PHY_PLL_REQ	0x00000200
+#define B43_BCMA_CLKCTLST_80211_PLL_ST	0x01000000
+#define B43_BCMA_CLKCTLST_PHY_PLL_ST	0x02000000
 
 /* BCMA 802.11 core specific IO Control (BCMA_IOCTL) flags */
 #define B43_BCMA_IOCTL_PHY_CLKEN	0x00000004	/* PHY Clock Enable */
@@ -718,6 +741,8 @@ enum b43_firmware_file_type {
 struct b43_request_fw_context {
 	/* The device we are requesting the fw for. */
 	struct b43_wldev *dev;
+	/* a pointer to the firmware object */
+	const struct firmware *blob;
 	/* The type of firmware to request. */
 	enum b43_firmware_file_type req_type;
 	/* Error messages for each firmware type. */
@@ -776,6 +801,13 @@ struct b43_firmware {
 	bool pcm_request_failed;
 };
 
+enum b43_band {
+	B43_BAND_2G = 0,
+	B43_BAND_5G_LO = 1,
+	B43_BAND_5G_MI = 2,
+	B43_BAND_5G_HI = 3,
+};
+
 /* Device (802.11 core) initialization status. */
 enum {
 	B43_STAT_UNINIT = 0,	/* Uninitialized. */
@@ -792,6 +824,8 @@ enum {
 struct b43_wldev {
 	struct b43_bus_dev *dev;
 	struct b43_wl *wl;
+	/* a completion event structure needed if this call is asynchronous */
+	struct completion fw_load_complete;
 
 	/* The device initialization status.
 	 * Use b43_status() to query. */
@@ -870,12 +904,9 @@ struct b43_wl {
 	 * handler, only. This basically is just the IRQ mask register. */
 	spinlock_t hardirq_lock;
 
-	/* The number of queues that were registered with the mac80211 subsystem
-	 * initially. This is a backup copy of hw->queues in case hw->queues has
-	 * to be dynamically lowered at runtime (Firmware does not support QoS).
-	 * hw->queues has to be restored to the original value before unregistering
-	 * from the mac80211 subsystem. */
-	u16 mac80211_initially_registered_queues;
+	/* Set this if we call ieee80211_register_hw() and check if we call
+	 * ieee80211_unregister_hw(). */
+	bool hw_registred;
 
 	/* We can only have one operating interface (802.11 core)
 	 * at a time. General information about this interface follows.
@@ -900,10 +931,6 @@ struct b43_wl {
 	bool rng_initialized;
 	char rng_name[30 + 1];
 #endif /* CONFIG_B43_HWRNG */
-
-	/* List of all wireless devices on this chip */
-	struct list_head devlist;
-	u8 nr_devs;
 
 	bool radiotap_enabled;
 	bool radio_enabled;
@@ -931,6 +958,9 @@ struct b43_wl {
 
 	/* Flag that implement the queues stopping. */
 	bool tx_queue_stopped[B43_QOS_QUEUE_NUM];
+
+	/* firmware loading work */
+	struct work_struct firmware_load;
 
 	/* The device LEDs. */
 	struct b43_leds leds;
@@ -963,7 +993,7 @@ static inline int b43_is_mode(struct b43_wl *wl, int type)
  */
 static inline enum ieee80211_band b43_current_band(struct b43_wl *wl)
 {
-	return wl->hw->conf.channel->band;
+	return wl->hw->conf.chandef.chan->band;
 }
 
 static inline int b43_bus_may_powerdown(struct b43_wldev *wldev)
@@ -999,6 +1029,22 @@ static inline void b43_write16(struct b43_wldev *dev, u16 offset, u16 value)
 	dev->dev->write16(dev->dev, offset, value);
 }
 
+/* To optimize this check for flush_writes on BCM47XX_BCMA only. */
+static inline void b43_write16f(struct b43_wldev *dev, u16 offset, u16 value)
+{
+	b43_write16(dev, offset, value);
+#if defined(CONFIG_BCM47XX_BCMA)
+	if (dev->dev->flush_writes)
+		b43_read16(dev, offset);
+#endif
+}
+
+static inline void b43_maskset16(struct b43_wldev *dev, u16 offset, u16 mask,
+				 u16 set)
+{
+	b43_write16(dev, offset, (b43_read16(dev, offset) & mask) | set);
+}
+
 static inline u32 b43_read32(struct b43_wldev *dev, u16 offset)
 {
 	return dev->dev->read32(dev->dev, offset);
@@ -1007,6 +1053,12 @@ static inline u32 b43_read32(struct b43_wldev *dev, u16 offset)
 static inline void b43_write32(struct b43_wldev *dev, u16 offset, u32 value)
 {
 	dev->dev->write32(dev->dev, offset, value);
+}
+
+static inline void b43_maskset32(struct b43_wldev *dev, u16 offset, u32 mask,
+				 u32 set)
+{
+	b43_write32(dev, offset, (b43_read32(dev, offset) & mask) | set);
 }
 
 static inline void b43_block_read(struct b43_wldev *dev, void *buffer,

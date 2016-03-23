@@ -22,11 +22,13 @@
 #include <linux/rwsem.h>
 #include <linux/xattr.h>
 #include <linux/security.h>
+#include <linux/posix_acl_xattr.h>
 #include "ctree.h"
 #include "btrfs_inode.h"
 #include "transaction.h"
 #include "xattr.h"
 #include "disk-io.h"
+#include "props.h"
 
 
 ssize_t __btrfs_getxattr(struct inode *inode, const char *name,
@@ -122,6 +124,16 @@ static int do_setxattr(struct btrfs_trans_handle *trans,
 		 */
 		if (!value)
 			goto out;
+	} else {
+		di = btrfs_lookup_xattr(NULL, root, path, btrfs_ino(inode),
+					name, name_len, 0);
+		if (IS_ERR(di)) {
+			ret = PTR_ERR(di);
+			goto out;
+		}
+		if (!di && !value)
+			goto out;
+		btrfs_release_path(path);
 	}
 
 again:
@@ -196,11 +208,13 @@ int __btrfs_setxattr(struct btrfs_trans_handle *trans,
 	if (ret)
 		goto out;
 
+	inode_inc_iversion(inode);
 	inode->i_ctime = CURRENT_TIME;
+	set_bit(BTRFS_INODE_COPY_EVERYTHING, &BTRFS_I(inode)->runtime_flags);
 	ret = btrfs_update_inode(trans, root, inode);
 	BUG_ON(ret);
 out:
-	btrfs_end_transaction_throttle(trans, root);
+	btrfs_end_transaction(trans, root);
 	return ret;
 }
 
@@ -223,7 +237,7 @@ ssize_t btrfs_listxattr(struct dentry *dentry, char *buffer, size_t size)
 	 * first xattr that we find and walk forward
 	 */
 	key.objectid = btrfs_ino(inode);
-	btrfs_set_key_type(&key, BTRFS_XATTR_ITEM_KEY);
+	key.type = BTRFS_XATTR_ITEM_KEY;
 	key.offset = 0;
 
 	path = btrfs_alloc_path();
@@ -259,12 +273,12 @@ ssize_t btrfs_listxattr(struct dentry *dentry, char *buffer, size_t size)
 		/* check to make sure this item is what we want */
 		if (found_key.objectid != key.objectid)
 			break;
-		if (btrfs_key_type(&found_key) != BTRFS_XATTR_ITEM_KEY)
+		if (found_key.type != BTRFS_XATTR_ITEM_KEY)
 			break;
 
 		di = btrfs_item_ptr(leaf, slot, struct btrfs_dir_item);
 		if (verify_dir_item(root, leaf, di))
-			continue;
+			goto next;
 
 		name_len = btrfs_dir_name_len(leaf, di);
 		total_size += name_len + 1;
@@ -301,8 +315,8 @@ err:
  */
 const struct xattr_handler *btrfs_xattr_handlers[] = {
 #ifdef CONFIG_BTRFS_FS_POSIX_ACL
-	&btrfs_xattr_acl_access_handler,
-	&btrfs_xattr_acl_default_handler,
+	&posix_acl_access_xattr_handler,
+	&posix_acl_default_xattr_handler,
 #endif
 	NULL,
 };
@@ -310,21 +324,42 @@ const struct xattr_handler *btrfs_xattr_handlers[] = {
 /*
  * Check if the attribute is in a supported namespace.
  *
- * This applied after the check for the synthetic attributes in the system
+ * This is applied after the check for the synthetic attributes in the system
  * namespace.
  */
-static bool btrfs_is_valid_xattr(const char *name)
+static int btrfs_is_valid_xattr(const char *name)
 {
-	return !strncmp(name, XATTR_SECURITY_PREFIX,
-			XATTR_SECURITY_PREFIX_LEN) ||
-	       !strncmp(name, XATTR_SYSTEM_PREFIX, XATTR_SYSTEM_PREFIX_LEN) ||
-	       !strncmp(name, XATTR_TRUSTED_PREFIX, XATTR_TRUSTED_PREFIX_LEN) ||
-	       !strncmp(name, XATTR_USER_PREFIX, XATTR_USER_PREFIX_LEN);
+	int len = strlen(name);
+	int prefixlen = 0;
+
+	if (!strncmp(name, XATTR_SECURITY_PREFIX,
+			XATTR_SECURITY_PREFIX_LEN))
+		prefixlen = XATTR_SECURITY_PREFIX_LEN;
+	else if (!strncmp(name, XATTR_SYSTEM_PREFIX, XATTR_SYSTEM_PREFIX_LEN))
+		prefixlen = XATTR_SYSTEM_PREFIX_LEN;
+	else if (!strncmp(name, XATTR_TRUSTED_PREFIX, XATTR_TRUSTED_PREFIX_LEN))
+		prefixlen = XATTR_TRUSTED_PREFIX_LEN;
+	else if (!strncmp(name, XATTR_USER_PREFIX, XATTR_USER_PREFIX_LEN))
+		prefixlen = XATTR_USER_PREFIX_LEN;
+	else if (!strncmp(name, XATTR_BTRFS_PREFIX, XATTR_BTRFS_PREFIX_LEN))
+		prefixlen = XATTR_BTRFS_PREFIX_LEN;
+	else
+		return -EOPNOTSUPP;
+
+	/*
+	 * The name cannot consist of just prefix
+	 */
+	if (len <= prefixlen)
+		return -EINVAL;
+
+	return 0;
 }
 
 ssize_t btrfs_getxattr(struct dentry *dentry, const char *name,
 		       void *buffer, size_t size)
 {
+	int ret;
+
 	/*
 	 * If this is a request for a synthetic attribute in the system.*
 	 * namespace use the generic infrastructure to resolve a handler
@@ -333,8 +368,9 @@ ssize_t btrfs_getxattr(struct dentry *dentry, const char *name,
 	if (!strncmp(name, XATTR_SYSTEM_PREFIX, XATTR_SYSTEM_PREFIX_LEN))
 		return generic_getxattr(dentry, name, buffer, size);
 
-	if (!btrfs_is_valid_xattr(name))
-		return -EOPNOTSUPP;
+	ret = btrfs_is_valid_xattr(name);
+	if (ret)
+		return ret;
 	return __btrfs_getxattr(dentry->d_inode, name, buffer, size);
 }
 
@@ -342,6 +378,7 @@ int btrfs_setxattr(struct dentry *dentry, const char *name, const void *value,
 		   size_t size, int flags)
 {
 	struct btrfs_root *root = BTRFS_I(dentry->d_inode)->root;
+	int ret;
 
 	/*
 	 * The permission on security.* and system.* is not checked
@@ -358,8 +395,13 @@ int btrfs_setxattr(struct dentry *dentry, const char *name, const void *value,
 	if (!strncmp(name, XATTR_SYSTEM_PREFIX, XATTR_SYSTEM_PREFIX_LEN))
 		return generic_setxattr(dentry, name, value, size, flags);
 
-	if (!btrfs_is_valid_xattr(name))
-		return -EOPNOTSUPP;
+	ret = btrfs_is_valid_xattr(name);
+	if (ret)
+		return ret;
+
+	if (!strncmp(name, XATTR_BTRFS_PREFIX, XATTR_BTRFS_PREFIX_LEN))
+		return btrfs_set_prop(dentry->d_inode, name,
+				      value, size, flags);
 
 	if (size == 0)
 		value = "";  /* empty EA, do not remove */
@@ -371,6 +413,7 @@ int btrfs_setxattr(struct dentry *dentry, const char *name, const void *value,
 int btrfs_removexattr(struct dentry *dentry, const char *name)
 {
 	struct btrfs_root *root = BTRFS_I(dentry->d_inode)->root;
+	int ret;
 
 	/*
 	 * The permission on security.* and system.* is not checked
@@ -387,15 +430,20 @@ int btrfs_removexattr(struct dentry *dentry, const char *name)
 	if (!strncmp(name, XATTR_SYSTEM_PREFIX, XATTR_SYSTEM_PREFIX_LEN))
 		return generic_removexattr(dentry, name);
 
-	if (!btrfs_is_valid_xattr(name))
-		return -EOPNOTSUPP;
+	ret = btrfs_is_valid_xattr(name);
+	if (ret)
+		return ret;
+
+	if (!strncmp(name, XATTR_BTRFS_PREFIX, XATTR_BTRFS_PREFIX_LEN))
+		return btrfs_set_prop(dentry->d_inode, name,
+				      NULL, 0, XATTR_REPLACE);
 
 	return __btrfs_setxattr(NULL, dentry->d_inode, name, NULL, 0,
 				XATTR_REPLACE);
 }
 
-int btrfs_initxattrs(struct inode *inode, const struct xattr *xattr_array,
-		     void *fs_info)
+static int btrfs_initxattrs(struct inode *inode,
+			    const struct xattr *xattr_array, void *fs_info)
 {
 	const struct xattr *xattr;
 	struct btrfs_trans_handle *trans = fs_info;

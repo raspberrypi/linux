@@ -7,9 +7,13 @@
 #ifndef __ARCH_BLACKFIN_ATOMIC__
 #define __ARCH_BLACKFIN_ATOMIC__
 
+#include <asm/cmpxchg.h>
+
 #ifdef CONFIG_SMP
 
+#include <asm/barrier.h>
 #include <linux/linkage.h>
+#include <linux/types.h>
 
 asmlinkage int __raw_uncached_fetch_asm(const volatile int *ptr);
 asmlinkage int __raw_atomic_update_asm(volatile int *ptr, int value);

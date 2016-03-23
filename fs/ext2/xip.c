@@ -9,8 +9,6 @@
 #include <linux/fs.h>
 #include <linux/genhd.h>
 #include <linux/buffer_head.h>
-#include <linux/ext2_fs_sb.h>
-#include <linux/ext2_fs.h>
 #include <linux/blkdev.h>
 #include "ext2.h"
 #include "xip.h"
@@ -37,6 +35,7 @@ __ext2_get_block(struct inode *inode, pgoff_t pgoff, int create,
 	int rc;
 
 	memset(&tmp, 0, sizeof(struct buffer_head));
+	tmp.b_size = 1 << inode->i_blkbits;
 	rc = ext2_get_block(inode, pgoff, &tmp, create);
 	*result = tmp.b_blocknr;
 

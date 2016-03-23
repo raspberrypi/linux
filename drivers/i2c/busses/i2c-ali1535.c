@@ -14,10 +14,6 @@
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 /*
@@ -58,7 +54,6 @@
 #include <linux/delay.h>
 #include <linux/ioport.h>
 #include <linux/i2c.h>
-#include <linux/init.h>
 #include <linux/acpi.h>
 #include <linux/io.h>
 
@@ -132,15 +127,16 @@
 #define	ALI1535_SMBIO_EN	0x04	/* SMB I/O Space enable		*/
 
 static struct pci_driver ali1535_driver;
-static unsigned short ali1535_smba;
+static unsigned long ali1535_smba;
+static unsigned short ali1535_offset;
 
 /* Detect whether a ALI1535 can be found, and initialize it, where necessary.
    Note the differences between kernels with the old PCI BIOS interface and
    newer kernels with the real PCI interface. In compat.h some things are
    defined to make the transition easier. */
-static int __devinit ali1535_setup(struct pci_dev *dev)
+static int ali1535_setup(struct pci_dev *dev)
 {
-	int retval = -ENODEV;
+	int retval;
 	unsigned char temp;
 
 	/* Check the following things:
@@ -149,14 +145,27 @@ static int __devinit ali1535_setup(struct pci_dev *dev)
 		- We can use the addresses
 	*/
 
-	/* Determine the address of the SMBus area */
-	pci_read_config_word(dev, SMBBA, &ali1535_smba);
-	ali1535_smba &= (0xffff & ~(ALI1535_SMB_IOSIZE - 1));
-	if (ali1535_smba == 0) {
-		dev_warn(&dev->dev,
-			"ALI1535_smb region uninitialized - upgrade BIOS?\n");
+	retval = pci_enable_device(dev);
+	if (retval) {
+		dev_err(&dev->dev, "ALI1535_smb can't enable device\n");
 		goto exit;
 	}
+
+	/* Determine the address of the SMBus area */
+	pci_read_config_word(dev, SMBBA, &ali1535_offset);
+	dev_dbg(&dev->dev, "ALI1535_smb is at offset 0x%04x\n", ali1535_offset);
+	ali1535_offset &= (0xffff & ~(ALI1535_SMB_IOSIZE - 1));
+	if (ali1535_offset == 0) {
+		dev_warn(&dev->dev,
+			"ALI1535_smb region uninitialized - upgrade BIOS?\n");
+		retval = -ENODEV;
+		goto exit;
+	}
+
+	if (pci_resource_flags(dev, 0) & IORESOURCE_IO)
+		ali1535_smba = pci_resource_start(dev, 0) + ali1535_offset;
+	else
+		ali1535_smba = ali1535_offset;
 
 	retval = acpi_check_region(ali1535_smba, ALI1535_SMB_IOSIZE,
 				   ali1535_driver.name);
@@ -165,8 +174,9 @@ static int __devinit ali1535_setup(struct pci_dev *dev)
 
 	if (!request_region(ali1535_smba, ALI1535_SMB_IOSIZE,
 			    ali1535_driver.name)) {
-		dev_err(&dev->dev, "ALI1535_smb region 0x%x already in use!\n",
+		dev_err(&dev->dev, "ALI1535_smb region 0x%lx already in use!\n",
 			ali1535_smba);
+		retval = -EBUSY;
 		goto exit;
 	}
 
@@ -174,6 +184,7 @@ static int __devinit ali1535_setup(struct pci_dev *dev)
 	pci_read_config_byte(dev, SMBCFG, &temp);
 	if ((temp & ALI1535_SMBIO_EN) == 0) {
 		dev_err(&dev->dev, "SMB device not enabled - upgrade BIOS?\n");
+		retval = -ENODEV;
 		goto exit_free;
 	}
 
@@ -181,6 +192,7 @@ static int __devinit ali1535_setup(struct pci_dev *dev)
 	pci_read_config_byte(dev, SMBHSTCFG, &temp);
 	if ((temp & 1) == 0) {
 		dev_err(&dev->dev, "SMBus controller not enabled - upgrade BIOS?\n");
+		retval = -ENODEV;
 		goto exit_free;
 	}
 
@@ -196,14 +208,13 @@ static int __devinit ali1535_setup(struct pci_dev *dev)
 	*/
 	pci_read_config_byte(dev, SMBREV, &temp);
 	dev_dbg(&dev->dev, "SMBREV = 0x%X\n", temp);
-	dev_dbg(&dev->dev, "ALI1535_smba = 0x%X\n", ali1535_smba);
+	dev_dbg(&dev->dev, "ALI1535_smba = 0x%lx\n", ali1535_smba);
 
-	retval = 0;
-exit:
-	return retval;
+	return 0;
 
 exit_free:
 	release_region(ali1535_smba, ALI1535_SMB_IOSIZE);
+exit:
 	return retval;
 }
 
@@ -479,14 +490,14 @@ static struct i2c_adapter ali1535_adapter = {
 	.algo		= &smbus_algorithm,
 };
 
-static DEFINE_PCI_DEVICE_TABLE(ali1535_ids) = {
+static const struct pci_device_id ali1535_ids[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_AL, PCI_DEVICE_ID_AL_M7101) },
 	{ },
 };
 
 MODULE_DEVICE_TABLE(pci, ali1535_ids);
 
-static int __devinit ali1535_probe(struct pci_dev *dev, const struct pci_device_id *id)
+static int ali1535_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {
 	if (ali1535_setup(dev)) {
 		dev_warn(&dev->dev,
@@ -498,11 +509,11 @@ static int __devinit ali1535_probe(struct pci_dev *dev, const struct pci_device_
 	ali1535_adapter.dev.parent = &dev->dev;
 
 	snprintf(ali1535_adapter.name, sizeof(ali1535_adapter.name),
-		"SMBus ALI1535 adapter at %04x", ali1535_smba);
+		"SMBus ALI1535 adapter at %04x", ali1535_offset);
 	return i2c_add_adapter(&ali1535_adapter);
 }
 
-static void __devexit ali1535_remove(struct pci_dev *dev)
+static void ali1535_remove(struct pci_dev *dev)
 {
 	i2c_del_adapter(&ali1535_adapter);
 	release_region(ali1535_smba, ALI1535_SMB_IOSIZE);
@@ -512,18 +523,10 @@ static struct pci_driver ali1535_driver = {
 	.name		= "ali1535_smbus",
 	.id_table	= ali1535_ids,
 	.probe		= ali1535_probe,
-	.remove		= __devexit_p(ali1535_remove),
+	.remove		= ali1535_remove,
 };
 
-static int __init i2c_ali1535_init(void)
-{
-	return pci_register_driver(&ali1535_driver);
-}
-
-static void __exit i2c_ali1535_exit(void)
-{
-	pci_unregister_driver(&ali1535_driver);
-}
+module_pci_driver(ali1535_driver);
 
 MODULE_AUTHOR("Frodo Looijaard <frodol@dds.nl>, "
 	      "Philip Edelbrock <phil@netroedge.com>, "
@@ -531,6 +534,3 @@ MODULE_AUTHOR("Frodo Looijaard <frodol@dds.nl>, "
 	      "and Dan Eaton <dan.eaton@rocketlogix.com>");
 MODULE_DESCRIPTION("ALI1535 SMBus driver");
 MODULE_LICENSE("GPL");
-
-module_init(i2c_ali1535_init);
-module_exit(i2c_ali1535_exit);

@@ -42,7 +42,7 @@ static int pfifo_tail_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 
 	/* queue full, remove one skb to fulfill the limit */
 	__qdisc_queue_drop_head(sch, &sch->q);
-	sch->qstats.drops++;
+	qdisc_qstats_drop(sch);
 	qdisc_enqueue_tail(skb, sch);
 
 	return NET_XMIT_CN;
@@ -85,7 +85,8 @@ static int fifo_dump(struct Qdisc *sch, struct sk_buff *skb)
 {
 	struct tc_fifo_qopt opt = { .limit = sch->limit };
 
-	NLA_PUT(skb, TCA_OPTIONS, sizeof(opt), &opt);
+	if (nla_put(skb, TCA_OPTIONS, sizeof(opt), &opt))
+		goto nla_put_failure;
 	return skb->len;
 
 nla_put_failure:

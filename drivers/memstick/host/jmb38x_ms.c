@@ -21,7 +21,7 @@
 
 #define DRIVER_NAME "jmb38x_ms"
 
-static int no_dma;
+static bool no_dma;
 module_param(no_dma, bool, 0644);
 
 enum {
@@ -325,7 +325,7 @@ static int jmb38x_ms_transfer_data(struct jmb38x_ms_host *host)
 			p_cnt = min(p_cnt, length);
 
 			local_irq_save(flags);
-			buf = kmap_atomic(pg, KM_BIO_SRC_IRQ) + p_off;
+			buf = kmap_atomic(pg) + p_off;
 		} else {
 			buf = host->req->data + host->block_pos;
 			p_cnt = host->req->data_len - host->block_pos;
@@ -341,7 +341,7 @@ static int jmb38x_ms_transfer_data(struct jmb38x_ms_host *host)
 				 : jmb38x_ms_read_reg_data(host, buf, p_cnt);
 
 		if (host->req->long_data) {
-			kunmap_atomic(buf - p_off, KM_BIO_SRC_IRQ);
+			kunmap_atomic(buf - p_off);
 			local_irq_restore(flags);
 		}
 
@@ -1046,20 +1046,9 @@ static struct pci_driver jmb38x_ms_driver = {
 	.resume = jmb38x_ms_resume
 };
 
-static int __init jmb38x_ms_init(void)
-{
-	return pci_register_driver(&jmb38x_ms_driver);
-}
-
-static void __exit jmb38x_ms_exit(void)
-{
-	pci_unregister_driver(&jmb38x_ms_driver);
-}
+module_pci_driver(jmb38x_ms_driver);
 
 MODULE_AUTHOR("Alex Dubov");
 MODULE_DESCRIPTION("JMicron jmb38x MemoryStick driver");
 MODULE_LICENSE("GPL");
 MODULE_DEVICE_TABLE(pci, jmb38x_ms_id_tbl);
-
-module_init(jmb38x_ms_init);
-module_exit(jmb38x_ms_exit);

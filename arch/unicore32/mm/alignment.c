@@ -21,8 +21,11 @@
 #include <linux/sched.h>
 #include <linux/uaccess.h>
 
+#include <asm/pgtable.h>
 #include <asm/tlbflush.h>
 #include <asm/unaligned.h>
+
+#include "mm.h"
 
 #define CODING_BITS(i)	(i & 0xe0000120)
 

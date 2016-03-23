@@ -1,18 +1,10 @@
 #ifndef __ASM_MACH_IRQS_H
 #define __ASM_MACH_IRQS_H
 
-#define NR_IRQS         1024
+/* Stuck here until drivers/pinctl/sh-pfc gets rid of legacy code */
 
-/* GIC */
-#define gic_spi(nr)		((nr) + 32)
-
-/* INTCA */
-#define evt2irq(evt)		(((evt) >> 5) - 16)
-#define irq2evt(irq)		(((irq) + 16) << 5)
-
-/* INTCS */
-#define INTCS_VECT_BASE		0x2200
-#define INTCS_VECT(n, vect)	INTC_VECT((n), INTCS_VECT_BASE + (vect))
-#define intcs_evt2irq(evt)	evt2irq(INTCS_VECT_BASE + (evt))
+/* External IRQ pins */
+#define IRQPIN_BASE		2000
+#define irq_pin(nr)		((nr) + IRQPIN_BASE)
 
 #endif /* __ASM_MACH_IRQS_H */

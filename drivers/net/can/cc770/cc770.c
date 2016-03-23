@@ -34,7 +34,6 @@
 #include <linux/can.h>
 #include <linux/can/dev.h>
 #include <linux/can/error.h>
-#include <linux/can/dev.h>
 #include <linux/can/platform/cc770.h>
 
 #include "cc770.h"
@@ -91,7 +90,7 @@ static unsigned char cc770_obj_flags[CC770_OBJ_MAX] = {
 	[CC770_OBJ_TX] = 0,
 };
 
-static struct can_bittiming_const cc770_bittiming_const = {
+static const struct can_bittiming_const cc770_bittiming_const = {
 	.name = KBUILD_MODNAME,
 	.tseg1_min = 1,
 	.tseg1_max = 16,
@@ -440,12 +439,14 @@ static netdev_tx_t cc770_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	for (i = 0; i < dlc; i++)
 		cc770_write_reg(priv, msgobj[mo].data[i], cf->data[i]);
 
+	/* Store echo skb before starting the transfer */
+	can_put_echo_skb(skb, dev, 0);
+
 	cc770_write_reg(priv, msgobj[mo].ctrl1,
 			RMTPND_RES | TXRQST_SET | CPUUPD_RES | NEWDAT_UNC);
 
 	stats->tx_bytes += dlc;
 
-	can_put_echo_skb(skb, dev, 0);
 
 	/*
 	 * HM: We had some cases of repeated IRQs so make sure the
@@ -694,7 +695,7 @@ static void cc770_tx_interrupt(struct net_device *dev, unsigned int o)
 	netif_wake_queue(dev);
 }
 
-irqreturn_t cc770_interrupt(int irq, void *dev_id)
+static irqreturn_t cc770_interrupt(int irq, void *dev_id)
 {
 	struct net_device *dev = (struct net_device *)dev_id;
 	struct cc770_priv *priv = netdev_priv(dev);
@@ -822,6 +823,7 @@ static const struct net_device_ops cc770_netdev_ops = {
 	.ndo_open = cc770_open,
 	.ndo_stop = cc770_close,
 	.ndo_start_xmit = cc770_start_xmit,
+	.ndo_change_mtu = can_change_mtu,
 };
 
 int register_cc770dev(struct net_device *dev)

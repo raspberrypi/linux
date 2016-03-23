@@ -31,6 +31,7 @@
 #include <linux/kernel.h>
 #include <linux/kgdb.h>
 #include <linux/kdb.h>
+#include <linux/serial_core.h>
 #include <linux/reboot.h>
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
@@ -782,7 +783,10 @@ static void gdb_cmd_query(struct kgdb_state *ks)
 			len = len / 2;
 			remcom_out_buffer[len++] = 0;
 
+			kdb_common_init_state(ks);
 			kdb_parse(remcom_out_buffer);
+			kdb_common_deinit_state();
+
 			strcpy(remcom_out_buffer, "OK");
 		}
 		break;
@@ -1111,6 +1115,13 @@ void gdbstub_exit(int status)
 	unsigned char checksum, ch, buffer[3];
 	int loop;
 
+	if (!kgdb_connected)
+		return;
+	kgdb_connected = 0;
+
+	if (!dbg_io_ops || dbg_kdb_mode)
+		return;
+
 	buffer[0] = 'W';
 	buffer[1] = hex_asc_hi(status);
 	buffer[2] = hex_asc_lo(status);
@@ -1129,5 +1140,6 @@ void gdbstub_exit(int status)
 	dbg_io_ops->write_char(hex_asc_lo(checksum));
 
 	/* make sure the output is flushed, lest the bootloader clobber it */
-	dbg_io_ops->flush();
+	if (dbg_io_ops->flush)
+		dbg_io_ops->flush();
 }

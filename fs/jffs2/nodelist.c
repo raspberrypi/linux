@@ -9,6 +9,8 @@
  *
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
@@ -562,25 +564,10 @@ struct jffs2_node_frag *jffs2_lookup_node_frag(struct rb_root *fragtree, uint32_
    they're killed. */
 void jffs2_kill_fragtree(struct rb_root *root, struct jffs2_sb_info *c)
 {
-	struct jffs2_node_frag *frag;
-	struct jffs2_node_frag *parent;
-
-	if (!root->rb_node)
-		return;
+	struct jffs2_node_frag *frag, *next;
 
 	dbg_fragtree("killing\n");
-
-	frag = (rb_entry(root->rb_node, struct jffs2_node_frag, rb));
-	while(frag) {
-		if (frag->rb.rb_left) {
-			frag = frag_left(frag);
-			continue;
-		}
-		if (frag->rb.rb_right) {
-			frag = frag_right(frag);
-			continue;
-		}
-
+	rbtree_postorder_for_each_entry_safe(frag, next, root, rb) {
 		if (frag->node && !(--frag->node->frags)) {
 			/* Not a hole, and it's the final remaining frag
 			   of this node. Free the node */
@@ -589,17 +576,8 @@ void jffs2_kill_fragtree(struct rb_root *root, struct jffs2_sb_info *c)
 
 			jffs2_free_full_dnode(frag->node);
 		}
-		parent = frag_parent(frag);
-		if (parent) {
-			if (frag_left(parent) == frag)
-				parent->rb.rb_left = NULL;
-			else
-				parent->rb.rb_right = NULL;
-		}
 
 		jffs2_free_node_frag(frag);
-		frag = parent;
-
 		cond_resched();
 	}
 }
@@ -687,8 +665,8 @@ int jffs2_scan_dirty_space(struct jffs2_sb_info *c, struct jffs2_eraseblock *jeb
 	if (!size)
 		return 0;
 	if (unlikely(size > jeb->free_size)) {
-		printk(KERN_CRIT "Dirty space 0x%x larger then free_size 0x%x (wasted 0x%x)\n",
-		       size, jeb->free_size, jeb->wasted_size);
+		pr_crit("Dirty space 0x%x larger then free_size 0x%x (wasted 0x%x)\n",
+			size, jeb->free_size, jeb->wasted_size);
 		BUG();
 	}
 	/* REF_EMPTY_NODE is !obsolete, so that works OK */
@@ -726,8 +704,10 @@ static inline uint32_t __ref_totlen(struct jffs2_sb_info *c,
 
 		/* Last node in block. Use free_space */
 		if (unlikely(ref != jeb->last_node)) {
-			printk(KERN_CRIT "ref %p @0x%08x is not jeb->last_node (%p @0x%08x)\n",
-			       ref, ref_offset(ref), jeb->last_node, jeb->last_node?ref_offset(jeb->last_node):0);
+			pr_crit("ref %p @0x%08x is not jeb->last_node (%p @0x%08x)\n",
+				ref, ref_offset(ref), jeb->last_node,
+				jeb->last_node ?
+				ref_offset(jeb->last_node) : 0);
 			BUG();
 		}
 		ref_end = jeb->offset + c->sector_size - jeb->free_size;
@@ -747,16 +727,20 @@ uint32_t __jffs2_ref_totlen(struct jffs2_sb_info *c, struct jffs2_eraseblock *je
 		if (!jeb)
 			jeb = &c->blocks[ref->flash_offset / c->sector_size];
 
-		printk(KERN_CRIT "Totlen for ref at %p (0x%08x-0x%08x) miscalculated as 0x%x instead of %x\n",
-		       ref, ref_offset(ref), ref_offset(ref)+ref->__totlen,
-		       ret, ref->__totlen);
+		pr_crit("Totlen for ref at %p (0x%08x-0x%08x) miscalculated as 0x%x instead of %x\n",
+			ref, ref_offset(ref), ref_offset(ref) + ref->__totlen,
+			ret, ref->__totlen);
 		if (ref_next(ref)) {
-			printk(KERN_CRIT "next %p (0x%08x-0x%08x)\n", ref_next(ref), ref_offset(ref_next(ref)),
-			       ref_offset(ref_next(ref))+ref->__totlen);
+			pr_crit("next %p (0x%08x-0x%08x)\n",
+				ref_next(ref), ref_offset(ref_next(ref)),
+				ref_offset(ref_next(ref)) + ref->__totlen);
 		} else 
-			printk(KERN_CRIT "No next ref. jeb->last_node is %p\n", jeb->last_node);
+			pr_crit("No next ref. jeb->last_node is %p\n",
+				jeb->last_node);
 
-		printk(KERN_CRIT "jeb->wasted_size %x, dirty_size %x, used_size %x, free_size %x\n", jeb->wasted_size, jeb->dirty_size, jeb->used_size, jeb->free_size);
+		pr_crit("jeb->wasted_size %x, dirty_size %x, used_size %x, free_size %x\n",
+			jeb->wasted_size, jeb->dirty_size, jeb->used_size,
+			jeb->free_size);
 
 #if defined(JFFS2_DBG_DUMPS) || defined(JFFS2_DBG_PARANOIA_CHECKS)
 		__jffs2_dbg_dump_node_refs_nolock(c, jeb);

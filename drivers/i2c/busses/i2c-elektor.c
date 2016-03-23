@@ -12,11 +12,7 @@
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.		     */
+    GNU General Public License for more details.			     */
 /* ------------------------------------------------------------------------- */
 
 /* With some changes from Kyösti Mälkki <kmalkki@cc.hut.fi> and even
@@ -205,7 +201,7 @@ static struct i2c_adapter pcf_isa_ops = {
 	.name		= "i2c-elektor",
 };
 
-static int __devinit elektor_match(struct device *dev, unsigned int id)
+static int elektor_match(struct device *dev, unsigned int id)
 {
 #ifdef __alpha__
 	/* check to see we have memory mapped PCF8584 connected to the
@@ -264,7 +260,7 @@ static int __devinit elektor_match(struct device *dev, unsigned int id)
 	return 1;
 }
 
-static int __devinit elektor_probe(struct device *dev, unsigned int id)
+static int elektor_probe(struct device *dev, unsigned int id)
 {
 	init_waitqueue_head(&pcf_wait);
 	if (pcf_isa_init())
@@ -293,7 +289,7 @@ static int __devinit elektor_probe(struct device *dev, unsigned int id)
 	return -ENODEV;
 }
 
-static int __devexit elektor_remove(struct device *dev, unsigned int id)
+static int elektor_remove(struct device *dev, unsigned int id)
 {
 	i2c_del_adapter(&pcf_isa_ops);
 
@@ -316,7 +312,7 @@ static int __devexit elektor_remove(struct device *dev, unsigned int id)
 static struct isa_driver i2c_elektor_driver = {
 	.match		= elektor_match,
 	.probe		= elektor_probe,
-	.remove		= __devexit_p(elektor_remove),
+	.remove		= elektor_remove,
 	.driver = {
 		.owner	= THIS_MODULE,
 		.name	= "i2c-elektor",

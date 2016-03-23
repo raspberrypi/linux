@@ -11,7 +11,6 @@
 #include <linux/slab.h>
 #include <linux/mutex.h>
 #include <linux/ioport.h>
-#include <linux/init.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/of.h>
@@ -19,7 +18,6 @@
 
 #include <asm/openprom.h>
 #include <asm/oplib.h>
-#include <asm/system.h>
 #include <asm/irq.h>
 #include <asm/io.h>
 #include <asm/pgtable.h>
@@ -348,7 +346,7 @@ static void uctrl_get_external_status(struct uctrl_driver *driver)
 	
 }
 
-static int __devinit uctrl_probe(struct platform_device *op)
+static int uctrl_probe(struct platform_device *op)
 {
 	struct uctrl_driver *p;
 	int err = -ENOMEM;
@@ -403,7 +401,7 @@ out_free:
 	goto out;
 }
 
-static int __devexit uctrl_remove(struct platform_device *op)
+static int uctrl_remove(struct platform_device *op)
 {
 	struct uctrl_driver *p = dev_get_drvdata(&op->dev);
 
@@ -431,7 +429,7 @@ static struct platform_driver uctrl_driver = {
 		.of_match_table = uctrl_match,
 	},
 	.probe		= uctrl_probe,
-	.remove		= __devexit_p(uctrl_remove),
+	.remove		= uctrl_remove,
 };
 
 

@@ -9,7 +9,6 @@
  * more details.
  */
 
-#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -60,10 +59,9 @@ static void *rtllib_tkip_init(int key_idx)
 {
 	struct rtllib_tkip_data *priv;
 
-	priv = kmalloc(sizeof(*priv), GFP_ATOMIC);
+	priv = kzalloc(sizeof(*priv), GFP_ATOMIC);
 	if (priv == NULL)
 		goto fail;
-	memset(priv, 0, sizeof(*priv));
 	priv->key_idx = key_idx;
 	priv->tx_tfm_arc4 = crypto_alloc_blkcipher("ecb(arc4)", 0,
 			CRYPTO_ALG_ASYNC);
@@ -175,7 +173,7 @@ static inline u16 Mk16(u8 hi, u8 lo)
 
 static inline u16 Mk16_le(u16 *v)
 {
-	return le16_to_cpu(*v);
+	return *v;
 }
 
 
@@ -287,6 +285,7 @@ static void tkip_mixing_phase2(u8 *WEPSeed, const u8 *TK, const u16 *TTAK,
 #ifdef __BIG_ENDIAN
 	{
 		int i;
+
 		for (i = 0; i < 6; i++)
 			PPK[i] = (PPK[i] << 8) | (PPK[i] >> 8);
 	}
@@ -391,6 +390,7 @@ static int rtllib_tkip_decrypt(struct sk_buff *skb, int hdr_len, void *priv)
 	u32 crc;
 	struct scatterlist sg;
 	int plen;
+
 	if (skb->len < hdr_len + 8 + 4)
 		return -1;
 
@@ -429,7 +429,7 @@ static int rtllib_tkip_decrypt(struct sk_buff *skb, int hdr_len, void *priv)
 			if (net_ratelimit()) {
 				printk(KERN_DEBUG "TKIP: replay detected: STA="
 				       " %pM previous TSC %08x%04x received "
-				      "TSC %08x%04x\n",hdr->addr2,
+				      "TSC %08x%04x\n", hdr->addr2,
 				      tkey->rx_iv32, tkey->rx_iv16, iv32, iv16);
 			}
 			tkey->dot11RSNAStatsTKIPReplays++;
@@ -598,8 +598,7 @@ static void rtllib_michael_mic_failure(struct net_device *dev,
 }
 
 static int rtllib_michael_mic_verify(struct sk_buff *skb, int keyidx,
-				     int hdr_len, void *priv,
-				     struct rtllib_device *ieee)
+				     int hdr_len, void *priv)
 {
 	struct rtllib_tkip_data *tkey = priv;
 	u8 mic[8];
@@ -618,23 +617,21 @@ static int rtllib_michael_mic_verify(struct sk_buff *skb, int keyidx,
 			skb->data + hdr_len, skb->len - 8 - hdr_len, mic))
 		return -1;
 
-	if ((memcmp(mic, skb->data + skb->len - 8, 8) != 0) ||
-	   (ieee->force_mic_error)) {
+	if (memcmp(mic, skb->data + skb->len - 8, 8) != 0) {
 		struct rtllib_hdr_4addr *hdr;
+
 		hdr = (struct rtllib_hdr_4addr *) skb->data;
 		printk(KERN_DEBUG "%s: Michael MIC verification failed for "
 		       "MSDU from %pM keyidx=%d\n",
 		       skb->dev ? skb->dev->name : "N/A", hdr->addr2,
 		       keyidx);
-		printk(KERN_DEBUG "%d, force_mic_error = %d\n",
-		       (memcmp(mic, skb->data + skb->len - 8, 8) != 0),\
-			ieee->force_mic_error);
+		printk(KERN_DEBUG "%d\n",
+		       memcmp(mic, skb->data + skb->len - 8, 8) != 0);
 		if (skb->dev) {
 			printk(KERN_INFO "skb->dev != NULL\n");
 			rtllib_michael_mic_failure(skb->dev, hdr, keyidx);
 		}
 		tkey->dot11RSNAStatsTKIPLocalMICFailures++;
-		ieee->force_mic_error = false;
 		return -1;
 	}
 
@@ -699,6 +696,7 @@ static int rtllib_tkip_get_key(void *key, int len, u8 *seq, void *priv)
 		/* Return the sequence number of the last transmitted frame. */
 		u16 iv16 = tkey->tx_iv16;
 		u32 iv32 = tkey->tx_iv32;
+
 		if (iv16 == 0)
 			iv32--;
 		iv16--;
@@ -714,35 +712,35 @@ static int rtllib_tkip_get_key(void *key, int len, u8 *seq, void *priv)
 }
 
 
-static char *rtllib_tkip_print_stats(char *p, void *priv)
+static void rtllib_tkip_print_stats(struct seq_file *m, void *priv)
 {
 	struct rtllib_tkip_data *tkip = priv;
-	p += sprintf(p, "key[%d] alg=TKIP key_set=%d "
-		     "tx_pn=%02x%02x%02x%02x%02x%02x "
-		     "rx_pn=%02x%02x%02x%02x%02x%02x "
-		     "replays=%d icv_errors=%d local_mic_failures=%d\n",
-		     tkip->key_idx, tkip->key_set,
-		     (tkip->tx_iv32 >> 24) & 0xff,
-		     (tkip->tx_iv32 >> 16) & 0xff,
-		     (tkip->tx_iv32 >> 8) & 0xff,
-		     tkip->tx_iv32 & 0xff,
-		     (tkip->tx_iv16 >> 8) & 0xff,
-		     tkip->tx_iv16 & 0xff,
-		     (tkip->rx_iv32 >> 24) & 0xff,
-		     (tkip->rx_iv32 >> 16) & 0xff,
-		     (tkip->rx_iv32 >> 8) & 0xff,
-		     tkip->rx_iv32 & 0xff,
-		     (tkip->rx_iv16 >> 8) & 0xff,
-		     tkip->rx_iv16 & 0xff,
-		     tkip->dot11RSNAStatsTKIPReplays,
-		     tkip->dot11RSNAStatsTKIPICVErrors,
-		     tkip->dot11RSNAStatsTKIPLocalMICFailures);
-	return p;
+
+	seq_printf(m,
+		   "key[%d] alg=TKIP key_set=%d "
+		   "tx_pn=%02x%02x%02x%02x%02x%02x "
+		   "rx_pn=%02x%02x%02x%02x%02x%02x "
+		   "replays=%d icv_errors=%d local_mic_failures=%d\n",
+		   tkip->key_idx, tkip->key_set,
+		   (tkip->tx_iv32 >> 24) & 0xff,
+		   (tkip->tx_iv32 >> 16) & 0xff,
+		   (tkip->tx_iv32 >> 8) & 0xff,
+		   tkip->tx_iv32 & 0xff,
+		   (tkip->tx_iv16 >> 8) & 0xff,
+		   tkip->tx_iv16 & 0xff,
+		   (tkip->rx_iv32 >> 24) & 0xff,
+		   (tkip->rx_iv32 >> 16) & 0xff,
+		   (tkip->rx_iv32 >> 8) & 0xff,
+		   tkip->rx_iv32 & 0xff,
+		   (tkip->rx_iv16 >> 8) & 0xff,
+		   tkip->rx_iv16 & 0xff,
+		   tkip->dot11RSNAStatsTKIPReplays,
+		   tkip->dot11RSNAStatsTKIPICVErrors,
+		   tkip->dot11RSNAStatsTKIPLocalMICFailures);
 }
 
-
-static struct rtllib_crypto_ops rtllib_crypt_tkip = {
-	.name			= "TKIP",
+static struct lib80211_crypto_ops rtllib_crypt_tkip = {
+	.name			= "R-TKIP",
 	.init			= rtllib_tkip_init,
 	.deinit			= rtllib_tkip_deinit,
 	.encrypt_mpdu		= rtllib_tkip_encrypt,
@@ -752,24 +750,25 @@ static struct rtllib_crypto_ops rtllib_crypt_tkip = {
 	.set_key		= rtllib_tkip_set_key,
 	.get_key		= rtllib_tkip_get_key,
 	.print_stats		= rtllib_tkip_print_stats,
-	.extra_prefix_len	= 4 + 4, /* IV + ExtIV */
-	.extra_postfix_len	= 8 + 4, /* MIC + ICV */
+	.extra_mpdu_prefix_len = 4 + 4,	/* IV + ExtIV */
+	.extra_mpdu_postfix_len = 4,	/* ICV */
+	.extra_msdu_postfix_len = 8,	/* MIC */
 	.owner			= THIS_MODULE,
 };
 
 
-int __init rtllib_crypto_tkip_init(void)
+static int __init rtllib_crypto_tkip_init(void)
 {
-	return rtllib_register_crypto_ops(&rtllib_crypt_tkip);
+	return lib80211_register_crypto_ops(&rtllib_crypt_tkip);
 }
 
 
-void __exit rtllib_crypto_tkip_exit(void)
+static void __exit rtllib_crypto_tkip_exit(void)
 {
-	rtllib_unregister_crypto_ops(&rtllib_crypt_tkip);
+	lib80211_unregister_crypto_ops(&rtllib_crypt_tkip);
 }
 
-void rtllib_tkip_null(void)
-{
-	return;
-}
+module_init(rtllib_crypto_tkip_init);
+module_exit(rtllib_crypto_tkip_exit);
+
+MODULE_LICENSE("GPL");

@@ -4,7 +4,7 @@
  * Copyright (C) 2008 Panasas Inc.  All rights reserved.
  *
  * Authors:
- *   Boaz Harrosh <bharrosh@panasas.com>
+ *   Boaz Harrosh <ooo@electrozaur.com>
  *   Benny Halevy <bhalevy@panasas.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -14,8 +14,8 @@
 #ifndef __OSD_INITIATOR_H__
 #define __OSD_INITIATOR_H__
 
-#include "osd_protocol.h"
-#include "osd_types.h"
+#include <scsi/osd_protocol.h>
+#include <scsi/osd_types.h>
 
 #include <linux/blkdev.h>
 #include <scsi/scsi_device.h>

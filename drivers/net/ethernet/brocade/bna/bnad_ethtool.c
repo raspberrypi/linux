@@ -102,6 +102,7 @@ static const char *bnad_net_stats_strings[BNAD_ETHTOOL_STATS_NUM] = {
 	"rx_unmap_q_alloc_failed",
 	"rxbuf_alloc_failed",
 
+	"mac_stats_clr_cnt",
 	"mac_frame_64",
 	"mac_frame_65_127",
 	"mac_frame_128_255",
@@ -265,8 +266,8 @@ bnad_get_settings(struct net_device *netdev, struct ethtool_cmd *cmd)
 		ethtool_cmd_speed_set(cmd, SPEED_10000);
 		cmd->duplex = DUPLEX_FULL;
 	} else {
-		ethtool_cmd_speed_set(cmd, -1);
-		cmd->duplex = -1;
+		ethtool_cmd_speed_set(cmd, SPEED_UNKNOWN);
+		cmd->duplex = DUPLEX_UNKNOWN;
 	}
 	cmd->transceiver = XCVR_EXTERNAL;
 	cmd->maxtxpkt = 0;
@@ -464,7 +465,7 @@ bnad_set_ringparam(struct net_device *netdev,
 		for (i = 0; i < bnad->num_rx; i++) {
 			if (!bnad->rx_info[i].rx)
 				continue;
-			bnad_cleanup_rx(bnad, i);
+			bnad_destroy_rx(bnad, i);
 			current_err = bnad_setup_rx(bnad, i);
 			if (current_err && !err)
 				err = current_err;
@@ -492,7 +493,7 @@ bnad_set_ringparam(struct net_device *netdev,
 		for (i = 0; i < bnad->num_tx; i++) {
 			if (!bnad->tx_info[i].tx)
 				continue;
-			bnad_cleanup_tx(bnad, i);
+			bnad_destroy_tx(bnad, i);
 			current_err = bnad_setup_tx(bnad, i);
 			if (current_err && !err)
 				err = current_err;
@@ -539,7 +540,7 @@ bnad_set_pauseparam(struct net_device *netdev,
 }
 
 static void
-bnad_get_strings(struct net_device *netdev, u32 stringset, u8 * string)
+bnad_get_strings(struct net_device *netdev, u32 stringset, u8 *string)
 {
 	struct bnad *bnad = netdev_priv(netdev);
 	int i, j, q_num;
@@ -946,7 +947,7 @@ bnad_get_flash_partition_by_offset(struct bnad *bnad, u32 offset,
 
 	flash_attr = kzalloc(sizeof(struct bfa_flash_attr), GFP_KERNEL);
 	if (!flash_attr)
-		return -ENOMEM;
+		return 0;
 
 	fcomp.bnad = bnad;
 	fcomp.comp_status = 0;
@@ -958,7 +959,7 @@ bnad_get_flash_partition_by_offset(struct bnad *bnad, u32 offset,
 	if (ret != BFA_STATUS_OK) {
 		spin_unlock_irqrestore(&bnad->bna_lock, flags);
 		kfree(flash_attr);
-		goto out_err;
+		return 0;
 	}
 	spin_unlock_irqrestore(&bnad->bna_lock, flags);
 	wait_for_completion(&fcomp.comp);
@@ -978,8 +979,6 @@ bnad_get_flash_partition_by_offset(struct bnad *bnad, u32 offset,
 	}
 	kfree(flash_attr);
 	return flash_part;
-out_err:
-	return -EINVAL;
 }
 
 static int
@@ -998,15 +997,13 @@ bnad_get_eeprom(struct net_device *netdev, struct ethtool_eeprom *eeprom,
 	unsigned long flags = 0;
 	int ret = 0;
 
-	/* Check if the flash read request is valid */
-	if (eeprom->magic != (bnad->pcidev->vendor |
-			     (bnad->pcidev->device << 16)))
-		return -EFAULT;
+	/* Fill the magic value */
+	eeprom->magic = bnad->pcidev->vendor | (bnad->pcidev->device << 16);
 
 	/* Query the flash partition based on the offset */
 	flash_part = bnad_get_flash_partition_by_offset(bnad,
 				eeprom->offset, &base_offset);
-	if (flash_part <= 0)
+	if (flash_part == 0)
 		return -EFAULT;
 
 	fcomp.bnad = bnad;
@@ -1048,7 +1045,7 @@ bnad_set_eeprom(struct net_device *netdev, struct ethtool_eeprom *eeprom,
 	/* Query the flash partition based on the offset */
 	flash_part = bnad_get_flash_partition_by_offset(bnad,
 				eeprom->offset, &base_offset);
-	if (flash_part <= 0)
+	if (flash_part == 0)
 		return -EFAULT;
 
 	fcomp.bnad = bnad;
@@ -1072,6 +1069,47 @@ done:
 	return ret;
 }
 
+static int
+bnad_flash_device(struct net_device *netdev, struct ethtool_flash *eflash)
+{
+	struct bnad *bnad = netdev_priv(netdev);
+	struct bnad_iocmd_comp fcomp;
+	const struct firmware *fw;
+	int ret = 0;
+
+	ret = request_firmware(&fw, eflash->data, &bnad->pcidev->dev);
+	if (ret) {
+		pr_err("BNA: Can't locate firmware %s\n", eflash->data);
+		goto out;
+	}
+
+	fcomp.bnad = bnad;
+	fcomp.comp_status = 0;
+
+	init_completion(&fcomp.comp);
+	spin_lock_irq(&bnad->bna_lock);
+	ret = bfa_nw_flash_update_part(&bnad->bna.flash, BFA_FLASH_PART_FWIMG,
+				bnad->id, (u8 *)fw->data, fw->size, 0,
+				bnad_cb_completion, &fcomp);
+	if (ret != BFA_STATUS_OK) {
+		pr_warn("BNA: Flash update failed with err: %d\n", ret);
+		ret = -EIO;
+		spin_unlock_irq(&bnad->bna_lock);
+		goto out;
+	}
+
+	spin_unlock_irq(&bnad->bna_lock);
+	wait_for_completion(&fcomp.comp);
+	if (fcomp.comp_status != BFA_STATUS_OK) {
+		ret = -EIO;
+		pr_warn("BNA: Firmware image update to flash failed with: %d\n",
+			fcomp.comp_status);
+	}
+out:
+	release_firmware(fw);
+	return ret;
+}
+
 static const struct ethtool_ops bnad_ethtool_ops = {
 	.get_settings = bnad_get_settings,
 	.set_settings = bnad_set_settings,
@@ -1090,10 +1128,12 @@ static const struct ethtool_ops bnad_ethtool_ops = {
 	.get_eeprom_len = bnad_get_eeprom_len,
 	.get_eeprom = bnad_get_eeprom,
 	.set_eeprom = bnad_set_eeprom,
+	.flash_device = bnad_flash_device,
+	.get_ts_info = ethtool_op_get_ts_info,
 };
 
 void
 bnad_set_ethtool_ops(struct net_device *netdev)
 {
-	SET_ETHTOOL_OPS(netdev, &bnad_ethtool_ops);
+	netdev->ethtool_ops = &bnad_ethtool_ops;
 }

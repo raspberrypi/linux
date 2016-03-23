@@ -30,21 +30,25 @@
 #include <asm/irq.h>
 #include <asm/uaccess.h>
 
-MODULE_DESCRIPTION("ICPlus IP175C/IP101A/IC1001 PHY drivers");
+MODULE_DESCRIPTION("ICPlus IP175C/IP101A/IP101G/IC1001 PHY drivers");
 MODULE_AUTHOR("Michael Barkowski");
 MODULE_LICENSE("GPL");
 
-/* IP101A/IP1001 */
-#define IP10XX_SPEC_CTRL_STATUS		16  /* Spec. Control Register */
-#define IP1001_SPEC_CTRL_STATUS_2	20  /* IP1001 Spec. Control Reg 2 */
-#define IP1001_PHASE_SEL_MASK		3 /* IP1001 RX/TXPHASE_SEL */
-#define IP1001_APS_ON			11  /* IP1001 APS Mode  bit */
-#define IP101A_APS_ON			2   /* IP101A APS Mode bit */
+/* IP101A/G - IP1001 */
+#define IP10XX_SPEC_CTRL_STATUS		16	/* Spec. Control Register */
+#define IP1001_RXPHASE_SEL		(1<<0)	/* Add delay on RX_CLK */
+#define IP1001_TXPHASE_SEL		(1<<1)	/* Add delay on TX_CLK */
+#define IP1001_SPEC_CTRL_STATUS_2	20	/* IP1001 Spec. Control Reg 2 */
+#define IP1001_APS_ON			11	/* IP1001 APS Mode  bit */
+#define IP101A_G_APS_ON			2	/* IP101A/G APS Mode bit */
+#define IP101A_G_IRQ_CONF_STATUS	0x11	/* Conf Info IRQ & Status Reg */
+#define	IP101A_G_IRQ_PIN_USED		(1<<15) /* INTR pin used */
+#define	IP101A_G_IRQ_DEFAULT		IP101A_G_IRQ_PIN_USED
 
 static int ip175c_config_init(struct phy_device *phydev)
 {
 	int err, i;
-	static int full_reset_performed = 0;
+	static int full_reset_performed;
 
 	if (full_reset_performed == 0) {
 
@@ -98,20 +102,24 @@ static int ip175c_config_init(struct phy_device *phydev)
 
 static int ip1xx_reset(struct phy_device *phydev)
 {
-	int err, bmcr;
+	int bmcr;
 
 	/* Software Reset PHY */
 	bmcr = phy_read(phydev, MII_BMCR);
+	if (bmcr < 0)
+		return bmcr;
 	bmcr |= BMCR_RESET;
-	err = phy_write(phydev, MII_BMCR, bmcr);
-	if (err < 0)
-		return err;
+	bmcr = phy_write(phydev, MII_BMCR, bmcr);
+	if (bmcr < 0)
+		return bmcr;
 
 	do {
 		bmcr = phy_read(phydev, MII_BMCR);
+		if (bmcr < 0)
+			return bmcr;
 	} while (bmcr & BMCR_RESET);
 
-	return err;
+	return 0;
 }
 
 static int ip1001_config_init(struct phy_device *phydev)
@@ -124,22 +132,40 @@ static int ip1001_config_init(struct phy_device *phydev)
 
 	/* Enable Auto Power Saving mode */
 	c = phy_read(phydev, IP1001_SPEC_CTRL_STATUS_2);
+	if (c < 0)
+		return c;
 	c |= IP1001_APS_ON;
+	c = phy_write(phydev, IP1001_SPEC_CTRL_STATUS_2, c);
 	if (c < 0)
 		return c;
 
-	if (phydev->interface == PHY_INTERFACE_MODE_RGMII) {
-		/* Additional delay (2ns) used to adjust RX clock phase
-		 * at RGMII interface */
+	if ((phydev->interface == PHY_INTERFACE_MODE_RGMII) ||
+	    (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID) ||
+	    (phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID) ||
+	    (phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID)) {
+
 		c = phy_read(phydev, IP10XX_SPEC_CTRL_STATUS);
-		c |= IP1001_PHASE_SEL_MASK;
+		if (c < 0)
+			return c;
+
+		c &= ~(IP1001_RXPHASE_SEL | IP1001_TXPHASE_SEL);
+
+		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID)
+			c |= (IP1001_RXPHASE_SEL | IP1001_TXPHASE_SEL);
+		else if (phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID)
+			c |= IP1001_RXPHASE_SEL;
+		else if (phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID)
+			c |= IP1001_TXPHASE_SEL;
+
 		c = phy_write(phydev, IP10XX_SPEC_CTRL_STATUS, c);
+		if (c < 0)
+			return c;
 	}
 
-	return c;
+	return 0;
 }
 
-static int ip101a_config_init(struct phy_device *phydev)
+static int ip101a_g_config_init(struct phy_device *phydev)
 {
 	int c;
 
@@ -147,10 +173,16 @@ static int ip101a_config_init(struct phy_device *phydev)
 	if (c < 0)
 		return c;
 
+	/* INTR pin used: speed/link/duplex will cause an interrupt */
+	c = phy_write(phydev, IP101A_G_IRQ_CONF_STATUS, IP101A_G_IRQ_DEFAULT);
+	if (c < 0)
+		return c;
+
 	/* Enable Auto Power Saving mode */
 	c = phy_read(phydev, IP10XX_SPEC_CTRL_STATUS);
-	c |= IP101A_APS_ON;
-	return c;
+	c |= IP101A_G_APS_ON;
+
+	return phy_write(phydev, IP10XX_SPEC_CTRL_STATUS, c);
 }
 
 static int ip175c_read_status(struct phy_device *phydev)
@@ -172,7 +204,17 @@ static int ip175c_config_aneg(struct phy_device *phydev)
 	return 0;
 }
 
-static struct phy_driver ip175c_driver = {
+static int ip101a_g_ack_interrupt(struct phy_device *phydev)
+{
+	int err = phy_read(phydev, IP101A_G_IRQ_CONF_STATUS);
+	if (err < 0)
+		return err;
+
+	return 0;
+}
+
+static struct phy_driver icplus_driver[] = {
+{
 	.phy_id		= 0x02430d80,
 	.name		= "ICPlus IP175C",
 	.phy_id_mask	= 0x0ffffff0,
@@ -183,9 +225,7 @@ static struct phy_driver ip175c_driver = {
 	.suspend	= genphy_suspend,
 	.resume		= genphy_resume,
 	.driver		= { .owner = THIS_MODULE,},
-};
-
-static struct phy_driver ip1001_driver = {
+}, {
 	.phy_id		= 0x02430d90,
 	.name		= "ICPlus IP1001",
 	.phy_id_mask	= 0x0ffffff0,
@@ -197,42 +237,32 @@ static struct phy_driver ip1001_driver = {
 	.suspend	= genphy_suspend,
 	.resume		= genphy_resume,
 	.driver		= { .owner = THIS_MODULE,},
-};
-
-static struct phy_driver ip101a_driver = {
+}, {
 	.phy_id		= 0x02430c54,
-	.name		= "ICPlus IP101A",
+	.name		= "ICPlus IP101A/G",
 	.phy_id_mask	= 0x0ffffff0,
 	.features	= PHY_BASIC_FEATURES | SUPPORTED_Pause |
 			  SUPPORTED_Asym_Pause,
-	.config_init	= &ip101a_config_init,
+	.flags		= PHY_HAS_INTERRUPT,
+	.ack_interrupt	= ip101a_g_ack_interrupt,
+	.config_init	= &ip101a_g_config_init,
 	.config_aneg	= &genphy_config_aneg,
 	.read_status	= &genphy_read_status,
 	.suspend	= genphy_suspend,
 	.resume		= genphy_resume,
 	.driver		= { .owner = THIS_MODULE,},
-};
+} };
 
 static int __init icplus_init(void)
 {
-	int ret = 0;
-
-	ret = phy_driver_register(&ip1001_driver);
-	if (ret < 0)
-		return -ENODEV;
-
-	ret = phy_driver_register(&ip101a_driver);
-	if (ret < 0)
-		return -ENODEV;
-
-	return phy_driver_register(&ip175c_driver);
+	return phy_drivers_register(icplus_driver,
+		ARRAY_SIZE(icplus_driver));
 }
 
 static void __exit icplus_exit(void)
 {
-	phy_driver_unregister(&ip1001_driver);
-	phy_driver_unregister(&ip101a_driver);
-	phy_driver_unregister(&ip175c_driver);
+	phy_drivers_unregister(icplus_driver,
+		ARRAY_SIZE(icplus_driver));
 }
 
 module_init(icplus_init);
@@ -241,6 +271,7 @@ module_exit(icplus_exit);
 static struct mdio_device_id __maybe_unused icplus_tbl[] = {
 	{ 0x02430d80, 0x0ffffff0 },
 	{ 0x02430d90, 0x0ffffff0 },
+	{ 0x02430c54, 0x0ffffff0 },
 	{ }
 };
 

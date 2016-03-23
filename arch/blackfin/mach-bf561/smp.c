@@ -48,7 +48,7 @@ int __init setup_profiling_timer(unsigned int multiplier) /* not supported */
 	return -EINVAL;
 }
 
-void __cpuinit platform_secondary_init(unsigned int cpu)
+void platform_secondary_init(unsigned int cpu)
 {
 	/* Clone setup for peripheral interrupt sources from CoreA. */
 	bfin_write_SICB_IMASK0(bfin_read_SIC_IMASK0());
@@ -69,12 +69,11 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 	SSYNC();
 
 	/* We are done with local CPU inits, unblock the boot CPU. */
-	set_cpu_online(cpu, true);
 	spin_lock(&boot_lock);
 	spin_unlock(&boot_lock);
 }
 
-int __cpuinit platform_boot_secondary(unsigned int cpu, struct task_struct *idle)
+int platform_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned long timeout;
 
@@ -84,14 +83,16 @@ int __cpuinit platform_boot_secondary(unsigned int cpu, struct task_struct *idle
 
 	if ((bfin_read_SYSCR() & COREB_SRAM_INIT) == 0) {
 		/* CoreB already running, sending ipi to wakeup it */
-		platform_send_ipi_cpu(cpu, IRQ_SUPPLE_0);
+		smp_send_reschedule(cpu);
 	} else {
 		/* Kick CoreB, which should start execution from CORE_SRAM_BASE. */
 		bfin_write_SYSCR(bfin_read_SYSCR() & ~COREB_SRAM_INIT);
 		SSYNC();
 	}
 
-	timeout = jiffies + 1 * HZ;
+	timeout = jiffies + HZ;
+	/* release the lock and let coreb run */
+	spin_unlock(&boot_lock);
 	while (time_before(jiffies, timeout)) {
 		if (cpu_online(cpu))
 			break;
@@ -100,8 +101,6 @@ int __cpuinit platform_boot_secondary(unsigned int cpu, struct task_struct *idle
 	}
 
 	if (cpu_online(cpu)) {
-		/* release the lock and let coreb run */
-		spin_unlock(&boot_lock);
 		return 0;
 	} else
 		panic("CPU%u: processor failed to boot\n", cpu);
@@ -114,7 +113,8 @@ void __init platform_request_ipi(int irq, void *handler)
 	int ret;
 	const char *name = (irq == IRQ_SUPPLE_0) ? supple0 : supple1;
 
-	ret = request_irq(irq, handler, IRQF_PERCPU, name, handler);
+	ret = request_irq(irq, handler, IRQF_PERCPU | IRQF_NO_SUSPEND |
+			IRQF_FORCE_RESUME, name, handler);
 	if (ret)
 		panic("Cannot request %s for IPI service", name);
 }
@@ -154,7 +154,7 @@ void platform_clear_ipi(unsigned int cpu, int irq)
  * Setup core B's local core timer.
  * In SMP, core timer is used for clock event device.
  */
-void __cpuinit bfin_local_timer_setup(void)
+void bfin_local_timer_setup(void)
 {
 #if defined(CONFIG_TICKSOURCE_CORETMR)
 	struct irq_data *data = irq_get_irq_data(IRQ_CORETMR);

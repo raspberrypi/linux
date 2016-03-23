@@ -1,6 +1,4 @@
 /*
- *  arch/s390/kernel/processor.c
- *
  *  Copyright IBM Corp. 2008
  *  Author(s): Martin Schwidefsky (schwidefsky@de.ibm.com)
  */
@@ -23,9 +21,9 @@ static DEFINE_PER_CPU(struct cpuid, cpu_id);
 /*
  * cpu_init - initializes state that is per-CPU.
  */
-void __cpuinit cpu_init(void)
+void cpu_init(void)
 {
-	struct cpuid *id = &per_cpu(cpu_id, smp_processor_id());
+	struct cpuid *id = this_cpu_ptr(&cpu_id);
 
 	get_cpu_id(id);
 	atomic_inc(&init_mm.mm_count);
@@ -39,9 +37,9 @@ void __cpuinit cpu_init(void)
  */
 static int show_cpuinfo(struct seq_file *m, void *v)
 {
-	static const char *hwcap_str[10] = {
+	static const char *hwcap_str[] = {
 		"esan3", "zarch", "stfle", "msa", "ldisp", "eimm", "dfp",
-		"edat", "etf3eh", "highgprs"
+		"edat", "etf3eh", "highgprs", "te", "vx"
 	};
 	unsigned long n = (unsigned long) v - 1;
 	int i;
@@ -54,10 +52,11 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 			   num_online_cpus(), loops_per_jiffy/(500000/HZ),
 			   (loops_per_jiffy/(5000/HZ))%100);
 		seq_puts(m, "features\t: ");
-		for (i = 0; i < 10; i++)
+		for (i = 0; i < ARRAY_SIZE(hwcap_str); i++)
 			if (hwcap_str[i] && (elf_hwcap & (1UL << i)))
 				seq_printf(m, "%s ", hwcap_str[i]);
 		seq_puts(m, "\n");
+		show_cacheinfo(m);
 	}
 	get_online_cpus();
 	if (cpu_online(n)) {

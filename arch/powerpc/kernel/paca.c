@@ -11,13 +11,10 @@
 #include <linux/export.h>
 #include <linux/memblock.h>
 
-#include <asm/firmware.h>
 #include <asm/lppaca.h>
 #include <asm/paca.h>
 #include <asm/sections.h>
 #include <asm/pgtable.h>
-#include <asm/iseries/lpar_map.h>
-#include <asm/iseries/hv_types.h>
 #include <asm/kexec.h>
 
 /* This symbol is provided by the linker - let it fill in the paca
@@ -30,20 +27,17 @@ extern unsigned long __toc_start;
  * The structure which the hypervisor knows about - this structure
  * should not cross a page boundary.  The vpa_init/register_vpa call
  * is now known to fail if the lppaca structure crosses a page
- * boundary.  The lppaca is also used on legacy iSeries and POWER5
- * pSeries boxes.  The lppaca is 640 bytes long, and cannot readily
+ * boundary.  The lppaca is also used on POWER5 pSeries boxes.
+ * The lppaca is 640 bytes long, and cannot readily
  * change since the hypervisor knows its layout, so a 1kB alignment
  * will suffice to ensure that it doesn't cross a page boundary.
  */
 struct lppaca lppaca[] = {
 	[0 ... (NR_LPPACAS-1)] = {
-		.desc = 0xd397d781,	/* "LpPa" */
-		.size = sizeof(struct lppaca),
-		.dyn_proc_status = 2,
-		.decr_val = 0x00ff0000,
+		.desc = cpu_to_be32(0xd397d781),	/* "LpPa" */
+		.size = cpu_to_be16(sizeof(struct lppaca)),
 		.fpregs_in_use = 1,
-		.end_of_quantum = 0xfffffffffffffffful,
-		.slb_count = 64,
+		.slb_count = cpu_to_be16(64),
 		.vmxregs_in_use = 0,
 		.page_ins = 0,
 	},
@@ -52,7 +46,7 @@ struct lppaca lppaca[] = {
 static struct lppaca *extra_lppacas;
 static long __initdata lppaca_size;
 
-static void allocate_lppacas(int nr_cpus, unsigned long limit)
+static void __init allocate_lppacas(int nr_cpus, unsigned long limit)
 {
 	if (nr_cpus <= NR_LPPACAS)
 		return;
@@ -63,7 +57,7 @@ static void allocate_lppacas(int nr_cpus, unsigned long limit)
 						 PAGE_SIZE, limit));
 }
 
-static struct lppaca *new_lppaca(int cpu)
+static struct lppaca * __init new_lppaca(int cpu)
 {
 	struct lppaca *lp;
 
@@ -76,7 +70,7 @@ static struct lppaca *new_lppaca(int cpu)
 	return lp;
 }
 
-static void free_lppacas(void)
+static void __init free_lppacas(void)
 {
 	long new_size = 0, nr;
 
@@ -104,13 +98,32 @@ static inline void free_lppacas(void) { }
 /*
  * 3 persistent SLBs are registered here.  The buffer will be zero
  * initially, hence will all be invaild until we actually write them.
+ *
+ * If you make the number of persistent SLB entries dynamic, please also
+ * update PR KVM to flush and restore them accordingly.
  */
-struct slb_shadow slb_shadow[] __cacheline_aligned = {
-	[0 ... (NR_CPUS-1)] = {
-		.persistent = SLB_NUM_BOLTED,
-		.buffer_length = sizeof(struct slb_shadow),
-	},
-};
+static struct slb_shadow *slb_shadow;
+
+static void __init allocate_slb_shadows(int nr_cpus, int limit)
+{
+	int size = PAGE_ALIGN(sizeof(struct slb_shadow) * nr_cpus);
+	slb_shadow = __va(memblock_alloc_base(size, PAGE_SIZE, limit));
+	memset(slb_shadow, 0, size);
+}
+
+static struct slb_shadow * __init init_slb_shadow(int cpu)
+{
+	struct slb_shadow *s = &slb_shadow[cpu];
+
+	s->persistent = cpu_to_be32(SLB_NUM_BOLTED);
+	s->buffer_length = cpu_to_be32(sizeof(*s));
+
+	return s;
+}
+
+#else /* CONFIG_PPC_STD_MMU_64 */
+
+static void __init allocate_slb_shadows(int nr_cpus, int limit) { }
 
 #endif /* CONFIG_PPC_STD_MMU_64 */
 
@@ -125,8 +138,6 @@ struct slb_shadow slb_shadow[] __cacheline_aligned = {
  */
 struct paca_struct *paca;
 EXPORT_SYMBOL(paca);
-
-struct paca_struct boot_paca;
 
 void __init initialise_paca(struct paca_struct *new_paca, int cpu)
 {
@@ -144,13 +155,20 @@ void __init initialise_paca(struct paca_struct *new_paca, int cpu)
 	new_paca->paca_index = cpu;
 	new_paca->kernel_toc = kernel_toc;
 	new_paca->kernelbase = (unsigned long) _stext;
-	new_paca->kernel_msr = MSR_KERNEL;
+	/* Only set MSR:IR/DR when MMU is initialized */
+	new_paca->kernel_msr = MSR_KERNEL & ~(MSR_IR | MSR_DR);
 	new_paca->hw_cpu_id = 0xffff;
 	new_paca->kexec_state = KEXEC_STATE_NONE;
 	new_paca->__current = &init_task;
+	new_paca->data_offset = 0xfeeeeeeeeeeeeeeeULL;
 #ifdef CONFIG_PPC_STD_MMU_64
-	new_paca->slb_shadow_ptr = &slb_shadow[cpu];
+	new_paca->slb_shadow_ptr = init_slb_shadow(cpu);
 #endif /* CONFIG_PPC_STD_MMU_64 */
+
+#ifdef CONFIG_PPC_BOOK3E
+	/* For now -- if we have threads this will be adjusted later */
+	new_paca->tcd_ptr = &new_paca->tcd;
+#endif
 }
 
 /* Put the paca pointer into r13 and SPRG_PACA */
@@ -183,12 +201,9 @@ void __init allocate_pacas(void)
 	/*
 	 * We can't take SLB misses on the paca, and we want to access them
 	 * in real mode, so allocate them within the RMA and also within
-	 * the first segment. On iSeries they must be within the area mapped
-	 * by the HV, which is HvPagesToMap * HVPAGESIZE bytes.
+	 * the first segment.
 	 */
 	limit = min(0x10000000ULL, ppc64_rma_size);
-	if (firmware_has_feature(FW_FEATURE_ISERIES))
-		limit = min(limit, HvPagesToMap * HVPAGESIZE);
 
 	paca_size = PAGE_ALIGN(sizeof(struct paca_struct) * nr_cpu_ids);
 
@@ -199,6 +214,8 @@ void __init allocate_pacas(void)
 		paca_size, nr_cpu_ids, paca);
 
 	allocate_lppacas(nr_cpu_ids, limit);
+
+	allocate_slb_shadows(nr_cpu_ids, limit);
 
 	/* Can't use for_each_*_cpu, as they aren't functional yet */
 	for (cpu = 0; cpu < nr_cpu_ids; cpu++)

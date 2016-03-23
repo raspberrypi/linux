@@ -132,7 +132,6 @@ Include Files
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/string.h>
@@ -154,7 +153,6 @@ Include Files
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
-#include <asm/system.h>
 
 /* ----------------------------------------------------------------------------
 Defines
@@ -459,7 +457,7 @@ static int nmclan_probe(struct pcmcia_device *link)
     lp->tx_free_frames=AM2150_MAX_TX_FRAMES;
 
     dev->netdev_ops = &mace_netdev_ops;
-    SET_ETHTOOL_OPS(dev, &netdev_ethtool_ops);
+    dev->ethtool_ops = &netdev_ethtool_ops;
     dev->watchdog_timeo = TX_TIMEOUT;
 
     return nmclan_config(link);
@@ -623,7 +621,7 @@ static int nmclan_config(struct pcmcia_device *link)
   ret = pcmcia_request_io(link);
   if (ret)
 	  goto failed;
-  ret = pcmcia_request_exclusive_irq(link, mace_interrupt);
+  ret = pcmcia_request_irq(link, mace_interrupt);
   if (ret)
 	  goto failed;
   ret = pcmcia_enable_device(link);
@@ -1104,7 +1102,7 @@ static int mace_rx(struct net_device *dev, unsigned char RxCnt)
       pr_debug("    receiving packet size 0x%X rx_status"
 	    " 0x%X.\n", pkt_len, rx_status);
 
-      skb = dev_alloc_skb(pkt_len+2);
+      skb = netdev_alloc_skb(dev, pkt_len + 2);
 
       if (skb != NULL) {
 	skb_reserve(skb, 2);
@@ -1509,16 +1507,4 @@ static struct pcmcia_driver nmclan_cs_driver = {
 	.suspend	= nmclan_suspend,
 	.resume		= nmclan_resume,
 };
-
-static int __init init_nmclan_cs(void)
-{
-	return pcmcia_register_driver(&nmclan_cs_driver);
-}
-
-static void __exit exit_nmclan_cs(void)
-{
-	pcmcia_unregister_driver(&nmclan_cs_driver);
-}
-
-module_init(init_nmclan_cs);
-module_exit(exit_nmclan_cs);
+module_pcmcia_driver(nmclan_cs_driver);

@@ -458,9 +458,8 @@ static int ks8842_tx_frame_dma(struct sk_buff *skb, struct net_device *netdev)
 	if (sg_dma_len(&ctl->sg) % 4)
 		sg_dma_len(&ctl->sg) += 4 - sg_dma_len(&ctl->sg) % 4;
 
-	ctl->adesc = ctl->chan->device->device_prep_slave_sg(ctl->chan,
-		&ctl->sg, 1, DMA_TO_DEVICE,
-		DMA_PREP_INTERRUPT | DMA_COMPL_SKIP_SRC_UNMAP);
+	ctl->adesc = dmaengine_prep_slave_sg(ctl->chan,
+		&ctl->sg, 1, DMA_MEM_TO_DEV, DMA_PREP_INTERRUPT);
 	if (!ctl->adesc)
 		return NETDEV_TX_BUSY;
 
@@ -570,9 +569,8 @@ static int __ks8842_start_new_rx_dma(struct net_device *netdev)
 
 		sg_dma_len(sg) = DMA_BUFFER_SIZE;
 
-		ctl->adesc = ctl->chan->device->device_prep_slave_sg(ctl->chan,
-			sg, 1, DMA_FROM_DEVICE,
-			DMA_PREP_INTERRUPT | DMA_COMPL_SKIP_SRC_UNMAP);
+		ctl->adesc = dmaengine_prep_slave_sg(ctl->chan,
+			sg, 1, DMA_DEV_TO_MEM, DMA_PREP_INTERRUPT);
 
 		if (!ctl->adesc)
 			goto out;
@@ -705,7 +703,8 @@ static void ks8842_rx_frame(struct net_device *netdev,
 	ks8842_enable_bits(adapter, 0, 1 << 12, REG_QRFCR);
 }
 
-void ks8842_handle_rx(struct net_device *netdev, struct ks8842_adapter *adapter)
+static void ks8842_handle_rx(struct net_device *netdev,
+	struct ks8842_adapter *adapter)
 {
 	u16 rx_data = ks8842_read16(adapter, 16, REG_RXMIR) & 0x1fff;
 	netdev_dbg(netdev, "%s Entry - rx_data: %d\n", __func__, rx_data);
@@ -715,7 +714,8 @@ void ks8842_handle_rx(struct net_device *netdev, struct ks8842_adapter *adapter)
 	}
 }
 
-void ks8842_handle_tx(struct net_device *netdev, struct ks8842_adapter *adapter)
+static void ks8842_handle_tx(struct net_device *netdev,
+	struct ks8842_adapter *adapter)
 {
 	u16 sr = ks8842_read16(adapter, 16, REG_TXSR);
 	netdev_dbg(netdev, "%s - entry, sr: %x\n", __func__, sr);
@@ -724,7 +724,7 @@ void ks8842_handle_tx(struct net_device *netdev, struct ks8842_adapter *adapter)
 		netif_wake_queue(netdev);
 }
 
-void ks8842_handle_rx_overrun(struct net_device *netdev,
+static void ks8842_handle_rx_overrun(struct net_device *netdev,
 	struct ks8842_adapter *adapter)
 {
 	netdev_dbg(netdev, "%s: entry\n", __func__);
@@ -732,7 +732,7 @@ void ks8842_handle_rx_overrun(struct net_device *netdev,
 	netdev->stats.rx_fifo_errors++;
 }
 
-void ks8842_tasklet(unsigned long arg)
+static void ks8842_tasklet(unsigned long arg)
 {
 	struct net_device *netdev = (struct net_device *)arg;
 	struct ks8842_adapter *adapter = netdev_priv(netdev);
@@ -875,13 +875,11 @@ static void ks8842_stop_dma(struct ks8842_adapter *adapter)
 
 	tx_ctl->adesc = NULL;
 	if (tx_ctl->chan)
-		tx_ctl->chan->device->device_control(tx_ctl->chan,
-			DMA_TERMINATE_ALL, 0);
+		dmaengine_terminate_all(tx_ctl->chan);
 
 	rx_ctl->adesc = NULL;
 	if (rx_ctl->chan)
-		rx_ctl->chan->device->device_control(rx_ctl->chan,
-			DMA_TERMINATE_ALL, 0);
+		dmaengine_terminate_all(rx_ctl->chan);
 
 	if (sg_dma_address(&rx_ctl->sg))
 		dma_unmap_single(adapter->dev, sg_dma_address(&rx_ctl->sg),
@@ -1140,13 +1138,13 @@ static const struct ethtool_ops ks8842_ethtool_ops = {
 	.get_link		= ethtool_op_get_link,
 };
 
-static int __devinit ks8842_probe(struct platform_device *pdev)
+static int ks8842_probe(struct platform_device *pdev)
 {
 	int err = -ENOMEM;
 	struct resource *iomem;
 	struct net_device *netdev;
 	struct ks8842_adapter *adapter;
-	struct ks8842_platform_data *pdata = pdev->dev.platform_data;
+	struct ks8842_platform_data *pdata = dev_get_platdata(&pdev->dev);
 	u16 id;
 	unsigned i;
 
@@ -1211,7 +1209,7 @@ static int __devinit ks8842_probe(struct platform_device *pdev)
 		ks8842_read_mac_addr(adapter, netdev->dev_addr);
 
 		if (!is_valid_ether_addr(netdev->dev_addr))
-			random_ether_addr(netdev->dev_addr);
+			eth_hw_addr_random(netdev);
 	}
 
 	id = ks8842_read16(adapter, 32, REG_SW_ID_AND_ENABLE);
@@ -1239,7 +1237,7 @@ err_mem_region:
 	return err;
 }
 
-static int __devexit ks8842_remove(struct platform_device *pdev)
+static int ks8842_remove(struct platform_device *pdev)
 {
 	struct net_device *netdev = platform_get_drvdata(pdev);
 	struct ks8842_adapter *adapter = netdev_priv(netdev);
@@ -1250,7 +1248,6 @@ static int __devexit ks8842_remove(struct platform_device *pdev)
 	iounmap(adapter->hw_addr);
 	free_netdev(netdev);
 	release_mem_region(iomem->start, resource_size(iomem));
-	platform_set_drvdata(pdev, NULL);
 	return 0;
 }
 

@@ -52,14 +52,15 @@
  *	Includes, defines, variables, module parameters, ...
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 /* Includes */
 #include <linux/module.h>		/* For module specific items */
 #include <linux/moduleparam.h>		/* For new moduleparam's */
 #include <linux/types.h>		/* For standard types (like size_t) */
 #include <linux/errno.h>		/* For the -ENODEV/... values */
 #include <linux/kernel.h>		/* For printk/panic/... */
-#include <linux/miscdevice.h>		/* For MODULE_ALIAS_MISCDEV
-							(WATCHDOG_MINOR) */
+#include <linux/miscdevice.h>		/* For struct miscdevice */
 #include <linux/watchdog.h>		/* For the watchdog specific items */
 #include <linux/fs.h>			/* For file operations */
 #include <linux/ioport.h>		/* For io-port access */
@@ -70,7 +71,6 @@
 
 /* Module information */
 #define DRV_NAME "acquirewdt"
-#define PFX DRV_NAME ": "
 #define WATCHDOG_NAME "Acquire WDT"
 /* There is no way to see what the correct time-out period is */
 #define WATCHDOG_HEARTBEAT 0
@@ -92,8 +92,8 @@ static int wdt_start = 0x443;
 module_param(wdt_start, int, 0);
 MODULE_PARM_DESC(wdt_start, "Acquire WDT 'start' io port (default 0x443)");
 
-static int nowayout = WATCHDOG_NOWAYOUT;
-module_param(nowayout, int, 0);
+static bool nowayout = WATCHDOG_NOWAYOUT;
+module_param(nowayout, bool, 0);
 MODULE_PARM_DESC(nowayout,
 	"Watchdog cannot be stopped once started (default="
 	__MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
@@ -208,8 +208,7 @@ static int acq_close(struct inode *inode, struct file *file)
 	if (expect_close == 42) {
 		acq_stop();
 	} else {
-		printk(KERN_CRIT PFX
-			"Unexpected close, not stopping watchdog!\n");
+		pr_crit("Unexpected close, not stopping watchdog!\n");
 		acq_keepalive();
 	}
 	clear_bit(0, &acq_is_open);
@@ -240,33 +239,30 @@ static struct miscdevice acq_miscdev = {
  *	Init & exit routines
  */
 
-static int __devinit acq_probe(struct platform_device *dev)
+static int __init acq_probe(struct platform_device *dev)
 {
 	int ret;
 
 	if (wdt_stop != wdt_start) {
 		if (!request_region(wdt_stop, 1, WATCHDOG_NAME)) {
-			printk(KERN_ERR PFX
-			    "I/O address 0x%04x already in use\n", wdt_stop);
+			pr_err("I/O address 0x%04x already in use\n", wdt_stop);
 			ret = -EIO;
 			goto out;
 		}
 	}
 
 	if (!request_region(wdt_start, 1, WATCHDOG_NAME)) {
-		printk(KERN_ERR PFX "I/O address 0x%04x already in use\n",
-			wdt_start);
+		pr_err("I/O address 0x%04x already in use\n", wdt_start);
 		ret = -EIO;
 		goto unreg_stop;
 	}
 	ret = misc_register(&acq_miscdev);
 	if (ret != 0) {
-		printk(KERN_ERR PFX
-			"cannot register miscdev on minor=%d (err=%d)\n",
-							WATCHDOG_MINOR, ret);
+		pr_err("cannot register miscdev on minor=%d (err=%d)\n",
+		       WATCHDOG_MINOR, ret);
 		goto unreg_regions;
 	}
-	printk(KERN_INFO PFX "initialized. (nowayout=%d)\n", nowayout);
+	pr_info("initialized. (nowayout=%d)\n", nowayout);
 
 	return 0;
 unreg_regions:
@@ -278,7 +274,7 @@ out:
 	return ret;
 }
 
-static int __devexit acq_remove(struct platform_device *dev)
+static int acq_remove(struct platform_device *dev)
 {
 	misc_deregister(&acq_miscdev);
 	release_region(wdt_start, 1);
@@ -295,8 +291,7 @@ static void acq_shutdown(struct platform_device *dev)
 }
 
 static struct platform_driver acquirewdt_driver = {
-	.probe		= acq_probe,
-	.remove		= __devexit_p(acq_remove),
+	.remove		= acq_remove,
 	.shutdown	= acq_shutdown,
 	.driver		= {
 		.owner	= THIS_MODULE,
@@ -308,23 +303,20 @@ static int __init acq_init(void)
 {
 	int err;
 
-	printk(KERN_INFO
-	      "WDT driver for Acquire single board computer initialising.\n");
-
-	err = platform_driver_register(&acquirewdt_driver);
-	if (err)
-		return err;
+	pr_info("WDT driver for Acquire single board computer initialising\n");
 
 	acq_platform_device = platform_device_register_simple(DRV_NAME,
 								-1, NULL, 0);
-	if (IS_ERR(acq_platform_device)) {
-		err = PTR_ERR(acq_platform_device);
-		goto unreg_platform_driver;
-	}
+	if (IS_ERR(acq_platform_device))
+		return PTR_ERR(acq_platform_device);
+
+	err = platform_driver_probe(&acquirewdt_driver, acq_probe);
+	if (err)
+		goto unreg_platform_device;
 	return 0;
 
-unreg_platform_driver:
-	platform_driver_unregister(&acquirewdt_driver);
+unreg_platform_device:
+	platform_device_unregister(acq_platform_device);
 	return err;
 }
 
@@ -332,7 +324,7 @@ static void __exit acq_exit(void)
 {
 	platform_device_unregister(acq_platform_device);
 	platform_driver_unregister(&acquirewdt_driver);
-	printk(KERN_INFO PFX "Watchdog Module Unloaded.\n");
+	pr_info("Watchdog Module Unloaded\n");
 }
 
 module_init(acq_init);
@@ -341,4 +333,3 @@ module_exit(acq_exit);
 MODULE_AUTHOR("David Woodhouse");
 MODULE_DESCRIPTION("Acquire Inc. Single Board Computer Watchdog Timer driver");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS_MISCDEV(WATCHDOG_MINOR);

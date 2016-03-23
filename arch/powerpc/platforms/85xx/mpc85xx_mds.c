@@ -1,5 +1,6 @@
 /*
- * Copyright (C) Freescale Semicondutor, Inc. 2006-2010. All rights reserved.
+ * Copyright (C) 2006-2010, 2012-2013 Freescale Semiconductor, Inc.
+ * All rights reserved.
  *
  * Author: Andy Fleming <afleming@freescale.com>
  *
@@ -34,7 +35,6 @@
 #include <linux/phy.h>
 #include <linux/memblock.h>
 
-#include <asm/system.h>
 #include <linux/atomic.h>
 #include <asm/time.h>
 #include <asm/io.h>
@@ -51,6 +51,7 @@
 #include <asm/qe_ic.h>
 #include <asm/mpic.h>
 #include <asm/swiotlb.h>
+#include <asm/fsl_guts.h>
 #include "smp.h"
 
 #include "mpc85xx.h"
@@ -205,9 +206,7 @@ static void __init mpc85xx_mds_reset_ucc_phys(void)
 		setbits8(&bcsr_regs[7], BCSR7_UCC12_GETHnRST);
 		clrbits8(&bcsr_regs[8], BCSR8_UEM_MARVELL_RST);
 
-		for (np = NULL; (np = of_find_compatible_node(np,
-						"network",
-						"ucc_geth")) != NULL;) {
+		for_each_compatible_node(np, "network", "ucc_geth") {
 			const unsigned int *prop;
 			int ucc_num;
 
@@ -239,63 +238,32 @@ static void __init mpc85xx_mds_qe_init(void)
 {
 	struct device_node *np;
 
-	np = of_find_compatible_node(NULL, NULL, "fsl,qe");
-	if (!np) {
-		np = of_find_node_by_name(NULL, "qe");
-		if (!np)
-			return;
-	}
-
-	if (!of_device_is_available(np)) {
-		of_node_put(np);
-		return;
-	}
-
-	qe_reset();
-	of_node_put(np);
-
-	np = of_find_node_by_name(NULL, "par_io");
-	if (np) {
-		struct device_node *ucc;
-
-		par_io_init(np);
-		of_node_put(np);
-
-		for_each_node_by_name(ucc, "ucc")
-			par_io_of_config(ucc);
-	}
-
+	mpc85xx_qe_init();
+	mpc85xx_qe_par_io_init();
 	mpc85xx_mds_reset_ucc_phys();
 
 	if (machine_is(p1021_mds)) {
-#define MPC85xx_PMUXCR_OFFSET           0x60
-#define MPC85xx_PMUXCR_QE0              0x00008000
-#define MPC85xx_PMUXCR_QE3              0x00001000
-#define MPC85xx_PMUXCR_QE9              0x00000040
-#define MPC85xx_PMUXCR_QE12             0x00000008
-		static __be32 __iomem *pmuxcr;
+
+		struct ccsr_guts __iomem *guts;
 
 		np = of_find_node_by_name(NULL, "global-utilities");
-
 		if (np) {
-			pmuxcr = of_iomap(np, 0) + MPC85xx_PMUXCR_OFFSET;
-
-			if (!pmuxcr)
-				printk(KERN_EMERG "Error: Alternate function"
-					" signal multiplex control register not"
-					" mapped!\n");
-			else
+			guts = of_iomap(np, 0);
+			if (!guts)
+				pr_err("mpc85xx-rdb: could not map global utilities register\n");
+			else{
 			/* P1021 has pins muxed for QE and other functions. To
 			 * enable QE UEC mode, we need to set bit QE0 for UCC1
 			 * in Eth mode, QE0 and QE3 for UCC5 in Eth mode, QE9
 			 * and QE12 for QE MII management signals in PMUXCR
 			 * register.
 			 */
-				setbits32(pmuxcr, MPC85xx_PMUXCR_QE0 |
-						  MPC85xx_PMUXCR_QE3 |
-						  MPC85xx_PMUXCR_QE9 |
-						  MPC85xx_PMUXCR_QE12);
-
+				setbits32(&guts->pmuxcr, MPC85xx_PMUXCR_QE(0) |
+						  MPC85xx_PMUXCR_QE(3) |
+						  MPC85xx_PMUXCR_QE(9) |
+						  MPC85xx_PMUXCR_QE(12));
+				iounmap(guts);
+			}
 			of_node_put(np);
 		}
 
@@ -333,44 +301,16 @@ static void __init mpc85xx_mds_qeic_init(void) { }
 
 static void __init mpc85xx_mds_setup_arch(void)
 {
-#ifdef CONFIG_PCI
-	struct pci_controller *hose;
-	struct device_node *np;
-#endif
-	dma_addr_t max = 0xffffffff;
-
 	if (ppc_md.progress)
 		ppc_md.progress("mpc85xx_mds_setup_arch()", 0);
-
-#ifdef CONFIG_PCI
-	for_each_node_by_type(np, "pci") {
-		if (of_device_is_compatible(np, "fsl,mpc8540-pci") ||
-		    of_device_is_compatible(np, "fsl,mpc8548-pcie")) {
-			struct resource rsrc;
-			of_address_to_resource(np, 0, &rsrc);
-			if ((rsrc.start & 0xfffff) == 0x8000)
-				fsl_add_bridge(np, 1);
-			else
-				fsl_add_bridge(np, 0);
-
-			hose = pci_find_hose_for_OF_device(np);
-			max = min(max, hose->dma_window_base_cur +
-					hose->dma_window_size);
-		}
-	}
-#endif
 
 	mpc85xx_smp_init();
 
 	mpc85xx_mds_qe_init();
 
-#ifdef CONFIG_SWIOTLB
-	if (memblock_end_of_DRAM() > max) {
-		ppc_swiotlb_enable = 1;
-		set_pci_dma_ops(&swiotlb_dma_ops);
-		ppc_md.pci_dma_dev_setup = pci_dma_dev_setup_swiotlb;
-	}
-#endif
+	fsl_pci_assign_primary();
+
+	swiotlb_detect_4g();
 }
 
 
@@ -405,12 +345,6 @@ static int __init board_fixups(void)
 machine_arch_initcall(mpc8568_mds, board_fixups);
 machine_arch_initcall(mpc8569_mds, board_fixups);
 
-static struct of_device_id mpc85xx_ids[] = {
-	{ .compatible = "fsl,mpc8548-guts", },
-	{ .compatible = "gpio-leds", },
-	{},
-};
-
 static int __init mpc85xx_publish_devices(void)
 {
 	if (machine_is(mpc8568_mds))
@@ -418,15 +352,12 @@ static int __init mpc85xx_publish_devices(void)
 	if (machine_is(mpc8569_mds))
 		simple_gpiochip_init("fsl,mpc8569mds-bcsr-gpio");
 
-	mpc85xx_common_publish_devices();
-	of_platform_bus_probe(NULL, mpc85xx_ids, NULL);
-
-	return 0;
+	return mpc85xx_common_publish_devices();
 }
 
-machine_device_initcall(mpc8568_mds, mpc85xx_publish_devices);
-machine_device_initcall(mpc8569_mds, mpc85xx_publish_devices);
-machine_device_initcall(p1021_mds, mpc85xx_common_publish_devices);
+machine_arch_initcall(mpc8568_mds, mpc85xx_publish_devices);
+machine_arch_initcall(mpc8569_mds, mpc85xx_publish_devices);
+machine_arch_initcall(p1021_mds, mpc85xx_common_publish_devices);
 
 machine_arch_initcall(mpc8568_mds, swiotlb_setup_bus_notifier);
 machine_arch_initcall(mpc8569_mds, swiotlb_setup_bus_notifier);
@@ -434,9 +365,8 @@ machine_arch_initcall(p1021_mds, swiotlb_setup_bus_notifier);
 
 static void __init mpc85xx_mds_pic_init(void)
 {
-	struct mpic *mpic = mpic_alloc(NULL, 0,
-			MPIC_WANTS_RESET | MPIC_BIG_ENDIAN |
-			MPIC_BROKEN_FRR_NIRQS | MPIC_SINGLE_DEST_CPU,
+	struct mpic *mpic = mpic_alloc(NULL, 0, MPIC_BIG_ENDIAN |
+			MPIC_SINGLE_DEST_CPU,
 			0, 256, " OpenPIC  ");
 	BUG_ON(mpic == NULL);
 
@@ -462,6 +392,7 @@ define_machine(mpc8568_mds) {
 	.progress	= udbg_progress,
 #ifdef CONFIG_PCI
 	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
+	.pcibios_fixup_phb      = fsl_pcibios_fixup_phb,
 #endif
 };
 
@@ -483,6 +414,7 @@ define_machine(mpc8569_mds) {
 	.progress	= udbg_progress,
 #ifdef CONFIG_PCI
 	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
+	.pcibios_fixup_phb      = fsl_pcibios_fixup_phb,
 #endif
 };
 
@@ -505,6 +437,7 @@ define_machine(p1021_mds) {
 	.progress	= udbg_progress,
 #ifdef CONFIG_PCI
 	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
+	.pcibios_fixup_phb      = fsl_pcibios_fixup_phb,
 #endif
 };
 

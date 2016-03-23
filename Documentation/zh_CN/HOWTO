@@ -112,7 +112,7 @@ Linux内核代码中包含有大量的文档。这些文档对于学习如何与
 
     其他关于如何正确地生成补丁的优秀文档包括：
     "The Perfect Patch"
-        http://userweb.kernel.org/~akpm/stuff/tpp.txt
+        http://www.ozlabs.org/~akpm/stuff/tpp.txt
     "Linux kernel patch submission format"
         http://linux.yyz.us/patch-format.html
 
@@ -237,7 +237,7 @@ kernel.org网站的pub/linux/kernel/v2.6/目录下找到它。它的开发遵循
 如果没有2.6.x.y版本内核存在，那么最新的2.6.x版本内核就相当于是当前的稳定
 版内核。
 
-2.6.x.y版本由“稳定版”小组（邮件地址<stable@kernel.org>）维护，一般隔周发
+2.6.x.y版本由“稳定版”小组（邮件地址<stable@vger.kernel.org>）维护，一般隔周发
 布新版本。
 
 内核源码中的Documentation/stable_kernel_rules.txt文件具体描述了可被稳定
@@ -316,7 +316,7 @@ linux-kernel邮件列表中提供反馈，告诉大家你遇到了问题还是�
 	git.kernel.org:/pub/scm/linux/kernel/git/jejb/scsi-misc-2.6.git
 
   使用quilt管理的补丁集：
-    - USB, PCI, 驱动程序核心和I2C, Greg Kroah-Hartman <gregkh@suse.de>
+    - USB, PCI, 驱动程序核心和I2C, Greg Kroah-Hartman <gregkh@linuxfoundation.org>
 	kernel.org/pub/linux/kernel/people/gregkh/gregkh-2.6/
     - x86-64, 部分i386, Andi Kleen <ak@suse.de>
 	ftp.firstfloor.org:/pub/ak/x86_64/quilt/
@@ -515,7 +515,7 @@ Linux内核社区并不喜欢一下接收大段的代码。修改需要被恰当
 
 想了解它具体应该看起来像什么，请查阅以下文档中的“ChangeLog”章节：
   “The Perfect Patch”
-  	 http://userweb.kernel.org/~akpm/stuff/tpp.txt
+  	 http://www.ozlabs.org/~akpm/stuff/tpp.txt
 
 
 这些事情有时候做起来很难。要在任何方面都做到完美可能需要好几年时间。这是

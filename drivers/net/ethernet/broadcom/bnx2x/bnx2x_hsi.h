@@ -1,6 +1,6 @@
 /* bnx2x_hsi.h: Broadcom Everest network driver.
  *
- * Copyright (c) 2007-2011 Broadcom Corporation
+ * Copyright (c) 2007-2013 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -10,6 +10,7 @@
 #define BNX2X_HSI_H
 
 #include "bnx2x_fw_defs.h"
+#include "bnx2x_mfw_req.h"
 
 #define FW_ENCODE_32BIT_PATTERN         0x1e1e1e1e
 
@@ -32,11 +33,6 @@ struct license_key {
 
 	u32 reserved_b[4];
 };
-
-
-#define PORT_0              0
-#define PORT_1              1
-#define PORT_MAX            2
 
 /****************************************************************************
  * Shared HW configuration                                                  *
@@ -118,6 +114,10 @@ struct license_key {
 #define EPIO_CFG_EPIO30                     0x0000001f
 #define EPIO_CFG_EPIO31                     0x00000020
 
+struct mac_addr {
+	u32 upper;
+	u32 lower;
+};
 
 struct shared_hw_cfg {			 /* NVRAM Offset */
 	/* Up to 16 bytes of NULL-terminated string */
@@ -172,6 +172,7 @@ struct shared_hw_cfg {			 /* NVRAM Offset */
 		#define SHARED_HW_CFG_LED_MAC4                       0x000c0000
 		#define SHARED_HW_CFG_LED_PHY8                       0x000d0000
 		#define SHARED_HW_CFG_LED_EXTPHY1                    0x000e0000
+		#define SHARED_HW_CFG_LED_EXTPHY2                    0x000f0000
 
 
 	#define SHARED_HW_CFG_AN_ENABLE_MASK                0x3f000000
@@ -279,17 +280,11 @@ struct shared_hw_cfg {			 /* NVRAM Offset */
 		#define SHARED_HW_CFG_MDC_MDIO_ACCESS2_BOTH          0x60000000
 		#define SHARED_HW_CFG_MDC_MDIO_ACCESS2_SWAPPED       0x80000000
 
-
-	u32 power_dissipated;			/* 0x11c */
-	#define SHARED_HW_CFG_POWER_MGNT_SCALE_MASK         0x00ff0000
-		#define SHARED_HW_CFG_POWER_MGNT_SCALE_SHIFT         16
-		#define SHARED_HW_CFG_POWER_MGNT_UNKNOWN_SCALE       0x00000000
-		#define SHARED_HW_CFG_POWER_MGNT_DOT_1_WATT          0x00010000
-		#define SHARED_HW_CFG_POWER_MGNT_DOT_01_WATT         0x00020000
-		#define SHARED_HW_CFG_POWER_MGNT_DOT_001_WATT        0x00030000
-
-	#define SHARED_HW_CFG_POWER_DIS_CMN_MASK            0xff000000
-	#define SHARED_HW_CFG_POWER_DIS_CMN_SHIFT                    24
+	u32 config_3;				/* 0x11C */
+	#define SHARED_HW_CFG_EXTENDED_MF_MODE_MASK         0x00000F00
+		#define SHARED_HW_CFG_EXTENDED_MF_MODE_SHIFT              8
+		#define SHARED_HW_CFG_EXTENDED_MF_MODE_NPAR1_DOT_5        0x00000000
+		#define SHARED_HW_CFG_EXTENDED_MF_MODE_NPAR2_DOT_0        0x00000100
 
 	u32 ump_nc_si_config;			/* 0x120 */
 	#define SHARED_HW_CFG_UMP_NC_SI_MII_MODE_MASK       0x00000003
@@ -504,7 +499,30 @@ struct port_hw_cfg {		    /* port 0: 0x12c  port 1: 0x2bc */
 	u32 e3_cmn_pin_cfg1;				    /* 0x170 */
 	#define PORT_HW_CFG_E3_OVER_CURRENT_MASK            0x000000FF
 	#define PORT_HW_CFG_E3_OVER_CURRENT_SHIFT                    0
-	u32 reserved0[7];				    /* 0x174 */
+
+	/*  pause on host ring */
+	u32 generic_features;                               /* 0x174 */
+	#define PORT_HW_CFG_PAUSE_ON_HOST_RING_MASK                   0x00000001
+	#define PORT_HW_CFG_PAUSE_ON_HOST_RING_SHIFT                  0
+	#define PORT_HW_CFG_PAUSE_ON_HOST_RING_DISABLED               0x00000000
+	#define PORT_HW_CFG_PAUSE_ON_HOST_RING_ENABLED                0x00000001
+
+	/* SFP+ Tx Equalization: NIC recommended and tested value is 0xBEB2
+	 * LOM recommended and tested value is 0xBEB2. Using a different
+	 * value means using a value not tested by BRCM
+	 */
+	u32 sfi_tap_values;                                 /* 0x178 */
+	#define PORT_HW_CFG_TX_EQUALIZATION_MASK                      0x0000FFFF
+	#define PORT_HW_CFG_TX_EQUALIZATION_SHIFT                     0
+
+	/* SFP+ Tx driver broadcast IDRIVER: NIC recommended and tested
+	 * value is 0x2. LOM recommended and tested value is 0x2. Using a
+	 * different value means using a value not tested by BRCM
+	 */
+	#define PORT_HW_CFG_TX_DRV_BROADCAST_MASK                     0x000F0000
+	#define PORT_HW_CFG_TX_DRV_BROADCAST_SHIFT                    16
+
+	u32 reserved0[5];				    /* 0x17c */
 
 	u32 aeu_int_mask;				    /* 0x190 */
 
@@ -618,12 +636,6 @@ struct port_hw_cfg {		    /* port 0: 0x12c  port 1: 0x2bc */
 	#define PORT_HW_CFG_ENABLE_CMS_DISABLED                      0x00000000
 	#define PORT_HW_CFG_ENABLE_CMS_ENABLED                       0x00200000
 
-	/*  Enable RJ45 magjack pair swapping on 10GBase-T PHY, 84833 only */
-	#define PORT_HW_CFG_RJ45_PR_SWP_MASK                0x00400000
-	#define PORT_HW_CFG_RJ45_PR_SWP_SHIFT			     22
-	#define PORT_HW_CFG_RJ45_PR_SWP_DISABLED		     0x00000000
-	#define PORT_HW_CFG_RJ45_PR_SWP_ENABLED			     0x00400000
-
 	/*  Determine the Serdes electrical interface   */
 	#define PORT_HW_CFG_NET_SERDES_IF_MASK              0x0F000000
 	#define PORT_HW_CFG_NET_SERDES_IF_SHIFT                      24
@@ -705,6 +717,7 @@ struct port_hw_cfg {		    /* port 0: 0x12c  port 1: 0x2bc */
 		#define PORT_HW_CFG_XGXS_EXT_PHY2_TYPE_BCM54618SE    0x00000e00
 		#define PORT_HW_CFG_XGXS_EXT_PHY2_TYPE_BCM8722       0x00000f00
 		#define PORT_HW_CFG_XGXS_EXT_PHY2_TYPE_BCM54616      0x00001000
+		#define PORT_HW_CFG_XGXS_EXT_PHY2_TYPE_BCM84834      0x00001100
 		#define PORT_HW_CFG_XGXS_EXT_PHY2_TYPE_FAILURE       0x0000fd00
 		#define PORT_HW_CFG_XGXS_EXT_PHY2_TYPE_NOT_CONN      0x0000ff00
 
@@ -761,6 +774,7 @@ struct port_hw_cfg {		    /* port 0: 0x12c  port 1: 0x2bc */
 		#define PORT_HW_CFG_XGXS_EXT_PHY_TYPE_BCM54618SE     0x00000e00
 		#define PORT_HW_CFG_XGXS_EXT_PHY_TYPE_BCM8722        0x00000f00
 		#define PORT_HW_CFG_XGXS_EXT_PHY_TYPE_BCM54616       0x00001000
+		#define PORT_HW_CFG_XGXS_EXT_PHY_TYPE_BCM84834       0x00001100
 		#define PORT_HW_CFG_XGXS_EXT_PHY_TYPE_DIRECT_WC      0x0000fc00
 		#define PORT_HW_CFG_XGXS_EXT_PHY_TYPE_FAILURE        0x0000fd00
 		#define PORT_HW_CFG_XGXS_EXT_PHY_TYPE_NOT_CONN       0x0000ff00
@@ -838,6 +852,9 @@ struct shared_feat_cfg {		 /* NVRAM Offset */
 		#define SHARED_FEAT_CFG_FORCE_SF_MODE_FORCED_SF      0x00000100
 		#define SHARED_FEAT_CFG_FORCE_SF_MODE_SPIO4          0x00000200
 		#define SHARED_FEAT_CFG_FORCE_SF_MODE_SWITCH_INDEPT  0x00000300
+		#define SHARED_FEAT_CFG_FORCE_SF_MODE_AFEX_MODE      0x00000400
+		#define SHARED_FEAT_CFG_FORCE_SF_MODE_UFP_MODE       0x00000600
+		#define SHARED_FEAT_CFG_FORCE_SF_MODE_EXTENDED_MODE  0x00000700
 
 	/* The interval in seconds between sending LLDP packets. Set to zero
 	   to disable the feature */
@@ -898,10 +915,9 @@ struct port_feat_cfg {		    /* port 0: 0x454  port 1: 0x4c8 */
 		#define PORT_FEAT_CFG_DCBX_DISABLED                  0x00000000
 		#define PORT_FEAT_CFG_DCBX_ENABLED                   0x00000100
 
-	#define PORT_FEAT_CFG_AUTOGREEN_MASK                0x00000200
-	#define PORT_FEAT_CFG_AUTOGREEN_SHIFT                        9
-	#define PORT_FEAT_CFG_AUTOGREEN_DISABLED                     0x00000000
-	#define PORT_FEAT_CFG_AUTOGREEN_ENABLED                      0x00000200
+		#define PORT_FEAT_CFG_STORAGE_PERSONALITY_MASK        0x00000C00
+		#define PORT_FEAT_CFG_STORAGE_PERSONALITY_FCOE        0x00000400
+		#define PORT_FEAT_CFG_STORAGE_PERSONALITY_ISCSI       0x00000800
 
 	#define PORT_FEATURE_EN_SIZE_MASK                   0x0f000000
 	#define PORT_FEATURE_EN_SIZE_SHIFT                           24
@@ -1076,8 +1092,18 @@ struct port_feat_cfg {		    /* port 0: 0x454  port 1: 0x4c8 */
 	   uses the same defines as link_config */
 	u32 mfw_wol_link_cfg2;				    /* 0x480 */
 
-	u32 Reserved2[17];				    /* 0x484 */
 
+	/*  EEE power saving mode */
+	u32 eee_power_mode;                                 /* 0x484 */
+	#define PORT_FEAT_CFG_EEE_POWER_MODE_MASK                     0x000000FF
+	#define PORT_FEAT_CFG_EEE_POWER_MODE_SHIFT                    0
+	#define PORT_FEAT_CFG_EEE_POWER_MODE_DISABLED                 0x00000000
+	#define PORT_FEAT_CFG_EEE_POWER_MODE_BALANCED                 0x00000001
+	#define PORT_FEAT_CFG_EEE_POWER_MODE_AGGRESSIVE               0x00000002
+	#define PORT_FEAT_CFG_EEE_POWER_MODE_LOW_LATENCY              0x00000003
+
+
+	u32 Reserved2[16];                                  /* 0x488 */
 };
 
 
@@ -1139,8 +1165,7 @@ struct shm_dev_info {				/* size */
 
 #define FW_ACK_NUM_OF_POLL  (FW_ACK_TIME_OUT_MS/FW_ACK_POLL_TIME_MS)
 
-/* LED Blink rate that will achieve ~15.9Hz */
-#define LED_BLINK_RATE_VAL      480
+#define MFW_TRACE_SIGNATURE     0x54524342
 
 /****************************************************************************
  * Driver <-> FW Mailbox                                                    *
@@ -1150,6 +1175,7 @@ struct drv_port_mb {
 	u32 link_status;
 	/* Driver should update this field on any link change event */
 
+	#define LINK_STATUS_NONE				(0<<0)
 	#define LINK_STATUS_LINK_FLAG_MASK			0x00000001
 	#define LINK_STATUS_LINK_UP				0x00000001
 	#define LINK_STATUS_SPEED_AND_DUPLEX_MASK		0x0000001E
@@ -1207,6 +1233,7 @@ struct drv_port_mb {
 	#define LINK_STATUS_PFC_ENABLED				0x20000000
 
 	#define LINK_STATUS_PHYSICAL_LINK_FLAG			0x40000000
+	#define LINK_STATUS_SFP_TX_FAULT			0x80000000
 
 	u32 port_stx;
 
@@ -1237,6 +1264,10 @@ struct drv_func_mb {
 	#define DRV_MSG_CODE_GET_UPGRADE_KEY            0x81000000
 	#define DRV_MSG_CODE_GET_MANUF_KEY              0x82000000
 	#define DRV_MSG_CODE_LOAD_L2B_PRAM              0x90000000
+	#define DRV_MSG_CODE_OEM_OK			0x00010000
+	#define DRV_MSG_CODE_OEM_FAILURE		0x00020000
+	#define DRV_MSG_CODE_OEM_UPDATE_SVID_OK		0x00030000
+	#define DRV_MSG_CODE_OEM_UPDATE_SVID_FAILURE	0x00040000
 	/*
 	 * The optic module verification command requires bootcode
 	 * v5.0.6 or later, te specific optic module verification command
@@ -1246,21 +1277,41 @@ struct drv_func_mb {
 	#define REQ_BC_VER_4_VRFY_FIRST_PHY_OPT_MDL     0x00050006
 	#define DRV_MSG_CODE_VRFY_SPECIFIC_PHY_OPT_MDL  0xa1000000
 	#define REQ_BC_VER_4_VRFY_SPECIFIC_PHY_OPT_MDL  0x00050234
+	#define DRV_MSG_CODE_VRFY_AFEX_SUPPORTED        0xa2000000
+	#define REQ_BC_VER_4_VRFY_AFEX_SUPPORTED        0x00070002
 	#define REQ_BC_VER_4_SFP_TX_DISABLE_SUPPORTED   0x00070014
+	#define REQ_BC_VER_4_MT_SUPPORTED               0x00070201
 	#define REQ_BC_VER_4_PFC_STATS_SUPPORTED        0x00070201
+	#define REQ_BC_VER_4_FCOE_FEATURES              0x00070209
 
 	#define DRV_MSG_CODE_DCBX_ADMIN_PMF_MSG         0xb0000000
 	#define DRV_MSG_CODE_DCBX_PMF_DRV_OK            0xb2000000
+	#define REQ_BC_VER_4_DCBX_ADMIN_MSG_NON_PMF     0x00070401
 
 	#define DRV_MSG_CODE_VF_DISABLED_DONE           0xc0000000
+
+	#define DRV_MSG_CODE_AFEX_DRIVER_SETMAC         0xd0000000
+	#define DRV_MSG_CODE_AFEX_LISTGET_ACK           0xd1000000
+	#define DRV_MSG_CODE_AFEX_LISTSET_ACK           0xd2000000
+	#define DRV_MSG_CODE_AFEX_STATSGET_ACK          0xd3000000
+	#define DRV_MSG_CODE_AFEX_VIFSET_ACK            0xd4000000
+
 	#define DRV_MSG_CODE_DRV_INFO_ACK               0xd8000000
 	#define DRV_MSG_CODE_DRV_INFO_NACK              0xd9000000
+
+	#define DRV_MSG_CODE_EEE_RESULTS_ACK            0xda000000
+
+	#define DRV_MSG_CODE_RMMOD                      0xdb000000
+	#define REQ_BC_VER_4_RMMOD_CMD                  0x0007080f
 
 	#define DRV_MSG_CODE_SET_MF_BW                  0xe0000000
 	#define REQ_BC_VER_4_SET_MF_BW                  0x00060202
 	#define DRV_MSG_CODE_SET_MF_BW_ACK              0xe1000000
 
 	#define DRV_MSG_CODE_LINK_STATUS_CHANGED        0x01000000
+
+	#define DRV_MSG_CODE_INITIATE_FLR               0x02000000
+	#define REQ_BC_VER_4_INITIATE_FLR               0x00070213
 
 	#define BIOS_MSG_CODE_LIC_CHALLENGE             0xff010000
 	#define BIOS_MSG_CODE_LIC_RESPONSE              0xff020000
@@ -1272,6 +1323,11 @@ struct drv_func_mb {
 	u32 drv_mb_param;
 	#define DRV_MSG_CODE_SET_MF_BW_MIN_MASK         0x00ff0000
 	#define DRV_MSG_CODE_SET_MF_BW_MAX_MASK         0xff000000
+
+	#define DRV_MSG_CODE_UNLOAD_SKIP_LINK_RESET     0x00000002
+
+	#define DRV_MSG_CODE_LOAD_REQ_WITH_LFA          0x0000100a
+	#define DRV_MSG_CODE_LOAD_REQ_FORCE_LFA         0x00002000
 
 	u32 fw_mb_header;
 	#define FW_MSG_CODE_MASK                        0xffff0000
@@ -1307,8 +1363,20 @@ struct drv_func_mb {
 	#define FW_MSG_CODE_VRFY_OPT_MDL_INVLD_IMG      0xa0200000
 	#define FW_MSG_CODE_VRFY_OPT_MDL_UNAPPROVED     0xa0300000
 	#define FW_MSG_CODE_VF_DISABLED_DONE            0xb0000000
+	#define FW_MSG_CODE_HW_SET_INVALID_IMAGE        0xb0100000
+
+	#define FW_MSG_CODE_AFEX_DRIVER_SETMAC_DONE     0xd0100000
+	#define FW_MSG_CODE_AFEX_LISTGET_ACK            0xd1100000
+	#define FW_MSG_CODE_AFEX_LISTSET_ACK            0xd2100000
+	#define FW_MSG_CODE_AFEX_STATSGET_ACK           0xd3100000
+	#define FW_MSG_CODE_AFEX_VIFSET_ACK             0xd4100000
+
 	#define FW_MSG_CODE_DRV_INFO_ACK                0xd8100000
 	#define FW_MSG_CODE_DRV_INFO_NACK               0xd9100000
+
+	#define FW_MSG_CODE_EEE_RESULS_ACK              0xda100000
+
+	#define FW_MSG_CODE_RMMOD_ACK                   0xdb100000
 
 	#define FW_MSG_CODE_SET_MF_BW_SENT              0xe0000000
 	#define FW_MSG_CODE_SET_MF_BW_DONE              0xe1000000
@@ -1355,6 +1423,12 @@ struct drv_func_mb {
 	#define DRV_STATUS_SET_MF_BW                    0x00000004
 	#define DRV_STATUS_LINK_EVENT                   0x00000008
 
+	#define DRV_STATUS_OEM_EVENT_MASK               0x00000070
+	#define DRV_STATUS_OEM_DISABLE_ENABLE_PF        0x00000010
+	#define DRV_STATUS_OEM_BANDWIDTH_ALLOCATION     0x00000020
+
+	#define DRV_STATUS_OEM_UPDATE_SVID              0x00000080
+
 	#define DRV_STATUS_DCC_EVENT_MASK               0x0000ff00
 	#define DRV_STATUS_DCC_DISABLE_ENABLE_PF        0x00000100
 	#define DRV_STATUS_DCC_BANDWIDTH_ALLOCATION     0x00000200
@@ -1365,7 +1439,15 @@ struct drv_func_mb {
 
 	#define DRV_STATUS_DCBX_EVENT_MASK              0x000f0000
 	#define DRV_STATUS_DCBX_NEGOTIATION_RESULTS     0x00010000
+	#define DRV_STATUS_AFEX_EVENT_MASK              0x03f00000
+	#define DRV_STATUS_AFEX_LISTGET_REQ             0x00100000
+	#define DRV_STATUS_AFEX_LISTSET_REQ             0x00200000
+	#define DRV_STATUS_AFEX_STATSGET_REQ            0x00400000
+	#define DRV_STATUS_AFEX_VIFSET_REQ              0x00800000
+
 	#define DRV_STATUS_DRV_INFO_REQ                 0x04000000
+
+	#define DRV_STATUS_EEE_NEGOTIATION_RESULTS      0x08000000
 
 	u32 virt_mac_upper;
 	#define VIRT_MAC_SIGN_MASK                      0xffff0000
@@ -1407,7 +1489,7 @@ struct port_mf_cfg {
 	#define PORT_MF_CFG_E1HOV_TAG_SHIFT             0
 	#define PORT_MF_CFG_E1HOV_TAG_DEFAULT         PORT_MF_CFG_E1HOV_TAG_MASK
 
-	u32 reserved[3];
+	u32 reserved[1];
 
 };
 
@@ -1456,18 +1538,38 @@ struct func_mf_cfg {
 	#define FUNC_MF_CFG_E1HOV_TAG_SHIFT             0
 	#define FUNC_MF_CFG_E1HOV_TAG_DEFAULT         FUNC_MF_CFG_E1HOV_TAG_MASK
 
-	u32 reserved[2];
+	/* afex default VLAN ID - 12 bits */
+	#define FUNC_MF_CFG_AFEX_VLAN_MASK              0x0fff0000
+	#define FUNC_MF_CFG_AFEX_VLAN_SHIFT             16
+
+	u32 afex_config;
+	#define FUNC_MF_CFG_AFEX_COS_FILTER_MASK                     0x000000ff
+	#define FUNC_MF_CFG_AFEX_COS_FILTER_SHIFT                    0
+	#define FUNC_MF_CFG_AFEX_MBA_ENABLED_MASK                    0x0000ff00
+	#define FUNC_MF_CFG_AFEX_MBA_ENABLED_SHIFT                   8
+	#define FUNC_MF_CFG_AFEX_MBA_ENABLED_VAL                     0x00000100
+	#define FUNC_MF_CFG_AFEX_VLAN_MODE_MASK                      0x000f0000
+	#define FUNC_MF_CFG_AFEX_VLAN_MODE_SHIFT                     16
+
+	u32 reserved;
+};
+
+enum mf_cfg_afex_vlan_mode {
+	FUNC_MF_CFG_AFEX_VLAN_TRUNK_MODE = 0,
+	FUNC_MF_CFG_AFEX_VLAN_ACCESS_MODE,
+	FUNC_MF_CFG_AFEX_VLAN_TRUNK_TAG_NATIVE_MODE
 };
 
 /* This structure is not applicable and should not be accessed on 57711 */
 struct func_ext_cfg {
 	u32 func_cfg;
-	#define MACP_FUNC_CFG_FLAGS_MASK                0x000000FF
+	#define MACP_FUNC_CFG_FLAGS_MASK                0x0000007F
 	#define MACP_FUNC_CFG_FLAGS_SHIFT               0
 	#define MACP_FUNC_CFG_FLAGS_ENABLED             0x00000001
 	#define MACP_FUNC_CFG_FLAGS_ETHERNET            0x00000002
 	#define MACP_FUNC_CFG_FLAGS_ISCSI_OFFLOAD       0x00000004
 	#define MACP_FUNC_CFG_FLAGS_FCOE_OFFLOAD        0x00000008
+	#define MACP_FUNC_CFG_PAUSE_ON_HOST_RING        0x00000080
 
 	u32 iscsi_mac_addr_upper;
 	u32 iscsi_mac_addr_lower;
@@ -1493,7 +1595,8 @@ struct func_ext_cfg {
 struct mf_cfg {
 
 	struct shared_mf_cfg    shared_mf_config;       /* 0x4 */
-	struct port_mf_cfg  port_mf_config[PORT_MAX];   /* 0x10 * 2 = 0x20 */
+							/* 0x8*2*2=0x20 */
+	struct port_mf_cfg  port_mf_config[NVM_PATH_MAX][PORT_MAX];
 	/* for all chips, there are 8 mf functions */
 	struct func_mf_cfg  func_mf_config[E1H_FUNC_MAX]; /* 0x18 * 8 = 0xc0 */
 	/*
@@ -1575,6 +1678,11 @@ struct fw_flr_mb {
 	u32         aggint;
 	u32         opgen_addr;
 	struct fw_flr_ack ack;
+};
+
+struct eee_remote_vals {
+	u32         tx_tw;
+	u32         rx_tw;
 };
 
 /**** SUPPORT FOR SHMEM ARRRAYS ***
@@ -1845,10 +1953,78 @@ struct lldp_local_mib {
 	#define DCBX_LOCAL_PFC_MISMATCH          0x00000010
 	#define DCBX_LOCAL_APP_MISMATCH          0x00000020
 	#define DCBX_REMOTE_MIB_ERROR		 0x00000040
+	#define DCBX_REMOTE_ETS_TLV_NOT_FOUND    0x00000080
+	#define DCBX_REMOTE_PFC_TLV_NOT_FOUND    0x00000100
+	#define DCBX_REMOTE_APP_TLV_NOT_FOUND    0x00000200
 	struct dcbx_features   features;
 	u32 suffix_seq_num;
 };
 /***END OF DCBX STRUCTURES DECLARATIONS***/
+
+/***********************************************************/
+/*                         Elink section                   */
+/***********************************************************/
+#define SHMEM_LINK_CONFIG_SIZE 2
+struct shmem_lfa {
+	u32 req_duplex;
+	#define REQ_DUPLEX_PHY0_MASK        0x0000ffff
+	#define REQ_DUPLEX_PHY0_SHIFT       0
+	#define REQ_DUPLEX_PHY1_MASK        0xffff0000
+	#define REQ_DUPLEX_PHY1_SHIFT       16
+	u32 req_flow_ctrl;
+	#define REQ_FLOW_CTRL_PHY0_MASK     0x0000ffff
+	#define REQ_FLOW_CTRL_PHY0_SHIFT    0
+	#define REQ_FLOW_CTRL_PHY1_MASK     0xffff0000
+	#define REQ_FLOW_CTRL_PHY1_SHIFT    16
+	u32 req_line_speed; /* Also determine AutoNeg */
+	#define REQ_LINE_SPD_PHY0_MASK      0x0000ffff
+	#define REQ_LINE_SPD_PHY0_SHIFT     0
+	#define REQ_LINE_SPD_PHY1_MASK      0xffff0000
+	#define REQ_LINE_SPD_PHY1_SHIFT     16
+	u32 speed_cap_mask[SHMEM_LINK_CONFIG_SIZE];
+	u32 additional_config;
+	#define REQ_FC_AUTO_ADV_MASK        0x0000ffff
+	#define REQ_FC_AUTO_ADV0_SHIFT      0
+	#define NO_LFA_DUE_TO_DCC_MASK      0x00010000
+	u32 lfa_sts;
+	#define LFA_LINK_FLAP_REASON_OFFSET		0
+	#define LFA_LINK_FLAP_REASON_MASK		0x000000ff
+		#define LFA_LINK_DOWN			    0x1
+		#define LFA_LOOPBACK_ENABLED		0x2
+		#define LFA_DUPLEX_MISMATCH		    0x3
+		#define LFA_MFW_IS_TOO_OLD		    0x4
+		#define LFA_LINK_SPEED_MISMATCH		0x5
+		#define LFA_FLOW_CTRL_MISMATCH		0x6
+		#define LFA_SPEED_CAP_MISMATCH		0x7
+		#define LFA_DCC_LFA_DISABLED		0x8
+		#define LFA_EEE_MISMATCH		0x9
+
+	#define LINK_FLAP_AVOIDANCE_COUNT_OFFSET	8
+	#define LINK_FLAP_AVOIDANCE_COUNT_MASK		0x0000ff00
+
+	#define LINK_FLAP_COUNT_OFFSET			16
+	#define LINK_FLAP_COUNT_MASK			0x00ff0000
+
+	#define LFA_FLAGS_MASK				0xff000000
+	#define SHMEM_LFA_DONT_CLEAR_STAT		(1<<24)
+};
+
+/* Used to support NSCI get OS driver version
+ * on driver load the version value will be set
+ * on driver unload driver value of 0x0 will be set.
+ */
+struct os_drv_ver {
+#define DRV_VER_NOT_LOADED			0
+
+	/* personalties order is important */
+#define DRV_PERS_ETHERNET			0
+#define DRV_PERS_ISCSI				1
+#define DRV_PERS_FCOE				2
+
+	/* shmem2 struct is constant can't add more personalties here */
+#define MAX_DRV_PERS				3
+	u32 versions[MAX_DRV_PERS];
+};
 
 struct ncsi_oem_fcoe_features {
 	u32 fcoe_features1;
@@ -1949,23 +2125,39 @@ struct shmem2_region {
 
 	u32 nvm_retain_bitmap_addr;			/* 0x0070 */
 
-	u32	reserved1;	/* 0x0074 */
+	/* afex support of that driver */
+	u32 afex_driver_support;			/* 0x0074 */
+	#define SHMEM_AFEX_VERSION_MASK                  0x100f
+	#define SHMEM_AFEX_SUPPORTED_VERSION_ONE         0x1001
+	#define SHMEM_AFEX_REDUCED_DRV_LOADED            0x8000
 
-	u32	reserved2[E2_FUNC_MAX];
+	/* driver receives addr in scratchpad to which it should respond */
+	u32 afex_scratchpad_addr_to_write[E2_FUNC_MAX];
 
-	u32	reserved3[E2_FUNC_MAX];/* 0x0088 */
-	u32	reserved4[E2_FUNC_MAX];/* 0x0098 */
+	/* generic params from MCP to driver (value depends on the msg sent
+	 * to driver
+	 */
+	u32 afex_param1_to_driver[E2_FUNC_MAX];		/* 0x0088 */
+	u32 afex_param2_to_driver[E2_FUNC_MAX];		/* 0x0098 */
 
 	u32 swim_base_addr;				/* 0x0108 */
 	u32 swim_funcs;
 	u32 swim_main_cb;
 
-	u32	reserved5[2];
+	/* bitmap notifying which VIF profiles stored in nvram are enabled by
+	 * switch
+	 */
+	u32 afex_profiles_enabled[2];
 
 	/* generic flags controlled by the driver */
 	u32 drv_flags;
-	#define DRV_FLAGS_DCB_CONFIGURED                0x1
+	#define DRV_FLAGS_DCB_CONFIGURED		0x0
+	#define DRV_FLAGS_DCB_CONFIGURATION_ABORTED	0x1
+	#define DRV_FLAGS_DCB_MFW_CONFIGURED	0x2
 
+	#define DRV_FLAGS_PORT_MASK	((1 << DRV_FLAGS_DCB_CONFIGURED) | \
+			(1 << DRV_FLAGS_DCB_CONFIGURATION_ABORTED) | \
+			(1 << DRV_FLAGS_DCB_MFW_CONFIGURED))
 	/* pointer to extended dev_info shared data copied from nvm image */
 	u32 extended_dev_info_shared_addr;
 	u32 ncsi_oem_data_addr;
@@ -2002,6 +2194,69 @@ struct shmem2_region {
 #define DRV_INFO_CONTROL_VER_SHIFT         0
 #define DRV_INFO_CONTROL_OP_CODE_MASK      0x0000ff00
 #define DRV_INFO_CONTROL_OP_CODE_SHIFT     8
+	u32 ibft_host_addr; /* initialized by option ROM */
+	struct eee_remote_vals eee_remote_vals[PORT_MAX];
+	u32 reserved[E2_FUNC_MAX];
+
+
+	/* the status of EEE auto-negotiation
+	 * bits 15:0 the configured tx-lpi entry timer value. Depends on bit 31.
+	 * bits 19:16 the supported modes for EEE.
+	 * bits 23:20 the speeds advertised for EEE.
+	 * bits 27:24 the speeds the Link partner advertised for EEE.
+	 * The supported/adv. modes in bits 27:19 originate from the
+	 * SHMEM_EEE_XXX_ADV definitions (where XXX is replaced by speed).
+	 * bit 28 when 1'b1 EEE was requested.
+	 * bit 29 when 1'b1 tx lpi was requested.
+	 * bit 30 when 1'b1 EEE was negotiated. Tx lpi will be asserted iff
+	 * 30:29 are 2'b11.
+	 * bit 31 when 1'b0 bits 15:0 contain a PORT_FEAT_CFG_EEE_ define as
+	 * value. When 1'b1 those bits contains a value times 16 microseconds.
+	 */
+	u32 eee_status[PORT_MAX];
+	#define SHMEM_EEE_TIMER_MASK		   0x0000ffff
+	#define SHMEM_EEE_SUPPORTED_MASK	   0x000f0000
+	#define SHMEM_EEE_SUPPORTED_SHIFT	   16
+	#define SHMEM_EEE_ADV_STATUS_MASK	   0x00f00000
+		#define SHMEM_EEE_100M_ADV	   (1<<0)
+		#define SHMEM_EEE_1G_ADV	   (1<<1)
+		#define SHMEM_EEE_10G_ADV	   (1<<2)
+	#define SHMEM_EEE_ADV_STATUS_SHIFT	   20
+	#define	SHMEM_EEE_LP_ADV_STATUS_MASK	   0x0f000000
+	#define SHMEM_EEE_LP_ADV_STATUS_SHIFT	   24
+	#define SHMEM_EEE_REQUESTED_BIT		   0x10000000
+	#define SHMEM_EEE_LPI_REQUESTED_BIT	   0x20000000
+	#define SHMEM_EEE_ACTIVE_BIT		   0x40000000
+	#define SHMEM_EEE_TIME_OUTPUT_BIT	   0x80000000
+
+	u32 sizeof_port_stats;
+
+	/* Link Flap Avoidance */
+	u32 lfa_host_addr[PORT_MAX];
+	u32 reserved1;
+
+	u32 reserved2;				/* Offset 0x148 */
+	u32 reserved3;				/* Offset 0x14C */
+	u32 reserved4;				/* Offset 0x150 */
+	u32 link_attr_sync[PORT_MAX];		/* Offset 0x154 */
+	#define LINK_ATTR_SYNC_KR2_ENABLE	0x00000001
+	#define LINK_SFP_EEPROM_COMP_CODE_MASK	0x0000ff00
+	#define LINK_SFP_EEPROM_COMP_CODE_SHIFT		 8
+	#define LINK_SFP_EEPROM_COMP_CODE_SR	0x00001000
+	#define LINK_SFP_EEPROM_COMP_CODE_LR	0x00002000
+	#define LINK_SFP_EEPROM_COMP_CODE_LRM	0x00004000
+
+	u32 reserved5[2];
+	u32 reserved6[PORT_MAX];
+
+	/* driver version for each personality */
+	struct os_drv_ver func_os_drv_ver[E2_FUNC_MAX]; /* Offset 0x16c */
+
+	/* Flag to the driver that PF's drv_info_host_addr buffer was read  */
+	u32 mfw_drv_indication;
+
+	/* We use indication for each PF (0..3) */
+#define MFW_DRV_IND_READ_DONE_OFFSET(_pf_) (1 << (_pf_))
 };
 
 
@@ -2548,6 +2803,9 @@ struct host_port_stats {
 	u32            pfc_frames_tx_lo;
 	u32            pfc_frames_rx_hi;
 	u32            pfc_frames_rx_lo;
+
+	u32            eee_lpi_count_hi;
+	u32            eee_lpi_count_lo;
 };
 
 
@@ -2587,121 +2845,50 @@ struct host_func_stats {
 /* VIC definitions */
 #define VICSTATST_UIF_INDEX 2
 
-/* current drv_info version */
-#define DRV_INFO_CUR_VER 1
 
-/* drv_info op codes supported */
-enum drv_info_opcode {
-	ETH_STATS_OPCODE,
-	FCOE_STATS_OPCODE,
-	ISCSI_STATS_OPCODE
+/* stats collected for afex.
+ * NOTE: structure is exactly as expected to be received by the switch.
+ *       order must remain exactly as is unless protocol changes !
+ */
+struct afex_stats {
+	u32 tx_unicast_frames_hi;
+	u32 tx_unicast_frames_lo;
+	u32 tx_unicast_bytes_hi;
+	u32 tx_unicast_bytes_lo;
+	u32 tx_multicast_frames_hi;
+	u32 tx_multicast_frames_lo;
+	u32 tx_multicast_bytes_hi;
+	u32 tx_multicast_bytes_lo;
+	u32 tx_broadcast_frames_hi;
+	u32 tx_broadcast_frames_lo;
+	u32 tx_broadcast_bytes_hi;
+	u32 tx_broadcast_bytes_lo;
+	u32 tx_frames_discarded_hi;
+	u32 tx_frames_discarded_lo;
+	u32 tx_frames_dropped_hi;
+	u32 tx_frames_dropped_lo;
+
+	u32 rx_unicast_frames_hi;
+	u32 rx_unicast_frames_lo;
+	u32 rx_unicast_bytes_hi;
+	u32 rx_unicast_bytes_lo;
+	u32 rx_multicast_frames_hi;
+	u32 rx_multicast_frames_lo;
+	u32 rx_multicast_bytes_hi;
+	u32 rx_multicast_bytes_lo;
+	u32 rx_broadcast_frames_hi;
+	u32 rx_broadcast_frames_lo;
+	u32 rx_broadcast_bytes_hi;
+	u32 rx_broadcast_bytes_lo;
+	u32 rx_frames_discarded_hi;
+	u32 rx_frames_discarded_lo;
+	u32 rx_frames_dropped_hi;
+	u32 rx_frames_dropped_lo;
 };
 
-#define ETH_STAT_INFO_VERSION_LEN	12
-/*  Per PCI Function Ethernet Statistics required from the driver */
-struct eth_stats_info {
-	/* Function's Driver Version. padded to 12 */
-	u8 version[ETH_STAT_INFO_VERSION_LEN];
-	/* Locally Admin Addr. BigEndian EIU48. Actual size is 6 bytes */
-	u8 mac_local[8];
-	u8 mac_add1[8];		/* Additional Programmed MAC Addr 1. */
-	u8 mac_add2[8];		/* Additional Programmed MAC Addr 2. */
-	u32 mtu_size;		/* MTU Size. Note   : Negotiated MTU */
-	u32 feature_flags;	/* Feature_Flags. */
-#define FEATURE_ETH_CHKSUM_OFFLOAD_MASK		0x01
-#define FEATURE_ETH_LSO_MASK			0x02
-#define FEATURE_ETH_BOOTMODE_MASK		0x1C
-#define FEATURE_ETH_BOOTMODE_SHIFT		2
-#define FEATURE_ETH_BOOTMODE_NONE		(0x0 << 2)
-#define FEATURE_ETH_BOOTMODE_PXE		(0x1 << 2)
-#define FEATURE_ETH_BOOTMODE_ISCSI		(0x2 << 2)
-#define FEATURE_ETH_BOOTMODE_FCOE		(0x3 << 2)
-#define FEATURE_ETH_TOE_MASK			0x20
-	u32 lso_max_size;	/* LSO MaxOffloadSize. */
-	u32 lso_min_seg_cnt;	/* LSO MinSegmentCount. */
-	/* Num Offloaded Connections TCP_IPv4. */
-	u32 ipv4_ofld_cnt;
-	/* Num Offloaded Connections TCP_IPv6. */
-	u32 ipv6_ofld_cnt;
-	u32 promiscuous_mode;	/* Promiscuous Mode. non-zero true */
-	u32 txq_size;		/* TX Descriptors Queue Size */
-	u32 rxq_size;		/* RX Descriptors Queue Size */
-	/* TX Descriptor Queue Avg Depth. % Avg Queue Depth since last poll */
-	u32 txq_avg_depth;
-	/* RX Descriptors Queue Avg Depth. % Avg Queue Depth since last poll */
-	u32 rxq_avg_depth;
-	/* IOV_Offload. 0=none; 1=MultiQueue, 2=VEB 3= VEPA*/
-	u32 iov_offload;
-	/* Number of NetQueue/VMQ Config'd. */
-	u32 netq_cnt;
-	u32 vf_cnt;		/* Num VF assigned to this PF. */
-};
-
-/*  Per PCI Function FCOE Statistics required from the driver */
-struct fcoe_stats_info {
-	u8 version[12];		/* Function's Driver Version. */
-	u8 mac_local[8];	/* Locally Admin Addr. */
-	u8 mac_add1[8];		/* Additional Programmed MAC Addr 1. */
-	u8 mac_add2[8];		/* Additional Programmed MAC Addr 2. */
-	/* QoS Priority (per 802.1p). 0-7255 */
-	u32 qos_priority;
-	u32 txq_size;		/* FCoE TX Descriptors Queue Size. */
-	u32 rxq_size;		/* FCoE RX Descriptors Queue Size. */
-	/* FCoE TX Descriptor Queue Avg Depth. */
-	u32 txq_avg_depth;
-	/* FCoE RX Descriptors Queue Avg Depth. */
-	u32 rxq_avg_depth;
-	u32 rx_frames_lo;	/* FCoE RX Frames received. */
-	u32 rx_frames_hi;	/* FCoE RX Frames received. */
-	u32 rx_bytes_lo;	/* FCoE RX Bytes received. */
-	u32 rx_bytes_hi;	/* FCoE RX Bytes received. */
-	u32 tx_frames_lo;	/* FCoE TX Frames sent. */
-	u32 tx_frames_hi;	/* FCoE TX Frames sent. */
-	u32 tx_bytes_lo;	/* FCoE TX Bytes sent. */
-	u32 tx_bytes_hi;	/* FCoE TX Bytes sent. */
-};
-
-/* Per PCI  Function iSCSI Statistics required from the driver*/
-struct iscsi_stats_info {
-	u8 version[12];		/* Function's Driver Version. */
-	u8 mac_local[8];	/* Locally Admin iSCSI MAC Addr. */
-	u8 mac_add1[8];		/* Additional Programmed MAC Addr 1. */
-	/* QoS Priority (per 802.1p). 0-7255 */
-	u32 qos_priority;
-	u8 initiator_name[64];	/* iSCSI Boot Initiator Node name. */
-	u8 ww_port_name[64];	/* iSCSI World wide port name */
-	u8 boot_target_name[64];/* iSCSI Boot Target Name. */
-	u8 boot_target_ip[16];	/* iSCSI Boot Target IP. */
-	u32 boot_target_portal;	/* iSCSI Boot Target Portal. */
-	u8 boot_init_ip[16];	/* iSCSI Boot Initiator IP Address. */
-	u32 max_frame_size;	/* Max Frame Size. bytes */
-	u32 txq_size;		/* PDU TX Descriptors Queue Size. */
-	u32 rxq_size;		/* PDU RX Descriptors Queue Size. */
-	u32 txq_avg_depth;	/* PDU TX Descriptor Queue Avg Depth. */
-	u32 rxq_avg_depth;	/* PDU RX Descriptors Queue Avg Depth. */
-	u32 rx_pdus_lo;		/* iSCSI PDUs received. */
-	u32 rx_pdus_hi;		/* iSCSI PDUs received. */
-	u32 rx_bytes_lo;	/* iSCSI RX Bytes received. */
-	u32 rx_bytes_hi;	/* iSCSI RX Bytes received. */
-	u32 tx_pdus_lo;		/* iSCSI PDUs sent. */
-	u32 tx_pdus_hi;		/* iSCSI PDUs sent. */
-	u32 tx_bytes_lo;	/* iSCSI PDU TX Bytes sent. */
-	u32 tx_bytes_hi;	/* iSCSI PDU TX Bytes sent. */
-	u32 pcp_prior_map_tbl;	/* C-PCP to S-PCP Priority MapTable.
-				 * 9 nibbles, the position of each nibble
-				 * represents the C-PCP value, the value
-				 * of the nibble = S-PCP value.
-				 */
-};
-
-union drv_info_to_mcp {
-	struct eth_stats_info	ether_stat;
-	struct fcoe_stats_info	fcoe_stat;
-	struct iscsi_stats_info	iscsi_stat;
-};
 #define BCM_5710_FW_MAJOR_VERSION			7
-#define BCM_5710_FW_MINOR_VERSION			0
-#define BCM_5710_FW_REVISION_VERSION		29
+#define BCM_5710_FW_MINOR_VERSION			10
+#define BCM_5710_FW_REVISION_VERSION		51
 #define BCM_5710_FW_ENGINEERING_VERSION		0
 #define BCM_5710_FW_COMPILE_FLAGS			1
 
@@ -3258,6 +3445,10 @@ struct regpair {
 	__le32 hi;
 };
 
+struct regpair_native {
+	u32 lo;
+	u32 hi;
+};
 
 /*
  * Classify rule opcodes in E2/E3
@@ -3266,6 +3457,7 @@ enum classify_rule {
 	CLASSIFY_RULE_OPCODE_MAC,
 	CLASSIFY_RULE_OPCODE_VLAN,
 	CLASSIFY_RULE_OPCODE_PAIR,
+	CLASSIFY_RULE_OPCODE_VXLAN,
 	MAX_CLASSIFY_RULE
 };
 
@@ -3295,7 +3487,8 @@ struct client_init_general_data {
 	u8 func_id;
 	u8 cos;
 	u8 traffic_type;
-	u32 reserved0;
+	u8 fp_hsi_ver;
+	u8 reserved0[3];
 };
 
 
@@ -3308,8 +3501,10 @@ struct client_init_rx_data {
 #define CLIENT_INIT_RX_DATA_TPA_EN_IPV4_SHIFT 0
 #define CLIENT_INIT_RX_DATA_TPA_EN_IPV6 (0x1<<1)
 #define CLIENT_INIT_RX_DATA_TPA_EN_IPV6_SHIFT 1
-#define CLIENT_INIT_RX_DATA_RESERVED5 (0x3F<<2)
-#define CLIENT_INIT_RX_DATA_RESERVED5_SHIFT 2
+#define CLIENT_INIT_RX_DATA_TPA_MODE (0x1<<2)
+#define CLIENT_INIT_RX_DATA_TPA_MODE_SHIFT 2
+#define CLIENT_INIT_RX_DATA_RESERVED5 (0x1F<<3)
+#define CLIENT_INIT_RX_DATA_RESERVED5_SHIFT 3
 	u8 vmqueue_mode_en_flg;
 	u8 extra_data_over_sgl_en_flg;
 	u8 cache_line_alignment_log_size;
@@ -3324,7 +3519,7 @@ struct client_init_rx_data {
 	u8 outer_vlan_removal_enable_flg;
 	u8 status_block_id;
 	u8 rx_sb_index_number;
-	u8 reserved0;
+	u8 dont_verify_rings_pause_thr_flg;
 	u8 max_tpa_queues;
 	u8 silent_vlan_removal_flg;
 	__le16 max_bytes_on_bd;
@@ -3363,7 +3558,9 @@ struct client_init_rx_data {
 	__le16 rx_cos_mask;
 	__le16 silent_vlan_value;
 	__le16 silent_vlan_mask;
-	__le32 reserved6[2];
+	u8 handle_ptp_pkts_flg;
+	u8 reserved6[3];
+	__le32 reserved7;
 };
 
 /*
@@ -3387,11 +3584,14 @@ struct client_init_tx_data {
 #define CLIENT_INIT_TX_DATA_BCAST_ACCEPT_ALL_SHIFT 2
 #define CLIENT_INIT_TX_DATA_ACCEPT_ANY_VLAN (0x1<<3)
 #define CLIENT_INIT_TX_DATA_ACCEPT_ANY_VLAN_SHIFT 3
-#define CLIENT_INIT_TX_DATA_RESERVED1 (0xFFF<<4)
-#define CLIENT_INIT_TX_DATA_RESERVED1_SHIFT 4
+#define CLIENT_INIT_TX_DATA_RESERVED0 (0xFFF<<4)
+#define CLIENT_INIT_TX_DATA_RESERVED0_SHIFT 4
 	u8 default_vlan_flg;
-	u8 reserved2;
-	__le32 reserved3;
+	u8 force_default_pri_flg;
+	u8 tunnel_lso_inc_ip_id;
+	u8 refuse_outband_vlan_flg;
+	u8 tunnel_non_lso_pcsum_location;
+	u8 tunnel_non_lso_outer_ip_csum_location;
 };
 
 /*
@@ -3425,6 +3625,13 @@ struct client_update_ramrod_data {
 	__le16 silent_vlan_mask;
 	u8 silent_vlan_removal_flg;
 	u8 silent_vlan_change_flg;
+	u8 refuse_outband_vlan_flg;
+	u8 refuse_outband_vlan_change_flg;
+	u8 tx_switching_flg;
+	u8 tx_switching_change_flg;
+	u8 handle_ptp_pkts_flg;
+	u8 handle_ptp_pkts_change_flg;
+	__le16 reserved1;
 	__le32 echo;
 };
 
@@ -3444,6 +3651,11 @@ struct double_regpair {
 	u32 regpair1_hi;
 };
 
+/* 2nd parse bd type used in ethernet tx BDs */
+enum eth_2nd_parse_bd_type {
+	ETH_2ND_PARSE_BD_TYPE_LSO_TUNNEL,
+	MAX_ETH_2ND_PARSE_BD_TYPE
+};
 
 /*
  * Ethernet address typesm used in ethernet tx BDs
@@ -3494,7 +3706,8 @@ struct eth_classify_header {
  */
 struct eth_classify_mac_cmd {
 	struct eth_classify_cmd_header header;
-	__le32 reserved0;
+	__le16 reserved0;
+	__le16 inner_mac;
 	__le16 mac_lsb;
 	__le16 mac_mid;
 	__le16 mac_msb;
@@ -3507,7 +3720,8 @@ struct eth_classify_mac_cmd {
  */
 struct eth_classify_pair_cmd {
 	struct eth_classify_cmd_header header;
-	__le32 reserved0;
+	__le16 reserved0;
+	__le16 inner_mac;
 	__le16 mac_lsb;
 	__le16 mac_mid;
 	__le16 mac_msb;
@@ -3527,12 +3741,25 @@ struct eth_classify_vlan_cmd {
 };
 
 /*
+ * Command for adding/removing a VXLAN classification rule
+ */
+struct eth_classify_vxlan_cmd {
+	struct eth_classify_cmd_header header;
+	__le32 vni;
+	__le16 inner_mac_lsb;
+	__le16 inner_mac_mid;
+	__le16 inner_mac_msb;
+	__le16 reserved1;
+};
+
+/*
  * union for eth classification rule
  */
 union eth_classify_rule_cmd {
 	struct eth_classify_mac_cmd mac;
 	struct eth_classify_vlan_cmd vlan;
 	struct eth_classify_pair_cmd pair;
+	struct eth_classify_vxlan_cmd vxlan;
 };
 
 /*
@@ -3638,8 +3865,10 @@ struct eth_fast_path_rx_cqe {
 #define ETH_FAST_PATH_RX_CQE_IP_BAD_XSUM_FLG_SHIFT 4
 #define ETH_FAST_PATH_RX_CQE_L4_BAD_XSUM_FLG (0x1<<5)
 #define ETH_FAST_PATH_RX_CQE_L4_BAD_XSUM_FLG_SHIFT 5
-#define ETH_FAST_PATH_RX_CQE_RESERVED0 (0x3<<6)
-#define ETH_FAST_PATH_RX_CQE_RESERVED0_SHIFT 6
+#define ETH_FAST_PATH_RX_CQE_PTP_PKT (0x1<<6)
+#define ETH_FAST_PATH_RX_CQE_PTP_PKT_SHIFT 6
+#define ETH_FAST_PATH_RX_CQE_RESERVED0 (0x1<<7)
+#define ETH_FAST_PATH_RX_CQE_RESERVED0_SHIFT 7
 	u8 status_flags;
 #define ETH_FAST_PATH_RX_CQE_RSS_HASH_TYPE (0x7<<0)
 #define ETH_FAST_PATH_RX_CQE_RSS_HASH_TYPE_SHIFT 0
@@ -3657,11 +3886,12 @@ struct eth_fast_path_rx_cqe {
 	u8 placement_offset;
 	__le32 rss_hash_result;
 	__le16 vlan_tag;
-	__le16 pkt_len;
+	__le16 pkt_len_or_gro_seg_len;
 	__le16 len_on_bd;
 	struct parsing_flags pars_flags;
 	union eth_sgl_or_raw_data sgl_or_raw_data;
-	__le32 reserved1[8];
+	__le32 reserved1[7];
+	u32 marker;
 };
 
 
@@ -3709,6 +3939,13 @@ struct eth_filter_rules_ramrod_data {
 	struct eth_filter_rules_cmd rules[FILTER_RULES_COUNT];
 };
 
+/* Hsi version */
+enum eth_fp_hsi_ver {
+	ETH_FP_HSI_VER_0,
+	ETH_FP_HSI_VER_1,
+	ETH_FP_HSI_VER_2,
+	MAX_ETH_FP_HSI_VER
+};
 
 /*
  * parameters for eth classification configuration ramrod
@@ -3729,8 +3966,56 @@ struct eth_halt_ramrod_data {
 
 
 /*
- * Command for setting multicast classification for a client
+ * destination and source mac address.
  */
+struct eth_mac_addresses {
+#if defined(__BIG_ENDIAN)
+	__le16 dst_mid;
+	__le16 dst_lo;
+#elif defined(__LITTLE_ENDIAN)
+	__le16 dst_lo;
+	__le16 dst_mid;
+#endif
+#if defined(__BIG_ENDIAN)
+	__le16 src_lo;
+	__le16 dst_hi;
+#elif defined(__LITTLE_ENDIAN)
+	__le16 dst_hi;
+	__le16 src_lo;
+#endif
+#if defined(__BIG_ENDIAN)
+	__le16 src_hi;
+	__le16 src_mid;
+#elif defined(__LITTLE_ENDIAN)
+	__le16 src_mid;
+	__le16 src_hi;
+#endif
+};
+
+/* tunneling related data */
+struct eth_tunnel_data {
+	__le16 dst_lo;
+	__le16 dst_mid;
+	__le16 dst_hi;
+	__le16 fw_ip_hdr_csum;
+	__le16 pseudo_csum;
+	u8 ip_hdr_start_inner_w;
+	u8 flags;
+#define ETH_TUNNEL_DATA_IP_HDR_TYPE_OUTER (0x1<<0)
+#define ETH_TUNNEL_DATA_IP_HDR_TYPE_OUTER_SHIFT 0
+#define ETH_TUNNEL_DATA_RESERVED (0x7F<<1)
+#define ETH_TUNNEL_DATA_RESERVED_SHIFT 1
+};
+
+/* union for mac addresses and for tunneling data.
+ * considered as tunneling data only if (tunnel_exist == 1).
+ */
+union eth_mac_addr_or_tunnel_data {
+	struct eth_mac_addresses mac_addr;
+	struct eth_tunnel_data tunnel_data;
+};
+
+/*Command for setting multicast classification for a client */
 struct eth_multicast_rules_cmd {
 	u8 cmd_general_data;
 #define ETH_MULTICAST_RULES_CMD_RX_CMD (0x1<<0)
@@ -3748,7 +4033,6 @@ struct eth_multicast_rules_cmd {
 	struct regpair reserved3;
 };
 
-
 /*
  * parameters for multicast classification ramrod
  */
@@ -3756,7 +4040,6 @@ struct eth_multicast_rules_ramrod_data {
 	struct eth_classify_header header;
 	struct eth_multicast_rules_cmd rules[MULTICAST_RULES_COUNT];
 };
-
 
 /*
  * Place holder for ramrods protocol specific data
@@ -3808,30 +4091,41 @@ enum eth_rss_mode {
  */
 struct eth_rss_update_ramrod_data {
 	u8 rss_engine_id;
-	u8 capabilities;
+	u8 rss_mode;
+	__le16 capabilities;
 #define ETH_RSS_UPDATE_RAMROD_DATA_IPV4_CAPABILITY (0x1<<0)
 #define ETH_RSS_UPDATE_RAMROD_DATA_IPV4_CAPABILITY_SHIFT 0
 #define ETH_RSS_UPDATE_RAMROD_DATA_IPV4_TCP_CAPABILITY (0x1<<1)
 #define ETH_RSS_UPDATE_RAMROD_DATA_IPV4_TCP_CAPABILITY_SHIFT 1
 #define ETH_RSS_UPDATE_RAMROD_DATA_IPV4_UDP_CAPABILITY (0x1<<2)
 #define ETH_RSS_UPDATE_RAMROD_DATA_IPV4_UDP_CAPABILITY_SHIFT 2
-#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_CAPABILITY (0x1<<3)
-#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_CAPABILITY_SHIFT 3
-#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_TCP_CAPABILITY (0x1<<4)
-#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_TCP_CAPABILITY_SHIFT 4
-#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_UDP_CAPABILITY (0x1<<5)
-#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_UDP_CAPABILITY_SHIFT 5
-#define ETH_RSS_UPDATE_RAMROD_DATA_UPDATE_RSS_KEY (0x1<<6)
-#define ETH_RSS_UPDATE_RAMROD_DATA_UPDATE_RSS_KEY_SHIFT 6
-#define __ETH_RSS_UPDATE_RAMROD_DATA_RESERVED0 (0x1<<7)
-#define __ETH_RSS_UPDATE_RAMROD_DATA_RESERVED0_SHIFT 7
+#define ETH_RSS_UPDATE_RAMROD_DATA_IPV4_VXLAN_CAPABILITY (0x1<<3)
+#define ETH_RSS_UPDATE_RAMROD_DATA_IPV4_VXLAN_CAPABILITY_SHIFT 3
+#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_CAPABILITY (0x1<<4)
+#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_CAPABILITY_SHIFT 4
+#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_TCP_CAPABILITY (0x1<<5)
+#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_TCP_CAPABILITY_SHIFT 5
+#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_UDP_CAPABILITY (0x1<<6)
+#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_UDP_CAPABILITY_SHIFT 6
+#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_VXLAN_CAPABILITY (0x1<<7)
+#define ETH_RSS_UPDATE_RAMROD_DATA_IPV6_VXLAN_CAPABILITY_SHIFT 7
+#define ETH_RSS_UPDATE_RAMROD_DATA_EN_5_TUPLE_CAPABILITY (0x1<<8)
+#define ETH_RSS_UPDATE_RAMROD_DATA_EN_5_TUPLE_CAPABILITY_SHIFT 8
+#define ETH_RSS_UPDATE_RAMROD_DATA_NVGRE_KEY_ENTROPY_CAPABILITY (0x1<<9)
+#define ETH_RSS_UPDATE_RAMROD_DATA_NVGRE_KEY_ENTROPY_CAPABILITY_SHIFT 9
+#define ETH_RSS_UPDATE_RAMROD_DATA_GRE_INNER_HDRS_CAPABILITY (0x1<<10)
+#define ETH_RSS_UPDATE_RAMROD_DATA_GRE_INNER_HDRS_CAPABILITY_SHIFT 10
+#define ETH_RSS_UPDATE_RAMROD_DATA_UPDATE_RSS_KEY (0x1<<11)
+#define ETH_RSS_UPDATE_RAMROD_DATA_UPDATE_RSS_KEY_SHIFT 11
+#define ETH_RSS_UPDATE_RAMROD_DATA_RESERVED (0xF<<12)
+#define ETH_RSS_UPDATE_RAMROD_DATA_RESERVED_SHIFT 12
 	u8 rss_result_mask;
-	u8 rss_mode;
-	__le32 __reserved2;
+	u8 reserved3;
+	__le16 reserved4;
 	u8 indirection_table[T_ETH_INDIRECTION_TABLE_SIZE];
 	__le32 rss_key[T_ETH_RSS_KEY];
 	__le32 echo;
-	__le32 reserved3;
+	__le32 reserved5;
 };
 
 
@@ -3991,6 +4285,23 @@ enum eth_tpa_update_command {
 	MAX_ETH_TPA_UPDATE_COMMAND
 };
 
+/* In case of LSO over IPv4 tunnel, whether to increment
+ * IP ID on external IP header or internal IP header
+ */
+enum eth_tunnel_lso_inc_ip_id {
+	EXT_HEADER,
+	INT_HEADER,
+	MAX_ETH_TUNNEL_LSO_INC_IP_ID
+};
+
+/* In case tunnel exist and L4 checksum offload,
+ * the pseudo checksum location, on packet or on BD.
+ */
+enum eth_tunnel_non_lso_csum_location {
+	CSUM_ON_PKT,
+	CSUM_ON_BD,
+	MAX_ETH_TUNNEL_NON_LSO_CSUM_LOCATION
+};
 
 /*
  * Tx regular BD structure
@@ -4036,31 +4347,35 @@ struct eth_tx_start_bd {
 	__le16 vlan_or_ethertype;
 	struct eth_tx_bd_flags bd_flags;
 	u8 general_data;
-#define ETH_TX_START_BD_HDR_NBDS (0xF<<0)
+#define ETH_TX_START_BD_HDR_NBDS (0x7<<0)
 #define ETH_TX_START_BD_HDR_NBDS_SHIFT 0
+#define ETH_TX_START_BD_NO_ADDED_TAGS (0x1<<3)
+#define ETH_TX_START_BD_NO_ADDED_TAGS_SHIFT 3
 #define ETH_TX_START_BD_FORCE_VLAN_MODE (0x1<<4)
 #define ETH_TX_START_BD_FORCE_VLAN_MODE_SHIFT 4
-#define ETH_TX_START_BD_RESREVED (0x1<<5)
-#define ETH_TX_START_BD_RESREVED_SHIFT 5
-#define ETH_TX_START_BD_ETH_ADDR_TYPE (0x3<<6)
-#define ETH_TX_START_BD_ETH_ADDR_TYPE_SHIFT 6
+#define ETH_TX_START_BD_PARSE_NBDS (0x3<<5)
+#define ETH_TX_START_BD_PARSE_NBDS_SHIFT 5
+#define ETH_TX_START_BD_TUNNEL_EXIST (0x1<<7)
+#define ETH_TX_START_BD_TUNNEL_EXIST_SHIFT 7
 };
 
 /*
  * Tx parsing BD structure for ETH E1/E1h
  */
 struct eth_tx_parse_bd_e1x {
-	u8 global_data;
+	__le16 global_data;
 #define ETH_TX_PARSE_BD_E1X_IP_HDR_START_OFFSET_W (0xF<<0)
 #define ETH_TX_PARSE_BD_E1X_IP_HDR_START_OFFSET_W_SHIFT 0
-#define ETH_TX_PARSE_BD_E1X_RESERVED0 (0x1<<4)
-#define ETH_TX_PARSE_BD_E1X_RESERVED0_SHIFT 4
-#define ETH_TX_PARSE_BD_E1X_PSEUDO_CS_WITHOUT_LEN (0x1<<5)
-#define ETH_TX_PARSE_BD_E1X_PSEUDO_CS_WITHOUT_LEN_SHIFT 5
-#define ETH_TX_PARSE_BD_E1X_LLC_SNAP_EN (0x1<<6)
-#define ETH_TX_PARSE_BD_E1X_LLC_SNAP_EN_SHIFT 6
-#define ETH_TX_PARSE_BD_E1X_NS_FLG (0x1<<7)
-#define ETH_TX_PARSE_BD_E1X_NS_FLG_SHIFT 7
+#define ETH_TX_PARSE_BD_E1X_ETH_ADDR_TYPE (0x3<<4)
+#define ETH_TX_PARSE_BD_E1X_ETH_ADDR_TYPE_SHIFT 4
+#define ETH_TX_PARSE_BD_E1X_PSEUDO_CS_WITHOUT_LEN (0x1<<6)
+#define ETH_TX_PARSE_BD_E1X_PSEUDO_CS_WITHOUT_LEN_SHIFT 6
+#define ETH_TX_PARSE_BD_E1X_LLC_SNAP_EN (0x1<<7)
+#define ETH_TX_PARSE_BD_E1X_LLC_SNAP_EN_SHIFT 7
+#define ETH_TX_PARSE_BD_E1X_NS_FLG (0x1<<8)
+#define ETH_TX_PARSE_BD_E1X_NS_FLG_SHIFT 8
+#define ETH_TX_PARSE_BD_E1X_RESERVED0 (0x7F<<9)
+#define ETH_TX_PARSE_BD_E1X_RESERVED0_SHIFT 9
 	u8 tcp_flags;
 #define ETH_TX_PARSE_BD_E1X_FIN_FLG (0x1<<0)
 #define ETH_TX_PARSE_BD_E1X_FIN_FLG_SHIFT 0
@@ -4079,7 +4394,6 @@ struct eth_tx_parse_bd_e1x {
 #define ETH_TX_PARSE_BD_E1X_CWR_FLG (0x1<<7)
 #define ETH_TX_PARSE_BD_E1X_CWR_FLG_SHIFT 7
 	u8 ip_hlen_w;
-	s8 reserved;
 	__le16 total_hlen_w;
 	__le16 tcp_pseudo_csum;
 	__le16 lso_mss;
@@ -4091,26 +4405,71 @@ struct eth_tx_parse_bd_e1x {
  * Tx parsing BD structure for ETH E2
  */
 struct eth_tx_parse_bd_e2 {
-	__le16 dst_mac_addr_lo;
-	__le16 dst_mac_addr_mid;
-	__le16 dst_mac_addr_hi;
-	__le16 src_mac_addr_lo;
-	__le16 src_mac_addr_mid;
-	__le16 src_mac_addr_hi;
+	union eth_mac_addr_or_tunnel_data data;
 	__le32 parsing_data;
-#define ETH_TX_PARSE_BD_E2_TCP_HDR_START_OFFSET_W (0x1FFF<<0)
-#define ETH_TX_PARSE_BD_E2_TCP_HDR_START_OFFSET_W_SHIFT 0
-#define ETH_TX_PARSE_BD_E2_TCP_HDR_LENGTH_DW (0xF<<13)
-#define ETH_TX_PARSE_BD_E2_TCP_HDR_LENGTH_DW_SHIFT 13
-#define ETH_TX_PARSE_BD_E2_LSO_MSS (0x3FFF<<17)
-#define ETH_TX_PARSE_BD_E2_LSO_MSS_SHIFT 17
-#define ETH_TX_PARSE_BD_E2_IPV6_WITH_EXT_HDR (0x1<<31)
-#define ETH_TX_PARSE_BD_E2_IPV6_WITH_EXT_HDR_SHIFT 31
+#define ETH_TX_PARSE_BD_E2_L4_HDR_START_OFFSET_W (0x7FF<<0)
+#define ETH_TX_PARSE_BD_E2_L4_HDR_START_OFFSET_W_SHIFT 0
+#define ETH_TX_PARSE_BD_E2_TCP_HDR_LENGTH_DW (0xF<<11)
+#define ETH_TX_PARSE_BD_E2_TCP_HDR_LENGTH_DW_SHIFT 11
+#define ETH_TX_PARSE_BD_E2_IPV6_WITH_EXT_HDR (0x1<<15)
+#define ETH_TX_PARSE_BD_E2_IPV6_WITH_EXT_HDR_SHIFT 15
+#define ETH_TX_PARSE_BD_E2_LSO_MSS (0x3FFF<<16)
+#define ETH_TX_PARSE_BD_E2_LSO_MSS_SHIFT 16
+#define ETH_TX_PARSE_BD_E2_ETH_ADDR_TYPE (0x3<<30)
+#define ETH_TX_PARSE_BD_E2_ETH_ADDR_TYPE_SHIFT 30
 };
 
 /*
- * The last BD in the BD memory will hold a pointer to the next BD memory
+ * Tx 2nd parsing BD structure for ETH packet
  */
+struct eth_tx_parse_2nd_bd {
+	__le16 global_data;
+#define ETH_TX_PARSE_2ND_BD_IP_HDR_START_OUTER_W (0xF<<0)
+#define ETH_TX_PARSE_2ND_BD_IP_HDR_START_OUTER_W_SHIFT 0
+#define ETH_TX_PARSE_2ND_BD_RESERVED0 (0x1<<4)
+#define ETH_TX_PARSE_2ND_BD_RESERVED0_SHIFT 4
+#define ETH_TX_PARSE_2ND_BD_LLC_SNAP_EN (0x1<<5)
+#define ETH_TX_PARSE_2ND_BD_LLC_SNAP_EN_SHIFT 5
+#define ETH_TX_PARSE_2ND_BD_NS_FLG (0x1<<6)
+#define ETH_TX_PARSE_2ND_BD_NS_FLG_SHIFT 6
+#define ETH_TX_PARSE_2ND_BD_TUNNEL_UDP_EXIST (0x1<<7)
+#define ETH_TX_PARSE_2ND_BD_TUNNEL_UDP_EXIST_SHIFT 7
+#define ETH_TX_PARSE_2ND_BD_IP_HDR_LEN_OUTER_W (0x1F<<8)
+#define ETH_TX_PARSE_2ND_BD_IP_HDR_LEN_OUTER_W_SHIFT 8
+#define ETH_TX_PARSE_2ND_BD_RESERVED1 (0x7<<13)
+#define ETH_TX_PARSE_2ND_BD_RESERVED1_SHIFT 13
+	u8 bd_type;
+#define ETH_TX_PARSE_2ND_BD_TYPE (0xF<<0)
+#define ETH_TX_PARSE_2ND_BD_TYPE_SHIFT 0
+#define ETH_TX_PARSE_2ND_BD_RESERVED2 (0xF<<4)
+#define ETH_TX_PARSE_2ND_BD_RESERVED2_SHIFT 4
+	u8 reserved3;
+	u8 tcp_flags;
+#define ETH_TX_PARSE_2ND_BD_FIN_FLG (0x1<<0)
+#define ETH_TX_PARSE_2ND_BD_FIN_FLG_SHIFT 0
+#define ETH_TX_PARSE_2ND_BD_SYN_FLG (0x1<<1)
+#define ETH_TX_PARSE_2ND_BD_SYN_FLG_SHIFT 1
+#define ETH_TX_PARSE_2ND_BD_RST_FLG (0x1<<2)
+#define ETH_TX_PARSE_2ND_BD_RST_FLG_SHIFT 2
+#define ETH_TX_PARSE_2ND_BD_PSH_FLG (0x1<<3)
+#define ETH_TX_PARSE_2ND_BD_PSH_FLG_SHIFT 3
+#define ETH_TX_PARSE_2ND_BD_ACK_FLG (0x1<<4)
+#define ETH_TX_PARSE_2ND_BD_ACK_FLG_SHIFT 4
+#define ETH_TX_PARSE_2ND_BD_URG_FLG (0x1<<5)
+#define ETH_TX_PARSE_2ND_BD_URG_FLG_SHIFT 5
+#define ETH_TX_PARSE_2ND_BD_ECE_FLG (0x1<<6)
+#define ETH_TX_PARSE_2ND_BD_ECE_FLG_SHIFT 6
+#define ETH_TX_PARSE_2ND_BD_CWR_FLG (0x1<<7)
+#define ETH_TX_PARSE_2ND_BD_CWR_FLG_SHIFT 7
+	u8 reserved4;
+	u8 tunnel_udp_hdr_start_w;
+	u8 fw_ip_hdr_to_payload_w;
+	__le16 fw_ip_csum_wo_len_flags_frag;
+	__le16 hw_ip_id;
+	__le32 tcp_send_seq;
+};
+
+/* The last BD in the BD memory will hold a pointer to the next BD memory */
 struct eth_tx_next_bd {
 	__le32 addr_lo;
 	__le32 addr_hi;
@@ -4125,6 +4484,7 @@ union eth_tx_bd_types {
 	struct eth_tx_bd reg_bd;
 	struct eth_tx_parse_bd_e1x parse_bd_e1x;
 	struct eth_tx_parse_bd_e2 parse_bd_e2;
+	struct eth_tx_parse_2nd_bd parse_2nd_bd;
 	struct eth_tx_next_bd next_bd;
 };
 
@@ -4215,6 +4575,15 @@ enum set_mac_action_type {
 
 
 /*
+ * Ethernet TPA Modes
+ */
+enum tpa_mode {
+	TPA_LRO,
+	TPA_GRO,
+	MAX_TPA_MODE};
+
+
+/*
  * tpa update ramrod data
  */
 struct tpa_update_ramrod_data {
@@ -4224,7 +4593,8 @@ struct tpa_update_ramrod_data {
 	u8 max_tpa_queues;
 	u8 max_sges_for_packet;
 	u8 complete_on_both_clients;
-	__le16 reserved1;
+	u8 dont_verify_rings_pause_thr_flg;
+	u8 tpa_mode;
 	__le16 sge_buff_size;
 	__le16 max_agg_size;
 	__le32 sge_page_base_lo;
@@ -4271,13 +4641,13 @@ struct tstorm_eth_function_common_config {
  * MAC filtering configuration parameters per port in Tstorm
  */
 struct tstorm_eth_mac_filter_config {
-	__le32 ucast_drop_all;
-	__le32 ucast_accept_all;
-	__le32 mcast_drop_all;
-	__le32 mcast_accept_all;
-	__le32 bcast_accept_all;
-	__le32 vlan_filter[2];
-	__le32 unmatched_unicast;
+	u32 ucast_drop_all;
+	u32 ucast_accept_all;
+	u32 mcast_drop_all;
+	u32 mcast_accept_all;
+	u32 bcast_accept_all;
+	u32 vlan_filter[2];
+	u32 unmatched_unicast;
 };
 
 
@@ -4366,8 +4736,21 @@ struct fcoe_statistics_params {
 
 
 /*
+ * The data afex vif list ramrod need
+ */
+struct afex_vif_list_ramrod_data {
+	u8 afex_vif_list_command;
+	u8 func_bit_map;
+	__le16 vif_list_index;
+	u8 func_to_clear;
+	u8 echo;
+	__le16 reserved1;
+};
+
+
+/*
  * cfc delete event data
-*/
+ */
 struct cfc_del_event_data {
 	u32 cid;
 	u32 reserved0;
@@ -4439,6 +4822,65 @@ struct cmng_struct_per_port {
 	struct cmng_flags_per_port flags;
 };
 
+/*
+ * a single rate shaping counter. can be used as protocol or vnic counter
+ */
+struct rate_shaping_counter {
+	u32 quota;
+#if defined(__BIG_ENDIAN)
+	u16 __reserved0;
+	u16 rate;
+#elif defined(__LITTLE_ENDIAN)
+	u16 rate;
+	u16 __reserved0;
+#endif
+};
+
+/*
+ * per-vnic rate shaping variables
+ */
+struct rate_shaping_vars_per_vn {
+	struct rate_shaping_counter vn_counter;
+};
+
+/*
+ * per-vnic fairness variables
+ */
+struct fairness_vars_per_vn {
+	u32 cos_credit_delta[MAX_COS_NUMBER];
+	u32 vn_credit_delta;
+	u32 __reserved0;
+};
+
+/*
+ * cmng port init state
+ */
+struct cmng_vnic {
+	struct rate_shaping_vars_per_vn vnic_max_rate[4];
+	struct fairness_vars_per_vn vnic_min_rate[4];
+};
+
+/*
+ * cmng port init state
+ */
+struct cmng_init {
+	struct cmng_struct_per_port port;
+	struct cmng_vnic vnic;
+};
+
+
+/*
+ * driver parameters for congestion management init, all rates are in Mbps
+ */
+struct cmng_init_input {
+	u32 port_rate;
+	u16 vnic_min_rate[4];
+	u16 vnic_max_rate[4];
+	u16 cos_min_rate[MAX_COS_NUMBER];
+	u16 cos_to_pause_mask[MAX_COS_NUMBER];
+	struct cmng_flags_per_port flags;
+};
+
 
 /*
  * Protocol-common command ID for slow path elements
@@ -4447,16 +4889,16 @@ enum common_spqe_cmd_id {
 	RAMROD_CMD_ID_COMMON_UNUSED,
 	RAMROD_CMD_ID_COMMON_FUNCTION_START,
 	RAMROD_CMD_ID_COMMON_FUNCTION_STOP,
+	RAMROD_CMD_ID_COMMON_FUNCTION_UPDATE,
 	RAMROD_CMD_ID_COMMON_CFC_DEL,
 	RAMROD_CMD_ID_COMMON_CFC_DEL_WB,
 	RAMROD_CMD_ID_COMMON_STAT_QUERY,
 	RAMROD_CMD_ID_COMMON_STOP_TRAFFIC,
 	RAMROD_CMD_ID_COMMON_START_TRAFFIC,
-	RAMROD_CMD_ID_COMMON_RESERVED1,
-	RAMROD_CMD_ID_COMMON_RESERVED2,
+	RAMROD_CMD_ID_COMMON_AFEX_VIF_LISTS,
+	RAMROD_CMD_ID_COMMON_SET_TIMESYNC,
 	MAX_COMMON_SPQE_CMD_ID
 };
-
 
 /*
  * Per-protocol connection types
@@ -4654,21 +5096,42 @@ struct vf_flr_event_data {
  */
 struct malicious_vf_event_data {
 	u8 vf_id;
-	u8 reserved0;
+	u8 err_id;
 	u16 reserved1;
 	u32 reserved2;
 	u32 reserved3;
 };
 
 /*
- * union for all event ring message types
+ * vif list event data
  */
+struct vif_list_event_data {
+	u8 func_bit_map;
+	u8 echo;
+	__le16 reserved0;
+	__le32 reserved1;
+	__le32 reserved2;
+};
+
+/* function update event data */
+struct function_update_event_data {
+	u8 echo;
+	u8 reserved;
+	__le16 reserved0;
+	__le32 reserved1;
+	__le32 reserved2;
+};
+
+
+/* union for all event ring message types */
 union event_data {
 	struct vf_pf_event_data vf_pf_event;
 	struct eth_event_data eth_event;
 	struct cfc_del_event_data cfc_del_event;
 	struct vf_flr_event_data vf_flr_event;
 	struct malicious_vf_event_data malicious_vf_event;
+	struct vif_list_event_data vif_list_event;
+	struct function_update_event_data function_update_event;
 };
 
 
@@ -4676,7 +5139,7 @@ union event_data {
  * per PF event ring data
  */
 struct event_ring_data {
-	struct regpair base_addr;
+	struct regpair_native base_addr;
 #if defined(__BIG_ENDIAN)
 	u8 index_id;
 	u8 sb_id;
@@ -4733,15 +5196,15 @@ enum event_ring_opcode {
 	EVENT_RING_OPCODE_MALICIOUS_VF,
 	EVENT_RING_OPCODE_FORWARD_SETUP,
 	EVENT_RING_OPCODE_RSS_UPDATE_RULES,
-	EVENT_RING_OPCODE_RESERVED1,
-	EVENT_RING_OPCODE_RESERVED2,
+	EVENT_RING_OPCODE_FUNCTION_UPDATE,
+	EVENT_RING_OPCODE_AFEX_VIF_LISTS,
 	EVENT_RING_OPCODE_SET_MAC,
 	EVENT_RING_OPCODE_CLASSIFICATION_RULES,
 	EVENT_RING_OPCODE_FILTERS_RULES,
 	EVENT_RING_OPCODE_MULTICAST_RULES,
+	EVENT_RING_OPCODE_SET_TIMESYNC,
 	MAX_EVENT_RING_OPCODE
 };
-
 
 /*
  * Modes for fairness algorithm
@@ -4750,16 +5213,6 @@ enum fairness_mode {
 	FAIRNESS_COS_WRR_MODE,
 	FAIRNESS_COS_ETS_MODE,
 	MAX_FAIRNESS_MODE
-};
-
-
-/*
- * per-vnic fairness variables
- */
-struct fairness_vars_per_vn {
-	u32 cos_credit_delta[MAX_COS_NUMBER];
-	u32 vn_credit_delta;
-	u32 __reserved0;
 };
 
 
@@ -4789,13 +5242,56 @@ struct flow_control_configuration {
  *
  */
 struct function_start_data {
-	__le16 function_mode;
+	u8 function_mode;
+	u8 allow_npar_tx_switching;
 	__le16 sd_vlan_tag;
-	u16 reserved;
+	__le16 vif_id;
 	u8 path_id;
 	u8 network_cos_mode;
+	u8 dmae_cmd_id;
+	u8 tunnel_mode;
+	u8 gre_tunnel_type;
+	u8 tunn_clss_en;
+	u8 inner_gre_rss_en;
+	u8 sd_accept_mf_clss_fail;
+	__le16 vxlan_dst_port;
+	__le16 sd_accept_mf_clss_fail_ethtype;
+	__le16 sd_vlan_eth_type;
+	u8 sd_vlan_force_pri_flg;
+	u8 sd_vlan_force_pri_val;
+	u8 sd_accept_mf_clss_fail_match_ethtype;
+	u8 no_added_tags;
 };
 
+struct function_update_data {
+	u8 vif_id_change_flg;
+	u8 afex_default_vlan_change_flg;
+	u8 allowed_priorities_change_flg;
+	u8 network_cos_mode_change_flg;
+	__le16 vif_id;
+	__le16 afex_default_vlan;
+	u8 allowed_priorities;
+	u8 network_cos_mode;
+	u8 lb_mode_en_change_flg;
+	u8 lb_mode_en;
+	u8 tx_switch_suspend_change_flg;
+	u8 tx_switch_suspend;
+	u8 echo;
+	u8 update_tunn_cfg_flg;
+	u8 tunnel_mode;
+	u8 gre_tunnel_type;
+	u8 tunn_clss_en;
+	u8 inner_gre_rss_en;
+	__le16 vxlan_dst_port;
+	u8 sd_vlan_force_pri_change_flg;
+	u8 sd_vlan_force_pri_flg;
+	u8 sd_vlan_force_pri_val;
+	u8 sd_vlan_tag_change_flg;
+	u8 sd_vlan_eth_type_change_flg;
+	u8 reserved1;
+	__le16 sd_vlan_tag;
+	__le16 sd_vlan_eth_type;
+};
 
 /*
  * FW version stored in the Xstorm RAM
@@ -4823,6 +5319,14 @@ struct fw_version {
 #define __FW_VERSION_RESERVED_SHIFT 4
 };
 
+
+/* GRE Tunnel Mode */
+enum gre_tunnel_type {
+	NVGRE_TUNNEL,
+	L2GRE_TUNNEL,
+	IPGRE_TUNNEL,
+	MAX_GRE_TUNNEL_TYPE
+};
 
 /*
  * Dynamic Host-Coalescing - Driver(host) counters
@@ -4901,7 +5405,7 @@ struct pci_entity {
  * The fast-path status block meta-data, common to all chips
  */
 struct hc_sb_data {
-	struct regpair host_sb_addr;
+	struct regpair_native host_sb_addr;
 	struct hc_status_block_sm state_machine[HC_SB_MAX_SM];
 	struct pci_entity p_func;
 #if defined(__BIG_ENDIAN)
@@ -4915,7 +5419,7 @@ struct hc_sb_data {
 	u8 state;
 	u8 rsrv0;
 #endif
-	struct regpair rsrv1[2];
+	struct regpair_native rsrv1[2];
 };
 
 
@@ -4933,7 +5437,7 @@ enum hc_segment {
  * The fast-path status block meta-data
  */
 struct hc_sp_status_block_data {
-	struct regpair host_sb_addr;
+	struct regpair_native host_sb_addr;
 #if defined(__BIG_ENDIAN)
 	u8 rsrv1;
 	u8 state;
@@ -4986,6 +5490,27 @@ enum ip_ver {
 	MAX_IP_VER
 };
 
+/*
+ * Malicious VF error ID
+ */
+enum malicious_vf_error_id {
+	MALICIOUS_VF_NO_ERROR,
+	VF_PF_CHANNEL_NOT_READY,
+	ETH_ILLEGAL_BD_LENGTHS,
+	ETH_PACKET_TOO_SHORT,
+	ETH_PAYLOAD_TOO_BIG,
+	ETH_ILLEGAL_ETH_TYPE,
+	ETH_ILLEGAL_LSO_HDR_LEN,
+	ETH_TOO_MANY_BDS,
+	ETH_ZERO_HDR_NBDS,
+	ETH_START_BD_NOT_SET,
+	ETH_ILLEGAL_PARSE_NBDS,
+	ETH_IPV6_AND_CHECKSUM,
+	ETH_VLAN_FLG_INCORRECT,
+	ETH_ILLEGAL_LSO_MSS,
+	ETH_TUNNEL_NOT_SUPPORTED,
+	MAX_MALICIOUS_VF_ERROR_ID
+};
 
 /*
  * Multi-function modes
@@ -4994,7 +5519,7 @@ enum mf_mode {
 	SINGLE_FUNCTION,
 	MULTI_FUNCTION_SD,
 	MULTI_FUNCTION_SI,
-	MULTI_FUNCTION_RESERVED,
+	MULTI_FUNCTION_AFEX,
 	MAX_MF_MODE
 };
 
@@ -5119,6 +5644,7 @@ union protocol_common_specific_data {
 	u8 protocol_data[8];
 	struct regpair phy_address;
 	struct regpair mac_config_addr;
+	struct afex_vif_list_ramrod_data afex_vif_list_data;
 };
 
 /*
@@ -5129,29 +5655,15 @@ struct protocol_common_spe {
 	union protocol_common_specific_data data;
 };
 
-
-/*
- * a single rate shaping counter. can be used as protocol or vnic counter
- */
-struct rate_shaping_counter {
-	u32 quota;
-#if defined(__BIG_ENDIAN)
-	u16 __reserved0;
-	u16 rate;
-#elif defined(__LITTLE_ENDIAN)
-	u16 rate;
-	u16 __reserved0;
-#endif
+/* The data for the Set Timesync Ramrod */
+struct set_timesync_ramrod_data {
+	u8 drift_adjust_cmd;
+	u8 offset_cmd;
+	u8 add_sub_drift_adjust_value;
+	u8 drift_adjust_value;
+	u32 drift_adjust_period;
+	struct regpair offset_delta;
 };
-
-
-/*
- * per-vnic rate shaping variables
- */
-struct rate_shaping_vars_per_vn {
-	struct rate_shaping_counter vn_counter;
-};
-
 
 /*
  * The send queue element
@@ -5275,10 +5787,38 @@ struct tstorm_vf_zone_data {
 	struct regpair reserved;
 };
 
+/* Add or Subtract Value for Set Timesync Ramrod */
+enum ts_add_sub_value {
+	TS_SUB_VALUE,
+	TS_ADD_VALUE,
+	MAX_TS_ADD_SUB_VALUE
+};
 
-/*
- * zone A per-queue data
- */
+/* Drift-Adjust Commands for Set Timesync Ramrod */
+enum ts_drift_adjust_cmd {
+	TS_DRIFT_ADJUST_KEEP,
+	TS_DRIFT_ADJUST_SET,
+	TS_DRIFT_ADJUST_RESET,
+	MAX_TS_DRIFT_ADJUST_CMD
+};
+
+/* Offset Commands for Set Timesync Ramrod */
+enum ts_offset_cmd {
+	TS_OFFSET_KEEP,
+	TS_OFFSET_INC,
+	TS_OFFSET_DEC,
+	MAX_TS_OFFSET_CMD
+};
+
+/* Tunnel Mode */
+enum tunnel_mode {
+	TUNN_MODE_NONE,
+	TUNN_MODE_VXLAN,
+	TUNN_MODE_GRE,
+	MAX_TUNNEL_MODE
+};
+
+ /* zone A per-queue data */
 struct ustorm_queue_zone_data {
 	struct ustorm_eth_rx_producers eth_rx_producers;
 	struct regpair reserved[3];
@@ -5317,6 +5857,18 @@ enum vf_pf_channel_state {
 	VF_PF_CHANNEL_STATE_READY,
 	VF_PF_CHANNEL_STATE_WAITING_FOR_ACK,
 	MAX_VF_PF_CHANNEL_STATE
+};
+
+
+/*
+ * vif_list_rule_kind
+ */
+enum vif_list_rule_kind {
+	VIF_LIST_RULE_SET,
+	VIF_LIST_RULE_GET,
+	VIF_LIST_RULE_CLEAR_ALL,
+	VIF_LIST_RULE_CLEAR_FUNC,
+	MAX_VIF_LIST_RULE_KIND
 };
 
 

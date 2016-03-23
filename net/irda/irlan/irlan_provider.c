@@ -36,7 +36,6 @@
 #include <linux/bitops.h>
 #include <linux/slab.h>
 
-#include <asm/system.h>
 #include <asm/byteorder.h>
 
 #include <net/irda/irda.h>
@@ -297,7 +296,7 @@ void irlan_provider_send_reply(struct irlan_cb *self, int command,
 	skb = alloc_skb(IRLAN_MAX_HEADER + IRLAN_CMD_HEADER +
 			/* Bigger param length comes from CMD_GET_MEDIA_CHAR */
 			IRLAN_STRING_PARAMETER_LEN("FILTER_TYPE", "DIRECTED") +
-			IRLAN_STRING_PARAMETER_LEN("FILTER_TYPE", "BORADCAST") +
+			IRLAN_STRING_PARAMETER_LEN("FILTER_TYPE", "BROADCAST") +
 			IRLAN_STRING_PARAMETER_LEN("FILTER_TYPE", "MULTICAST") +
 			IRLAN_STRING_PARAMETER_LEN("ACCESS_TYPE", "HOSTED"),
 			GFP_ATOMIC);

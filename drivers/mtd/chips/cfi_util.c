@@ -116,10 +116,8 @@ __xipram cfi_read_pri(struct map_info *map, __u16 adr, __u16 size, const char* n
 	printk(KERN_INFO "%s Extended Query Table at 0x%4.4X\n", name, adr);
 
 	extp = kmalloc(size, GFP_KERNEL);
-	if (!extp) {
-		printk(KERN_ERR "Failed to allocate memory\n");
+	if (!extp)
 		goto out;
-	}
 
 #ifdef CONFIG_MTD_XIP
 	local_irq_disable();
@@ -172,12 +170,6 @@ int cfi_varsize_frob(struct mtd_info *mtd, varsize_frob_t frob,
 	int chipnum, ret = 0;
 	int i, first;
 	struct mtd_erase_region_info *regions = mtd->eraseregions;
-
-	if (ofs > mtd->size)
-		return -EINVAL;
-
-	if ((len + ofs) > mtd->size)
-		return -EINVAL;
 
 	/* Check that both start and end of the requested erase are
 	 * aligned with the erasesize at the appropriate addresses.
@@ -247,7 +239,7 @@ int cfi_varsize_frob(struct mtd_info *mtd, varsize_frob_t frob,
 			chipnum++;
 
 			if (chipnum >= cfi->numchips)
-			break;
+				break;
 		}
 	}
 

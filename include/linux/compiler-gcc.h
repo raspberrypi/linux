@@ -5,6 +5,9 @@
 /*
  * Common definitions for all gcc versions go here.
  */
+#define GCC_VERSION (__GNUC__ * 10000 \
+		   + __GNUC_MINOR__ * 100 \
+		   + __GNUC_PATCHLEVEL__)
 
 
 /* Optimization barrier */
@@ -34,6 +37,9 @@
     __asm__ ("" : "=r"(__ptr) : "0"(ptr));		\
     (typeof(ptr)) (__ptr + (off)); })
 
+/* Make the optimizer believe the variable can be manipulated arbitrarily. */
+#define OPTIMIZER_HIDE_VAR(var) __asm__ ("" : "=r" (var) : "0" (var))
+
 #ifdef __CHECKER__
 #define __must_be_array(arr) 0
 #else
@@ -47,9 +53,14 @@
  */
 #if !defined(CONFIG_ARCH_SUPPORTS_OPTIMIZED_INLINING) || \
     !defined(CONFIG_OPTIMIZE_INLINING) || (__GNUC__ < 4)
-# define inline		inline		__attribute__((always_inline))
-# define __inline__	__inline__	__attribute__((always_inline))
-# define __inline	__inline	__attribute__((always_inline))
+# define inline		inline		__attribute__((always_inline)) notrace
+# define __inline__	__inline__	__attribute__((always_inline)) notrace
+# define __inline	__inline	__attribute__((always_inline)) notrace
+#else
+/* A lot of inline functions can cause havoc with function tracing */
+# define inline		inline		notrace
+# define __inline__	__inline__	notrace
+# define __inline	__inline	notrace
 #endif
 
 #define __deprecated			__attribute__((deprecated))
@@ -82,7 +93,8 @@
  */
 #define __pure				__attribute__((pure))
 #define __aligned(x)			__attribute__((aligned(x)))
-#define __printf(a,b)			__attribute__((format(printf,a,b)))
+#define __printf(a, b)			__attribute__((format(printf, a, b)))
+#define __scanf(a, b)			__attribute__((format(scanf, a, b)))
 #define  noinline			__attribute__((noinline))
 #define __attribute_const__		__attribute__((__const__))
 #define __maybe_unused			__attribute__((unused))

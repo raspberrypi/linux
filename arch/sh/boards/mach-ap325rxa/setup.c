@@ -20,8 +20,12 @@
 #include <linux/mtd/sh_flctl.h>
 #include <linux/delay.h>
 #include <linux/i2c.h>
+#include <linux/regulator/fixed.h>
+#include <linux/regulator/machine.h>
 #include <linux/smsc911x.h>
 #include <linux/gpio.h>
+#include <linux/videodev2.h>
+#include <linux/sh_intc.h>
 #include <media/ov772x.h>
 #include <media/soc_camera.h>
 #include <media/soc_camera_platform.h>
@@ -31,6 +35,12 @@
 #include <asm/clock.h>
 #include <asm/suspend.h>
 #include <cpu/sh7723.h>
+
+/* Dummy supplies, where voltage doesn't matter */
+static struct regulator_consumer_supply dummy_supplies[] = {
+	REGULATOR_SUPPLY("vddvario", "smsc911x"),
+	REGULATOR_SUPPLY("vdd33a", "smsc911x"),
+};
 
 static struct smsc911x_platform_config smsc911x_config = {
 	.phy_interface	= PHY_INTERFACE_MODE_MII,
@@ -46,8 +56,8 @@ static struct resource smsc9118_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start	= 35,
-		.end	= 35,
+		.start	= evt2irq(0x660),
+		.end	= evt2irq(0x660),
 		.flags	= IORESOURCE_IRQ,
 	}
 };
@@ -156,7 +166,7 @@ static struct platform_device nand_flash_device = {
 #define PORT_DRVCRA	0xA405018A
 #define PORT_DRVCRB	0xA405018C
 
-static int ap320_wvga_set_brightness(void *board_data, int brightness)
+static int ap320_wvga_set_brightness(int brightness)
 {
 	if (brightness) {
 		gpio_set_value(GPIO_PTS3, 0);
@@ -165,16 +175,11 @@ static int ap320_wvga_set_brightness(void *board_data, int brightness)
 		__raw_writew(0, FPGA_BKLREG);
 		gpio_set_value(GPIO_PTS3, 1);
 	}
-	
+
 	return 0;
 }
 
-static int ap320_wvga_get_brightness(void *board_data)
-{
-	return gpio_get_value(GPIO_PTS3);
-}
-
-static void ap320_wvga_power_on(void *board_data, struct fb_info *info)
+static void ap320_wvga_power_on(void)
 {
 	msleep(100);
 
@@ -182,7 +187,7 @@ static void ap320_wvga_power_on(void *board_data, struct fb_info *info)
 	__raw_writew(FPGA_LCDREG_VAL, FPGA_LCDREG);
 }
 
-static void ap320_wvga_power_off(void *board_data)
+static void ap320_wvga_power_off(void)
 {
 	/* ASD AP-320/325 LCD OFF */
 	__raw_writew(0, FPGA_LCDREG);
@@ -207,24 +212,21 @@ static struct sh_mobile_lcdc_info lcdc_info = {
 	.clock_source = LCDC_CLK_EXTERNAL,
 	.ch[0] = {
 		.chan = LCDC_CHAN_MAINLCD,
-		.bpp = 16,
+		.fourcc = V4L2_PIX_FMT_RGB565,
 		.interface_type = RGB18,
 		.clock_divider = 1,
-		.lcd_cfg = ap325rxa_lcdc_modes,
-		.num_cfg = ARRAY_SIZE(ap325rxa_lcdc_modes),
-		.lcd_size_cfg = { /* 7.0 inch */
-			.width = 152,
+		.lcd_modes = ap325rxa_lcdc_modes,
+		.num_modes = ARRAY_SIZE(ap325rxa_lcdc_modes),
+		.panel_cfg = {
+			.width = 152,	/* 7.0 inch */
 			.height = 91,
-		},
-		.board_cfg = {
 			.display_on = ap320_wvga_power_on,
 			.display_off = ap320_wvga_power_off,
-			.set_brightness = ap320_wvga_set_brightness,
-			.get_brightness = ap320_wvga_get_brightness,
 		},
 		.bl_info = {
 			.name = "sh_mobile_lcdc_bl",
 			.max_brightness = 1,
+			.set_brightness = ap320_wvga_set_brightness,
 		},
 	}
 };
@@ -237,7 +239,7 @@ static struct resource lcdc_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start	= 28,
+		.start	= evt2irq(0x580),
 		.flags	= IORESOURCE_IRQ,
 	},
 };
@@ -248,9 +250,6 @@ static struct platform_device lcdc_device = {
 	.resource	= lcdc_resources,
 	.dev		= {
 		.platform_data	= &lcdc_info,
-	},
-	.archdata = {
-		.hwblk_id = HWBLK_LCDC,
 	},
 };
 
@@ -408,7 +407,7 @@ static struct resource ceu_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start  = 52,
+		.start  = evt2irq(0x880),
 		.flags  = IORESOURCE_IRQ,
 	},
 	[2] = {
@@ -424,9 +423,15 @@ static struct platform_device ceu_device = {
 	.dev		= {
 		.platform_data	= &sh_mobile_ceu_info,
 	},
-	.archdata = {
-		.hwblk_id = HWBLK_CEU,
-	},
+};
+
+/* Fixed 3.3V regulators to be used by SDHI0, SDHI1 */
+static struct regulator_consumer_supply fixed3v3_power_consumers[] =
+{
+	REGULATOR_SUPPLY("vmmc", "sh_mobile_sdhi.0"),
+	REGULATOR_SUPPLY("vqmmc", "sh_mobile_sdhi.0"),
+	REGULATOR_SUPPLY("vmmc", "sh_mobile_sdhi.1"),
+	REGULATOR_SUPPLY("vqmmc", "sh_mobile_sdhi.1"),
 };
 
 static struct resource sdhi0_cn3_resources[] = {
@@ -437,7 +442,7 @@ static struct resource sdhi0_cn3_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start	= 100,
+		.start	= evt2irq(0xe80),
 		.flags  = IORESOURCE_IRQ,
 	},
 };
@@ -454,9 +459,6 @@ static struct platform_device sdhi0_cn3_device = {
 	.dev = {
 		.platform_data = &sdhi0_cn3_data,
 	},
-	.archdata = {
-		.hwblk_id = HWBLK_SDHI0,
-	},
 };
 
 static struct resource sdhi1_cn7_resources[] = {
@@ -467,7 +469,7 @@ static struct resource sdhi1_cn7_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	[1] = {
-		.start	= 23,
+		.start	= evt2irq(0x4e0),
 		.flags  = IORESOURCE_IRQ,
 	},
 };
@@ -483,9 +485,6 @@ static struct platform_device sdhi1_cn7_device = {
 	.resource	= sdhi1_cn7_resources,
 	.dev = {
 		.platform_data = &sdhi1_cn7_data,
-	},
-	.archdata = {
-		.hwblk_id = HWBLK_SDHI1,
 	},
 };
 
@@ -555,6 +554,10 @@ static int __init ap325rxa_devices_setup(void)
 					&ap325rxa_sdram_enter_end,
 					&ap325rxa_sdram_leave_start,
 					&ap325rxa_sdram_leave_end);
+
+	regulator_register_always_on(0, "fixed-3.3V", fixed3v3_power_consumers,
+				     ARRAY_SIZE(fixed3v3_power_consumers), 3300000);
+	regulator_register_fixed(1, dummy_supplies, ARRAY_SIZE(dummy_supplies));
 
 	/* LD3 and LD4 LEDs */
 	gpio_request(GPIO_PTX5, NULL); /* RUN */

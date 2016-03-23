@@ -463,7 +463,7 @@ static void a3dsrc_ZeroSliceIO(a3dsrc_t * a)
 static void a3dsrc_ZeroState(a3dsrc_t * a)
 {
 	/*
-	printk(KERN_DEBUG "vortex: ZeroState slice: %d, source %d\n",
+	pr_debug( "vortex: ZeroState slice: %d, source %d\n",
 	       a->slice, a->source);
 	*/
 	a3dsrc_SetAtmosState(a, 0, 0, 0, 0);
@@ -489,7 +489,7 @@ static void a3dsrc_ZeroStateA3D(a3dsrc_t * a)
 	int i, var, var2;
 
 	if ((a->vortex) == NULL) {
-		printk(KERN_ERR "vortex: ZeroStateA3D: ERROR: a->vortex is NULL\n");
+		pr_err( "vortex: ZeroStateA3D: ERROR: a->vortex is NULL\n");
 		return;
 	}
 
@@ -594,7 +594,7 @@ static int Vort3DRend_Initialize(vortex_t * v, unsigned short mode)
 static int vortex_a3d_register_controls(vortex_t * vortex);
 static void vortex_a3d_unregister_controls(vortex_t * vortex);
 /* A3D base support init/shudown */
-static void __devinit vortex_Vort3D_enable(vortex_t * v)
+static void vortex_Vort3D_enable(vortex_t *v)
 {
 	int i;
 
@@ -628,14 +628,14 @@ static void vortex_Vort3D_connect(vortex_t * v, int en)
 	v->mixxtlk[0] =
 	    vortex_adb_checkinout(v, v->fixed_res, en, VORTEX_RESOURCE_MIXIN);
 	if (v->mixxtlk[0] < 0) {
-		printk
+		pr_warn
 		    ("vortex: vortex_Vort3D: ERROR: not enough free mixer resources.\n");
 		return;
 	}
 	v->mixxtlk[1] =
 	    vortex_adb_checkinout(v, v->fixed_res, en, VORTEX_RESOURCE_MIXIN);
 	if (v->mixxtlk[1] < 0) {
-		printk
+		pr_warn
 		    ("vortex: vortex_Vort3D: ERROR: not enough free mixer resources.\n");
 		return;
 	}
@@ -679,7 +679,7 @@ static void vortex_Vort3D_connect(vortex_t * v, int en)
 static void vortex_Vort3D_InitializeSource(a3dsrc_t * a, int en)
 {
 	if (a->vortex == NULL) {
-		printk
+		pr_warn
 		    ("vortex: Vort3D_InitializeSource: A3D source not initialized\n");
 		return;
 	}
@@ -845,7 +845,7 @@ snd_vortex_a3d_filter_put(struct snd_kcontrol *kcontrol,
 	return changed;
 }
 
-static struct snd_kcontrol_new vortex_a3d_kcontrol __devinitdata = {
+static struct snd_kcontrol_new vortex_a3d_kcontrol = {
 	.iface = SNDRV_CTL_ELEM_IFACE_PCM,
 	.name = "Playback PCM advanced processing",
 	.access = SNDRV_CTL_ELEM_ACCESS_READWRITE,
@@ -855,7 +855,7 @@ static struct snd_kcontrol_new vortex_a3d_kcontrol __devinitdata = {
 };
 
 /* Control (un)registration. */
-static int __devinit vortex_a3d_register_controls(vortex_t * vortex)
+static int vortex_a3d_register_controls(vortex_t *vortex)
 {
 	struct snd_kcontrol *kcontrol;
 	int err, i;

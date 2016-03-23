@@ -78,14 +78,10 @@ struct pcxhr_mgr {
 	char shortname[32];		/* short name of this soundcard */
 	char longname[96];		/* name of this soundcard */
 
-	/* message tasklet */
-	struct tasklet_struct msg_taskq;
 	struct pcxhr_rmh *prmh;
-	/* trigger tasklet */
-	struct tasklet_struct trigger_taskq;
 
-	spinlock_t lock;		/* interrupt spinlock */
-	spinlock_t msg_lock;		/* message spinlock */
+	struct mutex lock;		/* interrupt lock */
+	struct mutex msg_lock;		/* message lock */
 
 	struct mutex setup_mutex;	/* mutex used in hw_params, open and close */
 	struct mutex mixer_mutex;	/* mutex for mixer */
@@ -103,6 +99,7 @@ struct pcxhr_mgr {
 	unsigned int board_has_mic:1; /* if 1 the board has microphone input */
 	unsigned int board_aes_in_192k:1;/* if 1 the aes input plugs do support 192kHz */
 	unsigned int mono_capture:1; /* if 1 the board does mono capture */
+	unsigned int capture_ltc:1; /* if 1 the board captures LTC input */
 
 	struct snd_dma_buffer hostport;
 

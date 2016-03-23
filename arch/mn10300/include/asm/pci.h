@@ -44,12 +44,10 @@ extern void unit_pci_init(void);
 #define pcibios_assign_all_busses()	0
 #endif
 
-extern unsigned long pci_mem_start;
 #define PCIBIOS_MIN_IO		0xBE000004
 #define PCIBIOS_MIN_MEM		0xB8000000
 
 void pcibios_set_master(struct pci_dev *dev);
-void pcibios_penalize_isa_irq(int irq);
 
 /* Dynamic DMA mapping stuff.
  * i386 has everything mapped statically.
@@ -85,22 +83,6 @@ extern int pci_mmap_page_range(struct pci_dev *dev, struct vm_area_struct *vma,
 /* implement the pci_ DMA API in terms of the generic device dma_ one */
 #include <asm-generic/pci-dma-compat.h>
 
-/**
- * pcibios_resource_to_bus - convert resource to PCI bus address
- * @dev: device which owns this resource
- * @region: converted bus-centric region (start,end)
- * @res: resource to convert
- *
- * Convert a resource to a PCI device bus address or bus window.
- */
-extern void pcibios_resource_to_bus(struct pci_dev *dev,
-				    struct pci_bus_region *region,
-				    struct resource *res);
-
-extern void pcibios_bus_to_resource(struct pci_dev *dev,
-				    struct resource *res,
-				    struct pci_bus_region *region);
-
 static inline struct resource *
 pcibios_select_root(struct pci_dev *pdev, struct resource *res)
 {
@@ -118,5 +100,7 @@ static inline int pci_get_legacy_ide_irq(struct pci_dev *dev, int channel)
 {
 	return channel ? 15 : 14;
 }
+
+#include <asm-generic/pci_iomap.h>
 
 #endif /* _ASM_PCI_H */

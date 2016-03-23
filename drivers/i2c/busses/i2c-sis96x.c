@@ -10,10 +10,6 @@
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 /*
@@ -36,7 +32,6 @@
 #include <linux/stddef.h>
 #include <linux/ioport.h>
 #include <linux/i2c.h>
-#include <linux/init.h>
 #include <linux/acpi.h>
 #include <linux/io.h>
 
@@ -252,7 +247,7 @@ static const struct pci_device_id sis96x_ids[] = {
 
 MODULE_DEVICE_TABLE (pci, sis96x_ids);
 
-static int __devinit sis96x_probe(struct pci_dev *dev,
+static int sis96x_probe(struct pci_dev *dev,
 				const struct pci_device_id *id)
 {
 	u16 ww = 0;
@@ -308,7 +303,7 @@ static int __devinit sis96x_probe(struct pci_dev *dev,
 	return retval;
 }
 
-static void __devexit sis96x_remove(struct pci_dev *dev)
+static void sis96x_remove(struct pci_dev *dev)
 {
 	if (sis96x_smbus_base) {
 		i2c_del_adapter(&sis96x_adapter);
@@ -321,24 +316,11 @@ static struct pci_driver sis96x_driver = {
 	.name		= "sis96x_smbus",
 	.id_table	= sis96x_ids,
 	.probe		= sis96x_probe,
-	.remove		= __devexit_p(sis96x_remove),
+	.remove		= sis96x_remove,
 };
 
-static int __init i2c_sis96x_init(void)
-{
-	return pci_register_driver(&sis96x_driver);
-}
-
-static void __exit i2c_sis96x_exit(void)
-{
-	pci_unregister_driver(&sis96x_driver);
-}
+module_pci_driver(sis96x_driver);
 
 MODULE_AUTHOR("Mark M. Hoffman <mhoffman@lightlink.com>");
 MODULE_DESCRIPTION("SiS96x SMBus driver");
 MODULE_LICENSE("GPL");
-
-/* Register initialization functions using helper macros */
-module_init(i2c_sis96x_init);
-module_exit(i2c_sis96x_exit);
-

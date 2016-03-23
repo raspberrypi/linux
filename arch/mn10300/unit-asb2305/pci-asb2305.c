@@ -213,28 +213,6 @@ void __init pcibios_resource_survey(void)
 	pcibios_allocate_resources(1);
 }
 
-/*
- *  If we set up a device for bus mastering, we need to check the latency
- *  timer as certain crappy BIOSes forget to set it properly.
- */
-unsigned int pcibios_max_latency = 255;
-
-void pcibios_set_master(struct pci_dev *dev)
-{
-	u8 lat;
-
-	pci_read_config_byte(dev, PCI_LATENCY_TIMER, &lat);
-
-	if (lat < 16)
-		lat = (64 <= pcibios_max_latency) ? 64 : pcibios_max_latency;
-	else if (lat > pcibios_max_latency)
-		lat = pcibios_max_latency;
-	else
-		return;
-
-	pci_write_config_byte(dev, PCI_LATENCY_TIMER, lat);
-}
-
 int pci_mmap_page_range(struct pci_dev *dev, struct vm_area_struct *vma,
 			enum pci_mmap_state mmap_state, int write_combine)
 {
@@ -243,7 +221,7 @@ int pci_mmap_page_range(struct pci_dev *dev, struct vm_area_struct *vma,
 	/* Leave vm_pgoff as-is, the PCI space address is the physical
 	 * address on this platform.
 	 */
-	vma->vm_flags |= VM_LOCKED | VM_IO;
+	vma->vm_flags |= VM_LOCKED;
 
 	prot = pgprot_val(vma->vm_page_prot);
 	prot &= ~_PAGE_CACHE;

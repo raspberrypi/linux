@@ -369,6 +369,7 @@ static int create_log_context(struct dm_dirty_log *log, struct dm_target *ti,
 	unsigned int region_count;
 	size_t bitset_size, buf_size;
 	int r;
+	char dummy;
 
 	if (argc < 1 || argc > 2) {
 		DMWARN("wrong number of arguments to dirty region log");
@@ -387,7 +388,7 @@ static int create_log_context(struct dm_dirty_log *log, struct dm_target *ti,
 		}
 	}
 
-	if (sscanf(argv[0], "%u", &region_size) != 1 ||
+	if (sscanf(argv[0], "%u%c", &region_size, &dummy) != 1 ||
 	    !_check_region_size(ti, region_size)) {
 		DMWARN("invalid region size %s", argv[0]);
 		return -EINVAL;
@@ -570,16 +571,6 @@ static void disk_dtr(struct dm_dirty_log *log)
 	destroy_log_context(lc);
 }
 
-static int count_bits32(uint32_t *addr, unsigned size)
-{
-	int count = 0, i;
-
-	for (i = 0; i < size; i++) {
-		count += hweight32(*(addr+i));
-	}
-	return count;
-}
-
 static void fail_log_device(struct log_c *lc)
 {
 	if (lc->log_dev_failed)
@@ -628,7 +619,8 @@ static int disk_resume(struct dm_dirty_log *log)
 
 	/* copy clean across to sync */
 	memcpy(lc->sync_bits, lc->clean_bits, size);
-	lc->sync_count = count_bits32(lc->clean_bits, lc->bitset_uint32_count);
+	lc->sync_count = memweight(lc->clean_bits,
+				lc->bitset_uint32_count * sizeof(uint32_t));
 	lc->sync_search = 0;
 
 	/* set the correct number of regions in the header */

@@ -114,7 +114,7 @@ ssize_t xdr_partial_copy_from_skb(struct xdr_buf *xdr, unsigned int base, struct
 		}
 
 		len = PAGE_CACHE_SIZE;
-		kaddr = kmap_atomic(*ppage, KM_SKB_SUNRPC_DATA);
+		kaddr = kmap_atomic(*ppage);
 		if (base) {
 			len -= base;
 			if (pglen < len)
@@ -127,7 +127,7 @@ ssize_t xdr_partial_copy_from_skb(struct xdr_buf *xdr, unsigned int base, struct
 			ret = copy_actor(desc, kaddr, len);
 		}
 		flush_dcache_page(*ppage);
-		kunmap_atomic(kaddr, KM_SKB_SUNRPC_DATA);
+		kunmap_atomic(kaddr);
 		copied += ret;
 		if (ret != len || !desc->count)
 			goto out;
@@ -173,7 +173,8 @@ int csum_partial_copy_to_xdr(struct xdr_buf *xdr, struct sk_buff *skb)
 		return -1;
 	if (csum_fold(desc.csum))
 		return -1;
-	if (unlikely(skb->ip_summed == CHECKSUM_COMPLETE))
+	if (unlikely(skb->ip_summed == CHECKSUM_COMPLETE) &&
+	    !skb->csum_complete_sw)
 		netdev_rx_csum_fault(skb->dev);
 	return 0;
 no_checksum:

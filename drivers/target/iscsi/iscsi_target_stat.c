@@ -2,9 +2,7 @@
  * Modern ConfigFS group context specific iSCSI statistics based on original
  * iscsi_target_mib.c code
  *
- * Copyright (c) 2011 Rising Tide Systems
- *
- * Licensed to the Linux Foundation under the General Public License (GPL) version 2.
+ * Copyright (c) 2011-2013 Datera, Inc.
  *
  * Author: Nicholas A. Bellinger <nab@linux-iscsi.org>
  *
@@ -23,7 +21,6 @@
 #include <linux/export.h>
 #include <scsi/iscsi_proto.h>
 #include <target/target_core_base.h>
-#include <target/target_core_transport.h>
 #include <target/configfs_macros.h>
 
 #include "iscsi_target_core.h"
@@ -178,7 +175,7 @@ ISCSI_STAT_INSTANCE_ATTR_RO(description);
 static ssize_t iscsi_stat_instance_show_attr_vendor(
 	struct iscsi_wwn_stat_grps *igrps, char *page)
 {
-	return snprintf(page, PAGE_SIZE, "RisingTide Systems iSCSI-Target\n");
+	return snprintf(page, PAGE_SIZE, "Datera, Inc. iSCSI-Target\n");
 }
 ISCSI_STAT_INSTANCE_ATTR_RO(vendor);
 
@@ -411,14 +408,16 @@ static ssize_t iscsi_stat_tgt_attr_show_attr_fail_intr_addr_type(
 	struct iscsi_tiqn *tiqn = container_of(igrps,
 			struct iscsi_tiqn, tiqn_stat_grps);
 	struct iscsi_login_stats *lstat = &tiqn->login_stats;
-	unsigned char buf[8];
+	int ret;
 
 	spin_lock(&lstat->lock);
-	snprintf(buf, 8, "%s", (lstat->last_intr_fail_ip_addr != NULL) ?
-				"ipv6" : "ipv4");
+	if (lstat->last_intr_fail_ip_family == AF_INET6)
+		ret = snprintf(page, PAGE_SIZE, "ipv6\n");
+	else
+		ret = snprintf(page, PAGE_SIZE, "ipv4\n");
 	spin_unlock(&lstat->lock);
 
-	return snprintf(page, PAGE_SIZE, "%s\n", buf);
+	return ret;
 }
 ISCSI_STAT_TGT_ATTR_RO(fail_intr_addr_type);
 
@@ -428,16 +427,13 @@ static ssize_t iscsi_stat_tgt_attr_show_attr_fail_intr_addr(
 	struct iscsi_tiqn *tiqn = container_of(igrps,
 			struct iscsi_tiqn, tiqn_stat_grps);
 	struct iscsi_login_stats *lstat = &tiqn->login_stats;
-	unsigned char buf[32];
+	int ret;
 
 	spin_lock(&lstat->lock);
-	if (lstat->last_intr_fail_ip_family == AF_INET6)
-		snprintf(buf, 32, "[%s]", lstat->last_intr_fail_ip_addr);
-	else
-		snprintf(buf, 32, "%s", lstat->last_intr_fail_ip_addr);
+	ret = snprintf(page, PAGE_SIZE, "%s\n", lstat->last_intr_fail_ip_addr);
 	spin_unlock(&lstat->lock);
 
-	return snprintf(page, PAGE_SIZE, "%s\n", buf);
+	return ret;
 }
 ISCSI_STAT_TGT_ATTR_RO(fail_intr_addr);
 
@@ -746,7 +742,7 @@ static ssize_t iscsi_stat_sess_show_attr_node(
 	spin_lock_bh(&se_nacl->nacl_sess_lock);
 	se_sess = se_nacl->nacl_sess;
 	if (se_sess) {
-		sess = (struct iscsi_session *)se_sess->fabric_sess_ptr;
+		sess = se_sess->fabric_sess_ptr;
 		if (sess)
 			ret = snprintf(page, PAGE_SIZE, "%u\n",
 				sess->sess_ops->SessionType ? 0 : ISCSI_NODE_INDEX);
@@ -770,7 +766,7 @@ static ssize_t iscsi_stat_sess_show_attr_indx(
 	spin_lock_bh(&se_nacl->nacl_sess_lock);
 	se_sess = se_nacl->nacl_sess;
 	if (se_sess) {
-		sess = (struct iscsi_session *)se_sess->fabric_sess_ptr;
+		sess = se_sess->fabric_sess_ptr;
 		if (sess)
 			ret = snprintf(page, PAGE_SIZE, "%u\n",
 					sess->session_index);
@@ -794,9 +790,10 @@ static ssize_t iscsi_stat_sess_show_attr_cmd_pdus(
 	spin_lock_bh(&se_nacl->nacl_sess_lock);
 	se_sess = se_nacl->nacl_sess;
 	if (se_sess) {
-		sess = (struct iscsi_session *)se_sess->fabric_sess_ptr;
+		sess = se_sess->fabric_sess_ptr;
 		if (sess)
-			ret = snprintf(page, PAGE_SIZE, "%u\n", sess->cmd_pdus);
+			ret = snprintf(page, PAGE_SIZE, "%lu\n",
+				       atomic_long_read(&sess->cmd_pdus));
 	}
 	spin_unlock_bh(&se_nacl->nacl_sess_lock);
 
@@ -817,9 +814,10 @@ static ssize_t iscsi_stat_sess_show_attr_rsp_pdus(
 	spin_lock_bh(&se_nacl->nacl_sess_lock);
 	se_sess = se_nacl->nacl_sess;
 	if (se_sess) {
-		sess = (struct iscsi_session *)se_sess->fabric_sess_ptr;
+		sess = se_sess->fabric_sess_ptr;
 		if (sess)
-			ret = snprintf(page, PAGE_SIZE, "%u\n", sess->rsp_pdus);
+			ret = snprintf(page, PAGE_SIZE, "%lu\n",
+				       atomic_long_read(&sess->rsp_pdus));
 	}
 	spin_unlock_bh(&se_nacl->nacl_sess_lock);
 
@@ -840,10 +838,10 @@ static ssize_t iscsi_stat_sess_show_attr_txdata_octs(
 	spin_lock_bh(&se_nacl->nacl_sess_lock);
 	se_sess = se_nacl->nacl_sess;
 	if (se_sess) {
-		sess = (struct iscsi_session *)se_sess->fabric_sess_ptr;
+		sess = se_sess->fabric_sess_ptr;
 		if (sess)
-			ret = snprintf(page, PAGE_SIZE, "%llu\n",
-				(unsigned long long)sess->tx_data_octets);
+			ret = snprintf(page, PAGE_SIZE, "%lu\n",
+				       atomic_long_read(&sess->tx_data_octets));
 	}
 	spin_unlock_bh(&se_nacl->nacl_sess_lock);
 
@@ -864,10 +862,10 @@ static ssize_t iscsi_stat_sess_show_attr_rxdata_octs(
 	spin_lock_bh(&se_nacl->nacl_sess_lock);
 	se_sess = se_nacl->nacl_sess;
 	if (se_sess) {
-		sess = (struct iscsi_session *)se_sess->fabric_sess_ptr;
+		sess = se_sess->fabric_sess_ptr;
 		if (sess)
-			ret = snprintf(page, PAGE_SIZE, "%llu\n",
-				(unsigned long long)sess->rx_data_octets);
+			ret = snprintf(page, PAGE_SIZE, "%lu\n",
+				       atomic_long_read(&sess->rx_data_octets));
 	}
 	spin_unlock_bh(&se_nacl->nacl_sess_lock);
 
@@ -888,10 +886,10 @@ static ssize_t iscsi_stat_sess_show_attr_conn_digest_errors(
 	spin_lock_bh(&se_nacl->nacl_sess_lock);
 	se_sess = se_nacl->nacl_sess;
 	if (se_sess) {
-		sess = (struct iscsi_session *)se_sess->fabric_sess_ptr;
+		sess = se_sess->fabric_sess_ptr;
 		if (sess)
-			ret = snprintf(page, PAGE_SIZE, "%u\n",
-					sess->conn_digest_errors);
+			ret = snprintf(page, PAGE_SIZE, "%lu\n",
+				       atomic_long_read(&sess->conn_digest_errors));
 	}
 	spin_unlock_bh(&se_nacl->nacl_sess_lock);
 
@@ -912,10 +910,10 @@ static ssize_t iscsi_stat_sess_show_attr_conn_timeout_errors(
 	spin_lock_bh(&se_nacl->nacl_sess_lock);
 	se_sess = se_nacl->nacl_sess;
 	if (se_sess) {
-		sess = (struct iscsi_session *)se_sess->fabric_sess_ptr;
+		sess = se_sess->fabric_sess_ptr;
 		if (sess)
-			ret = snprintf(page, PAGE_SIZE, "%u\n",
-					sess->conn_timeout_errors);
+			ret = snprintf(page, PAGE_SIZE, "%lu\n",
+				       atomic_long_read(&sess->conn_timeout_errors));
 	}
 	spin_unlock_bh(&se_nacl->nacl_sess_lock);
 

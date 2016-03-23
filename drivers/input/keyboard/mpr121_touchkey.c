@@ -13,7 +13,6 @@
  */
 
 #include <linux/module.h>
-#include <linux/init.h>
 #include <linux/input.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
@@ -71,7 +70,7 @@ struct mpr121_init_register {
 	u8 val;
 };
 
-static const struct mpr121_init_register init_reg_table[] __devinitconst = {
+static const struct mpr121_init_register init_reg_table[] = {
 	{ MHD_RISING_ADDR,	0x1 },
 	{ NHD_RISING_ADDR,	0x1 },
 	{ MHD_FALLING_ADDR,	0x1 },
@@ -123,7 +122,7 @@ out:
 	return IRQ_HANDLED;
 }
 
-static int __devinit mpr121_phys_init(const struct mpr121_platform_data *pdata,
+static int mpr121_phys_init(const struct mpr121_platform_data *pdata,
 				      struct mpr121_touchkey *mpr121,
 				      struct i2c_client *client)
 {
@@ -185,10 +184,11 @@ err_i2c_write:
 	return ret;
 }
 
-static int __devinit mpr_touchkey_probe(struct i2c_client *client,
-					const struct i2c_device_id *id)
+static int mpr_touchkey_probe(struct i2c_client *client,
+			      const struct i2c_device_id *id)
 {
-	const struct mpr121_platform_data *pdata = client->dev.platform_data;
+	const struct mpr121_platform_data *pdata =
+			dev_get_platdata(&client->dev);
 	struct mpr121_touchkey *mpr121;
 	struct input_dev *input_dev;
 	int error;
@@ -248,7 +248,7 @@ static int __devinit mpr_touchkey_probe(struct i2c_client *client,
 
 	error = request_threaded_irq(client->irq, NULL,
 				     mpr_touchkey_interrupt,
-				     IRQF_TRIGGER_FALLING,
+				     IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
 				     client->dev.driver->name, mpr121);
 	if (error) {
 		dev_err(&client->dev, "Failed to register interrupt\n");
@@ -272,7 +272,7 @@ err_free_mem:
 	return error;
 }
 
-static int __devexit mpr_touchkey_remove(struct i2c_client *client)
+static int mpr_touchkey_remove(struct i2c_client *client)
 {
 	struct mpr121_touchkey *mpr121 = i2c_get_clientdata(client);
 
@@ -327,20 +327,10 @@ static struct i2c_driver mpr_touchkey_driver = {
 	},
 	.id_table	= mpr121_id,
 	.probe		= mpr_touchkey_probe,
-	.remove		= __devexit_p(mpr_touchkey_remove),
+	.remove		= mpr_touchkey_remove,
 };
 
-static int __init mpr_touchkey_init(void)
-{
-	return i2c_add_driver(&mpr_touchkey_driver);
-}
-module_init(mpr_touchkey_init);
-
-static void __exit mpr_touchkey_exit(void)
-{
-	i2c_del_driver(&mpr_touchkey_driver);
-}
-module_exit(mpr_touchkey_exit);
+module_i2c_driver(mpr_touchkey_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Zhang Jiejing <jiejing.zhang@freescale.com>");

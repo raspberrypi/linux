@@ -481,7 +481,7 @@ static struct esp_driver_ops mac_esp_ops = {
 	.dma_error        = mac_esp_dma_error,
 };
 
-static int __devinit esp_mac_probe(struct platform_device *dev)
+static int esp_mac_probe(struct platform_device *dev)
 {
 	struct scsi_host_template *tpnt = &scsi_esp_template;
 	struct Scsi_Host *host;
@@ -565,8 +565,7 @@ static int __devinit esp_mac_probe(struct platform_device *dev)
 	esp_chips[dev->id] = esp;
 	mb();
 	if (esp_chips[!dev->id] == NULL) {
-		err = request_irq(host->irq, mac_scsi_esp_intr, 0,
-		                  "Mac ESP", NULL);
+		err = request_irq(host->irq, mac_scsi_esp_intr, 0, "ESP", NULL);
 		if (err < 0) {
 			esp_chips[dev->id] = NULL;
 			goto fail_free_priv;
@@ -592,7 +591,7 @@ fail:
 	return err;
 }
 
-static int __devexit esp_mac_remove(struct platform_device *dev)
+static int esp_mac_remove(struct platform_device *dev)
 {
 	struct mac_esp_priv *mep = platform_get_drvdata(dev);
 	struct esp *esp = mep->esp;
@@ -615,7 +614,7 @@ static int __devexit esp_mac_remove(struct platform_device *dev)
 
 static struct platform_driver esp_mac_driver = {
 	.probe    = esp_mac_probe,
-	.remove   = __devexit_p(esp_mac_remove),
+	.remove   = esp_mac_remove,
 	.driver   = {
 		.name	= DRV_MODULE_NAME,
 		.owner	= THIS_MODULE,

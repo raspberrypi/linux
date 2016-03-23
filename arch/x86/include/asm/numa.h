@@ -9,7 +9,6 @@
 #ifdef CONFIG_NUMA
 
 #define NR_NODE_MEMBLKS		(MAX_NUMNODES*2)
-#define ZONE_ALIGN (1UL << (MAX_ORDER+PAGE_SHIFT))
 
 /*
  * Too small node sizes may confuse the VM badly. Usually they
@@ -39,7 +38,7 @@ static inline void set_apicid_to_node(int apicid, s16 node)
 	__apicid_to_node[apicid] = node;
 }
 
-extern int __cpuinit numa_cpu_node(int cpu);
+extern int numa_cpu_node(int cpu);
 
 #else	/* CONFIG_NUMA */
 static inline void set_apicid_to_node(int apicid, s16 node)
@@ -53,17 +52,15 @@ static inline int numa_cpu_node(int cpu)
 #endif	/* CONFIG_NUMA */
 
 #ifdef CONFIG_X86_32
-# include "numa_32.h"
-#else
-# include "numa_64.h"
+# include <asm/numa_32.h>
 #endif
 
 #ifdef CONFIG_NUMA
-extern void __cpuinit numa_set_node(int cpu, int node);
-extern void __cpuinit numa_clear_node(int cpu);
+extern void numa_set_node(int cpu, int node);
+extern void numa_clear_node(int cpu);
 extern void __init init_cpu_to_node(void);
-extern void __cpuinit numa_add_cpu(int cpu);
-extern void __cpuinit numa_remove_cpu(int cpu);
+extern void numa_add_cpu(int cpu);
+extern void numa_remove_cpu(int cpu);
 #else	/* CONFIG_NUMA */
 static inline void numa_set_node(int cpu, int node)	{ }
 static inline void numa_clear_node(int cpu)		{ }

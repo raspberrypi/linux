@@ -11,6 +11,7 @@ menuconfig BT
 	select CRYPTO_BLKCIPHER
 	select CRYPTO_AES
 	select CRYPTO_ECB
+	select CRYPTO_SHA256
 	help
 	  Bluetooth is low-cost, low-power, short-range wireless technology.
 	  It was designed as a replacement for cables and other short-range
@@ -29,7 +30,6 @@ menuconfig BT
 	     BNEP Module (Bluetooth Network Encapsulation Protocol)
 	     CMTP Module (CAPI Message Transport Protocol)
 	     HIDP Module (Human Interface Device Protocol)
-	     SMP Module (Security Manager Protocol)
 
 	  Say Y here to compile Bluetooth support into the kernel or say M to
 	  compile it as module (bluetooth).
@@ -38,6 +38,12 @@ menuconfig BT
 	  utilities like hciconfig and bluetoothd.  These utilities and updates
 	  to Bluetooth kernel modules are provided in the BlueZ packages.  For
 	  more information, see <http://www.bluez.org/>.
+
+config BT_6LOWPAN
+	tristate "Bluetooth 6LoWPAN support"
+	depends on BT && 6LOWPAN
+	help
+	  IPv6 compression over Bluetooth Low Energy.
 
 source "net/bluetooth/rfcomm/Kconfig"
 
@@ -48,4 +54,3 @@ source "net/bluetooth/cmtp/Kconfig"
 source "net/bluetooth/hidp/Kconfig"
 
 source "drivers/bluetooth/Kconfig"
-

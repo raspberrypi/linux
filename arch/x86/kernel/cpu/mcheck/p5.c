@@ -5,11 +5,9 @@
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
-#include <linux/init.h>
 #include <linux/smp.h>
 
 #include <asm/processor.h>
-#include <asm/system.h>
 #include <asm/mce.h>
 #include <asm/msr.h>
 
@@ -34,7 +32,7 @@ static void pentium_machine_check(struct pt_regs *regs, long error_code)
 			smp_processor_id());
 	}
 
-	add_taint(TAINT_MACHINE_CHECK);
+	add_taint(TAINT_MACHINE_CHECK, LOCKDEP_NOW_UNRELIABLE);
 }
 
 /* Set up machine check reporting for processors with Intel style MCE: */

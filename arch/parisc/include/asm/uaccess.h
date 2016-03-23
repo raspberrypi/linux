@@ -5,10 +5,11 @@
  * User space memory access functions
  */
 #include <asm/page.h>
-#include <asm/system.h>
 #include <asm/cache.h>
 #include <asm/errno.h>
 #include <asm-generic/uaccess-unaligned.h>
+
+#include <linux/bug.h>
 
 #define VERIFY_READ 0
 #define VERIFY_WRITE 1
@@ -29,11 +30,6 @@
  * that put_user is the same as __put_user, etc.
  */
 
-extern int __get_kernel_bad(void);
-extern int __get_user_bad(void);
-extern int __put_kernel_bad(void);
-extern int __put_user_bad(void);
-
 static inline long access_ok(int type, const void __user * addr,
 		unsigned long size)
 {
@@ -44,8 +40,8 @@ static inline long access_ok(int type, const void __user * addr,
 #define get_user __get_user
 
 #if !defined(CONFIG_64BIT)
-#define LDD_KERNEL(ptr)		__get_kernel_bad();
-#define LDD_USER(ptr)		__get_user_bad();
+#define LDD_KERNEL(ptr)		BUILD_BUG()
+#define LDD_USER(ptr)		BUILD_BUG()
 #define STD_KERNEL(x, ptr)	__put_kernel_asm64(x,ptr)
 #define STD_USER(x, ptr)	__put_user_asm64(x,ptr)
 #define ASM_WORD_INSN		".word\t"
@@ -60,12 +56,13 @@ static inline long access_ok(int type, const void __user * addr,
 /*
  * The exception table contains two values: the first is an address
  * for an instruction that is allowed to fault, and the second is
- * the address to the fixup routine. 
+ * the address to the fixup routine. Even on a 64bit kernel we could
+ * use a 32bit (unsigned int) address here.
  */
 
 struct exception_table_entry {
-	unsigned long insn;  /* address of insn that is allowed to fault.   */
-	long fixup;          /* fixup routine */
+	unsigned long insn;	/* address of insn that is allowed to fault. */
+	unsigned long fixup;	/* fixup routine */
 };
 
 #define ASM_EXCEPTIONTABLE_ENTRY( fault_addr, except_addr )\
@@ -94,7 +91,7 @@ struct exception_data {
 	    case 2: __get_kernel_asm("ldh",ptr); break; \
 	    case 4: __get_kernel_asm("ldw",ptr); break; \
 	    case 8: LDD_KERNEL(ptr); break;		\
-	    default: __get_kernel_bad(); break;         \
+	    default: BUILD_BUG(); break;		\
 	    }                                           \
 	}                                               \
 	else {                                          \
@@ -103,7 +100,7 @@ struct exception_data {
 	    case 2: __get_user_asm("ldh",ptr); break;   \
 	    case 4: __get_user_asm("ldw",ptr); break;   \
 	    case 8: LDD_USER(ptr);  break;		\
-	    default: __get_user_bad(); break;           \
+	    default: BUILD_BUG(); break;		\
 	    }                                           \
 	}                                               \
 							\
@@ -136,7 +133,7 @@ struct exception_data {
 	    case 2: __put_kernel_asm("sth",__x,ptr); break;     \
 	    case 4: __put_kernel_asm("stw",__x,ptr); break;     \
 	    case 8: STD_KERNEL(__x,ptr); break;			\
-	    default: __put_kernel_bad(); break;			\
+	    default: BUILD_BUG(); break;			\
 	    }                                                   \
 	}                                                       \
 	else {                                                  \
@@ -145,7 +142,7 @@ struct exception_data {
 	    case 2: __put_user_asm("sth",__x,ptr); break;       \
 	    case 4: __put_user_asm("stw",__x,ptr); break;       \
 	    case 8: STD_USER(__x,ptr); break;			\
-	    default: __put_user_bad(); break;			\
+	    default: BUILD_BUG(); break;			\
 	    }                                                   \
 	}                                                       \
 								\
@@ -182,30 +179,24 @@ struct exception_data {
 #if !defined(CONFIG_64BIT)
 
 #define __put_kernel_asm64(__val,ptr) do {		    \
-	u64 __val64 = (u64)(__val);			    \
-	u32 hi = (__val64) >> 32;			    \
-	u32 lo = (__val64) & 0xffffffff;		    \
 	__asm__ __volatile__ (				    \
 		"\n1:\tstw %2,0(%1)"			    \
-		"\n2:\tstw %3,4(%1)\n\t"		    \
+		"\n2:\tstw %R2,4(%1)\n\t"		    \
 		ASM_EXCEPTIONTABLE_ENTRY(1b,fixup_put_user_skip_2)\
 		ASM_EXCEPTIONTABLE_ENTRY(2b,fixup_put_user_skip_1)\
 		: "=r"(__pu_err)                            \
-		: "r"(ptr), "r"(hi), "r"(lo), "0"(__pu_err) \
+		: "r"(ptr), "r"(__val), "0"(__pu_err) \
 		: "r1");				    \
 } while (0)
 
 #define __put_user_asm64(__val,ptr) do {	    	    \
-	u64 __val64 = (u64)(__val);			    \
-	u32 hi = (__val64) >> 32;			    \
-	u32 lo = (__val64) & 0xffffffff;		    \
 	__asm__ __volatile__ (				    \
 		"\n1:\tstw %2,0(%%sr3,%1)"		    \
-		"\n2:\tstw %3,4(%%sr3,%1)\n\t"		    \
+		"\n2:\tstw %R2,4(%%sr3,%1)\n\t"		    \
 		ASM_EXCEPTIONTABLE_ENTRY(1b,fixup_put_user_skip_2)\
 		ASM_EXCEPTIONTABLE_ENTRY(2b,fixup_put_user_skip_1)\
 		: "=r"(__pu_err)                            \
-		: "r"(ptr), "r"(hi), "r"(lo), "0"(__pu_err) \
+		: "r"(ptr), "r"(__val), "0"(__pu_err) \
 		: "r1");				    \
 } while (0)
 
@@ -219,15 +210,14 @@ struct exception_data {
 extern unsigned long lcopy_to_user(void __user *, const void *, unsigned long);
 extern unsigned long lcopy_from_user(void *, const void __user *, unsigned long);
 extern unsigned long lcopy_in_user(void __user *, const void __user *, unsigned long);
-extern long lstrncpy_from_user(char *, const char __user *, long);
+extern long strncpy_from_user(char *, const char __user *, long);
 extern unsigned lclear_user(void __user *,unsigned long);
 extern long lstrnlen_user(const char __user *,long);
-
 /*
  * Complex access routines -- macros
  */
+#define user_addr_max() (~0UL)
 
-#define strncpy_from_user lstrncpy_from_user
 #define strnlen_user lstrnlen_user
 #define strlen_user(str) lstrnlen_user(str, 0x7fffffffL)
 #define clear_user lclear_user

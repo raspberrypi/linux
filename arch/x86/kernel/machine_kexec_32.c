@@ -9,7 +9,6 @@
 #include <linux/mm.h>
 #include <linux/kexec.h>
 #include <linux/delay.h>
-#include <linux/init.h>
 #include <linux/numa.h>
 #include <linux/ftrace.h>
 #include <linux/suspend.h>
@@ -23,7 +22,6 @@
 #include <asm/apic.h>
 #include <asm/cpufeature.h>
 #include <asm/desc.h>
-#include <asm/system.h>
 #include <asm/cacheflush.h>
 #include <asm/debugreg.h>
 
@@ -249,7 +247,8 @@ void machine_kexec(struct kimage *image)
 	/* now call it */
 	image->start = relocate_kernel_ptr((unsigned long)image->head,
 					   (unsigned long)page_list,
-					   image->start, cpu_has_pae,
+					   image->start,
+					   boot_cpu_has(X86_FEATURE_PAE),
 					   image->preserve_context);
 
 #ifdef CONFIG_KEXEC_JUMP

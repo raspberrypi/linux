@@ -26,6 +26,7 @@
 #include <asm/uaccess.h>
 #include <linux/smp.h>
 #include <linux/cpumask.h>
+#include <linux/audit.h>
 #include <net/sock.h>
 /* needed for logical [in,out]-dev filtering */
 #include "../br_private.h"
@@ -118,10 +119,10 @@ ebt_dev_check(const char *entry, const struct net_device *device)
 	/* 1 is the wildcard token */
 	while (entry[i] != '\0' && entry[i] != 1 && entry[i] == devname[i])
 		i++;
-	return (devname[i] != entry[i] && entry[i] != 1);
+	return devname[i] != entry[i] && entry[i] != 1;
 }
 
-#define FWINV2(bool,invflg) ((bool) ^ !!(e->invflags & invflg))
+#define FWINV2(bool, invflg) ((bool) ^ !!(e->invflags & invflg))
 /* process standard matches */
 static inline int
 ebt_basic_match(const struct ebt_entry *e, const struct sk_buff *skb,
@@ -138,7 +139,7 @@ ebt_basic_match(const struct ebt_entry *e, const struct sk_buff *skb,
 		ethproto = h->h_proto;
 
 	if (e->bitmask & EBT_802_3) {
-		if (FWINV2(ntohs(ethproto) >= 1536, EBT_IPROTO))
+		if (FWINV2(ntohs(ethproto) >= ETH_P_802_3_MIN, EBT_IPROTO))
 			return 1;
 	} else if (!(e->bitmask & EBT_NOPROTO) &&
 	   FWINV2(e->ethproto != ethproto, EBT_IPROTO))
@@ -327,10 +328,7 @@ find_inlist_lock_noload(struct list_head *head, const char *name, int *error,
 		char name[EBT_FUNCTION_MAXNAMELEN];
 	} *e;
 
-	*error = mutex_lock_interruptible(mutex);
-	if (*error != 0)
-		return NULL;
-
+	mutex_lock(mutex);
 	list_for_each_entry(e, head, list) {
 		if (strcmp(e->name, name) == 0)
 			return e;
@@ -1044,10 +1042,9 @@ static int do_replace_finish(struct net *net, struct ebt_replace *repl,
 	if (repl->num_counters &&
 	   copy_to_user(repl->counters, counterstmp,
 	   repl->num_counters * sizeof(struct ebt_counter))) {
-		ret = -EFAULT;
+		/* Silent error, can't fail, new table is already in place */
+		net_warn_ratelimited("ebtables: counters copy to user failed while replacing table\n");
 	}
-	else
-		ret = 0;
 
 	/* decrease module count and free resources */
 	EBT_ENTRY_ITERATE(table->entries, table->entries_size,
@@ -1062,6 +1059,20 @@ static int do_replace_finish(struct net *net, struct ebt_replace *repl,
 	vfree(table);
 
 	vfree(counterstmp);
+
+#ifdef CONFIG_AUDIT
+	if (audit_enabled) {
+		struct audit_buffer *ab;
+
+		ab = audit_log_start(current->audit_context, GFP_KERNEL,
+				     AUDIT_NETFILTER_CFG);
+		if (ab) {
+			audit_log_format(ab, "table=%s family=%u entries=%u",
+					 repl->name, AF_BRIDGE, repl->nentries);
+			audit_log_end(ab);
+		}
+	}
+#endif
 	return ret;
 
 free_unlock:
@@ -1204,10 +1215,7 @@ ebt_register_table(struct net *net, const struct ebt_table *input_table)
 
 	table->private = newinfo;
 	rwlock_init(&table->lock);
-	ret = mutex_lock_interruptible(&ebt_mutex);
-	if (ret != 0)
-		goto free_chainstack;
-
+	mutex_lock(&ebt_mutex);
 	list_for_each_entry(t, &net->xt.tables[NFPROTO_BRIDGE], list) {
 		if (strcmp(t->name, table->name) == 0) {
 			ret = -EEXIST;
@@ -1335,7 +1343,12 @@ static inline int ebt_make_matchname(const struct ebt_entry_match *m,
     const char *base, char __user *ubase)
 {
 	char __user *hlp = ubase + ((char *)m - base);
-	if (copy_to_user(hlp, m->u.match->name, EBT_FUNCTION_MAXNAMELEN))
+	char name[EBT_FUNCTION_MAXNAMELEN] = {};
+
+	/* ebtables expects 32 bytes long names but xt_match names are 29 bytes
+	   long. Copy 29 bytes and fill remaining bytes with zeroes. */
+	strlcpy(name, m->u.match->name, sizeof(name));
+	if (copy_to_user(hlp, name, EBT_FUNCTION_MAXNAMELEN))
 		return -EFAULT;
 	return 0;
 }
@@ -1344,7 +1357,10 @@ static inline int ebt_make_watchername(const struct ebt_entry_watcher *w,
     const char *base, char __user *ubase)
 {
 	char __user *hlp = ubase + ((char *)w - base);
-	if (copy_to_user(hlp , w->u.watcher->name, EBT_FUNCTION_MAXNAMELEN))
+	char name[EBT_FUNCTION_MAXNAMELEN] = {};
+
+	strlcpy(name, w->u.watcher->name, sizeof(name));
+	if (copy_to_user(hlp , name, EBT_FUNCTION_MAXNAMELEN))
 		return -EFAULT;
 	return 0;
 }
@@ -1355,6 +1371,7 @@ ebt_make_names(struct ebt_entry *e, const char *base, char __user *ubase)
 	int ret;
 	char __user *hlp;
 	const struct ebt_entry_target *t;
+	char name[EBT_FUNCTION_MAXNAMELEN] = {};
 
 	if (e->bitmask == 0)
 		return 0;
@@ -1368,7 +1385,8 @@ ebt_make_names(struct ebt_entry *e, const char *base, char __user *ubase)
 	ret = EBT_WATCHER_ITERATE(e, ebt_make_watchername, base, ubase);
 	if (ret != 0)
 		return ret;
-	if (copy_to_user(hlp, t->u.target->name, EBT_FUNCTION_MAXNAMELEN))
+	strlcpy(name, t->u.target->name, sizeof(name));
+	if (copy_to_user(hlp, name, EBT_FUNCTION_MAXNAMELEN))
 		return -EFAULT;
 	return 0;
 }
@@ -1431,7 +1449,7 @@ static int copy_everything_to_user(struct ebt_table *t, void __user *user,
 		return -EFAULT;
 
 	if (*len != sizeof(struct ebt_replace) + entries_size +
-	   (tmp.num_counters? nentries * sizeof(struct ebt_counter): 0))
+	   (tmp.num_counters ? nentries * sizeof(struct ebt_counter) : 0))
 		return -EINVAL;
 
 	if (tmp.nentries != nentries) {
@@ -1462,16 +1480,17 @@ static int do_ebt_set_ctl(struct sock *sk,
 	int cmd, void __user *user, unsigned int len)
 {
 	int ret;
+	struct net *net = sock_net(sk);
 
-	if (!capable(CAP_NET_ADMIN))
+	if (!ns_capable(net->user_ns, CAP_NET_ADMIN))
 		return -EPERM;
 
-	switch(cmd) {
+	switch (cmd) {
 	case EBT_SO_SET_ENTRIES:
-		ret = do_replace(sock_net(sk), user, len);
+		ret = do_replace(net, user, len);
 		break;
 	case EBT_SO_SET_COUNTERS:
-		ret = update_counters(sock_net(sk), user, len);
+		ret = update_counters(net, user, len);
 		break;
 	default:
 		ret = -EINVAL;
@@ -1484,21 +1503,22 @@ static int do_ebt_get_ctl(struct sock *sk, int cmd, void __user *user, int *len)
 	int ret;
 	struct ebt_replace tmp;
 	struct ebt_table *t;
+	struct net *net = sock_net(sk);
 
-	if (!capable(CAP_NET_ADMIN))
+	if (!ns_capable(net->user_ns, CAP_NET_ADMIN))
 		return -EPERM;
 
 	if (copy_from_user(&tmp, user, sizeof(tmp)))
 		return -EFAULT;
 
-	t = find_table_lock(sock_net(sk), tmp.name, &ret, &ebt_mutex);
+	t = find_table_lock(net, tmp.name, &ret, &ebt_mutex);
 	if (!t)
 		return ret;
 
-	switch(cmd) {
+	switch (cmd) {
 	case EBT_SO_GET_INFO:
 	case EBT_SO_GET_INIT_INFO:
-		if (*len != sizeof(struct ebt_replace)){
+		if (*len != sizeof(struct ebt_replace)) {
 			ret = -EINVAL;
 			mutex_unlock(&ebt_mutex);
 			break;
@@ -1513,7 +1533,7 @@ static int do_ebt_get_ctl(struct sock *sk, int cmd, void __user *user, int *len)
 			tmp.valid_hooks = t->table->valid_hooks;
 		}
 		mutex_unlock(&ebt_mutex);
-		if (copy_to_user(user, &tmp, *len) != 0){
+		if (copy_to_user(user, &tmp, *len) != 0) {
 			BUGPRINT("c2u Didn't work\n");
 			ret = -EFAULT;
 			break;
@@ -1893,10 +1913,7 @@ static int compat_mtw_from_user(struct compat_ebt_entry_mwt *mwt,
 
 	switch (compat_mwt) {
 	case EBT_COMPAT_MATCH:
-		match = try_then_request_module(xt_find_match(NFPROTO_BRIDGE,
-						name, 0), "ebt_%s", name);
-		if (match == NULL)
-			return -ENOENT;
+		match = xt_request_find_match(NFPROTO_BRIDGE, name, 0);
 		if (IS_ERR(match))
 			return PTR_ERR(match);
 
@@ -1915,10 +1932,7 @@ static int compat_mtw_from_user(struct compat_ebt_entry_mwt *mwt,
 		break;
 	case EBT_COMPAT_WATCHER: /* fallthrough */
 	case EBT_COMPAT_TARGET:
-		wt = try_then_request_module(xt_find_target(NFPROTO_BRIDGE,
-						name, 0), "ebt_%s", name);
-		if (wt == NULL)
-			return -ENOENT;
+		wt = xt_request_find_target(NFPROTO_BRIDGE, name, 0);
 		if (IS_ERR(wt))
 			return PTR_ERR(wt);
 		off = xt_compat_target_offset(wt);
@@ -2275,16 +2289,17 @@ static int compat_do_ebt_set_ctl(struct sock *sk,
 		int cmd, void __user *user, unsigned int len)
 {
 	int ret;
+	struct net *net = sock_net(sk);
 
-	if (!capable(CAP_NET_ADMIN))
+	if (!ns_capable(net->user_ns, CAP_NET_ADMIN))
 		return -EPERM;
 
 	switch (cmd) {
 	case EBT_SO_SET_ENTRIES:
-		ret = compat_do_replace(sock_net(sk), user, len);
+		ret = compat_do_replace(net, user, len);
 		break;
 	case EBT_SO_SET_COUNTERS:
-		ret = compat_update_counters(sock_net(sk), user, len);
+		ret = compat_update_counters(net, user, len);
 		break;
 	default:
 		ret = -EINVAL;
@@ -2298,8 +2313,9 @@ static int compat_do_ebt_get_ctl(struct sock *sk, int cmd,
 	int ret;
 	struct compat_ebt_replace tmp;
 	struct ebt_table *t;
+	struct net *net = sock_net(sk);
 
-	if (!capable(CAP_NET_ADMIN))
+	if (!ns_capable(net->user_ns, CAP_NET_ADMIN))
 		return -EPERM;
 
 	/* try real handler in case userland supplied needed padding */
@@ -2310,7 +2326,7 @@ static int compat_do_ebt_get_ctl(struct sock *sk, int cmd,
 	if (copy_from_user(&tmp, user, sizeof(tmp)))
 		return -EFAULT;
 
-	t = find_table_lock(sock_net(sk), tmp.name, &ret, &ebt_mutex);
+	t = find_table_lock(net, tmp.name, &ret, &ebt_mutex);
 	if (!t)
 		return ret;
 
@@ -2367,8 +2383,7 @@ static int compat_do_ebt_get_ctl(struct sock *sk, int cmd,
 }
 #endif
 
-static struct nf_sockopt_ops ebt_sockopts =
-{
+static struct nf_sockopt_ops ebt_sockopts = {
 	.pf		= PF_INET,
 	.set_optmin	= EBT_BASE_CTL,
 	.set_optmax	= EBT_SO_SET_MAX + 1,

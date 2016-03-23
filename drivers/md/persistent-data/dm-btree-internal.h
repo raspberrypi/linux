@@ -36,13 +36,19 @@ struct node_header {
 	__le32 padding;
 } __packed;
 
-struct node {
+struct btree_node {
 	struct node_header header;
 	__le64 keys[0];
 } __packed;
 
 
-void inc_children(struct dm_transaction_manager *tm, struct node *n,
+/*
+ * Locks a block using the btree node validator.
+ */
+int bn_read_lock(struct dm_btree_info *info, dm_block_t b,
+		 struct dm_block **result);
+
+void inc_children(struct dm_transaction_manager *tm, struct btree_node *n,
 		  struct dm_btree_value_type *vt);
 
 int new_block(struct dm_btree_info *info, struct dm_block **result);
@@ -64,7 +70,8 @@ struct ro_spine {
 void init_ro_spine(struct ro_spine *s, struct dm_btree_info *info);
 int exit_ro_spine(struct ro_spine *s);
 int ro_step(struct ro_spine *s, dm_block_t new_child);
-struct node *ro_node(struct ro_spine *s);
+void ro_pop(struct ro_spine *s);
+struct btree_node *ro_node(struct ro_spine *s);
 
 struct shadow_spine {
 	struct dm_btree_info *info;
@@ -98,29 +105,26 @@ int shadow_root(struct shadow_spine *s);
 /*
  * Some inlines.
  */
-static inline __le64 *key_ptr(struct node *n, uint32_t index)
+static inline __le64 *key_ptr(struct btree_node *n, uint32_t index)
 {
 	return n->keys + index;
 }
 
-static inline void *value_base(struct node *n)
+static inline void *value_base(struct btree_node *n)
 {
 	return &n->keys[le32_to_cpu(n->header.max_entries)];
 }
 
-/*
- * FIXME: Now that value size is stored in node we don't need the third parm.
- */
-static inline void *value_ptr(struct node *n, uint32_t index, size_t value_size)
+static inline void *value_ptr(struct btree_node *n, uint32_t index)
 {
-	BUG_ON(value_size != le32_to_cpu(n->header.value_size));
+	uint32_t value_size = le32_to_cpu(n->header.value_size);
 	return value_base(n) + (value_size * index);
 }
 
 /*
  * Assumes the values are suitably-aligned and converts to core format.
  */
-static inline uint64_t value64(struct node *n, uint32_t index)
+static inline uint64_t value64(struct btree_node *n, uint32_t index)
 {
 	__le64 *values_le = value_base(n);
 
@@ -130,7 +134,7 @@ static inline uint64_t value64(struct node *n, uint32_t index)
 /*
  * Searching for a key within a single node.
  */
-int lower_bound(struct node *n, uint64_t key);
+int lower_bound(struct btree_node *n, uint64_t key);
 
 extern struct dm_block_validator btree_node_validator;
 

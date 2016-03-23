@@ -1,7 +1,7 @@
-Linux Base Driver for 10 Gigabit Intel(R) Network Connection
-=============================================================
+Linux Base Driver for 10 Gigabit Intel(R) Ethernet Network Connection
+=====================================================================
 
-October 9, 2007
+March 14, 2011
 
 
 Contents
@@ -306,7 +306,7 @@ Additional Configurations
   with the maximum Jumbo Frames size of 16128.
 
 
-  Ethtool
+  ethtool
   -------
   The driver utilizes the ethtool interface for driver configuration and
   diagnostics, as well as displaying statistical information.  The ethtool

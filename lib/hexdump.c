@@ -10,10 +10,12 @@
 #include <linux/types.h>
 #include <linux/ctype.h>
 #include <linux/kernel.h>
-#include <linux/module.h>
+#include <linux/export.h>
 
 const char hex_asc[] = "0123456789abcdef";
 EXPORT_SYMBOL(hex_asc);
+const char hex_asc_upper[] = "0123456789ABCDEF";
+EXPORT_SYMBOL(hex_asc_upper);
 
 /**
  * hex_to_bin - convert a hex digit to its real value
@@ -55,6 +57,22 @@ int hex2bin(u8 *dst, const char *src, size_t count)
 	return 0;
 }
 EXPORT_SYMBOL(hex2bin);
+
+/**
+ * bin2hex - convert binary data to an ascii hexadecimal string
+ * @dst: ascii hexadecimal result
+ * @src: binary data
+ * @count: binary data length
+ */
+char *bin2hex(char *dst, const void *src, size_t count)
+{
+	const unsigned char *_src = src;
+
+	while (count--)
+		dst = hex_byte_pack(dst, *_src++);
+	return dst;
+}
+EXPORT_SYMBOL(bin2hex);
 
 /**
  * hex_dump_to_buffer - convert a blob of data to "hex ASCII" in memory
@@ -227,6 +245,7 @@ void print_hex_dump(const char *level, const char *prefix_str, int prefix_type,
 }
 EXPORT_SYMBOL(print_hex_dump);
 
+#if !defined(CONFIG_DYNAMIC_DEBUG)
 /**
  * print_hex_dump_bytes - shorthand form of print_hex_dump() with default params
  * @prefix_str: string to prefix each line with;
@@ -246,4 +265,5 @@ void print_hex_dump_bytes(const char *prefix_str, int prefix_type,
 		       buf, len, true);
 }
 EXPORT_SYMBOL(print_hex_dump_bytes);
-#endif
+#endif /* !defined(CONFIG_DYNAMIC_DEBUG) */
+#endif /* defined(CONFIG_PRINTK) */

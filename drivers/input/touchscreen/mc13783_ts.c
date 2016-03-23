@@ -39,6 +39,7 @@ struct mc13783_ts_priv {
 	struct delayed_work work;
 	struct workqueue_struct *workq;
 	unsigned int sample[4];
+	struct mc13xxx_ts_platform_data *touch;
 };
 
 static irqreturn_t mc13783_ts_handler(int irq, void *data)
@@ -125,7 +126,9 @@ static void mc13783_ts_work(struct work_struct *work)
 	unsigned int channel = 12;
 
 	if (mc13xxx_adc_do_conversion(priv->mc13xxx,
-				mode, channel, priv->sample) == 0)
+				mode, channel,
+				priv->touch->ato, priv->touch->atox,
+				priv->sample) == 0)
 		mc13783_ts_report_sample(priv);
 }
 
@@ -179,6 +182,12 @@ static int __init mc13783_ts_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&priv->work, mc13783_ts_work);
 	priv->mc13xxx = dev_get_drvdata(pdev->dev.parent);
 	priv->idev = idev;
+	priv->touch = dev_get_platdata(&pdev->dev);
+	if (!priv->touch) {
+		dev_err(&pdev->dev, "missing platform data\n");
+		ret = -ENODEV;
+		goto err_free_mem;
+	}
 
 	/*
 	 * We need separate workqueue because mc13783_adc_do_conversion
@@ -220,11 +229,9 @@ err_free_mem:
 	return ret;
 }
 
-static int __devexit mc13783_ts_remove(struct platform_device *pdev)
+static int mc13783_ts_remove(struct platform_device *pdev)
 {
 	struct mc13783_ts_priv *priv = platform_get_drvdata(pdev);
-
-	platform_set_drvdata(pdev, NULL);
 
 	destroy_workqueue(priv->workq);
 	input_unregister_device(priv->idev);
@@ -234,24 +241,14 @@ static int __devexit mc13783_ts_remove(struct platform_device *pdev)
 }
 
 static struct platform_driver mc13783_ts_driver = {
-	.remove		= __devexit_p(mc13783_ts_remove),
+	.remove		= mc13783_ts_remove,
 	.driver		= {
 		.owner	= THIS_MODULE,
 		.name	= MC13783_TS_NAME,
 	},
 };
 
-static int __init mc13783_ts_init(void)
-{
-	return platform_driver_probe(&mc13783_ts_driver, &mc13783_ts_probe);
-}
-module_init(mc13783_ts_init);
-
-static void __exit mc13783_ts_exit(void)
-{
-	platform_driver_unregister(&mc13783_ts_driver);
-}
-module_exit(mc13783_ts_exit);
+module_platform_driver_probe(mc13783_ts_driver, mc13783_ts_probe);
 
 MODULE_DESCRIPTION("MC13783 input touchscreen driver");
 MODULE_AUTHOR("Sascha Hauer <s.hauer@pengutronix.de>");

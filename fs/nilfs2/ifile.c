@@ -29,7 +29,11 @@
 #include "alloc.h"
 #include "ifile.h"
 
-
+/**
+ * struct nilfs_ifile_info - on-memory private data of ifile
+ * @mi: on-memory private data of metadata file
+ * @palloc_cache: persistent object allocator cache of ifile
+ */
 struct nilfs_ifile_info {
 	struct nilfs_mdt_info mi;
 	struct nilfs_palloc_cache palloc_cache;
@@ -122,11 +126,11 @@ int nilfs_ifile_delete_inode(struct inode *ifile, ino_t ino)
 		return ret;
 	}
 
-	kaddr = kmap_atomic(req.pr_entry_bh->b_page, KM_USER0);
+	kaddr = kmap_atomic(req.pr_entry_bh->b_page);
 	raw_inode = nilfs_palloc_block_get_entry(ifile, req.pr_entry_nr,
 						 req.pr_entry_bh, kaddr);
 	raw_inode->i_flags = 0;
-	kunmap_atomic(kaddr, KM_USER0);
+	kunmap_atomic(kaddr);
 
 	mark_buffer_dirty(req.pr_entry_bh);
 	brelse(req.pr_entry_bh);
@@ -152,6 +156,28 @@ int nilfs_ifile_get_inode_block(struct inode *ifile, ino_t ino,
 	if (unlikely(err))
 		nilfs_warning(sb, __func__, "unable to read inode: %lu",
 			      (unsigned long) ino);
+	return err;
+}
+
+/**
+ * nilfs_ifile_count_free_inodes - calculate free inodes count
+ * @ifile: ifile inode
+ * @nmaxinodes: current maximum of available inodes count [out]
+ * @nfreeinodes: free inodes count [out]
+ */
+int nilfs_ifile_count_free_inodes(struct inode *ifile,
+				    u64 *nmaxinodes, u64 *nfreeinodes)
+{
+	u64 nused;
+	int err;
+
+	*nmaxinodes = 0;
+	*nfreeinodes = 0;
+
+	nused = atomic64_read(&NILFS_I(ifile)->i_root->inodes_count);
+	err = nilfs_palloc_count_max_entries(ifile, nused, nmaxinodes);
+	if (likely(!err))
+		*nfreeinodes = *nmaxinodes - nused;
 	return err;
 }
 

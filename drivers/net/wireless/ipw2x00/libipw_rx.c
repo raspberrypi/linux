@@ -77,8 +77,8 @@ static struct libipw_frag_entry *libipw_frag_cache_find(struct
 
 		if (entry->skb != NULL && entry->seq == seq &&
 		    (entry->last_frag + 1 == frag || frag == -1) &&
-		    !compare_ether_addr(entry->src_addr, src) &&
-		    !compare_ether_addr(entry->dst_addr, dst))
+		    ether_addr_equal(entry->src_addr, src) &&
+		    ether_addr_equal(entry->dst_addr, dst))
 			return entry;
 	}
 
@@ -172,7 +172,7 @@ libipw_rx_frame_mgmt(struct libipw_device *ieee, struct sk_buff *skb,
 			u16 stype)
 {
 	if (ieee->iw_mode == IW_MODE_MASTER) {
-		printk(KERN_DEBUG "%s: Master mode not yet suppported.\n",
+		printk(KERN_DEBUG "%s: Master mode not yet supported.\n",
 		       ieee->dev->name);
 		return 0;
 /*
@@ -245,12 +245,12 @@ static int libipw_is_eapol_frame(struct libipw_device *ieee,
 	/* check that the frame is unicast frame to us */
 	if ((fc & (IEEE80211_FCTL_TODS | IEEE80211_FCTL_FROMDS)) ==
 	    IEEE80211_FCTL_TODS &&
-	    !compare_ether_addr(hdr->addr1, dev->dev_addr) &&
-	    !compare_ether_addr(hdr->addr3, dev->dev_addr)) {
+	    ether_addr_equal(hdr->addr1, dev->dev_addr) &&
+	    ether_addr_equal(hdr->addr3, dev->dev_addr)) {
 		/* ToDS frame with own addr BSSID and DA */
 	} else if ((fc & (IEEE80211_FCTL_TODS | IEEE80211_FCTL_FROMDS)) ==
 		   IEEE80211_FCTL_FROMDS &&
-		   !compare_ether_addr(hdr->addr1, dev->dev_addr)) {
+		   ether_addr_equal(hdr->addr1, dev->dev_addr)) {
 		/* FromDS frame with own addr as DA */
 	} else
 		return 0;
@@ -523,8 +523,8 @@ int libipw_rx(struct libipw_device *ieee, struct sk_buff *skb,
 
 	if (ieee->iw_mode == IW_MODE_MASTER && !wds &&
 	    (fc & (IEEE80211_FCTL_TODS | IEEE80211_FCTL_FROMDS)) ==
-	    IEEE80211_FCTL_FROMDS && ieee->stadev
-	    && !compare_ether_addr(hdr->addr2, ieee->assoc_ap_addr)) {
+	    IEEE80211_FCTL_FROMDS && ieee->stadev &&
+	    ether_addr_equal(hdr->addr2, ieee->assoc_ap_addr)) {
 		/* Frame from BSSID of the AP for which we are a client */
 		skb->dev = dev = ieee->stadev;
 		stats = hostap_get_stats(dev);
@@ -874,13 +874,13 @@ void libipw_rx_any(struct libipw_device *ieee,
 	switch (ieee->iw_mode) {
 	case IW_MODE_ADHOC:
 		/* our BSS and not from/to DS */
-		if (memcmp(hdr->addr3, ieee->bssid, ETH_ALEN) == 0)
+		if (ether_addr_equal(hdr->addr3, ieee->bssid))
 		if ((fc & (IEEE80211_FCTL_TODS+IEEE80211_FCTL_FROMDS)) == 0) {
 			/* promisc: get all */
 			if (ieee->dev->flags & IFF_PROMISC)
 				is_packet_for_us = 1;
 			/* to us */
-			else if (memcmp(hdr->addr1, ieee->dev->dev_addr, ETH_ALEN) == 0)
+			else if (ether_addr_equal(hdr->addr1, ieee->dev->dev_addr))
 				is_packet_for_us = 1;
 			/* mcast */
 			else if (is_multicast_ether_addr(hdr->addr1))
@@ -889,18 +889,18 @@ void libipw_rx_any(struct libipw_device *ieee,
 		break;
 	case IW_MODE_INFRA:
 		/* our BSS (== from our AP) and from DS */
-		if (memcmp(hdr->addr2, ieee->bssid, ETH_ALEN) == 0)
+		if (ether_addr_equal(hdr->addr2, ieee->bssid))
 		if ((fc & (IEEE80211_FCTL_TODS+IEEE80211_FCTL_FROMDS)) == IEEE80211_FCTL_FROMDS) {
 			/* promisc: get all */
 			if (ieee->dev->flags & IFF_PROMISC)
 				is_packet_for_us = 1;
 			/* to us */
-			else if (memcmp(hdr->addr1, ieee->dev->dev_addr, ETH_ALEN) == 0)
+			else if (ether_addr_equal(hdr->addr1, ieee->dev->dev_addr))
 				is_packet_for_us = 1;
 			/* mcast */
 			else if (is_multicast_ether_addr(hdr->addr1)) {
 				/* not our own packet bcasted from AP */
-				if (memcmp(hdr->addr3, ieee->dev->dev_addr, ETH_ALEN))
+				if (!ether_addr_equal(hdr->addr3, ieee->dev->dev_addr))
 					is_packet_for_us = 1;
 			}
 		}
@@ -1108,7 +1108,7 @@ static const char *get_info_element_string(u16 id)
 		MFIE_STRING(ERP_INFO);
 		MFIE_STRING(RSN);
 		MFIE_STRING(EXT_SUPP_RATES);
-		MFIE_STRING(GENERIC);
+		MFIE_STRING(VENDOR_SPECIFIC);
 		MFIE_STRING(QOS_PARAMETER);
 	default:
 		return "UNKNOWN";
@@ -1120,7 +1120,6 @@ static int libipw_parse_info_param(struct libipw_info_element
 				      *info_element, u16 length,
 				      struct libipw_network *network)
 {
-	DECLARE_SSID_BUF(ssid);
 	u8 i;
 #ifdef CONFIG_LIBIPW_DEBUG
 	char rates_str[64];
@@ -1151,10 +1150,9 @@ static int libipw_parse_info_param(struct libipw_info_element
 				memset(network->ssid + network->ssid_len, 0,
 				       IW_ESSID_MAX_SIZE - network->ssid_len);
 
-			LIBIPW_DEBUG_MGMT("WLAN_EID_SSID: '%s' len=%d.\n",
-					     print_ssid(ssid, network->ssid,
-							network->ssid_len),
-					     network->ssid_len);
+			LIBIPW_DEBUG_MGMT("WLAN_EID_SSID: '%*pE' len=%d.\n",
+					  network->ssid_len, network->ssid,
+					  network->ssid_len);
 			break;
 
 		case WLAN_EID_SUPP_RATES:
@@ -1195,7 +1193,7 @@ static int libipw_parse_info_param(struct libipw_info_element
 #ifdef CONFIG_LIBIPW_DEBUG
 				p += snprintf(p, sizeof(rates_str) -
 					      (p - rates_str), "%02X ",
-					      network->rates[i]);
+					      network->rates_ex[i]);
 #endif
 				if (libipw_is_ofdm_rate
 				    (info_element->data[i])) {
@@ -1248,8 +1246,8 @@ static int libipw_parse_info_param(struct libipw_info_element
 			LIBIPW_DEBUG_MGMT("WLAN_EID_CHALLENGE: ignored\n");
 			break;
 
-		case WLAN_EID_GENERIC:
-			LIBIPW_DEBUG_MGMT("WLAN_EID_GENERIC: %d bytes\n",
+		case WLAN_EID_VENDOR_SPECIFIC:
+			LIBIPW_DEBUG_MGMT("WLAN_EID_VENDOR_SPECIFIC: %d bytes\n",
 					     info_element->len);
 			if (!libipw_parse_qos_info_param_IE(info_element,
 							       network))
@@ -1399,8 +1397,6 @@ static int libipw_network_init(struct libipw_device *ieee, struct libipw_probe_r
 					 struct libipw_network *network,
 					 struct libipw_rx_stats *stats)
 {
-	DECLARE_SSID_BUF(ssid);
-
 	network->qos_data.active = 0;
 	network->qos_data.supported = 0;
 	network->qos_data.param_count = 0;
@@ -1447,11 +1443,9 @@ static int libipw_network_init(struct libipw_device *ieee, struct libipw_probe_r
 	}
 
 	if (network->mode == 0) {
-		LIBIPW_DEBUG_SCAN("Filtered out '%s (%pM)' "
-				     "network.\n",
-				     print_ssid(ssid, network->ssid,
-						 network->ssid_len),
-				     network->bssid);
+		LIBIPW_DEBUG_SCAN("Filtered out '%*pE (%pM)' network.\n",
+				  network->ssid_len, network->ssid,
+				  network->bssid);
 		return 1;
 	}
 
@@ -1468,7 +1462,7 @@ static inline int is_same_network(struct libipw_network *src,
 	 * as one network */
 	return ((src->ssid_len == dst->ssid_len) &&
 		(src->channel == dst->channel) &&
-		!compare_ether_addr(src->bssid, dst->bssid) &&
+		ether_addr_equal_64bits(src->bssid, dst->bssid) &&
 		!memcmp(src->ssid, dst->ssid, src->ssid_len));
 }
 
@@ -1563,11 +1557,9 @@ static void libipw_process_probe_response(struct libipw_device
 	struct libipw_info_element *info_element = beacon->info_element;
 #endif
 	unsigned long flags;
-	DECLARE_SSID_BUF(ssid);
 
-	LIBIPW_DEBUG_SCAN("'%s' (%pM"
-		     "): %c%c%c%c %c%c%c%c-%c%c%c%c %c%c%c%c\n",
-		     print_ssid(ssid, info_element->data, info_element->len),
+	LIBIPW_DEBUG_SCAN("'%*pE' (%pM): %c%c%c%c %c%c%c%c-%c%c%c%c %c%c%c%c\n",
+		     info_element->len, info_element->data,
 		     beacon->header.addr3,
 		     (beacon->capability & cpu_to_le16(1 << 0xf)) ? '1' : '0',
 		     (beacon->capability & cpu_to_le16(1 << 0xe)) ? '1' : '0',
@@ -1587,12 +1579,11 @@ static void libipw_process_probe_response(struct libipw_device
 		     (beacon->capability & cpu_to_le16(1 << 0x0)) ? '1' : '0');
 
 	if (libipw_network_init(ieee, beacon, &network, stats)) {
-		LIBIPW_DEBUG_SCAN("Dropped '%s' (%pM) via %s.\n",
-				     print_ssid(ssid, info_element->data,
-						 info_element->len),
-				     beacon->header.addr3,
-				     is_beacon(beacon->header.frame_ctl) ?
-				     "BEACON" : "PROBE RESPONSE");
+		LIBIPW_DEBUG_SCAN("Dropped '%*pE' (%pM) via %s.\n",
+				  info_element->len, info_element->data,
+				  beacon->header.addr3,
+				  is_beacon(beacon->header.frame_ctl) ?
+				  "BEACON" : "PROBE RESPONSE");
 		return;
 	}
 
@@ -1624,11 +1615,9 @@ static void libipw_process_probe_response(struct libipw_device
 			/* If there are no more slots, expire the oldest */
 			list_del(&oldest->list);
 			target = oldest;
-			LIBIPW_DEBUG_SCAN("Expired '%s' (%pM) from "
-					     "network list.\n",
-					     print_ssid(ssid, target->ssid,
-							 target->ssid_len),
-					     target->bssid);
+			LIBIPW_DEBUG_SCAN("Expired '%*pE' (%pM) from network list.\n",
+					  target->ssid_len, target->ssid,
+					  target->bssid);
 			libipw_network_reset(target);
 		} else {
 			/* Otherwise just pull from the free list */
@@ -1638,23 +1627,21 @@ static void libipw_process_probe_response(struct libipw_device
 		}
 
 #ifdef CONFIG_LIBIPW_DEBUG
-		LIBIPW_DEBUG_SCAN("Adding '%s' (%pM) via %s.\n",
-				     print_ssid(ssid, network.ssid,
-						 network.ssid_len),
-				     network.bssid,
-				     is_beacon(beacon->header.frame_ctl) ?
-				     "BEACON" : "PROBE RESPONSE");
+		LIBIPW_DEBUG_SCAN("Adding '%*pE' (%pM) via %s.\n",
+				  network.ssid_len, network.ssid,
+				  network.bssid,
+				  is_beacon(beacon->header.frame_ctl) ?
+				  "BEACON" : "PROBE RESPONSE");
 #endif
 		memcpy(target, &network, sizeof(*target));
 		network.ibss_dfs = NULL;
 		list_add_tail(&target->list, &ieee->network_list);
 	} else {
-		LIBIPW_DEBUG_SCAN("Updating '%s' (%pM) via %s.\n",
-				     print_ssid(ssid, target->ssid,
-						 target->ssid_len),
-				     target->bssid,
-				     is_beacon(beacon->header.frame_ctl) ?
-				     "BEACON" : "PROBE RESPONSE");
+		LIBIPW_DEBUG_SCAN("Updating '%*pE' (%pM) via %s.\n",
+				  target->ssid_len, target->ssid,
+				  target->bssid,
+				  is_beacon(beacon->header.frame_ctl) ?
+				  "BEACON" : "PROBE RESPONSE");
 		update_network(target, &network);
 		network.ibss_dfs = NULL;
 	}

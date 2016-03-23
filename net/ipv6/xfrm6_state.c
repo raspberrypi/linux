@@ -3,11 +3,11 @@
  *
  * Authors:
  *	Mitsuru KANDA @USAGI
- * 	Kazunori MIYAZAWA @USAGI
- * 	Kunihiro Ishiguro <kunihiro@ipinfusion.com>
- * 		IPv6 support
- * 	YOSHIFUJI Hideaki @USAGI
- * 		Split up af-specific portion
+ *	Kazunori MIYAZAWA @USAGI
+ *	Kunihiro Ishiguro <kunihiro@ipinfusion.com>
+ *		IPv6 support
+ *	YOSHIFUJI Hideaki @USAGI
+ *		Split up af-specific portion
  *
  */
 
@@ -45,10 +45,10 @@ xfrm6_init_temprop(struct xfrm_state *x, const struct xfrm_tmpl *tmpl,
 		   const xfrm_address_t *daddr, const xfrm_address_t *saddr)
 {
 	x->id = tmpl->id;
-	if (ipv6_addr_any((struct in6_addr*)&x->id.daddr))
+	if (ipv6_addr_any((struct in6_addr *)&x->id.daddr))
 		memcpy(&x->id.daddr, daddr, sizeof(x->sel.daddr));
 	memcpy(&x->props.saddr, &tmpl->saddr, sizeof(x->props.saddr));
-	if (ipv6_addr_any((struct in6_addr*)&x->props.saddr))
+	if (ipv6_addr_any((struct in6_addr *)&x->props.saddr))
 		memcpy(&x->props.saddr, saddr, sizeof(x->props.saddr));
 	x->props.mode = tmpl->mode;
 	x->props.reqid = tmpl->reqid;
@@ -101,7 +101,7 @@ static int __xfrm6_state_sort_cmp(void *p)
 			return 1;
 		else
 			return 3;
-#if defined(CONFIG_IPV6_MIP6) || defined(CONFIG_IPV6_MIP6_MODULE)
+#if IS_ENABLED(CONFIG_IPV6_MIP6)
 	case XFRM_MODE_ROUTEOPTIMIZATION:
 	case XFRM_MODE_IN_TRIGGER:
 		return 2;
@@ -134,7 +134,7 @@ static int __xfrm6_tmpl_sort_cmp(void *p)
 	switch (v->mode) {
 	case XFRM_MODE_TRANSPORT:
 		return 1;
-#if defined(CONFIG_IPV6_MIP6) || defined(CONFIG_IPV6_MIP6_MODULE)
+#if IS_ENABLED(CONFIG_IPV6_MIP6)
 	case XFRM_MODE_ROUTEOPTIMIZATION:
 	case XFRM_MODE_IN_TRIGGER:
 		return 2;
@@ -183,6 +183,7 @@ static struct xfrm_state_afinfo xfrm6_state_afinfo = {
 	.extract_input		= xfrm6_extract_input,
 	.extract_output		= xfrm6_extract_output,
 	.transport_finish	= xfrm6_transport_finish,
+	.local_error		= xfrm6_local_error,
 };
 
 int __init xfrm6_state_init(void)

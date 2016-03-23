@@ -515,7 +515,7 @@ static struct net_device *corkscrew_scan(int unit)
 			if (pnp_device_attach(idev) < 0)
 				continue;
 			if (pnp_activate_dev(idev) < 0) {
-				pr_warning("pnp activate failed (out of resources?)\n");
+				pr_warn("pnp activate failed (out of resources?)\n");
 				pnp_device_detach(idev);
 				continue;
 			}
@@ -659,7 +659,7 @@ static int corkscrew_setup(struct net_device *dev, int ioaddr,
 	pr_cont(", IRQ %d\n", dev->irq);
 	/* Tell them about an invalid IRQ. */
 	if (corkscrew_debug && (dev->irq <= 0 || dev->irq > 15))
-		pr_warning(" *** Warning: this IRQ is unlikely to work! ***\n");
+		pr_warn(" *** Warning: this IRQ is unlikely to work! ***\n");
 
 	{
 		static const char * const ram_split[] = {
@@ -826,11 +826,10 @@ static int corkscrew_open(struct net_device *dev)
 				vp->rx_ring[i].next = 0;
 			vp->rx_ring[i].status = 0;	/* Clear complete bit. */
 			vp->rx_ring[i].length = PKT_BUF_SZ | 0x80000000;
-			skb = dev_alloc_skb(PKT_BUF_SZ);
+			skb = netdev_alloc_skb(dev, PKT_BUF_SZ);
 			vp->rx_skbuff[i] = skb;
 			if (skb == NULL)
 				break;	/* Bad news!  */
-			skb->dev = dev;	/* Mark as being used by this device. */
 			skb_reserve(skb, 2);	/* Align IP on 16 byte boundaries */
 			vp->rx_ring[i].addr = isa_virt_to_bus(skb->data);
 		}
@@ -968,13 +967,13 @@ static void corkscrew_timeout(struct net_device *dev)
 	struct corkscrew_private *vp = netdev_priv(dev);
 	int ioaddr = dev->base_addr;
 
-	pr_warning("%s: transmit timed out, tx_status %2.2x status %4.4x.\n",
-	       dev->name, inb(ioaddr + TxStatus),
-	       inw(ioaddr + EL3_STATUS));
+	pr_warn("%s: transmit timed out, tx_status %2.2x status %4.4x\n",
+		dev->name, inb(ioaddr + TxStatus),
+		inw(ioaddr + EL3_STATUS));
 	/* Slight code bloat to be user friendly. */
 	if ((inb(ioaddr + TxStatus) & 0x88) == 0x88)
-		pr_warning("%s: Transmitter encountered 16 collisions --"
-		       " network cable problem?\n", dev->name);
+		pr_warn("%s: Transmitter encountered 16 collisions -- network cable problem?\n",
+			dev->name);
 #ifndef final_version
 	pr_debug("  Flags; bus-master %d, full %d; dirty %d current %d.\n",
 	       vp->full_bus_master_tx, vp->tx_full, vp->dirty_tx,
@@ -1295,7 +1294,7 @@ static int corkscrew_rx(struct net_device *dev)
 			short pkt_len = rx_status & 0x1fff;
 			struct sk_buff *skb;
 
-			skb = dev_alloc_skb(pkt_len + 5 + 2);
+			skb = netdev_alloc_skb(dev, pkt_len + 5 + 2);
 			if (corkscrew_debug > 4)
 				pr_debug("Receiving packet size %d status %4.4x.\n",
 				     pkt_len, rx_status);
@@ -1368,7 +1367,7 @@ static int boomerang_rx(struct net_device *dev)
 			/* Check if the packet is long enough to just accept without
 			   copying to a properly sized skbuff. */
 			if (pkt_len < rx_copybreak &&
-			    (skb = dev_alloc_skb(pkt_len + 4)) != NULL) {
+			    (skb = netdev_alloc_skb(dev, pkt_len + 4)) != NULL) {
 				skb_reserve(skb, 2);	/* Align IP on 16 byte boundaries */
 				/* 'skb_put()' points to the start of sk_buff data area. */
 				memcpy(skb_put(skb, pkt_len),
@@ -1383,13 +1382,10 @@ static int boomerang_rx(struct net_device *dev)
 				temp = skb_put(skb, pkt_len);
 				/* Remove this checking code for final release. */
 				if (isa_bus_to_virt(vp->rx_ring[entry].addr) != temp)
-					pr_warning("%s: Warning -- the skbuff addresses do not match"
-					     " in boomerang_rx: %p vs. %p / %p.\n",
-					     dev->name,
-					     isa_bus_to_virt(vp->
-							 rx_ring[entry].
-							 addr), skb->head,
-					     temp);
+					pr_warn("%s: Warning -- the skbuff addresses do not match in boomerang_rx: %p vs. %p / %p\n",
+						dev->name,
+						isa_bus_to_virt(vp->rx_ring[entry].addr),
+						skb->head, temp);
 				rx_nocopy++;
 			}
 			skb->protocol = eth_type_trans(skb, dev);
@@ -1403,10 +1399,9 @@ static int boomerang_rx(struct net_device *dev)
 		struct sk_buff *skb;
 		entry = vp->dirty_rx % RX_RING_SIZE;
 		if (vp->rx_skbuff[entry] == NULL) {
-			skb = dev_alloc_skb(PKT_BUF_SZ);
+			skb = netdev_alloc_skb(dev, PKT_BUF_SZ);
 			if (skb == NULL)
 				break;	/* Bad news!  */
-			skb->dev = dev;	/* Mark as being used by this device. */
 			skb_reserve(skb, 2);	/* Align IP on 16 byte boundaries */
 			vp->rx_ring[entry].addr = isa_virt_to_bus(skb->data);
 			vp->rx_skbuff[entry] = skb;
@@ -1544,9 +1539,10 @@ static void set_rx_mode(struct net_device *dev)
 static void netdev_get_drvinfo(struct net_device *dev,
 			       struct ethtool_drvinfo *info)
 {
-	strcpy(info->driver, DRV_NAME);
-	strcpy(info->version, DRV_VERSION);
-	sprintf(info->bus_info, "ISA 0x%lx", dev->base_addr);
+	strlcpy(info->driver, DRV_NAME, sizeof(info->driver));
+	strlcpy(info->version, DRV_VERSION, sizeof(info->version));
+	snprintf(info->bus_info, sizeof(info->bus_info), "ISA 0x%lx",
+		 dev->base_addr);
 }
 
 static u32 netdev_get_msglevel(struct net_device *dev)

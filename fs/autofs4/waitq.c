@@ -42,10 +42,8 @@ void autofs4_catatonic_mode(struct autofs_sb_info *sbi)
 	while (wq) {
 		nwq = wq->next;
 		wq->status = -ENOENT; /* Magic is gone - report failure */
-		if (wq->name.name) {
-			kfree(wq->name.name);
-			wq->name.name = NULL;
-		}
+		kfree(wq->name.name);
+		wq->name.name = NULL;
 		wq->wait_ctr--;
 		wake_up_interruptible(&wq->queue);
 		wq = nwq;
@@ -56,14 +54,13 @@ void autofs4_catatonic_mode(struct autofs_sb_info *sbi)
 	mutex_unlock(&sbi->wq_mutex);
 }
 
-static int autofs4_write(struct file *file, const void *addr, int bytes)
+static int autofs4_write(struct autofs_sb_info *sbi,
+			 struct file *file, const void *addr, int bytes)
 {
 	unsigned long sigpipe, flags;
 	mm_segment_t fs;
 	const char *data = (const char *)addr;
 	ssize_t wr = 0;
-
-	/** WARNING: this is not safe for writing more than PIPE_BUF bytes! **/
 
 	sigpipe = sigismember(&current->pending.signal, SIGPIPE);
 
@@ -71,11 +68,13 @@ static int autofs4_write(struct file *file, const void *addr, int bytes)
 	fs = get_fs();
 	set_fs(KERNEL_DS);
 
+	mutex_lock(&sbi->pipe_mutex);
 	while (bytes &&
 	       (wr = file->f_op->write(file,data,bytes,&file->f_pos)) > 0) {
 		data += wr;
 		bytes -= wr;
 	}
+	mutex_unlock(&sbi->pipe_mutex);
 
 	set_fs(fs);
 
@@ -110,6 +109,7 @@ static void autofs4_notify_daemon(struct autofs_sb_info *sbi,
 
 	pkt.hdr.proto_version = sbi->version;
 	pkt.hdr.type = type;
+
 	switch (type) {
 	/* Kernel protocol v4 missing and expire packets */
 	case autofs_ptype_missing:
@@ -146,6 +146,7 @@ static void autofs4_notify_daemon(struct autofs_sb_info *sbi,
 	case autofs_ptype_expire_direct:
 	{
 		struct autofs_v5_packet *packet = &pkt.v5_pkt.v5_packet;
+		struct user_namespace *user_ns = sbi->pipe->f_cred->user_ns;
 
 		pktsz = sizeof(*packet);
 
@@ -155,30 +156,25 @@ static void autofs4_notify_daemon(struct autofs_sb_info *sbi,
 		packet->name[wq->name.len] = '\0';
 		packet->dev = wq->dev;
 		packet->ino = wq->ino;
-		packet->uid = wq->uid;
-		packet->gid = wq->gid;
+		packet->uid = from_kuid_munged(user_ns, wq->uid);
+		packet->gid = from_kgid_munged(user_ns, wq->gid);
 		packet->pid = wq->pid;
 		packet->tgid = wq->tgid;
 		break;
 	}
 	default:
 		printk("autofs4_notify_daemon: bad type %d!\n", type);
+		mutex_unlock(&sbi->wq_mutex);
 		return;
 	}
 
-	/* Check if we have become catatonic */
-	mutex_lock(&sbi->wq_mutex);
-	if (!sbi->catatonic) {
-		pipe = sbi->pipe;
-		get_file(pipe);
-	}
+	pipe = get_file(sbi->pipe);
+
 	mutex_unlock(&sbi->wq_mutex);
 
-	if (pipe) {
-		if (autofs4_write(pipe, &pkt, pktsz))
-			autofs4_catatonic_mode(sbi);
-		fput(pipe);
-	}
+	if (autofs4_write(sbi, pipe, &pkt, pktsz))
+		autofs4_catatonic_mode(sbi);
+	fput(pipe);
 }
 
 static int autofs4_getpath(struct autofs_sb_info *sbi,
@@ -257,6 +253,9 @@ static int validate_request(struct autofs_wait_queue **wait,
 	struct autofs_wait_queue *wq;
 	struct autofs_info *ino;
 
+	if (sbi->catatonic)
+		return -ENOENT;
+
 	/* Wait in progress, continue; */
 	wq = autofs4_find_wait(sbi, qstr);
 	if (wq) {
@@ -288,6 +287,9 @@ static int validate_request(struct autofs_wait_queue **wait,
 			schedule_timeout_interruptible(HZ/10);
 			if (mutex_lock_interruptible(&sbi->wq_mutex))
 				return -EINTR;
+
+			if (sbi->catatonic)
+				return -ENOENT;
 
 			wq = autofs4_find_wait(sbi, qstr);
 			if (wq) {
@@ -345,9 +347,21 @@ int autofs4_wait(struct autofs_sb_info *sbi, struct dentry *dentry,
 	struct qstr qstr;
 	char *name;
 	int status, ret, type;
+	pid_t pid;
+	pid_t tgid;
 
 	/* In catatonic mode, we don't wait for nobody */
 	if (sbi->catatonic)
+		return -ENOENT;
+
+	/*
+	 * Try translating pids to the namespace of the daemon.
+	 *
+	 * Zero means failure: we are in an unrelated pid namespace.
+	 */
+	pid = task_pid_nr_ns(current, ns_of_pid(sbi->oz_pgrp));
+	tgid = task_tgid_nr_ns(current, ns_of_pid(sbi->oz_pgrp));
+	if (pid == 0 || tgid == 0)
 		return -ENOENT;
 
 	if (!dentry->d_inode) {
@@ -389,7 +403,7 @@ int autofs4_wait(struct autofs_sb_info *sbi, struct dentry *dentry,
 
 	ret = validate_request(&wq, sbi, &qstr, dentry, notify);
 	if (ret <= 0) {
-		if (ret == 0)
+		if (ret != -EINTR)
 			mutex_unlock(&sbi->wq_mutex);
 		kfree(qstr.name);
 		return ret;
@@ -415,11 +429,10 @@ int autofs4_wait(struct autofs_sb_info *sbi, struct dentry *dentry,
 		wq->ino = autofs4_get_ino(sbi);
 		wq->uid = current_uid();
 		wq->gid = current_gid();
-		wq->pid = current->pid;
-		wq->tgid = current->tgid;
+		wq->pid = pid;
+		wq->tgid = tgid;
 		wq->status = -EINTR; /* Status return if interrupted */
 		wq->wait_ctr = 2;
-		mutex_unlock(&sbi->wq_mutex);
 
 		if (sbi->version < 5) {
 			if (notify == NFY_MOUNT)
@@ -441,15 +454,15 @@ int autofs4_wait(struct autofs_sb_info *sbi, struct dentry *dentry,
 			(unsigned long) wq->wait_queue_token, wq->name.len,
 			wq->name.name, notify);
 
-		/* autofs4_notify_daemon() may block */
+		/* autofs4_notify_daemon() may block; it will unlock ->wq_mutex */
 		autofs4_notify_daemon(sbi, wq, type);
 	} else {
 		wq->wait_ctr++;
-		mutex_unlock(&sbi->wq_mutex);
-		kfree(qstr.name);
 		DPRINTK("existing wait id = 0x%08lx, name = %.*s, nfy=%d",
 			(unsigned long) wq->wait_queue_token, wq->name.len,
 			wq->name.name, notify);
+		mutex_unlock(&sbi->wq_mutex);
+		kfree(qstr.name);
 	}
 
 	/*

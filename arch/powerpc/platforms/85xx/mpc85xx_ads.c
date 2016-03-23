@@ -19,7 +19,6 @@
 #include <linux/seq_file.h>
 #include <linux/of_platform.h>
 
-#include <asm/system.h>
 #include <asm/time.h>
 #include <asm/machdep.h>
 #include <asm/pci-bridge.h>
@@ -50,8 +49,7 @@ static int mpc85xx_exclude_device(struct pci_controller *hose,
 
 static void __init mpc85xx_ads_pic_init(void)
 {
-	struct mpic *mpic = mpic_alloc(NULL, 0,
-			MPIC_WANTS_RESET | MPIC_BIG_ENDIAN,
+	struct mpic *mpic = mpic_alloc(NULL, 0, MPIC_BIG_ENDIAN,
 			0, 256, " OpenPIC  ");
 	BUG_ON(mpic == NULL);
 	mpic_init(mpic);
@@ -139,10 +137,6 @@ static void __init init_ioports(void)
 
 static void __init mpc85xx_ads_setup_arch(void)
 {
-#ifdef CONFIG_PCI
-	struct device_node *np;
-#endif
-
 	if (ppc_md.progress)
 		ppc_md.progress("mpc85xx_ads_setup_arch()", 0);
 
@@ -152,11 +146,10 @@ static void __init mpc85xx_ads_setup_arch(void)
 #endif
 
 #ifdef CONFIG_PCI
-	for_each_compatible_node(np, "pci", "fsl,mpc8540-pci")
-		fsl_add_bridge(np, 1);
-
 	ppc_md.pci_exclude_device = mpc85xx_exclude_device;
 #endif
+
+	fsl_pci_assign_primary();
 }
 
 static void mpc85xx_ads_show_cpuinfo(struct seq_file *m)
@@ -175,7 +168,7 @@ static void mpc85xx_ads_show_cpuinfo(struct seq_file *m)
 	seq_printf(m, "PLL setting\t: 0x%x\n", ((phid1 >> 24) & 0x3f));
 }
 
-machine_device_initcall(mpc85xx_ads, mpc85xx_common_publish_devices);
+machine_arch_initcall(mpc85xx_ads, mpc85xx_common_publish_devices);
 
 /*
  * Called very early, device-tree isn't unflattened

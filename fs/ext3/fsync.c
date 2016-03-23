@@ -22,15 +22,9 @@
  * we can depend on generic_block_fdatasync() to sync the data blocks.
  */
 
-#include <linux/time.h>
 #include <linux/blkdev.h>
-#include <linux/fs.h>
-#include <linux/sched.h>
 #include <linux/writeback.h>
-#include <linux/jbd.h>
-#include <linux/ext3_fs.h>
-#include <linux/ext3_jbd.h>
-#include <trace/events/ext3.h>
+#include "ext3.h"
 
 /*
  * akpm: A new design for ext3_sync_file().
@@ -54,9 +48,13 @@ int ext3_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 
 	trace_ext3_sync_file_enter(file, datasync);
 
-	if (inode->i_sb->s_flags & MS_RDONLY)
+	if (inode->i_sb->s_flags & MS_RDONLY) {
+		/* Make sure that we read updated state */
+		smp_rmb();
+		if (EXT3_SB(inode->i_sb)->s_mount_state & EXT3_ERROR_FS)
+			return -EROFS;
 		return 0;
-
+	}
 	ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
 	if (ret)
 		goto out;
@@ -98,8 +96,13 @@ int ext3_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 	 * disk caches manually so that data really is on persistent
 	 * storage
 	 */
-	if (needs_barrier)
-		blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
+	if (needs_barrier) {
+		int err;
+
+		err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
+		if (!ret)
+			ret = err;
+	}
 out:
 	trace_ext3_sync_file_exit(inode, ret);
 	return ret;

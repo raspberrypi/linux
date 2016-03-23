@@ -1,14 +1,9 @@
 #
 # PCI configuration
 #
-config ARCH_SUPPORTS_MSI
-	bool
-	default n
-
 config PCI_MSI
 	bool "Message Signaled Interrupts (MSI and MSI-X)"
 	depends on PCI
-	depends on ARCH_SUPPORTS_MSI
 	help
 	   This allows device drivers to enable MSI (Message Signaled
 	   Interrupts).  Message Signaled Interrupts enable a device to
@@ -31,6 +26,19 @@ config PCI_DEBUG
 
 	  When in doubt, say N.
 
+config PCI_REALLOC_ENABLE_AUTO
+	bool "Enable PCI resource re-allocation detection"
+	depends on PCI
+	help
+	  Say Y here if you want the PCI core to detect if PCI resource
+	  re-allocation needs to be enabled. You can always use pci=realloc=on
+          or pci=realloc=off to override it.  Note this feature is a no-op
+          unless PCI_IOV support is also enabled; in that case it will
+          automatically re-allocate PCI resources if SR-IOV BARs have not
+          been allocated by the BIOS.
+
+	  When in doubt, say N.
+
 config PCI_STUB
 	tristate "PCI Stub driver"
 	depends on PCI
@@ -43,7 +51,6 @@ config PCI_STUB
 config XEN_PCIDEV_FRONTEND
         tristate "Xen PCI Frontend"
         depends on PCI && X86 && XEN
-        select HOTPLUG
         select PCI_XEN
 	select XEN_XENBUS_FRONTEND
         default y
@@ -98,12 +105,14 @@ config PCI_PASID
 	  If unsure, say N.
 
 config PCI_IOAPIC
-	tristate "PCI IO-APIC hotplug support" if X86
+	bool "PCI IO-APIC hotplug support" if X86
 	depends on PCI
 	depends on ACPI
-	depends on HOTPLUG
+	depends on X86_IO_APIC
 	default !X86
 
 config PCI_LABEL
 	def_bool y if (DMI || ACPI)
 	select NLS
+
+source "drivers/pci/host/Kconfig"

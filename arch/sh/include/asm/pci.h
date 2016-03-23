@@ -70,11 +70,6 @@ extern int pci_mmap_page_range(struct pci_dev *dev, struct vm_area_struct *vma,
 	enum pci_mmap_state mmap_state, int write_combine);
 extern void pcibios_set_master(struct pci_dev *dev);
 
-static inline void pcibios_penalize_isa_irq(int irq, int active)
-{
-	/* We don't do dynamic PCI IRQ allocation */
-}
-
 /* Dynamic DMA mapping stuff.
  * SuperH has everything mapped statically like x86.
  */
@@ -113,12 +108,6 @@ static inline void pci_dma_burst_advice(struct pci_dev *pdev,
 
 /* Board-specific fixup routines. */
 int pcibios_map_platform_irq(const struct pci_dev *dev, u8 slot, u8 pin);
-
-extern void pcibios_resource_to_bus(struct pci_dev *dev,
-	struct pci_bus_region *region, struct resource *res);
-
-extern void pcibios_bus_to_resource(struct pci_dev *dev, struct resource *res,
-				    struct pci_bus_region *region);
 
 #define pci_domain_nr(bus) ((struct pci_channel *)(bus)->sysdata)->index
 

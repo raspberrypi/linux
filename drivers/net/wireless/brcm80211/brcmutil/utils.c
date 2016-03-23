@@ -14,6 +14,8 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/netdevice.h>
 #include <linux/module.h>
 
@@ -41,17 +43,11 @@ EXPORT_SYMBOL(brcmu_pkt_buf_get_skb);
 /* Free the driver packet. Free the tag if present */
 void brcmu_pkt_buf_free_skb(struct sk_buff *skb)
 {
+	if (!skb)
+		return;
+
 	WARN_ON(skb->next);
-	if (skb->destructor)
-		/* cannot kfree_skb() on hard IRQ (net/core/skbuff.c) if
-		 * destructor exists
-		 */
-		dev_kfree_skb_any(skb);
-	else
-		/* can free immediately (even in_irq()) if destructor
-		 * does not exist
-		 */
-		dev_kfree_skb(skb);
+	dev_kfree_skb_any(skb);
 }
 EXPORT_SYMBOL(brcmu_pkt_buf_free_skb);
 
@@ -111,6 +107,31 @@ struct sk_buff *brcmu_pktq_pdeq(struct pktq *pq, int prec)
 	return p;
 }
 EXPORT_SYMBOL(brcmu_pktq_pdeq);
+
+/*
+ * precedence based dequeue with match function. Passing a NULL pointer
+ * for the match function parameter is considered to be a wildcard so
+ * any packet on the queue is returned. In that case it is no different
+ * from brcmu_pktq_pdeq() above.
+ */
+struct sk_buff *brcmu_pktq_pdeq_match(struct pktq *pq, int prec,
+				      bool (*match_fn)(struct sk_buff *skb,
+						       void *arg), void *arg)
+{
+	struct sk_buff_head *q;
+	struct sk_buff *p, *next;
+
+	q = &pq->q[prec].skblist;
+	skb_queue_walk_safe(q, p, next) {
+		if (match_fn == NULL || match_fn(p, arg)) {
+			skb_unlink(p, q);
+			pq->len--;
+			return p;
+		}
+	}
+	return NULL;
+}
+EXPORT_SYMBOL(brcmu_pktq_pdeq_match);
 
 struct sk_buff *brcmu_pktq_pdeq_tail(struct pktq *pq, int prec)
 {
@@ -240,17 +261,35 @@ struct sk_buff *brcmu_pktq_mdeq(struct pktq *pq, uint prec_bmp,
 }
 EXPORT_SYMBOL(brcmu_pktq_mdeq);
 
-#if defined(BCMDBG)
+#if defined(DEBUG)
 /* pretty hex print a pkt buffer chain */
 void brcmu_prpkt(const char *msg, struct sk_buff *p0)
 {
 	struct sk_buff *p;
 
 	if (msg && (msg[0] != '\0'))
-		printk(KERN_DEBUG "%s:\n", msg);
+		pr_debug("%s:\n", msg);
 
 	for (p = p0; p; p = p->next)
 		print_hex_dump_bytes("", DUMP_PREFIX_OFFSET, p->data, p->len);
 }
 EXPORT_SYMBOL(brcmu_prpkt);
-#endif				/* defined(BCMDBG) */
+
+void brcmu_dbg_hex_dump(const void *data, size_t size, const char *fmt, ...)
+{
+	struct va_format vaf;
+	va_list args;
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	pr_debug("%pV", &vaf);
+
+	va_end(args);
+
+	print_hex_dump_bytes("", DUMP_PREFIX_OFFSET, data, size);
+}
+EXPORT_SYMBOL(brcmu_dbg_hex_dump);
+#endif				/* defined(DEBUG) */

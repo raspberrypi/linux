@@ -29,6 +29,7 @@
 #include <linux/average.h>
 #include <linux/leds.h>
 #include <net/mac80211.h>
+#include <net/cfg80211.h>
 
 /* RX/TX descriptor hw structs
  * TODO: Driver part should only see sw structs */
@@ -76,26 +77,29 @@
   GENERIC DRIVER DEFINITIONS
 \****************************/
 
-#define ATH5K_PRINTF(fmt, ...) \
-	printk(KERN_WARNING "%s: " fmt, __func__, ##__VA_ARGS__)
+#define ATH5K_PRINTF(fmt, ...)						\
+	pr_warn("%s: " fmt, __func__, ##__VA_ARGS__)
 
-#define ATH5K_PRINTK(_sc, _level, _fmt, ...) \
-	printk(_level "ath5k %s: " _fmt, \
-		((_sc) && (_sc)->hw) ? wiphy_name((_sc)->hw->wiphy) : "", \
-		##__VA_ARGS__)
+void __printf(3, 4)
+_ath5k_printk(const struct ath5k_hw *ah, const char *level,
+	      const char *fmt, ...);
 
-#define ATH5K_PRINTK_LIMIT(_sc, _level, _fmt, ...) do { \
-	if (net_ratelimit()) \
-		ATH5K_PRINTK(_sc, _level, _fmt, ##__VA_ARGS__); \
-	} while (0)
+#define ATH5K_PRINTK(_sc, _level, _fmt, ...)				\
+	_ath5k_printk(_sc, _level, _fmt, ##__VA_ARGS__)
 
-#define ATH5K_INFO(_sc, _fmt, ...) \
+#define ATH5K_PRINTK_LIMIT(_sc, _level, _fmt, ...)			\
+do {									\
+	if (net_ratelimit())						\
+		ATH5K_PRINTK(_sc, _level, _fmt, ##__VA_ARGS__); 	\
+} while (0)
+
+#define ATH5K_INFO(_sc, _fmt, ...)					\
 	ATH5K_PRINTK(_sc, KERN_INFO, _fmt, ##__VA_ARGS__)
 
-#define ATH5K_WARN(_sc, _fmt, ...) \
+#define ATH5K_WARN(_sc, _fmt, ...)					\
 	ATH5K_PRINTK_LIMIT(_sc, KERN_WARNING, _fmt, ##__VA_ARGS__)
 
-#define ATH5K_ERR(_sc, _fmt, ...) \
+#define ATH5K_ERR(_sc, _fmt, ...)					\
 	ATH5K_PRINTK_LIMIT(_sc, KERN_ERR, _fmt, ##__VA_ARGS__)
 
 /*
@@ -1281,6 +1285,7 @@ struct ath5k_hw {
 #define ATH_STAT_STARTED	3		/* opened & irqs enabled */
 
 	unsigned int		filter_flags;	/* HW flags, AR5K_RX_FILTER_* */
+	unsigned int		fif_filter_flags; /* Current FIF_* filter flags */
 	struct ieee80211_channel *curchan;	/* current h/w channel */
 
 	u16			nvifs;
@@ -1320,6 +1325,7 @@ struct ath5k_hw {
 	struct ieee80211_vif	*bslot[ATH_BCBUF];
 	u16			num_ap_vifs;
 	u16			num_adhoc_vifs;
+	u16			num_mesh_vifs;
 	unsigned int		bhalq,		/* SW q for outgoing beacons */
 				bmisscount,	/* missed beacon transmits */
 				bintval,	/* beacon interval in TU */
@@ -1327,7 +1333,6 @@ struct ath5k_hw {
 	unsigned int		nexttbtt;	/* next beacon time in TU */
 	struct ath5k_txq	*cabq;		/* content after beacon */
 
-	int			power_level;	/* Requested tx power in dBm */
 	bool			assoc;		/* associate state */
 	bool			enable_beacon;	/* true if beacons are on */
 
@@ -1421,6 +1426,7 @@ struct ath5k_hw {
 		/* Value in dB units */
 		s16		txp_cck_ofdm_pwr_delta;
 		bool		txp_setup;
+		int		txp_requested;	/* Requested tx power in dBm */
 	} ah_txpower;
 
 	struct ath5k_nfcal_hist ah_nfcal_hist;
@@ -1519,11 +1525,12 @@ int ath5k_hw_dma_stop(struct ath5k_hw *ah);
 /* EEPROM access functions */
 int ath5k_eeprom_init(struct ath5k_hw *ah);
 void ath5k_eeprom_detach(struct ath5k_hw *ah);
-
+int ath5k_eeprom_mode_from_channel(struct ath5k_hw *ah,
+		struct ieee80211_channel *channel);
 
 /* Protocol Control Unit Functions */
 /* Helpers */
-int ath5k_hw_get_frame_duration(struct ath5k_hw *ah,
+int ath5k_hw_get_frame_duration(struct ath5k_hw *ah, enum ieee80211_band band,
 		int len, struct ieee80211_rate *rate, bool shortpre);
 unsigned int ath5k_hw_get_default_slottime(struct ath5k_hw *ah);
 unsigned int ath5k_hw_get_default_sifs(struct ath5k_hw *ah);
@@ -1640,32 +1647,6 @@ static inline struct ath_regulatory *ath5k_hw_regulatory(struct ath5k_hw *ah)
 	return &(ath5k_hw_common(ah)->regulatory);
 }
 
-#ifdef CONFIG_ATHEROS_AR231X
-#define AR5K_AR2315_PCI_BASE	((void __iomem *)0xb0100000)
-
-static inline void __iomem *ath5k_ahb_reg(struct ath5k_hw *ah, u16 reg)
-{
-	/* On AR2315 and AR2317 the PCI clock domain registers
-	 * are outside of the WMAC register space */
-	if (unlikely((reg >= 0x4000) && (reg < 0x5000) &&
-	    (ah->ah_mac_srev >= AR5K_SREV_AR2315_R6)))
-		return AR5K_AR2315_PCI_BASE + reg;
-
-	return ah->iobase + reg;
-}
-
-static inline u32 ath5k_hw_reg_read(struct ath5k_hw *ah, u16 reg)
-{
-	return __raw_readl(ath5k_ahb_reg(ah, reg));
-}
-
-static inline void ath5k_hw_reg_write(struct ath5k_hw *ah, u32 val, u16 reg)
-{
-	__raw_writel(val, ath5k_ahb_reg(ah, reg));
-}
-
-#else
-
 static inline u32 ath5k_hw_reg_read(struct ath5k_hw *ah, u16 reg)
 {
 	return ioread32(ah->iobase + reg);
@@ -1675,8 +1656,6 @@ static inline void ath5k_hw_reg_write(struct ath5k_hw *ah, u32 val, u16 reg)
 {
 	iowrite32(val, ah->iobase + reg);
 }
-
-#endif
 
 static inline enum ath_bus_type ath5k_get_bus_type(struct ath5k_hw *ah)
 {

@@ -17,16 +17,15 @@
 #include <linux/syscore_ops.h>
 #include <linux/io.h>
 #include <linux/irq.h>
+#include <linux/of_address.h>
+#include <linux/of_irq.h>
 
 #include <asm/exception.h>
 
 #include <mach/hardware.h>
 #include <mach/irqs.h>
-#include <mach/gpio-pxa.h>
 
 #include "generic.h"
-
-#define IRQ_BASE		io_p2v(0x40d00000)
 
 #define ICIP			(0x000)
 #define ICMR			(0x004)
@@ -49,22 +48,19 @@
  * This is for peripheral IRQs internal to the PXA chip.
  */
 
+static void __iomem *pxa_irq_base;
 static int pxa_internal_irq_nr;
-
-static inline int cpu_has_ipr(void)
-{
-	return !cpu_is_pxa25x();
-}
+static bool cpu_has_ipr;
 
 static inline void __iomem *irq_base(int i)
 {
-	static unsigned long phys_base[] = {
-		0x40d00000,
-		0x40d0009c,
-		0x40d00130,
+	static unsigned long phys_base_offset[] = {
+		0x0,
+		0x9c,
+		0x130,
 	};
 
-	return io_p2v(phys_base[i]);
+	return pxa_irq_base + phys_base_offset[i];
 }
 
 void pxa_mask_irq(struct irq_data *d)
@@ -92,51 +88,13 @@ static struct irq_chip pxa_internal_irq_chip = {
 	.irq_unmask	= pxa_unmask_irq,
 };
 
-/*
- * GPIO IRQs for GPIO 0 and 1
- */
-static int pxa_set_low_gpio_type(struct irq_data *d, unsigned int type)
-{
-	int gpio = d->irq - IRQ_GPIO0;
-
-	if (__gpio_is_occupied(gpio)) {
-		pr_err("%s failed: GPIO is configured\n", __func__);
-		return -EINVAL;
-	}
-
-	if (type & IRQ_TYPE_EDGE_RISING)
-		GRER0 |= GPIO_bit(gpio);
-	else
-		GRER0 &= ~GPIO_bit(gpio);
-
-	if (type & IRQ_TYPE_EDGE_FALLING)
-		GFER0 |= GPIO_bit(gpio);
-	else
-		GFER0 &= ~GPIO_bit(gpio);
-
-	return 0;
-}
-
-static void pxa_ack_low_gpio(struct irq_data *d)
-{
-	GEDR0 = (1 << (d->irq - IRQ_GPIO0));
-}
-
-static struct irq_chip pxa_low_gpio_chip = {
-	.name		= "GPIO-l",
-	.irq_ack	= pxa_ack_low_gpio,
-	.irq_mask	= pxa_mask_irq,
-	.irq_unmask	= pxa_unmask_irq,
-	.irq_set_type	= pxa_set_low_gpio_type,
-};
-
 asmlinkage void __exception_irq_entry icip_handle_irq(struct pt_regs *regs)
 {
 	uint32_t icip, icmr, mask;
 
 	do {
-		icip = __raw_readl(IRQ_BASE + ICIP);
-		icmr = __raw_readl(IRQ_BASE + ICMR);
+		icip = __raw_readl(pxa_irq_base + ICIP);
+		icmr = __raw_readl(pxa_irq_base + ICMR);
 		mask = icip & icmr;
 
 		if (mask == 0)
@@ -160,32 +118,15 @@ asmlinkage void __exception_irq_entry ichp_handle_irq(struct pt_regs *regs)
 	} while (1);
 }
 
-static void __init pxa_init_low_gpio_irq(set_wake_t fn)
-{
-	int irq;
-
-	/* clear edge detection on GPIO 0 and 1 */
-	GFER0 &= ~0x3;
-	GRER0 &= ~0x3;
-	GEDR0 = 0x3;
-
-	for (irq = IRQ_GPIO0; irq <= IRQ_GPIO1; irq++) {
-		irq_set_chip_and_handler(irq, &pxa_low_gpio_chip,
-					 handle_edge_irq);
-		irq_set_chip_data(irq, irq_base(0));
-		set_irq_flags(irq, IRQF_VALID);
-	}
-
-	pxa_low_gpio_chip.irq_set_wake = fn;
-}
-
-void __init pxa_init_irq(int irq_nr, set_wake_t fn)
+void __init pxa_init_irq(int irq_nr, int (*fn)(struct irq_data *, unsigned int))
 {
 	int irq, i, n;
 
 	BUG_ON(irq_nr > MAX_INTERNAL_IRQS);
 
 	pxa_internal_irq_nr = irq_nr;
+	cpu_has_ipr = !cpu_is_pxa25x();
+	pxa_irq_base = io_p2v(0x40d00000);
 
 	for (n = 0; n < irq_nr; n += 32) {
 		void __iomem *base = irq_base(n >> 5);
@@ -194,8 +135,8 @@ void __init pxa_init_irq(int irq_nr, set_wake_t fn)
 		__raw_writel(0, base + ICLR);	/* all IRQs are IRQ, not FIQ */
 		for (i = n; (i < (n + 32)) && (i < irq_nr); i++) {
 			/* initialize interrupt priority */
-			if (cpu_has_ipr())
-				__raw_writel(i | IPR_VALID, IRQ_BASE + IPR(i));
+			if (cpu_has_ipr)
+				__raw_writel(i | IPR_VALID, pxa_irq_base + IPR(i));
 
 			irq = PXA_IRQ(i);
 			irq_set_chip_and_handler(irq, &pxa_internal_irq_chip,
@@ -209,7 +150,6 @@ void __init pxa_init_irq(int irq_nr, set_wake_t fn)
 	__raw_writel(1, irq_base(0) + ICCR);
 
 	pxa_internal_irq_chip.irq_set_wake = fn;
-	pxa_init_low_gpio_irq(fn);
 }
 
 #ifdef CONFIG_PM
@@ -227,9 +167,9 @@ static int pxa_irq_suspend(void)
 		__raw_writel(0, base + ICMR);
 	}
 
-	if (cpu_has_ipr()) {
+	if (cpu_has_ipr) {
 		for (i = 0; i < pxa_internal_irq_nr; i++)
-			saved_ipr[i] = __raw_readl(IRQ_BASE + IPR(i));
+			saved_ipr[i] = __raw_readl(pxa_irq_base + IPR(i));
 	}
 
 	return 0;
@@ -246,11 +186,11 @@ static void pxa_irq_resume(void)
 		__raw_writel(0, base + ICLR);
 	}
 
-	if (cpu_has_ipr())
+	if (cpu_has_ipr)
 		for (i = 0; i < pxa_internal_irq_nr; i++)
-			__raw_writel(saved_ipr[i], IRQ_BASE + IPR(i));
+			__raw_writel(saved_ipr[i], pxa_irq_base + IPR(i));
 
-	__raw_writel(1, IRQ_BASE + ICCR);
+	__raw_writel(1, pxa_irq_base + ICCR);
 }
 #else
 #define pxa_irq_suspend		NULL
@@ -261,3 +201,89 @@ struct syscore_ops pxa_irq_syscore_ops = {
 	.suspend	= pxa_irq_suspend,
 	.resume		= pxa_irq_resume,
 };
+
+#ifdef CONFIG_OF
+static struct irq_domain *pxa_irq_domain;
+
+static int pxa_irq_map(struct irq_domain *h, unsigned int virq,
+		       irq_hw_number_t hw)
+{
+	void __iomem *base = irq_base(hw / 32);
+
+	/* initialize interrupt priority */
+	if (cpu_has_ipr)
+		__raw_writel(hw | IPR_VALID, pxa_irq_base + IPR(hw));
+
+	irq_set_chip_and_handler(hw, &pxa_internal_irq_chip,
+				 handle_level_irq);
+	irq_set_chip_data(hw, base);
+	set_irq_flags(hw, IRQF_VALID);
+
+	return 0;
+}
+
+static struct irq_domain_ops pxa_irq_ops = {
+	.map    = pxa_irq_map,
+	.xlate  = irq_domain_xlate_onecell,
+};
+
+static const struct of_device_id intc_ids[] __initconst = {
+	{ .compatible = "marvell,pxa-intc", },
+	{}
+};
+
+void __init pxa_dt_irq_init(int (*fn)(struct irq_data *, unsigned int))
+{
+	struct device_node *node;
+	struct resource res;
+	int n, ret;
+
+	node = of_find_matching_node(NULL, intc_ids);
+	if (!node) {
+		pr_err("Failed to find interrupt controller in arch-pxa\n");
+		return;
+	}
+
+	ret = of_property_read_u32(node, "marvell,intc-nr-irqs",
+				   &pxa_internal_irq_nr);
+	if (ret) {
+		pr_err("Not found marvell,intc-nr-irqs property\n");
+		return;
+	}
+
+	ret = of_address_to_resource(node, 0, &res);
+	if (ret < 0) {
+		pr_err("No registers defined for node\n");
+		return;
+	}
+	pxa_irq_base = io_p2v(res.start);
+
+	if (of_find_property(node, "marvell,intc-priority", NULL))
+		cpu_has_ipr = 1;
+
+	ret = irq_alloc_descs(-1, 0, pxa_internal_irq_nr, 0);
+	if (ret < 0) {
+		pr_err("Failed to allocate IRQ numbers\n");
+		return;
+	}
+
+	pxa_irq_domain = irq_domain_add_legacy(node, pxa_internal_irq_nr, 0, 0,
+					       &pxa_irq_ops, NULL);
+	if (!pxa_irq_domain)
+		panic("Unable to add PXA IRQ domain\n");
+
+	irq_set_default_host(pxa_irq_domain);
+
+	for (n = 0; n < pxa_internal_irq_nr; n += 32) {
+		void __iomem *base = irq_base(n >> 5);
+
+		__raw_writel(0, base + ICMR);	/* disable all IRQs */
+		__raw_writel(0, base + ICLR);	/* all IRQs are IRQ, not FIQ */
+	}
+
+	/* only unmasked interrupts kick us out of idle */
+	__raw_writel(1, irq_base(0) + ICCR);
+
+	pxa_internal_irq_chip.irq_set_wake = fn;
+}
+#endif /* CONFIG_OF */

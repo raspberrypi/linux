@@ -1581,6 +1581,7 @@ static int mmc_test_area_init(struct mmc_test_card *test, int erase, int fill)
 
 	t->max_segs = test->card->host->max_segs;
 	t->max_seg_sz = test->card->host->max_seg_size;
+	t->max_seg_sz -= t->max_seg_sz % 512;
 
 	t->max_tfr = t->max_sz;
 	if (t->max_tfr >> 9 > test->card->host->max_blk_count)
@@ -2848,18 +2849,12 @@ static ssize_t mtf_test_write(struct file *file, const char __user *buf,
 	struct seq_file *sf = (struct seq_file *)file->private_data;
 	struct mmc_card *card = (struct mmc_card *)sf->private;
 	struct mmc_test_card *test;
-	char lbuf[12];
 	long testcase;
+	int ret;
 
-	if (count >= sizeof(lbuf))
-		return -EINVAL;
-
-	if (copy_from_user(lbuf, buf, count))
-		return -EFAULT;
-	lbuf[count] = '\0';
-
-	if (strict_strtol(lbuf, 10, &testcase))
-		return -EINVAL;
+	ret = kstrtol_from_user(buf, count, 10, &testcase);
+	if (ret)
+		return ret;
 
 	test = kzalloc(sizeof(struct mmc_test_card), GFP_KERNEL);
 	if (!test)
@@ -2949,7 +2944,7 @@ static void mmc_test_free_dbgfs_file(struct mmc_card *card)
 }
 
 static int __mmc_test_register_dbgfs_file(struct mmc_card *card,
-	const char *name, mode_t mode, const struct file_operations *fops)
+	const char *name, umode_t mode, const struct file_operations *fops)
 {
 	struct dentry *file = NULL;
 	struct mmc_test_dbgfs_file *df;
@@ -3024,12 +3019,17 @@ static void mmc_test_remove(struct mmc_card *card)
 	mmc_test_free_dbgfs_file(card);
 }
 
+static void mmc_test_shutdown(struct mmc_card *card)
+{
+}
+
 static struct mmc_driver mmc_driver = {
 	.drv		= {
 		.name	= "mmc_test",
 	},
 	.probe		= mmc_test_probe,
 	.remove		= mmc_test_remove,
+	.shutdown	= mmc_test_shutdown,
 };
 
 static int __init mmc_test_init(void)

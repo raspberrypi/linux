@@ -24,7 +24,7 @@
 #include <linux/init.h>
 #include <linux/of_platform.h>
 
-static __initdata struct of_device_id ppc44x_of_bus[] = {
+static const struct of_device_id ppc44x_of_bus[] __initconst = {
 	{ .compatible = "ibm,plb4", },
 	{ .compatible = "ibm,opb", },
 	{ .compatible = "ibm,ebc", },
@@ -52,7 +52,7 @@ machine_device_initcall(ppc44x_simple, ppc44x_device_probe);
 static char *board[] __initdata = {
 	"amcc,arches",
 	"amcc,bamboo",
-	"amcc,bluestone",
+	"apm,bluestone",
 	"amcc,glacier",
 	"ibm,ebony",
 	"amcc,eiger",

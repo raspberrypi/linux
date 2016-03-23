@@ -24,6 +24,7 @@ typedef u64 wwn_t;
 
 #define WWN_NULL	(0)
 #define FC_SYMNAME_MAX	256	/*  max name server symbolic name size */
+#define FC_ALPA_MAX	128
 
 #pragma pack(1)
 
@@ -55,161 +56,6 @@ struct scsi_cdb_s {
 #define SCSI_STATUS_ACA_ACTIVE             0x30
 
 #define SCSI_MAX_ALLOC_LEN      0xFF    /* maximum allocarion length */
-
-#define SCSI_SENSE_CUR_ERR	0x70
-#define SCSI_SENSE_DEF_ERR	0x71
-
-/*
- * SCSI additional sense codes
- */
-#define SCSI_ASC_LUN_NOT_READY		0x04
-#define SCSI_ASC_LUN_NOT_SUPPORTED	0x25
-#define SCSI_ASC_TOCC			0x3F
-
-/*
- * SCSI additional sense code qualifiers
- */
-#define SCSI_ASCQ_MAN_INTR_REQ		0x03	/* manual intervention req */
-#define SCSI_ASCQ_RL_DATA_CHANGED	0x0E	/* report luns data changed */
-
-/*
- * Methods of reporting informational exceptions
- */
-#define SCSI_MP_IEC_UNIT_ATTN		0x2	/* generate unit attention */
-
-struct scsi_report_luns_data_s {
-	u32		lun_list_length;	/* length of LUN list length */
-	u32		reserved;
-	struct scsi_lun	lun[1];			/* first LUN in lun list */
-};
-
-struct scsi_inquiry_vendor_s {
-	u8	vendor_id[8];
-};
-
-struct scsi_inquiry_prodid_s {
-	u8	product_id[16];
-};
-
-struct scsi_inquiry_prodrev_s {
-	u8	product_rev[4];
-};
-
-struct scsi_inquiry_data_s {
-#ifdef __BIG_ENDIAN
-	u8		peripheral_qual:3;	/* peripheral qualifier */
-	u8		device_type:5;		/* peripheral device type */
-	u8		rmb:1;			/* removable medium bit */
-	u8		device_type_mod:7;	/* device type modifier */
-	u8		version;
-	u8		aenc:1;		/* async evt notification capability */
-	u8		trm_iop:1;	/* terminate I/O process */
-	u8		norm_aca:1;	/* normal ACA supported */
-	u8		hi_support:1;	/* SCSI-3: supports REPORT LUNS */
-	u8		rsp_data_format:4;
-	u8		additional_len;
-	u8		sccs:1;
-	u8		reserved1:7;
-	u8		reserved2:1;
-	u8		enc_serv:1;	/* enclosure service component */
-	u8		reserved3:1;
-	u8		multi_port:1;	/* multi-port device */
-	u8		m_chngr:1;	/* device in medium transport element */
-	u8		ack_req_q:1;	/* SIP specific bit */
-	u8		addr32:1;	/* SIP specific bit */
-	u8		addr16:1;	/* SIP specific bit */
-	u8		rel_adr:1;	/* relative address */
-	u8		w_bus32:1;
-	u8		w_bus16:1;
-	u8		synchronous:1;
-	u8		linked_commands:1;
-	u8		trans_dis:1;
-	u8		cmd_queue:1;	/* command queueing supported */
-	u8		soft_reset:1;	/* soft reset alternative (VS) */
-#else
-	u8		device_type:5;	/* peripheral device type */
-	u8		peripheral_qual:3; /* peripheral qualifier */
-	u8		device_type_mod:7; /* device type modifier */
-	u8		rmb:1;		/* removable medium bit */
-	u8		version;
-	u8		rsp_data_format:4;
-	u8		hi_support:1;	/* SCSI-3: supports REPORT LUNS */
-	u8		norm_aca:1;	/* normal ACA supported */
-	u8		terminate_iop:1;/* terminate I/O process */
-	u8		aenc:1;		/* async evt notification capability */
-	u8		additional_len;
-	u8		reserved1:7;
-	u8		sccs:1;
-	u8		addr16:1;	/* SIP specific bit */
-	u8		addr32:1;	/* SIP specific bit */
-	u8		ack_req_q:1;	/* SIP specific bit */
-	u8		m_chngr:1;	/* device in medium transport element */
-	u8		multi_port:1;	/* multi-port device */
-	u8		reserved3:1;	/* TBD - Vendor Specific */
-	u8		enc_serv:1;	/* enclosure service component */
-	u8		reserved2:1;
-	u8		soft_seset:1;	/* soft reset alternative (VS) */
-	u8		cmd_queue:1;	/* command queueing supported */
-	u8		trans_dis:1;
-	u8		linked_commands:1;
-	u8		synchronous:1;
-	u8		w_bus16:1;
-	u8		w_bus32:1;
-	u8		rel_adr:1;	/* relative address */
-#endif
-	struct scsi_inquiry_vendor_s	vendor_id;
-	struct scsi_inquiry_prodid_s	product_id;
-	struct scsi_inquiry_prodrev_s	product_rev;
-	u8		vendor_specific[20];
-	u8		reserved4[40];
-};
-
-/*
- *	SCSI sense data format
- */
-struct scsi_sense_s {
-#ifdef __BIG_ENDIAN
-	u8		valid:1;
-	u8		rsp_code:7;
-#else
-	u8		rsp_code:7;
-	u8		valid:1;
-#endif
-	u8		seg_num;
-#ifdef __BIG_ENDIAN
-	u8		file_mark:1;
-	u8		eom:1;		/* end of media */
-	u8		ili:1;		/* incorrect length indicator */
-	u8		reserved:1;
-	u8		sense_key:4;
-#else
-	u8		sense_key:4;
-	u8		reserved:1;
-	u8		ili:1;		/* incorrect length indicator */
-	u8		eom:1;		/* end of media */
-	u8		file_mark:1;
-#endif
-	u8		information[4];	/* device-type or cmd specific info */
-	u8		add_sense_length; /* additional sense length */
-	u8		command_info[4];/* command specific information */
-	u8		asc;		/* additional sense code */
-	u8		ascq;		/* additional sense code qualifier */
-	u8		fru_code;	/* field replaceable unit code */
-#ifdef __BIG_ENDIAN
-	u8		sksv:1;		/* sense key specific valid */
-	u8		c_d:1;		/* command/data bit */
-	u8		res1:2;
-	u8		bpv:1;		/* bit pointer valid */
-	u8		bpointer:3;	/* bit pointer */
-#else
-	u8		bpointer:3;	/* bit pointer */
-	u8		bpv:1;		/* bit pointer valid */
-	u8		res1:2;
-	u8		c_d:1;		/* command/data bit */
-	u8		sksv:1;		/* sense key specific valid */
-#endif
-	u8		fpointer[2];	/* field pointer */
-};
 
 /*
  * Fibre Channel Header Structure (FCHS) definition
@@ -1170,13 +1016,17 @@ struct fc_symname_s {
 	u8         symname[FC_SYMNAME_MAX];
 };
 
+struct fc_alpabm_s {
+	u8	alpa_bm[FC_ALPA_MAX / 8];
+};
+
 /*
  * protocol default timeout values
  */
 #define FC_ED_TOV	2
 #define FC_REC_TOV	(FC_ED_TOV + 1)
 #define FC_RA_TOV	10
-#define FC_ELS_TOV	((2 * FC_RA_TOV) + 1)
+#define FC_ELS_TOV	(2 * FC_RA_TOV)
 #define FC_FCCT_TOV	(3 * FC_RA_TOV)
 
 /*
@@ -1434,6 +1284,7 @@ enum {
 	GS_GSPN_ID	= 0x0118,	/* Get symbolic PN on ID */
 	GS_RFT_ID	= 0x0217,	/* Register fc4type on ID */
 	GS_RSPN_ID	= 0x0218,	/* Register symbolic PN on ID */
+	GS_RSNN_NN	= 0x0239,	/* Register symbolic NN on NN */
 	GS_RPN_ID	= 0x0212,	/* Register port name */
 	GS_RNN_ID	= 0x0213,	/* Register node name */
 	GS_RCS_ID	= 0x0214,	/* Register class of service */
@@ -1509,6 +1360,15 @@ struct fcgs_rspnid_req_s {
 	u32	dap:24;		/* port identifier */
 	u8	spn_len;	/* symbolic port name length */
 	u8	spn[256];	/* symbolic port name */
+};
+
+/*
+ * RSNN_NN
+ */
+struct fcgs_rsnn_nn_req_s {
+	wwn_t	node_name;	/* Node name */
+	u8	snn_len;	/* symbolic node name length */
+	u8	snn[256];	/* symbolic node name */
 };
 
 /*
@@ -1671,6 +1531,12 @@ enum fdmi_hba_attribute_type {
 	FDMI_HBA_ATTRIB_FW_VERSION,	/* 0x0009 */
 	FDMI_HBA_ATTRIB_OS_NAME,	/* 0x000A */
 	FDMI_HBA_ATTRIB_MAX_CT,		/* 0x000B */
+	FDMI_HBA_ATTRIB_NODE_SYM_NAME,  /* 0x000C */
+	FDMI_HBA_ATTRIB_VENDOR_INFO,    /* 0x000D */
+	FDMI_HBA_ATTRIB_NUM_PORTS,  /* 0x000E */
+	FDMI_HBA_ATTRIB_FABRIC_NAME,    /* 0x000F */
+	FDMI_HBA_ATTRIB_BIOS_VER,   /* 0x0010 */
+	FDMI_HBA_ATTRIB_VENDOR_ID = 0x00E0,
 
 	FDMI_HBA_ATTRIB_MAX_TYPE
 };
@@ -1685,6 +1551,15 @@ enum fdmi_port_attribute_type {
 	FDMI_PORT_ATTRIB_FRAME_SIZE,	/* 0x0004 */
 	FDMI_PORT_ATTRIB_DEV_NAME,	/* 0x0005 */
 	FDMI_PORT_ATTRIB_HOST_NAME,	/* 0x0006 */
+	FDMI_PORT_ATTRIB_NODE_NAME,     /* 0x0007 */
+	FDMI_PORT_ATTRIB_PORT_NAME,     /* 0x0008 */
+	FDMI_PORT_ATTRIB_PORT_SYM_NAME, /* 0x0009 */
+	FDMI_PORT_ATTRIB_PORT_TYPE,     /* 0x000A */
+	FDMI_PORT_ATTRIB_SUPP_COS,      /* 0x000B */
+	FDMI_PORT_ATTRIB_PORT_FAB_NAME, /* 0x000C */
+	FDMI_PORT_ATTRIB_PORT_FC4_TYPE, /* 0x000D */
+	FDMI_PORT_ATTRIB_PORT_STATE = 0x101,    /* 0x0101 */
+	FDMI_PORT_ATTRIB_PORT_NUM_RPRT = 0x102, /* 0x0102 */
 
 	FDMI_PORT_ATTR_MAX_TYPE
 };

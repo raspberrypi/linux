@@ -34,6 +34,8 @@ static inline void crypto_set_skcipher_spawn(
 int crypto_grab_skcipher(struct crypto_skcipher_spawn *spawn, const char *name,
 			 u32 type, u32 mask);
 
+struct crypto_alg *crypto_lookup_skcipher(const char *name, u32 type, u32 mask);
+
 static inline void crypto_drop_skcipher(struct crypto_skcipher_spawn *spawn)
 {
 	crypto_drop_spawn(&spawn->base);
@@ -79,8 +81,7 @@ static inline int skcipher_enqueue_givcrypt(
 static inline struct skcipher_givcrypt_request *skcipher_dequeue_givcrypt(
 	struct crypto_queue *queue)
 {
-	return __crypto_dequeue_request(
-		queue, offsetof(struct skcipher_givcrypt_request, creq.base));
+	return skcipher_givcrypt_cast(crypto_dequeue_request(queue));
 }
 
 static inline void *skcipher_givcrypt_reqctx(

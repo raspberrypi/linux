@@ -1,12 +1,12 @@
 /*
- *  Copyright (c) 2000-2010 LSI Corporation.
+ *  Copyright (c) 2000-2014 LSI Corporation.
  *
  *
  *           Name:  mpi2_init.h
  *          Title:  MPI SCSI initiator mode messages and structures
  *  Creation Date:  June 23, 2006
  *
- *    mpi2_init.h Version:  02.00.11
+ *    mpi2_init.h Version:  02.00.15
  *
  *  Version History
  *  ---------------
@@ -34,6 +34,11 @@
  *  02-10-10  02.00.09  Removed unused structure that had "#if 0" around it.
  *  05-12-10  02.00.10  Added optional vendor-unique region to SCSI IO Request.
  *  11-10-10  02.00.11  Added MPI2_SCSIIO_NUM_SGLOFFSETS define.
+ *  02-06-12  02.00.13  Added alternate defines for Task Priority / Command
+ *                      Priority to match SAM-4.
+ *  07-10-12  02.00.14  Added MPI2_SCSIIO_CONTROL_SHIFT_DATADIRECTION.
+ *  04-09-13  02.00.15  Added SCSIStatusQualifier field to MPI2_SCSI_IO_REPLY,
+ *			replacing the Reserved4 field.
  *  --------------------------------------------------------------------------
  */
 
@@ -187,6 +192,7 @@ typedef struct _MPI2_SCSI_IO_REQUEST
 #define MPI2_SCSIIO_CONTROL_ADDCDBLEN_SHIFT     (26)
 
 #define MPI2_SCSIIO_CONTROL_DATADIRECTION_MASK  (0x03000000)
+#define MPI2_SCSIIO_CONTROL_SHIFT_DATADIRECTION (24)
 #define MPI2_SCSIIO_CONTROL_NODATATRANSFER      (0x00000000)
 #define MPI2_SCSIIO_CONTROL_WRITE               (0x01000000)
 #define MPI2_SCSIIO_CONTROL_READ                (0x02000000)
@@ -194,6 +200,9 @@ typedef struct _MPI2_SCSI_IO_REQUEST
 
 #define MPI2_SCSIIO_CONTROL_TASKPRI_MASK        (0x00007800)
 #define MPI2_SCSIIO_CONTROL_TASKPRI_SHIFT       (11)
+/* alternate name for the previous field; called Command Priority in SAM-4 */
+#define MPI2_SCSIIO_CONTROL_CMDPRI_MASK         (0x00007800)
+#define MPI2_SCSIIO_CONTROL_CMDPRI_SHIFT        (11)
 
 #define MPI2_SCSIIO_CONTROL_TASKATTRIBUTE_MASK  (0x00000700)
 #define MPI2_SCSIIO_CONTROL_SIMPLEQ             (0x00000000)
@@ -227,7 +236,7 @@ typedef struct _MPI2_SCSI_IO_REPLY
     U32                     SenseCount;                     /* 0x18 */
     U32                     ResponseInfo;                   /* 0x1C */
     U16                     TaskTag;                        /* 0x20 */
-    U16                     Reserved4;                      /* 0x22 */
+	U16                     SCSIStatusQualifier;	     /* 0x22 */
     U32                     BidirectionalTransferCount;     /* 0x24 */
     U32                     Reserved5;                      /* 0x28 */
     U32                     Reserved6;                      /* 0x2C */

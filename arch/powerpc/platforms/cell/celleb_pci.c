@@ -401,11 +401,11 @@ error:
 	} else {
 		if (config && *config) {
 			size = 256;
-			free_bootmem((unsigned long)(*config), size);
+			free_bootmem(__pa(*config), size);
 		}
 		if (res && *res) {
 			size = sizeof(struct celleb_pci_resource);
-			free_bootmem((unsigned long)(*res), size);
+			free_bootmem(__pa(*res), size);
 		}
 	}
 
@@ -454,7 +454,7 @@ static struct celleb_phb_spec celleb_fake_pci_spec __initdata = {
 	.setup = celleb_setup_fake_pci,
 };
 
-static struct of_device_id celleb_phb_match[] __initdata = {
+static const struct of_device_id celleb_phb_match[] __initconst = {
 	{
 		.name = "pci-pseudo",
 		.data = &celleb_fake_pci_spec,
@@ -472,7 +472,7 @@ int __init celleb_setup_phb(struct pci_controller *phb)
 {
 	struct device_node *dev = phb->dn;
 	const struct of_device_id *match;
-	struct celleb_phb_spec *phb_spec;
+	const struct celleb_phb_spec *phb_spec;
 	int rc;
 
 	match = of_match_node(celleb_phb_match, dev);

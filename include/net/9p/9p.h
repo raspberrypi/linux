@@ -63,29 +63,15 @@ enum p9_debug_flags {
 
 #ifdef CONFIG_NET_9P_DEBUG
 extern unsigned int p9_debug_level;
-
-#define P9_DPRINTK(level, format, arg...) \
-do {  \
-	if ((p9_debug_level & level) == level) {\
-		if (level == P9_DEBUG_9P) \
-			printk(KERN_NOTICE "(%8.8d) " \
-			format , task_pid_nr(current) , ## arg); \
-		else \
-			printk(KERN_NOTICE "-- %s (%d): " \
-			format , __func__, task_pid_nr(current) , ## arg); \
-	} \
-} while (0)
-
+__printf(3, 4)
+void _p9_debug(enum p9_debug_flags level, const char *func,
+	       const char *fmt, ...);
+#define p9_debug(level, fmt, ...)			\
+	_p9_debug(level, __func__, fmt, ##__VA_ARGS__)
 #else
-#define P9_DPRINTK(level, format, arg...)  do { } while (0)
+#define p9_debug(level, fmt, ...)			\
+	no_printk(fmt, ##__VA_ARGS__)
 #endif
-
-
-#define P9_EPRINTK(level, format, arg...) \
-do { \
-	printk(level "9p: %s (%d): " \
-		format , __func__, task_pid_nr(current), ## arg); \
-} while (0)
 
 /**
  * enum p9_msg_t - 9P message types
@@ -421,17 +407,17 @@ struct p9_wstat {
 	char *gid;
 	char *muid;
 	char *extension;	/* 9p2000.u extensions */
-	u32 n_uid;		/* 9p2000.u extensions */
-	u32 n_gid;		/* 9p2000.u extensions */
-	u32 n_muid;		/* 9p2000.u extensions */
+	kuid_t n_uid;		/* 9p2000.u extensions */
+	kgid_t n_gid;		/* 9p2000.u extensions */
+	kuid_t n_muid;		/* 9p2000.u extensions */
 };
 
 struct p9_stat_dotl {
 	u64 st_result_mask;
 	struct p9_qid qid;
 	u32 st_mode;
-	u32 st_uid;
-	u32 st_gid;
+	kuid_t st_uid;
+	kgid_t st_gid;
 	u64 st_nlink;
 	u64 st_rdev;
 	u64 st_size;
@@ -485,8 +471,8 @@ struct p9_stat_dotl {
 struct p9_iattr_dotl {
 	u32 valid;
 	u32 mode;
-	u32 uid;
-	u32 gid;
+	kuid_t uid;
+	kgid_t gid;
 	u64 size;
 	u64 atime_sec;
 	u64 atime_nsec;

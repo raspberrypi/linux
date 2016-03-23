@@ -6,6 +6,17 @@
 # Licensed under the GPL
 #
 
+# select defconfig based on actual architecture
+ifeq ($(SUBARCH),x86)
+  ifeq ($(shell uname -m),x86_64)
+        KBUILD_DEFCONFIG := x86_64_defconfig
+  else
+        KBUILD_DEFCONFIG := i386_defconfig
+  endif
+else
+        KBUILD_DEFCONFIG := $(SUBARCH)_defconfig
+endif
+
 ARCH_DIR := arch/um
 OS := $(shell uname -s)
 # We require bash because the vmlinux link and loader script cpp use bash
@@ -22,12 +33,12 @@ MODE_INCLUDE	+= -I$(srctree)/$(ARCH_DIR)/include/shared/skas
 
 HEADER_ARCH 	:= $(SUBARCH)
 
-# Additional ARCH settings for x86
-ifeq ($(SUBARCH),i386)
-        HEADER_ARCH := x86
+ifneq ($(filter $(SUBARCH),x86 x86_64 i386),)
+	HEADER_ARCH := x86
 endif
-ifeq ($(SUBARCH),x86_64)
-        HEADER_ARCH := x86
+
+ifdef CONFIG_64BIT
+	KBUILD_CFLAGS += -mcmodel=large
 endif
 
 HOST_DIR := arch/$(HEADER_ARCH)
@@ -50,7 +61,7 @@ KBUILD_CPPFLAGS += -I$(srctree)/$(HOST_DIR)/um
 #
 # These apply to USER_CFLAGS to.
 
-KBUILD_CFLAGS += $(CFLAGS) $(CFLAGS-y) -D__arch_um__ -DSUBARCH=\"$(SUBARCH)\" \
+KBUILD_CFLAGS += $(CFLAGS) $(CFLAGS-y) -D__arch_um__ \
 	$(ARCH_INCLUDE) $(MODE_INCLUDE) -Dvmap=kernel_vmap	\
 	-Din6addr_loopback=kernel_in6addr_loopback \
 	-Din6addr_any=kernel_in6addr_any -Dstrrchr=kernel_strrchr
@@ -64,7 +75,10 @@ USER_CFLAGS = $(patsubst $(KERNEL_DEFINES),,$(patsubst -D__KERNEL__,,\
 #This will adjust *FLAGS accordingly to the platform.
 include $(srctree)/$(ARCH_DIR)/Makefile-os-$(OS)
 
-KBUILD_CPPFLAGS += -I$(srctree)/$(HOST_DIR)/include
+KBUILD_CPPFLAGS += -I$(srctree)/$(HOST_DIR)/include \
+		   -I$(srctree)/$(HOST_DIR)/include/uapi \
+		   -I$(HOST_DIR)/include/generated \
+		   -I$(HOST_DIR)/include/generated/uapi
 
 # -Derrno=kernel_errno - This turns all kernel references to errno into
 # kernel_errno to separate them from the libc errno.  This allows -fno-common
@@ -96,6 +110,9 @@ endef
 
 KBUILD_KCONFIG := $(HOST_DIR)/um/Kconfig
 
+archheaders:
+	$(Q)$(MAKE) KBUILD_SRC= ARCH=$(HEADER_ARCH) archheaders
+
 archprepare: include/generated/user_constants.h
 
 LINK-$(CONFIG_LD_SCRIPT_STATIC) += -static
@@ -115,15 +132,8 @@ LINK_WRAPS = -Wl,--wrap,malloc -Wl,--wrap,free -Wl,--wrap,calloc
 
 LD_FLAGS_CMDLINE = $(foreach opt,$(LDFLAGS),-Wl,$(opt))
 
-CFLAGS_vmlinux := $(LINK-y) $(LINK_WRAPS) $(LD_FLAGS_CMDLINE)
-define cmd_vmlinux__
-	$(CC) $(CFLAGS_vmlinux) -o $@ \
-	-Wl,-T,$(vmlinux-lds) $(vmlinux-init) \
-	-Wl,--start-group $(vmlinux-main) -Wl,--end-group \
-	-lutil \
-	$(filter-out $(vmlinux-lds) $(vmlinux-init) $(vmlinux-main) vmlinux.o \
-	FORCE ,$^) ; rm -f linux
-endef
+# Used by link-vmlinux.sh which has special support for um link
+export CFLAGS_vmlinux := $(LINK-y) $(LINK_WRAPS) $(LD_FLAGS_CMDLINE)
 
 # When cleaning we don't include .config, so we don't include
 # TT or skas makefiles and don't clean skas_ptregs.h.
@@ -135,7 +145,7 @@ archclean:
 
 # Generated files
 
-$(HOST_DIR)/um/user-offsets.s: FORCE
+$(HOST_DIR)/um/user-offsets.s: __headers FORCE
 	$(Q)$(MAKE) $(build)=$(HOST_DIR)/um $@
 
 define filechk_gen-asm-offsets

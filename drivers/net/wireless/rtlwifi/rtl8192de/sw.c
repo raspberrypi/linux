@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2009-2010  Realtek Corporation.
+ * Copyright(c) 2009-2012  Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -27,14 +27,10 @@
  *
  *****************************************************************************/
 
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
-
-#include <linux/vmalloc.h>
-#include <linux/module.h>
-
 #include "../wifi.h"
 #include "../core.h"
 #include "../pci.h"
+#include "../base.h"
 #include "reg.h"
 #include "def.h"
 #include "phy.h"
@@ -43,6 +39,8 @@
 #include "sw.h"
 #include "trx.h"
 #include "led.h"
+
+#include <linux/module.h>
 
 static void rtl92d_init_aspm_vars(struct ieee80211_hw *hw)
 {
@@ -94,8 +92,6 @@ static int rtl92d_init_sw_vars(struct ieee80211_hw *hw)
 	u8 tid;
 	struct rtl_priv *rtlpriv = rtl_priv(hw);
 	struct rtl_pci *rtlpci = rtl_pcidev(rtl_pcipriv(hw));
-	const struct firmware *firmware;
-	static int header_print;
 
 	rtlpriv->dm.dm_initialgain_enable = true;
 	rtlpriv->dm.dm_flag = 0;
@@ -154,9 +150,9 @@ static int rtl92d_init_sw_vars(struct ieee80211_hw *hw)
 	rtlpriv->psc.swctrl_lps = rtlpriv->cfg->mod_params->swctrl_lps;
 	rtlpriv->psc.fwctrl_lps = rtlpriv->cfg->mod_params->fwctrl_lps;
 	if (!rtlpriv->psc.inactiveps)
-		pr_info("rtl8192ce: Power Save off (module option)\n");
+		pr_info("Power Save off (module option)\n");
 	if (!rtlpriv->psc.fwctrl_lps)
-		pr_info("rtl8192ce: FW Power Save off (module option)\n");
+		pr_info("FW Power Save off (module option)\n");
 	rtlpriv->psc.reg_fwctrl_lps = 3;
 	rtlpriv->psc.reg_max_lps_awakeintvl = 5;
 	/* for ASPM, you can close aspm through
@@ -170,41 +166,33 @@ static int rtl92d_init_sw_vars(struct ieee80211_hw *hw)
 	else if (rtlpriv->psc.reg_fwctrl_lps == 3)
 		rtlpriv->psc.fwctrl_psmode = FW_PS_DTIM_MODE;
 
+	/* for early mode */
+	rtlpriv->rtlhal.earlymode_enable = false;
+	for (tid = 0; tid < 8; tid++)
+		skb_queue_head_init(&rtlpriv->mac80211.skb_waitq[tid]);
+
 	/* for firmware buf */
 	rtlpriv->rtlhal.pfirmware = vzalloc(0x8000);
 	if (!rtlpriv->rtlhal.pfirmware) {
 		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
-			 ("Can't alloc buffer for fw.\n"));
+			 "Can't alloc buffer for fw\n");
 		return 1;
 	}
 
-	if (!header_print) {
-		pr_info("Driver for Realtek RTL8192DE WLAN interface\n");
-		pr_info("Loading firmware file %s\n", rtlpriv->cfg->fw_name);
-		header_print++;
-	}
+	rtlpriv->max_fw_size = 0x8000;
+	pr_info("Driver for Realtek RTL8192DE WLAN interface\n");
+	pr_info("Loading firmware file %s\n", rtlpriv->cfg->fw_name);
+
 	/* request fw */
-	err = request_firmware(&firmware, rtlpriv->cfg->fw_name,
-			       rtlpriv->io.dev);
+	err = request_firmware_nowait(THIS_MODULE, 1, rtlpriv->cfg->fw_name,
+				      rtlpriv->io.dev, GFP_KERNEL, hw,
+				      rtl_fw_cb);
 	if (err) {
 		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
-			 ("Failed to request firmware!\n"));
+			 "Failed to request firmware!\n");
 		return 1;
 	}
-	if (firmware->size > 0x8000) {
-		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
-			 ("Firmware is too big!\n"));
-		release_firmware(firmware);
-		return 1;
-	}
-	memcpy(rtlpriv->rtlhal.pfirmware, firmware->data, firmware->size);
-	rtlpriv->rtlhal.fwsize = firmware->size;
-	release_firmware(firmware);
 
-	/* for early mode */
-	rtlpriv->rtlhal.earlymode_enable = true;
-	for (tid = 0; tid < 8; tid++)
-		skb_queue_head_init(&rtlpriv->mac80211.skb_waitq[tid]);
 	return 0;
 }
 
@@ -249,7 +237,7 @@ static struct rtl_hal_ops rtl8192de_hal_ops = {
 	.set_bw_mode = rtl92d_phy_set_bw_mode,
 	.switch_channel = rtl92d_phy_sw_chnl,
 	.dm_watchdog = rtl92d_dm_watchdog,
-	.scan_operation_backup = rtl92d_phy_scan_operation_backup,
+	.scan_operation_backup = rtl_phy_scan_operation_backup,
 	.set_rf_power_state = rtl92d_phy_set_rf_power_state,
 	.led_control = rtl92de_led_control,
 	.set_desc = rtl92de_set_desc,
@@ -263,6 +251,7 @@ static struct rtl_hal_ops rtl8192de_hal_ops = {
 	.get_rfreg = rtl92d_phy_query_rf_reg,
 	.set_rfreg = rtl92d_phy_set_rf_reg,
 	.linked_set_reg = rtl92d_linked_set_reg,
+	.get_btc_status = rtl_btc_status_false,
 };
 
 static struct rtl_mod_params rtl92de_mod_params = {
@@ -332,7 +321,7 @@ static struct rtl_hal_cfg rtl92de_hal_cfg = {
 
 	.maps[RTL_IMR_TXFOVW] = IMR_TXFOVW,
 	.maps[RTL_IMR_PSTIMEOUT] = IMR_PSTIMEOUT,
-	.maps[RTL_IMR_BcnInt] = IMR_BcnInt,
+	.maps[RTL_IMR_BCNINT] = IMR_BCNINT,
 	.maps[RTL_IMR_RXFOVW] = IMR_RXFOVW,
 	.maps[RTL_IMR_RDU] = IMR_RDU,
 	.maps[RTL_IMR_ATIMEND] = IMR_ATIMEND,
@@ -346,7 +335,7 @@ static struct rtl_hal_cfg rtl92de_hal_cfg = {
 	.maps[RTL_IMR_VIDOK] = IMR_VIDOK,
 	.maps[RTL_IMR_VODOK] = IMR_VODOK,
 	.maps[RTL_IMR_ROK] = IMR_ROK,
-	.maps[RTL_IBSS_INT_MASKS] = (IMR_BcnInt | IMR_TBDOK | IMR_TBDER),
+	.maps[RTL_IBSS_INT_MASKS] = (IMR_BCNINT | IMR_TBDOK | IMR_TBDER),
 
 	.maps[RTL_RC_CCK_RATE1M] = DESC92_RATE1M,
 	.maps[RTL_RC_CCK_RATE2M] = DESC92_RATE2M,
@@ -365,7 +354,7 @@ static struct rtl_hal_cfg rtl92de_hal_cfg = {
 	.maps[RTL_RC_HT_RATEMCS15] = DESC92_RATEMCS15,
 };
 
-static struct pci_device_id rtl92de_pci_ids[] __devinitdata = {
+static struct pci_device_id rtl92de_pci_ids[] = {
 	{RTL_PCI_DEVICE(PCI_VENDOR_ID_REALTEK, 0x8193, rtl92de_hal_cfg)},
 	{RTL_PCI_DEVICE(PCI_VENDOR_ID_REALTEK, 0x002B, rtl92de_hal_cfg)},
 	{},
@@ -391,14 +380,7 @@ MODULE_PARM_DESC(swlps, "Set to 1 to use SW control power save (default 0)\n");
 MODULE_PARM_DESC(fwlps, "Set to 1 to use FW control power save (default 1)\n");
 MODULE_PARM_DESC(debug, "Set debug level (0-5) (default 0)");
 
-static const struct dev_pm_ops rtlwifi_pm_ops = {
-	.suspend = rtl_pci_suspend,
-	.resume = rtl_pci_resume,
-	.freeze = rtl_pci_suspend,
-	.thaw = rtl_pci_resume,
-	.poweroff = rtl_pci_suspend,
-	.restore = rtl_pci_resume,
-};
+static SIMPLE_DEV_PM_OPS(rtlwifi_pm_ops, rtl_pci_suspend, rtl_pci_resume);
 
 static struct pci_driver rtl92de_driver = {
 	.name = KBUILD_MODNAME,
@@ -424,7 +406,7 @@ static int __init rtl92de_module_init(void)
 
 	ret = pci_register_driver(&rtl92de_driver);
 	if (ret)
-		RT_ASSERT(false, (": No device found\n"));
+		RT_ASSERT(false, "No device found\n");
 	return ret;
 }
 

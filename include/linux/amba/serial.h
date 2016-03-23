@@ -23,6 +23,8 @@
 #ifndef ASM_ARM_HARDWARE_SERIAL_AMBA_H
 #define ASM_ARM_HARDWARE_SERIAL_AMBA_H
 
+#include <linux/types.h>
+
 /* -------------------------------------------------------------------------------
  *  From AMBA UART (PL010) Block Specification
  * -------------------------------------------------------------------------------
@@ -38,7 +40,7 @@
 #define UART010_LCRL		0x10	/* Line control register, low byte. */
 #define UART010_CR		0x14	/* Control register. */
 #define UART01x_FR		0x18	/* Flag register (Read only). */
-#define UART010_IIR		0x1C	/* Interrupt indentification register (Read). */
+#define UART010_IIR		0x1C	/* Interrupt identification register (Read). */
 #define UART010_ICR		0x1C	/* Interrupt clear register (Write). */
 #define ST_UART011_LCRH_RX	0x1C    /* Rx line control register. */
 #define UART01x_ILPR		0x20	/* IrDA low power counter register. */
@@ -201,9 +203,11 @@ struct amba_pl011_data {
 	bool (*dma_filter)(struct dma_chan *chan, void *filter_param);
 	void *dma_rx_param;
 	void *dma_tx_param;
+	bool dma_rx_poll_enable;
+	unsigned int dma_rx_poll_rate;
+	unsigned int dma_rx_poll_timeout;
         void (*init) (void);
 	void (*exit) (void);
-	void (*reset) (void);
 };
 #endif
 

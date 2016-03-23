@@ -37,6 +37,7 @@
 #define WM8962_GPIO_FN_MICSCD          22
 
 struct wm8962_pdata {
+	struct clk *mclk;
 	int gpio_base;
 	u32 gpio_init[WM8962_MAX_GPIO];
 
@@ -49,6 +50,12 @@ struct wm8962_pdata {
 	bool irq_active_low;
 
 	bool spk_mono;   /* Speaker outputs tied together as mono */
+
+	/**
+	 * This flag should be set if one or both IN4 inputs is wired
+	 * in a DC measurement configuration.
+	 */
+	bool in4_dc_measure;
 };
 
 #endif

@@ -31,16 +31,16 @@
 #include <linux/sched.h>
 #include <asm/elf.h>
 
-struct __read_mostly va_alignment va_align = {
+struct va_alignment __read_mostly va_align = {
 	.flags = -1,
 };
 
-static unsigned int stack_maxrandom_size(void)
+static unsigned long stack_maxrandom_size(void)
 {
-	unsigned int max = 0;
+	unsigned long max = 0;
 	if ((current->flags & PF_RANDOMIZE) &&
 		!(current->personality & ADDR_NO_RANDOMIZE)) {
-		max = ((-1U) & STACK_RND_MASK) << PAGE_SHIFT;
+		max = ((-1UL) & STACK_RND_MASK) << PAGE_SHIFT;
 	}
 
 	return max;
@@ -75,9 +75,9 @@ static unsigned long mmap_rnd(void)
 	*/
 	if (current->flags & PF_RANDOMIZE) {
 		if (mmap_is_ia32())
-			rnd = (long)get_random_int() % (1<<8);
+			rnd = get_random_int() % (1<<8);
 		else
-			rnd = (long)(get_random_int() % (1<<28));
+			rnd = get_random_int() % (1<<28);
 	}
 	return rnd << PAGE_SHIFT;
 }
@@ -112,13 +112,13 @@ static unsigned long mmap_legacy_base(void)
  */
 void arch_pick_mmap_layout(struct mm_struct *mm)
 {
+	mm->mmap_legacy_base = mmap_legacy_base();
+	mm->mmap_base = mmap_base();
+
 	if (mmap_is_legacy()) {
-		mm->mmap_base = mmap_legacy_base();
+		mm->mmap_base = mm->mmap_legacy_base;
 		mm->get_unmapped_area = arch_get_unmapped_area;
-		mm->unmap_area = arch_unmap_area;
 	} else {
-		mm->mmap_base = mmap_base();
 		mm->get_unmapped_area = arch_get_unmapped_area_topdown;
-		mm->unmap_area = arch_unmap_area_topdown;
 	}
 }

@@ -3,6 +3,7 @@
  *  NFC Controller (NFCC) and a Device Host (DH).
  *
  *  Copyright (C) 2011 Texas Instruments, Inc.
+ *  Copyright (C) 2013 Intel Corporation. All rights reserved.
  *
  *  Written by Ilan Elias <ilane@ti.com>
  *
@@ -20,8 +21,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -34,31 +34,45 @@
 #include <net/nfc/nfc.h>
 #include <net/nfc/nci.h>
 
-/* NCI device state */
-enum {
+/* NCI device flags */
+enum nci_flag {
 	NCI_INIT,
 	NCI_UP,
-	NCI_DISCOVERY,
-	NCI_POLL_ACTIVE,
 	NCI_DATA_EXCHANGE,
+	NCI_DATA_EXCHANGE_TO,
+};
+
+/* NCI device states */
+enum nci_state {
+	NCI_IDLE,
+	NCI_DISCOVERY,
+	NCI_W4_ALL_DISCOVERIES,
+	NCI_W4_HOST_SELECT,
+	NCI_POLL_ACTIVE,
 };
 
 /* NCI timeouts */
 #define NCI_RESET_TIMEOUT			5000
 #define NCI_INIT_TIMEOUT			5000
+#define NCI_SET_CONFIG_TIMEOUT			5000
 #define NCI_RF_DISC_TIMEOUT			5000
-#define NCI_RF_DEACTIVATE_TIMEOUT		5000
+#define NCI_RF_DISC_SELECT_TIMEOUT		5000
+#define NCI_RF_DEACTIVATE_TIMEOUT		30000
 #define NCI_CMD_TIMEOUT				5000
+#define NCI_DATA_TIMEOUT			700
 
 struct nci_dev;
 
 struct nci_ops {
-	int (*open)(struct nci_dev *ndev);
-	int (*close)(struct nci_dev *ndev);
-	int (*send)(struct sk_buff *skb);
+	int   (*open)(struct nci_dev *ndev);
+	int   (*close)(struct nci_dev *ndev);
+	int   (*send)(struct nci_dev *ndev, struct sk_buff *skb);
+	int   (*setup)(struct nci_dev *ndev);
+	__u32 (*get_rfprotocol)(struct nci_dev *ndev, __u8 rf_protocol);
 };
 
 #define NCI_MAX_SUPPORTED_RF_INTERFACES		4
+#define NCI_MAX_DISCOVERED_TARGETS		10
 
 /* NCI Core structures */
 struct nci_dev {
@@ -68,12 +82,14 @@ struct nci_dev {
 	int			tx_headroom;
 	int			tx_tailroom;
 
+	atomic_t		state;
 	unsigned long		flags;
 
 	atomic_t		cmd_cnt;
 	atomic_t		credits_cnt;
 
 	struct timer_list	cmd_timer;
+	struct timer_list	data_timer;
 
 	struct workqueue_struct	*cmd_wq;
 	struct work_struct	cmd_work;
@@ -96,8 +112,10 @@ struct nci_dev {
 	void			*driver_data;
 
 	__u32			poll_prots;
-	__u32			target_available_prots;
 	__u32			target_active_prot;
+
+	struct nfc_target	targets[NCI_MAX_DISCOVERED_TARGETS];
+	int			n_targets;
 
 	/* received during NCI_OP_CORE_RESET_RSP */
 	__u8			nci_ver;
@@ -122,21 +140,26 @@ struct nci_dev {
 	data_exchange_cb_t	data_exchange_cb;
 	void			*data_exchange_cb_context;
 	struct sk_buff		*rx_data_reassembly;
+
+	/* stored during intf_activated_ntf */
+	__u8 remote_gb[NFC_MAX_GT_LEN];
+	__u8 remote_gb_len;
 };
 
 /* ----- NCI Devices ----- */
 struct nci_dev *nci_allocate_device(struct nci_ops *ops,
-				__u32 supported_protocols,
-				int tx_headroom,
-				int tx_tailroom);
+				    __u32 supported_protocols,
+				    int tx_headroom,
+				    int tx_tailroom);
 void nci_free_device(struct nci_dev *ndev);
 int nci_register_device(struct nci_dev *ndev);
 void nci_unregister_device(struct nci_dev *ndev);
-int nci_recv_frame(struct sk_buff *skb);
+int nci_recv_frame(struct nci_dev *ndev, struct sk_buff *skb);
+int nci_set_config(struct nci_dev *ndev, __u8 id, size_t len, __u8 *val);
 
 static inline struct sk_buff *nci_skb_alloc(struct nci_dev *ndev,
-						unsigned int len,
-						gfp_t how)
+					    unsigned int len,
+					    gfp_t how)
 {
 	struct sk_buff *skb;
 
@@ -169,6 +192,7 @@ int nci_send_cmd(struct nci_dev *ndev, __u16 opcode, __u8 plen, void *payload);
 int nci_send_data(struct nci_dev *ndev, __u8 conn_id, struct sk_buff *skb);
 void nci_data_exchange_complete(struct nci_dev *ndev, struct sk_buff *skb,
 				int err);
+void nci_clear_target_list(struct nci_dev *ndev);
 
 /* ----- NCI requests ----- */
 #define NCI_REQ_DONE		0
@@ -179,5 +203,31 @@ void nci_req_complete(struct nci_dev *ndev, int result);
 
 /* ----- NCI status code ----- */
 int nci_to_errno(__u8 code);
+
+/* ----- NCI over SPI acknowledge modes ----- */
+#define NCI_SPI_CRC_DISABLED	0x00
+#define NCI_SPI_CRC_ENABLED	0x01
+
+/* ----- NCI SPI structures ----- */
+struct nci_spi {
+	struct nci_dev		*ndev;
+	struct spi_device	*spi;
+
+	unsigned int		xfer_udelay;	/* microseconds delay between
+						  transactions */
+	u8			acknowledge_mode;
+
+	struct completion	req_completion;
+	u8			req_result;
+};
+
+/* ----- NCI SPI ----- */
+struct nci_spi *nci_spi_allocate_spi(struct spi_device *spi,
+				     u8 acknowledge_mode, unsigned int delay,
+				     struct nci_dev *ndev);
+int nci_spi_send(struct nci_spi *nspi,
+		 struct completion *write_handshake_completion,
+		 struct sk_buff *skb);
+struct sk_buff *nci_spi_read(struct nci_spi *nspi);
 
 #endif /* __NCI_CORE_H */

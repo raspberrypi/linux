@@ -32,7 +32,6 @@
  * **********************
  */
 #include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/string.h>
@@ -47,7 +46,6 @@
 #include <pcmcia/ds.h>
 
 #include <asm/io.h>
-#include <asm/system.h>
 
 #define VERSION "arcnet: COM20020 PCMCIA support loaded.\n"
 
@@ -114,20 +112,16 @@ static void com20020_detach(struct pcmcia_device *p_dev);
 
 /*====================================================================*/
 
-typedef struct com20020_dev_t {
-    struct net_device       *dev;
-} com20020_dev_t;
-
 static int com20020_probe(struct pcmcia_device *p_dev)
 {
-    com20020_dev_t *info;
+    struct com20020_dev *info;
     struct net_device *dev;
     struct arcnet_local *lp;
 
     dev_dbg(&p_dev->dev, "com20020_attach()\n");
 
     /* Create new network device */
-    info = kzalloc(sizeof(struct com20020_dev_t), GFP_KERNEL);
+    info = kzalloc(sizeof(*info), GFP_KERNEL);
     if (!info)
 	goto fail_alloc_info;
 
@@ -162,7 +156,7 @@ fail_alloc_info:
 
 static void com20020_detach(struct pcmcia_device *link)
 {
-    struct com20020_dev_t *info = link->priv;
+    struct com20020_dev *info = link->priv;
     struct net_device *dev = info->dev;
 
     dev_dbg(&link->dev, "detach...\n");
@@ -201,7 +195,7 @@ static void com20020_detach(struct pcmcia_device *link)
 static int com20020_config(struct pcmcia_device *link)
 {
     struct arcnet_local *lp;
-    com20020_dev_t *info;
+    struct com20020_dev *info;
     struct net_device *dev;
     int i, ret;
     int ioaddr;
@@ -293,7 +287,7 @@ static void com20020_release(struct pcmcia_device *link)
 
 static int com20020_suspend(struct pcmcia_device *link)
 {
-	com20020_dev_t *info = link->priv;
+	struct com20020_dev *info = link->priv;
 	struct net_device *dev = info->dev;
 
 	if (link->open)
@@ -304,7 +298,7 @@ static int com20020_suspend(struct pcmcia_device *link)
 
 static int com20020_resume(struct pcmcia_device *link)
 {
-	com20020_dev_t *info = link->priv;
+	struct com20020_dev *info = link->priv;
 	struct net_device *dev = info->dev;
 
 	if (link->open) {
@@ -334,16 +328,4 @@ static struct pcmcia_driver com20020_cs_driver = {
 	.suspend	= com20020_suspend,
 	.resume		= com20020_resume,
 };
-
-static int __init init_com20020_cs(void)
-{
-	return pcmcia_register_driver(&com20020_cs_driver);
-}
-
-static void __exit exit_com20020_cs(void)
-{
-	pcmcia_unregister_driver(&com20020_cs_driver);
-}
-
-module_init(init_com20020_cs);
-module_exit(exit_com20020_cs);
+module_pcmcia_driver(com20020_cs_driver);

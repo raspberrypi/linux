@@ -78,7 +78,7 @@ static int pcrypt_do_parallel(struct padata_priv *padata, unsigned int *cb_cpu,
 	cpu = *cb_cpu;
 
 	rcu_read_lock_bh();
-	cpumask = rcu_dereference(pcrypt->cb_cpumask);
+	cpumask = rcu_dereference_bh(pcrypt->cb_cpumask);
 	if (cpumask_test_cpu(cpu, cpumask->mask))
 			goto out;
 
@@ -280,11 +280,11 @@ static int pcrypt_aead_init_tfm(struct crypto_tfm *tfm)
 
 	ictx->tfm_count++;
 
-	cpu_index = ictx->tfm_count % cpumask_weight(cpu_active_mask);
+	cpu_index = ictx->tfm_count % cpumask_weight(cpu_online_mask);
 
-	ctx->cb_cpu = cpumask_first(cpu_active_mask);
+	ctx->cb_cpu = cpumask_first(cpu_online_mask);
 	for (cpu = 0; cpu < cpu_index; cpu++)
-		ctx->cb_cpu = cpumask_next(ctx->cb_cpu, cpu_active_mask);
+		ctx->cb_cpu = cpumask_next(ctx->cb_cpu, cpu_online_mask);
 
 	cipher = crypto_spawn_aead(crypto_instance_ctx(inst));
 
@@ -455,8 +455,8 @@ static int pcrypt_init_padata(struct padata_pcrypt *pcrypt,
 
 	get_online_cpus();
 
-	pcrypt->wq = alloc_workqueue(name,
-				     WQ_MEM_RECLAIM | WQ_CPU_INTENSIVE, 1);
+	pcrypt->wq = alloc_workqueue("%s", WQ_MEM_RECLAIM | WQ_CPU_INTENSIVE,
+				     1, name);
 	if (!pcrypt->wq)
 		goto err;
 
@@ -472,7 +472,7 @@ static int pcrypt_init_padata(struct padata_pcrypt *pcrypt,
 		goto err_free_padata;
 	}
 
-	cpumask_and(mask->mask, cpu_possible_mask, cpu_active_mask);
+	cpumask_and(mask->mask, cpu_possible_mask, cpu_online_mask);
 	rcu_assign_pointer(pcrypt->cb_cpumask, mask);
 
 	pcrypt->nblock.notifier_call = pcrypt_cpumask_change_notify;
@@ -565,3 +565,4 @@ module_exit(pcrypt_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Steffen Klassert <steffen.klassert@secunet.com>");
 MODULE_DESCRIPTION("Parallel crypto wrapper");
+MODULE_ALIAS_CRYPTO("pcrypt");

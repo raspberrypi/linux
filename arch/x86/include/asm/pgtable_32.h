@@ -32,9 +32,6 @@ static inline void pgtable_cache_init(void) { }
 static inline void check_pgt_cache(void) { }
 void paging_init(void);
 
-extern void set_pmd_pfn(unsigned long, unsigned long, pgprot_t);
-
-
 /*
  * Define this if things work differently on an i386 and an i486:
  * it will (on an i486) warn about kernel memory accesses that are
@@ -65,12 +62,6 @@ do {						\
 	pte_clear(&init_mm, (vaddr), (ptep));	\
 	__flush_tlb_one((vaddr));		\
 } while (0)
-
-/*
- * The i386 doesn't have any external MMU info: the kernel page
- * tables contain all the necessary information.
- */
-#define update_mmu_cache(vma, address, ptep) do { } while (0)
 
 #endif /* !__ASSEMBLY__ */
 

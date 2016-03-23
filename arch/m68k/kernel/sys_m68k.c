@@ -376,7 +376,6 @@ cache_flush_060 (unsigned long addr, int scope, int cache, unsigned long len)
 asmlinkage int
 sys_cacheflush (unsigned long addr, int scope, int cache, unsigned long len)
 {
-	struct vm_area_struct *vma;
 	int ret = -EINVAL;
 
 	if (scope < FLUSH_SCOPE_LINE || scope > FLUSH_SCOPE_ALL ||
@@ -389,17 +388,21 @@ sys_cacheflush (unsigned long addr, int scope, int cache, unsigned long len)
 		if (!capable(CAP_SYS_ADMIN))
 			goto out;
 	} else {
+		struct vm_area_struct *vma;
+
+		/* Check for overflow.  */
+		if (addr + len < addr)
+			goto out;
+
 		/*
 		 * Verify that the specified address region actually belongs
 		 * to this process.
 		 */
-		vma = find_vma (current->mm, addr);
 		ret = -EINVAL;
-		/* Check for overflow.  */
-		if (addr + len < addr)
-			goto out;
-		if (vma == NULL || addr < vma->vm_start || addr + len > vma->vm_end)
-			goto out;
+		down_read(&current->mm->mmap_sem);
+		vma = find_vma(current->mm, addr);
+		if (!vma || addr < vma->vm_start || addr + len > vma->vm_end)
+			goto out_unlock;
 	}
 
 	if (CPU_IS_020_OR_030) {
@@ -429,7 +432,7 @@ sys_cacheflush (unsigned long addr, int scope, int cache, unsigned long len)
 			__asm__ __volatile__ ("movec %0, %%cacr" : : "r" (cacr));
 		}
 		ret = 0;
-		goto out;
+		goto out_unlock;
 	} else {
 	    /*
 	     * 040 or 060: don't blindly trust 'scope', someone could
@@ -446,6 +449,8 @@ sys_cacheflush (unsigned long addr, int scope, int cache, unsigned long len)
 		ret = cache_flush_060 (addr, scope, cache, len);
 	    }
 	}
+out_unlock:
+	up_read(&current->mm->mmap_sem);
 out:
 	return ret;
 }
@@ -479,9 +484,13 @@ sys_atomic_cmpxchg_32(unsigned long newval, int oldval, int d3, int d4, int d5,
 			goto bad_access;
 		}
 
-		mem_value = *mem;
+		/*
+		 * No need to check for EFAULT; we know that the page is
+		 * present and writable.
+		 */
+		__get_user(mem_value, mem);
 		if (mem_value == oldval)
-			*mem = newval;
+			__put_user(newval, mem);
 
 		pte_unmap_unlock(pte, ptl);
 		up_read(&mm->mmap_sem);
@@ -543,23 +552,6 @@ sys_atomic_cmpxchg_32(unsigned long newval, int oldval, int d3, int d4, int d5,
 asmlinkage int sys_getpagesize(void)
 {
 	return PAGE_SIZE;
-}
-
-/*
- * Do a system call from kernel instead of calling sys_execve so we
- * end up with proper pt_regs.
- */
-int kernel_execve(const char *filename,
-		  const char *const argv[],
-		  const char *const envp[])
-{
-	register long __res asm ("%d0") = __NR_execve;
-	register long __a asm ("%d1") = (long)(filename);
-	register long __b asm ("%d2") = (long)(argv);
-	register long __c asm ("%d3") = (long)(envp);
-	asm volatile ("trap  #0" : "+d" (__res)
-			: "d" (__a), "d" (__b), "d" (__c));
-	return __res;
 }
 
 asmlinkage unsigned long sys_get_thread_area(void)

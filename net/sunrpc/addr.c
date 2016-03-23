@@ -17,7 +17,8 @@
  */
 
 #include <net/ipv6.h>
-#include <linux/sunrpc/clnt.h>
+#include <linux/sunrpc/addr.h>
+#include <linux/sunrpc/msg_prot.h>
 #include <linux/slab.h>
 #include <linux/export.h>
 
@@ -156,8 +157,9 @@ static size_t rpc_pton4(const char *buf, const size_t buflen,
 }
 
 #if IS_ENABLED(CONFIG_IPV6)
-static int rpc_parse_scope_id(const char *buf, const size_t buflen,
-			      const char *delim, struct sockaddr_in6 *sin6)
+static int rpc_parse_scope_id(struct net *net, const char *buf,
+			      const size_t buflen, const char *delim,
+			      struct sockaddr_in6 *sin6)
 {
 	char *p;
 	size_t len;
@@ -174,15 +176,15 @@ static int rpc_parse_scope_id(const char *buf, const size_t buflen,
 	len = (buf + buflen) - delim - 1;
 	p = kstrndup(delim + 1, len, GFP_KERNEL);
 	if (p) {
-		unsigned long scope_id = 0;
+		u32 scope_id = 0;
 		struct net_device *dev;
 
-		dev = dev_get_by_name(&init_net, p);
+		dev = dev_get_by_name(net, p);
 		if (dev != NULL) {
 			scope_id = dev->ifindex;
 			dev_put(dev);
 		} else {
-			if (strict_strtoul(p, 10, &scope_id) == 0) {
+			if (kstrtou32(p, 10, &scope_id) == 0) {
 				kfree(p);
 				return 0;
 			}
@@ -197,7 +199,7 @@ static int rpc_parse_scope_id(const char *buf, const size_t buflen,
 	return 0;
 }
 
-static size_t rpc_pton6(const char *buf, const size_t buflen,
+static size_t rpc_pton6(struct net *net, const char *buf, const size_t buflen,
 			struct sockaddr *sap, const size_t salen)
 {
 	struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)sap;
@@ -213,14 +215,14 @@ static size_t rpc_pton6(const char *buf, const size_t buflen,
 	if (in6_pton(buf, buflen, addr, IPV6_SCOPE_DELIMITER, &delim) == 0)
 		return 0;
 
-	if (!rpc_parse_scope_id(buf, buflen, delim, sin6))
+	if (!rpc_parse_scope_id(net, buf, buflen, delim, sin6))
 		return 0;
 
 	sin6->sin6_family = AF_INET6;
 	return sizeof(struct sockaddr_in6);
 }
 #else
-static size_t rpc_pton6(const char *buf, const size_t buflen,
+static size_t rpc_pton6(struct net *net, const char *buf, const size_t buflen,
 			struct sockaddr *sap, const size_t salen)
 {
 	return 0;
@@ -229,6 +231,7 @@ static size_t rpc_pton6(const char *buf, const size_t buflen,
 
 /**
  * rpc_pton - Construct a sockaddr in @sap
+ * @net: applicable network namespace
  * @buf: C string containing presentation format IP address
  * @buflen: length of presentation address in bytes
  * @sap: buffer into which to plant socket address
@@ -241,14 +244,14 @@ static size_t rpc_pton6(const char *buf, const size_t buflen,
  * socket address, if successful.  Returns zero if an error
  * occurred.
  */
-size_t rpc_pton(const char *buf, const size_t buflen,
+size_t rpc_pton(struct net *net, const char *buf, const size_t buflen,
 		struct sockaddr *sap, const size_t salen)
 {
 	unsigned int i;
 
 	for (i = 0; i < buflen; i++)
 		if (buf[i] == ':')
-			return rpc_pton6(buf, buflen, sap, salen);
+			return rpc_pton6(net, buf, buflen, sap, salen);
 	return rpc_pton4(buf, buflen, sap, salen);
 }
 EXPORT_SYMBOL_GPL(rpc_pton);
@@ -295,22 +298,24 @@ char *rpc_sockaddr2uaddr(const struct sockaddr *sap, gfp_t gfp_flags)
 
 /**
  * rpc_uaddr2sockaddr - convert a universal address to a socket address.
+ * @net: applicable network namespace
  * @uaddr: C string containing universal address to convert
  * @uaddr_len: length of universal address string
  * @sap: buffer into which to plant socket address
  * @salen: size of buffer
  *
- * @uaddr does not have to be '\0'-terminated, but strict_strtoul() and
+ * @uaddr does not have to be '\0'-terminated, but kstrtou8() and
  * rpc_pton() require proper string termination to be successful.
  *
  * Returns the size of the socket address if successful; otherwise
  * zero is returned.
  */
-size_t rpc_uaddr2sockaddr(const char *uaddr, const size_t uaddr_len,
-			  struct sockaddr *sap, const size_t salen)
+size_t rpc_uaddr2sockaddr(struct net *net, const char *uaddr,
+			  const size_t uaddr_len, struct sockaddr *sap,
+			  const size_t salen)
 {
 	char *c, buf[RPCBIND_MAXUADDRLEN + sizeof('\0')];
-	unsigned long portlo, porthi;
+	u8 portlo, porthi;
 	unsigned short port;
 
 	if (uaddr_len > RPCBIND_MAXUADDRLEN)
@@ -322,24 +327,20 @@ size_t rpc_uaddr2sockaddr(const char *uaddr, const size_t uaddr_len,
 	c = strrchr(buf, '.');
 	if (unlikely(c == NULL))
 		return 0;
-	if (unlikely(strict_strtoul(c + 1, 10, &portlo) != 0))
-		return 0;
-	if (unlikely(portlo > 255))
+	if (unlikely(kstrtou8(c + 1, 10, &portlo) != 0))
 		return 0;
 
 	*c = '\0';
 	c = strrchr(buf, '.');
 	if (unlikely(c == NULL))
 		return 0;
-	if (unlikely(strict_strtoul(c + 1, 10, &porthi) != 0))
-		return 0;
-	if (unlikely(porthi > 255))
+	if (unlikely(kstrtou8(c + 1, 10, &porthi) != 0))
 		return 0;
 
 	port = (unsigned short)((porthi << 8) | portlo);
 
 	*c = '\0';
-	if (rpc_pton(buf, strlen(buf), sap, salen) == 0)
+	if (rpc_pton(net, buf, strlen(buf), sap, salen) == 0)
 		return 0;
 
 	switch (sap->sa_family) {

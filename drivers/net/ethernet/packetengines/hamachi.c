@@ -166,7 +166,7 @@ static int tx_params[MAX_UNITS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 #include <asm/unaligned.h>
 #include <asm/cache.h>
 
-static const char version[] __devinitconst =
+static const char version[] =
 KERN_INFO DRV_NAME ".c:v" DRV_VERSION " " DRV_RELDATE "  Written by Donald Becker\n"
 "   Some modifications by Eric kasten <kasten@nscl.msu.edu>\n"
 "   Further modifications by Keith Underwood <keithu@parl.clemson.edu>\n";
@@ -576,8 +576,8 @@ static const struct net_device_ops hamachi_netdev_ops = {
 };
 
 
-static int __devinit hamachi_init_one (struct pci_dev *pdev,
-				    const struct pci_device_id *ent)
+static int hamachi_init_one(struct pci_dev *pdev,
+			    const struct pci_device_id *ent)
 {
 	struct hamachi_private *hmp;
 	int option, i, rx_int_var, tx_int_var, boguscnt;
@@ -683,8 +683,6 @@ static int __devinit hamachi_init_one (struct pci_dev *pdev,
 	}
 
 	hmp->base = ioaddr;
-	dev->base_addr = (unsigned long)ioaddr;
-	dev->irq = irq;
 	pci_set_drvdata(pdev, dev);
 
 	hmp->chip_id = chip_id;
@@ -726,10 +724,8 @@ static int __devinit hamachi_init_one (struct pci_dev *pdev,
 
 	/* The Hamachi-specific entries in the device structure. */
 	dev->netdev_ops = &hamachi_netdev_ops;
-	if (chip_tbl[hmp->chip_id].flags & CanHaveMII)
-		SET_ETHTOOL_OPS(dev, &ethtool_ops);
-	else
-		SET_ETHTOOL_OPS(dev, &ethtool_ops_no_mii);
+	dev->ethtool_ops = (chip_tbl[hmp->chip_id].flags & CanHaveMII) ?
+		&ethtool_ops : &ethtool_ops_no_mii;
 	dev->watchdog_timeo = TX_TIMEOUT;
 	if (mtu)
 		dev->mtu = mtu;
@@ -793,7 +789,7 @@ err_out:
 	return ret;
 }
 
-static int __devinit read_eeprom(void __iomem *ioaddr, int location)
+static int read_eeprom(void __iomem *ioaddr, int location)
 {
 	int bogus_cnt = 1000;
 
@@ -859,13 +855,10 @@ static int hamachi_open(struct net_device *dev)
 	u32 rx_int_var, tx_int_var;
 	u16 fifo_info;
 
-	i = request_irq(dev->irq, hamachi_interrupt, IRQF_SHARED, dev->name, dev);
+	i = request_irq(hmp->pci_dev->irq, hamachi_interrupt, IRQF_SHARED,
+			dev->name, dev);
 	if (i)
 		return i;
-
-	if (hamachi_debug > 1)
-		printk(KERN_DEBUG "%s: hamachi_open() irq %d.\n",
-			   dev->name, dev->irq);
 
 	hamachi_init_ring(dev);
 
@@ -1188,11 +1181,10 @@ static void hamachi_init_ring(struct net_device *dev)
 	}
 	/* Fill in the Rx buffers.  Handle allocation failure gracefully. */
 	for (i = 0; i < RX_RING_SIZE; i++) {
-		struct sk_buff *skb = dev_alloc_skb(hmp->rx_buf_sz + 2);
+		struct sk_buff *skb = netdev_alloc_skb(dev, hmp->rx_buf_sz + 2);
 		hmp->rx_skbuff[i] = skb;
 		if (skb == NULL)
 			break;
-		skb->dev = dev;         /* Mark as being used by this device. */
 		skb_reserve(skb, 2); /* 16 byte align the IP header. */
                 hmp->rx_ring[i].addr = cpu_to_leXX(pci_map_single(hmp->pci_dev,
 			skb->data, hmp->rx_buf_sz, PCI_DMA_FROMDEVICE));
@@ -1488,7 +1480,7 @@ static int hamachi_rx(struct net_device *dev)
 			/* Check if the packet is long enough to accept without copying
 			   to a minimally-sized skbuff. */
 			if (pkt_len < rx_copybreak &&
-			    (skb = dev_alloc_skb(pkt_len + 2)) != NULL) {
+			    (skb = netdev_alloc_skb(dev, pkt_len + 2)) != NULL) {
 #ifdef RX_CHECKSUM
 				printk(KERN_ERR "%s: rx_copybreak non-zero "
 				  "not good with RX_CHECKSUM\n", dev->name);
@@ -1591,12 +1583,11 @@ static int hamachi_rx(struct net_device *dev)
 		entry = hmp->dirty_rx % RX_RING_SIZE;
 		desc = &(hmp->rx_ring[entry]);
 		if (hmp->rx_skbuff[entry] == NULL) {
-			struct sk_buff *skb = dev_alloc_skb(hmp->rx_buf_sz + 2);
+			struct sk_buff *skb = netdev_alloc_skb(dev, hmp->rx_buf_sz + 2);
 
 			hmp->rx_skbuff[entry] = skb;
 			if (skb == NULL)
 				break;		/* Better luck next round. */
-			skb->dev = dev;		/* Mark as being used by this device. */
 			skb_reserve(skb, 2);	/* Align IP on 16 byte boundaries */
                 	desc->addr = cpu_to_leXX(pci_map_single(hmp->pci_dev,
 				skb->data, hmp->rx_buf_sz, PCI_DMA_FROMDEVICE));
@@ -1707,7 +1698,7 @@ static int hamachi_close(struct net_device *dev)
 	}
 #endif /* __i386__ debugging only */
 
-	free_irq(dev->irq, dev);
+	free_irq(hmp->pci_dev->irq, dev);
 
 	del_timer_sync(&hmp->timer);
 
@@ -1815,9 +1806,10 @@ static int check_if_running(struct net_device *dev)
 static void hamachi_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *info)
 {
 	struct hamachi_private *np = netdev_priv(dev);
-	strcpy(info->driver, DRV_NAME);
-	strcpy(info->version, DRV_VERSION);
-	strcpy(info->bus_info, pci_name(np->pci_dev));
+
+	strlcpy(info->driver, DRV_NAME, sizeof(info->driver));
+	strlcpy(info->version, DRV_VERSION, sizeof(info->version));
+	strlcpy(info->bus_info, pci_name(np->pci_dev), sizeof(info->bus_info));
 }
 
 static int hamachi_get_settings(struct net_device *dev, struct ethtool_cmd *ecmd)
@@ -1901,7 +1893,7 @@ static int netdev_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 }
 
 
-static void __devexit hamachi_remove_one (struct pci_dev *pdev)
+static void hamachi_remove_one(struct pci_dev *pdev)
 {
 	struct net_device *dev = pci_get_drvdata(pdev);
 
@@ -1916,11 +1908,10 @@ static void __devexit hamachi_remove_one (struct pci_dev *pdev)
 		iounmap(hmp->base);
 		free_netdev(dev);
 		pci_release_regions(pdev);
-		pci_set_drvdata(pdev, NULL);
 	}
 }
 
-static DEFINE_PCI_DEVICE_TABLE(hamachi_pci_tbl) = {
+static const struct pci_device_id hamachi_pci_tbl[] = {
 	{ 0x1318, 0x0911, PCI_ANY_ID, PCI_ANY_ID, },
 	{ 0, }
 };
@@ -1930,7 +1921,7 @@ static struct pci_driver hamachi_driver = {
 	.name		= DRV_NAME,
 	.id_table	= hamachi_pci_tbl,
 	.probe		= hamachi_init_one,
-	.remove		= __devexit_p(hamachi_remove_one),
+	.remove		= hamachi_remove_one,
 };
 
 static int __init hamachi_init (void)

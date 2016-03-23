@@ -14,9 +14,6 @@
  * use_mm
  *	Makes the calling kernel thread take on the specified
  *	mm context.
- *	Called by the retry thread execute retries within the
- *	iocb issuer's mm context, so that copy_from/to_user
- *	operations work seamlessly for aio.
  *	(Note: this routine is intended to be called only
  *	from a kernel thread context)
  */
@@ -34,6 +31,9 @@ void use_mm(struct mm_struct *mm)
 	tsk->mm = mm;
 	switch_mm(active_mm, mm, tsk);
 	task_unlock(tsk);
+#ifdef finish_arch_post_lock_switch
+	finish_arch_post_lock_switch();
+#endif
 
 	if (active_mm != mm)
 		mmdrop(active_mm);
@@ -53,7 +53,7 @@ void unuse_mm(struct mm_struct *mm)
 	struct task_struct *tsk = current;
 
 	task_lock(tsk);
-	sync_mm_rss(tsk, mm);
+	sync_mm_rss(mm);
 	tsk->mm = NULL;
 	/* active_mm is still 'mm' */
 	enter_lazy_tlb(mm, tsk);

@@ -226,7 +226,7 @@ And so on up to js31.
 ~~~~~~~~~~~
   evdev is the generic input event interface. It passes the events
 generated in the kernel straight to the program, with timestamps. The
-API is still evolving, but should be useable now. It's described in
+API is still evolving, but should be usable now. It's described in
 section 5. 
 
   This should be the way for GPM and X to get keyboard and mouse
@@ -250,8 +250,8 @@ And so on up to event31.
 a USB keyboard works and is correctly connected to the kernel keyboard
 driver. 
 
-  Doing a cat /dev/input/mouse0 (c, 13, 32) will verify that a mouse
-is also emulated, characters should appear if you move it.
+  Doing a "cat /dev/input/mouse0" (c, 13, 32) will verify that a mouse
+is also emulated; characters should appear if you move it.
 
   You can test the joystick emulation with the 'jstest' utility,
 available in the joystick package (see Documentation/input/joystick.txt).

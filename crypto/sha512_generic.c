@@ -20,8 +20,7 @@
 #include <crypto/sha.h>
 #include <linux/percpu.h>
 #include <asm/byteorder.h>
-
-static DEFINE_PER_CPU(u64[80], msg_schedule);
+#include <asm/unaligned.h>
 
 static inline u64 Ch(u64 x, u64 y, u64 z)
 {
@@ -31,11 +30,6 @@ static inline u64 Ch(u64 x, u64 y, u64 z)
 static inline u64 Maj(u64 x, u64 y, u64 z)
 {
         return (x & y) | (z & (x | y));
-}
-
-static inline u64 RORu64(u64 x, u64 y)
-{
-        return (x >> y) | (x << (64 - y));
 }
 
 static const u64 sha512_K[80] = {
@@ -68,19 +62,19 @@ static const u64 sha512_K[80] = {
         0x5fcb6fab3ad6faecULL, 0x6c44198c4a475817ULL,
 };
 
-#define e0(x)       (RORu64(x,28) ^ RORu64(x,34) ^ RORu64(x,39))
-#define e1(x)       (RORu64(x,14) ^ RORu64(x,18) ^ RORu64(x,41))
-#define s0(x)       (RORu64(x, 1) ^ RORu64(x, 8) ^ (x >> 7))
-#define s1(x)       (RORu64(x,19) ^ RORu64(x,61) ^ (x >> 6))
+#define e0(x)       (ror64(x,28) ^ ror64(x,34) ^ ror64(x,39))
+#define e1(x)       (ror64(x,14) ^ ror64(x,18) ^ ror64(x,41))
+#define s0(x)       (ror64(x, 1) ^ ror64(x, 8) ^ (x >> 7))
+#define s1(x)       (ror64(x,19) ^ ror64(x,61) ^ (x >> 6))
 
 static inline void LOAD_OP(int I, u64 *W, const u8 *input)
 {
-	W[I] = __be64_to_cpu( ((__be64*)(input))[I] );
+	W[I] = get_unaligned_be64((__u64 *)input + I);
 }
 
 static inline void BLEND_OP(int I, u64 *W)
 {
-	W[I] = s1(W[I-2]) + W[I-7] + s0(W[I-15]) + W[I-16];
+	W[I & 15] += s1(W[(I-2) & 15]) + W[(I-7) & 15] + s0(W[(I-15) & 15]);
 }
 
 static void
@@ -89,15 +83,7 @@ sha512_transform(u64 *state, const u8 *input)
 	u64 a, b, c, d, e, f, g, h, t1, t2;
 
 	int i;
-	u64 *W = get_cpu_var(msg_schedule);
-
-	/* load the input */
-        for (i = 0; i < 16; i++)
-                LOAD_OP(i, W, input);
-
-        for (i = 16; i < 80; i++) {
-                BLEND_OP(i, W);
-        }
+	u64 W[16];
 
 	/* load the state into our registers */
 	a=state[0];   b=state[1];   c=state[2];   d=state[3];
@@ -105,21 +91,35 @@ sha512_transform(u64 *state, const u8 *input)
 
 	/* now iterate */
 	for (i=0; i<80; i+=8) {
-		t1 = h + e1(e) + Ch(e,f,g) + sha512_K[i  ] + W[i  ];
+		if (!(i & 8)) {
+			int j;
+
+			if (i < 16) {
+				/* load the input */
+				for (j = 0; j < 16; j++)
+					LOAD_OP(i + j, W, input);
+			} else {
+				for (j = 0; j < 16; j++) {
+					BLEND_OP(i + j, W);
+				}
+			}
+		}
+
+		t1 = h + e1(e) + Ch(e,f,g) + sha512_K[i  ] + W[(i & 15)];
 		t2 = e0(a) + Maj(a,b,c);    d+=t1;    h=t1+t2;
-		t1 = g + e1(d) + Ch(d,e,f) + sha512_K[i+1] + W[i+1];
+		t1 = g + e1(d) + Ch(d,e,f) + sha512_K[i+1] + W[(i & 15) + 1];
 		t2 = e0(h) + Maj(h,a,b);    c+=t1;    g=t1+t2;
-		t1 = f + e1(c) + Ch(c,d,e) + sha512_K[i+2] + W[i+2];
+		t1 = f + e1(c) + Ch(c,d,e) + sha512_K[i+2] + W[(i & 15) + 2];
 		t2 = e0(g) + Maj(g,h,a);    b+=t1;    f=t1+t2;
-		t1 = e + e1(b) + Ch(b,c,d) + sha512_K[i+3] + W[i+3];
+		t1 = e + e1(b) + Ch(b,c,d) + sha512_K[i+3] + W[(i & 15) + 3];
 		t2 = e0(f) + Maj(f,g,h);    a+=t1;    e=t1+t2;
-		t1 = d + e1(a) + Ch(a,b,c) + sha512_K[i+4] + W[i+4];
+		t1 = d + e1(a) + Ch(a,b,c) + sha512_K[i+4] + W[(i & 15) + 4];
 		t2 = e0(e) + Maj(e,f,g);    h+=t1;    d=t1+t2;
-		t1 = c + e1(h) + Ch(h,a,b) + sha512_K[i+5] + W[i+5];
+		t1 = c + e1(h) + Ch(h,a,b) + sha512_K[i+5] + W[(i & 15) + 5];
 		t2 = e0(d) + Maj(d,e,f);    g+=t1;    c=t1+t2;
-		t1 = b + e1(g) + Ch(g,h,a) + sha512_K[i+6] + W[i+6];
+		t1 = b + e1(g) + Ch(g,h,a) + sha512_K[i+6] + W[(i & 15) + 6];
 		t2 = e0(c) + Maj(c,d,e);    f+=t1;    b=t1+t2;
-		t1 = a + e1(f) + Ch(f,g,h) + sha512_K[i+7] + W[i+7];
+		t1 = a + e1(f) + Ch(f,g,h) + sha512_K[i+7] + W[(i & 15) + 7];
 		t2 = e0(b) + Maj(b,c,d);    e+=t1;    a=t1+t2;
 	}
 
@@ -128,8 +128,6 @@ sha512_transform(u64 *state, const u8 *input)
 
 	/* erase our data */
 	a = b = c = d = e = f = g = h = t1 = t2 = 0;
-	memset(W, 0, sizeof(__get_cpu_var(msg_schedule)));
-	put_cpu_var(msg_schedule);
 }
 
 static int
@@ -166,8 +164,8 @@ sha384_init(struct shash_desc *desc)
 	return 0;
 }
 
-static int
-sha512_update(struct shash_desc *desc, const u8 *data, unsigned int len)
+int crypto_sha512_update(struct shash_desc *desc, const u8 *data,
+			unsigned int len)
 {
 	struct sha512_state *sctx = shash_desc_ctx(desc);
 
@@ -177,7 +175,7 @@ sha512_update(struct shash_desc *desc, const u8 *data, unsigned int len)
 	index = sctx->count[0] & 0x7f;
 
 	/* Update number of bytes */
-	if (!(sctx->count[0] += len))
+	if ((sctx->count[0] += len) < len)
 		sctx->count[1]++;
 
         part_len = 128 - index;
@@ -200,6 +198,7 @@ sha512_update(struct shash_desc *desc, const u8 *data, unsigned int len)
 
 	return 0;
 }
+EXPORT_SYMBOL(crypto_sha512_update);
 
 static int
 sha512_final(struct shash_desc *desc, u8 *hash)
@@ -218,10 +217,10 @@ sha512_final(struct shash_desc *desc, u8 *hash)
 	/* Pad out to 112 mod 128. */
 	index = sctx->count[0] & 0x7f;
 	pad_len = (index < 112) ? (112 - index) : ((128+112) - index);
-	sha512_update(desc, padding, pad_len);
+	crypto_sha512_update(desc, padding, pad_len);
 
 	/* Append length (before padding) */
-	sha512_update(desc, (const u8 *)bits, sizeof(bits));
+	crypto_sha512_update(desc, (const u8 *)bits, sizeof(bits));
 
 	/* Store state in digest */
 	for (i = 0; i < 8; i++)
@@ -240,55 +239,47 @@ static int sha384_final(struct shash_desc *desc, u8 *hash)
 	sha512_final(desc, D);
 
 	memcpy(hash, D, 48);
-	memset(D, 0, 64);
+	memzero_explicit(D, 64);
 
 	return 0;
 }
 
-static struct shash_alg sha512 = {
+static struct shash_alg sha512_algs[2] = { {
 	.digestsize	=	SHA512_DIGEST_SIZE,
 	.init		=	sha512_init,
-	.update		=	sha512_update,
+	.update		=	crypto_sha512_update,
 	.final		=	sha512_final,
 	.descsize	=	sizeof(struct sha512_state),
 	.base		=	{
 		.cra_name	=	"sha512",
+		.cra_driver_name =	"sha512-generic",
 		.cra_flags	=	CRYPTO_ALG_TYPE_SHASH,
 		.cra_blocksize	=	SHA512_BLOCK_SIZE,
 		.cra_module	=	THIS_MODULE,
 	}
-};
-
-static struct shash_alg sha384 = {
+}, {
 	.digestsize	=	SHA384_DIGEST_SIZE,
 	.init		=	sha384_init,
-	.update		=	sha512_update,
+	.update		=	crypto_sha512_update,
 	.final		=	sha384_final,
 	.descsize	=	sizeof(struct sha512_state),
 	.base		=	{
 		.cra_name	=	"sha384",
+		.cra_driver_name =	"sha384-generic",
 		.cra_flags	=	CRYPTO_ALG_TYPE_SHASH,
 		.cra_blocksize	=	SHA384_BLOCK_SIZE,
 		.cra_module	=	THIS_MODULE,
 	}
-};
+} };
 
 static int __init sha512_generic_mod_init(void)
 {
-        int ret = 0;
-
-        if ((ret = crypto_register_shash(&sha384)) < 0)
-                goto out;
-        if ((ret = crypto_register_shash(&sha512)) < 0)
-                crypto_unregister_shash(&sha384);
-out:
-        return ret;
+	return crypto_register_shashes(sha512_algs, ARRAY_SIZE(sha512_algs));
 }
 
 static void __exit sha512_generic_mod_fini(void)
 {
-        crypto_unregister_shash(&sha384);
-        crypto_unregister_shash(&sha512);
+	crypto_unregister_shashes(sha512_algs, ARRAY_SIZE(sha512_algs));
 }
 
 module_init(sha512_generic_mod_init);
@@ -297,5 +288,7 @@ module_exit(sha512_generic_mod_fini);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SHA-512 and SHA-384 Secure Hash Algorithms");
 
-MODULE_ALIAS("sha384");
-MODULE_ALIAS("sha512");
+MODULE_ALIAS_CRYPTO("sha384");
+MODULE_ALIAS_CRYPTO("sha384-generic");
+MODULE_ALIAS_CRYPTO("sha512");
+MODULE_ALIAS_CRYPTO("sha512-generic");

@@ -20,7 +20,6 @@
 #include <linux/errno.h>
 #include <linux/ioport.h>
 #include <linux/interrupt.h>
-#include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -31,7 +30,9 @@
 #include <linux/bitops.h>
 #include <linux/fs.h>
 #include <linux/platform_device.h>
+#include <linux/of_address.h>
 #include <linux/of_device.h>
+#include <linux/of_irq.h>
 #include <linux/gfp.h>
 
 #include <asm/irq.h>
@@ -40,7 +41,6 @@
 #ifdef CONFIG_8xx
 #include <asm/8xx_immap.h>
 #include <asm/pgtable.h>
-#include <asm/mpc8xx.h>
 #include <asm/cpm1.h>
 #endif
 
@@ -98,7 +98,7 @@ static int do_pd_setup(struct fs_enet_private *fep)
 {
 	struct platform_device *ofdev = to_platform_device(fep->dev);
 
-	fep->interrupt = of_irq_to_resource(ofdev->dev.of_node, 0, NULL);
+	fep->interrupt = irq_of_parse_and_map(ofdev->dev.of_node, 0);
 	if (fep->interrupt == NO_IRQ)
 		return -EINVAL;
 
@@ -110,6 +110,7 @@ static int do_pd_setup(struct fs_enet_private *fep)
 }
 
 #define FEC_NAPI_RX_EVENT_MSK	(FEC_ENET_RXF | FEC_ENET_RXB)
+#define FEC_NAPI_TX_EVENT_MSK	(FEC_ENET_TXF | FEC_ENET_TXB)
 #define FEC_RX_EVENT		(FEC_ENET_RXF)
 #define FEC_TX_EVENT		(FEC_ENET_TXF)
 #define FEC_ERR_EVENT_MSK	(FEC_ENET_HBERR | FEC_ENET_BABR | \
@@ -126,6 +127,7 @@ static int setup_data(struct net_device *dev)
 	fep->fec.htlo = 0;
 
 	fep->ev_napi_rx = FEC_NAPI_RX_EVENT_MSK;
+	fep->ev_napi_tx = FEC_NAPI_TX_EVENT_MSK;
 	fep->ev_rx = FEC_RX_EVENT;
 	fep->ev_tx = FEC_TX_EVENT;
 	fep->ev_err = FEC_ERR_EVENT_MSK;
@@ -322,10 +324,11 @@ static void restart(struct net_device *dev)
 	FW(fecp, r_cntrl, FEC_RCNTRL_MII_MODE);	/* MII enable */
 #else
 	/*
-	 * Only set MII mode - do not touch maximum frame length
+	 * Only set MII/RMII mode - do not touch maximum frame length
 	 * configured before.
 	 */
-	FS(fecp, r_cntrl, FEC_RCNTRL_MII_MODE);
+	FS(fecp, r_cntrl, fpi->use_rmii ?
+			FEC_RCNTRL_RMII_MODE : FEC_RCNTRL_MII_MODE);
 #endif
 	/*
 	 * adjust to duplex mode
@@ -337,6 +340,9 @@ static void restart(struct net_device *dev)
 		FS(fecp, r_cntrl, FEC_RCNTRL_DRT);
 		FC(fecp, x_cntrl, FEC_TCNTRL_FDEN);	/* FD disable */
 	}
+
+	/* Restore multicast and promiscuous settings */
+	set_multicast_list(dev);
 
 	/*
 	 * Enable interrupts we wish to service.
@@ -381,7 +387,9 @@ static void stop(struct net_device *dev)
 
 	/* shut down FEC1? that's where the mii bus is */
 	if (fpi->has_phy) {
-		FS(fecp, r_cntrl, FEC_RCNTRL_MII_MODE);	/* MII enable */
+		FS(fecp, r_cntrl, fpi->use_rmii ?
+				FEC_RCNTRL_RMII_MODE :
+				FEC_RCNTRL_MII_MODE);	/* MII/RMII enable */
 		FS(fecp, ecntrl, FEC_ECNTRL_PINMUX | FEC_ECNTRL_ETHER_EN);
 		FW(fecp, ievent, FEC_ENET_MII);
 		FW(fecp, mii_speed, feci->mii_speed);
@@ -410,6 +418,30 @@ static void napi_disable_rx(struct net_device *dev)
 	struct fec __iomem *fecp = fep->fec.fecp;
 
 	FC(fecp, imask, FEC_NAPI_RX_EVENT_MSK);
+}
+
+static void napi_clear_tx_event(struct net_device *dev)
+{
+	struct fs_enet_private *fep = netdev_priv(dev);
+	struct fec __iomem *fecp = fep->fec.fecp;
+
+	FW(fecp, ievent, FEC_NAPI_TX_EVENT_MSK);
+}
+
+static void napi_enable_tx(struct net_device *dev)
+{
+	struct fs_enet_private *fep = netdev_priv(dev);
+	struct fec __iomem *fecp = fep->fec.fecp;
+
+	FS(fecp, imask, FEC_NAPI_TX_EVENT_MSK);
+}
+
+static void napi_disable_tx(struct net_device *dev)
+{
+	struct fs_enet_private *fep = netdev_priv(dev);
+	struct fec __iomem *fecp = fep->fec.fecp;
+
+	FC(fecp, imask, FEC_NAPI_TX_EVENT_MSK);
 }
 
 static void rx_bd_done(struct net_device *dev)
@@ -484,6 +516,9 @@ const struct fs_ops fs_fec_ops = {
 	.napi_clear_rx_event	= napi_clear_rx_event,
 	.napi_enable_rx		= napi_enable_rx,
 	.napi_disable_rx	= napi_disable_rx,
+	.napi_clear_tx_event	= napi_clear_tx_event,
+	.napi_enable_tx		= napi_enable_tx,
+	.napi_disable_tx	= napi_disable_tx,
 	.rx_bd_done		= rx_bd_done,
 	.tx_kickstart		= tx_kickstart,
 	.get_int_events		= get_int_events,

@@ -16,8 +16,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -35,8 +34,7 @@
 #include <linux/nfc.h>
 
 /* Complete data exchange transaction and forward skb to nfc core */
-void nci_data_exchange_complete(struct nci_dev *ndev,
-				struct sk_buff *skb,
+void nci_data_exchange_complete(struct nci_dev *ndev, struct sk_buff *skb,
 				int err)
 {
 	data_exchange_cb_t cb = ndev->data_exchange_cb;
@@ -44,9 +42,13 @@ void nci_data_exchange_complete(struct nci_dev *ndev,
 
 	pr_debug("len %d, err %d\n", skb ? skb->len : 0, err);
 
+	/* data exchange is complete, stop the data timer */
+	del_timer_sync(&ndev->data_timer);
+	clear_bit(NCI_DATA_EXCHANGE_TO, &ndev->flags);
+
 	if (cb) {
 		ndev->data_exchange_cb = NULL;
-		ndev->data_exchange_cb_context = 0;
+		ndev->data_exchange_cb_context = NULL;
 
 		/* forward skb to nfc core */
 		cb(cb_context, skb, err);
@@ -63,9 +65,9 @@ void nci_data_exchange_complete(struct nci_dev *ndev,
 /* ----------------- NCI TX Data ----------------- */
 
 static inline void nci_push_data_hdr(struct nci_dev *ndev,
-					__u8 conn_id,
-					struct sk_buff *skb,
-					__u8 pbf)
+				     __u8 conn_id,
+				     struct sk_buff *skb,
+				     __u8 pbf)
 {
 	struct nci_data_hdr *hdr;
 	int plen = skb->len;
@@ -77,13 +79,11 @@ static inline void nci_push_data_hdr(struct nci_dev *ndev,
 
 	nci_mt_set((__u8 *)hdr, NCI_MT_DATA_PKT);
 	nci_pbf_set((__u8 *)hdr, pbf);
-
-	skb->dev = (void *) ndev;
 }
 
 static int nci_queue_tx_data_frags(struct nci_dev *ndev,
-					__u8 conn_id,
-					struct sk_buff *skb) {
+				   __u8 conn_id,
+				   struct sk_buff *skb) {
 	int total_len = skb->len;
 	unsigned char *data = skb->data;
 	unsigned long flags;
@@ -101,8 +101,8 @@ static int nci_queue_tx_data_frags(struct nci_dev *ndev,
 			min_t(int, total_len, ndev->max_data_pkt_payload_size);
 
 		skb_frag = nci_skb_alloc(ndev,
-					(NCI_DATA_HDR_SIZE + frag_len),
-					GFP_KERNEL);
+					 (NCI_DATA_HDR_SIZE + frag_len),
+					 GFP_KERNEL);
 		if (skb_frag == NULL) {
 			rc = -ENOMEM;
 			goto free_exit;
@@ -114,7 +114,8 @@ static int nci_queue_tx_data_frags(struct nci_dev *ndev,
 
 		/* second, set the header */
 		nci_push_data_hdr(ndev, conn_id, skb_frag,
-		((total_len == frag_len) ? (NCI_PBF_LAST) : (NCI_PBF_CONT)));
+				  ((total_len == frag_len) ?
+				   (NCI_PBF_LAST) : (NCI_PBF_CONT)));
 
 		__skb_queue_tail(&frags_q, skb_frag);
 
@@ -182,8 +183,8 @@ exit:
 /* ----------------- NCI RX Data ----------------- */
 
 static void nci_add_rx_data_frag(struct nci_dev *ndev,
-				struct sk_buff *skb,
-				__u8 pbf)
+				 struct sk_buff *skb,
+				 __u8 pbf)
 {
 	int reassembly_len;
 	int err = 0;
@@ -196,10 +197,10 @@ static void nci_add_rx_data_frag(struct nci_dev *ndev,
 			pr_err("error adding room for accumulated rx data\n");
 
 			kfree_skb(skb);
-			skb = 0;
+			skb = NULL;
 
 			kfree_skb(ndev->rx_data_reassembly);
-			ndev->rx_data_reassembly = 0;
+			ndev->rx_data_reassembly = NULL;
 
 			err = -ENOMEM;
 			goto exit;
@@ -207,12 +208,12 @@ static void nci_add_rx_data_frag(struct nci_dev *ndev,
 
 		/* second, combine the two fragments */
 		memcpy(skb_push(skb, reassembly_len),
-				ndev->rx_data_reassembly->data,
-				reassembly_len);
+		       ndev->rx_data_reassembly->data,
+		       reassembly_len);
 
 		/* third, free old reassembly */
 		kfree_skb(ndev->rx_data_reassembly);
-		ndev->rx_data_reassembly = 0;
+		ndev->rx_data_reassembly = NULL;
 	}
 
 	if (pbf == NCI_PBF_CONT) {
@@ -240,9 +241,12 @@ void nci_rx_data_packet(struct nci_dev *ndev, struct sk_buff *skb)
 	/* strip the nci data header */
 	skb_pull(skb, NCI_DATA_HDR_SIZE);
 
-	if (ndev->target_active_prot == NFC_PROTO_MIFARE) {
+	if (ndev->target_active_prot == NFC_PROTO_MIFARE ||
+	    ndev->target_active_prot == NFC_PROTO_JEWEL ||
+	    ndev->target_active_prot == NFC_PROTO_FELICA ||
+	    ndev->target_active_prot == NFC_PROTO_ISO15693) {
 		/* frame I/F => remove the status byte */
-		pr_debug("NFC_PROTO_MIFARE => remove the status byte\n");
+		pr_debug("frame I/F => remove the status byte\n");
 		skb_trim(skb, (skb->len - 1));
 	}
 

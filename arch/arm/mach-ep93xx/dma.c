@@ -25,8 +25,10 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 
-#include <mach/dma.h>
+#include <linux/platform_data/dma-ep93xx.h>
 #include <mach/hardware.h>
+
+#include "soc.h"
 
 #define DMA_CHANNEL(_name, _base, _irq) \
 	{ .name = (_name), .base = (_base), .irq = (_irq) }

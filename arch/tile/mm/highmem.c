@@ -93,7 +93,7 @@ static DEFINE_PER_CPU(struct kmap_amps, amps);
  * If we examine it earlier we are exposed to a race where it looks
  * writable earlier, but becomes immutable before we write the PTE.
  */
-static void kmap_atomic_register(struct page *page, enum km_type type,
+static void kmap_atomic_register(struct page *page, int type,
 				 unsigned long va, pte_t *ptep, pte_t pteval)
 {
 	unsigned long flags;
@@ -103,7 +103,7 @@ static void kmap_atomic_register(struct page *page, enum km_type type,
 	spin_lock(&amp_lock);
 
 	/* With interrupts disabled, now fill in the per-cpu info. */
-	amp = &__get_cpu_var(amps).per_type[type];
+	amp = this_cpu_ptr(&amps.per_type[type]);
 	amp->page = page;
 	amp->cpu = smp_processor_id();
 	amp->va = va;
@@ -114,7 +114,6 @@ static void kmap_atomic_register(struct page *page, enum km_type type,
 
 	list_add(&amp->list, &amp_list);
 	set_pte(ptep, pteval);
-	arch_flush_lazy_mmu_mode();
 
 	spin_unlock(&amp_lock);
 	homecache_kpte_unlock(flags);
@@ -224,12 +223,12 @@ void *kmap_atomic_prot(struct page *page, pgprot_t prot)
 }
 EXPORT_SYMBOL(kmap_atomic_prot);
 
-void *__kmap_atomic(struct page *page)
+void *kmap_atomic(struct page *page)
 {
 	/* PAGE_NONE is a magic value that tells us to check immutability. */
 	return kmap_atomic_prot(page, PAGE_NONE);
 }
-EXPORT_SYMBOL(__kmap_atomic);
+EXPORT_SYMBOL(kmap_atomic);
 
 void __kunmap_atomic(void *kvaddr)
 {
@@ -259,7 +258,6 @@ void __kunmap_atomic(void *kvaddr)
 		BUG_ON(vaddr >= (unsigned long)high_memory);
 	}
 
-	arch_flush_lazy_mmu_mode();
 	pagefault_enable();
 }
 EXPORT_SYMBOL(__kunmap_atomic);

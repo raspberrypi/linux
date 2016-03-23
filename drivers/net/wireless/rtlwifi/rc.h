@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2009-2010  Realtek Corporation.
+ * Copyright(c) 2009-2012  Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -10,10 +10,6 @@
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
  *
  * The full GNU General Public License is included in this distribution in the
  * file called LICENSE.
@@ -38,10 +34,15 @@
 #define N_MODE_MCS7_RIX 7
 #define N_MODE_MCS15_RIX 15
 
+#define AC_MODE_MCS7_RIX 7
+#define AC_MODE_MCS8_RIX 8
+#define AC_MODE_MCS9_RIX 9
+
 struct rtl_rate_priv {
 	u8 ht_cap;
 };
 
 int rtl_rate_control_register(void);
 void rtl_rate_control_unregister(void);
+
 #endif

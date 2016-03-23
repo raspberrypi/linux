@@ -22,6 +22,7 @@
 #include <asm/hw_breakpoint.h>
 #include <asm/mmu_context.h>
 #include <asm/ptrace.h>
+#include <asm/traps.h>
 
 /*
  * Stores the breakpoints currently in use on each breakpoint address
@@ -51,7 +52,7 @@ int arch_install_hw_breakpoint(struct perf_event *bp)
 	int i;
 
 	for (i = 0; i < sh_ubc->num_events; i++) {
-		struct perf_event **slot = &__get_cpu_var(bp_per_reg[i]);
+		struct perf_event **slot = this_cpu_ptr(&bp_per_reg[i]);
 
 		if (!*slot) {
 			*slot = bp;
@@ -83,7 +84,7 @@ void arch_uninstall_hw_breakpoint(struct perf_event *bp)
 	int i;
 
 	for (i = 0; i < sh_ubc->num_events; i++) {
-		struct perf_event **slot = &__get_cpu_var(bp_per_reg[i]);
+		struct perf_event **slot = this_cpu_ptr(&bp_per_reg[i]);
 
 		if (*slot == bp) {
 			*slot = NULL;

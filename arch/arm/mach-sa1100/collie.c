@@ -21,16 +21,21 @@
 #include <linux/kernel.h>
 #include <linux/tty.h>
 #include <linux/delay.h>
+#include <linux/platform_data/sa11x0-serial.h>
 #include <linux/platform_device.h>
+#include <linux/mfd/ucb1x00.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <linux/timer.h>
+#include <linux/gpio_keys.h>
+#include <linux/input.h>
 #include <linux/gpio.h>
 #include <linux/pda_power.h>
 
+#include <video/sa1100fb.h>
+
 #include <mach/hardware.h>
 #include <asm/mach-types.h>
-#include <asm/irq.h>
 #include <asm/page.h>
 #include <asm/setup.h>
 #include <mach/collie.h>
@@ -38,21 +43,18 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/flash.h>
 #include <asm/mach/map.h>
-#include <asm/mach/serial_sa1100.h>
+#include <asm/mach/irda.h>
 
 #include <asm/hardware/scoop.h>
 #include <asm/mach/sharpsl_param.h>
 #include <asm/hardware/locomo.h>
-#include <mach/mcp.h>
+#include <linux/platform_data/mfd-mcp-sa11x0.h>
+#include <mach/irqs.h>
 
 #include "generic.h"
 
 static struct resource collie_scoop_resources[] = {
-	[0] = {
-		.start		= 0x40800000,
-		.end		= 0x40800fff,
-		.flags		= IORESOURCE_MEM,
-	},
+	[0] = DEFINE_RES_MEM(0x40800000, SZ_4K),
 };
 
 static struct scoop_config collie_scoop_setup = {
@@ -85,10 +87,45 @@ static struct scoop_pcmcia_config collie_pcmcia_config = {
 	.num_devs	= 1,
 };
 
+static struct ucb1x00_plat_data collie_ucb1x00_data = {
+	.gpio_base	= COLLIE_TC35143_GPIO_BASE,
+};
+
 static struct mcp_plat_data collie_mcp_data = {
 	.mccr0		= MCCR0_ADM | MCCR0_ExtClk,
 	.sclk_rate	= 9216000,
-	.gpio_base	= COLLIE_TC35143_GPIO_BASE,
+	.codec_pdata	= &collie_ucb1x00_data,
+};
+
+static int collie_ir_startup(struct device *dev)
+{
+	int rc = gpio_request(COLLIE_GPIO_IR_ON, "IrDA");
+	if (rc)
+		return rc;
+	rc = gpio_direction_output(COLLIE_GPIO_IR_ON, 1);
+
+	if (!rc)
+		return 0;
+
+	gpio_free(COLLIE_GPIO_IR_ON);
+	return rc;
+}
+
+static void collie_ir_shutdown(struct device *dev)
+{
+	gpio_free(COLLIE_GPIO_IR_ON);
+}
+
+static int collie_ir_set_power(struct device *dev, unsigned int state)
+{
+	gpio_set_value(COLLIE_GPIO_IR_ON, !state);
+	return 0;
+}
+
+static struct irda_platform_data collie_ir_data = {
+	.startup = collie_ir_startup,
+	.shutdown = collie_ir_shutdown,
+	.set_power = collie_ir_set_power,
 };
 
 /*
@@ -138,8 +175,6 @@ static struct pda_power_pdata collie_power_data = {
 static struct resource collie_power_resource[] = {
 	{
 		.name		= "ac",
-		.start		= gpio_to_irq(COLLIE_GPIO_AC_IN),
-		.end		= gpio_to_irq(COLLIE_GPIO_AC_IN),
 		.flags		= IORESOURCE_IRQ |
 				  IORESOURCE_IRQ_HIGHEDGE |
 				  IORESOURCE_IRQ_LOWEDGE,
@@ -223,16 +258,8 @@ device_initcall(collie_uart_init);
 
 
 static struct resource locomo_resources[] = {
-	[0] = {
-		.start		= 0x40000000,
-		.end		= 0x40001fff,
-		.flags		= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start		= IRQ_GPIO25,
-		.end		= IRQ_GPIO25,
-		.flags		= IORESOURCE_IRQ,
-	},
+	[0] = DEFINE_RES_MEM(0x40000000, SZ_8K),
+	[1] = DEFINE_RES_IRQ(IRQ_GPIO25),
 };
 
 static struct locomo_platform_data locomo_info = {
@@ -249,10 +276,43 @@ struct platform_device collie_locomo_device = {
 	.resource	= locomo_resources,
 };
 
+static struct gpio_keys_button collie_gpio_keys[] = {
+	{
+		.type	= EV_PWR,
+		.code	= KEY_RESERVED,
+		.gpio	= COLLIE_GPIO_ON_KEY,
+		.desc	= "On key",
+		.wakeup	= 1,
+		.active_low = 1,
+	},
+	{
+		.type	= EV_PWR,
+		.code	= KEY_WAKEUP,
+		.gpio	= COLLIE_GPIO_WAKEUP,
+		.desc	= "Sync",
+		.wakeup = 1,
+		.active_low = 1,
+	},
+};
+
+static struct gpio_keys_platform_data collie_gpio_keys_data = {
+	.buttons	= collie_gpio_keys,
+	.nbuttons	= ARRAY_SIZE(collie_gpio_keys),
+};
+
+static struct platform_device collie_gpio_keys_device = {
+	.name	= "gpio-keys",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &collie_gpio_keys_data,
+	},
+};
+
 static struct platform_device *devices[] __initdata = {
 	&collie_locomo_device,
 	&colliescoop_device,
 	&collie_power_device,
+	&collie_gpio_keys_device,
 };
 
 static struct mtd_partition collie_partitions[] = {
@@ -269,6 +329,11 @@ static struct mtd_partition collie_partitions[] = {
 		.name		= "rootfs",
 		.offset 	= MTDPART_OFS_APPEND,
 		.size		= 0x00e20000,
+	}, {
+		.name		= "bootblock",
+		.offset		= MTDPART_OFS_APPEND,
+		.size		= 0x00020000,
+		.mask_flags	= MTD_WRITEABLE
 	}
 };
 
@@ -305,11 +370,25 @@ static struct flash_platform_data collie_flash_data = {
 };
 
 static struct resource collie_flash_resources[] = {
-	{
-		.start	= SA1100_CS0_PHYS,
-		.end	= SA1100_CS0_PHYS + SZ_32M - 1,
-		.flags	= IORESOURCE_MEM,
-	}
+	DEFINE_RES_MEM(SA1100_CS0_PHYS, SZ_32M),
+};
+
+static struct sa1100fb_mach_info collie_lcd_info = {
+	.pixclock	= 171521,	.bpp		= 16,
+	.xres		= 320,		.yres		= 240,
+
+	.hsync_len	= 5,		.vsync_len	= 1,
+	.left_margin	= 11,		.upper_margin	= 2,
+	.right_margin	= 30,		.lower_margin	= 0,
+
+	.sync		= FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
+
+	.lccr0		= LCCR0_Color | LCCR0_Sngl | LCCR0_Act,
+	.lccr3		= LCCR3_OutEnH | LCCR3_PixRsEdg | LCCR3_ACBsDiv(2),
+
+#ifdef CONFIG_BACKLIGHT_LOCOMO
+	.lcd_power	= locomolcd_power
+#endif
 };
 
 static void __init collie_init(void)
@@ -341,6 +420,11 @@ static void __init collie_init(void)
 
 	GPSR |= _COLLIE_GPIO_UCB1x00_RESET;
 
+	collie_power_resource[0].start = gpio_to_irq(COLLIE_GPIO_AC_IN);
+	collie_power_resource[0].end = gpio_to_irq(COLLIE_GPIO_AC_IN);
+
+	sa11x0_ppc_configure_mcp();
+
 
 	platform_scoop_config = &collie_pcmcia_config;
 
@@ -349,9 +433,11 @@ static void __init collie_init(void)
 		printk(KERN_WARNING "collie: Unable to register LoCoMo device\n");
 	}
 
+	sa11x0_register_lcd(&collie_lcd_info);
 	sa11x0_register_mtd(&collie_flash_data, collie_flash_resources,
 			    ARRAY_SIZE(collie_flash_resources));
 	sa11x0_register_mcp(&collie_mcp_data);
+	sa11x0_register_irda(&collie_ir_data);
 
 	sharpsl_save_param();
 }
@@ -384,8 +470,10 @@ static void __init collie_map_io(void)
 
 MACHINE_START(COLLIE, "Sharp-Collie")
 	.map_io		= collie_map_io,
+	.nr_irqs	= SA1100_NR_IRQS,
 	.init_irq	= sa1100_init_irq,
-	.timer		= &sa1100_timer,
+	.init_time	= sa1100_timer_init,
 	.init_machine	= collie_init,
+	.init_late	= sa11x0_init_late,
 	.restart	= sa11x0_restart,
 MACHINE_END

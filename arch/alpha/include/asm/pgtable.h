@@ -15,6 +15,7 @@
 #include <asm/page.h>
 #include <asm/processor.h>	/* For TASK_SIZE */
 #include <asm/machvec.h>
+#include <asm/setup.h>
 
 struct mm_struct;
 struct vm_area_struct;
@@ -352,9 +353,6 @@ extern inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
 #ifndef CONFIG_DISCONTIGMEM
 #define kern_addr_valid(addr)	(1)
 #endif
-
-#define io_remap_pfn_range(vma, start, pfn, size, prot)	\
-		remap_pfn_range(vma, start, pfn, size, prot)
 
 #define pte_ERROR(e) \
 	printk("%s:%d: bad pte %016lx.\n", __FILE__, __LINE__, pte_val(e))

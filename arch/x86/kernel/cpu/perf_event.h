@@ -14,6 +14,18 @@
 
 #include <linux/perf_event.h>
 
+#if 0
+#undef wrmsrl
+#define wrmsrl(msr, val) 						\
+do {									\
+	unsigned int _msr = (msr);					\
+	u64 _val = (val);						\
+	trace_printk("wrmsrl(%x, %Lx)\n", (unsigned int)(_msr),		\
+			(unsigned long long)(_val));			\
+	native_write_msr((_msr), (u32)(_val), (u32)(_val >> 32));	\
+} while (0)
+#endif
+
 /*
  *          |   NHM/WSM    |      SNB     |
  * register -------------------------------
@@ -33,6 +45,8 @@ enum extra_reg_type {
 
 	EXTRA_REG_RSP_0 = 0,	/* offcore_response_0 */
 	EXTRA_REG_RSP_1 = 1,	/* offcore_response_1 */
+	EXTRA_REG_LBR   = 2,	/* lbr_select */
+	EXTRA_REG_LDLAT = 3,	/* ld_lat_threshold */
 
 	EXTRA_REG_MAX		/* number of entries needed */
 };
@@ -46,7 +60,17 @@ struct event_constraint {
 	u64	cmask;
 	int	weight;
 	int	overlap;
+	int	flags;
 };
+/*
+ * struct hw_perf_event.flags flags
+ */
+#define PERF_X86_EVENT_PEBS_LDLAT	0x1 /* ld+ldlat data address sampling */
+#define PERF_X86_EVENT_PEBS_ST		0x2 /* st data address sampling */
+#define PERF_X86_EVENT_PEBS_ST_HSW	0x4 /* haswell style datala, store */
+#define PERF_X86_EVENT_COMMITTED	0x8 /* event passed commit_txn */
+#define PERF_X86_EVENT_PEBS_LD_HSW	0x10 /* haswell style datala, load */
+#define PERF_X86_EVENT_PEBS_NA_HSW	0x20 /* haswell style datala, unknown */
 
 struct amd_nb {
 	int nb_id;  /* NorthBridge id */
@@ -56,7 +80,7 @@ struct amd_nb {
 };
 
 /* The maximal number of PEBS events: */
-#define MAX_PEBS_EVENTS		4
+#define MAX_PEBS_EVENTS		8
 
 /*
  * A debug store configuration.
@@ -108,14 +132,17 @@ struct cpu_hw_events {
 	unsigned long		running[BITS_TO_LONGS(X86_PMC_IDX_MAX)];
 	int			enabled;
 
-	int			n_events;
-	int			n_added;
-	int			n_txn;
+	int			n_events; /* the # of events in the below arrays */
+	int			n_added;  /* the # last events in the below arrays;
+					     they've never been enabled yet */
+	int			n_txn;    /* the # last events in the below arrays;
+					     added in the current transaction */
 	int			assign[X86_PMC_IDX_MAX]; /* event to counter assignment */
 	u64			tags[X86_PMC_IDX_MAX];
 	struct perf_event	*event_list[X86_PMC_IDX_MAX]; /* in enabled order */
 
 	unsigned int		group_flag;
+	int			is_fake;
 
 	/*
 	 * Intel DebugStore bits
@@ -130,6 +157,8 @@ struct cpu_hw_events {
 	void				*lbr_context;
 	struct perf_branch_stack	lbr_stack;
 	struct perf_branch_entry	lbr_entries[MAX_LBR_ENTRIES];
+	struct er_account		*lbr_sel;
+	u64				br_sel;
 
 	/*
 	 * Intel host/guest exclude bits
@@ -137,6 +166,11 @@ struct cpu_hw_events {
 	u64				intel_ctrl_guest_mask;
 	u64				intel_ctrl_host_mask;
 	struct perf_guest_switch_msr	guest_switch_msrs[X86_PMC_IDX_MAX];
+
+	/*
+	 * Intel checkpoint mask
+	 */
+	u64				intel_cp_status;
 
 	/*
 	 * manage shared (per-core, per-cpu) registers
@@ -147,21 +181,24 @@ struct cpu_hw_events {
 	/*
 	 * AMD specific bits
 	 */
-	struct amd_nb		*amd_nb;
+	struct amd_nb			*amd_nb;
+	/* Inverted mask of bits to clear in the perf_ctr ctrl registers */
+	u64				perf_ctr_virt_mask;
 
 	void				*kfree_on_online;
 };
 
-#define __EVENT_CONSTRAINT(c, n, m, w, o) {\
+#define __EVENT_CONSTRAINT(c, n, m, w, o, f) {\
 	{ .idxmsk64 = (n) },		\
 	.code = (c),			\
 	.cmask = (m),			\
 	.weight = (w),			\
 	.overlap = (o),			\
+	.flags = f,			\
 }
 
 #define EVENT_CONSTRAINT(c, n, m)	\
-	__EVENT_CONSTRAINT(c, n, m, HWEIGHT(n), 0)
+	__EVENT_CONSTRAINT(c, n, m, HWEIGHT(n), 0, 0)
 
 /*
  * The overlap flag marks event constraints with overlapping counter
@@ -185,7 +222,7 @@ struct cpu_hw_events {
  * and its counter masks must be kept at a minimum.
  */
 #define EVENT_CONSTRAINT_OVERLAP(c, n, m)	\
-	__EVENT_CONSTRAINT(c, n, m, HWEIGHT(n), 1)
+	__EVENT_CONSTRAINT(c, n, m, HWEIGHT(n), 1, 0)
 
 /*
  * Constraint on the Event code.
@@ -201,11 +238,14 @@ struct cpu_hw_events {
  *  - inv
  *  - edge
  *  - cnt-mask
+ *  - in_tx
+ *  - in_tx_checkpointed
  *  The other filters are supported by fixed counters.
  *  The any-thread option is supported starting with v3.
  */
+#define FIXED_EVENT_FLAGS (X86_RAW_EVENT_MASK|HSW_IN_TX|HSW_IN_TX_CHECKPOINTED)
 #define FIXED_EVENT_CONSTRAINT(c, n)	\
-	EVENT_CONSTRAINT(c, (1ULL << (32+n)), X86_RAW_EVENT_MASK)
+	EVENT_CONSTRAINT(c, (1ULL << (32+n)), FIXED_EVENT_FLAGS)
 
 /*
  * Constraint on the Event code + UMask
@@ -213,11 +253,67 @@ struct cpu_hw_events {
 #define INTEL_UEVENT_CONSTRAINT(c, n)	\
 	EVENT_CONSTRAINT(c, n, INTEL_ARCH_EVENT_MASK)
 
-#define EVENT_CONSTRAINT_END		\
-	EVENT_CONSTRAINT(0, 0, 0)
+#define INTEL_PLD_CONSTRAINT(c, n)	\
+	__EVENT_CONSTRAINT(c, n, INTEL_ARCH_EVENT_MASK|X86_ALL_EVENT_FLAGS, \
+			   HWEIGHT(n), 0, PERF_X86_EVENT_PEBS_LDLAT)
 
+#define INTEL_PST_CONSTRAINT(c, n)	\
+	__EVENT_CONSTRAINT(c, n, INTEL_ARCH_EVENT_MASK|X86_ALL_EVENT_FLAGS, \
+			  HWEIGHT(n), 0, PERF_X86_EVENT_PEBS_ST)
+
+/* Event constraint, but match on all event flags too. */
+#define INTEL_FLAGS_EVENT_CONSTRAINT(c, n) \
+	EVENT_CONSTRAINT(c, n, INTEL_ARCH_EVENT_MASK|X86_ALL_EVENT_FLAGS)
+
+/* Check only flags, but allow all event/umask */
+#define INTEL_ALL_EVENT_CONSTRAINT(code, n)	\
+	EVENT_CONSTRAINT(code, n, X86_ALL_EVENT_FLAGS)
+
+/* Check flags and event code, and set the HSW store flag */
+#define INTEL_FLAGS_EVENT_CONSTRAINT_DATALA_ST(code, n) \
+	__EVENT_CONSTRAINT(code, n, 			\
+			  ARCH_PERFMON_EVENTSEL_EVENT|X86_ALL_EVENT_FLAGS, \
+			  HWEIGHT(n), 0, PERF_X86_EVENT_PEBS_ST_HSW)
+
+/* Check flags and event code, and set the HSW load flag */
+#define INTEL_FLAGS_EVENT_CONSTRAINT_DATALA_LD(code, n) \
+	__EVENT_CONSTRAINT(code, n, 			\
+			  ARCH_PERFMON_EVENTSEL_EVENT|X86_ALL_EVENT_FLAGS, \
+			  HWEIGHT(n), 0, PERF_X86_EVENT_PEBS_LD_HSW)
+
+/* Check flags and event code/umask, and set the HSW store flag */
+#define INTEL_FLAGS_UEVENT_CONSTRAINT_DATALA_ST(code, n) \
+	__EVENT_CONSTRAINT(code, n, 			\
+			  INTEL_ARCH_EVENT_MASK|X86_ALL_EVENT_FLAGS, \
+			  HWEIGHT(n), 0, PERF_X86_EVENT_PEBS_ST_HSW)
+
+/* Check flags and event code/umask, and set the HSW load flag */
+#define INTEL_FLAGS_UEVENT_CONSTRAINT_DATALA_LD(code, n) \
+	__EVENT_CONSTRAINT(code, n, 			\
+			  INTEL_ARCH_EVENT_MASK|X86_ALL_EVENT_FLAGS, \
+			  HWEIGHT(n), 0, PERF_X86_EVENT_PEBS_LD_HSW)
+
+/* Check flags and event code/umask, and set the HSW N/A flag */
+#define INTEL_FLAGS_UEVENT_CONSTRAINT_DATALA_NA(code, n) \
+	__EVENT_CONSTRAINT(code, n, 			\
+			  INTEL_ARCH_EVENT_MASK|INTEL_ARCH_EVENT_MASK, \
+			  HWEIGHT(n), 0, PERF_X86_EVENT_PEBS_NA_HSW)
+
+
+/*
+ * We define the end marker as having a weight of -1
+ * to enable blacklisting of events using a counter bitmask
+ * of zero and thus a weight of zero.
+ * The end marker has a weight that cannot possibly be
+ * obtained from counting the bits in the bitmask.
+ */
+#define EVENT_CONSTRAINT_END { .weight = -1 }
+
+/*
+ * Check for end marker with weight == -1
+ */
 #define for_each_event_constraint(e, c)	\
-	for ((e) = (c); (e)->weight; (e)++)
+	for ((e) = (c); (e)->weight != -1; (e)++)
 
 /*
  * Extra registers for specific events.
@@ -235,18 +331,30 @@ struct extra_reg {
 	u64			config_mask;
 	u64			valid_mask;
 	int			idx;  /* per_xxx->regs[] reg index */
+	bool			extra_msr_access;
 };
 
 #define EVENT_EXTRA_REG(e, ms, m, vm, i) {	\
-	.event = (e),		\
-	.msr = (ms),		\
-	.config_mask = (m),	\
-	.valid_mask = (vm),	\
-	.idx = EXTRA_REG_##i	\
+	.event = (e),			\
+	.msr = (ms),			\
+	.config_mask = (m),		\
+	.valid_mask = (vm),		\
+	.idx = EXTRA_REG_##i,		\
+	.extra_msr_access = true,	\
 	}
 
 #define INTEL_EVENT_EXTRA_REG(event, msr, vm, idx)	\
 	EVENT_EXTRA_REG(event, msr, ARCH_PERFMON_EVENTSEL_EVENT, vm, idx)
+
+#define INTEL_UEVENT_EXTRA_REG(event, msr, vm, idx) \
+	EVENT_EXTRA_REG(event, msr, ARCH_PERFMON_EVENTSEL_EVENT | \
+			ARCH_PERFMON_EVENTSEL_UMASK, vm, idx)
+
+#define INTEL_UEVENT_PEBS_LDLAT_EXTRA_REG(c) \
+	INTEL_UEVENT_EXTRA_REG(c, \
+			       MSR_PEBS_LD_LAT_THRESHOLD, \
+			       0xffff, \
+			       LDLAT)
 
 #define EVENT_EXTRA_END EVENT_EXTRA_REG(0, 0, 0, 0, RSP_0)
 
@@ -257,6 +365,11 @@ union perf_capabilities {
 		u64	pebs_arch_reg:1;
 		u64	pebs_format:4;
 		u64	smm_freeze:1;
+		/*
+		 * PMU supports separate counter range for writing
+		 * values > 32bit.
+		 */
+		u64	full_width_write:1;
 	};
 	u64	capabilities;
 };
@@ -265,6 +378,29 @@ struct x86_pmu_quirk {
 	struct x86_pmu_quirk *next;
 	void (*func)(void);
 };
+
+union x86_pmu_config {
+	struct {
+		u64 event:8,
+		    umask:8,
+		    usr:1,
+		    os:1,
+		    edge:1,
+		    pc:1,
+		    interrupt:1,
+		    __reserved1:1,
+		    en:1,
+		    inv:1,
+		    cmask:8,
+		    event2:4,
+		    __reserved2:4,
+		    go:1,
+		    ho:1;
+	} bits;
+	u64 value;
+};
+
+#define X86_CONFIG(args...) ((union x86_pmu_config){.bits = {args}}).value
 
 /*
  * struct x86_pmu - generic x86 pmu
@@ -284,6 +420,8 @@ struct x86_pmu {
 	int		(*schedule_events)(struct cpu_hw_events *cpuc, int n, int *assign);
 	unsigned	eventsel;
 	unsigned	perfctr;
+	int		(*addr_offset)(int index, bool eventsel);
+	int		(*rdpmc_index)(int index);
 	u64		(*event_map)(int);
 	int		max_events;
 	int		num_counters;
@@ -306,11 +444,29 @@ struct x86_pmu {
 	struct event_constraint *event_constraints;
 	struct x86_pmu_quirk *quirks;
 	int		perfctr_second_write;
+	bool		late_ack;
 
+	/*
+	 * sysfs attrs
+	 */
+	int		attr_rdpmc_broken;
+	int		attr_rdpmc;
+	struct attribute **format_attrs;
+	struct attribute **event_attrs;
+
+	ssize_t		(*events_sysfs_show)(char *page, u64 config);
+	struct attribute **cpu_events;
+
+	/*
+	 * CPU Hotplug hooks
+	 */
 	int		(*cpu_prepare)(int cpu);
 	void		(*cpu_starting)(int cpu);
 	void		(*cpu_dying)(int cpu);
 	void		(*cpu_dead)(int cpu);
+
+	void		(*check_microcode)(void);
+	void		(*flush_branch_stack)(void);
 
 	/*
 	 * Intel Arch Perfmon v2+
@@ -321,17 +477,25 @@ struct x86_pmu {
 	/*
 	 * Intel DebugStore bits
 	 */
-	int		bts, pebs;
-	int		bts_active, pebs_active;
+	unsigned int	bts		:1,
+			bts_active	:1,
+			pebs		:1,
+			pebs_active	:1,
+			pebs_broken	:1;
 	int		pebs_record_size;
 	void		(*drain_pebs)(struct pt_regs *regs);
 	struct event_constraint *pebs_constraints;
+	void		(*pebs_aliases)(struct perf_event *event);
+	int 		max_pebs_events;
 
 	/*
 	 * Intel LBR
 	 */
 	unsigned long	lbr_tos, lbr_from, lbr_to; /* MSR base regs       */
 	int		lbr_nr;			   /* hardware stack size */
+	u64		lbr_sel_mask;		   /* LBR_SELECT valid bits */
+	const int	*lbr_sel_map;		   /* lbr_select mappings */
+	bool		lbr_double_abort;	   /* duplicated lbr aborts */
 
 	/*
 	 * Extra registers for events
@@ -356,6 +520,23 @@ do {									\
 
 #define ERF_NO_HT_SHARING	1
 #define ERF_HAS_RSP_1		2
+
+#define EVENT_VAR(_id)  event_attr_##_id
+#define EVENT_PTR(_id) &event_attr_##_id.attr.attr
+
+#define EVENT_ATTR(_name, _id)						\
+static struct perf_pmu_events_attr EVENT_VAR(_id) = {			\
+	.attr		= __ATTR(_name, 0444, events_sysfs_show, NULL),	\
+	.id		= PERF_COUNT_HW_##_id,				\
+	.event_str	= NULL,						\
+};
+
+#define EVENT_ATTR_STR(_name, v, str)					\
+static struct perf_pmu_events_attr event_attr_##v = {			\
+	.attr		= __ATTR(_name, 0444, events_sysfs_show, NULL),	\
+	.id		= 0,						\
+	.event_str	= str,						\
+};
 
 extern struct x86_pmu x86_pmu __read_mostly;
 
@@ -384,28 +565,21 @@ extern u64 __read_mostly hw_cache_extra_regs
 
 u64 x86_perf_event_update(struct perf_event *event);
 
-static inline int x86_pmu_addr_offset(int index)
-{
-	int offset;
-
-	/* offset = X86_FEATURE_PERFCTR_CORE ? index << 1 : index */
-	alternative_io(ASM_NOP2,
-		       "shll $1, %%eax",
-		       X86_FEATURE_PERFCTR_CORE,
-		       "=a" (offset),
-		       "a"  (index));
-
-	return offset;
-}
-
 static inline unsigned int x86_pmu_config_addr(int index)
 {
-	return x86_pmu.eventsel + x86_pmu_addr_offset(index);
+	return x86_pmu.eventsel + (x86_pmu.addr_offset ?
+				   x86_pmu.addr_offset(index, true) : index);
 }
 
 static inline unsigned int x86_pmu_event_addr(int index)
 {
-	return x86_pmu.perfctr + x86_pmu_addr_offset(index);
+	return x86_pmu.perfctr + (x86_pmu.addr_offset ?
+				  x86_pmu.addr_offset(index, false) : index);
+}
+
+static inline int x86_pmu_rdpmc_index(int index)
+{
+	return x86_pmu.rdpmc_index ? x86_pmu.rdpmc_index(index) : index;
 }
 
 int x86_setup_perfctr(struct perf_event *event);
@@ -417,13 +591,17 @@ void x86_pmu_disable_all(void);
 static inline void __x86_pmu_enable_event(struct hw_perf_event *hwc,
 					  u64 enable_mask)
 {
+	u64 disable_mask = __this_cpu_read(cpu_hw_events.perf_ctr_virt_mask);
+
 	if (hwc->extra_reg.reg)
 		wrmsrl(hwc->extra_reg.reg, hwc->extra_reg.config);
-	wrmsrl(hwc->config_base, hwc->config | enable_mask);
+	wrmsrl(hwc->config_base, (hwc->config | enable_mask) & ~disable_mask);
 }
 
 void x86_pmu_enable_all(int added);
 
+int perf_assign_events(struct perf_event **events, int n,
+			int wmin, int wmax, int *assign);
 int x86_schedule_events(struct cpu_hw_events *cpuc, int n, int *assign);
 
 void x86_pmu_stop(struct perf_event *event, int flags);
@@ -442,6 +620,38 @@ int x86_pmu_handle_irq(struct pt_regs *regs);
 extern struct event_constraint emptyconstraint;
 
 extern struct event_constraint unconstrained;
+
+static inline bool kernel_ip(unsigned long ip)
+{
+#ifdef CONFIG_X86_32
+	return ip > PAGE_OFFSET;
+#else
+	return (long)ip < 0;
+#endif
+}
+
+/*
+ * Not all PMUs provide the right context information to place the reported IP
+ * into full context. Specifically segment registers are typically not
+ * supplied.
+ *
+ * Assuming the address is a linear address (it is for IBS), we fake the CS and
+ * vm86 mode using the known zero-based code segment and 'fix up' the registers
+ * to reflect this.
+ *
+ * Intel PEBS/LBR appear to typically provide the effective address, nothing
+ * much we can do about that but pray and treat it like a linear address.
+ */
+static inline void set_linear_ip(struct pt_regs *regs, unsigned long ip)
+{
+	regs->cs = kernel_ip(ip) ? __KERNEL_CS : __USER_CS;
+	if (regs->flags & X86_VM_MASK)
+		regs->flags ^= (PERF_EFLAGS_VM | X86_VM_MASK);
+	regs->ip = ip;
+}
+
+ssize_t x86_event_sysfs_show(char *page, u64 config, u64 event);
+ssize_t intel_event_sysfs_show(char *page, u64 config);
 
 #ifdef CONFIG_CPU_SUP_AMD
 
@@ -487,11 +697,17 @@ extern struct event_constraint intel_core2_pebs_event_constraints[];
 
 extern struct event_constraint intel_atom_pebs_event_constraints[];
 
+extern struct event_constraint intel_slm_pebs_event_constraints[];
+
 extern struct event_constraint intel_nehalem_pebs_event_constraints[];
 
 extern struct event_constraint intel_westmere_pebs_event_constraints[];
 
 extern struct event_constraint intel_snb_pebs_event_constraints[];
+
+extern struct event_constraint intel_ivb_pebs_event_constraints[];
+
+extern struct event_constraint intel_hsw_pebs_event_constraints[];
 
 struct event_constraint *intel_pebs_constraints(struct perf_event *event);
 
@@ -523,9 +739,18 @@ void intel_pmu_lbr_init_nhm(void);
 
 void intel_pmu_lbr_init_atom(void);
 
+void intel_pmu_lbr_init_snb(void);
+
+int intel_pmu_setup_lbr_filter(struct perf_event *event);
+
 int p4_pmu_init(void);
 
 int p6_pmu_init(void);
+
+int knc_pmu_init(void);
+
+ssize_t events_sysfs_show(struct device *dev, struct device_attribute *attr,
+			  char *page);
 
 #else /* CONFIG_CPU_SUP_INTEL */
 

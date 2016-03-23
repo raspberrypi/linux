@@ -24,7 +24,6 @@
  *
  *****************************************************************************/
 #include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/skbuff.h>
 #include <linux/slab.h>
 #include <net/mac80211.h>
@@ -641,13 +640,10 @@ il4965_rs_toggle_antenna(u32 valid_ant, u32 *rate_n_flags,
  * there are no non-GF stations present in the BSS.
  */
 static bool
-il4965_rs_use_green(struct ieee80211_sta *sta)
+il4965_rs_use_green(struct il_priv *il, struct ieee80211_sta *sta)
 {
-	struct il_station_priv *sta_priv = (void *)sta->drv_priv;
-	struct il_rxon_context *ctx = sta_priv->common.ctx;
-
 	return (sta->ht_cap.cap & IEEE80211_HT_CAP_GRN_FLD) &&
-	    !(ctx->ht.non_gf_sta_present);
+	       !il->ht.non_gf_sta_present;
 }
 
 /**
@@ -823,8 +819,6 @@ il4965_rs_tx_status(void *il_r, struct ieee80211_supported_band *sband,
 	u32 tx_rate;
 	struct il_scale_tbl_info tbl_type;
 	struct il_scale_tbl_info *curr_tbl, *other_tbl, *tmp_tbl;
-	struct il_station_priv *sta_priv = (void *)sta->drv_priv;
-	struct il_rxon_context *ctx = sta_priv->common.ctx;
 
 	D_RATE("get frame ack response, update rate scale win\n");
 
@@ -878,7 +872,7 @@ il4965_rs_tx_status(void *il_r, struct ieee80211_supported_band *sband,
 	    tbl_type.is_SGI != !!(mac_flags & IEEE80211_TX_RC_SHORT_GI) ||
 	    tbl_type.is_ht40 != !!(mac_flags & IEEE80211_TX_RC_40_MHZ_WIDTH) ||
 	    tbl_type.is_dup != !!(mac_flags & IEEE80211_TX_RC_DUP_DATA) ||
-	    tbl_type.ant_type != info->antenna_sel_tx ||
+	    tbl_type.ant_type != info->status.antenna ||
 	    !!(tx_rate & RATE_MCS_HT_MSK) != !!(mac_flags & IEEE80211_TX_RC_MCS)
 	    || !!(tx_rate & RATE_MCS_GF_MSK) !=
 	    !!(mac_flags & IEEE80211_TX_RC_GREEN_FIELD) || rs_idx != mac_idx) {
@@ -892,7 +886,7 @@ il4965_rs_tx_status(void *il_r, struct ieee80211_supported_band *sband,
 		lq_sta->missed_rate_counter++;
 		if (lq_sta->missed_rate_counter > IL_MISSED_RATE_MAX) {
 			lq_sta->missed_rate_counter = 0;
-			il_send_lq_cmd(il, ctx, &lq_sta->lq, CMD_ASYNC, false);
+			il_send_lq_cmd(il, &lq_sta->lq, CMD_ASYNC, false);
 		}
 		/* Regardless, ignore this status info for outdated rate */
 		return;
@@ -1184,14 +1178,11 @@ il4965_rs_switch_to_mimo2(struct il_priv *il, struct il_lq_sta *lq_sta,
 	u16 rate_mask;
 	s32 rate;
 	s8 is_green = lq_sta->is_green;
-	struct il_station_priv *sta_priv = (void *)sta->drv_priv;
-	struct il_rxon_context *ctx = sta_priv->common.ctx;
 
 	if (!conf_is_ht(conf) || !sta->ht_cap.ht_supported)
 		return -1;
 
-	if (((sta->ht_cap.cap & IEEE80211_HT_CAP_SM_PS) >> 2) ==
-	    WLAN_HT_CAP_SM_PS_STATIC)
+	if (sta->smps_mode == IEEE80211_SMPS_STATIC)
 		return -1;
 
 	/* Need both Tx chains/antennas to support MIMO */
@@ -1206,7 +1197,7 @@ il4965_rs_switch_to_mimo2(struct il_priv *il, struct il_lq_sta *lq_sta,
 	tbl->max_search = IL_MAX_SEARCH;
 	rate_mask = lq_sta->active_mimo2_rate;
 
-	if (il_is_ht40_tx_allowed(il, ctx, &sta->ht_cap))
+	if (il_is_ht40_tx_allowed(il, &sta->ht_cap))
 		tbl->is_ht40 = 1;
 	else
 		tbl->is_ht40 = 0;
@@ -1240,8 +1231,6 @@ il4965_rs_switch_to_siso(struct il_priv *il, struct il_lq_sta *lq_sta,
 	u16 rate_mask;
 	u8 is_green = lq_sta->is_green;
 	s32 rate;
-	struct il_station_priv *sta_priv = (void *)sta->drv_priv;
-	struct il_rxon_context *ctx = sta_priv->common.ctx;
 
 	if (!conf_is_ht(conf) || !sta->ht_cap.ht_supported)
 		return -1;
@@ -1254,7 +1243,7 @@ il4965_rs_switch_to_siso(struct il_priv *il, struct il_lq_sta *lq_sta,
 	tbl->max_search = IL_MAX_SEARCH;
 	rate_mask = lq_sta->active_siso_rate;
 
-	if (il_is_ht40_tx_allowed(il, ctx, &sta->ht_cap))
+	if (il_is_ht40_tx_allowed(il, &sta->ht_cap))
 		tbl->is_ht40 = 1;
 	else
 		tbl->is_ht40 = 0;
@@ -1733,8 +1722,7 @@ il4965_rs_stay_in_table(struct il_lq_sta *lq_sta, bool force_search)
  * setup rate table in uCode
  */
 static void
-il4965_rs_update_rate_tbl(struct il_priv *il, struct il_rxon_context *ctx,
-			  struct il_lq_sta *lq_sta,
+il4965_rs_update_rate_tbl(struct il_priv *il, struct il_lq_sta *lq_sta,
 			  struct il_scale_tbl_info *tbl, int idx, u8 is_green)
 {
 	u32 rate;
@@ -1742,7 +1730,7 @@ il4965_rs_update_rate_tbl(struct il_priv *il, struct il_rxon_context *ctx,
 	/* Update uCode's rate table. */
 	rate = il4965_rate_n_flags_from_tbl(il, tbl, idx, is_green);
 	il4965_rs_fill_link_cmd(il, lq_sta, rate);
-	il_send_lq_cmd(il, ctx, &lq_sta->lq, CMD_ASYNC, false);
+	il_send_lq_cmd(il, &lq_sta->lq, CMD_ASYNC, false);
 }
 
 /*
@@ -1778,8 +1766,6 @@ il4965_rs_rate_scale_perform(struct il_priv *il, struct sk_buff *skb,
 	s32 sr;
 	u8 tid = MAX_TID_COUNT;
 	struct il_tid_data *tid_data;
-	struct il_station_priv *sta_priv = (void *)sta->drv_priv;
-	struct il_rxon_context *ctx = sta_priv->common.ctx;
 
 	D_RATE("rate scale calculate new rate for skb\n");
 
@@ -1815,7 +1801,7 @@ il4965_rs_rate_scale_perform(struct il_priv *il, struct sk_buff *skb,
 	if (is_legacy(tbl->lq_type))
 		lq_sta->is_green = 0;
 	else
-		lq_sta->is_green = il4965_rs_use_green(sta);
+		lq_sta->is_green = il4965_rs_use_green(il, sta);
 	is_green = lq_sta->is_green;
 
 	/* current tx rate */
@@ -1854,7 +1840,7 @@ il4965_rs_rate_scale_perform(struct il_priv *il, struct sk_buff *skb,
 			tbl = &(lq_sta->lq_info[lq_sta->active_tbl]);
 			/* get "active" rate info */
 			idx = il4965_hwrate_to_plcp_idx(tbl->current_rate);
-			il4965_rs_update_rate_tbl(il, ctx, lq_sta, tbl, idx,
+			il4965_rs_update_rate_tbl(il, lq_sta, tbl, idx,
 						      is_green);
 		}
 		return;
@@ -2057,8 +2043,7 @@ il4965_rs_rate_scale_perform(struct il_priv *il, struct sk_buff *skb,
 lq_update:
 	/* Replace uCode's rate table for the destination station. */
 	if (update_lq)
-		il4965_rs_update_rate_tbl(il, ctx, lq_sta, tbl, idx,
-					      is_green);
+		il4965_rs_update_rate_tbl(il, lq_sta, tbl, idx, is_green);
 
 	/* Should we stay with this modulation mode,
 	 * or search for a new one? */
@@ -2098,7 +2083,7 @@ lq_update:
 			D_RATE("Switch current  mcs: %X idx: %d\n",
 			       tbl->current_rate, idx);
 			il4965_rs_fill_link_cmd(il, lq_sta, tbl->current_rate);
-			il_send_lq_cmd(il, ctx, &lq_sta->lq, CMD_ASYNC, false);
+			il_send_lq_cmd(il, &lq_sta->lq, CMD_ASYNC, false);
 		} else
 			done_search = 1;
 	}
@@ -2166,17 +2151,16 @@ il4965_rs_initialize_lq(struct il_priv *il, struct ieee80211_conf *conf,
 	int rate_idx;
 	int i;
 	u32 rate;
-	u8 use_green = il4965_rs_use_green(sta);
+	u8 use_green;
 	u8 active_tbl = 0;
 	u8 valid_tx_ant;
 	struct il_station_priv *sta_priv;
-	struct il_rxon_context *ctx;
 
 	if (!sta || !lq_sta)
 		return;
 
+	use_green = il4965_rs_use_green(il, sta);
 	sta_priv = (void *)sta->drv_priv;
-	ctx = sta_priv->common.ctx;
 
 	i = lq_sta->last_txrate_idx;
 
@@ -2208,7 +2192,7 @@ il4965_rs_initialize_lq(struct il_priv *il, struct ieee80211_conf *conf,
 	il4965_rs_set_expected_tpt_table(lq_sta, tbl);
 	il4965_rs_fill_link_cmd(NULL, lq_sta, rate);
 	il->stations[lq_sta->lq.sta_id].lq = &lq_sta->lq;
-	il_send_lq_cmd(il, ctx, &lq_sta->lq, CMD_SYNC, true);
+	il_send_lq_cmd(il, &lq_sta->lq, CMD_SYNC, true);
 }
 
 static void
@@ -2283,7 +2267,7 @@ il4965_rs_get_rate(void *il_r, struct ieee80211_sta *sta, void *il_sta,
 		info->control.rates[0].flags = 0;
 	}
 	info->control.rates[0].idx = rate_idx;
-
+	info->control.rates[0].count = 1;
 }
 
 static void *
@@ -2315,7 +2299,7 @@ il4965_rs_rate_init(struct il_priv *il, struct ieee80211_sta *sta, u8 sta_id)
 
 	sta_priv = (struct il_station_priv *)sta->drv_priv;
 	lq_sta = &sta_priv->lq_sta;
-	sband = hw->wiphy->bands[conf->channel->band];
+	sband = hw->wiphy->bands[conf->chandef.chan->band];
 
 	lq_sta->lq.sta_id = sta_id;
 
@@ -2341,7 +2325,7 @@ il4965_rs_rate_init(struct il_priv *il, struct ieee80211_sta *sta, u8 sta_id)
 	lq_sta->is_dup = 0;
 	lq_sta->max_rate_idx = -1;
 	lq_sta->missed_rate_counter = IL_MISSED_RATE_MAX;
-	lq_sta->is_green = il4965_rs_use_green(sta);
+	lq_sta->is_green = il4965_rs_use_green(il, sta);
 	lq_sta->active_legacy_rate = il->active_rate & ~(0x1000);
 	lq_sta->band = il->band;
 	/*
@@ -2533,12 +2517,6 @@ il4965_rs_free_sta(void *il_r, struct ieee80211_sta *sta, void *il_sta)
 }
 
 #ifdef CONFIG_MAC80211_DEBUGFS
-static int
-il4965_open_file_generic(struct inode *inode, struct file *file)
-{
-	file->private_data = inode->i_private;
-	return 0;
-}
 
 static void
 il4965_rs_dbgfs_set_mcs(struct il_lq_sta *lq_sta, u32 * rate_n_flags, int idx)
@@ -2579,9 +2557,6 @@ il4965_rs_sta_dbgfs_scale_table_write(struct file *file,
 	char buf[64];
 	size_t buf_size;
 	u32 parsed_rate;
-	struct il_station_priv *sta_priv =
-	    container_of(lq_sta, struct il_station_priv, lq_sta);
-	struct il_rxon_context *ctx = sta_priv->common.ctx;
 
 	il = lq_sta->drv;
 	memset(buf, 0, sizeof(buf));
@@ -2603,7 +2578,7 @@ il4965_rs_sta_dbgfs_scale_table_write(struct file *file,
 
 	if (lq_sta->dbg_fixed_rate) {
 		il4965_rs_fill_link_cmd(NULL, lq_sta, lq_sta->dbg_fixed_rate);
-		il_send_lq_cmd(lq_sta->drv, ctx, &lq_sta->lq, CMD_ASYNC, false);
+		il_send_lq_cmd(lq_sta->drv, &lq_sta->lq, CMD_ASYNC, false);
 	}
 
 	return count;
@@ -2713,7 +2688,7 @@ il4965_rs_sta_dbgfs_scale_table_read(struct file *file, char __user *user_buf,
 static const struct file_operations rs_sta_dbgfs_scale_table_ops = {
 	.write = il4965_rs_sta_dbgfs_scale_table_write,
 	.read = il4965_rs_sta_dbgfs_scale_table_read,
-	.open = il4965_open_file_generic,
+	.open = simple_open,
 	.llseek = default_llseek,
 };
 
@@ -2758,7 +2733,7 @@ il4965_rs_sta_dbgfs_stats_table_read(struct file *file, char __user *user_buf,
 
 static const struct file_operations rs_sta_dbgfs_stats_table_ops = {
 	.read = il4965_rs_sta_dbgfs_stats_table_read,
-	.open = il4965_open_file_generic,
+	.open = simple_open,
 	.llseek = default_llseek,
 };
 
@@ -2786,7 +2761,7 @@ il4965_rs_sta_dbgfs_rate_scale_data_read(struct file *file,
 
 static const struct file_operations rs_sta_dbgfs_rate_scale_data_ops = {
 	.read = il4965_rs_sta_dbgfs_rate_scale_data_read,
-	.open = il4965_open_file_generic,
+	.open = simple_open,
 	.llseek = default_llseek,
 };
 
@@ -2827,12 +2802,12 @@ il4965_rs_remove_debugfs(void *il, void *il_sta)
  */
 static void
 il4965_rs_rate_init_stub(void *il_r, struct ieee80211_supported_band *sband,
+			 struct cfg80211_chan_def *chandef,
 			 struct ieee80211_sta *sta, void *il_sta)
 {
 }
 
-static struct rate_control_ops rs_4965_ops = {
-	.module = NULL,
+static const struct rate_control_ops rs_4965_ops = {
 	.name = IL4965_RS_NAME,
 	.tx_status = il4965_rs_tx_status,
 	.get_rate = il4965_rs_get_rate,

@@ -22,8 +22,8 @@
 #include <linux/mfd/wm831x/pdata.h>
 #include <linux/mfd/wm831x/watchdog.h>
 
-static int nowayout = WATCHDOG_NOWAYOUT;
-module_param(nowayout, int, 0);
+static bool nowayout = WATCHDOG_NOWAYOUT;
+module_param(nowayout, bool, 0);
 MODULE_PARM_DESC(nowayout,
 		 "Watchdog cannot be stopped once started (default="
 		 __MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
@@ -163,6 +163,8 @@ static int wm831x_wdt_set_timeout(struct watchdog_device *wdt_dev,
 			ret);
 	}
 
+	wdt_dev->timeout = timeout;
+
 	return ret;
 }
 
@@ -179,10 +181,10 @@ static const struct watchdog_ops wm831x_wdt_ops = {
 	.set_timeout = wm831x_wdt_set_timeout,
 };
 
-static int __devinit wm831x_wdt_probe(struct platform_device *pdev)
+static int wm831x_wdt_probe(struct platform_device *pdev)
 {
 	struct wm831x *wm831x = dev_get_drvdata(pdev->dev.parent);
-	struct wm831x_pdata *chip_pdata;
+	struct wm831x_pdata *chip_pdata = dev_get_platdata(pdev->dev.parent);
 	struct wm831x_watchdog_pdata *pdata;
 	struct wm831x_wdt_drvdata *driver_data;
 	struct watchdog_device *wm831x_wdt;
@@ -199,9 +201,9 @@ static int __devinit wm831x_wdt_probe(struct platform_device *pdev)
 	if (reg & WM831X_WDOG_DEBUG)
 		dev_warn(wm831x->dev, "Watchdog is paused\n");
 
-	driver_data = kzalloc(sizeof(*driver_data), GFP_KERNEL);
+	driver_data = devm_kzalloc(&pdev->dev, sizeof(*driver_data),
+				   GFP_KERNEL);
 	if (!driver_data) {
-		dev_err(wm831x->dev, "Unable to alloacate watchdog device\n");
 		ret = -ENOMEM;
 		goto err;
 	}
@@ -213,10 +215,8 @@ static int __devinit wm831x_wdt_probe(struct platform_device *pdev)
 
 	wm831x_wdt->info = &wm831x_wdt_info;
 	wm831x_wdt->ops = &wm831x_wdt_ops;
+	watchdog_set_nowayout(wm831x_wdt, nowayout);
 	watchdog_set_drvdata(wm831x_wdt, driver_data);
-
-	if (nowayout)
-		wm831x_wdt->status |= WDOG_NO_WAY_OUT;
 
 	reg = wm831x_reg_read(wm831x, WM831X_WATCHDOG);
 	reg &= WM831X_WDOG_TO_MASK;
@@ -230,12 +230,10 @@ static int __devinit wm831x_wdt_probe(struct platform_device *pdev)
 		wm831x_wdt->timeout = wm831x_wdt_cfgs[i].time;
 
 	/* Apply any configuration */
-	if (pdev->dev.parent->platform_data) {
-		chip_pdata = pdev->dev.parent->platform_data;
+	if (chip_pdata)
 		pdata = chip_pdata->watchdog;
-	} else {
+	else
 		pdata = NULL;
-	}
 
 	if (pdata) {
 		reg &= ~(WM831X_WDOG_SECACT_MASK | WM831X_WDOG_PRIMACT_MASK |
@@ -246,21 +244,15 @@ static int __devinit wm831x_wdt_probe(struct platform_device *pdev)
 		reg |= pdata->software << WM831X_WDOG_RST_SRC_SHIFT;
 
 		if (pdata->update_gpio) {
-			ret = gpio_request(pdata->update_gpio,
-					   "Watchdog update");
+			ret = devm_gpio_request_one(&pdev->dev,
+						pdata->update_gpio,
+						GPIOF_OUT_INIT_LOW,
+						"Watchdog update");
 			if (ret < 0) {
 				dev_err(wm831x->dev,
 					"Failed to request update GPIO: %d\n",
 					ret);
-				goto err_alloc;
-			}
-
-			ret = gpio_direction_output(pdata->update_gpio, 0);
-			if (ret != 0) {
-				dev_err(wm831x->dev,
-					"gpio_direction_output returned: %d\n",
-					ret);
-				goto err_gpio;
+				goto err;
 			}
 
 			driver_data->update_gpio = pdata->update_gpio;
@@ -276,7 +268,7 @@ static int __devinit wm831x_wdt_probe(struct platform_device *pdev)
 		} else {
 			dev_err(wm831x->dev,
 				"Failed to unlock security key: %d\n", ret);
-			goto err_gpio;
+			goto err;
 		}
 	}
 
@@ -284,53 +276,35 @@ static int __devinit wm831x_wdt_probe(struct platform_device *pdev)
 	if (ret != 0) {
 		dev_err(wm831x->dev, "watchdog_register_device() failed: %d\n",
 			ret);
-		goto err_gpio;
+		goto err;
 	}
 
-	dev_set_drvdata(&pdev->dev, driver_data);
+	platform_set_drvdata(pdev, driver_data);
 
 	return 0;
 
-err_gpio:
-	if (driver_data->update_gpio)
-		gpio_free(driver_data->update_gpio);
-err_alloc:
-	kfree(driver_data);
 err:
 	return ret;
 }
 
-static int __devexit wm831x_wdt_remove(struct platform_device *pdev)
+static int wm831x_wdt_remove(struct platform_device *pdev)
 {
-	struct wm831x_wdt_drvdata *driver_data = dev_get_drvdata(&pdev->dev);
+	struct wm831x_wdt_drvdata *driver_data = platform_get_drvdata(pdev);
 
 	watchdog_unregister_device(&driver_data->wdt);
-
-	if (driver_data->update_gpio)
-		gpio_free(driver_data->update_gpio);
 
 	return 0;
 }
 
 static struct platform_driver wm831x_wdt_driver = {
 	.probe = wm831x_wdt_probe,
-	.remove = __devexit_p(wm831x_wdt_remove),
+	.remove = wm831x_wdt_remove,
 	.driver = {
 		.name = "wm831x-watchdog",
 	},
 };
 
-static int __init wm831x_wdt_init(void)
-{
-	return platform_driver_register(&wm831x_wdt_driver);
-}
-module_init(wm831x_wdt_init);
-
-static void __exit wm831x_wdt_exit(void)
-{
-	platform_driver_unregister(&wm831x_wdt_driver);
-}
-module_exit(wm831x_wdt_exit);
+module_platform_driver(wm831x_wdt_driver);
 
 MODULE_AUTHOR("Mark Brown");
 MODULE_DESCRIPTION("WM831x Watchdog");

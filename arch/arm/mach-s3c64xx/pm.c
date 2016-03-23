@@ -17,19 +17,165 @@
 #include <linux/serial_core.h>
 #include <linux/io.h>
 #include <linux/gpio.h>
+#include <linux/pm_domain.h>
 
 #include <mach/map.h>
 #include <mach/irqs.h>
 
+#include <plat/devs.h>
 #include <plat/pm.h>
 #include <plat/wakeup-mask.h>
 
-#include <mach/regs-sys.h>
 #include <mach/regs-gpio.h>
 #include <mach/regs-clock.h>
-#include <mach/regs-syscon-power.h>
-#include <mach/regs-gpio-memport.h>
-#include <mach/regs-modem.h>
+#include <mach/gpio-samsung.h>
+
+#include "regs-gpio-memport.h"
+#include "regs-modem.h"
+#include "regs-sys.h"
+#include "regs-syscon-power.h"
+
+struct s3c64xx_pm_domain {
+	char *const name;
+	u32 ena;
+	u32 pwr_stat;
+	struct generic_pm_domain pd;
+};
+
+static int s3c64xx_pd_off(struct generic_pm_domain *domain)
+{
+	struct s3c64xx_pm_domain *pd;
+	u32 val;
+
+	pd = container_of(domain, struct s3c64xx_pm_domain, pd);
+
+	val = __raw_readl(S3C64XX_NORMAL_CFG);
+	val &= ~(pd->ena);
+	__raw_writel(val, S3C64XX_NORMAL_CFG);
+
+	return 0;
+}
+
+static int s3c64xx_pd_on(struct generic_pm_domain *domain)
+{
+	struct s3c64xx_pm_domain *pd;
+	u32 val;
+	long retry = 1000000L;
+
+	pd = container_of(domain, struct s3c64xx_pm_domain, pd);
+
+	val = __raw_readl(S3C64XX_NORMAL_CFG);
+	val |= pd->ena;
+	__raw_writel(val, S3C64XX_NORMAL_CFG);
+
+	/* Not all domains provide power status readback */
+	if (pd->pwr_stat) {
+		do {
+			cpu_relax();
+			if (__raw_readl(S3C64XX_BLK_PWR_STAT) & pd->pwr_stat)
+				break;
+		} while (retry--);
+
+		if (!retry) {
+			pr_err("Failed to start domain %s\n", pd->name);
+			return -EBUSY;
+		}
+	}
+
+	return 0;
+}
+
+static struct s3c64xx_pm_domain s3c64xx_pm_irom = {
+	.name = "IROM",
+	.ena = S3C64XX_NORMALCFG_IROM_ON,
+	.pd = {
+		.power_off = s3c64xx_pd_off,
+		.power_on = s3c64xx_pd_on,
+	},
+};
+
+static struct s3c64xx_pm_domain s3c64xx_pm_etm = {
+	.name = "ETM",
+	.ena = S3C64XX_NORMALCFG_DOMAIN_ETM_ON,
+	.pwr_stat = S3C64XX_BLKPWRSTAT_ETM,
+	.pd = {
+		.power_off = s3c64xx_pd_off,
+		.power_on = s3c64xx_pd_on,
+	},
+};
+
+static struct s3c64xx_pm_domain s3c64xx_pm_s = {
+	.name = "S",
+	.ena = S3C64XX_NORMALCFG_DOMAIN_S_ON,
+	.pwr_stat = S3C64XX_BLKPWRSTAT_S,
+	.pd = {
+		.power_off = s3c64xx_pd_off,
+		.power_on = s3c64xx_pd_on,
+	},
+};
+
+static struct s3c64xx_pm_domain s3c64xx_pm_f = {
+	.name = "F",
+	.ena = S3C64XX_NORMALCFG_DOMAIN_F_ON,
+	.pwr_stat = S3C64XX_BLKPWRSTAT_F,
+	.pd = {
+		.power_off = s3c64xx_pd_off,
+		.power_on = s3c64xx_pd_on,
+	},
+};
+
+static struct s3c64xx_pm_domain s3c64xx_pm_p = {
+	.name = "P",
+	.ena = S3C64XX_NORMALCFG_DOMAIN_P_ON,
+	.pwr_stat = S3C64XX_BLKPWRSTAT_P,
+	.pd = {
+		.power_off = s3c64xx_pd_off,
+		.power_on = s3c64xx_pd_on,
+	},
+};
+
+static struct s3c64xx_pm_domain s3c64xx_pm_i = {
+	.name = "I",
+	.ena = S3C64XX_NORMALCFG_DOMAIN_I_ON,
+	.pwr_stat = S3C64XX_BLKPWRSTAT_I,
+	.pd = {
+		.power_off = s3c64xx_pd_off,
+		.power_on = s3c64xx_pd_on,
+	},
+};
+
+static struct s3c64xx_pm_domain s3c64xx_pm_g = {
+	.name = "G",
+	.ena = S3C64XX_NORMALCFG_DOMAIN_G_ON,
+	.pd = {
+		.power_off = s3c64xx_pd_off,
+		.power_on = s3c64xx_pd_on,
+	},
+};
+
+static struct s3c64xx_pm_domain s3c64xx_pm_v = {
+	.name = "V",
+	.ena = S3C64XX_NORMALCFG_DOMAIN_V_ON,
+	.pwr_stat = S3C64XX_BLKPWRSTAT_V,
+	.pd = {
+		.power_off = s3c64xx_pd_off,
+		.power_on = s3c64xx_pd_on,
+	},
+};
+
+static struct s3c64xx_pm_domain *s3c64xx_always_on_pm_domains[] = {
+	&s3c64xx_pm_irom,
+};
+
+static struct s3c64xx_pm_domain *s3c64xx_pm_domains[] = {
+	&s3c64xx_pm_etm,
+	&s3c64xx_pm_g,
+	&s3c64xx_pm_v,
+	&s3c64xx_pm_i,
+	&s3c64xx_pm_p,
+	&s3c64xx_pm_s,
+	&s3c64xx_pm_f,
+};
 
 #ifdef CONFIG_S3C_PM_DEBUG_LED_SMDK
 void s3c_pm_debug_smdkled(u32 set, u32 clear)
@@ -49,29 +195,8 @@ void s3c_pm_debug_smdkled(u32 set, u32 clear)
 #endif
 
 static struct sleep_save core_save[] = {
-	SAVE_ITEM(S3C_APLL_LOCK),
-	SAVE_ITEM(S3C_MPLL_LOCK),
-	SAVE_ITEM(S3C_EPLL_LOCK),
-	SAVE_ITEM(S3C_CLK_SRC),
-	SAVE_ITEM(S3C_CLK_DIV0),
-	SAVE_ITEM(S3C_CLK_DIV1),
-	SAVE_ITEM(S3C_CLK_DIV2),
-	SAVE_ITEM(S3C_CLK_OUT),
-	SAVE_ITEM(S3C_HCLK_GATE),
-	SAVE_ITEM(S3C_PCLK_GATE),
-	SAVE_ITEM(S3C_SCLK_GATE),
-	SAVE_ITEM(S3C_MEM0_GATE),
-
-	SAVE_ITEM(S3C_EPLL_CON1),
-	SAVE_ITEM(S3C_EPLL_CON0),
-
 	SAVE_ITEM(S3C64XX_MEM0DRVCON),
 	SAVE_ITEM(S3C64XX_MEM1DRVCON),
-
-#ifndef CONFIG_CPU_FREQ
-	SAVE_ITEM(S3C_APLL_CON),
-	SAVE_ITEM(S3C_MPLL_CON),
-#endif
 };
 
 static struct sleep_save misc_save[] = {
@@ -89,6 +214,8 @@ static struct sleep_save misc_save[] = {
 
 	SAVE_ITEM(S3C64XX_SDMA_SEL),
 	SAVE_ITEM(S3C64XX_MODEM_MIFPCON),
+
+	SAVE_ITEM(S3C64XX_NORMAL_CFG),
 };
 
 void s3c_pm_configure_extint(void)
@@ -150,7 +277,8 @@ static int s3c64xx_cpu_suspend(unsigned long arg)
 
 	/* we should never get past here */
 
-	panic("sleep resumed to originator?");
+	pr_info("Failed to suspend the system\n");
+	return 1; /* Aborting suspend */
 }
 
 /* mapping of interrupts to parts of the wakeup mask */
@@ -179,11 +307,31 @@ static void s3c64xx_pm_prepare(void)
 	__raw_writel(__raw_readl(S3C64XX_WAKEUP_STAT), S3C64XX_WAKEUP_STAT);
 }
 
-static int s3c64xx_pm_init(void)
+int __init s3c64xx_pm_init(void)
+{
+	int i;
+
+	s3c_pm_init();
+
+	for (i = 0; i < ARRAY_SIZE(s3c64xx_always_on_pm_domains); i++)
+		pm_genpd_init(&s3c64xx_always_on_pm_domains[i]->pd,
+			      &pm_domain_always_on_gov, false);
+
+	for (i = 0; i < ARRAY_SIZE(s3c64xx_pm_domains); i++)
+		pm_genpd_init(&s3c64xx_pm_domains[i]->pd, NULL, false);
+
+#ifdef CONFIG_S3C_DEV_FB
+	if (dev_get_platdata(&s3c_device_fb.dev))
+		pm_genpd_add_device(&s3c64xx_pm_f.pd, &s3c_device_fb.dev);
+#endif
+
+	return 0;
+}
+
+static __init int s3c64xx_pm_initcall(void)
 {
 	pm_cpu_prep = s3c64xx_pm_prepare;
 	pm_cpu_sleep = s3c64xx_cpu_suspend;
-	pm_uart_udivslot = 1;
 
 #ifdef CONFIG_S3C_PM_DEBUG_LED_SMDK
 	gpio_request(S3C64XX_GPN(12), "DEBUG_LED0");
@@ -198,5 +346,4 @@ static int s3c64xx_pm_init(void)
 
 	return 0;
 }
-
-arch_initcall(s3c64xx_pm_init);
+arch_initcall(s3c64xx_pm_initcall);

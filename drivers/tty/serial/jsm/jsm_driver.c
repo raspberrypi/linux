@@ -54,7 +54,7 @@ static pci_ers_result_t jsm_io_error_detected(struct pci_dev *pdev,
 static pci_ers_result_t jsm_io_slot_reset(struct pci_dev *pdev);
 static void jsm_io_resume(struct pci_dev *pdev);
 
-static struct pci_error_handlers jsm_err_handler = {
+static const struct pci_error_handlers jsm_err_handler = {
 	.error_detected = jsm_io_error_detected,
 	.slot_reset = jsm_io_slot_reset,
 	.resume = jsm_io_resume,
@@ -64,7 +64,7 @@ int jsm_debug;
 module_param(jsm_debug, int, 0);
 MODULE_PARM_DESC(jsm_debug, "Driver debugging level");
 
-static int __devinit jsm_probe_one(struct pci_dev *pdev, const struct pci_device_id *ent)
+static int jsm_probe_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	int rc = 0;
 	struct jsm_board *brd;
@@ -93,12 +93,34 @@ static int __devinit jsm_probe_one(struct pci_dev *pdev, const struct pci_device
 	/* store the info for the board we've found */
 	brd->boardnum = adapter_count++;
 	brd->pci_dev = pdev;
-	if (pdev->device == PCIE_DEVICE_ID_NEO_4_IBM)
-		brd->maxports = 4;
-	else if (pdev->device == PCI_DEVICE_ID_DIGI_NEO_8)
-		brd->maxports = 8;
-	else
+
+	switch (pdev->device) {
+
+	case PCI_DEVICE_ID_NEO_2DB9:
+	case PCI_DEVICE_ID_NEO_2DB9PRI:
+	case PCI_DEVICE_ID_NEO_2RJ45:
+	case PCI_DEVICE_ID_NEO_2RJ45PRI:
+	case PCI_DEVICE_ID_NEO_2_422_485:
 		brd->maxports = 2;
+		break;
+
+	case PCI_DEVICE_ID_NEO_4:
+	case PCIE_DEVICE_ID_NEO_4:
+	case PCIE_DEVICE_ID_NEO_4RJ45:
+	case PCIE_DEVICE_ID_NEO_4_IBM:
+		brd->maxports = 4;
+		break;
+
+	case PCI_DEVICE_ID_DIGI_NEO_8:
+	case PCIE_DEVICE_ID_NEO_8:
+	case PCIE_DEVICE_ID_NEO_8RJ45:
+		brd->maxports = 8;
+		break;
+
+	default:
+		brd->maxports = 1;
+		break;
+	}
 
 	spin_lock_init(&brd->bd_intr_lock);
 
@@ -107,8 +129,7 @@ static int __devinit jsm_probe_one(struct pci_dev *pdev, const struct pci_device
 
 	brd->irq = pdev->irq;
 
-	jsm_printk(INIT, INFO, &brd->pci_dev,
-		"jsm_found_board - NEO adapter\n");
+	jsm_dbg(INIT, &brd->pci_dev, "jsm_found_board - NEO adapter\n");
 
 	/* get the PCI Base Address Registers */
 	brd->membase	= pci_resource_start(pdev, 0);
@@ -179,7 +200,7 @@ static int __devinit jsm_probe_one(struct pci_dev *pdev, const struct pci_device
 	return rc;
 }
 
-static void __devexit jsm_remove_one(struct pci_dev *pdev)
+static void jsm_remove_one(struct pci_dev *pdev)
 {
 	struct jsm_board *brd = pci_get_drvdata(pdev);
 	int i = 0;
@@ -210,6 +231,14 @@ static struct pci_device_id jsm_pci_tbl[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCI_DEVICE_ID_NEO_2RJ45PRI), 0, 0, 3 },
 	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCIE_DEVICE_ID_NEO_4_IBM), 0, 0, 4 },
 	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCI_DEVICE_ID_DIGI_NEO_8), 0, 0, 5 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCI_DEVICE_ID_NEO_4), 0, 0, 6 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCI_DEVICE_ID_NEO_1_422), 0, 0, 7 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCI_DEVICE_ID_NEO_1_422_485), 0, 0, 8 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCI_DEVICE_ID_NEO_2_422_485), 0, 0, 9 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCIE_DEVICE_ID_NEO_8), 0, 0, 10 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCIE_DEVICE_ID_NEO_4), 0, 0, 11 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCIE_DEVICE_ID_NEO_4RJ45), 0, 0, 12 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_DIGI, PCIE_DEVICE_ID_NEO_8RJ45), 0, 0, 13 },
 	{ 0, }
 };
 MODULE_DEVICE_TABLE(pci, jsm_pci_tbl);
@@ -218,7 +247,7 @@ static struct pci_driver jsm_driver = {
 	.name		= "jsm",
 	.id_table	= jsm_pci_tbl,
 	.probe		= jsm_probe_one,
-	.remove		= __devexit_p(jsm_remove_one),
+	.remove		= jsm_remove_one,
 	.err_handler    = &jsm_err_handler,
 };
 
@@ -251,6 +280,7 @@ static void jsm_io_resume(struct pci_dev *pdev)
 	struct jsm_board *brd = pci_get_drvdata(pdev);
 
 	pci_restore_state(pdev);
+	pci_save_state(pdev);
 
 	jsm_uart_port_init(brd);
 }

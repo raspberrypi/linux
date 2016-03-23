@@ -17,8 +17,7 @@
  *
  * TODO (not necessarily in this file):
  * - improve precision and reproducibility of timebase frequency
- * measurement at boot time. (for iSeries, we calibrate the timebase
- * against the Titan chip's clock.)
+ * measurement at boot time.
  * - for astronomical applications: add a new function to get
  * non ambiguous timestamps even around leap seconds. This needs
  * a new timestamp format and a good name.
@@ -43,6 +42,7 @@
 #include <linux/timex.h>
 #include <linux/kernel_stat.h>
 #include <linux/time.h>
+#include <linux/clockchips.h>
 #include <linux/init.h>
 #include <linux/profile.h>
 #include <linux/cpu.h>
@@ -70,15 +70,11 @@
 #include <asm/vdso_datapage.h>
 #include <asm/firmware.h>
 #include <asm/cputime.h>
-#ifdef CONFIG_PPC_ISERIES
-#include <asm/iseries/it_lp_queue.h>
-#include <asm/iseries/hv_call_xm.h>
-#endif
 
 /* powerpc clocksource/clockevent code */
 
 #include <linux/clockchips.h>
-#include <linux/clocksource.h>
+#include <linux/timekeeper_internal.h>
 
 static cycle_t rtc_read(struct clocksource *);
 static struct clocksource clocksource_rtc = {
@@ -105,25 +101,18 @@ static int decrementer_set_next_event(unsigned long evt,
 static void decrementer_set_mode(enum clock_event_mode mode,
 				 struct clock_event_device *dev);
 
-static struct clock_event_device decrementer_clockevent = {
+struct clock_event_device decrementer_clockevent = {
 	.name           = "decrementer",
 	.rating         = 200,
 	.irq            = 0,
 	.set_next_event = decrementer_set_next_event,
 	.set_mode       = decrementer_set_mode,
-	.features       = CLOCK_EVT_FEAT_ONESHOT,
+	.features       = CLOCK_EVT_FEAT_ONESHOT | CLOCK_EVT_FEAT_C3STOP,
 };
+EXPORT_SYMBOL(decrementer_clockevent);
 
 DEFINE_PER_CPU(u64, decrementers_next_tb);
 static DEFINE_PER_CPU(struct clock_event_device, decrementers);
-
-#ifdef CONFIG_PPC_ISERIES
-static unsigned long __initdata iSeries_recal_titan;
-static signed long __initdata iSeries_recal_tb;
-
-/* Forward declaration is only needed for iSereis compiles */
-static void __init clocksource_init(void);
-#endif
 
 #define XSEC_PER_SEC (1024*1024)
 
@@ -155,7 +144,7 @@ EXPORT_SYMBOL_GPL(ppc_proc_freq);
 unsigned long ppc_tb_freq;
 EXPORT_SYMBOL_GPL(ppc_tb_freq);
 
-#ifdef CONFIG_VIRT_CPU_ACCOUNTING
+#ifdef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
 /*
  * Factors for converting from cputime_t (timebase ticks) to
  * jiffies, microseconds, seconds, and clock_t (1/USER_HZ seconds).
@@ -222,23 +211,23 @@ static u64 scan_dispatch_log(u64 stop_tb)
 	if (!dtl)
 		return 0;
 
-	if (i == vpa->dtl_idx)
+	if (i == be64_to_cpu(vpa->dtl_idx))
 		return 0;
-	while (i < vpa->dtl_idx) {
-		if (dtl_consumer)
-			dtl_consumer(dtl, i);
-		dtb = dtl->timebase;
-		tb_delta = dtl->enqueue_to_dispatch_time +
-			dtl->ready_to_enqueue_time;
+	while (i < be64_to_cpu(vpa->dtl_idx)) {
+		dtb = be64_to_cpu(dtl->timebase);
+		tb_delta = be32_to_cpu(dtl->enqueue_to_dispatch_time) +
+			be32_to_cpu(dtl->ready_to_enqueue_time);
 		barrier();
-		if (i + N_DISPATCH_LOG < vpa->dtl_idx) {
+		if (i + N_DISPATCH_LOG < be64_to_cpu(vpa->dtl_idx)) {
 			/* buffer has overflowed */
-			i = vpa->dtl_idx - N_DISPATCH_LOG;
+			i = be64_to_cpu(vpa->dtl_idx) - N_DISPATCH_LOG;
 			dtl = local_paca->dispatch_log + (i % N_DISPATCH_LOG);
 			continue;
 		}
 		if (dtb > stop_tb)
 			break;
+		if (dtl_consumer)
+			dtl_consumer(dtl, i);
 		stolen += tb_delta;
 		++i;
 		++dtl;
@@ -259,7 +248,6 @@ void accumulate_stolen_time(void)
 	u64 sst, ust;
 
 	u8 save_soft_enabled = local_paca->soft_enabled;
-	u8 save_hard_enabled = local_paca->hard_enabled;
 
 	/* We are called early in the exception entry, before
 	 * soft/hard_enabled are sync'ed to the expected state
@@ -268,7 +256,6 @@ void accumulate_stolen_time(void)
 	 * complain
 	 */
 	local_paca->soft_enabled = 0;
-	local_paca->hard_enabled = 0;
 
 	sst = scan_dispatch_log(local_paca->starttime_user);
 	ust = scan_dispatch_log(local_paca->starttime);
@@ -277,14 +264,13 @@ void accumulate_stolen_time(void)
 	local_paca->stolen_time += ust + sst;
 
 	local_paca->soft_enabled = save_soft_enabled;
-	local_paca->hard_enabled = save_hard_enabled;
 }
 
 static inline u64 calculate_stolen_time(u64 stop_tb)
 {
 	u64 stolen = 0;
 
-	if (get_paca()->dtl_ridx != get_paca()->lppaca_ptr->dtl_idx) {
+	if (get_paca()->dtl_ridx != be64_to_cpu(get_lppaca()->dtl_idx)) {
 		stolen = scan_dispatch_log(stop_tb);
 		get_paca()->system_time -= stolen;
 	}
@@ -306,13 +292,14 @@ static inline u64 calculate_stolen_time(u64 stop_tb)
  * Account time for a transition between system, hard irq
  * or soft irq state.
  */
-void account_system_vtime(struct task_struct *tsk)
+static u64 vtime_delta(struct task_struct *tsk,
+			u64 *sys_scaled, u64 *stolen)
 {
-	u64 now, nowscaled, delta, deltascaled;
-	unsigned long flags;
-	u64 stolen, udelta, sys_scaled, user_scaled;
+	u64 now, nowscaled, deltascaled;
+	u64 udelta, delta, user_scaled;
 
-	local_irq_save(flags);
+	WARN_ON_ONCE(!irqs_disabled());
+
 	now = mftb();
 	nowscaled = read_spurr(now);
 	get_paca()->system_time += now - get_paca()->starttime;
@@ -320,7 +307,7 @@ void account_system_vtime(struct task_struct *tsk)
 	deltascaled = nowscaled - get_paca()->startspurr;
 	get_paca()->startspurr = nowscaled;
 
-	stolen = calculate_stolen_time(now);
+	*stolen = calculate_stolen_time(now);
 
 	delta = get_paca()->system_time;
 	get_paca()->system_time = 0;
@@ -337,39 +324,50 @@ void account_system_vtime(struct task_struct *tsk)
 	 * the user ticks get saved up in paca->user_time_scaled to be
 	 * used by account_process_tick.
 	 */
-	sys_scaled = delta;
+	*sys_scaled = delta;
 	user_scaled = udelta;
 	if (deltascaled != delta + udelta) {
 		if (udelta) {
-			sys_scaled = deltascaled * delta / (delta + udelta);
-			user_scaled = deltascaled - sys_scaled;
+			*sys_scaled = deltascaled * delta / (delta + udelta);
+			user_scaled = deltascaled - *sys_scaled;
 		} else {
-			sys_scaled = deltascaled;
+			*sys_scaled = deltascaled;
 		}
 	}
 	get_paca()->user_time_scaled += user_scaled;
 
-	if (in_interrupt() || idle_task(smp_processor_id()) != tsk) {
-		account_system_time(tsk, 0, delta, sys_scaled);
-		if (stolen)
-			account_steal_time(stolen);
-	} else {
-		account_idle_time(delta + stolen);
-	}
-	local_irq_restore(flags);
+	return delta;
 }
-EXPORT_SYMBOL_GPL(account_system_vtime);
+
+void vtime_account_system(struct task_struct *tsk)
+{
+	u64 delta, sys_scaled, stolen;
+
+	delta = vtime_delta(tsk, &sys_scaled, &stolen);
+	account_system_time(tsk, 0, delta, sys_scaled);
+	if (stolen)
+		account_steal_time(stolen);
+}
+EXPORT_SYMBOL_GPL(vtime_account_system);
+
+void vtime_account_idle(struct task_struct *tsk)
+{
+	u64 delta, sys_scaled, stolen;
+
+	delta = vtime_delta(tsk, &sys_scaled, &stolen);
+	account_idle_time(delta + stolen);
+}
 
 /*
- * Transfer the user and system times accumulated in the paca
- * by the exception entry and exit code to the generic process
- * user and system time records.
+ * Transfer the user time accumulated in the paca
+ * by the exception entry and exit code to the generic
+ * process user time records.
  * Must be called with interrupts disabled.
- * Assumes that account_system_vtime() has been called recently
- * (i.e. since the last entry from usermode) so that
+ * Assumes that vtime_account_system/idle() has been called
+ * recently (i.e. since the last entry from usermode) so that
  * get_paca()->user_time_scaled is up to date.
  */
-void account_process_tick(struct task_struct *tsk, int user_tick)
+void vtime_account_user(struct task_struct *tsk)
 {
 	cputime_t utime, utimescaled;
 
@@ -381,7 +379,7 @@ void account_process_tick(struct task_struct *tsk, int user_tick)
 	account_user_time(tsk, utime, utimescaled);
 }
 
-#else /* ! CONFIG_VIRT_CPU_ACCOUNTING */
+#else /* ! CONFIG_VIRT_CPU_ACCOUNTING_NATIVE */
 #define calc_cputime_factors()
 #endif
 
@@ -425,74 +423,6 @@ unsigned long profile_pc(struct pt_regs *regs)
 }
 EXPORT_SYMBOL(profile_pc);
 #endif
-
-#ifdef CONFIG_PPC_ISERIES
-
-/* 
- * This function recalibrates the timebase based on the 49-bit time-of-day
- * value in the Titan chip.  The Titan is much more accurate than the value
- * returned by the service processor for the timebase frequency.
- */
-
-static int __init iSeries_tb_recal(void)
-{
-	unsigned long titan, tb;
-
-	/* Make sure we only run on iSeries */
-	if (!firmware_has_feature(FW_FEATURE_ISERIES))
-		return -ENODEV;
-
-	tb = get_tb();
-	titan = HvCallXm_loadTod();
-	if ( iSeries_recal_titan ) {
-		unsigned long tb_ticks = tb - iSeries_recal_tb;
-		unsigned long titan_usec = (titan - iSeries_recal_titan) >> 12;
-		unsigned long new_tb_ticks_per_sec   = (tb_ticks * USEC_PER_SEC)/titan_usec;
-		unsigned long new_tb_ticks_per_jiffy =
-			DIV_ROUND_CLOSEST(new_tb_ticks_per_sec, HZ);
-		long tick_diff = new_tb_ticks_per_jiffy - tb_ticks_per_jiffy;
-		char sign = '+';		
-		/* make sure tb_ticks_per_sec and tb_ticks_per_jiffy are consistent */
-		new_tb_ticks_per_sec = new_tb_ticks_per_jiffy * HZ;
-
-		if ( tick_diff < 0 ) {
-			tick_diff = -tick_diff;
-			sign = '-';
-		}
-		if ( tick_diff ) {
-			if ( tick_diff < tb_ticks_per_jiffy/25 ) {
-				printk( "Titan recalibrate: new tb_ticks_per_jiffy = %lu (%c%ld)\n",
-						new_tb_ticks_per_jiffy, sign, tick_diff );
-				tb_ticks_per_jiffy = new_tb_ticks_per_jiffy;
-				tb_ticks_per_sec   = new_tb_ticks_per_sec;
-				calc_cputime_factors();
-				vdso_data->tb_ticks_per_sec = tb_ticks_per_sec;
-				setup_cputime_one_jiffy();
-			}
-			else {
-				printk( "Titan recalibrate: FAILED (difference > 4 percent)\n"
-					"                   new tb_ticks_per_jiffy = %lu\n"
-					"                   old tb_ticks_per_jiffy = %lu\n",
-					new_tb_ticks_per_jiffy, tb_ticks_per_jiffy );
-			}
-		}
-	}
-	iSeries_recal_titan = titan;
-	iSeries_recal_tb = tb;
-
-	/* Called here as now we know accurate values for the timebase */
-	clocksource_init();
-	return 0;
-}
-late_initcall(iSeries_tb_recal);
-
-/* Called from platform early init */
-void __init iSeries_time_init_early(void)
-{
-	iSeries_recal_tb = get_tb();
-	iSeries_recal_titan = HvCallXm_loadTod();
-}
-#endif /* CONFIG_PPC_ISERIES */
 
 #ifdef CONFIG_IRQ_WORK
 
@@ -549,67 +479,35 @@ void arch_irq_work_raise(void)
 
 #endif /* CONFIG_IRQ_WORK */
 
-/*
- * For iSeries shared processors, we have to let the hypervisor
- * set the hardware decrementer.  We set a virtual decrementer
- * in the lppaca and call the hypervisor if the virtual
- * decrementer is less than the current value in the hardware
- * decrementer. (almost always the new decrementer value will
- * be greater than the current hardware decementer so the hypervisor
- * call will not be needed)
- */
-
-/*
- * timer_interrupt - gets called when the decrementer overflows,
- * with interrupts disabled.
- */
-void timer_interrupt(struct pt_regs * regs)
+static void __timer_interrupt(void)
 {
-	struct pt_regs *old_regs;
+	struct pt_regs *regs = get_irq_regs();
 	u64 *next_tb = &__get_cpu_var(decrementers_next_tb);
 	struct clock_event_device *evt = &__get_cpu_var(decrementers);
-
-	/* Ensure a positive value is written to the decrementer, or else
-	 * some CPUs will continue to take decrementer exceptions.
-	 */
-	set_dec(DECREMENTER_MAX);
-
-	/* Some implementations of hotplug will get timer interrupts while
-	 * offline, just ignore these
-	 */
-	if (!cpu_online(smp_processor_id()))
-		return;
+	u64 now;
 
 	trace_timer_interrupt_entry(regs);
-
-	__get_cpu_var(irq_stat).timer_irqs++;
-
-#if defined(CONFIG_PPC32) && defined(CONFIG_PMAC)
-	if (atomic_read(&ppc_n_lost_interrupts) != 0)
-		do_IRQ(regs);
-#endif
-
-	old_regs = set_irq_regs(regs);
-	irq_enter();
 
 	if (test_irq_work_pending()) {
 		clear_irq_work_pending();
 		irq_work_run();
 	}
 
-#ifdef CONFIG_PPC_ISERIES
-	if (firmware_has_feature(FW_FEATURE_ISERIES))
-		get_lppaca()->int_dword.fields.decr_int = 0;
-#endif
-
-	*next_tb = ~(u64)0;
-	if (evt->event_handler)
-		evt->event_handler(evt);
-
-#ifdef CONFIG_PPC_ISERIES
-	if (firmware_has_feature(FW_FEATURE_ISERIES) && hvlpevent_is_pending())
-		process_hvlpevents();
-#endif
+	now = get_tb_or_rtc();
+	if (now >= *next_tb) {
+		*next_tb = ~(u64)0;
+		if (evt->event_handler)
+			evt->event_handler(evt);
+		__get_cpu_var(irq_stat).timer_irqs_event++;
+	} else {
+		now = *next_tb - now;
+		if (now <= DECREMENTER_MAX)
+			set_dec((int)now);
+		/* We may have raced with new irq work */
+		if (test_irq_work_pending())
+			set_dec(1);
+		__get_cpu_var(irq_stat).timer_irqs_others++;
+	}
 
 #ifdef CONFIG_PPC64
 	/* collect purr register values often, for accurate calculations */
@@ -619,10 +517,60 @@ void timer_interrupt(struct pt_regs * regs)
 	}
 #endif
 
+	trace_timer_interrupt_exit(regs);
+}
+
+/*
+ * timer_interrupt - gets called when the decrementer overflows,
+ * with interrupts disabled.
+ */
+void timer_interrupt(struct pt_regs * regs)
+{
+	struct pt_regs *old_regs;
+	u64 *next_tb = &__get_cpu_var(decrementers_next_tb);
+
+	/* Ensure a positive value is written to the decrementer, or else
+	 * some CPUs will continue to take decrementer exceptions.
+	 */
+	set_dec(DECREMENTER_MAX);
+
+	/* Some implementations of hotplug will get timer interrupts while
+	 * offline, just ignore these and we also need to set
+	 * decrementers_next_tb as MAX to make sure __check_irq_replay
+	 * don't replay timer interrupt when return, otherwise we'll trap
+	 * here infinitely :(
+	 */
+	if (!cpu_online(smp_processor_id())) {
+		*next_tb = ~(u64)0;
+		return;
+	}
+
+	/* Conditionally hard-enable interrupts now that the DEC has been
+	 * bumped to its maximum value
+	 */
+	may_hard_irq_enable();
+
+
+#if defined(CONFIG_PPC32) && defined(CONFIG_PPC_PMAC)
+	if (atomic_read(&ppc_n_lost_interrupts) != 0)
+		do_IRQ(regs);
+#endif
+
+	old_regs = set_irq_regs(regs);
+	irq_enter();
+
+	__timer_interrupt();
 	irq_exit();
 	set_irq_regs(old_regs);
+}
 
-	trace_timer_interrupt_exit(regs);
+/*
+ * Hypervisor decrementer interrupts shouldn't occur but are sometimes
+ * left pending on exit from a KVM guest.  We don't need to do anything
+ * to clear them, as they are edge-triggered.
+ */
+void hdec_interrupt(struct pt_regs *regs)
+{
 }
 
 #ifdef CONFIG_SUSPEND
@@ -676,7 +624,7 @@ unsigned long long sched_clock(void)
 static int __init get_freq(char *name, int cells, unsigned long *val)
 {
 	struct device_node *cpu;
-	const unsigned int *fp;
+	const __be32 *fp;
 	int found = 0;
 
 	/* The cpu node should have timebase and clock frequency properties */
@@ -695,8 +643,7 @@ static int __init get_freq(char *name, int cells, unsigned long *val)
 	return found;
 }
 
-/* should become __cpuinit when secondary_cpu_time_init also is */
-void start_cpu_decrementer(void)
+static void start_cpu_decrementer(void)
 {
 #if defined(CONFIG_BOOKE) || defined(CONFIG_40x)
 	/* Clear any pending timer interrupts */
@@ -733,7 +680,7 @@ int update_persistent_clock(struct timespec now)
 	struct rtc_time tm;
 
 	if (!ppc_md.set_rtc_time)
-		return 0;
+		return -ENODEV;
 
 	to_tm(now.tv_sec + 1 + timezone_offset, &tm);
 	tm.tm_year -= 1900;
@@ -793,8 +740,8 @@ static cycle_t timebase_read(struct clocksource *cs)
 	return (cycle_t)get_tb();
 }
 
-void update_vsyscall(struct timespec *wall_time, struct timespec *wtm,
-			struct clocksource *clock, u32 mult)
+void update_vsyscall_old(struct timespec *wall_time, struct timespec *wtm,
+			 struct clocksource *clock, u32 mult, cycle_t cycle_last)
 {
 	u64 new_tb_to_xs, new_stamp_xsec;
 	u32 frac_sec;
@@ -827,7 +774,7 @@ void update_vsyscall(struct timespec *wall_time, struct timespec *wtm,
 	 * We expect the caller to have done the first increment of
 	 * vdso_data->tb_update_count already.
 	 */
-	vdso_data->tb_orig_stamp = clock->cycle_last;
+	vdso_data->tb_orig_stamp = cycle_last;
 	vdso_data->stamp_xsec = new_stamp_xsec;
 	vdso_data->tb_to_xs = new_tb_to_xs;
 	vdso_data->wtom_clock_sec = wtm->tv_sec;
@@ -840,13 +787,8 @@ void update_vsyscall(struct timespec *wall_time, struct timespec *wtm,
 
 void update_vsyscall_tz(void)
 {
-	/* Make userspace gettimeofday spin until we're done. */
-	++vdso_data->tb_update_count;
-	smp_mb();
 	vdso_data->tz_minuteswest = sys_tz.tz_minuteswest;
 	vdso_data->tz_dsttime = sys_tz.tz_dsttime;
-	smp_mb();
-	++vdso_data->tb_update_count;
 }
 
 static void __init clocksource_init(void)
@@ -873,6 +815,11 @@ static int decrementer_set_next_event(unsigned long evt,
 {
 	__get_cpu_var(decrementers_next_tb) = get_tb_or_rtc() + evt;
 	set_dec(evt);
+
+	/* We may have raced with new irq work */
+	if (test_irq_work_pending())
+		set_dec(1);
+
 	return 0;
 }
 
@@ -881,6 +828,15 @@ static void decrementer_set_mode(enum clock_event_mode mode,
 {
 	if (mode != CLOCK_EVT_MODE_ONESHOT)
 		decrementer_set_next_event(DECREMENTER_MAX, dev);
+}
+
+/* Interrupt handler for the timer broadcast IPI */
+void tick_broadcast_ipi_handler(void)
+{
+	u64 *next_tb = &__get_cpu_var(decrementers_next_tb);
+
+	*next_tb = get_tb_or_rtc();
+	__timer_interrupt();
 }
 
 static void register_decrementer_clockevent(int cpu)
@@ -982,11 +938,11 @@ void __init time_init(void)
 	 */
 	start_cpu_decrementer();
 
-	/* Register the clocksource, if we're not running on iSeries */
-	if (!firmware_has_feature(FW_FEATURE_ISERIES))
-		clocksource_init();
+	/* Register the clocksource */
+	clocksource_init();
 
 	init_decrementer_clockevent();
+	tick_setup_hrtimer_broadcast();
 }
 
 
@@ -1068,6 +1024,7 @@ void to_tm(int tim, struct rtc_time * tm)
 	 */
 	GregorianDay(tm);
 }
+EXPORT_SYMBOL(to_tm);
 
 /*
  * Divide a 128-bit dividend by a 32-bit divisor, leaving a 128 bit
@@ -1119,10 +1076,8 @@ static int __init rtc_init(void)
 		return -ENODEV;
 
 	pdev = platform_device_register_simple("rtc-generic", -1, NULL, 0);
-	if (IS_ERR(pdev))
-		return PTR_ERR(pdev);
 
-	return 0;
+	return PTR_ERR_OR_ZERO(pdev);
 }
 
 module_init(rtc_init);

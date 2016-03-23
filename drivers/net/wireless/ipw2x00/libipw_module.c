@@ -100,8 +100,7 @@ static inline void libipw_networks_free(struct libipw_device *ieee)
 	int i;
 
 	for (i = 0; i < MAX_NETWORK_COUNT; i++) {
-		if (ieee->networks[i]->ibss_dfs)
-			kfree(ieee->networks[i]->ibss_dfs);
+		kfree(ieee->networks[i]->ibss_dfs);
 		kfree(ieee->networks[i]);
 	}
 }
@@ -150,10 +149,9 @@ struct net_device *alloc_libipw(int sizeof_priv, int monitor)
 	LIBIPW_DEBUG_INFO("Initializing...\n");
 
 	dev = alloc_etherdev(sizeof(struct libipw_device) + sizeof_priv);
-	if (!dev) {
-		LIBIPW_ERROR("Unable to allocate network device.\n");
+	if (!dev)
 		goto failed;
-	}
+
 	ieee = netdev_priv(dev);
 
 	ieee->dev = dev;

@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   Intel(R) 82576 Virtual Function Linux driver
-  Copyright(c) 2009 - 2010 Intel Corporation.
+  Copyright(c) 2009 - 2012 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -43,7 +43,18 @@ struct igbvf_info;
 struct igbvf_adapter;
 
 /* Interrupt defines */
-#define IGBVF_START_ITR                 648 /* ~6000 ints/sec */
+#define IGBVF_START_ITR                    488 /* ~8000 ints/sec */
+#define IGBVF_4K_ITR                       980
+#define IGBVF_20K_ITR                      196
+#define IGBVF_70K_ITR                       56
+
+enum latency_range {
+	lowest_latency = 0,
+	low_latency = 1,
+	bulk_latency = 2,
+	latency_invalid = 255
+};
+
 
 /* Interrupt modes, as used by the IntMode parameter */
 #define IGBVF_INT_MODE_LEGACY           0
@@ -116,8 +127,8 @@ struct igbvf_buffer {
 		/* Tx */
 		struct {
 			unsigned long time_stamp;
+			union e1000_adv_tx_desc *next_to_watch;
 			u16 length;
-			u16 next_to_watch;
 			u16 mapped_as_page;
 		};
 		/* Rx */
@@ -155,6 +166,7 @@ struct igbvf_ring {
 	char name[IFNAMSIZ + 5];
 	u32 eims_value;
 	u32 itr_val;
+	enum latency_range itr_range;
 	u16 itr_register;
 	int set_itr;
 
@@ -187,10 +199,8 @@ struct igbvf_adapter {
 	unsigned long state;
 
 	/* Interrupt Throttle Rate */
-	u32 itr;
-	u32 itr_setting;
-	u16 tx_itr;
-	u16 rx_itr;
+	u32 requested_itr; /* ints/sec or adaptive */
+	u32 current_itr; /* Actual ITR register value, not ints/sec */
 
 	/*
 	 * Tx
@@ -285,7 +295,7 @@ struct igbvf_info {
 
 /* hardware capability, feature, and workaround flags */
 #define IGBVF_FLAG_RX_CSUM_DISABLED             (1 << 0)
-
+#define IGBVF_FLAG_RX_LB_VLAN_BSWAP		(1 << 1)
 #define IGBVF_RX_DESC_ADV(R, i)     \
 	(&((((R).desc))[i].rx_desc))
 #define IGBVF_TX_DESC_ADV(R, i)     \
@@ -299,27 +309,20 @@ enum igbvf_state_t {
 	__IGBVF_DOWN
 };
 
-enum latency_range {
-	lowest_latency = 0,
-	low_latency = 1,
-	bulk_latency = 2,
-	latency_invalid = 255
-};
-
 extern char igbvf_driver_name[];
 extern const char igbvf_driver_version[];
 
-extern void igbvf_check_options(struct igbvf_adapter *);
-extern void igbvf_set_ethtool_ops(struct net_device *);
+void igbvf_check_options(struct igbvf_adapter *);
+void igbvf_set_ethtool_ops(struct net_device *);
 
-extern int igbvf_up(struct igbvf_adapter *);
-extern void igbvf_down(struct igbvf_adapter *);
-extern void igbvf_reinit_locked(struct igbvf_adapter *);
-extern int igbvf_setup_rx_resources(struct igbvf_adapter *, struct igbvf_ring *);
-extern int igbvf_setup_tx_resources(struct igbvf_adapter *, struct igbvf_ring *);
-extern void igbvf_free_rx_resources(struct igbvf_ring *);
-extern void igbvf_free_tx_resources(struct igbvf_ring *);
-extern void igbvf_update_stats(struct igbvf_adapter *);
+int igbvf_up(struct igbvf_adapter *);
+void igbvf_down(struct igbvf_adapter *);
+void igbvf_reinit_locked(struct igbvf_adapter *);
+int igbvf_setup_rx_resources(struct igbvf_adapter *, struct igbvf_ring *);
+int igbvf_setup_tx_resources(struct igbvf_adapter *, struct igbvf_ring *);
+void igbvf_free_rx_resources(struct igbvf_ring *);
+void igbvf_free_tx_resources(struct igbvf_ring *);
+void igbvf_update_stats(struct igbvf_adapter *);
 
 extern unsigned int copybreak;
 

@@ -17,6 +17,7 @@
 #ifndef ATH_H
 #define ATH_H
 
+#include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 #include <linux/if_ether.h>
 #include <linux/spinlock.h>
@@ -55,6 +56,16 @@ enum ath_device_state {
 	ATH_HW_INITIALIZED,
 };
 
+enum ath_op_flags {
+	ATH_OP_INVALID,
+	ATH_OP_BEACONS,
+	ATH_OP_ANI_RUN,
+	ATH_OP_PRIM_STA_VIF,
+	ATH_OP_HW_RESET,
+	ATH_OP_SCANNING,
+	ATH_OP_MULTI_CHANNEL,
+};
+
 enum ath_bus_type {
 	ATH_PCI,
 	ATH_AHB,
@@ -62,13 +73,14 @@ enum ath_bus_type {
 };
 
 struct reg_dmn_pair_mapping {
-	u16 regDmnEnum;
+	u16 reg_domain;
 	u16 reg_5ghz_ctl;
 	u16 reg_2ghz_ctl;
 };
 
 struct ath_regulatory {
 	char alpha2[2];
+	enum nl80211_dfs_regions region;
 	u16 country_code;
 	u16 max_power_level;
 	u16 current_rd;
@@ -129,6 +141,7 @@ struct ath_common {
 	struct ieee80211_hw *hw;
 	int debug_mask;
 	enum ath_device_state state;
+	unsigned long op_flags;
 
 	struct ath_ani ani;
 
@@ -143,6 +156,7 @@ struct ath_common {
 	u32 keymax;
 	DECLARE_BITMAP(keymap, ATH_KEYMAX);
 	DECLARE_BITMAP(tkip_keymap, ATH_KEYMAX);
+	DECLARE_BITMAP(ccmp_keymap, ATH_KEYMAX);
 	enum ath_crypt_caps crypt_caps;
 
 	unsigned int clockrate;
@@ -158,11 +172,16 @@ struct ath_common {
 
 	bool btcoex_enabled;
 	bool disable_ani;
+	bool bt_ant_diversity;
+
+	int last_rssi;
+	struct ieee80211_supported_band sbands[IEEE80211_NUM_BANDS];
 };
 
 struct sk_buff *ath_rxbuf_alloc(struct ath_common *common,
 				u32 len,
 				gfp_t gfp_mask);
+bool ath_is_mybeacon(struct ath_common *common, struct ieee80211_hdr *hdr);
 
 void ath_hw_setbssidmask(struct ath_common *common);
 void ath_key_delete(struct ath_common *common, struct ieee80211_key_conf *key);
@@ -174,28 +193,24 @@ bool ath_hw_keyreset(struct ath_common *common, u16 entry);
 void ath_hw_cycle_counters_update(struct ath_common *common);
 int32_t ath_hw_get_listen_time(struct ath_common *common);
 
-extern __printf(2, 3) void ath_printk(const char *level, const char *fmt, ...);
-
-#define _ath_printk(level, common, fmt, ...)			\
-do {								\
-	__always_unused struct ath_common *unused = common;	\
-	ath_printk(level, fmt, ##__VA_ARGS__);			\
-} while (0)
+__printf(3, 4)
+void ath_printk(const char *level, const struct ath_common *common,
+		const char *fmt, ...);
 
 #define ath_emerg(common, fmt, ...)				\
-	_ath_printk(KERN_EMERG, common, fmt, ##__VA_ARGS__)
+	ath_printk(KERN_EMERG, common, fmt, ##__VA_ARGS__)
 #define ath_alert(common, fmt, ...)				\
-	_ath_printk(KERN_ALERT, common, fmt, ##__VA_ARGS__)
+	ath_printk(KERN_ALERT, common, fmt, ##__VA_ARGS__)
 #define ath_crit(common, fmt, ...)				\
-	_ath_printk(KERN_CRIT, common, fmt, ##__VA_ARGS__)
+	ath_printk(KERN_CRIT, common, fmt, ##__VA_ARGS__)
 #define ath_err(common, fmt, ...)				\
-	_ath_printk(KERN_ERR, common, fmt, ##__VA_ARGS__)
+	ath_printk(KERN_ERR, common, fmt, ##__VA_ARGS__)
 #define ath_warn(common, fmt, ...)				\
-	_ath_printk(KERN_WARNING, common, fmt, ##__VA_ARGS__)
+	ath_printk(KERN_WARNING, common, fmt, ##__VA_ARGS__)
 #define ath_notice(common, fmt, ...)				\
-	_ath_printk(KERN_NOTICE, common, fmt, ##__VA_ARGS__)
+	ath_printk(KERN_NOTICE, common, fmt, ##__VA_ARGS__)
 #define ath_info(common, fmt, ...)				\
-	_ath_printk(KERN_INFO, common, fmt, ##__VA_ARGS__)
+	ath_printk(KERN_INFO, common, fmt, ##__VA_ARGS__)
 
 /**
  * enum ath_debug_level - atheros wireless debug level
@@ -219,6 +234,8 @@ do {								\
  *	used exclusively for WLAN-BT coexistence starting from
  *	AR9462.
  * @ATH_DBG_DFS: radar datection
+ * @ATH_DBG_WOW: Wake on Wireless
+ * @ATH_DBG_DYNACK: dynack handling
  * @ATH_DBG_ANY: enable all debugging
  *
  * The debug level is used to control the amount and type of debugging output
@@ -240,23 +257,26 @@ enum ATH_DEBUG {
 	ATH_DBG_CONFIG		= 0x00000200,
 	ATH_DBG_FATAL		= 0x00000400,
 	ATH_DBG_PS		= 0x00000800,
-	ATH_DBG_HWTIMER		= 0x00001000,
-	ATH_DBG_BTCOEX		= 0x00002000,
-	ATH_DBG_WMI		= 0x00004000,
-	ATH_DBG_BSTUCK		= 0x00008000,
-	ATH_DBG_MCI		= 0x00010000,
-	ATH_DBG_DFS		= 0x00020000,
+	ATH_DBG_BTCOEX		= 0x00001000,
+	ATH_DBG_WMI		= 0x00002000,
+	ATH_DBG_BSTUCK		= 0x00004000,
+	ATH_DBG_MCI		= 0x00008000,
+	ATH_DBG_DFS		= 0x00010000,
+	ATH_DBG_WOW		= 0x00020000,
+	ATH_DBG_CHAN_CTX	= 0x00040000,
+	ATH_DBG_DYNACK		= 0x00080000,
 	ATH_DBG_ANY		= 0xffffffff
 };
 
 #define ATH_DBG_DEFAULT (ATH_DBG_FATAL)
+#define ATH_DBG_MAX_LEN 512
 
 #ifdef CONFIG_ATH_DEBUG
 
 #define ath_dbg(common, dbg_mask, fmt, ...)				\
 do {									\
 	if ((common)->debug_mask & ATH_DBG_##dbg_mask)			\
-		_ath_printk(KERN_DEBUG, common, fmt, ##__VA_ARGS__);	\
+		ath_printk(KERN_DEBUG, common, fmt, ##__VA_ARGS__);	\
 } while (0)
 
 #define ATH_DBG_WARN(foo, arg...) WARN(foo, arg)

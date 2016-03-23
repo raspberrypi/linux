@@ -229,7 +229,7 @@ struct lguest_vq_info {
  * make a hypercall.  We hand the physical address of the virtqueue so the Host
  * knows which virtqueue we're talking about.
  */
-static void lg_notify(struct virtqueue *vq)
+static bool lg_notify(struct virtqueue *vq)
 {
 	/*
 	 * We store our virtqueue information in the "priv" pointer of the
@@ -238,10 +238,11 @@ static void lg_notify(struct virtqueue *vq)
 	struct lguest_vq_info *lvq = vq->priv;
 
 	hcall(LHCALL_NOTIFY, lvq->config.pfn << PAGE_SHIFT, 0, 0, 0);
+	return true;
 }
 
 /* An extern declaration inside a C file is bad form.  Don't do it. */
-extern void lguest_setup_irq(unsigned int irq);
+extern int lguest_setup_irq(unsigned int irq);
 
 /*
  * This routine finds the Nth virtqueue described in the configuration of
@@ -262,6 +263,9 @@ static struct virtqueue *lg_find_vq(struct virtio_device *vdev,
 	struct lguest_vq_info *lvq;
 	struct virtqueue *vq;
 	int err;
+
+	if (!name)
+		return NULL;
 
 	/* We must have this many virtqueues. */
 	if (index >= ldev->desc->num_vq)
@@ -292,17 +296,21 @@ static struct virtqueue *lg_find_vq(struct virtio_device *vdev,
 
 	/*
 	 * OK, tell virtio_ring.c to set up a virtqueue now we know its size
-	 * and we've got a pointer to its pages.
+	 * and we've got a pointer to its pages.  Note that we set weak_barriers
+	 * to 'true': the host just a(nother) SMP CPU, so we only need inter-cpu
+	 * barriers.
 	 */
-	vq = vring_new_virtqueue(lvq->config.num, LGUEST_VRING_ALIGN,
-				 vdev, lvq->pages, lg_notify, callback, name);
+	vq = vring_new_virtqueue(index, lvq->config.num, LGUEST_VRING_ALIGN, vdev,
+				 true, lvq->pages, lg_notify, callback, name);
 	if (!vq) {
 		err = -ENOMEM;
 		goto unmap;
 	}
 
 	/* Make sure the interrupt is allocated. */
-	lguest_setup_irq(lvq->config.irq);
+	err = lguest_setup_irq(lvq->config.irq);
+	if (err)
+		goto destroy_vring;
 
 	/*
 	 * Tell the interrupt for this virtqueue to go to the virtio_ring
@@ -315,7 +323,7 @@ static struct virtqueue *lg_find_vq(struct virtio_device *vdev,
 	err = request_irq(lvq->config.irq, vring_interrupt, IRQF_SHARED,
 			  dev_name(&vdev->dev), vq);
 	if (err)
-		goto destroy_vring;
+		goto free_desc;
 
 	/*
 	 * Last of all we hook up our 'struct lguest_vq_info" to the
@@ -324,6 +332,8 @@ static struct virtqueue *lg_find_vq(struct virtio_device *vdev,
 	vq->priv = lvq;
 	return vq;
 
+free_desc:
+	irq_free_desc(lvq->config.irq);
 destroy_vring:
 	vring_del_virtqueue(vq);
 unmap:
@@ -387,7 +397,7 @@ static const char *lg_bus_name(struct virtio_device *vdev)
 }
 
 /* The ops structure which hooks everything together. */
-static struct virtio_config_ops lguest_config_ops = {
+static const struct virtio_config_ops lguest_config_ops = {
 	.get_features = lg_get_features,
 	.finalize_features = lg_finalize_features,
 	.get = lg_get,

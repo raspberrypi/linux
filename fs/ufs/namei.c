@@ -38,15 +38,17 @@ static inline int ufs_add_nondir(struct dentry *dentry, struct inode *inode)
 {
 	int err = ufs_add_link(dentry, inode);
 	if (!err) {
+		unlock_new_inode(inode);
 		d_instantiate(dentry, inode);
 		return 0;
 	}
 	inode_dec_link_count(inode);
+	unlock_new_inode(inode);
 	iput(inode);
 	return err;
 }
 
-static struct dentry *ufs_lookup(struct inode * dir, struct dentry *dentry, struct nameidata *nd)
+static struct dentry *ufs_lookup(struct inode * dir, struct dentry *dentry, unsigned int flags)
 {
 	struct inode * inode = NULL;
 	ino_t ino;
@@ -70,8 +72,8 @@ static struct dentry *ufs_lookup(struct inode * dir, struct dentry *dentry, stru
  * If the create succeeds, we fill in the inode information
  * with d_instantiate(). 
  */
-static int ufs_create (struct inode * dir, struct dentry * dentry, int mode,
-		struct nameidata *nd)
+static int ufs_create (struct inode * dir, struct dentry * dentry, umode_t mode,
+		bool excl)
 {
 	struct inode *inode;
 	int err;
@@ -94,7 +96,7 @@ static int ufs_create (struct inode * dir, struct dentry * dentry, int mode,
 	return err;
 }
 
-static int ufs_mknod (struct inode * dir, struct dentry *dentry, int mode, dev_t rdev)
+static int ufs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t rdev)
 {
 	struct inode *inode;
 	int err;
@@ -126,12 +128,12 @@ static int ufs_symlink (struct inode * dir, struct dentry * dentry,
 	if (l > sb->s_blocksize)
 		goto out_notlocked;
 
-	lock_ufs(dir->i_sb);
 	inode = ufs_new_inode(dir, S_IFLNK | S_IRWXUGO);
 	err = PTR_ERR(inode);
 	if (IS_ERR(inode))
-		goto out;
+		goto out_notlocked;
 
+	lock_ufs(dir->i_sb);
 	if (l > UFS_SB(sb)->s_uspi->s_maxsymlinklen) {
 		/* slow symlink */
 		inode->i_op = &ufs_symlink_inode_operations;
@@ -155,6 +157,7 @@ out_notlocked:
 
 out_fail:
 	inode_dec_link_count(inode);
+	unlock_new_inode(inode);
 	iput(inode);
 	goto out;
 }
@@ -166,10 +169,6 @@ static int ufs_link (struct dentry * old_dentry, struct inode * dir,
 	int error;
 
 	lock_ufs(dir->i_sb);
-	if (inode->i_nlink >= UFS_LINK_MAX) {
-		unlock_ufs(dir->i_sb);
-		return -EMLINK;
-	}
 
 	inode->i_ctime = CURRENT_TIME_SEC;
 	inode_inc_link_count(inode);
@@ -180,27 +179,23 @@ static int ufs_link (struct dentry * old_dentry, struct inode * dir,
 	return error;
 }
 
-static int ufs_mkdir(struct inode * dir, struct dentry * dentry, int mode)
+static int ufs_mkdir(struct inode * dir, struct dentry * dentry, umode_t mode)
 {
 	struct inode * inode;
-	int err = -EMLINK;
-
-	if (dir->i_nlink >= UFS_LINK_MAX)
-		goto out;
-
-	lock_ufs(dir->i_sb);
-	inode_inc_link_count(dir);
+	int err;
 
 	inode = ufs_new_inode(dir, S_IFDIR|mode);
-	err = PTR_ERR(inode);
 	if (IS_ERR(inode))
-		goto out_dir;
+		return PTR_ERR(inode);
 
 	inode->i_op = &ufs_dir_inode_operations;
 	inode->i_fop = &ufs_dir_operations;
 	inode->i_mapping->a_ops = &ufs_aops;
 
 	inode_inc_link_count(inode);
+
+	lock_ufs(dir->i_sb);
+	inode_inc_link_count(dir);
 
 	err = ufs_make_empty(inode, dir);
 	if (err)
@@ -218,8 +213,8 @@ out:
 out_fail:
 	inode_dec_link_count(inode);
 	inode_dec_link_count(inode);
+	unlock_new_inode(inode);
 	iput (inode);
-out_dir:
 	inode_dec_link_count(dir);
 	unlock_ufs(dir->i_sb);
 	goto out;
@@ -305,11 +300,6 @@ static int ufs_rename(struct inode *old_dir, struct dentry *old_dentry,
 			drop_nlink(new_inode);
 		inode_dec_link_count(new_inode);
 	} else {
-		if (dir_de) {
-			err = -EMLINK;
-			if (new_dir->i_nlink >= UFS_LINK_MAX)
-				goto out_dir;
-		}
 		err = ufs_add_link(new_dentry, old_inode);
 		if (err)
 			goto out_dir;

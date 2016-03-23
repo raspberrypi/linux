@@ -18,6 +18,10 @@
 
 /* this file is part of imx21-hcd.c */
 
+#ifdef CONFIG_DYNAMIC_DEBUG
+#define DEBUG
+#endif
+
 #ifndef DEBUG
 
 static inline void create_debug_files(struct imx21 *imx21) { }
@@ -239,7 +243,7 @@ static int debug_status_show(struct seq_file *s, void *v)
 		"ETDs allocated: %d/%d (max=%d)\n"
 		"ETDs in use sw: %d\n"
 		"ETDs in use hw: %d\n"
-		"DMEM alocated: %d/%d (max=%d)\n"
+		"DMEM allocated: %d/%d (max=%d)\n"
 		"DMEM blocks: %d\n"
 		"Queued waiting for ETD: %d\n"
 		"Queued waiting for DMEM: %d\n",

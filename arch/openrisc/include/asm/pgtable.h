@@ -446,16 +446,12 @@ static inline void update_mmu_cache(struct vm_area_struct *vma,
 
 #define kern_addr_valid(addr)           (1)
 
-#define io_remap_pfn_range(vma, vaddr, pfn, size, prot)         \
-	remap_pfn_range(vma, vaddr, pfn, size, prot)
-
 #include <asm-generic/pgtable.h>
 
 /*
  * No page table caches to initialise
  */
 #define pgtable_cache_init()		do { } while (0)
-#define io_remap_page_range		remap_page_range
 
 typedef pte_t *pte_addr_t;
 
