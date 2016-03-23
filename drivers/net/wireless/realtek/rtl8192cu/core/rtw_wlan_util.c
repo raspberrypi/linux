@@ -853,7 +853,7 @@ void flush_all_cam_entry(_adapter *padapter)
 		{
 			struct sta_priv	*pstapriv = &padapter->stapriv;
 			struct sta_info	*psta;
-			u8 cam_id;//cam_entry
+			u8 cam_id=0;//cam_entry
 
 			psta = rtw_get_stainfo(pstapriv, pmlmeinfo->network.MacAddress);
 			if(psta) {
