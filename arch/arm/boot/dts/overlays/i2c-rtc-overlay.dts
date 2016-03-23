@@ -17,6 +17,12 @@
 				reg = <0x68>;
 				status = "disable";
 			};
+			ds1339: ds1339@68 {
+				compatible = "dallas,ds1339";
+				trickle-resistor-ohms = <0>;
+				reg = <0x68>;
+				status = "disable";
+			};
 			mcp7941x: mcp7941x@6f {
 				compatible = "microchip,mcp7941x";
 				reg = <0x6f>;
@@ -46,10 +52,12 @@
 	};
 	__overrides__ {
 		ds1307 = <&ds1307>,"status";
+		ds1339 = <&ds1339>,"status";
 		ds3231 = <&ds3231>,"status";
 		mcp7941x = <&mcp7941x>,"status";
 		pcf2127 = <&pcf2127>,"status";
 		pcf8523 = <&pcf8523>,"status";
 		pcf8563 = <&pcf8563>,"status";
+		trickle-resistor-ohms = <&ds1339>,"trickle-resistor-ohms:0";
 	};
 };
