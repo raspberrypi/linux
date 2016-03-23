@@ -136,12 +136,14 @@ Params:
 
         act_led_activelow       Set to "on" to invert the sense of the LED
                                 (default "off")
+                                N.B. For Pi3 see pi3-act-led overlay.
 
         act_led_gpio            Set which GPIO to use for the activity LED
                                 (in case you want to connect it to an external
                                 device)
                                 (default "16" on a non-Plus board, "47" on a
                                 Plus or Pi 2)
+                                N.B. For Pi3 see pi3-act-led overlay.
 
         pwr_led_trigger
         pwr_led_activelow
@@ -497,6 +499,23 @@ Params: speed                   Display SPI bus speed
 
 
 [ The pcf8563-rtc overlay has been deleted. See i2c-rtc. ]
+
+
+Name:   pi3-act-led
+Info:   Pi3 uses a GPIO expander to drive the LEDs which can only be accessed
+        from the VPU. There is a special driver for this with a separate DT
+        node, which has the unfortunate consequence of breaking the
+        act_led_gpio and act_led_activelow dtparams.
+        This overlay changes the GPIO controller back to the standard one and
+        restores the dtparams.
+Load:   dtoverlay=pi3-act-led,<param>=<val>
+Params: activelow               Set to "on" to invert the sense of the LED
+                                (default "off")
+
+        gpio                    Set which GPIO to use for the activity LED
+                                (in case you want to connect it to an external
+                                device)
+                                REQUIRED
 
 
 Name:   pi3-disable-bt
