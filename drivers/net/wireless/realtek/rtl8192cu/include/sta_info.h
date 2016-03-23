@@ -395,7 +395,7 @@ struct	sta_priv {
 };
 
 
-__inline static u32 wifi_mac_hash(u8 *mac)
+__inline static u32 wifi_mac_hash(const u8 *mac)
 {
         u32 x;
 
@@ -423,7 +423,7 @@ struct sta_info *rtw_get_stainfo_by_offset(struct sta_priv *stapriv, int offset)
 extern struct sta_info *rtw_alloc_stainfo(struct	sta_priv *pstapriv, u8 *hwaddr);
 extern u32	rtw_free_stainfo(_adapter *padapter , struct sta_info *psta);
 extern void rtw_free_all_stainfo(_adapter *padapter);
-extern struct sta_info *rtw_get_stainfo(struct sta_priv *pstapriv, u8 *hwaddr);
+extern struct sta_info *rtw_get_stainfo(struct sta_priv *pstapriv, const u8 *hwaddr);
 extern u32 rtw_init_bcmc_stainfo(_adapter* padapter);
 extern struct sta_info* rtw_get_bcmc_stainfo(_adapter* padapter);
 extern u8 rtw_access_ctrl(_adapter *padapter, u8 *mac_addr);
