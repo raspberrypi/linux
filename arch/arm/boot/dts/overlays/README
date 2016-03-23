@@ -371,6 +371,8 @@ Info:   Adds support for a number of I2C Real Time Clock devices
 Load:   dtoverlay=i2c-rtc,<param>=<val>
 Params: ds1307                  Select the DS1307 device
 
+        ds1339                  Select the DS1339 device
+
         ds3231                  Select the DS3231 device
 
         mcp7941x                Select the MCP7941x device
@@ -380,6 +382,8 @@ Params: ds1307                  Select the DS1307 device
         pcf8523                 Select the PCF8523 device
 
         pcf8563                 Select the PCF8563 device
+
+        trickle-resistor-ohms   Resistor value for trickle charge (DS1339-only)
 
 
 Name:   i2c0-bcm2708
