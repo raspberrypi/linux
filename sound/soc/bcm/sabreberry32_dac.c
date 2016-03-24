@@ -1,7 +1,7 @@
 /*
  * ASoC Driver for SabreBerry32
  *
- * Author: Satoru Kawase, Takahito Nishiara
+ * Author: Satoru Kawase, Takahito Nishiara, Clive Messer
  *      Copyright 2016
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@
 
 /* Sample Rate Type */
 #define SAMPLE_RATE_TYPE_44_1	0	/* 44.1/88.2/176.4kHz : 45.1584 MHz */
-#define SAMPLE_RATE_TYPE_48		1	/* 48/96/192kHz       : 49.152  MHz */
+#define SAMPLE_RATE_TYPE_48	1	/* 48/96/192kHz       : 49.152  MHz */
 
 /* Master Trim : -0.78dB */
 #define MASTER_TRIM_VALUE	(unsigned long)(0x7FFFFFFF * 0.914)
@@ -51,8 +51,10 @@ static int snd_rpi_sabreberry32_init(struct snd_soc_pcm_runtime *rtd)
 	if (master_mode) {
 		/* Switch to Master Mode */
 		dev_info(codec->dev, "Master Mode\n");
-		snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x80, (1 << 7));
-		snd_soc_update_bits(codec, SABRE9018Q2C_REG_10, 0x60, (2 << 5));
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_10,
+							0x80, (1 << 7));
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_10,
+							0x60, (2 << 5));
 	} else {
 		/* Switch to Slave Mode */
 		dev_info(codec->dev, "Slave Mode\n");
@@ -69,13 +71,13 @@ static int snd_rpi_sabreberry32_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_write(codec, SABRE9018Q2C_REG_15, 0x00);
 	snd_soc_write(codec, SABRE9018Q2C_REG_16, 0x00);
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_17,
-									0xFF, (MASTER_TRIM_VALUE >> 0));
+					0xFF, (MASTER_TRIM_VALUE >> 0));
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_18,
-									0xFF, (MASTER_TRIM_VALUE >> 8));
+					0xFF, (MASTER_TRIM_VALUE >> 8));
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_19,
-									0xFF, (MASTER_TRIM_VALUE >> 16));
+					0xFF, (MASTER_TRIM_VALUE >> 16));
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_20,
-									0xFF, (MASTER_TRIM_VALUE >> 24));
+					0xFF, (MASTER_TRIM_VALUE >> 24));
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_7,  0xC0, 2 << 5);
 	snd_soc_write(codec, SABRE9018Q2C_REG_12, 0x1A);
 	snd_soc_update_bits(codec, SABRE9018Q2C_REG_13, 0x40, 0 << 6);
@@ -108,22 +110,24 @@ static int snd_rpi_sabreberry32_clk_for_rate(int sample_rate)
 }
 
 static void snd_rpi_sabreberry32_set_mclk(
-		struct snd_soc_codec *codec, int sample_rate)
+	struct snd_soc_codec *codec, int sample_rate)
 {
 	int clk_type;
 
 	clk_type = snd_rpi_sabreberry32_clk_for_rate(sample_rate);
 	if (clk_type == SAMPLE_RATE_TYPE_44_1) {
 		/* Configure SABRE9018Q2C GPIOs : GPIO2 = Output Low */
-		snd_soc_update_bits(codec, SABRE9018Q2C_REG_8, 0xF0, 7 << 4);
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_8,
+							0xF0, 7 << 4);
 	} else {
 		/* Configure SABRE9018Q2C GPIOs : GPIO2 = Output High */
-		snd_soc_update_bits(codec, SABRE9018Q2C_REG_8, 0xF0, 15 << 4);
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_8,
+							0xF0, 15 << 4);
 	}
 }
 
 static int snd_rpi_sabreberry32_hw_params(
-		struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params)
+	struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd     = substream->private_data;
 	struct snd_soc_dai         *cpu_dai = rtd->cpu_dai;
@@ -172,7 +176,7 @@ static int snd_rpi_sabreberry32_hw_params(
 	}
 
 	bclk_ratio = snd_pcm_format_physical_width(
-							params_format(params)) * params_channels(params);
+			params_format(params)) * params_channels(params);
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, bclk_ratio);
 }
 
@@ -191,7 +195,7 @@ static struct snd_soc_dai_link snd_rpi_sabreberry32_dai[] = {
 		.platform_name  = "bcm2708-i2s.0",
 		.codec_name     = "sabre9018q2c-i2c.1-0048",
 		.dai_fmt        = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
-							| SND_SOC_DAIFMT_CBS_CFS,
+						| SND_SOC_DAIFMT_CBS_CFS,
 		.init           = snd_rpi_sabreberry32_init,
 		.ops            = &snd_rpi_sabreberry32_ops,
 	}
@@ -199,7 +203,7 @@ static struct snd_soc_dai_link snd_rpi_sabreberry32_dai[] = {
 
 /* audio machine driver */
 static struct snd_soc_card snd_rpi_sabreberry32 = {
-	.name      = "snd_rpi_sabreberry32",
+	.name      = "SabreBerry32DAC",
 	.owner     = THIS_MODULE,
 	.dai_link  = snd_rpi_sabreberry32_dai,
 	.num_links = ARRAY_SIZE(snd_rpi_sabreberry32_dai)
@@ -216,7 +220,8 @@ static int snd_rpi_sabreberry32_probe(struct platform_device *pdev)
 		struct snd_soc_dai_link *dai;
 
 		dai = &snd_rpi_sabreberry32_dai[0];
-		i2s_node = of_parse_phandle(pdev->dev.of_node, "i2s-controller", 0);
+		i2s_node = of_parse_phandle(pdev->dev.of_node,
+							"i2s-controller", 0);
 		if (i2s_node) {
 			dai->cpu_dai_name     = NULL;
 			dai->cpu_of_node      = i2s_node;
@@ -224,21 +229,23 @@ static int snd_rpi_sabreberry32_probe(struct platform_device *pdev)
 			dai->platform_of_node = i2s_node;
 		} else {
 			dev_err(&pdev->dev,
-					"Property 'i2s-controller' missing or invalid\n");
+			    "Property 'i2s-controller' missing or invalid\n");
 			return (-EINVAL);
 		}
 
 		// Check SabreBerry32 Master/Slave Mode Configuration
 		master_mode = !of_property_read_bool(pdev->dev.of_node,
-												"takazine,slave");
+							"takazine,slave");
 		if (master_mode) {
-			dai->dai_fmt     = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
-								| SND_SOC_DAIFMT_CBM_CFM;
+			dai->dai_fmt     = SND_SOC_DAIFMT_I2S
+						| SND_SOC_DAIFMT_NB_NF
+						| SND_SOC_DAIFMT_CBM_CFM;
 		} else {
 			dai->name        = "SabreBerry32 (SLAVE)";
 			dai->stream_name = "SabreBerry32 DAC (SLAVE)";
-			dai->dai_fmt     = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
-								| SND_SOC_DAIFMT_CBS_CFS;
+			dai->dai_fmt     = SND_SOC_DAIFMT_I2S
+						| SND_SOC_DAIFMT_NB_NF
+						| SND_SOC_DAIFMT_CBS_CFS;
 		}
 	}
 
@@ -247,7 +254,8 @@ static int snd_rpi_sabreberry32_probe(struct platform_device *pdev)
 
 	ret = snd_soc_register_card(&snd_rpi_sabreberry32);
 	if (ret) {
-		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
+		dev_err(&pdev->dev,
+			"snd_soc_register_card() failed: %d\n", ret);
 	}
 
 	return ret;

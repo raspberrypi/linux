@@ -1,7 +1,7 @@
 /*
  * Driver for the ESS SABRE9018Q2C
  *
- * Author: Satoru Kawase, Takahito Nishiara
+ * Author: Satoru Kawase, Takahito Nishiara, Clive Messer
  *      Copyright 2016
  *
  * This program is free software; you can redistribute it and/or
@@ -162,12 +162,12 @@ static const char * const filter_type_texts[] = {
 };
 
 static SOC_ENUM_SINGLE_DECL(sabre9018q2c_filter_type_enum,
-							SABRE9018Q2C_REG_7, 5, filter_type_texts);
+				SABRE9018Q2C_REG_7, 5, filter_type_texts);
 
 
 /* Control */
 static const struct snd_kcontrol_new sabre9018q2c_controls[] = {
-SOC_DOUBLE_R_TLV("Playback Digital Volume",
+SOC_DOUBLE_R_TLV("Digital Playback Volume",
 				SABRE9018Q2C_REG_15, SABRE9018Q2C_REG_16,
 				0, 0xFF, 1, volume_tlv),
 
@@ -203,7 +203,7 @@ static int sabre9018q2c_dai_startup_master(
 	int ret;
 
 	ret = snd_pcm_hw_constraint_list(substream->runtime,
-					0, SNDRV_PCM_HW_PARAM_RATE, &constraints_master);
+			0, SNDRV_PCM_HW_PARAM_RATE, &constraints_master);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to setup constraints: %d\n", ret);
 	}
@@ -218,7 +218,7 @@ static int sabre9018q2c_dai_startup_slave(
 	int ret;
 
 	ret = snd_pcm_hw_constraint_list(substream->runtime,
-					0, SNDRV_PCM_HW_PARAM_RATE, &constraints_slave);
+			0, SNDRV_PCM_HW_PARAM_RATE, &constraints_slave);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to setup constraints: %d\n", ret);
 	}
@@ -230,7 +230,8 @@ static int sabre9018q2c_dai_startup(
 		struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec     *codec        = dai->codec;
-	struct sabre9018q2c_priv *sabre9018q2c = snd_soc_codec_get_drvdata(codec);
+	struct sabre9018q2c_priv *sabre9018q2c
+					= snd_soc_codec_get_drvdata(codec);
 
 	switch (sabre9018q2c->fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBM_CFM:
@@ -245,11 +246,12 @@ static int sabre9018q2c_dai_startup(
 }
 
 static int sabre9018q2c_hw_params(
-		struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params,
-		struct snd_soc_dai *dai)
+	struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params,
+	struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec     *codec        = dai->codec;
-	struct sabre9018q2c_priv *sabre9018q2c = snd_soc_codec_get_drvdata(codec);
+	struct sabre9018q2c_priv *sabre9018q2c
+					= snd_soc_codec_get_drvdata(codec);
 	unsigned int daifmt;
 
 	dev_dbg(codec->dev, "hw_params %u Hz, %u channels\n",
@@ -275,7 +277,8 @@ static int sabre9018q2c_hw_params(
 static int sabre9018q2c_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
 	struct snd_soc_codec     *codec        = dai->codec;
-	struct sabre9018q2c_priv *sabre9018q2c = snd_soc_codec_get_drvdata(codec);
+	struct sabre9018q2c_priv *sabre9018q2c
+					= snd_soc_codec_get_drvdata(codec);
 
 	/* interface format */
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
@@ -386,7 +389,7 @@ static int sabre9018q2c_probe(struct device *dev, struct regmap *regmap)
 	dev_set_drvdata(dev, sabre9018q2c);
 
 	ret = snd_soc_register_codec(dev,
-					&sabre9018q2c_codec_driver, &sabre9018q2c_dai, 1);
+			&sabre9018q2c_codec_driver, &sabre9018q2c_dai, 1);
 	if (ret != 0) {
 		dev_err(dev, "Failed to register CODEC: %d\n", ret);
 		return ret;
