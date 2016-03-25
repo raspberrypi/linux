@@ -205,7 +205,14 @@ static int sabre9018q2c_dai_startup_master(
 	ret = snd_pcm_hw_constraint_list(substream->runtime,
 			0, SNDRV_PCM_HW_PARAM_RATE, &constraints_master);
 	if (ret != 0) {
-		dev_err(codec->dev, "Failed to setup constraints: %d\n", ret);
+		dev_err(codec->dev, "Failed to setup rates constraints: %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_pcm_hw_constraint_mask64(substream->runtime,
+			SNDRV_PCM_HW_PARAM_FORMAT, SNDRV_PCM_FMTBIT_S32_LE);
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to setup format constraints: %d\n", ret);
 	}
 
 	return ret;
@@ -220,7 +227,7 @@ static int sabre9018q2c_dai_startup_slave(
 	ret = snd_pcm_hw_constraint_list(substream->runtime,
 			0, SNDRV_PCM_HW_PARAM_RATE, &constraints_slave);
 	if (ret != 0) {
-		dev_err(codec->dev, "Failed to setup constraints: %d\n", ret);
+		dev_err(codec->dev, "Failed to setup rates constraints: %d\n", ret);
 	}
 
 	return ret;
@@ -229,7 +236,7 @@ static int sabre9018q2c_dai_startup_slave(
 static int sabre9018q2c_dai_startup(
 		struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
 {
-	struct snd_soc_codec     *codec        = dai->codec;
+	struct snd_soc_codec     *codec = dai->codec;
 	struct sabre9018q2c_priv *sabre9018q2c
 					= snd_soc_codec_get_drvdata(codec);
 
@@ -249,16 +256,22 @@ static int sabre9018q2c_hw_params(
 	struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params,
 	struct snd_soc_dai *dai)
 {
-	struct snd_soc_codec     *codec        = dai->codec;
+	struct snd_soc_codec     *codec = dai->codec;
 	struct sabre9018q2c_priv *sabre9018q2c
 					= snd_soc_codec_get_drvdata(codec);
 	unsigned int daifmt;
+	int format_width;
 
 	dev_dbg(codec->dev, "hw_params %u Hz, %u channels\n",
 			params_rate(params), params_channels(params));
 
 	/* Check I2S Format (Bit Size) */
-	if (snd_pcm_format_width(params_format(params)) != 32) {
+	format_width = snd_pcm_format_width(params_format(params));
+	if (format_width == 32) {
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_1,  0xC0, 2 << 6);
+	} else if (format_width == 16) {
+		snd_soc_update_bits(codec, SABRE9018Q2C_REG_1,  0xC0, 0 << 6);
+	} else {
 		dev_err(codec->dev, "Bad frame size: %d\n",
 				snd_pcm_format_width(params_format(params)));
 		return (-EINVAL);
@@ -276,7 +289,7 @@ static int sabre9018q2c_hw_params(
 
 static int sabre9018q2c_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
-	struct snd_soc_codec     *codec        = dai->codec;
+	struct snd_soc_codec     *codec = dai->codec;
 	struct sabre9018q2c_priv *sabre9018q2c
 					= snd_soc_codec_get_drvdata(codec);
 
@@ -326,11 +339,12 @@ static const struct snd_soc_dai_ops sabre9018q2c_dai_ops = {
 static struct snd_soc_dai_driver sabre9018q2c_dai = {
 	.name = "sabre9018q2c-dai",
 	.playback = {
-		.stream_name = "Playback",
+		.stream_name  = "Playback",
 		.channels_min = 2,
 		.channels_max = 2,
 		.rates        = SNDRV_PCM_RATE_8000_192000,
-		.formats      = SNDRV_PCM_FMTBIT_S32_LE,
+		.formats      = SNDRV_PCM_FMTBIT_S16_LE
+				| SNDRV_PCM_FMTBIT_S32_LE,
 	},
 	.ops = &sabre9018q2c_dai_ops,
 };
