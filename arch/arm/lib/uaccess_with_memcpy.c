@@ -186,6 +186,7 @@ out:
 unsigned long noinline
 __copy_from_user_memcpy(void *to, const void __user *from, unsigned long n)
 {
+	unsigned long ua_flags;
 	int atomic;
 
 	if (unlikely(segment_eq(get_fs(), KERNEL_DS))) {
@@ -217,7 +218,9 @@ __copy_from_user_memcpy(void *to, const void __user *from, unsigned long n)
 		if (tocopy > n)
 			tocopy = n;
 
+		ua_flags = uaccess_save_and_enable();
 		memcpy(to, (const void *)from, tocopy);
+		uaccess_restore(ua_flags);
 		to += tocopy;
 		from += tocopy;
 		n -= tocopy;
@@ -261,9 +264,14 @@ arm_copy_from_user(void *to, const void __user *from, unsigned long n)
 	 * With frame pointer disabled, tail call optimization kicks in
 	 * as well making this test almost invisible.
 	 */
-	if (n < COPY_FROM_USER_THRESHOLD)
-		return __copy_from_user_std(to, from, n);
-	return __copy_from_user_memcpy(to, from, n);
+	if (n < COPY_TO_USER_THRESHOLD) {
+		unsigned long ua_flags = uaccess_save_and_enable();
+		n = __copy_from_user_std(to, from, n);
+		uaccess_restore(ua_flags);
+	} else {
+		n = __copy_from_user_memcpy(to, from, n);
+	}
+	return n;
 }
 	
 static unsigned long noinline
