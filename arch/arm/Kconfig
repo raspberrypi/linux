@@ -1756,7 +1756,7 @@ config ALIGNMENT_TRAP
 
 config UACCESS_WITH_MEMCPY
 	bool "Use kernel mem{cpy,set}() for {copy_to,clear}_user()"
-	depends on MMU
+	depends on MMU && !CPU_SW_DOMAIN_PAN
 	default y if CPU_FEROCEON
 	help
 	  Implement faster copy_to_user and clear_user methods for CPU
