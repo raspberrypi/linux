@@ -307,12 +307,7 @@ static ssize_t store_io_is_busy(struct dbs_data *dbs_data, const char *buf,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
-	// XXX temporary hack
-	if (input > 1)
-		input = 1;
-	else
-		input = 0;
-	od_tuners->io_is_busy = input;
+	od_tuners->io_is_busy = !!input;
 
 	/* we need to re-evaluate prev_cpu_idle */
 	for_each_online_cpu(j) {
