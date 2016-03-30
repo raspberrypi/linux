@@ -216,7 +216,12 @@ static ssize_t store_io_is_busy(struct dbs_data *dbs_data, const char *buf,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
-	dbs_data->io_is_busy = !!input;
+	// XXX temporary hack
+	if (input > 1)
+		input = 1;
+	else
+		input = 0;
+	dbs_data->io_is_busy = input;
 
 	/* we need to re-evaluate prev_cpu_idle */
 	gov_update_cpu_data(dbs_data);
