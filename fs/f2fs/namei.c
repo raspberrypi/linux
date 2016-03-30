@@ -980,12 +980,6 @@ static const char *f2fs_encrypted_get_link(struct dentry *dentry,
 	}
 	memcpy(cstr.name, sd->encrypted_path, cstr.len);
 
-	/* this is broken symlink case */
-	if (unlikely(cstr.name[0] == 0)) {
-		res = -ENOENT;
-		goto errout;
-	}
-
 	if ((cstr.len + sizeof(struct f2fs_encrypted_symlink_data) - 1) >
 								max_size) {
 		/* Symlink data on the disk is corrupted */
@@ -1001,6 +995,12 @@ static const char *f2fs_encrypted_get_link(struct dentry *dentry,
 		goto errout;
 
 	kfree(cstr.name);
+
+	/* this is broken symlink case */
+	if (unlikely(pstr.name[0] == 0)) {
+		res = -ENOENT;
+		goto errout;
+	}
 
 	paddr = pstr.name;
 
