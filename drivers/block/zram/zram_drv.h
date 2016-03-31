@@ -77,6 +77,9 @@ struct zram_table_entry {
 		unsigned long element;
 	};
 	unsigned long value;
+#ifdef CONFIG_PREEMPT_RT_BASE
+	spinlock_t lock;
+#endif
 };
 
 struct zram_stats {
