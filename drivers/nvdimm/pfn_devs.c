@@ -360,6 +360,9 @@ int nd_pfn_validate(struct nd_pfn *nd_pfn)
 		pfn_sb->end_trunc = 0;
 	}
 
+	if (__le16_to_cpu(pfn_sb->version_minor) < 2)
+		pfn_sb->align = 0;
+
 	switch (le32_to_cpu(pfn_sb->mode)) {
 	case PFN_MODE_RAM:
 	case PFN_MODE_PMEM:
@@ -399,7 +402,7 @@ int nd_pfn_validate(struct nd_pfn *nd_pfn)
 		return -EBUSY;
 	}
 
-	nd_pfn->align = 1UL << ilog2(offset);
+	nd_pfn->align = le32_to_cpu(pfn_sb->align);
 	if (!is_power_of_2(offset) || offset < PAGE_SIZE) {
 		dev_err(&nd_pfn->dev, "bad offset: %#llx dax disabled\n",
 				offset);
