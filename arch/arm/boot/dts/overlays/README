@@ -366,6 +366,12 @@ Load:   dtoverlay=i2c-mux-pca9548a,<param>=<val>
 Params: addr                    I2C address of PCA9548A (default 0x70)
 
 
+Name:   i2c-pwm-pca9685a
+Info:   Adds support for an NXP PCA9685A I2C PWM controller on i2c_arm
+Load:   dtoverlay=i2c-pwm-pca9685a,<param>=<val>
+Params: addr                    I2C address of PCA9685A (default 0x40)
+
+
 Name:   i2c-rtc
 Info:   Adds support for a number of I2C Real Time Clock devices
 Load:   dtoverlay=i2c-rtc,<param>=<val>
