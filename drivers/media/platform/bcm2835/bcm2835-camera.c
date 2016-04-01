@@ -1825,7 +1825,7 @@ void bcm2835_cleanup_instance(struct bm2835_mmal_dev *dev)
 static struct v4l2_format default_v4l2_format = {
 	.fmt.pix.pixelformat = V4L2_PIX_FMT_JPEG,
 	.fmt.pix.width = 1024,
-	.fmt.pix.bytesperline = 1024,
+	.fmt.pix.bytesperline = 0,
 	.fmt.pix.height = 768,
 	.fmt.pix.sizeimage = 1024*768,
 };
