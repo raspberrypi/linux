@@ -666,6 +666,30 @@ static struct vb2_ops bm2835_mmal_video_qops = {
 	IOCTL operations
    ------------------------------------------------------------------*/
 
+static int set_overlay_params(struct bm2835_mmal_dev *dev,
+			      struct vchiq_mmal_port *port)
+{
+	int ret;
+	struct mmal_parameter_displayregion prev_config = {
+	.set = MMAL_DISPLAY_SET_LAYER | MMAL_DISPLAY_SET_ALPHA |
+	    MMAL_DISPLAY_SET_DEST_RECT | MMAL_DISPLAY_SET_FULLSCREEN,
+	.layer = PREVIEW_LAYER,
+	.alpha = dev->overlay.global_alpha,
+	.fullscreen = 0,
+	.dest_rect = {
+		      .x = dev->overlay.w.left,
+		      .y = dev->overlay.w.top,
+		      .width = dev->overlay.w.width,
+		      .height = dev->overlay.w.height,
+		      },
+	};
+	ret = vchiq_mmal_port_parameter_set(dev->instance, port,
+					    MMAL_PARAMETER_DISPLAYREGION,
+					    &prev_config, sizeof(prev_config));
+
+	return ret;
+}
+
 /* overlay ioctl */
 static int vidioc_enum_fmt_vid_overlay(struct file *file, void *priv,
 				       struct v4l2_fmtdesc *f)
@@ -697,10 +721,31 @@ static int vidioc_g_fmt_vid_overlay(struct file *file, void *priv,
 static int vidioc_try_fmt_vid_overlay(struct file *file, void *priv,
 				      struct v4l2_format *f)
 {
-	/* Only support one format so get the current one. */
-	vidioc_g_fmt_vid_overlay(file, priv, f);
+	struct bm2835_mmal_dev *dev = video_drvdata(file);
 
-	/* todo: allow the size and/or offset to be changed. */
+	f->fmt.win.field = V4L2_FIELD_NONE;
+	f->fmt.win.chromakey = 0;
+	f->fmt.win.clips = NULL;
+	f->fmt.win.clipcount = 0;
+	f->fmt.win.bitmap = NULL;
+
+	v4l_bound_align_image(&f->fmt.win.w.width, MIN_WIDTH, MAX_WIDTH, 1,
+			      &f->fmt.win.w.height, MIN_HEIGHT, MAX_HEIGHT,
+			      1, 0);
+	v4l_bound_align_image(&f->fmt.win.w.left, MIN_WIDTH, MAX_WIDTH, 1,
+			      &f->fmt.win.w.top, MIN_HEIGHT, MAX_HEIGHT,
+			      1, 0);
+
+	v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+		"Overlay: Now w/h %dx%d l/t %dx%d\n",
+		f->fmt.win.w.width, f->fmt.win.w.height,
+		f->fmt.win.w.left, f->fmt.win.w.top);
+
+	v4l2_dump_win_format(1,
+			     bcm2835_v4l2_debug,
+			     &dev->v4l2_dev,
+			     &f->fmt.win,
+			     __func__);
 	return 0;
 }
 
@@ -712,8 +757,11 @@ static int vidioc_s_fmt_vid_overlay(struct file *file, void *priv,
 	vidioc_try_fmt_vid_overlay(file, priv, f);
 
 	dev->overlay = f->fmt.win;
+	if (dev->component[MMAL_COMPONENT_PREVIEW]->enabled) {
+		set_overlay_params(dev,
+			&dev->component[MMAL_COMPONENT_PREVIEW]->input[0]);
+	}
 
-	/* todo: program the preview port parameters */
 	return 0;
 }
 
@@ -723,20 +771,6 @@ static int vidioc_overlay(struct file *file, void *f, unsigned int on)
 	struct bm2835_mmal_dev *dev = video_drvdata(file);
 	struct vchiq_mmal_port *src;
 	struct vchiq_mmal_port *dst;
-	struct mmal_parameter_displayregion prev_config = {
-		.set = MMAL_DISPLAY_SET_LAYER | MMAL_DISPLAY_SET_ALPHA |
-		    MMAL_DISPLAY_SET_DEST_RECT | MMAL_DISPLAY_SET_FULLSCREEN,
-		.layer = PREVIEW_LAYER,
-		.alpha = 255,
-		.fullscreen = 0,
-		.dest_rect = {
-			      .x = dev->overlay.w.left,
-			      .y = dev->overlay.w.top,
-			      .width = dev->overlay.w.width,
-			      .height = dev->overlay.w.height,
-			      },
-	};
-
 	if ((on && dev->component[MMAL_COMPONENT_PREVIEW]->enabled) ||
 	    (!on && !dev->component[MMAL_COMPONENT_PREVIEW]->enabled))
 		return 0;	/* already in requested state */
@@ -768,9 +802,7 @@ static int vidioc_overlay(struct file *file, void *f, unsigned int on)
 	if (ret < 0)
 		goto error;
 
-	ret = vchiq_mmal_port_parameter_set(dev->instance, dst,
-					    MMAL_PARAMETER_DISPLAYREGION,
-					    &prev_config, sizeof(prev_config));
+	ret = set_overlay_params(dev, dst);
 	if (ret < 0)
 		goto error;
 
@@ -801,6 +833,9 @@ static int vidioc_g_fbuf(struct file *file, void *fh,
 	struct vchiq_mmal_port *preview_port =
 		    &dev->component[MMAL_COMPONENT_CAMERA]->
 		    output[MMAL_CAMERA_PORT_PREVIEW];
+
+	a->capability = V4L2_FBUF_CAP_EXTERNOVERLAY |
+			V4L2_FBUF_CAP_GLOBAL_ALPHA;
 	a->flags = V4L2_FBUF_FLAG_OVERLAY;
 	a->fmt.width = preview_port->es.video.width;
 	a->fmt.height = preview_port->es.video.height;
@@ -1826,6 +1861,7 @@ static int __init bm2835_mmal_init(void)
 		dev->overlay.w.height = 768;
 		dev->overlay.clipcount = 0;
 		dev->overlay.field = V4L2_FIELD_NONE;
+		dev->overlay.global_alpha = 255;
 
 		dev->capture.fmt = &formats[3]; /* JPEG */
 
