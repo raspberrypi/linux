@@ -83,6 +83,10 @@ static char *macaddr = ":";
 module_param(macaddr, charp, 0);
 MODULE_PARM_DESC(macaddr, "MAC address");
 
+static int packetsize = 0;
+module_param(packetsize, int, 0644);
+MODULE_PARM_DESC(packetsize, "Override the RX URB packet size");
+
 static int __must_check __smsc95xx_read_reg(struct usbnet *dev, u32 index,
 					    u32 *data, int in_pm)
 {
@@ -1006,13 +1010,13 @@ static int smsc95xx_reset(struct usbnet *dev)
 
 	if (!turbo_mode) {
 		burst_cap = 0;
-		dev->rx_urb_size = MAX_SINGLE_PACKET_SIZE;
+		dev->rx_urb_size = packetsize ? packetsize : MAX_SINGLE_PACKET_SIZE;
 	} else if (dev->udev->speed == USB_SPEED_HIGH) {
-		burst_cap = DEFAULT_HS_BURST_CAP_SIZE / HS_USB_PKT_SIZE;
-		dev->rx_urb_size = DEFAULT_HS_BURST_CAP_SIZE;
+		dev->rx_urb_size = packetsize ? packetsize : DEFAULT_HS_BURST_CAP_SIZE;
+		burst_cap = dev->rx_urb_size / HS_USB_PKT_SIZE;
 	} else {
-		burst_cap = DEFAULT_FS_BURST_CAP_SIZE / FS_USB_PKT_SIZE;
-		dev->rx_urb_size = DEFAULT_FS_BURST_CAP_SIZE;
+		dev->rx_urb_size = packetsize ? packetsize : DEFAULT_FS_BURST_CAP_SIZE;
+		burst_cap = dev->rx_urb_size / FS_USB_PKT_SIZE;
 	}
 
 	netif_dbg(dev, ifup, dev->net, "rx_urb_size=%ld\n",
