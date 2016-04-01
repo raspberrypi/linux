@@ -84,6 +84,10 @@ static char *macaddr = ":";
 module_param(macaddr, charp, 0);
 MODULE_PARM_DESC(macaddr, "MAC address");
 
+static int packetsize = 0;
+module_param(packetsize, int, 0644);
+MODULE_PARM_DESC(packetsize, "Override the RX URB packet size");
+
 static int __must_check __smsc95xx_read_reg(struct usbnet *dev, u32 index,
 					    u32 *data, int in_pm)
 {
