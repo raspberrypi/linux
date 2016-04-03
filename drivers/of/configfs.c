@@ -276,18 +276,12 @@ static struct config_item_type of_cfs_type = {
 
 struct config_group of_cfs_overlay_group;
 
-struct config_group *of_cfs_def_groups[] = {
-	&of_cfs_overlay_group,
-	NULL
-};
-
 static struct configfs_subsystem of_cfs_subsys = {
 	.su_group = {
 		.cg_item = {
 			.ci_namebuf = "device-tree",
 			.ci_type = &of_cfs_type,
 		},
-		.default_groups = of_cfs_def_groups,
 	},
 	.su_mutex = __MUTEX_INITIALIZER(of_cfs_subsys.su_mutex),
 };
@@ -303,6 +297,7 @@ static int __init of_cfs_init(void)
 			&overlays_type);
 	configfs_add_default_group(&of_cfs_overlay_group,
 			&of_cfs_subsys.su_group);
+
 	ret = configfs_register_subsystem(&of_cfs_subsys);
 	if (ret != 0) {
 		pr_err("%s: failed to register subsys\n", __func__);
