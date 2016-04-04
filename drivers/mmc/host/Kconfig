@@ -36,7 +36,6 @@ config MMC_BCM2835_PIO_DMA_BARRIER
 config MMC_BCM2835_SDHOST
 	tristate "Support for the SDHost controller on BCM2708/9"
 	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
-	depends on RASPBERRYPI_FIRMWARE
 	help
 	  This selects the SDHost controller on BCM2835/6.
 
