@@ -213,6 +213,14 @@ Params: gpiopin                 GPIO connected to the sensor's DATA output.
                                 (default 4)
 
 
+Name:   dpi24
+Info:   Overlay for a generic 24-bit DPI display
+        This uses GPIOs 0-27 (so no I2C, uart etc.), and activates the output
+        2-3 seconds after the kernel has started.
+Load:   dtoverlay=dpi24
+Params: <None>
+
+
 Name:   dwc-otg
 Info:   Selects the dwc_otg USB controller driver which has fiq support. This
         is the default on all except the Pi Zero which defaults to dwc2.
