@@ -15,6 +15,7 @@ endif
 dtbo-$(RPI_DT_OVERLAYS) += ads7846.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += at86rf233.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += bmp085_i2c-sensor.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += dpi24.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += dwc2.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += dwc-otg.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += dht11.dtbo
