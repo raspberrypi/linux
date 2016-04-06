@@ -679,8 +679,6 @@ static int bcm2835_dma_slave_config(struct dma_chan *chan,
 	}
 
 	c->cfg = *cfg;
-	if (!c->dreq)
-		c->dreq = cfg->slave_id;
 
 	return 0;
 }
