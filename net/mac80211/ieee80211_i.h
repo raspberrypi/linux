@@ -90,7 +90,7 @@ struct ieee80211_fragment_entry {
 	unsigned int last_frag;
 	unsigned int extra_len;
 	struct sk_buff_head skb_list;
-	int ccmp; /* Whether fragments were encrypted with CCMP */
+	bool check_sequential_pn; /* needed for CCMP/GCMP */
 	u8 last_pn[6]; /* PN of the last fragment if CCMP was used */
 };
 
