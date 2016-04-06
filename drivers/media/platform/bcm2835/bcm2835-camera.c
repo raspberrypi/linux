@@ -61,8 +61,8 @@ static int video_nr[] = {[0 ... (MAX_BCM2835_CAMERAS - 1)] = UNSET };
 module_param_array(video_nr, int, NULL, 0644);
 MODULE_PARM_DESC(video_nr, "videoX start numbers, -1 is autodetect");
 
-int max_video_width = MAX_VIDEO_MODE_WIDTH;
-int max_video_height = MAX_VIDEO_MODE_HEIGHT;
+static int max_video_width = MAX_VIDEO_MODE_WIDTH;
+static int max_video_height = MAX_VIDEO_MODE_HEIGHT;
 module_param(max_video_width, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(max_video_width, "Threshold for video mode");
 module_param(max_video_height, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
@@ -77,7 +77,7 @@ MODULE_PARM_DESC(max_video_height, "Threshold for video mode");
  * our function table list (actually switch to an alternate set, but same
  * result).
  */
-int gst_v4l2src_is_broken = 0;
+static int gst_v4l2src_is_broken;
 module_param(gst_v4l2src_is_broken, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(gst_v4l2src_is_broken, "If non-zero, enable workaround for Gstreamer");
 
