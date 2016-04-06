@@ -654,3 +654,36 @@ struct mmal_parameter_imagefx_parameters {
 	u32 num_effect_params;
 	u32 effect_parameter[MMAL_MAX_IMAGEFX_PARAMETERS];
 };
+
+#define MMAL_PARAMETER_CAMERA_INFO_MAX_CAMERAS 4
+#define MMAL_PARAMETER_CAMERA_INFO_MAX_FLASHES 2
+#define MMAL_PARAMETER_CAMERA_INFO_MAX_STR_LEN 16
+
+struct mmal_parameter_camera_info_camera_t {
+	u32    port_id;
+	u32    max_width;
+	u32    max_height;
+	u32    lens_present;
+	u8     camera_name[MMAL_PARAMETER_CAMERA_INFO_MAX_STR_LEN];
+};
+
+enum mmal_parameter_camera_info_flash_type_t {
+	/* Make values explicit to ensure they match values in config ini */
+	MMAL_PARAMETER_CAMERA_INFO_FLASH_TYPE_XENON = 0,
+	MMAL_PARAMETER_CAMERA_INFO_FLASH_TYPE_LED   = 1,
+	MMAL_PARAMETER_CAMERA_INFO_FLASH_TYPE_OTHER = 2,
+	MMAL_PARAMETER_CAMERA_INFO_FLASH_TYPE_MAX = 0x7FFFFFFF
+};
+
+struct mmal_parameter_camera_info_flash_t {
+	enum mmal_parameter_camera_info_flash_type_t flash_type;
+};
+
+struct mmal_parameter_camera_info_t {
+	u32                            num_cameras;
+	u32                            num_flashes;
+	struct mmal_parameter_camera_info_camera_t
+				cameras[MMAL_PARAMETER_CAMERA_INFO_MAX_CAMERAS];
+	struct mmal_parameter_camera_info_flash_t
+				flashes[MMAL_PARAMETER_CAMERA_INFO_MAX_FLASHES];
+};

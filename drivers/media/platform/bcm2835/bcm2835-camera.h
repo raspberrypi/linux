@@ -106,6 +106,8 @@ struct bm2835_mmal_dev {
 
 	} capture;
 
+	unsigned int camera_num;
+
 };
 
 int bm2835_mmal_init_controls(
