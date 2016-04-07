@@ -415,6 +415,8 @@ Params: ds1307                  Select the DS1307 device
 
         ds3231                  Select the DS3231 device
 
+        mcp7940x                Select the MCP7940x device
+
         mcp7941x                Select the MCP7941x device
 
         pcf2127                 Select the PCF2127 device
