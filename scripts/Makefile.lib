@@ -313,7 +313,7 @@ $(obj)/%.dtb: $(src)/%.dts FORCE
 
 quiet_cmd_dtco = DTCO    $@
 cmd_dtco = $(CPP) $(dtc_cpp_flags) -x assembler-with-cpp -o $(dtc-tmp) $< ; \
-	$(objtree)/scripts/dtc/dtc -@ -O dtb -o $@ -b 0 \
+	$(objtree)/scripts/dtc/dtc -@ -H epapr -O dtb -o $@ -b 0 \
 		-i $(dir $<) $(DTC_FLAGS) \
 		-d $(depfile).dtc.tmp $(dtc-tmp) ; \
 	cat $(depfile).pre.tmp $(depfile).dtc.tmp > $(depfile)
