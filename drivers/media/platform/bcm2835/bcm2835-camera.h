@@ -15,7 +15,7 @@
  * core driver device
  */
 
-#define V4L2_CTRL_COUNT 28 /* number of v4l controls */
+#define V4L2_CTRL_COUNT 29 /* number of v4l controls */
 
 enum {
 	MMAL_COMPONENT_CAMERA = 0,
@@ -58,6 +58,8 @@ struct bm2835_mmal_dev {
 	enum mmal_parameter_exposuremeteringmode metering_mode;
 	unsigned int		  manual_shutter_speed;
 	bool			  exp_auto_priority;
+	bool manual_iso_enabled;
+	uint32_t iso;
 
 	/* allocated mmal instance and components */
 	struct vchiq_mmal_instance   *instance;
@@ -104,6 +106,8 @@ struct bm2835_mmal_dev {
 
 	} capture;
 
+	unsigned int camera_num;
+
 };
 
 int bm2835_mmal_init_controls(
@@ -123,4 +127,17 @@ int set_framerate_params(struct bm2835_mmal_dev *dev);
 		(pix_fmt)->width, (pix_fmt)->height, (pix_fmt)->field,	\
 		(pix_fmt)->pixelformat, (pix_fmt)->bytesperline,	\
 		(pix_fmt)->sizeimage, (pix_fmt)->colorspace, (pix_fmt)->priv); \
+}
+#define v4l2_dump_win_format(level, debug, dev, win_fmt, desc)	\
+{	\
+	v4l2_dbg(level, debug, dev,	\
+"%s: w %u h %u l %u t %u  field %u chromakey %06X clip %p " \
+"clipcount %u bitmap %p\n", \
+		desc == NULL ? "" : desc,	\
+		(win_fmt)->w.width, (win_fmt)->w.height, \
+		(win_fmt)->w.left, (win_fmt)->w.top, \
+		(win_fmt)->field,	\
+		(win_fmt)->chromakey,	\
+		(win_fmt)->clips, (win_fmt)->clipcount,	\
+		(win_fmt)->bitmap); \
 }
