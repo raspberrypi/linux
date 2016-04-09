@@ -198,6 +198,12 @@ Params: interrupt               GPIO used for INT (default 23)
                                 arrays (0=+0pF, 15=+4.5pF, default 15)
 
 
+Name:   boomberry-digi
+Info:   Configures the BoomBerry Digi audio card
+Load:   dtoverlay=boomberry-digi
+Params: <None>
+
+
 Name:   bmp085_i2c-sensor
 Info:   Configures the BMP085/BMP180 digital barometric pressure and temperature
         sensors from Bosch Sensortec
