@@ -245,6 +245,12 @@ Params: int_pin                 GPIO used for INT (default 25)
         speed                   SPI bus speed (default 12000000)
 
 
+Name:   geekroo-digi
+Info:   Configures the Geekroo Digi audio card
+Load:   dtoverlay=geekroo-digi
+Params: <None>
+
+
 Name:   gpio-ir
 Info:   Use GPIO pin as rc-core style infrared receiver input. The rc-core-
         based gpio_ir_recv driver maps received keys directly to a
