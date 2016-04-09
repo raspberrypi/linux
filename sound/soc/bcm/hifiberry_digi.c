@@ -148,8 +148,6 @@ static struct snd_soc_ops snd_rpi_hifiberry_digi_ops = {
 
 static struct snd_soc_dai_link snd_rpi_hifiberry_digi_dai[] = {
 {
-	.name		= "HifiBerry Digi",
-	.stream_name	= "HifiBerry Digi HiFi",
 	.cpu_dai_name	= "bcm2708-i2s.0",
 	.codec_dai_name	= "wm8804-spdif",
 	.platform_name	= "bcm2708-i2s.0",
@@ -163,7 +161,6 @@ static struct snd_soc_dai_link snd_rpi_hifiberry_digi_dai[] = {
 
 /* audio machine driver */
 static struct snd_soc_card snd_rpi_hifiberry_digi = {
-	.name         = "snd_rpi_hifiberry_digi",
 	.owner        = THIS_MODULE,
 	.dai_link     = snd_rpi_hifiberry_digi_dai,
 	.num_links    = ARRAY_SIZE(snd_rpi_hifiberry_digi_dai),
@@ -177,6 +174,7 @@ static int snd_rpi_hifiberry_digi_probe(struct platform_device *pdev)
 
 	if (pdev->dev.of_node) {
 	    struct device_node *i2s_node;
+	    struct snd_soc_card *card = &snd_rpi_hifiberry_digi;
 	    struct snd_soc_dai_link *dai = &snd_rpi_hifiberry_digi_dai[0];
 	    i2s_node = of_parse_phandle(pdev->dev.of_node,
 					"i2s-controller", 0);
@@ -186,6 +184,19 @@ static int snd_rpi_hifiberry_digi_probe(struct platform_device *pdev)
 		dai->cpu_of_node = i2s_node;
 		dai->platform_name = NULL;
 		dai->platform_of_node = i2s_node;
+	    }
+
+	    if (of_property_read_string(pdev->dev.of_node, "card_name",
+					&card->name)) {
+		card->name = "snd_rpi_hifiberry_digi";
+	    }
+	    if (of_property_read_string(pdev->dev.of_node, "dai_name",
+					&dai->name)) {
+		dai->name = "HifiBerry Digi";
+	    }
+	    if (of_property_read_string(pdev->dev.of_node, "dai_stream_name",
+					&dai->stream_name)) {
+		dai->stream_name = "HifiBerry Digi HiFi";
 	    }
 	}
 
