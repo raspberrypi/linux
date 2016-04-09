@@ -15,10 +15,13 @@ endif
 dtbo-$(RPI_DT_OVERLAYS) += ads7846.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += at86rf233.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += bmp085_i2c-sensor.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += boomberry-dac.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += boomberry-digi.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += dwc2.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += dwc-otg.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += dht11.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += enc28j60.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += geekroo-digi.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += gpio-ir.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += gpio-poweroff.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hifiberry-amp.dtbo
