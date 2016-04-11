@@ -185,6 +185,7 @@ struct bcm2835_host {
 
 	unsigned int			debug:1;		/* Enable debug output */
 	unsigned int			firmware_sets_cdiv:1;	/* Let the firmware manage the clock */
+	unsigned int			reset_clock:1;		/* Reset the clock fore the next request */
 
 	/*DMA part*/
 	struct dma_chan			*dma_chan_rxtx;		/* DMA channel for reads and writes */
@@ -1545,13 +1546,17 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 				      &msg, sizeof(msg));
 
 		clock = max(msg[1], msg[2]);
+		spin_lock_irqsave(&host->lock, flags);
 	} else {
+		spin_lock_irqsave(&host->lock, flags);
 		if (clock < 100000) {
 			/* Can't stop the clock, but make it as slow as
 			 * possible to show willing
 			 */
 			host->cdiv = SDCDIV_MAX_CDIV;
 			bcm2835_sdhost_write(host, host->cdiv, SDCDIV);
+			mmiowb();
+			spin_unlock_irqrestore(&host->lock, flags);
 			return;
 		}
 
@@ -1630,6 +1635,11 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 	bcm2835_sdhost_write(host, clock/2, SDTOUT);
 
 	host->mmc->actual_clock = clock;
+	host->clock = input_clock;
+	host->reset_clock = 0;
+
+	mmiowb();
+	spin_unlock_irqrestore(&host->lock, flags);
 }
 
 static void bcm2835_sdhost_request(struct mmc_host *mmc, struct mmc_request *mrq)
@@ -1755,11 +1765,6 @@ static void bcm2835_sdhost_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	host->hcfg |= SDHCFG_SLOW_CARD;
 
 	bcm2835_sdhost_write(host, host->hcfg, SDHCFG);
-
-	if (!ios->clock || ios->clock != host->clock) {
-		bcm2835_sdhost_set_clock(host, ios->clock);
-		host->clock = ios->clock;
-	}
 
 	mmiowb();
 
