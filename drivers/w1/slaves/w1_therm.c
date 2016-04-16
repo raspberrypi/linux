@@ -217,7 +217,7 @@ static inline int w1_therm_eeprom(struct device *device)
 	if (ret != 0)
 		goto post_unlock;
 
-	if(!sl->family_data) {
+	if (!sl->family_data) {
 		ret = -ENODEV;
 		goto pre_unlock;
 	}
@@ -238,7 +238,7 @@ static inline int w1_therm_eeprom(struct device *device)
 			if (w1_reset_select_slave(sl))
 				continue;
 
-			/* 10ms strong pullup (or delay) after the copy command */
+			/* 10ms strong pullup/delay after the copy command */
 			if (w1_strong_pullup == 2 ||
 			    (!external_power && w1_strong_pullup))
 				w1_next_pullup(dev, tm);
@@ -294,7 +294,7 @@ static inline int w1_DS18B20_precision(struct device *device, int val)
 	uint8_t mask = 0x60;
 
 	if(val > 12 || val < 9) {
-		pr_warning("Unsupported precision\n");
+		pr_warn("Unsupported precision\n");
 		return -1;
 	}
 
@@ -302,7 +302,7 @@ static inline int w1_DS18B20_precision(struct device *device, int val)
 	if (ret != 0)
 		goto post_unlock;
 
-	if(!sl->family_data) {
+	if (!sl->family_data) {
 		ret = -ENODEV;
 		goto pre_unlock;
 	}
@@ -312,7 +312,7 @@ static inline int w1_DS18B20_precision(struct device *device, int val)
 	memset(rom, 0, sizeof(rom));
 
 	/* translate precision to bitmask (see datasheet page 9) */
-	switch(val) {
+	switch (val) {
 	case 9:
 		precision_bits = 0x00;
 		break;
@@ -336,9 +336,8 @@ static inline int w1_DS18B20_precision(struct device *device, int val)
 
 			/* read values to only alter precision bits */
 			w1_write_8(dev, W1_READ_SCRATCHPAD);
-			if ((count = w1_read_block(dev, rom, 9)) != 9) {
+			if ((count = w1_read_block(dev, rom, 9)) != 9)
 				dev_warn(device, "w1_read_block() returned %u instead of 9.\n",	count);
-			}
 
 			crc = w1_calc_crc8(rom, 8);
 			if (rom[8] == crc) {
@@ -416,7 +415,7 @@ static ssize_t w1_slave_store(struct device *device,
 	for (i = 0; i < ARRAY_SIZE(w1_therm_families); ++i) {
 		if (w1_therm_families[i].f->fid == sl->family->fid) {
 			/* zero value indicates to write current configuration to eeprom */
-			if(0 == val)
+			if (0 == val)
 				ret = w1_therm_families[i].eeprom(device);
 			else
 				ret = w1_therm_families[i].precision(device, val);
