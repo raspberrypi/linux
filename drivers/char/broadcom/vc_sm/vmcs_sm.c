@@ -197,12 +197,14 @@ struct SM_STATE_T {
 static struct SM_STATE_T *sm_state;
 static int sm_inited;
 
+#if 0
 static const char *const sm_cache_map_vector[] = {
 	"(null)",
 	"host",
 	"videocore",
 	"host+videocore",
 };
+#endif
 
 /* ---- Private Function Prototypes -------------------------------------- */
 
