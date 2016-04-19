@@ -1,6 +1,6 @@
 config RASPBERRYPI_POWER
 	bool "Raspberry Pi power domain driver"
-	depends on ARCH_BCM2835 || COMPILE_TEST
+	depends on ARCH_BCM2835 || ARCH_BCM2708 || ARCH_BCM2709 || COMPILE_TEST
 	depends on RASPBERRYPI_FIRMWARE=y
 	select PM_GENERIC_DOMAINS if PM
 	select PM_GENERIC_DOMAINS_OF if PM
