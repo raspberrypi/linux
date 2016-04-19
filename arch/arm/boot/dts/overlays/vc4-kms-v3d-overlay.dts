@@ -6,6 +6,7 @@
 /plugin/;
 
 #include "dt-bindings/clock/bcm2835.h"
+#include "dt-bindings/power/raspberrypi-power.h"
 #include "dt-bindings/gpio/gpio.h"
 
 / {
@@ -72,6 +73,7 @@
 				clocks = <&cprman BCM2835_PLLH_PIX>,
 					 <&cprman BCM2835_CLOCK_HSM>;
 				clock-names = "pixel", "hdmi";
+				power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
 			};
 
 			v3d@7ec00000 {
