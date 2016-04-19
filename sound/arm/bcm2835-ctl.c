@@ -489,8 +489,6 @@ static int snd_bcm2835_chmap_ctl_get(struct snd_kcontrol *kcontrol,
 {
 	struct snd_pcm_chmap *info = snd_kcontrol_chip(kcontrol);
 	bcm2835_chip_t *chip = info->private_data;
-	unsigned int idx = snd_ctl_get_ioffidx(kcontrol, &ucontrol->id);
-	struct snd_pcm_substream *substream = snd_pcm_chmap_substream(info, idx);
 	struct cea_channel_speaker_allocation *ch = NULL;
 	int res = 0;
 	int cur = 0;
@@ -498,11 +496,6 @@ static int snd_bcm2835_chmap_ctl_get(struct snd_kcontrol *kcontrol,
 
 	if (mutex_lock_interruptible(&chip->audio_mutex))
 		return -EINTR;
-
-	if (!substream || !substream->runtime) {
-		res = -ENODEV;
-		goto unlock;
-	}
 
 	for (i = 0; i < ARRAY_SIZE(channel_allocations); i++) {
 		if (channel_allocations[i].ca_index == chip->cea_chmap)
@@ -521,7 +514,6 @@ static int snd_bcm2835_chmap_ctl_get(struct snd_kcontrol *kcontrol,
 	while (cur < 8)
 		ucontrol->value.integer.value[cur++] = SNDRV_CHMAP_NA;
 
-unlock:
 	mutex_unlock(&chip->audio_mutex);
 	return res;
 }
@@ -541,7 +533,7 @@ static int snd_bcm2835_chmap_ctl_put(struct snd_kcontrol *kcontrol,
 		return -EINTR;
 
 	if (!substream || !substream->runtime) {
-		res = -ENODEV;
+		/* ignore and return success for the sake of alsactl */
 		goto unlock;
 	}
 
