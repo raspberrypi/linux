@@ -91,7 +91,7 @@
 	fragment@4 {
 		target-path = "/chosen";
 		__overlay__ {
-			bootargs = "cma=256M@512M";
+			bootargs = "cma=256M@256M";
 		};
 	};
 };
