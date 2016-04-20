@@ -80,6 +80,7 @@
 				compatible = "brcm,vc4-v3d";
 				reg = <0x7ec00000 0x1000>;
 				interrupts = <1 10>;
+				power-domains = <&power RPI_POWER_DOMAIN_V3D>;
 			};
 
 			gpu@7e4c0000 {
