@@ -210,6 +210,8 @@ add_completion(VCHIQ_INSTANCE_T instance, VCHIQ_REASON_T reason,
 	VCHIQ_COMPLETION_DATA_T *completion;
 	DEBUG_INITIALISE(g_state.local)
 
+	mutex_lock(&instance->completion_mutex);
+
 	while (instance->completion_insert ==
 		(instance->completion_remove + MAX_COMPLETIONS)) {
 		/* Out of space - wait for the client */
@@ -217,11 +219,17 @@ add_completion(VCHIQ_INSTANCE_T instance, VCHIQ_REASON_T reason,
 		vchiq_log_trace(vchiq_arm_log_level,
 			"add_completion - completion queue full");
 		DEBUG_COUNT(COMPLETION_QUEUE_FULL_COUNT);
+
+		mutex_unlock(&instance->completion_mutex);
 		if (down_interruptible(&instance->remove_event) != 0) {
 			vchiq_log_info(vchiq_arm_log_level,
 				"service_callback interrupted");
 			return VCHIQ_RETRY;
-		} else if (instance->closing) {
+		}
+
+		mutex_lock(&instance->completion_mutex);
+		if (instance->closing) {
+			mutex_unlock(&instance->completion_mutex);
 			vchiq_log_info(vchiq_arm_log_level,
 				"service_callback closing");
 			return VCHIQ_SUCCESS;
@@ -254,7 +262,10 @@ add_completion(VCHIQ_INSTANCE_T instance, VCHIQ_REASON_T reason,
 	if (reason == VCHIQ_MESSAGE_AVAILABLE)
 		user_service->message_available_pos =
 			instance->completion_insert;
+
 	instance->completion_insert++;
+
+	mutex_unlock(&instance->completion_mutex);
 
 	up(&instance->insert_event);
 
