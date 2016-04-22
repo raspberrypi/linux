@@ -488,17 +488,6 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 	c->cyclic = true;
 
 	return vchan_tx_prep(&c->vc, &d->vd, flags);
-error_cb:
-	i--;
-	for (; i >= 0; i--) {
-		struct bcm2835_cb_entry *cb_entry = &d->cb_list[i];
-
-		dma_pool_free(c->cb_pool, cb_entry->cb, cb_entry->paddr);
-	}
-
-	kfree(d->cb_list);
-	kfree(d);
-	return NULL;
 }
 
 static struct dma_async_tx_descriptor *
@@ -545,7 +534,6 @@ bcm2835_dma_prep_slave_sg(struct dma_chan *chan,
 	if (!d)
 		return NULL;
 
-	d->c = c;
 	d->dir = direction;
 
 	if (c->ch >= 8) /* LITE channel */
@@ -565,20 +553,14 @@ bcm2835_dma_prep_slave_sg(struct dma_chan *chan,
 		d->frames += len / max_size + 1;
 	}
 
-	d->cb_list = kcalloc(d->frames, sizeof(*d->cb_list), GFP_KERNEL);
-	if (!d->cb_list) {
+	/* Allocate memory for control blocks */
+	d->control_block_size = d->frames * sizeof(struct bcm2835_dma_cb);
+	d->control_block_base = dma_zalloc_coherent(chan->device->dev,
+			d->control_block_size, &d->control_block_base_phys,
+			GFP_NOWAIT);
+	if (!d->control_block_base) {
 		kfree(d);
 		return NULL;
-	}
-	/* Allocate memory for control blocks */
-	for (i = 0; i < d->frames; i++) {
-		struct bcm2835_cb_entry *cb_entry = &d->cb_list[i];
-
-		cb_entry->cb = dma_pool_zalloc(c->cb_pool, GFP_ATOMIC,
-						&cb_entry->paddr);
-
-		if (!cb_entry->cb)
-			goto error_cb;
 	}
 
 	/*
@@ -596,7 +578,7 @@ bcm2835_dma_prep_slave_sg(struct dma_chan *chan,
 
 		for (j = 0; j < len; j += max_size) {
 			struct bcm2835_dma_cb *control_block =
-				d->cb_list[i + split_cnt].cb;
+				&d->control_block_base[i + split_cnt];
 
 			/* Setup addresses */
 			if (d->dir == DMA_DEV_TO_MEM) {
@@ -638,7 +620,9 @@ bcm2835_dma_prep_slave_sg(struct dma_chan *chan,
 			if (i < sg_len - 1 || len - j > max_size) {
 				/* Next block is the next frame. */
 				control_block->next =
-					d->cb_list[i + split_cnt + 1].paddr;
+					d->control_block_base_phys +
+					sizeof(struct bcm2835_dma_cb) *
+					(i + split_cnt + 1);
 			} else {
 				/* Next block is empty. */
 				control_block->next = 0;
