@@ -218,9 +218,6 @@ static int bcm2708_fb_check_var(struct fb_var_screeninfo *var,
 				struct fb_info *info)
 {
 	/* info input, var output */
-	int yres;
-
-	/* info input, var output */
 	print_debug("bcm2708_fb_check_var info(%p) %dx%d (%dx%d), %d, %d\n", info,
 		info->var.xres, info->var.yres, info->var.xres_virtual,
 		info->var.yres_virtual, (int)info->screen_size,
