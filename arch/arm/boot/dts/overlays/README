@@ -464,6 +464,12 @@ Params: sda1_pin                GPIO pin for SDA1 (2 or 44 - default 2)
                                 default 4)
 
 
+Name:   i2s-gpio28-31
+Info:   move I2S function block to GPIO 28 to 31
+Load:   dtoverlay=i2s-gpio28-31
+Params: <None>
+
+
 Name:   i2s-mmap
 Info:   Enables mmap support in the bcm2708-i2s driver
 Load:   dtoverlay=i2s-mmap
