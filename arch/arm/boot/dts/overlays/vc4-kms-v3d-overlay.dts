@@ -119,6 +119,13 @@
 		};
 	};
 
+	fragment@15 {
+		target-path = "/soc/dma";
+		__overlay__ {
+			brcm,dma-channel-mask = <0x7f35>;
+		};
+	};
+
 	__overrides__ {
 		cma-256 = <0>,"+0-1-2-3-4";
 		cma-192 = <0>,"-0+1-2-3-4";
