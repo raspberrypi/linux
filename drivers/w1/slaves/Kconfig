@@ -38,6 +38,12 @@ config W1_SLAVE_DS2413
 	  Say Y here if you want to use a 1-wire
 	  DS2413 Dual Channel Addressable Switch device support
 
+config W1_SLAVE_2100H
+	tristate "Dual Channel Addressable Switch 0x85 family support (clone DS2413: 3A 2100H)"
+	help
+	  Say Y here if you want to use a 1-wire
+	  3A 2100H (DS2413 clone) - Dual Channel Addressable Switch device support
+
 config W1_SLAVE_DS2406
 	tristate "Dual Channel Addressable Switch 0x12 family support (DS2406)"
 	select CRC16
