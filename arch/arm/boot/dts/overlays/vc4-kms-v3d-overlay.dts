@@ -94,4 +94,11 @@
 			bootargs = "cma=256M@256M";
 		};
 	};
+
+	fragment@5 {
+		target-path = "/soc/dma";
+		__overlay__ {
+			brcm,dma-channel-mask = <0x7f35>;
+		};
+	};
 };
