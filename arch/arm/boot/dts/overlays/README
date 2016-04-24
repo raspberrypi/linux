@@ -299,6 +299,28 @@ Params: int_pin                 GPIO used for INT (default 25)
         speed                   SPI bus speed (default 12000000)
 
 
+Name:   fbtft
+Info:   Overlay for a generic fbtft device with dc and reset lines
+Load:   dtoverlay=fbtft,<param>=<val>
+Params: cs                      SPI bus Chip Select (default 1)
+
+        speed                   SPI bus speed (default 8MHz)
+
+	txbuflen		transmit buffer length
+
+	compatible		the compatible string for selection of the driver
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+        resetgpio               GPIO used to reset controller
+
+        dcgpio                  GPIO used to signal data/command
+
+
 Name:   gpio-ir
 Info:   Use GPIO pin as rc-core style infrared receiver input. The rc-core-
         based gpio_ir_recv driver maps received keys directly to a

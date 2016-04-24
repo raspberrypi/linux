@@ -1,0 +1,61 @@
+/*
+ * fbtft-overlay.dts
+ *
+ * generic overlay
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			fbtft_pins: fbtft_pins {
+				brcm,pins = <255 255>;
+				brcm,function = <1>; /* out */
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			fbtft: fbtft@0 {
+				reg = <0>;
+				status = "okay";
+				compatible = "fb_tft"; /* dummy - tbd */
+				pinctrl-names = "default";
+				pinctrl-0 = <&fbtft_pins>;
+				spi-max-frequency = <8000000>;
+				reset-gpios = <&gpio 255 1>;
+				dc-gpios = <&gpio 255 0>;
+				buswidth = <8>;
+				txbuflen = <32768>;
+				fps = <25>;
+				rotate = <0>;
+				debug = <0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		cs =         <&fbtft>,"reg:0";
+		speed =      <&fbtft>,"spi-max-frequency:0";
+		txbuflen =   <&fbtft>,"txbuflen:0";
+		compatible = <&fbtft>,"compatible"; /* REQUIRED */
+		rotate =     <&fbtft>,"rotate:0";
+		fps =        <&fbtft>,"fps:0";
+		debug =      <&fbtft>,"debug:0";
+		dcgpio =     <&fbtft>,"dc-gpios:4", /* REQUIRED */
+			     <&fbtft_pins>,"brcm,pins:0";
+		resetgpio =  <&fbtft>,"reset-gpios:4", /* REQUIRED */
+			     <&fbtft_pins>,"brcm,pins:4";
+	};
+};
