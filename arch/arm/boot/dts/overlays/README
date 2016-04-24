@@ -251,6 +251,12 @@ Load:   dtoverlay=boomberry-digi
 Params: <None>
 
 
+Name:   cma-128m@128m
+Info:   set cma to 128m@128m - typically used in conjunction with
+	vc4-kms-v3d on a machine with 512MB or less.
+Load:   dtoverlay=cma-128m@128m
+
+
 Name:   dht11
 Info:   Overlay for the DHT11/DHT21/DHT22 humidity/temperature sensors
         Also sometimes found with the part number(s) AM230x.

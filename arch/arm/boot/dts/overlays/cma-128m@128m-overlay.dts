@@ -1,0 +1,17 @@
+/*
+ * cma-128m@128m-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+	fragment@0 {
+		target-path = "/chosen";
+		__overlay__ {
+			bootargs = "cma=128M@128M";
+		};
+	};
+
+};
