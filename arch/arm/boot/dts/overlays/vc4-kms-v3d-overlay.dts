@@ -94,4 +94,40 @@
 			bootargs = "cma=256M@256M";
 		};
 	};
+
+	fragment@5 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=192M@256M";
+		};
+	};
+
+	fragment@6 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=128M@128M";
+		};
+	};
+
+	fragment@7 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=96M@128M";
+		};
+	};
+
+	fragment@8 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=64M@64M";
+		};
+	};
+
+	__overrides__ {
+		cma-256 = <0>,"+4-5-6-7-8";
+		cma-192 = <0>,"-4+5-6-7-8";
+		cma-128 = <0>,"-4-5+6-7-8";
+		cma-96  = <0>,"-4-5-6+7-8";
+		cma-64  = <0>,"-4-5-6-7+8";
+	};
 };

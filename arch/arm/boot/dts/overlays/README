@@ -1023,8 +1023,12 @@ Name:   vc4-kms-v3d
 Info:   Enable Eric Anholt's DRM VC4 HDMI/HVS/V3D driver. Running startx or
         booting to GUI while this overlay is in use will cause interesting
         lockups.
-Load:   dtoverlay=vc4-kms-v3d
-Params: <None>
+Load:   dtoverlay=vc4-kms-v3d,<param>
+Params: cma-256                 CMA is 256MB, 256MB-aligned (needs 1GB)
+        cma-192                 CMA is 192MB, 256MB-aligned (needs 1GB)
+        cma-128                 CMA is 128MB, 128MB-aligned
+        cma-96                  CMA is 96MB, 128MB-aligned
+        cma-64                  CMA is 64MB, 64MB-aligned
 
 
 Name:   vga666
