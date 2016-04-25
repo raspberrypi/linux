@@ -115,7 +115,6 @@
 			 * derive from something else derived from CPRMAN..
 			 */
 			clocks = <&clk_osc>, <&dsi1 0>, <&dsi1 1>, <&dsi1 2>;
-			status = "disabled";
 		};
 
 		random: rng@7e104000 {
