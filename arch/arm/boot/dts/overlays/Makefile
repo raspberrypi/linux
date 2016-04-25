@@ -66,6 +66,7 @@ dtbo-$(RPI_DT_OVERLAYS) += rpi-proto.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += rpi-sense.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += sdhost.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += sdio.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += sdio-1bit.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += sdtweak.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += smi-dev.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += smi-nand.dtbo
