@@ -411,25 +411,15 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		divf = dividend & BCM2835_CLK_DIVF_MASK;
 	}
 
-	/* Clock should only be set up here if CPU is clock master */
-	switch (dev->fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-	case SND_SOC_DAIFMT_CBS_CFS:
-	case SND_SOC_DAIFMT_CBS_CFM:
-		/* Set clock divider */
-		regmap_write(dev->clk_regmap, BCM2835_CLK_PCMDIV_REG,
-				  BCM2835_CLK_PASSWD
-				| BCM2835_CLK_DIVI(divi)
-				| BCM2835_CLK_DIVF(divf));
+	/* Set clock divider */
+	regmap_write(dev->clk_regmap, BCM2835_CLK_PCMDIV_REG, BCM2835_CLK_PASSWD
+			| BCM2835_CLK_DIVI(divi)
+			| BCM2835_CLK_DIVF(divf));
 
-		/* Setup clock, but don't start it yet */
-		regmap_write(dev->clk_regmap, BCM2835_CLK_PCMCTL_REG,
-				  BCM2835_CLK_PASSWD
-				| BCM2835_CLK_MASH(mash)
-				| BCM2835_CLK_SRC(clk_src));
-		break;
-	default:
-		break;
-	}
+	/* Setup clock, but don't start it yet */
+	regmap_write(dev->clk_regmap, BCM2835_CLK_PCMCTL_REG, BCM2835_CLK_PASSWD
+			| BCM2835_CLK_MASH(mash)
+			| BCM2835_CLK_SRC(clk_src));
 
 	/* Setup the frame format */
 	format = BCM2835_I2S_CHEN;
