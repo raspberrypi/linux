@@ -555,22 +555,15 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	/* Setup the DMA parameters */
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
-			   BCM2835_I2S_RXTHR(3)
-			   | BCM2835_I2S_TXTHR(3)
-			   | BCM2835_I2S_DMAEN,
-			   BCM2835_I2S_RXTHR(1)
-			   | BCM2835_I2S_TXTHR(1)
-			   | BCM2835_I2S_DMAEN);
+			BCM2835_I2S_RXTHR(1)
+			| BCM2835_I2S_TXTHR(1)
+			| BCM2835_I2S_DMAEN, 0xffffffff);
 
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_DREQ_A_REG,
-			   BCM2835_I2S_TX_PANIC(0x7f)
-			   | BCM2835_I2S_RX_PANIC(0x7f)
-			   | BCM2835_I2S_TX(0x7f)
-			   | BCM2835_I2S_RX(0x7f),
-			   BCM2835_I2S_TX_PANIC(0x10)
-			   | BCM2835_I2S_RX_PANIC(0x30)
-			   | BCM2835_I2S_TX(0x20)
-			   | BCM2835_I2S_RX(0x20));
+			  BCM2835_I2S_TX_PANIC(0x10)
+			| BCM2835_I2S_RX_PANIC(0x30)
+			| BCM2835_I2S_TX(0x30)
+			| BCM2835_I2S_RX(0x20), 0xffffffff);
 
 	/* Clear FIFOs */
 	bcm2835_i2s_clear_fifos(dev, true, true);
