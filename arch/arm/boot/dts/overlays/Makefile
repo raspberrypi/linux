@@ -44,6 +44,7 @@ dtb-$(RPI_DT_OVERLAYS) += pi3-disable-bt-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pi3-miniuart-bt-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += piscreen-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += piscreen2r-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += pitft22-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pitft28-capacitive-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pitft28-resistive-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
