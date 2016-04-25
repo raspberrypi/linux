@@ -113,7 +113,6 @@
 			 * oscillator.
 			 */
 			clocks = <&clk_osc>;
-			status = "disabled";
 		};
 
 		random: rng@7e104000 {
