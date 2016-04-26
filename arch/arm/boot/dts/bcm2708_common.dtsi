@@ -149,7 +149,7 @@
 			compatible = "brcm,bcm2835-sdhost";
 			reg = <0x7e202000 0x100>;
 			interrupts = <2 24>;
-			clocks = <&clk_core>;
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 			dmas = <&dma 13>;
 			dma-names = "rx-tx";
 			brcm,overclock-50 = <0>;
