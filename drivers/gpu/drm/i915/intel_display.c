@@ -9700,6 +9700,8 @@ static void broadwell_set_cdclk(struct drm_device *dev, int cdclk)
 
 	I915_WRITE(CDCLK_FREQ, DIV_ROUND_CLOSEST(cdclk, 1000) - 1);
 
+	I915_WRITE(CDCLK_FREQ, DIV_ROUND_CLOSEST(cdclk, 1000) - 1);
+
 	intel_update_cdclk(dev);
 
 	WARN(cdclk != dev_priv->cdclk_freq,
