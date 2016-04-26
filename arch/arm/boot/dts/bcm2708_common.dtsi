@@ -406,14 +406,6 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		clk_core: clock@0 {
-			compatible = "fixed-clock";
-			reg = <0>;
-			#clock-cells = <0>;
-			clock-output-names = "core";
-			clock-frequency = <250000000>;
-		};
-
 		/* The oscillator is the root of the clock tree. */
 		clk_osc: clock@6 {
 			compatible = "fixed-clock";
