@@ -34,17 +34,6 @@
 		clocks = &clocks;
 	};
 
-	/* Onboard audio */
-	audio: audio {
-		compatible = "brcm,bcm2835-audio";
-		brcm,pwm-channels = <8>;
-		status = "disabled";
-	};
-
-	/* External sound card */
-	sound: sound {
-	};
-
 	soc: soc {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -312,6 +301,18 @@
 		thermal: thermal {
 			compatible = "brcm,bcm2835-thermal";
 			firmware = <&firmware>;
+		};
+
+		/* Onboard audio */
+		audio: audio {
+			compatible = "brcm,bcm2835-audio";
+			brcm,pwm-channels = <8>;
+			status = "disabled";
+		};
+
+		/* External sound card */
+		sound: sound {
+			status = "disabled";
 		};
 	};
 
