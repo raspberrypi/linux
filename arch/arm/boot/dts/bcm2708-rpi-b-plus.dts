@@ -142,7 +142,6 @@
 		i2c0_baudrate = <&i2c0>,"clock-frequency:0";
 		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
 		i2c2_baudrate = <&i2c2>,"clock-frequency:0";
-		core_freq = <&clk_core>,"clock-frequency:0";
 
 		act_led_gpio = <&act_led>,"gpios:4";
 		act_led_activelow = <&act_led>,"gpios:8";
