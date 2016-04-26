@@ -268,7 +268,7 @@
 			compatible = "brcm,bcm2835-mmc";
 			reg = <0x7e300000 0x100>;
 			interrupts = <2 30>;
-			clocks = <&clk_mmc>;
+			clocks = <&cprman BCM2835_CLOCK_EMMC>;
 			dmas = <&dma 11>;
 			dma-names = "rx-tx";
 			brcm,overclock-50 = <0>;
@@ -411,14 +411,6 @@
 			reg = <0>;
 			#clock-cells = <0>;
 			clock-output-names = "core";
-			clock-frequency = <250000000>;
-		};
-
-		clk_mmc: clock@1 {
-			compatible = "fixed-clock";
-			reg = <1>;
-			#clock-cells = <0>;
-			clock-output-names = "mmc";
 			clock-frequency = <250000000>;
 		};
 
