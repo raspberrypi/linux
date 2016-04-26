@@ -229,12 +229,11 @@
 			status = "disabled";
 		};
 
-		aux: aux@0x7e215004 {
+		aux: aux@0x7e215000 {
 			compatible = "brcm,bcm2835-aux";
 			#clock-cells = <1>;
 			reg = <0x7e215000 0x8>;
-			clocks = <&clk_core>;
-			status = "disabled";
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 		};
 
 		uart1: serial@7e215040 {
