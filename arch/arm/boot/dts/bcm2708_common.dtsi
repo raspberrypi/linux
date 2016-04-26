@@ -136,10 +136,11 @@
 		};
 
 		uart0: serial@7e201000 {
-			compatible = "arm,pl011", "arm,primecell";
+			compatible = "brcm,bcm2835-pl011", "arm,pl011", "arm,primecell";
 			reg = <0x7e201000 0x1000>;
 			interrupts = <2 25>;
-			clocks = <&clk_uart0 &clk_apb_p>;
+			clocks = <&cprman BCM2835_CLOCK_UART>,
+			         <&cprman BCM2835_CLOCK_VPU>;
 			clock-names = "uartclk","apb_pclk";
 			arm,primecell-periphid = <0x00241011>; // For an explanation, see
 			// https://github.com/raspberrypi/linux/commit/13731d862cf5219216533a3b0de052cee4cc5038
@@ -448,22 +449,6 @@
 			#clock-cells = <0>;
 			clock-output-names = "mmc";
 			clock-frequency = <250000000>;
-		};
-
-		clk_uart0: clock@2 {
-			compatible = "fixed-clock";
-			reg = <2>;
-			#clock-cells = <0>;
-			clock-output-names = "uart0_pclk";
-			clock-frequency = <3000000>;
-		};
-
-		clk_apb_p: clock@3 {
-			compatible = "fixed-clock";
-			reg = <3>;
-			#clock-cells = <0>;
-			clock-output-names = "apb_pclk";
-			clock-frequency = <126000000>;
 		};
 
 		clk_pwm: clock@4 {
