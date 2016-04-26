@@ -190,7 +190,7 @@
 			compatible = "brcm,bcm2708-i2c";
 			reg = <0x7e205000 0x1000>;
 			interrupts = <2 21>;
-			clocks = <&clk_core>;
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -286,7 +286,7 @@
 			compatible = "brcm,bcm2708-i2c";
 			reg = <0x7e804000 0x1000>;
 			interrupts = <2 21>;
-			clocks = <&clk_core>;
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -299,7 +299,7 @@
 			compatible = "brcm,bcm2708-i2c";
 			reg = <0x7e805000 0x1000>;
 			interrupts = <2 21>;
-			clocks = <&clk_core>;
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
