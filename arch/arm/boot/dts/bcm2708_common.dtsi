@@ -250,7 +250,7 @@
 
 		spi1: spi@7e215080 {
 			compatible = "brcm,bcm2835-aux-spi";
-			reg = <0x7e215080 0x40>, <0x7e215000 0x8>;
+			reg = <0x7e215080 0x40>;
 			interrupts = <1 29>;
 			clocks = <&aux BCM2835_AUX_CLOCK_SPI1>;
 			#address-cells = <1>;
@@ -260,7 +260,7 @@
 
 		spi2: spi@7e2150C0 {
 			compatible = "brcm,bcm2835-aux-spi";
-			reg = <0x7e2150C0 0x40>, <0x7e215000 0x8>;
+			reg = <0x7e2150C0 0x40>;
 			interrupts = <1 29>;
 			clocks = <&aux BCM2835_AUX_CLOCK_SPI2>;
 			#address-cells = <1>;
