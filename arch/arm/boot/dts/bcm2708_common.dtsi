@@ -222,7 +222,9 @@
 		pwm: pwm@7e20c000 {
 			compatible = "brcm,bcm2835-pwm";
 			reg = <0x7e20c000 0x28>;
-			clocks = <&clk_pwm>;
+			clocks = <&cprman BCM2835_CLOCK_PWM>;
+			assigned-clocks = <&cprman BCM2835_CLOCK_PWM>;
+			assigned-clock-rates = <10000000>;
 			#pwm-cells = <2>;
 			status = "disabled";
 		};
