@@ -1251,6 +1251,14 @@ static struct clk *bcm2835_register_clock(struct bcm2835_cprman *cprman,
 		init.flags |= CLK_SET_RATE_GATE | CLK_SET_PARENT_GATE;
 	}
 
+	/* if the clock is running, then enable CRITICAL */
+	if (cprman_read(cprman, data->ctl_reg) & CM_ENABLE) {
+		dev_dbg(cprman->dev,
+			"found firmware enabled clock %s - enabling critical\n",
+			data->name);
+		init.flags |= CLK_IS_CRITICAL;
+	}
+
 	clock = devm_kzalloc(cprman->dev, sizeof(*clock), GFP_KERNEL);
 	if (!clock)
 		return NULL;
