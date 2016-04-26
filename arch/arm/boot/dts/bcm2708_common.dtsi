@@ -450,14 +450,6 @@
 			clock-frequency = <250000000>;
 		};
 
-		clk_pwm: clock@4 {
-			compatible = "fixed-clock";
-			reg = <4>;
-			#clock-cells = <0>;
-			clock-output-names = "pwm";
-			clock-frequency = <100000000>;
-		};
-
 		/* The oscillator is the root of the clock tree. */
 		clk_osc: clock@6 {
 			compatible = "fixed-clock";
