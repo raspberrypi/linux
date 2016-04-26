@@ -135,7 +135,7 @@
 			#interrupt-cells = <2>;
 		};
 
-		uart0: uart@7e201000 {
+		uart0: serial@7e201000 {
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x7e201000 0x1000>;
 			interrupts = <2 25>;
@@ -236,7 +236,7 @@
 			status = "disabled";
 		};
 
-		uart1: uart@7e215040 {
+		uart1: serial@7e215040 {
 			compatible = "brcm,bcm2835-aux-uart", "ns16550";
 			reg = <0x7e215040 0x40>;
 			interrupts = <1 29>;
