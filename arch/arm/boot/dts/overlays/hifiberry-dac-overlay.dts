@@ -13,7 +13,7 @@
 	};
 
 	fragment@1 {
-		target = <&soc>;
+		target-path = "/";
 		__overlay__ {
 			pcm5102a-codec {
 				#sound-dai-cells = <0>;
