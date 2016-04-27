@@ -2719,39 +2719,57 @@ void rpc_show_tasks(struct net *net)
 #endif
 
 #if IS_ENABLED(CONFIG_SUNRPC_SWAP)
-static int
-rpc_clnt_swap_activate_callback(struct rpc_clnt *clnt,
-		struct rpc_xprt *xprt,
-		void *dummy)
-{
-	return xprt_enable_swap(xprt);
-}
-
 int
 rpc_clnt_swap_activate(struct rpc_clnt *clnt)
 {
-	if (atomic_inc_return(&clnt->cl_swapper) == 1)
-		return rpc_clnt_iterate_for_each_xprt(clnt,
-				rpc_clnt_swap_activate_callback, NULL);
-	return 0;
+	int ret = 0;
+	struct rpc_xprt	*xprt;
+
+	if (atomic_inc_return(&clnt->cl_swapper) == 1) {
+retry:
+		rcu_read_lock();
+		xprt = xprt_get(rcu_dereference(clnt->cl_xprt));
+		rcu_read_unlock();
+		if (!xprt) {
+			/*
+			 * If we didn't get a reference, then we likely are
+			 * racing with a migration event. Wait for a grace
+			 * period and try again.
+			 */
+			synchronize_rcu();
+			goto retry;
+		}
+
+		ret = xprt_enable_swap(xprt);
+		xprt_put(xprt);
+	}
+	return ret;
 }
 EXPORT_SYMBOL_GPL(rpc_clnt_swap_activate);
-
-static int
-rpc_clnt_swap_deactivate_callback(struct rpc_clnt *clnt,
-		struct rpc_xprt *xprt,
-		void *dummy)
-{
-	xprt_disable_swap(xprt);
-	return 0;
-}
 
 void
 rpc_clnt_swap_deactivate(struct rpc_clnt *clnt)
 {
-	if (atomic_dec_if_positive(&clnt->cl_swapper) == 0)
-		rpc_clnt_iterate_for_each_xprt(clnt,
-				rpc_clnt_swap_deactivate_callback, NULL);
+	struct rpc_xprt	*xprt;
+
+	if (atomic_dec_if_positive(&clnt->cl_swapper) == 0) {
+retry:
+		rcu_read_lock();
+		xprt = xprt_get(rcu_dereference(clnt->cl_xprt));
+		rcu_read_unlock();
+		if (!xprt) {
+			/*
+			 * If we didn't get a reference, then we likely are
+			 * racing with a migration event. Wait for a grace
+			 * period and try again.
+			 */
+			synchronize_rcu();
+			goto retry;
+		}
+
+		xprt_disable_swap(xprt);
+		xprt_put(xprt);
+	}
 }
 EXPORT_SYMBOL_GPL(rpc_clnt_swap_deactivate);
 #endif /* CONFIG_SUNRPC_SWAP */
