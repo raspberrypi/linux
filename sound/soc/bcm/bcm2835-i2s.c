@@ -159,6 +159,10 @@ static const unsigned int bcm2835_clk_freq[BCM2835_CLK_SRC_HDMI+1] = {
 #define BCM2835_I2S_INT_RXR		BIT(1)
 #define BCM2835_I2S_INT_TXW		BIT(0)
 
+/* I2S DMA interface */
+/* FIXME: Needs IOMMU support */
+#define BCM2835_VCMMU_SHIFT		(0x7E000000 - 0x20000000)
+
 /* General device struct */
 struct bcm2835_i2s_dev {
 	struct device				*dev;
@@ -817,8 +821,21 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 	int ret;
 	struct regmap *regmap[2];
 	struct resource *mem[2];
-	const __be32 *addr;
-	dma_addr_t dma_base;
+
+	/* Request both ioareas */
+	for (i = 0; i <= 1; i++) {
+		void __iomem *base;
+
+		mem[i] = platform_get_resource(pdev, IORESOURCE_MEM, i);
+		base = devm_ioremap_resource(&pdev->dev, mem[i]);
+		if (IS_ERR(base))
+			return PTR_ERR(base);
+
+		regmap[i] = devm_regmap_init_mmio(&pdev->dev, base,
+					    &bcm2835_regmap_config[i]);
+		if (IS_ERR(regmap[i]))
+			return PTR_ERR(regmap[i]);
+	}
 
 	if (of_property_read_bool(pdev->dev.of_node, "brcm,enable-mmap"))
 		bcm2835_pcm_hardware.info |=
@@ -829,36 +846,6 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 			   GFP_KERNEL);
 	if (!dev)
 		return -ENOMEM;
-
-	/* get the clock */
-	dev->clk_prepared = false;
-	dev->clk = devm_clk_get(&pdev->dev, NULL);
-	if (IS_ERR(dev->clk)) {
-		dev_err(&pdev->dev, "could not get clk: %ld\n",
-			PTR_ERR(dev->clk));
-		return PTR_ERR(dev->clk);
-	}
-
-	addr = of_get_address(pdev->dev.of_node, 0, NULL, NULL);
-	if (!addr) {
-		dev_err(&pdev->dev, "could not get DMA-register address\n");
-		return -ENODEV;
-	}
-	dma_reg_base = be32_to_cpup(addr);
-
-	if (of_property_read_bool(pdev->dev.of_node, "brcm,enable-mmap"))
-		bcm2835_pcm_hardware.info |=
-			SNDRV_PCM_INFO_MMAP |
-			SNDRV_PCM_INFO_MMAP_VALID;
-
-	/* Request both ioareas */
-	for (i = 0; i <= 1; i++) {
-		void __iomem *base;
-
-		mem[i] = platform_get_resource(pdev, IORESOURCE_MEM, i);
-		base = devm_ioremap_resource(&pdev->dev, mem[i]);
-		if (IS_ERR(base))
-			return PTR_ERR(base);
 
 	dev->i2s_regmap = regmap[0];
 	dev->clk_regmap = regmap[1];
