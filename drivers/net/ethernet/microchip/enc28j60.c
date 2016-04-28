@@ -28,11 +28,12 @@
 #include <linux/skbuff.h>
 #include <linux/delay.h>
 #include <linux/spi/spi.h>
+#include <linux/of_net.h>
 
 #include "enc28j60_hw.h"
 
 #define DRV_NAME	"enc28j60"
-#define DRV_VERSION	"1.01"
+#define DRV_VERSION	"1.02"
 
 #define SPI_OPLEN	1
 
@@ -1544,6 +1545,7 @@ static int enc28j60_probe(struct spi_device *spi)
 {
 	struct net_device *dev;
 	struct enc28j60_net *priv;
+	const void *macaddr;
 	int ret = 0;
 
 	if (netif_msg_drv(&debug))
@@ -1575,7 +1577,12 @@ static int enc28j60_probe(struct spi_device *spi)
 		ret = -EIO;
 		goto error_irq;
 	}
-	eth_hw_addr_random(dev);
+
+	macaddr = of_get_mac_address(spi->dev.of_node);
+	if (macaddr)
+		ether_addr_copy(dev->dev_addr, macaddr);
+	else
+		eth_hw_addr_random(dev);
 	enc28j60_set_hw_macaddr(dev);
 
 	/* Board setup must set the relevant edge trigger type;
@@ -1630,16 +1637,16 @@ static int enc28j60_remove(struct spi_device *spi)
 	return 0;
 }
 
-static const struct of_device_id enc28j60_of_match[] = {
-	{ .compatible = "microchip,enc28j60", },
+static const struct of_device_id enc28j60_dt_ids[] = {
+	{ .compatible = "microchip,enc28j60" },
 	{ /* sentinel */ }
 };
-MODULE_DEVICE_TABLE(of, enc28j60_of_match);
+MODULE_DEVICE_TABLE(of, enc28j60_dt_ids);
 
 static struct spi_driver enc28j60_driver = {
 	.driver = {
-		   .name = DRV_NAME,
-		   .of_match_table = enc28j60_of_match,
+		.name = DRV_NAME,
+		.of_match_table = enc28j60_dt_ids,
 	 },
 	.probe = enc28j60_probe,
 	.remove = enc28j60_remove,
