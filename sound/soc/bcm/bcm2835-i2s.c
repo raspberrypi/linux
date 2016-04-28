@@ -789,7 +789,7 @@ static const struct snd_soc_component_driver bcm2835_i2s_component = {
 	.name		= "bcm2835-i2s-comp",
 };
 
-static struct snd_pcm_hardware bcm2835_pcm_hardware = {
+static const struct snd_pcm_hardware bcm2835_pcm_hardware = {
 	.info			= SNDRV_PCM_INFO_INTERLEAVED |
 				  SNDRV_PCM_INFO_JOINT_DUPLEX,
 	.formats		= SNDRV_PCM_FMTBIT_S16_LE |
@@ -830,11 +830,6 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 		if (IS_ERR(regmap[i]))
 			return PTR_ERR(regmap[i]);
 	}
-
-	if (of_property_read_bool(pdev->dev.of_node, "brcm,enable-mmap"))
-		bcm2835_pcm_hardware.info |=
-			SNDRV_PCM_INFO_MMAP |
-			SNDRV_PCM_INFO_MMAP_VALID;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev),
 			   GFP_KERNEL);
