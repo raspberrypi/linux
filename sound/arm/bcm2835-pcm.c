@@ -19,9 +19,6 @@
 
 #include "bcm2835.h"
 
-/* The hardware can not do much more num_channels*samplerate then this value */
-#define MAX_COMBINED_RATE 768000
-
 /* hardware definition */
 static struct snd_pcm_hardware snd_bcm2835_playback_hw = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
@@ -110,31 +107,6 @@ static irqreturn_t bcm2835_playback_fifo_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-
-static int rate_hw_constraint_rate(struct snd_pcm_hw_params *params,
-				   struct snd_pcm_hw_rule *rule)
-{
-	struct snd_interval *channels = hw_param_interval(params, SNDRV_PCM_HW_PARAM_CHANNELS);
-	struct snd_interval rates = {
-		.min = 8000,
-		.max = min(192000u, MAX_COMBINED_RATE / max(channels->min, 1u)),
-	};
-	struct snd_interval *rate = hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE);
-	return snd_interval_refine(rate, &rates);
-}
-
-static int rate_hw_constraint_channels(struct snd_pcm_hw_params *params,
-				       struct snd_pcm_hw_rule *rule)
-{
-	struct snd_interval *rate = hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE);
-	struct snd_interval channels_interval = {
-		.min = 1,
-		.max = min(8u, MAX_COMBINED_RATE / max(rate->min, 1u)),
-	};
-	struct snd_interval *channels = hw_param_interval(params, SNDRV_PCM_HW_PARAM_CHANNELS);
-	return snd_interval_refine(channels, &channels_interval);
-}
-
 /* open callback */
 static int snd_bcm2835_playback_open_generic(
 		struct snd_pcm_substream *substream, int spdif)
@@ -216,23 +188,7 @@ static int snd_bcm2835_playback_open_generic(
 	snd_pcm_hw_constraint_step(runtime, 0, SNDRV_PCM_HW_PARAM_PERIOD_BYTES,
 				   16);
 
-	/* When playing PCM, pretend that we support the full range of channels
-	 * and sample rates. The GPU can't output it, but is able to resample
-	 * the data to a rate the hardware can handle it. This won't work with
-	 * compressed data; the resampler would just destroy it. */
-	if (spdif) {
-		err = snd_pcm_hw_rule_add(runtime, 0, SNDRV_PCM_HW_PARAM_RATE,
-					  rate_hw_constraint_rate, NULL,
-					  SNDRV_PCM_HW_PARAM_CHANNELS, -1);
-		err = snd_pcm_hw_rule_add(runtime, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
-					  rate_hw_constraint_channels, NULL,
-					  SNDRV_PCM_HW_PARAM_RATE, -1);
-	}
-
 	chip->alsa_stream[idx] = alsa_stream;
-
-	if (!chip->opened)
-		chip->cea_chmap = -1;
 
 	chip->opened |= (1 << idx);
 	alsa_stream->open = 1;
@@ -344,13 +300,19 @@ static int snd_bcm2835_pcm_hw_free(struct snd_pcm_substream *substream)
 	return snd_pcm_lib_free_pages(substream);
 }
 
-int snd_bcm2835_pcm_prepare_again(struct snd_pcm_substream *substream)
+/* prepare callback */
+static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
 {
 	bcm2835_chip_t *chip = snd_pcm_substream_chip(substream);
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
 	int channels;
 	int err;
+
+	audio_info(" .. IN\n");
+
+	if (mutex_lock_interruptible(&chip->audio_mutex))
+		return -EINTR;
 
 	/* notify the vchiq that it should enter spdif passthrough mode by
 	 * setting channels=0 (see
@@ -366,23 +328,6 @@ int snd_bcm2835_pcm_prepare_again(struct snd_pcm_substream *substream)
 	if (err < 0) {
 		audio_error(" error setting hw params\n");
 	}
-
-	return err;
-}
-
-/* prepare callback */
-static int snd_bcm2835_pcm_prepare(struct snd_pcm_substream *substream)
-{
-	bcm2835_chip_t *chip = snd_pcm_substream_chip(substream);
-	struct snd_pcm_runtime *runtime = substream->runtime;
-	bcm2835_alsa_stream_t *alsa_stream = runtime->private_data;
-
-	audio_info(" .. IN\n");
-
-	if (mutex_lock_interruptible(&chip->audio_mutex))
-		return -EINTR;
-
-	snd_bcm2835_pcm_prepare_again(substream);
 
 	bcm2835_audio_setup(alsa_stream);
 
