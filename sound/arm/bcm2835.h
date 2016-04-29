@@ -107,8 +107,6 @@ typedef struct bcm2835_chip {
 	int old_volume; /* stores the volume value whist muted */
 	int dest;
 	int mute;
-	int cea_chmap; /* currently requested Audio InfoFrame Data Byte 4 */
-	int map_channels[8];
 
 	unsigned int opened;
 	unsigned int spdif_status;
@@ -150,8 +148,6 @@ typedef struct bcm2835_alsa_stream {
 int snd_bcm2835_new_ctl(bcm2835_chip_t * chip);
 int snd_bcm2835_new_pcm(bcm2835_chip_t * chip);
 int snd_bcm2835_new_spdif_pcm(bcm2835_chip_t * chip);
-
-int snd_bcm2835_pcm_prepare_again(struct snd_pcm_substream *substream);
 
 int bcm2835_audio_open(bcm2835_alsa_stream_t * alsa_stream);
 int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream);
