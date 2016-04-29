@@ -598,16 +598,7 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	if (alsa_stream->chip->cea_chmap >= 0) {
 		chmap_value = (unsigned)alsa_stream->chip->cea_chmap << 24;
 	} else {
-		/* fallback layouts for applications which do not use chmap API */
-		chmap_value = 0x00;
-		switch (channels) {
-		case 3: chmap_value = 0x01; break;
-		case 4: chmap_value = 0x03; break;
-		case 5: chmap_value = 0x07; break;
-		case 6: chmap_value = 0x0b; break;
-		case 7: chmap_value = 0x0f; break;
-		case 8: chmap_value = 0x13; break;
-		}
+		chmap_value = 0; /* force stereo */
 		for (i = 0; i < 8; i++)
 			alsa_stream->chip->map_channels[i] = i;
 	}
