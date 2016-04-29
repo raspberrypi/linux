@@ -137,7 +137,6 @@ typedef struct bcm2835_alsa_stream {
 	unsigned int pos;
 	unsigned int buffer_size;
 	unsigned int period_size;
-	u64 interpolate_start;
 
 	uint32_t enable_fifo_irq;
 	irq_handler_t fifo_irq_handler;
