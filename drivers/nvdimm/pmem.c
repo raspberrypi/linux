@@ -314,9 +314,16 @@ static int nd_pfn_init(struct nd_pfn *nd_pfn)
 	 * implementation will limit the pfns advertised through
 	 * ->direct_access() to those that are included in the memmap.
 	 */
-	if (nd_pfn->mode == PFN_MODE_PMEM)
-		offset = ALIGN(SZ_8K + 64 * npfns, nd_pfn->align);
-	else if (nd_pfn->mode == PFN_MODE_RAM)
+	if (nd_pfn->mode == PFN_MODE_PMEM) {
+		unsigned long memmap_size;
+
+		/*
+		 * vmemmap_populate_hugepages() allocates the memmap array in
+		 * HPAGE_SIZE chunks.
+		 */
+		memmap_size = ALIGN(64 * npfns, PMD_SIZE);
+		offset = ALIGN(SZ_8K + memmap_size, nd_pfn->align);
+	} else if (nd_pfn->mode == PFN_MODE_RAM)
 		offset = ALIGN(SZ_8K, nd_pfn->align);
 	else
 		goto err;
