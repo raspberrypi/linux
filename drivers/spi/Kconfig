@@ -87,9 +87,9 @@ config SPI_AXI_SPI_ENGINE
 	tristate "Analog Devices AXI SPI Engine controller"
 	depends on HAS_IOMEM
 	help
-	  This enables support for the Analog Devices AXI SPI Engine SPI
-	  controller. It is part of the SPI Engine framework that is used
-	  in some Analog Devices reference designs for FPGAs.
+	  This enables support for the Analog Devices AXI SPI Engine SPI controller.
+ 	  It is part of the SPI Engine framework that is used in some Analog Devices
+ 	  reference designs for FPGAs.
 
 config SPI_BCM2708
 	tristate "BCM2708 SPI controller driver (SPI0)"
