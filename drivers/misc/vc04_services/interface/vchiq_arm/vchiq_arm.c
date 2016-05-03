@@ -48,6 +48,7 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
+#include <linux/sched.h>
 
 #include "vchiq_core.h"
 #include "vchiq_ioctl.h"
@@ -1143,7 +1144,7 @@ vchiq_open(struct inode *inode, struct file *file)
 			return -ENOMEM;
 
 		instance->state = state;
-		instance->pid = current->tgid;
+		instance->pid = task_pid_vnr(current);
 
 		ret = vchiq_debugfs_add_instance(instance);
 		if (ret != 0) {
