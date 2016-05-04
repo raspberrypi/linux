@@ -79,3 +79,10 @@ config SND_BCM2708_SOC_IQAUDIO_DAC
 	select SND_SOC_PCM512x_I2C
 	help
 	  Say Y or M if you want to add support for IQaudIO-DAC.
+
+config SND_BCM2708_SOC_ADAU1977_ADC
+	tristate "Support for ADAU1977 ADC"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_ADAU1977_I2C
+	help
+	  Say Y or M if you want to add support for ADAU1977 ADC.
