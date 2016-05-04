@@ -1,0 +1,53 @@
+// Definitions for ADAU1977 ADC
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+    
+	fragment@0 {
+		target = <&soc>;
+		
+		__overlay__ {
+			codec_supply: fixedregulator@0 {
+				compatible = "regulator-fixed";
+				regulator-name = "AVDD";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+			};
+		};
+	};
+	
+	fragment@1 {
+        	target = <&i2c>;
+        	
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			
+			adau1977: codec@11 {
+                        	compatible = "adi,adau1977";
+                        	reg = <0x11>;
+                        	reset-gpios = <&gpio 5 0>;
+                        	AVDD-supply = <&codec_supply>;
+                	};
+        	};
+	};
+
+	fragment@2 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "adi,adau1977-adc";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+};
