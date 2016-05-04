@@ -78,3 +78,10 @@ config SND_BCM2708_SOC_RASPIDAC3
 	select SND_SOC_TPA6130A2
 	help
 	  Say Y or M if you want to add support for RaspiDAC Rev.3x.
+
+config SND_BCM2708_SOC_ADAU1977_ADC
+	tristate "Support for ADAU1977 ADC"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_ADAU1977_I2C
+	help
+	  Say Y or M if you want to add support for ADAU1977 ADC.
