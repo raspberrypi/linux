@@ -32,6 +32,7 @@ dtbo-$(RPI_DT_OVERLAYS) += gpio-poweroff.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hifiberry-amp.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hifiberry-dac.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hifiberry-dacplus.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += hifiberry-dacpluslight-es9023-audio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hifiberry-digi.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hifiberry-digi-pro.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hy28a.dtbo

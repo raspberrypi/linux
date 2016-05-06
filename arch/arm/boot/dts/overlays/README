@@ -414,6 +414,26 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 master for bit clock and frame clock.
 
 
+Name:   hifiberry-dacpluslight-es9023-audio
+Info:   Configures the HiFiBerry DAC+ Light audio card
+Load:   dtoverlay=hifiberry-dacpluslight-es9023-audio,<param>
+Params: 384k                    Instructs the es9023 codec driver to support
+                                352k8 and 384k sample rates.
+        bclk_ratio_int_div      Use bclk_ratio=50 for 16/24bps and
+                                bclk_ratio=100 for 32bps media when sample
+                                rate is a multiple of 8kHz and less than
+                                192kHz. Which causes the selection of the 19M2
+                                OSC as the parent for the PCM clock with an
+                                integer divider, rather than PLLD with
+                                fractional divider and MASH noise shaping.
+        card_name               Override the default, "snd_rpi_hifiberry_dac",
+                                card name.
+        dai_name                Override the default, "HifiBerry DAC",
+                                dai name.
+        dai_stream_name         Override the default, "HifiBerry DAC HiFi",
+                                dai stream name.
+
+
 Name:   hifiberry-digi
 Info:   Configures the HifiBerry Digi and Digi+ audio card
 Load:   dtoverlay=hifiberry-digi
