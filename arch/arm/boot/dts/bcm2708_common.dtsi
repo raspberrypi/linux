@@ -1,4 +1,7 @@
+#include "dt-bindings/clock/bcm2835.h"
 #include <dt-bindings/clock/bcm2835-aux.h>
+#include "dt-bindings/power/raspberrypi-power.h"
+#include "dt-bindings/gpio/gpio.h"
 #include "skeleton.dtsi"
 
 / {
@@ -170,6 +173,18 @@
 			status = "disabled";
 		};
 
+		pixelvalve0: pixelvalve@7e206000 {
+			compatible = "brcm,bcm2835-pixelvalve0";
+			reg = <0x7e206000 0x100>;
+			status = "disabled";
+		};
+
+		pixelvalve1: pixelvalve@7e207000 {
+			compatible = "brcm,bcm2835-pixelvalve1";
+			reg = <0x7e207000 0x100>;
+			status = "disabled";
+		};
+
 		pwm: pwm@7e20c000 {
 			compatible = "brcm,bcm2835-pwm";
 			reg = <0x7e20c000 0x28>;
@@ -227,6 +242,12 @@
 			status = "disabled";
 		};
 
+		hvs: hvs@7e400000 {
+			compatible = "brcm,bcm2835-hvs";
+			reg = <0x7e400000 0x6000>;
+			status = "disabled";
+		};
+
 		i2c1: i2c@7e804000 {
 			compatible = "brcm,bcm2708-i2c";
 			reg = <0x7e804000 0x1000>;
@@ -261,12 +282,37 @@
 			status = "disabled";
 		};
 
+		pixelvalve2: pixelvalve@7e807000 {
+			compatible = "brcm,bcm2835-pixelvalve2";
+			reg = <0x7e807000 0x100>;
+			status = "disabled";
+		};
+
+		hdmi: hdmi@7e902000 {
+			compatible = "brcm,bcm2835-hdmi";
+			reg = <0x7e902000 0x600>,
+			      <0x7e808000 0x100>;
+			ddc = <&i2c2>;
+			hpd-gpios = <&gpio 46 GPIO_ACTIVE_HIGH>;
+			clocks = <&cprman BCM2835_PLLH_PIX>,
+				 <&cprman BCM2835_CLOCK_HSM>;
+			clock-names = "pixel", "hdmi";
+			power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
+			status = "disabled";
+		};
+
 		usb: usb@7e980000 {
 			compatible = "brcm,bcm2708-usb";
 			reg = <0x7e980000 0x10000>,
 			      <0x7e006000 0x1000>;
 			interrupts = <2 0>,
 				     <1 9>;
+		};
+
+		v3d: v3d@7ec00000 {
+			compatible = "brcm,vc4-v3d";
+			reg = <0x7ec00000 0x1000>;
+			status = "disabled";
 		};
 
 		firmware: firmware {
@@ -301,6 +347,11 @@
 		thermal: thermal {
 			compatible = "brcm,bcm2835-thermal";
 			firmware = <&firmware>;
+		};
+
+		gpu: gpu {
+			compatible = "brcm,bcm2835-vc4";
+			status = "disabled";
 		};
 
 		/* Onboard audio */
