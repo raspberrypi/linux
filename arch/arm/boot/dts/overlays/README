@@ -215,6 +215,26 @@ Params: cs                      SPI bus Chip Select (default 1)
         www.kernel.org/doc/Documentation/devicetree/bindings/input/ads7846.txt
 
 
+Name:   akkordion-es9023-audio
+Info:   Configures the Digital Dreamtime Akkordion Music Player (with ESS Sabre
+        ES9023 DAC).
+Load:   dtoverlay=akkordion-es9023-audio,<param>
+Params: 384k                    Instructs the es9023 codec driver to support
+                                352k8 and 384k sample rates.
+        bclk_ratio_int_div      Use bclk_ratio=50 for 16/24bps and
+                                bclk_ratio=100 for 32bps media when sample
+                                rate is a multiple of 8kHz and less than
+                                192kHz. Which causes the selection of the 19M2
+                                OSC as the parent for the PCM clock with an
+                                integer divider, rather than PLLD with
+                                fractional divider and MASH noise shaping.
+        card_name               Override the default, "Akkordion", card name.
+        dai_name                Override the default, "Akkordion DAC",
+                                dai name.
+        dai_stream_name         Override the default, "Akkordion DAC HiFi",
+                                dai stream name.
+
+
 Name:   akkordion-iqdacplus
 Info:   Configures the Digital Dreamtime Akkordion Music Player (based on the
         OEM IQAudIO DAC+ or DAC Zero module).
