@@ -65,6 +65,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_BT_SCO
 	select SND_SOC_ES8328_SPI if SPI_MASTER
 	select SND_SOC_ES8328_I2C if I2C
+	select SND_SOC_ES9023
 	select SND_SOC_GTM601
 	select SND_SOC_ICS43432
 	select SND_SOC_ISABELLE if I2C
@@ -467,6 +468,9 @@ config SND_SOC_ES8328_I2C
 config SND_SOC_ES8328_SPI
 	tristate
 	select SND_SOC_ES8328
+
+config SND_SOC_ES9023
+	tristate "ESS Sabre ES9023 CODEC"
 
 config SND_SOC_GTM601
 	tristate 'GTM601 UMTS modem audio codec'
