@@ -14,23 +14,48 @@
    fragment@0 {
       target = <&i2c0>;
       __overlay__ {
-         pinctrl-0 = <&i2c0_pins>;
          status = "okay";
       };
    };
 
    fragment@1 {
-      target = <&gpio>;
-      __overlay__ {
-         i2c0_pins: i2c0 {
-            brcm,pins = <0 1>;
-            brcm,function = <4>; /* alt0 */
-         };
+      target = <&i2c0_pins>;
+      frag1: __overlay__ {
+         brcm,pins = <0 1>;
+         brcm,function = <4>; /* alt0 */
+      };
+   };
+
+   fragment@2 {
+      target = <&i2c0_pins>;
+      __dormant__ {
+         brcm,pins = <28 29>;
+         brcm,function = <4>; /* alt0 */
+      };
+   };
+
+   fragment@3 {
+      target = <&i2c0_pins>;
+      __dormant__ {
+         brcm,pins = <44 45>;
+         brcm,function = <5>; /* alt1 */
+      };
+   };
+
+   fragment@4 {
+      target = <&i2c0_pins>;
+      __dormant__ {
+         brcm,pins = <46 47>;
+         brcm,function = <4>; /* alt0 */
       };
    };
 
    __overrides__ {
-      sda0_pin = <&i2c0_pins>,"brcm,pins:0";
-      scl0_pin = <&i2c0_pins>,"brcm,pins:4";
+      sda0_pin = <&frag1>,"brcm,pins:0";
+      scl0_pin = <&frag1>,"brcm,pins:4";
+      pins_0_1   = <0>,"+1-2-3-4";
+      pins_28_29 = <0>,"-1+2-3-4";
+      pins_44_45 = <0>,"-1-2+3-4";
+      pins_46_47 = <0>,"-1-2-3+4";
    };
 };

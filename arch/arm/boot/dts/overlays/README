@@ -449,10 +449,15 @@ Params: ds1307                  Select the DS1307 device
 
 
 Name:   i2c0-bcm2708
-Info:   Enable the i2c_bcm2708 driver for the i2c0 bus
+Info:   Enable the i2c_bcm2708 driver for the i2c0 bus. Not all pin combinations
+        are usable on all platforms.
 Load:   dtoverlay=i2c0-bcm2708,<param>=<val>
-Params: sda0_pin                GPIO pin for SDA0 (0, 28 [or 44] - default 0)
-        scl0_pin                GPIO pin for SCL0 (1, 29 [or 45] - default 1)
+Params: sda0_pin                GPIO pin for SDA0 (deprecated - use pins_*)
+        scl0_pin                GPIO pin for SCL0 (deprecated - use pins_*)
+        pins_0_1                Use pins 0 and 1 (default)
+        pins_28_29              Use pins 28 and 29
+        pins_44_45              Use pins 44 and 45
+        pins_46_47              Use pins 46 and 47
 
 
 Name:   i2c1-bcm2708
