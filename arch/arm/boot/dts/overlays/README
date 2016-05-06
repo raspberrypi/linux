@@ -314,6 +314,24 @@ Params: int_pin                 GPIO used for INT (default 25)
         speed                   SPI bus speed (default 12000000)
 
 
+Name:   es9023-audio
+Info:   Configures a generic board or HAT using ESS Sabre ES9023 DAC
+Load:   dtoverlay=es9023-audio,<param>
+Params: 384k                    Instructs the es9023 codec driver to support
+                                352k8 and 384k sample rates.
+        bclk_ratio_int_div      Use bclk_ratio=50 for 16/24bps and
+                                bclk_ratio=100 for 32bps media when sample
+                                rate is a multiple of 8kHz and less than
+                                192kHz. Which causes the selection of the 19M2
+                                OSC as the parent for the PCM clock with an
+                                integer divider, rather than PLLD with
+                                fractional divider and MASH noise shaping.
+        card_name               Override the default, "es9023", card name.
+        dai_name                Override the default, "ES9023 DAC" dai name.
+        dai_stream_name         Override the default, "ES9023 DAC HiFi",
+                                dai stream name.
+
+
 Name:   gpio-ir
 Info:   Use GPIO pin as rc-core style infrared receiver input. The rc-core-
         based gpio_ir_recv driver maps received keys directly to a

@@ -1,0 +1,64 @@
+// Definitions for a generic board or HAT using ESS Sabre ES9023 DAC
+
+// NB. Manufacturers of ES9023 DAC boards wishing to use their own ALSA names
+//      in preference to the generic names defined here, should copy this
+//      file, rename and edit it. Do not change the card, dai, and dai stream
+//      names being set below, in this generic es9023-audio overlay!
+//      (eg. akkordion-es9023-audio and i-sabre-dac-es9023-audio.)
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			es9023_codec: es9023-codec {
+				#sound-dai-cells = <0>;
+				compatible = "ess,es9023";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		es9023_dac: __overlay__ {
+			compatible = "es9023-dac";
+			/*
+			 * These are the default names that will be
+			 *  applied by the es9023-dac machine driver
+			 *  based on the compatible parameter.
+			 *
+			 * es9023-dac,card-name = "es9023";
+			 * es9023-dac,dai-name = "ES9023 DAC";
+			 * es9023-dac,dai-stream-name = "ES9023 DAC HiFi";
+			 */
+			status = "okay";
+			es9023-dac,cpu {
+				sound-dai = <&i2s>;
+			};
+			es9023-dac,codec {
+				sound-dai = <&es9023_codec>;
+			};
+		};
+	};
+
+	__overrides__ {
+		384k = <&es9023_codec>,"es9023,384k?";
+		bclk_ratio_int_div =
+			<&es9023_dac>,"es9023-dac,bclk-ratio-int-div?";
+		card_name = <&es9023_dac>,"es9023-dac,card-name";
+		dai_name = <&es9023_dac>,"es9023-dac,dai-name";
+		dai_stream_name = <&es9023_dac>,"es9023-dac,dai-stream-name";
+	};
+};
