@@ -30,10 +30,14 @@
 
 	fragment@2 {
 		target = <&sound>;
-		__overlay__ {
+		frag2: __overlay__ {
 			compatible = "iqaudio,iqaudio-dac";
 			i2s-controller = <&i2s>;
 			status = "okay";
 		};
+	};
+
+	__overrides__ {
+		24db_digital_gain = <&frag2>,"iqaudio,24db_digital_gain?";
 	};
 };
