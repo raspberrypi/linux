@@ -657,6 +657,25 @@ Params: gpio_out_pin            GPIO for output (default "17")
                                 (default "off")
 
 
+Name:   mamboberry-dacplus-es9023-audio
+Info:   Configures the Collybia Mamboberry HiFi DAC+
+Load:   dtoverlay=mamboberry-dacplus-es9023-audio,<param>
+Params: 384k                    Instructs the es9023 codec driver to support
+                                352k8 and 384k sample rates.
+        bclk_ratio_int_div      Use bclk_ratio=50 for 16/24bps and
+                                bclk_ratio=100 for 32bps media when sample
+                                rate is a multiple of 8kHz and less than
+                                192kHz. Which causes the selection of the 19M2
+                                OSC as the parent for the PCM clock with an
+                                integer divider, rather than PLLD with
+                                fractional divider and MASH noise shaping.
+        card_name               Override the default, "Mamboberry", card name.
+        dai_name                Override the default, "Mamboberry DAC+",
+                                dai name.
+        dai_stream_name         Override the default, "Mamboberry DAC+ HiFi",
+                                dai stream name.
+
+
 Name:   mcp23017
 Info:   Configures the MCP23017 I2C GPIO expander
 Load:   dtoverlay=mcp23017,<param>=<val>
