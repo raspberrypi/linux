@@ -464,6 +464,24 @@ Params: speed                   Display SPI bus speed
         ledgpio                 GPIO used to control backlight
 
 
+Name:   i-sabre-dac-es9023-audio
+Info:   Configures the Audiophonics I-Sabre DAC
+Load:   dtoverlay=i-sabre-dac-es9023-audio,<param>
+Params: 384k                    Instructs the es9023 codec driver to support
+                                352k8 and 384k sample rates.
+        bclk_ratio_int_div      Use bclk_ratio=50 for 16/24bps and
+                                bclk_ratio=100 for 32bps media when sample
+                                rate is a multiple of 8kHz and less than
+                                192kHz. Which causes the selection of the 19M2
+                                OSC as the parent for the PCM clock with an
+                                integer divider, rather than PLLD with
+                                fractional divider and MASH noise shaping.
+        card_name               Override the default, "ISabre", card name.
+        dai_name                Override the default, "ISabre DAC", dai name.
+        dai_stream_name         Override the default, "ISabre DAC HiFi",
+                                dai stream name.
+
+
 Name:   i2c-gpio
 Info:   Adds support for software i2c controller on gpio pins
 Load:   dtoverlay=i2c-gpio,<param>=<val>

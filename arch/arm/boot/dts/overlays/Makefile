@@ -36,6 +36,7 @@ dtbo-$(RPI_DT_OVERLAYS) += hifiberry-digi.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hifiberry-digi-pro.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hy28a.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hy28b.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += i-sabre-dac-es9023-audio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-gpio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-mux.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-pwm-pca9685a.dtbo
