@@ -23,7 +23,21 @@
 #include <sound/soc.h>
 #include <sound/jack.h>
 
+#include <linux/gpio.h>
+
+static struct gpio_chip *gpiochip;
+static int auto_mute_pin = 0;
+static bool auto_mute = false;
+
 static bool digital_gain_0db_limit = true;
+
+static int is_match_gpiochip(struct gpio_chip *chip, void *data)
+{
+	if (strcmp(data, chip->label) == 0)
+		return 1;
+
+	return 0;
+}
 
 static int snd_rpi_iqaudio_dac_init(struct snd_soc_pcm_runtime *rtd)
 {
@@ -35,6 +49,40 @@ static int snd_rpi_iqaudio_dac_init(struct snd_soc_pcm_runtime *rtd)
 		ret = snd_soc_limit_volume(card, "Digital Playback Volume", 207);
 		if (ret < 0)
 			dev_warn(card->dev, "Failed to set volume limit: %d\n", ret);
+	}
+
+	return 0;
+}
+
+static int snd_rpi_iqaudio_set_bias_level(struct snd_soc_card *card,
+	struct snd_soc_dapm_context *dapm, enum snd_soc_bias_level level)
+{
+	struct snd_soc_dai *codec_dai = card->rtd[0].codec_dai;
+
+	if (dapm->dev != codec_dai->dev)
+		return 0;
+
+	switch (level) {
+	case SND_SOC_BIAS_PREPARE:
+		if (dapm->bias_level != SND_SOC_BIAS_STANDBY)
+			break;
+
+		/* UNMUTE AMP */
+		if (gpiochip)
+			gpiochip->set(gpiochip, auto_mute_pin, 1);
+
+		break;
+	case SND_SOC_BIAS_STANDBY:
+		if (dapm->bias_level != SND_SOC_BIAS_PREPARE)
+			break;
+
+		/* MUTE AMP */
+		if (gpiochip)
+			gpiochip->set(gpiochip, auto_mute_pin, 0);
+
+		break;
+	default:
+		break;
 	}
 
 	return 0;
@@ -77,6 +125,7 @@ static struct snd_soc_card snd_rpi_iqaudio_dac = {
 	.owner        = THIS_MODULE,
 	.dai_link     = snd_rpi_iqaudio_dac_dai,
 	.num_links    = ARRAY_SIZE(snd_rpi_iqaudio_dac_dai),
+	.set_bias_level = snd_rpi_iqaudio_set_bias_level,
 };
 
 static int snd_rpi_iqaudio_dac_probe(struct platform_device *pdev)
@@ -110,6 +159,43 @@ static int snd_rpi_iqaudio_dac_probe(struct platform_device *pdev)
 	    if (of_property_read_string(pdev->dev.of_node, "dai_stream_name",
 					&dai->stream_name))
 		dai->stream_name = "IQaudIO DAC HiFi";
+
+	    /* auto mute/unmute amp using GPIO */
+	    auto_mute = of_property_read_bool(pdev->dev.of_node,
+					      "iqaudio,auto_mute_amp");
+	    if (auto_mute) {
+		struct device_node *pins_node =
+			of_parse_phandle(pdev->dev.of_node, "pinctrl-0", 0);
+		if (pins_node) {
+		    u32 pin;
+		    if (of_property_read_u32_index(pins_node, "brcm,pins",
+						   0, &pin) == 0) {
+			u32 function;
+			if (of_property_read_u32_index(pins_node,
+					"brcm,function", 0, &function) == 0) {
+			    if (function == 1) { // out
+				auto_mute_pin = pin;
+			    }
+			}
+		    }
+		}
+
+		if (auto_mute_pin) {
+			gpiochip = gpiochip_find("pinctrl-bcm2835",
+						 is_match_gpiochip);
+			if (gpiochip)
+				dev_dbg(&pdev->dev,
+					"%s: Using GPIO%u for auto_mute.\n",
+					__func__, auto_mute_pin);
+			else
+				dev_warn(&pdev->dev,
+					 "%s: auto mute will not function! "
+					 "gpio chip not found!\n",
+					 __func__);
+		} else
+			dev_warn(&pdev->dev, "%s: auto_mute will not function! "
+				 "Missing or faulty pin config!\n", __func__);
+	    }
 	}
 
 	ret = snd_soc_register_card(&snd_rpi_iqaudio_dac);
