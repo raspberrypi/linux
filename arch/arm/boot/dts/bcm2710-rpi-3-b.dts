@@ -161,6 +161,10 @@
 	};
 };
 
+&hdmi {
+	hpd-gpios = <&gpio 46 GPIO_ACTIVE_LOW>;
+};
+
 / {
 	chosen {
 		bootargs = "8250.nr_uarts=1";
