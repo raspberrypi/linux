@@ -420,6 +420,12 @@ Params: i2c_gpio_sda            GPIO used for I2C data (default "23")
         i2c_gpio_delay_us       Clock delay in microseconds
                                 (default "2" = ~100kHz)
 
+								
+Name:   i2c-mux-pca9545a
+Info:   Adds support for an NXP PCA9545A I2C multiplexer on i2c_arm
+Load:   dtoverlay=i2c-mux-pca9545a,<param>=<val>
+Params: addr                    I2C address of PCA9545A (default 0x73)
+
 
 Name:   i2c-mux-pca9548a
 Info:   Adds support for an NXP PCA9548A I2C multiplexer on i2c_arm
