@@ -34,6 +34,7 @@ dtbo-$(RPI_DT_OVERLAYS) += hy28a.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hy28b.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-rtc.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-gpio.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += i2c-mux-pca9545a.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-mux-pca9548a.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-pwm-pca9685a.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c0-bcm2708.dtbo
