@@ -1445,6 +1445,15 @@ static struct clk_hw *bcm2835_register_clock(struct bcm2835_cprman *cprman,
 	init.flags = data->flags | CLK_IGNORE_UNUSED;
 
 	/*
+	 * Some GPIO clocks for ethernet/wifi PLLs are marked as
+	 * critical (since some platforms use them), but if the
+	 * firmware didn't have them turned on then they clearly
+	 * aren't actually critical.
+	 */
+	if ((cprman_read(cprman, data->ctl_reg) & CM_ENABLE) == 0)
+		init.flags &= ~CLK_IS_CRITICAL;
+
+	/*
 	 * Pass the CLK_SET_RATE_PARENT flag if we are allowed to propagate
 	 * rate changes on at least of the parents.
 	 */
