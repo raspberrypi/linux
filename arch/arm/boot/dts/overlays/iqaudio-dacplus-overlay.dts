@@ -30,14 +30,29 @@
 
 	fragment@2 {
 		target = <&sound>;
-		frag2: __overlay__ {
+		iqaudio_dac: __overlay__ {
 			compatible = "iqaudio,iqaudio-dac";
+			pinctrl-names = "default";
+			pinctrl-0 = <&iqaudio_dac_mute_amp_pins>;
 			i2s-controller = <&i2s>;
 			status = "okay";
 		};
 	};
 
+	fragment@3 {
+		target = <&gpio>;
+		__overlay__ {
+			iqaudio_dac_mute_amp_pins: iqaudio_dac_mute_amp_pins {
+				brcm,pins = <22>;
+				brcm,function = <1>; // out
+				brcm,pull = <0>; // off
+			};
+		};
+	};
+
 	__overrides__ {
-		24db_digital_gain = <&frag2>,"iqaudio,24db_digital_gain?";
+		24db_digital_gain = <&iqaudio_dac>,"iqaudio,24db_digital_gain?";
+		auto_mute_amp = <&iqaudio_dac>,"iqaudio,auto_mute_amp?";
+		auto_mute_amp_gpio = <&iqaudio_dac_mute_amp_pins>,"brcm,pins:0";
 	};
 };
