@@ -421,10 +421,19 @@ Params: i2c_gpio_sda            GPIO used for I2C data (default "23")
                                 (default "2" = ~100kHz)
 
 
-Name:   i2c-mux-pca9548a
-Info:   Adds support for an NXP PCA9548A I2C multiplexer on i2c_arm
-Load:   dtoverlay=i2c-mux-pca9548a,<param>=<val>
-Params: addr                    I2C address of PCA9548A (default 0x70)
+Name:   i2c-mux
+Info:   Adds support for a number of I2C bus multiplexers on i2c_arm
+Load:   dtoverlay=i2c-mux,<param>=<val>
+Params: pca9542                 Select the NXP PCA9542 device
+
+        pca9545                 Select the NXP PCA9545 device
+
+        pca9548                 Select the NXP PCA9548 device
+
+        addr                    Change I2C address of the device (default 0x70)
+
+
+[ The i2c-mux-pca9548a overlay has been deleted. See i2c-mux. ]
 
 
 Name:   i2c-pwm-pca9685a
