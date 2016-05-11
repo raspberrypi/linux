@@ -1480,7 +1480,8 @@ restart:
 		if (pos + len <= MAX_INLINE_DATA) {
 			read_inline_data(page, ipage);
 			set_inode_flag(F2FS_I(inode), FI_DATA_EXIST);
-			set_inline_node(ipage);
+			if (inode->i_nlink)
+				set_inline_node(ipage);
 		} else {
 			err = f2fs_convert_inline_page(&dn, page);
 			if (err)
