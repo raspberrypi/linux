@@ -79,9 +79,9 @@
 #define REG_FIQ_ENABLE				0x80
 #define REG_FIQ_DISABLE					0
 
-#define NR_BANKS						3
-#define IRQS_PER_BANK							32
-#define NUMBER_IRQS								MAKE_HWIRQ(NR_BANKS, 0)
+#define NR_BANKS		3
+#define IRQS_PER_BANK		32
+#define NUMBER_IRQS		MAKE_HWIRQ(NR_BANKS, 0)
 #undef FIQ_START
 #define FIQ_START		(NR_IRQS_BANK0 + MAKE_HWIRQ(NR_BANKS - 1, 0))
 
@@ -198,72 +198,72 @@ static const struct irq_domain_ops armctrl_ops = {
        };
 
 static int __init armctrl_of_init(struct device_node *node,
-       	   	  			   struct device_node *parent,
-									  bool is_2836)
-									  {
-										void __iomem *base;
-										     int irq, b, i;
+				  struct device_node *parent,
+				  bool is_2836)
+{
+	void __iomem *base;
+	int irq, b, i;
 
-										     base = of_iomap(node, 0);
-										     	  if (!base)
-												panic("%s: unable to map IC registers\n",
-													   	     node->full_name);
+	base = of_iomap(node, 0);
+	if (!base)
+		panic("%s: unable to map IC registers\n",
+			node->full_name);
 
-														     intc.base = base;
-														     	       intc.domain = irq_domain_add_linear(node, NUMBER_IRQS * 2,
-															       		     				 	           &armctrl_ops, NULL);
-																							   		 if (!intc.domain)
-																										panic("%s: unable to create IRQ domain\n", node->full_name);
+	intc.base = base;
+	intc.domain = irq_domain_add_linear(node, NUMBER_IRQS * 2,
+					    &armctrl_ops, NULL);
+	if (!intc.domain)
+		panic("%s: unable to create IRQ domain\n", node->full_name);
 
-																										for (b = 0; b < NR_BANKS; b++) {
-																										       intc.pending[b] = base + reg_pending[b];
-																										       		       	 intc.enable[b] = base + reg_enable[b];
-																													 		  intc.disable[b] = base + reg_disable[b];
+	for (b = 0; b < NR_BANKS; b++) {
+		intc.pending[b] = base + reg_pending[b];
+		intc.enable[b] = base + reg_enable[b];
+		intc.disable[b] = base + reg_disable[b];
 
-																															  		  for (i = 0; i < bank_irqs[b]; i++) {
-																																	      	   irq = irq_create_mapping(intc.domain, MAKE_HWIRQ(b, i));
-																																		       	 				 BUG_ON(irq <= 0);
-																																									irq_set_chip_and_handler(irq, &armctrl_chip,
-																																															handle_level_irq);
-																																																		irq_set_probe(irq);
-																																																				}
-																																																					}
+		for (i = 0; i < bank_irqs[b]; i++) {
+			irq = irq_create_mapping(intc.domain, MAKE_HWIRQ(b, i));
+			BUG_ON(irq <= 0);
+			irq_set_chip_and_handler(irq, &armctrl_chip,
+				handle_level_irq);
+			irq_set_probe(irq);
+		}
+	}
 
-																																																					if (is_2836) {
-																																																					   	     int parent_irq = irq_of_parse_and_map(node, 0);
+	if (is_2836) {
+		int parent_irq = irq_of_parse_and_map(node, 0);
 
-																																																						     	 if (!parent_irq) {
-																																																										panic("%s: unable to get parent interrupt.\n",
-																																																											   	           node->full_name);
-																																																															}
-																																																																	irq_set_chained_handler(parent_irq, bcm2836_chained_handle_irq);
-																																																																					    } else {
-																																																																					      	   set_handle_irq(bcm2835_handle_irq);
-																																																																							}
+		if (!parent_irq) {
+			panic("%s: unable to get parent interrupt.\n",
+			      node->full_name);
+		}
+		irq_set_chained_handler(parent_irq, bcm2836_chained_handle_irq);
+	} else {
+		set_handle_irq(bcm2835_handle_irq);
+	}
 
-																																																																							if (is_2836) {
-																																																																							   	     intc.local_regmap =
-																																																																												syscon_regmap_lookup_by_compatible("brcm,bcm2836-arm-local");
-																																																																														if (IS_ERR(intc.local_regmap)) {
-																																																																																		pr_err("Failed to get local register map. FIQ is disabled for cpus > 1\n");
-																																																																																			       	      intc.local_regmap = NULL;
-																																																																																				      			  }
-																																																																																								}
+	if (is_2836) {
+		intc.local_regmap =
+			syscon_regmap_lookup_by_compatible("brcm,bcm2836-arm-local");
+		if (IS_ERR(intc.local_regmap)) {
+			pr_err("Failed to get local register map. FIQ is disabled for cpus > 1\n");
+			intc.local_regmap = NULL;
+		}
+	}
 
-																																																																																								/* Make a duplicate irq range which is used to enable FIQ */
-																																																																																								   for (b = 0; b < NR_BANKS; b++) {
-																																																																																								       	  for (i = 0; i < bank_irqs[b]; i++) {
-																																																																																									      	   irq = irq_create_mapping(intc.domain,
-																																																																																														MAKE_HWIRQ(b, i) + NUMBER_IRQS);
-																																																																																															      	   BUG_ON(irq <= 0);
-																																																																																																			irq_set_chip(irq, &armctrl_chip);
-																																																																																																							irq_set_probe(irq);
-																																																																																																									}
-																																																																																																										}
-																																																																																																											init_FIQ(FIQ_START);
+	/* Make a duplicate irq range which is used to enable FIQ */
+	for (b = 0; b < NR_BANKS; b++) {
+		for (i = 0; i < bank_irqs[b]; i++) {
+			irq = irq_create_mapping(intc.domain,
+					MAKE_HWIRQ(b, i) + NUMBER_IRQS);
+			BUG_ON(irq <= 0);
+			irq_set_chip(irq, &armctrl_chip);
+			irq_set_probe(irq);
+		}
+	}
+	init_FIQ(FIQ_START);
 
-																																																																																																											return 0;
-																																																																																																											}
+	return 0;
+}
 
 static int __init bcm2835_armctrl_of_init(struct device_node *node,
        	   	  				 	       struct device_node *parent)
