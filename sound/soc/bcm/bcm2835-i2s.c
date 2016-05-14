@@ -809,7 +809,7 @@ static const struct snd_soc_component_driver bcm2835_i2s_component = {
 	.name		= "bcm2835-i2s-comp",
 };
 
-static struct snd_pcm_hardware bcm2835_pcm_hardware = {
+static const struct snd_pcm_hardware bcm2835_pcm_hardware = {
 	.info			= SNDRV_PCM_INFO_INTERLEAVED |
 				  SNDRV_PCM_INFO_JOINT_DUPLEX,
 	.formats		= SNDRV_PCM_FMTBIT_S16_LE |
