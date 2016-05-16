@@ -225,6 +225,12 @@ Params: interrupt               GPIO used for INT (default 23)
                                 arrays (0=+0pF, 15=+4.5pF, default 15)
 
 
+Name:   audioinjector-wm8731-audio
+Info:   Configures the audioinjector.net audio add on soundcard
+Load:   dtoverlay=audioinjector-wm8731-audio
+Params: <None>
+
+
 Name:   bmp085_i2c-sensor
 Info:   Configures the BMP085/BMP180 digital barometric pressure and temperature
         sensors from Bosch Sensortec

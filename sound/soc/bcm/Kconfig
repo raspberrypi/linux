@@ -85,3 +85,10 @@ config SND_BCM2708_SOC_ADAU1977_ADC
 	select SND_SOC_ADAU1977_I2C
 	help
 	  Say Y or M if you want to add support for ADAU1977 ADC.
+
+config SND_AUDIOINJECTOR_PI_SOUNDCARD
+	tristate "Support for audioinjector.net Pi add on soundcard"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_WM8731
+	help
+	  Say Y or M if you want to add support for audioinjector.net Pi Hat
