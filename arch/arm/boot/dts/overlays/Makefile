@@ -16,6 +16,7 @@ dtbo-$(RPI_DT_OVERLAYS) += adau1977-adc.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += ads7846.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += akkordion-iqdacplus.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += at86rf233.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += audioinjector-wm8731-audio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += bmp085_i2c-sensor.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += boomberry-dac.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += boomberry-digi.dtbo
