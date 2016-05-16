@@ -19,6 +19,7 @@ snd-soc-justboom-digi-objs := justboom-digi.o
 snd-soc-rpi-dac-objs := rpi-dac.o
 snd-soc-rpi-proto-objs := rpi-proto.o
 snd-soc-iqaudio-dac-objs := iqaudio-dac.o
+snd-soc-audioinjector-pi-soundcard-objs := audioinjector-pi-soundcard.o
 
 obj-$(CONFIG_SND_BCM2708_SOC_ADAU1977_ADC) += snd-soc-adau1977-adc.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP) += snd-soc-hifiberry-amp.o
@@ -30,3 +31,4 @@ obj-$(CONFIG_SND_BCM2708_SOC_JUSTBOOM_DIGI) += snd-soc-justboom-digi.o
 obj-$(CONFIG_SND_BCM2708_SOC_RPI_DAC) += snd-soc-rpi-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_RPI_PROTO) += snd-soc-rpi-proto.o
 obj-$(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) += snd-soc-iqaudio-dac.o
+obj-$(CONFIG_SND_AUDIOINJECTOR_PI_SOUNDCARD) += snd-soc-audioinjector-pi-soundcard.o
