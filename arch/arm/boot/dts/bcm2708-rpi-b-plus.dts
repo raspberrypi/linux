@@ -116,6 +116,10 @@
 	};
 };
 
+&hdmi {
+	hpd-gpios = <&gpio 46 GPIO_ACTIVE_LOW>;
+};
+
 / {
 	__overrides__ {
 		uart0 = <&uart0>,"status";

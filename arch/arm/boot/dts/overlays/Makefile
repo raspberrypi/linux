@@ -12,6 +12,7 @@ ifeq ($(CONFIG_ARCH_BCM2835),y)
    RPI_DT_OVERLAYS=y
 endif
 
+dtbo-$(RPI_DT_OVERLAYS) += adau1977-adc.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += ads7846.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += akkordion-iqdacplus.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += at86rf233.dtbo
@@ -33,7 +34,7 @@ dtbo-$(RPI_DT_OVERLAYS) += hy28a.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hy28b.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-rtc.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-gpio.dtbo
-dtbo-$(RPI_DT_OVERLAYS) += i2c-mux-pca9548a.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += i2c-mux.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-pwm-pca9685a.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c0-bcm2708.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c1-bcm2708.dtbo
