@@ -340,15 +340,14 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		data_length = 16;
-		bclk_ratio = 50;
+		bclk_ratio = 40;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
 		data_length = 24;
-		bclk_ratio = 50;
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		data_length = 32;
-		bclk_ratio = 100;
+		bclk_ratio = 80;
 		break;
 	default:
 		return -EINVAL;
@@ -411,30 +410,20 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		divf = dividend & BCM2835_CLK_DIVF_MASK;
 	}
 
-	/* Clock should only be set up here if CPU is clock master */
-	switch (dev->fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-	case SND_SOC_DAIFMT_CBS_CFS:
-	case SND_SOC_DAIFMT_CBS_CFM:
-		/* Set clock divider */
-		regmap_write(dev->clk_regmap, BCM2835_CLK_PCMDIV_REG,
-				  BCM2835_CLK_PASSWD
-				| BCM2835_CLK_DIVI(divi)
-				| BCM2835_CLK_DIVF(divf));
+	/* Set clock divider */
+	regmap_write(dev->clk_regmap, BCM2835_CLK_PCMDIV_REG, BCM2835_CLK_PASSWD
+			| BCM2835_CLK_DIVI(divi)
+			| BCM2835_CLK_DIVF(divf));
 
-		/* Setup clock, but don't start it yet */
-		regmap_write(dev->clk_regmap, BCM2835_CLK_PCMCTL_REG,
-				  BCM2835_CLK_PASSWD
-				| BCM2835_CLK_MASH(mash)
-				| BCM2835_CLK_SRC(clk_src));
-		break;
-	default:
-		break;
-	}
+	/* Setup clock, but don't start it yet */
+	regmap_write(dev->clk_regmap, BCM2835_CLK_PCMCTL_REG, BCM2835_CLK_PASSWD
+			| BCM2835_CLK_MASH(mash)
+			| BCM2835_CLK_SRC(clk_src));
 
 	/* Setup the frame format */
 	format = BCM2835_I2S_CHEN;
 
-	if (data_length >= 24)
+	if (data_length > 24)
 		format |= BCM2835_I2S_CHWEX;
 
 	format |= BCM2835_I2S_CHWID((data_length-8)&0xf);
@@ -732,7 +721,6 @@ static struct snd_soc_dai_driver bcm2835_i2s_dai = {
 		.channels_max = 2,
 		.rates =	SNDRV_PCM_RATE_8000_192000,
 		.formats =	SNDRV_PCM_FMTBIT_S16_LE
-				| SNDRV_PCM_FMTBIT_S24_LE
 				| SNDRV_PCM_FMTBIT_S32_LE
 		},
 	.capture = {
@@ -740,7 +728,6 @@ static struct snd_soc_dai_driver bcm2835_i2s_dai = {
 		.channels_max = 2,
 		.rates =	SNDRV_PCM_RATE_8000_192000,
 		.formats =	SNDRV_PCM_FMTBIT_S16_LE
-				| SNDRV_PCM_FMTBIT_S24_LE
 				| SNDRV_PCM_FMTBIT_S32_LE
 		},
 	.ops = &bcm2835_i2s_dai_ops,
@@ -789,7 +776,6 @@ static const struct regmap_config bcm2835_regmap_config[] = {
 		.precious_reg = bcm2835_i2s_precious_reg,
 		.volatile_reg = bcm2835_i2s_volatile_reg,
 		.cache_type = REGCACHE_RBTREE,
-		.name = "i2s",
 	},
 	{
 		.reg_bits = 32,
@@ -798,7 +784,6 @@ static const struct regmap_config bcm2835_regmap_config[] = {
 		.max_register = BCM2835_CLK_PCMDIV_REG,
 		.volatile_reg = bcm2835_clk_volatile_reg,
 		.cache_type = REGCACHE_RBTREE,
-		.name = "clk",
 	},
 };
 
@@ -842,11 +827,6 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 	}
 	dma_reg_base = be32_to_cpup(addr);
 
-	if (of_property_read_bool(pdev->dev.of_node, "brcm,enable-mmap"))
-		bcm2835_pcm_hardware.info |=
-			SNDRV_PCM_INFO_MMAP |
-			SNDRV_PCM_INFO_MMAP_VALID;
-
 	/* Request both ioareas */
 	for (i = 0; i <= 1; i++) {
 		void __iomem *base;
@@ -861,6 +841,11 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 		if (IS_ERR(regmap[i]))
 			return PTR_ERR(regmap[i]);
 	}
+
+	if (of_property_read_bool(pdev->dev.of_node, "brcm,enable-mmap"))
+		bcm2835_pcm_hardware.info |=
+			SNDRV_PCM_INFO_MMAP |
+			SNDRV_PCM_INFO_MMAP_VALID;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev),
 			   GFP_KERNEL);

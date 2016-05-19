@@ -1607,6 +1607,30 @@ void bcm2835_sdhost_set_clock(struct bcm2835_host *host, unsigned int clock)
 		}
 	}
 
+	/* Calibrate some delays */
+
+	host->ns_per_fifo_word = (1000000000/clock) *
+		((host->mmc->caps & MMC_CAP_4_BIT_DATA) ? 8 : 32);
+
+	if (input_clock == 50 * MHZ) {
+		if (clock > input_clock) {
+			/* Save the closest value, to make it easier
+			   to reduce in the event of error */
+			host->overclock_50 = (clock/MHZ);
+
+			if (clock != host->overclock) {
+				pr_warn("%s: overclocking to %dHz\n",
+					mmc_hostname(host->mmc), clock);
+				host->overclock = clock;
+			}
+		} else if (host->overclock) {
+			host->overclock = 0;
+			if (clock == 50 * MHZ)
+				pr_warn("%s: cancelling overclock\n",
+					mmc_hostname(host->mmc));
+		}
+	}
+
 	/* Set the timeout to 500ms */
 	bcm2835_sdhost_write(host, clock/2, SDTOUT);
 
@@ -1663,9 +1687,6 @@ static void bcm2835_sdhost_request(struct mmc_host *mmc, struct mmc_request *mrq
 	if (host->use_dma && mrq->data &&
 	    (mrq->data->blocks > host->pio_limit))
 		bcm2835_sdhost_prepare_dma(host, mrq->data);
-
-	if (host->reset_clock)
-	    bcm2835_sdhost_set_clock(host, host->clock);
 
 	spin_lock_irqsave(&host->lock, flags);
 
@@ -1991,6 +2012,7 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 	mmc->ops = &bcm2835_sdhost_ops;
 	host = mmc_priv(mmc);
 	host->mmc = mmc;
+	host->cmd_quick_poll_retries = 0;
 	host->pio_timeout = msecs_to_jiffies(500);
 	host->pio_limit = 1;
 	host->max_delay = 1; /* Warn if over 1ms */

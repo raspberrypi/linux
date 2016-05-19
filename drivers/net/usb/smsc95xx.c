@@ -80,13 +80,13 @@ static bool truesize_mode = false;
 module_param(truesize_mode, bool, 0644);
 MODULE_PARM_DESC(truesize_mode, "Report larger truesize value");
 
-static int packetsize = 0;
-module_param(packetsize, int, 0644);
-MODULE_PARM_DESC(packetsize, "Override the RX URB packet size");
-
 static char *macaddr = ":";
 module_param(macaddr, charp, 0);
 MODULE_PARM_DESC(macaddr, "MAC address");
+
+static int packetsize = 0;
+module_param(packetsize, int, 0644);
+MODULE_PARM_DESC(packetsize, "Override the RX URB packet size");
 
 static int __must_check __smsc95xx_read_reg(struct usbnet *dev, u32 index,
 					    u32 *data, int in_pm)
@@ -826,15 +826,6 @@ static int smsc95xx_is_macaddr_param(struct usbnet *dev, u8 *dev_mac)
 
 static void smsc95xx_init_mac_address(struct usbnet *dev)
 {
-	const u8 *mac_addr;
-
-	/* maybe the boot loader passed the MAC address in devicetree */
-	mac_addr = of_get_mac_address(dev->udev->dev.of_node);
-	if (mac_addr) {
-		memcpy(dev->net->dev_addr, mac_addr, ETH_ALEN);
-		return;
-	}
-
 	/* try reading mac address from EEPROM */
 	if (smsc95xx_read_eeprom(dev, EEPROM_MAC_OFFSET, ETH_ALEN,
 			dev->net->dev_addr) == 0) {
@@ -849,7 +840,7 @@ static void smsc95xx_init_mac_address(struct usbnet *dev)
 	if (smsc95xx_is_macaddr_param(dev, dev->net->dev_addr))
 		return;
 
-	/* no useful static MAC address found. generate a random one */
+	/* no eeprom, or eeprom values are invalid, and no module parameter specified to set MAC. Generate random MAC */
 	eth_hw_addr_random(dev->net);
 	netif_dbg(dev, ifup, dev->net, "MAC address set to eth_random_addr\n");
 }
