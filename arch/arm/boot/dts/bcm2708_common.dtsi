@@ -36,6 +36,7 @@
 		vchiq = &vchiq;
 		thermal = &thermal;
 		clocks = &clocks;
+		regulators = &regulators;
 	};
 
 	soc: soc {
@@ -482,6 +483,29 @@
 			#clock-cells = <0>;
 			clock-output-names = "osc";
 			clock-frequency = <19200000>;
+		};
+	};
+
+	regulators: regulators {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		reg_3v3: reg3v3@0 {
+			compatible = "regulator-fixed";
+			reg = <0>;
+			regulator-name = "DC_3V3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+		reg_5v0: reg5v0@1 {
+			compatible = "regulator-fixed";
+			reg = <1>;
+			regulator-name = "DC_5V0";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			regulator-always-on;
 		};
 	};
 

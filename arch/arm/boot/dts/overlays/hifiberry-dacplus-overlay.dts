@@ -35,6 +35,9 @@
 				reg = <0x4d>;
 				clocks = <&dacpro_osc>;
 				status = "okay";
+				AVDD-supply = <&reg_3v3>;
+				DVDD-supply = <&reg_3v3>;
+				CPVDD-supply = <&reg_3v3>;
 			};
 		};
 	};
