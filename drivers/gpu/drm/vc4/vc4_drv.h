@@ -9,6 +9,8 @@
 #include "drmP.h"
 #include "drm_gem_cma_helper.h"
 
+struct debugfs_reg32;
+
 struct vc4_dev {
 	struct drm_device *dev;
 
@@ -206,6 +208,8 @@ to_vc4_encoder(struct drm_encoder *encoder)
 #define V3D_WRITE(offset, val) writel(val, vc4->v3d->regs + offset)
 #define HVS_READ(offset) readl(vc4->hvs->regs + offset)
 #define HVS_WRITE(offset, val) writel(val, vc4->hvs->regs + offset)
+
+#define VC4_DEBUG_REG(reg) { .name = #reg, .offset = reg }
 
 struct vc4_exec_info {
 	/* Sequence number for this bin/render job. */
@@ -418,6 +422,8 @@ void vc4_debugfs_cleanup(struct drm_minor *minor);
 
 /* vc4_drv.c */
 void __iomem *vc4_ioremap_regs(struct platform_device *dev, int index);
+void vc4_dump_regs32(const struct debugfs_reg32 *reg, unsigned int num_regs,
+		     void __iomem *base, const char *prefix);
 
 /* vc4_dpi.c */
 extern struct platform_driver vc4_dpi_driver;

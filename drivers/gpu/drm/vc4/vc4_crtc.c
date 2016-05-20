@@ -35,6 +35,7 @@
 #include "drm_atomic_helper.h"
 #include "drm_crtc_helper.h"
 #include "linux/clk.h"
+#include "linux/debugfs.h"
 #include "drm_fb_cma_helper.h"
 #include "linux/component.h"
 #include "linux/of_device.h"
@@ -85,35 +86,25 @@ struct vc4_crtc_data {
 #define CRTC_WRITE(offset, val) writel(val, vc4_crtc->regs + (offset))
 #define CRTC_READ(offset) readl(vc4_crtc->regs + (offset))
 
-#define CRTC_REG(reg) { reg, #reg }
-static const struct {
-	u32 reg;
-	const char *name;
-} crtc_regs[] = {
-	CRTC_REG(PV_CONTROL),
-	CRTC_REG(PV_V_CONTROL),
-	CRTC_REG(PV_VSYNCD_EVEN),
-	CRTC_REG(PV_HORZA),
-	CRTC_REG(PV_HORZB),
-	CRTC_REG(PV_VERTA),
-	CRTC_REG(PV_VERTB),
-	CRTC_REG(PV_VERTA_EVEN),
-	CRTC_REG(PV_VERTB_EVEN),
-	CRTC_REG(PV_INTEN),
-	CRTC_REG(PV_INTSTAT),
-	CRTC_REG(PV_STAT),
-	CRTC_REG(PV_HACT_ACT),
+static const struct debugfs_reg32 crtc_regs[] = {
+	VC4_DEBUG_REG(PV_CONTROL),
+	VC4_DEBUG_REG(PV_V_CONTROL),
+	VC4_DEBUG_REG(PV_VSYNCD_EVEN),
+	VC4_DEBUG_REG(PV_HORZA),
+	VC4_DEBUG_REG(PV_HORZB),
+	VC4_DEBUG_REG(PV_VERTA),
+	VC4_DEBUG_REG(PV_VERTB),
+	VC4_DEBUG_REG(PV_VERTA_EVEN),
+	VC4_DEBUG_REG(PV_VERTB_EVEN),
+	VC4_DEBUG_REG(PV_INTEN),
+	VC4_DEBUG_REG(PV_INTSTAT),
+	VC4_DEBUG_REG(PV_STAT),
+	VC4_DEBUG_REG(PV_HACT_ACT),
 };
 
 static void vc4_crtc_dump_regs(struct vc4_crtc *vc4_crtc)
 {
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(crtc_regs); i++) {
-		DRM_INFO("0x%04x (%s): 0x%08x\n",
-			 crtc_regs[i].reg, crtc_regs[i].name,
-			 CRTC_READ(crtc_regs[i].reg));
-	}
+	vc4_dump_regs32(crtc_regs, ARRAY_SIZE(crtc_regs), vc4_crtc->regs, "");
 }
 
 #ifdef CONFIG_DEBUG_FS
@@ -136,11 +127,8 @@ int vc4_crtc_debugfs_regs(struct seq_file *m, void *unused)
 		return 0;
 	vc4_crtc = to_vc4_crtc(crtc);
 
-	for (i = 0; i < ARRAY_SIZE(crtc_regs); i++) {
-		seq_printf(m, "%s (0x%04x): 0x%08x\n",
-			   crtc_regs[i].name, crtc_regs[i].reg,
-			   CRTC_READ(crtc_regs[i].reg));
-	}
+	debugfs_print_regs32(m, crtc_regs, ARRAY_SIZE(crtc_regs),
+			     vc4_crtc->regs, "");
 
 	return 0;
 }
