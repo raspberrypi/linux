@@ -1202,7 +1202,7 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 		wait_max = jiffies + msecs_to_jiffies(100);
 		while (time_before(jiffies, wait_max)) {
 			spin_unlock_irqrestore(&host->lock, *irq_flags);
-			usleep_range(1, 10);
+			usleep_range(150, 200);
 			spin_lock_irqsave(&host->lock, *irq_flags);
 			sdcmd = bcm2835_sdhost_read(host, SDCMD);
 			if (!(sdcmd & SDCMD_NEW_FLAG) ||
