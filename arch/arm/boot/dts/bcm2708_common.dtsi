@@ -179,6 +179,17 @@
 			status = "disabled";
 		};
 
+		dpi: dpi@7e208000 {
+			compatible = "brcm,bcm2835-dpi";
+			reg = <0x7e208000 0x8c>;
+			clocks = <&cprman BCM2835_CLOCK_VPU>,
+				 <&cprman BCM2835_CLOCK_DPI>;
+			clock-names = "core", "pixel";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
 		pixelvalve1: pixelvalve@7e207000 {
 			compatible = "brcm,bcm2835-pixelvalve1";
 			reg = <0x7e207000 0x100>;
