@@ -279,6 +279,7 @@ static int	rtw_proc_cnt = 0;
 
 void rtw_proc_init_one(struct net_device *dev)
 {
+#if(LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	struct proc_dir_entry *dir_dev = NULL;
 	struct proc_dir_entry *entry=NULL;
 	_adapter	*padapter = rtw_netdev_priv(dev);
@@ -647,6 +648,9 @@ void rtw_proc_init_one(struct net_device *dev)
 	entry->write_proc = proc_set_dm_adaptivity;
 #endif /* CONFIG_DM_ADAPTIVITY */
 
+#else /* kernel version < 3.10 */
+		DBG_871X(KERN_ERR "Unable to create /proc entry in this kernel version\n");
+#endif
 }
 
 void rtw_proc_remove_one(struct net_device *dev)
