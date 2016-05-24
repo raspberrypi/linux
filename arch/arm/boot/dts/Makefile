@@ -2,6 +2,7 @@ ifeq ($(CONFIG_OF),y)
 
 dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-b.dtb
 dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-b-plus.dtb
+dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-0-w.dtb
 dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-cm.dtb
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2835-rpi-cm.dtb
 dtb-$(CONFIG_ARCH_BCM2709) += bcm2709-rpi-2-b.dtb
