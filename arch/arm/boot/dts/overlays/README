@@ -842,6 +842,12 @@ Load:   dtoverlay=rpi-sense
 Params: <None>
 
 
+Name:   rra-digidac1-wm8741-audio
+Info:   Configures the Red Rocks Audio DigiDAC1 soundcard
+Load:   dtoverlay=rra-digidac1-wm8741-audio
+Params: <None>
+
+
 Name:   sdhost
 Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock.
         N.B. This overlay is designed for situations where the mmc driver is
