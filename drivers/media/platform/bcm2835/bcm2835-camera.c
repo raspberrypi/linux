@@ -1530,8 +1530,8 @@ static int get_num_cameras(struct vchiq_mmal_instance *instance,
 	}
 	for (i = 0;
 	     i < (cam_info.num_cameras > num_resolutions ?
-			cam_info.num_cameras :
-			num_resolutions);
+			num_resolutions :
+			cam_info.num_cameras);
 	     i++) {
 		resolutions[i][0] = cam_info.cameras[i].max_width;
 		resolutions[i][1] = cam_info.cameras[i].max_height;
