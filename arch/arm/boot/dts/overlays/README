@@ -567,6 +567,15 @@ Params: gpio_out_pin            GPIO for output (default "17")
                                 (default "off")
 
 
+Name:   mcp23017
+Info:   Configures the MCP23017 I2C port expander
+Load:   dtoverlay=mcp23017,<param>=<val>
+Params: gpiopin                 Gpio pin connected to the INTA output of the
+                                MCP23017 (default: 4)
+
+        addr                    I2C address of the MCP23017 (default: 0x20)
+
+
 Name:   mcp2515-can0
 Info:   Configures the MCP2515 CAN controller on spi0.0
 Load:   dtoverlay=mcp2515-can0,<param>=<val>
