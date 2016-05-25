@@ -109,6 +109,7 @@ struct bm2835_mmal_dev {
 	unsigned int camera_num;
 	unsigned int max_width;
 	unsigned int max_height;
+	unsigned int rgb_bgr_swapped;
 };
 
 int bm2835_mmal_init_controls(
