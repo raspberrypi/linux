@@ -1190,6 +1190,7 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 
 	if (!retries) {
 		unsigned long wait_max;
+		unsigned long usleep_min;
 
 		if (!irq_flags) {
 			/* Schedule the work */
@@ -1200,9 +1201,11 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 
 		/* Wait max 100 ms */
 		wait_max = jiffies + msecs_to_jiffies(100);
+		usleep_min = 1;
 		while (time_before(jiffies, wait_max)) {
 			spin_unlock_irqrestore(&host->lock, *irq_flags);
-			usleep_range(1, 10);
+			usleep_range(usleep_min, usleep_min * 2UL);
+			usleep_min = min(256UL, usleep_min * 4UL);
 			spin_lock_irqsave(&host->lock, *irq_flags);
 			sdcmd = bcm2835_sdhost_read(host, SDCMD);
 			if (!(sdcmd & SDCMD_NEW_FLAG) ||
