@@ -1,4 +1,4 @@
-// Definitions for BoomBerry Digi
+// Definitions for JustBoom Digi
 /dts-v1/;
 /plugin/;
 
@@ -31,7 +31,7 @@
 	fragment@2 {
 		target = <&sound>;
 		__overlay__ {
-			compatible = "boomberry,boomberry-digi";
+			compatible = "justboom,justboom-digi";
 			i2s-controller = <&i2s>;
 			status = "okay";
 		};

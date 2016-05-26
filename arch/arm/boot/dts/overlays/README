@@ -238,32 +238,6 @@ Load:   dtoverlay=bmp085_i2c-sensor
 Params: <None>
 
 
-Name:   boomberry-dac
-Info:   Configures the BoomBerry DAC HAT, Amp HAT, DAC Zero and Amp Zero audio
-        cards
-Load:   dtoverlay=boomberry-dac,<param>=<val>
-Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
-                                Digital volume control. Enable with
-                                "dtoverlay=boomberry-dac,24db_digital_gain"
-                                (The default behaviour is that the Digital
-                                volume control is limited to a maximum of
-                                0dB. ie. it can attenuate but not provide
-                                gain. For most users, this will be desired
-                                as it will prevent clipping. By appending
-                                the 24dB_digital_gain parameter, the Digital
-                                volume control will allow up to 24dB of
-                                gain. If this parameter is enabled, it is the
-                                responsibility of the user to ensure that
-                                the Digital volume control is set to a value
-                                that does not result in clipping/distortion!)
-
-
-Name:   boomberry-digi
-Info:   Configures the BoomBerry Digi HAT and Digi Zero audio cards
-Load:   dtoverlay=boomberry-digi
-Params: <None>
-
-
 Name:   dht11
 Info:   Overlay for the DHT11/DHT21/DHT22 humidity/temperature sensors
         Also sometimes found with the part number(s) AM230x.
@@ -539,6 +513,32 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 responsibility of the user to ensure that
                                 the Digital volume control is set to a value
                                 that does not result in clipping/distortion!)
+
+
+Name:   justboom-dac
+Info:   Configures the JustBoom DAC HAT, Amp HAT, DAC Zero and Amp Zero audio
+        cards
+Load:   dtoverlay=justboom-dac,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=justboom-dac,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24dB_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+
+
+Name:   justboom-digi
+Info:   Configures the JustBoom Digi HAT and Digi Zero audio cards
+Load:   dtoverlay=justboom-digi
+Params: <None>
 
 
 Name:   lirc-rpi
