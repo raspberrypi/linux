@@ -1,4 +1,4 @@
-// Definitions for BoomBerry DAC
+// Definitions for JustBoom DAC
 /dts-v1/;
 /plugin/;
 
@@ -31,13 +31,13 @@
 	fragment@2 {
 		target = <&sound>;
 		frag2: __overlay__ {
-			compatible = "boomberry,boomberry-dac";
+			compatible = "justboom,justboom-dac";
 			i2s-controller = <&i2s>;
 			status = "okay";
 		};
 	};
 
 	__overrides__ {
-		24db_digital_gain = <&frag2>,"boomberry,24db_digital_gain?";
+		24db_digital_gain = <&frag2>,"justboom,24db_digital_gain?";
 	};
 };
