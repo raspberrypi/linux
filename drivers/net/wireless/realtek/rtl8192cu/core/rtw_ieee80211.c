@@ -1859,7 +1859,8 @@ int rtw_action_frame_parse(const u8 *frame, u32 frame_len, u8* category, u8 *act
 {
 	const u8 *frame_body = frame + sizeof(struct rtw_ieee80211_hdr_3addr);
 	u16 fc;
-	u8 c, a;
+	u8 c;
+	u8 a = ACT_PUBLIC_MAX;
 
 	fc = le16_to_cpu(((struct rtw_ieee80211_hdr_3addr *)frame)->frame_ctl);
 
