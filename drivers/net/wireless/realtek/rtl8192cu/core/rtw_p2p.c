@@ -4955,9 +4955,9 @@ void init_wifidirect_info( _adapter* padapter, enum P2P_ROLE role)
 #endif
 #ifdef CONFIG_CONCURRENT_MODE
 	_adapter				*pbuddy_adapter = padapter->pbuddy_adapter;
-	struct wifidirect_info	*pbuddy_wdinfo;
-	struct mlme_priv		*pbuddy_mlmepriv;
-	struct mlme_ext_priv	*pbuddy_mlmeext;
+	struct wifidirect_info	*pbuddy_wdinfo = NULL;
+	struct mlme_priv		*pbuddy_mlmepriv = NULL;
+	struct mlme_ext_priv	*pbuddy_mlmeext = NULL;
 #endif
 
 	pwdinfo = &padapter->wdinfo;
