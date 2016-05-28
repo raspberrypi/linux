@@ -996,7 +996,7 @@ static int rtw_resume(struct usb_interface *pusb_intf)
 int rtw_resume_process(_adapter *padapter)
 {
 	struct net_device *pnetdev;
-	struct pwrctrl_priv *pwrpriv;
+	struct pwrctrl_priv *pwrpriv=NULL;
 	int ret = -1;
 	u32 start_time = rtw_get_current_time();
 	_func_enter_;
@@ -1059,7 +1059,8 @@ exit:
 	rtw_unlock_suspend();
 	#endif //CONFIG_RESUME_IN_WORKQUEUE
 
-	pwrpriv->bInSuspend = _FALSE;
+	if (pwrpriv)
+		pwrpriv->bInSuspend = _FALSE;
 	DBG_871X("<===  %s return %d.............. in %dms\n", __FUNCTION__
 		, ret, rtw_get_passing_time_ms(start_time));
 
