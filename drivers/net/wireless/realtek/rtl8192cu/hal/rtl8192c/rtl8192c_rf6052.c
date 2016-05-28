@@ -373,7 +373,7 @@ static void getTxPowerWriteValByRegulatory(
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
 	struct dm_priv	*pdmpriv = &pHalData->dmpriv;
-	u8	i, chnlGroup, pwr_diff_limit[4];
+	u8	i, chnlGroup = 0, pwr_diff_limit[4];
 	u32 	writeVal, customer_limit, rf;
 	
 	//
@@ -615,7 +615,7 @@ phy_RF6052_Config_ParaFile(
 	IN	PADAPTER		Adapter
 	)
 {
-	u32					u4RegValue;
+	u32					u4RegValue=0;
 	u8					eRFPath;		
 	BB_REGISTER_DEFINITION_T	*pPhyReg;	
 
