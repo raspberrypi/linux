@@ -1691,9 +1691,6 @@ int _netdev_vir_if_open(struct net_device *pnetdev)
 
 		padapter->bup = _TRUE;
 		padapter->hw_init_completed = _TRUE;
-
-		rtw_start_mbssid_cam(padapter);//start mbssid_cam after bup = _TRUE & hw_init_completed = _TRUE
-
 	}
 
 	padapter->net_closed = _FALSE;
