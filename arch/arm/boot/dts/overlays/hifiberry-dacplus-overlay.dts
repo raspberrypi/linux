@@ -41,7 +41,7 @@
 
 	fragment@3 {
 		target = <&sound>;
-		frag3: __overlay__ {
+		hifiberry_dacplus: __overlay__ {
 			compatible = "hifiberry,hifiberry-dacplus";
 			i2s-controller = <&i2s>;
 			status = "okay";
@@ -49,6 +49,8 @@
 	};
 
 	__overrides__ {
-		24db_digital_gain = <&frag3>,"hifiberry,24db_digital_gain?";
+		24db_digital_gain =
+			<&hifiberry_dacplus>,"hifiberry,24db_digital_gain?";
+		slave = <&hifiberry_dacplus>,"hifiberry-dacplus,slave?";
 	};
 };
