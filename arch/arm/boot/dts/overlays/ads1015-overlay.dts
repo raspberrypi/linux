@@ -1,0 +1,101 @@
+/*
+ * 2016 - Erik Sejr
+ */
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2708";
+    /* ----------- ADS1015 ------------ */
+    fragment@0 {
+        // Change "i2c@7e804000" in all "target-path" lines to
+        // "/soc/i2c@7e205000" if you have a Model B Rev 1 RPI
+        // For all other models, keep the default
+        target-path = "/soc/i2c@7e804000";
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+            ads1015: ads1015 {
+                compatible = "ti,ads1015";
+                status = "okay";
+                #address-cells = <1>;
+                #size-cells = <0>;
+                reg = <0x48>;
+            };
+        };
+    };
+
+    fragment@1 {
+        target-path = "/soc/i2c@7e804000/ads1015";
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            channel1: channel@1 {
+                reg = <0>;
+                ti,gain = <2>;
+                ti,datarate = <4>;
+            };
+        };
+    };
+
+    fragment@2 {
+        target-path = "/soc/i2c@7e804000/ads1015";
+        __dormant__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            channel2: channel@2 {
+                reg = <3>;
+                ti,gain = <2>;
+                ti,datarate = <4>;
+            };
+        };
+    };
+
+    fragment@3 {
+        target-path = "/soc/i2c@7e804000/ads1015";
+        __dormant__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            channel3: channel@3 {
+                reg = <6>;
+                ti,gain = <2>;
+                ti,datarate = <4>;
+            };
+        };
+    };
+
+    fragment@4 {
+        target-path = "/soc/i2c@7e804000/ads1015";
+        __dormant__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            channel4: channel@4 {
+                reg = <7>;
+                ti,gain = <2>;
+                ti,datarate = <4>;
+            };
+        };
+    };
+
+    __overrides__ {
+        addr =            <&ads1015>,"reg:0";
+        ch1_enable =      <0>,"=1";
+        ch1_cfg =         <&channel1>,"reg:0";
+        ch1_gain =        <&channel1>,"ti,gain:0";
+        ch1_datarate =    <&channel1>,"ti,datarate:0";
+        ch2_enable =      <0>,"=2";
+        ch2_cfg =         <&channel2>,"reg:0";
+        ch2_gain =        <&channel2>,"ti,gain:0";
+        ch2_datarate =    <&channel2>,"ti,datarate:0";
+        ch3_enable =      <0>,"=3";
+        ch3_cfg =         <&channel3>,"reg:0";
+        ch3_gain =        <&channel3>,"ti,gain:0";
+        ch3_datarate =    <&channel3>,"ti,datarate:0";
+        ch4_enable =      <0>,"=4";
+        ch4_cfg =         <&channel4>,"reg:0";
+        ch4_gain =        <&channel4>,"ti,gain:0";
+        ch4_datarate =    <&channel4>,"ti,datarate:0";
+   };
+
+};
