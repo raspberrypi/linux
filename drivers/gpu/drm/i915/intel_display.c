@@ -15958,6 +15958,18 @@ void intel_display_resume(struct drm_device *dev)
 retry:
 	ret = drm_modeset_lock_all_ctx(dev, &ctx);
 
+	/*
+	 * With MST, the number of connectors can change between suspend and
+	 * resume, which means that the state we want to restore might now be
+	 * impossible to use since it'll be pointing to non-existant
+	 * connectors.
+	 */
+	if (ret == 0 && state &&
+	    state->num_connector != dev->mode_config.num_connector) {
+		drm_atomic_state_free(state);
+		state = NULL;
+	}
+
 	if (ret == 0 && !setup) {
 		setup = true;
 
