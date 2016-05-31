@@ -301,7 +301,7 @@ static int drm_fbdev_cma_create(struct drm_fb_helper *helper,
 err_fb_info_destroy:
 	drm_fb_helper_release_fbi(helper);
 err_gem_free_object:
-	dev->driver->gem_free_object(&obj->base);
+	drm_gem_object_unreference_unlocked(&obj->base);
 	return ret;
 }
 
