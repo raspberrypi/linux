@@ -145,4 +145,3 @@
 	interrupt-parent = <&local_intc>;
 	interrupts = <8>;
 };
-
