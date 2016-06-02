@@ -137,6 +137,29 @@
 			/* Add alias */
 			status = "disabled";
 		};
+
+		i2c_dsi: i2cdsi {
+			/* We have to use i2c-gpio because the
+			 * firmware is also polling another device
+			 * using the only hardware I2C bus that could
+			 * connect to these pins.
+			 */
+			compatible = "i2c-gpio";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			pitouchscreen_bridge: bridge@45 {
+				compatible = "raspberrypi,touchscreen-bridge-i2c";
+				reg = <0x45>;
+			};
+
+			pitouchscreen_touch: bridge@38 {
+				compatible = "raspberrypi,touchscreen-ts-i2c";
+				reg = <0x38>;
+			};
+		};
+
 	};
 
 	vdd_5v0_reg: fixedregulator_5v0 {
@@ -154,4 +177,8 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-always-on;
 	};
+};
+
+&dsi1 {
+	power-domains = <&power RPI_POWER_DOMAIN_DSI1>;
 };
