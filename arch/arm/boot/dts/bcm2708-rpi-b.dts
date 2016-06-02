@@ -145,3 +145,8 @@
 		sd_debug     = <&sdhost>,"brcm,debug";
 	};
 };
+
+&i2c_dsi {
+	gpios = <&gpio 2 0
+		 &gpio 3 0>;
+};
