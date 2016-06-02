@@ -2,6 +2,7 @@
 #include <dt-bindings/clock/bcm2835-aux.h>
 #include "dt-bindings/power/raspberrypi-power.h"
 #include "dt-bindings/gpio/gpio.h"
+#include "dt-bindings/pinctrl/bcm2835.h"
 #include "skeleton.dtsi"
 
 / {
@@ -110,9 +111,10 @@
 			reg = <0x7e101000 0x2000>;
 
 			/* CPRMAN derives everything from the platform's
-			 * oscillator.
+			 * oscillator except for a few clocks that may
+			 * derive from something else derived from CPRMAN..
 			 */
-			clocks = <&clk_osc>;
+			clocks = <&clk_osc>, <&dsi1 0>, <&dsi1 1>, <&dsi1 2>;
 			status = "disabled";
 		};
 
@@ -280,6 +282,24 @@
 			compatible = "brcm,bcm2835-hvs";
 			reg = <0x7e400000 0x6000>;
 			status = "disabled";
+		};
+
+		dsi1: dsi@7e700000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#clock-cells = <1>;
+
+			compatible = "brcm,bcm2835-dsi1";
+			reg = <0x7e700000 0x8c>;
+			interrupts = <2 12>;
+
+			clocks = <&cprman BCM2835_PLLD_DSI1>,
+				 <&cprman BCM2835_CLOCK_DSI1E>,
+				 <&cprman BCM2835_CLOCK_DSI1P>;
+			clock-names = "phy", "escape", "pixel";
+			clock-output-names = "dsi1_byte", "dsi1_ddr2", "dsi1_ddr";
+			status = "disabled";
+			power-domains = <&power RPI_POWER_DOMAIN_DSI1>;
 		};
 
 		i2c1: i2c@7e804000 {
