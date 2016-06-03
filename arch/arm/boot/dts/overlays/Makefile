@@ -78,6 +78,7 @@ dtbo-$(RPI_DT_OVERLAYS) += smi.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += smi-dev.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += smi-nand.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += spi-gpio35-39.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += spi-rtc.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += spi1-1cs.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += spi1-2cs.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += spi1-3cs.dtbo

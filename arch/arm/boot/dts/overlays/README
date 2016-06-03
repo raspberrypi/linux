@@ -975,6 +975,12 @@ Load:   dtoverlay=spi-gpio35-39
 Params: <None>
 
 
+Name:   spi-rtc
+Info:   Adds support for a number of SPI Real Time Clock devices
+Load:   dtoverlay=spi-rtc,<param>=<val>
+Params: pcf2123                 Select the PCF2123 device
+
+
 Name:   spi1-1cs
 Info:   Enables spi1 with a single chip select (CS) line and associated spidev
         dev node. The gpio pin number for the CS line and spidev device node
