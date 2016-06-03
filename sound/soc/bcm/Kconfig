@@ -50,19 +50,19 @@ config SND_BCM2708_SOC_RPI_PROTO
 	help
 	  Say Y or M if you want to add support for Audio Codec Board PROTO (WM8731).
 
-config SND_BCM2708_SOC_BOOMBERRY_DAC
-	tristate "Support for BoomBerry DAC"
+config SND_BCM2708_SOC_JUSTBOOM_DAC
+	tristate "Support for JustBoom DAC"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	select SND_SOC_PCM512x
 	help
-	  Say Y or M if you want to add support for BoomBerry DAC.
+	  Say Y or M if you want to add support for JustBoom DAC.
 
-config SND_BCM2708_SOC_BOOMBERRY_DIGI
-	tristate "Support for BoomBerry Digi"
+config SND_BCM2708_SOC_JUSTBOOM_DIGI
+	tristate "Support for JustBoom Digi"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	select SND_SOC_WM8804
 	help
-	  Say Y or M if you want to add support for BoomBerry Digi.
+	  Say Y or M if you want to add support for JustBoom Digi.
 
 config SND_BCM2708_SOC_IQAUDIO_DAC
 	tristate "Support for IQaudIO-DAC"
