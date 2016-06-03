@@ -65,5 +65,9 @@
 		pcf8523 = <&pcf8523>,"status";
 		pcf8563 = <&pcf8563>,"status";
 		trickle-resistor-ohms = <&ds1339>,"trickle-resistor-ohms:0";
+		wakeup-source = <&ds1339>,"wakeup-source?",
+				<&ds3231>,"wakeup-source?",
+				<&mcp7940x>,"wakeup-source?",
+				<&mcp7941x>,"wakeup-source?";
 	};
 };
