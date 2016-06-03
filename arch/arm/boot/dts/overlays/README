@@ -445,6 +445,9 @@ Params: ds1307                  Select the DS1307 device
 
         trickle-resistor-ohms   Resistor value for trickle charge (DS1339-only)
 
+        wakeup-source           Specify that the RTC can be used as a wakeup
+                                source
+
 
 Name:   i2c0-bcm2708
 Info:   Enable the i2c_bcm2708 driver for the i2c0 bus. Not all pin combinations
