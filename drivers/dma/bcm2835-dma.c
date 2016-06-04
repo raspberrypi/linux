@@ -588,16 +588,16 @@ static enum dma_status bcm2835_dma_tx_status(struct dma_chan *chan,
 	struct virt_dma_desc *vd;
 	enum dma_status ret;
 	unsigned long flags;
+	u32 residue;
 
 	ret = dma_cookie_status(chan, cookie, txstate);
-	if (ret == DMA_COMPLETE || !txstate)
+	if (ret == DMA_COMPLETE)
 		return ret;
 
 	spin_lock_irqsave(&c->vc.lock, flags);
 	vd = vchan_find_desc(&c->vc, cookie);
 	if (vd) {
-		txstate->residue =
-			bcm2835_dma_desc_size(to_bcm2835_dma_desc(&vd->tx));
+		residue = bcm2835_dma_desc_size(to_bcm2835_dma_desc(&vd->tx));
 	} else if (c->desc && c->desc->vd.tx.cookie == cookie) {
 		struct bcm2835_desc *d = c->desc;
 		dma_addr_t pos;
@@ -609,10 +609,24 @@ static enum dma_status bcm2835_dma_tx_status(struct dma_chan *chan,
 		else
 			pos = 0;
 
-		txstate->residue = bcm2835_dma_desc_size_pos(d, pos);
+		residue = bcm2835_dma_desc_size_pos(d, pos);
+
+		/*
+		 * If our non-cyclic transfer is done, then report
+		 * complete and trigger the next tx now.  This lets
+		 * the dmaengine API be used synchronously from an IRQ
+		 * handler.
+		 */
+		if (!d->cyclic && residue == 0) {
+			vchan_cookie_complete(&c->desc->vd);
+			bcm2835_dma_start_desc(c);
+			ret = dma_cookie_status(chan, cookie, txstate);
+		}
 	} else {
-		txstate->residue = 0;
+		residue = 0;
 	}
+
+	dma_set_residue(txstate, residue);
 
 	spin_unlock_irqrestore(&c->vc.lock, flags);
 
