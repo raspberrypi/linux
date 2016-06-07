@@ -77,22 +77,22 @@
 
     __overrides__ {
         addr =            <&ads1015>,"reg:0";
-        chA_enable =      <0>,"=1";
-        chA_cfg =         <&channel_a>,"reg:0";
-        chA_gain =        <&channel_a>,"ti,gain:0";
-        chA_datarate =    <&channel_a>,"ti,datarate:0";
-        chB_enable =      <0>,"=2";
-        chB_cfg =         <&channel_b>,"reg:0";
-        chB_gain =        <&channel_b>,"ti,gain:0";
-        chB_datarate =    <&channel_b>,"ti,datarate:0";
-        chC_enable =      <0>,"=3";
-        chC_cfg =         <&channel_c>,"reg:0";
-        chC_gain =        <&channel_c>,"ti,gain:0";
-        chC_datarate =    <&channel_c>,"ti,datarate:0";
-        chD_enable =      <0>,"=4";
-        chD_cfg =         <&channel_d>,"reg:0";
-        chD_gain =        <&channel_d>,"ti,gain:0";
-        chD_datarate =    <&channel_d>,"ti,datarate:0";
+        cha_enable =      <0>,"=1";
+        cha_cfg =         <&channel_a>,"reg:0";
+        cha_gain =        <&channel_a>,"ti,gain:0";
+        cha_datarate =    <&channel_a>,"ti,datarate:0";
+        chb_enable =      <0>,"=2";
+        chb_cfg =         <&channel_b>,"reg:0";
+        chb_gain =        <&channel_b>,"ti,gain:0";
+        chb_datarate =    <&channel_b>,"ti,datarate:0";
+        chc_enable =      <0>,"=3";
+        chc_cfg =         <&channel_c>,"reg:0";
+        chc_gain =        <&channel_c>,"ti,gain:0";
+        chc_datarate =    <&channel_c>,"ti,datarate:0";
+        chd_enable =      <0>,"=4";
+        chd_cfg =         <&channel_d>,"reg:0";
+        chd_gain =        <&channel_d>,"ti,gain:0";
+        chd_datarate =    <&channel_d>,"ti,datarate:0";
    };
 
 };
