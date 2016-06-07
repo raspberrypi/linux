@@ -36,8 +36,7 @@
         __overrides__ {
                 // parameters
                 gpio_pin =      <&gpio_ir>,"gpios:4",
-                                        <&gpio_ir_pins>,"brcm,pins:0",
-                                        <&gpio_ir_pins>,"brcm,pull:0";  // pin number
+                                        <&gpio_ir_pins>,"brcm,pins:0";  // pin number
                 gpio_pull = <&gpio_ir_pins>,"brcm,pull:0";              // pull-up/down state
 
                 rc-map-name = <&gpio_ir>,"linux,rc-map-name";           // default rc map
