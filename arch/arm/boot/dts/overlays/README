@@ -167,6 +167,27 @@ Info:   Overlay for activation of ADAU1977 ADC codec over I2C for control
 Load:   dtoverlay=adau1977-adc
 Params: <None>
 
+Name:   ads1015
+Info:   Overlay for activation of Texas Instruments ADS1015 ADC over I2C
+Load:   dtoverlay=ads1015
+Params: addr                    I2C bus address of device. Set based how
+                                the addr pin is wired (default of 0x48
+                                assumes addr is pulled to GND)
+        chA_enable              Enable virtual channel A. (default=true)
+        chA_cfg                 Set the configuration for virtual
+                                channel A. (default of 4 configures
+                                this channel for the voltage at A0
+                                with respect to GND)
+        chA_gain                Set the gain of the Programmable Gain
+                                Amplifier for this channel. (default of
+                                2 sets the full scale of the channel to
+                                2.048 Volts)
+        chA_datarate            Set the datarate (samples/sec) for this
+                                channel. (default of 4 sets 1600 sps)
+
+        Channel parameters can be set for each enabled channel. A
+        maximum of 4 channels can be enabled (Letters A thru D).
+
 
 Name:   ads7846
 Info:   ADS7846 Touch controller
