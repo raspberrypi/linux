@@ -187,6 +187,8 @@ Params: addr                    I2C bus address of device. Set based how
 
         Channel parameters can be set for each enabled channel. A
         maximum of 4 channels can be enabled (Letters A thru D).
+        For more informationr efer to the device datasheet at:
+        http://www.ti.com/lit/ds/symlink/ads1015.pdf
 
 
 Name:   ads7846
