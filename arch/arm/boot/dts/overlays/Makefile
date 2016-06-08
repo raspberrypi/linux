@@ -13,6 +13,7 @@ ifeq ($(CONFIG_ARCH_BCM2835),y)
 endif
 
 dtbo-$(RPI_DT_OVERLAYS) += adau1977-adc.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += ads1015.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += ads7846.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += akkordion-iqdacplus.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += at86rf233.dtbo
