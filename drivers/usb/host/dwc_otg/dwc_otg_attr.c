@@ -1016,6 +1016,26 @@ static ssize_t wr_reg_test_show(struct device *_dev,
 
 DEVICE_ATTR(wr_reg_test, S_IRUGO, wr_reg_test_show, 0);
 
+static ssize_t sof_histogram_reset(struct device *_dev, 
+				struct device_attribute *attr, const char *buf, size_t count)
+{
+	dwc_otg_device_t *otg_dev = dwc_otg_drvdev(_dev);
+	dwc_otg_hcd_t *hcd = otg_dev->hcd;
+	dwc_otg_hcd_sof_histogram_reset(hcd);
+	return count;
+}
+
+static ssize_t sof_histogram_show(struct device *_dev, struct device_attribute *attr, char *buf)
+{
+	dwc_otg_device_t *otg_dev = dwc_otg_drvdev(_dev);
+	dwc_otg_hcd_t *hcd = otg_dev->hcd;
+	
+	return dwc_otg_hcd_dump_sof_histogram(hcd, buf);
+	
+}
+
+DEVICE_ATTR(sof_histogram, S_IRUGO | S_IWUSR, sof_histogram_show, sof_histogram_reset);
+
 #ifdef CONFIG_USB_DWC_OTG_LPM
 
 /**
@@ -1113,7 +1133,7 @@ void dwc_otg_attr_create(
     )
 {
 	int error;
-
+	error = device_create_file(&dev->dev, &dev_attr_sof_histogram);
 	error = device_create_file(&dev->dev, &dev_attr_regoffset);
 	error = device_create_file(&dev->dev, &dev_attr_regvalue);
 	error = device_create_file(&dev->dev, &dev_attr_mode);
@@ -1168,6 +1188,7 @@ void dwc_otg_attr_remove(
 #endif
     )
 {
+	device_remove_file(&dev->dev, &dev_attr_sof_histogram);
 	device_remove_file(&dev->dev, &dev_attr_regoffset);
 	device_remove_file(&dev->dev, &dev_attr_regvalue);
 	device_remove_file(&dev->dev, &dev_attr_mode);

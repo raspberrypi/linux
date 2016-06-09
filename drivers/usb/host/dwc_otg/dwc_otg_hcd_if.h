@@ -411,6 +411,8 @@ extern int dwc_otg_hcd_is_bandwidth_freed(dwc_otg_hcd_t * hcd, void *ep_handle);
 extern uint8_t dwc_otg_hcd_get_ep_bandwidth(dwc_otg_hcd_t * hcd,
 					    void *ep_handle);
 
+extern ssize_t dwc_otg_hcd_dump_sof_histogram(dwc_otg_hcd_t *hcd, char *buf);
+extern void dwc_otg_hcd_sof_histogram_reset(dwc_otg_hcd_t *hcd);
 /** @} */
 
 #endif /* __DWC_HCD_IF_H__ */

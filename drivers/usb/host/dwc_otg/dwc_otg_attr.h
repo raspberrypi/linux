@@ -39,6 +39,7 @@
  */
 extern struct device_attribute dev_attr_regoffset;
 extern struct device_attribute dev_attr_regvalue;
+extern struct device_attribute dev_attr_sof_histogram;
 
 extern struct device_attribute dev_attr_mode;
 extern struct device_attribute dev_attr_hnpcapable;

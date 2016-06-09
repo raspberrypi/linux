@@ -589,6 +589,13 @@ struct dwc_otg_hcd {
 
 	struct fiq_stack *fiq_stack;
 	struct fiq_state *fiq_state;
+	int last_sof_timestamp;
+	int sof_timestamp_overflows;
+#define NR_BINS 16
+#define BIN_STRIDE 5
+#define BIN_START 100
+	int histogram_bins[NR_BINS];
+	int histogram_counts[NR_BINS];
 
 	/** Virtual address for split transaction DMA bounce buffers */
 	struct fiq_dma_blob *fiq_dmab;

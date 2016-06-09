@@ -580,8 +580,13 @@ static int notrace noinline fiq_fsm_update_hs_isoc(struct fiq_state *state, int 
 static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_channels)
 {
 	hfnum_data_t hfnum = { .d32 = FIQ_READ(state->dwc_regs_base + HFNUM) };
-	int n;
+	int n, i;
 	int kick_irq = 0;
+	
+	for (i = FIQ_NR_TIMESTAMPS - 1; i > 0; i--) {
+		state->sof_timestamps[i] = state->sof_timestamps[i - 1];
+	}
+	state->sof_timestamps[0] = FIQ_READ(STC_LO);
 
 	if ((hfnum.b.frnum & 0x7) == 1) {
 		/* We cannot issue csplits for transactions in the last frame past (n+1).1

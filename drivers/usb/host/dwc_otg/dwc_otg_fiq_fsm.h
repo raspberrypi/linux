@@ -49,6 +49,7 @@
 #include <linux/irqflags.h>
 #include <linux/string.h>
 #include <asm/barrier.h>
+#include <mach/platform.h>
 
 #if 0
 #define FLAME_ON(x)					\
@@ -79,6 +80,9 @@ do {							\
  */
 #define FIQ_WRITE(_addr_,_data_) (*(volatile unsigned int *) (_addr_) = (_data_))
 #define FIQ_READ(_addr_) (*(volatile unsigned int *) (_addr_))
+
+#define FIQ_NR_TIMESTAMPS 32
+#define STC_LO		__io_address(ST_BASE + 0x04)
 
 /* FIQ-ified register definitions. Offsets are from dwc_regs_base. */
 #define GINTSTS		0x014
@@ -339,12 +343,14 @@ struct fiq_state {
 	fiq_lock_t lock;
 	mphi_regs_t mphi_regs;
 	void *dwc_regs_base;
+	void *stc_base;
 	dma_addr_t dma_base;
 	struct fiq_dma_blob *fiq_dmab;
 	void *dummy_send;
 	gintmsk_data_t gintmsk_saved;
 	haintmsk_data_t haintmsk_saved;
 	int mphi_int_count;
+	int sof_timestamps[FIQ_NR_TIMESTAMPS];
 	unsigned int fiq_done;
 	unsigned int kick_np_queues;
 	unsigned int next_sched_frame;

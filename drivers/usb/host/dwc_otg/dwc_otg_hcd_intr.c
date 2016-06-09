@@ -72,6 +72,31 @@ void notrace _fiq_print(FIQDBG_T dbg_lvl, char *fmt, ...)
 }
 #endif
 
+void dwc_otg_hcd_update_histogram(dwc_otg_hcd_t *hcd)
+{
+	int i, j, delta;
+	/* Search through the stack of SOF timestamps to find the last congruent timestamp */
+	for(i = FIQ_NR_TIMESTAMPS - 1; i >= 0; i--) {
+		if ((hcd->last_sof_timestamp - hcd->fiq_state->sof_timestamps[i]) <= 0)
+			break;
+	}
+	if (i < 0) {
+		hcd->sof_timestamp_overflows++;
+		i += 1;
+	}
+	for(; i < FIQ_NR_TIMESTAMPS - 1; i++) {
+		/* Compute deltas, add to histogram buckets */
+		delta = hcd->fiq_state->sof_timestamps[i] - hcd->fiq_state->sof_timestamps[i+1];
+		for (j = 0; j < NR_BINS; j++) {
+			if(hcd->histogram_bins[j] >= delta || j == NR_BINS - 1) {
+				hcd->histogram_counts[j]++;
+				break;
+			}
+		}		
+	}
+	hcd->last_sof_timestamp = hcd->fiq_state->sof_timestamps[0];
+}
+
 /** This function handles interrupts for the HCD. */
 int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 {
@@ -104,6 +129,8 @@ int32_t dwc_otg_hcd_handle_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 			/* Pull in from the FIQ's disabled mask */
 			gintmsk.d32 = gintmsk.d32 | ~(dwc_otg_hcd->fiq_state->gintmsk_saved.d32);
 			dwc_otg_hcd->fiq_state->gintmsk_saved.d32 = ~0;
+			
+			dwc_otg_hcd_update_histogram(dwc_otg_hcd);
 		}
 
 		if (fiq_fsm_enable && ( 0x0000FFFF & ~(dwc_otg_hcd->fiq_state->haintmsk_saved.b2.chint))) {

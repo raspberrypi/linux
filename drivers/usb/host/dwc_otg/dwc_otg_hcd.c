@@ -1047,7 +1047,12 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 				sizeof(struct fiq_dma_channel) * num_channels);
 
 		DWC_MEMSET(hcd->fiq_dmab, 0x6b, 9024);
-
+		
+		for(i = 0; i < NR_BINS; i++) {
+			hcd->histogram_bins[i] = BIN_START + (i * BIN_STRIDE);
+			hcd->histogram_counts[i] = 0;
+		}
+		
 		/* pointer for debug in fiq_print */
 		hcd->fiq_state->fiq_dmab = hcd->fiq_dmab;
 		if (fiq_fsm_enable) {
@@ -3999,6 +4004,37 @@ int dwc_otg_hcd_is_bandwidth_freed(dwc_otg_hcd_t * hcd, void *ep_handle)
 	}
 
 	return freed;
+}
+
+ssize_t dwc_otg_hcd_dump_sof_histogram(dwc_otg_hcd_t *hcd, char *buf)
+{
+	ssize_t inc = 0, count = 0;
+	int i;
+	inc = sprintf(buf, "FIQ SOF latency histogram:\n Read overflows: %d\n", 
+				hcd->sof_timestamp_overflows);
+	if (inc < 0)
+		return inc;
+	else
+		count += inc;
+	
+	for (i = 0; i < NR_BINS; i++) {
+		inc = sprintf(buf + count, " >%dus : %d\n", hcd->histogram_bins[i], hcd->histogram_counts[i]);
+		if (inc < 0)
+			return inc;
+		else
+			count += inc;
+	}
+	return count;
+}
+
+void dwc_otg_hcd_sof_histogram_reset(dwc_otg_hcd_t *hcd)
+{
+	int i;
+	unsigned long flags;
+	DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
+	for(i = 0; i < NR_BINS; i++)
+		hcd->histogram_counts[i] = 0;
+	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 }
 
 uint8_t dwc_otg_hcd_get_ep_bandwidth(dwc_otg_hcd_t * hcd, void *ep_handle)
