@@ -1,9 +1,0 @@
-config RTL8192CU
-	tristate "Realtek 8192C USB WiFi"
-	depends on MAC80211 && USB
-	select CFG80211_WEXT
-	select WIRELESS_EXT
-	select WEXT_PRIV
-	---help---
-	  This option adds the Realtek RTL8192CU USB device such as Edimax EW-7811Un.
-
