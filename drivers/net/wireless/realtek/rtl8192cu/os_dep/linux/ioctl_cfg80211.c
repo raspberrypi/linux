@@ -5461,8 +5461,11 @@ int rtw_wdev_alloc(_adapter *padapter, struct device *dev)
 	}
 	wdev->wiphy = wiphy;
 	wdev->netdev = pnetdev;
-	//wdev->iftype = NL80211_IFTYPE_STATION;
-	wdev->iftype = NL80211_IFTYPE_MONITOR; // for rtw_setopmode_cmd() in cfg80211_rtw_change_iface()
+
+	wdev->iftype = NL80211_IFTYPE_STATION; // will be init in rtw_hal_init()
+	                                       // Must sync with _rtw_init_mlme_priv()
+	                                       // pmlmepriv->fw_state = WIFI_STATION_STATE
+	//wdev->iftype = NL80211_IFTYPE_MONITOR; // for rtw_setopmode_cmd() in cfg80211_rtw_change_iface()
 	padapter->rtw_wdev = wdev;
 	pnetdev->ieee80211_ptr = wdev;
 
