@@ -221,7 +221,7 @@ exit:
 
 void rtw_spt_band_free(struct ieee80211_supported_band *spt_band)
 {
-	u32 size;
+	u32 size = 0;
 
 	if(!spt_band)
 		return;
@@ -3822,7 +3822,7 @@ static int	cfg80211_rtw_del_station(struct wiphy *wiphy, struct net_device *ndev
 	int ret=0;
 	_irqL irqL;
 	_list	*phead, *plist;
-	u8 updated;
+	u8 updated = _FALSE;
 	struct sta_info *psta = NULL;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
@@ -5461,8 +5461,11 @@ int rtw_wdev_alloc(_adapter *padapter, struct device *dev)
 	}
 	wdev->wiphy = wiphy;
 	wdev->netdev = pnetdev;
-	//wdev->iftype = NL80211_IFTYPE_STATION;
-	wdev->iftype = NL80211_IFTYPE_MONITOR; // for rtw_setopmode_cmd() in cfg80211_rtw_change_iface()
+
+	wdev->iftype = NL80211_IFTYPE_STATION; // will be init in rtw_hal_init()
+	                                       // Must sync with _rtw_init_mlme_priv()
+	                                       // pmlmepriv->fw_state = WIFI_STATION_STATE
+	//wdev->iftype = NL80211_IFTYPE_MONITOR; // for rtw_setopmode_cmd() in cfg80211_rtw_change_iface()
 	padapter->rtw_wdev = wdev;
 	pnetdev->ieee80211_ptr = wdev;
 

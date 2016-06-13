@@ -2454,7 +2454,7 @@ unsigned int OnDeAuth(_adapter *padapter, union recv_frame *precv_frame)
 		psta = rtw_get_stainfo(pstapriv, GetAddr2Ptr(pframe));
 		if(psta)
 		{
-			u8 updated;
+			u8 updated = _FALSE;
 
 			_enter_critical_bh(&pstapriv->asoc_list_lock, &irqL);
 			if(rtw_is_list_empty(&psta->asoc_list)==_FALSE)
@@ -2548,7 +2548,7 @@ unsigned int OnDisassoc(_adapter *padapter, union recv_frame *precv_frame)
 		psta = rtw_get_stainfo(pstapriv, GetAddr2Ptr(pframe));
 		if(psta)
 		{
-			u8 updated;
+			u8 updated = _FALSE;
 
 			_enter_critical_bh(&pstapriv->asoc_list_lock, &irqL);
 			if(rtw_is_list_empty(&psta->asoc_list)==_FALSE)
@@ -5663,7 +5663,7 @@ unsigned int on_action_public_p2p(union recv_frame *precv_frame)
 
 				//	Commented by Kurt 20120113
 				//	Get peer_dev_addr here if peer doesn't issue prov_disc frame.
-				if( _rtw_memcmp(pwdinfo->rx_prov_disc_info.peerDevAddr, empty_addr, ETH_ALEN) );
+				if( _rtw_memcmp(pwdinfo->rx_prov_disc_info.peerDevAddr, empty_addr, ETH_ALEN) )
 					_rtw_memcpy(pwdinfo->rx_prov_disc_info.peerDevAddr, GetAddr2Ptr(pframe), ETH_ALEN);
 
 				result = process_p2p_group_negotation_req( pwdinfo, frame_body, len );
@@ -11932,7 +11932,7 @@ u8 setkey_hdl(_adapter *padapter, u8 *pbuf)
 u8 set_stakey_hdl(_adapter *padapter, u8 *pbuf)
 {
 	u16 ctrl=0;
-	u8 cam_id;//cam_entry
+	u8 cam_id=0;//cam_entry
 	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
 	struct set_stakey_parm	*pparm = (struct set_stakey_parm *)pbuf;
