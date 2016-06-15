@@ -974,6 +974,10 @@ Info:   move SPI function block to GPIO 35 to 39
 Load:   dtoverlay=spi-gpio35-39
 Params: <None>
 
+Name:   spi-rtc
+Info:   Adds support for a number of SPI Real Time Clock devices
+Load:   dtoverlay=spi-rtc,<param>=<val>
+Params: pcf2123                 Select the PCF2123 device
 
 Name:   spi-rtc
 Info:   Adds support for a number of SPI Real Time Clock devices
