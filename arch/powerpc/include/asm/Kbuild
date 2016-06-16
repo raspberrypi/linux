@@ -1,5 +1,0 @@
-
-generic-y += clkdev.h
-generic-y += rwsem.h
-generic-y += trace_clock.h
-generic-y += vtime.h

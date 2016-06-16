@@ -1,5 +1,0 @@
-config GOLDFISH_PIPE
-	tristate "Goldfish virtual device for QEMU pipes"
-	---help---
-	  This is a virtual device to drive the QEMU pipe interface used by
-	  the Goldfish Android Virtual Device.
