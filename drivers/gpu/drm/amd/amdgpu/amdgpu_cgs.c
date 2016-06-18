@@ -880,7 +880,7 @@ static int amdgpu_cgs_acpi_eval_object(void *cgs_device,
 	struct cgs_acpi_method_argument *argument = NULL;
 	uint32_t i, count;
 	acpi_status status;
-	int result;
+	int result = 0;
 	uint32_t func_no = 0xFFFFFFFF;
 
 	handle = ACPI_HANDLE(&adev->pdev->dev);
