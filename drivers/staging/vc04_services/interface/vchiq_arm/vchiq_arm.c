@@ -64,10 +64,10 @@
 #define VCHIQ_MINOR 0
 
 /* Some per-instance constants */
-#define MAX_COMPLETIONS 16
+#define MAX_COMPLETIONS 128
 #define MAX_SERVICES 64
 #define MAX_ELEMENTS 8
-#define MSG_QUEUE_SIZE 64
+#define MSG_QUEUE_SIZE 128
 
 #define KEEPALIVE_VER 1
 #define KEEPALIVE_VER_MIN KEEPALIVE_VER
@@ -208,28 +208,24 @@ add_completion(VCHIQ_INSTANCE_T instance, VCHIQ_REASON_T reason,
 	void *bulk_userdata)
 {
 	VCHIQ_COMPLETION_DATA_T *completion;
+	int insert;
 	DEBUG_INITIALISE(g_state.local)
 
-	mutex_lock(&instance->completion_mutex);
-
-	while (instance->completion_insert ==
-		(instance->completion_remove + MAX_COMPLETIONS)) {
+	insert = instance->completion_insert;
+	while ((insert - instance->completion_remove) >= MAX_COMPLETIONS) {
 		/* Out of space - wait for the client */
 		DEBUG_TRACE(SERVICE_CALLBACK_LINE);
 		vchiq_log_trace(vchiq_arm_log_level,
 			"add_completion - completion queue full");
 		DEBUG_COUNT(COMPLETION_QUEUE_FULL_COUNT);
 
-		mutex_unlock(&instance->completion_mutex);
 		if (down_interruptible(&instance->remove_event) != 0) {
 			vchiq_log_info(vchiq_arm_log_level,
 				"service_callback interrupted");
 			return VCHIQ_RETRY;
 		}
 
-		mutex_lock(&instance->completion_mutex);
 		if (instance->closing) {
-			mutex_unlock(&instance->completion_mutex);
 			vchiq_log_info(vchiq_arm_log_level,
 				"service_callback closing");
 			return VCHIQ_SUCCESS;
@@ -237,9 +233,7 @@ add_completion(VCHIQ_INSTANCE_T instance, VCHIQ_REASON_T reason,
 		DEBUG_TRACE(SERVICE_CALLBACK_LINE);
 	}
 
-	completion =
-		 &instance->completions[instance->completion_insert &
-		 (MAX_COMPLETIONS - 1)];
+	completion = &instance->completions[insert & (MAX_COMPLETIONS - 1)];
 
 	completion->header = header;
 	completion->reason = reason;
@@ -260,12 +254,9 @@ add_completion(VCHIQ_INSTANCE_T instance, VCHIQ_REASON_T reason,
 	wmb();
 
 	if (reason == VCHIQ_MESSAGE_AVAILABLE)
-		user_service->message_available_pos =
-			instance->completion_insert;
+		user_service->message_available_pos = insert;
 
-	instance->completion_insert++;
-
-	mutex_unlock(&instance->completion_mutex);
+	instance->completion_insert = ++insert;
 
 	up(&instance->insert_event);
 
@@ -795,6 +786,7 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			instance->completion_insert)
 			&& !instance->closing) {
 			int rc;
+
 			DEBUG_TRACE(AWAIT_COMPLETION_LINE);
 			mutex_unlock(&instance->completion_mutex);
 			rc = down_interruptible(&instance->insert_event);
@@ -809,24 +801,29 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		DEBUG_TRACE(AWAIT_COMPLETION_LINE);
 
-		/* A read memory barrier is needed to stop prefetch of a stale
-		** completion record
-		*/
-		rmb();
-
 		if (ret == 0) {
 			int msgbufcount = args.msgbufcount;
+			int remove;
+
+			remove = instance->completion_remove;
+
 			for (ret = 0; ret < args.count; ret++) {
 				VCHIQ_COMPLETION_DATA_T *completion;
 				VCHIQ_SERVICE_T *service;
 				USER_SERVICE_T *user_service;
 				VCHIQ_HEADER_T *header;
-				if (instance->completion_remove ==
-					instance->completion_insert)
+
+				if (remove == instance->completion_insert)
 					break;
+
 				completion = &instance->completions[
-					instance->completion_remove &
-					(MAX_COMPLETIONS - 1)];
+					remove & (MAX_COMPLETIONS - 1)];
+
+
+				/* A read memory barrier is needed to prevent
+				** the prefetch of a stale completion record
+				*/
+				rmb();
 
 				service = completion->service_userdata;
 				user_service = service->base.userdata;
@@ -903,7 +900,11 @@ vchiq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					break;
 				}
 
-				instance->completion_remove++;
+				/* Ensure that the above copy has completed
+				** before advancing the remove pointer. */
+				mb();
+
+				instance->completion_remove = ++remove;
 			}
 
 			if (msgbufcount != args.msgbufcount) {
