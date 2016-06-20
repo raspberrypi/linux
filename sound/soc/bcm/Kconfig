@@ -92,3 +92,10 @@ config SND_AUDIOINJECTOR_PI_SOUNDCARD
 	select SND_SOC_WM8731
 	help
 	  Say Y or M if you want to add support for audioinjector.net Pi Hat
+
+config SND_BCM2708_SOC_DIONAUDIO_LOCO
+        tristate "Support for Dion Audio LOCO DAC-AMP"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+        select SND_SOC_PCM512x
+        help
+         Say Y or M if you want to add support Dion Audio LOCO.
