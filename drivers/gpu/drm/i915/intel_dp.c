@@ -5022,9 +5022,6 @@ intel_dp_hpd_pulse(struct intel_digital_port *intel_dig_port, bool long_hpd)
 	intel_display_power_get(dev_priv, power_domain);
 
 	if (long_hpd) {
-		/* indicate that we need to restart link training */
-		intel_dp->train_set_valid = false;
-
 		if (!intel_digital_port_connected(dev_priv, intel_dig_port))
 			goto mst_fail;
 
