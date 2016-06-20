@@ -29,4 +29,4 @@ obj-$(CONFIG_SND_BCM2708_SOC_RPI_PROTO) += snd-soc-rpi-proto.o
 obj-$(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) += snd-soc-iqaudio-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_RASPIDAC3) += snd-soc-raspidac3.o
 obj-$(CONFIG_SND_AUDIOINJECTOR_PI_SOUNDCARD) += snd-soc-audioinjector-pi-soundcard.o
-
+obj-$(CONFIG_SND_BCM2708_SOC_DIONAUDIO_LOCO) += snd-soc-dionaudio-loco.o
