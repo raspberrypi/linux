@@ -16,6 +16,8 @@ snd-soc-rpi-proto-objs := rpi-proto.o
 snd-soc-iqaudio-dac-objs := iqaudio-dac.o
 snd-soc-raspidac3-objs := raspidac3.o
 snd-soc-audioinjector-pi-soundcard-objs := audioinjector-pi-soundcard.o
+snd-soc-dionaudio-loco-objs := dionaudio_loco.o
+
 
 obj-$(CONFIG_SND_BCM2708_SOC_ADAU1977_ADC) += snd-soc-adau1977-adc.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) += snd-soc-hifiberry-dac.o
