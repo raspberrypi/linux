@@ -1374,11 +1374,12 @@ int iwl_mvm_sta_rx_agg(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 		 */
 		WARN_ON(rcu_access_pointer(mvm->baid_map[baid]));
 		rcu_assign_pointer(mvm->baid_map[baid], baid_data);
-	} else if (mvm->rx_ba_sessions > 0) {
+	} else  {
 		u8 baid = mvm_sta->tid_to_baid[tid];
 
-		/* check that restart flow didn't zero the counter */
-		mvm->rx_ba_sessions--;
+		if (mvm->rx_ba_sessions > 0)
+			/* check that restart flow didn't zero the counter */
+			mvm->rx_ba_sessions--;
 		if (!iwl_mvm_has_new_rx_api(mvm))
 			return 0;
 
