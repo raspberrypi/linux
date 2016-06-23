@@ -2584,12 +2584,9 @@ static const struct mmc_fixup blk_fixups[] =
 	 *  On some Kingston SD cards, multiple erases of less than 64
 	 *  sectors can cause corruption.
 	 */
-	MMC_FIXUP("SD16G", 0x41, 0x3432, add_quirk_mmc,
-		  MMC_QUIRK_ERASE_BROKEN),
-	MMC_FIXUP("SD32G", 0x41, 0x3432, add_quirk_mmc,
-		  MMC_QUIRK_ERASE_BROKEN),
-	MMC_FIXUP("SD64G", 0x41, 0x3432, add_quirk_mmc,
-		  MMC_QUIRK_ERASE_BROKEN),
+	MMC_FIXUP("SD16G", 0x41, 0x3432, add_quirk, MMC_QUIRK_ERASE_BROKEN),
+	MMC_FIXUP("SD32G", 0x41, 0x3432, add_quirk, MMC_QUIRK_ERASE_BROKEN),
+	MMC_FIXUP("SD64G", 0x41, 0x3432, add_quirk, MMC_QUIRK_ERASE_BROKEN),
 
 	END_FIXUP
 };
