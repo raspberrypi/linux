@@ -502,7 +502,6 @@ static int __nvdimm_namespace_attach_pfn(struct nd_pfn *nd_pfn)
 	pmem = dev_get_drvdata(dev);
 	pmem->data_offset = le64_to_cpu(pfn_sb->dataoff);
 	pmem->pfn_pad = start_pad + end_trunc;
-	nd_pfn->mode = le32_to_cpu(nd_pfn->pfn_sb->mode);
 	if (nd_pfn->mode == PFN_MODE_RAM) {
 		if (pmem->data_offset < SZ_8K)
 			return -EINVAL;
