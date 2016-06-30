@@ -576,9 +576,7 @@ static int iwl_mvm_scd_queue_redirect(struct iwl_mvm *mvm, int queue, int tid,
 			ret);
 
 	/* Make sure the SCD wrptr is correctly set before reconfiguring */
-	iwl_trans_txq_enable(mvm->trans, queue, iwl_mvm_ac_to_tx_fifo[ac],
-			     cmd.sta_id, tid, LINK_QUAL_AGG_FRAME_LIMIT_DEF,
-			     ssn, wdg_timeout);
+	iwl_trans_txq_enable_cfg(mvm->trans, queue, ssn, NULL, wdg_timeout);
 
 	/* TODO: Work-around SCD bug when moving back by multiples of 0x40 */
 
