@@ -546,6 +546,15 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 the DAC driver module loads.
 
 
+Name:   iqaudio-digi-wm8804-audio
+Info:   Configures the IQAudIO Digi WM8804 audio card
+Load:   dtoverlay=iqaudio-digi-wm8804-audio,<param>=<val>
+Params: card_name               Override the default, "IQAudIODigi", card name.
+        dai_name                Override the default, "IQAudIO Digi", dai name.
+        dai_stream_name         Override the default, "IQAudIO Digi HiFi",
+                                dai stream name.
+
+
 Name:   justboom-dac
 Info:   Configures the JustBoom DAC HAT, Amp HAT, DAC Zero and Amp Zero audio
         cards
