@@ -71,6 +71,13 @@ config SND_BCM2708_SOC_IQAUDIO_DAC
 	help
 	  Say Y or M if you want to add support for IQaudIO-DAC.
 
+config SND_BCM2708_SOC_IQAUDIO_DIGI
+        tristate "Support for IQAudIO Digi"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+        select SND_SOC_WM8804
+        help
+         Say Y or M if you want to add support for IQAudIO Digital IO board.
+
 config SND_BCM2708_SOC_RASPIDAC3
 	tristate "Support for RaspiDAC Rev.3x"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
