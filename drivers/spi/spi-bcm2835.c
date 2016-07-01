@@ -707,6 +707,7 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 		return -EINVAL;
 	}
 
+#if 0
 	/* now translate native cs to GPIO */
 	/* first look for chip select pins in the devices pin groups */
 	for (pingroup_index = 0;
@@ -756,6 +757,7 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 			spi->chip_select, spi->cs_gpio, err);
 		return err;
 	}
+#endif
 
 	return 0;
 }
