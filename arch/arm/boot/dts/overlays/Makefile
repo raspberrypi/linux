@@ -42,6 +42,7 @@ dtbo-$(RPI_DT_OVERLAYS) += i2s-gpio28-31.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2s-mmap.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += iqaudio-dac.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += iqaudio-dacplus.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += iqaudio-digi-wm8804-audio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += justboom-dac.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += justboom-digi.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += lirc-rpi.dtbo
