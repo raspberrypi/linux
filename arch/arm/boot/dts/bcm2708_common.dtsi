@@ -183,7 +183,7 @@
 			 * add more gpios if necessary as <&gpio 6 1>
 			 * (but do not forget to make them output!)
 			 */
-			cs-gpios = <0>, <0>;
+			cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
 		};
 
 		i2c0: i2c@7e205000 {
