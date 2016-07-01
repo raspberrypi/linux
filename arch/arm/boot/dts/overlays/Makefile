@@ -71,6 +71,7 @@ dtbo-$(RPI_DT_OVERLAYS) += rpi-ft5406.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += rpi-proto.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += rpi-sense.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += rra-digidac1-wm8741-audio.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += sc16is752-spi1.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += sdhost.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += sdio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += sdio-1bit.dtbo
