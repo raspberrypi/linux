@@ -366,6 +366,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
+			cs-gpios = <&gpio 8 1>, <&gpio 7 1>;
 		};
 
 		i2c0: i2c@7e205000 {
