@@ -23,6 +23,7 @@ snd-soc-iqaudio-digi-objs := iqaudio_digi.o
 snd-soc-raspidac3-objs := raspidac3.o
 snd-soc-audioinjector-pi-soundcard-objs := audioinjector-pi-soundcard.o
 snd-soc-digidac1-soundcard-objs := digidac1-soundcard.o
+snd-soc-dionaudio-loco-objs := dionaudio_loco.o
 
 obj-$(CONFIG_SND_BCM2708_SOC_ADAU1977_ADC) += snd-soc-adau1977-adc.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) += snd-soc-hifiberry-dac.o
@@ -38,4 +39,4 @@ obj-$(CONFIG_SND_BCM2708_SOC_IQAUDIO_DIGI) += snd-soc-iqaudio-digi.o
 obj-$(CONFIG_SND_BCM2708_SOC_RASPIDAC3) += snd-soc-raspidac3.o
 obj-$(CONFIG_SND_AUDIOINJECTOR_PI_SOUNDCARD) += snd-soc-audioinjector-pi-soundcard.o
 obj-$(CONFIG_SND_DIGIDAC1_SOUNDCARD) += snd-soc-digidac1-soundcard.o
-
+obj-$(CONFIG_SND_BCM2708_SOC_DIONAUDIO_LOCO) += snd-soc-dionaudio-loco.o
