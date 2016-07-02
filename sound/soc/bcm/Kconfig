@@ -107,3 +107,10 @@ config SND_DIGIDAC1_SOUNDCARD
         select SND_SOC_WM8741
         help
          Say Y or M if you want to add support for Red Rocks Audio DigiDAC1 board.
+
+config SND_BCM2708_SOC_DIONAUDIO_LOCO
+	tristate "Support for Dion Audio LOCO DAC-AMP"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_PCM5102a
+	help
+	  Say Y or M if you want to add support for Dion Audio LOCO.
