@@ -2313,7 +2313,7 @@ void
 perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 {
 	struct stack_frame frame;
-	const void __user *fp;
+	const unsigned long __user *fp;
 
 	if (perf_guest_cbs && perf_guest_cbs->is_in_guest()) {
 		/* TODO: We don't support guest os callchain now */
@@ -2326,7 +2326,7 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 	if (regs->flags & (X86_VM_MASK | PERF_EFLAGS_VM))
 		return;
 
-	fp = (void __user *)regs->bp;
+	fp = (unsigned long __user *)regs->bp;
 
 	perf_callchain_store(entry, regs->ip);
 
@@ -2339,16 +2339,17 @@ perf_callchain_user(struct perf_callchain_entry *entry, struct pt_regs *regs)
 	pagefault_disable();
 	while (entry->nr < PERF_MAX_STACK_DEPTH) {
 		unsigned long bytes;
+
 		frame.next_frame	     = NULL;
 		frame.return_address = 0;
 
-		if (!access_ok(VERIFY_READ, fp, 16))
+		if (!access_ok(VERIFY_READ, fp, sizeof(*fp) * 2))
 			break;
 
-		bytes = __copy_from_user_nmi(&frame.next_frame, fp, 8);
+		bytes = __copy_from_user_nmi(&frame.next_frame, fp, sizeof(*fp));
 		if (bytes != 0)
 			break;
-		bytes = __copy_from_user_nmi(&frame.return_address, fp+8, 8);
+		bytes = __copy_from_user_nmi(&frame.return_address, fp + 1, sizeof(*fp));
 		if (bytes != 0)
 			break;
 
