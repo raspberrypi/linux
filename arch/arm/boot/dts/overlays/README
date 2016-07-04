@@ -268,6 +268,12 @@ Params: gpiopin                 GPIO connected to the sensor's DATA output.
                                 (default 4)
 
 
+Name:   dionaudio-loco
+Info:   Configures the Dion Audio LOCO DAC-AMP
+Load:   dtoverlay=dionaudio-loco
+Params: <None>
+
+
 Name:   dpi24
 Info:   Overlay for a generic 24-bit DPI display
         This uses GPIOs 0-27 (so no I2C, uart etc.), and activates the output
