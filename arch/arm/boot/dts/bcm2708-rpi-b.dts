@@ -36,6 +36,7 @@
 	i2s_pins: i2s {
 		brcm,pins = <28 29 30 31>;
 		brcm,function = <6>; /* alt2 */
+	};
 
 	audio_pins: audio_pins {
 		brcm,pins = <40 45>;
