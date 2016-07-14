@@ -1647,6 +1647,7 @@ lookup_again:
 				 PNFS_UPDATE_LAYOUT_SEND_LAYOUTGET);
 	if (IS_ERR(lseg)) {
 		switch(PTR_ERR(lseg)) {
+		case -EBUSY:
 		case -ERECALLCONFLICT:
 			if (time_after(jiffies, giveup))
 				lseg = NULL;
