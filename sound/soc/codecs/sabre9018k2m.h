@@ -4,7 +4,8 @@
  * Author: Howard Qiao (howard.qiao@aoide.cc)
  *
  * Based on Sabre9018q2c Codec Driver
- * Satoru Kawase <satoru.kawase@gmail.com>, Takahito Nishiara 
+ * Satoru Kawase <satoru.kawase@gmail.com>, Takahito Nishiara
+ *      https://github.com/SatoruKawase/SabreBerry32
  *      Copyright 2016
  *
  * This program is distributed in the hope that it will be useful, but
