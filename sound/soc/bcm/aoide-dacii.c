@@ -5,6 +5,7 @@
  *
  * Based on Sabreberry32 ASoC Driver
  * Satoru Kawase <satoru.kawase@gmail.com>, Takahito Nishiara 
+ *      https://github.com/SatoruKawase/SabreBerry32
  *      Copyright 2016
  *
  * This program is free software; you can redistribute it and/or
