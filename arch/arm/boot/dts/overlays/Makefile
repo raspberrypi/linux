@@ -15,7 +15,8 @@ endif
 dtbo-$(RPI_DT_OVERLAYS) += adau1977-adc.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += ads1015.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += ads7846.dtbo
-dtbo-$(RPI_DT_OVERLAYS) += akkordion-iqdacplus.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += akkordion-iqdacplus.
+dtbo-$(RPI_DT_OVERLAYS) += aoide-dacii.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += at86rf233.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += audioinjector-wm8731-audio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += bmp085_i2c-sensor.dtbo
@@ -96,7 +97,6 @@ dtbo-$(RPI_DT_OVERLAYS) += vga666.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += w1-gpio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += w1-gpio-pullup.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += wittypi.dtbo
-dtbo-$(RPI_DT_OVERLAYS) += aoide-dacii.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)

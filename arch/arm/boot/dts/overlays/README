@@ -235,6 +235,15 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 that does not result in clipping/distortion!)
 
 
+Name:   Aoide DAC II
+Info:   Aoide DAC II Support
+Load:   dtoverlay=aoide-dacii,<param>=<val>
+Params: slave                   Make Aoide DAC II into slave mode, using Pi
+                                as master for bit clock and frame clock. 
+                                (default 0,should be 1)
+        Example: dtoverlay=aoide-dacii,slave=1
+
+
 Name:   at86rf233
 Info:   Configures the Atmel AT86RF233 802.15.4 low-power WPAN transceiver,
         connected to spi0.0
