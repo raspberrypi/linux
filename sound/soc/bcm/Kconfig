@@ -114,3 +114,10 @@ config SND_BCM2708_SOC_DIONAUDIO_LOCO
 	select SND_SOC_PCM5102a
 	help
 	  Say Y or M if you want to add support for Dion Audio LOCO.
+
+config SND_BCM2708_SOC_AOIDE_DACII
+	tristate "Support for Aoide DAC II"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_SABRE9018K2M
+	help
+	  Say Y or M if you want to add support for Aoide DAC II.
