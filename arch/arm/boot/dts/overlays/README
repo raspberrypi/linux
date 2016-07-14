@@ -239,9 +239,9 @@ Name:   aoide-dacii
 Info:   Aoide DAC II Support
 Load:   dtoverlay=aoide-dacii,<param>=<val>
 Params: slave                   Make Aoide DAC II into slave mode, using Pi
-                                as master for bit clock and frame clock. 
+                                as master for bit clock and frame clock.
                                 (default 0,should be 1)
-        Example: dtoverlay=aoide-dacii,slave=1
+        N.B. Slave mode bust be enabled on pi.(dtoverlay=aoide-dacii,slave=1)
 
 
 Name:   at86rf233
