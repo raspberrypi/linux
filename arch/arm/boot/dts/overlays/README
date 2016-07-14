@@ -235,7 +235,7 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 that does not result in clipping/distortion!)
 
 
-Name:   Aoide DAC II
+Name:   aoide-dacii
 Info:   Aoide DAC II Support
 Load:   dtoverlay=aoide-dacii,<param>=<val>
 Params: slave                   Make Aoide DAC II into slave mode, using Pi
