@@ -659,6 +659,12 @@ Params: speed                   Display SPI bus speed
 [ The pcf8563-rtc overlay has been deleted. See i2c-rtc. ]
 
 
+Name:   pi2media-csb503hta
+Info:   Configures the Pi2Media CSB503HTA audio card
+Load:   dtoverlay=pi2media-csb503hta
+Params: <None>
+
+
 Name:   pi3-act-led
 Info:   Pi3 uses a GPIO expander to drive the LEDs which can only be accessed
         from the VPU. There is a special driver for this with a separate DT

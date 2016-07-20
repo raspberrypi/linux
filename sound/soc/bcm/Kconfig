@@ -71,6 +71,13 @@ config SND_BCM2708_SOC_IQAUDIO_DAC
 	help
 	  Say Y or M if you want to add support for IQaudIO-DAC.
 
+config SND_BCM2708_SOC_PI2MEDIA_CSB503HTA
+        tristate "Support for Pi2Media CSB503HTA DAC/Headphone Amp"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+        select SND_SOC_PCM5102A
+        help
+         Say Y or M if you want to add support for Pi2Media CSB503HTA DAC/Headphone Amp.
+
 config SND_BCM2708_SOC_RASPIDAC3
 	tristate "Support for RaspiDAC Rev.3x"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
@@ -100,3 +107,4 @@ config SND_DIGIDAC1_SOUNDCARD
         select SND_SOC_WM8741
         help
          Say Y or M if you want to add support for Red Rocks Audio DigiDAC1 board.
+
