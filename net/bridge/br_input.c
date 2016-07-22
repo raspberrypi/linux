@@ -213,6 +213,16 @@ drop:
 }
 EXPORT_SYMBOL_GPL(br_handle_frame_finish);
 
+static void __br_handle_local_finish(struct sk_buff *skb)
+{
+	struct net_bridge_port *p = br_port_get_rcu(skb->dev);
+	u16 vid = 0;
+
+	/* check if vlan is allowed, to avoid spoofing */
+	if (p->flags & BR_LEARNING && br_should_learn(p, skb, &vid))
+		br_fdb_update(p->br, p, eth_hdr(skb)->h_source, vid, false);
+}
+
 /* note: already called with rcu_read_lock */
 static int br_handle_local_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
@@ -278,6 +288,14 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 
 		case 0x01:	/* IEEE MAC (Pause) */
 			goto drop;
+
+		case 0x0E:	/* 802.1AB LLDP */
+			fwd_mask |= p->br->group_fwd_mask;
+			if (fwd_mask & (1u << dest[5]))
+				goto forward;
+			*pskb = skb;
+			__br_handle_local_finish(skb);
+			return RX_HANDLER_PASS;
 
 		default:
 			/* Allow selective forwarding for most other protocols */
