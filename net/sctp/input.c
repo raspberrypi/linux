@@ -328,6 +328,7 @@ int sctp_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 		 */
 
 		sk = rcvr->sk;
+		local_bh_disable();
 		bh_lock_sock(sk);
 
 		if (sock_owned_by_user(sk)) {
@@ -339,6 +340,7 @@ int sctp_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 			sctp_inq_push(inqueue, chunk);
 
 		bh_unlock_sock(sk);
+		local_bh_enable();
 
 		/* If the chunk was backloged again, don't drop refs */
 		if (backloged)
