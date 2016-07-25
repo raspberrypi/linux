@@ -115,13 +115,13 @@ static inline void bcm2708_bsc_reset(struct bcm2708_i2c *bi)
 
 static inline void bcm2708_bsc_fifo_drain(struct bcm2708_i2c *bi)
 {
-	while ((bcm2708_rd(bi, BSC_S) & BSC_S_RXD) && (bi->pos < bi->msg->len))
+	while ((bi->pos < bi->msg->len) && (bcm2708_rd(bi, BSC_S) & BSC_S_RXD))
 		bi->msg->buf[bi->pos++] = bcm2708_rd(bi, BSC_FIFO);
 }
 
 static inline void bcm2708_bsc_fifo_fill(struct bcm2708_i2c *bi)
 {
-	while ((bcm2708_rd(bi, BSC_S) & BSC_S_TXD) && (bi->pos < bi->msg->len))
+	while ((bi->pos < bi->msg->len) && (bcm2708_rd(bi, BSC_S) & BSC_S_TXD))
 		bcm2708_wr(bi, BSC_FIFO, bi->msg->buf[bi->pos++]);
 }
 
