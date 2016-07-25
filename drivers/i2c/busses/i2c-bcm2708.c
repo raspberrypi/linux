@@ -160,7 +160,7 @@ static inline int bcm2708_bsc_setup(struct bcm2708_i2c *bi)
 			bcm2708_wr(bi, BSC_C, BSC_C_CLEAR_1);
 
 			/* Fill FIFO with entire write message (16 byte FIFO) */
-			while (bi->pos < bi->msg->len) {
+			while ((bcm2708_rd(bi, BSC_S) & BSC_S_TXD) && (bi->pos < bi->msg->len)) {
 				bcm2708_wr(bi, BSC_FIFO, bi->msg->buf[bi->pos++]);
 			}
 			/* Start write transfer (no interrupts, don't clear FIFO) */
