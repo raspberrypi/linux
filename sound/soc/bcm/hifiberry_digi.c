@@ -23,6 +23,7 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/jack.h>
+#include <linux/gpio/consumer.h>
 
 #include "../codecs/wm8804.h"
 
@@ -30,8 +31,33 @@ static short int auto_shutdown_output = 0;
 module_param(auto_shutdown_output, short, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 MODULE_PARM_DESC(auto_shutdown_output, "Shutdown SP/DIF output if playback is stopped");
 
+#define CLK_44EN_RATE 22579200UL
+#define CLK_48EN_RATE 24576000UL
+
+static bool snd_rpi_hifiberry_is_digipro;
+static struct gpio_desc *snd_rpi_hifiberry_clk44gpio;
+static struct gpio_desc *snd_rpi_hifiberry_clk48gpio;
 
 static int samplerate=44100;
+
+static uint32_t snd_rpi_hifiberry_digi_enable_clock(int sample_rate)
+{
+	switch (sample_rate) {
+	case 11025:
+	case 22050:
+	case 44100:
+	case 88200:
+	case 176400:
+		gpiod_set_value_cansleep(snd_rpi_hifiberry_clk44gpio, 1);
+		gpiod_set_value_cansleep(snd_rpi_hifiberry_clk48gpio, 0);
+		return CLK_44EN_RATE;
+	default:
+		gpiod_set_value_cansleep(snd_rpi_hifiberry_clk48gpio, 1);
+		gpiod_set_value_cansleep(snd_rpi_hifiberry_clk44gpio, 0);
+		return CLK_48EN_RATE;
+	}
+}
+
 
 static int snd_rpi_hifiberry_digi_init(struct snd_soc_pcm_runtime *rtd)
 {
@@ -39,6 +65,14 @@ static int snd_rpi_hifiberry_digi_init(struct snd_soc_pcm_runtime *rtd)
 
 	/* enable TX output */
 	snd_soc_update_bits(codec, WM8804_PWRDN, 0x4, 0x0);
+
+	/* Initialize Digi+ Pro hardware */
+	if (snd_rpi_hifiberry_is_digipro) {
+		struct snd_soc_dai_link *dai = rtd->dai_link;
+
+		dai->name = "HiFiBerry Digi+ Pro";
+		dai->stream_name = "HiFiBerry Digi+ Pro HiFi";
+	}
 
 	return 0;
 }
@@ -87,6 +121,9 @@ static int snd_rpi_hifiberry_digi_hw_params(struct snd_pcm_substream *substream,
 		mclk_freq=samplerate*128;
 		mclk_div=WM8804_MCLKDIV_128FS;
 	}
+
+	if (snd_rpi_hifiberry_is_digipro)
+		sysclk = snd_rpi_hifiberry_digi_enable_clock(samplerate);
 	
 	switch (samplerate) {
 		case 32000:
@@ -121,6 +158,7 @@ static int snd_rpi_hifiberry_digi_hw_params(struct snd_pcm_substream *substream,
 
 	ret = snd_soc_dai_set_sysclk(codec_dai, WM8804_TX_CLKSRC_PLL,
 					sysclk, SND_SOC_CLOCK_OUT);
+
 	if (ret < 0) {
 		dev_err(codec->dev,
 		"Failed to set WM8804 SYSCLK: %d\n", ret);
@@ -187,6 +225,19 @@ static int snd_rpi_hifiberry_digi_probe(struct platform_device *pdev)
 		dai->platform_name = NULL;
 		dai->platform_of_node = i2s_node;
 	    }
+
+	    snd_rpi_hifiberry_is_digipro = 1;
+
+	    snd_rpi_hifiberry_clk44gpio =
+		devm_gpiod_get(&pdev->dev, "clock44", GPIOD_OUT_LOW);
+	    if (IS_ERR(snd_rpi_hifiberry_clk44gpio))
+		snd_rpi_hifiberry_is_digipro = 0;
+
+	    snd_rpi_hifiberry_clk48gpio =
+		devm_gpiod_get(&pdev->dev, "clock48", GPIOD_OUT_LOW);
+	    if (IS_ERR(snd_rpi_hifiberry_clk48gpio))
+		snd_rpi_hifiberry_is_digipro = 0;
+
 	}
 
 	ret = snd_soc_register_card(&snd_rpi_hifiberry_digi);
