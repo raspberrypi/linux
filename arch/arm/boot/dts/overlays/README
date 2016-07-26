@@ -377,8 +377,14 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
 
 
 Name:   hifiberry-digi
-Info:   Configures the HifiBerry Digi audio card
+Info:   Configures the HifiBerry Digi and Digi+ audio card
 Load:   dtoverlay=hifiberry-digi
+Params: <None>
+
+
+Name:   hifiberry-digi-pro
+Info:   Configures the HifiBerry Digi+ Pro audio card
+Load:   dtoverlay=hifiberry-digi-pro
 Params: <None>
 
 
