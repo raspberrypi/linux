@@ -942,7 +942,6 @@ static struct sk_buff *macsec_decrypt(struct sk_buff *skb,
 	}
 
 	macsec_skb_cb(skb)->req = req;
-	macsec_skb_cb(skb)->rx_sa = rx_sa;
 	skb->dev = dev;
 	aead_request_set_callback(req, 0, macsec_decrypt_done, skb);
 
@@ -1168,6 +1167,8 @@ static rx_handler_result_t macsec_handle_frame(struct sk_buff **pskb)
 			goto drop;
 		}
 	}
+
+	macsec_skb_cb(skb)->rx_sa = rx_sa;
 
 	/* Disabled && !changed text => skip validation */
 	if (hdr->tci_an & MACSEC_TCI_C ||
