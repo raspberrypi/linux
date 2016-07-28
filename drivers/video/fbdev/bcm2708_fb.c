@@ -51,7 +51,7 @@ static const char *bcm2708_name = "BCM2708 FB";
 
 static int fbwidth = 800;  /* module parameter */
 static int fbheight = 480; /* module parameter */
-static int fbdepth = 16;   /* module parameter */
+static int fbdepth = 32;   /* module parameter */
 static int fbswap = 0;     /* module parameter */
 
 static u32 dma_busy_wait_threshold = 1<<15;
