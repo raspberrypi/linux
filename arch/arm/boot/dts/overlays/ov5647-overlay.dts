@@ -1,0 +1,63 @@
+// Definitions for OV5647 camera module on VC I2C bus
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ov5647: ov5647@36 {
+				compatible = "ov5647";
+				reg = <0x36>;
+				status = "okay";
+
+				pwdn-gpios = <&gpio 41 1>, <&gpio 32 1>;
+				clocks = <&ov5647_clk>;
+
+				ov5647_clk: camera-clk {
+					compatible = "fixed-clock";
+					#clock-cells = <0>;
+					clock-frequency = <25000000>;
+				};
+
+				port {
+					ov5647_0: endpoint {
+						remote-endpoint = <&csi1_ep>;
+						clock-lanes = <0>;
+						data-lanes = <1 2>;
+						clock-noncontinuous;
+						link-frequencies =
+							/bits/ 64 <297000000>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&csi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			port {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				csi1_ep: endpoint {
+					remote-endpoint = <&ov5647_0>;
+				};
+			};
+		};
+	};
+	__overrides__ {
+		cam0-pwdn = <&ov5647>,"pwdn-gpios:4";
+		cam0-led = <&ov5647>,"pwdn-gpios:16";
+	};
+};
