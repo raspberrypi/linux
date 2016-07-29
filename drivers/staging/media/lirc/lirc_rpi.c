@@ -79,6 +79,7 @@ static bool invert = 0;
 
 struct gpio_chip *gpiochip;
 static int irq_num;
+static int auto_sense = 1;
 
 /* forward declarations */
 static long send_pulse(unsigned long length);
@@ -279,7 +280,9 @@ static irqreturn_t irq_handler(int i, void *blah, struct pt_regs *regs)
 				 * detecting pulse while this
 				 * MUST be a space!
 				 */
-				sense = sense ? 0 : 1;
+				if (auto_sense) {
+					sense = sense ? 0 : 1;
+				}
 			}
 		} else {
 			data = (int) (deltv*1000000 +
@@ -417,6 +420,7 @@ static int init_port(void)
 		printk(KERN_INFO LIRC_DRIVER_NAME
 		       ": manually using active %s receiver on GPIO pin %d\n",
 		       sense ? "low" : "high", gpio_in_pin);
+		auto_sense = 0;
 	}
 
 	return 0;
