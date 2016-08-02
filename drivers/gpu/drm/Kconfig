@@ -22,7 +22,7 @@ menuconfig DRM
 	  (/dev/agpgart) support if it is available for your platform.
 
 config DRM_MIPI_DSI
-	bool
+	tristate
 	depends on DRM
 
 config DRM_KMS_HELPER
