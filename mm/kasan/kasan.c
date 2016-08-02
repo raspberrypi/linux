@@ -562,7 +562,7 @@ void kasan_kmalloc(struct kmem_cache *cache, const void *object, size_t size,
 	unsigned long redzone_start;
 	unsigned long redzone_end;
 
-	if (flags & __GFP_RECLAIM)
+	if (gfpflags_allow_blocking(flags))
 		quarantine_reduce();
 
 	if (unlikely(object == NULL))
@@ -595,7 +595,7 @@ void kasan_kmalloc_large(const void *ptr, size_t size, gfp_t flags)
 	unsigned long redzone_start;
 	unsigned long redzone_end;
 
-	if (flags & __GFP_RECLAIM)
+	if (gfpflags_allow_blocking(flags))
 		quarantine_reduce();
 
 	if (unlikely(ptr == NULL))
