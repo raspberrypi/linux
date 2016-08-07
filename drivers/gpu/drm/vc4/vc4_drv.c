@@ -90,6 +90,7 @@ static struct drm_driver vc4_drm_driver = {
 			    DRIVER_ATOMIC |
 			    DRIVER_GEM |
 			    DRIVER_HAVE_IRQ |
+			    DRIVER_RENDER |
 			    DRIVER_PRIME),
 	.lastclose = vc4_lastclose,
 	.preclose = vc4_drm_preclose,
@@ -101,7 +102,7 @@ static struct drm_driver vc4_drm_driver = {
 
 	.enable_vblank = vc4_enable_vblank,
 	.disable_vblank = vc4_disable_vblank,
-	.get_vblank_counter = drm_vblank_count,
+	.get_vblank_counter = drm_vblank_no_hw_counter,
 
 #if defined(CONFIG_DEBUG_FS)
 	.debugfs_init = vc4_debugfs_init,
@@ -164,6 +165,24 @@ static void vc4_match_add_drivers(struct device *dev,
 	}
 }
 
+static void vc4_kick_out_firmware_fb(void)
+{
+	struct apertures_struct *ap;
+
+	ap = alloc_apertures(1);
+	if (!ap)
+		return;
+
+	/* Since VC4 is a UMA device, the simplefb node may have been
+	 * located anywhere in memory.
+	 */
+	ap->ranges[0].base = 0;
+	ap->ranges[0].size = ~0;
+
+	remove_conflicting_framebuffers(ap, "vc4drmfb", false);
+	kfree(ap);
+}
+
 static int vc4_drm_bind(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -207,6 +226,8 @@ static int vc4_drm_bind(struct device *dev)
 	ret = component_bind_all(dev, drm);
 	if (ret)
 		goto gem_destroy;
+
+	vc4_kick_out_firmware_fb();
 
 	ret = drm_dev_register(drm, 0);
 	if (ret < 0)
@@ -259,6 +280,7 @@ static const struct component_master_ops vc4_drm_ops = {
 
 static struct platform_driver *const component_drivers[] = {
 	&vc4_hdmi_driver,
+	&vc4_dpi_driver,
 	&vc4_crtc_driver,
 	&vc4_hvs_driver,
 	&vc4_v3d_driver,

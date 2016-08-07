@@ -15,6 +15,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/gpio/consumer.h>
 #include <linux/platform_device.h>
 
 #include <sound/core.h>
@@ -24,6 +25,8 @@
 #include <sound/jack.h>
 
 static bool digital_gain_0db_limit = true;
+
+static struct gpio_desc *mute_gpio;
 
 static int snd_rpi_iqaudio_dac_init(struct snd_soc_pcm_runtime *rtd)
 {
@@ -41,17 +44,65 @@ static int snd_rpi_iqaudio_dac_init(struct snd_soc_pcm_runtime *rtd)
 }
 
 static int snd_rpi_iqaudio_dac_hw_params(struct snd_pcm_substream *substream,
-				       struct snd_pcm_hw_params *params)
+	struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-// NOT USED	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-// NOT USED	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 
 	unsigned int sample_bits =
 		snd_pcm_format_physical_width(params_format(params));
 
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, sample_bits * 2);
+}
+
+static void snd_rpi_iqaudio_gpio_mute(struct snd_soc_card *card)
+{
+	if (mute_gpio) {
+		dev_info(card->dev, "%s: muting amp using GPIO22\n",
+			 __func__);
+		gpiod_set_value_cansleep(mute_gpio, 0);
+	}
+}
+
+static void snd_rpi_iqaudio_gpio_unmute(struct snd_soc_card *card)
+{
+	if (mute_gpio) {
+		dev_info(card->dev, "%s: un-muting amp using GPIO22\n",
+			 __func__);
+		gpiod_set_value_cansleep(mute_gpio, 1);
+	}
+}
+
+static int snd_rpi_iqaudio_set_bias_level(struct snd_soc_card *card,
+	struct snd_soc_dapm_context *dapm, enum snd_soc_bias_level level)
+{
+	struct snd_soc_dai *codec_dai = card->rtd[0].codec_dai;
+
+	if (dapm->dev != codec_dai->dev)
+		return 0;
+
+	switch (level) {
+	case SND_SOC_BIAS_PREPARE:
+		if (dapm->bias_level != SND_SOC_BIAS_STANDBY)
+			break;
+
+		/* UNMUTE AMP */
+		snd_rpi_iqaudio_gpio_unmute(card);
+
+		break;
+	case SND_SOC_BIAS_STANDBY:
+		if (dapm->bias_level != SND_SOC_BIAS_PREPARE)
+			break;
+
+		/* MUTE AMP */
+		snd_rpi_iqaudio_gpio_mute(card);
+
+		break;
+	default:
+		break;
+	}
+
+	return 0;
 }
 
 /* machine stream operations */
@@ -82,46 +133,81 @@ static struct snd_soc_card snd_rpi_iqaudio_dac = {
 static int snd_rpi_iqaudio_dac_probe(struct platform_device *pdev)
 {
 	int ret = 0;
+	bool gpio_unmute = false;
 
 	snd_rpi_iqaudio_dac.dev = &pdev->dev;
 
 	if (pdev->dev.of_node) {
-	    struct device_node *i2s_node;
-	    struct snd_soc_card *card = &snd_rpi_iqaudio_dac;
-	    struct snd_soc_dai_link *dai = &snd_rpi_iqaudio_dac_dai[0];
-	    i2s_node = of_parse_phandle(pdev->dev.of_node,
-					"i2s-controller", 0);
+		struct device_node *i2s_node;
+		struct snd_soc_card *card = &snd_rpi_iqaudio_dac;
+		struct snd_soc_dai_link *dai = &snd_rpi_iqaudio_dac_dai[0];
+		bool auto_gpio_mute = false;
 
-	    if (i2s_node) {
-		dai->cpu_dai_name = NULL;
-		dai->cpu_of_node = i2s_node;
-		dai->platform_name = NULL;
-		dai->platform_of_node = i2s_node;
-	    }
+		i2s_node = of_parse_phandle(pdev->dev.of_node,
+					    "i2s-controller", 0);
+		if (i2s_node) {
+			dai->cpu_dai_name = NULL;
+			dai->cpu_of_node = i2s_node;
+			dai->platform_name = NULL;
+			dai->platform_of_node = i2s_node;
+		}
 
-	    digital_gain_0db_limit = !of_property_read_bool(pdev->dev.of_node,
-					"iqaudio,24db_digital_gain");
-	    if (of_property_read_string(pdev->dev.of_node, "card_name",
-					&card->name))
-		card->name = "IQaudIODAC";
-	    if (of_property_read_string(pdev->dev.of_node, "dai_name",
-					&dai->name))
-		dai->name = "IQaudIO DAC";
-	    if (of_property_read_string(pdev->dev.of_node, "dai_stream_name",
-					&dai->stream_name))
-		dai->stream_name = "IQaudIO DAC HiFi";
+		digital_gain_0db_limit = !of_property_read_bool(
+			pdev->dev.of_node, "iqaudio,24db_digital_gain");
+
+		if (of_property_read_string(pdev->dev.of_node, "card_name",
+					    &card->name))
+			card->name = "IQaudIODAC";
+
+		if (of_property_read_string(pdev->dev.of_node, "dai_name",
+					    &dai->name))
+			dai->name = "IQaudIO DAC";
+
+		if (of_property_read_string(pdev->dev.of_node,
+					"dai_stream_name", &dai->stream_name))
+			dai->stream_name = "IQaudIO DAC HiFi";
+
+		/* gpio_unmute - one time unmute amp using GPIO */
+		gpio_unmute = of_property_read_bool(pdev->dev.of_node,
+						    "iqaudio-dac,unmute-amp");
+
+		/* auto_gpio_mute - mute/unmute amp using GPIO */
+		auto_gpio_mute = of_property_read_bool(pdev->dev.of_node,
+						"iqaudio-dac,auto-mute-amp");
+
+		if (auto_gpio_mute || gpio_unmute) {
+			mute_gpio = devm_gpiod_get_optional(&pdev->dev, "mute",
+							    GPIOD_OUT_LOW);
+			if (IS_ERR(mute_gpio)) {
+				ret = PTR_ERR(mute_gpio);
+				dev_err(&pdev->dev,
+					"Failed to get mute gpio: %d\n", ret);
+				return ret;
+			}
+
+			if (auto_gpio_mute && mute_gpio)
+				snd_rpi_iqaudio_dac.set_bias_level =
+						snd_rpi_iqaudio_set_bias_level;
+		}
 	}
 
 	ret = snd_soc_register_card(&snd_rpi_iqaudio_dac);
-	if (ret)
+	if (ret) {
 		dev_err(&pdev->dev,
 			"snd_soc_register_card() failed: %d\n", ret);
+		return ret;
+	}
 
-	return ret;
+	if (gpio_unmute && mute_gpio)
+		snd_rpi_iqaudio_gpio_unmute(&snd_rpi_iqaudio_dac);
+
+	return 0;
 }
 
 static int snd_rpi_iqaudio_dac_remove(struct platform_device *pdev)
 {
+	snd_rpi_iqaudio_gpio_mute(&snd_rpi_iqaudio_dac);
+
 	return snd_soc_unregister_card(&snd_rpi_iqaudio_dac);
 }
 

@@ -707,6 +707,7 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 		return -EINVAL;
 	}
 
+#if 0
 	/* now translate native cs to GPIO */
 	/* first look for chip select pins in the devices pin groups */
 	for (pingroup_index = 0;
@@ -761,6 +762,7 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 	 * so we are setting it here explicitly
 	 */
 	gpio_set_value(spi->cs_gpio, (spi->mode & SPI_CS_HIGH) ? 0 : 1);
+#endif
 
 	return 0;
 }

@@ -19,6 +19,21 @@
 			};
 		};
 	};
+
+	fragment@1 {
+		target-path = "/aliases";
+		__overlay__ {
+			i2c_gpio = "/i2c@0";
+		};
+	};
+
+	fragment@2 {
+		target-path = "/__symbols__";
+		__overlay__ {
+			i2c_gpio = "/i2c@0";
+		};
+	};
+
 	__overrides__ {
 		i2c_gpio_sda = <&i2c_gpio>,"gpios:4";
 		i2c_gpio_scl = <&i2c_gpio>,"gpios:16";

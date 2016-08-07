@@ -37,6 +37,11 @@
 		brcm,pins = <18 19 20 21>;
 		brcm,function = <4>; /* alt0 */
 	};
+
+	audio_pins: audio_pins {
+		brcm,pins = <40 45>;
+		brcm,function = <4>;
+	};
 };
 
 &sdhost {
@@ -118,6 +123,11 @@
 
 &hdmi {
 	hpd-gpios = <&gpio 46 GPIO_ACTIVE_LOW>;
+};
+
+&audio {
+	pinctrl-names = "default";
+	pinctrl-0 = <&audio_pins>;
 };
 
 / {

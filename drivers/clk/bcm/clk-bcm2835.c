@@ -446,6 +446,8 @@ struct bcm2835_clock_data {
 	/* Number of fractional bits in the divider */
 	u32 frac_bits;
 
+	u32 flags;
+
 	bool is_vpu_clock;
 	bool is_mash_clock;
 };
@@ -1018,15 +1020,27 @@ static int bcm2835_clock_set_rate(struct clk_hw *hw,
 	return 0;
 }
 
+static bool
+bcm2835_clk_is_pllc(struct clk_hw *hw)
+{
+	if (!hw)
+		return false;
+
+	return strncmp(clk_hw_get_name(hw), "pllc", 4) == 0;
+}
+
 static int bcm2835_clock_determine_rate(struct clk_hw *hw,
 					struct clk_rate_request *req)
 {
 	struct bcm2835_clock *clock = bcm2835_clock_from_hw(hw);
 	struct clk_hw *parent, *best_parent = NULL;
+	bool current_parent_is_pllc;
 	unsigned long rate, best_rate = 0;
 	unsigned long prate, best_prate = 0;
 	size_t i;
 	u32 div;
+
+	current_parent_is_pllc = bcm2835_clk_is_pllc(clk_hw_get_parent(hw));
 
 	/*
 	 * Select parent clock that results in the closest but lower rate
@@ -1035,6 +1049,17 @@ static int bcm2835_clock_determine_rate(struct clk_hw *hw,
 		parent = clk_hw_get_parent_by_index(hw, i);
 		if (!parent)
 			continue;
+
+		/*
+		 * Don't choose a PLLC-derived clock as our parent
+		 * unless it had been manually set that way.  PLLC's
+		 * frequency gets adjusted by the firmware due to
+		 * over-temp or under-voltage conditions, without
+		 * prior notification to our clock consumer.
+		 */
+		if (bcm2835_clk_is_pllc(parent) && !current_parent_is_pllc)
+			continue;
+
 		prate = clk_hw_get_rate(parent);
 		div = bcm2835_clock_choose_div(hw, req->rate, prate, true);
 		rate = bcm2835_clock_rate_from_divisor(clock, prate, div);
@@ -1242,7 +1267,16 @@ static struct clk *bcm2835_register_clock(struct bcm2835_cprman *cprman,
 	init.parent_names = parents;
 	init.num_parents = data->num_mux_parents;
 	init.name = data->name;
-	init.flags = CLK_IGNORE_UNUSED;
+	init.flags = data->flags | CLK_IGNORE_UNUSED;
+
+	/*
+	 * Some GPIO clocks for ethernet/wifi PLLs are marked as
+	 * critical (since some platforms use them), but if the
+	 * firmware didn't have them turned on then they clearly
+	 * aren't actually critical.
+	 */
+	if ((cprman_read(cprman, data->ctl_reg) & CM_ENABLE) == 0)
+		init.flags &= ~CLK_IS_CRITICAL;
 
 	if (data->is_vpu_clock) {
 		init.ops = &bcm2835_vpu_clock_clk_ops;
@@ -1661,6 +1695,7 @@ static const struct bcm2835_clk_desc clk_desc_array[] = {
 		.div_reg = CM_VPUDIV,
 		.int_bits = 12,
 		.frac_bits = 8,
+		.flags = CLK_IS_CRITICAL,
 		.is_vpu_clock = true),
 
 	/* clocks with per parent mux */
@@ -1717,13 +1752,15 @@ static const struct bcm2835_clk_desc clk_desc_array[] = {
 		.div_reg = CM_GP1DIV,
 		.int_bits = 12,
 		.frac_bits = 12,
+		.flags = CLK_IS_CRITICAL,
 		.is_mash_clock = true),
 	[BCM2835_CLOCK_GP2]	= REGISTER_PER_CLK(
 		.name = "gp2",
 		.ctl_reg = CM_GP2CTL,
 		.div_reg = CM_GP2DIV,
 		.int_bits = 12,
-		.frac_bits = 12),
+		.frac_bits = 12,
+		.flags = CLK_IS_CRITICAL),
 
 	/* HDMI state machine */
 	[BCM2835_CLOCK_HSM]	= REGISTER_PER_CLK(

@@ -1,5 +1,5 @@
 /*
- * ASoC Driver for BoomBerry Raspberry Pi Digi HAT Sound Card
+ * ASoC Driver for JustBoom Raspberry Pi Digi HAT Sound Card
  *
  * Author:	Milan Neskovic
  *		Copyright 2016
@@ -27,7 +27,7 @@
 
 #include "../codecs/wm8804.h"
 
-static int snd_rpi_boomberry_digi_init(struct snd_soc_pcm_runtime *rtd)
+static int snd_rpi_justboom_digi_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
 
@@ -37,7 +37,7 @@ static int snd_rpi_boomberry_digi_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-static int snd_rpi_boomberry_digi_startup(struct snd_pcm_substream *substream) {
+static int snd_rpi_justboom_digi_startup(struct snd_pcm_substream *substream) {
 	/* turn on digital output */
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
@@ -45,14 +45,14 @@ static int snd_rpi_boomberry_digi_startup(struct snd_pcm_substream *substream) {
 	return 0;
 }
 
-static void snd_rpi_boomberry_digi_shutdown(struct snd_pcm_substream *substream) {
+static void snd_rpi_justboom_digi_shutdown(struct snd_pcm_substream *substream) {
 	/* turn off output */
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 	snd_soc_update_bits(codec, WM8804_PWRDN, 0x3c, 0x3c);
 }
 
-static int snd_rpi_boomberry_digi_hw_params(struct snd_pcm_substream *substream,
+static int snd_rpi_justboom_digi_hw_params(struct snd_pcm_substream *substream,
 				       struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -130,44 +130,44 @@ static int snd_rpi_boomberry_digi_hw_params(struct snd_pcm_substream *substream,
 }
 
 /* machine stream operations */
-static struct snd_soc_ops snd_rpi_boomberry_digi_ops = {
-	.hw_params = snd_rpi_boomberry_digi_hw_params,
-        .startup = snd_rpi_boomberry_digi_startup,
-        .shutdown = snd_rpi_boomberry_digi_shutdown,
+static struct snd_soc_ops snd_rpi_justboom_digi_ops = {
+	.hw_params = snd_rpi_justboom_digi_hw_params,
+        .startup = snd_rpi_justboom_digi_startup,
+        .shutdown = snd_rpi_justboom_digi_shutdown,
 };
 
-static struct snd_soc_dai_link snd_rpi_boomberry_digi_dai[] = {
+static struct snd_soc_dai_link snd_rpi_justboom_digi_dai[] = {
 {
-	.name		= "BoomBerry Digi",
-	.stream_name	= "BoomBerry Digi HiFi",
+	.name		= "JustBoom Digi",
+	.stream_name	= "JustBoom Digi HiFi",
 	.cpu_dai_name	= "bcm2708-i2s.0",
 	.codec_dai_name	= "wm8804-spdif",
 	.platform_name	= "bcm2708-i2s.0",
 	.codec_name	= "wm8804.1-003b",
 	.dai_fmt	= SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 				SND_SOC_DAIFMT_CBM_CFM,
-	.ops		= &snd_rpi_boomberry_digi_ops,
-	.init		= snd_rpi_boomberry_digi_init,
+	.ops		= &snd_rpi_justboom_digi_ops,
+	.init		= snd_rpi_justboom_digi_init,
 },
 };
 
 /* audio machine driver */
-static struct snd_soc_card snd_rpi_boomberry_digi = {
-	.name         = "snd_rpi_boomberry_digi",
+static struct snd_soc_card snd_rpi_justboom_digi = {
+	.name         = "snd_rpi_justboom_digi",
 	.owner        = THIS_MODULE,
-	.dai_link     = snd_rpi_boomberry_digi_dai,
-	.num_links    = ARRAY_SIZE(snd_rpi_boomberry_digi_dai),
+	.dai_link     = snd_rpi_justboom_digi_dai,
+	.num_links    = ARRAY_SIZE(snd_rpi_justboom_digi_dai),
 };
 
-static int snd_rpi_boomberry_digi_probe(struct platform_device *pdev)
+static int snd_rpi_justboom_digi_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 
-	snd_rpi_boomberry_digi.dev = &pdev->dev;
+	snd_rpi_justboom_digi.dev = &pdev->dev;
 
 	if (pdev->dev.of_node) {
 	    struct device_node *i2s_node;
-	    struct snd_soc_dai_link *dai = &snd_rpi_boomberry_digi_dai[0];
+	    struct snd_soc_dai_link *dai = &snd_rpi_justboom_digi_dai[0];
 	    i2s_node = of_parse_phandle(pdev->dev.of_node,
 					"i2s-controller", 0);
 
@@ -179,7 +179,7 @@ static int snd_rpi_boomberry_digi_probe(struct platform_device *pdev)
 	    }
 	}
 
-	ret = snd_soc_register_card(&snd_rpi_boomberry_digi);
+	ret = snd_soc_register_card(&snd_rpi_justboom_digi);
 	if (ret)
 		dev_err(&pdev->dev,
 			"snd_soc_register_card() failed: %d\n", ret);
@@ -187,29 +187,29 @@ static int snd_rpi_boomberry_digi_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int snd_rpi_boomberry_digi_remove(struct platform_device *pdev)
+static int snd_rpi_justboom_digi_remove(struct platform_device *pdev)
 {
-	return snd_soc_unregister_card(&snd_rpi_boomberry_digi);
+	return snd_soc_unregister_card(&snd_rpi_justboom_digi);
 }
 
-static const struct of_device_id snd_rpi_boomberry_digi_of_match[] = {
-	{ .compatible = "boomberry,boomberry-digi", },
+static const struct of_device_id snd_rpi_justboom_digi_of_match[] = {
+	{ .compatible = "justboom,justboom-digi", },
 	{},
 };
-MODULE_DEVICE_TABLE(of, snd_rpi_boomberry_digi_of_match);
+MODULE_DEVICE_TABLE(of, snd_rpi_justboom_digi_of_match);
 
-static struct platform_driver snd_rpi_boomberry_digi_driver = {
+static struct platform_driver snd_rpi_justboom_digi_driver = {
 	.driver = {
-		.name   = "snd-rpi-boomberry-digi",
+		.name   = "snd-rpi-justboom-digi",
 		.owner  = THIS_MODULE,
-		.of_match_table = snd_rpi_boomberry_digi_of_match,
+		.of_match_table = snd_rpi_justboom_digi_of_match,
 	},
-	.probe          = snd_rpi_boomberry_digi_probe,
-	.remove         = snd_rpi_boomberry_digi_remove,
+	.probe          = snd_rpi_justboom_digi_probe,
+	.remove         = snd_rpi_justboom_digi_remove,
 };
 
-module_platform_driver(snd_rpi_boomberry_digi_driver);
+module_platform_driver(snd_rpi_justboom_digi_driver);
 
-MODULE_AUTHOR("Milan Neskovic <info@boomberry.co>");
-MODULE_DESCRIPTION("ASoC Driver for BoomBerry PI Digi HAT Sound Card");
+MODULE_AUTHOR("Milan Neskovic <info@justboom.co>");
+MODULE_DESCRIPTION("ASoC Driver for JustBoom PI Digi HAT Sound Card");
 MODULE_LICENSE("GPL v2");

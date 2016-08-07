@@ -2466,6 +2466,11 @@ static int __clk_init(struct device *dev, struct clk *clk_user)
 	if (core->ops->init)
 		core->ops->init(core->hw);
 
+	if (core->flags & CLK_IS_CRITICAL) {
+		clk_core_prepare(core);
+		clk_core_enable(core);
+	}
+
 	kref_init(&core->ref);
 out:
 	clk_prepare_unlock();

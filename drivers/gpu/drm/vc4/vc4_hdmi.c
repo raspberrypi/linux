@@ -166,6 +166,8 @@ vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 	struct drm_device *dev = connector->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 
+	return connector_status_connected;
+
 	if (vc4->hdmi->hpd_gpio) {
 		if (gpio_get_value_cansleep(vc4->hdmi->hpd_gpio) ^
 		    vc4->hdmi->hpd_active_low)
@@ -573,7 +575,7 @@ err_unprepare_hsm:
 err_unprepare_pix:
 	clk_disable_unprepare(hdmi->pixel_clock);
 err_put_i2c:
-	put_device(&vc4->hdmi->ddc->dev);
+	put_device(&hdmi->ddc->dev);
 
 	return ret;
 }

@@ -137,6 +137,13 @@ enum {
 module_param(perdev_minors, int, 0444);
 MODULE_PARM_DESC(perdev_minors, "Minors numbers to allocate per device");
 
+/*
+ * Allow quirks to be overridden for the current card
+ */
+static char *card_quirks;
+module_param(card_quirks, charp, 0644);
+MODULE_PARM_DESC(card_quirks, "Force the use of the indicated quirks (a bitfield)");
+
 static inline int mmc_blk_part_switch(struct mmc_card *card,
 				      struct mmc_blk_data *md);
 static int get_card_status(struct mmc_card *card, u32 *status, int retries);
@@ -2514,10 +2521,11 @@ static const struct mmc_fixup blk_fixups[] =
 		  MMC_QUIRK_BLK_NO_CMD23),
 
 	/*
-	 * Some Micron MMC cards needs longer data read timeout than
-	 * indicated in CSD.
+	 * Some MMC cards need longer data read timeout than indicated in CSD.
 	 */
 	MMC_FIXUP(CID_NAME_ANY, CID_MANFID_MICRON, 0x200, add_quirk_mmc,
+		  MMC_QUIRK_LONG_READ_TIME),
+	MMC_FIXUP("008GE0", CID_MANFID_TOSHIBA, CID_OEMID_ANY, add_quirk_mmc,
 		  MMC_QUIRK_LONG_READ_TIME),
 
 	/*
@@ -2555,8 +2563,9 @@ static const struct mmc_fixup blk_fixups[] =
 	 *  On some Kingston SD cards, multiple erases of less than 64
 	 *  sectors can cause corruption.
 	 */
-	MMC_FIXUP("SD16G", 0x41, 0x3432, add_quirk_mmc,
-		  MMC_QUIRK_ERASE_BROKEN),
+	MMC_FIXUP("SD16G", 0x41, 0x3432, add_quirk, MMC_QUIRK_ERASE_BROKEN),
+	MMC_FIXUP("SD32G", 0x41, 0x3432, add_quirk, MMC_QUIRK_ERASE_BROKEN),
+	MMC_FIXUP("SD64G", 0x41, 0x3432, add_quirk, MMC_QUIRK_ERASE_BROKEN),
 
 	END_FIXUP
 };
@@ -2565,6 +2574,7 @@ static int mmc_blk_probe(struct mmc_card *card)
 {
 	struct mmc_blk_data *md, *part_md;
 	char cap_str[10];
+	char quirk_str[24];
 
 	/*
 	 * Check that the card supports the command class(es) we need.
@@ -2572,7 +2582,16 @@ static int mmc_blk_probe(struct mmc_card *card)
 	if (!(card->csd.cmdclass & CCC_BLOCK_READ))
 		return -ENODEV;
 
-	mmc_fixup_device(card, blk_fixups);
+	if (card_quirks) {
+		unsigned long quirks;
+		if (kstrtoul(card_quirks, 0, &quirks) == 0)
+			card->quirks = (unsigned int)quirks;
+		else
+			pr_err("mmc_block: Invalid card_quirks parameter '%s'\n",
+			       card_quirks);
+	}
+	else
+		mmc_fixup_device(card, blk_fixups);
 
 	md = mmc_blk_alloc(card);
 	if (IS_ERR(md))
@@ -2580,9 +2599,14 @@ static int mmc_blk_probe(struct mmc_card *card)
 
 	string_get_size((u64)get_capacity(md->disk), 512, STRING_UNITS_2,
 			cap_str, sizeof(cap_str));
-	pr_info("%s: %s %s %s %s\n",
+	if (card->quirks)
+		snprintf(quirk_str, sizeof(quirk_str),
+			 " (quirks 0x%08x)", card->quirks);
+	else
+		quirk_str[0] = '\0';
+	pr_info("%s: %s %s %s%s%s\n",
 		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
-		cap_str, md->read_only ? "(ro)" : "");
+		cap_str, md->read_only ? " (ro)" : "", quirk_str);
 
 	if (mmc_blk_alloc_parts(card, md))
 		goto out;

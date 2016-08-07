@@ -47,6 +47,7 @@ struct pcm512x_priv {
 /* Clock rate of CLK48EN attached to GPIO3 pin */
 #define CLK_48EN_RATE 24576000UL
 
+static bool slave;
 static bool snd_rpi_hifiberry_is_dacpro;
 static bool digital_gain_0db_limit = true;
 
@@ -145,8 +146,11 @@ static int snd_rpi_hifiberry_dacplus_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_codec *codec = rtd->codec;
 	struct pcm512x_priv *priv;
 
-	snd_rpi_hifiberry_is_dacpro
-		= snd_rpi_hifiberry_dacplus_is_pro_card(codec);
+	if (slave)
+		snd_rpi_hifiberry_is_dacpro = false;
+	else
+		snd_rpi_hifiberry_is_dacpro =
+				snd_rpi_hifiberry_dacplus_is_pro_card(codec);
 
 	if (snd_rpi_hifiberry_is_dacpro) {
 		struct snd_soc_dai_link *dai = rtd->dai_link;
@@ -314,6 +318,8 @@ static int snd_rpi_hifiberry_dacplus_probe(struct platform_device *pdev)
 
 		digital_gain_0db_limit = !of_property_read_bool(
 			pdev->dev.of_node, "hifiberry,24db_digital_gain");
+		slave = of_property_read_bool(pdev->dev.of_node,
+						"hifiberry-dacplus,slave");
 	}
 
 	ret = snd_soc_register_card(&snd_rpi_hifiberry_dacplus);
