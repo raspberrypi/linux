@@ -50,6 +50,24 @@ static int mipi_dsi_device_match(struct device *dev, struct device_driver *drv)
 	return of_driver_match_device(dev, drv);
 }
 
+/**
+ * Send modalias events when devices are created on the bus, so that
+ * modules can load automatically.
+ */
+static int mipi_dsi_uevent(struct device *dev, struct kobj_uevent_env *env)
+{
+	int rc;
+
+	/* Just do the OF uevent, which emits the compatible string so
+	 * that a MODULE_DEVICE_TABLE(of, ...) works.
+	 */
+	rc = of_device_uevent_modalias(dev, env);
+	if (rc != -ENODEV)
+		return rc;
+
+	return 0;
+}
+
 static const struct dev_pm_ops mipi_dsi_device_pm_ops = {
 	.runtime_suspend = pm_generic_runtime_suspend,
 	.runtime_resume = pm_generic_runtime_resume,
@@ -65,6 +83,7 @@ static struct bus_type mipi_dsi_bus_type = {
 	.name = "mipi-dsi",
 	.match = mipi_dsi_device_match,
 	.pm = &mipi_dsi_device_pm_ops,
+	.uevent = mipi_dsi_uevent,
 };
 
 static int of_device_match(struct device *dev, void *data)
