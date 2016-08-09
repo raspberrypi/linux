@@ -30,5 +30,6 @@
 	__overrides__ {
 		gpiopin = <&pps>,"gpios:4",
 			  <&pps_pins>,"brcm,pins:0";
+		assert_falling_edge = <&pps>,"assert-falling-edge?";
 	};
 };

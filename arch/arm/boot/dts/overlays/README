@@ -797,6 +797,8 @@ Name:   pps-gpio
 Info:   Configures the pps-gpio (pulse-per-second time signal via GPIO).
 Load:   dtoverlay=pps-gpio,<param>=<val>
 Params: gpiopin                 Input GPIO (default "18")
+        assert_falling_edge     When present, assert is indicated by a falling
+                                edge, rather than by a rising edge
 
 
 Name:   pwm
