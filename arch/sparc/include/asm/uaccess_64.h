@@ -98,7 +98,6 @@ struct exception_table_entry {
         unsigned int insn, fixup;
 };
 
-void __ret_efault(void);
 void __retl_efault(void);
 
 /* Uh, these should become the main single-value transfer routines..
