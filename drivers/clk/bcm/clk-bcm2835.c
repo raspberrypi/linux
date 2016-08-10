@@ -36,6 +36,7 @@
 
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
+#include <linux/clk.h>
 #include <linux/clk/bcm2835.h>
 #include <linux/debugfs.h>
 #include <linux/module.h>
@@ -296,11 +297,29 @@
 #define LOCK_TIMEOUT_NS		100000000
 #define BCM2835_MAX_FB_RATE	1750000000u
 
+/*
+ * Names of clocks used within the driver that need to be replaced
+ * with an external parent's name.  This array is in the order that
+ * the clocks node in the DT references external clocks.
+ */
+static const char *cprman_parent_names[] = {
+	"xosc",
+	"dsi1_byte",
+	"dsi1_ddr2",
+	"dsi1_ddr",
+};
+
 struct bcm2835_cprman {
 	struct device *dev;
 	void __iomem *regs;
 	spinlock_t regs_lock; /* spinlock for all clocks */
-	const char *osc_name;
+
+	/*
+	 * Real names of cprman clock parents looked up through
+	 * of_clk_get_parent_name(), which will be used in the
+	 * parent_names[] arrays for clock registration.
+	 */
+	const char *real_parent_names[ARRAY_SIZE(cprman_parent_names)];
 
 	struct clk_onecell_data onecell;
 	struct clk *clks[];
@@ -915,6 +934,9 @@ static long bcm2835_clock_rate_from_divisor(struct bcm2835_clock *clock,
 	const struct bcm2835_clock_data *data = clock->data;
 	u64 temp;
 
+	if (data->int_bits == 0 && data->frac_bits == 0)
+		return parent_rate;
+
 	/*
 	 * The divisor is a 12.12 fixed point field, but only some of
 	 * the bits are populated in any given clock.
@@ -938,7 +960,12 @@ static unsigned long bcm2835_clock_get_rate(struct clk_hw *hw,
 	struct bcm2835_clock *clock = bcm2835_clock_from_hw(hw);
 	struct bcm2835_cprman *cprman = clock->cprman;
 	const struct bcm2835_clock_data *data = clock->data;
-	u32 div = cprman_read(cprman, data->div_reg);
+	u32 div;
+
+	if (data->int_bits == 0 && data->frac_bits == 0)
+		return parent_rate;
+
+	div = cprman_read(cprman, data->div_reg);
 
 	return bcm2835_clock_rate_from_divisor(clock, parent_rate, div);
 }
@@ -1167,7 +1194,7 @@ static struct clk *bcm2835_register_pll(struct bcm2835_cprman *cprman,
 	memset(&init, 0, sizeof(init));
 
 	/* All of the PLLs derive from the external oscillator. */
-	init.parent_names = &cprman->osc_name;
+	init.parent_names = &cprman->real_parent_names[0];
 	init.num_parents = 1;
 	init.name = data->name;
 	init.ops = &bcm2835_pll_clk_ops;
@@ -1208,7 +1235,7 @@ bcm2835_register_pll_divider(struct bcm2835_cprman *cprman,
 	init.num_parents = 1;
 	init.name = divider_name;
 	init.ops = &bcm2835_pll_divider_clk_ops;
-	init.flags = CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED;
+	init.flags = CLK_IGNORE_UNUSED;
 
 	divider = devm_kzalloc(cprman->dev, sizeof(*divider), GFP_KERNEL);
 	if (!divider)
@@ -1250,17 +1277,21 @@ static struct clk *bcm2835_register_clock(struct bcm2835_cprman *cprman,
 	struct bcm2835_clock *clock;
 	struct clk_init_data init;
 	const char *parents[1 << CM_SRC_BITS];
-	size_t i;
+	size_t i, j;
 
 	/*
-	 * Replace our "xosc" references with the oscillator's
-	 * actual name.
+	 * Replace our strings referencing parent clocks with the
+	 * actual clock-output-name of the parent.
 	 */
 	for (i = 0; i < data->num_mux_parents; i++) {
-		if (strcmp(data->parents[i], "xosc") == 0)
-			parents[i] = cprman->osc_name;
-		else
-			parents[i] = data->parents[i];
+		parents[i] = data->parents[i];
+
+		for (j = 0; j < ARRAY_SIZE(cprman_parent_names); j++) {
+			if (strcmp(parents[i], cprman_parent_names[j]) == 0) {
+				parents[i] = cprman->real_parent_names[j];
+				break;
+			}
+		}
 	}
 
 	memset(&init, 0, sizeof(init));
@@ -1377,6 +1408,28 @@ static const char *const bcm2835_clock_vpu_parents[] = {
 #define REGISTER_VPU_CLK(...)	REGISTER_CLK(				\
 	.num_mux_parents = ARRAY_SIZE(bcm2835_clock_vpu_parents),	\
 	.parents = bcm2835_clock_vpu_parents,				\
+	__VA_ARGS__)
+
+/*
+ * DSI1 parent clocks.  The DSI1 byte clock comes from the DSI1 PHY,
+ * which in turn sources from plld_dsi1.
+ */
+static const char *const bcm2835_clock_dsi1_parents[] = {
+	"gnd",
+	"xosc",
+	"testdebug0",
+	"testdebug1",
+	"dsi1_ddr",
+	"dsi1_ddr_inv",
+	"dsi1_ddr2",
+	"dsi1_ddr2_inv",
+	"dsi1_byte",
+	"dsi1_byte_inv",
+};
+
+#define REGISTER_DSI1_CLK(...)	REGISTER_CLK(				\
+	.num_mux_parents = ARRAY_SIZE(bcm2835_clock_dsi1_parents),	\
+	.parents = bcm2835_clock_dsi1_parents,				\
 	__VA_ARGS__)
 
 /*
@@ -1824,7 +1877,12 @@ static const struct bcm2835_clk_desc clk_desc_array[] = {
 		.div_reg = CM_DSI1EDIV,
 		.int_bits = 4,
 		.frac_bits = 8),
-
+	[BCM2835_CLOCK_DSI1P]	= REGISTER_DSI1_CLK(
+		.name = "dsi1p",
+		.ctl_reg = CM_DSI1PCTL,
+		.div_reg = CM_DSI1PDIV,
+		.int_bits = 0,
+		.frac_bits = 0),
 	/* the gates */
 
 	/*
@@ -1839,6 +1897,25 @@ static const struct bcm2835_clk_desc clk_desc_array[] = {
 		.ctl_reg = CM_PERIICTL),
 };
 
+/*
+ * Permanently take a reference on the parent of the SDRAM clock.
+ *
+ * While the SDRAM is being driven by its dedicated PLL most of the
+ * time, there is a little loop running in the firmware that
+ * periodically switches the SDRAM to using our CM clock to do PVT
+ * recalibration, with the assumption that the previously configured
+ * SDRAM parent is still enabled and running.
+ */
+static int bcm2835_mark_sdc_parent_critical(struct clk *sdc)
+{
+	struct clk *parent = clk_get_parent(sdc);
+
+	if (IS_ERR(parent))
+		return PTR_ERR(parent);
+
+	return clk_prepare_enable(parent);
+}
+
 static int bcm2835_clk_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1848,6 +1925,7 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 	const struct bcm2835_clk_desc *desc;
 	const size_t asize = ARRAY_SIZE(clk_desc_array);
 	size_t i;
+	int ret;
 
 	cprman = devm_kzalloc(dev,
 			      sizeof(*cprman) + asize * sizeof(*clks),
@@ -1862,8 +1940,18 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 	if (IS_ERR(cprman->regs))
 		return PTR_ERR(cprman->regs);
 
-	cprman->osc_name = of_clk_get_parent_name(dev->of_node, 0);
-	if (!cprman->osc_name)
+	for (i = 0; i < ARRAY_SIZE(cprman_parent_names); i++) {
+		cprman->real_parent_names[i] =
+			of_clk_get_parent_name(dev->of_node, i);
+	}
+	/*
+	 * Make sure the external oscillator has been registered.
+	 *
+	 * The other (DSI) clocks are not present on older device
+	 * trees, which we still need to support for backwards
+	 * compatibility.
+	 */
+	if (!cprman->real_parent_names[0])
 		return -ENODEV;
 
 	platform_set_drvdata(pdev, cprman);
@@ -1877,6 +1965,10 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 		if (desc->clk_register && desc->data)
 			clks[i] = desc->clk_register(cprman, desc->data);
 	}
+
+	ret = bcm2835_mark_sdc_parent_critical(clks[BCM2835_CLOCK_SDRAM]);
+	if (ret)
+		return ret;
 
 	return of_clk_add_provider(dev->of_node, of_clk_src_onecell_get,
 				   &cprman->onecell);
