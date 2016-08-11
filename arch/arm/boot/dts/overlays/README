@@ -547,12 +547,6 @@ Load:   dtoverlay=i2s-gpio28-31
 Params: <None>
 
 
-Name:   i2s-mmap
-Info:   Enables mmap support in the bcm2708-i2s driver
-Load:   dtoverlay=i2s-mmap
-Params: <None>
-
-
 Name:   iqaudio-dac
 Info:   Configures the IQaudio DAC audio card
 Load:   dtoverlay=iqaudio-dac,<param>
