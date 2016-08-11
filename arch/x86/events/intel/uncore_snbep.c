@@ -2546,7 +2546,7 @@ void hswep_uncore_cpu_init(void)
 
 static struct intel_uncore_type hswep_uncore_ha = {
 	.name		= "ha",
-	.num_counters   = 5,
+	.num_counters   = 4,
 	.num_boxes	= 2,
 	.perf_ctr_bits	= 48,
 	SNBEP_UNCORE_PCI_COMMON_INIT(),
@@ -2565,7 +2565,7 @@ static struct uncore_event_desc hswep_uncore_imc_events[] = {
 
 static struct intel_uncore_type hswep_uncore_imc = {
 	.name		= "imc",
-	.num_counters   = 5,
+	.num_counters   = 4,
 	.num_boxes	= 8,
 	.perf_ctr_bits	= 48,
 	.fixed_ctr_bits	= 48,
@@ -2611,7 +2611,7 @@ static struct intel_uncore_type hswep_uncore_irp = {
 
 static struct intel_uncore_type hswep_uncore_qpi = {
 	.name			= "qpi",
-	.num_counters		= 5,
+	.num_counters		= 4,
 	.num_boxes		= 3,
 	.perf_ctr_bits		= 48,
 	.perf_ctr		= SNBEP_PCI_PMON_CTR0,
@@ -2693,7 +2693,7 @@ static struct event_constraint hswep_uncore_r3qpi_constraints[] = {
 
 static struct intel_uncore_type hswep_uncore_r3qpi = {
 	.name		= "r3qpi",
-	.num_counters   = 4,
+	.num_counters   = 3,
 	.num_boxes	= 3,
 	.perf_ctr_bits	= 44,
 	.constraints	= hswep_uncore_r3qpi_constraints,
@@ -2892,7 +2892,7 @@ static struct intel_uncore_type bdx_uncore_ha = {
 
 static struct intel_uncore_type bdx_uncore_imc = {
 	.name		= "imc",
-	.num_counters   = 5,
+	.num_counters   = 4,
 	.num_boxes	= 8,
 	.perf_ctr_bits	= 48,
 	.fixed_ctr_bits	= 48,
