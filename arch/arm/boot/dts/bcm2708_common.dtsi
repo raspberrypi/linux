@@ -366,6 +366,7 @@
 		v3d: v3d@7ec00000 {
 			compatible = "brcm,vc4-v3d";
 			reg = <0x7ec00000 0x1000>;
+			power-domains = <&power RPI_POWER_DOMAIN_V3D>;
 			status = "disabled";
 		};
 
