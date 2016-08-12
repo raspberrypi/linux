@@ -106,7 +106,6 @@ struct regdump {
 static int rpi_touchscreen_disable(struct drm_panel *panel)
 {
 	struct rpi_touchscreen *ts = panel_to_ts(panel);
-	pr_err("disable\n");
 
 	if (!ts->enabled)
 		return 0;
