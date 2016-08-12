@@ -511,12 +511,7 @@ static int bcm2835_audio_set_ctls_chan(bcm2835_alsa_stream_t * alsa_stream,
 	}
 
 	/* We are expecting a reply from the videocore */
-	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
-	if (ret) {
-		LOG_DBG("%s: failed on waiting for event (status=%d)\n",
-			__func__, success);
-		goto unlock;
-	}
+	wait_for_completion(&instance->msg_avail_comp);
 
 	if (instance->result != 0) {
 		LOG_ERR("%s: result=%d\n", __func__, instance->result);
@@ -615,12 +610,7 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	}
 
 	/* We are expecting a reply from the videocore */
-	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
-	if (ret) {
-		LOG_DBG("%s: failed on waiting for event (status=%d)\n",
-			__func__, success);
-		goto unlock;
-	}
+	wait_for_completion(&instance->msg_avail_comp);
 
 	if (instance->result != 0) {
 		LOG_ERR("%s: result=%d", __func__, instance->result);
@@ -761,14 +751,11 @@ int bcm2835_audio_close(bcm2835_alsa_stream_t * alsa_stream)
 		goto unlock;
 	}
 
-	ret = wait_for_completion_interruptible(&instance->msg_avail_comp);
-	if (ret) {
-		LOG_DBG("%s: failed on waiting for event (status=%d)\n",
-			__func__, success);
-		goto unlock;
-	}
+	/* We are expecting a reply from the videocore */
+	wait_for_completion(&instance->msg_avail_comp);
+
 	if (instance->result != 0) {
-		LOG_ERR("%s: failed result (status=%d)\n",
+		LOG_ERR("%s: failed result (result=%d)\n",
 			__func__, instance->result);
 
 		ret = -1;
