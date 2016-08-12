@@ -23,7 +23,6 @@ struct vc4_dev {
 	struct vc4_dsi *dsi1;
 
 	struct drm_fbdev_cma *fbdev;
-	struct rpi_firmware *firmware;
 
 	struct vc4_hang_state *hang_state;
 

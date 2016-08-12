@@ -15,7 +15,6 @@
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#include <soc/bcm2835/raspberrypi-firmware.h>
 #include "drm_fb_cma_helper.h"
 
 #include "uapi/drm/vc4_drm.h"
@@ -204,7 +203,6 @@ static int vc4_drm_bind(struct device *dev)
 	struct drm_device *drm;
 	struct drm_connector *connector;
 	struct vc4_dev *vc4;
-	struct device_node *firmware_node;
 	int ret = 0;
 
 	dev->coherent_dma_mask = DMA_BIT_MASK(32);
@@ -212,14 +210,6 @@ static int vc4_drm_bind(struct device *dev)
 	vc4 = devm_kzalloc(dev, sizeof(*vc4), GFP_KERNEL);
 	if (!vc4)
 		return -ENOMEM;
-
-	firmware_node = of_parse_phandle(dev->of_node, "firmware", 0);
-	vc4->firmware = rpi_firmware_get(firmware_node);
-	if (!vc4->firmware) {
-		DRM_DEBUG("Failed to get Raspberry Pi firmware reference.\n");
-		return -EPROBE_DEFER;
-	}
-	of_node_put(firmware_node);
 
 	drm = drm_dev_alloc(&vc4_drm_driver, dev);
 	if (!drm)
