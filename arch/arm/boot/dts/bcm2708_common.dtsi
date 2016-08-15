@@ -347,7 +347,6 @@
 			reg = <0x7e902000 0x600>,
 			      <0x7e808000 0x100>;
 			ddc = <&i2c2>;
-			hpd-gpios = <&gpio 46 GPIO_ACTIVE_HIGH>;
 			clocks = <&cprman BCM2835_PLLH_PIX>,
 				 <&cprman BCM2835_CLOCK_HSM>;
 			clock-names = "pixel", "hdmi";
