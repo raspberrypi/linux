@@ -23,7 +23,6 @@ struct vc4_dev {
 	struct vc4_dsi *dsi1;
 
 	struct drm_fbdev_cma *fbdev;
-	struct rpi_firmware *firmware;
 
 	struct vc4_hang_state *hang_state;
 
@@ -105,6 +104,11 @@ struct vc4_dev {
 	struct vc4_bo *overflow_mem;
 	struct work_struct overflow_mem_work;
 
+	int power_refcount;
+
+	/* Mutex controlling the power refcount. */
+	struct mutex power_lock;
+
 	struct {
 		struct timer_list timer;
 		struct work_struct reset_work;
@@ -155,6 +159,7 @@ struct vc4_seqno_cb {
 };
 
 struct vc4_v3d {
+	struct vc4_dev *vc4;
 	struct platform_device *pdev;
 	void __iomem *regs;
 };
@@ -324,6 +329,15 @@ vc4_first_render_job(struct vc4_dev *vc4)
 				struct vc4_exec_info, head);
 }
 
+static inline struct vc4_exec_info *
+vc4_last_render_job(struct vc4_dev *vc4)
+{
+	if (list_empty(&vc4->render_job_list))
+		return NULL;
+	return list_last_entry(&vc4->render_job_list,
+			       struct vc4_exec_info, head);
+}
+
 /**
  * struct vc4_texture_sample_info - saves the offsets into the UBO for texture
  * setup parameters.
@@ -358,6 +372,9 @@ struct vc4_validated_shader_info {
 	uint32_t uniforms_src_size;
 	uint32_t num_texture_samples;
 	struct vc4_texture_sample_info *texture_samples;
+
+	uint32_t num_uniform_addr_offsets;
+	uint32_t *uniform_addr_offsets;
 };
 
 /**
@@ -495,7 +512,6 @@ void vc4_plane_async_set_fb(struct drm_plane *plane,
 extern struct platform_driver vc4_v3d_driver;
 int vc4_v3d_debugfs_ident(struct seq_file *m, void *unused);
 int vc4_v3d_debugfs_regs(struct seq_file *m, void *unused);
-int vc4_v3d_set_power(struct vc4_dev *vc4, bool on);
 
 /* vc4_validate.c */
 int

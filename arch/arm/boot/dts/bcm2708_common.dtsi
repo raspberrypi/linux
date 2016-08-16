@@ -347,7 +347,6 @@
 			reg = <0x7e902000 0x600>,
 			      <0x7e808000 0x100>;
 			ddc = <&i2c2>;
-			hpd-gpios = <&gpio 46 GPIO_ACTIVE_HIGH>;
 			clocks = <&cprman BCM2835_PLLH_PIX>,
 				 <&cprman BCM2835_CLOCK_HSM>;
 			clock-names = "pixel", "hdmi";
@@ -366,6 +365,7 @@
 		v3d: v3d@7ec00000 {
 			compatible = "brcm,vc4-v3d";
 			reg = <0x7ec00000 0x1000>;
+			power-domains = <&power RPI_POWER_DOMAIN_V3D>;
 			status = "disabled";
 		};
 

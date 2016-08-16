@@ -17,7 +17,7 @@
  */
 
 #include "linux/component.h"
-#include "soc/bcm2835/raspberrypi-firmware.h"
+#include "linux/pm_runtime.h"
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 
@@ -145,22 +145,6 @@ int vc4_v3d_debugfs_ident(struct seq_file *m, void *unused)
 }
 #endif /* CONFIG_DEBUG_FS */
 
-/*
- * Asks the firmware to turn on power to the V3D engine.
- *
- * This may be doable with just the clocks interface, though this
- * packet does some other register setup from the firmware, too.
- */
-int
-vc4_v3d_set_power(struct vc4_dev *vc4, bool on)
-{
-	u32 packet = on;
-
-	return rpi_firmware_property(vc4->firmware,
-				     RPI_FIRMWARE_SET_ENABLE_QPU,
-				     &packet, sizeof(packet));
-}
-
 static void vc4_v3d_init_hw(struct drm_device *dev)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
@@ -171,6 +155,29 @@ static void vc4_v3d_init_hw(struct drm_device *dev)
 	 */
 	V3D_WRITE(V3D_VPMBASE, 0);
 }
+
+#ifdef CONFIG_PM
+static int vc4_v3d_runtime_suspend(struct device *dev)
+{
+	struct vc4_v3d *v3d = dev_get_drvdata(dev);
+	struct vc4_dev *vc4 = v3d->vc4;
+
+	vc4_irq_uninstall(vc4->dev);
+
+	return 0;
+}
+
+static int vc4_v3d_runtime_resume(struct device *dev)
+{
+	struct vc4_v3d *v3d = dev_get_drvdata(dev);
+	struct vc4_dev *vc4 = v3d->vc4;
+
+	vc4_v3d_init_hw(vc4->dev);
+	vc4_irq_postinstall(vc4->dev);
+
+	return 0;
+}
+#endif
 
 static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 {
@@ -184,6 +191,8 @@ static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 	if (!v3d)
 		return -ENOMEM;
 
+	dev_set_drvdata(dev, v3d);
+
 	v3d->pdev = pdev;
 
 	v3d->regs = vc4_ioremap_regs(pdev, 0);
@@ -191,10 +200,7 @@ static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 		return PTR_ERR(v3d->regs);
 
 	vc4->v3d = v3d;
-
-	ret = vc4_v3d_set_power(vc4, true);
-	if (ret)
-		return ret;
+	v3d->vc4 = vc4;
 
 	if (V3D_READ(V3D_IDENT0) != V3D_EXPECTED_IDENT0) {
 		DRM_ERROR("V3D_IDENT0 read 0x%08x instead of 0x%08x\n",
@@ -216,6 +222,8 @@ static int vc4_v3d_bind(struct device *dev, struct device *master, void *data)
 		return ret;
 	}
 
+	pm_runtime_enable(dev);
+
 	return 0;
 }
 
@@ -224,6 +232,8 @@ static void vc4_v3d_unbind(struct device *dev, struct device *master,
 {
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dev *vc4 = to_vc4_dev(drm);
+
+	pm_runtime_disable(dev);
 
 	drm_irq_uninstall(drm);
 
@@ -234,10 +244,12 @@ static void vc4_v3d_unbind(struct device *dev, struct device *master,
 	V3D_WRITE(V3D_BPOA, 0);
 	V3D_WRITE(V3D_BPOS, 0);
 
-	vc4_v3d_set_power(vc4, false);
-
 	vc4->v3d = NULL;
 }
+
+static const struct dev_pm_ops vc4_v3d_pm_ops = {
+	SET_RUNTIME_PM_OPS(vc4_v3d_runtime_suspend, vc4_v3d_runtime_resume, NULL)
+};
 
 static const struct component_ops vc4_v3d_ops = {
 	.bind   = vc4_v3d_bind,
@@ -267,5 +279,6 @@ struct platform_driver vc4_v3d_driver = {
 	.driver = {
 		.name = "vc4_v3d",
 		.of_match_table = vc4_v3d_dt_match,
+		.pm = &vc4_v3d_pm_ops,
 	},
 };
