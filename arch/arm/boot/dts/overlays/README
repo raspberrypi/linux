@@ -629,21 +629,21 @@ Info:   Configures the MCP23S08/17 SPI GPIO expanders.
         If interrupts are enabled for a device on a given CS# on a SPI bus, that
         device must be the only one present on that SPI bus/CS#.
 Load:   dtoverlay=mcp23s17,<param>=<val>
-Params: mcp23s08-spi<n>-<m>-present  4-bit interger, bitmap indicating MCP23S08
-                                     devices present on SPI<n>, CS#<m>
+Params: s08-spi<n>-<m>-present  4-bit integer, bitmap indicating MCP23S08
+                                devices present on SPI<n>, CS#<m>
 
-        mcp23s17-spi<n>-<m>-present  8-bit interger, bitmap indicating MCP23S17
-                                     devices present on SPI<n>, CS#<m>
+        s17-spi<n>-<m>-present  8-bit integer, bitmap indicating MCP23S17
+                                devices present on SPI<n>, CS#<m>
 
-        mcp23s08-spi<n>-<m>-int-gpio interger, enables interrupts on a single
-                                     MCP23S08 device on SPI<n>, CS#<m>, specifies
-                                     the GPIO pin to which INT output of MCP23S08
-                                     is connected.
+        s08-spi<n>-<m>-int-gpio integer, enables interrupts on a single
+                                MCP23S08 device on SPI<n>, CS#<m>, specifies
+                                the GPIO pin to which INT output of MCP23S08
+                                is connected.
 
-        mcp23s17-spi<n>-<m>-int-gpio interger, enables mirrored interrupts on a
-                                     single MCP23S17 device on SPI<n>, CS#<m>,
-                                     specifies the GPIO pin to which either INTA
-                                     or INTB output of MCP23S17 is connected.
+        s17-spi<n>-<m>-int-gpio integer, enables mirrored interrupts on a
+                                single MCP23S17 device on SPI<n>, CS#<m>,
+                                specifies the GPIO pin to which either INTA
+                                or INTB output of MCP23S17 is connected.
 
 
 Name:   mcp2515-can0
