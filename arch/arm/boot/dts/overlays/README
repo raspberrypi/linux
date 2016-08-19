@@ -628,6 +628,30 @@ Params: gpiopin                 Gpio pin connected to the INTA output of the
         addr                    I2C address of the MCP23017 (default: 0x20)
 
 
+Name:   mcp23s17
+Info:   Configures the MCP23S08/17 SPI GPIO expanders.
+        If devices are present on SPI1 or SPI2, those interfaces must be enabled
+        with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
+        If interrupts are enabled for a device on a given CS# on a SPI bus, that
+        device must be the only one present on that SPI bus/CS#.
+Load:   dtoverlay=mcp23s17,<param>=<val>
+Params: s08-spi<n>-<m>-present  4-bit integer, bitmap indicating MCP23S08
+                                devices present on SPI<n>, CS#<m>
+
+        s17-spi<n>-<m>-present  8-bit integer, bitmap indicating MCP23S17
+                                devices present on SPI<n>, CS#<m>
+
+        s08-spi<n>-<m>-int-gpio integer, enables interrupts on a single
+                                MCP23S08 device on SPI<n>, CS#<m>, specifies
+                                the GPIO pin to which INT output of MCP23S08
+                                is connected.
+
+        s17-spi<n>-<m>-int-gpio integer, enables mirrored interrupts on a
+                                single MCP23S17 device on SPI<n>, CS#<m>,
+                                specifies the GPIO pin to which either INTA
+                                or INTB output of MCP23S17 is connected.
+
+
 Name:   mcp2515-can0
 Info:   Configures the MCP2515 CAN controller on spi0.0
 Load:   dtoverlay=mcp2515-can0,<param>=<val>
