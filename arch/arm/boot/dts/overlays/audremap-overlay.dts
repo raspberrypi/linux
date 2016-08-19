@@ -1,0 +1,14 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+        compatible = "brcm,bcm2708";
+
+        fragment@0 {
+                target = <&audio_pins>;
+                __overlay__ {
+                        brcm,pins = < 12 13 >;
+                        brcm,function = < 4 >; /* alt0 alt0 */
+                };
+        };
+};
