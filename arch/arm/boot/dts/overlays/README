@@ -253,6 +253,12 @@ Load:   dtoverlay=audioinjector-wm8731-audio
 Params: <None>
 
 
+Name:   audremap
+Info:   Switches PWM sound output to pins 12 & 13
+Load:   dtoverlay=audremap
+Params: <None>
+
+
 Name:   bmp085_i2c-sensor
 Info:   Configures the BMP085/BMP180 digital barometric pressure and temperature
         sensors from Bosch Sensortec
