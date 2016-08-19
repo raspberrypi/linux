@@ -49,6 +49,7 @@ dtbo-$(RPI_DT_OVERLAYS) += justboom-dac.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += justboom-digi.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += lirc-rpi.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += mcp23017.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += mcp23s17.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += mcp2515-can0.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += mcp2515-can1.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += mmc.dtbo
