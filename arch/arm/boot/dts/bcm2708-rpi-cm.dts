@@ -35,6 +35,11 @@
 		brcm,pins = <18 19 20 21>;
 		brcm,function = <4>; /* alt0 */
 	};
+
+	audio_pins: audio_pins {
+		brcm,pins;
+		brcm,function;
+	};
 };
 
 &spi0 {
