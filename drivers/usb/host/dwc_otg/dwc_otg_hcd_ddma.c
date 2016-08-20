@@ -75,13 +75,23 @@ static inline uint16_t frame_incr_val(dwc_otg_qh_t * qh)
 		: qh->interval);
 }
 
+#ifdef CONFIG_ARM64
+static int desc_list_alloc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
+#else
 static int desc_list_alloc(dwc_otg_qh_t * qh)
+#endif
 {
 	int retval = 0;
 
 	qh->desc_list = (dwc_otg_host_dma_desc_t *)
+#ifdef CONFIG_ARM64
+	    DWC_DMA_ALLOC(hcd->memctx,
+                          sizeof(dwc_otg_host_dma_desc_t) * max_desc_num(qh),
+			  &qh->desc_list_dma);
+#else
 	    DWC_DMA_ALLOC(sizeof(dwc_otg_host_dma_desc_t) * max_desc_num(qh),
 			  &qh->desc_list_dma);
+#endif
 
 	if (!qh->desc_list) {
 		retval = -DWC_E_NO_MEMORY;
@@ -106,11 +116,21 @@ static int desc_list_alloc(dwc_otg_qh_t * qh)
 
 }
 
+#ifdef CONFIG_ARM64
+static void desc_list_free(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
+#else
 static void desc_list_free(dwc_otg_qh_t * qh)
+#endif
 {
 	if (qh->desc_list) {
+#ifdef CONFIG_ARM64
+		DWC_DMA_FREE(hcd->memctx,
+                             max_desc_num(qh), qh->desc_list,
+			     qh->desc_list_dma);
+#else
 		DWC_DMA_FREE(max_desc_num(qh), qh->desc_list,
 			     qh->desc_list_dma);
+#endif
 		qh->desc_list = NULL;
 	}
 
@@ -126,8 +146,14 @@ static int frame_list_alloc(dwc_otg_hcd_t * hcd)
 	if (hcd->frame_list)
 		return 0;
 
+#ifdef CONFIG_ARM64
+	hcd->frame_list = DWC_DMA_ALLOC(hcd->memctx, 
+                                        4 * MAX_FRLIST_EN_NUM,
+                                        &hcd->frame_list_dma);
+#else
 	hcd->frame_list = DWC_DMA_ALLOC(4 * MAX_FRLIST_EN_NUM,
 					&hcd->frame_list_dma);
+#endif
 	if (!hcd->frame_list) {
 		retval = -DWC_E_NO_MEMORY;
 		DWC_ERROR("%s: Frame List allocation failed\n", __func__);
@@ -143,7 +169,11 @@ static void frame_list_free(dwc_otg_hcd_t * hcd)
 	if (!hcd->frame_list)
 		return;
 
+#ifdef CONFIG_ARM64
+	DWC_DMA_FREE(hcd->memctx, 4 * MAX_FRLIST_EN_NUM, hcd->frame_list, hcd->frame_list_dma);
+#else
 	DWC_DMA_FREE(4 * MAX_FRLIST_EN_NUM, hcd->frame_list, hcd->frame_list_dma);
+#endif
 	hcd->frame_list = NULL;
 }
 
@@ -328,7 +358,11 @@ int dwc_otg_hcd_qh_init_ddma(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		return -1;
 	}
 
+#ifdef CONFIG_ARM64
+	retval = desc_list_alloc(hcd, qh);
+#else
 	retval = desc_list_alloc(qh);
+#endif
 
 	if ((retval == 0)
 	    && (qh->ep_type == UE_ISOCHRONOUS || qh->ep_type == UE_INTERRUPT)) {
@@ -355,7 +389,11 @@ int dwc_otg_hcd_qh_init_ddma(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
  */
 void dwc_otg_hcd_qh_free_ddma(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 {
+#ifdef CONFIG_ARM64
+	desc_list_free(hcd, qh);
+#else
 	desc_list_free(qh);
+#endif
 
 	/*
 	 * Channel still assigned due to some reasons.

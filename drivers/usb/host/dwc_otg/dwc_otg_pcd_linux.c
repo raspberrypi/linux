@@ -1207,7 +1207,11 @@ int pcd_init(dwc_bus_dev_t *_dev)
 
 	DWC_DEBUGPL(DBG_PCDV, "%s(%p) otg_dev=%p\n", __func__, _dev, otg_dev);
 
+#ifdef CONFIG_ARM64
+	otg_dev->pcd = dwc_otg_pcd_init(&_dev->dev, otg_dev->core_if);
+#else
 	otg_dev->pcd = dwc_otg_pcd_init(otg_dev->core_if);
+#endif
 
 	if (!otg_dev->pcd) {
 		DWC_ERROR("dwc_otg_pcd_init failed\n");
@@ -1272,7 +1276,11 @@ void pcd_remove(dwc_bus_dev_t *_dev)
 #else
 	free_irq(_dev->irq, pcd);
 #endif
+#ifdef CONFIG_ARM64
+	dwc_otg_pcd_remove(_dev, otg_dev->pcd);
+#else
 	dwc_otg_pcd_remove(otg_dev->pcd);
+#endif
 	free_wrapper(gadget_wrapper);
 	otg_dev->pcd = 0;
 }

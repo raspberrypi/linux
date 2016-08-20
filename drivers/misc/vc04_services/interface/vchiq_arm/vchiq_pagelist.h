@@ -43,11 +43,11 @@
 #define PAGELIST_READ_WITH_FRAGMENTS 2
 
 typedef struct pagelist_struct {
-	unsigned long length;
-	unsigned short type;
-	unsigned short offset;
-	unsigned long addrs[1];	/* N.B. 12 LSBs hold the number of following
-				   pages at consecutive addresses. */
+        uint32_t length;
+        uint16_t type;
+        uint16_t offset;
+        uint32_t addrs[1]; /* N.B. 12 LSBs hold the number of following
+                              pages at consecutive addresses. */
 } PAGELIST_T;
 
 typedef struct fragments_struct {

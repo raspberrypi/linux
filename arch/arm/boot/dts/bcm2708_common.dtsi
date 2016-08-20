@@ -32,6 +32,7 @@
 		usb = &usb;
 		leds = &leds;
 		fb = &fb;
+                ft5406 = &ft5406;
 		vchiq = &vchiq;
 		thermal = &thermal;
 		clocks = &clocks;
@@ -84,12 +85,22 @@
 			brcm,dma-channel-mask = <0x7f34>;
 		};
 
+#ifdef RPI364
+		intc: interrupt-controller@7e00b200 {
+			compatible = "brcm,bcm2835-armctrl-ic";
+			reg = <0x7e00b200 0x200>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+#else
+
 		intc: interrupt-controller@7e00b200 {
 			compatible = "brcm,bcm2708-armctrl-ic";
 			reg = <0x7e00b200 0x200>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
 		};
+#endif
 
 		mailbox: mailbox@7e00b800 {
 			compatible = "brcm,bcm2835-mbox";
@@ -355,6 +366,12 @@
 
 		fb: fb {
 			compatible = "brcm,bcm2708-fb";
+			firmware = <&firmware>;
+			status = "disabled";
+		};
+
+		ft5406: ft5406 {
+			compatible = "rpi,rpi-ft5406";
 			firmware = <&firmware>;
 			status = "disabled";
 		};

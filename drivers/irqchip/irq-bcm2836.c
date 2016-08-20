@@ -145,6 +145,29 @@ static void bcm2836_arm_irqchip_unmask_gpu_irq(struct irq_data *d)
 {
 }
 
+#ifdef CONFIG_ARM64
+
+void bcm2836_arm_irqchip_spin_gpu_irq(void)
+{
+        u32 i;
+	void __iomem *gpurouting = (intc.base + LOCAL_GPU_ROUTING);
+	u32 routing_val = readl(gpurouting);
+
+        for( i = 1; i <= 2; i++ )
+        {
+            u32 new_routing_val = (routing_val + i) & 1;
+            if ( cpu_active(new_routing_val) )
+            {
+                writel(new_routing_val, gpurouting);
+                return;
+            }
+        }
+}
+
+EXPORT_SYMBOL(bcm2836_arm_irqchip_spin_gpu_irq);
+
+#endif
+
 static struct irq_chip bcm2836_arm_irqchip_gpu = {
 	.name		= "bcm2836-gpu",
 	.irq_mask	= bcm2836_arm_irqchip_mask_gpu_irq,
@@ -175,13 +198,16 @@ __exception_irq_entry bcm2836_arm_irqchip_handle_irq(struct pt_regs *regs)
 		u32 ipi = ffs(mbox_val) - 1;
 
 		writel(1 << ipi, mailbox0);
-		dsb();
+		wmb();
 		handle_IPI(ipi, regs);
 #endif
 	} else if (stat) {
 		u32 hwirq = ffs(stat) - 1;
-
+#ifdef CONFIG_ARM64
+                __handle_domain_irq(NULL, irq_linear_revmap(intc.domain, hwirq), false, regs);
+#else
 		handle_IRQ(irq_linear_revmap(intc.domain, hwirq), regs);
+#endif
 	}
 }
 
@@ -196,7 +222,7 @@ static void bcm2836_arm_irqchip_send_ipi(const struct cpumask *mask,
 	 * Ensure that stores to normal memory are visible to the
 	 * other CPUs before issuing the IPI.
 	 */
-	dsb();
+	wmb();
 
 	for_each_cpu(cpu, mask)	{
 		writel(1 << ipi, mailbox0_base + 16 * cpu);
@@ -224,6 +250,7 @@ static struct notifier_block bcm2836_arm_irqchip_cpu_notifier = {
 	.priority = 100,
 };
 
+#ifdef CONFIG_ARM
 int __init bcm2836_smp_boot_secondary(unsigned int cpu,
 				      struct task_struct *idle)
 {
@@ -239,6 +266,7 @@ int __init bcm2836_smp_boot_secondary(unsigned int cpu,
 static const struct smp_operations bcm2836_smp_ops __initconst = {
 	.smp_boot_secondary	= bcm2836_smp_boot_secondary,
 };
+#endif
 
 #endif
 
@@ -257,7 +285,9 @@ bcm2836_arm_irqchip_smp_init(void)
 	register_cpu_notifier(&bcm2836_arm_irqchip_cpu_notifier);
 
 	set_smp_cross_call(bcm2836_arm_irqchip_send_ipi);
+#ifdef CONFIG_ARM
 	smp_set_ops(&bcm2836_smp_ops);
+#endif
 #endif
 }
 
