@@ -203,6 +203,9 @@ skl_update_plane(struct drm_plane *drm_plane,
 	struct intel_plane *intel_plane = to_intel_plane(drm_plane);
 	struct drm_framebuffer *fb = plane_state->base.fb;
 	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
+	const struct skl_wm_values *wm = &dev_priv->wm.skl_results;
+	struct drm_crtc *crtc = crtc_state->base.crtc;
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	const int pipe = intel_plane->pipe;
 	const int plane = intel_plane->plane + 1;
 	u32 plane_ctl, stride_div, stride;
@@ -237,6 +240,9 @@ skl_update_plane(struct drm_plane *drm_plane,
 	src_h--;
 	crtc_w--;
 	crtc_h--;
+
+	if (wm->dirty_pipes & drm_crtc_mask(crtc))
+		skl_write_plane_wm(intel_crtc, wm, plane);
 
 	if (key->flags) {
 		I915_WRITE(PLANE_KEYVAL(pipe, plane), key->min_value);
