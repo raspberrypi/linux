@@ -394,6 +394,7 @@ int msm_ioctl_gem_submit(struct drm_device *dev, void *data,
 		return -ENOMEM;
 
 	mutex_lock(&dev->struct_mutex);
+	priv->struct_mutex_task = current;
 
 	ret = submit_lookup_objects(submit, args, file);
 	if (ret)
@@ -479,6 +480,7 @@ out:
 	submit_cleanup(submit);
 	if (ret)
 		msm_gem_submit_free(submit);
+	priv->struct_mutex_task = NULL;
 	mutex_unlock(&dev->struct_mutex);
 	return ret;
 }
