@@ -933,6 +933,16 @@ Load:   dtoverlay=rra-digidac1-wm8741-audio
 Params: <None>
 
 
+Name:   sc16is750-i2c
+Info:   Overlay for the NXP SC16IS750 UART with I2C Interface
+        Enables the chip on I2C1 at 0x48. To select another address,
+        please refer to table 10 in reference manual.
+
+Load:   dtoverlay=sc16is750-i2c,<param>=<val>
+Params: int_pin                 GPIO used for IRQ (default 24)
+        addr                    Address (default 0x48)
+
+
 Name:   sc16is752-spi1
 Info:   Overlay for the NXP SC16IS752 Dual UART with SPI Interface
         Enables the chip on SPI1.
