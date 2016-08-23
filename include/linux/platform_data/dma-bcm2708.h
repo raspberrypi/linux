@@ -63,13 +63,13 @@
 #define BCM_DMA_FEATURE_COUNT		4
 
 struct bcm2708_dma_cb {
-	unsigned long info;
-	unsigned long src;
-	unsigned long dst;
-	unsigned long length;
-	unsigned long stride;
-	unsigned long next;
-	unsigned long pad[2];
+	u32 info;
+	u32 src;
+	u32 dst;
+	u32 length;
+	u32 stride;
+	u32 next;
+	u32 pad[2];
 };
 
 struct scatterlist;
