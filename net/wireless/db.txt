@@ -1,17 +1,43 @@
-#
-# This file is a placeholder to prevent accidental build breakage if someone
-# enables CONFIG_CFG80211_INTERNAL_REGDB.  Almost no one actually needs to
-# enable that build option.
-#
-# You should be using CRDA instead.  It is even better if you use the CRDA
-# package provided by your distribution, since they will probably keep it
-# up-to-date on your behalf.
-#
-# If you _really_ intend to use CONFIG_CFG80211_INTERNAL_REGDB then you will
-# need to replace this file with one containing appropriately formatted
-# regulatory rules that cover the regulatory domains you will be using.  Your
-# best option is to extract the db.txt file from the wireless-regdb git
-# repository:
-#
-#   git://git.kernel.org/pub/scm/linux/kernel/git/linville/wireless-regdb.git
-#
+country 00:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)
+
+country DE:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)
+
+country AT:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)
+
+country CH:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)
+
+country TW:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)
+
+country AU:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)
+
+country CA:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)
+
+country US:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)
+
+country BO:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)
+
+country GB:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)
+
+country CN:
+	(2302 - 2742 @ 40), (30)
+	(4910 - 5835 @ 160), (30)

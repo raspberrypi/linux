@@ -229,32 +229,23 @@ static const struct ieee80211_regdomain world_regdom = {
 	.alpha2 =  "00",
 	.reg_rules = {
 		/* IEEE 802.11b/g, channels 1..11 */
-		REG_RULE(2412-10, 2462+10, 40, 6, 20, 0),
+		REG_RULE(2312-10, 2462+10, 40, 6, 30, 0),
 		/* IEEE 802.11b/g, channels 12..13. */
-		REG_RULE(2467-10, 2472+10, 40, 6, 20,
-			NL80211_RRF_NO_IR),
+		REG_RULE(2467-10, 2472+10, 40, 6, 30, 0),
 		/* IEEE 802.11 channel 14 - Only JP enables
 		 * this and for 802.11b only */
-		REG_RULE(2484-10, 2484+10, 20, 6, 20,
-			NL80211_RRF_NO_IR |
-			NL80211_RRF_NO_OFDM),
+		REG_RULE(2484-10, 2732+10, 40, 6, 30, 0),
 		/* IEEE 802.11a, channel 36..48 */
-		REG_RULE(5180-10, 5240+10, 160, 6, 20,
-                        NL80211_RRF_NO_IR),
+		REG_RULE(4920-10, 5240+10, 160, 6, 30, 0),
 
 		/* IEEE 802.11a, channel 52..64 - DFS required */
-		REG_RULE(5260-10, 5320+10, 160, 6, 20,
-			NL80211_RRF_NO_IR |
-			NL80211_RRF_DFS),
+		REG_RULE(5260-10, 5320+10, 160, 6, 30, 0),
 
 		/* IEEE 802.11a, channel 100..144 - DFS required */
-		REG_RULE(5500-10, 5720+10, 160, 6, 20,
-			NL80211_RRF_NO_IR |
-			NL80211_RRF_DFS),
+		REG_RULE(5500-10, 5720+10, 160, 6, 30, 0),
 
 		/* IEEE 802.11a, channel 149..165 */
-		REG_RULE(5745-10, 5825+10, 80, 6, 20,
-			NL80211_RRF_NO_IR),
+		REG_RULE(5745-10, 6100+10, 160, 6, 30, 0),
 
 		/* IEEE 802.11ad (60GHz), channels 1..3 */
 		REG_RULE(56160+2160*1-1080, 56160+2160*3+1080, 2160, 0, 0, 0),
@@ -3173,7 +3164,7 @@ void wiphy_regulatory_deregister(struct wiphy *wiphy)
 int cfg80211_get_unii(int freq)
 {
 	/* UNII-1 */
-	if (freq >= 5150 && freq <= 5250)
+	if (freq >= 4920 && freq <= 5250)
 		return 0;
 
 	/* UNII-2A */
@@ -3189,7 +3180,7 @@ int cfg80211_get_unii(int freq)
 		return 3;
 
 	/* UNII-3 */
-	if (freq > 5725 && freq <= 5825)
+	if (freq > 5725 && freq <= 6100)
 		return 4;
 
 	return -EINVAL;

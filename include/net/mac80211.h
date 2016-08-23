@@ -867,7 +867,16 @@ struct ieee80211_tx_info {
 					/* 2 bytes free */
 				};
 				/* only needed before rate control */
-				unsigned long jiffies;
+				struct {
+					/* same position as rates[0] */
+					struct ieee80211_tx_rate prerate;
+					u8 use_preset_rate:1;
+					u8 use_legacy_rate:1;
+					/* only used for legacy bitrates */
+					u16 bitrate;
+					/* 2 bytes free */
+					unsigned long jiffies;
+				};
 			};
 			/* NB: vif can be NULL for injected frames */
 			struct ieee80211_vif *vif;

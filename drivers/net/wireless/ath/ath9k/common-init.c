@@ -22,7 +22,7 @@
 	.band = IEEE80211_BAND_2GHZ, \
 	.center_freq = (_freq), \
 	.hw_value = (_idx), \
-	.max_power = 20, \
+	.max_power = 30, \
 }
 
 #define CHAN5G(_freq, _idx) { \
@@ -37,6 +37,26 @@
  * we have calibration data for all cards though to make
  * this static */
 static const struct ieee80211_channel ath9k_2ghz_chantable[] = {
+	CHAN2G(2312, 33), /* Channel -19 */
+	CHAN2G(2317, 32), /* Channel -18 */
+	CHAN2G(2322, 31), /* Channel -17 */
+	CHAN2G(2327, 30), /* Channel -16 */
+	CHAN2G(2332, 29), /* Channel -15 */
+	CHAN2G(2337, 28), /* Channel -14 */
+	CHAN2G(2342, 27), /* Channel -13 */
+	CHAN2G(2347, 26), /* Channel -12 */
+	CHAN2G(2352, 25), /* Channel -11 */
+	CHAN2G(2357, 24), /* Channel -10 */
+	CHAN2G(2362, 23), /* Channel -9 */
+	CHAN2G(2367, 22), /* Channel -8 */
+	CHAN2G(2372, 21), /* Channel -7 */
+	CHAN2G(2377, 20), /* Channel -6 */
+	CHAN2G(2382, 19), /* Channel -5 */
+	CHAN2G(2387, 18), /* Channel -4 */
+	CHAN2G(2392, 17), /* Channel -3 */
+	CHAN2G(2397, 16), /* Channel -2 */
+	CHAN2G(2402, 15), /* Channel -1 */
+	CHAN2G(2407, 14), /* Channel 0 */
 	CHAN2G(2412, 0), /* Channel 1 */
 	CHAN2G(2417, 1), /* Channel 2 */
 	CHAN2G(2422, 2), /* Channel 3 */

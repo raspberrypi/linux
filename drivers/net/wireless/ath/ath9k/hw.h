@@ -13,6 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+ // CHANGES: increase NUM_CHANNELS to 91 for additional channels
 
 #ifndef HW_H
 #define HW_H
@@ -73,7 +74,7 @@
 
 #define ATH9K_RSSI_BAD			-128
 
-#define ATH9K_NUM_CHANNELS	38
+#define ATH9K_NUM_CHANNELS	91
 
 /* Register read/write primitives */
 #define REG_WRITE(_ah, _reg, _val) \

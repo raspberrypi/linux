@@ -1086,9 +1086,9 @@ static int ath9k_hif_request_firmware(struct hif_device_usb *hif_dev,
 	int ret;
 
 	if (first) {
-		if (htc_use_dev_fw) {
+		if (htc_fw_bitrate) {
 			hif_dev->fw_minor_index = FIRMWARE_MINOR_IDX_MAX + 1;
-			sprintf(index, "%s", "dev");
+			sprintf(index, "%d", htc_fw_bitrate);
 		} else {
 			hif_dev->fw_minor_index = FIRMWARE_MINOR_IDX_MAX;
 			sprintf(index, "%d", hif_dev->fw_minor_index);

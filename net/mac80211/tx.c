@@ -786,6 +786,52 @@ static __le16 ieee80211_tx_next_seq(struct sta_info *sta, int tid)
 }
 
 static ieee80211_tx_result debug_noinline
+ieee80211_tx_h_rate_preset(struct ieee80211_tx_data *tx)
+{
+	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(tx->skb);
+	struct ieee80211_supported_band *sband;
+	u16 bitrate;
+	u8 use_legacy_rate;
+	s8 idx;
+	int i;
+
+	sband = tx->local->hw.wiphy->bands[info->band];
+
+	bitrate = info->control.bitrate;
+	use_legacy_rate = info->control.use_legacy_rate;
+
+	/*
+	 * WARNING: This overwrites some data that may be needed in the
+	 * following procedure. So everything that is needed and shares memory
+	 * with info->control.rates[] needs to be copied beforehand.
+	 */
+	for (i = 1; i < IEEE80211_TX_MAX_RATES; i++)
+		info->control.rates[i].idx = -1;
+
+	if (!use_legacy_rate) {
+		if (info->control.rates[0].idx < 0)
+			return TX_DROP;
+		return TX_CONTINUE;
+	}
+
+	idx = -1;
+	for (i = 0; i < sband->n_bitrates; i++) {
+		if (sband->bitrates[i].bitrate > bitrate)
+			continue;
+		if (idx >= 0 &&
+		    sband->bitrates[i].bitrate < sband->bitrates[idx].bitrate)
+			continue;
+		idx = i;
+	}
+	if (unlikely(idx < 0))
+		return TX_DROP;
+
+	info->control.rates[0].idx = idx;
+
+	return TX_CONTINUE;
+}
+
+static ieee80211_tx_result debug_noinline
 ieee80211_tx_h_sequence(struct ieee80211_tx_data *tx)
 {
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(tx->skb);
@@ -1476,8 +1522,12 @@ static int invoke_tx_handlers(struct ieee80211_tx_data *tx)
 	CALL_TXH(ieee80211_tx_h_ps_buf);
 	CALL_TXH(ieee80211_tx_h_check_control_port_protocol);
 	CALL_TXH(ieee80211_tx_h_select_key);
-	if (!ieee80211_hw_check(&tx->local->hw, HAS_RATE_CONTROL))
-		CALL_TXH(ieee80211_tx_h_rate_ctrl);
+	if (!ieee80211_hw_check(&tx->local->hw, HAS_RATE_CONTROL)) {
+		if (unlikely(info->control.use_preset_rate))
+			CALL_TXH(ieee80211_tx_h_rate_preset);
+		else
+			CALL_TXH(ieee80211_tx_h_rate_ctrl);
+	}
 
 	if (unlikely(info->flags & IEEE80211_TX_INTFL_RETRANSMISSION)) {
 		__skb_queue_tail(&tx->skbs, tx->skb);
@@ -1674,9 +1724,14 @@ static bool ieee80211_parse_tx_radiotap(struct sk_buff *skb)
 	int ret = ieee80211_radiotap_iterator_init(&iterator, rthdr, skb->len,
 						   NULL);
 	u16 txflags;
+	u8 known, flags, mcs;
 
 	info->flags |= IEEE80211_TX_INTFL_DONT_ENCRYPT |
 		       IEEE80211_TX_CTL_DONTFRAG;
+	info->control.prerate.count = 1;
+	info->control.prerate.flags = 0;
+	info->control.use_preset_rate = 0;
+	info->control.use_legacy_rate = 0;
 
 	/*
 	 * for every radiotap entry that is present
@@ -1722,6 +1777,46 @@ static bool ieee80211_parse_tx_radiotap(struct sk_buff *skb)
 			txflags = get_unaligned_le16(iterator.this_arg);
 			if (txflags & IEEE80211_RADIOTAP_F_TX_NOACK)
 				info->flags |= IEEE80211_TX_CTL_NO_ACK;
+			if (txflags & IEEE80211_RADIOTAP_F_TX_CTS)
+				info->control.prerate.flags |=
+					IEEE80211_TX_RC_USE_CTS_PROTECT;
+			if (txflags & IEEE80211_RADIOTAP_F_TX_RTS)
+				info->control.prerate.flags |=
+					IEEE80211_TX_RC_USE_RTS_CTS;
+			break;
+
+		case IEEE80211_RADIOTAP_RATE:
+			info->control.bitrate = *iterator.this_arg * 5;
+			info->control.use_legacy_rate = 1;
+			info->control.use_preset_rate = 1;
+			break;
+
+		case IEEE80211_RADIOTAP_MCS:
+			known = *iterator.this_arg;
+			flags = *(iterator.this_arg + 1);
+			mcs = *(iterator.this_arg + 2);
+			if (known & IEEE80211_RADIOTAP_MCS_HAVE_MCS) {
+				info->control.prerate.idx = mcs;
+				info->control.prerate.flags |=
+						IEEE80211_TX_RC_MCS;
+				info->control.use_preset_rate = 1;
+			}
+			if (known & IEEE80211_RADIOTAP_MCS_HAVE_BW) {
+				if ((flags & IEEE80211_RADIOTAP_MCS_BW_MASK)
+				    == IEEE80211_RADIOTAP_MCS_BW_40)
+					info->control.prerate.flags |=
+						IEEE80211_TX_RC_40_MHZ_WIDTH;
+			}
+			if (known & IEEE80211_RADIOTAP_MCS_HAVE_GI) {
+				if (flags & IEEE80211_RADIOTAP_MCS_SGI)
+					info->control.prerate.flags |=
+						IEEE80211_TX_RC_SHORT_GI;
+			}
+			if (known & IEEE80211_RADIOTAP_MCS_HAVE_FMT) {
+				if (flags & IEEE80211_RADIOTAP_MCS_FMT_GF)
+					info->control.prerate.flags |=
+						IEEE80211_TX_RC_GREEN_FIELD;
+			}
 			break;
 
 		/*

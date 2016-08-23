@@ -38,26 +38,29 @@ static int ath9k_ps_enable;
 module_param_named(ps_enable, ath9k_ps_enable, int, 0444);
 MODULE_PARM_DESC(ps_enable, "Enable WLAN PowerSave");
 
-int htc_use_dev_fw = 0;
-module_param_named(use_dev_fw, htc_use_dev_fw, int, 0444);
-MODULE_PARM_DESC(use_dev_fw, "Use development FW version");
+int htc_fw_bitrate = 0;
+module_param_named(fw_bitrate, htc_fw_bitrate, int, 0444);
+MODULE_PARM_DESC(fw_bitrate, "Set Firmware with bitrate to be loaded");
+
+// CHANGES
 
 #ifdef CONFIG_MAC80211_LEDS
 int ath9k_htc_led_blink = 1;
 module_param_named(blink, ath9k_htc_led_blink, int, 0444);
 MODULE_PARM_DESC(blink, "Enable LED blink on activity");
 
+// CHANGES
 static const struct ieee80211_tpt_blink ath9k_htc_tpt_blink[] = {
-	{ .throughput = 0 * 1024, .blink_time = 334 },
-	{ .throughput = 1 * 1024, .blink_time = 260 },
-	{ .throughput = 5 * 1024, .blink_time = 220 },
-	{ .throughput = 10 * 1024, .blink_time = 190 },
-	{ .throughput = 20 * 1024, .blink_time = 170 },
-	{ .throughput = 50 * 1024, .blink_time = 150 },
-	{ .throughput = 70 * 1024, .blink_time = 130 },
-	{ .throughput = 100 * 1024, .blink_time = 110 },
-	{ .throughput = 200 * 1024, .blink_time = 80 },
-	{ .throughput = 300 * 1024, .blink_time = 50 },
+	{ .throughput = 0 * 32, .blink_time = 334 },
+	{ .throughput = 1 * 32, .blink_time = 260 },
+	{ .throughput = 5 * 32, .blink_time = 220 },
+	{ .throughput = 10 * 32, .blink_time = 190 },
+	{ .throughput = 20 * 32, .blink_time = 170 },
+	{ .throughput = 50 * 32, .blink_time = 150 },
+	{ .throughput = 70 * 32, .blink_time = 130 },
+	{ .throughput = 100 * 32, .blink_time = 110 },
+	{ .throughput = 200 * 32, .blink_time = 80 },
+	{ .throughput = 300 * 32, .blink_time = 50 },
 };
 #endif
 
