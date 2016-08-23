@@ -54,7 +54,9 @@
 #include <linux/regmap.h>
 
 #include <asm/exception.h>
+#ifndef CONFIG_ARM64
 #include <asm/mach/irq.h>
+#endif
 
 /* Put the bank and irq (32 bits) into the hwirq */
 #define MAKE_HWIRQ(b, n)	(((b) << 5) | (n))
@@ -260,7 +262,9 @@ static int __init armctrl_of_init(struct device_node *node,
 			irq_set_probe(irq);
 		}
 	}
+#ifndef CONFIG_ARM64
 	init_FIQ(FIQ_START);
+#endif
 
 	return 0;
 }
