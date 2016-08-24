@@ -1,0 +1,3 @@
+#define RPI364
+
+#include "../../../../arm/boot/dts/bcm2710-rpi-3-b-plus.dts"
