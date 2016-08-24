@@ -25,3 +25,5 @@ subdir-y += sprd
 subdir-y += synaptics
 subdir-y += xilinx
 subdir-y += zte
+
+subdir-y += overlays
