@@ -815,7 +815,7 @@ static void bcm2835_sdhost_prepare_dma(struct bcm2835_host *host,
 			if (sg_is_last(sg)) {
 				BUG_ON(sg->length < len);
 				sg->length -= len;
-				host->drain_page = (struct page *)sg->page_link;
+				host->drain_page = sg_page(sg);
 				host->drain_offset = sg->offset + sg->length;
 			}
 		}
