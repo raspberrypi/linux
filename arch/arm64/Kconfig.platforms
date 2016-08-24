@@ -1,5 +1,27 @@
 menu "Platform selection"
 
+config MACH_BCM2709
+        bool
+
+config ARCH_BCM2709
+        bool "Broadcom BCM2709 family"
+        select MACH_BCM2709
+        select HAVE_SMP
+        select ARM_AMBA
+        select COMMON_CLK
+        select ARCH_HAS_CPUFREQ
+        select GENERIC_CLOCKEVENTS
+        select MULTI_IRQ_HANDLER
+        select SPARSE_IRQ
+        select MFD_SYSCON
+        select VC4
+        select USE_OF
+        select ARCH_REQUIRE_GPIOLIB
+        select PINCTRL
+        select PINCTRL_BCM2835
+        help
+          This enables support for Broadcom BCM2709 boards.
+
 config ARCH_SUNXI
 	bool "Allwinner sunxi 64-bit SoC Family"
 	select GENERIC_IRQ_CHIP
