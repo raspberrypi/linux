@@ -12,6 +12,9 @@
 	soc {
 		ranges = <0x7e000000 0x3f000000 0x01000000>,
 		         <0x40000000 0x40000000 0x00040000>;
+#ifdef RPI364
+		dma-ranges = <0xc0000000 0x00000000 0x3f000000>;
+#endif
 
 		local_intc: local_intc {
 			compatible = "brcm,bcm2836-l1-intc";
@@ -22,7 +25,11 @@
 		};
 
 		arm-pmu {
+#ifdef RPI364
+			compatible = "arm,armv8-pmuv3", "arm,cortex-a7-pmu";
+#else
 			compatible = "arm,cortex-a7-pmu";
+#endif
 			interrupt-parent = <&local_intc>;
 			interrupts = <9>;
 		};
@@ -34,7 +41,11 @@
 		};
 
 		timer {
+#ifdef RPI364
+			compatible = "arm,armv8-timer", "arm,armv7-timer";
+#else
 			compatible = "arm,armv7-timer";
+#endif
 			clock-frequency = <19200000>;
 			interrupt-parent = <&local_intc>;
 			interrupts = <0>, // PHYS_SECURE_PPI
@@ -50,6 +61,54 @@
 		};
 	};
 
+#ifdef RPI364
+	cpus: cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		v8_cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			reg = <0x0>;
+			clock-frequency = <1200000000>;
+		};
+
+		v8_cpu1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			reg = <0x1>;
+			clock-frequency = <1200000000>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x000000e0>;
+		};
+
+		v8_cpu2: cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			reg = <0x2>;
+			clock-frequency = <1200000000>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x000000e8>;
+		};
+
+		v8_cpu3: cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			reg = <0x3>;
+			clock-frequency = <1200000000>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x000000f0>;
+		};
+	};
+
+	__overrides__ {
+		arm_freq = <&v8_cpu0>, "clock-frequency:0",
+		       <&v8_cpu1>, "clock-frequency:0",
+		       <&v8_cpu2>, "clock-frequency:0",
+		       <&v8_cpu3>, "clock-frequency:0";
+	};
+
+#else
 	cpus: cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -89,6 +148,7 @@
 		       <&v7_cpu2>, "clock-frequency:0",
 		       <&v7_cpu3>, "clock-frequency:0";
 	};
+#endif
 };
 
 &watchdog {
@@ -96,7 +156,10 @@
 };
 
 &intc {
-        compatible = "brcm,bcm2836-armctrl-ic";
-        interrupt-parent = <&local_intc>;
-        interrupts = <8>;
+	compatible = "brcm,bcm2836-armctrl-ic";
+#ifdef RPI364
+	reg = <0x7e00b200 0x200>;
+#endif
+	interrupt-parent = <&local_intc>;
+	interrupts = <8>;
 };

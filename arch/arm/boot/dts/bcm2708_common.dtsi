@@ -85,7 +85,11 @@
 		};
 
 		intc: interrupt-controller@7e00b200 {
+#ifdef RPI364
+			compatible = "brcm,bcm2835-armctrl-ic", "brcm,bcm2708-armctrl-ic";
+#else
 			compatible = "brcm,bcm2708-armctrl-ic";
+#endif
 			reg = <0x7e00b200 0x200>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
@@ -335,6 +339,15 @@
 			status = "disabled";
 		};
 
+#ifdef RPI364
+		usb: usb@7e980000 {
+			compatible = "brcm,bcm2835-usb";
+			reg = <0x7e980000 0x10000>;
+			interrupts = <1 9>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+#else
 		usb: usb@7e980000 {
 			compatible = "brcm,bcm2708-usb";
 			reg = <0x7e980000 0x10000>,
@@ -342,6 +355,7 @@
 			interrupts = <2 0>,
 				     <1 9>;
 		};
+#endif
 
 		v3d: v3d@7ec00000 {
 			compatible = "brcm,vc4-v3d";
