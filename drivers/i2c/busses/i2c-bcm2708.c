@@ -115,13 +115,13 @@ static inline void bcm2708_bsc_reset(struct bcm2708_i2c *bi)
 
 static inline void bcm2708_bsc_fifo_drain(struct bcm2708_i2c *bi)
 {
-	while ((bcm2708_rd(bi, BSC_S) & BSC_S_RXD) && (bi->pos < bi->msg->len))
+	while ((bi->pos < bi->msg->len) && (bcm2708_rd(bi, BSC_S) & BSC_S_RXD))
 		bi->msg->buf[bi->pos++] = bcm2708_rd(bi, BSC_FIFO);
 }
 
 static inline void bcm2708_bsc_fifo_fill(struct bcm2708_i2c *bi)
 {
-	while ((bcm2708_rd(bi, BSC_S) & BSC_S_TXD) && (bi->pos < bi->msg->len))
+	while ((bi->pos < bi->msg->len) && (bcm2708_rd(bi, BSC_S) & BSC_S_TXD))
 		bcm2708_wr(bi, BSC_FIFO, bi->msg->buf[bi->pos++]);
 }
 
@@ -155,6 +155,10 @@ static inline int bcm2708_bsc_setup(struct bcm2708_i2c *bi)
 		if ( (bi->nmsgs > 1) &&
 			!(bi->msg[0].flags & I2C_M_RD) && (bi->msg[1].flags & I2C_M_RD) &&
 			 (bi->msg[0].addr == bi->msg[1].addr) && (bi->msg[0].len <= 16)) {
+
+			/* Clear FIFO */
+			bcm2708_wr(bi, BSC_C, BSC_C_CLEAR_1);
+
 			/* Fill FIFO with entire write message (16 byte FIFO) */
 			while (bi->pos < bi->msg->len) {
 				bcm2708_wr(bi, BSC_FIFO, bi->msg->buf[bi->pos++]);
