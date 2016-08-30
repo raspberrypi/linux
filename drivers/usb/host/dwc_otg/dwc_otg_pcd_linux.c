@@ -212,12 +212,11 @@ static struct usb_request *dwc_otg_pcd_alloc_request(struct usb_ep *ep,
 		DWC_WARN("%s() %s\n", __func__, "Invalid EP!\n");
 		return 0;
 	}
-	usb_req = kmalloc(sizeof(*usb_req), gfp_flags);
+	usb_req = kzalloc(sizeof(*usb_req), gfp_flags);
 	if (0 == usb_req) {
 		DWC_WARN("%s() %s\n", __func__, "request allocation failed!\n");
 		return 0;
 	}
-	memset(usb_req, 0, sizeof(*usb_req));
 	usb_req->dma = DWC_DMA_ADDR_INVALID;
 
 	return usb_req;
