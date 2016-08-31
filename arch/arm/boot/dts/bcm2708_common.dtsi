@@ -113,7 +113,6 @@
 			 * oscillator.
 			 */
 			clocks = <&clk_osc>;
-			status = "disabled";
 		};
 
 		random: rng@7e104000 {
@@ -134,11 +133,12 @@
 			#interrupt-cells = <2>;
 		};
 
-		uart0: uart@7e201000 {
-			compatible = "arm,pl011", "arm,primecell";
+		uart0: serial@7e201000 {
+			compatible = "brcm,bcm2835-pl011", "arm,pl011", "arm,primecell";
 			reg = <0x7e201000 0x1000>;
 			interrupts = <2 25>;
-			clocks = <&clk_uart0 &clk_apb_p>;
+			clocks = <&cprman BCM2835_CLOCK_UART>,
+			         <&cprman BCM2835_CLOCK_VPU>;
 			clock-names = "uartclk","apb_pclk";
 			arm,primecell-periphid = <0x00241011>; // For an explanation, see
 			// https://github.com/raspberrypi/linux/commit/13731d862cf5219216533a3b0de052cee4cc5038
@@ -149,7 +149,7 @@
 			compatible = "brcm,bcm2835-sdhost";
 			reg = <0x7e202000 0x100>;
 			interrupts = <2 24>;
-			clocks = <&clk_core>;
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 			dmas = <&dma 13>;
 			dma-names = "rx-tx";
 			brcm,overclock-50 = <0>;
@@ -160,8 +160,8 @@
 		i2s: i2s@7e203000 {
 			compatible = "brcm,bcm2835-i2s";
 			#sound-dai-cells = <0>;
-			reg = <0x7e203000 0x24>,
-			      <0x7e101098 0x08>;
+			reg = <0x7e203000 0x24>;
+			clocks = <&cprman BCM2835_CLOCK_PCM>;
 
 			dmas = <&dma 2>, <&dma 3>;
 			dma-names = "tx", "rx";
@@ -172,7 +172,7 @@
 			compatible = "brcm,bcm2835-spi";
 			reg = <0x7e204000 0x1000>;
 			interrupts = <2 22>;
-			clocks = <&clk_core>;
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -190,7 +190,7 @@
 			compatible = "brcm,bcm2708-i2c";
 			reg = <0x7e205000 0x1000>;
 			interrupts = <2 21>;
-			clocks = <&clk_core>;
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -222,32 +222,31 @@
 		pwm: pwm@7e20c000 {
 			compatible = "brcm,bcm2835-pwm";
 			reg = <0x7e20c000 0x28>;
-			clocks = <&clk_pwm>;
+			clocks = <&cprman BCM2835_CLOCK_PWM>;
+			assigned-clocks = <&cprman BCM2835_CLOCK_PWM>;
+			assigned-clock-rates = <10000000>;
 			#pwm-cells = <2>;
 			status = "disabled";
 		};
 
-		aux: aux@0x7e215004 {
+		aux: aux@0x7e215000 {
 			compatible = "brcm,bcm2835-aux";
 			#clock-cells = <1>;
 			reg = <0x7e215000 0x8>;
-			clocks = <&clk_core>;
-			status = "disabled";
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 		};
 
-		uart1: uart@7e215040 {
-			compatible = "brcm,bcm2835-aux-uart", "ns16550";
+		uart1: serial@7e215040 {
+			compatible = "brcm,bcm2835-aux-uart";
 			reg = <0x7e215040 0x40>;
 			interrupts = <1 29>;
-			clocks = <&clk_uart1>;
-			reg-shift = <2>;
-			no-loopback-test;
+			clocks = <&aux BCM2835_AUX_CLOCK_UART>;
 			status = "disabled";
 		};
 
 		spi1: spi@7e215080 {
 			compatible = "brcm,bcm2835-aux-spi";
-			reg = <0x7e215080 0x40>, <0x7e215000 0x8>;
+			reg = <0x7e215080 0x40>;
 			interrupts = <1 29>;
 			clocks = <&aux BCM2835_AUX_CLOCK_SPI1>;
 			#address-cells = <1>;
@@ -257,7 +256,7 @@
 
 		spi2: spi@7e2150C0 {
 			compatible = "brcm,bcm2835-aux-spi";
-			reg = <0x7e2150C0 0x40>, <0x7e215000 0x8>;
+			reg = <0x7e2150C0 0x40>;
 			interrupts = <1 29>;
 			clocks = <&aux BCM2835_AUX_CLOCK_SPI2>;
 			#address-cells = <1>;
@@ -269,7 +268,7 @@
 			compatible = "brcm,bcm2835-mmc";
 			reg = <0x7e300000 0x100>;
 			interrupts = <2 30>;
-			clocks = <&clk_mmc>;
+			clocks = <&cprman BCM2835_CLOCK_EMMC>;
 			dmas = <&dma 11>;
 			dma-names = "rx-tx";
 			brcm,overclock-50 = <0>;
@@ -286,7 +285,7 @@
 			compatible = "brcm,bcm2708-i2c";
 			reg = <0x7e804000 0x1000>;
 			interrupts = <2 21>;
-			clocks = <&clk_core>;
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -299,7 +298,7 @@
 			compatible = "brcm,bcm2708-i2c";
 			reg = <0x7e805000 0x1000>;
 			interrupts = <2 21>;
-			clocks = <&clk_core>;
+			clocks = <&cprman BCM2835_CLOCK_VPU>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -307,10 +306,11 @@
 
 		smi: smi@7e600000 {
 			compatible = "brcm,bcm2835-smi";
-			reg = <0x7e600000 0x44>, <0x7e1010b0 0x8>;
+			reg = <0x7e600000 0x100>;
 			interrupts = <2 16>;
-			brcm,smi-clock-source = <6>;
-			brcm,smi-clock-divisor = <4>;
+			clocks = <&cprman BCM2835_CLOCK_SMI>;
+			assigned-clocks = <&cprman BCM2835_CLOCK_SMI>;
+			assigned-clock-rates = <125000000>;
 			dmas = <&dma 4>;
 			dma-names = "rx-tx";
 			status = "disabled";
@@ -405,55 +405,6 @@
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <0>;
-
-		clk_core: clock@0 {
-			compatible = "fixed-clock";
-			reg = <0>;
-			#clock-cells = <0>;
-			clock-output-names = "core";
-			clock-frequency = <250000000>;
-		};
-
-		clk_mmc: clock@1 {
-			compatible = "fixed-clock";
-			reg = <1>;
-			#clock-cells = <0>;
-			clock-output-names = "mmc";
-			clock-frequency = <250000000>;
-		};
-
-		clk_uart0: clock@2 {
-			compatible = "fixed-clock";
-			reg = <2>;
-			#clock-cells = <0>;
-			clock-output-names = "uart0_pclk";
-			clock-frequency = <3000000>;
-		};
-
-		clk_apb_p: clock@3 {
-			compatible = "fixed-clock";
-			reg = <3>;
-			#clock-cells = <0>;
-			clock-output-names = "apb_pclk";
-			clock-frequency = <126000000>;
-		};
-
-		clk_pwm: clock@4 {
-			compatible = "fixed-clock";
-			reg = <4>;
-			#clock-cells = <0>;
-			clock-output-names = "pwm";
-			clock-frequency = <100000000>;
-		};
-
-		clk_uart1: clock@5 {
-			compatible = "fixed-factor-clock";
-			reg = <5>;
-			clocks = <&clk_core>;
-			#clock-cells = <0>;
-			clock-div = <1>;
-			clock-mult = <2>;
-		};
 
 		/* The oscillator is the root of the clock tree. */
 		clk_osc: clock@6 {
