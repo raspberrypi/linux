@@ -1415,12 +1415,8 @@ static void __do_stop_tx_rs485(struct uart_8250_port *p)
 	if (!(p->port.rs485.flags & SER_RS485_RX_DURING_TX)) {
 		serial8250_clear_fifos(p);
 
-		serial8250_rpm_get(p);
-
 		p->ier |= UART_IER_RLSI | UART_IER_RDI;
 		serial_port_out(&p->port, UART_IER, p->ier);
-
-		serial8250_rpm_put(p);
 	}
 }
 
@@ -1430,6 +1426,7 @@ static void serial8250_em485_handle_stop_tx(unsigned long arg)
 	struct uart_8250_em485 *em485 = p->em485;
 	unsigned long flags;
 
+	serial8250_rpm_get(p);
 	spin_lock_irqsave(&p->port.lock, flags);
 	if (em485 &&
 	    em485->active_timer == &em485->stop_tx_timer) {
@@ -1437,6 +1434,7 @@ static void serial8250_em485_handle_stop_tx(unsigned long arg)
 		em485->active_timer = NULL;
 	}
 	spin_unlock_irqrestore(&p->port.lock, flags);
+	serial8250_rpm_put(p);
 }
 
 static void __stop_tx_rs485(struct uart_8250_port *p)
@@ -1476,7 +1474,7 @@ static inline void __stop_tx(struct uart_8250_port *p)
 		unsigned char lsr = serial_in(p, UART_LSR);
 		/*
 		 * To provide required timeing and allow FIFO transfer,
-		 * __stop_tx_rs485 must be called only when both FIFO and
+		 * __stop_tx_rs485() must be called only when both FIFO and
 		 * shift register are empty. It is for device driver to enable
 		 * interrupt on TEMT.
 		 */
@@ -1485,9 +1483,10 @@ static inline void __stop_tx(struct uart_8250_port *p)
 
 		del_timer(&em485->start_tx_timer);
 		em485->active_timer = NULL;
+
+		__stop_tx_rs485(p);
 	}
 	__do_stop_tx(p);
-	__stop_tx_rs485(p);
 }
 
 static void serial8250_stop_tx(struct uart_port *port)
