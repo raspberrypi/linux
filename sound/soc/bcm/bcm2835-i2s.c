@@ -38,7 +38,6 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <linux/of_address.h>
 
 #include <sound/core.h>
 #include <sound/dmaengine_pcm.h>
@@ -158,6 +157,10 @@ static const unsigned int bcm2835_clk_freq[BCM2835_CLK_SRC_HDMI+1] = {
 #define BCM2835_I2S_INT_TXERR		BIT(2)
 #define BCM2835_I2S_INT_RXR		BIT(1)
 #define BCM2835_I2S_INT_TXW		BIT(0)
+
+/* I2S DMA interface */
+/* FIXME: Needs IOMMU support */
+#define BCM2835_VCMMU_SHIFT		(0x7E000000 - 0x20000000)
 
 /* General device struct */
 struct bcm2835_i2s_dev {
@@ -788,15 +791,6 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 	int ret;
 	struct regmap *regmap[2];
 	struct resource *mem[2];
-	const __be32 *addr;
-	dma_addr_t dma_reg_base;
-
-	addr = of_get_address(pdev->dev.of_node, 0, NULL, NULL);
-	if (!addr) {
-		dev_err(&pdev->dev, "could not get DMA-register address\n");
-		return -ENODEV;
-	}
-	dma_reg_base = be32_to_cpup(addr);
 
 	/* Request both ioareas */
 	for (i = 0; i <= 1; i++) {
@@ -823,10 +817,12 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 
 	/* Set the DMA address */
 	dev->dma_data[SNDRV_PCM_STREAM_PLAYBACK].addr =
-		dma_reg_base + BCM2835_I2S_FIFO_A_REG;
+		(dma_addr_t)mem[0]->start + BCM2835_I2S_FIFO_A_REG
+					  + BCM2835_VCMMU_SHIFT;
 
 	dev->dma_data[SNDRV_PCM_STREAM_CAPTURE].addr =
-		dma_reg_base + BCM2835_I2S_FIFO_A_REG;
+		(dma_addr_t)mem[0]->start + BCM2835_I2S_FIFO_A_REG
+					  + BCM2835_VCMMU_SHIFT;
 
 	/* Set the bus width */
 	dev->dma_data[SNDRV_PCM_STREAM_PLAYBACK].addr_width =
