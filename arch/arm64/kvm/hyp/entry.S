@@ -98,6 +98,8 @@ ENTRY(__guest_exit)
 	// x4-x29,lr: vcpu regs
 	// vcpu x0-x3 on the stack
 
+	ALTERNATIVE(nop, SET_PSTATE_PAN(1), ARM64_HAS_PAN, CONFIG_ARM64_PAN)
+
 	add	x2, x0, #VCPU_CONTEXT
 
 	stp	x4, x5,   [x2, #CPU_XREG_OFFSET(4)]
