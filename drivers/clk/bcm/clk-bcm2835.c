@@ -2155,8 +2155,15 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	return of_clk_add_hw_provider(dev->of_node, of_clk_hw_onecell_get,
+	ret = of_clk_add_hw_provider(dev->of_node, of_clk_hw_onecell_get,
 				      &cprman->onecell);
+	if (ret)
+		return ret;
+
+	/* note that we have registered all the clocks */
+	dev_dbg(dev, "registered %d clocks\n", asize);
+
+	return 0;
 }
 
 static const struct of_device_id bcm2835_clk_of_match[] = {
@@ -2173,7 +2180,11 @@ static struct platform_driver bcm2835_clk_driver = {
 	.probe          = bcm2835_clk_probe,
 };
 
-builtin_platform_driver(bcm2835_clk_driver);
+static int __init __bcm2835_clk_driver_init(void)
+{
+	return platform_driver_register(&bcm2835_clk_driver);
+}
+core_initcall(__bcm2835_clk_driver_init);
 
 MODULE_AUTHOR("Eric Anholt <eric@anholt.net>");
 MODULE_DESCRIPTION("BCM2835 clock driver");
