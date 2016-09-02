@@ -373,7 +373,7 @@ static void bcm2835_sdhost_dumpregs(struct bcm2835_host *host)
 	pr_info("%s: SDRSP2 0x%08x\n",
 		mmc_hostname(host->mmc),
 		bcm2835_sdhost_read(host, SDRSP2));
-	pr_err("%s: SDRSP3 0x%08x\n",
+	pr_info("%s: SDRSP3 0x%08x\n",
 		mmc_hostname(host->mmc),
 		bcm2835_sdhost_read(host, SDRSP3));
 	pr_info("%s: SDHSTS 0x%08x\n",
@@ -1183,9 +1183,8 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 		retries = 1; // We've already waited long enough this time
 	}
 
-	retries = host->cmd_quick_poll_retries;
 	for (sdcmd = bcm2835_sdhost_read(host, SDCMD);
-	     (sdcmd & SDCMD_NEW_FLAG) && !(sdcmd & SDCMD_FAIL_FLAG) && retries;
+	     (sdcmd & SDCMD_NEW_FLAG) && retries;
 	     retries--) {
 		cpu_relax();
 		sdcmd = bcm2835_sdhost_read(host, SDCMD);
@@ -1208,8 +1207,7 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 			usleep_range(1, 10);
 			spin_lock_irqsave(&host->lock, *irq_flags);
 			sdcmd = bcm2835_sdhost_read(host, SDCMD);
-			if (!(sdcmd & SDCMD_NEW_FLAG) ||
-			    (sdcmd & SDCMD_FAIL_FLAG))
+			if (!(sdcmd & SDCMD_NEW_FLAG))
 				break;
 		}
 	}
@@ -1891,8 +1889,6 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 	int ret;
 
 	mmc = host->mmc;
-
-	bcm2835_sdhost_reset_internal(host);
 
 	mmc->f_max = host->max_clk;
 	mmc->f_min = host->max_clk / SDCDIV_MAX_CDIV;
