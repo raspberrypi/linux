@@ -2394,6 +2394,8 @@ static void ath10k_htt_txrx_compl_task(unsigned long ptr)
 	skb_queue_splice_init(&htt->rx_in_ord_compl_q, &rx_ind_q);
 	spin_unlock_irqrestore(&htt->rx_in_ord_compl_q.lock, flags);
 
+	ath10k_mac_tx_push_pending(ar);
+
 	spin_lock_irqsave(&htt->tx_fetch_ind_q.lock, flags);
 	skb_queue_splice_init(&htt->tx_fetch_ind_q, &tx_ind_q);
 	spin_unlock_irqrestore(&htt->tx_fetch_ind_q.lock, flags);
