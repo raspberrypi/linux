@@ -876,6 +876,9 @@ void pnfs_clear_layoutreturn_waitbit(struct pnfs_layout_hdr *lo)
 static bool
 pnfs_prepare_layoutreturn(struct pnfs_layout_hdr *lo)
 {
+	/* Serialise LAYOUTGET/LAYOUTRETURN */
+	if (atomic_read(&lo->plh_outstanding) != 0)
+		return false;
 	if (test_and_set_bit(NFS_LAYOUT_RETURN, &lo->plh_flags))
 		return false;
 	lo->plh_return_iomode = 0;
