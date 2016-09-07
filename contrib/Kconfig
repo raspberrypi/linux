@@ -1,0 +1,573 @@
+menu "Pre-select default options"
+
+	menu "Raspberry Pi"
+
+		config RPI_KCONFIG
+			bool "Raspberry Pi support"
+
+			default y
+
+			# Ensure that output fits onto an 80-column display with ncurses window-rendering:
+			#
+			########xxx      1         2         3         4         5         6         7    xxxxx8
+			########12345678901234567890123456789012345678901234567890123456789012345678901234567890
+			########   -----------------------------------------------------------------------
+			#####   -----------------------------------------------------------------------
+			help
+				In order to boot a Raspberry Pi a minimal set of config settings need
+				to be enabled in the kernel; to avoid the users from having to enable
+				them manually as part of a Raspberry Pi custom kernel build, we enable
+				these config settings by default for convenience.
+
+				See the settings that become available for more details and
+				fine-tuning.
+
+		if RPI_KCONFIG
+
+			comment "Raspberry Pi Hardware Version"
+
+			menuconfig RPI_KCONFIG_RPIZ
+				bool "Raspberry Pi Zero ARMv6 support"
+				#visible if ! ( RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3 )
+
+				default n
+
+				#####   -----------------------------------------------------------------------
+				help
+					Select hardware options suitable for ARMv6 512MB Raspberry Pi Zero.
+
+			menuconfig RPI_KCONFIG_RPIA
+				bool "ARMv6 Raspberry Pi Model A/A+/B/B+/Compute Module"
+				#visible if ! ( RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3 )
+
+				default n
+
+				select ARM
+				select ARCH_BCM2708
+				select CPU_V6
+				select ARM_DMA_MEM_BUFFERABLE
+				select ARM_ERRATA_411920
+				select AEABI
+				select MMU
+				select UACCESS_WITH_MEMCPY
+				select CPU_FREQ
+				select ARM_BCM2835_CPUFREQ
+				select VFP
+				select PM
+				select OF
+				select OF_CONFIGFS
+				select OF_OVERLAY
+				select BCM2708_VCHIQ
+				select CMA
+				select BRCM_CHAR_DRIVERS
+				select BCM_VC_CMA
+				select BCM_VC_SM
+				select BCM2708_VCMEM
+				select BCM2835_MBOX
+				select BCM_VCIO
+				select I2C
+				select SPI
+				select GPIOLIB
+				select POWER_SUPPLY
+				select POWER_RESET
+				select POWER_RESET_GPIO
+				select THERMAL
+				select THERMAL_OF
+				select THERMAL_BCM2835
+				select WATCHDOG
+				select FB
+				select FB_BCM2708
+				select SOUND
+				#depends on BLOCK
+				select MMC
+				select MMC_BLOCK
+				select MMC_BLOCK_BOUNCE
+				select MMC_BCM2835
+				select MMC_BCM2835_DMA
+				select MMC_BCM2835_SDHOST
+				select MMC_SDHCI
+				select MMC_SDHCI_PLTFM
+				select SPI_MASTER
+				select MMC_SPI
+				select DMADEVICES
+				select DMA_BCM2835
+				select DMA_BCM2708
+				select STAGING
+				select MAILBOX
+				select BCM2835_MBOX
+				select RASPBERRYPI_POWER
+				select PWM
+				select ARM_PMU
+				select FAT_FS
+				select VFAT_FS
+				select BCM2835_MBOX
+				select RASPBERRYPI_FIRMWARE
+#				#depends on BCMA
+#				depends on DRM_VC4
+#				#depends on SND
+#				depends on SND_SOC
+#				depends on CONFIG_SND_BCM2835_SOC_I2S
+#				depends on SND_BCM2708_SOC_RPI_DAC
+#				depends on PWM_BCM2835
+
+				#####   -----------------------------------------------------------------------
+				help
+					Select hardware options suitable for original ARMv6 256MB or 512MB
+					Raspberry Pi Models A, A+, B, and B+.
+
+				config RPI_KCONFIG_NET
+					bool "Raspberry Pi USB networking support"
+
+					depends on RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3_RPIA
+					default y if RPI_KCONFIG_RPIA
+
+					depends on NETDEVICES
+					select USB_NET_DRIVERS
+					select USB_USBNET
+					select USB_NET_SMSC95XX
+
+					#####   -----------------------------------------------------------------------
+					help
+						Enable drivers for the Raspberry Pi on-board "SMSC9512/9514 Fast
+						Ethernet Adapter" USB-connected 10/100Mb ethernet port.
+
+						Due to limitations of the Linux Kernel's Kconfig syntax, it is only
+						possible to 'select' configuration options to be built-in, rather than
+						as modules.
+
+						To enable modular support for the on-board ethernet port, please
+						disable this option and instead choose the following modules:
+
+							- USB_USBNET
+							- USB_NET_SMSC95XX
+
+			menuconfig RPI_KCONFIG_RPI2
+				bool "ARMv7 Raspberry Pi Model A2/B2"
+				#visible if ! ( RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI3 )
+
+				default n
+
+				#####   -----------------------------------------------------------------------
+				help
+					Select hardware options suitable for ARMv7 1024MB Raspberry Pi
+					Model 2.
+
+			menuconfig RPI_KCONFIG_RPI3
+				bool "ARMv8 Raspberry Pi Model 3"
+				#visible if ! ( RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 )
+
+				default n
+
+				#####   -----------------------------------------------------------------------
+				help
+					Select hardware options suitable for ARMv8 1024MB Raspberry Pi
+					Model 3.
+
+			comment "Raspberry Pi Addition Hardware Drivers"
+
+			config RPI_KCONFIG_TS
+				bool "Raspberry Pi Touchscreen"
+
+				depends on RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3
+
+				depends on HAS_IOMEM
+				depends on !UML
+				depends on !S390
+				depends on !EMULATED_CMPXCHG
+				depends on MMU
+				depends on HAS_DMA
+				select INPUT
+				select INPUT_TOUCHSCREEN
+				select RASPBERRYPI_FIRMWARE
+				select TOUCHSCREEN_RPI_FT5406
+				select DRM
+				select DRM_PANEL
+				select DRM_MIPI_DSI
+				select DRM_PANEL_RASPBERRYPI_TOUCHSCREEN
+				select BACKLIGHT_LCD_SUPPORT
+				select BACKLIGHT_CLASS_DEVICE
+				select BACKLIGHT_RPI
+				select FB
+				select TTY
+				select VT
+				select FRAMEBUFFER_CONSOLE
+
+				#####   -----------------------------------------------------------------------
+				help
+					Enable drivers for the Official Raspberry Pi FT5406-based Touch-screen.
+
+					Due to limitations of the Linux Kernel's Kconfig syntax, it is only
+					possible to 'select' configuration options to be built-in, rather than
+					as modules.
+
+					To enable modular support for the on-board ethernet port, please
+					disable this option and instead choose the following modules:
+
+						- TOUCHSCREEN_RPI_FT5406
+						- DRM_PANEL_RASPBERRYPI_TOUCHSCREEN
+						- BACKLIGHT_RPI
+
+			config RPI_KCONFIG_SER
+				bool "Raspberry Pi Serial Port"
+
+				depends on RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3
+
+				depends on HAS_IOMEM
+				select TTY
+				select ARM_AMBA
+				select SERIAL_AMBA_PL011
+				select SERIAL_AMBA_PL011_CONSOLE
+
+				#####   -----------------------------------------------------------------------
+				help
+					Enable drivers for the Raspberry Pi Serial Port on GPIO pins 14 & 15.
+
+					Due to limitations of the Linux Kernel's Kconfig syntax, it is only
+					possible to 'select' configuration options to be built-in, rather than
+					as modules.
+
+					To enable modular support for the on-board ethernet port, please
+					disable this option and instead choose the following modules:
+
+						- ARM_AMBA
+						- SERIAL_AMBA_PL011
+						- SERIAL_AMBA_PL011_CONSOLE
+
+			config RPI_KCONFIG_RNG
+				bool "SoC Random Number Generator"
+
+				depends on RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3
+
+				depends on ARCH_BCM2708 || ARCH_BCM2709 || ARCH_BCM2835
+				select HW_RANDOM
+				select HW_RANDOM_BCM2835
+
+				#####   -----------------------------------------------------------------------
+				help
+					Enable the Raspberry Pi Broadcom SoC's Random Number Generator.
+
+					Due to limitations of the Linux Kernel's Kconfig syntax, it is only
+					possible to 'select' configuration options to be built-in, rather than
+					as modules.
+
+					To enable modular support for the on-board ethernet port, please
+					disable this option and instead choose the following modules:
+
+						- HW_RANDOM_BCM2835
+
+			config RPI_KCONFIG_SPI
+				bool "Raspberry Pi SPI support"
+
+				depends on RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3
+
+				depends on ARCH_BCM2708 || ARCH_BCM2709 || ARCH_BCM2835
+				depends on HAS_IOMEM
+				select SPI
+				select SPI_MASTER
+				select GPIOLIB
+				select SPI_BCM2835
+				select SPI_BCM2835AUX
+
+				#####   -----------------------------------------------------------------------
+				help
+					Enable SPI support.
+
+					Due to limitations of the Linux Kernel's Kconfig syntax, it is only
+					possible to 'select' configuration options to be built-in, rather than
+					as modules.
+
+					To enable modular support for the on-board ethernet port, please
+					disable this option and instead choose the following modules:
+
+						- SPI
+						- SPI_BCM2835
+						- SPI_BCM2835AUX
+
+			config RPI_KCONFIG_W1
+				bool "Raspberry Pi Dallas 1-wire support"
+
+				depends on RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3
+
+				depends on HAS_IOMEM
+				select GPIOLIB
+				select W1
+				select W1_MASTER_GPIO
+				select NET
+				select CONNECTOR
+				select W1_CON
+
+				#####   -----------------------------------------------------------------------
+				help
+					Enable Dallas 1-wire support via GPIO.
+
+					Due to limitations of the Linux Kernel's Kconfig syntax, it is only
+					possible to 'select' configuration options to be built-in, rather than
+					as modules.
+
+					To enable modular support for the on-board ethernet port, please
+					disable this option and instead choose the following modules:
+
+						- W1
+						- W1_MASTER_GPIO
+						- W1_CON
+
+			config RPI_KCONFIG_WDT
+				bool "SoC Watchdog Timer"
+
+				depends on RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3
+
+				depends on ARCH_BCM2708 || ARCH_BCM2709 || ARCH_BCM2835
+				select WATCHDOG
+				select BCM2835_WDT
+
+				#####   -----------------------------------------------------------------------
+				help
+					Enable the Raspberry Pi Broadcom SoC's Watchdog Timer.
+
+					Due to limitations of the Linux Kernel's Kconfig syntax, it is only
+					possible to 'select' configuration options to be built-in, rather than
+					as modules.
+
+					To enable modular support for the on-board ethernet port, please
+					disable this option and instead choose the following modules:
+
+						- WATCHDOG
+						- BCM2835_WDT
+
+			config RPI_KCONFIG_CAM
+				bool "Raspberry Pi Camera support"
+
+				depends on RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3
+
+				depends on ARCH_BCM2708 || ARCH_BCM2709 || ARCH_BCM2835
+				depends on HAS_IOMEM
+				select MEDIA_SUPPORT
+				select MEDIA_CAMERA_SUPPORT
+				select V4L_PLATFORM_DRIVERS
+				select I2C
+				select VIDEO_DEV
+				select VIDEO_V4L2
+				select VIDEO_BCM2835
+				select MAILBOX
+				select BCM2835_MBOX
+				select RASPBERRYPI_FIRMWARE
+				select BCM2708_VCHIQ
+				select VIDEO_BCM2835_MMAL
+
+				#####   -----------------------------------------------------------------------
+				help
+					Enable support for the DSI-connected Raspberry Pi camera board.
+
+					Due to limitations of the Linux Kernel's Kconfig syntax, it is only
+					possible to 'select' configuration options to be built-in, rather than
+					as modules.
+
+					To enable modular support for the on-board ethernet port, please
+					disable this option and instead choose the following modules:
+
+						- MEDIA_SUPPORT
+						- V4L_PLATFORM_DRIVERS
+						- VIDEO_BCM2835
+						- VIDEO_BCM2835_MMAL
+
+			config RPI_KCONFIG_HAT
+				bool "Raspberry Pi Sense HAT support"
+
+				depends on RPI_KCONFIG_RPIZ || RPI_KCONFIG_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3_RPIA || RPI_KCONFIG_RPI2 || RPI_KCONFIG_RPI3
+
+				depends on HAS_IOMEM
+				depends on !UML
+				select GPIOLIB
+				select INPUT
+				select INPUT_JOYSTICK
+				select JOYSTICK_RPISENSE
+				select I2C
+				select MFD_RPISENSE_CORE
+				select FB
+				select FB_RPISENSE
+
+				#####   -----------------------------------------------------------------------
+				help
+					Enable support for the Raspberry Pi Sense HAT board.
+
+					Due to limitations of the Linux Kernel's Kconfig syntax, it is only
+					possible to 'select' configuration options to be built-in, rather than
+					as modules.
+
+					To enable modular support for the on-board ethernet port, please
+					disable this option and instead choose the following modules:
+
+						- JOYSTICK_RPISENSE
+						- MFD_RPISENSE_CORE
+						- FB_RPISENSE
+
+		endif # RPI_KCONFIG
+
+	endmenu # "Raspberry Pi"
+
+	menu "Linux Distributions"
+
+		menuconfig RASPBIAN_LINUX
+			bool "Raspbian support"
+
+			default y
+
+			#####   -----------------------------------------------------------------------
+			help
+				In order to boot Raspbian a minimal set of config settings need to be
+				enabled in the kernel; to avoid the users from having to enable them
+				manually as part of a Raspbian installation or a new clean config,
+				we enable these config settings by default for convenience.
+
+				See the settings that become available for more details and
+				fine-tuning.
+
+		menuconfig GENTOO_LINUX
+			bool "Gentoo Linux support"
+
+			default n
+
+			#####   -----------------------------------------------------------------------
+			help
+				In order to boot Gentoo Linux a minimal set of config settings need to
+				be enabled in the kernel; to avoid the users from having to enable them
+				manually as part of a Gentoo Linux installation or a new clean config,
+				we enable these config settings by default for convenience.
+
+				See the settings that become available for more details and
+				fine-tuning.
+
+			config GENTOO_LINUX_UDEV
+				bool "Linux dynamic and persistent device naming (userspace devfs) support"
+
+				depends on GENTOO_LINUX
+				default y if GENTOO_LINUX
+
+				select DEVTMPFS
+				select TMPFS
+
+				select MMU
+				select SHMEM
+
+				#####   -----------------------------------------------------------------------
+				help
+					In order to boot Gentoo Linux a minimal set of config settings need to
+					be enabled in the kernel; to avoid the users from having to enable them
+					manually as part of a Gentoo Linux installation or a new clean config,
+					we enable these config settings by default for convenience.
+
+					Currently this only selects TMPFS, DEVTMPFS and their dependencies.
+					TMPFS is enabled to maintain a tmpfs file system at /dev/shm, /run and
+					/sys/fs/cgroup; DEVTMPFS to maintain a devtmpfs file system at /dev.
+
+					Some of these are critical files that need to be available early in the
+					boot process; if not available, it causes sysfs and udev to
+					malfunction.
+
+					To ensure Gentoo Linux boots, it is best to leave this setting enabled;
+					if you run a custom setup, you could consider whether to disable this.
+
+			config GENTOO_LINUX_PORTAGE
+				bool "Select options required by Portage features"
+
+				depends on GENTOO_LINUX
+				default y if GENTOO_LINUX
+
+				select CGROUPS
+				select NAMESPACES
+				select IPC_NS
+				select NET_NS
+				select SYSVIPC
+
+				#####   -----------------------------------------------------------------------
+				help
+					This enables options required by various Portage FEATURES.
+					Currently this selects:
+
+					CGROUPS     (required for FEATURES=cgroup)
+					IPC_NS      (required for FEATURES=ipc-sandbox)
+					NET_NS      (required for FEATURES=network-sandbox)
+					SYSVIPC     (required by IPC_NS)
+
+					It is highly recommended that you leave this enabled as these FEATURES
+					are, or will soon be, enabled by default.
+
+	endmenu # "Linux Distributions"
+
+	menu "Support for init systems, system and service managers"
+		visible if GENTOO_LINUX || RPI_KCONFIG
+
+		config GENTOO_LINUX_INIT_SCRIPT
+			bool "OpenRC, runit and other script based systems and managers"
+
+			default y if GENTOO_LINUX
+
+			select BINFMT_SCRIPT
+
+			#####   -----------------------------------------------------------------------
+			help
+				The init system is the first thing that loads after the kernel booted.
+
+				These config settings allow you to select which init systems to support
+				instead of having to select all the individual settings all over the
+				place, these settings allows you to select all the settings at once.
+
+				This particular setting enables all the known requirements for OpenRC,
+				runit and similar script based systems and managers.
+
+				If you are unsure about this, it is best to leave this setting enabled.
+
+		config GENTOO_LINUX_INIT_SYSTEMD
+			bool "systemd"
+
+			default n
+
+			select DEVTMPFS
+			select TMPFS
+
+			select MMU
+			select SHMEM
+
+			select AUTOFS4_FS
+			select BLK_DEV_BSG
+			select CGROUPS
+			select DEVPTS_MULTIPLE_INSTANCES
+			select EPOLL
+			select FANOTIFY
+			select FHANDLE
+			select INOTIFY_USER
+			select NET
+			select NET_NS
+			select PROC_FS
+			select SIGNALFD
+			select SYSFS
+			select TIMERFD
+
+			select ANON_INODES
+			select BLOCK
+			select EVENTFD
+			select FSNOTIFY
+			select INET
+			select NLATTR
+
+			# Apparently required by Arch/systemd-231 (Issue #1605)
+			# (... but requires CONFIG_OABI_COMPAT=n)
+			select HAVE_ARCH_SECCOMP_FILTER
+			select SECCOMP_FILTER
+			select SECCOMP
+
+			#####   -----------------------------------------------------------------------
+			help
+				The init system is the first thing that loads after the kernel booted.
+
+				These config settings allow you to select which init systems to support
+				instead of having to select all the individual settings all over the
+				place, these settings allows you to select all the settings at once.
+
+				This particular setting enables all the known requirements for systemd;
+				it also enables suggested optional settings, as the package suggests
+				to.
+
+	endmenu # "Support for init systems, system and service managers"
+
+endmenu # "Pre-select default options"
