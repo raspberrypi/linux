@@ -1196,6 +1196,8 @@ static int acm_probe(struct usb_interface *intf,
 	}
 
 	if (!buflen) {
+		if (!intf->cur_altsetting || !intf->cur_altsetting->endpoint)
+			return -EINVAL;
 		if (intf->cur_altsetting->endpoint &&
 				intf->cur_altsetting->endpoint->extralen &&
 				intf->cur_altsetting->endpoint->extra) {
@@ -1276,6 +1278,8 @@ next_desc:
 				data_interface = usb_ifnum_to_if(usb_dev, (data_interface_num = call_interface_num));
 			control_interface = intf;
 		} else {
+			if (!intf->cur_altsetting)
+				return -ENODEV;
 			if (intf->cur_altsetting->desc.bNumEndpoints != 3) {
 				dev_dbg(&intf->dev,"No union descriptor, giving up\n");
 				return -ENODEV;
@@ -1305,14 +1309,21 @@ next_desc:
 		combined_interfaces = 1;
 		/* a popular other OS doesn't use it */
 		quirks |= NO_CAP_LINE;
+		if (!data_interface->cur_altsetting)
+			return -EINVAL;
 		if (data_interface->cur_altsetting->desc.bNumEndpoints != 3) {
 			dev_err(&intf->dev, "This needs exactly 3 endpoints\n");
 			return -EINVAL;
 		}
 look_for_collapsed_interface:
+		if (!data_interface->cur_altsetting)
+			return -EINVAL;
 		for (i = 0; i < 3; i++) {
 			struct usb_endpoint_descriptor *ep;
 			ep = &data_interface->cur_altsetting->endpoint[i].desc;
+
+			if (!ep)
+				return -ENODEV;
 
 			if (usb_endpoint_is_int_in(ep))
 				epctrl = ep;
@@ -1332,8 +1343,12 @@ look_for_collapsed_interface:
 skip_normal_probe:
 
 	/*workaround for switched interfaces */
+	if (!data_interface->cur_altsetting)
+		return -EINVAL;
 	if (data_interface->cur_altsetting->desc.bInterfaceClass
 						!= CDC_DATA_INTERFACE_TYPE) {
+		if (!control_interface->cur_altsetting)
+			return -EINVAL;
 		if (control_interface->cur_altsetting->desc.bInterfaceClass
 						== CDC_DATA_INTERFACE_TYPE) {
 			dev_dbg(&intf->dev,
@@ -1356,6 +1371,7 @@ skip_normal_probe:
 
 
 	if (data_interface->cur_altsetting->desc.bNumEndpoints < 2 ||
+	    !control_interface->cur_altsetting ||
 	    control_interface->cur_altsetting->desc.bNumEndpoints == 0)
 		return -EINVAL;
 
@@ -1363,6 +1379,8 @@ skip_normal_probe:
 	epread = &data_interface->cur_altsetting->endpoint[0].desc;
 	epwrite = &data_interface->cur_altsetting->endpoint[1].desc;
 
+	if (!epctrl || !epread || !epwrite)
+		return -ENODEV;
 
 	/* workaround for switched endpoints */
 	if (!usb_endpoint_dir_in(epread)) {
