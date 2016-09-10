@@ -65,6 +65,7 @@ dtbo-$(RPI_DT_OVERLAYS) += piscreen2r.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pitft22.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pitft28-capacitive.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pitft28-resistive.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += pitft35-resistive.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pps-gpio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pwm.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pwm-2chan.dtbo
