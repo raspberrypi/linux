@@ -283,6 +283,14 @@ Load:   dtoverlay=dionaudio-loco
 Params: <None>
 
 
+Name:   dpi18
+Info:   Overlay for a generic 18-bit DPI display
+        This uses GPIOs 0-21 (so no I2C, uart etc.), and activates the output
+        2-3 seconds after the kernel has started.
+Load:   dtoverlay=dpi18
+Params: <None>
+
+
 Name:   dpi24
 Info:   Overlay for a generic 24-bit DPI display
         This uses GPIOs 0-27 (so no I2C, uart etc.), and activates the output
