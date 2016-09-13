@@ -180,7 +180,7 @@ static int acpi_register_lapic(int id, u8 enabled)
 	}
 
 	if (boot_cpu_physical_apicid != -1U)
-		ver = apic_version[boot_cpu_physical_apicid];
+		ver = boot_cpu_apic_version;
 
 	return generic_processor_info(id, ver);
 }
