@@ -80,7 +80,7 @@ cifs_prime_dcache(struct dentry *parent, struct qstr *name,
 	struct inode *inode;
 	struct super_block *sb = parent->d_sb;
 	struct cifs_sb_info *cifs_sb = CIFS_SB(sb);
-	DECLARE_WAIT_QUEUE_HEAD_ONSTACK(wq);
+	DECLARE_SWAIT_QUEUE_HEAD_ONSTACK(wq);
 
 	cifs_dbg(FYI, "%s: for %s\n", __func__, name->name);
 

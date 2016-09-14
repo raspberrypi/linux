@@ -1668,7 +1668,7 @@ static struct dentry *lookup_slow(const struct qstr *name,
 {
 	struct dentry *dentry = ERR_PTR(-ENOENT), *old;
 	struct inode *inode = dir->d_inode;
-	DECLARE_WAIT_QUEUE_HEAD_ONSTACK(wq);
+	DECLARE_SWAIT_QUEUE_HEAD_ONSTACK(wq);
 
 	inode_lock_shared(inode);
 	/* Don't go there if it's already dead */
@@ -3141,7 +3141,7 @@ static int lookup_open(struct nameidata *nd, struct path *path,
 	struct dentry *dentry;
 	int error, create_error = 0;
 	umode_t mode = op->mode;
-	DECLARE_WAIT_QUEUE_HEAD_ONSTACK(wq);
+	DECLARE_SWAIT_QUEUE_HEAD_ONSTACK(wq);
 
 	if (unlikely(IS_DEADDIR(dir_inode)))
 		return -ENOENT;
