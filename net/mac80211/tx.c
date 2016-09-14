@@ -1330,8 +1330,12 @@ out:
 	spin_unlock_bh(&txqi->queue.lock);
 
 	if (skb && skb_has_frag_list(skb) &&
-	    !ieee80211_hw_check(&local->hw, TX_FRAG_LIST))
-		skb_linearize(skb);
+	    !ieee80211_hw_check(&local->hw, TX_FRAG_LIST)) {
+		if (skb_linearize(skb)) {
+			ieee80211_free_txskb(&local->hw, skb);
+			return NULL;
+		}
+	}
 
 	return skb;
 }
