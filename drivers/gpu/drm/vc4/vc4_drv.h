@@ -64,6 +64,9 @@ struct vc4_perfmon {
 struct vc4_dev {
 	struct drm_device *dev;
 
+	bool firmware_kms;
+	struct rpi_firmware *firmware;
+
 	struct vc4_hdmi *hdmi;
 	struct vc4_hvs *hvs;
 	struct vc4_v3d *v3d;
@@ -783,6 +786,10 @@ extern struct platform_driver vc4_dsi_driver;
 
 /* vc4_fence.c */
 extern const struct dma_fence_ops vc4_fence_ops;
+
+/* vc4_firmware_kms.c */
+extern struct platform_driver vc4_firmware_kms_driver;
+void vc4_fkms_cancel_page_flip(struct drm_crtc *crtc, struct drm_file *file);
 
 /* vc4_gem.c */
 void vc4_gem_init(struct drm_device *dev);
