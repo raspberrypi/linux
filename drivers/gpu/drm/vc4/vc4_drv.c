@@ -47,10 +47,15 @@ void __iomem *vc4_ioremap_regs(struct platform_device *dev, int index)
 
 static void vc4_drm_preclose(struct drm_device *dev, struct drm_file *file)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_crtc *crtc;
 
-	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
-		vc4_cancel_page_flip(crtc, file);
+	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+		if (vc4->firmware_kms)
+			vc4_fkms_cancel_page_flip(crtc, file);
+		else
+			vc4_cancel_page_flip(crtc, file);
+	}
 }
 
 void vc4_dump_regs32(const struct debugfs_reg32 *regs, unsigned int num_regs,
@@ -331,6 +336,7 @@ static struct platform_driver *const component_drivers[] = {
 	&vc4_dsi_driver,
 	&vc4_hvs_driver,
 	&vc4_crtc_driver,
+	&vc4_firmware_kms_driver,
 	&vc4_v3d_driver,
 };
 
