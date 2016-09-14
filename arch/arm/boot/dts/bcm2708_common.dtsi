@@ -284,6 +284,26 @@
 			status = "disabled";
 		};
 
+		firmwarekms: firmwarekms@7e600000 {
+			compatible = "raspberrypi,rpi-firmware-kms";
+			/* SMI interrupt reg */
+			reg = <0x7e600000 0x100>;
+			interrupts = <2 16>;
+			brcm,firmware = <&firmware>;
+			status = "disabled";
+		};
+
+		smi: smi@7e600000 {
+			compatible = "brcm,bcm2835-smi";
+			reg = <0x7e600000 0x44>, <0x7e1010b0 0x8>;
+			interrupts = <2 16>;
+			brcm,smi-clock-source = <6>;
+			brcm,smi-clock-divisor = <4>;
+			dmas = <&dma 4>;
+			dma-names = "rx-tx";
+			status = "disabled";
+		};
+
 		dsi1: dsi@7e700000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -322,17 +342,6 @@
 			clocks = <&clk_core>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "disabled";
-		};
-
-		smi: smi@7e600000 {
-			compatible = "brcm,bcm2835-smi";
-			reg = <0x7e600000 0x44>, <0x7e1010b0 0x8>;
-			interrupts = <2 16>;
-			brcm,smi-clock-source = <6>;
-			brcm,smi-clock-divisor = <4>;
-			dmas = <&dma 4>;
-			dma-names = "rx-tx";
 			status = "disabled";
 		};
 

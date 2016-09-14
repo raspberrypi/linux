@@ -96,6 +96,7 @@ dtbo-$(RPI_DT_OVERLAYS) += spi2-2cs.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += spi2-3cs.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += tinylcd35.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += uart1.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += vc4-fkms-v3d.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += vc4-kms-v3d.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += vga666.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += w1-gpio.dtbo
