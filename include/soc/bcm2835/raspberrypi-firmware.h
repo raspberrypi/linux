@@ -156,5 +156,6 @@ static inline struct rpi_firmware *rpi_firmware_get(struct device_node *firmware
 	return NULL;
 }
 #endif
+int rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data);
 
 #endif /* __SOC_RASPBERRY_FIRMWARE_H__ */
