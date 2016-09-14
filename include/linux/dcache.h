@@ -107,7 +107,7 @@ struct dentry {
 
 	union {
 		struct list_head d_lru;		/* LRU list */
-		wait_queue_head_t *d_wait;	/* in-lookup ones only */
+		struct swait_queue_head *d_wait;	/* in-lookup ones only */
 	};
 	struct list_head d_child;	/* child of parent list */
 	struct list_head d_subdirs;	/* our children */
@@ -238,7 +238,7 @@ extern void d_set_d_op(struct dentry *dentry, const struct dentry_operations *op
 extern struct dentry * d_alloc(struct dentry *, const struct qstr *);
 extern struct dentry * d_alloc_pseudo(struct super_block *, const struct qstr *);
 extern struct dentry * d_alloc_parallel(struct dentry *, const struct qstr *,
-					wait_queue_head_t *);
+					struct swait_queue_head *);
 extern struct dentry * d_splice_alias(struct inode *, struct dentry *);
 extern struct dentry * d_add_ci(struct dentry *, struct inode *, struct qstr *);
 extern struct dentry * d_exact_alias(struct dentry *, struct inode *);

@@ -13,7 +13,7 @@
 #include <linux/sunrpc/clnt.h>
 #include <linux/nfs_fs.h>
 #include <linux/sched.h>
-#include <linux/wait.h>
+#include <linux/swait.h>
 #include <linux/namei.h>
 #include <linux/fsnotify.h>
 
@@ -206,7 +206,7 @@ nfs_async_unlink(struct dentry *dentry, const struct qstr *name)
 		goto out_free_name;
 	}
 	data->res.dir_attr = &data->dir_attr;
-	init_waitqueue_head(&data->wq);
+	init_swait_queue_head(&data->wq);
 
 	status = -EBUSY;
 	spin_lock(&dentry->d_lock);
