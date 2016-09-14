@@ -482,6 +482,15 @@ static inline void write_seqlock(seqlock_t *sl)
 	__raw_write_seqcount_begin(&sl->seqcount);
 }
 
+static inline int try_write_seqlock(seqlock_t *sl)
+{
+	if (spin_trylock(&sl->lock)) {
+		__raw_write_seqcount_begin(&sl->seqcount);
+		return 1;
+	}
+	return 0;
+}
+
 static inline void write_sequnlock(seqlock_t *sl)
 {
 	__raw_write_seqcount_end(&sl->seqcount);

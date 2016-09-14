@@ -10,6 +10,7 @@
 #include <linux/percpu.h>
 #include <linux/dynamic_queue_limits.h>
 #include <linux/list.h>
+#include <net/net_seq_lock.h>
 #include <linux/refcount.h>
 #include <linux/workqueue.h>
 #include <net/gen_stats.h>
@@ -97,7 +98,7 @@ struct Qdisc {
 	struct sk_buff_head	gso_skb ____cacheline_aligned_in_smp;
 	struct qdisc_skb_head	q;
 	struct gnet_stats_basic_packed bstats;
-	seqcount_t		running;
+	net_seqlock_t		running;
 	struct gnet_stats_queue	qstats;
 	unsigned long		state;
 	struct Qdisc            *next_sched;
@@ -118,7 +119,11 @@ static inline bool qdisc_is_running(struct Qdisc *qdisc)
 {
 	if (qdisc->flags & TCQ_F_NOLOCK)
 		return spin_is_locked(&qdisc->seqlock);
+#ifdef CONFIG_PREEMPT_RT_BASE
+	return spin_is_locked(&qdisc->running.lock) ? true : false;
+#else
 	return (raw_read_seqcount(&qdisc->running) & 1) ? true : false;
+#endif
 }
 
 static inline bool qdisc_run_begin(struct Qdisc *qdisc)
@@ -129,17 +134,27 @@ static inline bool qdisc_run_begin(struct Qdisc *qdisc)
 	} else if (qdisc_is_running(qdisc)) {
 		return false;
 	}
+#ifdef CONFIG_PREEMPT_RT_BASE
+	if (try_write_seqlock(&qdisc->running))
+		return true;
+	return false;
+#else
 	/* Variant of write_seqcount_begin() telling lockdep a trylock
 	 * was attempted.
 	 */
 	raw_write_seqcount_begin(&qdisc->running);
 	seqcount_acquire(&qdisc->running.dep_map, 0, 1, _RET_IP_);
 	return true;
+#endif
 }
 
 static inline void qdisc_run_end(struct Qdisc *qdisc)
 {
+#ifdef CONFIG_PREEMPT_RT_BASE
+	write_sequnlock(&qdisc->running);
+#else
 	write_seqcount_end(&qdisc->running);
+#endif
 	if (qdisc->flags & TCQ_F_NOLOCK)
 		spin_unlock(&qdisc->seqlock);
 }
@@ -458,7 +473,7 @@ static inline spinlock_t *qdisc_root_sleeping_lock(const struct Qdisc *qdisc)
 	return qdisc_lock(root);
 }
 
-static inline seqcount_t *qdisc_root_sleeping_running(const struct Qdisc *qdisc)
+static inline net_seqlock_t *qdisc_root_sleeping_running(const struct Qdisc *qdisc)
 {
 	struct Qdisc *root = qdisc_root_sleeping(qdisc);
 
