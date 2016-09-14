@@ -163,6 +163,9 @@ int vc4_crtc_get_scanoutpos(struct drm_device *dev, unsigned int crtc_id,
 	int vblank_lines;
 	int ret = 0;
 
+	if (vc4->firmware_kms)
+		return 0;
+
 	/* preempt_disable_rt() should go right here in PREEMPT_RT patchset. */
 
 	/* Get optional system timestamp before query. */
@@ -659,6 +662,11 @@ int vc4_enable_vblank(struct drm_device *dev, unsigned int crtc_id)
 	struct drm_crtc *crtc = drm_crtc_from_index(dev, crtc_id);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 
+	if (vc4->firmware_kms) {
+		/* XXX: Can we mask the SMI interrupt? */
+		return 0;
+	}
+
 	CRTC_WRITE(PV_INTEN, PV_INT_VFP_START);
 
 	return 0;
@@ -668,6 +676,11 @@ void vc4_disable_vblank(struct drm_device *dev, unsigned int crtc_id)
 {
 	struct drm_crtc *crtc = drm_crtc_from_index(dev, crtc_id);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+
+	if (vc4->firmware_kms) {
+		/* XXX: Can we mask the SMI interrupt? */
+		return;
+	}
 
 	CRTC_WRITE(PV_INTEN, 0);
 }
