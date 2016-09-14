@@ -12,6 +12,8 @@
 #include <linux/types.h>
 #include <linux/of_device.h>
 
+#define RPI_FIRMWARE_CHAN_FB		1
+
 struct rpi_firmware;
 
 enum rpi_firmware_property_status {
