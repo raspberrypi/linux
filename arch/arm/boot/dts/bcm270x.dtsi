@@ -1,4 +1,5 @@
 /* Downstream bcm283x.dtsi diff */
+#include "dt-bindings/power/raspberrypi-power.h"
 
 / {
 	chosen {
@@ -88,6 +89,15 @@
 			status = "disabled";
 		};
 
+		firmwarekms: firmwarekms@7e600000 {
+			compatible = "raspberrypi,rpi-firmware-kms";
+			/* SMI interrupt reg */
+			reg = <0x7e600000 0x100>;
+			interrupts = <2 16>;
+			brcm,firmware = <&firmware>;
+			status = "disabled";
+		};
+
 		smi: smi@7e600000 {
 			compatible = "brcm,bcm2835-smi";
 			reg = <0x7e600000 0x100>;
@@ -119,6 +129,7 @@
 
 		v3d@7ec00000 { /* vd3 */
 			compatible = "brcm,vc4-v3d";
+			power-domains = <&power RPI_POWER_DOMAIN_V3D>;
 			status = "disabled";
 		};
 
