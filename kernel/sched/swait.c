@@ -69,6 +69,7 @@ void swake_up_all(struct swait_queue_head *q)
 	struct swait_queue *curr;
 	LIST_HEAD(tmp);
 
+	WARN_ON(irqs_disabled());
 	raw_spin_lock_irq(&q->lock);
 	list_splice_init(&q->task_list, &tmp);
 	while (!list_empty(&tmp)) {
