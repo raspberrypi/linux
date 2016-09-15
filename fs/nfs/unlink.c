@@ -52,6 +52,29 @@ static void nfs_async_unlink_done(struct rpc_task *task, void *calldata)
 		rpc_restart_call_prepare(task);
 }
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+static void nfs_down_anon(struct semaphore *sema)
+{
+	down(sema);
+}
+
+static void nfs_up_anon(struct semaphore *sema)
+{
+	up(sema);
+}
+
+#else
+static void nfs_down_anon(struct rw_semaphore *rwsem)
+{
+	down_read_non_owner(rwsem);
+}
+
+static void nfs_up_anon(struct rw_semaphore *rwsem)
+{
+	up_read_non_owner(rwsem);
+}
+#endif
+
 /**
  * nfs_async_unlink_release - Release the sillydelete data.
  * @task: rpc_task of the sillydelete
@@ -65,7 +88,7 @@ static void nfs_async_unlink_release(void *calldata)
 	struct dentry *dentry = data->dentry;
 	struct super_block *sb = dentry->d_sb;
 
-	up_read_non_owner(&NFS_I(d_inode(dentry->d_parent))->rmdir_sem);
+	nfs_up_anon(&NFS_I(d_inode(dentry->d_parent))->rmdir_sem);
 	d_lookup_done(dentry);
 	nfs_free_unlinkdata(data);
 	dput(dentry);
@@ -118,10 +141,10 @@ static int nfs_call_unlink(struct dentry *dentry, struct inode *inode, struct nf
 	struct inode *dir = d_inode(dentry->d_parent);
 	struct dentry *alias;
 
-	down_read_non_owner(&NFS_I(dir)->rmdir_sem);
+	nfs_down_anon(&NFS_I(dir)->rmdir_sem);
 	alias = d_alloc_parallel(dentry->d_parent, &data->args.name, &data->wq);
 	if (IS_ERR(alias)) {
-		up_read_non_owner(&NFS_I(dir)->rmdir_sem);
+		nfs_up_anon(&NFS_I(dir)->rmdir_sem);
 		return 0;
 	}
 	if (!d_in_lookup(alias)) {
@@ -143,7 +166,7 @@ static int nfs_call_unlink(struct dentry *dentry, struct inode *inode, struct nf
 			ret = 0;
 		spin_unlock(&alias->d_lock);
 		dput(alias);
-		up_read_non_owner(&NFS_I(dir)->rmdir_sem);
+		nfs_up_anon(&NFS_I(dir)->rmdir_sem);
 		/*
 		 * If we'd displaced old cached devname, free it.  At that
 		 * point dentry is definitely not a root, so we won't need

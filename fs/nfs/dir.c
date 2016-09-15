@@ -1786,7 +1786,11 @@ int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 
 	trace_nfs_rmdir_enter(dir, dentry);
 	if (d_really_is_positive(dentry)) {
+#ifdef CONFIG_PREEMPT_RT_BASE
+		down(&NFS_I(d_inode(dentry))->rmdir_sem);
+#else
 		down_write(&NFS_I(d_inode(dentry))->rmdir_sem);
+#endif
 		error = NFS_PROTO(dir)->rmdir(dir, &dentry->d_name);
 		/* Ensure the VFS deletes this inode */
 		switch (error) {
@@ -1796,7 +1800,11 @@ int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 		case -ENOENT:
 			nfs_dentry_handle_enoent(dentry);
 		}
+#ifdef CONFIG_PREEMPT_RT_BASE
+		up(&NFS_I(d_inode(dentry))->rmdir_sem);
+#else
 		up_write(&NFS_I(d_inode(dentry))->rmdir_sem);
+#endif
 	} else
 		error = NFS_PROTO(dir)->rmdir(dir, &dentry->d_name);
 	trace_nfs_rmdir_exit(dir, dentry, error);
