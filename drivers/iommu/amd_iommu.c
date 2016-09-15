@@ -1654,6 +1654,9 @@ static void dma_ops_domain_free(struct dma_ops_domain *dom)
 
 	free_pagetable(&dom->domain);
 
+	if (dom->domain.id)
+		domain_id_free(dom->domain.id);
+
 	kfree(dom);
 }
 
