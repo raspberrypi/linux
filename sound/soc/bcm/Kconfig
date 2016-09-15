@@ -78,6 +78,13 @@ config SND_BCM2708_SOC_IQAUDIO_DIGI
         help
          Say Y or M if you want to add support for IQAudIO Digital IO board.
 
+config SND_BCM2708_SOC_PI2MEDIA_CSB503HTA
+        tristate "Support for Pi2Media CSB503HTA DAC/Headphone Amp"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+        select SND_SOC_PCM5102A
+        help
+         Say Y or M if you want to add support for Pi2Media CSB503HTA DAC/Headphone Amp.
+
 config SND_BCM2708_SOC_RASPIDAC3
 	tristate "Support for RaspiDAC Rev.3x"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
@@ -108,9 +115,12 @@ config SND_DIGIDAC1_SOUNDCARD
         help
          Say Y or M if you want to add support for Red Rocks Audio DigiDAC1 board.
 
+<<<<<<< HEAD
 config SND_BCM2708_SOC_DIONAUDIO_LOCO
 	tristate "Support for Dion Audio LOCO DAC-AMP"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	select SND_SOC_PCM5102a
 	help
 	  Say Y or M if you want to add support for Dion Audio LOCO.
+=======
+>>>>>>> e91d6cb... added driver and dtoverlay to support Pi2Media csb503hta headphone amp/dac board
