@@ -285,6 +285,7 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 				      struct drm_display_mode *unadjusted_mode,
 				      struct drm_display_mode *mode)
 {
+	struct vc4_hdmi_encoder *vc4_encoder = to_vc4_hdmi_encoder(encoder);
 	struct drm_device *dev = encoder->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	bool debug_dump_regs = false;
@@ -300,6 +301,7 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 	u32 vertb = (VC4_SET_FIELD(0, VC4_HDMI_VERTB_VSPO) |
 		     VC4_SET_FIELD(mode->vtotal - mode->vsync_end,
 				   VC4_HDMI_VERTB_VBP));
+	u32 csc_ctl;
 
 	if (debug_dump_regs) {
 		DRM_INFO("HDMI regs before:\n");
@@ -338,9 +340,31 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 		 (vsync_pos ? 0 : VC4_HD_VID_CTL_VSYNC_LOW) |
 		 (hsync_pos ? 0 : VC4_HD_VID_CTL_HSYNC_LOW));
 
+	csc_ctl = VC4_SET_FIELD(VC4_HD_CSC_CTL_ORDER_BGR,
+				VC4_HD_CSC_CTL_ORDER);
+
+	if (vc4_encoder->hdmi_monitor && drm_match_cea_mode(mode) != 0) {
+		/* Enable limited range RGB output.  This matrix is:
+		 * [ 0      0      0.8594 16]
+		 * [ 0      0.8594 0      16]
+		 * [ 0.8594 0      0      16]
+		 * [ 0      0      0       1]
+		 */
+		csc_ctl |= VC4_HD_CSC_CTL_ENABLE;
+		csc_ctl |= VC4_HD_CSC_CTL_RGB2YCC;
+		csc_ctl |= VC4_SET_FIELD(VC4_HD_CSC_CTL_MODE_CUSTOM,
+					 VC4_HD_CSC_CTL_MODE);
+
+		HD_WRITE(VC4_HD_CSC_12_11, (0x000 << 16) | 0x000);
+		HD_WRITE(VC4_HD_CSC_14_13, (0x100 << 16) | 0x6e0);
+		HD_WRITE(VC4_HD_CSC_22_21, (0x6e0 << 16) | 0x000);
+		HD_WRITE(VC4_HD_CSC_24_23, (0x100 << 16) | 0x000);
+		HD_WRITE(VC4_HD_CSC_32_31, (0x000 << 16) | 0x6e0);
+		HD_WRITE(VC4_HD_CSC_34_33, (0x100 << 16) | 0x000);
+	}
+
 	/* The RGB order applies even when CSC is disabled. */
-	HD_WRITE(VC4_HD_CSC_CTL, VC4_SET_FIELD(VC4_HD_CSC_CTL_ORDER_BGR,
-					       VC4_HD_CSC_CTL_ORDER));
+	HD_WRITE(VC4_HD_CSC_CTL, csc_ctl);
 
 	HDMI_WRITE(VC4_HDMI_FIFO_CTL, VC4_HDMI_FIFO_CTL_MASTER_SLAVE_N);
 
