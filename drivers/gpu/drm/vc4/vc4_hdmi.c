@@ -343,8 +343,11 @@ static void vc4_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 	csc_ctl = VC4_SET_FIELD(VC4_HD_CSC_CTL_ORDER_BGR,
 				VC4_HD_CSC_CTL_ORDER);
 
-	if (vc4_encoder->hdmi_monitor && drm_match_cea_mode(mode) != 0) {
-		/* Enable limited range RGB output.  This matrix is:
+	if (vc4_encoder->hdmi_monitor && drm_match_cea_mode(mode) > 1) {
+		/* CEA VICs other than #1 requre limited range RGB
+		 * output.  Apply a colorspace conversion to squash
+		 * 0-255 down to 16-235.  The matrix here is:
+		 *
 		 * [ 0      0      0.8594 16]
 		 * [ 0      0.8594 0      16]
 		 * [ 0.8594 0      0      16]
