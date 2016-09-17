@@ -5929,9 +5929,6 @@ tracing_buffers_splice_read(struct file *file, loff_t *ppos,
 		return -EBUSY;
 #endif
 
-	if (splice_grow_spd(pipe, &spd))
-		return -ENOMEM;
-
 	if (*ppos & (PAGE_SIZE - 1))
 		return -EINVAL;
 
@@ -5940,6 +5937,9 @@ tracing_buffers_splice_read(struct file *file, loff_t *ppos,
 			return -EINVAL;
 		len &= PAGE_MASK;
 	}
+
+	if (splice_grow_spd(pipe, &spd))
+		return -ENOMEM;
 
  again:
 	trace_access_lock(iter->cpu_file);
@@ -5998,19 +5998,21 @@ tracing_buffers_splice_read(struct file *file, loff_t *ppos,
 	/* did we read anything? */
 	if (!spd.nr_pages) {
 		if (ret)
-			return ret;
+			goto out;
 
+		ret = -EAGAIN;
 		if ((file->f_flags & O_NONBLOCK) || (flags & SPLICE_F_NONBLOCK))
-			return -EAGAIN;
+			goto out;
 
 		ret = wait_on_pipe(iter, true);
 		if (ret)
-			return ret;
+			goto out;
 
 		goto again;
 	}
 
 	ret = splice_to_pipe(pipe, &spd);
+out:
 	splice_shrink_spd(&spd);
 
 	return ret;
