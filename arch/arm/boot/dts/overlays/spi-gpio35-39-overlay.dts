@@ -18,14 +18,14 @@
 	fragment@1 {
 		target = <&spi0_cs_pins>;
 		__overlay__ {
-			bcrm,pins = <36 35>;
+			brcm,pins = <36 35>;
 		};
 	};
 
 	fragment@2 {
 		target = <&spi0_pins>;
 		__overlay__ {
-			bcrm,pins = <37 38 39>;
+			brcm,pins = <37 38 39>;
 		};
 	};
 };
