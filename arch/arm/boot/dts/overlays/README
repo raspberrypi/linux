@@ -848,6 +848,18 @@ Params: speed                   Display SPI bus speed
         debug                   Debug output level {0-7}
 
 
+Name:   pitft35-resistive
+Info:   Adafruit PiTFT 3.5" resistive touch screen
+Load:   dtoverlay=pitft35-resistive,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+
 Name:   pps-gpio
 Info:   Configures the pps-gpio (pulse-per-second time signal via GPIO).
 Load:   dtoverlay=pps-gpio,<param>=<val>
