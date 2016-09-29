@@ -371,6 +371,7 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	bool is_dsi = (vc4_encoder->type == VC4_ENCODER_TYPE_DSI0 ||
 		       vc4_encoder->type == VC4_ENCODER_TYPE_DSI1);
 	u32 format = is_dsi ? PV_CONTROL_FORMAT_DSIV_24 : PV_CONTROL_FORMAT_24;
+	u32 pixel_rep = (mode->flags & DRM_MODE_FLAG_DBLCLK) ? 2 : 1;
 	bool debug_dump_regs = false;
 
 	if (debug_dump_regs) {
@@ -384,14 +385,17 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	CRTC_WRITE(PV_CONTROL, 0);
 
 	CRTC_WRITE(PV_HORZA,
-		   VC4_SET_FIELD(mode->htotal - mode->hsync_end,
+		   VC4_SET_FIELD((mode->htotal -
+				  mode->hsync_end) * pixel_rep,
 				 PV_HORZA_HBP) |
-		   VC4_SET_FIELD(mode->hsync_end - mode->hsync_start,
+		   VC4_SET_FIELD((mode->hsync_end -
+				  mode->hsync_start) * pixel_rep,
 				 PV_HORZA_HSYNC));
 	CRTC_WRITE(PV_HORZB,
-		   VC4_SET_FIELD(mode->hsync_start - mode->hdisplay,
+		   VC4_SET_FIELD((mode->hsync_start -
+				  mode->hdisplay) * pixel_rep,
 				 PV_HORZB_HFP) |
-		   VC4_SET_FIELD(mode->hdisplay, PV_HORZB_HACTIVE));
+		   VC4_SET_FIELD(mode->hdisplay * pixel_rep, PV_HORZB_HACTIVE));
 
 	CRTC_WRITE(PV_VERTA,
 		   VC4_SET_FIELD(mode->crtc_vtotal - mode->crtc_vsync_end,
@@ -426,7 +430,7 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 			   PV_VCONTROL_CONTINUOUS |
 			   (is_dsi ? PV_VCONTROL_DSI : 0) |
 			   PV_VCONTROL_INTERLACE |
-			   VC4_SET_FIELD(mode->htotal / 2,
+			   VC4_SET_FIELD(mode->htotal * pixel_rep / 2,
 					 PV_VCONTROL_ODD_DELAY));
 		CRTC_WRITE(PV_VSYNCD_EVEN, 0);
 	} else {
@@ -435,12 +439,13 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 			   (is_dsi ? PV_VCONTROL_DSI : 0));
 	}
 
-	CRTC_WRITE(PV_HACT_ACT, mode->hdisplay);
+	CRTC_WRITE(PV_HACT_ACT, mode->hdisplay * pixel_rep);
 
 	CRTC_WRITE(PV_CONTROL,
 		   VC4_SET_FIELD(format, PV_CONTROL_FORMAT) |
 		   VC4_SET_FIELD(vc4_get_fifo_full_level(format),
 				 PV_CONTROL_FIFO_LEVEL) |
+		   VC4_SET_FIELD(pixel_rep - 1, PV_CONTROL_PIXEL_REP) |
 		   PV_CONTROL_CLR_AT_START |
 		   PV_CONTROL_TRIGGER_UNDERFLOW |
 		   PV_CONTROL_WAIT_HSTART |
