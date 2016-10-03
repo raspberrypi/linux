@@ -444,7 +444,7 @@ create_pagelist(char __user *buf, size_t count, unsigned short type,
 			while (actual_pages > 0)
 			{
 				actual_pages--;
-				page_cache_release(pages[actual_pages]);
+				put_page(pages[actual_pages]);
 			}
 			kfree(pagelist);
 			if (actual_pages == 0)
@@ -585,7 +585,7 @@ free_pagelist(PAGELIST_T *pagelist, int actual)
 				offset = 0;
 				set_page_dirty(pg);
 			}
-			page_cache_release(pg);
+			put_page(pg);
 		}
 	}
 
