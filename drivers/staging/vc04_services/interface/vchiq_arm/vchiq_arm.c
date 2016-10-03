@@ -1492,8 +1492,7 @@ dump_phys_mem(void *virt_addr, uint32_t num_bytes)
 	}
 
 	down_read(&current->mm->mmap_sem);
-	rc = get_user_pages(current,      /* task */
-		current->mm,              /* mm */
+	rc = get_user_pages(
 		(unsigned long)virt_addr, /* start */
 		num_pages,                /* len */
 		0,                        /* gup_flags */
