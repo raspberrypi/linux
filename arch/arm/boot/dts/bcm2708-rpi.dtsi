@@ -1,0 +1,105 @@
+/* Downstream version of bcm2835-rpi.dtsi */
+
+#include <dt-bindings/power/raspberrypi-power.h>
+
+/ {
+	memory {
+		device_type = "memory";
+		reg = <0x0 0x0>;
+	};
+
+	aliases {
+		audio = &audio;
+		aux = &aux;
+		sound = &sound;
+		soc = &soc;
+		dma = &dma;
+		intc = &intc;
+		watchdog = &watchdog;
+		random = &random;
+		mailbox = &mailbox;
+		gpio = &gpio;
+		uart0 = &uart0;
+		sdhost = &sdhost;
+		i2s = &i2s;
+		spi0 = &spi0;
+		i2c0 = &i2c0;
+		uart1 = &uart1;
+		spi1 = &spi1;
+		spi2 = &spi2;
+		mmc = &mmc;
+		i2c1 = &i2c1;
+		i2c2 = &i2c2;
+		usb = &usb;
+		leds = &leds;
+		fb = &fb;
+		vchiq = &vchiq;
+		thermal = &thermal;
+	};
+
+	leds: leds {
+		compatible = "gpio-leds";
+	};
+
+	soc {
+		gpiomem {
+			compatible = "brcm,bcm2835-gpiomem";
+			reg = <0x7e200000 0x1000>;
+		};
+
+		firmware: firmware {
+			compatible = "raspberrypi,bcm2835-firmware";
+			mboxes = <&mailbox>;
+		};
+
+		power: power {
+			compatible = "raspberrypi,bcm2835-power";
+			firmware = <&firmware>;
+			#power-domain-cells = <1>;
+		};
+
+		fb: fb {
+			compatible = "brcm,bcm2708-fb";
+			firmware = <&firmware>;
+			status = "disabled";
+		};
+
+		vchiq: vchiq {
+			compatible = "brcm,bcm2835-vchiq";
+			reg = <0x7e00b840 0xf>;
+			interrupts = <0 2>;
+			cache-line-size = <32>;
+			firmware = <&firmware>;
+		};
+
+		thermal: thermal {
+			compatible = "brcm,bcm2835-thermal";
+			firmware = <&firmware>;
+		};
+
+		/* Onboard audio */
+		audio: audio {
+			compatible = "brcm,bcm2835-audio";
+			brcm,pwm-channels = <8>;
+			status = "disabled";
+		};
+
+		/* External sound card */
+		sound: sound {
+			status = "disabled";
+		};
+
+	};
+
+	__overrides__ {
+		cache_line_size = <&vchiq>, "cache-line-size:0";
+	};
+};
+
+&dma {
+	brcm,dma-channel-mask = <0x7f34>;
+};
+
+&hdmi {
+	power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
+};

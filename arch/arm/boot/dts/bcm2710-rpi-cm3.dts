@@ -108,13 +108,8 @@
 };
 
 &i2s {
-	#sound-dai-cells = <0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2s_pins>;
-};
-
-&random {
-	status = "okay";
 };
 
 &leds {
