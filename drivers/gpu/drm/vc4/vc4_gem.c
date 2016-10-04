@@ -41,6 +41,8 @@ int vc4_gem_exec_debugfs(struct seq_file *m, void *unused)
 
 	seq_printf(m, "Emitted  seqno:   0x%016llx\n", vc4->emit_seqno);
 	seq_printf(m, "Finished seqno:   0x%016llx\n", vc4->finished_seqno);
+	seq_printf(m, "Emitted  QPU seqno:   0x%016llx\n", vc4->qpu_emit_seqno);
+	seq_printf(m, "Finished QPU seqno:   0x%016llx\n", vc4->qpu_finished_seqno);
 
 	return 0;
 }
@@ -297,14 +299,16 @@ vc4_hangcheck_elapsed(unsigned long data)
 {
 	struct drm_device *dev = (struct drm_device *)data;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	uint32_t ct0ca, ct1ca;
+	uint32_t ct0ca, ct1ca, qpurqcc;
 	unsigned long irqflags;
 	struct vc4_exec_info *bin_exec, *render_exec;
+	struct vc4_qpu_exec_info *qpu_exec;
 
 	spin_lock_irqsave(&vc4->job_lock, irqflags);
 
 	bin_exec = vc4_first_bin_job(vc4);
 	render_exec = vc4_first_render_job(vc4);
+	qpu_exec = vc4_first_qpu_job(vc4);
 
 	/* If idle, we can stop watching for hangs. */
 	if (!bin_exec && !render_exec) {
@@ -314,16 +318,21 @@ vc4_hangcheck_elapsed(unsigned long data)
 
 	ct0ca = V3D_READ(V3D_CTNCA(0));
 	ct1ca = V3D_READ(V3D_CTNCA(1));
+	qpurqcc = VC4_GET_FIELD(V3D_READ(V3D_SRQCS),
+				V3D_SRQCS_QPURQCC);
 
 	/* If we've made any progress in execution, rearm the timer
 	 * and wait.
 	 */
 	if ((bin_exec && ct0ca != bin_exec->last_ct0ca) ||
-	    (render_exec && ct1ca != render_exec->last_ct1ca)) {
+	    (render_exec && ct1ca != render_exec->last_ct1ca) ||
+	    (qpu_exec && qpurqcc != render_exec->last_qpurqcc)) {
 		if (bin_exec)
 			bin_exec->last_ct0ca = ct0ca;
 		if (render_exec)
 			render_exec->last_ct1ca = ct1ca;
+		if (qpu_exec)
+			qpu_exec->last_qpurqcc = qpurqcc;
 		spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 		vc4_queue_hangcheck(dev);
 		return;
@@ -379,6 +388,54 @@ vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno, uint64_t timeout_ns,
 		}
 
 		if (vc4->finished_seqno >= seqno)
+			break;
+
+		if (timeout_ns != ~0ull) {
+			if (time_after_eq(jiffies, timeout_expire)) {
+				ret = -ETIME;
+				break;
+			}
+			schedule_timeout(timeout_expire - jiffies);
+		} else {
+			schedule();
+		}
+	}
+
+	finish_wait(&vc4->job_wait_queue, &wait);
+	trace_vc4_wait_for_seqno_end(dev, seqno);
+
+	return ret;
+}
+
+static int
+vc4_wait_for_qpu_seqno(struct drm_device *dev, uint64_t seqno,
+		       uint64_t timeout_ns, bool interruptible)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	int ret = 0;
+	unsigned long timeout_expire;
+	DEFINE_WAIT(wait);
+
+	if (vc4->qpu_finished_seqno >= seqno)
+		return 0;
+
+	if (timeout_ns == 0)
+		return -ETIME;
+
+	timeout_expire = jiffies + nsecs_to_jiffies(timeout_ns);
+
+	trace_vc4_wait_for_seqno_begin(dev, seqno, timeout_ns);
+	for (;;) {
+		prepare_to_wait(&vc4->job_wait_queue, &wait,
+				interruptible ? TASK_INTERRUPTIBLE :
+				TASK_UNINTERRUPTIBLE);
+
+		if (interruptible && signal_pending(current)) {
+			ret = -ERESTARTSYS;
+			break;
+		}
+
+		if (vc4->qpu_finished_seqno >= seqno)
 			break;
 
 		if (timeout_ns != ~0ull) {
@@ -456,6 +513,23 @@ vc4_submit_next_render_job(struct drm_device *dev)
 		return;
 
 	submit_cl(dev, 1, exec->ct1ca, exec->ct1ea);
+}
+
+void
+vc4_submit_next_qpu_job(struct drm_device *dev)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_qpu_exec_info *exec = vc4_first_qpu_job(vc4);
+	int i;
+
+	if (!exec)
+		return;
+
+	/* XXX: Set up VPM */
+	for (i = 0; i < exec->job_count; i++) {
+		V3D_WRITE(V3D_SRQUA, exec->job[i].uniforms);
+		V3D_WRITE(V3D_SRQPC, exec->job[i].code);
+	}
 }
 
 void
@@ -734,6 +808,19 @@ vc4_complete_exec(struct drm_device *dev, struct vc4_exec_info *exec)
 	kfree(exec);
 }
 
+static void
+vc4_complete_qpu_exec(struct drm_device *dev, struct vc4_qpu_exec_info *exec)
+{
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	mutex_lock(&vc4->power_lock);
+	if (--vc4->power_refcount == 0)
+		pm_runtime_put(&vc4->v3d->pdev->dev);
+	mutex_unlock(&vc4->power_lock);
+
+	kfree(exec);
+}
+
 void
 vc4_job_handle_completed(struct vc4_dev *vc4)
 {
@@ -749,6 +836,17 @@ vc4_job_handle_completed(struct vc4_dev *vc4)
 
 		spin_unlock_irqrestore(&vc4->job_lock, irqflags);
 		vc4_complete_exec(vc4->dev, exec);
+		spin_lock_irqsave(&vc4->job_lock, irqflags);
+	}
+
+	while (!list_empty(&vc4->qpu_job_done_list)) {
+		struct vc4_qpu_exec_info *exec =
+			list_first_entry(&vc4->qpu_job_done_list,
+					 struct vc4_qpu_exec_info, head);
+		list_del(&exec->head);
+
+		spin_unlock_irqrestore(&vc4->job_lock, irqflags);
+		vc4_complete_qpu_exec(vc4->dev, exec);
 		spin_lock_irqsave(&vc4->job_lock, irqflags);
 	}
 
@@ -931,6 +1029,90 @@ fail:
 	return ret;
 }
 
+int
+vc4_firmware_qpu_execute(struct vc4_dev *vc4, u32 num_jobs,
+			 u32 control, u32 noflush, u32 timeout)
+{
+	struct drm_device *dev = vc4->dev;
+	u32 control_paddr;
+	struct vc4_qpu_exec_info *exec;
+	struct control_args {
+		u32 uniforms;
+		u32 code;
+	} *control_args;
+	int ret = 0, i;
+	uint64_t seqno;
+	unsigned long irqflags;
+
+	control_paddr = control & ~(BIT(31) | BIT(30));
+
+	if (num_jobs > ARRAY_SIZE(exec->job)) {
+		DRM_ERROR("V3D QPU execution request with too many jobs (%d)\n",
+			  num_jobs);
+		return -EINVAL;
+	}
+
+	exec = kcalloc(1, sizeof(*exec), GFP_KERNEL);
+	if (!exec) {
+		DRM_ERROR("malloc failure on exec struct\n");
+		return -ENOMEM;
+	}
+
+	mutex_lock(&vc4->power_lock);
+	if (vc4->power_refcount++ == 0)
+		ret = pm_runtime_get_sync(&vc4->v3d->pdev->dev);
+	mutex_unlock(&vc4->power_lock);
+	if (ret < 0) {
+		DRM_ERROR("Failed to power on V3D args: %d\n", ret);
+		kfree(exec);
+		return ret;
+	}
+
+	/* Turn on the debug block, which is what generates the
+	 * interrupt from the QPUs.  We could turn this back off once
+	 * all user QPU programs have completed, but it will also get
+	 * turned off once runtime PM turns the whole V3D off.
+	 */
+	V3D_WRITE(V3D_DBCFG, V3D_DBCFG_ENABLE);
+
+	control_args = ioremap(control_paddr, num_jobs * 2 * sizeof(u32));
+	if (!control_args) {
+		DRM_ERROR("Failed to ioremap QPU submit args\n");
+		vc4_complete_qpu_exec(dev, exec);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < num_jobs; i++) {
+		exec->job[i].code = control_args[i].code;
+		exec->job[i].uniforms = control_args[i].uniforms;
+	}
+	iounmap(control_args);
+
+	exec->job_count = num_jobs;
+
+	spin_lock_irqsave(&vc4->job_lock, irqflags);
+
+	seqno = ++vc4->qpu_emit_seqno;
+	exec->seqno = seqno;
+
+	list_add_tail(&exec->head, &vc4->qpu_job_list);
+
+	/* If no job was executing, kick ours off. */
+	if (vc4_first_qpu_job(vc4) == exec) {
+		vc4_submit_next_qpu_job(dev);
+		vc4_queue_hangcheck(dev);
+	}
+
+	spin_unlock_irqrestore(&vc4->job_lock, irqflags);
+
+	/* The mailbox interface is synchronous, so wait for the job
+	 * we just made to complete.
+	 */
+	ret = vc4_wait_for_qpu_seqno(dev, seqno, (u64)timeout * 1000000, true);
+
+	return ret;
+}
+
 void
 vc4_gem_init(struct drm_device *dev)
 {
@@ -938,7 +1120,9 @@ vc4_gem_init(struct drm_device *dev)
 
 	INIT_LIST_HEAD(&vc4->bin_job_list);
 	INIT_LIST_HEAD(&vc4->render_job_list);
+	INIT_LIST_HEAD(&vc4->qpu_job_list);
 	INIT_LIST_HEAD(&vc4->job_done_list);
+	INIT_LIST_HEAD(&vc4->qpu_job_done_list);
 	INIT_LIST_HEAD(&vc4->seqno_cb_list);
 	spin_lock_init(&vc4->job_lock);
 
@@ -961,6 +1145,7 @@ vc4_gem_destroy(struct drm_device *dev)
 	 * unregistering V3D.
 	 */
 	WARN_ON(vc4->emit_seqno != vc4->finished_seqno);
+	WARN_ON(vc4->qpu_emit_seqno != vc4->qpu_finished_seqno);
 
 	/* V3D should already have disabled its interrupt and cleared
 	 * the overflow allocation registers.  Now free the object.

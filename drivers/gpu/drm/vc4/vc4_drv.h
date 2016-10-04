@@ -70,6 +70,9 @@ struct vc4_dev {
 	 */
 	uint64_t finished_seqno;
 
+	uint64_t qpu_emit_seqno;
+	uint64_t qpu_finished_seqno;
+
 	/* List of all struct vc4_exec_info for jobs to be executed in
 	 * the binner.  The first job in the list is the one currently
 	 * programmed into ct0ca for execution.
@@ -83,10 +86,22 @@ struct vc4_dev {
 	 */
 	struct list_head render_job_list;
 
+	/* List of all struct vc4_user_qpu_exec_info for jobs that are
+	 * queued for execution.  The first job in the list is the one
+	 * currently programmed into the hardware's QPU job fifo.
+	 */
+	struct list_head qpu_job_list;
+
 	/* List of the finished vc4_exec_infos waiting to be freed by
 	 * job_done_work.
 	 */
 	struct list_head job_done_list;
+
+	/* List of the finished vc4_user_qpu_exec_infos waiting to be
+	 * freed by job_done_work.
+	 */
+	struct list_head qpu_job_done_list;
+
 	/* Spinlock used to synchronize the job_list and seqno
 	 * accesses between the IRQ handler and GEM ioctls.
 	 */
@@ -240,7 +255,7 @@ struct vc4_exec_info {
 	/* Last current addresses the hardware was processing when the
 	 * hangcheck timer checked on us.
 	 */
-	uint32_t last_ct0ca, last_ct1ca;
+	uint32_t last_ct0ca, last_ct1ca, last_qpurqcc;
 
 	/* Kernel-space copy of the ioctl arguments */
 	struct drm_vc4_submit_cl *args;
@@ -332,6 +347,26 @@ struct vc4_exec_info {
 	uint32_t uniforms_size;
 };
 
+
+struct vc4_qpu_exec_info {
+	/* Sequence number for this bin/render job. */
+	uint64_t seqno;
+
+	uint32_t last_qpurqcc;
+
+	/* Kernel-space copy of the ioctl arguments */
+	struct drm_vc4_submit_cl *args;
+
+	/* Pointers for our position in vc4->qpu_job_list */
+	struct list_head head;
+
+	struct {
+		u32 code;
+		u32 uniforms;
+	} job[16];
+	u32 job_count;
+};
+
 static inline struct vc4_exec_info *
 vc4_first_bin_job(struct vc4_dev *vc4)
 {
@@ -347,6 +382,13 @@ vc4_first_render_job(struct vc4_dev *vc4)
 		return NULL;
 	return list_first_entry(&vc4->render_job_list,
 				struct vc4_exec_info, head);
+}
+
+static inline struct vc4_qpu_exec_info *
+vc4_first_qpu_job(struct vc4_dev *vc4)
+{
+	return list_first_entry_or_null(&vc4->qpu_job_list,
+					struct vc4_qpu_exec_info, head);
 }
 
 static inline struct vc4_exec_info *
@@ -496,6 +538,7 @@ int vc4_wait_bo_ioctl(struct drm_device *dev, void *data,
 		      struct drm_file *file_priv);
 void vc4_submit_next_bin_job(struct drm_device *dev);
 void vc4_submit_next_render_job(struct drm_device *dev);
+void vc4_submit_next_qpu_job(struct drm_device *dev);
 void vc4_move_job_to_render(struct drm_device *dev, struct vc4_exec_info *exec);
 int vc4_wait_for_seqno(struct drm_device *dev, uint64_t seqno,
 		       uint64_t timeout_ns, bool interruptible);
@@ -504,6 +547,10 @@ int vc4_queue_seqno_cb(struct drm_device *dev,
 		       struct vc4_seqno_cb *cb, uint64_t seqno,
 		       void (*func)(struct vc4_seqno_cb *cb));
 int vc4_gem_exec_debugfs(struct seq_file *m, void *arg);
+
+int
+vc4_firmware_qpu_execute(struct vc4_dev *dev, u32 num_qpu,
+			 u32 control, u32 noflush, u32 timeout);
 
 /* vc4_hdmi.c */
 extern struct platform_driver vc4_hdmi_driver;
