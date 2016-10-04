@@ -234,6 +234,7 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 				 struct snd_soc_dai *dai)
 {
 	struct bcm2835_i2s_dev *dev = snd_soc_dai_get_drvdata(dai);
+	snd_pcm_format_t pcm_format = params_format(params);
 	unsigned int sampling_rate = params_rate(params);
 	unsigned int data_length, data_delay, bclk_ratio;
 	unsigned int ch1pos, ch2pos, mode, format;
@@ -255,15 +256,12 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	 * Maybe it is overwritten there, if the Integer mode
 	 * does not apply.
 	 */
-	switch (params_format(params)) {
+	switch (pcm_format) {
 	case SNDRV_PCM_FORMAT_S16_LE:
-		data_length = 16;
-		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
-		data_length = 24;
-		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
-		data_length = 32;
+		data_length = snd_pcm_format_width(pcm_format);
+		bclk_ratio = snd_pcm_format_physical_width(pcm_format) * 2;
 		break;
 	default:
 		return -EINVAL;
@@ -272,9 +270,6 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	/* If bclk_ratio already set, use that one. */
 	if (dev->bclk_ratio)
 		bclk_ratio = dev->bclk_ratio;
-	else
-		/* otherwise calculate a fitting block ratio */
-		bclk_ratio = 2 * data_length;
 
 	/* Clock should only be set up here if CPU is clock master */
 	switch (dev->fmt & SND_SOC_DAIFMT_MASTER_MASK) {
