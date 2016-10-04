@@ -133,4 +133,12 @@ int rpi_firmware_property_list(struct rpi_firmware *fw,
 struct rpi_firmware *rpi_firmware_get(struct device_node *firmware_node);
 int rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data);
 
+struct vc4_dev;
+void rpi_firmware_register_vc4(struct rpi_firmware *fw, struct vc4_dev *vc4,
+			       int (*qpu_execute)(struct vc4_dev *vc4,
+						  u32 num_qpu,
+						  u32 control,
+						  u32 noflush,
+						  u32 timeout));
+
 #endif /* __SOC_RASPBERRY_FIRMWARE_H__ */
