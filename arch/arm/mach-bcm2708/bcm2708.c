@@ -44,7 +44,6 @@
 
 /* command line parameters */
 static unsigned boardrev, serial;
-static unsigned reboot_part = 0;
 
 static struct map_desc bcm2708_io_desc[] __initdata = {
 	{
@@ -99,71 +98,6 @@ void __init bcm2708_map_io(void)
 	iotable_init(bcm2708_io_desc, ARRAY_SIZE(bcm2708_io_desc));
 }
 
-int calc_rsts(int partition)
-{
-	return PM_PASSWORD |
-		((partition & (1 << 0))  << 0) |
-		((partition & (1 << 1))  << 1) |
-		((partition & (1 << 2))  << 2) |
-		((partition & (1 << 3))  << 3) |
-		((partition & (1 << 4))  << 4) |
-		((partition & (1 << 5))  << 5);
-}
-
-static void bcm2708_restart(enum reboot_mode mode, const char *cmd)
-{
-	extern char bcm2708_reboot_mode;
-	uint32_t pm_rstc, pm_wdog;
-	uint32_t timeout = 10;
-	uint32_t pm_rsts = 0;
-
-	if(bcm2708_reboot_mode == 'q')
-	{
-		// NOOBS < 1.3 booting with reboot=q
-		pm_rsts = readl(__io_address(PM_RSTS));
-		pm_rsts = PM_PASSWORD | pm_rsts | PM_RSTS_HADWRQ_SET;
-	}
-	else if(bcm2708_reboot_mode == 'p')
-	{
-		// NOOBS < 1.3 halting
-		pm_rsts = readl(__io_address(PM_RSTS));
-		pm_rsts = PM_PASSWORD | pm_rsts | PM_RSTS_HADWRH_SET;
-	}
-	else
-	{
-		pm_rsts = calc_rsts(reboot_part);
-	}
-
-	writel(pm_rsts, __io_address(PM_RSTS));
-
-	/* Setup watchdog for reset */
-	pm_rstc = readl(__io_address(PM_RSTC));
-
-	pm_wdog = PM_PASSWORD | (timeout & PM_WDOG_TIME_SET); // watchdog timer = timer clock / 16; need password (31:16) + value (11:0)
-	pm_rstc = PM_PASSWORD | (pm_rstc & PM_RSTC_WRCFG_CLR) | PM_RSTC_WRCFG_FULL_RESET;
-
-	writel(pm_wdog, __io_address(PM_WDOG));
-	writel(pm_rstc, __io_address(PM_RSTC));
-}
-
-/* We can't really power off, but if we do the normal reset scheme, and indicate to bootcode.bin not to reboot, then most of the chip will be powered off */
-static void bcm2708_power_off(void)
-{
-	extern char bcm2708_reboot_mode;
-	if(bcm2708_reboot_mode == 'q')
-	{
-		// NOOBS < v1.3
-		bcm2708_restart('p', "");
-	}
-	else
-	{
-		/* partition 63 is special code for HALT the bootloader knows not to boot*/
-		reboot_part = 63;
-		/* continue with normal reset mechanism */
-		bcm2708_restart(0, "");
-	}
-}
-
 static void __init bcm2708_init_uart1(void)
 {
 	struct device_node *np;
@@ -180,8 +114,6 @@ void __init bcm2708_init(void)
 	int ret;
 
 	vc_cma_early_init();
-
-	pm_power_off = bcm2708_power_off;
 
 	ret = of_platform_populate(NULL, of_default_bus_match_table, NULL,
 				   NULL);
@@ -222,10 +154,8 @@ MACHINE_START(BCM2708, "BCM2708")
 	.init_machine = bcm2708_init,
 	.init_early = bcm2708_init_early,
 	.reserve = board_reserve,
-	.restart	= bcm2708_restart,
 	.dt_compat = bcm2708_compat,
 MACHINE_END
 
 module_param(boardrev, uint, 0644);
 module_param(serial, uint, 0644);
-module_param(reboot_part, uint, 0644);
