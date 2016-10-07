@@ -244,7 +244,7 @@ static struct mmal_fmt *get_format(struct v4l2_format *f)
 
 static int queue_setup(struct vb2_queue *vq,
 		       unsigned int *nbuffers, unsigned int *nplanes,
-		       unsigned int sizes[], void *alloc_ctxs[])
+		       unsigned int sizes[], struct device *alloc_ctxs[])
 {
 	struct bm2835_mmal_dev *dev = vb2_get_drv_priv(vq);
 	unsigned long size;
