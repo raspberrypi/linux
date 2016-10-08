@@ -208,19 +208,6 @@ void __init bcm2709_init(void)
 	system_serial_low = serial;
 }
 
-static void __init bcm2709_timer_init(void)
-{
-	// timer control
-	writel(0, __io_address(ARM_LOCAL_CONTROL));
-	// timer pre_scaler
-	writel(0x80000000, __io_address(ARM_LOCAL_PRESCALER)); // 19.2MHz
-	//writel(0x06AAAAAB, __io_address(ARM_LOCAL_PRESCALER)); // 1MHz
-
-	of_clk_init(NULL);
-	clocksource_probe();
-}
-
-
 void __init bcm2709_init_early(void)
 {
 	/*
@@ -236,111 +223,6 @@ static void __init board_reserve(void)
 	vc_cma_reserve();
 }
 
-
-#ifdef CONFIG_SMP
-#include <linux/smp.h>
-
-#include <asm/cacheflush.h>
-#include <asm/smp_plat.h>
-int dc4=0;
-//void dc4_log(unsigned x) { if (dc4) writel((x), __io_address(ST_BASE+10 + raw_smp_processor_id()*4)); }
-void dc4_log_dead(unsigned x) { if (dc4) writel((readl(__io_address(ST_BASE+0x10 + raw_smp_processor_id()*4)) & 0xffff) | ((x)<<16), __io_address(ST_BASE+0x10 + raw_smp_processor_id()*4)); }
-
-static void bcm2835_send_doorbell(const struct cpumask *mask, unsigned int irq)
-{
-        int cpu;
-        /*
-         * Ensure that stores to Normal memory are visible to the
-         * other CPUs before issuing the IPI.
-         */
-        dsb();
-
-        /* Convert our logical CPU mask into a physical one. */
-        for_each_cpu(cpu, mask)
-	{
-		/* submit softirq */
-		writel(1<<irq, __io_address(ARM_LOCAL_MAILBOX0_SET0 + 0x10 * MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 0)));
-	}
-}
-
-void __init bcm2709_smp_init_cpus(void)
-{
-	void secondary_startup(void);
-	unsigned int i, ncores;
-
-	ncores = 4; // xxx scu_get_core_count(NULL);
-	printk("[%s] enter (%x->%x)\n", __FUNCTION__, (unsigned)virt_to_phys((void *)secondary_startup), (unsigned)__io_address(ST_BASE + 0x10));
-	printk("[%s] ncores=%d\n", __FUNCTION__, ncores);
-
-	for (i = 0; i < ncores; i++) {
-		set_cpu_possible(i, true);
-		/* enable IRQ (not FIQ) */
-		writel(0x1, __io_address(ARM_LOCAL_MAILBOX_INT_CONTROL0 + 0x4 * i));
-		//writel(0xf, __io_address(ARM_LOCAL_TIMER_INT_CONTROL0   + 0x4 * i));
-	}
-	set_smp_cross_call(bcm2835_send_doorbell);
-}
-
-/*
- * for arch/arm/kernel/smp.c:smp_prepare_cpus(unsigned int max_cpus)
- */
-void __init bcm2709_smp_prepare_cpus(unsigned int max_cpus)
-{
-    //void __iomem *scu_base;
-
-    printk("[%s] enter\n", __FUNCTION__);
-    //scu_base = scu_base_addr();
-    //scu_enable(scu_base);
-}
-
-/*
- * for linux/arch/arm/kernel/smp.c:secondary_start_kernel(void)
- */
-void __init bcm2709_secondary_init(unsigned int cpu)
-{
-    printk("[%s] enter cpu:%d\n", __FUNCTION__, cpu);
-    //gic_secondary_init(0);
-}
-
-/*
- * for linux/arch/arm/kernel/smp.c:__cpu_up(..)
- */
-int __init bcm2709_boot_secondary(unsigned int cpu, struct task_struct *idle)
-{
-    void secondary_startup(void);
-    void *mbox_set = __io_address(ARM_LOCAL_MAILBOX3_SET0 + 0x10 * MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 0));
-    void *mbox_clr = __io_address(ARM_LOCAL_MAILBOX3_CLR0 + 0x10 * MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 0));
-    unsigned secondary_boot = (unsigned)virt_to_phys((void *)secondary_startup);
-    int timeout=20;
-    unsigned t = -1;
-    //printk("[%s] enter cpu:%d (%x->%p) %x\n", __FUNCTION__, cpu, secondary_boot, wake, readl(wake));
-
-    dsb();
-    BUG_ON(readl(mbox_clr) != 0);
-    writel(secondary_boot, mbox_set);
-
-    while (--timeout > 0) {
-	t = readl(mbox_clr);
-	if (t == 0) break;
-	cpu_relax();
-    }
-    if (timeout==0)
-        printk("[%s] cpu:%d failed to start (%x)\n", __FUNCTION__, cpu, t);
-    else
-        printk("[%s] cpu:%d started (%x) %d\n", __FUNCTION__, cpu, t, timeout);
-
-    return 0;
-}
-
-
-struct smp_operations  bcm2709_smp_ops __initdata = {
-	.smp_init_cpus		= bcm2709_smp_init_cpus,
-	.smp_prepare_cpus	= bcm2709_smp_prepare_cpus,
-	.smp_secondary_init	= bcm2709_secondary_init,
-	.smp_boot_secondary	= bcm2709_boot_secondary,
-};
-#endif
-
 static const char * const bcm2709_compat[] = {
 	"brcm,bcm2709",
 	"brcm,bcm2708", /* Could use bcm2708 in a pinch */
@@ -349,11 +231,7 @@ static const char * const bcm2709_compat[] = {
 
 MACHINE_START(BCM2709, "BCM2709")
     /* Maintainer: Broadcom Europe Ltd. */
-#ifdef CONFIG_SMP
-	.smp		= smp_ops(bcm2709_smp_ops),
-#endif
 	.map_io = bcm2709_map_io,
-	.init_time = bcm2709_timer_init,
 	.init_machine = bcm2709_init,
 	.init_early = bcm2709_init_early,
 	.reserve = board_reserve,
@@ -363,11 +241,7 @@ MACHINE_END
 
 MACHINE_START(BCM2708, "BCM2709")
     /* Maintainer: Broadcom Europe Ltd. */
-#ifdef CONFIG_SMP
-	.smp		= smp_ops(bcm2709_smp_ops),
-#endif
 	.map_io = bcm2709_map_io,
-	.init_time = bcm2709_timer_init,
 	.init_machine = bcm2709_init,
 	.init_early = bcm2709_init_early,
 	.reserve = board_reserve,
