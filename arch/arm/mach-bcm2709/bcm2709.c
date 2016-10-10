@@ -19,95 +19,15 @@
  */
 
 #include <linux/init.h>
-#include <linux/dma-mapping.h>
-#include <linux/interrupt.h>
-#include <linux/clk-provider.h>
-#include <linux/clocksource.h>
-#include <linux/io.h>
 #include <linux/module.h>
-
-#include <asm/system_info.h>
-#include <asm/mach-types.h>
-#include <asm/cputype.h>
-
-#include <asm/mach/arch.h>
-#include <asm/mach/map.h>
-
-#include <mach/system.h>
-
 #include <linux/broadcom/vc_cma.h>
 
-/* Effectively we have an IOMMU (ARM<->VideoCore map) that is set up to
- * give us IO access only to 64Mbytes of physical memory (26 bits).  We could
- * represent this window by setting our dmamasks to 26 bits but, in fact
- * we're not going to use addresses outside this range (they're not in real
- * memory) so we don't bother.
- *
- * In the future we might include code to use this IOMMU to remap other
- * physical addresses onto VideoCore memory then the use of 32-bits would be
- * more legitimate.
- */
+#include <asm/mach-types.h>
+#include <asm/mach/arch.h>
+#include <asm/system_info.h>
 
 /* command line parameters */
 static unsigned boardrev, serial;
-
-static struct map_desc bcm2709_io_desc[] __initdata = {
-	{
-	 .virtual = IO_ADDRESS(ARMCTRL_BASE),
-	 .pfn = __phys_to_pfn(ARMCTRL_BASE),
-	 .length = SZ_4K,
-	 .type = MT_DEVICE},
-	{
-	 .virtual = IO_ADDRESS(UART0_BASE),
-	 .pfn = __phys_to_pfn(UART0_BASE),
-	 .length = SZ_4K,
-	 .type = MT_DEVICE},
-	{
-	 .virtual = IO_ADDRESS(UART1_BASE),
-	 .pfn = __phys_to_pfn(UART1_BASE),
-	 .length = SZ_4K,
-	 .type = MT_DEVICE},
-	{
-	 .virtual = IO_ADDRESS(DMA_BASE),
-	 .pfn = __phys_to_pfn(DMA_BASE),
-	 .length = SZ_4K,
-	 .type = MT_DEVICE},
-	{
-	 .virtual = IO_ADDRESS(MCORE_BASE),
-	 .pfn = __phys_to_pfn(MCORE_BASE),
-	 .length = SZ_4K,
-	 .type = MT_DEVICE},
-	{
-	 .virtual = IO_ADDRESS(ST_BASE),
-	 .pfn = __phys_to_pfn(ST_BASE),
-	 .length = SZ_4K,
-	 .type = MT_DEVICE},
-	{
-	 .virtual = IO_ADDRESS(USB_BASE),
-	 .pfn = __phys_to_pfn(USB_BASE),
-	 .length = SZ_128K,
-	 .type = MT_DEVICE},
-	{
-	 .virtual = IO_ADDRESS(PM_BASE),
-	 .pfn = __phys_to_pfn(PM_BASE),
-	 .length = SZ_4K,
-	 .type = MT_DEVICE},
-	{
-	 .virtual = IO_ADDRESS(GPIO_BASE),
-	 .pfn = __phys_to_pfn(GPIO_BASE),
-	 .length = SZ_4K,
-	 .type = MT_DEVICE},
-	{
-	 .virtual = IO_ADDRESS(ARM_LOCAL_BASE),
-	 .pfn = __phys_to_pfn(ARM_LOCAL_BASE),
-	 .length = SZ_4K,
-	 .type = MT_DEVICE},
-};
-
-void __init bcm2709_map_io(void)
-{
-	iotable_init(bcm2709_io_desc, ARRAY_SIZE(bcm2709_io_desc));
-}
 
 static void __init bcm2709_init(void)
 {
@@ -130,7 +50,6 @@ static const char * const bcm2709_compat[] = {
 
 MACHINE_START(BCM2709, "BCM2709")
     /* Maintainer: Broadcom Europe Ltd. */
-	.map_io = bcm2709_map_io,
 	.init_machine = bcm2709_init,
 	.reserve = board_reserve,
 	.dt_compat = bcm2709_compat,
@@ -138,7 +57,6 @@ MACHINE_END
 
 MACHINE_START(BCM2708, "BCM2709")
     /* Maintainer: Broadcom Europe Ltd. */
-	.map_io = bcm2709_map_io,
 	.init_machine = bcm2709_init,
 	.reserve = board_reserve,
 	.dt_compat = bcm2709_compat,
