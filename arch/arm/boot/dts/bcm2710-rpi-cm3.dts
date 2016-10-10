@@ -8,10 +8,9 @@
 };
 
 &gpio {
-
-	mmc_pins: mmc_pins {
+	sdhost_pins: sdhost_pins {
 		brcm,pins = <48 49 50 51 52 53>;
-		brcm,function = <7>; /* alt3 */
+		brcm,function = <4>; /* alt0 */
 		brcm,pull = <0 2 2 2 2 2>;
 	};
 
@@ -46,9 +45,9 @@
 	};
 };
 
-&mmc {
+&sdhost {
 	pinctrl-names = "default";
-	pinctrl-0 = <&mmc_pins>;
+	pinctrl-0 = <&sdhost_pins>;
 	non-removable;
 	bus-width = <4>;
 	status = "okay";
