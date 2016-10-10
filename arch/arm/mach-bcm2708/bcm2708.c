@@ -105,16 +105,6 @@ static void __init bcm2708_init(void)
 	system_serial_low = serial;
 }
 
-void __init bcm2708_init_early(void)
-{
-	/*
-	 * Some devices allocate their coherent buffers from atomic
-	 * context. Increase size of atomic coherent pool to make sure such
-	 * the allocations won't fail.
-	 */
-	init_dma_coherent_pool_size(SZ_4M);
-}
-
 static void __init board_reserve(void)
 {
 	vc_cma_reserve();
@@ -129,7 +119,6 @@ MACHINE_START(BCM2708, "BCM2708")
     /* Maintainer: Broadcom Europe Ltd. */
 	.map_io = bcm2708_map_io,
 	.init_machine = bcm2708_init,
-	.init_early = bcm2708_init_early,
 	.reserve = board_reserve,
 	.dt_compat = bcm2708_compat,
 MACHINE_END
