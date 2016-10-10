@@ -110,18 +110,7 @@ void __init bcm2709_map_io(void)
 	iotable_init(bcm2709_io_desc, ARRAY_SIZE(bcm2709_io_desc));
 }
 
-static void __init bcm2709_init_uart1(void)
-{
-	struct device_node *np;
-
-	np = of_find_compatible_node(NULL, NULL, "brcm,bcm2835-aux-uart");
-	if (of_device_is_available(np)) {
-		pr_info("bcm2709: Mini UART enabled\n");
-		writel(1, __io_address(UART1_BASE + 0x4));
-	}
-}
-
-void __init bcm2709_init(void)
+static void __init bcm2709_init(void)
 {
 	int ret;
 
@@ -133,8 +122,6 @@ void __init bcm2709_init(void)
 		pr_err("of_platform_populate failed: %d\n", ret);
 		BUG();
 	}
-
-	bcm2709_init_uart1();
 
 	system_rev = boardrev;
 	system_serial_low = serial;
