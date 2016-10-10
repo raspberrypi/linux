@@ -25,7 +25,6 @@
 #include <linux/clocksource.h>
 #include <linux/io.h>
 #include <linux/module.h>
-#include <linux/of_platform.h>
 
 #include <asm/system_info.h>
 #include <asm/mach-types.h>
@@ -112,16 +111,7 @@ void __init bcm2709_map_io(void)
 
 static void __init bcm2709_init(void)
 {
-	int ret;
-
 	vc_cma_early_init();
-
-	ret = of_platform_populate(NULL, of_default_bus_match_table, NULL,
-				   NULL);
-	if (ret) {
-		pr_err("of_platform_populate failed: %d\n", ret);
-		BUG();
-	}
 
 	system_rev = boardrev;
 	system_serial_low = serial;
