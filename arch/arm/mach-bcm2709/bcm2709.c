@@ -22,7 +22,6 @@
 #include <linux/module.h>
 #include <linux/broadcom/vc_cma.h>
 
-#include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/system_info.h>
 
@@ -44,18 +43,10 @@ static void __init board_reserve(void)
 
 static const char * const bcm2709_compat[] = {
 	"brcm,bcm2709",
-	"brcm,bcm2708", /* Could use bcm2708 in a pinch */
 	NULL
 };
 
-MACHINE_START(BCM2709, "BCM2709")
-    /* Maintainer: Broadcom Europe Ltd. */
-	.init_machine = bcm2709_init,
-	.reserve = board_reserve,
-	.dt_compat = bcm2709_compat,
-MACHINE_END
-
-MACHINE_START(BCM2708, "BCM2709")
+DT_MACHINE_START(BCM2709, "BCM2709")
     /* Maintainer: Broadcom Europe Ltd. */
 	.init_machine = bcm2709_init,
 	.reserve = board_reserve,
