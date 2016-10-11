@@ -18,22 +18,24 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <linux/init.h>
-#include <linux/module.h>
+#include <linux/of_address.h>
 #include <linux/broadcom/vc_cma.h>
 
 #include <asm/mach/arch.h>
 #include <asm/system_info.h>
 
-/* command line parameters */
-static unsigned boardrev, serial;
-
 static void __init bcm2708_init(void)
 {
+	struct device_node *np = of_find_node_by_path("/system");
+	u32 val;
+	u64 val64;
+
 	vc_cma_early_init();
 
-	system_rev = boardrev;
-	system_serial_low = serial;
+	if (!of_property_read_u32(np, "linux,revision", &val))
+		system_rev = val;
+	if (!of_property_read_u64(np, "linux,serial", &val64))
+		system_serial_low = val64;
 }
 
 static void __init board_reserve(void)
@@ -53,5 +55,3 @@ DT_MACHINE_START(BCM2708, "BCM2708")
 	.dt_compat = bcm2708_compat,
 MACHINE_END
 
-module_param(boardrev, uint, 0644);
-module_param(serial, uint, 0644);
