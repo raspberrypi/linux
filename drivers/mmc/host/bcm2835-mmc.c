@@ -1459,8 +1459,11 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 #endif
 	clk = devm_clk_get(dev, NULL);
 	if (IS_ERR(clk)) {
-		dev_err(dev, "could not get clk\n");
 		ret = PTR_ERR(clk);
+		if (ret == -EPROBE_DEFER)
+			dev_info(dev, "could not get clk, deferring probe\n");
+		else
+			dev_err(dev, "could not get clk\n");
 		goto err;
 	}
 
