@@ -3813,6 +3813,11 @@ process_slot:
 		}
 		btrfs_release_path(path);
 		key.offset = next_key_min_offset;
+
+		if (fatal_signal_pending(current)) {
+			ret = -EINTR;
+			goto out;
+		}
 	}
 	ret = 0;
 
