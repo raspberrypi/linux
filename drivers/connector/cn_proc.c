@@ -32,6 +32,7 @@
 #include <linux/pid_namespace.h>
 
 #include <linux/cn_proc.h>
+#include <linux/locallock.h>
 
 /*
  * Size of a cn_msg followed by a proc_event structure.  Since the
@@ -54,10 +55,11 @@ static struct cb_id cn_proc_event_id = { CN_IDX_PROC, CN_VAL_PROC };
 
 /* proc_event_counts is used as the sequence number of the netlink message */
 static DEFINE_PER_CPU(__u32, proc_event_counts) = { 0 };
+static DEFINE_LOCAL_IRQ_LOCK(send_msg_lock);
 
 static inline void send_msg(struct cn_msg *msg)
 {
-	preempt_disable();
+	local_lock(send_msg_lock);
 
 	msg->seq = __this_cpu_inc_return(proc_event_counts) - 1;
 	((struct proc_event *)msg->data)->cpu = smp_processor_id();
@@ -70,7 +72,7 @@ static inline void send_msg(struct cn_msg *msg)
 	 */
 	cn_netlink_send(msg, 0, CN_IDX_PROC, GFP_NOWAIT);
 
-	preempt_enable();
+	local_unlock(send_msg_lock);
 }
 
 void proc_fork_connector(struct task_struct *task)
