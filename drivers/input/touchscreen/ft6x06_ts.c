@@ -20,7 +20,7 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
-#include <mach/irqs.h>
+#include <linux/irq.h>
 #include <linux/kernel.h>
 #include <linux/semaphore.h>
 #include <linux/mutex.h>
