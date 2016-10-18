@@ -774,6 +774,9 @@ int switchdev_port_bridge_getlink(struct sk_buff *skb, u32 pid, u32 seq,
 	u32 mask = BR_LEARNING | BR_LEARNING_SYNC | BR_FLOOD;
 	int err;
 
+	if (!netif_is_bridge_port(dev))
+		return -EOPNOTSUPP;
+
 	err = switchdev_port_attr_get(dev, &attr);
 	if (err && err != -EOPNOTSUPP)
 		return err;
@@ -929,6 +932,9 @@ int switchdev_port_bridge_setlink(struct net_device *dev,
 	struct nlattr *afspec;
 	int err = 0;
 
+	if (!netif_is_bridge_port(dev))
+		return -EOPNOTSUPP;
+
 	protinfo = nlmsg_find_attr(nlh, sizeof(struct ifinfomsg),
 				   IFLA_PROTINFO);
 	if (protinfo) {
@@ -961,6 +967,9 @@ int switchdev_port_bridge_dellink(struct net_device *dev,
 				  struct nlmsghdr *nlh, u16 flags)
 {
 	struct nlattr *afspec;
+
+	if (!netif_is_bridge_port(dev))
+		return -EOPNOTSUPP;
 
 	afspec = nlmsg_find_attr(nlh, sizeof(struct ifinfomsg),
 				 IFLA_AF_SPEC);
