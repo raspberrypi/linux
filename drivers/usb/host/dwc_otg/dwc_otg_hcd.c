@@ -884,6 +884,7 @@ void dwc_otg_cleanup_fiq_channel(dwc_otg_hcd_t *hcd, uint32_t num)
  */
 static void dwc_otg_hcd_free(dwc_otg_hcd_t * dwc_otg_hcd)
 {
+	struct device *dev = dwc_otg_hcd_to_dev(dwc_otg_hcd);
 	int i;
 
 	DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD FREE\n");
@@ -916,7 +917,7 @@ static void dwc_otg_hcd_free(dwc_otg_hcd_t * dwc_otg_hcd)
 
 	if (dwc_otg_hcd->core_if->dma_enable) {
 		if (dwc_otg_hcd->status_buf_dma) {
-			DWC_DMA_FREE(DWC_OTG_HCD_STATUS_BUF_SIZE,
+			DWC_DMA_FREE(dev, DWC_OTG_HCD_STATUS_BUF_SIZE,
 				     dwc_otg_hcd->status_buf,
 				     dwc_otg_hcd->status_buf_dma);
 		}
@@ -946,6 +947,7 @@ int init_hcd_usecs(dwc_otg_hcd_t *_hcd);
 
 int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 {
+	struct device *dev = dwc_otg_hcd_to_dev(hcd);
 	int retval = 0;
 	int num_channels;
 	int i;
@@ -1041,7 +1043,7 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 		 * for use as transaction bounce buffers in a 2-D array. Our access into this chunk is done by some
 		 * moderately readable array casts.
 		 */
-		hcd->fiq_dmab = DWC_DMA_ALLOC((sizeof(struct fiq_dma_channel) * num_channels), &hcd->fiq_state->dma_base);
+		hcd->fiq_dmab = DWC_DMA_ALLOC(dev, (sizeof(struct fiq_dma_channel) * num_channels), &hcd->fiq_state->dma_base);
 		DWC_WARN("FIQ DMA bounce buffers: virt = 0x%08x dma = 0x%08x len=%d",
 				(unsigned int)hcd->fiq_dmab, (unsigned int)hcd->fiq_state->dma_base,
 				sizeof(struct fiq_dma_channel) * num_channels);
@@ -1092,7 +1094,7 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 	 */
 	if (hcd->core_if->dma_enable) {
 		hcd->status_buf =
-		    DWC_DMA_ALLOC(DWC_OTG_HCD_STATUS_BUF_SIZE,
+		    DWC_DMA_ALLOC(dev, DWC_OTG_HCD_STATUS_BUF_SIZE,
 				  &hcd->status_buf_dma);
 	} else {
 		hcd->status_buf = DWC_ALLOC(DWC_OTG_HCD_STATUS_BUF_SIZE);
@@ -1187,6 +1189,7 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	uint32_t intr_enable;
 	unsigned long flags;
 	gintmsk_data_t gintmsk = { .d32 = 0, };
+	struct device *dev = dwc_otg_hcd_to_dev(hcd);
 
 	qtd = DWC_CIRCLEQ_FIRST(&qh->qtd_list);
 
@@ -1381,7 +1384,7 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 			buf_size = 4096;
 		}
 		if (!qh->dw_align_buf) {
-			qh->dw_align_buf = DWC_DMA_ALLOC_ATOMIC(buf_size,
+			qh->dw_align_buf = DWC_DMA_ALLOC_ATOMIC(dev, buf_size,
 							 &qh->dw_align_buf_dma);
 			if (!qh->dw_align_buf) {
 				DWC_ERROR
@@ -1432,7 +1435,7 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 		local_fiq_enable();
 	}
-	
+
 	local_irq_restore(flags);
 	hc->qh = qh;
 }
