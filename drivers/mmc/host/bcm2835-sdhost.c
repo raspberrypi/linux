@@ -235,10 +235,10 @@ static void __iomem *timer_base;
 #define LOG_ENTRIES (256*1)
 #define LOG_SIZE (sizeof(LOG_ENTRY_T)*LOG_ENTRIES)
 
-static void log_init(u32 bus_to_phys)
+static void log_init(struct device *dev, u32 bus_to_phys)
 {
 	spin_lock_init(&log_lock);
-	sdhost_log_buf = dma_zalloc_coherent(NULL, LOG_SIZE, &sdhost_log_addr,
+	sdhost_log_buf = dma_zalloc_coherent(dev, LOG_SIZE, &sdhost_log_addr,
 					     GFP_KERNEL);
 	if (sdhost_log_buf) {
 		pr_info("sdhost: log_buf @ %p (%x)\n",
@@ -2037,7 +2037,6 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	host->bus_addr = be32_to_cpup(addr);
-	log_init(iomem->start - host->bus_addr);
 	pr_debug(" - ioaddr %lx, iomem->start %lx, bus_addr %lx\n",
 		 (unsigned long)host->ioaddr,
 		 (unsigned long)iomem->start,
@@ -2109,6 +2108,8 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 	pr_debug(" - max_clk %lx, irq %d\n",
 		 (unsigned long)host->max_clk,
 		 (int)host->irq);
+
+	log_init(dev, iomem->start - host->bus_addr);
 
 	if (node)
 		mmc_of_parse(mmc);
