@@ -330,10 +330,8 @@ config ARCH_BCM2708
 	bool "Broadcom BCM2708 family"
 	select CPU_V6
 	select ARM_AMBA
-	select CLKSRC_MMIO
-	select CLKSRC_OF if OF
+	select CLKSRC_OF
 	select HAVE_SCHED_CLOCK
-	select NEED_MACH_GPIO_H
 	select COMMON_CLK
 	select ARCH_HAS_CPUFREQ
 	select GENERIC_CLOCKEVENTS
@@ -344,6 +342,11 @@ config ARCH_BCM2708
 	select BCM2835_TIMER
 	select VC4
 	select FIQ
+	select USE_OF
+	select ARCH_REQUIRE_GPIOLIB
+	select PINCTRL
+	select PINCTRL_BCM2835
+
 	help
 	  This enables support for Broadcom BCM2708 boards.
 
