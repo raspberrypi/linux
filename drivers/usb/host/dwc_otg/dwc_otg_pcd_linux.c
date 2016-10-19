@@ -1206,7 +1206,7 @@ int pcd_init(dwc_bus_dev_t *_dev)
 
 	DWC_DEBUGPL(DBG_PCDV, "%s(%p) otg_dev=%p\n", __func__, _dev, otg_dev);
 
-	otg_dev->pcd = dwc_otg_pcd_init(otg_dev->core_if);
+	otg_dev->pcd = dwc_otg_pcd_init(otg_dev);
 
 	if (!otg_dev->pcd) {
 		DWC_ERROR("dwc_otg_pcd_init failed\n");
