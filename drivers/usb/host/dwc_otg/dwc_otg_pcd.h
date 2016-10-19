@@ -38,6 +38,8 @@
 #include "usb.h"
 #include "dwc_otg_cil.h"
 #include "dwc_otg_pcd_if.h"
+#include "dwc_otg_driver.h"
+
 struct cfiobject;
 
 /**
@@ -252,6 +254,11 @@ struct dwc_otg_pcd {
 #endif
 
 };
+
+static inline struct device *dwc_otg_pcd_to_dev(struct dwc_otg_pcd *pcd)
+{
+	return &pcd->otg_dev->os_dep.platformdev->dev;
+}
 
 //FIXME this functions should be static, and this prototypes should be removed
 extern void dwc_otg_request_nuke(dwc_otg_pcd_ep_t * ep);
