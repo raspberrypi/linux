@@ -337,27 +337,12 @@ void DWC_DMA_POOL_FREE(dwc_pool_t *pool, void *vaddr, void *daddr)
 
 void *__DWC_DMA_ALLOC(void *dma_ctx, uint32_t size, dwc_dma_t *dma_addr)
 {
-#ifdef xxCOSIM /* Only works for 32-bit cosim */
-	void *buf = dma_alloc_coherent(dma_ctx, (size_t)size, dma_addr, GFP_KERNEL);
-#else
-	void *buf = dma_alloc_coherent(dma_ctx, (size_t)size, dma_addr, GFP_KERNEL | GFP_DMA32);
-#endif
-	if (!buf) {
-		return NULL;
-	}
-
-	memset(buf, 0, (size_t)size);
-	return buf;
+	return dma_zalloc_coherent(dma_ctx, size, dma_addr, GFP_KERNEL | GFP_DMA32);
 }
 
 void *__DWC_DMA_ALLOC_ATOMIC(void *dma_ctx, uint32_t size, dwc_dma_t *dma_addr)
 {
-	void *buf = dma_alloc_coherent(NULL, (size_t)size, dma_addr, GFP_ATOMIC);
-	if (!buf) {
-		return NULL;
-	}
-	memset(buf, 0, (size_t)size);
-	return buf;
+	return dma_zalloc_coherent(dma_ctx, size, dma_addr, GFP_ATOMIC);
 }
 
 void __DWC_DMA_FREE(void *dma_ctx, uint32_t size, void *virt_addr, dwc_dma_t dma_addr)
