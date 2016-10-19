@@ -341,6 +341,7 @@ config ARCH_BCM2708
 	select MACH_BCM2708
 	select MULTI_IRQ_HANDLER
 	select SPARSE_IRQ
+	select BCM2835_TIMER
 	select VC4
 	select FIQ
 	help
