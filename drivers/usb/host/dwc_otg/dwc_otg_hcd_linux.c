@@ -517,6 +517,7 @@ int hcd_init(dwc_bus_dev_t *_dev)
 	((struct wrapper_priv_data *)(hcd->hcd_priv))->dwc_otg_hcd =
 	    dwc_otg_hcd;
 	otg_dev->hcd = dwc_otg_hcd;
+	otg_dev->hcd->otg_dev = otg_dev;
 
 	if (dwc_otg_hcd_init(dwc_otg_hcd, otg_dev->core_if)) {
 		goto error2;
@@ -531,7 +532,6 @@ int hcd_init(dwc_bus_dev_t *_dev)
 		}
 	}
 
-	otg_dev->hcd->otg_dev = otg_dev;
 	hcd->self.otg_port = dwc_otg_hcd_otg_port(dwc_otg_hcd);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33) //don't support for LM(with 2.6.20.1 kernel)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35) //version field absent later
