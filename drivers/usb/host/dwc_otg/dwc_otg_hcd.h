@@ -41,6 +41,7 @@
 #include "dwc_list.h"
 #include "dwc_otg_cil.h"
 #include "dwc_otg_fiq_fsm.h"
+#include "dwc_otg_driver.h"
 
 
 /**
@@ -612,6 +613,11 @@ struct dwc_otg_hcd {
 	uint64_t hfnum_other_frrem_accum_b;
 #endif
 };
+
+static inline struct device *dwc_otg_hcd_to_dev(struct dwc_otg_hcd *hcd)
+{
+	return &hcd->otg_dev->os_dep.platformdev->dev;
+}
 
 /** @name Transaction Execution Functions */
 /** @{ */

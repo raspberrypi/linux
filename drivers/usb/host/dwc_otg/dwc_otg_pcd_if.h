@@ -37,6 +37,7 @@
 
 //#include "dwc_os.h"
 #include "dwc_otg_core_if.h"
+#include "dwc_otg_driver.h"
 
 /** @file
  * This file defines DWC_OTG PCD Core API.
@@ -139,7 +140,7 @@ struct dwc_otg_pcd_function_ops {
  *
  * @param core_if The DWC_OTG Core
  */
-extern dwc_otg_pcd_t *dwc_otg_pcd_init(dwc_otg_core_if_t * core_if);
+extern dwc_otg_pcd_t *dwc_otg_pcd_init(dwc_otg_device_t *otg_dev);
 
 /** Frees PCD allocated by dwc_otg_pcd_init
  *
