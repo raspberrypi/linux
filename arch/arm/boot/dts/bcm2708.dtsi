@@ -7,9 +7,6 @@
 	model = "BCM2708";
 
 	soc {
-		ranges = <0x7e000000 0x20000000 0x01000000>;
-		/delete-property/ dma-ranges;
-
 		timer@7e003000 {
 			compatible = "brcm,bcm2835-system-timer";
 			reg = <0x7e003000 0x1000>;
