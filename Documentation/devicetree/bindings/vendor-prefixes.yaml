@@ -139,6 +139,8 @@ patternProperties:
     description: Beckhoff Automation GmbH & Co. KG
   "^bitmain,.*":
     description: Bitmain Technologies
+  "^blokaslabs,.*":
+    description: Vilniaus Blokas UAB
   "^boe,.*":
     description: BOE Technology Group Co., Ltd.
   "^bosch,.*":
