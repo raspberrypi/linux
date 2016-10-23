@@ -808,6 +808,12 @@ Params: speed                   Display SPI bus speed
         xohms                   Touchpanel sensitivity (X-plate resistance)
 
 
+Name:   pisound
+Info:   Configures the Blokas Labs pisound card
+Load:   dtoverlay=pisound
+Params: <None>
+
+
 Name:   pitft22
 Info:   Adafruit PiTFT 2.2" screen
 Load:   dtoverlay=pitft22,<param>=<val>
