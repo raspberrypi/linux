@@ -55,7 +55,7 @@ static void pisnd_midi_uninit(void);
 
 #define PISOUND_LOG_PREFIX "pisound: "
 
-#ifdef DEBUG
+#ifdef PISOUND_DEBUG
 #	define printd(...) pr_alert(PISOUND_LOG_PREFIX __VA_ARGS__)
 #else
 #	define printd(...) do {} while (0)
@@ -119,7 +119,7 @@ static void pisnd_midi_recv_callback(void *substream)
 	while ((n = pisnd_spi_recv(data, sizeof(data)))) {
 		int res = snd_rawmidi_receive(substream, data, n);
 		(void)res;
-		printd("midi recv 0x%02x, res = %d\n", data, res);
+		printd("midi recv %u bytes, res = %d\n", n, res);
 	}
 }
 
