@@ -1,6 +1,6 @@
 /*
- * pisound Linux kernel module.
- * Copyright (C) 2016  Vilniaus Blokas UAB, http://blokas.io/pisound
+ * Pisound Linux kernel module.
+ * Copyright (C) 2016-2017  Vilniaus Blokas UAB, https://blokas.io/pisound
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
