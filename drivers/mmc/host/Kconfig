@@ -6,7 +6,7 @@ comment "MMC/SD/SDIO Host Controller Drivers"
 
 config MMC_BCM2835
 	tristate "MMC support on BCM2835"
-	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
+	depends on ARCH_BCM2835
 	help
 	  This selects the MMC Interface on BCM2835.
 
@@ -35,7 +35,7 @@ config MMC_BCM2835_PIO_DMA_BARRIER
 
 config MMC_BCM2835_SDHOST
 	tristate "Support for the SDHost controller on BCM2708/9"
-	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
+	depends on ARCH_BCM2835
 	help
 	  This selects the SDHost controller on BCM2835/6.
 
