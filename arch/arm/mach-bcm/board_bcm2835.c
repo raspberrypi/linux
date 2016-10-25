@@ -70,3 +70,16 @@ DT_MACHINE_START(BCM2708, "BCM2708")
 	.dt_compat = bcm2708_compat,
 MACHINE_END
 #endif
+
+#ifdef CONFIG_ARCH_BCM2709
+static const char * const bcm2709_compat[] = {
+	"brcm,bcm2709",
+	NULL
+};
+
+DT_MACHINE_START(BCM2709, "BCM2709")
+	.init_machine = bcm2835_init,
+	.reserve = bcm2835_board_reserve,
+	.dt_compat = bcm2709_compat,
+MACHINE_END
+#endif
