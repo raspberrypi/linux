@@ -5,7 +5,6 @@ obj-$(CONFIG_ATH79)			+= irq-ath79-cpu.o
 obj-$(CONFIG_ATH79)			+= irq-ath79-misc.o
 obj-$(CONFIG_ARCH_BCM2835)		+= irq-bcm2835.o
 obj-$(CONFIG_ARCH_BCM2835)		+= irq-bcm2836.o
-obj-$(CONFIG_ARCH_BCM2708)		+= irq-bcm2835.o
 obj-$(CONFIG_ARCH_BCM2709)		+= irq-bcm2835.o
 obj-$(CONFIG_ARCH_BCM2709)		+= irq-bcm2836.o
 obj-$(CONFIG_ARCH_EXYNOS)		+= exynos-combiner.o
