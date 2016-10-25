@@ -43,7 +43,7 @@ config MTD_SM_COMMON
 
 config MTD_NAND_BCM2835_SMI
         tristate "Use Broadcom's Secondary Memory Interface as a NAND controller (BCM283x)"
-        depends on (MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835) && BCM2835_SMI && MTD_NAND
+        depends on BCM2835_SMI
         default m
         help
 	  Uses the BCM2835's SMI peripheral as a NAND controller.
