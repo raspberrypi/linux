@@ -160,6 +160,20 @@ config ARCH_BCM2835
 	  This enables support for the Broadcom BCM2835 and BCM2836 SoCs.
 	  This SoC is used in the Raspberry Pi and Roku 2 devices.
 
+config MACH_BCM2708
+	bool "Enable optimized __copy_to_user and __copy_from_user"
+	depends on ARCH_BCM2708
+	default y
+	help
+	  Optimized versions of __copy_to_user and __copy_from_user for Pi1.
+
+config ARCH_BCM2708
+	bool "Broadcom BCM2708 family"
+	depends on ARCH_MULTI_V6
+	select ARCH_BCM2835
+	help
+	  This enables support for Broadcom BCM2708 boards.
+
 config ARCH_BCM_63XX
 	bool "Broadcom BCM63xx DSL SoC"
 	depends on ARCH_MULTI_V7
