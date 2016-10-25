@@ -12,7 +12,7 @@ config SENSORS_LIS3LV02D
 
 config BCM2835_SMI
 	tristate "Broadcom 283x Secondary Memory Interface driver"
-	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
+	depends on ARCH_BCM2835
 	default m
 	help
 		Driver for enabling and using Broadcom's Secondary/Slow Memory Interface.
