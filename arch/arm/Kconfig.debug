@@ -147,12 +147,12 @@ choice
 
 	config DEBUG_BCM2835
 		bool "Kernel low-level debugging on BCM2835 PL011 UART"
-		depends on (ARCH_BCM2835 && ARCH_MULTI_V6) || ARCH_BCM2708
+		depends on ARCH_BCM2835 && ARCH_MULTI_V6
 		select DEBUG_UART_PL01X
 
 	config DEBUG_BCM2836
 		bool "Kernel low-level debugging on BCM2836 PL011 UART"
-		depends on (ARCH_BCM2835 && ARCH_MULTI_V7) || ARCH_BCM2709
+		depends on ARCH_BCM2835 && ARCH_MULTI_V7
 		select DEBUG_UART_PL01X
 
 	config DEBUG_BCM_5301X
@@ -1695,8 +1695,7 @@ config DEBUG_UART_8250_FLOW_CONTROL
 
 config DEBUG_UNCOMPRESS
 	bool
-	depends on ARCH_MULTIPLATFORM || PLAT_SAMSUNG || ARM_SINGLE_ARMV7M || \
-		   ARCH_BCM2708 || ARCH_BCM2709
+	depends on ARCH_MULTIPLATFORM || PLAT_SAMSUNG || ARM_SINGLE_ARMV7M
 	default y if DEBUG_LL && !DEBUG_OMAP2PLUS_UART && \
 		     (!DEBUG_TEGRA_UART || !ZBOOT_ROM)
 	help
@@ -1713,8 +1712,7 @@ config DEBUG_UNCOMPRESS
 config UNCOMPRESS_INCLUDE
 	string
 	default "debug/uncompress.h" if ARCH_MULTIPLATFORM || ARCH_MSM || \
-					PLAT_SAMSUNG || ARM_SINGLE_ARMV7M || \
-					ARCH_BCM2708 || ARCH_BCM2709
+					PLAT_SAMSUNG || ARM_SINGLE_ARMV7M
 	default "mach/uncompress.h"
 
 config EARLY_PRINTK

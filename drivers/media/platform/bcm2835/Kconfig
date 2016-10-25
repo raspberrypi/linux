@@ -2,7 +2,7 @@
 
 config VIDEO_BCM2835
 	bool "Broadcom BCM2835 camera interface driver"
-	depends on VIDEO_V4L2 && (ARCH_BCM2708 || ARCH_BCM2709 || ARCH_BCM2835)
+	depends on VIDEO_V4L2 && ARCH_BCM2835
 	---help---
 	  Say Y here to enable camera host interface devices for
 	  Broadcom BCM2835 SoC. This operates over the VCHIQ interface
