@@ -103,3 +103,7 @@
 &hdmi {
 	power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
 };
+
+&usb {
+	power-domains = <&power RPI_POWER_DOMAIN_USB>;
+};
