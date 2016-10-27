@@ -2835,7 +2835,7 @@ static void *mlx5_ib_add(struct mlx5_core_dev *mdev)
 	}
 	err = init_node_data(dev);
 	if (err)
-		goto err_dealloc;
+		goto err_free_port;
 
 	mutex_init(&dev->flow_db.lock);
 	mutex_init(&dev->cap_mask_mutex);
@@ -2845,7 +2845,7 @@ static void *mlx5_ib_add(struct mlx5_core_dev *mdev)
 	if (ll == IB_LINK_LAYER_ETHERNET) {
 		err = mlx5_enable_roce(dev);
 		if (err)
-			goto err_dealloc;
+			goto err_free_port;
 	}
 
 	err = create_dev_resources(&dev->devr);
