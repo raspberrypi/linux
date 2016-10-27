@@ -185,25 +185,6 @@ rpi_firmware_print_firmware_revision(struct rpi_firmware *fw)
 	}
 }
 
-static int raspberrypi_firmware_set_power(struct rpi_firmware *fw,
-					  u32 domain, bool on)
-{
-	struct {
-		u32 domain;
-		u32 on;
-	} packet;
-	int ret;
-
-	packet.domain = domain;
-	packet.on = on;
-	ret = rpi_firmware_property(fw, RPI_FIRMWARE_SET_POWER_STATE,
-				    &packet, sizeof(packet));
-	if (!ret && packet.on != on)
-		ret = -EINVAL;
-
-	return ret;
-}
-
 static int rpi_firmware_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -231,9 +212,6 @@ static int rpi_firmware_probe(struct platform_device *pdev)
 	g_pdev = pdev;
 
 	rpi_firmware_print_firmware_revision(fw);
-
-	if (raspberrypi_firmware_set_power(fw, 3, true))
-		dev_err(dev, "failed to turn on USB power\n");
 
 	return 0;
 }
