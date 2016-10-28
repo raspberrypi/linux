@@ -1,0 +1,18 @@
+#
+# Broadcom char driver config
+#
+
+menuconfig BRCM_CHAR_DRIVERS
+	bool "Broadcom Char Drivers"
+	help
+	  Broadcom's char drivers
+
+if BRCM_CHAR_DRIVERS
+
+config BCM2708_VCMEM
+	bool "Videocore Memory"
+        default y
+        help
+          Helper for videocore memory access and total size allocation.
+
+endif
