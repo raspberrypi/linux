@@ -605,6 +605,7 @@ static int __init amdgpu_init(void)
 {
 	amdgpu_sync_init();
 	amdgpu_fence_slab_init();
+	amd_sched_fence_slab_init();
 	if (vgacon_text_force()) {
 		DRM_ERROR("VGACON disables amdgpu kernel modesetting.\n");
 		return -EINVAL;
@@ -624,6 +625,7 @@ static void __exit amdgpu_exit(void)
 	drm_pci_exit(driver, pdriver);
 	amdgpu_unregister_atpx_handler();
 	amdgpu_sync_fini();
+	amd_sched_fence_slab_fini();
 	amdgpu_fence_slab_fini();
 }
 
