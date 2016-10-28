@@ -9,9 +9,7 @@
 	soc {
 		ranges = <0x7e000000 0x3f000000 0x01000000>,
 		         <0x40000000 0x40000000 0x00040000>;
-#ifdef RPI364
 		dma-ranges = <0xc0000000 0x00000000 0x3f000000>;
-#endif
 
 		local_intc: local_intc {
 			compatible = "brcm,bcm2836-l1-intc";
@@ -143,9 +141,7 @@
 
 &intc {
 	compatible = "brcm,bcm2836-armctrl-ic";
-#ifdef RPI364
 	reg = <0x7e00b200 0x200>;
-#endif
 	interrupt-parent = <&local_intc>;
 	interrupts = <8>;
 };
