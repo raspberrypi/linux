@@ -22,6 +22,8 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
+#include <linux/dma-mapping.h>
+
 static void __init bcm2835_init(void)
 {
 	struct device_node *np = of_find_node_by_path("/system");
@@ -35,6 +37,12 @@ static void __init bcm2835_init(void)
 		system_rev = val;
 	if (!of_property_read_u64(np, "linux,serial", &val64))
 		system_serial_low = val64;
+}
+
+static void __init bcm2835_init_early(void)
+{
+	/* dwc_otg needs this for bounce buffers on non-aligned transfers */
+	init_dma_coherent_pool_size(SZ_1M);
 }
 
 static void __init bcm2835_board_reserve(void)
@@ -55,6 +63,7 @@ static const char * const bcm2835_compat[] = {
 DT_MACHINE_START(BCM2835, "BCM2835")
 	.init_machine = bcm2835_init,
 	.reserve = bcm2835_board_reserve,
+	.init_early = bcm2835_init_early,
 	.dt_compat = bcm2835_compat
 MACHINE_END
 
@@ -67,6 +76,7 @@ static const char * const bcm2708_compat[] = {
 DT_MACHINE_START(BCM2708, "BCM2708")
 	.init_machine = bcm2835_init,
 	.reserve = bcm2835_board_reserve,
+	.init_early = bcm2835_init_early,
 	.dt_compat = bcm2708_compat,
 MACHINE_END
 #endif
@@ -80,6 +90,7 @@ static const char * const bcm2709_compat[] = {
 DT_MACHINE_START(BCM2709, "BCM2709")
 	.init_machine = bcm2835_init,
 	.reserve = bcm2835_board_reserve,
+	.init_early = bcm2835_init_early,
 	.dt_compat = bcm2709_compat,
 MACHINE_END
 #endif
