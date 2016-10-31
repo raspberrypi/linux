@@ -270,6 +270,7 @@ static void *dwc_otg_pcd_alloc_buffer(struct usb_ep *usb_ep, unsigned bytes,
 	}
 
 	buf = dma_alloc_coherent(NULL, bytes, dma, gfp_flags);
+	WARN_ON(!buf);
 
 	/* Check dword alignment */
 	if (((int)buf & 0x3UL) != 0) {
