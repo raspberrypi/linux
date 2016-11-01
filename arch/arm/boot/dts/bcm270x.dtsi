@@ -49,10 +49,6 @@
 			dma-names = "tx", "rx";
 		};
 
-		i2c@7e205000 {  /* i2c0 */
-			compatible = "brcm,bcm2708-i2c";
-		};
-
 		pixelvalve0: pixelvalve@7e206000 {
 			/* Add alias */
 			status = "disabled";
@@ -102,14 +98,6 @@
 			dmas = <&dma 4>;
 			dma-names = "rx-tx";
 			status = "disabled";
-		};
-
-		i2c@7e804000 {  /* i2c1 */
-			compatible = "brcm,bcm2708-i2c";
-		};
-
-		i2c@7e805000 { /* i2c2 */
-			compatible = "brcm,bcm2708-i2c";
 		};
 
 		pixelvalve2: pixelvalve@7e807000 {
