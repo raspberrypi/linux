@@ -761,6 +761,8 @@ static int stmpe1801_reset(struct stmpe *stmpe)
 	if (ret < 0)
 		return ret;
 
+	msleep(10);
+
 	timeout = jiffies + msecs_to_jiffies(100);
 	while (time_before(jiffies, timeout)) {
 		ret = __stmpe_reg_read(stmpe, STMPE1801_REG_SYS_CTRL);
