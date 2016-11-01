@@ -56,6 +56,18 @@
 #define BCM2835_I2C_CDIV_MIN	0x0002
 #define BCM2835_I2C_CDIV_MAX	0xFFFE
 
+static unsigned int debug;
+module_param(debug, uint, 0644);
+MODULE_PARM_DESC(debug, "1=err, 2=isr, 3=xfer");
+
+#define BCM2835_DEBUG_MAX	512
+struct bcm2835_debug {
+	struct i2c_msg *msg;
+	int msg_idx;
+	size_t remain;
+	u32 status;
+};
+
 struct bcm2835_i2c_dev {
 	struct device *dev;
 	void __iomem *regs;
@@ -68,7 +80,77 @@ struct bcm2835_i2c_dev {
 	u32 msg_err;
 	u8 *msg_buf;
 	size_t msg_buf_remaining;
+	struct bcm2835_debug debug[BCM2835_DEBUG_MAX];
+	unsigned int debug_num;
+	unsigned int debug_num_msgs;
 };
+
+static inline void bcm2835_debug_add(struct bcm2835_i2c_dev *i2c_dev, u32 s)
+{
+	if (!i2c_dev->debug_num_msgs || i2c_dev->debug_num >= BCM2835_DEBUG_MAX)
+		return;
+
+	i2c_dev->debug[i2c_dev->debug_num].msg = i2c_dev->curr_msg;
+	i2c_dev->debug[i2c_dev->debug_num].msg_idx =
+				i2c_dev->debug_num_msgs - i2c_dev->num_msgs;
+	i2c_dev->debug[i2c_dev->debug_num].remain = i2c_dev->msg_buf_remaining;
+	i2c_dev->debug[i2c_dev->debug_num].status = s;
+	i2c_dev->debug_num++;
+}
+
+static void bcm2835_debug_print_status(struct bcm2835_i2c_dev *i2c_dev,
+				       struct bcm2835_debug *d)
+{
+	u32 s = d->status;
+
+	pr_info("isr: remain=%zu, status=0x%x : %s%s%s%s%s%s%s%s%s%s [i2c%d]\n",
+		d->remain, s,
+		s & BCM2835_I2C_S_TA ? "TA " : "",
+		s & BCM2835_I2C_S_DONE ? "DONE " : "",
+		s & BCM2835_I2C_S_TXW ? "TXW " : "",
+		s & BCM2835_I2C_S_RXR ? "RXR " : "",
+		s & BCM2835_I2C_S_TXD ? "TXD " : "",
+		s & BCM2835_I2C_S_RXD ? "RXD " : "",
+		s & BCM2835_I2C_S_TXE ? "TXE " : "",
+		s & BCM2835_I2C_S_RXF ? "RXF " : "",
+		s & BCM2835_I2C_S_ERR ? "ERR " : "",
+		s & BCM2835_I2C_S_CLKT ? "CLKT " : "",
+		i2c_dev->adapter.nr);
+}
+
+static void bcm2835_debug_print_msg(struct bcm2835_i2c_dev *i2c_dev,
+				    struct i2c_msg *msg, int i, int total,
+				    const char *fname)
+{
+	pr_info("%s: msg(%d/%d) %s addr=0x%02x, len=%u flags=%s%s%s%s%s%s%s [i2c%d]\n",
+		fname, i, total,
+		msg->flags & I2C_M_RD ? "read" : "write", msg->addr, msg->len,
+		msg->flags & I2C_M_TEN ? "TEN" : "",
+		msg->flags & I2C_M_RECV_LEN ? "RECV_LEN" : "",
+		msg->flags & I2C_M_NO_RD_ACK ? "NO_RD_ACK" : "",
+		msg->flags & I2C_M_IGNORE_NAK ? "IGNORE_NAK" : "",
+		msg->flags & I2C_M_REV_DIR_ADDR ? "REV_DIR_ADDR" : "",
+		msg->flags & I2C_M_NOSTART ? "NOSTART" : "",
+		msg->flags & I2C_M_STOP ? "STOP" : "",
+		i2c_dev->adapter.nr);
+}
+
+static void bcm2835_debug_print(struct bcm2835_i2c_dev *i2c_dev)
+{
+	struct bcm2835_debug *d;
+	unsigned int i;
+
+	for (i = 0; i < i2c_dev->debug_num; i++) {
+		d = &i2c_dev->debug[i];
+		if (d->status == ~0)
+			bcm2835_debug_print_msg(i2c_dev, d->msg, d->msg_idx,
+				i2c_dev->debug_num_msgs, "start_transfer");
+		else
+			bcm2835_debug_print_status(i2c_dev, d);
+	}
+	if (i2c_dev->debug_num >= BCM2835_DEBUG_MAX)
+		pr_info("BCM2835_DEBUG_MAX reached\n");
+}
 
 static inline void bcm2835_i2c_writel(struct bcm2835_i2c_dev *i2c_dev,
 				      u32 reg, u32 val)
@@ -257,6 +339,7 @@ static void bcm2835_i2c_start_transfer(struct bcm2835_i2c_dev *i2c_dev)
 	bcm2835_i2c_writel(i2c_dev, BCM2835_I2C_A, msg->addr);
 	bcm2835_i2c_writel(i2c_dev, BCM2835_I2C_DLEN, msg->len);
 	bcm2835_i2c_writel(i2c_dev, BCM2835_I2C_C, c);
+	bcm2835_debug_add(i2c_dev, ~0);
 }
 
 static void bcm2835_i2c_finish_transfer(struct bcm2835_i2c_dev *i2c_dev)
@@ -283,6 +366,7 @@ static irqreturn_t bcm2835_i2c_isr(int this_irq, void *data)
 	u32 val, err;
 
 	val = bcm2835_i2c_readl(i2c_dev, BCM2835_I2C_S);
+	bcm2835_debug_add(i2c_dev, val);
 
 	err = val & (BCM2835_I2C_S_CLKT | BCM2835_I2C_S_ERR);
 	if (err) {
@@ -349,6 +433,13 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 	unsigned long time_left;
 	int i;
 
+	if (debug)
+		i2c_dev->debug_num_msgs = num;
+
+	if (debug > 2)
+		for (i = 0; i < num; i++)
+			bcm2835_debug_print_msg(i2c_dev, &msgs[i], i + 1, num, __func__);
+
 	for (i = 0; i < (num - 1); i++)
 		if (msgs[i].flags & I2C_M_RD) {
 			dev_warn_once(i2c_dev->dev,
@@ -367,6 +458,10 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 
 	bcm2835_i2c_finish_transfer(i2c_dev);
 
+	if (debug > 1 || (debug && (!time_left || i2c_dev->msg_err)))
+		bcm2835_debug_print(i2c_dev);
+	i2c_dev->debug_num_msgs = 0;
+	i2c_dev->debug_num = 0;
 	if (!time_left) {
 		bcm2835_i2c_writel(i2c_dev, BCM2835_I2C_C,
 				   BCM2835_I2C_C_CLEAR);
@@ -376,7 +471,9 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 	if (!i2c_dev->msg_err)
 		return num;
 
-	dev_dbg(i2c_dev->dev, "i2c transfer failed: %x\n", i2c_dev->msg_err);
+	if (debug)
+		dev_err(i2c_dev->dev, "i2c transfer failed: %x\n",
+			i2c_dev->msg_err);
 
 	if (i2c_dev->msg_err & BCM2835_I2C_S_ERR)
 		return -EREMOTEIO;
