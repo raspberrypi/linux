@@ -39,6 +39,7 @@
  * be concurrently added to the mainline kernel
  */
 #define FBIOCOPYAREA		_IOW('z', 0x21, struct fb_copyarea)
+#define FBIODMACOPY 		_IOW('z', 0x22, struct fb_dmacopy)
 
 #define FB_TYPE_PACKED_PIXELS		0	/* Packed Pixels	*/
 #define FB_TYPE_PLANES			1	/* Non interleaved planes */
@@ -349,6 +350,12 @@ struct fb_copyarea {
 	__u32 height;
 	__u32 sx;
 	__u32 sy;
+};
+
+struct fb_dmacopy {
+	dma_addr_t dst;
+	dma_addr_t src;
+	__u32 length;
 };
 
 struct fb_fillrect {
