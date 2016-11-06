@@ -226,7 +226,13 @@ static void audio_vchi_callback(void *param,
 		complete(&instance->msg_avail_comp);
 	} else if (m.type == VC_AUDIO_MSG_TYPE_COMPLETE) {
 		bcm2835_alsa_stream_t *alsa_stream = instance->alsa_stream;
+#if defined(CONFIG_64BIT)
+		irq_handler_t callback =
+			(irq_handler_t) (((unsigned long)m.u.complete.callbackl) |
+			((unsigned long)m.u.complete.callbackh << 32));
+#else
 		irq_handler_t callback = (irq_handler_t) m.u.complete.callback;
+#endif
 		LOG_DBG
 		    (" .. instance=%p, m.type=VC_AUDIO_MSG_TYPE_COMPLETE, complete=%d\n",
 		     instance, m.u.complete.count);
@@ -803,8 +809,13 @@ int bcm2835_audio_write_worker(bcm2835_alsa_stream_t *alsa_stream,
 	m.u.write.count = count;
 	// old version uses bulk, new version uses control
 	m.u.write.max_packet = instance->peer_version < 2 || force_bulk ? 0:4000;
+#if defined(CONFIG_64BIT)
+	m.u.write.callbackl = (uint32_t)(((unsigned long)alsa_stream->fifo_irq_handler)&0xFFFFFFFF);
+	m.u.write.callbackh = (uint32_t)((((unsigned long)alsa_stream->fifo_irq_handler) >> 32)&0xFFFFFFFF);
+#else
 	m.u.write.callback = alsa_stream->fifo_irq_handler;
 	m.u.write.cookie = alsa_stream;
+#endif
 	m.u.write.silence = src == NULL;
 
 	/* Send the message to the videocore */
