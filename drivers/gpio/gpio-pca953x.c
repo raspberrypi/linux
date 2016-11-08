@@ -372,8 +372,8 @@ static void pca953x_gpio_set_multiple(struct gpio_chip *gc,
 		break;
 	}
 
-	memcpy(reg_val, chip->reg_output, NBANK(chip));
 	mutex_lock(&chip->i2c_lock);
+	memcpy(reg_val, chip->reg_output, NBANK(chip));
 	for(bank=0; bank<NBANK(chip); bank++) {
 		unsigned bankmask = mask[bank / sizeof(*mask)] >>
 				    ((bank % sizeof(*mask)) * 8);
