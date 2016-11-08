@@ -380,6 +380,7 @@ static void pca953x_gpio_set_multiple(struct gpio_chip *gc,
 		if(bankmask) {
 			unsigned bankval  = bits[bank / sizeof(*bits)] >>
 					    ((bank % sizeof(*bits)) * 8);
+			bankval &= bankmask;
 			reg_val[bank] = (reg_val[bank] & ~bankmask) | bankval;
 		}
 	}
