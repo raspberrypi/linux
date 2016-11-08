@@ -1,8 +1,6 @@
 /*
  * FB driver for the HX8357D LCD Controller
- * Copyright (C) 2015 Adafruit Industries
  *
- * Based on the HX8347D FB driver
  * Copyright (C) 2013 Christian Vogelgsang
  *
  * Based on driver code found here: https://github.com/watterott/r61505u-Adapter
@@ -16,6 +14,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <linux/module.h>
@@ -30,17 +32,51 @@
 #define WIDTH		320
 #define HEIGHT		480
 
+/***************** my sekret register writer @ 8MHz */
+static int slow_write_spi(struct fbtft_par *par, void *buf, size_t len)
+{
+  struct spi_transfer t = {
+    .tx_buf = buf,
+    .len = len,
+    .speed_hz = 8000000,
+  };
+  struct spi_message m;
+
+  fbtft_par_dbg_hex(DEBUG_WRITE, par, par->info->device, u8, buf, len,
+                    "%s(len=%d): ", __func__, len);
+
+  if (!par->spi) {
+    dev_err(par->info->device,
+            "%s: par->spi is unexpectedly NULL\n", __func__);
+    return -1;
+  }
+
+  spi_message_init(&m);
+  if (par->txbuf.dma && buf == par->txbuf.buf) {
+    t.tx_dma = par->txbuf.dma;
+    m.is_dma_mapped = 1;
+  }
+  spi_message_add_tail(&t, &m);
+  return spi_sync(par->spi, &m);
+}
+
+/***************** my sekret register writer @ 8MHz */
+
 static int init_display(struct fbtft_par *par)
 {
+        /* slow down spi-speed for writing registers */
+  	par->fbtftops.write = slow_write_spi;
+
+	fbtft_par_dbg(DEBUG_INIT_DISPLAY, par, "%s()\n", __func__);
+
 	par->fbtftops.reset(par);
 
 	/* Reset things like Gamma */
 	write_reg(par, HX8357B_SWRESET);
-	usleep_range(5000, 7000);
 
 	/* setextc */
 	write_reg(par, HX8357D_SETC, 0xFF, 0x83, 0x57);
-	msleep(150);
+	mdelay(300);
 
 	/* setRGB which also enables SDO */
 	write_reg(par, HX8357_SETRGB, 0x00, 0x00, 0x06, 0x06);
@@ -55,29 +91,29 @@ static int init_display(struct fbtft_par *par)
 	write_reg(par, HX8357_SETPANEL, 0x05);
 
 	write_reg(par, HX8357_SETPWR1,
-		0x00,  /* Not deep standby */
-		0x15,  /* BT */
-		0x1C,  /* VSPR */
-		0x1C,  /* VSNR */
-		0x83,  /* AP */
-		0xAA);  /* FS */
+		0x00,  // Not deep standby
+		0x15,  //BT
+		0x1C,  //VSPR
+		0x1C,  //VSNR
+		0x83,  //AP
+		0xAA);  //FS
 
 	write_reg(par, HX8357D_SETSTBA,
-		0x50,  /* OPON normal */
-		0x50,  /* OPON idle */
-		0x01,  /* STBA */
-		0x3C,  /* STBA */
-		0x1E,  /* STBA */
-		0x08);  /* GEN */
+		0x50,  //OPON normal
+		0x50,  //OPON idle
+		0x01,  //STBA
+		0x3C,  //STBA
+		0x1E,  //STBA
+		0x08);  //GEN
 
 	write_reg(par, HX8357D_SETCYC,
-		0x02,  /* NW 0x02 */
-		0x40,  /* RTN */
-		0x00,  /* DIV */
-		0x2A,  /* DUM */
-		0x2A,  /* DUM */
-		0x0D,  /* GDON */
-		0x78);  /* GDOFF */
+		0x02,  //NW 0x02
+		0x40,  //RTN
+		0x00,  //DIV
+		0x2A,  //DUM
+		0x2A,  //DUM
+		0x0D,  //GDON
+		0x78);  //GDOFF
 
 	write_reg(par, HX8357D_SETGAMMA,
 		0x02,
@@ -128,17 +164,27 @@ static int init_display(struct fbtft_par *par)
 
 	/* Exit Sleep */
 	write_reg(par, HX8357_SLPOUT);
-	msleep(150);
+	mdelay(150);
 
 	/* display on */
 	write_reg(par, HX8357_DISPON);
-	usleep_range(5000, 7000);
+	mdelay(50);
+
+	/* restore user spi-speed */
+        par->fbtftops.write = fbtft_write_spi;
+        udelay(100);
 
 	return 0;
 }
 
 static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 {
+        /* slow down spi-speed for writing registers */
+  	par->fbtftops.write = slow_write_spi;
+
+	fbtft_par_dbg(DEBUG_SET_ADDR_WIN, par,
+		"%s(xs=%d, ys=%d, xe=%d, ye=%d)\n", __func__, xs, ys, xe, ye);
+
 	/* Column addr set */
 	write_reg(par, HX8357_CASET,
 		xs >> 8, xs & 0xff,  /* XSTART */
@@ -151,6 +197,10 @@ static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 
 	/* write to RAM */
 	write_reg(par, HX8357_RAMWR);
+
+	/* restore user spi-speed */
+        par->fbtftops.write = fbtft_write_spi;
+        //udelay(100);
 }
 
 #define HX8357D_MADCTL_MY  0x80
@@ -164,15 +214,17 @@ static int set_var(struct fbtft_par *par)
 {
 	u8 val;
 
+	fbtft_par_dbg(DEBUG_INIT_DISPLAY, par, "%s()\n", __func__);
+
 	switch (par->info->var.rotate) {
 	case 270:
-		val = HX8357D_MADCTL_MV | HX8357D_MADCTL_MX;
+		val = HX8357D_MADCTL_MV | HX8357D_MADCTL_MY;
 		break;
 	case 180:
 		val = 0;
 		break;
 	case 90:
-		val = HX8357D_MADCTL_MV | HX8357D_MADCTL_MY;
+		val = HX8357D_MADCTL_MV | HX8357D_MADCTL_MX;
 		break;
 	default:
 		val = HX8357D_MADCTL_MX | HX8357D_MADCTL_MY;
@@ -199,7 +251,6 @@ static struct fbtft_display display = {
 		.set_var = set_var,
 	},
 };
-
 FBTFT_REGISTER_DRIVER(DRVNAME, "himax,hx8357d", &display);
 
 MODULE_ALIAS("spi:" DRVNAME);
