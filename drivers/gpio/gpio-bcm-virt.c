@@ -15,6 +15,7 @@
 #include <linux/module.h>
 #include <linux/basic_mmio_gpio.h>
 #include <linux/platform_device.h>
+#include <linux/dma-mapping.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
 #define MODULE_NAME "brcmvirt-gpio"
@@ -26,6 +27,7 @@ struct brcmvirt_gpio {
 	/* two packed 16-bit counts of enabled and disables
            Allows host to detect a brief enable that was missed */
 	u32			enables_disables[NUM_GPIO];
+	dma_addr_t		bus_addr;
 };
 
 static int brcmvirt_gpio_dir_in(struct gpio_chip *gc, unsigned off)
@@ -76,13 +78,13 @@ static void brcmvirt_gpio_set(struct gpio_chip *gc, unsigned off, int val)
 
 static int brcmvirt_gpio_probe(struct platform_device *pdev)
 {
+	int err = 0;
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
 	struct device_node *fw_node;
 	struct rpi_firmware *fw;
 	struct brcmvirt_gpio *ucb;
 	u32 gpiovirtbuf;
-	int err = 0;
 
 	fw_node = of_parse_phandle(np, "firmware", 0);
 	if (!fw_node) {
@@ -94,35 +96,56 @@ static int brcmvirt_gpio_probe(struct platform_device *pdev)
 	if (!fw)
 		return -EPROBE_DEFER;
 
-	err = rpi_firmware_property(fw, RPI_FIRMWARE_FRAMEBUFFER_GET_GPIOVIRTBUF,
-				    &gpiovirtbuf, sizeof(gpiovirtbuf));
-
-	if (err) {
-		dev_err(dev, "Failed to get gpiovirtbuf\n");
-		goto err;
-	}
-
-	if (!gpiovirtbuf) {
-		dev_err(dev, "No virtgpio buffer\n");
-		err = -ENOENT;
-		goto err;
-	}
-
 	ucb = devm_kzalloc(dev, sizeof *ucb, GFP_KERNEL);
 	if (!ucb) {
 		err = -EINVAL;
-		goto err;
+		goto out;
 	}
 
-	// mmap the physical memory
-	gpiovirtbuf &= ~0xc0000000;
-	ucb->ts_base = ioremap(gpiovirtbuf, 4096);
-	if (ucb->ts_base == NULL) {
-		dev_err(dev, "Failed to map physical address\n");
-		err = -ENOENT;
-		goto err;
+	ucb->ts_base = dma_zalloc_coherent(NULL, PAGE_SIZE, &ucb->bus_addr, GFP_KERNEL);
+	if (!ucb->ts_base) {
+		pr_err("[%s]: failed to dma_alloc_coherent(%ld)\n",
+				__func__, PAGE_SIZE);
+		err = -ENOMEM;
+		goto out;
 	}
 
+	gpiovirtbuf = (u32)ucb->bus_addr;
+	err = rpi_firmware_property(fw, RPI_FIRMWARE_FRAMEBUFFER_SET_GPIOVIRTBUF,
+				    &gpiovirtbuf, sizeof(gpiovirtbuf));
+
+	if (err || gpiovirtbuf != 0) {
+		dev_warn(dev, "Failed to set gpiovirtbuf, trying to get err:%x\n", err);
+		dma_free_coherent(NULL, PAGE_SIZE, ucb->ts_base, ucb->bus_addr);
+		ucb->ts_base = 0;
+		ucb->bus_addr = 0;
+	}
+
+	if (!ucb->ts_base) {
+		err = rpi_firmware_property(fw, RPI_FIRMWARE_FRAMEBUFFER_GET_GPIOVIRTBUF,
+					    &gpiovirtbuf, sizeof(gpiovirtbuf));
+
+		if (err) {
+			dev_err(dev, "Failed to get gpiovirtbuf\n");
+			goto out;
+		}
+
+		if (!gpiovirtbuf) {
+			dev_err(dev, "No virtgpio buffer\n");
+			err = -ENOENT;
+			goto out;
+		}
+
+		// mmap the physical memory
+		gpiovirtbuf &= ~0xc0000000;
+		ucb->ts_base = ioremap(gpiovirtbuf, 4096);
+		if (ucb->ts_base == NULL) {
+			dev_err(dev, "Failed to map physical address\n");
+			err = -ENOENT;
+			goto out;
+		}
+		ucb->bus_addr = 0;
+	}
 	ucb->gc.label = MODULE_NAME;
 	ucb->gc.owner = THIS_MODULE;
 	ucb->gc.dev = dev;
@@ -138,13 +161,21 @@ static int brcmvirt_gpio_probe(struct platform_device *pdev)
 
 	err = gpiochip_add(&ucb->gc);
 	if (err)
-		goto err;
+		goto out;
 
 	platform_set_drvdata(pdev, ucb);
 
-err:
+	return 0;
+out:
+	if (ucb->bus_addr) {
+		dma_free_coherent(NULL, PAGE_SIZE, ucb->ts_base, ucb->bus_addr);
+		ucb->bus_addr = 0;
+		ucb->ts_base = NULL;
+	} else if (ucb->ts_base) {
+		iounmap(ucb->ts_base);
+		ucb->ts_base = NULL;
+	}
 	return err;
-
 }
 
 static int brcmvirt_gpio_remove(struct platform_device *pdev)
@@ -153,7 +184,10 @@ static int brcmvirt_gpio_remove(struct platform_device *pdev)
 	struct brcmvirt_gpio *ucb = platform_get_drvdata(pdev);
 
 	gpiochip_remove(&ucb->gc);
-	iounmap(ucb->ts_base);
+	if (ucb->bus_addr)
+		dma_free_coherent(NULL, PAGE_SIZE, ucb->ts_base, ucb->bus_addr);
+	else if (ucb->ts_base)
+		iounmap(ucb->ts_base);
 	return err;
 }
 
