@@ -21,6 +21,7 @@
 #include <linux/kthread.h>
 #include <linux/platform_device.h>
 #include <asm/io.h>
+#include <linux/dma-mapping.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
 #define MAXIMUM_SUPPORTED_POINTS 10
@@ -45,6 +46,7 @@ struct ft5406 {
 	struct platform_device * pdev;
 	struct input_dev       * input_dev;
 	void __iomem           * ts_base;
+	dma_addr_t		 bus_addr;
 	struct ft5406_regs     * regs;
 	struct task_struct     * thread;
 };
@@ -117,18 +119,19 @@ static int ft5406_thread(void *arg)
 
 static int ft5406_probe(struct platform_device *pdev)
 {
-	int ret;
-	struct input_dev * input_dev = input_allocate_device();
+	int err = 0;
+	struct device *dev = &pdev->dev;
+	struct device_node *np = dev->of_node;
 	struct ft5406 * ts;
 	struct device_node *fw_node;
 	struct rpi_firmware *fw;
 	u32 touchbuf;
 	
-	dev_info(&pdev->dev, "Probing device\n");
+	dev_info(dev, "Probing device\n");
 	
-	fw_node = of_parse_phandle(pdev->dev.of_node, "firmware", 0);
+	fw_node = of_parse_phandle(np, "firmware", 0);
 	if (!fw_node) {
-		dev_err(&pdev->dev, "Missing firmware node\n");
+		dev_err(dev, "Missing firmware node\n");
 		return -ENOENT;
 	}
 
@@ -136,62 +139,88 @@ static int ft5406_probe(struct platform_device *pdev)
 	if (!fw)
 		return -EPROBE_DEFER;
 
-	ret = rpi_firmware_property(fw, RPI_FIRMWARE_FRAMEBUFFER_GET_TOUCHBUF,
+	ts = devm_kzalloc(dev, sizeof(struct ft5406), GFP_KERNEL);
+	if (!ts) {
+		dev_err(dev, "Failed to allocate memory\n");
+		return -ENOMEM;
+	}
+
+	ts->input_dev = input_allocate_device();
+	if (!ts->input_dev) {
+		dev_err(dev, "Failed to allocate input device\n");
+		return -ENOMEM;
+	}
+
+	ts->ts_base = dma_zalloc_coherent(NULL, PAGE_SIZE, &ts->bus_addr, GFP_KERNEL);
+	if (!ts->ts_base) {
+		pr_err("[%s]: failed to dma_alloc_coherent(%ld)\n",
+				__func__, PAGE_SIZE);
+		err = -ENOMEM;
+		goto out;
+	}
+
+	touchbuf = (u32)ts->bus_addr;
+	err = rpi_firmware_property(fw, RPI_FIRMWARE_FRAMEBUFFER_SET_TOUCHBUF,
 				    &touchbuf, sizeof(touchbuf));
-	if (ret) {
-		dev_err(&pdev->dev, "Failed to get touch buffer\n");
-		return ret;
+
+	if (err || touchbuf != 0) {
+		dev_warn(dev, "Failed to set touchbuf, trying to get err:%x\n", err);
+		dma_free_coherent(NULL, PAGE_SIZE, ts->ts_base, ts->bus_addr);
+		ts->ts_base = 0;
+		ts->bus_addr = 0;
 	}
 
-	if (!touchbuf) {
-		dev_err(&pdev->dev, "Touchscreen not detected\n");
-		return -ENODEV;
+	if (!ts->ts_base) {
+		dev_warn(dev, "set failed, trying get (err:%d touchbuf:%x virt:%p bus:%x)\n", err, touchbuf, ts->ts_base, ts->bus_addr);
+
+		err = rpi_firmware_property(fw, RPI_FIRMWARE_FRAMEBUFFER_GET_TOUCHBUF,
+				    &touchbuf, sizeof(touchbuf));
+		if (err) {
+			dev_err(dev, "Failed to get touch buffer\n");
+			goto out;
+		}
+
+		if (!touchbuf) {
+			dev_err(dev, "Touchscreen not detected\n");
+			err = -ENODEV;
+			goto out;
+		}
+
+		dev_dbg(dev, "Got TS buffer 0x%x\n", touchbuf);
+
+		// mmap the physical memory
+		touchbuf &= ~0xc0000000;
+		ts->ts_base = ioremap(touchbuf, sizeof(*ts->regs));
+		if (ts->ts_base == NULL)
+		{
+			dev_err(dev, "Failed to map physical address\n");
+			err = -ENOMEM;
+			goto out;
+		}
 	}
-
-	dev_dbg(&pdev->dev, "Got TS buffer 0x%x\n", touchbuf);
-
-	ts = kzalloc(sizeof(struct ft5406), GFP_KERNEL);
-
-	if (!ts || !input_dev) {
-		ret = -ENOMEM;
-		dev_err(&pdev->dev, "Failed to allocate memory\n");
-		return ret;
-	}
-	ts->input_dev = input_dev;
 	platform_set_drvdata(pdev, ts);
 	ts->pdev = pdev;
 	
-	input_dev->name = "FT5406 memory based driver";
+	ts->input_dev->name = "FT5406 memory based driver";
 	
-	__set_bit(EV_KEY, input_dev->evbit);
-	__set_bit(EV_SYN, input_dev->evbit);
-	__set_bit(EV_ABS, input_dev->evbit);
+	__set_bit(EV_KEY, ts->input_dev->evbit);
+	__set_bit(EV_SYN, ts->input_dev->evbit);
+	__set_bit(EV_ABS, ts->input_dev->evbit);
 
-	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0,
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0,
 			     SCREEN_WIDTH, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0,
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0,
 			     SCREEN_HEIGHT, 0, 0);
 
-	input_mt_init_slots(input_dev, MAXIMUM_SUPPORTED_POINTS, INPUT_MT_DIRECT);
+	input_mt_init_slots(ts->input_dev, MAXIMUM_SUPPORTED_POINTS, INPUT_MT_DIRECT);
 
-	input_set_drvdata(input_dev, ts);
+	input_set_drvdata(ts->input_dev, ts);
 	
-	ret = input_register_device(input_dev);
-	if (ret) {
-		dev_err(&pdev->dev, "could not register input device, %d\n",
-			ret);
-		return ret;
-	}
-	
-	// mmap the physical memory
-	touchbuf &= ~0xc0000000;
-	ts->ts_base = ioremap(touchbuf, sizeof(*ts->regs));
-	if(ts->ts_base == NULL)
-	{
-		dev_err(&pdev->dev, "Failed to map physical address\n");
-		input_unregister_device(input_dev);
-		kzfree(ts);
-		return -ENOMEM;
+	err = input_register_device(ts->input_dev);
+	if (err) {
+		dev_err(dev, "could not register input device, %d\n",
+			err);
+		goto out;
 	}
 	
 	ts->regs = (struct ft5406_regs *) ts->ts_base;
@@ -200,25 +229,44 @@ static int ft5406_probe(struct platform_device *pdev)
 	ts->thread = kthread_run(ft5406_thread, ts, "ft5406");
 	if(ts->thread == NULL)
 	{
-		dev_err(&pdev->dev, "Failed to create kernel thread");
-		iounmap(ts->ts_base);
-		input_unregister_device(input_dev);
-		kzfree(ts);
+		dev_err(dev, "Failed to create kernel thread");
+		err = -ENOMEM;
+		goto out;
 	}
 
 	return 0;
+
+out:
+	if (ts->bus_addr) {
+		dma_free_coherent(NULL, PAGE_SIZE, ts->ts_base, ts->bus_addr);
+		ts->bus_addr = 0;
+		ts->ts_base = NULL;
+	} else if (ts->ts_base) {
+		iounmap(ts->ts_base);
+		ts->ts_base = NULL;
+	}
+	if (ts->input_dev) {
+		input_unregister_device(ts->input_dev);
+		ts->input_dev = NULL;
+	}
+	return err;
 }
 
 static int ft5406_remove(struct platform_device *pdev)
 {
+	struct device *dev = &pdev->dev;
 	struct ft5406 *ts = (struct ft5406 *) platform_get_drvdata(pdev);
 	
-	dev_info(&pdev->dev, "Removing rpi-ft5406\n");
+	dev_info(dev, "Removing rpi-ft5406\n");
 	
 	kthread_stop(ts->thread);
-	iounmap(ts->ts_base);
-	input_unregister_device(ts->input_dev);
-	kzfree(ts);
+
+	if (ts->bus_addr)
+		dma_free_coherent(dev, PAGE_SIZE, ts->ts_base, ts->bus_addr);
+	else if (ts->ts_base)
+		iounmap(ts->ts_base);
+	if (ts->input_dev)
+		input_unregister_device(ts->input_dev);
 	
 	return 0;
 }
