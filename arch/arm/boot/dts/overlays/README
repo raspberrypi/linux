@@ -463,6 +463,12 @@ Params: speed                   Display SPI bus speed
         ledgpio                 GPIO used to control backlight
 
 
+Name:   i2c-bcm2708
+Info:   Fall back to the i2c_bcm2708 driver for the i2c_arm bus.
+Load:   dtoverlay=i2c-bcm2708
+Params: <None>
+
+
 Name:   i2c-gpio
 Info:   Adds support for software i2c controller on gpio pins
 Load:   dtoverlay=i2c-gpio,<param>=<val>
