@@ -541,6 +541,12 @@ Params: sda1_pin                GPIO pin for SDA1 (2 or 44 - default 2)
                                 default 4)
 
 
+Name:   i2c-bcm2708
+Info:   Fall back to the i2c_bcm2708 driver for the i2c_arm bus.
+Load:   dtoverlay=i2c-bcm2708
+Params: <None>
+
+
 Name:   i2s-gpio28-31
 Info:   move I2S function block to GPIO 28 to 31
 Load:   dtoverlay=i2s-gpio28-31
