@@ -3,7 +3,6 @@
 #include "bcm2710.dtsi"
 
 / {
-	compatible = "brcm,bcm2710","brcm,bcm2709";
 	model = "Raspberry Pi Compute Module 3";
 };
 
