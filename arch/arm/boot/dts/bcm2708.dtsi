@@ -3,9 +3,6 @@
 #include "bcm2708-rpi.dtsi"
 
 / {
-	compatible = "brcm,bcm2708";
-	model = "BCM2708";
-
 	soc {
 		timer@7e003000 {
 			compatible = "brcm,bcm2835-system-timer";
