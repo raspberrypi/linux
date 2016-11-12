@@ -66,31 +66,3 @@ DT_MACHINE_START(BCM2835, "BCM2835")
 	.init_early = bcm2835_init_early,
 	.dt_compat = bcm2835_compat
 MACHINE_END
-
-#ifdef CONFIG_ARCH_BCM2708
-static const char * const bcm2708_compat[] = {
-	"brcm,bcm2708",
-	NULL
-};
-
-DT_MACHINE_START(BCM2708, "BCM2708")
-	.init_machine = bcm2835_init,
-	.reserve = bcm2835_board_reserve,
-	.init_early = bcm2835_init_early,
-	.dt_compat = bcm2708_compat,
-MACHINE_END
-#endif
-
-#ifdef CONFIG_ARCH_BCM2709
-static const char * const bcm2709_compat[] = {
-	"brcm,bcm2709",
-	NULL
-};
-
-DT_MACHINE_START(BCM2709, "BCM2709")
-	.init_machine = bcm2835_init,
-	.reserve = bcm2835_board_reserve,
-	.init_early = bcm2835_init_early,
-	.dt_compat = bcm2709_compat,
-MACHINE_END
-#endif

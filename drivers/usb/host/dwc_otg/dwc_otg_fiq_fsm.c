@@ -78,7 +78,7 @@ void notrace _fiq_print(enum fiq_debug_level dbg_lvl, volatile struct fiq_state 
  * fiq_fsm_spin_lock() - ARMv6+ bare bones spinlock
  * Must be called with local interrupts and FIQ disabled.
  */
-#if defined(CONFIG_ARCH_BCM2709) && defined(CONFIG_SMP)
+#if defined(CONFIG_ARCH_BCM2835) && defined(CONFIG_SMP)
 inline void fiq_fsm_spin_lock(fiq_lock_t *lock)
 {
 	unsigned long tmp;
@@ -111,7 +111,7 @@ inline void fiq_fsm_spin_lock(fiq_lock_t *lock) { }
 /**
  * fiq_fsm_spin_unlock() - ARMv6+ bare bones spinunlock
  */
-#if defined(CONFIG_ARCH_BCM2709) && defined(CONFIG_SMP)
+#if defined(CONFIG_ARCH_BCM2835) && defined(CONFIG_SMP)
 inline void fiq_fsm_spin_unlock(fiq_lock_t *lock)
 {
 	smp_mb();

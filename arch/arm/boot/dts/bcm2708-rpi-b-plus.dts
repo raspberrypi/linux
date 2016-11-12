@@ -3,7 +3,6 @@
 #include "bcm2708.dtsi"
 
 / {
-	compatible = "brcm,bcm2708";
 	model = "Raspberry Pi Model B+";
 };
 
