@@ -1,23 +1,14 @@
 ifeq ($(CONFIG_OF),y)
 
-dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-b.dtb
-dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-b-plus.dtb
-dtb-$(CONFIG_ARCH_BCM2708) += bcm2708-rpi-cm.dtb
-dtb-$(CONFIG_ARCH_BCM2709) += bcm2709-rpi-2-b.dtb
-dtb-$(CONFIG_ARCH_BCM2709) += bcm2710-rpi-3-b.dtb
-dtb-$(CONFIG_ARCH_BCM2709) += bcm2710-rpi-cm3.dtb
+dtb-$(CONFIG_ARCH_BCM2835) += \
+	bcm2708-rpi-b.dtb \
+	bcm2708-rpi-b-plus.dtb \
+	bcm2708-rpi-cm.dtb \
+	bcm2709-rpi-2-b.dtb \
+	bcm2710-rpi-3-b.dtb \
+	bcm2710-rpi-cm3.dtb
 
-# Raspberry Pi
-ifeq ($(CONFIG_ARCH_BCM2708),y)
-   RPI_DT_OVERLAYS=y
-endif
-ifeq ($(CONFIG_ARCH_BCM2709),y)
-   RPI_DT_OVERLAYS=y
-endif
 ifeq ($(CONFIG_ARCH_BCM2835),y)
-   RPI_DT_OVERLAYS=y
-endif
-ifeq ($(RPI_DT_OVERLAYS),y)
     dts-dirs += overlays
 endif
 
@@ -954,6 +945,6 @@ subdir-y	:= $(dts-dirs)
 clean-files	:= *.dtb
 
 # Enable fixups to support overlays on BCM2708 platforms
-ifeq ($(RPI_DT_OVERLAYS),y)
+ifeq ($(CONFIG_ARCH_BCM2835),y)
 	DTC_FLAGS ?= -@ -H epapr
 endif
