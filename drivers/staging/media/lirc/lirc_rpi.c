@@ -487,6 +487,12 @@ static ssize_t lirc_write(struct file *file, const char *buf,
 	wbuf = memdup_user(buf, n);
 	if (IS_ERR(wbuf))
 		return PTR_ERR(wbuf);
+
+        dprintk(KERN_INFO LIRC_DRIVER_NAME
+                ": sending %d pulses/spaces\n", count);
+
+        set_use_dec(NULL);
+
 	spin_lock_irqsave(&lock, flags);
 
 	for (i = 0; i < count; i++) {
@@ -498,6 +504,9 @@ static ssize_t lirc_write(struct file *file, const char *buf,
 	gpiochip->set(gpiochip, gpio_out_pin, invert);
 
 	spin_unlock_irqrestore(&lock, flags);
+
+        set_use_inc(NULL);
+
 	kfree(wbuf);
 	return n;
 }
