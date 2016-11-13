@@ -1,6 +1,7 @@
 config RTL8192CU
 	tristate "Realtek 8192C USB WiFi"
 	depends on MAC80211 && USB
+	depends on ARM
 	select CFG80211_WEXT
 	select WIRELESS_EXT
 	select WEXT_PRIV

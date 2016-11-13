@@ -1,6 +1,7 @@
 menuconfig RTL_CARDS
 	tristate "Realtek rtlwifi family of devices"
 	depends on MAC80211 && (PCI || USB)
+	depends on ARM
 	default y
 	---help---
 	  This option will enable support for the Realtek mac80211-based

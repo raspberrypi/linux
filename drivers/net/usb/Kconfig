@@ -86,6 +86,7 @@ config USB_PEGASUS
 
 config USB_RTL8150
 	tristate "USB RTL8150 based ethernet device support"
+	depends on ARM
 	select MII
 	help
 	  Say Y here if you have RTL8150 based usb-ethernet adapter.
@@ -97,6 +98,7 @@ config USB_RTL8150
 
 config USB_RTL8152
 	tristate "Realtek RTL8152/RTL8153 Based USB Ethernet Adapters"
+	depends on ARM
 	select MII
 	help
 	  This option adds support for Realtek RTL8152 based USB 2.0
