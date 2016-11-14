@@ -353,8 +353,8 @@ struct fb_copyarea {
 };
 
 struct fb_dmacopy {
-	dma_addr_t dst;
-	dma_addr_t src;
+	void *dst;
+	__u32 src;
 	__u32 length;
 };
 
