@@ -151,7 +151,7 @@ static int ft5406_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	ts->ts_base = dma_zalloc_coherent(NULL, PAGE_SIZE, &ts->bus_addr, GFP_KERNEL);
+	ts->ts_base = dma_zalloc_coherent(dev, PAGE_SIZE, &ts->bus_addr, GFP_KERNEL);
 	if (!ts->ts_base) {
 		pr_err("[%s]: failed to dma_alloc_coherent(%ld)\n",
 				__func__, PAGE_SIZE);
@@ -165,7 +165,7 @@ static int ft5406_probe(struct platform_device *pdev)
 
 	if (err || touchbuf != 0) {
 		dev_warn(dev, "Failed to set touchbuf, trying to get err:%x\n", err);
-		dma_free_coherent(NULL, PAGE_SIZE, ts->ts_base, ts->bus_addr);
+		dma_free_coherent(dev, PAGE_SIZE, ts->ts_base, ts->bus_addr);
 		ts->ts_base = 0;
 		ts->bus_addr = 0;
 	}
@@ -238,7 +238,7 @@ static int ft5406_probe(struct platform_device *pdev)
 
 out:
 	if (ts->bus_addr) {
-		dma_free_coherent(NULL, PAGE_SIZE, ts->ts_base, ts->bus_addr);
+		dma_free_coherent(dev, PAGE_SIZE, ts->ts_base, ts->bus_addr);
 		ts->bus_addr = 0;
 		ts->ts_base = NULL;
 	} else if (ts->ts_base) {
