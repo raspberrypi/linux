@@ -78,6 +78,7 @@ my $wanted_strings =
 	'brcm,bcm2835' => FLAG_PI | FLAG_DTOK | FLAG_283X,
 	'brcm,bcm2836' => FLAG_PI | FLAG_DTOK | FLAG_283X,
 	'of_cfs_init' => FLAG_DTOK | FLAG_DDTK,
+	'vc_cma_init' => FLAG_PI | FLAG_270X,
 };
 
 my $res = try_extract($kernel_file, $tmpfile1);
