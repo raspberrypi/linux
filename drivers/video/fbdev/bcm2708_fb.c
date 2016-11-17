@@ -507,7 +507,7 @@ static long vc_mem_copy(struct bcm2708_fb *fb, unsigned long arg)
 		return -EFAULT;
 	}
 
-	buf = dma_alloc_coherent(NULL, PAGE_ALIGN(size), &bus_addr,
+	buf = dma_alloc_coherent(fb->fb.device, PAGE_ALIGN(size), &bus_addr,
 				 GFP_ATOMIC);
 	if (!buf) {
 		pr_err("[%s]: failed to dma_alloc_coherent(%d)\n",
@@ -531,7 +531,7 @@ static long vc_mem_copy(struct bcm2708_fb *fb, unsigned long arg)
 	}
 out:
 	if (buf)
-		dma_free_coherent(NULL, PAGE_ALIGN(size), buf, bus_addr);
+		dma_free_coherent(fb->fb.device, PAGE_ALIGN(size), buf, bus_addr);
 	return rc;
 }
 
