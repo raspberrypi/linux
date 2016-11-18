@@ -18,9 +18,6 @@ endif
 ifeq ($(CONFIG_ARCH_BCM2835),y)
    RPI_DT_OVERLAYS=y
 endif
-ifeq ($(RPI_DT_OVERLAYS),y)
-    dts-dirs += overlays
-endif
 
 dtb-$(CONFIG_ARCH_ALPINE) += \
 	alpine-db.dtb
@@ -809,7 +806,7 @@ dtstree		:= $(srctree)/$(src)
 dtb-$(CONFIG_OF_ALL_DTBS) := $(patsubst $(dtstree)/%.dts,%.dtb, $(wildcard $(dtstree)/*.dts))
 
 always		:= $(dtb-y)
-subdir-y	:= $(dts-dirs)
+subdir-y	:= $(dts-dirs) overlays
 clean-files	:= *.dtb
 
 # Enable fixups to support overlays on BCM2708 platforms
