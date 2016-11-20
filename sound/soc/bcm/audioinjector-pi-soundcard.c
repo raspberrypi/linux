@@ -30,7 +30,7 @@
 #include "../codecs/wm8731.h"
 
 static const unsigned int bcm2835_rates_12000000[] = {
-	32000, 44100, 48000, 96000, 88200,
+	8000, 16000, 32000, 44100, 48000, 96000, 88200,
 };
 
 static struct snd_pcm_hw_constraint_list bcm2835_constraints_12000000 = {
@@ -55,19 +55,21 @@ static int snd_audioinjector_pi_soundcard_hw_params(struct snd_pcm_substream *su
 
 	switch (params_rate(params)){
 		case 8000:
-			return snd_soc_dai_set_bclk_ratio(cpu_dai, 1508);
+			return snd_soc_dai_set_bclk_ratio(cpu_dai, 1);
+		case 16000:
+			return snd_soc_dai_set_bclk_ratio(cpu_dai, 750);
 		case 32000:
-			return snd_soc_dai_set_bclk_ratio(cpu_dai, 378);
+			return snd_soc_dai_set_bclk_ratio(cpu_dai, 375);
 		case 44100:
-			return snd_soc_dai_set_bclk_ratio(cpu_dai, 274);
+			return snd_soc_dai_set_bclk_ratio(cpu_dai, 272);
 		case 48000:
-			return snd_soc_dai_set_bclk_ratio(cpu_dai, 252);
+			return snd_soc_dai_set_bclk_ratio(cpu_dai, 250);
 		case 88200:
 			return snd_soc_dai_set_bclk_ratio(cpu_dai, 136);
 		case 96000:
-			return snd_soc_dai_set_bclk_ratio(cpu_dai, 126);
+			return snd_soc_dai_set_bclk_ratio(cpu_dai, 125);
 		default:
-			return snd_soc_dai_set_bclk_ratio(cpu_dai, 126);
+			return snd_soc_dai_set_bclk_ratio(cpu_dai, 125);
 	}
 }
 
