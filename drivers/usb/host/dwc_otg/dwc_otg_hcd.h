@@ -395,6 +395,10 @@ struct dwc_otg_hcd {
 	/** DWC OTG Core Interface Layer */
 	dwc_otg_core_if_t *core_if;
 
+#ifdef CONFIG_ARM64
+        void * memctx;
+#endif
+
 	/** Function HCD driver callbacks */
 	struct dwc_otg_hcd_function_ops *fops;
 

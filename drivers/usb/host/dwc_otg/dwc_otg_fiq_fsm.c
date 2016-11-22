@@ -74,6 +74,9 @@ void notrace _fiq_print(enum fiq_debug_level dbg_lvl, volatile struct fiq_state 
 	}
 }
 
+
+#ifndef CONFIG_ARM64
+
 /**
  * fiq_fsm_spin_lock() - ARMv6+ bare bones spinlock
  * Must be called with local interrupts and FIQ disabled.
@@ -120,6 +123,8 @@ inline void fiq_fsm_spin_unlock(fiq_lock_t *lock)
 }
 #else
 inline void fiq_fsm_spin_unlock(fiq_lock_t *lock) { }
+#endif
+
 #endif
 
 /**
@@ -580,6 +585,11 @@ static int notrace noinline fiq_fsm_update_hs_isoc(struct fiq_state *state, int 
 static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_channels)
 {
 	hfnum_data_t hfnum = { .d32 = FIQ_READ(state->dwc_regs_base + HFNUM) };
+#ifdef CONFIG_ARM64
+	int n;
+	int kick_irq = 0;
+
+#else
 	int n, i;
 	int kick_irq = 0;
 	
@@ -587,6 +597,7 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 		state->sof_timestamps[i] = state->sof_timestamps[i - 1];
 	}
 	state->sof_timestamps[0] = FIQ_READ(STC_LO);
+#endif
 
 	if ((hfnum.b.frnum & 0x7) == 1) {
 		/* We cannot issue csplits for transactions in the last frame past (n+1).1
@@ -1201,10 +1212,17 @@ void notrace dwc_otg_fiq_fsm(struct fiq_state *state, int num_channels)
 	haintmsk_data_t haintmsk;
 	int kick_irq = 0;
 
+#ifdef CONFIG_ARM64
+        unsigned long irqsave;
+#endif
 	gintsts_handled.d32 = 0;
 	haint_handled.d32 = 0;
 
+#ifdef CONFIG_ARM64
+	spin_lock_irqsave(&state->lock,irqsave);
+#else
 	fiq_fsm_spin_lock(&state->lock);
+#endif
 	gintsts.d32 = FIQ_READ(state->dwc_regs_base + GINTSTS);
 	gintmsk.d32 = FIQ_READ(state->dwc_regs_base + GINTMSK);
 	gintsts.d32 &= gintmsk.d32;
@@ -1295,7 +1313,11 @@ void notrace dwc_otg_fiq_fsm(struct fiq_state *state, int num_channels)
 	}
 	state->fiq_done++;
 	mb();
+#ifdef CONFIG_ARM64
+	spin_unlock_irqrestore(&state->lock,irqsave);
+#else
 	fiq_fsm_spin_unlock(&state->lock);
+#endif
 }
 
 
@@ -1316,8 +1338,13 @@ void notrace dwc_otg_fiq_nop(struct fiq_state *state)
 	gintsts_data_t gintsts, gintsts_handled;
 	gintmsk_data_t gintmsk;
 	hfnum_data_t hfnum;
+#ifdef CONFIG_ARM64
+        unsigned long irqsave;
 
+	spin_lock_irqsave(&state->lock,irqsave);
+#else
 	fiq_fsm_spin_lock(&state->lock);
+#endif
 	hfnum.d32 = FIQ_READ(state->dwc_regs_base + HFNUM);
 	gintsts.d32 = FIQ_READ(state->dwc_regs_base + GINTSTS);
 	gintmsk.d32 = FIQ_READ(state->dwc_regs_base + GINTMSK);
@@ -1356,5 +1383,9 @@ void notrace dwc_otg_fiq_nop(struct fiq_state *state)
 	}
 	state->fiq_done++;
 	mb();
+#ifdef CONFIG_ARM64
+	spin_unlock_irqrestore(&state->lock,irqsave);
+#else
 	fiq_fsm_spin_unlock(&state->lock);
+#endif
 }

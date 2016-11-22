@@ -2484,8 +2484,14 @@ static void complete_ep(dwc_otg_pcd_ep_t * ep)
 			if (!ep->dwc_ep.is_in) {
 				dwc_memcpy(req->buf, req->dw_align_buf, req->length);
 			}
+#ifdef CONFIG_ARM64
+			DWC_DMA_FREE(ep->pcd->memctx,
+                                     req->length, req->dw_align_buf,
+				     req->dw_align_buf_dma);
+#else
 			DWC_DMA_FREE(req->length, req->dw_align_buf,
 				     req->dw_align_buf_dma);
+#endif
 		}
 
 		dwc_otg_request_done(ep, req, 0);

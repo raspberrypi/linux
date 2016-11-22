@@ -352,7 +352,11 @@ void *__DWC_DMA_ALLOC(void *dma_ctx, uint32_t size, dwc_dma_t *dma_addr)
 
 void *__DWC_DMA_ALLOC_ATOMIC(void *dma_ctx, uint32_t size, dwc_dma_t *dma_addr)
 {
-	void *buf = dma_alloc_coherent(NULL, (size_t)size, dma_addr, GFP_ATOMIC);
+#ifdef CONFIG_ARM64
+	void *buf = dma_alloc_coherent(dma_ctx, (size_t)size, dma_addr, GFP_ATOMIC);
+#else
+        void *buf = dma_alloc_coherent(NULL, (size_t)size, dma_addr, GFP_ATOMIC);
+#endif
 	if (!buf) {
 		return NULL;
 	}

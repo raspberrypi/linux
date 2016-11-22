@@ -82,7 +82,11 @@ void dwc_otg_hcd_qh_free(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	DWC_FREE(qh);
 	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
 	if (align_buf_virt)
+#ifdef CONFIG_ARM64
+		DWC_DMA_FREE(hcd->memctx, buf_size, align_buf_virt, align_buf_dma);
+#else		
 		DWC_DMA_FREE(buf_size, align_buf_virt, align_buf_dma);
+#endif
 	return;
 }
 
@@ -689,11 +693,18 @@ int dwc_otg_hcd_qh_add(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		if ( !hcd->periodic_qh_count ) {
 			intr_mask.b.sofintr = 1;
 			if (fiq_enable) {
+#ifdef CONFIG_ARM64
+				unsigned long irqsave;
+                                spin_lock_irqsave(&hcd->fiq_state->lock,irqsave);
+                                DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, intr_mask.d32, intr_mask.d32);
+                                spin_unlock_irqrestore(&hcd->fiq_state->lock,irqsave); 
+#else
 				local_fiq_disable();
 				fiq_fsm_spin_lock(&hcd->fiq_state->lock);
 				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, intr_mask.d32, intr_mask.d32);
 				fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 				local_fiq_enable();
+#endif
 			} else {
 				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, intr_mask.d32, intr_mask.d32);
 			}
@@ -758,11 +769,18 @@ void dwc_otg_hcd_qh_remove(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		if( !hcd->periodic_qh_count && !fiq_fsm_enable ) {
 			intr_mask.b.sofintr = 1;
 			if (fiq_enable) {
+#ifdef CONFIG_ARM64
+                                unsigned long irqsave;
+                                spin_lock_irqsave(&hcd->fiq_state->lock,irqsave);
+				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, intr_mask.d32, 0);
+                                spin_unlock_irqrestore(&hcd->fiq_state->lock,irqsave);
+#else
 				local_fiq_disable();
 				fiq_fsm_spin_lock(&hcd->fiq_state->lock);
 				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, intr_mask.d32, 0);
 				fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 				local_fiq_enable();
+#endif
 			} else {
 				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, intr_mask.d32, 0);
 			}

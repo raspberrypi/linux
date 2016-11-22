@@ -2,7 +2,7 @@
 
 menuconfig SND_ARM
 	bool "ARM sound devices"
-	depends on ARM
+	depends on (ARM || ARM64)
 	default y
 	help
 	  Support for sound devices specific to ARM architectures.

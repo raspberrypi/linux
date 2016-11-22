@@ -49,7 +49,9 @@
 #include <linux/irqflags.h>
 #include <linux/string.h>
 #include <asm/barrier.h>
+#ifndef CONFIG_ARM64
 #include <mach/platform.h>
+#endif
 
 #if 0
 #define FLAME_ON(x)					\
@@ -81,8 +83,10 @@ do {							\
 #define FIQ_WRITE(_addr_,_data_) (*(volatile unsigned int *) (_addr_) = (_data_))
 #define FIQ_READ(_addr_) (*(volatile unsigned int *) (_addr_))
 
+#ifndef CONFIG_ARM64
 #define FIQ_NR_TIMESTAMPS 32
 #define STC_LO		__io_address(ST_BASE + 0x04)
+#endif
 
 /* FIQ-ified register definitions. Offsets are from dwc_regs_base. */
 #define GINTSTS		0x014
@@ -340,8 +344,12 @@ struct fiq_channel_state {
  * It contains top-level state information.
  */
 struct fiq_state {
+#ifdef CONFIG_ARM64
+	spinlock_t lock;
+#else
 	fiq_lock_t lock;
-	mphi_regs_t mphi_regs;
+#endif
+        mphi_regs_t mphi_regs;
 	void *dwc_regs_base;
 	void *stc_base;
 	dma_addr_t dma_base;
@@ -350,7 +358,9 @@ struct fiq_state {
 	gintmsk_data_t gintmsk_saved;
 	haintmsk_data_t haintmsk_saved;
 	int mphi_int_count;
+#ifndef CONFIG_ARM64
 	int sof_timestamps[FIQ_NR_TIMESTAMPS];
+#endif
 	unsigned int fiq_done;
 	unsigned int kick_np_queues;
 	unsigned int next_sched_frame;
@@ -361,9 +371,11 @@ struct fiq_state {
 	struct fiq_channel_state channel[0];
 };
 
+#ifndef CONFIG_ARM64
 extern void fiq_fsm_spin_lock(fiq_lock_t *lock);
 
 extern void fiq_fsm_spin_unlock(fiq_lock_t *lock);
+#endif
 
 extern int fiq_fsm_too_late(struct fiq_state *st, int n);
 

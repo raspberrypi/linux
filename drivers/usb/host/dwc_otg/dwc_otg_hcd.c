@@ -290,8 +290,10 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 	 */
 	dwc_otg_hcd->flags.b.port_connect_status_change = 1;
 	dwc_otg_hcd->flags.b.port_connect_status = 0;
+#ifndef CONFIG_ARM64
 	if(fiq_enable)
 		local_fiq_disable();
+#endif
 	/*
 	 * Shutdown any transfers in process by clearing the Tx FIFO Empty
 	 * interrupt mask and status bits and disabling subsequent host
@@ -395,8 +397,10 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 
 	}
 
+#ifndef CONFIG_ARM64
 	if(fiq_enable)
 		local_fiq_enable();
+#endif
 
 	if (dwc_otg_hcd->fops->disconnect) {
 		dwc_otg_hcd->fops->disconnect(dwc_otg_hcd);
@@ -916,9 +920,16 @@ static void dwc_otg_hcd_free(dwc_otg_hcd_t * dwc_otg_hcd)
 
 	if (dwc_otg_hcd->core_if->dma_enable) {
 		if (dwc_otg_hcd->status_buf_dma) {
+#ifdef CONFIG_ARM64
+			DWC_DMA_FREE(dwc_otg_hcd->memctx, 
+                                     DWC_OTG_HCD_STATUS_BUF_SIZE,
+				     dwc_otg_hcd->status_buf,
+				     dwc_otg_hcd->status_buf_dma);
+#else
 			DWC_DMA_FREE(DWC_OTG_HCD_STATUS_BUF_SIZE,
 				     dwc_otg_hcd->status_buf,
 				     dwc_otg_hcd->status_buf_dma);
+#endif
 		}
 	} else if (dwc_otg_hcd->status_buf != NULL) {
 		DWC_FREE(dwc_otg_hcd->status_buf);
@@ -944,7 +955,11 @@ static void dwc_otg_hcd_free(dwc_otg_hcd_t * dwc_otg_hcd)
 
 int init_hcd_usecs(dwc_otg_hcd_t *_hcd);
 
+#ifdef CONFIG_ARM64
+int dwc_otg_hcd_init(void *memctx, dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
+#else
 int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
+#endif
 {
 	int retval = 0;
 	int num_channels;
@@ -967,6 +982,10 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 		goto out;
 	}
 	hcd->core_if = core_if;
+
+#ifdef CONFIG_ARM64
+        hcd->memctx = memctx;
+#endif
 
 	/* Register the HCD CIL Callbacks */
 	dwc_otg_cil_register_hcd_callbacks(hcd->core_if,
@@ -1019,6 +1038,10 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 		}
 		DWC_MEMSET(hcd->fiq_state, 0, (sizeof(struct fiq_state) + (sizeof(struct fiq_channel_state) * num_channels)));
 
+#ifdef CONFIG_ARM64
+                spin_lock_init(&hcd->fiq_state->lock);
+#endif
+
 		for (i = 0; i < num_channels; i++) {
 			hcd->fiq_state->channel[i].fsm = FIQ_PASSTHROUGH;
 		}
@@ -1041,7 +1064,11 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 		 * for use as transaction bounce buffers in a 2-D array. Our access into this chunk is done by some
 		 * moderately readable array casts.
 		 */
+#ifdef CONFIG_ARM64
+		hcd->fiq_dmab = DWC_DMA_ALLOC(memctx, (sizeof(struct fiq_dma_channel) * num_channels), &hcd->fiq_state->dma_base);
+#else
 		hcd->fiq_dmab = DWC_DMA_ALLOC((sizeof(struct fiq_dma_channel) * num_channels), &hcd->fiq_state->dma_base);
+#endif
 		DWC_WARN("FIQ DMA bounce buffers: virt = 0x%08x dma = 0x%08x len=%d",
 				(unsigned int)hcd->fiq_dmab, (unsigned int)hcd->fiq_state->dma_base,
 				sizeof(struct fiq_dma_channel) * num_channels);
@@ -1097,8 +1124,14 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 	 */
 	if (hcd->core_if->dma_enable) {
 		hcd->status_buf =
+#ifdef CONFIG_ARM64
+		    DWC_DMA_ALLOC(memctx,
+                                  DWC_OTG_HCD_STATUS_BUF_SIZE,
+				  &hcd->status_buf_dma);
+#else
 		    DWC_DMA_ALLOC(DWC_OTG_HCD_STATUS_BUF_SIZE,
 				  &hcd->status_buf_dma);
+#endif
 	} else {
 		hcd->status_buf = DWC_ALLOC(DWC_OTG_HCD_STATUS_BUF_SIZE);
 	}
@@ -1386,8 +1419,13 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 			buf_size = 4096;
 		}
 		if (!qh->dw_align_buf) {
+#ifdef CONFIG_ARM64
+			qh->dw_align_buf = DWC_DMA_ALLOC_ATOMIC(hcd->memctx, buf_size,
+							 &qh->dw_align_buf_dma);
+#else
 			qh->dw_align_buf = DWC_DMA_ALLOC_ATOMIC(buf_size,
 							 &qh->dw_align_buf_dma);
+#endif
 			if (!qh->dw_align_buf) {
 				DWC_ERROR
 				    ("%s: Failed to allocate memory to handle "
@@ -1421,8 +1459,12 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	local_irq_save(flags);
 
 	if (fiq_enable) {
+#ifdef CONFIG_ARM64
+                spin_lock(&hcd->fiq_state->lock);
+#else
 		local_fiq_disable();
 		fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+#endif
 	}
 
 	/* Enable the top level host channel interrupt. */
@@ -1434,8 +1476,12 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, 0, gintmsk.d32);
 
 	if (fiq_enable) {
+#ifdef CONFIG_ARM64
+                spin_unlock(&hcd->fiq_state->lock);
+#else
 		fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 		local_fiq_enable();
+#endif
 	}
 	
 	local_irq_restore(flags);
@@ -1616,6 +1662,9 @@ int fiq_fsm_queue_isoc_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	int xfer_len, nrpackets;
 	hcdma_data_t hcdma;
 	hfnum_data_t hfnum;
+#ifdef CONFIG_ARM64
+        unsigned long irqsave;
+#endif
 
 	if (st->fsm != FIQ_PASSTHROUGH)
 		return 0;
@@ -1691,8 +1740,12 @@ int fiq_fsm_queue_isoc_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	fiq_print(FIQDBG_INT, hcd->fiq_state, "%08x", st->hctsiz_copy.d32);
 	fiq_print(FIQDBG_INT, hcd->fiq_state, "%08x", st->hcdma_copy.d32);
 	hfnum.d32 = DWC_READ_REG32(&hcd->core_if->host_if->host_global_regs->hfnum);
+#ifdef CONFIG_ARM64
+	spin_lock_irqsave(&hcd->fiq_state->lock,irqsave);
+#else
 	local_fiq_disable();
 	fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+#endif
 	DWC_WRITE_REG32(&hc_regs->hctsiz, st->hctsiz_copy.d32);
 	DWC_WRITE_REG32(&hc_regs->hcsplt, st->hcsplt_copy.d32);
 	DWC_WRITE_REG32(&hc_regs->hcdma, st->hcdma_copy.d32);
@@ -1712,8 +1765,12 @@ int fiq_fsm_queue_isoc_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	}
 	mb();
 	st->hcchar_copy.b.chen = 0;
+#ifdef CONFIG_ARM64
+	spin_unlock_irqrestore(&hcd->fiq_state->lock,irqsave);
+#else
 	fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 	local_fiq_enable();
+#endif
 	return 0;
 }
 
@@ -1739,6 +1796,9 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	/* Program HC registers, setup FIQ_state, examine FIQ if periodic, start transfer (not if uframe 5) */
 	int hub_addr, port_addr, frame, uframe;
 	struct fiq_channel_state *st = &hcd->fiq_state->channel[hc->hc_num];
+#ifdef CONFIG_ARM64
+        unsigned long irqsave;
+#endif
 
 	if (st->fsm != FIQ_PASSTHROUGH)
 		return 0;
@@ -1847,8 +1907,12 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	DWC_WRITE_REG32(&hc_regs->hcchar, st->hcchar_copy.d32);
 	DWC_WRITE_REG32(&hc_regs->hcintmsk, st->hcintmsk_copy.d32);
 
+#ifdef CONFIG_ARM64
+        spin_lock_irqsave(&hcd->fiq_state->lock,irqsave);
+#else
 	local_fiq_disable();
 	fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+#endif
 
 	if (hc->ep_type & 0x1) {
 		hfnum.d32 = DWC_READ_REG32(&hcd->core_if->host_if->host_global_regs->hfnum);
@@ -1947,8 +2011,12 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 		DWC_WRITE_REG32(&hc_regs->hcchar, st->hcchar_copy.d32);
 	}
 	mb();
+#ifdef CONFIG_ARM64
+        spin_unlock_irqrestore(&hcd->fiq_state->lock,irqsave);
+#else
 	fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 	local_fiq_enable();
+#endif
 	return 0;
 }
 
@@ -2467,11 +2535,20 @@ void dwc_otg_hcd_queue_transactions(dwc_otg_hcd_t * hcd,
 			gintmsk.b.nptxfempty = 1;
 
 			if (fiq_enable) {
+#ifdef CONFIG_ARM64
+                                unsigned long irqsave;
+				spin_lock_irqsave(&hcd->fiq_state->lock,irqsave);
+#else
 				local_fiq_disable();
 				fiq_fsm_spin_lock(&hcd->fiq_state->lock);
+#endif
 				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, gintmsk.d32, 0);
+#ifdef CONFIG_ARM64
+				spin_unlock_irqrestore(&hcd->fiq_state->lock,irqsave);
+#else
 				fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 				local_fiq_enable();
+#endif
 			} else {
 				DWC_MODIFY_REG32(&hcd->core_if->core_global_regs->gintmsk, gintmsk.d32, 0);
 			}

@@ -45,7 +45,6 @@ struct ft5406 {
 	struct platform_device * pdev;
 	struct input_dev       * input_dev;
 	void __iomem           * ts_base;
-	struct ft5406_regs     * regs;
 	struct task_struct     * thread;
 };
 
@@ -61,13 +60,14 @@ static int ft5406_thread(void *arg)
 	struct ft5406 *ts = (struct ft5406 *) arg;
 	struct ft5406_regs regs;
 	int known_ids = 0;
-	
+        uint8_t temp = 99;	
+
 	while(!kthread_should_stop())
 	{
 		// 60fps polling
 		msleep_interruptible(17);
-		memcpy_fromio(&regs, ts->regs, sizeof(*ts->regs));
-		writel(99, &ts->regs->num_points);
+		memcpy_fromio(&regs, ts->ts_base, sizeof(regs));
+		memcpy_toio((char __iomem *)ts->ts_base + offsetof(struct ft5406_regs,num_points), &temp, 1);
 		// Do not output if theres no new information (num_points is 99)
 		// or we have no touch points and don't need to release any
 		if(!(regs.num_points == 99 || (regs.num_points == 0 && known_ids == 0)))
@@ -185,7 +185,7 @@ static int ft5406_probe(struct platform_device *pdev)
 	
 	// mmap the physical memory
 	touchbuf &= ~0xc0000000;
-	ts->ts_base = ioremap(touchbuf, sizeof(*ts->regs));
+	ts->ts_base = ioremap(touchbuf, sizeof(struct ft5406_regs));
 	if(ts->ts_base == NULL)
 	{
 		dev_err(&pdev->dev, "Failed to map physical address\n");
@@ -194,8 +194,6 @@ static int ft5406_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 	
-	ts->regs = (struct ft5406_regs *) ts->ts_base;
-
 	// create thread to poll the touch events
 	ts->thread = kthread_run(ft5406_thread, ts, "ft5406");
 	if(ts->thread == NULL)
