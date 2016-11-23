@@ -498,7 +498,11 @@ Params: addr                    I2C address of PCA9685A (default 0x40)
 Name:   i2c-rtc
 Info:   Adds support for a number of I2C Real Time Clock devices
 Load:   dtoverlay=i2c-rtc,<param>=<val>
-Params: ds1307                  Select the DS1307 device
+Params: abx80x                  Select one of the ABx80x family:
+                                  AB0801, AB0803, AB0804, AB0805,
+                                  AB1801, AB1803, AB1804, AB1805
+
+        ds1307                  Select the DS1307 device
 
         ds1339                  Select the DS1339 device
 
@@ -514,7 +518,11 @@ Params: ds1307                  Select the DS1307 device
 
         pcf8563                 Select the PCF8563 device
 
-        trickle-resistor-ohms   Resistor value for trickle charge (DS1339-only)
+        trickle-diode-type      Diode type for trickle charge - "standard" or
+                                "schottky" (ABx80x only)
+
+        trickle-resistor-ohms   Resistor value for trickle charge (DS1339,
+                                ABx80x)
 
         wakeup-source           Specify that the RTC can be used as a wakeup
                                 source
