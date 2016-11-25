@@ -877,6 +877,8 @@ static void mxc_do_addr_cycle(struct mtd_info *mtd, int column, int page_addr)
 	}
 }
 
+#define MXC_V1_ECCBYTES		5
+
 static int mxc_v1_ooblayout_ecc(struct mtd_info *mtd, int section,
 				struct mtd_oob_region *oobregion)
 {
@@ -886,7 +888,7 @@ static int mxc_v1_ooblayout_ecc(struct mtd_info *mtd, int section,
 		return -ERANGE;
 
 	oobregion->offset = (section * 16) + 6;
-	oobregion->length = nand_chip->ecc.bytes;
+	oobregion->length = MXC_V1_ECCBYTES;
 
 	return 0;
 }
@@ -908,8 +910,7 @@ static int mxc_v1_ooblayout_free(struct mtd_info *mtd, int section,
 			oobregion->length = 4;
 		}
 	} else {
-		oobregion->offset = ((section - 1) * 16) +
-				    nand_chip->ecc.bytes + 6;
+		oobregion->offset = ((section - 1) * 16) + MXC_V1_ECCBYTES + 6;
 		if (section < nand_chip->ecc.steps)
 			oobregion->length = (section * 16) + 6 -
 					    oobregion->offset;
