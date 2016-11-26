@@ -806,10 +806,11 @@ dtstree		:= $(srctree)/$(src)
 dtb-$(CONFIG_OF_ALL_DTBS) := $(patsubst $(dtstree)/%.dts,%.dtb, $(wildcard $(dtstree)/*.dts))
 
 always		:= $(dtb-y)
-subdir-y	:= $(dts-dirs) overlays
+subdir-y	:= overlays
 clean-files	:= *.dtb
 
 # Enable fixups to support overlays on BCM2708 platforms
 ifeq ($(RPI_DT_OVERLAYS),y)
 	DTC_FLAGS ?= -@ -H epapr
+	dts-dirs += overlays
 endif
