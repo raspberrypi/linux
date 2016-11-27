@@ -202,6 +202,11 @@
 				     <1 9>;
 		};
 
+		firmware: firmware {
+			compatible = "raspberrypi,bcm2835-firmware";
+			mboxes = <&mailbox>;
+		};
+
 		leds: leds {
 			compatible = "gpio-leds";
 		};

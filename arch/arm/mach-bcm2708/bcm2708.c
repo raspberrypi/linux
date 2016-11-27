@@ -415,6 +415,16 @@ static struct platform_device bcm2708_vcio_device = {
 		},
 };
 
+static u64 rpifw_dmamask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON);
+
+static struct platform_device bcm2708_rpifw_device = {
+	.name = "raspberrypi-firmware",
+	.dev = {
+		.dma_mask = &rpifw_dmamask,
+		.coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON),
+	},
+};
+
 static struct resource bcm2708_vchiq_resources[] = {
 	{
 		.start = ARMCTRL_0_BELL_BASE,
@@ -871,6 +881,7 @@ void __init bcm2708_init(void)
 
 	bcm_register_device_dt(&bcm2708_dmaengine_device);
 	bcm_register_device_dt(&bcm2708_vcio_device);
+	bcm_register_device_dt(&bcm2708_rpifw_device);
 	bcm_register_device_dt(&bcm2708_vchiq_device);
 #ifdef CONFIG_BCM2708_GPIO
 	bcm_register_device_dt(&bcm2708_gpio_device);
