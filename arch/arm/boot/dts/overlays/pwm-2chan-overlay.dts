@@ -29,17 +29,11 @@ N.B.:
 
 	fragment@1 {
 		target = <&pwm>;
-		__overlay__ {
+		frag1: __overlay__ {
 			pinctrl-names = "default";
 			pinctrl-0 = <&pwm_pins>;
+			assigned-clock-rates = <100000000>;
 			status = "okay";
-		};
-	};
-
-	fragment@2 {
-		target = <&clk_pwm>;
-		frag2: __overlay__ {
-			clock-frequency = <100000000>;
 		};
 	};
 
@@ -48,6 +42,6 @@ N.B.:
 		pin2  = <&pwm_pins>,"brcm,pins:4";
 		func  = <&pwm_pins>,"brcm,function:0";
 		func2 = <&pwm_pins>,"brcm,function:4";
-		clock = <&frag2>,"clock-frequency:0";
+		clock = <&frag1>,"assigned-clock-rates:0";
 	};
 };
