@@ -456,7 +456,7 @@
 			reg = <2>;
 			#clock-cells = <0>;
 			clock-output-names = "uart0_pclk";
-			clock-frequency = <3000000>;
+			clock-frequency = <48000000>;
 		};
 
 		clk_apb_p: clock@3 {
