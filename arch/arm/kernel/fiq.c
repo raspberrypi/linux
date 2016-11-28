@@ -83,10 +83,19 @@ static struct fiq_handler *current_fiq = &default_owner;
 
 int show_fiq_list(struct seq_file *p, int prec)
 {
-	if (current_fiq != &default_owner)
-		seq_printf(p, "%*s:              %s\n", prec, "FIQ",
-			current_fiq->name);
+	int j;
 
+	if (current_fiq == &default_owner)
+		return 0;
+	seq_printf(p, "%*s: ", prec, "FIQ");
+	for_each_online_cpu(j) {
+		if (current_fiq->fiq_kstat)
+			seq_printf(p, "%10u ",
+				*per_cpu_ptr(current_fiq->fiq_kstat, j));
+		else
+			seq_printf(p, "%10s ", "");
+	}
+	seq_printf(p, " %s\n", current_fiq->name);
 	return 0;
 }
 
@@ -162,3 +171,17 @@ void __init init_FIQ(int start)
 	get_fiq_regs(&dfl_fiq_regs);
 	fiq_start = start;
 }
+
+int fiq_kstat_enable(struct fiq_handler *fh)
+{
+	fh->fiq_kstat = alloc_percpu(unsigned int);
+	return fh->fiq_kstat != 0 ? 0 : 1;
+}
+EXPORT_SYMBOL(fiq_kstat_enable);
+
+void fiq_kstat_disable(struct fiq_handler *fh)
+{
+	free_percpu(fh->fiq_kstat);
+	fh->fiq_kstat = NULL;
+}
+EXPORT_SYMBOL(fiq_kstat_disable);

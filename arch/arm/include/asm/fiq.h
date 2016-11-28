@@ -31,6 +31,8 @@ struct fiq_handler {
 	/* data for the relinquish/reacquire functions
 	 */
 	void *dev_id;
+	/* fiq stats percpu */
+	unsigned int __percpu *fiq_kstat;
 };
 
 extern int claim_fiq(struct fiq_handler *f);
@@ -51,6 +53,14 @@ static inline void set_fiq_regs(struct pt_regs const *regs)
 static inline void get_fiq_regs(struct pt_regs *regs)
 {
 	__get_fiq_regs(&regs->ARM_r8);
+}
+
+extern int fiq_kstat_enable(struct fiq_handler *fh);
+extern void fiq_kstat_disable(struct fiq_handler *fh);
+
+static inline void fiq_kstat_this_cpu_inc(struct fiq_handler *fh)
+{
+	__this_cpu_inc(*fh->fiq_kstat);
 }
 
 #endif
