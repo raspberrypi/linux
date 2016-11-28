@@ -107,7 +107,8 @@
 
 	.text
 
-ENTRY(arm_copy_from_user)
+ENTRY(__copy_from_user_std)
+WEAK(arm_copy_from_user)
 #ifdef CONFIG_CPU_SPECTRE
 	ldr	r3, =TASK_SIZE
 	uaccess_mask_range_ptr r1, r2, r3, ip
@@ -116,6 +117,7 @@ ENTRY(arm_copy_from_user)
 #include "copy_template.S"
 
 ENDPROC(arm_copy_from_user)
+ENDPROC(__copy_from_user_std)
 
 	.pushsection .text.fixup,"ax"
 	.align 0
