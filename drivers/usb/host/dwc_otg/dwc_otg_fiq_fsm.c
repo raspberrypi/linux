@@ -51,6 +51,7 @@
  */
 
 #include "dwc_otg_fiq_fsm.h"
+#include <asm/fiq.h>
 
 
 char buffer[1000*16];
@@ -1175,6 +1176,7 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 	return handled;
 }
 
+extern struct fiq_handler dwc_usb_fh;
 
 /**
  * dwc_otg_fiq_fsm() - Flying State Machine (monster) FIQ
@@ -1200,6 +1202,9 @@ void notrace dwc_otg_fiq_fsm(struct fiq_state *state, int num_channels)
 	haint_data_t haint, haint_handled;
 	haintmsk_data_t haintmsk;
 	int kick_irq = 0;
+
+	if (dwc_usb_fh.fiq_kstat)
+		fiq_kstat_this_cpu_inc(&dwc_usb_fh);
 
 	gintsts_handled.d32 = 0;
 	haint_handled.d32 = 0;

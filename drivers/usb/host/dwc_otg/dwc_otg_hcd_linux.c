@@ -393,7 +393,7 @@ static struct dwc_otg_hcd_function_ops hcd_fops = {
 	.get_b_hnp_enable = _get_b_hnp_enable,
 };
 
-static struct fiq_handler fh = {
+struct fiq_handler dwc_usb_fh = {
   .name = "usb_fiq",
 };
 
@@ -404,7 +404,10 @@ static void hcd_init_fiq(void *cookie)
 	struct pt_regs regs;
 	int irq;
 
-	if (claim_fiq(&fh)) {
+	if (fiq_kstat_enable(&dwc_usb_fh))
+		DWC_ERROR("Can't enable fiq kstat");
+
+	if (claim_fiq(&dwc_usb_fh)) {
 		DWC_ERROR("Can't claim FIQ");
 		BUG();
 	}
