@@ -65,4 +65,9 @@ static inline void *memset64(uint64_t *p, uint64_t v, __kernel_size_t n)
 
 #endif
 
+#ifdef CONFIG_BCM2835_FAST_MEMCPY
+#define __HAVE_ARCH_MEMCMP
+extern int memcmp(const void *, const void *, size_t);
+#endif
+
 #endif
