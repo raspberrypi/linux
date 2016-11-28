@@ -11791,7 +11791,7 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	intel_crtc->reset_counter = i915_reset_counter(&dev_priv->gpu_error);
 	if (__i915_reset_in_progress_or_wedged(intel_crtc->reset_counter)) {
 		ret = -EIO;
-		goto cleanup;
+		goto unlock;
 	}
 
 	atomic_inc(&intel_crtc->unpin_work_count);
@@ -11877,6 +11877,7 @@ cleanup_pending:
 	if (!IS_ERR_OR_NULL(request))
 		i915_add_request_no_flush(request);
 	atomic_dec(&intel_crtc->unpin_work_count);
+unlock:
 	mutex_unlock(&dev->struct_mutex);
 cleanup:
 	crtc->primary->fb = old_fb;
