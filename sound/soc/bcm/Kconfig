@@ -8,6 +8,15 @@ config SND_BCM2835_SOC_I2S
 	  the BCM2835 I2S interface. You will also need
 	  to select the audio interfaces to support below.
 
+config SND_BCM2708_SOC_ES9023_DAC
+	tristate "Support for ESS Sabre ES9023 DAC"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_ES9023
+	help
+	  Say Y or M if you want to add support for boards using the ESS Sabre
+	  ES9023 DAC. eg. Audiophonics I-Sabre, Collybia MamboBerry HiFi DAC+,
+	  Digital Dreamtime Akkordion and HiFiBerry DAC+ Light.
+
 config SND_BCM2708_SOC_HIFIBERRY_DAC
         tristate "Support for HifiBerry DAC"
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S

@@ -1,0 +1,57 @@
+// Definitions for Collybia MamboBerry HiFi DAC+ using ESS Sabre ES9023 DAC
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			es9023_codec: es9023-codec {
+				#sound-dai-cells = <0>;
+				compatible = "ess,es9023";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		es9023_dac: __overlay__ {
+			compatible = "collybia,es9023-mamboberry-dacplus";
+			/*
+			 * These are the default names that will be
+			 *  applied by the es9023-dac machine driver
+			 *  based on the compatible parameter.
+			 *
+			 * es9023-dac,card-name = "Mamboberry";
+			 * es9023-dac,dai-name = "Mamboberry DAC+";
+			 * es9023-dac,dai-stream-name = "Mamboberry DAC+ HiFi";
+			 */
+			status = "okay";
+			es9023-dac,cpu {
+				sound-dai = <&i2s>;
+			};
+			es9023-dac,codec {
+				sound-dai = <&es9023_codec>;
+			};
+		};
+	};
+
+	__overrides__ {
+		384k = <&es9023_codec>,"es9023,384k?";
+		bclk_ratio_int_div =
+			<&es9023_dac>,"es9023-dac,bclk-ratio-int-div?";
+		card_name = <&es9023_dac>,"es9023-dac,card-name";
+		dai_name = <&es9023_dac>,"es9023-dac,dai-name";
+		dai_stream_name = <&es9023_dac>,"es9023-dac,dai-stream-name";
+	};
+};

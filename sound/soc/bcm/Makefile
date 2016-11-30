@@ -5,6 +5,7 @@ obj-$(CONFIG_SND_BCM2835_SOC_I2S) += snd-soc-bcm2835-i2s.o
 
 # BCM2708 Machine Support
 snd-soc-adau1977-adc-objs := adau1977-adc.o
+snd-soc-es9023-dac-objs := es9023_dac.o
 snd-soc-hifiberry-dac-objs := hifiberry_dac.o
 snd-soc-hifiberry-dacplus-objs := hifiberry_dacplus.o
 snd-soc-hifiberry-digi-objs := hifiberry_digi.o
@@ -23,6 +24,7 @@ snd-soc-allo-piano-dac-objs := allo-piano-dac.o
 snd-soc-pisound-objs := pisound.o
 
 obj-$(CONFIG_SND_BCM2708_SOC_ADAU1977_ADC) += snd-soc-adau1977-adc.o
+obj-$(CONFIG_SND_BCM2708_SOC_ES9023_DAC) += snd-soc-es9023-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) += snd-soc-hifiberry-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS) += snd-soc-hifiberry-dacplus.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI) += snd-soc-hifiberry-digi.o
