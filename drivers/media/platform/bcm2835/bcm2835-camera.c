@@ -480,6 +480,50 @@ static void buffer_queue(struct vb2_buffer *vb)
 			 __func__);
 }
 
+static int redirect_preview_to_null_sink(struct bm2835_mmal_dev *dev)
+{
+	int ret;
+	struct vchiq_mmal_port *src = &dev->component[MMAL_COMPONENT_CAMERA]->output[MMAL_CAMERA_PORT_PREVIEW];
+	struct vchiq_mmal_port *dst = &dev->component[MMAL_COMPONENT_NULL_SINK]->input[0];
+
+	/* set preview port format and connect it to output */
+	ret = vchiq_mmal_port_set_format(dev->instance, src);
+	if (ret < 0) {
+		goto error;
+	}
+
+	ret = vchiq_mmal_component_enable(
+			dev->instance,
+			dev->component[MMAL_COMPONENT_NULL_SINK]);
+	if (ret < 0) {
+		goto error;
+	}
+
+	v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev, "connecting %p to %p\n", src, dst);
+	ret = vchiq_mmal_port_connect_tunnel(dev->instance, src, dst);
+	if (!ret) {
+		ret = vchiq_mmal_port_enable(dev->instance, src, NULL);
+	}
+
+error:
+	return ret;
+}
+
+static int finish_preview_redirect(struct bm2835_mmal_dev *dev)
+{
+	int ret;
+	struct vchiq_mmal_port *src = &dev->component[MMAL_COMPONENT_CAMERA]->output[MMAL_CAMERA_PORT_PREVIEW];
+
+	ret = vchiq_mmal_port_disable(dev->instance, src);
+	if (!ret)
+		ret = vchiq_mmal_port_connect_tunnel(dev->instance, src, NULL);
+	if (ret >= 0)
+		ret = vchiq_mmal_component_disable(
+			dev->instance,
+			dev->component[MMAL_COMPONENT_NULL_SINK]);
+	return ret;
+}
+
 static int start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct bm2835_mmal_dev *dev = vb2_get_drv_priv(vq);
@@ -492,6 +536,14 @@ static int start_streaming(struct vb2_queue *vq, unsigned int count)
 	/* ensure a format has actually been set */
 	if (dev->capture.port == NULL)
 		return -EINVAL;
+
+	if (!dev->component[MMAL_COMPONENT_PREVIEW]->enabled) {
+		ret = redirect_preview_to_null_sink(dev);
+		if (ret) {
+			v4l2_err(&dev->v4l2_dev, "Failed to redirect preview\n");
+			return -EINVAL;
+		}
+	}
 
 	if (enable_camera(dev) < 0) {
 		v4l2_err(&dev->v4l2_dev, "Failed to enable camera\n");
@@ -615,6 +667,12 @@ static void stop_streaming(struct vb2_queue *vq)
 		v4l2_err(&dev->v4l2_dev, "port_disable failed, error %d\n",
 			 ret);
 	}
+
+	/* if no preview, finish redirection to null_sink */
+	if (!dev->component[MMAL_COMPONENT_PREVIEW]->enabled)
+		if (finish_preview_redirect(dev) < 0) {
+			v4l2_err(&dev->v4l2_dev, "disabling preview redirection, error %d\n", ret);
+		}
 
 	if (disable_camera(dev) < 0)
 		v4l2_err(&dev->v4l2_dev, "Failed to disable camera\n");
@@ -1608,6 +1666,21 @@ static int __init mmal_init(struct bm2835_mmal_dev *dev)
 		goto unreg_vid_encoder;
 	}
 
+	/* get the null_sink component ready */
+	ret = vchiq_mmal_component_init(
+			dev->instance, "null_sink",
+			&dev->component[MMAL_COMPONENT_NULL_SINK]);
+
+	if (ret < 0)
+		goto unreg_vid_encoder;
+
+	if (dev->component[MMAL_COMPONENT_NULL_SINK]->inputs < 1) {
+		ret = -EINVAL;
+		pr_debug("too few input ports %d needed %d\n",
+			 dev->component[MMAL_COMPONENT_NULL_SINK]->inputs, 1);
+		goto unreg_null_sink;
+	}
+
 	{
 		struct vchiq_mmal_port *encoder_port =
 			&dev->component[MMAL_COMPONENT_VIDEO_ENCODE]->output[0];
@@ -1632,9 +1705,15 @@ static int __init mmal_init(struct bm2835_mmal_dev *dev)
 	}
 	ret = bm2835_mmal_set_all_camera_controls(dev);
 	if (ret < 0)
-		goto unreg_vid_encoder;
+		goto unreg_null_sink;
 
 	return 0;
+
+unreg_null_sink:
+	pr_err("Cleanup: Destroy null sink\n");
+	vchiq_mmal_component_finalise(
+		dev->instance,
+		dev->component[MMAL_COMPONENT_NULL_SINK]);
 
 unreg_vid_encoder:
 	pr_err("Cleanup: Destroy video encoder\n");
@@ -1814,6 +1893,9 @@ static void __exit bm2835_mmal_exit(void)
 	}
 	vchiq_mmal_component_disable(gdev->instance,
 				     gdev->component[MMAL_COMPONENT_CAMERA]);
+
+	vchiq_mmal_component_finalise(gdev->instance,
+				      gdev->component[MMAL_COMPONENT_NULL_SINK]);
 
 	vchiq_mmal_component_finalise(gdev->instance,
 				      gdev->

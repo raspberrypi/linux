@@ -35,7 +35,7 @@
 #include "interface/vchi/vchi.h"
 
 /* maximum number of components supported */
-#define VCHIQ_MMAL_MAX_COMPONENTS 4
+#define VCHIQ_MMAL_MAX_COMPONENTS 5
 
 /*#define FULL_MSG_DUMP 1*/
 
