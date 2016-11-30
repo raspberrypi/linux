@@ -881,7 +881,7 @@ static struct snd_pcm_hardware bcm2708_pcm_hardware = {
 				  SNDRV_PCM_FMTBIT_S24_LE |
 				  SNDRV_PCM_FMTBIT_S32_LE,
 	.period_bytes_min	= 32,
-	.period_bytes_max	= 64 * PAGE_SIZE,
+	.period_bytes_max	= SZ_32K,
 	.periods_min		= 2,
 	.periods_max		= 255,
 	.buffer_bytes_max	= 128 * PAGE_SIZE,
