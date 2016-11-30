@@ -107,6 +107,8 @@ typedef struct bcm2835_chip {
 	int old_volume; /* stores the volume value whist muted */
 	int dest;
 	int mute;
+	int cea_chmap; /* currently requested Audio InfoFrame Data Byte 4 */
+	int map_channels[8];
 
 	unsigned int opened;
 	unsigned int spdif_status;
@@ -135,6 +137,7 @@ typedef struct bcm2835_alsa_stream {
 	unsigned int pos;
 	unsigned int buffer_size;
 	unsigned int period_size;
+	u64 interpolate_start;
 
 	uint32_t enable_fifo_irq;
 	irq_handler_t fifo_irq_handler;
