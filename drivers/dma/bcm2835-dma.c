@@ -141,12 +141,6 @@ struct bcm2835_desc {
  */
 #define MAX_LITE_TRANSFER	(SZ_64K - 4)
 
-/*
- * Transfers larger than 32k cause issues with the bcm2708-i2s driver,
- * so limit transfer size to 32k as bcm2708-dmaengine did.
- */
-#define MAX_CYCLIC_LITE_TRANSFER	SZ_32K
-
 static inline struct bcm2835_dmadev *to_bcm2835_dma_dev(struct dma_device *d)
 {
 	return container_of(d, struct bcm2835_dmadev, ddev);
@@ -403,11 +397,11 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 
 	d->dir = direction;
 	if (c->ch >= 8) /* LITE channel */
-		max_size = MAX_CYCLIC_LITE_TRANSFER;
+		max_size = MAX_LITE_TRANSFER;
 	else
 		max_size = MAX_NORMAL_TRANSFER;
 	period_len = min(period_len, max_size);
-	d->frames = (buf_len - 1) / (period_len + 1);
+	d->frames = DIV_ROUND_UP(buf_len, period_len);
 
 	/* Allocate memory for control blocks */
 	d->control_block_size = d->frames * sizeof(struct bcm2835_dma_cb);
