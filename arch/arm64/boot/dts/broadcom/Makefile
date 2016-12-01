@@ -6,3 +6,8 @@ dtb-$(CONFIG_ARCH_BCM2709) += bcm2710-rpi-3-b.dtb
 always		:= $(dtb-y)
 subdir-y	:= $(dts-dirs)
 clean-files	:= *.dtb
+
+# Enable fixups to support overlays on BCM2835 platforms
+ifeq ($(CONFIG_ARCH_BCM2835),y)
+        DTC_FLAGS ?= -@ -H epapr
+endif
