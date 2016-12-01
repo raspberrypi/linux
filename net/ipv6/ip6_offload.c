@@ -98,7 +98,7 @@ static struct sk_buff *ipv6_gso_segment(struct sk_buff *skb,
 		segs = ops->callbacks.gso_segment(skb, features);
 	}
 
-	if (IS_ERR(segs))
+	if (IS_ERR_OR_NULL(segs))
 		goto out;
 
 	for (skb = segs; skb; skb = skb->next) {
