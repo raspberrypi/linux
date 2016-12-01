@@ -1397,6 +1397,7 @@ static int vidioc_s_parm(struct file *file, void *priv,
 	dev->capture.timeperframe = tpf;
 	parm->parm.capture.timeperframe = tpf;
 	parm->parm.capture.readbuffers  = 1;
+	parm->parm.capture.capability   = V4L2_CAP_TIMEPERFRAME;
 
 	fps_param.num = 0;	/* Select variable fps, and then use
 				 * FPS_RANGE to select the actual limits.
