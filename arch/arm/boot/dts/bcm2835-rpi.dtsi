@@ -95,3 +95,8 @@
 &dsi1 {
 	power-domains = <&power RPI_POWER_DOMAIN_DSI1>;
 };
+
+&vec {
+	power-domains = <&power RPI_POWER_DOMAIN_VEC>;
+	status = "okay";
+};
