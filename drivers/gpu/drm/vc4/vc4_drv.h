@@ -20,6 +20,7 @@ struct vc4_dev {
 	struct vc4_crtc *crtc[3];
 	struct vc4_v3d *v3d;
 	struct vc4_dpi *dpi;
+	struct vc4_vec *vec;
 
 	struct drm_fbdev_cma *fbdev;
 
@@ -493,6 +494,10 @@ int vc4_queue_seqno_cb(struct drm_device *dev,
 /* vc4_hdmi.c */
 extern struct platform_driver vc4_hdmi_driver;
 int vc4_hdmi_debugfs_regs(struct seq_file *m, void *unused);
+
+/* vc4_hdmi.c */
+extern struct platform_driver vc4_vec_driver;
+int vc4_vec_debugfs_regs(struct seq_file *m, void *unused);
 
 /* vc4_irq.c */
 irqreturn_t vc4_irq(int irq, void *arg);
