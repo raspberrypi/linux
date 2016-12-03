@@ -78,6 +78,22 @@
 			brcm,dma-channel-mask = <0x7f35>;
 		};
 	};
+	
+	fragment@10 {
+		target = <&dsi1>;
+		__overlay__  {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			brcm,panel = <&pitouchscreen>;
+
+			pitouchscreen: panel {
+				compatible = "raspberrypi,touchscreen";
+				reg = <0>;
+			};
+		};
+	};
 
 	__overrides__ {
 		cma-256 = <0>,"+0-1-2-3-4";

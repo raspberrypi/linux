@@ -20,6 +20,7 @@ dts-dirs += sprd
 dts-dirs += xilinx
 dts-dirs += lg
 dts-dirs += zte
+dts-dirs += overlays
 
 subdir-y	:= $(dts-dirs)
 
