@@ -28,6 +28,7 @@ dtbo-$(RPI_DT_OVERLAYS) += dpi24.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += dwc-otg.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += dwc2.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += enc28j60.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += enc28j60-spi2.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += gpio-ir.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += gpio-poweroff.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += hifiberry-amp.dtbo
