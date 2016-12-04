@@ -17,6 +17,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	dwc-otg.dtbo \
 	dwc2.dtbo \
 	enc28j60.dtbo \
+	enc28j60-spi2.dtbo \
 	gpio-ir.dtbo \
 	gpio-poweroff.dtbo \
 	hifiberry-amp.dtbo \
