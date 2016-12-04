@@ -349,6 +349,14 @@ Load:   dtoverlay=enc28j60,<param>=<val>
 Params: int_pin                 GPIO used for INT (default 25)
 
         speed                   SPI bus speed (default 12000000)
+        
+        
+Name:   spi2-enc28j60
+Info:   Overlay for the Microchip ENC28J60 Ethernet Controller (SPI)
+Load:   dtoverlay=spi2-enc28j60,<param>=<val>
+Params: int_pin                 GPIO used for INT (default 39)
+
+        speed                   SPI bus speed (default 12000000)
 
 
 Name:   gpio-ir
