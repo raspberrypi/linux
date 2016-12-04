@@ -344,9 +344,17 @@ Params: dr_mode                 Dual role mode: "host", "peripheral" or "otg"
 
 
 Name:   enc28j60
-Info:   Overlay for the Microchip ENC28J60 Ethernet Controller (SPI)
+Info:   Overlay for the Microchip ENC28J60 Ethernet Controller on SPI0
 Load:   dtoverlay=enc28j60,<param>=<val>
 Params: int_pin                 GPIO used for INT (default 25)
+
+        speed                   SPI bus speed (default 12000000)
+
+
+Name:   enc28j60-spi2
+Info:   Overlay for the Microchip ENC28J60 Ethernet Controller on SPI2
+Load:   dtoverlay=enc28j60-spi2,<param>=<val>
+Params: int_pin                 GPIO used for INT (default 39)
 
         speed                   SPI bus speed (default 12000000)
 
