@@ -28,13 +28,17 @@
 
 static int arizona_map_irq(struct arizona *arizona, int irq)
 {
-	int ret;
-
-	ret = regmap_irq_get_virq(arizona->aod_irq_chip, irq);
-	if (ret < 0)
-		ret = regmap_irq_get_virq(arizona->irq_chip, irq);
-
-	return ret;
+	switch (irq) {
+	case ARIZONA_IRQ_GP5_FALL:
+	case ARIZONA_IRQ_GP5_RISE:
+	case ARIZONA_IRQ_JD_FALL:
+	case ARIZONA_IRQ_JD_RISE:
+	case ARIZONA_IRQ_MICD_CLAMP_FALL:
+	case ARIZONA_IRQ_MICD_CLAMP_RISE:
+		return arizona->pdata.irq_base + 2 + irq;
+	default:
+		return arizona->pdata.irq_base + 2 + ARIZONA_NUM_IRQ + irq;
+	}
 }
 
 int arizona_request_irq(struct arizona *arizona, int irq, char *name,
@@ -61,11 +65,49 @@ EXPORT_SYMBOL_GPL(arizona_free_irq);
 
 int arizona_set_irq_wake(struct arizona *arizona, int irq, int on)
 {
-	irq = arizona_map_irq(arizona, irq);
-	if (irq < 0)
-		return irq;
+	int val = 0;
 
-	return irq_set_irq_wake(irq, on);
+	if (on) {
+		val = 0xffff;
+		irq_set_irq_wake(arizona->irq, 1);
+	} else {
+		irq_set_irq_wake(arizona->irq, 0);
+	}
+
+	switch (irq) {
+	case ARIZONA_IRQ_MICD_CLAMP_RISE:
+		return regmap_update_bits(arizona->regmap,
+					  ARIZONA_WAKE_CONTROL,
+					  val & ARIZONA_WKUP_MICD_CLAMP_RISE,
+					  val & ARIZONA_WKUP_MICD_CLAMP_RISE);
+	case ARIZONA_IRQ_MICD_CLAMP_FALL:
+		return regmap_update_bits(arizona->regmap,
+					  ARIZONA_WAKE_CONTROL,
+					  val & ARIZONA_WKUP_MICD_CLAMP_FALL,
+					  val & ARIZONA_WKUP_MICD_CLAMP_FALL);
+	case ARIZONA_IRQ_GP5_FALL:
+		return regmap_update_bits(arizona->regmap,
+					  ARIZONA_WAKE_CONTROL,
+					  val & ARIZONA_WKUP_GP5_RISE,
+					  val & ARIZONA_WKUP_GP5_RISE);
+	case ARIZONA_IRQ_GP5_RISE:
+		return regmap_update_bits(arizona->regmap,
+					  ARIZONA_WAKE_CONTROL,
+					  val & ARIZONA_WKUP_GP5_FALL,
+					  val & ARIZONA_WKUP_GP5_FALL);
+	case ARIZONA_IRQ_JD_RISE:
+		return regmap_update_bits(arizona->regmap,
+					  ARIZONA_WAKE_CONTROL,
+					  val & ARIZONA_WKUP_JD1_RISE,
+					  val & ARIZONA_WKUP_JD1_RISE);
+	case ARIZONA_IRQ_JD_FALL:
+		return regmap_update_bits(arizona->regmap,
+					  ARIZONA_WAKE_CONTROL,
+					  val & ARIZONA_WKUP_JD1_FALL,
+					  val & ARIZONA_WKUP_JD1_FALL);
+	default:
+		return -ENXIO;
+	}
 }
 EXPORT_SYMBOL_GPL(arizona_set_irq_wake);
 
@@ -108,7 +150,8 @@ static irqreturn_t arizona_irq_thread(int irq, void *data)
 		poll = false;
 
 		/* Always handle the AoD domain */
-		handle_nested_irq(irq_find_mapping(arizona->virq, 0));
+		handle_nested_irq(arizona->virq[0]);
+
 
 		/*
 		 * Check if one of the main interrupts is asserted and only
@@ -117,7 +160,7 @@ static irqreturn_t arizona_irq_thread(int irq, void *data)
 		ret = regmap_read(arizona->regmap, ARIZONA_IRQ_PIN_STATUS,
 				  &val);
 		if (ret == 0 && val & ARIZONA_IRQ1_STS) {
-			handle_nested_irq(irq_find_mapping(arizona->virq, 1));
+			handle_nested_irq(arizona->virq[1]);
 		} else if (ret != 0) {
 			dev_err(arizona->dev,
 				"Failed to read main IRQ status: %d\n", ret);
@@ -158,31 +201,6 @@ static struct irq_chip arizona_irq_chip = {
 	.irq_enable		= arizona_irq_enable,
 };
 
-static int arizona_irq_map(struct irq_domain *h, unsigned int virq,
-			      irq_hw_number_t hw)
-{
-	struct regmap_irq_chip_data *data = h->host_data;
-
-	irq_set_chip_data(virq, data);
-	irq_set_chip_and_handler(virq, &arizona_irq_chip, handle_edge_irq);
-	irq_set_nested_thread(virq, 1);
-
-	/* ARM needs us to explicitly flag the IRQ as valid
-	 * and will set them noprobe when we do so. */
-#ifdef CONFIG_ARM
-	set_irq_flags(virq, IRQF_VALID);
-#else
-	irq_set_noprobe(virq);
-#endif
-
-	return 0;
-}
-
-static struct irq_domain_ops arizona_domain_ops = {
-	.map	= arizona_irq_map,
-	.xlate	= irq_domain_xlate_twocell,
-};
-
 int arizona_irq_init(struct arizona *arizona)
 {
 	int flags = IRQF_ONESHOT;
@@ -190,6 +208,7 @@ int arizona_irq_init(struct arizona *arizona)
 	const struct regmap_irq_chip *aod, *irq;
 	bool ctrlif_error = true;
 	struct irq_data *irq_data;
+	int irq_base;
 
 	switch (arizona->type) {
 #ifdef CONFIG_MFD_WM5102
@@ -262,27 +281,45 @@ int arizona_irq_init(struct arizona *arizona)
 
 	flags |= arizona->pdata.irq_flags;
 
-	/* Allocate a virtual IRQ domain to distribute to the regmap domains */
-	arizona->virq = irq_domain_add_linear(NULL, 2, &arizona_domain_ops,
-					      arizona);
-	if (!arizona->virq) {
-		dev_err(arizona->dev, "Failed to add core IRQ domain\n");
-		ret = -EINVAL;
-		goto err;
+        /* set up virtual IRQs */
+	irq_base = irq_alloc_descs(arizona->pdata.irq_base, 0,
+				   ARRAY_SIZE(arizona->virq), 0);
+	if (irq_base < 0) {
+		dev_warn(arizona->dev, "Failed to allocate IRQs: %d\n",
+			 irq_base);
+		return irq_base;
+	}
+
+	arizona->virq[0] = irq_base;
+	arizona->virq[1] = irq_base + 1;
+	irq_base += 2;
+
+	for (i = 0; i < ARRAY_SIZE(arizona->virq); i++) {
+		irq_set_chip_and_handler(arizona->virq[i], &arizona_irq_chip,
+		handle_edge_irq);
+		irq_set_nested_thread(arizona->virq[i], 1);
+
+		/* ARM needs us to explicitly flag the IRQ as valid
+		* and will set them noprobe when we do so. */
+#ifdef CONFIG_ARM
+		set_irq_flags(arizona->virq[i], IRQF_VALID);
+#else
+		irq_set_noprobe(arizona->virq[i]);
+#endif
 	}
 
 	ret = regmap_add_irq_chip(arizona->regmap,
-				  irq_create_mapping(arizona->virq, 0),
-				  IRQF_ONESHOT, -1, aod,
-				  &arizona->aod_irq_chip);
+					arizona->virq[0],
+					IRQF_ONESHOT, irq_base, aod,
+					&arizona->aod_irq_chip);
 	if (ret != 0) {
 		dev_err(arizona->dev, "Failed to add AOD IRQs: %d\n", ret);
 		goto err_domain;
 	}
 
 	ret = regmap_add_irq_chip(arizona->regmap,
-				  irq_create_mapping(arizona->virq, 1),
-				  IRQF_ONESHOT, -1, irq,
+				  arizona->virq[1],
+				  IRQF_ONESHOT, irq_base + ARIZONA_NUM_IRQ, irq,
 				  &arizona->irq_chip);
 	if (ret != 0) {
 		dev_err(arizona->dev, "Failed to add AOD IRQs: %d\n", ret);
@@ -349,10 +386,10 @@ err_main_irq:
 err_ctrlif:
 	free_irq(arizona_map_irq(arizona, ARIZONA_IRQ_BOOT_DONE), arizona);
 err_boot_done:
-	regmap_del_irq_chip(irq_create_mapping(arizona->virq, 1),
+	regmap_del_irq_chip(arizona->virq[1],
 			    arizona->irq_chip);
 err_aod:
-	regmap_del_irq_chip(irq_create_mapping(arizona->virq, 0),
+	regmap_del_irq_chip(arizona->virq[0],
 			    arizona->aod_irq_chip);
 err_domain:
 err:
@@ -363,9 +400,9 @@ int arizona_irq_exit(struct arizona *arizona)
 {
 	free_irq(arizona_map_irq(arizona, ARIZONA_IRQ_CTRLIF_ERR), arizona);
 	free_irq(arizona_map_irq(arizona, ARIZONA_IRQ_BOOT_DONE), arizona);
-	regmap_del_irq_chip(irq_create_mapping(arizona->virq, 1),
+	regmap_del_irq_chip(arizona->irq,
 			    arizona->irq_chip);
-	regmap_del_irq_chip(irq_create_mapping(arizona->virq, 0),
+	regmap_del_irq_chip(arizona->irq,
 			    arizona->aod_irq_chip);
 	free_irq(arizona->irq, arizona);
 

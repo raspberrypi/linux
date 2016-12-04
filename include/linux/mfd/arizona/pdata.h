@@ -188,6 +188,9 @@ struct arizona_pdata {
 
 	/** GPIO for primary IRQ (used for edge triggered emulation) */
 	int irq_gpio;
+
+	/** IRQ base */
+	int irq_base;
 };
 
 #endif

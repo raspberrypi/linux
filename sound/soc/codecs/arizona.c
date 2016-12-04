@@ -1026,39 +1026,6 @@ static int arizona_sr_vals[] = {
 	512000,
 };
 
-static int arizona_startup(struct snd_pcm_substream *substream,
-			   struct snd_soc_dai *dai)
-{
-	struct snd_soc_codec *codec = dai->codec;
-	struct arizona_priv *priv = snd_soc_codec_get_drvdata(codec);
-	struct arizona_dai_priv *dai_priv = &priv->dai[dai->id - 1];
-	const struct snd_pcm_hw_constraint_list *constraint;
-	unsigned int base_rate;
-
-	switch (dai_priv->clk) {
-	case ARIZONA_CLK_SYSCLK:
-		base_rate = priv->sysclk;
-		break;
-	case ARIZONA_CLK_ASYNCCLK:
-		base_rate = priv->asyncclk;
-		break;
-	default:
-		return 0;
-	}
-
-	if (base_rate == 0)
-		return 0;
-
-	if (base_rate % 8000)
-		constraint = &arizona_44k1_constraint;
-	else
-		constraint = &arizona_48k_constraint;
-
-	return snd_pcm_hw_constraint_list(substream->runtime, 0,
-					  SNDRV_PCM_HW_PARAM_RATE,
-					  constraint);
-}
-
 static int arizona_hw_params_rate(struct snd_pcm_substream *substream,
 				  struct snd_pcm_hw_params *params,
 				  struct snd_soc_dai *dai)
@@ -1113,12 +1080,35 @@ static int arizona_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_codec *codec = dai->codec;
 	struct arizona_priv *priv = snd_soc_codec_get_drvdata(codec);
+	struct arizona_dai_priv *dai_priv = &priv->dai[dai->id - 1];
 	struct arizona *arizona = priv->arizona;
 	int base = dai->driver->base;
 	const int *rates;
 	int i, ret, val;
 	int chan_limit = arizona->pdata.max_channels_clocked[dai->id - 1];
 	int bclk, lrclk, wl, frame, bclk_target;
+	unsigned int base_rate;
+	unsigned int aif_tx_state;
+	unsigned int aif_rx_state;
+
+	switch (dai_priv->clk) {
+	case ARIZONA_CLK_SYSCLK:
+		base_rate = priv->sysclk;
+		break;
+	case ARIZONA_CLK_ASYNCCLK:
+		base_rate = priv->asyncclk;
+		break;
+	default:
+		arizona_aif_err(dai, "Unknown clock: %d\n", dai_priv->clk);
+		return -EINVAL;
+	}
+
+	if (!!(base_rate % 8000) != !!(params_rate(params) % 8000)) {
+		arizona_aif_err(dai,
+				"Rate %dHz not supported off %dHz clock\n",
+				params_rate(params), base_rate);
+		return -EINVAL;
+	}
 
 	if (params_rate(params) % 8000)
 		rates = &arizona_44k1_bclk_rates[0];
@@ -1160,9 +1150,18 @@ static int arizona_hw_params(struct snd_pcm_substream *substream,
 	wl = snd_pcm_format_width(params_format(params));
 	frame = wl << ARIZONA_AIF1TX_WL_SHIFT | wl;
 
+	/* Save AIF TX/RX state */
+	aif_tx_state = snd_soc_read(dai->codec, base + ARIZONA_AIF_TX_ENABLES);
+	aif_rx_state = snd_soc_read(dai->codec, base + ARIZONA_AIF_RX_ENABLES);
+	/* Disable AIF TX/RX before configuring it */
+	snd_soc_update_bits(dai->codec, base + ARIZONA_AIF_TX_ENABLES,
+			    0xff, 0x0);
+	snd_soc_update_bits(dai->codec, base + ARIZONA_AIF_RX_ENABLES,
+			    0xff, 0x0);
+
 	ret = arizona_hw_params_rate(substream, params, dai);
 	if (ret != 0)
-		return ret;
+		goto restore_aif;
 
 	snd_soc_update_bits(codec, base + ARIZONA_AIF_BCLK_CTRL,
 			    ARIZONA_AIF1_BCLK_FREQ_MASK, bclk);
@@ -1177,7 +1176,13 @@ static int arizona_hw_params(struct snd_pcm_substream *substream,
 			    ARIZONA_AIF1RX_WL_MASK |
 			    ARIZONA_AIF1RX_SLOT_LEN_MASK, frame);
 
-	return 0;
+restore_aif:
+	/* Restore AIF TX/RX state */
+	snd_soc_update_bits(dai->codec, base + ARIZONA_AIF_TX_ENABLES,
+			    0xff, aif_tx_state);
+	snd_soc_update_bits(dai->codec, base + ARIZONA_AIF_RX_ENABLES,
+			    0xff, aif_rx_state);
+	return ret;
 }
 
 static const char *arizona_dai_clk_str(int clk_id)
@@ -1253,7 +1258,6 @@ static int arizona_set_tristate(struct snd_soc_dai *dai, int tristate)
 }
 
 const struct snd_soc_dai_ops arizona_dai_ops = {
-	.startup = arizona_startup,
 	.set_fmt = arizona_set_fmt,
 	.hw_params = arizona_hw_params,
 	.set_sysclk = arizona_dai_set_sysclk,
@@ -1262,7 +1266,6 @@ const struct snd_soc_dai_ops arizona_dai_ops = {
 EXPORT_SYMBOL_GPL(arizona_dai_ops);
 
 const struct snd_soc_dai_ops arizona_simple_dai_ops = {
-	.startup = arizona_startup,
 	.hw_params = arizona_hw_params_rate,
 	.set_sysclk = arizona_dai_set_sysclk,
 };
@@ -1351,7 +1354,7 @@ static int arizona_calc_fll(struct arizona_fll *fll,
 	Fref /= div;
 
 	/* Fvco should be over the targt; don't check the upper bound */
-	div = 1;
+	div = 2;
 	while (Fout * div < 90000000 * fll->vco_mult) {
 		div++;
 		if (div > 7) {

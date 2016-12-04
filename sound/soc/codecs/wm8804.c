@@ -98,7 +98,8 @@ static const SOC_ENUM_SINGLE_EXT_DECL(txsrc, txsrc_text);
 static const struct snd_kcontrol_new wm8804_snd_controls[] = {
 	SOC_ENUM_EXT("Input Source", txsrc, txsrc_get, txsrc_put),
 	SOC_SINGLE("TX Playback Switch", WM8804_PWRDN, 2, 1, 1),
-	SOC_SINGLE("AIF Playback Switch", WM8804_PWRDN, 4, 1, 1)
+	SOC_SINGLE("AIF Playback Switch", WM8804_PWRDN, 4, 1, 1),
+	SOC_SINGLE("RX Playback Switch", WM8804_PWRDN, 1, 1, 1),
 };
 
 static int txsrc_get(struct snd_kcontrol *kcontrol,
@@ -121,7 +122,7 @@ static int txsrc_put(struct snd_kcontrol *kcontrol,
 		     struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_codec *codec;
-	unsigned int src, txpwr;
+	unsigned int src, txpwr, rxpwr;
 
 	codec = snd_kcontrol_chip(kcontrol);
 
@@ -143,15 +144,18 @@ static int txsrc_put(struct snd_kcontrol *kcontrol,
 
 	/* save the current power state of the transmitter */
 	txpwr = snd_soc_read(codec, WM8804_PWRDN) & 0x4;
+	/* save the current power state of the receiver */
+	rxpwr = snd_soc_read(codec, WM8804_PWRDN) & 0x2;
 	/* power down the transmitter */
 	snd_soc_update_bits(codec, WM8804_PWRDN, 0x4, 0x4);
+	/* power down the receiver */
+	snd_soc_update_bits(codec, WM8804_PWRDN, 0x2, 0x2);
+
 	/* set the tx source */
 	snd_soc_update_bits(codec, WM8804_SPDTX4, 0x40,
 			    ucontrol->value.integer.value[0] << 6);
 
 	if (ucontrol->value.integer.value[0]) {
-		/* power down the receiver */
-		snd_soc_update_bits(codec, WM8804_PWRDN, 0x2, 0x2);
 		/* power up the AIF */
 		snd_soc_update_bits(codec, WM8804_PWRDN, 0x10, 0);
 	} else {
@@ -162,6 +166,8 @@ static int txsrc_put(struct snd_kcontrol *kcontrol,
 
 	/* restore the transmitter's configuration */
 	snd_soc_update_bits(codec, WM8804_PWRDN, 0x4, txpwr);
+	/* restore the receiver's configuration */
+	snd_soc_update_bits(codec, WM8804_PWRDN, 0x2, rxpwr);
 
 	return 0;
 }
