@@ -42,6 +42,7 @@ dtbo-$(RPI_DT_OVERLAYS) += i2c-gpio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-mux.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-pwm-pca9685a.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-rtc.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += i2c-sensor.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c0-bcm2708.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c1-bcm2708.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2s-gpio28-31.dtbo
