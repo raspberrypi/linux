@@ -32,6 +32,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	i2c-mux.dtbo \
 	i2c-pwm-pca9685a.dtbo \
 	i2c-rtc.dtbo \
+	i2c-sensor.dtbo \
 	i2c0-bcm2708.dtbo \
 	i2c1-bcm2708.dtbo \
 	i2s-gpio28-31.dtbo \
