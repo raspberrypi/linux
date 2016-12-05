@@ -2932,7 +2932,8 @@ fail:
 	if (ret == -EDEADLK)
 		goto backoff;
 
-	connector->dpms = old_mode;
+	if (ret != 0)
+		connector->dpms = old_mode;
 	drm_atomic_state_free(state);
 
 	return ret;
