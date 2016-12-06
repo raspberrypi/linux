@@ -501,6 +501,12 @@ Info:   Adds support for an NXP PCA9685A I2C PWM controller on i2c_arm
 Load:   dtoverlay=i2c-pwm-pca9685a,<param>=<val>
 Params: addr                    I2C address of PCA9685A (default 0x40)
 
+Name:   i2c-leds-pca963x
+Info:   Adds support for an NXP PCA963x I2C LEDs controller on i2c_arm
+Load:   dtoverlay=i2c-pwm-pca963x,<param>=<val>
+Params: addr                    I2C address of PCA963x (default 0x62)
+
+
 
 Name:   i2c-rtc
 Info:   Adds support for a number of I2C Real Time Clock devices

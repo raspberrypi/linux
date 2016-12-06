@@ -1,0 +1,47 @@
+// Definitions for NXP PCA963X I2C PWM controller on ARM I2C bus.
+
+/dts-v1/;
+/plugin/;
+
+/ {
+        compatible = "brcm,bcm2708";
+
+        fragment@0 {
+                target = <&i2c_arm>;
+                __overlay__ {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        status = "okay";
+
+                        pca: pca@62 {
+
+                                compatible = "nxp,pca9632";
+                                reg = <0x62>;
+                                status = "okay";
+                                #address-cells = <1>;
+                                #size-cells = <0>;
+
+                                red@0 {
+                                    label = "red";
+                                    reg = <0>;
+                                    linux,default-trigger = "none";
+                                };
+                                green@1 {
+                                    label = "green";
+                                    reg = <1>;
+                                    linux,default-trigger = "none";
+                                };
+                                blue@2 {
+                                    label = "blue";
+                                    reg = <2>;
+                                    linux,default-trigger = "none";
+                                };
+                        };
+                };
+        };
+
+        __overrides__ {
+            addr = <&pca>,"reg:0";
+        };
+
+};
