@@ -725,6 +725,13 @@ Params: oscillator              Clock frequency for the CAN controller (Hz)
         interrupt               GPIO for interrupt signal
 
 
+Name:   midi-uart0
+Info:   Configures UART0 (ttyAMA0) so that a requested 38.4kbaud actually gets
+        31.25kbaud, the frequency required for MIDI
+Load:   dtoverlay=midi-uart0
+Params: <None>
+
+
 Name:   mmc
 Info:   Selects the bcm2835-mmc SD/MMC driver, optionally with overclock
 Load:   dtoverlay=mmc,<param>=<val>
