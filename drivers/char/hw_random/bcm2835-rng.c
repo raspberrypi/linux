@@ -102,9 +102,10 @@ static int bcm2835_rng_probe(struct platform_device *pdev)
 		rng_setup(rng_base);
 
 	/* set warm-up count & enable */
-	__raw_writel(RNG_WARMUP_COUNT, rng_base + RNG_STATUS);
-	__raw_writel(RNG_RBGEN, rng_base + RNG_CTRL);
-
+	if (!(__raw_readl(rng_base + RNG_CTRL) & RNG_RBGEN)) {
+		__raw_writel(RNG_WARMUP_COUNT, rng_base + RNG_STATUS);
+		__raw_writel(RNG_RBGEN, rng_base + RNG_CTRL);
+	}
 	/* register driver */
 	err = hwrng_register(&bcm2835_rng_ops);
 	if (err) {
