@@ -184,9 +184,9 @@ static void malidp_de_plane_update(struct drm_plane *plane,
 	if (plane->state->rotation & DRM_ROTATE_MASK)
 		val = ilog2(plane->state->rotation & DRM_ROTATE_MASK) << LAYER_ROT_OFFSET;
 	if (plane->state->rotation & DRM_REFLECT_X)
-		val |= LAYER_V_FLIP;
-	if (plane->state->rotation & DRM_REFLECT_Y)
 		val |= LAYER_H_FLIP;
+	if (plane->state->rotation & DRM_REFLECT_Y)
+		val |= LAYER_V_FLIP;
 
 	/* set the 'enable layer' bit */
 	val |= LAYER_ENABLE;
