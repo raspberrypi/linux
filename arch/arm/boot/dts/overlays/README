@@ -61,7 +61,7 @@ this becomes a line in config.txt:
 
     dtoverlay=lirc-rpi
 
-This causes the file /boot/overlays/lirc-rpi-overlay.dtb to be loaded. By
+This causes the file /boot/overlays/lirc-rpi.dtbo to be loaded. By
 default it will use GPIOs 17 (out) and 18 (in), but this can be modified using
 DT parameters:
 
