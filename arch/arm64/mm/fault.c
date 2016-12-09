@@ -29,7 +29,9 @@
 #include <linux/sched.h>
 #include <linux/highmem.h>
 #include <linux/perf_event.h>
+#include <linux/preempt.h>
 
+#include <asm/bug.h>
 #include <asm/cpufeature.h>
 #include <asm/exception.h>
 #include <asm/debug-monitors.h>
@@ -606,8 +608,16 @@ asmlinkage int __exception do_debug_exception(unsigned long addr,
 }
 
 #ifdef CONFIG_ARM64_PAN
-void cpu_enable_pan(void *__unused)
+int cpu_enable_pan(void *__unused)
 {
+	/*
+	 * We modify PSTATE. This won't work from irq context as the PSTATE
+	 * is discarded once we return from the exception.
+	 */
+	WARN_ON_ONCE(in_interrupt());
+
 	config_sctlr_el1(SCTLR_EL1_SPAN, 0);
+	asm(SET_PSTATE_PAN(1));
+	return 0;
 }
 #endif /* CONFIG_ARM64_PAN */
