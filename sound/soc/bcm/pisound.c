@@ -954,6 +954,8 @@ static int pisnd_probe(struct platform_device *pdev)
 
 static int pisnd_remove(struct platform_device *pdev)
 {
+	printi("Unloading.\n");
+
 	if (pisnd_kobj) {
 		kobject_put(pisnd_kobj);
 		pisnd_kobj = NULL;
