@@ -87,3 +87,11 @@
 	power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
 	status = "okay";
 };
+
+&dsi0 {
+	power-domains = <&power RPI_POWER_DOMAIN_DSI0>;
+};
+
+&dsi1 {
+	power-domains = <&power RPI_POWER_DOMAIN_DSI1>;
+};
