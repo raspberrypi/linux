@@ -23,6 +23,9 @@
 				#sound-dai-cells = <0>;
 				compatible = "ti,pcm5122";
 				reg = <0x4c>;
+				AVDD-supply = <&vdd_3v3_reg>;
+				DVDD-supply = <&vdd_3v3_reg>;
+				CPVDD-supply = <&vdd_3v3_reg>;
 				status = "okay";
 			};
 		};
