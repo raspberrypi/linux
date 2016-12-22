@@ -1142,6 +1142,12 @@ Load:   dtoverlay=rpi-sense
 Params: <None>
 
 
+Name:   rpi-tv
+Info:   Raspberry Pi TV HAT
+Load:   dtoverlay=rpi-tv
+Params: <None>
+
+
 Name:   rra-digidac1-wm8741-audio
 Info:   Configures the Red Rocks Audio DigiDAC1 soundcard
 Load:   dtoverlay=rra-digidac1-wm8741-audio
