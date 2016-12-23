@@ -1,7 +1,7 @@
 /*
  * w1-gpio - GPIO w1 bus master driver
  *
- * Copyright (C) 2007 Ville Syrjala <syrjala@sci.fi>
+ * Copyright (C) 2007 Ville Syrjala <syrjala@sci.fi>, 2013 Dubravko Penezic <dpenezic@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2
@@ -25,6 +25,12 @@
 
 static int w1_gpio_pullup = 0;
 module_param_named(pullup, w1_gpio_pullup, int, 0);
+
+static int gpiopin = -1;
+module_param(gpiopin, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+MODULE_PARM_DESC(gpiopin, "GPIO pin number");
+
+static int w1_gpio_orig;
 
 static void w1_gpio_write_bit_dir(void *data, u8 bit)
 {
@@ -119,6 +125,12 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	if (gpiopin >= 0) {
+		printk(KERN_INFO "1-Wire GPIO pin is %d change to %d\n", pdata->pin,gpiopin);
+		w1_gpio_orig = pdata->pin;
+		pdata->pin = gpiopin;
+	}
+
 	err = gpio_request(pdata->pin, "w1");
 	if (err) {
 		dev_err(&pdev->dev, "gpio_request (pin) failed\n");
@@ -146,12 +158,14 @@ static int w1_gpio_probe(struct platform_device *pdev)
 		master->write_bit = w1_gpio_write_bit_dir;
 	}
 
-	if (w1_gpio_pullup)
-		if (pdata->is_open_drain)
+	if (w1_gpio_pullup) {
+		if (pdata->is_open_drain) {
 			printk(KERN_ERR "w1-gpio 'pullup' option "
-			       "doesn't work with open drain GPIO\n");
-		else
+					"doesn't work with open drain GPIO\n");
+		} else {
 			master->bitbang_pullup = w1_gpio_bitbang_pullup;
+		}
+	}
 
 	err = w1_add_master_device(master);
 	if (err) {
@@ -192,6 +206,13 @@ static int w1_gpio_remove(struct platform_device *pdev)
 		gpio_set_value(pdata->ext_pullup_enable_pin, 0);
 
 	w1_remove_master_device(master);
+
+	if (gpiopin >= 0) {
+		printk(KERN_INFO "1-Wire GPIO pin is restored to %d\n", w1_gpio_orig);
+		pdata->pin = w1_gpio_orig;
+	}
+
+
 	gpio_free(pdata->pin);
 	kfree(master);
 
@@ -240,5 +261,5 @@ static struct platform_driver w1_gpio_driver = {
 module_platform_driver(w1_gpio_driver);
 
 MODULE_DESCRIPTION("GPIO w1 bus master driver");
-MODULE_AUTHOR("Ville Syrjala <syrjala@sci.fi>");
+MODULE_AUTHOR("Ville Syrjala <syrjala@sci.fi>, Dubravko Penezic <dpenezic@gmail.com>");
 MODULE_LICENSE("GPL");
