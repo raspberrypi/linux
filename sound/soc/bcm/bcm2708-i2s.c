@@ -533,6 +533,11 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 		format |= BCM2708_I2S_CH1(BCM2708_I2S_CHPOS(ch1pos));
 		format |= BCM2708_I2S_CH2(BCM2708_I2S_CHPOS(ch2pos));
 		break;
+	case 1:
+		format = BCM2708_I2S_CH1(format) | BCM2708_I2S_CH2(format^BCM2708_I2S_CHEN);
+		format |= BCM2708_I2S_CH1(BCM2708_I2S_CHPOS(ch1pos));
+		format |= BCM2708_I2S_CH2(BCM2708_I2S_CHPOS(ch2pos));
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -629,7 +634,9 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 	regmap_update_bits(dev->i2s_regmap, BCM2708_I2S_CS_A_REG,
 			BCM2708_I2S_RXTHR(1)
 			| BCM2708_I2S_TXTHR(1)
-			| BCM2708_I2S_DMAEN, 0xffffffff);
+			//FIXME if driver adds U24_LE PCM format support
+			| BCM2708_I2S_RXSEX  //sign-extend received data
+ 			| BCM2708_I2S_DMAEN, 0xffffffff);
 
 	regmap_update_bits(dev->i2s_regmap, BCM2708_I2S_DREQ_A_REG,
 			  BCM2708_I2S_TX_PANIC(0x10)
@@ -792,7 +799,7 @@ static struct snd_soc_dai_driver bcm2708_i2s_dai = {
 	.name	= "bcm2708-i2s",
 	.probe	= bcm2708_i2s_dai_probe,
 	.playback = {
-		.channels_min = 2,
+		.channels_min = 1,
 		.channels_max = 2,
 		.rates =	SNDRV_PCM_RATE_8000_192000,
 		.formats =	SNDRV_PCM_FMTBIT_S16_LE
@@ -800,7 +807,7 @@ static struct snd_soc_dai_driver bcm2708_i2s_dai = {
 				| SNDRV_PCM_FMTBIT_S32_LE
 		},
 	.capture = {
-		.channels_min = 2,
+		.channels_min = 1,
 		.channels_max = 2,
 		.rates =	SNDRV_PCM_RATE_8000_192000,
 		.formats =	SNDRV_PCM_FMTBIT_S16_LE
