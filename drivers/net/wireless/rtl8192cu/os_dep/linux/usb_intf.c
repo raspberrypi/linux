@@ -94,6 +94,7 @@ static void rtw_dev_remove(struct usb_interface *pusb_intf);
 	/*=== Customer ID ===*/	 \
 	/****** 8188CUS Dongle ********/ \
 	{USB_DEVICE(0x2019, 0xED17)},/* PCI - Edimax */ \
+	{USB_DEVICE(0x0DF6, 0x0077)},/* Sitecom - Edimax */ \
 	{USB_DEVICE(0x0DF6, 0x0052)},/* Sitecom - Edimax */ \
 	{USB_DEVICE(0x7392, 0x7811)},/* Edimax - Edimax */ \
 	{USB_DEVICE(0x07B8, 0x8189)},/* Abocom - Abocom */ \
