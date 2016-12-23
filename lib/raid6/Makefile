@@ -6,7 +6,7 @@ raid6_pq-y	+= algos.o recov.o recov_ssse3.o tables.o int1.o int2.o int4.o \
 hostprogs-y	+= mktables
 
 quiet_cmd_unroll = UNROLL  $@
-      cmd_unroll = $(AWK) -f$(srctree)/$(src)/unroll.awk -vN=$(UNROLL) \
+      cmd_unroll = $(AWK) -f $(srctree)/$(src)/unroll.awk -v N=$(UNROLL) \
                    < $< > $@ || ( rm -f $@ && exit 1 )
 
 ifeq ($(CONFIG_ALTIVEC),y)
