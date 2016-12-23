@@ -74,6 +74,7 @@ void notrace _fiq_print(enum fiq_debug_level dbg_lvl, volatile struct fiq_state 
 	}
 }
 
+
 /**
  * fiq_fsm_spin_lock() - ARMv6+ bare bones spinlock
  * Must be called with local interrupts and FIQ disabled.
@@ -126,63 +127,69 @@ inline void fiq_fsm_spin_unlock(fiq_lock_t *lock) { }
  * fiq_fsm_restart_channel() - Poke channel enable bit for a split transaction
  * @channel: channel to re-enable
  */
-static void fiq_fsm_restart_channel(struct fiq_state *st, int n, int force)
+static void fiq_fsm_restart_channel(struct fiq_state *state, int n, int force)
 {
-	hcchar_data_t hcchar = { .d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCCHAR) };
+	struct fiq_channel_state *st = &state->channel[n];
+	void *reg = state->dwc_regs_base + HC_START + (HC_OFFSET * n);
+	hcchar_data_t hcchar = { .d32 = FIQ_READ(reg + HCCHAR) };
 	
 	hcchar.b.chen = 0;
-	if (st->channel[n].hcchar_copy.b.eptype & 0x1) {
-		hfnum_data_t hfnum = { .d32 = FIQ_READ(st->dwc_regs_base + HFNUM) };
+	if (st->hcchar_copy.b.eptype & 0x1) {
+		hfnum_data_t hfnum = { .d32 = FIQ_READ(state->dwc_regs_base + HFNUM) };
 		/* Hardware bug workaround: update the ssplit index */
-		if (st->channel[n].hcsplt_copy.b.spltena)
-			st->channel[n].expected_uframe = (hfnum.b.frnum + 1) & 0x3FFF;
+		if (st->hcsplt_copy.b.spltena)
+			st->expected_uframe = (hfnum.b.frnum + 1) & 0x3FFF;
 		
 		hcchar.b.oddfrm = (hfnum.b.frnum & 0x1) ? 0	: 1;
 	}
 	
-	FIQ_WRITE(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCCHAR, hcchar.d32);
-	hcchar.d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCCHAR);
+	FIQ_WRITE(reg + HCCHAR, hcchar.d32);
+	hcchar.d32 = FIQ_READ(reg + HCCHAR);
 	hcchar.b.chen = 1;
 
-	FIQ_WRITE(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCCHAR, hcchar.d32);
-	fiq_print(FIQDBG_INT, st, "HCGO %01d %01d", n, force);
+	FIQ_WRITE(reg + HCCHAR, hcchar.d32);
+	fiq_print(FIQDBG_INT, state, "HCGO %01d %01d", n, force);
 }
 
 /**
  * fiq_fsm_setup_csplit() - Prepare a host channel for a CSplit transaction stage
- * @st: Pointer to the channel's state
+ * @state: Pointer to the channel's state
  * @n : channel number
  *
  * Change host channel registers to perform a complete-split transaction. Being mindful of the
  * endpoint direction, set control regs up correctly.
  */
-static void notrace fiq_fsm_setup_csplit(struct fiq_state *st, int n)
+static void notrace fiq_fsm_setup_csplit(struct fiq_state *state, int n)
 {
-	hcsplt_data_t hcsplt = { .d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCSPLT) };
-	hctsiz_data_t hctsiz = { .d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCTSIZ) };
+	struct fiq_channel_state *st = &state->channel[n];
+	void *reg = state->dwc_regs_base + HC_START + (HC_OFFSET * n);
+	hcsplt_data_t hcsplt = { .d32 = FIQ_READ(reg + HCSPLT) };
+	hctsiz_data_t hctsiz = { .d32 = FIQ_READ(reg + HCTSIZ) };
 	
 	hcsplt.b.compsplt = 1;
-	if (st->channel[n].hcchar_copy.b.epdir == 1) {
+	if (st->hcchar_copy.b.epdir == 1) {
 		// If IN, the CSPLIT result contains the data or a hub handshake. hctsiz = maxpacket.
-		hctsiz.b.xfersize = st->channel[n].hctsiz_copy.b.xfersize;
+		hctsiz.b.xfersize = st->hctsiz_copy.b.xfersize;
 	} else {
 		// If OUT, the CSPLIT result contains handshake only.
 		hctsiz.b.xfersize = 0;
 	}
-	FIQ_WRITE(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCSPLT, hcsplt.d32);
-	FIQ_WRITE(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCTSIZ, hctsiz.d32);
+	FIQ_WRITE(reg + HCSPLT, hcsplt.d32);
+	FIQ_WRITE(reg + HCTSIZ, hctsiz.d32);
 	mb();
 }
 
-static inline int notrace fiq_get_xfer_len(struct fiq_state *st, int n)
+static inline int notrace fiq_get_xfer_len(struct fiq_state *state, int n)
 {
+	struct fiq_channel_state *st = &state->channel[n];
+	void *reg = state->dwc_regs_base + HC_START + (HC_OFFSET * n);
 	/* The xfersize register is a bit wonky. For IN transfers, it decrements by the packet size. */
-	hctsiz_data_t hctsiz = { .d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCTSIZ) };
+	hctsiz_data_t hctsiz = { .d32 = FIQ_READ(reg + HCTSIZ) };
 	
-	if (st->channel[n].hcchar_copy.b.epdir == 0) {
-		return st->channel[n].hctsiz_copy.b.xfersize;
+	if (st->hcchar_copy.b.epdir == 0) {
+		return st->hctsiz_copy.b.xfersize;
 	} else {
-		return st->channel[n].hctsiz_copy.b.xfersize - hctsiz.b.xfersize;
+		return st->hctsiz_copy.b.xfersize - hctsiz.b.xfersize;
 	}
 
 }
@@ -193,35 +200,39 @@ static inline int notrace fiq_get_xfer_len(struct fiq_state *st, int n)
  *
  * Of use only for IN periodic transfers.
  */
-static int notrace fiq_increment_dma_buf(struct fiq_state *st, int num_channels, int n)
+static int notrace fiq_increment_dma_buf(struct fiq_state *state, int num_channels, int n)
 {
 	hcdma_data_t hcdma;
-	int i = st->channel[n].dma_info.index;
+	struct fiq_channel_state *st = &state->channel[n];
+	int i = st->dma_info.index;
 	int len;
-	struct fiq_dma_blob *blob = (struct fiq_dma_blob *) st->dma_base;
+	struct fiq_dma_blob *blob = (struct fiq_dma_blob *) state->dma_base;
 
-	len = fiq_get_xfer_len(st, n);
-	fiq_print(FIQDBG_INT, st, "LEN: %03d", len);
-	st->channel[n].dma_info.slot_len[i] = len;
+	len = fiq_get_xfer_len(state, n);
+	fiq_print(FIQDBG_INT, state, "LEN: %03d", len);
+	st->dma_info.slot_len[i] = len;
 	i++;
 	if (i > 6)
 		BUG();
 
 	hcdma.d32 = (dma_addr_t) &blob->channel[n].index[i].buf[0];
-	FIQ_WRITE(st->dwc_regs_base + HC_DMA + (HC_OFFSET * n), hcdma.d32);
-	st->channel[n].dma_info.index = i;
+	FIQ_WRITE(state->dwc_regs_base + HC_DMA + (HC_OFFSET * n), hcdma.d32);
+	st->dma_info.index = i;
 	return 0;
 }
 
 /**
  * fiq_reload_hctsiz() - for IN transactions, reset HCTSIZ
  */
-static void notrace fiq_fsm_reload_hctsiz(struct fiq_state *st, int n)
+static void notrace fiq_fsm_reload_hctsiz(struct fiq_state *state, int n)
 {
-	hctsiz_data_t hctsiz = { .d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCTSIZ) };
-	hctsiz.b.xfersize = st->channel[n].hctsiz_copy.b.xfersize;
+	struct fiq_channel_state *st = &state->channel[n];
+	void *reg = state->dwc_regs_base + HC_START + (HC_OFFSET * n);
+
+	hctsiz_data_t hctsiz = { .d32 = FIQ_READ(reg + HCTSIZ) };
+	hctsiz.b.xfersize = st->hctsiz_copy.b.xfersize;
 	hctsiz.b.pktcnt = 1;
-	FIQ_WRITE(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCTSIZ, hctsiz.d32);
+	FIQ_WRITE(reg + HCTSIZ, hctsiz.d32);
 }
 
 /**
@@ -233,40 +244,43 @@ static void notrace fiq_fsm_reload_hctsiz(struct fiq_state *st, int n)
  *
  * This function must only be called from the FIQ_ISO_OUT_ACTIVE state.
  */
-static int notrace fiq_iso_out_advance(struct fiq_state *st, int num_channels, int n)
+static int notrace fiq_iso_out_advance(struct fiq_state *state, int num_channels, int n)
 {
 	hcsplt_data_t hcsplt;
 	hctsiz_data_t hctsiz;
 	hcdma_data_t hcdma;
-	struct fiq_dma_blob *blob = (struct fiq_dma_blob *) st->dma_base;
+	struct fiq_channel_state *st = &state->channel[n];
+	void *reg = state->dwc_regs_base + HC_START + (HC_OFFSET * n);
+	struct fiq_dma_blob *blob = (struct fiq_dma_blob *) state->dma_base;
 	int last = 0;
-	int i = st->channel[n].dma_info.index;
-	
-	fiq_print(FIQDBG_INT, st, "ADV %01d %01d ", n, i);
+	int xactpos = ISOC_XACTPOS_MID;
+	int i = st->dma_info.index;
+
+	fiq_print(FIQDBG_INT, state, "ADV %01d %01d ", n, i);
 	i++;
-	if (i == 4)
+	if (i == 4 || st->dma_info.slot_len[i+1] == 255) {
 		last = 1;
-	if (st->channel[n].dma_info.slot_len[i+1] == 255)
-		last = 1;
+		xactpos = ISOC_XACTPOS_END;
+	}
 
 	/* New DMA address - address of bounce buffer referred to in index */
 	hcdma.d32 = (uint32_t) &blob->channel[n].index[i].buf[0];
-	//hcdma.d32 = FIQ_READ(st->dwc_regs_base + HC_DMA + (HC_OFFSET * n));
-	//hcdma.d32 += st->channel[n].dma_info.slot_len[i];
-	fiq_print(FIQDBG_INT, st, "LAST: %01d ", last);
-	fiq_print(FIQDBG_INT, st, "LEN: %03d", st->channel[n].dma_info.slot_len[i]);
-	hcsplt.d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCSPLT);
-	hctsiz.d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCTSIZ);
-	hcsplt.b.xactpos = (last) ? ISOC_XACTPOS_END : ISOC_XACTPOS_MID;
+	//hcdma.d32 = FIQ_READ(state->dwc_regs_base + HC_DMA + (HC_OFFSET * n));
+	//hcdma.d32 += st->dma_info.slot_len[i];
+	fiq_print(FIQDBG_INT, state, "LAST: %01d ", last);
+	fiq_print(FIQDBG_INT, state, "LEN: %03d", st->dma_info.slot_len[i]);
+	hcsplt.d32 = FIQ_READ(reg + HCSPLT);
+	hctsiz.d32 = FIQ_READ(reg + HCTSIZ);
+	hcsplt.b.xactpos = xactpos;
 	/* Set up new packet length */
 	hctsiz.b.pktcnt = 1;
-	hctsiz.b.xfersize = st->channel[n].dma_info.slot_len[i];
-	fiq_print(FIQDBG_INT, st, "%08x", hctsiz.d32);
+	hctsiz.b.xfersize = st->dma_info.slot_len[i];
+	fiq_print(FIQDBG_INT, state, "%08x", hctsiz.d32);
 	
-	st->channel[n].dma_info.index++;
-	FIQ_WRITE(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCSPLT, hcsplt.d32);
-	FIQ_WRITE(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCTSIZ, hctsiz.d32);
-	FIQ_WRITE(st->dwc_regs_base + HC_DMA + (HC_OFFSET * n), hcdma.d32);
+	st->dma_info.index++;
+	FIQ_WRITE(reg + HCSPLT, hcsplt.d32);
+	FIQ_WRITE(reg + HCTSIZ, hctsiz.d32);
+	FIQ_WRITE(state->dwc_regs_base + HC_DMA + (HC_OFFSET * n), hcdma.d32);
 	return last;
 }
 
@@ -281,35 +295,34 @@ static int notrace fiq_iso_out_advance(struct fiq_state *st, int num_channels, i
  * there is no requirement to prioritise isochronous, just a state-space search has
  * to be performed on each periodic start-split complete interrupt.
  */
-static int notrace fiq_fsm_tt_next_isoc(struct fiq_state *st, int num_channels, int n)
+static int notrace fiq_fsm_tt_next_isoc(struct fiq_state *state, int num_channels, int n)
 {
-	int hub_addr = st->channel[n].hub_addr;
-	int port_addr = st->channel[n].port_addr;
-	int i, poked = 0;
+	struct fiq_channel_state *st = &state->channel[n];
+	int hub_addr = st->hub_addr;
+	int port_addr = st->port_addr;
+	int i;
 	for (i = 0; i < num_channels; i++) {
-		if (i == n || st->channel[i].fsm == FIQ_PASSTHROUGH)
+		st = &state->channel[i];
+		if (i == n || st->fsm == FIQ_PASSTHROUGH)
 			continue;
-		if (st->channel[i].hub_addr == hub_addr &&
-			st->channel[i].port_addr == port_addr) {
-			switch (st->channel[i].fsm) {
+		if (st->hub_addr == hub_addr &&
+			st->port_addr == port_addr) {
+			switch (st->fsm) {
 			case FIQ_PER_ISO_OUT_PENDING:
-				if (st->channel[i].nrpackets == 1) {
-					st->channel[i].fsm = FIQ_PER_ISO_OUT_LAST;
+				if (st->nrpackets == 1) {
+					st->fsm = FIQ_PER_ISO_OUT_LAST;
 				} else {
-					st->channel[i].fsm = FIQ_PER_ISO_OUT_ACTIVE;
+					st->fsm = FIQ_PER_ISO_OUT_ACTIVE;
 				}
-				fiq_fsm_restart_channel(st, i, 0);
-				poked = 1;
-				break;
+				fiq_fsm_restart_channel(state, i, 0);
+				return 1;
 
 			default:
 				break;
 			}
 		}
-		if (poked)
-			break;
 	}
-	return poked;
+	return 0;
 }
 
 /**
@@ -317,15 +330,21 @@ static int notrace fiq_fsm_tt_next_isoc(struct fiq_state *st, int num_channels, 
  * @n: Channel to use as reference
  *
  */
-int notrace noinline fiq_fsm_tt_in_use(struct fiq_state *st, int num_channels, int n)
+
+int notrace noinline fiq_fsm_tt_in_use(struct fiq_state *state, int num_channels, int n)
 {
-	int hub_addr = st->channel[n].hub_addr;
-	int port_addr = st->channel[n].port_addr;
-	int i, in_use = 0;
+	struct fiq_channel_state *st = &state->channel[n];
+	int hub_addr = st->hub_addr;
+	int port_addr = st->port_addr;
+	int i;
+
 	for (i = 0; i < num_channels; i++) {
-		if (i == n || st->channel[i].fsm == FIQ_PASSTHROUGH)
+		if (i == n)
 			continue;
-		switch (st->channel[i].fsm) {
+		st = &state->channel[i];
+		switch (st->fsm) {
+		case FIQ_PASSTHROUGH:
+			continue;
 		/* TT is reserved for channels that are in the middle of a periodic
 		 * split transaction.
 		 */
@@ -335,19 +354,19 @@ int notrace noinline fiq_fsm_tt_in_use(struct fiq_state *st, int num_channels, i
 		//case FIQ_PER_CSPLIT_POLL:
 		case FIQ_PER_ISO_OUT_ACTIVE:
 		case FIQ_PER_ISO_OUT_LAST:
-			if (st->channel[i].hub_addr == hub_addr &&
-				st->channel[i].port_addr == port_addr) {
-				in_use = 1;
+			if (st->hub_addr == hub_addr &&
+				st->port_addr == port_addr) {
+				return 1;
 			}
 			break;
 		default:
 			break;
 		}
-		if (in_use)
-			break;
 	}
-	return in_use;
+	return 0;
 }
+
+
 
 /**
  * fiq_fsm_more_csplits() - determine whether additional CSPLITs need
@@ -428,12 +447,13 @@ static int notrace noinline fiq_fsm_more_csplits(struct fiq_state *state, int n,
  * The hub status endpoint will not reflect this change.
  * Returns 1 if we will issue a SSPLIT that will result in a device babble.
  */
-int notrace fiq_fsm_too_late(struct fiq_state *st, int n)
+int notrace fiq_fsm_too_late(struct fiq_state *state, int n)
 {
+	struct fiq_channel_state *st = &state->channel[n];
 	int uframe;
-	hfnum_data_t hfnum = { .d32 = FIQ_READ(st->dwc_regs_base + HFNUM) };
+	hfnum_data_t hfnum = { .d32 = FIQ_READ(state->dwc_regs_base + HFNUM) };
 	uframe = hfnum.b.frnum & 0x7;
-	if ((uframe < 6) && (st->channel[n].nrpackets + 1 + uframe > 7)) {
+	if ((uframe < 6) && (st->nrpackets + 1 + uframe > 7)) {
 		return 1;
 	} else {
 		return 0;
@@ -449,33 +469,37 @@ int notrace fiq_fsm_too_late(struct fiq_state *st, int n)
  * Note: we specifically don't do isochronous OUT transactions first because better
  * use of the TT's start-split fifo can be achieved by pipelining an IN before an OUT.
  */
-static void notrace noinline fiq_fsm_start_next_periodic(struct fiq_state *st, int num_channels)
+
+static void notrace noinline fiq_fsm_start_next_periodic(struct fiq_state *state, int num_channels)
 {
 	int n;
-	hfnum_data_t hfnum = { .d32 = FIQ_READ(st->dwc_regs_base + HFNUM) };
+	struct fiq_channel_state *st;
+	hfnum_data_t hfnum = { .d32 = FIQ_READ(state->dwc_regs_base + HFNUM) };
 	if ((hfnum.b.frnum & 0x7) == 5)
 		return;
 	for (n = 0; n < num_channels; n++) {
-		if (st->channel[n].fsm == FIQ_PER_SSPLIT_QUEUED) {
+		st = &state->channel[n];
+		if (st->fsm == FIQ_PER_SSPLIT_QUEUED) {
 			/* Check to see if any other transactions are using this TT */
-			if(!fiq_fsm_tt_in_use(st, num_channels, n)) {
-				if (!fiq_fsm_too_late(st, n)) {
-					st->channel[n].fsm = FIQ_PER_SSPLIT_STARTED;
-					fiq_print(FIQDBG_INT, st, "NEXTPER ");
-					fiq_fsm_restart_channel(st, n, 0);
+			if(!fiq_fsm_tt_in_use(state, num_channels, n)) {
+				if (!fiq_fsm_too_late(state, n)) {
+					st->fsm = FIQ_PER_SSPLIT_STARTED;
+					fiq_print(FIQDBG_INT, state, "NEXTPER ");
+					fiq_fsm_restart_channel(state, n, 0);
 				} else {
-					st->channel[n].fsm = FIQ_PER_SPLIT_TIMEOUT;
+					st->fsm = FIQ_PER_SPLIT_TIMEOUT;
 				}
 				break;
 			}
 		}
 	}
 	for (n = 0; n < num_channels; n++) {
-		if (st->channel[n].fsm == FIQ_PER_ISO_OUT_PENDING) {
-			if (!fiq_fsm_tt_in_use(st, num_channels, n)) {
-				fiq_print(FIQDBG_INT, st, "NEXTISO ");	
-				st->channel[n].fsm = FIQ_PER_ISO_OUT_ACTIVE;
-				fiq_fsm_restart_channel(st, n, 0);
+		st = &state->channel[n];
+		if (st->fsm == FIQ_PER_ISO_OUT_PENDING) {
+			if(!fiq_fsm_tt_in_use(state, num_channels, n)) {
+				fiq_print(FIQDBG_INT, state, "NEXTISO ");	
+				st->fsm = FIQ_PER_ISO_OUT_ACTIVE;
+				fiq_fsm_restart_channel(state, n, 0);
 				break;
 			}
 		}
@@ -494,6 +518,7 @@ static void notrace noinline fiq_fsm_start_next_periodic(struct fiq_state *st, i
 static int notrace noinline fiq_fsm_update_hs_isoc(struct fiq_state *state, int n, hcint_data_t hcint)
 {
 	struct fiq_channel_state *st = &state->channel[n];
+	void *reg = state->dwc_regs_base + HC_START + (HC_OFFSET * n);
 	int xfer_len = 0, nrpackets = 0;
 	hcdma_data_t hcdma;
 	fiq_print(FIQDBG_INT, state, "HSISO %02d", n);
@@ -550,8 +575,8 @@ static int notrace noinline fiq_fsm_update_hs_isoc(struct fiq_state *state, int 
 			break;
 		}
 	}
-	FIQ_WRITE(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCTSIZ, st->hctsiz_copy.d32);
-	FIQ_WRITE(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCCHAR, st->hcchar_copy.d32);
+	FIQ_WRITE(reg + HCTSIZ, st->hctsiz_copy.d32);
+	FIQ_WRITE(reg + HCCHAR, st->hcchar_copy.d32);
 	/* Channel is enabled on hcint handler exit */
 	fiq_print(FIQDBG_INT, state, "HSISOOUT");
 	return 1;
@@ -579,6 +604,8 @@ static int notrace noinline fiq_fsm_update_hs_isoc(struct fiq_state *state, int 
  */
 static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_channels)
 {
+	struct fiq_channel_state *st;
+	void *reg;
 	hfnum_data_t hfnum = { .d32 = FIQ_READ(state->dwc_regs_base + HFNUM) };
 	int n;
 	int kick_irq = 0;
@@ -589,15 +616,16 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 		 * Boot them out.
 		 */
 		for (n = 0; n < num_channels; n++) {
-			switch (state->channel[n].fsm) {
+			st = &state->channel[n];
+			switch (st->fsm) {
 			case FIQ_PER_CSPLIT_WAIT:
 			case FIQ_PER_CSPLIT_NYET1:
 			case FIQ_PER_CSPLIT_POLL:
 			case FIQ_PER_CSPLIT_LAST:
 				/* Check if we are no longer in the same full-speed frame. */				
-				if (((state->channel[n].expected_uframe & 0x3FFF) & ~0x7) <
+				if (((st->expected_uframe & 0x3FFF) & ~0x7) <
 						(hfnum.b.frnum & ~0x7))
-					state->channel[n].fsm = FIQ_PER_SPLIT_TIMEOUT;
+					st->fsm = FIQ_PER_SPLIT_TIMEOUT;
 				break;
 			default:
 				break;
@@ -606,7 +634,9 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 	}
 
 	for (n = 0; n < num_channels; n++) {
-		switch (state->channel[n].fsm) {
+		st = &state->channel[n];
+		reg = state->dwc_regs_base + HC_START + (HC_OFFSET * n);
+		switch (st->fsm) {
 		
 		case FIQ_NP_SSPLIT_RETRY:
 		case FIQ_NP_IN_CSPLIT_RETRY:
@@ -615,7 +645,7 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 			break;
 			
 		case FIQ_HS_ISOC_SLEEPING:
-			state->channel[n].fsm = FIQ_HS_ISOC_TURBO;
+			st->fsm = FIQ_HS_ISOC_TURBO;
 			fiq_fsm_restart_channel(state, n, 0);
 			break;
 			
@@ -626,12 +656,12 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 				if (!fiq_fsm_too_late(state, n)) {
 					fiq_print(FIQDBG_INT, st, "SOF GO %01d", n);
 					fiq_fsm_restart_channel(state, n, 0);
-					state->channel[n].fsm = FIQ_PER_SSPLIT_STARTED;
+					st->fsm = FIQ_PER_SSPLIT_STARTED;
 				} else {
 					/* Transaction cannot be started without risking a device babble error */
-					state->channel[n].fsm = FIQ_PER_SPLIT_TIMEOUT;
+					st->fsm = FIQ_PER_SPLIT_TIMEOUT;
 					state->haintmsk_saved.b2.chint &= ~(1 << n);
-					FIQ_WRITE(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINTMSK, 0);
+					FIQ_WRITE(reg + HCINTMSK, 0);
 					kick_irq |= 1;
 				}
 			}
@@ -650,10 +680,10 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 				 */
 					fiq_fsm_restart_channel(state, n, 0);
 					fiq_print(FIQDBG_INT, state, "SOF ISOC");
-					if (state->channel[n].nrpackets == 1) {
-						state->channel[n].fsm = FIQ_PER_ISO_OUT_LAST;
+					if (st->nrpackets == 1) {
+						st->fsm = FIQ_PER_ISO_OUT_LAST;
 					} else {
-						state->channel[n].fsm = FIQ_PER_ISO_OUT_ACTIVE;
+						st->fsm = FIQ_PER_ISO_OUT_ACTIVE;
 					}
 			}
 			break;
@@ -663,9 +693,9 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 			 * occurred when the bus transaction occurred. The SOF interrupt reversal bug
 			 * will utterly bugger this up though.
 			 */
-			if (hfnum.b.frnum != state->channel[n].expected_uframe) {
+			if (hfnum.b.frnum != st->expected_uframe) {
 				fiq_print(FIQDBG_INT, state, "SOFCS %d ", n);
-				state->channel[n].fsm = FIQ_PER_CSPLIT_POLL;
+				st->fsm = FIQ_PER_CSPLIT_POLL;
 				fiq_fsm_restart_channel(state, n, 0);
 				fiq_fsm_start_next_periodic(state, num_channels);
 				
@@ -680,7 +710,7 @@ static int notrace noinline fiq_fsm_do_sof(struct fiq_state *state, int num_chan
 			 * that's OK.
 			 */
 			state->haintmsk_saved.b2.chint &= ~(1 << n);
-			FIQ_WRITE(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINTMSK, 0);
+			FIQ_WRITE(reg + HCINTMSK, 0);
 			kick_irq |= 1;
 			break;
 		
@@ -716,10 +746,11 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 	int last_csplit = 0;
 	int start_next_periodic = 0;
 	struct fiq_channel_state *st = &state->channel[n];
+	void *reg = state->dwc_regs_base + HC_START + (HC_OFFSET * n);
 	hfnum_data_t hfnum;
 
-	hcint.d32 = FIQ_READ(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINT);
-	hcintmsk.d32 = FIQ_READ(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINTMSK);
+	hcint.d32 = FIQ_READ(reg + HCINT);
+	hcintmsk.d32 = FIQ_READ(reg + HCINTMSK);
 	hcint_probe.d32 = hcint.d32 & hcintmsk.d32;
 
 	if (st->fsm != FIQ_PASSTHROUGH) {
@@ -752,7 +783,7 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 			hcintmsk.b.nak = 0;
 			hcintmsk.b.ack = 0;
 			hcintmsk.b.datatglerr = 0;
-			FIQ_WRITE(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINTMSK, hcintmsk.d32);
+			FIQ_WRITE(reg + HCINTMSK, hcintmsk.d32);
 			return 1;
 		}
 		if (hcint_probe.b.chhltd) {
@@ -914,7 +945,7 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 			 * State machine workaround.
 			 */
 			hfnum.d32 = FIQ_READ(state->dwc_regs_base + HFNUM);
-			hcchar.d32 = FIQ_READ(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCCHAR);
+			hcchar.d32 = FIQ_READ(reg + HCCHAR);
 			fiq_fsm_setup_csplit(state, n);
 			/* Poke the oddfrm bit. If we are equivalent, we received the interrupt at the correct
 			 * time. If not, then we're in the next SOF.
@@ -958,7 +989,7 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 		 * we are too late and the TT has dropped its CSPLIT fifo.
 		 */
 		hfnum.d32 = FIQ_READ(state->dwc_regs_base + HFNUM);
-		hcchar.d32 = FIQ_READ(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCCHAR);
+		hcchar.d32 = FIQ_READ(reg + HCCHAR);
 		start_next_periodic = 1;
 		if (hcint.b.nak) {
 			st->fsm = FIQ_PER_SPLIT_DONE;
@@ -992,7 +1023,7 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 		 * CSPLITs to occur at the right time. 
 		 */
 		hfnum.d32 = FIQ_READ(state->dwc_regs_base + HFNUM);
-		hcchar.d32 = FIQ_READ(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCCHAR);
+		hcchar.d32 = FIQ_READ(reg + HCCHAR);
 		fiq_print(FIQDBG_INT, state, "BROK: %01d ", n);
 		if (hcint.b.nak) {
 			st->fsm = FIQ_PER_SPLIT_DONE;
@@ -1024,7 +1055,7 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 	
 	case FIQ_PER_CSPLIT_POLL:
 		hfnum.d32 = FIQ_READ(state->dwc_regs_base + HFNUM);
-		hcchar.d32 = FIQ_READ(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCCHAR);
+		hcchar.d32 = FIQ_READ(reg + HCCHAR);
 		start_next_periodic = 1;
 		if (hcint.b.nak) {
 			st->fsm = FIQ_PER_SPLIT_DONE;
@@ -1136,7 +1167,7 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 	}
 
 	if (handled) {
-		FIQ_WRITE(state->dwc_regs_base + HC_START + (HC_OFFSET * n) + HCINT, hcint.d32);
+		FIQ_WRITE(reg + HCINT, hcint.d32);
 	} else {
 		/* Copy the regs into the state so the IRQ knows what to do */
 		st->hcint_copy.d32 = hcint.d32;
