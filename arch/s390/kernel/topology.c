@@ -37,7 +37,6 @@ static void set_topology_timer(void);
 static void topology_work_fn(struct work_struct *work);
 static struct sysinfo_15_1_x *tl_info;
 
-static bool topology_enabled = true;
 static DECLARE_WORK(topology_work, topology_work_fn);
 
 /*
@@ -56,7 +55,7 @@ static cpumask_t cpu_group_map(struct mask_info *info, unsigned int cpu)
 	cpumask_t mask;
 
 	cpumask_copy(&mask, cpumask_of(cpu));
-	if (!topology_enabled || !MACHINE_HAS_TOPOLOGY)
+	if (!MACHINE_HAS_TOPOLOGY)
 		return mask;
 	for (; info; info = info->next) {
 		if (cpumask_test_cpu(cpu, &info->mask))
@@ -71,7 +70,7 @@ static cpumask_t cpu_thread_map(unsigned int cpu)
 	int i;
 
 	cpumask_copy(&mask, cpumask_of(cpu));
-	if (!topology_enabled || !MACHINE_HAS_TOPOLOGY)
+	if (!MACHINE_HAS_TOPOLOGY)
 		return mask;
 	cpu -= cpu % (smp_cpu_mtid + 1);
 	for (i = 0; i <= smp_cpu_mtid; i++)
@@ -412,12 +411,6 @@ static const struct cpumask *cpu_drawer_mask(int cpu)
 {
 	return &per_cpu(cpu_topology, cpu).drawer_mask;
 }
-
-static int __init early_parse_topology(char *p)
-{
-	return kstrtobool(p, &topology_enabled);
-}
-early_param("topology", early_parse_topology);
 
 static struct sched_domain_topology_level s390_topology[] = {
 	{ cpu_thread_mask, cpu_smt_flags, SD_INIT_NAME(SMT) },
