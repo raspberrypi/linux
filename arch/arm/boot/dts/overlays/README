@@ -543,6 +543,9 @@ Params: bmp085                  Select the Bosch sensortronic BMP085
 
         bmp280                  Select the Bosch sensortronic BMP280
 
+        si7020                  Select the Silicon Labs Si7013/20/21 humidity/
+                                temperature sensor
+
 
 Name:   i2c0-bcm2708
 Info:   Enable the i2c_bcm2708 driver for the i2c0 bus. Not all pin combinations
