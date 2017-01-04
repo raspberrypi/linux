@@ -198,9 +198,11 @@ find_appropriate_src(struct net *net,
 		     const struct nf_nat_range *range)
 {
 	unsigned int h = hash_by_src(net, tuple);
+	const struct nf_conn_nat *nat;
 	const struct nf_conn *ct;
 
-	hlist_for_each_entry_rcu(ct, &nf_nat_bysource[h], nat_bysource) {
+	hlist_for_each_entry_rcu(nat, &nf_nat_bysource[h], bysource) {
+		ct = nat->ct;
 		if (same_src(ct, tuple) &&
 		    net_eq(net, nf_ct_net(ct)) &&
 		    nf_ct_zone_equal(ct, zone, IP_CT_DIR_ORIGINAL)) {
@@ -434,7 +436,8 @@ nf_nat_setup_info(struct nf_conn *ct,
 		spin_lock_bh(&nf_nat_lock);
 		/* nf_conntrack_alter_reply might re-allocate extension aera */
 		nat = nfct_nat(ct);
-		hlist_add_head_rcu(&ct->nat_bysource,
+		nat->ct = ct;
+		hlist_add_head_rcu(&nat->bysource,
 				   &nf_nat_bysource[srchash]);
 		spin_unlock_bh(&nf_nat_lock);
 	}
@@ -541,7 +544,7 @@ static int nf_nat_proto_clean(struct nf_conn *ct, void *data)
 	if (nf_nat_proto_remove(ct, data))
 		return 1;
 
-	if (!nat)
+	if (!nat || !nat->ct)
 		return 0;
 
 	/* This netns is being destroyed, and conntrack has nat null binding.
@@ -554,8 +557,9 @@ static int nf_nat_proto_clean(struct nf_conn *ct, void *data)
 		return 1;
 
 	spin_lock_bh(&nf_nat_lock);
-	hlist_del_rcu(&ct->nat_bysource);
+	hlist_del_rcu(&nat->bysource);
 	ct->status &= ~IPS_NAT_DONE_MASK;
+	nat->ct = NULL;
 	spin_unlock_bh(&nf_nat_lock);
 
 	add_timer(&ct->timeout);
@@ -685,13 +689,27 @@ static void nf_nat_cleanup_conntrack(struct nf_conn *ct)
 {
 	struct nf_conn_nat *nat = nf_ct_ext_find(ct, NF_CT_EXT_NAT);
 
-	if (!nat)
+	if (nat == NULL || nat->ct == NULL)
 		return;
 
-	NF_CT_ASSERT(ct->status & IPS_SRC_NAT_DONE);
+	NF_CT_ASSERT(nat->ct->status & IPS_SRC_NAT_DONE);
 
 	spin_lock_bh(&nf_nat_lock);
-	hlist_del_rcu(&ct->nat_bysource);
+	hlist_del_rcu(&nat->bysource);
+	spin_unlock_bh(&nf_nat_lock);
+}
+
+static void nf_nat_move_storage(void *new, void *old)
+{
+	struct nf_conn_nat *new_nat = new;
+	struct nf_conn_nat *old_nat = old;
+	struct nf_conn *ct = old_nat->ct;
+
+	if (!ct || !(ct->status & IPS_SRC_NAT_DONE))
+		return;
+
+	spin_lock_bh(&nf_nat_lock);
+	hlist_replace_rcu(&old_nat->bysource, &new_nat->bysource);
 	spin_unlock_bh(&nf_nat_lock);
 }
 
@@ -699,6 +717,7 @@ static struct nf_ct_ext_type nat_extend __read_mostly = {
 	.len		= sizeof(struct nf_conn_nat),
 	.align		= __alignof__(struct nf_conn_nat),
 	.destroy	= nf_nat_cleanup_conntrack,
+	.move		= nf_nat_move_storage,
 	.id		= NF_CT_EXT_NAT,
 	.flags		= NF_CT_EXT_F_PREALLOC,
 };
