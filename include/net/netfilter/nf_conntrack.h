@@ -17,7 +17,6 @@
 #include <linux/bitops.h>
 #include <linux/compiler.h>
 #include <linux/atomic.h>
-#include <linux/rhashtable.h>
 
 #include <linux/netfilter/nf_conntrack_tcp.h>
 #include <linux/netfilter/nf_conntrack_dccp.h>
@@ -119,7 +118,7 @@ struct nf_conn {
 	struct nf_ct_ext *ext;
 
 #if IS_ENABLED(CONFIG_NF_NAT)
-	struct rhash_head	nat_bysource;
+	struct hlist_node	nat_bysource;
 #endif
 	/* Storage reserved for other modules, must be the last member */
 	union nf_conntrack_proto proto;
