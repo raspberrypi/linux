@@ -551,7 +551,7 @@ fence_init(struct fence *fence, const struct fence_ops *ops,
 	fence->context = context;
 	fence->seqno = seqno;
 	fence->flags = 0UL;
-	fence->status = 0;
+	fence->error = 0;
 
 	trace_fence_init(fence);
 }

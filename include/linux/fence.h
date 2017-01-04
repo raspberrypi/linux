@@ -47,7 +47,7 @@ struct fence_cb;
  * can be compared to decide which fence would be signaled later.
  * @flags: A mask of FENCE_FLAG_* defined below
  * @timestamp: Timestamp when the fence was signaled.
- * @status: Optional, only valid if < 0, must be set before calling
+ * @error: Optional, only valid if < 0, must be set before calling
  * fence_signal, indicates that the fence has completed with an error.
  *
  * the flags member must be manipulated and read using the appropriate
@@ -79,7 +79,7 @@ struct fence {
 	unsigned seqno;
 	unsigned long flags;
 	ktime_t timestamp;
-	int status;
+	int error;
 };
 
 enum fence_flag_bits {
@@ -132,7 +132,7 @@ struct fence_cb {
  * or some failure occurred that made it impossible to enable
  * signaling. True indicates successful enabling.
  *
- * fence->status may be set in enable_signaling, but only when false is
+ * fence->error may be set in enable_signaling, but only when false is
  * returned.
  *
  * Calling fence_signal before enable_signaling is called allows
@@ -144,7 +144,7 @@ struct fence_cb {
  * the second time will be a noop since it was already signaled.
  *
  * Notes on signaled:
- * May set fence->status if returning true.
+ * May set fence->error if returning true.
  *
  * Notes on wait:
  * Must not be NULL, set to fence_default_wait for default implementation.
@@ -351,12 +351,32 @@ static inline struct fence *fence_later(struct fence *f1, struct fence *f2)
 static inline int fence_get_status_locked(struct fence *fence)
 {
 	if (fence_is_signaled_locked(fence))
-		return fence->status < 0 ? fence->status : 1;
+		return fence->error ?: 1;
 	else
 		return 0;
 }
 
 int fence_get_status(struct fence *fence);
+
+/**
+ * fence_set_error - flag an error condition on the fence
+ * @fence: [in]	the fence
+ * @error: [in]	the error to store
+ *
+ * Drivers can supply an optional error status condition before they signal
+ * the fence, to indicate that the fence was completed due to an error
+ * rather than success. This must be set before signaling (so that the value
+ * is visible before any waiters on the signal callback are woken). This
+ * helper exists to help catching erroneous setting of #fence.error.
+ */
+static inline void fence_set_error(struct fence *fence,
+				       int error)
+{
+	BUG_ON(test_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags));
+	BUG_ON(error >= 0 || error < -MAX_ERRNO);
+
+	fence->error = error;
+}
 
 signed long fence_wait_timeout(struct fence *, bool intr, signed long timeout);
 signed long fence_wait_any_timeout(struct fence **fences, uint32_t count,
