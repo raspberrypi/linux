@@ -154,6 +154,7 @@ static struct snd_soc_dai_link snd_rpi_justboom_digi_dai[] = {
 /* audio machine driver */
 static struct snd_soc_card snd_rpi_justboom_digi = {
 	.name         = "snd_rpi_justboom_digi",
+	.driver_name  = "JustBoomDigi",
 	.owner        = THIS_MODULE,
 	.dai_link     = snd_rpi_justboom_digi_dai,
 	.num_links    = ARRAY_SIZE(snd_rpi_justboom_digi_dai),
