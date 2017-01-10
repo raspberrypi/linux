@@ -310,6 +310,7 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	unsigned int sampling_rate = params_rate(params);
 	unsigned int data_length, data_delay, bclk_ratio;
 	unsigned int ch1pos, ch2pos, mode, format;
+	unsigned int previous_ftxp, previous_frxp, previous_txon_rxon;
 	unsigned int mash = BCM2835_CLK_MASH_1;
 	unsigned int divi, divf, target_frequency;
 	int clk_src = -1;
@@ -320,15 +321,19 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	bool frame_master =	(master == SND_SOC_DAIFMT_CBS_CFS
 					|| master == SND_SOC_DAIFMT_CBM_CFS);
 	uint32_t csreg;
+	bool packed;
 
 	/*
-	 * If a stream is already enabled,
-	 * the registers are already set properly.
+	 * Memorize TXON and RXON, they must be disabled when updating
+	 * most of I2S register bits.
 	 */
 	regmap_read(dev->i2s_regmap, BCM2835_I2S_CS_A_REG, &csreg);
 
-	if (csreg & (BCM2835_I2S_TXON | BCM2835_I2S_RXON))
-		return 0;
+	previous_txon_rxon = csreg & (BCM2835_I2S_TXON | BCM2835_I2S_RXON);
+
+	/* Disable TXON and RXON temporarily. */
+	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
+		previous_txon_rxon, 0);
 
 	/*
 	 * Adjust the data length according to the format.
@@ -465,26 +470,46 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	/*
-	 * Set format for both streams.
-	 * We cannot set another frame length
-	 * (and therefore word length) anyway,
-	 * so the format will be the same.
-	 */
-	regmap_write(dev->i2s_regmap, BCM2835_I2S_RXC_A_REG, format);
-	regmap_write(dev->i2s_regmap, BCM2835_I2S_TXC_A_REG, format);
+	/* Set the format for the matching stream direction. */
+	switch (substream->stream) {
+	case SNDRV_PCM_STREAM_PLAYBACK:
+		regmap_write(dev->i2s_regmap, BCM2835_I2S_TXC_A_REG, format);
+		break;
+	case SNDRV_PCM_STREAM_CAPTURE:
+		regmap_write(dev->i2s_regmap, BCM2835_I2S_RXC_A_REG, format);
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	/* Setup the I2S mode */
+	/* Keep existing FTXP and FRXP values. */
+	regmap_read(dev->i2s_regmap, BCM2835_I2S_MODE_A_REG, &mode);
+
+	previous_ftxp = mode & BCM2835_I2S_FTXP;
+	previous_frxp = mode & BCM2835_I2S_FRXP;
+
 	mode = 0;
 
-	if (data_length <= 16) {
-		/*
-		 * Use frame packed mode (2 channels per 32 bit word)
-		 * We cannot set another frame length in the second stream
-		 * (and therefore word length) anyway,
-		 * so the format will be the same.
-		 */
-		mode |= BCM2835_I2S_FTXP | BCM2835_I2S_FRXP;
+	/*
+	 * Retain the frame packed mode (2 channels per 32 bit word)
+	 * of the other direction stream intact. The formats of each
+	 * direction can be different as long as the frame length is
+	 * shared for both.
+	 */
+	packed = data_length <= 16;
+
+	switch (substream->stream) {
+	case SNDRV_PCM_STREAM_PLAYBACK:
+		mode |= previous_frxp;
+		mode |= packed ? BCM2835_I2S_FTXP : 0;
+		break;
+	case SNDRV_PCM_STREAM_CAPTURE:
+		mode |= previous_ftxp;
+		mode |= packed ? BCM2835_I2S_FRXP : 0;
+		break;
+	default:
+		return -EINVAL;
 	}
 
 	mode |= BCM2835_I2S_FLEN(bclk_ratio - 1);
@@ -572,8 +597,21 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 			   | BCM2835_I2S_TX(0x20)
 			   | BCM2835_I2S_RX(0x20));
 
-	/* Clear FIFOs */
-	bcm2835_i2s_clear_fifos(dev, true, true);
+	/* Set TXON RXON bits to the previous state. */
+	if (previous_txon_rxon) {
+		regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
+			previous_txon_rxon, previous_txon_rxon);
+	}
+
+	/* Clear only the FIFO for requested stream direction,
+	 * same as in bcm2835_i2s_prepare.
+	 */
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK
+			&& !(csreg & BCM2835_I2S_TXE))
+		bcm2835_i2s_clear_fifos(dev, true, false);
+	else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE
+			&& (csreg & BCM2835_I2S_RXD))
+		bcm2835_i2s_clear_fifos(dev, false, true);
 
 	return 0;
 }
