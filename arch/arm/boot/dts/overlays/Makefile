@@ -51,6 +51,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	mz61581.dtbo \
 	pi3-act-led.dtbo \
 	pi3-disable-bt.dtbo \
+	pi3-disable-wifi.dtbo \
 	pi3-miniuart-bt.dtbo \
 	piscreen.dtbo \
 	piscreen2r.dtbo \
