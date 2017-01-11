@@ -793,6 +793,12 @@ Load:   dtoverlay=pi3-disable-bt
 Params: <None>
 
 
+Name:   pi3-disable-wifi
+Info:   Disable Pi3 onboard WiFi
+Load:   dtoverlay=pi3-disable-wifi
+Params: <None>
+
+
 Name:   pi3-miniuart-bt
 Info:   Switch Pi3 Bluetooth function to use the mini-UART (ttyS0) and restore
         UART0/ttyAMA0 over GPIOs 14 & 15. Note that this may reduce the maximum

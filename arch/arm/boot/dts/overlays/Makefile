@@ -61,6 +61,7 @@ dtbo-$(RPI_DT_OVERLAYS) += mmc.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += mz61581.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pi3-act-led.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pi3-disable-bt.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += pi3-disable-wifi.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pi3-miniuart-bt.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += piscreen.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += piscreen2r.dtbo
