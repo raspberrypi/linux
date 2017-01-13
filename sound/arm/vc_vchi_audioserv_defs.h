@@ -78,8 +78,13 @@ typedef struct {
 // configure the write audio samples
 typedef struct {
 	uint32_t count;		// in bytes
+#if defined(CONFIG_64BIT)
+	uint32_t callbackl;
+	uint32_t callbackh;
+#else
 	void *callback;
 	void *cookie;
+#endif
 	uint16_t silence;
 	uint16_t max_packet;
 } VC_AUDIO_WRITE_T;
@@ -93,8 +98,13 @@ typedef struct {
 // Generic result for a request (VC->HOST)
 typedef struct {
 	int32_t count;		// Success value
+#if defined(CONFIG_64BIT)
+	uint32_t callbackl;
+	uint32_t callbackh;
+#else
 	void *callback;
 	void *cookie;
+#endif
 } VC_AUDIO_COMPLETE_T;
 
 // Message header for all messages in HOST->VC direction
