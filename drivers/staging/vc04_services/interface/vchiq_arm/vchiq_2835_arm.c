@@ -235,7 +235,7 @@ remote_event_signal(REMOTE_EVENT_T *event)
 int
 vchiq_copy_from_user(void *dst, const void *src, int size)
 {
-	if ((uint32_t)src < TASK_SIZE) {
+	if ((unsigned long)src < TASK_SIZE) {
 		return copy_from_user(dst, src, size);
 	} else {
 		memcpy(dst, src, size);
