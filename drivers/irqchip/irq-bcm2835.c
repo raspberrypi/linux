@@ -153,10 +153,23 @@ static void armctrl_unmask_irq(struct irq_data *d)
 	}
 }
 
+#ifdef CONFIG_ARM64
+void bcm2836_arm_irqchip_spin_gpu_irq(void);
+
+static void armctrl_ack_irq(struct irq_data *d)
+{
+	bcm2836_arm_irqchip_spin_gpu_irq();
+}
+
+#endif
+
 static struct irq_chip armctrl_chip = {
 	.name = "ARMCTRL-level",
 	.irq_mask = armctrl_mask_irq,
-	.irq_unmask = armctrl_unmask_irq
+	.irq_unmask = armctrl_unmask_irq,
+#ifdef CONFIG_ARM64
+	.irq_ack    = armctrl_ack_irq
+#endif
 };
 
 static int armctrl_xlate(struct irq_domain *d, struct device_node *ctrlr,
