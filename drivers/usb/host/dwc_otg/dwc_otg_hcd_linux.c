@@ -51,7 +51,9 @@
 #include <linux/dma-mapping.h>
 #include <linux/version.h>
 #include <asm/io.h>
+#ifdef CONFIG_ARM
 #include <asm/fiq.h>
+#endif
 #include <linux/usb.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
 #include <../drivers/usb/core/hcd.h>
@@ -70,6 +72,13 @@
 #include "dwc_otg_dbg.h"
 #include "dwc_otg_driver.h"
 #include "dwc_otg_hcd.h"
+
+#ifndef __virt_to_bus
+#define __virt_to_bus	__virt_to_phys
+#define __bus_to_virt	__phys_to_virt
+#define __pfn_to_bus(x)	__pfn_to_phys(x)
+#define __bus_to_pfn(x)	__phys_to_pfn(x)
+#endif
 
 extern unsigned char  _dwc_otg_fiq_stub, _dwc_otg_fiq_stub_end;
 
@@ -395,14 +404,49 @@ static struct dwc_otg_hcd_function_ops hcd_fops = {
 	.get_b_hnp_enable = _get_b_hnp_enable,
 };
 
+#ifdef CONFIG_ARM64
+
+static int simfiq_irq = -1;
+
+void local_fiq_enable(void)
+{
+	if (simfiq_irq >= 0)
+		enable_irq(simfiq_irq);
+}
+
+void local_fiq_disable(void)
+{
+	if (simfiq_irq >= 0)
+		disable_irq(simfiq_irq);
+}
+
+irqreturn_t fiq_irq_handler(int irq, void *dev_id)
+{
+	dwc_otg_hcd_t *dwc_otg_hcd = (dwc_otg_hcd_t *)dev_id;
+
+	if (fiq_fsm_enable)
+		dwc_otg_fiq_fsm(dwc_otg_hcd->fiq_state, dwc_otg_hcd->core_if->core_params->host_channels);
+	else
+		dwc_otg_fiq_nop(dwc_otg_hcd->fiq_state);
+
+	return IRQ_HANDLED;
+}
+
+#else
 static struct fiq_handler fh = {
   .name = "usb_fiq",
 };
+
+#endif
 
 static void hcd_init_fiq(void *cookie)
 {
 	dwc_otg_device_t *otg_dev = cookie;
 	dwc_otg_hcd_t *dwc_otg_hcd = otg_dev->hcd;
+#ifdef CONFIG_ARM64
+	int retval = 0;
+	int irq;
+#else
 	struct pt_regs regs;
 	int irq;
 
@@ -430,6 +474,7 @@ static void hcd_init_fiq(void *cookie)
 
 //		__show_regs(&regs);
 	set_fiq_regs(&regs);
+#endif
 
 	//Set the mphi periph to  the required registers
 	dwc_otg_hcd->fiq_state->mphi_regs.base    = otg_dev->os_dep.mphi_base;
@@ -448,6 +493,23 @@ static void hcd_init_fiq(void *cookie)
 		DWC_WARN("MPHI periph has NOT been enabled");
 #endif
 	// Enable FIQ interrupt from USB peripheral
+#ifdef CONFIG_ARM64
+	irq = platform_get_irq(otg_dev->os_dep.platformdev, 1);
+
+	if (irq < 0) {
+		DWC_ERROR("Can't get SIM-FIQ irq");
+		return;
+	}
+
+	retval = request_irq(irq, fiq_irq_handler, 0, "dwc_otg_sim-fiq", dwc_otg_hcd);
+
+	if (retval < 0) {
+		DWC_ERROR("Unable to request SIM-FIQ irq\n");
+		return;
+	}
+
+	simfiq_irq = irq;
+#else
 #ifdef CONFIG_MULTI_IRQ_HANDLER
 	irq = platform_get_irq(otg_dev->os_dep.platformdev, 1);
 #else
@@ -464,6 +526,8 @@ static void hcd_init_fiq(void *cookie)
 	smp_mb();
 	enable_fiq(irq);
 	local_fiq_enable();
+#endif
+
 }
 
 /**
@@ -526,6 +590,13 @@ int hcd_init(dwc_bus_dev_t *_dev)
 	otg_dev->hcd = dwc_otg_hcd;
 	otg_dev->hcd->otg_dev = otg_dev;
 
+#ifdef CONFIG_ARM64
+	if (dwc_otg_hcd_init(dwc_otg_hcd, otg_dev->core_if))
+		goto error2;
+
+	if (fiq_enable)
+		hcd_init_fiq(otg_dev);
+#else
 	if (dwc_otg_hcd_init(dwc_otg_hcd, otg_dev->core_if)) {
 		goto error2;
 	}
@@ -542,6 +613,7 @@ int hcd_init(dwc_bus_dev_t *_dev)
 			smp_call_function_single(0, hcd_init_fiq, otg_dev, 1);
 		}
 	}
+#endif
 
 	hcd->self.otg_port = dwc_otg_hcd_otg_port(dwc_otg_hcd);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33) //don't support for LM(with 2.6.20.1 kernel)
