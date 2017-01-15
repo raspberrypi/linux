@@ -37,7 +37,10 @@ dwc_otg-objs	+= dwc_otg_pcd_linux.o dwc_otg_pcd.o dwc_otg_pcd_intr.o
 dwc_otg-objs	+= dwc_otg_hcd.o dwc_otg_hcd_linux.o dwc_otg_hcd_intr.o dwc_otg_hcd_queue.o dwc_otg_hcd_ddma.o
 dwc_otg-objs	+= dwc_otg_adp.o
 dwc_otg-objs	+= dwc_otg_fiq_fsm.o
+ifneq ($(CONFIG_ARM64),y)
 dwc_otg-objs	+= dwc_otg_fiq_stub.o
+endif
+
 ifneq ($(CFI),)
 dwc_otg-objs	+= dwc_otg_cfi.o
 endif
