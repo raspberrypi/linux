@@ -74,6 +74,21 @@ void notrace _fiq_print(enum fiq_debug_level dbg_lvl, volatile struct fiq_state 
 	}
 }
 
+
+#ifdef CONFIG_ARM64
+
+inline void fiq_fsm_spin_lock(fiq_lock_t *lock)
+{
+	spin_lock((spinlock_t *)lock);
+}
+
+inline void fiq_fsm_spin_unlock(fiq_lock_t *lock)
+{
+	spin_unlock((spinlock_t *)lock);
+}
+
+#else
+
 /**
  * fiq_fsm_spin_lock() - ARMv6+ bare bones spinlock
  * Must be called with local interrupts and FIQ disabled.
@@ -119,6 +134,8 @@ inline void fiq_fsm_spin_unlock(fiq_lock_t *lock)
 }
 #else
 inline void fiq_fsm_spin_unlock(fiq_lock_t *lock) { }
+#endif
+
 #endif
 
 /**
