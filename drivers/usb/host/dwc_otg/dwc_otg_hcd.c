@@ -1012,6 +1012,10 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 		}
 		DWC_MEMSET(hcd->fiq_state, 0, (sizeof(struct fiq_state) + (sizeof(struct fiq_channel_state) * num_channels)));
 
+#ifdef CONFIG_ARM64
+		spin_lock_init(&hcd->fiq_state->lock);
+#endif
+
 		for (i = 0; i < num_channels; i++) {
 			hcd->fiq_state->channel[i].fsm = FIQ_PASSTHROUGH;
 		}
