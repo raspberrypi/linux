@@ -59,3 +59,5 @@
 #define LOCAL_IRQ_GPU_FAST	8
 #define LOCAL_IRQ_PMU_FAST	9
 #define LAST_IRQ		LOCAL_IRQ_PMU_FAST
+
+void bcm2836_arm_irqchip_spin_gpu_irq(void);

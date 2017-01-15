@@ -40,6 +40,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/irqchip.h>
+#include <linux/irqchip/irq-bcm2836.h>
 #include <linux/irqdomain.h>
 
 #include <asm/exception.h>
@@ -154,12 +155,24 @@ static void armctrl_unmask_irq(struct irq_data *d)
 	}
 }
 
+#ifdef CONFIG_ARM64
+
+static void armctrl_ack_irq(struct irq_data *d)
+{
+	bcm2836_arm_irqchip_spin_gpu_irq();
+}
+
+#endif
+
 static struct irq_chip armctrl_chip = {
 	.name = "ARMCTRL-level",
 	.irq_mask = armctrl_mask_irq,
 	.irq_unmask = armctrl_unmask_irq,
 	.flags = IRQCHIP_MASK_ON_SUSPEND |
 		 IRQCHIP_SKIP_SET_WAKE,
+#ifdef CONFIG_ARM64
+	.irq_ack    = armctrl_ack_irq
+#endif
 };
 
 static int armctrl_xlate(struct irq_domain *d, struct device_node *ctrlr,
@@ -332,7 +345,8 @@ static void bcm2836_chained_handle_irq(struct irq_desc *desc)
 {
 	u32 hwirq;
 
-	while ((hwirq = get_next_armctrl_hwirq()) != ~0)
+	hwirq = get_next_armctrl_hwirq();
+	if (hwirq != ~0)
 		generic_handle_domain_irq(intc.domain, hwirq);
 }
 
