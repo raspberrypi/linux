@@ -127,6 +127,12 @@ enum fiq_debug_level {
 	FIQDBG_PORTHUB = (1 << 3),
 };
 
+#ifdef CONFIG_ARM64
+
+typedef spinlock_t fiq_lock_t;
+
+#else
+
 typedef struct {
 	union {
 		uint32_t slock;
@@ -136,6 +142,8 @@ typedef struct {
 		} tickets;
 	};
 } fiq_lock_t;
+
+#endif
 
 struct fiq_state;
 
@@ -357,6 +365,22 @@ struct fiq_state {
 #endif
 	struct fiq_channel_state channel[0];
 };
+
+#ifdef CONFIG_ARM64
+
+#ifdef local_fiq_enable
+#undef local_fiq_enable
+#endif
+
+#ifdef local_fiq_disable
+#undef local_fiq_disable
+#endif
+
+extern void local_fiq_enable(void);
+
+extern void local_fiq_disable(void);
+
+#endif
 
 extern void fiq_fsm_spin_lock(fiq_lock_t *lock);
 
