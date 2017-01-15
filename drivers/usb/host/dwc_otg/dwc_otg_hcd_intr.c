@@ -36,8 +36,9 @@
 #include "dwc_otg_regs.h"
 
 #include <linux/jiffies.h>
+#ifdef CONFIG_ARM
 #include <asm/fiq.h>
-
+#endif
 
 extern bool microframe_schedule;
 
