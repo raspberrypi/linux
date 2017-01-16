@@ -1131,7 +1131,7 @@ Params: <None>
 
 
 Name:   spi-gpio35-39
-Info:   move SPI function block to GPIO 35 to 39
+Info:   Move SPI function block to GPIO 35 to 39
 Load:   dtoverlay=spi-gpio35-39
 Params: <None>
 
@@ -1140,6 +1140,13 @@ Name:   spi-rtc
 Info:   Adds support for a number of SPI Real Time Clock devices
 Load:   dtoverlay=spi-rtc,<param>=<val>
 Params: pcf2123                 Select the PCF2123 device
+
+
+Name:   spi0-cs
+Info:   Allows the (software) CS pins for SPI0 to be changed
+Load:   dtoverlay=spi0-cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 8)
+        cs1_pin                 GPIO pin for CS1 (default 7)
 
 
 Name:   spi0-hw-cs
