@@ -7,6 +7,10 @@
 	model = "Raspberry Pi Compute Module 3";
 };
 
+&uart0 {
+	status = "okay";
+};
+
 &gpio {
 	sdhost_pins: sdhost_pins {
 		brcm,pins = <48 49 50 51 52 53>;
