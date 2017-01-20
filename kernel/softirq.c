@@ -28,6 +28,7 @@
 #include <linux/tick.h>
 #include <linux/locallock.h>
 #include <linux/irq.h>
+#include <linux/sched/types.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/irq.h>
@@ -762,10 +763,6 @@ void irq_enter(void)
 
 static inline void invoke_softirq(void)
 {
-#ifdef CONFIG_PREEMPT_RT_FULL
-	unsigned long flags;
-#endif
-
 #ifndef CONFIG_PREEMPT_RT_FULL
 	if (!force_irqthreads) {
 #ifdef CONFIG_HAVE_IRQ_EXIT_ON_IRQ_STACK
@@ -787,6 +784,7 @@ static inline void invoke_softirq(void)
 		wakeup_softirqd();
 	}
 #else /* PREEMPT_RT_FULL */
+	unsigned long flags;
 
 	local_irq_save(flags);
 	if (__this_cpu_read(ksoftirqd) &&
