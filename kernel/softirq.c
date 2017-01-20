@@ -28,6 +28,7 @@
 #include <linux/tick.h>
 #include <linux/locallock.h>
 #include <linux/irq.h>
+#include <linux/sched/types.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/irq.h>
@@ -206,6 +207,7 @@ static void handle_softirq(unsigned int vec_nr)
 	}
 }
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /*
  * If ksoftirqd is scheduled, we do not want to process pending softirqs
  * right now. Let ksoftirqd handle this at its own rate, to get fairness,
@@ -221,7 +223,6 @@ static bool ksoftirqd_running(unsigned long pending)
 	return tsk && (tsk->state == TASK_RUNNING);
 }
 
-#ifndef CONFIG_PREEMPT_RT_FULL
 static inline int ksoftirqd_softirq_pending(void)
 {
 	return local_softirq_pending();
@@ -777,13 +778,10 @@ void irq_enter(void)
 
 static inline void invoke_softirq(void)
 {
-#ifdef CONFIG_PREEMPT_RT_FULL
-	unsigned long flags;
-#endif
-
+#ifndef CONFIG_PREEMPT_RT_FULL
 	if (ksoftirqd_running(local_softirq_pending()))
 		return;
-#ifndef CONFIG_PREEMPT_RT_FULL
+
 	if (!force_irqthreads) {
 #ifdef CONFIG_HAVE_IRQ_EXIT_ON_IRQ_STACK
 		/*
@@ -804,6 +802,7 @@ static inline void invoke_softirq(void)
 		wakeup_softirqd();
 	}
 #else /* PREEMPT_RT_FULL */
+	unsigned long flags;
 
 	local_irq_save(flags);
 	if (__this_cpu_read(ksoftirqd) &&
