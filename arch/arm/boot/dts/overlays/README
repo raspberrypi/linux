@@ -995,6 +995,12 @@ Load:   dtoverlay=rpi-backlight
 Params: <None>
 
 
+Name:   rpi-cirrus-wm5102
+Info:   Configures the Cirrus Logic Audio Card
+Load:   dtoverlay=rpi-cirrus-wm5102
+Params: <None>
+
+
 Name:   rpi-dac
 Info:   Configures the RPi DAC audio card
 Load:   dtoverlay=rpi-dac
