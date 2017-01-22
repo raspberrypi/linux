@@ -2,6 +2,7 @@
 
 dtbo-$(CONFIG_ARCH_BCM2835) += \
 	adau1977-adc.dtbo \
+	adau7002-simple.dtbo \
 	ads1015.dtbo \
 	ads7846.dtbo \
 	akkordion-iqdacplus.dtbo \

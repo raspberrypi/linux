@@ -168,6 +168,12 @@ Load:   dtoverlay=adau1977-adc
 Params: <None>
 
 
+Name:   adau7002-simple
+Info:   Overlay for the activation of ADAU7002 stereo PDM to I2S converter.
+Load:   dtoverlay=adau7002-simple,<param>=<val>
+Params: card-name               Override the default, "adau7002", card name.
+
+
 Name:   ads1015
 Info:   Overlay for activation of Texas Instruments ADS1015 ADC over I2C
 Load:   dtoverlay=ads1015,<param>=<val>
