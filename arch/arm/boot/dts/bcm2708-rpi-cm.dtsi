@@ -36,6 +36,11 @@
 	status = "okay";
 };
 
+&audio {
+	pinctrl-names = "default";
+	pinctrl-0 = <&audio_pins>;
+};
+
 / {
 	__overrides__ {
 		core_freq = <&clk_core>,"clock-frequency:0";
