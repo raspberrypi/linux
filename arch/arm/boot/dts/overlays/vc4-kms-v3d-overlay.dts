@@ -151,6 +151,13 @@
 	};
 
 	fragment@18 {
+		target = <&vec>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@19 {
 		target = <&clocks>;
 		__overlay__  {
 			claim-clocks = <
