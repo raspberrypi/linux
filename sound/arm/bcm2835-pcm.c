@@ -24,33 +24,32 @@ static struct snd_pcm_hardware snd_bcm2835_playback_hw = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
 		 SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID),
 	.formats = SNDRV_PCM_FMTBIT_U8 | SNDRV_PCM_FMTBIT_S16_LE,
-	.rates = SNDRV_PCM_RATE_CONTINUOUS | SNDRV_PCM_RATE_8000_48000,
+	.rates = SNDRV_PCM_RATE_CONTINUOUS | SNDRV_PCM_RATE_8000_192000,
 	.rate_min = 8000,
-	.rate_max = 48000,
+	.rate_max = 192000,
 	.channels_min = 1,
 	.channels_max = 2,
 	.buffer_bytes_max = 128 * 1024,
 	.period_bytes_min =   1 * 1024,
 	.period_bytes_max = 128 * 1024,
 	.periods_min = 1,
-	.periods_max = 128,
+	.periods_max = 256,
 };
 
 static struct snd_pcm_hardware snd_bcm2835_playback_spdif_hw = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
 		 SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID),
 	.formats = SNDRV_PCM_FMTBIT_S16_LE,
-	.rates = SNDRV_PCM_RATE_CONTINUOUS | SNDRV_PCM_RATE_44100 |
-		SNDRV_PCM_RATE_48000,
+	.rates = SNDRV_PCM_RATE_CONTINUOUS | SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_192000,
 	.rate_min = 44100,
-	.rate_max = 48000,
+	.rate_max = 192000,
 	.channels_min = 2,
 	.channels_max = 2,
 	.buffer_bytes_max = 128 * 1024,
 	.period_bytes_min =   1 * 1024,
 	.period_bytes_max = 128 * 1024,
 	.periods_min = 1,
-	.periods_max = 128,
+	.periods_max = 256,
 };
 
 static void snd_bcm2835_playback_free(struct snd_pcm_runtime *runtime)
