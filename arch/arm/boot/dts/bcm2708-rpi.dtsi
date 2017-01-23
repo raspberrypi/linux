@@ -160,3 +160,7 @@ sdhost_pins: &sdhost_gpio48 {
 &cpu_thermal {
 	/delete-node/ trips;
 };
+
+&vec {
+	status = "disabled";
+};
