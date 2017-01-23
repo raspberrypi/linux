@@ -85,6 +85,11 @@
 	pinctrl-0 = <&i2s_pins>;
 };
 
+&audio {
+	pinctrl-names = "default";
+	pinctrl-0 = <&audio_pins>;
+};
+
 &hdmi {
 	hpd-gpios = <&gpio 46 GPIO_ACTIVE_HIGH>;
 };
