@@ -168,6 +168,12 @@ Load:   dtoverlay=adau1977-adc
 Params: <None>
 
 
+Name:   adau7002-simple
+Info:   Overlay for the activation of ADAU7002 stereo PDM to I2S converter.
+Load:   dtoverlay=adau7002-simple
+Params: <None>
+
+
 Name:   ads1015
 Info:   Overlay for activation of Texas Instruments ADS1015 ADC over I2C
 Load:   dtoverlay=ads1015,<param>=<val>
@@ -1359,7 +1365,6 @@ Load:   dtoverlay=wittypi,<param>=<val>
 Params: led_gpio                GPIO for LED (default "17")
         led_trigger             Choose which activity the LED tracks (default
                                 "default-on")
-
 
 Troubleshooting
 ===============
