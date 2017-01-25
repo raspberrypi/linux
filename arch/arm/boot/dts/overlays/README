@@ -171,7 +171,7 @@ Params: <None>
 Name:   adau7002-simple
 Info:   Overlay for the activation of ADAU7002 stereo PDM to I2S converter.
 Load:   dtoverlay=adau7002-simple
-Params: <None>
+Params: card_name               Override the default, "adau7002", card name.
 
 
 Name:   ads1015
@@ -1365,6 +1365,7 @@ Load:   dtoverlay=wittypi,<param>=<val>
 Params: led_gpio                GPIO for LED (default "17")
         led_trigger             Choose which activity the LED tracks (default
                                 "default-on")
+
 
 Troubleshooting
 ===============
