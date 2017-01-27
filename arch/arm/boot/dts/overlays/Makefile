@@ -47,6 +47,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	mcp23s17.dtbo \
 	mcp2515-can0.dtbo \
 	mcp2515-can1.dtbo \
+	mcp3008.dtbo \
 	midi-uart0.dtbo \
 	mmc.dtbo \
 	mz61581.dtbo \
