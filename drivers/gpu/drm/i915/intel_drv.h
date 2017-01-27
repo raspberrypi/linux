@@ -1451,6 +1451,8 @@ bool intel_dp_read_dpcd(struct intel_dp *intel_dp);
 bool __intel_dp_read_desc(struct intel_dp *intel_dp,
 			  struct intel_dp_desc *desc);
 bool intel_dp_read_desc(struct intel_dp *intel_dp);
+bool intel_digital_port_connected(struct drm_i915_private *dev_priv,
+				  struct intel_digital_port *port);
 
 /* intel_dp_aux_backlight.c */
 int intel_dp_aux_init_backlight_funcs(struct intel_connector *intel_connector);
