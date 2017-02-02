@@ -101,6 +101,11 @@ static int vc4_plane_set_primary_blank(struct drm_plane *plane, bool blank)
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
 
 	u32 packet = blank;
+
+	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] primary plane %s",
+			 plane->base.id, plane->name,
+			 blank ? "blank" : "unblank");
+
 	return rpi_firmware_property(vc4->firmware,
 				     RPI_FIRMWARE_FRAMEBUFFER_BLANK,
 				     &packet, sizeof(packet));
@@ -148,6 +153,16 @@ static void vc4_primary_plane_atomic_update(struct drm_plane *plane,
 		WARN_ON_ONCE(vc4_plane->pitch != fb->pitches[0]);
 	}
 
+	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] primary update %dx%d@%d +%d,%d 0x%08x/%d\n",
+			 plane->base.id, plane->name,
+			 state->crtc_w,
+			 state->crtc_h,
+			 bpp,
+			 state->crtc_x,
+			 state->crtc_y,
+			 bo->paddr + fb->offsets[0],
+			 fb->pitches[0]);
+
 	ret = rpi_firmware_transaction(vc4->firmware,
 				       RPI_FIRMWARE_CHAN_FB,
 				       vc4_plane->fbinfo_bus_addr);
@@ -176,6 +191,15 @@ static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
 			      0, 0, /* hotx, hoty */};
 	WARN_ON_ONCE(fb->pitches[0] != state->crtc_w * 4);
 
+	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] update %dx%d cursor at %d,%d (0x%08x/%d)",
+			 plane->base.id, plane->name,
+			 state->crtc_w,
+			 state->crtc_h,
+			 state->crtc_x,
+			 state->crtc_y,
+			 bo->paddr + fb->offsets[0],
+			 fb->pitches[0]);
+
 	ret = rpi_firmware_property(vc4->firmware,
 				    RPI_FIRMWARE_SET_CURSOR_STATE,
 				    &packet_state,
@@ -197,6 +221,8 @@ static void vc4_cursor_plane_atomic_disable(struct drm_plane *plane,
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
 	u32 packet_state[] = { false, 0, 0, 0 };
 	int ret;
+
+	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] disabling cursor", plane->base.id, plane->name);
 
 	ret = rpi_firmware_property(vc4->firmware,
 				    RPI_FIRMWARE_SET_CURSOR_STATE,
