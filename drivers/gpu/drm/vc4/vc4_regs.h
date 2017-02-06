@@ -118,6 +118,16 @@
 #define V3D_SRQUA    0x00434
 #define V3D_SRQUL    0x00438
 #define V3D_SRQCS    0x0043c
+# define V3D_SRQCS_QPURQCC_MASK                        VC4_MASK(23, 16)
+# define V3D_SRQCS_QPURQCC_SHIFT                       16
+# define V3D_SRQCS_QPURQCC_CLEAR                       BIT(16)
+# define V3D_SRQCS_QPURQCM_MASK                        VC4_MASK(15, 8)
+# define V3D_SRQCS_QPURQCM_SHIFT                       8
+# define V3D_SRQCS_QPURQCM_CLEAR                       BIT(8)
+# define V3D_SRQCS_QPURQERR_SHIFT                      BIT(7)
+# define V3D_SRQCS_QPURQL_MASK                         VC4_MASK(5, 0)
+# define V3D_SRQCS_QPURQL_SHIFT                        0
+
 #define V3D_VPACNTL  0x00500
 #define V3D_VPMBASE  0x00504
 #define V3D_PCTRC    0x00670
@@ -154,6 +164,10 @@
 #define V3D_PCTRS14  0x006f4
 #define V3D_PCTR15   0x006f8
 #define V3D_PCTRS15  0x006fc
+#define V3D_DBCFG    0x00e00
+# define V3D_DBCFG_ENABLE                       BIT(0)
+#define V3D_DBQITE   0x00e2c
+#define V3D_DBQITC   0x00e30
 #define V3D_DBGE     0x00f00
 #define V3D_FDBGO    0x00f04
 #define V3D_FDBGB    0x00f08
