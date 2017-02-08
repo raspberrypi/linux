@@ -592,6 +592,35 @@ int bcm2835_audio_set_params(bcm2835_alsa_stream_t * alsa_stream,
 	m.u.config.channels = channels;
 	m.u.config.samplerate = samplerate;
 	m.u.config.bps = bps;
+	m.u.config.channelmap = 0;
+
+	// We only support 5.1 surround channel map... for now
+	if(channels > 5)
+	{
+		// Always set the channel mapping to 5.1 surround 3/2/0.1 most common
+		m.u.config.channelmap  = 0x0B000000;
+		// Values that were found by trial and error
+		// Having documentation about this would be nice
+		// 0x0C000000; // 5.0 2/3/0
+		// 0x0D000000; // (5.1 2/3/0.1)
+		// 0x0E000000; // (6.0 3/3/0)
+		// 0x0F000000; // 6.1 (3/3/0.1)
+		// 0x11000000; // 6.1
+		// 0x10000000; // 6.0 chan
+		// 0x08000000; // 4.0 chan <- I found this on a forum, this was my starting point
+
+		// To test this run : speaker-test -Dplughw:0,1 -c6
+		// You also run this to check for glitches:
+		// speaker-test -Dplughw:0,1 -c6 -t sine -f 110
+		// It would be nice to chonge the value below by defines, I am sure that it is define
+		// somewhere... but where
+		m.u.config.channelmap |= 0;	//L
+		m.u.config.channelmap |= 1 << 3;//R
+		m.u.config.channelmap |= 4 << 6;//RL
+		m.u.config.channelmap |= 5 << 9;//RR
+		m.u.config.channelmap |= 3 << 12;//Center
+		m.u.config.channelmap |= 2 << 15;//LFE
+	}
 
 	/* Create the message available completion */
 	init_completion(&instance->msg_avail_comp);

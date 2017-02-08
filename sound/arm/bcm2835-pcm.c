@@ -39,14 +39,13 @@ static struct snd_pcm_hardware snd_bcm2835_playback_hw = {
 static struct snd_pcm_hardware snd_bcm2835_playback_spdif_hw = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
 		 SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID),
-	.formats = SNDRV_PCM_FMTBIT_S16_LE,
-	.rates = SNDRV_PCM_RATE_CONTINUOUS | SNDRV_PCM_RATE_44100 |
-		SNDRV_PCM_RATE_48000,
-	.rate_min = 44100,
-	.rate_max = 48000,
-	.channels_min = 2,
-	.channels_max = 2,
-	.buffer_bytes_max = 128 * 1024,
+	.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_3LE,
+	.rates = SNDRV_PCM_RATE_CONTINUOUS | SNDRV_PCM_RATE_8000_192000,
+	.rate_min = 8000,
+	.rate_max = 192000,
+	.channels_min = 1,
+	.channels_max = 8,
+	.buffer_bytes_max = 256 * 1024,
 	.period_bytes_min =   1 * 1024,
 	.period_bytes_max = 128 * 1024,
 	.periods_min = 1,
@@ -209,6 +208,15 @@ static int snd_bcm2835_playback_open(struct snd_pcm_substream *substream)
 
 static int snd_bcm2835_playback_spdif_open(struct snd_pcm_substream *substream)
 {
+       int err;
+
+	// From my tests, only 1,2,4 or 8 channels are supported.
+	// There might be a way to support 6 channels, but I was not able to find any doc.
+	// You can get 5.1 using plughw.
+	err = snd_pcm_hw_constraint_pow2(substream->runtime, 0, SNDRV_PCM_HW_PARAM_CHANNELS);
+	if (err < 0)
+		return err;
+
 	return snd_bcm2835_playback_open_generic(substream, 1);
 }
 
@@ -552,7 +560,7 @@ int snd_bcm2835_new_spdif_pcm(bcm2835_chip_t * chip)
 
 	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_CONTINUOUS,
 					      snd_dma_continuous_data (GFP_KERNEL),
-					      64 * 1024, 64 * 1024);
+					      256 * 1024, 256 * 1024); // We need this to support higher sampling rate like 96 kHz 24bit 5.1
 out:
 	mutex_unlock(&chip->audio_mutex);
 	audio_info(" .. OUT\n");
