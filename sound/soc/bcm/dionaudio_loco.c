@@ -86,7 +86,7 @@ static int snd_rpi_dionaudio_loco_probe(struct platform_device *pdev)
 	}
 
 	ret = snd_soc_register_card(&snd_rpi_dionaudio_loco);
-	if (ret)
+	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
 			ret);
 
