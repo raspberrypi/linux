@@ -996,7 +996,7 @@ int snd_soc_add_pcm_runtime(struct snd_soc_card *card,
 	for_each_link_cpus(dai_link, i, cpu) {
 		rtd->cpu_dais[i] = snd_soc_find_dai(cpu);
 		if (!rtd->cpu_dais[i]) {
-			dev_info(card->dev, "ASoC: CPU DAI %s not registered\n",
+			dev_info(card->dev, "ASoC: CPU DAI %s not registered - will retry\n",
 				 cpu->dai_name);
 			goto _err_defer;
 		}
@@ -1011,7 +1011,7 @@ int snd_soc_add_pcm_runtime(struct snd_soc_card *card,
 	for_each_link_codecs(dai_link, i, codec) {
 		rtd->codec_dais[i] = snd_soc_find_dai(codec);
 		if (!rtd->codec_dais[i]) {
-			dev_info(card->dev, "ASoC: CODEC DAI %s not registered\n",
+			dev_info(card->dev, "ASoC: CODEC DAI %s not registered - will retry\n",
 				 codec->dai_name);
 			goto _err_defer;
 		}
