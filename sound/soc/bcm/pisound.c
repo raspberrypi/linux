@@ -1076,7 +1076,8 @@ static int pisnd_probe(struct platform_device *pdev)
 	ret = snd_soc_register_card(&pisnd_card);
 
 	if (ret < 0) {
-		printe("snd_soc_register_card() failed: %d\n", ret);
+		if (ret != -EPROBE_DEFER)
+			printe("snd_soc_register_card() failed: %d\n", ret);
 		pisnd_uninit_gpio();
 		kobject_put(pisnd_kobj);
 		pisnd_spi_uninit();
