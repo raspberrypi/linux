@@ -204,7 +204,7 @@ static int snd_rpi_iqaudio_digi_probe(struct platform_device *pdev)
 	}
 
 	ret = snd_soc_register_card(card);
-	if (ret)
+	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
 			ret);
 
