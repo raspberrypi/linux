@@ -104,7 +104,7 @@ static void bcm2836_arm_irqchip_register_irq(int hwirq, struct irq_chip *chip)
 
 	irq_set_percpu_devid(irq);
 	irq_set_chip_and_handler(irq, chip, handle_percpu_devid_irq);
-	irq_set_status_flags(irq, IRQ_NOAUTOEN);
+	irq_set_status_flags(irq, IRQ_NOAUTOEN | IRQ_TYPE_LEVEL_LOW);
 }
 
 static void
