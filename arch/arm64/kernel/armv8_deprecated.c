@@ -540,9 +540,14 @@ static void __init register_insn_emulation(struct insn_emulation *insn)
 
 	switch (insn->status) {
 	case INSN_DEPRECATED:
+#if 0
 		insn->current_mode = INSN_EMULATE;
 		/* Disable the HW mode if it was turned on at early boot time */
 		run_all_cpu_set_hw_mode(insn, false);
+#else
+		insn->current_mode = INSN_HW;
+		run_all_cpu_set_hw_mode(insn, true);
+#endif
 		insn->max = INSN_HW;
 		break;
 	case INSN_OBSOLETE:
