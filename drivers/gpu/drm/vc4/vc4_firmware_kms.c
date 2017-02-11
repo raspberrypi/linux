@@ -162,16 +162,21 @@ static void vc4_primary_plane_atomic_disable(struct drm_plane *plane,
 	vc4_plane_set_primary_blank(plane, true);
 }
 
-static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
-					   struct drm_plane_state *old_state)
+static int vc4_cursor_plane_update_plane(struct drm_plane *plane,
+					 struct drm_crtc *crtc,
+					 struct drm_framebuffer *fb,
+					 int crtc_x, int crtc_y,
+					 unsigned int crtc_w,
+					 unsigned int crtc_h,
+					 uint32_t src_x, uint32_t src_y,
+					 uint32_t src_w, uint32_t src_h)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
 	struct drm_plane_state *state = plane->state;
-	struct drm_framebuffer *fb = state->fb;
 	struct drm_gem_cma_object *bo = drm_fb_cma_get_gem_obj(fb, 0);
 	int ret;
-	u32 packet_state[] = { true, state->crtc_x, state->crtc_y, 0 };
-	u32 packet_info[] = { state->crtc_w, state->crtc_h,
+	u32 packet_state[] = { true, crtc_x, crtc_y, 0 };
+	u32 packet_info[] = { crtc_w, crtc_h,
 			      0, /* unused */
 			      bo->paddr + fb->offsets[0],
 			      0, 0, /* hotx, hoty */};
@@ -191,6 +196,27 @@ static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
 				    sizeof(packet_info));
 	if (ret || packet_info[0] != 0)
 		DRM_ERROR("Failed to set cursor info: 0x%08x\n", packet_info[0]);
+
+	return 0;
+}
+
+static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
+					   struct drm_plane_state *old_state)
+{
+	struct drm_plane_state *state = plane->state;
+	struct drm_framebuffer *fb = state->fb;
+
+	vc4_cursor_plane_update_plane(plane,
+				      state->crtc,
+				      fb,
+				      state->crtc_x,
+				      state->crtc_y,
+				      state->crtc_w,
+				      state->crtc_h,
+				      state->crtc_x,
+				      state->crtc_y,
+				      state->crtc_w,
+				      state->crtc_h);
 }
 
 static void vc4_cursor_plane_atomic_disable(struct drm_plane *plane,
@@ -238,6 +264,16 @@ static const struct drm_plane_helper_funcs vc4_primary_plane_helper_funcs = {
 	.atomic_disable = vc4_primary_plane_atomic_disable,
 };
 
+static const struct drm_plane_funcs vc4_cursor_plane_funcs = {
+	.update_plane = vc4_cursor_plane_update_plane,
+	.disable_plane = drm_atomic_helper_disable_plane,
+	.destroy = vc4_plane_destroy,
+	.set_property = NULL,
+	.reset = drm_atomic_helper_plane_reset,
+	.atomic_duplicate_state = drm_atomic_helper_plane_duplicate_state,
+	.atomic_destroy_state = drm_atomic_helper_plane_destroy_state,
+};
+
 static const struct drm_plane_helper_funcs vc4_cursor_plane_helper_funcs = {
 	.prepare_fb = NULL,
 	.cleanup_fb = NULL,
@@ -264,23 +300,29 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 	}
 
 	plane = &vc4_plane->base;
+
+	if (type == DRM_PLANE_TYPE_CURSOR) {
+		ret = drm_universal_plane_init(dev, plane, 0xff,
+					       &vc4_cursor_plane_funcs,
+					       &argb8888, 1,
+					       type, NULL);
+		drm_plane_helper_add(plane, &vc4_cursor_plane_helper_funcs);
+		return plane;
+	}
+
 	ret = drm_universal_plane_init(dev, plane, 0xff,
 				       &vc4_plane_funcs,
 				       primary ? &xrgb8888 : &argb8888, 1,
 				       type, NULL);
 
-	if (type == DRM_PLANE_TYPE_PRIMARY) {
-		vc4_plane->fbinfo =
-			dma_alloc_coherent(dev->dev,
-					   sizeof(*vc4_plane->fbinfo),
-					   &vc4_plane->fbinfo_bus_addr,
-					   GFP_KERNEL);
-		memset(vc4_plane->fbinfo, 0, sizeof(*vc4_plane->fbinfo));
+	vc4_plane->fbinfo =
+		dma_alloc_coherent(dev->dev,
+				   sizeof(*vc4_plane->fbinfo),
+				   &vc4_plane->fbinfo_bus_addr,
+				   GFP_KERNEL);
+	memset(vc4_plane->fbinfo, 0, sizeof(*vc4_plane->fbinfo));
 
-		drm_plane_helper_add(plane, &vc4_primary_plane_helper_funcs);
-	} else {
-		drm_plane_helper_add(plane, &vc4_cursor_plane_helper_funcs);
-	}
+	drm_plane_helper_add(plane, &vc4_primary_plane_helper_funcs);
 
 	return plane;
 fail:
