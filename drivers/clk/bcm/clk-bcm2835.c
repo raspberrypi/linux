@@ -1295,6 +1295,8 @@ static const struct clk_ops bcm2835_vpu_clock_clk_ops = {
 	.debug_init = bcm2835_clock_debug_init,
 };
 
+static bool bcm2835_clk_is_claimed(const char *name);
+
 static struct clk_hw *bcm2835_register_pll(struct bcm2835_cprman *cprman,
 					   const struct bcm2835_pll_data *data)
 {
@@ -1310,6 +1312,9 @@ static struct clk_hw *bcm2835_register_pll(struct bcm2835_cprman *cprman,
 	init.name = data->name;
 	init.ops = &bcm2835_pll_clk_ops;
 	init.flags = CLK_IGNORE_UNUSED;
+
+	if (!bcm2835_clk_is_claimed(data->name))
+		init.flags |= CLK_IS_CRITICAL;
 
 	pll = kzalloc(sizeof(*pll), GFP_KERNEL);
 	if (!pll)
@@ -1364,8 +1369,10 @@ bcm2835_register_pll_divider(struct bcm2835_cprman *cprman,
 	divider->div.table = NULL;
 
 	if (!(cprman_read(cprman, data->cm_reg) & data->hold_mask)) {
-		init.flags |= CLK_IS_CRITICAL;
-		divider->div.flags |= CLK_IS_CRITICAL;
+		if (!bcm2835_clk_is_claimed(data->source_pll))
+			init.flags |= CLK_IS_CRITICAL;
+		if (!bcm2835_clk_is_claimed(data->name))
+			divider->div.flags |= CLK_IS_CRITICAL;
 	}
 
 	divider->cprman = cprman;
@@ -2173,6 +2180,8 @@ static const struct bcm2835_clk_desc clk_desc_array[] = {
 		.ctl_reg = CM_PERIICTL),
 };
 
+static bool bcm2835_clk_claimed[ARRAY_SIZE(clk_desc_array)];
+
 /*
  * Permanently take a reference on the parent of the SDRAM clock.
  *
@@ -2192,6 +2201,19 @@ static int bcm2835_mark_sdc_parent_critical(struct clk *sdc)
 	return clk_prepare_enable(parent);
 }
 
+static bool bcm2835_clk_is_claimed(const char *name)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(clk_desc_array); i++) {
+		const char *clk_name = *(const char **)(clk_desc_array[i].data);
+		if (!strcmp(name, clk_name))
+		    return bcm2835_clk_claimed[i];
+	}
+
+	return false;
+}
+
 static int bcm2835_clk_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -2202,6 +2224,7 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 	const size_t asize = ARRAY_SIZE(clk_desc_array);
 	const struct cprman_plat_data *pdata;
 	size_t i;
+	u32 clk_id;
 	int ret;
 
 	pdata = of_device_get_match_data(&pdev->dev);
@@ -2220,6 +2243,13 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 	cprman->regs = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cprman->regs))
 		return PTR_ERR(cprman->regs);
+
+	memset(bcm2835_clk_claimed, 0, sizeof(bcm2835_clk_claimed));
+	for (i = 0;
+	     !of_property_read_u32_index(pdev->dev.of_node, "claim-clocks",
+					 i, &clk_id);
+	     i++)
+		bcm2835_clk_claimed[clk_id]= true;
 
 	memcpy(cprman->real_parent_names, cprman_parent_names,
 	       sizeof(cprman_parent_names));
