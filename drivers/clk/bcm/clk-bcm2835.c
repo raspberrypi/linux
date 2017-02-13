@@ -1407,6 +1407,11 @@ bcm2835_register_pll_divider(struct bcm2835_cprman *cprman,
 	divider->div.hw.init = &init;
 	divider->div.table = NULL;
 
+	if (!(cprman_read(cprman, divider_data->cm_reg) & divider_data->hold_mask)) {
+		init.flags |= CLK_IS_CRITICAL;
+		divider->div.flags |= CLK_IS_CRITICAL;
+	}
+
 	divider->cprman = cprman;
 	divider->data = divider_data;
 
