@@ -398,6 +398,9 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 			dev->capture.last_timestamp = buf->vb.vb2_buf.timestamp;
 
 			vb2_set_plane_payload(&buf->vb.vb2_buf, 0, length);
+			if (mmal_flags & MMAL_BUFFER_HEADER_FLAG_KEYFRAME)
+				buf->vb.flags |= V4L2_BUF_FLAG_KEYFRAME;
+
 			v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
 				 "Buffer has ts %llu",
 				 dev->capture.last_timestamp);
