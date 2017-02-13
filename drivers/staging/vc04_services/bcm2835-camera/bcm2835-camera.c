@@ -341,8 +341,13 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 		}
 	} else {
 		if (dev->capture.frame_count) {
-			if (dev->capture.vc_start_timestamp != -1 &&
-			    pts != 0) {
+			if (dev->capture.vc_start_timestamp == -1) {
+				buf->vb.vb2_buf.timestamp = ktime_get_ns();
+				v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+				 "Buffer time set as current time - %lld",
+				 buf->vb.vb2_buf.timestamp);
+
+			} else if(pts != 0) {
 				struct timeval timestamp;
 				s64 runtime_us = pts -
 				    dev->capture.vc_start_timestamp;
@@ -375,10 +380,27 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 				buf->vb.vb2_buf.timestamp = timestamp.tv_sec * 1000000000ULL +
 					timestamp.tv_usec * 1000ULL;
 			} else {
-				buf->vb.vb2_buf.timestamp = ktime_get_ns();
+				if (dev->capture.last_timestamp) {
+					buf->vb.vb2_buf.timestamp = dev->capture.last_timestamp;
+					v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+					 "Buffer time set as last timestamp - %lld",
+					 buf->vb.vb2_buf.timestamp);
+				}
+				else {
+					buf->vb.vb2_buf.timestamp =
+					dev->capture.kernel_start_ts.tv_sec  * 1000000000ULL +
+					dev->capture.kernel_start_ts.tv_usec * 1000ULL;
+					v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+					 "Buffer time set as start timestamp - %lld",
+					 buf->vb.vb2_buf.timestamp);
+				}
 			}
+			dev->capture.last_timestamp = buf->vb.vb2_buf.timestamp;
 
 			vb2_set_plane_payload(&buf->vb.vb2_buf, 0, length);
+			v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+				"Buffer has ts %llu",
+				dev->capture.last_timestamp);
 			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
 			if (mmal_flags & MMAL_BUFFER_HEADER_FLAG_EOS &&
@@ -546,6 +568,8 @@ static int start_streaming(struct vb2_queue *vq, unsigned int count)
 		v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
 			 "Start time %lld size %d\n",
 			 dev->capture.vc_start_timestamp, parameter_size);
+
+	dev->capture.last_timestamp = 0;
 
 	v4l2_get_timestamp(&dev->capture.kernel_start_ts);
 
