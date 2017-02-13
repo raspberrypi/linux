@@ -325,10 +325,12 @@ static int _complete(dwc_otg_hcd_t * hcd, void *urb_handle,
 		int i;
 
 		urb->error_count = dwc_otg_hcd_urb_get_error_count(dwc_otg_urb);
+		urb->actual_length = 0;
 		for (i = 0; i < urb->number_of_packets; ++i) {
 			urb->iso_frame_desc[i].actual_length =
 			    dwc_otg_hcd_urb_get_iso_desc_actual_length
 			    (dwc_otg_urb, i);
+			urb->actual_length += urb->iso_frame_desc[i].actual_length;
 			urb->iso_frame_desc[i].status =
 			    dwc_otg_hcd_urb_get_iso_desc_status(dwc_otg_urb, i);
 		}
