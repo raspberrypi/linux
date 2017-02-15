@@ -88,7 +88,7 @@ typedef struct {
 	/* Resource handle */
 	uint32_t res_handle;
 	/* Pointer to resource buffer */
-	void *res_mem;
+	uint32_t res_mem;
 	/* Resource base size (bytes) */
 	uint32_t res_base_size;
 	/* Resource number */
@@ -101,7 +101,7 @@ typedef struct {
 	/* Resource handle (returned from alloc) */
 	uint32_t res_handle;
 	/* Resource buffer (returned from alloc) */
-	void *res_mem;
+	uint32_t res_mem;
 
 } VC_SM_FREE_T;
 
@@ -110,7 +110,7 @@ typedef struct {
 	/* Resource handle (returned from alloc) */
 	uint32_t res_handle;
 	/* Resource buffer (returned from alloc) */
-	void *res_mem;
+	uint32_t res_mem;
 
 } VC_SM_LOCK_UNLOCK_T;
 
@@ -119,7 +119,7 @@ typedef struct {
 	/* Resource handle (returned from alloc) */
 	uint32_t res_handle;
 	/* Resource buffer (returned from alloc) */
-	void *res_mem;
+	uint32_t res_mem;
 	/* Resource *new* size requested (bytes) */
 	uint32_t res_new_size;
 
@@ -133,10 +133,10 @@ typedef struct {
 	/* Resource handle */
 	uint32_t res_handle;
 	/* Pointer to resource buffer */
-	void *res_mem;
+	uint32_t res_mem;
 	/* Pointer to former resource buffer if the memory
 	 * was reallocated */
-	void *res_old_mem;
+	uint32_t res_old_mem;
 
 } VC_SM_LOCK_RESULT_T;
 

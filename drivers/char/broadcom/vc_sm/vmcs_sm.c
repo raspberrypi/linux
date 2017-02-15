@@ -877,7 +877,7 @@ static void vmcs_sm_release_resource(struct SM_RESOURCE_T *resource, int force)
 	 */
 	if (resource->res_handle) {
 		VC_SM_FREE_T free = {
-			resource->res_handle, resource->res_base_mem
+			resource->res_handle, (uint32_t)resource->res_base_mem
 		};
 		int status = vc_vchi_sm_free(sm_state->sm_handle, &free,
 					     &private->int_trans_id);
@@ -1136,17 +1136,17 @@ static int vcsm_vma_fault(struct vm_fault *vmf)
 		int status;
 
 		lock_unlock.res_handle = resource->res_handle;
-		lock_unlock.res_mem = resource->res_base_mem;
+		lock_unlock.res_mem = (uint32_t)resource->res_base_mem;
 
 		pr_debug("[%s]: attempt to lock data - hdl %x, base address %p\n",
-			__func__, lock_unlock.res_handle, lock_unlock.res_mem);
+			__func__, lock_unlock.res_handle,
+			(void *)lock_unlock.res_mem);
 
 		/* Lock the videocore allocated resource.
 		 */
 		status = vc_vchi_sm_lock(sm_state->sm_handle,
 					 &lock_unlock, &lock_result, 0);
-		if ((status != 0) ||
-		    ((status == 0) && (lock_result.res_mem == NULL))) {
+		if (status || !lock_result.res_mem) {
 			pr_err("[%s]: failed to lock memory on videocore (status: %u)\n",
 					__func__, status);
 			resource->res_stats[LOCK_FAIL]++;
@@ -1162,10 +1162,10 @@ static int vcsm_vma_fault(struct vm_fault *vmf)
 
 		/* Keep track of the new base memory.
 		 */
-		if ((lock_result.res_mem != NULL) &&
-		    (lock_result.res_old_mem != NULL) &&
+		if (lock_result.res_mem &&
+		    lock_result.res_old_mem &&
 		    (lock_result.res_mem != lock_result.res_old_mem)) {
-			resource->res_base_mem = lock_result.res_mem;
+			resource->res_base_mem = (void *)lock_result.res_mem;
 		}
 	}
 
@@ -1464,7 +1464,7 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 		private->restart_sys = -EINTR;
 		private->int_action = VC_SM_MSG_TYPE_ALLOC;
 		goto error;
-	} else if (status != 0 || (status == 0 && result.res_mem == NULL)) {
+	} else if (status != 0 || !result.res_mem) {
 		pr_err("[%s]: failed to allocate memory on videocore (status: %u, trans_id: %u)\n",
 		     __func__, status, private->int_trans_id);
 		ret = -ENOMEM;
@@ -1476,7 +1476,7 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 	 */
 	resource->private = private;
 	resource->res_handle = result.res_handle;
-	resource->res_base_mem = result.res_mem;
+	resource->res_base_mem = (void *)result.res_mem;
 	resource->res_size = alloc.base_unit * alloc.num_unit;
 	resource->res_cached = cached;
 	resource->map = map;
@@ -1654,11 +1654,12 @@ static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
 	}
 
 	resize.res_handle = resource->res_handle;
-	resize.res_mem = resource->res_base_mem;
+	resize.res_mem = (uint32_t)resource->res_base_mem;
 	resize.res_new_size = ioparam->new_size;
 
 	pr_debug("[%s]: attempt to resize data - guid %x, hdl %x, base address %p\n",
-		__func__, ioparam->handle, resize.res_handle, resize.res_mem);
+		__func__, ioparam->handle, resize.res_handle,
+		(void *)resize.res_mem);
 
 	/* Resize the videocore allocated resource.
 	 */
@@ -1671,7 +1672,7 @@ static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
 		private->restart_sys = -EINTR;
 		private->int_action = VC_SM_MSG_TYPE_RESIZE;
 		goto error;
-	} else if (status != 0) {
+	} else if (status) {
 		pr_err("[%s]: failed to resize memory on videocore (status: %u, trans_id: %u)\n",
 		     __func__, status, private->int_trans_id);
 		ret = -EPERM;
@@ -1729,14 +1730,14 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 	}
 
 	lock.res_handle = resource->res_handle;
-	lock.res_mem = resource->res_base_mem;
+	lock.res_mem = (uint32_t)resource->res_base_mem;
 
 	/* Take the lock and get the address to be mapped.
 	 */
 	if (vc_addr == 0) {
 		pr_debug("[%s]: attempt to lock data - guid %x, hdl %x, base address %p\n",
 			__func__, ioparam->handle, lock.res_handle,
-			lock.res_mem);
+			(void *)lock.res_mem);
 
 		/* Lock the videocore allocated resource.
 		 */
@@ -1749,8 +1750,8 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 			private->restart_sys = -EINTR;
 			private->int_action = VC_SM_MSG_TYPE_LOCK;
 			goto error;
-		} else if (status != 0 ||
-			   (status == 0 && result.res_mem == NULL)) {
+		} else if (status ||
+			   (!status && !(void *)result.res_mem)) {
 			pr_err("[%s]: failed to lock memory on videocore (status: %u, trans_id: %u)\n",
 			     __func__, status, private->int_trans_id);
 			ret = -EPERM;
@@ -1759,8 +1760,8 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 		}
 
 		pr_debug("[%s]: succeed to lock data - hdl %x, base address %p (%p), ref-cnt %d\n",
-			__func__, lock.res_handle, result.res_mem,
-			lock.res_mem, resource->lock_count);
+			__func__, lock.res_handle, (void *)result.res_mem,
+			(void *)lock.res_mem, resource->lock_count);
 	}
 	/* Lock assumed taken already, address to be mapped is known.
 	 */
@@ -1773,10 +1774,10 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 	/* Keep track of the new base memory allocation if it has changed.
 	 */
 	if ((vc_addr == 0) &&
-	    (result.res_mem != NULL) &&
-	    (result.res_old_mem != NULL) &&
+	    ((void *)result.res_mem) &&
+	    ((void *)result.res_old_mem) &&
 	    (result.res_mem != result.res_old_mem)) {
-		resource->res_base_mem = result.res_mem;
+		resource->res_base_mem = (void *)result.res_mem;
 
 		/* Kernel allocated resources.
 		 */
@@ -1901,10 +1902,11 @@ static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 	}
 
 	unlock.res_handle = resource->res_handle;
-	unlock.res_mem = resource->res_base_mem;
+	unlock.res_mem = (uint32_t)resource->res_base_mem;
 
 	pr_debug("[%s]: attempt to unlock data - guid %x, hdl %x, base address %p\n",
-		__func__, ioparam->handle, unlock.res_handle, unlock.res_mem);
+		__func__, ioparam->handle, unlock.res_handle,
+		(void *)unlock.res_mem);
 
 	/* User space allocated resources.
 	 */
@@ -2039,7 +2041,7 @@ static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 	}
 
 	pr_debug("[%s]: success to unlock data - hdl %x, base address %p, ref-cnt %d\n",
-		__func__, unlock.res_handle, unlock.res_mem,
+		__func__, unlock.res_handle, (void *)unlock.res_mem,
 		resource->lock_count);
 
 error:
