@@ -497,3 +497,12 @@ int vc_vchi_sm_clean_up(VC_VCHI_SM_HANDLE_T handle, VC_SM_ACTION_CLEAN_T *msg)
 	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_ACTION_CLEAN,
 				   msg, sizeof(*msg), 0, 0, 0, 0);
 }
+
+int vc_vchi_sm_import(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_import *msg,
+		      struct vc_sm_import_result *result,
+		      uint32_t *cur_trans_id)
+{
+	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_IMPORT,
+				   msg, sizeof(*msg), result, sizeof(*result),
+				   cur_trans_id, 1);
+}

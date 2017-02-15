@@ -26,8 +26,9 @@
 /* Resource name maximum size */
 #define VC_SM_RESOURCE_NAME 32
 
-/* All message types supported for HOST->VC direction */
 typedef enum {
+	/* Message types supported for HOST->VC direction */
+
 	/* Allocate shared memory block */
 	VC_SM_MSG_TYPE_ALLOC,
 	/* Lock allocated shared memory block */
@@ -45,6 +46,21 @@ typedef enum {
 
 	/* A previously applied action will need to be reverted */
 	VC_SM_MSG_TYPE_ACTION_CLEAN,
+
+	/*
+	 * Import a physical address and wrap into a MEM_HANDLE_T.
+	 * Release with VC_SM_MSG_TYPE_FREE.
+	 */
+	VC_SM_MSG_TYPE_IMPORT,
+
+	/* Message types supported for VC->HOST direction */
+
+	/*
+	 * VC has finished with an imported memory allocation.
+	 * Release any Linux reference counts on the underlying block.
+	 */
+	VC_SM_MSG_TYPE_RELEASED,
+
 	VC_SM_MSG_TYPE_MAX
 } VC_SM_MSG_TYPE;
 
@@ -165,6 +181,41 @@ typedef struct {
 
 } VC_SM_FREE_ALL_T;
 
+/* Request to import memory (HOST->VC) */
+struct vc_sm_import {
+	/* type of memory to allocate */
+	VC_SM_ALLOC_TYPE_T type;
+	/* pointer to the VC (ie physical) address of the allocated memory */
+	uint32_t addr;
+	/* size of buffer */
+	uint32_t size;
+	/* opaque handle returned in RELEASED messages */
+	int32_t  kernel_id;
+	/* Allocator identifier */
+	uint32_t allocator;
+	/* resource name (for easier tracking on vc side) */
+	char     name[VC_SM_RESOURCE_NAME];
+};
+
+/* Result of a requested memory import (VC->HOST) */
+struct vc_sm_import_result {
+	/* Transaction identifier */
+	uint32_t trans_id;
+
+	/* Resource handle */
+	uint32_t res_handle;
+};
+
+/* Notification that VC has finished with an allocation (VC->HOST) */
+struct vc_sm_released {
+	/* pointer to the VC (ie physical) address of the allocated memory */
+	uint32_t addr;
+	/* size of buffer */
+	uint32_t size;
+	/* opaque handle returned in RELEASED messages */
+	int32_t  kernel_id;
+};
+
 /* Union of ALL messages */
 typedef union {
 	VC_SM_ALLOC_T alloc;
@@ -175,7 +226,9 @@ typedef union {
 	VC_SM_LOCK_RESULT_T lock_result;
 	VC_SM_RESULT_T result;
 	VC_SM_FREE_ALL_T free_all;
-
+	struct vc_sm_import import;
+	struct vc_sm_import_result import_result;
+	struct vc_sm_released released;
 } VC_SM_MSG_UNION_T;
 
 #endif /* __VC_SM_DEFS_H__INCLUDED__ */

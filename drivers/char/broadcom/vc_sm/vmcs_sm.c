@@ -19,6 +19,7 @@
 #include <linux/device.h>
 #include <linux/debugfs.h>
 #include <linux/dma-mapping.h>
+#include <linux/dma-buf.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/hugetlb.h>
@@ -69,6 +70,7 @@ enum SM_STATS_T {
 	MAP,
 	FLUSH,
 	INVALID,
+	IMPORT,
 
 	END_ATTEMPT,
 
@@ -80,6 +82,7 @@ enum SM_STATS_T {
 	MAP_FAIL,
 	FLUSH_FAIL,
 	INVALID_FAIL,
+	IMPORT_FAIL,
 
 	END_ALL,
 
@@ -93,6 +96,7 @@ static const char *const sm_stats_human_read[] = {
 	"Map",
 	"Cache Flush",
 	"Cache Invalidate",
+	"Import",
 };
 
 typedef int (*VC_SM_SHOW) (struct seq_file *s, void *v);
@@ -143,6 +147,12 @@ struct SM_RESOURCE_T {
 
 	uint8_t map_count;	/* Counter of mappings for this resource. */
 	struct list_head map_list;	/* Maps associated with a resource. */
+
+	/* DMABUF related fields */
+	struct dma_buf *dma_buf;
+	struct dma_buf_attachment *attach;
+	struct sg_table *sgt;
+	dma_addr_t dma_addr;
 
 	struct SM_PRIV_DATA_T *private;
 	bool map;		/* whether to map pages up front */
@@ -500,7 +510,9 @@ static void vmcs_sm_remove_map(struct SM_STATE_T *state,
 static int vc_sm_global_state_show(struct seq_file *s, void *v)
 {
 	struct sm_mmap *map = NULL;
+	struct SM_RESOURCE_T *resource = NULL;
 	int map_count = 0;
+	int resource_count = 0;
 
 	if (sm_state == NULL)
 		return 0;
@@ -512,7 +524,41 @@ static int vc_sm_global_state_show(struct seq_file *s, void *v)
 	 */
 
 	mutex_lock(&(sm_state->map_lock));
+	seq_puts(s, "\nResources\n");
+	if (!list_empty(&sm_state->resource_list)) {
+		list_for_each_entry(resource, &sm_state->resource_list,
+				    global_resource_list) {
+			resource_count++;
 
+			seq_printf(s, "\nResource                %p\n",
+				   resource);
+			seq_printf(s, "           PID          %u\n",
+				   resource->pid);
+			seq_printf(s, "           RES_GUID     0x%x\n",
+				   resource->res_guid);
+			seq_printf(s, "           LOCK_COUNT   %u\n",
+				   resource->lock_count);
+			seq_printf(s, "           REF_COUNT    %u\n",
+				   resource->ref_count);
+			seq_printf(s, "           res_handle   0x%X\n",
+				   resource->res_handle);
+			seq_printf(s, "           res_base_mem %p\n",
+				   resource->res_base_mem);
+			seq_printf(s, "           SIZE         %d\n",
+				   resource->res_size);
+			seq_printf(s, "           DMABUF       %p\n",
+				   resource->dma_buf);
+			seq_printf(s, "           ATTACH       %p\n",
+				   resource->attach);
+			seq_printf(s, "           SGT          %p\n",
+				   resource->sgt);
+			seq_printf(s, "           DMA_ADDR     0x%08X\n",
+				   resource->dma_addr);
+		}
+	}
+	seq_printf(s, "\n\nTotal resource count:   %d\n\n", resource_count);
+
+	seq_puts(s, "\nMappings\n");
 	if (!list_empty(&sm_state->map_list)) {
 		list_for_each_entry(map, &sm_state->map_list, map_list) {
 			map_count++;
@@ -527,6 +573,8 @@ static int vc_sm_global_state_show(struct seq_file *s, void *v)
 				   map->res_usr_hdl);
 			seq_printf(s, "           USR-ADDR    0x%lx\n",
 				   map->res_addr);
+			seq_printf(s, "           SIZE        %d\n",
+				   map->resource->res_size);
 		}
 	}
 
@@ -843,7 +891,8 @@ static void vmcs_sm_release_resource(struct SM_RESOURCE_T *resource, int force)
 	list_del(&resource->resource_list);
 	list_del(&resource->global_resource_list);
 
-	/* Walk the global resource list, find out if the resource is used
+	/*
+	 * Walk the global resource list, find out if the resource is used
 	 * somewhere else. In which case we don't want to delete it.
 	 */
 	list_for_each_entry(res_tmp, &sm_state->resource_list,
@@ -877,8 +926,7 @@ static void vmcs_sm_release_resource(struct SM_RESOURCE_T *resource, int force)
 		up_write(&current->mm->mmap_sem);
 	}
 
-	/* Free up the videocore allocated resource.
-	 */
+	/* Free up the videocore allocated resource. */
 	if (resource->res_handle) {
 		VC_SM_FREE_T free = {
 			resource->res_handle, (uint32_t)resource->res_base_mem
@@ -893,13 +941,19 @@ static void vmcs_sm_release_resource(struct SM_RESOURCE_T *resource, int force)
 		}
 	}
 
-	/* Free up the shared resource.
-	 */
+	if (resource->sgt)
+		dma_buf_unmap_attachment(resource->attach, resource->sgt,
+					 DMA_BIDIRECTIONAL);
+	if (resource->attach)
+		dma_buf_detach(resource->dma_buf, resource->attach);
+	if (resource->dma_buf)
+		dma_buf_put(resource->dma_buf);
+
+	/* Free up the shared resource. */
 	if (resource->res_shared)
 		vmcs_sm_release_resource(resource->res_shared, 0);
 
-	/* Free up the local resource tracking this allocation.
-	 */
+	/* Free up the local resource tracking this allocation. */
 	vc_sm_resource_deceased(resource, force);
 	kfree(resource);
 }
@@ -2055,6 +2109,137 @@ error:
 	return ret;
 }
 
+/*
+ * Import a contiguous block of memory to be shared with VC.
+ */
+int vc_sm_ioctl_import_dmabuf(struct SM_PRIV_DATA_T *private,
+			      struct vmcs_sm_ioctl_import_dmabuf *ioparam,
+			      struct dma_buf *src_dma_buf)
+{
+	int ret = 0;
+	int status;
+	struct SM_RESOURCE_T *resource = NULL;
+	struct vc_sm_import import = { 0 };
+	struct vc_sm_import_result result = { 0 };
+	struct dma_buf *dma_buf;
+	struct dma_buf_attachment *attach = NULL;
+	struct sg_table *sgt = NULL;
+
+	/* Setup our allocation parameters */
+	if (src_dma_buf) {
+		get_dma_buf(src_dma_buf);
+		dma_buf = src_dma_buf;
+	} else {
+		dma_buf = dma_buf_get(ioparam->dmabuf_fd);
+	}
+	if (IS_ERR(dma_buf))
+		return PTR_ERR(dma_buf);
+
+	attach = dma_buf_attach(dma_buf, &sm_state->pdev->dev);
+	if (IS_ERR(attach)) {
+		ret = PTR_ERR(attach);
+		goto error;
+	}
+
+	sgt = dma_buf_map_attachment(attach, DMA_BIDIRECTIONAL);
+	if (IS_ERR(sgt)) {
+		ret = PTR_ERR(sgt);
+		goto error;
+	}
+
+	/* Verify that the address block is contiguous */
+	if (sgt->nents != 1) {
+		ret = -ENOMEM;
+		goto error;
+	}
+
+	import.type = ((ioparam->cached == VMCS_SM_CACHE_VC) ||
+		       (ioparam->cached == VMCS_SM_CACHE_BOTH)) ?
+				VC_SM_ALLOC_CACHED : VC_SM_ALLOC_NON_CACHED;
+	import.addr = (uint32_t)sg_dma_address(sgt->sgl);
+	import.size = sg_dma_len(sgt->sgl);
+	import.allocator = current->tgid;
+
+	if (*ioparam->name)
+		memcpy(import.name, ioparam->name, sizeof(import.name) - 1);
+	else
+		memcpy(import.name, VMCS_SM_RESOURCE_NAME_DEFAULT,
+		       sizeof(VMCS_SM_RESOURCE_NAME_DEFAULT));
+
+	pr_debug("[%s]: attempt to import \"%s\" data - type %u, addr %p, size %u\n",
+		 __func__, import.name, import.type,
+		 (void *)import.addr, import.size);
+
+	/* Allocate local resource to track this allocation. */
+	resource = kzalloc(sizeof(*resource), GFP_KERNEL);
+	if (!resource) {
+		ret = -ENOMEM;
+		goto error;
+	}
+	INIT_LIST_HEAD(&resource->map_list);
+	resource->ref_count++;
+	resource->pid = current->tgid;
+
+	/* Allocate the videocore resource. */
+	status = vc_vchi_sm_import(sm_state->sm_handle, &import, &result,
+				   &private->int_trans_id);
+	if (status == -EINTR) {
+		pr_debug("[%s]: requesting import memory action restart (trans_id: %u)\n",
+			 __func__, private->int_trans_id);
+		ret = -ERESTARTSYS;
+		private->restart_sys = -EINTR;
+		private->int_action = VC_SM_MSG_TYPE_IMPORT;
+		goto error;
+	} else if (status || !result.res_handle) {
+		pr_debug("[%s]: failed to import memory on videocore (status: %u, trans_id: %u)\n",
+			 __func__, status, private->int_trans_id);
+		ret = -ENOMEM;
+		resource->res_stats[ALLOC_FAIL]++;
+		goto error;
+	}
+
+	/* Keep track of the resource we created.
+	 */
+	resource->private = private;
+	resource->res_handle = result.res_handle;
+	resource->res_size = import.size;
+	resource->res_cached = ioparam->cached;
+
+	resource->dma_buf = dma_buf;
+	resource->attach = attach;
+	resource->sgt = sgt;
+	resource->dma_addr = sg_dma_address(sgt->sgl);
+
+	/* Kernel/user GUID.  This global identifier is used for mmap'ing the
+	 * allocated region from user space, it is passed as the mmap'ing
+	 * offset, we use it to 'hide' the videocore handle/address.
+	 */
+	mutex_lock(&sm_state->lock);
+	resource->res_guid = ++sm_state->guid;
+	mutex_unlock(&sm_state->lock);
+	resource->res_guid <<= PAGE_SHIFT;
+
+	vmcs_sm_add_resource(private, resource);
+
+	/* We're done */
+	resource->res_stats[IMPORT]++;
+	ioparam->handle = resource->res_guid;
+	return 0;
+
+error:
+	resource->res_stats[IMPORT_FAIL]++;
+	if (resource) {
+		vc_sm_resource_deceased(resource, 1);
+		kfree(resource);
+	}
+	if (sgt)
+		dma_buf_unmap_attachment(attach, sgt, DMA_BIDIRECTIONAL);
+	if (attach)
+		dma_buf_detach(dma_buf, attach);
+	dma_buf_put(dma_buf);
+	return ret;
+}
+
 /* Handle control from host. */
 static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -2156,6 +2341,40 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				};
 				pr_err("[%s]: failed to copy-to-user for cmd %x\n",
 						__func__, cmdnr);
+				vc_sm_ioctl_free(file_data, &freeparam);
+				ret = -EFAULT;
+			}
+
+			/* Done.
+			 */
+			goto out;
+		}
+		break;
+
+	case VMCS_SM_CMD_IMPORT_DMABUF:
+		{
+			struct vmcs_sm_ioctl_import_dmabuf ioparam;
+
+			/* Get the parameter data.
+			 */
+			if (copy_from_user
+			    (&ioparam, (void *)arg, sizeof(ioparam)) != 0) {
+				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
+				       __func__, cmdnr);
+				ret = -EFAULT;
+				goto out;
+			}
+
+			ret = vc_sm_ioctl_import_dmabuf(file_data, &ioparam,
+							NULL);
+			if (!ret &&
+			    (copy_to_user((void *)arg,
+					  &ioparam, sizeof(ioparam)) != 0)) {
+				struct vmcs_sm_ioctl_free freeparam = {
+					ioparam.handle
+				};
+				pr_err("[%s]: failed to copy-to-user for cmd %x\n",
+				       __func__, cmdnr);
 				vc_sm_ioctl_free(file_data, &freeparam);
 				ret = -EFAULT;
 			}
@@ -3301,6 +3520,42 @@ int vc_sm_map(int handle, unsigned int sm_addr, VC_SM_LOCK_CACHE_MODE_T mode,
 	return ret;
 }
 EXPORT_SYMBOL_GPL(vc_sm_map);
+
+/* Import a dmabuf to be shared with VC. */
+int vc_sm_import_dmabuf(struct dma_buf *dmabuf, int *handle)
+{
+	struct vmcs_sm_ioctl_import_dmabuf ioparam = { 0 };
+	int ret;
+	struct SM_RESOURCE_T *resource;
+
+	/* Validate we can work with this device. */
+	if (!sm_state || !dmabuf || !handle) {
+		pr_err("[%s]: invalid input\n", __func__);
+		return -EPERM;
+	}
+
+	ioparam.cached = 0;
+	strcpy(ioparam.name, "KRNL DMABUF");
+
+	ret = vc_sm_ioctl_import_dmabuf(sm_state->data_knl, &ioparam, dmabuf);
+
+	if (!ret) {
+		resource = vmcs_sm_acquire_resource(sm_state->data_knl,
+						    ioparam.handle);
+		if (resource) {
+			resource->pid = 0;
+			vmcs_sm_release_resource(resource, 0);
+
+			/* Assign valid handle at this time.*/
+			*handle = ioparam.handle;
+		} else {
+			ret = -ENOMEM;
+		}
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(vc_sm_import_dmabuf);
 #endif
 
 /*

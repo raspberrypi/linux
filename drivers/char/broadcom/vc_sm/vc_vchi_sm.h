@@ -89,4 +89,11 @@ int vc_vchi_sm_walk_alloc(VC_VCHI_SM_HANDLE_T handle);
 int vc_vchi_sm_clean_up(VC_VCHI_SM_HANDLE_T handle,
 			VC_SM_ACTION_CLEAN_T *action_clean);
 
+/*
+ * Import a contiguous block of memory and wrap it in a GPU MEM_HANDLE_T.
+ */
+int vc_vchi_sm_import(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_import *msg,
+		      struct vc_sm_import_result *result,
+		      uint32_t *cur_trans_id);
+
 #endif /* __VC_VCHI_SM_H__INCLUDED__ */
