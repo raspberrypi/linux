@@ -26,30 +26,27 @@ typedef enum {
 
 } VC_SM_LOCK_CACHE_MODE_T;
 
-/* Allocate a shared memory handle and block.
-*/
+/* Allocate a shared memory handle and block. */
 int vc_sm_alloc(VC_SM_ALLOC_T *alloc, int *handle);
 
-/* Free a previously allocated shared memory handle and block.
-*/
+/* Free a previously allocated shared memory handle and block. */
 int vc_sm_free(int handle);
 
-/* Lock a memory handle for use by kernel.
-*/
+/* Lock a memory handle for use by kernel. */
 int vc_sm_lock(int handle, VC_SM_LOCK_CACHE_MODE_T mode,
 	       long unsigned int *data);
 
-/* Unlock a memory handle in use by kernel.
-*/
+/* Unlock a memory handle in use by kernel. */
 int vc_sm_unlock(int handle, int flush, int no_vc_unlock);
 
-/* Get an internal resource handle mapped from the external one.
-*/
+/* Get an internal resource handle mapped from the external one. */
 int vc_sm_int_handle(int handle);
 
-/* Map a shared memory region for use by kernel.
-*/
+/* Map a shared memory region for use by kernel. */
 int vc_sm_map(int handle, unsigned int sm_addr, VC_SM_LOCK_CACHE_MODE_T mode,
 	      long unsigned int *data);
+
+/* Import a block of memory into the GPU space. */
+int vc_sm_import_dmabuf(struct dma_buf *dmabuf, int *handle);
 
 #endif /* __VC_SM_KNL_H__INCLUDED__ */
