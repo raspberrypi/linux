@@ -96,6 +96,14 @@
 		firmware = <&firmware>;
 		status = "okay";
 	};
+
+	expgpio: expgpio {
+		compatible = "brcm,bcm2835-expgpio";
+		gpio-controller;
+		#gpio-cells = <2>;
+		firmware = <&firmware>;
+		status = "okay";
+	};
 };
 
 &fb {
@@ -163,6 +171,16 @@
 		linux,default-trigger = "mmc0";
 		gpios = <&virtgpio 0 0>;
 	};
+
+	pwr_led: pwr {
+		label = "led1";
+		linux,default-trigger = "input";
+		gpios = <&expgpio 7 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&hdmi {
+	hpd-gpios = <&expgpio 4 GPIO_ACTIVE_LOW>;
 };
 
 &audio {
@@ -192,6 +210,10 @@
 		act_led_gpio = <&act_led>,"gpios:4";
 		act_led_activelow = <&act_led>,"gpios:8";
 		act_led_trigger = <&act_led>,"linux,default-trigger";
+
+		pwr_led_gpio = <&pwr_led>,"gpios:4";
+		pwr_led_activelow = <&pwr_led>,"gpios:8";
+		pwr_led_trigger = <&pwr_led>,"linux,default-trigger";
 
 		audio = <&audio>,"status";
 		watchdog = <&watchdog>,"status";
