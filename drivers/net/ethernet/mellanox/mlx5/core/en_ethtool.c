@@ -1477,6 +1477,7 @@ static int set_pflag_rx_cqe_compress(struct net_device *netdev,
 
 	MLX5E_SET_PFLAG(priv, MLX5E_PFLAG_RX_CQE_COMPRESS, enable);
 	priv->params.rx_cqe_compress_def = enable;
+	mlx5e_set_rq_type_params(priv, priv->params.rq_wq_type);
 
 	if (reset)
 		err = mlx5e_open_locked(netdev);
