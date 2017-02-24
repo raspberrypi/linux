@@ -308,6 +308,25 @@ Load:   dtoverlay=dionaudio-loco
 Params: <None>
 
 
+Name:   dionaudio-loco-v2
+Info:   Configures the Dion Audio LOCO-V2 DAC-AMP
+Load:   dtoverlay=dionaudio-loco-v2,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=hifiberry-dacplus,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24dB_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+
+
 Name:   dpi18
 Info:   Overlay for a generic 18-bit DPI display
         This uses GPIOs 0-21 (so no I2C, uart etc.), and activates the output
