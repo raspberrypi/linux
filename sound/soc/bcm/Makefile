@@ -25,6 +25,7 @@ snd-soc-raspidac3-objs := raspidac3.o
 snd-soc-audioinjector-pi-soundcard-objs := audioinjector-pi-soundcard.o
 snd-soc-digidac1-soundcard-objs := digidac1-soundcard.o
 snd-soc-dionaudio-loco-objs := dionaudio_loco.o
+snd-soc-dionaudio-loco-v2-objs := dionaudio_loco-v2.o
 snd-soc-allo-piano-dac-objs := allo-piano-dac.o
 snd-soc-pisound-objs := pisound.o
 
@@ -44,5 +45,6 @@ obj-$(CONFIG_SND_BCM2708_SOC_RASPIDAC3) += snd-soc-raspidac3.o
 obj-$(CONFIG_SND_AUDIOINJECTOR_PI_SOUNDCARD) += snd-soc-audioinjector-pi-soundcard.o
 obj-$(CONFIG_SND_DIGIDAC1_SOUNDCARD) += snd-soc-digidac1-soundcard.o
 obj-$(CONFIG_SND_BCM2708_SOC_DIONAUDIO_LOCO) += snd-soc-dionaudio-loco.o
+obj-$(CONFIG_SND_BCM2708_SOC_DIONAUDIO_LOCO_V2) += snd-soc-dionaudio-loco-v2.o
 obj-$(CONFIG_SND_BCM2708_SOC_ALLO_PIANO_DAC) += snd-soc-allo-piano-dac.o
 obj-$(CONFIG_SND_PISOUND) += snd-soc-pisound.o
