@@ -2062,6 +2062,7 @@ static void vxlan_xmit_one(struct sk_buff *skb, struct net_device *dev,
 	src_port = udp_flow_src_port(dev_net(dev), skb, vxlan->cfg.port_min,
 				     vxlan->cfg.port_max, true);
 
+	rcu_read_lock();
 	if (dst->sa.sa_family == AF_INET) {
 		struct vxlan_sock *sock4 = rcu_dereference(vxlan->vn4_sock);
 		struct rtable *rt;
@@ -2084,7 +2085,7 @@ static void vxlan_xmit_one(struct sk_buff *skb, struct net_device *dev,
 						    dst_port, vni, &rt->dst,
 						    rt->rt_flags);
 			if (err)
-				return;
+				goto out_unlock;
 		} else if (info->key.tun_flags & TUNNEL_DONT_FRAGMENT) {
 			df = htons(IP_DF);
 		}
@@ -2123,7 +2124,7 @@ static void vxlan_xmit_one(struct sk_buff *skb, struct net_device *dev,
 						    dst_port, vni, ndst,
 						    rt6i_flags);
 			if (err)
-				return;
+				goto out_unlock;
 		}
 
 		tos = ip_tunnel_ecn_encap(tos, old_iph, skb);
@@ -2140,6 +2141,8 @@ static void vxlan_xmit_one(struct sk_buff *skb, struct net_device *dev,
 				     label, src_port, dst_port, !udp_sum);
 #endif
 	}
+out_unlock:
+	rcu_read_unlock();
 	return;
 
 drop:
@@ -2148,6 +2151,7 @@ drop:
 	return;
 
 tx_error:
+	rcu_read_unlock();
 	if (err == -ELOOP)
 		dev->stats.collisions++;
 	else if (err == -ENETUNREACH)
