@@ -13,6 +13,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	bmp085_i2c-sensor.dtbo \
 	dht11.dtbo \
 	dionaudio-loco.dtbo \
+	dionaudio-loco-v2.dtbo \
 	dpi18.dtbo \
 	dpi24.dtbo \
 	dwc-otg.dtbo \
