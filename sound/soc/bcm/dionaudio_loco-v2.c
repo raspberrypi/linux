@@ -2,7 +2,7 @@
  * ASoC Driver for Dion Audio LOCO-V2 DAC-AMP
  *
  * Author:      Miquel Blauw <info@dionaudio.nl>
- *              Copyright 2016
+ *              Copyright 2017
  *
  * Based on the software of the RPi-DAC writen by Florian Meier
  *
@@ -27,14 +27,14 @@
 
 static bool digital_gain_0db_limit = true;
 
-static int snd_rpi_dionaudio_loco-v2_init(struct snd_soc_pcm_runtime *rtd)
+static int snd_rpi_dionaudio_loco_v2_init(struct snd_soc_pcm_runtime *rtd)
 {
-	if (digital_gain_0db_limit) {
+	if (digital_gain_0db_limit) 
+	{
 		int ret;
 		struct snd_soc_card *card = rtd->card;
-		struct snd_soc_codec *codec = rtd->codec;
 
-		ret = snd_soc_limit_volume(codec, "Digital Playback Volume", 207);
+		ret = snd_soc_limit_volume(card, "Digital Playback Volume", 207);
 		if (ret < 0)
 			dev_warn(card->dev, "Failed to set volume limit: %d\n", ret);
 	}
@@ -42,7 +42,7 @@ static int snd_rpi_dionaudio_loco-v2_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-static int snd_rpi_dionaudio_loco-v2_hw_params(
+static int snd_rpi_dionaudio_loco_v2_hw_params(
 	struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params)
 {
@@ -56,11 +56,11 @@ static int snd_rpi_dionaudio_loco-v2_hw_params(
 }
 
 /* machine stream operations */
-static struct snd_soc_ops snd_rpi_dionaudio_loco-v2_ops = {
-	.hw_params = snd_rpi_dionaudio_loco-v2_hw_params,
+static struct snd_soc_ops snd_rpi_dionaudio_loco_v2_ops = {
+	.hw_params = snd_rpi_dionaudio_loco_v2_hw_params,
 };
 
-static struct snd_soc_dai_link snd_rpi_dionaudio_loco-v2_dai[] = {
+static struct snd_soc_dai_link snd_rpi_dionaudio_loco_v2_dai[] = {
 {
 	.name		= "DionAudio LOCO-V2",
 	.stream_name	= "DionAudio LOCO-V2 DAC-AMP",
@@ -70,28 +70,27 @@ static struct snd_soc_dai_link snd_rpi_dionaudio_loco-v2_dai[] = {
 	.codec_name	= "pcm512x.1-004d",
 	.dai_fmt	= SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 				SND_SOC_DAIFMT_CBS_CFS,
-	.ops		= &snd_rpi_dionaudio_loco-v2_ops,
-	.init		= snd_rpi_dionaudio_loco-v2_init,
-},
-};
+	.ops		= &snd_rpi_dionaudio_loco_v2_ops,
+	.init		= snd_rpi_dionaudio_loco_v2_init,
+},};
 
 /* audio machine driver */
-static struct snd_soc_card snd_rpi_dionaudio_loco-v2 = {
+static struct snd_soc_card snd_rpi_dionaudio_loco_v2 = {
 	.name         = "Dion Audio LOCO-V2",
-	.dai_link     = snd_rpi_dionaudio_loco-v2_dai,
-	.num_links    = ARRAY_SIZE(snd_rpi_dionaudio_loco-v2_dai),
+	.dai_link     = snd_rpi_dionaudio_loco_v2_dai,
+	.num_links    = ARRAY_SIZE(snd_rpi_dionaudio_loco_v2_dai),
 };
 
-static int snd_rpi_dionaudio_loco-v2_probe(struct platform_device *pdev)
+static int snd_rpi_dionaudio_loco_v2_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 
-	snd_rpi_dionaudio_loco-v2.dev = &pdev->dev;
+	snd_rpi_dionaudio_loco_v2.dev = &pdev->dev;
 
 	if (pdev->dev.of_node) {
 		struct device_node *i2s_node;
 		struct snd_soc_dai_link *dai =
-					&snd_rpi_dionaudio_loco-v2_dai[0];
+					&snd_rpi_dionaudio_loco_v2_dai[0];
 
 		i2s_node = of_parse_phandle(pdev->dev.of_node,
 					    "i2s-controller", 0);
@@ -106,7 +105,7 @@ static int snd_rpi_dionaudio_loco-v2_probe(struct platform_device *pdev)
 			pdev->dev.of_node, "dionaudio,24db_digital_gain");
 	}
 
-	ret = snd_soc_register_card(&snd_rpi_dionaudio_loco-v2);
+	ret = snd_soc_register_card(&snd_rpi_dionaudio_loco_v2);
 	if (ret)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
 			ret);
@@ -114,9 +113,9 @@ static int snd_rpi_dionaudio_loco-v2_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int snd_rpi_dionaudio_loco-v2_remove(struct platform_device *pdev)
+static int snd_rpi_dionaudio_loco_v2_remove(struct platform_device *pdev)
 {
-	return snd_soc_unregister_card(&snd_rpi_dionaudio_loco-v2);
+	return snd_soc_unregister_card(&snd_rpi_dionaudio_loco_v2);
 }
 
 static const struct of_device_id dionaudio_of_match[] = {
@@ -125,17 +124,17 @@ static const struct of_device_id dionaudio_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, dionaudio_of_match);
 
-static struct platform_driver snd_rpi_dionaudio_loco-v2_driver = {
+static struct platform_driver snd_rpi_dionaudio_loco_v2_driver = {
 	.driver = {
 		.name   = "snd-rpi-dionaudio-loco-v2",
 		.owner  = THIS_MODULE,
 		.of_match_table = dionaudio_of_match,
 	},
-	.probe          = snd_rpi_dionaudio_loco-v2_probe,
-	.remove         = snd_rpi_dionaudio_loco-v2_remove,
+	.probe          = snd_rpi_dionaudio_loco_v2_probe,
+	.remove         = snd_rpi_dionaudio_loco_v2_remove,
 };
 
-module_platform_driver(snd_rpi_dionaudio_loco-v2_driver);
+module_platform_driver(snd_rpi_dionaudio_loco_v2_driver);
 
 MODULE_AUTHOR("Miquel Blauw <info@dionaudio.nl>");
 MODULE_DESCRIPTION("ASoC Driver for DionAudio LOCO-V2");
