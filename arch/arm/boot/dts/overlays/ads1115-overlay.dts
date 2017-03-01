@@ -1,0 +1,103 @@
+/*
+ * TI ADS1115 multi-channel ADC overlay
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&i2c_arm>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ads1115: ads1115 {
+				compatible = "ti,ads1115";
+				status = "okay";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0x48>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "i2c_arm/ads1115";
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			channel_a: channel_a {
+				reg = <4>;
+				ti,gain = <1>;
+				ti,datarate = <7>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "i2c_arm/ads1115";
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			channel_b: channel_b {
+				reg = <5>;
+				ti,gain = <1>;
+				ti,datarate = <7>;
+			};
+		};
+	};
+
+	fragment@3 {
+		target-path = "i2c_arm/ads1115";
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			channel_c: channel_c {
+				reg = <6>;
+				ti,gain = <1>;
+				ti,datarate = <7>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target-path = "i2c_arm/ads1115";
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			channel_d: channel_d {
+				reg = <7>;
+				ti,gain = <1>;
+				ti,datarate = <7>;
+			};
+		};
+	};
+
+	__overrides__ {
+		addr =            <&ads1115>,"reg:0";
+		cha_enable =      <0>,"=1";
+		cha_cfg =         <&channel_a>,"reg:0";
+		cha_gain =        <&channel_a>,"ti,gain:0";
+		cha_datarate =    <&channel_a>,"ti,datarate:0";
+		chb_enable =      <0>,"=2";
+		chb_cfg =         <&channel_b>,"reg:0";
+		chb_gain =        <&channel_b>,"ti,gain:0";
+		chb_datarate =    <&channel_b>,"ti,datarate:0";
+		chc_enable =      <0>,"=3";
+		chc_cfg =         <&channel_c>,"reg:0";
+		chc_gain =        <&channel_c>,"ti,gain:0";
+		chc_datarate =    <&channel_c>,"ti,datarate:0";
+		chd_enable =      <0>,"=4";
+		chd_cfg =         <&channel_d>,"reg:0";
+		chd_gain =        <&channel_d>,"ti,gain:0";
+		chd_datarate =    <&channel_d>,"ti,datarate:0";
+	};
+};
