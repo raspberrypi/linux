@@ -383,6 +383,12 @@ Params: int_pin                 GPIO used for INT (default 39)
         speed                   SPI bus speed (default 12000000)
 
 
+Name:   fe-pi-audio
+Info:   Configures the Fe-Pi Audio Sound Card
+Load:   dtoverlay=fe-pi-audio
+Params: <None>
+
+
 Name:   gpio-ir
 Info:   Use GPIO pin as rc-core style infrared receiver input. The rc-core-
         based gpio_ir_recv driver maps received keys directly to a
