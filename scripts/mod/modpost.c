@@ -838,6 +838,7 @@ static const char *const section_white_list[] =
 	".cmem*",			/* EZchip */
 	".fmt_slot*",			/* EZchip */
 	".gnu.lto*",
+	".discard.*",
 	NULL
 };
 

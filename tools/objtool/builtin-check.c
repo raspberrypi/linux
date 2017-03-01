@@ -1229,7 +1229,7 @@ int cmd_check(int argc, const char **argv)
 
 	INIT_LIST_HEAD(&file.insn_list);
 	hash_init(file.insn_hash);
-	file.whitelist = find_section_by_name(file.elf, "__func_stack_frame_non_standard");
+	file.whitelist = find_section_by_name(file.elf, ".discard.func_stack_frame_non_standard");
 	file.rodata = find_section_by_name(file.elf, ".rodata");
 	file.ignore_unreachables = false;
 	file.c_file = find_section_by_name(file.elf, ".comment");
