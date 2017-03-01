@@ -196,6 +196,28 @@ Params: addr                    I2C bus address of device. Set based on how the
         http://www.ti.com/lit/ds/symlink/ads1015.pdf
 
 
+Name:   ads1115
+Info:   Texas Instruments ADS1115 ADC
+Load:   dtoverlay=ads1115,<param>[=<val>]
+Params: addr                    I2C bus address of device. Set based on how the
+                                addr pin is wired. (default=0x48 assumes addr
+                                is pulled to GND)
+        cha_enable              Enable virtual channel a.
+        cha_cfg                 Set the configuration for virtual channel a.
+                                (default=4 configures this channel for the
+                                voltage at A0 with respect to GND)
+        cha_datarate            Set the datarate (samples/sec) for this channel.
+                                (default=7 sets 860 sps)
+        cha_gain                Set the gain of the Programmable Gain
+                                Amplifier for this channel. (Default 1 sets the
+                                full scale of the channel to 4.096 Volts)
+
+        Channel parameters can be set for each enabled channel.
+        A maximum of 4 channels can be enabled (letters a thru d).
+        For more information refer to the device datasheet at:
+        http://www.ti.com/lit/ds/symlink/ads1115.pdf
+
+
 Name:   ads7846
 Info:   ADS7846 Touch controller
 Load:   dtoverlay=ads7846,<param>=<val>
