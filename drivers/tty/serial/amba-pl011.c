@@ -1685,6 +1685,23 @@ static void pl011_put_poll_char(struct uart_port *port,
 
 #endif /* CONFIG_CONSOLE_POLL */
 
+unsigned long pl011_clk_round(unsigned long clk)
+{
+	unsigned long scaler;
+
+	/*
+	 * If increasing a clock by less than 0.1% changes it
+	 * from ..999.. to ..000.., round up.
+	 */
+	scaler = 1;
+	while (scaler * 100000 < clk)
+		scaler *= 10;
+	if ((clk + scaler - 1)/scaler % 1000 == 0)
+		clk = (clk/scaler + 1) * scaler;
+
+	return clk;
+}
+
 static int pl011_hwinit(struct uart_port *port)
 {
 	struct uart_amba_port *uap =
@@ -1701,7 +1718,7 @@ static int pl011_hwinit(struct uart_port *port)
 	if (retval)
 		return retval;
 
-	uap->port.uartclk = clk_get_rate(uap->clk);
+	uap->port.uartclk = pl011_clk_round(clk_get_rate(uap->clk));
 
 	/* Clear pending error and receive interrupts */
 	pl011_write(UART011_OEIS | UART011_BEIS | UART011_PEIS |
@@ -2387,7 +2404,7 @@ static int pl011_console_setup(struct console *co, char *options)
 			plat->init();
 	}
 
-	uap->port.uartclk = clk_get_rate(uap->clk);
+	uap->port.uartclk = pl011_clk_round(clk_get_rate(uap->clk));
 
 	if (uap->vendor->fixed_options) {
 		baud = uap->fixed_baud;
@@ -2604,6 +2621,7 @@ static struct uart_driver amba_reg = {
 	.cons			= AMBA_CONSOLE,
 };
 
+#if 0
 static int pl011_probe_dt_alias(int index, struct device *dev)
 {
 	struct device_node *np;
@@ -2635,6 +2653,7 @@ static int pl011_probe_dt_alias(int index, struct device *dev)
 
 	return ret;
 }
+#endif
 
 /* unregisters the driver also if no more ports are left */
 static void pl011_unregister_port(struct uart_amba_port *uap)
