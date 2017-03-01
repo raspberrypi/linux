@@ -387,7 +387,7 @@ Name:   fe-pi-audio
 Info:   Configures the Fe-Pi Audio Sound Card
 Load:   dtoverlay=fe-pi-audio
 Params: <None>
-        
+
 
 Name:   gpio-ir
 Info:   Use GPIO pin as rc-core style infrared receiver input. The rc-core-
