@@ -122,7 +122,7 @@ static void transfer(int fd, uint8_t const *tx, uint8_t const *rx, size_t len)
 	else if (mode & SPI_RX_DUAL)
 		tr.rx_nbits = 2;
 	if (!(mode & SPI_LOOP)) {
-		if (mode & (SPI_TX_QUAD | SPI_TX_DUAL))
+		if (mode & (SPI_TX_QUAD | SPI_TX_DUAL | SPI_3WIRE))
 			tr.rx_buf = 0;
 		else if (mode & (SPI_RX_QUAD | SPI_RX_DUAL))
 			tr.tx_buf = 0;
@@ -134,6 +134,18 @@ static void transfer(int fd, uint8_t const *tx, uint8_t const *rx, size_t len)
 
 	if (verbose)
 		hex_dump(tx, len, 32, "TX");
+	
+	if (!(mode & SPI_LOOP)) {
+		if (mode & SPI_3WIRE) {
+			tr.rx_buf = (unsigned long)rx;
+			tr.tx_buf = 0;
+			
+			ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
+			if (ret < 1)
+				pabort("can't send spi message");
+			}
+	}
+
 	hex_dump(rx, len, 32, "RX");
 }
 
