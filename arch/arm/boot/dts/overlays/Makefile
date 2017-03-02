@@ -19,6 +19,7 @@ dtbo-$(RPI_DT_OVERLAYS) += akkordion-iqdacplus.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += allo-piano-dac-pcm512x-audio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += at86rf233.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += audioinjector-wm8731-audio.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += audioinjector-addons.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += audremap.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += bmp085_i2c-sensor.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += dht11.dtbo

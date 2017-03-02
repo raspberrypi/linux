@@ -273,6 +273,12 @@ Load:   dtoverlay=audioinjector-wm8731-audio
 Params: <None>
 
 
+Name:   audioinjector-addons
+Info:   Configures the audioinjector.net audio add on soundcards
+Load:   dtoverlay=audioinjector-addons
+Params: <None>
+
+
 Name:   audremap
 Info:   Switches PWM sound output to pins 12 (Right) & 13 (Left)
 Load:   dtoverlay=audremap,<param>=<val>
