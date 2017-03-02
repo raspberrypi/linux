@@ -60,6 +60,7 @@ dtbo-$(RPI_DT_OVERLAYS) += mcp2515-can1.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += mcp3008.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += mmc.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += mz61581.dtbo
+dtbo-$(RPI_DT_OVERLAYS) += pi2media-csb503spd2-audio.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pi3-act-led.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pi3-disable-bt.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += pi3-disable-wifi.dtbo
