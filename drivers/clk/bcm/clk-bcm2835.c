@@ -35,6 +35,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <dt-bindings/clock/bcm2835.h>
+#include <soc/bcm2835/raspberrypi-firmware.h>
 
 #define CM_PASSWORD		0x5a000000
 
@@ -289,6 +290,8 @@
 #define LOCK_TIMEOUT_NS		100000000
 #define BCM2835_MAX_FB_RATE	1750000000u
 
+#define VCMSG_ID_CORE_CLOCK     4
+
 /*
  * Names of clocks used within the driver that need to be replaced
  * with an external parent's name.  This array is in the order that
@@ -307,6 +310,7 @@ static const char *const cprman_parent_names[] = {
 struct bcm2835_cprman {
 	struct device *dev;
 	void __iomem *regs;
+	struct rpi_firmware *fw;
 	spinlock_t regs_lock; /* spinlock for all clocks */
 
 	/*
@@ -989,6 +993,30 @@ static unsigned long bcm2835_clock_get_rate(struct clk_hw *hw,
 	return bcm2835_clock_rate_from_divisor(clock, parent_rate, div);
 }
 
+static unsigned long bcm2835_clock_get_rate_vpu(struct clk_hw *hw,
+						unsigned long parent_rate)
+{
+	struct bcm2835_clock *clock = bcm2835_clock_from_hw(hw);
+	struct bcm2835_cprman *cprman = clock->cprman;
+
+	if (cprman->fw) {
+		struct {
+			u32 id;
+			u32 val;
+		} packet;
+
+		packet.id = VCMSG_ID_CORE_CLOCK;
+		packet.val = 0;
+
+		if (!rpi_firmware_property(cprman->fw,
+					   RPI_FIRMWARE_GET_MAX_CLOCK_RATE,
+					   &packet, sizeof(packet)))
+			return packet.val;
+	}
+
+	return bcm2835_clock_get_rate(hw, parent_rate);
+}
+
 static void bcm2835_clock_wait_busy(struct bcm2835_clock *clock)
 {
 	struct bcm2835_cprman *cprman = clock->cprman;
@@ -1277,7 +1305,7 @@ static int bcm2835_vpu_clock_is_on(struct clk_hw *hw)
  */
 static const struct clk_ops bcm2835_vpu_clock_clk_ops = {
 	.is_prepared = bcm2835_vpu_clock_is_on,
-	.recalc_rate = bcm2835_clock_get_rate,
+	.recalc_rate = bcm2835_clock_get_rate_vpu,
 	.set_rate = bcm2835_clock_set_rate,
 	.determine_rate = bcm2835_clock_determine_rate,
 	.set_parent = bcm2835_clock_set_parent,
@@ -2136,6 +2164,7 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 	struct resource *res;
 	const struct bcm2835_clk_desc *desc;
 	const size_t asize = ARRAY_SIZE(clk_desc_array);
+	struct device_node *fw_node;
 	size_t i;
 	u32 clk_id;
 	int ret;
@@ -2152,6 +2181,14 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 	cprman->regs = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cprman->regs))
 		return PTR_ERR(cprman->regs);
+
+	fw_node = of_parse_phandle(dev->of_node, "firmware", 0);
+	if (fw_node) {
+		struct rpi_firmware *fw = rpi_firmware_get(NULL);
+		if (!fw)
+			return -EPROBE_DEFER;
+		cprman->fw = fw;
+	}
 
 	memset(bcm2835_clk_claimed, 0, sizeof(bcm2835_clk_claimed));
 	for (i = 0;
