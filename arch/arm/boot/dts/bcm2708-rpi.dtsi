@@ -111,3 +111,7 @@
 &vec {
 	status = "disabled";
 };
+
+&clocks {
+	firmware = <&firmware>;
+};
