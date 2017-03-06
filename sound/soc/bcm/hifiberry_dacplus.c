@@ -117,6 +117,7 @@ static int snd_rpi_hifiberry_dacplus_clk_for_rate(int sample_rate)
 	case 44100:
 	case 88200:
 	case 176400:
+	case 352800:
 		type = HIFIBERRY_DACPRO_CLK44EN;
 		break;
 	default:
@@ -144,7 +145,7 @@ static void snd_rpi_hifiberry_dacplus_set_sclk(struct snd_soc_codec *codec,
 static int snd_rpi_hifiberry_dacplus_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
-	struct pcm512x_priv *priv;
+	struct pcm512x_priv *priv = snd_soc_codec_get_drvdata(codec);
 
 	if (slave)
 		snd_rpi_hifiberry_is_dacpro = false;
@@ -163,8 +164,16 @@ static int snd_rpi_hifiberry_dacplus_init(struct snd_soc_pcm_runtime *rtd)
 		snd_soc_update_bits(codec, PCM512x_BCLK_LRCLK_CFG, 0x31, 0x11);
 		snd_soc_update_bits(codec, PCM512x_MASTER_MODE, 0x03, 0x03);
 		snd_soc_update_bits(codec, PCM512x_MASTER_CLKDIV_2, 0x7f, 63);
+
+		/*
+		 * Default sclk to CLK_48EN_RATE, otherwise codec
+		 *  pcm512x_dai_startup_master method could call
+		 *  snd_pcm_hw_constraint_ratnums using CLK_44EN/64
+		 *  which will mask 384k sample rate.
+		 */
+		if (!IS_ERR(priv->sclk))
+			clk_set_rate(priv->sclk, CLK_48EN_RATE);
 	} else {
-		priv = snd_soc_codec_get_drvdata(codec);
 		priv->sclk = ERR_PTR(-ENOENT);
 	}
 
@@ -264,6 +273,18 @@ static void snd_rpi_hifiberry_dacplus_shutdown(
 	struct snd_soc_codec *codec = rtd->codec;
 
 	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08, 0x00);
+
+	if (snd_rpi_hifiberry_is_dacpro) {
+		struct pcm512x_priv *priv = snd_soc_codec_get_drvdata(codec);
+		/*
+		 * Default sclk to CLK_48EN_RATE, otherwise codec
+		 *  pcm512x_dai_startup_master method could call
+		 *  snd_pcm_hw_constraint_ratnums using CLK_44EN/64
+		 *  which will mask 384k sample rate.
+		 */
+		if (!IS_ERR(priv->sclk))
+			clk_set_rate(priv->sclk, CLK_48EN_RATE);
+	}
 }
 
 /* machine stream operations */

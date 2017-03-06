@@ -24,6 +24,7 @@
 				#sound-dai-cells = <0>;
 				compatible = "ti,pcm5102a";
 				status = "okay";
+				pcm5102a,384k;
 			};
 		};
 	};

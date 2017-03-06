@@ -15,7 +15,7 @@
 	fragment@1 {
 		target-path = "/";
 		__overlay__ {
-			pcm5102a-codec {
+			pcm5102a_codec: pcm5102a-codec {
 				#sound-dai-cells = <0>;
 				compatible = "ti,pcm5102a";
 				status = "okay";
@@ -30,5 +30,9 @@
 			i2s-controller = <&i2s>;
 			status = "okay";
 		};
+	};
+
+	__overrides__ {
+		384k = <&pcm5102a_codec>,"pcm5102a,384k?";
 	};
 };
