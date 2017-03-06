@@ -220,7 +220,12 @@ static const struct drm_display_mode rpi_touchscreen_modes[] = {
 #define HBP         46
 #define HFP         ((PIXEL_CLOCK / (VTOTAL * VREFRESH)) - (HACT + HSW + HBP))
 
-		.clock = PIXEL_CLOCK / 1000,
+		/* Round up the pixel clock a bit (10khz), so that the
+		 * "don't run things faster than the requested clock
+		 * rate" rule of the clk driver doesn't reject the
+		 * divide-by-3 mode due to rounding error.
+		 */
+		.clock = PIXEL_CLOCK / 1000 + 10,
 		.hdisplay = HACT,
 		.hsync_start = HACT + HFP,
 		.hsync_end = HACT + HFP + HSW,
