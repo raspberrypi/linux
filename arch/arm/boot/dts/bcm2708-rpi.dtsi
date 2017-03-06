@@ -107,3 +107,7 @@
 &usb {
 	power-domains = <&power RPI_POWER_DOMAIN_USB>;
 };
+
+&clocks {
+	firmware = <&firmware>;
+};
