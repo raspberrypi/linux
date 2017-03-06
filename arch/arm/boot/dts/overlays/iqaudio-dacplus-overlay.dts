@@ -24,6 +24,9 @@
 				compatible = "ti,pcm5122";
 				reg = <0x4c>;
 				status = "okay";
+				AVDD-supply = <&reg_3v3>;
+				DVDD-supply = <&reg_3v3>;
+				CPVDD-supply = <&reg_3v3>;
 			};
 		};
 	};
