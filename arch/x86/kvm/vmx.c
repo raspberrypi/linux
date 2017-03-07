@@ -9543,10 +9543,8 @@ static inline bool nested_vmx_merge_msr_bitmap(struct kvm_vcpu *vcpu,
 		return false;
 
 	page = nested_get_page(vcpu, vmcs12->msr_bitmap);
-	if (!page) {
-		WARN_ON(1);
+	if (!page)
 		return false;
-	}
 	msr_bitmap_l1 = (unsigned long *)kmap(page);
 	if (!msr_bitmap_l1) {
 		nested_release_page_clean(page);
