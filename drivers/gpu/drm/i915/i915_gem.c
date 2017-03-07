@@ -2184,6 +2184,7 @@ i915_gem_object_truncate(struct drm_i915_gem_object *obj)
 	 */
 	shmem_truncate_range(file_inode(obj->base.filp), 0, (loff_t)-1);
 	obj->mm.madv = __I915_MADV_PURGED;
+	obj->mm.pages = ERR_PTR(-EFAULT);
 }
 
 /* Try to discard unwanted pages */
@@ -2283,7 +2284,9 @@ void __i915_gem_object_put_pages(struct drm_i915_gem_object *obj,
 
 	__i915_gem_object_reset_page_iter(obj);
 
-	obj->ops->put_pages(obj, pages);
+	if (!IS_ERR(pages))
+		obj->ops->put_pages(obj, pages);
+
 unlock:
 	mutex_unlock(&obj->mm.lock);
 }
@@ -2501,7 +2504,7 @@ int __i915_gem_object_get_pages(struct drm_i915_gem_object *obj)
 	if (err)
 		return err;
 
-	if (unlikely(!obj->mm.pages)) {
+	if (unlikely(IS_ERR_OR_NULL(obj->mm.pages))) {
 		err = ____i915_gem_object_get_pages(obj);
 		if (err)
 			goto unlock;
@@ -2579,7 +2582,7 @@ void *i915_gem_object_pin_map(struct drm_i915_gem_object *obj,
 
 	pinned = true;
 	if (!atomic_inc_not_zero(&obj->mm.pages_pin_count)) {
-		if (unlikely(!obj->mm.pages)) {
+		if (unlikely(IS_ERR_OR_NULL(obj->mm.pages))) {
 			ret = ____i915_gem_object_get_pages(obj);
 			if (ret)
 				goto err_unlock;
