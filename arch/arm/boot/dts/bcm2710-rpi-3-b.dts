@@ -175,7 +175,7 @@
 	pwr_led: pwr {
 		label = "led1";
 		linux,default-trigger = "input";
-		gpios = <&expgpio 7 GPIO_ACTIVE_LOW>;
+		gpios = <&expgpio 7 0>;
 	};
 };
 
