@@ -10,6 +10,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	allo-piano-dac-pcm512x-audio.dtbo \
 	at86rf233.dtbo \
 	audioinjector-wm8731-audio.dtbo \
+	audioinjector-addons.dtbo \
 	audremap.dtbo \
 	bmp085_i2c-sensor.dtbo \
 	dht11.dtbo \
