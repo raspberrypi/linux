@@ -15,7 +15,7 @@
 			dr_mode = "otg";
 			g-np-tx-fifo-size = <32>;
 			g-rx-fifo-size = <256>;
-			g-tx-fifo-size = <256 128 128 64 64 64 32>;
+			g-tx-fifo-size = <512 512 512 512 512 768>;
 			status = "okay";
 		};
 	};
@@ -24,6 +24,5 @@
 		dr_mode = <&dwc2_usb>, "dr_mode";
 		g-np-tx-fifo-size = <&dwc2_usb>,"g-np-tx-fifo-size:0";
 		g-rx-fifo-size = <&dwc2_usb>,"g-rx-fifo-size:0";
-		g-tx-fifo-size = <&dwc2_usb>,"g-tx-fifo-size:0";
 	};
 };
