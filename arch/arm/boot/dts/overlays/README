@@ -295,6 +295,12 @@ Params: interrupt               GPIO used for INT (default 23)
                                 arrays (0=+0pF, 15=+4.5pF, default 15)
 
 
+Name:   audioinjector-addons
+Info:   Configures the audioinjector.net audio add on soundcards
+Load:   dtoverlay=audioinjector-addons
+Params: <None>
+
+
 Name:   audioinjector-wm8731-audio
 Info:   Configures the audioinjector.net audio add on soundcard
 Load:   dtoverlay=audioinjector-wm8731-audio

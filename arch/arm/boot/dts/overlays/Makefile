@@ -9,6 +9,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	akkordion-iqdacplus.dtbo \
 	allo-piano-dac-pcm512x-audio.dtbo \
 	at86rf233.dtbo \
+	audioinjector-addons.dtbo \
 	audioinjector-wm8731-audio.dtbo \
 	audremap.dtbo \
 	bmp085_i2c-sensor.dtbo \
