@@ -56,18 +56,18 @@
 #define OFDM_PLCP_BITS_QUARTER      22
 #define OFDM_SYMBOL_TIME_QUARTER    16
 
-#define INIT_AIFS       2
-#define INIT_CWMIN      15
-#define INIT_CWMIN_11B  31
-#define INIT_CWMAX      1023
-#define INIT_SH_RETRY   10
-#define INIT_LG_RETRY   10
-#define INIT_SSH_RETRY  32
-#define INIT_SLG_RETRY  32
+#define INIT_AIFS       0
+#define INIT_CWMIN      0
+#define INIT_CWMIN_11B  0
+#define INIT_CWMAX      0
+#define INIT_SH_RETRY   1
+#define INIT_LG_RETRY   1
+#define INIT_SSH_RETRY  3
+#define INIT_SLG_RETRY  3
 
-#define ATH9K_SLOT_TIME_6 6
-#define ATH9K_SLOT_TIME_9 9
-#define ATH9K_SLOT_TIME_20 20
+#define ATH9K_SLOT_TIME_6 1
+#define ATH9K_SLOT_TIME_9 1
+#define ATH9K_SLOT_TIME_20 1
 
 #define ATH9K_TXERR_XRETRY         0x01
 #define ATH9K_TXERR_FILT           0x02

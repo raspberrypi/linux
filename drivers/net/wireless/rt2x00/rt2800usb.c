@@ -51,6 +51,16 @@ static bool rt2800usb_hwcrypt_disabled(struct rt2x00_dev *rt2x00dev)
 	return modparam_nohwcrypt;
 }
 
+
+static int modparam_txpower;
+module_param_named(txpower, modparam_txpower, int, S_IRUGO);
+MODULE_PARM_DESC(txpower, "Change TXPower.");
+
+static int rt2800usb_txpower(struct rt2x00_dev *rt2x00dev)
+{
+	return modparam_txpower;
+}
+
 /*
  * Queue handlers.
  */
@@ -860,6 +870,7 @@ static const struct rt2800_ops rt2800usb_rt2800_ops = {
 	.regbusy_read		= rt2x00usb_regbusy_read,
 	.read_eeprom		= rt2800usb_read_eeprom,
 	.hwcrypt_disabled	= rt2800usb_hwcrypt_disabled,
+	.txpower		= rt2800usb_txpower,
 	.drv_write_firmware	= rt2800usb_write_firmware,
 	.drv_init_registers	= rt2800usb_init_registers,
 	.drv_get_txwi		= rt2800usb_get_txwi,

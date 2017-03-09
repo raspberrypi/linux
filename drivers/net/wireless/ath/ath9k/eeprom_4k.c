@@ -677,13 +677,20 @@ static void ath9k_hw_4k_set_txpower(struct ath_hw *ah,
 
 		if (ratesArray[i] > regulatory->max_power_level)
 			regulatory->max_power_level = ratesArray[i];
+//			printk("original ratesarray:\n");
+//			printk("ratesArray[%d]=%d\n", i, ratesArray[i]);
 	}
 
 	if (test)
 	    return;
 
-	for (i = 0; i < Ar5416RateSize; i++)
-		ratesArray[i] -= AR5416_PWR_TABLE_OFFSET_DB * 2;
+// CHANGES: simply set 60 for every data rate
+
+	for (i = 0; i < Ar5416RateSize; i++) {
+//		ratesArray[i] -= AR5416_PWR_TABLE_OFFSET_DB * 2;
+		ratesArray[i] = 60;
+//		printk("ratesArray[%d]=%d\n", i, ratesArray[i]);
+	}
 
 	ENABLE_REGWRITE_BUFFER(ah);
 

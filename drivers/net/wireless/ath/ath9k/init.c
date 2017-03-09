@@ -77,16 +77,26 @@ bool is_ath9k_unloaded;
 
 #ifdef CONFIG_MAC80211_LEDS
 static const struct ieee80211_tpt_blink ath9k_tpt_blink[] = {
-	{ .throughput = 0 * 1024, .blink_time = 334 },
-	{ .throughput = 1 * 1024, .blink_time = 260 },
-	{ .throughput = 5 * 1024, .blink_time = 220 },
-	{ .throughput = 10 * 1024, .blink_time = 190 },
-	{ .throughput = 20 * 1024, .blink_time = 170 },
-	{ .throughput = 50 * 1024, .blink_time = 150 },
-	{ .throughput = 70 * 1024, .blink_time = 130 },
-	{ .throughput = 100 * 1024, .blink_time = 110 },
-	{ .throughput = 200 * 1024, .blink_time = 80 },
-	{ .throughput = 300 * 1024, .blink_time = 50 },
+//	{ .throughput = 0 * 1024, .blink_time = 50 },
+//	{ .throughput = 1 * 1024, .blink_time = 50 },
+//	{ .throughput = 5 * 1024, .blink_time = 50 },
+//	{ .throughput = 10 * 1024, .blink_time = 50 },
+//	{ .throughput = 20 * 1024, .blink_time = 50 },
+//	{ .throughput = 50 * 1024, .blink_time = 50 },
+//	{ .throughput = 70 * 1024, .blink_time = 50 },
+//	{ .throughput = 100 * 1024, .blink_time = 50 },
+//	{ .throughput = 200 * 1024, .blink_time = 50 },
+//	{ .throughput = 300 * 1024, .blink_time = 50 },
+	{ .throughput = 0 * 32, .blink_time = 334 },
+	{ .throughput = 1 * 32, .blink_time = 260 },
+	{ .throughput = 5 * 32, .blink_time = 220 },
+	{ .throughput = 10 * 32, .blink_time = 190 },
+	{ .throughput = 20 * 32, .blink_time = 170 },
+	{ .throughput = 50 * 32, .blink_time = 150 },
+	{ .throughput = 70 * 32, .blink_time = 130 },
+	{ .throughput = 100 * 32, .blink_time = 110 },
+	{ .throughput = 200 * 32, .blink_time = 80 },
+	{ .throughput = 300 * 32, .blink_time = 50 },
 };
 #endif
 

@@ -43,6 +43,7 @@ struct rt2800_ops {
 
 	int (*read_eeprom)(struct rt2x00_dev *rt2x00dev);
 	bool (*hwcrypt_disabled)(struct rt2x00_dev *rt2x00dev);
+	int (*txpower)(struct rt2x00_dev *rt2x00dev);
 
 	int (*drv_write_firmware)(struct rt2x00_dev *rt2x00dev,
 				  const u8 *data, const size_t len);
@@ -127,6 +128,13 @@ static inline bool rt2800_hwcrypt_disabled(struct rt2x00_dev *rt2x00dev)
 	const struct rt2800_ops *rt2800ops = rt2x00dev->ops->drv;
 
 	return rt2800ops->hwcrypt_disabled(rt2x00dev);
+}
+
+static inline int rt2800_txpower(struct rt2x00_dev *rt2x00dev)
+{
+	const struct rt2800_ops *rt2800ops = rt2x00dev->ops->drv;
+
+	return rt2800ops->txpower(rt2x00dev);
 }
 
 static inline int rt2800_drv_write_firmware(struct rt2x00_dev *rt2x00dev,
