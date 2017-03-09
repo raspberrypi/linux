@@ -308,6 +308,13 @@ config TOUCHSCREEN_FT6236
 	  To compile this driver as a module, choose M here: the
 	  module will be called ft6236.
 
+config TOUCHSCREEN_FT6X06
+    tristate "FT6x06 I2C toucscreen"
+    depends on I2C
+    help
+      Say Y here to enable support for the I2C connected FT6x06 family
+      of capacitive touchscreen drivers.
+
 config TOUCHSCREEN_FUJITSU
 	tristate "Fujitsu serial touchscreen"
 	select SERIO
