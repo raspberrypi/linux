@@ -7,10 +7,11 @@
  * License.  See the file COPYING in the main directory of this archive
  * for more details.
  *
- * Authors: Vincent Sanders <vincent.sanders@collabora.co.uk>
- *          Dave Stevenson <dsteve@broadcom.com>
- *          Simon Mellor <simellor@broadcom.com>
- *          Luke Diamand <luked@broadcom.com>
+ * Authors: Vincent Sanders @ Collabora
+ *          Dave Stevenson @ Broadcom
+ *		(now dave.stevenson@raspberrypi.org)
+ *          Simon Mellor @ Broadcom
+ *          Luke Diamand @ Broadcom
  */
 
 /* all the data structures which serialise the MMAL protocol. note
