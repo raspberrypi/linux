@@ -45,6 +45,7 @@
 #define W1_THERM_DS1825		0x3B
 #define W1_FAMILY_DS2781	0x3D
 #define W1_THERM_DS28EA00	0x42
+#define W1_FAMILY_2100H		0x85 // DS2413-2100H family
 
 #define MAXNAMELEN		32
 
