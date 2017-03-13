@@ -89,6 +89,8 @@ static int bcm2835_thermal_remove(struct platform_device *pdev)
 
 static const struct of_device_id bcm2835_thermal_of_match_table[] = {
 	{ .compatible = "brcm,bcm2835-thermal", },
+	{ .compatible = "brcm,bcm2836-thermal", },
+	{ .compatible = "brcm,bcm2837-thermal", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, bcm2835_thermal_of_match_table);
