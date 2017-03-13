@@ -239,6 +239,7 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	unsigned int ch1pos, ch2pos, mode, format;
 	uint32_t csreg;
 
+
 	/*
 	 * If a stream is already enabled,
 	 * the registers are already set properly.
@@ -312,6 +313,7 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	switch (params_channels(params)) {
 	case 2:
+	case 8:
 		format = BCM2835_I2S_CH1(format) | BCM2835_I2S_CH2(format);
 		format |= BCM2835_I2S_CH1(BCM2835_I2S_CHPOS(ch1pos));
 		format |= BCM2835_I2S_CH2(BCM2835_I2S_CHPOS(ch2pos));

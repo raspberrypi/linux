@@ -4,15 +4,18 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	adau1977-adc.dtbo \
 	adau7002-simple.dtbo \
 	ads1015.dtbo \
+	ads1115.dtbo \
 	ads7846.dtbo \
 	akkordion-iqdacplus.dtbo \
 	allo-piano-dac-pcm512x-audio.dtbo \
 	at86rf233.dtbo \
+	audioinjector-addons.dtbo \
 	audioinjector-wm8731-audio.dtbo \
 	audremap.dtbo \
 	bmp085_i2c-sensor.dtbo \
 	dht11.dtbo \
 	dionaudio-loco.dtbo \
+	dionaudio-loco-v2.dtbo \
 	dpi18.dtbo \
 	dpi24.dtbo \
 	dwc-otg.dtbo \
@@ -20,6 +23,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	enc28j60.dtbo \
 	enc28j60-spi2.dtbo \
 	googlevoicehat-soundcard.dtbo \
+	fe-pi-audio.dtbo \
 	gpio-ir.dtbo \
 	gpio-poweroff.dtbo \
 	hifiberry-amp.dtbo \

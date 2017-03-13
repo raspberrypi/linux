@@ -125,6 +125,13 @@ config SND_AUDIOINJECTOR_PI_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for audioinjector.net Pi Hat
 
+config SND_AUDIOINJECTOR_OCTO_SOUNDCARD
+	tristate "Support for audioinjector.net Octo channel (Hat) soundcard"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_CS42XX8_I2C
+	help
+	  Say Y or M if you want to add support for audioinjector.net octo add on
+
 config SND_DIGIDAC1_SOUNDCARD
         tristate "Support for Red Rocks Audio DigiDAC1"
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
@@ -140,12 +147,26 @@ config SND_BCM2708_SOC_DIONAUDIO_LOCO
 	help
 	  Say Y or M if you want to add support for Dion Audio LOCO.
 
+config SND_BCM2708_SOC_DIONAUDIO_LOCO_V2
+	tristate "Support for Dion Audio LOCO-V2 DAC-AMP"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_PCM5122
+	help
+	  Say Y or M if you want to add support for Dion Audio LOCO-V2.
+
 config SND_BCM2708_SOC_ALLO_PIANO_DAC
 	tristate "Support for Allo Piano DAC"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	select SND_SOC_PCM512x_I2C
 	help
 	  Say Y or M if you want to add support for Allo Piano DAC.
+
+config SND_BCM2708_SOC_FE_PI_AUDIO
+	tristate "Support for Fe-Pi-Audio"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_SGTL5000
+	help
+	  Say Y or M if you want to add support for Fe-Pi-Audio.
 
 config SND_PISOUND
 	tristate "Support for Blokas Labs pisound"

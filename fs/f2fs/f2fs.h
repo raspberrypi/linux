@@ -431,6 +431,7 @@ struct f2fs_inode_info {
 	atomic_t dirty_pages;		/* # of dirty pages */
 	f2fs_hash_t chash;		/* hash value of given file name */
 	unsigned int clevel;		/* maximum level of given file name */
+	struct task_struct *task;	/* lookup and create consistency */
 	nid_t i_xattr_nid;		/* node id that contains xattrs */
 	unsigned long long xattr_ver;	/* cp version of xattr modification */
 	loff_t	last_disk_size;		/* lastly written file size */
@@ -832,6 +833,9 @@ struct f2fs_sb_info {
 	struct mutex gc_mutex;			/* mutex for GC */
 	struct f2fs_gc_kthread	*gc_thread;	/* GC thread */
 	unsigned int cur_victim_sec;		/* current victim section num */
+
+	/* threshold for converting bg victims for fg */
+	u64 fggc_threshold;
 
 	/* maximum # of trials to find a victim segment for SSR and GC */
 	unsigned int max_victim_search;

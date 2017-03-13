@@ -196,6 +196,28 @@ Params: addr                    I2C bus address of device. Set based on how the
         http://www.ti.com/lit/ds/symlink/ads1015.pdf
 
 
+Name:   ads1115
+Info:   Texas Instruments ADS1115 ADC
+Load:   dtoverlay=ads1115,<param>[=<val>]
+Params: addr                    I2C bus address of device. Set based on how the
+                                addr pin is wired. (default=0x48 assumes addr
+                                is pulled to GND)
+        cha_enable              Enable virtual channel a.
+        cha_cfg                 Set the configuration for virtual channel a.
+                                (default=4 configures this channel for the
+                                voltage at A0 with respect to GND)
+        cha_datarate            Set the datarate (samples/sec) for this channel.
+                                (default=7 sets 860 sps)
+        cha_gain                Set the gain of the Programmable Gain
+                                Amplifier for this channel. (Default 1 sets the
+                                full scale of the channel to 4.096 Volts)
+
+        Channel parameters can be set for each enabled channel.
+        A maximum of 4 channels can be enabled (letters a thru d).
+        For more information refer to the device datasheet at:
+        http://www.ti.com/lit/ds/symlink/ads1115.pdf
+
+
 Name:   ads7846
 Info:   ADS7846 Touch controller
 Load:   dtoverlay=ads7846,<param>=<val>
@@ -273,6 +295,12 @@ Params: interrupt               GPIO used for INT (default 23)
                                 arrays (0=+0pF, 15=+4.5pF, default 15)
 
 
+Name:   audioinjector-addons
+Info:   Configures the audioinjector.net audio add on soundcards
+Load:   dtoverlay=audioinjector-addons
+Params: <None>
+
+
 Name:   audioinjector-wm8731-audio
 Info:   Configures the audioinjector.net audio add on soundcard
 Load:   dtoverlay=audioinjector-wm8731-audio
@@ -306,6 +334,25 @@ Name:   dionaudio-loco
 Info:   Configures the Dion Audio LOCO DAC-AMP
 Load:   dtoverlay=dionaudio-loco
 Params: <None>
+
+
+Name:   dionaudio-loco-v2
+Info:   Configures the Dion Audio LOCO-V2 DAC-AMP
+Load:   dtoverlay=dionaudio-loco-v2,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=hifiberry-dacplus,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24dB_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
 
 
 Name:   dpi18
@@ -362,6 +409,12 @@ Load:   dtoverlay=enc28j60-spi2,<param>=<val>
 Params: int_pin                 GPIO used for INT (default 39)
 
         speed                   SPI bus speed (default 12000000)
+
+
+Name:   fe-pi-audio
+Info:   Configures the Fe-Pi Audio Sound Card
+Load:   dtoverlay=fe-pi-audio
+Params: <None>
 
 
 Name:   gpio-ir
