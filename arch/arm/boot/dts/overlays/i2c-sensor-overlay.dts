@@ -25,6 +25,12 @@
 				status = "disable";
 			};
 
+			lm75: lm75@4f {
+				compatible = "lm75";
+				reg = <0x4f>;
+				status = "disable";
+			};
+
 			si7020: si7020@40 {
 				compatible = "si7020";
 				reg = <0x40>;
@@ -36,6 +42,8 @@
 	__overrides__ {
 		bmp085 = <&bmp085>,"status";
 		bmp280 = <&bmp280>,"status";
+		lm75 = <&lm75>,"status";
+		lm75addr = <&lm75>,"reg:0";
 		si7020 = <&si7020>,"status";
 	};
 };
