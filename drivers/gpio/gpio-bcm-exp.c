@@ -165,8 +165,6 @@ static void brcmexp_gpio_set(struct gpio_chip *gc, unsigned int off, int val)
 
 	gpio = container_of(gc, struct brcmexp_gpio, gc);
 
-	off += gpio->gc.base;
-
 	set.gpio = off + gpio->gc.base;	/* GPIO to update */
 	set.state = val;	/* Output state */
 
