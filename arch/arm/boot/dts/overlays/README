@@ -388,9 +388,6 @@ Params: dr_mode                 Dual role mode: "host", "peripheral" or "otg"
         g-np-tx-fifo-size       Size of non-periodic tx fifo size in gadget
                                 mode
 
-        g-tx-fifo-size          Size of periodic tx fifo per endpoint
-                                (except ep0) in gadget mode
-
 
 [ The ds1307-rtc overlay has been deleted. See i2c-rtc. ]
 
@@ -607,6 +604,11 @@ Load:   dtoverlay=i2c-sensor,<param>=<val>
 Params: bmp085                  Select the Bosch sensortronic BMP085
 
         bmp280                  Select the Bosch sensortronic BMP280
+
+        lm75                    Select the Maxim LM75 temperature sensor
+
+        lm75addr                Choose the address for the LM75 (0x48-0x4f -
+                                default 0x4f)
 
         si7020                  Select the Silicon Labs Si7013/20/21 humidity/
                                 temperature sensor
