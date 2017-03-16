@@ -624,6 +624,9 @@ static int lgdt3306a_set_modulation(struct lgdt3306a_state *state,
 	case QAM_256:
 		ret = lgdt3306a_set_qam(state, QAM_256);
 		break;
+	case QAM_AUTO:
+		ret = lgdt3306a_set_qam(state, QAM_64);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -649,6 +652,7 @@ static int lgdt3306a_agc_setup(struct lgdt3306a_state *state,
 		break;
 	case QAM_64:
 	case QAM_256:
+	case QAM_AUTO:
 		break;
 	default:
 		return -EINVAL;
@@ -703,6 +707,7 @@ static int lgdt3306a_spectral_inversion(struct lgdt3306a_state *state,
 		break;
 	case QAM_64:
 	case QAM_256:
+	case QAM_AUTO:
 		/* Auto ok for QAM */
 		ret = lgdt3306a_set_inversion_auto(state, 1);
 		break;
@@ -726,6 +731,7 @@ static int lgdt3306a_set_if(struct lgdt3306a_state *state,
 		break;
 	case QAM_64:
 	case QAM_256:
+	case QAM_AUTO:
 		if_freq_khz = state->cfg->qam_if_khz;
 		break;
 	default:
@@ -1643,6 +1649,9 @@ static int lgdt3306a_read_signal_strength(struct dvb_frontend *fe,
 		 break;
 	case QAM_256:
 		 ref_snr = 2800; /* 28dB */
+		 break;
+	case QAM_AUTO:
+		 ref_snr = 2200; /* 22dB */
 		 break;
 	default:
 		return -EINVAL;
