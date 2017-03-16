@@ -636,17 +636,33 @@ int em28xx_capture_start(struct em28xx *dev, int start)
 	    dev->chip_id == CHIP_ID_EM28174 ||
 	    dev->chip_id == CHIP_ID_EM28178) {
 		/* The Transport Stream Enable Register moved in em2874 */
+		if(dev->dvb_xfer_bulk) {
+			/* TS1 Maximum Transfer Size = 188 * EM28XX_DVB_BULK_PACKET_MULTIPLIER */
+			em28xx_write_reg(dev, EM2874_R5D_TS1_PKT_SIZE, 0xef);
+		} else {
+			/* TS1 Maximum Transfer Size = 188 * 5 */
+			em28xx_write_reg(dev, EM2874_R5D_TS1_PKT_SIZE, 0x05);
+		}
+
 		if(dev->board.has_dual_ts) {
-			if (dev->ts == PRIMARY_TS)
+			if(start) {
+				if(dev->dvb_xfer_bulk) {
+					/* TS2 Maximum Transfer Size = 188 * EM28XX_DVB_BULK_PACKET_MULTIPLIER */
+					em28xx_write_reg(dev, EM2874_R5E_TS2_PKT_SIZE, 0xef);
+				} else {
+					/* TS2 Maximum Transfer Size = 188 * 5 */
+					em28xx_write_reg(dev, EM2874_R5E_TS2_PKT_SIZE, 0x05);
+				}
 				rc = em28xx_write_reg_bits(dev, EM2874_R5F_TS_ENABLE,
-							start ?
-							EM2874_TS1_CAPTURE_ENABLE : 0x00,
-							EM2874_TS1_CAPTURE_ENABLE);
-			else
-				rc = em28xx_write_reg_bits(dev, EM2874_R5F_TS_ENABLE,
-							start ?
-							EM2874_TS2_CAPTURE_ENABLE : 0x00,
-							EM2874_TS2_CAPTURE_ENABLE);
+								(EM2874_TS1_CAPTURE_ENABLE | EM2874_TS2_CAPTURE_ENABLE),
+								(EM2874_TS1_CAPTURE_ENABLE | EM2874_TS2_CAPTURE_ENABLE));
+			} else {
+				if(dev->ts == PRIMARY_TS) {
+					rc = em28xx_toggle_reg_bits(dev, EM2874_R5F_TS_ENABLE, EM2874_TS1_CAPTURE_ENABLE);
+				} else {
+					rc = em28xx_toggle_reg_bits(dev, EM2874_R5F_TS_ENABLE, EM2874_TS2_CAPTURE_ENABLE);
+				}
+			}
 		} else {
 			rc = em28xx_write_reg_bits(dev, EM2874_R5F_TS_ENABLE,
 							start ?
