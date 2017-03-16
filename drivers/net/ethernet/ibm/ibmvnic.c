@@ -1253,6 +1253,7 @@ static void release_sub_crqs(struct ibmvnic_adapter *adapter)
 				release_sub_crq_queue(adapter,
 						      adapter->tx_scrq[i]);
 			}
+		kfree(adapter->tx_scrq);
 		adapter->tx_scrq = NULL;
 	}
 
@@ -1265,6 +1266,7 @@ static void release_sub_crqs(struct ibmvnic_adapter *adapter)
 				release_sub_crq_queue(adapter,
 						      adapter->rx_scrq[i]);
 			}
+		kfree(adapter->rx_scrq);
 		adapter->rx_scrq = NULL;
 	}
 
