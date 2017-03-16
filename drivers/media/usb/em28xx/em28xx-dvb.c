@@ -202,7 +202,7 @@ static int em28xx_start_streaming(struct em28xx_dvb *dvb)
 	if (dev->dvb_xfer_bulk) {
 		if (!dev->dvb_ep_bulk)
 			return -ENODEV;
-		dvb_max_packet_size = 512; /* USB 2.0 spec */
+		dvb_max_packet_size = 188;
 		packet_multiplier = EM28XX_DVB_BULK_PACKET_MULTIPLIER;
 		dvb_alt = 0;
 	} else { /* isoc */
@@ -1143,7 +1143,7 @@ static int em28xx_dvb_init(struct em28xx *dev)
 		result = em28xx_alloc_urbs(dev, EM28XX_DIGITAL_MODE,
 					   dev->dvb_xfer_bulk,
 					   EM28XX_DVB_NUM_BUFS,
-					   512,
+					   188,
 					   EM28XX_DVB_BULK_PACKET_MULTIPLIER);
 	} else {
 		result = em28xx_alloc_urbs(dev, EM28XX_DIGITAL_MODE,
