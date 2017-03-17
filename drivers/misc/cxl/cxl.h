@@ -419,6 +419,9 @@ struct cxl_afu {
 	struct mutex contexts_lock;
 	spinlock_t afu_cntl_lock;
 
+	/* -1: AFU deconfigured/locked, >= 0: number of readers */
+	atomic_t configured_state;
+
 	/* AFU error buffer fields and bin attribute for sysfs */
 	u64 eb_len, eb_offset;
 	struct bin_attribute attr_eb;
