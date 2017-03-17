@@ -2407,6 +2407,11 @@ vchiq_init_state(VCHIQ_STATE_T *state, VCHIQ_SLOT_ZERO_T *slot_zero,
 		return VCHIQ_ERROR;
 	}
 
+	if (id >= VCHIQ_MAX_STATES) {
+		pr_warn("%s: Max states already reached\n", __func__);
+		return VCHIQ_ERROR;
+	}
+
 	memset(state, 0, sizeof(VCHIQ_STATE_T));
 
 	state->id = id++;
@@ -2528,7 +2533,6 @@ vchiq_init_state(VCHIQ_STATE_T *state, VCHIQ_SLOT_ZERO_T *slot_zero,
 	set_user_nice(state->sync_thread, -20);
 	wake_up_process(state->sync_thread);
 
-	BUG_ON(state->id >= VCHIQ_MAX_STATES);
 	vchiq_states[state->id] = state;
 
 	/* Indicate readiness to the other side */
