@@ -587,8 +587,11 @@ reserve_space(VCHIQ_STATE_T *state, int space, int is_blocking)
 				return NULL; /* No space available */
 		}
 
-		BUG_ON(tx_pos ==
-			(state->slot_queue_available * VCHIQ_SLOT_SIZE));
+		if (tx_pos >= (state->slot_queue_available * VCHIQ_SLOT_SIZE)) {
+			pr_warn("%s: tx_pos: %d, out of bounds\n", __func__,
+				tx_pos);
+			return NULL;
+		}
 
 		slot_index = local->slot_queue[
 			SLOT_QUEUE_INDEX_FROM_POS(tx_pos) &
