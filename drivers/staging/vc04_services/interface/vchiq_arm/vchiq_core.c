@@ -287,26 +287,33 @@ void
 lock_service(VCHIQ_SERVICE_T *service)
 {
 	spin_lock(&service_spinlock);
-	BUG_ON(!service || (service->ref_count == 0));
-	if (service)
+	WARN_ON(!service);
+	if (service) {
+		BUG_ON(service->ref_count == 0);
 		service->ref_count++;
+	}
 	spin_unlock(&service_spinlock);
 }
 
 void
 unlock_service(VCHIQ_SERVICE_T *service)
 {
-	VCHIQ_STATE_T *state = service->state;
 	spin_lock(&service_spinlock);
-	BUG_ON(!service || (service->ref_count == 0));
-	if (service && service->ref_count) {
-		service->ref_count--;
-		if (!service->ref_count) {
-			BUG_ON(service->srvstate != VCHIQ_SRVSTATE_FREE);
-			state->services[service->localport] = NULL;
-		} else
-			service = NULL;
+	if (!service) {
+		WARN(1, "%s: service is NULL\n", __func__);
+		goto unlock;
 	}
+	BUG_ON(service->ref_count == 0);
+	service->ref_count--;
+	if (!service->ref_count) {
+		VCHIQ_STATE_T *state = service->state;
+
+		BUG_ON(service->srvstate != VCHIQ_SRVSTATE_FREE);
+		state->services[service->localport] = NULL;
+	} else {
+		service = NULL;
+	}
+unlock:
 	spin_unlock(&service_spinlock);
 
 	if (service && service->userdata_term)
@@ -779,7 +786,12 @@ queue_message(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 	if (type == VCHIQ_MSG_DATA) {
 		int tx_end_index;
 
-		BUG_ON(!service);
+		if (!service) {
+			WARN(1, "%s: service is NULL\n", __func__);
+			mutex_unlock(&state->slot_mutex);
+			return VCHIQ_ERROR;
+		}
+
 		BUG_ON((flags & (QMFLAGS_NO_MUTEX_LOCK |
 				 QMFLAGS_NO_MUTEX_UNLOCK)) != 0);
 
@@ -882,7 +894,6 @@ queue_message(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 			VCHIQ_MSG_SRCPORT(msgid),
 			VCHIQ_MSG_DSTPORT(msgid));
 
-		BUG_ON(!service);
 		BUG_ON((flags & (QMFLAGS_NO_MUTEX_LOCK |
 				 QMFLAGS_NO_MUTEX_UNLOCK)) != 0);
 
