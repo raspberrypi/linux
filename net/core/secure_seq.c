@@ -16,9 +16,11 @@
 #define NET_SECRET_SIZE (MD5_MESSAGE_BYTES / 4)
 
 static u32 net_secret[NET_SECRET_SIZE] ____cacheline_aligned;
+static u32 ts_secret[2];
 
 static __always_inline void net_secret_init(void)
 {
+	net_get_random_once(ts_secret, sizeof(ts_secret));
 	net_get_random_once(net_secret, sizeof(net_secret));
 }
 #endif
@@ -41,6 +43,21 @@ static u32 seq_scale(u32 seq)
 #endif
 
 #if IS_ENABLED(CONFIG_IPV6)
+static u32 secure_tcpv6_ts_off(const __be32 *saddr, const __be32 *daddr)
+{
+	u32 hash[4 + 4 + 1];
+
+	if (sysctl_tcp_timestamps != 1)
+		return 0;
+
+	memcpy(hash, saddr, 16);
+	memcpy(hash + 4, daddr, 16);
+
+	hash[8] = ts_secret[0];
+
+	return jhash2(hash, ARRAY_SIZE(hash), ts_secret[1]);
+}
+
 u32 secure_tcpv6_sequence_number(const __be32 *saddr, const __be32 *daddr,
 				 __be16 sport, __be16 dport, u32 *tsoff)
 {
@@ -59,7 +76,7 @@ u32 secure_tcpv6_sequence_number(const __be32 *saddr, const __be32 *daddr,
 
 	md5_transform(hash, secret);
 
-	*tsoff = sysctl_tcp_timestamps == 1 ? hash[1] : 0;
+	*tsoff = secure_tcpv6_ts_off(saddr, daddr);
 	return seq_scale(hash[0]);
 }
 EXPORT_SYMBOL(secure_tcpv6_sequence_number);
@@ -87,6 +104,14 @@ EXPORT_SYMBOL(secure_ipv6_port_ephemeral);
 #endif
 
 #ifdef CONFIG_INET
+static u32 secure_tcp_ts_off(__be32 saddr, __be32 daddr)
+{
+	if (sysctl_tcp_timestamps != 1)
+		return 0;
+
+	return jhash_3words((__force u32)saddr, (__force u32)daddr,
+			    ts_secret[0], ts_secret[1]);
+}
 
 u32 secure_tcp_sequence_number(__be32 saddr, __be32 daddr,
 			       __be16 sport, __be16 dport, u32 *tsoff)
@@ -101,7 +126,7 @@ u32 secure_tcp_sequence_number(__be32 saddr, __be32 daddr,
 
 	md5_transform(hash, net_secret);
 
-	*tsoff = sysctl_tcp_timestamps == 1 ? hash[1] : 0;
+	*tsoff = secure_tcp_ts_off(saddr, daddr);
 	return seq_scale(hash[0]);
 }
 
