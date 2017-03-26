@@ -84,9 +84,9 @@ struct mmal_msg_header {
 	u32 type; /** enum mmal_msg_type */
 
 	/* Opaque handle to the control service */
-	struct mmal_control_service *control_service;
+	u32 control_service;
 
-	struct mmal_msg_context *context; /** a u32 per message context */
+	u32 context; /** a u32 per message context */
 	u32 status; /** The status of the vchiq operation */
 	u32 padding;
 };
@@ -101,7 +101,7 @@ struct mmal_msg_version {
 
 /* request to VC to create component */
 struct mmal_msg_component_create {
-	void *client_component; /* component context */
+	u32 client_component; /* component context */
 	char name[128];
 	u32 pid;                /* For debug */
 };
@@ -256,23 +256,23 @@ struct mmal_driver_buffer {
 	u32 magic;
 	u32 component_handle;
 	u32 port_handle;
-	void *client_context;
+	u32 client_context;
 };
 
 /* buffer header */
 struct mmal_buffer_header {
-	struct mmal_buffer_header *next; /* next header */
-	void *priv; /* framework private data */
+	u32 next; /* next header */
+	u32 priv; /* framework private data */
 	u32 cmd;
-	void *data;
+	u32 data;
 	u32 alloc_size;
 	u32 length;
 	u32 offset;
 	u32 flags;
 	s64 pts;
 	s64 dts;
-	void *type;
-	void *user_data;
+	u32 type;
+	u32 user_data;
 };
 
 struct mmal_buffer_header_type_specific {
@@ -346,7 +346,7 @@ struct mmal_msg_port_parameter_get_reply {
 #define MMAL_WORKER_EVENT_SPACE 256
 
 struct mmal_msg_event_to_host {
-	void *client_component; /* component context */
+	u32 client_component; /* component context */
 
 	u32 port_type;
 	u32 port_num;
@@ -354,7 +354,7 @@ struct mmal_msg_event_to_host {
 	u32 cmd;
 	u32 length;
 	u8 data[MMAL_WORKER_EVENT_SPACE];
-	struct mmal_buffer_header *delayed_buffer;
+	u32 delayed_buffer;
 };
 
 /* all mmal messages are serialised through this structure */
