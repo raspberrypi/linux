@@ -8,6 +8,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ads7846.dtbo \
 	akkordion-iqdacplus.dtbo \
 	allo-piano-dac-pcm512x-audio.dtbo \
+	allo-boss-dac-pcm512x-audio.dtbo \
 	at86rf233.dtbo \
 	audioinjector-addons.dtbo \
 	audioinjector-wm8731-audio.dtbo \
