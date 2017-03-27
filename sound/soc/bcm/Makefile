@@ -8,8 +8,12 @@ snd-soc-cygnus-objs := cygnus-pcm.o cygnus-ssp.o
 
 obj-$(CONFIG_SND_SOC_CYGNUS) += snd-soc-cygnus.o
 
+# Google voiceHAT custom codec support
+snd-soc-googlevoicehat-codec-objs := googlevoicehat-codec.o
+
 # BCM2708 Machine Support
 snd-soc-adau1977-adc-objs := adau1977-adc.o
+snd-soc-googlevoicehat-soundcard-objs := googlevoicehat-soundcard.o
 snd-soc-hifiberry-amp-objs := hifiberry_amp.o
 snd-soc-hifiberry-dac-objs := hifiberry_dac.o
 snd-soc-hifiberry-dacplus-objs := hifiberry_dacplus.o
@@ -33,6 +37,8 @@ snd-soc-pisound-objs := pisound.o
 snd-soc-fe-pi-audio-objs := fe-pi-audio.o
 
 obj-$(CONFIG_SND_BCM2708_SOC_ADAU1977_ADC) += snd-soc-adau1977-adc.o
+obj-$(CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD) += snd-soc-googlevoicehat-soundcard.o
+obj-$(CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD)  += snd-soc-googlevoicehat-codec.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP) += snd-soc-hifiberry-amp.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) += snd-soc-hifiberry-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS) += snd-soc-hifiberry-dacplus.o
