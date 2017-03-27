@@ -27,7 +27,17 @@
 #include <sound/control.h>
 
 static struct gpio_descs *mult_gpios;
+static struct gpio_desc *codec_rst_gpio;
 static unsigned int audioinjector_octo_rate;
+
+static const unsigned int audioinjector_octo_rates[] = {
+	96000, 48000, 88200, 44100,
+};
+
+static struct snd_pcm_hw_constraint_list audioinjector_octo_constraints = {
+	.list = audioinjector_octo_rates,
+	.count = ARRAY_SIZE(audioinjector_octo_rates),
+};
 
 static int audioinjector_octo_dai_init(struct snd_soc_pcm_runtime *rtd)
 {
@@ -42,6 +52,11 @@ static int audioinjector_octo_startup(struct snd_pcm_substream *substream)
 	rtd->cpu_dai->driver->capture.channels_min = 8;
 	rtd->cpu_dai->driver->capture.channels_max = 8;
 	rtd->codec_dai->driver->capture.channels_max = 8;
+	
+	snd_pcm_hw_constraint_list(substream->runtime, 0,
+				SNDRV_PCM_HW_PARAM_RATE,
+				&audioinjector_octo_constraints);
+
 	return 0;
 }
 
@@ -76,7 +91,21 @@ static int audioinjector_octo_hw_params(struct snd_pcm_substream *substream,
 
 	audioinjector_octo_rate = params_rate(params);
 
-	return 0;
+	// Set the correct sysclock for the codec
+	switch (audioinjector_octo_rate) {
+	case 96000:
+	case 48000:
+		return snd_soc_dai_set_sysclk(rtd->codec_dai, 0, 49152000,
+									0);
+		break;
+	case 88200:
+	case 44100:
+		return snd_soc_dai_set_sysclk(rtd->codec_dai, 0, 45185400,
+									0);
+		break;
+	default:
+		return -EINVAL;
+	}
 }
 
 static int audioinjector_octo_trigger(struct snd_pcm_substream *substream,
@@ -92,48 +121,16 @@ static int audioinjector_octo_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		switch (audioinjector_octo_rate) {
-		case 192000:
-			mult[3] = 1;
-		case 176640:
-			mult[0] = 1;
-			mult[1] = 1;
-			mult[2] = 1;
-			break;
 		case 96000:
 			mult[3] = 1;
 		case 88200:
 			mult[1] = 1;
 			mult[2] = 1;
 			break;
-		case 64000:
-			mult[3] = 1;
-		case 58800:
-			mult[0] = 1;
-			mult[2] = 1;
-			break;
 		case 48000:
 			mult[3] = 1;
 		case 44100:
 			mult[2] = 1;
-			break;
-		case 32000:
-			mult[3] = 1;
-		case 29400:
-			mult[0] = 1;
-			mult[1] = 1;
-			break;
-		case 24000:
-			mult[3] = 1;
-		case 22050:
-			mult[1] = 1;
-			break;
-		case 16000:
-			mult[3] = 1;
-		case 14700:
-			mult[0] = 1;
-			break;
-		case 8000:
-			mult[3] = 1;
 			break;
 		default:
 			return -EINVAL;
@@ -230,6 +227,18 @@ static int audioinjector_octo_probe(struct platform_device *pdev)
 								GPIOD_OUT_LOW);
 		if (IS_ERR(mult_gpios))
 			return PTR_ERR(mult_gpios);
+
+		codec_rst_gpio = devm_gpiod_get_optional(&pdev->dev, "reset",
+								GPIOD_OUT_LOW);
+		if (IS_ERR(codec_rst_gpio))
+			return PTR_ERR(codec_rst_gpio);
+
+		if (codec_rst_gpio)
+			gpiod_set_value(codec_rst_gpio, 0);
+		msleep(5);
+		if (codec_rst_gpio)
+			gpiod_set_value(codec_rst_gpio, 1);
+		msleep(50);
 
 		if (i2s_node && codec_node) {
 			dai->cpu_dai_name = NULL;
