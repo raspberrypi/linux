@@ -122,3 +122,10 @@ config SND_BCM2708_SOC_ALLO_PIANO_DAC
 	select SND_SOC_PCM512x_I2C
 	help
 	  Say Y or M if you want to add support for Allo Piano DAC.
+
+config SND_BCM2708_SOC_ALLO_PIANO_DAC_PLUS
+	tristate "Support for Allo Piano DAC Plus"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_PCM512x_I2C
+	help
+	  Say Y or M if you want to add support for Allo Piano DAC Plus.
