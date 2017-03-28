@@ -23,7 +23,7 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
-			w1_pins: w1_pins {
+			w1_pins: w1_pins@0 {
 				brcm,pins = <4 5>;
 				brcm,function = <0 1>; // in out
 				brcm,pull = <0 0>; // off off
@@ -33,7 +33,9 @@
 
 	__overrides__ {
 		gpiopin =       <&w1>,"gpios:4",
-				<&w1_pins>,"brcm,pins:0";
+				<&w1>,"reg:0",
+				<&w1_pins>,"brcm,pins:0",
+				<&w1_pins>,"reg:0";
 		extpullup =     <&w1>,"gpios:16",
 				<&w1_pins>,"brcm,pins:4";
 		pullup =        <&w1>,"rpi,parasitic-power:0";
