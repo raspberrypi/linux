@@ -23,6 +23,7 @@ snd-soc-iqaudio-digi-objs := iqaudio_digi.o
 snd-soc-audioinjector-pi-soundcard-objs := audioinjector-pi-soundcard.o
 snd-soc-digidac1-soundcard-objs := digidac1-soundcard.o
 snd-soc-dionaudio-loco-objs := dionaudio_loco.o
+snd-soc-allo-boss-dac-objs := allo-boss-dac.o
 snd-soc-allo-piano-dac-objs := allo-piano-dac.o
 snd-soc-allo-piano-dac-plus-objs := allo-piano-dac-plus.o
 
@@ -40,5 +41,6 @@ obj-$(CONFIG_SND_BCM2708_SOC_IQAUDIO_DIGI) += snd-soc-iqaudio-digi.o
 obj-$(CONFIG_SND_AUDIOINJECTOR_PI_SOUNDCARD) += snd-soc-audioinjector-pi-soundcard.o
 obj-$(CONFIG_SND_DIGIDAC1_SOUNDCARD) += snd-soc-digidac1-soundcard.o
 obj-$(CONFIG_SND_BCM2708_SOC_DIONAUDIO_LOCO) += snd-soc-dionaudio-loco.o
+obj-$(CONFIG_SND_BCM2708_SOC_ALLO_BOSS_DAC) += snd-soc-allo-boss-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_ALLO_PIANO_DAC) += snd-soc-allo-piano-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_ALLO_PIANO_DAC_PLUS) += snd-soc-allo-piano-dac-plus.o
