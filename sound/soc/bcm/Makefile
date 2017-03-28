@@ -8,8 +8,12 @@ snd-soc-cygnus-objs := cygnus-pcm.o cygnus-ssp.o
 
 obj-$(CONFIG_SND_SOC_CYGNUS) += snd-soc-cygnus.o
 
+# Google voiceHAT custom codec support
+snd-soc-googlevoicehat-codec-objs := googlevoicehat-codec.o
+
 # BCM2708 Machine Support
 snd-soc-adau1977-adc-objs := adau1977-adc.o
+snd-soc-googlevoicehat-soundcard-objs := googlevoicehat-soundcard.o
 snd-soc-hifiberry-amp-objs := hifiberry_amp.o
 snd-soc-hifiberry-dac-objs := hifiberry_dac.o
 snd-soc-hifiberry-dacplus-objs := hifiberry_dacplus.o
@@ -27,12 +31,15 @@ snd-soc-audioinjector-octo-soundcard-objs := audioinjector-octo-soundcard.o
 snd-soc-digidac1-soundcard-objs := digidac1-soundcard.o
 snd-soc-dionaudio-loco-objs := dionaudio_loco.o
 snd-soc-dionaudio-loco-v2-objs := dionaudio_loco-v2.o
-snd-soc-allo-piano-dac-objs := allo-piano-dac.o
 snd-soc-allo-boss-dac-objs := allo-boss-dac.o
+snd-soc-allo-piano-dac-objs := allo-piano-dac.o
+snd-soc-allo-piano-dac-plus-objs := allo-piano-dac-plus.o
 snd-soc-pisound-objs := pisound.o
 snd-soc-fe-pi-audio-objs := fe-pi-audio.o
 
 obj-$(CONFIG_SND_BCM2708_SOC_ADAU1977_ADC) += snd-soc-adau1977-adc.o
+obj-$(CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD) += snd-soc-googlevoicehat-soundcard.o
+obj-$(CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD)  += snd-soc-googlevoicehat-codec.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP) += snd-soc-hifiberry-amp.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) += snd-soc-hifiberry-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS) += snd-soc-hifiberry-dacplus.o
@@ -50,7 +57,8 @@ obj-$(CONFIG_SND_AUDIOINJECTOR_OCTO_SOUNDCARD) += snd-soc-audioinjector-octo-sou
 obj-$(CONFIG_SND_DIGIDAC1_SOUNDCARD) += snd-soc-digidac1-soundcard.o
 obj-$(CONFIG_SND_BCM2708_SOC_DIONAUDIO_LOCO) += snd-soc-dionaudio-loco.o
 obj-$(CONFIG_SND_BCM2708_SOC_DIONAUDIO_LOCO_V2) += snd-soc-dionaudio-loco-v2.o
-obj-$(CONFIG_SND_BCM2708_SOC_ALLO_PIANO_DAC) += snd-soc-allo-piano-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_ALLO_BOSS_DAC) += snd-soc-allo-boss-dac.o
+obj-$(CONFIG_SND_BCM2708_SOC_ALLO_PIANO_DAC) += snd-soc-allo-piano-dac.o
+obj-$(CONFIG_SND_BCM2708_SOC_ALLO_PIANO_DAC_PLUS) += snd-soc-allo-piano-dac-plus.o
 obj-$(CONFIG_SND_PISOUND) += snd-soc-pisound.o
 obj-$(CONFIG_SND_BCM2708_SOC_FE_PI_AUDIO) += snd-soc-fe-pi-audio.o

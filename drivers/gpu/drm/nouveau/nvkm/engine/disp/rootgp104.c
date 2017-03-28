@@ -36,8 +36,8 @@ gp104_disp_root = {
 		&gp104_disp_ovly_oclass,
 	},
 	.pioc = {
-		&gk104_disp_oimm_oclass,
-		&gk104_disp_curs_oclass,
+		&gp102_disp_oimm_oclass,
+		&gp102_disp_curs_oclass,
 	},
 };
 
