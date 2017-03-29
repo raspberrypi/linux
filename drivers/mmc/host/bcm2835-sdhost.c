@@ -51,7 +51,11 @@
 #include <linux/of_dma.h>
 #include <linux/time.h>
 #include <linux/workqueue.h>
+#include <linux/interrupt.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
+
+/* For mmc_card_blockaddr */
+#include "../core/card.h"
 
 #define DRIVER_NAME "sdhost-bcm2835"
 
