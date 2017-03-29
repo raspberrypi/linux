@@ -21,6 +21,7 @@
 		gpio = &gpio;
 		uart0 = &uart0;
 		sdhost = &sdhost;
+		mmc0 = &sdhost;
 		i2s = &i2s;
 		spi0 = &spi0;
 		i2c0 = &i2c0;
@@ -28,6 +29,7 @@
 		spi1 = &spi1;
 		spi2 = &spi2;
 		mmc = &mmc;
+		mmc1 = &mmc;
 		i2c1 = &i2c1;
 		i2c2 = &i2c2;
 		usb = &usb;
