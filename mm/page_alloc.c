@@ -2363,6 +2363,8 @@ static void drain_local_pages_wq(struct work_struct *work)
  *
  * Note that this can be extremely slow as the draining happens in a workqueue.
  */
+extern struct workqueue_struct *lru_add_drain_wq;
+
 void drain_all_pages(struct zone *zone)
 {
 	int cpu;
@@ -2422,7 +2424,7 @@ void drain_all_pages(struct zone *zone)
 	for_each_cpu(cpu, &cpus_with_pcps) {
 		struct work_struct *work = per_cpu_ptr(&pcpu_drain, cpu);
 		INIT_WORK(work, drain_local_pages_wq);
-		schedule_work_on(cpu, work);
+		queue_work_on(cpu, lru_add_drain_wq, work);
 	}
 	for_each_cpu(cpu, &cpus_with_pcps)
 		flush_work(per_cpu_ptr(&pcpu_drain, cpu));
