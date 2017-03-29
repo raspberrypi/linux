@@ -674,7 +674,7 @@ static DEFINE_PER_CPU(struct work_struct, lru_add_drain_work);
  * lru_add_drain_wq is used to do lru_add_drain_all() from a WQ_MEM_RECLAIM
  * workqueue, aiding in getting memory freed.
  */
-static struct workqueue_struct *lru_add_drain_wq;
+struct workqueue_struct *lru_add_drain_wq;
 
 static int __init lru_init(void)
 {
