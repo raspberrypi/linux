@@ -2426,9 +2426,8 @@ void drain_all_pages(struct zone *zone)
 		INIT_WORK(work, drain_local_pages_wq);
 		queue_work_on(cpu, lru_add_drain_wq, work);
 	}
-	for_each_cpu(cpu, &cpus_with_pcps) {
+	for_each_cpu(cpu, &cpus_with_pcps)
                 flush_work(per_cpu_ptr(&pcpu_drain, cpu));
-	}
 
 	mutex_unlock(&pcpu_drain_mutex);
 }
