@@ -53,11 +53,6 @@
 #include <linux/workqueue.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
-#include <linux/interrupt.h>
-#define MMC_STATE_BLOCKADDR	(1<<2)		/* card uses block-addressing */
-#define mmc_card_blockaddr(c)	((c)->state & MMC_STATE_BLOCKADDR)
-
-
 #define DRIVER_NAME "sdhost-bcm2835"
 
 #define SDCMD  0x00 /* Command to SD card              - 16 R/W */
