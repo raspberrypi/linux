@@ -2,8 +2,9 @@
  * ALSA ASoC Machine Driver for Allo Boss DAC
  *
  * Author:	Baswaraj K <jaikumar@cem-solutions.net>
- *		Copyright 2016
- *		based on code by Daniel Matuschek, Stuart MacLean <stuart@hifiberry.com>
+ *		Copyright 2017
+ *		based on code by Daniel Matuschek,
+ *				 Stuart MacLean <stuart@hifiberry.com>
  *		based on code by Florian Meier <florian.meier@koalo.de>
  *
  * This program is free software; you can redistribute it and/or
@@ -17,6 +18,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/gpio/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
@@ -35,6 +37,8 @@ struct pcm512x_priv {
 	struct regmap *regmap;
 	struct clk *sclk;
 };
+
+static struct gpio_desc *mute_gpio;
 
 /* Clock rate of CLK44EN attached to GPIO6 pin */
 #define CLK_44EN_RATE 45158400UL
@@ -111,6 +115,7 @@ static int snd_allo_boss_clk_for_rate(int sample_rate)
 	case 44100:
 	case 88200:
 	case 176400:
+	case 352800:
 		type = ALLO_BOSS_CLK44EN;
 		break;
 	default:
@@ -138,7 +143,7 @@ static void snd_allo_boss_set_sclk(struct snd_soc_codec *codec,
 static int snd_allo_boss_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
-	struct pcm512x_priv *priv;
+	struct pcm512x_priv *priv = snd_soc_codec_get_drvdata(codec);
 
 	if (slave)
 		snd_soc_allo_boss_master = false;
@@ -150,15 +155,22 @@ static int snd_allo_boss_init(struct snd_soc_pcm_runtime *rtd)
 		struct snd_soc_dai_link *dai = rtd->dai_link;
 
 		dai->name = "BossDAC";
-		dai->stream_name = "BossDAC";
+		dai->stream_name = "Boss DAC HiFi [Master]";
 		dai->dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
 			| SND_SOC_DAIFMT_CBM_CFM;
 
 		snd_soc_update_bits(codec, PCM512x_BCLK_LRCLK_CFG, 0x31, 0x11);
 		snd_soc_update_bits(codec, PCM512x_MASTER_MODE, 0x03, 0x03);
 		snd_soc_update_bits(codec, PCM512x_MASTER_CLKDIV_2, 0x7f, 63);
+		/*
+		* Default sclk to CLK_48EN_RATE, otherwise codec
+		*  pcm512x_dai_startup_master method could call
+		*  snd_pcm_hw_constraint_ratnums using CLK_44EN/64
+		*  which will mask 384k sample rate.
+		*/
+		if (!IS_ERR(priv->sclk))
+			clk_set_rate(priv->sclk, CLK_48EN_RATE);
 	} else {
-		priv = snd_soc_codec_get_drvdata(codec);
 		priv->sclk = ERR_PTR(-ENOENT);
 	}
 
@@ -218,6 +230,52 @@ static int snd_allo_boss_set_bclk_ratio_pro(
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, bratio);
 }
 
+static void snd_allo_boss_gpio_mute(struct snd_soc_card *card)
+{
+	if (mute_gpio)
+		gpiod_set_value_cansleep(mute_gpio, 1);
+}
+
+static void snd_allo_boss_gpio_unmute(struct snd_soc_card *card)
+{
+	if (mute_gpio)
+		gpiod_set_value_cansleep(mute_gpio, 0);
+}
+
+static int snd_allo_boss_set_bias_level(struct snd_soc_card *card,
+	struct snd_soc_dapm_context *dapm, enum snd_soc_bias_level level)
+{
+	struct snd_soc_pcm_runtime *rtd;
+	struct snd_soc_dai *codec_dai;
+
+	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
+	codec_dai = rtd->codec_dai;
+
+	if (dapm->dev != codec_dai->dev)
+		return 0;
+
+	switch (level) {
+	case SND_SOC_BIAS_PREPARE:
+		if (dapm->bias_level != SND_SOC_BIAS_STANDBY)
+			break;
+		/* UNMUTE DAC */
+		snd_allo_boss_gpio_unmute(card);
+		break;
+
+	case SND_SOC_BIAS_STANDBY:
+		if (dapm->bias_level != SND_SOC_BIAS_PREPARE)
+			break;
+		/* MUTE DAC */
+		snd_allo_boss_gpio_mute(card);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static int snd_allo_boss_hw_params(
 	struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params)
 {
@@ -239,23 +297,6 @@ static int snd_allo_boss_hw_params(
 			ret = snd_allo_boss_update_rate_den(
 				substream, params);
 	} else {
-		if (snd_allo_boss_is_sclk(rtd->codec)) {
-			snd_soc_update_bits(rtd->codec, PCM512x_PLL_EN,
-					PCM512x_PLLE, 0x01);
-			snd_soc_update_bits(rtd->codec, PCM512x_PLL_REF,
-					PCM512x_SREF, PCM512x_SREF_BCK);
-			dev_dbg(rtd->codec->dev,
-				"Setting BCLK as input clock and Enable PLL\n");
-		} else {
-			snd_soc_update_bits(rtd->codec, PCM512x_PLL_EN,
-					PCM512x_PLLE, 0x00);
-			snd_soc_update_bits(rtd->codec, PCM512x_PLL_REF,
-					PCM512x_SREF, PCM512x_SREF_SCK);
-
-			dev_dbg(rtd->codec->dev,
-				"Setting SCLK as input clock and disabled PLL\n");
-		}
-
 		ret = snd_soc_dai_set_bclk_ratio(cpu_dai, sample_bits * 2);
 	}
 	return ret;
@@ -266,8 +307,23 @@ static int snd_allo_boss_startup(
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_card *card = rtd->card;
 
 	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
+	snd_allo_boss_gpio_mute(card);
+
+	if (snd_soc_allo_boss_master) {
+		struct pcm512x_priv *priv = snd_soc_codec_get_drvdata(codec);
+		/*
+		 * Default sclk to CLK_48EN_RATE, otherwise codec
+		 * pcm512x_dai_startup_master method could call
+		 * snd_pcm_hw_constraint_ratnums using CLK_44EN/64
+		 * which will mask 384k sample rate.
+		 */
+		if (!IS_ERR(priv->sclk))
+			clk_set_rate(priv->sclk, CLK_48EN_RATE);
+	}
+
 	return 0;
 }
 
@@ -280,11 +336,21 @@ static void snd_allo_boss_shutdown(
 	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08, 0x00);
 }
 
+static int snd_allo_boss_prepare(
+	struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+
+	snd_allo_boss_gpio_unmute(card);
+	return 0;
+}
 /* machine stream operations */
 static struct snd_soc_ops snd_allo_boss_ops = {
 	.hw_params = snd_allo_boss_hw_params,
 	.startup = snd_allo_boss_startup,
 	.shutdown = snd_allo_boss_shutdown,
+	.prepare = snd_allo_boss_prepare,
 };
 
 static struct snd_soc_dai_link snd_allo_boss_dai[] = {
@@ -335,19 +401,40 @@ static int snd_allo_boss_probe(struct platform_device *pdev)
 		digital_gain_0db_limit = !of_property_read_bool(
 			pdev->dev.of_node, "allo,24db_digital_gain");
 		slave = of_property_read_bool(pdev->dev.of_node,
-					"allo,slave");
+						"allo,slave");
+
+		mute_gpio = devm_gpiod_get_optional(&pdev->dev, "mute",
+							GPIOD_OUT_LOW);
+		if (IS_ERR(mute_gpio)) {
+			ret = PTR_ERR(mute_gpio);
+			dev_err(&pdev->dev,
+				"failed to get mute gpio: %d\n", ret);
+			return ret;
+		}
+
+		if (mute_gpio)
+			snd_allo_boss.set_bias_level =
+				snd_allo_boss_set_bias_level;
+
+		ret = snd_soc_register_card(&snd_allo_boss);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"snd_soc_register_card() failed: %d\n", ret);
+			return ret;
+		}
+
+		if (mute_gpio)
+			snd_allo_boss_gpio_mute(&snd_allo_boss);
+
+		return 0;
 	}
 
-	ret = snd_soc_register_card(&snd_allo_boss);
-	if (ret)
-		dev_err(&pdev->dev,
-			"snd_soc_register_card() failed: %d\n", ret);
-
-	return ret;
+	return -EINVAL;
 }
 
 static int snd_allo_boss_remove(struct platform_device *pdev)
 {
+	snd_allo_boss_gpio_mute(&snd_allo_boss);
 	return snd_soc_unregister_card(&snd_allo_boss);
 }
 
