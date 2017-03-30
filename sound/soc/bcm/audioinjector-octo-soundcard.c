@@ -31,7 +31,7 @@ static struct gpio_desc *codec_rst_gpio;
 static unsigned int audioinjector_octo_rate;
 
 static const unsigned int audioinjector_octo_rates[] = {
-	96000, 48000, 88200, 44100,
+	96000, 48000, 32000, 24000, 16000, 8000, 88200, 44100, 29400, 22050, 14700,
 };
 
 static struct snd_pcm_hw_constraint_list audioinjector_octo_constraints = {
@@ -98,9 +98,31 @@ static int audioinjector_octo_hw_params(struct snd_pcm_substream *substream,
 		return snd_soc_dai_set_sysclk(rtd->codec_dai, 0, 49152000,
 									0);
 		break;
+	case 24000:
+		return snd_soc_dai_set_sysclk(rtd->codec_dai, 0, 49152000/2,
+									0);
+		break;
+	case 32000:
+	case 16000:
+		return snd_soc_dai_set_sysclk(rtd->codec_dai, 0, 49152000/3,
+									0);
+		break;
+	case 8000:
+		return snd_soc_dai_set_sysclk(rtd->codec_dai, 0, 49152000/6,
+									0);
+		break;
 	case 88200:
 	case 44100:
 		return snd_soc_dai_set_sysclk(rtd->codec_dai, 0, 45185400,
+									0);
+		break;
+	case 22050:
+		return snd_soc_dai_set_sysclk(rtd->codec_dai, 0, 45185400/2,
+									0);
+		break;
+	case 29400:
+	case 14700:
+		return snd_soc_dai_set_sysclk(rtd->codec_dai, 0, 45185400/3,
 									0);
 		break;
 	default:
@@ -131,6 +153,25 @@ static int audioinjector_octo_trigger(struct snd_pcm_substream *substream,
 			mult[3] = 1;
 		case 44100:
 			mult[2] = 1;
+			break;
+		case 32000:
+			mult[3] = 1;
+		case 29400:
+			mult[0] = 1;
+			mult[1] = 1;
+			break;
+		case 24000:
+			mult[3] = 1;
+		case 22050:
+			mult[1] = 1;
+			break;
+		case 16000:
+			mult[3] = 1;
+		case 14700:
+			mult[0] = 1;
+			break;
+		case 8000:
+			mult[3] = 1;
 			break;
 		default:
 			return -EINVAL;
@@ -234,11 +275,14 @@ static int audioinjector_octo_probe(struct platform_device *pdev)
 			return PTR_ERR(codec_rst_gpio);
 
 		if (codec_rst_gpio)
+			gpiod_set_value(codec_rst_gpio, 1);
+		msleep(500);
+		if (codec_rst_gpio)
 			gpiod_set_value(codec_rst_gpio, 0);
-		msleep(5);
+		msleep(500);
 		if (codec_rst_gpio)
 			gpiod_set_value(codec_rst_gpio, 1);
-		msleep(50);
+		msleep(500);
 
 		if (i2s_node && codec_node) {
 			dai->cpu_dai_name = NULL;
