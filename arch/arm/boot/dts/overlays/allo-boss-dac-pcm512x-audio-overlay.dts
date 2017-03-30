@@ -47,6 +47,7 @@
 		boss_dac: __overlay__ {
 			compatible = "allo,boss-dac";
 			i2s-controller = <&i2s>;
+			mute-gpios = <&gpio 6 1>;
 			status = "okay";
 		};
 	};
