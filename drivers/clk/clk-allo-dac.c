@@ -110,7 +110,7 @@ static int clk_allo_dac_probe(struct platform_device *pdev)
 
 	init.name = "clk-allo-dac";
 	init.ops = &clk_allo_dac_rate_ops;
-	init.flags = CLK_IS_ROOT | CLK_IS_BASIC;
+	init.flags = CLK_IS_BASIC;
 	init.parent_names = NULL;
 	init.num_parents = 0;
 
