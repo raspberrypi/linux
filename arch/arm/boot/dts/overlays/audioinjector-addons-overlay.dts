@@ -13,26 +13,6 @@
 	};
 
 	fragment@1 {
-		target = <&soc>;
-			__overlay__ {
-				reg_digital: reg_digital@0 {
-				  compatible = "regulator-fixed";
-				  regulator-name = "cs42448_dig_supply";
-				  regulator-min-microvolt = <3300000>;
-				  regulator-max-microvolt = <3300000>;
-				  regulator-always-on;
-  			};
-				reg_analogue: reg_analogue@0 {
-				  compatible = "regulator-fixed";
-				  regulator-name = "cs42448_ana_supply";
-				  regulator-min-microvolt = <5000000>;
-				  regulator-max-microvolt = <5000000>;
-				  regulator-always-on;
-			};
-		};
-	};
-
-	fragment@2 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -45,10 +25,10 @@
 				reg = <0x48>;
 				clocks = <&cs42448_mclk>;
 				clock-names = "mclk";
-				VA-supply = <&reg_analogue>;
-				VD-supply = <&reg_digital>;
-				VLS-supply = <&reg_digital>;
-				VLC-supply = <&reg_digital>;
+				VA-supply = <&vdd_5v0_reg>;
+				VD-supply = <&vdd_3v3_reg>;
+				VLS-supply = <&vdd_3v3_reg>;
+				VLC-supply = <&vdd_3v3_reg>;
 				status = "okay";
 			};
 
@@ -60,7 +40,7 @@
 		};
 	};
 
-	fragment@3 {
+	fragment@2 {
 		target = <&sound>;
 		__overlay__ {
 			compatible = "ai,audioinjector-octo-soundcard";
