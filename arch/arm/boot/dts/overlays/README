@@ -323,6 +323,9 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 responsibility of the user to ensure that
                                 the Digital volume control is set to a value
                                 that does not result in clipping/distortion!)
+        glb_mclk                This option is only with Kali board. If enabled,
+                                MCLK for Kali is used and PLL is disabled for
+                                better voice quality. (default Off)
 
 
 Name:   at86rf233
