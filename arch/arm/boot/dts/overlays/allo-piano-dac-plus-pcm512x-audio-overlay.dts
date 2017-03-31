@@ -40,6 +40,8 @@
 			compatible = "allo,piano-dac-plus";
 			audio-codec = <&allo_pcm5122_4c &allo_pcm5122_4d>;
 			i2s-controller = <&i2s>;
+			mute1-gpios = <&gpio 6 1>;
+			mute2-gpios = <&gpio 25 1>;
 			status = "okay";
 		};
 	};
@@ -47,5 +49,7 @@
 	__overrides__ {
 		24db_digital_gain =
 			<&piano_dac>,"allo,24db_digital_gain?";
+		glb_mclk =
+			<&piano_dac>,"allo,glb_mclk?";
 	};
 };
