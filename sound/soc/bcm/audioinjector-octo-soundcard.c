@@ -204,6 +204,8 @@ static struct snd_soc_dai_link audioinjector_octo_dai[] = {
 		.codec_dai_name = "cs42448",
 		.ops = &audioinjector_octo_ops,
 		.init = audioinjector_octo_dai_init,
+		.symmetric_rates = 1,
+		.symmetric_channels = 1,
 	},
 };
 
