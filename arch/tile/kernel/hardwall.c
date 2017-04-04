@@ -590,12 +590,12 @@ static int hardwall_activate(struct hardwall_info *info)
 	 * Get our affinity; if we're not bound to this tile uniquely,
 	 * we can't access the network registers.
 	 */
-	if (cpumask_weight(&p->cpus_allowed) != 1)
+	if (p->nr_cpus_allowed != 1)
 		return -EPERM;
 
 	/* Make sure we are bound to a cpu assigned to this resource. */
 	cpu = smp_processor_id();
-	BUG_ON(cpumask_first(&p->cpus_allowed) != cpu);
+	BUG_ON(cpumask_first(p->cpus_ptr) != cpu);
 	if (!cpumask_test_cpu(cpu, &info->cpumask))
 		return -EINVAL;
 
@@ -621,17 +621,17 @@ static int hardwall_activate(struct hardwall_info *info)
  * Deactivate a task's hardwall.  Must hold lock for hardwall_type.
  * This method may be called from exit_thread(), so we don't want to
  * rely on too many fields of struct task_struct still being valid.
- * We assume the cpus_allowed, pid, and comm fields are still valid.
+ * We assume the nr_cpus_allowed, pid, and comm fields are still valid.
  */
 static void _hardwall_deactivate(struct hardwall_type *hwt,
 				 struct task_struct *task)
 {
 	struct thread_struct *ts = &task->thread;
 
-	if (cpumask_weight(&task->cpus_allowed) != 1) {
+	if (task->nr_cpus_allowed != 1) {
 		pr_err("pid %d (%s) releasing %s hardwall with an affinity mask containing %d cpus!\n",
 		       task->pid, task->comm, hwt->name,
-		       cpumask_weight(&task->cpus_allowed));
+		       task->nr_cpus_allowed);
 		BUG();
 	}
 
