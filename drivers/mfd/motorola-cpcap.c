@@ -71,6 +71,7 @@ static struct regmap_irq_chip cpcap_irq_chip[CPCAP_NR_IRQ_CHIPS] = {
 		.ack_base = CPCAP_REG_MI1,
 		.mask_base = CPCAP_REG_MIM1,
 		.use_ack = true,
+		.ack_invert = true,
 	},
 	{
 		.name = "cpcap-m2",
@@ -79,6 +80,7 @@ static struct regmap_irq_chip cpcap_irq_chip[CPCAP_NR_IRQ_CHIPS] = {
 		.ack_base = CPCAP_REG_MI2,
 		.mask_base = CPCAP_REG_MIM2,
 		.use_ack = true,
+		.ack_invert = true,
 	},
 	{
 		.name = "cpcap1-4",
@@ -88,6 +90,7 @@ static struct regmap_irq_chip cpcap_irq_chip[CPCAP_NR_IRQ_CHIPS] = {
 		.mask_base = CPCAP_REG_INTM1,
 		.type_base = CPCAP_REG_INTS1,
 		.use_ack = true,
+		.ack_invert = true,
 	},
 };
 
