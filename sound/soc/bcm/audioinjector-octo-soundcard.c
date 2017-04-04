@@ -324,7 +324,7 @@ MODULE_DEVICE_TABLE(of, audioinjector_octo_of_match);
 
 static struct platform_driver audioinjector_octo_driver = {
 	.driver	= {
-		.name			= "audioinjector-audio",
+		.name			= "audioinjector-octo",
 		.owner			= THIS_MODULE,
 		.of_match_table = audioinjector_octo_of_match,
 	},
