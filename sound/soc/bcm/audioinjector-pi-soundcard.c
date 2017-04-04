@@ -177,7 +177,7 @@ MODULE_DEVICE_TABLE(of, audioinjector_pi_soundcard_of_match);
 
 static struct platform_driver audioinjector_pi_soundcard_driver = {
        .driver         = {
-		.name   = "audioinjector-audio",
+		.name   = "audioinjector-stereo",
 		.owner  = THIS_MODULE,
 		.of_match_table = audioinjector_pi_soundcard_of_match,
        },
