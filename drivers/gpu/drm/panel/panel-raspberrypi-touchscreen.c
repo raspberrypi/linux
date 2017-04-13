@@ -404,6 +404,9 @@ static struct i2c_client *rpi_touchscreen_get_i2c(struct device *dev,
 
 	of_node_put(node);
 
+	if (!client)
+		return ERR_PTR(-EPROBE_DEFER);
+
 	return client;
 }
 
