@@ -42,6 +42,7 @@ struct vc4_crtc {
 	void __iomem *regs;
 
 	struct drm_pending_vblank_event *event;
+	u32 overscan[4];
 };
 
 static inline struct vc4_crtc *to_vc4_crtc(struct drm_crtc *crtc)
@@ -191,6 +192,7 @@ static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
 					   struct drm_plane_state *old_state)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(plane->crtc);
 	struct drm_plane_state *state = plane->state;
 	struct drm_framebuffer *fb = state->fb;
 	struct drm_gem_cma_object *bo = drm_fb_cma_get_gem_obj(fb, 0);
@@ -215,6 +217,12 @@ static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
 			 state->crtc_y,
 			 bo->paddr + fb->offsets[0],
 			 fb->pitches[0]);
+
+	/* add on the top/left offsets when overscan is active */
+	if (vc4_crtc) {
+		packet_state[1] += vc4_crtc->overscan[0];
+		packet_state[2] += vc4_crtc->overscan[1];
+	}
 
 	ret = rpi_firmware_property(vc4->firmware,
 				    RPI_FIRMWARE_SET_CURSOR_STATE,
@@ -694,6 +702,15 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 			       vc4_crtc);
 	if (ret)
 		goto err_destroy_connector;
+
+	ret = rpi_firmware_property(vc4->firmware,
+				    RPI_FIRMWARE_FRAMEBUFFER_GET_OVERSCAN,
+				    &vc4_crtc->overscan,
+				    sizeof(vc4_crtc->overscan));
+	if (ret) {
+		DRM_ERROR("Failed to get overscan state: 0x%08x\n", vc4_crtc->overscan[0]);
+		memset(&vc4_crtc->overscan, 0, sizeof(vc4_crtc->overscan));
+	}
 
 	platform_set_drvdata(pdev, vc4_crtc);
 
