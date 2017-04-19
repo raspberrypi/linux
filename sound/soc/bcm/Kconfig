@@ -17,6 +17,13 @@ config SND_SOC_CYGNUS
 
 	  If you don't know what to do here, say N.
 
+config SND_BCM2708_SOC_G2LABS_1543_DAC
+	tristate "Support for G2 labs TDA1543 v2 DAC"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_TDA1543
+	help
+          Say Y or M if you want to add support for G2 labs DAC.
+
 config SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD
 	tristate "Support for Google voiceHAT soundcard"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
