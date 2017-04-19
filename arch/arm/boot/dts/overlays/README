@@ -458,6 +458,10 @@ Info:   Configures the Fe-Pi Audio Sound Card
 Load:   dtoverlay=fe-pi-audio
 Params: <None>
 
+Name:   g2labs-dac
+Info:   Configures the G2 labs TDA1543 v2 DAC
+Load:   dtoverlay=g2labs-dac
+Params: <None>
 
 Name:   googlevoicehat-soundcard
 Info:   Configures the Google voiceHAT soundcard
