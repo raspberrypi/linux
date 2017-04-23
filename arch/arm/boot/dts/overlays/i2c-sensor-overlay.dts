@@ -12,10 +12,22 @@
 			#size-cells = <0>;
 			status = "okay";
 
+			bme280: bme280@76 {
+				compatible = "bosch,bme280";
+				reg = <0x76>;
+				status = "disable";
+			};
+
 			bmp085: bmp085@77 {
 				compatible = "bosch,bmp085";
 				reg = <0x77>;
 				default-oversampling = <3>;
+				status = "disable";
+			};
+
+			bmp180: bmp180@77 {
+				compatible = "bosch,bmp180";
+				reg = <0x77>;
 				status = "disable";
 			};
 
@@ -40,7 +52,10 @@
 	};
 
 	__overrides__ {
+		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0";
+		bme280 = <&bme280>,"status";
 		bmp085 = <&bmp085>,"status";
+		bmp180 = <&bmp180>,"status";
 		bmp280 = <&bmp280>,"status";
 		lm75 = <&lm75>,"status";
 		lm75addr = <&lm75>,"reg:0";
