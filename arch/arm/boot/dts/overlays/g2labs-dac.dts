@@ -1,0 +1,34 @@
+// Definitions for G2LABS DAC
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			tda1543-codec {
+				#sound-dai-cells = <0>;
+				compatible = "ti,tda1543";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "rpi,g2labs-dac";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+};
