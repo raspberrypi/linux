@@ -145,6 +145,7 @@ snd-soc-tas571x-objs := tas571x.o
 snd-soc-tas5720-objs := tas5720.o
 snd-soc-tfa9879-objs := tfa9879.o
 snd-soc-tas5713-objs := tas5713.o
+snd-soc-tda1543-objs := tda1543.o
 snd-soc-tlv320aic23-objs := tlv320aic23.o
 snd-soc-tlv320aic23-i2c-objs := tlv320aic23-i2c.o
 snd-soc-tlv320aic23-spi-objs := tlv320aic23-spi.o
