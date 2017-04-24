@@ -1984,6 +1984,7 @@ static void udc_id_switch_for_host(struct ci_hdrc *ci)
 int ci_hdrc_gadget_init(struct ci_hdrc *ci)
 {
 	struct ci_role_driver *rdrv;
+	int ret;
 
 	if (!hw_read(ci, CAP_DCCPARAMS, DCCPARAMS_DC))
 		return -ENXIO;
@@ -1996,7 +1997,10 @@ int ci_hdrc_gadget_init(struct ci_hdrc *ci)
 	rdrv->stop	= udc_id_switch_for_host;
 	rdrv->irq	= udc_irq;
 	rdrv->name	= "gadget";
-	ci->roles[CI_ROLE_GADGET] = rdrv;
 
-	return udc_start(ci);
+	ret = udc_start(ci);
+	if (!ret)
+		ci->roles[CI_ROLE_GADGET] = rdrv;
+
+	return ret;
 }
