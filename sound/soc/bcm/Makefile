@@ -16,7 +16,7 @@ snd-soc-googlevoicehat-codec-objs := googlevoicehat-codec.o
 
 # BCM2708 Machine Support
 snd-soc-adau1977-adc-objs := adau1977-adc.o
-snd-soc-g2labs-objs := g2labs-dac.o
+snd-soc-g2labs-dac-objs := g2labs-dac.o
 snd-soc-googlevoicehat-soundcard-objs := googlevoicehat-soundcard.o
 snd-soc-hifiberry-amp-objs := hifiberry_amp.o
 snd-soc-hifiberry-dac-objs := hifiberry_dac.o
