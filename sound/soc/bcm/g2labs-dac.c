@@ -33,7 +33,7 @@ static int snd_g2labs_dac_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	return snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
+	return snd_soc_dai_set_bclk_ratio(cpu_dai, 128);
 }
 
 /* machine stream operations */
@@ -50,7 +50,7 @@ static struct snd_soc_dai_link snd_g2labs_dac_dai[] = {
 	.platform_name	= "bcm2708-i2s.0",
 	.codec_name	= "tda1543-codec",
 	.dai_fmt	= SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
-				SND_SOC_DAIFMT_CBM_CFM,
+				SND_SOC_DAIFMT_CBM_CFS,
 	.ops		= &snd_g2labs_dac_ops,
 	.init		= snd_g2labs_dac_init,
 },
