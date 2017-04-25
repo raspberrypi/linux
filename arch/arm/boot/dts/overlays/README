@@ -659,11 +659,11 @@ Params: addr                    Set the address for the BME280, BMP280 or
                                 Valid addresses 0x76-0x77, default 0x76
 
         bmp085                  Select the Bosch Sensortronic BMP085
-                                Valid addresses 0x76-0x77, default 0x76
 
         bmp180                  Select the Bosch Sensortronic BMP180
 
         bmp280                  Select the Bosch Sensortronic BMP280
+                                Valid addresses 0x76-0x77, default 0x76
 
         lm75                    Select the Maxim LM75 temperature sensor
 
