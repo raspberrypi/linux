@@ -1,4 +1,4 @@
-// Definitions for I2C based sensors using the Industrial IO interface.
+// Definitions for I2C based sensors using the Industrial IO or HWMON interface.
 /dts-v1/;
 /plugin/;
 
@@ -48,11 +48,17 @@
 				reg = <0x40>;
 				status = "disable";
 			};
+
+			tmp102: tmp102@48 {
+				compatible = "ti,tmp102";
+				reg = <0x48>;
+				status = "disable";
+			};
 		};
 	};
 
 	__overrides__ {
-		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0";
+		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0";
 		bme280 = <&bme280>,"status";
 		bmp085 = <&bmp085>,"status";
 		bmp180 = <&bmp180>,"status";
@@ -60,5 +66,6 @@
 		lm75 = <&lm75>,"status";
 		lm75addr = <&lm75>,"reg:0";
 		si7020 = <&si7020>,"status";
+		tmp102 = <&tmp102>,"status";
 	};
 };
