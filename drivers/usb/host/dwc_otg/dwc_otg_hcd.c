@@ -616,7 +616,7 @@ int dwc_otg_hcd_urb_dequeue(dwc_otg_hcd_t * hcd,
 			if (fiq_fsm_enable && (hcd->fiq_state->channel[n].fsm != FIQ_PASSTHROUGH)) {
 				qh->channel->halt_status = DWC_OTG_HC_XFER_URB_DEQUEUE;
 				qh->channel->halt_pending = 1;
-				hcd->fiq_state->channel[n].fsm = FIQ_DEQUEUE_ISSUED;
+				//hcd->fiq_state->channel[n].fsm = FIQ_DEQUEUE_ISSUED;
 			} else {
 				dwc_otg_hc_halt(hcd->core_if, qh->channel,
 						DWC_OTG_HC_XFER_URB_DEQUEUE);
@@ -634,6 +634,8 @@ int dwc_otg_hcd_urb_dequeue(dwc_otg_hcd_t * hcd,
                     hcd->core_if->dma_desc_enable?"DMA ":"");
 	if (!hcd->core_if->dma_desc_enable) {
 		uint8_t b = urb_qtd->in_process;
+		if (nak_holdoff && qh->do_split && dwc_qh_is_non_per(qh))
+			qh->nak_frame = 0xFFFF;
 		dwc_otg_hcd_qtd_remove_and_free(hcd, urb_qtd, qh);
 		if (b) {
 			dwc_otg_hcd_qh_deactivate(hcd, qh, 0);
