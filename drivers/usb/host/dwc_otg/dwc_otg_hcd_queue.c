@@ -793,6 +793,10 @@ void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 			/* Add back to inactive non-periodic schedule. */
 			dwc_otg_hcd_qh_add(hcd, qh);
 			//hcd->fiq_state->kick_np_queues = 1;
+		} else {
+			if(nak_holdoff && qh->do_split) {
+				qh->nak_frame = 0xFFFF;
+			}
 		}
 	} else {
 		uint16_t frame_number = dwc_otg_hcd_get_frame_number(hcd);

@@ -2382,15 +2382,17 @@ void dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 	fiq_print(FIQDBG_INT, hcd->fiq_state, "OUT %01d %01d ", num , st->fsm);
 
 	hostchannels = hcd->available_host_channels;
+	if (hc->halt_pending) {
+		/* Dequeue: The FIQ was allowed to complete the transfer but state has been cleared. */
+		release_channel(hcd, hc, NULL, hc->halt_status);
+		return;
+	}
 	switch (st->fsm) {
 	case FIQ_TEST:
 		break;
 
 	case FIQ_DEQUEUE_ISSUED:
-		/* hc_halt was called. QTD no longer exists. */
-		/* TODO: for a nonperiodic split transaction, need to issue a
-		 * CLEAR_TT_BUFFER hub command if we were in the start-split phase.
-		 */
+		/* Handled above, but keep for posterity */
 		release_channel(hcd, hc, NULL, hc->halt_status);
 		break;
 
