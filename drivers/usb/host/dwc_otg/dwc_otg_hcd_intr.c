@@ -2378,12 +2378,20 @@ void dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 	dwc_otg_qh_t *qh = hc->qh;
 	dwc_otg_hc_regs_t *hc_regs = hcd->core_if->host_if->hc_regs[num];
 	hcint_data_t hcint = hcd->fiq_state->channel[num].hcint_copy;
+	hctsiz_data_t hctsiz = hcd->fiq_state->channel[num].hctsiz_copy;
 	int hostchannels  = 0;
 	fiq_print(FIQDBG_INT, hcd->fiq_state, "OUT %01d %01d ", num , st->fsm);
 
 	hostchannels = hcd->available_host_channels;
 	if (hc->halt_pending) {
 		/* Dequeue: The FIQ was allowed to complete the transfer but state has been cleared. */
+		if (st->fsm == FIQ_NP_SPLIT_DONE && hcint.b.xfercomp && qh->ep_type == UE_BULK) {
+			if (hctsiz.b.pid == DWC_HCTSIZ_DATA0) {
+				qh->data_toggle = DWC_OTG_HC_PID_DATA1;
+			} else {
+				qh->data_toggle = DWC_OTG_HC_PID_DATA0;
+			}
+		}
 		release_channel(hcd, hc, NULL, hc->halt_status);
 		return;
 	}
@@ -2641,10 +2649,15 @@ int32_t dwc_otg_hcd_handle_hc_n_intr(dwc_otg_hcd_t * dwc_otg_hcd, uint32_t num)
 	hc = dwc_otg_hcd->hc_ptr_array[num];
 	hc_regs = dwc_otg_hcd->core_if->host_if->hc_regs[num];
 	if(hc->halt_status == DWC_OTG_HC_XFER_URB_DEQUEUE) {
-		/* We are responding to a channel disable. Driver
-		 * state is cleared - our qtd has gone away.
+		/* A dequeue was issued for this transfer. Our QTD has gone away
+		 * but in the case of a FIQ transfer, the transfer would have run
+		 * to completion.
 		 */
-		release_channel(dwc_otg_hcd, hc, NULL, hc->halt_status);
+		if (fiq_fsm_enable && dwc_otg_hcd->fiq_state->channel[num].fsm != FIQ_PASSTHROUGH) {
+			dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd, num);
+		} else {
+			release_channel(dwc_otg_hcd, hc, NULL, hc->halt_status);
+		}
 		return 1;
 	}
 	qtd = DWC_CIRCLEQ_FIRST(&hc->qh->qtd_list);
