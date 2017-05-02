@@ -1181,11 +1181,20 @@ static int vcsm_vma_fault(struct vm_fault *vmf)
 	switch (ret) {
 	case 0:
 	case -ERESTARTSYS:
+	/*
+	* EBUSY is ok: this just means that another thread
+	* already did the job.
+	*/
+	case -EBUSY:
 		return VM_FAULT_NOPAGE;
 	case -ENOMEM:
 	case -EAGAIN:
+		pr_err("[%s]: failed to map page pfn:%lx virt:%lx ret:%d\n", __func__,
+			pfn, (unsigned long)vmf->address, ret);
 		return VM_FAULT_OOM;
 	default:
+		pr_err("[%s]: failed to map page pfn:%lx virt:%lx ret:%d\n", __func__,
+			pfn, (unsigned long)vmf->address, ret);
 		return VM_FAULT_SIGBUS;
 	}
 }
