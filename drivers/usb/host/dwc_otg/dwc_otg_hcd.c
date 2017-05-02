@@ -193,8 +193,13 @@ static void kill_urbs_in_qh_list(dwc_otg_hcd_t * hcd, dwc_list_link_t * qh_list)
 			 * It is possible that the channel has already halted
 			 * but not yet been through the IRQ handler.
 			 */
-			dwc_otg_hc_halt(hcd->core_if, qh->channel,
-				DWC_OTG_HC_XFER_URB_DEQUEUE);
+			if (fiq_fsm_enable && (hcd->fiq_state->channel[qh->channel->hc_num].fsm != FIQ_PASSTHROUGH)) {
+				qh->channel->halt_status = DWC_OTG_HC_XFER_URB_DEQUEUE;
+				qh->channel->halt_pending = 1;
+			} else {
+				dwc_otg_hc_halt(hcd->core_if, qh->channel,
+						DWC_OTG_HC_XFER_URB_DEQUEUE);
+			}
 			if(microframe_schedule)
 				hcd->available_host_channels++;
 			qh->channel = NULL;
@@ -1270,6 +1275,7 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	if (qh->do_split) {
 		uint32_t hub_addr, port_addr;
 		hc->do_split = 1;
+		hc->start_pkt_count = 1;
 		hc->xact_pos = qtd->isoc_split_pos;
 		/* We don't need to do complete splits anymore */
 //		if(fiq_fsm_enable)
