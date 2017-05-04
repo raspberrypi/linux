@@ -491,7 +491,11 @@ static void notrace noinline fiq_fsm_start_next_periodic(struct fiq_state *st, i
 		if (st->channel[n].fsm == FIQ_PER_ISO_OUT_PENDING) {
 			if (!fiq_fsm_tt_in_use(st, num_channels, n)) {
 				fiq_print(FIQDBG_INT, st, "NEXTISO ");
-				st->channel[n].fsm = FIQ_PER_ISO_OUT_ACTIVE;
+				if (st->channel[n].nrpackets == 1) {
+					st->channel[n].fsm = FIQ_PER_ISO_OUT_LAST;
+				} else {
+					st->channel[n].fsm = FIQ_PER_ISO_OUT_ACTIVE;
+				}
 				fiq_fsm_restart_channel(st, n, 0);
 				break;
 			}
