@@ -96,6 +96,7 @@ struct bcm2708_fb {
 	wait_queue_head_t dma_waitq;
 	struct bcm2708_fb_stats stats;
 	unsigned long fb_bus_address;
+	struct { u32 base, length; } gpu;
 };
 
 #define to_bcm2708(info)	container_of(info, struct bcm2708_fb, fb)
@@ -472,7 +473,6 @@ static long vc_mem_copy(struct bcm2708_fb *fb, unsigned long arg)
 	dma_addr_t bus_addr;
 	long rc = 0;
 	size_t offset;
-	struct { u32 base, length; } gpu = {};
 
 	/* restrict this to root user */
 	if (!uid_eq(current_euid(), GLOBAL_ROOT_UID))
@@ -491,16 +491,13 @@ static long vc_mem_copy(struct bcm2708_fb *fb, unsigned long arg)
 		goto out;
 	}
 
-	rc = rpi_firmware_property(fb->fw,
-				    RPI_FIRMWARE_GET_VC_MEMORY,
-				    &gpu, sizeof(gpu));
-	if (rc != 0 || gpu.base == 0 || gpu.length == 0) {
-		pr_err("[%s]: Unable to determine gpu memory %ld,%x,%x)\n", __func__, rc, gpu.base, gpu.length);
+	if (fb->gpu.base == 0 || fb->gpu.length == 0) {
+		pr_err("[%s]: Unable to determine gpu memory (%x,%x)\n", __func__, fb->gpu.base, fb->gpu.length);
 		return -EFAULT;
 	}
 
-	if (INTALIAS_NORMAL(ioparam.src) < gpu.base || INTALIAS_NORMAL(ioparam.src) >= gpu.base + gpu.length) {
-		pr_err("[%s]: Invalid memory access %x (%x-%x)", __func__, INTALIAS_NORMAL(ioparam.src), gpu.base, gpu.base + gpu.length);
+	if (INTALIAS_NORMAL(ioparam.src) < fb->gpu.base || INTALIAS_NORMAL(ioparam.src) >= fb->gpu.base + fb->gpu.length) {
+		pr_err("[%s]: Invalid memory access %x (%x-%x)", __func__, INTALIAS_NORMAL(ioparam.src), fb->gpu.base, fb->gpu.base + fb->gpu.length);
 		return -EFAULT;
 	}
 
@@ -868,6 +865,11 @@ static int bcm2708_fb_probe(struct platform_device *dev)
 
 	fb->dev = dev;
 	fb->fb.device = &dev->dev;
+
+	// failure here isn't fatal, but we'll fail in vc_mem_copy if fb->gpu is not valid
+	rpi_firmware_property(fb->fw,
+				    RPI_FIRMWARE_GET_VC_MEMORY,
+				    &fb->gpu, sizeof(fb->gpu));
 
 	ret = bcm2708_fb_register(fb);
 	if (ret == 0) {
