@@ -534,8 +534,8 @@ create_pagelist(char __user *buf, size_t count, unsigned short type,
 		 * aligned and a multiple of the page size
 		 */
 		WARN_ON(len == 0);
-		WARN_ON(k && (k != (dma_buffers - 1)) && (len & ~PAGE_MASK));
-		WARN_ON(k && (addr & ~PAGE_MASK));
+		WARN_ON(i && (i != (dma_buffers - 1)) && (len & ~PAGE_MASK));
+		WARN_ON(i && (addr & ~PAGE_MASK));
 		if (k > 0 &&
 		    ((addrs[k - 1] & PAGE_MASK) +
 		     (((addrs[k - 1] & ~PAGE_MASK) + 1) << PAGE_SHIFT))
