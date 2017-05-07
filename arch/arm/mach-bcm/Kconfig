@@ -160,6 +160,25 @@ config ARCH_BCM2835
 	  This enables support for the Broadcom BCM2835 and BCM2836 SoCs.
 	  This SoC is used in the Raspberry Pi and Roku 2 devices.
 
+config BCM2836_CPU_REPARK
+	bool "Repark offline CPUs on BCM2836"
+	depends on ARCH_BCM2835
+	default n
+	help
+	  This config option will tell BCM2836 driver to repark CPUs not started
+	  on boot to a location inside kernel image.
+
+	  Enabling this option prevents problems occurring if original spinning
+	  location gets overwritten and allows safely activating those CPUs
+	  later. It also allows putting CPUs offline again by placing them in
+	  spinning loop in the same location.
+
+	  Say Y here if you experience problems after adding "maxcpus=" to
+	  to the kernel command line or if you want to experiment with turning
+	  CPUs on and off on a Raspberry Pi 2 or 3.
+
+	  You may also want to enable HOTPLUG_CPU.
+
 config ARCH_BCM_53573
 	bool "Broadcom BCM53573 SoC series support"
 	depends on ARCH_MULTI_V7

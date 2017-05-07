@@ -2,6 +2,7 @@
  * Root interrupt controller for the BCM2836 (Raspberry Pi 2).
  *
  * Copyright 2015 Broadcom
+ * Repark CPU modifications copyright 2017 Tadeusz Kijkowski
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +21,18 @@
 #include <linux/irqchip.h>
 #include <linux/irqdomain.h>
 #include <asm/exception.h>
+
+/*
+ * CONFIG_BCM2836_CPU_REPARK can only be enabled when CPU_ARM is also
+ * enabled, unless I messed up Kconfig file.
+ */
+#ifdef CONFIG_BCM2836_CPU_REPARK
+#include <linux/cpumask.h>
+#include <asm/delay.h>
+#include <asm/cacheflush.h>
+
+#include "bcm2836-reparkcpu.h"
+#endif /* CONFIG_BCM2836_CPU_REPARK */
 
 #define LOCAL_CONTROL			0x000
 #define LOCAL_PRESCALER			0x008
@@ -82,6 +95,10 @@ struct bcm2836_arm_irqchip_intc {
 };
 
 static struct bcm2836_arm_irqchip_intc intc  __read_mostly;
+
+#ifdef CONFIG_BCM2836_CPU_REPARK
+struct bcm2836_arm_cpu_repark_data bcm2836_repark_data;
+#endif
 
 static void bcm2836_arm_irqchip_mask_per_cpu_irq(unsigned int reg_offset,
 						 unsigned int bit,
@@ -238,20 +255,181 @@ static int bcm2836_cpu_dying(unsigned int cpu)
 	return 0;
 }
 
+#ifdef CONFIG_BCM2836_CPU_REPARK
+static void __attribute__((unused)) repark_verify_offsets(void)
+{
+	BUILD_BUG_ON(offsetof(struct bcm2836_arm_cpu_repark_data,
+		mailbox_rdclr_phys_base) != BCM2836_REPARK_PHYS_BASE_OFFSET);
+	BUILD_BUG_ON(offsetof(struct bcm2836_arm_cpu_repark_data,
+		mailbox_rdclr_virt_base) != BCM2836_REPARK_VIRT_BASE_OFFSET);
+	BUILD_BUG_ON(offsetof(struct bcm2836_arm_cpu_repark_data,
+		cpu_status) != BCM2836_REPARK_CPU_STATUS_OFFSET);
+}
+
+static bool bcm2836_cpu_is_irq_target(unsigned int cpunr)
+{
+	unsigned int gpu_int_routing;
+	gpu_int_routing = readl(intc.base + LOCAL_GPU_ROUTING);
+	return (gpu_int_routing & 3) == cpunr;
+}
+
+static bool bcm2836_cpu_is_fiq_target(unsigned int cpunr)
+{
+	unsigned int gpu_int_routing;
+	gpu_int_routing = readl(intc.base + LOCAL_GPU_ROUTING);
+	return ((gpu_int_routing >> 2) & 3) == cpunr;
+}
+
+/*
+ * Slightly modified bcm2836_arm_irqchip_spin_gpu_irq which keeps FIQ routing
+ */
+static unsigned int bcm2836_safe_spin_gpu_irq(void)
+{
+	u32 i;
+	void __iomem *gpurouting = (intc.base + LOCAL_GPU_ROUTING);
+	u32 routing_val = readl(gpurouting);
+	u32 fiq_routing = routing_val & ~3;
+
+	for (i = 1; i <= 3; i++) {
+		u32 new_routing_val = (routing_val + i) & 3;
+
+		if (cpu_active(new_routing_val)) {
+			writel(new_routing_val | fiq_routing, gpurouting);
+			return i;
+		}
+	}
+	return i;
+}
+
+static bool bcm2836_cpu_can_disable(unsigned int cpunr)
+{
+	if (cpunr == 0)
+		return false;
+
+	/*
+	 * Unfortunatelly this function is called on startup, before GPU FIQs
+	 * are re-routed.
+	 * We know that irq-bcm2835.c will re-route FIQs to CPU#1 for dwc_otg
+	 * (USB host), so just tell from the start, that disabling CPU#1 is
+	 * not allowed
+	 */
+	if (cpunr == 1)
+		return false;
+
+	if (bcm2836_cpu_is_irq_target(cpunr)
+			|| bcm2836_cpu_is_fiq_target(cpunr))
+		return false;
+
+	return true;
+}
+
+static void bcm2836_cpu_die(unsigned int cpunr)
+{
+	if (!bcm2836_cpu_is_irq_target(cpunr)) {
+		unsigned int next_cpunr = bcm2836_safe_spin_gpu_irq();
+		pr_notice("CPU%d: re-routed GPU IRQs to CPU%d\n",
+				cpunr, next_cpunr);
+	}
+
+	if (!bcm2836_cpu_is_fiq_target(cpunr)) {
+		/*
+		 * It's not that easy to re-route FIQs, though.
+		 * (We could, but need to take care of FIQ mode registers)
+		 */
+		pr_err("CPU%d: disabling CPU with GPU FIQs routed\n",
+				cpunr);
+		/* Too late to turn back */
+	}
+
+	/* Disable all timer interrupts */
+	writel(0, intc.base + LOCAL_TIMER_INT_CONTROL0 + 4 * cpunr);
+
+	/* Disable all mailbox interrupts */
+	writel(0, intc.base + LOCAL_MAILBOX_INT_CONTROL0 + 4 * cpunr);
+
+	bcm2836_repark_loop();
+}
+
+static void bcm2836_smp_repark_cpu(unsigned int cpunr)
+{
+	unsigned long repark_loop_phys =
+		(unsigned long)virt_to_phys((void *)bcm2836_repark_loop);
+
+	pr_info("bcm2836: reparking offline CPU#%d\n", cpunr);
+
+	smp_wmb();
+
+	writel(repark_loop_phys,
+	       intc.base + LOCAL_MAILBOX3_SET0 + 16 * cpunr);
+}
+
+static void bcm2836_smp_prepare_cpus(unsigned int max_cpus)
+{
+	int cpunr;
+
+	pr_info("bcm2836: prepare cpus called with max_cpus = %u\n", max_cpus);
+
+	for_each_present_cpu(cpunr) {
+		if (cpunr >= max_cpus)
+			bcm2836_smp_repark_cpu(cpunr);
+	}
+}
+
+static void bcm2836_smp_init_repark(struct device_node *node)
+{
+	struct resource res;
+
+	/* This should never fail since of_iomap succeeded earlier */
+	if (of_address_to_resource(node, 0, &res))
+		panic("%s: unable to get local interrupt registers address\n",
+			node->full_name);
+
+	bcm2836_repark_data.mailbox_rdclr_phys_base =
+		res.start + LOCAL_MAILBOX3_CLR0;
+	bcm2836_repark_data.mailbox_rdclr_virt_base =
+		intc.base + LOCAL_MAILBOX3_CLR0;
+	sync_cache_w(&bcm2836_repark_data);
+}
+
+#endif
+
 #ifdef CONFIG_ARM
-static int __init bcm2836_smp_boot_secondary(unsigned int cpu,
+static int bcm2836_smp_boot_secondary(unsigned int cpu,
 					     struct task_struct *idle)
 {
 	unsigned long secondary_startup_phys =
 		(unsigned long)virt_to_phys((void *)secondary_startup);
 
+#ifdef CONFIG_BCM2836_CPU_REPARK
+	int cpu_status = bcm2836_repark_data.cpu_status[cpu];
+	smp_rmb();
+	if (cpu_status == CPU_REPARK_STATUS_NOT_PARKED
+			|| cpu_status == CPU_REPARK_STATUS_NOMMU) {
+		writel(secondary_startup_phys,
+		       intc.base + LOCAL_MAILBOX3_SET0 + 16 * cpu);
+	} else if (cpu_status == CPU_REPARK_STATUS_MMU) {
+		writel((unsigned int) secondary_startup,
+		       intc.base + LOCAL_MAILBOX3_SET0 + 16 * cpu);
+	} else {
+		pr_err("bcm2836: CPU%d already online\n", cpu);
+		return -EBUSY;
+	}
+#else
 	writel(secondary_startup_phys,
 	       intc.base + LOCAL_MAILBOX3_SET0 + 16 * cpu);
+#endif
 
 	return 0;
 }
 
 static const struct smp_operations bcm2836_smp_ops __initconst = {
+#ifdef CONFIG_BCM2836_CPU_REPARK
+        .smp_prepare_cpus	= bcm2836_smp_prepare_cpus,
+#ifdef CONFIG_HOTPLUG_CPU
+	.cpu_die		= bcm2836_cpu_die,
+	.cpu_can_disable	= bcm2836_cpu_can_disable,
+#endif
+#endif
 	.smp_boot_secondary	= bcm2836_smp_boot_secondary,
 };
 #endif
@@ -315,6 +493,10 @@ static int __init bcm2836_arm_irqchip_l1_intc_of_init(struct device_node *node,
 					    NULL);
 	if (!intc.domain)
 		panic("%s: unable to create IRQ domain\n", node->full_name);
+
+#ifdef CONFIG_BCM2836_CPU_REPARK
+	bcm2836_smp_init_repark(node);
+#endif
 
 	bcm2836_arm_irqchip_register_irq(LOCAL_IRQ_CNTPSIRQ,
 					 &bcm2836_arm_irqchip_timer);
