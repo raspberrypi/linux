@@ -325,13 +325,13 @@ static bool bcm2836_cpu_can_disable(unsigned int cpunr)
 
 static void bcm2836_cpu_die(unsigned int cpunr)
 {
-	if (!bcm2836_cpu_is_irq_target(cpunr)) {
+	if (bcm2836_cpu_is_irq_target(cpunr)) {
 		unsigned int next_cpunr = bcm2836_safe_spin_gpu_irq();
 		pr_notice("CPU%d: re-routed GPU IRQs to CPU%d\n",
 				cpunr, next_cpunr);
 	}
 
-	if (!bcm2836_cpu_is_fiq_target(cpunr)) {
+	if (bcm2836_cpu_is_fiq_target(cpunr)) {
 		/*
 		 * It's not that easy to re-route FIQs, though.
 		 * (We could, but need to take care of FIQ mode registers)
