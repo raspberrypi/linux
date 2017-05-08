@@ -1,9 +1,5 @@
 /dts-v1/;
 
-#ifdef RPI364
-/memreserve/ 0x00000000 0x00001000;
-#endif
-
 #include "bcm2710.dtsi"
 #include "bcm283x-rpi-smsc9514.dtsi"
 
