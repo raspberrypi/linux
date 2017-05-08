@@ -227,6 +227,9 @@ static int __init bcm2836_smp_boot_secondary(unsigned int cpu,
 	writel(secondary_startup_phys,
 	       intc.base + LOCAL_MAILBOX3_SET0 + 16 * cpu);
 
+	dsb(sy); /* Ensure write has completed before waking the other CPUs */
+	sev();
+
 	return 0;
 }
 
