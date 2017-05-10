@@ -764,7 +764,7 @@ config USB_HWA_HCD
 
 config USB_DWCOTG
 	tristate "Synopsis DWC host support"
-	depends on USB && FIQ
+	depends on USB && (FIQ || ARM64)
 	help
 	  The Synopsis DWC controller is a dual-role
 	  host/peripheral/OTG ("On The Go") USB controllers.
