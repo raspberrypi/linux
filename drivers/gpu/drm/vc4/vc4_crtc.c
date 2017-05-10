@@ -659,6 +659,7 @@ static void vc4_crtc_atomic_flush(struct drm_crtc *crtc,
 
 int vc4_enable_vblank(struct drm_device *dev, unsigned int crtc_id)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_crtc *crtc = drm_crtc_from_index(dev, crtc_id);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 
@@ -674,6 +675,7 @@ int vc4_enable_vblank(struct drm_device *dev, unsigned int crtc_id)
 
 void vc4_disable_vblank(struct drm_device *dev, unsigned int crtc_id)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_crtc *crtc = drm_crtc_from_index(dev, crtc_id);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 
