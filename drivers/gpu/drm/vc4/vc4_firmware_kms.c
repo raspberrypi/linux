@@ -191,7 +191,7 @@ static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
 			      bo->paddr + fb->offsets[0],
 			      0, 0, /* hotx, hoty */};
 	WARN_ON_ONCE(fb->pitches[0] != state->crtc_w * 4);
-	WARN_ON_ONCE(fb->bits_per_pixel != 32);
+	//WARN_ON_ONCE(fb->bits_per_pixel != 32);
 
 	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] update %dx%d cursor at %d,%d (0x%08x/%d)",
 			 plane->base.id, plane->name,
@@ -620,7 +620,7 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	drm_crtc_helper_add(crtc, &vc4_crtc_helper_funcs);
 	primary_plane->crtc = crtc;
 	cursor_plane->crtc = crtc;
-	vc4->crtc[drm_crtc_index(crtc)] = vc4_crtc;
+	//vc4->crtc[drm_crtc_index(crtc)] = vc4_crtc;
 
 	vc4_encoder = devm_kzalloc(dev, sizeof(*vc4_encoder), GFP_KERNEL);
 	if (!vc4_encoder)
