@@ -2023,7 +2023,8 @@ static unsigned long __init xen_read_phys_ulong(phys_addr_t addr)
 
 /*
  * Translate a virtual address to a physical one without relying on mapped
- * page tables.
+ * page tables. Don't rely on big pages being aligned in (guest) physical
+ * space!
  */
 static phys_addr_t __init xen_early_virt_to_phys(unsigned long vaddr)
 {
@@ -2044,7 +2045,7 @@ static phys_addr_t __init xen_early_virt_to_phys(unsigned long vaddr)
 						       sizeof(pud)));
 	if (!pud_present(pud))
 		return 0;
-	pa = pud_pfn(pud) << PAGE_SHIFT;
+	pa = pud_val(pud) & PTE_PFN_MASK;
 	if (pud_large(pud))
 		return pa + (vaddr & ~PUD_MASK);
 
@@ -2052,7 +2053,7 @@ static phys_addr_t __init xen_early_virt_to_phys(unsigned long vaddr)
 						       sizeof(pmd)));
 	if (!pmd_present(pmd))
 		return 0;
-	pa = pmd_pfn(pmd) << PAGE_SHIFT;
+	pa = pmd_val(pmd) & PTE_PFN_MASK;
 	if (pmd_large(pmd))
 		return pa + (vaddr & ~PMD_MASK);
 
