@@ -1,11 +1,12 @@
-/* Enable SDIO from MMC interface via GPIOs 22-27. Includes sdhost overlay. */
+/dts-v1/;
+/plugin/;
 
-/include/ "sdhost-overlay.dts"
+/* Enable SDIO from MMC interface via GPIOs 22-27. Includes sdhost overlay. */
 
 /{
 	compatible = "brcm,bcm2708";
 
-	fragment@3 {
+	fragment@0 {
 		target = <&mmc>;
 		sdio_mmc: __overlay__ {
 			pinctrl-names = "default";
@@ -17,12 +18,12 @@
 		};
 	};
 
-	fragment@4 {
+	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
 			sdio_pins: sdio_pins {
 				brcm,pins = <22 23 24 25 26 27>;
-				brcm,function = <7 7 7 7 7 7>; /* ALT3 = SD1 */
+				brcm,function = <7>; /* ALT3 = SD1 */
 				brcm,pull = <0 2 2 2 2 2>;
 			};
 		};
