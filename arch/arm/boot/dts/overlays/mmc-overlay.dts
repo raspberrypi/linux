@@ -21,7 +21,7 @@
 			mmc_pins: mmc_pins {
 				brcm,pins = <48 49 50 51 52 53>;
 				brcm,function = <7>; /* alt3 */
-				brcm.pull = <0 2 2 2 2 2>;
+				brcm,pull = <0 2 2 2 2 2>;
 			};
 		};
 	};
