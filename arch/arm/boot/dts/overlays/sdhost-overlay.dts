@@ -11,7 +11,6 @@
 		frag0: __overlay__ {
 			brcm,overclock-50 = <0>;
 			brcm,pio-limit = <1>;
-			brcm,debug-flags = <0>;
 			status = "okay";
 		};
 	};
