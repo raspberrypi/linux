@@ -188,3 +188,12 @@ config SND_PISOUND
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	help
 	  Say Y or M if you want to add support for Blokas Labs pisound.
+
+config SND_BCM2708_SOC_SSM2602
+	tristate "SoC SSM2602 Audio Codec support"
+	depends on (SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S) && SND_SOC_I2C_AND_SPI
+	select SND_SOC_SSM2602_SPI if SPI_MASTER
+	select SND_SOC_SSM2602_I2C if I2C
+	help
+	  Say Y if you want to add support for the Analog Devices
+	  SSM2602 Audio Codec.
