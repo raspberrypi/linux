@@ -2374,8 +2374,7 @@ void dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 {
 	struct fiq_channel_state *st = &hcd->fiq_state->channel[num];
 	dwc_hc_t *hc = hcd->hc_ptr_array[num];
-	dwc_otg_qtd_t *qtd = DWC_CIRCLEQ_FIRST(&hc->qh->qtd_list);
-	dwc_otg_qh_t *qh = hc->qh;
+	dwc_otg_qtd_t *qtd;
 	dwc_otg_hc_regs_t *hc_regs = hcd->core_if->host_if->hc_regs[num];
 	hcint_data_t hcint = hcd->fiq_state->channel[num].hcint_copy;
 	hctsiz_data_t hctsiz = hcd->fiq_state->channel[num].hctsiz_copy;
@@ -2385,16 +2384,19 @@ void dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 	hostchannels = hcd->available_host_channels;
 	if (hc->halt_pending) {
 		/* Dequeue: The FIQ was allowed to complete the transfer but state has been cleared. */
-		if (st->fsm == FIQ_NP_SPLIT_DONE && hcint.b.xfercomp && qh->ep_type == UE_BULK) {
+		if (hc->qh && st->fsm == FIQ_NP_SPLIT_DONE &&
+				hcint.b.xfercomp && hc->qh->ep_type == UE_BULK) {
 			if (hctsiz.b.pid == DWC_HCTSIZ_DATA0) {
-				qh->data_toggle = DWC_OTG_HC_PID_DATA1;
+				hc->qh->data_toggle = DWC_OTG_HC_PID_DATA1;
 			} else {
-				qh->data_toggle = DWC_OTG_HC_PID_DATA0;
+				hc->qh->data_toggle = DWC_OTG_HC_PID_DATA0;
 			}
 		}
 		release_channel(hcd, hc, NULL, hc->halt_status);
 		return;
 	}
+
+	qtd = DWC_CIRCLEQ_FIRST(&hc->qh->qtd_list);
 	switch (st->fsm) {
 	case FIQ_TEST:
 		break;
@@ -2413,6 +2415,11 @@ void dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 			handle_hc_xfercomp_intr(hcd, hc, hc_regs, qtd);
 		} else if (hcint.b.nak) {
 			handle_hc_nak_intr(hcd, hc, hc_regs, qtd);
+		} else {
+			DWC_WARN("Unexpected IRQ state on FSM transaction:"
+					"dev_addr=%d ep=%d fsm=%d, hcint=0x%08x\n",
+				hc->dev_addr, hc->ep_num, st->fsm, hcint.d32);
+			release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NO_HALT_STATUS);
 		}
 		break;
 
@@ -2428,8 +2435,10 @@ void dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 		} else if (hcint.b.ahberr) {
 			handle_hc_ahberr_intr(hcd, hc, hc_regs, qtd);
 		} else {
-			local_fiq_disable();
-			BUG();
+			DWC_WARN("Unexpected IRQ state on FSM transaction:"
+					"dev_addr=%d ep=%d fsm=%d, hcint=0x%08x\n",
+				hc->dev_addr, hc->ep_num, st->fsm, hcint.d32);
+			release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NO_HALT_STATUS);
 		}
 		break;
 
@@ -2445,8 +2454,10 @@ void dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 		} else if (hcint.b.ahberr) {
 			handle_hc_ahberr_intr(hcd, hc, hc_regs, qtd);
 		} else {
-			local_fiq_disable();
-			BUG();
+			DWC_WARN("Unexpected IRQ state on FSM transaction:"
+					"dev_addr=%d ep=%d fsm=%d, hcint=0x%08x\n",
+				hc->dev_addr, hc->ep_num, st->fsm, hcint.d32);
+			release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_NO_HALT_STATUS);
 		}
 		break;
 
@@ -2504,7 +2515,7 @@ void dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 			} else {
 				frame_desc->status = 0;
 				/* Unswizzle dma */
-				len = dwc_otg_fiq_unsetup_per_dma(hcd, qh, qtd, num);
+				len = dwc_otg_fiq_unsetup_per_dma(hcd, hc->qh, qtd, num);
 				frame_desc->actual_length = len;
 			}
 			qtd->isoc_frame_index++;
@@ -2566,7 +2577,7 @@ void dwc_otg_hcd_handle_hc_fsm(dwc_otg_hcd_t *hcd, uint32_t num)
 		 * The status is recorded as the interrupt state should the transaction
 		 * fail.
 		 */
-		dwc_otg_fiq_unmangle_isoc(hcd, qh, qtd, num);
+		dwc_otg_fiq_unmangle_isoc(hcd, hc->qh, qtd, num);
 		hcd->fops->complete(hcd, qtd->urb->priv, qtd->urb, 0);
 		release_channel(hcd, hc, qtd, DWC_OTG_HC_XFER_URB_COMPLETE);
 		break;
