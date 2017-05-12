@@ -973,7 +973,9 @@ int32_t dwc_otg_handle_disconnect_intr(dwc_otg_core_if_t * core_if)
 	} else {
 		if (core_if->op_state == A_HOST) {
 			/* A-Cable still connected but device disconnected. */
+			DWC_SPINUNLOCK(core_if->lock);
 			cil_hcd_disconnect(core_if);
+			DWC_SPINLOCK(core_if->lock);
 			if (core_if->adp_enable) {
 				gpwrdn_data_t gpwrdn = { .d32 = 0 };
 				cil_hcd_stop(core_if);
