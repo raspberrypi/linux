@@ -290,13 +290,16 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 	gintsts_data_t intr;
 	dwc_otg_hcd_t *dwc_otg_hcd = p;
 
+	DWC_SPINLOCK(dwc_otg_hcd->lock);
 	/*
 	 * Set status flags for the hub driver.
 	 */
 	dwc_otg_hcd->flags.b.port_connect_status_change = 1;
 	dwc_otg_hcd->flags.b.port_connect_status = 0;
-	if(fiq_enable)
+	if(fiq_enable) {
 		local_fiq_disable();
+		fiq_fsm_spin_lock(&dwc_otg_hcd->fiq_state->lock);
+	}
 	/*
 	 * Shutdown any transfers in process by clearing the Tx FIFO Empty
 	 * interrupt mask and status bits and disabling subsequent host
@@ -389,7 +392,8 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 				 * in release_channel_ddma(). Which called from ep_disable
 				 * when device disconnect.
 				 */
-				channel->qh = NULL;
+				if (dwc_otg_hcd->core_if->dma_desc_enable)
+					channel->qh = NULL;
 			}
 		}
 		if(fiq_fsm_enable) {
@@ -400,13 +404,16 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 
 	}
 
-	if(fiq_enable)
+	if(fiq_enable) {
+		fiq_fsm_spin_unlock(&dwc_otg_hcd->fiq_state->lock);
 		local_fiq_enable();
+	}
 
 	if (dwc_otg_hcd->fops->disconnect) {
 		dwc_otg_hcd->fops->disconnect(dwc_otg_hcd);
 	}
 
+	DWC_SPINUNLOCK(dwc_otg_hcd->lock);
 	return 1;
 }
 
@@ -1750,8 +1757,20 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	int hub_addr, port_addr, frame, uframe;
 	struct fiq_channel_state *st = &hcd->fiq_state->channel[hc->hc_num];
 
-	if (st->fsm != FIQ_PASSTHROUGH)
+	/*
+	 * Non-periodic channel assignments stay in the non_periodic_active queue.
+	 * Therefore we get repeatedly called until the FIQ's done processing this channel.
+	 */
+	if (qh->channel->xfer_started == 1)
 		return 0;
+
+	if (st->fsm != FIQ_PASSTHROUGH) {
+		pr_warn_ratelimited("%s:%d: Queue called for an active channel\n", __func__, __LINE__);
+		return 0;
+	}
+
+	qh->channel->xfer_started = 1;
+
 	st->nr_errors = 0;
 
 	st->hcchar_copy.d32 = 0;
