@@ -265,6 +265,7 @@
 #include <linux/syscalls.h>
 #include <linux/completion.h>
 #include <linux/uuid.h>
+#include <linux/locallock.h>
 #include <crypto/chacha20.h>
 
 #include <asm/processor.h>
@@ -2196,6 +2197,7 @@ static rwlock_t batched_entropy_reset_lock = __RW_LOCK_UNLOCKED(batched_entropy_
  * at any point prior.
  */
 static DEFINE_PER_CPU(struct batched_entropy, batched_entropy_u64);
+static DEFINE_LOCAL_IRQ_LOCK(batched_entropy_u64_lock);
 u64 get_random_u64(void)
 {
 	u64 ret;
@@ -2216,7 +2218,7 @@ u64 get_random_u64(void)
 	warn_unseeded_randomness(&previous);
 
 	use_lock = READ_ONCE(crng_init) < 2;
-	batch = &get_cpu_var(batched_entropy_u64);
+	batch = &get_locked_var(batched_entropy_u64_lock, batched_entropy_u64);
 	if (use_lock)
 		read_lock_irqsave(&batched_entropy_reset_lock, flags);
 	if (batch->position % ARRAY_SIZE(batch->entropy_u64) == 0) {
@@ -2226,12 +2228,13 @@ u64 get_random_u64(void)
 	ret = batch->entropy_u64[batch->position++];
 	if (use_lock)
 		read_unlock_irqrestore(&batched_entropy_reset_lock, flags);
-	put_cpu_var(batched_entropy_u64);
+	put_locked_var(batched_entropy_u64_lock, batched_entropy_u64);
 	return ret;
 }
 EXPORT_SYMBOL(get_random_u64);
 
 static DEFINE_PER_CPU(struct batched_entropy, batched_entropy_u32);
+static DEFINE_LOCAL_IRQ_LOCK(batched_entropy_u32_lock);
 u32 get_random_u32(void)
 {
 	u32 ret;
@@ -2246,7 +2249,7 @@ u32 get_random_u32(void)
 	warn_unseeded_randomness(&previous);
 
 	use_lock = READ_ONCE(crng_init) < 2;
-	batch = &get_cpu_var(batched_entropy_u32);
+	batch = &get_locked_var(batched_entropy_u32_lock, batched_entropy_u32);
 	if (use_lock)
 		read_lock_irqsave(&batched_entropy_reset_lock, flags);
 	if (batch->position % ARRAY_SIZE(batch->entropy_u32) == 0) {
@@ -2256,7 +2259,7 @@ u32 get_random_u32(void)
 	ret = batch->entropy_u32[batch->position++];
 	if (use_lock)
 		read_unlock_irqrestore(&batched_entropy_reset_lock, flags);
-	put_cpu_var(batched_entropy_u32);
+	put_locked_var(batched_entropy_u32_lock, batched_entropy_u32);
 	return ret;
 }
 EXPORT_SYMBOL(get_random_u32);
