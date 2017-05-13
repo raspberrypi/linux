@@ -163,6 +163,7 @@ config ARCH_BCM2835
 config BCM2836_CPU_REPARK
 	bool "Repark offline CPUs on BCM2836"
 	depends on ARCH_BCM2835
+	depends on SMP
 	default n
 	help
 	  This config option will tell BCM2836 driver to repark CPUs not started
