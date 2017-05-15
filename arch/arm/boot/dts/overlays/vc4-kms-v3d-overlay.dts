@@ -13,35 +13,35 @@
 	fragment@0 {
 		target-path = "/chosen";
 		__overlay__ {
-			bootargs = "cma=256M@256M";
+			bootargs = "cma=256M";
 		};
 	};
 
 	fragment@1 {
 		target-path = "/chosen";
 		__dormant__ {
-			bootargs = "cma=192M@256M";
+			bootargs = "cma=192M";
 		};
 	};
 
 	fragment@2 {
 		target-path = "/chosen";
 		__dormant__ {
-			bootargs = "cma=128M@128M";
+			bootargs = "cma=128M";
 		};
 	};
 
 	fragment@3 {
 		target-path = "/chosen";
 		__dormant__ {
-			bootargs = "cma=96M@128M";
+			bootargs = "cma=96M";
 		};
 	};
 
 	fragment@4 {
 		target-path = "/chosen";
 		__dormant__ {
-			bootargs = "cma=64M@64M";
+			bootargs = "cma=64M";
 		};
 	};
 
