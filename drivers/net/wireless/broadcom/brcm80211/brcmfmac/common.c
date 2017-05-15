@@ -18,6 +18,7 @@
 #include <linux/string.h>
 #include <linux/netdevice.h>
 #include <linux/module.h>
+#include <linux/firmware.h>
 #include <brcmu_wifi.h>
 #include <brcmu_utils.h>
 #include "core.h"
@@ -28,6 +29,7 @@
 #include "tracepoint.h"
 #include "common.h"
 #include "of.h"
+#include "firmware.h"
 
 MODULE_AUTHOR("Broadcom Corporation");
 MODULE_DESCRIPTION("Broadcom 802.11 wireless LAN fullmac driver.");
@@ -104,14 +106,169 @@ void brcmf_c_set_joinpref_default(struct brcmf_if *ifp)
 		brcmf_err("Set join_pref error (%d)\n", err);
 }
 
+int brcmf_c_download_2_dongle(struct brcmf_if *ifp, char *dcmd, u16 flag,
+			      u16 dload_type, char *dload_buf, u32 len)
+{
+	struct brcmf_dload_data_le *dload_ptr;
+	u32 dload_data_offset;
+	u16 flags;
+	s32 err;
+
+	dload_ptr = (struct brcmf_dload_data_le *)dload_buf;
+	dload_data_offset = offsetof(struct brcmf_dload_data_le, data);
+	flags = flag | (DLOAD_HANDLER_VER << DLOAD_FLAG_VER_SHIFT);
+
+	dload_ptr->flag = cpu_to_le16(flags);
+	dload_ptr->dload_type = cpu_to_le16(dload_type);
+	dload_ptr->len = cpu_to_le32(len - dload_data_offset);
+	dload_ptr->crc = cpu_to_le32(0);
+	len = len + 8 - (len % 8);
+
+	err = brcmf_fil_iovar_data_set(ifp, dcmd, (void *)dload_buf, len);
+
+	return err;
+}
+
+int brcmf_c_get_clm_name(struct brcmf_if *ifp, u8 *clm_name)
+{
+	struct brcmf_rev_info_le revinfo;
+	struct brcmf_bus *bus = ifp->drvr->bus_if;
+	u8 fw_name[BRCMF_FW_NAME_LEN];
+	u8 *ptr;
+	size_t len;
+	u32 chipnum;
+	u32 chiprev;
+	s32 err;
+
+	err = brcmf_fil_cmd_data_get(ifp, BRCMF_C_GET_REVINFO, &revinfo,
+				     sizeof(revinfo));
+	if (err < 0) {
+		brcmf_err("retrieving revision info failed (%d)\n", err);
+		goto done;
+	}
+
+	chipnum = le32_to_cpu(revinfo.chipnum);
+	chiprev = le32_to_cpu(revinfo.chiprev);
+
+	memset(fw_name, 0, BRCMF_FW_NAME_LEN);
+	err = brcmf_bus_get_fwname(bus, chipnum, chiprev, fw_name);
+	if (err) {
+		brcmf_err("get firmware name failed (%d)\n", err);
+		goto done;
+	}
+
+	/* generate CLM blob file name */
+	ptr = strrchr(fw_name, '.');
+	len = ptr - fw_name + 1;
+	if (len + strlen(".clm_blob") > BRCMF_FW_NAME_LEN) {
+		err = -E2BIG;
+	} else {
+		strlcpy(clm_name, fw_name, len);
+		strlcat(clm_name, ".clm_blob", BRCMF_FW_NAME_LEN);
+	}
+done:
+	return err;
+}
+
+int brcmf_c_process_clm_blob(struct brcmf_if *ifp)
+{
+	struct device *dev = ifp->drvr->bus_if->dev;
+	const struct firmware *clm = NULL;
+	u8 buf[BRCMF_DCMD_SMLEN];
+	u8 clm_name[BRCMF_FW_NAME_LEN];
+	u32 data_offset;
+	u32 size2alloc;
+	u8 *chunk_buf;
+	u32 chunk_len;
+	u32 datalen;
+	u32 cumulative_len = 0;
+	u16 dl_flag = DL_BEGIN;
+	s32 err;
+
+	brcmf_dbg(INFO, "Enter\n");
+
+	memset(clm_name, 0, BRCMF_FW_NAME_LEN);
+	err = brcmf_c_get_clm_name(ifp, clm_name);
+	if (err) {
+		brcmf_err("get CLM blob file name failed (%d)\n", err);
+		return err;
+	}
+
+	err = request_firmware(&clm, clm_name, dev);
+	if (err) {
+		if (err == -ENOENT)
+			return 0;
+		brcmf_err("request CLM blob file failed (%d)\n", err);
+		return err;
+	}
+
+	datalen = clm->size;
+	data_offset = offsetof(struct brcmf_dload_data_le, data);
+	size2alloc = data_offset + MAX_CHUNK_LEN;
+
+	chunk_buf = kzalloc(size2alloc, GFP_KERNEL);
+	if (!chunk_buf) {
+		err = -ENOMEM;
+		goto done;
+	}
+
+	do {
+		if (datalen > MAX_CHUNK_LEN) {
+			chunk_len = MAX_CHUNK_LEN;
+		} else {
+			chunk_len = datalen;
+			dl_flag |= DL_END;
+		}
+
+		memcpy(chunk_buf + data_offset, clm->data + cumulative_len,
+		       chunk_len);
+
+		err = brcmf_c_download_2_dongle(ifp, "clmload", dl_flag,
+						DL_TYPE_CLM, chunk_buf,
+						data_offset + chunk_len);
+
+		dl_flag &= ~DL_BEGIN;
+
+		cumulative_len += chunk_len;
+		datalen -= chunk_len;
+	} while ((datalen > 0) && (err == 0));
+
+	if (err) {
+		brcmf_err("clmload (%d byte file) failed (%d); ",
+			  (u32)clm->size, err);
+		/* Retrieve clmload_status and print */
+		memset(buf, 0, BRCMF_DCMD_SMLEN);
+		err = brcmf_fil_iovar_data_get(ifp, "clmload_status", buf,
+					       BRCMF_DCMD_SMLEN);
+		if (err)
+			brcmf_err("get clmload_status failed (%d)\n", err);
+		else
+			brcmf_err("clmload_status=%d\n", *((int *)buf));
+		err = -EIO;
+	}
+
+	kfree(chunk_buf);
+done:
+	release_firmware(clm);
+	return err;
+}
+
 int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 {
 	s8 eventmask[BRCMF_EVENTING_MASK_LEN];
 	u8 buf[BRCMF_DCMD_SMLEN];
 	struct brcmf_rev_info_le revinfo;
 	struct brcmf_rev_info *ri;
+	char *clmver;
 	char *ptr;
 	s32 err;
+
+	/* Do any CLM downloading */
+	err = brcmf_c_process_clm_blob(ifp);
+	if (err < 0) {
+		brcmf_err("download CLM blob file failed, %d\n", err);
+		goto done;
+	}
 
 	/* retreive mac address */
 	err = brcmf_fil_iovar_data_get(ifp, "cur_etheraddr", ifp->mac_addr,
@@ -166,6 +323,24 @@ int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 	/* locate firmware version number for ethtool */
 	ptr = strrchr(buf, ' ') + 1;
 	strlcpy(ifp->drvr->fwver, ptr, sizeof(ifp->drvr->fwver));
+
+	/* Query for 'clmver' to get CLM version info from firmware */
+	memset(buf, 0, sizeof(buf));
+	err = brcmf_fil_iovar_data_get(ifp, "clmver", buf, sizeof(buf));
+	if (err) {
+		brcmf_err("retrieving clmver failed, %d\n", err);
+		goto done;
+	} else {
+		clmver = (char *)buf;
+		/* Replace all newline/linefeed characters with space
+		 * character
+		 */
+		ptr = clmver;
+		while ((ptr = strchr(ptr, '\n')) != NULL)
+			*ptr = ' ';
+
+		brcmf_err("CLM version = %s\n", clmver);
+	}
 
 	/* set mpc */
 	err = brcmf_fil_iovar_int_set(ifp, "mpc", 1);
