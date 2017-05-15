@@ -279,17 +279,12 @@ void dump_frame_list(dwc_otg_hcd_t * hcd)
 
 static void release_channel_ddma(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 {
-	dwc_irqflags_t flags;
-	dwc_spinlock_t *channel_lock = hcd->channel_lock;
-
 	dwc_hc_t *hc = qh->channel;
 	if (dwc_qh_is_non_per(qh)) {
-		DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 		if (!microframe_schedule)
 			hcd->non_periodic_channels--;
 		else
 			hcd->available_host_channels++;
-		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 	} else
 		update_frame_list(hcd, qh, 0);
 

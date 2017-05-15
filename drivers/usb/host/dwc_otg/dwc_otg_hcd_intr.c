@@ -945,7 +945,6 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 	dwc_otg_transaction_type_e tr_type;
 	int free_qtd;
 	dwc_irqflags_t flags;
-	dwc_spinlock_t *channel_lock = hcd->channel_lock;
 
 	int hog_port = 0;
 
@@ -1034,11 +1033,8 @@ cleanup:
 			break;
 		}
 	} else {
-
-		DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 		hcd->available_host_channels++;
 		fiq_print(FIQDBG_INT, hcd->fiq_state, "AHC = %d ", hcd->available_host_channels);
-		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 	}
 
 	/* Try to queue more transfers now that there's a free channel. */
