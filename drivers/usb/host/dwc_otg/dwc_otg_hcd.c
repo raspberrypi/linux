@@ -938,7 +938,6 @@ static void dwc_otg_hcd_free(dwc_otg_hcd_t * dwc_otg_hcd)
 	} else if (dwc_otg_hcd->status_buf != NULL) {
 		DWC_FREE(dwc_otg_hcd->status_buf);
 	}
-	DWC_SPINLOCK_FREE(dwc_otg_hcd->channel_lock);
 	DWC_SPINLOCK_FREE(dwc_otg_hcd->lock);
 	/* Set core_if's lock pointer to NULL */
 	dwc_otg_hcd->core_if->lock = NULL;
@@ -969,10 +968,8 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 
 #if (defined(DWC_LINUX) && defined(CONFIG_DEBUG_SPINLOCK))
 	DWC_SPINLOCK_ALLOC_LINUX_DEBUG(hcd->lock);
-	DWC_SPINLOCK_ALLOC_LINUX_DEBUG(hcd->channel_lock);
 #else
 	hcd->lock = DWC_SPINLOCK_ALLOC();
-	hcd->channel_lock = DWC_SPINLOCK_ALLOC();
 #endif
         DWC_DEBUGPL(DBG_HCDV, "init of HCD %p given core_if %p\n",
                     hcd, core_if);
@@ -1997,7 +1994,6 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 	dwc_otg_qh_t *qh;
 	int num_channels;
 	dwc_irqflags_t flags;
-	dwc_spinlock_t *channel_lock = hcd->channel_lock;
 	dwc_otg_transaction_type_e ret_val = DWC_OTG_TRANSACTION_NONE;
 
 #ifdef DEBUG_HOST_CHANNELS
@@ -2016,13 +2012,10 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 
 		if (microframe_schedule) {
 			// Make sure we leave one channel for non periodic transactions.
-			DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 			if (hcd->available_host_channels <= 1) {
-				DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 				break;
 			}
 			hcd->available_host_channels--;
-			DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 #ifdef DEBUG_HOST_CHANNELS
 			last_sel_trans_num_per_scheduled++;
 #endif /* DEBUG_HOST_CHANNELS */
@@ -2035,10 +2028,8 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 		 * periodic assigned schedule.
 		 */
 		qh_ptr = DWC_LIST_NEXT(qh_ptr);
-		DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 		DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_assigned,
 				   &qh->qh_list_entry);
-		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 	}
 
 	/*
@@ -2076,13 +2067,10 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 		}
 
 		if (microframe_schedule) {
-				DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 				if (hcd->available_host_channels < 1) {
-					DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 					break;
 				}
 				hcd->available_host_channels--;
-				DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
 #ifdef DEBUG_HOST_CHANNELS
 				last_sel_trans_num_nonper_scheduled++;
 #endif /* DEBUG_HOST_CHANNELS */
@@ -2095,11 +2083,8 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 		 * non-periodic active schedule.
 		 */
 		qh_ptr = DWC_LIST_NEXT(qh_ptr);
-		DWC_SPINLOCK_IRQSAVE(channel_lock, &flags);
 		DWC_LIST_MOVE_HEAD(&hcd->non_periodic_sched_active,
 				   &qh->qh_list_entry);
-		DWC_SPINUNLOCK_IRQRESTORE(channel_lock, flags);
-
 
 		if (!microframe_schedule)
 			hcd->non_periodic_channels++;
