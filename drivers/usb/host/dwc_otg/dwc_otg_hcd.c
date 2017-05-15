@@ -200,8 +200,6 @@ static void kill_urbs_in_qh_list(dwc_otg_hcd_t * hcd, dwc_list_link_t * qh_list)
 				dwc_otg_hc_halt(hcd->core_if, qh->channel,
 						DWC_OTG_HC_XFER_URB_DEQUEUE);
 			}
-			if(microframe_schedule)
-				hcd->available_host_channels++;
 			qh->channel = NULL;
 		}
 		dwc_otg_hcd_qh_remove(hcd, qh);
@@ -369,39 +367,11 @@ static int32_t dwc_otg_hcd_disconnect_cb(void *p)
 			}
 		}
 
-		for (i = 0; i < num_channels; i++) {
-			channel = dwc_otg_hcd->hc_ptr_array[i];
-			if (DWC_CIRCLEQ_EMPTY_ENTRY(channel, hc_list_entry)) {
-				hc_regs =
-				    dwc_otg_hcd->core_if->host_if->hc_regs[i];
-				hcchar.d32 = DWC_READ_REG32(&hc_regs->hcchar);
-				if (hcchar.b.chen) {
-					/* Halt the channel. */
-					hcchar.b.chdis = 1;
-					DWC_WRITE_REG32(&hc_regs->hcchar,
-							hcchar.d32);
-				}
-
-				dwc_otg_hc_cleanup(dwc_otg_hcd->core_if,
-						   channel);
-				DWC_CIRCLEQ_INSERT_TAIL
-				    (&dwc_otg_hcd->free_hc_list, channel,
-				     hc_list_entry);
-				/*
-				 * Added for Descriptor DMA to prevent channel double cleanup
-				 * in release_channel_ddma(). Which called from ep_disable
-				 * when device disconnect.
-				 */
-				if (dwc_otg_hcd->core_if->dma_desc_enable)
-					channel->qh = NULL;
-			}
-		}
 		if(fiq_fsm_enable) {
 			for(i=0; i < 128; i++) {
 				dwc_otg_hcd->hub_port[i] = 0;
 			}
 		}
-
 	}
 
 	if(fiq_enable) {
