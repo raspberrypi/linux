@@ -151,6 +151,22 @@
 #define BRCMF_MFP_CAPABLE		1
 #define BRCMF_MFP_REQUIRED		2
 
+/* MAX_CHUNK_LEN is the amount of the clm file we send in each ioctl.
+ * It is relatively small because dongles (FW) have a small maximum size
+ * input payload restriction for ioctls.
+ */
+#define MAX_CHUNK_LEN			1400
+
+#define DLOAD_HANDLER_VER		1	/* Downloader version */
+#define DLOAD_FLAG_VER_MASK		0xf000	/* Downloader version mask */
+#define DLOAD_FLAG_VER_SHIFT		12	/* Downloader version shift */
+
+#define DL_CRC_NOT_INUSE		0x0001
+#define DL_BEGIN			0x0002
+#define DL_END				0x0004
+
+#define DL_TYPE_CLM			2
+
 /* join preference types for join_pref iovar */
 enum brcmf_join_pref_types {
 	BRCMF_JOIN_PREF_RSSI = 1,
@@ -815,6 +831,17 @@ struct brcmf_gtk_keyinfo_le {
 	u8 kck[BRCMF_RSN_KCK_LENGTH];
 	u8 kek[BRCMF_RSN_KEK_LENGTH];
 	u8 replay_counter[BRCMF_RSN_REPLAY_LEN];
+};
+
+/**
+ * struct brcmf_dload_data_le - data passing to firmware for downloading
+ */
+struct brcmf_dload_data_le {
+	__le16 flag;
+	__le16 dload_type;
+	__le32 len;
+	__le32 crc;
+	u8 data[1];
 };
 
 #endif /* FWIL_TYPES_H_ */
