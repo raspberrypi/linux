@@ -4,7 +4,7 @@
 
 comment "MMC/SD/SDIO Host Controller Drivers"
 
-config MMC_BCM2835
+config MMC_BCM2835_MMC
 	tristate "MMC support on BCM2835"
 	depends on MACH_BCM2708 || MACH_BCM2709 || ARCH_BCM2835
 	help
@@ -16,7 +16,7 @@ config MMC_BCM2835
 
 config MMC_BCM2835_DMA
 	bool "DMA support on BCM2835 Arasan controller"
-	depends on MMC_BCM2835
+	depends on MMC_BCM2835_MMC
 	help
 	  Enable DMA support on the Arasan SDHCI controller in Broadcom 2708
 	  based chips.
