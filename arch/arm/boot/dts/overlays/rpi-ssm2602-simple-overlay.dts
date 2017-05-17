@@ -1,0 +1,52 @@
+// Definitions for SSM2602 with RPI, I2C1 for control, I2S for data
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+    fragment@0 {
+        target = <&i2s>;
+        __overlay__ {
+            status = "okay";
+        };
+    };
+
+    fragment@1 {
+        target = <&i2c1>;
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+
+            ssm2602_codec: ssm2602@1b {
+                #sound-dai-cells = <0>;
+                compatible = "adi,ssm2602";
+                reg = <0x1b>;
+                status = "okay";
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&sound>;
+        sound_overlay: __overlay__ {
+            compatible = "simple-audio-card";
+            simple-audio-card,name = "ssm2602";
+            simple-audio-card,format = "i2s";
+            simple-audio-card,bitclock-slave = <&codec_dai>;
+            simple-audio-card,frame-slave = <&codec_dai>;
+            status = "okay";
+            cpu_dai: simple-audio-card,cpu {
+                sound-dai = <&i2s>;
+            };
+            codec_dai: simple-audio-card,codec {
+                sound-dai = <&ssm2602_codec>;
+            };
+        };
+    };
+
+    __overrides__ {
+        card-name = <&sound_overlay>,"simple-audio-card,name";
+    };
+};

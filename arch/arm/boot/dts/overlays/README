@@ -1154,6 +1154,12 @@ Load:   dtoverlay=rpi-sense
 Params: <None>
 
 
+Name:   rpi-ssm2602-simple
+Info:   Overlay for the activation of SSM2602.
+Load:   dtoverlay=rpi-ssm2602-simple,<param>=<val>
+Params: card-name               Override the default, "ssm2602", card name.
+
+
 Name:   rpi-tv
 Info:   Raspberry Pi TV HAT
 Load:   dtoverlay=rpi-tv

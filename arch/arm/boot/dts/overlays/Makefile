@@ -81,6 +81,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	rpi-ft5406.dtbo \
 	rpi-proto.dtbo \
 	rpi-sense.dtbo \
+	rpi-ssm2602-simple.dtbo \
 	rpi-tv.dtbo \
 	rra-digidac1-wm8741-audio.dtbo \
 	sc16is750-i2c.dtbo \
