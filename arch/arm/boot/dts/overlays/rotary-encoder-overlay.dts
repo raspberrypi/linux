@@ -1,0 +1,43 @@
+// Device tree overlay for GPIO connected rotary encoder.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			rotary0_pins: rotary0_pins {
+				brcm,pins = <4 17>; /* gpio 4 17 */
+				brcm,function = <0 0>; /* input */
+				brcm,pull = <2 2>; /* pull-up */
+			};
+
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			rotary0: rotary@0 {
+					compatible = "rotary-encoder";
+					status = "okay";
+					pinctrl-names = "default";
+					pinctrl-0 = <&rotary0_pins>;
+					gpios = <&gpio 4 0>, <&gpio 17 0>;
+					linux,axis = <0>; /* REL_X */
+					rotary-encoder,encoding = "gray";
+					rotary-encoder,relative-axis;
+			};
+		};
+
+	};  
+
+	__overrides__ {
+		rotary0_pin_a = <&rotary0>,"gpios:4",
+				<&rotary0_pins>,"brcm,pins:0";
+		rotary0_pin_b = <&rotary0>,"gpios:16",
+				<&rotary0_pins>,"brcm,pins:4";
+	};  
+};
