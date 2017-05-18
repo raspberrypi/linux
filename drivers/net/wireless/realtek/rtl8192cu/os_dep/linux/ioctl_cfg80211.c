@@ -641,12 +641,11 @@ void rtw_cfg80211_indicate_connect(_adapter *padapter)
 		#endif
 
 		DBG_871X("%s call cfg80211_roamed\n", __FUNCTION__);
+		#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
 		{
 			struct cfg80211_roam_info roam_info = {
-				#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 39) || defined(COMPAT_KERNEL_RELEASE)
 				.channel = notify_channel,
-				#endif
-				.bss = cur_network->network.MacAddress,
+				.bssid = cur_network->network.MacAddress,
 				.req_ie = pmlmepriv->assoc_req+sizeof(struct rtw_ieee80211_hdr_3addr)+2,
 				.req_ie_len = pmlmepriv->assoc_req_len-sizeof(struct rtw_ieee80211_hdr_3addr)-2,
 				.resp_ie = pmlmepriv->assoc_rsp+sizeof(struct rtw_ieee80211_hdr_3addr)+6,
@@ -654,6 +653,18 @@ void rtw_cfg80211_indicate_connect(_adapter *padapter)
 			};
 			cfg80211_roamed(padapter->pnetdev, &roam_info, GFP_ATOMIC);
 		}
+		#else
+		cfg80211_roamed(padapter->pnetdev
+			#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 39)
+			, notify_channel
+			#endif
+			, cur_network->network.MacAddress
+			, pmlmepriv->assoc_req+sizeof(struct rtw_ieee80211_hdr_3addr)+2
+			, pmlmepriv->assoc_req_len-sizeof(struct rtw_ieee80211_hdr_3addr)-2
+			, pmlmepriv->assoc_rsp+sizeof(struct rtw_ieee80211_hdr_3addr)+6
+			, pmlmepriv->assoc_rsp_len-sizeof(struct rtw_ieee80211_hdr_3addr)-6
+			, GFP_ATOMIC);
+		#endif
 	}
 	else
 	#endif
@@ -1668,10 +1679,17 @@ enum nl80211_iftype {
        NL80211_IFTYPE_MAX = NUM_NL80211_IFTYPES - 1
 };
 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
 static int cfg80211_rtw_change_iface(struct wiphy *wiphy,
 				     struct net_device *ndev,
 				     enum nl80211_iftype type,
 				     struct vif_params *params)
+#else
+static int cfg80211_rtw_change_iface(struct wiphy *wiphy,
+				     struct net_device *ndev,
+				     enum nl80211_iftype type, u32 *flags,
+				     struct vif_params *params)
+#endif
 {
 	enum nl80211_iftype old_type;
 	NDIS_802_11_NETWORK_INFRASTRUCTURE networkType ;
@@ -3531,7 +3549,11 @@ static int
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0))
 		unsigned char name_assign_type,
 #endif
+	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0))
+		enum nl80211_iftype type, struct vif_params *params)
+	#else
 		enum nl80211_iftype type, u32 *flags, struct vif_params *params)
+	#endif
 {
 	int ret = 0;
 	struct net_device* ndev = NULL;
