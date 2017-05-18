@@ -409,6 +409,7 @@ static int bcm2835_audio_open_connection(struct bcm2835_alsa_stream *alsa_stream
 			LOG_ERR("%s: failed to connect VCHI instance (ret=%d)\n",
 				__func__, ret);
 
+			vchi_disconnect(vchi_instance);
 			ret = -EIO;
 			goto err_free_mem;
 		}
@@ -431,7 +432,6 @@ static int bcm2835_audio_open_connection(struct bcm2835_alsa_stream *alsa_stream
 	LOG_DBG(" success !\n");
 	ret = 0;
 err_free_mem:
-	kfree(vchi_instance);
 
 	return ret;
 }
