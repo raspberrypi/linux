@@ -14,16 +14,16 @@
  * Pi's firmware display stack.
  */
 
-#include "drm_atomic.h"
-#include "drm_atomic_helper.h"
-#include "drm_plane_helper.h"
-#include "drm_crtc_helper.h"
-#include "drm_fourcc.h"
-#include "linux/clk.h"
-#include "linux/debugfs.h"
-#include "drm_fb_cma_helper.h"
-#include "linux/component.h"
-#include "linux/of_device.h"
+#include <drm/drm_atomic.h>
+#include <drm/drm_atomic_helper.h>
+#include <drm/drm_plane_helper.h>
+#include <drm/drm_crtc_helper.h>
+#include <drm/drm_fourcc.h>
+#include <linux/clk.h>
+#include <linux/debugfs.h>
+#include <drm/drm_fb_cma_helper.h>
+#include <linux/component.h>
+#include <linux/of_device.h>
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 #include <soc/bcm2835/raspberrypi-firmware.h>

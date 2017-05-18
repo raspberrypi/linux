@@ -6,8 +6,10 @@
  * published by the Free Software Foundation.
  */
 
-#include "drmP.h"
-#include "drm_gem_cma_helper.h"
+#include <linux/reservation.h>
+#include <drm/drmP.h>
+#include <drm/drm_encoder.h>
+#include <drm/drm_gem_cma_helper.h>
 
 /* Don't forget to update vc4_bo.c: bo_type_names[] when adding to
  * this.
