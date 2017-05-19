@@ -501,7 +501,6 @@ int dwc_otg_hcd_urb_enqueue(dwc_otg_hcd_t * hcd,
 	dwc_otg_transaction_type_e tr_type;
 	dwc_otg_qtd_t *qtd;
 	gintmsk_data_t intr_mask = {.d32 = 0 };
-	hprt0_data_t hprt0 = { .d32 = 0 };
 
 #ifdef DEBUG /* integrity checks (Broadcom) */
 	if (NULL == hcd->core_if) {
@@ -514,16 +513,6 @@ int dwc_otg_hcd_urb_enqueue(dwc_otg_hcd_t * hcd,
 		/* No longer connected. */
 		DWC_ERROR("Not connected\n");
 		return -DWC_E_NO_DEVICE;
-	}
-
-	/* Some core configurations cannot support LS traffic on a FS root port */
-	if ((hcd->fops->speed(hcd, dwc_otg_urb->priv) == USB_SPEED_LOW) &&
-		(hcd->core_if->hwcfg2.b.fs_phy_type == 1) &&
-		(hcd->core_if->hwcfg2.b.hs_phy_type == 1)) {
-			hprt0.d32 = DWC_READ_REG32(hcd->core_if->host_if->hprt0);
-			if (hprt0.b.prtspd == DWC_HPRT0_PRTSPD_FULL_SPEED) {
-				return -DWC_E_NO_DEVICE;
-			}
 	}
 
 	qtd = dwc_otg_hcd_qtd_create(dwc_otg_urb, atomic_alloc);
@@ -758,9 +747,7 @@ static void completion_tasklet_func(void *ptr)
 		DWC_FREE(item);
 
 		usb_hcd_giveback_urb(hcd->priv, urb, urb->status);
-
 		fiq_print(FIQDBG_PORTHUB, "COMPLETE");
-
 		DWC_SPINLOCK_IRQSAVE(hcd->lock, &flags);
 	}
 	DWC_SPINUNLOCK_IRQRESTORE(hcd->lock, flags);
@@ -1345,13 +1332,14 @@ int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 	if(hcd->hub_port[hub_addr] & (1 << port_addr))
 	{
 		fiq_print(FIQDBG_PORTHUB, "H%dP%d:S%02d", hub_addr, port_addr, qh->skip_count);
-
 		qh->skip_count++;
 
 		if(qh->skip_count > 40000)
 		{
 			printk_once(KERN_ERR "Error: Having to skip port allocation");
+#ifdef DWC_FIQ
 			local_fiq_disable();
+#endif
 			BUG();
 			return 0;
 		}
@@ -1362,7 +1350,7 @@ int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 		qh->skip_count = 0;
 		hcd->hub_port[hub_addr] |= 1 << port_addr;
 		fiq_print(FIQDBG_PORTHUB, "H%dP%d:A %d", hub_addr, port_addr, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->pipe_info.ep_num);
-#ifdef FIQ_DEBUG
+#if defined(DWC_FIQ) && defined(FIQ_DEBUG)
 		hcd->hub_port_alloc[hub_addr * 16 + port_addr] = dwc_otg_hcd_get_frame_number(hcd);
 #endif
 		return 0;
@@ -1382,7 +1370,6 @@ void dwc_otg_hcd_release_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh)
 	hcd->hub_port_alloc[hub_addr * 16 + port_addr] = -1;
 #endif
 	fiq_print(FIQDBG_PORTHUB, "H%dP%d:RO%d", hub_addr, port_addr, DWC_CIRCLEQ_FIRST(&qh->qtd_list)->urb->pipe_info.ep_num);
-
 }
 
 

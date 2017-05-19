@@ -1350,7 +1350,9 @@ static inline uint32_t dwc_otg_read_common_intr(dwc_otg_core_if_t * core_if, gin
 
 		// Re-enable the saved interrupts
 		local_irq_save(flags);
+#ifdef DWC_FIQ
 		local_fiq_disable();
+#endif
 		gintmsk.d32 |= gintmsk_common.d32;
 		gintsts_saved.d32 &= ~gintmsk_common.d32;
 		reenable_gintmsk->d32 = gintmsk.d32;

@@ -51,7 +51,9 @@
 #include <linux/dma-mapping.h>
 #include <linux/version.h>
 #include <asm/io.h>
+#ifdef DWC_FIQ
 #include <asm/fiq.h>
+#endif
 #include <linux/usb.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
 #include <../drivers/usb/core/hcd.h>
@@ -392,6 +394,7 @@ static struct dwc_otg_hcd_function_ops hcd_fops = {
 	.get_b_hnp_enable = _get_b_hnp_enable,
 };
 
+#ifdef DWC_FIQ
 static struct fiq_handler fh = {
   .name = "usb_fiq",
 };
@@ -400,6 +403,7 @@ struct fiq_stack_s {
 	uint8_t stack[2048];
 	int magic2;
 } fiq_stack;
+#endif
 
 extern mphi_regs_t c_mphi_regs;
 /**
@@ -433,11 +437,12 @@ int hcd_init(dwc_bus_dev_t *_dev)
         pci_set_consistent_dma_mask(_dev, dmamask);
 #endif
 
+#ifdef DWC_FIQ
 	if (fiq_fix_enable)
 	{
 		// Set up fiq
 		claim_fiq(&fh);
-		set_fiq_handler(__FIQ_Branch, 8);
+		set_fiq_handler(__FIQ_Branch, 4);
 		memset(&regs,0,sizeof(regs));
 		regs.ARM_r8 = (long)dwc_otg_hcd_handle_fiq;
 		regs.ARM_r9 = (long)0;
@@ -446,7 +451,7 @@ int hcd_init(dwc_bus_dev_t *_dev)
 		fiq_stack.magic1 = 0xdeadbeef;
 		fiq_stack.magic2 = 0xaa995566;
 	}
-
+#endif
 	/*
 	 * Allocate memory for the base HCD plus the DWC OTG HCD.
 	 * Initialize the base HCD.
@@ -465,7 +470,7 @@ int hcd_init(dwc_bus_dev_t *_dev)
 	}
 
 	hcd->regs = otg_dev->os_dep.base;
-
+#ifdef DWC_FIQ
 	if (fiq_fix_enable)
 	{
 		volatile extern void *dwc_regs_base;
@@ -490,6 +495,7 @@ int hcd_init(dwc_bus_dev_t *_dev)
 		// Enable FIQ interrupt from USB peripheral
 		enable_fiq(INTERRUPT_VC_USB);
 	}
+#endif
 	/* Initialize the DWC OTG HCD. */
 	dwc_otg_hcd = dwc_otg_hcd_alloc_hcd();
 	if (!dwc_otg_hcd) {

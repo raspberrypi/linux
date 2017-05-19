@@ -46,41 +46,36 @@ static unsigned int remap_irqs[(INTERRUPT_ARASANSDIO + 1) - INTERRUPT_JPEG] = {
 static void armctrl_mask_irq(struct irq_data *d)
 {
 	static const unsigned int disables[4] = {
-		IO_ADDRESS(ARM_IRQ_DIBL1),
-		IO_ADDRESS(ARM_IRQ_DIBL2),
-		IO_ADDRESS(ARM_IRQ_DIBL3),
+		ARM_IRQ_DIBL1,
+		ARM_IRQ_DIBL2,
+		ARM_IRQ_DIBL3,
 		0
 	};
 
-	if(d->irq >= FIQ_START)
-	{
-	  writel(0, __io(IO_ADDRESS(ARM_IRQ_FAST)));
-	}
-	else
-	{
+	if (d->irq >= FIQ_START) {
+		writel(0, __io_address(ARM_IRQ_FAST));
+	} else {
 		unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
-		writel(1 << (data & 0x1f), __io(disables[(data >> 5) & 0x3]));
+		writel(1 << (data & 0x1f), __io_address(disables[(data >> 5) & 0x3]));
 	}
 }
 
 static void armctrl_unmask_irq(struct irq_data *d)
 {
 	static const unsigned int enables[4] = {
-		IO_ADDRESS(ARM_IRQ_ENBL1),
-		IO_ADDRESS(ARM_IRQ_ENBL2),
-		IO_ADDRESS(ARM_IRQ_ENBL3),
+		ARM_IRQ_ENBL1,
+		ARM_IRQ_ENBL2,
+		ARM_IRQ_ENBL3,
 		0
 	};
 
-	if(d->irq >= FIQ_START)
-	{
-	  unsigned int data = (unsigned int)irq_get_chip_data(d->irq) - FIQ_START;
-	  writel(0x80 | data, __io(IO_ADDRESS(ARM_IRQ_FAST)));
-	}
-	else
-	{
-	  unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
-	  writel(1 << (data & 0x1f), __io(enables[(data >> 5) & 0x3]));
+	if (d->irq >= FIQ_START) {
+		unsigned int data =
+		    (unsigned int)irq_get_chip_data(d->irq) - FIQ_START;
+		writel(0x80 | data, __io_address(ARM_IRQ_FAST));
+	} else {
+		unsigned int data = (unsigned int)irq_get_chip_data(d->irq);
+		writel(1 << (data & 0x1f), __io_address(enables[(data >> 5) & 0x3]));
 	}
 }
 
@@ -100,17 +95,16 @@ static void armctrl_unmask_irq(struct irq_data *d)
  * @soft_int: Save for VIC_INT_SOFT.
  * @protect: Save for VIC_PROTECT.
  */
-	struct armctrl_info {
-		void __iomem *base;
-		int irq;
-		u32 resume_sources;
-		u32 resume_irqs;
-		u32 int_select;
-		u32 int_enable;
-		u32 soft_int;
-		u32 protect;
-	} armctrl;
-
+struct armctrl_info {
+	void __iomem *base;
+	int irq;
+	u32 resume_sources;
+	u32 resume_irqs;
+	u32 int_select;
+	u32 int_enable;
+	u32 soft_int;
+	u32 protect;
+} armctrl;
 
 static int armctrl_suspend(void)
 {
@@ -121,7 +115,6 @@ static void armctrl_resume(void)
 {
 	return;
 }
-
 
 /**
  * armctrl_pm_register - Register a VIC for later power management control
@@ -159,19 +152,19 @@ static int armctrl_set_wake(struct irq_data *d, unsigned int on)
 }
 
 #else
-static inline void armctrl_pm_register(void __iomem *base, unsigned int irq,
+static inline void armctrl_pm_register(void __iomem * base, unsigned int irq,
 				       u32 arg1)
 {
 }
+
 #define armctrl_suspend NULL
 #define armctrl_resume NULL
 #define armctrl_set_wake NULL
 #endif /* CONFIG_PM */
 
-
 static struct syscore_ops armctrl_syscore_ops = {
 	.suspend = armctrl_suspend,
-        .resume = armctrl_resume,
+	.resume = armctrl_resume,
 };
 
 /**
@@ -188,7 +181,6 @@ static int __init armctrl_syscore_init(void)
 }
 
 late_initcall(armctrl_syscore_init);
-
 
 static struct irq_chip armctrl_chip = {
 	.name = "ARMCTRL",
