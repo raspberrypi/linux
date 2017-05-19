@@ -496,7 +496,7 @@ void rtw_proc_remove_one(struct net_device *dev)
 		remove_proc_entry("best_channel", dir_dev);
 #endif 
 		remove_proc_entry("rx_signal", dir_dev);
-
+		remove_proc_entry("ampdu_enable", dir_dev);
 		remove_proc_entry("rssi_disp", dir_dev);
 
 		remove_proc_entry(dev->name, rtw_proc);
