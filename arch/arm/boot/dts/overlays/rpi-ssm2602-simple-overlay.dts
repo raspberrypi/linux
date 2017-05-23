@@ -42,6 +42,7 @@
             };
             codec_dai: simple-audio-card,codec {
                 sound-dai = <&ssm2602_codec>;
+                system-clock-frequency = <12000000>;
             };
         };
     };
