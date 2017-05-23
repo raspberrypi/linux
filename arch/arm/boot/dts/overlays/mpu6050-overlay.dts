@@ -13,7 +13,7 @@
                         status = "okay";
                         clock-frequency = <400000>;
 
-                        mpu6050: inv-mpu6050@68 {
+                        mpu6050: mpu6050@68 {
                                 compatible = "invensense,mpu6050";
                                 reg = <0x68>;
                                 interrupt-parent = <&gpio>;
