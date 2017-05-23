@@ -278,6 +278,8 @@ static int ssm2602_hw_params(struct snd_pcm_substream *substream,
 	int srate = ssm2602_get_coeff(ssm2602->sysclk, params_rate(params));
 	unsigned int iface;
 
+	pr_err("ssm2602_get_coeff(%d, %d) -> %d\n", ssm2602->sysclk,
+	       params_rate(params), srate);
 	if (srate < 0)
 		return srate;
 
