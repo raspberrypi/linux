@@ -898,6 +898,12 @@ Params: overclock_50            Clock (in MHz) to use when the MMC framework
                                 requests 50MHz
 
 
+Name:   mpu6050
+Info:   Overlay for i2c connected mpu6050 imu
+Load:   dtoverlay=mpu6050,<param>=<val>
+Params: interrupt               GPIO pin for interrupt (default 4)
+
+
 Name:   mz61581
 Info:   MZ61581 display by Tontec
 Load:   dtoverlay=mz61581,<param>=<val>
