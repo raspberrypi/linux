@@ -408,13 +408,17 @@ const unsigned short max_uframe_usecs[]={ 100, 100, 100, 100, 100, 100, 30, 0 };
 /*
  * called from dwc_otg_hcd.c:dwc_otg_hcd_init
  */
-int init_hcd_usecs(dwc_otg_hcd_t *_hcd)
+void init_hcd_usecs(dwc_otg_hcd_t *_hcd)
 {
 	int i;
-	for (i=0; i<8; i++) {
-		_hcd->frame_usecs[i] = max_uframe_usecs[i];
+	if (_hcd->flags.b.port_speed == DWC_HPRT0_PRTSPD_FULL_SPEED) {
+		_hcd->frame_usecs[0] = 900;
+		for (i = 1; i < 8; i++)
+			_hcd->frame_usecs[i] = 0;
+	} else {
+		for (i = 0; i < 8; i++)
+			_hcd->frame_usecs[i] = max_uframe_usecs[i];
 	}
-	return 0;
 }
 
 static int find_single_uframe(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t * _qh)
@@ -541,8 +545,9 @@ static int find_uframe(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t * _qh)
 	int ret;
 	ret = -1;
 
-	if (_qh->speed == USB_SPEED_HIGH) {
-		/* if this is a hs transaction we need a full frame */
+	if (_qh->speed == USB_SPEED_HIGH ||
+		_hcd->flags.b.port_speed == DWC_HPRT0_PRTSPD_FULL_SPEED) {
+		/* if this is a hs transaction we need a full frame - or account for FS usecs */
 		ret = find_single_uframe(_hcd, _qh);
 	} else {
 		/* if this is a fs transaction we may need a sequence of frames */
@@ -627,7 +632,7 @@ static int schedule_periodic(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	if (status) {
 		DWC_INFO("%s: Insufficient periodic bandwidth for "
 			    "periodic transfer.\n", __func__);
-		return status;
+		return -DWC_E_NO_SPACE;
 	}
 	status = check_max_xfer_size(hcd, qh);
 	if (status) {
