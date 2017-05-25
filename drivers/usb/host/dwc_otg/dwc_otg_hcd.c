@@ -926,8 +926,6 @@ static void dwc_otg_hcd_free(dwc_otg_hcd_t * dwc_otg_hcd)
 	DWC_FREE(dwc_otg_hcd);
 }
 
-int init_hcd_usecs(dwc_otg_hcd_t *_hcd);
-
 int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 {
 	struct device *dev = dwc_otg_hcd_to_dev(hcd);
@@ -1429,6 +1427,7 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 
 /**
  * fiq_fsm_transaction_suitable() - Test a QH for compatibility with the FIQ
+ * @hcd:	Pointer to the dwc_otg_hcd struct
  * @qh:	pointer to the endpoint's queue head
  *
  * Transaction start/end control flow is grafted onto the existing dwc_otg
@@ -1438,8 +1437,14 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
  * Returns: 0 for unsuitable, 1 implies the FIQ can be enabled for this transaction.
  */
 
-int fiq_fsm_transaction_suitable(dwc_otg_qh_t *qh)
+int fiq_fsm_transaction_suitable(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 {
+	/* There is little benefit in using the FIQ to perform transfers if
+	 * the root port is not in high-speed mode.
+	 */
+	if (hcd->flags.b.port_speed != DWC_HPRT0_PRTSPD_HIGH_SPEED)
+		return 0;
+
 	if (qh->do_split) {
 		switch (qh->ep_type) {
 		case UE_CONTROL:
@@ -2218,7 +2223,7 @@ static void process_periodic_channels(dwc_otg_hcd_t * hcd)
 			continue;
 		}
 
-		if (fiq_fsm_enable && fiq_fsm_transaction_suitable(qh)) {
+		if (fiq_fsm_enable && fiq_fsm_transaction_suitable(hcd, qh)) {
 			if (qh->do_split)
 				fiq_fsm_queue_split_transaction(hcd, qh);
 			else
@@ -2355,7 +2360,7 @@ static void process_non_periodic_channels(dwc_otg_hcd_t * hcd)
 		qh = DWC_LIST_ENTRY(hcd->non_periodic_qh_ptr, dwc_otg_qh_t,
 				    qh_list_entry);
 
-		if(fiq_fsm_enable && fiq_fsm_transaction_suitable(qh)) {
+		if(fiq_fsm_enable && fiq_fsm_transaction_suitable(hcd, qh)) {
 			fiq_fsm_queue_split_transaction(hcd, qh);
 		} else {
 			status = queue_transaction(hcd, qh->channel,
