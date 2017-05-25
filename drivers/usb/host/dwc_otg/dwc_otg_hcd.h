@@ -410,7 +410,8 @@ struct dwc_otg_hcd {
 			unsigned port_suspend_change:1;
 			unsigned port_over_current_change:1;
 			unsigned port_l1_change:1;
-			unsigned reserved:26;
+			unsigned port_speed:2;
+			unsigned reserved:24;
 		} b;
 	} flags;
 
@@ -629,7 +630,7 @@ int dwc_otg_hcd_allocate_port(dwc_otg_hcd_t * hcd, dwc_otg_qh_t *qh);
 void dwc_otg_hcd_release_port(dwc_otg_hcd_t * dwc_otg_hcd, dwc_otg_qh_t *qh);
 
 extern int fiq_fsm_queue_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh);
-extern int fiq_fsm_transaction_suitable(dwc_otg_qh_t *qh);
+extern int fiq_fsm_transaction_suitable(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh);
 extern void dwc_otg_cleanup_fiq_channel(dwc_otg_hcd_t *hcd, uint32_t num);
 
 /** @} */
@@ -822,6 +823,8 @@ static inline uint16_t dwc_micro_frame_num(uint16_t frame)
 {
 	return frame & 0x7;
 }
+
+extern void init_hcd_usecs(dwc_otg_hcd_t *_hcd);
 
 void dwc_otg_hcd_save_data_toggle(dwc_hc_t * hc,
 				  dwc_otg_hc_regs_t * hc_regs,
