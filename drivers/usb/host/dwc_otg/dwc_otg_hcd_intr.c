@@ -515,6 +515,10 @@ int32_t dwc_otg_hcd_handle_port_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 			dwc_otg_host_if_t *host_if =
 			    dwc_otg_hcd->core_if->host_if;
 
+			dwc_otg_hcd->flags.b.port_speed = hprt0.b.prtspd;
+			if (microframe_schedule)
+				init_hcd_usecs(dwc_otg_hcd);
+
 			/* Every time when port enables calculate
 			 * HFIR.FrInterval
 			 */
