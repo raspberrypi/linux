@@ -864,6 +864,13 @@ Load:   dtoverlay=midi-uart0
 Params: <None>
 
 
+Name:   midi-uart1
+Info:   Configures UART1 (ttyS0) so that a requested 38.4kbaud actually gets
+        31.25kbaud, the frequency required for MIDI
+Load:   dtoverlay=midi-uart1
+Params: <None>
+
+
 Name:   mmc
 Info:   Selects the bcm2835-mmc SD/MMC driver, optionally with overclock
 Load:   dtoverlay=mmc,<param>=<val>
