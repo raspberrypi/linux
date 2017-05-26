@@ -1439,12 +1439,6 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 
 int fiq_fsm_transaction_suitable(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 {
-	/* There is little benefit in using the FIQ to perform transfers if
-	 * the root port is not in high-speed mode.
-	 */
-	if (hcd->flags.b.port_speed != DWC_HPRT0_PRTSPD_HIGH_SPEED)
-		return 0;
-
 	if (qh->do_split) {
 		switch (qh->ep_type) {
 		case UE_CONTROL:
@@ -1462,28 +1456,22 @@ int fiq_fsm_transaction_suitable(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 		}
 	} else if (qh->ep_type == UE_ISOCHRONOUS) {
 		if (fiq_fsm_mask & (1 << 2)) {
-			/* HS ISOCH support. We test for compatibility:
+			/* ISOCH support. We test for compatibility:
 			 * - DWORD aligned buffers
 			 * - Must be at least 2 transfers (otherwise pointless to use the FIQ)
 			 * If yes, then the fsm enqueue function will handle the state machine setup.
 			 */
 			dwc_otg_qtd_t *qtd = DWC_CIRCLEQ_FIRST(&qh->qtd_list);
 			dwc_otg_hcd_urb_t *urb = qtd->urb;
-			struct dwc_otg_hcd_iso_packet_desc (*iso_descs)[0] = &urb->iso_descs;
-			int nr_iso_frames = urb->packet_count;
+			dwc_dma_t ptr;
 			int i;
-			uint32_t ptr;
 
-			if (nr_iso_frames < 2)
+			if (urb->packet_count < 2)
 				return 0;
-			for (i = 0; i < nr_iso_frames; i++) {
-				ptr = urb->dma + iso_descs[i]->offset;
-				if (ptr & 0x3) {
-					printk_ratelimited("%s: Non-Dword aligned isochronous frame offset."
-							" Cannot queue FIQ-accelerated transfer to device %d endpoint %d\n",
-							__FUNCTION__, qh->channel->dev_addr, qh->channel->ep_num);
+			for (i = 0; i < urb->packet_count; i++) {
+				ptr = urb->dma + urb->iso_descs[i].offset;
+				if (ptr & 0x3)
 					return 0;
-				}
 			}
 			return 1;
 		}
