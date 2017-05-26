@@ -755,10 +755,6 @@ static bool gen8_ppgtt_clear_pt(struct i915_address_space *vm,
 	GEM_BUG_ON(pte_end > GEN8_PTES);
 
 	bitmap_clear(pt->used_ptes, pte, num_entries);
-	if (USES_FULL_PPGTT(vm->i915)) {
-		if (bitmap_empty(pt->used_ptes, GEN8_PTES))
-			return true;
-	}
 
 	pt_vaddr = kmap_px(pt);
 
@@ -798,9 +794,6 @@ static bool gen8_ppgtt_clear_pd(struct i915_address_space *vm,
 		}
 	}
 
-	if (bitmap_empty(pd->used_pdes, I915_PDES))
-		return true;
-
 	return false;
 }
 
@@ -828,9 +821,6 @@ static bool gen8_ppgtt_clear_pdp(struct i915_address_space *vm,
 	}
 
 	mark_tlbs_dirty(ppgtt);
-
-	if (bitmap_empty(pdp->used_pdpes, I915_PDPES_PER_PDP(dev_priv)))
-		return true;
 
 	return false;
 }
