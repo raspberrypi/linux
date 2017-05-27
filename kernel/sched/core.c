@@ -1007,7 +1007,15 @@ void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_ma
 	p->nr_cpus_allowed = cpumask_weight(new_mask);
 }
 
-void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
+#if defined(CONFIG_PREEMPT_COUNT) && defined(CONFIG_SMP)
+int __migrate_disabled(struct task_struct *p)
+{
+	return p->migrate_disable;
+}
+#endif
+
+static void __do_set_cpus_allowed_tail(struct task_struct *p,
+				       const struct cpumask *new_mask)
 {
 	struct rq *rq = task_rq(p);
 	bool queued, running;
@@ -1034,6 +1042,20 @@ void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
 		enqueue_task(rq, p, ENQUEUE_RESTORE | ENQUEUE_NOCLOCK);
 	if (running)
 		set_curr_task(rq, p);
+}
+
+void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
+{
+#if defined(CONFIG_PREEMPT_COUNT) && defined(CONFIG_SMP)
+	if (__migrate_disabled(p)) {
+		lockdep_assert_held(&p->pi_lock);
+
+		cpumask_copy(&p->cpus_mask, new_mask);
+		p->migrate_disable_update = 1;
+		return;
+	}
+#endif
+	__do_set_cpus_allowed_tail(p, new_mask);
 }
 
 /*
@@ -1094,8 +1116,15 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	}
 
 	/* Can the task run on the task's current CPU? If so, we're done */
-	if (cpumask_test_cpu(task_cpu(p), new_mask))
+	if (cpumask_test_cpu(task_cpu(p), new_mask) || __migrate_disabled(p))
 		goto out;
+
+#if defined(CONFIG_PREEMPT_COUNT) && defined(CONFIG_SMP)
+	if (__migrate_disabled(p)) {
+		p->migrate_disable_update = 1;
+		goto out;
+	}
+#endif
 
 	dest_cpu = cpumask_any_and(cpu_valid_mask, new_mask);
 	if (task_running(rq, p) || p->state == TASK_WAKING) {
@@ -7059,3 +7088,100 @@ const u32 sched_prio_to_wmult[40] = {
 };
 
 #undef CREATE_TRACE_POINTS
+
+#if defined(CONFIG_PREEMPT_COUNT) && defined(CONFIG_SMP)
+
+void migrate_disable(void)
+{
+	struct task_struct *p = current;
+
+	if (in_atomic() || irqs_disabled()) {
+#ifdef CONFIG_SCHED_DEBUG
+		p->migrate_disable_atomic++;
+#endif
+		return;
+	}
+#ifdef CONFIG_SCHED_DEBUG
+	WARN_ON_ONCE(p->migrate_disable_atomic);
+#endif
+
+	if (p->migrate_disable) {
+		p->migrate_disable++;
+		return;
+	}
+
+	preempt_disable();
+	p->migrate_disable = 1;
+
+	p->cpus_ptr = cpumask_of(smp_processor_id());
+	p->nr_cpus_allowed = 1;
+
+	preempt_enable();
+}
+EXPORT_SYMBOL(migrate_disable);
+
+void migrate_enable(void)
+{
+	struct task_struct *p = current;
+
+	if (in_atomic() || irqs_disabled()) {
+#ifdef CONFIG_SCHED_DEBUG
+		p->migrate_disable_atomic--;
+#endif
+		return;
+	}
+
+#ifdef CONFIG_SCHED_DEBUG
+	WARN_ON_ONCE(p->migrate_disable_atomic);
+#endif
+
+	WARN_ON_ONCE(p->migrate_disable <= 0);
+	if (p->migrate_disable > 1) {
+		p->migrate_disable--;
+		return;
+	}
+
+	preempt_disable();
+
+	p->cpus_ptr = &p->cpus_mask;
+	p->nr_cpus_allowed = cpumask_weight(&p->cpus_mask);
+	p->migrate_disable = 0;
+
+	if (p->migrate_disable_update) {
+		struct rq *rq;
+		struct rq_flags rf;
+
+		rq = task_rq_lock(p, &rf);
+		update_rq_clock(rq);
+
+		__do_set_cpus_allowed_tail(p, &p->cpus_mask);
+		task_rq_unlock(rq, p, &rf);
+
+		p->migrate_disable_update = 0;
+
+		WARN_ON(smp_processor_id() != task_cpu(p));
+		if (!cpumask_test_cpu(task_cpu(p), &p->cpus_mask)) {
+			const struct cpumask *cpu_valid_mask = cpu_active_mask;
+			struct migration_arg arg;
+			unsigned int dest_cpu;
+
+			if (p->flags & PF_KTHREAD) {
+				/*
+				 * Kernel threads are allowed on online && !active CPUs
+				 */
+				cpu_valid_mask = cpu_online_mask;
+			}
+			dest_cpu = cpumask_any_and(cpu_valid_mask, &p->cpus_mask);
+			arg.task = p;
+			arg.dest_cpu = dest_cpu;
+
+			preempt_enable();
+			stop_one_cpu(task_cpu(p), migration_cpu_stop, &arg);
+			tlb_migrate_finish(p->mm);
+			return;
+		}
+	}
+	preempt_enable();
+}
+EXPORT_SYMBOL(migrate_enable);
+#endif
