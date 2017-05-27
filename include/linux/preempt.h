@@ -185,6 +185,22 @@ do { \
 
 #define preemptible()	(preempt_count() == 0 && !irqs_disabled())
 
+#ifdef CONFIG_SMP
+
+extern void migrate_disable(void);
+extern void migrate_enable(void);
+
+int __migrate_disabled(struct task_struct *p);
+
+#else
+#define migrate_disable()		barrier()
+#define migrate_enable()		barrier()
+static inline int __migrate_disabled(struct task_struct *p)
+{
+	return 0;
+}
+#endif
+
 #ifdef CONFIG_PREEMPT
 #define preempt_enable() \
 do { \
@@ -253,6 +269,13 @@ do { \
 #define preempt_enable_notrace()		barrier()
 #define preemptible()				0
 
+#define migrate_disable()			barrier()
+#define migrate_enable()			barrier()
+
+static inline int __migrate_disabled(struct task_struct *p)
+{
+	return 0;
+}
 #endif /* CONFIG_PREEMPT_COUNT */
 
 #ifdef MODULE
