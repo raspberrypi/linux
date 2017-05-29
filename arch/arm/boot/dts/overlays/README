@@ -673,6 +673,8 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102
         bmp280                  Select the Bosch Sensortronic BMP280
                                 Valid addresses 0x76-0x77, default 0x76
 
+        htu21                   Select the HTU21 temperature and humidity sensor
+
         lm75                    Select the Maxim LM75 temperature sensor
                                 Valid addresses 0x48-0x4f, default 0x4f
 
