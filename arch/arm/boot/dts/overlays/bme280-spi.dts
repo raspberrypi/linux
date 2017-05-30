@@ -1,0 +1,32 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&spidev0>;
+
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
+		target = <&spi0>;
+
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			bme280@0 {
+				compatible = "bosch,bme280";
+				reg = <0x0>;
+				spi-max-frequency = <500000>;
+				default-oversampling = <3>;
+				status = "okay";
+			};
+		};
+	};
+};
