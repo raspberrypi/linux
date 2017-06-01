@@ -1235,10 +1235,14 @@ _GLOBAL(ftrace_caller)
 	stdu	r1,-SWITCH_FRAME_SIZE(r1)
 
 	/* Save all gprs to pt_regs */
-	SAVE_8GPRS(0,r1)
-	SAVE_8GPRS(8,r1)
-	SAVE_8GPRS(16,r1)
-	SAVE_8GPRS(24,r1)
+	SAVE_GPR(0, r1)
+	SAVE_10GPRS(2, r1)
+	SAVE_10GPRS(12, r1)
+	SAVE_10GPRS(22, r1)
+
+	/* Save previous stack pointer (r1) */
+	addi	r8, r1, SWITCH_FRAME_SIZE
+	std	r8, GPR1(r1)
 
 	/* Load special regs for save below */
 	mfmsr   r8
@@ -1292,10 +1296,10 @@ ftrace_call:
 #endif
 
 	/* Restore gprs */
-	REST_8GPRS(0,r1)
-	REST_8GPRS(8,r1)
-	REST_8GPRS(16,r1)
-	REST_8GPRS(24,r1)
+	REST_GPR(0,r1)
+	REST_10GPRS(2,r1)
+	REST_10GPRS(12,r1)
+	REST_10GPRS(22,r1)
 
 	/* Restore callee's TOC */
 	ld	r2, 24(r1)
