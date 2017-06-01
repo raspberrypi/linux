@@ -287,9 +287,9 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 slave"
 
 
-Name:   hifiberry-digi-pro
+Name:   allo-digione
 Info:   Configures the Allo Digione audio card
-Load:   dtoverlay=hifiberry-digione
+Load:   dtoverlay=allo-digione
 Params: <None>
 
 
