@@ -167,6 +167,13 @@ config SND_BCM2708_SOC_ALLO_BOSS_DAC
 	help
 	  Say Y or M if you want to add support for Allo Boss DAC.
 
+config SND_BCM2708_SOC_ALLO_DIGIONE 
+        tristate "Support for Allo DigiOne"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_PCM512x_I2C
+	help
+	  Say Y or M if you want to add support for Allo DigiOne.
+
 config SND_BCM2708_SOC_FE_PI_AUDIO
 	tristate "Support for Fe-Pi-Audio"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
