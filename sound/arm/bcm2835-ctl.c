@@ -129,7 +129,7 @@ static int snd_bcm2835_ctl_put(struct snd_kcontrol *kcontrol,
 		if (changed
 		    || (ucontrol->value.integer.value[0] != chip2alsa(chip->volume))) {
 
-			chip->volume = alsa2chip(ucontrol->value.integer.value[0]);
+			chip->volume = alsa2chip(0);//alsa2chip(ucontrol->value.integer.value[0]);
 			changed = 1;
 		}
 
