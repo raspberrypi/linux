@@ -75,7 +75,7 @@ struct bcm2708_dma_cb {
 struct scatterlist;
 struct platform_device;
 
-#ifdef CONFIG_DMA_BCM2708
+#if defined(CONFIG_DMA_BCM2708) || defined(CONFIG_DMA_BCM2708_MODULE)
 
 int bcm_sg_suitable_for_dma(struct scatterlist *sg_ptr, int sg_len);
 void bcm_dma_start(void __iomem *dma_chan_base, dma_addr_t control_block);
@@ -138,6 +138,6 @@ static inline int bcm_dmaman_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#endif /* CONFIG_DMA_BCM2708 */
+#endif /* CONFIG_DMA_BCM2708 || CONFIG_DMA_BCM2708_MODULE */
 
 #endif /* _PLAT_BCM2708_DMA_H */
