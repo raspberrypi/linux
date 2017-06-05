@@ -159,6 +159,7 @@ extern "C" {
 #define DRM_FORMAT_MOD_VENDOR_NV      0x03
 #define DRM_FORMAT_MOD_VENDOR_SAMSUNG 0x04
 #define DRM_FORMAT_MOD_VENDOR_QCOM    0x05
+#define DRM_FORMAT_MOD_VENDOR_BROADCOM 0x07
 /* add more to the end as needed */
 
 #define fourcc_mod_code(vendor, val) \
@@ -232,6 +233,27 @@ extern "C" {
  * For more information: see https://linuxtv.org/downloads/v4l-dvb-apis/re32.html
  */
 #define DRM_FORMAT_MOD_SAMSUNG_64_32_TILE	fourcc_mod_code(SAMSUNG, 1)
+
+/*
+ * Broadcom VC4 "T" format
+ *
+ * This is the primary layout that the V3D GPU can texture from (it
+ * can't do linear).  The T format has:
+ *
+ * - 64b utiles of pixels in a raster-order grid according to cpp.  It's 4x4
+ *   pixels at 32 bit depth.
+ *
+ * - 1k subtiles made of a 4x4 raster-order grid of 64b utiles (so usually
+ *   16x16 pixels).
+ *
+ * - 4k tiles made of a 2x2 grid of 1k subtiles (so usually 32x32 pixels).  On
+ *   even 4k tile rows, they're arranged as (BL, TL, TR, BR), and on odd rows
+ *   they're (TR, BR, BL, TL), where bottom left is start of memory.
+ *
+ * - an image made of 4k tiles in rows either left-to-right (even rows of 4k
+ *   tiles) or right-to-left (odd rows of 4k tiles).
+ */
+#define DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED fourcc_mod_code(BROADCOM, 1)
 
 #if defined(__cplusplus)
 }
