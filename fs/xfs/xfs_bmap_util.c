@@ -588,9 +588,13 @@ xfs_getbmap(
 		}
 		break;
 	default:
+		/* Local format data forks report no extents. */
+		if (ip->i_d.di_format == XFS_DINODE_FMT_LOCAL) {
+			bmv->bmv_entries = 0;
+			return 0;
+		}
 		if (ip->i_d.di_format != XFS_DINODE_FMT_EXTENTS &&
-		    ip->i_d.di_format != XFS_DINODE_FMT_BTREE &&
-		    ip->i_d.di_format != XFS_DINODE_FMT_LOCAL)
+		    ip->i_d.di_format != XFS_DINODE_FMT_BTREE)
 			return -EINVAL;
 
 		if (xfs_get_extsz_hint(ip) ||
@@ -718,7 +722,7 @@ xfs_getbmap(
 			 * extents.
 			 */
 			if (map[i].br_startblock == DELAYSTARTBLOCK &&
-			    map[i].br_startoff <= XFS_B_TO_FSB(mp, XFS_ISIZE(ip)))
+			    map[i].br_startoff < XFS_B_TO_FSB(mp, XFS_ISIZE(ip)))
 				ASSERT((iflags & BMV_IF_DELALLOC) != 0);
 
                         if (map[i].br_startblock == HOLESTARTBLOCK &&
@@ -911,9 +915,9 @@ xfs_can_free_eofblocks(struct xfs_inode *ip, bool force)
 }
 
 /*
- * This is called by xfs_inactive to free any blocks beyond eof
- * when the link count isn't zero and by xfs_dm_punch_hole() when
- * punching a hole to EOF.
+ * This is called to free any blocks beyond eof. The caller must hold
+ * IOLOCK_EXCL unless we are in the inode reclaim path and have the only
+ * reference to the inode.
  */
 int
 xfs_free_eofblocks(
@@ -927,8 +931,6 @@ xfs_free_eofblocks(
 	int			nimaps;
 	struct xfs_bmbt_irec	imap;
 	struct xfs_mount	*mp = ip->i_mount;
-
-	ASSERT(xfs_isilocked(ip, XFS_IOLOCK_EXCL));
 
 	/*
 	 * Figure out if there are any blocks beyond the end
