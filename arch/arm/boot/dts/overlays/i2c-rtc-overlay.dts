@@ -60,9 +60,9 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			mcp7940x: mcp7940x@6f {
-				compatible = "microchip,mcp7940x";
-				reg = <0x6f>;
+			ds3231: ds3231@68 {
+				compatible = "maxim,ds3231";
+				reg = <0x68>;
 				status = "okay";
 			};
 		};
@@ -75,8 +75,8 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			mcp7941x: mcp7941x@6f {
-				compatible = "microchip,mcp7941x";
+			mcp7940x: mcp7940x@6f {
+				compatible = "microchip,mcp7940x";
 				reg = <0x6f>;
 				status = "okay";
 			};
@@ -90,9 +90,9 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			ds3231: ds3231@68 {
-				compatible = "maxim,ds3231";
-				reg = <0x68>;
+			mcp7941x: mcp7941x@6f {
+				compatible = "microchip,mcp7941x";
+				reg = <0x6f>;
 				status = "okay";
 			};
 		};
