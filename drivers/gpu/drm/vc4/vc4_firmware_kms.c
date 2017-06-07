@@ -17,6 +17,7 @@
 #include "drm/drm_atomic_helper.h"
 #include "drm/drm_plane_helper.h"
 #include "drm/drm_crtc_helper.h"
+#include "drm/drm_fourcc.h"
 #include "linux/clk.h"
 #include "linux/debugfs.h"
 #include "drm/drm_fb_cma_helper.h"
@@ -134,6 +135,10 @@ static void vc4_primary_plane_atomic_update(struct drm_plane *plane,
 	fbinfo->yoffset = state->crtc_y;
 	fbinfo->base = bo->paddr + fb->offsets[0];
 	fbinfo->pitch = fb->pitches[0];
+
+	if (fb->modifier == DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED)
+		fbinfo->bpp |= BIT(31);
+
 	/* A bug in the firmware makes it so that if the fb->base is
 	 * set to nonzero, the configured pitch gets overwritten with
 	 * the previous pitch.  So, to get the configured pitch
