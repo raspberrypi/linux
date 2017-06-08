@@ -1244,6 +1244,9 @@ static int smsc95xx_reset(struct usbnet *dev)
 	if (ret < 0)
 		return ret;
 
+	// Init sysfs led controller
+	smsc95xx_ledctl(dev);
+
 	/* Init Tx */
 	ret = smsc95xx_write_reg(dev, FLOW, 0);
 	if (ret < 0)
@@ -2261,3 +2264,86 @@ MODULE_AUTHOR("Nancy Lin");
 MODULE_AUTHOR("Steve Glendinning <steve.glendinning@shawell.net>");
 MODULE_DESCRIPTION("SMSC95XX USB 2.0 Ethernet Devices");
 MODULE_LICENSE("GPL");
+
+/*
+ * Led control patch
+ */
+
+static struct usbnet *leddev = NULL;
+
+static ssize_t smsc95xx_store(struct class *cls, struct class_attribute *attr, const char *buf, size_t count);
+static ssize_t smsc95xx_show(struct class *cls, struct class_attribute *attr, char *buf);
+
+static CLASS_ATTR(eth_fdx,S_IWUSR, smsc95xx_show, smsc95xx_store);
+static CLASS_ATTR(eth_lnk,S_IWUSR, smsc95xx_show, smsc95xx_store);
+static CLASS_ATTR(eth_spd,S_IWUSR, smsc95xx_show, smsc95xx_store);
+
+int smsc95xx_ledctl(struct usbnet *dev){
+
+    int ret = 0;
+    static struct class led_gpio = {
+
+        .name = "smsc95xx_leds",
+    };
+
+    if(leddev != NULL) return 0;
+
+    leddev = dev;
+
+    ret = class_register(&led_gpio);
+    if(ret){
+        leddev = NULL;
+        return ret;
+    }
+
+    ret += class_create_file(&led_gpio,&class_attr_eth_fdx);
+    ret += class_create_file(&led_gpio,&class_attr_eth_lnk);
+    ret += class_create_file(&led_gpio,&class_attr_eth_spd);
+
+    if(ret){
+        leddev = NULL;
+        class_unregister(&led_gpio);
+        return ret;
+    }
+
+    return 0;
+}
+
+static ssize_t smsc95xx_show(struct class *cls, struct class_attribute *attr, char *buf){
+
+return scnprintf(buf, PAGE_SIZE, "you can't even read");
+}
+
+
+static ssize_t smsc95xx_store(struct class *cls, struct class_attribute *attr, const char *buf, size_t count){
+int ret = 0;
+static u32 write_buf = LED_GPIO_CFG_FDX_LED |
+                       LED_GPIO_CFG_LNK_LED |
+                       LED_GPIO_CFG_SPD_LED;
+
+
+    if(buf[0] == '0'){
+
+        switch(attr->attr.name[6]){
+
+            case 'x': write_buf ^= LED_GPIO_CFG_FDX_LED; break;
+            case 'k': write_buf ^= LED_GPIO_CFG_LNK_LED; break;
+            case 'd': write_buf ^= LED_GPIO_CFG_SPD_LED; break;
+        }
+
+    }else if(buf[0] == '1'){
+
+        switch(attr->attr.name[6]){
+
+            case 'x': write_buf |= LED_GPIO_CFG_FDX_LED; break;
+            case 'k': write_buf |= LED_GPIO_CFG_LNK_LED; break;
+            case 'd': write_buf |= LED_GPIO_CFG_SPD_LED; break;
+        }
+    }
+
+    ret = smsc95xx_write_reg(leddev, LED_GPIO_CFG, write_buf);
+
+    if(ret < 0) netdev_warn(leddev->net,"Failed to write LED_GPIO_CFG: %d\n",ret);
+
+    return 1;
+}
