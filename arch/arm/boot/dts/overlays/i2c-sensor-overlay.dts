@@ -88,6 +88,12 @@
 			#size-cells = <0>;
 			status = "okay";
 
+			htu21: htu21@40 {
+				compatible = "htu21";
+				reg = <0x40>;
+				status = "disable";
+			};
+
 			lm75: lm75@4f {
 				compatible = "lm75";
 				reg = <0x4f>;
