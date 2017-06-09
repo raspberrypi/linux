@@ -339,7 +339,8 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 			pr_debug("Empty buffer");
 		} else if (dev->capture.frame_count) {
 			/* grab another frame */
-			if (is_capturing(dev)) {
+			if (is_capturing(dev) &&
+			    !vchiq_mmal_port_buffer_empty(dev->capture.port)) {
 				pr_debug("Grab another frame");
 				vchiq_mmal_port_parameter_set(
 					instance,
@@ -422,7 +423,8 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
 			if (mmal_flags & MMAL_BUFFER_HEADER_FLAG_EOS &&
-			    is_capturing(dev)) {
+			    is_capturing(dev) &&
+			    !vchiq_mmal_port_buffer_empty(dev->capture.port)) {
 				v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
 					 "Grab another frame as buffer has EOS");
 				vchiq_mmal_port_parameter_set(
@@ -511,6 +513,7 @@ static void buffer_queue(struct vb2_buffer *vb)
 	struct bm2835_mmal_dev *dev = vb2_get_drv_priv(vb->vb2_queue);
 	struct vb2_v4l2_buffer *vb2 = to_vb2_v4l2_buffer(vb);
 	struct mmal_buffer *buf = container_of(vb2, struct mmal_buffer, vb);
+	bool empty = vchiq_mmal_port_buffer_empty(dev->capture.port);
 	int ret;
 
 	v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
@@ -523,6 +526,19 @@ static void buffer_queue(struct vb2_buffer *vb)
 	if (ret < 0)
 		v4l2_err(&dev->v4l2_dev, "%s: error submitting buffer\n",
 			 __func__);
+
+	if (dev->capture.frame_count && is_capturing(dev) && empty) {
+		v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+				 "Grab a frame on buffer queued\n");
+		vchiq_mmal_port_parameter_set(
+			dev->instance,
+			dev->capture.
+			camera_port,
+			MMAL_PARAMETER_CAPTURE,
+			&dev->capture.
+			frame_count,
+			sizeof(dev->capture.frame_count));
+	}
 }
 
 static int start_streaming(struct vb2_queue *vq, unsigned int count)
@@ -605,6 +621,10 @@ static int start_streaming(struct vb2_queue *vq, unsigned int count)
 		}
 		return -1;
 	}
+
+	if (is_capturing(dev) &&
+	    vchiq_mmal_port_buffer_empty(dev->capture.port))
+		return 0;
 
 	/* capture the first frame */
 	vchiq_mmal_port_parameter_set(dev->instance,
