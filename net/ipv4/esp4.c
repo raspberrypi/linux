@@ -212,6 +212,7 @@ static int esp_output(struct xfrm_state *x, struct sk_buff *skb)
 	u8 *iv;
 	u8 *tail;
 	u8 *vaddr;
+	int esph_offset;
 	int blksize;
 	int clen;
 	int alen;
@@ -392,12 +393,14 @@ static int esp_output(struct xfrm_state *x, struct sk_buff *skb)
 	}
 
 cow:
+	esph_offset = (unsigned char *)esph - skb_transport_header(skb);
+
 	err = skb_cow_data(skb, tailen, &trailer);
 	if (err < 0)
 		goto error;
 	nfrags = err;
 	tail = skb_tail_pointer(trailer);
-	esph = ip_esp_hdr(skb);
+	esph = (struct ip_esp_hdr *)(skb_transport_header(skb) + esph_offset);
 
 skip_cow:
 	esp_output_fill_trailer(tail, tfclen, plen, proto);
