@@ -43,6 +43,7 @@
 #include "dwc_otg_regs.h"
 
 extern bool microframe_schedule;
+extern unsigned short int_ep_interval_min;
 
 /**
  * Free each QTD in the QH's QTD-list then free the QH.  QH should already be
@@ -218,21 +219,19 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh, dwc_otg_hcd_urb_t * urb)
 						    SCHEDULE_SLOP);
 		qh->interval = urb->interval;
 
-#if 0
-		/* Increase interrupt polling rate for debugging. */
-		if (qh->ep_type == UE_INTERRUPT) {
-			qh->interval = 8;
-		}
-#endif
 		hprt.d32 = DWC_READ_REG32(hcd->core_if->host_if->hprt0);
-		if ((hprt.b.prtspd == DWC_HPRT0_PRTSPD_HIGH_SPEED) &&
-		    ((dev_speed == USB_SPEED_LOW) ||
-		     (dev_speed == USB_SPEED_FULL))) {
-			qh->interval *= 8;
-			qh->sched_frame |= 0x7;
-			qh->start_split_frame = qh->sched_frame;
+		if (hprt.b.prtspd == DWC_HPRT0_PRTSPD_HIGH_SPEED) {
+			if (dev_speed == USB_SPEED_LOW ||
+					dev_speed == USB_SPEED_FULL) {
+				qh->interval *= 8;
+				qh->sched_frame |= 0x7;
+				qh->start_split_frame = qh->sched_frame;
+			} else if (int_ep_interval_min >= 2 &&
+					qh->interval < int_ep_interval_min &&
+					qh->ep_type == UE_INTERRUPT) {
+				qh->interval = int_ep_interval_min;
+			}
 		}
-
 	}
 
 	DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD QH Initialized\n");
