@@ -249,6 +249,7 @@ uint16_t nak_holdoff = 8;
 
 unsigned short fiq_fsm_mask = 0x0F;
 
+unsigned short int_ep_interval_min = 0;
 /**
  * This function shows the Driver Version.
  */
@@ -1398,7 +1399,10 @@ MODULE_PARM_DESC(fiq_fsm_mask, "Bitmask of transactions to perform in the FIQ.\n
 					"Bit 1 : Periodic split transactions\n"
 					"Bit 2 : High-speed multi-transfer isochronous\n"
 					"All other bits should be set 0.");
-
+module_param(int_ep_interval_min, ushort, 0644);
+MODULE_PARM_DESC(int_ep_interval_min, "Clamp high-speed Interrupt endpoints to a minimum polling interval.\n"
+					"0..1 = Use endpoint default\n"
+					"2..n = Minimum interval n microframes. Use powers of 2.\n");
 
 /** @page "Module Parameters"
  *
