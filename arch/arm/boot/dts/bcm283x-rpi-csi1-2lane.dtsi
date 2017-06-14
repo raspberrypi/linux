@@ -1,0 +1,7 @@
+&csi1 {
+	port {
+		endpoint {
+			data-lanes = <1 2>;
+		};
+	};
+};
