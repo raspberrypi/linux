@@ -40,9 +40,9 @@
 #define AS3935_AFE_PWR_BIT	BIT(0)
 
 #define AS3935_INT		0x03
-#define AS3935_INT_MASK		0x07
+#define AS3935_INT_MASK		0x0f
 #define AS3935_EVENT_INT	BIT(3)
-#define AS3935_NOISE_INT	BIT(1)
+#define AS3935_NOISE_INT	BIT(0)
 
 #define AS3935_DATA		0x07
 #define AS3935_DATA_MASK	0x3F
@@ -215,7 +215,7 @@ static irqreturn_t as3935_trigger_handler(int irq, void *private)
 
 	st->buffer[0] = val & AS3935_DATA_MASK;
 	iio_push_to_buffers_with_timestamp(indio_dev, &st->buffer,
-					   pf->timestamp);
+					   iio_get_time_ns(indio_dev));
 err_read:
 	iio_trigger_notify_done(indio_dev->trig);
 
@@ -244,7 +244,7 @@ static void as3935_event_work(struct work_struct *work)
 
 	switch (val) {
 	case AS3935_EVENT_INT:
-		iio_trigger_poll(st->trig);
+		iio_trigger_poll_chained(st->trig);
 		break;
 	case AS3935_NOISE_INT:
 		dev_warn(&st->spi->dev, "noise level is too high\n");

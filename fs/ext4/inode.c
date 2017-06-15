@@ -2205,7 +2205,7 @@ static int mpage_process_page_bufs(struct mpage_da_data *mpd,
 {
 	struct inode *inode = mpd->inode;
 	int err;
-	ext4_lblk_t blocks = (i_size_read(inode) + (1 << inode->i_blkbits) - 1)
+	ext4_lblk_t blocks = (i_size_read(inode) + i_blocksize(inode) - 1)
 							>> inode->i_blkbits;
 
 	do {
@@ -3454,14 +3454,14 @@ static ssize_t ext4_direct_IO_write(struct kiocb *iocb, struct iov_iter *iter)
 		 * writes need zeroing either because they can race with page
 		 * faults or because they use partial blocks.
 		 */
-		if (round_down(offset, 1<<inode->i_blkbits) >= inode->i_size &&
+		if (round_down(offset, i_blocksize(inode)) >= inode->i_size &&
 		    ext4_aligned_io(inode, offset, count))
 			get_block_func = ext4_dio_get_block;
 		else
 			get_block_func = ext4_dax_get_block;
 		dio_flags = DIO_LOCKING;
 	} else if (!ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS) ||
-		   round_down(offset, 1 << inode->i_blkbits) >= inode->i_size) {
+		   round_down(offset, i_blocksize(inode)) >= inode->i_size) {
 		get_block_func = ext4_dio_get_block;
 		dio_flags = DIO_LOCKING | DIO_SKIP_HOLES;
 	} else if (is_sync_kiocb(iocb)) {
@@ -4044,6 +4044,8 @@ int ext4_punch_hole(struct inode *inode, loff_t offset, loff_t length)
 
 	inode->i_mtime = inode->i_ctime = ext4_current_time(inode);
 	ext4_mark_inode_dirty(handle, inode);
+	if (ret >= 0)
+		ext4_update_inode_fsync_trans(handle, inode, 1);
 out_stop:
 	ext4_journal_stop(handle);
 out_dio:
@@ -5046,7 +5048,7 @@ static void ext4_wait_for_tail_page_commit(struct inode *inode)
 	 * do. We do the check mainly to optimize the common PAGE_SIZE ==
 	 * blocksize case
 	 */
-	if (offset > PAGE_SIZE - (1 << inode->i_blkbits))
+	if (offset > PAGE_SIZE - i_blocksize(inode))
 		return;
 	while (1) {
 		page = find_lock_page(inode->i_mapping,
@@ -5441,8 +5443,9 @@ static int ext4_expand_extra_isize(struct inode *inode,
 	/* No extended attributes present */
 	if (!ext4_test_inode_state(inode, EXT4_STATE_XATTR) ||
 	    header->h_magic != cpu_to_le32(EXT4_XATTR_MAGIC)) {
-		memset((void *)raw_inode + EXT4_GOOD_OLD_INODE_SIZE, 0,
-			new_extra_isize);
+		memset((void *)raw_inode + EXT4_GOOD_OLD_INODE_SIZE +
+		       EXT4_I(inode)->i_extra_isize, 0,
+		       new_extra_isize - EXT4_I(inode)->i_extra_isize);
 		EXT4_I(inode)->i_extra_isize = new_extra_isize;
 		return 0;
 	}
