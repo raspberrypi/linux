@@ -471,8 +471,6 @@ struct ib_pd *qedr_alloc_pd(struct ib_device *ibdev,
 			    struct ib_ucontext *context, struct ib_udata *udata)
 {
 	struct qedr_dev *dev = get_qedr_dev(ibdev);
-	struct qedr_ucontext *uctx = NULL;
-	struct qedr_alloc_pd_uresp uresp;
 	struct qedr_pd *pd;
 	u16 pd_id;
 	int rc;
@@ -489,21 +487,33 @@ struct ib_pd *qedr_alloc_pd(struct ib_device *ibdev,
 	if (!pd)
 		return ERR_PTR(-ENOMEM);
 
-	dev->ops->rdma_alloc_pd(dev->rdma_ctx, &pd_id);
+	rc = dev->ops->rdma_alloc_pd(dev->rdma_ctx, &pd_id);
+	if (rc)
+		goto err;
 
-	uresp.pd_id = pd_id;
 	pd->pd_id = pd_id;
 
 	if (udata && context) {
+		struct qedr_alloc_pd_uresp uresp;
+
+		uresp.pd_id = pd_id;
+
 		rc = ib_copy_to_udata(udata, &uresp, sizeof(uresp));
-		if (rc)
+		if (rc) {
 			DP_ERR(dev, "copy error pd_id=0x%x.\n", pd_id);
-		uctx = get_qedr_ucontext(context);
-		uctx->pd = pd;
-		pd->uctx = uctx;
+			dev->ops->rdma_dealloc_pd(dev->rdma_ctx, pd_id);
+			goto err;
+		}
+
+		pd->uctx = get_qedr_ucontext(context);
+		pd->uctx->pd = pd;
 	}
 
 	return &pd->ibpd;
+
+err:
+	kfree(pd);
+	return ERR_PTR(rc);
 }
 
 int qedr_dealloc_pd(struct ib_pd *ibpd)
@@ -1719,6 +1729,14 @@ static int qedr_update_qp_state(struct qedr_dev *dev,
 		/* ERR->XXX */
 		switch (new_state) {
 		case QED_ROCE_QP_STATE_RESET:
+			if ((qp->rq.prod != qp->rq.cons) ||
+			    (qp->sq.prod != qp->sq.cons)) {
+				DP_NOTICE(dev,
+					  "Error->Reset with rq/sq not empty rq.prod=%x rq.cons=%x sq.prod=%x sq.cons=%x\n",
+					  qp->rq.prod, qp->rq.cons, qp->sq.prod,
+					  qp->sq.cons);
+				status = -EINVAL;
+			}
 			break;
 		default:
 			status = -EINVAL;
@@ -2014,7 +2032,7 @@ int qedr_query_qp(struct ib_qp *ibqp,
 	qp_attr->cap.max_recv_wr = qp->rq.max_wr;
 	qp_attr->cap.max_send_sge = qp->sq.max_sges;
 	qp_attr->cap.max_recv_sge = qp->rq.max_sges;
-	qp_attr->cap.max_inline_data = qp->max_inline_data;
+	qp_attr->cap.max_inline_data = ROCE_REQ_MAX_INLINE_DATA_SIZE;
 	qp_init_attr->cap = qp_attr->cap;
 
 	memcpy(&qp_attr->ah_attr.grh.dgid.raw[0], &params.dgid.bytes[0],
@@ -3220,9 +3238,10 @@ static int qedr_poll_cq_req(struct qedr_dev *dev,
 				  IB_WC_SUCCESS, 0);
 		break;
 	case RDMA_CQE_REQ_STS_WORK_REQUEST_FLUSHED_ERR:
-		DP_ERR(dev,
-		       "Error: POLL CQ with RDMA_CQE_REQ_STS_WORK_REQUEST_FLUSHED_ERR. CQ icid=0x%x, QP icid=0x%x\n",
-		       cq->icid, qp->icid);
+		if (qp->state != QED_ROCE_QP_STATE_ERR)
+			DP_ERR(dev,
+			       "Error: POLL CQ with RDMA_CQE_REQ_STS_WORK_REQUEST_FLUSHED_ERR. CQ icid=0x%x, QP icid=0x%x\n",
+			       cq->icid, qp->icid);
 		cnt = process_req(dev, qp, cq, num_entries, wc, req->sq_cons,
 				  IB_WC_WR_FLUSH_ERR, 0);
 		break;
