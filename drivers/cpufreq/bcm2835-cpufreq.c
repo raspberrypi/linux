@@ -1,25 +1,17 @@
-/*****************************************************************************
-* Copyright 2011 Broadcom Corporation.  All rights reserved.
-*
-* Unless you and Broadcom execute a separate written software license
-* agreement governing use of this software, this software is licensed to you
-* under the terms of the GNU General Public License version 2, available at
-* http://www.broadcom.com/licenses/GPLv2.php (the "GPL").
-*
-* Notwithstanding the above, under no circumstances may you combine this
-* software in any way with any other Broadcom software provided under a
-* license other than the GPL, without Broadcom's express prior written
-* consent.
-*****************************************************************************/
-
-/*****************************************************************************
-* FILENAME: bcm2835-cpufreq.h
-* DESCRIPTION: This driver dynamically manages the CPU Frequency of the ARM
-* processor. Messages are sent to Videocore either setting or requesting the
-* frequency of the ARM in order to match an appropiate frequency to the current
-* usage of the processor. The policy which selects the frequency to use is
-* defined in the kernel .config file, but can be changed during runtime.
-*****************************************************************************/
+/*
+ * Copyright 2011 Broadcom Corporation.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; version 2
+ * of the License.
+ *
+ * This driver dynamically manages the CPU Frequency of the ARM
+ * processor. Messages are sent to Videocore either setting or requesting the
+ * frequency of the ARM in order to match an appropiate frequency to the current
+ * usage of the processor. The policy which selects the frequency to use is
+ * defined in the kernel .config file, but can be changed during runtime.
+ */
 
 /* ---------- INCLUDES ---------- */
 #include <linux/kernel.h>
