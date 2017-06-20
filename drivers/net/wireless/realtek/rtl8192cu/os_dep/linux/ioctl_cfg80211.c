@@ -3482,7 +3482,7 @@ static int rtw_cfg80211_add_monitor_if(_adapter *padapter, char *name, struct ne
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0))
 	mon_ndev->name_assign_type = name_assign_type;
 #endif
-	mon_ndev->destructor = rtw_ndev_destructor;
+	mon_ndev->needs_free_netdev = true;
 
 #if (LINUX_VERSION_CODE>=KERNEL_VERSION(2,6,29))
 	mon_ndev->netdev_ops = &rtw_cfg80211_monitor_if_ops;
