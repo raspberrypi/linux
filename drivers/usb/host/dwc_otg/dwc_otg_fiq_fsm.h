@@ -178,6 +178,8 @@ enum fiq_fsm_state {
 	/* Nonperiodic state groups */
 	FIQ_NP_SSPLIT_STARTED = 1,
 	FIQ_NP_SSPLIT_RETRY = 2,
+	/* TT contention - working around hub bugs */
+	FIQ_NP_SSPLIT_PENDING = 33,
 	FIQ_NP_OUT_CSPLIT_RETRY = 3,
 	FIQ_NP_IN_CSPLIT_RETRY = 4,
 	FIQ_NP_SPLIT_DONE = 5,
