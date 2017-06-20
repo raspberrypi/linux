@@ -1572,6 +1572,45 @@ int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_state *st,
 	}
 }
 
+/**
+ * fiq_fsm_np_tt_contended() - Avoid performing contended non-periodic transfers
+ * @hcd: Pointer to the dwc_otg_hcd struct
+ * @qh: Pointer to the endpoint's queue head
+ *
+ * Certain hub chips don't differentiate between IN and OUT non-periodic pipes
+ * with the same endpoint number. If transfers get completed out of order
+ * (disregarding the direction token) then the hub can lock up
+ * or return erroneous responses.
+ *
+ * Returns 1 if initiating the transfer would cause contention, 0 otherwise.
+ */
+int fiq_fsm_np_tt_contended(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
+{
+	int i;
+	struct fiq_channel_state *st;
+	int dev_addr = qh->channel->dev_addr;
+	int ep_num = qh->channel->ep_num;
+	for (i = 0; i < hcd->core_if->core_params->host_channels; i++) {
+		if (i == qh->channel->hc_num)
+			continue;
+		st = &hcd->fiq_state->channel[i];
+		switch (st->fsm) {
+		case FIQ_NP_SSPLIT_STARTED:
+		case FIQ_NP_SSPLIT_RETRY:
+		case FIQ_NP_SSPLIT_PENDING:
+		case FIQ_NP_OUT_CSPLIT_RETRY:
+		case FIQ_NP_IN_CSPLIT_RETRY:
+			if (st->hcchar_copy.b.devaddr == dev_addr &&
+				st->hcchar_copy.b.epnum == ep_num)
+				return 1;
+			break;
+		default:
+			break;
+		}
+	}
+	return 0;
+}
+
 /*
  * Pushing a periodic request into the queue near the EOF1 point
  * in a microframe causes erroneous behaviour (frmovrun) interrupt.
@@ -1894,7 +1933,12 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	switch (hc->ep_type) {
 		case UE_CONTROL:
 		case UE_BULK:
-			st->fsm = FIQ_NP_SSPLIT_STARTED;
+			if (fiq_fsm_np_tt_contended(hcd, qh)) {
+				st->fsm = FIQ_NP_SSPLIT_PENDING;
+				start_immediate = 0;
+			} else {
+				st->fsm = FIQ_NP_SSPLIT_STARTED;
+			}
 			break;
 		case UE_ISOCHRONOUS:
 			if (hc->ep_is_in) {
@@ -1918,7 +1962,12 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 			break;
 		case UE_INTERRUPT:
 			if (fiq_fsm_mask & 0x8) {
-				st->fsm = FIQ_NP_SSPLIT_STARTED;
+				if (fiq_fsm_np_tt_contended(hcd, qh)) {
+					st->fsm = FIQ_NP_SSPLIT_PENDING;
+					start_immediate = 0;
+				} else {
+					st->fsm = FIQ_NP_SSPLIT_STARTED;
+				}
 			} else if (start_immediate) {
 					st->fsm = FIQ_PER_SSPLIT_STARTED;
 			} else {
