@@ -875,6 +875,7 @@ int dax_writeback_mapping_range(struct address_space *mapping,
 			if (ret < 0)
 				return ret;
 		}
+		start_index = indices[pvec.nr - 1] + 1;
 	}
 	return 0;
 }
