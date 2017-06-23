@@ -86,6 +86,7 @@ struct ov5647 {
 	int				power_count;
 	struct clk			*xclk;
 	struct gpio_desc		*pwdn;
+	unsigned int			flags;
 };
 
 static inline struct ov5647 *to_state(struct v4l2_subdev *sd)
@@ -302,6 +303,7 @@ static int __sensor_init(struct v4l2_subdev *sd)
 	int ret;
 	u8 resetval, rdval;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ov5647 *ov5647 = to_state(sd);
 
 	ret = ov5647_read(sd, 0x0100, &rdval);
 	if (ret < 0)
@@ -329,7 +331,9 @@ static int __sensor_init(struct v4l2_subdev *sd)
 			return ret;
 	}
 
-	return ov5647_write(sd, 0x4800, 0x04);
+	return ov5647_write(sd, 0x4800,
+		    (ov5647->flags & V4L2_MBUS_CSI2_NONCONTINUOUS_CLOCK) ?
+					0x34 : 0x04);
 }
 
 static int ov5647_sensor_power(struct v4l2_subdev *sd, int on)
@@ -547,7 +551,7 @@ static const struct v4l2_subdev_internal_ops ov5647_subdev_internal_ops = {
 	.open = ov5647_open,
 };
 
-static int ov5647_parse_dt(struct device_node *np)
+static int ov5647_parse_dt(struct device_node *np, struct ov5647 *sensor)
 {
 	struct v4l2_fwnode_endpoint bus_cfg;
 	struct device_node *ep;
@@ -559,6 +563,9 @@ static int ov5647_parse_dt(struct device_node *np)
 		return -EINVAL;
 
 	ret = v4l2_fwnode_endpoint_parse(of_fwnode_handle(ep), &bus_cfg);
+
+	if (!ret)
+		sensor->flags = bus_cfg.bus.mipi_csi2.flags;
 
 	of_node_put(ep);
 	return ret;
@@ -579,7 +586,7 @@ static int ov5647_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	if (IS_ENABLED(CONFIG_OF) && np) {
-		ret = ov5647_parse_dt(np);
+		ret = ov5647_parse_dt(np, sensor);
 		if (ret) {
 			dev_err(dev, "DT parsing error: %d\n", ret);
 			return ret;
