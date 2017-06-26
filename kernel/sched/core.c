@@ -7139,6 +7139,47 @@ const u32 sched_prio_to_wmult[40] = {
 
 #if defined(CONFIG_PREEMPT_COUNT) && defined(CONFIG_SMP)
 
+static inline void
+update_nr_migratory(struct task_struct *p, long delta)
+{
+	if (unlikely((p->sched_class == &rt_sched_class ||
+		      p->sched_class == &dl_sched_class) &&
+		      p->nr_cpus_allowed > 1)) {
+		if (p->sched_class == &rt_sched_class)
+			task_rq(p)->rt.rt_nr_migratory += delta;
+		else
+			task_rq(p)->dl.dl_nr_migratory += delta;
+	}
+}
+
+static inline void
+migrate_disable_update_cpus_allowed(struct task_struct *p)
+{
+	struct rq *rq;
+	struct rq_flags rf;
+
+	p->cpus_ptr = cpumask_of(smp_processor_id());
+
+	rq = task_rq_lock(p, &rf);
+	update_nr_migratory(p, -1);
+	p->nr_cpus_allowed = 1;
+	task_rq_unlock(rq, p, &rf);
+}
+
+static inline void
+migrate_enable_update_cpus_allowed(struct task_struct *p)
+{
+	struct rq *rq;
+	struct rq_flags rf;
+
+	p->cpus_ptr = &p->cpus_mask;
+
+	rq = task_rq_lock(p, &rf);
+	p->nr_cpus_allowed = cpumask_weight(&p->cpus_mask);
+	update_nr_migratory(p, 1);
+	task_rq_unlock(rq, p, &rf);
+}
+
 void migrate_disable(void)
 {
 	struct task_struct *p = current;
@@ -7162,10 +7203,9 @@ void migrate_disable(void)
 	}
 
 	preempt_disable();
-	p->migrate_disable = 1;
 
-	p->cpus_ptr = cpumask_of(smp_processor_id());
-	p->nr_cpus_allowed = 1;
+	migrate_disable_update_cpus_allowed(p);
+	p->migrate_disable = 1;
 
 	preempt_enable();
 }
@@ -7197,9 +7237,8 @@ void migrate_enable(void)
 
 	preempt_disable();
 
-	p->cpus_ptr = &p->cpus_mask;
-	p->nr_cpus_allowed = cpumask_weight(&p->cpus_mask);
 	p->migrate_disable = 0;
+	migrate_enable_update_cpus_allowed(p);
 
 	if (p->migrate_disable_update) {
 		struct rq *rq;
