@@ -9,7 +9,7 @@
   fragment@0 {
 		target-path = "/";
 		__overlay__ {
-			i2c_gpio: i2c@0 {
+			i2c_gpio: i2c-gpio-rtc@0 {
 				compatible = "i2c-gpio";
 				gpios = <&gpio 23 0 /* sda */
 					 &gpio 24 0 /* scl */
@@ -22,22 +22,6 @@
 	};
 
 	fragment@1 {
-		target-path = "/aliases";
-		__overlay__ {
-			i2c_gpio = "/i2c@0";
-		};
-	};
-
-	fragment@2 {
-		target-path = "/__symbols__";
-		__overlay__ {
-			i2c_gpio = "/i2c@0";
-		};
-	};
-
-
-
-	fragment@3 {
 		target = <&i2c_gpio>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -54,7 +38,7 @@
 		};
 	};
 
-	fragment@4 {
+	fragment@2 {
 		target = <&i2c_gpio>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -69,7 +53,7 @@
 		};
 	};
 
-	fragment@5 {
+	fragment@3 {
 		target = <&i2c_gpio>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -85,7 +69,7 @@
 		};
 	};
 
-	fragment@6 {
+	fragment@4 {
 		target = <&i2c_gpio>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -100,7 +84,7 @@
 		};
 	};
 
-	fragment@7 {
+	fragment@5 {
 		target = <&i2c_gpio>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -115,7 +99,7 @@
 		};
 	};
 
-	fragment@8 {
+	fragment@6 {
 		target = <&i2c_gpio>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -130,7 +114,7 @@
 		};
 	};
 
-	fragment@9 {
+	fragment@7 {
 		target = <&i2c_gpio>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -145,7 +129,7 @@
 		};
 	};
 
-	fragment@10 {
+	fragment@8 {
 		target = <&i2c_gpio>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -160,7 +144,7 @@
 		};
 	};
 
-	fragment@11 {
+	fragment@9 {
 		target = <&i2c_gpio>;
 		__dormant__ {
 			#address-cells = <1>;
@@ -176,15 +160,15 @@
 	};
 
 	__overrides__ {
-		abx80x = <0>,"+3";
-		ds1307 = <0>,"+4";
-		ds1339 = <0>,"+5";
-		ds3231 = <0>,"+6";
-		mcp7940x = <0>,"+7";
-		mcp7941x = <0>,"+8";
-		pcf2127 = <0>,"+9";
-		pcf8523 = <0>,"+10";
-		pcf8563 = <0>,"+11";
+		abx80x = <0>,"+1";
+		ds1307 = <0>,"+2";
+		ds1339 = <0>,"+3";
+		ds3231 = <0>,"+4";
+		mcp7940x = <0>,"+5";
+		mcp7941x = <0>,"+6";
+		pcf2127 = <0>,"+7";
+		pcf8523 = <0>,"+8";
+		pcf8563 = <0>,"+9";
 		trickle-diode-type = <&abx80x>,"abracon,tc-diode";
 		trickle-resistor-ohms = <&ds1339>,"trickle-resistor-ohms:0",
 					<&abx80x>,"abracon,tc-resistor";
