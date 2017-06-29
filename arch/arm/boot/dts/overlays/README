@@ -662,6 +662,47 @@ Params: abx80x                  Select one of the ABx80x family:
                                 source
 
 
+Name:   i2c-rtc-gpio
+Info:   Adds support for a number of I2C Real Time Clock devices
+        using the software i2c controller
+Load:   dtoverlay=i2c-rtc-gpio,<param>=<val>
+Params: abx80x                  Select one of the ABx80x family:
+                                  AB0801, AB0803, AB0804, AB0805,
+                                  AB1801, AB1803, AB1804, AB1805
+
+        ds1307                  Select the DS1307 device
+
+        ds1339                  Select the DS1339 device
+
+        ds3231                  Select the DS3231 device
+
+        mcp7940x                Select the MCP7940x device
+
+        mcp7941x                Select the MCP7941x device
+
+        pcf2127                 Select the PCF2127 device
+
+        pcf8523                 Select the PCF8523 device
+
+        pcf8563                 Select the PCF8563 device
+
+        trickle-diode-type      Diode type for trickle charge - "standard" or
+                                "schottky" (ABx80x only)
+
+        trickle-resistor-ohms   Resistor value for trickle charge (DS1339,
+                                ABx80x)
+
+        wakeup-source           Specify that the RTC can be used as a wakeup
+                                source
+
+        i2c_gpio_sda            GPIO used for I2C data (default "23")
+
+        i2c_gpio_scl            GPIO used for I2C clock (default "24")
+
+        i2c_gpio_delay_us       Clock delay in microseconds
+                                (default "2" = ~100kHz)
+
+
 Name:   i2c-sensor
 Info:   Adds support for a number of I2C barometric pressure and temperature
         sensors on i2c_arm
