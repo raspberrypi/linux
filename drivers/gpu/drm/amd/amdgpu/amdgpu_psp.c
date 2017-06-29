@@ -319,13 +319,10 @@ static int psp_load_fw(struct amdgpu_device *adev)
 {
 	int ret;
 	struct psp_context *psp = &adev->psp;
-	struct psp_gfx_cmd_resp *cmd;
 
-	cmd = kzalloc(sizeof(struct psp_gfx_cmd_resp), GFP_KERNEL);
-	if (!cmd)
+	psp->cmd = kzalloc(sizeof(struct psp_gfx_cmd_resp), GFP_KERNEL);
+	if (!psp->cmd)
 		return -ENOMEM;
-
-	psp->cmd = cmd;
 
 	ret = amdgpu_bo_create_kernel(adev, PSP_1_MEG, PSP_1_MEG,
 				      AMDGPU_GEM_DOMAIN_GTT,
@@ -365,8 +362,6 @@ static int psp_load_fw(struct amdgpu_device *adev)
 	if (ret)
 		goto failed_mem;
 
-	kfree(cmd);
-
 	return 0;
 
 failed_mem:
@@ -376,7 +371,8 @@ failed_mem1:
 	amdgpu_bo_free_kernel(&psp->fw_pri_bo,
 			      &psp->fw_pri_mc_addr, &psp->fw_pri_buf);
 failed:
-	kfree(cmd);
+	kfree(psp->cmd);
+	psp->cmd = NULL;
 	return ret;
 }
 
@@ -435,6 +431,9 @@ static int psp_hw_fini(void *handle)
 	if (psp->fence_buf_bo)
 		amdgpu_bo_free_kernel(&psp->fence_buf_bo,
 				      &psp->fence_buf_mc_addr, &psp->fence_buf);
+
+	kfree(psp->cmd);
+	psp->cmd = NULL;
 
 	return 0;
 }
