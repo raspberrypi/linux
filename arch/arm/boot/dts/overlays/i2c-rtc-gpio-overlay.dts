@@ -6,7 +6,7 @@
 / {
 	compatible = "brcm,bcm2708";
 
-  fragment@0 {
+	fragment@0 {
 		target-path = "/";
 		__overlay__ {
 			i2c_gpio: i2c@0 {
