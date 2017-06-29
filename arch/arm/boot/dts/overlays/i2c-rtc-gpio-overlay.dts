@@ -191,9 +191,9 @@
 		wakeup-source = <&ds1339>,"wakeup-source?",
 				<&ds3231>,"wakeup-source?",
 				<&mcp7940x>,"wakeup-source?",
-				<&mcp7941x>,"wakeup-source?";
-    i2c_gpio_sda = <&i2c_gpio>,"gpios:4";
-    i2c_gpio_scl = <&i2c_gpio>,"gpios:16";
-    i2c_gpio_delay_us = <&i2c_gpio>,"i2c-gpio,delay-us:0";
+					<&mcp7941x>,"wakeup-source?";
+		i2c_gpio_sda = <&i2c_gpio>,"gpios:4";
+		i2c_gpio_scl = <&i2c_gpio>,"gpios:16";
+		i2c_gpio_delay_us = <&i2c_gpio>,"i2c-gpio,delay-us:0";
 	};
 };
