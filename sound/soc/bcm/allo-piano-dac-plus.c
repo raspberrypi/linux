@@ -147,11 +147,11 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		int i = 1;
 
 		if (dac == 0) { /* high */
-			sprintf(firmware_name,
+			snprintf(firmware_name, sizeof(firmware_name),
 				"allo/piano/2.2/allo-piano-dsp-%d-%d-%d.bin",
 				rate, ((lowpass * 10) + 60), dac);
 		} else { /* low */
-			sprintf(firmware_name,
+			snprintf(firmware_name, sizeof(firmware_name),
 				"allo/piano/2.%d/allo-piano-dsp-%d-%d-%d.bin",
 				(mode - 1), rate, ((lowpass * 10) + 60), dac);
 		}
