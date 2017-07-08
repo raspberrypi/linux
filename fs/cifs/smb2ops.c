@@ -1036,6 +1036,18 @@ smb2_is_status_pending(char *buf, struct TCP_Server_Info *server, int length)
 	return true;
 }
 
+static bool
+smb2_is_session_expired(char *buf)
+{
+	struct smb2_sync_hdr *shdr = get_sync_hdr(buf);
+
+	if (shdr->Status != STATUS_NETWORK_SESSION_EXPIRED)
+		return false;
+
+	cifs_dbg(FYI, "Session expired\n");
+	return true;
+}
+
 static int
 smb2_oplock_response(struct cifs_tcon *tcon, struct cifs_fid *fid,
 		     struct cifsInodeInfo *cinode)
@@ -2058,6 +2070,13 @@ handle_read_data(struct TCP_Server_Info *server, struct mid_q_entry *mid,
 		return -ENOTSUPP;
 	}
 
+	if (server->ops->is_session_expired &&
+	    server->ops->is_session_expired(buf)) {
+		cifs_reconnect(server);
+		wake_up(&server->response_q);
+		return -1;
+	}
+
 	if (server->ops->is_status_pending &&
 			server->ops->is_status_pending(buf, server, 0))
 		return -1;
@@ -2375,6 +2394,7 @@ struct smb_version_operations smb20_operations = {
 	.close_dir = smb2_close_dir,
 	.calc_smb_size = smb2_calc_size,
 	.is_status_pending = smb2_is_status_pending,
+	.is_session_expired = smb2_is_session_expired,
 	.oplock_response = smb2_oplock_response,
 	.queryfs = smb2_queryfs,
 	.mand_lock = smb2_mand_lock,
@@ -2458,6 +2478,7 @@ struct smb_version_operations smb21_operations = {
 	.close_dir = smb2_close_dir,
 	.calc_smb_size = smb2_calc_size,
 	.is_status_pending = smb2_is_status_pending,
+	.is_session_expired = smb2_is_session_expired,
 	.oplock_response = smb2_oplock_response,
 	.queryfs = smb2_queryfs,
 	.mand_lock = smb2_mand_lock,
@@ -2543,6 +2564,7 @@ struct smb_version_operations smb30_operations = {
 	.close_dir = smb2_close_dir,
 	.calc_smb_size = smb2_calc_size,
 	.is_status_pending = smb2_is_status_pending,
+	.is_session_expired = smb2_is_session_expired,
 	.oplock_response = smb2_oplock_response,
 	.queryfs = smb2_queryfs,
 	.mand_lock = smb2_mand_lock,
@@ -2638,6 +2660,7 @@ struct smb_version_operations smb311_operations = {
 	.close_dir = smb2_close_dir,
 	.calc_smb_size = smb2_calc_size,
 	.is_status_pending = smb2_is_status_pending,
+	.is_session_expired = smb2_is_session_expired,
 	.oplock_response = smb2_oplock_response,
 	.queryfs = smb2_queryfs,
 	.mand_lock = smb2_mand_lock,
