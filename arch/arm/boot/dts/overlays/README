@@ -507,6 +507,7 @@ Params: gpiopin                 GPIO for signalling (default 26)
                                 during the boot process, and that a reboot
                                 will also cause the pin to go low.
 
+
 Name:   gpio-shutdown
 Info:   Initiates a shutdown when GPIO pin changes. The given GPIO pin
         is configured as an input key that generates KEY_POWER events.
@@ -514,7 +515,9 @@ Info:   Initiates a shutdown when GPIO pin changes. The given GPIO pin
         shutdown. Systemd versions older than 225 need an udev rule
         enable listening to the input device:
 
-                ACTION!="REMOVE", SUBSYSTEM=="input", KERNEL=="event*", SUBSYSTEMS=="platform", DRIVERS=="gpio-keys", ATTRS{keys}=="116", TAG+="power-switch"
+                ACTION!="REMOVE", SUBSYSTEM=="input", KERNEL=="event*", \
+                        SUBSYSTEMS=="platform", DRIVERS=="gpio-keys", \
+                        ATTRS{keys}=="116", TAG+="power-switch"
 
         This overlay only handles shutdown. After shutdown, the system
         can be powered up again by driving GPIO3 low. The default
@@ -535,6 +538,7 @@ Params: gpio_pin                GPIO pin to trigger on (default 3)
 
                                 Note that the default pin (GPIO3) has an
                                 external pullup.
+
 
 Name:   hifiberry-amp
 Info:   Configures the HifiBerry Amp and Amp+ audio cards
