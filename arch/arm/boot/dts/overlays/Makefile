@@ -30,6 +30,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	googlevoicehat-soundcard.dtbo \
 	gpio-ir.dtbo \
 	gpio-poweroff.dtbo \
+	gpio-shutdown.dtbo \
 	hifiberry-amp.dtbo \
 	hifiberry-dac.dtbo \
 	hifiberry-dacplus.dtbo \
