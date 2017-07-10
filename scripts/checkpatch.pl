@@ -3523,7 +3523,7 @@ sub process {
 				$fixedline =~ s/\s*=\s*$/ = {/;
 				fix_insert_line($fixlinenr, $fixedline);
 				$fixedline = $line;
-				$fixedline =~ s/^(.\s*){\s*/$1/;
+				$fixedline =~ s/^(.\s*)\{\s*/$1/;
 				fix_insert_line($fixlinenr, $fixedline);
 			}
 		}
@@ -3864,7 +3864,7 @@ sub process {
 				my $fixedline = rtrim($prevrawline) . " {";
 				fix_insert_line($fixlinenr, $fixedline);
 				$fixedline = $rawline;
-				$fixedline =~ s/^(.\s*){\s*/$1\t/;
+				$fixedline =~ s/^(.\s*)\{\s*/$1\t/;
 				if ($fixedline !~ /^\+\s*$/) {
 					fix_insert_line($fixlinenr, $fixedline);
 				}
@@ -4353,7 +4353,7 @@ sub process {
 			if (ERROR("SPACING",
 				  "space required before the open brace '{'\n" . $herecurr) &&
 			    $fix) {
-				$fixed[$fixlinenr] =~ s/^(\+.*(?:do|\))){/$1 {/;
+				$fixed[$fixlinenr] =~ s/^(\+.*(?:do|\)))\{/$1 {/;
 			}
 		}
 
