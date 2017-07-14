@@ -1354,14 +1354,14 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 		if (ret == 0) {
 			host->dma_cfg_rx = cfg;
 
-			host->use_dma = true;
+			host->have_dma = true;
 		} else {
 			pr_err("%s: unable to configure DMA channel. "
-			       "Faling back to PIO\n",
+			       "Falling back to PIO\n",
 			       mmc_hostname(mmc));
 			dma_release_channel(host->dma_chan_rxtx);
 			host->dma_chan_rxtx = NULL;
-			host->use_dma = false;
+			host->have_dma = false;
 		}
 	}
 #endif
