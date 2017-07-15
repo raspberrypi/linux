@@ -1001,6 +1001,17 @@ Params: speed                   Display SPI bus speed
         xohms                   Touchpanel sensitivity (X-plate resistance)
 
 
+Name:   papirus
+Info:   PaPiRus ePaper Screen by Pi Supply (both HAT and pHAT)
+Load:   dtoverlay=papirus,<param>=<val>
+Params: panel                   Display panel (required):
+                                1.44": e1144cs021
+                                2.0":  e2200cs021
+                                2.7":  e2271cs021
+
+        speed                   Display SPI bus speed
+
+
 [ The pcf2127-rtc overlay has been deleted. See i2c-rtc. ]
 
 
