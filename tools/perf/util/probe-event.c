@@ -618,6 +618,67 @@ error:
 	return ret ? : -ENOENT;
 }
 
+/* Adjust symbol name and address */
+static int post_process_probe_trace_point(struct probe_trace_point *tp,
+					   struct map *map, unsigned long offs)
+{
+	struct symbol *sym;
+	u64 addr = tp->address + tp->offset - offs;
+
+	sym = map__find_symbol(map, addr);
+	if (!sym)
+		return -ENOENT;
+
+	if (strcmp(sym->name, tp->symbol)) {
+		/* If we have no realname, use symbol for it */
+		if (!tp->realname)
+			tp->realname = tp->symbol;
+		else
+			free(tp->symbol);
+		tp->symbol = strdup(sym->name);
+		if (!tp->symbol)
+			return -ENOMEM;
+	}
+	tp->offset = addr - sym->start;
+	tp->address -= offs;
+
+	return 0;
+}
+
+/*
+ * Rename DWARF symbols to ELF symbols -- gcc sometimes optimizes functions
+ * and generate new symbols with suffixes such as .constprop.N or .isra.N
+ * etc. Since those symbols are not recorded in DWARF, we have to find
+ * correct generated symbols from offline ELF binary.
+ * For online kernel or uprobes we don't need this because those are
+ * rebased on _text, or already a section relative address.
+ */
+static int
+post_process_offline_probe_trace_events(struct probe_trace_event *tevs,
+					int ntevs, const char *pathname)
+{
+	struct map *map;
+	unsigned long stext = 0;
+	int i, ret = 0;
+
+	/* Prepare a map for offline binary */
+	map = dso__new_map(pathname);
+	if (!map || get_text_start_address(pathname, &stext) < 0) {
+		pr_warning("Failed to get ELF symbols for %s\n", pathname);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < ntevs; i++) {
+		ret = post_process_probe_trace_point(&tevs[i].point,
+						     map, stext);
+		if (ret < 0)
+			break;
+	}
+	map__put(map);
+
+	return ret;
+}
+
 static int add_exec_to_probe_trace_events(struct probe_trace_event *tevs,
 					  int ntevs, const char *exec)
 {
@@ -694,7 +755,8 @@ post_process_kernel_probe_trace_events(struct probe_trace_event *tevs,
 
 	/* Skip post process if the target is an offline kernel */
 	if (symbol_conf.ignore_vmlinux_buildid)
-		return 0;
+		return post_process_offline_probe_trace_events(tevs, ntevs,
+						symbol_conf.vmlinux_name);
 
 	reloc_sym = kernel_get_ref_reloc_sym();
 	if (!reloc_sym) {
