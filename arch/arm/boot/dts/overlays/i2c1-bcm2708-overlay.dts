@@ -19,16 +19,6 @@
       };
    };
 
-   fragment@1 {
-      target = <&gpio>;
-      __overlay__ {
-         i2c1_pins: i2c1 {
-            brcm,pins = <2 3>;
-            brcm,function = <4>; /* alt0 */
-         };
-      };
-   };
-
    __overrides__ {
       sda1_pin = <&i2c1_pins>,"brcm,pins:0";
       scl1_pin = <&i2c1_pins>,"brcm,pins:4";
