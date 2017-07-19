@@ -671,6 +671,7 @@ struct task_struct {
 #if defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
 	int				migrate_disable;
 	int				migrate_disable_update;
+	int				pinned_on_cpu;
 # ifdef CONFIG_SCHED_DEBUG
 	int				migrate_disable_atomic;
 # endif
