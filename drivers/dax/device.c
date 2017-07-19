@@ -528,7 +528,8 @@ static void dev_dax_release(struct device *dev)
 	struct dax_region *dax_region = dev_dax->region;
 	struct dax_device *dax_dev = dev_dax->dax_dev;
 
-	ida_simple_remove(&dax_region->ida, dev_dax->id);
+	if (dev_dax->id >= 0)
+		ida_simple_remove(&dax_region->ida, dev_dax->id);
 	dax_region_put(dax_region);
 	put_dax(dax_dev);
 	kfree(dev_dax);
@@ -558,7 +559,7 @@ static void unregister_dev_dax(void *dev)
 }
 
 struct dev_dax *devm_create_dev_dax(struct dax_region *dax_region,
-		struct resource *res, int count)
+		int id, struct resource *res, int count)
 {
 	struct device *parent = dax_region->dev;
 	struct dax_device *dax_dev;
@@ -586,10 +587,16 @@ struct dev_dax *devm_create_dev_dax(struct dax_region *dax_region,
 	if (i < count)
 		goto err_id;
 
-	dev_dax->id = ida_simple_get(&dax_region->ida, 0, 0, GFP_KERNEL);
-	if (dev_dax->id < 0) {
-		rc = dev_dax->id;
-		goto err_id;
+	if (id < 0) {
+		id = ida_simple_get(&dax_region->ida, 0, 0, GFP_KERNEL);
+		dev_dax->id = id;
+		if (id < 0) {
+			rc = id;
+			goto err_id;
+		}
+	} else {
+		/* region provider owns @id lifetime */
+		dev_dax->id = -1;
 	}
 
 	/*
@@ -619,7 +626,7 @@ struct dev_dax *devm_create_dev_dax(struct dax_region *dax_region,
 	dev->parent = parent;
 	dev->groups = dax_attribute_groups;
 	dev->release = dev_dax_release;
-	dev_set_name(dev, "dax%d.%d", dax_region->id, dev_dax->id);
+	dev_set_name(dev, "dax%d.%d", dax_region->id, id);
 
 	rc = cdev_device_add(cdev, dev);
 	if (rc) {
@@ -635,7 +642,8 @@ struct dev_dax *devm_create_dev_dax(struct dax_region *dax_region,
 	return dev_dax;
 
  err_dax:
-	ida_simple_remove(&dax_region->ida, dev_dax->id);
+	if (dev_dax->id >= 0)
+		ida_simple_remove(&dax_region->ida, dev_dax->id);
  err_id:
 	kfree(dev_dax);
 
