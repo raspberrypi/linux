@@ -75,6 +75,11 @@ static DEFINE_PER_CPU(struct cpuhp_cpu_state, cpuhp_state) = {
 	.fail = CPUHP_INVALID,
 };
 
+#ifdef CONFIG_HOTPLUG_CPU
+static DEFINE_PER_CPU(struct rt_rw_lock, cpuhp_pin_lock) = \
+	__RWLOCK_RT_INITIALIZER(cpuhp_pin_lock);
+#endif
+
 #if defined(CONFIG_LOCKDEP) && defined(CONFIG_SMP)
 static struct lockdep_map cpuhp_state_up_map =
 	STATIC_LOCKDEP_MAP_INIT("cpuhp_state-up", &cpuhp_state_up_map);
@@ -293,7 +298,30 @@ static int cpu_hotplug_disabled;
  */
 void pin_current_cpu(void)
 {
+	struct rt_rw_lock *cpuhp_pin;
+	unsigned int cpu;
+	int ret;
 
+again:
+	cpuhp_pin = this_cpu_ptr(&cpuhp_pin_lock);
+	ret = __read_rt_trylock(cpuhp_pin);
+	if (ret) {
+		current->pinned_on_cpu = smp_processor_id();
+		return;
+	}
+	cpu = smp_processor_id();
+	preempt_lazy_enable();
+	preempt_enable();
+
+	__read_rt_lock(cpuhp_pin);
+
+	preempt_disable();
+	preempt_lazy_disable();
+	if (cpu != smp_processor_id()) {
+		__read_rt_unlock(cpuhp_pin);
+		goto again;
+	}
+	current->pinned_on_cpu = cpu;
 }
 
 /**
@@ -301,6 +329,13 @@ void pin_current_cpu(void)
  */
 void unpin_current_cpu(void)
 {
+	struct rt_rw_lock *cpuhp_pin = this_cpu_ptr(&cpuhp_pin_lock);
+
+	if (WARN_ON(current->pinned_on_cpu != smp_processor_id()))
+		cpuhp_pin = per_cpu_ptr(&cpuhp_pin_lock, current->pinned_on_cpu);
+
+	current->pinned_on_cpu = -1;
+	__read_rt_unlock(cpuhp_pin);
 }
 
 DEFINE_STATIC_PERCPU_RWSEM(cpu_hotplug_lock);
@@ -865,6 +900,7 @@ static int take_cpu_down(void *_param)
 
 static int takedown_cpu(unsigned int cpu)
 {
+	struct rt_rw_lock *cpuhp_pin = per_cpu_ptr(&cpuhp_pin_lock, cpu);
 	struct cpuhp_cpu_state *st = per_cpu_ptr(&cpuhp_state, cpu);
 	int err;
 
@@ -877,11 +913,14 @@ static int takedown_cpu(unsigned int cpu)
 	 */
 	irq_lock_sparse();
 
+	__write_rt_lock(cpuhp_pin);
+
 	/*
 	 * So now all preempt/rcu users must observe !cpu_active().
 	 */
 	err = stop_machine_cpuslocked(take_cpu_down, NULL, cpumask_of(cpu));
 	if (err) {
+		__write_rt_unlock(cpuhp_pin);
 		/* CPU refused to die */
 		irq_unlock_sparse();
 		/* Unpark the hotplug thread so we can rollback there */
@@ -900,6 +939,7 @@ static int takedown_cpu(unsigned int cpu)
 	wait_for_ap_thread(st, false);
 	BUG_ON(st->state != CPUHP_AP_IDLE_DEAD);
 
+	__write_rt_unlock(cpuhp_pin);
 	/* Interrupts are moved away from the dying cpu, reenable alloc/free */
 	irq_unlock_sparse();
 
