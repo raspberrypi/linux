@@ -274,7 +274,7 @@ brcmf_proto_bcdc_hdrpush(struct brcmf_pub *drvr, int ifidx, u8 offset,
 	if (pktbuf->ip_summed == CHECKSUM_PARTIAL)
 		h->flags |= BCDC_FLAG_SUM_NEEDED;
 
-	h->priority = (pktbuf->priority & BCDC_PRIORITY_MASK);
+	h->priority = 0;
 	h->flags2 = 0;
 	h->data_offset = offset;
 	BCDC_SET_IF_IDX(h, ifidx);
