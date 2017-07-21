@@ -37,6 +37,7 @@
 #include <linux/irqchip/chained_irq.h>
 #include <linux/microchipphy.h>
 #include <linux/phy.h>
+#include <linux/of_net.h>
 #include "lan78xx.h"
 
 #define DRIVER_AUTHOR	"WOOJUNG HUH <woojung.huh@microchip.com>"
@@ -1640,6 +1641,14 @@ static void lan78xx_init_mac_address(struct lan78xx_net *dev)
 	u32 addr_lo, addr_hi;
 	int ret;
 	u8 addr[6];
+	const u8 *mac_addr;
+
+	/* maybe the boot loader passed the MAC address in devicetree */
+	mac_addr = of_get_mac_address(dev->udev->dev.of_node);
+	if (mac_addr) {
+		ether_addr_copy(addr, mac_addr);
+		goto set_mac_addr;
+	}
 
 	ret = lan78xx_read_reg(dev, RX_ADDRL, &addr_lo);
 	ret = lan78xx_read_reg(dev, RX_ADDRH, &addr_hi);
@@ -1668,6 +1677,7 @@ static void lan78xx_init_mac_address(struct lan78xx_net *dev)
 					  "MAC address set to random addr");
 			}
 
+set_mac_addr:
 			addr_lo = addr[0] | (addr[1] << 8) |
 				  (addr[2] << 16) | (addr[3] << 24);
 			addr_hi = addr[4] | (addr[5] << 8);
