@@ -89,6 +89,10 @@ Params:
         audio                   Set to "on" to enable the onboard ALSA audio
                                 interface (default "off")
 
+        eee                     Enable Energy Efficient Ethernet support for
+                                compatible devices (default "on"). See also
+                                "tx_lpi_timer".
+
         i2c_arm                 Set to "on" to enable the ARM's i2c interface
                                 (default "off")
 
@@ -124,6 +128,10 @@ Params:
                                 SD card (default 1)
 
         sd_debug                Enable debug output from SD driver (default off)
+
+        tx_lpi_timer            Set the delay in microseconds between going idle
+                                and entering the low power state (default 600).
+                                Requires EEE to be enabled - see "eee".
 
         uart0                   Set to "off" to disable uart0 (default "on")
 
