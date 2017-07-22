@@ -74,8 +74,8 @@ struct vchiq_mmal_port {
 	struct vchiq_mmal_port_buffer current_buffer;
 
 	/* stream format */
-	struct mmal_es_format format;
-	/* elementry stream format */
+	struct mmal_es_format_local format;
+	/* elementary stream format */
 	union mmal_es_specific_format es;
 
 	/* data buffers to fill */
@@ -104,13 +104,12 @@ struct vchiq_mmal_component {
 	struct vchiq_mmal_port clock[MAX_PORT_COUNT]; /* clock ports */
 };
 
-
 int vchiq_mmal_init(struct vchiq_mmal_instance **out_instance);
 int vchiq_mmal_finalise(struct vchiq_mmal_instance *instance);
 
 /* Initialise a mmal component and its ports
-*
-*/
+ *
+ */
 int vchiq_mmal_component_init(
 		struct vchiq_mmal_instance *instance,
 		const char *name,
@@ -128,8 +127,6 @@ int vchiq_mmal_component_disable(
 		struct vchiq_mmal_instance *instance,
 		struct vchiq_mmal_component *component);
 
-
-
 /* enable a mmal port
  *
  * enables a port and if a buffer callback provided enque buffer
@@ -146,7 +143,6 @@ int vchiq_mmal_port_enable(
  */
 int vchiq_mmal_port_disable(struct vchiq_mmal_instance *instance,
 			   struct vchiq_mmal_port *port);
-
 
 int vchiq_mmal_port_parameter_set(struct vchiq_mmal_instance *instance,
 				  struct vchiq_mmal_port *port,

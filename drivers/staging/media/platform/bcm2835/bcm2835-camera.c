@@ -61,23 +61,10 @@ MODULE_PARM_DESC(video_nr, "videoX start numbers, -1 is autodetect");
 
 static int max_video_width = MAX_VIDEO_MODE_WIDTH;
 static int max_video_height = MAX_VIDEO_MODE_HEIGHT;
-module_param(max_video_width, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+module_param(max_video_width, int, 0644);
 MODULE_PARM_DESC(max_video_width, "Threshold for video mode");
-module_param(max_video_height, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+module_param(max_video_height, int, 0644);
 MODULE_PARM_DESC(max_video_height, "Threshold for video mode");
-
-/* Gstreamer bug https://bugzilla.gnome.org/show_bug.cgi?id=726521
- * v4l2src does bad (and actually wrong) things when the vidioc_enum_framesizes
- * function says type V4L2_FRMSIZE_TYPE_STEPWISE, which we do by default.
- * It's happier if we just don't say anything at all, when it then
- * sets up a load of defaults that it thinks might work.
- * If gst_v4l2src_is_broken is non-zero, then we remove the function from
- * our function table list (actually switch to an alternate set, but same
- * result).
- */
-static int gst_v4l2src_is_broken;
-module_param(gst_v4l2src_is_broken, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-MODULE_PARM_DESC(gst_v4l2src_is_broken, "If non-zero, enable workaround for Gstreamer");
 
 /* global device data array */
 static struct bm2835_mmal_dev *gdev[MAX_BCM2835_CAMERAS];
@@ -229,18 +216,16 @@ static struct mmal_fmt *get_format(struct v4l2_format *f)
 	for (k = 0; k < ARRAY_SIZE(formats); k++) {
 		fmt = &formats[k];
 		if (fmt->fourcc == f->fmt.pix.pixelformat)
-			break;
+			return fmt;
 	}
 
-	if (k == ARRAY_SIZE(formats))
-		return NULL;
-
-	return &formats[k];
+	return NULL;
 }
 
 /* ------------------------------------------------------------------
-	Videobuf queue operations
-   ------------------------------------------------------------------*/
+ *	Videobuf queue operations
+ * ------------------------------------------------------------------
+ */
 
 static int queue_setup(struct vb2_queue *vq,
 		       unsigned int *nbuffers, unsigned int *nplanes,
@@ -250,7 +235,7 @@ static int queue_setup(struct vb2_queue *vq,
 	unsigned long size;
 
 	/* refuse queue setup if port is not configured */
-	if (dev->capture.port == NULL) {
+	if (!dev->capture.port) {
 		v4l2_err(&dev->v4l2_dev,
 			 "%s: capture port not configured\n", __func__);
 		return -EINVAL;
@@ -289,8 +274,8 @@ static int buffer_prepare(struct vb2_buffer *vb)
 	v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev, "%s: dev:%p\n",
 		 __func__, dev);
 
-	BUG_ON(dev->capture.port == NULL);
-	BUG_ON(dev->capture.fmt == NULL);
+	BUG_ON(!dev->capture.port);
+	BUG_ON(!dev->capture.fmt);
 
 	size = dev->capture.stride * dev->capture.height;
 	if (vb2_plane_size(vb, 0) < size) {
@@ -324,14 +309,14 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 
 	if (status != 0) {
 		/* error in transfer */
-		if (buf != NULL) {
+		if (buf) {
 			/* there was a buffer with the error so return it */
 			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 		}
 		return;
 	} else if (length == 0) {
 		/* stream ended */
-		if (buf != NULL) {
+		if (buf) {
 			/* this should only ever happen if the port is
 			 * disabled and there are buffers still queued
 			 */
@@ -513,7 +498,7 @@ static int start_streaming(struct vb2_queue *vq, unsigned int count)
 		 __func__, dev);
 
 	/* ensure a format has actually been set */
-	if (dev->capture.port == NULL)
+	if (!dev->capture.port)
 		return -EINVAL;
 
 	if (enable_camera(dev) < 0) {
@@ -604,7 +589,7 @@ static void stop_streaming(struct vb2_queue *vq)
 	dev->capture.frame_count = 0;
 
 	/* ensure a format has actually been set */
-	if (dev->capture.port == NULL) {
+	if (!dev->capture.port) {
 		v4l2_err(&dev->v4l2_dev,
 			 "no capture port - stream not started?\n");
 		return;
@@ -668,13 +653,13 @@ static struct vb2_ops bm2835_mmal_video_qops = {
 };
 
 /* ------------------------------------------------------------------
-	IOCTL operations
-   ------------------------------------------------------------------*/
+ *	IOCTL operations
+ * ------------------------------------------------------------------
+ */
 
 static int set_overlay_params(struct bm2835_mmal_dev *dev,
 			      struct vchiq_mmal_port *port)
 {
-	int ret;
 	struct mmal_parameter_displayregion prev_config = {
 	.set = MMAL_DISPLAY_SET_LAYER | MMAL_DISPLAY_SET_ALPHA |
 	    MMAL_DISPLAY_SET_DEST_RECT | MMAL_DISPLAY_SET_FULLSCREEN,
@@ -688,11 +673,9 @@ static int set_overlay_params(struct bm2835_mmal_dev *dev,
 		      .height = dev->overlay.w.height,
 		      },
 	};
-	ret = vchiq_mmal_port_parameter_set(dev->instance, port,
-					    MMAL_PARAMETER_DISPLAYREGION,
-					    &prev_config, sizeof(prev_config));
-
-	return ret;
+	return vchiq_mmal_port_parameter_set(dev->instance, port,
+					     MMAL_PARAMETER_DISPLAYREGION,
+					     &prev_config, sizeof(prev_config));
 }
 
 /* overlay ioctl */
@@ -834,7 +817,8 @@ static int vidioc_g_fbuf(struct file *file, void *fh,
 			 struct v4l2_framebuffer *a)
 {
 	/* The video overlay must stay within the framebuffer and can't be
-	   positioned independently. */
+	 * positioned independently.
+	 */
 	struct bm2835_mmal_dev *dev = video_drvdata(file);
 	struct vchiq_mmal_port *preview_port =
 		    &dev->component[MMAL_COMPONENT_CAMERA]->
@@ -1291,7 +1275,8 @@ static int vidioc_s_fmt_vid_cap(struct file *file, void *priv,
 	}
 
 	/* If the format is unsupported v4l2 says we should switch to
-	 * a supported one and not return an error. */
+	 * a supported one and not return an error.
+	 */
 	mfmt = get_format(f);
 	if (!mfmt) {
 		v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
@@ -1456,50 +1441,10 @@ static const struct v4l2_ioctl_ops camera0_ioctl_ops = {
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
 
-static const struct v4l2_ioctl_ops camera0_ioctl_ops_gstreamer = {
-	/* overlay */
-	.vidioc_enum_fmt_vid_overlay = vidioc_enum_fmt_vid_overlay,
-	.vidioc_g_fmt_vid_overlay = vidioc_g_fmt_vid_overlay,
-	.vidioc_try_fmt_vid_overlay = vidioc_try_fmt_vid_overlay,
-	.vidioc_s_fmt_vid_overlay = vidioc_s_fmt_vid_overlay,
-	.vidioc_overlay = vidioc_overlay,
-	.vidioc_g_fbuf = vidioc_g_fbuf,
-
-	/* inputs */
-	.vidioc_enum_input = vidioc_enum_input,
-	.vidioc_g_input = vidioc_g_input,
-	.vidioc_s_input = vidioc_s_input,
-
-	/* capture */
-	.vidioc_querycap = vidioc_querycap,
-	.vidioc_enum_fmt_vid_cap = vidioc_enum_fmt_vid_cap,
-	.vidioc_g_fmt_vid_cap = vidioc_g_fmt_vid_cap,
-	.vidioc_try_fmt_vid_cap = vidioc_try_fmt_vid_cap,
-	.vidioc_s_fmt_vid_cap = vidioc_s_fmt_vid_cap,
-
-	/* buffer management */
-	.vidioc_reqbufs = vb2_ioctl_reqbufs,
-	.vidioc_create_bufs = vb2_ioctl_create_bufs,
-	.vidioc_prepare_buf = vb2_ioctl_prepare_buf,
-	.vidioc_querybuf = vb2_ioctl_querybuf,
-	.vidioc_qbuf = vb2_ioctl_qbuf,
-	.vidioc_dqbuf = vb2_ioctl_dqbuf,
-	/* Remove this function ptr to fix gstreamer bug
-	.vidioc_enum_framesizes = vidioc_enum_framesizes, */
-	.vidioc_enum_frameintervals = vidioc_enum_frameintervals,
-	.vidioc_g_parm        = vidioc_g_parm,
-	.vidioc_s_parm        = vidioc_s_parm,
-	.vidioc_streamon = vb2_ioctl_streamon,
-	.vidioc_streamoff = vb2_ioctl_streamoff,
-
-	.vidioc_log_status = v4l2_ctrl_log_status,
-	.vidioc_subscribe_event = v4l2_ctrl_subscribe_event,
-	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
-};
-
 /* ------------------------------------------------------------------
-	Driver init/finalise
-   ------------------------------------------------------------------*/
+ *	Driver init/finalise
+ * ------------------------------------------------------------------
+ */
 
 static const struct v4l2_file_operations camera0_fops = {
 	.owner = THIS_MODULE,
@@ -1545,9 +1490,7 @@ static int get_num_cameras(struct vchiq_mmal_instance *instance,
 		pr_info("Failed to get camera info\n");
 	}
 	for (i = 0;
-	     i < (cam_info.num_cameras > num_resolutions ?
-			num_resolutions :
-			cam_info.num_cameras);
+	     i < min_t(unsigned int, cam_info.num_cameras, num_resolutions);
 	     i++) {
 		resolutions[i][0] = cam_info.cameras[i].max_width;
 		resolutions[i][1] = cam_info.cameras[i].max_height;
@@ -1591,7 +1534,7 @@ static int set_camera_parameters(struct vchiq_mmal_instance *instance,
 static int __init mmal_init(struct bm2835_mmal_dev *dev)
 {
 	int ret;
-	struct mmal_es_format *format;
+	struct mmal_es_format_local *format;
 	u32 bool_true = 1;
 	u32 supported_encodings[MAX_SUPPORTED_ENCODINGS];
 	int param_size;
@@ -1813,11 +1756,6 @@ static int __init bm2835_mmal_init_device(struct bm2835_mmal_dev *dev,
 	int ret;
 
 	*vfd = vdev_template;
-	if (gst_v4l2src_is_broken) {
-		v4l2_info(&dev->v4l2_dev,
-			  "Work-around for gstreamer issue is active.\n");
-		vfd->ioctl_ops = &camera0_ioctl_ops_gstreamer;
-	}
 
 	vfd->v4l2_dev = &dev->v4l2_dev;
 
@@ -1914,7 +1852,7 @@ static int __init bm2835_mmal_init(void)
 		num_cameras = MAX_BCM2835_CAMERAS;
 
 	for (camera = 0; camera < num_cameras; camera++) {
-		dev = kzalloc(sizeof(struct bm2835_mmal_dev), GFP_KERNEL);
+		dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 		if (!dev) {
 			ret = -ENOMEM;
 			goto cleanup_gdev;

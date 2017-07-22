@@ -90,7 +90,8 @@ struct bm2835_mmal_v4l2_ctrl {
 	u32 id; /* v4l2 control identifier */
 	enum bm2835_mmal_ctrl_type type;
 	/* control minimum value or
-	 * mask for MMAL_CONTROL_TYPE_STD_MENU */
+	 * mask for MMAL_CONTROL_TYPE_STD_MENU
+	 */
 	s32 min;
 	s32 max; /* maximum value of control */
 	s32 def;  /* default value of control */
@@ -218,9 +219,7 @@ static int ctrl_set_iso(struct bm2835_mmal_dev *dev,
 		dev->iso = iso_values[ctrl->val];
 	else if (ctrl->id == V4L2_CID_ISO_SENSITIVITY_AUTO)
 		dev->manual_iso_enabled =
-				(ctrl->val == V4L2_ISO_SENSITIVITY_MANUAL ?
-							true :
-							false);
+				(ctrl->val == V4L2_ISO_SENSITIVITY_MANUAL);
 
 	control = &dev->component[MMAL_COMPONENT_CAMERA]->control;
 
@@ -398,10 +397,10 @@ static int ctrl_set_metering_mode(struct bm2835_mmal_dev *dev,
 		break;
 
 	/* todo matrix weighting not added to Linux API till 3.9
-	case V4L2_EXPOSURE_METERING_MATRIX:
-		dev->metering_mode = MMAL_PARAM_EXPOSUREMETERINGMODE_MATRIX;
-		break;
-	*/
+	 * case V4L2_EXPOSURE_METERING_MATRIX:
+	 *	dev->metering_mode = MMAL_PARAM_EXPOSUREMETERINGMODE_MATRIX;
+	 *	break;
+	 */
 	}
 
 	if (dev->scene_mode == V4L2_SCENE_MODE_NONE) {
@@ -911,9 +910,7 @@ static int bm2835_mmal_s_ctrl(struct v4l2_ctrl *ctrl)
 	const struct bm2835_mmal_v4l2_ctrl *mmal_ctrl = ctrl->priv;
 	int ret;
 
-	if ((mmal_ctrl == NULL) ||
-	    (mmal_ctrl->id != ctrl->id) ||
-	    (mmal_ctrl->setter == NULL)) {
+	if (!mmal_ctrl || mmal_ctrl->id != ctrl->id || !mmal_ctrl->setter) {
 		pr_warn("mmal_ctrl:%p ctrl id:%d\n", mmal_ctrl, ctrl->id);
 		return -EINVAL;
 	}
@@ -982,8 +979,9 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 		false
 	},
 /*	{
-		0, MMAL_CONTROL_TYPE_CLUSTER, 3, 1, 0, NULL, 0, NULL
-	}, */
+ *		0, MMAL_CONTROL_TYPE_CLUSTER, 3, 1, 0, NULL, 0, NULL
+ *	},
+ */
 	{
 		V4L2_CID_EXPOSURE_AUTO, MMAL_CONTROL_TYPE_STD_MENU,
 		~0x03, 3, V4L2_EXPOSURE_AUTO, 0, NULL,
@@ -992,9 +990,9 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 		false
 	},
 /* todo this needs mixing in with set exposure
-	{
-	       V4L2_CID_SCENE_MODE, MMAL_CONTROL_TYPE_STD_MENU,
-	},
+ *	{
+ *		V4L2_CID_SCENE_MODE, MMAL_CONTROL_TYPE_STD_MENU,
+ *	},
  */
 	{
 		V4L2_CID_EXPOSURE_ABSOLUTE, MMAL_CONTROL_TYPE_STD,
@@ -1275,11 +1273,11 @@ int bm2835_mmal_init_controls(struct bm2835_mmal_dev *dev,
 				 * mismatches.
 				 */
 				int i;
-				mask = 1<<V4L2_SCENE_MODE_NONE;
+				mask = 1 << V4L2_SCENE_MODE_NONE;
 				for (i = 0;
 				     i < ARRAY_SIZE(scene_configs);
 				     i++) {
-					mask |= 1<<scene_configs[i].v4l2_scene;
+					mask |= 1 << scene_configs[i].v4l2_scene;
 				}
 				mask = ~mask;
 			}

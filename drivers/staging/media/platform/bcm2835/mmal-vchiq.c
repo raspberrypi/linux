@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/completion.h>
 #include <linux/vmalloc.h>
+#include <linux/btree.h>
 #include <asm/cacheflush.h>
 #include <media/videobuf2-vmalloc.h>
 
@@ -108,8 +109,13 @@ static const char *const port_action_type_names[] = {
 #define DBG_DUMP_MSG(MSG, MSG_LEN, TITLE)
 #endif
 
+struct vchiq_mmal_instance;
+
 /* normal message context */
 struct mmal_msg_context {
+	struct vchiq_mmal_instance *instance;
+	u32 handle;
+
 	union {
 		struct {
 			/* work struct for defered callback - must come first */
@@ -146,6 +152,13 @@ struct mmal_msg_context {
 
 };
 
+struct vchiq_mmal_context_map {
+	/* ensure serialized access to the btree(contention should be low) */
+	struct mutex lock;
+	struct btree_head32 btree_head;
+	u32 last_handle;
+};
+
 struct vchiq_mmal_instance {
 	VCHI_SERVICE_HANDLE_T handle;
 
@@ -158,25 +171,125 @@ struct vchiq_mmal_instance {
 	/* vmalloc page to receive scratch bulk xfers into */
 	void *bulk_scratch;
 
+	/* mapping table between context handles and mmal_msg_contexts */
+	struct vchiq_mmal_context_map context_map;
+
 	/* component to use next */
 	int component_idx;
 	struct vchiq_mmal_component component[VCHIQ_MMAL_MAX_COMPONENTS];
 };
 
-static struct mmal_msg_context *get_msg_context(struct vchiq_mmal_instance
-						*instance)
+static int __must_check
+mmal_context_map_init(struct vchiq_mmal_context_map *context_map)
+{
+	mutex_init(&context_map->lock);
+	context_map->last_handle = 0;
+	return btree_init32(&context_map->btree_head);
+}
+
+static void mmal_context_map_destroy(struct vchiq_mmal_context_map *context_map)
+{
+	mutex_lock(&context_map->lock);
+	btree_destroy32(&context_map->btree_head);
+	mutex_unlock(&context_map->lock);
+}
+
+static u32
+mmal_context_map_create_handle(struct vchiq_mmal_context_map *context_map,
+			       struct mmal_msg_context *msg_context,
+			       gfp_t gfp)
+{
+	u32 handle;
+
+	mutex_lock(&context_map->lock);
+
+	while (1) {
+		/* just use a simple count for handles, but do not use 0 */
+		context_map->last_handle++;
+		if (!context_map->last_handle)
+			context_map->last_handle++;
+
+		handle = context_map->last_handle;
+
+		/* check if the handle is already in use */
+		if (!btree_lookup32(&context_map->btree_head, handle))
+			break;
+	}
+
+	if (btree_insert32(&context_map->btree_head, handle,
+			   msg_context, gfp)) {
+		/* probably out of memory */
+		mutex_unlock(&context_map->lock);
+		return 0;
+	}
+
+	mutex_unlock(&context_map->lock);
+	return handle;
+}
+
+static struct mmal_msg_context *
+mmal_context_map_lookup_handle(struct vchiq_mmal_context_map *context_map,
+			       u32 handle)
 {
 	struct mmal_msg_context *msg_context;
 
-	/* todo: should this be allocated from a pool to avoid kmalloc */
-	msg_context = kmalloc(sizeof(*msg_context), GFP_KERNEL);
-	memset(msg_context, 0, sizeof(*msg_context));
+	if (!handle)
+		return NULL;
+
+	mutex_lock(&context_map->lock);
+
+	msg_context = btree_lookup32(&context_map->btree_head, handle);
+
+	mutex_unlock(&context_map->lock);
+	return msg_context;
+}
+
+static void
+mmal_context_map_destroy_handle(struct vchiq_mmal_context_map *context_map,
+				u32 handle)
+{
+	mutex_lock(&context_map->lock);
+	btree_remove32(&context_map->btree_head, handle);
+	mutex_unlock(&context_map->lock);
+}
+
+static struct mmal_msg_context *
+get_msg_context(struct vchiq_mmal_instance *instance)
+{
+	struct mmal_msg_context *msg_context;
+
+	/* todo: should this be allocated from a pool to avoid kzalloc */
+	msg_context = kzalloc(sizeof(*msg_context), GFP_KERNEL);
+
+	if (!msg_context)
+		return ERR_PTR(-ENOMEM);
+
+	msg_context->instance = instance;
+	msg_context->handle =
+		mmal_context_map_create_handle(&instance->context_map,
+					       msg_context,
+					       GFP_KERNEL);
+
+	if (!msg_context->handle) {
+		kfree(msg_context);
+		return ERR_PTR(-ENOMEM);
+	}
 
 	return msg_context;
 }
 
-static void release_msg_context(struct mmal_msg_context *msg_context)
+static struct mmal_msg_context *
+lookup_msg_context(struct vchiq_mmal_instance *instance, u32 handle)
 {
+	return mmal_context_map_lookup_handle(&instance->context_map,
+		handle);
+}
+
+static void
+release_msg_context(struct mmal_msg_context *msg_context)
+{
+	mmal_context_map_destroy_handle(&msg_context->instance->context_map,
+					msg_context->handle);
 	kfree(msg_context);
 }
 
@@ -185,7 +298,7 @@ static void event_to_host_cb(struct vchiq_mmal_instance *instance,
 			     struct mmal_msg *msg, u32 msg_len)
 {
 	pr_debug("unhandled event\n");
-	pr_debug("component:%p port type:%d num:%d cmd:0x%x length:%d\n",
+	pr_debug("component:%u port type:%d num:%d cmd:0x%x length:%d\n",
 		 msg->u.event_to_host.client_component,
 		 msg->u.event_to_host.port_type,
 		 msg->u.event_to_host.port_num,
@@ -199,7 +312,8 @@ static void event_to_host_cb(struct vchiq_mmal_instance *instance,
  */
 static void buffer_work_cb(struct work_struct *work)
 {
-	struct mmal_msg_context *msg_context = (struct mmal_msg_context *)work;
+	struct mmal_msg_context *msg_context =
+		container_of(work, struct mmal_msg_context, u.bulk.work);
 
 	msg_context->u.bulk.port->buffer_cb(msg_context->u.bulk.instance,
 					    msg_context->u.bulk.port,
@@ -275,10 +389,6 @@ static int bulk_receive(struct vchiq_mmal_instance *instance,
 	    msg->u.buffer_from_host.buffer_header.flags;
 	msg_context->u.bulk.dts = msg->u.buffer_from_host.buffer_header.dts;
 	msg_context->u.bulk.pts = msg->u.buffer_from_host.buffer_header.pts;
-
-	// only need to flush L1 cache here, as VCHIQ takes care of the L2
-	// cache.
-	__cpuc_flush_dcache_area(msg_context->u.bulk.buffer->buffer, rd_len);
 
 	/* queue the bulk submission */
 	vchi_service_use(instance->handle);
@@ -397,8 +507,8 @@ buffer_from_host(struct vchiq_mmal_instance *instance,
 
 	/* get context */
 	msg_context = get_msg_context(instance);
-	if (!msg_context) {
-		ret = -ENOMEM;
+	if (IS_ERR(msg_context)) {
+		ret = PTR_ERR(msg_context);
 		goto unlock;
 	}
 
@@ -416,18 +526,19 @@ buffer_from_host(struct vchiq_mmal_instance *instance,
 
 	m.h.type = MMAL_MSG_TYPE_BUFFER_FROM_HOST;
 	m.h.magic = MMAL_MAGIC;
-	m.h.context = msg_context;
+	m.h.context = msg_context->handle;
 	m.h.status = 0;
 
 	/* drvbuf is our private data passed back */
 	m.u.buffer_from_host.drvbuf.magic = MMAL_MAGIC;
 	m.u.buffer_from_host.drvbuf.component_handle = port->component->handle;
 	m.u.buffer_from_host.drvbuf.port_handle = port->handle;
-	m.u.buffer_from_host.drvbuf.client_context = msg_context;
+	m.u.buffer_from_host.drvbuf.client_context = msg_context->handle;
 
 	/* buffer header */
 	m.u.buffer_from_host.buffer_header.cmd = 0;
-	m.u.buffer_from_host.buffer_header.data = buf->buffer;
+	m.u.buffer_from_host.buffer_header.data =
+		(u32)(unsigned long)buf->buffer;
 	m.u.buffer_from_host.buffer_header.alloc_size = buf->buffer_size;
 	m.u.buffer_from_host.buffer_header.length = 0;	/* nothing used yet */
 	m.u.buffer_from_host.buffer_header.offset = 0;	/* no offset */
@@ -505,12 +616,20 @@ static void buffer_to_host_cb(struct vchiq_mmal_instance *instance,
 			      struct mmal_msg *msg, u32 msg_len)
 {
 	struct mmal_msg_context *msg_context;
+	u32 handle;
 
 	pr_debug("buffer_to_host_cb: instance:%p msg:%p msg_len:%d\n",
 		 instance, msg, msg_len);
 
 	if (msg->u.buffer_from_host.drvbuf.magic == MMAL_MAGIC) {
-		msg_context = msg->u.buffer_from_host.drvbuf.client_context;
+		handle = msg->u.buffer_from_host.drvbuf.client_context;
+		msg_context = lookup_msg_context(instance, handle);
+
+		if (!msg_context) {
+			pr_err("drvbuf.client_context(%u) is invalid\n",
+			       handle);
+			return;
+		}
 	} else {
 		pr_err("MMAL_MSG_TYPE_BUFFER_TO_HOST with bad magic\n");
 		return;
@@ -614,6 +733,7 @@ static void service_callback(void *param,
 	u32 msg_len;
 	struct mmal_msg *msg;
 	VCHI_HELD_MSG_T msg_handle;
+	struct mmal_msg_context *msg_context;
 
 	if (!instance) {
 		pr_err("Message callback passed NULL instance\n");
@@ -650,23 +770,25 @@ static void service_callback(void *param,
 
 		default:
 			/* messages dependent on header context to complete */
-
-			/* todo: the msg.context really ought to be sanity
-			 * checked before we just use it, afaict it comes back
-			 * and is used raw from the videocore. Perhaps it
-			 * should be verified the address lies in the kernel
-			 * address space.
-			 */
-			if (msg->h.context == NULL) {
+			if (!msg->h.context) {
 				pr_err("received message context was null!\n");
 				vchi_held_msg_release(&msg_handle);
 				break;
 			}
 
+			msg_context = lookup_msg_context(instance,
+							 msg->h.context);
+			if (!msg_context) {
+				pr_err("received invalid message context %u!\n",
+				       msg->h.context);
+				vchi_held_msg_release(&msg_handle);
+				break;
+			}
+
 			/* fill in context values */
-			msg->h.context->u.sync.msg_handle = msg_handle;
-			msg->h.context->u.sync.msg = msg;
-			msg->h.context->u.sync.msg_len = msg_len;
+			msg_context->u.sync.msg_handle = msg_handle;
+			msg_context->u.sync.msg = msg;
+			msg_context->u.sync.msg_len = msg_len;
 
 			/* todo: should this check (completion_done()
 			 * == 1) for no one waiting? or do we need a
@@ -678,7 +800,7 @@ static void service_callback(void *param,
 			 */
 
 			/* complete message so caller knows it happened */
-			complete(&msg->h.context->u.sync.cmplt);
+			complete(&msg_context->u.sync.cmplt);
 			break;
 		}
 
@@ -710,21 +832,26 @@ static int send_synchronous_mmal_msg(struct vchiq_mmal_instance *instance,
 				     struct mmal_msg **msg_out,
 				     VCHI_HELD_MSG_T *msg_handle_out)
 {
-	struct mmal_msg_context msg_context;
+	struct mmal_msg_context *msg_context;
 	int ret;
 
 	/* payload size must not cause message to exceed max size */
 	if (payload_len >
 	    (MMAL_MSG_MAX_SIZE - sizeof(struct mmal_msg_header))) {
 		pr_err("payload length %d exceeds max:%d\n", payload_len,
-		       (MMAL_MSG_MAX_SIZE - sizeof(struct mmal_msg_header)));
+		      (int)(MMAL_MSG_MAX_SIZE -
+			    sizeof(struct mmal_msg_header)));
 		return -EINVAL;
 	}
 
-	init_completion(&msg_context.u.sync.cmplt);
+	msg_context = get_msg_context(instance);
+	if (IS_ERR(msg_context))
+		return PTR_ERR(msg_context);
+
+	init_completion(&msg_context->u.sync.cmplt);
 
 	msg->h.magic = MMAL_MAGIC;
-	msg->h.context = &msg_context;
+	msg->h.context = msg_context->handle;
 	msg->h.status = 0;
 
 	DBG_DUMP_MSG(msg, (sizeof(struct mmal_msg_header) + payload_len),
@@ -741,20 +868,23 @@ static int send_synchronous_mmal_msg(struct vchiq_mmal_instance *instance,
 
 	if (ret) {
 		pr_err("error %d queuing message\n", ret);
+		release_msg_context(msg_context);
 		return ret;
 	}
 
-	ret = wait_for_completion_timeout(&msg_context.u.sync.cmplt, 3 * HZ);
+	ret = wait_for_completion_timeout(&msg_context->u.sync.cmplt, 3 * HZ);
 	if (ret <= 0) {
 		pr_err("error %d waiting for sync completion\n", ret);
 		if (ret == 0)
 			ret = -ETIME;
 		/* todo: what happens if the message arrives after aborting */
+		release_msg_context(msg_context);
 		return ret;
 	}
 
-	*msg_out = msg_context.u.sync.msg;
-	*msg_handle_out = msg_context.u.sync.msg_handle;
+	*msg_out = msg_context->u.sync.msg;
+	*msg_handle_out = msg_context->u.sync.msg_handle;
+	release_msg_context(msg_context);
 
 	return 0;
 }
@@ -776,7 +906,7 @@ static void dump_port_info(struct vchiq_mmal_port *port)
 		 port->current_buffer.num,
 		 port->current_buffer.size, port->current_buffer.alignment);
 
-	pr_debug("elementry stream: type:%d encoding:0x%x variant:0x%x\n",
+	pr_debug("elementary stream: type:%d encoding:0x%x variant:0x%x\n",
 		 port->format.type,
 		 port->format.encoding, port->format.encoding_variant);
 
@@ -816,7 +946,7 @@ static void port_to_mmal_msg(struct vchiq_mmal_port *port, struct mmal_port *p)
 	/* only three writable fields in a port */
 	p->buffer_num = port->current_buffer.num;
 	p->buffer_size = port->current_buffer.size;
-	p->userdata = port;
+	p->userdata = (u32)(unsigned long)port;
 }
 
 static int port_info_set(struct vchiq_mmal_instance *instance,
@@ -840,7 +970,7 @@ static int port_info_set(struct vchiq_mmal_instance *instance,
 
 	port_to_mmal_msg(port, &m.u.port_info_set.port);
 
-	/* elementry stream format setup */
+	/* elementary stream format setup */
 	m.u.port_info_set.format.type = port->format.type;
 	m.u.port_info_set.format.encoding = port->format.encoding;
 	m.u.port_info_set.format.encoding_variant =
@@ -949,7 +1079,7 @@ static int port_info_get(struct vchiq_mmal_instance *instance,
 	port->format.bitrate = rmsg->u.port_info_get_reply.format.bitrate;
 	port->format.flags = rmsg->u.port_info_get_reply.format.flags;
 
-	/* elementry stream format */
+	/* elementary stream format */
 	memcpy(&port->es,
 	       &rmsg->u.port_info_get_reply.es,
 	       sizeof(union mmal_es_specific_format));
@@ -986,7 +1116,7 @@ static int create_component(struct vchiq_mmal_instance *instance,
 
 	/* build component create message */
 	m.h.type = MMAL_MSG_TYPE_COMPONENT_CREATE;
-	m.u.component_create.client_component = component;
+	m.u.component_create.client_component = (u32)(unsigned long)component;
 	strncpy(m.u.component_create.name, name,
 		sizeof(m.u.component_create.name));
 
@@ -1315,7 +1445,12 @@ static int port_parameter_get(struct vchiq_mmal_instance *instance,
 	}
 
 	ret = -rmsg->u.port_parameter_get_reply.status;
-	if (ret) {
+	/* port_parameter_get_reply.size includes the header,
+	 * whilst *value_size doesn't.
+	 */
+	rmsg->u.port_parameter_get_reply.size -= (2 * sizeof(u32));
+
+	if (ret || rmsg->u.port_parameter_get_reply.size > *value_size) {
 		/* Copy only as much as we have space for
 		 * but report true size of parameter
 		 */
@@ -1387,7 +1522,7 @@ static int port_enable(struct vchiq_mmal_instance *instance,
 		return 0;
 
 	/* ensure there are enough buffers queued to cover the buffer headers */
-	if (port->buffer_cb != NULL) {
+	if (port->buffer_cb) {
 		hdr_count = 0;
 		list_for_each(buf_head, &port->buffers) {
 			hdr_count++;
@@ -1429,7 +1564,8 @@ done:
 
 /* ------------------------------------------------------------------
  * Exported API
- *------------------------------------------------------------------*/
+ *------------------------------------------------------------------
+ */
 
 int vchiq_mmal_port_set_format(struct vchiq_mmal_instance *instance,
 			       struct vchiq_mmal_port *port)
@@ -1547,7 +1683,7 @@ int vchiq_mmal_port_connect_tunnel(struct vchiq_mmal_instance *instance,
 		return -EINTR;
 
 	/* disconnect ports if connected */
-	if (src->connected != NULL) {
+	if (src->connected) {
 		ret = port_disable(instance, src);
 		if (ret) {
 			pr_err("failed disabling src port(%d)\n", ret);
@@ -1570,7 +1706,7 @@ int vchiq_mmal_port_connect_tunnel(struct vchiq_mmal_instance *instance,
 		src->connected = NULL;
 	}
 
-	if (dst == NULL) {
+	if (!dst) {
 		/* do not make new connection */
 		ret = 0;
 		pr_debug("not making new connection\n");
@@ -1817,7 +1953,7 @@ int vchiq_mmal_finalise(struct vchiq_mmal_instance *instance)
 {
 	int status = 0;
 
-	if (instance == NULL)
+	if (!instance)
 		return -EINVAL;
 
 	if (mutex_lock_interruptible(&instance->vchiq_mutex))
@@ -1833,6 +1969,8 @@ int vchiq_mmal_finalise(struct vchiq_mmal_instance *instance)
 
 	vfree(instance->bulk_scratch);
 
+	mmal_context_map_destroy(&instance->context_map);
+
 	kfree(instance);
 
 	return status;
@@ -1845,16 +1983,16 @@ int vchiq_mmal_init(struct vchiq_mmal_instance **out_instance)
 	static VCHI_CONNECTION_T *vchi_connection;
 	static VCHI_INSTANCE_T vchi_instance;
 	SERVICE_CREATION_T params = {
-		VCHI_VERSION_EX(VC_MMAL_VER, VC_MMAL_MIN_VER),
-		VC_MMAL_SERVER_NAME,
-		vchi_connection,
-		0,		/* rx fifo size (unused) */
-		0,		/* tx fifo size (unused) */
-		service_callback,
-		NULL,		/* service callback parameter */
-		1,		/* unaligned bulk receives */
-		1,		/* unaligned bulk transmits */
-		0		/* want crc check on bulk transfers */
+		.version		= VCHI_VERSION_EX(VC_MMAL_VER, VC_MMAL_MIN_VER),
+		.service_id		= VC_MMAL_SERVER_NAME,
+		.connection		= vchi_connection,
+		.rx_fifo_size		= 0,
+		.tx_fifo_size		= 0,
+		.callback		= service_callback,
+		.callback_param		= NULL,
+		.want_unaligned_bulk_rx = 1,
+		.want_unaligned_bulk_tx = 1,
+		.want_crc		= 0
 	};
 
 	/* compile time checks to ensure structure size as they are
@@ -1884,13 +2022,22 @@ int vchiq_mmal_init(struct vchiq_mmal_instance **out_instance)
 		return -EIO;
 	}
 
-	instance = kmalloc(sizeof(*instance), GFP_KERNEL);
-	memset(instance, 0, sizeof(*instance));
+	instance = kzalloc(sizeof(*instance), GFP_KERNEL);
+
+	if (!instance)
+		return -ENOMEM;
 
 	mutex_init(&instance->vchiq_mutex);
 	mutex_init(&instance->bulk_mutex);
 
 	instance->bulk_scratch = vmalloc(PAGE_SIZE);
+
+	status = mmal_context_map_init(&instance->context_map);
+	if (status) {
+		pr_err("Failed to init context map (status=%d)\n", status);
+		kfree(instance);
+		return status;
+	}
 
 	params.callback_param = instance;
 

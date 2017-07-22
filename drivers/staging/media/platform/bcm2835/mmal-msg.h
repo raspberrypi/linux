@@ -84,9 +84,9 @@ struct mmal_msg_header {
 	u32 type; /** enum mmal_msg_type */
 
 	/* Opaque handle to the control service */
-	struct mmal_control_service *control_service;
+	u32 control_service;
 
-	struct mmal_msg_context *context; /** a u32 per message context */
+	u32 context; /** a u32 per message context */
 	u32 status; /** The status of the vchiq operation */
 	u32 padding;
 };
@@ -101,16 +101,16 @@ struct mmal_msg_version {
 
 /* request to VC to create component */
 struct mmal_msg_component_create {
-	void *client_component; /* component context */
+	u32 client_component; /* component context */
 	char name[128];
 	u32 pid;                /* For debug */
 };
 
 /* reply from VC to component creation request */
 struct mmal_msg_component_create_reply {
-	u32 status; /** enum mmal_msg_status - how does this differ to
-		     * the one in the header?
-		     */
+	u32 status;	/* enum mmal_msg_status - how does this differ to
+			 * the one in the header?
+			 */
 	u32 component_handle; /* VideoCore handle for component */
 	u32 input_num;        /* Number of input ports */
 	u32 output_num;       /* Number of output ports */
@@ -126,7 +126,6 @@ struct mmal_msg_component_destroy_reply {
 	u32 status; /** The component destruction status */
 };
 
-
 /* request and reply to VC to enable a component */
 struct mmal_msg_component_enable {
 	u32 component_handle;
@@ -135,7 +134,6 @@ struct mmal_msg_component_enable {
 struct mmal_msg_component_enable_reply {
 	u32 status; /** The component enable status */
 };
-
 
 /* request and reply to VC to disable a component */
 struct mmal_msg_component_disable {
@@ -162,7 +160,7 @@ struct mmal_msg_port_info_get_reply {
 	s32 found;             /* unused */
 	u32 port_handle;               /**< Handle to use for this port */
 	struct mmal_port port;
-	struct mmal_es_format format; /* elementry stream format */
+	struct mmal_es_format format; /* elementary stream format */
 	union mmal_es_specific_format es; /* es type specific data */
 	u8 extradata[MMAL_FORMAT_EXTRADATA_MAX_SIZE]; /* es extra data */
 };
@@ -192,7 +190,6 @@ struct mmal_msg_port_info_set_reply {
 	u8 extradata[MMAL_FORMAT_EXTRADATA_MAX_SIZE];
 };
 
-
 /* port action requests that take a mmal_port as a parameter */
 struct mmal_msg_port_action_port {
 	u32 component_handle;
@@ -214,9 +211,6 @@ struct mmal_msg_port_action_reply {
 	u32 status; /** The port action operation status */
 };
 
-
-
-
 /* MMAL buffer transfer */
 
 /** Size of space reserved in a buffer message for short messages. */
@@ -234,10 +228,12 @@ struct mmal_msg_port_action_reply {
 /** Signals that the current payload is a keyframe (i.e. self decodable) */
 #define MMAL_BUFFER_HEADER_FLAG_KEYFRAME               (1<<3)
 /** Signals a discontinuity in the stream of data (e.g. after a seek).
- * Can be used for instance by a decoder to reset its state */
+ * Can be used for instance by a decoder to reset its state
+ */
 #define MMAL_BUFFER_HEADER_FLAG_DISCONTINUITY          (1<<4)
 /** Signals a buffer containing some kind of config data for the component
- * (e.g. codec config data) */
+ * (e.g. codec config data)
+ */
 #define MMAL_BUFFER_HEADER_FLAG_CONFIG                 (1<<5)
 /** Signals an encrypted payload */
 #define MMAL_BUFFER_HEADER_FLAG_ENCRYPTED              (1<<6)
@@ -256,23 +252,23 @@ struct mmal_driver_buffer {
 	u32 magic;
 	u32 component_handle;
 	u32 port_handle;
-	void *client_context;
+	u32 client_context;
 };
 
 /* buffer header */
 struct mmal_buffer_header {
-	struct mmal_buffer_header *next; /* next header */
-	void *priv; /* framework private data */
+	u32 next; /* next header */
+	u32 priv; /* framework private data */
 	u32 cmd;
-	void *data;
+	u32 data;
 	u32 alloc_size;
 	u32 length;
 	u32 offset;
 	u32 flags;
 	s64 pts;
 	s64 dts;
-	void *type;
-	void *user_data;
+	u32 type;
+	u32 user_data;
 };
 
 struct mmal_buffer_header_type_specific {
@@ -307,7 +303,6 @@ struct mmal_msg_buffer_from_host {
 	u8 short_data[MMAL_VC_SHORT_DATA];
 };
 
-
 /* port parameter setting */
 
 #define MMAL_WORKER_PORT_PARAMETER_SPACE      96
@@ -321,9 +316,9 @@ struct mmal_msg_port_parameter_set {
 };
 
 struct mmal_msg_port_parameter_set_reply {
-	u32 status; /** enum mmal_msg_status todo: how does this
-		     * differ to the one in the header?
-		     */
+	u32 status;	/* enum mmal_msg_status todo: how does this
+			 * differ to the one in the header?
+			 */
 };
 
 /* port parameter getting */
@@ -346,7 +341,7 @@ struct mmal_msg_port_parameter_get_reply {
 #define MMAL_WORKER_EVENT_SPACE 256
 
 struct mmal_msg_event_to_host {
-	void *client_component; /* component context */
+	u32 client_component; /* component context */
 
 	u32 port_type;
 	u32 port_num;
@@ -354,7 +349,7 @@ struct mmal_msg_event_to_host {
 	u32 cmd;
 	u32 length;
 	u8 data[MMAL_WORKER_EVENT_SPACE];
-	struct mmal_buffer_header *delayed_buffer;
+	u32 delayed_buffer;
 };
 
 /* all mmal messages are serialised through this structure */
