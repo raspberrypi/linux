@@ -465,7 +465,7 @@ vc4_prime_export(struct drm_device *dev, struct drm_gem_object *obj, int flags)
 	struct vc4_bo *bo = to_vc4_bo(obj);
 
 	if (bo->validated_shader) {
-		DRM_ERROR("Attempting to export shader BO\n");
+		DRM_DEBUG("Attempting to export shader BO\n");
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -486,7 +486,7 @@ int vc4_mmap(struct file *filp, struct vm_area_struct *vma)
 	bo = to_vc4_bo(gem_obj);
 
 	if (bo->validated_shader && (vma->vm_flags & VM_WRITE)) {
-		DRM_ERROR("mmaping of shader BOs for writing not allowed.\n");
+		DRM_DEBUG("mmaping of shader BOs for writing not allowed.\n");
 		return -EINVAL;
 	}
 
@@ -511,7 +511,7 @@ int vc4_prime_mmap(struct drm_gem_object *obj, struct vm_area_struct *vma)
 	struct vc4_bo *bo = to_vc4_bo(obj);
 
 	if (bo->validated_shader && (vma->vm_flags & VM_WRITE)) {
-		DRM_ERROR("mmaping of shader BOs for writing not allowed.\n");
+		DRM_DEBUG("mmaping of shader BOs for writing not allowed.\n");
 		return -EINVAL;
 	}
 
@@ -523,7 +523,7 @@ void *vc4_prime_vmap(struct drm_gem_object *obj)
 	struct vc4_bo *bo = to_vc4_bo(obj);
 
 	if (bo->validated_shader) {
-		DRM_ERROR("mmaping of shader BOs not allowed.\n");
+		DRM_DEBUG("mmaping of shader BOs not allowed.\n");
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -559,7 +559,7 @@ int vc4_mmap_bo_ioctl(struct drm_device *dev, void *data,
 
 	gem_obj = drm_gem_object_lookup(file_priv, args->handle);
 	if (!gem_obj) {
-		DRM_ERROR("Failed to look up GEM BO %d\n", args->handle);
+		DRM_DEBUG("Failed to look up GEM BO %d\n", args->handle);
 		return -EINVAL;
 	}
 
@@ -663,7 +663,7 @@ int vc4_set_tiling_ioctl(struct drm_device *dev, void *data,
 
 	gem_obj = drm_gem_object_lookup(file_priv, args->handle);
 	if (!gem_obj) {
-		DRM_ERROR("Failed to look up GEM BO %d\n", args->handle);
+		DRM_DEBUG("Failed to look up GEM BO %d\n", args->handle);
 		return -ENOENT;
 	}
 	bo = to_vc4_bo(gem_obj);
@@ -695,7 +695,7 @@ int vc4_get_tiling_ioctl(struct drm_device *dev, void *data,
 
 	gem_obj = drm_gem_object_lookup(file_priv, args->handle);
 	if (!gem_obj) {
-		DRM_ERROR("Failed to look up GEM BO %d\n", args->handle);
+		DRM_DEBUG("Failed to look up GEM BO %d\n", args->handle);
 		return -ENOENT;
 	}
 	bo = to_vc4_bo(gem_obj);
