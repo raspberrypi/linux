@@ -1762,7 +1762,7 @@ drop:
 /* For TCP sockets, sk_rx_dst is protected by socket lock
  * For UDP, we use xchg() to guard against concurrent changes.
  */
-static void udp_sk_rx_dst_set(struct sock *sk, struct dst_entry *dst)
+void udp_sk_rx_dst_set(struct sock *sk, struct dst_entry *dst)
 {
 	struct dst_entry *old;
 
@@ -2120,6 +2120,7 @@ void udp_destroy_sock(struct sock *sk)
 			encap_destroy(sk);
 	}
 }
+EXPORT_SYMBOL(udp_sk_rx_dst_set);
 
 /*
  *	Socket option code for UDP
