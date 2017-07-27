@@ -238,7 +238,7 @@ static int snd_allo_piano_dual_mode_put(struct snd_kcontrol *kcontrol,
 	struct snd_card *snd_card_ptr = card->snd_card;
 	struct snd_kcontrol *kctl;
 	struct soc_mixer_control *mc;
-	unsigned int left_val = 0;
+	unsigned int left_val = 0, right_val = 0;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
 
@@ -260,6 +260,8 @@ static int snd_allo_piano_dual_mode_put(struct snd_kcontrol *kcontrol,
 		snd_soc_write(rtd->codec_dais[1]->codec, PCM512x_MUTE, 0x10);
 		snd_soc_write(rtd->codec_dais[0]->codec,
 				PCM512x_DIGITAL_VOLUME_3, 0xff);
+		snd_soc_write(rtd->codec_dais[1]->codec,
+				PCM512x_DIGITAL_VOLUME_2, 0xff);
 
 		list_for_each_entry(kctl, &snd_card_ptr->controls, list) {
 			if (!strncmp(kctl->id.name, "Digital Playback Volume",
@@ -273,6 +275,9 @@ static int snd_allo_piano_dual_mode_put(struct snd_kcontrol *kcontrol,
 	} else {
 		left_val = snd_soc_read(rtd->codec_dais[0]->codec,
 						PCM512x_DIGITAL_VOLUME_2);
+		right_val = snd_soc_read(rtd->codec_dais[1]->codec,
+						PCM512x_DIGITAL_VOLUME_3);
+
 		list_for_each_entry(kctl, &snd_card_ptr->controls, list) {
 			if (!strncmp(kctl->id.name, "Digital Playback Volume",
 					sizeof(kctl->id.name))) {
@@ -285,6 +290,8 @@ static int snd_allo_piano_dual_mode_put(struct snd_kcontrol *kcontrol,
 
 		snd_soc_write(rtd->codec_dais[0]->codec,
 				PCM512x_DIGITAL_VOLUME_3, left_val);
+		snd_soc_write(rtd->codec_dais[1]->codec,
+				PCM512x_DIGITAL_VOLUME_2, right_val);
 		snd_soc_write(rtd->codec_dais[0]->codec, PCM512x_MUTE, 0x00);
 		snd_soc_write(rtd->codec_dais[1]->codec, PCM512x_MUTE, 0x00);
 	}
@@ -311,7 +318,7 @@ static int snd_allo_piano_mode_put(struct snd_kcontrol *kcontrol,
 	struct snd_card *snd_card_ptr = card->snd_card;
 	struct snd_kcontrol *kctl;
 	struct soc_mixer_control *mc;
-	unsigned int left_val = 0;
+	unsigned int left_val = 0, right_val = 0;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
 
@@ -319,6 +326,9 @@ static int snd_allo_piano_mode_put(struct snd_kcontrol *kcontrol,
 			(ucontrol->value.integer.value[0] > 0)) {
 		left_val = snd_soc_read(rtd->codec_dais[0]->codec,
 						PCM512x_DIGITAL_VOLUME_2);
+		right_val = snd_soc_read(rtd->codec_dais[1]->codec,
+						PCM512x_DIGITAL_VOLUME_2);
+
 		list_for_each_entry(kctl, &snd_card_ptr->controls, list) {
 			if (!strncmp(kctl->id.name, "Digital Playback Volume",
 					sizeof(kctl->id.name))) {
@@ -330,6 +340,8 @@ static int snd_allo_piano_mode_put(struct snd_kcontrol *kcontrol,
 		}
 		snd_soc_write(rtd->codec_dais[0]->codec,
 				PCM512x_DIGITAL_VOLUME_3, left_val);
+		snd_soc_write(rtd->codec_dais[1]->codec,
+				PCM512x_DIGITAL_VOLUME_3, right_val);
 	}
 
 	return(snd_allo_piano_dsp_program(rtd,
@@ -366,20 +378,26 @@ static int pcm512x_get_reg_sub(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
+	struct glb_pool *glb_ptr = card->drvdata;
 	struct snd_soc_pcm_runtime *rtd;
 	unsigned int left_val = 0;
 	unsigned int right_val = 0;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
-	left_val = snd_soc_read(rtd->codec_dais[1]->codec,
-			PCM512x_DIGITAL_VOLUME_2);
-	if (left_val < 0)
-		return left_val;
-
 	right_val = snd_soc_read(rtd->codec_dais[1]->codec,
 			PCM512x_DIGITAL_VOLUME_3);
 	if (right_val < 0)
 		return right_val;
+
+	if (glb_ptr->dual_mode != 1) {
+		left_val = snd_soc_read(rtd->codec_dais[1]->codec,
+				PCM512x_DIGITAL_VOLUME_2);
+		if (left_val < 0)
+			return left_val;
+
+	} else {
+		left_val = right_val;
+	}
 
 	ucontrol->value.integer.value[0] =
 				(~(left_val  >> mc->shift)) & mc->max;
@@ -395,16 +413,19 @@ static int pcm512x_set_reg_sub(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
+	struct glb_pool *glb_ptr = card->drvdata;
 	struct snd_soc_pcm_runtime *rtd;
 	unsigned int left_val = (ucontrol->value.integer.value[0] & mc->max);
 	unsigned int right_val = (ucontrol->value.integer.value[1] & mc->max);
 	int ret = 0;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
-	ret = snd_soc_write(rtd->codec_dais[1]->codec,
-			PCM512x_DIGITAL_VOLUME_2, (~left_val));
-	if (ret < 0)
-		return ret;
+	if (glb_ptr->dual_mode != 1) {
+		ret = snd_soc_write(rtd->codec_dais[1]->codec,
+				PCM512x_DIGITAL_VOLUME_2, (~left_val));
+		if (ret < 0)
+			return ret;
+	}
 
 	ret = snd_soc_write(rtd->codec_dais[1]->codec,
 			PCM512x_DIGITAL_VOLUME_3, (~right_val));
@@ -437,16 +458,18 @@ static int pcm512x_set_reg_sub_switch(struct snd_kcontrol *kcontrol,
 {
 	struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
 	struct snd_soc_pcm_runtime *rtd;
+	struct glb_pool *glb_ptr = card->drvdata;
 	unsigned int left_val = (ucontrol->value.integer.value[0]);
 	unsigned int right_val = (ucontrol->value.integer.value[1]);
 	int ret = 0;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
-	ret = snd_soc_write(rtd->codec_dais[1]->codec, PCM512x_MUTE,
-			~((left_val & 0x01)<<4 | (right_val & 0x01)));
-	if (ret < 0)
-		return ret;
-
+	if (glb_ptr->set_mode != 1) {
+		ret = snd_soc_write(rtd->codec_dais[1]->codec, PCM512x_MUTE,
+				~((left_val & 0x01)<<4 | (right_val & 0x01)));
+		if (ret < 0)
+			return ret;
+	}
 	return 1;
 
 }
@@ -506,7 +529,6 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 			dev_warn(card->dev, "Failed to set volume limit: %d\n",
 				ret);
 	}
-
 	return 0;
 }
 
