@@ -143,6 +143,21 @@
 		};
 	};
 
+	fragment@9 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			m41t62: m41t62@68 {
+				compatible = "st,m41t62";
+				reg = <0x68>;
+				status = "okay";
+			};
+		};
+	};
+
 	__overrides__ {
 		abx80x = <0>,"+0";
 		ds1307 = <0>,"+1";
@@ -153,12 +168,14 @@
 		pcf2127 = <0>,"+6";
 		pcf8523 = <0>,"+7";
 		pcf8563 = <0>,"+8";
+		m41t62 = <0>,"+9";
 		trickle-diode-type = <&abx80x>,"abracon,tc-diode";
 		trickle-resistor-ohms = <&ds1339>,"trickle-resistor-ohms:0",
 					<&abx80x>,"abracon,tc-resistor";
 		wakeup-source = <&ds1339>,"wakeup-source?",
 				<&ds3231>,"wakeup-source?",
 				<&mcp7940x>,"wakeup-source?",
-				<&mcp7941x>,"wakeup-source?";
+				<&mcp7941x>,"wakeup-source?",
+				<&m41t62>,"wakeup-source?";
 	};
 };
