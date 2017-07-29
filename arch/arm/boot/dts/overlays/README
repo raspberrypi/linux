@@ -684,6 +684,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         pcf8563                 Select the PCF8563 device
 
+        m41t62                  Select the M41T62 device
+
         trickle-diode-type      Diode type for trickle charge - "standard" or
                                 "schottky" (ABx80x only)
 
