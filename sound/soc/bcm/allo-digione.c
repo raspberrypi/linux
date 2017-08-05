@@ -28,7 +28,7 @@
 
 #include "../codecs/wm8804.h"
 
-static short int auto_shutdown_output = 0;
+static short int auto_shutdown_output;
 module_param(auto_shutdown_output, short,
 		S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 MODULE_PARM_DESC(auto_shutdown_output, "Shutdown SP/DIF output if playback is stopped");
@@ -75,6 +75,7 @@ static int snd_allo_digione_startup(struct snd_pcm_substream *substream)
 	/* turn on digital output */
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
+
 	snd_soc_update_bits(codec, WM8804_PWRDN, 0x3c, 0x00);
 	return 0;
 }
@@ -86,6 +87,7 @@ static void snd_allo_digione_shutdown(struct snd_pcm_substream *substream)
 		/* turn off output */
 		struct snd_soc_pcm_runtime *rtd = substream->private_data;
 		struct snd_soc_codec *codec = rtd->codec;
+
 		snd_soc_update_bits(codec, WM8804_PWRDN, 0x3c, 0x3c);
 	}
 }
@@ -107,43 +109,37 @@ static int snd_allo_digione_hw_params(struct snd_pcm_substream *substream,
 	int ret;
 
 	samplerate = params_rate(params);
-
-	if (samplerate <= 96000) {
-		mclk_freq = samplerate * 256;
-		mclk_div = WM8804_MCLKDIV_256FS;
-	} else {
-		mclk_freq = samplerate * 128;
-		mclk_div = WM8804_MCLKDIV_128FS;
-	}
+	mclk_freq = samplerate * 256;
+	mclk_div = WM8804_MCLKDIV_256FS;
 
 	sysclk = snd_allo_digione_enable_clock(samplerate);
-	
+
 	switch (samplerate) {
-		case 32000:
-			sampling_freq=0x03;
-			break;
-		case 44100:
-			sampling_freq=0x00;
-			break;
-		case 48000:
-			sampling_freq=0x02;
-			break;
-		case 88200:
-			sampling_freq=0x08;
-			break;
-		case 96000:
-			sampling_freq=0x0a;
-			break;
-		case 176400:
-			sampling_freq=0x0c;
-			break;
-		case 192000:
-			sampling_freq=0x0e;
-			break;
-		default:
-			dev_err(codec->dev,
-			"Failed to set WM8804 SYSCLK, unsupported samplerate %d\n",
-			samplerate);
+	case 32000:
+		sampling_freq = 0x03;
+		break;
+	case 44100:
+		sampling_freq = 0x00;
+		break;
+	case 48000:
+		sampling_freq = 0x02;
+		break;
+	case 88200:
+		sampling_freq = 0x08;
+		break;
+	case 96000:
+		sampling_freq = 0x0a;
+		break;
+	case 176400:
+		sampling_freq = 0x0c;
+		break;
+	case 192000:
+		sampling_freq = 0x0e;
+		break;
+	default:
+		dev_err(codec->dev,
+		"Failed to set WM8804 SYSCLK, unsupported samplerate %d\n",
+		samplerate);
 	}
 
 	snd_soc_dai_set_clkdiv(codec_dai, WM8804_MCLK_DIV, mclk_div);
@@ -173,8 +169,8 @@ static int snd_allo_digione_hw_params(struct snd_pcm_substream *substream,
 /* machine stream operations */
 static struct snd_soc_ops snd_allo_digione_ops = {
 	.hw_params	= snd_allo_digione_hw_params,
-        .startup	= snd_allo_digione_startup,
-        .shutdown	= snd_allo_digione_shutdown,
+	.startup	= snd_allo_digione_startup,
+	.shutdown	= snd_allo_digione_shutdown,
 };
 
 static struct snd_soc_dai_link snd_allo_digione_dai[] = {
@@ -209,27 +205,28 @@ static int snd_allo_digione_probe(struct platform_device *pdev)
 	snd_allo_digione.dev = &pdev->dev;
 
 	if (pdev->dev.of_node) {
-	    struct device_node *i2s_node;
-	    struct snd_soc_dai_link *dai = &snd_allo_digione_dai[0];
-	    i2s_node = of_parse_phandle(pdev->dev.of_node,
-					"i2s-controller", 0);
+		struct device_node *i2s_node;
+		struct snd_soc_dai_link *dai = &snd_allo_digione_dai[0];
 
-	    if (i2s_node) {
-		dai->cpu_dai_name = NULL;
-		dai->cpu_of_node = i2s_node;
-		dai->platform_name = NULL;
-		dai->platform_of_node = i2s_node;
-	    }
+		i2s_node = of_parse_phandle(pdev->dev.of_node,
+				"i2s-controller", 0);
 
-	    snd_allo_clk44gpio =
-		devm_gpiod_get(&pdev->dev, "clock44", GPIOD_OUT_LOW);
-	    if (IS_ERR(snd_allo_clk44gpio))
-		dev_err(&pdev->dev, "devm_gpiod_get() failed\n");
+		if (i2s_node) {
+			dai->cpu_dai_name = NULL;
+			dai->cpu_of_node = i2s_node;
+			dai->platform_name = NULL;
+			dai->platform_of_node = i2s_node;
+		}
 
-	    snd_allo_clk48gpio =
-		devm_gpiod_get(&pdev->dev, "clock48", GPIOD_OUT_LOW);
-	    if (IS_ERR(snd_allo_clk48gpio))
-		dev_err(&pdev->dev, "devm_gpiod_get() failed\n");
+		snd_allo_clk44gpio =
+			devm_gpiod_get(&pdev->dev, "clock44", GPIOD_OUT_LOW);
+		if (IS_ERR(snd_allo_clk44gpio))
+			dev_err(&pdev->dev, "devm_gpiod_get() failed\n");
+
+		snd_allo_clk48gpio =
+			devm_gpiod_get(&pdev->dev, "clock48", GPIOD_OUT_LOW);
+		if (IS_ERR(snd_allo_clk48gpio))
+			dev_err(&pdev->dev, "devm_gpiod_get() failed\n");
 	}
 
 	ret = snd_soc_register_card(&snd_allo_digione);
