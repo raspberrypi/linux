@@ -21,6 +21,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
+#include "platsmp.h"
 #include <linux/dma-mapping.h>
 
 static void __init bcm2835_init(void)
@@ -49,6 +50,7 @@ static const char * const bcm2835_compat[] = {
 #endif
 #ifdef CONFIG_ARCH_MULTI_V7
 	"brcm,bcm2836",
+	"brcm,bcm2837",
 #endif
 	NULL
 };
@@ -56,5 +58,6 @@ static const char * const bcm2835_compat[] = {
 DT_MACHINE_START(BCM2835, "BCM2835")
 	.init_machine = bcm2835_init,
 	.init_early = bcm2835_init_early,
-	.dt_compat = bcm2835_compat
+	.dt_compat = bcm2835_compat,
+	.smp = smp_ops(bcm2836_smp_ops),
 MACHINE_END
