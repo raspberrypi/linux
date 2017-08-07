@@ -22,3 +22,9 @@
 &uart1 {
 	status = "okay";
 };
+&sdhost {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdhost_gpio48>;
+	status = "okay";
+	bus-width = <4>;
+};
