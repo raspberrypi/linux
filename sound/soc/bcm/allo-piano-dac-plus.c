@@ -28,6 +28,13 @@
 #include <sound/tlv.h>
 #include "../codecs/pcm512x.h"
 
+#define P_DAC_LEFT_MUTE		0x10
+#define P_DAC_RIGHT_MUTE	0x01
+#define P_DAC_MUTE		0x11
+#define P_DAC_UNMUTE		0x00
+#define P_MUTE			1
+#define P_UNMUTE		0
+
 struct dsp_code {
 	char i2c_addr;
 	char offset;
@@ -129,16 +136,20 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		return 1;
 
 	case 1: /* 2.0 */
-		snd_soc_write(rtd->codec_dais[0]->codec, PCM512x_MUTE, 0x00);
-		snd_soc_write(rtd->codec_dais[1]->codec, PCM512x_MUTE, 0x11);
+		snd_soc_write(rtd->codec_dais[0]->codec,
+				PCM512x_MUTE, P_DAC_UNMUTE);
+		snd_soc_write(rtd->codec_dais[1]->codec,
+				PCM512x_MUTE, P_DAC_MUTE);
 		glb_ptr->set_rate = rate;
 		glb_ptr->set_mode = mode;
 		glb_ptr->set_lowpass = lowpass;
 		return 1;
 
 	default:
-		snd_soc_write(rtd->codec_dais[0]->codec, PCM512x_MUTE, 0x00);
-		snd_soc_write(rtd->codec_dais[1]->codec, PCM512x_MUTE, 0x00);
+		snd_soc_write(rtd->codec_dais[0]->codec,
+				PCM512x_MUTE, P_DAC_UNMUTE);
+		snd_soc_write(rtd->codec_dais[1]->codec,
+				PCM512x_MUTE, P_DAC_UNMUTE);
 	}
 
 	for (dac = 0; dac < rtd->num_codecs; dac++) {
@@ -255,8 +266,10 @@ static int snd_allo_piano_dual_mode_put(struct snd_kcontrol *kcontrol,
 	}
 
 	if (glb_ptr->dual_mode == 1) { // Dual Mono
-		snd_soc_write(rtd->codec_dais[0]->codec, PCM512x_MUTE, 0x01);
-		snd_soc_write(rtd->codec_dais[1]->codec, PCM512x_MUTE, 0x10);
+		snd_soc_write(rtd->codec_dais[0]->codec,
+				PCM512x_MUTE, P_DAC_RIGHT_MUTE);
+		snd_soc_write(rtd->codec_dais[1]->codec,
+				PCM512x_MUTE, P_DAC_LEFT_MUTE);
 		snd_soc_write(rtd->codec_dais[0]->codec,
 				PCM512x_DIGITAL_VOLUME_3, 0xff);
 		snd_soc_write(rtd->codec_dais[1]->codec,
@@ -291,8 +304,10 @@ static int snd_allo_piano_dual_mode_put(struct snd_kcontrol *kcontrol,
 				PCM512x_DIGITAL_VOLUME_3, left_val);
 		snd_soc_write(rtd->codec_dais[1]->codec,
 				PCM512x_DIGITAL_VOLUME_2, right_val);
-		snd_soc_write(rtd->codec_dais[0]->codec, PCM512x_MUTE, 0x00);
-		snd_soc_write(rtd->codec_dais[1]->codec, PCM512x_MUTE, 0x00);
+		snd_soc_write(rtd->codec_dais[0]->codec,
+				PCM512x_MUTE, P_DAC_UNMUTE);
+		snd_soc_write(rtd->codec_dais[1]->codec,
+				PCM512x_MUTE, P_DAC_UNMUTE);
 	}
 
 	return 0;
@@ -446,8 +461,10 @@ static int pcm512x_get_reg_sub_switch(struct snd_kcontrol *kcontrol,
 	if (val < 0)
 		return val;
 
-	ucontrol->value.integer.value[0] = (val & 0x10) ? 0 : 1;
-	ucontrol->value.integer.value[1] = (val & 0x01) ? 0 : 1;
+	ucontrol->value.integer.value[0] =
+			(val & P_DAC_LEFT_MUTE) ? P_UNMUTE : P_MUTE;
+	ucontrol->value.integer.value[1] =
+			(val & P_DAC_RIGHT_MUTE) ? P_UNMUTE : P_MUTE;
 
 	return val;
 }
@@ -563,14 +580,16 @@ static int pcm512x_get_reg_master_switch(struct snd_kcontrol *kcontrol,
 	if (val < 0)
 		return val;
 
-	ucontrol->value.integer.value[0] = (val & 0x10) ? 0 : 1;
+	ucontrol->value.integer.value[0] =
+			(val & P_DAC_LEFT_MUTE) ? P_UNMUTE : P_MUTE;
 
 	if (glb_ptr->dual_mode == 1) {
 		val = snd_soc_read(rtd->codec_dais[1]->codec, PCM512x_MUTE);
 		if (val < 0)
 			return val;
 	}
-	ucontrol->value.integer.value[1] = (val & 0x01) ? 0 : 1;
+	ucontrol->value.integer.value[1] =
+			(val & P_DAC_RIGHT_MUTE) ? P_UNMUTE : P_MUTE;
 
 	return val;
 }
@@ -692,19 +711,19 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 static void snd_allo_piano_gpio_mute(struct snd_soc_card *card)
 {
 	if (mute_gpio[0])
-		gpiod_set_value_cansleep(mute_gpio[0], 1);
+		gpiod_set_value_cansleep(mute_gpio[0], P_MUTE);
 
 	if (mute_gpio[1])
-		gpiod_set_value_cansleep(mute_gpio[1], 1);
+		gpiod_set_value_cansleep(mute_gpio[1], P_MUTE);
 }
 
 static void snd_allo_piano_gpio_unmute(struct snd_soc_card *card)
 {
 	if (mute_gpio[0])
-		gpiod_set_value_cansleep(mute_gpio[0], 0);
+		gpiod_set_value_cansleep(mute_gpio[0], P_UNMUTE);
 
 	if (mute_gpio[1])
-		gpiod_set_value_cansleep(mute_gpio[1], 0);
+		gpiod_set_value_cansleep(mute_gpio[1], P_UNMUTE);
 }
 
 static int snd_allo_piano_set_bias_level(struct snd_soc_card *card,
