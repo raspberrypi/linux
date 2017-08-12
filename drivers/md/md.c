@@ -8639,7 +8639,7 @@ void md_check_recovery(struct mddev *mddev)
 	if (mddev_trylock(mddev)) {
 		int spares = 0;
 
-		if (mddev->safemode == 1)
+		if (!mddev->external && mddev->safemode == 1)
 			mddev->safemode = 0;
 
 		if (mddev->ro) {
