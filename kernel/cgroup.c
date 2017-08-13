@@ -3492,11 +3492,11 @@ static ssize_t cgroup_subtree_control_write(struct kernfs_open_file *of,
 	cgrp->subtree_control &= ~disable;
 
 	ret = cgroup_apply_control(cgrp);
-
 	cgroup_finalize_control(cgrp, ret);
+	if (ret)
+		goto out_unlock;
 
 	kernfs_activate(cgrp->kn);
-	ret = 0;
 out_unlock:
 	cgroup_kn_unlock(of->kn);
 	return ret ?: nbytes;
@@ -5723,6 +5723,10 @@ int __init cgroup_init(void)
 
 		if (ss->bind)
 			ss->bind(init_css_set.subsys[ssid]);
+
+		mutex_lock(&cgroup_mutex);
+		css_populate_dir(init_css_set.subsys[ssid]);
+		mutex_unlock(&cgroup_mutex);
 	}
 
 	/* init_css_set.subsys[] has been updated, re-hash */

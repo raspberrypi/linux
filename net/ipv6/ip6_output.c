@@ -662,8 +662,6 @@ int ip6_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 		*prevhdr = NEXTHDR_FRAGMENT;
 		tmp_hdr = kmemdup(skb_network_header(skb), hlen, GFP_ATOMIC);
 		if (!tmp_hdr) {
-			IP6_INC_STATS(net, ip6_dst_idev(skb_dst(skb)),
-				      IPSTATS_MIB_FRAGFAILS);
 			err = -ENOMEM;
 			goto fail;
 		}
@@ -782,8 +780,6 @@ slow_path:
 		frag = alloc_skb(len + hlen + sizeof(struct frag_hdr) +
 				 hroom + troom, GFP_ATOMIC);
 		if (!frag) {
-			IP6_INC_STATS(net, ip6_dst_idev(skb_dst(skb)),
-				      IPSTATS_MIB_FRAGFAILS);
 			err = -ENOMEM;
 			goto fail;
 		}
@@ -1376,11 +1372,12 @@ emsgsize:
 	 */
 
 	cork->length += length;
-	if ((((length + fragheaderlen) > mtu) ||
-	     (skb && skb_is_gso(skb))) &&
+	if ((skb && skb_is_gso(skb)) ||
+	    (((length + fragheaderlen) > mtu) &&
+	    (skb_queue_len(queue) <= 1) &&
 	    (sk->sk_protocol == IPPROTO_UDP) &&
 	    (rt->dst.dev->features & NETIF_F_UFO) && !rt->dst.header_len &&
-	    (sk->sk_type == SOCK_DGRAM) && !udp_get_no_check6_tx(sk)) {
+	    (sk->sk_type == SOCK_DGRAM) && !udp_get_no_check6_tx(sk))) {
 		err = ip6_ufo_append_data(sk, queue, getfrag, from, length,
 					  hh_len, fragheaderlen, exthdrlen,
 					  transhdrlen, mtu, flags, fl6);
