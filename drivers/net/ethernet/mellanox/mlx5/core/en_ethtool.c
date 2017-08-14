@@ -580,8 +580,10 @@ static int mlx5e_set_channels(struct net_device *dev,
 
 	new_channels.params = priv->channels.params;
 	new_channels.params.num_channels = count;
-	mlx5e_build_default_indir_rqt(priv->mdev, new_channels.params.indirection_rqt,
-				      MLX5E_INDIR_RQT_SIZE, count);
+	if (!netif_is_rxfh_configured(priv->netdev))
+		mlx5e_build_default_indir_rqt(priv->mdev,
+					      new_channels.params.indirection_rqt,
+					      MLX5E_INDIR_RQT_SIZE, count);
 
 	if (!test_bit(MLX5E_STATE_OPENED, &priv->state)) {
 		priv->channels.params = new_channels.params;
