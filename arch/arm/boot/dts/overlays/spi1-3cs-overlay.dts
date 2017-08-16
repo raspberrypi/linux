@@ -36,7 +36,7 @@
 				reg = <0>;      /* CE0 */
 				#address-cells = <1>;
 				#size-cells = <0>;
-				spi-max-frequency = <500000>;
+				spi-max-frequency = <125000000>;
 				status = "okay";
 			};
 
@@ -45,7 +45,7 @@
 				reg = <1>;      /* CE1 */
 				#address-cells = <1>;
 				#size-cells = <0>;
-				spi-max-frequency = <500000>;
+				spi-max-frequency = <125000000>;
 				status = "okay";
 			};
 
@@ -54,7 +54,7 @@
 				reg = <2>;      /* CE2 */
 				#address-cells = <1>;
 				#size-cells = <0>;
-				spi-max-frequency = <500000>;
+				spi-max-frequency = <125000000>;
 				status = "okay";
 			};
 		};
