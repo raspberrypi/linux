@@ -108,7 +108,7 @@
 		reg = <0>;	/* CE0 */
 		#address-cells = <1>;
 		#size-cells = <0>;
-		spi-max-frequency = <500000>;
+		spi-max-frequency = <125000000>;
 	};
 
 	spidev1: spidev@1{
@@ -116,7 +116,7 @@
 		reg = <1>;	/* CE1 */
 		#address-cells = <1>;
 		#size-cells = <0>;
-		spi-max-frequency = <500000>;
+		spi-max-frequency = <125000000>;
 	};
 };
 
