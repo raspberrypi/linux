@@ -871,8 +871,7 @@ static int nfp_net_tx(struct sk_buff *skb, struct net_device *netdev)
 	return NETDEV_TX_OK;
 
 err_unmap:
-	--f;
-	while (f >= 0) {
+	while (--f >= 0) {
 		frag = &skb_shinfo(skb)->frags[f];
 		dma_unmap_page(&nn->pdev->dev,
 			       tx_ring->txbufs[wr_idx].dma_addr,
