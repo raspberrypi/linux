@@ -2845,15 +2845,15 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				for (i=0; i<ioparam.op_count; i++) {
 					struct vmcs_sm_ioctl_clean_invalid_block *op = block + i;
 					for (j = 0; j < op->block_count; ++j) {
-						extern void v7_dma_inv_range(void *start, void *end);
-						extern void v7_dma_clean_range(void *start, void *end);
+						extern void rpi_dma_inv_range(void *start, void *end);
+						extern void rpi_dma_clean_range(void *start, void *end);
 						unsigned long base = (unsigned long)op->start_address + j * op->inter_block_stride;
 						unsigned long end = base + op->block_size;
 						/* L1/L2 cache clean/invalidate */
 						if (op->invalidate_mode == 1)
-							v7_dma_inv_range((void *)base, (void *)end);
+							rpi_dma_inv_range((void *)base, (void *)end);
 						else
-							v7_dma_clean_range((void *)base, (void *)end);
+							rpi_dma_clean_range((void *)base, (void *)end);
 					}
 				}
 				kfree(block);
