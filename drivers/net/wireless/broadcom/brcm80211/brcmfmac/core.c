@@ -88,25 +88,25 @@ void brcmf_configure_arp_nd_offload(struct brcmf_if *ifp, bool enable)
 	if (err) {
 		brcmf_dbg(TRACE, "failed to set ARP offload mode to 0x%x, err = %d\n",
 			  mode, err);
+		err = 0;
 	} else {
 		err = brcmf_fil_iovar_int_set(ifp, "arpoe", enable);
 		if (err) {
 			brcmf_dbg(TRACE, "failed to configure (%d) ARP offload err = %d\n",
 				  enable, err);
-		} else {
+			err = 0;
+		} else
 			brcmf_dbg(TRACE, "successfully configured (%d) ARP offload to 0x%x\n",
 				  enable, mode);
-		}
 	}
 
 	err = brcmf_fil_iovar_int_set(ifp, "ndoe", enable);
-	if (err) {
+	if (err)
 		brcmf_dbg(TRACE, "failed to configure (%d) ND offload err = %d\n",
 			  enable, err);
-	} else {
+	else
 		brcmf_dbg(TRACE, "successfully configured (%d) ND offload to 0x%x\n",
 			  enable, mode);
-	}
 }
 
 static void _brcmf_set_multicast_list(struct work_struct *work)
@@ -172,6 +172,7 @@ static void _brcmf_set_multicast_list(struct work_struct *work)
 	if (err < 0)
 		brcmf_err("Setting BRCMF_C_SET_PROMISC failed, %d\n",
 			  err);
+
 	brcmf_configure_arp_nd_offload(ifp, !cmd_value);
 }
 
