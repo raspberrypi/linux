@@ -1203,7 +1203,7 @@ static struct enet_cb *bcmgenet_get_txcb(struct bcmgenet_priv *priv,
 /* Simple helper to free a control block's resources */
 static void bcmgenet_free_cb(struct enet_cb *cb)
 {
-	dev_kfree_skb_any(cb->skb);
+	dev_consume_skb_any(cb->skb);
 	cb->skb = NULL;
 	dma_unmap_addr_set(cb, dma_addr, 0);
 }
@@ -1868,7 +1868,7 @@ static int bcmgenet_alloc_rx_buffers(struct bcmgenet_priv *priv,
 		cb = ring->cbs + i;
 		skb = bcmgenet_rx_refill(priv, cb);
 		if (skb)
-			dev_kfree_skb_any(skb);
+			dev_consume_skb_any(skb);
 		if (!cb->skb)
 			return -ENOMEM;
 	}
