@@ -27,6 +27,8 @@
 #include <linux/list.h>
 #include <linux/module.h>
 #include <linux/mm.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
 #include <linux/pfn.h>
 #include <linux/proc_fs.h>
 #include <linux/pagemap.h>
@@ -45,6 +47,7 @@
 /* ---- Private Constants and Types --------------------------------------- */
 
 #define DEVICE_NAME              "vcsm"
+#define DRIVER_NAME		 "bcm2835-vcsm"
 #define DEVICE_MINOR             0
 
 #define VC_SM_DIR_ROOT_NAME       "vc-smem"
@@ -165,6 +168,7 @@ struct SM_PRIV_DATA_T {
 /* Global state information.
 */
 struct SM_STATE_T {
+	struct platform_device *pdev;
 	VC_VCHI_SM_HANDLE_T sm_handle;	/* Handle for videocore service. */
 	struct dentry *dir_root;   /* Debug fs entries root. */
 	struct dentry *dir_alloc;  /* Debug fs entries allocations. */
@@ -3000,18 +3004,6 @@ static void vc_sm_connected_init(void)
 
 	pr_info("[%s]: start\n", __func__);
 
-	/* Allocate memory for the state structure.
-	 */
-	sm_state = kzalloc(sizeof(struct SM_STATE_T), GFP_KERNEL);
-	if (sm_state == NULL) {
-		pr_err("[%s]: failed to allocate memory\n", __func__);
-		ret = -ENOMEM;
-		goto out;
-	}
-
-	mutex_init(&sm_state->lock);
-	mutex_init(&sm_state->map_lock);
-
 	/* Initialize and create a VCHI connection for the shared memory service
 	 ** running on videocore.
 	 */
@@ -3104,15 +3096,23 @@ out:
 }
 
 /* Driver loading. */
-static int __init vc_sm_init(void)
+static int bcm2835_vcsm_probe(struct platform_device *pdev)
 {
 	pr_info("vc-sm: Videocore shared memory driver\n");
+
+	sm_state = kzalloc(sizeof(*sm_state), GFP_KERNEL);
+	if (!sm_state)
+		return -ENOMEM;
+	sm_state->pdev = pdev;
+	mutex_init(&sm_state->lock);
+	mutex_init(&sm_state->map_lock);
+
 	vchiq_add_connected_callback(vc_sm_connected_init);
 	return 0;
 }
 
 /* Driver unloading. */
-static void __exit vc_sm_exit(void)
+static int bcm2835_vcsm_remove(struct platform_device *pdev)
 {
 	pr_debug("[%s]: start\n", __func__);
 	if (sm_inited) {
@@ -3135,6 +3135,7 @@ static void __exit vc_sm_exit(void)
 	}
 
 	pr_debug("[%s]: end\n", __func__);
+	return 0;
 }
 
 #if defined(__KERNEL__)
@@ -3302,8 +3303,28 @@ int vc_sm_map(int handle, unsigned int sm_addr, VC_SM_LOCK_CACHE_MODE_T mode,
 EXPORT_SYMBOL_GPL(vc_sm_map);
 #endif
 
-late_initcall(vc_sm_init);
-module_exit(vc_sm_exit);
+/*
+ *   Register the driver with device tree
+ */
+
+static const struct of_device_id bcm2835_vcsm_of_match[] = {
+	{.compatible = "raspberrypi,bcm2835-vcsm",},
+	{ /* sentinel */ },
+};
+
+MODULE_DEVICE_TABLE(of, bcm2835_vcsm_of_match);
+
+static struct platform_driver bcm2835_vcsm_driver = {
+	.probe = bcm2835_vcsm_probe,
+	.remove = bcm2835_vcsm_remove,
+	.driver = {
+		   .name = DRIVER_NAME,
+		   .owner = THIS_MODULE,
+		   .of_match_table = bcm2835_vcsm_of_match,
+		   },
+};
+
+module_platform_driver(bcm2835_vcsm_driver);
 
 MODULE_AUTHOR("Broadcom");
 MODULE_DESCRIPTION("VideoCore SharedMemory Driver");

@@ -72,6 +72,12 @@
 			firmware = <&firmware>;
 		};
 
+		vcsm: vcsm {
+			compatible = "raspberrypi,bcm2835-vcsm";
+			firmware = <&firmware>;
+			status = "okay";
+		};
+
 		thermal: thermal {
 			compatible = "brcm,bcm2835-thermal";
 			firmware = <&firmware>;
