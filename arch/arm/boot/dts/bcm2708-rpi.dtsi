@@ -74,6 +74,12 @@
 			firmware = <&firmware>;
 		};
 
+		vcsm: vcsm {
+			compatible = "raspberrypi,bcm2835-vcsm";
+			firmware = <&firmware>;
+			status = "okay";
+		};
+
 		thermal: thermal@7e212000 {
 			#thermal-sensor-cells = <0>;
 			status = "okay";
