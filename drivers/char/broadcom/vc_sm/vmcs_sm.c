@@ -142,6 +142,7 @@ struct SM_RESOURCE_T {
 	struct list_head map_list;	/* Maps associated with a resource. */
 
 	struct SM_PRIV_DATA_T *private;
+	bool map;		/* whether to map pages up front */
 };
 
 /* Private file data associated with each opened device.
@@ -1376,6 +1377,20 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 	vcsm_vma_open(vma);
 	resource->res_stats[MAP]++;
 	vmcs_sm_release_resource(resource, 0);
+
+	if (resource->map) {
+		/* We don't use vmf->pgoff since that has the fake offset */
+		unsigned long addr;
+		for (addr = vma->vm_start; addr < vma->vm_end; addr += PAGE_SIZE) {
+			/* Finally, remap it */
+			unsigned long pfn = (unsigned long)resource->res_base_mem & 0x3FFFFFFF;
+			pfn += mm_vc_mem_phys_addr;
+			pfn += addr - vma->vm_start;
+			pfn >>= PAGE_SHIFT;
+			ret = vm_insert_pfn(vma, addr, pfn);
+		}
+	}
+
 	return 0;
 
 error:
@@ -1394,10 +1409,18 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 	struct SM_RESOURCE_T *resource;
 	VC_SM_ALLOC_T alloc = { 0 };
 	VC_SM_ALLOC_RESULT_T result = { 0 };
+	enum vmcs_sm_cache_e cached = ioparam->cached;
+	bool map = false;
+
+	/* flag to requst buffer is mapped up front, rather than lazily */
+	if (cached & 0x80 ) {
+		map = true;
+		cached &= ~0x80;
+	}
 
 	/* Setup our allocation parameters */
-	alloc.type = ((ioparam->cached == VMCS_SM_CACHE_VC)
-		      || (ioparam->cached ==
+	alloc.type = ((cached == VMCS_SM_CACHE_VC)
+		      || (cached ==
 			  VMCS_SM_CACHE_BOTH)) ? VC_SM_ALLOC_CACHED :
 	    VC_SM_ALLOC_NON_CACHED;
 	alloc.base_unit = ioparam->size;
@@ -1455,7 +1478,8 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 	resource->res_handle = result.res_handle;
 	resource->res_base_mem = result.res_mem;
 	resource->res_size = alloc.base_unit * alloc.num_unit;
-	resource->res_cached = ioparam->cached;
+	resource->res_cached = cached;
+	resource->map = map;
 
 	/* Kernel/user GUID.  This global identifier is used for mmap'ing the
 	 * allocated region from user space, it is passed as the mmap'ing
@@ -2789,6 +2813,68 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				}
 			}
 		}
+		break;
+	/* Flush/Invalidate the cache for a given mapping. */
+	case VMCS_SM_CMD_CLEAN_INVALID2:
+		{
+				int i, j;
+				struct vmcs_sm_ioctl_clean_invalid2 ioparam;
+				struct vmcs_sm_ioctl_clean_invalid_block *block = NULL;
+
+				/* Get parameter data. */
+				if (copy_from_user(&ioparam,
+						   (void *)arg, sizeof(ioparam)) != 0) {
+					pr_err("[%s]: failed to copy-from-user header for cmd %x\n",
+							__func__, cmdnr);
+					ret = -EFAULT;
+					goto out;
+				}
+				block = kzalloc(ioparam.op_count * sizeof(struct vmcs_sm_ioctl_clean_invalid_block), GFP_KERNEL);
+				if (!block) {
+					ret = -EFAULT;
+					goto out;
+				}
+				if (copy_from_user(block,
+						   (void *)(arg + sizeof(ioparam)), ioparam.op_count * sizeof(struct vmcs_sm_ioctl_clean_invalid_block)) != 0) {
+					pr_err("[%s]: failed to copy-from-user payload for cmd %x\n",
+							__func__, cmdnr);
+					ret = -EFAULT;
+					goto out;
+				}
+
+				for (i=0; i<ioparam.op_count; i++) {
+					struct vmcs_sm_ioctl_clean_invalid_block *op = block + i;
+					for (j = 0; j < op->block_count; ++j) {
+
+
+						extern void v6_dma_inv_range(void *start, void *end);
+						extern void v6_dma_clean_range(void *start, void *end);
+						unsigned long base = (unsigned long)op->start_address + j * op->inter_block_stride;
+						unsigned long end = base + op->block_size;
+						/* L1/L2 cache clean */
+						if (op->invalidate_mode & 2) {
+#if defined(CONFIG_CPU_CACHE_V7)
+							extern void v7_dma_clean_range(void *start, void *end);
+							v7_dma_clean_range((void *)base, (void *)end);
+#elif defined(CONFIG_CPU_CACHE_V6)
+							extern void v6_dma_clean_range(void *start, void *end);
+							v6_dma_clean_range((void *)base, (void *)end);
+#endif
+						/* L1/L2 cache invalidate */
+						}
+						if (op->invalidate_mode & 1) {
+#if defined(CONFIG_CPU_CACHE_V7)
+							extern void v7_dma_inv_range(void *start, void *end);
+							v7_dma_inv_range((void *)base, (void *)end);
+#elif defined(CONFIG_CPU_CACHE_V6)
+							extern void v6_dma_inv_range(void *start, void *end);
+							v6_dma_inv_range((void *)base, (void *)end);
+#endif
+						}
+					}
+				}
+				kfree(block);
+			}
 		break;
 
 	default:
