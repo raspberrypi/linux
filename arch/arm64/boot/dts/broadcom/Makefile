@@ -11,7 +11,7 @@ dtb-$(CONFIG_ARCH_BCM2835) += bcm2710-rpi-3-b.dtb
 
 dts-dirs += ../overlays
 
-dts-dirs	:= stingray
+dts-dirs	+= stingray
 always		:= $(dtb-y)
 subdir-y	:= $(dts-dirs)
 clean-files	:= *.dtb
