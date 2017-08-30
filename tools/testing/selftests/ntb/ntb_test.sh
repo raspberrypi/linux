@@ -305,7 +305,7 @@ function perf_test()
 	echo "Running remote perf test $WITH DMA"
 	write_file "" $REMOTE_PERF/run
 	echo -n "  "
-	read_file $LOCAL_PERF/run
+	read_file $REMOTE_PERF/run
 	echo "  Passed"
 
 	_modprobe -r ntb_perf
@@ -325,6 +325,10 @@ function ntb_tool_tests()
 
 	link_test $LOCAL_TOOL $REMOTE_TOOL
 	link_test $REMOTE_TOOL $LOCAL_TOOL
+
+	#Ensure the link is up on both sides before continuing
+	write_file Y $LOCAL_TOOL/link_event
+	write_file Y $REMOTE_TOOL/link_event
 
 	for PEER_TRANS in $(ls $LOCAL_TOOL/peer_trans*); do
 		PT=$(basename $PEER_TRANS)
