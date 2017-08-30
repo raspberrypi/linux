@@ -91,7 +91,6 @@ static int __afu_open(struct inode *inode, struct file *file, bool master)
 
 	pr_devel("afu_open pe: %i\n", ctx->pe);
 	file->private_data = ctx;
-	cxl_ctx_get();
 
 	/* indicate success */
 	rc = 0;
@@ -213,6 +212,12 @@ static long afu_ioctl_start_work(struct cxl_context *ctx,
 	ctx->glpid = get_task_pid(current->group_leader, PIDTYPE_PID);
 
 
+	/*
+	 * Increment driver use count. Enables global TLBIs for hash
+	 * and callbacks to handle the segment table
+	 */
+	cxl_ctx_get();
+
 	trace_cxl_attach(ctx, work.work_element_descriptor, work.num_interrupts, amr);
 
 	if ((rc = cxl_ops->attach_process(ctx, false, work.work_element_descriptor,
@@ -222,6 +227,7 @@ static long afu_ioctl_start_work(struct cxl_context *ctx,
 		put_pid(ctx->glpid);
 		put_pid(ctx->pid);
 		ctx->glpid = ctx->pid = NULL;
+		cxl_ctx_put();
 		goto out;
 	}
 
