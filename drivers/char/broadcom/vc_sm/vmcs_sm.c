@@ -1047,7 +1047,7 @@ static struct SM_PRIV_DATA_T *vc_sm_create_priv_data(pid_t id)
 	} else {
 		struct dentry *dir_entry;
 
-		dir_entry = debugfs_create_file(VC_SM_RESOURCES, S_IRUGO,
+		dir_entry = debugfs_create_file(VC_SM_RESOURCES, 0444,
 				file_data->dir_pid, file_data,
 				vc_sm_debug_fs_fops);
 
@@ -1055,7 +1055,7 @@ static struct SM_PRIV_DATA_T *vc_sm_create_priv_data(pid_t id)
 		file_data->dir_res.priv_data = file_data;
 		file_data->dir_res.show = &vc_sm_alloc_show;
 
-		dir_entry = debugfs_create_file(VC_SM_STATS, S_IRUGO,
+		dir_entry = debugfs_create_file(VC_SM_STATS, 0444,
 				file_data->dir_pid, file_data,
 				vc_sm_debug_fs_fops);
 
@@ -3194,12 +3194,12 @@ static void vc_sm_connected_init(void)
 
 	sm_state->dir_state.show = &vc_sm_global_state_show;
 	sm_state->dir_state.dir_entry = debugfs_create_file(VC_SM_STATE,
-			S_IRUGO, sm_state->dir_root, &sm_state->dir_state,
+			0444, sm_state->dir_root, &sm_state->dir_state,
 			&vc_sm_debug_fs_fops);
 
 	sm_state->dir_stats.show = &vc_sm_global_statistics_show;
 	sm_state->dir_stats.dir_entry = debugfs_create_file(VC_SM_STATS,
-			S_IRUGO, sm_state->dir_root, &sm_state->dir_stats,
+			0444, sm_state->dir_root, &sm_state->dir_stats,
 			&vc_sm_debug_fs_fops);
 
 	/* Create the proc entry children. */
