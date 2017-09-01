@@ -3356,7 +3356,7 @@ int vc_sm_free(int handle)
 EXPORT_SYMBOL_GPL(vc_sm_free);
 
 /* Lock a memory handle for use by kernel. */
-int vc_sm_lock(int handle, VC_SM_LOCK_CACHE_MODE_T mode,
+int vc_sm_lock(int handle, enum vc_sm_lock_cache_mode mode,
 	       unsigned long *data)
 {
 	struct vmcs_sm_ioctl_lock_unlock ioparam;
@@ -3401,8 +3401,8 @@ int vc_sm_unlock(int handle, int flush, int no_vc_unlock)
 EXPORT_SYMBOL_GPL(vc_sm_unlock);
 
 /* Map a shared memory region for use by kernel. */
-int vc_sm_map(int handle, unsigned int sm_addr, VC_SM_LOCK_CACHE_MODE_T mode,
-	      unsigned long *data)
+int vc_sm_map(int handle, unsigned int sm_addr,
+	      enum vc_sm_lock_cache_mode mode, unsigned long *data)
 {
 	struct vmcs_sm_ioctl_lock_unlock ioparam;
 	int ret;

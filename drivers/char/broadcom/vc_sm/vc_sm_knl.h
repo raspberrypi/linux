@@ -22,11 +22,10 @@
 #endif
 
 /* Type of memory to be locked (ie mapped) */
-typedef enum {
+enum vc_sm_lock_cache_mode {
 	VC_SM_LOCK_CACHED,
 	VC_SM_LOCK_NON_CACHED,
-
-} VC_SM_LOCK_CACHE_MODE_T;
+};
 
 /* Allocate a shared memory handle and block. */
 int vc_sm_alloc(struct vc_sm_alloc_t *alloc, int *handle);
@@ -35,7 +34,7 @@ int vc_sm_alloc(struct vc_sm_alloc_t *alloc, int *handle);
 int vc_sm_free(int handle);
 
 /* Lock a memory handle for use by kernel. */
-int vc_sm_lock(int handle, VC_SM_LOCK_CACHE_MODE_T mode,
+int vc_sm_lock(int handle, enum vc_sm_lock_cache_mode mode,
 	       unsigned long *data);
 
 /* Unlock a memory handle in use by kernel. */
@@ -45,8 +44,8 @@ int vc_sm_unlock(int handle, int flush, int no_vc_unlock);
 int vc_sm_int_handle(int handle);
 
 /* Map a shared memory region for use by kernel. */
-int vc_sm_map(int handle, unsigned int sm_addr, VC_SM_LOCK_CACHE_MODE_T mode,
-	      unsigned long *data);
+int vc_sm_map(int handle, unsigned int sm_addr,
+	      enum vc_sm_lock_cache_mode mode, unsigned long *data);
 
 /* Import a block of memory into the GPU space. */
 int vc_sm_import_dmabuf(struct dma_buf *dmabuf, int *handle);
