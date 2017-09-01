@@ -24,26 +24,26 @@
 /*
  * Forward declare.
  */
-typedef struct sm_instance *VC_VCHI_SM_HANDLE_T;
+struct sm_instance;
 
 /*
  * Initialize the shared memory service, opens up vchi connection to talk to it.
  */
-VC_VCHI_SM_HANDLE_T vc_vchi_sm_init(VCHI_INSTANCE_T vchi_instance,
+struct sm_instance *vc_vchi_sm_init(VCHI_INSTANCE_T vchi_instance,
 				    VCHI_CONNECTION_T **vchi_connections,
 				    uint32_t num_connections);
 
 /*
  * Terminates the shared memory service.
  */
-int vc_vchi_sm_stop(VC_VCHI_SM_HANDLE_T *handle);
+int vc_vchi_sm_stop(struct sm_instance **handle);
 
 /*
  * Ask the shared memory service to allocate some memory on videocre and
  * return the result of this allocation (which upon success will be a pointer
  * to some memory in videocore space).
  */
-int vc_vchi_sm_alloc(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_alloc_t *alloc,
+int vc_vchi_sm_alloc(struct sm_instance *handle, struct vc_sm_alloc_t *alloc,
 		     struct vc_sm_alloc_result_t *alloc_result,
 		     uint32_t *trans_id);
 
@@ -51,14 +51,14 @@ int vc_vchi_sm_alloc(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_alloc_t *alloc,
  * Ask the shared memory service to free up some memory that was previously
  * allocated by the vc_vchi_sm_alloc function call.
  */
-int vc_vchi_sm_free(VC_VCHI_SM_HANDLE_T handle,
+int vc_vchi_sm_free(struct sm_instance *handle,
 		    struct vc_sm_free_t *free, uint32_t *trans_id);
 
 /*
  * Ask the shared memory service to lock up some memory that was previously
  * allocated by the vc_vchi_sm_alloc function call.
  */
-int vc_vchi_sm_lock(VC_VCHI_SM_HANDLE_T handle,
+int vc_vchi_sm_lock(struct sm_instance *handle,
 		    struct vc_sm_lock_unlock_t *lock_unlock,
 		    struct vc_sm_lock_result_t *lock_result,
 		    uint32_t *trans_id);
@@ -67,7 +67,7 @@ int vc_vchi_sm_lock(VC_VCHI_SM_HANDLE_T handle,
  * Ask the shared memory service to unlock some memory that was previously
  * allocated by the vc_vchi_sm_alloc function call.
  */
-int vc_vchi_sm_unlock(VC_VCHI_SM_HANDLE_T handle,
+int vc_vchi_sm_unlock(struct sm_instance *handle,
 		      struct vc_sm_lock_unlock_t *lock_unlock,
 		      uint32_t *trans_id, uint8_t wait_reply);
 
@@ -75,7 +75,7 @@ int vc_vchi_sm_unlock(VC_VCHI_SM_HANDLE_T handle,
  * Ask the shared memory service to resize some memory that was previously
  * allocated by the vc_vchi_sm_alloc function call.
  */
-int vc_vchi_sm_resize(VC_VCHI_SM_HANDLE_T handle,
+int vc_vchi_sm_resize(struct sm_instance *handle,
 		      struct vc_sm_resize_t *resize, uint32_t *trans_id);
 
 /*
@@ -83,19 +83,19 @@ int vc_vchi_sm_resize(VC_VCHI_SM_HANDLE_T handle,
  * show up in the log.  This is purely for debug/information and takes no
  * specific actions.
  */
-int vc_vchi_sm_walk_alloc(VC_VCHI_SM_HANDLE_T handle);
+int vc_vchi_sm_walk_alloc(struct sm_instance *handle);
 
 /*
  * Clean up following a previously interrupted action which left the system
  * in a bad state of some sort.
  */
-int vc_vchi_sm_clean_up(VC_VCHI_SM_HANDLE_T handle,
+int vc_vchi_sm_clean_up(struct sm_instance *handle,
 			struct vc_sm_action_clean_t *action_clean);
 
 /*
  * Import a contiguous block of memory and wrap it in a GPU MEM_HANDLE_T.
  */
-int vc_vchi_sm_import(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_import *msg,
+int vc_vchi_sm_import(struct sm_instance *handle, struct vc_sm_import *msg,
 		      struct vc_sm_import_result *result,
 		      uint32_t *cur_trans_id);
 

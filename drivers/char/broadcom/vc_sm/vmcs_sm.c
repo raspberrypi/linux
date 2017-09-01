@@ -181,7 +181,7 @@ struct SM_PRIV_DATA_T {
 */
 struct SM_STATE_T {
 	struct platform_device *pdev;
-	VC_VCHI_SM_HANDLE_T sm_handle;	/* Handle for videocore service. */
+	struct sm_instance *sm_handle;	/* Handle for videocore service. */
 	struct dentry *dir_root;   /* Debug fs entries root. */
 	struct dentry *dir_alloc;  /* Debug fs entries allocations. */
 	struct SM_PDE_T dir_stats; /* Debug fs entries statistics sub-tree. */
