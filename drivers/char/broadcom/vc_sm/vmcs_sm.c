@@ -1476,7 +1476,7 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 	bool map = false;
 
 	/* flag to requst buffer is mapped up front, rather than lazily */
-	if (cached & 0x80 ) {
+	if (cached & 0x80) {
 		map = true;
 		cached &= ~0x80;
 	}
