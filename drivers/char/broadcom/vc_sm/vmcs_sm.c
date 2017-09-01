@@ -2984,7 +2984,9 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					ret = -EFAULT;
 					goto out;
 				}
-				block = kzalloc(ioparam.op_count * sizeof(struct vmcs_sm_ioctl_clean_invalid_block), GFP_KERNEL);
+				block = kcalloc(ioparam.op_count,
+						sizeof(struct vmcs_sm_ioctl_clean_invalid_block),
+						GFP_KERNEL);
 				if (!block) {
 					ret = -EFAULT;
 					goto out;
