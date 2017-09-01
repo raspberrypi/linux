@@ -1248,7 +1248,7 @@ static int vcsm_vma_fault(struct vm_fault *vmf)
 	}
 }
 
-static struct vm_operations_struct vcsm_vm_ops = {
+static const struct vm_operations_struct vcsm_vm_ops = {
 	.open = vcsm_vma_open,
 	.close = vcsm_vma_close,
 	.fault = vcsm_vma_fault,
