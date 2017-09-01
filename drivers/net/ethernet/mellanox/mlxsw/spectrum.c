@@ -4110,6 +4110,8 @@ static int mlxsw_sp_netdevice_port_upper_event(struct net_device *dev,
 			return -EINVAL;
 		if (!info->linking)
 			break;
+		if (netdev_has_any_upper_dev(upper_dev))
+			return -EINVAL;
 		/* HW limitation forbids to put ports to multiple bridges. */
 		if (netif_is_bridge_master(upper_dev) &&
 		    !mlxsw_sp_master_bridge_check(mlxsw_sp, upper_dev))
@@ -4273,6 +4275,10 @@ static int mlxsw_sp_netdevice_bridge_event(struct net_device *br_dev,
 			return -EINVAL;
 		if (is_vlan_dev(upper_dev) &&
 		    br_dev != mlxsw_sp->master_bridge.dev)
+			return -EINVAL;
+		if (!info->linking)
+			break;
+		if (netdev_has_any_upper_dev(upper_dev))
 			return -EINVAL;
 		break;
 	case NETDEV_CHANGEUPPER:
