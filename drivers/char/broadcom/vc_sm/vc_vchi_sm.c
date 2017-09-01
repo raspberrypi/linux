@@ -257,7 +257,7 @@ static void vc_sm_vchi_callback(void *param,
 	}
 }
 
-VC_VCHI_SM_HANDLE_T vc_vchi_sm_init(VCHI_INSTANCE_T vchi_instance,
+struct sm_instance *vc_vchi_sm_init(VCHI_INSTANCE_T vchi_instance,
 				    VCHI_CONNECTION_T **vchi_connections,
 				    uint32_t num_connections)
 {
@@ -341,7 +341,7 @@ err_null:
 	return NULL;
 }
 
-int vc_vchi_sm_stop(VC_VCHI_SM_HANDLE_T *handle)
+int vc_vchi_sm_stop(struct sm_instance **handle)
 {
 	struct sm_instance *instance;
 	uint32_t i;
@@ -375,7 +375,7 @@ lock:
 	return -EINVAL;
 }
 
-int vc_vchi_sm_send_msg(VC_VCHI_SM_HANDLE_T handle,
+int vc_vchi_sm_send_msg(struct sm_instance *handle,
 			enum vc_sm_msg_type msg_id,
 			void *msg, uint32_t msg_size,
 			void *result, uint32_t result_size,
@@ -447,7 +447,7 @@ int vc_vchi_sm_send_msg(VC_VCHI_SM_HANDLE_T handle,
 	return status;
 }
 
-int vc_vchi_sm_alloc(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_alloc_t *msg,
+int vc_vchi_sm_alloc(struct sm_instance *handle, struct vc_sm_alloc_t *msg,
 		     struct vc_sm_alloc_result_t *result,
 		     uint32_t *cur_trans_id)
 {
@@ -456,14 +456,14 @@ int vc_vchi_sm_alloc(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_alloc_t *msg,
 				   cur_trans_id, 1);
 }
 
-int vc_vchi_sm_free(VC_VCHI_SM_HANDLE_T handle,
+int vc_vchi_sm_free(struct sm_instance *handle,
 		    struct vc_sm_free_t *msg, uint32_t *cur_trans_id)
 {
 	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_FREE,
 				   msg, sizeof(*msg), 0, 0, cur_trans_id, 0);
 }
 
-int vc_vchi_sm_lock(VC_VCHI_SM_HANDLE_T handle,
+int vc_vchi_sm_lock(struct sm_instance *handle,
 		    struct vc_sm_lock_unlock_t *msg,
 		    struct vc_sm_lock_result_t *result,
 		    uint32_t *cur_trans_id)
@@ -473,7 +473,7 @@ int vc_vchi_sm_lock(VC_VCHI_SM_HANDLE_T handle,
 				   cur_trans_id, 1);
 }
 
-int vc_vchi_sm_unlock(VC_VCHI_SM_HANDLE_T handle,
+int vc_vchi_sm_unlock(struct sm_instance *handle,
 		      struct vc_sm_lock_unlock_t *msg,
 		      uint32_t *cur_trans_id, uint8_t wait_reply)
 {
@@ -484,27 +484,27 @@ int vc_vchi_sm_unlock(VC_VCHI_SM_HANDLE_T handle,
 				   wait_reply);
 }
 
-int vc_vchi_sm_resize(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_resize_t *msg,
+int vc_vchi_sm_resize(struct sm_instance *handle, struct vc_sm_resize_t *msg,
 		      uint32_t *cur_trans_id)
 {
 	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_RESIZE,
 				   msg, sizeof(*msg), 0, 0, cur_trans_id, 1);
 }
 
-int vc_vchi_sm_walk_alloc(VC_VCHI_SM_HANDLE_T handle)
+int vc_vchi_sm_walk_alloc(struct sm_instance *handle)
 {
 	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_WALK_ALLOC,
 				   0, 0, 0, 0, 0, 0);
 }
 
-int vc_vchi_sm_clean_up(VC_VCHI_SM_HANDLE_T handle,
+int vc_vchi_sm_clean_up(struct sm_instance *handle,
 			struct vc_sm_action_clean_t *msg)
 {
 	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_ACTION_CLEAN,
 				   msg, sizeof(*msg), 0, 0, 0, 0);
 }
 
-int vc_vchi_sm_import(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_import *msg,
+int vc_vchi_sm_import(struct sm_instance *handle, struct vc_sm_import *msg,
 		      struct vc_sm_import_result *result,
 		      uint32_t *cur_trans_id)
 {
