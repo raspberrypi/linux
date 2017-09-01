@@ -227,7 +227,7 @@ static const char *const sm_cache_map_vector[] = {
 
 /* ---- Private Functions ------------------------------------------------ */
 
-static inline unsigned vcaddr_to_pfn(unsigned long vc_addr)
+static inline unsigned int vcaddr_to_pfn(unsigned long vc_addr)
 {
 	unsigned long pfn = vc_addr & 0x3FFFFFFF;
 	pfn += mm_vc_mem_phys_addr;
