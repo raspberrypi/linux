@@ -73,11 +73,11 @@ struct sm_instance {
 /* ---- Private Functions ------------------------------------------------ */
 static struct
 sm_cmd_rsp_blk *vc_vchi_cmd_create(struct sm_instance *instance,
-		VC_SM_MSG_TYPE id, void *msg,
+		enum vc_sm_msg_type id, void *msg,
 		uint32_t size, int wait)
 {
 	struct sm_cmd_rsp_blk *blk;
-	VC_SM_MSG_HDR_T *hdr;
+	struct vc_sm_msg_hdr_t *hdr;
 
 	if (down_interruptible(&instance->free_sema)) {
 		blk = kmalloc(sizeof(*blk), GFP_KERNEL);
@@ -99,7 +99,7 @@ sm_cmd_rsp_blk *vc_vchi_cmd_create(struct sm_instance *instance,
 	blk->wait = wait;
 	blk->length = sizeof(*hdr) + size;
 
-	hdr = (VC_SM_MSG_HDR_T *) blk->msg;
+	hdr = (struct vc_sm_msg_hdr_t *) blk->msg;
 	hdr->type = id;
 	mutex_lock(&instance->lock);
 	hdr->trans_id = blk->id = ++instance->trans_id;
@@ -129,7 +129,7 @@ static int vc_vchi_sm_videocore_io(void *arg)
 {
 	struct sm_instance *instance = arg;
 	struct sm_cmd_rsp_blk *cmd = NULL, *cmd_tmp;
-	VC_SM_RESULT_T *reply;
+	struct vc_sm_result_t *reply;
 	uint32_t reply_len;
 	int32_t status;
 	int svc_use = 1;
@@ -367,7 +367,7 @@ lock:
 }
 
 int vc_vchi_sm_send_msg(VC_VCHI_SM_HANDLE_T handle,
-			VC_SM_MSG_TYPE msg_id,
+			enum vc_sm_msg_type msg_id,
 			void *msg, uint32_t msg_size,
 			void *result, uint32_t result_size,
 			uint32_t *cur_trans_id, uint8_t wait_reply)
@@ -426,7 +426,8 @@ int vc_vchi_sm_send_msg(VC_VCHI_SM_HANDLE_T handle,
 	if (result && result_size) {
 		memcpy(result, cmd_blk->msg, result_size);
 	} else {
-		VC_SM_RESULT_T *res = (VC_SM_RESULT_T *) cmd_blk->msg;
+		struct vc_sm_result_t *res =
+			(struct vc_sm_result_t *) cmd_blk->msg;
 		status = (res->success == 0) ? 0 : -ENXIO;
 	}
 
@@ -437,8 +438,9 @@ int vc_vchi_sm_send_msg(VC_VCHI_SM_HANDLE_T handle,
 	return status;
 }
 
-int vc_vchi_sm_alloc(VC_VCHI_SM_HANDLE_T handle, VC_SM_ALLOC_T *msg,
-		VC_SM_ALLOC_RESULT_T *result, uint32_t *cur_trans_id)
+int vc_vchi_sm_alloc(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_alloc_t *msg,
+		     struct vc_sm_alloc_result_t *result,
+		     uint32_t *cur_trans_id)
 {
 	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_ALLOC,
 				   msg, sizeof(*msg), result, sizeof(*result),
@@ -446,15 +448,16 @@ int vc_vchi_sm_alloc(VC_VCHI_SM_HANDLE_T handle, VC_SM_ALLOC_T *msg,
 }
 
 int vc_vchi_sm_free(VC_VCHI_SM_HANDLE_T handle,
-		    VC_SM_FREE_T *msg, uint32_t *cur_trans_id)
+		    struct vc_sm_free_t *msg, uint32_t *cur_trans_id)
 {
 	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_FREE,
 				   msg, sizeof(*msg), 0, 0, cur_trans_id, 0);
 }
 
 int vc_vchi_sm_lock(VC_VCHI_SM_HANDLE_T handle,
-		    VC_SM_LOCK_UNLOCK_T *msg,
-		    VC_SM_LOCK_RESULT_T *result, uint32_t *cur_trans_id)
+		    struct vc_sm_lock_unlock_t *msg,
+		    struct vc_sm_lock_result_t *result,
+		    uint32_t *cur_trans_id)
 {
 	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_LOCK,
 				   msg, sizeof(*msg), result, sizeof(*result),
@@ -462,7 +465,7 @@ int vc_vchi_sm_lock(VC_VCHI_SM_HANDLE_T handle,
 }
 
 int vc_vchi_sm_unlock(VC_VCHI_SM_HANDLE_T handle,
-		      VC_SM_LOCK_UNLOCK_T *msg,
+		      struct vc_sm_lock_unlock_t *msg,
 		      uint32_t *cur_trans_id, uint8_t wait_reply)
 {
 	return vc_vchi_sm_send_msg(handle, wait_reply ?
@@ -472,8 +475,8 @@ int vc_vchi_sm_unlock(VC_VCHI_SM_HANDLE_T handle,
 				   wait_reply);
 }
 
-int vc_vchi_sm_resize(VC_VCHI_SM_HANDLE_T handle, VC_SM_RESIZE_T *msg,
-		uint32_t *cur_trans_id)
+int vc_vchi_sm_resize(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_resize_t *msg,
+		      uint32_t *cur_trans_id)
 {
 	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_RESIZE,
 				   msg, sizeof(*msg), 0, 0, cur_trans_id, 1);
@@ -485,7 +488,8 @@ int vc_vchi_sm_walk_alloc(VC_VCHI_SM_HANDLE_T handle)
 				   0, 0, 0, 0, 0, 0);
 }
 
-int vc_vchi_sm_clean_up(VC_VCHI_SM_HANDLE_T handle, VC_SM_ACTION_CLEAN_T *msg)
+int vc_vchi_sm_clean_up(VC_VCHI_SM_HANDLE_T handle,
+			struct vc_sm_action_clean_t *msg)
 {
 	return vc_vchi_sm_send_msg(handle, VC_SM_MSG_TYPE_ACTION_CLEAN,
 				   msg, sizeof(*msg), 0, 0, 0, 0);

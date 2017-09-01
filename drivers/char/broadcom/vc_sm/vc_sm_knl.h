@@ -27,7 +27,7 @@ typedef enum {
 } VC_SM_LOCK_CACHE_MODE_T;
 
 /* Allocate a shared memory handle and block. */
-int vc_sm_alloc(VC_SM_ALLOC_T *alloc, int *handle);
+int vc_sm_alloc(struct vc_sm_alloc_t *alloc, int *handle);
 
 /* Free a previously allocated shared memory handle and block. */
 int vc_sm_free(int handle);

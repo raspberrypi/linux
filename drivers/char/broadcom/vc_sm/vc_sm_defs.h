@@ -19,14 +19,14 @@
 #define VC_SM_SERVER_NAME MAKE_FOURCC("SMEM")
 
 /* Maximum message length */
-#define VC_SM_MAX_MSG_LEN (sizeof(VC_SM_MSG_UNION_T) + \
-	sizeof(VC_SM_MSG_HDR_T))
-#define VC_SM_MAX_RSP_LEN (sizeof(VC_SM_MSG_UNION_T))
+#define VC_SM_MAX_MSG_LEN (sizeof(union vc_sm_msg_union_t) + \
+	sizeof(struct vc_sm_msg_hdr_t))
+#define VC_SM_MAX_RSP_LEN (sizeof(union vc_sm_msg_union_t))
 
 /* Resource name maximum size */
 #define VC_SM_RESOURCE_NAME 32
 
-typedef enum {
+enum vc_sm_msg_type {
 	/* Message types supported for HOST->VC direction */
 
 	/* Allocate shared memory block */
@@ -62,27 +62,26 @@ typedef enum {
 	VC_SM_MSG_TYPE_RELEASED,
 
 	VC_SM_MSG_TYPE_MAX
-} VC_SM_MSG_TYPE;
+};
 
 /* Type of memory to be allocated */
-typedef enum {
+enum vc_sm_alloc_type_t {
 	VC_SM_ALLOC_CACHED,
 	VC_SM_ALLOC_NON_CACHED,
-
-} VC_SM_ALLOC_TYPE_T;
+};
 
 /* Message header for all messages in HOST->VC direction */
-typedef struct {
+struct vc_sm_msg_hdr_t {
 	int32_t type;
 	uint32_t trans_id;
 	uint8_t body[0];
 
-} VC_SM_MSG_HDR_T;
+};
 
 /* Request to allocate memory (HOST->VC) */
-typedef struct {
+struct vc_sm_alloc_t {
 	/* type of memory to allocate */
-	VC_SM_ALLOC_TYPE_T type;
+	enum vc_sm_alloc_type_t type;
 	/* byte amount of data to allocate per unit */
 	uint32_t base_unit;
 	/* number of unit to allocate */
@@ -94,10 +93,10 @@ typedef struct {
 	/* resource name (for easier tracking on vc side) */
 	char name[VC_SM_RESOURCE_NAME];
 
-} VC_SM_ALLOC_T;
+};
 
 /* Result of a requested memory allocation (VC->HOST) */
-typedef struct {
+struct vc_sm_alloc_result_t {
 	/* Transaction identifier */
 	uint32_t trans_id;
 
@@ -110,28 +109,28 @@ typedef struct {
 	/* Resource number */
 	uint32_t res_num;
 
-} VC_SM_ALLOC_RESULT_T;
+};
 
 /* Request to free a previously allocated memory (HOST->VC) */
-typedef struct {
+struct vc_sm_free_t {
 	/* Resource handle (returned from alloc) */
 	uint32_t res_handle;
 	/* Resource buffer (returned from alloc) */
 	uint32_t res_mem;
 
-} VC_SM_FREE_T;
+};
 
 /* Request to lock a previously allocated memory (HOST->VC) */
-typedef struct {
+struct vc_sm_lock_unlock_t {
 	/* Resource handle (returned from alloc) */
 	uint32_t res_handle;
 	/* Resource buffer (returned from alloc) */
 	uint32_t res_mem;
 
-} VC_SM_LOCK_UNLOCK_T;
+};
 
 /* Request to resize a previously allocated memory (HOST->VC) */
-typedef struct {
+struct vc_sm_resize_t {
 	/* Resource handle (returned from alloc) */
 	uint32_t res_handle;
 	/* Resource buffer (returned from alloc) */
@@ -139,10 +138,10 @@ typedef struct {
 	/* Resource *new* size requested (bytes) */
 	uint32_t res_new_size;
 
-} VC_SM_RESIZE_T;
+};
 
 /* Result of a requested memory lock (VC->HOST) */
-typedef struct {
+struct vc_sm_lock_result_t {
 	/* Transaction identifier */
 	uint32_t trans_id;
 
@@ -154,37 +153,36 @@ typedef struct {
 	 * was reallocated */
 	uint32_t res_old_mem;
 
-} VC_SM_LOCK_RESULT_T;
+};
 
 /* Generic result for a request (VC->HOST) */
-typedef struct {
+struct vc_sm_result_t {
 	/* Transaction identifier */
 	uint32_t trans_id;
 
 	int32_t success;
 
-} VC_SM_RESULT_T;
+};
 
 /* Request to revert a previously applied action (HOST->VC) */
-typedef struct {
+struct vc_sm_action_clean_t {
 	/* Action of interest */
-	VC_SM_MSG_TYPE res_action;
+	enum vc_sm_msg_type res_action;
 	/* Transaction identifier for the action of interest */
 	uint32_t action_trans_id;
 
-} VC_SM_ACTION_CLEAN_T;
+};
 
 /* Request to remove all data associated with a given allocator (HOST->VC) */
-typedef struct {
+struct vc_sm_free_all_t {
 	/* Allocator identifier */
 	uint32_t allocator;
-
-} VC_SM_FREE_ALL_T;
+};
 
 /* Request to import memory (HOST->VC) */
 struct vc_sm_import {
 	/* type of memory to allocate */
-	VC_SM_ALLOC_TYPE_T type;
+	enum vc_sm_alloc_type_t type;
 	/* pointer to the VC (ie physical) address of the allocated memory */
 	uint32_t addr;
 	/* size of buffer */
@@ -217,18 +215,19 @@ struct vc_sm_released {
 };
 
 /* Union of ALL messages */
-typedef union {
-	VC_SM_ALLOC_T alloc;
-	VC_SM_ALLOC_RESULT_T alloc_result;
-	VC_SM_FREE_T free;
-	VC_SM_ACTION_CLEAN_T action_clean;
-	VC_SM_RESIZE_T resize;
-	VC_SM_LOCK_RESULT_T lock_result;
-	VC_SM_RESULT_T result;
-	VC_SM_FREE_ALL_T free_all;
+union vc_sm_msg_union_t {
+	struct vc_sm_alloc_t alloc;
+	struct vc_sm_alloc_result_t alloc_result;
+	struct vc_sm_free_t free;
+	struct vc_sm_lock_unlock_t lock_unlock;
+	struct vc_sm_action_clean_t action_clean;
+	struct vc_sm_resize_t resize;
+	struct vc_sm_lock_result_t lock_result;
+	struct vc_sm_result_t result;
+	struct vc_sm_free_all_t free_all;
 	struct vc_sm_import import;
 	struct vc_sm_import_result import_result;
 	struct vc_sm_released released;
-} VC_SM_MSG_UNION_T;
+};
 
 #endif /* __VC_SM_DEFS_H__INCLUDED__ */
