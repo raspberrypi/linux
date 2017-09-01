@@ -41,31 +41,32 @@ int vc_vchi_sm_stop(VC_VCHI_SM_HANDLE_T *handle);
  * return the result of this allocation (which upon success will be a pointer
  * to some memory in videocore space).
  */
-int vc_vchi_sm_alloc(VC_VCHI_SM_HANDLE_T handle,
-		     VC_SM_ALLOC_T *alloc,
-		     VC_SM_ALLOC_RESULT_T *alloc_result, uint32_t *trans_id);
+int vc_vchi_sm_alloc(VC_VCHI_SM_HANDLE_T handle, struct vc_sm_alloc_t *alloc,
+		     struct vc_sm_alloc_result_t *alloc_result,
+		     uint32_t *trans_id);
 
 /*
  * Ask the shared memory service to free up some memory that was previously
  * allocated by the vc_vchi_sm_alloc function call.
  */
 int vc_vchi_sm_free(VC_VCHI_SM_HANDLE_T handle,
-		    VC_SM_FREE_T *free, uint32_t *trans_id);
+		    struct vc_sm_free_t *free, uint32_t *trans_id);
 
 /*
  * Ask the shared memory service to lock up some memory that was previously
  * allocated by the vc_vchi_sm_alloc function call.
 */
 int vc_vchi_sm_lock(VC_VCHI_SM_HANDLE_T handle,
-		    VC_SM_LOCK_UNLOCK_T *lock_unlock,
-		    VC_SM_LOCK_RESULT_T *lock_result, uint32_t *trans_id);
+		    struct vc_sm_lock_unlock_t *lock_unlock,
+		    struct vc_sm_lock_result_t *lock_result,
+		    uint32_t *trans_id);
 
 /*
  * Ask the shared memory service to unlock some memory that was previously
  * allocated by the vc_vchi_sm_alloc function call.
 */
 int vc_vchi_sm_unlock(VC_VCHI_SM_HANDLE_T handle,
-		      VC_SM_LOCK_UNLOCK_T *lock_unlock,
+		      struct vc_sm_lock_unlock_t *lock_unlock,
 		      uint32_t *trans_id, uint8_t wait_reply);
 
 /*
@@ -73,7 +74,7 @@ int vc_vchi_sm_unlock(VC_VCHI_SM_HANDLE_T handle,
  * allocated by the vc_vchi_sm_alloc function call.
 */
 int vc_vchi_sm_resize(VC_VCHI_SM_HANDLE_T handle,
-		      VC_SM_RESIZE_T *resize, uint32_t *trans_id);
+		      struct vc_sm_resize_t *resize, uint32_t *trans_id);
 
 /*
  * Walk the allocated resources on the videocore side, the allocation will
@@ -87,7 +88,7 @@ int vc_vchi_sm_walk_alloc(VC_VCHI_SM_HANDLE_T handle);
  * in a bad state of some sort.
  */
 int vc_vchi_sm_clean_up(VC_VCHI_SM_HANDLE_T handle,
-			VC_SM_ACTION_CLEAN_T *action_clean);
+			struct vc_sm_action_clean_t *action_clean);
 
 /*
  * Import a contiguous block of memory and wrap it in a GPU MEM_HANDLE_T.
