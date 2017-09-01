@@ -118,7 +118,7 @@ struct sm_mmap {
 	unsigned int res_vc_hdl;	/* Resource handle (videocore). */
 	unsigned int res_usr_hdl;	/* Resource handle (user). */
 
-	long unsigned int res_addr;	/* Mapped virtual address. */
+	unsigned long res_addr;	/* Mapped virtual address. */
 	struct vm_area_struct *vma;	/* VM area for this mapping. */
 	unsigned int ref_count;		/* Reference count to this vma. */
 
@@ -1383,7 +1383,7 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 	map->res_pid = current->tgid;
 	map->res_vc_hdl = resource->res_handle;
 	map->res_usr_hdl = resource->res_guid;
-	map->res_addr = (long unsigned int)vma->vm_start;
+	map->res_addr = (unsigned long)vma->vm_start;
 	map->resource = resource;
 	map->vma = vma;
 	vmcs_sm_add_map(sm_state, resource, map);
@@ -1743,7 +1743,7 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 	struct SM_RESOURCE_T *resource;
 	int ret = 0;
 	struct sm_mmap *map, *map_tmp;
-	long unsigned int phys_addr;
+	unsigned long phys_addr;
 
 	map = NULL;
 
@@ -1859,7 +1859,7 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 				phys_addr += mm_vc_mem_phys_addr;
 				if (resource->res_cached
 						== VMCS_SM_CACHE_HOST) {
-					ioparam->addr = (long unsigned int)
+					ioparam->addr = (unsigned long)
 					/* TODO - make cached work */
 					    ioremap_nocache(phys_addr,
 							   resource->res_size);
@@ -1868,7 +1868,7 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 						__func__, ioparam->handle,
 						lock.res_handle, ioparam->addr);
 				} else {
-					ioparam->addr = (long unsigned int)
+					ioparam->addr = (unsigned long)
 					    ioremap_nocache(phys_addr,
 							    resource->res_size);
 
@@ -1995,7 +1995,7 @@ static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 						if (flush &&
 								(resource->res_cached ==
 									VMCS_SM_CACHE_HOST)) {
-							long unsigned int
+							unsigned long
 								phys_addr;
 							phys_addr = (uint32_t)
 								resource->res_base_mem & 0x3FFFFFFF;
@@ -3359,7 +3359,7 @@ EXPORT_SYMBOL_GPL(vc_sm_free);
 
 /* Lock a memory handle for use by kernel. */
 int vc_sm_lock(int handle, VC_SM_LOCK_CACHE_MODE_T mode,
-	       long unsigned int *data)
+	       unsigned long *data)
 {
 	struct vmcs_sm_ioctl_lock_unlock ioparam;
 	int ret;
@@ -3404,7 +3404,7 @@ EXPORT_SYMBOL_GPL(vc_sm_unlock);
 
 /* Map a shared memory region for use by kernel. */
 int vc_sm_map(int handle, unsigned int sm_addr, VC_SM_LOCK_CACHE_MODE_T mode,
-	      long unsigned int *data)
+	      unsigned long *data)
 {
 	struct vmcs_sm_ioctl_lock_unlock ioparam;
 	int ret;
