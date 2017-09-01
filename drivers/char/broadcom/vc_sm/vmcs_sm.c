@@ -2938,7 +2938,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EFAULT;
 				goto out;
 			}
-			for (i=0; i<sizeof ioparam.s/sizeof *ioparam.s; i++) {
+			for (i = 0; i < sizeof(ioparam.s) / sizeof(*ioparam.s); i++) {
 				switch (ioparam.s[i].cmd) {
 				default:
 				case 0:
@@ -2951,10 +2951,10 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					    vmcs_sm_acquire_resource(file_data, ioparam.s[i].handle);
 
 					if ((resource != NULL) && resource->res_cached) {
-						unsigned long base = ioparam.s[i].addr & ~(PAGE_SIZE-1);
-						unsigned long end = (ioparam.s[i].addr + ioparam.s[i].size + PAGE_SIZE-1) & ~(PAGE_SIZE-1);
+						unsigned long base = ioparam.s[i].addr & ~(PAGE_SIZE - 1);
+						unsigned long end = (ioparam.s[i].addr + ioparam.s[i].size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
-						resource->res_stats[ioparam.s[i].cmd == 1 ? INVALID:FLUSH]++;
+						resource->res_stats[ioparam.s[i].cmd == 1 ? INVALID : FLUSH]++;
 
 						/* L1/L2 cache flush */
 						down_read(&current->mm->mmap_sem);
@@ -3001,7 +3001,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					goto out;
 				}
 
-				for (i=0; i<ioparam.op_count; i++) {
+				for (i = 0; i < ioparam.op_count; i++) {
 					struct vmcs_sm_ioctl_clean_invalid_block *op = block + i;
 
 					for (j = 0; j < op->block_count; ++j) {
