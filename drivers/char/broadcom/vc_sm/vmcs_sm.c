@@ -230,6 +230,7 @@ static const char *const sm_cache_map_vector[] = {
 static inline unsigned int vcaddr_to_pfn(unsigned long vc_addr)
 {
 	unsigned long pfn = vc_addr & 0x3FFFFFFF;
+
 	pfn += mm_vc_mem_phys_addr;
 	pfn >>= PAGE_SHIFT;
 	return pfn;
@@ -1441,9 +1442,11 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 	if (resource->map) {
 		/* We don't use vmf->pgoff since that has the fake offset */
 		unsigned long addr;
+
 		for (addr = vma->vm_start; addr < vma->vm_end; addr += PAGE_SIZE) {
 			/* Finally, remap it */
 			unsigned long pfn = (unsigned long)resource->res_base_mem & 0x3FFFFFFF;
+
 			pfn += mm_vc_mem_phys_addr;
 			pfn += addr - vma->vm_start;
 			pfn >>= PAGE_SHIFT;
@@ -1974,6 +1977,7 @@ static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 		/* Flush if requested */
 		if (resource->res_cached && flush) {
 			dma_addr_t phys_addr = 0;
+
 			resource->res_stats[FLUSH]++;
 
 			phys_addr =
@@ -1988,6 +1992,7 @@ static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 				if (map->vma) {
 					unsigned long start;
 					unsigned long end;
+
 					start = map->vma->vm_start;
 					end = map->vma->vm_end;
 
@@ -3022,6 +3027,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 						if ((resource != NULL) && resource->res_cached) {
 							unsigned long base = ioparam.s[i].addr & ~(PAGE_SIZE-1);
 							unsigned long end = (ioparam.s[i].addr + ioparam.s[i].size + PAGE_SIZE-1) & ~(PAGE_SIZE-1);
+
 							resource->res_stats[ioparam.s[i].cmd == 1 ? INVALID:FLUSH]++;
 
 							/* L1/L2 cache flush */
@@ -3071,6 +3077,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 				for (i=0; i<ioparam.op_count; i++) {
 					struct vmcs_sm_ioctl_clean_invalid_block *op = block + i;
+
 					for (j = 0; j < op->block_count; ++j) {
 
 

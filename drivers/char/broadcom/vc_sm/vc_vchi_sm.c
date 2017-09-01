@@ -362,6 +362,7 @@ int vc_vchi_sm_stop(struct sm_instance **handle)
 	/* Close all VCHI service connections */
 	for (i = 0; i < instance->num_connections; i++) {
 		int32_t success;
+
 		vchi_service_use(instance->vchi_handle[i]);
 
 		success = vchi_service_close(instance->vchi_handle[i]);
