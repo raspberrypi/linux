@@ -26,6 +26,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	dwc2.dtbo \
 	enc28j60.dtbo \
 	enc28j60-spi2.dtbo \
+	exc3000.dtbo \
 	fe-pi-audio.dtbo \
 	goodix.dtbo \
 	googlevoicehat-soundcard.dtbo \

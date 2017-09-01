@@ -468,6 +468,18 @@ Params: int_pin                 GPIO used for INT (default 39)
         speed                   SPI bus speed (default 12000000)
 
 
+Name:   exc3000
+Info:   Enables I2C connected EETI EXC3000 multiple touch controller using
+        GPIO 4 (pin 7 on GPIO header) for interrupt.
+Load:   dtoverlay=exc3000,<param>=<val>
+Params: interrupt               GPIO used for interrupt (default 4)
+        sizex                   Touchscreen size x (default 4096)
+        sizey                   Touchscreen size y (default 4096)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+
+
 Name:   fe-pi-audio
 Info:   Configures the Fe-Pi Audio Sound Card
 Load:   dtoverlay=fe-pi-audio
