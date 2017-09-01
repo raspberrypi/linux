@@ -61,8 +61,7 @@
 #define VC_SM_DEBUG               "debug"
 #define VC_SM_WRITE_BUF_SIZE      128
 
-/* Statistics tracked per resource and globally.
-*/
+/* Statistics tracked per resource and globally. */
 enum SM_STATS_T {
 	/* Attempt. */
 	ALLOC,
@@ -109,27 +108,25 @@ struct SM_PDE_T {
 
 };
 
-/* Single resource allocation tracked for all devices.
-*/
+/* Single resource allocation tracked for all devices. */
 struct sm_mmap {
 	struct list_head map_list;	/* Linked list of maps. */
 
 	struct SM_RESOURCE_T *resource;	/* Pointer to the resource. */
 
-	pid_t res_pid;		/* PID owning that resource. */
+	pid_t res_pid;			/* PID owning that resource. */
 	unsigned int res_vc_hdl;	/* Resource handle (videocore). */
 	unsigned int res_usr_hdl;	/* Resource handle (user). */
 
 	long unsigned int res_addr;	/* Mapped virtual address. */
 	struct vm_area_struct *vma;	/* VM area for this mapping. */
-	unsigned int ref_count;	/* Reference count to this vma. */
+	unsigned int ref_count;		/* Reference count to this vma. */
 
 	/* Used to link maps associated with a resource. */
 	struct list_head resource_map_list;
 };
 
-/* Single resource allocation tracked for each opened device.
-*/
+/* Single resource allocation tracked for each opened device. */
 struct SM_RESOURCE_T {
 	struct list_head resource_list;	/* List of resources. */
 	struct list_head global_resource_list;	/* Global list of resources. */
@@ -160,8 +157,7 @@ struct SM_RESOURCE_T {
 	bool map;		/* whether to map pages up front */
 };
 
-/* Private file data associated with each opened device.
-*/
+/* Private file data associated with each opened device. */
 struct SM_PRIV_DATA_T {
 	struct list_head resource_list; /* List of resources. */
 
@@ -177,8 +173,7 @@ struct SM_PRIV_DATA_T {
 
 };
 
-/* Global state information.
-*/
+/* Global state information. */
 struct SM_STATE_T {
 	struct platform_device *pdev;
 	struct sm_instance *sm_handle;	/* Handle for videocore service. */
@@ -236,9 +231,10 @@ static inline unsigned int vcaddr_to_pfn(unsigned long vc_addr)
 	return pfn;
 }
 
-/* Carries over to the state statistics the statistics once owned by a deceased
-** resource.
-*/
+/*
+ * Carries over to the state statistics the statistics once owned by a deceased
+ * resource.
+ */
 static void vc_sm_resource_deceased(struct SM_RESOURCE_T *p_res, int terminated)
 {
 	if (sm_state != NULL) {
@@ -262,9 +258,10 @@ static void vc_sm_resource_deceased(struct SM_RESOURCE_T *p_res, int terminated)
 	}
 }
 
-/* Fetch a videocore handle corresponding to a mapping of the pid+address
-** returns 0 (ie NULL) if no such handle exists in the global map.
-*/
+/*
+ * Fetch a videocore handle corresponding to a mapping of the pid+address
+ * returns 0 (ie NULL) if no such handle exists in the global map.
+ */
 static unsigned int vmcs_sm_vc_handle_from_pid_and_address(unsigned int pid,
 							   unsigned int addr)
 {
@@ -276,8 +273,7 @@ static unsigned int vmcs_sm_vc_handle_from_pid_and_address(unsigned int pid,
 
 	mutex_lock(&(sm_state->map_lock));
 
-	/* Lookup the resource.
-	 */
+	/* Lookup the resource. */
 	if (!list_empty(&sm_state->map_list)) {
 		list_for_each_entry(map, &sm_state->map_list, map_list) {
 			if (map->res_pid != pid || map->res_addr != addr)
@@ -295,13 +291,14 @@ static unsigned int vmcs_sm_vc_handle_from_pid_and_address(unsigned int pid,
 	mutex_unlock(&(sm_state->map_lock));
 
 out:
-	/* Use a debug log here as it may be a valid situation that we query
-	 ** for something that is not mapped, we do not want a kernel log each
-	 ** time around.
-	 **
-	 ** There are other error log that would pop up accordingly if someone
-	 ** subsequently tries to use something invalid after being told not to
-	 ** use it...
+	/*
+	 * Use a debug log here as it may be a valid situation that we query
+	 * for something that is not mapped, we do not want a kernel log each
+	 * time around.
+	 *
+	 * There are other error log that would pop up accordingly if someone
+	 * subsequently tries to use something invalid after being told not to
+	 * use it...
 	 */
 	if (handle == 0) {
 		pr_debug("[%s]: not a valid map (pid %u, addr %x)\n",
@@ -311,9 +308,10 @@ out:
 	return handle;
 }
 
-/* Fetch a user handle corresponding to a mapping of the pid+address
-** returns 0 (ie NULL) if no such handle exists in the global map.
-*/
+/*
+ * Fetch a user handle corresponding to a mapping of the pid+address
+ * returns 0 (ie NULL) if no such handle exists in the global map.
+ */
 static unsigned int vmcs_sm_usr_handle_from_pid_and_address(unsigned int pid,
 							    unsigned int addr)
 {
@@ -325,8 +323,7 @@ static unsigned int vmcs_sm_usr_handle_from_pid_and_address(unsigned int pid,
 
 	mutex_lock(&(sm_state->map_lock));
 
-	/* Lookup the resource.
-	 */
+	/* Lookup the resource. */
 	if (!list_empty(&sm_state->map_list)) {
 		list_for_each_entry(map, &sm_state->map_list, map_list) {
 			if (map->res_pid != pid || map->res_addr != addr)
@@ -344,7 +341,8 @@ static unsigned int vmcs_sm_usr_handle_from_pid_and_address(unsigned int pid,
 	mutex_unlock(&(sm_state->map_lock));
 
 out:
-	/* Use a debug log here as it may be a valid situation that we query
+	/*
+	 * Use a debug log here as it may be a valid situation that we query
 	 * for something that is not mapped yet.
 	 *
 	 * There are other error log that would pop up accordingly if someone
@@ -359,9 +357,10 @@ out:
 }
 
 #if defined(DO_NOT_USE)
-/* Fetch an address corresponding to a mapping of the pid+handle
-** returns 0 (ie NULL) if no such address exists in the global map.
-*/
+/*
+ * Fetch an address corresponding to a mapping of the pid+handle
+ * returns 0 (ie NULL) if no such address exists in the global map.
+ */
 static unsigned int vmcs_sm_usr_address_from_pid_and_vc_handle(unsigned int pid,
 							       unsigned int hdl)
 {
@@ -373,8 +372,7 @@ static unsigned int vmcs_sm_usr_address_from_pid_and_vc_handle(unsigned int pid,
 
 	mutex_lock(&(sm_state->map_lock));
 
-	/* Lookup the resource.
-	 */
+	/* Lookup the resource. */
 	if (!list_empty(&sm_state->map_list)) {
 		list_for_each_entry(map, &sm_state->map_list, map_list) {
 			if (map->res_pid != pid || map->res_vc_hdl != hdl)
@@ -392,13 +390,14 @@ static unsigned int vmcs_sm_usr_address_from_pid_and_vc_handle(unsigned int pid,
 	mutex_unlock(&(sm_state->map_lock));
 
 out:
-	/* Use a debug log here as it may be a valid situation that we query
-	 ** for something that is not mapped, we do not want a kernel log each
-	 ** time around.
-	 **
-	 ** There are other error log that would pop up accordingly if someone
-	 ** subsequently tries to use something invalid after being told not to
-	 ** use it...
+	/*
+	 * Use a debug log here as it may be a valid situation that we query
+	 * for something that is not mapped, we do not want a kernel log each
+	 * time around.
+	 *
+	 * There are other error log that would pop up accordingly if someone
+	 * subsequently tries to use something invalid after being told not to
+	 * use it...
 	 */
 	if (addr == 0)
 		pr_debug("[%s]: not a valid map (pid %u, hdl %x)\n",
@@ -408,9 +407,10 @@ out:
 }
 #endif
 
-/* Fetch an address corresponding to a mapping of the pid+handle
-** returns 0 (ie NULL) if no such address exists in the global map.
-*/
+/*
+ * Fetch an address corresponding to a mapping of the pid+handle
+ * returns 0 (ie NULL) if no such address exists in the global map.
+ */
 static unsigned int vmcs_sm_usr_address_from_pid_and_usr_handle(unsigned int
 								pid,
 								unsigned int
@@ -424,8 +424,7 @@ static unsigned int vmcs_sm_usr_address_from_pid_and_usr_handle(unsigned int
 
 	mutex_lock(&(sm_state->map_lock));
 
-	/* Lookup the resource.
-	 */
+	/* Lookup the resource. */
 	if (!list_empty(&sm_state->map_list)) {
 		list_for_each_entry(map, &sm_state->map_list, map_list) {
 			if (map->res_pid != pid || map->res_usr_hdl != hdl)
@@ -443,7 +442,8 @@ static unsigned int vmcs_sm_usr_address_from_pid_and_usr_handle(unsigned int
 	mutex_unlock(&(sm_state->map_lock));
 
 out:
-	/* Use a debug log here as it may be a valid situation that we query
+	/*
+	 * Use a debug log here as it may be a valid situation that we query
 	 * for something that is not mapped, we do not want a kernel log each
 	 * time around.
 	 *
@@ -458,19 +458,16 @@ out:
 	return addr;
 }
 
-/* Adds a resource mapping to the global data list.
-*/
+/* Adds a resource mapping to the global data list. */
 static void vmcs_sm_add_map(struct SM_STATE_T *state,
 			    struct SM_RESOURCE_T *resource, struct sm_mmap *map)
 {
 	mutex_lock(&(state->map_lock));
 
-	/* Add to the global list of mappings
-	 */
+	/* Add to the global list of mappings */
 	list_add(&map->map_list, &state->map_list);
 
-	/* Add to the list of mappings for this resource
-	 */
+	/* Add to the list of mappings for this resource */
 	list_add(&map->resource_map_list, &resource->map_list);
 	resource->map_count++;
 
@@ -481,20 +478,17 @@ static void vmcs_sm_add_map(struct SM_STATE_T *state,
 		map->res_usr_hdl, map->res_addr);
 }
 
-/* Removes a resource mapping from the global data list.
-*/
+/* Removes a resource mapping from the global data list. */
 static void vmcs_sm_remove_map(struct SM_STATE_T *state,
 			       struct SM_RESOURCE_T *resource,
 			       struct sm_mmap *map)
 {
 	mutex_lock(&(state->map_lock));
 
-	/* Remove from the global list of mappings
-	 */
+	/* Remove from the global list of mappings */
 	list_del(&map->map_list);
 
-	/* Remove from the list of mapping for this resource
-	 */
+	/* Remove from the list of mapping for this resource */
 	list_del(&map->resource_map_list);
 	if (resource->map_count > 0)
 		resource->map_count--;
@@ -508,8 +502,7 @@ static void vmcs_sm_remove_map(struct SM_STATE_T *state,
 	kfree(map);
 }
 
-/* Read callback for the global state proc entry.
-*/
+/* Read callback for the global state proc entry. */
 static int vc_sm_global_state_show(struct seq_file *s, void *v)
 {
 	struct sm_mmap *map = NULL;
@@ -523,8 +516,7 @@ static int vc_sm_global_state_show(struct seq_file *s, void *v)
 	seq_printf(s, "\nVC-ServiceHandle     0x%x\n",
 		   (unsigned int)sm_state->sm_handle);
 
-	/* Log all applicable mapping(s).
-	 */
+	/* Log all applicable mapping(s). */
 
 	mutex_lock(&(sm_state->map_lock));
 	seq_puts(s, "\nResources\n");
@@ -591,8 +583,7 @@ static int vc_sm_global_statistics_show(struct seq_file *s, void *v)
 {
 	int ix;
 
-	/* Global state tracked statistics.
-	 */
+	/* Global state tracked statistics. */
 	if (sm_state != NULL) {
 		seq_puts(s, "\nDeceased Resources Statistics\n");
 
@@ -638,8 +629,7 @@ static int vc_sm_global_statistics_show(struct seq_file *s, void *v)
 }
 
 #if 0
-/* Read callback for the statistics proc entry.
-*/
+/* Read callback for the statistics proc entry. */
 static int vc_sm_statistics_show(struct seq_file *s, void *v)
 {
 	int ix;
@@ -654,8 +644,7 @@ static int vc_sm_statistics_show(struct seq_file *s, void *v)
 	if (file_data == NULL)
 		return 0;
 
-	/* Per process statistics.
-	 */
+	/* Per process statistics. */
 
 	seq_printf(s, "\nStatistics for TGID %d\n", file_data->pid);
 
@@ -771,9 +760,10 @@ static const struct file_operations vc_sm_debug_fs_fops = {
 	.release = single_release,
 };
 
-/* Adds a resource to the private data list which tracks all the allocated
-** data.
-*/
+/*
+ * Adds a resource to the private data list which tracks all the allocated
+ * data.
+ */
 static void vmcs_sm_add_resource(struct SM_PRIV_DATA_T *privdata,
 				 struct SM_RESOURCE_T *resource)
 {
@@ -787,9 +777,10 @@ static void vmcs_sm_add_resource(struct SM_PRIV_DATA_T *privdata,
 		resource->res_handle, resource->res_size, resource->res_cached);
 }
 
-/* Locates a resource and acquire a reference on it.
-** The resource won't be deleted while there is a reference on it.
-*/
+/*
+ * Locates a resource and acquire a reference on it.
+ * The resource won't be deleted while there is a reference on it.
+ */
 static struct SM_RESOURCE_T *vmcs_sm_acquire_resource(struct SM_PRIV_DATA_T
 						      *private,
 						      unsigned int res_guid)
@@ -816,9 +807,10 @@ static struct SM_RESOURCE_T *vmcs_sm_acquire_resource(struct SM_PRIV_DATA_T
 	return ret;
 }
 
-/* Locates a resource and acquire a reference on it.
-** The resource won't be deleted while there is a reference on it.
-*/
+/*
+ * Locates a resource and acquire a reference on it.
+ * The resource won't be deleted while there is a reference on it.
+ */
 static struct SM_RESOURCE_T *vmcs_sm_acquire_first_resource(
 		struct SM_PRIV_DATA_T *private)
 {
@@ -841,9 +833,10 @@ static struct SM_RESOURCE_T *vmcs_sm_acquire_first_resource(
 	return ret;
 }
 
-/* Locates a resource and acquire a reference on it.
-** The resource won't be deleted while there is a reference on it.
-*/
+/*
+ * Locates a resource and acquire a reference on it.
+ * The resource won't be deleted while there is a reference on it.
+ */
 static struct SM_RESOURCE_T *vmcs_sm_acquire_global_resource(unsigned int
 							     res_guid)
 {
@@ -870,9 +863,10 @@ static struct SM_RESOURCE_T *vmcs_sm_acquire_global_resource(unsigned int
 	return ret;
 }
 
-/* Release a previously acquired resource.
-** The resource will be deleted when its refcount reaches 0.
-*/
+/*
+ * Release a previously acquired resource.
+ * The resource will be deleted when its refcount reaches 0.
+ */
 static void vmcs_sm_release_resource(struct SM_RESOURCE_T *resource, int force)
 {
 	struct SM_PRIV_DATA_T *private = resource->private;
@@ -961,16 +955,16 @@ static void vmcs_sm_release_resource(struct SM_RESOURCE_T *resource, int force)
 	kfree(resource);
 }
 
-/* Dump the map table for the driver.  If process is -1, dumps the whole table,
-** if process is a valid pid (non -1) dump only the entries associated with the
-** pid of interest.
-*/
+/*
+ * Dump the map table for the driver.  If process is -1, dumps the whole table,
+ * if process is a valid pid (non -1) dump only the entries associated with the
+ * pid of interest.
+ */
 static void vmcs_sm_host_walk_map_per_pid(int pid)
 {
 	struct sm_mmap *map = NULL;
 
-	/* Make sure the device was started properly.
-	 */
+	/* Make sure the device was started properly. */
 	if (sm_state == NULL) {
 		pr_err("[%s]: invalid device\n", __func__);
 		return;
@@ -978,8 +972,7 @@ static void vmcs_sm_host_walk_map_per_pid(int pid)
 
 	mutex_lock(&(sm_state->map_lock));
 
-	/* Log all applicable mapping(s).
-	 */
+	/* Log all applicable mapping(s). */
 	if (!list_empty(&sm_state->map_list)) {
 		list_for_each_entry(map, &sm_state->map_list, map_list) {
 			if (pid == -1 || map->res_pid == pid) {
@@ -995,15 +988,15 @@ static void vmcs_sm_host_walk_map_per_pid(int pid)
 	return;
 }
 
-/* Dump the allocation table from host side point of view.  This only dumps the
-** data allocated for this process/device referenced by the file_data.
-*/
+/*
+ * Dump the allocation table from host side point of view.  This only dumps the
+ * data allocated for this process/device referenced by the file_data.
+ */
 static void vmcs_sm_host_walk_alloc(struct SM_PRIV_DATA_T *file_data)
 {
 	struct SM_RESOURCE_T *resource = NULL;
 
-	/* Make sure the device was started properly.
-	 */
+	/* Make sure the device was started properly. */
 	if ((sm_state == NULL) || (file_data == NULL)) {
 		pr_err("[%s]: invalid device\n", __func__);
 		return;
@@ -1026,8 +1019,7 @@ static void vmcs_sm_host_walk_alloc(struct SM_PRIV_DATA_T *file_data)
 	return;
 }
 
-/* Create support for private data tracking.
-*/
+/* Create support for private data tracking. */
 static struct SM_PRIV_DATA_T *vc_sm_create_priv_data(pid_t id)
 {
 	char alloc_name[32];
@@ -1078,15 +1070,15 @@ out:
 	return file_data;
 }
 
-/* Open the device.  Creates a private state to help track all allocation
-** associated with this device.
-*/
+/*
+ * Open the device.  Creates a private state to help track all allocation
+ * associated with this device.
+ */
 static int vc_sm_open(struct inode *inode, struct file *file)
 {
 	int ret = 0;
 
-	/* Make sure the device was started properly.
-	 */
+	/* Make sure the device was started properly. */
 	if (!sm_state) {
 		pr_err("[%s]: invalid device\n", __func__);
 		ret = -EPERM;
@@ -1105,9 +1097,10 @@ out:
 	return ret;
 }
 
-/* Close the device.  Free up all resources still associated with this device
-** at the time.
-*/
+/*
+ * Close the device.  Free up all resources still associated with this device
+ * at the time.
+ */
 static int vc_sm_release(struct inode *inode, struct file *file)
 {
 	struct SM_PRIV_DATA_T *file_data =
@@ -1115,8 +1108,7 @@ static int vc_sm_release(struct inode *inode, struct file *file)
 	struct SM_RESOURCE_T *resource;
 	int ret = 0;
 
-	/* Make sure the device was started properly.
-	 */
+	/* Make sure the device was started properly. */
 	if (sm_state == NULL || file_data == NULL) {
 		pr_err("[%s]: invalid device\n", __func__);
 		ret = -EPERM;
@@ -1146,8 +1138,7 @@ static int vc_sm_release(struct inode *inode, struct file *file)
 	/* Remove the corresponding proc entry. */
 	debugfs_remove_recursive(file_data->dir_pid);
 
-	/* Terminate the private data.
-	 */
+	/* Terminate the private data. */
 	kfree(file_data);
 
 out:
@@ -1175,8 +1166,7 @@ static void vcsm_vma_close(struct vm_area_struct *vma)
 
 	map->ref_count--;
 
-	/* Remove from the map table.
-	 */
+	/* Remove from the map table. */
 	if (map->ref_count == 0)
 		vmcs_sm_remove_map(sm_state, map->resource, map);
 }
@@ -1189,8 +1179,7 @@ static int vcsm_vma_fault(struct vm_fault *vmf)
 	unsigned long pfn;
 	int ret = 0;
 
-	/* Lock the resource if necessary.
-	 */
+	/* Lock the resource if necessary. */
 	if (!resource->lock_count) {
 		struct vc_sm_lock_unlock_t lock_unlock;
 		struct vc_sm_lock_result_t lock_result;
@@ -1203,8 +1192,7 @@ static int vcsm_vma_fault(struct vm_fault *vmf)
 			__func__, lock_unlock.res_handle,
 			(void *)lock_unlock.res_mem);
 
-		/* Lock the videocore allocated resource.
-		 */
+		/* Lock the videocore allocated resource. */
 		status = vc_vchi_sm_lock(sm_state->sm_handle,
 					 &lock_unlock, &lock_result, 0);
 		if (status || !lock_result.res_mem) {
@@ -1221,8 +1209,7 @@ static int vcsm_vma_fault(struct vm_fault *vmf)
 		resource->res_stats[LOCK]++;
 		resource->lock_count++;
 
-		/* Keep track of the new base memory.
-		 */
+		/* Keep track of the new base memory. */
 		if (lock_result.res_mem &&
 		    lock_result.res_old_mem &&
 		    (lock_result.res_mem != lock_result.res_old_mem)) {
@@ -1244,9 +1231,9 @@ static int vcsm_vma_fault(struct vm_fault *vmf)
 	case 0:
 	case -ERESTARTSYS:
 	/*
-	* EBUSY is ok: this just means that another thread
-	* already did the job.
-	*/
+	 * EBUSY is ok: this just means that another thread
+	 * already did the job.
+	 */
 	case -EBUSY:
 		return VM_FAULT_NOPAGE;
 	case -ENOMEM:
@@ -1324,8 +1311,7 @@ static void vcsm_vma_cache_clean_page_range(unsigned long addr,
 	} while (pgd++, addr = pgd_next, addr != end);
 }
 
-/* Map an allocated data into something that the user space.
-*/
+/* Map an allocated data into something that the user space. */
 static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	int ret = 0;
@@ -1334,8 +1320,7 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 	struct SM_RESOURCE_T *resource = NULL;
 	struct sm_mmap *map = NULL;
 
-	/* Make sure the device was started properly.
-	 */
+	/* Make sure the device was started properly. */
 	if ((sm_state == NULL) || (file_data == NULL)) {
 		pr_err("[%s]: invalid device\n", __func__);
 		return -EPERM;
@@ -1344,11 +1329,12 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 	pr_debug("[%s]: private data %p, guid %x\n", __func__, file_data,
 		((unsigned int)vma->vm_pgoff << PAGE_SHIFT));
 
-	/* We lookup to make sure that the data we are being asked to mmap is
-	 ** something that we allocated.
-	 **
-	 ** We use the offset information as the key to tell us which resource
-	 ** we are mapping.
+	/*
+	 * We lookup to make sure that the data we are being asked to mmap is
+	 * something that we allocated.
+	 *
+	 * We use the offset information as the key to tell us which resource
+	 * we are mapping.
 	 */
 	resource = vmcs_sm_acquire_resource(file_data,
 					    ((unsigned int)vma->vm_pgoff <<
@@ -1363,8 +1349,7 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 		__func__, resource->res_guid, current->tgid, resource->pid,
 		file_data->pid);
 
-	/* Check permissions.
-	 */
+	/* Check permissions. */
 	if (resource->pid && (resource->pid != current->tgid)) {
 		pr_err("[%s]: current tgid %u != %u owner\n",
 			__func__, current->tgid, resource->pid);
@@ -1372,8 +1357,7 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 		goto error;
 	}
 
-	/* Verify that what we are asked to mmap is proper.
-	 */
+	/* Verify that what we are asked to mmap is proper. */
 	if (resource->res_size != (unsigned int)(vma->vm_end - vma->vm_start)) {
 		pr_err("[%s]: size inconsistency (resource: %u - mmap: %u)\n",
 			__func__,
@@ -1384,7 +1368,8 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 		goto error;
 	}
 
-	/* Keep track of the tuple in the global resource list such that one
+	/*
+	 * Keep track of the tuple in the global resource list such that one
 	 * can do a mapping lookup for address/memory handle.
 	 */
 	map = kzalloc(sizeof(*map), GFP_KERNEL);
@@ -1403,8 +1388,9 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 	map->vma = vma;
 	vmcs_sm_add_map(sm_state, resource, map);
 
-	/* We are not actually mapping the pages, we just provide a fault
-	 ** handler to allow pages to be mapped when accessed
+	/*
+	 * We are not actually mapping the pages, we just provide a fault
+	 * handler to allow pages to be mapped when accessed
 	 */
 	vma->vm_flags |=
 	    VM_IO | VM_PFNMAP | VM_DONTCOPY | VM_DONTEXPAND;
@@ -1418,8 +1404,7 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 
 	if ((resource->res_cached == VMCS_SM_CACHE_NONE) ||
 	    (resource->res_cached == VMCS_SM_CACHE_VC)) {
-		/* Allocated non host cached memory, honour it.
-		 */
+		/* Allocated non host cached memory, honour it. */
 		vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	}
 
@@ -1462,8 +1447,7 @@ error:
 	return ret;
 }
 
-/* Allocate a shared memory handle and block.
-*/
+/* Allocate a shared memory handle and block. */
 int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 		      struct vmcs_sm_ioctl_alloc *ioparam)
 {
@@ -1505,8 +1489,7 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 		__func__, alloc.name, alloc.type, ioparam->size,
 		alloc.base_unit, alloc.num_unit, alloc.alignement);
 
-	/* Allocate local resource to track this allocation.
-	 */
+	/* Allocate local resource to track this allocation. */
 	resource = kzalloc(sizeof(*resource), GFP_KERNEL);
 	if (!resource) {
 		ret = -ENOMEM;
@@ -1516,8 +1499,7 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 	resource->ref_count++;
 	resource->pid = current->tgid;
 
-	/* Allocate the videocore resource.
-	 */
+	/* Allocate the videocore resource. */
 	status = vc_vchi_sm_alloc(sm_state->sm_handle, &alloc, &result,
 				  &private->int_trans_id);
 	if (status == -EINTR) {
@@ -1535,8 +1517,7 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 		goto error;
 	}
 
-	/* Keep track of the resource we created.
-	 */
+	/* Keep track of the resource we created. */
 	resource->private = private;
 	resource->res_handle = result.res_handle;
 	resource->res_base_mem = (void *)result.res_mem;
@@ -1544,7 +1525,8 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 	resource->res_cached = cached;
 	resource->map = map;
 
-	/* Kernel/user GUID.  This global identifier is used for mmap'ing the
+	/*
+	 * Kernel/user GUID.  This global identifier is used for mmap'ing the
 	 * allocated region from user space, it is passed as the mmap'ing
 	 * offset, we use it to 'hide' the videocore handle/address.
 	 */
@@ -1576,8 +1558,7 @@ error:
 	return ret;
 }
 
-/* Share an allocate memory handle and block.
-*/
+/* Share an allocate memory handle and block.*/
 int vc_sm_ioctl_alloc_share(struct SM_PRIV_DATA_T *private,
 			    struct vmcs_sm_ioctl_alloc_share *ioparam)
 {
@@ -1593,8 +1574,7 @@ int vc_sm_ioctl_alloc_share(struct SM_PRIV_DATA_T *private,
 		goto error;
 	}
 
-	/* Allocate local resource to track this allocation.
-	 */
+	/* Allocate local resource to track this allocation. */
 	resource = kzalloc(sizeof(*resource), GFP_KERNEL);
 	if (resource == NULL) {
 		pr_err("[%s]: failed to allocate local tracking resource\n",
@@ -1606,8 +1586,7 @@ int vc_sm_ioctl_alloc_share(struct SM_PRIV_DATA_T *private,
 	resource->ref_count++;
 	resource->pid = current->tgid;
 
-	/* Keep track of the resource we created.
-	 */
+	/* Keep track of the resource we created. */
 	resource->private = private;
 	resource->res_handle = shared_resource->res_handle;
 	resource->res_base_mem = shared_resource->res_base_mem;
@@ -1641,8 +1620,7 @@ error:
 	return ret;
 }
 
-/* Free a previously allocated shared memory handle and block.
-*/
+/* Free a previously allocated shared memory handle and block.*/
 static int vc_sm_ioctl_free(struct SM_PRIV_DATA_T *private,
 			    struct vmcs_sm_ioctl_free *ioparam)
 {
@@ -1655,8 +1633,7 @@ static int vc_sm_ioctl_free(struct SM_PRIV_DATA_T *private,
 		return -EINVAL;
 	}
 
-	/* Check permissions.
-	 */
+	/* Check permissions. */
 	if (resource->pid && (resource->pid != current->tgid)) {
 		pr_err("[%s]: current tgid %u != %u owner\n",
 			__func__, current->tgid, resource->pid);
@@ -1669,8 +1646,7 @@ static int vc_sm_ioctl_free(struct SM_PRIV_DATA_T *private,
 	return 0;
 }
 
-/* Resize a previously allocated shared memory handle and block.
-*/
+/* Resize a previously allocated shared memory handle and block. */
 static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
 			      struct vmcs_sm_ioctl_resize *ioparam)
 {
@@ -1679,8 +1655,7 @@ static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
 	struct vc_sm_resize_t resize;
 	struct SM_RESOURCE_T *resource;
 
-	/* Locate resource from GUID.
-	 */
+	/* Locate resource from GUID. */
 	resource = vmcs_sm_acquire_resource(private, ioparam->handle);
 	if (!resource) {
 		pr_err("[%s]: failed resource - guid %x\n",
@@ -1689,9 +1664,10 @@ static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
 		goto error;
 	}
 
-	/* If the resource is locked, its reference count will be not NULL,
-	 ** in which case we will not be allowed to resize it anyways, so
-	 ** reject the attempt here.
+	/*
+	 * If the resource is locked, its reference count will be not NULL,
+	 * in which case we will not be allowed to resize it anyways, so
+	 * reject the attempt here.
 	 */
 	if (resource->lock_count != 0) {
 		pr_err("[%s]: cannot resize - guid %x, ref-cnt %d\n",
@@ -1700,8 +1676,7 @@ static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
 		goto error;
 	}
 
-	/* Check permissions.
-	 */
+	/* Check permissions. */
 	if (resource->pid && (resource->pid != current->tgid)) {
 		pr_err("[%s]: current tgid %u != %u owner\n", __func__,
 				current->tgid, resource->pid);
@@ -1724,8 +1699,7 @@ static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
 		__func__, ioparam->handle, resize.res_handle,
 		(void *)resize.res_mem);
 
-	/* Resize the videocore allocated resource.
-	 */
+	/* Resize the videocore allocated resource. */
 	status = vc_vchi_sm_resize(sm_state->sm_handle, &resize,
 				   &private->int_trans_id);
 	if (status == -EINTR) {
@@ -1746,8 +1720,7 @@ static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
 		__func__, resize.res_handle, resource->res_size,
 		resize.res_new_size);
 
-	/* Successfully resized, save the information and inform the user.
-	 */
+	/* Successfully resized, save the information and inform the user. */
 	ioparam->old_size = resource->res_size;
 	resource->res_size = resize.res_new_size;
 
@@ -1758,8 +1731,7 @@ error:
 	return ret;
 }
 
-/* Lock a previously allocated shared memory handle and block.
-*/
+/* Lock a previously allocated shared memory handle and block. */
 static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 			    struct vmcs_sm_ioctl_lock_unlock *ioparam,
 			    int change_cache, enum vmcs_sm_cache_e cache_type,
@@ -1775,16 +1747,14 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 
 	map = NULL;
 
-	/* Locate resource from GUID.
-	 */
+	/* Locate resource from GUID. */
 	resource = vmcs_sm_acquire_resource(private, ioparam->handle);
 	if (resource == NULL) {
 		ret = -EINVAL;
 		goto error;
 	}
 
-	/* Check permissions.
-	 */
+	/* Check permissions. */
 	if (resource->pid && (resource->pid != current->tgid)) {
 		pr_err("[%s]: current tgid %u != %u owner\n", __func__,
 				current->tgid, resource->pid);
@@ -1795,15 +1765,13 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 	lock.res_handle = resource->res_handle;
 	lock.res_mem = (uint32_t)resource->res_base_mem;
 
-	/* Take the lock and get the address to be mapped.
-	 */
+	/* Take the lock and get the address to be mapped. */
 	if (vc_addr == 0) {
 		pr_debug("[%s]: attempt to lock data - guid %x, hdl %x, base address %p\n",
 			__func__, ioparam->handle, lock.res_handle,
 			(void *)lock.res_mem);
 
-		/* Lock the videocore allocated resource.
-		 */
+		/* Lock the videocore allocated resource. */
 		status = vc_vchi_sm_lock(sm_state->sm_handle, &lock, &result,
 					 &private->int_trans_id);
 		if (status == -EINTR) {
@@ -1826,24 +1794,21 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 			__func__, lock.res_handle, (void *)result.res_mem,
 			(void *)lock.res_mem, resource->lock_count);
 	}
-	/* Lock assumed taken already, address to be mapped is known.
-	 */
+	/* Lock assumed taken already, address to be mapped is known. */
 	else
 		resource->res_base_mem = (void *)vc_addr;
 
 	resource->res_stats[LOCK]++;
 	resource->lock_count++;
 
-	/* Keep track of the new base memory allocation if it has changed.
-	 */
+	/* Keep track of the new base memory allocation if it has changed. */
 	if ((vc_addr == 0) &&
 	    ((void *)result.res_mem) &&
 	    ((void *)result.res_old_mem) &&
 	    (result.res_mem != result.res_old_mem)) {
 		resource->res_base_mem = (void *)result.res_mem;
 
-		/* Kernel allocated resources.
-		 */
+		/* Kernel allocated resources. */
 		if (resource->pid == 0) {
 			if (!list_empty(&resource->map_list)) {
 				list_for_each_entry_safe(map, map_tmp,
@@ -1875,8 +1840,7 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 			__func__, resource->map_count, private->pid,
 			current->tgid, ioparam->handle, ioparam->addr);
 	} else {
-		/* Kernel allocated resources.
-		 */
+		/* Kernel allocated resources. */
 		if (resource->pid == 0) {
 			pr_debug("[%s]: attempt mapping kernel resource - guid %x, hdl %x\n",
 				__func__, ioparam->handle, lock.res_handle);
@@ -1933,8 +1897,7 @@ error:
 	return ret;
 }
 
-/* Unlock a previously allocated shared memory handle and block.
-*/
+/* Unlock a previously allocated shared memory handle and block.*/
 static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 			      struct vmcs_sm_ioctl_lock_unlock *ioparam,
 			      int flush, int wait_reply, int no_vc_unlock)
@@ -1947,16 +1910,14 @@ static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 
 	map = NULL;
 
-	/* Locate resource from GUID.
-	 */
+	/* Locate resource from GUID. */
 	resource = vmcs_sm_acquire_resource(private, ioparam->handle);
 	if (resource == NULL) {
 		ret = -EINVAL;
 		goto error;
 	}
 
-	/* Check permissions.
-	 */
+	/* Check permissions. */
 	if (resource->pid && (resource->pid != current->tgid)) {
 		pr_err("[%s]: current tgid %u != %u owner\n",
 			__func__, current->tgid, resource->pid);
@@ -1971,8 +1932,7 @@ static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 		__func__, ioparam->handle, unlock.res_handle,
 		(void *)unlock.res_mem);
 
-	/* User space allocated resources.
-	 */
+	/* User space allocated resources. */
 	if (resource->pid) {
 		/* Flush if requested */
 		if (resource->res_cached && flush) {
@@ -2071,12 +2031,10 @@ static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 	}
 
 	if (resource->lock_count) {
-		/* Bypass the videocore unlock.
-		 */
+		/* Bypass the videocore unlock. */
 		if (no_vc_unlock)
 			status = 0;
-		/* Unlock the videocore allocated resource.
-		 */
+		/* Unlock the videocore allocated resource. */
 		else {
 			status =
 			    vc_vchi_sm_unlock(sm_state->sm_handle, &unlock,
@@ -2116,9 +2074,7 @@ error:
 	return ret;
 }
 
-/*
- * Import a contiguous block of memory to be shared with VC.
- */
+/* Import a contiguous block of memory to be shared with VC. */
 int vc_sm_ioctl_import_dmabuf(struct SM_PRIV_DATA_T *private,
 			      struct vmcs_sm_ioctl_import_dmabuf *ioparam,
 			      struct dma_buf *src_dma_buf)
@@ -2205,8 +2161,7 @@ int vc_sm_ioctl_import_dmabuf(struct SM_PRIV_DATA_T *private,
 		goto error;
 	}
 
-	/* Keep track of the resource we created.
-	 */
+	/* Keep track of the resource we created. */
 	resource->private = private;
 	resource->res_handle = result.res_handle;
 	resource->res_size = import.size;
@@ -2217,7 +2172,8 @@ int vc_sm_ioctl_import_dmabuf(struct SM_PRIV_DATA_T *private,
 	resource->sgt = sgt;
 	resource->dma_addr = sg_dma_address(sgt->sgl);
 
-	/* Kernel/user GUID.  This global identifier is used for mmap'ing the
+	/*
+	 * Kernel/user GUID.  This global identifier is used for mmap'ing the
 	 * allocated region from user space, it is passed as the mmap'ing
 	 * offset, we use it to 'hide' the videocore handle/address.
 	 */
@@ -2282,8 +2238,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		file_data->restart_sys = 0;
 	}
 
-	/* Now process the command.
-	 */
+	/* Now process the command. */
 	switch (cmdnr) {
 		/* New memory allocation.
 		 */
@@ -2291,8 +2246,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		{
 			struct vmcs_sm_ioctl_alloc ioparam;
 
-			/* Get the parameter data.
-			 */
+			/* Get the parameter data. */
 			if (copy_from_user
 			    (&ioparam, (void *)arg, sizeof(ioparam)) != 0) {
 				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
@@ -2314,20 +2268,17 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EFAULT;
 			}
 
-			/* Done.
-			 */
+			/* Done. */
 			goto out;
 		}
 		break;
 
-		/* Share existing memory allocation.
-		 */
+		/* Share existing memory allocation. */
 	case VMCS_SM_CMD_ALLOC_SHARE:
 		{
 			struct vmcs_sm_ioctl_alloc_share ioparam;
 
-			/* Get the parameter data.
-			 */
+			/* Get the parameter data. */
 			if (copy_from_user
 			    (&ioparam, (void *)arg, sizeof(ioparam)) != 0) {
 				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
@@ -2338,8 +2289,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 			ret = vc_sm_ioctl_alloc_share(file_data, &ioparam);
 
-			/* Copy result back to user.
-			 */
+			/* Copy result back to user. */
 			if (!ret
 			    && copy_to_user((void *)arg, &ioparam,
 					    sizeof(ioparam)) != 0) {
@@ -2352,8 +2302,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EFAULT;
 			}
 
-			/* Done.
-			 */
+			/* Done. */
 			goto out;
 		}
 		break;
@@ -2362,8 +2311,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		{
 			struct vmcs_sm_ioctl_import_dmabuf ioparam;
 
-			/* Get the parameter data.
-			 */
+			/* Get the parameter data. */
 			if (copy_from_user
 			    (&ioparam, (void *)arg, sizeof(ioparam)) != 0) {
 				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
@@ -2386,21 +2334,18 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EFAULT;
 			}
 
-			/* Done.
-			 */
+			/* Done. */
 			goto out;
 		}
 		break;
 
-		/* Lock (attempt to) *and* register a cache behavior change.
-		 */
+		/* Lock (attempt to) *and* register a cache behavior change. */
 	case VMCS_SM_CMD_LOCK_CACHE:
 		{
 			struct vmcs_sm_ioctl_lock_cache ioparam;
 			struct vmcs_sm_ioctl_lock_unlock lock;
 
-			/* Get parameter data.
-			 */
+			/* Get parameter data. */
 			if (copy_from_user
 			    (&ioparam, (void *)arg, sizeof(ioparam)) != 0) {
 				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
@@ -2414,20 +2359,17 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			    vc_sm_ioctl_lock(file_data, &lock, 1,
 					     ioparam.cached, 0);
 
-			/* Done.
-			 */
+			/* Done. */
 			goto out;
 		}
 		break;
 
-		/* Lock (attempt to) existing memory allocation.
-		 */
+		/* Lock (attempt to) existing memory allocation. */
 	case VMCS_SM_CMD_LOCK:
 		{
 			struct vmcs_sm_ioctl_lock_unlock ioparam;
 
-			/* Get parameter data.
-			 */
+			/* Get parameter data. */
 			if (copy_from_user
 			    (&ioparam, (void *)arg, sizeof(ioparam)) != 0) {
 				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
@@ -2438,8 +2380,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 			ret = vc_sm_ioctl_lock(file_data, &ioparam, 0, 0, 0);
 
-			/* Copy result back to user.
-			 */
+			/* Copy result back to user. */
 			if (copy_to_user((void *)arg, &ioparam, sizeof(ioparam))
 			    != 0) {
 				pr_err("[%s]: failed to copy-to-user for cmd %x\n",
@@ -2447,20 +2388,17 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EFAULT;
 			}
 
-			/* Done.
-			 */
+			/* Done. */
 			goto out;
 		}
 		break;
 
-		/* Unlock (attempt to) existing memory allocation.
-		 */
+		/* Unlock (attempt to) existing memory allocation. */
 	case VMCS_SM_CMD_UNLOCK:
 		{
 			struct vmcs_sm_ioctl_lock_unlock ioparam;
 
-			/* Get parameter data.
-			 */
+			/* Get parameter data. */
 			if (copy_from_user
 			    (&ioparam, (void *)arg, sizeof(ioparam)) != 0) {
 				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
@@ -2471,20 +2409,17 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 			ret = vc_sm_ioctl_unlock(file_data, &ioparam, 0, 1, 0);
 
-			/* Done.
-			 */
+			/* Done. */
 			goto out;
 		}
 		break;
 
-		/* Resize (attempt to) existing memory allocation.
-		 */
+		/* Resize (attempt to) existing memory allocation. */
 	case VMCS_SM_CMD_RESIZE:
 		{
 			struct vmcs_sm_ioctl_resize ioparam;
 
-			/* Get parameter data.
-			 */
+			/* Get parameter data. */
 			if (copy_from_user
 			    (&ioparam, (void *)arg, sizeof(ioparam)) != 0) {
 				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
@@ -2495,17 +2430,13 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 			ret = vc_sm_ioctl_resize(file_data, &ioparam);
 
-			/* Copy result back to user.
-			 */
+			/* Copy result back to user. */
 			if (copy_to_user((void *)arg, &ioparam, sizeof(ioparam))
 			    != 0) {
 				pr_err("[%s]: failed to copy-to-user for cmd %x\n",
 				     __func__, cmdnr);
 				ret = -EFAULT;
 			}
-
-			/* Done.
-			 */
 			goto out;
 		}
 		break;
@@ -2550,7 +2481,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			goto out;
 		}
 		break;
-/* Walk mapping table on host, information shows up in the
+		/* Walk mapping table on host, information shows up in the
 		 ** kernel log.
 		 */
 	case VMCS_SM_CMD_HOST_WALK_MAP:
@@ -2589,7 +2520,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		{
 			struct vmcs_sm_ioctl_walk ioparam;
 
-			/* Get parameter data.  */
+			/* Get parameter data. */
 			if (copy_from_user(&ioparam,
 					   (void *)arg, sizeof(ioparam)) != 0) {
 				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
@@ -2646,8 +2577,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		{
 			struct vmcs_sm_ioctl_chk ioparam;
 
-			/* Get parameter data.
-			 */
+			/* Get parameter data. */
 			if (copy_from_user(&ioparam,
 					   (void *)arg, sizeof(ioparam)) != 0) {
 				pr_err("[%s]: failed to copy-from-user for cmd %x\n",
@@ -2662,7 +2592,8 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			    vmcs_sm_acquire_resource(file_data, ioparam.handle);
 			if (resource == NULL)
 				ret = -EINVAL;
-			/* If the resource is cacheable, return additional
+			/*
+			 * If the resource is cacheable, return additional
 			 * information that may be needed to flush the cache.
 			 */
 			else if ((resource->res_cached == VMCS_SM_CACHE_HOST) ||
@@ -2688,8 +2619,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EFAULT;
 			}
 
-			/* Done.
-			 */
+			/* Done. */
 			goto out;
 		}
 		break;
@@ -2768,8 +2698,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EFAULT;
 			}
 
-			/* Done.
-			 */
+			/* Done. */
 			goto out;
 		}
 		break;
@@ -2851,8 +2780,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		break;
 
-		/* Maps a user address given process and vc handle.
-		 */
+		/* Maps a user address given process and vc handle. */
 	case VMCS_SM_CMD_MAPPED_USR_ADDRESS:
 		{
 			struct vmcs_sm_ioctl_map ioparam;
@@ -2955,8 +2883,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				goto out;
 			}
 
-			/* Locate resource from GUID.
-			 */
+			/* Locate resource from GUID. */
 			resource =
 			    vmcs_sm_acquire_resource(file_data, ioparam.handle);
 
@@ -2992,8 +2919,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if (resource)
 				vmcs_sm_release_resource(resource, 0);
 
-			/* Done.
-			 */
+			/* Done. */
 			goto out;
 		}
 		break;
@@ -3019,8 +2945,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					case 2: /* L1/L2 clean physical range */
 					case 3: /* L1/L2 clean+invalidate all */
 					{
-						/* Locate resource from GUID.
-						 */
+						/* Locate resource from GUID. */
 						resource =
 						    vmcs_sm_acquire_resource(file_data, ioparam.s[i].handle);
 
@@ -3123,8 +3048,7 @@ out:
 	return ret;
 }
 
-/* Device operations that we managed in this driver.
-*/
+/* Device operations that we managed in this driver. */
 static const struct file_operations vmcs_sm_ops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = vc_sm_ioctl,
@@ -3133,8 +3057,7 @@ static const struct file_operations vmcs_sm_ops = {
 	.mmap = vc_sm_mmap,
 };
 
-/* Creation of device.
-*/
+/* Creation of device. */
 static int vc_sm_create_sharedmemory(void)
 {
 	int ret;
@@ -3144,8 +3067,7 @@ static int vc_sm_create_sharedmemory(void)
 		goto out;
 	}
 
-	/* Create a device class for creating dev nodes.
-	 */
+	/* Create a device class for creating dev nodes. */
 	sm_state->sm_class = class_create(THIS_MODULE, "vc-sm");
 	if (IS_ERR(sm_state->sm_class)) {
 		pr_err("[%s]: unable to create device class\n", __func__);
@@ -3153,8 +3075,7 @@ static int vc_sm_create_sharedmemory(void)
 		goto out;
 	}
 
-	/* Create a character driver.
-	 */
+	/* Create a character driver. */
 	ret = alloc_chrdev_region(&sm_state->sm_devid,
 				  DEVICE_MINOR, 1, DEVICE_NAME);
 	if (ret != 0) {
@@ -3169,8 +3090,7 @@ static int vc_sm_create_sharedmemory(void)
 		goto out_chrdev_unreg;
 	}
 
-	/* Create a device node.
-	 */
+	/* Create a device node. */
 	sm_state->sm_dev = device_create(sm_state->sm_class,
 					 NULL,
 					 MKDEV(MAJOR(sm_state->sm_devid),
@@ -3195,25 +3115,21 @@ out:
 	return ret;
 }
 
-/* Termination of the device.
-*/
+/* Termination of the device. */
 static int vc_sm_remove_sharedmemory(void)
 {
 	int ret;
 
 	if (sm_state == NULL) {
-		/* Nothing to do.
-		 */
+		/* Nothing to do. */
 		ret = 0;
 		goto out;
 	}
 
-	/* Remove the sharedmemory character driver.
-	 */
+	/* Remove the sharedmemory character driver. */
 	cdev_del(&sm_state->sm_cdev);
 
-	/* Unregister region.
-	 */
+	/* Unregister region. */
 	unregister_chrdev_region(sm_state->sm_devid, 1);
 
 	ret = 0;
@@ -3232,8 +3148,9 @@ static void vc_sm_connected_init(void)
 
 	pr_info("[%s]: start\n", __func__);
 
-	/* Initialize and create a VCHI connection for the shared memory service
-	 ** running on videocore.
+	/*
+	 * Initialize and create a VCHI connection for the shared memory service
+	 * running on videocore.
 	 */
 	ret = vchi_initialise(&vchi_instance);
 	if (ret != 0) {
@@ -3306,8 +3223,7 @@ static void vc_sm_connected_init(void)
 		goto err_remove_shared_memory;
 	}
 
-	/* Done!
-	 */
+	/* Done! */
 	sm_inited = 1;
 	goto out;
 
@@ -3344,20 +3260,16 @@ static int bcm2835_vcsm_remove(struct platform_device *pdev)
 {
 	pr_debug("[%s]: start\n", __func__);
 	if (sm_inited) {
-		/* Remove shared memory device.
-		 */
+		/* Remove shared memory device. */
 		vc_sm_remove_sharedmemory();
 
-		/* Remove all proc entries.
-		 */
+		/* Remove all proc entries. */
 		debugfs_remove_recursive(sm_state->dir_root);
 
-		/* Stop the videocore shared memory service.
-		 */
+		/* Stop the videocore shared memory service. */
 		vc_vchi_sm_stop(&sm_state->sm_handle);
 
-		/* Free the memory for the state structure.
-		 */
+		/* Free the memory for the state structure. */
 		mutex_destroy(&(sm_state->map_lock));
 		kfree(sm_state);
 	}
@@ -3374,8 +3286,7 @@ int vc_sm_alloc(struct vc_sm_alloc_t *alloc, int *handle)
 	int ret;
 	struct SM_RESOURCE_T *resource;
 
-	/* Validate we can work with this device.
-	 */
+	/* Validate we can work with this device. */
 	if (sm_state == NULL || alloc == NULL || handle == NULL) {
 		pr_err("[%s]: invalid input\n", __func__);
 		return -EPERM;
@@ -3396,8 +3307,7 @@ int vc_sm_alloc(struct vc_sm_alloc_t *alloc, int *handle)
 			resource->pid = 0;
 			vmcs_sm_release_resource(resource, 0);
 
-			/* Assign valid handle at this time.
-			 */
+			/* Assign valid handle at this time. */
 			*handle = ioparam.handle;
 		} else {
 			ret = -ENOMEM;
@@ -3408,22 +3318,19 @@ int vc_sm_alloc(struct vc_sm_alloc_t *alloc, int *handle)
 }
 EXPORT_SYMBOL_GPL(vc_sm_alloc);
 
-/* Get an internal resource handle mapped from the external one.
-*/
+/* Get an internal resource handle mapped from the external one. */
 int vc_sm_int_handle(int handle)
 {
 	struct SM_RESOURCE_T *resource;
 	int ret = 0;
 
-	/* Validate we can work with this device.
-	 */
+	/* Validate we can work with this device. */
 	if (sm_state == NULL || handle == 0) {
 		pr_err("[%s]: invalid input\n", __func__);
 		return 0;
 	}
 
-	/* Locate resource from GUID.
-	 */
+	/* Locate resource from GUID. */
 	resource = vmcs_sm_acquire_resource(sm_state->data_knl, handle);
 	if (resource) {
 		ret = resource->res_handle;
@@ -3434,14 +3341,12 @@ int vc_sm_int_handle(int handle)
 }
 EXPORT_SYMBOL_GPL(vc_sm_int_handle);
 
-/* Free a previously allocated shared memory handle and block.
-*/
+/* Free a previously allocated shared memory handle and block. */
 int vc_sm_free(int handle)
 {
 	struct vmcs_sm_ioctl_free ioparam = { handle };
 
-	/* Validate we can work with this device.
-	 */
+	/* Validate we can work with this device. */
 	if (sm_state == NULL || handle == 0) {
 		pr_err("[%s]: invalid input\n", __func__);
 		return -EPERM;
@@ -3451,16 +3356,14 @@ int vc_sm_free(int handle)
 }
 EXPORT_SYMBOL_GPL(vc_sm_free);
 
-/* Lock a memory handle for use by kernel.
-*/
+/* Lock a memory handle for use by kernel. */
 int vc_sm_lock(int handle, VC_SM_LOCK_CACHE_MODE_T mode,
 	       long unsigned int *data)
 {
 	struct vmcs_sm_ioctl_lock_unlock ioparam;
 	int ret;
 
-	/* Validate we can work with this device.
-	 */
+	/* Validate we can work with this device. */
 	if (sm_state == NULL || handle == 0 || data == NULL) {
 		pr_err("[%s]: invalid input\n", __func__);
 		return -EPERM;
@@ -3481,14 +3384,12 @@ int vc_sm_lock(int handle, VC_SM_LOCK_CACHE_MODE_T mode,
 }
 EXPORT_SYMBOL_GPL(vc_sm_lock);
 
-/* Unlock a memory handle in use by kernel.
-*/
+/* Unlock a memory handle in use by kernel. */
 int vc_sm_unlock(int handle, int flush, int no_vc_unlock)
 {
 	struct vmcs_sm_ioctl_lock_unlock ioparam;
 
-	/* Validate we can work with this device.
-	 */
+	/* Validate we can work with this device. */
 	if (sm_state == NULL || handle == 0) {
 		pr_err("[%s]: invalid input\n", __func__);
 		return -EPERM;
@@ -3500,16 +3401,14 @@ int vc_sm_unlock(int handle, int flush, int no_vc_unlock)
 }
 EXPORT_SYMBOL_GPL(vc_sm_unlock);
 
-/* Map a shared memory region for use by kernel.
-*/
+/* Map a shared memory region for use by kernel. */
 int vc_sm_map(int handle, unsigned int sm_addr, VC_SM_LOCK_CACHE_MODE_T mode,
 	      long unsigned int *data)
 {
 	struct vmcs_sm_ioctl_lock_unlock ioparam;
 	int ret;
 
-	/* Validate we can work with this device.
-	 */
+	/* Validate we can work with this device. */
 	if (sm_state == NULL || handle == 0 || data == NULL || sm_addr == 0) {
 		pr_err("[%s]: invalid input\n", __func__);
 		return -EPERM;
