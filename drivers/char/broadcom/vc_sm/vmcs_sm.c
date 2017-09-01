@@ -170,7 +170,7 @@ struct SM_PRIV_DATA_T {
 	struct SM_PDE_T dir_res;   /* Debug fs resource sub-tree. */
 
 	int restart_sys;           /* Tracks restart on interrupt. */
-	VC_SM_MSG_TYPE int_action; /* Interrupted action. */
+	enum vc_sm_msg_type int_action; /* Interrupted action. */
 	uint32_t int_trans_id;     /* Interrupted transaction. */
 
 };
@@ -928,7 +928,7 @@ static void vmcs_sm_release_resource(struct SM_RESOURCE_T *resource, int force)
 
 	/* Free up the videocore allocated resource. */
 	if (resource->res_handle) {
-		VC_SM_FREE_T free = {
+		struct vc_sm_free_t free = {
 			resource->res_handle, (uint32_t)resource->res_base_mem
 		};
 		int status = vc_vchi_sm_free(sm_state->sm_handle, &free,
@@ -1123,7 +1123,7 @@ static int vc_sm_release(struct inode *inode, struct file *file)
 	pr_debug("[%s]: using private data %p\n", __func__, file_data);
 
 	if (file_data->restart_sys == -EINTR) {
-		VC_SM_ACTION_CLEAN_T action_clean;
+		struct vc_sm_action_clean_t action_clean;
 
 		pr_debug("[%s]: releasing following EINTR on %u (trans_id: %u) (likely due to signal)...\n",
 			__func__, file_data->int_action,
@@ -1189,8 +1189,8 @@ static int vcsm_vma_fault(struct vm_fault *vmf)
 	/* Lock the resource if necessary.
 	 */
 	if (!resource->lock_count) {
-		VC_SM_LOCK_UNLOCK_T lock_unlock;
-		VC_SM_LOCK_RESULT_T lock_result;
+		struct vc_sm_lock_unlock_t lock_unlock;
+		struct vc_sm_lock_result_t lock_result;
 		int status;
 
 		lock_unlock.res_handle = resource->res_handle;
@@ -1465,8 +1465,8 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 	int ret = 0;
 	int status;
 	struct SM_RESOURCE_T *resource;
-	VC_SM_ALLOC_T alloc = { 0 };
-	VC_SM_ALLOC_RESULT_T result = { 0 };
+	struct vc_sm_alloc_t alloc = { 0 };
+	struct vc_sm_alloc_result_t result = { 0 };
 	enum vmcs_sm_cache_e cached = ioparam->cached;
 	bool map = false;
 
@@ -1671,7 +1671,7 @@ static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
 {
 	int ret = 0;
 	int status;
-	VC_SM_RESIZE_T resize;
+	struct vc_sm_resize_t resize;
 	struct SM_RESOURCE_T *resource;
 
 	/* Locate resource from GUID.
@@ -1761,8 +1761,8 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 			    unsigned int vc_addr)
 {
 	int status;
-	VC_SM_LOCK_UNLOCK_T lock;
-	VC_SM_LOCK_RESULT_T result;
+	struct vc_sm_lock_unlock_t lock;
+	struct vc_sm_lock_result_t result;
 	struct SM_RESOURCE_T *resource;
 	int ret = 0;
 	struct sm_mmap *map, *map_tmp;
@@ -1935,7 +1935,7 @@ static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 			      int flush, int wait_reply, int no_vc_unlock)
 {
 	int status;
-	VC_SM_LOCK_UNLOCK_T unlock;
+	struct vc_sm_lock_unlock_t unlock;
 	struct sm_mmap *map, *map_tmp;
 	struct SM_RESOURCE_T *resource;
 	int ret = 0;
@@ -2261,7 +2261,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	/* Action is a re-post of a previously interrupted action? */
 	if (file_data->restart_sys == -EINTR) {
-		VC_SM_ACTION_CLEAN_T action_clean;
+		struct vc_sm_action_clean_t action_clean;
 
 		pr_debug("[%s]: clean up of action %u (trans_id: %u) following EINTR\n",
 			__func__, file_data->int_action,
@@ -3359,7 +3359,7 @@ static int bcm2835_vcsm_remove(struct platform_device *pdev)
 
 #if defined(__KERNEL__)
 /* Allocate a shared memory handle and block. */
-int vc_sm_alloc(VC_SM_ALLOC_T *alloc, int *handle)
+int vc_sm_alloc(struct vc_sm_alloc_t *alloc, int *handle)
 {
 	struct vmcs_sm_ioctl_alloc ioparam = { 0 };
 	int ret;
