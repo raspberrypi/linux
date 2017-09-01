@@ -984,8 +984,6 @@ static void vmcs_sm_host_walk_map_per_pid(int pid)
 	}
 
 	mutex_unlock(&(sm_state->map_lock));
-
-	return;
 }
 
 /*
@@ -1015,8 +1013,6 @@ static void vmcs_sm_host_walk_alloc(struct SM_PRIV_DATA_T *file_data)
 	}
 
 	mutex_unlock(&(sm_state->map_lock));
-
-	return;
 }
 
 /* Create support for private data tracking. */
