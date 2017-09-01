@@ -151,8 +151,10 @@ struct vc_sm_lock_result_t {
 	uint32_t res_handle;
 	/* Pointer to resource buffer */
 	uint32_t res_mem;
-	/* Pointer to former resource buffer if the memory
-	 * was reallocated */
+	/*
+	 * Pointer to former resource buffer if the memory
+	 * was reallocated
+	 */
 	uint32_t res_old_mem;
 
 };
