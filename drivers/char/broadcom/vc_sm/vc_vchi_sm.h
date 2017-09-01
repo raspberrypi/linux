@@ -23,7 +23,7 @@
 
 /*
  * Forward declare.
-*/
+ */
 typedef struct sm_instance *VC_VCHI_SM_HANDLE_T;
 
 /*
@@ -57,7 +57,7 @@ int vc_vchi_sm_free(VC_VCHI_SM_HANDLE_T handle,
 /*
  * Ask the shared memory service to lock up some memory that was previously
  * allocated by the vc_vchi_sm_alloc function call.
-*/
+ */
 int vc_vchi_sm_lock(VC_VCHI_SM_HANDLE_T handle,
 		    struct vc_sm_lock_unlock_t *lock_unlock,
 		    struct vc_sm_lock_result_t *lock_result,
@@ -66,7 +66,7 @@ int vc_vchi_sm_lock(VC_VCHI_SM_HANDLE_T handle,
 /*
  * Ask the shared memory service to unlock some memory that was previously
  * allocated by the vc_vchi_sm_alloc function call.
-*/
+ */
 int vc_vchi_sm_unlock(VC_VCHI_SM_HANDLE_T handle,
 		      struct vc_sm_lock_unlock_t *lock_unlock,
 		      uint32_t *trans_id, uint8_t wait_reply);
@@ -74,7 +74,7 @@ int vc_vchi_sm_unlock(VC_VCHI_SM_HANDLE_T handle,
 /*
  * Ask the shared memory service to resize some memory that was previously
  * allocated by the vc_vchi_sm_alloc function call.
-*/
+ */
 int vc_vchi_sm_resize(VC_VCHI_SM_HANDLE_T handle,
 		      struct vc_sm_resize_t *resize, uint32_t *trans_id);
 
@@ -82,7 +82,7 @@ int vc_vchi_sm_resize(VC_VCHI_SM_HANDLE_T handle,
  * Walk the allocated resources on the videocore side, the allocation will
  * show up in the log.  This is purely for debug/information and takes no
  * specific actions.
-*/
+ */
 int vc_vchi_sm_walk_alloc(VC_VCHI_SM_HANDLE_T handle);
 
 /*
