@@ -2861,7 +2861,8 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 							v6_dma_clean_range((void *)base, (void *)end);
 #endif
 						/* L1/L2 cache invalidate */
-						} else if (op->invalidate_mode & 1) {
+						}
+						if (op->invalidate_mode & 1) {
 #if defined(CONFIG_CPU_CACHE_V7)
 							extern void v7_dma_inv_range(void *start, void *end);
 							v7_dma_inv_range((void *)base, (void *)end);
