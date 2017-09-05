@@ -174,7 +174,7 @@ struct SM_PRIV_DATA_T {
 };
 
 /* Global state information. */
-struct SM_STATE_T {
+struct sm_state_t {
 	struct platform_device *pdev;
 	struct sm_instance *sm_handle;	/* Handle for videocore service. */
 	struct dentry *dir_root;   /* Debug fs entries root. */
@@ -206,7 +206,7 @@ struct SM_STATE_T {
 
 /* ---- Private Variables ----------------------------------------------- */
 
-static struct SM_STATE_T *sm_state;
+static struct sm_state_t *sm_state;
 static int sm_inited;
 
 #if 0
@@ -459,7 +459,7 @@ out:
 }
 
 /* Adds a resource mapping to the global data list. */
-static void vmcs_sm_add_map(struct SM_STATE_T *state,
+static void vmcs_sm_add_map(struct sm_state_t *state,
 			    struct sm_resource_t *resource, struct sm_mmap *map)
 {
 	mutex_lock(&(state->map_lock));
@@ -479,7 +479,7 @@ static void vmcs_sm_add_map(struct SM_STATE_T *state,
 }
 
 /* Removes a resource mapping from the global data list. */
-static void vmcs_sm_remove_map(struct SM_STATE_T *state,
+static void vmcs_sm_remove_map(struct sm_state_t *state,
 			       struct sm_resource_t *resource,
 			       struct sm_mmap *map)
 {
