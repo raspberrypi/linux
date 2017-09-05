@@ -112,7 +112,7 @@ struct SM_PDE_T {
 struct sm_mmap {
 	struct list_head map_list;	/* Linked list of maps. */
 
-	struct SM_RESOURCE_T *resource;	/* Pointer to the resource. */
+	struct sm_resource_t *resource;	/* Pointer to the resource. */
 
 	pid_t res_pid;			/* PID owning that resource. */
 	unsigned int res_vc_hdl;	/* Resource handle (videocore). */
@@ -127,7 +127,7 @@ struct sm_mmap {
 };
 
 /* Single resource allocation tracked for each opened device. */
-struct SM_RESOURCE_T {
+struct sm_resource_t {
 	struct list_head resource_list;	/* List of resources. */
 	struct list_head global_resource_list;	/* Global list of resources. */
 
@@ -140,7 +140,7 @@ struct SM_RESOURCE_T {
 	void *res_base_mem;	/* Resource base memory address. */
 	uint32_t res_size;	/* Resource size allocated. */
 	enum vmcs_sm_cache_e res_cached;	/* Resource cache type. */
-	struct SM_RESOURCE_T *res_shared;	/* Shared resource */
+	struct sm_resource_t *res_shared;	/* Shared resource */
 
 	enum SM_STATS_T res_stats[END_ALL];	/* Resource statistics. */
 
@@ -235,7 +235,7 @@ static inline unsigned int vcaddr_to_pfn(unsigned long vc_addr)
  * Carries over to the state statistics the statistics once owned by a deceased
  * resource.
  */
-static void vc_sm_resource_deceased(struct SM_RESOURCE_T *p_res, int terminated)
+static void vc_sm_resource_deceased(struct sm_resource_t *p_res, int terminated)
 {
 	if (sm_state != NULL) {
 		if (p_res != NULL) {
@@ -460,7 +460,7 @@ out:
 
 /* Adds a resource mapping to the global data list. */
 static void vmcs_sm_add_map(struct SM_STATE_T *state,
-			    struct SM_RESOURCE_T *resource, struct sm_mmap *map)
+			    struct sm_resource_t *resource, struct sm_mmap *map)
 {
 	mutex_lock(&(state->map_lock));
 
@@ -480,7 +480,7 @@ static void vmcs_sm_add_map(struct SM_STATE_T *state,
 
 /* Removes a resource mapping from the global data list. */
 static void vmcs_sm_remove_map(struct SM_STATE_T *state,
-			       struct SM_RESOURCE_T *resource,
+			       struct sm_resource_t *resource,
 			       struct sm_mmap *map)
 {
 	mutex_lock(&(state->map_lock));
@@ -506,7 +506,7 @@ static void vmcs_sm_remove_map(struct SM_STATE_T *state,
 static int vc_sm_global_state_show(struct seq_file *s, void *v)
 {
 	struct sm_mmap *map = NULL;
-	struct SM_RESOURCE_T *resource = NULL;
+	struct sm_resource_t *resource = NULL;
 	int map_count = 0;
 	int resource_count = 0;
 
@@ -634,7 +634,7 @@ static int vc_sm_statistics_show(struct seq_file *s, void *v)
 {
 	int ix;
 	struct SM_PRIV_DATA_T *file_data;
-	struct SM_RESOURCE_T *resource;
+	struct sm_resource_t *resource;
 	int res_count = 0;
 	struct SM_PDE_T *p_pde;
 
@@ -691,7 +691,7 @@ static int vc_sm_statistics_show(struct seq_file *s, void *v)
 static int vc_sm_alloc_show(struct seq_file *s, void *v)
 {
 	struct SM_PRIV_DATA_T *file_data;
-	struct SM_RESOURCE_T *resource;
+	struct sm_resource_t *resource;
 	int alloc_count = 0;
 	struct SM_PDE_T *p_pde;
 
@@ -765,7 +765,7 @@ static const struct file_operations vc_sm_debug_fs_fops = {
  * data.
  */
 static void vmcs_sm_add_resource(struct SM_PRIV_DATA_T *privdata,
-				 struct SM_RESOURCE_T *resource)
+				 struct sm_resource_t *resource)
 {
 	mutex_lock(&(sm_state->map_lock));
 	list_add(&resource->resource_list, &privdata->resource_list);
@@ -781,11 +781,11 @@ static void vmcs_sm_add_resource(struct SM_PRIV_DATA_T *privdata,
  * Locates a resource and acquire a reference on it.
  * The resource won't be deleted while there is a reference on it.
  */
-static struct SM_RESOURCE_T *vmcs_sm_acquire_resource(struct SM_PRIV_DATA_T
+static struct sm_resource_t *vmcs_sm_acquire_resource(struct SM_PRIV_DATA_T
 						      *private,
 						      unsigned int res_guid)
 {
-	struct SM_RESOURCE_T *resource, *ret = NULL;
+	struct sm_resource_t *resource, *ret = NULL;
 
 	mutex_lock(&(sm_state->map_lock));
 
@@ -811,10 +811,10 @@ static struct SM_RESOURCE_T *vmcs_sm_acquire_resource(struct SM_PRIV_DATA_T
  * Locates a resource and acquire a reference on it.
  * The resource won't be deleted while there is a reference on it.
  */
-static struct SM_RESOURCE_T *vmcs_sm_acquire_first_resource(
+static struct sm_resource_t *vmcs_sm_acquire_first_resource(
 		struct SM_PRIV_DATA_T *private)
 {
-	struct SM_RESOURCE_T *resource, *ret = NULL;
+	struct sm_resource_t *resource, *ret = NULL;
 
 	mutex_lock(&(sm_state->map_lock));
 
@@ -837,10 +837,10 @@ static struct SM_RESOURCE_T *vmcs_sm_acquire_first_resource(
  * Locates a resource and acquire a reference on it.
  * The resource won't be deleted while there is a reference on it.
  */
-static struct SM_RESOURCE_T *vmcs_sm_acquire_global_resource(unsigned int
+static struct sm_resource_t *vmcs_sm_acquire_global_resource(unsigned int
 							     res_guid)
 {
-	struct SM_RESOURCE_T *resource, *ret = NULL;
+	struct sm_resource_t *resource, *ret = NULL;
 
 	mutex_lock(&(sm_state->map_lock));
 
@@ -867,11 +867,11 @@ static struct SM_RESOURCE_T *vmcs_sm_acquire_global_resource(unsigned int
  * Release a previously acquired resource.
  * The resource will be deleted when its refcount reaches 0.
  */
-static void vmcs_sm_release_resource(struct SM_RESOURCE_T *resource, int force)
+static void vmcs_sm_release_resource(struct sm_resource_t *resource, int force)
 {
 	struct SM_PRIV_DATA_T *private = resource->private;
 	struct sm_mmap *map, *map_tmp;
-	struct SM_RESOURCE_T *res_tmp;
+	struct sm_resource_t *res_tmp;
 	int ret;
 
 	mutex_lock(&(sm_state->map_lock));
@@ -992,7 +992,7 @@ static void vmcs_sm_host_walk_map_per_pid(int pid)
  */
 static void vmcs_sm_host_walk_alloc(struct SM_PRIV_DATA_T *file_data)
 {
-	struct SM_RESOURCE_T *resource = NULL;
+	struct sm_resource_t *resource = NULL;
 
 	/* Make sure the device was started properly. */
 	if ((sm_state == NULL) || (file_data == NULL)) {
@@ -1101,7 +1101,7 @@ static int vc_sm_release(struct inode *inode, struct file *file)
 {
 	struct SM_PRIV_DATA_T *file_data =
 	    (struct SM_PRIV_DATA_T *)file->private_data;
-	struct SM_RESOURCE_T *resource;
+	struct sm_resource_t *resource;
 	int ret = 0;
 
 	/* Make sure the device was started properly. */
@@ -1170,7 +1170,7 @@ static void vcsm_vma_close(struct vm_area_struct *vma)
 static int vcsm_vma_fault(struct vm_fault *vmf)
 {
 	struct sm_mmap *map = (struct sm_mmap *)vmf->vma->vm_private_data;
-	struct SM_RESOURCE_T *resource = map->resource;
+	struct sm_resource_t *resource = map->resource;
 	pgoff_t page_offset;
 	unsigned long pfn;
 	int ret = 0;
@@ -1313,7 +1313,7 @@ static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 	int ret = 0;
 	struct SM_PRIV_DATA_T *file_data =
 	    (struct SM_PRIV_DATA_T *)file->private_data;
-	struct SM_RESOURCE_T *resource = NULL;
+	struct sm_resource_t *resource = NULL;
 	struct sm_mmap *map = NULL;
 
 	/* Make sure the device was started properly. */
@@ -1449,7 +1449,7 @@ int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
 {
 	int ret = 0;
 	int status;
-	struct SM_RESOURCE_T *resource;
+	struct sm_resource_t *resource;
 	struct vc_sm_alloc_t alloc = { 0 };
 	struct vc_sm_alloc_result_t result = { 0 };
 	enum vmcs_sm_cache_e cached = ioparam->cached;
@@ -1558,7 +1558,7 @@ error:
 int vc_sm_ioctl_alloc_share(struct SM_PRIV_DATA_T *private,
 			    struct vmcs_sm_ioctl_alloc_share *ioparam)
 {
-	struct SM_RESOURCE_T *resource, *shared_resource;
+	struct sm_resource_t *resource, *shared_resource;
 	int ret = 0;
 
 	pr_debug("[%s]: attempt to share resource %u\n", __func__,
@@ -1620,7 +1620,7 @@ error:
 static int vc_sm_ioctl_free(struct SM_PRIV_DATA_T *private,
 			    struct vmcs_sm_ioctl_free *ioparam)
 {
-	struct SM_RESOURCE_T *resource =
+	struct sm_resource_t *resource =
 	    vmcs_sm_acquire_resource(private, ioparam->handle);
 
 	if (resource == NULL) {
@@ -1649,7 +1649,7 @@ static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
 	int ret = 0;
 	int status;
 	struct vc_sm_resize_t resize;
-	struct SM_RESOURCE_T *resource;
+	struct sm_resource_t *resource;
 
 	/* Locate resource from GUID. */
 	resource = vmcs_sm_acquire_resource(private, ioparam->handle);
@@ -1736,7 +1736,7 @@ static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
 	int status;
 	struct vc_sm_lock_unlock_t lock;
 	struct vc_sm_lock_result_t result;
-	struct SM_RESOURCE_T *resource;
+	struct sm_resource_t *resource;
 	int ret = 0;
 	struct sm_mmap *map, *map_tmp;
 	unsigned long phys_addr;
@@ -1901,7 +1901,7 @@ static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
 	int status;
 	struct vc_sm_lock_unlock_t unlock;
 	struct sm_mmap *map, *map_tmp;
-	struct SM_RESOURCE_T *resource;
+	struct sm_resource_t *resource;
 	int ret = 0;
 
 	map = NULL;
@@ -2077,7 +2077,7 @@ int vc_sm_ioctl_import_dmabuf(struct SM_PRIV_DATA_T *private,
 {
 	int ret = 0;
 	int status;
-	struct SM_RESOURCE_T *resource = NULL;
+	struct sm_resource_t *resource = NULL;
 	struct vc_sm_import import = { 0 };
 	struct vc_sm_import_result result = { 0 };
 	struct dma_buf *dma_buf;
@@ -2206,7 +2206,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	unsigned int cmdnr = _IOC_NR(cmd);
 	struct SM_PRIV_DATA_T *file_data =
 	    (struct SM_PRIV_DATA_T *)file->private_data;
-	struct SM_RESOURCE_T *resource = NULL;
+	struct sm_resource_t *resource = NULL;
 
 	/* Validate we can work with this device. */
 	if ((sm_state == NULL) || (file_data == NULL)) {
@@ -3283,7 +3283,7 @@ int vc_sm_alloc(struct vc_sm_alloc_t *alloc, int *handle)
 {
 	struct vmcs_sm_ioctl_alloc ioparam = { 0 };
 	int ret;
-	struct SM_RESOURCE_T *resource;
+	struct sm_resource_t *resource;
 
 	/* Validate we can work with this device. */
 	if (sm_state == NULL || alloc == NULL || handle == NULL) {
@@ -3320,7 +3320,7 @@ EXPORT_SYMBOL_GPL(vc_sm_alloc);
 /* Get an internal resource handle mapped from the external one. */
 int vc_sm_int_handle(int handle)
 {
-	struct SM_RESOURCE_T *resource;
+	struct sm_resource_t *resource;
 	int ret = 0;
 
 	/* Validate we can work with this device. */
@@ -3433,7 +3433,7 @@ int vc_sm_import_dmabuf(struct dma_buf *dmabuf, int *handle)
 {
 	struct vmcs_sm_ioctl_import_dmabuf ioparam = { 0 };
 	int ret;
-	struct SM_RESOURCE_T *resource;
+	struct sm_resource_t *resource;
 
 	/* Validate we can work with this device. */
 	if (!sm_state || !dmabuf || !handle) {
