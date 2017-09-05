@@ -62,7 +62,7 @@
 #define VC_SM_WRITE_BUF_SIZE      128
 
 /* Statistics tracked per resource and globally. */
-enum SM_STATS_T {
+enum sm_stats_t {
 	/* Attempt. */
 	ALLOC,
 	FREE,
@@ -142,7 +142,7 @@ struct sm_resource_t {
 	enum vmcs_sm_cache_e res_cached;	/* Resource cache type. */
 	struct sm_resource_t *res_shared;	/* Shared resource */
 
-	enum SM_STATS_T res_stats[END_ALL];	/* Resource statistics. */
+	enum sm_stats_t res_stats[END_ALL];	/* Resource statistics. */
 
 	uint8_t map_count;	/* Counter of mappings for this resource. */
 	struct list_head map_list;	/* Maps associated with a resource. */
@@ -187,8 +187,8 @@ struct SM_STATE_T {
 	struct list_head map_list;      /* List of maps. */
 	struct list_head resource_list;	/* List of resources. */
 
-	enum SM_STATS_T deceased[END_ALL];    /* Natural termination stats. */
-	enum SM_STATS_T terminated[END_ALL];  /* Forced termination stats. */
+	enum sm_stats_t deceased[END_ALL];    /* Natural termination stats. */
+	enum sm_stats_t terminated[END_ALL];  /* Forced termination stats. */
 	uint32_t res_deceased_cnt;	      /* Natural termination counter. */
 	uint32_t res_terminated_cnt;	      /* Forced termination counter. */
 
