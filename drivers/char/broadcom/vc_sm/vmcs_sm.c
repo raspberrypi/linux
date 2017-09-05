@@ -218,6 +218,32 @@ static const char *const sm_cache_map_vector[] = {
 };
 #endif
 
+typedef void cache_flush_op_fn(const void *, const void *);
+
+#if defined(CONFIG_CPU_CACHE_V7)
+extern cache_flush_op_fn v7_dma_inv_range;
+extern cache_flush_op_fn v7_dma_clean_range;
+static cache_flush_op_fn * const flushops[4] =
+{
+	0,
+	v7_dma_inv_range,
+	v7_dma_clean_range,
+	v7_dma_flush_range,
+};
+#elif defined(CONFIG_CPU_CACHE_V6)
+extern cache_flush_op_fn v6_dma_inv_range;
+extern cache_flush_op_fn v6_dma_clean_range;
+static cache_flush_op_fn * const flushops[4] =
+{
+	0,
+	v6_dma_inv_range,
+	v6_dma_clean_range,
+	v6_dma_flush_range,
+};
+#else
+#error Unknown cache config
+#endif
+
 /* ---- Private Function Prototypes -------------------------------------- */
 
 /* ---- Private Functions ------------------------------------------------ */
@@ -2984,7 +3010,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					ret = -EFAULT;
 					goto out;
 				}
-				block = kcalloc(ioparam.op_count,
+				block = kmalloc(ioparam.op_count *
 						sizeof(struct vmcs_sm_ioctl_clean_invalid_block),
 						GFP_KERNEL);
 				if (!block) {
@@ -3000,35 +3026,21 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				}
 
 				for (i = 0; i < ioparam.op_count; i++) {
-					struct vmcs_sm_ioctl_clean_invalid_block *op = block + i;
+					const struct vmcs_sm_ioctl_clean_invalid_block * const op = block + i;
+					cache_flush_op_fn * const op_fn = flushops[op->invalidate_mode & 3];
+
+					if ((op->invalidate_mode & ~3) != 0) {
+						ret = -EINVAL;
+						break;
+					}
+
+					if (op_fn == 0)
+						continue;
 
 					for (j = 0; j < op->block_count; ++j) {
-
-
-						extern void v6_dma_inv_range(void *start, void *end);
-						extern void v6_dma_clean_range(void *start, void *end);
-						unsigned long base = (unsigned long)op->start_address + j * op->inter_block_stride;
-						unsigned long end = base + op->block_size;
-						/* L1/L2 cache clean */
-						if (op->invalidate_mode & 2) {
-#if defined(CONFIG_CPU_CACHE_V7)
-							extern void v7_dma_clean_range(void *start, void *end);
-							v7_dma_clean_range((void *)base, (void *)end);
-#elif defined(CONFIG_CPU_CACHE_V6)
-							extern void v6_dma_clean_range(void *start, void *end);
-							v6_dma_clean_range((void *)base, (void *)end);
-#endif
-						/* L1/L2 cache invalidate */
-						}
-						if (op->invalidate_mode & 1) {
-#if defined(CONFIG_CPU_CACHE_V7)
-							extern void v7_dma_inv_range(void *start, void *end);
-							v7_dma_inv_range((void *)base, (void *)end);
-#elif defined(CONFIG_CPU_CACHE_V6)
-							extern void v6_dma_inv_range(void *start, void *end);
-							v6_dma_inv_range((void *)base, (void *)end);
-#endif
-						}
+						const char * const base = (const char *)op->start_address + j * op->inter_block_stride;
+						const char * const end = base + op->block_size;
+						op_fn(base, end);
 					}
 				}
 				kfree(block);
