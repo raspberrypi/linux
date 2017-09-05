@@ -153,12 +153,12 @@ struct sm_resource_t {
 	struct sg_table *sgt;
 	dma_addr_t dma_addr;
 
-	struct SM_PRIV_DATA_T *private;
+	struct sm_priv_data_t *private;
 	bool map;		/* whether to map pages up front */
 };
 
 /* Private file data associated with each opened device. */
-struct SM_PRIV_DATA_T {
+struct sm_priv_data_t {
 	struct list_head resource_list; /* List of resources. */
 
 	pid_t pid;                      /* PID of creator. */
@@ -197,7 +197,7 @@ struct sm_state_t {
 	struct class *sm_class;	/* Class. */
 	struct device *sm_dev;	/* Device. */
 
-	struct SM_PRIV_DATA_T *data_knl;    /* Kernel internal data tracking. */
+	struct sm_priv_data_t *data_knl;    /* Kernel internal data tracking. */
 
 	struct mutex lock;	/* Global lock. */
 	uint32_t guid;		/* GUID (next) tracker. */
@@ -633,13 +633,13 @@ static int vc_sm_global_statistics_show(struct seq_file *s, void *v)
 static int vc_sm_statistics_show(struct seq_file *s, void *v)
 {
 	int ix;
-	struct SM_PRIV_DATA_T *file_data;
+	struct sm_priv_data_t *file_data;
 	struct sm_resource_t *resource;
 	int res_count = 0;
 	struct SM_PDE_T *p_pde;
 
 	p_pde = (struct SM_PDE_T *)(s->private);
-	file_data = (struct SM_PRIV_DATA_T *)(p_pde->priv_data);
+	file_data = (struct sm_priv_data_t *)(p_pde->priv_data);
 
 	if (file_data == NULL)
 		return 0;
@@ -690,13 +690,13 @@ static int vc_sm_statistics_show(struct seq_file *s, void *v)
 /* Read callback for the allocation proc entry.  */
 static int vc_sm_alloc_show(struct seq_file *s, void *v)
 {
-	struct SM_PRIV_DATA_T *file_data;
+	struct sm_priv_data_t *file_data;
 	struct sm_resource_t *resource;
 	int alloc_count = 0;
 	struct SM_PDE_T *p_pde;
 
 	p_pde = (struct SM_PDE_T *)(s->private);
-	file_data = (struct SM_PRIV_DATA_T *)(p_pde->priv_data);
+	file_data = (struct sm_priv_data_t *)(p_pde->priv_data);
 
 	if (!file_data)
 		return 0;
@@ -764,7 +764,7 @@ static const struct file_operations vc_sm_debug_fs_fops = {
  * Adds a resource to the private data list which tracks all the allocated
  * data.
  */
-static void vmcs_sm_add_resource(struct SM_PRIV_DATA_T *privdata,
+static void vmcs_sm_add_resource(struct sm_priv_data_t *privdata,
 				 struct sm_resource_t *resource)
 {
 	mutex_lock(&(sm_state->map_lock));
@@ -781,7 +781,7 @@ static void vmcs_sm_add_resource(struct SM_PRIV_DATA_T *privdata,
  * Locates a resource and acquire a reference on it.
  * The resource won't be deleted while there is a reference on it.
  */
-static struct sm_resource_t *vmcs_sm_acquire_resource(struct SM_PRIV_DATA_T
+static struct sm_resource_t *vmcs_sm_acquire_resource(struct sm_priv_data_t
 						      *private,
 						      unsigned int res_guid)
 {
@@ -812,7 +812,7 @@ static struct sm_resource_t *vmcs_sm_acquire_resource(struct SM_PRIV_DATA_T
  * The resource won't be deleted while there is a reference on it.
  */
 static struct sm_resource_t *vmcs_sm_acquire_first_resource(
-		struct SM_PRIV_DATA_T *private)
+		struct sm_priv_data_t *private)
 {
 	struct sm_resource_t *resource, *ret = NULL;
 
@@ -869,7 +869,7 @@ static struct sm_resource_t *vmcs_sm_acquire_global_resource(unsigned int
  */
 static void vmcs_sm_release_resource(struct sm_resource_t *resource, int force)
 {
-	struct SM_PRIV_DATA_T *private = resource->private;
+	struct sm_priv_data_t *private = resource->private;
 	struct sm_mmap *map, *map_tmp;
 	struct sm_resource_t *res_tmp;
 	int ret;
@@ -990,7 +990,7 @@ static void vmcs_sm_host_walk_map_per_pid(int pid)
  * Dump the allocation table from host side point of view.  This only dumps the
  * data allocated for this process/device referenced by the file_data.
  */
-static void vmcs_sm_host_walk_alloc(struct SM_PRIV_DATA_T *file_data)
+static void vmcs_sm_host_walk_alloc(struct sm_priv_data_t *file_data)
 {
 	struct sm_resource_t *resource = NULL;
 
@@ -1016,10 +1016,10 @@ static void vmcs_sm_host_walk_alloc(struct SM_PRIV_DATA_T *file_data)
 }
 
 /* Create support for private data tracking. */
-static struct SM_PRIV_DATA_T *vc_sm_create_priv_data(pid_t id)
+static struct sm_priv_data_t *vc_sm_create_priv_data(pid_t id)
 {
 	char alloc_name[32];
-	struct SM_PRIV_DATA_T *file_data = NULL;
+	struct sm_priv_data_t *file_data = NULL;
 
 	/* Allocate private structure. */
 	file_data = kzalloc(sizeof(*file_data), GFP_KERNEL);
@@ -1099,8 +1099,8 @@ out:
  */
 static int vc_sm_release(struct inode *inode, struct file *file)
 {
-	struct SM_PRIV_DATA_T *file_data =
-	    (struct SM_PRIV_DATA_T *)file->private_data;
+	struct sm_priv_data_t *file_data =
+	    (struct sm_priv_data_t *)file->private_data;
 	struct sm_resource_t *resource;
 	int ret = 0;
 
@@ -1311,8 +1311,8 @@ static void vcsm_vma_cache_clean_page_range(unsigned long addr,
 static int vc_sm_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	int ret = 0;
-	struct SM_PRIV_DATA_T *file_data =
-	    (struct SM_PRIV_DATA_T *)file->private_data;
+	struct sm_priv_data_t *file_data =
+	    (struct sm_priv_data_t *)file->private_data;
 	struct sm_resource_t *resource = NULL;
 	struct sm_mmap *map = NULL;
 
@@ -1444,7 +1444,7 @@ error:
 }
 
 /* Allocate a shared memory handle and block. */
-int vc_sm_ioctl_alloc(struct SM_PRIV_DATA_T *private,
+int vc_sm_ioctl_alloc(struct sm_priv_data_t *private,
 		      struct vmcs_sm_ioctl_alloc *ioparam)
 {
 	int ret = 0;
@@ -1555,7 +1555,7 @@ error:
 }
 
 /* Share an allocate memory handle and block.*/
-int vc_sm_ioctl_alloc_share(struct SM_PRIV_DATA_T *private,
+int vc_sm_ioctl_alloc_share(struct sm_priv_data_t *private,
 			    struct vmcs_sm_ioctl_alloc_share *ioparam)
 {
 	struct sm_resource_t *resource, *shared_resource;
@@ -1617,7 +1617,7 @@ error:
 }
 
 /* Free a previously allocated shared memory handle and block.*/
-static int vc_sm_ioctl_free(struct SM_PRIV_DATA_T *private,
+static int vc_sm_ioctl_free(struct sm_priv_data_t *private,
 			    struct vmcs_sm_ioctl_free *ioparam)
 {
 	struct sm_resource_t *resource =
@@ -1643,7 +1643,7 @@ static int vc_sm_ioctl_free(struct SM_PRIV_DATA_T *private,
 }
 
 /* Resize a previously allocated shared memory handle and block. */
-static int vc_sm_ioctl_resize(struct SM_PRIV_DATA_T *private,
+static int vc_sm_ioctl_resize(struct sm_priv_data_t *private,
 			      struct vmcs_sm_ioctl_resize *ioparam)
 {
 	int ret = 0;
@@ -1728,7 +1728,7 @@ error:
 }
 
 /* Lock a previously allocated shared memory handle and block. */
-static int vc_sm_ioctl_lock(struct SM_PRIV_DATA_T *private,
+static int vc_sm_ioctl_lock(struct sm_priv_data_t *private,
 			    struct vmcs_sm_ioctl_lock_unlock *ioparam,
 			    int change_cache, enum vmcs_sm_cache_e cache_type,
 			    unsigned int vc_addr)
@@ -1894,7 +1894,7 @@ error:
 }
 
 /* Unlock a previously allocated shared memory handle and block.*/
-static int vc_sm_ioctl_unlock(struct SM_PRIV_DATA_T *private,
+static int vc_sm_ioctl_unlock(struct sm_priv_data_t *private,
 			      struct vmcs_sm_ioctl_lock_unlock *ioparam,
 			      int flush, int wait_reply, int no_vc_unlock)
 {
@@ -2071,7 +2071,7 @@ error:
 }
 
 /* Import a contiguous block of memory to be shared with VC. */
-int vc_sm_ioctl_import_dmabuf(struct SM_PRIV_DATA_T *private,
+int vc_sm_ioctl_import_dmabuf(struct sm_priv_data_t *private,
 			      struct vmcs_sm_ioctl_import_dmabuf *ioparam,
 			      struct dma_buf *src_dma_buf)
 {
@@ -2204,8 +2204,8 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 	unsigned int cmdnr = _IOC_NR(cmd);
-	struct SM_PRIV_DATA_T *file_data =
-	    (struct SM_PRIV_DATA_T *)file->private_data;
+	struct sm_priv_data_t *file_data =
+	    (struct sm_priv_data_t *)file->private_data;
 	struct sm_resource_t *resource = NULL;
 
 	/* Validate we can work with this device. */
