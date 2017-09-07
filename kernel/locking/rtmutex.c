@@ -1787,7 +1787,6 @@ int __rt_mutex_start_proxy_lock(struct rt_mutex *lock,
 	raw_spin_lock(&task->pi_lock);
 	if (task->pi_blocked_on) {
 		raw_spin_unlock(&task->pi_lock);
-		raw_spin_unlock_irq(&lock->wait_lock);
 		return -EAGAIN;
 	}
 	task->pi_blocked_on = PI_REQUEUE_INPROGRESS;
