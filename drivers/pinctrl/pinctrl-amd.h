@@ -95,6 +95,7 @@ struct amd_gpio {
 	struct gpio_chip        gc;
 	struct resource         *res;
 	struct platform_device  *pdev;
+	u32			*saved_regs;
 };
 
 /*  KERNCZ configuration*/
