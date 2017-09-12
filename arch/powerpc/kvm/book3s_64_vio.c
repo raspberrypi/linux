@@ -129,8 +129,11 @@ static int kvm_spapr_tce_mmap(struct file *file, struct vm_area_struct *vma)
 static int kvm_spapr_tce_release(struct inode *inode, struct file *filp)
 {
 	struct kvmppc_spapr_tce_table *stt = filp->private_data;
+	struct kvm *kvm = stt->kvm;
 
+	mutex_lock(&kvm->lock);
 	list_del_rcu(&stt->list);
+	mutex_unlock(&kvm->lock);
 
 	kvm_put_kvm(stt->kvm);
 
