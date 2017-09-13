@@ -3062,6 +3062,8 @@ __setup("dhash_entries=", set_dhash_entries);
 
 static void __init dcache_init_early(void)
 {
+	unsigned int loop;
+
 	/* If hashes are distributed across NUMA nodes, defer
 	 * hash allocation until vmalloc space is available.
 	 */
@@ -3078,11 +3080,16 @@ static void __init dcache_init_early(void)
 					NULL,
 					0,
 					0);
+
+	for (loop = 0; loop < (1U << d_hash_shift); loop++)
+		INIT_HLIST_BL_HEAD(dentry_hashtable + loop);
+
 	d_hash_shift = 32 - d_hash_shift;
 }
 
 static void __init dcache_init(void)
 {
+	unsigned int loop;
 	/*
 	 * A constructor could be added for stable state like the lists,
 	 * but it is probably not worth it because of the cache nature
@@ -3106,6 +3113,10 @@ static void __init dcache_init(void)
 					NULL,
 					0,
 					0);
+
+	for (loop = 0; loop < (1U << d_hash_shift); loop++)
+		INIT_HLIST_BL_HEAD(dentry_hashtable + loop);
+
 	d_hash_shift = 32 - d_hash_shift;
 }
 
