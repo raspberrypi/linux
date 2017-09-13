@@ -36,6 +36,7 @@
 #include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/srcu.h>
+#include <linux/cpu.h>
 
 #include "rcu.h"
 #include "rcu_segcblist.h"
@@ -425,21 +426,6 @@ static void srcu_gp_start(struct srcu_struct *sp)
 }
 
 /*
- * Track online CPUs to guide callback workqueue placement.
- */
-DEFINE_PER_CPU(bool, srcu_online);
-
-void srcu_online_cpu(unsigned int cpu)
-{
-	WRITE_ONCE(per_cpu(srcu_online, cpu), true);
-}
-
-void srcu_offline_cpu(unsigned int cpu)
-{
-	WRITE_ONCE(per_cpu(srcu_online, cpu), false);
-}
-
-/*
  * Place the workqueue handler on the specified CPU if online, otherwise
  * just run it whereever.  This is useful for placing workqueue handlers
  * that are to invoke the specified CPU's callbacks.
@@ -450,12 +436,12 @@ static bool srcu_queue_delayed_work_on(int cpu, struct workqueue_struct *wq,
 {
 	bool ret;
 
-	preempt_disable();
-	if (READ_ONCE(per_cpu(srcu_online, cpu)))
+	cpus_read_lock();
+	if (cpu_online(cpu))
 		ret = queue_delayed_work_on(cpu, wq, dwork, delay);
 	else
 		ret = queue_delayed_work(wq, dwork, delay);
-	preempt_enable();
+	cpus_read_unlock();
 	return ret;
 }
 
