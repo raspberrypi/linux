@@ -109,7 +109,11 @@
 #define	READ_ADDR			0
 
 /* NAND_DEV_CMD_VLD bits */
-#define	READ_START_VLD			0
+#define	READ_START_VLD			BIT(0)
+#define	READ_STOP_VLD			BIT(1)
+#define	WRITE_START_VLD			BIT(2)
+#define	ERASE_START_VLD			BIT(3)
+#define	SEQ_READ_START_VLD		BIT(4)
 
 /* NAND_EBI2_ECC_BUF_CFG bits */
 #define	NUM_STEPS			0
@@ -147,6 +151,10 @@
 #define	BLOCK_ERASE			0xa
 #define	FETCH_ID			0xb
 #define	RESET_DEVICE			0xd
+
+/* Default Value for NAND_DEV_CMD_VLD */
+#define NAND_DEV_CMD_VLD_VAL		(READ_START_VLD | WRITE_START_VLD | \
+					 ERASE_START_VLD | SEQ_READ_START_VLD)
 
 /*
  * the NAND controller performs reads/writes with ECC in 516 byte chunks.
@@ -672,8 +680,7 @@ static int nandc_param(struct qcom_nand_host *host)
 
 	/* configure CMD1 and VLD for ONFI param probing */
 	nandc_set_reg(nandc, NAND_DEV_CMD_VLD,
-		      (nandc->vld & ~(1 << READ_START_VLD))
-		      | 0 << READ_START_VLD);
+		      (nandc->vld & ~READ_START_VLD));
 	nandc_set_reg(nandc, NAND_DEV_CMD1,
 		      (nandc->cmd1 & ~(0xFF << READ_ADDR))
 		      | NAND_CMD_PARAM << READ_ADDR);
@@ -1893,7 +1900,7 @@ static int qcom_nand_host_setup(struct qcom_nand_host *host)
 				| wide_bus << WIDE_FLASH
 				| 1 << DEV0_CFG1_ECC_DISABLE;
 
-	host->ecc_bch_cfg = host->bch_enabled << ECC_CFG_ECC_DISABLE
+	host->ecc_bch_cfg = !host->bch_enabled << ECC_CFG_ECC_DISABLE
 				| 0 << ECC_SW_RESET
 				| host->cw_data << ECC_NUM_DATA_BYTES
 				| 1 << ECC_FORCE_CLK_OPEN
@@ -1972,13 +1979,14 @@ static int qcom_nandc_setup(struct qcom_nand_controller *nandc)
 {
 	/* kill onenand */
 	nandc_write(nandc, SFLASHC_BURST_CFG, 0);
+	nandc_write(nandc, NAND_DEV_CMD_VLD, NAND_DEV_CMD_VLD_VAL);
 
 	/* enable ADM DMA */
 	nandc_write(nandc, NAND_FLASH_CHIP_SELECT, DM_EN);
 
 	/* save the original values of these registers */
 	nandc->cmd1 = nandc_read(nandc, NAND_DEV_CMD1);
-	nandc->vld = nandc_read(nandc, NAND_DEV_CMD_VLD);
+	nandc->vld = NAND_DEV_CMD_VLD_VAL;
 
 	return 0;
 }
