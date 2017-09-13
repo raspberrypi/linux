@@ -154,7 +154,7 @@ void *idr_replace(struct idr *idr, void *ptr, int id)
 	void __rcu **slot = NULL;
 	void *entry;
 
-	if (WARN_ON_ONCE(id < 0))
+	if (id < 0)
 		return ERR_PTR(-EINVAL);
 	if (WARN_ON_ONCE(radix_tree_is_internal_node(ptr)))
 		return ERR_PTR(-EINVAL);
