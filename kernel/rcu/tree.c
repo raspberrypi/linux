@@ -3775,8 +3775,6 @@ int rcutree_online_cpu(unsigned int cpu)
 {
 	sync_sched_exp_online_cleanup(cpu);
 	rcutree_affinity_setting(cpu, -1);
-	if (IS_ENABLED(CONFIG_TREE_SRCU))
-		srcu_online_cpu(cpu);
 	return 0;
 }
 
@@ -3787,8 +3785,6 @@ int rcutree_online_cpu(unsigned int cpu)
 int rcutree_offline_cpu(unsigned int cpu)
 {
 	rcutree_affinity_setting(cpu, cpu);
-	if (IS_ENABLED(CONFIG_TREE_SRCU))
-		srcu_offline_cpu(cpu);
 	return 0;
 }
 
@@ -4236,8 +4232,6 @@ void __init rcu_init(void)
 	for_each_online_cpu(cpu) {
 		rcutree_prepare_cpu(cpu);
 		rcu_cpu_starting(cpu);
-		if (IS_ENABLED(CONFIG_TREE_SRCU))
-			srcu_online_cpu(cpu);
 	}
 }
 
