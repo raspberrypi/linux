@@ -3784,8 +3784,6 @@ int rcutree_online_cpu(unsigned int cpu)
 		rnp->ffmask |= rdp->grpmask;
 		raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
 	}
-	if (IS_ENABLED(CONFIG_TREE_SRCU))
-		srcu_online_cpu(cpu);
 	if (rcu_scheduler_active == RCU_SCHEDULER_INACTIVE)
 		return 0; /* Too early in boot for scheduler work. */
 	sync_sched_exp_online_cleanup(cpu);
@@ -3813,8 +3811,6 @@ int rcutree_offline_cpu(unsigned int cpu)
 	}
 
 	rcutree_affinity_setting(cpu, cpu);
-	if (IS_ENABLED(CONFIG_TREE_SRCU))
-		srcu_offline_cpu(cpu);
 	return 0;
 }
 
