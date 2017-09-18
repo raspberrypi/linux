@@ -5638,6 +5638,8 @@ int __init cgroup_init_early(void)
 }
 
 static u16 cgroup_disable_mask __initdata;
+static bool cgroup_enable_memory;
+static int __init cgroup_disable(char *str);
 
 /**
  * cgroup_init - cgroup initialization
@@ -5675,6 +5677,9 @@ int __init cgroup_init(void)
 	BUG_ON(cgroup_setup_root(&cgrp_dfl_root, 0));
 
 	mutex_unlock(&cgroup_mutex);
+
+	if (!cgroup_enable_memory)
+		cgroup_disable("memory");
 
 	for_each_subsys(ss, ssid) {
 		if (ss->early_init) {
@@ -6150,6 +6155,13 @@ static int __init cgroup_disable(char *str)
 	return 1;
 }
 __setup("cgroup_disable=", cgroup_disable);
+
+static int __init cgroup_memory(char *str)
+{
+	kstrtobool(str, &cgroup_enable_memory);
+	return 1;
+}
+__setup("cgroup_memory=", cgroup_memory);
 
 static int __init cgroup_no_v1(char *str)
 {
