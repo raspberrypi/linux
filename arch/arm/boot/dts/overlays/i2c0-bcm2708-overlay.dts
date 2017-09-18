@@ -1,6 +1,12 @@
 /*
  * Device tree overlay for i2c_bcm2708, i2c0 bus
  *
+ * By default we have an i2c_mux_pinctrl node to expose i2c-0 as BSC0 on
+ * GPIOs 0&1, and i2c-4 as BSC0 on GPIOs 28&29 or 44&45 to talk to the camera
+ * or display.
+ * If using this overlay then we assume you want full control of BSC0 and
+ * disable the mux.
+ *
  * Compile:
  * dtc -@ -I dts -O dtb -o i2c0-bcm2708-overlay.dtb i2c0-bcm2708-overlay.dts
  */
@@ -12,13 +18,26 @@
    compatible = "brcm,bcm2708";
 
    fragment@0 {
-      target = <&i2c0>;
+      target = <&gpio>;
       __overlay__ {
-         status = "okay";
+         i2c0_pins: i2c0 {
+                 brcm,pins = <0 1>;
+                 brcm,function = <4>;
+         };
       };
    };
 
    fragment@1 {
+      target = <&i2c10>;
+      __overlay__ {
+         status = "okay";
+
+         pinctrl-names = "default";
+         pinctrl-0 = <&i2c0_pins>;
+      };
+   };
+
+   fragment@2 {
       target = <&i2c0_pins>;
       frag1: __overlay__ {
          brcm,pins = <0 1>;
@@ -26,7 +45,7 @@
       };
    };
 
-   fragment@2 {
+   fragment@3 {
       target = <&i2c0_pins>;
       __dormant__ {
          brcm,pins = <28 29>;
@@ -34,7 +53,7 @@
       };
    };
 
-   fragment@3 {
+   fragment@4 {
       target = <&i2c0_pins>;
       __dormant__ {
          brcm,pins = <44 45>;
@@ -42,7 +61,7 @@
       };
    };
 
-   fragment@4 {
+   fragment@5 {
       target = <&i2c0_pins>;
       __dormant__ {
          brcm,pins = <46 47>;
@@ -50,20 +69,34 @@
       };
    };
 
-   fragment@5 {
+   fragment@6 {
       target = <&i2c0>;
       __dormant__ {
          compatible = "brcm,bcm2708-i2c";
       };
    };
 
+   fragment@7 {
+      target = <&i2c10mux>;
+      __overlay__ {
+         status = "disabled";
+      };
+   };
+
+   fragment@8 {
+      target-path = "/aliases";
+      __overlay__ {
+         i2c0 = "/soc/i2c@7e205000";
+      };
+   };
+
    __overrides__ {
       sda0_pin = <&frag1>,"brcm,pins:0";
       scl0_pin = <&frag1>,"brcm,pins:4";
-      pins_0_1   = <0>,"+1-2-3-4";
-      pins_28_29 = <0>,"-1+2-3-4";
-      pins_44_45 = <0>,"-1-2+3-4";
-      pins_46_47 = <0>,"-1-2-3+4";
+      pins_0_1   = <0>,"+2-3-4-5";
+      pins_28_29 = <0>,"-2+3-4-5";
+      pins_44_45 = <0>,"-2-3+4-5";
+      pins_46_47 = <0>,"-2-3-4+5";
       combine = <0>, "!5";
    };
 };

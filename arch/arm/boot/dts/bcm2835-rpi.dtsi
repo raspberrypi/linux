@@ -1,4 +1,5 @@
 #include <dt-bindings/power/raspberrypi-power.h>
+#include "bcm283x-rpi-i2c10mux_0_28.dtsi"
 
 / {
 	memory {
@@ -45,8 +46,6 @@
 };
 
 &i2c0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c0_gpio0>;
 	status = "okay";
 	clock-frequency = <100000>;
 };

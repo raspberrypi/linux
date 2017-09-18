@@ -19,11 +19,6 @@
 		brcm,function = <1>; /* output */
 	};
 
-	i2c0_pins: i2c0 {
-		brcm,pins = <0 1>;
-		brcm,function = <4>;
-	};
-
 	i2c1_pins: i2c1 {
 		brcm,pins = <2 3>;
 		brcm,function = <4>;
@@ -38,6 +33,11 @@
 		brcm,pins = <40 45>;
 		brcm,function = <4>;
 	};
+};
+
+&i2c10mux {
+	pinctrl-0;
+	pinctrl-1 = <&i2c0_gpio28>;
 };
 
 &uart0 {
@@ -66,9 +66,7 @@
 	};
 };
 
-&i2c0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c0_pins>;
+&i2c10 {
 	clock-frequency = <100000>;
 };
 

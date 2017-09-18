@@ -25,6 +25,8 @@
 		i2s = &i2s;
 		spi0 = &spi0;
 		i2c0 = &i2c0;
+		i2c4 = &i2c_csi_dsi;
+		i2c10 = &i2c10;
 		uart1 = &uart1;
 		spi1 = &spi1;
 		spi2 = &spi2;
@@ -101,10 +103,10 @@
 		uart1 = <&uart1>,"status";
 		i2s = <&i2s>,"status";
 		spi = <&spi0>,"status";
-		i2c0 = <&i2c0>,"status";
+		i2c0 = <&i2c10>,"status",<&i2c10mux>,"status";
 		i2c1 = <&i2c1>,"status";
 		i2c2_iknowwhatimdoing = <&i2c2>,"status";
-		i2c0_baudrate = <&i2c0>,"clock-frequency:0";
+		i2c0_baudrate = <&i2c10>,"clock-frequency:0";
 		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
 		i2c2_baudrate = <&i2c2>,"clock-frequency:0";
 

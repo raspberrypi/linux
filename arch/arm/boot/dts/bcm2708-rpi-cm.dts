@@ -3,6 +3,7 @@
 #include "bcm2708-rpi-cm.dtsi"
 #include "bcm283x-rpi-csi0-2lane.dtsi"
 #include "bcm283x-rpi-csi1-4lane.dtsi"
+#include "bcm283x-rpi-i2c10mux_0_28.dtsi"
 
 / {
 	model = "Raspberry Pi Compute Module";
@@ -21,11 +22,6 @@
 	spi0_cs_pins: spi0_cs_pins {
 		brcm,pins = <8 7>;
 		brcm,function = <1>; /* output */
-	};
-
-	i2c0_pins: i2c0 {
-		brcm,pins = <0 1>;
-		brcm,function = <4>;
 	};
 
 	i2c1_pins: i2c1 {
@@ -66,9 +62,7 @@
 	};
 };
 
-&i2c0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c0_pins>;
+&i2c10 {
 	clock-frequency = <100000>;
 };
 
