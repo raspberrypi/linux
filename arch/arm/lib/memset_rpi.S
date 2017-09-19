@@ -52,6 +52,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 ENTRY(mmioset)
 ENTRY(memset)
+ENTRY(__memset32)
+ENTRY(__memset64)
+
         S       .req    a1
         DAT0    .req    a2
         N       .req    a3
@@ -119,5 +122,7 @@ ENTRY(memset)
         .unreq  DAT1
         .unreq  DAT2
         .unreq  DAT3
+ENDPROC(__memset64)
+ENDPROC(__memset32)
 ENDPROC(memset)
 ENDPROC(mmioset)
