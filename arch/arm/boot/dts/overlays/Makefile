@@ -29,6 +29,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	goodix.dtbo \
 	googlevoicehat-soundcard.dtbo \
 	gpio-ir.dtbo \
+	gpio-ir-tx.dtbo \
 	gpio-poweroff.dtbo \
 	gpio-shutdown.dtbo \
 	hifiberry-amp.dtbo \
@@ -78,6 +79,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pps-gpio.dtbo \
 	pwm.dtbo \
 	pwm-2chan.dtbo \
+	pwm-ir-tx.dtbo \
 	qca7000.dtbo \
 	raspidac3.dtbo \
 	rotary-encoder.dtbo \
