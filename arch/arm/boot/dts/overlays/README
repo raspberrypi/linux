@@ -495,6 +495,17 @@ Params: gpio_pin                Input pin number. Default is 18.
                                 ir-keytable), defaults to "rc-rc6-mce"
 
 
+Name:   gpio-ir-tx
+Info:   Use GPIO pin as bit-banged infrared transmitter output.
+        This is an alternative to "pwm-ir-tx". gpio-ir-tx doesn't require
+        a PWM so it can be used together with onboard analog audio.
+Load:   dtoverlay=gpio-ir-tx,<param>=<val>
+Params: gpio_pin                Output GPIO (default 18)
+
+        invert                  "1" = invert the output (make it active-low).
+                                Default is "0" (active-high).
+
+
 Name:   gpio-poweroff
 Info:   Drives a GPIO high or low on poweroff (including halt)
 Load:   dtoverlay=gpio-poweroff,<param>=<val>
@@ -1193,6 +1204,19 @@ Params: pin                     Output pin (default 18) - see table
         func                    Pin function (default 2 = Alt5) - see above
         func2                   Function for pin2 (default 2 = Alt5)
         clock                   PWM clock frequency (informational)
+
+
+Name:   pwm-ir-tx
+Info:   Use GPIO pin as pwm-assisted infrared transmitter output.
+        This is an alternative to "gpio-ir-tx". pwm-ir-tx makes use
+        of PWM0 to reduce the CPU load during transmission compared to
+        gpio-ir-tx which uses bit-banging.
+        Legal pin,function combinations are:
+          12,4(Alt0) 18,2(Alt5) 40,4(Alt0) 52,5(Alt1)
+Load:   dtoverlay=pwm-ir-tx,<param>=<val>
+Params: gpio_pin                Output GPIO (default 18)
+
+        func                    Pin function (default 2 = Alt5)
 
 
 Name:   qca7000
