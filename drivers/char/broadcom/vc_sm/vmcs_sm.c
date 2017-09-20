@@ -223,6 +223,7 @@ typedef void cache_flush_op_fn(const void *, const void *);
 #if defined(CONFIG_CPU_CACHE_V7)
 extern cache_flush_op_fn v7_dma_inv_range;
 extern cache_flush_op_fn v7_dma_clean_range;
+extern cache_flush_op_fn v7_dma_flush_range;
 static cache_flush_op_fn * const flushops[4] =
 {
 	0,
@@ -233,6 +234,7 @@ static cache_flush_op_fn * const flushops[4] =
 #elif defined(CONFIG_CPU_CACHE_V6)
 extern cache_flush_op_fn v6_dma_inv_range;
 extern cache_flush_op_fn v6_dma_clean_range;
+extern cache_flush_op_fn v6_dma_flush_range;
 static cache_flush_op_fn * const flushops[4] =
 {
 	0,
