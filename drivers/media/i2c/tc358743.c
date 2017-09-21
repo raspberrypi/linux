@@ -1606,28 +1606,29 @@ static int tc358743_g_mbus_config(struct v4l2_subdev *sd,
 			     struct v4l2_mbus_config *cfg)
 {
 	struct tc358743_state *state = to_state(sd);
+	const u32 mask = V4L2_MBUS_CSI2_LANE_MASK;
+
+	if (state->csi_lanes_in_use > state->bus.num_data_lanes)
+		return -EINVAL;
 
 	cfg->type = V4L2_MBUS_CSI2;
+	cfg->flags = (state->csi_lanes_in_use << __ffs(mask)) & mask;
 
-	/* Support for non-continuous CSI-2 clock is missing in the driver */
-	cfg->flags = V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
+	/* In DT mode, only report the number of active lanes */
+	if (sd->dev->of_node)
+		return 0;
 
-	switch (state->csi_lanes_in_use) {
-	case 1:
+	/* Support for non-continuous CSI-2 clock is missing in pdata mode */
+	cfg->flags |= V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
+
+	if (state->bus.num_data_lanes > 0)
 		cfg->flags |= V4L2_MBUS_CSI2_1_LANE;
-		break;
-	case 2:
+	if (state->bus.num_data_lanes > 1)
 		cfg->flags |= V4L2_MBUS_CSI2_2_LANE;
-		break;
-	case 3:
+	if (state->bus.num_data_lanes > 2)
 		cfg->flags |= V4L2_MBUS_CSI2_3_LANE;
-		break;
-	case 4:
+	if (state->bus.num_data_lanes > 3)
 		cfg->flags |= V4L2_MBUS_CSI2_4_LANE;
-		break;
-	default:
-		return -EINVAL;
-	}
 
 	return 0;
 }
@@ -2052,6 +2053,7 @@ static int tc358743_probe(struct i2c_client *client,
 	if (pdata) {
 		state->pdata = *pdata;
 		state->bus.flags = V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
+		state->bus.num_data_lanes = 4;
 	} else {
 		err = tc358743_probe_of(state);
 		if (err == -ENODEV)
