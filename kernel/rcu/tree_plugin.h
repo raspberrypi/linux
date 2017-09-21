@@ -323,9 +323,13 @@ static void rcu_preempt_note_context_switch(bool preempt)
 	struct task_struct *t = current;
 	struct rcu_data *rdp;
 	struct rcu_node *rnp;
+	int mg_counter = 0;
 
 	RCU_LOCKDEP_WARN(!irqs_disabled(), "rcu_preempt_note_context_switch() invoked with interrupts enabled!!!\n");
-	WARN_ON_ONCE(!preempt && t->rcu_read_lock_nesting > 0);
+#if defined(CONFIG_PREEMPT_COUNT) && defined(CONFIG_SMP)
+	mg_counter = t->migrate_disable;
+#endif
+	WARN_ON_ONCE(!preempt && t->rcu_read_lock_nesting > 0 && !mg_counter);
 	if (t->rcu_read_lock_nesting > 0 &&
 	    !t->rcu_read_unlock_special.b.blocked) {
 
