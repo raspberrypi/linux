@@ -337,9 +337,13 @@ static void rcu_preempt_note_context_switch(bool preempt)
 	struct task_struct *t = current;
 	struct rcu_data *rdp;
 	struct rcu_node *rnp;
+	int sleeping_l = 0;
 
 	lockdep_assert_irqs_disabled();
-	WARN_ON_ONCE(!preempt && t->rcu_read_lock_nesting > 0);
+#if defined(CONFIG_PREEMPT_RT_FULL)
+	sleeping_l = t->sleeping_lock;
+#endif
+	WARN_ON_ONCE(!preempt && t->rcu_read_lock_nesting > 0 && !sleeping_l);
 	if (t->rcu_read_lock_nesting > 0 &&
 	    !t->rcu_read_unlock_special.b.blocked) {
 
