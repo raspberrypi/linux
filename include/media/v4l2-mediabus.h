@@ -118,6 +118,14 @@ struct v4l2_mbus_config_mipi_csi1 {
 	unsigned char data_lane;
 	unsigned char clock_lane;
 };
+/*
+ * Number of lanes in use, 0 == use all available lanes (default)
+ *
+ * This is a temporary fix for devices that need to reduce the number of active
+ * lanes for certain modes, until g_mbus_config() can be replaced with a better
+ * solution.
+ */
+#define V4L2_MBUS_CSI2_LANE_MASK                (0xf << 10)
 
 /**
  * enum v4l2_mbus_type - media bus type

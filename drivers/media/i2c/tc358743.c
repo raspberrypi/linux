@@ -1609,8 +1609,17 @@ static int tc358743_get_mbus_config(struct v4l2_subdev *sd,
 				    struct v4l2_mbus_config *cfg)
 {
 	struct tc358743_state *state = to_state(sd);
+	const u32 mask = V4L2_MBUS_CSI2_LANE_MASK;
+
+	if (state->csi_lanes_in_use > state->bus.num_data_lanes)
+		return -EINVAL;
 
 	cfg->type = V4L2_MBUS_CSI2_DPHY;
+	cfg->flags = (state->csi_lanes_in_use << __ffs(mask)) & mask;
+
+	/* In DT mode, only report the number of active lanes */
+	if (sd->dev->of_node)
+		return 0;
 
 	/* Support for non-continuous CSI-2 clock is missing in the driver */
 	cfg->bus.mipi_csi2.flags = 0;
@@ -2040,6 +2049,7 @@ static int tc358743_probe(struct i2c_client *client)
 	if (pdata) {
 		state->pdata = *pdata;
 		state->bus.flags = 0;
+		state->bus.num_data_lanes = 4;
 	} else {
 		err = tc358743_probe_of(state);
 		if (err == -ENODEV)
