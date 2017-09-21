@@ -2964,12 +2964,9 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			}
 			for (i = 0; i < sizeof(ioparam.s) / sizeof(*ioparam.s); i++) {
 				switch (ioparam.s[i].cmd) {
-				default:
-				case 0:
-					break; /* NOOP */
-				case 1:	/* L1/L2 invalidate virtual range */
-				case 2: /* L1/L2 clean physical range */
-				case 3: /* L1/L2 clean+invalidate all */
+				case VCSM_CACHE_OP_INV:	/* L1/L2 invalidate virtual range */
+				case VCSM_CACHE_OP_FLUSH: /* L1/L2 clean physical range */
+				case VCSM_CACHE_OP_CLEAN: /* L1/L2 clean+invalidate all */
 					/* Locate resource from GUID. */
 					resource =
 					    vmcs_sm_acquire_resource(file_data, ioparam.s[i].handle);
@@ -2993,6 +2990,8 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 						vmcs_sm_release_resource(resource, 0);
 
 					break;
+				default:
+					break; /* NOOP */
 				}
 			}
 		}
