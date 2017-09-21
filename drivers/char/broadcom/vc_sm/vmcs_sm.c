@@ -218,34 +218,6 @@ static const char *const sm_cache_map_vector[] = {
 };
 #endif
 
-typedef void cache_flush_op_fn(const void *, const void *);
-
-#if defined(CONFIG_CPU_CACHE_V7)
-extern cache_flush_op_fn v7_dma_inv_range;
-extern cache_flush_op_fn v7_dma_clean_range;
-extern cache_flush_op_fn v7_dma_flush_range;
-static cache_flush_op_fn * const flushops[4] =
-{
-	0,
-	v7_dma_inv_range,
-	v7_dma_clean_range,
-	v7_dma_flush_range,
-};
-#elif defined(CONFIG_CPU_CACHE_V6)
-extern cache_flush_op_fn v6_dma_inv_range;
-extern cache_flush_op_fn v6_dma_clean_range;
-extern cache_flush_op_fn v6_dma_flush_range;
-static cache_flush_op_fn * const flushops[4] =
-{
-	0,
-	v6_dma_inv_range,
-	v6_dma_clean_range,
-	v6_dma_flush_range,
-};
-#else
-#error Unknown cache config
-#endif
-
 /* ---- Private Function Prototypes -------------------------------------- */
 
 /* ---- Private Functions ------------------------------------------------ */
@@ -3028,7 +3000,22 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 				for (i = 0; i < ioparam.op_count; i++) {
 					const struct vmcs_sm_ioctl_clean_invalid_block * const op = block + i;
-					cache_flush_op_fn * const op_fn = flushops[op->invalidate_mode & 3];
+					void (*op_fn)(const void *, const void *);
+
+					switch(op->invalidate_mode & 3) {
+						case VCSM_CACHE_OP_INV:
+							op_fn = dmac_inv_range;
+							break;
+						case VCSM_CACHE_OP_CLEAN:
+							op_fn = dmac_clean_range;
+							break;
+						case VCSM_CACHE_OP_FLUSH:
+							op_fn = dmac_flush_range;
+							break;
+						default:
+							op_fn = 0;
+							break;
+					}
 
 					if ((op->invalidate_mode & ~3) != 0) {
 						ret = -EINVAL;
