@@ -1084,7 +1084,12 @@ static void netvsc_link_change(struct work_struct *w)
 	bool notify = false, reschedule = false;
 	unsigned long flags, next_reconfig, delay;
 
-	rtnl_lock();
+	/* if changes are happening, comeback later */
+	if (!rtnl_trylock()) {
+		schedule_delayed_work(&ndev_ctx->dwork, LINKCHANGE_INT);
+		return;
+	}
+
 	if (ndev_ctx->start_remove)
 		goto out_unlock;
 

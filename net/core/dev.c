@@ -5337,12 +5337,13 @@ EXPORT_SYMBOL(netdev_has_upper_dev);
  * Find out if a device is linked to an upper device and return true in case
  * it is. The caller must hold the RTNL lock.
  */
-static bool netdev_has_any_upper_dev(struct net_device *dev)
+bool netdev_has_any_upper_dev(struct net_device *dev)
 {
 	ASSERT_RTNL();
 
 	return !list_empty(&dev->all_adj_list.upper);
 }
+EXPORT_SYMBOL(netdev_has_any_upper_dev);
 
 /**
  * netdev_master_upper_dev_get - Get master upper device

@@ -66,7 +66,6 @@ xfs_inode_alloc(
 
 	XFS_STATS_INC(mp, vn_active);
 	ASSERT(atomic_read(&ip->i_pincount) == 0);
-	ASSERT(!spin_is_locked(&ip->i_flags_lock));
 	ASSERT(!xfs_isiflocked(ip));
 	ASSERT(ip->i_ino == 0);
 
@@ -192,7 +191,7 @@ xfs_perag_set_reclaim_tag(
 {
 	struct xfs_mount	*mp = pag->pag_mount;
 
-	ASSERT(spin_is_locked(&pag->pag_ici_lock));
+	lockdep_assert_held(&pag->pag_ici_lock);
 	if (pag->pag_ici_reclaimable++)
 		return;
 
@@ -214,7 +213,7 @@ xfs_perag_clear_reclaim_tag(
 {
 	struct xfs_mount	*mp = pag->pag_mount;
 
-	ASSERT(spin_is_locked(&pag->pag_ici_lock));
+	lockdep_assert_held(&pag->pag_ici_lock);
 	if (--pag->pag_ici_reclaimable)
 		return;
 
@@ -1079,11 +1078,11 @@ reclaim:
 	 * Because we use RCU freeing we need to ensure the inode always appears
 	 * to be reclaimed with an invalid inode number when in the free state.
 	 * We do this as early as possible under the ILOCK so that
-	 * xfs_iflush_cluster() can be guaranteed to detect races with us here.
-	 * By doing this, we guarantee that once xfs_iflush_cluster has locked
-	 * XFS_ILOCK that it will see either a valid, flushable inode that will
-	 * serialise correctly, or it will see a clean (and invalid) inode that
-	 * it can skip.
+	 * xfs_iflush_cluster() and xfs_ifree_cluster() can be guaranteed to
+	 * detect races with us here. By doing this, we guarantee that once
+	 * xfs_iflush_cluster() or xfs_ifree_cluster() has locked XFS_ILOCK that
+	 * it will see either a valid inode that will serialise correctly, or it
+	 * will see an invalid inode that it can skip.
 	 */
 	spin_lock(&ip->i_flags_lock);
 	ip->i_flags = XFS_IRECLAIM;

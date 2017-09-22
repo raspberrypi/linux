@@ -881,7 +881,6 @@ xfs_ialloc(
 	case S_IFREG:
 	case S_IFDIR:
 		if (pip && (pip->i_d.di_flags & XFS_DIFLAG_ANY)) {
-			uint64_t	di_flags2 = 0;
 			uint		di_flags = 0;
 
 			if (S_ISDIR(mode)) {
@@ -918,20 +917,23 @@ xfs_ialloc(
 				di_flags |= XFS_DIFLAG_NODEFRAG;
 			if (pip->i_d.di_flags & XFS_DIFLAG_FILESTREAM)
 				di_flags |= XFS_DIFLAG_FILESTREAM;
-			if (pip->i_d.di_flags2 & XFS_DIFLAG2_DAX)
-				di_flags2 |= XFS_DIFLAG2_DAX;
 
 			ip->i_d.di_flags |= di_flags;
-			ip->i_d.di_flags2 |= di_flags2;
 		}
 		if (pip &&
 		    (pip->i_d.di_flags2 & XFS_DIFLAG2_ANY) &&
 		    pip->i_d.di_version == 3 &&
 		    ip->i_d.di_version == 3) {
+			uint64_t	di_flags2 = 0;
+
 			if (pip->i_d.di_flags2 & XFS_DIFLAG2_COWEXTSIZE) {
-				ip->i_d.di_flags2 |= XFS_DIFLAG2_COWEXTSIZE;
+				di_flags2 |= XFS_DIFLAG2_COWEXTSIZE;
 				ip->i_d.di_cowextsize = pip->i_d.di_cowextsize;
 			}
+			if (pip->i_d.di_flags2 & XFS_DIFLAG2_DAX)
+				di_flags2 |= XFS_DIFLAG2_DAX;
+
+			ip->i_d.di_flags2 |= di_flags2;
 		}
 		/* FALLTHROUGH */
 	case S_IFLNK:
@@ -2366,11 +2368,24 @@ retry:
 			 * already marked stale. If we can't lock it, back off
 			 * and retry.
 			 */
-			if (ip != free_ip &&
-			    !xfs_ilock_nowait(ip, XFS_ILOCK_EXCL)) {
-				rcu_read_unlock();
-				delay(1);
-				goto retry;
+			if (ip != free_ip) {
+				if (!xfs_ilock_nowait(ip, XFS_ILOCK_EXCL)) {
+					rcu_read_unlock();
+					delay(1);
+					goto retry;
+				}
+
+				/*
+				 * Check the inode number again in case we're
+				 * racing with freeing in xfs_reclaim_inode().
+				 * See the comments in that function for more
+				 * information as to why the initial check is
+				 * not sufficient.
+				 */
+				if (ip->i_ino != inum + i) {
+					xfs_iunlock(ip, XFS_ILOCK_EXCL);
+					continue;
+				}
 			}
 			rcu_read_unlock();
 
