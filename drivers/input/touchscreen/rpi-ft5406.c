@@ -42,6 +42,9 @@ struct ft5406_regs {
 
 #define SCREEN_WIDTH  800
 #define SCREEN_HEIGHT 480
+#define FTS_TOUCH_DOWN      0
+#define FTS_TOUCH_UP        1
+#define FTS_TOUCH_CONTACT   2
 
 struct ft5406 {
 	struct platform_device * pdev;
@@ -81,18 +84,22 @@ static int ft5406_thread(void *arg)
 				int x = (((int) regs.point[i].xh & 0xf) << 8) + regs.point[i].xl;
 				int y = (((int) regs.point[i].yh & 0xf) << 8) + regs.point[i].yl;
 				int touchid = (regs.point[i].yh >> 4) & 0xf;
+				int event_id = (regs.point[i].xh >> 6) & 0x3;
 				
 				modified_ids |= 1 << touchid;
 
-				if(!((1 << touchid) & known_ids))
-					dev_dbg(&ts->pdev->dev, "x = %d, y = %d, touchid = %d\n", x, y, touchid);
-				
-				input_mt_slot(ts->input_dev, touchid);
-				input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, 1);
+				if (event_id == FTS_TOUCH_CONTACT ||
+					event_id == FTS_TOUCH_DOWN) {
+					if(!((1 << touchid) & known_ids))
+						dev_dbg(&ts->pdev->dev, "x = %d, y = %d, touchid = %d\n",
+								x, y, touchid);
 
-				input_report_abs(ts->input_dev, ABS_MT_POSITION_X, x);
-				input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, y);
+					input_mt_slot(ts->input_dev, touchid);
+					input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, 1);
 
+					input_report_abs(ts->input_dev, ABS_MT_POSITION_X, x);
+					input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, y);
+				}
 			}
 
 			released_ids = known_ids & ~modified_ids;
@@ -100,7 +107,8 @@ static int ft5406_thread(void *arg)
 			{
 				if(released_ids & (1<<i))
 				{
-					dev_dbg(&ts->pdev->dev, "Released %d, known = %x modified = %x\n", i, known_ids, modified_ids);
+					dev_dbg(&ts->pdev->dev, "Released %d, known = %x modified = %x\n",
+							i, known_ids, modified_ids);
 					input_mt_slot(ts->input_dev, i);
 					input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, 0);
 					modified_ids &= ~(1 << i);
