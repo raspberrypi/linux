@@ -575,8 +575,8 @@ static int vc_sm_global_state_show(struct seq_file *s, void *v)
 				   resource->attach);
 			seq_printf(s, "           SGT          %p\n",
 				   resource->sgt);
-			seq_printf(s, "           DMA_ADDR     0x%08X\n",
-				   resource->dma_addr);
+			seq_printf(s, "           DMA_ADDR     %pad\n",
+				   &resource->dma_addr);
 		}
 	}
 	seq_printf(s, "\n\nTotal resource count:   %d\n\n", resource_count);
