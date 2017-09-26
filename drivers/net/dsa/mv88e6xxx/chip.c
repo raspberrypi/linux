@@ -4019,7 +4019,9 @@ static void mv88e6xxx_remove(struct mdio_device *mdiodev)
 	if (chip->irq > 0) {
 		if (mv88e6xxx_has(chip, MV88E6XXX_FLAG_G2_INT))
 			mv88e6xxx_g2_irq_free(chip);
+		mutex_lock(&chip->reg_lock);
 		mv88e6xxx_g1_irq_free(chip);
+		mutex_unlock(&chip->reg_lock);
 	}
 }
 
