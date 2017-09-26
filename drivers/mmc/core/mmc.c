@@ -1255,6 +1255,23 @@ out_err:
 	return err;
 }
 
+static void mmc_select_driver_type(struct mmc_card *card)
+{
+	int card_drv_type, drive_strength, drv_type;
+
+	card_drv_type = card->ext_csd.raw_driver_strength |
+			mmc_driver_type_mask(0);
+
+	drive_strength = mmc_select_drive_strength(card,
+						   card->ext_csd.hs200_max_dtr,
+						   card_drv_type, &drv_type);
+
+	card->drive_strength = drive_strength;
+
+	if (drv_type)
+		mmc_set_driver_type(card->host, drv_type);
+}
+
 static int mmc_select_hs400es(struct mmc_card *card)
 {
 	struct mmc_host *host = card->host;
@@ -1303,6 +1320,8 @@ static int mmc_select_hs400es(struct mmc_card *card)
 		goto out_err;
 	}
 
+	mmc_select_driver_type(card);
+
 	/* Switch card to HS400 */
 	val = EXT_CSD_TIMING_HS400 |
 	      card->drive_strength << EXT_CSD_DRV_STR_SHIFT;
@@ -1334,23 +1353,6 @@ out_err:
 	pr_err("%s: %s failed, error %d\n", mmc_hostname(card->host),
 	       __func__, err);
 	return err;
-}
-
-static void mmc_select_driver_type(struct mmc_card *card)
-{
-	int card_drv_type, drive_strength, drv_type;
-
-	card_drv_type = card->ext_csd.raw_driver_strength |
-			mmc_driver_type_mask(0);
-
-	drive_strength = mmc_select_drive_strength(card,
-						   card->ext_csd.hs200_max_dtr,
-						   card_drv_type, &drv_type);
-
-	card->drive_strength = drive_strength;
-
-	if (drv_type)
-		mmc_set_driver_type(card->host, drv_type);
 }
 
 /*
