@@ -343,7 +343,7 @@ ENTRY(entry_INT80_compat)
 
 	/* Go back to user mode. */
 	TRACE_IRQS_ON
-	SWITCH_USER_CR3_NO_STACK
+	SWITCH_USER_CR3
 	SWAPGS
 	jmp	restore_regs_and_iret
 END(entry_INT80_compat)
