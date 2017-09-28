@@ -2217,7 +2217,7 @@ static struct sock *__udp4_lib_demux_lookup(struct net *net,
 	return NULL;
 }
 
-void udp_v4_early_demux(struct sk_buff *skb)
+int udp_v4_early_demux(struct sk_buff *skb)
 {
 	struct net *net = dev_net(skb->dev);
 	const struct iphdr *iph;
@@ -2229,7 +2229,7 @@ void udp_v4_early_demux(struct sk_buff *skb)
 
 	/* validate the packet */
 	if (!pskb_may_pull(skb, skb_transport_offset(skb) + sizeof(struct udphdr)))
-		return;
+		return 0;
 
 	iph = ip_hdr(skb);
 	uh = udp_hdr(skb);
@@ -2239,14 +2239,14 @@ void udp_v4_early_demux(struct sk_buff *skb)
 		struct in_device *in_dev = __in_dev_get_rcu(skb->dev);
 
 		if (!in_dev)
-			return;
+			return 0;
 
 		/* we are supposed to accept bcast packets */
 		if (skb->pkt_type == PACKET_MULTICAST) {
 			ours = ip_check_mc_rcu(in_dev, iph->daddr, iph->saddr,
 					       iph->protocol);
 			if (!ours)
-				return;
+				return 0;
 		}
 
 		sk = __udp4_lib_mcast_demux_lookup(net, uh->dest, iph->daddr,
@@ -2257,7 +2257,7 @@ void udp_v4_early_demux(struct sk_buff *skb)
 	}
 
 	if (!sk || !refcount_inc_not_zero(&sk->sk_refcnt))
-		return;
+		return 0;
 
 	skb->sk = sk;
 	skb->destructor = sock_efree;
@@ -2272,6 +2272,7 @@ void udp_v4_early_demux(struct sk_buff *skb)
 		 */
 		skb_dst_set_noref(skb, dst);
 	}
+	return 0;
 }
 
 int udp_rcv(struct sk_buff *skb)
