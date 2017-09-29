@@ -35,6 +35,7 @@
 		fb = &fb;
 		vchiq = &vchiq;
 		thermal = &thermal;
+		axiperf = &axiperf;
 	};
 
 	leds: leds {
@@ -99,6 +100,7 @@
 
 	__overrides__ {
 		cache_line_size = <&vchiq>, "cache-line-size:0";
+		axiperf      = <&axiperf>,"status";
 	};
 };
 
