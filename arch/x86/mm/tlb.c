@@ -110,7 +110,7 @@ void switch_mm_irqs_off(struct mm_struct *prev, struct mm_struct *next,
 			 * mapped in the new pgd, we'll double-fault.  Forcibly
 			 * map it.
 			 */
-			unsigned int stack_pgd_index = pgd_index(current_stack_pointer());
+			unsigned int stack_pgd_index = pgd_index(current_stack_pointer);
 
 			pgd_t *pgd = next->pgd + stack_pgd_index;
 
