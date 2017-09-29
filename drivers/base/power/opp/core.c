@@ -331,7 +331,7 @@ int dev_pm_opp_get_opp_count(struct device *dev)
 	opp_table = _find_opp_table(dev);
 	if (IS_ERR(opp_table)) {
 		count = PTR_ERR(opp_table);
-		dev_err(dev, "%s: OPP table not found (%d)\n",
+		dev_dbg(dev, "%s: OPP table not found (%d)\n",
 			__func__, count);
 		goto out_unlock;
 	}
