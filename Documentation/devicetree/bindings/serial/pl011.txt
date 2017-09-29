@@ -35,6 +35,9 @@ Optional properties:
 - poll-timeout-ms:
 	   Poll timeout when auto-poll is set, default
 	   3000ms.
+- cts-event-workaround:
+	   Enables the (otherwise vendor-specific) workaround for the
+	   CTS-induced TX lockup.
 
 See also bindings/arm/primecell.txt
 
