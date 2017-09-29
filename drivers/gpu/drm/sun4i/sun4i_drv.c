@@ -47,6 +47,13 @@ static void sun4i_drv_disable_vblank(struct drm_device *drm, unsigned int pipe)
 	sun4i_tcon_enable_vblank(tcon, false);
 }
 
+static void sun4i_drv_lastclose(struct drm_device *dev)
+{
+	struct sun4i_drv *drv = dev->dev_private;
+
+	drm_fbdev_cma_restore_mode(drv->fbdev);
+}
+
 static const struct file_operations sun4i_drv_fops = {
 	.owner		= THIS_MODULE,
 	.open		= drm_open,
@@ -65,6 +72,7 @@ static struct drm_driver sun4i_drv_driver = {
 	.driver_features	= DRIVER_GEM | DRIVER_MODESET | DRIVER_PRIME | DRIVER_ATOMIC,
 
 	/* Generic Operations */
+	.lastclose		= sun4i_drv_lastclose,
 	.fops			= &sun4i_drv_fops,
 	.name			= "sun4i-drm",
 	.desc			= "Allwinner sun4i Display Engine",
