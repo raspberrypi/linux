@@ -2661,6 +2661,11 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 	if (IS_ERR(uap->clk))
 		return PTR_ERR(uap->clk);
 
+	if (of_property_read_bool(dev->dev.of_node, "cts-event-workaround")) {
+	    vendor->cts_event_workaround = true;
+	    dev_info(&dev->dev, "cts_event_workaround enabled\n");
+	}
+
 	uap->reg_offset = vendor->reg_offset;
 	uap->vendor = vendor;
 	uap->fifosize = vendor->get_fifosize(dev);
