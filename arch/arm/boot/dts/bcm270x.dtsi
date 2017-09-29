@@ -26,6 +26,11 @@
 			interrupts = <2 17>, <2 18>;
 		};
 
+		serial@7e201000 { /* uart0 */
+			/* Enable CTS bug workaround */
+			cts-event-workaround;
+		};
+
 		sdhost: sdhost@7e202000 {
 			compatible = "brcm,bcm2835-sdhost";
 			reg = <0x7e202000 0x100>;
