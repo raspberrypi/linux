@@ -91,6 +91,12 @@ properties:
       3000ms.
     default: 3000
 
+  cts-event-workaround:
+    description:
+      Enables the (otherwise vendor-specific) workaround for the
+      CTS-induced TX lockup.
+    type: boolean
+
 required:
   - compatible
   - reg
