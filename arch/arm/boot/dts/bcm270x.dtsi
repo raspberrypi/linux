@@ -26,6 +26,11 @@
 			interrupts = <2 17>, <2 18>;
 		};
 
+		serial@7e201000 { /* uart0 */
+			/* Enable CTS bug workaround */
+			cts-event-workaround;
+		};
+
 		i2s@7e203000 { /* i2s */
 			#sound-dai-cells = <0>;
 			reg = <0x7e203000 0x24>;
