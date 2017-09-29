@@ -1449,6 +1449,7 @@ static bool pl011_tx_char(struct uart_amba_port *uap, unsigned char c,
 		return false; /* unable to transmit character */
 
 	pl011_write(c, uap, REG_DR);
+	mb();
 	uap->port.icount.tx++;
 
 	return true;
