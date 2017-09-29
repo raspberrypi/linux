@@ -366,11 +366,11 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 				struct timeval timestamp;
 				s64 runtime_us = pts -
 				    dev->capture.vc_start_timestamp;
-				u32 div = 0;
-				u32 rem = 0;
+				s64 div = 0;
+				s32 rem = 0;
 
 				div =
-				    div_u64_rem(runtime_us, USEC_PER_SEC, &rem);
+				    div_s64_rem(runtime_us, USEC_PER_SEC, &rem);
 				timestamp.tv_sec =
 				    dev->capture.kernel_start_ts.tv_sec + div;
 				timestamp.tv_usec =
