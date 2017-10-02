@@ -130,10 +130,15 @@ int xstateregs_set(struct task_struct *target, const struct user_regset *regset,
 
 	fpu__activate_fpstate_write(fpu);
 
-	if (boot_cpu_has(X86_FEATURE_XSAVES))
+	if (boot_cpu_has(X86_FEATURE_XSAVES)) {
 		ret = copyin_to_xsaves(kbuf, ubuf, xsave);
-	else
+	} else {
 		ret = user_regset_copyin(&pos, &count, &kbuf, &ubuf, xsave, 0, -1);
+
+		/* xcomp_bv must be 0 when using uncompacted format */
+		if (!ret && xsave->header.xcomp_bv)
+			ret = -EINVAL;
+	}
 
 	/*
 	 * In case of failure, mark all states as init:
