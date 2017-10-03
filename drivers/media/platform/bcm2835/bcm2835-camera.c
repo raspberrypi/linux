@@ -368,11 +368,12 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 				buf->vb.vb2_buf.timestamp = (runtime_us * NSEC_PER_USEC) +
 				    dev->capture.kernel_start_timestamp;
 				v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
-					 "Convert start time %llu (nsec) and %llu (usec) "
-					 "with offset %llu (usec) to %llu (nsec)\n",
-					 dev->capture.kernel_start_timestamp,
-					 dev->capture.vc_start_timestamp, pts,
-					 buf->vb.vb2_buf.timestamp);
+					 "Buffer time set as converted timestamp - %llu "
+					 "= (pts [%lld usec] - vc start time [%llu usec]) "
+					 "+ kernel start time [%llu nsec]\n",
+					 buf->vb.vb2_buf.timestamp,
+					 pts, dev->capture.vc_start_timestamp,
+					 dev->capture.kernel_start_timestamp);
 			} else {
 				if (dev->capture.last_timestamp) {
 					buf->vb.vb2_buf.timestamp = dev->capture.last_timestamp;
