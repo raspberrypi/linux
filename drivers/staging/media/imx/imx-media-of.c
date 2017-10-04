@@ -167,7 +167,7 @@ of_parse_subdev(struct imx_media_dev *imxmd, struct device_node *sd_np,
 		of_parse_sensor(imxmd, imxsd, sd_np);
 
 	for (i = 0; i < num_pads; i++) {
-		struct device_node *epnode = NULL, *port, *remote_np;
+		struct device_node *epnode = NULL, *port, *remote_np = NULL;
 		struct imx_media_subdev *remote_imxsd;
 		struct imx_media_pad *pad;
 		int remote_pad;
