@@ -2193,8 +2193,8 @@ static void edp_panel_off(struct intel_dp *intel_dp)
 	I915_WRITE(pp_ctrl_reg, pp);
 	POSTING_READ(pp_ctrl_reg);
 
-	intel_dp->panel_power_off_time = ktime_get_boottime();
 	wait_panel_off(intel_dp);
+	intel_dp->panel_power_off_time = ktime_get_boottime();
 
 	/* We got a reference when we enabled the VDD. */
 	power_domain = intel_display_port_aux_power_domain(intel_encoder);
