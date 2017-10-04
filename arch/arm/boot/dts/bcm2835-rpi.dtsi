@@ -6,7 +6,7 @@
 		reg = <0 0x10000000>;
 	};
 
-	leds {
+	leds: leds {
 		compatible = "gpio-leds";
 
 		act {
@@ -17,6 +17,49 @@
 	};
 
 	soc {
+		virtgpio: virtgpio {
+			compatible = "brcm,bcm2835-virtgpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			firmware = <&firmware>;
+			status = "okay";
+		};
+
+		expgpio: expgpio {
+			compatible = "brcm,bcm2835-expgpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			firmware = <&firmware>;
+			status = "okay";
+		};
+
+		/* Creates a chardev /dev/gpiomem which will provide user access to
+ 			 the BCM2835's GPIO registers when it is mmap()'d.
+ 			 created a kernel panic
+ 			 *//*
+
+		*/
+		gpiomem {
+			compatible = "brcm,bcm2835-gpiomem";
+			reg = <0x7e200000 0x1000>;
+		};
+
+		watchdog: watchdog@7e100000 {
+			/* Add alias */
+		};
+
+		cprman: cprman@7e101000 {
+			/* Add alias */
+		};
+
+		random: rng@7e104000 {
+			/* Add alias */
+		};
+		/* didn't have any effect *//*
+		gpio@7e200000 {
+			interrupts = <2 17>, <2 18>;
+		};
+		*/
 		firmware: firmware {
 			compatible = "raspberrypi,bcm2835-firmware";
 			mboxes = <&mailbox>;
@@ -27,6 +70,98 @@
 			firmware = <&firmware>;
 			#power-domain-cells = <1>;
 		};
+
+		fb: fb {
+			compatible = "brcm,bcm2708-fb";
+			firmware = <&firmware>;
+			status = "disabled";
+		};
+	/* Prevents booting IF no overrides. 
+			No signal on picocom, no leds blinking.*//**/
+		vchiq: vchiq {
+			compatible = "brcm,bcm2835-vchiq";
+			reg = <0x7e00b840 0xf>;
+			interrupts = <0 2>;
+			cache-line-size = <32>;
+			firmware = <&firmware>;
+		};
+	/**/
+		mmc: mmc@7e300000 {
+			compatible = "brcm,bcm2835-mmc";
+			reg = <0x7e300000 0x100>;
+			interrupts = <2 30>;
+			clocks = <&clocks BCM2835_CLOCK_EMMC>;
+			dmas = <&dma 11>;
+			dma-names = "rx-tx";
+			brcm,overclock-50 = <0>;
+			status = "disabled";
+		};
+		pixelvalve0: pixelvalve@7e206000 {
+			/* Add alias */
+			status = "disabled";
+		};
+
+		pixelvalve1: pixelvalve@7e207000 {
+			/* Add alias */
+			status = "disabled";
+		};
+		hvs: hvs@7e400000 {
+			/* Add alias */
+			status = "disabled";
+		};
+
+		firmwarekms: firmwarekms@7e600000 {
+			compatible = "raspberrypi,rpi-firmware-kms";
+			/* SMI interrupt reg */
+			reg = <0x7e600000 0x100>;
+			interrupts = <2 16>;
+			brcm,firmware = <&firmware>;
+			status = "disabled";
+		};
+		/* videocore shared memory */
+		vcsm: vcsm {
+			compatible = "raspberrypi,bcm2835-vcsm";
+			firmware = <&firmware>;
+			status = "okay";
+		};
+
+		smi: smi@7e600000 {
+			compatible = "brcm,bcm2835-smi";
+			reg = <0x7e600000 0x100>;
+			interrupts = <2 16>;
+			clocks = <&clocks BCM2835_CLOCK_SMI>;
+			assigned-clocks = <&cprman BCM2835_CLOCK_SMI>;
+			assigned-clock-rates = <125000000>;
+			dmas = <&dma 4>;
+			dma-names = "rx-tx";
+			status = "disabled";
+		};
+
+		pixelvalve2: pixelvalve@7e807000 {
+			/* Add alias */
+			status = "disabled";
+		};
+
+	};
+
+	vdd_5v0_reg: fixedregulator_5v0 {
+		compatible = "regulator-fixed";
+		regulator-name = "5v0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+	};
+
+	vdd_3v3_reg: fixedregulator_3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
+	__overrides__ {
+		cache_line_size = <&vchiq>, "cache-line-size:0";
 	};
 };
 
@@ -97,3 +232,36 @@
 	power-domains = <&power RPI_POWER_DOMAIN_VEC>;
 	status = "okay";
 };
+
+&clocks {
+	firmware = <&firmware>;
+};
+
+// / {
+// 	__overrides__ {
+// 		uart0 = <&uart0>,"status";
+// 		uart1 = <&uart1>,"status";
+// 		i2s = <&i2s>,"status";
+// 		//spi = <&spi0>,"status";
+// 		i2c0 = <&i2c0>,"status";
+// 		i2c1 = <&i2c1>,"status";
+// 		i2c2_iknowwhatimdoing = <&i2c2>,"status";
+// 		i2c0_baudrate = <&i2c0>,"clock-frequency:0";
+// 		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
+// 		i2c2_baudrate = <&i2c2>,"clock-frequency:0";
+
+// 		act_led_gpio = <&act_led>,"gpios:4";
+// 		act_led_activelow = <&act_led>,"gpios:8";
+// 		act_led_trigger = <&act_led>,"linux,default-trigger";
+
+// 		//audio = <&audio>,"status";
+// 		watchdog = <&watchdog>,"status";
+// 		random = <&random>,"status";
+// 		/*
+// 		sd_overclock = <&sdhost>,"brcm,overclock-50:0";
+// 		sd_force_pio = <&sdhost>,"brcm,force-pio?";
+// 		sd_pio_limit = <&sdhost>,"brcm,pio-limit:0";
+// 		sd_debug     = <&sdhost>,"brcm,debug";
+// 		*/
+// 	};
+// };

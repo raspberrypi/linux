@@ -1,0 +1,114 @@
+/dts-v1/;
+#include "bcm2837.dtsi"
+#include "bcm2835-rpi.dtsi"
+#include "bcm283x-rpi-smsc9514.dtsi"
+
+/ {
+  compatible = "raspberrypi,3-model-b", "brcm,bcm2837";
+  model = "Raspberry Pi 3 Model B";
+
+  memory {
+    reg = <0 0x40000000>;
+  };
+
+  leds {
+    act_led: act {
+      gpios = <&gpio 47 0>;
+    };
+  };
+};
+
+&gpio {
+  bt_pins: bt_pins {
+    brcm,pins = <43>;
+    brcm,function = <4>; /* alt0:GPCLK2 */
+    brcm,pull = <0>;
+  };
+
+  uart0_pins: uart0_pins {
+    brcm,pins = <32 33>;
+    brcm,function = <7>; /* alt3=UART0 */
+    brcm,pull = <0 2>;
+  };
+
+  uart1_pins: uart1_pins {
+    brcm,pins;
+    brcm,function;
+    brcm,pull;
+  };
+};
+
+&uart0 {
+  pinctrl-names = "default";
+  pinctrl-0 = <&uart0_pins &bt_pins>;
+  status = "okay";
+};
+
+&uart1 {
+  pinctrl-names = "default";
+  pinctrl-0 = <&uart1_pins>;
+  status = "okay";
+};
+
+&mmc {
+  status = "okay";
+};
+
+&firmwarekms {
+  status = "okay";
+};
+
+&hdmi {
+  status = "okay";
+};
+
+&fb {
+  status = "okay";
+};
+/ {
+  chosen {
+    bootargs = "8250.nr_uarts=1";
+  };
+};
+/* created a kernel panic*//*
+&vc4 {
+  status = "okay";
+};
+*/
+
+// / {
+//   __overrides__ {
+//     act_led_gpio = <&act_led>,"gpios:4";
+//     act_led_activelow = <&act_led>,"gpios:8";
+//     act_led_trigger = <&act_led>,"linux,default-trigger";
+//   };
+// };
+
+/ {
+  __overrides__ {
+    uart0 = <&uart0>,"status";
+    uart1 = <&uart1>,"status";
+    i2s = <&i2s>,"status";
+    //spi = <&spi0>,"status";
+    i2c0 = <&i2c0>,"status";
+    i2c1 = <&i2c1>,"status";
+    i2c2_iknowwhatimdoing = <&i2c2>,"status";
+    i2c0_baudrate = <&i2c0>,"clock-frequency:0";
+    i2c1_baudrate = <&i2c1>,"clock-frequency:0";
+    i2c2_baudrate = <&i2c2>,"clock-frequency:0";
+
+    act_led_gpio = <&act_led>,"gpios:4";
+    act_led_activelow = <&act_led>,"gpios:8";
+    act_led_trigger = <&act_led>,"linux,default-trigger";
+
+    //audio = <&audio>,"status";
+    watchdog = <&watchdog>,"status";
+    random = <&random>,"status";
+    /*
+    sd_overclock = <&sdhost>,"brcm,overclock-50:0";
+    sd_force_pio = <&sdhost>,"brcm,force-pio?";
+    sd_pio_limit = <&sdhost>,"brcm,pio-limit:0";
+    sd_debug     = <&sdhost>,"brcm,debug";
+    */
+  };
+};
