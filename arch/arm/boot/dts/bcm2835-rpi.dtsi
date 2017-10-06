@@ -6,6 +6,30 @@
 		reg = <0 0x10000000>;
 	};
 
+	/* makes the Kernel command line clean of bcm2709 mentions */
+	aliases {
+		aux = &aux;
+		dma = &dma;
+		intc = &intc;
+		watchdog = &watchdog;
+		random = &random;
+		mailbox = &mailbox;
+		gpio = &gpio;
+		uart0 = &uart0;
+		i2s = &i2s;
+		spi = &spi;
+		i2c0 = &i2c0;
+		uart1 = &uart1;
+		spi1 = &spi1;
+		spi2 = &spi2;
+		mmc = &mmc;
+		i2c1 = &i2c1;
+		i2c2 = &i2c2;
+		usb = &usb;
+		leds = &leds;
+		fb = &fb;
+	};
+
 	leds: leds {
 		compatible = "gpio-leds";
 
@@ -33,12 +57,12 @@
 			status = "okay";
 		};
 
-		/* Creates a chardev /dev/gpiomem which will provide user access to
- 			 the BCM2835's GPIO registers when it is mmap()'d.
- 			 created a kernel panic
- 			 *//*
+		arm-pmu {
+			compatible = "arm,armv8-pmuv3", "arm,cortex-a7-pmu";
+			interrupt-parent = <&local_intc>;
+			interrupts = <9>;
+		};
 
-		*/
 		gpiomem {
 			compatible = "brcm,bcm2835-gpiomem";
 			reg = <0x7e200000 0x1000>;
@@ -55,11 +79,7 @@
 		random: rng@7e104000 {
 			/* Add alias */
 		};
-		/* didn't have any effect *//*
-		gpio@7e200000 {
-			interrupts = <2 17>, <2 18>;
-		};
-		*/
+
 		firmware: firmware {
 			compatible = "raspberrypi,bcm2835-firmware";
 			mboxes = <&mailbox>;
@@ -76,8 +96,7 @@
 			firmware = <&firmware>;
 			status = "disabled";
 		};
-	/* Prevents booting IF no overrides. 
-			No signal on picocom, no leds blinking.*//**/
+
 		vchiq: vchiq {
 			compatible = "brcm,bcm2835-vchiq";
 			reg = <0x7e00b840 0xf>;
@@ -85,7 +104,7 @@
 			cache-line-size = <32>;
 			firmware = <&firmware>;
 		};
-	/**/
+
 		mmc: mmc@7e300000 {
 			compatible = "brcm,bcm2835-mmc";
 			reg = <0x7e300000 0x100>;
@@ -223,45 +242,14 @@
 &dsi0 {
 	power-domains = <&power RPI_POWER_DOMAIN_DSI0>;
 };
-
 &dsi1 {
 	power-domains = <&power RPI_POWER_DOMAIN_DSI1>;
 };
 
 &vec {
-	power-domains = <&power RPI_POWER_DOMAIN_VEC>;
-	status = "okay";
+	status = "disabled";
 };
 
 &clocks {
 	firmware = <&firmware>;
 };
-
-// / {
-// 	__overrides__ {
-// 		uart0 = <&uart0>,"status";
-// 		uart1 = <&uart1>,"status";
-// 		i2s = <&i2s>,"status";
-// 		//spi = <&spi0>,"status";
-// 		i2c0 = <&i2c0>,"status";
-// 		i2c1 = <&i2c1>,"status";
-// 		i2c2_iknowwhatimdoing = <&i2c2>,"status";
-// 		i2c0_baudrate = <&i2c0>,"clock-frequency:0";
-// 		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
-// 		i2c2_baudrate = <&i2c2>,"clock-frequency:0";
-
-// 		act_led_gpio = <&act_led>,"gpios:4";
-// 		act_led_activelow = <&act_led>,"gpios:8";
-// 		act_led_trigger = <&act_led>,"linux,default-trigger";
-
-// 		//audio = <&audio>,"status";
-// 		watchdog = <&watchdog>,"status";
-// 		random = <&random>,"status";
-// 		/*
-// 		sd_overclock = <&sdhost>,"brcm,overclock-50:0";
-// 		sd_force_pio = <&sdhost>,"brcm,force-pio?";
-// 		sd_pio_limit = <&sdhost>,"brcm,pio-limit:0";
-// 		sd_debug     = <&sdhost>,"brcm,debug";
-// 		*/
-// 	};
-// };
