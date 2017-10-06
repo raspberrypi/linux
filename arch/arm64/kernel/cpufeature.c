@@ -1294,4 +1294,4 @@ static int __init enable_mrs_emulation(void)
 	return 0;
 }
 
-late_initcall(enable_mrs_emulation);
+core_initcall(enable_mrs_emulation);
