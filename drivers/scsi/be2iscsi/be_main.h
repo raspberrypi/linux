@@ -358,6 +358,7 @@ struct beiscsi_hba {
 	unsigned int age;
 	struct list_head hba_queue;
 #define BE_MAX_SESSION 2048
+#define BE_INVALID_CID 0xffff
 #define BE_SET_CID_TO_CRI(cri_index, cid) \
 			  (phba->cid_to_cri_map[cid] = cri_index)
 #define BE_GET_CRI_FROM_CID(cid) (phba->cid_to_cri_map[cid])
