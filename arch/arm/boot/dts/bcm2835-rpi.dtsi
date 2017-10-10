@@ -17,7 +17,7 @@
 		gpio = &gpio;
 		uart0 = &uart0;
 		i2s = &i2s;
-		spi = &spi;
+		spi0 = &spi0;
 		i2c0 = &i2c0;
 		uart1 = &uart1;
 		spi1 = &spi1;
@@ -115,6 +115,13 @@
 			brcm,overclock-50 = <0>;
 			status = "disabled";
 		};
+
+		spi0: spi@7e204000 {
+			/* Add alias */
+			dmas = <&dma 6>, <&dma 7>;
+			dma-names = "tx", "rx";
+		};
+
 		pixelvalve0: pixelvalve@7e206000 {
 			/* Add alias */
 			status = "disabled";
@@ -124,6 +131,7 @@
 			/* Add alias */
 			status = "disabled";
 		};
+
 		hvs: hvs@7e400000 {
 			/* Add alias */
 			status = "disabled";
@@ -242,6 +250,7 @@
 &dsi0 {
 	power-domains = <&power RPI_POWER_DOMAIN_DSI0>;
 };
+
 &dsi1 {
 	power-domains = <&power RPI_POWER_DOMAIN_DSI1>;
 };
