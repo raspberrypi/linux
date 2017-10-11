@@ -44,7 +44,7 @@
 int apparmor_initialized;
 
 DEFINE_PER_CPU(struct aa_buffers, aa_buffers);
-
+DEFINE_LOCAL_IRQ_LOCK(aa_buffers_lock);
 
 /*
  * LSM hook functions
