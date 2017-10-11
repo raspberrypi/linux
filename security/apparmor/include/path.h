@@ -39,9 +39,10 @@ struct aa_buffers {
 };
 
 #include <linux/percpu.h>
-#include <linux/preempt.h>
+#include <linux/locallock.h>
 
 DECLARE_PER_CPU(struct aa_buffers, aa_buffers);
+DECLARE_LOCAL_IRQ_LOCK(aa_buffers_lock);
 
 #define COUNT_ARGS(X...) COUNT_ARGS_HELPER(, ##X, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #define COUNT_ARGS_HELPER(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, n, X...) n
@@ -55,11 +56,23 @@ DECLARE_PER_CPU(struct aa_buffers, aa_buffers);
 
 #define for_each_cpu_buffer(I) for ((I) = 0; (I) < MAX_PATH_BUFFERS; (I)++)
 
-#ifdef CONFIG_DEBUG_PREEMPT
+#ifdef CONFIG_PREEMPT_RT_BASE
+
+static inline void AA_BUG_PREEMPT_ENABLED(const char *s)
+{
+	struct local_irq_lock *lv;
+
+	lv = this_cpu_ptr(&aa_buffers_lock);
+	WARN_ONCE(lv->owner != current,
+		  "__get_buffer without aa_buffers_lock\n");
+}
+
+#elif defined(CONFIG_DEBUG_PREEMPT)
 #define AA_BUG_PREEMPT_ENABLED(X) AA_BUG(preempt_count() <= 0, X)
 #else
 #define AA_BUG_PREEMPT_ENABLED(X) /* nop */
 #endif
+
 
 #define __get_buffer(N) ({					\
 	struct aa_buffers *__cpu_var; \
@@ -73,14 +86,14 @@ DECLARE_PER_CPU(struct aa_buffers, aa_buffers);
 
 #define get_buffers(X...)	\
 do {				\
-	preempt_disable();	\
+	local_lock(aa_buffers_lock);	\
 	__get_buffers(X);	\
 } while (0)
 
 #define put_buffers(X, Y...)	\
 do {				\
 	__put_buffers(X, Y);	\
-	preempt_enable();	\
+	local_unlock(aa_buffers_lock);	\
 } while (0)
 
 #endif /* __AA_PATH_H */
