@@ -40,8 +40,10 @@ struct aa_buffers {
 
 #include <linux/percpu.h>
 #include <linux/preempt.h>
+#include <linux/locallock.h>
 
 DECLARE_PER_CPU(struct aa_buffers, aa_buffers);
+DECLARE_LOCAL_IRQ_LOCK(aa_buffers_lock);
 
 #define ASSIGN(FN, A, X, N) ((X) = FN(A, N))
 #define EVAL1(FN, A, X) ASSIGN(FN, A, X, 0) /*X = FN(0)*/
@@ -51,7 +53,17 @@ DECLARE_PER_CPU(struct aa_buffers, aa_buffers);
 
 #define for_each_cpu_buffer(I) for ((I) = 0; (I) < MAX_PATH_BUFFERS; (I)++)
 
-#ifdef CONFIG_DEBUG_PREEMPT
+#ifdef CONFIG_PREEMPT_RT_BASE
+static inline void AA_BUG_PREEMPT_ENABLED(const char *s)
+{
+	struct local_irq_lock *lv;
+
+	lv = this_cpu_ptr(&aa_buffers_lock);
+	WARN_ONCE(lv->owner != current,
+		  "__get_buffer without aa_buffers_lock\n");
+}
+
+#elif defined(CONFIG_DEBUG_PREEMPT)
 #define AA_BUG_PREEMPT_ENABLED(X) AA_BUG(preempt_count() <= 0, X)
 #else
 #define AA_BUG_PREEMPT_ENABLED(X) /* nop */
@@ -67,14 +79,15 @@ DECLARE_PER_CPU(struct aa_buffers, aa_buffers);
 
 #define get_buffers(X...)						\
 do {									\
-	struct aa_buffers *__cpu_var = get_cpu_ptr(&aa_buffers);	\
+	struct aa_buffers *__cpu_var;					\
+	__cpu_var = get_locked_ptr(aa_buffers_lock, &aa_buffers);	\
 	__get_buffers(__cpu_var, X);					\
 } while (0)
 
 #define put_buffers(X, Y...)		\
 do {					\
 	__put_buffers(X, Y);		\
-	put_cpu_ptr(&aa_buffers);	\
+	put_locked_ptr(aa_buffers_lock, &aa_buffers);	\
 } while (0)
 
 #endif /* __AA_PATH_H */
