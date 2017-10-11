@@ -2047,9 +2047,11 @@ pl011_set_termios(struct uart_port *port, struct ktermios *termios,
 
 		old_cr |= UART011_CR_CTSEN;
 		uap->autorts = true;
+		port->status |= UPSTAT_AUTOCTS;
 	} else {
 		old_cr &= ~(UART011_CR_CTSEN | UART011_CR_RTSEN);
 		uap->autorts = false;
+		port->status &= ~UPSTAT_AUTOCTS;
 	}
 
 	if (uap->vendor->oversampling) {
