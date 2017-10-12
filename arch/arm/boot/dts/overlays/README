@@ -33,6 +33,9 @@ needed.
 Configuring additional, optional hardware is done using Device Tree overlays
 (see below).
 
+GPIO numbering uses the hardware pin numbering scheme (aka BCM scheme) and
+not the physical pin numbers.
+
 raspi-config
 ============
 
@@ -496,7 +499,8 @@ Params: gpio_pin                Input pin number. Default is 18.
 
 
 Name:   gpio-poweroff
-Info:   Drives a GPIO high or low on poweroff (including halt)
+Info:   Drives a GPIO high or low on poweroff (including halt). Enabling this
+        overlay will prevent the ability to boot by driving GPIO3 low.
 Load:   dtoverlay=gpio-poweroff,<param>=<val>
 Params: gpiopin                 GPIO for signalling (default 26)
 
