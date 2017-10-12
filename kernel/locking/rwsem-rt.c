@@ -131,7 +131,7 @@ static int __sched __down_read_common(struct rw_semaphore *sem, int state)
 	 */
 	rt_mutex_init_waiter(&waiter, false);
 	ret = rt_mutex_slowlock_locked(m, state, NULL, RT_MUTEX_MIN_CHAINWALK,
-				       &waiter);
+				       NULL, &waiter);
 	/*
 	 * The slowlock() above is guaranteed to return with the rtmutex (for
 	 * ret = 0) is now held, so there can't be a writer active. Increment
