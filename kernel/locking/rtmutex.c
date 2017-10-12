@@ -1244,6 +1244,43 @@ static void rt_mutex_handle_deadlock(int res, int detect_deadlock,
 	}
 }
 
+int __sched rt_mutex_slowlock_locked(struct rt_mutex *lock, int state,
+				     struct hrtimer_sleeper *timeout,
+				     enum rtmutex_chainwalk chwalk,
+				     struct rt_mutex_waiter *waiter)
+{
+	int ret;
+
+	/* Try to acquire the lock again: */
+	if (try_to_take_rt_mutex(lock, current, NULL))
+		return 0;
+
+	set_current_state(state);
+
+	/* Setup the timer, when timeout != NULL */
+	if (unlikely(timeout))
+		hrtimer_start_expires(&timeout->timer, HRTIMER_MODE_ABS);
+
+	ret = task_blocks_on_rt_mutex(lock, waiter, current, chwalk);
+
+	if (likely(!ret))
+		/* sleep on the mutex */
+		ret = __rt_mutex_slowlock(lock, state, timeout, waiter);
+
+	if (unlikely(ret)) {
+		__set_current_state(TASK_RUNNING);
+		remove_waiter(lock, waiter);
+		rt_mutex_handle_deadlock(ret, chwalk, waiter);
+	}
+
+	/*
+	 * try_to_take_rt_mutex() sets the waiter bit
+	 * unconditionally. We might have to fix that up.
+	 */
+	fixup_rt_mutex_waiters(lock);
+	return ret;
+}
+
 /*
  * Slow path lock function:
  */
@@ -1268,35 +1305,7 @@ rt_mutex_slowlock(struct rt_mutex *lock, int state,
 	 */
 	raw_spin_lock_irqsave(&lock->wait_lock, flags);
 
-	/* Try to acquire the lock again: */
-	if (try_to_take_rt_mutex(lock, current, NULL)) {
-		raw_spin_unlock_irqrestore(&lock->wait_lock, flags);
-		return 0;
-	}
-
-	set_current_state(state);
-
-	/* Setup the timer, when timeout != NULL */
-	if (unlikely(timeout))
-		hrtimer_start_expires(&timeout->timer, HRTIMER_MODE_ABS);
-
-	ret = task_blocks_on_rt_mutex(lock, &waiter, current, chwalk);
-
-	if (likely(!ret))
-		/* sleep on the mutex */
-		ret = __rt_mutex_slowlock(lock, state, timeout, &waiter);
-
-	if (unlikely(ret)) {
-		__set_current_state(TASK_RUNNING);
-		remove_waiter(lock, &waiter);
-		rt_mutex_handle_deadlock(ret, chwalk, &waiter);
-	}
-
-	/*
-	 * try_to_take_rt_mutex() sets the waiter bit
-	 * unconditionally. We might have to fix that up.
-	 */
-	fixup_rt_mutex_waiters(lock);
+	ret = rt_mutex_slowlock_locked(lock, state, timeout, chwalk, &waiter);
 
 	raw_spin_unlock_irqrestore(&lock->wait_lock, flags);
 

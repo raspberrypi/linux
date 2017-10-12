@@ -15,6 +15,7 @@
 
 #include <linux/rtmutex.h>
 #include <linux/sched/wake_q.h>
+#include <linux/sched/debug.h>
 
 /*
  * This is the control structure for tasks blocked on a rt_mutex,
@@ -159,6 +160,12 @@ extern bool __rt_mutex_futex_unlock(struct rt_mutex *lock,
 				 struct wake_q_head *wqh);
 
 extern void rt_mutex_postunlock(struct wake_q_head *wake_q);
+/* RW semaphore special interface */
+
+int __sched rt_mutex_slowlock_locked(struct rt_mutex *lock, int state,
+				     struct hrtimer_sleeper *timeout,
+				     enum rtmutex_chainwalk chwalk,
+				     struct rt_mutex_waiter *waiter);
 
 #ifdef CONFIG_DEBUG_RT_MUTEXES
 # include "rtmutex-debug.h"
