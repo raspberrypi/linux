@@ -130,7 +130,7 @@ void __sched __down_read(struct rw_semaphore *sem)
 	 */
 	rt_mutex_init_waiter(&waiter, false);
 	rt_mutex_slowlock_locked(m, TASK_UNINTERRUPTIBLE, NULL,
-				 RT_MUTEX_MIN_CHAINWALK,
+				 RT_MUTEX_MIN_CHAINWALK, NULL,
 				 &waiter);
 	/*
 	 * The slowlock() above is guaranteed to return with the rtmutex is
