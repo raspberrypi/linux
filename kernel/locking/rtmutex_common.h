@@ -162,6 +162,9 @@ extern bool __rt_mutex_futex_unlock(struct rt_mutex *lock,
 extern void rt_mutex_postunlock(struct wake_q_head *wake_q);
 /* RW semaphore special interface */
 
+extern int __rt_mutex_lock_state(struct rt_mutex *lock, int state);
+extern int __rt_mutex_trylock(struct rt_mutex *lock);
+extern void __rt_mutex_unlock(struct rt_mutex *lock);
 int __sched rt_mutex_slowlock_locked(struct rt_mutex *lock, int state,
 				     struct hrtimer_sleeper *timeout,
 				     enum rtmutex_chainwalk chwalk,
