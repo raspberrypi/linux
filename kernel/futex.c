@@ -1414,6 +1414,7 @@ static int wake_futex_pi(u32 __user *uaddr, u32 uval, struct futex_pi_state *pi_
 	struct task_struct *new_owner;
 	bool postunlock = false;
 	DEFINE_WAKE_Q(wake_q);
+	DEFINE_WAKE_Q(wake_sleeper_q);
 	int ret = 0;
 
 	new_owner = rt_mutex_next_owner(&pi_state->pi_mutex);
@@ -1475,13 +1476,13 @@ static int wake_futex_pi(u32 __user *uaddr, u32 uval, struct futex_pi_state *pi_
 	pi_state->owner = new_owner;
 	raw_spin_unlock(&new_owner->pi_lock);
 
-	postunlock = __rt_mutex_futex_unlock(&pi_state->pi_mutex, &wake_q);
-
+	postunlock = __rt_mutex_futex_unlock(&pi_state->pi_mutex, &wake_q,
+					     &wake_sleeper_q);
 out_unlock:
 	raw_spin_unlock_irq(&pi_state->pi_mutex.wait_lock);
 
 	if (postunlock)
-		rt_mutex_postunlock(&wake_q);
+		rt_mutex_postunlock(&wake_q, &wake_sleeper_q);
 
 	return ret;
 }
@@ -2793,7 +2794,7 @@ retry_private:
 		goto no_block;
 	}
 
-	rt_mutex_init_waiter(&rt_waiter);
+	rt_mutex_init_waiter(&rt_waiter, false);
 
 	/*
 	 * On PREEMPT_RT_FULL, when hb->lock becomes an rt_mutex, we must not
@@ -3165,7 +3166,7 @@ static int futex_wait_requeue_pi(u32 __user *uaddr, unsigned int flags,
 	 * The waiter is allocated on our stack, manipulated by the requeue
 	 * code while we sleep on uaddr.
 	 */
-	rt_mutex_init_waiter(&rt_waiter);
+	rt_mutex_init_waiter(&rt_waiter, false);
 
 	ret = get_futex_key(uaddr2, flags & FLAGS_SHARED, &key2, VERIFY_WRITE);
 	if (unlikely(ret != 0))
