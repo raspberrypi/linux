@@ -20,6 +20,10 @@
 #include <linux/osq_lock.h>
 #endif
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+#include <linux/rwsem_rt.h>
+#else /* PREEMPT_RT_FULL */
+
 struct rw_semaphore;
 
 #ifdef CONFIG_RWSEM_GENERIC_SPINLOCK
@@ -113,6 +117,13 @@ static inline int rwsem_is_contended(struct rw_semaphore *sem)
 {
 	return !list_empty(&sem->wait_list);
 }
+
+#endif /* !PREEMPT_RT_FULL */
+
+/*
+ * The functions below are the same for all rwsem implementations including
+ * the RT specific variant.
+ */
 
 /*
  * lock for reading
