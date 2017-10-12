@@ -164,6 +164,7 @@ extern void rt_mutex_postunlock(struct wake_q_head *wake_q,
 				struct wake_q_head *wake_sleeper_q);
 
 /* RW semaphore special interface */
+struct ww_acquire_ctx;
 
 extern int __rt_mutex_lock_state(struct rt_mutex *lock, int state);
 extern int __rt_mutex_trylock(struct rt_mutex *lock);
@@ -171,6 +172,7 @@ extern void __rt_mutex_unlock(struct rt_mutex *lock);
 int __sched rt_mutex_slowlock_locked(struct rt_mutex *lock, int state,
 				     struct hrtimer_sleeper *timeout,
 				     enum rtmutex_chainwalk chwalk,
+				     struct ww_acquire_ctx *ww_ctx,
 				     struct rt_mutex_waiter *waiter);
 void __sched rt_spin_lock_slowlock_locked(struct rt_mutex *lock,
 					  struct rt_mutex_waiter *waiter,
