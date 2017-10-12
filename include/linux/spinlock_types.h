@@ -11,8 +11,13 @@
 
 #include <linux/spinlock_types_raw.h>
 
-#include <linux/spinlock_types_nort.h>
-
-#include <linux/rwlock_types.h>
+#ifndef CONFIG_PREEMPT_RT_FULL
+# include <linux/spinlock_types_nort.h>
+# include <linux/rwlock_types.h>
+#else
+# include <linux/rtmutex.h>
+# include <linux/spinlock_types_rt.h>
+# include <linux/rwlock_types_rt.h>
+#endif
 
 #endif /* __LINUX_SPINLOCK_TYPES_H */
