@@ -259,7 +259,7 @@ static ssize_t version_show(struct device_driver *dev, char *buf)
 			DWC_DRIVER_VERSION);
 }
 
-static DRIVER_ATTR(version, S_IRUGO, version_show, NULL);
+static DRIVER_ATTR_RO(version);
 
 /**
  * Global Debug Level Mask.
@@ -269,7 +269,7 @@ uint32_t g_dbg_lvl = 0;		/* OFF */
 /**
  * This function shows the driver Debug Level.
  */
-static ssize_t dbg_level_show(struct device_driver *drv, char *buf)
+static ssize_t debuglevel_show(struct device_driver *drv, char *buf)
 {
 	return sprintf(buf, "0x%0x\n", g_dbg_lvl);
 }
@@ -277,15 +277,14 @@ static ssize_t dbg_level_show(struct device_driver *drv, char *buf)
 /**
  * This function stores the driver Debug Level.
  */
-static ssize_t dbg_level_store(struct device_driver *drv, const char *buf,
+static ssize_t debuglevel_store(struct device_driver *drv, const char *buf,
 			       size_t count)
 {
 	g_dbg_lvl = simple_strtoul(buf, NULL, 16);
 	return count;
 }
 
-static DRIVER_ATTR(debuglevel, S_IRUGO | S_IWUSR, dbg_level_show,
-		   dbg_level_store);
+static DRIVER_ATTR_RW(debuglevel);
 
 /**
  * This function is called during module intialization
