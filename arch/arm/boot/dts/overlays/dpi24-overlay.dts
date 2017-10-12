@@ -9,7 +9,7 @@
 	// reference on - leds will do
 
 	fragment@0 {
-		target = <&leds>;
+		target = <&fb>;
 		__overlay__ {
 			pinctrl-names = "default";
 			pinctrl-0 = <&dpi24_pins>;
