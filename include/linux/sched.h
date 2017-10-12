@@ -123,6 +123,11 @@ struct task_group;
 		smp_store_mb(current->state, (state_value));	\
 	} while (0)
 
+#define __set_current_state_no_track(state_value)		\
+		current->state = (state_value);
+#define set_current_state_no_track(state_value)			\
+		smp_store_mb(current->state, (state_value));
+
 #else
 /*
  * set_current_state() includes a barrier so that the write of current->state
@@ -160,6 +165,9 @@ struct task_group;
  */
 #define __set_current_state(state_value) do { current->state = (state_value); } while (0)
 #define set_current_state(state_value)	 smp_store_mb(current->state, (state_value))
+
+#define __set_current_state_no_track(state_value)	__set_current_state(state_value)
+#define set_current_state_no_track(state_value)		set_current_state(state_value)
 #endif
 
 /* Task command name length: */
@@ -827,6 +835,7 @@ struct task_struct {
 	raw_spinlock_t			pi_lock;
 
 	struct wake_q_node		wake_q;
+	struct wake_q_node		wake_q_sleeper;
 
 #ifdef CONFIG_RT_MUTEXES
 	/* PI waiters blocked on a rt_mutex held by this task: */
