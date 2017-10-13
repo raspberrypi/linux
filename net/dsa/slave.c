@@ -1269,26 +1269,32 @@ int dsa_slave_create(struct dsa_switch *ds, struct device *parent,
 	p->old_duplex = -1;
 
 	ds->ports[port].netdev = slave_dev;
-	ret = register_netdev(slave_dev);
-	if (ret) {
-		netdev_err(master, "error %d registering interface %s\n",
-			   ret, slave_dev->name);
-		ds->ports[port].netdev = NULL;
-		free_netdev(slave_dev);
-		return ret;
-	}
 
 	netif_carrier_off(slave_dev);
 
 	ret = dsa_slave_phy_setup(p, slave_dev);
 	if (ret) {
 		netdev_err(master, "error %d setting up slave phy\n", ret);
-		unregister_netdev(slave_dev);
-		free_netdev(slave_dev);
-		return ret;
+		goto out_free;
+	}
+
+	ret = register_netdev(slave_dev);
+	if (ret) {
+		netdev_err(master, "error %d registering interface %s\n",
+			   ret, slave_dev->name);
+		goto out_phy;
 	}
 
 	return 0;
+
+out_phy:
+	phy_disconnect(p->phy);
+	if (of_phy_is_fixed_link(ds->ports[port].dn))
+		of_phy_deregister_fixed_link(ds->ports[port].dn);
+out_free:
+	free_netdev(slave_dev);
+	ds->ports[port].netdev = NULL;
+	return ret;
 }
 
 void dsa_slave_destroy(struct net_device *slave_dev)
