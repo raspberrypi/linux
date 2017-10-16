@@ -442,8 +442,13 @@ static int pcm512x_set_reg_sub(struct snd_kcontrol *kcontrol,
 			return ret;
 	}
 
-	if (digital_gain_0db_limit)
-		mc->platform_max = 207;
+	if (digital_gain_0db_limit) {
+		ret = snd_soc_limit_volume(card, "Subwoofer Playback Volume",
+					207);
+		if (ret < 0)
+			dev_warn(card->dev, "Failed to set volume limit: %d\n",
+				ret);
+	}
 
 	ret = snd_soc_write(rtd->codec_dais[1]->codec,
 			PCM512x_DIGITAL_VOLUME_3, (~right_val));
@@ -545,8 +550,13 @@ static int pcm512x_set_reg_master(struct snd_kcontrol *kcontrol,
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
 
-	if (digital_gain_0db_limit)
-		mc->platform_max = 207;
+	if (digital_gain_0db_limit) {
+		ret = snd_soc_limit_volume(card, "Master Playback Volume",
+					207);
+		if (ret < 0)
+			dev_warn(card->dev, "Failed to set volume limit: %d\n",
+				ret);
+	}
 
 	if (glb_ptr->dual_mode != 1) {
 		ret = snd_soc_write(rtd->codec_dais[1]->codec,
@@ -701,6 +711,7 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 	memset(glb_ptr, 0x00, sizeof(glb_ptr));
 	card->drvdata = glb_ptr;
 	glb_ptr->dual_mode = 2;
+	glb_ptr->set_mode = 0;
 
 	mutex_init(&glb_ptr->lock);
 
