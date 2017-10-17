@@ -2714,6 +2714,11 @@ static int lan78xx_reset(struct lan78xx_net *dev)
 	int ret;
 	u32 buf;
 	u8 sig;
+	bool has_eeprom;
+	bool has_otp;
+
+	has_eeprom = !lan78xx_read_eeprom(dev, 0, 0, NULL);
+	has_otp = !lan78xx_read_otp(dev, 0, 0, NULL);
 
 	ret = lan78xx_read_reg(dev, HW_CFG, &buf);
 	if (ret < 0)
@@ -2794,6 +2799,10 @@ static int lan78xx_reset(struct lan78xx_net *dev)
 		return ret;
 
 	buf |= HW_CFG_MEF_;
+
+	/* If no valid EEPROM and no valid OTP, enable the LEDs by default */
+	if (!has_eeprom && !has_otp)
+	    buf |= HW_CFG_LED0_EN_ | HW_CFG_LED1_EN_;
 
 	ret = lan78xx_write_reg(dev, HW_CFG, buf);
 	if (ret < 0)
@@ -2893,6 +2902,9 @@ static int lan78xx_reset(struct lan78xx_net *dev)
 			buf |= MAC_CR_AUTO_DUPLEX_ | MAC_CR_AUTO_SPEED_;
 		}
 	}
+	/* If no valid EEPROM and no valid OTP, enable AUTO negotiation */
+	if (!has_eeprom && !has_otp)
+	    buf |= MAC_CR_AUTO_DUPLEX_ | MAC_CR_AUTO_SPEED_;
 	ret = lan78xx_write_reg(dev, MAC_CR, buf);
 	if (ret < 0)
 		return ret;
