@@ -117,6 +117,7 @@ static int snd_rpi_hifiberry_dacplus_clk_for_rate(int sample_rate)
 	case 44100:
 	case 88200:
 	case 176400:
+	case 352800:
 		type = HIFIBERRY_DACPRO_CLK44EN;
 		break;
 	default:
