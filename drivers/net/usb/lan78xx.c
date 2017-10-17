@@ -2362,6 +2362,11 @@ static int lan78xx_reset(struct lan78xx_net *dev)
 	u32 buf;
 	int ret = 0;
 	unsigned long timeout;
+	bool has_eeprom;
+	bool has_otp;
+
+	has_eeprom = !lan78xx_read_eeprom(dev, 0, 0, NULL);
+	has_otp = !lan78xx_read_otp(dev, 0, 0, NULL);
 
 	ret = lan78xx_read_reg(dev, HW_CFG, &buf);
 	buf |= HW_CFG_LRST_;
@@ -2415,6 +2420,9 @@ static int lan78xx_reset(struct lan78xx_net *dev)
 
 	ret = lan78xx_read_reg(dev, HW_CFG, &buf);
 	buf |= HW_CFG_MEF_;
+	/* If no valid EEPROM and no valid OTP, enable the LEDs by default */
+	if (!has_eeprom && !has_otp)
+	    buf |= HW_CFG_LED0_EN_ | HW_CFG_LED1_EN_;
 	ret = lan78xx_write_reg(dev, HW_CFG, buf);
 
 	ret = lan78xx_read_reg(dev, USB_CFG0, &buf);
@@ -2461,6 +2469,9 @@ static int lan78xx_reset(struct lan78xx_net *dev)
 	/* LAN7801 only has RGMII mode */
 	if (dev->chipid == ID_REV_CHIP_ID_7801_)
 		buf &= ~MAC_CR_GMII_EN_;
+	/* If no valid EEPROM and no valid OTP, enable AUTO negotiation */
+	if (!has_eeprom && !has_otp)
+	    buf |= MAC_CR_AUTO_DUPLEX_ | MAC_CR_AUTO_SPEED_;
 	ret = lan78xx_write_reg(dev, MAC_CR, buf);
 
 	ret = lan78xx_read_reg(dev, MAC_TX, &buf);
