@@ -2405,9 +2405,10 @@ EXPORT_SYMBOL(d_rehash);
 static inline unsigned start_dir_add(struct inode *dir)
 {
 
+	preempt_disable_rt();
 	for (;;) {
-		unsigned n = dir->i_dir_seq;
-		if (!(n & 1) && cmpxchg(&dir->i_dir_seq, n, n + 1) == n)
+		unsigned n = dir->__i_dir_seq;
+		if (!(n & 1) && cmpxchg(&dir->__i_dir_seq, n, n + 1) == n)
 			return n;
 		cpu_relax();
 	}
@@ -2415,7 +2416,8 @@ static inline unsigned start_dir_add(struct inode *dir)
 
 static inline void end_dir_add(struct inode *dir, unsigned n)
 {
-	smp_store_release(&dir->i_dir_seq, n + 2);
+	smp_store_release(&dir->__i_dir_seq, n + 2);
+	preempt_enable_rt();
 }
 
 static void d_wait_lookup(struct dentry *dentry)
@@ -2448,7 +2450,7 @@ struct dentry *d_alloc_parallel(struct dentry *parent,
 
 retry:
 	rcu_read_lock();
-	seq = smp_load_acquire(&parent->d_inode->i_dir_seq) & ~1;
+	seq = smp_load_acquire(&parent->d_inode->__i_dir_seq) & ~1;
 	r_seq = read_seqbegin(&rename_lock);
 	dentry = __d_lookup_rcu(parent, name, &d_seq);
 	if (unlikely(dentry)) {
@@ -2470,7 +2472,7 @@ retry:
 		goto retry;
 	}
 	hlist_bl_lock(b);
-	if (unlikely(parent->d_inode->i_dir_seq != seq)) {
+	if (unlikely(parent->d_inode->__i_dir_seq != seq)) {
 		hlist_bl_unlock(b);
 		rcu_read_unlock();
 		goto retry;
