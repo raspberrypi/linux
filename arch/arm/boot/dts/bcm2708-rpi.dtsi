@@ -156,7 +156,5 @@ sdhost_pins: &sdhost_gpio48 {
 };
 
 &cpu_thermal {
-	coefficients = <(-538)	407000>;
-
 	/delete-node/ trips;
 };
