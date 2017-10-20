@@ -307,6 +307,9 @@ static int podhd_init(struct usb_line6 *line6,
 
 	line6->disconnect = podhd_disconnect;
 
+	init_timer(&pod->startup_timer);
+	INIT_WORK(&pod->startup_work, podhd_startup_workqueue);
+
 	if (pod->line6.properties->capabilities & LINE6_CAP_CONTROL) {
 		/* create sysfs entries: */
 		err = snd_card_add_dev_attr(line6->card, &podhd_dev_attr_group);
@@ -330,8 +333,6 @@ static int podhd_init(struct usb_line6 *line6,
 	}
 
 	/* init device and delay registering */
-	init_timer(&pod->startup_timer);
-	INIT_WORK(&pod->startup_work, podhd_startup_workqueue);
 	podhd_startup(pod);
 	return 0;
 }
