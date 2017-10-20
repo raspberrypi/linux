@@ -243,7 +243,7 @@ static struct rpi_touchscreen *panel_to_ts(struct drm_panel *panel)
 	return container_of(panel, struct rpi_touchscreen, base);
 }
 
-static u8 rpi_touchscreen_i2c_read(struct rpi_touchscreen *ts, u8 reg)
+static int rpi_touchscreen_i2c_read(struct rpi_touchscreen *ts, u8 reg)
 {
 	return i2c_smbus_read_byte_data(ts->bridge_i2c, reg);
 }
