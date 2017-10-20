@@ -90,7 +90,7 @@ static struct dentry *next_positive(struct dentry *parent,
 				    struct list_head *from,
 				    int count)
 {
-	unsigned *seq = &parent->d_inode->i_dir_seq, n;
+	unsigned *seq = &parent->d_inode->__i_dir_seq, n;
 	struct dentry *res;
 	struct list_head *p;
 	bool skipped;
@@ -123,8 +123,9 @@ retry:
 static void move_cursor(struct dentry *cursor, struct list_head *after)
 {
 	struct dentry *parent = cursor->d_parent;
-	unsigned n, *seq = &parent->d_inode->i_dir_seq;
+	unsigned n, *seq = &parent->d_inode->__i_dir_seq;
 	spin_lock(&parent->d_lock);
+	preempt_disable_rt();
 	for (;;) {
 		n = *seq;
 		if (!(n & 1) && cmpxchg(seq, n, n + 1) == n)
@@ -137,6 +138,7 @@ static void move_cursor(struct dentry *cursor, struct list_head *after)
 	else
 		list_add_tail(&cursor->d_child, &parent->d_subdirs);
 	smp_store_release(seq, n + 2);
+	preempt_enable_rt();
 	spin_unlock(&parent->d_lock);
 }
 
