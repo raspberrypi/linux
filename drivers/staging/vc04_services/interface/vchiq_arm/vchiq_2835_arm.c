@@ -106,8 +106,14 @@ int vchiq_platform_init(struct platform_device *pdev, VCHIQ_STATE_T *state)
 
 	g_virt_to_bus_offset = virt_to_dma(dev, (void *)0);
 
-	(void)of_property_read_u32(dev->of_node, "cache-line-size",
+	err = of_property_read_u32(dev->of_node, "cache-line-size",
 				   &g_cache_line_size);
+
+	if (err) {
+		dev_err(dev, "Missing cache-line-size property\n");
+		return -ENODEV;
+	}
+
 	g_fragments_size = 2 * g_cache_line_size;
 
 	/* Allocate space for the channels in coherent memory */
