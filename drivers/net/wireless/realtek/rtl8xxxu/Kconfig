@@ -4,6 +4,7 @@
 config RTL8XXXU
 	tristate "RTL8723AU/RTL8188[CR]U/RTL819[12]CU (mac80211) support"
 	depends on MAC80211 && USB
+	default n
 	---help---
 	  This is an alternative driver for various Realtek RTL8XXX
 	  parts written to utilize the Linux mac80211 stack.
