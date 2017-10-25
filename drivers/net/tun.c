@@ -1814,7 +1814,7 @@ static int tun_set_iff(struct net *net, struct file *file, struct ifreq *ifr)
 		if (!dev)
 			return -ENOMEM;
 		err = dev_get_valid_name(net, dev, name);
-		if (err)
+		if (err < 0)
 			goto err_free_dev;
 
 		dev_net_set(dev, net);
