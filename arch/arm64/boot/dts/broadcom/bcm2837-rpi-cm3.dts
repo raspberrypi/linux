@@ -4,8 +4,8 @@
 #include "bcm283x-rpi-smsc9514.dtsi"
 
 / {
-  compatible = "raspberrypi,3-model-b", "brcm,bcm2837";
-  model = "Raspberry Pi 3 Model B";
+  compatible = "brcm,bcm2837";
+  model = "Raspberry Pi Compute Module 3";
 
   memory {
     reg = <0 0x40000000>;
@@ -100,7 +100,7 @@
     reg = <0>;  /* CE0 */
     #address-cells = <1>;
     #size-cells = <0>;
-    spi-max-frequency = <500000>;
+    spi-max-frequency = <125000000>;
   };
 
   spidev1: spidev@1{
@@ -108,7 +108,7 @@
     reg = <1>;  /* CE1 */
     #address-cells = <1>;
     #size-cells = <0>;
-    spi-max-frequency = <500000>;
+    spi-max-frequency = <125000000>;
   };
 };
 
@@ -128,6 +128,8 @@
     uart1 = <&uart1>,"status";
     i2s = <&i2s>,"status";
     spi = <&spi0>,"status";
+    spi1 = <&spi1>,"status";
+    spi2 = <&spi2>,"status";
     i2c0 = <&i2c0>,"status";
     i2c1 = <&i2c1>,"status";
     i2c2_iknowwhatimdoing = <&i2c2>,"status";
