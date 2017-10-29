@@ -1521,11 +1521,11 @@ static inline  void hv_signal_on_read(struct vmbus_channel *channel)
 
 	cur_write_sz = hv_get_bytes_to_write(rbi);
 
-	if (cur_write_sz < pending_sz)
+	if (cur_write_sz <= pending_sz)
 		return;
 
 	cached_write_sz = hv_get_cached_bytes_to_write(rbi);
-	if (cached_write_sz < pending_sz)
+	if (cached_write_sz <= pending_sz)
 		vmbus_setevent(channel);
 
 	return;
