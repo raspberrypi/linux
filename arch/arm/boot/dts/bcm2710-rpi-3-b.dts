@@ -9,6 +9,15 @@
 
 / {
 	model = "Raspberry Pi 3 Model B";
+
+	chosen {
+		bootargs = "8250.nr_uarts=1";
+	};
+
+	aliases {
+		serial0 = &uart1;
+		serial1 = &uart0;
+	};
 };
 
 &gpio {
@@ -170,12 +179,6 @@
 &audio {
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
-};
-
-/ {
-	chosen {
-		bootargs = "8250.nr_uarts=1";
-	};
 };
 
 / {
