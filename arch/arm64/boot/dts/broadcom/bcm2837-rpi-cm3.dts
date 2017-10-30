@@ -53,6 +53,16 @@
     brcm,function = <1>; /* output */
   };
 
+  spi1_pins: spi1_pins {
+    brcm,pins = <19 20 21>;
+    brcm,function = <3>; /* alt4 */
+  };
+
+  spi1_cs_pins: spi1_cs_pins {
+    brcm,pins = <18>;
+    brcm,function = <1>; /* output */
+  };
+
   i2c0_pins: i2c0 {
     brcm,pins = <0 1>;
     brcm,function = <4>;
@@ -110,6 +120,30 @@
     #size-cells = <0>;
     spi-max-frequency = <125000000>;
   };
+
+};
+
+&aux {
+  status = "okay";
+};
+
+&spi1 {
+    /* needed to avoid dtc warning */
+    #address-cells = <1>;
+    #size-cells = <0>;
+    pinctrl-names = "default";
+    pinctrl-0 = <&spi1_pins &spi1_cs_pins>;
+    cs-gpios = <&gpio 18 1>;
+    status = "okay";
+
+    spidev1_0: spidev@0 {
+      compatible = "spidev";
+      reg = <0>;      /* CE0 */
+      #address-cells = <1>;
+      #size-cells = <0>;
+      spi-max-frequency = <500000>;
+      status = "okay";
+    };
 };
 
 &vc4 {
@@ -143,5 +177,9 @@
 
     watchdog = <&watchdog>,"status";
     random = <&random>,"status";
+
+    cs0_pin  = <&spi1_cs_pins>,"brcm,pins:0",
+      <&spi1>,"cs-gpios:4";
+    cs0_spidev = <&spidev1_0>,"status";
   };
 };
