@@ -771,6 +771,13 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102
         tmp102                  Select the Texas Instruments TMP102 temp sensor
                                 Valid addresses 0x48-0x4b, default 0x48
 
+        hdc100x                 Select the Texas Instruments HDC100x temp sensor
+                                Valid addresses 0x40-0x43, default 0x40
+
+        tsl4531                 Select the AMS TSL4531 digital ambient light sensor
+
+        veml6070                Select the Vishay VEML6070 ultraviolet light sensor
+
 
 Name:   i2c0-bcm2708
 Info:   Enable the i2c_bcm2708 driver for the i2c0 bus. Not all pin combinations
