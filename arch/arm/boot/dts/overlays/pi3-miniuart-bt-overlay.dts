@@ -31,7 +31,7 @@
 		target = <&uart1>;
 		__overlay__ {
 			pinctrl-names = "default";
-			pinctrl-0 = <&uart1_pins &bt_pins>;
+			pinctrl-0 = <&uart1_pins &bt_pins &fake_bt_cts>;
 			status = "okay";
 		};
 	};
@@ -55,6 +55,16 @@
 	};
 
 	fragment@4 {
+		target = <&gpio>;
+		__overlay__ {
+			fake_bt_cts: fake_bt_cts {
+				brcm,pins = <31>;
+				brcm,function = <1>; /* output */
+			};
+		};
+	};
+
+	fragment@5 {
 		target-path = "/aliases";
 		__overlay__ {
 			serial0 = "/soc/serial@7e201000";
