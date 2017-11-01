@@ -745,8 +745,8 @@ Name:   i2c-sensor
 Info:   Adds support for a number of I2C barometric pressure and temperature
         sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
-Params: addr                    Set the address for the BME280, BMP280, TMP102
-                                or LM75
+Params: addr                    Set the address for the BME280, BMP280, TMP102,
+                                HDC100X or LM75
 
         bme280                  Select the Bosch Sensortronic BME280
                                 Valid addresses 0x76-0x77, default 0x76
@@ -774,9 +774,11 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102
         hdc100x                 Select the Texas Instruments HDC100x temp sensor
                                 Valid addresses 0x40-0x43, default 0x40
 
-        tsl4531                 Select the AMS TSL4531 digital ambient light sensor
+        tsl4531                 Select the AMS TSL4531 digital ambient light
+                                sensor
 
-        veml6070                Select the Vishay VEML6070 ultraviolet light sensor
+        veml6070                Select the Vishay VEML6070 ultraviolet light
+                                sensor
 
 
 Name:   i2c0-bcm2708
