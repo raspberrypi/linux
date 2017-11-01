@@ -1833,11 +1833,6 @@ static int unicam_async_complete(struct v4l2_async_notifier *notifier)
 	return unicam_probe_complete(unicam);
 }
 
-static const struct v4l2_async_notifier_operations unicam_async_ops = {
-	.bound = unicam_async_bound,
-	.complete = unicam_async_complete,
-};
-
 static int of_unicam_connect_subdevs(struct unicam_device *dev)
 {
 	struct platform_device *pdev = dev->pdev;
@@ -1956,7 +1951,8 @@ static int of_unicam_connect_subdevs(struct unicam_device *dev)
 	subdevs[0] = asd;
 	dev->notifier.subdevs = subdevs;
 	dev->notifier.num_subdevs = 1;
-	dev->notifier.ops = &unicam_async_ops;
+	dev->notifier.bound = unicam_async_bound;
+	dev->notifier.complete = unicam_async_complete;
 	ret = v4l2_async_notifier_register(&dev->v4l2_dev,
 					   &dev->notifier);
 	if (ret) {
