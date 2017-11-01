@@ -126,9 +126,54 @@
 		};
 	};
 
+	fragment@8 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			hdc100x: hdc100x@40 {
+				compatible = "hdc100x";
+				reg = <0x40>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@9 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			tsl4531: tsl4531@29 {
+				compatible = "tsl4531";
+				reg = <0x29>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@10 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			veml6070: veml6070@38 {
+				compatible = "veml6070";
+				reg = <0x38>;
+				status = "okay";
+			};
+		};
+	};
+
 	__overrides__ {
 		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
-			<&lm75>,"reg:0";
+			<&lm75>,"reg:0",<&hdc100x>,"reg:0";
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
 		bmp180 = <0>,"+2";
@@ -138,5 +183,8 @@
 		lm75addr = <&lm75>,"reg:0";
 		si7020 = <0>,"+6";
 		tmp102 = <0>,"+7";
+		hdc100x = <0>,"+8";
+		tsl4531 = <0>,"+9";
+		veml6070 = <0>,"+10";
 	};
 };
