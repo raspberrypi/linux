@@ -3,6 +3,8 @@
 #include "bcm2708-rpi.dtsi"
 
 / {
+	compatible = "brcm,bcm2837", "brcm,bcm2836";
+
 	soc {
 
 		arm-pmu {
