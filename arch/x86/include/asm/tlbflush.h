@@ -158,7 +158,7 @@ static inline void __native_flush_tlb(void)
 	 * back:
 	 */
 	preempt_disable();
-	if (kaiser_enabled && this_cpu_has(X86_FEATURE_PCID))
+	if (kaiser_enabled)
 		kaiser_flush_tlb_on_return_to_user();
 	native_write_cr3(native_read_cr3());
 	preempt_enable();
@@ -217,7 +217,7 @@ static inline void __native_flush_tlb_single(unsigned long addr)
 	 */
 
 	if (!this_cpu_has(X86_FEATURE_INVPCID_SINGLE)) {
-		if (kaiser_enabled && this_cpu_has(X86_FEATURE_PCID))
+		if (kaiser_enabled)
 			kaiser_flush_tlb_on_return_to_user();
 		asm volatile("invlpg (%0)" ::"r" (addr) : "memory");
 		return;
