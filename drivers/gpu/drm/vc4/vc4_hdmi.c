@@ -1130,7 +1130,7 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *hdmi)
 	 * snd_soc_card_get_drvdata() if needed.
 	 */
 	snd_soc_card_set_drvdata(card, hdmi);
-	ret = devm_snd_soc_register_card(dev, card);
+	ret = snd_soc_register_card(card);
 	if (ret) {
 		dev_err(dev, "Could not register sound card: %d\n", ret);
 		goto unregister_codec;
@@ -1147,13 +1147,16 @@ unregister_codec:
 static void vc4_hdmi_audio_cleanup(struct vc4_hdmi *hdmi)
 {
 	struct device *dev = &hdmi->pdev->dev;
+	struct snd_soc_card *card = &hdmi->audio.card;
 
 	/*
 	 * If drvdata is not set this means the audio card was not
 	 * registered, just skip codec unregistration in this case.
 	 */
-	if (dev_get_drvdata(dev))
+	if (dev_get_drvdata(dev)) {
+		snd_soc_unregister_card(card);
 		snd_soc_unregister_codec(dev);
+	}
 }
 
 #ifdef CONFIG_DRM_VC4_HDMI_CEC
