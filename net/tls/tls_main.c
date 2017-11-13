@@ -249,6 +249,12 @@ static void tls_sk_proto_close(struct sock *sk, long timeout)
 	void (*sk_proto_close)(struct sock *sk, long timeout);
 
 	lock_sock(sk);
+	sk_proto_close = ctx->sk_proto_close;
+
+	if (ctx->tx_conf == TLS_BASE_TX) {
+		tls_ctx_free(ctx);
+		goto skip_tx_cleanup;
+	}
 
 	if (!tls_complete_pending_work(sk, ctx, 0, &timeo))
 		tls_handle_open_record(sk, 0);
@@ -265,13 +271,16 @@ static void tls_sk_proto_close(struct sock *sk, long timeout)
 			sg++;
 		}
 	}
-	ctx->free_resources(sk);
+
 	kfree(ctx->rec_seq);
 	kfree(ctx->iv);
 
-	sk_proto_close = ctx->sk_proto_close;
-	tls_ctx_free(ctx);
+	if (ctx->tx_conf == TLS_SW_TX) {
+		tls_sw_free_tx_resources(sk);
+		tls_ctx_free(ctx);
+	}
 
+skip_tx_cleanup:
 	release_sock(sk);
 	sk_proto_close(sk, timeout);
 }
@@ -428,8 +437,6 @@ static int do_tls_setsockopt_tx(struct sock *sk, char __user *optval,
 	ctx->sk_write_space = sk->sk_write_space;
 	sk->sk_write_space = tls_write_space;
 
-	ctx->sk_proto_close = sk->sk_prot->close;
-
 	/* currently SW is default, we will have ethtool in future */
 	rc = tls_set_sw_offload(sk, ctx);
 	tx_conf = TLS_SW_TX;
@@ -499,6 +506,7 @@ static int tls_init(struct sock *sk)
 	icsk->icsk_ulp_data = ctx;
 	ctx->setsockopt = sk->sk_prot->setsockopt;
 	ctx->getsockopt = sk->sk_prot->getsockopt;
+	ctx->sk_proto_close = sk->sk_prot->close;
 
 	ctx->tx_conf = TLS_BASE_TX;
 	update_sk_prot(sk, ctx);
@@ -515,11 +523,11 @@ static struct tcp_ulp_ops tcp_tls_ulp_ops __read_mostly = {
 static void build_protos(struct proto *prot, struct proto *base)
 {
 	prot[TLS_BASE_TX] = *base;
-	prot[TLS_BASE_TX].setsockopt = tls_setsockopt;
-	prot[TLS_BASE_TX].getsockopt = tls_getsockopt;
+	prot[TLS_BASE_TX].setsockopt	= tls_setsockopt;
+	prot[TLS_BASE_TX].getsockopt	= tls_getsockopt;
+	prot[TLS_BASE_TX].close		= tls_sk_proto_close;
 
 	prot[TLS_SW_TX] = prot[TLS_BASE_TX];
-	prot[TLS_SW_TX].close		= tls_sk_proto_close;
 	prot[TLS_SW_TX].sendmsg		= tls_sw_sendmsg;
 	prot[TLS_SW_TX].sendpage	= tls_sw_sendpage;
 }
