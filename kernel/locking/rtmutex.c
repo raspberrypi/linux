@@ -24,6 +24,7 @@
 #include <linux/sched/debug.h>
 #include <linux/timer.h>
 #include <linux/ww_mutex.h>
+#include <linux/blkdev.h>
 
 #include "rtmutex_common.h"
 
@@ -1919,6 +1920,15 @@ rt_mutex_fastlock(struct rt_mutex *lock, int state,
 	if (likely(rt_mutex_cmpxchg_acquire(lock, NULL, current)))
 		return 0;
 
+	/*
+	 * If rt_mutex blocks, the function sched_submit_work will not call
+	 * blk_schedule_flush_plug (because tsk_is_pi_blocked would be true).
+	 * We must call blk_schedule_flush_plug here, if we don't call it,
+	 * a deadlock in device mapper may happen.
+	 */
+	if (unlikely(blk_needs_flush_plug(current)))
+		blk_schedule_flush_plug(current);
+
 	return slowfn(lock, state, NULL, RT_MUTEX_MIN_CHAINWALK, ww_ctx);
 }
 
@@ -1935,6 +1945,9 @@ rt_mutex_timed_fastlock(struct rt_mutex *lock, int state,
 	if (chwalk == RT_MUTEX_MIN_CHAINWALK &&
 	    likely(rt_mutex_cmpxchg_acquire(lock, NULL, current)))
 		return 0;
+
+	if (unlikely(blk_needs_flush_plug(current)))
+		blk_schedule_flush_plug(current);
 
 	return slowfn(lock, state, timeout, chwalk, ww_ctx);
 }
