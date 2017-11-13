@@ -381,7 +381,7 @@ static int tls_getsockopt(struct sock *sk, int level, int optname,
 static int do_tls_setsockopt_tx(struct sock *sk, char __user *optval,
 				unsigned int optlen)
 {
-	struct tls_crypto_info *crypto_info, tmp_crypto_info;
+	struct tls_crypto_info *crypto_info;
 	struct tls_context *ctx = tls_get_ctx(sk);
 	int rc = 0;
 	int tx_conf;
@@ -391,38 +391,33 @@ static int do_tls_setsockopt_tx(struct sock *sk, char __user *optval,
 		goto out;
 	}
 
-	rc = copy_from_user(&tmp_crypto_info, optval, sizeof(*crypto_info));
-	if (rc) {
-		rc = -EFAULT;
-		goto out;
-	}
-
-	/* check version */
-	if (tmp_crypto_info.version != TLS_1_2_VERSION) {
-		rc = -ENOTSUPP;
-		goto out;
-	}
-
-	/* get user crypto info */
 	crypto_info = &ctx->crypto_send.info;
-
 	/* Currently we don't support set crypto info more than one time */
 	if (TLS_CRYPTO_INFO_READY(crypto_info)) {
 		rc = -EBUSY;
 		goto out;
 	}
 
-	switch (tmp_crypto_info.cipher_type) {
+	rc = copy_from_user(crypto_info, optval, sizeof(*crypto_info));
+	if (rc) {
+		rc = -EFAULT;
+		goto out;
+	}
+
+	/* check version */
+	if (crypto_info->version != TLS_1_2_VERSION) {
+		rc = -ENOTSUPP;
+		goto err_crypto_info;
+	}
+
+	switch (crypto_info->cipher_type) {
 	case TLS_CIPHER_AES_GCM_128: {
 		if (optlen != sizeof(struct tls12_crypto_info_aes_gcm_128)) {
 			rc = -EINVAL;
 			goto err_crypto_info;
 		}
-		rc = copy_from_user(
-		  crypto_info,
-		  optval,
-		  sizeof(struct tls12_crypto_info_aes_gcm_128));
-
+		rc = copy_from_user(crypto_info + 1, optval + sizeof(*crypto_info),
+				    optlen - sizeof(*crypto_info));
 		if (rc) {
 			rc = -EFAULT;
 			goto err_crypto_info;
