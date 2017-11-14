@@ -37,6 +37,7 @@
 		fb = &fb;
 		vchiq = &vchiq;
 		thermal = &thermal;
+		axiperf = &axiperf;
 	};
 
 	leds: leds {
@@ -119,6 +120,7 @@
 		sd_force_pio = <&sdhost>,"brcm,force-pio?";
 		sd_pio_limit = <&sdhost>,"brcm,pio-limit:0";
 		sd_debug     = <&sdhost>,"brcm,debug";
+		axiperf      = <&axiperf>,"status";
 	};
 };
 
