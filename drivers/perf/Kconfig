@@ -146,6 +146,14 @@ config MARVELL_CN10K_TAD_PMU
 	  Provides support for Last-Level cache Tag-and-data Units (LLC-TAD)
 	  performance monitors on CN10K family silicons.
 
+config RPI_AXIPERF
+        depends on ARCH_BCM2835
+        tristate "RaspberryPi AXI Performance monitors"
+        default n
+        help
+          Say y if you want to use Raspberry Pi AXI performance monitors, m if
+          you want to build it as a module.
+
 source "drivers/perf/hisilicon/Kconfig"
 
 endmenu
