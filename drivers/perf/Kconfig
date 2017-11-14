@@ -190,6 +190,14 @@ config ALIBABA_UNCORE_DRW_PMU
 	  Support for Driveway PMU events monitoring on Yitian 710 DDR
 	  Sub-system.
 
+config RPI_AXIPERF
+        depends on ARCH_BCM2835
+        tristate "RaspberryPi AXI Performance monitors"
+        default n
+        help
+          Say y if you want to use Raspberry Pi AXI performance monitors, m if
+          you want to build it as a module.
+
 source "drivers/perf/hisilicon/Kconfig"
 
 config MARVELL_CN10K_DDR_PMU
