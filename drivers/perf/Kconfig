@@ -111,4 +111,11 @@ config ARM_SPE_PMU
 	  Extension, which provides periodic sampling of operations in
 	  the CPU pipeline and reports this via the perf AUX interface.
 
+config RPI_AXIPERF
+        depends on ARCH_BCM2835
+        tristate "RaspberryPi AXI Performance monitors"
+        default n
+        help
+          Say y if you want to use Raspberry Pi AXI performance monitors, m if
+          you want to build it as a module.
 endmenu
