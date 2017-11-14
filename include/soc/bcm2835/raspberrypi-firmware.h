@@ -88,6 +88,9 @@ enum rpi_firmware_property_tag {
 	RPI_FIRMWARE_SET_SDHOST_CLOCK =                       0x00038042,
 	RPI_FIRMWARE_GET_GPIO_CONFIG =                        0x00030043,
 	RPI_FIRMWARE_SET_GPIO_CONFIG =                        0x00038043,
+	RPI_FIRMWARE_GET_PERIPH_REG =                         0x00030045,
+	RPI_FIRMWARE_SET_PERIPH_REG =                         0x00038045,
+
 
 	/* Dispmanx TAGS */
 	RPI_FIRMWARE_FRAMEBUFFER_ALLOCATE =                   0x00040001,
