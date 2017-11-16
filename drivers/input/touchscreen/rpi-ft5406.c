@@ -180,10 +180,8 @@ static int ft5406_probe(struct platform_device *pdev)
 	}
 
 	fw = rpi_firmware_get(fw_node);
-	if (!fw) {
-		dev_info(dev, "No firmware node yet - deferring\n");
+	if (!fw)
 		return -EPROBE_DEFER;
-	}
 
 	ts = devm_kzalloc(dev, sizeof(struct ft5406), GFP_KERNEL);
 	if (!ts) {
