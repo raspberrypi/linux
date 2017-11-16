@@ -1299,8 +1299,12 @@ Params: speed                   Display SPI bus speed
 
 Name:   rpi-ft5406
 Info:   Official Raspberry Pi display touchscreen
-Load:   dtoverlay=rpi-ft5406
-Params: <None>
+Load:   dtoverlay=rpi-ft5406,<param>=<val>
+Params: touchscreen-size-x      Touchscreen X resolution (default 800)
+        touchscreen-size-y      Touchscreen Y resolution (default 600);
+        touchscreen-inverted-x  Invert touchscreen X coordinates (default 0);
+        touchscreen-inverted-y  Invert touchscreen Y coordinates (default 0);
+        touchscreen-swapped-x-y Swap X and Y cordinates (default 0);
 
 
 Name:   rpi-proto
