@@ -2289,6 +2289,14 @@ void rt_mutex_init_proxy_locked(struct rt_mutex *lock,
 				struct task_struct *proxy_owner)
 {
 	__rt_mutex_init(lock, NULL, NULL);
+#ifdef CONFIG_DEBUG_SPINLOCK
+	/*
+	 * get another key class for the wait_lock. LOCK_PI and UNLOCK_PI is
+	 * holding the ->wait_lock of the proxy_lock while unlocking a sleeping
+	 * lock.
+	 */
+	raw_spin_lock_init(&lock->wait_lock);
+#endif
 	debug_rt_mutex_proxy_lock(lock, proxy_owner);
 	rt_mutex_set_owner(lock, proxy_owner);
 }
