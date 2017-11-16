@@ -181,7 +181,7 @@ static int ft5406_probe(struct platform_device *pdev)
 
 	fw = rpi_firmware_get(fw_node);
 	if (!fw) {
-		dev_err(dev, "No firmware node - deferring\n");
+		dev_info(dev, "No firmware node yet - deferring\n");
 		return -EPROBE_DEFER;
 	}
 
