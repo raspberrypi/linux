@@ -85,7 +85,7 @@ static struct acpi_driver acpi_ac_driver = {
 
 struct acpi_ac {
 	struct power_supply charger;
-	struct acpi_device * device;
+	struct acpi_device *device;
 	unsigned long long state;
 };
 
@@ -102,7 +102,7 @@ static const struct file_operations acpi_ac_fops = {
 #endif
 
 /* --------------------------------------------------------------------------
-                               AC Adapter Management
+			AC Adapter Management
    -------------------------------------------------------------------------- */
 
 static int acpi_ac_get_state(struct acpi_ac *ac)
@@ -115,7 +115,7 @@ static int acpi_ac_get_state(struct acpi_ac *ac)
 
 	status = acpi_evaluate_integer(ac->device->handle, "_PSR", NULL, &ac->state);
 	if (ACPI_FAILURE(status)) {
-		ACPI_EXCEPTION((AE_INFO, status, "Error reading AC Adapter state"));
+		ACPI_EXCEPTION((AE_INFO ,status ,"Error reading AC Adapter state"));
 		ac->state = ACPI_AC_STATUS_UNKNOWN;
 		return -ENODEV;
 	}
@@ -124,7 +124,7 @@ static int acpi_ac_get_state(struct acpi_ac *ac)
 }
 
 /* --------------------------------------------------------------------------
-                            sysfs I/F
+				sysfs I/F
    -------------------------------------------------------------------------- */
 static int get_ac_property(struct power_supply *psy,
 			   enum power_supply_property psp,
@@ -154,7 +154,7 @@ static enum power_supply_property ac_props[] = {
 
 #ifdef CONFIG_ACPI_PROCFS_POWER
 /* --------------------------------------------------------------------------
-                              FS Interface (/proc)
+			FS Interface (/proc)
    -------------------------------------------------------------------------- */
 
 static struct proc_dir_entry *acpi_ac_dir;
