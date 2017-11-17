@@ -184,7 +184,7 @@ static bool i40e_clean_tx_irq(struct i40e_vsi *vsi,
 			break;
 
 		/* prevent any other reads prior to eop_desc */
-		read_barrier_depends();
+		smp_rmb();
 
 		/* we have caught up to head, no work left to do */
 		if (tx_head == tx_desc)
