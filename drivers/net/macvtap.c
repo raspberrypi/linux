@@ -559,6 +559,10 @@ static int macvtap_open(struct inode *inode, struct file *file)
 					     &macvtap_proto, 0);
 	if (!q)
 		goto err;
+	if (skb_array_init(&q->skb_array, dev->tx_queue_len, GFP_KERNEL)) {
+		sk_free(&q->sk);
+		goto err;
+	}
 
 	RCU_INIT_POINTER(q->sock.wq, &q->wq);
 	init_waitqueue_head(&q->wq.wait);
@@ -582,22 +586,18 @@ static int macvtap_open(struct inode *inode, struct file *file)
 	if ((dev->features & NETIF_F_HIGHDMA) && (dev->features & NETIF_F_SG))
 		sock_set_flag(&q->sk, SOCK_ZEROCOPY);
 
-	err = -ENOMEM;
-	if (skb_array_init(&q->skb_array, dev->tx_queue_len, GFP_KERNEL))
-		goto err_array;
-
 	err = macvtap_set_queue(dev, file, q);
-	if (err)
-		goto err_queue;
+	if (err) {
+		/* macvtap_sock_destruct() will take care of freeing skb_array */
+		goto err_put;
+	}
 
 	dev_put(dev);
 
 	rtnl_unlock();
 	return err;
 
-err_queue:
-	skb_array_cleanup(&q->skb_array);
-err_array:
+err_put:
 	sock_put(&q->sk);
 err:
 	if (dev)
@@ -1077,6 +1077,8 @@ static long macvtap_ioctl(struct file *file, unsigned int cmd,
 	case TUNSETSNDBUF:
 		if (get_user(s, sp))
 			return -EFAULT;
+		if (s <= 0)
+			return -EINVAL;
 
 		q->sk.sk_sndbuf = s;
 		return 0;
