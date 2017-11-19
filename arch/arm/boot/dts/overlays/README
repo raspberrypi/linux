@@ -780,6 +780,9 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102,
         veml6070                Select the Vishay VEML6070 ultraviolet light
                                 sensor
 
+        sht3x                   Select the Sensiron SHT3x temperature and
+                                humidity sensor
+
 
 Name:   i2c0-bcm2708
 Info:   Enable the i2c_bcm2708 driver for the i2c0 bus. Not all pin combinations
