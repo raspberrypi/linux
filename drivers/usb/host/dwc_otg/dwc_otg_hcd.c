@@ -2005,7 +2005,6 @@ dwc_otg_transaction_type_e dwc_otg_hcd_select_transactions(dwc_otg_hcd_t * hcd)
 	dwc_list_link_t *qh_ptr;
 	dwc_otg_qh_t *qh;
 	int num_channels;
-	dwc_irqflags_t flags;
 	dwc_otg_transaction_type_e ret_val = DWC_OTG_TRANSACTION_NONE;
 
 #ifdef DEBUG_HOST_CHANNELS
