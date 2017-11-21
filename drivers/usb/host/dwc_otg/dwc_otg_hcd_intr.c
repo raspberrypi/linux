@@ -948,7 +948,6 @@ static void release_channel(dwc_otg_hcd_t * hcd,
 {
 	dwc_otg_transaction_type_e tr_type;
 	int free_qtd;
-	dwc_irqflags_t flags;
 
 	int hog_port = 0;
 

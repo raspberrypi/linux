@@ -918,9 +918,11 @@ DEVICE_ATTR(regdump, S_IRUGO, regdump_show, 0);
 static ssize_t spramdump_show(struct device *_dev,
 			      struct device_attribute *attr, char *buf)
 {
-        dwc_otg_device_t *otg_dev = dwc_otg_drvdev(_dev);
+#if 0
+	dwc_otg_device_t *otg_dev = dwc_otg_drvdev(_dev);
 
-	//dwc_otg_dump_spram(otg_dev->core_if);
+	dwc_otg_dump_spram(otg_dev->core_if);
+#endif
 
 	return sprintf(buf, "SPRAM Dump\n");
 }
