@@ -781,7 +781,8 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102,
                                 sensor
 
         sht3x                   Select the Sensiron SHT3x temperature and
-                                humidity sensor
+                                humidity sensor. Valid addresses 0x44-0x45,
+                                default 0x44
 
 
 Name:   i2c0-bcm2708
