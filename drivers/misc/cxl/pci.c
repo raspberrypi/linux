@@ -1758,6 +1758,9 @@ static pci_ers_result_t cxl_vphb_error_detected(struct cxl_afu *afu,
 	/* There should only be one entry, but go through the list
 	 * anyway
 	 */
+	if (afu->phb == NULL)
+		return result;
+
 	list_for_each_entry(afu_dev, &afu->phb->bus->devices, bus_list) {
 		if (!afu_dev->driver)
 			continue;
@@ -1801,6 +1804,11 @@ static pci_ers_result_t cxl_pci_error_detected(struct pci_dev *pdev,
 			/* Only participate in EEH if we are on a virtual PHB */
 			if (afu->phb == NULL)
 				return PCI_ERS_RESULT_NONE;
+
+			/*
+			 * Tell the AFU drivers; but we don't care what they
+			 * say, we're going away.
+			 */
 			cxl_vphb_error_detected(afu, state);
 		}
 		return PCI_ERS_RESULT_DISCONNECT;
@@ -1941,6 +1949,9 @@ static pci_ers_result_t cxl_pci_slot_reset(struct pci_dev *pdev)
 		if (cxl_afu_select_best_mode(afu))
 			goto err;
 
+		if (afu->phb == NULL)
+			continue;
+
 		list_for_each_entry(afu_dev, &afu->phb->bus->devices, bus_list) {
 			/* Reset the device context.
 			 * TODO: make this less disruptive
@@ -2002,6 +2013,9 @@ static void cxl_pci_resume(struct pci_dev *pdev)
 	 */
 	for (i = 0; i < adapter->slices; i++) {
 		afu = adapter->afu[i];
+
+		if (afu->phb == NULL)
+			continue;
 
 		list_for_each_entry(afu_dev, &afu->phb->bus->devices, bus_list) {
 			if (afu_dev->driver && afu_dev->driver->err_handler &&
