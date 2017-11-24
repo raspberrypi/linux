@@ -267,6 +267,15 @@ static void notrace fiq_fsm_reload_hctsiz(struct fiq_state *st, int n)
 }
 
 /**
+ * fiq_fsm_reload_hcdma() - for OUT transactions, rewind DMA pointer
+ */
+static void notrace fiq_fsm_reload_hcdma(struct fiq_state *st, int n)
+{
+	hcdma_data_t hcdma = st->channel[n].hcdma_copy;
+	FIQ_WRITE(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HC_DMA, hcdma.d32);
+}
+
+/**
  * fiq_iso_out_advance() - update DMA address and split position bits
  * for isochronous OUT transactions.
  *
@@ -827,11 +836,14 @@ static int notrace noinline fiq_fsm_do_hcintr(struct fiq_state *state, int num_c
 			fiq_fsm_setup_csplit(state, n);
 		} else if (hcint.b.nak) {
 			// No buffer space in TT. Retry on a uframe boundary.
+			fiq_fsm_reload_hcdma(state, n);
 			st->fsm = FIQ_NP_SSPLIT_RETRY;
 			handled = 1;
 		} else if (hcint.b.xacterr) {
 			// The only other one we care about is xacterr. This implies HS bus error - retry.
 			st->nr_errors++;
+			if(st->hcchar_copy.b.epdir == 0)
+				fiq_fsm_reload_hcdma(state, n);
 			st->fsm = FIQ_NP_SSPLIT_RETRY;
 			if (st->nr_errors >= 3) {
 				st->fsm = FIQ_NP_SPLIT_HS_ABORTED;
