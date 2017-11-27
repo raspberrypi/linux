@@ -5639,6 +5639,7 @@ int __init cgroup_init_early(void)
 
 static u16 cgroup_disable_mask __initdata;
 static u16 cgroup_enable_mask __initdata;
+static bool cgroup_enable_memory;
 static int __init cgroup_disable(char *str);
 
 /**
@@ -5679,7 +5680,8 @@ int __init cgroup_init(void)
 	mutex_unlock(&cgroup_mutex);
 
 	/* Apply an implicit disable... */
-	cgroup_disable("memory");
+	if (!cgroup_enable_memory)
+		cgroup_disable("memory");
 
 	/* ...knowing that an explicit enable will override it. */
 	cgroup_disable_mask &= ~cgroup_enable_mask;
@@ -6207,6 +6209,12 @@ static int __init cgroup_enable(char *str)
 	return 1;
 }
 __setup("cgroup_enable=", cgroup_enable);
+
+static int __init cgroup_memory(char *str)
+{
+	return !kstrtobool(str, &cgroup_enable_memory);
+}
+__setup("cgroup_memory=", cgroup_memory);
 
 /**
  * css_tryget_online_from_dir - get corresponding css from a cgroup dentry
