@@ -5271,6 +5271,8 @@ int __init cgroup_init_early(void)
 }
 
 static u16 cgroup_disable_mask __initdata;
+static u16 cgroup_enable_mask __initdata;
+static int __init cgroup_disable(char *str);
 
 /**
  * cgroup_init - cgroup initialization
@@ -5310,6 +5312,12 @@ int __init cgroup_init(void)
 	BUG_ON(cgroup_setup_root(&cgrp_dfl_root, 0, 0));
 
 	mutex_unlock(&cgroup_mutex);
+
+	/* Apply an implicit disable... */
+	cgroup_disable("memory");
+
+	/* ...knowing that an explicit enable will override it. */
+	cgroup_disable_mask &= ~cgroup_enable_mask;
 
 	for_each_subsys(ss, ssid) {
 		if (ss->early_init) {
@@ -5690,6 +5698,28 @@ static int __init cgroup_disable(char *str)
 	return 1;
 }
 __setup("cgroup_disable=", cgroup_disable);
+
+static int __init cgroup_enable(char *str)
+{
+	struct cgroup_subsys *ss;
+	char *token;
+	int i;
+
+	while ((token = strsep(&str, ",")) != NULL) {
+		if (!*token)
+			continue;
+
+		for_each_subsys(ss, i) {
+			if (strcmp(token, ss->name) &&
+			    strcmp(token, ss->legacy_name))
+				continue;
+
+			cgroup_enable_mask |= 1 << i;
+		}
+	}
+	return 1;
+}
+__setup("cgroup_enable=", cgroup_enable);
 
 /**
  * css_tryget_online_from_dir - get corresponding css from a cgroup dentry
