@@ -184,6 +184,21 @@ struct crypt_priv {
 	bool fpu_enabled;
 };
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+static void serpent_fpu_end_rt(struct crypt_priv *ctx)
+{
+       bool fpu_enabled = ctx->fpu_enabled;
+
+       if (!fpu_enabled)
+               return;
+       serpent_fpu_end(fpu_enabled);
+       ctx->fpu_enabled = false;
+}
+
+#else
+static void serpent_fpu_end_rt(struct crypt_priv *ctx) { }
+#endif
+
 static void encrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 {
 	const unsigned int bsize = SERPENT_BLOCK_SIZE;
@@ -199,10 +214,12 @@ static void encrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 	}
 
 	while (nbytes >= SERPENT_PARALLEL_BLOCKS * bsize) {
+		kernel_fpu_resched();
 		serpent_ecb_enc_8way_avx(ctx->ctx, srcdst, srcdst);
 		srcdst += bsize * SERPENT_PARALLEL_BLOCKS;
 		nbytes -= bsize * SERPENT_PARALLEL_BLOCKS;
 	}
+	serpent_fpu_end_rt(ctx);
 
 	for (i = 0; i < nbytes / bsize; i++, srcdst += bsize)
 		__serpent_encrypt(ctx->ctx, srcdst, srcdst);
@@ -223,10 +240,12 @@ static void decrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 	}
 
 	while (nbytes >= SERPENT_PARALLEL_BLOCKS * bsize) {
+		kernel_fpu_resched();
 		serpent_ecb_dec_8way_avx(ctx->ctx, srcdst, srcdst);
 		srcdst += bsize * SERPENT_PARALLEL_BLOCKS;
 		nbytes -= bsize * SERPENT_PARALLEL_BLOCKS;
 	}
+	serpent_fpu_end_rt(ctx);
 
 	for (i = 0; i < nbytes / bsize; i++, srcdst += bsize)
 		__serpent_decrypt(ctx->ctx, srcdst, srcdst);
