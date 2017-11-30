@@ -187,16 +187,31 @@ struct crypt_priv {
 	bool fpu_enabled;
 };
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+static void serpent_fpu_end_rt(struct crypt_priv *ctx)
+{
+	bool fpu_enabled = ctx->fpu_enabled;
+
+	if (!fpu_enabled)
+		return;
+	serpent_fpu_end(fpu_enabled);
+	ctx->fpu_enabled = false;
+}
+
+#else
+static void serpent_fpu_end_rt(struct crypt_priv *ctx) { }
+#endif
+
 static void encrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 {
 	const unsigned int bsize = SERPENT_BLOCK_SIZE;
 	struct crypt_priv *ctx = priv;
 	int i;
 
-	ctx->fpu_enabled = serpent_fpu_begin(ctx->fpu_enabled, nbytes);
-
 	if (nbytes == bsize * SERPENT_PARALLEL_BLOCKS) {
+		ctx->fpu_enabled = serpent_fpu_begin(ctx->fpu_enabled, nbytes);
 		serpent_enc_blk_xway(ctx->ctx, srcdst, srcdst);
+		serpent_fpu_end_rt(ctx);
 		return;
 	}
 
@@ -210,10 +225,10 @@ static void decrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 	struct crypt_priv *ctx = priv;
 	int i;
 
-	ctx->fpu_enabled = serpent_fpu_begin(ctx->fpu_enabled, nbytes);
-
 	if (nbytes == bsize * SERPENT_PARALLEL_BLOCKS) {
+		ctx->fpu_enabled = serpent_fpu_begin(ctx->fpu_enabled, nbytes);
 		serpent_dec_blk_xway(ctx->ctx, srcdst, srcdst);
+		serpent_fpu_end_rt(ctx);
 		return;
 	}
 
