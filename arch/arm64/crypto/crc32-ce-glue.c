@@ -208,7 +208,8 @@ static struct shash_alg crc32_pmull_algs[] = { {
 
 static int __init crc32_pmull_mod_init(void)
 {
-	if (IS_ENABLED(CONFIG_KERNEL_MODE_NEON) && (elf_hwcap & HWCAP_PMULL)) {
+	if (IS_ENABLED(CONFIG_KERNEL_MODE_NEON) &&
+	    !IS_ENABLED(CONFIG_PREEMPT_RT_BASE) && (elf_hwcap & HWCAP_PMULL)) {
 		crc32_pmull_algs[0].update = crc32_pmull_update;
 		crc32_pmull_algs[1].update = crc32c_pmull_update;
 
