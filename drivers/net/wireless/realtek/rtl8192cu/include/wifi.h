@@ -425,7 +425,7 @@ enum WIFI_REG_DOMAIN {
 		(addr[4] == 0xff) && (addr[5] == 0xff) )  ? _TRUE : _FALSE \
 )
 
-__inline static int IS_MCAST(const unsigned char *da)
+__inline static int IS_MCAST(unsigned char *da)
 {
 	if ((*da) & 0x01)
 		return _TRUE;

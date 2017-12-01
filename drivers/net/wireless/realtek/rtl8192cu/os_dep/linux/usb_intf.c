@@ -102,7 +102,6 @@ static void rtw_dev_remove(struct usb_interface *pusb_intf);
 	{USB_DEVICE(0x103C, 0x1629)},/* HP - Lite-On ,8188CUS Slim Combo */ \
 	{USB_DEVICE(0x2001, 0x3308)},/* D-Link - Alpha */ \
 	{USB_DEVICE(0x050D, 0x1102)},/* Belkin - Edimax */ \
-	{USB_DEVICE(0x050D, 0x11F2)},/* ISY - Edimax */ \
 	{USB_DEVICE(0x2019, 0xAB2A)},/* Planex - Abocom */ \
 	{USB_DEVICE(0x20F4, 0x648B)},/* TRENDnet - Cameo */ \
 	{USB_DEVICE(0x4855, 0x0090)},/*  - Feixun */ \
@@ -111,8 +110,6 @@ static void rtw_dev_remove(struct usb_interface *pusb_intf);
 	{USB_DEVICE(0x0BDA, 0x5088)},/* Thinkware - CC&C */ \
 	{USB_DEVICE(0x4856, 0x0091)},/* NetweeN - Feixun */ \
 	{USB_DEVICE(0x0846, 0x9041)}, /* Netgear - Cameo */ \
-	{USB_DEVICE(0x0846, 0x9042)}, /* On Networks - N150MA */ \
-	{USB_DEVICE(0x0846, 0x9043)}, /* Netgear N150 -WNA1000M */ \
 	{USB_DEVICE(0x2019, 0x4902)},/* Planex - Etop */ \
 	{USB_DEVICE(0x2019, 0xAB2E)},/* SW-WF02-AD15 -Abocom */ \
 	{USB_DEVICE(0x2001, 0x330B)}, /* D-LINK - T&W */ \
@@ -120,7 +117,6 @@ static void rtw_dev_remove(struct usb_interface *pusb_intf);
 	{USB_DEVICE(0x0B05, 0x17BA)}, /* ASUS - Edimax */ \
 	{USB_DEVICE(0x0BDA, 0x1E1E)}, /* Intel - - */ \
 	{USB_DEVICE(0x04BB, 0x094c)}, /* I-O DATA - Edimax */ \
-	{USB_DEVICE(0X0BDA, 0x8176)}, /* TP-Link TL-WN723N */ \
 	/****** 8188CTV ********/ \
 	{USB_DEVICE(0xCDAB, 0x8011)}, /* - - compare */ \
 	{USB_DEVICE(0x0BDA, 0x0A8A)}, /* Sony - Foxconn */ \
@@ -995,7 +991,7 @@ static int rtw_resume(struct usb_interface *pusb_intf)
 int rtw_resume_process(_adapter *padapter)
 {
 	struct net_device *pnetdev;
-	struct pwrctrl_priv *pwrpriv=NULL;
+	struct pwrctrl_priv *pwrpriv;
 	int ret = -1;
 	u32 start_time = rtw_get_current_time();
 	_func_enter_;
@@ -1058,8 +1054,7 @@ exit:
 	rtw_unlock_suspend();
 	#endif //CONFIG_RESUME_IN_WORKQUEUE
 
-	if (pwrpriv)
-		pwrpriv->bInSuspend = _FALSE;
+	pwrpriv->bInSuspend = _FALSE;
 	DBG_871X("<===  %s return %d.............. in %dms\n", __FUNCTION__
 		, ret, rtw_get_passing_time_ms(start_time));
 

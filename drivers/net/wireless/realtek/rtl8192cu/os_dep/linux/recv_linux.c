@@ -136,7 +136,7 @@ int rtw_os_recvbuf_resource_free(_adapter *padapter, struct recv_buf *precvbuf)
 void rtw_handle_tkip_mic_err(_adapter *padapter,u8 bgroup)
 {
 #ifdef CONFIG_IOCTL_CFG80211
-	enum nl80211_key_type key_type = 0;
+	enum nl80211_key_type key_type;
 #endif
 	union iwreq_data wrqu;
 	struct iw_michaelmicfailure    ev;

@@ -685,7 +685,7 @@ _func_exit_;
 }
 
 /* any station allocated can be searched by hash list */
-struct sta_info *rtw_get_stainfo(struct sta_priv *pstapriv, const u8 *hwaddr)
+struct sta_info *rtw_get_stainfo(struct sta_priv *pstapriv, u8 *hwaddr)
 {
 
 	_irqL	 irqL;
@@ -696,7 +696,7 @@ struct sta_info *rtw_get_stainfo(struct sta_priv *pstapriv, const u8 *hwaddr)
 
 	u32	index;
 
-	const u8 *addr;
+	u8 *addr;
 
 	u8 bc_addr[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff};
 

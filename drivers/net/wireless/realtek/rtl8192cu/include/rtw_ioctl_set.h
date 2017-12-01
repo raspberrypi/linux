@@ -63,11 +63,10 @@ u8 rtw_set_802_11_bssid_list_scan(_adapter* padapter, NDIS_802_11_SSID *pssid, i
 u8 rtw_set_802_11_infrastructure_mode(_adapter * padapter, NDIS_802_11_NETWORK_INFRASTRUCTURE networktype);
 u8 rtw_set_802_11_remove_wep(_adapter * padapter, u32 keyindex);
 u8 rtw_set_802_11_ssid(_adapter * padapter, NDIS_802_11_SSID * ssid);
-u8 rtw_set_802_11_connect(_adapter *padapter, const u8 *bssid
-	, NDIS_802_11_SSID *ssid);
+u8 rtw_set_802_11_connect(_adapter* padapter, u8 *bssid, NDIS_802_11_SSID *ssid);
 u8 rtw_set_802_11_remove_key(_adapter * padapter, NDIS_802_11_REMOVE_KEY * key);
 
-u8 rtw_validate_bssid(const u8 *bssid);
+u8 rtw_validate_bssid(u8 *bssid);
 u8 rtw_validate_ssid(NDIS_802_11_SSID *ssid);
 
 u16 rtw_get_cur_max_rate(_adapter *adapter);
