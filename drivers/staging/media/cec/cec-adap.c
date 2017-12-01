@@ -288,10 +288,10 @@ static void cec_data_cancel(struct cec_data *data)
 
 	/* Mark it as an error */
 	data->msg.tx_ts = ktime_get_ns();
-	data->msg.tx_status = CEC_TX_STATUS_ERROR |
-			      CEC_TX_STATUS_MAX_RETRIES;
+	data->msg.tx_status |= CEC_TX_STATUS_ERROR |
+			       CEC_TX_STATUS_MAX_RETRIES;
+	data->msg.tx_error_cnt++;
 	data->attempts = 0;
-	data->msg.tx_error_cnt = 1;
 	/* Queue transmitted message for monitoring purposes */
 	cec_queue_msg_monitor(data->adap, &data->msg, 1);
 
@@ -1062,6 +1062,8 @@ configured:
 		for (i = 1; i < las->num_log_addrs; i++)
 			las->log_addr[i] = CEC_LOG_ADDR_INVALID;
 	}
+	for (i = las->num_log_addrs; i < CEC_MAX_LOG_ADDRS; i++)
+		las->log_addr[i] = CEC_LOG_ADDR_INVALID;
 	adap->is_configured = true;
 	adap->is_configuring = false;
 	cec_post_state_event(adap);
@@ -1079,8 +1081,6 @@ configured:
 			cec_report_features(adap, i);
 		cec_report_phys_addr(adap, i);
 	}
-	for (i = las->num_log_addrs; i < CEC_MAX_LOG_ADDRS; i++)
-		las->log_addr[i] = CEC_LOG_ADDR_INVALID;
 	mutex_lock(&adap->lock);
 	adap->kthread_config = NULL;
 	mutex_unlock(&adap->lock);
@@ -1557,9 +1557,9 @@ static int cec_receive_notify(struct cec_adapter *adap, struct cec_msg *msg,
 	}
 
 	case CEC_MSG_GIVE_FEATURES:
-		if (adap->log_addrs.cec_version >= CEC_OP_CEC_VERSION_2_0)
-			return cec_report_features(adap, la_idx);
-		return 0;
+		if (adap->log_addrs.cec_version < CEC_OP_CEC_VERSION_2_0)
+			return cec_feature_abort(adap, msg);
+		return cec_report_features(adap, la_idx);
 
 	default:
 		/*
