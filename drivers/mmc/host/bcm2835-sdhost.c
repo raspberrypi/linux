@@ -1303,12 +1303,10 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 	log_event("FCM>", (u32)host->mrq, (u32)host->cmd);
 }
 
-static void bcm2835_sdhost_timeout(unsigned long data)
+static void bcm2835_sdhost_timeout(struct timer_list *t)
 {
-	struct bcm2835_host *host;
+	struct bcm2835_host *host = from_timer(host, t, timer);
 	unsigned long flags;
-
-	host = (struct bcm2835_host *)data;
 
 	spin_lock_irqsave(&host->lock, flags);
 	log_event("TIM<", 0, 0);
@@ -1970,8 +1968,7 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 
 	INIT_WORK(&host->cmd_wait_wq, bcm2835_sdhost_cmd_wait_work);
 
-	setup_timer(&host->timer, bcm2835_sdhost_timeout,
-		    (unsigned long)host);
+	timer_setup(&host->timer, bcm2835_sdhost_timeout, 0);
 
 	bcm2835_sdhost_init(host, 0);
 
