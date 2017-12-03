@@ -18,15 +18,8 @@
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
-#include <linux/dma-mapping.h>
 
 #include "platsmp.h"
-
-static void __init bcm2835_init_early(void)
-{
-       /* dwc_otg needs this for bounce buffers on non-aligned transfers */
-       init_dma_coherent_pool_size(SZ_1M);
-}
 
 static const char * const bcm2835_compat[] = {
 #ifdef CONFIG_ARCH_MULTI_V6
@@ -40,7 +33,6 @@ static const char * const bcm2835_compat[] = {
 };
 
 DT_MACHINE_START(BCM2835, "BCM2835")
-	.init_early = bcm2835_init_early,
 	.dt_compat = bcm2835_compat,
 	.smp = smp_ops(bcm2836_smp_ops),
 MACHINE_END
