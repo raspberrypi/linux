@@ -820,12 +820,10 @@ static void bcm2835_mmc_finish_command(struct bcm2835_host *host)
 }
 
 
-static void bcm2835_mmc_timeout_timer(unsigned long data)
+static void bcm2835_mmc_timeout_timer(struct timer_list *t)
 {
-	struct bcm2835_host *host;
+	struct bcm2835_host *host = from_timer(host, t, timer);
 	unsigned long flags;
-
-	host = (struct bcm2835_host *)data;
 
 	spin_lock_irqsave(&host->lock, flags);
 
@@ -1387,7 +1385,7 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 	tasklet_init(&host->finish_tasklet,
 		bcm2835_mmc_tasklet_finish, (unsigned long)host);
 
-	setup_timer(&host->timer, bcm2835_mmc_timeout_timer, (unsigned long)host);
+	timer_setup(&host->timer, bcm2835_mmc_timeout_timer, 0);
 	init_waitqueue_head(&host->buf_ready_int);
 
 	bcm2835_mmc_init(host, 0);
