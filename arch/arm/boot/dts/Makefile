@@ -1118,3 +1118,10 @@ targets += dtbs dtbs_install
 targets += $(dtb-y)
 
 endif
+
+subdir-y	:= overlays
+
+# Enable fixups to support overlays on BCM2835 platforms
+ifeq ($(CONFIG_ARCH_BCM2835),y)
+	DTC_FLAGS ?= -@
+endif
