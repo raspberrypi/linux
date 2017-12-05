@@ -648,7 +648,7 @@ int amdgpu_vce_ring_parse_cs(struct amdgpu_cs_parser *p, uint32_t ib_idx)
 	uint32_t allocated = 0;
 	uint32_t tmp, handle = 0;
 	uint32_t *size = &tmp;
-	int i, r, idx = 0;
+	int i, r = 0, idx = 0;
 
 	r = amdgpu_cs_sysvm_access_required(p);
 	if (r)
