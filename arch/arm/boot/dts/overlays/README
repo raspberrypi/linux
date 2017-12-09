@@ -337,6 +337,12 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 better voice quality. (default Off)
 
 
+Name:   applepi-dac
+Info:   Configures the Orchard Audio ApplePi-DAC audio card
+Load:   dtoverlay=applepi-dac
+Params: <None>
+
+
 Name:   at86rf233
 Info:   Configures the Atmel AT86RF233 802.15.4 low-power WPAN transceiver,
         connected to spi0.0
