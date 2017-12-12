@@ -47,7 +47,7 @@ struct fence_cb;
  * can be compared to decide which fence would be signaled later.
  * @flags: A mask of FENCE_FLAG_* defined below
  * @timestamp: Timestamp when the fence was signaled.
- * @status: Optional, only valid if < 0, must be set before calling
+ * @error: Optional, only valid if < 0, must be set before calling
  * fence_signal, indicates that the fence has completed with an error.
  *
  * the flags member must be manipulated and read using the appropriate
@@ -79,7 +79,7 @@ struct fence {
 	unsigned seqno;
 	unsigned long flags;
 	ktime_t timestamp;
-	int status;
+	int error;
 };
 
 enum fence_flag_bits {
@@ -132,7 +132,7 @@ struct fence_cb {
  * or some failure occurred that made it impossible to enable
  * signaling. True indicates successful enabling.
  *
- * fence->status may be set in enable_signaling, but only when false is
+ * fence->error may be set in enable_signaling, but only when false is
  * returned.
  *
  * Calling fence_signal before enable_signaling is called allows
@@ -144,7 +144,7 @@ struct fence_cb {
  * the second time will be a noop since it was already signaled.
  *
  * Notes on signaled:
- * May set fence->status if returning true.
+ * May set fence->error if returning true.
  *
  * Notes on wait:
  * Must not be NULL, set to fence_default_wait for default implementation.
@@ -281,6 +281,19 @@ fence_is_signaled(struct fence *fence)
 }
 
 /**
+ * __fence_is_later - return if f1 is chronologically later than f2
+ * @f1:	[in]	the first fence's seqno
+ * @f2:	[in]	the second fence's seqno from the same context
+ *
+ * Returns true if f1 is chronologically later than f2. Both fences must be
+ * from the same context, since a seqno is not common across contexts.
+ */
+static inline bool __fence_is_later(u32 f1, u32 f2)
+{
+	return (int)(f1 - f2) > 0;
+}
+
+/**
  * fence_is_later - return if f1 is chronologically later than f2
  * @f1:	[in]	the first fence from the same context
  * @f2:	[in]	the second fence from the same context
@@ -293,7 +306,7 @@ static inline bool fence_is_later(struct fence *f1, struct fence *f2)
 	if (WARN_ON(f1->context != f2->context))
 		return false;
 
-	return (int)(f1->seqno - f2->seqno) > 0;
+	return __fence_is_later(f1->seqno, f2->seqno);
 }
 
 /**
@@ -319,6 +332,50 @@ static inline struct fence *fence_later(struct fence *f1, struct fence *f2)
 		return fence_is_signaled(f1) ? NULL : f1;
 	else
 		return fence_is_signaled(f2) ? NULL : f2;
+}
+
+/**
+ * fence_get_status_locked - returns the status upon completion
+ * @fence: [in]	the fence to query
+ *
+ * Drivers can supply an optional error status condition before they signal
+ * the fence (to indicate whether the fence was completed due to an error
+ * rather than success). The value of the status condition is only valid
+ * if the fence has been signaled, fence_get_status_locked() first checks
+ * the signal state before reporting the error status.
+ *
+ * Returns 0 if the fence has not yet been signaled, 1 if the fence has
+ * been signaled without an error condition, or a negative error code
+ * if the fence has been completed in err.
+ */
+static inline int fence_get_status_locked(struct fence *fence)
+{
+	if (fence_is_signaled_locked(fence))
+		return fence->error ?: 1;
+	else
+		return 0;
+}
+
+int fence_get_status(struct fence *fence);
+
+/**
+ * fence_set_error - flag an error condition on the fence
+ * @fence: [in]	the fence
+ * @error: [in]	the error to store
+ *
+ * Drivers can supply an optional error status condition before they signal
+ * the fence, to indicate that the fence was completed due to an error
+ * rather than success. This must be set before signaling (so that the value
+ * is visible before any waiters on the signal callback are woken). This
+ * helper exists to help catching erroneous setting of #fence.error.
+ */
+static inline void fence_set_error(struct fence *fence,
+				       int error)
+{
+	BUG_ON(test_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags));
+	BUG_ON(error >= 0 || error < -MAX_ERRNO);
+
+	fence->error = error;
 }
 
 signed long fence_wait_timeout(struct fence *, bool intr, signed long timeout);

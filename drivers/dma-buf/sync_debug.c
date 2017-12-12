@@ -62,29 +62,29 @@ void sync_file_debug_remove(struct sync_file *sync_file)
 
 static const char *sync_status_str(int status)
 {
-	if (status == 0)
-		return "signaled";
+	if (status < 0)
+		return "error";
 
 	if (status > 0)
-		return "active";
+		return "signaled";
 
-	return "error";
+	return "active";
 }
 
-static void sync_print_fence(struct seq_file *s, struct fence *fence, bool show)
+static void sync_print_fence(struct seq_file *s,
+			     struct fence *fence, bool show)
 {
-	int status = 1;
 	struct sync_timeline *parent = fence_parent(fence);
+	int status;
 
-	if (fence_is_signaled_locked(fence))
-		status = fence->status;
+	status = fence_get_status_locked(fence);
 
 	seq_printf(s, "  %s%sfence %s",
 		   show ? parent->name : "",
 		   show ? "_" : "",
 		   sync_status_str(status));
 
-	if (status <= 0) {
+	if (status) {
 		struct timespec64 ts64 =
 			ktime_to_timespec64(fence->timestamp);
 
@@ -116,17 +116,15 @@ static void sync_print_fence(struct seq_file *s, struct fence *fence, bool show)
 static void sync_print_obj(struct seq_file *s, struct sync_timeline *obj)
 {
 	struct list_head *pos;
-	unsigned long flags;
 
 	seq_printf(s, "%s: %d\n", obj->name, obj->value);
 
-	spin_lock_irqsave(&obj->child_list_lock, flags);
-	list_for_each(pos, &obj->child_list_head) {
-		struct sync_pt *pt =
-			container_of(pos, struct sync_pt, child_list);
+	spin_lock_irq(&obj->lock);
+	list_for_each(pos, &obj->pt_list) {
+		struct sync_pt *pt = container_of(pos, struct sync_pt, link);
 		sync_print_fence(s, &pt->base, false);
 	}
-	spin_unlock_irqrestore(&obj->child_list_lock, flags);
+	spin_unlock_irq(&obj->lock);
 }
 
 static void sync_print_sync_file(struct seq_file *s,
@@ -135,7 +133,7 @@ static void sync_print_sync_file(struct seq_file *s,
 	int i;
 
 	seq_printf(s, "[%p] %s: %s\n", sync_file, sync_file->name,
-		   sync_status_str(!fence_is_signaled(sync_file->fence)));
+		   sync_status_str(fence_get_status(sync_file->fence)));
 
 	if (fence_is_array(sync_file->fence)) {
 		struct fence_array *array = to_fence_array(sync_file->fence);
@@ -149,12 +147,11 @@ static void sync_print_sync_file(struct seq_file *s,
 
 static int sync_debugfs_show(struct seq_file *s, void *unused)
 {
-	unsigned long flags;
 	struct list_head *pos;
 
 	seq_puts(s, "objs:\n--------------\n");
 
-	spin_lock_irqsave(&sync_timeline_list_lock, flags);
+	spin_lock_irq(&sync_timeline_list_lock);
 	list_for_each(pos, &sync_timeline_list_head) {
 		struct sync_timeline *obj =
 			container_of(pos, struct sync_timeline,
@@ -163,11 +160,11 @@ static int sync_debugfs_show(struct seq_file *s, void *unused)
 		sync_print_obj(s, obj);
 		seq_puts(s, "\n");
 	}
-	spin_unlock_irqrestore(&sync_timeline_list_lock, flags);
+	spin_unlock_irq(&sync_timeline_list_lock);
 
 	seq_puts(s, "fences:\n--------------\n");
 
-	spin_lock_irqsave(&sync_file_list_lock, flags);
+	spin_lock_irq(&sync_file_list_lock);
 	list_for_each(pos, &sync_file_list_head) {
 		struct sync_file *sync_file =
 			container_of(pos, struct sync_file, sync_file_list);
@@ -175,7 +172,7 @@ static int sync_debugfs_show(struct seq_file *s, void *unused)
 		sync_print_sync_file(s, sync_file);
 		seq_puts(s, "\n");
 	}
-	spin_unlock_irqrestore(&sync_file_list_lock, flags);
+	spin_unlock_irq(&sync_file_list_lock);
 	return 0;
 }
 

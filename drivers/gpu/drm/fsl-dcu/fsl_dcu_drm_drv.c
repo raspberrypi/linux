@@ -243,7 +243,6 @@ static int fsl_dcu_drm_pm_suspend(struct device *dev)
 		return PTR_ERR(fsl_dev->state);
 	}
 
-	clk_disable_unprepare(fsl_dev->pix_clk);
 	clk_disable_unprepare(fsl_dev->clk);
 
 	return 0;
@@ -266,6 +265,7 @@ static int fsl_dcu_drm_pm_resume(struct device *dev)
 	if (fsl_dev->tcon)
 		fsl_tcon_bypass_enable(fsl_dev->tcon);
 	fsl_dcu_drm_init_planes(fsl_dev->drm);
+	enable_irq(fsl_dev->irq);
 	drm_atomic_helper_resume(fsl_dev->drm, fsl_dev->state);
 
 	console_lock();
@@ -273,7 +273,6 @@ static int fsl_dcu_drm_pm_resume(struct device *dev)
 	console_unlock();
 
 	drm_kms_helper_poll_enable(fsl_dev->drm);
-	enable_irq(fsl_dev->irq);
 
 	return 0;
 }

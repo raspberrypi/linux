@@ -147,7 +147,7 @@ static struct ti_st_plat_data wilink_pdata = {
 	.nshutdown_gpio = 137,
 	.dev_name = "/dev/ttyO1",
 	.flow_cntrl = 1,
-	.baud_rate = 300000,
+	.baud_rate = 3000000,
 };
 
 static struct platform_device wl18xx_device = {

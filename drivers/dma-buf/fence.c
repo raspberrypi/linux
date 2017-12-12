@@ -281,6 +281,31 @@ int fence_add_callback(struct fence *fence, struct fence_cb *cb,
 EXPORT_SYMBOL(fence_add_callback);
 
 /**
+ * fence_get_status - returns the status upon completion
+ * @fence: [in]	the fence to query
+ *
+ * This wraps fence_get_status_locked() to return the error status
+ * condition on a signaled fence. See fence_get_status_locked() for more
+ * details.
+ *
+ * Returns 0 if the fence has not yet been signaled, 1 if the fence has
+ * been signaled without an error condition, or a negative error code
+ * if the fence has been completed in err.
+ */
+int fence_get_status(struct fence *fence)
+{
+	unsigned long flags;
+	int status;
+
+	spin_lock_irqsave(fence->lock, flags);
+	status = fence_get_status_locked(fence);
+	spin_unlock_irqrestore(fence->lock, flags);
+
+	return status;
+}
+EXPORT_SYMBOL(fence_get_status);
+
+/**
  * fence_remove_callback - remove a callback from the signaling list
  * @fence:	[in]	the fence to wait on
  * @cb:		[in]	the callback to remove
@@ -526,6 +551,7 @@ fence_init(struct fence *fence, const struct fence_ops *ops,
 	fence->context = context;
 	fence->seqno = seqno;
 	fence->flags = 0UL;
+	fence->error = 0;
 
 	trace_fence_init(fence);
 }
