@@ -114,7 +114,7 @@ inline void fiq_fsm_spin_lock(fiq_lock_t *lock)
 
 	while (lockval.tickets.next != lockval.tickets.owner) {
 		wfe();
-		lockval.tickets.owner = ACCESS_ONCE(lock->tickets.owner);
+		lockval.tickets.owner = READ_ONCE(lock->tickets.owner);
 	}
 	smp_mb();
 }
