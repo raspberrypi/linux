@@ -512,6 +512,20 @@ static inline ktime_t hrtimer_update_base(struct hrtimer_cpu_base *base)
 					    offs_real, offs_boot, offs_tai);
 }
 
+/*
+ * Is the high resolution mode active ?
+ */
+static inline int __hrtimer_hres_active(struct hrtimer_cpu_base *cpu_base)
+{
+	return IS_ENABLED(CONFIG_HIGH_RES_TIMERS) ?
+		cpu_base->hres_active : 0;
+}
+
+static inline int hrtimer_hres_active(void)
+{
+	return __hrtimer_hres_active(this_cpu_ptr(&hrtimer_bases));
+}
+
 /* High resolution timer related functions */
 #ifdef CONFIG_HIGH_RES_TIMERS
 
@@ -538,19 +552,6 @@ __setup("highres=", setup_hrtimer_hres);
 static inline int hrtimer_is_hres_enabled(void)
 {
 	return hrtimer_hres_enabled;
-}
-
-/*
- * Is the high resolution mode active ?
- */
-static inline int __hrtimer_hres_active(struct hrtimer_cpu_base *cpu_base)
-{
-	return cpu_base->hres_active;
-}
-
-static inline int hrtimer_hres_active(void)
-{
-	return __hrtimer_hres_active(this_cpu_ptr(&hrtimer_bases));
 }
 
 /*
@@ -662,7 +663,6 @@ static inline void hrtimer_init_hres(struct hrtimer_cpu_base *base)
 {
 	base->expires_next = KTIME_MAX;
 	base->hang_detected = 0;
-	base->hres_active = 0;
 	base->next_timer = NULL;
 }
 
@@ -722,8 +722,6 @@ void clock_was_set_delayed(void)
 
 #else
 
-static inline int __hrtimer_hres_active(struct hrtimer_cpu_base *b) { return 0; }
-static inline int hrtimer_hres_active(void) { return 0; }
 static inline int hrtimer_is_hres_enabled(void) { return 0; }
 static inline void hrtimer_switch_to_hres(void) { }
 static inline void
@@ -1605,6 +1603,7 @@ int hrtimers_prepare_cpu(unsigned int cpu)
 
 	cpu_base->active_bases = 0;
 	cpu_base->cpu = cpu;
+	cpu_base->hres_active = 0;
 	hrtimer_init_hres(cpu_base);
 	return 0;
 }
