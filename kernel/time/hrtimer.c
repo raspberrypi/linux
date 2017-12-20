@@ -435,10 +435,11 @@ debug_init(struct hrtimer *timer, clockid_t clockid,
 	trace_hrtimer_init(timer, clockid, mode);
 }
 
-static inline void debug_activate(struct hrtimer *timer)
+static inline void debug_activate(struct hrtimer *timer,
+				  enum hrtimer_mode mode)
 {
 	debug_hrtimer_activate(timer);
-	trace_hrtimer_start(timer);
+	trace_hrtimer_start(timer, mode);
 }
 
 static inline void debug_deactivate(struct hrtimer *timer)
@@ -832,9 +833,10 @@ EXPORT_SYMBOL_GPL(hrtimer_forward);
  * Returns 1 when the new timer is the leftmost timer in the tree.
  */
 static int enqueue_hrtimer(struct hrtimer *timer,
-			   struct hrtimer_clock_base *base)
+			   struct hrtimer_clock_base *base,
+			   enum hrtimer_mode mode)
 {
-	debug_activate(timer);
+	debug_activate(timer, mode);
 
 	base->cpu_base->active_bases |= 1 << base->index;
 
@@ -957,7 +959,7 @@ void hrtimer_start_range_ns(struct hrtimer *timer, ktime_t tim,
 	/* Switch the timer base, if necessary: */
 	new_base = switch_hrtimer_base(timer, base, mode & HRTIMER_MODE_PINNED);
 
-	leftmost = enqueue_hrtimer(timer, new_base);
+	leftmost = enqueue_hrtimer(timer, new_base, mode);
 	if (!leftmost)
 		goto unlock;
 
@@ -1226,7 +1228,7 @@ static void __run_hrtimer(struct hrtimer_cpu_base *cpu_base,
 	 */
 	if (restart != HRTIMER_NORESTART &&
 	    !(timer->state & HRTIMER_STATE_ENQUEUED))
-		enqueue_hrtimer(timer, base);
+		enqueue_hrtimer(timer, base, HRTIMER_MODE_ABS);
 
 	/*
 	 * Separate the ->running assignment from the ->state assignment.
@@ -1626,7 +1628,7 @@ static void migrate_hrtimer_list(struct hrtimer_clock_base *old_base,
 		 * sort out already expired timers and reprogram the
 		 * event device.
 		 */
-		enqueue_hrtimer(timer, new_base);
+		enqueue_hrtimer(timer, new_base, HRTIMER_MODE_ABS);
 	}
 }
 
