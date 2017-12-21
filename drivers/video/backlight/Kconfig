@@ -267,6 +267,7 @@ config BACKLIGHT_PWM
 
 config BACKLIGHT_RPI
 	tristate "Raspberry Pi display firmware driven backlight"
+	depends on RASPBERRYPI_FIRMWARE
 	help
 	  If you have the Raspberry Pi DSI touchscreen display, say Y to
 	  enable the mailbox-controlled backlight driver.
