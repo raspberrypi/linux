@@ -385,7 +385,13 @@ static inline void tick_irq_exit(void)
 	int cpu = smp_processor_id();
 
 	/* Make sure that timer wheel updates are propagated */
-	if ((idle_cpu(cpu) && !need_resched()) || tick_nohz_full_cpu(cpu)) {
+#ifdef CONFIG_PREEMPT_RT_BASE
+	if ((idle_cpu(cpu) || tick_nohz_full_cpu(cpu)) &&
+	    !need_resched() && !local_softirq_pending())
+#else
+	if ((idle_cpu(cpu) && !need_resched()) || tick_nohz_full_cpu(cpu))
+#endif
+	{
 		if (!in_irq())
 			tick_nohz_irq_exit();
 	}
