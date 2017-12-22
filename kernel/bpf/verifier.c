@@ -1861,10 +1861,28 @@ static int check_alu_op(struct bpf_verifier_env *env, struct bpf_insn *insn)
 			   ((BPF_SRC(insn->code) == BPF_X &&
 			     regs[insn->src_reg].type == CONST_IMM) ||
 			    BPF_SRC(insn->code) == BPF_K)) {
-			if (BPF_SRC(insn->code) == BPF_X)
+			if (BPF_SRC(insn->code) == BPF_X) {
+				/* check in case the register contains a big
+				 * 64-bit value
+				 */
+				if (regs[insn->src_reg].imm < -MAX_BPF_STACK ||
+				    regs[insn->src_reg].imm > MAX_BPF_STACK) {
+					verbose("R%d value too big in R%d pointer arithmetic\n",
+						insn->src_reg, insn->dst_reg);
+					return -EACCES;
+				}
 				dst_reg->imm += regs[insn->src_reg].imm;
-			else
+			} else {
+				/* safe against overflow: addition of 32-bit
+				 * numbers in 64-bit representation
+				 */
 				dst_reg->imm += insn->imm;
+			}
+			if (dst_reg->imm > 0 || dst_reg->imm < -MAX_BPF_STACK) {
+				verbose("R%d out-of-bounds pointer arithmetic\n",
+					insn->dst_reg);
+				return -EACCES;
+			}
 			return 0;
 		} else if (opcode == BPF_ADD &&
 			   BPF_CLASS(insn->code) == BPF_ALU64 &&
