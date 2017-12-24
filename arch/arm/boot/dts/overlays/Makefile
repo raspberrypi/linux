@@ -61,6 +61,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	mcp2515-can0.dtbo \
 	mcp2515-can1.dtbo \
 	mcp3008.dtbo \
+	media-center.dtbo \
 	midi-uart0.dtbo \
 	midi-uart1.dtbo \
 	mmc.dtbo \
