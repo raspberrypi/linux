@@ -994,6 +994,30 @@ Params: spi<n>-<m>-present      boolean, configure device at spi<n>, cs<m>
         spi<n>-<m>-speed        integer, set the spi bus speed for this device
 
 
+Name:   media-center
+Info:   Media Center HAT - 2.83" Touch Display + extras by Pi Supply
+Load:   dtoverlay=media-center,<param>=<val>
+Params: speed                   Display SPI bus speed
+        rotate                  Display rotation {0,90,180,270}
+        fps                     Delay between frame updates
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+        swapxy                  Swap x and y axis
+        gpio_out_pin            GPIO for output (default "17")
+        gpio_in_pin             GPIO for input (default "18")
+        gpio_in_pull            Pull up/down/off on the input pin
+                                (default "down")
+        sense                   Override the IR receive auto-detection logic:
+                                 "0" = force active-high
+                                 "1" = force active-low
+                                 "-1" = use auto-detection
+                                (default "-1")
+        softcarrier             Turn the software carrier "on" or "off"
+                                (default "on")
+        invert                  "on" = invert the output pin (default "off")
+        debug                   "on" = enable additional debug messages
+                                (default "off")
+
+
 Name:   midi-uart0
 Info:   Configures UART0 (ttyAMA0) so that a requested 38.4kbaud actually gets
         31.25kbaud, the frequency required for MIDI
