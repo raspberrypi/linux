@@ -114,6 +114,7 @@
 #include <asm/microcode.h>
 #include <asm/mmu_context.h>
 #include <asm/kaslr.h>
+#include <asm/kaiser.h>
 
 /*
  * max_low_pfn_mapped: highest direct mapped pfn under 4GB
@@ -1018,6 +1019,12 @@ void __init setup_arch(char **cmdline_p)
 	 * needs to be done after dmi_scan_machine, for the BP.
 	 */
 	init_hypervisor_platform();
+
+	/*
+	 * This needs to happen right after XENPV is set on xen and
+	 * kaiser_enabled is checked below in cleanup_highmap().
+	 */
+	kaiser_check_boottime_disable();
 
 	x86_init.resources.probe_roms();
 
