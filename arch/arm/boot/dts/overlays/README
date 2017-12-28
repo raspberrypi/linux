@@ -1329,6 +1329,7 @@ Params: speed                   Display SPI bus speed
         debug                   Debug output level {0-7}
         xohms                   Touchpanel sensitivity (X-plate resistance)
         swapxy                  Swap x and y axis
+        backlight               Change backlight GPIO pin {e.g. 12, 18}
 
 
 Name:   rpi-ft5406
