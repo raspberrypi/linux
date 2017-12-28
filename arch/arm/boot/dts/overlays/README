@@ -1002,6 +1002,7 @@ Params: speed                   Display SPI bus speed
         fps                     Delay between frame updates
         xohms                   Touchpanel sensitivity (X-plate resistance)
         swapxy                  Swap x and y axis
+        backlight               Change backlight GPIO pin {e.g. 12, 18}
         gpio_out_pin            GPIO for output (default "17")
         gpio_in_pin             GPIO for input (default "18")
         gpio_in_pull            Pull up/down/off on the input pin
