@@ -1790,10 +1790,17 @@ static int check_alu_op(struct bpf_verifier_env *env, struct bpf_insn *insn)
 			/* case: R = imm
 			 * remember the value we stored into this reg
 			 */
+			u64 imm;
+
+			if (BPF_CLASS(insn->code) == BPF_ALU64)
+				imm = insn->imm;
+			else
+				imm = (u32)insn->imm;
+
 			regs[insn->dst_reg].type = CONST_IMM;
-			regs[insn->dst_reg].imm = insn->imm;
-			regs[insn->dst_reg].max_value = insn->imm;
-			regs[insn->dst_reg].min_value = insn->imm;
+			regs[insn->dst_reg].imm = imm;
+			regs[insn->dst_reg].max_value = imm;
+			regs[insn->dst_reg].min_value = imm;
 		}
 
 	} else if (opcode > BPF_END) {
@@ -1861,10 +1868,28 @@ static int check_alu_op(struct bpf_verifier_env *env, struct bpf_insn *insn)
 			   ((BPF_SRC(insn->code) == BPF_X &&
 			     regs[insn->src_reg].type == CONST_IMM) ||
 			    BPF_SRC(insn->code) == BPF_K)) {
-			if (BPF_SRC(insn->code) == BPF_X)
+			if (BPF_SRC(insn->code) == BPF_X) {
+				/* check in case the register contains a big
+				 * 64-bit value
+				 */
+				if (regs[insn->src_reg].imm < -MAX_BPF_STACK ||
+				    regs[insn->src_reg].imm > MAX_BPF_STACK) {
+					verbose("R%d value too big in R%d pointer arithmetic\n",
+						insn->src_reg, insn->dst_reg);
+					return -EACCES;
+				}
 				dst_reg->imm += regs[insn->src_reg].imm;
-			else
+			} else {
+				/* safe against overflow: addition of 32-bit
+				 * numbers in 64-bit representation
+				 */
 				dst_reg->imm += insn->imm;
+			}
+			if (dst_reg->imm > 0 || dst_reg->imm < -MAX_BPF_STACK) {
+				verbose("R%d out-of-bounds pointer arithmetic\n",
+					insn->dst_reg);
+				return -EACCES;
+			}
 			return 0;
 		} else if (opcode == BPF_ADD &&
 			   BPF_CLASS(insn->code) == BPF_ALU64 &&
@@ -2862,6 +2887,7 @@ static int do_check(struct bpf_verifier_env *env)
 		if (err)
 			return err;
 
+		env->insn_aux_data[insn_idx].seen = true;
 		if (class == BPF_ALU || class == BPF_ALU64) {
 			err = check_alu_op(env, insn);
 			if (err)
@@ -3059,6 +3085,7 @@ process_bpf_exit:
 					return err;
 
 				insn_idx++;
+				env->insn_aux_data[insn_idx].seen = true;
 			} else {
 				verbose("invalid BPF_LD mode\n");
 				return -EINVAL;
@@ -3210,6 +3237,63 @@ static void convert_pseudo_ld_imm64(struct bpf_verifier_env *env)
 			insn->src_reg = 0;
 }
 
+/* single env->prog->insni[off] instruction was replaced with the range
+ * insni[off, off + cnt).  Adjust corresponding insn_aux_data by copying
+ * [0, off) and [off, end) to new locations, so the patched range stays zero
+ */
+static int adjust_insn_aux_data(struct bpf_verifier_env *env, u32 prog_len,
+				u32 off, u32 cnt)
+{
+	struct bpf_insn_aux_data *new_data, *old_data = env->insn_aux_data;
+	int i;
+
+	if (cnt == 1)
+		return 0;
+	new_data = vzalloc(sizeof(struct bpf_insn_aux_data) * prog_len);
+	if (!new_data)
+		return -ENOMEM;
+	memcpy(new_data, old_data, sizeof(struct bpf_insn_aux_data) * off);
+	memcpy(new_data + off + cnt - 1, old_data + off,
+	       sizeof(struct bpf_insn_aux_data) * (prog_len - off - cnt + 1));
+	for (i = off; i < off + cnt - 1; i++)
+		new_data[i].seen = true;
+	env->insn_aux_data = new_data;
+	vfree(old_data);
+	return 0;
+}
+
+static struct bpf_prog *bpf_patch_insn_data(struct bpf_verifier_env *env, u32 off,
+					    const struct bpf_insn *patch, u32 len)
+{
+	struct bpf_prog *new_prog;
+
+	new_prog = bpf_patch_insn_single(env->prog, off, patch, len);
+	if (!new_prog)
+		return NULL;
+	if (adjust_insn_aux_data(env, new_prog->len, off, len))
+		return NULL;
+	return new_prog;
+}
+
+/* The verifier does more data flow analysis than llvm and will not explore
+ * branches that are dead at run time. Malicious programs can have dead code
+ * too. Therefore replace all dead at-run-time code with nops.
+ */
+static void sanitize_dead_code(struct bpf_verifier_env *env)
+{
+	struct bpf_insn_aux_data *aux_data = env->insn_aux_data;
+	struct bpf_insn nop = BPF_MOV64_REG(BPF_REG_0, BPF_REG_0);
+	struct bpf_insn *insn = env->prog->insnsi;
+	const int insn_cnt = env->prog->len;
+	int i;
+
+	for (i = 0; i < insn_cnt; i++) {
+		if (aux_data[i].seen)
+			continue;
+		memcpy(insn + i, &nop, sizeof(nop));
+	}
+}
+
 /* convert load instructions that access fields of 'struct __sk_buff'
  * into sequence of instructions that access fields of 'struct sk_buff'
  */
@@ -3229,10 +3313,10 @@ static int convert_ctx_accesses(struct bpf_verifier_env *env)
 			verbose("bpf verifier is misconfigured\n");
 			return -EINVAL;
 		} else if (cnt) {
-			new_prog = bpf_patch_insn_single(env->prog, 0,
-							 insn_buf, cnt);
+			new_prog = bpf_patch_insn_data(env, 0, insn_buf, cnt);
 			if (!new_prog)
 				return -ENOMEM;
+
 			env->prog = new_prog;
 			delta += cnt - 1;
 		}
@@ -3253,7 +3337,7 @@ static int convert_ctx_accesses(struct bpf_verifier_env *env)
 		else
 			continue;
 
-		if (env->insn_aux_data[i].ptr_type != PTR_TO_CTX)
+		if (env->insn_aux_data[i + delta].ptr_type != PTR_TO_CTX)
 			continue;
 
 		cnt = ops->convert_ctx_access(type, insn->dst_reg, insn->src_reg,
@@ -3263,8 +3347,7 @@ static int convert_ctx_accesses(struct bpf_verifier_env *env)
 			return -EINVAL;
 		}
 
-		new_prog = bpf_patch_insn_single(env->prog, i + delta, insn_buf,
-						 cnt);
+		new_prog = bpf_patch_insn_data(env, i + delta, insn_buf, cnt);
 		if (!new_prog)
 			return -ENOMEM;
 
@@ -3371,6 +3454,9 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
 skip_full_check:
 	while (pop_stack(env, NULL) >= 0);
 	free_states(env);
+
+	if (ret == 0)
+		sanitize_dead_code(env);
 
 	if (ret == 0)
 		/* program is valid, convert *(u32*)(ctx + off) accesses */

@@ -2381,6 +2381,18 @@ static int bnxt_init_one_rx_ring(struct bnxt *bp, int ring_nr)
 	return 0;
 }
 
+static void bnxt_init_cp_rings(struct bnxt *bp)
+{
+	int i;
+
+	for (i = 0; i < bp->cp_nr_rings; i++) {
+		struct bnxt_cp_ring_info *cpr = &bp->bnapi[i]->cp_ring;
+		struct bnxt_ring_struct *ring = &cpr->cp_ring_struct;
+
+		ring->fw_ring_id = INVALID_HW_RING_ID;
+	}
+}
+
 static int bnxt_init_rx_rings(struct bnxt *bp)
 {
 	int i, rc = 0;
@@ -4700,6 +4712,7 @@ static int bnxt_shutdown_nic(struct bnxt *bp, bool irq_re_init)
 
 static int bnxt_init_nic(struct bnxt *bp, bool irq_re_init)
 {
+	bnxt_init_cp_rings(bp);
 	bnxt_init_rx_rings(bp);
 	bnxt_init_tx_rings(bp);
 	bnxt_init_ring_grps(bp, irq_re_init);
@@ -5132,8 +5145,9 @@ static int bnxt_hwrm_phy_qcaps(struct bnxt *bp)
 		bp->lpi_tmr_hi = le32_to_cpu(resp->valid_tx_lpi_timer_high) &
 				 PORT_PHY_QCAPS_RESP_TX_LPI_TIMER_HIGH_MASK;
 	}
-	link_info->support_auto_speeds =
-		le16_to_cpu(resp->supported_speeds_auto_mode);
+	if (resp->supported_speeds_auto_mode)
+		link_info->support_auto_speeds =
+			le16_to_cpu(resp->supported_speeds_auto_mode);
 
 hwrm_phy_qcaps_exit:
 	mutex_unlock(&bp->hwrm_cmd_lock);

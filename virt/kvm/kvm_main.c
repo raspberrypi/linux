@@ -1060,7 +1060,7 @@ int __kvm_set_memory_region(struct kvm *kvm,
 	 * changes) is disallowed above, so any other attribute changes getting
 	 * here can be skipped.
 	 */
-	if ((change == KVM_MR_CREATE) || (change == KVM_MR_MOVE)) {
+	if (as_id == 0 && (change == KVM_MR_CREATE || change == KVM_MR_MOVE)) {
 		r = kvm_iommu_map_pages(kvm, &new);
 		return r;
 	}
@@ -3904,7 +3904,7 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 	if (!vcpu_align)
 		vcpu_align = __alignof__(struct kvm_vcpu);
 	kvm_vcpu_cache = kmem_cache_create("kvm_vcpu", vcpu_size, vcpu_align,
-					   0, NULL);
+					   SLAB_ACCOUNT, NULL);
 	if (!kvm_vcpu_cache) {
 		r = -ENOMEM;
 		goto out_free_3;

@@ -321,6 +321,8 @@ int afs_make_call(struct in_addr *addr, struct afs_call *call, gfp_t gfp,
 	struct rxrpc_call *rxcall;
 	struct msghdr msg;
 	struct kvec iov[1];
+	size_t offset;
+	u32 abort_code;
 	int ret;
 
 	_enter("%x,{%d},", addr->s_addr, ntohs(call->port));
@@ -368,9 +370,11 @@ int afs_make_call(struct in_addr *addr, struct afs_call *call, gfp_t gfp,
 	msg.msg_controllen	= 0;
 	msg.msg_flags		= (call->send_pages ? MSG_MORE : 0);
 
-	/* have to change the state *before* sending the last packet as RxRPC
-	 * might give us the reply before it returns from sending the
-	 * request */
+	/* We have to change the state *before* sending the last packet as
+	 * rxrpc might give us the reply before it returns from sending the
+	 * request.  Further, if the send fails, we may already have been given
+	 * a notification and may have collected it.
+	 */
 	if (!call->send_pages)
 		call->state = AFS_CALL_AWAIT_REPLY;
 	ret = rxrpc_kernel_send_data(afs_socket, rxcall,
@@ -389,7 +393,17 @@ int afs_make_call(struct in_addr *addr, struct afs_call *call, gfp_t gfp,
 	return wait_mode->wait(call);
 
 error_do_abort:
-	rxrpc_kernel_abort_call(afs_socket, rxcall, RX_USER_ABORT, -ret, "KSD");
+	call->state = AFS_CALL_COMPLETE;
+	if (ret != -ECONNABORTED) {
+		rxrpc_kernel_abort_call(afs_socket, rxcall, RX_USER_ABORT,
+					-ret, "KSD");
+	} else {
+		abort_code = 0;
+		offset = 0;
+		rxrpc_kernel_recv_data(afs_socket, rxcall, NULL, 0, &offset,
+				       false, &abort_code);
+		ret = call->type->abort_to_error(abort_code);
+	}
 error_kill_call:
 	afs_end_call(call);
 	_leave(" = %d", ret);
@@ -434,16 +448,18 @@ static void afs_deliver_to_call(struct afs_call *call)
 		case -EINPROGRESS:
 		case -EAGAIN:
 			goto out;
+		case -ECONNABORTED:
+			goto call_complete;
 		case -ENOTCONN:
 			abort_code = RX_CALL_DEAD;
 			rxrpc_kernel_abort_call(afs_socket, call->rxcall,
 						abort_code, -ret, "KNC");
-			goto do_abort;
+			goto save_error;
 		case -ENOTSUPP:
-			abort_code = RX_INVALID_OPERATION;
+			abort_code = RXGEN_OPCODE;
 			rxrpc_kernel_abort_call(afs_socket, call->rxcall,
 						abort_code, -ret, "KIV");
-			goto do_abort;
+			goto save_error;
 		case -ENODATA:
 		case -EBADMSG:
 		case -EMSGSIZE:
@@ -453,7 +469,7 @@ static void afs_deliver_to_call(struct afs_call *call)
 				abort_code = RXGEN_SS_UNMARSHAL;
 			rxrpc_kernel_abort_call(afs_socket, call->rxcall,
 						abort_code, EBADMSG, "KUM");
-			goto do_abort;
+			goto save_error;
 		}
 	}
 
@@ -464,8 +480,9 @@ out:
 	_leave("");
 	return;
 
-do_abort:
+save_error:
 	call->error = ret;
+call_complete:
 	call->state = AFS_CALL_COMPLETE;
 	goto done;
 }
@@ -475,7 +492,6 @@ do_abort:
  */
 static int afs_wait_for_call_to_complete(struct afs_call *call)
 {
-	const char *abort_why;
 	int ret;
 
 	DECLARE_WAITQUEUE(myself, current);
@@ -494,13 +510,8 @@ static int afs_wait_for_call_to_complete(struct afs_call *call)
 			continue;
 		}
 
-		abort_why = "KWC";
-		ret = call->error;
-		if (call->state == AFS_CALL_COMPLETE)
-			break;
-		abort_why = "KWI";
-		ret = -EINTR;
-		if (signal_pending(current))
+		if (call->state == AFS_CALL_COMPLETE ||
+		    signal_pending(current))
 			break;
 		schedule();
 	}
@@ -508,13 +519,14 @@ static int afs_wait_for_call_to_complete(struct afs_call *call)
 	remove_wait_queue(&call->waitq, &myself);
 	__set_current_state(TASK_RUNNING);
 
-	/* kill the call */
+	/* Kill off the call if it's still live. */
 	if (call->state < AFS_CALL_COMPLETE) {
-		_debug("call incomplete");
+		_debug("call interrupted");
 		rxrpc_kernel_abort_call(afs_socket, call->rxcall,
-					RX_CALL_DEAD, -ret, abort_why);
+					RX_USER_ABORT, -EINTR, "KWI");
 	}
 
+	ret = call->error;
 	_debug("call complete");
 	afs_end_call(call);
 	_leave(" = %d", ret);
