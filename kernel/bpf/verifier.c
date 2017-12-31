@@ -2722,11 +2722,12 @@ static bool states_equal(struct bpf_verifier_env *env,
 
 		/* If we didn't map access then again we don't care about the
 		 * mismatched range values and it's ok if our old type was
-		 * UNKNOWN and we didn't go to a NOT_INIT'ed reg.
+		 * UNKNOWN and we didn't go to a NOT_INIT'ed or pointer reg.
 		 */
 		if (rold->type == NOT_INIT ||
 		    (!varlen_map_access && rold->type == UNKNOWN_VALUE &&
-		     rcur->type != NOT_INIT))
+		     rcur->type != NOT_INIT &&
+		     !__is_pointer_value(env->allow_ptr_leaks, rcur)))
 			continue;
 
 		/* Don't care about the reg->id in this case. */
