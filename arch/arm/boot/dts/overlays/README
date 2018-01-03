@@ -503,10 +503,11 @@ Params: gpio_pin                Input pin number. Default is 18.
         rc-map-name             Default rc keymap (can also be changed by
                                 ir-keytable), defaults to "rc-rc6-mce"
 
+
 Name:   gpio-key
-Info:   This is a generic overlay for activating GPIO keypresses using 
+Info:   This is a generic overlay for activating GPIO keypresses using
         the gpio-keys library and this dtoverlay. Multiple keys can be
-        set up using multiple calls to the overlay for configuring 
+        set up using multiple calls to the overlay for configuring
         additional buttons or joysticks. You can see available keycodes
         at https://github.com/torvalds/linux/blob/v4.12/include/uapi/
         linux/input-event-codes.h#L64
@@ -520,7 +521,7 @@ Params: gpio                    GPIO pin to trigger on (default 3)
         gpio_pull               Desired pull-up/down state (off, down, up)
                                 Default is "up". Note that the default pin
                                 (GPIO3) has an external pullup
-        label                   Set a label for the key 
+        label                   Set a label for the key
         keycode                 Set the key code for the button
 
 
