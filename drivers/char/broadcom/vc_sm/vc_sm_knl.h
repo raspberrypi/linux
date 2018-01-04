@@ -27,11 +27,6 @@ enum vc_sm_lock_cache_mode {
 	VC_SM_LOCK_NON_CACHED,
 };
 
-/* Cache functions */
-#define VCSM_CACHE_OP_INV       0x01
-#define VCSM_CACHE_OP_CLEAN     0x02
-#define VCSM_CACHE_OP_FLUSH     0x03
-
 /* Allocate a shared memory handle and block. */
 int vc_sm_alloc(struct vc_sm_alloc_t *alloc, int *handle);
 
