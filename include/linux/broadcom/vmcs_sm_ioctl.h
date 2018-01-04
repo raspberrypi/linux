@@ -79,6 +79,11 @@ enum vmcs_sm_cache_e {
 	VMCS_SM_CACHE_BOTH,
 };
 
+/* Cache functions */
+#define VCSM_CACHE_OP_INV       0x01
+#define VCSM_CACHE_OP_CLEAN     0x02
+#define VCSM_CACHE_OP_FLUSH     0x03
+
 /* IOCTL Data structures */
 struct vmcs_sm_ioctl_alloc {
 	/* user -> kernel */
