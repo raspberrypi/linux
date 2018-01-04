@@ -515,6 +515,27 @@ Params: gpio_pin                Output GPIO (default 18)
                                 Default is "0" (active-high).
 
 
+Name:   gpio-key
+Info:   This is a generic overlay for activating GPIO keypresses using
+        the gpio-keys library and this dtoverlay. Multiple keys can be
+        set up using multiple calls to the overlay for configuring
+        additional buttons or joysticks. You can see available keycodes
+        at https://github.com/torvalds/linux/blob/v4.12/include/uapi/
+        linux/input-event-codes.h#L64
+Load:   dtoverlay=gpio-key,<param>=<val>
+Params: gpio                    GPIO pin to trigger on (default 3)
+        active_low              When this is 1 (active low), a falling
+                                edge generates a key down event and a
+                                rising edge generates a key up event.
+                                When this is 0 (active high), this is
+                                reversed. The default is 1 (active low)
+        gpio_pull               Desired pull-up/down state (off, down, up)
+                                Default is "up". Note that the default pin
+                                (GPIO3) has an external pullup
+        label                   Set a label for the key
+        keycode                 Set the key code for the button
+
+
 Name:   gpio-poweroff
 Info:   Drives a GPIO high or low on poweroff (including halt). Enabling this
         overlay will prevent the ability to boot by driving GPIO3 low.
