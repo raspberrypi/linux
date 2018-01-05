@@ -28,16 +28,24 @@
 					gpios = <&gpio 4 0>, <&gpio 17 0>;
 					linux,axis = <0>; /* REL_X */
 					rotary-encoder,encoding = "gray";
-					rotary-encoder,relative-axis;
+					rotary-encoder,steps = <24>; /* 24 default */
+					rotary-encoder,steps-per-period = <1>; /* corresponds to full period mode. See README */
 			};
 		};
 
 	};  
 
 	__overrides__ {
-		rotary0_pin_a = <&rotary0>,"gpios:4",
-				<&rotary0_pins>,"brcm,pins:0";
-		rotary0_pin_b = <&rotary0>,"gpios:16",
-				<&rotary0_pins>,"brcm,pins:4";
+		rotary0_pin_a =     <&rotary0>,"gpios:4",
+		                    <&rotary0_pins>,"brcm,pins:0";
+		rotary0_pin_b =     <&rotary0>,"gpios:16",
+		                    <&rotary0_pins>,"brcm,pins:4";
+		relative_axis =     <&rotary0>,"rotary-encoder,relative-axis?";
+		linux_axis =        <&rotary0>,"linux,axis:0";
+		rollover =          <&rotary0>,"rotary-encoder,rollover?";
+		steps-per-period =  <&rotary0>,"rotary-encoder,steps-per-period:0";
+		steps =             <&rotary0>,"rotary-encoder,steps:0";
+		wakeup =            <&rotary0>,"wakeup-source?";
+		encoding =          <&rotary0>,"rotary-encoder,encoding";
 	};  
 };
