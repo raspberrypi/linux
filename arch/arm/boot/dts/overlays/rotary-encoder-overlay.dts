@@ -40,12 +40,12 @@
 		                    <&rotary0_pins>,"brcm,pins:0";
 		rotary0_pin_b =     <&rotary0>,"gpios:16",
 		                    <&rotary0_pins>,"brcm,pins:4";
-		relative_axis =     <&rotary0>,"rotary-encoder,relative-axis:?";
+		relative_axis =     <&rotary0>,"rotary-encoder,relative-axis?";
 		linux_axis =        <&rotary0>,"linux,axis:0";
-		rollover =          <&rotary0>,"rotary-encoder,rollover:?";
+		rollover =          <&rotary0>,"rotary-encoder,rollover?";
 		steps-per-period =  <&rotary0>,"rotary-encoder,steps-per-period:0";
 		steps =             <&rotary0>,"rotary-encoder,steps:0";
-		wakeup =            <&rotary0>,"wakeup-source:?";
+		wakeup =            <&rotary0>,"wakeup-source?";
 		encoding =          <&rotary0>,"rotary-encoder,encoding";
 	};  
 };
