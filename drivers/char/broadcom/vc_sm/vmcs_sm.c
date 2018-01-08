@@ -278,8 +278,8 @@ static unsigned int vmcs_sm_vc_handle_from_pid_and_address(unsigned int pid,
 		list_for_each_entry(map, &sm_state->map_list, map_list) {
 			if (map->res_pid != pid)
 				continue;
-			if (!(map->res_addr <= addr &&
-						addr < map->res_addr + map->resource->res_size))
+			if (addr < map->res_addr ||
+						addr >= (map->res_addr + map->resource->res_size))
 				continue;
 
 			pr_debug("[%s]: global map %p (pid %u, addr %lx) -> vc-hdl %x (usr-hdl %x)\n",
@@ -1263,7 +1263,7 @@ static int clean_invalid_mem_2d(const void __user *addr,
 	size_t i;
 	void (*op_fn)(const void*, const void*);
 
-	if (block_size <= 0) {
+	if (!block_size) {
 		pr_err("[%s]: size cannot be 0\n", __func__);
 		return -EINVAL;
 	}
