@@ -57,6 +57,17 @@
 			status = "okay";
 		};
 
+		dpi: dpi@7e208000 {
+			compatible = "brcm,bcm2835-dpi";
+			reg = <0x7e208000 0x8c>;
+			clocks = <&clocks BCM2835_CLOCK_VPU>,
+				 <&clocks BCM2835_CLOCK_DPI>;
+			clock-names = "core", "pixel";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
 		arm-pmu {
 			compatible = "arm,armv8-pmuv3", "arm,cortex-a7-pmu";
 			interrupt-parent = <&local_intc>;
@@ -236,6 +247,11 @@
 
 &usb {
 	power-domains = <&power RPI_POWER_DOMAIN_USB>;
+	compatible = "brcm,bcm2708-usb";
+	reg = <0x7e980000 0x10000>,
+	      <0x7e006000 0x1000>;
+	interrupts = <2 0>,
+		     <1 9>;
 };
 
 &v3d {
