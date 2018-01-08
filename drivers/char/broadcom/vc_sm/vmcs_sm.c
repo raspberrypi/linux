@@ -2990,7 +2990,7 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 							op->block_count, op->block_size,
 							op->inter_block_stride, op->invalidate_mode);
 					if (ret)
-						goto out;
+						break;
 				}
 				kfree(block);
 			}
