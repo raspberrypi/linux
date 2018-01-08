@@ -3038,6 +3038,7 @@ static netdev_features_t mlx5e_vxlan_features_check(struct mlx5e_priv *priv,
 						    struct sk_buff *skb,
 						    netdev_features_t features)
 {
+	unsigned int offset = 0;
 	struct udphdr *udph;
 	u16 proto;
 	u16 port = 0;
@@ -3047,7 +3048,7 @@ static netdev_features_t mlx5e_vxlan_features_check(struct mlx5e_priv *priv,
 		proto = ip_hdr(skb)->protocol;
 		break;
 	case htons(ETH_P_IPV6):
-		proto = ipv6_hdr(skb)->nexthdr;
+		proto = ipv6_find_hdr(skb, &offset, -1, NULL, NULL);
 		break;
 	default:
 		goto out;

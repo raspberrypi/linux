@@ -13,6 +13,8 @@
 #include <asm/irqflags.h>
 #include <asm/asm.h>
 #include <asm/smap.h>
+#include <asm/pgtable_types.h>
+#include <asm/kaiser.h>
 #include <linux/linkage.h>
 #include <linux/err.h>
 
@@ -48,6 +50,7 @@
 ENTRY(entry_SYSENTER_compat)
 	/* Interrupts are off on entry. */
 	SWAPGS_UNSAFE_STACK
+	SWITCH_KERNEL_CR3_NO_STACK
 	movq	PER_CPU_VAR(cpu_current_top_of_stack), %rsp
 
 	/*
@@ -184,6 +187,7 @@ ENDPROC(entry_SYSENTER_compat)
 ENTRY(entry_SYSCALL_compat)
 	/* Interrupts are off on entry. */
 	SWAPGS_UNSAFE_STACK
+	SWITCH_KERNEL_CR3_NO_STACK
 
 	/* Stash user ESP and switch to the kernel stack. */
 	movl	%esp, %r8d
@@ -259,6 +263,7 @@ sysret32_from_system_call:
 	xorq	%r8, %r8
 	xorq	%r9, %r9
 	xorq	%r10, %r10
+	SWITCH_USER_CR3
 	movq	RSP-ORIG_RAX(%rsp), %rsp
 	swapgs
 	sysretl
@@ -297,7 +302,7 @@ ENTRY(entry_INT80_compat)
 	PARAVIRT_ADJUST_EXCEPTION_FRAME
 	ASM_CLAC			/* Do this early to minimize exposure */
 	SWAPGS
-
+	SWITCH_KERNEL_CR3_NO_STACK
 	/*
 	 * User tracing code (ptrace or signal handlers) might assume that
 	 * the saved RAX contains a 32-bit number when we're invoking a 32-bit
@@ -338,6 +343,7 @@ ENTRY(entry_INT80_compat)
 
 	/* Go back to user mode. */
 	TRACE_IRQS_ON
+	SWITCH_USER_CR3
 	SWAPGS
 	jmp	restore_regs_and_iret
 END(entry_INT80_compat)

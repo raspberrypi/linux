@@ -2763,6 +2763,8 @@ bytes respectively. Such letter suffixes can also be entirely omitted.
 
 	nojitter	[IA-64] Disables jitter checking for ITC timers.
 
+	nopti		[X86-64] Disable KAISER isolation of kernel from user.
+
 	no-kvmclock	[X86,KVM] Disable paravirtualized KVM clock driver
 
 	no-kvmapf	[X86,KVM] Disable paravirtualized asynchronous page
@@ -2794,6 +2796,8 @@ bytes respectively. Such letter suffixes can also be entirely omitted.
 
 	nopat		[X86] Disable PAT (page attribute table extension of
 			pagetables) support.
+
+	nopcid		[X86-64] Disable the PCID cpu feature.
 
 	norandmaps	Don't use address space randomization.  Equivalent to
 			echo 0 > /proc/sys/kernel/randomize_va_space
@@ -3322,6 +3326,12 @@ bytes respectively. Such letter suffixes can also be entirely omitted.
 
 	pt.		[PARIDE]
 			See Documentation/blockdev/paride.txt.
+
+	pti=		[X86_64]
+			Control KAISER user/kernel address space isolation:
+			on - enable
+			off - disable
+			auto - default setting
 
 	pty.legacy_count=
 			[KNL] Number of legacy pty's. Overwrites compiled-in
