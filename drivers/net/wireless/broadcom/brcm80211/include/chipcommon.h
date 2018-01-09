@@ -308,4 +308,6 @@ struct chipcregs {
 */
 #define PMU_MAX_TRANSITION_DLY	15000
 
+#define DEFAULT_43012_MIN_RES_MASK 0x0f8bfe77
+
 #endif				/* _SBCHIPC_H */
