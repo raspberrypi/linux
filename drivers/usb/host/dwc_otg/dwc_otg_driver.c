@@ -247,6 +247,9 @@ bool fiq_fsm_enable = true;
 //Bulk split-transaction NAK holdoff in microframes
 uint16_t nak_holdoff = 8;
 
+//Force host mode during CIL re-init
+bool cil_force_host = true;
+
 unsigned short fiq_fsm_mask = 0x0F;
 
 unsigned short int_ep_interval_min = 0;
@@ -1402,6 +1405,10 @@ module_param(int_ep_interval_min, ushort, 0644);
 MODULE_PARM_DESC(int_ep_interval_min, "Clamp high-speed Interrupt endpoints to a minimum polling interval.\n"
 					"0..1 = Use endpoint default\n"
 					"2..n = Minimum interval n microframes. Use powers of 2.\n");
+
+module_param(cil_force_host, bool, 0644);
+MODULE_PARM_DESC(cil_force_host, "On a connector-ID status change, "
+					"force Host Mode regardless of OTG state.");
 
 /** @page "Module Parameters"
  *
