@@ -1318,7 +1318,7 @@ int brcmf_alloc(struct device *dev, struct brcmf_mp_device *settings)
 	return 0;
 }
 
-int brcmf_attach(struct device *dev)
+int brcmf_attach(struct device *dev, bool start_bus)
 {
 	struct brcmf_bus *bus_if = dev_get_drvdata(dev);
 	struct brcmf_pub *drvr = bus_if->drvr;
@@ -1355,10 +1355,13 @@ int brcmf_attach(struct device *dev)
 	/* attach firmware event handler */
 	brcmf_fweh_attach(drvr);
 
-	ret = brcmf_bus_started(drvr, drvr->ops);
-	if (ret != 0) {
-		bphy_err(drvr, "dongle is not responding: err=%d\n", ret);
-		goto fail;
+	if (start_bus) {
+		ret = brcmf_bus_started(drvr, drvr->ops);
+		if (ret != 0) {
+			bphy_err(drvr, "dongle is not responding: err=%d\n",
+				 ret);
+			goto fail;
+		}
 	}
 
 	return 0;
