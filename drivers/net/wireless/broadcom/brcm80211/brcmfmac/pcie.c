@@ -2207,7 +2207,7 @@ static void brcmf_pcie_setup(struct device *dev, int ret,
 
 	init_waitqueue_head(&devinfo->mbdata_resp_wait);
 
-	ret = brcmf_attach(&devinfo->pdev->dev);
+	ret = brcmf_attach(&devinfo->pdev->dev, true);
 	if (ret)
 		goto fail;
 
