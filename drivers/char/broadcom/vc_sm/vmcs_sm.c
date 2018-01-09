@@ -331,8 +331,8 @@ static unsigned int vmcs_sm_usr_handle_from_pid_and_address(unsigned int pid,
 		list_for_each_entry(map, &sm_state->map_list, map_list) {
 			if (map->res_pid != pid)
 				continue;
-			if (!(map->res_addr <= addr &&
-						addr < map->res_addr + map->resource->res_size))
+			if (addr < map->res_addr ||
+						addr >= (map->res_addr + map->resource->res_size))
 				continue;
 
 			pr_debug("[%s]: global map %p (pid %u, addr %lx) -> usr-hdl %x (vc-hdl %x)\n",
