@@ -1269,6 +1269,8 @@ static int clean_invalid_mem_2d(const void __user *addr,
 	}
 
 	switch (cache_op) {
+	case VCSM_CACHE_OP_NOP:
+		return 0;
 	case VCSM_CACHE_OP_INV:
 		op_fn = dmac_inv_range;
 		break;
@@ -1312,6 +1314,8 @@ static int clean_invalid_resource(const void __user *addr, const size_t size,
 		return 0;
 
 	switch (cache_op) {
+	case VCSM_CACHE_OP_NOP:
+		return 0;
 	case VCSM_CACHE_OP_INV:
 		stat_attempt = INVALID;
 		stat_failure = INVALID_FAIL;
@@ -2936,6 +2940,9 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				goto out;
 			}
 			for (i = 0; i < sizeof(ioparam.s) / sizeof(*ioparam.s); i++) {
+				if (ioparam.s[i].cmd == VCSM_CACHE_OP_NOP)
+					break;
+
 				/* Locate resource from GUID. */
 				resource =
 					vmcs_sm_acquire_resource(file_data, ioparam.s[i].handle);
@@ -2989,6 +2996,9 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					ret = clean_invalid_mem_2d((void __user*) op->start_address,
 							op->block_count, op->block_size,
 							op->inter_block_stride, op->invalidate_mode);
+					if (op->invalidate_mode == VCSM_CACHE_OP_NOP)
+						continue;
+
 					if (ret)
 						break;
 				}
