@@ -20,6 +20,8 @@
 #include "of.h"
 #include "firmware.h"
 #include "chip.h"
+#include "fweh.h"
+#include <brcm_hw_ids.h>
 
 MODULE_AUTHOR("Broadcom Corporation");
 MODULE_DESCRIPTION("Broadcom 802.11 wireless LAN fullmac driver.");
@@ -274,6 +276,8 @@ int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 	char *clmver;
 	char *ptr;
 	s32 err;
+	struct eventmsgs_ext *eventmask_msg = NULL;
+	u8 msglen;
 
 	if (is_valid_ether_addr(ifp->mac_addr)) {
 		/* set mac address */
@@ -427,6 +431,41 @@ int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 		goto done;
 	}
 
+	/* Enable event_msg_ext specific to 43012 chip */
+	if (bus->chip == CY_CC_43012_CHIP_ID) {
+		/* Program event_msg_ext to support event larger than 128 */
+		msglen = (roundup(BRCMF_E_LAST, NBBY) / NBBY) +
+				  EVENTMSGS_EXT_STRUCT_SIZE;
+		/* Allocate buffer for eventmask_msg */
+		eventmask_msg = kzalloc(msglen, GFP_KERNEL);
+		if (!eventmask_msg) {
+			err = -ENOMEM;
+			goto done;
+		}
+
+		/* Read the current programmed event_msgs_ext */
+		eventmask_msg->ver = EVENTMSGS_VER;
+		eventmask_msg->len = roundup(BRCMF_E_LAST, NBBY) / NBBY;
+		err = brcmf_fil_iovar_data_get(ifp, "event_msgs_ext",
+					       eventmask_msg,
+					       msglen);
+
+		/* Enable ULP event */
+		brcmf_dbg(EVENT, "enable event ULP\n");
+		setbit(eventmask_msg->mask, BRCMF_E_ULP);
+
+		/* Write updated Event mask */
+		eventmask_msg->ver = EVENTMSGS_VER;
+		eventmask_msg->command = EVENTMSGS_SET_MASK;
+		eventmask_msg->len = (roundup(BRCMF_E_LAST, NBBY) / NBBY);
+
+		err = brcmf_fil_iovar_data_set(ifp, "event_msgs_ext",
+					       eventmask_msg, msglen);
+		if (err) {
+			brcmf_err("Set event_msgs_ext error (%d)\n", err);
+			goto done;
+		}
+	}
 	/* Setup default scan channel time */
 	err = brcmf_fil_cmd_int_set(ifp, BRCMF_C_SET_SCAN_CHANNEL_TIME,
 				    BRCMF_DEFAULT_SCAN_CHANNEL_TIME);
