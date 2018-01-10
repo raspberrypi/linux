@@ -168,6 +168,15 @@ struct vmcs_sm_ioctl_cache {
 	unsigned int size;
 };
 
+/*
+ * Cache functions to be set to struct vmcs_sm_ioctl_clean_invalid cmd and
+ * vmcs_sm_ioctl_clean_invalid2 invalidate_mode.
+ */
+#define VCSM_CACHE_OP_NOP       0x00
+#define VCSM_CACHE_OP_INV       0x01
+#define VCSM_CACHE_OP_CLEAN     0x02
+#define VCSM_CACHE_OP_FLUSH     0x03
+
 struct vmcs_sm_ioctl_clean_invalid {
 	/* user -> kernel */
 	struct {

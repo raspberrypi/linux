@@ -276,7 +276,10 @@ static unsigned int vmcs_sm_vc_handle_from_pid_and_address(unsigned int pid,
 	/* Lookup the resource. */
 	if (!list_empty(&sm_state->map_list)) {
 		list_for_each_entry(map, &sm_state->map_list, map_list) {
-			if (map->res_pid != pid || map->res_addr != addr)
+			if (map->res_pid != pid)
+				continue;
+			if (addr < map->res_addr ||
+						addr >= (map->res_addr + map->resource->res_size))
 				continue;
 
 			pr_debug("[%s]: global map %p (pid %u, addr %lx) -> vc-hdl %x (usr-hdl %x)\n",
@@ -326,7 +329,10 @@ static unsigned int vmcs_sm_usr_handle_from_pid_and_address(unsigned int pid,
 	/* Lookup the resource. */
 	if (!list_empty(&sm_state->map_list)) {
 		list_for_each_entry(map, &sm_state->map_list, map_list) {
-			if (map->res_pid != pid || map->res_addr != addr)
+			if (map->res_pid != pid)
+				continue;
+			if (addr < map->res_addr ||
+						addr >= (map->res_addr + map->resource->res_size))
 				continue;
 
 			pr_debug("[%s]: global map %p (pid %u, addr %lx) -> usr-hdl %x (vc-hdl %x)\n",
@@ -1250,18 +1256,75 @@ static const struct vm_operations_struct vcsm_vm_ops = {
 	.fault = vcsm_vma_fault,
 };
 
-/* Walks a VMA and clean each valid page from the cache */
-static void vcsm_vma_cache_clean_page_range(unsigned long addr,
-					    unsigned long end)
+/* Converts VCSM_CACHE_OP_* to an operating function. */
+static void (*cache_op_to_func(const unsigned cache_op))
+		(const void*, const void*)
+{
+	switch (cache_op) {
+	case VCSM_CACHE_OP_NOP:
+		return NULL;
+
+	case VCSM_CACHE_OP_INV:
+		return dmac_inv_range;
+
+	case VCSM_CACHE_OP_CLEAN:
+		return dmac_clean_range;
+
+	case VCSM_CACHE_OP_FLUSH:
+		return dmac_flush_range;
+
+	default:
+		pr_err("[%s]: Invalid cache_op: 0x%08x\n", __func__, cache_op);
+		return NULL;
+	}
+}
+
+/*
+ * Clean/invalid/flush cache of which buffer is already pinned (i.e. accessed).
+ */
+static int clean_invalid_contiguous_mem_2d(const void __user *addr,
+		const size_t block_count, const size_t block_size, const size_t stride,
+		const unsigned cache_op)
+{
+	size_t i;
+	void (*op_fn)(const void*, const void*);
+
+	if (!block_size) {
+		pr_err("[%s]: size cannot be 0\n", __func__);
+		return -EINVAL;
+	}
+
+	op_fn = cache_op_to_func(cache_op);
+	if (op_fn == NULL)
+		return -EINVAL;
+
+	for (i = 0; i < block_count; i ++, addr += stride)
+		op_fn(addr, addr + block_size);
+
+	return 0;
+}
+
+/* Clean/invalid/flush cache of which buffer may be non-pinned. */
+/* The caller must lock current->mm->mmap_sem for read. */
+static int clean_invalid_mem_walk(unsigned long addr, const size_t size,
+		const unsigned cache_op)
 {
 	pgd_t *pgd;
 	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;
 	unsigned long pgd_next, pud_next, pmd_next;
+	const unsigned long end = ALIGN(addr + size, PAGE_SIZE);
+	void (*op_fn)(const void*, const void*);
+
+	addr &= PAGE_MASK;
 
 	if (addr >= end)
-		return;
+		return 0;
+
+	op_fn = cache_op_to_func(cache_op);
+	if (op_fn == NULL)
+		return -EINVAL;
 
 	/* Walk PGD */
 	pgd = pgd_offset(current->mm, addr);
@@ -1288,23 +1351,90 @@ static void vcsm_vma_cache_clean_page_range(unsigned long addr,
 				/* Walk PTE */
 				pte = pte_offset_map(pmd, addr);
 				do {
-					if (pte_none(*pte)
-					    || !pte_present(*pte))
+					if (pte_none(*pte) || !pte_present(*pte))
 						continue;
 
-					/* Clean + invalidate */
-					dmac_flush_range((const void *) addr,
-							 (const void *)
-							 (addr + PAGE_SIZE));
-
-				} while (pte++, addr +=
-					 PAGE_SIZE, addr != pmd_next);
+					op_fn((const void __user*) addr,
+							(const void __user*) (addr + PAGE_SIZE));
+				} while (pte++, addr += PAGE_SIZE, addr != pmd_next);
 				pte_unmap(pte);
 
 			} while (pmd++, addr = pmd_next, addr != pud_next);
 
 		} while (pud++, addr = pud_next, addr != pgd_next);
+
 	} while (pgd++, addr = pgd_next, addr != end);
+
+	return 0;
+}
+
+/* Clean/invalid/flush cache of buffer in resource */
+static int clean_invalid_resource_walk(const void __user *addr,
+		const size_t size, const unsigned cache_op, const int usr_hdl,
+		struct sm_resource_t *resource)
+{
+	int err;
+	enum sm_stats_t stat_attempt, stat_failure;
+	void __user *res_addr;
+
+	if (resource == NULL) {
+		pr_err("[%s]: resource is NULL\n", __func__);
+		return -EINVAL;
+	}
+	if (resource->res_cached != VMCS_SM_CACHE_HOST &&
+				resource->res_cached != VMCS_SM_CACHE_BOTH)
+		return 0;
+
+	switch (cache_op) {
+	case VCSM_CACHE_OP_NOP:
+		return 0;
+	case VCSM_CACHE_OP_INV:
+		stat_attempt = INVALID;
+		stat_failure = INVALID_FAIL;
+		break;
+	case VCSM_CACHE_OP_CLEAN:
+		/* Like the original VMCS_SM_CMD_CLEAN_INVALID ioctl handler does. */
+		stat_attempt = FLUSH;
+		stat_failure = FLUSH_FAIL;
+		break;
+	case VCSM_CACHE_OP_FLUSH:
+		stat_attempt = FLUSH;
+		stat_failure = FLUSH_FAIL;
+		break;
+	default:
+		pr_err("[%s]: Invalid cache_op: 0x%08x\n", __func__, cache_op);
+		return -EINVAL;
+	}
+	resource->res_stats[stat_attempt]++;
+
+	if (size > resource->res_size) {
+		pr_err("[%s]: size (0x%08zu) is larger than res_size (0x%08zu)\n",
+				__func__, size, resource->res_size);
+		return -EFAULT;
+	}
+	res_addr = (void __user*) vmcs_sm_usr_address_from_pid_and_usr_handle(
+			current->tgid, usr_hdl);
+	if (res_addr == NULL) {
+		pr_err("[%s]: Failed to get user address "
+				"from pid (%d) and user handle (%d)\n", __func__, current->tgid,
+				resource->res_handle);
+		return -EINVAL;
+	}
+	if (!(res_addr <= addr && addr + size <= res_addr + resource->res_size)) {
+		pr_err("[%s]: Addr (0x%p-0x%p) out of range (0x%p-0x%p)\n",
+				__func__, addr, addr + size, res_addr,
+				res_addr + resource->res_size);
+		return -EFAULT;
+	}
+
+	down_read(&current->mm->mmap_sem);
+	err = clean_invalid_mem_walk((unsigned long) addr, size, cache_op);
+	up_read(&current->mm->mmap_sem);
+
+	if (err)
+		resource->res_stats[stat_failure]++;
+
+	return err;
 }
 
 /* Map an allocated data into something that the user space. */
@@ -1946,14 +2076,13 @@ static int vc_sm_ioctl_unlock(struct sm_priv_data_t *private,
 			list_for_each_entry(map, &resource->map_list,
 					    resource_map_list) {
 				if (map->vma) {
-					unsigned long start;
-					unsigned long end;
+					const unsigned long start = map->vma->vm_start;
+					const unsigned long end = map->vma->vm_end;
 
-					start = map->vma->vm_start;
-					end = map->vma->vm_end;
-
-					vcsm_vma_cache_clean_page_range(
-							start, end);
+					ret = clean_invalid_mem_walk(start, end - start,
+							VCSM_CACHE_OP_FLUSH);
+					if (ret)
+						goto error;
 				}
 			}
 			up_read(&current->mm->mmap_sem);
@@ -2827,41 +2956,17 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			/* Locate resource from GUID. */
 			resource =
 			    vmcs_sm_acquire_resource(file_data, ioparam.handle);
-
-			if ((resource != NULL) && resource->res_cached) {
-				dma_addr_t phys_addr = 0;
-
-				resource->res_stats[FLUSH]++;
-
-				phys_addr =
-				    (dma_addr_t)((uint32_t)
-						 resource->res_base_mem &
-						 0x3FFFFFFF);
-				phys_addr += (dma_addr_t)mm_vc_mem_phys_addr;
-
-				/* L1 cache flush */
-				down_read(&current->mm->mmap_sem);
-				vcsm_vma_cache_clean_page_range((unsigned long)
-								ioparam.addr,
-								(unsigned long)
-								ioparam.addr +
-								ioparam.size);
-				up_read(&current->mm->mmap_sem);
-
-				/* L2 cache flush */
-				outer_clean_range(phys_addr,
-						  phys_addr +
-						  (size_t) ioparam.size);
-			} else if (resource == NULL) {
+			if (resource == NULL) {
 				ret = -EINVAL;
 				goto out;
 			}
 
-			if (resource)
-				vmcs_sm_release_resource(resource, 0);
-
-			/* Done. */
-			goto out;
+			ret = clean_invalid_resource_walk((void __user*) ioparam.addr,
+					ioparam.size, VCSM_CACHE_OP_FLUSH, ioparam.handle,
+					resource);
+			vmcs_sm_release_resource(resource, 0);
+			if (ret)
+				goto out;
 		}
 		break;
 
@@ -2882,41 +2987,16 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			/* Locate resource from GUID. */
 			resource =
 			    vmcs_sm_acquire_resource(file_data, ioparam.handle);
-
-			if ((resource != NULL) && resource->res_cached) {
-				dma_addr_t phys_addr = 0;
-
-				resource->res_stats[INVALID]++;
-
-				phys_addr =
-				    (dma_addr_t)((uint32_t)
-						 resource->res_base_mem &
-						 0x3FFFFFFF);
-				phys_addr += (dma_addr_t)mm_vc_mem_phys_addr;
-
-				/* L2 cache invalidate */
-				outer_inv_range(phys_addr,
-						phys_addr +
-						(size_t) ioparam.size);
-
-				/* L1 cache invalidate */
-				down_read(&current->mm->mmap_sem);
-				vcsm_vma_cache_clean_page_range((unsigned long)
-								ioparam.addr,
-								(unsigned long)
-								ioparam.addr +
-								ioparam.size);
-				up_read(&current->mm->mmap_sem);
-			} else if (resource == NULL) {
+			if (resource == NULL) {
 				ret = -EINVAL;
 				goto out;
 			}
 
-			if (resource)
-				vmcs_sm_release_resource(resource, 0);
-
-			/* Done. */
-			goto out;
+			ret = clean_invalid_resource_walk((void __user*) ioparam.addr,
+					ioparam.size, VCSM_CACHE_OP_INV, ioparam.handle, resource);
+			vmcs_sm_release_resource(resource, 0);
+			if (ret)
+				goto out;
 		}
 		break;
 
@@ -2935,43 +3015,33 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				goto out;
 			}
 			for (i = 0; i < sizeof(ioparam.s) / sizeof(*ioparam.s); i++) {
-				switch (ioparam.s[i].cmd) {
-				case VCSM_CACHE_OP_INV:	/* L1/L2 invalidate virtual range */
-				case VCSM_CACHE_OP_FLUSH: /* L1/L2 clean physical range */
-				case VCSM_CACHE_OP_CLEAN: /* L1/L2 clean+invalidate all */
-					/* Locate resource from GUID. */
-					resource =
-					    vmcs_sm_acquire_resource(file_data, ioparam.s[i].handle);
-
-					if ((resource != NULL) && resource->res_cached) {
-						unsigned long base = ioparam.s[i].addr & ~(PAGE_SIZE - 1);
-						unsigned long end = (ioparam.s[i].addr + ioparam.s[i].size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-
-						resource->res_stats[ioparam.s[i].cmd == 1 ? INVALID : FLUSH]++;
-
-						/* L1/L2 cache flush */
-						down_read(&current->mm->mmap_sem);
-						vcsm_vma_cache_clean_page_range(base, end);
-						up_read(&current->mm->mmap_sem);
-					} else if (resource == NULL) {
-						ret = -EINVAL;
-						goto out;
-					}
-
-					if (resource)
-						vmcs_sm_release_resource(resource, 0);
-
+				if (ioparam.s[i].cmd == VCSM_CACHE_OP_NOP)
 					break;
-				default:
-					break; /* NOOP */
+
+				/* Locate resource from GUID. */
+				resource =
+					vmcs_sm_acquire_resource(file_data, ioparam.s[i].handle);
+				if (resource == NULL) {
+					ret = -EINVAL;
+					goto out;
 				}
+
+				ret = clean_invalid_resource_walk(
+						(void __user*) ioparam.s[i].addr, ioparam.s[i].size,
+						ioparam.s[i].cmd, ioparam.s[i].handle, resource);
+				vmcs_sm_release_resource(resource, 0);
+				if (ret)
+					goto out;
 			}
 		}
 		break;
-	/* Flush/Invalidate the cache for a given mapping. */
+	/*
+	 * Flush/Invalidate the cache for a given mapping.
+	 * Blocks must be pinned (i.e. accessed) before this call.
+	 */
 	case VMCS_SM_CMD_CLEAN_INVALID2:
 		{
-				int i, j;
+				int i;
 				struct vmcs_sm_ioctl_clean_invalid2 ioparam;
 				struct vmcs_sm_ioctl_clean_invalid_block *block = NULL;
 
@@ -3000,36 +3070,16 @@ static long vc_sm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 				for (i = 0; i < ioparam.op_count; i++) {
 					const struct vmcs_sm_ioctl_clean_invalid_block * const op = block + i;
-					void (*op_fn)(const void *, const void *);
 
-					switch(op->invalidate_mode & 3) {
-						case VCSM_CACHE_OP_INV:
-							op_fn = dmac_inv_range;
-							break;
-						case VCSM_CACHE_OP_CLEAN:
-							op_fn = dmac_clean_range;
-							break;
-						case VCSM_CACHE_OP_FLUSH:
-							op_fn = dmac_flush_range;
-							break;
-						default:
-							op_fn = 0;
-							break;
-					}
-
-					if ((op->invalidate_mode & ~3) != 0) {
-						ret = -EINVAL;
-						break;
-					}
-
-					if (op_fn == 0)
+					if (op->invalidate_mode == VCSM_CACHE_OP_NOP)
 						continue;
 
-					for (j = 0; j < op->block_count; ++j) {
-						const char * const base = (const char *)op->start_address + j * op->inter_block_stride;
-						const char * const end = base + op->block_size;
-						op_fn(base, end);
-					}
+					ret = clean_invalid_contiguous_mem_2d(
+							(void __user*) op->start_address, op->block_count,
+							op->block_size, op->inter_block_stride,
+							op->invalidate_mode);
+					if (ret)
+						break;
 				}
 				kfree(block);
 			}
