@@ -37,6 +37,7 @@
 #include <asm/pgtable_types.h>
 #include <asm/export.h>
 #include <asm/kaiser.h>
+#include <asm/nospec-branch.h>
 #include <linux/err.h>
 
 /* Avoid __ASSEMBLER__'ifying <linux/audit.h> just for this.  */
@@ -208,7 +209,12 @@ entry_SYSCALL_64_fastpath:
 	 * It might end up jumping to the slow path.  If it jumps, RAX
 	 * and all argument registers are clobbered.
 	 */
+#ifdef CONFIG_RETPOLINE
+	movq	sys_call_table(, %rax, 8), %rax
+	call	__x86_indirect_thunk_rax
+#else
 	call	*sys_call_table(, %rax, 8)
+#endif
 .Lentry_SYSCALL_64_after_fastpath_call:
 
 	movq	%rax, RAX(%rsp)
@@ -380,7 +386,7 @@ ENTRY(stub_ptregs_64)
 	jmp	entry_SYSCALL64_slow_path
 
 1:
-	jmp	*%rax				/* Called from C */
+	JMP_NOSPEC %rax				/* Called from C */
 END(stub_ptregs_64)
 
 .macro ptregs_stub func
@@ -457,7 +463,7 @@ ENTRY(ret_from_fork)
 1:
 	/* kernel thread */
 	movq	%r12, %rdi
-	call	*%rbx
+	CALL_NOSPEC %rbx
 	/*
 	 * A kernel thread is allowed to return here after successfully
 	 * calling do_execve().  Exit to userspace to complete the execve()

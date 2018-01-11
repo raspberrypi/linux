@@ -45,6 +45,7 @@
 #include <asm/asm.h>
 #include <asm/smap.h>
 #include <asm/export.h>
+#include <asm/nospec-branch.h>
 
 	.section .entry.text, "ax"
 
@@ -260,7 +261,7 @@ ENTRY(ret_from_fork)
 
 	/* kernel thread */
 1:	movl	%edi, %eax
-	call	*%ebx
+	CALL_NOSPEC %ebx
 	/*
 	 * A kernel thread is allowed to return here after successfully
 	 * calling do_execve().  Exit to userspace to complete the execve()
@@ -1062,7 +1063,7 @@ error_code:
 	movl	%ecx, %es
 	TRACE_IRQS_OFF
 	movl	%esp, %eax			# pt_regs pointer
-	call	*%edi
+	CALL_NOSPEC %edi
 	jmp	ret_from_exception
 END(page_fault)
 
