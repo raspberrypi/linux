@@ -985,7 +985,8 @@ trace:
 	movl	0x4(%ebp), %edx
 	subl	$MCOUNT_INSN_SIZE, %eax
 
-	call	*ftrace_trace_function
+	movl    ftrace_trace_function, %ecx
+	CALL_NOSPEC %ecx
 
 	popl	%edx
 	popl	%ecx
@@ -1021,7 +1022,7 @@ return_to_handler:
 	movl	%eax, %ecx
 	popl	%edx
 	popl	%eax
-	jmp	*%ecx
+	JMP_NOSPEC %ecx
 #endif
 
 #ifdef CONFIG_TRACING
