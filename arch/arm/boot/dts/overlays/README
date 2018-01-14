@@ -965,6 +965,12 @@ Params: gpio_out_pin            GPIO for output (default "17")
                                 (default "off")
 
 
+Name:   mbed-dac
+Info:   Configures the mbed AudioCODEC (TLV320AIC23B)
+Load:   dtoverlay=mbed-dac
+Params: <None>
+
+
 Name:   mcp23017
 Info:   Configures the MCP23017 I2C GPIO expander
 Load:   dtoverlay=mcp23017,<param>=<val>
