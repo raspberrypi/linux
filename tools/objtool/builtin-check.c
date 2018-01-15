@@ -1230,6 +1230,14 @@ static int validate_uncallable_instructions(struct objtool_file *file)
 
 	for_each_insn(file, insn) {
 		if (!insn->visited && insn->type == INSN_RETURN) {
+
+			/*
+			 * Don't warn about call instructions in unvisited
+			 * retpoline alternatives.
+			 */
+			if (!strcmp(insn->sec->name, ".altinstr_replacement"))
+				continue;
+
 			WARN_FUNC("return instruction outside of a callable function",
 				  insn->sec, insn->offset);
 			warnings++;
