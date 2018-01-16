@@ -141,8 +141,8 @@
 		debug = 	<&hy28b>,"debug:0";
 		xohms =		<&hy28b_ts>,"ti,x-plate-ohms;0";
 		resetgpio =	<&hy28b>,"reset-gpios:4",
-				<&hy28b_pins>, "brcm,pins:1";
+				<&hy28b_pins>, "brcm,pins:4";
 		ledgpio =	<&hy28b>,"led-gpios:4",
-				<&hy28b_pins>, "brcm,pins:2";
+				<&hy28b_pins>, "brcm,pins:8";
 	};
 };
