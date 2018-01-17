@@ -848,5 +848,5 @@ static void __exit acpi_wmi_exit(void)
 	pr_info("Mapper unloaded\n");
 }
 
-subsys_initcall(acpi_wmi_init);
+subsys_initcall_sync(acpi_wmi_init);
 module_exit(acpi_wmi_exit);

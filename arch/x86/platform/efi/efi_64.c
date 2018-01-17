@@ -142,7 +142,7 @@ int __init efi_alloc_page_tables(void)
 		return 0;
 
 	gfp_mask = GFP_KERNEL | __GFP_NOTRACK | __GFP_ZERO;
-	efi_pgd = (pgd_t *)__get_free_page(gfp_mask);
+	efi_pgd = (pgd_t *)__get_free_pages(gfp_mask, PGD_ALLOCATION_ORDER);
 	if (!efi_pgd)
 		return -ENOMEM;
 

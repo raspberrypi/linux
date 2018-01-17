@@ -345,13 +345,6 @@ static inline void _pgd_free(pgd_t *pgd)
 }
 #else
 
-/*
- * Instead of one pgd, Kaiser acquires two pgds.  Being order-1, it is
- * both 8k in size and 8k-aligned.  That lets us just flip bit 12
- * in a pointer to swap between the two 4k halves.
- */
-#define PGD_ALLOCATION_ORDER	kaiser_enabled
-
 static inline pgd_t *_pgd_alloc(void)
 {
 	return (pgd_t *)__get_free_pages(PGALLOC_GFP, PGD_ALLOCATION_ORDER);
