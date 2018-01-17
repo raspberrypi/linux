@@ -1293,6 +1293,7 @@ static noinline_for_stack int em28178_dvb_init_pctv_292e(struct em28xx *dev)
 	si2168_config.i2c_adapter = &adapter;
 	si2168_config.fe = &dvb->fe[0];
 	si2168_config.ts_mode = SI2168_TS_PARALLEL;
+	si2168_config.spectral_inversion = true;
 	memset(&info, 0, sizeof(struct i2c_board_info));
 	strlcpy(info.type, "si2168", I2C_NAME_SIZE);
 	info.addr = 0x64;
@@ -1491,6 +1492,7 @@ static noinline_for_stack int em28174_dvb_init_hauppauge_wintv_dualhd_dvb(struct
 	si2168_config.i2c_adapter = &adapter;
 	si2168_config.fe = &dvb->fe[0];
 	si2168_config.ts_mode = SI2168_TS_SERIAL;
+	si2168_config.spectral_inversion = true;
 	memset(&info, 0, sizeof(struct i2c_board_info));
 	strlcpy(info.type, "si2168", I2C_NAME_SIZE);
 	if (dev->ts == PRIMARY_TS)
