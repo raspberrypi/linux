@@ -151,7 +151,7 @@ static struct meson_clk_pll axg_sys_pll = {
 	},
 	.od = {
 		.reg_off = HHI_SYS_PLL_CNTL,
-		.shift   = 10,
+		.shift   = 16,
 		.width   = 2,
 	},
 	.rate_table = sys_pll_rate_table,
