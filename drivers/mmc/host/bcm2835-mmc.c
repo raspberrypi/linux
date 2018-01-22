@@ -1308,8 +1308,8 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 
 	host->clk_mul = 0;
 
-	mmc->f_max = host->max_clk;
-	mmc->f_max = host->max_clk;
+	if (!mmc->f_max || mmc->f_max > host->max_clk)
+		mmc->f_max = host->max_clk;
 	mmc->f_min = host->max_clk / SDHCI_MAX_DIV_SPEC_300;
 
 	/* SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK */
