@@ -22,6 +22,9 @@ struct bcm2836_arm_irqchip_intc {
 
 static struct bcm2836_arm_irqchip_intc intc  __read_mostly;
 
+void __iomem *arm_local_intc;
+EXPORT_SYMBOL_GPL(arm_local_intc);
+
 static void bcm2836_arm_irqchip_mask_per_cpu_irq(unsigned int reg_offset,
 						 unsigned int bit,
 						 int cpu)
@@ -322,6 +325,8 @@ static int __init bcm2836_arm_irqchip_l1_intc_of_init(struct device_node *node,
 	if (!intc.base) {
 		panic("%pOF: unable to map local interrupt registers\n", node);
 	}
+
+	arm_local_intc = intc.base;
 
 	bcm2835_init_local_timer_frequency();
 
