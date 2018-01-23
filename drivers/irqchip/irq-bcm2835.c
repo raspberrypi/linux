@@ -41,8 +41,6 @@
 #include <linux/of_irq.h>
 #include <linux/irqchip.h>
 #include <linux/irqdomain.h>
-#include <linux/mfd/syscon.h>
-#include <linux/regmap.h>
 
 #include <asm/exception.h>
 #include <asm/mach/irq.h>
@@ -92,7 +90,7 @@ struct armctrl_ic {
 	void __iomem *enable[NR_BANKS];
 	void __iomem *disable[NR_BANKS];
 	struct irq_domain *domain;
-	struct regmap *local_regmap;
+	void __iomem *local_base;
 };
 
 static struct armctrl_ic intc __read_mostly;
@@ -129,24 +127,20 @@ static void armctrl_unmask_irq(struct irq_data *d)
 	if (d->hwirq >= NUMBER_IRQS) {
 		if (num_online_cpus() > 1) {
 			unsigned int data;
-			int ret;
 
-			if (!intc.local_regmap) {
-				pr_err("FIQ is disabled due to missing regmap\n");
+			if (!intc.local_base) {
+				pr_err("FIQ is disabled due to missing arm_local_intc\n");
 				return;
 			}
 
-			ret = regmap_read(intc.local_regmap,
-					  ARM_LOCAL_GPU_INT_ROUTING, &data);
-			if (ret) {
-				pr_err("Failed to read int routing %d\n", ret);
-				return;
-			}
+			data = readl_relaxed(intc.local_base +
+					     ARM_LOCAL_GPU_INT_ROUTING);
 
 			data &= ~0xc;
 			data |= (1 << 2);
-			regmap_write(intc.local_regmap,
-				     ARM_LOCAL_GPU_INT_ROUTING, data);
+			writel_relaxed(data,
+				       intc.local_base +
+				       ARM_LOCAL_GPU_INT_ROUTING);
 		}
 
 		writel_relaxed(REG_FIQ_ENABLE | hwirq_to_fiq(d->hwirq),
@@ -246,12 +240,10 @@ static int __init armctrl_of_init(struct device_node *node,
 	}
 
 	if (is_2836) {
-		intc.local_regmap =
-			syscon_regmap_lookup_by_compatible("brcm,bcm2836-arm-local");
-		if (IS_ERR(intc.local_regmap)) {
-			pr_err("Failed to get local register map. FIQ is disabled for cpus > 1\n");
-			intc.local_regmap = NULL;
-		}
+		extern void __iomem * __attribute__((weak)) arm_local_intc;
+		intc.local_base = arm_local_intc;
+		if (!intc.local_base)
+			pr_err("Failed to get local intc base. FIQ is disabled for cpus > 1\n");
 	}
 
 	/* Make a duplicate irq range which is used to enable FIQ */
