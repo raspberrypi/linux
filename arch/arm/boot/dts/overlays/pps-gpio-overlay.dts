@@ -6,7 +6,7 @@
 	fragment@0 {
 		target-path = "/";
 		__overlay__ {
-			pps: pps {
+			pps: pps@12 {
 				compatible = "pps-gpio";
 				pinctrl-names = "default";
 				pinctrl-0 = <&pps_pins>;
@@ -19,7 +19,7 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
-			pps_pins: pps_pins {
+			pps_pins: pps_pins@12 {
 				brcm,pins =     <18>;
 				brcm,function = <0>;    // in
 				brcm,pull =     <0>;    // off
@@ -29,7 +29,9 @@
 
 	__overrides__ {
 		gpiopin = <&pps>,"gpios:4",
-			  <&pps_pins>,"brcm,pins:0";
+			  <&pps>,"reg:0",
+			  <&pps_pins>,"brcm,pins:0",
+			  <&pps_pins>,"reg:0";
 		assert_falling_edge = <&pps>,"assert-falling-edge?";
 	};
 };
