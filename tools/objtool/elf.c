@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "elf.h"
 #include "warn.h"
@@ -370,7 +371,8 @@ struct elf *elf_open(const char *name)
 
 	elf->fd = open(name, O_RDONLY);
 	if (elf->fd == -1) {
-		perror("open");
+		fprintf(stderr, "objtool: Can't open '%s': %s\n",
+			name, strerror(errno));
 		goto err;
 	}
 
