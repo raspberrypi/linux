@@ -433,6 +433,19 @@ static int vc4_page_flip(struct drm_crtc *crtc,
 	return drm_atomic_helper_page_flip(crtc, fb, event, flags, ctx);
 }
 
+static int vc4_fkms_enable_vblank(struct drm_crtc *crtc)
+{
+	/* XXX: Need a way to enable/disable the interrupt, to avoid
+	 * DRM warnings at boot time.
+	 */
+
+	return 0;
+}
+
+static void vc4_fkms_disable_vblank(struct drm_crtc *crtc)
+{
+}
+
 static const struct drm_crtc_funcs vc4_crtc_funcs = {
 	.set_config = drm_atomic_helper_set_config,
 	.destroy = drm_crtc_cleanup,
@@ -443,6 +456,8 @@ static const struct drm_crtc_funcs vc4_crtc_funcs = {
 	.reset = drm_atomic_helper_crtc_reset,
 	.atomic_duplicate_state = drm_atomic_helper_crtc_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_crtc_destroy_state,
+	.enable_vblank = vc4_fkms_enable_vblank,
+	.disable_vblank = vc4_fkms_disable_vblank,
 };
 
 static const struct drm_crtc_helper_funcs vc4_crtc_helper_funcs = {
