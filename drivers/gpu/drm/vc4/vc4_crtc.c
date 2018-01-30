@@ -691,14 +691,7 @@ static void vc4_crtc_atomic_flush(struct drm_crtc *crtc,
 
 static int vc4_enable_vblank(struct drm_crtc *crtc)
 {
-	struct drm_device *dev = crtc->dev;
-	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
-
-	if (vc4->firmware_kms) {
-		/* XXX: Can we mask the SMI interrupt? */
-		return 0;
-	}
 
 	CRTC_WRITE(PV_INTEN, PV_INT_VFP_START);
 
@@ -707,14 +700,7 @@ static int vc4_enable_vblank(struct drm_crtc *crtc)
 
 static void vc4_disable_vblank(struct drm_crtc *crtc)
 {
-	struct drm_device *dev = crtc->dev;
-	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
-
-	if (vc4->firmware_kms) {
-		/* XXX: Can we mask the SMI interrupt? */
-		return;
-	}
 
 	CRTC_WRITE(PV_INTEN, 0);
 }
