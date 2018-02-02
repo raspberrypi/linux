@@ -222,14 +222,6 @@ static int snd_allo_boss_update_rate_den(
 	return 0;
 }
 
-static int snd_allo_boss_set_bclk_ratio_pro(
-	struct snd_soc_dai *cpu_dai, struct snd_pcm_hw_params *params)
-{
-	int bratio = snd_pcm_format_physical_width(params_format(params))
-		* params_channels(params);
-	return snd_soc_dai_set_bclk_ratio(cpu_dai, bratio);
-}
-
 static void snd_allo_boss_gpio_mute(struct snd_soc_card *card)
 {
 	if (mute_gpio)
@@ -281,9 +273,6 @@ static int snd_allo_boss_hw_params(
 {
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	unsigned int sample_bits =
-		snd_pcm_format_physical_width(params_format(params));
 
 	if (snd_soc_allo_boss_master) {
 		struct snd_soc_codec *codec = rtd->codec;
@@ -291,13 +280,8 @@ static int snd_allo_boss_hw_params(
 		snd_allo_boss_set_sclk(codec,
 			params_rate(params));
 
-		ret = snd_allo_boss_set_bclk_ratio_pro(cpu_dai,
-			params);
-		if (!ret)
-			ret = snd_allo_boss_update_rate_den(
-				substream, params);
-	} else {
-		ret = snd_soc_dai_set_bclk_ratio(cpu_dai, sample_bits * 2);
+		ret = snd_allo_boss_update_rate_den(
+			substream, params);
 	}
 	return ret;
 }
