@@ -68,19 +68,6 @@ static int snd_rpi_raspidac3_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-/* set hw parameters */
-static int snd_rpi_raspidac3_hw_params(struct snd_pcm_substream *substream,
-				       struct snd_pcm_hw_params *params)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-
-	unsigned int sample_bits =
-		snd_pcm_format_physical_width(params_format(params));
-
-	return snd_soc_dai_set_bclk_ratio(cpu_dai, sample_bits * 2);
-}
-
 /* startup */
 static int snd_rpi_raspidac3_startup(struct snd_pcm_substream *substream) {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -98,7 +85,6 @@ static void snd_rpi_raspidac3_shutdown(struct snd_pcm_substream *substream) {
 
 /* machine stream operations */
 static struct snd_soc_ops snd_rpi_raspidac3_ops = {
-	.hw_params = snd_rpi_raspidac3_hw_params,
 	.startup = snd_rpi_raspidac3_startup,
 	.shutdown = snd_rpi_raspidac3_shutdown,
 };
