@@ -216,20 +216,11 @@ static int snd_rpi_hifiberry_dacplus_update_rate_den(
 	return 0;
 }
 
-static int snd_rpi_hifiberry_dacplus_set_bclk_ratio_pro(
-	struct snd_soc_dai *cpu_dai, struct snd_pcm_hw_params *params)
-{
-	int bratio = snd_pcm_format_physical_width(params_format(params))
-		* params_channels(params);
-	return snd_soc_dai_set_bclk_ratio(cpu_dai, bratio);
-}
-
 static int snd_rpi_hifiberry_dacplus_hw_params(
 	struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params)
 {
-	int ret;
+	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 
 	if (snd_rpi_hifiberry_is_dacpro) {
 		struct snd_soc_codec *codec = rtd->codec;
@@ -237,13 +228,8 @@ static int snd_rpi_hifiberry_dacplus_hw_params(
 		snd_rpi_hifiberry_dacplus_set_sclk(codec,
 			params_rate(params));
 
-		ret = snd_rpi_hifiberry_dacplus_set_bclk_ratio_pro(cpu_dai,
-			params);
-		if (!ret)
-			ret = snd_rpi_hifiberry_dacplus_update_rate_den(
-				substream, params);
-	} else {
-		ret = snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
+		ret = snd_rpi_hifiberry_dacplus_update_rate_den(
+			substream, params);
 	}
 	return ret;
 }
