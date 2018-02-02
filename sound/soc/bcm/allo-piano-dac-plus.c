@@ -794,9 +794,6 @@ static int snd_allo_piano_dac_hw_params(
 		struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	unsigned int sample_bits =
-		snd_pcm_format_physical_width(params_format(params));
 	unsigned int rate = params_rate(params);
 	struct snd_soc_card *card = rtd->card;
 	struct glb_pool *glb_ptr = card->drvdata;
@@ -837,8 +834,6 @@ static int snd_allo_piano_dac_hw_params(
 						glb_ptr->set_lowpass);
 	if (ret < 0)
 		return ret;
-
-	ret = snd_soc_dai_set_bclk_ratio(cpu_dai, sample_bits * 2);
 
 	return ret;
 }
