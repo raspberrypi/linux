@@ -37,8 +37,6 @@ struct vc4_crtc {
 	struct drm_crtc base;
 	struct drm_encoder *encoder;
 	struct drm_connector *connector;
-	struct drm_plane *primary;
-	struct drm_plane *cursor;
 	void __iomem *regs;
 
 	struct drm_pending_vblank_event *event;
@@ -356,29 +354,24 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
 {
-	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
-
 	/* Always turn the planes off on CRTC disable. In DRM, planes
 	 * are enabled/disabled through the update/disable hooks
 	 * above, and the CRTC enable/disable independently controls
 	 * whether anything scans out at all, but the firmware doesn't
 	 * give us a CRTC-level control for that.
 	 */
-	vc4_cursor_plane_atomic_disable(vc4_crtc->cursor,
-					vc4_crtc->cursor->state);
-	vc4_plane_set_primary_blank(vc4_crtc->primary, true);
+	vc4_cursor_plane_atomic_disable(crtc->cursor, crtc->cursor->state);
+	vc4_plane_set_primary_blank(crtc->primary, true);
 }
 
 static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
 {
-	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
-
 	/* Unblank the planes (if they're supposed to be displayed). */
-	if (vc4_crtc->primary->state->fb)
-		vc4_plane_set_primary_blank(vc4_crtc->primary, false);
-	if (vc4_crtc->cursor->state->fb) {
-		vc4_cursor_plane_atomic_update(vc4_crtc->cursor,
-					       vc4_crtc->cursor->state);
+	if (crtc->primary->state->fb)
+		vc4_plane_set_primary_blank(crtc->primary, false);
+	if (crtc->cursor->state->fb) {
+		vc4_cursor_plane_atomic_update(crtc->cursor,
+					       crtc->cursor->state);
 	}
 }
 
@@ -688,9 +681,6 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	drm_crtc_helper_add(crtc, &vc4_crtc_helper_funcs);
 	primary_plane->crtc = crtc;
 	cursor_plane->crtc = crtc;
-
-	vc4_crtc->primary = primary_plane;
-	vc4_crtc->cursor = cursor_plane;
 
 	vc4_encoder = devm_kzalloc(dev, sizeof(*vc4_encoder), GFP_KERNEL);
 	if (!vc4_encoder)
