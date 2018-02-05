@@ -204,10 +204,6 @@ static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
 		state->crtc_y,
 		0
 	};
-	u32 packet_info[] = { state->crtc_w, state->crtc_h,
-			      0, /* unused */
-			      bo->paddr + fb->offsets[0],
-			      0, 0, /* hotx, hoty */};
 	WARN_ON_ONCE(fb->pitches[0] != state->crtc_w * 4);
 
 	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] update %dx%d cursor at %d,%d (0x%08x/%d)",
@@ -232,12 +228,26 @@ static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
 	if (ret || packet_state[0] != 0)
 		DRM_ERROR("Failed to set cursor state: 0x%08x\n", packet_state[0]);
 
-	ret = rpi_firmware_property(vc4->firmware,
-				    RPI_FIRMWARE_SET_CURSOR_INFO,
-				    &packet_info,
-				    sizeof(packet_info));
-	if (ret || packet_info[0] != 0)
-		DRM_ERROR("Failed to set cursor info: 0x%08x\n", packet_info[0]);
+	/* Note: When the cursor contents change, the modesetting
+	 * driver calls drm_mode_cursor_univeral() with
+	 * DRM_MODE_CURSOR_BO, which means a new fb will be allocated.
+	 */
+	if (!old_state ||
+	    state->crtc_w != old_state->crtc_w ||
+	    state->crtc_h != old_state->crtc_h ||
+	    fb != old_state->fb) {
+		u32 packet_info[] = { state->crtc_w, state->crtc_h,
+				      0, /* unused */
+				      bo->paddr + fb->offsets[0],
+				      0, 0, /* hotx, hoty */};
+
+		ret = rpi_firmware_property(vc4->firmware,
+					    RPI_FIRMWARE_SET_CURSOR_INFO,
+					    &packet_info,
+					    sizeof(packet_info));
+		if (ret || packet_info[0] != 0)
+			DRM_ERROR("Failed to set cursor info: 0x%08x\n", packet_info[0]);
+	}
 }
 
 static void vc4_cursor_plane_atomic_disable(struct drm_plane *plane,
