@@ -52,6 +52,7 @@
 #include <linux/time.h>
 #include <linux/workqueue.h>
 #include <linux/interrupt.h>
+#include <linux/highmem.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
 /* For mmc_card_blockaddr */
