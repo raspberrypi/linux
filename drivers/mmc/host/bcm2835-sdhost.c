@@ -51,6 +51,7 @@
 #include <linux/of_dma.h>
 #include <linux/time.h>
 #include <linux/workqueue.h>
+#include <linux/highmem.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
 #define DRIVER_NAME "sdhost-bcm2835"
