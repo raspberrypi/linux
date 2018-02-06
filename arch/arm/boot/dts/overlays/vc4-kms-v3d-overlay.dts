@@ -53,20 +53,13 @@
 	};
 
 	fragment@6 {
-		target = <&cprman>;
-		__overlay__  {
-			status = "okay";
-		};
-	};
-
-	fragment@7 {
 		target = <&fb>;
 		__overlay__  {
 			status = "disabled";
 		};
 	};
 
-	fragment@8 {
+	fragment@7 {
 		target = <&pixelvalve0>;
 		__overlay__  {
 			interrupts = <2 13>; /* pwa0 */
@@ -74,7 +67,7 @@
 		};
 	};
 
-	fragment@9 {
+	fragment@8 {
 		target = <&pixelvalve1>;
 		__overlay__  {
 			interrupts = <2 14>; /* pwa1 */
@@ -82,7 +75,7 @@
 		};
 	};
 
-	fragment@10 {
+	fragment@9 {
 		target = <&pixelvalve2>;
 		__overlay__  {
 			interrupts = <2 10>; /* pixelvalve */
@@ -90,7 +83,7 @@
 		};
 	};
 
-	fragment@11 {
+	fragment@10 {
 		target = <&hvs>;
 		__overlay__  {
 			interrupts = <2 1>;
@@ -98,7 +91,7 @@
 		};
 	};
 
-	fragment@12 {
+	fragment@11 {
 		target = <&hdmi>;
 		__overlay__  {
 			interrupts = <2 8>, <2 9>;
@@ -106,7 +99,7 @@
 		};
 	};
 
-	fragment@13 {
+	fragment@12 {
 		target = <&v3d>;
 		__overlay__  {
 			interrupts = <1 10>;
@@ -114,21 +107,21 @@
 		};
 	};
 
-	fragment@14 {
-		target = <&gpu>;
+	fragment@13 {
+		target = <&vc4>;
 		__overlay__  {
 			status = "okay";
 		};
 	};
 
-	fragment@15 {
+	fragment@14 {
 		target-path = "/soc/dma";
 		__overlay__ {
 			brcm,dma-channel-mask = <0x7f35>;
 		};
 	};
 
-	fragment@16 {
+	fragment@15 {
 		target = <&dsi1>;
 		__overlay__  {
 			#address-cells = <1>;
@@ -143,21 +136,21 @@
 		};
 	};
 
-	fragment@17 {
+	fragment@16 {
 		target = <&i2c_dsi>;
 		__overlay__  {
 			status = "okay";
 		};
 	};
 
-	fragment@18 {
+	fragment@17 {
 		target = <&vec>;
 		__overlay__  {
 			status = "okay";
 		};
 	};
 
-	fragment@19 {
+	fragment@18 {
 		target = <&clocks>;
 		__overlay__  {
 			claim-clocks = <
