@@ -29,6 +29,8 @@
 			interrupts = <9>;
 		};
 
+		/delete-node/ timer@7e003000;
+
 		timer {
 #ifdef RPI364
 			compatible = "arm,armv8-timer", "arm,armv7-timer";
