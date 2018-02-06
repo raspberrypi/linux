@@ -192,5 +192,6 @@ config SND_BCM2708_SOC_ALLO_DIGIONE
 config SND_PISOUND
 	tristate "Support for Blokas Labs pisound"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_RAWMIDI
 	help
 	  Say Y or M if you want to add support for Blokas Labs pisound.
