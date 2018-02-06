@@ -396,4 +396,9 @@ static inline void kvm_fpsimd_flush_cpu_state(void)
 		sve_flush_cpu_state();
 }
 
+static inline bool kvm_arm_harden_branch_predictor(void)
+{
+	return cpus_have_const_cap(ARM64_HARDEN_BRANCH_PREDICTOR);
+}
+
 #endif /* __ARM64_KVM_HOST_H__ */
