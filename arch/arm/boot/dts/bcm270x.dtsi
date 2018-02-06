@@ -1,5 +1,5 @@
 /* Downstream bcm283x.dtsi diff */
-#include "dt-bindings/power/raspberrypi-power.h"
+#include <dt-bindings/power/raspberrypi-power.h>
 
 / {
 	chosen {
@@ -7,8 +7,6 @@
 	};
 
 	soc: soc {
-
-		/delete-node/ timer@7e003000;
 
 		watchdog: watchdog@7e100000 {
 			/* Add alias */
