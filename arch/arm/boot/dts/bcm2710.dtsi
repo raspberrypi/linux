@@ -16,6 +16,8 @@
 			interrupt-parent = <&local_intc>;
 			interrupts = <9>;
 		};
+
+		/delete-node/ timer@7e003000;
 	};
 
 	__overrides__ {
