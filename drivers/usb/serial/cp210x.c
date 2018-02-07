@@ -152,6 +152,19 @@ static const struct usb_device_id id_table[] = {
 	{ USB_DEVICE(0x12B8, 0xEC62) }, /* Link G4+ ECU */
 	{ USB_DEVICE(0x13AD, 0x9999) }, /* Baltech card reader */
 	{ USB_DEVICE(0x1555, 0x0004) }, /* Owen AC4 USB-RS485 Converter */
+	{ USB_DEVICE(0x155A, 0x1005) }, /* ELDAT Easywave Transceiver */
+        { USB_DEVICE(0x155A, 0x1006) }, /* ELDAT USB Transceiver Easywave */
+	{ USB_DEVICE(0x155A, 0x1009) }, /* USB Transceiver Easywave V2 */
+	{ USB_DEVICE(0x155A, 0x100A) }, /* USB Transceiver Easywave V3 */
+	{ USB_DEVICE(0x155A, 0x100B) }, /* USB Transceiver Easywave V4 */
+	{ USB_DEVICE(0x155A, 0x100C) }, /* USB Transceiver Easywave V5 */
+	{ USB_DEVICE(0x155A, 0x100D) }, /* USB Transceiver Easywave V6 */
+	{ USB_DEVICE(0x155A, 0x100E) }, /* ELDAT USB Device V1 */
+	{ USB_DEVICE(0x155A, 0x100F) }, /* ELDAT USB Device V2 */
+	{ USB_DEVICE(0x155A, 0x1010) }, /* ELDAT USB Device V3 */
+	{ USB_DEVICE(0x155A, 0x1011) }, /* ELDAT USB Device V4 */
+	{ USB_DEVICE(0x155A, 0x1012) }, /* ELDAT USB Device V5 */
+	{ USB_DEVICE(0x155A, 0x1013) }, /* ELDAT USB Device V6 */
 	{ USB_DEVICE(0x166A, 0x0201) }, /* Clipsal 5500PACA C-Bus Pascal Automation Controller */
 	{ USB_DEVICE(0x166A, 0x0301) }, /* Clipsal 5800PC C-Bus Wireless PC Interface */
 	{ USB_DEVICE(0x166A, 0x0303) }, /* Clipsal 5500PCU C-Bus USB interface */
