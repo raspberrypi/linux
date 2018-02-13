@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -68,11 +68,11 @@ int proc_get_drv_version(char *page, char **start,
 			  int *eof, void *data)
 {
 	struct net_device *dev = data;
-
+	
 	int len = 0;
 
 	len += snprintf(page + len, count - len, "%s\n", DRIVERVERSION);
-
+				
 	*eof = 1;
 	return len;
 }
@@ -84,7 +84,7 @@ int proc_get_log_level(char *page, char **start,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
-
+	
 	int len = 0;
 
 	len += snprintf(page + len, count - len,
@@ -107,7 +107,7 @@ int proc_set_log_level(struct file *file, const char *buffer,
 	if (count < 1)
 		return -EFAULT;
 
-	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
 
 		int num = sscanf(tmp, "%d ", &is_signal_dbg);
 
@@ -117,16 +117,16 @@ int proc_set_log_level(struct file *file, const char *buffer,
 			printk("%d\n", GlobalDebugLevel);
 		}
 	}
-
+	
 	return count;
-
+	
 }
 
 #ifdef DBG_MEM_ALLOC
 int proc_get_mstat(char *page, char **start,
 			  off_t offset, int count,
 			  int *eof, void *data)
-{
+{	
 	int len = 0;
 
 	len += _rtw_mstat_dump(page+len, count-len);
@@ -156,9 +156,9 @@ int proc_set_write_reg(struct file *file, const char *buffer,
 	{
 		DBG_871X("argument size is less than 3\n");
 		return -EFAULT;
-	}
+	}	
 
-	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
 
 		int num = sscanf(tmp, "%x %x %x", &addr, &val, &len);
 
@@ -170,23 +170,23 @@ int proc_set_write_reg(struct file *file, const char *buffer,
 		switch(len)
 		{
 			case 1:
-				rtw_write8(padapter, addr, (u8)val);
+				rtw_write8(padapter, addr, (u8)val);				
 				break;
 			case 2:
-				rtw_write16(padapter, addr, (u16)val);
+				rtw_write16(padapter, addr, (u16)val);				
 				break;
 			case 4:
-				rtw_write32(padapter, addr, val);
+				rtw_write32(padapter, addr, val);				
 				break;
 			default:
 				DBG_871X("error write length=%d", len);
 				break;
-		}
-
+		}			
+		
 	}
-
+	
 	return count;
-
+	
 }
 
 static u32 proc_get_read_addr=0xeeeeeeee;
@@ -195,21 +195,21 @@ static u32 proc_get_read_len=0x4;
 int proc_get_read_reg(char *page, char **start,
 			  off_t offset, int count,
 			  int *eof, void *data)
-{
+{	
 	struct net_device *dev = data;
-	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
-
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);	
+	
 	int len = 0;
 
 	if(proc_get_read_addr==0xeeeeeeee)
 	{
 		*eof = 1;
 		return len;
-	}
+	}	
 
 	switch(proc_get_read_len)
 	{
-		case 1:
+		case 1:			
 			len += snprintf(page + len, count - len, "rtw_read8(0x%x)=0x%x\n", proc_get_read_addr, rtw_read8(padapter, proc_get_read_addr));
 			break;
 		case 2:
@@ -238,9 +238,9 @@ int proc_set_read_reg(struct file *file, const char *buffer,
 	{
 		DBG_871X("argument size is less than 2\n");
 		return -EFAULT;
-	}
+	}	
 
-	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
 
 		int num = sscanf(tmp, "%x %x", &addr, &len);
 
@@ -250,10 +250,10 @@ int proc_set_read_reg(struct file *file, const char *buffer,
 		}
 
 		proc_get_read_addr = addr;
-
+		
 		proc_get_read_len = len;
 	}
-
+	
 	return count;
 
 }
@@ -265,11 +265,11 @@ int proc_get_fwstate(char *page, char **start,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
-
+	
 	int len = 0;
 
 	len += snprintf(page + len, count - len, "fwstate=0x%x\n", get_fwstate(pmlmepriv));
-
+				
 	*eof = 1;
 	return len;
 }
@@ -279,15 +279,15 @@ int proc_get_sec_info(char *page, char **start,
 			  int *eof, void *data)
 {
 	struct net_device *dev = data;
-	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);	
 	struct security_priv *psecuritypriv = &padapter->securitypriv;
-
+	
 	int len = 0;
 
-	len += snprintf(page + len, count - len, "auth_alg=0x%x, enc_alg=0x%x, auth_type=0x%x, enc_type=0x%x\n",
+	len += snprintf(page + len, count - len, "auth_alg=0x%x, enc_alg=0x%x, auth_type=0x%x, enc_type=0x%x\n", 
 						psecuritypriv->dot11AuthAlgrthm, psecuritypriv->dot11PrivacyAlgrthm,
 						psecuritypriv->ndisauthtype, psecuritypriv->ndisencryptstatus);
-
+				
 	*eof = 1;
 	return len;
 }
@@ -297,14 +297,14 @@ int proc_get_mlmext_state(char *page, char **start,
 			  int *eof, void *data)
 {
 	struct net_device *dev = data;
-	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);	
 	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
-
+	
 	int len = 0;
 
 	len += snprintf(page + len, count - len, "pmlmeinfo->state=0x%x\n", pmlmeinfo->state);
-
+				
 	*eof = 1;
 	return len;
 }
@@ -316,11 +316,11 @@ int proc_get_qos_option(char *page, char **start,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
-
+	
 	int len = 0;
 
 	len += snprintf(page + len, count - len, "qos_option=%d\n", pmlmepriv->qospriv.qos_option);
-
+				
 	*eof = 1;
 	return len;
 
@@ -333,11 +333,11 @@ int proc_get_ht_option(char *page, char **start,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
-
+	
 	int len = 0;
 
 	len += snprintf(page + len, count - len, "ht_option=%d\n", pmlmepriv->htpriv.ht_option);
-
+				
 	*eof = 1;
 	return len;
 }
@@ -378,29 +378,29 @@ int proc_get_ap_info(char *page, char **start,
 	{
 		int i;
 		struct recv_reorder_ctrl *preorder_ctrl;
-
-		len += snprintf(page + len, count - len, "SSID=%s\n", cur_network->network.Ssid.Ssid);
+					
+		len += snprintf(page + len, count - len, "SSID=%s\n", cur_network->network.Ssid.Ssid);		
 		len += snprintf(page + len, count - len, "sta's macaddr:" MAC_FMT "\n", MAC_ARG(psta->hwaddr));
-		len += snprintf(page + len, count - len, "cur_channel=%d, cur_bwmode=%d, cur_ch_offset=%d\n", pmlmeext->cur_channel, pmlmeext->cur_bwmode, pmlmeext->cur_ch_offset);
+		len += snprintf(page + len, count - len, "cur_channel=%d, cur_bwmode=%d, cur_ch_offset=%d\n", pmlmeext->cur_channel, pmlmeext->cur_bwmode, pmlmeext->cur_ch_offset);		
 		len += snprintf(page + len, count - len, "rtsen=%d, cts2slef=%d\n", psta->rtsen, psta->cts2self);
-		len += snprintf(page + len, count - len, "qos_en=%d, ht_en=%d, init_rate=%d\n", psta->qos_option, psta->htpriv.ht_option, psta->init_rate);
-		len += snprintf(page + len, count - len, "state=0x%x, aid=%d, macid=%d, raid=%d\n", psta->state, psta->aid, psta->mac_id, psta->raid);
-		len += snprintf(page + len, count - len, "bwmode=%d, ch_offset=%d, sgi=%d\n", psta->htpriv.bwmode, psta->htpriv.ch_offset, psta->htpriv.sgi);
-		len += snprintf(page + len, count - len, "ampdu_enable = %d\n", psta->htpriv.ampdu_enable);
+		len += snprintf(page + len, count - len, "qos_en=%d, ht_en=%d, init_rate=%d\n", psta->qos_option, psta->htpriv.ht_option, psta->init_rate);	
+		len += snprintf(page + len, count - len, "state=0x%x, aid=%d, macid=%d, raid=%d\n", psta->state, psta->aid, psta->mac_id, psta->raid);	
+		len += snprintf(page + len, count - len, "bwmode=%d, ch_offset=%d, sgi=%d\n", psta->htpriv.bwmode, psta->htpriv.ch_offset, psta->htpriv.sgi);						
+		len += snprintf(page + len, count - len, "ampdu_enable = %d\n", psta->htpriv.ampdu_enable);	
 		len += snprintf(page + len, count - len, "agg_enable_bitmap=%x, candidate_tid_bitmap=%x\n", psta->htpriv.agg_enable_bitmap, psta->htpriv.candidate_tid_bitmap);
-
+					
 		for(i=0;i<16;i++)
-		{
+		{							
 			preorder_ctrl = &psta->recvreorder_ctrl[i];
 			if(preorder_ctrl->enable)
 			{
 				len += snprintf(page + len, count - len, "tid=%d, indicate_seq=%d\n", i, preorder_ctrl->indicate_seq);
 			}
-		}
-
+		}	
+							
 	}
 	else
-	{
+	{							
 		len += snprintf(page + len, count - len, "can't get sta's macaddr, cur_network's macaddr:" MAC_FMT "\n", MAC_ARG(cur_network->network.MacAddress));
 	}
 
@@ -416,15 +416,15 @@ int proc_get_adapter_state(char *page, char **start,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	int len = 0;
-
-	len += snprintf(page + len, count - len, "bSurpriseRemoved=%d, bDriverStopped=%d\n",
+	
+	len += snprintf(page + len, count - len, "bSurpriseRemoved=%d, bDriverStopped=%d\n", 
 						padapter->bSurpriseRemoved, padapter->bDriverStopped);
 
 	*eof = 1;
 	return len;
 
 }
-
+	
 int proc_get_trx_info(char *page, char **start,
 			  off_t offset, int count,
 			  int *eof, void *data)
@@ -437,7 +437,7 @@ int proc_get_trx_info(char *page, char **start,
 	struct dvobj_priv	*pdvobj = adapter_to_dvobj(padapter);
         struct hw_xmit *phwxmit;
 	int len = 0;
-
+	
 	len += snprintf(page + len, count - len, "free_xmitbuf_cnt=%d, free_xmitframe_cnt=%d"
 				", free_ext_xmitbuf_cnt=%d, free_xframe_ext_cnt=%d"
 				", free_recvframe_cnt=%d\n",
@@ -457,7 +457,7 @@ int proc_get_trx_info(char *page, char **start,
 	len += snprintf(page + len, count - len, "continual_urb_error=%d\n", atomic_read(&pdvobj->continual_urb_error));
 #endif
 
-        for(i = 0; i < 4; i++)
+        for(i = 0; i < 4; i++) 
 	{
 		phwxmit = pxmitpriv->hwxmits + i;
 		len += snprintf(page + len, count - len, "%d, hwq.accnt=%d\n", i, phwxmit->accnt);
@@ -467,8 +467,8 @@ int proc_get_trx_info(char *page, char **start,
 	return len;
 
 }
-
-
+	
+		
 
 int proc_get_mac_reg_dump1(char *page, char **start,
 			  off_t offset, int count,
@@ -482,10 +482,10 @@ int proc_get_mac_reg_dump1(char *page, char **start,
 	len += snprintf(page + len, count - len, "\n======= MAC REG =======\n");
 
 	for(i=0x0;i<0x300;i+=4)
-	{
+	{	
 		if(j%4==1)	len += snprintf(page + len, count - len,"0x%02x",i);
-		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));
-		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");
+		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));		
+		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");	
 	}
 
 	*eof = 1;
@@ -505,12 +505,12 @@ int proc_get_mac_reg_dump2(char *page, char **start,
 	len += snprintf(page + len, count - len, "\n======= MAC REG =======\n");
 	memset(page, 0, count);
 	for(i=0x300;i<0x600;i+=4)
-	{
+	{	
 		if(j%4==1)	len += snprintf(page + len, count - len,"0x%02x",i);
-		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));
-		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");
+		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));		
+		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");	
 	}
-
+	
 	*eof = 1;
 	return len;
 
@@ -528,10 +528,10 @@ int proc_get_mac_reg_dump3(char *page, char **start,
 	len += snprintf(page + len, count - len, "\n======= MAC REG =======\n");
 
 	for(i=0x600;i<0x800;i+=4)
-	{
+	{	
 		if(j%4==1)	len += snprintf(page + len, count - len,"0x%02x",i);
-		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));
-		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");
+		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));		
+		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");	
 	}
 
 	*eof = 1;
@@ -544,19 +544,19 @@ int proc_get_bb_reg_dump1(char *page, char **start,
 			  int *eof, void *data)
 {
 	struct net_device *dev = data;
-	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);	
 	int len = 0;
-	int i,j=1;
+	int i,j=1;		
 
-	len += snprintf(page + len, count - len, "\n======= BB REG =======\n");
+	len += snprintf(page + len, count - len, "\n======= BB REG =======\n");	
 	for(i=0x800;i<0xB00;i+=4)
 	{
-		if(j%4==1) 	len += snprintf(page + len, count - len,"0x%02x",i);
-		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));
-		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");
+		if(j%4==1) 	len += snprintf(page + len, count - len,"0x%02x",i);		
+		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));		
+		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");	
 	}
 	*eof = 1;
-	return len;
+	return len;	
 }
 
 int proc_get_bb_reg_dump2(char *page, char **start,
@@ -564,19 +564,19 @@ int proc_get_bb_reg_dump2(char *page, char **start,
 			  int *eof, void *data)
 {
 	struct net_device *dev = data;
-	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);	
 	int len = 0;
-	int i,j=1;
+	int i,j=1;		
 
-	len += snprintf(page + len, count - len, "\n======= BB REG =======\n");
+	len += snprintf(page + len, count - len, "\n======= BB REG =======\n");	
 	for(i=0xB00;i<0xE00;i+=4)
 	{
-		if(j%4==1) 	len += snprintf(page + len, count - len,"0x%02x",i);
-		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));
-		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");
+		if(j%4==1) 	len += snprintf(page + len, count - len,"0x%02x",i);		
+		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));		
+		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");	
 	}
 	*eof = 1;
-	return len;
+	return len;	
 }
 
 int proc_get_bb_reg_dump3(char *page, char **start,
@@ -584,19 +584,19 @@ int proc_get_bb_reg_dump3(char *page, char **start,
 			  int *eof, void *data)
 {
 	struct net_device *dev = data;
-	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);	
 	int len = 0;
-	int i,j=1;
+	int i,j=1;		
 
-	len += snprintf(page + len, count - len, "\n======= BB REG =======\n");
+	len += snprintf(page + len, count - len, "\n======= BB REG =======\n");	
 	for(i=0xE00;i<0x1000;i+=4)
 	{
-		if(j%4==1) 	len += snprintf(page + len, count - len,"0x%02x",i);
-		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));
-		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");
+		if(j%4==1) 	len += snprintf(page + len, count - len,"0x%02x",i);		
+		len += snprintf(page + len, count - len," 0x%08x ",rtw_read32(padapter,i));		
+		if((j++)%4 == 0)	len += snprintf(page + len, count - len,"\n");	
 	}
 	*eof = 1;
-	return len;
+	return len;	
 }
 
 int proc_get_rf_reg_dump1(char *page, char **start,
@@ -608,21 +608,21 @@ int proc_get_rf_reg_dump1(char *page, char **start,
 	int len = 0;
 	int i,j=1,path;
 	u32 value;
-
+	
 	len += snprintf(page + len, count - len, "\n======= RF REG =======\n");
 	path = 1;
 	len += snprintf(page + len, count - len, "\nRF_Path(%x)\n",path);
 	for(i=0;i<0xC0;i++)
-	{
+	{								
 		//value = PHY_QueryRFReg(padapter, (RF90_RADIO_PATH_E)path,i, bMaskDWord);
 		value =rtw_hal_read_rfreg(padapter, path, i, 0xffffffff);
 		if(j%4==1)	len += snprintf(page + len, count - len, "0x%02x ",i);
 		len += snprintf(page + len, count - len, " 0x%08x ",value);
-		if((j++)%4==0)	len += snprintf(page + len, count - len, "\n");
+		if((j++)%4==0)	len += snprintf(page + len, count - len, "\n");	
 	}
 
 	*eof = 1;
-	return len;
+	return len;	
 }
 
 
@@ -634,21 +634,21 @@ int proc_get_rf_reg_dump2(char *page, char **start,
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	int len = 0;
 	int i,j=1,path;
-	u32 value;
+	u32 value;	
 
-	len += snprintf(page + len, count - len, "\n======= RF REG =======\n");
+	len += snprintf(page + len, count - len, "\n======= RF REG =======\n");	
 	path = 1;
 	len += snprintf(page + len, count - len, "\nRF_Path(%x)\n",path);
 	for(i=0xC0;i<0x100;i++)
-	{
+	{								
 		//value = PHY_QueryRFReg(padapter, (RF90_RADIO_PATH_E)path,i, bMaskDWord);
 		value =rtw_hal_read_rfreg(padapter, path, i, 0xffffffff);
 		if(j%4==1)	len += snprintf(page + len, count - len, "0x%02x ",i);
 		len += snprintf(page + len, count - len, " 0x%08x ",value);
-		if((j++)%4==0)	len += snprintf(page + len, count - len, "\n");
+		if((j++)%4==0)	len += snprintf(page + len, count - len, "\n");	
 	}
 	*eof = 1;
-	return len;
+	return len;	
 }
 
 
@@ -660,22 +660,22 @@ int proc_get_rf_reg_dump3(char *page, char **start,
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	int len = 0;
 	int i,j=1,path;
-	u32 value;
+	u32 value;	
 
 	len += snprintf(page + len, count - len, "\n======= RF REG =======\n");
 	path = 2;
 	len += snprintf(page + len, count - len, "\nRF_Path(%x)\n",path);
 	for(i=0;i<0xC0;i++)
-	{
+	{								
 		//value = PHY_QueryRFReg(padapter, (RF90_RADIO_PATH_E)path,i, bMaskDWord);
 		value =rtw_hal_read_rfreg(padapter, path, i, 0xffffffff);
 		if(j%4==1)	len += snprintf(page + len, count - len, "0x%02x ",i);
 		len += snprintf(page + len, count - len, " 0x%08x ",value);
-		if((j++)%4==0)	len += snprintf(page + len, count - len, "\n");
+		if((j++)%4==0)	len += snprintf(page + len, count - len, "\n");	
 	}
 
 	*eof = 1;
-	return len;
+	return len;	
 }
 
 
@@ -693,7 +693,7 @@ int proc_get_rf_reg_dump4(char *page, char **start,
 	path = 2;
 	len += snprintf(page + len, count - len, "\nRF_Path(%x)\n",path);
 	for(i=0xC0;i<0x100;i++)
-	{
+	{								
 		//value = PHY_QueryRFReg(padapter, (RF90_RADIO_PATH_E)path,i, bMaskDWord);
 		value =rtw_hal_read_rfreg(padapter, path, i, 0xffffffff);
 		if(j%4==1)	len += snprintf(page + len, count - len, "0x%02x ",i);
@@ -701,11 +701,11 @@ int proc_get_rf_reg_dump4(char *page, char **start,
 		if((j++)%4==0)	len += snprintf(page + len, count - len, "\n");
 	}
 	*eof = 1;
-	return len;
+	return len;	
 }
 
 
-
+		
 int proc_get_rx_signal(char *page, char **start,
 			  off_t offset, int count,
 			  int *eof, void *data)
@@ -713,7 +713,7 @@ int proc_get_rx_signal(char *page, char **start,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
-
+	
 	int len = 0;
 
 	len += snprintf(page + len, count - len,
@@ -721,14 +721,14 @@ int proc_get_rx_signal(char *page, char **start,
 		"rxpwdb:%d\n"
 		"signal_strength:%u\n"
 		"signal_qual:%u\n"
-		"noise:%u\n",
+		"noise:%u\n", 
 		padapter->recvpriv.rssi,
 		padapter->recvpriv.rxpwdb,
 		padapter->recvpriv.signal_strength,
 		padapter->recvpriv.signal_qual,
 		padapter->recvpriv.noise
 		);
-
+				
 	*eof = 1;
 	return len;
 }
@@ -744,15 +744,15 @@ int proc_set_rx_signal(struct file *file, const char *buffer,
 	if (count < 1)
 		return -EFAULT;
 
-	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
 
 		int num = sscanf(tmp, "%u %u", &is_signal_dbg, &signal_strength);
 
 		is_signal_dbg = is_signal_dbg==0?0:1;
-
+		
 		if(is_signal_dbg && num!=2)
 			return count;
-
+			
 		signal_strength = signal_strength>100?100:signal_strength;
 		signal_strength = signal_strength<0?0:signal_strength;
 
@@ -763,11 +763,11 @@ int proc_set_rx_signal(struct file *file, const char *buffer,
 			DBG_871X("set %s %u\n", "DBG_SIGNAL_STRENGTH", signal_strength);
 		else
 			DBG_871X("set %s\n", "HW_SIGNAL_STRENGTH");
-
+		
 	}
-
+	
 	return count;
-
+	
 }
 
 int proc_get_ht_enable(char *page, char **start,
@@ -777,9 +777,9 @@ int proc_get_ht_enable(char *page, char **start,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	struct registry_priv	*pregpriv = &padapter->registrypriv;
-
+	
 	int len = 0;
-
+	
 	if(pregpriv)
 		len += snprintf(page + len, count - len,
 			"%d\n",
@@ -802,7 +802,7 @@ int proc_set_ht_enable(struct file *file, const char *buffer,
 	if (count < 1)
 		return -EFAULT;
 
-	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
 
 		int num = sscanf(tmp, "%d ", &mode);
 
@@ -812,9 +812,9 @@ int proc_set_ht_enable(struct file *file, const char *buffer,
 			printk("ht_enable=%d\n", pregpriv->ht_enable);
 		}
 	}
-
+	
 	return count;
-
+	
 }
 
 
@@ -825,9 +825,9 @@ int proc_get_cbw40_enable(char *page, char **start,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	struct registry_priv	*pregpriv = &padapter->registrypriv;
-
+	
 	int len = 0;
-
+	
 	if(pregpriv)
 		len += snprintf(page + len, count - len,
 			"%d\n",
@@ -850,7 +850,7 @@ int proc_set_cbw40_enable(struct file *file, const char *buffer,
 	if (count < 1)
 		return -EFAULT;
 
-	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
 
 		int num = sscanf(tmp, "%d ", &mode);
 
@@ -860,9 +860,9 @@ int proc_set_cbw40_enable(struct file *file, const char *buffer,
 			printk("cbw40_enable=%d\n", mode);
 		}
 	}
-
+	
 	return count;
-
+	
 }
 
 int proc_get_ampdu_enable(char *page, char **start,
@@ -872,9 +872,9 @@ int proc_get_ampdu_enable(char *page, char **start,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	struct registry_priv	*pregpriv = &padapter->registrypriv;
-
+	
 	int len = 0;
-
+	
 	if(pregpriv)
 		len += snprintf(page + len, count - len,
 			"%d\n",
@@ -897,7 +897,7 @@ int proc_set_ampdu_enable(struct file *file, const char *buffer,
 	if (count < 1)
 		return -EFAULT;
 
-	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
 
 		int num = sscanf(tmp, "%d ", &mode);
 
@@ -907,9 +907,9 @@ int proc_set_ampdu_enable(struct file *file, const char *buffer,
 			printk("ampdu_enable=%d\n", mode);
 		}
 	}
-
+	
 	return count;
-
+	
 }
 
 
@@ -919,9 +919,9 @@ int proc_get_two_path_rssi(char *page, char **start,
 {
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
-
+	
 	int len = 0;
-
+	
 	if(padapter)
 		len += snprintf(page + len, count - len,
 			"%d %d\n",
@@ -940,9 +940,9 @@ int proc_get_rx_stbc(char *page, char **start,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	struct registry_priv	*pregpriv = &padapter->registrypriv;
-
+	
 	int len = 0;
-
+	
 	if(pregpriv)
 		len += snprintf(page + len, count - len,
 			"%d\n",
@@ -965,7 +965,7 @@ int proc_set_rx_stbc(struct file *file, const char *buffer,
 	if (count < 1)
 		return -EFAULT;
 
-	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
 
 		int num = sscanf(tmp, "%d ", &mode);
 
@@ -975,9 +975,9 @@ int proc_set_rx_stbc(struct file *file, const char *buffer,
 			printk("rx_stbc=%d\n", mode);
 		}
 	}
-
+	
 	return count;
-
+	
 }
 
 int proc_get_vid(char *page, char **start,
@@ -989,14 +989,14 @@ int proc_get_vid(char *page, char **start,
 	u16 VID=0;
 	int len = 0;
 
-	rtw_hal_get_hwreg(padapter, HW_VAR_VID, (u8 *)&VID);
+	rtw_hal_get_hwreg(padapter, HW_VAR_VID, (u8 *)&VID);	
 	len += snprintf(page + len, count - len,
 		"%04x\n",
 		VID
 		);
 
 	*eof = 1;
-	return len;
+	return len;	
 }
 
 int proc_get_pid(char *page, char **start,
@@ -1005,17 +1005,17 @@ int proc_get_pid(char *page, char **start,
 {
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
-	u16 PID=0;
+	u16 PID=0;	
 	int len = 0;
 
-	rtw_hal_get_hwreg(padapter, HW_VAR_PID, (u8 *)&PID);
+	rtw_hal_get_hwreg(padapter, HW_VAR_PID, (u8 *)&PID);		
 	len += snprintf(page + len, count - len,
 		"%04x\n",
 		PID
 		);
 
 	*eof = 1;
-	return len;
+	return len;	
 }
 
 int proc_get_rssi_disp(char *page, char **start,
@@ -1038,9 +1038,9 @@ int proc_set_rssi_disp(struct file *file, const char *buffer,
 	{
 		DBG_8192C("argument size is less than 1\n");
 		return -EFAULT;
-	}
+	}	
 
-	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
 
 		int num = sscanf(tmp, "%x", &enable);
 
@@ -1048,25 +1048,25 @@ int proc_set_rssi_disp(struct file *file, const char *buffer,
 			DBG_8192C("invalid set_rssi_disp parameter!\n");
 			return count;
 		}
-
+		
 		if(enable)
-		{
+		{			
 			DBG_8192C("Turn On Rx RSSI Display Function\n");
-			padapter->bRxRSSIDisplay = enable ;
+			padapter->bRxRSSIDisplay = enable ;			
 		}
 		else
 		{
 			DBG_8192C("Turn Off Rx RSSI Display Function\n");
 			padapter->bRxRSSIDisplay = 0 ;
 		}
-
+	
 	}
-
+	
 	return count;
+	
+}	
 
-}
-
-
+		
 #ifdef CONFIG_AP_MODE
 
 int proc_get_all_sta_info(char *page, char **start,
@@ -1081,18 +1081,18 @@ int proc_get_all_sta_info(char *page, char **start,
 	int i, j;
 	_list	*plist, *phead;
 	struct recv_reorder_ctrl *preorder_ctrl;
-	int len = 0;
-
+	int len = 0;	
+						
 
 	len += snprintf(page + len, count - len, "sta_dz_bitmap=0x%x, tim_bitmap=0x%x\n", pstapriv->sta_dz_bitmap, pstapriv->tim_bitmap);
-
+					
 	_enter_critical_bh(&pstapriv->sta_hash_lock, &irqL);
 
 	for(i=0; i< NUM_STA; i++)
 	{
 		phead = &(pstapriv->sta_hash[i]);
 		plist = get_next(phead);
-
+		
 		while ((rtw_end_of_queue_search(phead, plist)) == _FALSE)
 		{
 			psta = LIST_CONTAINOR(plist, struct sta_info, hash_list);
@@ -1103,10 +1103,10 @@ int proc_get_all_sta_info(char *page, char **start,
 			{
 				len += snprintf(page + len, count - len, "sta's macaddr:" MAC_FMT "\n", MAC_ARG(psta->hwaddr));
 				len += snprintf(page + len, count - len, "rtsen=%d, cts2slef=%d\n", psta->rtsen, psta->cts2self);
-				len += snprintf(page + len, count - len, "qos_en=%d, ht_en=%d, init_rate=%d\n", psta->qos_option, psta->htpriv.ht_option, psta->init_rate);
-				len += snprintf(page + len, count - len, "state=0x%x, aid=%d, macid=%d, raid=%d\n", psta->state, psta->aid, psta->mac_id, psta->raid);
-				len += snprintf(page + len, count - len, "bwmode=%d, ch_offset=%d, sgi=%d\n", psta->htpriv.bwmode, psta->htpriv.ch_offset, psta->htpriv.sgi);
-				len += snprintf(page + len, count - len, "ampdu_enable = %d\n", psta->htpriv.ampdu_enable);
+				len += snprintf(page + len, count - len, "qos_en=%d, ht_en=%d, init_rate=%d\n", psta->qos_option, psta->htpriv.ht_option, psta->init_rate);	
+				len += snprintf(page + len, count - len, "state=0x%x, aid=%d, macid=%d, raid=%d\n", psta->state, psta->aid, psta->mac_id, psta->raid);	
+				len += snprintf(page + len, count - len, "bwmode=%d, ch_offset=%d, sgi=%d\n", psta->htpriv.bwmode, psta->htpriv.ch_offset, psta->htpriv.sgi);						
+				len += snprintf(page + len, count - len, "ampdu_enable = %d\n", psta->htpriv.ampdu_enable);									
 				len += snprintf(page + len, count - len, "agg_enable_bitmap=%x, candidate_tid_bitmap=%x\n", psta->htpriv.agg_enable_bitmap, psta->htpriv.candidate_tid_bitmap);
 				len += snprintf(page + len, count - len, "sleepq_len=%d\n", psta->sleepq_len);
 				len += snprintf(page + len, count - len, "capability=0x%x\n", psta->capability);
@@ -1116,30 +1116,30 @@ int proc_get_all_sta_info(char *page, char **start,
 				len += snprintf(page + len, count - len, "wpa2_pairwise_cipher=0x%x\n", psta->wpa2_pairwise_cipher);
 				len += snprintf(page + len, count - len, "qos_info=0x%x\n", psta->qos_info);
 				len += snprintf(page + len, count - len, "dot118021XPrivacy=0x%x\n", psta->dot118021XPrivacy);
-
+								
 				for(j=0;j<16;j++)
-				{
+				{							
 					preorder_ctrl = &psta->recvreorder_ctrl[j];
 					if(preorder_ctrl->enable)
 					{
 						len += snprintf(page + len, count - len, "tid=%d, indicate_seq=%d\n", j, preorder_ctrl->indicate_seq);
 					}
-				}
-
-			}
-
+				}		
+									
+			}							
+			
 		}
-
+		
 	}
-
+	
 	_exit_critical_bh(&pstapriv->sta_hash_lock, &irqL);
 
 	*eof = 1;
 	return len;
 
 }
-
-#endif
+	
+#endif		
 
 #ifdef DBG_MEMORY_LEAK
 #include <asm/atomic.h>
@@ -1150,12 +1150,12 @@ int proc_get_malloc_cnt(char *page, char **start,
 			  off_t offset, int count,
 			  int *eof, void *data)
 {
-
+	
 	int len = 0;
 
 	len += snprintf(page + len, count - len, "_malloc_cnt=%d\n", atomic_read(&_malloc_cnt));
 	len += snprintf(page + len, count - len, "_malloc_size=%d\n", atomic_read(&_malloc_size));
-
+				
 	*eof = 1;
 	return len;
 }
@@ -1177,8 +1177,8 @@ int proc_get_best_channel(char *page, char **start,
 			index_24G = i;
 		if ( pmlmeext->channel_set[i].ChannelNum == 36)
 			index_5G = i;
-	}
-
+	}	
+	
 	for (i=0; pmlmeext->channel_set[i].ChannelNum !=0; i++) {
 		// 2.4G
 		if ( pmlmeext->channel_set[i].ChannelNum == 6 ) {
@@ -1209,11 +1209,11 @@ int proc_get_best_channel(char *page, char **start,
 			}
 		}
 #if 1 // debug
-		len += snprintf(page + len, count - len, "The rx cnt of channel %3d = %d\n",
+		len += snprintf(page + len, count - len, "The rx cnt of channel %3d = %d\n", 
 					pmlmeext->channel_set[i].ChannelNum, pmlmeext->channel_set[i].rx_count);
 #endif
 	}
-
+	
 	len += snprintf(page + len, count - len, "best_channel_5G = %d\n", best_channel_5G);
 	len += snprintf(page + len, count - len, "best_channel_24G = %d\n", best_channel_24G);
 
@@ -1255,9 +1255,9 @@ int proc_get_sreset(char *page, char **start, off_t offset, int count, int *eof,
 	struct net_device *dev = data;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
-
+	
 	int len = 0;
-
+	
 	*eof = 1;
 	return len;
 }
@@ -1272,7 +1272,7 @@ int proc_set_sreset(struct file *file, const char *buffer, unsigned long count, 
 	if (count < 1)
 		return -EFAULT;
 
-	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {
+	if (buffer && !copy_from_user(tmp, buffer, sizeof(tmp))) {		
 
 		int num = sscanf(tmp, "%d", &trigger_point);
 
@@ -1281,9 +1281,9 @@ int proc_set_sreset(struct file *file, const char *buffer, unsigned long count, 
 		else
 			sreset_set_trigger_point(padapter, trigger_point);
 	}
-
+	
 	return count;
-
+	
 }
 #endif /* DBG_CONFIG_ERROR_DETECT */
 
@@ -1328,9 +1328,10 @@ int proc_set_dm_adaptivity(struct file *file, const char *buffer,
 
 		dm_adaptivity_set_parm(padapter, (s8)TH_L2H_ini, TH_EDCCA_HL_diff, (s8)IGI_Base, (bool)ForceEDCCA, AdapEn_RSSI, IGI_LowerBound);
 	}
-
+	
 	return count;
 }
 #endif /* CONFIG_DM_ADAPTIVITY */
 
 #endif
+
