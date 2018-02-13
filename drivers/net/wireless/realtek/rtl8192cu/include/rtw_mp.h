@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -267,13 +267,13 @@ typedef struct _MPT_CONTEXT
 	ULONG			MptRCR;
 	// TRUE if we only receive packets with specific pattern.
 	BOOLEAN			bMptFilterPattern;
-	// Rx OK count, statistics used in Mass Production Test.
-	ULONG			MptRxOkCnt;
-	// Rx CRC32 error count, statistics used in Mass Production Test.
-	ULONG			MptRxCrcErrCnt;
+ 	// Rx OK count, statistics used in Mass Production Test.
+ 	ULONG			MptRxOkCnt;
+ 	// Rx CRC32 error count, statistics used in Mass Production Test.
+ 	ULONG			MptRxCrcErrCnt;
 
 	BOOLEAN			bCckContTx;	// TRUE if we are in CCK Continuous Tx test.
-	BOOLEAN			bOfdmContTx;	// TRUE if we are in OFDM Continuous Tx test.
+ 	BOOLEAN			bOfdmContTx;	// TRUE if we are in OFDM Continuous Tx test.
 	BOOLEAN			bStartContTx; 	// TRUE if we have start Continuous Tx test.
 	// TRUE if we are in Single Carrier Tx test.
 	BOOLEAN			bSingleCarrier;
@@ -319,7 +319,7 @@ typedef struct _MPT_CONTEXT
 /* end of E-Fuse */
 
 //#define RTPRIV_IOCTL_MP 					( SIOCIWFIRSTPRIV + 0x17)
-enum {
+enum {	  
 	WRITE_REG = 1,
 	READ_REG,
 	WRITE_RF,
@@ -607,7 +607,7 @@ typedef enum _ENCRY_CTRL_STATE_ {
 }ENCRY_CTRL_STATE;
 
 typedef enum _OFDM_TX_MODE {
-	OFDM_ALL_OFF		= 0,
+	OFDM_ALL_OFF		= 0,	
 	OFDM_ContinuousTx	= 1,
 	OFDM_SingleCarrier	= 2,
 	OFDM_SingleTone 	= 4,
@@ -709,3 +709,4 @@ extern void Hal_SetOFDMContinuousTx(PADAPTER pAdapter, u8 bStart);
 extern void Hal_ProSetCrystalCap (PADAPTER pAdapter , u32 CrystalCapVal);
 
 #endif //_RTW_MP_H_
+

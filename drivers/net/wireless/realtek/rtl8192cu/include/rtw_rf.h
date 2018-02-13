@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -17,7 +17,7 @@
  *
  *
  ******************************************************************************/
-#ifndef	__RTW_RF_H_
+#ifndef	__RTW_RF_H_ 
 #define __RTW_RF_H_
 
 #include <drv_conf.h>
@@ -51,11 +51,11 @@
 
 //Country codes
 #define USA							0x555320
-#define EUROPE						0x1 //temp, should be provided later
-#define JAPAN						0x2 //temp, should be provided later
+#define EUROPE						0x1 //temp, should be provided later	
+#define JAPAN						0x2 //temp, should be provided later	
 
 struct	regulatory_class {
-	u32	starting_freq;					//MHz,
+	u32	starting_freq;					//MHz, 
 	u8	channel_set[MAX_CHANNEL_NUM];
 	u8	channel_cck_power[MAX_CHANNEL_NUM];//dbm
 	u8	channel_ofdm_power[MAX_CHANNEL_NUM];//dbm
@@ -141,7 +141,7 @@ typedef enum _RF_RADIO_PATH{
 	RF_PATH_B = 1,			//Radio Path B
 	RF_PATH_C = 2,			//Radio Path C
 	RF_PATH_D = 3,			//Radio Path D
-	//RF_PATH_MAX				//Max RF number 90 support
+	//RF_PATH_MAX				//Max RF number 90 support 
 }RF_RADIO_PATH_E, *PRF_RADIO_PATH_E;
 
 u32 rtw_ch2freq(u32 ch);
@@ -149,3 +149,4 @@ u32 rtw_freq2ch(u32 freq);
 
 
 #endif //_RTL8711_RF_H_
+

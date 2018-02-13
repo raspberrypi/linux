@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2012 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -180,7 +180,7 @@ void sreset_restore_network_station(_adapter *padapter)
 	// reset related register of Beacon control
 
 	//set MSR to nolink
-	Set_MSR(padapter, _HW_STATE_NOLINK_);
+	Set_MSR(padapter, _HW_STATE_NOLINK_);		
 	// reject all data frame
 	rtw_write16(padapter, REG_RXFLTMAP2,0x00);
 	//reset TSF
@@ -192,7 +192,7 @@ void sreset_restore_network_station(_adapter *padapter)
 	//=======================================================
 	}
 	#endif
-
+	
 	rtw_setopmode_cmd(padapter, Ndis802_11Infrastructure);
 
 	{
@@ -201,7 +201,7 @@ void sreset_restore_network_station(_adapter *padapter)
 		// TH=1 => means that invalidate usb rx aggregation
 		// TH=0 => means that validate usb rx aggregation, use init value.
 		if(mlmepriv->htpriv.ht_option) {
-			if(padapter->registrypriv.wifi_spec==1)
+			if(padapter->registrypriv.wifi_spec==1)		
 				threshold = 1;
 			else
 				threshold = 0;
@@ -217,7 +217,7 @@ void sreset_restore_network_station(_adapter *padapter)
 
 	//disable dynamic functions, such as high power, DIG
 	//Switch_DM_Func(padapter, DYNAMIC_FUNC_DISABLE, _FALSE);
-
+	
 	rtw_hal_set_hwreg(padapter, HW_VAR_BSSID, pmlmeinfo->network.MacAddress);
 
 	{
@@ -349,3 +349,4 @@ void sreset_reset(_adapter *padapter)
 	DBG_871X("%s done in %d ms\n", __FUNCTION__, rtw_get_passing_time_ms(start));
 #endif
 }
+

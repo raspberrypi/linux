@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -217,7 +217,7 @@
 //
 //-----------------------------------------------------
 #define	REG_PCIE_CTRL_REG			0x0300
-#define	REG_INT_MIG				0x0304	// Interrupt Migration
+#define	REG_INT_MIG				0x0304	// Interrupt Migration 
 #define	REG_BCNQ_DESA				0x0308	// TX Beacon Descriptor Address
 #define	REG_HQ_DESA				0x0310	// TX High Queue Descriptor Address
 #define	REG_MGQ_DESA				0x0318	// TX Manage Queue Descriptor Address
@@ -342,7 +342,7 @@
 #define REG_USTIME_TSF				0x055C
 #define REG_BCN_MAX_ERR			0x055D
 #define REG_RXTSF_OFFSET_CCK		0x055E
-#define REG_RXTSF_OFFSET_OFDM		0x055F
+#define REG_RXTSF_OFFSET_OFDM		0x055F	
 #define REG_TSFTR					0x0560
 #define REG_TSFTR1					0x0568
 #define REG_INIT_TSFTR				0x0564
@@ -436,7 +436,7 @@
 #define REG_USB_AGG_TO				0xFE5C
 #define REG_USB_AGG_TH				0xFE5D
 
-// for 92DU high_Queue low_Queue Normal_Queue select
+// for 92DU high_Queue low_Queue Normal_Queue select 
 #define REG_USB_High_NORMAL_Queue_Select_MAC0  0xFE44
 //#define REG_USB_LOW_Queue_Select_MAC0       0xFE45
 #define REG_USB_High_NORMAL_Queue_Select_MAC1  0xFE47
@@ -538,7 +538,7 @@
 
 
 //----------------------------------------------------------------------------
-//       8192C (MSR) Media Status Register	(Offset 0x4C, 8 bits)
+//       8192C (MSR) Media Status Register	(Offset 0x4C, 8 bits)  
 //----------------------------------------------------------------------------
 /*
 Network Type
@@ -566,16 +566,16 @@ Default: 00b.
 #define	RRSR_RSC_LOWSUBCHNL		0x200000
 #define	RRSR_SHORT					0x800000
 #define	RRSR_1M					BIT0
-#define	RRSR_2M					BIT1
-#define	RRSR_5_5M					BIT2
-#define	RRSR_11M					BIT3
-#define	RRSR_6M					BIT4
-#define	RRSR_9M					BIT5
-#define	RRSR_12M					BIT6
-#define	RRSR_18M					BIT7
-#define	RRSR_24M					BIT8
-#define	RRSR_36M					BIT9
-#define	RRSR_48M					BIT10
+#define	RRSR_2M					BIT1 
+#define	RRSR_5_5M					BIT2 
+#define	RRSR_11M					BIT3 
+#define	RRSR_6M					BIT4 
+#define	RRSR_9M					BIT5 
+#define	RRSR_12M					BIT6 
+#define	RRSR_18M					BIT7 
+#define	RRSR_24M					BIT8 
+#define	RRSR_36M					BIT9 
+#define	RRSR_48M					BIT10 
 #define	RRSR_54M					BIT11
 #define	RRSR_MCS0					BIT12
 #define	RRSR_MCS1					BIT13
@@ -585,7 +585,7 @@ Default: 00b.
 #define	RRSR_MCS5					BIT17
 #define	RRSR_MCS6					BIT18
 #define	RRSR_MCS7					BIT19
-#define	BRSR_AckShortPmb			BIT23
+#define	BRSR_AckShortPmb			BIT23	
 // CCK ACK: use Short Preamble or not
 
 
@@ -597,7 +597,7 @@ Default: 00b.
 #define	RATR_2M					0x00000002
 #define	RATR_55M					0x00000004
 #define	RATR_11M					0x00000008
-//OFDM
+//OFDM 		
 #define	RATR_6M					0x00000010
 #define	RATR_9M					0x00000020
 #define	RATR_12M					0x00000040
@@ -606,7 +606,7 @@ Default: 00b.
 #define	RATR_36M					0x00000200
 #define	RATR_48M					0x00000400
 #define	RATR_54M					0x00000800
-//MCS 1 Spatial Stream
+//MCS 1 Spatial Stream	
 #define	RATR_MCS0					0x00001000
 #define	RATR_MCS1					0x00002000
 #define	RATR_MCS2					0x00004000
@@ -651,11 +651,11 @@ Default: 00b.
 
 
 #define	TOTAL_CAM_ENTRY			32
-#define	HALF_CAM_ENTRY			16
-
+#define	HALF_CAM_ENTRY			16	
+       		
 #define	CAM_CONFIG_USEDK			_TRUE
 #define	CAM_CONFIG_NO_USEDK		_FALSE
-
+       		
 #define	CAM_WRITE					BIT16
 #define	CAM_READ					0x00000000
 #define	CAM_POLLINIG				BIT31
@@ -690,7 +690,7 @@ Default: 00b.
 #define	IMR_TIMEOUT2				BIT17		// Timeout interrupt 2
 #define	IMR_TIMEOUT1				BIT16		// Timeout interrupt 1
 #define	IMR_TXFOVW				BIT15		// Transmit FIFO Overflow
-#define	IMR_PSTIMEOUT				BIT14		// Power save time out interrupt
+#define	IMR_PSTIMEOUT				BIT14		// Power save time out interrupt 
 #define	IMR_BcnInt					BIT13		// Beacon DMA Interrupt 0
 #define	IMR_RXFOVW				BIT12		// Receive FIFO Overflow
 #define	IMR_RDU					BIT11		// Receive Descriptor Unavailable
@@ -846,7 +846,7 @@ Default: 00b.
 #define EEPROM_HT40_MAX_PWR_OFFSET_5GH		0xB5
 #define EEPROM_HT20_MAX_PWR_OFFSET_5GH		0xB8
 
-#define EEPROM_CHANNEL_PLAN					0xBB // Map of supported channels.
+#define EEPROM_CHANNEL_PLAN					0xBB // Map of supported channels.	
 #define EEPROM_IQK_DELTA						0xBC
 #define EEPROM_LCK_DELTA						0xBC
 #define EEPROM_XTAL_K							0xBD	//[7:5]
@@ -871,7 +871,7 @@ Default: 00b.
 #define EEPROM_DEF_PART_NO					0x3FD  //Byte
 #define EEPROME_CHIP_VERSION_L				0x3FF
 #define EEPROME_CHIP_VERSION_H				0x3FE
-#endif
+#endif 
 
 #ifdef CONFIG_USB_HCI
 #define RTL8190_EEPROM_ID						0x8129	// 0-1
@@ -928,7 +928,7 @@ Default: 00b.
 #define EEPROM_HT40_MAX_PWR_OFFSET_5GH		0xB5
 #define EEPROM_HT20_MAX_PWR_OFFSET_5GH		0xB8
 
-#define EEPROM_CHANNEL_PLAN					0xBB // Map of supported channels.
+#define EEPROM_CHANNEL_PLAN					0xBB // Map of supported channels.	
 #define EEPROM_TEST_CHANNEL_PLAN				0xBB
 #define EEPROM_IQK_DELTA						0xBC
 #define EEPROM_LCK_DELTA						0xBC
@@ -1039,7 +1039,7 @@ Default: 00b.
 
 /*===================================================================
 =====================================================================
-Here the register defines are for 92C. When the define is as same with 92C,
+Here the register defines are for 92C. When the define is as same with 92C, 
 we will use the 92C's define for the consistency
 So the following defines for 92C is not entire!!!!!!
 =====================================================================
@@ -1075,23 +1075,23 @@ Current IOREG MAP
 #define	RCR_ACF					BIT12		//Accept control type frame
 #define	RCR_ADF					BIT11		//Accept data type frame
 #define	RCR_AICV					BIT9		//Accept ICV error packet
-#define	RCR_ACRC32					BIT8		//Accept CRC32 error packet
+#define	RCR_ACRC32					BIT8		//Accept CRC32 error packet 
 #define	RCR_CBSSID_BCN			BIT7		//Accept BSSID match packet (Rx beacon, probe rsp)
 #define	RCR_CBSSID_DATA			BIT6		//Accept BSSID match packet (Data)
 #define	RCR_CBSSID					RCR_CBSSID_DATA		//Accept BSSID match packet
 #define	RCR_APWRMGT				BIT5		//Accept power management packet
 #define	RCR_ADD3					BIT4		//Accept address 3 match packet
-#define	RCR_AB						BIT3		//Accept broadcast packet
-#define	RCR_AM						BIT2		//Accept multicast packet
+#define	RCR_AB						BIT3		//Accept broadcast packet 
+#define	RCR_AM						BIT2		//Accept multicast packet 
 #define	RCR_APM					BIT1		//Accept physical match packet
-#define	RCR_AAP					BIT0		//Accept all unicast packet
+#define	RCR_AAP					BIT0		//Accept all unicast packet 
 #define	RCR_MXDMA_OFFSET			8
 #define	RCR_FIFO_OFFSET			13
 
 
 
 //============================================================================
-//       8192c USB specific Regsiter Offset and Content definition,
+//       8192c USB specific Regsiter Offset and Content definition, 
 //       2009.08.18, added by vivi. for merge 92c and 92C into one driver
 //============================================================================
 //#define APS_FSMCO				0x0004  same with 92Ce
@@ -1122,7 +1122,7 @@ Current IOREG MAP
 #define InvalidBBRFValue			0x12345678
 
 //============================================================================
-//       8192C Regsiter Bit and Content definition
+//       8192C Regsiter Bit and Content definition 
 //============================================================================
 //-----------------------------------------------------
 //
@@ -1312,11 +1312,11 @@ Current IOREG MAP
 #define EF_PD						BIT(19)
 #define EF_FLAG						BIT(31)
 
-//2 EFUSE_TEST
+//2 EFUSE_TEST 
 #define EF_TRPT						BIT(7)
 #define LDOE25_EN					BIT(31)
 
-//2 PWR_DATA
+//2 PWR_DATA 
 
 //2 CAL_TIMER
 
@@ -1346,7 +1346,7 @@ Current IOREG MAP
 //2 GPIO_INTM
 
 //2 LEDCFG
-#define LED0PL 					BIT(4)
+#define LED0PL 					BIT(4)  
 #define LED1PL 					BIT(12)
 #define LED0DIS					BIT(7)
 
@@ -1471,7 +1471,7 @@ Current IOREG MAP
 // For normal driver, 0x10C
 #define _TXDMA_HIQ_MAP(x) 	 		(((x)&0x3) << 14)
 #define _TXDMA_MGQ_MAP(x) 	 		(((x)&0x3) << 12)
-#define _TXDMA_BKQ_MAP(x) 	 		(((x)&0x3) << 10)
+#define _TXDMA_BKQ_MAP(x) 	 		(((x)&0x3) << 10)		
 #define _TXDMA_BEQ_MAP(x) 	 		(((x)&0x3) << 8 )
 #define _TXDMA_VIQ_MAP(x) 	 		(((x)&0x3) << 6 )
 #define _TXDMA_VOQ_MAP(x) 	 		(((x)&0x3) << 4 )
@@ -1838,3 +1838,4 @@ Current IOREG MAP
 #include "basic_types.h"
 
 #endif
+
