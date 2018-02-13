@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -57,14 +57,14 @@ typedef struct _Dynamic_Power_Saving_
 	u8		CurRFState;
 
 	//int		Rssi_val_min;
-
+	
 }PS_T,*pPS_T;
 
 typedef struct _Dynamic_Initial_Gain_Threshold_
 {
 	u8		Dig_Enable_Flag;
 	u8		Dig_Ext_Port_Stage;
-
+	
 	int		RssiLowThresh;
 	int		RssiHighThresh;
 
@@ -141,7 +141,7 @@ typedef enum tag_DIG_EXT_PORT_ALGO_Definition
 
 typedef enum tag_DIG_Connect_Definition
 {
-	DIG_STA_DISCONNECT = 0,
+	DIG_STA_DISCONNECT = 0,	
 	DIG_STA_CONNECT = 1,
 	DIG_STA_BEFORE_CONNECT = 2,
 	DIG_MultiSTA_DISCONNECT = 3,
@@ -193,7 +193,7 @@ typedef enum tag_DIG_Connect_Definition
 #define		TX_POWER_NEAR_FIELD_THRESH_LVL2	74
 #define		TX_POWER_NEAR_FIELD_THRESH_LVL1	67
 
-#define		TxHighPwrLevel_Normal		0
+#define		TxHighPwrLevel_Normal		0	
 #define		TxHighPwrLevel_Level1		1
 #define		TxHighPwrLevel_Level2		2
 #define		TxHighPwrLevel_BT1			3
@@ -211,14 +211,14 @@ typedef struct _RATE_ADAPTIVE
 {
 	u8				RateAdaptiveDisabled;
 	u8				RATRState;
-	u16				reserve;
-
+	u16				reserve;	
+	
 	u32				HighRSSIThreshForRA;
 	u32				High2LowRSSIThreshForRA;
 	u8				Low2HighRSSIThreshForRA40M;
-	u32				LowRSSIThreshForRA40M;
+	u32				LowRSSIThreshForRA40M;	
 	u8				Low2HighRSSIThreshForRA20M;
-	u32				LowRSSIThreshForRA20M;
+	u32				LowRSSIThreshForRA20M;	
 	u32				UpperRSSIThresholdRATR;
 	u32				MiddleRSSIThresholdRATR;
 	u32				LowRSSIThresholdRATR;
@@ -229,7 +229,7 @@ typedef struct _RATE_ADAPTIVE
 	u32				PingRSSIThreshForRA;//cosa add for Netcore long range ping issue
 	u32				LastRATR;
 	u8				PreRATRState;
-
+	
 } RATE_ADAPTIVE, *PRATE_ADAPTIVE;
 
 typedef enum tag_SW_Antenna_Switch_Definition
@@ -240,7 +240,7 @@ typedef enum tag_SW_Antenna_Switch_Definition
 }DM_SWAS_E;
 
 // 20100514 Joseph: Add definition for antenna switching test after link.
-// This indicates two different the steps.
+// This indicates two different the steps. 
 // In SWAW_STEP_PEAK, driver needs to switch antenna and listen to the signal on the air.
 // In SWAW_STEP_DETERMINE, driver just compares the signal captured in SWAW_STEP_PEAK
 // with original RSSI to determine if it is necessary to switch antenna.
@@ -255,7 +255,7 @@ typedef enum tag_SW_Antenna_Switch_Definition
 //=============================
 //Neil Chen---2011--06--15--
 //==============================
-//3 PathDiv
+//3 PathDiv 
 typedef struct _SW_Antenna_Switch_
 {
 	u8		try_flag;
@@ -273,7 +273,7 @@ typedef struct _SW_Antenna_Switch_
 }SWAT_T, *pSWAT_T;
 //========================================
 
-struct 	dm_priv
+struct 	dm_priv	
 {
 	u8	DM_Type;
 	u8	DMFlag, DMFlag_tmp;
@@ -285,8 +285,8 @@ struct 	dm_priv
 
 	PS_T	DM_PSTable;
 
-	FALSE_ALARM_STATISTICS	FalseAlmCnt;
-
+	FALSE_ALARM_STATISTICS	FalseAlmCnt;	
+	
 	//for rate adaptive, in fact,  88c/92c fw will handle this
 	u8	bUseRAMask;
 	RATE_ADAPTIVE	RateAdaptive;
@@ -311,11 +311,11 @@ struct 	dm_priv
 	u8	bDynamicTxPowerEnable;
 	u8	LastDTPLvl;
 	u8	DynamicTxHighPowerLvl;//Add by Jacken Tx Power Control for Near/Far Range 2008/03/06
-
+		
 	//for tx power tracking
 	u8	bTXPowerTracking;
 	u8	TXPowercount;
-	u8	bTXPowerTrackingInit;
+	u8	bTXPowerTrackingInit;	
 	u8	TxPowerTrackControl;	//for mp mode, turn off txpwrtracking as default
 	u8	TM_Trigger;
 

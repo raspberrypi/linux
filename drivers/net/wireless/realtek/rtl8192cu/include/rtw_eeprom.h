@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -26,7 +26,7 @@
 
 #define	RTL8712_EEPROM_ID			0x8712
 #define	EEPROM_MAX_SIZE			256
-#define	CLOCK_RATE					50			//100us
+#define	CLOCK_RATE					50			//100us		
 
 //- EEPROM opcodes
 #define EEPROM_READ_OPCODE		06
@@ -37,7 +37,7 @@
 
 //Country codes
 #define USA							0x555320
-#define EUROPE						0x1 //temp, should be provided later
+#define EUROPE						0x1 //temp, should be provided later	
 #define JAPAN						0x2 //temp, should be provided later
 
 #ifdef CONFIG_SDIO_HCI
@@ -60,9 +60,9 @@
 #define	EEPROM_CID_WHQL				0xFE // added by chiyoko for dtm, 20090108
 
 //
-// Customer ID, note that:
-// This variable is initiailzed through EEPROM or registry,
-// however, its definition may be different with that in EEPROM for
+// Customer ID, note that: 
+// This variable is initiailzed through EEPROM or registry, 
+// however, its definition may be different with that in EEPROM for 
 // EEPROM size consideration. So, we have to perform proper translation between them.
 // Besides, CustomerID of registry has precedence of that of EEPROM.
 // defined below. 060703, by rcnjko.
@@ -75,7 +75,7 @@ typedef enum _RT_CUSTOMER_ID
 	RT_CID_8187_HW_LED = 3,
 	RT_CID_8187_NETGEAR = 4,
 	RT_CID_WHQL = 5,
-	RT_CID_819x_CAMEO  = 6,
+	RT_CID_819x_CAMEO  = 6, 
 	RT_CID_819x_RUNTOP = 7,
 	RT_CID_819x_Senao = 8,
 	RT_CID_TOSHIBA = 9,	// Merge by Jacken, 2008/01/31.
@@ -88,10 +88,10 @@ typedef enum _RT_CUSTOMER_ID
 	RT_CID_819x_ALPHA = 16,
 	RT_CID_819x_Sitecom = 17,
 	RT_CID_CCX = 18, // It's set under CCX logo test and isn't demanded for CCX functions, but for test behavior like retry limit and tx report. By Bruce, 2009-02-17.
-	RT_CID_819x_Lenovo = 19,
+	RT_CID_819x_Lenovo = 19,	
 	RT_CID_819x_QMI = 20,
-	RT_CID_819x_Edimax_Belkin = 21,
-	RT_CID_819x_Sercomm_Belkin = 22,
+	RT_CID_819x_Edimax_Belkin = 21,		
+	RT_CID_819x_Sercomm_Belkin = 22,			
 	RT_CID_819x_CAMEO1 = 23,
 	RT_CID_819x_MSI = 24,
 	RT_CID_819x_Acer = 25,
@@ -108,15 +108,15 @@ typedef enum _RT_CUSTOMER_ID
 	RT_CID_819x_CAMEO_NETGEAR = 36,
 }RT_CUSTOMER_ID, *PRT_CUSTOMER_ID;
 
-struct eeprom_priv
-{
+struct eeprom_priv 
+{    
 	u8		bautoload_fail_flag;
 	//u8		bempty;
 	//u8		sys_config;
 	u8		mac_addr[6];	//PermanentAddress
 	//u8		config0;
 	u16		channel_plan;
-	//u8		country_string[3];
+	//u8		country_string[3];	
 	//u8		tx_power_b[15];
 	//u8		tx_power_g[15];
 	//u8		tx_power_a[201];
@@ -126,10 +126,10 @@ struct eeprom_priv
 	u8		efuse_eeprom_data[EEPROM_MAX_SIZE];
 
 #ifdef CONFIG_SDIO_HCI
-	u8		sdio_setting;
+	u8		sdio_setting;	
 	u32		ocr;
 	u8		cis0[eeprom_cis0_sz];
-	u8		cis1[eeprom_cis1_sz];
+	u8		cis1[eeprom_cis1_sz];	
 #endif
 };
 
@@ -137,7 +137,7 @@ struct eeprom_priv
 extern void eeprom_write16(_adapter *padapter, u16 reg, u16 data);
 extern u16 eeprom_read16(_adapter *padapter, u16 reg);
 extern void read_eeprom_content(_adapter *padapter);
-extern void eeprom_read_sz(_adapter * padapter, u16 reg,u8* data, u32 sz);
+extern void eeprom_read_sz(_adapter * padapter, u16 reg,u8* data, u32 sz); 
 
 extern void read_eeprom_content_by_attrib(_adapter *	padapter	);
 

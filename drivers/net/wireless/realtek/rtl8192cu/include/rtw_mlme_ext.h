@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -44,7 +44,7 @@
 #define REASSOC_LIMIT	(4)
 #define READDBA_LIMIT	(2)
 
-//#define	IOCMD_REG0		0x10250370
+//#define	IOCMD_REG0		0x10250370		 	
 //#define	IOCMD_REG1		0x10250374
 //#define	IOCMD_REG2		0x10250378
 
@@ -94,12 +94,12 @@ extern unsigned char WMM_PARA_OUI[];
 
 //
 // Channel Plan Type.
-// Note:
-//	We just add new channel plan when the new channel plan is different from any of the following
-//	channel plan.
+// Note: 
+//	We just add new channel plan when the new channel plan is different from any of the following 
+//	channel plan. 
 //	If you just wnat to customize the acitions(scan period or join actions) about one of the channel plan,
 //	customize them in RT_CHANNEL_INFO in the RT_CHANNEL_LIST.
-//
+// 
 typedef enum _RT_CHANNEL_DOMAIN
 {
 	//===== old channel plan mapping =====//
@@ -123,7 +123,7 @@ typedef enum _RT_CHANNEL_DOMAIN
 	RT_CHANNEL_DOMAIN_FCC_NO_DFS = 0x11,
 	RT_CHANNEL_DOMAIN_JAPAN_NO_DFS = 0x12,
 	RT_CHANNEL_DOMAIN_WORLD_WIDE_5G = 0x13,
-	RT_CHANNEL_DOMAIN_TAIWAN_NO_DFS = 0x14,
+	RT_CHANNEL_DOMAIN_TAIWAN_NO_DFS = 0x14,	
 
 	//===== new channel plan mapping, (2GDOMAIN_5GDOMAIN) =====//
 	RT_CHANNEL_DOMAIN_WORLD_NULL = 0x20,
@@ -253,7 +253,7 @@ struct action_handler {
 	unsigned int (*func)(_adapter *padapter, union recv_frame *precv_frame);
 };
 
-struct	ss_res
+struct	ss_res	
 {
 	int	state;
 	int	bss_cnt;
@@ -329,17 +329,17 @@ struct FW_Sta_Info
 
 /*
  * Usage:
- * When one iface acted as AP mode and the other iface is STA mode and scanning,
+ * When one iface acted as AP mode and the other iface is STA mode and scanning, 
  * it should switch back to AP's operating channel periodically.
  * Parameters info:
  * When the driver scanned RTW_SCAN_NUM_OF_CH channels, it would switch back to AP's operating channel for
  * RTW_STAY_AP_CH_MILLISECOND * SURVEY_TO milliseconds.
  * Example:
- * For chip supports 2.4G + 5GHz and AP mode is operating in channel 1,
+ * For chip supports 2.4G + 5GHz and AP mode is operating in channel 1, 
  * RTW_SCAN_NUM_OF_CH is 8, RTW_STAY_AP_CH_MILLISECOND is 3 and SURVEY_TO is 100.
- * When it's STA mode gets set_scan command,
- * it would
- * 1. Doing the scan on channel 1.2.3.4.5.6.7.8
+ * When it's STA mode gets set_scan command, 
+ * it would 
+ * 1. Doing the scan on channel 1.2.3.4.5.6.7.8 
  * 2. Back to channel 1 for 300 milliseconds
  * 3. Go through doing site survey on channel 9.10.11.36.40.44.48.52
  * 4. Back to channel 1 for 300 milliseconds
@@ -347,8 +347,8 @@ struct FW_Sta_Info
  */
 #if defined CONFIG_STA_MODE_SCAN_UNDER_AP_MODE && defined CONFIG_CONCURRENT_MODE
 #define RTW_SCAN_NUM_OF_CH			8
-#define RTW_STAY_AP_CH_MILLISECOND	3	// this value is a multiplier,for example, when this value is 3, it would stay AP's op ch for
-											// 3 * SURVEY_TO millisecond.
+#define RTW_STAY_AP_CH_MILLISECOND	3	// this value is a multiplier,for example, when this value is 3, it would stay AP's op ch for 
+											// 3 * SURVEY_TO millisecond. 
 #endif //defined CONFIG_STA_MODE_SCAN_UNDER_AP_MODE && defined CONFIG_CONCURRENT_MODE
 
 struct mlme_ext_info
@@ -374,7 +374,7 @@ struct mlme_ext_info
 	u8	ERP_enable;
 	u8	ERP_IE;
 	u8	HT_enable;
-	u8	HT_caps_enable;
+	u8	HT_caps_enable;	
 	u8	HT_info_enable;
 	u8	HT_protection;
 	u8	turboMode_cts2self;
@@ -462,19 +462,19 @@ struct mlme_ext_priv
 	u64 mgnt_80211w_IPN_rx;
 #endif //CONFIG_IEEE80211W
 	//struct fw_priv 	fwpriv;
-
+	
 	unsigned char	cur_channel;
 	unsigned char	cur_bwmode;
 	unsigned char	cur_ch_offset;//PRIME_CHNL_OFFSET
-	unsigned char	cur_wireless_mode;
+	unsigned char	cur_wireless_mode;	
 
 	unsigned char	max_chan_nums;
 	RT_CHANNEL_INFO		channel_set[MAX_CHANNEL_NUM];
 	struct p2p_channels channel_list;
 	unsigned char	basicrate[NumRates];
 	unsigned char	datarate[NumRates];
-
-	struct ss_res		sitesurvey_res;
+	
+	struct ss_res		sitesurvey_res;		
 	struct mlme_ext_info	mlmext_info;//for sta/adhoc mode, including current scanning/connecting/connected related info.
                                                      //for ap mode, network includes ap's cap_info
 	_timer		survey_timer;
@@ -489,10 +489,10 @@ struct mlme_ext_priv
 	u8	tx_rate; // TXRATE when USERATE is set.
 
 	u32	retry; //retry for issue probereq
-
+	
 	u64 TSFValue;
 
-#ifdef CONFIG_AP_MODE
+#ifdef CONFIG_AP_MODE	
 	unsigned char bstart_bss;
 #endif
 
@@ -507,7 +507,7 @@ struct mlme_ext_priv
 #ifdef CONFIG_ACTIVE_KEEP_ALIVE_CHECK
 	u8 active_keep_alive_check;
 #endif
-
+	
 };
 
 int init_mlme_ext_priv(_adapter* padapter);
@@ -755,7 +755,7 @@ int rtw_get_ch_setting_union(_adapter *adapter, u8 *ch, u8 *bw, u8 *offset);
 
 struct cmd_hdl {
 	uint	parmsize;
-	u8 (*h2cfuns)(struct _ADAPTER *padapter, u8 *pbuf);
+	u8 (*h2cfuns)(struct _ADAPTER *padapter, u8 *pbuf);	
 };
 
 
@@ -772,7 +772,7 @@ u8 join_cmd_hdl(_adapter *padapter, u8 *pbuf);
 u8 disconnect_hdl(_adapter *padapter, u8 *pbuf);
 u8 createbss_hdl(_adapter *padapter, u8 *pbuf);
 u8 setopmode_hdl(_adapter *padapter, u8 *pbuf);
-u8 sitesurvey_cmd_hdl(_adapter *padapter, u8 *pbuf);
+u8 sitesurvey_cmd_hdl(_adapter *padapter, u8 *pbuf);	
 u8 setauth_hdl(_adapter *padapter, u8 *pbuf);
 u8 setkey_hdl(_adapter *padapter, u8 *pbuf);
 u8 set_stakey_hdl(_adapter *padapter, u8 *pbuf);
@@ -795,7 +795,7 @@ u8 tdls_hdl(_adapter *padapter, unsigned char *pbuf);
 
 #ifdef _RTW_CMD_C_
 
-struct cmd_hdl wlancmds[] =
+struct cmd_hdl wlancmds[] = 
 {
 	GEN_DRV_CMD_HANDLER(0, NULL) /*0*/
 	GEN_DRV_CMD_HANDLER(0, NULL)
@@ -810,7 +810,7 @@ struct cmd_hdl wlancmds[] =
 	GEN_MLME_EXT_HANDLER(0, NULL) /*10*/
 	GEN_MLME_EXT_HANDLER(0, NULL)
 	GEN_MLME_EXT_HANDLER(0, NULL)
-	GEN_MLME_EXT_HANDLER(0, NULL)
+	GEN_MLME_EXT_HANDLER(0, NULL)		
 	GEN_MLME_EXT_HANDLER(sizeof (struct joinbss_parm), join_cmd_hdl) /*14*/
 	GEN_MLME_EXT_HANDLER(sizeof (struct disconnect_parm), disconnect_hdl)
 	GEN_MLME_EXT_HANDLER(sizeof (struct createbss_parm), createbss_hdl)
@@ -842,7 +842,7 @@ struct cmd_hdl wlancmds[] =
 	GEN_MLME_EXT_HANDLER(0, NULL)
 	GEN_MLME_EXT_HANDLER(0, NULL)
 	GEN_MLME_EXT_HANDLER(0, NULL)
-	GEN_MLME_EXT_HANDLER(sizeof(struct addBaReq_parm), add_ba_hdl)
+	GEN_MLME_EXT_HANDLER(sizeof(struct addBaReq_parm), add_ba_hdl)	
 	GEN_MLME_EXT_HANDLER(sizeof(struct set_ch_parm), set_ch_hdl) /* 46 */
 	GEN_MLME_EXT_HANDLER(0, NULL)
 	GEN_MLME_EXT_HANDLER(0, NULL)
@@ -851,7 +851,7 @@ struct cmd_hdl wlancmds[] =
 	GEN_MLME_EXT_HANDLER(0, NULL)
 	GEN_MLME_EXT_HANDLER(0, NULL)
 	GEN_MLME_EXT_HANDLER(0, NULL)
-	GEN_MLME_EXT_HANDLER(0, NULL)
+	GEN_MLME_EXT_HANDLER(0, NULL) 
 	GEN_MLME_EXT_HANDLER(sizeof(struct Tx_Beacon_param), tx_beacon_hdl) /*55*/
 
 	GEN_MLME_EXT_HANDLER(0, mlme_evt_hdl) /*56*/
@@ -874,13 +874,13 @@ struct C2HEvent_Header
 	unsigned int len:16;
 	unsigned int ID:8;
 	unsigned int seq:8;
-
+	
 #elif defined(CONFIG_BIG_ENDIAN)
 
 	unsigned int seq:8;
 	unsigned int ID:8;
 	unsigned int len:16;
-
+	
 #else
 
 #  error "Must be LITTLE or BIG Endian"
@@ -898,37 +898,37 @@ enum rtw_c2h_event
 {
 	GEN_EVT_CODE(_Read_MACREG)=0, /*0*/
 	GEN_EVT_CODE(_Read_BBREG),
-	GEN_EVT_CODE(_Read_RFREG),
-	GEN_EVT_CODE(_Read_EEPROM),
-	GEN_EVT_CODE(_Read_EFUSE),
+ 	GEN_EVT_CODE(_Read_RFREG),
+ 	GEN_EVT_CODE(_Read_EEPROM),
+ 	GEN_EVT_CODE(_Read_EFUSE),
 	GEN_EVT_CODE(_Read_CAM),			/*5*/
-	GEN_EVT_CODE(_Get_BasicRate),
-	GEN_EVT_CODE(_Get_DataRate),
-	GEN_EVT_CODE(_Survey),	 /*8*/
-	GEN_EVT_CODE(_SurveyDone),	 /*9*/
-
-	GEN_EVT_CODE(_JoinBss) , /*10*/
-	GEN_EVT_CODE(_AddSTA),
-	GEN_EVT_CODE(_DelSTA),
-	GEN_EVT_CODE(_AtimDone) ,
-	GEN_EVT_CODE(_TX_Report),
+ 	GEN_EVT_CODE(_Get_BasicRate),  
+ 	GEN_EVT_CODE(_Get_DataRate),   
+ 	GEN_EVT_CODE(_Survey),	 /*8*/
+ 	GEN_EVT_CODE(_SurveyDone),	 /*9*/
+ 	
+ 	GEN_EVT_CODE(_JoinBss) , /*10*/
+ 	GEN_EVT_CODE(_AddSTA),
+ 	GEN_EVT_CODE(_DelSTA),
+ 	GEN_EVT_CODE(_AtimDone) ,
+ 	GEN_EVT_CODE(_TX_Report),  
 	GEN_EVT_CODE(_CCX_Report),			/*15*/
-	GEN_EVT_CODE(_DTM_Report),
-	GEN_EVT_CODE(_TX_Rate_Statistics),
-	GEN_EVT_CODE(_C2HLBK),
-	GEN_EVT_CODE(_FWDBG),
+ 	GEN_EVT_CODE(_DTM_Report),
+ 	GEN_EVT_CODE(_TX_Rate_Statistics),
+ 	GEN_EVT_CODE(_C2HLBK), 
+ 	GEN_EVT_CODE(_FWDBG),
 	GEN_EVT_CODE(_C2HFEEDBACK),               /*20*/
 	GEN_EVT_CODE(_ADDBA),
 	GEN_EVT_CODE(_C2HBCN),
-	GEN_EVT_CODE(_ReportPwrState),		//filen: only for PCIE, USB
+	GEN_EVT_CODE(_ReportPwrState),		//filen: only for PCIE, USB	
 	GEN_EVT_CODE(_CloseRF),				//filen: only for PCIE, work around ASPM
-	MAX_C2HEVT
+ 	MAX_C2HEVT
 };
 
 
-#ifdef _RTW_MLME_EXT_C_
+#ifdef _RTW_MLME_EXT_C_		
 
-static struct fwevent wlanevents[] =
+static struct fwevent wlanevents[] = 
 {
 	{0, rtw_dummy_event_callback}, 	/*0*/
 	{0, NULL},
@@ -940,10 +940,10 @@ static struct fwevent wlanevents[] =
 	{0, NULL},
 	{0, &rtw_survey_event_callback},		/*8*/
 	{sizeof (struct surveydone_event), &rtw_surveydone_event_callback},	/*9*/
-
+		
 	{0, &rtw_joinbss_event_callback},		/*10*/
 	{sizeof(struct stassoc_event), &rtw_stassoc_event_callback},
-	{sizeof(struct stadel_event), &rtw_stadel_event_callback},
+	{sizeof(struct stadel_event), &rtw_stadel_event_callback},	
 	{0, &rtw_atimdone_event_callback},
 	{0, rtw_dummy_event_callback},
 	{0, NULL},	/*15*/
@@ -953,10 +953,11 @@ static struct fwevent wlanevents[] =
 	{0, rtw_fwdbg_event_callback},
 	{0, NULL},	 /*20*/
 	{0, NULL},
-	{0, NULL},
+	{0, NULL},	
 	{0, &rtw_cpwm_event_callback},
 };
 
 #endif//_RTL8192C_CMD_C_
 
 #endif
+
