@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -56,7 +56,7 @@ typedef struct _Dynamic_Power_Saving_
 	u8		CurRFState;
 
 	s32		Rssi_val_min;
-
+	
 }PS_T;
 
 typedef struct _Dynamic_Initial_Gain_Threshold_
@@ -144,7 +144,7 @@ typedef enum tag_DIG_EXT_PORT_ALGO_Definition
 
 typedef enum tag_DIG_Connect_Definition
 {
-	DIG_STA_DISCONNECT = 0,
+	DIG_STA_DISCONNECT = 0,	
 	DIG_STA_CONNECT = 1,
 	DIG_STA_BEFORE_CONNECT = 2,
 	DIG_MultiSTA_DISCONNECT = 3,
@@ -155,12 +155,12 @@ typedef enum tag_DIG_Connect_Definition
 
 
 typedef	enum _BT_Ant_NUM{
-	Ant_x2	= 0,
+	Ant_x2	= 0,		
 	Ant_x1	= 1
 } BT_Ant_NUM, *PBT_Ant_NUM;
 
 typedef	enum _BT_CoType{
-	BT_2Wire		= 0,
+	BT_2Wire		= 0,		
 	BT_ISSC_3Wire	= 1,
 	BT_Accel		= 2,
 	BT_CSR_BC4		= 3,
@@ -169,12 +169,12 @@ typedef	enum _BT_CoType{
 } BT_CoType, *PBT_CoType;
 
 typedef	enum _BT_CurState{
-	BT_OFF		= 0,
+	BT_OFF		= 0,	
 	BT_ON		= 1,
 } BT_CurState, *PBT_CurState;
 
 typedef	enum _BT_ServiceType{
-	BT_SCO		= 0,
+	BT_SCO		= 0,	
 	BT_A2DP		= 1,
 	BT_HID		= 2,
 	BT_HID_Idle	= 3,
@@ -187,7 +187,7 @@ typedef	enum _BT_ServiceType{
 } BT_ServiceType, *PBT_ServiceType;
 
 typedef	enum _BT_RadioShared{
-	BT_Radio_Shared 	= 0,
+	BT_Radio_Shared 	= 0,	
 	BT_Radio_Individual	= 1,
 } BT_RadioShared, *PBT_RadioShared;
 
@@ -263,7 +263,7 @@ struct btcoexist_priv	{
 #define		TX_POWER_NEAR_FIELD_THRESH_LVL2	74
 #define		TX_POWER_NEAR_FIELD_THRESH_LVL1	67
 
-#define		TxHighPwrLevel_Normal		0
+#define		TxHighPwrLevel_Normal		0	
 #define		TxHighPwrLevel_Level1		1
 #define		TxHighPwrLevel_Level2		2
 #define		TxHighPwrLevel_BT1			3
@@ -282,14 +282,14 @@ typedef struct _RATE_ADAPTIVE
 {
 	u8				RateAdaptiveDisabled;
 	u8				RATRState;
-	u16				reserve;
-
+	u16				reserve;	
+	
 	u32				HighRSSIThreshForRA;
 	u32				High2LowRSSIThreshForRA;
 	u8				Low2HighRSSIThreshForRA40M;
-	u32				LowRSSIThreshForRA40M;
+	u32				LowRSSIThreshForRA40M;	
 	u8				Low2HighRSSIThreshForRA20M;
-	u32				LowRSSIThreshForRA20M;
+	u32				LowRSSIThreshForRA20M;	
 	u32				UpperRSSIThresholdRATR;
 	u32				MiddleRSSIThresholdRATR;
 	u32				LowRSSIThresholdRATR;
@@ -300,7 +300,7 @@ typedef struct _RATE_ADAPTIVE
 	u32				PingRSSIThreshForRA;//cosa add for Netcore long range ping issue
 	u32				LastRATR;
 	u8				PreRATRState;
-
+	
 } RATE_ADAPTIVE, *PRATE_ADAPTIVE;
 
 typedef enum tag_SW_Antenna_Switch_Definition
@@ -311,7 +311,7 @@ typedef enum tag_SW_Antenna_Switch_Definition
 }DM_SWAS_E;
 
 #ifdef CONFIG_ANTENNA_DIVERSITY
-// This indicates two different the steps.
+// This indicates two different the steps. 
 // In SWAW_STEP_PEAK, driver needs to switch antenna and listen to the signal on the air.
 // In SWAW_STEP_DETERMINE, driver just compares the signal captured in SWAW_STEP_PEAK
 // with original RSSI to determine if it is necessary to switch antenna.
@@ -342,11 +342,11 @@ typedef struct _SW_Antenna_Switch_
 #endif
 
 
-struct 	dm_priv
+struct 	dm_priv	
 {
 	u8	DM_Type;
 	u8	DMFlag, DMFlag_tmp;
-
+	
 
 	//for DIG
 	u8	bDMInitialGainEnable;
@@ -356,7 +356,7 @@ struct 	dm_priv
 	PS_T	DM_PSTable;
 
 	FALSE_ALARM_STATISTICS FalseAlmCnt;
-
+	
 	//for rate adaptive, in fact,  88c/92c fw will handle this
 	u8 bUseRAMask;
 	RATE_ADAPTIVE RateAdaptive;
@@ -372,11 +372,11 @@ struct 	dm_priv
 	u8 bDynamicTxPowerEnable;
 	u8 LastDTPLvl;
 	u8 DynamicTxHighPowerLvl;//Add by Jacken Tx Power Control for Near/Far Range 2008/03/06
-
+		
 	//for tx power tracking
 	//u8	bTXPowerTracking;
 	u8	TXPowercount;
-	u8	bTXPowerTrackingInit;
+	u8	bTXPowerTrackingInit;	
 	u8	TxPowerTrackControl;	//for mp mode, turn off txpwrtracking as default
 	u8	TM_Trigger;
 
@@ -442,10 +442,10 @@ struct 	dm_priv
 	//for Antenna diversity
 #ifdef CONFIG_ANTENNA_DIVERSITY
 	SWAT_T DM_SWAT_Table;
-#endif
+#endif	
 #ifdef CONFIG_SW_ANTENNA_DIVERSITY
 	_timer SwAntennaSwitchTimer;
-
+	
 	u64	lastTxOkCnt;
 	u64	lastRxOkCnt;
 	u64	TXByteCnt_A;
@@ -504,7 +504,7 @@ void rtl8192c_issue_delete_ba(_adapter *padapter, u8 dir);
 #endif
 
 #ifdef CONFIG_SW_ANTENNA_DIVERSITY
-void SwAntDivRSSICheck8192C(_adapter *padapter ,u32 RxPWDBAll);
+void SwAntDivRSSICheck8192C(_adapter *padapter ,u32 RxPWDBAll); 
 void SwAntDivRestAfterLink8192C(IN	PADAPTER Adapter);
 #endif
 #ifdef CONFIG_ANTENNA_DIVERSITY
@@ -513,3 +513,4 @@ u8 SwAntDivBeforeLink8192C(IN PADAPTER Adapter);
 #endif
 
 #endif	//__HAL8190PCIDM_H__
+
