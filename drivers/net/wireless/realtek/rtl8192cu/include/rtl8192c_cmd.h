@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -22,7 +22,7 @@
 
 
 enum cmd_msg_element_id
-{
+{	
 	NONE_CMDMSG_EID,
 	AP_OFFLOAD_EID=0,
 	SET_PWRMODE_EID=1,
@@ -68,7 +68,7 @@ typedef struct _SETPWRMODE_PARM{
 typedef struct _SETWOWLAN_PARM{
 	u8 	mode;
 	u8 	gpio_index;
-	u8	gpio_duration;
+	u8	gpio_duration;	
 	u8  second_mode;
 	u8  reserve;
 }SETWOWLAN_PARM, *PSETWOWLAN_PARM;
@@ -150,3 +150,4 @@ void SetFwRelatedForWoWLAN8192CU(_adapter* 	padapter,u8 bHostIsGoingtoSleep);
 #endif // CONFIG_WOWLAN
 
 #endif	// __RTL8192C_CMD_H_
+

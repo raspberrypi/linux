@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2013 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -37,7 +37,7 @@ bool rtw_adapter_linked(_adapter *adapter)
 
 	if(	(check_fwstate(mlmepriv, WIFI_AP_STATE) == _TRUE) ||
 		(check_fwstate(mlmepriv, WIFI_ADHOC_STATE|WIFI_ADHOC_MASTER_STATE) == _TRUE))
-	{
+	{				
 		if(adapter->stapriv.asoc_sta_count > 2)
 			linked = _TRUE;
 	}
@@ -78,8 +78,8 @@ void dm_enable_EDCCA(_adapter *adapter)
 	{
 		rtw_write8(adapter,rOFDM0_ECCAThreshold,0x00);
 		rtw_write8(adapter,rOFDM0_ECCAThreshold+2,0xFD);
-
-	}
+		
+	}	
 	else*/
 	{
 		rtw_write8(adapter,rOFDM0_ECCAThreshold,0x03);
@@ -88,7 +88,7 @@ void dm_enable_EDCCA(_adapter *adapter)
 }
 
 void dm_disable_EDCCA(_adapter *adapter)
-{
+{	
 	// Disable EDCCA..
 	rtw_write8(adapter, rOFDM0_ECCAThreshold, 0x7f);
 	rtw_write8(adapter, rOFDM0_ECCAThreshold+2, 0x7f);
@@ -104,22 +104,22 @@ void dm_dynamic_EDCCA(_adapter *pAdapter)
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
 	struct dm_priv *dmpriv = &pHalData->dmpriv;
 	u8 RegC50, RegC58;
-
+	
 	RegC50 = (u8)PHY_QueryBBReg(pAdapter, rOFDM0_XAAGCCore1, bMaskByte0);
 	RegC58 = (u8)PHY_QueryBBReg(pAdapter, rOFDM0_XBAGCCore1, bMaskByte0);
 
 
-	if((RegC50 > 0x28 && RegC58 > 0x28)
-		/*|| ((pDM_Odm->SupportICType == ODM_RTL8723A && IS_WIRELESS_MODE_G(pAdapter) && RegC50>0x26))
-		|| (pDM_Odm->SupportICType == ODM_RTL8188E && RegC50 > 0x28)*/
-	)
+ 	if((RegC50 > 0x28 && RegC58 > 0x28)
+  		/*|| ((pDM_Odm->SupportICType == ODM_RTL8723A && IS_WIRELESS_MODE_G(pAdapter) && RegC50>0x26))
+  		|| (pDM_Odm->SupportICType == ODM_RTL8188E && RegC50 > 0x28)*/
+  	)
 	{
 		if(!dmpriv->bPreEdccaEnable)
 		{
 			dm_enable_EDCCA(pAdapter);
 			dmpriv->bPreEdccaEnable = _TRUE;
 		}
-
+		
 	}
 	else if((RegC50 < 0x25 && RegC58 < 0x25)
 		/*|| (pDM_Odm->SupportICType == ODM_RTL8188E && RegC50 < 0x25)*/
@@ -224,7 +224,7 @@ void dm_adaptivity(_adapter *pAdapter)
 	if (!(dmpriv->DMFlag & DYNAMIC_FUNC_ADAPTIVITY))
 	{
 		LOG_LEVEL(_drv_info_, "Go to odm_DynamicEDCCA() \n");
-		// Add by Neil Chen to enable edcca to MP Platform
+		// Add by Neil Chen to enable edcca to MP Platform 
 		// Adjust EDCCA.
 		/*if(pDM_Odm->SupportICType & ODM_IC_11N_SERIES)
 			dm_dynamic_EDCCA(pAdapter);
@@ -233,13 +233,13 @@ void dm_adaptivity(_adapter *pAdapter)
 	}
 	LOG_LEVEL(_drv_info_, "odm_Adaptivity() =====> \n");
 
-	LOG_LEVEL(_drv_info_, "ForceEDCCA=%d, IGI_Base=0x%x, TH_L2H_ini = %d, TH_EDCCA_HL_diff = %d, AdapEn_RSSI = %d\n",
+	LOG_LEVEL(_drv_info_, "ForceEDCCA=%d, IGI_Base=0x%x, TH_L2H_ini = %d, TH_EDCCA_HL_diff = %d, AdapEn_RSSI = %d\n", 
 		dmpriv->ForceEDCCA, dmpriv->IGI_Base, dmpriv->TH_L2H_ini, dmpriv->TH_EDCCA_HL_diff, dmpriv->AdapEn_RSSI);
 
 	/*if(pDM_Odm->SupportICType & ODM_IC_11AC_SERIES)
 		PHY_SetBBReg(0x800, BIT10, 0); //ADC_mask enable
 	*/
-
+	
 	if(!dm_linked(pAdapter) || pHalData->CurrentChannel > 149) /* Band4 doesn't need adaptivity */
 	{
 		/*if(pDM_Odm->SupportICType & ODM_IC_11N_SERIES)*/
@@ -296,7 +296,7 @@ void dm_adaptivity(_adapter *pAdapter)
 		TH_H2L_dmc = 0x7f;
 	}
 
-	LOG_LEVEL(_drv_info_, "IGI=0x%x, TH_L2H_dmc = %d, TH_H2L_dmc = %d\n",
+	LOG_LEVEL(_drv_info_, "IGI=0x%x, TH_L2H_dmc = %d, TH_H2L_dmc = %d\n", 
 		IGI, TH_L2H_dmc, TH_H2L_dmc);
 
 	/*if(pDM_Odm->SupportICType & ODM_IC_11N_SERIES)*/
@@ -311,3 +311,4 @@ skip_dm:
 	return;
 #endif /* CONFIG_DM_ADAPTIVITY */
 }
+
