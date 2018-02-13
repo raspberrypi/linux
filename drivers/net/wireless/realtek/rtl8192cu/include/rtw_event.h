@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -58,8 +58,8 @@ bss_cnt indicates the number of bss that has been reported.
 
 */
 struct surveydone_event {
-	unsigned int	bss_cnt;
-
+	unsigned int	bss_cnt;	
+	
 };
 
 /*
@@ -86,7 +86,7 @@ struct stassoc_event {
 	unsigned char macaddr[6];
 	unsigned char rsvd[2];
 	int    cam_id;
-
+	
 };
 
 struct stadel_event {
@@ -97,7 +97,7 @@ struct stadel_event {
 
 struct addba_event
 {
-	unsigned int tid;
+ 	unsigned int tid;
 };
 
 
@@ -110,7 +110,7 @@ struct c2hlbk_event{
 	unsigned char	b0;
 	unsigned short  s2;
 	unsigned char	b1;
-	unsigned int	w1;
+	unsigned int	w1;	
 };
 #endif//CONFIG_H2CLBK
 
@@ -124,7 +124,7 @@ struct fwevent {
 };
 
 
-#define C2HEVENT_SZ			32
+#define C2HEVENT_SZ			32	
 
 struct event_node{
 	unsigned char *node;
@@ -146,8 +146,9 @@ struct c2hevent_queue {
 struct network_queue {
 	volatile int	head;
 	volatile int	tail;
-	WLAN_BSSID_EX networks[NETWORK_QUEUE_SZ];
+	WLAN_BSSID_EX networks[NETWORK_QUEUE_SZ];	
 };
 
 
 #endif // _WLANEVENT_H_
+

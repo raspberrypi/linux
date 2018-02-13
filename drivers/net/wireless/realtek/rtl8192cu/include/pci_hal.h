@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -31,29 +31,29 @@
 #define	PCI_MAX_DEVICES				32
 #define	PCI_MAX_FUNCTION				8
 
-#define	PCI_CONF_ADDRESS   				0x0CF8   // PCI Configuration Space Address
-#define	PCI_CONF_DATA					0x0CFC   // PCI Configuration Space Data
+#define	PCI_CONF_ADDRESS   				0x0CF8   // PCI Configuration Space Address 
+#define	PCI_CONF_DATA					0x0CFC   // PCI Configuration Space Data 
 
 #define	PCI_CLASS_BRIDGE_DEV			0x06
 #define	PCI_SUBCLASS_BR_PCI_TO_PCI	0x04
 
 #define 	PCI_CAPABILITY_ID_PCI_EXPRESS	0x10
 
-#define	U1DONTCARE 					0xFF
-#define	U2DONTCARE 					0xFFFF
+#define	U1DONTCARE 					0xFF	
+#define	U2DONTCARE 					0xFFFF	
 #define	U4DONTCARE 					0xFFFFFFFF
 
 #define PCI_VENDER_ID_REALTEK		0x10ec
 
 #define HAL_HW_PCI_8180_DEVICE_ID           	0x8180
 #define HAL_HW_PCI_8185_DEVICE_ID           	0x8185	//8185 or 8185b
-#define HAL_HW_PCI_8188_DEVICE_ID           	0x8188	//8185b
-#define HAL_HW_PCI_8198_DEVICE_ID           	0x8198	//8185b
+#define HAL_HW_PCI_8188_DEVICE_ID           	0x8188	//8185b		
+#define HAL_HW_PCI_8198_DEVICE_ID           	0x8198	//8185b		
 #define HAL_HW_PCI_8190_DEVICE_ID           	0x8190	//8190
 #define HAL_HW_PCI_8723E_DEVICE_ID		0x8723	//8723E
 #define HAL_HW_PCI_8192_DEVICE_ID           	0x8192	//8192 PCI-E
 #define HAL_HW_PCI_8192SE_DEVICE_ID		0x8192	//8192 SE
-#define HAL_HW_PCI_8174_DEVICE_ID           	0x8174	//8192 SE
+#define HAL_HW_PCI_8174_DEVICE_ID           	0x8174	//8192 SE 
 #define HAL_HW_PCI_8173_DEVICE_ID           	0x8173	//8191 SE Crab
 #define HAL_HW_PCI_8172_DEVICE_ID           	0x8172	//8191 SE RE
 #define HAL_HW_PCI_8171_DEVICE_ID           	0x8171	//8191 SE Unicron
@@ -99,10 +99,10 @@ struct rt_pci_capabilities_header {
 
 struct pci_priv{
 	u8	linkctrl_reg;
-
+	
 	u8	busnumber;
-	u8	devnumber;
-	u8	funcnumber;
+	u8	devnumber;	
+	u8	funcnumber;	
 
 	u8	pcibridge_busnum;
 	u8	pcibridge_devnum;
@@ -111,7 +111,7 @@ struct pci_priv{
 	u16	pcibridge_vendorid;
 	u16	pcibridge_deviceid;
 	u8	pcibridge_pciehdr_offset;
-	u8	pcibridge_linkctrlreg;
+	u8	pcibridge_linkctrlreg;	
 
 	u8	amd_l1_patch;
 };
@@ -127,10 +127,10 @@ typedef struct _RT_ISR_CONTENT
 
 //#define RegAddr(addr)           (addr + 0xB2000000UL)
 //some platform macros will def here
-static inline void NdisRawWritePortUlong(u32 port,  u32 val)
+static inline void NdisRawWritePortUlong(u32 port,  u32 val) 		
 {
 	outl(val, port);
-	//writel(val, (u8 *)RegAddr(port));
+	//writel(val, (u8 *)RegAddr(port));	
 }
 
 static inline void NdisRawWritePortUchar(u32 port,  u8 val)
@@ -165,3 +165,4 @@ void rtl8192de_set_hal_ops(_adapter * padapter);
 #endif
 
 #endif //__PCIE_HAL_H__
+
