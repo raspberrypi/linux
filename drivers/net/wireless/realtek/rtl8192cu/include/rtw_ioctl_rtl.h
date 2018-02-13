@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -24,7 +24,7 @@
 #include <osdep_service.h>
 #include <drv_types.h>
 
-//************** oid_rtl_seg_01_01 **************
+//************** oid_rtl_seg_01_01 ************** 
 NDIS_STATUS oid_rt_get_signal_quality_hdl(struct oid_par_priv* poid_par_priv);//84
 NDIS_STATUS oid_rt_get_small_packet_crc_hdl(struct oid_par_priv* poid_par_priv);
 NDIS_STATUS oid_rt_get_middle_packet_crc_hdl(struct oid_par_priv* poid_par_priv);
@@ -63,17 +63,17 @@ NDIS_STATUS oid_rt_wireless_mode_for_scan_list_hdl(struct oid_par_priv* poid_par
 NDIS_STATUS oid_rt_get_bss_wireless_mode_hdl(struct oid_par_priv* poid_par_priv);
 NDIS_STATUS oid_rt_scan_with_magic_packet_hdl(struct oid_par_priv* poid_par_priv);
 
-//**************  oid_rtl_seg_01_03 section start **************
+//**************  oid_rtl_seg_01_03 section start ************** 
 NDIS_STATUS oid_rt_ap_get_associated_station_list_hdl(struct oid_par_priv* poid_par_priv);
 NDIS_STATUS oid_rt_ap_switch_into_ap_mode_hdl(struct oid_par_priv* poid_par_priv);
 NDIS_STATUS oid_rt_ap_supported_hdl(struct oid_par_priv* poid_par_priv);
 NDIS_STATUS oid_rt_ap_set_passphrase_hdl(struct oid_par_priv* poid_par_priv);
 
-// oid_rtl_seg_01_11
+// oid_rtl_seg_01_11 
 NDIS_STATUS oid_rt_pro_rf_write_registry_hdl(struct oid_par_priv* poid_par_priv);
 NDIS_STATUS oid_rt_pro_rf_read_registry_hdl(struct oid_par_priv* poid_par_priv);
 
-//**************  oid_rtl_seg_03_00 section start **************
+//**************  oid_rtl_seg_03_00 section start **************  
 NDIS_STATUS oid_rt_get_connect_state_hdl(struct oid_par_priv* poid_par_priv);
 NDIS_STATUS oid_rt_set_default_key_id_hdl(struct oid_par_priv* poid_par_priv);
 
