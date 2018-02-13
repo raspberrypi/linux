@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -214,7 +214,7 @@ struct wifi_display_info{
 	u8							wfd_pc;				//	WFD preferred connection
 													//	0 -> Prefer to use the P2P for WFD connection on peer side.
 													//	1 -> Prefer to use the TDLS for WFD connection on peer side.
-
+											
 	u8							wfd_device_type;	//	WFD Device Type
 													//	0 -> WFD Source Device
 													//	1 -> WFD Primary Sink Device
@@ -233,7 +233,7 @@ struct tx_provdisc_req_info{
 
 struct rx_provdisc_req_info{	//When peer device issue prov_disc_req first, we should store the following informations
 	u8					peerDevAddr[ ETH_ALEN ];		//	Peer device address
-	u8					strconfig_method_desc_of_prov_disc_req[4];	//	description for the config method located in the provisioning discovery request frame.
+	u8					strconfig_method_desc_of_prov_disc_req[4];	//	description for the config method located in the provisioning discovery request frame.	
 																	//	The UI must know this information to know which config method the remote p2p device is requiring.
 };
 
@@ -272,7 +272,7 @@ struct wifidirect_info{
 	_adapter*				padapter;
 	_timer					find_phase_timer;
 	_timer					restore_p2p_state_timer;
-
+	
 	//	Used to do the scanning. After confirming the peer is availalble, the driver transmits the P2P frame to peer.
 	_timer					pre_tx_scan_timer;
 	_timer					reset_ch_sitesurvey;
@@ -292,7 +292,7 @@ struct wifidirect_info{
 	struct scan_limit_info		p2p_info;		//	Used for get the limit scan channel from the P2P negotiation handshake
 #ifdef CONFIG_WFD
 	struct wifi_display_info		*wfd_info;
-#endif
+#endif	
 	enum P2P_ROLE			role;
 	enum P2P_STATE			pre_p2p_state;
 	enum P2P_STATE			p2p_state;
@@ -339,7 +339,7 @@ struct wifidirect_info{
 
 	enum	P2P_WPSINFO		ui_got_wps_info;			//	This field will store the WPS value (PIN value or PBC) that UI had got from the user.
 	u16						supported_wps_cm;			//	This field describes the WPS config method which this driver supported.
-														//	The value should be the combination of config method defined in page104 of WPS v2.0 spec.
+														//	The value should be the combination of config method defined in page104 of WPS v2.0 spec.	
 	u8						external_uuid;				//  UUID flag
 	u8						uuid[16];					//  UUID
 	uint						channel_list_attr_len;		//	This field will contain the length of body of P2P Channel List attribute of group negotitation response frame.
@@ -390,7 +390,7 @@ struct tdls_info{
 	u8					enable;
 #ifdef CONFIG_WFD
 	struct wifi_display_info		*wfd_info;
-#endif
+#endif		
 };
 
 struct mlme_priv {
@@ -442,7 +442,7 @@ struct mlme_priv {
 	int num_sta_no_ht;
 
 	/* Number of HT AP/stations 20 MHz */
-	//int num_sta_ht_20mhz;
+	//int num_sta_ht_20mhz; 
 
 
 	int num_FortyMHzIntolerant;
@@ -458,7 +458,7 @@ struct mlme_priv {
 	u8	ChannelPlan;
 	RT_SCAN_TYPE 	scan_mode; // active: 1, passive: 0
 
-	//u8 probereq_wpsie[MAX_WPS_IE_LEN];//added in probe req
+	//u8 probereq_wpsie[MAX_WPS_IE_LEN];//added in probe req	
 	//int probereq_wpsie_len;
 	u8 *wps_probe_req_ie;
 	u32 wps_probe_req_ie_len;
@@ -487,17 +487,17 @@ struct mlme_priv {
 
 	/* Overlapping BSS information */
 	int olbc_ht;
-
+	
 #ifdef CONFIG_80211N_HT
 	u16 ht_op_mode;
-#endif /* CONFIG_80211N_HT */
+#endif /* CONFIG_80211N_HT */	
 
 	u8 *assoc_req;
 	u32 assoc_req_len;
 	u8 *assoc_rsp;
 	u32 assoc_rsp_len;
 
-	u8 *wps_beacon_ie;
+	u8 *wps_beacon_ie;	
 	//u8 *wps_probe_req_ie;
 	u8 *wps_probe_resp_ie;
 	u8 *wps_assoc_resp_ie; // for CONFIG_IOCTL_CFG80211, this IE could include p2p ie / wfd ie
@@ -506,11 +506,11 @@ struct mlme_priv {
 	//u32 wps_probe_req_ie_len;
 	u32 wps_probe_resp_ie_len;
 	u32 wps_assoc_resp_ie_len; // for CONFIG_IOCTL_CFG80211, this IE len could include p2p ie / wfd ie
-
+	
 	u8 *p2p_beacon_ie;
 	u8 *p2p_probe_req_ie;
-	u8 *p2p_probe_resp_ie;
-	u8 *p2p_go_probe_resp_ie; //for GO
+	u8 *p2p_probe_resp_ie;	
+	u8 *p2p_go_probe_resp_ie; //for GO	
 	u8 *p2p_assoc_req_ie;
 
 	u32 p2p_beacon_ie_len;
@@ -530,19 +530,19 @@ struct mlme_priv {
 	u32 wps_p2p_assoc_resp_ie_len;
 #endif
 */
-
+	
 	_lock	bcn_update_lock;
 	u8		update_bcn;
-
-
+	
+	
 #endif //#if defined (CONFIG_AP_MODE) && defined (CONFIG_NATIVEAP_MLME)
 
 #if defined(CONFIG_WFD) && defined(CONFIG_IOCTL_CFG80211)
-
+	
 	u8 *wfd_beacon_ie;
 	u8 *wfd_probe_req_ie;
-	u8 *wfd_probe_resp_ie;
-	u8 *wfd_go_probe_resp_ie; //for GO
+	u8 *wfd_probe_resp_ie;	
+	u8 *wfd_go_probe_resp_ie; //for GO	
 	u8 *wfd_assoc_req_ie;
 
 	u32 wfd_beacon_ie_len;
@@ -600,8 +600,8 @@ struct hostapd_priv
 #ifdef CONFIG_HOSTAPD_MLME
 	struct net_device *pmgnt_netdev;
 	struct usb_anchor anchored;
-#endif
-
+#endif	
+	
 };
 
 extern int hostapd_mode_init(_adapter *padapter);
@@ -639,8 +639,14 @@ extern void _rtw_scan_timeout_handler (
 
 #if defined (PLATFORM_LINUX)|| defined (PLATFORM_FREEBSD)
 extern int event_thread(void *context);
-extern void rtw_join_timeout_handler(void* FunctionContext);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
+extern void rtw_join_timeout_handler(void *FunctionContext);
 extern void _rtw_scan_timeout_handler(void* FunctionContext);
+#else
+extern void rtw_join_timeout_handler(struct timer_list *t);
+extern void _rtw_scan_timeout_handler(struct timer_list *t);
+#endif
 #endif
 
 extern void rtw_free_network_queue(_adapter *adapter,u8 isfreeall);
@@ -841,3 +847,4 @@ void rtw_proxim_disable(_adapter *padapter);
 void rtw_proxim_send_packet(_adapter *padapter,u8 *pbuf,u16 len,u8 hw_rate);
 #endif //CONFIG_INTEL_PROXIM
 #endif //__RTL871X_MLME_H_
+

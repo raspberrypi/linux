@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -22,18 +22,18 @@
 #ifdef DBG_CONFIG_ERROR_DETECT
 void rtl8192c_sreset_xmit_status_check(_adapter *padapter)
 {
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
-	struct sreset_priv *psrtpriv = &pHalData->srestpriv;
-
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);	
+	struct sreset_priv *psrtpriv = &pHalData->srestpriv;	
+	
 	unsigned long current_time;
 	struct xmit_priv	*pxmitpriv = &padapter->xmitpriv;
 	unsigned int diff_time;
 	u32 txdma_status;
 	if( (txdma_status=rtw_read32(padapter, REG_TXDMA_STATUS)) !=0x00){
 		DBG_871X("%s REG_TXDMA_STATUS:0x%08x\n", __FUNCTION__, txdma_status);
-		rtw_hal_sreset_reset(padapter);
+		rtw_hal_sreset_reset(padapter);						
 	}
-
+	
 	//total xmit irp = 4
 	//DBG_8192C("==>%s free_xmitbuf_cnt(%d),txirp_cnt(%d)\n",__FUNCTION__,pxmitpriv->free_xmitbuf_cnt,pxmitpriv->txirp_cnt);
 	//if(pxmitpriv->txirp_cnt == NR_XMITBUFF+1)
@@ -73,7 +73,7 @@ void rtl8192c_sreset_linked_status_check(_adapter *padapter)
 	regc50 = rtw_read32(padapter,0xc50);
 	regc58 = rtw_read32(padapter,0xc58);
 	reg824 = rtw_read32(padapter,0x824);
-	reg800 = rtw_read32(padapter,0x800);
+	reg800 = rtw_read32(padapter,0x800);	
 	if(	((regc50&0xFFFFFF00)!= 0x69543400)||
 		((regc58&0xFFFFFF00)!= 0x69543400)||
 		(((reg824&0xFFFFFF00)!= 0x00390000)&&(((reg824&0xFFFFFF00)!= 0x80390000)))||
@@ -81,7 +81,7 @@ void rtl8192c_sreset_linked_status_check(_adapter *padapter)
 	{
 		DBG_8192C("%s regc50:0x%08x, regc58:0x%08x, reg824:0x%08x, reg800:0x%08x,\n", __FUNCTION__,
 			regc50, regc58, reg824, reg800);
-		rtw_hal_sreset_reset(padapter);
+		rtw_hal_sreset_reset(padapter);	
 	}
 
 	if (psrtpriv->dbg_trigger_point == SRESET_TGP_LINK_STATUS) {
@@ -91,3 +91,4 @@ void rtl8192c_sreset_linked_status_check(_adapter *padapter)
 	}
 }
 #endif
+

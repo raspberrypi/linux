@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2012 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -74,7 +74,7 @@ void rtw_hal_dm_deinit(_adapter *padapter)
 {
 	// cancel dm  timer
 	if(padapter->HalFunc.dm_deinit)
-		padapter->HalFunc.dm_deinit(padapter);
+		padapter->HalFunc.dm_deinit(padapter);	
 }
 
 void rtw_hal_sw_led_init(_adapter *padapter)
@@ -89,7 +89,7 @@ void rtw_hal_sw_led_deinit(_adapter *padapter)
 		padapter->HalFunc.DeInitSwLeds(padapter);
 }
 
-uint	 rtw_hal_init(_adapter *padapter)
+uint	 rtw_hal_init(_adapter *padapter) 
 {
 	uint	status = _SUCCESS;
 
@@ -105,7 +105,7 @@ uint	 rtw_hal_init(_adapter *padapter)
 		goto fail;
 	}
 #endif
-
+	
 #ifdef CONFIG_DUALMAC_CONCURRENT
 	// before init mac0, driver must init mac1 first to avoid usb rx error.
 	if((padapter->pbuddy_adapter != NULL) && (padapter->DualMacConcurrent == _TRUE)
@@ -129,7 +129,7 @@ uint	 rtw_hal_init(_adapter *padapter)
 				padapter->pbuddy_adapter->hw_init_completed = _TRUE;
 			}
 			else{
-				padapter->pbuddy_adapter->hw_init_completed = _FALSE;
+			 	padapter->pbuddy_adapter->hw_init_completed = _FALSE;
 				RT_TRACE(_module_hal_init_c_,_drv_err_,("rtw_hal_init: hal__init fail(pbuddy_adapter)\n"));
 				goto fail;
 			}
@@ -169,7 +169,7 @@ uint	 rtw_hal_init(_adapter *padapter)
 		padapter->hw_init_completed = _TRUE;
 	}
 	else{
-		padapter->hw_init_completed = _FALSE;
+	 	padapter->hw_init_completed = _FALSE;
 		RT_TRACE(_module_hal_init_c_,_drv_err_,("rtw_hal_init: hal__init fail\n"));
 		goto fail;
 	}
@@ -190,12 +190,12 @@ fail:
 	RT_TRACE(_module_hal_init_c_,_drv_err_,("-rtl871x_hal_init:status=0x%x\n",status));
 
 	return status;
-}
+}	
 
 uint rtw_hal_deinit(_adapter *padapter)
 {
 	uint	status = _SUCCESS;
-
+	
 _func_enter_;
 
 	status = padapter->HalFunc.hal_deinit(padapter);
@@ -207,9 +207,9 @@ _func_enter_;
 	{
 		RT_TRACE(_module_hal_init_c_,_drv_err_,("\n rtw_hal_deinit: hal_init fail\n"));
 	}
-
+	
 _func_exit_;
-
+	
 	return status;
 }
 
@@ -226,54 +226,54 @@ void rtw_hal_get_hwreg(_adapter *padapter, u8 variable, u8 *val)
 }
 
 u8 rtw_hal_set_def_var(_adapter *padapter, HAL_DEF_VARIABLE eVariable, PVOID pValue)
-{
+{	
 	if(padapter->HalFunc.SetHalDefVarHandler)
 		return padapter->HalFunc.SetHalDefVarHandler(padapter,eVariable,pValue);
 	return _FAIL;
 }
 
 u8 rtw_hal_get_def_var(_adapter *padapter, HAL_DEF_VARIABLE eVariable, PVOID pValue)
-{
+{	
 	if(padapter->HalFunc.GetHalDefVarHandler)
 		return padapter->HalFunc.GetHalDefVarHandler(padapter,eVariable,pValue);
-	return _FAIL;
+	return _FAIL;	
 }
 
 void rtw_hal_enable_interrupt(_adapter *padapter)
 {
 	if (padapter->HalFunc.enable_interrupt)
 		padapter->HalFunc.enable_interrupt(padapter);
-	else
+	else 
 		DBG_871X("%s: HalFunc.enable_interrupt is NULL!\n", __FUNCTION__);
-
+	
 }
 void rtw_hal_disable_interrupt(_adapter *padapter)
 {
 	if (padapter->HalFunc.disable_interrupt)
 		padapter->HalFunc.disable_interrupt(padapter);
-	else
+	else 
 		DBG_871X("%s: HalFunc.disable_interrupt is NULL!\n", __FUNCTION__);
-
+	
 }
 
 u32	rtw_hal_inirp_init(_adapter *padapter)
 {
 	u32 rst = _FAIL;
-	if(padapter->HalFunc.inirp_init)
-		rst = padapter->HalFunc.inirp_init(padapter);
-	else
-		DBG_871X(" %s HalFunc.inirp_init is NULL!!!\n",__FUNCTION__);
+	if(padapter->HalFunc.inirp_init)	
+		rst = padapter->HalFunc.inirp_init(padapter);	
+	else		
+		DBG_871X(" %s HalFunc.inirp_init is NULL!!!\n",__FUNCTION__);		
 	return rst;
 }
-
+	
 u32	rtw_hal_inirp_deinit(_adapter *padapter)
 {
-
+	
 	if(padapter->HalFunc.inirp_deinit)
 		return padapter->HalFunc.inirp_deinit(padapter);
 
 	return _FAIL;
-
+		
 }
 
 u8 rtw_hal_intf_ps_func(_adapter *padapter,HAL_INTF_PS_FUNC efunc_id, u8* val)
@@ -288,7 +288,7 @@ s32	rtw_hal_xmitframe_enqueue(_adapter *padapter, struct xmit_frame *pxmitframe)
 	if(padapter->HalFunc.hal_xmitframe_enqueue)
 		return padapter->HalFunc.hal_xmitframe_enqueue(padapter, pxmitframe);
 
-	return _FALSE;
+	return _FALSE;	
 }
 
 s32 rtw_hal_xmit(_adapter *padapter, struct xmit_frame *pxmitframe)
@@ -304,7 +304,7 @@ s32	rtw_hal_mgnt_xmit(_adapter *padapter, struct xmit_frame *pmgntframe)
 	s32 ret = _FAIL;
 	unsigned char	*pframe;
 	struct rtw_ieee80211_hdr	*pwlanhdr;
-
+	
 	pframe = (u8 *)(pmgntframe->buf_addr) + TXDESC_OFFSET;
 	pwlanhdr = (struct rtw_ieee80211_hdr *)pframe;
 	_rtw_memcpy(pmgntframe->attrib.ra, pwlanhdr->addr1, ETH_ALEN);
@@ -316,7 +316,7 @@ s32	rtw_hal_mgnt_xmit(_adapter *padapter, struct xmit_frame *pmgntframe)
 		{
 			pmgntframe->attrib.encrypt = _BIP_;
 			//pmgntframe->attrib.bswenc = _TRUE;
-		}
+		}	
 		else
 		{
 			pmgntframe->attrib.encrypt = _AES_;
@@ -325,7 +325,7 @@ s32	rtw_hal_mgnt_xmit(_adapter *padapter, struct xmit_frame *pmgntframe)
 		rtw_mgmt_xmitframe_coalesce(padapter, pmgntframe->pkt, pmgntframe);
 	}
 #endif //CONFIG_IEEE80211W
-
+	
 	if(padapter->HalFunc.mgnt_xmit)
 		ret = padapter->HalFunc.mgnt_xmit(padapter, pmgntframe);
 	return ret;
@@ -353,7 +353,7 @@ s32 rtw_hal_init_recv_priv(_adapter *padapter)
 }
 
 void rtw_hal_free_recv_priv(_adapter *padapter)
-{
+{	
 	if(padapter->HalFunc.free_recv_priv)
 		padapter->HalFunc.free_recv_priv(padapter);
 }
@@ -543,3 +543,4 @@ c2h_id_filter rtw_hal_c2h_id_filter_ccx(_adapter *adapter)
 {
 	return adapter->HalFunc.c2h_id_filter_ccx;
 }
+

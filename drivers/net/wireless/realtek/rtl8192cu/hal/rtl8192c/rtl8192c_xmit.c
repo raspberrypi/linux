@@ -27,7 +27,7 @@
 #ifdef CONFIG_XMIT_ACK
 void dump_txrpt_ccx_8192c(void *buf)
 {
-	struct txrpt_ccx_8192c *txrpt_ccx = buf;
+	struct txrpt_ccx_8192c *txrpt_ccx = buf; 
 
 	DBG_871X("%s:\n"
 		"retry_cnt:%u, rsvd_0:%u, rts_retry_cnt:%u, rsvd_1:%u\n"
@@ -46,7 +46,7 @@ void dump_txrpt_ccx_8192c(void *buf)
 
 void handle_txrpt_ccx_8192c(_adapter *adapter, void *buf)
 {
-	struct txrpt_ccx_8192c *txrpt_ccx = buf;
+	struct txrpt_ccx_8192c *txrpt_ccx = buf; 
 
 	#ifdef DBG_CCX
 	dump_txrpt_ccx_8192c(buf);
@@ -60,3 +60,4 @@ void handle_txrpt_ccx_8192c(_adapter *adapter, void *buf)
 	}
 }
 #endif //CONFIG_XMIT_ACK
+
