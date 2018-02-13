@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -17,13 +17,13 @@
  *
  *
  ******************************************************************************/
-
+ 
 #ifndef _LINUX_IF_ETHER_H
 #define _LINUX_IF_ETHER_H
 
 /*
  *	IEEE 802.3 Ethernet magic constants.  The frame sizes omit the preamble
- *	and FCS/CRC (frame check sequence).
+ *	and FCS/CRC (frame check sequence). 
  */
 
 #define ETH_ALEN	6		/* Octets in one ethernet addr	 */
@@ -69,7 +69,7 @@
 /*
  *	Non DIX types. Won't clash for 1500 types.
  */
-
+ 
 #define ETH_P_802_3	0x0001		/* Dummy type for 802.3 frames  */
 #define ETH_P_AX25	0x0002		/* Dummy protocol id for AX.25  */
 #define ETH_P_ALL	0x0003		/* Every packet (be careful!!!) */
@@ -89,8 +89,8 @@
 /*
  *	This is an Ethernet frame header.
  */
-
-struct ethhdr
+ 
+struct ethhdr 
 {
 	unsigned char	h_dest[ETH_ALEN];	/* destination eth addr	*/
 	unsigned char	h_source[ETH_ALEN];	/* source ether addr	*/

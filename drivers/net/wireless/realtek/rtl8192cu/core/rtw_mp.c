@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -62,7 +62,7 @@ u32 read_macreg(_adapter *padapter, u32 addr, u32 sz)
 	}
 
 	return val;
-
+	
 }
 
 void write_macreg(_adapter *padapter, u32 addr, u32 val, u32 sz)
@@ -835,7 +835,7 @@ void	SetAntennaPathPower(PADAPTER pAdapter)
 {
 	Hal_SetAntennaPathPower(pAdapter);
 }
-
+	
 void SetTxPower(PADAPTER pAdapter)
 {
 	Hal_SetTxPower(pAdapter);
@@ -1023,7 +1023,7 @@ exit:
 }
 
 void fill_txdesc_for_mp(PADAPTER padapter, struct tx_desc *ptxdesc)
-{
+{		
 	struct mp_priv *pmp_priv = &padapter->mppriv;
 	_rtw_memcpy(ptxdesc, &(pmp_priv->tx.desc), TXDESC_SIZE);
 }
@@ -1177,9 +1177,9 @@ void SetPacketRx(PADAPTER pAdapter, u8 bStartRx)
 	if(bStartRx)
 	{
 		pHalData->ReceiveConfig = AAP | APM | AM | AB | APP_ICV | ADF | AMF | HTC_LOC_CTRL | APP_MIC | APP_PHYSTS;
-
+	
 		pHalData->ReceiveConfig |= ACRC32;
-
+	
 		rtw_write32(pAdapter, REG_RCR, pHalData->ReceiveConfig);
 
 		// Accept all data frames
@@ -1276,7 +1276,7 @@ u32 mp_query_psd(PADAPTER pAdapter, u8 *data)
 {
 	u32 i, psd_pts=0, psd_start=0, psd_stop=0;
 	u32 psd_data=0;
-
+	
 #ifdef PLATFORM_LINUX
 	if (!netif_running(pAdapter->pnetdev)) {
 		RT_TRACE(_module_mp_, _drv_warning_, ("mp_query_psd: Fail! interface not opened!\n"));
@@ -1292,7 +1292,7 @@ u32 mp_query_psd(PADAPTER pAdapter, u8 *data)
 	if (strlen(data) == 0) { //default value
 		psd_pts = 128;
 		psd_start = 64;
-		psd_stop = 128;
+		psd_stop = 128;   
 	} else {
 		sscanf(data, "pts=%d,start=%d,stop=%d", &psd_pts, &psd_start, &psd_stop);
 	}
@@ -1321,3 +1321,4 @@ u32 mp_query_psd(PADAPTER pAdapter, u8 *data)
 }
 
 #endif
+
