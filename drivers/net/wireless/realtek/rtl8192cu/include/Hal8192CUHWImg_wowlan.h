@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -31,3 +31,4 @@ extern u8 Rtl8192CUFwUMCACutWWImgArray[UMCACutWWImgArrayLength];
 extern u8 Rtl8192CUFwUMCBCutWWImgArray[UMCBCutWWImgArrayLength];
 
 #endif //__INC_HAL8192CU_FW_IMG_WOWLAN_H
+

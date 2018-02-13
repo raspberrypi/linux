@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -49,7 +49,7 @@ typedef struct _MP_REG_ENTRY
 	u8			Type;		// NdisParameterInteger/NdisParameterHexInteger/NdisParameterStringle/NdisParameterMultiString
 	uint			FieldOffset;	// offset to MP_ADAPTER field
 	uint			FieldSize;	// size (in bytes) of the field
-
+	
 #ifdef UNDER_AMD64
 	u64			Default;
 #else

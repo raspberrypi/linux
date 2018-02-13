@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2012 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -38,7 +38,7 @@ void free_mlme_ap_info(_adapter *padapter);
 void rtw_add_bcn_ie(_adapter *padapter, WLAN_BSSID_EX *pnetwork, u8 index, u8 *data, u8 len);
 void rtw_remove_bcn_ie(_adapter *padapter, WLAN_BSSID_EX *pnetwork, u8 index);
 void update_beacon(_adapter *padapter, u8 ie_id, u8 *oui, u8 tx);
-void expire_timeout_chk(_adapter *padapter);
+void expire_timeout_chk(_adapter *padapter);	
 void update_sta_info_apmode(_adapter *padapter, struct sta_info *psta);
 int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len);
 void rtw_ap_restore_network(_adapter *padapter);
@@ -61,3 +61,4 @@ void stop_ap_mode(_adapter *padapter);
 #endif //end of CONFIG_AP_MODE
 
 #endif
+
