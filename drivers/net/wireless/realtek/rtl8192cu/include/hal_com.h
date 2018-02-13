@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -25,7 +25,7 @@
 #define RATE_2M						BIT(1)
 #define RATE_5_5M					BIT(2)
 #define RATE_11M					BIT(3)
-//OFDM
+//OFDM 
 #define RATE_6M						BIT(4)
 #define RATE_9M						BIT(5)
 #define RATE_12M					BIT(6)
@@ -54,15 +54,15 @@
 #define RATE_MCS15					BIT(27)
 
 // ALL CCK Rate
-#define	RATE_ALL_CCK				RATR_1M|RATR_2M|RATR_55M|RATR_11M
+#define	RATE_ALL_CCK				RATR_1M|RATR_2M|RATR_55M|RATR_11M 
 #define	RATE_ALL_OFDM_AG			RATR_6M|RATR_9M|RATR_12M|RATR_18M|RATR_24M|\
-									RATR_36M|RATR_48M|RATR_54M
+									RATR_36M|RATR_48M|RATR_54M	
 #define	RATE_ALL_OFDM_1SS			RATR_MCS0|RATR_MCS1|RATR_MCS2|RATR_MCS3 |\
-									RATR_MCS4|RATR_MCS5|RATR_MCS6	|RATR_MCS7
+									RATR_MCS4|RATR_MCS5|RATR_MCS6	|RATR_MCS7	
 #define	RATE_ALL_OFDM_2SS			RATR_MCS8|RATR_MCS9	|RATR_MCS10|RATR_MCS11|\
 									RATR_MCS12|RATR_MCS13|RATR_MCS14|RATR_MCS15
 
-/*------------------------------ Tx Desc definition Macro ------------------------*/
+/*------------------------------ Tx Desc definition Macro ------------------------*/ 
 //#pragma mark -- Tx Desc related definition. --
 //----------------------------------------------------------------------------
 //-----------------------------------------------------------
@@ -143,3 +143,4 @@ void c2h_evt_clear(_adapter *adapter);
 s32 c2h_evt_read(_adapter *adapter, u8 *buf);
 
 #endif //__HAL_COMMON_H__
+

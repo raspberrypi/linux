@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2012 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -43,7 +43,7 @@ enum _CHIP_TYPE {
 	RTL8188C_8192C,
 	RTL8192D,
 	RTL8723A,
-	RTL8188E,
+	RTL8188E,	
 	MAX_CHIP_TYPE
 };
 
@@ -98,11 +98,11 @@ typedef enum _HW_VARIABLES{
 	HW_VAR_TDLS_WRCR,
 	HW_VAR_TDLS_INIT_CH_SEN,
 	HW_VAR_TDLS_RS_RCR,
-	HW_VAR_TDLS_DONE_CH_SEN,
+	HW_VAR_TDLS_DONE_CH_SEN,	
 	HW_VAR_INITIAL_GAIN,
 	HW_VAR_TRIGGER_GPIO_0,
 	HW_VAR_BT_SET_COEXIST,
-	HW_VAR_BT_ISSUE_DELBA,
+	HW_VAR_BT_ISSUE_DELBA,	
 	HW_VAR_CURRENT_ANTENNA,
 	HW_VAR_ANTENNA_DIVERSITY_LINK,
 	HW_VAR_ANTENNA_DIVERSITY_SELECT,
@@ -212,10 +212,10 @@ struct hal_ops {
 	int 	(*Efuse_PgPacketRead)(PADAPTER pAdapter, u8 offset, u8 *data, BOOLEAN bPseudoTest);
 	int 	(*Efuse_PgPacketWrite)(PADAPTER pAdapter, u8 offset, u8 word_en, u8 *data, BOOLEAN bPseudoTest);
 	u8	(*Efuse_WordEnableDataWrite)(PADAPTER pAdapter, u16 efuse_addr, u8 word_en, u8 *data, BOOLEAN bPseudoTest);
-
+	
 #ifdef DBG_CONFIG_ERROR_DETECT
 	void (*sreset_init_value)(_adapter *padapter);
-	void (*sreset_reset_value)(_adapter *padapter);
+	void (*sreset_reset_value)(_adapter *padapter);		
 	void (*silentreset)(_adapter *padapter);
 	void (*sreset_xmit_status_check)(_adapter *padapter);
 	void (*sreset_linked_status_check) (_adapter *padapter);
@@ -429,3 +429,4 @@ s32 rtw_hal_c2h_handler(_adapter *adapter, struct c2h_evt_hdr *c2h_evt);
 c2h_id_filter rtw_hal_c2h_id_filter_ccx(_adapter *adapter);
 
 #endif //__HAL_INTF_H__
+

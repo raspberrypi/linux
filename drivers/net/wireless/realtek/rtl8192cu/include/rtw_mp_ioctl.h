@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -528,7 +528,7 @@ enum RTL871X_MP_IOCTL_SUBCODE {
 	GEN_MP_IOCTL_SUBCODE(TRIGGER_GPIO),
 	GEN_MP_IOCTL_SUBCODE(SET_DM_BT),		/*35*/
 	GEN_MP_IOCTL_SUBCODE(DEL_BA),			/*36*/
-	GEN_MP_IOCTL_SUBCODE(GET_WIFI_STATUS),	/*37*/
+	GEN_MP_IOCTL_SUBCODE(GET_WIFI_STATUS),	/*37*/	
 	MAX_MP_IOCTL_SUBCODE,
 };
 
@@ -593,3 +593,4 @@ extern struct mp_ioctl_handler mp_ioctl_hdl[];
 #endif /* _RTW_MP_IOCTL_C_ */
 
 #endif
+

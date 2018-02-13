@@ -279,6 +279,7 @@ static int	rtw_proc_cnt = 0;
 
 void rtw_proc_init_one(struct net_device *dev)
 {
+#if(LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	struct proc_dir_entry *dir_dev = NULL;
 	struct proc_dir_entry *entry=NULL;
 	_adapter	*padapter = rtw_netdev_priv(dev);
@@ -647,6 +648,9 @@ void rtw_proc_init_one(struct net_device *dev)
 	entry->write_proc = proc_set_dm_adaptivity;
 #endif /* CONFIG_DM_ADAPTIVITY */
 
+#else /* kernel version < 3.10 */
+		DBG_871X(KERN_ERR "Unable to create /proc entry in this kernel version\n");
+#endif
 }
 
 void rtw_proc_remove_one(struct net_device *dev)
@@ -787,8 +791,8 @@ _func_enter_;
 	registry_par->radio_enable = (u8)rtw_radio_enable;
 	registry_par->long_retry_lmt = (u8)rtw_long_retry_lmt;
 	registry_par->short_retry_lmt = (u8)rtw_short_retry_lmt;
-	registry_par->busy_thresh = (u16)rtw_busy_thresh;
-	//registry_par->qos_enable = (u8)rtw_qos_enable;
+  	registry_par->busy_thresh = (u16)rtw_busy_thresh;
+  	//registry_par->qos_enable = (u8)rtw_qos_enable;
 	registry_par->ack_policy = (u8)rtw_ack_policy;
 	registry_par->mp_mode = (u8)rtw_mp_mode;
 	registry_par->software_encrypt = (u8)rtw_software_encrypt;
@@ -945,14 +949,13 @@ unsigned int rtw_classify8021d(struct sk_buff *skb)
 	return dscp >> 5;
 }
 
-static u16 rtw_select_queue(struct net_device *dev, struct sk_buff *skb
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
-				, void *accel_priv
-#endif
 #if (LINUX_VERSION_CODE>=KERNEL_VERSION(3,14,0))
-			    , select_queue_fallback_t fallback
+static u16 rtw_select_queue(struct net_device *dev, struct sk_buff *skb,
+			    void *accel_priv,
+			    select_queue_fallback_t fallback)
+#else
+static u16 rtw_select_queue(struct net_device *dev, struct sk_buff *skb)
 #endif
-)
 {
 	_adapter	*padapter = rtw_netdev_priv(dev);
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
@@ -1120,7 +1123,7 @@ struct net_device *rtw_init_netdev(_adapter *old_padapter)
 #endif
 
 	//step 2.
-	loadparam(padapter, pnetdev);
+   	loadparam(padapter, pnetdev);
 
 	return pnetdev;
 
@@ -1671,7 +1674,7 @@ int _netdev_vir_if_open(struct net_device *pnetdev)
 		int i;
 
 		padapter->bDriverStopped = _FALSE;
-		padapter->bSurpriseRemoved = _FALSE;
+	 	padapter->bSurpriseRemoved = _FALSE;
 		padapter->bCardDisableWOHSM = _FALSE;
 
 		_rtw_memcpy(padapter->HalData, primary_padapter->HalData, padapter->hal_data_sz);
@@ -1692,6 +1695,9 @@ int _netdev_vir_if_open(struct net_device *pnetdev)
 
 		padapter->bup = _TRUE;
 		padapter->hw_init_completed = _TRUE;
+
+		rtw_start_mbssid_cam(padapter);//start mbssid_cam after bup = _TRUE & hw_init_completed = _TRUE
+
 	}
 
 	padapter->net_closed = _FALSE;
@@ -2031,7 +2037,7 @@ int _netdev_if2_open(struct net_device *pnetdev)
 		int i;
 
 		padapter->bDriverStopped = _FALSE;
-		padapter->bSurpriseRemoved = _FALSE;
+	 	padapter->bSurpriseRemoved = _FALSE;
 		padapter->bCardDisableWOHSM = _FALSE;
 
 		_rtw_memcpy(padapter->HalData, primary_padapter->HalData, padapter->hal_data_sz);
@@ -2589,7 +2595,7 @@ int  ips_netdrv_open(_adapter *padapter)
 	}
 
 	rtw_set_pwr_state_check_timer(&padapter->pwrctrlpriv);
-	_set_timer(&padapter->mlmepriv.dynamic_chk_timer,5000);
+  	_set_timer(&padapter->mlmepriv.dynamic_chk_timer,5000);
 
 	 return _SUCCESS;
 
@@ -2612,7 +2618,7 @@ int rtw_ips_pwr_up(_adapter *padapter)
 
 	rtw_led_control(padapter, LED_CTL_NO_LINK);
 
-	DBG_871X("<===  rtw_ips_pwr_up.............. in %dms\n", rtw_get_passing_time_ms(start_time));
+ 	DBG_871X("<===  rtw_ips_pwr_up.............. in %dms\n", rtw_get_passing_time_ms(start_time));
 	return result;
 
 }
@@ -2753,4 +2759,6 @@ void rtw_ndev_destructor(struct net_device *ndev)
 	if (ndev->ieee80211_ptr)
 		rtw_mfree((u8 *)ndev->ieee80211_ptr, sizeof(struct wireless_dev));
 #endif
+	free_netdev(ndev);
 }
+
