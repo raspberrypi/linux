@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -71,7 +71,7 @@
 #define OID_RT_PRO_READ_EEPROM				0xFF818022
 #define OID_RT_PRO_RESET_TX_PACKET_SENT			0xFF818023
 #define OID_RT_PRO_QUERY_TX_PACKET_SENT			0xFF818024
-#define OID_RT_PRO_RESET_RX_PACKET_RECEIVED		0xFF818025
+#define OID_RT_PRO_RESET_RX_PACKET_RECEIVED		0xFF818025 
 #define OID_RT_PRO_QUERY_RX_PACKET_RECEIVED		0xFF818026
 #define OID_RT_PRO_QUERY_RX_PACKET_CRC32_ERROR		0xFF818027
 #define OID_RT_PRO_QUERY_CURRENT_ADDRESS		0xFF818028
@@ -84,7 +84,7 @@
 #define OID_RT_PRO_SET_MODULATION			0xFF81802F
 //
 
-//Sean
+//Sean		
 #define OID_RT_DRIVER_OPTION				0xFF818080
 #define OID_RT_RF_OFF					0xFF818081
 #define OID_RT_AUTH_STATUS				0xFF818082
@@ -122,7 +122,7 @@
 #define OID_RT_SET_CHANNEL				0xFF010182
 #define OID_RT_SET_SNIFFER_MODE                 	0xFF010183
 #define OID_RT_GET_SIGNAL_QUALITY               	0xFF010184
-#define OID_RT_GET_SMALL_PACKET_CRC			0xFF010185
+#define OID_RT_GET_SMALL_PACKET_CRC			0xFF010185		
 #define OID_RT_GET_MIDDLE_PACKET_CRC			0xFF010186
 #define OID_RT_GET_LARGE_PACKET_CRC			0xFF010187
 #define OID_RT_GET_TX_RETRY				0xFF010188
@@ -239,7 +239,7 @@
 #define OID_RT_PRO_READ_REGISTER			0xFF871101 //Q
 #define OID_RT_PRO_WRITE_REGISTER			0xFF871102 //S
 
-#define OID_RT_PRO_BURST_READ_REGISTER			0xFF871103 //Q
+#define OID_RT_PRO_BURST_READ_REGISTER			0xFF871103 //Q		
 #define OID_RT_PRO_BURST_WRITE_REGISTER 		0xFF871104 //S
 
 #define OID_RT_PRO_WRITE_TXCMD				0xFF871105 //S
@@ -283,9 +283,9 @@
 #define OID_RT_PRO_READ_TSSI				0xFF871123//S
 #define OID_RT_PRO_SET_POWER_TRACKING			0xFF871124//S
 
-
+ 
 #define OID_RT_PRO_QRY_PWRSTATE				0xFF871150 //Q
-#define OID_RT_PRO_SET_PWRSTATE				0xFF871151 //S
+#define OID_RT_PRO_SET_PWRSTATE				0xFF871151 //S 
 
 //Method 2 , using workitem
 #define OID_RT_SET_READ_REG				0xFF871181 //S
