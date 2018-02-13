@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -80,12 +80,12 @@ CloseTransferHandle(
 
     // This assert may fail on suprise remove,
     // but should pass during normal I/O.
-    // ASSERT( pUsbFuncs->lpIsTransferComplete(hTransfer) );
+    // ASSERT( pUsbFuncs->lpIsTransferComplete(hTransfer) ); 
 
     // CloseTransfer aborts any pending transfers
     if ( !pUsbFuncs->lpCloseTransfer(hTransfer) ) {
-
-	RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("*** CloseTransfer ERROR:%d ***\n", GetLastError()));
+     
+	RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("*** CloseTransfer ERROR:%d ***\n", GetLastError()));	
         bRc = FALSE;
     }
 
@@ -106,11 +106,11 @@ GetTransferStatus(
 
     if ( pUsbFuncs->lpGetTransferStatus(hTransfer, pBytesTransferred, pUsbError) ) {
         if ( USB_NO_ERROR != *pUsbError ) {
-		RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("*** CloseTransfer ERROR:%d ***\n", GetLastError()));
-            RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("GetTransferStatus (BytesTransferred:%d, UsbError:0x%x)\n", pBytesTransferred?*pBytesTransferred:-1, pUsbError?*pUsbError:-1 ));
+		RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("*** CloseTransfer ERROR:%d ***\n", GetLastError()));		
+            RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("GetTransferStatus (BytesTransferred:%d, UsbError:0x%x)\n", pBytesTransferred?*pBytesTransferred:-1, pUsbError?*pUsbError:-1 )); 
         }
     } else {
-        RT_TRACE( _module_hci_ops_os_c_, _drv_err_,("*** GetTransferStatus ERROR:%d ***\n", GetLastError()));
+        RT_TRACE( _module_hci_ops_os_c_, _drv_err_,("*** GetTransferStatus ERROR:%d ***\n", GetLastError())); 
         *pUsbError = USB_CANCELED_ERROR;
         bRc = FALSE;
     }
@@ -157,7 +157,7 @@ _func_enter_;
     }
 #endif
 
-	if(adapter->bDriverStopped || adapter->bSurpriseRemoved)
+	if(adapter->bDriverStopped || adapter->bSurpriseRemoved) 
 	{
 		RT_TRACE(_module_hci_ops_os_c_, _drv_info_,("usb_read_port:( padapter->bDriverStopped ||padapter->bSurpriseRemoved)!!!\n"));
 		return _FALSE;
@@ -168,7 +168,7 @@ _func_enter_;
 
 		// get a recv buffer
 		rtl8192cu_init_recvbuf(adapter, precvbuf);
-
+	
 
 
 		_rtw_spinlock(&precvpriv->lock);
@@ -179,7 +179,7 @@ _func_enter_;
 
 		//translate DMA FIFO addr to pipehandle
 		hPipe = ffaddr2pipehdl(pdvobj_priv, addr);
-
+		
 
 		RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("usb_read_port(%u)\n", __LINE__));
 
@@ -195,7 +195,7 @@ _func_enter_;
 
 		if(precvbuf->usb_transfer_read_port)
 		{
-
+			
 		//	  GetTransferStatus(usb_funcs_vp, hTransfer, &dwBytesTransferred,&UsbRc);
 
 		//	  CloseTransferHandle(usb_funcs_vp, hTransfer);
@@ -205,7 +205,7 @@ _func_enter_;
 		{
 
 			dwErr = GetLastError();
-			//RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("usb_read_port ERROR : %d\n", dwErr));
+			//RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("usb_read_port ERROR : %d\n", dwErr));		 
 
 		}
 
@@ -217,15 +217,15 @@ _func_enter_;
 		if ( ERROR_SUCCESS != dwErr ) {
 
 			SetLastError(dwErr);
-			RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("usb_read_port ERROR : %d\n", dwErr));
+			RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("usb_read_port ERROR : %d\n", dwErr));	
 		}
-
+	
 		RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("-usb_read_port(%u)\n", __LINE__));
 
 	}
 	else // if(precvbuf !=NULL)
 	{
-
+		
 		RT_TRACE(_module_hci_ops_os_c_,_drv_err_,("usb_read_port:precv_frame ==NULL\n"));
 	}
 
@@ -262,11 +262,11 @@ _func_enter_;
 	_rtw_spinlock_ex(&precvpriv->lock);
 	precvbuf->irp_pending=_FALSE;
 	precvpriv->rx_pending_cnt --;
-	_rtw_spinunlock_ex(&precvpriv->lock);
+	_rtw_spinunlock_ex(&precvpriv->lock);	
 
 
 #if 1
-
+		
 	(*usb_funcs_vp->lpGetTransferStatus)(precvbuf->usb_transfer_read_port, &dwBytesTransferred, &dwErr);
 	fComplete = (*usb_funcs_vp->lpIsTransferComplete)(precvbuf->usb_transfer_read_port);
 	if(fComplete!=_TRUE)
@@ -274,14 +274,14 @@ _func_enter_;
 		RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("usb_read_port_complete CloseTransfer before complete\n"));
 	}
 	(*usb_funcs_vp->lpCloseTransfer)(precvbuf->usb_transfer_read_port);
-
-
+	
+	
 #endif
 
 
 	if(USB_NO_ERROR != dwErr)
 		RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("usb_read_port_complete Fail :%d\n",dwErr));
-
+	
 	{
 
 		if ( dwBytesTransferred > MAX_RECVBUF_SZ || dwBytesTransferred < RXDESC_SIZE )
@@ -290,8 +290,8 @@ _func_enter_;
 				("\n usb_read_port_complete: (pbulkurb->TransferBufferLength > MAX_RECVBUF_SZ) || (pbulkurb->TransferBufferLength < RXDESC_SIZE): %d\n",dwBytesTransferred));
 			rtw_read_port(adapter, precvpriv->ff_hwaddr, 0, (unsigned char *)precvbuf);
 
-	    //usb_read_port(pintfhdl, 0, 0, (unsigned char *)precvframe);
-	}
+    	    //usb_read_port(pintfhdl, 0, 0, (unsigned char *)precvframe);
+    	}
 		else
 		{
 			precvbuf->transfer_len = dwBytesTransferred;
@@ -310,7 +310,7 @@ _func_enter_;
 			{
 				if(recvbuf2recvframe(adapter, precvbuf)==_FAIL)//rx packets
 				{
-					//precvbuf->reuse = _TRUE;
+					//precvbuf->reuse = _TRUE;		
 					rtw_read_port(adapter, precvpriv->ff_hwaddr, 0, (unsigned char *)precvbuf);
 				}
 			}
@@ -337,10 +337,10 @@ DWORD usb_write_mem_complete( LPVOID Context )
 	_irqL irqL;
 	_list	*head;
 	_list *plist;
-	struct io_req	*pio_req;
+	struct io_req	*pio_req;	
 	struct io_queue *pio_q = (struct io_queue *) Context;
-	struct intf_hdl *pintf = &(pio_q->intf);
-	struct intf_priv *pintfpriv = pintf->pintfpriv;
+	struct intf_hdl *pintf = &(pio_q->intf);	
+	struct intf_priv *pintfpriv = pintf->pintfpriv;	
 	_adapter *padapter = (_adapter *)pintf->adapter;
 	NTSTATUS status = STATUS_SUCCESS;
     struct xmit_priv * pxmitpriv	= &padapter->xmitpriv;
@@ -352,18 +352,18 @@ DWORD usb_write_mem_complete( LPVOID Context )
 
 	// get the head from the processing io_queue
 	head = &(pio_q->processing);
-
+	
 _func_enter_;
 	RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("+usb_write_mem_complete %p\n", Context));
 
 #if 1
 	_enter_critical_bh(&(pio_q->lock), &irqL);
+	
 
-
-	//free irp in processing list...
+	//free irp in processing list...	
 	while(rtw_is_list_empty(head) != _TRUE)
 	{
-		plist = get_next(head);
+		plist = get_next(head);	
 		rtw_list_delete(plist);
 		pio_req = LIST_CONTAINOR(plist, struct io_req, list);
 		_rtw_up_sema(&pio_req->sema);
@@ -374,7 +374,7 @@ _func_enter_;
 
 
 #if 1
-
+		
 	(*usb_funcs_vp->lpGetTransferStatus)(pio_req->usb_transfer_write_mem , &dwBytes, &dwErr);
 	fComplete = (*usb_funcs_vp->lpIsTransferComplete)(pio_req->usb_transfer_write_mem);
 	if(fComplete!=_TRUE)
@@ -382,9 +382,9 @@ _func_enter_;
 		RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("usb_write_mem_complete CloseTransfer before complete\n"));
 	}
 	(*usb_funcs_vp->lpCloseTransfer)(pio_req->usb_transfer_write_mem );
-
+	
 #endif
-
+	
 	RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("-usb_write_mem_complete\n"));
 
 _func_exit_;
@@ -413,9 +413,9 @@ void usb_write_mem(struct intf_hdl *pintfhdl, u32 addr, u32 cnt, u8 *wmem)
 	struct intf_priv 	*pintfpriv	= pintfhdl->pintfpriv;
 	struct dvobj_priv   * pdvobj_priv   = (struct dvobj_priv*)pintfpriv->intf_dev;
 
-
+	 
     struct xmit_priv	*pxmitpriv	= &adapter->xmitpriv;
-	struct io_queue 	*pio_queue 	= (struct io_queue *)adapter->pio_queue;
+	struct io_queue 	*pio_queue 	= (struct io_queue *)adapter->pio_queue; 
 
 	LPCUSB_FUNCS usb_funcs_vp = pdvobj_priv->usb_extension._lpUsbFuncs;
 
@@ -425,34 +425,34 @@ _func_enter_;
 
 	// fetch a io_request from the io_queue
 	pio_req = alloc_ioreq(pio_queue);
-
+		
 	if ((pio_req == NULL)||(adapter->bSurpriseRemoved))
 	{
 		RT_TRACE(_module_hci_ops_os_c_,_drv_err_,("async_irp_write32 : pio_req =0x%x adapter->bSurpriseRemoved=0x%x",pio_req,adapter->bSurpriseRemoved ));
 		goto exit;
-	}
+	}	
 
 	_enter_critical_bh(&(pio_queue->lock), &irqL);
 
 
 	// insert the io_request into processing io_queue
 	rtw_list_insert_tail(&(pio_req->list),&(pio_queue->processing));
-
-
-	if((adapter->bDriverStopped) || (adapter->bSurpriseRemoved) ||(adapter->pwrctrlpriv.pnp_bstop_trx))
+	
+	
+	if((adapter->bDriverStopped) || (adapter->bSurpriseRemoved) ||(adapter->pwrctrlpriv.pnp_bstop_trx)) 
 	{
 		RT_TRACE(_module_hci_ops_os_c_,_drv_err_,("\npadapter->pwrctrlpriv.pnp_bstop_trx==_TRUE\n"));
 		goto exit;
 	}
-
+	
 	//translate DMA FIFO addr to pipehandle
-	hPipe = ffaddr2pipehdl(pdvobj_priv, addr);
+	hPipe = ffaddr2pipehdl(pdvobj_priv, addr);	
 
 	RT_TRACE( _module_hci_ops_os_c_, _drv_info_,("usb_write_mem(%u)\n",__LINE__));
 
 	pio_req->usb_transfer_write_mem = (*usb_funcs_vp->lpIssueBulkTransfer)(
 		hPipe,
-		usb_write_mem_complete,
+		usb_write_mem_complete, 
 		pio_queue,
 		USB_OUT_TRANSFER,
 		cnt,
@@ -474,24 +474,24 @@ _func_enter_;
 		}
 		else
 		{
-			RT_TRACE( _module_hci_ops_os_c_, _drv_err_,
-				("usb_write_mem not yet finished %X\n",
+			RT_TRACE( _module_hci_ops_os_c_, _drv_err_, 
+				("usb_write_mem not yet finished %X\n", 
 				pio_req->usb_transfer_write_mem));
 			rtw_msleep_os(10);
 		}
-
+		
 	}
 
 #endif
 
 
-//	_rtw_down_sema(&pio_req->sema);
+//	_rtw_down_sema(&pio_req->sema);	
 
 	RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("-usb_write_mem(%X)\n",pio_req->usb_transfer_write_mem));
 
 	_exit_critical_bh(&(pio_queue->lock), &irqL);
 
-	_rtw_down_sema(&pio_req->sema);
+	_rtw_down_sema(&pio_req->sema); 
 	free_ioreq(pio_req, pio_queue);
 
 exit:
@@ -507,105 +507,105 @@ USB_PIPE ffaddr2pipehdl(struct dvobj_priv *pNdisCEDvice, u32 addr)
 	USB_PIPE	PipeHandle = NULL;
 	_adapter	*padapter = pNdisCEDvice->padapter;
 
-
+	
 	if(pNdisCEDvice->nr_endpoint == 11)
-	{
+	{		
 		switch(addr)
-		{
-			case RTL8712_DMA_BEQ:
-				PipeHandle= padapter->halpriv.pipehdls_r8712[3] ;
+		{	    
+	     		case RTL8712_DMA_BEQ:
+		 		PipeHandle= padapter->halpriv.pipehdls_r8712[3] ; 
 				break;
-			case RTL8712_DMA_BKQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[4];
+	     		case RTL8712_DMA_BKQ:
+			 	PipeHandle=  padapter->halpriv.pipehdls_r8712[4]; 
 				break;
-			case RTL8712_DMA_VIQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[2];
+	     		case RTL8712_DMA_VIQ:
+		 		PipeHandle=  padapter->halpriv.pipehdls_r8712[2]; 
 				break;
-			case RTL8712_DMA_VOQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[1];
-				break;
-                     case RTL8712_DMA_BCNQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[6];
-				break;
+	    		case RTL8712_DMA_VOQ:
+				PipeHandle=  padapter->halpriv.pipehdls_r8712[1]; 
+				break;					
+                     case RTL8712_DMA_BCNQ:	
+				PipeHandle=  padapter->halpriv.pipehdls_r8712[6]; 
+				break;	 	
 			case RTL8712_DMA_BMCQ:	//HI Queue
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[7];
-				break;
-			case RTL8712_DMA_MGTQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[8];
+				PipeHandle=  padapter->halpriv.pipehdls_r8712[7]; 
+				break;	
+			case RTL8712_DMA_MGTQ:				
+		 		PipeHandle=  padapter->halpriv.pipehdls_r8712[8]; 
 				break;
                      case RTL8712_DMA_RX0FF:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[0];
-				break;
-			case RTL8712_DMA_C2HCMD:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[5];
+				PipeHandle=  padapter->halpriv.pipehdls_r8712[0]; 
+				break;	 	
+			case RTL8712_DMA_C2HCMD:		 	
+				PipeHandle=  padapter->halpriv.pipehdls_r8712[5]; 
 				break;
 			case RTL8712_DMA_H2CCMD:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[9];
-				break;
-
+				PipeHandle=  padapter->halpriv.pipehdls_r8712[9]; 
+				break;	
+				
 		}
 
 	}
 	else if(pNdisCEDvice->nr_endpoint == 6)
 	{
 		switch(addr)
-		{
+		{	    
 			case RTL8712_DMA_BEQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[3];
+		 		PipeHandle=  padapter->halpriv.pipehdls_r8712[3]; 
 				break;
-		case RTL8712_DMA_BKQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[4];
+	     	case RTL8712_DMA_BKQ:
+			 	PipeHandle=  padapter->halpriv.pipehdls_r8712[4]; 
 				break;
-		case RTL8712_DMA_VIQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[2];
+	     	case RTL8712_DMA_VIQ:
+		 		PipeHandle=  padapter->halpriv.pipehdls_r8712[2]; 
 				break;
-		case RTL8712_DMA_VOQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[1];
+	    	case RTL8712_DMA_VOQ:                   		
+		 		PipeHandle=  padapter->halpriv.pipehdls_r8712[1]; 
 				break;
 			case RTL8712_DMA_RX0FF:
-			case RTL8712_DMA_C2HCMD:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[0];
+			case RTL8712_DMA_C2HCMD:		 	
+				PipeHandle=  padapter->halpriv.pipehdls_r8712[0]; 
 				break;
 			case RTL8712_DMA_H2CCMD:
-			case RTL8712_DMA_BCNQ:
-			case RTL8712_DMA_BMCQ:
-			case RTL8712_DMA_MGTQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[5];
-				break;
-
+			case RTL8712_DMA_BCNQ:					
+			case RTL8712_DMA_BMCQ:	
+			case RTL8712_DMA_MGTQ:			
+				PipeHandle=  padapter->halpriv.pipehdls_r8712[5]; 
+				break;	
+				
 		}
 
 	}
 	else if(pNdisCEDvice->nr_endpoint == 4)
 	{
 		switch(addr)
-		{
-		case RTL8712_DMA_BEQ:
-			case RTL8712_DMA_BKQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[2];
+		{	    
+	     	case RTL8712_DMA_BEQ:
+		 	case RTL8712_DMA_BKQ:
+			 	PipeHandle=  padapter->halpriv.pipehdls_r8712[2]; 
 				break;
-		case RTL8712_DMA_VIQ:
-			case RTL8712_DMA_VOQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[1];
+     		case RTL8712_DMA_VIQ:
+		 	case RTL8712_DMA_VOQ:					
+		 		PipeHandle=  padapter->halpriv.pipehdls_r8712[1]; 
 				break;
 			case RTL8712_DMA_RX0FF:
-			case RTL8712_DMA_C2HCMD:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[0];
+			case RTL8712_DMA_C2HCMD:		 	
+				PipeHandle=  padapter->halpriv.pipehdls_r8712[0]; 
 				break;
-			case RTL8712_DMA_H2CCMD:
-			case RTL8712_DMA_BCNQ:
-			case RTL8712_DMA_BMCQ:
-			case RTL8712_DMA_MGTQ:
-				PipeHandle=  padapter->halpriv.pipehdls_r8712[3];
-				break;
+			case RTL8712_DMA_H2CCMD:	
+			case RTL8712_DMA_BCNQ:					
+			case RTL8712_DMA_BMCQ:	
+			case RTL8712_DMA_MGTQ:				
+				PipeHandle=  padapter->halpriv.pipehdls_r8712[3]; 
+				break;	
 		}
-
+	
 	}
 	else
 	{
-	   RT_TRACE(_module_hci_ops_os_c_,_drv_err_,("ffaddr2pipehdl():nr_endpoint=%d error!\n", pNdisCEDvice->nr_endpoint));
+	   RT_TRACE(_module_hci_ops_os_c_,_drv_err_,("ffaddr2pipehdl():nr_endpoint=%d error!\n", pNdisCEDvice->nr_endpoint));	   
 	}
-
+		
 	return PipeHandle;
 
 }
@@ -625,7 +625,7 @@ DWORD usb_bulkout_zero_complete( LPVOID pZeroContext )
 _func_enter_;
 
 #if 1
-
+				
 	(*usb_funcs_vp->lpGetTransferStatus)(pxmitpriv->usb_transfer_write_port, &dwBytesTransferred, &dwErr);
 	fComplete = (*usb_funcs_vp->lpIsTransferComplete)(pxmitpriv->usb_transfer_write_port);
 	if(fComplete!=_TRUE)
@@ -633,35 +633,35 @@ _func_enter_;
 		RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("usb_bulkout_zero_complete CloseTransfer before complete\n"));
 	}
 	(*usb_funcs_vp->lpCloseTransfer)(pxmitpriv->usb_transfer_write_port);
-
+	
 #endif
 
 	if(pcontext)
 	{
 		if(pcontext->pbuf)
-		{
-			rtw_mfree(pcontext->pbuf, sizeof(int));
-		}
+		{			
+			rtw_mfree(pcontext->pbuf, sizeof(int));	
+		}	
 
-		rtw_mfree((u8*)pcontext, sizeof(struct zero_bulkout_context));
-	}
+		rtw_mfree((u8*)pcontext, sizeof(struct zero_bulkout_context));	
+	}	
 
 _func_exit_;
 
 	return ERROR_SUCCESS;
-
+	
 
 }
 
 u32 usb_bulkout_zero(struct intf_hdl *pintfhdl, u32 addr)
-{
+{	
 	struct zero_bulkout_context *pcontext;
 	unsigned char *pbuf;
 	u8 len = 0 ;
 	_adapter *padapter = (_adapter *)pintfhdl->adapter;
-	struct dvobj_priv	*pdvobj = (struct dvobj_priv *)&padapter->dvobjpriv;
+	struct dvobj_priv	*pdvobj = (struct dvobj_priv *)&padapter->dvobjpriv;	
 	struct xmit_priv	* pxmitpriv     = &padapter->xmitpriv;
-
+     
 
 	LPCUSB_FUNCS usb_funcs_vp = pdvobj->usb_extension._lpUsbFuncs;
 
@@ -670,22 +670,22 @@ u32 usb_bulkout_zero(struct intf_hdl *pintfhdl, u32 addr)
 _func_enter_;
 
 	if((padapter->bDriverStopped) || (padapter->bSurpriseRemoved) ||(padapter->pwrctrlpriv.pnp_bstop_trx))
-	{
+	{		
 		return _FAIL;
 	}
 
 
 	pcontext = (struct zero_bulkout_context *)rtw_zmalloc(sizeof(struct zero_bulkout_context));
 
-	pbuf = (unsigned char *)rtw_zmalloc(sizeof(int));
+	pbuf = (unsigned char *)rtw_zmalloc(sizeof(int));	
 
 	len = 0;
-
+	
 	pcontext->pbuf = pbuf;
 	pcontext->purb = NULL;
 	pcontext->pirp = NULL;
 	pcontext->padapter = padapter;
-
+                    
 
 //translate DMA FIFO addr to pipehandle
 	hPipe = ffaddr2pipehdl(pdvobj, addr);
@@ -694,13 +694,13 @@ _func_enter_;
 
 
 	pxmitpriv->usb_transfer_write_port = (*usb_funcs_vp->lpIssueBulkTransfer)(
-						        hPipe, usb_bulkout_zero_complete,
+						        hPipe, usb_bulkout_zero_complete, 
 						        pcontext, USB_OUT_TRANSFER,
-						    len, pbuf, 0);
+					    	    len, pbuf, 0);
 
-
+	
 _func_exit_;
-
+	
 	return _SUCCESS;
 
 }
@@ -731,7 +731,7 @@ _func_enter_;
 
 #if (CONFIG_PWRCTRL == 1)
     if(padapter->pwrctrlpriv.pnp_bstop_trx==_TRUE){
-	RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("\npadapter->pwrctrlpriv.pnp_bstop_trx==_TRUE\n"));
+       	RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("\npadapter->pwrctrlpriv.pnp_bstop_trx==_TRUE\n"));
 
     }
 #endif
@@ -749,17 +749,17 @@ _func_enter_;
 	{
 		if(pxmitframe->bpending[i] == _FALSE)
 		{
-			_rtw_spinlock(&pxmitpriv->lock);
+			_rtw_spinlock(&pxmitpriv->lock);	
 			pxmitpriv->txirp_cnt++;
 			pxmitframe->bpending[i]  = _TRUE;
 			_rtw_spinunlock(&pxmitpriv->lock);
-
+			
 			pxmitframe->sz[i] = cnt;
 			pxmitframe->ac_tag[i] = ac_tag;
 
 			break;
 		}
-	}
+	}	
 
 
 	//TODO:
@@ -771,7 +771,7 @@ _func_enter_;
 		//	cnt=cnt+1;
 			bwritezero = _TRUE;
 
-		}
+		}	
 	}
 	else
 	{
@@ -781,7 +781,7 @@ _func_enter_;
 		//	cnt=cnt+1;
 			bwritezero = _TRUE;
 
-		}
+		}	
 	}
 
 	RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("usb_write_port: pipe handle convert\n"));
@@ -801,9 +801,9 @@ _func_enter_;
 		("usb_write_port(%u): pxmitframe %X  pxmitframe->padapter %X\n",__LINE__, pxmitframe, pxmitframe->padapter));
 
 	pxmitpriv->usb_transfer_write_port = (*usb_funcs_vp->lpIssueBulkTransfer)(
-						        hPipe, usb_write_port_complete,
+						        hPipe, usb_write_port_complete, 
 						        pxmitframe, USB_OUT_TRANSFER,
-						    cnt, pxmitframe->mem_addr, 0);
+					    	    cnt, pxmitframe->mem_addr, 0);
 
 	RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("%s(%u)\n",__FUNCTION__, __LINE__));
 
@@ -858,22 +858,22 @@ _func_enter_;
 
 	RT_TRACE(_module_hci_ops_os_c_,_drv_info_,("+usb_write_port_complete\n"));
 
-	_rtw_spinlock_ex(&pxmitpriv->lock);
+	_rtw_spinlock_ex(&pxmitpriv->lock);	
 	pxmitpriv->txirp_cnt--;
 	_rtw_spinunlock_ex(&pxmitpriv->lock);
 
 	if(pxmitpriv->txirp_cnt==0){
-		RT_TRACE(_module_hci_ops_os_c_,_drv_err_,("usb_write_port_complete: txirp_cnt== 0, set allrxreturnevt!\n"));
+		RT_TRACE(_module_hci_ops_os_c_,_drv_err_,("usb_write_port_complete: txirp_cnt== 0, set allrxreturnevt!\n"));		
 		_rtw_up_sema(&(pxmitpriv->tx_retevt));
 	}
 
 
 	//not to consider tx fragment
-	rtw_free_xmitframe(pxmitpriv, pxmitframe);
+	rtw_free_xmitframe(pxmitpriv, pxmitframe);		
 
 
 #if 1
-
+			
 	(*usb_funcs_vp->lpGetTransferStatus)(pxmitpriv->usb_transfer_write_port, &dwBytesTransferred, &dwErr);
 	fComplete = (*usb_funcs_vp->lpIsTransferComplete)(pxmitpriv->usb_transfer_write_port);
 	if(fComplete!=_TRUE)
@@ -891,8 +891,8 @@ _func_enter_;
 
 #endif
 
-	RT_TRACE( _module_hci_ops_os_c_, _drv_info_,
-		("%s(%u): pxmitpriv %X pxmitpriv->free_xmitframe_cnt %X pxmitframe->padapter %X pxmitframe->padapter %X\n",
+	RT_TRACE( _module_hci_ops_os_c_, _drv_info_, 
+		("%s(%u): pxmitpriv %X pxmitpriv->free_xmitframe_cnt %X pxmitframe->padapter %X pxmitframe->padapter %X\n", 
 		__LINE__, pxmitpriv, pxmitpriv->free_xmitframe_cnt, pxmitframe->padapter));
 
     rtl8192cu_xmitframe_complete(padapter, pxmitpriv, pxmitbuf);
@@ -902,7 +902,7 @@ _func_exit_;
     return STATUS_SUCCESS;
 }
 
-DWORD usb_write_scsi_complete(LPVOID pTxContext)
+DWORD usb_write_scsi_complete(LPVOID pTxContext) 
 {
 #ifndef PLATFORM_OS_CE
 	struct SCSI_BUFFER_ENTRY *psb_entry = (struct SCSI_BUFFER_ENTRY *)pTxContext;
@@ -920,7 +920,7 @@ _func_enter_;
 	RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("%s(%u): circ_space = %d\n",__FUNCTION__, __LINE__, CIRC_SPACE( psb->head,psb->tail,  SCSI_BUFFER_NUMBER)));
 
 #if 1
-
+				
 	(*lpUsbFuncs->lpGetTransferStatus)(psb_entry->usb_transfer_scsi_txcmd, &dwBytesTransferred, &dwErr);
 	fComplete = (*lpUsbFuncs->lpIsTransferComplete)(psb_entry->usb_transfer_scsi_txcmd);
 	if(fComplete!=_TRUE)
@@ -928,7 +928,7 @@ _func_enter_;
 		RT_TRACE( _module_hci_ops_os_c_, _drv_err_, ("usb_write_scsi_complete CloseTransfer before complete\n"));
 	}
 	(*lpUsbFuncs->lpCloseTransfer)(psb_entry->usb_transfer_scsi_txcmd);
-
+	
 #else
 
 	if((*lpUsbFuncs->lpIsTransferComplete)(psb_entry->usb_transfer_scsi_txcmd))
@@ -940,7 +940,7 @@ _func_enter_;
 	RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("%s(%u)\n",__FUNCTION__, __LINE__));
 	if((psb->tail+1)==SCSI_BUFFER_NUMBER)
 		psb->tail=0;
-	else
+	else 
 		psb->tail++;
 
 	RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("%s(%u)\n",__FUNCTION__, __LINE__));
@@ -974,7 +974,7 @@ uint usb_write_scsi(struct intf_hdl *pintfhdl, u32 cnt, u8 *wmem)
 _func_enter_;
 	if(padapter->bSurpriseRemoved||padapter->bDriverStopped)
 		return 0;
-
+	
 	RT_TRACE( _module_hci_ops_os_c_, _drv_info_, ("%s(%u)\n",__FUNCTION__, __LINE__));
 	psb_entry->usb_transfer_scsi_txcmd=pdev->pUsbExtension->_lpUsbFuncs->lpIssueBulkTransfer(
 			pdev->scsi_out_pipehandle,
@@ -984,11 +984,11 @@ _func_enter_;
 			cnt,
 			wmem,
 			0);
-
+	
 _func_exit_;
 #endif
 
-   return _SUCCESS;
+   return _SUCCESS;  
 }
 
 
@@ -1069,29 +1069,29 @@ void usb_write_port_cancel(_adapter *padapter)
 	_rtw_spinlock(&pxmitpriv->lock);
 	pxmitpriv->txirp_cnt--; //decrease 1 for Initialize ++
 	_rtw_spinunlock(&pxmitpriv->lock);
-
-	if (pxmitpriv->txirp_cnt)
+	
+	if (pxmitpriv->txirp_cnt) 
 	{
 		// Canceling Pending Recv Irp
 		pxmitframe= (struct xmit_frame *)pxmitpriv->pxmit_frame_buf;
-
+		
 		for( i = 0; i < NR_XMITFRAME; i++ )
 		{
 			for(j=0;j<8;j++)
 			{
 				if (pxmitframe->bpending[j]==_TRUE)
-				{
+				{			
 
 					RT_TRACE(_module_hci_ops_os_c_,_drv_err_,(" usb_write_port_cancel() :IoCancelIrp\n"));
 
 				}
 			}
-
+			
 			pxmitframe++;
 		}
 
 		_rtw_down_sema(&(pxmitpriv->tx_retevt));
-
+		
 	}
 
 }
@@ -1101,7 +1101,7 @@ DWORD usbctrl_vendorreq_complete(LPVOID lpvNotifyParameter)
 	struct dvobj_priv  *pdvobjpriv = (struct dvobj_priv*)lpvNotifyParameter;
 
 	RT_TRACE(_module_hci_ops_os_c_,_drv_debug_,("+usbctrl_vendorreq_complete\n"));
-
+	
     return STATUS_SUCCESS;
 }
 
@@ -1113,7 +1113,7 @@ int usbctrl_vendorreq(struct intf_priv *pintfpriv, u8 request, u16 value, u16 in
 //	int 		fComplete;
 //	LPCUSB_DEVICE		lpDeviceInfo;
 
-	struct dvobj_priv  *pdvobjpriv = (struct dvobj_priv  *)pintfpriv->intf_dev;
+	struct dvobj_priv  *pdvobjpriv = (struct dvobj_priv  *)pintfpriv->intf_dev;   
 
     USB_TRANSFER        usbTrans;
     USB_DEVICE_REQUEST  usb_device_req;
@@ -1138,7 +1138,7 @@ int usbctrl_vendorreq(struct intf_priv *pintfpriv, u8 request, u16 value, u16 in
 	usb_device_req.bRequest 		= request;
 	usb_device_req.wValue 			= value;
 	usb_device_req.wIndex 	    	= index;
-	usb_device_req.wLength 	    	= len;
+	usb_device_req.wLength 	    	= len;    
 
 	if (requesttype == 0x01)
 	{
@@ -1153,13 +1153,13 @@ int usbctrl_vendorreq(struct intf_priv *pintfpriv, u8 request, u16 value, u16 in
 
 #if 0
 	// Remember to add callback for sync
-	usbTrans = (*usbFuncs->lpIssueVendorTransfer)(usbHandle,
-							usbctrl_vendorreq_complete, pdvobjpriv,
+	usbTrans = (*usbFuncs->lpIssueVendorTransfer)(usbHandle, 
+							usbctrl_vendorreq_complete, pdvobjpriv, 
 							transfer_flags, &usb_device_req, pdata, 0);
 #else
 	// Remember to add callback for sync
-	usbTrans = (*usbFuncs->lpIssueVendorTransfer)(usbHandle,
-							NULL, 0,
+	usbTrans = (*usbFuncs->lpIssueVendorTransfer)(usbHandle, 
+							NULL, 0, 
 							transfer_flags, &usb_device_req, pdata, 0);
 #endif
 
@@ -1199,7 +1199,9 @@ int usbctrl_vendorreq(struct intf_priv *pintfpriv, u8 request, u16 value, u16 in
 exit:
 	RT_TRACE(_module_hci_ops_os_c_,_drv_debug_,("-usbctrl_vendorreq\n"));
 _func_exit_;
-
-	return ret;
+	
+	return ret;	
 
 }
+
+

@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
+ *                                        
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
@@ -103,7 +103,7 @@ struct ip_options {
                 is_data:1,			/* Options in __data, rather than skb	*/
                 is_strictroute:1,		/* Strict source route			*/
                 srr_is_hit:1,			/* Packet destination addr was our one	*/
-                is_changed:1,			/* IP checksum more not valid		*/
+                is_changed:1,			/* IP checksum more not valid		*/	
                 rr_needaddr:1,			/* Need to record addr of outgoing dev	*/
                 ts_needtime:1,			/* Need to record timestamp		*/
                 ts_needaddr:1;			/* Need to record addr of outgoing dev  */
@@ -122,7 +122,7 @@ struct iphdr {
 		version:4;
 #elif defined (__BIG_ENDIAN_BITFIELD)
 	__u8	version:4,
-		ihl:4;
+  		ihl:4;
 #else
 #error	"Please fix <asm/byteorder.h>"
 #endif
