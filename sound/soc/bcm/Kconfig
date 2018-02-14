@@ -195,3 +195,10 @@ config SND_PISOUND
 	select SND_RAWMIDI
 	help
 	  Say Y or M if you want to add support for Blokas Labs pisound.
+
+config SND_BCM2708_SOC_SUPERAUDIOBOARD
+    tristate "Support for SuperAudioBoard"
+    depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+    select SND_SOC_CS4271_I2C
+    help
+      Say Y or M if you want to add support for SuperAudioBoard.
