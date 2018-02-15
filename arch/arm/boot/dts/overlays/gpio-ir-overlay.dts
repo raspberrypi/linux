@@ -10,6 +10,8 @@
                 __overlay__ {
                         gpio_ir: ir-receiver@12 {
                                 compatible = "gpio-ir-receiver";
+                                pinctrl-names = "default";
+                                pinctrl-0 = <&gpio_ir_pins>;
 
                                 // pin number, high or low
                                 gpios = <&gpio 18 1>;
