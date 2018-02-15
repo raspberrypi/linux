@@ -519,6 +519,11 @@ static void hcd_init_fiq(void *cookie)
 		DWC_ERROR("Can't get FIQ irq");
 		return;
 	}
+	/*
+	 * We could take an interrupt immediately after enabling the FIQ.
+	 * Ensure coherency of hcd->fiq_state.
+	 */
+	smp_mb();
 	enable_fiq(irq);
 	local_fiq_enable();
 #endif
@@ -598,7 +603,11 @@ int hcd_init(dwc_bus_dev_t *_dev)
 
 	if (fiq_enable) {
 		if (num_online_cpus() > 1) {
-			/* bcm2709: can run the FIQ on a separate core to IRQs */
+			/*
+			 * bcm2709: can run the FIQ on a separate core to IRQs.
+			 * Ensure driver state is visible to other cores before setting up the FIQ.
+			 */
+			smp_mb();
 			smp_call_function_single(1, hcd_init_fiq, otg_dev, 1);
 		} else {
 			smp_call_function_single(0, hcd_init_fiq, otg_dev, 1);
