@@ -631,6 +631,12 @@ struct task_struct {
 # ifdef CONFIG_SCHED_DEBUG
 	int				migrate_disable_atomic;
 # endif
+
+#elif !defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
+	int				migrate_disable;
+# ifdef CONFIG_SCHED_DEBUG
+	int				migrate_disable_atomic;
+# endif
 #endif
 
 #ifdef CONFIG_PREEMPT_RCU
