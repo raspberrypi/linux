@@ -211,6 +211,15 @@ extern void migrate_enable(void);
 
 int __migrate_disabled(struct task_struct *p);
 
+#elif !defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
+
+extern void migrate_disable(void);
+extern void migrate_enable(void);
+static inline int __migrate_disabled(struct task_struct *p)
+{
+	return 0;
+}
+
 #else
 #define migrate_disable()		barrier()
 #define migrate_enable()		barrier()
