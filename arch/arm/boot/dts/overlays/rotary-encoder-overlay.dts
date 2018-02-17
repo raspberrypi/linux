@@ -38,8 +38,8 @@
 	__overrides__ {
 		pin_a =             <&rotary>,"gpios:4",
 		                    <&rotary_pins>,"brcm,pins:0",
-                            <&rotary>,"reg:0",  /* modify reg values to allow multiple instantiation */  
-                            <&rotary_pins>,"reg:0"; 
+                                    <&rotary>,"reg:0",  /* modify reg values to allow multiple instantiation */  
+                                    <&rotary_pins>,"reg:0"; 
 		pin_b =             <&rotary>,"gpios:16",
 		                    <&rotary_pins>,"brcm,pins:4";
 		relative_axis =     <&rotary>,"rotary-encoder,relative-axis?";
