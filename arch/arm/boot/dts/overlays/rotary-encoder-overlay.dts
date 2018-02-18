@@ -8,7 +8,7 @@
 	fragment@0 {
 		target = <&gpio>;
 		__overlay__ {
-			rotary_pins: rotary_pins@0 {
+			rotary_pins: rotary_pins@4 {
 				brcm,pins = <4 17>; /* gpio 4 17 */
 				brcm,function = <0 0>; /* input */
 				brcm,pull = <2 2>; /* pull-up */
@@ -20,7 +20,7 @@
 	fragment@1 {
 		target-path = "/";
 		__overlay__ {
-			rotary: rotary@0 {
+			rotary: rotary@4 {
 				compatible = "rotary-encoder";
 				status = "okay";
 				pinctrl-names = "default";
