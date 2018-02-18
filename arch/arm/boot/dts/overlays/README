@@ -1345,9 +1345,9 @@ Params: <None>
 Name:   rotary-encoder
 Info:   Overlay for GPIO connected rotary encoder.
 Load:   dtoverlay=rotary-encoder,<param>=<val>
-Params: rotary0_pin_a           GPIO connected to rotary encoder channel A
+Params: pin_a                   GPIO connected to rotary encoder channel A
                                 (default 4).
-        rotary0_pin_b           GPIO connected to rotary encoder channel B
+        pin_b                   GPIO connected to rotary encoder channel B
                                 (default 17).
         relative_axis           register a relative axis rather than an
                                 absolute one. Relative axis will only
