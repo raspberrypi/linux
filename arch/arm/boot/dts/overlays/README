@@ -1658,6 +1658,12 @@ Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
                                 is 'okay' or enabled).
 
 
+Name:   superaudioboard
+Info:   Configures the SuperAudioBoard sound card
+Load:   dtoverlay=superaudioboard,<param>=<val>
+Params: gpiopin                 GPIO pin for codec reset
+
+
 Name:   tinylcd35
 Info:   3.5" Color TFT Display by www.tinylcd.com
         Options: Touch, RTC, keypad
