@@ -693,6 +693,9 @@ Params: i2c_gpio_sda            GPIO used for I2C data (default "23")
         i2c_gpio_delay_us       Clock delay in microseconds
                                 (default "2" = ~100kHz)
 
+        bus                     Set to a unique, non-zero value if wanting
+                                multiple i2c-gpio busses (default "0")
+
 
 Name:   i2c-mux
 Info:   Adds support for a number of I2C bus multiplexers on i2c_arm
