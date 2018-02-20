@@ -1730,6 +1730,13 @@ Params: txd1_pin                GPIO pin for TXD1 (14, 32 or 40 - default 14)
         rxd1_pin                GPIO pin for RXD1 (15, 33 or 41 - default 15)
 
 
+Name:   upstream-aux-interrupt
+Info:   Allow usage of downstream .dtb with upstream kernel by binding AUX
+        devices directly to the shared AUX interrupt line.
+Load:   dtoverlay=upstream-aux-interrupt
+Params: <None>
+
+
 Name:   vc4-fkms-v3d
 Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
         display stack.
