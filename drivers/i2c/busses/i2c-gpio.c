@@ -428,7 +428,9 @@ static int i2c_gpio_probe(struct platform_device *pdev)
 	adap->dev.parent = dev;
 	device_set_node(&adap->dev, fwnode);
 
-	adap->nr = pdev->id;
+	if (pdev->id != PLATFORM_DEVID_NONE || !pdev->dev.of_node ||
+	    of_property_read_u32(pdev->dev.of_node, "reg", &adap->nr))
+		adap->nr = pdev->id;
 	ret = i2c_bit_add_numbered_bus(adap);
 	if (ret)
 		return ret;
