@@ -694,7 +694,11 @@ Params: i2c_gpio_sda            GPIO used for I2C data (default "23")
                                 (default "2" = ~100kHz)
 
         bus                     Set to a unique, non-zero value if wanting
-                                multiple i2c-gpio busses (default "0")
+                                multiple i2c-gpio busses. If set, will be used
+                                as the preferred bus number (/dev/i2c-<n>). If
+                                not set, the default value is 0, but the bus
+                                number will be dynamically assigned - probably
+                                3.
 
 
 Name:   i2c-mux
