@@ -100,6 +100,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	rpi-tv.dtbo \
 	rra-digidac1-wm8741-audio.dtbo \
 	sc16is750-i2c.dtbo \
+	sc16is752-i2c.dtbo \
 	sc16is752-spi1.dtbo \
 	sdhost.dtbo \
 	sdio.dtbo \
