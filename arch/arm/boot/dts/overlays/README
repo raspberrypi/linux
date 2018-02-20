@@ -1447,12 +1447,21 @@ Params: <None>
 
 Name:   sc16is750-i2c
 Info:   Overlay for the NXP SC16IS750 UART with I2C Interface
-        Enables the chip on I2C1 at 0x48. To select another address,
-        please refer to table 10 in reference manual.
-
+        Enables the chip on I2C1 at 0x48 (or the "addr" parameter value). To
+        select another address, please refer to table 10 in reference manual.
 Load:   dtoverlay=sc16is750-i2c,<param>=<val>
 Params: int_pin                 GPIO used for IRQ (default 24)
         addr                    Address (default 0x48)
+
+
+Name:   sc16is752-i2c
+Info:   Overlay for the NXP SC16IS752 dual UART with I2C Interface
+        Enables the chip on I2C1 at 0x48 (or the "addr" parameter value). To
+        select another address, please refer to table 10 in reference manual.
+Load:   dtoverlay=sc16is752-i2c,<param>=<val>
+Params: int_pin                 GPIO used for IRQ (default 24)
+        addr                    Address (default 0x48)
+        xtal                    On-board crystal frequency (default 14745600)
 
 
 Name:   sc16is752-spi1
