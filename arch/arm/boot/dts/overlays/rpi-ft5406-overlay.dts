@@ -12,7 +12,7 @@
 				firmware = <&firmware>;
 				status = "okay";
 				touchscreen-size-x = <800>;
-				touchscreen-size-y = <600>;
+				touchscreen-size-y = <480>;
 				touchscreen-inverted-x = <0>;
 				touchscreen-inverted-y = <0>;
 				touchscreen-swapped-x-y = <0>;
