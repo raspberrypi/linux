@@ -56,6 +56,7 @@ static const s64 ev_bias_qmenu[] = {
 static const s64 iso_qmenu[] = {
 	0, 100000, 200000, 400000, 800000,
 };
+
 static const uint32_t iso_values[] = {
 	0, 100, 200, 400, 800,
 };
@@ -1272,6 +1273,7 @@ int bm2835_mmal_init_controls(struct bm2835_mmal_dev *dev,
 				 * mismatches.
 				 */
 				int i;
+
 				mask = 1 << V4L2_SCENE_MODE_NONE;
 				for (i = 0;
 				     i < ARRAY_SIZE(scene_configs);
