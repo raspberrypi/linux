@@ -542,8 +542,8 @@ static int start_streaming(struct vb2_queue *vq, unsigned int count)
 		msleep(300);
 
 	/* enable the connection from camera to encoder (if applicable) */
-	if (dev->capture.camera_port != dev->capture.port
-	    && dev->capture.camera_port) {
+	if (dev->capture.camera_port != dev->capture.port &&
+	    dev->capture.camera_port) {
 		ret = vchiq_mmal_port_enable(dev->instance,
 					     dev->capture.camera_port, NULL);
 		if (ret) {
@@ -1043,8 +1043,8 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 	switch (mfmt->mmal_component) {
 	case COMP_CAMERA:
 		/* Make a further decision on port based on resolution */
-		if (f->fmt.pix.width <= max_video_width
-		    && f->fmt.pix.height <= max_video_height)
+		if (f->fmt.pix.width <= max_video_width &&
+		    f->fmt.pix.height <= max_video_height)
 			camera_port = port =
 			    &dev->component[COMP_CAMERA]->output[CAM_PORT_VIDEO];
 		else
@@ -1101,8 +1101,8 @@ static int mmal_setup_components(struct bm2835_mmal_dev *dev,
 
 	ret = vchiq_mmal_port_set_format(dev->instance, camera_port);
 
-	if (!ret
-	    && camera_port ==
+	if (!ret &&
+	    camera_port ==
 	    &dev->component[COMP_CAMERA]->output[CAM_PORT_VIDEO]) {
 		bool overlay_enabled =
 		    !!dev->component[COMP_PREVIEW]->enabled;
