@@ -14,7 +14,7 @@
 			compatible = "arm,cortex-a7-pmu";
 #endif
 			interrupt-parent = <&local_intc>;
-			interrupts = <9>;
+			interrupts = <9 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		/delete-node/ timer@7e003000;
