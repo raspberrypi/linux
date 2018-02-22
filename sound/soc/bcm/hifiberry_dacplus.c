@@ -221,9 +221,13 @@ static int snd_rpi_hifiberry_dacplus_hw_params(
 {
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	int channels = params_channels(params);
+	int width = 32;
 
 	if (snd_rpi_hifiberry_is_dacpro) {
 		struct snd_soc_codec *codec = rtd->codec;
+
+		width = snd_pcm_format_physical_width(params_format(params));
 
 		snd_rpi_hifiberry_dacplus_set_sclk(codec,
 			params_rate(params));
@@ -231,6 +235,13 @@ static int snd_rpi_hifiberry_dacplus_hw_params(
 		ret = snd_rpi_hifiberry_dacplus_update_rate_den(
 			substream, params);
 	}
+
+	ret = snd_soc_dai_set_tdm_slot(rtd->cpu_dai, 0x03, 0x03,
+		channels, width);
+	if (ret)
+		return ret;
+	ret = snd_soc_dai_set_tdm_slot(rtd->codec_dai, 0x03, 0x03,
+		channels, width);
 	return ret;
 }
 
