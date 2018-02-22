@@ -273,6 +273,8 @@ static int snd_allo_boss_hw_params(
 {
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	int channels = params_channels(params);
+	int width = snd_pcm_format_physical_width(params_format(params));
 
 	if (snd_soc_allo_boss_master) {
 		struct snd_soc_codec *codec = rtd->codec;
@@ -282,7 +284,16 @@ static int snd_allo_boss_hw_params(
 
 		ret = snd_allo_boss_update_rate_den(
 			substream, params);
+		if (ret)
+			return ret;
 	}
+
+	ret = snd_soc_dai_set_tdm_slot(rtd->cpu_dai, 0x03, 0x03,
+		channels, width);
+	if (ret)
+		return ret;
+	ret = snd_soc_dai_set_tdm_slot(rtd->codec_dai, 0x03, 0x03,
+		channels, width);
 	return ret;
 }
 
