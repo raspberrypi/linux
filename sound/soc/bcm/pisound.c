@@ -313,7 +313,7 @@ static void spi_transfer(const uint8_t *txbuf, uint8_t *rxbuf, int len)
 	struct spi_transfer transfer;
 	struct spi_message msg;
 
-	memset(rxbuf, 0, sizeof(txbuf));
+	memset(rxbuf, 0, len);
 
 	if (!pisnd_spi_device) {
 		printe("pisnd_spi_device null, returning\n");
