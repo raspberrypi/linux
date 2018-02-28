@@ -1182,6 +1182,13 @@ Load:   dtoverlay=pi3-miniuart-bt
 Params: <None>
 
 
+Name:   pibell
+Info:   Configures the pibell audio card.
+Load:   dtoverlay=pibell,<param>=<val>
+Params: alsaname                Set the name as it appears in ALSA (default
+                                "PiBell")
+
+
 Name:   piscreen
 Info:   PiScreen display by OzzMaker.com
 Load:   dtoverlay=piscreen,<param>=<val>
