@@ -1182,6 +1182,13 @@ Load:   dtoverlay=pi3-miniuart-bt
 Params: <None>
 
 
+Name:   pibell
+Info:   Configures the pibell audio card.
+Load:   dtoverlay=pibell,<param>=<val>
+Params: alsaname                Set the name as it appears in ALSA (default
+                                "PiBell")
+
+
 Name:   piscreen
 Info:   PiScreen display by OzzMaker.com
 Load:   dtoverlay=piscreen,<param>=<val>
@@ -1341,12 +1348,6 @@ Load:   dtoverlay=qca7000,<param>=<val>
 Params: int_pin                 GPIO pin for interrupt signal (default 23)
 
         speed                   SPI bus speed (default 12 MHz)
-
-
-Name:   raspidac3
-Info:   Configures the RaspiDAV Rev.3x audio card
-Load:   dtoverlay=raspidac3
-Params: <None>
 
 
 Name:   rotary-encoder
