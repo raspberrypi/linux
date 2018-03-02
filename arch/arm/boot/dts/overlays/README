@@ -1738,6 +1738,25 @@ Load:   dtoverlay=upstream-aux-interrupt
 Params: <None>
 
 
+Name:   upstream
+Info:   Allow usage of downstream .dtb with upstream kernel. Apply this if
+        you want to run an upstream kernel.
+        This overlay combines the dwc2, vc4-kms-v3d and upstream-aux-interrupt
+        overlays into one convenience overlay.
+Load:   dtoverlay=upstream,<param>
+Params: --- from dwc2 ---
+        dr_mode                 Dual role mode: "host", "peripheral" or "otg"
+        g-rx-fifo-size          Size of rx fifo size in gadget mode
+        g-np-tx-fifo-size       Size of non-periodic tx fifo size in gadget
+                                mode
+        --- from vc4-kms-v3d ---
+        cma-256                 CMA is 256MB, 256MB-aligned (needs 1GB)
+        cma-192                 CMA is 192MB, 256MB-aligned (needs 1GB)
+        cma-128                 CMA is 128MB, 128MB-aligned
+        cma-96                  CMA is 96MB, 128MB-aligned
+        cma-64                  CMA is 64MB, 64MB-aligned
+
+
 Name:   vc4-fkms-v3d
 Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
         display stack.
