@@ -29,6 +29,7 @@
 static struct gpio_descs *mult_gpios;
 static struct gpio_desc *codec_rst_gpio;
 static unsigned int audioinjector_octo_rate;
+static bool non_stop_clocks;
 
 static const unsigned int audioinjector_octo_rates[] = {
 	96000, 48000, 32000, 24000, 16000, 8000, 88200, 44100, 29400, 22050, 14700,
@@ -133,12 +134,16 @@ static int audioinjector_octo_hw_params(struct snd_pcm_substream *substream,
 static int audioinjector_octo_trigger(struct snd_pcm_substream *substream,
 								int cmd){
 	int mult[4];
-	mult[0] = 0;
-	mult[1] = 0;
-	mult[2] = 0;
-	mult[3] = 0;
+
+	memset(mult, 0, sizeof(mult));
 
 	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_STOP:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		if (!non_stop_clocks)
+			break;
+		/* Drop through... */
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
@@ -176,10 +181,6 @@ static int audioinjector_octo_trigger(struct snd_pcm_substream *substream,
 		default:
 			return -EINVAL;
 		}
-		break;
-	case SNDRV_PCM_TRIGGER_STOP:
-	case SNDRV_PCM_TRIGGER_SUSPEND:
-	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		break;
 	default:
 		return -EINVAL;
@@ -275,6 +276,8 @@ static int audioinjector_octo_probe(struct platform_device *pdev)
 								GPIOD_OUT_LOW);
 		if (IS_ERR(codec_rst_gpio))
 			return PTR_ERR(codec_rst_gpio);
+
+		non_stop_clocks = of_property_read_bool(pdev->dev.of_node, "non-stop-clocks");
 
 		if (codec_rst_gpio)
 			gpiod_set_value(codec_rst_gpio, 1);
