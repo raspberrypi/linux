@@ -1742,9 +1742,17 @@ Params: txd1_pin                GPIO pin for TXD1 (14, 32 or 40 - default 14)
         rxd1_pin                GPIO pin for RXD1 (15, 33 or 41 - default 15)
 
 
+Name:   upstream
+Info:   Allow usage of downstream .dtb with upstream kernel. Comprises
+        vc4-kms-v3d, dwc2 and upstream-aux-interrupt overlays.
+Load:   dtoverlay=upstream
+Params: <None>
+
+
 Name:   upstream-aux-interrupt
 Info:   Allow usage of downstream .dtb with upstream kernel by binding AUX
-        devices directly to the shared AUX interrupt line.
+        devices directly to the shared AUX interrupt line. One of the parts
+        of the 'upstream' overlay
 Load:   dtoverlay=upstream-aux-interrupt
 Params: <None>
 
