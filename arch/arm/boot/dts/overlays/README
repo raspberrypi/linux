@@ -365,8 +365,9 @@ Params: interrupt               GPIO used for INT (default 23)
 
 Name:   audioinjector-addons
 Info:   Configures the audioinjector.net audio add on soundcards
-Load:   dtoverlay=audioinjector-addons
-Params: <None>
+Load:   dtoverlay=audioinjector-addons,<param>=<val>
+Params: non-stop-clocks         Keeps the clocks running even when the stream
+                                is paused or stopped (default off)
 
 
 Name:   audioinjector-wm8731-audio

@@ -42,7 +42,7 @@
 
 	fragment@2 {
 		target = <&sound>;
-		__overlay__ {
+		snd: __overlay__ {
 			compatible = "ai,audioinjector-octo-soundcard";
 			mult-gpios = <&gpio 27 0>, <&gpio 22 0>, <&gpio 23 0>,
 				     <&gpio 24 0>;
@@ -51,5 +51,9 @@
 			codec = <&cs42448>;
 			status = "okay";
 		};
+	};
+
+	__overrides__ {
+		non-stop-clocks = <&snd>, "non-stop-clocks?";
 	};
 };
