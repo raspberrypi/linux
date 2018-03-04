@@ -1477,7 +1477,7 @@ _func_enter_;
     bitwise_xor(aes_out, mic_header2, chain_buffer);
     aes128k128d(key, chain_buffer, aes_out);
 
-	for (i = 0; i < num_blocks; i++)
+    for (i = 0; i < num_blocks; i++)
     {
         bitwise_xor(aes_out, &pframe[payload_index], chain_buffer);//bitwise_xor(aes_out, &message[payload_index], chain_buffer);
 
@@ -1504,8 +1504,8 @@ _func_enter_;
     for (j = 0; j < 8; j++)
     	pframe[payload_index+j] = mic[j];	//message[payload_index+j] = mic[j];
 
-	payload_index = hdrlen + 8;
-	for (i=0; i< num_blocks; i++)
+    payload_index = hdrlen + 8;
+    for (i=0; i< num_blocks; i++)
     {
         construct_ctr_preload(
                                 ctr_preload,
@@ -1878,8 +1878,8 @@ _func_enter_;
     for (j = 0; j < 8; j++)
     	message[payload_index+j] = mic[j];
 
-	payload_index = hdrlen + 8;
-	for (i=0; i< num_blocks; i++)
+    payload_index = hdrlen + 8;
+    for (i=0; i< num_blocks; i++)
     {
         construct_ctr_preload(
                                 ctr_preload,
