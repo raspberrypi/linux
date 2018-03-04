@@ -1671,7 +1671,6 @@ vchiq_open(struct inode *inode, struct file *file)
 	vchiq_log_info(vchiq_arm_log_level, "vchiq_open");
 	switch (dev) {
 	case VCHIQ_MINOR: {
-		int ret;
 		VCHIQ_STATE_T *state = vchiq_get_state();
 		VCHIQ_INSTANCE_T instance;
 
