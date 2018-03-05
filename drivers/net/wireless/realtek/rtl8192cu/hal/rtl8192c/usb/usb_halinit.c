@@ -5692,6 +5692,7 @@ _func_enter_;
 	{
 		case HW_VAR_BASIC_RATE:
 			*((u16 *)(val)) = pHalData->BasicRateSet;
+			/* falls through */
 		case HW_VAR_TXPAUSE:
 			val[0] = rtw_read8(Adapter, REG_TXPAUSE);
 			break;
