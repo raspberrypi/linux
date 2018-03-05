@@ -7381,6 +7381,7 @@ static int set_group_key(_adapter *padapter, u8 *key, u8 alg, int keyid)
 		case _TKIP_WTMIC_:		
 		case _AES_:
 			keylen = 16;		
+			break;
 		default:
 			keylen = 16;		
 	}
