@@ -2363,6 +2363,7 @@ phy_TxPwrIdxToDbm(
 	case WIRELESS_MODE_G:
 	case WIRELESS_MODE_N_24G:
 		Offset = -8;
+		break;
 	default:
 		Offset = -8;	
 		break;
