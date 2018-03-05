@@ -591,8 +591,8 @@ static int notrace noinline fiq_fsm_update_hs_isoc(struct fiq_state *state, int 
 		}
 
 	} else {
-		switch (st->hcchar_copy.b.multicnt) {
 		st->hctsiz_copy.b.xfersize = nrpackets * st->hcchar_copy.b.mps;
+		switch (st->hcchar_copy.b.multicnt) {
 		case 1:
 			st->hctsiz_copy.b.pid = DWC_PID_DATA0;
 			break;
