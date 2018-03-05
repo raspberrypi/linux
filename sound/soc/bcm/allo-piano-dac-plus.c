@@ -704,11 +704,10 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_card *card = rtd->card;
 	struct glb_pool *glb_ptr;
 
-	glb_ptr = kmalloc(sizeof(struct glb_pool), GFP_KERNEL);
+	glb_ptr = kzalloc(sizeof(struct glb_pool), GFP_KERNEL);
 	if (!glb_ptr)
 		return -ENOMEM;
 
-	memset(glb_ptr, 0x00, sizeof(glb_ptr));
 	card->drvdata = glb_ptr;
 	glb_ptr->dual_mode = 2;
 	glb_ptr->set_mode = 0;
