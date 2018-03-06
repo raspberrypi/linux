@@ -936,7 +936,7 @@ void __tasklet_hi_schedule(struct tasklet_struct *t)
 }
 EXPORT_SYMBOL(__tasklet_hi_schedule);
 
-void  tasklet_enable(struct tasklet_struct *t)
+void tasklet_enable(struct tasklet_struct *t)
 {
 	if (!atomic_dec_and_test(&t->count))
 		return;
