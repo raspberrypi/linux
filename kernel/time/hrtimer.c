@@ -1291,9 +1291,9 @@ static void __hrtimer_init(struct hrtimer *timer, clockid_t clock_id,
 	cpu_base = raw_cpu_ptr(&hrtimer_bases);
 
 	/*
-	 * Posix magic: Relative CLOCK_REALTIME timers are not affected by
+	 * POSIX magic: Relative CLOCK_REALTIME timers are not affected by
 	 * clock modifications, so they needs to become CLOCK_MONOTONIC to
-	 * ensure Posix compliance.
+	 * ensure POSIX compliance.
 	 */
 	if (clock_id == CLOCK_REALTIME && mode & HRTIMER_MODE_REL)
 		clock_id = CLOCK_MONOTONIC;

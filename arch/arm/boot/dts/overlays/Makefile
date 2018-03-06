@@ -123,6 +123,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	tinylcd35.dtbo \
 	uart0.dtbo \
 	uart1.dtbo \
+	upstream.dtbo \
 	upstream-aux-interrupt.dtbo \
 	vc4-fkms-v3d.dtbo \
 	vc4-kms-v3d.dtbo \
