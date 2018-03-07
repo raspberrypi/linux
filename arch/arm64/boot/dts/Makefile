@@ -24,3 +24,5 @@ subdir-y += socionext
 subdir-y += sprd
 subdir-y += xilinx
 subdir-y += zte
+
+subdir-y += overlays
