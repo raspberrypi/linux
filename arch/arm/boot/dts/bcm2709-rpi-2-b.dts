@@ -4,6 +4,7 @@
 #include "bcm283x-rpi-smsc9514.dtsi"
 
 / {
+	compatible = "raspberrypi,2-model-b", "brcm,bcm2836";
 	model = "Raspberry Pi 2 Model B";
 };
 
