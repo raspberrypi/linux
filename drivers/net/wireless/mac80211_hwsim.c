@@ -3484,8 +3484,11 @@ static void __net_exit hwsim_exit_net(struct net *net)
 		list_del(&data->list);
 		rhashtable_remove_fast(&hwsim_radios_rht, &data->rht,
 				       hwsim_rht_params);
-		INIT_WORK(&data->destroy_work, destroy_radio);
-		queue_work(hwsim_wq, &data->destroy_work);
+		spin_unlock_bh(&hwsim_radio_lock);
+		mac80211_hwsim_del_radio(data,
+					 wiphy_name(data->hw->wiphy),
+					 NULL);
+		spin_lock_bh(&hwsim_radio_lock);
 	}
 	spin_unlock_bh(&hwsim_radio_lock);
 }
