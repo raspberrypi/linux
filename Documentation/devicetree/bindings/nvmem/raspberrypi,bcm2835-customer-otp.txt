@@ -1,0 +1,18 @@
+Customer OTP Memory for Raspberry Pi
+
+Required properties :
+- compatible     : Should be "raspberrypi,bcm2835-customer-otp"
+- firmware       : Reference to the RPi firmware device node.
+- #address-cells : Should be 1
+- #size-cells    : Should be 1
+
+See nvmem.txt for more information.
+
+Example:
+
+	customer_otp: otp {
+		compatible = "raspberrypi,bcm2835-customer-otp";
+		firmware = <&firmware>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};

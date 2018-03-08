@@ -16,6 +16,13 @@
 		};
 	};
 
+	customer_otp: otp {
+		compatible = "raspberrypi,bcm2835-customer-otp";
+		firmware = <&firmware>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};
+
 	soc {
 		firmware: firmware {
 			compatible = "raspberrypi,bcm2835-firmware";

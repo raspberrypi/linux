@@ -111,4 +111,14 @@ config MESON_EFUSE
 	  This driver can also be built as a module. If so, the module
 	  will be called nvmem_meson_efuse.
 
+config NVMEM_RASPBERRYPI_OTP
+	tristate "Raspberry Pi Customer OTP support"
+	depends on ARCH_BCM2835 || COMPILE_TEST
+	depends on RASPBERRYPI_FIRMWARE
+	help
+	  This is a driver for access to the Customer OTP on the Raspberry Pi.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called nvmem-raspberrypi-otp.
+
 endif
