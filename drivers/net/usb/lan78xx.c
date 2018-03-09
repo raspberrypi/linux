@@ -2624,6 +2624,22 @@ static int lan78xx_open(struct net_device *net)
 
 	netif_dbg(dev, ifup, dev->net, "phy initialised successfully");
 
+	if (of_property_read_bool(dev->udev->dev.of_node,
+				  "microchip,eee-enabled")) {
+		struct ethtool_eee edata;
+		memset(&edata, 0, sizeof(edata));
+		edata.cmd = ETHTOOL_SEEE;
+		edata.advertised = ADVERTISED_1000baseT_Full |
+				   ADVERTISED_100baseT_Full;
+		edata.eee_enabled = true;
+		edata.tx_lpi_enabled = true;
+		if (of_property_read_u32(dev->udev->dev.of_node,
+					 "microchip,tx-lpi-timer",
+					 &edata.tx_lpi_timer))
+			edata.tx_lpi_timer = 600; /* non-aggressive */
+		(void)lan78xx_set_eee(net, &edata);
+	}
+
 	/* for Link Check */
 	if (dev->urb_intr) {
 		ret = usb_submit_urb(dev->urb_intr, GFP_KERNEL);
