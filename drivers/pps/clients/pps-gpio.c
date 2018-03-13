@@ -145,6 +145,8 @@ static int pps_gpio_setup(struct platform_device *pdev)
 
 	if (of_property_read_bool(np, "assert-falling-edge"))
 		data->assert_falling_edge = true;
+        if (of_property_read_bool(np, "capture-clear"))
+                data->capture_clear = true;
 	return 0;
 }
 
