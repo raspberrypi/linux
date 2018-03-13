@@ -119,6 +119,9 @@ static int pps_gpio_probe(struct platform_device *pdev)
 
 		if (of_get_property(np, "assert-falling-edge", NULL))
 			data->assert_falling_edge = true;
+
+                if (of_get_property(np, "capture-clear", NULL))
+                        data->capture_clear = true;
 	}
 
 	/* GPIO setup */
