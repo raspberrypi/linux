@@ -4,6 +4,7 @@
 / {
 	chosen {
 		bootargs = "";
+		/delete-property/ stdout-path;
 	};
 
 	soc: soc {
