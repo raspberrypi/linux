@@ -56,6 +56,12 @@ static const char *pisnd_spi_get_version(void);
 static int pisnd_midi_init(struct snd_card *card);
 static void pisnd_midi_uninit(void);
 
+enum task_e {
+	TASK_PROCESS = 0,
+};
+
+static void pisnd_schedule_process(enum task_e task);
+
 #define PISOUND_LOG_PREFIX "pisound: "
 
 #ifdef PISOUND_DEBUG
@@ -129,7 +135,7 @@ static void pisnd_input_trigger(struct snd_rawmidi_substream *substream, int up)
 {
 	if (up) {
 		pisnd_spi_set_callback(pisnd_midi_recv_callback, substream);
-		pisnd_midi_recv_callback(substream);
+		pisnd_schedule_process(TASK_PROCESS);
 	} else {
 		pisnd_spi_set_callback(NULL, NULL);
 	}
@@ -257,10 +263,6 @@ static bool pisnd_spi_has_more(void)
 {
 	return gpiod_get_value(data_available);
 }
-
-enum task_e {
-	TASK_PROCESS = 0,
-};
 
 static void pisnd_schedule_process(enum task_e task)
 {
