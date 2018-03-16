@@ -1873,14 +1873,13 @@ COMPAT_SYSCALL_DEFINE2(nanosleep, struct compat_timespec __user *, rqtp,
  */
 void cpu_chill(void)
 {
-	struct timespec64 tu = {
-		.tv_nsec = NSEC_PER_MSEC,
-	};
+	ktime_t chill_time;
 	unsigned int freeze_flag = current->flags & PF_NOFREEZE;
 
+	chill_time = ktime_set(0, NSEC_PER_MSEC);
+	set_current_state(TASK_UNINTERRUPTIBLE);
 	current->flags |= PF_NOFREEZE;
-	__hrtimer_nanosleep(&tu, HRTIMER_MODE_REL_HARD, CLOCK_MONOTONIC,
-			    TASK_UNINTERRUPTIBLE);
+	schedule_hrtimeout(&chill_time, HRTIMER_MODE_REL_HARD);
 	if (!freeze_flag)
 		current->flags &= ~PF_NOFREEZE;
 }
