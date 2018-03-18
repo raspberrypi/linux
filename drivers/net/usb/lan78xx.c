@@ -2017,6 +2017,7 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 {
 	int ret;
 	u32 mii_adv;
+	u32 led_modes;
 	struct phy_device *phydev = dev->net->phydev;
 
 	phydev = phy_find_first(dev->mdiobus);
@@ -2088,6 +2089,19 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 	phydev->advertising &= ~(ADVERTISED_Pause | ADVERTISED_Asym_Pause);
 	mii_adv = (u32)mii_advertise_flowctrl(dev->fc_request_control);
 	phydev->advertising |= mii_adv_to_ethtool_adv_t(mii_adv);
+
+	/* Change LED defaults:
+	 *   orange = link1000/activity
+	 *   green  = link10/link100/activity
+	 * led: 0=link/activity          1=link1000/activity
+	 *      2=link100/activity       3=link10/activity
+	 *      4=link100/1000/activity  5=link10/1000/activity
+	 *      6=link10/100/activity    14=off    15=on
+	 */
+	led_modes = phy_read(phydev, 0x1d);
+	led_modes &= ~0xff;
+	led_modes |= (1 << 0) | (6 << 4);
+	(void)phy_write(phydev, 0x1d, led_modes);
 
 	genphy_config_aneg(phydev);
 
@@ -2537,6 +2551,22 @@ static int lan78xx_open(struct net_device *net)
 	ret = lan78xx_phy_init(dev);
 	if (ret < 0)
 		goto done;
+
+	if (of_property_read_bool(dev->udev->dev.of_node,
+				  "microchip,eee-enabled")) {
+		struct ethtool_eee edata;
+		memset(&edata, 0, sizeof(edata));
+		edata.cmd = ETHTOOL_SEEE;
+		edata.advertised = ADVERTISED_1000baseT_Full |
+				   ADVERTISED_100baseT_Full;
+		edata.eee_enabled = true;
+		edata.tx_lpi_enabled = true;
+		if (of_property_read_u32(dev->udev->dev.of_node,
+					 "microchip,tx-lpi-timer",
+					 &edata.tx_lpi_timer))
+			edata.tx_lpi_timer = 600; /* non-aggressive */
+		(void)lan78xx_set_eee(net, &edata);
+	}
 
 	/* for Link Check */
 	if (dev->urb_intr) {

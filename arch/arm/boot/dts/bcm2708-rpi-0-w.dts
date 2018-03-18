@@ -3,6 +3,7 @@
 #include "bcm2708.dtsi"
 
 / {
+	compatible = "raspberrypi,model-zero-w", "brcm,bcm2835";
 	model = "Raspberry Pi Zero W";
 
 	chosen {
