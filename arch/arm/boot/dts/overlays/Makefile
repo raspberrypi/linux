@@ -103,6 +103,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	spi2-1cs.dtbo \
 	spi2-2cs.dtbo \
 	spi2-3cs.dtbo \
+	sx150x.dtbo \
 	tinylcd35.dtbo \
 	uart1.dtbo \
 	vc4-fkms-v3d.dtbo \
