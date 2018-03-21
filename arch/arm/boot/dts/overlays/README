@@ -93,6 +93,16 @@ Params:
                                 compatible devices (default "on"). See also
                                 "tx_lpi_timer".
 
+        eth_led0                Set mode of LED0 (usually orange) (default
+                                "1"). The legal values are:
+                                0=link/activity          1=link1000/activity
+                                2=link100/activity       3=link10/activity
+                                4=link100/1000/activity  5=link10/1000/activity
+                                6=link10/100/activity    14=off    15=on
+
+        eth_led1                Set mode of LED1 (usually green) (default
+                                "6"). See eth_led0 for legal values.
+
         i2c_arm                 Set to "on" to enable the ARM's i2c interface
                                 (default "off")
 
