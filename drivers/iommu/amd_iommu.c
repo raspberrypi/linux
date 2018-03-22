@@ -4100,7 +4100,7 @@ static int irq_remapping_alloc(struct irq_domain *domain, unsigned int virq,
 	struct amd_ir_data *data = NULL;
 	struct irq_cfg *cfg;
 	int i, ret, devid;
-	int index = -1;
+	int index;
 
 	if (!info)
 		return -EINVAL;
@@ -4142,7 +4142,7 @@ static int irq_remapping_alloc(struct irq_domain *domain, unsigned int virq,
 			WARN_ON(table->min_index != 32);
 			index = info->ioapic_pin;
 		} else {
-			ret = -ENOMEM;
+			index = -ENOMEM;
 		}
 	} else {
 		index = alloc_irq_index(devid, nr_irqs);
