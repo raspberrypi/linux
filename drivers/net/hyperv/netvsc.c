@@ -1078,10 +1078,14 @@ static int netvsc_receive(struct net_device *ndev,
 		void *data = recv_buf
 			+ vmxferpage_packet->ranges[i].byte_offset;
 		u32 buflen = vmxferpage_packet->ranges[i].byte_count;
+		int ret;
 
 		/* Pass it to the upper layer */
-		status = rndis_filter_receive(ndev, net_device,
-					      channel, data, buflen);
+		ret = rndis_filter_receive(ndev, net_device,
+					   channel, data, buflen);
+
+		if (unlikely(ret != NVSP_STAT_SUCCESS))
+			status = NVSP_STAT_FAIL;
 	}
 
 	enq_receive_complete(ndev, net_device, q_idx,
