@@ -1703,6 +1703,25 @@ Load:   dtoverlay=superaudioboard,<param>=<val>
 Params: gpiopin                 GPIO pin for codec reset
 
 
+Name:   sx150x
+Info:   Configures the Semtech SX150X I2C GPIO expanders.
+Load:   dtoverlay=sx150x,<param>=<val>
+Params: sx150<x>-<n>-<m>        Enables SX150X device on I2C#<n> with slave
+                                address <m>. <x> may be 1-9. <n> may be 0 or 1.
+                                Permissible values of <m> (which is denoted in
+                                hex) depend on the device variant. For SX1501,
+                                SX1502, SX1504 and SX1505, <m> may be 20 or 21.
+                                For SX1503 and SX1506, <m> may be 20. For
+                                SX1507 and SX1509, <m> may be 3E, 3F, 70 or 71.
+                                For SX1508, <m> may be 20, 21, 22 or 23.
+
+        sx150<x>-<n>-<m>-int-gpio
+                                Integer, enables interrupts on SX150X device on
+                                I2C#<n> with slave address <m>, specifies
+                                the GPIO pin to which NINT output of SX150X is
+                                connected.
+
+
 Name:   tinylcd35
 Info:   3.5" Color TFT Display by www.tinylcd.com
         Options: Touch, RTC, keypad
