@@ -120,6 +120,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	spi2-2cs.dtbo \
 	spi2-3cs.dtbo \
 	superaudioboard.dtbo \
+	sx150x.dtbo \
 	tinylcd35.dtbo \
 	uart0.dtbo \
 	uart1.dtbo \
