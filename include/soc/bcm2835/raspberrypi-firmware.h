@@ -29,8 +29,8 @@ enum rpi_firmware_property_status {
  *			struct.
  * @req_resp_size:	On submit, the length of the request (though it doesn't
  *			appear to be currently used by the firmware).  On return,
- *			the length of the response (always 4 byte aligned), with
- *			the low bit set.
+ *			the length of the response (at least 2 byte aligned), with
+ *			the highest bit set.
  */
 struct rpi_firmware_property_tag_header {
 	u32 tag;
