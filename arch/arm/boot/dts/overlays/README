@@ -939,6 +939,15 @@ Params: card_name               Override the default, "IQAudIODigi", card name.
                                 dai stream name.
 
 
+Name:   jedec-spi-nor
+Info:   Adds support for JEDEC-compliant SPI NOR flash devices.  (Note: The
+        "jedec,spi-nor" kernel driver was formerly known as "m25p80".)
+Load:   dtoverlay=jedec-spi-nor,<param>=<val>
+Params: flash-spi<n>-<m>        Enables flash device on SPI<n>, CS#<m>.
+        flash-fastr-spi<n>-<m>  Enables flash device with fast read capability
+                                on SPI<n>, CS#<m>.
+
+
 Name:   justboom-dac
 Info:   Configures the JustBoom DAC HAT, Amp HAT, DAC Zero and Amp Zero audio
         cards
