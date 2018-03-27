@@ -688,7 +688,6 @@ static void dm_old_request_fn(struct request_queue *q)
 		/* Establish tio->ti before queuing work (map_tio_request) */
 		tio->ti = ti;
 		kthread_queue_work(&md->kworker, &tio->work);
-		BUG_ON(!irqs_disabled());
 	}
 }
 
