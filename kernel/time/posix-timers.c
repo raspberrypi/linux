@@ -797,20 +797,6 @@ SYSCALL_DEFINE1(timer_getoverrun, timer_t, timer_id)
 	return overrun;
 }
 
-/*
- * Protected by RCU!
- */
-static void timer_wait_for_callback(const struct k_clock *kc, struct k_itimer *timr)
-{
-#ifdef CONFIG_PREEMPT_RT_FULL
-	if (kc->timer_set == common_timer_set)
-		hrtimer_wait_for_timer(&timr->it.real.timer);
-	else
-		/* FIXME: Whacky hack for posix-cpu-timers */
-		schedule_timeout(1);
-#endif
-}
-
 static void common_hrtimer_arm(struct k_itimer *timr, ktime_t expires,
 			       bool absolute, bool sigev_none)
 {
@@ -839,6 +825,22 @@ static void common_hrtimer_arm(struct k_itimer *timr, ktime_t expires,
 
 	if (!sigev_none)
 		hrtimer_start_expires(timer, HRTIMER_MODE_ABS);
+}
+
+/*
+ * Protected by RCU!
+ */
+static void timer_wait_for_callback(const struct k_clock *kc, struct k_itimer *timr)
+{
+#ifdef CONFIG_PREEMPT_RT_FULL
+	if (kc->timer_arm == common_hrtimer_arm)
+		hrtimer_wait_for_timer(&timr->it.real.timer);
+	else if (kc == &alarm_clock)
+		hrtimer_wait_for_timer(&timr->it.alarm.alarmtimer.timer);
+	else
+		/* FIXME: Whacky hack for posix-cpu-timers */
+		schedule_timeout(1);
+#endif
 }
 
 static int common_hrtimer_try_to_cancel(struct k_itimer *timr)
