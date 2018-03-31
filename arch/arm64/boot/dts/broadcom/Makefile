@@ -8,6 +8,7 @@ endif
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2837-rpi-3-b.dtb
 dtb-$(CONFIG_ARCH_BCM2709) += bcm2710-rpi-3-b.dtb
 dtb-$(CONFIG_ARCH_BCM2835) += bcm2710-rpi-3-b.dtb
+dtb-$(CONFIG_ARCH_BCM2835) += bcm2710-rpi-3-b-plus.dtb
 
 dts-dirs += ../overlays
 

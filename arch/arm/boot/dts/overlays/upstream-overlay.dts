@@ -126,7 +126,7 @@
 			dr_mode = "otg";
 			g-np-tx-fifo-size = <32>;
 			g-rx-fifo-size = <256>;
-			g-tx-fifo-size = <512 512 512 512 512 768>;
+			g-tx-fifo-size = <512 512 512 512 512 256 256>;
 			status = "okay";
 		};
 	};

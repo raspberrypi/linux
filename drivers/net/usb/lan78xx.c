@@ -1641,14 +1641,6 @@ static void lan78xx_init_mac_address(struct lan78xx_net *dev)
 	u32 addr_lo, addr_hi;
 	int ret;
 	u8 addr[6];
-	const u8 *mac_addr;
-
-	/* maybe the boot loader passed the MAC address in devicetree */
-	mac_addr = of_get_mac_address(dev->udev->dev.of_node);
-	if (mac_addr) {
-		ether_addr_copy(addr, mac_addr);
-		goto set_mac_addr;
-	}
 
 	ret = lan78xx_read_reg(dev, RX_ADDRL, &addr_lo);
 	ret = lan78xx_read_reg(dev, RX_ADDRH, &addr_hi);
@@ -1661,6 +1653,15 @@ static void lan78xx_init_mac_address(struct lan78xx_net *dev)
 	addr[5] = (addr_hi >> 8) & 0xFF;
 
 	if (!is_valid_ether_addr(addr)) {
+		const u8 *mac_addr;
+
+		/* maybe the boot loader passed the MAC address in devicetree */
+		mac_addr = of_get_mac_address(dev->udev->dev.of_node);
+		if (mac_addr) {
+			ether_addr_copy(addr, mac_addr);
+			goto set_mac_addr;
+		}
+
 		/* reading mac address from EEPROM or OTP */
 		if ((lan78xx_read_eeprom(dev, EEPROM_MAC_OFFSET, ETH_ALEN,
 					 addr) == 0) ||
@@ -2017,9 +2018,14 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 {
 	int ret;
 	u32 mii_adv;
-	u32 led_modes;
+	u32 led_modes[2];
+	u32 led_modes_reg;
+	int i;
 	struct phy_device *phydev = dev->net->phydev;
 
+	/* Return early if already initialised */
+	if (phydev)
+	    return 0;
 	phydev = phy_find_first(dev->mdiobus);
 	if (!phydev) {
 		netdev_err(dev->net, "no PHY found\n");
@@ -2090,18 +2096,27 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 	mii_adv = (u32)mii_advertise_flowctrl(dev->fc_request_control);
 	phydev->advertising |= mii_adv_to_ethtool_adv_t(mii_adv);
 
-	/* Change LED defaults:
-	 *   orange = link1000/activity
-	 *   green  = link10/link100/activity
+	/* Set LED modes:
 	 * led: 0=link/activity          1=link1000/activity
 	 *      2=link100/activity       3=link10/activity
 	 *      4=link100/1000/activity  5=link10/1000/activity
 	 *      6=link10/100/activity    14=off    15=on
 	 */
-	led_modes = phy_read(phydev, 0x1d);
-	led_modes &= ~0xff;
-	led_modes |= (1 << 0) | (6 << 4);
-	(void)phy_write(phydev, 0x1d, led_modes);
+
+	memset(led_modes, ~0, sizeof(led_modes));
+
+	of_property_read_u32_array(dev->udev->dev.of_node,
+				   "microchip,led-modes",
+				   led_modes, ARRAY_SIZE(led_modes));
+
+	led_modes_reg = phy_read(phydev, 0x1d);
+	for (i = 0; i < ARRAY_SIZE(led_modes); i++) {
+		if (led_modes[i] != ~0) {
+			led_modes_reg &= ~(0xf << (i * 4));
+			led_modes_reg |= (led_modes[i] & 0xf) << (i * 4);
+		}
+	}
+	(void)phy_write(phydev, 0x1d, led_modes_reg);
 
 	genphy_config_aneg(phydev);
 
@@ -2627,13 +2642,8 @@ static int lan78xx_stop(struct net_device *net)
 	if (timer_pending(&dev->stat_monitor))
 		del_timer_sync(&dev->stat_monitor);
 
-	phy_unregister_fixup_for_uid(PHY_KSZ9031RNX, 0xfffffff0);
-	phy_unregister_fixup_for_uid(PHY_LAN8835, 0xfffffff0);
-
-	phy_stop(net->phydev);
-	phy_disconnect(net->phydev);
-
-	net->phydev = NULL;
+	if (net->phydev)
+		phy_stop(net->phydev);
 
 	clear_bit(EVENT_DEV_OPEN, &dev->flags);
 	netif_stop_queue(net);
@@ -3531,9 +3541,15 @@ static void lan78xx_disconnect(struct usb_interface *intf)
 	udev = interface_to_usbdev(intf);
 
 	net = dev->net;
-	unregister_netdev(net);
 
 	cancel_delayed_work_sync(&dev->wq);
+
+	phy_unregister_fixup_for_uid(PHY_KSZ9031RNX, 0xfffffff0);
+	phy_unregister_fixup_for_uid(PHY_LAN8835, 0xfffffff0);
+
+	phy_disconnect(net->phydev);
+	net->phydev = NULL;
+	unregister_netdev(net);
 
 	usb_scuttle_anchored_urbs(&dev->deferred);
 
