@@ -2023,9 +2023,6 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 	int i;
 	struct phy_device *phydev = dev->net->phydev;
 
-	/* Return early if already initialised */
-	if (phydev)
-	    return 0;
 	phydev = phy_find_first(dev->mdiobus);
 	if (!phydev) {
 		netdev_err(dev->net, "no PHY found\n");
@@ -2643,8 +2640,13 @@ static int lan78xx_stop(struct net_device *net)
 	if (timer_pending(&dev->stat_monitor))
 		del_timer_sync(&dev->stat_monitor);
 
-	if (net->phydev)
-		phy_stop(net->phydev);
+	phy_unregister_fixup_for_uid(PHY_KSZ9031RNX, 0xfffffff0);
+	phy_unregister_fixup_for_uid(PHY_LAN8835, 0xfffffff0);
+
+	phy_stop(net->phydev);
+	phy_disconnect(net->phydev);
+
+	net->phydev = NULL;
 
 	clear_bit(EVENT_DEV_OPEN, &dev->flags);
 	netif_stop_queue(net);
@@ -3542,15 +3544,9 @@ static void lan78xx_disconnect(struct usb_interface *intf)
 	udev = interface_to_usbdev(intf);
 
 	net = dev->net;
+	unregister_netdev(net);
 
 	cancel_delayed_work_sync(&dev->wq);
-
-	phy_unregister_fixup_for_uid(PHY_KSZ9031RNX, 0xfffffff0);
-	phy_unregister_fixup_for_uid(PHY_LAN8835, 0xfffffff0);
-
-	phy_disconnect(net->phydev);
-	net->phydev = NULL;
-	unregister_netdev(net);
 
 	usb_scuttle_anchored_urbs(&dev->deferred);
 
