@@ -658,6 +658,13 @@ static void __init cpufeatures_setup_start(u32 isa)
 		cur_cpu_spec->cpu_features |= CPU_FTR_ARCH_300;
 		cur_cpu_spec->cpu_user_features2 |= PPC_FEATURE2_ARCH_3_00;
 	}
+
+	/*
+	 * PKEY was not in the initial base or feature node
+	 * specification, but it should become optional in the next
+	 * cpu feature version sequence.
+	 */
+	cur_cpu_spec->cpu_features |= CPU_FTR_PKEY;
 }
 
 static bool __init cpufeatures_process_feature(struct dt_cpu_feature *f)
