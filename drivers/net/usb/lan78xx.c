@@ -2195,6 +2195,22 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 	mii_adv = (u32)mii_advertise_flowctrl(dev->fc_request_control);
 	phydev->advertising |= mii_adv_to_ethtool_adv_t(mii_adv);
 
+	if (of_property_read_bool(dev->udev->dev.of_node,
+				  "microchip,eee-enabled")) {
+		struct ethtool_eee edata;
+		memset(&edata, 0, sizeof(edata));
+		edata.cmd = ETHTOOL_SEEE;
+		edata.advertised = ADVERTISED_1000baseT_Full |
+				   ADVERTISED_100baseT_Full;
+		edata.eee_enabled = true;
+		edata.tx_lpi_enabled = true;
+		if (of_property_read_u32(dev->udev->dev.of_node,
+					 "microchip,tx-lpi-timer",
+					 &edata.tx_lpi_timer))
+			edata.tx_lpi_timer = 600; /* non-aggressive */
+		(void)lan78xx_set_eee(dev->net, &edata);
+	}
+
 	if (phydev->mdio.dev.of_node) {
 		u32 reg;
 		int len;
@@ -2667,22 +2683,6 @@ static int lan78xx_open(struct net_device *net)
 	phy_start(net->phydev);
 
 	netif_dbg(dev, ifup, dev->net, "phy initialised successfully");
-
-	if (of_property_read_bool(dev->udev->dev.of_node,
-				  "microchip,eee-enabled")) {
-		struct ethtool_eee edata;
-		memset(&edata, 0, sizeof(edata));
-		edata.cmd = ETHTOOL_SEEE;
-		edata.advertised = ADVERTISED_1000baseT_Full |
-				   ADVERTISED_100baseT_Full;
-		edata.eee_enabled = true;
-		edata.tx_lpi_enabled = true;
-		if (of_property_read_u32(dev->udev->dev.of_node,
-					 "microchip,tx-lpi-timer",
-					 &edata.tx_lpi_timer))
-			edata.tx_lpi_timer = 600; /* non-aggressive */
-		(void)lan78xx_set_eee(net, &edata);
-	}
 
 	/* for Link Check */
 	if (dev->urb_intr) {
