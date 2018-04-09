@@ -353,8 +353,6 @@ static int au0828_set_frontend(struct dvb_frontend *fe)
 	mutex_lock(&dvb->lock);
 	was_streaming = dev->urb_streaming;
 	if (was_streaming) {
-		au0828_stop_transport(dev, 1);
-
 		/*
 		 * We can't hold a mutex here, as the restart_streaming
 		 * kthread may also hold it.
@@ -364,6 +362,7 @@ static int au0828_set_frontend(struct dvb_frontend *fe)
 		mutex_lock(&dvb->lock);
 
 		stop_urb_transfer(dev);
+		au0828_stop_transport(dev, 1);
 	}
 	mutex_unlock(&dvb->lock);
 
