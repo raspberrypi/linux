@@ -1526,6 +1526,13 @@ Load:   dtoverlay=smi-nand
 Params: <None>
 
 
+Name:   spi-gpio
+Info:   Add bitbang SPI on gpios
+        MOSI=24, SCK=18, MISO=23, CS0=25, CS1=8, CS=7
+Load:   dtoverlay=spi-gpio
+Params: <None>
+
+
 Name:   spi-gpio35-39
 Info:   Move SPI function block to GPIO 35 to 39
 Load:   dtoverlay=spi-gpio35-39
