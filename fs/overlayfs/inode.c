@@ -110,13 +110,10 @@ int ovl_getattr(const struct path *path, struct kstat *stat,
 			 * that the upper hardlink is not broken.
 			 */
 			if (is_dir || lowerstat.nlink == 1 ||
-			    ovl_test_flag(OVL_INDEX, d_inode(dentry)))
+			    ovl_test_flag(OVL_INDEX, d_inode(dentry))) {
 				stat->ino = lowerstat.ino;
-
-			if (samefs)
-				WARN_ON_ONCE(stat->dev != lowerstat.dev);
-			else
 				stat->dev = ovl_get_pseudo_dev(dentry);
+			}
 		}
 		if (samefs) {
 			/*
