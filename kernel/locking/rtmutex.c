@@ -1643,7 +1643,6 @@ static __always_inline void ww_mutex_lock_acquired(struct ww_mutex *ww,
 	 */
 	DEBUG_LOCKS_WARN_ON(ww->ctx);
 
-
 	/*
 	 * Not quite done after calling ww_acquire_done() ?
 	 */
