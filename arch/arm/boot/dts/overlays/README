@@ -821,8 +821,8 @@ Name:   i2c-sensor
 Info:   Adds support for a number of I2C barometric pressure and temperature
         sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
-Params: addr                    Set the address for the BME280, BMP280, TMP102,
-                                HDC100X, LM75 or SHT3x
+Params: addr                    Set the address for the BME280, BMP280, DS1621,
+                                HDC100X, LM75, SHT3x or TMP102
 
         bme280                  Select the Bosch Sensortronic BME280
                                 Valid addresses 0x76-0x77, default 0x76
@@ -834,6 +834,9 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102,
         bmp280                  Select the Bosch Sensortronic BMP280
                                 Valid addresses 0x76-0x77, default 0x76
 
+        ds1621                  Select the Dallas Semiconductors DS1621 temp
+                                sensor. Valid addresses 0x48-0x4f, default 0x48
+
         hdc100x                 Select the Texas Instruments HDC100x temp sensor
                                 Valid addresses 0x40-0x43, default 0x40
 
@@ -843,6 +846,10 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102,
                                 Valid addresses 0x48-0x4f, default 0x4f
 
         lm75addr                Deprecated - use addr parameter instead
+
+        sht3x                   Select the Sensiron SHT3x temperature and
+                                humidity sensor. Valid addresses 0x44-0x45,
+                                default 0x44
 
         si7020                  Select the Silicon Labs Si7013/20/21 humidity/
                                 temperature sensor
@@ -855,10 +862,6 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102,
 
         veml6070                Select the Vishay VEML6070 ultraviolet light
                                 sensor
-
-        sht3x                   Select the Sensiron SHT3x temperature and
-                                humidity sensor. Valid addresses 0x44-0x45,
-                                default 0x44
 
 
 Name:   i2c0-bcm2708

@@ -186,9 +186,25 @@
 		};
 	};
 
+	fragment@12 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ds1621: ds1621@48 {
+				compatible = "ds1621";
+				reg = <0x48>;
+				status = "okay";
+			};
+		};
+	};
+
 	__overrides__ {
 		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
-			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0";
+			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
+			<&ds1621>,"reg:0";
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
 		bmp180 = <0>,"+2";
@@ -202,5 +218,6 @@
 		tsl4531 = <0>,"+9";
 		veml6070 = <0>,"+10";
 		sht3x = <0>,"+11";
+		ds1621 = <0>,"+12";
 	};
 };
