@@ -453,6 +453,9 @@ cifs_enable_signing(struct TCP_Server_Info *server, bool mnt_sign_required)
 		server->sign = true;
 	}
 
+	if (cifs_rdma_enabled(server) && server->sign)
+		cifs_dbg(VFS, "Signing is enabled, and RDMA read/write will be disabled");
+
 	return 0;
 }
 
