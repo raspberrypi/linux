@@ -403,6 +403,14 @@ config ATMEL_ST
 	help
 	  Support for the Atmel ST timer.
 
+config ATMEL_ARM_TCB_CLKSRC
+	bool "Microchip ARM TC Block" if COMPILE_TEST
+	select REGMAP_MMIO
+	depends on GENERIC_CLOCKEVENTS
+	help
+	  This enables build of clocksource and clockevent driver for
+	  the integrated Timer Counter Blocks in Microchip ARM SoCs.
+
 config CLKSRC_EXYNOS_MCT
 	bool "Exynos multi core timer driver" if COMPILE_TEST
 	depends on ARM || ARM64
