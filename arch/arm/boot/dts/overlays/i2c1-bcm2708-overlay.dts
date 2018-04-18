@@ -26,9 +26,18 @@
          brcm,function = <4>; /* alt 0 */
       };
    };
+
+   fragment@2 {
+      target = <&i2c1>;
+      __dormant__ {
+         compatible = "brcm,bcm2708-i2c";
+      };
+   };
+
    __overrides__ {
       sda1_pin = <&pins>,"brcm,pins:0";
       scl1_pin = <&pins>,"brcm,pins:4";
       pin_func = <&pins>,"brcm,function:0";
+      combine = <0>, "!2";
    };
 };
