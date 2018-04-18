@@ -865,8 +865,9 @@ Params: addr                    Set the address for the BME280, BMP280, DS1621,
 
 
 Name:   i2c0-bcm2708
-Info:   Enable the i2c_bcm2708 driver for the i2c0 bus. Not all pin combinations
-        are usable on all platforms.
+Info:   Change i2c0 pin usage. Not all pin combinations are usable on all
+        platforms - platforms other then Compute Modules can only use this
+        to disable transaction combining.
 Load:   dtoverlay=i2c0-bcm2708,<param>=<val>
 Params: sda0_pin                GPIO pin for SDA0 (deprecated - use pins_*)
         scl0_pin                GPIO pin for SCL0 (deprecated - use pins_*)
@@ -874,15 +875,22 @@ Params: sda0_pin                GPIO pin for SDA0 (deprecated - use pins_*)
         pins_28_29              Use pins 28 and 29
         pins_44_45              Use pins 44 and 45
         pins_46_47              Use pins 46 and 47
+        combine                 Allow transactions to be combined (default
+                                "yes")
 
 
 Name:   i2c1-bcm2708
+Info:   Change i2c1 pin usage. Not all pin combinations are usable on all
+        platforms - platforms other then Compute Modules can only use this
+        to disable transaction combining.
 Info:   Enable the i2c_bcm2708 driver for the i2c1 bus
 Load:   dtoverlay=i2c1-bcm2708,<param>=<val>
 Params: sda1_pin                GPIO pin for SDA1 (2 or 44 - default 2)
         scl1_pin                GPIO pin for SCL1 (3 or 45 - default 3)
         pin_func                Alternative pin function (4 (alt0), 6 (alt2) -
                                 default 4)
+        combine                 Allow transactions to be combined (default
+                                "yes")
 
 
 Name:   i2s-gpio28-31
