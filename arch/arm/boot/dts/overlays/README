@@ -314,6 +314,12 @@ Load:   dtoverlay=allo-digione
 Params: <None>
 
 
+Name:   allo-katana
+Info:   Configures the Allo Katana audio card
+Load:   dtoverlay=allo-katana-dac-audio
+Params: <None>
+
+
 Name:   allo-piano-dac-pcm512x-audio
 Info:   Configures the Allo Piano DAC (2.0/2.1) audio cards.
         (NB. This initial support is for 2.0 channel audio ONLY! ie. stereo.

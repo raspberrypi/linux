@@ -1,0 +1,46 @@
+/*
+ * Definitions for Allo Katana DAC boards
+ *
+ * NB. The Katana DAC board contains SABER DAC.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sabre-ess@30 {
+				#sound-dai-cells = <0>;
+				compatible = "saber,sabre-ess";
+				reg = <0x30>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		katana_dac: __overlay__ {
+			compatible = "allo,katana-dac";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+
+};
+
