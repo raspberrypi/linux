@@ -25,13 +25,10 @@
 static struct snd_soc_dai_link snd_allo_katana_dac_dai[] = {
 {
 	.name		= "KATANA DAC",
-	//.stream_name	= "KATANA DAC HiFi [Master]",
 	.stream_name	= "KATANA DAC",
 	.cpu_dai_name	= "bcm2708-i2s.0",
-	//.codec_dai_name	= "es9038q2m-hifi",
 	.codec_dai_name	= "sabre-ess",
 	.platform_name	= "bcm2708-i2s.0",
-	//.codec_name	= "es9038q2m.1-0030",
 	.codec_name	= "sabre-ess.1-0030",
 	.dai_fmt	= SND_SOC_DAIFMT_I2S |
 		SND_SOC_DAIFMT_NB_NF |
