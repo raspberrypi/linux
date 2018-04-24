@@ -51,6 +51,8 @@
  * GPIOs can sometimes cost only an instruction or two per bit.
  */
 
+#define dont_test_bit(b,d) (0)
+
 /* Device and char device-related information */
 static DEFINE_IDA(gpio_ida);
 static dev_t gpio_devt;
@@ -3027,8 +3029,8 @@ int gpiod_direction_output_nonotify(struct gpio_desc *desc, int value)
 		value = !!value;
 
 	/* GPIOs used for enabled IRQs shall not be set as output */
-	if (test_bit(GPIOD_FLAG_USED_AS_IRQ, &flags) &&
-	    test_bit(GPIOD_FLAG_IRQ_IS_ENABLED, &flags)) {
+	if (dont_test_bit(GPIOD_FLAG_USED_AS_IRQ, &flags) &&
+	    dont_test_bit(GPIOD_FLAG_IRQ_IS_ENABLED, &flags)) {
 		gpiod_err(desc,
 			  "%s: tried to set a GPIO tied to an IRQ as output\n",
 			  __func__);
@@ -4063,8 +4065,8 @@ int gpiochip_lock_as_irq(struct gpio_chip *gc, unsigned int offset)
 	}
 
 	/* To be valid for IRQ the line needs to be input or open drain */
-	if (test_bit(GPIOD_FLAG_IS_OUT, &desc->flags) &&
-	    !test_bit(GPIOD_FLAG_OPEN_DRAIN, &desc->flags)) {
+	if (dont_test_bit(GPIOD_FLAG_IS_OUT, &desc->flags) &&
+	    !dont_test_bit(GPIOD_FLAG_OPEN_DRAIN, &desc->flags)) {
 		chip_err(gc,
 			 "%s: tried to flag a GPIO set as output for IRQ\n",
 			 __func__);
