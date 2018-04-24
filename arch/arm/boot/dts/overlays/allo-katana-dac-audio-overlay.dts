@@ -1,7 +1,5 @@
 /*
  * Definitions for Allo Katana DAC boards
- *
- * NB. The Katana DAC board contains SABER DAC.
  */
 
 /dts-v1/;
@@ -13,7 +11,16 @@
 	fragment@0 {
 		target = <&i2s>;
 		__overlay__ {
+			#sound-dai-cells = <0>;
 			status = "okay";
+			cpu_port: port {
+				cpu_endpoint: endpoint {
+					remote-endpoint = <&codec_endpoint>;
+					bitclock-master = <&codec_endpoint>;
+					frame-master = <&codec_endpoint>;
+					dai-format = "i2s";
+				};
+			};
 		};
 	};
 
@@ -24,11 +31,15 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			sabre-ess@30 {
+			allo-katana-codec@30 {
 				#sound-dai-cells = <0>;
-				compatible = "saber,sabre-ess";
+				compatible = "allo,allo-katana-codec";
 				reg = <0x30>;
-				status = "okay";
+				port {
+					codec_endpoint: endpoint {
+					remote-endpoint = <&cpu_endpoint>;
+					};
+				};
 			};
 		};
 	};
@@ -36,11 +47,11 @@
 	fragment@2 {
 		target = <&sound>;
 		katana_dac: __overlay__ {
-			compatible = "allo,katana-dac";
-			i2s-controller = <&i2s>;
+			compatible = "audio-graph-card";
+			label = "Allo Katana";
+			dais = <&cpu_port>;
 			status = "okay";
 		};
 	};
-
 };
 
