@@ -139,6 +139,9 @@ Params:
 
         sd_debug                Enable debug output from SD driver (default off)
 
+        sdio_overclock          Clock (in MHz) to use when the MMC framework
+                                requests 50MHz for the SDIO/WiFi interface.
+
         tx_lpi_timer            Set the delay in microseconds between going idle
                                 and entering the low power state (default 600).
                                 Requires EEE to be enabled - see "eee".
