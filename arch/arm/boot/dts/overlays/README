@@ -314,8 +314,8 @@ Load:   dtoverlay=allo-digione
 Params: <None>
 
 
-Name:   allo-katana
-Info:   Configures the Allo Katana audio card
+Name:   allo-katana-dac-audio
+Info:   Configures the Allo Katana DAC audio card
 Load:   dtoverlay=allo-katana-dac-audio
 Params: <None>
 
