@@ -1314,6 +1314,12 @@ static inline bool cpu_has_vmx_vmfunc(void)
 		SECONDARY_EXEC_ENABLE_VMFUNC;
 }
 
+static bool vmx_umip_emulated(void)
+{
+	return vmcs_config.cpu_based_2nd_exec_ctrl &
+		SECONDARY_EXEC_DESC;
+}
+
 static inline bool report_flexpriority(void)
 {
 	return flexpriority_enabled;
@@ -4494,14 +4500,16 @@ static int vmx_set_cr4(struct kvm_vcpu *vcpu, unsigned long cr4)
 		(to_vmx(vcpu)->rmode.vm86_active ?
 		 KVM_RMODE_VM_CR4_ALWAYS_ON : KVM_PMODE_VM_CR4_ALWAYS_ON);
 
-	if ((cr4 & X86_CR4_UMIP) && !boot_cpu_has(X86_FEATURE_UMIP)) {
-		vmcs_set_bits(SECONDARY_VM_EXEC_CONTROL,
-			      SECONDARY_EXEC_DESC);
-		hw_cr4 &= ~X86_CR4_UMIP;
-	} else if (!is_guest_mode(vcpu) ||
-	           !nested_cpu_has2(get_vmcs12(vcpu), SECONDARY_EXEC_DESC))
-		vmcs_clear_bits(SECONDARY_VM_EXEC_CONTROL,
+	if (!boot_cpu_has(X86_FEATURE_UMIP) && vmx_umip_emulated()) {
+		if (cr4 & X86_CR4_UMIP) {
+			vmcs_set_bits(SECONDARY_VM_EXEC_CONTROL,
 				SECONDARY_EXEC_DESC);
+			hw_cr4 &= ~X86_CR4_UMIP;
+		} else if (!is_guest_mode(vcpu) ||
+			!nested_cpu_has2(get_vmcs12(vcpu), SECONDARY_EXEC_DESC))
+			vmcs_clear_bits(SECONDARY_VM_EXEC_CONTROL,
+					SECONDARY_EXEC_DESC);
+	}
 
 	if (cr4 & X86_CR4_VMXE) {
 		/*
@@ -9241,12 +9249,6 @@ static bool vmx_xsaves_supported(void)
 {
 	return vmcs_config.cpu_based_2nd_exec_ctrl &
 		SECONDARY_EXEC_XSAVES;
-}
-
-static bool vmx_umip_emulated(void)
-{
-	return vmcs_config.cpu_based_2nd_exec_ctrl &
-		SECONDARY_EXEC_DESC;
 }
 
 static void vmx_recover_nmi_blocking(struct vcpu_vmx *vmx)
