@@ -1020,6 +1020,31 @@ Params: gpio_out_pin            GPIO for output (default "17")
                                 (default "off")
 
 
+Name:   ltc294x
+Info:   Adds support for the ltc294x family of battery gauges
+Load:   dtoverlay=ltc294x,<param>=<val>
+Params: ltc2941                 Select the ltc2941 device
+
+        ltc2942                 Select the ltc2942 device
+
+        ltc2943                 Select the ltc2943 device
+
+        ltc2944                 Select the ltc2944 device
+
+        resistor-sense          The sense resistor value in milli-ohms.
+                                Can be a 32-bit negative value when the battery
+                                has been connected to the wrong end of the
+                                resistor.
+
+        prescaler-exponent      Range and accuracy of the gauge. The value is
+                                programmed into the chip only if it differs
+                                from the current setting.
+                                For LTC2941 only:
+                                - Default value is 128
+                                - the exponent is in the range 0-7 (default 7)
+                                See the datasheet for more information.
+
+
 Name:   mbed-dac
 Info:   Configures the mbed AudioCODEC (TLV320AIC23B)
 Load:   dtoverlay=mbed-dac
