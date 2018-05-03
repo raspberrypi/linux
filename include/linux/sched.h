@@ -638,6 +638,9 @@ struct task_struct {
 	int				migrate_disable_atomic;
 # endif
 #endif
+#ifdef CONFIG_PREEMPT_RT_FULL
+	int				sleeping_lock;
+#endif
 
 #ifdef CONFIG_PREEMPT_RCU
 	int				rcu_read_lock_nesting;
@@ -1764,6 +1767,23 @@ static __always_inline bool need_resched(void)
 {
 	return unlikely(tif_need_resched());
 }
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+static inline void sleeping_lock_inc(void)
+{
+	current->sleeping_lock++;
+}
+
+static inline void sleeping_lock_dec(void)
+{
+	current->sleeping_lock--;
+}
+
+#else
+
+static inline void sleeping_lock_inc(void) { }
+static inline void sleeping_lock_dec(void) { }
+#endif
 
 /*
  * Wrappers for p->thread_info->cpu access. No-op on UP.
