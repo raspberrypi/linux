@@ -1,0 +1,72 @@
+/*
+ * Device tree overlay for max3421 on spi0.0
+*/
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835", "brcm,bcm2836", "brcm,bcm2708", "brcm,bcm2709";
+    /* disable spi-dev for spi0.0 */
+    fragment@0 {
+        target = <&spi0>;
+        __overlay__ {
+            status = "okay";
+        };
+    };
+
+    fragment@1 {
+        target = <&spidev0>;
+        __overlay__ {
+            status = "disabled";
+        };
+    };
+
+    /* the interrupt pin of the usb-controller */
+    fragment@2 {
+        target = <&gpio>;
+        __overlay__ {
+            max3421_pins: max3421_pins {
+                brcm,pins = <25>;
+                brcm,function = <0>; /* input */
+            };
+        };
+    };
+
+    /* the clock/oscillator of the usb-controller */
+    fragment@3 {
+        target-path = "/clocks";
+        __overlay__ {
+            /* external oscillator of max3421 on SPI0.0 */
+            max3421_osc: max3421_osc {
+                compatible = "fixed-clock";
+                #clock-cells = <0>;
+                clock-frequency  = <26000000>;
+            };
+        };
+    };
+
+    /* the spi config of the usb-controller itself binding everything together */
+    fragment@4 {
+        target = <&spi0>;
+        __overlay__ {
+            /* needed to avoid dtc warning */
+            #address-cells = <1>;
+            #size-cells = <0>;
+            max3421: max3421 {
+                compatible = "maxim,max3421";
+                reg = <0>;
+                maxim,vbus-en-pin = <3 1>;
+                spi-max-frequency = <26000000>;
+                interrupt-parent = <&gpio>;
+                interrupts = <25 8>;
+                clocks = <&max3421_osc>;
+            };
+        };
+    };
+    __overrides__ {
+        oscillator = <&max3421_osc>,"clock-frequency:0";
+        spimaxfrequency = <&max3421>,"spi-max-frequency:0";
+        interrupt = <&max3421_pins>,"brcm,pins:0",<&max3421>,"interrupts:0";
+    };
+};
