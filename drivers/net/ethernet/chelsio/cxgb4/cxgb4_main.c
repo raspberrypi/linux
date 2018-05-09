@@ -5191,6 +5191,7 @@ static int init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 	}
 	spin_lock_init(&adapter->mbox_lock);
 	INIT_LIST_HEAD(&adapter->mlist.list);
+	adapter->mbox_log->size = T4_OS_LOG_MBOX_CMDS;
 	pci_set_drvdata(pdev, adapter);
 
 	if (func != ent->driver_data) {
@@ -5224,8 +5225,6 @@ static int init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 		err = -ENOMEM;
 		goto out_free_adapter;
 	}
-
-	adapter->mbox_log->size = T4_OS_LOG_MBOX_CMDS;
 
 	/* PCI device has been enabled */
 	adapter->flags |= DEV_ENABLED;
