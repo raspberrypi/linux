@@ -725,7 +725,7 @@ static int vidioc_enum_fmt_vid_overlay(struct file *file, void *priv,
 
 	fmt = &formats[f->index];
 
-	strlcpy(f->description, fmt->name, sizeof(f->description));
+	strlcpy((char *)f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
 	f->flags = fmt->flags;
 
@@ -883,7 +883,7 @@ static int vidioc_enum_input(struct file *file, void *priv,
 		return -EINVAL;
 
 	inp->type = V4L2_INPUT_TYPE_CAMERA;
-	sprintf(inp->name, "Camera %u", inp->index);
+	sprintf((char *)inp->name, "Camera %u", inp->index);
 	return 0;
 }
 
@@ -911,11 +911,11 @@ static int vidioc_querycap(struct file *file, void *priv,
 
 	vchiq_mmal_version(dev->instance, &major, &minor);
 
-	strcpy(cap->driver, "bm2835 mmal");
-	snprintf(cap->card, sizeof(cap->card), "mmal service %d.%d",
+	strcpy((char *)cap->driver, "bm2835 mmal");
+	snprintf((char *)cap->card, sizeof(cap->card), "mmal service %d.%d",
 		 major, minor);
 
-	snprintf(cap->bus_info, sizeof(cap->bus_info),
+	snprintf((char *)cap->bus_info, sizeof(cap->bus_info),
 		 "platform:%s", dev->v4l2_dev.name);
 	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_OVERLAY |
 	    V4L2_CAP_STREAMING | V4L2_CAP_READWRITE;
@@ -934,7 +934,7 @@ static int vidioc_enum_fmt_vid_cap(struct file *file, void *priv,
 
 	fmt = &formats[f->index];
 
-	strlcpy(f->description, fmt->name, sizeof(f->description));
+	strlcpy((char *)f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
 	f->flags = fmt->flags;
 
