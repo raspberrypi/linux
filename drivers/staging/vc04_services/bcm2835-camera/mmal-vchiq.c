@@ -548,7 +548,6 @@ static int port_buffer_from_host(struct vchiq_mmal_instance *instance,
 	/* peek buffer from queue */
 	spin_lock_irqsave(&port->slock, flags);
 	if (list_empty(&port->buffers)) {
-		port->buffer_underflow++;
 		spin_unlock_irqrestore(&port->slock, flags);
 		return -ENOSPC;
 	}
@@ -639,9 +638,6 @@ static void buffer_to_host_cb(struct vchiq_mmal_instance *instance,
 		    msg->u.buffer_from_host.payload_in_message;
 	}
 
-	/* replace the buffer header */
-	port_buffer_from_host(instance, msg_context->u.bulk.port);
-
 	/* schedule the port callback */
 	schedule_work(&msg_context->u.bulk.work);
 }
@@ -649,10 +645,6 @@ static void buffer_to_host_cb(struct vchiq_mmal_instance *instance,
 static void bulk_receive_cb(struct vchiq_mmal_instance *instance,
 			    struct mmal_msg_context *msg_context)
 {
-	/* replace the buffer header */
-	port_buffer_from_host(msg_context->u.bulk.instance,
-			      msg_context->u.bulk.port);
-
 	msg_context->u.bulk.status = 0;
 
 	/* schedule the port callback */
@@ -663,10 +655,6 @@ static void bulk_abort_cb(struct vchiq_mmal_instance *instance,
 			  struct mmal_msg_context *msg_context)
 {
 	pr_err("%s: bulk ABORTED msg_context:%p\n", __func__, msg_context);
-
-	/* replace the buffer header */
-	port_buffer_from_host(msg_context->u.bulk.instance,
-			      msg_context->u.bulk.port);
 
 	msg_context->u.bulk.status = -EINTR;
 
@@ -1717,14 +1705,7 @@ int vchiq_mmal_submit_buffer(struct vchiq_mmal_instance *instance,
 	list_add_tail(&buffer->list, &port->buffers);
 	spin_unlock_irqrestore(&port->slock, flags);
 
-	/* the port previously underflowed because it was missing a
-	 * mmal_buffer which has just been added, submit that buffer
-	 * to the mmal service.
-	 */
-	if (port->buffer_underflow) {
-		port_buffer_from_host(instance, port);
-		port->buffer_underflow--;
-	}
+	port_buffer_from_host(instance, port);
 
 	return 0;
 }
