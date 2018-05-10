@@ -31,6 +31,7 @@ Optional properties:
 - inactive-delay-ms: Delay (default 100) to wait after driving gpio inactive
 - timeout-ms: Time to wait before asserting a WARN_ON(1). If nothing is
               specified, 3000 ms is used.
+- export : Export the GPIO line to the sysfs system
 
 Examples:
 
