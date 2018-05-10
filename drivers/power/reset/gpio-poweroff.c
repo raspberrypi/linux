@@ -55,6 +55,7 @@ static int gpio_poweroff_probe(struct platform_device *pdev)
 	bool input = false;
 	enum gpiod_flags flags;
 	int priority = SYS_OFF_PRIO_DEFAULT;
+	bool export = false;
 	int ret;
 
 	gpio_poweroff = devm_kzalloc(&pdev->dev, sizeof(*gpio_poweroff), GFP_KERNEL);
@@ -86,10 +87,18 @@ static int gpio_poweroff_probe(struct platform_device *pdev)
 	if (IS_ERR(gpio_poweroff->reset_gpio))
 		return PTR_ERR(gpio_poweroff->reset_gpio);
 
+	export = device_property_read_bool(&pdev->dev, "export");
+	if (export) {
+		gpiod_export(gpio_poweroff->reset_gpio, true);
+		gpiod_export_link(&pdev->dev, "poweroff-gpio", gpio_poweroff->reset_gpio);
+	}
+
 	ret = devm_register_sys_off_handler(&pdev->dev, SYS_OFF_MODE_POWER_OFF,
 					    priority, gpio_poweroff_do_poweroff, gpio_poweroff);
-	if (ret)
+	if (ret) {
+		gpiod_unexport(gpio_poweroff->reset_gpio);
 		return dev_err_probe(&pdev->dev, ret, "Cannot register poweroff handler\n");
+	}
 
 	return 0;
 }
