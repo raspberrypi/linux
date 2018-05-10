@@ -50,6 +50,10 @@ properties:
     default: 3000
     description: Time to wait before assuming the power off sequence failed.
 
+  export:
+    type: boolean
+    description: Export the GPIO line to the sysfs system
+
 required:
   - compatible
   - gpios
