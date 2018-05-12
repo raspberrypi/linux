@@ -30,5 +30,7 @@
 		gpiopin =       <&power_ctrl>,"gpios:4",
 				<&power_ctrl_pins>,"brcm,pins:0";
 		active_low =    <&power_ctrl>,"gpios:8";
+		input =         <&power_ctrl>,"input?";
+		export =        <&power_ctrl>,"export?";
 	};
 };
