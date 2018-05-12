@@ -27,6 +27,7 @@ Optional properties:
   it to an output when the power-off handler is called. If this optional
   property is not specified, the GPIO is initialized as an output in its
   inactive state.
+- export : Export the GPIO line to the sysfs system
 
 Examples:
 
