@@ -224,47 +224,6 @@ static void run_ksoftirqd(unsigned int cpu)
 	local_irq_enable();
 }
 
-static inline int ksoftirqd_softirq_pending(void)
-{
-	return local_softirq_pending();
-}
-
-static void handle_pending_softirqs(u32 pending)
-{
-	struct softirq_action *h = softirq_vec;
-	int softirq_bit;
-
-	local_irq_enable();
-
-	h = softirq_vec;
-
-	while ((softirq_bit = ffs(pending))) {
-		unsigned int vec_nr;
-
-		h += softirq_bit - 1;
-		vec_nr = h - softirq_vec;
-		handle_softirq(vec_nr);
-
-		h++;
-		pending >>= softirq_bit;
-	}
-
-	rcu_bh_qs();
-	local_irq_disable();
-}
-
-static void run_ksoftirqd(unsigned int cpu)
-{
-	local_irq_disable();
-	if (ksoftirqd_softirq_pending()) {
-		__do_softirq();
-		local_irq_enable();
-		cond_resched_rcu_qs();
-		return;
-	}
-	local_irq_enable();
-}
-
 /*
  * preempt_count and SOFTIRQ_OFFSET usage:
  * - preempt_count is changed by SOFTIRQ_OFFSET on entering or leaving
@@ -420,8 +379,10 @@ asmlinkage __visible void __softirq_entry __do_softirq(void)
 	unsigned long end = jiffies + MAX_SOFTIRQ_TIME;
 	unsigned long old_flags = current->flags;
 	int max_restart = MAX_SOFTIRQ_RESTART;
+	struct softirq_action *h;
 	bool in_hardirq;
 	__u32 pending;
+	int softirq_bit;
 
 	/*
 	 * Mask out PF_MEMALLOC s current task context is borrowed for the
@@ -440,7 +401,36 @@ restart:
 	/* Reset the pending bitmask before enabling irqs */
 	set_softirq_pending(0);
 
-	handle_pending_softirqs(pending);
+	local_irq_enable();
+
+	h = softirq_vec;
+
+	while ((softirq_bit = ffs(pending))) {
+		unsigned int vec_nr;
+		int prev_count;
+
+		h += softirq_bit - 1;
+
+		vec_nr = h - softirq_vec;
+		prev_count = preempt_count();
+
+		kstat_incr_softirqs_this_cpu(vec_nr);
+
+		trace_softirq_entry(vec_nr);
+		h->action(h);
+		trace_softirq_exit(vec_nr);
+		if (unlikely(prev_count != preempt_count())) {
+			pr_err("huh, entered softirq %u %s %p with preempt_count %08x, exited with %08x?\n",
+			       vec_nr, softirq_to_name[vec_nr], h->action,
+			       prev_count, preempt_count());
+			preempt_count_set(prev_count);
+		}
+		h++;
+		pending >>= softirq_bit;
+	}
+
+	rcu_bh_qs();
+	local_irq_disable();
 
 	pending = local_softirq_pending();
 	if (pending) {
@@ -735,11 +725,6 @@ void raise_softirq_irqoff(unsigned int nr)
 	 */
 	if (!current->softirq_nestcnt)
 		wakeup_proper_softirq(nr);
-}
-
-static inline int ksoftirqd_softirq_pending(void)
-{
-	return current->softirqs_raised;
 }
 
 static inline void local_bh_disable_nort(void) { }
@@ -1054,7 +1039,6 @@ static __latent_entropy void tasklet_hi_action(struct softirq_action *a)
 	struct tasklet_struct *list;
 
 	local_irq_disable();
-
 	list = __this_cpu_read(tasklet_hi_vec.head);
 	__this_cpu_write(tasklet_hi_vec.head, NULL);
 	__this_cpu_write(tasklet_hi_vec.tail, this_cpu_ptr(&tasklet_hi_vec.head));
@@ -1088,6 +1072,59 @@ void tasklet_kill(struct tasklet_struct *t)
 	clear_bit(TASKLET_STATE_SCHED, &t->state);
 }
 EXPORT_SYMBOL(tasklet_kill);
+
+#ifndef CONFIG_PREEMPT_RT_FULL
+/*
+ * tasklet_hrtimer
+ */
+
+/*
+ * The trampoline is called when the hrtimer expires. It schedules a tasklet
+ * to run __tasklet_hrtimer_trampoline() which in turn will call the intended
+ * hrtimer callback, but from softirq context.
+ */
+static enum hrtimer_restart __hrtimer_tasklet_trampoline(struct hrtimer *timer)
+{
+	struct tasklet_hrtimer *ttimer =
+		container_of(timer, struct tasklet_hrtimer, timer);
+
+	tasklet_hi_schedule(&ttimer->tasklet);
+	return HRTIMER_NORESTART;
+}
+
+/*
+ * Helper function which calls the hrtimer callback from
+ * tasklet/softirq context
+ */
+static void __tasklet_hrtimer_trampoline(unsigned long data)
+{
+	struct tasklet_hrtimer *ttimer = (void *)data;
+	enum hrtimer_restart restart;
+
+	restart = ttimer->function(&ttimer->timer);
+	if (restart != HRTIMER_NORESTART)
+		hrtimer_restart(&ttimer->timer);
+}
+
+/**
+ * tasklet_hrtimer_init - Init a tasklet/hrtimer combo for softirq callbacks
+ * @ttimer:	 tasklet_hrtimer which is initialized
+ * @function:	 hrtimer callback function which gets called from softirq context
+ * @which_clock: clock id (CLOCK_MONOTONIC/CLOCK_REALTIME)
+ * @mode:	 hrtimer mode (HRTIMER_MODE_ABS/HRTIMER_MODE_REL)
+ */
+void tasklet_hrtimer_init(struct tasklet_hrtimer *ttimer,
+			  enum hrtimer_restart (*function)(struct hrtimer *),
+			  clockid_t which_clock, enum hrtimer_mode mode)
+{
+	hrtimer_init(&ttimer->timer, which_clock, mode);
+	ttimer->timer.function = __hrtimer_tasklet_trampoline;
+	tasklet_init(&ttimer->tasklet, __tasklet_hrtimer_trampoline,
+		     (unsigned long)ttimer);
+	ttimer->function = function;
+}
+EXPORT_SYMBOL_GPL(tasklet_hrtimer_init);
+#endif
 
 void __init softirq_init(void)
 {
@@ -1123,7 +1160,7 @@ EXPORT_SYMBOL(tasklet_unlock_wait);
 
 static int ksoftirqd_should_run(unsigned int cpu)
 {
-	return ksoftirqd_softirq_pending();
+	return local_softirq_pending();
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
