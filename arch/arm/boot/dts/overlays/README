@@ -595,6 +595,9 @@ Params: gpiopin                 GPIO for signalling (default 26)
                                 custom dt-blob.bin to prevent a power-down
                                 during the boot process, and that a reboot
                                 will also cause the pin to go low.
+        input                   Set if the gpio pin should be configured as
+                                an input.
+        export                  Set to export the configured pin to sysfs
 
 
 Name:   gpio-shutdown
