@@ -67,6 +67,10 @@ static int bcm2835aux_serial_probe(struct platform_device *pdev)
 	}
 	data->uart.port.irq = ret;
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+	data->uart.port.irqflags = IRQF_NO_THREAD;
+#endif
+
 	/* map the main registers */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {

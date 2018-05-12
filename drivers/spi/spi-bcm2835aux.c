@@ -484,7 +484,11 @@ static int bcm2835aux_spi_probe(struct platform_device *pdev)
 
 	err = devm_request_irq(&pdev->dev, bs->irq,
 			       bcm2835aux_spi_interrupt,
+#ifdef CONFIG_PREEMPT_RT_FULL
+			       IRQF_SHARED | IRQF_NO_THREAD,
+#else
 			       IRQF_SHARED,
+#endif
 			       dev_name(&pdev->dev), master);
 	if (err) {
 		dev_err(&pdev->dev, "could not request IRQ: %d\n", err);
