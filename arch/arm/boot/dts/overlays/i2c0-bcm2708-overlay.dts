@@ -50,6 +50,13 @@
       };
    };
 
+   fragment@5 {
+      target = <&i2c0>;
+      __dormant__ {
+         compatible = "brcm,bcm2708-i2c";
+      };
+   };
+
    __overrides__ {
       sda0_pin = <&frag1>,"brcm,pins:0";
       scl0_pin = <&frag1>,"brcm,pins:4";
@@ -57,5 +64,6 @@
       pins_28_29 = <0>,"-1+2-3-4";
       pins_44_45 = <0>,"-1-2+3-4";
       pins_46_47 = <0>,"-1-2-3+4";
+      combine = <0>, "!5";
    };
 };

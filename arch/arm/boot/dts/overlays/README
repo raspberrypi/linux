@@ -139,6 +139,9 @@ Params:
 
         sd_debug                Enable debug output from SD driver (default off)
 
+        sdio_overclock          Clock (in MHz) to use when the MMC framework
+                                requests 50MHz for the SDIO/WiFi interface.
+
         tx_lpi_timer            Set the delay in microseconds between going idle
                                 and entering the low power state (default 600).
                                 Requires EEE to be enabled - see "eee".
@@ -314,6 +317,12 @@ Load:   dtoverlay=allo-digione
 Params: <None>
 
 
+Name:   allo-katana-dac-audio
+Info:   Configures the Allo Katana DAC audio card
+Load:   dtoverlay=allo-katana-dac-audio
+Params: <None>
+
+
 Name:   allo-piano-dac-pcm512x-audio
 Info:   Configures the Allo Piano DAC (2.0/2.1) audio cards.
         (NB. This initial support is for 2.0 channel audio ONLY! ie. stereo.
@@ -393,6 +402,13 @@ Params: swap_lr                 Reverse the channel allocation, which will also
                                 swap the audio jack outputs (default off)
         enable_jack             Don't switch off the audio jack output
                                 (default off)
+
+
+Name:   balena-fin
+Info:   Overlay that enables WiFi, Bluetooth and the GPIO expander on the
+        Balena Fin board.
+Load:   dtoverlay=balena-fin
+Params: <None>
 
 
 Name:   bmp085_i2c-sensor
@@ -821,8 +837,8 @@ Name:   i2c-sensor
 Info:   Adds support for a number of I2C barometric pressure and temperature
         sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
-Params: addr                    Set the address for the BME280, BMP280, TMP102,
-                                HDC100X, LM75 or SHT3x
+Params: addr                    Set the address for the BME280, BMP280, DS1621,
+                                HDC100X, LM75, SHT3x or TMP102
 
         bme280                  Select the Bosch Sensortronic BME280
                                 Valid addresses 0x76-0x77, default 0x76
@@ -834,6 +850,9 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102,
         bmp280                  Select the Bosch Sensortronic BMP280
                                 Valid addresses 0x76-0x77, default 0x76
 
+        ds1621                  Select the Dallas Semiconductors DS1621 temp
+                                sensor. Valid addresses 0x48-0x4f, default 0x48
+
         hdc100x                 Select the Texas Instruments HDC100x temp sensor
                                 Valid addresses 0x40-0x43, default 0x40
 
@@ -843,6 +862,10 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102,
                                 Valid addresses 0x48-0x4f, default 0x4f
 
         lm75addr                Deprecated - use addr parameter instead
+
+        sht3x                   Select the Sensiron SHT3x temperature and
+                                humidity sensor. Valid addresses 0x44-0x45,
+                                default 0x44
 
         si7020                  Select the Silicon Labs Si7013/20/21 humidity/
                                 temperature sensor
@@ -856,14 +879,11 @@ Params: addr                    Set the address for the BME280, BMP280, TMP102,
         veml6070                Select the Vishay VEML6070 ultraviolet light
                                 sensor
 
-        sht3x                   Select the Sensiron SHT3x temperature and
-                                humidity sensor. Valid addresses 0x44-0x45,
-                                default 0x44
-
 
 Name:   i2c0-bcm2708
-Info:   Enable the i2c_bcm2708 driver for the i2c0 bus. Not all pin combinations
-        are usable on all platforms.
+Info:   Change i2c0 pin usage. Not all pin combinations are usable on all
+        platforms - platforms other then Compute Modules can only use this
+        to disable transaction combining.
 Load:   dtoverlay=i2c0-bcm2708,<param>=<val>
 Params: sda0_pin                GPIO pin for SDA0 (deprecated - use pins_*)
         scl0_pin                GPIO pin for SCL0 (deprecated - use pins_*)
@@ -871,15 +891,22 @@ Params: sda0_pin                GPIO pin for SDA0 (deprecated - use pins_*)
         pins_28_29              Use pins 28 and 29
         pins_44_45              Use pins 44 and 45
         pins_46_47              Use pins 46 and 47
+        combine                 Allow transactions to be combined (default
+                                "yes")
 
 
 Name:   i2c1-bcm2708
+Info:   Change i2c1 pin usage. Not all pin combinations are usable on all
+        platforms - platforms other then Compute Modules can only use this
+        to disable transaction combining.
 Info:   Enable the i2c_bcm2708 driver for the i2c1 bus
 Load:   dtoverlay=i2c1-bcm2708,<param>=<val>
 Params: sda1_pin                GPIO pin for SDA1 (2 or 44 - default 2)
         scl1_pin                GPIO pin for SCL1 (3 or 45 - default 3)
         pin_func                Alternative pin function (4 (alt0), 6 (alt2) -
                                 default 4)
+        combine                 Allow transactions to be combined (default
+                                "yes")
 
 
 Name:   i2s-gpio28-31
@@ -998,6 +1025,31 @@ Params: gpio_out_pin            GPIO for output (default "17")
 
         debug                   "on" = enable additional debug messages
                                 (default "off")
+
+
+Name:   ltc294x
+Info:   Adds support for the ltc294x family of battery gauges
+Load:   dtoverlay=ltc294x,<param>=<val>
+Params: ltc2941                 Select the ltc2941 device
+
+        ltc2942                 Select the ltc2942 device
+
+        ltc2943                 Select the ltc2943 device
+
+        ltc2944                 Select the ltc2944 device
+
+        resistor-sense          The sense resistor value in milli-ohms.
+                                Can be a 32-bit negative value when the battery
+                                has been connected to the wrong end of the
+                                resistor.
+
+        prescaler-exponent      Range and accuracy of the gauge. The value is
+                                programmed into the chip only if it differs
+                                from the current setting.
+                                For LTC2941 only:
+                                - Default value is 128
+                                - the exponent is in the range 0-7 (default 7)
+                                See the datasheet for more information.
 
 
 Name:   mbed-dac
