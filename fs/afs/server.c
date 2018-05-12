@@ -66,12 +66,6 @@ struct afs_server *afs_find_server(struct afs_net *net,
 							      sizeof(struct in6_addr));
 					if (diff == 0)
 						goto found;
-					if (diff < 0) {
-						// TODO: Sort the list
-						//if (i == alist->nr_ipv4)
-						//	goto not_found;
-						break;
-					}
 				}
 			}
 		} else {
@@ -85,17 +79,10 @@ struct afs_server *afs_find_server(struct afs_net *net,
 							(u32)b->sin6_addr.s6_addr32[3]);
 					if (diff == 0)
 						goto found;
-					if (diff < 0) {
-						// TODO: Sort the list
-						//if (i == 0)
-						//	goto not_found;
-						break;
-					}
 				}
 			}
 		}
 
-	//not_found:
 		server = NULL;
 	found:
 		if (server && !atomic_inc_not_zero(&server->usage))
