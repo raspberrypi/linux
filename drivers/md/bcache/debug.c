@@ -251,6 +251,9 @@ void bch_debug_exit(void)
 
 int __init bch_debug_init(struct kobject *kobj)
 {
+	if (!IS_ENABLED(CONFIG_DEBUG_FS))
+		return 0;
+
 	debug = debugfs_create_dir("bcache", NULL);
 
 	return IS_ERR_OR_NULL(debug);
