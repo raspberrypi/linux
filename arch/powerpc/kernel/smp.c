@@ -579,9 +579,6 @@ static void nmi_stop_this_cpu(struct pt_regs *regs)
 	nmi_ipi_busy_count--;
 	nmi_ipi_unlock();
 
-	/* Remove this CPU */
-	set_cpu_online(smp_processor_id(), false);
-
 	spin_begin();
 	while (1)
 		spin_cpu_relax();
@@ -596,9 +593,6 @@ void smp_send_stop(void)
 
 static void stop_this_cpu(void *dummy)
 {
-	/* Remove this CPU */
-	set_cpu_online(smp_processor_id(), false);
-
 	hard_irq_disable();
 	spin_begin();
 	while (1)
