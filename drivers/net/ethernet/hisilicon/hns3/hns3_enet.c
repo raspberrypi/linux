@@ -3602,6 +3602,8 @@ static int __init hns3_init_module(void)
 
 	client.ops = &client_ops;
 
+	INIT_LIST_HEAD(&client.node);
+
 	ret = hnae3_register_client(&client);
 	if (ret)
 		return ret;
