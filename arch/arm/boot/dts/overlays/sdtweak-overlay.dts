@@ -19,5 +19,7 @@
 		force_pio        = <&frag0>,"brcm,force-pio?";
 		pio_limit        = <&frag0>,"brcm,pio-limit:0";
 		debug            = <&frag0>,"brcm,debug?";
+		enable           = <&frag0>,"status";
+		poll_once        = <&frag0>,"non-removable?";
 	};
 };
