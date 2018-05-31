@@ -1942,6 +1942,8 @@ static int hid_device_probe(struct device *dev)
 	}
 	hdev->io_started = false;
 
+	clear_bit(ffs(HID_STAT_REPROBED), &hdev->status);
+
 	if (!hdev->driver) {
 		id = hid_match_device(hdev, hdrv);
 		if (id == NULL) {
@@ -2205,7 +2207,8 @@ static int __hid_bus_reprobe_drivers(struct device *dev, void *data)
 	struct hid_device *hdev = to_hid_device(dev);
 
 	if (hdev->driver == hdrv &&
-	    !hdrv->match(hdev, hid_ignore_special_drivers))
+	    !hdrv->match(hdev, hid_ignore_special_drivers) &&
+	    !test_and_set_bit(ffs(HID_STAT_REPROBED), &hdev->status))
 		return device_reprobe(dev);
 
 	return 0;
