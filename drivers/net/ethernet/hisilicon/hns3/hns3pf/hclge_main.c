@@ -3787,9 +3787,6 @@ static int hclge_ae_start(struct hnae3_handle *handle)
 	/* reset tqp stats */
 	hclge_reset_tqp_stats(handle);
 
-	if (test_bit(HCLGE_STATE_RST_HANDLING, &hdev->state))
-		return 0;
-
 	ret = hclge_mac_start_phy(hdev);
 	if (ret)
 		return ret;
@@ -3806,8 +3803,10 @@ static void hclge_ae_stop(struct hnae3_handle *handle)
 	del_timer_sync(&hdev->service_timer);
 	cancel_work_sync(&hdev->service_task);
 
-	if (test_bit(HCLGE_STATE_RST_HANDLING, &hdev->state))
+	if (test_bit(HCLGE_STATE_RST_HANDLING, &hdev->state)) {
+		hclge_mac_stop_phy(hdev);
 		return;
+	}
 
 	for (i = 0; i < vport->alloc_tqps; i++)
 		hclge_tqp_enable(hdev, i, 0, false);
