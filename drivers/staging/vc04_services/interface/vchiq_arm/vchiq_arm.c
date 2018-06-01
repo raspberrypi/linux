@@ -1748,7 +1748,7 @@ vchiq_open(struct inode *inode, struct file *file)
 		instance->state = state;
 		instance->pid = current->tgid;
 
-		(void)vchiq_debugfs_add_instance(instance);
+		vchiq_debugfs_add_instance(instance);
 
 		sema_init(&instance->insert_event, 0);
 		sema_init(&instance->remove_event, 0);
@@ -3432,9 +3432,7 @@ static int vchiq_probe(struct platform_device *pdev)
 		goto failed_device_create;
 
 	/* create debugfs entries */
-	err = vchiq_debugfs_init();
-	if (err != 0)
-		goto failed_debugfs_init;
+	vchiq_debugfs_init();
 
 	vchiq_log_info(vchiq_arm_log_level,
 		"vchiq: initialised - version %d (min %d), device %d.%d",
@@ -3443,8 +3441,6 @@ static int vchiq_probe(struct platform_device *pdev)
 
 	return 0;
 
-failed_debugfs_init:
-	device_destroy(vchiq_class, vchiq_devid);
 failed_device_create:
 	class_destroy(vchiq_class);
 failed_class_create:
