@@ -6887,7 +6887,7 @@ static void brcmf_cfg80211_reg_notifier(struct wiphy *wiphy,
 		return;
 
 	/* ignore non-ISO3166 country codes */
-	for (i = 0; i < sizeof(req->alpha2); i++)
+	for (i = 0; i < 2; i++)
 		if (req->alpha2[i] < 'A' || req->alpha2[i] > 'Z') {
 			if (req->alpha2[0] == '0' && req->alpha2[1] == '0')
 				return;
