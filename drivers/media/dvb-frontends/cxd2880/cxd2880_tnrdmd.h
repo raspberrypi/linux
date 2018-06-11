@@ -1,31 +1,16 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * cxd2880_tnrdmd.h
  * Sony CXD2880 DVB-T2/T tuner + demodulator driver
  * common control interface
  *
- * Copyright (C) 2016, 2017 Sony Semiconductor Solutions Corporation
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; version 2 of the License.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
- * NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
- * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, see <http://www.gnu.org/licenses/>.
+ * Copyright (C) 2016, 2017, 2018 Sony Semiconductor Solutions Corporation
  */
 
 #ifndef CXD2880_TNRDMD_H
 #define CXD2880_TNRDMD_H
+
+#include <linux/atomic.h>
 
 #include "cxd2880_common.h"
 #include "cxd2880_io.h"
@@ -60,12 +45,12 @@
 enum cxd2880_tnrdmd_chip_id {
 	CXD2880_TNRDMD_CHIP_ID_UNKNOWN = 0x00,
 	CXD2880_TNRDMD_CHIP_ID_CXD2880_ES1_0X = 0x62,
-	CXD2880_TNRDMD_CHIP_ID_CXD2880_ES1_11 = 0x6A
+	CXD2880_TNRDMD_CHIP_ID_CXD2880_ES1_11 = 0x6a
 };
 
-#define CXD2880_TNRDMD_CHIP_ID_VALID(chip_id) (((chip_id) == \
-CXD2880_TNRDMD_CHIP_ID_CXD2880_ES1_0X) || \
-((chip_id) == CXD2880_TNRDMD_CHIP_ID_CXD2880_ES1_11))
+#define CXD2880_TNRDMD_CHIP_ID_VALID(chip_id) \
+	(((chip_id) == CXD2880_TNRDMD_CHIP_ID_CXD2880_ES1_0X) || \
+	 ((chip_id) == CXD2880_TNRDMD_CHIP_ID_CXD2880_ES1_11))
 
 enum cxd2880_tnrdmd_state {
 	CXD2880_TNRDMD_STATE_UNKNOWN,
@@ -141,7 +126,6 @@ enum cxd2880_tnrdmd_cfg_id {
 	CXD2880_TNRDMD_CFG_DVBT2_BBER_MES,
 	CXD2880_TNRDMD_CFG_DVBT2_LBER_MES,
 	CXD2880_TNRDMD_CFG_DVBT2_PER_MES,
-	CXD2880_TNRDMD_CFG_ISDBT_BERPER_PERIOD
 };
 
 enum cxd2880_tnrdmd_lock_result {
@@ -181,15 +165,6 @@ struct cxd2880_tnrdmd_pid_cfg {
 struct cxd2880_tnrdmd_pid_ftr_cfg {
 	u8 is_negative;
 	struct cxd2880_tnrdmd_pid_cfg pid_cfg[32];
-};
-
-struct cxd2880_tnrdmd_ts_buf_info {
-	u8 read_ready;
-	u8 almost_full;
-	u8 almost_empty;
-	u8 overflow;
-	u8 underflow;
-	u16 packet_num;
 };
 
 struct cxd2880_tnrdmd_lna_thrs {
@@ -235,8 +210,8 @@ struct cxd2880_tnrdmd {
 	u8 en_fef_intmtnt_base;
 	u8 en_fef_intmtnt_lite;
 	u8 blind_tune_dvbt2_first;
-	enum cxd2880_ret (*rf_lvl_cmpstn)(struct cxd2880_tnrdmd *tnr_dmd,
-					   int *rf_lvl_db);
+	int (*rf_lvl_cmpstn)(struct cxd2880_tnrdmd *tnr_dmd,
+			     int *rf_lvl_db);
 	struct cxd2880_tnrdmd_lna_thrs_tbl_air *lna_thrs_tbl_air;
 	struct cxd2880_tnrdmd_lna_thrs_tbl_cable *lna_thrs_tbl_cable;
 	u8 srl_ts_clk_mod_cnts;
@@ -255,141 +230,136 @@ struct cxd2880_tnrdmd {
 	enum cxd2880_dtv_sys sys;
 	enum cxd2880_dtv_bandwidth bandwidth;
 	u8 scan_mode;
-	struct cxd2880_atomic cancel;
+	atomic_t cancel;
 };
 
-enum cxd2880_ret cxd2880_tnrdmd_create(struct cxd2880_tnrdmd *tnr_dmd,
-				       struct cxd2880_io *io,
-				       struct cxd2880_tnrdmd_create_param
-				       *create_param);
+int cxd2880_tnrdmd_create(struct cxd2880_tnrdmd *tnr_dmd,
+			  struct cxd2880_io *io,
+			  struct cxd2880_tnrdmd_create_param
+			  *create_param);
 
-enum cxd2880_ret cxd2880_tnrdmd_diver_create(struct cxd2880_tnrdmd
-					     *tnr_dmd_main,
-					     struct cxd2880_io *io_main,
-					     struct cxd2880_tnrdmd *tnr_dmd_sub,
-					     struct cxd2880_io *io_sub,
-					     struct
-					     cxd2880_tnrdmd_diver_create_param
-					     *create_param);
+int cxd2880_tnrdmd_diver_create(struct cxd2880_tnrdmd
+				*tnr_dmd_main,
+				struct cxd2880_io *io_main,
+				struct cxd2880_tnrdmd *tnr_dmd_sub,
+				struct cxd2880_io *io_sub,
+				struct
+				cxd2880_tnrdmd_diver_create_param
+				*create_param);
 
-enum cxd2880_ret cxd2880_tnrdmd_init1(struct cxd2880_tnrdmd *tnr_dmd);
+int cxd2880_tnrdmd_init1(struct cxd2880_tnrdmd *tnr_dmd);
 
-enum cxd2880_ret cxd2880_tnrdmd_init2(struct cxd2880_tnrdmd *tnr_dmd);
+int cxd2880_tnrdmd_init2(struct cxd2880_tnrdmd *tnr_dmd);
 
-enum cxd2880_ret cxd2880_tnrdmd_check_internal_cpu_status(struct cxd2880_tnrdmd
-							  *tnr_dmd,
-							  u8 *task_completed);
+int cxd2880_tnrdmd_check_internal_cpu_status(struct cxd2880_tnrdmd
+					     *tnr_dmd,
+					     u8 *task_completed);
 
-enum cxd2880_ret cxd2880_tnrdmd_common_tune_setting1(struct cxd2880_tnrdmd
-						     *tnr_dmd,
-						     enum cxd2880_dtv_sys sys,
-						     u32 frequency_khz,
-						     enum cxd2880_dtv_bandwidth
-						     bandwidth, u8 one_seg_opt,
-						     u8 one_seg_opt_shft_dir);
+int cxd2880_tnrdmd_common_tune_setting1(struct cxd2880_tnrdmd
+					*tnr_dmd,
+					enum cxd2880_dtv_sys sys,
+					u32 frequency_khz,
+					enum cxd2880_dtv_bandwidth
+					bandwidth, u8 one_seg_opt,
+					u8 one_seg_opt_shft_dir);
 
-enum cxd2880_ret cxd2880_tnrdmd_common_tune_setting2(struct cxd2880_tnrdmd
-						     *tnr_dmd,
-						     enum cxd2880_dtv_sys sys,
-						     u8 en_fef_intmtnt_ctrl);
+int cxd2880_tnrdmd_common_tune_setting2(struct cxd2880_tnrdmd
+					*tnr_dmd,
+					enum cxd2880_dtv_sys sys,
+					u8 en_fef_intmtnt_ctrl);
 
-enum cxd2880_ret cxd2880_tnrdmd_sleep(struct cxd2880_tnrdmd *tnr_dmd);
+int cxd2880_tnrdmd_sleep(struct cxd2880_tnrdmd *tnr_dmd);
 
-enum cxd2880_ret cxd2880_tnrdmd_set_cfg(struct cxd2880_tnrdmd *tnr_dmd,
-					enum cxd2880_tnrdmd_cfg_id id,
-					int value);
+int cxd2880_tnrdmd_set_cfg(struct cxd2880_tnrdmd *tnr_dmd,
+			   enum cxd2880_tnrdmd_cfg_id id,
+			   int value);
 
-enum cxd2880_ret cxd2880_tnrdmd_gpio_set_cfg(struct cxd2880_tnrdmd *tnr_dmd,
-					     u8 id,
-					     u8 en,
-					     enum cxd2880_tnrdmd_gpio_mode mode,
-					     u8 open_drain, u8 invert);
+int cxd2880_tnrdmd_gpio_set_cfg(struct cxd2880_tnrdmd *tnr_dmd,
+				u8 id,
+				u8 en,
+				enum cxd2880_tnrdmd_gpio_mode mode,
+				u8 open_drain, u8 invert);
 
-enum cxd2880_ret cxd2880_tnrdmd_gpio_set_cfg_sub(struct cxd2880_tnrdmd *tnr_dmd,
-						 u8 id,
-						 u8 en,
-						 enum cxd2880_tnrdmd_gpio_mode
-						 mode, u8 open_drain,
-						 u8 invert);
+int cxd2880_tnrdmd_gpio_set_cfg_sub(struct cxd2880_tnrdmd *tnr_dmd,
+				    u8 id,
+				    u8 en,
+				    enum cxd2880_tnrdmd_gpio_mode
+				    mode, u8 open_drain,
+				    u8 invert);
 
-enum cxd2880_ret cxd2880_tnrdmd_gpio_read(struct cxd2880_tnrdmd *tnr_dmd,
-					  u8 id, u8 *value);
+int cxd2880_tnrdmd_gpio_read(struct cxd2880_tnrdmd *tnr_dmd,
+			     u8 id, u8 *value);
 
-enum cxd2880_ret cxd2880_tnrdmd_gpio_read_sub(struct cxd2880_tnrdmd *tnr_dmd,
-					      u8 id, u8 *value);
+int cxd2880_tnrdmd_gpio_read_sub(struct cxd2880_tnrdmd *tnr_dmd,
+				 u8 id, u8 *value);
 
-enum cxd2880_ret cxd2880_tnrdmd_gpio_write(struct cxd2880_tnrdmd *tnr_dmd,
-					   u8 id, u8 value);
+int cxd2880_tnrdmd_gpio_write(struct cxd2880_tnrdmd *tnr_dmd,
+			      u8 id, u8 value);
 
-enum cxd2880_ret cxd2880_tnrdmd_gpio_write_sub(struct cxd2880_tnrdmd *tnr_dmd,
-					       u8 id, u8 value);
+int cxd2880_tnrdmd_gpio_write_sub(struct cxd2880_tnrdmd *tnr_dmd,
+				  u8 id, u8 value);
 
-enum cxd2880_ret cxd2880_tnrdmd_interrupt_read(struct cxd2880_tnrdmd *tnr_dmd,
-					       u16 *value);
+int cxd2880_tnrdmd_interrupt_read(struct cxd2880_tnrdmd *tnr_dmd,
+				  u16 *value);
 
-enum cxd2880_ret cxd2880_tnrdmd_interrupt_clear(struct cxd2880_tnrdmd *tnr_dmd,
-						u16 value);
+int cxd2880_tnrdmd_interrupt_clear(struct cxd2880_tnrdmd *tnr_dmd,
+				   u16 value);
 
-enum cxd2880_ret cxd2880_tnrdmd_ts_buf_clear(struct cxd2880_tnrdmd *tnr_dmd,
-					     u8 clear_overflow_flag,
-					     u8 clear_underflow_flag,
-					     u8 clear_buf);
+int cxd2880_tnrdmd_ts_buf_clear(struct cxd2880_tnrdmd *tnr_dmd,
+				u8 clear_overflow_flag,
+				u8 clear_underflow_flag,
+				u8 clear_buf);
 
-enum cxd2880_ret cxd2880_tnrdmd_chip_id(struct cxd2880_tnrdmd *tnr_dmd,
-					enum cxd2880_tnrdmd_chip_id *chip_id);
+int cxd2880_tnrdmd_chip_id(struct cxd2880_tnrdmd *tnr_dmd,
+			   enum cxd2880_tnrdmd_chip_id *chip_id);
 
-enum cxd2880_ret cxd2880_tnrdmd_set_and_save_reg_bits(struct cxd2880_tnrdmd
-						      *tnr_dmd,
-						      enum cxd2880_io_tgt tgt,
-						      u8 bank, u8 address,
-						      u8 value, u8 bit_mask);
+int cxd2880_tnrdmd_set_and_save_reg_bits(struct cxd2880_tnrdmd
+					 *tnr_dmd,
+					 enum cxd2880_io_tgt tgt,
+					 u8 bank, u8 address,
+					 u8 value, u8 bit_mask);
 
-enum cxd2880_ret cxd2880_tnrdmd_set_scan_mode(struct cxd2880_tnrdmd *tnr_dmd,
-					      enum cxd2880_dtv_sys sys,
-					      u8 scan_mode_end);
+int cxd2880_tnrdmd_set_scan_mode(struct cxd2880_tnrdmd *tnr_dmd,
+				 enum cxd2880_dtv_sys sys,
+				 u8 scan_mode_end);
 
-enum cxd2880_ret cxd2880_tnrdmd_set_pid_ftr(struct cxd2880_tnrdmd *tnr_dmd,
-					    struct cxd2880_tnrdmd_pid_ftr_cfg
-					    *pid_ftr_cfg);
+int cxd2880_tnrdmd_set_pid_ftr(struct cxd2880_tnrdmd *tnr_dmd,
+			       struct cxd2880_tnrdmd_pid_ftr_cfg
+			       *pid_ftr_cfg);
 
-enum cxd2880_ret cxd2880_tnrdmd_set_rf_lvl_cmpstn(struct cxd2880_tnrdmd
-						  *tnr_dmd,
-						  enum
-						  cxd2880_ret(*rf_lvl_cmpstn)
-						  (struct cxd2880_tnrdmd *,
-						   int *));
+int cxd2880_tnrdmd_set_rf_lvl_cmpstn(struct cxd2880_tnrdmd
+				     *tnr_dmd,
+				     int (*rf_lvl_cmpstn)
+				     (struct cxd2880_tnrdmd *,
+				     int *));
 
-enum cxd2880_ret cxd2880_tnrdmd_set_rf_lvl_cmpstn_sub(struct cxd2880_tnrdmd
-						      *tnr_dmd,
-						      enum
-						      cxd2880_ret
-						      (*rf_lvl_cmpstn)(struct
-								cxd2880_tnrdmd
-								*,
-								int *));
+int cxd2880_tnrdmd_set_rf_lvl_cmpstn_sub(struct cxd2880_tnrdmd *tnr_dmd,
+					 int (*rf_lvl_cmpstn)
+					 (struct cxd2880_tnrdmd *,
+					 int *));
 
-enum cxd2880_ret cxd2880_tnrdmd_set_lna_thrs(struct cxd2880_tnrdmd *tnr_dmd,
-					     struct
-					     cxd2880_tnrdmd_lna_thrs_tbl_air
-					     *tbl_air,
-					     struct
-					     cxd2880_tnrdmd_lna_thrs_tbl_cable
-					     *tbl_cable);
+int cxd2880_tnrdmd_set_lna_thrs(struct cxd2880_tnrdmd *tnr_dmd,
+				struct
+				cxd2880_tnrdmd_lna_thrs_tbl_air
+				*tbl_air,
+				struct
+				cxd2880_tnrdmd_lna_thrs_tbl_cable
+				*tbl_cable);
 
-enum cxd2880_ret cxd2880_tnrdmd_set_lna_thrs_sub(struct cxd2880_tnrdmd *tnr_dmd,
-					 struct
-					 cxd2880_tnrdmd_lna_thrs_tbl_air
-					 *tbl_air,
-					 struct
-					 cxd2880_tnrdmd_lna_thrs_tbl_cable
-					 *tbl_cable);
+int cxd2880_tnrdmd_set_lna_thrs_sub(struct cxd2880_tnrdmd *tnr_dmd,
+				    struct
+				    cxd2880_tnrdmd_lna_thrs_tbl_air
+				    *tbl_air,
+				    struct
+				    cxd2880_tnrdmd_lna_thrs_tbl_cable
+				    *tbl_cable);
 
-enum cxd2880_ret cxd2880_tnrdmd_set_ts_pin_high_low(struct cxd2880_tnrdmd
-						    *tnr_dmd, u8 en, u8 value);
+int cxd2880_tnrdmd_set_ts_pin_high_low(struct cxd2880_tnrdmd
+				       *tnr_dmd, u8 en, u8 value);
 
-enum cxd2880_ret cxd2880_tnrdmd_set_ts_output(struct cxd2880_tnrdmd *tnr_dmd,
-					      u8 en);
+int cxd2880_tnrdmd_set_ts_output(struct cxd2880_tnrdmd *tnr_dmd,
+				 u8 en);
 
-enum cxd2880_ret slvt_freeze_reg(struct cxd2880_tnrdmd *tnr_dmd);
+int slvt_freeze_reg(struct cxd2880_tnrdmd *tnr_dmd);
 
 #endif

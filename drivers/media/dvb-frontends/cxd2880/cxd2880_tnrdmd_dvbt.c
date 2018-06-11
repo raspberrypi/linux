@@ -1,872 +1,727 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * cxd2880_tnrdmd_dvbt.c
  * Sony CXD2880 DVB-T2/T tuner + demodulator driver
  * control functions for DVB-T
  *
- * Copyright (C) 2016, 2017 Sony Semiconductor Solutions Corporation
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; version 2 of the License.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
- * NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
- * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, see <http://www.gnu.org/licenses/>.
+ * Copyright (C) 2016, 2017, 2018 Sony Semiconductor Solutions Corporation
  */
+
+#include "dvb_frontend.h"
 
 #include "cxd2880_tnrdmd_dvbt.h"
 #include "cxd2880_tnrdmd_dvbt_mon.h"
 
-static enum cxd2880_ret x_tune_dvbt_demod_setting(struct cxd2880_tnrdmd
-						  *tnr_dmd,
-						  enum cxd2880_dtv_bandwidth
-						  bandwidth,
-						  enum cxd2880_tnrdmd_clockmode
-						  clk_mode)
+static const struct cxd2880_reg_value tune_dmd_setting_seq1[] = {
+	{0x00, 0x00}, {0x31, 0x01},
+};
+
+static const struct cxd2880_reg_value tune_dmd_setting_seq2[] = {
+	{0x00, 0x04}, {0x5c, 0xfb}, {0x00, 0x10}, {0xa4, 0x03},
+	{0x00, 0x14}, {0xb0, 0x00}, {0x00, 0x25},
+};
+
+static const struct cxd2880_reg_value tune_dmd_setting_seq3[] = {
+	{0x00, 0x12}, {0x44, 0x00},
+};
+
+static const struct cxd2880_reg_value tune_dmd_setting_seq4[] = {
+	{0x00, 0x11}, {0x87, 0xd2},
+};
+
+static const struct cxd2880_reg_value tune_dmd_setting_seq5[] = {
+	{0x00, 0x00}, {0xfd, 0x01},
+};
+
+static const struct cxd2880_reg_value sleep_dmd_setting_seq1[] = {
+	{0x00, 0x04}, {0x5c, 0xd8}, {0x00, 0x10}, {0xa4, 0x00},
+};
+
+static const struct cxd2880_reg_value sleep_dmd_setting_seq2[] = {
+	{0x00, 0x11}, {0x87, 0x04},
+};
+
+static int x_tune_dvbt_demod_setting(struct cxd2880_tnrdmd
+				     *tnr_dmd,
+				     enum cxd2880_dtv_bandwidth
+				     bandwidth,
+				     enum cxd2880_tnrdmd_clockmode
+				     clk_mode)
 {
+	static const u8 clk_mode_ckffrq_a[2] = { 0x52, 0x49 };
+	static const u8 clk_mode_ckffrq_b[2] = { 0x5d, 0x55 };
+	static const u8 clk_mode_ckffrq_c[2] = { 0x60, 0x00 };
+	static const u8 ratectl_margin[2] = { 0x01, 0xf0 };
+	static const u8 maxclkcnt_a[3] = { 0x73, 0xca, 0x49 };
+	static const u8 maxclkcnt_b[3] = { 0xc8, 0x13, 0xaa };
+	static const u8 maxclkcnt_c[3] = { 0xdc, 0x6c, 0x00 };
+
+	static const u8 bw8_nomi_ac[5] = { 0x15, 0x00, 0x00, 0x00, 0x00};
+	static const u8 bw8_nomi_b[5] = { 0x14, 0x6a, 0xaa, 0xaa, 0xaa};
+	static const u8 bw8_gtdofst_a[2] = { 0x01, 0x28 };
+	static const u8 bw8_gtdofst_b[2] = { 0x11, 0x44 };
+	static const u8 bw8_gtdofst_c[2] = { 0x15, 0x28 };
+	static const u8 bw8_mrc_a[5] = { 0x30, 0x00, 0x00, 0x90, 0x00 };
+	static const u8 bw8_mrc_b[5] = { 0x36, 0x71, 0x00, 0xa3, 0x55 };
+	static const u8 bw8_mrc_c[5] = { 0x38, 0x00, 0x00, 0xa8, 0x00 };
+	static const u8 bw8_notch[4] = { 0xb3, 0x00, 0x01, 0x02 };
+
+	static const u8 bw7_nomi_ac[5] = { 0x18, 0x00, 0x00, 0x00, 0x00};
+	static const u8 bw7_nomi_b[5] = { 0x17, 0x55, 0x55, 0x55, 0x55};
+	static const u8 bw7_gtdofst_a[2] = { 0x12, 0x4c };
+	static const u8 bw7_gtdofst_b[2] = { 0x1f, 0x15 };
+	static const u8 bw7_gtdofst_c[2] = { 0x1f, 0xf8 };
+	static const u8 bw7_mrc_a[5] = { 0x36, 0xdb, 0x00, 0xa4, 0x92 };
+	static const u8 bw7_mrc_b[5] = { 0x3e, 0x38, 0x00, 0xba, 0xaa };
+	static const u8 bw7_mrc_c[5] = { 0x40, 0x00, 0x00, 0xc0, 0x00 };
+	static const u8 bw7_notch[4] = { 0xb8, 0x00, 0x00, 0x03 };
+
+	static const u8 bw6_nomi_ac[5] = { 0x1c, 0x00, 0x00, 0x00, 0x00};
+	static const u8 bw6_nomi_b[5] = { 0x1b, 0x38, 0xe3, 0x8e, 0x38};
+	static const u8 bw6_gtdofst_a[2] = { 0x1f, 0xf8 };
+	static const u8 bw6_gtdofst_b[2] = { 0x24, 0x43 };
+	static const u8 bw6_gtdofst_c[2] = { 0x25, 0x4c };
+	static const u8 bw6_mrc_a[5] = { 0x40, 0x00, 0x00, 0xc0, 0x00 };
+	static const u8 bw6_mrc_b[5] = { 0x48, 0x97, 0x00, 0xd9, 0xc7 };
+	static const u8 bw6_mrc_c[5] = { 0x4a, 0xaa, 0x00, 0xdf, 0xff };
+	static const u8 bw6_notch[4] = { 0xbe, 0xab, 0x00, 0x03 };
+
+	static const u8 bw5_nomi_ac[5] = { 0x21, 0x99, 0x99, 0x99, 0x99};
+	static const u8 bw5_nomi_b[5] = { 0x20, 0xaa, 0xaa, 0xaa, 0xaa};
+	static const u8 bw5_gtdofst_a[2] = { 0x26, 0x5d };
+	static const u8 bw5_gtdofst_b[2] = { 0x2b, 0x84 };
+	static const u8 bw5_gtdofst_c[2] = { 0x2c, 0xc2 };
+	static const u8 bw5_mrc_a[5] = { 0x4c, 0xcc, 0x00, 0xe6, 0x66 };
+	static const u8 bw5_mrc_b[5] = { 0x57, 0x1c, 0x01, 0x05, 0x55 };
+	static const u8 bw5_mrc_c[5] = { 0x59, 0x99, 0x01, 0x0c, 0xcc };
+	static const u8 bw5_notch[4] = { 0xc8, 0x01, 0x00, 0x03 };
+	const u8 *data = NULL;
+	u8 sst_data;
+	int ret;
+
 	if (!tnr_dmd)
-		return CXD2880_RESULT_ERROR_ARG;
+		return -EINVAL;
 
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_SYS, 0x00,
-				   0x00) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
+	ret = cxd2880_io_write_multi_regs(tnr_dmd->io,
+					  CXD2880_IO_TGT_SYS,
+					  tune_dmd_setting_seq1,
+					  ARRAY_SIZE(tune_dmd_setting_seq1));
+	if (ret)
+		return ret;
 
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_SYS, 0x31,
-				   0x01) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
+	ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+				     CXD2880_IO_TGT_DMD,
+				     0x00, 0x04);
+	if (ret)
+		return ret;
 
-	{
-		u8 data_a[2] = { 0x52, 0x49 };
-		u8 data_b[2] = { 0x5D, 0x55 };
-		u8 data_c[2] = { 0x60, 0x00 };
-		u8 *data = NULL;
-
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x00,
-					   0x04) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
-
-		switch (clk_mode) {
-		case CXD2880_TNRDMD_CLOCKMODE_A:
-			data = data_a;
-			break;
-		case CXD2880_TNRDMD_CLOCKMODE_B:
-			data = data_b;
-			break;
-		case CXD2880_TNRDMD_CLOCKMODE_C:
-			data = data_c;
-			break;
-		default:
-			return CXD2880_RESULT_ERROR_SW_STATE;
-		}
-
-		if (tnr_dmd->io->write_regs(tnr_dmd->io,
-					    CXD2880_IO_TGT_DMD, 0x65, data,
-					    2) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+	switch (clk_mode) {
+	case CXD2880_TNRDMD_CLOCKMODE_A:
+		data = clk_mode_ckffrq_a;
+		break;
+	case CXD2880_TNRDMD_CLOCKMODE_B:
+		data = clk_mode_ckffrq_b;
+		break;
+	case CXD2880_TNRDMD_CLOCKMODE_C:
+		data = clk_mode_ckffrq_c;
+		break;
+	default:
+		return -EINVAL;
 	}
 
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x5D,
-				   0x07) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
+	ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+				      CXD2880_IO_TGT_DMD,
+				      0x65, data, 2);
+	if (ret)
+		return ret;
+
+	ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+				     CXD2880_IO_TGT_DMD,
+				     0x5d, 0x07);
+	if (ret)
+		return ret;
 
 	if (tnr_dmd->diver_mode != CXD2880_TNRDMD_DIVERMODE_SUB) {
 		u8 data[2] = { 0x01, 0x01 };
 
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x00,
-					   0x00) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+		ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+					     CXD2880_IO_TGT_DMD,
+					     0x00, 0x00);
+		if (ret)
+			return ret;
 
-		if (tnr_dmd->io->write_regs(tnr_dmd->io,
-					    CXD2880_IO_TGT_DMD, 0xCE, data,
-					    2) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0xce, data, 2);
+		if (ret)
+			return ret;
 	}
 
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x00,
-				   0x04) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
+	ret = cxd2880_io_write_multi_regs(tnr_dmd->io,
+					  CXD2880_IO_TGT_DMD,
+					  tune_dmd_setting_seq2,
+					  ARRAY_SIZE(tune_dmd_setting_seq2));
+	if (ret)
+		return ret;
 
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x5C,
-				   0xFB) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
+	ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+				      CXD2880_IO_TGT_DMD,
+				      0xf0, ratectl_margin, 2);
+	if (ret)
+		return ret;
 
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x00,
-				   0x10) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0xA4,
-				   0x03) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x00,
-				   0x14) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0xB0,
-				   0x00) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x00,
-				   0x25) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	{
-		u8 data[2] = { 0x01, 0xF0 };
-
-		if (tnr_dmd->io->write_regs(tnr_dmd->io,
-					    CXD2880_IO_TGT_DMD, 0xF0, data,
-					    2) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
-	}
-
-	if ((tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_MAIN) ||
-	    (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SUB)) {
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x00,
-					   0x12) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
-
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x44,
-					   0x00) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_MAIN ||
+	    tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SUB) {
+		ret = cxd2880_io_write_multi_regs(tnr_dmd->io,
+						  CXD2880_IO_TGT_DMD,
+						  tune_dmd_setting_seq3,
+						  ARRAY_SIZE(tune_dmd_setting_seq3));
+		if (ret)
+			return ret;
 	}
 
 	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SUB) {
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x00,
-					   0x11) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
-
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x87,
-					   0xD2) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+		ret = cxd2880_io_write_multi_regs(tnr_dmd->io,
+						  CXD2880_IO_TGT_DMD,
+						  tune_dmd_setting_seq4,
+						  ARRAY_SIZE(tune_dmd_setting_seq4));
+		if (ret)
+			return ret;
 	}
 
 	if (tnr_dmd->diver_mode != CXD2880_TNRDMD_DIVERMODE_SUB) {
-		u8 data_a[3] = { 0x73, 0xCA, 0x49 };
-		u8 data_b[3] = { 0xC8, 0x13, 0xAA };
-		u8 data_c[3] = { 0xDC, 0x6C, 0x00 };
-		u8 *data = NULL;
-
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x00,
-					   0x04) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+		ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+					     CXD2880_IO_TGT_DMD,
+					     0x00, 0x04);
+		if (ret)
+			return ret;
 
 		switch (clk_mode) {
 		case CXD2880_TNRDMD_CLOCKMODE_A:
-			data = data_a;
+			data = maxclkcnt_a;
 			break;
 		case CXD2880_TNRDMD_CLOCKMODE_B:
-			data = data_b;
+			data = maxclkcnt_b;
 			break;
 		case CXD2880_TNRDMD_CLOCKMODE_C:
-			data = data_c;
+			data = maxclkcnt_c;
 			break;
 		default:
-			return CXD2880_RESULT_ERROR_SW_STATE;
+			return -EINVAL;
 		}
 
-		if (tnr_dmd->io->write_regs(tnr_dmd->io,
-					    CXD2880_IO_TGT_DMD, 0x68, data,
-					    3) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x68, data, 3);
+		if (ret)
+			return ret;
 	}
 
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x00,
-				   0x04) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
+	ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+				     CXD2880_IO_TGT_DMD,
+				     0x00, 0x04);
+	if (ret)
+		return ret;
 
 	switch (bandwidth) {
 	case CXD2880_DTV_BW_8_MHZ:
-
-		{
-			u8 data_ac[5] = { 0x15, 0x00, 0x00, 0x00,
-				0x00
-			};
-			u8 data_b[5] = { 0x14, 0x6A, 0xAA, 0xAA,
-				0xAA
-			};
-			u8 *data = NULL;
-
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_ac;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x60,
-						    data,
-						    5) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			data = bw8_nomi_ac;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			data = bw8_nomi_b;
+			break;
+		default:
+			return -EINVAL;
 		}
 
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x4A,
-					   0x00) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x60, data, 5);
+		if (ret)
+			return ret;
 
-		{
-			u8 data_a[2] = { 0x01, 0x28 };
-			u8 data_b[2] = { 0x11, 0x44 };
-			u8 data_c[2] = { 0x15, 0x28 };
-			u8 *data = NULL;
+		ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+					     CXD2880_IO_TGT_DMD,
+					     0x4a, 0x00);
+		if (ret)
+			return ret;
 
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-				data = data_a;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_c;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x7D,
-						    data,
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+			data = bw8_gtdofst_a;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			data = bw8_gtdofst_b;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			data = bw8_gtdofst_c;
+			break;
+		default:
+			return -EINVAL;
 		}
 
-		{
-			u8 data = 0;
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x7d, data, 2);
+		if (ret)
+			return ret;
 
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = 0x35;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = 0x34;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_reg(tnr_dmd->io,
-						   CXD2880_IO_TGT_DMD, 0x71,
-						   data) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			sst_data = 0x35;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			sst_data = 0x34;
+			break;
+		default:
+			return -EINVAL;
 		}
+
+		ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+					     CXD2880_IO_TGT_DMD,
+					     0x71, sst_data);
+		if (ret)
+			return ret;
 
 		if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_MAIN) {
-			u8 data_a[5] = { 0x30, 0x00, 0x00, 0x90,
-				0x00
-			};
-			u8 data_b[5] = { 0x36, 0x71, 0x00, 0xA3,
-				0x55
-			};
-			u8 data_c[5] = { 0x38, 0x00, 0x00, 0xA8,
-				0x00
-			};
-			u8 *data = NULL;
-
 			switch (clk_mode) {
 			case CXD2880_TNRDMD_CLOCKMODE_A:
-				data = data_a;
+				data = bw8_mrc_a;
 				break;
 			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
+				data = bw8_mrc_b;
 				break;
 			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_c;
+				data = bw8_mrc_c;
 				break;
 			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
+				return -EINVAL;
 			}
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x4B,
-						    &data[0],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+			ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+						      CXD2880_IO_TGT_DMD,
+						      0x4b, &data[0], 2);
+			if (ret)
+				return ret;
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x51,
-						    &data[2],
-						    3) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+			ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+						      CXD2880_IO_TGT_DMD,
+						      0x51, &data[2], 3);
+			if (ret)
+				return ret;
 		}
 
-		{
-			u8 data[4] = { 0xB3, 0x00, 0x01, 0x02 };
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x72, &bw8_notch[0], 2);
+		if (ret)
+			return ret;
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x72,
-						    &data[0],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x6B,
-						    &data[2],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
-		}
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x6b, &bw8_notch[2], 2);
+		if (ret)
+			return ret;
 		break;
 
 	case CXD2880_DTV_BW_7_MHZ:
-
-		{
-			u8 data_ac[5] = { 0x18, 0x00, 0x00, 0x00,
-				0x00
-			};
-			u8 data_b[5] = { 0x17, 0x55, 0x55, 0x55,
-				0x55
-			};
-			u8 *data = NULL;
-
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_ac;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x60,
-						    data,
-						    5) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			data = bw7_nomi_ac;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			data = bw7_nomi_b;
+			break;
+		default:
+			return -EINVAL;
 		}
 
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x4A,
-					   0x02) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x60, data, 5);
+		if (ret)
+			return ret;
 
-		{
-			u8 data_a[2] = { 0x12, 0x4C };
-			u8 data_b[2] = { 0x1F, 0x15 };
-			u8 data_c[2] = { 0x1F, 0xF8 };
-			u8 *data = NULL;
+		ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+					     CXD2880_IO_TGT_DMD,
+					     0x4a, 0x02);
+		if (ret)
+			return ret;
 
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-				data = data_a;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_c;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x7D,
-						    data,
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+			data = bw7_gtdofst_a;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			data = bw7_gtdofst_b;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			data = bw7_gtdofst_c;
+			break;
+		default:
+			return -EINVAL;
 		}
 
-		{
-			u8 data = 0;
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x7d, data, 2);
+		if (ret)
+			return ret;
 
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = 0x2F;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = 0x2E;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_reg(tnr_dmd->io,
-						   CXD2880_IO_TGT_DMD, 0x71,
-						   data) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			sst_data = 0x2f;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			sst_data = 0x2e;
+			break;
+		default:
+			return -EINVAL;
 		}
+
+		ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+					     CXD2880_IO_TGT_DMD,
+					     0x71, sst_data);
+		if (ret)
+			return ret;
 
 		if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_MAIN) {
-			u8 data_a[5] = { 0x36, 0xDB, 0x00, 0xA4,
-				0x92
-			};
-			u8 data_b[5] = { 0x3E, 0x38, 0x00, 0xBA,
-				0xAA
-			};
-			u8 data_c[5] = { 0x40, 0x00, 0x00, 0xC0,
-				0x00
-			};
-			u8 *data = NULL;
-
 			switch (clk_mode) {
 			case CXD2880_TNRDMD_CLOCKMODE_A:
-				data = data_a;
+				data = bw7_mrc_a;
 				break;
 			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
+				data = bw7_mrc_b;
 				break;
 			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_c;
+				data = bw7_mrc_c;
 				break;
 			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
+				return -EINVAL;
 			}
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x4B,
-						    &data[0],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+			ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+						      CXD2880_IO_TGT_DMD,
+						      0x4b, &data[0], 2);
+			if (ret)
+				return ret;
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x51,
-						    &data[2],
-						    3) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+			ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+						      CXD2880_IO_TGT_DMD,
+						      0x51, &data[2], 3);
+			if (ret)
+				return ret;
 		}
 
-		{
-			u8 data[4] = { 0xB8, 0x00, 0x00, 0x03 };
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x72, &bw7_notch[0], 2);
+		if (ret)
+			return ret;
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x72,
-						    &data[0],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x6B,
-						    &data[2],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
-		}
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x6b, &bw7_notch[2], 2);
+		if (ret)
+			return ret;
 		break;
 
 	case CXD2880_DTV_BW_6_MHZ:
-
-		{
-			u8 data_ac[5] = { 0x1C, 0x00, 0x00, 0x00,
-				0x00
-			};
-			u8 data_b[5] = { 0x1B, 0x38, 0xE3, 0x8E,
-				0x38
-			};
-			u8 *data = NULL;
-
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_ac;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x60,
-						    data,
-						    5) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			data = bw6_nomi_ac;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			data = bw6_nomi_b;
+			break;
+		default:
+			return -EINVAL;
 		}
 
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x4A,
-					   0x04) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x60, data, 5);
+		if (ret)
+			return ret;
 
-		{
-			u8 data_a[2] = { 0x1F, 0xF8 };
-			u8 data_b[2] = { 0x24, 0x43 };
-			u8 data_c[2] = { 0x25, 0x4C };
-			u8 *data = NULL;
+		ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+					     CXD2880_IO_TGT_DMD,
+					     0x4a, 0x04);
+		if (ret)
+			return ret;
 
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-				data = data_a;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_c;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x7D,
-						    data,
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+			data = bw6_gtdofst_a;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			data = bw6_gtdofst_b;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			data = bw6_gtdofst_c;
+			break;
+		default:
+			return -EINVAL;
 		}
 
-		{
-			u8 data = 0;
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x7d, data, 2);
+		if (ret)
+			return ret;
 
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = 0x29;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = 0x2A;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_reg(tnr_dmd->io,
-						   CXD2880_IO_TGT_DMD, 0x71,
-						   data) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			sst_data = 0x29;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			sst_data = 0x2a;
+			break;
+		default:
+			return -EINVAL;
 		}
+
+		ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+					     CXD2880_IO_TGT_DMD,
+					     0x71, sst_data);
+		if (ret)
+			return ret;
 
 		if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_MAIN) {
-			u8 data_a[5] = { 0x40, 0x00, 0x00, 0xC0,
-				0x00
-			};
-			u8 data_b[5] = { 0x48, 0x97, 0x00, 0xD9,
-				0xC7
-			};
-			u8 data_c[5] = { 0x4A, 0xAA, 0x00, 0xDF,
-				0xFF
-			};
-			u8 *data = NULL;
-
 			switch (clk_mode) {
 			case CXD2880_TNRDMD_CLOCKMODE_A:
-				data = data_a;
+				data = bw6_mrc_a;
 				break;
 			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
+				data = bw6_mrc_b;
 				break;
 			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_c;
+				data = bw6_mrc_c;
 				break;
 			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
+				return -EINVAL;
 			}
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x4B,
-						    &data[0],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+			ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+						      CXD2880_IO_TGT_DMD,
+						      0x4b, &data[0], 2);
+			if (ret)
+				return ret;
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x51,
-						    &data[2],
-						    3) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+			ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+						      CXD2880_IO_TGT_DMD,
+						      0x51, &data[2], 3);
+			if (ret)
+				return ret;
 		}
 
-		{
-			u8 data[4] = { 0xBE, 0xAB, 0x00, 0x03 };
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x72, &bw6_notch[0], 2);
+		if (ret)
+			return ret;
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x72,
-						    &data[0],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x6B,
-						    &data[2],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
-		}
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x6b, &bw6_notch[2], 2);
+		if (ret)
+			return ret;
 		break;
 
 	case CXD2880_DTV_BW_5_MHZ:
-
-		{
-			u8 data_ac[5] = { 0x21, 0x99, 0x99, 0x99,
-				0x99
-			};
-			u8 data_b[5] = { 0x20, 0xAA, 0xAA, 0xAA,
-				0xAA
-			};
-			u8 *data = NULL;
-
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_ac;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x60,
-						    data,
-						    5) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			data = bw5_nomi_ac;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			data = bw5_nomi_b;
+			break;
+		default:
+			return -EINVAL;
 		}
 
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x4A,
-					   0x06) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x60, data, 5);
+		if (ret)
+			return ret;
 
-		{
-			u8 data_a[2] = { 0x26, 0x5D };
-			u8 data_b[2] = { 0x2B, 0x84 };
-			u8 data_c[2] = { 0x2C, 0xC2 };
-			u8 *data = NULL;
+		ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+					     CXD2880_IO_TGT_DMD,
+					     0x4a, 0x06);
+		if (ret)
+			return ret;
 
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-				data = data_a;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_c;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x7D,
-						    data,
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+			data = bw5_gtdofst_a;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			data = bw5_gtdofst_b;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			data = bw5_gtdofst_c;
+			break;
+		default:
+			return -EINVAL;
 		}
 
-		{
-			u8 data = 0;
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x7d, data, 2);
+		if (ret)
+			return ret;
 
-			switch (clk_mode) {
-			case CXD2880_TNRDMD_CLOCKMODE_A:
-			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = 0x24;
-				break;
-			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = 0x23;
-				break;
-			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
-			}
-
-			if (tnr_dmd->io->write_reg(tnr_dmd->io,
-						   CXD2880_IO_TGT_DMD, 0x71,
-						   data) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+		switch (clk_mode) {
+		case CXD2880_TNRDMD_CLOCKMODE_A:
+		case CXD2880_TNRDMD_CLOCKMODE_B:
+			sst_data = 0x24;
+			break;
+		case CXD2880_TNRDMD_CLOCKMODE_C:
+			sst_data = 0x23;
+			break;
+		default:
+			return -EINVAL;
 		}
+
+		ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+					     CXD2880_IO_TGT_DMD,
+					     0x71, sst_data);
+		if (ret)
+			return ret;
 
 		if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_MAIN) {
-			u8 data_a[5] = { 0x4C, 0xCC, 0x00, 0xE6,
-				0x66
-			};
-			u8 data_b[5] = { 0x57, 0x1C, 0x01, 0x05,
-				0x55
-			};
-			u8 data_c[5] = { 0x59, 0x99, 0x01, 0x0C,
-				0xCC
-			};
-			u8 *data = NULL;
-
 			switch (clk_mode) {
 			case CXD2880_TNRDMD_CLOCKMODE_A:
-				data = data_a;
+				data = bw5_mrc_a;
 				break;
 			case CXD2880_TNRDMD_CLOCKMODE_B:
-				data = data_b;
+				data = bw5_mrc_b;
 				break;
 			case CXD2880_TNRDMD_CLOCKMODE_C:
-				data = data_c;
+				data = bw5_mrc_c;
 				break;
 			default:
-				return CXD2880_RESULT_ERROR_SW_STATE;
+				return -EINVAL;
 			}
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x4B,
-						    &data[0],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+			ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+						      CXD2880_IO_TGT_DMD,
+						      0x4b, &data[0], 2);
+			if (ret)
+				return ret;
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x51,
-						    &data[2],
-						    3) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
+			ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+						      CXD2880_IO_TGT_DMD,
+						      0x51, &data[2], 3);
+			if (ret)
+				return ret;
 		}
 
-		{
-			u8 data[4] = { 0xC8, 0x01, 0x00, 0x03 };
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x72, &bw5_notch[0], 2);
+		if (ret)
+			return ret;
 
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x72,
-						    &data[0],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
-
-			if (tnr_dmd->io->write_regs(tnr_dmd->io,
-						    CXD2880_IO_TGT_DMD, 0x6B,
-						    &data[2],
-						    2) != CXD2880_RESULT_OK)
-				return CXD2880_RESULT_ERROR_IO;
-		}
+		ret = tnr_dmd->io->write_regs(tnr_dmd->io,
+					      CXD2880_IO_TGT_DMD,
+					      0x6b, &bw5_notch[2], 2);
+		if (ret)
+			return ret;
 		break;
 
 	default:
-		return CXD2880_RESULT_ERROR_SW_STATE;
+		return -EINVAL;
 	}
 
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x00,
-				   0x00) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0xFD,
-				   0x01) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	return CXD2880_RESULT_OK;
+	return cxd2880_io_write_multi_regs(tnr_dmd->io,
+					   CXD2880_IO_TGT_DMD,
+					   tune_dmd_setting_seq5,
+					   ARRAY_SIZE(tune_dmd_setting_seq5));
 }
 
-static enum cxd2880_ret x_sleep_dvbt_demod_setting(struct cxd2880_tnrdmd
+static int x_sleep_dvbt_demod_setting(struct cxd2880_tnrdmd
 						   *tnr_dmd)
 {
-	if (!tnr_dmd)
-		return CXD2880_RESULT_ERROR_ARG;
-
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x00,
-				   0x04) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x5C,
-				   0xD8) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x00,
-				   0x10) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0xA4,
-				   0x00) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
-
-	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SUB) {
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x00,
-					   0x11) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
-
-		if (tnr_dmd->io->write_reg(tnr_dmd->io,
-					   CXD2880_IO_TGT_DMD, 0x87,
-					   0x04) != CXD2880_RESULT_OK)
-			return CXD2880_RESULT_ERROR_IO;
-	}
-
-	return CXD2880_RESULT_OK;
-}
-
-static enum cxd2880_ret dvbt_set_profile(struct cxd2880_tnrdmd *tnr_dmd,
-					 enum cxd2880_dvbt_profile profile)
-{
-	enum cxd2880_ret ret = CXD2880_RESULT_OK;
+	int ret;
 
 	if (!tnr_dmd)
-		return CXD2880_RESULT_ERROR_ARG;
+		return -EINVAL;
 
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x00,
-				   0x10) != CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
+	ret = cxd2880_io_write_multi_regs(tnr_dmd->io,
+					  CXD2880_IO_TGT_DMD,
+					  sleep_dmd_setting_seq1,
+					  ARRAY_SIZE(sleep_dmd_setting_seq1));
+	if (ret)
+		return ret;
 
-	if (tnr_dmd->io->write_reg(tnr_dmd->io,
-				   CXD2880_IO_TGT_DMD, 0x67,
-				   (profile ==
-				    CXD2880_DVBT_PROFILE_HP) ? 0x00 : 0x01) !=
-	    CXD2880_RESULT_OK)
-		return CXD2880_RESULT_ERROR_IO;
+	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SUB)
+		ret = cxd2880_io_write_multi_regs(tnr_dmd->io,
+						  CXD2880_IO_TGT_DMD,
+						  sleep_dmd_setting_seq2,
+						  ARRAY_SIZE(sleep_dmd_setting_seq2));
 
 	return ret;
 }
 
-enum cxd2880_ret cxd2880_tnrdmd_dvbt_tune1(struct cxd2880_tnrdmd *tnr_dmd,
-					   struct cxd2880_dvbt_tune_param
-					   *tune_param)
+static int dvbt_set_profile(struct cxd2880_tnrdmd *tnr_dmd,
+			    enum cxd2880_dvbt_profile profile)
 {
-	enum cxd2880_ret ret = CXD2880_RESULT_OK;
+	int ret;
 
-	if ((!tnr_dmd) || (!tune_param))
-		return CXD2880_RESULT_ERROR_ARG;
+	if (!tnr_dmd)
+		return -EINVAL;
+
+	ret = tnr_dmd->io->write_reg(tnr_dmd->io,
+				     CXD2880_IO_TGT_DMD,
+				     0x00, 0x10);
+	if (ret)
+		return ret;
+
+	return tnr_dmd->io->write_reg(tnr_dmd->io,
+				      CXD2880_IO_TGT_DMD,
+				      0x67,
+				      (profile == CXD2880_DVBT_PROFILE_HP)
+				      ? 0x00 : 0x01);
+}
+
+int cxd2880_tnrdmd_dvbt_tune1(struct cxd2880_tnrdmd *tnr_dmd,
+			      struct cxd2880_dvbt_tune_param
+			      *tune_param)
+{
+	int ret;
+
+	if (!tnr_dmd || !tune_param)
+		return -EINVAL;
 
 	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SUB)
-		return CXD2880_RESULT_ERROR_ARG;
+		return -EINVAL;
 
-	if ((tnr_dmd->state != CXD2880_TNRDMD_STATE_SLEEP) &&
-	    (tnr_dmd->state != CXD2880_TNRDMD_STATE_ACTIVE))
-		return CXD2880_RESULT_ERROR_SW_STATE;
+	if (tnr_dmd->state != CXD2880_TNRDMD_STATE_SLEEP &&
+	    tnr_dmd->state != CXD2880_TNRDMD_STATE_ACTIVE)
+		return -EINVAL;
 
 	ret =
 	    cxd2880_tnrdmd_common_tune_setting1(tnr_dmd, CXD2880_DTV_SYS_DVBT,
 						tune_param->center_freq_khz,
 						tune_param->bandwidth, 0, 0);
-	if (ret != CXD2880_RESULT_OK)
+	if (ret)
 		return ret;
 
 	ret =
 	    x_tune_dvbt_demod_setting(tnr_dmd, tune_param->bandwidth,
 				      tnr_dmd->clk_mode);
-	if (ret != CXD2880_RESULT_OK)
+	if (ret)
 		return ret;
 
 	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_MAIN) {
@@ -874,37 +729,33 @@ enum cxd2880_ret cxd2880_tnrdmd_dvbt_tune1(struct cxd2880_tnrdmd *tnr_dmd,
 		    x_tune_dvbt_demod_setting(tnr_dmd->diver_sub,
 					      tune_param->bandwidth,
 					      tnr_dmd->diver_sub->clk_mode);
-		if (ret != CXD2880_RESULT_OK)
+		if (ret)
 			return ret;
 	}
 
-	ret = dvbt_set_profile(tnr_dmd, tune_param->profile);
-	if (ret != CXD2880_RESULT_OK)
-		return ret;
-
-	return CXD2880_RESULT_OK;
+	return dvbt_set_profile(tnr_dmd, tune_param->profile);
 }
 
-enum cxd2880_ret cxd2880_tnrdmd_dvbt_tune2(struct cxd2880_tnrdmd *tnr_dmd,
-					   struct cxd2880_dvbt_tune_param
-					   *tune_param)
+int cxd2880_tnrdmd_dvbt_tune2(struct cxd2880_tnrdmd *tnr_dmd,
+			      struct cxd2880_dvbt_tune_param
+			      *tune_param)
 {
-	enum cxd2880_ret ret = CXD2880_RESULT_OK;
+	int ret;
 
-	if ((!tnr_dmd) || (!tune_param))
-		return CXD2880_RESULT_ERROR_ARG;
+	if (!tnr_dmd || !tune_param)
+		return -EINVAL;
 
 	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SUB)
-		return CXD2880_RESULT_ERROR_ARG;
+		return -EINVAL;
 
-	if ((tnr_dmd->state != CXD2880_TNRDMD_STATE_SLEEP) &&
-	    (tnr_dmd->state != CXD2880_TNRDMD_STATE_ACTIVE))
-		return CXD2880_RESULT_ERROR_SW_STATE;
+	if (tnr_dmd->state != CXD2880_TNRDMD_STATE_SLEEP &&
+	    tnr_dmd->state != CXD2880_TNRDMD_STATE_ACTIVE)
+		return -EINVAL;
 
 	ret =
 	    cxd2880_tnrdmd_common_tune_setting2(tnr_dmd, CXD2880_DTV_SYS_DVBT,
 						0);
-	if (ret != CXD2880_RESULT_OK)
+	if (ret)
 		return ret;
 
 	tnr_dmd->state = CXD2880_TNRDMD_STATE_ACTIVE;
@@ -919,63 +770,59 @@ enum cxd2880_ret cxd2880_tnrdmd_dvbt_tune2(struct cxd2880_tnrdmd *tnr_dmd,
 		tnr_dmd->diver_sub->bandwidth = tune_param->bandwidth;
 	}
 
-	return CXD2880_RESULT_OK;
+	return 0;
 }
 
-enum cxd2880_ret cxd2880_tnrdmd_dvbt_sleep_setting(struct cxd2880_tnrdmd
-						   *tnr_dmd)
+int cxd2880_tnrdmd_dvbt_sleep_setting(struct cxd2880_tnrdmd *tnr_dmd)
 {
-	enum cxd2880_ret ret = CXD2880_RESULT_OK;
+	int ret;
 
 	if (!tnr_dmd)
-		return CXD2880_RESULT_ERROR_ARG;
+		return -EINVAL;
 
 	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SUB)
-		return CXD2880_RESULT_ERROR_ARG;
+		return -EINVAL;
 
-	if ((tnr_dmd->state != CXD2880_TNRDMD_STATE_SLEEP) &&
-	    (tnr_dmd->state != CXD2880_TNRDMD_STATE_ACTIVE))
-		return CXD2880_RESULT_ERROR_SW_STATE;
+	if (tnr_dmd->state != CXD2880_TNRDMD_STATE_SLEEP &&
+	    tnr_dmd->state != CXD2880_TNRDMD_STATE_ACTIVE)
+		return -EINVAL;
 
 	ret = x_sleep_dvbt_demod_setting(tnr_dmd);
-	if (ret != CXD2880_RESULT_OK)
+	if (ret)
 		return ret;
 
-	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_MAIN) {
+	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_MAIN)
 		ret = x_sleep_dvbt_demod_setting(tnr_dmd->diver_sub);
-		if (ret != CXD2880_RESULT_OK)
-			return ret;
-	}
 
-	return CXD2880_RESULT_OK;
+	return ret;
 }
 
-enum cxd2880_ret cxd2880_tnrdmd_dvbt_check_demod_lock(struct cxd2880_tnrdmd
-						      *tnr_dmd,
-						      enum
-						      cxd2880_tnrdmd_lock_result
-						      *lock)
+int cxd2880_tnrdmd_dvbt_check_demod_lock(struct cxd2880_tnrdmd
+					 *tnr_dmd,
+					 enum
+					 cxd2880_tnrdmd_lock_result
+					 *lock)
 {
-	enum cxd2880_ret ret = CXD2880_RESULT_OK;
+	int ret;
 
 	u8 sync_stat = 0;
 	u8 ts_lock = 0;
 	u8 unlock_detected = 0;
 	u8 unlock_detected_sub = 0;
 
-	if ((!tnr_dmd) || (!lock))
-		return CXD2880_RESULT_ERROR_ARG;
+	if (!tnr_dmd || !lock)
+		return -EINVAL;
 
 	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SUB)
-		return CXD2880_RESULT_ERROR_ARG;
+		return -EINVAL;
 
 	if (tnr_dmd->state != CXD2880_TNRDMD_STATE_ACTIVE)
-		return CXD2880_RESULT_ERROR_SW_STATE;
+		return -EINVAL;
 
 	ret =
 	    cxd2880_tnrdmd_dvbt_mon_sync_stat(tnr_dmd, &sync_stat, &ts_lock,
 					      &unlock_detected);
-	if (ret != CXD2880_RESULT_OK)
+	if (ret)
 		return ret;
 
 	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SINGLE) {
@@ -997,7 +844,7 @@ enum cxd2880_ret cxd2880_tnrdmd_dvbt_check_demod_lock(struct cxd2880_tnrdmd
 	ret =
 	    cxd2880_tnrdmd_dvbt_mon_sync_stat_sub(tnr_dmd, &sync_stat,
 						  &unlock_detected_sub);
-	if (ret != CXD2880_RESULT_OK)
+	if (ret)
 		return ret;
 
 	if (sync_stat == 6)
@@ -1010,32 +857,32 @@ enum cxd2880_ret cxd2880_tnrdmd_dvbt_check_demod_lock(struct cxd2880_tnrdmd
 	return ret;
 }
 
-enum cxd2880_ret cxd2880_tnrdmd_dvbt_check_ts_lock(struct cxd2880_tnrdmd
-						   *tnr_dmd,
-						   enum
-						   cxd2880_tnrdmd_lock_result
-						   *lock)
+int cxd2880_tnrdmd_dvbt_check_ts_lock(struct cxd2880_tnrdmd
+				      *tnr_dmd,
+				      enum
+				      cxd2880_tnrdmd_lock_result
+				      *lock)
 {
-	enum cxd2880_ret ret = CXD2880_RESULT_OK;
+	int ret;
 
 	u8 sync_stat = 0;
 	u8 ts_lock = 0;
 	u8 unlock_detected = 0;
 	u8 unlock_detected_sub = 0;
 
-	if ((!tnr_dmd) || (!lock))
-		return CXD2880_RESULT_ERROR_ARG;
+	if (!tnr_dmd || !lock)
+		return -EINVAL;
 
 	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SUB)
-		return CXD2880_RESULT_ERROR_ARG;
+		return -EINVAL;
 
 	if (tnr_dmd->state != CXD2880_TNRDMD_STATE_ACTIVE)
-		return CXD2880_RESULT_ERROR_SW_STATE;
+		return -EINVAL;
 
 	ret =
 	    cxd2880_tnrdmd_dvbt_mon_sync_stat(tnr_dmd, &sync_stat, &ts_lock,
 					      &unlock_detected);
-	if (ret != CXD2880_RESULT_OK)
+	if (ret)
 		return ret;
 
 	if (tnr_dmd->diver_mode == CXD2880_TNRDMD_DIVERMODE_SINGLE) {
@@ -1060,7 +907,7 @@ enum cxd2880_ret cxd2880_tnrdmd_dvbt_check_ts_lock(struct cxd2880_tnrdmd
 	ret =
 	    cxd2880_tnrdmd_dvbt_mon_sync_stat_sub(tnr_dmd, &sync_stat,
 						  &unlock_detected_sub);
-	if (ret != CXD2880_RESULT_OK)
+	if (ret)
 		return ret;
 
 	if (unlock_detected && unlock_detected_sub)
