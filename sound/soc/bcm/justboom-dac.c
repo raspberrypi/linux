@@ -31,10 +31,10 @@ static bool digital_gain_0db_limit = true;
 
 static int snd_rpi_justboom_dac_init(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_codec *codec = rtd->codec;
-	snd_soc_update_bits(codec, PCM512x_GPIO_EN, 0x08, 0x08);
-	snd_soc_update_bits(codec, PCM512x_GPIO_OUTPUT_4, 0xf, 0x02);
-	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08,0x08);
+	struct snd_soc_component *component = rtd->codec_dai->component;
+	snd_soc_component_update_bits(component, PCM512x_GPIO_EN, 0x08, 0x08);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_OUTPUT_4, 0xf, 0x02);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08,0x08);
 
 	if (digital_gain_0db_limit)
 	{
@@ -51,15 +51,15 @@ static int snd_rpi_justboom_dac_init(struct snd_soc_pcm_runtime *rtd)
 
 static int snd_rpi_justboom_dac_startup(struct snd_pcm_substream *substream) {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08,0x08);
+	struct snd_soc_component *component = rtd->codec_dai->component;
+	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08,0x08);
 	return 0;
 }
 
 static void snd_rpi_justboom_dac_shutdown(struct snd_pcm_substream *substream) {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08,0x00);
+	struct snd_soc_component *component = rtd->codec_dai->component;
+	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08,0x00);
 }
 
 /* machine stream operations */
