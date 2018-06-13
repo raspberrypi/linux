@@ -428,6 +428,15 @@ static int msg_level = -1;
 module_param(msg_level, int, 0);
 MODULE_PARM_DESC(msg_level, "Override default message level");
 
+/* TSO seems to be having some issue with Selective Acknowledge (SACK) that
+ * results in lost data never being retransmitted.
+ * Disable it by default now, but adds a module parameter to enable it for
+ * debug purposes (the full cause is not currently understood).
+ */
+static bool enable_tso;
+module_param(enable_tso, bool, 0644);
+MODULE_PARM_DESC(enable_tso, "Enables TCP segmentation offload");
+
 static int lan78xx_read_reg(struct lan78xx_net *dev, u32 index, u32 *data)
 {
 	u32 *buf = kmalloc(sizeof(u32), GFP_KERNEL);
@@ -2997,8 +3006,14 @@ static int lan78xx_bind(struct lan78xx_net *dev, struct usb_interface *intf)
 	if (DEFAULT_RX_CSUM_ENABLE)
 		dev->net->features |= NETIF_F_RXCSUM;
 
-	if (DEFAULT_TSO_CSUM_ENABLE)
-		dev->net->features |= NETIF_F_TSO | NETIF_F_TSO6 | NETIF_F_SG;
+	if (DEFAULT_TSO_CSUM_ENABLE) {
+		dev->net->features |= NETIF_F_SG;
+		/* Use module parameter to control TCP segmentation offload as
+		 * it appears to cause issues.
+		 */
+		if (enable_tso)
+			dev->net->features |= NETIF_F_TSO | NETIF_F_TSO6;
+	}
 
 	if (DEFAULT_VLAN_RX_OFFLOAD)
 		dev->net->features |= NETIF_F_HW_VLAN_CTAG_RX;
