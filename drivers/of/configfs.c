@@ -40,41 +40,6 @@ struct cfs_overlay_item {
 	int			dtbo_size;
 };
 
-static int create_overlay(struct cfs_overlay_item *overlay, void *blob)
-{
-	int err;
-
-	/* unflatten the tree */
-	of_fdt_unflatten_tree(blob, NULL, &overlay->overlay);
-	if (overlay->overlay == NULL) {
-		pr_err("%s: failed to unflatten tree\n", __func__);
-		err = -EINVAL;
-		goto out_err;
-	}
-	pr_debug("%s: unflattened OK\n", __func__);
-
-	/* mark it as detached */
-	of_node_set_flag(overlay->overlay, OF_DETACHED);
-
-	/* perform resolution */
-	err = of_resolve_phandles(overlay->overlay);
-	if (err != 0) {
-		pr_err("%s: Failed to resolve tree\n", __func__);
-		goto out_err;
-	}
-	pr_debug("%s: resolved OK\n", __func__);
-
-	err = of_overlay_apply(overlay->overlay, &overlay->ov_id);
-	if (err < 0) {
-		pr_err("%s: Failed to create overlay (err=%d)\n",
-				__func__, err);
-		goto out_err;
-	}
-
-out_err:
-	return err;
-}
-
 static inline struct cfs_overlay_item *to_cfs_overlay_item(
 		struct config_item *item)
 {
@@ -115,7 +80,8 @@ static ssize_t cfs_overlay_item_path_store(struct config_item *item,
 	if (err != 0)
 		goto out_err;
 
-	err = create_overlay(overlay, (void *)overlay->fw->data);
+	err = of_overlay_fdt_apply((void *)overlay->fw->data,
+				   (u32)overlay->fw->size, &overlay->ov_id);
 	if (err != 0)
 		goto out_err;
 
@@ -136,7 +102,7 @@ static ssize_t cfs_overlay_item_status_show(struct config_item *item,
 	struct cfs_overlay_item *overlay = to_cfs_overlay_item(item);
 
 	return sprintf(page, "%s\n",
-			overlay->ov_id >= 0 ? "applied" : "unapplied");
+			overlay->ov_id > 0 ? "applied" : "unapplied");
 }
 
 CONFIGFS_ATTR(cfs_overlay_item_, path);
@@ -188,7 +154,8 @@ ssize_t cfs_overlay_item_dtbo_write(struct config_item *item,
 
 	overlay->dtbo_size = count;
 
-	err = create_overlay(overlay, overlay->dtbo);
+	err = of_overlay_fdt_apply(overlay->dtbo, overlay->dtbo_size,
+				   &overlay->ov_id);
 	if (err != 0)
 		goto out_err;
 
@@ -198,6 +165,7 @@ out_err:
 	kfree(overlay->dtbo);
 	overlay->dtbo = NULL;
 	overlay->dtbo_size = 0;
+	overlay->ov_id = 0;
 
 	return err;
 }
@@ -213,7 +181,7 @@ static void cfs_overlay_release(struct config_item *item)
 {
 	struct cfs_overlay_item *overlay = to_cfs_overlay_item(item);
 
-	if (overlay->ov_id >= 0)
+	if (overlay->ov_id > 0)
 		of_overlay_remove(&overlay->ov_id);
 	if (overlay->fw)
 		release_firmware(overlay->fw);
@@ -241,7 +209,6 @@ static struct config_item *cfs_overlay_group_make_item(
 	overlay = kzalloc(sizeof(*overlay), GFP_KERNEL);
 	if (!overlay)
 		return ERR_PTR(-ENOMEM);
-	overlay->ov_id = -1;
 
 	config_item_init_type_name(&overlay->item, name, &cfs_overlay_type);
 	return &overlay->item;
