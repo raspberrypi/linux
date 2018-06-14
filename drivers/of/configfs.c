@@ -64,7 +64,7 @@ static int create_overlay(struct cfs_overlay_item *overlay, void *blob)
 	}
 	pr_debug("%s: resolved OK\n", __func__);
 
-	err = -1; // TODO: fix: of_overlay_apply(overlay->overlay, &overlay->ov_id);
+	err = of_overlay_apply(overlay->overlay, &overlay->ov_id);
 	if (err < 0) {
 		pr_err("%s: Failed to create overlay (err=%d)\n",
 				__func__, err);
