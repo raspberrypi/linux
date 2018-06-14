@@ -33,10 +33,10 @@ MODULE_PARM_DESC(auto_shutdown_output, "Shutdown SP/DIF output if playback is st
 
 static int snd_rpi_iqaudio_digi_init(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 
 	/* enable TX output */
-	snd_soc_update_bits(codec, WM8804_PWRDN, 0x4, 0x0);
+	snd_soc_component_update_bits(component, WM8804_PWRDN, 0x4, 0x0);
 
 	return 0;
 }
@@ -44,10 +44,10 @@ static int snd_rpi_iqaudio_digi_init(struct snd_soc_pcm_runtime *rtd)
 static int snd_rpi_iqaudio_digi_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 
 	/* turn on digital output */
-	snd_soc_update_bits(codec, WM8804_PWRDN, 0x3c, 0x00);
+	snd_soc_component_update_bits(component, WM8804_PWRDN, 0x3c, 0x00);
 
 	return 0;
 }
@@ -56,10 +56,10 @@ static void snd_rpi_iqaudio_digi_shutdown(struct snd_pcm_substream *substream)
 {
 	if (auto_shutdown_output) {
 		struct snd_soc_pcm_runtime *rtd = substream->private_data;
-		struct snd_soc_codec *codec = rtd->codec;
+		struct snd_soc_component *component = rtd->codec_dai->component;
 
 		/* turn off digital output */
-		snd_soc_update_bits(codec, WM8804_PWRDN, 0x3c, 0x3c);
+		snd_soc_component_update_bits(component, WM8804_PWRDN, 0x3c, 0x3c);
 	}
 }
 
@@ -69,7 +69,7 @@ static int snd_rpi_iqaudio_digi_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 
 	int sysclk = 27000000; /* This is fixed on this board */
@@ -113,7 +113,7 @@ static int snd_rpi_iqaudio_digi_hw_params(struct snd_pcm_substream *substream,
 		sampling_freq = 0x0e;
 		break;
 	default:
-		dev_err(codec->dev, "Failed to set WM8804 SYSCLK, unsupported samplerate %d\n",
+		dev_err(rtd->card->dev, "Failed to set WM8804 SYSCLK, unsupported samplerate %d\n",
 			samplerate);
 	}
 
@@ -123,18 +123,18 @@ static int snd_rpi_iqaudio_digi_hw_params(struct snd_pcm_substream *substream,
 	ret = snd_soc_dai_set_sysclk(codec_dai, WM8804_TX_CLKSRC_PLL,
 					sysclk, SND_SOC_CLOCK_OUT);
 	if (ret < 0) {
-		dev_err(codec->dev, "Failed to set WM8804 SYSCLK: %d\n", ret);
+		dev_err(rtd->card->dev, "Failed to set WM8804 SYSCLK: %d\n", ret);
 		return ret;
 	}
 
 	/* Enable TX output */
-	snd_soc_update_bits(codec, WM8804_PWRDN, 0x4, 0x0);
+	snd_soc_component_update_bits(component, WM8804_PWRDN, 0x4, 0x0);
 
 	/* Power on */
-	snd_soc_update_bits(codec, WM8804_PWRDN, 0x9, 0);
+	snd_soc_component_update_bits(component, WM8804_PWRDN, 0x9, 0);
 
 	/* set sampling frequency status bits */
-	snd_soc_update_bits(codec, WM8804_SPDTX4, 0x0f, sampling_freq);
+	snd_soc_component_update_bits(component, WM8804_SPDTX4, 0x0f, sampling_freq);
 
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, 64);
 }
