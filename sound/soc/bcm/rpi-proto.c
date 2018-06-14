@@ -42,7 +42,6 @@ static int snd_rpi_proto_hw_params(struct snd_pcm_substream *substream,
 				       struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int sysclk = 12288000; /* This is fixed on this board */
@@ -50,7 +49,7 @@ static int snd_rpi_proto_hw_params(struct snd_pcm_substream *substream,
 	/* Set proto bclk */
 	int ret = snd_soc_dai_set_bclk_ratio(cpu_dai,32*2);
 	if (ret < 0){
-		dev_err(codec->dev,
+		dev_err(rtd->card->dev,
 				"Failed to set BCLK ratio %d\n", ret);
 		return ret;
 	}
@@ -59,7 +58,7 @@ static int snd_rpi_proto_hw_params(struct snd_pcm_substream *substream,
 	ret = snd_soc_dai_set_sysclk(codec_dai, WM8731_SYSCLK_XTAL,
 			sysclk, SND_SOC_CLOCK_IN);
 	if (ret < 0) {
-		dev_err(codec->dev,
+		dev_err(rtd->card->dev,
 				"Failed to set WM8731 SYSCLK: %d\n", ret);
 		return ret;
 	}
