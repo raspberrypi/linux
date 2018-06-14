@@ -51,58 +51,58 @@ static bool slave;
 static bool snd_rpi_hifiberry_is_dacpro;
 static bool digital_gain_0db_limit = true;
 
-static void snd_rpi_hifiberry_dacplus_select_clk(struct snd_soc_codec *codec,
+static void snd_rpi_hifiberry_dacplus_select_clk(struct snd_soc_component *component,
 	int clk_id)
 {
 	switch (clk_id) {
 	case HIFIBERRY_DACPRO_NOCLOCK:
-		snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x24, 0x00);
+		snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x24, 0x00);
 		break;
 	case HIFIBERRY_DACPRO_CLK44EN:
-		snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x24, 0x20);
+		snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x24, 0x20);
 		break;
 	case HIFIBERRY_DACPRO_CLK48EN:
-		snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x24, 0x04);
+		snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x24, 0x04);
 		break;
 	}
 }
 
-static void snd_rpi_hifiberry_dacplus_clk_gpio(struct snd_soc_codec *codec)
+static void snd_rpi_hifiberry_dacplus_clk_gpio(struct snd_soc_component *component)
 {
-	snd_soc_update_bits(codec, PCM512x_GPIO_EN, 0x24, 0x24);
-	snd_soc_update_bits(codec, PCM512x_GPIO_OUTPUT_3, 0x0f, 0x02);
-	snd_soc_update_bits(codec, PCM512x_GPIO_OUTPUT_6, 0x0f, 0x02);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_EN, 0x24, 0x24);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_OUTPUT_3, 0x0f, 0x02);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_OUTPUT_6, 0x0f, 0x02);
 }
 
-static bool snd_rpi_hifiberry_dacplus_is_sclk(struct snd_soc_codec *codec)
+static bool snd_rpi_hifiberry_dacplus_is_sclk(struct snd_soc_component *component)
 {
-	int sck;
+	unsigned int sck;
 
-	sck = snd_soc_read(codec, PCM512x_RATE_DET_4);
+	snd_soc_component_read(component, PCM512x_RATE_DET_4, &sck);
 	return (!(sck & 0x40));
 }
 
 static bool snd_rpi_hifiberry_dacplus_is_sclk_sleep(
-	struct snd_soc_codec *codec)
+	struct snd_soc_component *component)
 {
 	msleep(2);
-	return snd_rpi_hifiberry_dacplus_is_sclk(codec);
+	return snd_rpi_hifiberry_dacplus_is_sclk(component);
 }
 
-static bool snd_rpi_hifiberry_dacplus_is_pro_card(struct snd_soc_codec *codec)
+static bool snd_rpi_hifiberry_dacplus_is_pro_card(struct snd_soc_component *component)
 {
 	bool isClk44EN, isClk48En, isNoClk;
 
-	snd_rpi_hifiberry_dacplus_clk_gpio(codec);
+	snd_rpi_hifiberry_dacplus_clk_gpio(component);
 
-	snd_rpi_hifiberry_dacplus_select_clk(codec, HIFIBERRY_DACPRO_CLK44EN);
-	isClk44EN = snd_rpi_hifiberry_dacplus_is_sclk_sleep(codec);
+	snd_rpi_hifiberry_dacplus_select_clk(component, HIFIBERRY_DACPRO_CLK44EN);
+	isClk44EN = snd_rpi_hifiberry_dacplus_is_sclk_sleep(component);
 
-	snd_rpi_hifiberry_dacplus_select_clk(codec, HIFIBERRY_DACPRO_NOCLOCK);
-	isNoClk = snd_rpi_hifiberry_dacplus_is_sclk_sleep(codec);
+	snd_rpi_hifiberry_dacplus_select_clk(component, HIFIBERRY_DACPRO_NOCLOCK);
+	isNoClk = snd_rpi_hifiberry_dacplus_is_sclk_sleep(component);
 
-	snd_rpi_hifiberry_dacplus_select_clk(codec, HIFIBERRY_DACPRO_CLK48EN);
-	isClk48En = snd_rpi_hifiberry_dacplus_is_sclk_sleep(codec);
+	snd_rpi_hifiberry_dacplus_select_clk(component, HIFIBERRY_DACPRO_CLK48EN);
+	isClk48En = snd_rpi_hifiberry_dacplus_is_sclk_sleep(component);
 
 	return (isClk44EN && isClk48En && !isNoClk);
 }
@@ -127,10 +127,10 @@ static int snd_rpi_hifiberry_dacplus_clk_for_rate(int sample_rate)
 	return type;
 }
 
-static void snd_rpi_hifiberry_dacplus_set_sclk(struct snd_soc_codec *codec,
+static void snd_rpi_hifiberry_dacplus_set_sclk(struct snd_soc_component *component,
 	int sample_rate)
 {
-	struct pcm512x_priv *pcm512x = snd_soc_codec_get_drvdata(codec);
+	struct pcm512x_priv *pcm512x = snd_soc_component_get_drvdata(component);
 
 	if (!IS_ERR(pcm512x->sclk)) {
 		int ctype;
@@ -138,20 +138,20 @@ static void snd_rpi_hifiberry_dacplus_set_sclk(struct snd_soc_codec *codec,
 		ctype = snd_rpi_hifiberry_dacplus_clk_for_rate(sample_rate);
 		clk_set_rate(pcm512x->sclk, (ctype == HIFIBERRY_DACPRO_CLK44EN)
 			? CLK_44EN_RATE : CLK_48EN_RATE);
-		snd_rpi_hifiberry_dacplus_select_clk(codec, ctype);
+		snd_rpi_hifiberry_dacplus_select_clk(component, ctype);
 	}
 }
 
 static int snd_rpi_hifiberry_dacplus_init(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 	struct pcm512x_priv *priv;
 
 	if (slave)
 		snd_rpi_hifiberry_is_dacpro = false;
 	else
 		snd_rpi_hifiberry_is_dacpro =
-				snd_rpi_hifiberry_dacplus_is_pro_card(codec);
+				snd_rpi_hifiberry_dacplus_is_pro_card(component);
 
 	if (snd_rpi_hifiberry_is_dacpro) {
 		struct snd_soc_dai_link *dai = rtd->dai_link;
@@ -161,17 +161,17 @@ static int snd_rpi_hifiberry_dacplus_init(struct snd_soc_pcm_runtime *rtd)
 		dai->dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
 			| SND_SOC_DAIFMT_CBM_CFM;
 
-		snd_soc_update_bits(codec, PCM512x_BCLK_LRCLK_CFG, 0x31, 0x11);
-		snd_soc_update_bits(codec, PCM512x_MASTER_MODE, 0x03, 0x03);
-		snd_soc_update_bits(codec, PCM512x_MASTER_CLKDIV_2, 0x7f, 63);
+		snd_soc_component_update_bits(component, PCM512x_BCLK_LRCLK_CFG, 0x31, 0x11);
+		snd_soc_component_update_bits(component, PCM512x_MASTER_MODE, 0x03, 0x03);
+		snd_soc_component_update_bits(component, PCM512x_MASTER_CLKDIV_2, 0x7f, 63);
 	} else {
-		priv = snd_soc_codec_get_drvdata(codec);
+		priv = snd_soc_component_get_drvdata(component);
 		priv->sclk = ERR_PTR(-ENOENT);
 	}
 
-	snd_soc_update_bits(codec, PCM512x_GPIO_EN, 0x08, 0x08);
-	snd_soc_update_bits(codec, PCM512x_GPIO_OUTPUT_4, 0x0f, 0x02);
-	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_EN, 0x08, 0x08);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_OUTPUT_4, 0x0f, 0x02);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
 
 	if (digital_gain_0db_limit)
 	{
@@ -190,8 +190,8 @@ static int snd_rpi_hifiberry_dacplus_update_rate_den(
 	struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-	struct pcm512x_priv *pcm512x = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = rtd->codec_dai->component;
+	struct pcm512x_priv *pcm512x = snd_soc_component_get_drvdata(component);
 	struct snd_ratnum *rats_no_pll;
 	unsigned int num = 0, den = 0;
 	int err;
@@ -225,11 +225,11 @@ static int snd_rpi_hifiberry_dacplus_hw_params(
 	int width = 32;
 
 	if (snd_rpi_hifiberry_is_dacpro) {
-		struct snd_soc_codec *codec = rtd->codec;
+		struct snd_soc_component *component = rtd->codec_dai->component;
 
 		width = snd_pcm_format_physical_width(params_format(params));
 
-		snd_rpi_hifiberry_dacplus_set_sclk(codec,
+		snd_rpi_hifiberry_dacplus_set_sclk(component,
 			params_rate(params));
 
 		ret = snd_rpi_hifiberry_dacplus_update_rate_den(
@@ -249,9 +249,9 @@ static int snd_rpi_hifiberry_dacplus_startup(
 	struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 
-	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
 	return 0;
 }
 
@@ -259,9 +259,9 @@ static void snd_rpi_hifiberry_dacplus_shutdown(
 	struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 
-	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08, 0x00);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08, 0x00);
 }
 
 /* machine stream operations */
