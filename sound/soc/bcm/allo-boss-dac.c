@@ -49,58 +49,58 @@ static bool slave;
 static bool snd_soc_allo_boss_master;
 static bool digital_gain_0db_limit = true;
 
-static void snd_allo_boss_select_clk(struct snd_soc_codec *codec,
+static void snd_allo_boss_select_clk(struct snd_soc_component *component,
 	int clk_id)
 {
 	switch (clk_id) {
 	case ALLO_BOSS_NOCLOCK:
-		snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x24, 0x00);
+		snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x24, 0x00);
 		break;
 	case ALLO_BOSS_CLK44EN:
-		snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x24, 0x20);
+		snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x24, 0x20);
 		break;
 	case ALLO_BOSS_CLK48EN:
-		snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x24, 0x04);
+		snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x24, 0x04);
 		break;
 	}
 }
 
-static void snd_allo_boss_clk_gpio(struct snd_soc_codec *codec)
+static void snd_allo_boss_clk_gpio(struct snd_soc_component *component)
 {
-	snd_soc_update_bits(codec, PCM512x_GPIO_EN, 0x24, 0x24);
-	snd_soc_update_bits(codec, PCM512x_GPIO_OUTPUT_3, 0x0f, 0x02);
-	snd_soc_update_bits(codec, PCM512x_GPIO_OUTPUT_6, 0x0f, 0x02);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_EN, 0x24, 0x24);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_OUTPUT_3, 0x0f, 0x02);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_OUTPUT_6, 0x0f, 0x02);
 }
 
-static bool snd_allo_boss_is_sclk(struct snd_soc_codec *codec)
+static bool snd_allo_boss_is_sclk(struct snd_soc_component *component)
 {
-	int sck;
+	unsigned int sck;
 
-	sck = snd_soc_read(codec, PCM512x_RATE_DET_4);
+	snd_soc_component_read(component, PCM512x_RATE_DET_4, &sck);
 	return (!(sck & 0x40));
 }
 
 static bool snd_allo_boss_is_sclk_sleep(
-	struct snd_soc_codec *codec)
+	struct snd_soc_component *component)
 {
 	msleep(2);
-	return snd_allo_boss_is_sclk(codec);
+	return snd_allo_boss_is_sclk(component);
 }
 
-static bool snd_allo_boss_is_master_card(struct snd_soc_codec *codec)
+static bool snd_allo_boss_is_master_card(struct snd_soc_component *component)
 {
 	bool isClk44EN, isClk48En, isNoClk;
 
-	snd_allo_boss_clk_gpio(codec);
+	snd_allo_boss_clk_gpio(component);
 
-	snd_allo_boss_select_clk(codec, ALLO_BOSS_CLK44EN);
-	isClk44EN = snd_allo_boss_is_sclk_sleep(codec);
+	snd_allo_boss_select_clk(component, ALLO_BOSS_CLK44EN);
+	isClk44EN = snd_allo_boss_is_sclk_sleep(component);
 
-	snd_allo_boss_select_clk(codec, ALLO_BOSS_NOCLOCK);
-	isNoClk = snd_allo_boss_is_sclk_sleep(codec);
+	snd_allo_boss_select_clk(component, ALLO_BOSS_NOCLOCK);
+	isNoClk = snd_allo_boss_is_sclk_sleep(component);
 
-	snd_allo_boss_select_clk(codec, ALLO_BOSS_CLK48EN);
-	isClk48En = snd_allo_boss_is_sclk_sleep(codec);
+	snd_allo_boss_select_clk(component, ALLO_BOSS_CLK48EN);
+	isClk48En = snd_allo_boss_is_sclk_sleep(component);
 
 	return (isClk44EN && isClk48En && !isNoClk);
 }
@@ -125,10 +125,10 @@ static int snd_allo_boss_clk_for_rate(int sample_rate)
 	return type;
 }
 
-static void snd_allo_boss_set_sclk(struct snd_soc_codec *codec,
+static void snd_allo_boss_set_sclk(struct snd_soc_component *component,
 	int sample_rate)
 {
-	struct pcm512x_priv *pcm512x = snd_soc_codec_get_drvdata(codec);
+	struct pcm512x_priv *pcm512x = snd_soc_component_get_drvdata(component);
 
 	if (!IS_ERR(pcm512x->sclk)) {
 		int ctype;
@@ -136,20 +136,20 @@ static void snd_allo_boss_set_sclk(struct snd_soc_codec *codec,
 		ctype =	snd_allo_boss_clk_for_rate(sample_rate);
 		clk_set_rate(pcm512x->sclk, (ctype == ALLO_BOSS_CLK44EN)
 				? CLK_44EN_RATE : CLK_48EN_RATE);
-		snd_allo_boss_select_clk(codec, ctype);
+		snd_allo_boss_select_clk(component, ctype);
 	}
 }
 
 static int snd_allo_boss_init(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_codec *codec = rtd->codec;
-	struct pcm512x_priv *priv = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = rtd->codec_dai->component;
+	struct pcm512x_priv *priv = snd_soc_component_get_drvdata(component);
 
 	if (slave)
 		snd_soc_allo_boss_master = false;
 	else
 		snd_soc_allo_boss_master =
-			snd_allo_boss_is_master_card(codec);
+			snd_allo_boss_is_master_card(component);
 
 	if (snd_soc_allo_boss_master) {
 		struct snd_soc_dai_link *dai = rtd->dai_link;
@@ -159,9 +159,9 @@ static int snd_allo_boss_init(struct snd_soc_pcm_runtime *rtd)
 		dai->dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
 			| SND_SOC_DAIFMT_CBM_CFM;
 
-		snd_soc_update_bits(codec, PCM512x_BCLK_LRCLK_CFG, 0x31, 0x11);
-		snd_soc_update_bits(codec, PCM512x_MASTER_MODE, 0x03, 0x03);
-		snd_soc_update_bits(codec, PCM512x_MASTER_CLKDIV_2, 0x7f, 63);
+		snd_soc_component_update_bits(component, PCM512x_BCLK_LRCLK_CFG, 0x31, 0x11);
+		snd_soc_component_update_bits(component, PCM512x_MASTER_MODE, 0x03, 0x03);
+		snd_soc_component_update_bits(component, PCM512x_MASTER_CLKDIV_2, 0x7f, 63);
 		/*
 		* Default sclk to CLK_48EN_RATE, otherwise codec
 		*  pcm512x_dai_startup_master method could call
@@ -174,9 +174,9 @@ static int snd_allo_boss_init(struct snd_soc_pcm_runtime *rtd)
 		priv->sclk = ERR_PTR(-ENOENT);
 	}
 
-	snd_soc_update_bits(codec, PCM512x_GPIO_EN, 0x08, 0x08);
-	snd_soc_update_bits(codec, PCM512x_GPIO_OUTPUT_4, 0x0f, 0x02);
-	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_EN, 0x08, 0x08);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_OUTPUT_4, 0x0f, 0x02);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
 
 	if (digital_gain_0db_limit) {
 		int ret;
@@ -196,8 +196,8 @@ static int snd_allo_boss_update_rate_den(
 	struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-	struct pcm512x_priv *pcm512x = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = rtd->codec_dai->component;
+	struct pcm512x_priv *pcm512x = snd_soc_component_get_drvdata(component);
 	struct snd_ratnum *rats_no_pll;
 	unsigned int num = 0, den = 0;
 	int err;
@@ -277,9 +277,9 @@ static int snd_allo_boss_hw_params(
 	int width = snd_pcm_format_physical_width(params_format(params));
 
 	if (snd_soc_allo_boss_master) {
-		struct snd_soc_codec *codec = rtd->codec;
+		struct snd_soc_component *component = rtd->codec_dai->component;
 
-		snd_allo_boss_set_sclk(codec,
+		snd_allo_boss_set_sclk(component,
 			params_rate(params));
 
 		ret = snd_allo_boss_update_rate_den(
@@ -301,14 +301,14 @@ static int snd_allo_boss_startup(
 	struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 	struct snd_soc_card *card = rtd->card;
 
-	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
 	snd_allo_boss_gpio_mute(card);
 
 	if (snd_soc_allo_boss_master) {
-		struct pcm512x_priv *priv = snd_soc_codec_get_drvdata(codec);
+		struct pcm512x_priv *priv = snd_soc_component_get_drvdata(component);
 		/*
 		 * Default sclk to CLK_48EN_RATE, otherwise codec
 		 * pcm512x_dai_startup_master method could call
@@ -326,9 +326,9 @@ static void snd_allo_boss_shutdown(
 	struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 
-	snd_soc_update_bits(codec, PCM512x_GPIO_CONTROL_1, 0x08, 0x00);
+	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08, 0x00);
 }
 
 static int snd_allo_boss_prepare(
