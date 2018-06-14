@@ -31,13 +31,13 @@
 static int snd_fe_pi_audio_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_card *card = rtd->card;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 
 	snd_soc_dapm_force_enable_pin(&card->dapm, "LO");
 	snd_soc_dapm_force_enable_pin(&card->dapm, "ADC");
 	snd_soc_dapm_force_enable_pin(&card->dapm, "DAC");
 	snd_soc_dapm_force_enable_pin(&card->dapm, "HP");
-	snd_soc_update_bits(codec, SGTL5000_CHIP_ANA_POWER,
+	snd_soc_component_update_bits(component, SGTL5000_CHIP_ANA_POWER,
 			SGTL5000_VAG_POWERUP, SGTL5000_VAG_POWERUP);
 
 	return 0;
