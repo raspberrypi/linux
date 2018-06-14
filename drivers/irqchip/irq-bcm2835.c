@@ -74,8 +74,6 @@
 #define NR_BANKS		3
 #define IRQS_PER_BANK		32
 #define NUMBER_IRQS		MAKE_HWIRQ(NR_BANKS, 0)
-#undef FIQ_START
-#define FIQ_START		(NR_IRQS_BANK0 + MAKE_HWIRQ(NR_BANKS - 1, 0))
 
 static const int reg_pending[] __initconst = { 0x00, 0x04, 0x08 };
 static const int reg_enable[] __initconst = { 0x18, 0x10, 0x14 };
@@ -203,7 +201,7 @@ static int __init armctrl_of_init(struct device_node *node,
 				  bool is_2836)
 {
 	void __iomem *base;
-	int irq, b, i;
+	int irq = 0, last_irq, b, i;
 	u32 reg;
 
 	base = of_iomap(node, 0);
@@ -243,6 +241,8 @@ static int __init armctrl_of_init(struct device_node *node,
 		pr_err(FW_BUG "Bootloader left fiq enabled\n");
 	}
 
+	last_irq = irq;
+
 	if (is_2836) {
 		int parent_irq = irq_of_parse_and_map(node, 0);
 
@@ -273,7 +273,7 @@ static int __init armctrl_of_init(struct device_node *node,
 		}
 	}
 #ifndef CONFIG_ARM64
-	init_FIQ(FIQ_START);
+	init_FIQ(irq - last_irq);
 #endif
 
 	return 0;
