@@ -396,18 +396,18 @@ static int pcm512x_get_reg_sub(struct snd_kcontrol *kcontrol,
 	struct snd_soc_pcm_runtime *rtd;
 	unsigned int left_val = 0;
 	unsigned int right_val = 0;
-
+	int ret;
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
-	snd_soc_component_read(rtd->codec_dais[1]->component,
+	ret = snd_soc_component_read(rtd->codec_dais[1]->component,
 			PCM512x_DIGITAL_VOLUME_3, &right_val);
-	if (right_val < 0)
-		return right_val;
+	if (ret < 0)
+		return ret;
 
 	if (glb_ptr->dual_mode != 1) {
-		snd_soc_component_read(rtd->codec_dais[1]->component,
+		ret = snd_soc_component_read(rtd->codec_dais[1]->component,
 				PCM512x_DIGITAL_VOLUME_2, &left_val);
-		if (left_val < 0)
-			return left_val;
+		if ( ret < 0)
+			return ret;
 
 	} else {
 		left_val = right_val;
@@ -463,11 +463,12 @@ static int pcm512x_get_reg_sub_switch(struct snd_kcontrol *kcontrol,
 	struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
 	struct snd_soc_pcm_runtime *rtd;
 	int val = 0;
+	int ret;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
-	snd_soc_component_read(rtd->codec_dais[1]->component, PCM512x_MUTE, &val);
-	if (val < 0)
-		return val;
+	ret = snd_soc_component_read(rtd->codec_dais[1]->component, PCM512x_MUTE, &val);
+	if (ret < 0)
+		return ret;
 
 	ucontrol->value.integer.value[0] =
 			(val & P_DAC_LEFT_MUTE) ? P_UNMUTE : P_MUTE;
@@ -507,24 +508,25 @@ static int pcm512x_get_reg_master(struct snd_kcontrol *kcontrol,
 	struct glb_pool *glb_ptr = card->drvdata;
 	struct snd_soc_pcm_runtime *rtd;
 	unsigned int left_val = 0, right_val = 0;
+	int ret;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
 
-	snd_soc_component_read(rtd->codec_dais[0]->component,
+	ret = snd_soc_component_read(rtd->codec_dais[0]->component,
 			PCM512x_DIGITAL_VOLUME_2, &left_val);
-	if (left_val < 0)
-		return left_val;
+	if ( ret < 0)
+		return ret;
 
 	if (glb_ptr->dual_mode == 1) {
-		snd_soc_component_read(rtd->codec_dais[1]->component,
+		ret = snd_soc_component_read(rtd->codec_dais[1]->component,
 				PCM512x_DIGITAL_VOLUME_3, &right_val);
-		if (right_val < 0)
-			return right_val;
+		if (ret < 0)
+			return ret;
 	} else {
-		snd_soc_component_read(rtd->codec_dais[0]->component,
+		ret = snd_soc_component_read(rtd->codec_dais[0]->component,
 				PCM512x_DIGITAL_VOLUME_3, &right_val);
-		if (right_val < 0)
-			return right_val;
+		if (ret < 0)
+			return ret;
 	}
 
 	ucontrol->value.integer.value[0] =
@@ -589,20 +591,21 @@ static int pcm512x_get_reg_master_switch(struct snd_kcontrol *kcontrol,
 	struct glb_pool *glb_ptr = card->drvdata;
 	struct snd_soc_pcm_runtime *rtd;
 	int val = 0;
+	int ret;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
 
-	snd_soc_component_read(rtd->codec_dais[0]->component, PCM512x_MUTE, &val);
-	if (val < 0)
-		return val;
+	ret = snd_soc_component_read(rtd->codec_dais[0]->component, PCM512x_MUTE, &val);
+	if (ret < 0)
+		return ret;
 
 	ucontrol->value.integer.value[0] =
 			(val & P_DAC_LEFT_MUTE) ? P_UNMUTE : P_MUTE;
 
 	if (glb_ptr->dual_mode == 1) {
-		snd_soc_component_read(rtd->codec_dais[1]->component, PCM512x_MUTE, &val);
-		if (val < 0)
-			return val;
+		ret = snd_soc_component_read(rtd->codec_dais[1]->component, PCM512x_MUTE, &val);
+		if (ret < 0)
+			return ret;
 	}
 	ucontrol->value.integer.value[1] =
 			(val & P_DAC_RIGHT_MUTE) ? P_UNMUTE : P_MUTE;
@@ -800,12 +803,12 @@ static int snd_allo_piano_dac_hw_params(
 
 	for (dac = 0; (glb_mclk && dac < 2); dac++) {
 		/* Configure the PLL clock reference for both the Codecs */
-		snd_soc_component_read(rtd->codec_dais[dac]->component,
+		ret = snd_soc_component_read(rtd->codec_dais[dac]->component,
 					PCM512x_RATE_DET_4, &val);
-		if (val < 0) {
+		if (ret < 0) {
 			dev_err(rtd->codec_dais[dac]->component->dev,
 				"Failed to read register PCM512x_RATE_DET_4\n");
-			return val;
+			return ret;
 		}
 
 		if (val & 0x40) {
