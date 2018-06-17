@@ -32,17 +32,17 @@ static struct snd_soc_dai_driver pcm1794a_dai = {
 	},
 };
 
-static struct snd_soc_codec_driver soc_codec_dev_pcm1794a;
+static struct snd_soc_component_driver soc_component_dev_pcm1794a;
 
 static int pcm1794a_probe(struct platform_device *pdev)
 {
-	return snd_soc_register_codec(&pdev->dev, &soc_codec_dev_pcm1794a,
+	return snd_soc_register_component(&pdev->dev, &soc_component_dev_pcm1794a,
 			&pcm1794a_dai, 1);
 }
 
 static int pcm1794a_remove(struct platform_device *pdev)
 {
-	snd_soc_unregister_codec(&pdev->dev);
+	snd_soc_unregister_component(&pdev->dev);
 	return 0;
 }
 
@@ -52,7 +52,7 @@ static const struct of_device_id pcm1794a_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, pcm1794a_of_match);
 
-static struct platform_driver pcm1794a_codec_driver = {
+static struct platform_driver pcm1794a_component_driver = {
 	.probe 		= pcm1794a_probe,
 	.remove 	= pcm1794a_remove,
 	.driver		= {
@@ -62,7 +62,7 @@ static struct platform_driver pcm1794a_codec_driver = {
 	},
 };
 
-module_platform_driver(pcm1794a_codec_driver);
+module_platform_driver(pcm1794a_component_driver);
 
 MODULE_DESCRIPTION("ASoC PCM1794A codec driver");
 MODULE_AUTHOR("Florian Meier <florian.meier@koalo.de>");
