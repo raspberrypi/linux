@@ -47,12 +47,12 @@ static void voicehat_enable_sdmode_work(struct work_struct *work) {
   gpiod_set_value(voicehat->sdmode_gpio, 1);
 }
 
-static int voicehat_codec_probe(struct snd_soc_codec *codec) {
-  struct voicehat_priv *voicehat = snd_soc_codec_get_drvdata(codec);
+static int voicehat_component_probe(struct snd_soc_component *component) {
+  struct voicehat_priv *voicehat = snd_soc_component_get_drvdata(component);
 
-  voicehat->sdmode_gpio = devm_gpiod_get(codec->dev, "sdmode", GPIOD_OUT_LOW);
+  voicehat->sdmode_gpio = devm_gpiod_get(component->card->dev, "sdmode", GPIOD_OUT_LOW);
   if (IS_ERR(voicehat->sdmode_gpio)) {
-    dev_err(codec->dev, "Unable to allocate GPIO pin\n");
+    dev_err(component->card->dev, "Unable to allocate GPIO pin\n");
     return PTR_ERR(voicehat->sdmode_gpio);
   }
 
@@ -60,12 +60,10 @@ static int voicehat_codec_probe(struct snd_soc_codec *codec) {
   return 0;
 }
 
-static int voicehat_codec_remove(struct snd_soc_codec *codec) {
-  struct voicehat_priv *voicehat = snd_soc_codec_get_drvdata(codec);
+static void voicehat_component_remove(struct snd_soc_component *component) {
+  struct voicehat_priv *voicehat = snd_soc_component_get_drvdata(component);
 
   cancel_delayed_work_sync(&voicehat->enable_sdmode_work);
-
-  return 0;
 }
 
 static const struct snd_soc_dapm_widget voicehat_dapm_widgets[] = {
@@ -76,25 +74,19 @@ static const struct snd_soc_dapm_route voicehat_dapm_routes[] = {
     {"Speaker", NULL, "HiFi Playback"},
 };
 
-static struct snd_soc_codec_driver voicehat_codec_driver = {
-    .probe = voicehat_codec_probe,
-    .remove = voicehat_codec_remove,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
-    .component_driver = {
-#endif
+static struct snd_soc_component_driver voicehat_component_driver = {
+    .probe = voicehat_component_probe,
+    .remove = voicehat_component_remove,
     .dapm_widgets = voicehat_dapm_widgets,
     .num_dapm_widgets = ARRAY_SIZE(voicehat_dapm_widgets),
     .dapm_routes = voicehat_dapm_routes,
     .num_dapm_routes = ARRAY_SIZE(voicehat_dapm_routes),
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
-    },
-#endif
 };
 
 static int voicehat_daiops_trigger(struct snd_pcm_substream *substream, int cmd,
                                 struct snd_soc_dai *dai) {
-  struct snd_soc_codec *codec = dai->codec;
-  struct voicehat_priv *voicehat = snd_soc_codec_get_drvdata(codec);
+  struct snd_soc_component *component = dai->component;
+  struct voicehat_priv *voicehat = snd_soc_component_get_drvdata(component);
 
   if (voicehat->sdmode_delay == 0) return 0;
 
@@ -175,11 +167,11 @@ static int voicehat_platform_probe(struct platform_device *pdev) {
 
   dev_set_drvdata(&pdev->dev, voicehat);
 
-  return snd_soc_register_codec(&pdev->dev, &voicehat_codec_driver, &voicehat_dai, 1);
+  return snd_soc_register_component(&pdev->dev, &voicehat_component_driver, &voicehat_dai, 1);
 }
 
 static int voicehat_platform_remove(struct platform_device *pdev) {
-  snd_soc_unregister_codec(&pdev->dev);
+  snd_soc_unregister_component(&pdev->dev);
   return 0;
 }
 
