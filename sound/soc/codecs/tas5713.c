@@ -45,7 +45,7 @@ static struct i2c_client *i2c;
 struct tas5713_priv {
 	struct regmap *regmap;
 	int mclk_div;
-	struct snd_soc_codec *codec;
+	struct snd_soc_component *component;
 };
 
 static struct tas5713_priv *priv_data;
@@ -86,9 +86,8 @@ static int tas5713_hw_params(struct snd_pcm_substream *substream,
 {
 	u16 blen = 0x00;
 
-	struct snd_soc_codec *codec;
-	codec = dai->codec;
-	priv_data->codec = dai->codec;
+	struct snd_soc_component *component = dai->component;
+	priv_data->component = component;
 
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
@@ -110,7 +109,7 @@ static int tas5713_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	// set word length
-	snd_soc_update_bits(codec, TAS5713_SERIAL_DATA_INTERFACE, 0x7, blen);
+	snd_soc_component_update_bits(component, TAS5713_SERIAL_DATA_INTERFACE, 0x7, blen);
 
 	return 0;
 }
@@ -121,8 +120,8 @@ static int tas5713_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 	unsigned int val = 0;
 
 	struct tas5713_priv *tas5713;
-	struct snd_soc_codec *codec = dai->codec;
-	tas5713 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	tas5713 = snd_soc_component_get_drvdata(component);
 
 	if (mute) {
 		val = TAS5713_SOFT_MUTE_ALL;
@@ -161,54 +160,52 @@ static struct snd_soc_dai_driver tas5713_dai = {
  *
  */
 
-static int tas5713_remove(struct snd_soc_codec *codec)
+static void tas5713_remove(struct snd_soc_component *component)
 {
 	struct tas5713_priv *tas5713;
 
-	tas5713 = snd_soc_codec_get_drvdata(codec);
-
-	return 0;
+	tas5713 = snd_soc_component_get_drvdata(component);
 }
 
 
-static int tas5713_probe(struct snd_soc_codec *codec)
+static int tas5713_probe(struct snd_soc_component *component)
 {
 	struct tas5713_priv *tas5713;
 	int i, ret;
 
-	i2c = container_of(codec->dev, struct i2c_client, dev);
+	i2c = container_of(component->dev, struct i2c_client, dev);
 
-	tas5713 = snd_soc_codec_get_drvdata(codec);
+	tas5713 = snd_soc_component_get_drvdata(component);
 
 	// Reset error
-	ret = snd_soc_write(codec, TAS5713_ERROR_STATUS, 0x00);
+	ret = snd_soc_component_write(component, TAS5713_ERROR_STATUS, 0x00);
 	if (ret < 0) return ret;
 
 	// Trim oscillator
-	ret = snd_soc_write(codec, TAS5713_OSC_TRIM, 0x00);
+	ret = snd_soc_component_write(component, TAS5713_OSC_TRIM, 0x00);
 	if (ret < 0) return ret;
 	msleep(1000);
 
 	// Reset error
-	ret = snd_soc_write(codec, TAS5713_ERROR_STATUS, 0x00);
+	ret = snd_soc_component_write(component, TAS5713_ERROR_STATUS, 0x00);
 	if (ret < 0) return ret;
 
 	// Clock mode: 44/48kHz, MCLK=64xfs
-	ret = snd_soc_write(codec, TAS5713_CLOCK_CTRL, 0x60);
+	ret = snd_soc_component_write(component, TAS5713_CLOCK_CTRL, 0x60);
 	if (ret < 0) return ret;
 
 	// I2S 24bit
-	ret = snd_soc_write(codec, TAS5713_SERIAL_DATA_INTERFACE, 0x05);
+	ret = snd_soc_component_write(component, TAS5713_SERIAL_DATA_INTERFACE, 0x05);
 	if (ret < 0) return ret;
 
 	// Unmute
-	ret = snd_soc_write(codec, TAS5713_SYSTEM_CTRL2, 0x00);
+	ret = snd_soc_component_write(component, TAS5713_SYSTEM_CTRL2, 0x00);
 	if (ret < 0) return ret;
-	ret = snd_soc_write(codec, TAS5713_SOFT_MUTE, 0x00);
+	ret = snd_soc_component_write(component, TAS5713_SOFT_MUTE, 0x00);
 	if (ret < 0) return ret;
 
 	// Set volume to 0db
-	ret = snd_soc_write(codec, TAS5713_VOL_MASTER, 0x00);
+	ret = snd_soc_component_write(component, TAS5713_VOL_MASTER, 0x00);
 	if (ret < 0) return ret;
 
 	// Now start programming the default initialization sequence
@@ -222,20 +219,18 @@ static int tas5713_probe(struct snd_soc_codec *codec)
 	}
 
 	// Unmute
-	ret = snd_soc_write(codec, TAS5713_SYSTEM_CTRL2, 0x00);
+	ret = snd_soc_component_write(component, TAS5713_SYSTEM_CTRL2, 0x00);
 	if (ret < 0) return ret;
 
 	return 0;
 }
 
 
-static struct snd_soc_codec_driver soc_codec_dev_tas5713 = {
+static struct snd_soc_component_driver soc_codec_dev_tas5713 = {
 	.probe = tas5713_probe,
 	.remove = tas5713_remove,
-	.component_driver = {
-		.controls = tas5713_snd_controls,
-		.num_controls = ARRAY_SIZE(tas5713_snd_controls),
-	},
+	.controls = tas5713_snd_controls,
+	.num_controls = ARRAY_SIZE(tas5713_snd_controls),
 };
 
 
@@ -306,7 +301,7 @@ static int tas5713_i2c_probe(struct i2c_client *i2c,
 
 	i2c_set_clientdata(i2c, priv_data);
 
-	ret = snd_soc_register_codec(&i2c->dev,
+	ret = snd_soc_register_component(&i2c->dev,
 				     &soc_codec_dev_tas5713, &tas5713_dai, 1);
 
 	return ret;
@@ -315,7 +310,7 @@ static int tas5713_i2c_probe(struct i2c_client *i2c,
 
 static int tas5713_i2c_remove(struct i2c_client *i2c)
 {
-	snd_soc_unregister_codec(&i2c->dev);
+	snd_soc_unregister_component(&i2c->dev);
 	i2c_set_clientdata(i2c, NULL);
 
 	kfree(priv_data);
