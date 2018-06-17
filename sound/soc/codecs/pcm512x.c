@@ -1327,8 +1327,8 @@ static int pcm512x_set_tdm_slot(struct snd_soc_dai *dai,
 	unsigned int tx_mask, unsigned int rx_mask,
 	int slots, int width)
 {
-	struct snd_soc_codec *codec = dai->codec;
-	struct pcm512x_priv *pcm512x = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	struct pcm512x_priv *pcm512x = snd_soc_component_get_drvdata(component);
 
 	switch (slots) {
 	case 0:
