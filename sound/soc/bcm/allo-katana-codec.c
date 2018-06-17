@@ -149,12 +149,12 @@ static int katana_codec_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params,
 			     struct snd_soc_dai *dai)
 {
-	struct snd_soc_codec *codec = dai->codec;
-	struct katana_codec_priv *katana_codec = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	struct katana_codec_priv *katana_codec = snd_soc_component_get_drvdata(component);
 	int fmt = 0;
 	int ret;
 
-	dev_dbg(codec->dev, "hw_params %u Hz, %u channels\n",
+	dev_dbg(component->card->dev, "hw_params %u Hz, %u channels\n",
 			params_rate(params),
 			params_channels(params));
 
@@ -176,7 +176,7 @@ static int katana_codec_hw_params(struct snd_pcm_substream *substream,
 			fmt |= KATANA_CODEC_ALEN_32;
 			break;
 		default:
-			dev_err(codec->dev, "Bad frame size: %d\n",
+			dev_err(component->card->dev, "Bad frame size: %d\n",
 					params_width(params));
 			return -EINVAL;
 		}
@@ -207,14 +207,14 @@ static int katana_codec_hw_params(struct snd_pcm_substream *substream,
 			fmt |= KATANA_CODEC_RATE_384000;
 			break;
 		default:
-			dev_err(codec->dev, "Bad sample rate: %d\n",
+			dev_err(component->card->dev, "Bad sample rate: %d\n",
 					params_rate(params));
 			return -EINVAL;
 		}
 
 		ret = regmap_write(katana_codec->regmap, KATANA_CODEC_FORMAT, fmt);
 		if (ret != 0) {
-			dev_err(codec->dev, "Failed to set format: %d\n", ret);
+			dev_err(component->card->dev, "Failed to set format: %d\n", ret);
 			return ret;
 		}
 		break;
@@ -228,8 +228,8 @@ static int katana_codec_hw_params(struct snd_pcm_substream *substream,
 
 static int katana_codec_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
-	struct snd_soc_codec *codec = dai->codec;
-	struct katana_codec_priv *katana_codec = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	struct katana_codec_priv *katana_codec = snd_soc_component_get_drvdata(component);
 
 	katana_codec->fmt = fmt;
 
@@ -256,13 +256,11 @@ static struct snd_soc_dai_driver katana_codec_dai = {
 	.ops = &katana_codec_dai_ops,
 };
 
-static struct snd_soc_codec_driver katana_codec_codec_driver = {
-	.idle_bias_off = false,
+static struct snd_soc_component_driver katana_codec_component_driver = {
+	.idle_bias_on = true,
 
-	.component_driver = {
-		.controls		= katana_codec_controls,
-		.num_controls	= ARRAY_SIZE(katana_codec_controls),
-	},
+	.controls		= katana_codec_controls,
+	.num_controls	= ARRAY_SIZE(katana_codec_controls),
 };
 
 static const struct regmap_range_cfg katana_codec_range = {
@@ -287,7 +285,7 @@ const struct regmap_config katana_codec_regmap = {
 	.cache_type = REGCACHE_RBTREE,
 };
 
-static int allo_katana_codec_probe(struct i2c_client *i2c,
+static int allo_katana_component_probe(struct i2c_client *i2c,
 			     const struct i2c_device_id *id)
 {
 	struct regmap *regmap;
@@ -317,7 +315,7 @@ static int allo_katana_codec_probe(struct i2c_client *i2c,
 	regmap_update_bits(regmap, KATANA_CODEC_RESET, 0x01, 0x01);
 	msleep(10);
 
-	ret = snd_soc_register_codec(dev, &katana_codec_codec_driver,
+	ret = snd_soc_register_component(dev, &katana_codec_component_driver,
 				    &katana_codec_dai, 1);
 	if (ret != 0) {
 		dev_err(dev, "failed to register codec: %d\n", ret);
@@ -327,17 +325,17 @@ static int allo_katana_codec_probe(struct i2c_client *i2c,
 	return 0;
 }
 
-static int allo_katana_codec_remove(struct i2c_client *i2c)
+static int allo_katana_component_remove(struct i2c_client *i2c)
 {
-	snd_soc_unregister_codec(&i2c->dev);
+	snd_soc_unregister_component(&i2c->dev);
 	return 0;
 }
 
-static const struct i2c_device_id allo_katana_codec_id[] = {
+static const struct i2c_device_id allo_katana_component_id[] = {
 	{ "allo-katana-codec", },
 	{ }
 };
-MODULE_DEVICE_TABLE(i2c, allo_katana_codec_id);
+MODULE_DEVICE_TABLE(i2c, allo_katana_component_id);
 
 static const struct of_device_id allo_katana_codec_of_match[] = {
 	{ .compatible = "allo,allo-katana-codec", },
@@ -345,17 +343,17 @@ static const struct of_device_id allo_katana_codec_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, allo_katana_codec_of_match);
 
-static struct i2c_driver allo_katana_codec_driver = {
-	.probe		= allo_katana_codec_probe,
-	.remove		= allo_katana_codec_remove,
-	.id_table	= allo_katana_codec_id,
+static struct i2c_driver allo_katana_component_driver = {
+	.probe		= allo_katana_component_probe,
+	.remove		= allo_katana_component_remove,
+	.id_table	= allo_katana_component_id,
 	.driver		= {
 		.name	= "allo-katana-codec",
 		.of_match_table = allo_katana_codec_of_match,
 	},
 };
 
-module_i2c_driver(allo_katana_codec_driver);
+module_i2c_driver(allo_katana_component_driver);
 
 MODULE_DESCRIPTION("ASoC Allo Katana Codec Driver");
 MODULE_AUTHOR("Jaikumar <jaikumar@cem-solutions.net>");
