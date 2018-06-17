@@ -43,7 +43,7 @@ static int eval_adau1977_init(struct snd_soc_pcm_runtime *rtd)
 	if (ret < 0)
 		return ret;
 
-	return snd_soc_codec_set_sysclk(rtd->codec, ADAU1977_SYSCLK,
+	return snd_soc_component_set_sysclk(codec_dai->component, ADAU1977_SYSCLK,
 			ADAU1977_SYSCLK_SRC_MCLK, 11289600, SND_SOC_CLOCK_IN);
 }
  
