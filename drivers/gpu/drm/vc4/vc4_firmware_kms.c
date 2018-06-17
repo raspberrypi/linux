@@ -33,6 +33,8 @@
 #define SMICS 0x0
 #define SMICS_INTERRUPTS (BIT(9) | BIT(10) | BIT(11))
 
+#define vc4_crtc vc4_kms_crtc
+#define to_vc4_crtc to_vc4_kms_crtc
 struct vc4_crtc {
 	struct drm_crtc base;
 	struct drm_encoder *encoder;
