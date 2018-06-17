@@ -102,24 +102,24 @@ SOC_ENUM("DAC Volume Ramp", w8741_enum[3]),
 SOC_ENUM("DAC Soft Mute", w8741_enum[4]),
 };
 
-static int w8741_add_controls(struct snd_soc_codec *codec)
+static int w8741_add_controls(struct snd_soc_component *component)
 {
-	struct wm8741_priv *wm8741 = snd_soc_codec_get_drvdata(codec);
+	struct wm8741_priv *wm8741 = snd_soc_component_get_drvdata(component);
 
 	switch (wm8741->pdata.diff_mode) {
 	case WM8741_DIFF_MODE_STEREO:
 	case WM8741_DIFF_MODE_STEREO_REVERSED:
-		snd_soc_add_codec_controls(codec,
+		snd_soc_add_component_controls(component,
 				w8741_snd_controls_stereo,
 				ARRAY_SIZE(w8741_snd_controls_stereo));
 		break;
 	case WM8741_DIFF_MODE_MONO_LEFT:
-		snd_soc_add_codec_controls(codec,
+		snd_soc_add_component_controls(component,
 				w8741_snd_controls_mono_left,
 				ARRAY_SIZE(w8741_snd_controls_mono_left));
 		break;
 	case WM8741_DIFF_MODE_MONO_RIGHT:
-		snd_soc_add_codec_controls(codec,
+		snd_soc_add_component_controls(component,
 				w8741_snd_controls_mono_right,
 				ARRAY_SIZE(w8741_snd_controls_mono_right));
 		break;
@@ -132,10 +132,10 @@ static int w8741_add_controls(struct snd_soc_codec *codec)
 
 static int digidac1_soundcard_init(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_pcm_runtime *wm8741_rtd;
-	struct snd_soc_codec *wm8741_codec;
+	struct snd_soc_component *wm8741_component;
 	struct snd_card *sound_card = card->snd_card;
 	struct snd_kcontrol *kctl;
 	int ret;
@@ -145,14 +145,14 @@ static int digidac1_soundcard_init(struct snd_soc_pcm_runtime *rtd)
 		dev_warn(card->dev, "digidac1_soundcard_init: couldn't get wm8741 rtd\n");
 		return -EFAULT;
 	}
-	wm8741_codec = wm8741_rtd->codec;
-	ret = w8741_add_controls(wm8741_codec);
+	wm8741_component = wm8741_rtd->codec_dai->component;
+	ret = w8741_add_controls(wm8741_component);
 	if (ret < 0)
 		dev_warn(card->dev, "Failed to add new wm8741 controls: %d\n",
 		ret);
 
 	/* enable TX output */
-	snd_soc_update_bits(codec, WM8804_PWRDN, 0x4, 0x0);
+	snd_soc_component_update_bits(component, WM8804_PWRDN, 0x4, 0x0);
 
 	kctl = snd_soc_card_get_kcontrol(card,
 		"Playback Volume");
@@ -173,27 +173,27 @@ static int digidac1_soundcard_startup(struct snd_pcm_substream *substream)
 {
 	/* turn on wm8804 digital output */
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_pcm_runtime *wm8741_rtd;
-	struct snd_soc_codec *wm8741_codec;
+	struct snd_soc_component *wm8741_component;
 
-	snd_soc_update_bits(codec, WM8804_PWRDN, 0x3c, 0x00);
+	snd_soc_component_update_bits(component, WM8804_PWRDN, 0x3c, 0x00);
 	wm8741_rtd = snd_soc_get_pcm_runtime(card, card->dai_link[1].name);
 	if (!wm8741_rtd) {
 		dev_warn(card->dev, "digidac1_soundcard_startup: couldn't get WM8741 rtd\n");
 		return -EFAULT;
 	}
-	wm8741_codec = wm8741_rtd->codec;
+	wm8741_component = wm8741_rtd->codec_dai->component;
 
 	/* latch wm8741 level */
-	snd_soc_update_bits(wm8741_codec, WM8741_DACLLSB_ATTENUATION,
+	snd_soc_component_update_bits(wm8741_component, WM8741_DACLLSB_ATTENUATION,
 		WM8741_UPDATELL, WM8741_UPDATELL);
-	snd_soc_update_bits(wm8741_codec, WM8741_DACLMSB_ATTENUATION,
+	snd_soc_component_update_bits(wm8741_component, WM8741_DACLMSB_ATTENUATION,
 		WM8741_UPDATELM, WM8741_UPDATELM);
-	snd_soc_update_bits(wm8741_codec, WM8741_DACRLSB_ATTENUATION,
+	snd_soc_component_update_bits(wm8741_component, WM8741_DACRLSB_ATTENUATION,
 		WM8741_UPDATERL, WM8741_UPDATERL);
-	snd_soc_update_bits(wm8741_codec, WM8741_DACRMSB_ATTENUATION,
+	snd_soc_component_update_bits(wm8741_component, WM8741_DACRMSB_ATTENUATION,
 		WM8741_UPDATERM, WM8741_UPDATERM);
 
 	return 0;
@@ -203,9 +203,9 @@ static void digidac1_soundcard_shutdown(struct snd_pcm_substream *substream)
 {
 	/* turn off wm8804 digital output */
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 
-	snd_soc_update_bits(codec, WM8804_PWRDN, 0x3c, 0x3c);
+	snd_soc_component_update_bits(component, WM8804_PWRDN, 0x3c, 0x3c);
 }
 
 static int digidac1_soundcard_hw_params(struct snd_pcm_substream *substream,
@@ -213,11 +213,11 @@ static int digidac1_soundcard_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_component *component = rtd->codec_dai->component;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_pcm_runtime *wm8741_rtd;
-	struct snd_soc_codec *wm8741_codec;
+	struct snd_soc_component *wm8741_component;
 
 	int sysclk = 27000000;
 	long mclk_freq = 0;
@@ -230,7 +230,7 @@ static int digidac1_soundcard_hw_params(struct snd_pcm_substream *substream,
 		dev_warn(card->dev, "digidac1_soundcard_hw_params: couldn't get WM8741 rtd\n");
 		return -EFAULT;
 	}
-	wm8741_codec = wm8741_rtd->codec;
+	wm8741_component = wm8741_rtd->codec_dai->component;
 	samplerate = params_rate(params);
 
 	if (samplerate <= 96000) {
@@ -264,7 +264,7 @@ static int digidac1_soundcard_hw_params(struct snd_pcm_substream *substream,
 		sampling_freq = 0x0e;
 		break;
 	default:
-		dev_err(codec->dev,
+		dev_err(card->dev,
 		"Failed to set WM8804 SYSCLK, unsupported samplerate %d\n",
 		samplerate);
 	}
@@ -275,50 +275,50 @@ static int digidac1_soundcard_hw_params(struct snd_pcm_substream *substream,
 	ret = snd_soc_dai_set_sysclk(codec_dai, WM8804_TX_CLKSRC_PLL,
 		sysclk, SND_SOC_CLOCK_OUT);
 	if (ret < 0) {
-		dev_err(codec->dev,
+		dev_err(card->dev,
 		"Failed to set WM8804 SYSCLK: %d\n", ret);
 		return ret;
 	}
 	/* Enable wm8804 TX output */
-	snd_soc_update_bits(codec, WM8804_PWRDN, 0x4, 0x0);
+	snd_soc_component_update_bits(component, WM8804_PWRDN, 0x4, 0x0);
 
 	/* wm8804 Power on */
-	snd_soc_update_bits(codec, WM8804_PWRDN, 0x9, 0);
+	snd_soc_component_update_bits(component, WM8804_PWRDN, 0x9, 0);
 
 	/* wm8804 set sampling frequency status bits */
-	snd_soc_update_bits(codec, WM8804_SPDTX4, 0x0f, sampling_freq);
+	snd_soc_component_update_bits(component, WM8804_SPDTX4, 0x0f, sampling_freq);
 
 	/* Now update wm8741 registers for the correct oversampling */
 	if (samplerate <= 48000)
-		snd_soc_update_bits(wm8741_codec, WM8741_MODE_CONTROL_1,
+		snd_soc_component_update_bits(wm8741_component, WM8741_MODE_CONTROL_1,
 		 WM8741_OSR_MASK, 0x00);
 	else if (samplerate <= 96000)
-		snd_soc_update_bits(wm8741_codec, WM8741_MODE_CONTROL_1,
+		snd_soc_component_update_bits(wm8741_component, WM8741_MODE_CONTROL_1,
 		 WM8741_OSR_MASK, 0x20);
 	else
-		snd_soc_update_bits(wm8741_codec, WM8741_MODE_CONTROL_1,
+		snd_soc_component_update_bits(wm8741_component, WM8741_MODE_CONTROL_1,
 		 WM8741_OSR_MASK, 0x40);
 
 	/* wm8741 bit size */
 	switch (params_width(params)) {
 	case 16:
-		snd_soc_update_bits(wm8741_codec, WM8741_FORMAT_CONTROL,
+		snd_soc_component_update_bits(wm8741_component, WM8741_FORMAT_CONTROL,
 		 WM8741_IWL_MASK, 0x00);
 		break;
 	case 20:
-		snd_soc_update_bits(wm8741_codec, WM8741_FORMAT_CONTROL,
+		snd_soc_component_update_bits(wm8741_component, WM8741_FORMAT_CONTROL,
 		 WM8741_IWL_MASK, 0x01);
 		break;
 	case 24:
-		snd_soc_update_bits(wm8741_codec, WM8741_FORMAT_CONTROL,
+		snd_soc_component_update_bits(wm8741_component, WM8741_FORMAT_CONTROL,
 		 WM8741_IWL_MASK, 0x02);
 		break;
 	case 32:
-		snd_soc_update_bits(wm8741_codec, WM8741_FORMAT_CONTROL,
+		snd_soc_component_update_bits(wm8741_component, WM8741_FORMAT_CONTROL,
 		 WM8741_IWL_MASK, 0x03);
 		break;
 	default:
-		dev_dbg(codec->dev, "wm8741_hw_params:    Unsupported bit size param = %d",
+		dev_dbg(card->dev, "wm8741_hw_params:    Unsupported bit size param = %d",
 			params_width(params));
 		return -EINVAL;
 	}
