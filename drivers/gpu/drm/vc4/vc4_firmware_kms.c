@@ -18,6 +18,7 @@
 #include "drm/drm_plane_helper.h"
 #include "drm/drm_crtc_helper.h"
 #include "drm/drm_fourcc.h"
+#include "drm/drm_probe_helper.h"
 #include "linux/clk.h"
 #include "linux/debugfs.h"
 #include "drm/drm_fb_cma_helper.h"
@@ -33,6 +34,8 @@
 #define SMICS 0x0
 #define SMICS_INTERRUPTS (BIT(9) | BIT(10) | BIT(11))
 
+#define vc4_crtc vc4_kms_crtc
+#define to_vc4_crtc to_vc4_kms_crtc
 struct vc4_crtc {
 	struct drm_crtc base;
 	struct drm_encoder *encoder;
@@ -273,7 +276,6 @@ static int vc4_plane_atomic_check(struct drm_plane *plane,
 
 static void vc4_plane_destroy(struct drm_plane *plane)
 {
-	drm_plane_helper_disable(plane);
 	drm_plane_cleanup(plane);
 }
 
@@ -591,7 +593,7 @@ static struct drm_connector *vc4_fkms_connector_init(struct drm_device *dev,
 	connector->interlace_allowed = 0;
 	connector->doublescan_allowed = 0;
 
-	drm_mode_connector_attach_encoder(connector, encoder);
+	drm_connector_attach_encoder(connector, encoder);
 
 	return connector;
 
@@ -734,11 +736,13 @@ err:
 static void vc4_fkms_unbind(struct device *dev, struct device *master,
 			    void *data)
 {
+	struct drm_device *drm = dev_get_drvdata(master);
 	struct platform_device *pdev = to_platform_device(dev);
 	struct vc4_crtc *vc4_crtc = dev_get_drvdata(dev);
 
 	vc4_fkms_connector_destroy(vc4_crtc->connector);
 	vc4_fkms_encoder_destroy(vc4_crtc->encoder);
+	drm_atomic_helper_shutdown(drm);
 	drm_crtc_cleanup(&vc4_crtc->base);
 
 	platform_set_drvdata(pdev, NULL);
