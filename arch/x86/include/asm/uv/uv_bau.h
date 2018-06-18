@@ -643,9 +643,9 @@ struct bau_control {
 	cycles_t		send_message;
 	cycles_t		period_end;
 	cycles_t		period_time;
-	raw_spinlock_t		uvhub_lock;
-	raw_spinlock_t		queue_lock;
-	raw_spinlock_t		disable_lock;
+	spinlock_t		uvhub_lock;
+	spinlock_t		queue_lock;
+	spinlock_t		disable_lock;
 	/* tunables */
 	int			max_concurr;
 	int			max_concurr_const;
@@ -847,15 +847,15 @@ static inline int atom_asr(short i, struct atomic_short *v)
  * to be lowered below the current 'v'.  atomic_add_unless can only stop
  * on equal.
  */
-static inline int atomic_inc_unless_ge(raw_spinlock_t *lock, atomic_t *v, int u)
+static inline int atomic_inc_unless_ge(spinlock_t *lock, atomic_t *v, int u)
 {
-	raw_spin_lock(lock);
+	spin_lock(lock);
 	if (atomic_read(v) >= u) {
-		raw_spin_unlock(lock);
+		spin_unlock(lock);
 		return 0;
 	}
 	atomic_inc(v);
-	raw_spin_unlock(lock);
+	spin_unlock(lock);
 	return 1;
 }
 
