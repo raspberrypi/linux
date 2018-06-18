@@ -740,9 +740,9 @@ static void destination_plugged(struct bau_desc *bau_desc,
 
 		quiesce_local_uvhub(hmaster);
 
-		raw_spin_lock(&hmaster->queue_lock);
+		spin_lock(&hmaster->queue_lock);
 		reset_with_ipi(&bau_desc->distribution, bcp);
-		raw_spin_unlock(&hmaster->queue_lock);
+		spin_unlock(&hmaster->queue_lock);
 
 		end_uvhub_quiesce(hmaster);
 
@@ -762,9 +762,9 @@ static void destination_timeout(struct bau_desc *bau_desc,
 
 		quiesce_local_uvhub(hmaster);
 
-		raw_spin_lock(&hmaster->queue_lock);
+		spin_lock(&hmaster->queue_lock);
 		reset_with_ipi(&bau_desc->distribution, bcp);
-		raw_spin_unlock(&hmaster->queue_lock);
+		spin_unlock(&hmaster->queue_lock);
 
 		end_uvhub_quiesce(hmaster);
 
@@ -785,7 +785,7 @@ static void disable_for_period(struct bau_control *bcp, struct ptc_stats *stat)
 	cycles_t tm1;
 
 	hmaster = bcp->uvhub_master;
-	raw_spin_lock(&hmaster->disable_lock);
+	spin_lock(&hmaster->disable_lock);
 	if (!bcp->baudisabled) {
 		stat->s_bau_disabled++;
 		tm1 = get_cycles();
@@ -798,7 +798,7 @@ static void disable_for_period(struct bau_control *bcp, struct ptc_stats *stat)
 			}
 		}
 	}
-	raw_spin_unlock(&hmaster->disable_lock);
+	spin_unlock(&hmaster->disable_lock);
 }
 
 static void count_max_concurr(int stat, struct bau_control *bcp,
@@ -861,7 +861,7 @@ static void record_send_stats(cycles_t time1, cycles_t time2,
  */
 static void uv1_throttle(struct bau_control *hmaster, struct ptc_stats *stat)
 {
-	raw_spinlock_t *lock = &hmaster->uvhub_lock;
+	spinlock_t *lock = &hmaster->uvhub_lock;
 	atomic_t *v;
 
 	v = &hmaster->active_descriptor_count;
@@ -995,7 +995,7 @@ static int check_enable(struct bau_control *bcp, struct ptc_stats *stat)
 	struct bau_control *hmaster;
 
 	hmaster = bcp->uvhub_master;
-	raw_spin_lock(&hmaster->disable_lock);
+	spin_lock(&hmaster->disable_lock);
 	if (bcp->baudisabled && (get_cycles() >= bcp->set_bau_on_time)) {
 		stat->s_bau_reenabled++;
 		for_each_present_cpu(tcpu) {
@@ -1007,10 +1007,10 @@ static int check_enable(struct bau_control *bcp, struct ptc_stats *stat)
 				tbcp->period_giveups = 0;
 			}
 		}
-		raw_spin_unlock(&hmaster->disable_lock);
+		spin_unlock(&hmaster->disable_lock);
 		return 0;
 	}
-	raw_spin_unlock(&hmaster->disable_lock);
+	spin_unlock(&hmaster->disable_lock);
 	return -1;
 }
 
@@ -1942,9 +1942,9 @@ static void __init init_per_cpu_tunables(void)
 		bcp->cong_reps			= congested_reps;
 		bcp->disabled_period		= sec_2_cycles(disabled_period);
 		bcp->giveup_limit		= giveup_limit;
-		raw_spin_lock_init(&bcp->queue_lock);
-		raw_spin_lock_init(&bcp->uvhub_lock);
-		raw_spin_lock_init(&bcp->disable_lock);
+		spin_lock_init(&bcp->queue_lock);
+		spin_lock_init(&bcp->uvhub_lock);
+		spin_lock_init(&bcp->disable_lock);
 	}
 }
 
