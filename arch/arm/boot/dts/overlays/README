@@ -583,6 +583,13 @@ Params: gpio                    GPIO pin to trigger on (default 3)
         keycode                 Set the key code for the button
 
 
+Name:   gpio-no-irq
+Info:   Use this overlay to disable all GPIO interrupts, which can be useful
+        for user-space GPIO edge detection systems.
+Load:   dtoverlay=gpio-no-irq
+Params: <None>
+
+
 Name:   gpio-poweroff
 Info:   Drives a GPIO high or low on poweroff (including halt). Enabling this
         overlay will prevent the ability to boot by driving GPIO3 low.
