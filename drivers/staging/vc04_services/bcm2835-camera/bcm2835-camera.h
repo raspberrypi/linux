@@ -93,6 +93,8 @@ struct bm2835_mmal_dev {
 		ktime_t kernel_start_ts;
 		/* Timestamp of last frame */
 		u64		last_timestamp;
+		/* Sequence number of last buffer */
+		u32		sequence;
 
 		struct vchiq_mmal_port  *port; /* port being used for capture */
 		/* camera port being used for capture */
