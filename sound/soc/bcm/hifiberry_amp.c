@@ -94,18 +94,12 @@ static int snd_rpi_hifiberry_amp_probe(struct platform_device *pdev)
             }
         }
 
-	ret = snd_soc_register_card(&snd_rpi_hifiberry_amp);
+	ret = devm_snd_soc_register_card(&pdev->dev, &snd_rpi_hifiberry_amp);
 
 	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
 
 	return ret;
-}
-
-
-static int snd_rpi_hifiberry_amp_remove(struct platform_device *pdev)
-{
-	return snd_soc_unregister_card(&snd_rpi_hifiberry_amp);
 }
 
 
@@ -116,7 +110,6 @@ static struct platform_driver snd_rpi_hifiberry_amp_driver = {
 		.of_match_table = snd_rpi_hifiberry_amp_of_match,
         },
         .probe          = snd_rpi_hifiberry_amp_probe,
-        .remove         = snd_rpi_hifiberry_amp_remove,
 };
 
 
