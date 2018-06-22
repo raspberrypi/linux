@@ -123,16 +123,11 @@ static int snd_fe_pi_audio_probe(struct platform_device *pdev)
 	card->dev = &pdev->dev;
 	platform_set_drvdata(pdev, card);
 
-	ret = snd_soc_register_card(card);
+	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
 
 	return ret;
-}
-
-static int snd_fe_pi_audio_remove(struct platform_device *pdev)
-{
-	return snd_soc_unregister_card(&fe_pi_audio);
 }
 
 static const struct of_device_id snd_fe_pi_audio_of_match[] = {
@@ -148,7 +143,6 @@ static struct platform_driver snd_fe_pi_audio_driver = {
                 .of_match_table = snd_fe_pi_audio_of_match,
         },
         .probe          = snd_fe_pi_audio_probe,
-        .remove         = snd_fe_pi_audio_remove,
 };
 
 module_platform_driver(snd_fe_pi_audio_driver);
