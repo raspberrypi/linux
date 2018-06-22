@@ -156,17 +156,10 @@ static int audioinjector_pi_soundcard_probe(struct platform_device *pdev)
 			}
 	}
 
-	if ((ret = snd_soc_register_card(card))) {
+	if ((ret = devm_snd_soc_register_card(&pdev->dev, card))) {
 		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
 	}
 	return ret;
-}
-
-static int audioinjector_pi_soundcard_remove(struct platform_device *pdev)
-{
-	struct snd_soc_card *card = platform_get_drvdata(pdev);
-	return snd_soc_unregister_card(card);
-
 }
 
 static const struct of_device_id audioinjector_pi_soundcard_of_match[] = {
@@ -182,7 +175,6 @@ static struct platform_driver audioinjector_pi_soundcard_driver = {
 		.of_match_table = audioinjector_pi_soundcard_of_match,
        },
        .probe          = audioinjector_pi_soundcard_probe,
-       .remove         = audioinjector_pi_soundcard_remove,
 };
 
 module_platform_driver(audioinjector_pi_soundcard_driver);
