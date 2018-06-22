@@ -386,17 +386,12 @@ static int digidac1_soundcard_probe(struct platform_device *pdev)
 		}
 	}
 
-	ret = snd_soc_register_card(&digidac1_soundcard);
+	ret = devm_snd_soc_register_card(&pdev->dev, &digidac1_soundcard);
 	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
 			ret);
 
 	return ret;
-}
-
-static int digidac1_soundcard_remove(struct platform_device *pdev)
-{
-	return snd_soc_unregister_card(&digidac1_soundcard);
 }
 
 static const struct of_device_id digidac1_soundcard_of_match[] = {
@@ -412,7 +407,6 @@ static struct platform_driver digidac1_soundcard_driver = {
 			.of_match_table	= digidac1_soundcard_of_match,
 	},
 	.probe		= digidac1_soundcard_probe,
-	.remove		= digidac1_soundcard_remove,
 };
 
 module_platform_driver(digidac1_soundcard_driver);

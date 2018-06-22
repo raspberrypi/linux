@@ -89,16 +89,11 @@ static int snd_adau1977_adc_probe(struct platform_device *pdev)
 	    }
 	}
 
-	ret = snd_soc_register_card(&snd_adau1977_adc);
+	ret = devm_snd_soc_register_card(&pdev->dev, &snd_adau1977_adc);
 	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
 
 	return ret;
-}
-
-static int snd_adau1977_adc_remove(struct platform_device *pdev)
-{
-	return snd_soc_unregister_card(&snd_adau1977_adc);
 }
 
 static const struct of_device_id snd_adau1977_adc_of_match[] = {
@@ -115,7 +110,6 @@ static struct platform_driver snd_adau1977_adc_driver = {
 		.of_match_table = snd_adau1977_adc_of_match,
         },
         .probe          = snd_adau1977_adc_probe,
-        .remove         = snd_adau1977_adc_remove,
 };
 
 module_platform_driver(snd_adau1977_adc_driver);

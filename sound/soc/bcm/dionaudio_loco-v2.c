@@ -85,17 +85,12 @@ static int snd_rpi_dionaudio_loco_v2_probe(struct platform_device *pdev)
 			pdev->dev.of_node, "dionaudio,24db_digital_gain");
 	}
 
-	ret = snd_soc_register_card(&snd_rpi_dionaudio_loco_v2);
+	ret = devm_snd_soc_register_card(&pdev->dev, &snd_rpi_dionaudio_loco_v2);
 	if (ret)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
 			ret);
 
 	return ret;
-}
-
-static int snd_rpi_dionaudio_loco_v2_remove(struct platform_device *pdev)
-{
-	return snd_soc_unregister_card(&snd_rpi_dionaudio_loco_v2);
 }
 
 static const struct of_device_id dionaudio_of_match[] = {
@@ -111,7 +106,6 @@ static struct platform_driver snd_rpi_dionaudio_loco_v2_driver = {
 		.of_match_table = dionaudio_of_match,
 	},
 	.probe          = snd_rpi_dionaudio_loco_v2_probe,
-	.remove         = snd_rpi_dionaudio_loco_v2_remove,
 };
 
 module_platform_driver(snd_rpi_dionaudio_loco_v2_driver);

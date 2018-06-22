@@ -229,17 +229,12 @@ static int snd_allo_digione_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "devm_gpiod_get() failed\n");
 	}
 
-	ret = snd_soc_register_card(&snd_allo_digione);
+	ret = devm_snd_soc_register_card(&pdev->dev, &snd_allo_digione);
 	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
 			ret);
 
 	return ret;
-}
-
-static int snd_allo_digione_remove(struct platform_device *pdev)
-{
-	return snd_soc_unregister_card(&snd_allo_digione);
 }
 
 static const struct of_device_id snd_allo_digione_of_match[] = {
@@ -255,7 +250,6 @@ static struct platform_driver snd_allo_digione_driver = {
 		.of_match_table	= snd_allo_digione_of_match,
 	},
 	.probe  = snd_allo_digione_probe,
-	.remove = snd_allo_digione_remove,
 };
 
 module_platform_driver(snd_allo_digione_driver);
