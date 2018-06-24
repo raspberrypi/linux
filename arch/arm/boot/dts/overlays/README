@@ -639,6 +639,31 @@ Params: gpio_pin                GPIO pin to trigger on (default 3)
                                 external pullup.
 
 
+Name:   hd44780-lcd
+Info:   Configures an HD44780 compatible LCD display. Uses 4 gpio pins for
+        data, 2 gpio pins for enable and register select and 1 optional pin
+        for enabling/disabling the backlight display.
+Load:   dtoverlay=hd44780-lcd,<param>=<val>
+Params: pin_d4                  GPIO pin for data pin D4 (default 6)
+
+        pin_d5                  GPIO pin for data pin D5 (default 13)
+
+        pin_d6                  GPIO pin for data pin D6 (default 19)
+
+        pin_d7                  GPIO pin for data pin D7 (default 26)
+
+        pin_en                  GPIO pin for "Enable" (default 21)
+
+        pin_rs                  GPIO pin for "Register Select" (default 20)
+
+        pin_bl                  Optional pin for enabling/disabling the
+                                display backlight. (default disabled)
+
+        display_height          Height of the display in characters
+
+        display_width           Width of the display in characters
+
+
 Name:   hifiberry-amp
 Info:   Configures the HifiBerry Amp and Amp+ audio cards
 Load:   dtoverlay=hifiberry-amp

@@ -38,6 +38,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	gpio-no-irq.dtbo \
 	gpio-poweroff.dtbo \
 	gpio-shutdown.dtbo \
+	hd44780-lcd.dtbo \
 	hifiberry-amp.dtbo \
 	hifiberry-dac.dtbo \
 	hifiberry-dacplus.dtbo \
