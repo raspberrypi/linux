@@ -76,7 +76,7 @@ static const struct reg_default katana_codec_reg_defaults[] = {
 	{ KATANA_CODEC_MUTE,		0x00 },
 	{ KATANA_CODEC_DSP_PROGRAM,	0x04 },
 	{ KATANA_CODEC_DEEMPHASIS,	0x00 },
-	{ KATANA_CODEC_DOP,			0x01 },
+	{ KATANA_CODEC_DOP,		0x00 },
 	{ KATANA_CODEC_FORMAT,		0xb4 },
 };
 
@@ -358,4 +358,3 @@ module_i2c_driver(allo_katana_component_driver);
 MODULE_DESCRIPTION("ASoC Allo Katana Codec Driver");
 MODULE_AUTHOR("Jaikumar <jaikumar@cem-solutions.net>");
 MODULE_LICENSE("GPL v2");
-
