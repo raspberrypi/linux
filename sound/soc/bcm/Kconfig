@@ -196,3 +196,16 @@ config SND_PISOUND
 	select SND_RAWMIDI
 	help
 	  Say Y or M if you want to add support for Blokas Labs pisound.
+
+config SND_RPI_SIMPLE_SOUNDCARD
+	tristate "Support for Raspberry Pi simple soundcard driver"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	depends on I2C
+	select SND_SOC_ADAU1977_I2C
+	select SND_SOC_PCM1794A
+	select SND_SOC_PCM5102A
+	select SND_SOC_PCM512x_I2C
+	select SND_SOC_TAS5713
+	help
+	  Say Y or M if you want to to add support for the RPI simple driver
+	  which provides a generic soundcard driver for several soundcards.
