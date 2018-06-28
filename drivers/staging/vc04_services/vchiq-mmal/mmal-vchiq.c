@@ -268,6 +268,8 @@ static void buffer_work_cb(struct work_struct *work)
 	if (!buffer->cmd)
 		atomic_dec(&msg_context->u.bulk.port->buffers_with_vpu);
 
+	atomic_dec(&msg_context->u.bulk.port->buffers_with_vpu);
+
 	msg_context->u.bulk.port->buffer_cb(msg_context->u.bulk.instance,
 					    msg_context->u.bulk.port,
 					    msg_context->u.bulk.status,
