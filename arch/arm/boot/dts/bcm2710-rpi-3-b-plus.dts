@@ -162,7 +162,7 @@
 };
 
 &hdmi {
-	hpd-gpios = <&expgpio 4 GPIO_ACTIVE_LOW>;
+	hpd-gpios = <&gpio 28 GPIO_ACTIVE_LOW>;
 };
 
 &audio {
