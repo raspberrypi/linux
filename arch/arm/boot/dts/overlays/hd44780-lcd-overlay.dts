@@ -2,7 +2,7 @@
 /plugin/;
 
 / {
-    compatible = "brcm, bcm2708";
+    compatible = "brcm,bcm2835";
 
     fragment@0 {
         target-path = "/";
@@ -32,15 +32,15 @@
     };
 
     __overrides__ {
-        lcd_pin_d4 = <&lcd_screen>,"data-gpios:4";
-        lcd_pin_d5 = <&lcd_screen>,"data-gpios:16";
-        lcd_pin_d6 = <&lcd_screen>,"data-gpios:28";
-        lcd_pin_d7 = <&lcd_screen>,"data-gpios:40";
-        lcd_pin_en = <&lcd_screen>,"enable-gpios:4";
-        lcd_pin_rs = <&lcd_screen>,"rs-gpios:4";
-        lcd_pin_bl = <0>,"+1", <&lcd_screen>,"backlight-gpios:4";
-        lcd_display_height = <&lcd_screen>,"display-height-chars:0";
-        lcd_display_width = <&lcd_screen>,"display-width-chars:0";
+        pin_d4 = <&lcd_screen>,"data-gpios:4";
+        pin_d5 = <&lcd_screen>,"data-gpios:16";
+        pin_d6 = <&lcd_screen>,"data-gpios:28";
+        pin_d7 = <&lcd_screen>,"data-gpios:40";
+        pin_en = <&lcd_screen>,"enable-gpios:4";
+        pin_rs = <&lcd_screen>,"rs-gpios:4";
+        pin_bl = <0>,"+1", <&lcd_screen>,"backlight-gpios:4";
+        display_height = <&lcd_screen>,"display-height-chars:0";
+        display_width = <&lcd_screen>,"display-width-chars:0";
     };
 
 };
