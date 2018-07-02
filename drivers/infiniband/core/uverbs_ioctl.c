@@ -59,6 +59,9 @@ static int uverbs_process_attr(struct ib_device *ibdev,
 			return 0;
 	}
 
+	if (test_bit(attr_id, attr_bundle_h->valid_bitmap))
+		return -EINVAL;
+
 	spec = &attr_spec_bucket->attrs[attr_id];
 	e = &elements[attr_id];
 	e->uattr = uattr_ptr;
@@ -185,6 +188,15 @@ static int uverbs_validate_kernel_mandatory(const struct uverbs_method_spec *met
 		if (!bitmap_subset(attr_spec_bucket->mandatory_attrs_bitmask,
 				   attr_bundle->hash[i].valid_bitmap,
 				   attr_spec_bucket->num_attrs))
+			return -EINVAL;
+	}
+
+	for (; i < method_spec->num_buckets; i++) {
+		struct uverbs_attr_spec_hash *attr_spec_bucket =
+			method_spec->attr_buckets[i];
+
+		if (!bitmap_empty(attr_spec_bucket->mandatory_attrs_bitmask,
+				  attr_spec_bucket->num_attrs))
 			return -EINVAL;
 	}
 

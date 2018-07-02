@@ -1,30 +1,16 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * cxd2880-spi.c
  * Sony CXD2880 DVB-T2/T tuner + demodulator driver
  * SPI adapter
  *
- * Copyright (C) 2016, 2017 Sony Semiconductor Solutions Corporation
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; version 2 of the License.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
- * NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
- * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, see <http://www.gnu.org/licenses/>.
+ * Copyright (C) 2016, 2017, 2018 Sony Semiconductor Solutions Corporation
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": %s: " fmt, __func__
+
 #include <linux/spi/spi.h>
+#include <linux/ktime.h>
 
 #include "dvb_demux.h"
 #include "dmxdev.h"
@@ -33,15 +19,15 @@
 
 #define CXD2880_MAX_FILTER_SIZE 32
 #define BURST_WRITE_MAX 128
-#define MAX_TRANS_PACKET 300
+#define MAX_TRANS_PKT 300
 
 struct cxd2880_ts_buf_info {
-	u8 read_ready;
-	u8 almost_full;
-	u8 almost_empty;
-	u8 overflow;
-	u8 underflow;
-	u16 packet_num;
+	u8 read_ready:1;
+	u8 almost_full:1;
+	u8 almost_empty:1;
+	u8 overflow:1;
+	u8 underflow:1;
+	u16 pkt_num;
 };
 
 struct cxd2880_pid_config {
@@ -74,96 +60,81 @@ DVB_DEFINE_MOD_OPT_ADAPTER_NR(adapter_nr);
 static int cxd2880_write_spi(struct spi_device *spi, u8 *data, u32 size)
 {
 	struct spi_message msg;
-	struct spi_transfer tx;
-	int ret = 0;
+	struct spi_transfer tx = {};
 
-	if ((!spi) || (!data)) {
-		pr_err("%s: invalid arg\n", __func__);
+	if (!spi || !data) {
+		pr_err("invalid arg\n");
 		return -EINVAL;
 	}
 
-	memset(&tx, 0, sizeof(tx));
 	tx.tx_buf = data;
 	tx.len = size;
 
 	spi_message_init(&msg);
 	spi_message_add_tail(&tx, &msg);
-	ret = spi_sync(spi, &msg);
 
-	return ret;
+	return spi_sync(spi, &msg);
 }
 
 static int cxd2880_write_reg(struct spi_device *spi,
-				u8 subAddress, const u8 *data, u32 size)
+			     u8 sub_address, const u8 *data, u32 size)
 {
 	u8 send_data[BURST_WRITE_MAX + 4];
 	const u8 *write_data_top = NULL;
 	int ret = 0;
 
-	if ((!spi) || (!data)) {
-		pr_err("%s: invalid arg\n", __func__);
+	if (!spi || !data) {
+		pr_err("invalid arg\n");
 		return -EINVAL;
 	}
-	if (size > BURST_WRITE_MAX) {
-		pr_err("%s: data size > WRITE_MAX\n", __func__);
-		return -EINVAL;
-	}
-
-	if (subAddress + size > 0x100) {
-		pr_err("%s: out of range\n", __func__);
+	if (size > BURST_WRITE_MAX || size > U8_MAX) {
+		pr_err("data size > WRITE_MAX\n");
 		return -EINVAL;
 	}
 
-	send_data[0] = 0x0E;
+	if (sub_address + size > 0x100) {
+		pr_err("out of range\n");
+		return -EINVAL;
+	}
+
+	send_data[0] = 0x0e;
 	write_data_top = data;
 
-	while (size > 0) {
-		send_data[1] = subAddress;
-		if (size > 255)
-			send_data[2] = 255;
-		else
-			send_data[2] = (u8)size;
+	send_data[1] = sub_address;
+	send_data[2] = (u8)size;
 
-		memcpy(&send_data[3], write_data_top, send_data[2]);
+	memcpy(&send_data[3], write_data_top, send_data[2]);
 
-		ret = cxd2880_write_spi(spi, send_data, send_data[2] + 3);
-		if (ret) {
-			dev_err(&spi->dev, "%s: write spi failed %d\n",
-				__func__, ret);
-			break;
-		}
-		subAddress += send_data[2];
-		write_data_top += send_data[2];
-		size -= send_data[2];
-	}
+	ret = cxd2880_write_spi(spi, send_data, send_data[2] + 3);
+	if (ret)
+		pr_err("write spi failed %d\n", ret);
 
 	return ret;
 }
 
 static int cxd2880_spi_read_ts(struct spi_device *spi,
-					u8 *read_data,
-					u32 packet_num)
+			       u8 *read_data,
+			       u32 packet_num)
 {
-	int ret = 0;
+	int ret;
 	u8 data[3];
 	struct spi_message message;
-	struct spi_transfer transfer[2];
+	struct spi_transfer transfer[2] = {};
 
-	if ((!spi) || (!read_data) || (!packet_num)) {
-		pr_err("%s: invalid arg\n", __func__);
+	if (!spi || !read_data || !packet_num) {
+		pr_err("invalid arg\n");
 		return -EINVAL;
 	}
-	if (packet_num > 0xFFFF) {
-		dev_err(&spi->dev, "%s: packet num > 0xFFFF\n", __func__);
+	if (packet_num > 0xffff) {
+		pr_err("packet num > 0xffff\n");
 		return -EINVAL;
 	}
 
 	data[0] = 0x10;
-	data[1] = (u8)((packet_num >> 8) & 0xFF);
-	data[2] = (u8)(packet_num & 0xFF);
+	data[1] = packet_num >> 8;
+	data[2] = packet_num;
 
 	spi_message_init(&message);
-	memset(transfer, 0, sizeof(transfer));
 
 	transfer[0].len = 3;
 	transfer[0].tx_buf = data;
@@ -174,36 +145,34 @@ static int cxd2880_spi_read_ts(struct spi_device *spi,
 
 	ret = spi_sync(spi, &message);
 	if (ret)
-		dev_err(&spi->dev, "%s: spi_write_then_read failed\n",
-			__func__);
+		pr_err("spi_write_then_read failed\n");
 
 	return ret;
 }
 
 static int cxd2880_spi_read_ts_buffer_info(struct spi_device *spi,
-					struct cxd2880_ts_buf_info *info)
+					   struct cxd2880_ts_buf_info *info)
 {
 	u8 send_data = 0x20;
 	u8 recv_data[2];
-	int ret = 0;
+	int ret;
 
-	if ((!spi) || (!info)) {
-		pr_err("%s: invalid arg\n", __func__);
+	if (!spi || !info) {
+		pr_err("invalid arg\n");
 		return -EINVAL;
 	}
 
 	ret = spi_write_then_read(spi, &send_data, 1,
-			recv_data, sizeof(recv_data));
+				  recv_data, sizeof(recv_data));
 	if (ret)
-		dev_err(&spi->dev,
-			"%s: spi_write_then_read failed\n", __func__);
+		pr_err("spi_write_then_read failed\n");
 
-	info->read_ready = (u8)((recv_data[0] & 0x80) ? 1 : 0);
-	info->almost_full = (u8)((recv_data[0] & 0x40) ? 1 : 0);
-	info->almost_empty = (u8)((recv_data[0] & 0x20) ? 1 : 0);
-	info->overflow = (u8)((recv_data[0] & 0x10) ? 1 : 0);
-	info->underflow = (u8)((recv_data[0] & 0x08) ? 1 : 0);
-	info->packet_num = (u16)(((recv_data[0] & 0x07) << 8) | recv_data[1]);
+	info->read_ready = (recv_data[0] & 0x80) ? 1 : 0;
+	info->almost_full = (recv_data[0] & 0x40) ? 1 : 0;
+	info->almost_empty = (recv_data[0] & 0x20) ? 1 : 0;
+	info->overflow = (recv_data[0] & 0x10) ? 1 : 0;
+	info->underflow = (recv_data[0] & 0x08) ? 1 : 0;
+	info->pkt_num = ((recv_data[0] & 0x07) << 8) | recv_data[1];
 
 	return ret;
 }
@@ -211,67 +180,63 @@ static int cxd2880_spi_read_ts_buffer_info(struct spi_device *spi,
 static int cxd2880_spi_clear_ts_buffer(struct spi_device *spi)
 {
 	u8 data = 0x03;
-	int ret = 0;
+	int ret;
 
 	ret = cxd2880_write_spi(spi, &data, 1);
 
 	if (ret)
-		pr_err("%s: write spi failed\n", __func__);
+		pr_err("write spi failed\n");
 
 	return ret;
 }
 
 static int cxd2880_set_pid_filter(struct spi_device *spi,
-				struct cxd2880_pid_filter_config *cfg)
+				  struct cxd2880_pid_filter_config *cfg)
 {
 	u8 data[65];
+	int i;
+	u16 pid = 0;
+	int ret;
 
 	if (!spi) {
-		pr_err("%s: ivnalid arg\n", __func__);
+		pr_err("invalid arg\n");
 		return -EINVAL;
 	}
 
 	data[0] = 0x00;
-	if (cxd2880_write_reg(spi, 0x00, &data[0], 1) != 0)
-		return -EIO;
+	ret = cxd2880_write_reg(spi, 0x00, &data[0], 1);
+	if (ret)
+		return ret;
 	if (!cfg) {
 		data[0] = 0x02;
-		if (cxd2880_write_reg(spi, 0x50, &data[0], 1) != 0)
-			return -EIO;
+		ret = cxd2880_write_reg(spi, 0x50, &data[0], 1);
 	} else {
-		data[0] = (u8)(cfg->is_negative ? 0x01 : 0x00);
-		{
-			int i = 0;
-			u16 pid = 0;
+		data[0] = cfg->is_negative ? 0x01 : 0x00;
 
-			for (i = 0; i < CXD2880_MAX_FILTER_SIZE; i++) {
-				pid = cfg->pid_config[i].pid;
-				if (cfg->pid_config[i].is_enable) {
-					data[1 + (i * 2)] =
-					    (u8)((u8)(pid >> 8) | 0x20);
-					data[2 + (i * 2)] =
-					    (u8)(pid & 0xFF);
-				} else {
-					data[1 + (i * 2)] = 0x00;
-					data[2 + (i * 2)] = 0x00;
-				}
+		for (i = 0; i < CXD2880_MAX_FILTER_SIZE; i++) {
+			pid = cfg->pid_config[i].pid;
+			if (cfg->pid_config[i].is_enable) {
+				data[1 + (i * 2)] = (pid >> 8) | 0x20;
+				data[2 + (i * 2)] = pid & 0xff;
+			} else {
+				data[1 + (i * 2)] = 0x00;
+				data[2 + (i * 2)] = 0x00;
 			}
 		}
-		if (cxd2880_write_reg(spi, 0x50, data, 65) != 0)
-			return -EIO;
+		ret = cxd2880_write_reg(spi, 0x50, data, 65);
 	}
 
-	return 0;
+	return ret;
 }
 
 static int cxd2880_update_pid_filter(struct cxd2880_dvb_spi *dvb_spi,
-				struct cxd2880_pid_filter_config *cfg,
-				bool is_all_pid_filter)
+				     struct cxd2880_pid_filter_config *cfg,
+				     bool is_all_pid_filter)
 {
-	int ret = 0;
+	int ret;
 
-	if ((!dvb_spi) || (!cfg)) {
-		pr_err("%s: invalid arg.\n", __func__);
+	if (!dvb_spi || !cfg) {
+		pr_err("invalid arg.\n");
 		return -EINVAL;
 	}
 
@@ -282,7 +247,7 @@ static int cxd2880_update_pid_filter(struct cxd2880_dvb_spi *dvb_spi,
 		memset(&tmpcfg, 0, sizeof(tmpcfg));
 		tmpcfg.is_negative = 1;
 		tmpcfg.pid_config[0].is_enable = 1;
-		tmpcfg.pid_config[0].pid = 0x1FFF;
+		tmpcfg.pid_config[0].pid = 0x1fff;
 
 		ret = cxd2880_set_pid_filter(dvb_spi->spi, &tmpcfg);
 	} else {
@@ -290,10 +255,8 @@ static int cxd2880_update_pid_filter(struct cxd2880_dvb_spi *dvb_spi,
 	}
 	mutex_unlock(&dvb_spi->spi_mutex);
 
-	if (ret) {
-		dev_err(&dvb_spi->spi->dev,
-			"%s: set_pid_filter failed\n", __func__);
-	}
+	if (ret)
+		pr_err("set_pid_filter failed\n");
 
 	return ret;
 }
@@ -302,59 +265,50 @@ static int cxd2880_ts_read(void *arg)
 {
 	struct cxd2880_dvb_spi *dvb_spi = NULL;
 	struct cxd2880_ts_buf_info info;
-	struct timespec ts;
-	long elapsed = 0;
-	long starttime = 0;
+	ktime_t start;
 	u32 i;
 	int ret;
 
-	dvb_spi = (struct cxd2880_dvb_spi *)arg;
+	dvb_spi = arg;
 	if (!dvb_spi) {
-		pr_err("%s: invalid arg\n", __func__);
+		pr_err("invalid arg\n");
 		return -EINVAL;
 	}
 
 	ret = cxd2880_spi_clear_ts_buffer(dvb_spi->spi);
 	if (ret) {
-		dev_err(&dvb_spi->spi->dev,
-			"%s: set_clear_ts_buffer failed\n", __func__);
+		pr_err("set_clear_ts_buffer failed\n");
 		return ret;
 	}
 
-	getnstimeofday(&ts);
-	starttime = (ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
+	start = ktime_get();
 	while (!kthread_should_stop()) {
-		getnstimeofday(&ts);
-		elapsed =
-			((ts.tv_sec * 1000) + (ts.tv_nsec / 1000000))
-			- starttime;
 		ret = cxd2880_spi_read_ts_buffer_info(dvb_spi->spi,
-							&info);
+						      &info);
 		if (ret) {
-			pr_err("%s: spi_read_ts_buffer_info error\n",
-				__func__);
+			pr_err("spi_read_ts_buffer_info error\n");
 			return ret;
 		}
 
-		if (info.packet_num > MAX_TRANS_PACKET) {
-			for (i = 0; i < info.packet_num / MAX_TRANS_PACKET;
-				i++) {
+		if (info.pkt_num > MAX_TRANS_PKT) {
+			for (i = 0; i < info.pkt_num / MAX_TRANS_PKT; i++) {
 				cxd2880_spi_read_ts(dvb_spi->spi,
-							dvb_spi->ts_buf,
-							MAX_TRANS_PACKET);
+						    dvb_spi->ts_buf,
+						    MAX_TRANS_PKT);
 				dvb_dmx_swfilter(&dvb_spi->demux,
-						dvb_spi->ts_buf,
-						MAX_TRANS_PACKET * 188);
+						 dvb_spi->ts_buf,
+						 MAX_TRANS_PKT * 188);
 			}
-			starttime = (ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
-		} else if ((info.packet_num > 0) && (elapsed >= 500)) {
+			start = ktime_get();
+		} else if ((info.pkt_num > 0) &&
+			   (ktime_to_ms(ktime_sub(ktime_get(), start)) >= 500)) {
 			cxd2880_spi_read_ts(dvb_spi->spi,
-						dvb_spi->ts_buf,
-						info.packet_num);
+					    dvb_spi->ts_buf,
+					    info.pkt_num);
 			dvb_dmx_swfilter(&dvb_spi->demux,
-					dvb_spi->ts_buf,
-					info.packet_num * 188);
-			starttime = (ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
+					 dvb_spi->ts_buf,
+					 info.pkt_num * 188);
+			start = ktime_get();
 		} else {
 			usleep_range(10000, 11000);
 		}
@@ -371,23 +325,21 @@ static int cxd2880_start_feed(struct dvb_demux_feed *feed)
 	struct cxd2880_dvb_spi *dvb_spi = NULL;
 
 	if (!feed) {
-		pr_err("%s: invalid arg\n", __func__);
+		pr_err("invalid arg\n");
 		return -EINVAL;
 	}
 
 	demux = feed->demux;
 	if (!demux) {
-		pr_err("%s: feed->demux is NULL\n", __func__);
+		pr_err("feed->demux is NULL\n");
 		return -EINVAL;
 	}
-	dvb_spi = (struct cxd2880_dvb_spi *)demux->priv;
+	dvb_spi = demux->priv;
 
 	if (dvb_spi->feed_count == CXD2880_MAX_FILTER_SIZE) {
-		dev_err(&dvb_spi->spi->dev,
-			"%s: Exceeded maximum PID count (32).", __func__);
-		dev_err(&dvb_spi->spi->dev,
-			"Selected PID cannot be enabled.\n");
-		return -EBUSY;
+		pr_err("Exceeded maximum PID count (32).");
+		pr_err("Selected PID cannot be enabled.\n");
+		return -EINVAL;
 	}
 
 	if (feed->pid == 0x2000) {
@@ -396,17 +348,14 @@ static int cxd2880_start_feed(struct dvb_demux_feed *feed)
 							&dvb_spi->filter_config,
 							true);
 			if (ret) {
-				dev_err(&dvb_spi->spi->dev,
-					"%s: update pid filter failed\n",
-					__func__);
+				pr_err("update pid filter failed\n");
 				return ret;
 			}
 		}
 		dvb_spi->all_pid_feed_count++;
 
-		dev_dbg(&dvb_spi->spi->dev,
-			"%s: all PID feed (count = %d)\n",
-			__func__, dvb_spi->all_pid_feed_count);
+		pr_debug("all PID feed (count = %d)\n",
+			 dvb_spi->all_pid_feed_count);
 	} else {
 		struct cxd2880_pid_filter_config cfgtmp;
 
@@ -416,17 +365,14 @@ static int cxd2880_start_feed(struct dvb_demux_feed *feed)
 			if (cfgtmp.pid_config[i].is_enable == 0) {
 				cfgtmp.pid_config[i].is_enable = 1;
 				cfgtmp.pid_config[i].pid = feed->pid;
-				dev_dbg(&dvb_spi->spi->dev,
-				"%s: store PID %d to #%d\n",
-				__func__, feed->pid, i);
+				pr_debug("store PID %d to #%d\n",
+					 feed->pid, i);
 				break;
 			}
 		}
 		if (i == CXD2880_MAX_FILTER_SIZE) {
-			dev_err(&dvb_spi->spi->dev,
-				"%s: PID filter is full. Assumed bug.\n",
-				__func__);
-			return -EBUSY;
+			pr_err("PID filter is full.\n");
+			return -EINVAL;
 		}
 		if (!dvb_spi->all_pid_feed_count)
 			ret = cxd2880_update_pid_filter(dvb_spi,
@@ -440,27 +386,24 @@ static int cxd2880_start_feed(struct dvb_demux_feed *feed)
 
 	if (dvb_spi->feed_count == 0) {
 		dvb_spi->ts_buf =
-			kmalloc(sizeof(u8) * MAX_TRANS_PACKET * 188,
+			kmalloc(MAX_TRANS_PKT * 188,
 				GFP_KERNEL | GFP_DMA);
 		if (!dvb_spi->ts_buf) {
-			dev_err(&dvb_spi->spi->dev,
-			"%s: ts buffer allocate failed\n", __func__);
+			pr_err("ts buffer allocate failed\n");
 			memset(&dvb_spi->filter_config, 0,
-				sizeof(dvb_spi->filter_config));
+			       sizeof(dvb_spi->filter_config));
 			dvb_spi->all_pid_feed_count = 0;
 			return -ENOMEM;
 		}
 		dvb_spi->cxd2880_ts_read_thread = kthread_run(cxd2880_ts_read,
-								dvb_spi,
-								"cxd2880_ts_read");
+							      dvb_spi,
+							      "cxd2880_ts_read");
 		if (IS_ERR(dvb_spi->cxd2880_ts_read_thread)) {
-			dev_err(&dvb_spi->spi->dev,
-				"%s: kthread_run failed/\n",
-				__func__);
+			pr_err("kthread_run failed/\n");
 			kfree(dvb_spi->ts_buf);
 			dvb_spi->ts_buf = NULL;
 			memset(&dvb_spi->filter_config, 0,
-				sizeof(dvb_spi->filter_config));
+			       sizeof(dvb_spi->filter_config));
 			dvb_spi->all_pid_feed_count = 0;
 			return PTR_ERR(dvb_spi->cxd2880_ts_read_thread);
 		}
@@ -468,33 +411,31 @@ static int cxd2880_start_feed(struct dvb_demux_feed *feed)
 
 	dvb_spi->feed_count++;
 
-	dev_dbg(&dvb_spi->spi->dev, "%s: start feed (count %d)\n",
-		__func__, dvb_spi->feed_count);
+	pr_debug("start feed (count %d)\n", dvb_spi->feed_count);
 	return 0;
 }
 
 static int cxd2880_stop_feed(struct dvb_demux_feed *feed)
 {
 	int i = 0;
-	int ret = 0;
+	int ret;
 	struct dvb_demux *demux = NULL;
 	struct cxd2880_dvb_spi *dvb_spi = NULL;
 
 	if (!feed) {
-		pr_err("%s: invalid arg\n", __func__);
+		pr_err("invalid arg\n");
 		return -EINVAL;
 	}
 
 	demux = feed->demux;
 	if (!demux) {
-		pr_err("%s: feed->demux is NULL\n", __func__);
+		pr_err("feed->demux is NULL\n");
 		return -EINVAL;
 	}
-	dvb_spi = (struct cxd2880_dvb_spi *)demux->priv;
+	dvb_spi = demux->priv;
 
 	if (!dvb_spi->feed_count) {
-		dev_warn(&dvb_spi->spi->dev,
-			"%s: no feed is started\n", __func__);
+		pr_err("no feed is started\n");
 		return -EINVAL;
 	}
 
@@ -505,9 +446,7 @@ static int cxd2880_stop_feed(struct dvb_demux_feed *feed)
 		 * in dvb_spi->all_pid_feed_count.
 		 */
 		if (dvb_spi->all_pid_feed_count <= 0) {
-			dev_warn(&dvb_spi->spi->dev,
-				"%s: PID %d not found.\n",
-				__func__, feed->pid);
+			pr_err("PID %d not found.\n", feed->pid);
 			return -EINVAL;
 		}
 		dvb_spi->all_pid_feed_count--;
@@ -518,20 +457,18 @@ static int cxd2880_stop_feed(struct dvb_demux_feed *feed)
 
 		for (i = 0; i < CXD2880_MAX_FILTER_SIZE; i++) {
 			if (feed->pid == cfgtmp.pid_config[i].pid &&
-				cfgtmp.pid_config[i].is_enable != 0) {
+			    cfgtmp.pid_config[i].is_enable != 0) {
 				cfgtmp.pid_config[i].is_enable = 0;
 				cfgtmp.pid_config[i].pid = 0;
-				dev_dbg(&dvb_spi->spi->dev,
-					"%s: removed PID %d from #%d\n",
-					__func__, feed->pid, i);
+				pr_debug("removed PID %d from #%d\n",
+					 feed->pid, i);
 				break;
 			}
 		}
 		dvb_spi->filter_config = cfgtmp;
 
 		if (i == CXD2880_MAX_FILTER_SIZE) {
-			dev_warn(&dvb_spi->spi->dev, "%s: PID %d not found\n",
-				__func__, feed->pid);
+			pr_err("PID %d not found\n", feed->pid);
 			return -EINVAL;
 		}
 	}
@@ -546,17 +483,14 @@ static int cxd2880_stop_feed(struct dvb_demux_feed *feed)
 
 		ret_stop = kthread_stop(dvb_spi->cxd2880_ts_read_thread);
 		if (ret_stop) {
-			dev_err(&dvb_spi->spi->dev,
-			"%s: cxd2880_ts_read thread didn't terminate normally\n",
-			__func__);
+			pr_err("'kthread_stop failed. (%d)\n", ret_stop);
 			ret = ret_stop;
 		}
 		kfree(dvb_spi->ts_buf);
 		dvb_spi->ts_buf = NULL;
 	}
 
-	dev_dbg(&dvb_spi->spi->dev, "%s: stop feed ok.(count %d)\n",
-		__func__, dvb_spi->feed_count);
+	pr_debug("stop feed ok.(count %d)\n", dvb_spi->feed_count);
 
 	return ret;
 }
@@ -571,12 +505,12 @@ MODULE_DEVICE_TABLE(of, cxd2880_spi_of_match);
 static int
 cxd2880_spi_probe(struct spi_device *spi)
 {
-	int ret = 0;
+	int ret;
 	struct cxd2880_dvb_spi *dvb_spi = NULL;
 	struct cxd2880_config config;
 
 	if (!spi) {
-		pr_err("%s: invalid arg.\n", __func__);
+		pr_err("invalid arg.\n");
 		return -EINVAL;
 	}
 
@@ -591,26 +525,24 @@ cxd2880_spi_probe(struct spi_device *spi)
 	config.spi_mutex = &dvb_spi->spi_mutex;
 
 	ret = dvb_register_adapter(&dvb_spi->adapter,
-					"CXD2880",
-					THIS_MODULE,
-					&spi->dev,
-					adapter_nr);
+				   "CXD2880",
+				   THIS_MODULE,
+				   &spi->dev,
+				   adapter_nr);
 	if (ret < 0) {
-		dev_err(&spi->dev, "%s: dvb_register_adapter() failed\n",
-			__func__);
+		pr_err("dvb_register_adapter() failed\n");
 		goto fail_adapter;
 	}
 
 	if (!dvb_attach(cxd2880_attach, &dvb_spi->dvb_fe, &config)) {
-		dev_err(&spi->dev, "%s: cxd2880_attach failed\n", __func__);
+		pr_err("cxd2880_attach failed\n");
 		goto fail_attach;
 	}
 
 	ret = dvb_register_frontend(&dvb_spi->adapter,
-					&dvb_spi->dvb_fe);
+				    &dvb_spi->dvb_fe);
 	if (ret < 0) {
-		dev_err(&spi->dev, "%s: dvb_register_frontend() failed\n",
-			__func__);
+		pr_err("dvb_register_frontend() failed\n");
 		goto fail_frontend;
 	}
 
@@ -623,7 +555,7 @@ cxd2880_spi_probe(struct spi_device *spi)
 
 	ret = dvb_dmx_init(&dvb_spi->demux);
 	if (ret < 0) {
-		dev_err(&spi->dev, "%s: dvb_dmx_init() failed\n", __func__);
+		pr_err("dvb_dmx_init() failed\n");
 		goto fail_dmx;
 	}
 
@@ -631,35 +563,34 @@ cxd2880_spi_probe(struct spi_device *spi)
 	dvb_spi->dmxdev.demux = &dvb_spi->demux.dmx;
 	dvb_spi->dmxdev.capabilities = 0;
 	ret = dvb_dmxdev_init(&dvb_spi->dmxdev,
-				&dvb_spi->adapter);
+			      &dvb_spi->adapter);
 	if (ret < 0) {
-		dev_err(&spi->dev, "%s: dvb_dmxdev_init() failed\n", __func__);
+		pr_err("dvb_dmxdev_init() failed\n");
 		goto fail_dmxdev;
 	}
 
 	dvb_spi->dmx_fe.source = DMX_FRONTEND_0;
 	ret = dvb_spi->demux.dmx.add_frontend(&dvb_spi->demux.dmx,
-						&dvb_spi->dmx_fe);
+					      &dvb_spi->dmx_fe);
 	if (ret < 0) {
-		dev_err(&spi->dev, "%s: add_frontend() failed\n", __func__);
+		pr_err("add_frontend() failed\n");
 		goto fail_dmx_fe;
 	}
 
 	ret = dvb_spi->demux.dmx.connect_frontend(&dvb_spi->demux.dmx,
-						&dvb_spi->dmx_fe);
+						  &dvb_spi->dmx_fe);
 	if (ret < 0) {
-		dev_err(&spi->dev, "%s: dvb_register_frontend() failed\n",
-			__func__);
+		pr_err("dvb_register_frontend() failed\n");
 		goto fail_fe_conn;
 	}
 
-	dev_info(&spi->dev, "Sony CXD2880 has successfully attached.\n");
+	pr_info("Sony CXD2880 has successfully attached.\n");
 
 	return 0;
 
 fail_fe_conn:
 	dvb_spi->demux.dmx.remove_frontend(&dvb_spi->demux.dmx,
-			&dvb_spi->dmx_fe);
+					   &dvb_spi->dmx_fe);
 fail_dmx_fe:
 	dvb_dmxdev_release(&dvb_spi->dmxdev);
 fail_dmxdev:
@@ -681,18 +612,18 @@ cxd2880_spi_remove(struct spi_device *spi)
 	struct cxd2880_dvb_spi *dvb_spi;
 
 	if (!spi) {
-		pr_err("%s: invalid arg\n", __func__);
+		pr_err("invalid arg\n");
 		return -EINVAL;
 	}
 
-	dvb_spi = (struct cxd2880_dvb_spi *)dev_get_drvdata(&spi->dev);
+	dvb_spi = dev_get_drvdata(&spi->dev);
 
 	if (!dvb_spi) {
-		pr_err("%s: failed\n", __func__);
+		pr_err("failed\n");
 		return -EINVAL;
 	}
 	dvb_spi->demux.dmx.remove_frontend(&dvb_spi->demux.dmx,
-					&dvb_spi->dmx_fe);
+					   &dvb_spi->dmx_fe);
 	dvb_dmxdev_release(&dvb_spi->dmxdev);
 	dvb_dmx_release(&dvb_spi->demux);
 	dvb_unregister_frontend(&dvb_spi->dvb_fe);
@@ -700,7 +631,7 @@ cxd2880_spi_remove(struct spi_device *spi)
 	dvb_unregister_adapter(&dvb_spi->adapter);
 
 	kfree(dvb_spi);
-	dev_info(&spi->dev, "%s: cxd2880_spi remove ok.\n", __func__);
+	pr_info("cxd2880_spi remove ok.\n");
 
 	return 0;
 }
@@ -722,7 +653,6 @@ static struct spi_driver cxd2880_spi_driver = {
 };
 module_spi_driver(cxd2880_spi_driver);
 
-MODULE_DESCRIPTION(
-"Sony CXD2880 DVB-T2/T tuner + demodulator drvier SPI adapter");
+MODULE_DESCRIPTION("Sony CXD2880 DVB-T2/T tuner + demod driver SPI adapter");
 MODULE_AUTHOR("Sony Semiconductor Solutions Corporation");
 MODULE_LICENSE("GPL v2");

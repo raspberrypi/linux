@@ -583,6 +583,13 @@ Params: gpio                    GPIO pin to trigger on (default 3)
         keycode                 Set the key code for the button
 
 
+Name:   gpio-no-irq
+Info:   Use this overlay to disable all GPIO interrupts, which can be useful
+        for user-space GPIO edge detection systems.
+Load:   dtoverlay=gpio-no-irq
+Params: <None>
+
+
 Name:   gpio-poweroff
 Info:   Drives a GPIO high or low on poweroff (including halt). Enabling this
         overlay will prevent the ability to boot by driving GPIO3 low.
@@ -1617,6 +1624,16 @@ Params: overclock_50            Clock (in MHz) to use when the MMC framework
                                 (default 1)
 
         debug                   Enable debug output (default off)
+
+        poll_once               Looks for a card once after booting. Useful
+                                for network booting scenarios to avoid the
+                                overhead of continuous polling. N.B. Using
+                                this option restricts the system to using a
+                                single card per boot (or none at all).
+                                (default off)
+
+        enable                  Set to off to completely disable the interface
+                                (default on)
 
 
 Name:   smi
