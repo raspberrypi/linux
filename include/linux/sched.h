@@ -626,7 +626,7 @@ struct task_struct {
 	int				nr_cpus_allowed;
 	const cpumask_t			*cpus_ptr;
 	cpumask_t			cpus_mask;
-#if defined(CONFIG_PREEMPT_COUNT) && defined(CONFIG_SMP)
+#if defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
 	int				migrate_disable;
 	int				migrate_disable_update;
 	int				pinned_on_cpu;
@@ -635,8 +635,8 @@ struct task_struct {
 # endif
 
 #elif !defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
-	int				migrate_disable;
 # ifdef CONFIG_SCHED_DEBUG
+	int				migrate_disable;
 	int				migrate_disable_atomic;
 # endif
 #endif
