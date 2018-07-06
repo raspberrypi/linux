@@ -92,7 +92,7 @@ struct bm2835_mmal_dev {
 		/* VC start timestamp for streaming */
 		s64         vc_start_timestamp;
 		/* Kernel start timestamp for streaming */
-		u64         kernel_start_timestamp;
+		struct timeval kernel_start_ts;
 		/* Timestamp of last frame */
 		u64 		last_timestamp;
 
