@@ -12,16 +12,11 @@ obj-$(CONFIG_SND_SOC_CYGNUS) += snd-soc-cygnus.o
 snd-soc-googlevoicehat-codec-objs := googlevoicehat-codec.o
 
 # BCM2708 Machine Support
-snd-soc-adau1977-adc-objs := adau1977-adc.o
-snd-soc-googlevoicehat-soundcard-objs := googlevoicehat-soundcard.o
-snd-soc-hifiberry-amp-objs := hifiberry_amp.o
-snd-soc-hifiberry-dac-objs := hifiberry_dac.o
 snd-soc-hifiberry-dacplus-objs := hifiberry_dacplus.o
 snd-soc-hifiberry-digi-objs := hifiberry_digi.o
 snd-soc-justboom-dac-objs := justboom-dac.o
 snd-soc-justboom-digi-objs := justboom-digi.o
 snd-soc-rpi-cirrus-objs := rpi-cirrus.o
-snd-soc-rpi-dac-objs := rpi-dac.o
 snd-soc-rpi-proto-objs := rpi-proto.o
 snd-soc-iqaudio-dac-objs := iqaudio-dac.o
 snd-soc-iqaudio-digi-objs := iqaudio_digi.o
@@ -39,17 +34,12 @@ snd-soc-pisound-objs := pisound.o
 snd-soc-fe-pi-audio-objs := fe-pi-audio.o
 snd-soc-rpi-simple-soundcard-objs := rpi-simple-soundcard.o
 
-obj-$(CONFIG_SND_BCM2708_SOC_ADAU1977_ADC) += snd-soc-adau1977-adc.o
-obj-$(CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD) += snd-soc-googlevoicehat-soundcard.o
 obj-$(CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD)  += snd-soc-googlevoicehat-codec.o
-obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_AMP) += snd-soc-hifiberry-amp.o
-obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DAC) += snd-soc-hifiberry-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS) += snd-soc-hifiberry-dacplus.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DIGI) += snd-soc-hifiberry-digi.o
 obj-$(CONFIG_SND_BCM2708_SOC_JUSTBOOM_DAC) += snd-soc-justboom-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_JUSTBOOM_DIGI) += snd-soc-justboom-digi.o
 obj-$(CONFIG_SND_BCM2708_SOC_RPI_CIRRUS) += snd-soc-rpi-cirrus.o
-obj-$(CONFIG_SND_BCM2708_SOC_RPI_DAC) += snd-soc-rpi-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_RPI_PROTO) += snd-soc-rpi-proto.o
 obj-$(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) += snd-soc-iqaudio-dac.o
 obj-$(CONFIG_SND_BCM2708_SOC_IQAUDIO_DIGI) += snd-soc-iqaudio-digi.o
