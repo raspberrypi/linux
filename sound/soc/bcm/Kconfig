@@ -21,6 +21,7 @@ config SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD
 	tristate "Support for Google voiceHAT soundcard"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	select SND_SOC_VOICEHAT
+	select SND_RPI_SIMPLE_SOUNDCARD
 	help
           Say Y or M if you want to add support for voiceHAT soundcard.
 
@@ -28,6 +29,7 @@ config SND_BCM2708_SOC_HIFIBERRY_DAC
         tristate "Support for HifiBerry DAC"
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
         select SND_SOC_PCM5102A
+        select SND_RPI_SIMPLE_SOUNDCARD
         help
          Say Y or M if you want to add support for HifiBerry DAC.
 
@@ -49,6 +51,7 @@ config SND_BCM2708_SOC_HIFIBERRY_AMP
         tristate "Support for the HifiBerry Amp"
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
         select SND_SOC_TAS5713
+        select SND_RPI_SIMPLE_SOUNDCARD
         help
          Say Y or M if you want to add support for the HifiBerry Amp amplifier board.
 
@@ -65,6 +68,7 @@ config SND_BCM2708_SOC_RPI_DAC
         tristate "Support for RPi-DAC"
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
         select SND_SOC_PCM1794A
+        select SND_RPI_SIMPLE_SOUNDCARD
         help
          Say Y or M if you want to add support for RPi-DAC.
 
@@ -107,6 +111,7 @@ config SND_BCM2708_SOC_ADAU1977_ADC
 	tristate "Support for ADAU1977 ADC"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	select SND_SOC_ADAU1977_I2C
+	select SND_RPI_SIMPLE_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for ADAU1977 ADC.
 
@@ -198,14 +203,6 @@ config SND_PISOUND
 	  Say Y or M if you want to add support for Blokas Labs pisound.
 
 config SND_RPI_SIMPLE_SOUNDCARD
-	tristate "Support for Raspberry Pi simple soundcard driver"
-	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
-	depends on I2C
-	select SND_SOC_ADAU1977_I2C
-	select SND_SOC_PCM1794A
-	select SND_SOC_PCM5102A
-	select SND_SOC_PCM512x_I2C
-	select SND_SOC_TAS5713
+	tristate "Support for Raspberry Pi simple soundcards"
 	help
-	  Say Y or M if you want to to add support for the RPI simple driver
-	  which provides a generic soundcard driver for several soundcards.
+	  Say Y or M if you want to add support Raspbery Pi simple soundcards
