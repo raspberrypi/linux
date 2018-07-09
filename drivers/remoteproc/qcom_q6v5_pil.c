@@ -1370,7 +1370,6 @@ static const struct rproc_hexagon_res sdm845_mss = {
 	.hexagon_mba_image = "mba.mbn",
 	.proxy_clk_names = (char*[]){
 			"xo",
-			"axis2",
 			"prng",
 			NULL
 	},
