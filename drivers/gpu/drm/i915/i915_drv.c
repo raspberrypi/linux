@@ -2156,6 +2156,8 @@ static int i915_drm_suspend_late(struct drm_device *dev, bool hibernation)
 
 	i915_gem_suspend_late(dev_priv);
 
+	intel_rc6_ctx_wa_suspend(dev_priv);
+
 	intel_uncore_suspend(&dev_priv->uncore);
 
 	intel_power_domains_suspend(dev_priv,
@@ -2371,6 +2373,8 @@ static int i915_drm_resume_early(struct drm_device *dev)
 	intel_uncore_sanitize(dev_priv);
 
 	intel_power_domains_resume(dev_priv);
+
+	intel_rc6_ctx_wa_resume(dev_priv);
 
 	intel_gt_sanitize(dev_priv, true);
 
