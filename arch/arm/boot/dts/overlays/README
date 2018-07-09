@@ -1515,6 +1515,12 @@ Params: touchscreen-size-x      Touchscreen X resolution (default 800)
         touchscreen-swapped-x-y Swap X and Y cordinates (default 0);
 
 
+Name:   rpi-poe
+Info:   Raspberry Pi POE HAT
+Load:   dtoverlay=rpi-poe
+Params: <None>
+
+
 Name:   rpi-proto
 Info:   Configures the RPi Proto audio card
 Load:   dtoverlay=rpi-proto
