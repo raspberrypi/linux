@@ -100,6 +100,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	rpi-dac.dtbo \
 	rpi-display.dtbo \
 	rpi-ft5406.dtbo \
+	rpi-poe.dtbo \
 	rpi-proto.dtbo \
 	rpi-sense.dtbo \
 	rpi-tv.dtbo \
