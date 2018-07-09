@@ -1,0 +1,15 @@
+Kernel driver rpi-poe-fan
+=====================
+
+This driver enables the use of the Raspberry Pi PoE HAT fan.
+
+Author: Serge Schneider <serge@raspberrypi.org>
+
+Description
+-----------
+
+The driver implements a simple interface for driving the Raspberry Pi PoE
+(Power over Ethernet) HAT fan. The driver passes commands to the Raspberry Pi
+firmware through the mailbox property interface. The firmware then forwards
+the commands to the board over I2C on the ID_EEPROM pins. The driver exposes
+the fan to the user space through the hwmon sysfs interface.
