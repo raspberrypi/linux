@@ -817,6 +817,10 @@ Params: abx80x                  Select one of the ABx80x family:
 
         pcf8563                 Select the PCF8563 device
 
+        addr                    Sets the address for the RTC. Note that the
+                                device must be configured to use the specified
+                                address.
+
         trickle-diode-type      Diode type for trickle charge - "standard" or
                                 "schottky" (ABx80x only)
 
@@ -841,6 +845,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         ds3231                  Select the DS3231 device
 
+        m41t62                  Select the M41T62 device
+
         mcp7940x                Select the MCP7940x device
 
         mcp7941x                Select the MCP7941x device
@@ -850,6 +856,10 @@ Params: abx80x                  Select one of the ABx80x family:
         pcf8523                 Select the PCF8523 device
 
         pcf8563                 Select the PCF8563 device
+
+        addr                    Sets the address for the RTC. Note that the
+                                device must be configured to use the specified
+                                address.
 
         trickle-diode-type      Diode type for trickle charge - "standard" or
                                 "schottky" (ABx80x only)
