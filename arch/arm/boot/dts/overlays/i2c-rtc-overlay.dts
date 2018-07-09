@@ -169,6 +169,17 @@
 		pcf8523 = <0>,"+7";
 		pcf8563 = <0>,"+8";
 		m41t62 = <0>,"+9";
+
+		addr = <&abx80x>, "reg:0",
+		       <&ds1307>, "reg:0",
+		       <&ds1339>, "reg:0",
+		       <&ds3231>, "reg:0",
+		       <&mcp7940x>, "reg:0",
+		       <&mcp7941x>, "reg:0",
+		       <&pcf2127>, "reg:0",
+		       <&pcf8523>, "reg:0",
+		       <&pcf8563>, "reg:0",
+		       <&m41t62>, "reg:0";
 		trickle-diode-type = <&abx80x>,"abracon,tc-diode";
 		trickle-resistor-ohms = <&ds1339>,"trickle-resistor-ohms:0",
 					<&abx80x>,"abracon,tc-resistor";
