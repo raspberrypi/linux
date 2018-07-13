@@ -429,9 +429,6 @@ static u8 clk_pm_cpu_get_parent(struct clk_hw *hw)
 		val &= pm_cpu->mask_mux;
 	}
 
-	if (val >= num_parents)
-		return -EINVAL;
-
 	return val;
 }
 
