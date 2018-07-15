@@ -4274,6 +4274,13 @@ static int ip6_route_multipath_add(struct fib6_config *cfg,
 			err_nh = nh;
 			goto add_errout;
 		}
+		if (!rt6_qualify_for_ecmp(rt)) {
+			err = -EINVAL;
+			NL_SET_ERR_MSG(extack,
+				       "Device only routes can not be added for IPv6 using the multipath API.");
+			dst_release_immediate(&rt->dst);
+			goto cleanup;
+		}
 
 		/* Because each route is added like a single route we remove
 		 * these flags after the first nexthop: if there is a collision,
