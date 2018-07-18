@@ -597,6 +597,15 @@ Params: gpio                    GPIO pin to trigger on (default 3)
         keycode                 Set the key code for the button
 
 
+Name:   gpio-no-bank0-irq
+Info:   Use this overlay to disable GPIO interrupts for GPIOs in bank 0 (0-27),
+        which can be useful for UIO drivers.
+        N.B. Using this overlay will trigger a kernel WARN during booting, but
+        this can safely be ignored - the system should work as expected.
+Load:   dtoverlay=gpio-no-bank0-irq
+Params: <None>
+
+
 Name:   gpio-no-irq
 Info:   Use this overlay to disable all GPIO interrupts, which can be useful
         for user-space GPIO edge detection systems.
