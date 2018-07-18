@@ -355,7 +355,8 @@ int dw_pcie_host_init(struct pcie_port *pp)
 	resource_list_for_each_entry_safe(win, tmp, &bridge->windows) {
 		switch (resource_type(win->res)) {
 		case IORESOURCE_IO:
-			ret = pci_remap_iospace(win->res, pp->io_base);
+			ret = devm_pci_remap_iospace(dev, win->res,
+						     pp->io_base);
 			if (ret) {
 				dev_warn(dev, "error %d: failed to map resource %pR\n",
 					 ret, win->res);
