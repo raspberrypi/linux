@@ -1227,6 +1227,8 @@ static int lan78xx_link_reset(struct lan78xx_net *dev)
 			mod_timer(&dev->stat_monitor,
 				  jiffies + STAT_UPDATE_TIMER);
 		}
+
+		tasklet_schedule(&dev->bh);
 	}
 
 	return ret;
@@ -2605,8 +2607,6 @@ static int lan78xx_open(struct net_device *net)
 	netif_start_queue(net);
 
 	dev->link_on = false;
-
-	tasklet_schedule(&dev->bh);
 
 	lan78xx_defer_kevent(dev, EVENT_LINK_RESET);
 done:
