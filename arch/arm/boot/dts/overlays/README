@@ -1965,6 +1965,13 @@ Params: cma-256                 CMA is 256MB (needs 1GB)
         cma-64                  CMA is 64MB
 
 
+Name:   vc4-kms-kippah-7inch
+Info:   Enable the Adafruit DPI Kippah with the 7" Ontat panel attached.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-kippah-7inch
+Params: <None>
+
+
 Name:   vc4-kms-v3d
 Info:   Enable Eric Anholt's DRM VC4 HDMI/HVS/V3D driver. Running startx or
         booting to GUI while this overlay is in use will cause interesting
@@ -1975,12 +1982,6 @@ Params: cma-256                 CMA is 256MB (needs 1GB)
         cma-128                 CMA is 128MB
         cma-96                  CMA is 96MB
         cma-64                  CMA is 64MB
-
-
-Name:   vc4-kms-kippah-7inch
-Info:   Enable the Adafruit DPI Kippah with the 7" Ontat panel attached.
-        Requires vc4-kms-v3d to be loaded.
-Load:   dtoverlay=vc4-kms-kippah-7inch
 
 
 Name:   vga666
