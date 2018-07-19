@@ -1057,6 +1057,8 @@ static int mlx5e_trust_initialize(struct mlx5e_priv *priv)
 	struct mlx5_core_dev *mdev = priv->mdev;
 	int err;
 
+	priv->dcbx_dp.trust_state = MLX5_QPTS_TRUST_PCP;
+
 	if (!MLX5_DSCP_SUPPORTED(mdev))
 		return 0;
 
