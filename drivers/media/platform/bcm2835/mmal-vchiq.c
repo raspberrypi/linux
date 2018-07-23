@@ -1655,6 +1655,11 @@ int vchiq_mmal_submit_buffer(struct vchiq_mmal_instance *instance,
 	return 0;
 }
 
+bool vchiq_mmal_port_buffer_empty(struct vchiq_mmal_port *port)
+{
+	return list_empty(&port->buffers);
+}
+
 /* Initialise a mmal component and its ports
  *
  */
