@@ -37,6 +37,7 @@
 /* Parameters for generic RPI functions */
 struct snd_rpi_simple_drvdata {
 	struct snd_soc_dai_link *dai;
+	const char* card_name;
 	unsigned int fixed_bclk_ratio;
 };
 
@@ -115,7 +116,8 @@ static struct snd_soc_dai_link snd_rpi_adau1977_dai[] = {
 };
 
 static struct snd_rpi_simple_drvdata drvdata_adau1977 = {
-	.dai = snd_rpi_adau1977_dai,
+	.card_name = "snd_rpi_adau1977_adc",
+	.dai       = snd_rpi_adau1977_dai,
 };
 
 static struct snd_soc_dai_link snd_googlevoicehat_soundcard_dai[] = {
@@ -130,7 +132,8 @@ static struct snd_soc_dai_link snd_googlevoicehat_soundcard_dai[] = {
 };
 
 static struct snd_rpi_simple_drvdata drvdata_googlevoicehat = {
-	.dai = snd_googlevoicehat_soundcard_dai,
+	.card_name = "snd_rpi_googlevoicehat_soundcard",
+	.dai       = snd_googlevoicehat_soundcard_dai,
 };
 
 static struct snd_soc_dai_link snd_hifiberry_amp_dai[] = {
@@ -146,6 +149,7 @@ static struct snd_soc_dai_link snd_hifiberry_amp_dai[] = {
 };
 
 static struct snd_rpi_simple_drvdata drvdata_hifiberry_amp = {
+	.card_name        = "snd_rpi_hifiberry_amp",
 	.dai              = snd_hifiberry_amp_dai,
 	.fixed_bclk_ratio = 64,
 };
@@ -163,7 +167,8 @@ static struct snd_soc_dai_link snd_hifiberry_dac_dai[] = {
 };
 
 static struct snd_rpi_simple_drvdata drvdata_hifiberry_dac = {
-	.dai = snd_hifiberry_dac_dai,
+	.card_name = "snd_rpi_hifiberry_dac",
+	.dai       = snd_hifiberry_dac_dai,
 };
 
 static struct snd_soc_dai_link snd_rpi_dac_dai[] = {
@@ -178,6 +183,7 @@ static struct snd_soc_dai_link snd_rpi_dac_dai[] = {
 };
 
 static struct snd_rpi_simple_drvdata drvdata_rpi_dac = {
+	.card_name        = "snd_rpi_rpi_dac",
 	.dai              = snd_rpi_dac_dai,
 	.fixed_bclk_ratio = 64,
 };
@@ -196,7 +202,6 @@ static const struct of_device_id snd_rpi_simple_of_match[] = {
 };
 
 static struct snd_soc_card snd_rpi_simple = {
-	.name         = "snd_rpi_simple",
 	.driver_name  = "RPI simple soundcard",
 	.owner        = THIS_MODULE,
 	.dai_link     = NULL,
@@ -224,6 +229,8 @@ static int snd_rpi_simple_probe(struct platform_device *pdev)
 			dai->init = snd_rpi_simple_init;
 		if (!dai->ops)
 			dai->ops = &snd_rpi_simple_ops;
+
+		snd_rpi_simple.name = drvdata->card_name;
 
 		snd_rpi_simple.dai_link = dai;
 		i2s_node = of_parse_phandle(pdev->dev.of_node,
