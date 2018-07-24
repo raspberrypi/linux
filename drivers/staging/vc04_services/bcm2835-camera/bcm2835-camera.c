@@ -393,6 +393,11 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 			 ktime_to_ns(dev->capture.kernel_start_ts),
 			 dev->capture.vc_start_timestamp, pts,
 			 ktime_to_ns(timestamp));
+		if (timestamp < dev->capture.last_timestamp) {
+			v4l2_dbg(1, bcm2835_v4l2_debug, &dev->v4l2_dev,
+				 "Negative delta - using last time\n");
+			timestamp = dev->capture.last_timestamp;
+		}
 		buf->vb.vb2_buf.timestamp = ktime_to_ns(timestamp);
 	} else {
 		if (dev->capture.last_timestamp) {
