@@ -159,6 +159,16 @@ static void sve_free(struct task_struct *task)
 	__sve_free(task);
 }
 
+static void *sve_free_atomic(struct task_struct *task)
+{
+	void *sve_state = task->thread.sve_state;
+
+	WARN_ON(test_tsk_thread_flag(task, TIF_SVE));
+
+	task->thread.sve_state = NULL;
+	return sve_state;
+}
+
 /*
  * TIF_SVE controls whether a task can use SVE without trapping while
  * in userspace, and also the way a task's FPSIMD/SVE state is stored
@@ -547,6 +557,7 @@ int sve_set_vector_length(struct task_struct *task,
 	 * non-SVE thread.
 	 */
 	if (task == current) {
+		preempt_disable();
 		local_bh_disable();
 
 		fpsimd_save();
@@ -557,8 +568,10 @@ int sve_set_vector_length(struct task_struct *task,
 	if (test_and_clear_tsk_thread_flag(task, TIF_SVE))
 		sve_to_fpsimd(task);
 
-	if (task == current)
+	if (task == current) {
 		local_bh_enable();
+		preempt_enable();
+	}
 
 	/*
 	 * Force reallocation of task SVE state to the correct size
@@ -813,6 +826,7 @@ asmlinkage void do_sve_acc(unsigned int esr, struct pt_regs *regs)
 
 	sve_alloc(current);
 
+	preempt_disable();
 	local_bh_disable();
 
 	fpsimd_save();
@@ -826,6 +840,7 @@ asmlinkage void do_sve_acc(unsigned int esr, struct pt_regs *regs)
 		WARN_ON(1); /* SVE access shouldn't have trapped */
 
 	local_bh_enable();
+	preempt_enable();
 }
 
 /*
@@ -892,10 +907,12 @@ void fpsimd_thread_switch(struct task_struct *next)
 void fpsimd_flush_thread(void)
 {
 	int vl, supported_vl;
+	void *mem = NULL;
 
 	if (!system_supports_fpsimd())
 		return;
 
+	preempt_disable();
 	local_bh_disable();
 
 	memset(&current->thread.uw.fpsimd_state, 0,
@@ -904,7 +921,7 @@ void fpsimd_flush_thread(void)
 
 	if (system_supports_sve()) {
 		clear_thread_flag(TIF_SVE);
-		sve_free(current);
+		mem = sve_free_atomic(current);
 
 		/*
 		 * Reset the task vector length as required.
@@ -940,6 +957,8 @@ void fpsimd_flush_thread(void)
 	set_thread_flag(TIF_FOREIGN_FPSTATE);
 
 	local_bh_enable();
+	preempt_enable();
+	kfree(mem);
 }
 
 /*
@@ -951,9 +970,11 @@ void fpsimd_preserve_current_state(void)
 	if (!system_supports_fpsimd())
 		return;
 
+	preempt_disable();
 	local_bh_disable();
 	fpsimd_save();
 	local_bh_enable();
+	preempt_enable();
 }
 
 /*
@@ -1011,6 +1032,7 @@ void fpsimd_restore_current_state(void)
 	if (!system_supports_fpsimd())
 		return;
 
+	preempt_disable();
 	local_bh_disable();
 
 	if (test_and_clear_thread_flag(TIF_FOREIGN_FPSTATE)) {
@@ -1019,6 +1041,7 @@ void fpsimd_restore_current_state(void)
 	}
 
 	local_bh_enable();
+	preempt_enable();
 }
 
 /*
@@ -1031,6 +1054,7 @@ void fpsimd_update_current_state(struct user_fpsimd_state const *state)
 	if (!system_supports_fpsimd())
 		return;
 
+	preempt_disable();
 	local_bh_disable();
 
 	current->thread.uw.fpsimd_state = *state;
@@ -1043,6 +1067,7 @@ void fpsimd_update_current_state(struct user_fpsimd_state const *state)
 	clear_thread_flag(TIF_FOREIGN_FPSTATE);
 
 	local_bh_enable();
+	preempt_enable();
 }
 
 /*
@@ -1088,6 +1113,7 @@ void kernel_neon_begin(void)
 
 	BUG_ON(!may_use_simd());
 
+	preempt_disable();
 	local_bh_disable();
 
 	__this_cpu_write(kernel_neon_busy, true);
@@ -1101,6 +1127,7 @@ void kernel_neon_begin(void)
 	preempt_disable();
 
 	local_bh_enable();
+	preempt_enable();
 }
 EXPORT_SYMBOL(kernel_neon_begin);
 
