@@ -35,6 +35,12 @@ void apply_alternatives_module(void *start, size_t length);
 static inline void apply_alternatives_module(void *start, size_t length) { }
 #endif
 
+#ifdef CONFIG_KVM_ARM_HOST
+void kvm_compute_layout(void);
+#else
+static inline void kvm_compute_layout(void) { }
+#endif
+
 #define ALTINSTR_ENTRY(feature,cb)					      \
 	" .word 661b - .\n"				/* label           */ \
 	" .if " __stringify(cb) " == 0\n"				      \
