@@ -74,7 +74,7 @@ static unsigned long *efi_tables[] = {
 	&efi.mem_attr_table,
 };
 
-static bool disable_runtime;
+static bool disable_runtime = IS_ENABLED(CONFIG_PREEMPT_RT_BASE);
 static int __init setup_noefi(char *arg)
 {
 	disable_runtime = true;
