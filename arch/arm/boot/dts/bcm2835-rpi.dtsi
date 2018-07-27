@@ -272,8 +272,7 @@
 };
 
 &vec {
-	power-domains = <&power RPI_POWER_DOMAIN_VEC>;
-	status = "okay";
+	status = "disabled";
 };
 
 &clocks {
