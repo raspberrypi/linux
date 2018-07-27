@@ -17,15 +17,15 @@
 		};
 	};
 
-		timer {
-			compatible = "arm,armv8-timer", "arm,armv7-timer";
-			interrupt-parent = <&local_intc>;
-			interrupts = <0>, // PHYS_SECURE_PPI
-				     <1>, // PHYS_NONSECURE_PPI
-				     <3>, // VIRT_PPI
-				     <2>; // HYP_PPI
-			always-on;
-		};
+	timer {
+		compatible = "arm,armv8-timer", "arm,armv7-timer";
+		interrupt-parent = <&local_intc>;
+		interrupts = <0>, // PHYS_SECURE_PPI
+				<1>, // PHYS_NONSECURE_PPI
+				<3>, // VIRT_PPI
+				<2>; // HYP_PPI
+		always-on;
+	};
 
 	cpus: cpus {
 		#address-cells = <1>;
