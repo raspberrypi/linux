@@ -80,6 +80,7 @@
 #include <asm/intel-family.h>
 #include <asm/cpu_device_id.h>
 #include <asm/spec-ctrl.h>
+#include <asm/hw_irq.h>
 
 /* Number of siblings per CPU package */
 int smp_num_siblings = 1;

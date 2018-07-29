@@ -24,6 +24,7 @@
 
 #include <linux/perf_event.h>
 #include <linux/pm_runtime.h>
+#include <linux/irq.h>
 
 #include "i915_drv.h"
 #include "i915_pmu.h"
