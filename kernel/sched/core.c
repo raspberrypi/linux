@@ -1615,9 +1615,7 @@ static int select_fallback_rq(int cpu, struct task_struct *p)
 	for (;;) {
 		/* Any allowed, online CPU? */
 		for_each_cpu(dest_cpu, p->cpus_ptr) {
-			if (!(p->flags & PF_KTHREAD) && !cpu_active(dest_cpu))
-				continue;
-			if (!cpu_online(dest_cpu))
+			if (!is_cpu_allowed(p, dest_cpu))
 				continue;
 
 			goto out;

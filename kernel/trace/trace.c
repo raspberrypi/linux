@@ -3397,9 +3397,9 @@ static void print_func_help_header_irq(struct trace_buffer *buf, struct seq_file
 		   tgid ? tgid_space : space);
 	seq_printf(m, "#                          %s|||| /     delay\n",
 		   tgid ? tgid_space : space);
-	seq_printf(m, "#           TASK-PID   CPU#%s|||||    TIMESTAMP  FUNCTION\n",
+	seq_printf(m, "#           TASK-PID %sCPU#  |||||    TIMESTAMP  FUNCTION\n",
 		   tgid ? "   TGID   " : space);
-	seq_printf(m, "#              | |       | %s|||||       |         |\n",
+	seq_printf(m, "#              | |   %s  |   |||||       |         |\n",
 		   tgid ? "     |    " : space);
 }
 
