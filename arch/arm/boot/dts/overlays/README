@@ -267,6 +267,15 @@ Params: cs                      SPI bus Chip Select (default 1)
         www.kernel.org/doc/Documentation/devicetree/bindings/input/ads7846.txt
 
 
+Name:   adv7282m
+Info:   Analog Devices ADV7282M analogue video to CSI2 bridge.
+        Uses Unicam1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=adv7282m,<param>=<val>
+Params: i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
+                                This is required for Pi B+, 2, 0, and 0W.
+
+
 Name:   akkordion-iqdacplus
 Info:   Configures the Digital Dreamtime Akkordion Music Player (based on the
         OEM IQAudIO DAC+ or DAC Zero module).
@@ -639,6 +648,31 @@ Params: gpio_pin                GPIO pin to trigger on (default 3)
                                 external pullup.
 
 
+Name:   hd44780-lcd
+Info:   Configures an HD44780 compatible LCD display. Uses 4 gpio pins for
+        data, 2 gpio pins for enable and register select and 1 optional pin
+        for enabling/disabling the backlight display.
+Load:   dtoverlay=hd44780-lcd,<param>=<val>
+Params: pin_d4                  GPIO pin for data pin D4 (default 6)
+
+        pin_d5                  GPIO pin for data pin D5 (default 13)
+
+        pin_d6                  GPIO pin for data pin D6 (default 19)
+
+        pin_d7                  GPIO pin for data pin D7 (default 26)
+
+        pin_en                  GPIO pin for "Enable" (default 21)
+
+        pin_rs                  GPIO pin for "Register Select" (default 20)
+
+        pin_bl                  Optional pin for enabling/disabling the
+                                display backlight. (default disabled)
+
+        display_height          Height of the display in characters
+
+        display_width           Width of the display in characters
+
+
 Name:   hifiberry-amp
 Info:   Configures the HifiBerry Amp and Amp+ audio cards
 Load:   dtoverlay=hifiberry-amp
@@ -792,6 +826,10 @@ Params: abx80x                  Select one of the ABx80x family:
 
         pcf8563                 Select the PCF8563 device
 
+        addr                    Sets the address for the RTC. Note that the
+                                device must be configured to use the specified
+                                address.
+
         trickle-diode-type      Diode type for trickle charge - "standard" or
                                 "schottky" (ABx80x only)
 
@@ -816,6 +854,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         ds3231                  Select the DS3231 device
 
+        m41t62                  Select the M41T62 device
+
         mcp7940x                Select the MCP7940x device
 
         mcp7941x                Select the MCP7941x device
@@ -825,6 +865,10 @@ Params: abx80x                  Select one of the ABx80x family:
         pcf8523                 Select the PCF8523 device
 
         pcf8563                 Select the PCF8563 device
+
+        addr                    Sets the address for the RTC. Note that the
+                                device must be configured to use the specified
+                                address.
 
         trickle-diode-type      Diode type for trickle charge - "standard" or
                                 "schottky" (ABx80x only)
@@ -1205,6 +1249,23 @@ Params: speed                   Display SPI bus speed
         debug                   Debug output level {0-7}
 
         xohms                   Touchpanel sensitivity (X-plate resistance)
+
+
+Name:   ov5647
+Info:   Omnivision OV5647 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=ov5647,<param>=<val>
+Params: cam0-pwdn               GPIO used to control the sensor powerdown line.
+
+        cam0-led                GPIO used to control the sensor led
+                                Both these fields should be automatically filled
+                                in by the firmware to reflect the default GPIO
+                                configuration of the particular Pi variant in
+                                use.
+
+        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
+                                This is required for Pi B+, 2, 0, and 0W.
 
 
 Name:   papirus
@@ -1803,6 +1864,31 @@ Params: sx150<x>-<n>-<m>        Enables SX150X device on I2C#<n> with slave
                                 connected.
 
 
+Name:   tc358743
+Info:   Toshiba TC358743 HDMI to CSI-2 bridge chip.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=tc358743,<param>=<val>
+Params: 4lane                   Use 4 lanes (only applicable to Compute Modules
+                                CAM1 connector).
+
+        link-frequency          Set the link frequency. Only values of 297000000
+                                (574Mbit/s) and 486000000 (972Mbit/s - default)
+                                are supported by the driver.
+
+        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
+                                This is required for Pi B+, 2, 0, and 0W.
+
+
+Name:   tc358743-audio
+Info:   Used in combination with the tc358743-fast overlay to route the audio
+        from the TC358743 over I2S to the Pi.
+        Wiring is LRCK/WFS to GPIO 19, BCK/SCK to GPIO 18, and DATA/SD to GPIO
+        20.
+Load:   dtoverlay=tc358743-audio,<param>=<val>
+Params: card-name               Override the default, "tc358743", card name.
+
+
 Name:   tinylcd35
 Info:   3.5" Color TFT Display by www.tinylcd.com
         Options: Touch, RTC, keypad
@@ -1872,11 +1958,18 @@ Name:   vc4-fkms-v3d
 Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
         display stack.
 Load:   dtoverlay=vc4-fkms-v3d,<param>
-Params: cma-256                 CMA is 256MB, 256MB-aligned (needs 1GB)
-        cma-192                 CMA is 192MB, 256MB-aligned (needs 1GB)
-        cma-128                 CMA is 128MB, 128MB-aligned
-        cma-96                  CMA is 96MB, 128MB-aligned
-        cma-64                  CMA is 64MB, 64MB-aligned
+Params: cma-256                 CMA is 256MB (needs 1GB)
+        cma-192                 CMA is 192MB (needs 1GB)
+        cma-128                 CMA is 128MB
+        cma-96                  CMA is 96MB
+        cma-64                  CMA is 64MB
+
+
+Name:   vc4-kms-kippah-7inch
+Info:   Enable the Adafruit DPI Kippah with the 7" Ontat panel attached.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-kippah-7inch
+Params: <None>
 
 
 Name:   vc4-kms-v3d
@@ -1884,11 +1977,11 @@ Info:   Enable Eric Anholt's DRM VC4 HDMI/HVS/V3D driver. Running startx or
         booting to GUI while this overlay is in use will cause interesting
         lockups.
 Load:   dtoverlay=vc4-kms-v3d,<param>
-Params: cma-256                 CMA is 256MB, 256MB-aligned (needs 1GB)
-        cma-192                 CMA is 192MB, 256MB-aligned (needs 1GB)
-        cma-128                 CMA is 128MB, 128MB-aligned
-        cma-96                  CMA is 96MB, 128MB-aligned
-        cma-64                  CMA is 64MB, 64MB-aligned
+Params: cma-256                 CMA is 256MB (needs 1GB)
+        cma-192                 CMA is 192MB (needs 1GB)
+        cma-128                 CMA is 128MB
+        cma-96                  CMA is 96MB
+        cma-64                  CMA is 64MB
 
 
 Name:   vga666

@@ -438,6 +438,17 @@
 			interrupts = <2 14>; /* pwa1 */
 		};
 
+		dpi: dpi@7e208000 {
+			compatible = "brcm,bcm2835-dpi";
+			reg = <0x7e208000 0x8c>;
+			clocks = <&clocks BCM2835_CLOCK_VPU>,
+				 <&clocks BCM2835_CLOCK_DPI>;
+			clock-names = "core", "pixel";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
 		dsi0: dsi@7e209000 {
 			compatible = "brcm,bcm2835-dsi0";
 			reg = <0x7e209000 0x78>;
@@ -540,6 +551,34 @@
 			clock-output-names = "dsi1_byte",
 					     "dsi1_ddr2",
 					     "dsi1_ddr";
+
+			status = "disabled";
+		};
+
+		csi0: csi0@7e800000 {
+			compatible = "brcm,bcm2835-unicam";
+			reg = <0x7e800000 0x800>,
+			      <0x7e802000 0x4>;
+			interrupts = <2 6>;
+			clocks = <&clocks BCM2835_CLOCK_CAM0>;
+			clock-names = "lp";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#clock-cells = <1>;
+
+			status = "disabled";
+		};
+
+		csi1: csi1@7e801000 {
+			compatible = "brcm,bcm2835-unicam";
+			reg = <0x7e801000 0x800>,
+			      <0x7e802004 0x4>;
+			interrupts = <2 7>;
+			clocks = <&clocks BCM2835_CLOCK_CAM1>;
+			clock-names = "lp";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#clock-cells = <1>;
 
 			status = "disabled";
 		};
