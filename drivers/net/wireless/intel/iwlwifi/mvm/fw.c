@@ -590,7 +590,7 @@ static int iwl_mvm_config_ltr(struct iwl_mvm *mvm)
 #define ACPI_WRDS_WIFI_DATA_SIZE	(IWL_MVM_SAR_TABLE_SIZE + 2)
 #define ACPI_EWRD_WIFI_DATA_SIZE	((IWL_MVM_SAR_PROFILE_NUM - 1) * \
 					 IWL_MVM_SAR_TABLE_SIZE + 3)
-#define ACPI_WGDS_WIFI_DATA_SIZE	18
+#define ACPI_WGDS_WIFI_DATA_SIZE	19
 #define ACPI_WGDS_NUM_BANDS		2
 #define ACPI_WGDS_TABLE_SIZE		3
 
@@ -964,7 +964,7 @@ static int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm)
 	IWL_DEBUG_RADIO(mvm, "Sending GEO_TX_POWER_LIMIT\n");
 
 	BUILD_BUG_ON(IWL_NUM_GEO_PROFILES * ACPI_WGDS_NUM_BANDS *
-		     ACPI_WGDS_TABLE_SIZE !=  ACPI_WGDS_WIFI_DATA_SIZE);
+		     ACPI_WGDS_TABLE_SIZE + 1 !=  ACPI_WGDS_WIFI_DATA_SIZE);
 
 	for (i = 0; i < IWL_NUM_GEO_PROFILES; i++) {
 		struct iwl_per_chain_offset *chain =
