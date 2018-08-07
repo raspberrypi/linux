@@ -89,17 +89,17 @@ VCHIQ_STATUS_T vchiq_initialise(VCHIQ_INSTANCE_T *instance_out)
 	}
 	if (i == VCHIQ_INIT_RETRIES) {
 		vchiq_log_error(vchiq_core_log_level,
-			"%s: videocore not initialized\n", __func__);
+			"%s: videocore not initialized", __func__);
 		goto failed;
 	} else if (i > 0) {
 		vchiq_log_warning(vchiq_core_log_level,
-			"%s: videocore initialized after %d retries\n", __func__, i);
+			"%s: videocore initialized after %d retries", __func__, i);
 	}
 
 	instance = kzalloc(sizeof(*instance), GFP_KERNEL);
 	if (!instance) {
 		vchiq_log_error(vchiq_core_log_level,
-			"%s: error allocating vchiq instance\n", __func__);
+			"%s: error allocating vchiq instance", __func__);
 		goto failed;
 	}
 

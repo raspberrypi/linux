@@ -2079,7 +2079,7 @@ dump_phys_mem(void *virt_addr, u32 num_bytes)
 	pages = kmalloc(sizeof(struct page *) * num_pages, GFP_KERNEL);
 	if (!pages) {
 		vchiq_log_error(vchiq_arm_log_level,
-			"Unable to allocation memory for %d pages\n",
+			"Unable to allocation memory for %d pages",
 			num_pages);
 		return;
 	}
@@ -2098,7 +2098,7 @@ dump_phys_mem(void *virt_addr, u32 num_bytes)
 
 	if (rc < 0) {
 		vchiq_log_error(vchiq_arm_log_level,
-				"Failed to get user pages: %d\n", rc);
+				"Failed to get user pages: %d", rc);
 		goto out;
 	}
 
