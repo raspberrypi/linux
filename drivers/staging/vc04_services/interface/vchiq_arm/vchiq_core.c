@@ -3153,7 +3153,7 @@ vchiq_pause_internal(VCHIQ_STATE_T *state)
 		break;
 	default:
 		vchiq_log_error(vchiq_core_log_level,
-			"vchiq_pause_internal in state %s\n",
+			"vchiq_pause_internal in state %s",
 			conn_state_names[state->conn_state]);
 		status = VCHIQ_ERROR;
 		VCHIQ_STATS_INC(state, error_count);
