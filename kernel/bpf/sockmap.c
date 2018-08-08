@@ -952,7 +952,7 @@ static int bpf_tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 		int copy;
 
 		if (sk->sk_err) {
-			err = sk->sk_err;
+			err = -sk->sk_err;
 			goto out_err;
 		}
 
