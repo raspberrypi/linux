@@ -3260,8 +3260,10 @@ static void ice_clear_interrupt_scheme(struct ice_pf *pf)
 	if (test_bit(ICE_FLAG_MSIX_ENA, pf->flags))
 		ice_dis_msix(pf);
 
-	devm_kfree(&pf->pdev->dev, pf->irq_tracker);
-	pf->irq_tracker = NULL;
+	if (pf->irq_tracker) {
+		devm_kfree(&pf->pdev->dev, pf->irq_tracker);
+		pf->irq_tracker = NULL;
+	}
 }
 
 /**
@@ -4115,11 +4117,12 @@ static int ice_vsi_cfg(struct ice_vsi *vsi)
 {
 	int err;
 
-	ice_set_rx_mode(vsi->netdev);
-
-	err = ice_restore_vlan(vsi);
-	if (err)
-		return err;
+	if (vsi->netdev) {
+		ice_set_rx_mode(vsi->netdev);
+		err = ice_restore_vlan(vsi);
+		if (err)
+			return err;
+	}
 
 	err = ice_vsi_cfg_txqs(vsi);
 	if (!err)
