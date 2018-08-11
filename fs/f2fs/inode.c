@@ -310,13 +310,15 @@ static int do_read_inode(struct inode *inode)
 	/* get rdev by using inline_info */
 	__get_inode_rdev(inode, ri);
 
-	err = __written_first_block(sbi, ri);
-	if (err < 0) {
-		f2fs_put_page(node_page, 1);
-		return err;
+	if (S_ISREG(inode->i_mode)) {
+		err = __written_first_block(sbi, ri);
+		if (err < 0) {
+			f2fs_put_page(node_page, 1);
+			return err;
+		}
+		if (!err)
+			set_inode_flag(inode, FI_FIRST_BLOCK_WRITTEN);
 	}
-	if (!err)
-		set_inode_flag(inode, FI_FIRST_BLOCK_WRITTEN);
 
 	if (!need_inode_block_update(sbi, inode->i_ino))
 		fi->last_disk_size = inode->i_size;
