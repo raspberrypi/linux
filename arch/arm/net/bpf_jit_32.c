@@ -238,7 +238,7 @@ static void jit_fill_hole(void *area, unsigned int size)
 #define STACK_SIZE	ALIGN(_STACK_SIZE, STACK_ALIGNMENT)
 
 /* Get the offset of eBPF REGISTERs stored on scratch space. */
-#define STACK_VAR(off) (STACK_SIZE - off)
+#define STACK_VAR(off) (STACK_SIZE - off - 4)
 
 #if __LINUX_ARM_ARCH__ < 7
 
