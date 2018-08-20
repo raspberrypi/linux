@@ -1903,7 +1903,7 @@ static void i40e_get_stat_strings(struct net_device *netdev, u8 *data)
 		data += ETH_GSTRING_LEN;
 	}
 
-	WARN_ONCE(p - data != i40e_get_stats_count(netdev) * ETH_GSTRING_LEN,
+	WARN_ONCE(data - p != i40e_get_stats_count(netdev) * ETH_GSTRING_LEN,
 		  "stat strings count mismatch!");
 }
 
