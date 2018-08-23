@@ -35,7 +35,6 @@
 		usb = &usb;
 		leds = &leds;
 		fb = &fb;
-		vchiq = &vchiq;
 		thermal = &thermal;
 		axiperf = &axiperf;
 	};
@@ -67,12 +66,10 @@
 			status = "disabled";
 		};
 
-		vchiq: vchiq {
+		mailbox@7e00b840 {
 			compatible = "brcm,bcm2835-vchiq";
-			reg = <0x7e00b840 0xf>;
+			reg = <0x7e00b840 0x3c>;
 			interrupts = <0 2>;
-			cache-line-size = <32>;
-			firmware = <&firmware>;
 		};
 
 		vcsm: vcsm {
@@ -95,7 +92,7 @@
 	};
 
 	__overrides__ {
-		cache_line_size = <&vchiq>, "cache-line-size:0";
+		cache_line_size;
 
 		uart0 = <&uart0>,"status";
 		uart1 = <&uart1>,"status";
