@@ -7,10 +7,11 @@
  * License.  See the file COPYING in the main directory of this archive
  * for more details.
  *
- * Authors: Vincent Sanders <vincent.sanders@collabora.co.uk>
- *          Dave Stevenson <dsteve@broadcom.com>
- *          Simon Mellor <simellor@broadcom.com>
- *          Luke Diamand <luked@broadcom.com>
+ * Authors: Vincent Sanders @ Collabora
+ *          Dave Stevenson @ Broadcom
+ *		(now dave.stevenson@raspberrypi.org)
+ *          Simon Mellor @ Broadcom
+ *          Luke Diamand @ Broadcom
  *
  * core driver device
  */
@@ -18,18 +19,18 @@
 #define V4L2_CTRL_COUNT 29 /* number of v4l controls */
 
 enum {
-	MMAL_COMPONENT_CAMERA = 0,
-	MMAL_COMPONENT_PREVIEW,
-	MMAL_COMPONENT_IMAGE_ENCODE,
-	MMAL_COMPONENT_VIDEO_ENCODE,
-	MMAL_COMPONENT_COUNT
+	COMP_CAMERA = 0,
+	COMP_PREVIEW,
+	COMP_IMAGE_ENCODE,
+	COMP_VIDEO_ENCODE,
+	COMP_COUNT
 };
 
 enum {
-	MMAL_CAMERA_PORT_PREVIEW = 0,
-	MMAL_CAMERA_PORT_VIDEO,
-	MMAL_CAMERA_PORT_CAPTURE,
-	MMAL_CAMERA_PORT_COUNT
+	CAM_PORT_PREVIEW = 0,
+	CAM_PORT_VIDEO,
+	CAM_PORT_CAPTURE,
+	CAM_PORT_COUNT
 };
 
 #define PREVIEW_LAYER      2
@@ -63,7 +64,7 @@ struct bm2835_mmal_dev {
 
 	/* allocated mmal instance and components */
 	struct vchiq_mmal_instance   *instance;
-	struct vchiq_mmal_component  *component[MMAL_COMPONENT_COUNT];
+	struct vchiq_mmal_component  *component[COMP_COUNT];
 	int camera_use_count;
 
 	struct v4l2_window overlay;
@@ -92,9 +93,11 @@ struct bm2835_mmal_dev {
 		/* VC start timestamp for streaming */
 		s64         vc_start_timestamp;
 		/* Kernel start timestamp for streaming */
-		u64         kernel_start_timestamp;
+		ktime_t kernel_start_ts;
 		/* Timestamp of last frame */
 		u64 		last_timestamp;
+		/* Sequence number of last buffer */
+		u32		sequence;
 
 		struct vchiq_mmal_port  *port; /* port being used for capture */
 		/* camera port being used for capture */
@@ -132,6 +135,7 @@ int set_framerate_params(struct bm2835_mmal_dev *dev);
 		(pix_fmt)->pixelformat, (pix_fmt)->bytesperline,	\
 		(pix_fmt)->sizeimage, (pix_fmt)->colorspace, (pix_fmt)->priv); \
 }
+
 #define v4l2_dump_win_format(level, debug, dev, win_fmt, desc)	\
 {	\
 	v4l2_dbg(level, debug, dev,	\

@@ -7,10 +7,11 @@
  * License.  See the file COPYING in the main directory of this archive
  * for more details.
  *
- * Authors: Vincent Sanders <vincent.sanders@collabora.co.uk>
- *          Dave Stevenson <dsteve@broadcom.com>
- *          Simon Mellor <simellor@broadcom.com>
- *          Luke Diamand <luked@broadcom.com>
+ * Authors: Vincent Sanders @ Collabora
+ *          Dave Stevenson @ Broadcom
+ *		(now dave.stevenson@raspberrypi.org)
+ *          Simon Mellor @ Broadcom
+ *          Luke Diamand @ Broadcom
  */
 
 /* common parameters */
@@ -21,18 +22,21 @@
  * @{
  */
 
+#ifndef __MMAL_PARAMETERS_H
+#define __MMAL_PARAMETERS_H
+
 /** Common parameter ID group, used with many types of component. */
-#define MMAL_PARAMETER_GROUP_COMMON            (0<<16)
+#define MMAL_PARAMETER_GROUP_COMMON            (0 << 16)
 /** Camera-specific parameter ID group. */
-#define MMAL_PARAMETER_GROUP_CAMERA            (1<<16)
+#define MMAL_PARAMETER_GROUP_CAMERA            (1 << 16)
 /** Video-specific parameter ID group. */
-#define MMAL_PARAMETER_GROUP_VIDEO             (2<<16)
+#define MMAL_PARAMETER_GROUP_VIDEO             (2 << 16)
 /** Audio-specific parameter ID group. */
-#define MMAL_PARAMETER_GROUP_AUDIO             (3<<16)
+#define MMAL_PARAMETER_GROUP_AUDIO             (3 << 16)
 /** Clock-specific parameter ID group. */
-#define MMAL_PARAMETER_GROUP_CLOCK             (4<<16)
+#define MMAL_PARAMETER_GROUP_CLOCK             (4 << 16)
 /** Miracast-specific parameter ID group. */
-#define MMAL_PARAMETER_GROUP_MIRACAST       (5<<16)
+#define MMAL_PARAMETER_GROUP_MIRACAST       (5 << 16)
 
 /* Common parameters */
 enum mmal_parameter_common_type {
@@ -564,6 +568,14 @@ enum mmal_parameter_displayset {
 	MMAL_DISPLAY_SET_ALPHA = 0x400,
 };
 
+/* rectangle, used lots so it gets its own struct */
+struct vchiq_mmal_rect {
+	s32 x;
+	s32 y;
+	s32 width;
+	s32 height;
+};
+
 struct mmal_parameter_displayregion {
 	/** Bitfield that indicates which fields are set and should be
 	 * used. All other fields will maintain their current value.
@@ -685,3 +697,5 @@ struct mmal_parameter_camera_info_t {
 	struct mmal_parameter_camera_info_flash_t
 				flashes[MMAL_PARAMETER_CAMERA_INFO_MAX_FLASHES];
 };
+
+#endif

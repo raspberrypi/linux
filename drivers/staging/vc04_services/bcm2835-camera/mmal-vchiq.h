@@ -7,10 +7,11 @@
  * License.  See the file COPYING in the main directory of this archive
  * for more details.
  *
- * Authors: Vincent Sanders <vincent.sanders@collabora.co.uk>
- *          Dave Stevenson <dsteve@broadcom.com>
- *          Simon Mellor <simellor@broadcom.com>
- *          Luke Diamand <luked@broadcom.com>
+ * Authors: Vincent Sanders @ Collabora
+ *          Dave Stevenson @ Broadcom
+ *		(now dave.stevenson@raspberrypi.org)
+ *          Simon Mellor @ Broadcom
+ *          Luke Diamand @ Broadcom
  *
  * MMAL interface to VCHIQ message passing
  */
@@ -33,14 +34,6 @@ enum vchiq_mmal_es_type {
 	MMAL_ES_TYPE_AUDIO,       /**< Audio elementary stream */
 	MMAL_ES_TYPE_VIDEO,       /**< Video elementary stream */
 	MMAL_ES_TYPE_SUBPICTURE   /**< Sub-picture elementary stream */
-};
-
-/* rectangle, used lots so it gets its own struct */
-struct vchiq_mmal_rect {
-	s32 x;
-	s32 y;
-	s32 width;
-	s32 height;
 };
 
 struct vchiq_mmal_port_buffer {
@@ -82,10 +75,9 @@ struct vchiq_mmal_port {
 	struct list_head buffers;
 	/* lock to serialise adding and removing buffers from list */
 	spinlock_t slock;
-	/* count of how many buffer header refils have failed because
-	 * there was no buffer to satisfy them
-	 */
-	int buffer_underflow;
+
+	/* Count of buffers the VPU has yet to return */
+	atomic_t buffers_with_vpu;
 	/* callback on buffer completion */
 	vchiq_mmal_buffer_cb buffer_cb;
 	/* callback context */
@@ -130,7 +122,7 @@ int vchiq_mmal_component_disable(
 /* enable a mmal port
  *
  * enables a port and if a buffer callback provided enque buffer
- * headers as apropriate for the port.
+ * headers as appropriate for the port.
  */
 int vchiq_mmal_port_enable(
 		struct vchiq_mmal_instance *instance,
@@ -142,7 +134,7 @@ int vchiq_mmal_port_enable(
  * disable a port will dequeue any pending buffers
  */
 int vchiq_mmal_port_disable(struct vchiq_mmal_instance *instance,
-			   struct vchiq_mmal_port *port);
+			    struct vchiq_mmal_port *port);
 
 int vchiq_mmal_port_parameter_set(struct vchiq_mmal_instance *instance,
 				  struct vchiq_mmal_port *port,
@@ -160,8 +152,8 @@ int vchiq_mmal_port_set_format(struct vchiq_mmal_instance *instance,
 			       struct vchiq_mmal_port *port);
 
 int vchiq_mmal_port_connect_tunnel(struct vchiq_mmal_instance *instance,
-			    struct vchiq_mmal_port *src,
-			    struct vchiq_mmal_port *dst);
+				   struct vchiq_mmal_port *src,
+				   struct vchiq_mmal_port *dst);
 
 int vchiq_mmal_version(struct vchiq_mmal_instance *instance,
 		       u32 *major_out,
@@ -171,4 +163,7 @@ int vchiq_mmal_submit_buffer(struct vchiq_mmal_instance *instance,
 			     struct vchiq_mmal_port *port,
 			     struct mmal_buffer *buf);
 
+int mmal_vchi_buffer_init(struct vchiq_mmal_instance *instance,
+			  struct mmal_buffer *buf);
+int mmal_vchi_buffer_cleanup(struct mmal_buffer *buf);
 #endif /* MMAL_VCHIQ_H */
