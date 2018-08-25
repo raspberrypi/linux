@@ -313,7 +313,7 @@ static const struct of_device_id snd_rpi_wm8804_of_match[] = {
 };
 
 static struct snd_soc_card snd_rpi_wm8804 = {
-	.driver_name  = "RPI WM8804 soundcard",
+	.driver_name  = "RPi-WM8804",
 	.owner        = THIS_MODULE,
 	.dai_link     = NULL,
 	.num_links    = 1,
