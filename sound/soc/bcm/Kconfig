@@ -125,6 +125,13 @@ config SND_AUDIOINJECTOR_OCTO_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for audioinjector.net octo add on
 
+config SND_AUDIOINJECTOR_ULTRA_SOUNDCARD
+	tristate "Support for audioinjector.net ultra soundcard"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_CS4265
+	help
+	  Say Y or M if you want to add support for audioinjector.net ultra add on
+
 config SND_DIGIDAC1_SOUNDCARD
         tristate "Support for Red Rocks Audio DigiDAC1"
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
