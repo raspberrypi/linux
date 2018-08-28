@@ -397,10 +397,11 @@ static int rpi_poe_fan_suspend(struct device *dev)
 {
 	struct rpi_poe_fan_ctx *ctx = dev_get_drvdata(dev);
 	u32 value = 0;
+	int ret = 0;
 
 	if (ctx->pwm_value != value)
 		ret = write_reg(ctx->fw, POE_CUR_PWM, &value);
-	return 0;
+	return ret;
 }
 
 static int rpi_poe_fan_resume(struct device *dev)
