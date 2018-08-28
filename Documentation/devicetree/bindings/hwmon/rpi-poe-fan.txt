@@ -1,7 +1,7 @@
 Bindings for the Raspberry Pi POE HAT fan
 
 Required properties:
-- compatible	: "rpi-poe-fan"
+- compatible	: "raspberrypi,rpi-poe-fan"
 - firmware	: Reference to the RPi firmware device node
 - pwms		: the PWM that is used to control the PWM fan
 - cooling-levels      : PWM duty cycle values in a range from 0 to 255
@@ -9,7 +9,7 @@ Required properties:
 
 Example:
 	fan0: rpi-poe-fan@0 {
-		compatible = "rpi-poe-fan";
+		compatible = "raspberrypi,rpi-poe-fan";
 		firmware = <&firmware>;
 		cooling-min-state = <0>;
 		cooling-max-state = <3>;

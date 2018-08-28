@@ -413,7 +413,7 @@ static SIMPLE_DEV_PM_OPS(rpi_poe_fan_pm, rpi_poe_fan_suspend,
 			 rpi_poe_fan_resume);
 
 static const struct of_device_id of_rpi_poe_fan_match[] = {
-	{ .compatible = "rpi-poe-fan", },
+	{ .compatible = "raspberrypi,rpi-poe-fan", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, of_rpi_poe_fan_match);
