@@ -389,6 +389,12 @@ Params: non-stop-clocks         Keeps the clocks running even when the stream
                                 is paused or stopped (default off)
 
 
+Name:   audioinjector-ultra
+Info:   Configures the audioinjector.net ultra soundcard
+Load:   dtoverlay=audioinjector-ultra
+Params: <None>
+
+
 Name:   audioinjector-wm8731-audio
 Info:   Configures the audioinjector.net audio add on soundcard
 Load:   dtoverlay=audioinjector-wm8731-audio
