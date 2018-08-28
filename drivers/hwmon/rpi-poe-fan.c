@@ -259,7 +259,8 @@ static int rpi_poe_fan_of_get_cooling_data(struct device *dev,
 
 	ret = of_property_count_u32_elems(np, "cooling-levels");
 	if (ret <= 0) {
-		dev_err(dev, "Wrong data!\n");
+		dev_err(dev, "cooling-levels property missing or invalid: %d\n",
+			ret);
 		return ret ? : -EINVAL;
 	}
 
