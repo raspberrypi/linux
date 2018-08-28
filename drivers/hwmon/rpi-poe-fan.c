@@ -37,41 +37,41 @@ struct rpi_poe_fan_ctx {
 	struct notifier_block nb;
 };
 
-struct m_data_s{
+struct fw_tag_data_s{
 	u32 reg;
 	u32 val;
 	u32 ret;
 };
 
 static int write_reg(struct rpi_firmware *fw, u32 reg, u32 *val){
-	struct m_data_s m_data = {
+	struct fw_tag_data_s fw_tag_data = {
 		.reg = reg,
 		.val = *val
 	};
 	int ret;
 	ret = rpi_firmware_property(fw, RPI_FIRMWARE_SET_POE_HAT_VAL,
-				    &m_data, sizeof(m_data));
+				    &fw_tag_data, sizeof(fw_tag_data));
 	if (ret) {
 		return ret;
-	} else if (m_data.ret) {
+	} else if (fw_tag_data.ret) {
 		return -EIO;
 	}
 	return 0;
 }
 
 static int read_reg(struct rpi_firmware *fw, u32 reg, u32 *val){
-	struct m_data_s m_data = {
+	struct fw_tag_data_s fw_tag_data = {
 		.reg = reg,
 	};
 	int ret;
 	ret = rpi_firmware_property(fw, RPI_FIRMWARE_GET_POE_HAT_VAL,
-				    &m_data, sizeof(m_data));
+				    &fw_tag_data, sizeof(fw_tag_data));
 	if (ret) {
 		return ret;
-	} else if (m_data.ret) {
+	} else if (fw_tag_data.ret) {
 		return -EIO;
 	}
-	*val = m_data.val;
+	*val = fw_tag_data.val;
 	return 0;
 }
 
