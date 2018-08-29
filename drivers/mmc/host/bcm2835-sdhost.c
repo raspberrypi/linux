@@ -148,7 +148,7 @@ struct bcm2835_host {
 	spinlock_t		lock;
 
 	void __iomem		*ioaddr;
-	u32			bus_addr;
+	phys_addr_t		bus_addr;
 
 	struct mmc_host		*mmc;
 
@@ -246,8 +246,8 @@ static void log_init(struct device *dev, u32 bus_to_phys)
 	sdhost_log_buf = dma_alloc_coherent(dev, LOG_SIZE, &sdhost_log_addr,
 					     GFP_KERNEL);
 	if (sdhost_log_buf) {
-		pr_info("sdhost: log_buf @ %p (%x)\n",
-			sdhost_log_buf, (u32)sdhost_log_addr);
+		pr_info("sdhost: log_buf @ %p (%llx)\n",
+			sdhost_log_buf, (u64)sdhost_log_addr);
 		timer_base = ioremap_nocache(bus_to_phys + 0x7e003000, SZ_4K);
 		if (!timer_base)
 			pr_err("sdhost: failed to remap timer\n");
@@ -2033,6 +2033,7 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 	struct mmc_host *mmc;
 	const __be32 *addr;
 	u32 msg[3];
+	int na;
 	int ret;
 
 	pr_debug("bcm2835_sdhost_probe\n");
@@ -2056,12 +2057,13 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 		goto err;
 	}
 
+	na = of_n_addr_cells(node);
 	addr = of_get_address(node, 0, NULL, NULL);
 	if (!addr) {
 		dev_err(dev, "could not get DMA-register address\n");
 		return -ENODEV;
 	}
-	host->bus_addr = be32_to_cpup(addr);
+	host->bus_addr = (phys_addr_t)of_read_number(addr, na);
 	pr_debug(" - ioaddr %lx, iomem->start %lx, bus_addr %lx\n",
 		 (unsigned long)host->ioaddr,
 		 (unsigned long)iomem->start,
