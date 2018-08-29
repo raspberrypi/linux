@@ -1,4 +1,4 @@
-Bindings for the Raspberry Pi POE HAT fan
+Bindings for the Raspberry Pi PoE HAT fan
 
 Required properties:
 - compatible	: "raspberrypi,rpi-poe-fan"

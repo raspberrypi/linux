@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * rpi-poe-fan.c - Hwmon driver for Raspberry Pi POE HAT fan.
+ * rpi-poe-fan.c - Hwmon driver for Raspberry Pi PoE HAT fan.
  *
  * Copyright (C) 2018 Raspberry Pi (Trading) Ltd.
  * Based on pwm-fan.c by Kamil Debski <k.debski@samsung.com>
@@ -432,5 +432,5 @@ module_platform_driver(rpi_poe_fan_driver);
 
 MODULE_AUTHOR("Serge Schneider <serge@raspberrypi.org>");
 MODULE_ALIAS("platform:rpi-poe-fan");
-MODULE_DESCRIPTION("Raspberry Pi POE HAT fan driver");
+MODULE_DESCRIPTION("Raspberry Pi PoE HAT fan driver");
 MODULE_LICENSE("GPL");
