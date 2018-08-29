@@ -1,30 +1,25 @@
-/*
- * Overlay for the Raspberry Pi POE HAT.
- */
-/dts-v1/;
-/plugin/;
+Bindings for the Raspberry Pi PoE HAT fan
 
-/ {
-	compatible = "brcm,bcm2708";
+Required properties:
+- compatible	: "raspberrypi,rpi-poe-fan"
+- firmware	: Reference to the RPi firmware device node
+- pwms		: the PWM that is used to control the PWM fan
+- cooling-levels      : PWM duty cycle values in a range from 0 to 255
+			which correspond to thermal cooling states
 
-	fragment@0 {
-		target-path = "/";
-		__overlay__ {
-			fan0: rpi-poe-fan@0 {
-				compatible = "raspberrypi,rpi-poe-fan";
-				firmware = <&firmware>;
-				cooling-min-state = <0>;
-				cooling-max-state = <3>;
-				#cooling-cells = <2>;
-				cooling-levels = <0 50 150 255>;
-				status = "okay";
-			};
-		};
+Example:
+	fan0: rpi-poe-fan@0 {
+		compatible = "raspberrypi,rpi-poe-fan";
+		firmware = <&firmware>;
+		cooling-min-state = <0>;
+		cooling-max-state = <3>;
+		#cooling-cells = <2>;
+		cooling-levels = <0 50 150 255>;
+		status = "okay";
 	};
 
-	fragment@1 {
-		target = <&cpu_thermal>;
-		__overlay__ {
+	thermal-zones {
+		cpu_thermal: cpu-thermal {
 			trips {
 				threshold: trip-point@0 {
 					temperature = <45000>;
@@ -58,4 +53,3 @@
 			};
 		};
 	};
-};
