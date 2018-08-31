@@ -753,7 +753,6 @@ struct cpl_abort_req_rss {
 };
 
 struct cpl_abort_req_rss6 {
-	WR_HDR;
 	union opcode_tid ot;
 	__u32 srqidx_status;
 };
