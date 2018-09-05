@@ -202,7 +202,7 @@ static const struct of_device_id snd_rpi_simple_of_match[] = {
 };
 
 static struct snd_soc_card snd_rpi_simple = {
-	.driver_name  = "RPI simple soundcard",
+	.driver_name  = "RPi-simple",
 	.owner        = THIS_MODULE,
 	.dai_link     = NULL,
 	.num_links    = 1, /* Only a single DAI supported at the moment */
