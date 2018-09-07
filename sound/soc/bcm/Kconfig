@@ -91,6 +91,7 @@ config SND_BCM2708_SOC_JUSTBOOM_DAC
 	tristate "Support for JustBoom DAC"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	select SND_SOC_PCM512x
+	select SND_RPI_PCM512x_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for JustBoom DAC.
 
@@ -106,6 +107,7 @@ config SND_BCM2708_SOC_IQAUDIO_DAC
 	tristate "Support for IQaudIO-DAC"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	select SND_SOC_PCM512x_I2C
+	select SND_RPI_PCM512x_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for IQaudIO-DAC.
 
@@ -158,6 +160,7 @@ config SND_BCM2708_SOC_DIONAUDIO_LOCO_V2
 	tristate "Support for Dion Audio LOCO-V2 DAC-AMP"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	select SND_SOC_PCM5122
+	select SND_RPI_PCM512x_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for Dion Audio LOCO-V2.
 
@@ -165,6 +168,7 @@ config SND_BCM2708_SOC_ALLO_PIANO_DAC
 	tristate "Support for Allo Piano DAC"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
 	select SND_SOC_PCM512x_I2C
+	select SND_RPI_PCM512x_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for Allo Piano DAC.
 
@@ -223,3 +227,9 @@ config SND_RPI_WM8804_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for the Raspberry Pi
           generic driver for WM8804 based soundcards.
+
+config SND_RPI_PCM512x_SOUNDCARD
+	tristate "Support for Raspberry Pi generic PCM512x soundcards"
+	help
+	  Say Y or M if you want to add support for the Raspberry Pi
+          generic driver for PCM512x based soundcards.
