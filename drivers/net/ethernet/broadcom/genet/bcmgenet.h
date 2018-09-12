@@ -31,7 +31,7 @@
 #define ENET_PAD		8
 #define ENET_MAX_MTU_SIZE	(ETH_DATA_LEN + ETH_HLEN + VLAN_HLEN + \
 				 ENET_BRCM_TAG_LEN + ETH_FCS_LEN + ENET_PAD)
-#define DMA_MAX_BURST_LENGTH    0x10
+#define DMA_MAX_BURST_LENGTH    0x08
 
 /* misc. configuration */
 #define CLEAR_ALL_HFB			0xFF
