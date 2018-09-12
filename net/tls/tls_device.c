@@ -552,7 +552,7 @@ int tls_set_device_offload(struct sock *sk, struct tls_context *ctx)
 		goto free_marker_record;
 	}
 
-	crypto_info = &ctx->crypto_send;
+	crypto_info = &ctx->crypto_send.info;
 	switch (crypto_info->cipher_type) {
 	case TLS_CIPHER_AES_GCM_128:
 		nonce_size = TLS_CIPHER_AES_GCM_128_IV_SIZE;
@@ -650,7 +650,7 @@ int tls_set_device_offload(struct sock *sk, struct tls_context *ctx)
 
 	ctx->priv_ctx_tx = offload_ctx;
 	rc = netdev->tlsdev_ops->tls_dev_add(netdev, sk, TLS_OFFLOAD_CTX_DIR_TX,
-					     &ctx->crypto_send,
+					     &ctx->crypto_send.info,
 					     tcp_sk(sk)->write_seq);
 	if (rc)
 		goto release_netdev;
