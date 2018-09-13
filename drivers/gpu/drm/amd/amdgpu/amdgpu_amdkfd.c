@@ -245,7 +245,7 @@ int amdgpu_amdkfd_resume(struct amdgpu_device *adev)
 
 int alloc_gtt_mem(struct kgd_dev *kgd, size_t size,
 			void **mem_obj, uint64_t *gpu_addr,
-			void **cpu_ptr)
+			void **cpu_ptr, bool mqd_gfx9)
 {
 	struct amdgpu_device *adev = (struct amdgpu_device *)kgd;
 	struct amdgpu_bo *bo = NULL;
@@ -261,6 +261,10 @@ int alloc_gtt_mem(struct kgd_dev *kgd, size_t size,
 	bp.flags = AMDGPU_GEM_CREATE_CPU_GTT_USWC;
 	bp.type = ttm_bo_type_kernel;
 	bp.resv = NULL;
+
+	if (mqd_gfx9)
+		bp.flags |= AMDGPU_GEM_CREATE_MQD_GFX9;
+
 	r = amdgpu_bo_create(adev, &bp, &bo);
 	if (r) {
 		dev_err(adev->dev,
