@@ -872,7 +872,15 @@ fallback_to_reg_recv:
 				if (control != TLS_RECORD_TYPE_DATA)
 					goto recv_end;
 			}
+		} else {
+			/* MSG_PEEK right now cannot look beyond current skb
+			 * from strparser, meaning we cannot advance skb here
+			 * and thus unpause strparser since we'd loose original
+			 * one.
+			 */
+			break;
 		}
+
 		/* If we have a new message from strparser, continue now. */
 		if (copied >= target && !ctx->recv_pkt)
 			break;
