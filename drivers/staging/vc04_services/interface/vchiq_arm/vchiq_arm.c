@@ -109,9 +109,7 @@ static const char *const resume_state_names[] = {
  * requested */
 #define FORCE_SUSPEND_TIMEOUT_MS 200
 
-
 static void suspend_timer_callback(unsigned long context);
-
 
 typedef struct user_service_struct {
 	VCHIQ_SERVICE_T *service;
@@ -2302,8 +2300,6 @@ exit:
 	return 0;
 }
 
-
-
 VCHIQ_STATUS_T
 vchiq_arm_init_state(VCHIQ_STATE_T *state, VCHIQ_ARM_STATE_T *arm_state)
 {
@@ -2464,7 +2460,6 @@ set_resume_state(VCHIQ_ARM_STATE_T *arm_state,
 	}
 }
 
-
 /* should be called with the write lock held */
 inline void
 start_suspend_timer(VCHIQ_ARM_STATE_T *arm_state)
@@ -2584,7 +2579,6 @@ vchiq_arm_vcsuspend(VCHIQ_STATE_T *state)
 	vchiq_log_trace(vchiq_susp_log_level, "%s", __func__);
 	status = VCHIQ_SUCCESS;
 
-
 	switch (arm_state->vc_suspend_state) {
 	case VC_SUSPEND_REQUESTED:
 		vchiq_log_info(vchiq_susp_log_level, "%s: suspend already "
@@ -2648,7 +2642,6 @@ out:
 	vchiq_log_trace(vchiq_susp_log_level, "%s exit", __func__);
 	return;
 }
-
 
 static void
 output_timeout_error(VCHIQ_STATE_T *state)
@@ -2829,7 +2822,6 @@ out:
 	return;
 }
 
-
 int
 vchiq_arm_allow_resume(VCHIQ_STATE_T *state)
 {
@@ -2990,7 +2982,6 @@ vchiq_use_internal(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 		vchiq_log_trace(vchiq_susp_log_level,
 			"%s %s count %d, state count %d",
 			__func__, entity, *entity_uc, local_uc);
-
 
 	write_unlock_bh(&arm_state->susp_res_lock);
 
