@@ -78,9 +78,17 @@
 		};
 	};
 
+	fragment@5 {
+		target-path="/__overrides__";
+		__overlay__ {
+			cam0-pwdn-ctrl = <&ov5647>,"pwdn-gpios:0";
+			cam0-pwdn      = <&ov5647>,"pwdn-gpios:4";
+			cam0-led-ctrl  = <&ov5647>,"pwdn-gpios:12";
+			cam0-led       = <&ov5647>,"pwdn-gpios:16";
+		};
+	};
+
 	__overrides__ {
 		i2c_pins_28_29 = <0>,"+4-5";
-		cam0-pwdn = <&ov5647>,"pwdn-gpios:4";
-		cam0-led = <&ov5647>,"pwdn-gpios:16";
 	};
 };
