@@ -152,6 +152,13 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-always-on;
 	};
+
+	__overrides__ {
+		cam0-pwdn-ctrl;
+		cam0-pwdn;
+		cam0-led-ctrl;
+		cam0-led;
+	};
 };
 
 &vc4 {
