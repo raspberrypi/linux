@@ -1,0 +1,71 @@
+/*
+ * Overlay for the Raspberry Pi GPIO Fan @ BCM GPIO12.
+ * Optional parameters:
+ *	- "gpiopin"	- default GPIO12
+ * 	- "temp"	- default 55000
+ * Requires:
+ *	- kernel configurations: CONFIG_SENSORS_GPIO_FAN=m and CONFIG_SENSORS_PWM_FAN=m;
+ *	- kernel rebuid;
+ *	- DC Fan connected to GPIO via a N-MOSFET (2N7002)
+ *
+ *                   ┌─────────────────────┐
+ *                   │Fan negative terminal│
+ *                   └┬────────────────────┘
+ *                    │
+ *                 │──┘
+ * [GPIO12]──────┤ │<─┐  2N7002
+ *                 │──┤
+ *                    │
+ *                   ─┴─
+ *                   GND
+ *
+ * sudo dtc -W no-unit_address_vs_reg -@ -I dts -O dtb -o /boot/overlays/gpio-fan.dtbo gpio-fan.dts
+ * sudo nano /boot/config.txt add "dtoverlay=gpio-fan" or "dtoverlay=gpio-fan,gpiopin=12,temp=45000"
+ * or
+ * sudo sh -c "echo '\n# Enable PI GPIO-Fan\ndtoverlay=gpio-fan\n' >> /boot/config.txt"
+ * sudo sh -c "echo '\n# Enable PI GPIO-Fan\ndtoverlay=gpio-fan,gpiopin=12\n' >> /boot/config.txt"
+ *
+ */
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2708";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			fan0: gpio-fan@0 {
+				compatible = "gpio-fan";
+				gpios = <&gpio 12 1>;
+				gpio-fan,speed-map = <0    0>,
+									 <5000 1>;
+				#cooling-cells = <2>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&cpu_thermal>;
+		polling-delay = <2000>;	/* milliseconds */
+		__overlay__ {
+			trips {
+				cpu_hot: trip-point@0 {
+					temperature = <55000>;	/* (millicelsius) Fan started at 55°C */
+					hysteresis = <5000>;	/* (millicelsius) Fan stopped at 50°C */
+					type = "active";
+				};
+			};
+			cooling-maps {
+				map0 {
+					trip = <&cpu_hot>;
+					cooling-device = <&fan0 1 1>;
+				};
+			};
+		};
+	};
+	__overrides__ {
+		gpiopin = <&fan0>,"gpios:4", <&fan0>,"brcm,pins:0";
+		temp = <&cpu_hot>,"temperature:0";
+	};
+};
