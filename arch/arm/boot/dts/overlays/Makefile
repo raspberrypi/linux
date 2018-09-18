@@ -33,6 +33,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	fe-pi-audio.dtbo \
 	goodix.dtbo \
 	googlevoicehat-soundcard.dtbo \
+	gpio-fan.dtbo \
 	gpio-ir.dtbo \
 	gpio-ir-tx.dtbo \
 	gpio-key.dtbo \
