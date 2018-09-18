@@ -14,7 +14,7 @@
 			status = "okay";
 
 			ov5647: ov5647@36 {
-				compatible = "ov5647";
+				compatible = "ovti,ov5647";
 				reg = <0x36>;
 				status = "okay";
 
@@ -82,10 +82,18 @@
 		};
 	};
 
+	fragment@6 {
+		target-path="/__overrides__";
+		__overlay__ {
+			cam0-pwdn-ctrl = <&ov5647>,"pwdn-gpios:0";
+			cam0-pwdn      = <&ov5647>,"pwdn-gpios:4";
+			cam0-led-ctrl  = <&ov5647>,"pwdn-gpios:12";
+			cam0-led       = <&ov5647>,"pwdn-gpios:16";
+		};
+	};
+
 	__overrides__ {
 		i2c_pins_0_1 = <0>,"-2-3+4";
 		i2c_pins_28_29 = <0>,"+2-3-4";
-		cam0-pwdn = <&ov5647>,"pwdn-gpios:4";
-		cam0-led = <&ov5647>,"pwdn-gpios:16";
 	};
 };
