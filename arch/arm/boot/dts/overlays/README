@@ -1453,15 +1453,7 @@ Info:   Omnivision OV5647 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
 Load:   dtoverlay=ov5647,<param>=<val>
-Params: cam0-pwdn               GPIO used to control the sensor powerdown line.
-
-        cam0-led                GPIO used to control the sensor led
-                                Both these fields should be automatically filled
-                                in by the firmware to reflect the default GPIO
-                                configuration of the particular Pi variant in
-                                use.
-
-        i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
+Params: i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
                                 Useful on Compute Modules.
 
         i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
