@@ -32,7 +32,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include <linux/debugfs.h>
 #include "vchiq_core.h"
 #include "vchiq_arm.h"
