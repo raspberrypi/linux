@@ -541,6 +541,14 @@ Load:   dtoverlay=googlevoicehat-soundcard
 Params: <None>
 
 
+Name:   gpio-fan
+Info:   Configure a GPIO pin to control a cooling fan.
+Load:   dtoverlay=gpio-fan,<param>=<val>
+Params: gpiopin                 GPIO used to control the fan (default 12)
+        temp                    Temperature at which the fan switches on, in
+                                millicelcius (default 55000)
+
+
 Name:   gpio-ir
 Info:   Use GPIO pin as rc-core style infrared receiver input. The rc-core-
         based gpio_ir_recv driver maps received keys directly to a
