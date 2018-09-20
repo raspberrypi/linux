@@ -2026,7 +2026,6 @@ shadow_batch_pin(struct i915_execbuffer *eb, struct drm_i915_gem_object *obj)
 	if (CMDPARSER_USES_GGTT(dev_priv)) {
 		flags = PIN_GLOBAL;
 		vm = &dev_priv->ggtt.vm;
-		eb->batch_flags |= I915_DISPATCH_SECURE;
 	} else if (vma->vm->has_read_only) {
 		flags = PIN_USER;
 		vm = vma->vm;
@@ -2043,6 +2042,8 @@ static struct i915_vma *eb_parse(struct i915_execbuffer *eb)
 {
 	struct drm_i915_gem_object *shadow_batch_obj;
 	struct i915_vma *vma;
+	u64 batch_start;
+	u64 shadow_batch_start;
 	int err;
 
 	shadow_batch_obj = i915_gem_batch_pool_get(&eb->engine->batch_pool,
@@ -2050,12 +2051,27 @@ static struct i915_vma *eb_parse(struct i915_execbuffer *eb)
 	if (IS_ERR(shadow_batch_obj))
 		return ERR_CAST(shadow_batch_obj);
 
-	err = intel_engine_cmd_parser(eb->engine,
+	vma = shadow_batch_pin(eb, shadow_batch_obj);
+	if (IS_ERR(vma))
+		goto out;
+
+	batch_start = gen8_canonical_addr(eb->batch->node.start) +
+		      eb->batch_start_offset;
+
+	shadow_batch_start = gen8_canonical_addr(vma->node.start);
+
+	err = intel_engine_cmd_parser(eb->gem_context,
+				      eb->engine,
 				      eb->batch->obj,
-				      shadow_batch_obj,
+				      batch_start,
 				      eb->batch_start_offset,
-				      eb->batch_len);
+				      eb->batch_len,
+				      shadow_batch_obj,
+				      shadow_batch_start);
+
 	if (err) {
+		i915_vma_unpin(vma);
+
 		/*
 		 * Unsafe GGTT-backed buffers can still be submitted safely
 		 * as non-secure.
@@ -2070,10 +2086,6 @@ static struct i915_vma *eb_parse(struct i915_execbuffer *eb)
 		goto out;
 	}
 
-	vma = shadow_batch_pin(eb, shadow_batch_obj);
-	if (IS_ERR(vma))
-		goto out;
-
 	eb->vma[eb->buffer_count] = i915_vma_get(vma);
 	eb->flags[eb->buffer_count] =
 		__EXEC_OBJECT_HAS_PIN | __EXEC_OBJECT_HAS_REF;
@@ -2081,6 +2093,10 @@ static struct i915_vma *eb_parse(struct i915_execbuffer *eb)
 	eb->buffer_count++;
 	eb->batch_start_offset = 0;
 	eb->batch = vma;
+
+	if (CMDPARSER_USES_GGTT(eb->i915))
+		eb->batch_flags |= I915_DISPATCH_SECURE;
+
 	/* eb->batch_len unchanged */
 out:
 	i915_gem_object_unpin_pages(shadow_batch_obj);
