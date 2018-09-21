@@ -94,7 +94,7 @@ do {							\
 #define HC_START	0x500
 #define HC_OFFSET	0x020
 
-#define HC_DMA		0x514
+#define HC_DMA		0x14
 
 #define HCCHAR		0x00
 #define HCSPLT		0x04
