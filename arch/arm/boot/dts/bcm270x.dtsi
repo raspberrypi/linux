@@ -84,6 +84,26 @@
 			status = "disabled";
 		};
 
+		dsi1: dsi@7e700000 {
+			compatible = "brcm,bcm2835-dsi1";
+			reg = <0x7e700000 0x8c>;
+			interrupts = <2 12>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#clock-cells = <1>;
+
+			clocks = <&clocks BCM2835_PLLD_DSI1>,
+				 <&clocks BCM2835_CLOCK_DSI1E>,
+				 <&clocks BCM2835_CLOCK_DSI1P>;
+			clock-names = "phy", "escape", "pixel";
+
+			clock-output-names = "dsi1_byte",
+					     "dsi1_ddr2",
+					     "dsi1_ddr";
+
+			status = "disabled";
+		};
+
 		firmwarekms: firmwarekms@7e600000 {
 			compatible = "raspberrypi,rpi-firmware-kms";
 			/* SMI interrupt reg */
@@ -92,6 +112,21 @@
 			brcm,firmware = <&firmware>;
 			status = "disabled";
 		};
+
+                i2c_dsi: i2cdsi {
+                        /* We have to use i2c-gpio because the
+                         * firmware is also polling another device
+                         * using the only hardware I2C bus that could
+                         * connect to these pins.
+                         */
+                        compatible = "i2c-gpio";
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        status = "disabled";
+                        gpios = <&gpio 28 0
+                                 &gpio 29 0>;
+
+                };
 
 		smi: smi@7e600000 {
 			compatible = "brcm,bcm2835-smi";
@@ -186,4 +221,8 @@
 
 &vc4 {
 	status = "disabled";
+};
+
+&dsi1 {
+	power-domains = <&power RPI_POWER_DOMAIN_DSI1>;
 };

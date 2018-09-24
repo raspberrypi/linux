@@ -111,3 +111,9 @@
 		act_led_trigger = <&act_led>,"linux,default-trigger";
 	};
 };
+
+
+&i2c_dsi {
+	gpios = <&gpio 2 0
+		 &gpio 3 0>;
+};

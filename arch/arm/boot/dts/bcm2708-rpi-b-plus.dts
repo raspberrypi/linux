@@ -121,3 +121,8 @@
 		pwr_led_trigger = <&pwr_led>,"linux,default-trigger";
 	};
 };
+
+&i2c_dsi {
+	gpios = <&gpio 28 0
+		 &gpio 29 0>;
+};

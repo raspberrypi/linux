@@ -101,10 +101,12 @@
 
 &dsi0 {
 	power-domains = <&power RPI_POWER_DOMAIN_DSI0>;
+	status = "okay";
 };
 
 &dsi1 {
 	power-domains = <&power RPI_POWER_DOMAIN_DSI1>;
+	status = "okay";
 };
 
 &csi0 {
