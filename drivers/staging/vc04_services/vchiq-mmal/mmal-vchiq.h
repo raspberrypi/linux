@@ -82,6 +82,7 @@ struct vchiq_mmal_port {
 };
 
 struct vchiq_mmal_component {
+	u32 in_use:1;
 	bool enabled;
 	u32 handle;  /* VideoCore handle for component */
 	u32 inputs;  /* Number of input ports */
