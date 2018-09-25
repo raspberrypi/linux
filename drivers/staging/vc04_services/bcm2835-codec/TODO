@@ -1,0 +1,24 @@
+1) Convert to be a platform driver.
+
+Right now when the module probes, it tries to initialize VCHI and
+errors out if it wasn't ready yet.  If bcm2835-v4l2 was built in, then
+VCHI generally isn't ready because it depends on both the firmware and
+mailbox drivers having already loaded.
+
+We should have VCHI create a platform device once it's initialized,
+and have this driver bind to it, so that we automatically load the
+v4l2 module after VCHI loads.
+
+2) Support SELECTION API to define crop region on the image for encode.
+
+Particularly for resolutions that aren't a multiple of the macroblock
+size, the codec will report a resolution that is a multiple of the macroblock
+size (it has to have the memory to decode into), and then a different crop
+region within that buffer.
+The most common example is 1080P, where the buffer will be 1920x1088 with a
+crop region of 1920x1080.
+
+3) Refactor so that the component creation is only on queue_setup, not open.
+
+Fixes v4l2-compliance failure on trying to open 100 instances of the
+device.
