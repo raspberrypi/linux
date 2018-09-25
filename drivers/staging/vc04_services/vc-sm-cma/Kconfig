@@ -1,0 +1,10 @@
+config BCM_VC_SM_CMA
+	tristate "VideoCore Shared Memory (CMA) driver"
+	depends on BCM2835_VCHIQ
+	select RBTREE
+	select DMA_SHARED_BUFFER
+	help
+	  Say Y here to enable the shared memory interface that
+	  supports sharing dmabufs with VideoCore.
+	  This operates over the VCHIQ interface to a service
+	  running on VideoCore.
