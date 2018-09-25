@@ -7,6 +7,6 @@ obj-$(CONFIG_VIDEO_BCM2835) += bcm2835-v4l2.o
 
 ccflags-y += \
 	-I $(srctree)/$(src)/.. \
-	-Idrivers/staging/vc04_services \
-	-Idrivers/staging/vc04_services/vchiq-mmal \
+	-I$(srctree)/drivers/staging/vc04_services \
+	-I$(srctree)/drivers/staging/vc04_services/vchiq-mmal \
 	-D__VCCOREVER__=0x04000000
