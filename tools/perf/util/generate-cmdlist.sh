@@ -12,7 +12,7 @@ static struct cmdname_help common_cmds[] = {"
 
 sed -n -e 's/^perf-\([^ 	]*\)[ 	].* common.*/\1/p' command-list.txt |
 sort |
-while read cmd
+while read -r cmd
 do
      sed -n '
      /^NAME/,/perf-'"$cmd"'/H
@@ -26,7 +26,7 @@ done
 echo "#ifdef HAVE_LIBELF_SUPPORT"
 sed -n -e 's/^perf-\([^ 	]*\)[ 	].* full.*/\1/p' command-list.txt |
 sort |
-while read cmd
+while read -r cmd
 do
      sed -n '
      /^NAME/,/perf-'"$cmd"'/H
@@ -41,7 +41,7 @@ echo "#endif /* HAVE_LIBELF_SUPPORT */"
 echo "#ifdef HAVE_LIBAUDIT_SUPPORT"
 sed -n -e 's/^perf-\([^ 	]*\)[ 	].* audit*/\1/p' command-list.txt |
 sort |
-while read cmd
+while read -r cmd
 do
      sed -n '
      /^NAME/,/perf-'"$cmd"'/H
