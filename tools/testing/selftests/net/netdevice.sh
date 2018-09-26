@@ -192,7 +192,7 @@ if [ ! -e "$TMP_LIST_NETDEV" ];then
 fi
 
 ip link show |grep '^[0-9]' | grep -oE '[[:space:]].*eth[0-9]*:|[[:space:]].*enp[0-9]s[0-9]:' | cut -d\  -f2 | cut -d: -f1> "$TMP_LIST_NETDEV"
-while read netdev
+while read -r netdev
 do
 	kci_test_netdev "$netdev"
 done < "$TMP_LIST_NETDEV"

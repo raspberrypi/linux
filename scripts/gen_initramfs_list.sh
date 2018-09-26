@@ -181,7 +181,7 @@ dir_filelist() {
 		${dep_list}print_mtime "$1"
 
 		echo "${dirlist}" | \
-		while read x; do
+		while read -r x; do
 			${dep_list}parse ${x}
 		done
 	fi
@@ -206,7 +206,7 @@ input_file() {
 			cat "$1"         >> ${output}
 		else
 		        echo "$1 \\"
-			cat "$1" | while read type dir file perm ; do
+			cat "$1" | while read -r type dir file perm ; do
 				if [ "$type" = "file" ]; then
 					echo "$file \\";
 				fi

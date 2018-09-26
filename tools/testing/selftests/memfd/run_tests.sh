@@ -19,7 +19,7 @@ hpages_test=8
 #
 # Get count of free huge pages from /proc/meminfo
 #
-while read name size unit; do
+while read -r name size unit; do
         if [ "$name" = "HugePages_Free:" ]; then
                 freepgs=$size
         fi
@@ -39,7 +39,7 @@ if [ -n "$freepgs" ] && [ $freepgs -lt $hpages_test ]; then
 
 	echo 3 > /proc/sys/vm/drop_caches
 	echo $(( $hpages_needed + $nr_hugepgs )) > /proc/sys/vm/nr_hugepages
-	while read name size unit; do
+	while read -r name size unit; do
 		if [ "$name" = "HugePages_Free:" ]; then
 			freepgs=$size
 		fi

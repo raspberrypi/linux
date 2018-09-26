@@ -44,7 +44,7 @@ trap "ppc64_cpu --smt-snooze-delay=100" 0 1
 # for each chip+core combination
 # todo - less fragile parsing
 egrep -o 'OCC: Chip [0-9a-f]+ Core [0-9a-f]' < /sys/firmware/opal/msglog |
-while read chipcore; do
+while read -r chipcore; do
 	chip=$(echo "$chipcore"|awk '{print $3}')
 	core=$(echo "$chipcore"|awk '{print $5}')
 	fir="0x1${core}013100"
