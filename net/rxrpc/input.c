@@ -616,13 +616,14 @@ static void rxrpc_input_requested_ack(struct rxrpc_call *call,
 		if (!skb)
 			continue;
 
+		sent_at = skb->tstamp;
+		smp_rmb(); /* Read timestamp before serial. */
 		sp = rxrpc_skb(skb);
 		if (sp->hdr.serial != orig_serial)
 			continue;
-		smp_rmb();
-		sent_at = skb->tstamp;
 		goto found;
 	}
+
 	return;
 
 found:
@@ -1136,6 +1137,9 @@ void rxrpc_data_ready(struct sock *udp_sk)
 		_debug("UDP socket error %d", ret);
 		return;
 	}
+
+	if (skb->tstamp == 0)
+		skb->tstamp = ktime_get_real();
 
 	rxrpc_new_skb(skb, rxrpc_skb_rx_received);
 
