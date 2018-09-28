@@ -319,7 +319,6 @@ static void tun_napi_init(struct tun_struct *tun, struct tun_file *tfile,
 		netif_napi_add(tun->dev, &tfile->napi, tun_napi_poll,
 			       NAPI_POLL_WEIGHT);
 		napi_enable(&tfile->napi);
-		mutex_init(&tfile->napi_mutex);
 	}
 }
 
@@ -3241,6 +3240,7 @@ static int tun_chr_open(struct inode *inode, struct file * file)
 		return -ENOMEM;
 	}
 
+	mutex_init(&tfile->napi_mutex);
 	RCU_INIT_POINTER(tfile->tun, NULL);
 	tfile->flags = 0;
 	tfile->ifindex = 0;
