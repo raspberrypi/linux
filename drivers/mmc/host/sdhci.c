@@ -3065,6 +3065,10 @@ static irqreturn_t sdhci_irq(int irq, void *dev_id)
 			result = IRQ_WAKE_THREAD;
 		}
 
+		if ((intmask & SDHCI_INT_DATA_END) && !host->data &&
+		    host->cmd && (host->cmd == host->cmd->mrq->stop))
+			intmask &= ~SDHCI_INT_DATA_END;
+
 		if (intmask & SDHCI_INT_CMD_MASK)
 			sdhci_cmd_irq(host, intmask & SDHCI_INT_CMD_MASK, &intmask);
 
