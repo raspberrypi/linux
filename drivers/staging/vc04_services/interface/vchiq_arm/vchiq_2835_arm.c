@@ -199,7 +199,7 @@ int vchiq_platform_init(struct platform_device *pdev, VCHIQ_STATE_T *state)
 
 	g_dev = dev;
 	g_dma_pool = dmam_pool_create("vchiq_scatter_pool", dev,
-				     VCHIQ_DMA_POOL_SIZE, g_cache_line_size, 0);
+				      VCHIQ_DMA_POOL_SIZE, g_cache_line_size, 0);
 	if (!g_dma_pool) {
 		dev_err(dev, "failed to create dma pool");
 		return -ENOMEM;
