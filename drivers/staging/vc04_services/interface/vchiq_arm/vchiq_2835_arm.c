@@ -7,6 +7,7 @@
 #include <linux/interrupt.h>
 #include <linux/pagemap.h>
 #include <linux/dma-mapping.h>
+#include <linux/dmapool.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/uaccess.h>
@@ -31,6 +32,8 @@
 
 #define ARM_DS_ACTIVE	BIT(2)
 
+#define VCHIQ_DMA_POOL_SIZE PAGE_SIZE
+
 struct vchiq_2835_state {
 	int inited;
 	struct vchiq_arm_state arm_state;
@@ -40,6 +43,7 @@ struct vchiq_pagelist_info {
 	struct pagelist *pagelist;
 	size_t pagelist_buffer_size;
 	dma_addr_t dma_addr;
+	bool is_from_pool;
 	enum dma_data_direction dma_dir;
 	unsigned int num_pages;
 	unsigned int pages_need_release;
@@ -60,6 +64,7 @@ static void __iomem *g_regs;
  * of 32.
  */
 static unsigned int g_cache_line_size = 32;
+static struct dma_pool *g_dma_pool;
 static unsigned int g_use_36bit_addrs = 0;
 static unsigned int g_fragments_size;
 static char *g_fragments_base;
@@ -185,6 +190,13 @@ int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state *state)
 
 	g_dev = dev;
 	g_dma_dev = dma_dev ?: dev;
+	g_dma_pool = dmam_pool_create("vchiq_scatter_pool", dev,
+				      VCHIQ_DMA_POOL_SIZE, g_cache_line_size,
+				      0);
+	if (!g_dma_pool) {
+		dev_err(dev, "failed to create dma pool");
+		return -ENOMEM;
+	}
 
 	vchiq_log_info(vchiq_arm_log_level,
 		"vchiq_init - done (slots %pK, phys %pad)",
@@ -313,8 +325,14 @@ cleanup_pagelistinfo(struct vchiq_pagelist_info *pagelistinfo)
 	if (pagelistinfo->pages_need_release)
 		unpin_user_pages(pagelistinfo->pages, pagelistinfo->num_pages);
 
-	dma_free_coherent(g_dev, pagelistinfo->pagelist_buffer_size,
-			  pagelistinfo->pagelist, pagelistinfo->dma_addr);
+	if (pagelistinfo->is_from_pool) {
+		dma_pool_free(g_dma_pool, pagelistinfo->pagelist,
+			      pagelistinfo->dma_addr);
+	} else {
+		dma_free_coherent(g_dev, pagelistinfo->pagelist_buffer_size,
+				  pagelistinfo->pagelist,
+				  pagelistinfo->dma_addr);
+	}
 }
 
 /* There is a potential problem with partial cache lines (pages?)
@@ -335,6 +353,7 @@ create_pagelist(char *buf, char __user *ubuf,
 	u32 *addrs;
 	unsigned int num_pages, offset, i, k;
 	int actual_pages;
+	bool is_from_pool;
 	size_t pagelist_size;
 	struct scatterlist *scatterlist, *sg;
 	int dma_buffers;
@@ -364,8 +383,16 @@ create_pagelist(char *buf, char __user *ubuf,
 	/* Allocate enough storage to hold the page pointers and the page
 	 * list
 	 */
-	pagelist = dma_alloc_coherent(g_dev, pagelist_size, &dma_addr,
-				      GFP_KERNEL);
+	if (pagelist_size > VCHIQ_DMA_POOL_SIZE) {
+		pagelist = dma_alloc_coherent(g_dev,
+					       pagelist_size,
+					       &dma_addr,
+					       GFP_KERNEL);
+		is_from_pool = false;
+	} else {
+		pagelist = dma_pool_alloc(g_dma_pool, GFP_KERNEL, &dma_addr);
+		is_from_pool = true;
+	}
 
 	vchiq_log_trace(vchiq_arm_log_level, "%s - %pK", __func__, pagelist);
 
@@ -386,6 +413,7 @@ create_pagelist(char *buf, char __user *ubuf,
 	pagelistinfo->pagelist = pagelist;
 	pagelistinfo->pagelist_buffer_size = pagelist_size;
 	pagelistinfo->dma_addr = dma_addr;
+	pagelistinfo->is_from_pool = is_from_pool;
 	pagelistinfo->dma_dir =  (type == PAGELIST_WRITE) ?
 				  DMA_TO_DEVICE : DMA_FROM_DEVICE;
 	pagelistinfo->num_pages = num_pages;
