@@ -200,7 +200,7 @@ int vchiq_platform_init(struct platform_device *pdev, VCHIQ_STATE_T *state)
 	g_dev = dev;
 	g_dma_pool = dmam_pool_create("vchiq_scatter_pool", dev,
 				     VCHIQ_DMA_POOL_SIZE, g_cache_line_size, 0);
-	if(!g_dma_pool) {
+	if (!g_dma_pool) {
 		dev_err(dev, "failed to create dma pool");
 		return -ENOMEM;
 	}
@@ -389,7 +389,7 @@ cleanup_pagelistinfo(struct vchiq_pagelist_info *pagelistinfo)
 		for (i = 0; i < pagelistinfo->num_pages; i++)
 			put_page(pagelistinfo->pages[i]);
 	}
-	if(pagelistinfo->is_from_pool) {
+	if (pagelistinfo->is_from_pool) {
 		dma_pool_free(g_dma_pool, pagelistinfo->pagelist,
 			      pagelistinfo->dma_addr);
 	} else {
@@ -435,7 +435,7 @@ create_pagelist(char __user *buf, size_t count, unsigned short type,
 	/* Allocate enough storage to hold the page pointers and the page
 	** list
 	*/
-	if(pagelist_size > VCHIQ_DMA_POOL_SIZE) {
+	if (pagelist_size > VCHIQ_DMA_POOL_SIZE) {
 		pagelist = dma_zalloc_coherent(g_dev,
 					       pagelist_size,
 					       &dma_addr,
