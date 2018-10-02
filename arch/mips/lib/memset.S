@@ -262,9 +262,11 @@
 	 nop
 
 .Lsmall_fixup\@:
+	.set		reorder
 	PTR_SUBU	a2, t1, a0
+	PTR_ADDIU	a2, 1
 	jr		ra
-	 PTR_ADDIU	a2, 1
+	.set		noreorder
 
 	.endm
 
