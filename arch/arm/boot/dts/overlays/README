@@ -1565,9 +1565,16 @@ Params: touchscreen-size-x      Touchscreen X resolution (default 800)
 
 
 Name:   rpi-poe
-Info:   Raspberry Pi POE HAT
-Load:   dtoverlay=rpi-poe
-Params: <None>
+Info:   Raspberry Pi PoE HAT fan
+Load:   dtoverlay=rpi-poe,<param>[=<val>]
+Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
+                                turns on (default 50000)
+        poe_fan_temp0_hyst      Temperature delta (in millicelcius) at which
+                                the fan turns off (default 5000)
+        poe_fan_temp1           Temperature (in millicelcius) at which the fan
+                                speeds up (default 55000)
+        poe_fan_temp1_hyst      Temperature delta (in millicelcius) at which
+                                the fan slows down (default 5000)
 
 
 Name:   rpi-proto
