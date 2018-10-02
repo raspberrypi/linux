@@ -133,7 +133,7 @@ static void thermal_zone_trip_update(struct thermal_zone_device *tz, int trip)
 		 */
 		if (tz->temperature >= trip_temp ||
 		   (tz->temperature >= hyst_temp &&
-		   old_target != THERMAL_NO_TARGET)) {
+		   old_target == instance->upper)) {
 			throttle = true;
 			trace_thermal_zone_trip(tz, trip, trip_type);
 		}
