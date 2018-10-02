@@ -194,6 +194,7 @@ static const char *const conn_state_names[] = {
 
 unsigned int g_use_36bit_addrs = 0;
 struct device *g_dma_dev;
+struct dma_pool *g_dma_pool;
 
 static void
 release_message_sync(struct vchiq_state *state, struct vchiq_header *header);
@@ -1469,8 +1470,13 @@ cleanup_pagelistinfo(struct vchiq_instance *instance, struct vchiq_pagelist_info
 	if (pagelistinfo->pages_need_release)
 		unpin_user_pages(pagelistinfo->pages, pagelistinfo->num_pages);
 
-	dma_free_coherent(g_dma_dev, pagelistinfo->pagelist_buffer_size,
-			  pagelistinfo->pagelist, pagelistinfo->dma_addr);
+	if (pagelistinfo->is_from_pool) {
+		dma_pool_free(g_dma_pool, pagelistinfo->pagelist,
+			      pagelistinfo->dma_addr);
+	} else {
+		dma_free_coherent(g_dma_dev, pagelistinfo->pagelist_buffer_size,
+				pagelistinfo->pagelist, pagelistinfo->dma_addr);
+	}
 }
 
 static inline bool
@@ -1504,6 +1510,7 @@ create_pagelist(struct vchiq_instance *instance, struct vchiq_bulk *bulk)
 	u32 *addrs;
 	unsigned int num_pages, offset, i, k;
 	int actual_pages;
+	bool is_from_pool;
 	size_t pagelist_size;
 	struct scatterlist *scatterlist, *sg;
 	int dma_buffers;
@@ -1539,8 +1546,14 @@ create_pagelist(struct vchiq_instance *instance, struct vchiq_bulk *bulk)
 	/* Allocate enough storage to hold the page pointers and the page
 	 * list
 	 */
-	pagelist = dma_alloc_coherent(instance->state->dev, pagelist_size, &dma_addr,
-				      GFP_KERNEL);
+	if (pagelist_size > VCHIQ_DMA_POOL_SIZE) {
+		pagelist = dma_alloc_coherent(instance->state->dev, pagelist_size, &dma_addr,
+						GFP_KERNEL);
+		is_from_pool = false;
+	} else {
+		pagelist = dma_pool_alloc(g_dma_pool, GFP_KERNEL, &dma_addr);
+		is_from_pool = true;
+	}
 
 	dev_dbg(instance->state->dev, "arm: %pK\n", pagelist);
 
@@ -1561,6 +1574,7 @@ create_pagelist(struct vchiq_instance *instance, struct vchiq_bulk *bulk)
 	pagelistinfo->pagelist = pagelist;
 	pagelistinfo->pagelist_buffer_size = pagelist_size;
 	pagelistinfo->dma_addr = dma_addr;
+	pagelistinfo->is_from_pool = is_from_pool;
 	pagelistinfo->dma_dir =  (type == PAGELIST_WRITE) ?
 				  DMA_TO_DEVICE : DMA_FROM_DEVICE;
 	pagelistinfo->num_pages = num_pages;

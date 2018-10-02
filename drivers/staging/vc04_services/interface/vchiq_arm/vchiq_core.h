@@ -7,6 +7,7 @@
 #include <linux/mutex.h>
 #include <linux/completion.h>
 #include <linux/dma-mapping.h>
+#include <linux/dmapool.h>
 #include <linux/dev_printk.h>
 #include <linux/kthread.h>
 #include <linux/kref.h>
@@ -28,6 +29,8 @@
 #endif
 
 #endif	/* IS_ENABLED(CONFIG_RASPBERRYPI_FIRMWARE) */
+
+#define VCHIQ_DMA_POOL_SIZE PAGE_SIZE
 
 #define VCHIQ_SERVICE_HANDLE_INVALID 0
 
@@ -428,6 +431,7 @@ struct vchiq_pagelist_info {
 	struct pagelist *pagelist;
 	size_t pagelist_buffer_size;
 	dma_addr_t dma_addr;
+	bool is_from_pool;
 	enum dma_data_direction dma_dir;
 	unsigned int num_pages;
 	unsigned int pages_need_release;
@@ -439,6 +443,7 @@ struct vchiq_pagelist_info {
 
 extern unsigned int g_use_36bit_addrs;
 extern struct device *g_dma_dev;
+extern struct dma_pool *g_dma_pool;
 
 static inline bool vchiq_remote_initialised(const struct vchiq_state *state)
 {
