@@ -34,6 +34,7 @@ struct v3d_dev {
 	 * and revision.
 	 */
 	int ver;
+	bool single_irq_line;
 
 	struct device *dev;
 	struct platform_device *pdev;
@@ -42,6 +43,7 @@ struct v3d_dev {
 	void __iomem *bridge_regs;
 	void __iomem *gca_regs;
 	struct clk *clk;
+	struct reset_control *reset;
 
 	/* Virtual and DMA addresses of the single shared page table. */
 	volatile u32 *pt;
