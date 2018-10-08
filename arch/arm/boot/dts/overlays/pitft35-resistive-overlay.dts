@@ -64,8 +64,6 @@
 			};
 
 			pitft_ts@1 {
-				#address-cells = <1>;
-				#size-cells = <0>;
 				compatible = "st,stmpe610";
 				reg = <1>;
 
