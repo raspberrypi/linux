@@ -41,6 +41,14 @@ config SND_BCM2708_SOC_HIFIBERRY_DACPLUS
         help
          Say Y or M if you want to add support for HifiBerry DAC+.
 
+config SND_BCM2708_SOC_HIFIBERRY_DACPLUSADC
+        tristate "Support for HifiBerry DAC+ADC"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+        select SND_SOC_PCM512x_I2C
+	select SND_SOC_DMIC
+        help
+         Say Y or M if you want to add support for HifiBerry DAC+ADC.
+
 config SND_BCM2708_SOC_HIFIBERRY_DIGI
         tristate "Support for HifiBerry Digi"
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
