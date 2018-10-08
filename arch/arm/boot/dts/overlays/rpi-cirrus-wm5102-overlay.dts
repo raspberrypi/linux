@@ -44,19 +44,25 @@
 	};
 
 	fragment@3 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@4 {
+		target = <&spidev1>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@5 {
 		target = <&spi0>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
-
-			spidev@0{
-				status = "disabled";
-			};
-
-			spidev@1{
-				status = "disabled";
-			};
 
 			wm5102@1{
 				compatible = "wlf,wm5102";
@@ -117,7 +123,7 @@
 		};
 	};
 
-	fragment@4 {
+	fragment@6 {
 		target = <&i2c1>;
 		__overlay__ {
 			status = "okay";
@@ -135,7 +141,7 @@
 		};
 	};
 
-	fragment@5 {
+	fragment@7 {
 		target = <&sound>;
 		__overlay__ {
 			compatible = "wlf,rpi-cirrus";

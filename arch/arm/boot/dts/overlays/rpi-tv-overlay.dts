@@ -7,6 +7,13 @@
 	compatible = "brcm,bcm2708", "brcm,bcm2709";
 
 	fragment@0 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
 		target = <&spi0>;
 		__overlay__ {
 			/* needed to avoid dtc warning */
@@ -14,10 +21,6 @@
 			#size-cells = <0>;
 
 			status = "okay";
-
-			spidev@0 {
-				status = "disabled";
-			};
 
 			cxd2880@0 {
 				compatible = "sony,cxd2880";
