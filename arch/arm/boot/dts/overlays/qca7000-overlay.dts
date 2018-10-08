@@ -8,6 +8,13 @@
 	compatible = "brcm,bcm2708";
 
 	fragment@0 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
 		target = <&spi0>;
 		__overlay__ {
 			/* needed to avoid dtc warning */
@@ -15,10 +22,6 @@
 			#size-cells = <0>;
 
 			status = "okay";
-
-			spidev@0 {
-				status = "disabled";
-			};
 
 			eth1: qca7000@0 {
 				compatible = "qca,qca7000";
@@ -33,7 +36,7 @@
 		};
 	};
 
-	fragment@1 {
+	fragment@2 {
 		target = <&gpio>;
 		__overlay__ {
 			eth1_pins: eth1_pins {
