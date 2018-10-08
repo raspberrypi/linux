@@ -20,9 +20,6 @@
 	fragment@1 {
 		target = <&soc>;
 		__overlay__ {
-			#address-cells = <1>;
-			#size-cells = <1>;
-
 			nand: flash@0 {
 				compatible = "brcm,bcm2835-smi-nand";
 				smi_handle = <&smi>;
