@@ -84,7 +84,7 @@
 
 &soc {
 	expgpio: expgpio {
-		compatible = "brcm,bcm2835-expgpio";
+		compatible = "raspberrypi,firmware-gpio";
 		gpio-controller;
 		#gpio-cells = <2>;
 		firmware = <&firmware>;
