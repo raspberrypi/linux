@@ -1013,6 +1013,7 @@ int __migrate_disabled(struct task_struct *p)
 {
 	return p->migrate_disable;
 }
+EXPORT_SYMBOL_GPL(__migrate_disabled);
 #endif
 
 static void __do_set_cpus_allowed_tail(struct task_struct *p,
