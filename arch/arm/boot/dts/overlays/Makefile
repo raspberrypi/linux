@@ -7,6 +7,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ads1115.dtbo \
 	ads7846.dtbo \
 	adv7282m.dtbo \
+	adv728x-m.dtbo \
 	akkordion-iqdacplus.dtbo \
 	allo-boss-dac-pcm512x-audio.dtbo \
 	allo-digione.dtbo \
@@ -16,6 +17,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	applepi-dac.dtbo \
 	at86rf233.dtbo \
 	audioinjector-addons.dtbo \
+	audioinjector-ultra.dtbo \
 	audioinjector-wm8731-audio.dtbo \
 	audremap.dtbo \
 	balena-fin.dtbo \
@@ -33,6 +35,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	fe-pi-audio.dtbo \
 	goodix.dtbo \
 	googlevoicehat-soundcard.dtbo \
+	gpio-fan.dtbo \
 	gpio-ir.dtbo \
 	gpio-ir-tx.dtbo \
 	gpio-key.dtbo \

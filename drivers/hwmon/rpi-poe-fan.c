@@ -1,20 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * rpi-poe-fan.c - Hwmon driver for Raspberry Pi POE HAT fan.
+ * rpi-poe-fan.c - Hwmon driver for Raspberry Pi PoE HAT fan.
  *
  * Copyright (C) 2018 Raspberry Pi (Trading) Ltd.
  * Based on pwm-fan.c by Kamil Debski <k.debski@samsung.com>
  *
  * Author: Serge Schneider <serge@raspberrypi.org>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
 #include <linux/hwmon.h>
@@ -46,41 +37,41 @@ struct rpi_poe_fan_ctx {
 	struct notifier_block nb;
 };
 
-struct m_data_s{
+struct fw_tag_data_s{
 	u32 reg;
 	u32 val;
 	u32 ret;
 };
 
 static int write_reg(struct rpi_firmware *fw, u32 reg, u32 *val){
-	struct m_data_s m_data = {
+	struct fw_tag_data_s fw_tag_data = {
 		.reg = reg,
 		.val = *val
 	};
 	int ret;
 	ret = rpi_firmware_property(fw, RPI_FIRMWARE_SET_POE_HAT_VAL,
-				    &m_data, sizeof(m_data));
+				    &fw_tag_data, sizeof(fw_tag_data));
 	if (ret) {
 		return ret;
-	} else if (m_data.ret) {
+	} else if (fw_tag_data.ret) {
 		return -EIO;
 	}
 	return 0;
 }
 
 static int read_reg(struct rpi_firmware *fw, u32 reg, u32 *val){
-	struct m_data_s m_data = {
+	struct fw_tag_data_s fw_tag_data = {
 		.reg = reg,
 	};
 	int ret;
 	ret = rpi_firmware_property(fw, RPI_FIRMWARE_GET_POE_HAT_VAL,
-				    &m_data, sizeof(m_data));
+				    &fw_tag_data, sizeof(fw_tag_data));
 	if (ret) {
 		return ret;
-	} else if (m_data.ret) {
+	} else if (fw_tag_data.ret) {
 		return -EIO;
 	}
-	*val = m_data.val;
+	*val = fw_tag_data.val;
 	return 0;
 }
 
@@ -268,7 +259,8 @@ static int rpi_poe_fan_of_get_cooling_data(struct device *dev,
 
 	ret = of_property_count_u32_elems(np, "cooling-levels");
 	if (ret <= 0) {
-		dev_err(dev, "Wrong data!\n");
+		dev_err(dev, "cooling-levels property missing or invalid: %d\n",
+			ret);
 		return ret ? : -EINVAL;
 	}
 
@@ -397,10 +389,11 @@ static int rpi_poe_fan_suspend(struct device *dev)
 {
 	struct rpi_poe_fan_ctx *ctx = dev_get_drvdata(dev);
 	u32 value = 0;
+	int ret = 0;
 
 	if (ctx->pwm_value != value)
 		ret = write_reg(ctx->fw, POE_CUR_PWM, &value);
-	return 0;
+	return ret;
 }
 
 static int rpi_poe_fan_resume(struct device *dev)
@@ -420,7 +413,7 @@ static SIMPLE_DEV_PM_OPS(rpi_poe_fan_pm, rpi_poe_fan_suspend,
 			 rpi_poe_fan_resume);
 
 static const struct of_device_id of_rpi_poe_fan_match[] = {
-	{ .compatible = "rpi-poe-fan", },
+	{ .compatible = "raspberrypi,rpi-poe-fan", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, of_rpi_poe_fan_match);
@@ -439,5 +432,5 @@ module_platform_driver(rpi_poe_fan_driver);
 
 MODULE_AUTHOR("Serge Schneider <serge@raspberrypi.org>");
 MODULE_ALIAS("platform:rpi-poe-fan");
-MODULE_DESCRIPTION("Raspberry Pi POE HAT fan driver");
+MODULE_DESCRIPTION("Raspberry Pi PoE HAT fan driver");
 MODULE_LICENSE("GPL");

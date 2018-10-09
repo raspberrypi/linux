@@ -49,7 +49,6 @@ static int write_mmp_block(struct super_block *sb, struct buffer_head *bh)
 	 */
 	sb_start_write(sb);
 	ext4_mmp_csum_set(sb, mmp);
-	mark_buffer_dirty(bh);
 	lock_buffer(bh);
 	bh->b_end_io = end_buffer_write_sync;
 	get_bh(bh);
@@ -186,11 +185,8 @@ static int kmmpd(void *data)
 			goto exit_thread;
 		}
 
-		if (sb_rdonly(sb)) {
-			ext4_warning(sb, "kmmpd being stopped since filesystem "
-				     "has been remounted as readonly.");
-			goto exit_thread;
-		}
+		if (sb_rdonly(sb))
+			break;
 
 		diff = jiffies - last_update_time;
 		if (diff < mmp_update_interval * HZ)

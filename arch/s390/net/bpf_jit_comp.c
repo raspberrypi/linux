@@ -518,8 +518,6 @@ static void bpf_jit_epilogue(struct bpf_jit *jit)
 			/* br %r1 */
 			_EMIT2(0x07f1);
 		} else {
-			/* larl %r1,.+14 */
-			EMIT6_PCREL_RILB(0xc0000000, REG_1, jit->prg + 14);
 			/* ex 0,S390_lowcore.br_r1_tampoline */
 			EMIT4_DISP(0x44000000, REG_0, REG_0,
 				   offsetof(struct lowcore, br_r1_trampoline));
@@ -1403,6 +1401,7 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *fp)
 		goto free_addrs;
 	}
 	if (bpf_jit_prog(&jit, fp)) {
+		bpf_jit_binary_free(header);
 		fp = orig_fp;
 		goto free_addrs;
 	}

@@ -44,6 +44,7 @@
 MODULE_AUTHOR("Mellanox Technologies");
 MODULE_DESCRIPTION("Transport Layer Security Support");
 MODULE_LICENSE("Dual BSD/GPL");
+MODULE_ALIAS_TCP_ULP("tls");
 
 static struct proto tls_base_prot;
 static struct proto tls_sw_prot;
@@ -194,9 +195,14 @@ static void tls_write_space(struct sock *sk)
 {
 	struct tls_context *ctx = tls_get_ctx(sk);
 
-	/* We are already sending pages, ignore notification */
-	if (ctx->in_tcp_sendpages)
+	/* If in_tcp_sendpages call lower protocol write space handler
+	 * to ensure we wake up any waiting operations there. For example
+	 * if do_tcp_sendpages where to call sk_wait_event.
+	 */
+	if (ctx->in_tcp_sendpages) {
+		ctx->sk_write_space(sk);
 		return;
+	}
 
 	if (!sk->sk_write_pending && tls_is_pending_closed_record(ctx)) {
 		gfp_t sk_allocation = sk->sk_allocation;
@@ -215,6 +221,15 @@ static void tls_write_space(struct sock *sk)
 	}
 
 	ctx->sk_write_space(sk);
+}
+
+static void tls_ctx_free(struct tls_context *ctx)
+{
+	if (!ctx)
+		return;
+
+	memzero_explicit(&ctx->crypto_send, sizeof(ctx->crypto_send));
+	kfree(ctx);
 }
 
 static void tls_sk_proto_close(struct sock *sk, long timeout)
@@ -245,7 +260,7 @@ static void tls_sk_proto_close(struct sock *sk, long timeout)
 	kfree(ctx->iv);
 
 	sk_proto_close = ctx->sk_proto_close;
-	kfree(ctx);
+	tls_ctx_free(ctx);
 
 	release_sock(sk);
 	sk_proto_close(sk, timeout);
@@ -273,7 +288,7 @@ static int do_tls_getsockopt_tx(struct sock *sk, char __user *optval,
 	}
 
 	/* get user crypto info */
-	crypto_info = &ctx->crypto_send;
+	crypto_info = &ctx->crypto_send.info;
 
 	if (!TLS_CRYPTO_INFO_READY(crypto_info)) {
 		rc = -EBUSY;
@@ -370,7 +385,7 @@ static int do_tls_setsockopt_tx(struct sock *sk, char __user *optval,
 	}
 
 	/* get user crypto info */
-	crypto_info = &ctx->crypto_send;
+	crypto_info = &ctx->crypto_send.info;
 
 	/* Currently we don't support set crypto info more than one time */
 	if (TLS_CRYPTO_INFO_READY(crypto_info)) {
@@ -415,7 +430,7 @@ static int do_tls_setsockopt_tx(struct sock *sk, char __user *optval,
 	goto out;
 
 err_crypto_info:
-	memset(crypto_info, 0, sizeof(*crypto_info));
+	memzero_explicit(crypto_info, sizeof(union tls_crypto_context));
 out:
 	return rc;
 }

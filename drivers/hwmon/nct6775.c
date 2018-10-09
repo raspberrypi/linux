@@ -63,6 +63,7 @@
 #include <linux/bitops.h>
 #include <linux/dmi.h>
 #include <linux/io.h>
+#include <linux/nospec.h>
 #include "lm75.h"
 
 #define USE_ALTERNATE
@@ -2642,6 +2643,7 @@ store_pwm_weight_temp_sel(struct device *dev, struct device_attribute *attr,
 		return err;
 	if (val > NUM_TEMP)
 		return -EINVAL;
+	val = array_index_nospec(val, NUM_TEMP + 1);
 	if (val && (!(data->have_temp & BIT(val - 1)) ||
 		    !data->temp_src[val - 1]))
 		return -EINVAL;
@@ -4107,7 +4109,7 @@ static int nct6775_probe(struct platform_device *pdev)
 	 * The temperature is already monitored if the respective bit in <mask>
 	 * is set.
 	 */
-	for (i = 0; i < 32; i++) {
+	for (i = 0; i < 31; i++) {
 		if (!(data->temp_mask & BIT(i + 1)))
 			continue;
 		if (!reg_temp_alternate[i])

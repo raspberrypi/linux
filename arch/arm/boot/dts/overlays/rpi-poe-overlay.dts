@@ -11,7 +11,7 @@
 		target-path = "/";
 		__overlay__ {
 			fan0: rpi-poe-fan@0 {
-				compatible = "rpi-poe-fan";
+				compatible = "raspberrypi,rpi-poe-fan";
 				firmware = <&firmware>;
 				cooling-min-state = <0>;
 				cooling-max-state = <3>;
