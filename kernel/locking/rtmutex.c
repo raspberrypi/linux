@@ -2025,23 +2025,15 @@ int __sched __rt_mutex_lock_state(struct rt_mutex *lock, int state)
  * @lock:      The rt_mutex to be locked
  * @state:     The state to set when blocking on the rt_mutex
  */
-static int __sched rt_mutex_lock_state(struct rt_mutex *lock, int state)
+static int __sched rt_mutex_lock_state(struct rt_mutex *lock, int state, unsigned int subclass)
 {
 	int ret;
 
-	mutex_acquire(&lock->dep_map, 0, 0, _RET_IP_);
+	mutex_acquire(&lock->dep_map, subclass, 0, _RET_IP_);
 	ret = __rt_mutex_lock_state(lock, state);
 	if (ret)
 		mutex_release(&lock->dep_map, 1, _RET_IP_);
 	return ret;
-}
-
-static inline void __rt_mutex_lock(struct rt_mutex *lock, unsigned int subclass)
-{
-	might_sleep();
-
-	mutex_acquire(&lock->dep_map, subclass, 0, _RET_IP_);
-	rt_mutex_fastlock(lock, TASK_UNINTERRUPTIBLE, rt_mutex_slowlock);
 }
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
@@ -2053,7 +2045,7 @@ static inline void __rt_mutex_lock(struct rt_mutex *lock, unsigned int subclass)
  */
 void __sched rt_mutex_lock_nested(struct rt_mutex *lock, unsigned int subclass)
 {
-	__rt_mutex_lock(lock, subclass);
+	rt_mutex_lock_state(lock, TASK_UNINTERRUPTIBLE, subclass);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock_nested);
 #endif
@@ -2066,7 +2058,7 @@ EXPORT_SYMBOL_GPL(rt_mutex_lock_nested);
  */
 void __sched rt_mutex_lock(struct rt_mutex *lock)
 {
-	rt_mutex_lock_state(lock, TASK_UNINTERRUPTIBLE);
+	rt_mutex_lock_state(lock, TASK_UNINTERRUPTIBLE,  0);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock);
 #endif
@@ -2082,7 +2074,7 @@ EXPORT_SYMBOL_GPL(rt_mutex_lock);
  */
 int __sched rt_mutex_lock_interruptible(struct rt_mutex *lock)
 {
-	return rt_mutex_lock_state(lock, TASK_INTERRUPTIBLE);
+	return rt_mutex_lock_state(lock, TASK_INTERRUPTIBLE, 0);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock_interruptible);
 
@@ -2111,7 +2103,7 @@ int __sched __rt_mutex_futex_trylock(struct rt_mutex *lock)
  */
 int __sched rt_mutex_lock_killable(struct rt_mutex *lock)
 {
-	return rt_mutex_lock_state(lock, TASK_KILLABLE);
+	return rt_mutex_lock_state(lock, TASK_KILLABLE, 0);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock_killable);
 

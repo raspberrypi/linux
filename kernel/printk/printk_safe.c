@@ -22,6 +22,7 @@
 #include <linux/cpumask.h>
 #include <linux/irq_work.h>
 #include <linux/printk.h>
+#include <linux/console.h>
 
 #include "internal.h"
 
@@ -373,8 +374,74 @@ void __printk_safe_exit(void)
 	this_cpu_dec(printk_context);
 }
 
+#ifdef CONFIG_EARLY_PRINTK
+struct console *early_console;
+
+static void early_vprintk(const char *fmt, va_list ap)
+{
+	if (early_console) {
+		char buf[512];
+		int n = vscnprintf(buf, sizeof(buf), fmt, ap);
+
+		early_console->write(early_console, buf, n);
+	}
+}
+
+asmlinkage void early_printk(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	early_vprintk(fmt, ap);
+	va_end(ap);
+}
+
+/*
+ * This is independent of any log levels - a global
+ * kill switch that turns off all of printk.
+ *
+ * Used by the NMI watchdog if early-printk is enabled.
+ */
+static bool __read_mostly printk_killswitch;
+
+static int __init force_early_printk_setup(char *str)
+{
+	printk_killswitch = true;
+	return 0;
+}
+early_param("force_early_printk", force_early_printk_setup);
+
+void printk_kill(void)
+{
+	printk_killswitch = true;
+}
+
+#ifdef CONFIG_PRINTK
+static int forced_early_printk(const char *fmt, va_list ap)
+{
+	if (!printk_killswitch)
+		return 0;
+	early_vprintk(fmt, ap);
+	return 1;
+}
+#endif
+
+#else
+static inline int forced_early_printk(const char *fmt, va_list ap)
+{
+	return 0;
+}
+#endif
+
 __printf(1, 0) int vprintk_func(const char *fmt, va_list args)
 {
+	/*
+	 * Fall back to early_printk if a debugging subsystem has
+	 * killed printk output
+	 */
+	if (unlikely(forced_early_printk(fmt, args)))
+		return 1;
+
 	/*
 	 * Try to use the main logbuf even in NMI. But avoid calling console
 	 * drivers that might have their own locks.
