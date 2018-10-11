@@ -879,6 +879,9 @@ static int sta32x_probe(struct snd_soc_codec *codec)
 	struct sta32x_priv *sta32x = snd_soc_codec_get_drvdata(codec);
 	struct sta32x_platform_data *pdata = sta32x->pdata;
 	int i, ret = 0, thermal = 0;
+
+	sta32x->codec = codec;
+
 	ret = regulator_bulk_enable(ARRAY_SIZE(sta32x->supplies),
 				    sta32x->supplies);
 	if (ret != 0) {
