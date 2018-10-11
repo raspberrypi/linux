@@ -26,12 +26,12 @@
  *                   GND
  *
  * Build:
- * 	- `sudo dtc -W no-unit_address_vs_reg -@ -I dts -O dtb -o /boot/overlays/gpio-fan.dtbo gpio-fan.dts`
+ * 	- `sudo dtc -W no-unit_address_vs_reg -@ -I dts -O dtb -o /boot/overlays/gpio-fan.dtbo gpio-fan-overlay.dts`
  * Activate:
  *	- sudo nano /boot/config.txt add "dtoverlay=gpio-fan" or "dtoverlay=gpio-fan,gpiopin=12,temp=45000"
  *	 or
- *	- sudo printf "\n# Enable PI GPIO-Fan Default\ndtoverlay=gpio-fan\n" >> /boot/config.txt
- *	- sudo printf "\n# Enable PI GPIO-Fan Custom\ntoverlay=gpio-fan,gpiopin=12,temp=45000\n" >> /boot/config.txt"
+ *	- sudo sh -c 'printf "\n# Enable PI GPIO-Fan Default\ndtoverlay=gpio-fan\n" >> /boot/config.txt'
+ *	- sudo sh -c 'printf "\n# Enable PI GPIO-Fan Custom\ntoverlay=gpio-fan,gpiopin=12,temp=45000\n" >> /boot/config.txt"'
  *
  */
 /dts-v1/;
