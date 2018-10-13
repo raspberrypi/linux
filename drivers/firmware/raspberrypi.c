@@ -28,6 +28,7 @@ struct rpi_firmware {
 	struct mbox_chan *chan; /* The property channel. */
 	struct completion c;
 	u32 enabled;
+	u32 get_throttled;
 };
 
 static struct platform_device *g_pdev;
@@ -174,6 +175,12 @@ int rpi_firmware_property(struct rpi_firmware *fw,
 
 	kfree(data);
 
+	if ((tag == RPI_FIRMWARE_GET_THROTTLED) &&
+	     memcmp(&fw->get_throttled, tag_data, sizeof(fw->get_throttled))) {
+		memcpy(&fw->get_throttled, tag_data, sizeof(fw->get_throttled));
+		sysfs_notify(&fw->cl.dev->kobj, NULL, "get_throttled");
+	}
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(rpi_firmware_property);
@@ -197,6 +204,27 @@ static int rpi_firmware_notify_reboot(struct notifier_block *nb,
 
 	return 0;
 }
+
+static ssize_t get_throttled_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct rpi_firmware *fw = dev_get_drvdata(dev);
+
+	WARN_ONCE(1, "deprecated, use hwmon sysfs instead\n");
+
+	return sprintf(buf, "%x\n", fw->get_throttled);
+}
+
+static DEVICE_ATTR_RO(get_throttled);
+
+static struct attribute *rpi_firmware_dev_attrs[] = {
+	&dev_attr_get_throttled.attr,
+	NULL,
+};
+
+static const struct attribute_group rpi_firmware_dev_group = {
+	.attrs = rpi_firmware_dev_attrs,
+};
 
 static void
 rpi_firmware_print_firmware_revision(struct rpi_firmware *fw)
@@ -227,6 +255,11 @@ rpi_register_hwmon_driver(struct device *dev, struct rpi_firmware *fw)
 
 	rpi_hwmon = platform_device_register_data(dev, "raspberrypi-hwmon",
 						  -1, NULL, 0);
+
+	if (!IS_ERR_OR_NULL(rpi_hwmon)) {
+		if (devm_device_add_group(dev, &rpi_firmware_dev_group))
+			dev_err(dev, "Failed to create get_trottled attr\n");
+	}
 }
 
 static void rpi_register_clk_driver(struct device *dev)
