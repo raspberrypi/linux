@@ -115,6 +115,14 @@ static void bcm2835_restart(struct bcm2835_wdt *wdt, u8 partition)
 {
 	u32 val, rsts;
 
+	/* Allow code to distinguish a normal reboot from a watchdog reboot
+	 * by setting a magic partition number.
+	 * A partition number higher than the number of partitions on sdcard
+	 * will result in a normal reboot.
+	 */
+	if (partition == 0)
+		partition = 62;
+
 	rsts = (partition & BIT(0)) | ((partition & BIT(1)) << 1) |
 	       ((partition & BIT(2)) << 2) | ((partition & BIT(3)) << 3) |
 	       ((partition & BIT(4)) << 4) | ((partition & BIT(5)) << 5);
