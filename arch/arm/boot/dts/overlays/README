@@ -770,6 +770,25 @@ Params: speed                   Display SPI bus speed
         ledgpio                 GPIO used to control backlight
 
 
+Name:   hy28b-2017
+Info:   HY28B 2017 version - 2.8" TFT LCD Display Module by HAOYU Electronics
+        Default values match Texy's display shield
+Load:   dtoverlay=hy28b-2017,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+
+        resetgpio               GPIO used to reset controller
+
+        ledgpio                 GPIO used to control backlight
+
+
 Name:   i2c-bcm2708
 Info:   Fall back to the i2c_bcm2708 driver for the i2c_arm bus.
 Load:   dtoverlay=i2c-bcm2708
