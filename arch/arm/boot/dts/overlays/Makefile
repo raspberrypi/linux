@@ -49,6 +49,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	hifiberry-digi-pro.dtbo \
 	hy28a.dtbo \
 	hy28b.dtbo \
+	hy28b-2017.dtbo \
 	i2c-bcm2708.dtbo \
 	i2c-gpio.dtbo \
 	i2c-mux.dtbo \
