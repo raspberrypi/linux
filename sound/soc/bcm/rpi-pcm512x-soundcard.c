@@ -255,7 +255,7 @@ static struct snd_rpi_pcm512x_drvdata drvdata_justboom_dac = {
 };
 
 static const struct of_device_id snd_rpi_pcm512x_of_match[] = {
-	{ .compatible = "allo,allo-piano-dac",
+	{ .compatible = "allo,piano-dac",
 		.data = (void *) &drvdata_allo_piano_dac },
 	{ .compatible = "dionaudio,dionaudio-loco-v2",
 		.data = (void *) &drvdata_dionaudio_loco_v2 },
