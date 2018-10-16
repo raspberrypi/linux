@@ -1,6 +1,6 @@
 /*
- * Device Tree overlay for HY28b display shield by Texy
- *
+ * Device Tree overlay for HY28b display shield by Texy.
+ * Modified for 2017 version with ILI9325 D chip
  */
 
 /dts-v1/;
