@@ -141,6 +141,13 @@
 		};
 	};
 
+	fragment@17 {
+		target = <&txp>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
 	__overrides__ {
 		cma-256 = <0>,"+0-1-2-3-4";
 		cma-192 = <0>,"-0+1-2-3-4";
