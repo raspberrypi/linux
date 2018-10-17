@@ -89,6 +89,10 @@
 		sound: sound {
 			status = "disabled";
 		};
+
+		txp: txp@7e004000 {
+			status = "disabled";
+		};
 	};
 
 	__overrides__ {
