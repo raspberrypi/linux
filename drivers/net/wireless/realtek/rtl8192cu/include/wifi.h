@@ -425,7 +425,7 @@ enum WIFI_REG_DOMAIN {
 		(addr[4] == 0xff) && (addr[5] == 0xff) )  ? _TRUE : _FALSE \
 )
 
-__inline static int IS_MCAST(unsigned char *da)
+__inline static int IS_MCAST(const unsigned char *da)
 {
 	if ((*da) & 0x01)
 		return _TRUE;
@@ -887,7 +887,9 @@ struct ADDBA_request
  * According to IEEE802.11n spec size varies from 8K to 64K (in powers of 2)
  */
 #define IEEE80211_MIN_AMPDU_BUF 0x8
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,19,0))
 #define IEEE80211_MAX_AMPDU_BUF 0x40
+#endif
 
 
 /* Spatial Multiplexing Power Save Modes */

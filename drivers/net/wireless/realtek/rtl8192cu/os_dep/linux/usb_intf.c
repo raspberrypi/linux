@@ -1060,7 +1060,7 @@ exit:
 	#endif //CONFIG_RESUME_IN_WORKQUEUE
 
 	if (pwrpriv)
-		pwrpriv->bInSuspend = _FALSE;
+	pwrpriv->bInSuspend = _FALSE;
 	DBG_871X("<===  %s return %d.............. in %dms\n", __FUNCTION__
 		, ret, rtw_get_passing_time_ms(start_time));
 
