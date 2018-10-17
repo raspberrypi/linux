@@ -1971,6 +1971,22 @@ static void smsc95xx_rx_csum_offload(struct sk_buff *skb)
 	skb->csum = *(u16 *)(skb_tail_pointer(skb) - 2);
 	skb->ip_summed = CHECKSUM_COMPLETE;
 	skb_trim(skb, skb->len - 2);
+	{
+		/* skb->len - ETH_HLEN - 4 as the ethernet header and
+		 * FCS are still present
+		 */
+		__wsum rsum = csum_partial(skb->data + ETH_HLEN,
+					   skb->len - ETH_HLEN - 4, 0);
+
+		if ((skb->csum ^ 0xFFFF) != csum_fold(rsum) &&
+		    net_ratelimit()) {
+			pr_err("lan78xx wrong csum : %x/%x, len %u bytes\n",
+			       skb->csum, csum_fold(rsum), skb->len);
+			print_hex_dump(KERN_ERR, "raw data: ",
+				       DUMP_PREFIX_OFFSET, 16, 1, skb->data,
+				       skb->len, true);
+		}
+	}
 }
 
 static int smsc95xx_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
