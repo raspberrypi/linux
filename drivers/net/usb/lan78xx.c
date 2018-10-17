@@ -3106,6 +3106,23 @@ static void lan78xx_rx_csum_offload(struct lan78xx_net *dev,
 		skb->ip_summed = CHECKSUM_NONE;
 	} else {
 		skb->csum = ntohs((u16)(rx_cmd_b >> RX_CMD_B_CSUM_SHIFT_));
+
+		{
+			/* skb->len - ETH_HLEN - 4 as the ethernet header and
+			 * FCS are still present
+			 */
+			__wsum rsum = csum_partial(skb->data + ETH_HLEN,
+						   skb->len - ETH_HLEN - 4, 0);
+
+			if ((skb->csum ^ 0xFFFF) != csum_fold(rsum) &&
+			    net_ratelimit()) {
+				pr_err("lan78xx wrong csum : %x/%x, len %u bytes\n",
+				       skb->csum, csum_fold(rsum), skb->len);
+				print_hex_dump(KERN_ERR, "raw data: ",
+					       DUMP_PREFIX_OFFSET, 16, 1,
+					       skb->data, skb->len, true);
+			}
+		}
 		skb->ip_summed = CHECKSUM_COMPLETE;
 	}
 }
