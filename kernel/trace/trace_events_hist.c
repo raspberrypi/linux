@@ -1097,7 +1097,7 @@ static int create_synth_event(int argc, char **argv)
 		i += consumed - 1;
 	}
 
-	if (i < argc) {
+	if (i < argc && strcmp(argv[i], ";") != 0) {
 		ret = -EINVAL;
 		goto err;
 	}
