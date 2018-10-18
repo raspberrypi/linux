@@ -595,6 +595,11 @@ static int ovl_link(struct dentry *old, struct inode *newdir,
 	if (err)
 		goto out_drop_write;
 
+	err = ovl_copy_up(new->d_parent);
+	if (err)
+		goto out_drop_write;
+
+
 	err = ovl_nlink_start(old, &locked);
 	if (err)
 		goto out_drop_write;
