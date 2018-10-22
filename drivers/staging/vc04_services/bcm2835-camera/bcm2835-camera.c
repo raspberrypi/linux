@@ -1847,6 +1847,12 @@ static int bcm2835_mmal_probe(struct platform_device *pdev)
 	num_cameras = get_num_cameras(instance,
 				      resolutions,
 				      MAX_BCM2835_CAMERAS);
+
+	if (num_cameras < 1) {
+		ret = -ENODEV;
+		goto cleanup_mmal;
+	}
+
 	if (num_cameras > MAX_BCM2835_CAMERAS)
 		num_cameras = MAX_BCM2835_CAMERAS;
 
@@ -1954,6 +1960,9 @@ cleanup_gdev:
 		bcm2835_cleanup_instance(gdev[i]);
 		gdev[i] = NULL;
 	}
+
+cleanup_mmal:
+	vchiq_mmal_finalise(instance);
 
 	return ret;
 }
