@@ -49,6 +49,7 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/compat.h>
+#include <linux/dma-mapping.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
 #include "vchiq_core.h"
@@ -3578,6 +3579,21 @@ void vchiq_platform_conn_state_changed(VCHIQ_STATE_T *state,
 	}
 }
 
+static struct platform_device *
+vchiq_register_child(struct platform_device *pdev, const char *name)
+{
+	struct platform_device_info pdevinfo;
+
+	memset(&pdevinfo, 0, sizeof(pdevinfo));
+
+	pdevinfo.parent = &pdev->dev;
+	pdevinfo.name = name;
+	pdevinfo.id = PLATFORM_DEVID_NONE;
+	pdevinfo.dma_mask = DMA_BIT_MASK(32);
+
+	return platform_device_register_full(&pdevinfo);
+}
+
 static int vchiq_probe(struct platform_device *pdev)
 {
 	struct device_node *fw_node;
@@ -3637,9 +3653,7 @@ static int vchiq_probe(struct platform_device *pdev)
 		VCHIQ_VERSION, VCHIQ_VERSION_MIN,
 		MAJOR(vchiq_devid), MINOR(vchiq_devid));
 
-	bcm2835_camera = platform_device_register_data(&pdev->dev,
-						       "bcm2835-camera", -1,
-						       NULL, 0);
+	bcm2835_camera = vchiq_register_child(pdev, "bcm2835-camera");
 
 	return 0;
 
