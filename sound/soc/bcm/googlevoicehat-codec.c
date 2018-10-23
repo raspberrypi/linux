@@ -50,9 +50,9 @@ static void voicehat_enable_sdmode_work(struct work_struct *work) {
 static int voicehat_component_probe(struct snd_soc_component *component) {
   struct voicehat_priv *voicehat = snd_soc_component_get_drvdata(component);
 
-  voicehat->sdmode_gpio = devm_gpiod_get(component->card->dev, "sdmode", GPIOD_OUT_LOW);
+  voicehat->sdmode_gpio = devm_gpiod_get(component->dev, "sdmode", GPIOD_OUT_LOW);
   if (IS_ERR(voicehat->sdmode_gpio)) {
-    dev_err(component->card->dev, "Unable to allocate GPIO pin\n");
+    dev_err(component->dev, "Unable to allocate GPIO pin\n");
     return PTR_ERR(voicehat->sdmode_gpio);
   }
 
