@@ -38,7 +38,7 @@
 struct voicehat_priv {
 	struct delayed_work enable_sdmode_work;
 	struct gpio_desc *sdmode_gpio;
-	unsigned int sdmode_delay;
+	unsigned long sdmode_delay_jiffies;
 };
 
 static void voicehat_enable_sdmode_work(struct work_struct *work)
@@ -98,7 +98,7 @@ static int voicehat_daiops_trigger(struct snd_pcm_substream *substream, int cmd,
 	struct voicehat_priv *voicehat =
 				snd_soc_component_get_drvdata(component);
 
-	if (voicehat->sdmode_delay == 0)
+	if (voicehat->sdmode_delay_jiffies == 0)
 		return 0;
 
 	dev_dbg(dai->dev, "CMD             %d", cmd);
@@ -114,7 +114,7 @@ static int voicehat_daiops_trigger(struct snd_pcm_substream *substream, int cmd,
 			queue_delayed_work(
 				system_power_efficient_wq,
 				&voicehat->enable_sdmode_work,
-				msecs_to_jiffies(voicehat->sdmode_delay));
+				voicehat->sdmode_delay_jiffies);
 		}
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
@@ -164,6 +164,7 @@ static const struct of_device_id voicehat_ids[] = {
 static int voicehat_platform_probe(struct platform_device *pdev)
 {
 	struct voicehat_priv *voicehat;
+	unsigned int sdmode_delay;
 	int ret;
 
 	voicehat = devm_kzalloc(&pdev->dev, sizeof(*voicehat), GFP_KERNEL);
@@ -171,16 +172,17 @@ static int voicehat_platform_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	ret = device_property_read_u32(&pdev->dev, "voicehat_sdmode_delay",
-				       &voicehat->sdmode_delay);
+				       &sdmode_delay);
 
 	if (ret) {
-		voicehat->sdmode_delay = SDMODE_DELAY_MS;
+		sdmode_delay = SDMODE_DELAY_MS;
 		dev_info(&pdev->dev,
 			 "property 'voicehat_sdmode_delay' not found default 5 mS");
 	} else {
 		dev_info(&pdev->dev, "property 'voicehat_sdmode_delay' found delay= %d mS",
-			 voicehat->sdmode_delay);
+			 sdmode_delay);
 	}
+	voicehat->sdmode_delay_jiffies = msecs_to_jiffies(sdmode_delay);
 
 	dev_set_drvdata(&pdev->dev, voicehat);
 
