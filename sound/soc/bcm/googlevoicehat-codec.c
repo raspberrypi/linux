@@ -82,7 +82,7 @@ static const struct snd_soc_dapm_route voicehat_dapm_routes[] = {
 	{"Speaker", NULL, "HiFi Playback"},
 };
 
-static struct snd_soc_component_driver voicehat_component_driver = {
+static const struct snd_soc_component_driver voicehat_component_driver = {
 	.probe = voicehat_component_probe,
 	.remove = voicehat_component_remove,
 	.dapm_widgets = voicehat_dapm_widgets,
