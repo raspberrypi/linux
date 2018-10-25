@@ -114,22 +114,17 @@ static void __smc_lgr_unregister_conn(struct smc_connection *conn)
 	sock_put(&smc->sk); /* sock_hold in smc_lgr_register_conn() */
 }
 
-/* Unregister connection and trigger lgr freeing if applicable
+/* Unregister connection from lgr
  */
 static void smc_lgr_unregister_conn(struct smc_connection *conn)
 {
 	struct smc_link_group *lgr = conn->lgr;
-	int reduced = 0;
 
 	write_lock_bh(&lgr->conns_lock);
 	if (conn->alert_token_local) {
-		reduced = 1;
 		__smc_lgr_unregister_conn(conn);
 	}
 	write_unlock_bh(&lgr->conns_lock);
-	if (!reduced || lgr->conns_num)
-		return;
-	smc_lgr_schedule_free_work(lgr);
 }
 
 static void smc_lgr_free_work(struct work_struct *work)
@@ -238,7 +233,8 @@ out:
 	return rc;
 }
 
-static void smc_buf_unuse(struct smc_connection *conn)
+static void smc_buf_unuse(struct smc_connection *conn,
+			  struct smc_link_group *lgr)
 {
 	if (conn->sndbuf_desc)
 		conn->sndbuf_desc->used = 0;
@@ -248,8 +244,6 @@ static void smc_buf_unuse(struct smc_connection *conn)
 			conn->rmb_desc->used = 0;
 		} else {
 			/* buf registration failed, reuse not possible */
-			struct smc_link_group *lgr = conn->lgr;
-
 			write_lock_bh(&lgr->rmbs_lock);
 			list_del(&conn->rmb_desc->list);
 			write_unlock_bh(&lgr->rmbs_lock);
@@ -262,11 +256,16 @@ static void smc_buf_unuse(struct smc_connection *conn)
 /* remove a finished connection from its link group */
 void smc_conn_free(struct smc_connection *conn)
 {
-	if (!conn->lgr)
+	struct smc_link_group *lgr = conn->lgr;
+
+	if (!lgr)
 		return;
 	smc_cdc_tx_dismiss_slots(conn);
-	smc_lgr_unregister_conn(conn);
-	smc_buf_unuse(conn);
+	smc_lgr_unregister_conn(conn);		/* unsets conn->lgr */
+	smc_buf_unuse(conn, lgr);		/* allow buffer reuse */
+
+	if (!lgr->conns_num)
+		smc_lgr_schedule_free_work(lgr);
 }
 
 static void smc_link_clear(struct smc_link *lnk)
