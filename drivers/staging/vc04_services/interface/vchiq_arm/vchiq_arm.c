@@ -171,6 +171,7 @@ static struct device *vchiq_dev;
 static DEFINE_SPINLOCK(msg_queue_spinlock);
 static struct platform_device *bcm2835_camera;
 static struct platform_device *bcm2835_audio;
+static struct platform_device *bcm2835_codec;
 
 static const char *const ioctl_names[] = {
 	"CONNECT",
@@ -3660,6 +3661,9 @@ static int vchiq_probe(struct platform_device *pdev)
 	bcm2835_audio = vchiq_register_child(pdev, "bcm2835_audio");
 	if (IS_ERR(bcm2835_audio))
 		bcm2835_audio = NULL;
+	bcm2835_codec = vchiq_register_child(pdev, "bcm2835-codec");
+	if (IS_ERR(bcm2835_codec))
+		bcm2835_codec = NULL;
 
 	return 0;
 
