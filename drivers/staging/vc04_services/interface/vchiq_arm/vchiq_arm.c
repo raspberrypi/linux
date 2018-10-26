@@ -172,6 +172,7 @@ static DEFINE_SPINLOCK(msg_queue_spinlock);
 static struct platform_device *bcm2835_camera;
 static struct platform_device *bcm2835_audio;
 static struct platform_device *bcm2835_codec;
+static struct platform_device *vcsm_cma;
 
 static const char *const ioctl_names[] = {
 	"CONNECT",
@@ -3655,6 +3656,9 @@ static int vchiq_probe(struct platform_device *pdev)
 		VCHIQ_VERSION, VCHIQ_VERSION_MIN,
 		MAJOR(vchiq_devid), MINOR(vchiq_devid));
 
+	vcsm_cma = vchiq_register_child(pdev, "vcsm-cma");
+	if (IS_ERR(vcsm_cma))
+		vcsm_cma = NULL;
 	bcm2835_camera = vchiq_register_child(pdev, "bcm2835-camera");
 	if (IS_ERR(bcm2835_camera))
 		bcm2835_camera = NULL;
