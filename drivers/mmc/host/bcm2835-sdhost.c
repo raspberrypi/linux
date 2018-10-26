@@ -1244,6 +1244,8 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 				pr_info("%s: ignoring CRC7 error for CMD1\n",
 					mmc_hostname(host->mmc));
 		} else {
+			u32 edm, fsm;
+
 			if (sdhsts & SDHSTS_CMD_TIME_OUT) {
 				if (host->debug)
 					pr_warn("%s: command %d timeout\n",
@@ -1256,6 +1258,13 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 				       host->cmd->opcode);
 				host->cmd->error = -EILSEQ;
 			}
+
+			edm = readl(host->ioaddr + SDEDM);
+			fsm = edm & SDEDM_FSM_MASK;
+			if (fsm == SDEDM_FSM_READWAIT ||
+			    fsm == SDEDM_FSM_WRITESTART1)
+				writel(edm | SDEDM_FORCE_DATA_MODE,
+				       host->ioaddr + SDEDM);
 			tasklet_schedule(&host->finish_tasklet);
 			return;
 		}
