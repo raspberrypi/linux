@@ -1934,7 +1934,7 @@ static int bcm2835_mmal_probe(struct platform_device *pdev)
 		ret = bm2835_mmal_init_controls(dev, &dev->ctrl_handler);
 		if (ret < 0) {
 			v4l2_err(&dev->v4l2_dev, "%s: could not init controls: %d\n",
-				__func__, ret);
+				 __func__, ret);
 			goto unreg_dev;
 		}
 		dev->v4l2_dev.ctrl_handler = &dev->ctrl_handler;
@@ -1944,7 +1944,7 @@ static int bcm2835_mmal_probe(struct platform_device *pdev)
 		ret = mmal_init(dev);
 		if (ret < 0) {
 			v4l2_err(&dev->v4l2_dev, "%s: mmal init failed: %d\n",
-				__func__, ret);
+				 __func__, ret);
 			goto unreg_dev;
 		}
 		/* initialize queue */
@@ -1966,7 +1966,7 @@ static int bcm2835_mmal_probe(struct platform_device *pdev)
 		ret = bm2835_mmal_init_device(dev, &dev->vdev);
 		if (ret < 0) {
 			v4l2_err(&dev->v4l2_dev, "%s: could not init device: %d\n",
-				__func__, ret);
+				 __func__, ret);
 			goto unreg_dev;
 		}
 
@@ -1976,7 +1976,7 @@ static int bcm2835_mmal_probe(struct platform_device *pdev)
 		ret = mmal_setup_components(dev, &default_v4l2_format);
 		if (ret < 0) {
 			v4l2_err(&dev->v4l2_dev, "%s: could not setup components: %d\n",
-				__func__, ret);
+				 __func__, ret);
 			goto unreg_dev;
 		}
 
