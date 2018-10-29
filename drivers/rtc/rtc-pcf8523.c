@@ -100,6 +100,7 @@ static int pcf8523_rtc_read_time(struct device *dev, struct rtc_time *tm)
 {
 	struct pcf8523 *pcf8523 = dev_get_drvdata(dev);
 	u8 regs[7];
+	u32 value;
 	int err;
 
 	err = regmap_bulk_read(pcf8523->regmap, PCF8523_REG_SECONDS, regs,
@@ -107,8 +108,32 @@ static int pcf8523_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	if (err < 0)
 		return err;
 
-	if (regs[0] & PCF8523_SECONDS_OS)
-		return -EINVAL;
+	if (regs[0] & PCF8523_SECONDS_OS) {
+		/*
+		 * If the oscillator was stopped, try to clear the flag. Upon
+		 * power-up the flag is always set, but if we cannot clear it
+		 * the oscillator isn't running properly for some reason. The
+		 * sensible thing therefore is to return an error, signalling
+		 * that the clock cannot be assumed to be correct.
+		 */
+
+		regs[0] &= ~PCF8523_SECONDS_OS;
+
+		err = regmap_write(pcf8523->regmap, PCF8523_REG_SECONDS,
+				   regs[0]);
+		if (err < 0)
+			return err;
+
+		err = regmap_read(pcf8523->regmap, PCF8523_REG_SECONDS,
+				  &value);
+		if (err < 0)
+			return err;
+
+		if (value & PCF8523_SECONDS_OS)
+			return -EAGAIN;
+
+		regs[0] = value;
+	}
 
 	tm->tm_sec = bcd2bin(regs[0] & 0x7f);
 	tm->tm_min = bcd2bin(regs[1] & 0x7f);
