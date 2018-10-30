@@ -632,7 +632,7 @@ static void vc_sm_connected_init(void)
 		goto err_free_mem;
 	}
 
-	ret = vchi_connect(vchi_instance);
+	ret = vchi_connect(NULL, 0, vchi_instance);
 	if (ret) {
 		pr_err("[%s]: failed to connect VCHI instance (ret=%d)\n",
 		       __func__, ret);
