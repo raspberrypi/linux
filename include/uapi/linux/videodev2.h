@@ -82,6 +82,11 @@
 	((__u32)(a) | ((__u32)(b) << 8) | ((__u32)(c) << 16) | ((__u32)(d) << 24))
 #define v4l2_fourcc_be(a, b, c, d)	(v4l2_fourcc(a, b, c, d) | (1U << 31))
 
+#define V4L2_FOURCC_CONV "%c%c%c%c%s"
+#define V4L2_FOURCC_CONV_ARGS(fourcc) \
+	(fourcc) & 0x7f, ((fourcc) >> 8) & 0x7f, ((fourcc) >> 16) & 0x7f, \
+	((fourcc) >> 24) & 0x7f, (fourcc) & BIT(31) ? "-BE" : ""
+
 /*
  *	E N U M S
  */
