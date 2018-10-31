@@ -294,6 +294,19 @@ Info:   Analog Devices ADV7282M analogue video to CSI2 bridge.
 Load:   dtoverlay=adv7282m,<param>=<val>
 Params: i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
                                 This is required for Pi B+, 2, 0, and 0W.
+        addr                    Overrides the I2C address (default 0x21)
+
+
+Name:   adv728x-m
+Info:   Analog Devices ADV728[0|1|2]-M analogue video to CSI2 bridges.
+        This is a wrapper for adv7282m, and defaults to ADV7282M.
+Load:   dtoverlay=adv728x-m,<param>=<val>
+Params: i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
+                                This is required for Pi B+, 2, 0, and 0W.
+        addr                    Overrides the I2C address (default 0x21)
+        adv7280m                Select ADV7280-M.
+        adv7281m                Select ADV7281-M.
+        adv7281ma               Select ADV7281-MA.
 
 
 Name:   akkordion-iqdacplus
