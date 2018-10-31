@@ -13,13 +13,13 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			adv7282: adv7282@21 {
+			adv728x: adv728x@21 {
 				compatible = "adi,adv7282-m";
 				reg = <0x21>;
 				status = "okay";
 				clock-frequency = <24000000>;
 				port {
-					adv7282_0: endpoint {
+					adv728x_0: endpoint {
 						remote-endpoint = <&csi1_ep>;
 						clock-lanes = <0>;
 						data-lanes = <1>;
@@ -43,7 +43,7 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				csi1_ep: endpoint {
-					remote-endpoint = <&adv7282_0>;
+					remote-endpoint = <&adv728x_0>;
 				};
 			};
 		};
@@ -71,6 +71,7 @@
 	};
 
 	__overrides__ {
-		i2c_pins_28_29 = <0>,"+2-3";
+		i2c_pins_28_29 =	<0>,"+2-3";
+		addr =			<&adv728x>,"reg:0";
 	};
 };
