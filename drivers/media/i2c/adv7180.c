@@ -189,6 +189,10 @@
 /* Initial number of frames to skip to avoid possible garbage */
 #define ADV7180_NUM_OF_SKIP_FRAMES       2
 
+static int dbg_input;
+module_param(dbg_input, int, 0644);
+MODULE_PARM_DESC(dbg_input, "Input number (0-31)");
+
 struct adv7180_state;
 
 #define ADV7180_FLAG_RESET_POWERED	BIT(0)
@@ -407,10 +411,24 @@ out:
 	return ret;
 }
 
+static void adv7180_check_input(struct v4l2_subdev *sd)
+{
+	struct adv7180_state *state = to_state(sd);
+
+	if (state->input != dbg_input)
+		if (adv7180_s_routing(sd, dbg_input, 0, 0))
+			/* Failed - reset dbg_input */
+			dbg_input = state->input;
+}
+
 static int adv7180_g_input_status(struct v4l2_subdev *sd, u32 *status)
 {
 	struct adv7180_state *state = to_state(sd);
-	int ret = mutex_lock_interruptible(&state->mutex);
+	int ret;
+
+	adv7180_check_input(sd);
+
+	ret = mutex_lock_interruptible(&state->mutex);
 	if (ret)
 		return ret;
 
@@ -436,7 +454,11 @@ static int adv7180_program_std(struct adv7180_state *state)
 static int adv7180_s_std(struct v4l2_subdev *sd, v4l2_std_id std)
 {
 	struct adv7180_state *state = to_state(sd);
-	int ret = mutex_lock_interruptible(&state->mutex);
+	int ret;
+
+	adv7180_check_input(sd);
+
+	ret = mutex_lock_interruptible(&state->mutex);
 
 	if (ret)
 		return ret;
@@ -457,6 +479,8 @@ out:
 static int adv7180_g_std(struct v4l2_subdev *sd, v4l2_std_id *norm)
 {
 	struct adv7180_state *state = to_state(sd);
+
+	adv7180_check_input(sd);
 
 	*norm = state->curr_norm;
 
@@ -894,6 +918,8 @@ static int adv7180_s_stream(struct v4l2_subdev *sd, int enable)
 		state->streaming = enable;
 		return 0;
 	}
+
+	adv7180_check_input(sd);
 
 	/* Must wait until querystd released the lock */
 	ret = mutex_lock_interruptible(&state->mutex);
