@@ -22,7 +22,7 @@
 #define MBOX_DATA28(msg)		((msg) & ~0xf)
 #define MBOX_CHAN_PROPERTY		8
 
-#define MAX_RPI_FW_PROP_BUF_SIZE	32
+#define MAX_RPI_FW_PROP_BUF_SIZE	48
 
 static struct platform_device *rpi_hwmon;
 
