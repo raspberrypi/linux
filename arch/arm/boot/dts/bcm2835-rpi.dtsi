@@ -102,3 +102,11 @@
 &dsi1 {
 	power-domains = <&power RPI_POWER_DOMAIN_DSI1>;
 };
+
+&csi0 {
+	power-domains = <&power RPI_POWER_DOMAIN_UNICAM0>;
+};
+
+&csi1 {
+	power-domains = <&power RPI_POWER_DOMAIN_UNICAM1>;
+};
