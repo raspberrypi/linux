@@ -287,6 +287,15 @@ Params: cs                      SPI bus Chip Select (default 1)
         www.kernel.org/doc/Documentation/devicetree/bindings/input/ads7846.txt
 
 
+Name:   adv7282m
+Info:   Analog Devices ADV7282M analogue video to CSI2 bridge.
+        Uses Unicam1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=adv7282m,<param>=<val>
+Params: i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
+                                This is required for Pi B+, 2, 0, and 0W.
+
+
 Name:   akkordion-iqdacplus
 Info:   Configures the Digital Dreamtime Akkordion Music Player (based on the
         OEM IQAudIO DAC+ or DAC Zero module).
@@ -1422,6 +1431,23 @@ Params: speed                   Display SPI bus speed
         xohms                   Touchpanel sensitivity (X-plate resistance)
 
 
+Name:   ov5647
+Info:   Omnivision OV5647 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=ov5647,<param>=<val>
+Params: cam0-pwdn               GPIO used to control the sensor powerdown line.
+
+        cam0-led                GPIO used to control the sensor led
+                                Both these fields should be automatically filled
+                                in by the firmware to reflect the default GPIO
+                                configuration of the particular Pi variant in
+                                use.
+
+        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
+                                This is required for Pi B+, 2, 0, and 0W.
+
+
 Name:   papirus
 Info:   PaPiRus ePaper Screen by Pi Supply (both HAT and pHAT)
 Load:   dtoverlay=papirus,<param>=<val>
@@ -2073,6 +2099,31 @@ Params: sx150<x>-<n>-<m>        Enables SX150X device on I2C#<n> with slave
                                 I2C#<n> with slave address <m>, specifies
                                 the GPIO pin to which NINT output of SX150X is
                                 connected.
+
+
+Name:   tc358743
+Info:   Toshiba TC358743 HDMI to CSI-2 bridge chip.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=tc358743,<param>=<val>
+Params: 4lane                   Use 4 lanes (only applicable to Compute Modules
+                                CAM1 connector).
+
+        link-frequency          Set the link frequency. Only values of 297000000
+                                (574Mbit/s) and 486000000 (972Mbit/s - default)
+                                are supported by the driver.
+
+        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
+                                This is required for Pi B+, 2, 0, and 0W.
+
+
+Name:   tc358743-audio
+Info:   Used in combination with the tc358743-fast overlay to route the audio
+        from the TC358743 over I2S to the Pi.
+        Wiring is LRCK/WFS to GPIO 19, BCK/SCK to GPIO 18, and DATA/SD to GPIO
+        20.
+Load:   dtoverlay=tc358743-audio,<param>=<val>
+Params: card-name               Override the default, "tc358743", card name.
 
 
 Name:   tinylcd35
