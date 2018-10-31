@@ -10,6 +10,9 @@ Required properties:
 - reg			: I2C slave address of the sensor.
 - clocks		: Reference to the xclk clock.
 
+Optional Properties:
+- pwdn-gpios: reference to the GPIO connected to the pwdn pin, if any.
+
 The common video interfaces bindings (see video-interfaces.txt) should be
 used to specify link to the image data receiver. The OV5647 device
 node should contain one 'port' child node with an 'endpoint' subnode.
@@ -26,6 +29,7 @@ Example:
 			compatible = "ovti,ov5647";
 			reg = <0x36>;
 			clocks = <&camera_clk>;
+			pwdn-gpios = <&pioE 29 GPIO_ACTIVE_HIGH>;
 			port {
 				camera_1: endpoint {
 					remote-endpoint = <&csi1_ep1>;
