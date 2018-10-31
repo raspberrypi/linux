@@ -3394,6 +3394,13 @@ N:	bcm113*
 N:	bcm216*
 N:	kona
 
+BROADCOM BCM2835 CAMERA DRIVER
+M:	Dave Stevenson <dave.stevenson@raspberrypi.org>
+L:	linux-media@vger.kernel.org
+S:	Maintained
+F:	drivers/media/platform/bcm2835/
+F:	Documentation/devicetree/bindings/media/bcm2835-unicam.txt
+
 BROADCOM BCM47XX MIPS ARCHITECTURE
 M:	Hauke Mehrtens <hauke@hauke-m.de>
 M:	Rafał Miłecki <zajec5@gmail.com>
