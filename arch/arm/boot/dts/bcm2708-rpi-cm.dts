@@ -1,6 +1,8 @@
 /dts-v1/;
 
 #include "bcm2708-rpi-cm.dtsi"
+#include "bcm283x-rpi-csi0-2lane.dtsi"
+#include "bcm283x-rpi-csi1-4lane.dtsi"
 
 / {
 	model = "Raspberry Pi Compute Module";
