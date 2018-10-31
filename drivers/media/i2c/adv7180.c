@@ -852,6 +852,9 @@ static int init_device(struct adv7180_state *state)
 		return ret;
 
 	adv7180_set_field_mode(state);
+	ret = state->chip_info->select_input(state, state->input);
+	if (ret)
+		return ret;
 
 	__v4l2_ctrl_handler_setup(&state->ctrl_hdl);
 
@@ -1408,6 +1411,7 @@ static int adv7180_probe(struct i2c_client *client)
 	struct device_node *np = client->dev.of_node;
 	struct adv7180_state *state;
 	struct v4l2_subdev *sd;
+	unsigned int i;
 	int ret;
 
 	/* Check if the adapter supports the needed features */
@@ -1463,6 +1467,14 @@ static int adv7180_probe(struct i2c_client *client)
 	state->curr_norm = V4L2_STD_NTSC;
 
 	state->input = 0;
+	/* Select first valid input */
+	for (i = 0; i < 32; i++) {
+		if (BIT(i) & state->chip_info->valid_input_mask) {
+			state->input = i;
+			break;
+		}
+	}
+
 	sd = &state->sd;
 	v4l2_i2c_subdev_init(sd, client, &adv7180_ops);
 	sd->internal_ops = &adv7180_internal_ops;
