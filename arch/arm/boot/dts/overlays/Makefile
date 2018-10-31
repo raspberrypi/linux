@@ -7,6 +7,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ads1015.dtbo \
 	ads1115.dtbo \
 	ads7846.dtbo \
+	adv7282m.dtbo \
 	akkordion-iqdacplus.dtbo \
 	allo-boss-dac-pcm512x-audio.dtbo \
 	allo-digione.dtbo \
@@ -89,6 +90,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	mmc.dtbo \
 	mpu6050.dtbo \
 	mz61581.dtbo \
+	ov5647.dtbo \
 	papirus.dtbo \
 	pi3-act-led.dtbo \
 	pi3-disable-bt.dtbo \
@@ -142,6 +144,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	ssd1306.dtbo \
 	superaudioboard.dtbo \
 	sx150x.dtbo \
+	tc358743.dtbo \
+	tc358743-audio.dtbo \
 	tinylcd35.dtbo \
 	tpm-slb9670.dtbo \
 	uart0.dtbo \
