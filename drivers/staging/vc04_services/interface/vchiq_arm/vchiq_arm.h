@@ -125,6 +125,7 @@ typedef struct vchiq_arm_state_struct {
 
 struct vchiq_drvdata {
 	const unsigned int cache_line_size;
+	const bool use_36bit_addrs;
 	struct rpi_firmware *fw;
 };
 
