@@ -63,6 +63,7 @@ struct mt76x02_calibration {
 	bool tssi_comp_pending;
 	bool dpd_cal_done;
 	bool channel_cal_done;
+	bool gain_init_done;
 };
 
 struct mt76x02_dev {

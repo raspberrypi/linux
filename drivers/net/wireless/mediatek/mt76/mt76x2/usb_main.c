@@ -156,6 +156,9 @@ mt76x2u_sw_scan_complete(struct ieee80211_hw *hw, struct ieee80211_vif *vif)
 	struct mt76x02_dev *dev = hw->priv;
 
 	clear_bit(MT76_SCANNING, &dev->mt76.state);
+
+	if (dev->cal.gain_init_done)
+		ieee80211_queue_delayed_work(hw, &dev->cal_work, 0);
 }
 
 const struct ieee80211_ops mt76x2u_ops = {

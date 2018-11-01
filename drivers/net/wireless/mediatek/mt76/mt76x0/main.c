@@ -138,6 +138,9 @@ void mt76x0_sw_scan_complete(struct ieee80211_hw *hw,
 	struct mt76x02_dev *dev = hw->priv;
 
 	clear_bit(MT76_SCANNING, &dev->mt76.state);
+
+	if (dev->cal.gain_init_done)
+		ieee80211_queue_delayed_work(hw, &dev->cal_work, 0);
 }
 EXPORT_SYMBOL_GPL(mt76x0_sw_scan_complete);
 
