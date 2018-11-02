@@ -5,22 +5,22 @@ about: Create a report to help us fix your issue
 ---
 
 **Is this the right place for my bug report?**
-This repository contains the Linux kernel used on the Raspberry Pi. If you believe that the issue you are seeing is kernel related, this is the right place. If not, we have other repositories for the GPU firmware (https://github.com/raspberrypi/firmware) and Raspberry Pi userland applications (https://github.com/raspberrypi/userland). Problems with the Raspbian distribution packages should be reported here https://github.com/RPi-Distro/repo. If you simply have a question, then the Raspberry Pi forums are the best place for that (https://www.raspberrypi.org/forums).
+This repository contains the Linux kernel used on the Raspberry Pi. If you believe that the issue you are seeing is kernel-related, this is the right place. If not, we have other repositories for the GPU firmware at [github.com/raspberrypi/firmware](https://github.com/raspberrypi/firmware) and Raspberry Pi userland applications at [github.com/raspberrypi/userland](https://github.com/raspberrypi/userland). If you have problems with the Raspbian distribution packages, report them in the [github.com/RPi-Distro/repo](https://github.com/RPi-Distro/repo). If you simply have a question, then [the Raspberry Pi forums](https://www.raspberrypi.org/forums) are the best place to ask it.
 
 **Describe the bug**
-A clear and concise description of what you think the bug is.
+Add a clear and concise description of what you think the bug is.
 
 **To reproduce**
-Steps required to reproduce the issue.
+ List the steps required to reproduce the issue.
 
 **Expected behaviour**
-A clear and concise description of what you expected to happen.
+Add a clear and concise description of what you expected to happen.
 
 **Actual behaviour**
-A clear and concise description of what actually happened.
+Add a clear and concise description of what actually happened.
 
 **System**
-Please copy and paste the results of the `raspinfo` command in to this section, alternatively use a pastebin link, or fill in answers to the following questions.
+ Copy and paste the results of the raspinfo command in to this section. Alternatively, copy and paste a pastebin link, or add answers to the following questions:
 
 * Which model of Raspberry Pi? e.g. Pi3B+, PiZeroW
 * Which OS and version (`cat /etc/rpi-issue`)?
@@ -31,4 +31,4 @@ Please copy and paste the results of the `raspinfo` command in to this section, 
 If applicable, add the relevant output from `dmesg` or similar.
 
 **Additional context**
-Add any other context about the problem here.
+Add any other relevant context for the problem.
