@@ -11,7 +11,7 @@ This repository contains the Linux kernel used on the Raspberry Pi. If you belie
 Add a clear and concise description of what you think the bug is.
 
 **To reproduce**
- List the steps required to reproduce the issue.
+List the steps required to reproduce the issue.
 
 **Expected behaviour**
 Add a clear and concise description of what you expected to happen.
