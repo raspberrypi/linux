@@ -17,16 +17,17 @@
 		target = <&gpio>;
 		__overlay__ {
 			uart0_pins: uart0_pins {
-				brcm,pins = <14 15>;
-				brcm,function = <4>; /* alt0 */
-				brcm,pull = <0 2>;
+				brcm,pins = <14 15 14 15>;
+				brcm,function = <0 0 4 4>; /* alt0 */
+				brcm,pull = <0 0 0 2>;
 			};
 		};
 	};
 
 	__overrides__ {
-		txd0_pin = <&uart0_pins>,"brcm,pins:0";
-		rxd0_pin = <&uart0_pins>,"brcm,pins:4";
-		pin_func = <&uart0_pins>,"brcm,function:0";
+		txd0_pin = <&uart0_pins>,"brcm,pins:8";
+		rxd0_pin = <&uart0_pins>,"brcm,pins:12";
+		pin_func = <&uart0_pins>,"brcm,function:8",
+			   <&uart0_pins>,"brcm,function:12";
 	};
 };
