@@ -613,6 +613,11 @@ static bool enable_tso;
 module_param(enable_tso, bool, 0644);
 MODULE_PARM_DESC(enable_tso, "Enables TCP segmentation offload");
 
+#define INT_URB_MICROFRAMES_PER_MS	8
+static int int_urb_interval_ms = 8;
+module_param(int_urb_interval_ms, int, 0);
+MODULE_PARM_DESC(int_urb_interval_ms, "Override usb interrupt urb interval");
+
 static int lan78xx_read_reg(struct lan78xx_net *dev, u32 index, u32 *data)
 {
 	u32 *buf;
@@ -4430,7 +4435,13 @@ static int lan78xx_probe(struct usb_interface *intf,
 	if (ret < 0)
 		goto out4;
 
-	period = ep_intr->desc.bInterval;
+	if (int_urb_interval_ms <= 0)
+		period = ep_intr->desc.bInterval;
+	else
+		period = int_urb_interval_ms * INT_URB_MICROFRAMES_PER_MS;
+
+	netif_notice(dev, probe, netdev, "int urb period %d\n", period);
+
 	maxp = usb_maxpacket(dev->udev, dev->pipe_intr);
 
 	dev->urb_intr = usb_alloc_urb(0, GFP_KERNEL);
