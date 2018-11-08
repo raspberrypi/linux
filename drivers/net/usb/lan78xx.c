@@ -359,6 +359,11 @@ static int msg_level = -1;
 module_param(msg_level, int, 0);
 MODULE_PARM_DESC(msg_level, "Override default message level");
 
+#define INT_URB_MICROFRAMES_PER_MS	8
+static int int_urb_interval_ms = 8;
+module_param(int_urb_interval_ms, int, 0);
+MODULE_PARM_DESC(int_urb_interval_ms, "Override usb interrupt urb interval");
+
 static int lan78xx_read_reg(struct lan78xx_net *dev, u32 index, u32 *data)
 {
 	u32 *buf = kmalloc(sizeof(u32), GFP_KERNEL);
@@ -3437,7 +3442,12 @@ static int lan78xx_probe(struct usb_interface *intf,
 	dev->pipe_intr = usb_rcvintpipe(dev->udev,
 					dev->ep_intr->desc.bEndpointAddress &
 					USB_ENDPOINT_NUMBER_MASK);
-	period = dev->ep_intr->desc.bInterval;
+	if (int_urb_interval_ms <= 0)
+		period = dev->ep_intr->desc.bInterval;
+	else
+		period = int_urb_interval_ms * INT_URB_MICROFRAMES_PER_MS;
+
+	dev_dbg(&dev->udev->dev, "int urb period %d\n", period);
 
 	maxp = usb_maxpacket(dev->udev, dev->pipe_intr, 0);
 	buf = kmalloc(maxp, GFP_KERNEL);
