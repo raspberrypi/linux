@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+//SPDX-License-Identifier: GPL-2.0
 /* Copyright (C) 2018 Microchip */
 
 #ifndef __SOC_ATMEL_TCB_H
@@ -166,48 +166,15 @@
 #define ATMEL_TC_WPMR_WPKEY		(0x54494d << 8)
 #define ATMEL_TC_WPMR_WPEN		BIT(0)
 
-static inline struct clk *tcb_clk_get(struct device_node *node, int channel)
-{
-	struct clk *clk;
-	char clk_name[] = "t0_clk";
-
-	clk_name[1] += channel;
-	clk = of_clk_get_by_name(node->parent, clk_name);
-	if (!IS_ERR(clk))
-		return clk;
-
-	return of_clk_get_by_name(node->parent, "t0_clk");
-}
-
-static inline int tcb_irq_get(struct device_node *node, int channel)
-{
-	int irq;
-
-	irq = of_irq_get(node->parent, channel);
-	if (irq > 0)
-		return irq;
-
-	return of_irq_get(node->parent, 0);
-}
-
 static const u8 atmel_tc_divisors[5] = { 2, 8, 32, 128, 0, };
-
-struct atmel_tcb_info {
-	int bits;
-};
-
-static const struct atmel_tcb_info atmel_tcb_infos[] = {
-	{ .bits = 16 },
-	{ .bits = 32 },
-};
 
 static const struct of_device_id atmel_tcb_dt_ids[] = {
 	{
 		.compatible = "atmel,at91rm9200-tcb",
-		.data = &atmel_tcb_infos[0],
+		.data = (void *)16,
 	}, {
 		.compatible = "atmel,at91sam9x5-tcb",
-		.data = &atmel_tcb_infos[1],
+		.data = (void *)32,
 	}, {
 		/* sentinel */
 	}
