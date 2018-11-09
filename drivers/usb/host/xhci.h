@@ -1838,6 +1838,7 @@ struct xhci_hcd {
 #define XHCI_HW_LPM_DISABLE	BIT_ULL(29)
 #define XHCI_SUSPEND_DELAY	BIT_ULL(30)
 #define XHCI_INTEL_USB_ROLE_SW	BIT_ULL(31)
+#define XHCI_RESET_PLL_ON_DISCONNECT	BIT_ULL(34)
 
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;
