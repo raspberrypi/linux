@@ -133,6 +133,7 @@
 			clock-names = "stmmaceth";
 			tx-fifo-depth = <16384>;
 			rx-fifo-depth = <16384>;
+			snps,multicast-filter-bins = <256>;
 			status = "disabled";
 		};
 
@@ -148,6 +149,7 @@
 			clock-names = "stmmaceth";
 			tx-fifo-depth = <16384>;
 			rx-fifo-depth = <16384>;
+			snps,multicast-filter-bins = <256>;
 			status = "disabled";
 		};
 
@@ -163,6 +165,7 @@
 			clock-names = "stmmaceth";
 			tx-fifo-depth = <16384>;
 			rx-fifo-depth = <16384>;
+			snps,multicast-filter-bins = <256>;
 			status = "disabled";
 		};
 
