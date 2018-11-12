@@ -257,22 +257,15 @@ static void vc_sm_vchi_callback(void *param,
 	}
 }
 
-struct sm_instance *vc_vchi_sm_init(VCHI_INSTANCE_T vchi_instance,
-				    VCHI_CONNECTION_T **vchi_connections,
-				    uint32_t num_connections)
+struct sm_instance *vc_vchi_sm_init(VCHI_INSTANCE_T vchi_instance)
 {
 	uint32_t i;
 	struct sm_instance *instance;
 	int status;
+	int num_connections = 1;
 
 	pr_debug("%s: start", __func__);
 
-	if (num_connections > VCHI_MAX_NUM_CONNECTIONS) {
-		pr_err("%s: unsupported number of connections %u (max=%u)",
-			__func__, num_connections, VCHI_MAX_NUM_CONNECTIONS);
-
-		goto err_null;
-	}
 	/* Allocate memory for this instance */
 	instance = kzalloc(sizeof(*instance), GFP_KERNEL);
 
@@ -294,16 +287,10 @@ struct sm_instance *vc_vchi_sm_init(VCHI_INSTANCE_T vchi_instance,
 	instance->num_connections = num_connections;
 	for (i = 0; i < num_connections; i++) {
 		SERVICE_CREATION_T params = {
-			VCHI_VERSION_EX(VC_SM_VER, VC_SM_MIN_VER),
-			VC_SM_SERVER_NAME,
-			vchi_connections[i],
-			0,
-			0,
-			vc_sm_vchi_callback,
-			instance,
-			0,
-			0,
-			0,
+			.version	= VCHI_VERSION_EX(VC_SM_VER, VC_SM_MIN_VER),
+			.service_id	= VC_SM_SERVER_NAME,
+			.callback	= vc_sm_vchi_callback,
+			.callback_param	= instance,
 		};
 
 		status = vchi_service_open(vchi_instance,
@@ -337,7 +324,6 @@ err_close_services:
 			vchi_service_close(instance->vchi_handle[i]);
 	}
 	kfree(instance);
-err_null:
 	pr_debug("%s: FAILED", __func__);
 	return NULL;
 }
