@@ -135,10 +135,8 @@ static int bcm2835_smi_nand_probe(struct platform_device *pdev)
 	struct mtd_info *mtd;
 	struct device *dev = &pdev->dev;
 	struct device_node *node = dev->of_node, *smi_node;
-	struct mtd_part_parser_data ppdata;
 	struct smi_settings *smi_settings;
 	struct bcm2835_smi_instance *smi_inst;
-	int ret = -ENXIO;
 
 	if (!node) {
 		dev_err(dev, "No device tree node supplied!");
