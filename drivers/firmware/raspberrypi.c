@@ -157,6 +157,7 @@ int rpi_firmware_property(struct rpi_firmware *fw,
 	 * too much about the time taken in the allocation.
 	 */
 	void *data = kmalloc(sizeof(*header) + buf_size, GFP_KERNEL);
+
 	if (!data)
 		return -ENOMEM;
 
