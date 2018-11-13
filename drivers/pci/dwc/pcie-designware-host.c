@@ -45,8 +45,19 @@ static int dw_pcie_wr_own_conf(struct pcie_port *pp, int where, int size,
 	return dw_pcie_write(pci->dbi_base + where, size, val);
 }
 
+static void dwc_irq_ack(struct irq_data *d)
+{
+	struct msi_desc *msi = irq_data_get_msi_desc(d);
+	struct pcie_port *pp = msi_desc_to_pci_sysdata(msi);
+	int pos = d->hwirq % 32;
+	int i = d->hwirq / 32;
+
+	dw_pcie_wr_own_conf(pp, PCIE_MSI_INTR0_STATUS + i * 12, 4, BIT(pos));
+}
+
 static struct irq_chip dw_msi_irq_chip = {
 	.name = "PCI-MSI",
+	.irq_ack = dwc_irq_ack,
 	.irq_enable = pci_msi_unmask_irq,
 	.irq_disable = pci_msi_mask_irq,
 	.irq_mask = pci_msi_mask_irq,
@@ -72,8 +83,6 @@ irqreturn_t dw_handle_msi_irq(struct pcie_port *pp)
 					    pos)) != 32) {
 			irq = irq_find_mapping(pp->irq_domain, i * 32 + pos);
 			generic_handle_irq(irq);
-			dw_pcie_wr_own_conf(pp, PCIE_MSI_INTR0_STATUS + i * 12,
-					    4, 1 << pos);
 			pos++;
 		}
 	}
@@ -263,7 +272,7 @@ static struct msi_controller dw_pcie_msi_chip = {
 static int dw_pcie_msi_map(struct irq_domain *domain, unsigned int irq,
 			   irq_hw_number_t hwirq)
 {
-	irq_set_chip_and_handler(irq, &dw_msi_irq_chip, handle_simple_irq);
+	irq_set_chip_and_handler(irq, &dw_msi_irq_chip, handle_edge_irq);
 	irq_set_chip_data(irq, domain->host_data);
 
 	return 0;
