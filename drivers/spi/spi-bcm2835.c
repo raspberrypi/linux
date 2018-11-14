@@ -157,6 +157,8 @@ static irqreturn_t bcm2835_spi_interrupt(int irq, void *dev_id)
 
 	/* based on flags decide if we can finish the transfer */
 	if (bcm2835_rd(bs, BCM2835_SPI_CS) & BCM2835_SPI_CS_DONE) {
+		/* Ensure the RX FIFO is completely drained */
+		bcm2835_rd_fifo(bs);
 		/* Transfer complete - reset SPI HW */
 		bcm2835_spi_reset_hw(master);
 		/* wake up the framework */
