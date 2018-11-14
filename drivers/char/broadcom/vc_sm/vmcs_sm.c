@@ -2315,8 +2315,8 @@ int vc_sm_ioctl_import_dmabuf(struct sm_priv_data_t *private,
 	return 0;
 
 error:
-	resource->res_stats[IMPORT_FAIL]++;
 	if (resource) {
+		resource->res_stats[IMPORT_FAIL]++;
 		vc_sm_resource_deceased(resource, 1);
 		kfree(resource);
 	}
