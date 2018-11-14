@@ -35,13 +35,9 @@
 	fragment@1 {
 		target = <&csi1>;
 		__overlay__ {
-			#address-cells = <1>;
-			#size-cells = <0>;
 			status = "okay";
 
 			port {
-				#address-cells = <1>;
-				#size-cells = <0>;
 				csi1_ep: endpoint {
 					remote-endpoint = <&adv728x_0>;
 				};
