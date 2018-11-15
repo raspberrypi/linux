@@ -18,6 +18,9 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
+#include <linux/timer.h>
+#include <linux/jiffies.h>
+
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -27,10 +30,6 @@
 
 #include "../codecs/wm8804.h"
 
-static short int auto_shutdown_output = 0;
-module_param(auto_shutdown_output, short, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-MODULE_PARM_DESC(auto_shutdown_output, "Shutdown SP/DIF output if playback is stopped");
-
 #define CLK_44EN_RATE 22579200UL
 #define CLK_48EN_RATE 24576000UL
 
@@ -39,6 +38,11 @@ static struct gpio_desc *snd_rpi_hifiberry_clk44gpio;
 static struct gpio_desc *snd_rpi_hifiberry_clk48gpio;
 
 static int samplerate=44100;
+
+#define FLAG_TIMEOUT_IN_SECONDS 5
+static bool shutdown_flag;
+void drop_shutdown_flag(unsigned long data);
+static struct timer_list shutdown_flag_timer = TIMER_INITIALIZER(drop_shutdown_flag, FLAG_TIMEOUT_IN_SECONDS*HZ, 0);
 
 static uint32_t snd_rpi_hifiberry_digi_enable_clock(int sample_rate)
 {
@@ -85,16 +89,17 @@ static int snd_rpi_hifiberry_digi_startup(struct snd_pcm_substream *substream) {
 	return 0;
 }
 
-static void snd_rpi_hifiberry_digi_shutdown(struct snd_pcm_substream *substream) {
-	/* turn off output */
-	if (auto_shutdown_output) {
-		/* turn off output */
-		struct snd_soc_pcm_runtime *rtd = substream->private_data;
-		struct snd_soc_codec *codec = rtd->codec;
-		snd_soc_update_bits(codec, WM8804_PWRDN, 0x3c, 0x3c);
-	}
+void drop_shutdown_flag(unsigned long data)
+{
+	shutdown_flag = 0;
 }
 
+static void snd_rpi_hifiberry_digi_shutdown(struct snd_pcm_substream *substream)
+{
+	/* raise shutdown flag */
+	shutdown_flag = 1;
+	mod_timer(&shutdown_flag_timer, jiffies + FLAG_TIMEOUT_IN_SECONDS*HZ);
+}
 
 static int snd_rpi_hifiberry_digi_hw_params(struct snd_pcm_substream *substream,
 				       struct snd_pcm_hw_params *params)
@@ -154,7 +159,11 @@ static int snd_rpi_hifiberry_digi_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	snd_soc_dai_set_clkdiv(codec_dai, WM8804_MCLK_DIV, mclk_div);
-	snd_soc_dai_set_pll(codec_dai, 0, 0, sysclk, mclk_freq);
+
+	if (!shutdown_flag)
+		snd_soc_dai_set_pll(codec_dai, 0, 0, sysclk, mclk_freq);
+	else
+		mod_timer(&shutdown_flag_timer, jiffies); /* force timeout */
 
 	ret = snd_soc_dai_set_sysclk(codec_dai, WM8804_TX_CLKSRC_PLL,
 					sysclk, SND_SOC_CLOCK_OUT);
