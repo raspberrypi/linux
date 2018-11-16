@@ -56,7 +56,7 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/netdevice.h>
-
+#include <linux/refcount.h>
 #include <linux/if_link.h>
 #include <linux/atomic.h>
 #include <linux/mmu_notifier.h>
@@ -2605,6 +2605,12 @@ struct ib_device {
 
 	const struct uverbs_object_tree_def *const *driver_specs;
 	enum rdma_driver_id		driver_id;
+	/*
+	 * Provides synchronization between device unregistration and netlink
+	 * commands on a device. To be used only by core.
+	 */
+	refcount_t refcount;
+	struct completion unreg_completion;
 };
 
 struct ib_client {
