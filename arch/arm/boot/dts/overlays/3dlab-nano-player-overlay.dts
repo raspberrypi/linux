@@ -1,4 +1,4 @@
-// Definitions for 3Dlab Nano soundcard
+// Definitions for 3Dlab Nano Player
 /dts-v1/;
 /plugin/;
 
@@ -19,22 +19,12 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			nano: nano-codec@41 {
-				#sound-dai-cells = <0>;
-				compatible = "3dlab,nano-codec";
+			nano-player@41 {
+				compatible = "3dlab,nano-player";
 				reg = <0x41>;
+				i2s-controller = <&i2s>;
 				status = "okay";
 			};
-		};
-	};
-
-	fragment@2 {
-		target = <&sound>;
-		__overlay__ {
-			compatible = "3dlab,nano-soundcard";
-			i2s-controller = <&i2s>;
-			i2s-interface = <&nano>;
-			status = "okay";
 		};
 	};
 };

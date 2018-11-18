@@ -190,9 +190,9 @@ Params:
         and the other i2c baudrate parameters.
 
 
-Name:   3dlab-nano-soundcard
-Info:   Configures the 3Dlab Nano soundcard
-Load:   dtoverlay=3dlab-nano-soundcard
+Name:   3dlab-nano-player
+Info:   Configures the 3Dlab Nano Player
+Load:   dtoverlay=3dlab-nano-player
 Params: <None>
 
 

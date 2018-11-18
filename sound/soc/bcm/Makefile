@@ -12,8 +12,7 @@ obj-$(CONFIG_SND_SOC_CYGNUS) += snd-soc-cygnus.o
 snd-soc-googlevoicehat-codec-objs := googlevoicehat-codec.o
 
 # BCM2708 Machine Support
-snd-soc-3dlab-nano-codec-objs := 3dlab-nano-codec.o
-snd-soc-3dlab-nano-soundcard-objs := 3dlab-nano-soundcard.o
+snd-soc-3dlab-nano-player-objs := 3dlab-nano-player.o
 snd-soc-adau1977-adc-objs := adau1977-adc.o
 snd-soc-googlevoicehat-soundcard-objs := googlevoicehat-soundcard.o
 snd-soc-hifiberry-amp-objs := hifiberry_amp.o
@@ -40,8 +39,7 @@ snd-soc-allo-katana-codec-objs := allo-katana-codec.o
 snd-soc-pisound-objs := pisound.o
 snd-soc-fe-pi-audio-objs := fe-pi-audio.o
 
-obj-$(CONFIG_SND_BCM2708_SOC_3DLAB_NANO_SOUNDCARD) += snd-soc-3dlab-nano-codec.o
-obj-$(CONFIG_SND_BCM2708_SOC_3DLAB_NANO_SOUNDCARD) += snd-soc-3dlab-nano-soundcard.o
+obj-$(CONFIG_SND_BCM2708_SOC_3DLAB_NANO_PLAYER) += snd-soc-3dlab-nano-player.o
 obj-$(CONFIG_SND_BCM2708_SOC_ADAU1977_ADC) += snd-soc-adau1977-adc.o
 obj-$(CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD) += snd-soc-googlevoicehat-soundcard.o
 obj-$(CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD)  += snd-soc-googlevoicehat-codec.o
