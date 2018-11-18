@@ -277,7 +277,7 @@ static int nano_player_card_probe(struct snd_soc_card *card)
 
 	/* report version to the user */
 	regmap_read(regmap, NANO_VER, &val);
-	dev_notice(card->dev, "Started 3Dlab Player driver (v%d)\n", val);
+	dev_notice(card->dev, "Started 3Dlab Nano Player driver (v%d)\n", val);
 
 	/* enable internal audio bus and blink status LED */
 	return regmap_write(regmap, NANO_CFG, NANO_CFG_ENA | NANO_CFG_BLINK);
