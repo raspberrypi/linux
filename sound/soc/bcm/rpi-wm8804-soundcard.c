@@ -64,6 +64,7 @@ struct snd_rpi_wm8804_drvdata {
 
 static struct gpio_desc *snd_clk44gpio;
 static struct gpio_desc *snd_clk48gpio;
+static int wm8804_samplerate = 0;
 
 #define CLK_44EN_RATE 22579200UL
 #define CLK_48EN_RATE 24576000UL
@@ -117,6 +118,12 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 	struct wm8804_clk_cfg clk_cfg;
 	int samplerate = params_rate(params);
 
+	if (samplerate == wm8804_samplerate)
+		return 0;
+
+	/* clear until all clocks are setup properly */
+	wm8804_samplerate = 0;
+
 	snd_rpi_wm8804_clk_cfg(samplerate, &clk_cfg);
 
 	pr_debug("%s samplerate: %d mclk_freq: %u mclk_div: %u sysclk: %u\n",
@@ -162,6 +169,8 @@ static int snd_rpi_wm8804_hw_params(struct snd_pcm_substream *substream,
 		"Failed to set WM8804 SYSCLK: %d\n", ret);
 		return ret;
 	}
+
+	wm8804_samplerate = samplerate;
 
 	/* set sampling frequency status bits */
 	snd_soc_component_update_bits(component, WM8804_SPDTX4, 0x0f,
