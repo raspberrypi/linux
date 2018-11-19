@@ -200,6 +200,9 @@ struct task_group;
 #define __set_current_state_no_track(state_value)	__set_current_state(state_value)
 #define set_current_state_no_track(state_value)		set_current_state(state_value)
 
+#define __set_current_state_no_track(state_value)	__set_current_state(state_value)
+#define set_current_state_no_track(state_value)		set_current_state(state_value)
+
 /*
  * set_special_state() should be used for those states when the blocking task
  * can not use the regular condition based wait-loop. In that case we must

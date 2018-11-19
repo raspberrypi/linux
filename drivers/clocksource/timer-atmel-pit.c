@@ -248,16 +248,6 @@ static int __init at91sam926x_pit_dt_init(struct device_node *node)
 		goto exit;
 	}
 
-	/* Set up irq handler */
-	ret = request_irq(data->irq, at91sam926x_pit_interrupt,
-			  IRQF_SHARED | IRQF_TIMER | IRQF_IRQPOLL,
-			  "at91_tick", data);
-	if (ret) {
-		pr_err("Unable to setup IRQ\n");
-		clocksource_unregister(&data->clksrc);
-		goto exit;
-	}
-
 	/* Set up and register clockevents */
 	data->clkevt.name = "pit";
 	data->clkevt.features = CLOCK_EVT_FEAT_PERIODIC;
