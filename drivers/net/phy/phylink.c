@@ -561,7 +561,7 @@ void phylink_destroy(struct phylink *pl)
 {
 	if (pl->sfp_bus)
 		sfp_unregister_upstream(pl->sfp_bus);
-	if (!IS_ERR(pl->link_gpio))
+	if (!IS_ERR_OR_NULL(pl->link_gpio))
 		gpiod_put(pl->link_gpio);
 
 	cancel_work_sync(&pl->resolve);
@@ -746,6 +746,9 @@ void phylink_start(struct phylink *pl)
 	netdev_info(pl->netdev, "configuring for %s/%s link mode\n",
 		    phylink_an_mode_str(pl->link_an_mode),
 		    phy_modes(pl->link_config.interface));
+
+	/* Always set the carrier off */
+	netif_carrier_off(pl->netdev);
 
 	/* Apply the link configuration to the MAC when starting. This allows
 	 * a fixed-link to start with the correct parameters, and also

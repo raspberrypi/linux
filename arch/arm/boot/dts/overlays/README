@@ -89,6 +89,11 @@ Params:
         audio                   Set to "on" to enable the onboard ALSA audio
                                 interface (default "off")
 
+        axiperf                 Set to "on" to enable the AXI bus performance
+                                monitors.
+                                See /sys/kernel/debug/raspberrypi_axi_monitor
+                                for the results.
+
         eee                     Enable Energy Efficient Ethernet support for
                                 compatible devices (default "on"). See also
                                 "tx_lpi_timer".
@@ -619,6 +624,15 @@ Params: gpio                    GPIO pin to trigger on (default 3)
         keycode                 Set the key code for the button
 
 
+Name:   gpio-no-bank0-irq
+Info:   Use this overlay to disable GPIO interrupts for GPIOs in bank 0 (0-27),
+        which can be useful for UIO drivers.
+        N.B. Using this overlay will trigger a kernel WARN during booting, but
+        this can safely be ignored - the system should work as expected.
+Load:   dtoverlay=gpio-no-bank0-irq
+Params: <None>
+
+
 Name:   gpio-no-irq
 Info:   Use this overlay to disable all GPIO interrupts, which can be useful
         for user-space GPIO edge detection systems.
@@ -768,6 +782,25 @@ Name:   hy28b
 Info:   HY28B - 2.8" TFT LCD Display Module by HAOYU Electronics
         Default values match Texy's display shield
 Load:   dtoverlay=hy28b,<param>=<val>
+Params: speed                   Display SPI bus speed
+
+        rotate                  Display rotation {0,90,180,270}
+
+        fps                     Delay between frame updates
+
+        debug                   Debug output level {0-7}
+
+        xohms                   Touchpanel sensitivity (X-plate resistance)
+
+        resetgpio               GPIO used to reset controller
+
+        ledgpio                 GPIO used to control backlight
+
+
+Name:   hy28b-2017
+Info:   HY28B 2017 version - 2.8" TFT LCD Display Module by HAOYU Electronics
+        Default values match Texy's display shield
+Load:   dtoverlay=hy28b-2017,<param>=<val>
 Params: speed                   Display SPI bus speed
 
         rotate                  Display rotation {0,90,180,270}
@@ -1596,9 +1629,16 @@ Params: touchscreen-size-x      Touchscreen X resolution (default 800)
 
 
 Name:   rpi-poe
-Info:   Raspberry Pi POE HAT
-Load:   dtoverlay=rpi-poe
-Params: <None>
+Info:   Raspberry Pi PoE HAT fan
+Load:   dtoverlay=rpi-poe,<param>[=<val>]
+Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
+                                turns on (default 50000)
+        poe_fan_temp0_hyst      Temperature delta (in millicelcius) at which
+                                the fan turns off (default 5000)
+        poe_fan_temp1           Temperature (in millicelcius) at which the fan
+                                speeds up (default 55000)
+        poe_fan_temp1_hyst      Temperature delta (in millicelcius) at which
+                                the fan slows down (default 5000)
 
 
 Name:   rpi-proto
