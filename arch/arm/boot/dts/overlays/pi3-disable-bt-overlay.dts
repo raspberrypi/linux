@@ -8,7 +8,7 @@
        sudo systemctl disable hciuart
 */
 
-/{
+/ {
 	compatible = "brcm,bcm2708";
 
 	fragment@0 {
