@@ -701,8 +701,6 @@ static bool sc16is7xx_port_irq(struct sc16is7xx_port *s, int portno)
 			rxlen = sc16is7xx_port_read(port, SC16IS7XX_RXLVL_REG);
 			if (rxlen)
 				sc16is7xx_handle_rx(port, rxlen, iir);
-			else
-				return false;
 			break;
 		case SC16IS7XX_IIR_THRI_SRC:
 			sc16is7xx_handle_tx(port);
@@ -723,15 +721,12 @@ static void sc16is7xx_ist(struct kthread_work *ws)
 
 	mutex_lock(&s->efr_lock);
 
-	while (1)
-	{
+	while (1) {
 		bool keep_polling = false;
 		int i;
 
 		for (i = 0; i < s->devtype->nr_uart; ++i)
-		{
 			keep_polling |= sc16is7xx_port_irq(s, i);
-		}
 		if (!keep_polling)
 			break;
 	}
