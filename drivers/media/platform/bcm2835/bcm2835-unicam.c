@@ -761,11 +761,7 @@ static int unicam_try_fmt_vid_cap(struct file *file, void *priv,
 		unicam_info(dev, "Sensor trying to send interlaced video - results may be unpredictable\n");
 
 	v4l2_fill_pix_format(&f->fmt.pix, &sd_fmt.format);
-	/*
-	 * Use current colorspace for now, it will get
-	 * updated properly during s_fmt
-	 */
-	f->fmt.pix.colorspace = dev->v_fmt.fmt.pix.colorspace;
+
 	return unicam_calc_format_size_bpl(dev, fmt, f);
 }
 
