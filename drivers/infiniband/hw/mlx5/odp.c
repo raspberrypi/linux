@@ -723,6 +723,7 @@ next_mr:
 			head = frame;
 
 			bcnt -= frame->bcnt;
+			offset = 0;
 		}
 		break;
 
