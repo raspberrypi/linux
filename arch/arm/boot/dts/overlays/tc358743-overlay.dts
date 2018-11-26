@@ -94,6 +94,13 @@
 		};
 	};
 	fragment@6 {
+		target = <&i2c0_pins>;
+		__dormant__ {
+			brcm,pins = <0 1>;
+			brcm,function = <4>; /* alt0 */
+		};
+	};
+	fragment@7 {
 		target = <&i2c_vc>;
 		__overlay__ {
 			status = "okay";
@@ -101,7 +108,8 @@
 	};
 
 	__overrides__ {
-		i2c_pins_28_29 = <0>,"+4-5";
+		i2c_pins_0_1 = <0>,"-4-5+6";
+		i2c_pins_28_29 = <0>,"+4-5-6";
 		4lane = <0>, "-2+3";
 		link-frequency = <&tc358743>,"link-frequencies#0";
 	};
