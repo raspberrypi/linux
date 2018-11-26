@@ -1725,7 +1725,8 @@ ff_layout_read_pagelist(struct nfs_pgio_header *hdr)
 	if (fh)
 		hdr->args.fh = fh;
 
-	if (!nfs4_ff_layout_select_ds_stateid(lseg, idx, &hdr->args.stateid))
+	if (vers == 4 &&
+		!nfs4_ff_layout_select_ds_stateid(lseg, idx, &hdr->args.stateid))
 		goto out_failed;
 
 	/*
@@ -1790,7 +1791,8 @@ ff_layout_write_pagelist(struct nfs_pgio_header *hdr, int sync)
 	if (fh)
 		hdr->args.fh = fh;
 
-	if (!nfs4_ff_layout_select_ds_stateid(lseg, idx, &hdr->args.stateid))
+	if (vers == 4 &&
+		!nfs4_ff_layout_select_ds_stateid(lseg, idx, &hdr->args.stateid))
 		goto out_failed;
 
 	/*
