@@ -1102,8 +1102,10 @@ next_block:
 		if (test_opt(sbi, LFS) && create &&
 				flag == F2FS_GET_BLOCK_DIO) {
 			err = __allocate_data_block(&dn, map->m_seg_type);
-			if (!err)
+			if (!err) {
+				blkaddr = dn.data_blkaddr;
 				set_inode_flag(inode, FI_APPEND_WRITE);
+			}
 		}
 	} else {
 		if (create) {
