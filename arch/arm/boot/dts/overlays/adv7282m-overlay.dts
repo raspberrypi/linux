@@ -60,6 +60,13 @@
 		};
 	};
 	fragment@4 {
+		target = <&i2c0_pins>;
+		__dormant__ {
+			brcm,pins = <0 1>;
+			brcm,function = <4>; /* alt0 */
+		};
+	};
+	fragment@5 {
 		target = <&i2c_vc>;
 		__overlay__ {
 			status = "okay";
@@ -67,7 +74,8 @@
 	};
 
 	__overrides__ {
-		i2c_pins_28_29 =	<0>,"+2-3";
+		i2c_pins_0_1 =		<0>,"-2-3+4";
+		i2c_pins_28_29 =	<0>,"+2-3-4";
 		addr =			<&adv728x>,"reg:0";
 	};
 };
