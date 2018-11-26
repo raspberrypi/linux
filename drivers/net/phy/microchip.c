@@ -233,6 +233,7 @@ static int lan88xx_probe(struct phy_device *phydev)
 	struct device *dev = &phydev->mdio.dev;
 	struct lan88xx_priv *priv;
 	u32 led_modes[4];
+	u32 downshift_after = 0;
 	int len;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
@@ -260,6 +261,32 @@ static int lan88xx_probe(struct phy_device *phydev)
 		(void)phy_write(phydev, LAN78XX_PHY_LED_MODE_SELECT, reg);
 	} else if (len == -EOVERFLOW) {
 		return -EINVAL;
+	}
+
+	if (!of_property_read_u32(dev->of_node,
+				  "microchip,downshift-after",
+				  &downshift_after)) {
+		u32 mask = LAN78XX_PHY_CTRL3_DOWNSHIFT_CTRL_MASK;
+		u32 val= LAN78XX_PHY_CTRL3_AUTO_DOWNSHIFT;
+
+		switch (downshift_after) {
+		case 2:	val |= LAN78XX_PHY_CTRL3_DOWNSHIFT_CTRL_2;
+			break;
+		case 3:	val |= LAN78XX_PHY_CTRL3_DOWNSHIFT_CTRL_3;
+			break;
+		case 4:	val |= LAN78XX_PHY_CTRL3_DOWNSHIFT_CTRL_4;
+			break;
+		case 5:	val |= LAN78XX_PHY_CTRL3_DOWNSHIFT_CTRL_5;
+			break;
+		case 0: // Disable completely
+			mask = LAN78XX_PHY_CTRL3_AUTO_DOWNSHIFT;
+			val = 0;
+			break;
+		default:
+			return -EINVAL;
+		}
+		(void)phy_modify_paged(phydev, 1, LAN78XX_PHY_CTRL3,
+				       mask, val);
 	}
 
 	/* these values can be used to identify internal PHY */
