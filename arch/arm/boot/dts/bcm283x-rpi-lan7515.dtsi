@@ -50,5 +50,7 @@
 		tx_lpi_timer = <&eth_phy>,"microchip,tx-lpi-timer:0";
 		eth_led0 = <&eth_phy>,"microchip,led-modes:0";
 		eth_led1 = <&eth_phy>,"microchip,led-modes:4";
+		eth_downshift_after = <&eth_phy>,"microchip,downshift-after";
+		eth_max_speed = <&eth_phy>,"max-speed:0";
 	};
 };
