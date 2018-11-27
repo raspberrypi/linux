@@ -98,6 +98,11 @@ Params:
                                 compatible devices (default "on"). See also
                                 "tx_lpi_timer".
 
+        eth_downshift_after     Set the number of auto-negotiation failures
+                                after which the 1000Mbps modes are disabled.
+                                Legal values are 2, 3, 4, 5 and 0, where
+                                0 means never downshift (default 2).
+
         eth_led0                Set mode of LED0 (usually orange) (default
                                 "1"). The legal values are:
                                 0=link/activity          1=link1000/activity
@@ -107,6 +112,10 @@ Params:
 
         eth_led1                Set mode of LED1 (usually green) (default
                                 "6"). See eth_led0 for legal values.
+
+        eth_max_speed           Set the maximum speed a link is allowed
+                                to negotiate. Legal values are 10, 100 and
+                                1000 (default 1000).
 
         i2c_arm                 Set to "on" to enable the ARM's i2c interface
                                 (default "off")
