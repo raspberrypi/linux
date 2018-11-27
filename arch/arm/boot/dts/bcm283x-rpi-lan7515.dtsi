@@ -31,6 +31,7 @@
 						reg = <1>;
 						microchip,eee-enabled;
 						microchip,tx-lpi-timer = <600>; /* non-aggressive*/
+						microchip,downshift-after = <2>;
 						microchip,led-modes = <
 							LAN78XX_LINK_1000_ACTIVITY
 							LAN78XX_LINK_10_100_ACTIVITY
