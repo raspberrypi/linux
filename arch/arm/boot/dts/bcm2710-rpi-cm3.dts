@@ -51,11 +51,13 @@
 		status = "okay";
 	};
 
+};
+
+&firmware {
 	expgpio: expgpio {
 		compatible = "raspberrypi,firmware-gpio";
 		gpio-controller;
 		#gpio-cells = <2>;
-		firmware = <&firmware>;
 		status = "okay";
 	};
 };

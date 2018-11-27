@@ -82,12 +82,11 @@
 	brcm,overclock-50 = <0>;
 };
 
-&soc {
+&firmware {
 	expgpio: expgpio {
 		compatible = "raspberrypi,firmware-gpio";
 		gpio-controller;
 		#gpio-cells = <2>;
-		firmware = <&firmware>;
 		status = "okay";
 	};
 };
