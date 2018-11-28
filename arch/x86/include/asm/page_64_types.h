@@ -33,14 +33,16 @@
 
 /*
  * Set __PAGE_OFFSET to the most negative possible address +
- * PGDIR_SIZE*16 (pgd slot 272).  The gap is to allow a space for a
- * hypervisor to fit.  Choosing 16 slots here is arbitrary, but it's
- * what Xen requires.
+ * PGDIR_SIZE*17 (pgd slot 273).
+ *
+ * The gap is to allow a space for LDT remap for PTI (1 pgd slot) and space for
+ * a hypervisor (16 slots). Choosing 16 slots for a hypervisor is arbitrary,
+ * but it's what Xen requires.
  */
 #ifdef CONFIG_X86_5LEVEL
-#define __PAGE_OFFSET_BASE      _AC(0xff10000000000000, UL)
+#define __PAGE_OFFSET_BASE	_AC(0xff11000000000000, UL)
 #else
-#define __PAGE_OFFSET_BASE      _AC(0xffff880000000000, UL)
+#define __PAGE_OFFSET_BASE	_AC(0xffff888000000000, UL)
 #endif
 
 #ifdef CONFIG_RANDOMIZE_MEMORY
