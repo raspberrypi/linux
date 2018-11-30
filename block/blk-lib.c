@@ -58,8 +58,7 @@ int __blkdev_issue_discard(struct block_device *bdev, sector_t sector,
 
 		if (!req_sects)
 			goto fail;
-		if (req_sects > UINT_MAX >> 9)
-			req_sects = UINT_MAX >> 9;
+		req_sects = min(req_sects, bio_allowed_max_sectors(q));
 
 		end_sect = sector + req_sects;
 
@@ -162,7 +161,7 @@ static int __blkdev_issue_write_same(struct block_device *bdev, sector_t sector,
 		return -EOPNOTSUPP;
 
 	/* Ensure that max_write_same_sectors doesn't overflow bi_size */
-	max_write_same_sectors = UINT_MAX >> 9;
+	max_write_same_sectors = bio_allowed_max_sectors(q);
 
 	while (nr_sects) {
 		bio = next_bio(bio, 1, gfp_mask);
