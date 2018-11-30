@@ -601,6 +601,6 @@ Other hanging fruits
 
 - making the number of ports fully dynamic and not dependent on DSA_MAX_PORTS
 - allowing more than one CPU/management interface:
-  http://comments.gmane.org/gmane.linux.network/365657
+  https://lore.kernel.org/lkml/1136816352.6659.10.camel%40localhost.localdomain/
 - porting more drivers from other vendors:
   http://comments.gmane.org/gmane.linux.network/365510
