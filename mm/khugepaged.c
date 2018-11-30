@@ -1333,12 +1333,11 @@ static void collapse_shmem(struct mm_struct *mm,
 		goto out;
 	}
 
+	__SetPageLocked(new_page);
+	__SetPageSwapBacked(new_page);
 	new_page->index = start;
 	new_page->mapping = mapping;
-	__SetPageSwapBacked(new_page);
-	__SetPageLocked(new_page);
 	BUG_ON(!page_ref_freeze(new_page, 1));
-
 
 	/*
 	 * At this point the new_page is 'frozen' (page_count() is zero), locked
@@ -1368,13 +1367,13 @@ static void collapse_shmem(struct mm_struct *mm,
 		 */
 		if (n && !shmem_charge(mapping->host, n)) {
 			result = SCAN_FAIL;
-			break;
+			goto tree_locked;
 		}
-		nr_none += n;
 		for (; index < min(iter.index, end); index++) {
 			radix_tree_insert(&mapping->page_tree, index,
 					new_page + (index % HPAGE_PMD_NR));
 		}
+		nr_none += n;
 
 		/* We are done. */
 		if (index >= end)
@@ -1390,12 +1389,12 @@ static void collapse_shmem(struct mm_struct *mm,
 				result = SCAN_FAIL;
 				goto tree_unlocked;
 			}
-			spin_lock_irq(&mapping->tree_lock);
 		} else if (trylock_page(page)) {
 			get_page(page);
+			spin_unlock_irq(&mapping->tree_lock);
 		} else {
 			result = SCAN_PAGE_LOCK;
-			break;
+			goto tree_locked;
 		}
 
 		/*
@@ -1410,11 +1409,10 @@ static void collapse_shmem(struct mm_struct *mm,
 			result = SCAN_TRUNCATED;
 			goto out_unlock;
 		}
-		spin_unlock_irq(&mapping->tree_lock);
 
 		if (isolate_lru_page(page)) {
 			result = SCAN_DEL_PAGE_LRU;
-			goto out_isolate_failed;
+			goto out_unlock;
 		}
 
 		if (page_mapped(page))
@@ -1436,7 +1434,9 @@ static void collapse_shmem(struct mm_struct *mm,
 		 */
 		if (!page_ref_freeze(page, 3)) {
 			result = SCAN_PAGE_COUNT;
-			goto out_lru;
+			spin_unlock_irq(&mapping->tree_lock);
+			putback_lru_page(page);
+			goto out_unlock;
 		}
 
 		/*
@@ -1452,17 +1452,10 @@ static void collapse_shmem(struct mm_struct *mm,
 		slot = radix_tree_iter_resume(slot, &iter);
 		index++;
 		continue;
-out_lru:
-		spin_unlock_irq(&mapping->tree_lock);
-		putback_lru_page(page);
-out_isolate_failed:
-		unlock_page(page);
-		put_page(page);
-		goto tree_unlocked;
 out_unlock:
 		unlock_page(page);
 		put_page(page);
-		break;
+		goto tree_unlocked;
 	}
 
 	/*
@@ -1470,7 +1463,7 @@ out_unlock:
 	 * This code only triggers if there's nothing in radix tree
 	 * beyond 'end'.
 	 */
-	if (result == SCAN_SUCCEED && index < end) {
+	if (index < end) {
 		int n = end - index;
 
 		/* Stop if extent has been truncated, and is now empty */
@@ -1482,7 +1475,6 @@ out_unlock:
 			result = SCAN_FAIL;
 			goto tree_locked;
 		}
-
 		for (; index < end; index++) {
 			radix_tree_insert(&mapping->page_tree, index,
 					new_page + (index % HPAGE_PMD_NR));
@@ -1490,14 +1482,19 @@ out_unlock:
 		nr_none += n;
 	}
 
+	__inc_node_page_state(new_page, NR_SHMEM_THPS);
+	if (nr_none) {
+		struct zone *zone = page_zone(new_page);
+
+		__mod_node_page_state(zone->zone_pgdat, NR_FILE_PAGES, nr_none);
+		__mod_node_page_state(zone->zone_pgdat, NR_SHMEM, nr_none);
+	}
+
 tree_locked:
 	spin_unlock_irq(&mapping->tree_lock);
 tree_unlocked:
 
 	if (result == SCAN_SUCCEED) {
-		unsigned long flags;
-		struct zone *zone = page_zone(new_page);
-
 		/*
 		 * Replacing old pages with new one has succeed, now we need to
 		 * copy the content and free old pages.
@@ -1511,11 +1508,11 @@ tree_unlocked:
 			copy_highpage(new_page + (page->index % HPAGE_PMD_NR),
 					page);
 			list_del(&page->lru);
-			unlock_page(page);
-			page_ref_unfreeze(page, 1);
 			page->mapping = NULL;
+			page_ref_unfreeze(page, 1);
 			ClearPageActive(page);
 			ClearPageUnevictable(page);
+			unlock_page(page);
 			put_page(page);
 			index++;
 		}
@@ -1524,28 +1521,17 @@ tree_unlocked:
 			index++;
 		}
 
-		local_irq_save(flags);
-		__inc_node_page_state(new_page, NR_SHMEM_THPS);
-		if (nr_none) {
-			__mod_node_page_state(zone->zone_pgdat, NR_FILE_PAGES, nr_none);
-			__mod_node_page_state(zone->zone_pgdat, NR_SHMEM, nr_none);
-		}
-		local_irq_restore(flags);
-
-		/*
-		 * Remove pte page tables, so we can re-faulti
-		 * the page as huge.
-		 */
-		retract_page_tables(mapping, start);
-
 		/* Everything is ready, let's unfreeze the new_page */
-		set_page_dirty(new_page);
 		SetPageUptodate(new_page);
 		page_ref_unfreeze(new_page, HPAGE_PMD_NR);
+		set_page_dirty(new_page);
 		mem_cgroup_commit_charge(new_page, memcg, false, true);
 		lru_cache_add_anon(new_page);
-		unlock_page(new_page);
 
+		/*
+		 * Remove pte page tables, so we can re-fault the page as huge.
+		 */
+		retract_page_tables(mapping, start);
 		*hpage = NULL;
 	} else {
 		/* Something went wrong: rollback changes to the radix-tree */
@@ -1578,8 +1564,8 @@ tree_unlocked:
 						slot, page);
 			slot = radix_tree_iter_resume(slot, &iter);
 			spin_unlock_irq(&mapping->tree_lock);
-			putback_lru_page(page);
 			unlock_page(page);
+			putback_lru_page(page);
 			spin_lock_irq(&mapping->tree_lock);
 		}
 		VM_BUG_ON(nr_none);
@@ -1588,9 +1574,10 @@ tree_unlocked:
 		/* Unfreeze new_page, caller would take care about freeing it */
 		page_ref_unfreeze(new_page, 1);
 		mem_cgroup_cancel_charge(new_page, memcg, true);
-		unlock_page(new_page);
 		new_page->mapping = NULL;
 	}
+
+	unlock_page(new_page);
 out:
 	VM_BUG_ON(!list_empty(&pagelist));
 	/* TODO: tracepoints */
