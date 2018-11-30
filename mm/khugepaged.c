@@ -1539,8 +1539,10 @@ tree_unlocked:
 		*hpage = NULL;
 	} else {
 		/* Something went wrong: rollback changes to the radix-tree */
-		shmem_uncharge(mapping->host, nr_none);
 		spin_lock_irq(&mapping->tree_lock);
+		mapping->nrpages -= nr_none;
+		shmem_uncharge(mapping->host, nr_none);
+
 		radix_tree_for_each_slot(slot, &mapping->page_tree, &iter,
 				start) {
 			if (iter.index >= end)
