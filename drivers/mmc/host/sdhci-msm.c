@@ -138,6 +138,8 @@ struct sdhci_msm_host {
 	bool calibration_done;
 	u8 saved_tuning_phase;
 	bool use_cdclp533;
+	bool use_cdr;
+	u32 transfer_mode;
 };
 
 static unsigned int msm_get_clock_rate_for_bus_mode(struct sdhci_host *host,
@@ -815,6 +817,23 @@ out:
 	return ret;
 }
 
+static void sdhci_msm_set_cdr(struct sdhci_host *host, bool enable)
+{
+	u32 config, oldconfig = readl_relaxed(host->ioaddr + CORE_DLL_CONFIG);
+
+	config = oldconfig;
+	if (enable) {
+		config |= CORE_CDR_EN;
+		config &= ~CORE_CDR_EXT_EN;
+	} else {
+		config &= ~CORE_CDR_EN;
+		config |= CORE_CDR_EXT_EN;
+	}
+
+	if (config != oldconfig)
+		writel_relaxed(config, host->ioaddr + CORE_DLL_CONFIG);
+}
+
 static int sdhci_msm_execute_tuning(struct mmc_host *mmc, u32 opcode)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
@@ -832,8 +851,14 @@ static int sdhci_msm_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	if (host->clock <= CORE_FREQ_100MHZ ||
 	    !(ios.timing == MMC_TIMING_MMC_HS400 ||
 	    ios.timing == MMC_TIMING_MMC_HS200 ||
-	    ios.timing == MMC_TIMING_UHS_SDR104))
+	    ios.timing == MMC_TIMING_UHS_SDR104)) {
+		msm_host->use_cdr = false;
+		sdhci_msm_set_cdr(host, false);
 		return 0;
+	}
+
+	/* Clock-Data-Recovery used to dynamically adjust RX sampling point */
+	msm_host->use_cdr = true;
 
 	/*
 	 * For HS400 tuning in HS200 timing requires:
@@ -1092,6 +1117,29 @@ out:
 	__sdhci_msm_set_clock(host, clock);
 }
 
+static void sdhci_msm_write_w(struct sdhci_host *host, u16 val, int reg)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+
+	switch (reg) {
+	case SDHCI_TRANSFER_MODE:
+		msm_host->transfer_mode = val;
+		break;
+	case SDHCI_COMMAND:
+		if (!msm_host->use_cdr)
+			break;
+		if ((msm_host->transfer_mode & SDHCI_TRNS_READ) &&
+		    (SDHCI_GET_CMD(val) != MMC_SEND_TUNING_BLOCK_HS200) &&
+		    (SDHCI_GET_CMD(val) != MMC_SEND_TUNING_BLOCK))
+			sdhci_msm_set_cdr(host, true);
+		else
+			sdhci_msm_set_cdr(host, false);
+		break;
+	}
+	writew(val, host->ioaddr + reg);
+}
+
 static const struct of_device_id sdhci_msm_dt_match[] = {
 	{ .compatible = "qcom,sdhci-msm-v4" },
 	{},
@@ -1107,6 +1155,7 @@ static const struct sdhci_ops sdhci_msm_ops = {
 	.set_bus_width = sdhci_set_bus_width,
 	.set_uhs_signaling = sdhci_msm_set_uhs_signaling,
 	.voltage_switch = sdhci_msm_voltage_switch,
+	.write_w = sdhci_msm_write_w,
 };
 
 static const struct sdhci_pltfm_data sdhci_msm_pdata = {
