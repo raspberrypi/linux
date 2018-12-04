@@ -331,17 +331,12 @@ static int nano_player_i2c_probe(struct i2c_client *i2c,
 
 	nano_player_card.dev = &i2c->dev;
 	snd_soc_card_set_drvdata(&nano_player_card, regmap);
-	ret = snd_soc_register_card(&nano_player_card);
+	ret = devm_snd_soc_register_card(&i2c->dev, &nano_player_card);
 
 	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&i2c->dev, "Failed to register card %d\n", ret);
 
 	return ret;
-}
-
-static int nano_player_i2c_remove(struct i2c_client *client)
-{
-	return snd_soc_unregister_card(&nano_player_card);
 }
 
 static const struct of_device_id nano_player_of_match[] = {
@@ -358,7 +353,6 @@ MODULE_DEVICE_TABLE(i2c, nano_player_i2c_id);
 
 static struct i2c_driver nano_player_i2c_driver = {
 	.probe		= nano_player_i2c_probe,
-	.remove		= nano_player_i2c_remove,
 	.id_table	= nano_player_i2c_id,
 	.driver		= {
 		.name		= "nano-player",
