@@ -39,7 +39,7 @@
 
 			sgtl5000@0a {
 				#sound-dai-cells = <0>;
-				compatible = "fepi,sgtl5000";
+				compatible = "fsl,sgtl5000";
 				reg = <0x0a>;
 				clocks = <&sgtl5000_mclk>;
 				micbias-resistor-k-ohms = <2>;
