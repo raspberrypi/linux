@@ -62,14 +62,16 @@ static void __get_inode_rdev(struct inode *inode, struct f2fs_inode *ri)
 	}
 }
 
-static bool __written_first_block(struct f2fs_sb_info *sbi,
+static int __written_first_block(struct f2fs_sb_info *sbi,
 					struct f2fs_inode *ri)
 {
 	block_t addr = le32_to_cpu(ri->i_addr[offset_in_addr(ri)]);
 
-	if (is_valid_data_blkaddr(sbi, addr))
-		return true;
-	return false;
+	if (!__is_valid_data_blkaddr(addr))
+		return 1;
+	if (!f2fs_is_valid_blkaddr(sbi, addr, DATA_GENERIC))
+		return -EFAULT;
+	return 0;
 }
 
 static void __set_inode_rdev(struct inode *inode, struct f2fs_inode *ri)
@@ -253,6 +255,7 @@ static int do_read_inode(struct inode *inode)
 	struct page *node_page;
 	struct f2fs_inode *ri;
 	projid_t i_projid;
+	int err;
 
 	/* Check if ino is within scope */
 	if (check_nid_range(sbi, inode->i_ino))
@@ -307,7 +310,12 @@ static int do_read_inode(struct inode *inode)
 	/* get rdev by using inline_info */
 	__get_inode_rdev(inode, ri);
 
-	if (__written_first_block(sbi, ri))
+	err = __written_first_block(sbi, ri);
+	if (err < 0) {
+		f2fs_put_page(node_page, 1);
+		return err;
+	}
+	if (!err)
 		set_inode_flag(inode, FI_FIRST_BLOCK_WRITTEN);
 
 	if (!need_inode_block_update(sbi, inode->i_ino))

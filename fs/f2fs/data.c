@@ -468,6 +468,9 @@ static struct bio *f2fs_grab_read_bio(struct inode *inode, block_t blkaddr,
 	struct fscrypt_ctx *ctx = NULL;
 	struct bio *bio;
 
+	if (!f2fs_is_valid_blkaddr(sbi, blkaddr, DATA_GENERIC))
+		return ERR_PTR(-EFAULT);
+
 	if (f2fs_encrypted_file(inode)) {
 		ctx = fscrypt_get_ctx(inode, GFP_NOFS);
 		if (IS_ERR(ctx))
