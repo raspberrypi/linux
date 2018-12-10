@@ -594,8 +594,7 @@ error:
 	return ret;
 }
 
-/* FIXME: Pass a function pointer to this into vc_vchi_sm.c */
-void
+static void
 vc_sm_vpu_event(struct sm_instance *instance, struct vc_sm_result_t *reply,
 		int reply_len)
 {
