@@ -2860,9 +2860,7 @@ ia_css_debug_pipe_graph_dump_stage(
 			if (l <= ENABLE_LINE_MAX_LENGTH) {
 				/* It fits on one line, copy string and init */
 				/* other helper strings with empty string */
-				strcpy_s(enable_info,
-					sizeof(enable_info),
-					ei);
+				strscpy(enable_info, ei, sizeof(enable_info));
 			} else {
 				/* Too big for one line, find last comma */
 				p = ENABLE_LINE_MAX_LENGTH;
