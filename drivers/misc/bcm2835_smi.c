@@ -879,7 +879,7 @@ static int bcm2835_smi_probe(struct platform_device *pdev)
 		goto err;
 	}
 	addr = of_get_address(node, 0, NULL, NULL);
-	inst->smi_regs_busaddr = be32_to_cpu(addr);
+	inst->smi_regs_busaddr = be32_to_cpu(*addr);
 
 	err = bcm2835_smi_dma_setup(inst);
 	if (err)
