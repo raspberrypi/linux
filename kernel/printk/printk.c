@@ -1811,7 +1811,7 @@ asmlinkage int vprintk_emit(int facility, int level,
 		 * console_sem which would prevent anyone from printing to
 		 * console
 		 */
-		preempt_disable();
+		migrate_disable();
 		/*
 		 * Try to acquire and then immediately release the console
 		 * semaphore.  The release will print out buffers and wake up
@@ -1819,7 +1819,7 @@ asmlinkage int vprintk_emit(int facility, int level,
 		 */
 		if (may_trylock && console_trylock())
 			console_unlock();
-		preempt_enable();
+		migrate_enable();
 	}
 
 	return printed_len;
