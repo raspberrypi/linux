@@ -406,7 +406,7 @@ static int sk_psock_skb_ingress(struct sk_psock *psock, struct sk_buff *skb)
 	msg->skb = skb;
 
 	sk_psock_queue_msg(psock, msg);
-	sk->sk_data_ready(sk);
+	sk_psock_data_ready(sk, psock);
 	return copied;
 }
 
@@ -739,7 +739,7 @@ static int sk_psock_strp_parse(struct strparser *strp, struct sk_buff *skb)
 }
 
 /* Called with socket lock held. */
-static void sk_psock_data_ready(struct sock *sk)
+static void sk_psock_strp_data_ready(struct sock *sk)
 {
 	struct sk_psock *psock;
 
@@ -787,7 +787,7 @@ void sk_psock_start_strp(struct sock *sk, struct sk_psock *psock)
 		return;
 
 	parser->saved_data_ready = sk->sk_data_ready;
-	sk->sk_data_ready = sk_psock_data_ready;
+	sk->sk_data_ready = sk_psock_strp_data_ready;
 	sk->sk_write_space = sk_psock_write_space;
 	parser->enabled = true;
 }
