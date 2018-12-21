@@ -56,4 +56,8 @@ int vc_sm_cma_vchi_client_version(struct sm_instance *handle,
 				  struct vc_sm_result_t *result,
 				  u32 *cur_trans_id);
 
+int vc_sm_vchi_client_vc_mem_req_reply(struct sm_instance *handle,
+				       struct vc_sm_vc_mem_request_result *msg,
+				       uint32_t *cur_trans_id);
+
 #endif /* __VC_SM_CMA_VCHI_H__INCLUDED__ */

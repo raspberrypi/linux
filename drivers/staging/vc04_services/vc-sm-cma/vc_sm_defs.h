@@ -264,6 +264,8 @@ struct vc_sm_vc_mem_request {
 	u32 align;
 	/* resource name (for easier tracking) */
 	char     name[VC_SM_RESOURCE_NAME];
+	/* VPU handle for the resource */
+	u32 vc_handle;
 };
 
 /* Response from the kernel to provide the VPU with some memory */
