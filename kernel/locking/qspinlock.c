@@ -77,6 +77,18 @@
 #endif
 
 /*
+ * The pending bit spinning loop count.
+ * This heuristic is used to limit the number of lockword accesses
+ * made by atomic_cond_read_relaxed when waiting for the lock to
+ * transition out of the "== _Q_PENDING_VAL" state. We don't spin
+ * indefinitely because there's no guarantee that we'll make forward
+ * progress.
+ */
+#ifndef _Q_PENDING_LOOPS
+#define _Q_PENDING_LOOPS	1
+#endif
+
+/*
  * Per-CPU queue node structures; we can never have more than 4 nested
  * contexts: task, softirq, hardirq, nmi.
  *
@@ -114,41 +126,18 @@ static inline __pure struct mcs_spinlock *decode_tail(u32 tail)
 
 #define _Q_LOCKED_PENDING_MASK (_Q_LOCKED_MASK | _Q_PENDING_MASK)
 
-/*
- * By using the whole 2nd least significant byte for the pending bit, we
- * can allow better optimization of the lock acquisition for the pending
- * bit holder.
- *
- * This internal structure is also used by the set_locked function which
- * is not restricted to _Q_PENDING_BITS == 8.
- */
-struct __qspinlock {
-	union {
-		atomic_t val;
-#ifdef __LITTLE_ENDIAN
-		struct {
-			u8	locked;
-			u8	pending;
-		};
-		struct {
-			u16	locked_pending;
-			u16	tail;
-		};
-#else
-		struct {
-			u16	tail;
-			u16	locked_pending;
-		};
-		struct {
-			u8	reserved[2];
-			u8	pending;
-			u8	locked;
-		};
-#endif
-	};
-};
-
 #if _Q_PENDING_BITS == 8
+/**
+ * clear_pending - clear the pending bit.
+ * @lock: Pointer to queued spinlock structure
+ *
+ * *,1,* -> *,0,*
+ */
+static __always_inline void clear_pending(struct qspinlock *lock)
+{
+	WRITE_ONCE(lock->pending, 0);
+}
+
 /**
  * clear_pending_set_locked - take ownership and clear the pending bit.
  * @lock: Pointer to queued spinlock structure
@@ -159,9 +148,7 @@ struct __qspinlock {
  */
 static __always_inline void clear_pending_set_locked(struct qspinlock *lock)
 {
-	struct __qspinlock *l = (void *)lock;
-
-	WRITE_ONCE(l->locked_pending, _Q_LOCKED_VAL);
+	WRITE_ONCE(lock->locked_pending, _Q_LOCKED_VAL);
 }
 
 /*
@@ -170,23 +157,32 @@ static __always_inline void clear_pending_set_locked(struct qspinlock *lock)
  * @tail : The new queue tail code word
  * Return: The previous queue tail code word
  *
- * xchg(lock, tail)
+ * xchg(lock, tail), which heads an address dependency
  *
  * p,*,* -> n,*,* ; prev = xchg(lock, node)
  */
 static __always_inline u32 xchg_tail(struct qspinlock *lock, u32 tail)
 {
-	struct __qspinlock *l = (void *)lock;
-
 	/*
 	 * Use release semantics to make sure that the MCS node is properly
 	 * initialized before changing the tail code.
 	 */
-	return (u32)xchg_release(&l->tail,
+	return (u32)xchg_release(&lock->tail,
 				 tail >> _Q_TAIL_OFFSET) << _Q_TAIL_OFFSET;
 }
 
 #else /* _Q_PENDING_BITS == 8 */
+
+/**
+ * clear_pending - clear the pending bit.
+ * @lock: Pointer to queued spinlock structure
+ *
+ * *,1,* -> *,0,*
+ */
+static __always_inline void clear_pending(struct qspinlock *lock)
+{
+	atomic_andnot(_Q_PENDING_VAL, &lock->val);
+}
 
 /**
  * clear_pending_set_locked - take ownership and clear the pending bit.
@@ -230,6 +226,20 @@ static __always_inline u32 xchg_tail(struct qspinlock *lock, u32 tail)
 #endif /* _Q_PENDING_BITS == 8 */
 
 /**
+ * queued_fetch_set_pending_acquire - fetch the whole lock value and set pending
+ * @lock : Pointer to queued spinlock structure
+ * Return: The previous lock value
+ *
+ * *,*,* -> *,1,*
+ */
+#ifndef queued_fetch_set_pending_acquire
+static __always_inline u32 queued_fetch_set_pending_acquire(struct qspinlock *lock)
+{
+	return atomic_fetch_or_acquire(_Q_PENDING_VAL, &lock->val);
+}
+#endif
+
+/**
  * set_locked - Set the lock bit and own the lock
  * @lock: Pointer to queued spinlock structure
  *
@@ -237,9 +247,7 @@ static __always_inline u32 xchg_tail(struct qspinlock *lock, u32 tail)
  */
 static __always_inline void set_locked(struct qspinlock *lock)
 {
-	struct __qspinlock *l = (void *)lock;
-
-	WRITE_ONCE(l->locked, _Q_LOCKED_VAL);
+	WRITE_ONCE(lock->locked, _Q_LOCKED_VAL);
 }
 
 
@@ -294,7 +302,7 @@ static __always_inline u32  __pv_wait_head_or_lock(struct qspinlock *lock,
 void queued_spin_lock_slowpath(struct qspinlock *lock, u32 val)
 {
 	struct mcs_spinlock *prev, *next, *node;
-	u32 new, old, tail;
+	u32 old, tail;
 	int idx;
 
 	BUILD_BUG_ON(CONFIG_NR_CPUS >= (1U << _Q_TAIL_CPU_BITS));
@@ -306,14 +314,22 @@ void queued_spin_lock_slowpath(struct qspinlock *lock, u32 val)
 		return;
 
 	/*
-	 * wait for in-progress pending->locked hand-overs
+	 * Wait for in-progress pending->locked hand-overs with a bounded
+	 * number of spins so that we guarantee forward progress.
 	 *
 	 * 0,1,0 -> 0,0,1
 	 */
 	if (val == _Q_PENDING_VAL) {
-		while ((val = atomic_read(&lock->val)) == _Q_PENDING_VAL)
-			cpu_relax();
+		int cnt = _Q_PENDING_LOOPS;
+		val = smp_cond_load_acquire(&lock->val.counter,
+					       (VAL != _Q_PENDING_VAL) || !cnt--);
 	}
+
+	/*
+	 * If we observe any contention; queue.
+	 */
+	if (val & ~_Q_LOCKED_MASK)
+		goto queue;
 
 	/*
 	 * trylock || pending
@@ -321,50 +337,35 @@ void queued_spin_lock_slowpath(struct qspinlock *lock, u32 val)
 	 * 0,0,0 -> 0,0,1 ; trylock
 	 * 0,0,1 -> 0,1,1 ; pending
 	 */
-	for (;;) {
-		/*
-		 * If we observe any contention; queue.
-		 */
-		if (val & ~_Q_LOCKED_MASK)
-			goto queue;
+	val = queued_fetch_set_pending_acquire(lock);
 
-		new = _Q_LOCKED_VAL;
-		if (val == new)
-			new |= _Q_PENDING_VAL;
-
-		/*
-		 * Acquire semantic is required here as the function may
-		 * return immediately if the lock was free.
-		 */
-		old = atomic_cmpxchg_acquire(&lock->val, val, new);
-		if (old == val)
-			break;
-
-		val = old;
+	/*
+	 * If we observe any contention; undo and queue.
+	 */
+	if (unlikely(val & ~_Q_LOCKED_MASK)) {
+		if (!(val & _Q_PENDING_MASK))
+			clear_pending(lock);
+		goto queue;
 	}
 
 	/*
-	 * we won the trylock
-	 */
-	if (new == _Q_LOCKED_VAL)
-		return;
-
-	/*
-	 * we're pending, wait for the owner to go away.
+	 * We're pending, wait for the owner to go away.
 	 *
-	 * *,1,1 -> *,1,0
+	 * 0,1,1 -> 0,1,0
 	 *
 	 * this wait loop must be a load-acquire such that we match the
 	 * store-release that clears the locked bit and create lock
-	 * sequentiality; this is because not all clear_pending_set_locked()
-	 * implementations imply full barriers.
+	 * sequentiality; this is because not all
+	 * clear_pending_set_locked() implementations imply full
+	 * barriers.
 	 */
-	smp_cond_load_acquire(&lock->val.counter, !(VAL & _Q_LOCKED_MASK));
+	if (val & _Q_LOCKED_MASK)
+		smp_cond_load_acquire(&lock->val.counter, !(VAL & _Q_LOCKED_MASK));
 
 	/*
 	 * take ownership and clear the pending bit.
 	 *
-	 * *,1,0 -> *,0,1
+	 * 0,1,0 -> 0,0,1
 	 */
 	clear_pending_set_locked(lock);
 	return;
@@ -416,16 +417,15 @@ queue:
 	 */
 	if (old & _Q_TAIL_MASK) {
 		prev = decode_tail(old);
-		/*
-		 * The above xchg_tail() is also a load of @lock which generates,
-		 * through decode_tail(), a pointer.
-		 *
-		 * The address dependency matches the RELEASE of xchg_tail()
-		 * such that the access to @prev must happen after.
-		 */
-		smp_read_barrier_depends();
 
-		WRITE_ONCE(prev->next, node);
+		/*
+		 * We must ensure that the stores to @node are observed before
+		 * the write to prev->next. The address dependency from
+		 * xchg_tail is not sufficient to ensure this because the read
+		 * component of xchg_tail is unordered with respect to the
+		 * initialisation of @node.
+		 */
+		smp_store_release(&prev->next, node);
 
 		pv_wait_node(node, prev);
 		arch_mcs_spin_lock_contended(&node->locked);
@@ -472,29 +472,26 @@ locked:
 	 * claim the lock:
 	 *
 	 * n,0,0 -> 0,0,1 : lock, uncontended
-	 * *,0,0 -> *,0,1 : lock, contended
+	 * *,*,0 -> *,*,1 : lock, contended
 	 *
-	 * If the queue head is the only one in the queue (lock value == tail),
-	 * clear the tail code and grab the lock. Otherwise, we only need
-	 * to grab the lock.
+	 * If the queue head is the only one in the queue (lock value == tail)
+	 * and nobody is pending, clear the tail code and grab the lock.
+	 * Otherwise, we only need to grab the lock.
 	 */
-	for (;;) {
-		/* In the PV case we might already have _Q_LOCKED_VAL set */
-		if ((val & _Q_TAIL_MASK) != tail) {
-			set_locked(lock);
-			break;
-		}
+
+	/* In the PV case we might already have _Q_LOCKED_VAL set */
+	if ((val & _Q_TAIL_MASK) == tail) {
 		/*
 		 * The smp_cond_load_acquire() call above has provided the
-		 * necessary acquire semantics required for locking. At most
-		 * two iterations of this loop may be ran.
+		 * necessary acquire semantics required for locking.
 		 */
 		old = atomic_cmpxchg_relaxed(&lock->val, val, _Q_LOCKED_VAL);
 		if (old == val)
-			goto release;	/* No contention */
-
-		val = old;
+			goto release; /* No contention */
 	}
+
+	/* Either somebody is queued behind us or _Q_PENDING_VAL is set */
+	set_locked(lock);
 
 	/*
 	 * contended path; wait for next if not observed yet, release.
