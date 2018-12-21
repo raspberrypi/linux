@@ -9,10 +9,21 @@
  * and taking some code for CMA/dmabuf handling from the Android Ion
  * driver (Google/Linaro).
  *
- * This is cut down version to only support import of dma_bufs from
- * other kernel drivers. A more complete implementation of the old
- * vmcs_sm functionality can follow later.
  *
+ * This driver has 3 main uses:
+ * 1) Allocating buffers for the kernel or userspace that can be shared with the
+ *    VPU.
+ * 2) Importing dmabufs from elsewhere for sharing with the VPU.
+ * 3) Allocating buffers for use by the VPU.
+ *
+ * In the first and second cases the native handle is a dmabuf. Releasing the
+ * resource inherently comes from releasing the dmabuf, and this will trigger
+ * unmapping on the VPU. The underlying allocation and our buffer structure are
+ * retained until the VPU has confirmed that it has finished with it.
+ *
+ * For the VPU allocations the VPU is responsible for triggering the release,
+ * and therefore the released message decrements the dma_buf refcount (with the
+ * VPU mapping having already been marked as released).
  */
 
 /* ---- Include Files ----------------------------------------------------- */
@@ -39,6 +50,7 @@
 #include "vc_sm_cma_vchi.h"
 
 #include "vc_sm.h"
+#include "vc_sm_cma.h"
 #include "vc_sm_knl.h"
 
 /* ---- Private Constants and Types --------------------------------------- */
@@ -72,6 +84,7 @@ struct sm_state_t {
 	struct platform_device *pdev;
 
 	struct sm_instance *sm_handle;	/* Handle for videocore service. */
+	struct cma *cma_heap;
 
 	spinlock_t kernelid_map_lock;	/* Spinlock protecting kernelid_map */
 	struct idr kernelid_map;
@@ -80,6 +93,7 @@ struct sm_state_t {
 	struct list_head buffer_list;	/* List of buffer. */
 
 	struct vc_sm_privdata_t *data_knl;  /* Kernel internal data tracking. */
+	struct vc_sm_privdata_t *vpu_allocs; /* All allocations from the VPU */
 	struct dentry *dir_root;	/* Debug fs entries root. */
 	struct sm_pde_t dir_state;	/* Debug fs entries state sub-tree. */
 
@@ -87,6 +101,12 @@ struct sm_state_t {
 					 * has finished with a resource.
 					 */
 	u32 int_trans_id;		/* Interrupted transaction. */
+};
+
+struct vc_sm_dma_buf_attachment {
+	struct device *dev;
+	struct sg_table *table;
+	struct list_head list;
 };
 
 /* ---- Private Variables ----------------------------------------------- */
@@ -172,12 +192,14 @@ static int vc_sm_cma_global_state_show(struct seq_file *s, void *v)
 				   resource->size);
 			seq_printf(s, "           DMABUF       %p\n",
 				   resource->dma_buf);
-			seq_printf(s, "           ATTACH       %p\n",
-				   resource->attach);
+			if (resource->imported) {
+				seq_printf(s, "           ATTACH       %p\n",
+					   resource->import.attach);
+				seq_printf(s, "           SGT          %p\n",
+					   resource->import.sgt);
+			}
 			seq_printf(s, "           SG_TABLE     %p\n",
 				   resource->sg_table);
-			seq_printf(s, "           SGT          %p\n",
-				   resource->sgt);
 			seq_printf(s, "           DMA_ADDR     %pad\n",
 				   &resource->dma_addr);
 			seq_printf(s, "           VC_HANDLE     %08x\n",
@@ -209,17 +231,33 @@ static void vc_sm_add_resource(struct vc_sm_privdata_t *privdata,
 }
 
 /*
- * Release an allocation.
- * All refcounting is done via the dma buf object.
+ * Cleans up imported dmabuf.
  */
-static void vc_sm_release_resource(struct vc_sm_buffer *buffer, int force)
+static void vc_sm_clean_up_dmabuf(struct vc_sm_buffer *buffer)
 {
-	mutex_lock(&sm_state->map_lock);
+	if (!buffer->imported)
+		return;
+
+	/* Handle cleaning up imported dmabufs */
 	mutex_lock(&buffer->lock);
+	if (buffer->import.sgt) {
+		dma_buf_unmap_attachment(buffer->import.attach,
+					 buffer->import.sgt,
+					 DMA_BIDIRECTIONAL);
+		buffer->import.sgt = NULL;
+	}
+	if (buffer->import.attach) {
+		dma_buf_detach(buffer->dma_buf, buffer->import.attach);
+		buffer->import.attach = NULL;
+	}
+	mutex_unlock(&buffer->lock);
+}
 
-	pr_debug("[%s]: buffer %p (name %s, size %zu)\n",
-		 __func__, buffer, buffer->name, buffer->size);
-
+/*
+ * Instructs VPU to decrement the refcount on a buffer.
+ */
+static void vc_sm_vpu_free(struct vc_sm_buffer *buffer)
+{
 	if (buffer->vc_handle && buffer->vpu_state == VPU_MAPPED) {
 		struct vc_sm_free_t free = { buffer->vc_handle, 0 };
 		int status = vc_sm_cma_vchi_free(sm_state->sm_handle, &free,
@@ -230,17 +268,32 @@ static void vc_sm_release_resource(struct vc_sm_buffer *buffer, int force)
 		}
 
 		if (sm_state->require_released_callback) {
-			/* Need to wait for the VPU to confirm the free */
+			/* Need to wait for the VPU to confirm the free. */
 
 			/* Retain a reference on this until the VPU has
 			 * released it
 			 */
 			buffer->vpu_state = VPU_UNMAPPING;
-			goto defer;
+		} else {
+			buffer->vpu_state = VPU_NOT_MAPPED;
+			buffer->vc_handle = 0;
 		}
-		buffer->vpu_state = VPU_NOT_MAPPED;
-		buffer->vc_handle = 0;
 	}
+}
+
+/*
+ * Release an allocation.
+ * All refcounting is done via the dma buf object.
+ *
+ * Must be called with the mutex held. The function will either release the
+ * mutex (if defering the release) or destroy it. The caller must therefore not
+ * reuse the buffer on return.
+ */
+static void vc_sm_release_resource(struct vc_sm_buffer *buffer)
+{
+	pr_debug("[%s]: buffer %p (name %s, size %zu)\n",
+		 __func__, buffer, buffer->name, buffer->size);
+
 	if (buffer->vc_handle) {
 		/* We've sent the unmap request but not had the response. */
 		pr_err("[%s]: Waiting for VPU unmap response on %p\n",
@@ -248,45 +301,43 @@ static void vc_sm_release_resource(struct vc_sm_buffer *buffer, int force)
 		goto defer;
 	}
 	if (buffer->in_use) {
-		/* Don't release dmabuf here - we await the release */
+		/* dmabuf still in use - we await the release */
 		pr_err("[%s]: buffer %p is still in use\n",
 		       __func__, buffer);
 		goto defer;
 	}
 
-	/* Handle cleaning up imported dmabufs */
-	if (buffer->sgt) {
-		dma_buf_unmap_attachment(buffer->attach, buffer->sgt,
-					 DMA_BIDIRECTIONAL);
-		buffer->sgt = NULL;
-	}
-	if (buffer->attach) {
-		dma_buf_detach(buffer->dma_buf, buffer->attach);
-		buffer->attach = NULL;
-	}
-
-	/* Release the dma_buf (whether ours or imported) */
-	if (buffer->import_dma_buf) {
-		dma_buf_put(buffer->import_dma_buf);
-		buffer->import_dma_buf = NULL;
-		buffer->dma_buf = NULL;
-	} else if (buffer->dma_buf) {
-		dma_buf_put(buffer->dma_buf);
-		buffer->dma_buf = NULL;
-	}
-
-	if (buffer->sg_table && !buffer->import_dma_buf) {
-		/* Our own allocation that we need to dma_unmap_sg */
-		dma_unmap_sg(&sm_state->pdev->dev, buffer->sg_table->sgl,
-			     buffer->sg_table->nents, DMA_BIDIRECTIONAL);
+	/* Release the allocation (whether imported dmabuf or CMA allocation) */
+	if (buffer->imported) {
+		pr_debug("%s: Release imported dmabuf %p\n", __func__,
+			 buffer->import.dma_buf);
+		if (buffer->import.dma_buf)
+			dma_buf_put(buffer->import.dma_buf);
+		else
+			pr_err("%s: Imported dmabuf already been put for buf %p\n",
+			       __func__, buffer);
+		buffer->import.dma_buf = NULL;
+	} else {
+		if (buffer->sg_table) {
+			/* Our own allocation that we need to dma_unmap_sg */
+			dma_unmap_sg(&sm_state->pdev->dev,
+				     buffer->sg_table->sgl,
+				     buffer->sg_table->nents,
+				     DMA_BIDIRECTIONAL);
+		}
+		pr_debug("%s: Release our allocation\n", __func__);
+		vc_sm_cma_buffer_free(&buffer->alloc);
+		pr_debug("%s: Release our allocation - done\n", __func__);
 	}
 
-	/* Free the local resource. Start by removing it from the list */
-	buffer->private = NULL;
+
+	/* Free our buffer. Start by removing it from the list */
+	mutex_lock(&sm_state->map_lock);
 	list_del(&buffer->global_buffer_list);
-
-	mutex_unlock(&buffer->lock);
 	mutex_unlock(&sm_state->map_lock);
+
+	pr_debug("%s: Release our allocation - done\n", __func__);
+	mutex_unlock(&buffer->lock);
 
 	mutex_destroy(&buffer->lock);
 
@@ -295,7 +346,7 @@ static void vc_sm_release_resource(struct vc_sm_buffer *buffer, int force)
 
 defer:
 	mutex_unlock(&buffer->lock);
-	mutex_unlock(&sm_state->map_lock);
+	return;
 }
 
 /* Create support for private data tracking. */
@@ -317,16 +368,267 @@ static struct vc_sm_privdata_t *vc_sm_cma_create_priv_data(pid_t id)
 	return file_data;
 }
 
+static struct sg_table *dup_sg_table(struct sg_table *table)
+{
+	struct sg_table *new_table;
+	int ret, i;
+	struct scatterlist *sg, *new_sg;
+
+	new_table = kzalloc(sizeof(*new_table), GFP_KERNEL);
+	if (!new_table)
+		return ERR_PTR(-ENOMEM);
+
+	ret = sg_alloc_table(new_table, table->nents, GFP_KERNEL);
+	if (ret) {
+		kfree(new_table);
+		return ERR_PTR(-ENOMEM);
+	}
+
+	new_sg = new_table->sgl;
+	for_each_sg(table->sgl, sg, table->nents, i) {
+		memcpy(new_sg, sg, sizeof(*sg));
+		sg->dma_address = 0;
+		new_sg = sg_next(new_sg);
+	}
+
+	return new_table;
+}
+
+static void free_duped_table(struct sg_table *table)
+{
+	sg_free_table(table);
+	kfree(table);
+}
+
+/* Dma buf operations for use with our own allocations */
+
+static int vc_sm_dma_buf_attach(struct dma_buf *dmabuf,
+				struct dma_buf_attachment *attachment)
+
+{
+	struct vc_sm_dma_buf_attachment *a;
+	struct sg_table *table;
+	struct vc_sm_buffer *buf = dmabuf->priv;
+
+	a = kzalloc(sizeof(*a), GFP_KERNEL);
+	if (!a)
+		return -ENOMEM;
+
+	table = dup_sg_table(buf->sg_table);
+	if (IS_ERR(table)) {
+		kfree(a);
+		return -ENOMEM;
+	}
+
+	a->table = table;
+	INIT_LIST_HEAD(&a->list);
+
+	attachment->priv = a;
+
+	mutex_lock(&buf->lock);
+	list_add(&a->list, &buf->attachments);
+	mutex_unlock(&buf->lock);
+	pr_debug("%s dmabuf %p attachment %p\n", __func__, dmabuf, attachment);
+
+	return 0;
+}
+
+static void vc_sm_dma_buf_detatch(struct dma_buf *dmabuf,
+				  struct dma_buf_attachment *attachment)
+{
+	struct vc_sm_dma_buf_attachment *a = attachment->priv;
+	struct vc_sm_buffer *buf = dmabuf->priv;
+
+	pr_debug("%s dmabuf %p attachment %p\n", __func__, dmabuf, attachment);
+	free_duped_table(a->table);
+	mutex_lock(&buf->lock);
+	list_del(&a->list);
+	mutex_unlock(&buf->lock);
+
+	kfree(a);
+}
+
+static struct sg_table *vc_sm_map_dma_buf(struct dma_buf_attachment *attachment,
+					  enum dma_data_direction direction)
+{
+	struct vc_sm_dma_buf_attachment *a = attachment->priv;
+	struct sg_table *table;
+
+	table = a->table;
+
+	if (!dma_map_sg(attachment->dev, table->sgl, table->nents,
+			direction))
+		return ERR_PTR(-ENOMEM);
+
+	pr_debug("%s attachment %p\n", __func__, attachment);
+	return table;
+}
+
+static void vc_sm_unmap_dma_buf(struct dma_buf_attachment *attachment,
+				struct sg_table *table,
+				enum dma_data_direction direction)
+{
+	pr_debug("%s attachment %p\n", __func__, attachment);
+	dma_unmap_sg(attachment->dev, table->sgl, table->nents, direction);
+}
+
+static int vc_sm_dmabuf_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
+{
+	struct vc_sm_buffer *buf = dmabuf->priv;
+	struct sg_table *table = buf->sg_table;
+	unsigned long addr = vma->vm_start;
+	unsigned long offset = vma->vm_pgoff * PAGE_SIZE;
+	struct scatterlist *sg;
+	int i;
+	int ret = 0;
+
+	pr_debug("%s dmabuf %p, buf %p, vm_start %08lX\n", __func__, dmabuf,
+		 buf, addr);
+
+	mutex_lock(&buf->lock);
+
+	/* now map it to userspace */
+	for_each_sg(table->sgl, sg, table->nents, i) {
+		struct page *page = sg_page(sg);
+		unsigned long remainder = vma->vm_end - addr;
+		unsigned long len = sg->length;
+
+		if (offset >= sg->length) {
+			offset -= sg->length;
+			continue;
+		} else if (offset) {
+			page += offset / PAGE_SIZE;
+			len = sg->length - offset;
+			offset = 0;
+		}
+		len = min(len, remainder);
+		ret = remap_pfn_range(vma, addr, page_to_pfn(page), len,
+				      vma->vm_page_prot);
+		if (ret)
+			break;
+		addr += len;
+		if (addr >= vma->vm_end)
+			break;
+	}
+	mutex_unlock(&buf->lock);
+
+	if (ret)
+		pr_err("%s: failure mapping buffer to userspace\n",
+		       __func__);
+
+	return ret;
+}
+
+static void vc_sm_dma_buf_release(struct dma_buf *dmabuf)
+{
+	struct vc_sm_buffer *buffer;
+
+	if (!dmabuf)
+		return;
+
+	buffer = (struct vc_sm_buffer *)dmabuf->priv;
+
+	mutex_lock(&buffer->lock);
+
+	pr_debug("%s dmabuf %p, buffer %p\n", __func__, dmabuf, buffer);
+
+	buffer->in_use = 0;
+
+	/* Unmap on the VPU */
+	vc_sm_vpu_free(buffer);
+	pr_debug("%s vpu_free done\n", __func__);
+
+	/* Unmap our dma_buf object (the vc_sm_buffer remains until released
+	 * on the VPU).
+	 */
+	vc_sm_clean_up_dmabuf(buffer);
+	pr_debug("%s clean_up dmabuf done\n", __func__);
+
+	vc_sm_release_resource(buffer);
+	pr_debug("%s done\n", __func__);
+}
+
+static int vc_sm_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
+					  enum dma_data_direction direction)
+{
+	struct vc_sm_buffer *buf;
+	struct vc_sm_dma_buf_attachment *a;
+
+	if (!dmabuf)
+		return -EFAULT;
+
+	buf = dmabuf->priv;
+	if (!buf)
+		return -EFAULT;
+
+	mutex_lock(&buf->lock);
+
+	list_for_each_entry(a, &buf->attachments, list) {
+		dma_sync_sg_for_cpu(a->dev, a->table->sgl, a->table->nents,
+				    direction);
+	}
+	mutex_unlock(&buf->lock);
+
+	return 0;
+}
+
+static int vc_sm_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
+					enum dma_data_direction direction)
+{
+	struct vc_sm_buffer *buf;
+	struct vc_sm_dma_buf_attachment *a;
+
+	if (!dmabuf)
+		return -EFAULT;
+	buf = dmabuf->priv;
+	if (!buf)
+		return -EFAULT;
+
+	mutex_lock(&buf->lock);
+
+	list_for_each_entry(a, &buf->attachments, list) {
+		dma_sync_sg_for_device(a->dev, a->table->sgl, a->table->nents,
+				       direction);
+	}
+	mutex_unlock(&buf->lock);
+
+	return 0;
+}
+
+static void *vc_sm_dma_buf_kmap(struct dma_buf *dmabuf, unsigned long offset)
+{
+	/* FIXME */
+	return NULL;
+}
+
+static void vc_sm_dma_buf_kunmap(struct dma_buf *dmabuf, unsigned long offset,
+				 void *ptr)
+{
+	/* FIXME */
+}
+
+static const struct dma_buf_ops dma_buf_ops = {
+	.map_dma_buf = vc_sm_map_dma_buf,
+	.unmap_dma_buf = vc_sm_unmap_dma_buf,
+	.mmap = vc_sm_dmabuf_mmap,
+	.release = vc_sm_dma_buf_release,
+	.attach = vc_sm_dma_buf_attach,
+	.detach = vc_sm_dma_buf_detatch,
+	.begin_cpu_access = vc_sm_dma_buf_begin_cpu_access,
+	.end_cpu_access = vc_sm_dma_buf_end_cpu_access,
+	.map = vc_sm_dma_buf_kmap,
+	.unmap = vc_sm_dma_buf_kunmap,
+};
 /* Dma_buf operations for chaining through to an imported dma_buf */
 static
 int vc_sm_import_dma_buf_attach(struct dma_buf *dmabuf,
 				struct dma_buf_attachment *attachment)
 {
-	struct vc_sm_buffer *res = dmabuf->priv;
+	struct vc_sm_buffer *buf = dmabuf->priv;
 
-	if (!res->import_dma_buf)
+	if (!buf->imported)
 		return -EINVAL;
-	return res->import_dma_buf->ops->attach(res->import_dma_buf,
+	return buf->import.dma_buf->ops->attach(buf->import.dma_buf,
 						attachment);
 }
 
@@ -334,22 +636,23 @@ static
 void vc_sm_import_dma_buf_detatch(struct dma_buf *dmabuf,
 				  struct dma_buf_attachment *attachment)
 {
-	struct vc_sm_buffer *res = dmabuf->priv;
+	struct vc_sm_buffer *buf = dmabuf->priv;
 
-	if (!res->import_dma_buf)
+	if (!buf->imported)
 		return;
-	res->import_dma_buf->ops->detach(res->import_dma_buf, attachment);
+	buf->import.dma_buf->ops->detach(buf->import.dma_buf, attachment);
 }
 
 static
 struct sg_table *vc_sm_import_map_dma_buf(struct dma_buf_attachment *attachment,
 					  enum dma_data_direction direction)
 {
-	struct vc_sm_buffer *res = attachment->dmabuf->priv;
+	struct vc_sm_buffer *buf = attachment->dmabuf->priv;
 
-	if (!res->import_dma_buf)
+	if (!buf->imported)
 		return NULL;
-	return res->import_dma_buf->ops->map_dma_buf(attachment, direction);
+	return buf->import.dma_buf->ops->map_dma_buf(attachment,
+						     direction);
 }
 
 static
@@ -357,87 +660,88 @@ void vc_sm_import_unmap_dma_buf(struct dma_buf_attachment *attachment,
 				struct sg_table *table,
 				enum dma_data_direction direction)
 {
-	struct vc_sm_buffer *res = attachment->dmabuf->priv;
+	struct vc_sm_buffer *buf = attachment->dmabuf->priv;
 
-	if (!res->import_dma_buf)
+	if (!buf->imported)
 		return;
-	res->import_dma_buf->ops->unmap_dma_buf(attachment, table, direction);
+	buf->import.dma_buf->ops->unmap_dma_buf(attachment, table, direction);
 }
 
 static
 int vc_sm_import_dmabuf_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 {
-	struct vc_sm_buffer *res = dmabuf->priv;
+	struct vc_sm_buffer *buf = dmabuf->priv;
 
-	pr_debug("%s: mmap dma_buf %p, res %p, imported db %p\n", __func__,
-		 dmabuf, res, res->import_dma_buf);
-	if (!res->import_dma_buf) {
+	pr_debug("%s: mmap dma_buf %p, buf %p, imported db %p\n", __func__,
+		 dmabuf, buf, buf->import.dma_buf);
+	if (!buf->imported) {
 		pr_err("%s: mmap dma_buf %p- not an imported buffer\n",
 		       __func__, dmabuf);
 		return -EINVAL;
 	}
-	return res->import_dma_buf->ops->mmap(res->import_dma_buf, vma);
+	return buf->import.dma_buf->ops->mmap(buf->import.dma_buf, vma);
 }
 
 static
 void vc_sm_import_dma_buf_release(struct dma_buf *dmabuf)
 {
-	struct vc_sm_buffer *res = dmabuf->priv;
+	struct vc_sm_buffer *buf = dmabuf->priv;
 
 	pr_debug("%s: Relasing dma_buf %p\n", __func__, dmabuf);
-	if (!res->import_dma_buf)
+	mutex_lock(&buf->lock);
+	if (!buf->imported)
 		return;
 
-	res->in_use = 0;
+	buf->in_use = 0;
 
-	vc_sm_release_resource(res, 0);
+	vc_sm_vpu_free(buf);
+
+	vc_sm_release_resource(buf);
 }
 
 static
 void *vc_sm_import_dma_buf_kmap(struct dma_buf *dmabuf,
 				unsigned long offset)
 {
-	struct vc_sm_buffer *res = dmabuf->priv;
+	struct vc_sm_buffer *buf = dmabuf->priv;
 
-	if (!res->import_dma_buf)
+	if (!buf->imported)
 		return NULL;
-	return res->import_dma_buf->ops->map(res->import_dma_buf,
-						      offset);
+	return buf->import.dma_buf->ops->map(buf->import.dma_buf, offset);
 }
 
 static
 void vc_sm_import_dma_buf_kunmap(struct dma_buf *dmabuf,
 				 unsigned long offset, void *ptr)
 {
-	struct vc_sm_buffer *res = dmabuf->priv;
+	struct vc_sm_buffer *buf = dmabuf->priv;
 
-	if (!res->import_dma_buf)
+	if (!buf->imported)
 		return;
-	res->import_dma_buf->ops->unmap(res->import_dma_buf,
-					       offset, ptr);
+	buf->import.dma_buf->ops->unmap(buf->import.dma_buf, offset, ptr);
 }
 
 static
 int vc_sm_import_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 					  enum dma_data_direction direction)
 {
-	struct vc_sm_buffer *res = dmabuf->priv;
+	struct vc_sm_buffer *buf = dmabuf->priv;
 
-	if (!res->import_dma_buf)
+	if (!buf->imported)
 		return -EINVAL;
-	return res->import_dma_buf->ops->begin_cpu_access(res->import_dma_buf,
-							    direction);
+	return buf->import.dma_buf->ops->begin_cpu_access(buf->import.dma_buf,
+							  direction);
 }
 
 static
 int vc_sm_import_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 					enum dma_data_direction direction)
 {
-	struct vc_sm_buffer *res = dmabuf->priv;
+	struct vc_sm_buffer *buf = dmabuf->priv;
 
-	if (!res->import_dma_buf)
+	if (!buf->imported)
 		return -EINVAL;
-	return res->import_dma_buf->ops->end_cpu_access(res->import_dma_buf,
+	return buf->import.dma_buf->ops->end_cpu_access(buf->import.dma_buf,
 							  direction);
 }
 
@@ -516,9 +820,8 @@ vc_sm_cma_import_dmabuf_internal(struct vc_sm_privdata_t *private,
 	memcpy(import.name, VC_SM_RESOURCE_NAME_DEFAULT,
 	       sizeof(VC_SM_RESOURCE_NAME_DEFAULT));
 
-	pr_debug("[%s]: attempt to import \"%s\" data - type %u, addr %pad, size %u\n",
-		 __func__, import.name, import.type, &dma_addr,
-		 import.size);
+	pr_debug("[%s]: attempt to import \"%s\" data - type %u, addr %pad, size %u.\n",
+		 __func__, import.name, import.type, &dma_addr, import.size);
 
 	/* Allocate the videocore buffer. */
 	status = vc_sm_cma_vchi_import(sm_state->sm_handle, &import, &result,
@@ -548,12 +851,14 @@ vc_sm_cma_import_dmabuf_internal(struct vc_sm_privdata_t *private,
 	buffer->size = import.size;
 	buffer->vpu_state = VPU_MAPPED;
 
-	buffer->import_dma_buf = dma_buf;
+	buffer->imported = 1;
+	buffer->import.dma_buf = dma_buf;
 
-	buffer->attach = attach;
-	buffer->sgt = sgt;
+	buffer->import.attach = attach;
+	buffer->import.sgt = sgt;
 	buffer->dma_addr = dma_addr;
 	buffer->in_use = 1;
+	buffer->kernel_id = import.kernel_id;
 
 	/*
 	 * We're done - we need to export a new dmabuf chaining through most
@@ -594,6 +899,91 @@ error:
 	return ret;
 }
 
+static int vc_sm_cma_vpu_alloc(u32 size, uint32_t align, const char *name,
+			       u32 mem_handle, struct vc_sm_buffer **ret_buffer)
+{
+	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
+	struct vc_sm_buffer *buffer = NULL;
+	int aligned_size;
+	int ret = 0;
+
+	/* Align to the user requested align */
+	aligned_size = ALIGN(size, align);
+	/* and then to a page boundary */
+	aligned_size = PAGE_ALIGN(aligned_size);
+
+	if (!aligned_size)
+		return -EINVAL;
+
+	/* Allocate local buffer to track this allocation. */
+	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
+	if (!buffer)
+		return -ENOMEM;
+
+	mutex_init(&buffer->lock);
+
+	if (vc_sm_cma_buffer_allocate(sm_state->cma_heap, &buffer->alloc,
+				      aligned_size)) {
+		pr_err("[%s]: cma alloc of %d bytes failed\n",
+		       __func__, aligned_size);
+		ret = -ENOMEM;
+		goto error;
+	}
+	buffer->sg_table = buffer->alloc.sg_table;
+
+	pr_debug("[%s]: cma alloc of %d bytes success\n",
+		 __func__, aligned_size);
+
+	if (dma_map_sg(&sm_state->pdev->dev, buffer->sg_table->sgl,
+		       buffer->sg_table->nents, DMA_BIDIRECTIONAL) <= 0) {
+		pr_err("[%s]: dma_map_sg failed\n", __func__);
+		goto error;
+	}
+
+	INIT_LIST_HEAD(&buffer->attachments);
+
+	memcpy(buffer->name, name,
+	       min(sizeof(buffer->name), strlen(name)));
+
+	exp_info.ops = &dma_buf_ops;
+	exp_info.size = aligned_size;
+	exp_info.flags = O_RDWR;
+	exp_info.priv = buffer;
+
+	buffer->dma_buf = dma_buf_export(&exp_info);
+	if (IS_ERR(buffer->dma_buf)) {
+		ret = PTR_ERR(buffer->dma_buf);
+		goto error;
+	}
+	buffer->dma_addr = (uint32_t)sg_dma_address(buffer->sg_table->sgl);
+	if ((buffer->dma_addr & 0xC0000000) != 0xC0000000) {
+		pr_err("%s: Expecting an uncached alias for dma_addr %pad\n",
+		       __func__, &buffer->dma_addr);
+		buffer->dma_addr |= 0xC0000000;
+	}
+	buffer->private = sm_state->vpu_allocs;
+
+	buffer->vc_handle = mem_handle;
+	buffer->vpu_state = VPU_MAPPED;
+	buffer->vpu_allocated = 1;
+	buffer->size = size;
+	/*
+	 * Create an ID that will be passed along with our message so
+	 * that when we service the release reply, we can look up which
+	 * resource is being released.
+	 */
+	buffer->kernel_id = get_kernel_id(buffer);
+
+	vc_sm_add_resource(sm_state->vpu_allocs, buffer);
+
+	*ret_buffer = buffer;
+	return 0;
+error:
+	if (buffer)
+		vc_sm_release_resource(buffer);
+	return ret;
+}
+
 static void
 vc_sm_vpu_event(struct sm_instance *instance, struct vc_sm_result_t *reply,
 		int reply_len)
@@ -612,21 +1002,61 @@ vc_sm_vpu_event(struct sm_instance *instance, struct vc_sm_result_t *reply,
 		struct vc_sm_released *release = (struct vc_sm_released *)reply;
 		struct vc_sm_buffer *buffer =
 					lookup_kernel_id(release->kernel_id);
+		if (!buffer) {
+			pr_err("%s: VC released a buffer that is already released, kernel_id %d\n",
+			       __func__, release->kernel_id);
+			break;
+		}
+		mutex_lock(&buffer->lock);
 
-		/*
-		 * FIXME: Need to check buffer is still valid and allocated
-		 * before continuing
-		 */
 		pr_debug("%s: Released addr %08x, size %u, id %08x, mem_handle %08x\n",
 			 __func__, release->addr, release->size,
 			 release->kernel_id, release->vc_handle);
-		mutex_lock(&buffer->lock);
+
 		buffer->vc_handle = 0;
 		buffer->vpu_state = VPU_NOT_MAPPED;
-		mutex_unlock(&buffer->lock);
 		free_kernel_id(release->kernel_id);
 
-		vc_sm_release_resource(buffer, 0);
+		if (buffer->vpu_allocated) {
+			/* VPU allocation, so release the dmabuf which will
+			 * trigger the clean up.
+			 */
+			mutex_unlock(&buffer->lock);
+			dma_buf_put(buffer->dma_buf);
+		} else {
+			vc_sm_release_resource(buffer);
+		}
+	}
+	break;
+	case VC_SM_MSG_TYPE_VC_MEM_REQUEST:
+	{
+		struct vc_sm_buffer *buffer = NULL;
+		struct vc_sm_vc_mem_request *req =
+					(struct vc_sm_vc_mem_request *)reply;
+		struct vc_sm_vc_mem_request_result reply;
+		int ret;
+
+		pr_debug("%s: Request %u bytes of memory, align %d name %s, trans_id %08x\n",
+			 __func__, req->size, req->align, req->name,
+			 req->trans_id);
+		ret = vc_sm_cma_vpu_alloc(req->size, req->align, req->name,
+					  req->vc_handle, &buffer);
+
+		reply.trans_id = req->trans_id;
+		if (!ret) {
+			reply.addr = buffer->dma_addr;
+			reply.kernel_id = buffer->kernel_id;
+			pr_debug("%s: Allocated resource buffer %p, addr %pad\n",
+				 __func__, buffer, &buffer->dma_addr);
+		} else {
+			pr_err("%s: Allocation failed size %u, name %s, vc_handle %u\n",
+			       __func__, req->size, req->name, req->vc_handle);
+			reply.addr = 0;
+			reply.kernel_id = 0;
+		}
+		vc_sm_vchi_client_vc_mem_req_reply(sm_state->sm_handle, &reply,
+						   &sm_state->int_trans_id);
+		break;
 	}
 	break;
 	default:
@@ -644,6 +1074,14 @@ static void vc_sm_connected_init(void)
 	struct vc_sm_result_t version_result;
 
 	pr_info("[%s]: start\n", __func__);
+
+	if (vc_sm_cma_add_heaps(&sm_state->cma_heap) ||
+	    !sm_state->cma_heap) {
+		pr_err("[%s]: failed to initialise CMA heaps\n",
+		       __func__);
+		ret = -EIO;
+		goto err_free_mem;
+	}
 
 	/*
 	 * Initialize and create a VCHI connection for the shared memory service
@@ -696,7 +1134,7 @@ static void vc_sm_connected_init(void)
 		goto err_remove_shared_memory;
 	}
 
-	version.version = 1;
+	version.version = 2;
 	ret = vc_sm_cma_vchi_client_version(sm_state->sm_handle, &version,
 					    &version_result,
 					    &sm_state->int_trans_id);
@@ -768,7 +1206,7 @@ static int bcm2835_vc_sm_cma_remove(struct platform_device *pdev)
 int vc_sm_cma_int_handle(void *handle)
 {
 	struct dma_buf *dma_buf = (struct dma_buf *)handle;
-	struct vc_sm_buffer *res;
+	struct vc_sm_buffer *buf;
 
 	/* Validate we can work with this device. */
 	if (!sm_state || !handle) {
@@ -776,8 +1214,8 @@ int vc_sm_cma_int_handle(void *handle)
 		return 0;
 	}
 
-	res = (struct vc_sm_buffer *)dma_buf->priv;
-	return res->vc_handle;
+	buf = (struct vc_sm_buffer *)dma_buf->priv;
+	return buf->vc_handle;
 }
 EXPORT_SYMBOL_GPL(vc_sm_cma_int_handle);
 
@@ -804,7 +1242,7 @@ EXPORT_SYMBOL_GPL(vc_sm_cma_free);
 int vc_sm_cma_import_dmabuf(struct dma_buf *src_dmabuf, void **handle)
 {
 	struct dma_buf *new_dma_buf;
-	struct vc_sm_buffer *res;
+	struct vc_sm_buffer *buf;
 	int ret;
 
 	/* Validate we can work with this device. */
@@ -818,7 +1256,7 @@ int vc_sm_cma_import_dmabuf(struct dma_buf *src_dmabuf, void **handle)
 
 	if (!ret) {
 		pr_debug("%s: imported to ptr %p\n", __func__, new_dma_buf);
-		res = (struct vc_sm_buffer *)new_dma_buf->priv;
+		buf = (struct vc_sm_buffer *)new_dma_buf->priv;
 
 		/* Assign valid handle at this time.*/
 		*handle = new_dma_buf;
