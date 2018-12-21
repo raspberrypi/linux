@@ -495,3 +495,13 @@ int vc_sm_cma_vchi_client_version(struct sm_instance *handle,
 				   msg, sizeof(*msg), NULL, 0,
 				   cur_trans_id, 0);
 }
+
+int vc_sm_vchi_client_vc_mem_req_reply(struct sm_instance *handle,
+				       struct vc_sm_vc_mem_request_result *msg,
+				       uint32_t *cur_trans_id)
+{
+	return vc_sm_cma_vchi_send_msg(handle,
+				       VC_SM_MSG_TYPE_VC_MEM_REQUEST_REPLY,
+				       msg, sizeof(*msg), 0, 0, cur_trans_id,
+				       0);
+}
