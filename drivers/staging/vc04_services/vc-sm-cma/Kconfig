@@ -1,6 +1,6 @@
 config BCM_VC_SM_CMA
-	tristate "VideoCore Shared Memory (CMA) driver"
-	depends on BCM2835_VCHIQ
+	bool "VideoCore Shared Memory (CMA) driver"
+	depends on BCM2835_VCHIQ && DMA_CMA
 	select RBTREE
 	select DMA_SHARED_BUFFER
 	help
