@@ -443,14 +443,9 @@ static void mx51_ecspi_trigger(struct spi_imx_data *spi_imx)
 static int mx51_ecspi_prepare_message(struct spi_imx_data *spi_imx,
 				      struct spi_message *msg)
 {
-	return 0;
-}
-
-static int mx51_ecspi_config(struct spi_device *spi)
-{
-	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
+	struct spi_device *spi = msg->spi;
 	u32 ctrl = MX51_ECSPI_CTRL_ENABLE;
-	u32 clk = spi_imx->speed_hz, delay, reg;
+	u32 testreg;
 	u32 cfg = readl(spi_imx->base + MX51_ECSPI_CONFIG);
 
 	/*
@@ -468,14 +463,21 @@ static int mx51_ecspi_config(struct spi_device *spi)
 	if (spi->mode & SPI_READY)
 		ctrl |= MX51_ECSPI_CTRL_DRCTL(spi_imx->spi_drctl);
 
-	/* set clock speed */
-	ctrl |= mx51_ecspi_clkdiv(spi_imx, spi_imx->speed_hz, &clk);
-	spi_imx->spi_bus_clk = clk;
-
 	/* set chip select to use */
 	ctrl |= MX51_ECSPI_CTRL_CS(spi->chip_select);
 
-	ctrl |= (spi_imx->bits_per_word - 1) << MX51_ECSPI_CTRL_BL_OFFSET;
+	/*
+	 * The ctrl register must be written first, with the EN bit set other
+	 * registers must not be written to.
+	 */
+	writel(ctrl, spi_imx->base + MX51_ECSPI_CTRL);
+
+	testreg = readl(spi_imx->base + MX51_ECSPI_TESTREG);
+	if (spi->mode & SPI_LOOP)
+		testreg |= MX51_ECSPI_TESTREG_LBC;
+	else
+		testreg &= ~MX51_ECSPI_TESTREG_LBC;
+	writel(testreg, spi_imx->base + MX51_ECSPI_TESTREG);
 
 	cfg |= MX51_ECSPI_CONFIG_SBBCTRL(spi->chip_select);
 
@@ -491,25 +493,37 @@ static int mx51_ecspi_config(struct spi_device *spi)
 		cfg &= ~MX51_ECSPI_CONFIG_SCLKPOL(spi->chip_select);
 		cfg &= ~MX51_ECSPI_CONFIG_SCLKCTL(spi->chip_select);
 	}
+
 	if (spi->mode & SPI_CS_HIGH)
 		cfg |= MX51_ECSPI_CONFIG_SSBPOL(spi->chip_select);
 	else
 		cfg &= ~MX51_ECSPI_CONFIG_SSBPOL(spi->chip_select);
 
+	writel(cfg, spi_imx->base + MX51_ECSPI_CONFIG);
+
+	return 0;
+}
+
+static int mx51_ecspi_config(struct spi_device *spi)
+{
+	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
+	u32 ctrl = readl(spi_imx->base + MX51_ECSPI_CTRL);
+	u32 clk = spi_imx->speed_hz, delay;
+
+	/* Clear BL field and set the right value */
+	ctrl &= ~MX51_ECSPI_CTRL_BL_MASK;
+	ctrl |= (spi_imx->bits_per_word - 1) << MX51_ECSPI_CTRL_BL_OFFSET;
+
+	/* set clock speed */
+	ctrl &= ~(0xf << MX51_ECSPI_CTRL_POSTDIV_OFFSET |
+		  0xf << MX51_ECSPI_CTRL_PREDIV_OFFSET);
+	ctrl |= mx51_ecspi_clkdiv(spi_imx, spi_imx->speed_hz, &clk);
+	spi_imx->spi_bus_clk = clk;
+
 	if (spi_imx->usedma)
 		ctrl |= MX51_ECSPI_CTRL_SMC;
 
-	/* CTRL register always go first to bring out controller from reset */
 	writel(ctrl, spi_imx->base + MX51_ECSPI_CTRL);
-
-	reg = readl(spi_imx->base + MX51_ECSPI_TESTREG);
-	if (spi->mode & SPI_LOOP)
-		reg |= MX51_ECSPI_TESTREG_LBC;
-	else
-		reg &= ~MX51_ECSPI_TESTREG_LBC;
-	writel(reg, spi_imx->base + MX51_ECSPI_TESTREG);
-
-	writel(cfg, spi_imx->base + MX51_ECSPI_CONFIG);
 
 	/*
 	 * Wait until the changes in the configuration register CONFIGREG
@@ -532,7 +546,6 @@ static int mx51_ecspi_config(struct spi_device *spi)
 	 * Configure the DMA register: setup the watermark
 	 * and enable DMA request.
 	 */
-
 	writel(MX51_ECSPI_DMA_RX_WML(spi_imx->wml) |
 		MX51_ECSPI_DMA_TX_WML(spi_imx->wml) |
 		MX51_ECSPI_DMA_RXT_WML(spi_imx->wml) |
