@@ -1775,8 +1775,8 @@ static void __srpt_close_all_ch(struct srpt_device *sdev)
 
 	list_for_each_entry(ch, &sdev->rch_list, list) {
 		if (srpt_disconnect_ch(ch) >= 0)
-			pr_info("Closing channel %s-%d because target %s has been disabled\n",
-				ch->sess_name, ch->qp->qp_num,
+			pr_info("Closing channel %s because target %s has been disabled\n",
+				ch->sess_name,
 				sdev->device->name);
 		srpt_close_ch(ch);
 	}
