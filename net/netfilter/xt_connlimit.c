@@ -114,7 +114,7 @@ same_source_net(const union nf_inet_addr *addr,
 	}
 }
 
-static bool add_hlist(struct hlist_head *head,
+bool nf_conncount_add(struct hlist_head *head,
 		      const struct nf_conntrack_tuple *tuple)
 {
 	struct xt_connlimit_conn *conn;
@@ -126,12 +126,12 @@ static bool add_hlist(struct hlist_head *head,
 	hlist_add_head(&conn->node, head);
 	return true;
 }
+EXPORT_SYMBOL_GPL(nf_conncount_add);
 
-static unsigned int check_hlist(struct net *net,
-				struct hlist_head *head,
-				const struct nf_conntrack_tuple *tuple,
-				const struct nf_conntrack_zone *zone,
-				bool *addit)
+unsigned int nf_conncount_lookup(struct net *net, struct hlist_head *head,
+				 const struct nf_conntrack_tuple *tuple,
+				 const struct nf_conntrack_zone *zone,
+				 bool *addit)
 {
 	const struct nf_conntrack_tuple_hash *found;
 	struct xt_connlimit_conn *conn;
@@ -176,6 +176,7 @@ static unsigned int check_hlist(struct net *net,
 
 	return length;
 }
+EXPORT_SYMBOL_GPL(nf_conncount_lookup);
 
 static void tree_nodes_free(struct rb_root *root,
 			    struct xt_connlimit_rb *gc_nodes[],
@@ -222,13 +223,15 @@ count_tree(struct net *net, struct rb_root *root,
 		} else {
 			/* same source network -> be counted! */
 			unsigned int count;
-			count = check_hlist(net, &rbconn->hhead, tuple, zone, &addit);
+
+			count = nf_conncount_lookup(net, &rbconn->hhead, tuple,
+						    zone, &addit);
 
 			tree_nodes_free(root, gc_nodes, gc_count);
 			if (!addit)
 				return count;
 
-			if (!add_hlist(&rbconn->hhead, tuple))
+			if (!nf_conncount_add(&rbconn->hhead, tuple))
 				return 0; /* hotdrop */
 
 			return count + 1;
@@ -238,7 +241,7 @@ count_tree(struct net *net, struct rb_root *root,
 			continue;
 
 		/* only used for GC on hhead, retval and 'addit' ignored */
-		check_hlist(net, &rbconn->hhead, tuple, zone, &addit);
+		nf_conncount_lookup(net, &rbconn->hhead, tuple, zone, &addit);
 		if (hlist_empty(&rbconn->hhead))
 			gc_nodes[gc_count++] = rbconn;
 	}
@@ -378,11 +381,19 @@ static int connlimit_mt_check(const struct xt_mtchk_param *par)
 	return 0;
 }
 
-static void destroy_tree(struct rb_root *r)
+void nf_conncount_cache_free(struct hlist_head *hhead)
 {
 	struct xt_connlimit_conn *conn;
-	struct xt_connlimit_rb *rbconn;
 	struct hlist_node *n;
+
+	hlist_for_each_entry_safe(conn, n, hhead, node)
+		kmem_cache_free(connlimit_conn_cachep, conn);
+}
+EXPORT_SYMBOL_GPL(nf_conncount_cache_free);
+
+static void destroy_tree(struct rb_root *r)
+{
+	struct xt_connlimit_rb *rbconn;
 	struct rb_node *node;
 
 	while ((node = rb_first(r)) != NULL) {
@@ -390,8 +401,7 @@ static void destroy_tree(struct rb_root *r)
 
 		rb_erase(node, r);
 
-		hlist_for_each_entry_safe(conn, n, &rbconn->hhead, node)
-			kmem_cache_free(connlimit_conn_cachep, conn);
+		nf_conncount_cache_free(&rbconn->hhead);
 
 		kmem_cache_free(connlimit_rb_cachep, rbconn);
 	}
