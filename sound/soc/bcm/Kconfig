@@ -132,6 +132,13 @@ config SND_AUDIOINJECTOR_OCTO_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for audioinjector.net octo add on
 
+config SND_AUDIOSENSE_PI
+	tristate "Support for AudioSense Add-On Soundcard"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_TLV320AIC32X4_I2C
+	help
+	  Say Y or M if you want to add support for tlv320aic32x4 add-on
+
 config SND_DIGIDAC1_SOUNDCARD
         tristate "Support for Red Rocks Audio DigiDAC1"
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
