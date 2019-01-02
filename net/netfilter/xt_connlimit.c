@@ -46,6 +46,7 @@
 struct xt_connlimit_conn {
 	struct hlist_node		node;
 	struct nf_conntrack_tuple	tuple;
+	struct nf_conntrack_zone	zone;
 };
 
 struct xt_connlimit_rb {
@@ -115,7 +116,8 @@ same_source_net(const union nf_inet_addr *addr,
 }
 
 bool nf_conncount_add(struct hlist_head *head,
-		      const struct nf_conntrack_tuple *tuple)
+		      const struct nf_conntrack_tuple *tuple,
+		      const struct nf_conntrack_zone *zone)
 {
 	struct xt_connlimit_conn *conn;
 
@@ -123,6 +125,7 @@ bool nf_conncount_add(struct hlist_head *head,
 	if (conn == NULL)
 		return false;
 	conn->tuple = *tuple;
+	conn->zone = *zone;
 	hlist_add_head(&conn->node, head);
 	return true;
 }
@@ -143,7 +146,7 @@ unsigned int nf_conncount_lookup(struct net *net, struct hlist_head *head,
 
 	/* check the saved connections */
 	hlist_for_each_entry_safe(conn, n, head, node) {
-		found = nf_conntrack_find_get(net, zone, &conn->tuple);
+		found = nf_conntrack_find_get(net, &conn->zone, &conn->tuple);
 		if (found == NULL) {
 			hlist_del(&conn->node);
 			kmem_cache_free(connlimit_conn_cachep, conn);
@@ -152,7 +155,8 @@ unsigned int nf_conncount_lookup(struct net *net, struct hlist_head *head,
 
 		found_ct = nf_ct_tuplehash_to_ctrack(found);
 
-		if (nf_ct_tuple_equal(&conn->tuple, tuple)) {
+		if (nf_ct_tuple_equal(&conn->tuple, tuple) &&
+		    nf_ct_zone_equal(found_ct, zone, zone->dir)) {
 			/*
 			 * Just to be sure we have it only once in the list.
 			 * We should not see tuples twice unless someone hooks
@@ -231,7 +235,7 @@ count_tree(struct net *net, struct rb_root *root,
 			if (!addit)
 				return count;
 
-			if (!nf_conncount_add(&rbconn->hhead, tuple))
+			if (!nf_conncount_add(&rbconn->hhead, tuple, zone))
 				return 0; /* hotdrop */
 
 			return count + 1;
@@ -270,6 +274,7 @@ count_tree(struct net *net, struct rb_root *root,
 	}
 
 	conn->tuple = *tuple;
+	conn->zone = *zone;
 	rbconn->addr = *addr;
 
 	INIT_HLIST_HEAD(&rbconn->hhead);
