@@ -18,6 +18,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	audioinjector-addons.dtbo \
 	audioinjector-ultra.dtbo \
 	audioinjector-wm8731-audio.dtbo \
+	audiosense-pi.dtbo \
 	audremap.dtbo \
 	balena-fin.dtbo \
 	bmp085_i2c-sensor.dtbo \

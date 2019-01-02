@@ -427,6 +427,14 @@ Load:   dtoverlay=audioinjector-wm8731-audio
 Params: <None>
 
 
+Name:   audiosense-pi
+Info:   Configures the audiosense-pi add on soundcard
+        For more information refer to
+        https://gitlab.com/kakar0t/audiosense-pi
+Load:   dtoverlay=audiosense-pi
+Params: <None>
+
+
 Name:   audremap
 Info:   Switches PWM sound output to pins 12 (Right) & 13 (Left)
 Load:   dtoverlay=audremap,<param>=<val>
