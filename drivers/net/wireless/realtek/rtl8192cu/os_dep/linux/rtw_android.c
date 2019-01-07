@@ -374,7 +374,7 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		goto exit;
 	}
 
-	if (!access_ok(VERIFY_READ, priv_cmd.buf, priv_cmd.total_len)){
+	if (!access_ok(priv_cmd.buf, priv_cmd.total_len)){
 	 	DBG_871X("%s: failed to access memory\n", __FUNCTION__);
 		ret = -EFAULT;
 		goto exit;
