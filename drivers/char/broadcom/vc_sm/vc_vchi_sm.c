@@ -286,7 +286,7 @@ struct sm_instance *vc_vchi_sm_init(VCHI_INSTANCE_T vchi_instance)
 	/* Open the VCHI service connections */
 	instance->num_connections = num_connections;
 	for (i = 0; i < num_connections; i++) {
-		SERVICE_CREATION_T params = {
+		struct service_creation params = {
 			.version	= VCHI_VERSION_EX(VC_SM_VER, VC_SM_MIN_VER),
 			.service_id	= VC_SM_SERVER_NAME,
 			.callback	= vc_sm_vchi_callback,
