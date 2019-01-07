@@ -2010,15 +2010,15 @@ asmlinkage int vprintk_emit(int facility, int level,
 		 * console_sem which would prevent anyone from printing to
 		 * console
 		 */
-		preempt_disable();
+		migrate_disable();
 		/*
 		 * Try to acquire and then immediately release the console
 		 * semaphore.  The release will print out buffers and wake up
 		 * /dev/kmsg and syslog() users.
 		 */
-		if (console_trylock_spinning())
+		if (may_trylock && console_trylock())
 			console_unlock();
-		preempt_enable();
+		migrate_enable();
 	}
 
 	return printed_len;
@@ -2462,24 +2462,15 @@ skip:
 		console_seq++;
 		raw_spin_unlock(&logbuf_lock);
 
-		/*
-		 * While actively printing out messages, if another printk()
-		 * were to occur on another CPU, it may wait for this one to
-		 * finish. This task can not be preempted if there is a
-		 * waiter waiting to take over.
-		 */
-		console_lock_spinning_enable();
-
+#ifdef CONFIG_PREEMPT_RT_FULL
+		printk_safe_exit_irqrestore(flags);
+		call_console_drivers(ext_text, ext_len, text, len);
+#else
 		stop_critical_timings();	/* don't trace print latency */
 		call_console_drivers(ext_text, ext_len, text, len);
 		start_critical_timings();
-
-		if (console_lock_spinning_disable_and_check()) {
-			printk_safe_exit_irqrestore(flags);
-			goto out;
-		}
-
 		printk_safe_exit_irqrestore(flags);
+#endif
 
 		if (do_cond_resched)
 			cond_resched();
