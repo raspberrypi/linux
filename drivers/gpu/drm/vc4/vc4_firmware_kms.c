@@ -275,7 +275,6 @@ static int vc4_plane_atomic_check(struct drm_plane *plane,
 
 static void vc4_plane_destroy(struct drm_plane *plane)
 {
-	drm_plane_helper_disable(plane, NULL);
 	drm_plane_cleanup(plane);
 }
 
@@ -736,11 +735,13 @@ err:
 static void vc4_fkms_unbind(struct device *dev, struct device *master,
 			    void *data)
 {
+	struct drm_device *drm = dev_get_drvdata(master);
 	struct platform_device *pdev = to_platform_device(dev);
 	struct vc4_crtc *vc4_crtc = dev_get_drvdata(dev);
 
 	vc4_fkms_connector_destroy(vc4_crtc->connector);
 	vc4_fkms_encoder_destroy(vc4_crtc->encoder);
+	drm_atomic_helper_shutdown(drm);
 	drm_crtc_cleanup(&vc4_crtc->base);
 
 	platform_set_drvdata(pdev, NULL);
