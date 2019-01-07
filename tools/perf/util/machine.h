@@ -169,6 +169,9 @@ static inline bool machine__is_host(struct machine *machine)
 	return machine ? machine->pid == HOST_KERNEL_ID : false;
 }
 
+bool machine__is(struct machine *machine, const char *arch);
+int machine__nr_cpus_avail(struct machine *machine);
+
 struct thread *__machine__findnew_thread(struct machine *machine, pid_t pid, pid_t tid);
 struct thread *machine__findnew_thread(struct machine *machine, pid_t pid, pid_t tid);
 
@@ -262,5 +265,8 @@ int machine__set_current_tid(struct machine *machine, int cpu, pid_t pid,
  * For use with libtraceevent's pevent_set_function_resolver()
  */
 char *machine__resolve_kernel_addr(void *vmachine, unsigned long long *addrp, char **modp);
+
+int machine__map_x86_64_entry_trampolines(struct machine *machine,
+					  struct dso *kernel);
 
 #endif /* __PERF_MACHINE_H */

@@ -392,6 +392,10 @@ static int ovl_create_over_whiteout(struct dentry *dentry, struct inode *inode,
 	if (IS_ERR(upper))
 		goto out_dput;
 
+	err = -ESTALE;
+	if (d_is_negative(upper) || !IS_WHITEOUT(d_inode(upper)))
+		goto out_dput2;
+
 	err = ovl_create_real(wdir, newdentry, cattr, hardlink, true);
 	if (err)
 		goto out_dput2;
@@ -594,6 +598,11 @@ static int ovl_link(struct dentry *old, struct inode *newdir,
 	err = ovl_copy_up(old);
 	if (err)
 		goto out_drop_write;
+
+	err = ovl_copy_up(new->d_parent);
+	if (err)
+		goto out_drop_write;
+
 
 	err = ovl_nlink_start(old, &locked);
 	if (err)

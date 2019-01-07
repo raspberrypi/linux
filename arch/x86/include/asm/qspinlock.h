@@ -5,6 +5,29 @@
 #include <asm/cpufeature.h>
 #include <asm-generic/qspinlock_types.h>
 #include <asm/paravirt.h>
+#include <asm/rmwcc.h>
+
+#define _Q_PENDING_LOOPS	(1 << 9)
+
+#define queued_fetch_set_pending_acquire queued_fetch_set_pending_acquire
+
+static __always_inline bool __queued_RMW_btsl(struct qspinlock *lock)
+{
+	GEN_BINARY_RMWcc(LOCK_PREFIX "btsl", lock->val.counter,
+			 "I", _Q_PENDING_OFFSET, "%0", c);
+}
+
+static __always_inline u32 queued_fetch_set_pending_acquire(struct qspinlock *lock)
+{
+	u32 val = 0;
+
+	if (__queued_RMW_btsl(lock))
+		val |= _Q_PENDING_VAL;
+
+	val |= atomic_read(&lock->val) & ~_Q_PENDING_MASK;
+
+	return val;
+}
 
 #define	queued_spin_unlock queued_spin_unlock
 /**
@@ -15,7 +38,7 @@
  */
 static inline void native_queued_spin_unlock(struct qspinlock *lock)
 {
-	smp_store_release((u8 *)lock, 0);
+	smp_store_release(&lock->locked, 0);
 }
 
 #ifdef CONFIG_PARAVIRT_SPINLOCKS

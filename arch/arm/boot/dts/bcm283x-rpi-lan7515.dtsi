@@ -27,6 +27,15 @@
 				 * led1 = 6:link10/100/activity
 				 */
 				microchip,led-modes = <1 6>;
+
+				mdio {
+					#address-cells = <0x1>;
+					#size-cells = <0x0>;
+					eth_phy: ethernet-phy@1 {
+						reg = <1>;
+						microchip,downshift-after = <2>;
+					};
+				};
 			};
 		};
 	};
@@ -39,5 +48,7 @@
 		tx_lpi_timer = <&ethernet>,"microchip,tx-lpi-timer:0";
 		eth_led0 = <&ethernet>,"microchip,led-modes:0";
 		eth_led1 = <&ethernet>,"microchip,led-modes:4";
+		eth_downshift_after = <&eth_phy>,"microchip,downshift-after:0";
+		eth_max_speed = <&eth_phy>,"max-speed:0";
 	};
 };

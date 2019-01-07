@@ -1,6 +1,7 @@
 # Overlays for the Raspberry Pi platform
 
 dtbo-$(CONFIG_ARCH_BCM2835) += \
+	3dlab-nano-player.dtbo \
 	adau1977-adc.dtbo \
 	adau7002-simple.dtbo \
 	ads1015.dtbo \
@@ -19,6 +20,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	audioinjector-addons.dtbo \
 	audioinjector-ultra.dtbo \
 	audioinjector-wm8731-audio.dtbo \
+	audiosense-pi.dtbo \
 	audremap.dtbo \
 	balena-fin.dtbo \
 	bmp085_i2c-sensor.dtbo \
@@ -138,6 +140,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	tc358743.dtbo \
 	tc358743-audio.dtbo \
 	tinylcd35.dtbo \
+	tpm-slb9670.dtbo \
 	uart0.dtbo \
 	uart1.dtbo \
 	upstream.dtbo \
