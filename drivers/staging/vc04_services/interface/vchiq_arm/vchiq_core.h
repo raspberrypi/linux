@@ -37,7 +37,6 @@
 #include <linux/mutex.h>
 #include <linux/completion.h>
 #include <linux/kthread.h>
-#include <linux/wait.h>
 
 #include "vchiq_cfg.h"
 
@@ -263,7 +262,8 @@ struct vchiq_bulk_queue {
 struct remote_event {
 	int armed;
 	int fired;
-	u32 __unused;
+	/* Contains offset from the beginning of the VCHIQ_STATE_T structure */
+	u32 event;
 };
 
 typedef struct opaque_platform_state_t *VCHIQ_PLATFORM_STATE_T;
@@ -424,16 +424,16 @@ struct vchiq_state {
 	struct task_struct *sync_thread;
 
 	/* Local implementation of the trigger remote event */
-	wait_queue_head_t trigger_event;
+	struct completion trigger_event;
 
 	/* Local implementation of the recycle remote event */
-	wait_queue_head_t recycle_event;
+	struct completion recycle_event;
 
 	/* Local implementation of the sync trigger remote event */
-	wait_queue_head_t sync_trigger_event;
+	struct completion sync_trigger_event;
 
 	/* Local implementation of the sync release remote event */
-	wait_queue_head_t sync_release_event;
+	struct completion sync_release_event;
 
 	char *tx_data;
 	char *rx_data;
