@@ -1398,12 +1398,15 @@ static struct talitos_edesc *talitos_edesc_alloc(struct device *dev,
 		dma_len = 0;
 		alloc_len += icv_stashing ? authsize : 0;
 	}
+	alloc_len += ivsize;
 
 	edesc = kmalloc(alloc_len, GFP_DMA | flags);
 	if (!edesc)
 		return ERR_PTR(-ENOMEM);
-	if (ivsize)
+	if (ivsize) {
+		iv = memcpy(((u8 *)edesc) + alloc_len - ivsize, iv, ivsize);
 		iv_dma = dma_map_single(dev, iv, ivsize, DMA_TO_DEVICE);
+	}
 
 	edesc->src_nents = src_nents;
 	edesc->dst_nents = dst_nents;
