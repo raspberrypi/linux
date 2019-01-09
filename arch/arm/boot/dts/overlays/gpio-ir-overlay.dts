@@ -30,7 +30,7 @@
                         gpio_ir_pins: gpio_ir_pins@12 {
                                 brcm,pins = <18>;                       // pin 18
                                 brcm,function = <0>;                    // in
-                                brcm,pull = <1>;                        // down
+                                brcm,pull = <2>;                        // up
                         };
                 };
         };
