@@ -236,6 +236,15 @@ rpi_firmware_print_firmware_revision(struct rpi_firmware *fw)
 {
 	time64_t date_and_time;
 	u32 packet;
+	static const char * const variant_strs[] = {
+		"unknown",
+		"start",
+		"start_x",
+		"start_db",
+		"start_cd",
+	};
+	const char *variant_str = "cmd unsupported";
+	u32 variant;
 	int ret = rpi_firmware_property(fw,
 					RPI_FIRMWARE_GET_FIRMWARE_REVISION,
 					&packet, sizeof(packet));
@@ -245,7 +254,35 @@ rpi_firmware_print_firmware_revision(struct rpi_firmware *fw)
 
 	/* This is not compatible with y2038 */
 	date_and_time = packet;
-	dev_info(fw->cl.dev, "Attached to firmware from %ptT\n", &date_and_time);
+
+	ret = rpi_firmware_property(fw, RPI_FIRMWARE_GET_FIRMWARE_VARIANT,
+				    &variant, sizeof(variant));
+
+	if (!ret) {
+		if (variant >= ARRAY_SIZE(variant_strs))
+			variant = 0;
+		variant_str = variant_strs[variant];
+	}
+
+	dev_info(fw->cl.dev,
+		 "Attached to firmware from %ptT, variant %s\n",
+		 &date_and_time, variant_str);
+}
+
+static void
+rpi_firmware_print_firmware_hash(struct rpi_firmware *fw)
+{
+	u32 hash[5];
+	int ret = rpi_firmware_property(fw,
+					RPI_FIRMWARE_GET_FIRMWARE_HASH,
+					hash, sizeof(hash));
+
+	if (ret)
+		return;
+
+	dev_info(fw->cl.dev,
+		 "Firmware hash is %08x%08x%08x%08x%08x\n",
+		 hash[0], hash[1], hash[2], hash[3], hash[4]);
 }
 
 static void
@@ -360,6 +397,7 @@ static int rpi_firmware_probe(struct platform_device *pdev)
 	g_pdev = pdev;
 
 	rpi_firmware_print_firmware_revision(fw);
+	rpi_firmware_print_firmware_hash(fw);
 	rpi_register_hwmon_driver(dev, fw);
 	rpi_register_clk_driver(dev);
 
