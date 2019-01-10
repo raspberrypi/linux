@@ -453,8 +453,7 @@ Params: <None>
 
 Name:   bmp085_i2c-sensor
 Info:   This overlay is now deprecated - see i2c-sensor
-Load:   dtoverlay=bmp085_i2c-sensor
-Params: <None>
+Load:   <Deprecated>
 
 
 Name:   dht11
@@ -1691,7 +1690,8 @@ Params: overclock_50            Clock (in MHz) to use when the MMC framework
 
 Name:   sdio
 Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock,
-        and enables SDIO via GPIOs 22-27.
+        and enables SDIO via GPIOs 22-27. An example of use in 1-bit mode is
+        "dtoverlay=sdio,bus_width=1,gpios_22_25"
 Load:   dtoverlay=sdio,<param>=<val>
 Params: sdio_overclock          SDIO Clock (in MHz) to use when the MMC
                                 framework requests 50MHz
@@ -1701,16 +1701,18 @@ Params: sdio_overclock          SDIO Clock (in MHz) to use when the MMC
 
         bus_width               Set the SDIO host bus width (default 4 bits)
 
+        gpios_22_25             Select GPIOs 22-25 for 1-bit mode. Must be used
+                                with bus_width=1. This replaces the sdio-1bit
+                                overlay, which is now deprecated.
+
+        gpios_34_37             Select GPIOs 34-37 for 1-bit mode. Must be used
+                                with bus_width=1.
+
 
 Name:   sdio-1bit
-Info:   Selects the bcm2835-sdhost SD/MMC driver, optionally with overclock,
-        and enables 1-bit SDIO via GPIOs 22-25.
-Load:   dtoverlay=sdio-1bit,<param>=<val>
-Params: sdio_overclock          SDIO Clock (in MHz) to use when the MMC
-                                framework requests 50MHz
-
-        poll_once               Disable SDIO-device polling every second
-                                (default on: polling once at boot-time)
+Info:   This overlay is now deprecated. Use
+        "dtoverlay=sdio,bus_width=1,gpios_22_25" instead.
+Load:   <Deprecated>
 
 
 Name:   sdtweak
