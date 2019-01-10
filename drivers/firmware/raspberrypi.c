@@ -229,21 +229,55 @@ static const struct attribute_group rpi_firmware_dev_group = {
 static void
 rpi_firmware_print_firmware_revision(struct rpi_firmware *fw)
 {
+	static const char * const variant_strs[] = {
+		"unknown",
+		"start",
+		"start_x",
+		"start_db",
+		"start_cd",
+	};
+	const char *variant_str = "cmd unsupported";
 	u32 packet;
+	u32 variant;
+	struct tm tm;
 	int ret = rpi_firmware_property(fw,
 					RPI_FIRMWARE_GET_FIRMWARE_REVISION,
 					&packet, sizeof(packet));
 
-	if (ret == 0) {
-		struct tm tm;
+	if (ret)
+		return;
 
-		time64_to_tm(packet, 0, &tm);
+	ret = rpi_firmware_property(fw, RPI_FIRMWARE_GET_FIRMWARE_VARIANT,
+				    &variant, sizeof(variant));
 
-		dev_info(fw->cl.dev,
-			 "Attached to firmware from %04ld-%02d-%02d %02d:%02d\n",
-			 tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-			 tm.tm_hour, tm.tm_min);
+	if (!ret) {
+		if (variant >= ARRAY_SIZE(variant_strs))
+			variant = 0;
+		variant_str = variant_strs[variant];
 	}
+
+	time64_to_tm(packet, 0, &tm);
+
+	dev_info(fw->cl.dev,
+		 "Attached to firmware from %04ld-%02d-%02d %02d:%02d, variant %s\n",
+		 tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
+		 tm.tm_min, variant_str);
+}
+
+static void
+rpi_firmware_print_firmware_hash(struct rpi_firmware *fw)
+{
+	u32 hash[5];
+	int ret = rpi_firmware_property(fw,
+					RPI_FIRMWARE_GET_FIRMWARE_HASH,
+					hash, sizeof(hash));
+
+	if (ret)
+		return;
+
+	dev_info(fw->cl.dev,
+		 "Firmware hash is %08x%08x%08x%08x%08x\n",
+		 hash[0], hash[1], hash[2], hash[3], hash[4]);
 }
 
 static void
@@ -298,6 +332,7 @@ static int rpi_firmware_probe(struct platform_device *pdev)
 	g_pdev = pdev;
 
 	rpi_firmware_print_firmware_revision(fw);
+	rpi_firmware_print_firmware_hash(fw);
 	rpi_register_hwmon_driver(dev, fw);
 	rpi_register_clk_driver(dev);
 
