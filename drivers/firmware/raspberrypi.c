@@ -228,21 +228,39 @@ static const struct attribute_group rpi_firmware_dev_group = {
 static void
 rpi_firmware_print_firmware_revision(struct rpi_firmware *fw)
 {
+	static const char * const variant_strs[] = {
+		"unknown",
+		"start",
+		"start_x",
+		"start_db",
+		"start_cd",
+	};
+	const char *variant_str = "cmd unsupported";
 	u32 packet;
+	u32 variant;
+	struct tm tm;
 	int ret = rpi_firmware_property(fw,
 					RPI_FIRMWARE_GET_FIRMWARE_REVISION,
 					&packet, sizeof(packet));
 
-	if (ret == 0) {
-		struct tm tm;
+	if (ret)
+		return;
 
-		time64_to_tm(packet, 0, &tm);
+	ret = rpi_firmware_property(fw, RPI_FIRMWARE_GET_FIRMWARE_VARIANT,
+				    &variant, sizeof(variant));
 
-		dev_info(fw->cl.dev,
-			 "Attached to firmware from %04ld-%02d-%02d %02d:%02d\n",
-			 tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-			 tm.tm_hour, tm.tm_min);
+	if (!ret) {
+		if (variant >= ARRAY_SIZE(variant_strs))
+			variant = 0;
+		variant_str = variant_strs[variant];
 	}
+
+	time64_to_tm(packet, 0, &tm);
+
+	dev_info(fw->cl.dev,
+		 "Attached to firmware from %04ld-%02d-%02d %02d:%02d, variant %s\n",
+		 tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
+		 tm.tm_min, variant_str);
 }
 
 static void
