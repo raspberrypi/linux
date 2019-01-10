@@ -36,6 +36,8 @@ struct rpi_firmware_property_tag_header {
 enum rpi_firmware_property_tag {
 	RPI_FIRMWARE_PROPERTY_END =                           0,
 	RPI_FIRMWARE_GET_FIRMWARE_REVISION =                  0x00000001,
+	RPI_FIRMWARE_GET_FIRMWARE_VARIANT =                   0x00000002,
+	RPI_FIRMWARE_GET_FIRMWARE_HASH =                      0x00000003,
 
 	RPI_FIRMWARE_SET_CURSOR_INFO =                        0x00008010,
 	RPI_FIRMWARE_SET_CURSOR_STATE =                       0x00008011,
