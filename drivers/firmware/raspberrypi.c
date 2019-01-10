@@ -265,6 +265,22 @@ rpi_firmware_print_firmware_revision(struct rpi_firmware *fw)
 }
 
 static void
+rpi_firmware_print_firmware_hash(struct rpi_firmware *fw)
+{
+	u32 hash[5];
+	int ret = rpi_firmware_property(fw,
+					RPI_FIRMWARE_GET_FIRMWARE_HASH,
+					hash, sizeof(hash));
+
+	if (ret)
+		return;
+
+	dev_info(fw->cl.dev,
+		 "Firmware hash is %08x%08x%08x%08x%08x\n",
+		 hash[0], hash[1], hash[2], hash[3], hash[4]);
+}
+
+static void
 rpi_register_hwmon_driver(struct device *dev, struct rpi_firmware *fw)
 {
 	u32 packet;
@@ -316,6 +332,7 @@ static int rpi_firmware_probe(struct platform_device *pdev)
 	g_pdev = pdev;
 
 	rpi_firmware_print_firmware_revision(fw);
+	rpi_firmware_print_firmware_hash(fw);
 	rpi_register_hwmon_driver(dev, fw);
 	rpi_register_clk_driver(dev);
 
