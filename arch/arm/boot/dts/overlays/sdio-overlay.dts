@@ -32,7 +32,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&sdio_ovl_pins>;
 				non-removable;
-				bus-width = <1>;
+				bus-width = <4>;
 			};
 		};
 	};
@@ -49,6 +49,22 @@
 	};
 
 	fragment@3 {
+		target = <&sdio_ovl_pins>;
+		__dormant__ {
+			brcm,pins = <22 23 24 25>;
+			brcm,pull = <0 2 2 2>;
+		};
+	};
+
+	fragment@4 {
+		target = <&sdio_ovl_pins>;
+		__dormant__ {
+			brcm,pins = <34 35 36 37>;
+			brcm,pull = <0 2 2 2>;
+		};
+	};
+
+	fragment@6 {
 		target-path = "/aliases";
 		__overlay__ {
 			mmc1 = "/soc/sdio@7e300000";
@@ -59,5 +75,7 @@
 		poll_once = <&sdio_ovl>,"non-removable?";
 		bus_width = <&sdio_ovl>,"bus-width:0";
 		sdio_overclock = <&sdio_ovl>,"brcm,overclock-50:0";
+		gpios_22_25 = <0>,"=3";
+		gpios_34_37 = <0>,"=4";
 	};
 };
