@@ -143,6 +143,8 @@ struct bcm2835_power {
 	/* AXI Async bridge registers. */
 	void __iomem		*asb;
 
+	bool is_2711;
+
 	struct genpd_onecell_data pd_xlate;
 	struct bcm2835_power_domain domains[BCM2835_POWER_DOMAIN_COUNT];
 	struct reset_controller_dev reset;
@@ -192,6 +194,10 @@ static int bcm2835_power_power_off(struct bcm2835_power_domain *pd, u32 pm_reg)
 {
 	struct bcm2835_power *power = pd->power;
 
+	/* 2711 has no power domains above the reset controller. */
+	if (power->is_2711)
+		return 0;
+
 	/* Enable functional isolation */
 	PM_WRITE(pm_reg, PM_READ(pm_reg) & ~PM_ISFUNC);
 
@@ -212,6 +218,10 @@ static int bcm2835_power_power_on(struct bcm2835_power_domain *pd, u32 pm_reg)
 	int ret;
 	int inrush;
 	bool powok;
+
+	/* 2711 has no power domains above the reset controller. */
+	if (power->is_2711)
+		return 0;
 
 	/* If it was already powered on by the fw, leave it that way. */
 	if (PM_READ(pm_reg) & PM_POWUP)
@@ -626,6 +636,18 @@ static int bcm2835_power_probe(struct platform_device *pdev)
 	power->dev = dev;
 	power->base = pm->base;
 	power->asb = pm->asb;
+
+	/* 2711 hack: the new ARGON ASB took over V3D, which is our
+	 * only consumer of this driver so far.  The old ASB seems to
+	 * still be present with ISP and H264 bits but no V3D, but I
+	 * don't know if that's real or not.  The V3D is in the same
+	 * place in the new ASB as the old one, so just poke the new
+	 * one for now.
+	 */
+	if (pm->arg_asb) {
+		power->asb = pm->arg_asb;
+		power->is_2711 = true;
+	}
 
 	id = ASB_READ(ASB_AXI_BRDG_ID);
 	if (id != 0x62726467 /* "BRDG" */) {
