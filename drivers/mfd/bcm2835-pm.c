@@ -50,6 +50,17 @@ static int bcm2835_pm_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	/* Map the ARGON ASB regs if present. */
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	if (res) {
+		pm->arg_asb = devm_ioremap_resource(dev, res);
+		if (IS_ERR(pm->arg_asb)) {
+			dev_err(dev, "Failed to map ARGON ASB: %ld\n",
+				PTR_ERR(pm->arg_asb));
+			return PTR_ERR(pm->arg_asb);
+		}
+	}
+
 	/* We'll use the presence of the AXI ASB regs in the
 	 * bcm2835-pm binding as the key for whether we can reference
 	 * the full PM register range and support power domains.
