@@ -236,7 +236,12 @@ endif
 
 # Work around a gcc code-gen bug with -fno-omit-frame-pointer.
 ifeq ($(CONFIG_FUNCTION_TRACER),y)
-KBUILD_CFLAGS		+= -mno-sched-epilog
+# Work around gcc code-gen bugs with -pg / -fno-omit-frame-pointer in gcc <= 4.8
+# https://gcc.gnu.org/bugzilla/show_bug.cgi?id=44199
+# https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52828
+ifneq ($(cc-name),clang)
+KBUILD_CFLAGS		+= $(call cc-ifversion, -lt, 0409, -mno-sched-epilog)
+endif
 endif
 
 cpu-as-$(CONFIG_4xx)		+= -Wa,-m405

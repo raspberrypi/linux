@@ -114,7 +114,7 @@ void *__wrap_devm_memremap_pages(struct device *dev, struct resource *res,
 		return nfit_res->buf + offset - nfit_res->res.start;
 	return devm_memremap_pages(dev, res, ref, altmap);
 }
-EXPORT_SYMBOL(__wrap_devm_memremap_pages);
+EXPORT_SYMBOL_GPL(__wrap_devm_memremap_pages);
 
 pfn_t __wrap_phys_to_pfn_t(phys_addr_t addr, unsigned long flags)
 {

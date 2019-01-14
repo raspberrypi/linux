@@ -1596,7 +1596,7 @@ static void ibmvnic_reset(struct ibmvnic_adapter *adapter,
 		}
 	}
 
-	rwi = kzalloc(sizeof(*rwi), GFP_KERNEL);
+	rwi = kzalloc(sizeof(*rwi), GFP_ATOMIC);
 	if (!rwi) {
 		mutex_unlock(&adapter->rwi_lock);
 		ibmvnic_close(netdev);
