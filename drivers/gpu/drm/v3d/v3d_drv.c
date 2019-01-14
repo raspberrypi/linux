@@ -66,7 +66,7 @@ static int v3d_runtime_resume(struct device *dev)
 }
 #endif
 
-static const struct dev_pm_ops v3d_v3d_pm_ops = {
+static const struct dev_pm_ops v3d_pm_ops = {
 	SET_RUNTIME_PM_OPS(v3d_runtime_suspend, v3d_runtime_resume, NULL)
 };
 
@@ -371,6 +371,7 @@ static struct platform_driver v3d_platform_driver = {
 	.driver		= {
 		.name	= "v3d",
 		.of_match_table = v3d_of_match,
+		.pm = &v3d_pm_ops,
 	},
 };
 
