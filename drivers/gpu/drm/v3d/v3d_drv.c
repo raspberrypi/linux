@@ -38,6 +38,42 @@
 #define DRIVER_MINOR 0
 #define DRIVER_PATCHLEVEL 0
 
+#ifdef CONFIG_PM
+static int v3d_runtime_suspend(struct device *dev)
+{
+	struct drm_device *drm = dev_get_drvdata(dev);
+	struct v3d_dev *v3d = to_v3d_dev(drm);
+
+	v3d_irq_disable(v3d);
+
+	clk_disable_unprepare(v3d->clk);
+
+	return 0;
+}
+
+static int v3d_runtime_resume(struct device *dev)
+{
+	struct drm_device *drm = dev_get_drvdata(dev);
+	struct v3d_dev *v3d = to_v3d_dev(drm);
+	int ret;
+
+	ret = clk_prepare_enable(v3d->clk);
+	if (ret != 0)
+		return ret;
+
+	/* XXX: VPM base */
+
+	v3d_mmu_set_page_table(v3d);
+	v3d_irq_enable(v3d);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops v3d_pm_ops = {
+	SET_RUNTIME_PM_OPS(v3d_runtime_suspend, v3d_runtime_resume, NULL)
+};
+
 static int v3d_get_param_ioctl(struct drm_device *dev, void *data,
 			       struct drm_file *file_priv)
 {
@@ -329,6 +365,7 @@ static struct platform_driver v3d_platform_driver = {
 	.driver		= {
 		.name	= "v3d",
 		.of_match_table = v3d_of_match,
+		.pm = &v3d_pm_ops,
 	},
 };
 
