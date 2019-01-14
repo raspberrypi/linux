@@ -18,6 +18,8 @@
  * each client.  This is not yet implemented.
  */
 
+#include <linux/pm_runtime.h>
+
 #include "v3d_drv.h"
 #include "v3d_regs.h"
 
@@ -33,6 +35,14 @@
 static int v3d_mmu_flush_all(struct v3d_dev *v3d)
 {
 	int ret;
+
+	/* Keep power on the device on until we're done with this
+	 * call, but skip the flush if the device is off and will be
+	 * reset when powered back on.
+	 */
+	ret = pm_runtime_get_if_in_use(v3d->dev);
+	if (ret == 0)
+		return 0;
 
 	/* Make sure that another flush isn't already running when we
 	 * start this one.
@@ -60,6 +70,9 @@ static int v3d_mmu_flush_all(struct v3d_dev *v3d)
 			 V3D_MMUC_CONTROL_FLUSHING), 100);
 	if (ret)
 		dev_err(v3d->dev, "MMUC flush wait idle failed\n");
+
+	pm_runtime_mark_last_busy(v3d->dev);
+	pm_runtime_put_autosuspend(v3d->dev);
 
 	return ret;
 }
