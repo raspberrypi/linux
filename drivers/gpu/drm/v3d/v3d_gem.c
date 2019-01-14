@@ -375,7 +375,6 @@ v3d_exec_cleanup(struct kref *ref)
 {
 	struct v3d_exec_info *exec = container_of(ref, struct v3d_exec_info,
 						  refcount);
-	struct v3d_dev *v3d = exec->v3d;
 	unsigned int i;
 	struct v3d_bo *bo, *save;
 
@@ -396,9 +395,6 @@ v3d_exec_cleanup(struct kref *ref)
 		drm_gem_object_put_unlocked(&bo->base);
 	}
 
-	pm_runtime_mark_last_busy(v3d->dev);
-	pm_runtime_put_autosuspend(v3d->dev);
-
 	kfree(exec);
 }
 
@@ -412,7 +408,6 @@ v3d_tfu_job_cleanup(struct kref *ref)
 {
 	struct v3d_tfu_job *job = container_of(ref, struct v3d_tfu_job,
 					       refcount);
-	struct v3d_dev *v3d = job->v3d;
 	unsigned int i;
 
 	dma_fence_put(job->in_fence);
@@ -422,9 +417,6 @@ v3d_tfu_job_cleanup(struct kref *ref)
 		if (job->bo[i])
 			drm_gem_object_put_unlocked(&job->bo[i]->base);
 	}
-
-	pm_runtime_mark_last_busy(v3d->dev);
-	pm_runtime_put_autosuspend(v3d->dev);
 
 	kfree(job);
 }
@@ -518,12 +510,6 @@ v3d_submit_cl_ioctl(struct drm_device *dev, void *data,
 	exec = kcalloc(1, sizeof(*exec), GFP_KERNEL);
 	if (!exec)
 		return -ENOMEM;
-
-	ret = pm_runtime_get_sync(v3d->dev);
-	if (ret < 0) {
-		kfree(exec);
-		return ret;
-	}
 
 	kref_init(&exec->refcount);
 
@@ -641,12 +627,6 @@ v3d_submit_tfu_ioctl(struct drm_device *dev, void *data,
 	job = kcalloc(1, sizeof(*job), GFP_KERNEL);
 	if (!job)
 		return -ENOMEM;
-
-	ret = pm_runtime_get_sync(v3d->dev);
-	if (ret < 0) {
-		kfree(job);
-		return ret;
-	}
 
 	kref_init(&job->refcount);
 
