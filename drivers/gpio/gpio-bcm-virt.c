@@ -101,7 +101,7 @@ static int brcmvirt_gpio_probe(struct platform_device *pdev)
 		goto out;
 	}
 
-	ucb->ts_base = dma_zalloc_coherent(dev, PAGE_SIZE, &ucb->bus_addr, GFP_KERNEL);
+	ucb->ts_base = dma_alloc_coherent(dev, PAGE_SIZE, &ucb->bus_addr, GFP_KERNEL);
 	if (!ucb->ts_base) {
 		pr_err("[%s]: failed to dma_alloc_coherent(%ld)\n",
 				__func__, PAGE_SIZE);

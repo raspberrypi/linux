@@ -243,7 +243,7 @@ static void __iomem *timer_base;
 static void log_init(struct device *dev, u32 bus_to_phys)
 {
 	spin_lock_init(&log_lock);
-	sdhost_log_buf = dma_zalloc_coherent(dev, LOG_SIZE, &sdhost_log_addr,
+	sdhost_log_buf = dma_alloc_coherent(dev, LOG_SIZE, &sdhost_log_addr,
 					     GFP_KERNEL);
 	if (sdhost_log_buf) {
 		pr_info("sdhost: log_buf @ %p (%x)\n",
