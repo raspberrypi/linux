@@ -32,7 +32,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&sdio_ovl_pins>;
 				non-removable;
-				bus-width = <1>;
+				bus-width = <4>;
 			};
 		};
 	};
