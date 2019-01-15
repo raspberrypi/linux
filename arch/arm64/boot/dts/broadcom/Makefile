@@ -10,3 +10,8 @@ dtb-$(CONFIG_ARCH_BCM2835) += bcm2710-rpi-cm3.dtb
 
 subdir-y	+= northstar2
 subdir-y	+= stingray
+
+# Enable fixups to support overlays on BCM2835 platforms
+ifeq ($(CONFIG_ARCH_BCM2835),y)
+	DTC_FLAGS ?= -@
+endif
