@@ -443,6 +443,7 @@ static void buffer_cb(struct vchiq_mmal_instance *instance,
 	}
 	dev->capture.last_timestamp = buf->vb.vb2_buf.timestamp;
 	buf->vb.sequence = dev->capture.sequence++;
+	buf->vb.field = V4L2_FIELD_NONE;
 
 	vb2_set_plane_payload(&buf->vb.vb2_buf, 0, mmal_buf->length);
 	if (mmal_buf->mmal_flags & MMAL_BUFFER_HEADER_FLAG_KEYFRAME)
