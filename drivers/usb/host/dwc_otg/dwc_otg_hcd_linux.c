@@ -232,7 +232,7 @@ static int _hub_info(dwc_otg_hcd_t * hcd, void *urb_handle, uint32_t * hub_addr,
 		else
 			*hub_addr = urb->dev->tt->hub->devnum;
 	}
-	*port_addr = urb->dev->tt->multi ? urb->dev->ttport : 1;
+	*port_addr = urb->dev->ttport;
    } else {
         *hub_addr = 0;
 	*port_addr = urb->dev->ttport;
