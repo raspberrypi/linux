@@ -1389,9 +1389,9 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 	init_waitqueue_head(&host->buf_ready_int);
 
 	bcm2835_mmc_init(host, 0);
-	ret = devm_request_threaded_irq(dev, host->irq, bcm2835_mmc_irq,
-					bcm2835_mmc_thread_irq, IRQF_SHARED,
-					mmc_hostname(mmc), host);
+	ret = request_threaded_irq(host->irq, bcm2835_mmc_irq,
+				   bcm2835_mmc_thread_irq, IRQF_SHARED,
+				   mmc_hostname(mmc), host);
 	if (ret) {
 		dev_err(dev, "Failed to request IRQ %d: %d\n", host->irq, ret);
 		goto untasklet;
