@@ -1439,7 +1439,8 @@ static int bcm2835_mmc_probe(struct platform_device *pdev)
 	addr = of_get_address(node, 0, NULL, NULL);
 	if (!addr) {
 		dev_err(dev, "could not get DMA-register address\n");
-		return -ENODEV;
+		ret = -ENODEV;
+		goto err;
 	}
 	host->bus_addr = be32_to_cpup(addr);
 	pr_debug(" - ioaddr %lx, iomem->start %lx, bus_addr %lx\n",
