@@ -642,6 +642,16 @@ struct sctp_chunk *sctp_process_strreset_addstrm_out(
 	if (!(asoc->strreset_enable & SCTP_ENABLE_CHANGE_ASSOC_REQ))
 		goto out;
 
+	in = ntohs(addstrm->number_of_streams);
+	incnt = stream->incnt + in;
+	if (!in || incnt > SCTP_MAX_STREAM)
+		goto out;
+
+	streamin = krealloc(stream->in, incnt * sizeof(*streamin),
+			    GFP_ATOMIC);
+	if (!streamin)
+		goto out;
+
 	if (asoc->strreset_chunk) {
 		if (!sctp_chunk_lookup_strreset_param(
 			asoc, 0, SCTP_PARAM_RESET_ADD_IN_STREAMS)) {
@@ -664,16 +674,6 @@ struct sctp_chunk *sctp_process_strreset_addstrm_out(
 			asoc->strreset_chunk = NULL;
 		}
 	}
-
-	in = ntohs(addstrm->number_of_streams);
-	incnt = stream->incnt + in;
-	if (!in || incnt > SCTP_MAX_STREAM)
-		goto out;
-
-	streamin = krealloc(stream->in, incnt * sizeof(*streamin),
-			    GFP_ATOMIC);
-	if (!streamin)
-		goto out;
 
 	memset(streamin + stream->incnt, 0, in * sizeof(*streamin));
 	stream->in = streamin;
@@ -749,9 +749,6 @@ struct sctp_chunk *sctp_process_strreset_addstrm_in(
 	stream->outcnt = outcnt;
 
 	result = SCTP_STRRESET_PERFORMED;
-
-	*evp = sctp_ulpevent_make_stream_change_event(asoc,
-		0, 0, ntohs(addstrm->number_of_streams), GFP_ATOMIC);
 
 out:
 	sctp_update_strreset_result(asoc, result);
