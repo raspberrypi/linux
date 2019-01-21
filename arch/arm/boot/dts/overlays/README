@@ -1904,6 +1904,37 @@ Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
                                 is 'okay' or enabled).
 
 
+Name:   ssd1306
+Info:   Overlay for activation of SSD1306 over I2C OLED display framebuffer.
+Load:   dtoverlay=ssd1306,<param>=<val>
+Params: address                 Location in display memory of first character.
+                                (default=0)
+        width                   Width of display. (default=128)
+        height                  Height of display. (default=64)
+        offset                  virtual channel a. (default=0)
+        normal                  Has no effect on displays tested. (default=not
+                                set)
+        sequential              Set this if every other scan line is missing.
+                                (default=not set)
+        remapped                Set this if display is garbled. (default=not
+                                set)
+        inverted                Set this if display is inverted and mirrored.
+                                (default=not set)
+
+        Examples:
+        Typical usage for 128x64 display: dtoverlay=ssd1306,inverted
+
+        Typical usage for 128x32 display: dtoverlay=ssd1306,inverted,sequential
+
+        i2c_baudrate=400000 will speed up the display.
+
+        i2c_baudrate=1000000 seems to work even though it's not officially
+        supported by the hardware, and is faster still.
+
+        For more information refer to the device datasheet at:
+        https://cdn-shop.adafruit.com/datasheets/SSD1306.pdf
+
+
 Name:   superaudioboard
 Info:   Configures the SuperAudioBoard sound card
 Load:   dtoverlay=superaudioboard,<param>=<val>
