@@ -1251,6 +1251,22 @@ Params: spi<n>-<m>-present      boolean, configure device at spi<n>, cs<m>
         spi<n>-<m>-speed        integer, set the spi bus speed for this device
 
 
+Name:   mcp342x
+Info:   Overlay for activation of Microchip MCP3421-3428 ADCs over I2C
+Load:   dtoverlay=mcp342x,<param>=<val>
+Params: addr                    I2C bus address of device, for devices with
+                                addresses that are configurable, e.g. by
+                                hardware links (default=0x68)
+        mcp3421                 The device is an MCP3421
+        mcp3422                 The device is an MCP3422
+        mcp3423                 The device is an MCP3423
+        mcp3424                 The device is an MCP3424
+        mcp3425                 The device is an MCP3425
+        mcp3426                 The device is an MCP3426
+        mcp3427                 The device is an MCP3427
+        mcp3428                 The device is an MCP3428
+
+
 Name:   media-center
 Info:   Media Center HAT - 2.83" Touch Display + extras by Pi Supply
 Load:   dtoverlay=media-center,<param>=<val>
