@@ -1186,6 +1186,8 @@ Params: gpiopin                 Gpio pin connected to the INTA output of the
 
         addr                    I2C address of the MCP23017 (default: 0x20)
 
+        mcp23008                Configure an MCP23008 instead.
+
 
 Name:   mcp23s17
 Info:   Configures the MCP23S08/17 SPI GPIO expanders.
