@@ -44,11 +44,19 @@
 			};
 		};
 	};
-	
+
+	fragment@3 {
+		target = <&mcp23017>;
+		__dormant__ {
+			compatible = "microchip,mcp23008";
+		};
+	};
+
 	__overrides__ {
 		gpiopin = <&mcp23017_pins>,"brcm,pins:0",
 				<&mcp23017>,"interrupts:0";
 		addr = <&mcp23017>,"reg:0";
+		mcp23008 = <0>,"=3";
 	};
 };
 
