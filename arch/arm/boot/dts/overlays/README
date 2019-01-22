@@ -1967,6 +1967,12 @@ Load:   dtoverlay=spi-gpio35-39
 Params: <None>
 
 
+Name:   spi-gpio40-45
+Info:   Move SPI function block to GPIOs 40 to 45
+Load:   dtoverlay=spi-gpio40-45
+Params: <None>
+
+
 Name:   spi-rtc
 Info:   Adds support for a number of SPI Real Time Clock devices
 Load:   dtoverlay=spi-rtc,<param>=<val>
