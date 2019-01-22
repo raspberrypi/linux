@@ -1398,10 +1398,16 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 	}
 
 	mmiowb();
-	mmc_add_host(mmc);
+	ret = mmc_add_host(mmc);
+	if (ret) {
+		dev_err(dev, "could not add MMC host\n");
+		goto free_irq;
+	}
 
 	return 0;
 
+free_irq:
+	free_irq(host->irq, host);
 untasklet:
 	tasklet_kill(&host->finish_tasklet);
 
