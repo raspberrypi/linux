@@ -41,6 +41,11 @@ static inline bool is_mt7610e(struct mt76x02_dev *dev)
 
 void mt76x0_init_debugfs(struct mt76x02_dev *dev);
 
+static inline bool is_mt7630(struct mt76x02_dev *dev)
+{
+	return mt76_chip(&dev->mt76) == 0x7630;
+}
+
 /* Init */
 struct mt76x02_dev *
 mt76x0_alloc_device(struct device *pdev,
