@@ -472,9 +472,9 @@ buffer_from_host(struct vchiq_mmal_instance *instance,
 static void event_to_host_cb(struct vchiq_mmal_instance *instance,
 			     struct mmal_msg *msg, u32 msg_len)
 {
-	/* FIXME: Not going to work on 64 bit */
+	int comp_idx = msg->u.event_to_host.client_component;
 	struct vchiq_mmal_component *component =
-		(struct vchiq_mmal_component *)msg->u.event_to_host.client_component;
+					&instance->component[comp_idx];
 	struct vchiq_mmal_port *port = NULL;
 	struct mmal_msg_context *msg_context;
 	u32 port_num = msg->u.event_to_host.port_num;
@@ -1073,7 +1073,7 @@ static int create_component(struct vchiq_mmal_instance *instance,
 
 	/* build component create message */
 	m.h.type = MMAL_MSG_TYPE_COMPONENT_CREATE;
-	m.u.component_create.client_component = (u32)(unsigned long)component;
+	m.u.component_create.client_component = component->client_component;
 	strncpy(m.u.component_create.name, name,
 		sizeof(m.u.component_create.name));
 
@@ -1867,6 +1867,12 @@ int vchiq_mmal_component_init(struct vchiq_mmal_instance *instance,
 		ret = -EINVAL;	/* todo is this correct error? */
 		goto unlock;
 	}
+
+	/* We need a handle to reference back to our component structure.
+	 * Use the array index in instance->component rather than rolling
+	 * another IDR.
+	 */
+	component->client_component = idx;
 
 	ret = create_component(instance, component, name);
 	if (ret < 0) {
