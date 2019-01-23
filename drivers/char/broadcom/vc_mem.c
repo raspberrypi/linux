@@ -148,7 +148,7 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	(void) cmd;
 	(void) arg;
 
-	pr_debug("%s: called file = 0x%p\n", __func__, file);
+	pr_debug("%s: called file = 0x%p, cmd %08x\n", __func__, file, cmd);
 
 	switch (cmd) {
 	case VC_MEM_IOC_MEM_PHYS_ADDR:
@@ -167,7 +167,7 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			// Get the videocore memory size first
 			vc_mem_get_size();
 
-			pr_debug("%s: VC_MEM_IOC_MEM_SIZE=%u\n", __func__,
+			pr_debug("%s: VC_MEM_IOC_MEM_SIZE=%x\n", __func__,
 				mm_vc_mem_size);
 
 			if (copy_to_user((void *) arg, &mm_vc_mem_size,
@@ -181,7 +181,7 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			// Get the videocore memory base
 			vc_mem_get_base();
 
-			pr_debug("%s: VC_MEM_IOC_MEM_BASE=%u\n", __func__,
+			pr_debug("%s: VC_MEM_IOC_MEM_BASE=%x\n", __func__,
 				mm_vc_mem_base);
 
 			if (copy_to_user((void *) arg, &mm_vc_mem_base,
@@ -195,7 +195,7 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			// Get the videocore memory base
 			vc_mem_get_base();
 
-			pr_debug("%s: VC_MEM_IOC_MEM_LOAD=%u\n", __func__,
+			pr_debug("%s: VC_MEM_IOC_MEM_LOAD=%x\n", __func__,
 				mm_vc_mem_base);
 
 			if (copy_to_user((void *) arg, &mm_vc_mem_base,
@@ -213,6 +213,35 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	return rc;
 }
+
+#ifdef CONFIG_COMPAT
+static long
+vc_mem_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	int rc = 0;
+
+	switch (cmd) {
+	case VC_MEM_IOC_MEM_PHYS_ADDR32:
+		pr_debug("%s: VC_MEM_IOC_MEM_PHYS_ADDR32=0x%p\n",
+			 __func__, (void *)mm_vc_mem_phys_addr);
+
+		/* This isn't correct, but will cover us for now as
+		 * VideoCore is 32bit only.
+		 */
+		if (copy_to_user((void *)arg, &mm_vc_mem_phys_addr,
+				 sizeof(compat_ulong_t)))
+			rc = -EFAULT;
+
+		break;
+
+	default:
+		rc = vc_mem_ioctl(file, cmd, arg);
+		break;
+	}
+
+	return rc;
+}
+#endif
 
 /****************************************************************************
 *
@@ -259,6 +288,9 @@ static const struct file_operations vc_mem_fops = {
 	.open = vc_mem_open,
 	.release = vc_mem_release,
 	.unlocked_ioctl = vc_mem_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = vc_mem_compat_ioctl,
+#endif
 	.mmap = vc_mem_mmap,
 };
 
