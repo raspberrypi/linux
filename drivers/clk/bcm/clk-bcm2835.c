@@ -617,15 +617,17 @@ static int bcm2835_pll_on(struct clk_hw *hw)
 	spin_unlock(&cprman->regs_lock);
 
 	/* Wait for the PLL to lock. */
-	timeout = ktime_add_ns(ktime_get(), LOCK_TIMEOUT_NS);
-	while (!(cprman_read(cprman, CM_LOCK) & data->lock_mask)) {
-		if (ktime_after(ktime_get(), timeout)) {
-			dev_err(cprman->dev, "%s: couldn't lock PLL\n",
-				clk_hw_get_name(hw));
-			return -ETIMEDOUT;
-		}
+	if (strcmp(data->name, "pllh")) {
+		timeout = ktime_add_ns(ktime_get(), LOCK_TIMEOUT_NS);
+		while (!(cprman_read(cprman, CM_LOCK) & data->lock_mask)) {
+			if (ktime_after(ktime_get(), timeout)) {
+				dev_err(cprman->dev, "%s: couldn't lock PLL\n",
+					clk_hw_get_name(hw));
+				return -ETIMEDOUT;
+			}
 
-		cpu_relax();
+			cpu_relax();
+		}
 	}
 
 	cprman_write(cprman, data->a2w_ctrl_reg,
