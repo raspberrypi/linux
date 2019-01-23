@@ -32,4 +32,8 @@ extern unsigned int  mm_vc_mem_size;
 extern int vc_mem_get_current_size( void );
 #endif
 
+#ifdef CONFIG_COMPAT
+#define VC_MEM_IOC_MEM_PHYS_ADDR32  _IOR(VC_MEM_IOC_MAGIC, 0, compat_ulong_t)
+#endif
+
 #endif  /* _VC_MEM_H */
