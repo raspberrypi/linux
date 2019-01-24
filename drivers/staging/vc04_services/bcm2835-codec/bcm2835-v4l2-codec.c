@@ -634,6 +634,9 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 		 __func__, status, mmal_buf, mmal_buf->length,
 		 mmal_buf->mmal_flags, mmal_buf->pts);
 
+	buf = container_of(mmal_buf, struct m2m_mmal_buffer, mmal);
+	vb2 = &buf->m2m.vb;
+
 	if (status) {
 		/* error in transfer */
 		if (vb2) {
@@ -657,9 +660,6 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 		}
 		return;
 	}
-
-	buf = container_of(mmal_buf, struct m2m_mmal_buffer, mmal);
-	vb2 = &buf->m2m.vb;
 
 	v4l2_dbg(3, debug, &ctx->dev->v4l2_dev, "%s: length %lu, flags %x, idx %u\n",
 		 __func__, mmal_buf->length, mmal_buf->mmal_flags,
