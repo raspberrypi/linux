@@ -24,6 +24,9 @@
 
 #define VCIO_IOC_MAGIC 100
 #define IOCTL_MBOX_PROPERTY _IOWR(VCIO_IOC_MAGIC, 0, char *)
+#ifdef CONFIG_COMPAT
+#define IOCTL_MBOX_PROPERTY32 _IOWR(VCIO_IOC_MAGIC, 0, compat_uptr_t)
+#endif
 
 static struct {
 	dev_t devt;
@@ -87,13 +90,30 @@ static long vcio_device_ioctl(struct file *file, unsigned int ioctl_num,
 	case IOCTL_MBOX_PROPERTY:
 		return vcio_user_property_list((void *)ioctl_param);
 	default:
-		pr_err("unknown ioctl: %d\n", ioctl_num);
+		pr_err("unknown ioctl: %x\n", ioctl_num);
 		return -EINVAL;
 	}
 }
 
+#ifdef CONFIG_COMPAT
+static long vcio_device_compat_ioctl(struct file *file, unsigned int ioctl_num,
+				     unsigned long ioctl_param)
+{
+	switch (ioctl_num) {
+	case IOCTL_MBOX_PROPERTY32:
+		return vcio_user_property_list(compat_ptr(ioctl_param));
+	default:
+		pr_err("unknown ioctl: %x\n", ioctl_num);
+		return -EINVAL;
+	}
+}
+#endif
+
 const struct file_operations vcio_fops = {
 	.unlocked_ioctl = vcio_device_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = vcio_device_compat_ioctl,
+#endif
 	.open = vcio_device_open,
 	.release = vcio_device_release,
 };
