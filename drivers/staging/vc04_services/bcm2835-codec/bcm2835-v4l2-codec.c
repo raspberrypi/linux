@@ -743,7 +743,7 @@ static void device_run(void *priv)
 	struct bcm2835_codec_ctx *ctx = priv;
 	struct bcm2835_codec_dev *dev = ctx->dev;
 	struct vb2_v4l2_buffer *src_buf, *dst_buf;
-	struct m2m_mmal_buffer *src_m2m_buf, *dst_m2m_buf;
+	struct m2m_mmal_buffer *src_m2m_buf = NULL, *dst_m2m_buf = NULL;
 	struct v4l2_m2m_buffer *m2m;
 	int ret;
 
