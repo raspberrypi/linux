@@ -2406,7 +2406,7 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 		return ret;
 
 	/* note that we have registered all the clocks */
-	dev_dbg(dev, "registered %d clocks\n", asize);
+	dev_dbg(dev, "registered %zd clocks\n", asize);
 
 	return 0;
 }
