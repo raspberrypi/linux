@@ -900,8 +900,6 @@ static int em28xx_enable_analog_tuner(struct em28xx *dev)
 	if (!mdev || !v4l2->decoder)
 		return 0;
 
-	dev->v4l2->field_count = 0;
-
 	/*
 	 * This will find the tuner that is connected into the decoder.
 	 * Technically, this is not 100% correct, as the device may be
@@ -1073,6 +1071,8 @@ int em28xx_start_analog_streaming(struct vb2_queue *vq, unsigned int count)
 	int rc = 0;
 
 	em28xx_videodbg("%s\n", __func__);
+
+	dev->v4l2->field_count = 0;
 
 	/* Make sure streaming is not already in progress for this type
 	   of filehandle (e.g. video, vbi) */
