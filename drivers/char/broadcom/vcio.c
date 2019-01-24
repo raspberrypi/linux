@@ -126,10 +126,9 @@ static int __init vcio_init(void)
 
 	np = of_find_compatible_node(NULL, NULL,
 				     "raspberrypi,bcm2835-firmware");
-/* Uncomment this when we only boot with Device Tree
 	if (!of_device_is_available(np))
 		return -ENODEV;
-*/
+
 	vcio.fw = rpi_firmware_get(np);
 	if (!vcio.fw)
 		return -ENODEV;
