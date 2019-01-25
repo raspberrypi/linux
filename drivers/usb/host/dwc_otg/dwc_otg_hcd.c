@@ -1041,8 +1041,8 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 		 * moderately readable array casts.
 		 */
 		hcd->fiq_dmab = DWC_DMA_ALLOC(dev, (sizeof(struct fiq_dma_channel) * num_channels), &hcd->fiq_state->dma_base);
-		DWC_WARN("FIQ DMA bounce buffers: virt = 0x%08x dma = 0x%08x len=%d",
-				(unsigned int)hcd->fiq_dmab, (unsigned int)hcd->fiq_state->dma_base,
+		DWC_WARN("FIQ DMA bounce buffers: virt = %px dma = %pad len=%zu",
+				hcd->fiq_dmab, &hcd->fiq_state->dma_base,
 				sizeof(struct fiq_dma_channel) * num_channels);
 
 		DWC_MEMSET(hcd->fiq_dmab, 0x6b, 9024);
@@ -1522,9 +1522,12 @@ int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_state *st,
 		/*
 		 * Set dma_regs to bounce buffer. FIQ will update the
 		 * state depending on transaction progress.
+		 * Pointer arithmetic on hcd->fiq_state->dma_base (a dma_addr_t)
+		 * to point it to the correct offset in the allocated buffers.
 		 */
 		blob = (struct fiq_dma_blob *) hcd->fiq_state->dma_base;
-		st->hcdma_copy.d32 = (uint32_t) &blob->channel[hc->hc_num].index[0].buf[0];
+		st->hcdma_copy.d32 = (dma_addr_t) blob->channel[hc->hc_num].index[0].buf;
+
 		/* Calculate the max number of CSPLITS such that the FIQ can time out
 		 * a transaction if it fails.
 		 */
@@ -1571,9 +1574,15 @@ int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_state *st,
 				st->nrpackets = i;
 			}
 			ptr = qtd->urb->buf + frame_desc->offset;
-			/* Point the HC at the DMA address of the bounce buffers */
+			/*
+			 * Point the HC at the DMA address of the bounce buffers
+			 *
+			 * Pointer arithmetic on hcd->fiq_state->dma_base (a
+			 * dma_addr_t) to point it to the correct offset in the
+			 * allocated buffers.
+			 */
 			blob = (struct fiq_dma_blob *) hcd->fiq_state->dma_base;
-			st->hcdma_copy.d32 = (uint32_t) &blob->channel[hc->hc_num].index[0].buf[0];
+			st->hcdma_copy.d32 = (dma_addr_t) blob->channel[hc->hc_num].index[0].buf;
 
 			/* fixup xfersize to the actual packet size */
 			st->hctsiz_copy.b.pid = 0;
