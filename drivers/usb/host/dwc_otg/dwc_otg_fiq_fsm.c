@@ -301,7 +301,7 @@ static int notrace fiq_iso_out_advance(struct fiq_state *st, int num_channels, i
 		last = 1;
 
 	/* New DMA address - address of bounce buffer referred to in index */
-	hcdma.d32 = (uint32_t) &blob->channel[n].index[i].buf[0];
+	hcdma.d32 = (dma_addr_t) blob->channel[n].index[i].buf;
 	//hcdma.d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HC_DMA);
 	//hcdma.d32 += st->channel[n].dma_info.slot_len[i];
 	fiq_print(FIQDBG_INT, st, "LAST: %01d ", last);
