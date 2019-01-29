@@ -1237,11 +1237,6 @@ static int unicam_start_streaming(struct vb2_queue *vq, unsigned int count)
 		unicam_err(dev, "Failed to enable CSI clock: %d\n", ret);
 		goto err_pm_put;
 	}
-	ret = v4l2_subdev_call(dev->sensor, core, s_power, 1);
-	if (ret < 0 && ret != -ENOIOCTLCMD) {
-		unicam_err(dev, "power on failed in subdev\n");
-		goto err_clock_unprepare;
-	}
 	dev->streaming = 1;
 
 	unicam_start_rx(dev, addr);
@@ -1256,8 +1251,6 @@ static int unicam_start_streaming(struct vb2_queue *vq, unsigned int count)
 
 err_disable_unicam:
 	unicam_disable(dev);
-	v4l2_subdev_call(dev->sensor, core, s_power, 0);
-err_clock_unprepare:
 	clk_disable_unprepare(dev->clock);
 err_pm_put:
 	unicam_runtime_put(dev);
@@ -1305,11 +1298,6 @@ static void unicam_stop_streaming(struct vb2_queue *vq)
 	dev->cur_frm = NULL;
 	dev->next_frm = NULL;
 	spin_unlock_irqrestore(&dev->dma_queue_lock, flags);
-
-	if (v4l2_subdev_has_op(dev->sensor, core, s_power)) {
-		if (v4l2_subdev_call(dev->sensor, core, s_power, 0) < 0)
-			unicam_err(dev, "power off failed in subdev\n");
-	}
 
 	clk_disable_unprepare(dev->clock);
 	unicam_runtime_put(dev);
@@ -1543,11 +1531,63 @@ static const struct vb2_ops unicam_video_qops = {
 	.stop_streaming		= unicam_stop_streaming,
 };
 
+/*
+ * unicam_open : This function is based on the v4l2_fh_open helper function.
+ * It has been augmented to handle sensor subdevice power management,
+ */
+static int unicam_open(struct file *file)
+{
+	struct unicam_device *dev = video_drvdata(file);
+	int ret;
+
+	mutex_lock(&dev->lock);
+
+	ret = v4l2_fh_open(file);
+	if (ret) {
+		unicam_err(dev, "v4l2_fh_open failed\n");
+		goto unlock;
+	}
+
+	if (!v4l2_fh_is_singular_file(file))
+		goto unlock;
+
+	ret = v4l2_subdev_call(dev->sensor, core, s_power, 1);
+	if (ret < 0 && ret != -ENOIOCTLCMD) {
+		v4l2_fh_release(file);
+		goto unlock;
+	}
+
+unlock:
+	mutex_unlock(&dev->lock);
+	return ret;
+}
+
+static int unicam_release(struct file *file)
+{
+	struct unicam_device *dev = video_drvdata(file);
+	struct v4l2_subdev *sd = dev->sensor;
+	bool fh_singular;
+	int ret;
+
+	mutex_lock(&dev->lock);
+
+	fh_singular = v4l2_fh_is_singular_file(file);
+
+	ret = _vb2_fop_release(file, NULL);
+
+	if (fh_singular)
+		v4l2_subdev_call(sd, core, s_power, 0);
+
+	mutex_unlock(&dev->lock);
+
+	return ret;
+}
+
 /* unicam capture driver file operations */
 static const struct v4l2_file_operations unicam_fops = {
 	.owner		= THIS_MODULE,
-	.open           = v4l2_fh_open,
-	.release        = vb2_fop_release,
+	.open           = unicam_open,
+	.release        = unicam_release,
 	.read		= vb2_fop_read,
 	.poll		= vb2_fop_poll,
 	.unlocked_ioctl	= video_ioctl2,
