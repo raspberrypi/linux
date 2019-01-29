@@ -436,6 +436,10 @@ struct vchiq_pagelist_info {
 	unsigned int scatterlist_mapped;
 };
 
+
+extern unsigned int g_use_36bit_addrs;
+extern struct device *g_dma_dev;
+
 static inline bool vchiq_remote_initialised(const struct vchiq_state *state)
 {
 	return state->remote && state->remote->initialised;
