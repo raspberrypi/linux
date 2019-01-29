@@ -745,7 +745,7 @@ static int bcm2835_vc_sm_cma_remove(struct platform_device *pdev)
 }
 
 /* Get an internal resource handle mapped from the external one. */
-int vc_sm_cma_int_handle(int handle)
+int vc_sm_cma_int_handle(void *handle)
 {
 	struct dma_buf *dma_buf = (struct dma_buf *)handle;
 	struct vc_sm_buffer *res;
@@ -762,7 +762,7 @@ int vc_sm_cma_int_handle(int handle)
 EXPORT_SYMBOL_GPL(vc_sm_cma_int_handle);
 
 /* Free a previously allocated shared memory handle and block. */
-int vc_sm_cma_free(int handle)
+int vc_sm_cma_free(void *handle)
 {
 	struct dma_buf *dma_buf = (struct dma_buf *)handle;
 
@@ -772,7 +772,7 @@ int vc_sm_cma_free(int handle)
 		return -EPERM;
 	}
 
-	pr_debug("%s: handle %08x/dmabuf %p\n", __func__, handle, dma_buf);
+	pr_debug("%s: handle %p/dmabuf %p\n", __func__, handle, dma_buf);
 
 	dma_buf_put(dma_buf);
 
@@ -781,7 +781,7 @@ int vc_sm_cma_free(int handle)
 EXPORT_SYMBOL_GPL(vc_sm_cma_free);
 
 /* Import a dmabuf to be shared with VC. */
-int vc_sm_cma_import_dmabuf(struct dma_buf *src_dmabuf, int *handle)
+int vc_sm_cma_import_dmabuf(struct dma_buf *src_dmabuf, void **handle)
 {
 	struct dma_buf *new_dma_buf;
 	struct vc_sm_buffer *res;
@@ -801,7 +801,7 @@ int vc_sm_cma_import_dmabuf(struct dma_buf *src_dmabuf, int *handle)
 		res = (struct vc_sm_buffer *)new_dma_buf->priv;
 
 		/* Assign valid handle at this time.*/
-		*handle = (int)new_dma_buf;
+		*handle = new_dma_buf;
 	} else {
 		/*
 		 * succeeded in importing the dma_buf, but then
