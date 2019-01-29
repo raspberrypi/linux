@@ -351,8 +351,7 @@ struct sm_instance *vc_sm_cma_vchi_init(VCHI_INSTANCE_T vchi_instance,
 	set_user_nice(instance->io_thread, -10);
 	wake_up_process(instance->io_thread);
 
-	pr_debug("%s: success - instance 0x%x", __func__,
-		 (unsigned int)instance);
+	pr_debug("%s: success - instance %p", __func__, instance);
 	return instance;
 
 err_close_services:
