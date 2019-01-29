@@ -17,12 +17,12 @@
 #endif
 
 /* Free a previously allocated or imported shared memory handle and block. */
-int vc_sm_cma_free(int handle);
+int vc_sm_cma_free(void *handle);
 
 /* Get an internal resource handle mapped from the external one. */
-int vc_sm_cma_int_handle(int handle);
+int vc_sm_cma_int_handle(void *handle);
 
 /* Import a block of memory into the GPU space. */
-int vc_sm_cma_import_dmabuf(struct dma_buf *dmabuf, int *handle);
+int vc_sm_cma_import_dmabuf(struct dma_buf *dmabuf, void **handle);
 
 #endif /* __VC_SM_KNL_H__INCLUDED__ */
