@@ -20,6 +20,7 @@
 #include <linux/completion.h>
 #include <linux/list.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/compat.h>
 #include <linux/dma-mapping.h>
@@ -77,6 +78,11 @@ static const struct vchiq_platform_info bcm2836_info = {
 	.cache_line_size = 64,
 };
 
+static const struct vchiq_platform_info bcm2711_info = {
+	.cache_line_size = 64,
+	.use_36bit_addrs = true,
+};
+
 struct vchiq_arm_state {
 	/* Keepalive-related data */
 	struct task_struct *ka_thread;
@@ -123,6 +129,9 @@ struct vchiq_pagelist_info {
 	unsigned int scatterlist_mapped;
 };
 
+static unsigned int g_use_36bit_addrs = 0;
+static struct device *g_dma_dev;
+
 static int
 vchiq_blocking_bulk_transfer(struct vchiq_instance *instance, unsigned int handle, void *data,
 			     unsigned int size, enum vchiq_bulk_dir dir);
@@ -152,7 +161,7 @@ static void
 cleanup_pagelistinfo(struct vchiq_instance *instance, struct vchiq_pagelist_info *pagelistinfo)
 {
 	if (pagelistinfo->scatterlist_mapped) {
-		dma_unmap_sg(instance->state->dev, pagelistinfo->scatterlist,
+		dma_unmap_sg(g_dma_dev, pagelistinfo->scatterlist,
 			     pagelistinfo->num_pages, pagelistinfo->dma_dir);
 	}
 
@@ -364,7 +373,7 @@ create_pagelist(struct vchiq_instance *instance, char *buf, char __user *ubuf,
 		count -= len;
 	}
 
-	dma_buffers = dma_map_sg(instance->state->dev,
+	dma_buffers = dma_map_sg(g_dma_dev,
 				 scatterlist,
 				 num_pages,
 				 pagelistinfo->dma_dir);
@@ -378,22 +387,58 @@ create_pagelist(struct vchiq_instance *instance, char *buf, char __user *ubuf,
 
 	/* Combine adjacent blocks for performance */
 	k = 0;
-	for_each_sg(scatterlist, sg, dma_buffers, i) {
-		unsigned int len = sg_dma_len(sg);
-		dma_addr_t addr = sg_dma_address(sg);
+	if (g_use_36bit_addrs) {
+		for_each_sg(scatterlist, sg, dma_buffers, i) {
+			unsigned int len = sg_dma_len(sg);
+			dma_addr_t addr = sg_dma_address(sg);
+			u32 page_id = (u32)((addr >> 4) & ~0xff);
+			u32 sg_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
-		/* Note: addrs is the address + page_count - 1
-		 * The firmware expects blocks after the first to be page-
-		 * aligned and a multiple of the page size
-		 */
-		WARN_ON(len == 0);
-		WARN_ON(i && (i != (dma_buffers - 1)) && (len & ~PAGE_MASK));
-		WARN_ON(i && (addr & ~PAGE_MASK));
-		if (is_adjacent_block(addrs, addr, k))
-			addrs[k - 1] += ((len + PAGE_SIZE - 1) >> PAGE_SHIFT);
-		else
-			addrs[k++] = (addr & PAGE_MASK) |
-				(((len + PAGE_SIZE - 1) >> PAGE_SHIFT) - 1);
+			/* Note: addrs is the address + page_count - 1
+			 * The firmware expects blocks after the first to be page-
+			 * aligned and a multiple of the page size
+			 */
+			WARN_ON(len == 0);
+			WARN_ON(i &&
+				(i != (dma_buffers - 1)) && (len & ~PAGE_MASK));
+			WARN_ON(i && (addr & ~PAGE_MASK));
+			WARN_ON(upper_32_bits(addr) > 0xf);
+
+			if (k > 0 &&
+			    ((addrs[k - 1] & ~0xff) +
+			     (((addrs[k - 1] & 0xff) + 1) << 8)
+			     == page_id)) {
+				u32 inc_pages = min(sg_pages,
+						    0xff - (addrs[k - 1] & 0xff));
+				addrs[k - 1] += inc_pages;
+				page_id += inc_pages << 8;
+				sg_pages -= inc_pages;
+			}
+			while (sg_pages) {
+				u32 inc_pages = min(sg_pages, 0x100u);
+				addrs[k++] = page_id | (inc_pages - 1);
+				page_id += inc_pages << 8;
+				sg_pages -= inc_pages;
+			}
+		}
+	} else {
+		for_each_sg(scatterlist, sg, dma_buffers, i) {
+			unsigned int len = sg_dma_len(sg);
+			dma_addr_t addr = sg_dma_address(sg);
+
+			/* Note: addrs is the address + page_count - 1
+			 * The firmware expects blocks after the first to be page-
+			 * aligned and a multiple of the page size
+			 */
+			WARN_ON(len == 0);
+			WARN_ON(i && (i != (dma_buffers - 1)) && (len & ~PAGE_MASK));
+			WARN_ON(i && (addr & ~PAGE_MASK));
+			if (is_adjacent_block(addrs, addr, k))
+				addrs[k - 1] += ((len + PAGE_SIZE - 1) >> PAGE_SHIFT);
+			else
+				addrs[k++] = (addr & PAGE_MASK) |
+					(((len + PAGE_SIZE - 1) >> PAGE_SHIFT) - 1);
+		}
 	}
 
 	/* Partial cache lines (fragments) require special measures */
@@ -439,7 +484,7 @@ free_pagelist(struct vchiq_instance *instance, struct vchiq_pagelist_info *pagel
 	 * NOTE: dma_unmap_sg must be called before the
 	 * cpu can touch any of the data/pages.
 	 */
-	dma_unmap_sg(instance->state->dev, pagelistinfo->scatterlist,
+	dma_unmap_sg(g_dma_dev, pagelistinfo->scatterlist,
 		     pagelistinfo->num_pages, pagelistinfo->dma_dir);
 	pagelistinfo->scatterlist_mapped = 0;
 
@@ -494,6 +539,7 @@ free_pagelist(struct vchiq_instance *instance, struct vchiq_pagelist_info *pagel
 static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state *state)
 {
 	struct device *dev = &pdev->dev;
+	struct device *dma_dev = NULL;
 	struct vchiq_drv_mgmt *drv_mgmt = platform_get_drvdata(pdev);
 	struct rpi_firmware *fw = drv_mgmt->fw;
 	struct vchiq_slot_zero *vchiq_slot_zero;
@@ -513,6 +559,24 @@ static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state 
 		return err;
 
 	drv_mgmt->fragments_size = 2 * drv_mgmt->info->cache_line_size;
+
+	if (drv_mgmt->info->use_36bit_addrs) {
+		struct device_node *dma_node =
+			of_find_compatible_node(NULL, NULL, "brcm,bcm2711-dma");
+
+		if (dma_node) {
+			struct platform_device *pdev;
+
+			pdev = of_find_device_by_node(dma_node);
+			if (pdev)
+				dma_dev = &pdev->dev;
+			of_node_put(dma_node);
+			g_use_36bit_addrs = true;
+		} else {
+			dev_err(dev, "40-bit DMA controller not found\n");
+			return -EINVAL;
+		}
+	}
 
 	/* Allocate space for the channels in coherent memory */
 	slot_mem_size = PAGE_ALIGN(TOTAL_SLOTS * VCHIQ_SLOT_SIZE);
@@ -580,6 +644,8 @@ static int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state 
 			channelbase);
 		return -ENXIO;
 	}
+
+	g_dma_dev = dma_dev ?: dev;
 
 	dev_dbg(&pdev->dev, "arm: vchiq_init - done (slots %pK, phys %pad)\n",
 		vchiq_slot_zero, &slot_phys);
@@ -1711,6 +1777,7 @@ void vchiq_platform_conn_state_changed(struct vchiq_state *state,
 static const struct of_device_id vchiq_of_match[] = {
 	{ .compatible = "brcm,bcm2835-vchiq", .data = &bcm2835_info },
 	{ .compatible = "brcm,bcm2836-vchiq", .data = &bcm2836_info },
+	{ .compatible = "brcm,bcm2711-vchiq", .data = &bcm2711_info },
 	{},
 };
 MODULE_DEVICE_TABLE(of, vchiq_of_match);
