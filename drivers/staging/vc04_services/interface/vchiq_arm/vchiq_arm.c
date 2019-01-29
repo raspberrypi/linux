@@ -3585,6 +3585,7 @@ static struct platform_device *
 vchiq_register_child(struct platform_device *pdev, const char *name)
 {
 	struct platform_device_info pdevinfo;
+	struct platform_device *new_dev;
 
 	memset(&pdevinfo, 0, sizeof(pdevinfo));
 
@@ -3593,7 +3594,17 @@ vchiq_register_child(struct platform_device *pdev, const char *name)
 	pdevinfo.id = PLATFORM_DEVID_NONE;
 	pdevinfo.dma_mask = DMA_BIT_MASK(32);
 
-	return platform_device_register_full(&pdevinfo);
+	new_dev = platform_device_register_full(&pdevinfo);
+	if (!new_dev)
+		return NULL;
+
+	/*
+	 * We want the dma-ranges etc to be copied from the parent VCHIQ device
+	 * to be passed on to the children too.
+	 */
+	of_dma_configure(&new_dev->dev, pdev->dev.of_node, true);
+
+	return new_dev;
 }
 
 static int vchiq_probe(struct platform_device *pdev)
