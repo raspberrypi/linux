@@ -138,6 +138,14 @@ static const struct i2c_device_id rpisense_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, rpisense_i2c_id);
 
+#ifdef CONFIG_OF
+static const struct of_device_id rpisense_core_id[] = {
+	{ .compatible = "rpi,rpi-sense" },
+	{ },
+};
+MODULE_DEVICE_TABLE(of, rpisense_core_id);
+#endif
+
 
 static struct i2c_driver rpisense_driver = {
 	.driver = {
