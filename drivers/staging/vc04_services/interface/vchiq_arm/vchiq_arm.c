@@ -1790,6 +1790,12 @@ vchiq_register_child(struct platform_device *pdev, const char *name)
 		child = NULL;
 	}
 
+	/*
+	 * We want the dma-ranges etc to be copied from the parent VCHIQ device
+	 * to be passed on to the children too.
+	 */
+	of_dma_configure(&new_dev->dev, pdev->dev.of_node, true);
+
 	return child;
 }
 
