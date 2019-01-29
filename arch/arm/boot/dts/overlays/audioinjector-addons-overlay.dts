@@ -25,10 +25,6 @@
 				reg = <0x48>;
 				clocks = <&cs42448_mclk>;
 				clock-names = "mclk";
-				VA-supply = <&vdd_5v0_reg>;
-				VD-supply = <&vdd_3v3_reg>;
-				VLS-supply = <&vdd_3v3_reg>;
-				VLC-supply = <&vdd_3v3_reg>;
 				status = "okay";
 			};
 
