@@ -1793,7 +1793,7 @@ int mmal_vchi_buffer_cleanup(struct mmal_buffer *buf)
 	if (buf->vcsm_handle) {
 		int ret;
 
-		pr_debug("%s: vc_sm_cma_free on handle %08X\n", __func__,
+		pr_debug("%s: vc_sm_cma_free on handle %p\n", __func__,
 			 buf->vcsm_handle);
 		ret = vc_sm_cma_free(buf->vcsm_handle);
 		if (ret)
