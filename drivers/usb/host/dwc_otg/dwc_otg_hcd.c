@@ -929,6 +929,8 @@ static void dwc_otg_hcd_free(dwc_otg_hcd_t * dwc_otg_hcd)
 	DWC_TIMER_FREE(dwc_otg_hcd->conn_timer);
 	DWC_TASK_FREE(dwc_otg_hcd->reset_tasklet);
 	DWC_TASK_FREE(dwc_otg_hcd->completion_tasklet);
+	DWC_DMA_FREE(dev, 16, dwc_otg_hcd->fiq_state->dummy_send,
+		     dwc_otg_hcd->fiq_state->dummy_send_dma);
 	DWC_FREE(dwc_otg_hcd->fiq_state);
 
 #ifdef DWC_DEV_SRPCAP
@@ -1021,7 +1023,8 @@ int dwc_otg_hcd_init(dwc_otg_hcd_t * hcd, dwc_otg_core_if_t * core_if)
 		for (i = 0; i < num_channels; i++) {
 			hcd->fiq_state->channel[i].fsm = FIQ_PASSTHROUGH;
 		}
-		hcd->fiq_state->dummy_send = DWC_ALLOC_ATOMIC(16);
+		hcd->fiq_state->dummy_send = DWC_DMA_ALLOC_ATOMIC(dev, 16,
+							 &hcd->fiq_state->dummy_send_dma);
 
 		hcd->fiq_stack = DWC_ALLOC(sizeof(struct fiq_stack));
 		if (!hcd->fiq_stack) {
