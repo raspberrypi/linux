@@ -1347,7 +1347,7 @@ void notrace dwc_otg_fiq_fsm(struct fiq_state *state, int num_channels)
 	/* We got an interrupt, didn't handle it. */
 	if (kick_irq) {
 		state->mphi_int_count++;
-		FIQ_WRITE(state->mphi_regs.outdda, (int) state->dummy_send);
+		FIQ_WRITE(state->mphi_regs.outdda, state->dummy_send_dma);
 		FIQ_WRITE(state->mphi_regs.outddb, (1<<29));
 
 	}
@@ -1408,7 +1408,7 @@ void notrace dwc_otg_fiq_nop(struct fiq_state *state)
 		FIQ_WRITE(state->dwc_regs_base + GINTMSK, gintmsk.d32);
 		/* Force a clear before another dummy send */
 		FIQ_WRITE(state->mphi_regs.intstat, (1<<29));
-		FIQ_WRITE(state->mphi_regs.outdda, (int) state->dummy_send);
+		FIQ_WRITE(state->mphi_regs.outdda, state->dummy_send_dma);
 		FIQ_WRITE(state->mphi_regs.outddb, (1<<29));
 
 	}
