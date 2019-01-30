@@ -352,6 +352,7 @@ struct fiq_state {
 	dma_addr_t dma_base;
 	struct fiq_dma_blob *fiq_dmab;
 	void *dummy_send;
+	dma_addr_t dummy_send_dma;
 	gintmsk_data_t gintmsk_saved;
 	haintmsk_data_t haintmsk_saved;
 	int mphi_int_count;
