@@ -23,9 +23,9 @@
  * In order to avoid breaking them this driver creates a layered hidraw device,
  * so it can detect when the client is running and then:
  *  - it will not send any command to the controller.
- *  - this input device will be removed, to avoid double input of the same
- *    user action.
- * When the client is closed, this input device will be created again.
+ *  - no events except those for the Steam Button (not as EV_KEY/BTN_MODE 
+ *    but as EV_KEY/BTN_EXTRA) will be passed to the input device
+ * When the client is closed, this input device will receive all events again.
  *
  * For additional functions, such as changing the right-pad margin or switching
  * the led, you can use the user-space tool at:
@@ -42,6 +42,7 @@
 #include <linux/rcupdate.h>
 #include <linux/delay.h>
 #include <linux/power_supply.h>
+#include <linux/leds.h>
 #include "hid-ids.h"
 
 MODULE_LICENSE("GPL");
@@ -116,6 +117,7 @@ struct steam_device {
 	struct mutex mutex;
 	bool client_opened;
 	struct input_dev __rcu *input;
+	struct led_classdev __rcu *led;
 	unsigned long quirks;
 	struct work_struct work_connect;
 	bool connected;
@@ -124,6 +126,7 @@ struct steam_device {
 	struct power_supply __rcu *battery;
 	u8 battery_charge;
 	u16 voltage;
+	u8 led_state;
 };
 
 static int steam_recv_report(struct steam_device *steam,
@@ -350,6 +353,66 @@ static int steam_battery_get_property(struct power_supply *psy,
 	return ret;
 }
 
+static void steam_led_set_brightness(struct led_classdev *led,
+				    enum led_brightness value)
+{
+	struct device *dev = led->dev->parent;
+	struct hid_device *hdev = to_hid_device(dev);
+	struct steam_device *drv_data;
+	
+	drv_data = hid_get_drvdata(hdev);
+	
+	if(value < 0 || value > 100) {
+		return;	//Add error here
+	}
+	//Source: https://github.com/rodrigorc/steamctrl/blob/master/src/steamctrl.c line 211
+	steam_write_registers(drv_data,
+		STEAM_REG_LED, value,
+		0);
+		
+	drv_data->led_state = value;
+}
+
+static enum led_brightness steam_led_get_brightness(struct led_classdev *led)
+{	
+	struct device *dev = led->dev->parent;
+	struct hid_device *hdev = to_hid_device(dev);
+	struct steam_device *drv_data;
+	
+	drv_data = hid_get_drvdata(hdev);
+	
+	return drv_data->led_state;
+}
+
+static int steam_led_register(struct steam_device *steam)
+{
+	int ret;
+	struct led_classdev *led;
+	
+	led = kzalloc(sizeof(struct led_classdev), GFP_KERNEL);
+	
+	if(!led)
+		return -ENOMEM;
+	
+	led->name = devm_kasprintf(&steam->hdev->dev,
+			GFP_KERNEL, "steam-controller-%s-led",
+			steam->serial_no);
+	led->brightness = steam->led_state;
+	led->max_brightness = 100;
+	led->flags = LED_CORE_SUSPENDRESUME;
+	led->brightness_get = steam_led_get_brightness;
+	led->brightness_set = steam_led_set_brightness;
+	
+	if (!led->name)
+		return -ENOMEM;
+	
+	steam->led = led;
+	
+	ret = led_classdev_register(&steam->hdev->dev, led);
+	
+	return ret;
+}
+
 static int steam_battery_register(struct steam_device *steam)
 {
 	struct power_supply *battery;
@@ -441,6 +504,8 @@ static int steam_input_register(struct steam_device *steam)
 	input_set_capability(input, EV_KEY, BTN_THUMBL);
 	input_set_capability(input, EV_KEY, BTN_THUMB);
 	input_set_capability(input, EV_KEY, BTN_THUMB2);
+	
+	input_set_capability(input, EV_KEY, BTN_EXTRA);
 
 	input_set_abs_params(input, ABS_HAT2Y, 0, 255, 0, 0);
 	input_set_abs_params(input, ABS_HAT2X, 0, 255, 0, 0);
@@ -468,11 +533,25 @@ static int steam_input_register(struct steam_device *steam)
 		goto input_register_fail;
 
 	rcu_assign_pointer(steam->input, input);
+
 	return 0;
 
 input_register_fail:
 	input_free_device(input);
 	return ret;
+}
+
+static void steam_led_unregister(struct steam_device *steam)
+{
+	struct led_classdev *led;
+	rcu_read_lock();
+	led = rcu_dereference(steam->led);
+	rcu_read_unlock();
+	if(!led)
+		return;
+	RCU_INIT_POINTER(steam->led, NULL);
+	synchronize_rcu();
+	led_classdev_unregister(led);
 }
 
 static void steam_input_unregister(struct steam_device *steam)
@@ -491,9 +570,11 @@ static void steam_input_unregister(struct steam_device *steam)
 static void steam_battery_unregister(struct steam_device *steam)
 {
 	struct power_supply *battery;
+	struct led_classdev *led;
 
 	rcu_read_lock();
 	battery = rcu_dereference(steam->battery);
+	led = rcu_dereference(steam->led);
 	rcu_read_unlock();
 
 	if (!battery)
@@ -528,6 +609,9 @@ static int steam_register(struct steam_device *steam)
 		/* ignore battery errors, we can live without it */
 		if (steam->quirks & STEAM_QUIRK_WIRELESS)
 			steam_battery_register(steam);
+		
+		steam->led_state = 100;	//LED is always(?) at full brightness when the controller connects
+		steam_led_register(steam);
 
 		mutex_lock(&steam_devices_lock);
 		list_add(&steam->list, &steam_devices);
@@ -537,10 +621,8 @@ static int steam_register(struct steam_device *steam)
 	mutex_lock(&steam->mutex);
 	if (!steam->client_opened) {
 		steam_set_lizard_mode(steam, lizard_mode);
-		ret = steam_input_register(steam);
-	} else {
-		ret = 0;
 	}
+	ret = steam_input_register(steam);
 	mutex_unlock(&steam->mutex);
 
 	return ret;
@@ -550,6 +632,7 @@ static void steam_unregister(struct steam_device *steam)
 {
 	steam_battery_unregister(steam);
 	steam_input_unregister(steam);
+	steam_led_unregister(steam);
 	if (steam->serial_no[0]) {
 		hid_info(steam->hdev, "Steam Controller '%s' disconnected",
 				steam->serial_no);
@@ -633,7 +716,7 @@ static int steam_client_ll_open(struct hid_device *hdev)
 	steam->client_opened = true;
 	mutex_unlock(&steam->mutex);
 
-	steam_input_unregister(steam);
+	//steam_input_unregister(steam);
 
 	return ret;
 }
@@ -649,7 +732,7 @@ static void steam_client_ll_close(struct hid_device *hdev)
 	hid_hw_close(steam->hdev);
 	if (steam->connected) {
 		steam_set_lizard_mode(steam, lizard_mode);
-		steam_input_register(steam);
+		//steam_input_register(steam);
 	}
 }
 
@@ -909,7 +992,7 @@ static inline s16 steam_le16(u8 *data)
  */
 
 static void steam_do_input_event(struct steam_device *steam,
-		struct input_dev *input, u8 *data)
+		struct input_dev *input, u8 *data, bool client_opened)
 {
 	/* 24 bits of buttons */
 	u8 b8, b9, b10;
@@ -919,6 +1002,14 @@ static void steam_do_input_event(struct steam_device *steam,
 	b8 = data[8];
 	b9 = data[9];
 	b10 = data[10];
+	
+	if(client_opened)
+	{
+		input_event(input, EV_KEY, BTN_EXTRA, !!(b9 & BIT(5)));
+		input_sync(input);
+		
+		return;
+	}
 
 	input_report_abs(input, ABS_HAT2Y, data[11]);
 	input_report_abs(input, ABS_HAT2X, data[12]);
@@ -1043,12 +1134,10 @@ static int steam_raw_event(struct hid_device *hdev,
 
 	switch (data[2]) {
 	case STEAM_EV_INPUT_DATA:
-		if (steam->client_opened)
-			return 0;
 		rcu_read_lock();
 		input = rcu_dereference(steam->input);
 		if (likely(input))
-			steam_do_input_event(steam, input, data);
+			steam_do_input_event(steam, input, data, steam->client_opened);
 		rcu_read_unlock();
 		break;
 	case STEAM_EV_CONNECT:
