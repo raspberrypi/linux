@@ -342,6 +342,7 @@ static const struct gpio_chip bcm2835_gpio_chip = {
 	.get = bcm2835_gpio_get,
 	.set = bcm2835_gpio_set,
 	.base = 0,
+	.set_config = gpiochip_generic_config,
 	.ngpio = BCM2835_NUM_GPIOS,
 	.can_sleep = false,
 };
@@ -960,7 +961,7 @@ static int bcm2835_pinconf_set(struct pinctrl_dev *pctldev,
 			break;
 
 		default:
-			return -EINVAL;
+			return -ENOTSUPP;
 
 		} /* switch param type */
 	} /* for each config */
