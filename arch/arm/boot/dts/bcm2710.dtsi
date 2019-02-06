@@ -1,6 +1,6 @@
 #include "bcm2837.dtsi"
 #include "bcm270x.dtsi"
-#include "bcm2708-rpi.dtsi"
+#include "bcm2709-rpi.dtsi"
 
 / {
 	compatible = "brcm,bcm2837", "brcm,bcm2836";
