@@ -446,7 +446,7 @@ Params: swap_lr                 Reverse the channel allocation, which will also
 
 Name:   balena-fin
 Info:   Overlay that enables WiFi, Bluetooth and the GPIO expander on the
-        Balena Fin board.
+        balenaFin carrier board for the Raspberry Pi Compute Module 3/3+ Lite.
 Load:   dtoverlay=balena-fin
 Params: <None>
 
