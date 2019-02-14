@@ -448,17 +448,15 @@ struct mesh_path *mesh_path_add(struct ieee80211_sub_if_data *sdata,
 
 	} while (unlikely(ret == -EEXIST && !mpath));
 
-	if (ret && ret != -EEXIST)
-		return ERR_PTR(ret);
-
-	/* At this point either new_mpath was added, or we found a
-	 * matching entry already in the table; in the latter case
-	 * free the unnecessary new entry.
-	 */
-	if (ret == -EEXIST) {
+	if (ret) {
 		kfree(new_mpath);
+
+		if (ret != -EEXIST)
+			return ERR_PTR(ret);
+
 		new_mpath = mpath;
 	}
+
 	sdata->u.mesh.mesh_paths_generation++;
 	return new_mpath;
 }
@@ -487,6 +485,9 @@ int mpp_path_add(struct ieee80211_sub_if_data *sdata,
 	ret = rhashtable_lookup_insert_fast(&tbl->rhead,
 					    &new_mpath->rhash,
 					    mesh_rht_params);
+
+	if (ret)
+		kfree(new_mpath);
 
 	sdata->u.mesh.mpp_paths_generation++;
 	return ret;
