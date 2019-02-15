@@ -1852,6 +1852,18 @@ static int bcm2835_codec_queue_setup(struct vb2_queue *vq,
 	return 0;
 }
 
+static int bcm2835_codec_mmal_buf_cleanup(struct mmal_buffer *mmal_buf)
+{
+	mmal_vchi_buffer_cleanup(mmal_buf);
+
+	if (mmal_buf->dma_buf) {
+		dma_buf_put(mmal_buf->dma_buf);
+		mmal_buf->dma_buf = NULL;
+	}
+
+	return 0;
+}
+
 static int bcm2835_codec_buf_init(struct vb2_buffer *vb)
 {
 	struct bcm2835_codec_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
@@ -1880,6 +1892,7 @@ static int bcm2835_codec_buf_prepare(struct vb2_buffer *vb)
 						   vb);
 	struct m2m_mmal_buffer *buf = container_of(m2m, struct m2m_mmal_buffer,
 						   m2m);
+	struct dma_buf *dma_buf;
 	int ret;
 
 	v4l2_dbg(4, debug, &ctx->dev->v4l2_dev, "%s: type: %d ptr %p\n",
@@ -1906,20 +1919,48 @@ static int bcm2835_codec_buf_prepare(struct vb2_buffer *vb)
 	if (!V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type))
 		vb2_set_plane_payload(vb, 0, q_data->sizeimage);
 
-	/*
-	 * We want to do this at init, but vb2_core_expbuf checks that the
-	 * index < q->num_buffers, and q->num_buffers only gets updated once
-	 * all the buffers are allocated.
-	 */
-	if (!buf->mmal.dma_buf) {
-		ret = vb2_core_expbuf_dmabuf(vb->vb2_queue,
-					     vb->vb2_queue->type, vb->index, 0,
-					     O_CLOEXEC, &buf->mmal.dma_buf);
-		if (ret)
-			v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed to expbuf idx %d, ret %d\n",
-				 __func__, vb->index, ret);
-	} else {
+	switch (vb->memory) {
+	case VB2_MEMORY_DMABUF:
+		dma_buf = dma_buf_get(vb->planes[0].m.fd);
+
+		if (dma_buf != buf->mmal.dma_buf) {
+			/* dmabuf either hasn't already been mapped, or it has
+			 * changed.
+			 */
+			if (buf->mmal.dma_buf) {
+				v4l2_err(&ctx->dev->v4l2_dev,
+					 "%s Buffer changed - why did the core not call cleanup?\n",
+					 __func__);
+				bcm2835_codec_mmal_buf_cleanup(&buf->mmal);
+			}
+
+			buf->mmal.dma_buf = dma_buf;
+		}
 		ret = 0;
+		break;
+	case VB2_MEMORY_MMAP:
+		/*
+		 * We want to do this at init, but vb2_core_expbuf checks that
+		 * the index < q->num_buffers, and q->num_buffers only gets
+		 * updated once all the buffers are allocated.
+		 */
+		if (!buf->mmal.dma_buf) {
+			ret = vb2_core_expbuf_dmabuf(vb->vb2_queue,
+						     vb->vb2_queue->type,
+						     vb->index, 0,
+						     O_CLOEXEC,
+						     &buf->mmal.dma_buf);
+			if (ret)
+				v4l2_err(&ctx->dev->v4l2_dev,
+					 "%s: Failed to expbuf idx %d, ret %d\n",
+					 __func__, vb->index, ret);
+		} else {
+			ret = 0;
+		}
+		break;
+	default:
+		ret = -EINVAL;
+		break;
 	}
 
 	return ret;
@@ -1948,12 +1989,7 @@ static void bcm2835_codec_buffer_cleanup(struct vb2_buffer *vb)
 	v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: ctx:%p, vb %p\n",
 		 __func__, ctx, vb);
 
-	mmal_vchi_buffer_cleanup(&buf->mmal);
-
-	if (buf->mmal.dma_buf) {
-		dma_buf_put(buf->mmal.dma_buf);
-		buf->mmal.dma_buf = NULL;
-	}
+	bcm2835_codec_mmal_buf_cleanup(&buf->mmal);
 }
 
 static int bcm2835_codec_start_streaming(struct vb2_queue *q,
@@ -2067,11 +2103,7 @@ static void bcm2835_codec_stop_streaming(struct vb2_queue *q)
 		m2m = container_of(vb2, struct v4l2_m2m_buffer, vb);
 		buf = container_of(m2m, struct m2m_mmal_buffer, m2m);
 
-		mmal_vchi_buffer_cleanup(&buf->mmal);
-		if (buf->mmal.dma_buf) {
-			dma_buf_put(buf->mmal.dma_buf);
-			buf->mmal.dma_buf = NULL;
-		}
+		bcm2835_codec_mmal_buf_cleanup(&buf->mmal);
 	}
 
 	/* If both ports disabled, then disable the component */
