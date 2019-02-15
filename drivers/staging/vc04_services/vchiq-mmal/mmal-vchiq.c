@@ -1784,13 +1784,9 @@ int mmal_vchi_buffer_init(struct vchiq_mmal_instance *instance,
 }
 EXPORT_SYMBOL_GPL(mmal_vchi_buffer_init);
 
-int mmal_vchi_buffer_cleanup(struct mmal_buffer *buf)
+int mmal_vchi_buffer_unmap(struct mmal_buffer *buf)
 {
-	struct mmal_msg_context *msg_context = buf->msg_context;
-
-	if (msg_context)
-		release_msg_context(msg_context);
-	buf->msg_context = NULL;
+	int ret = 0;
 
 	if (buf->vcsm_handle) {
 		int ret;
@@ -1802,6 +1798,19 @@ int mmal_vchi_buffer_cleanup(struct mmal_buffer *buf)
 			pr_err("%s: vcsm_free failed, ret %d\n", __func__, ret);
 		buf->vcsm_handle = 0;
 	}
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mmal_vchi_buffer_unmap);
+
+int mmal_vchi_buffer_cleanup(struct mmal_buffer *buf)
+{
+	struct mmal_msg_context *msg_context = buf->msg_context;
+
+	if (msg_context)
+		release_msg_context(msg_context);
+	buf->msg_context = NULL;
+
+	mmal_vchi_buffer_unmap(buf);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(mmal_vchi_buffer_cleanup);
