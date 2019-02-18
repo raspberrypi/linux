@@ -850,6 +850,35 @@ static noinline struct btrfs_device *device_list_add(const char *path,
 			return ERR_PTR(-EEXIST);
 		}
 
+		/*
+		 * We are going to replace the device path for a given devid,
+		 * make sure it's the same device if the device is mounted
+		 */
+		if (device->bdev) {
+			struct block_device *path_bdev;
+
+			path_bdev = lookup_bdev(path);
+			if (IS_ERR(path_bdev)) {
+				mutex_unlock(&fs_devices->device_list_mutex);
+				return ERR_CAST(path_bdev);
+			}
+
+			if (device->bdev != path_bdev) {
+				bdput(path_bdev);
+				mutex_unlock(&fs_devices->device_list_mutex);
+				btrfs_warn_in_rcu(device->fs_info,
+			"duplicate device fsid:devid for %pU:%llu old:%s new:%s",
+					disk_super->fsid, devid,
+					rcu_str_deref(device->name), path);
+				return ERR_PTR(-EEXIST);
+			}
+			bdput(path_bdev);
+			btrfs_info_in_rcu(device->fs_info,
+				"device fsid %pU devid %llu moved old:%s new:%s",
+				disk_super->fsid, devid,
+				rcu_str_deref(device->name), path);
+		}
+
 		name = rcu_string_strdup(path, GFP_NOFS);
 		if (!name) {
 			mutex_unlock(&fs_devices->device_list_mutex);
@@ -3712,6 +3741,7 @@ int btrfs_balance(struct btrfs_fs_info *fs_info,
 	int ret;
 	u64 num_devices;
 	unsigned seq;
+	bool reducing_integrity;
 
 	if (btrfs_fs_closing(fs_info) ||
 	    atomic_read(&fs_info->balance_pause_req) ||
@@ -3796,24 +3826,30 @@ int btrfs_balance(struct btrfs_fs_info *fs_info,
 		     !(bctl->sys.target & allowed)) ||
 		    ((bctl->meta.flags & BTRFS_BALANCE_ARGS_CONVERT) &&
 		     (fs_info->avail_metadata_alloc_bits & allowed) &&
-		     !(bctl->meta.target & allowed))) {
-			if (bctl->flags & BTRFS_BALANCE_FORCE) {
-				btrfs_info(fs_info,
-				"balance: force reducing metadata integrity");
-			} else {
-				btrfs_err(fs_info,
-	"balance: reduces metadata integrity, use --force if you want this");
-				ret = -EINVAL;
-				goto out;
-			}
-		}
+		     !(bctl->meta.target & allowed)))
+			reducing_integrity = true;
+		else
+			reducing_integrity = false;
+
+		/* if we're not converting, the target field is uninitialized */
+		meta_target = (bctl->meta.flags & BTRFS_BALANCE_ARGS_CONVERT) ?
+			bctl->meta.target : fs_info->avail_metadata_alloc_bits;
+		data_target = (bctl->data.flags & BTRFS_BALANCE_ARGS_CONVERT) ?
+			bctl->data.target : fs_info->avail_data_alloc_bits;
 	} while (read_seqretry(&fs_info->profiles_lock, seq));
 
-	/* if we're not converting, the target field is uninitialized */
-	meta_target = (bctl->meta.flags & BTRFS_BALANCE_ARGS_CONVERT) ?
-		bctl->meta.target : fs_info->avail_metadata_alloc_bits;
-	data_target = (bctl->data.flags & BTRFS_BALANCE_ARGS_CONVERT) ?
-		bctl->data.target : fs_info->avail_data_alloc_bits;
+	if (reducing_integrity) {
+		if (bctl->flags & BTRFS_BALANCE_FORCE) {
+			btrfs_info(fs_info,
+				   "balance: force reducing metadata integrity");
+		} else {
+			btrfs_err(fs_info,
+	  "balance: reduces metadata integrity, use --force if you want this");
+			ret = -EINVAL;
+			goto out;
+		}
+	}
+
 	if (btrfs_get_num_tolerated_disk_barrier_failures(meta_target) <
 		btrfs_get_num_tolerated_disk_barrier_failures(data_target)) {
 		int meta_index = btrfs_bg_flags_to_raid_index(meta_target);
@@ -4761,19 +4797,17 @@ static int __btrfs_alloc_chunk(struct btrfs_trans_handle *trans,
 	/*
 	 * Use the number of data stripes to figure out how big this chunk
 	 * is really going to be in terms of logical address space,
-	 * and compare that answer with the max chunk size
+	 * and compare that answer with the max chunk size. If it's higher,
+	 * we try to reduce stripe_size.
 	 */
 	if (stripe_size * data_stripes > max_chunk_size) {
-		stripe_size = div_u64(max_chunk_size, data_stripes);
-
-		/* bump the answer up to a 16MB boundary */
-		stripe_size = round_up(stripe_size, SZ_16M);
-
 		/*
-		 * But don't go higher than the limits we found while searching
-		 * for free extents
+		 * Reduce stripe_size, round it up to a 16MB boundary again and
+		 * then use it, unless it ends up being even bigger than the
+		 * previous value we had already.
 		 */
-		stripe_size = min(devices_info[ndevs - 1].max_avail,
+		stripe_size = min(round_up(div_u64(max_chunk_size,
+						   data_stripes), SZ_16M),
 				  stripe_size);
 	}
 
@@ -7467,6 +7501,8 @@ int btrfs_verify_dev_extents(struct btrfs_fs_info *fs_info)
 	struct btrfs_path *path;
 	struct btrfs_root *root = fs_info->dev_root;
 	struct btrfs_key key;
+	u64 prev_devid = 0;
+	u64 prev_dev_ext_end = 0;
 	int ret = 0;
 
 	key.objectid = 1;
@@ -7511,10 +7547,22 @@ int btrfs_verify_dev_extents(struct btrfs_fs_info *fs_info)
 		chunk_offset = btrfs_dev_extent_chunk_offset(leaf, dext);
 		physical_len = btrfs_dev_extent_length(leaf, dext);
 
+		/* Check if this dev extent overlaps with the previous one */
+		if (devid == prev_devid && physical_offset < prev_dev_ext_end) {
+			btrfs_err(fs_info,
+"dev extent devid %llu physical offset %llu overlap with previous dev extent end %llu",
+				  devid, physical_offset, prev_dev_ext_end);
+			ret = -EUCLEAN;
+			goto out;
+		}
+
 		ret = verify_one_dev_extent(fs_info, chunk_offset, devid,
 					    physical_offset, physical_len);
 		if (ret < 0)
 			goto out;
+		prev_devid = devid;
+		prev_dev_ext_end = physical_offset + physical_len;
+
 		ret = btrfs_next_item(root, path);
 		if (ret < 0)
 			goto out;

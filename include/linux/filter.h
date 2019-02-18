@@ -53,14 +53,10 @@ struct sock_reuseport;
 #define BPF_REG_D	BPF_REG_8	/* data, callee-saved */
 #define BPF_REG_H	BPF_REG_9	/* hlen, callee-saved */
 
-/* Kernel hidden auxiliary/helper register for hardening step.
- * Only used by eBPF JITs. It's nothing more than a temporary
- * register that JITs use internally, only that here it's part
- * of eBPF instructions that have been rewritten for blinding
- * constants. See JIT pre-step in bpf_jit_blind_constants().
- */
+/* Kernel hidden auxiliary/helper register. */
 #define BPF_REG_AX		MAX_BPF_REG
-#define MAX_BPF_JIT_REG		(MAX_BPF_REG + 1)
+#define MAX_BPF_EXT_REG		(MAX_BPF_REG + 1)
+#define MAX_BPF_JIT_REG		MAX_BPF_EXT_REG
 
 /* unused opcode to mark special call to bpf_tail_call() helper */
 #define BPF_TAIL_CALL	0xf0
@@ -665,24 +661,10 @@ static inline u32 bpf_ctx_off_adjust_machine(u32 size)
 	return size;
 }
 
-static inline bool bpf_ctx_narrow_align_ok(u32 off, u32 size_access,
-					   u32 size_default)
-{
-	size_default = bpf_ctx_off_adjust_machine(size_default);
-	size_access  = bpf_ctx_off_adjust_machine(size_access);
-
-#ifdef __LITTLE_ENDIAN
-	return (off & (size_default - 1)) == 0;
-#else
-	return (off & (size_default - 1)) + size_access == size_default;
-#endif
-}
-
 static inline bool
 bpf_ctx_narrow_access_ok(u32 off, u32 size, u32 size_default)
 {
-	return bpf_ctx_narrow_align_ok(off, size, size_default) &&
-	       size <= size_default && (size & (size - 1)) == 0;
+	return size <= size_default && (size & (size - 1)) == 0;
 }
 
 #define bpf_classic_proglen(fprog) (fprog->len * sizeof(fprog->filter[0]))

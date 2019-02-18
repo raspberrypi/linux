@@ -1997,7 +1997,13 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 	if (sta->he_cap.he_cap_elem.mac_cap_info[4] & IEEE80211_HE_MAC_CAP4_BQR)
 		sta_ctxt_cmd.htc_flags |= cpu_to_le32(IWL_HE_HTC_BQR_SUPP);
 
-	/* If PPE Thresholds exist, parse them into a FW-familiar format */
+	/*
+	 * Initialize the PPE thresholds to "None" (7), as described in Table
+	 * 9-262ac of 80211.ax/D3.0.
+	 */
+	memset(&sta_ctxt_cmd.pkt_ext, 7, sizeof(sta_ctxt_cmd.pkt_ext));
+
+	/* If PPE Thresholds exist, parse them into a FW-familiar format. */
 	if (sta->he_cap.he_cap_elem.phy_cap_info[6] &
 	    IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT) {
 		u8 nss = (sta->he_cap.ppe_thres[0] &
@@ -2938,7 +2944,8 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 			iwl_mvm_mac_ctxt_changed(mvm, vif, false, NULL);
 		}
 
-		iwl_mvm_rs_rate_init(mvm, sta, mvmvif->phy_ctxt->channel->band);
+		iwl_mvm_rs_rate_init(mvm, sta, mvmvif->phy_ctxt->channel->band,
+				     false);
 		ret = iwl_mvm_update_sta(mvm, vif, sta);
 	} else if (old_state == IEEE80211_STA_ASSOC &&
 		   new_state == IEEE80211_STA_AUTHORIZED) {
@@ -2954,7 +2961,8 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 		/* enable beacon filtering */
 		WARN_ON(iwl_mvm_enable_beacon_filter(mvm, vif, 0));
 
-		iwl_mvm_rs_rate_init(mvm, sta, mvmvif->phy_ctxt->channel->band);
+		iwl_mvm_rs_rate_init(mvm, sta, mvmvif->phy_ctxt->channel->band,
+				     true);
 
 		ret = 0;
 	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
