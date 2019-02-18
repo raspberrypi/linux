@@ -1785,6 +1785,8 @@ static int bcm2835_codec_create_component(struct bcm2835_codec_ctx *ctx)
 		goto destroy_component;
 
 	if (dev->role == ENCODE) {
+		u32 param = 1;
+
 		if (ctx->q_data[V4L2_M2M_SRC].sizeimage <
 			ctx->component->output[0].minimum_buffer.size)
 			v4l2_err(&dev->v4l2_dev, "buffer size mismatch sizeimage %u < min size %u\n",
@@ -1793,6 +1795,16 @@ static int bcm2835_codec_create_component(struct bcm2835_codec_ctx *ctx)
 
 		/* Now we have a component we can set all the ctrls */
 		bcm2835_codec_set_ctrls(ctx);
+
+		/* Enable SPS Timing header so framerate information is encoded
+		 * in the H264 header.
+		 */
+		vchiq_mmal_port_parameter_set(
+					ctx->dev->instance,
+					&ctx->component->output[0],
+					MMAL_PARAMETER_VIDEO_ENCODE_SPS_TIMING,
+					&param, sizeof(param));
+
 	} else {
 		if (ctx->q_data[V4L2_M2M_DST].sizeimage <
 			ctx->component->output[0].minimum_buffer.size)
