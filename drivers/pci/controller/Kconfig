@@ -288,5 +288,14 @@ config PCI_HYPERV_INTERFACE
 	  The Hyper-V PCI Interface is a helper driver allows other drivers to
 	  have a common interface with the Hyper-V PCI frontend driver.
 
+config PCIE_BRCMSTB
+	tristate "Broadcom Brcmstb PCIe platform host driver"
+	depends on ARCH_BRCMSTB || BMIPS_GENERIC
+	depends on OF
+	depends on SOC_BRCMSTB
+	default ARCH_BRCMSTB || BMIPS_GENERIC
+	help
+	  Adds support for Broadcom Settop Box PCIe host controller.
+
 source "drivers/pci/controller/dwc/Kconfig"
 endmenu
