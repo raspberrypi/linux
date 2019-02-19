@@ -29,6 +29,10 @@ obj-$(CONFIG_PCIE_MEDIATEK) += pcie-mediatek.o
 obj-$(CONFIG_PCIE_MOBIVEIL) += pcie-mobiveil.o
 obj-$(CONFIG_PCIE_TANGO_SMP8759) += pcie-tango.o
 obj-$(CONFIG_PCIE_BRCMSTB) += pcie-brcmstb.o
+ifdef CONFIG_ARM
+obj-$(CONFIG_PCIE_BRCMSTB) += pcie-brcmstb-bounce.o
+endif
+
 obj-$(CONFIG_VMD) += vmd.o
 # pcie-hisi.o quirks are needed even without CONFIG_PCIE_DW
 obj-y				+= dwc/
