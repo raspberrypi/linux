@@ -105,9 +105,12 @@ static bool softirq_check_runner_tsk(struct task_struct *tsk,
 	 * _before_ it sets pi_blocked_on to NULL under
 	 * tsk->pi_lock. So we need to check for both: state
 	 * and pi_blocked_on.
+	 * The test against UNINTERRUPTIBLE + ->sleeping_lock is in case the
+	 * task does cpu_chill().
 	 */
 	raw_spin_lock(&tsk->pi_lock);
-	if (tsk->pi_blocked_on || tsk->state == TASK_RUNNING) {
+	if (tsk->pi_blocked_on || tsk->state == TASK_RUNNING ||
+	    (tsk->state == TASK_UNINTERRUPTIBLE && tsk->sleeping_lock)) {
 		/* Clear all bits pending in that task */
 		*pending &= ~(tsk->softirqs_raised);
 		ret = true;
