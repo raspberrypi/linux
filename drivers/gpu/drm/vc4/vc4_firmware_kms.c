@@ -194,8 +194,8 @@ static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
 					   struct drm_plane_state *old_state)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
-	struct vc4_crtc *vc4_crtc = to_vc4_crtc(plane->crtc);
 	struct drm_plane_state *state = plane->state;
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(state->crtc);
 	struct drm_framebuffer *fb = state->fb;
 	struct drm_gem_cma_object *bo = drm_fb_cma_get_gem_obj(fb, 0);
 	int ret;
@@ -681,8 +681,6 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	drm_crtc_init_with_planes(drm, crtc, primary_plane, cursor_plane,
 				  &vc4_crtc_funcs, NULL);
 	drm_crtc_helper_add(crtc, &vc4_crtc_helper_funcs);
-	primary_plane->crtc = crtc;
-	cursor_plane->crtc = crtc;
 
 	vc4_encoder = devm_kzalloc(dev, sizeof(*vc4_encoder), GFP_KERNEL);
 	if (!vc4_encoder)
