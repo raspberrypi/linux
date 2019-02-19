@@ -55,6 +55,17 @@ struct bcm2835_dma_cb {
 	uint32_t pad[2];
 };
 
+struct bcm2838_dma40_scb {
+	uint32_t ti;
+	uint32_t src;
+	uint32_t srci;
+	uint32_t dst;
+	uint32_t dsti;
+	uint32_t len;
+	uint32_t next_cb;
+	uint32_t rsvd;
+};
+
 struct bcm2835_cb_entry {
 	struct bcm2835_dma_cb *cb;
 	dma_addr_t paddr;
@@ -170,6 +181,45 @@ struct bcm2835_desc {
 /* the max dma length for different channels */
 #define MAX_DMA_LEN SZ_1G
 #define MAX_LITE_DMA_LEN (SZ_64K - 4)
+
+/* 40-bit DMA support */
+#define BCM2838_DMA40_CS	0x00
+#define BCM2838_DMA40_CB	0x04
+#define BCM2838_DMA40_DEBUG	0x0c
+#define BCM2858_DMA40_TI	0x10
+#define BCM2838_DMA40_SRC	0x14
+#define BCM2838_DMA40_SRCI	0x18
+#define BCM2838_DMA40_DEST	0x1c
+#define BCM2838_DMA40_DESTI	0x20
+#define BCM2838_DMA40_LEN	0x24
+#define BCM2838_DMA40_NEXT_CB	0x28
+#define BCM2838_DMA40_DEBUG2	0x2c
+
+#define BCM2838_DMA40_CS_ACTIVE	BIT(0)
+#define BCM2838_DMA40_CS_END	BIT(1)
+
+#define BCM2838_DMA40_CS_QOS(x)	(((x) & 0x1f) << 16)
+#define BCM2838_DMA40_CS_PANIC_QOS(x)	(((x) & 0x1f) << 20)
+#define BCM2838_DMA40_CS_WRITE_WAIT	BIT(28)
+
+#define BCM2838_DMA40_BURST_LEN(x)	((((x) - 1) & 0xf) << 8)
+#define BCM2838_DMA40_INC		BIT(12)
+#define BCM2838_DMA40_SIZE_128	(2 << 13)
+
+#define BCM2838_DMA40_MEMCPY_QOS \
+	(BCM2838_DMA40_CS_QOS(0x0) | \
+	 BCM2838_DMA40_CS_PANIC_QOS(0x0) | \
+	 BCM2838_DMA40_CS_WRITE_WAIT)
+
+#define BCM2838_DMA40_MEMCPY_XFER_INFO \
+	(BCM2838_DMA40_SIZE_128 | \
+	 BCM2838_DMA40_INC | \
+	 BCM2838_DMA40_BURST_LEN(16))
+
+static void __iomem *memcpy_chan;
+static struct bcm2838_dma40_scb *memcpy_scb;
+static dma_addr_t memcpy_scb_dma;
+DEFINE_SPINLOCK(memcpy_lock);
 
 static inline size_t bcm2835_dma_max_frame_length(struct bcm2835_chan *c)
 {
@@ -841,6 +891,56 @@ static void bcm2835_dma_free(struct bcm2835_dmadev *od)
 	}
 }
 
+int bcm2838_dma40_memcpy_init(struct device *dev)
+{
+	if (memcpy_scb)
+		return 0;
+
+	memcpy_scb = dma_alloc_coherent(dev, sizeof(*memcpy_scb),
+					&memcpy_scb_dma, GFP_KERNEL);
+
+	if (!memcpy_scb) {
+		pr_err("bcm2838_dma40_memcpy_init failed!\n");
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(bcm2838_dma40_memcpy_init);
+
+void bcm2838_dma40_memcpy(dma_addr_t dst, dma_addr_t src, size_t size)
+{
+	struct bcm2838_dma40_scb *scb = memcpy_scb;
+	unsigned long flags;
+
+	if (!scb) {
+		pr_err("bcm2838_dma40_memcpy not initialised!\n");
+		return;
+	}
+
+	spin_lock_irqsave(&memcpy_lock, flags);
+
+	scb->ti = 0;
+	scb->src = lower_32_bits(src);
+	scb->srci = upper_32_bits(src) | BCM2838_DMA40_MEMCPY_XFER_INFO;
+	scb->dst = lower_32_bits(dst);
+	scb->dsti = upper_32_bits(dst) | BCM2838_DMA40_MEMCPY_XFER_INFO;
+	scb->len = size;
+	scb->next_cb = 0;
+
+	writel((u32)(memcpy_scb_dma >> 5), memcpy_chan + BCM2838_DMA40_CB);
+	writel(BCM2838_DMA40_MEMCPY_QOS + BCM2838_DMA40_CS_ACTIVE,
+	       memcpy_chan + BCM2838_DMA40_CS);
+	/* Poll for completion */
+	while (!(readl(memcpy_chan + BCM2838_DMA40_CS) & BCM2838_DMA40_CS_END))
+		cpu_relax();
+
+	writel(BCM2838_DMA40_CS_END, memcpy_chan + BCM2838_DMA40_CS);
+
+	spin_unlock_irqrestore(&memcpy_lock, flags);
+}
+EXPORT_SYMBOL(bcm2838_dma40_memcpy);
+
 static const struct of_device_id bcm2835_dma_of_match[] = {
 	{ .compatible = "brcm,bcm2835-dma", },
 	{},
@@ -936,6 +1036,13 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 
 	/* Channel 0 is used by the legacy API */
 	chans_available &= ~BCM2835_DMA_BULK_MASK;
+
+	/* We can't use channels 11-13 yet */
+	chans_available &= ~(BIT(11) | BIT(12) | BIT(13));
+
+	/* Grab channel 14 for the 40-bit DMA memcpy */
+	chans_available &= ~BIT(14);
+	memcpy_chan = BCM2835_DMA_CHANIO(base, 14);
 
 	/* get irqs for each channel that we support */
 	for (i = 0; i <= BCM2835_DMA_MAX_DMA_CHAN_SUPPORTED; i++) {
