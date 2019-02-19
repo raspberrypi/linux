@@ -4,6 +4,7 @@
 #include <linux/clk.h>
 #include <linux/compiler.h>
 #include <linux/delay.h>
+#include <linux/dma-mapping.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
@@ -319,10 +320,306 @@ static struct pci_ops brcm_pcie_ops = {
 	((val & ~reg##_##field##_MASK) | \
 	 (reg##_##field##_MASK & (field_val << reg##_##field##_SHIFT)))
 
+static const struct dma_map_ops *arch_dma_ops;
+static const struct dma_map_ops *brcm_dma_ops_ptr;
+static struct of_pci_range *dma_ranges;
+static int num_dma_ranges;
+
 static phys_addr_t scb_size[BRCM_MAX_SCB];
 static int num_memc;
 static int num_pcie;
 static DEFINE_MUTEX(brcm_pcie_lock);
+
+static dma_addr_t brcm_to_pci(dma_addr_t addr)
+{
+	struct of_pci_range *p;
+
+	if (!num_dma_ranges)
+		return addr;
+
+	for (p = dma_ranges; p < &dma_ranges[num_dma_ranges]; p++)
+		if (addr >= p->cpu_addr && addr < (p->cpu_addr + p->size))
+			return addr - p->cpu_addr + p->pci_addr;
+
+	return addr;
+}
+
+static dma_addr_t brcm_to_cpu(dma_addr_t addr)
+{
+	struct of_pci_range *p;
+
+	if (!num_dma_ranges)
+		return addr;
+
+	for (p = dma_ranges; p < &dma_ranges[num_dma_ranges]; p++)
+		if (addr >= p->pci_addr && addr < (p->pci_addr + p->size))
+			return addr - p->pci_addr + p->cpu_addr;
+
+	return addr;
+}
+
+static void *brcm_alloc(struct device *dev, size_t size, dma_addr_t *handle,
+			gfp_t gfp, unsigned long attrs)
+{
+	void *ret;
+
+	ret = arch_dma_ops->alloc(dev, size, handle, gfp, attrs);
+	if (ret)
+		*handle = brcm_to_pci(*handle);
+	return ret;
+}
+
+static void brcm_free(struct device *dev, size_t size, void *cpu_addr,
+		      dma_addr_t handle, unsigned long attrs)
+{
+	handle = brcm_to_cpu(handle);
+	arch_dma_ops->free(dev, size, cpu_addr, handle, attrs);
+}
+
+static int brcm_mmap(struct device *dev, struct vm_area_struct *vma,
+		     void *cpu_addr, dma_addr_t dma_addr, size_t size,
+		     unsigned long attrs)
+{
+	dma_addr = brcm_to_cpu(dma_addr);
+	return arch_dma_ops->mmap(dev, vma, cpu_addr, dma_addr, size, attrs);
+}
+
+static int brcm_get_sgtable(struct device *dev, struct sg_table *sgt,
+			    void *cpu_addr, dma_addr_t handle, size_t size,
+			    unsigned long attrs)
+{
+	handle = brcm_to_cpu(handle);
+	return arch_dma_ops->get_sgtable(dev, sgt, cpu_addr, handle, size,
+				       attrs);
+}
+
+static dma_addr_t brcm_map_page(struct device *dev, struct page *page,
+				unsigned long offset, size_t size,
+				enum dma_data_direction dir,
+				unsigned long attrs)
+{
+	return brcm_to_pci(arch_dma_ops->map_page(dev, page, offset, size,
+						  dir, attrs));
+}
+
+static void brcm_unmap_page(struct device *dev, dma_addr_t handle,
+			    size_t size, enum dma_data_direction dir,
+			    unsigned long attrs)
+{
+	handle = brcm_to_cpu(handle);
+	arch_dma_ops->unmap_page(dev, handle, size, dir, attrs);
+}
+
+static int brcm_map_sg(struct device *dev, struct scatterlist *sgl,
+		       int nents, enum dma_data_direction dir,
+		       unsigned long attrs)
+{
+	int i, j;
+	struct scatterlist *sg;
+
+	for_each_sg(sgl, sg, nents, i) {
+#ifdef CONFIG_NEED_SG_DMA_LENGTH
+		sg->dma_length = sg->length;
+#endif
+		sg->dma_address =
+			brcm_dma_ops_ptr->map_page(dev, sg_page(sg), sg->offset,
+						   sg->length, dir, attrs);
+		if (dma_mapping_error(dev, sg->dma_address))
+			goto bad_mapping;
+	}
+	return nents;
+
+bad_mapping:
+	for_each_sg(sgl, sg, i, j)
+		brcm_dma_ops_ptr->unmap_page(dev, sg_dma_address(sg),
+					     sg_dma_len(sg), dir, attrs);
+	return 0;
+}
+
+static void brcm_unmap_sg(struct device *dev,
+			  struct scatterlist *sgl, int nents,
+			  enum dma_data_direction dir,
+			  unsigned long attrs)
+{
+	int i;
+	struct scatterlist *sg;
+
+	for_each_sg(sgl, sg, nents, i)
+		brcm_dma_ops_ptr->unmap_page(dev, sg_dma_address(sg),
+					     sg_dma_len(sg), dir, attrs);
+}
+
+static void brcm_sync_single_for_cpu(struct device *dev,
+				     dma_addr_t handle, size_t size,
+				     enum dma_data_direction dir)
+{
+	handle = brcm_to_cpu(handle);
+	arch_dma_ops->sync_single_for_cpu(dev, handle, size, dir);
+}
+
+static void brcm_sync_single_for_device(struct device *dev,
+					dma_addr_t handle, size_t size,
+					enum dma_data_direction dir)
+{
+	handle = brcm_to_cpu(handle);
+	arch_dma_ops->sync_single_for_device(dev, handle, size, dir);
+}
+
+static dma_addr_t brcm_map_resource(struct device *dev, phys_addr_t phys,
+				    size_t size,
+				    enum dma_data_direction dir,
+				    unsigned long attrs)
+{
+	if (arch_dma_ops->map_resource)
+		return brcm_to_pci(arch_dma_ops->map_resource
+				   (dev, phys, size, dir, attrs));
+	return brcm_to_pci((dma_addr_t)phys);
+}
+
+static void brcm_unmap_resource(struct device *dev, dma_addr_t handle,
+				size_t size, enum dma_data_direction dir,
+				unsigned long attrs)
+{
+	if (arch_dma_ops->unmap_resource)
+		arch_dma_ops->unmap_resource(dev, brcm_to_cpu(handle), size,
+					     dir, attrs);
+}
+
+void brcm_sync_sg_for_cpu(struct device *dev, struct scatterlist *sgl,
+			  int nents, enum dma_data_direction dir)
+{
+	struct scatterlist *sg;
+	int i;
+
+	for_each_sg(sgl, sg, nents, i)
+		brcm_dma_ops_ptr->sync_single_for_cpu(dev, sg_dma_address(sg),
+						      sg->length, dir);
+}
+
+void brcm_sync_sg_for_device(struct device *dev, struct scatterlist *sgl,
+			     int nents, enum dma_data_direction dir)
+{
+	struct scatterlist *sg;
+	int i;
+
+	for_each_sg(sgl, sg, nents, i)
+		brcm_dma_ops_ptr->sync_single_for_device(dev,
+							 sg_dma_address(sg),
+							 sg->length, dir);
+}
+
+static int brcm_mapping_error(struct device *dev, dma_addr_t dma_addr)
+{
+	return arch_dma_ops->mapping_error(dev, dma_addr);
+}
+
+static int brcm_dma_supported(struct device *dev, u64 mask)
+{
+	if (num_dma_ranges) {
+		/*
+		 * It is our translated addresses that the EP will "see", so
+		 * we check all of the ranges for the largest possible value.
+		 */
+		int i;
+
+		for (i = 0; i < num_dma_ranges; i++)
+			if (dma_ranges[i].pci_addr + dma_ranges[i].size - 1
+			    > mask)
+				return 0;
+		return 1;
+	}
+
+	return arch_dma_ops->dma_supported(dev, mask);
+}
+
+#ifdef ARCH_HAS_DMA_GET_REQUIRED_MASK
+u64 brcm_get_required_mask)(struct device *dev)
+{
+	return arch_dma_ops->get_required_mask(dev);
+}
+#endif
+
+static const struct dma_map_ops brcm_dma_ops = {
+	.alloc			= brcm_alloc,
+	.free			= brcm_free,
+	.mmap			= brcm_mmap,
+	.get_sgtable		= brcm_get_sgtable,
+	.map_page		= brcm_map_page,
+	.unmap_page		= brcm_unmap_page,
+	.map_sg			= brcm_map_sg,
+	.unmap_sg		= brcm_unmap_sg,
+	.map_resource		= brcm_map_resource,
+	.unmap_resource		= brcm_unmap_resource,
+	.sync_single_for_cpu	= brcm_sync_single_for_cpu,
+	.sync_single_for_device	= brcm_sync_single_for_device,
+	.sync_sg_for_cpu	= brcm_sync_sg_for_cpu,
+	.sync_sg_for_device	= brcm_sync_sg_for_device,
+	.mapping_error		= brcm_mapping_error,
+	.dma_supported		= brcm_dma_supported,
+#ifdef ARCH_HAS_DMA_GET_REQUIRED_MASK
+	.get_required_mask	= brcm_get_required_mask,
+#endif
+};
+
+static void brcm_set_dma_ops(struct device *dev)
+{
+	int ret;
+
+	if (IS_ENABLED(CONFIG_ARM64)) {
+		/*
+		 * We are going to invoke get_dma_ops().  That
+		 * function, at this point in time, invokes
+		 * get_arch_dma_ops(), and for ARM64 that function
+		 * returns a pointer to dummy_dma_ops.  So then we'd
+		 * like to call arch_setup_dma_ops(), but that isn't
+		 * exported.  Instead, we call of_dma_configure(),
+		 * which is exported, and this calls
+		 * arch_setup_dma_ops().  Once we do this the call to
+		 * get_dma_ops() will work properly because
+		 * dev->dma_ops will be set.
+		 */
+		ret = of_dma_configure(dev, dev->of_node, true);
+		if (ret) {
+			dev_err(dev, "of_dma_configure() failed: %d\n", ret);
+			return;
+		}
+	}
+
+	arch_dma_ops = get_dma_ops(dev);
+	if (!arch_dma_ops) {
+		dev_err(dev, "failed to get arch_dma_ops\n");
+		return;
+	}
+
+	set_dma_ops(dev, &brcm_dma_ops);
+}
+
+static int brcmstb_platform_notifier(struct notifier_block *nb,
+				     unsigned long event, void *__dev)
+{
+	struct device *dev = __dev;
+
+	brcm_dma_ops_ptr = &brcm_dma_ops;
+	if (event != BUS_NOTIFY_ADD_DEVICE)
+		return NOTIFY_DONE;
+
+	brcm_set_dma_ops(dev);
+	return NOTIFY_OK;
+}
+
+static struct notifier_block brcmstb_platform_nb = {
+	.notifier_call = brcmstb_platform_notifier,
+};
+
+static int brcm_register_notifier(void)
+{
+	return bus_register_notifier(&pci_bus_type, &brcmstb_platform_nb);
+}
+
+static int brcm_unregister_notifier(void)
+{
+	return bus_unregister_notifier(&pci_bus_type, &brcmstb_platform_nb);
+}
 
 static u32 rd_fld(void __iomem *p, u32 mask, int shift)
 {
@@ -597,9 +894,71 @@ static inline void brcm_pcie_perst_set(struct brcm_pcie *pcie,
 		WR_FLD_RB(pcie->base, PCIE_MISC_PCIE_CTRL, PCIE_PERSTB, !val);
 }
 
+static int pci_dma_range_parser_init(struct of_pci_range_parser *parser,
+				     struct device_node *node)
+{
+	const int na = 3, ns = 2;
+	int rlen;
+
+	parser->node = node;
+	parser->pna = of_n_addr_cells(node);
+	parser->np = parser->pna + na + ns;
+
+	parser->range = of_get_property(node, "dma-ranges", &rlen);
+	if (!parser->range)
+		return -ENOENT;
+
+	parser->end = parser->range + rlen / sizeof(__be32);
+
+	return 0;
+}
+
+static int brcm_pcie_parse_map_dma_ranges(struct brcm_pcie *pcie)
+{
+	int i;
+	struct of_pci_range_parser parser;
+	struct device_node *dn = pcie->dn;
+
+	/*
+	 * Parse dma-ranges property if present.  If there are multiple
+	 * PCIe controllers, we only have to parse from one of them since
+	 * the others will have an identical mapping.
+	 */
+	if (!pci_dma_range_parser_init(&parser, dn)) {
+		unsigned int max_ranges
+			= (parser.end - parser.range) / parser.np;
+
+		dma_ranges = kcalloc(max_ranges, sizeof(struct of_pci_range),
+				     GFP_KERNEL);
+		if (!dma_ranges)
+			return -ENOMEM;
+
+		for (i = 0; of_pci_range_parser_one(&parser, dma_ranges + i);
+		     i++)
+			num_dma_ranges++;
+	}
+
+	for (i = 0, num_memc = 0; i < BRCM_MAX_SCB; i++) {
+		u64 size = brcmstb_memory_memc_size(i);
+
+		if (size == (u64)-1) {
+			dev_err(pcie->dev, "cannot get memc%d size", i);
+			return -EINVAL;
+		} else if (size) {
+			scb_size[i] = roundup_pow_of_two_64(size);
+			num_memc++;
+		} else {
+			break;
+		}
+	}
+
+	return 0;
+}
+
 static int brcm_pcie_add_controller(struct brcm_pcie *pcie)
 {
 	int i, ret = 0;
+	struct device *dev = pcie->dev;
 
 	mutex_lock(&brcm_pcie_lock);
 	if (num_pcie > 0) {
@@ -607,12 +966,21 @@ static int brcm_pcie_add_controller(struct brcm_pcie *pcie)
 		goto done;
 	}
 
+	ret = brcm_register_notifier();
+	if (ret) {
+		dev_err(dev, "failed to register pci bus notifier\n");
+		goto done;
+	}
+	ret = brcm_pcie_parse_map_dma_ranges(pcie);
+	if (ret)
+		goto done;
+
 	/* Determine num_memc and their sizes */
 	for (i = 0, num_memc = 0; i < BRCM_MAX_SCB; i++) {
 		u64 size = brcmstb_memory_memc_size(i);
 
 		if (size == (u64)-1) {
-			dev_err(pcie->dev, "cannot get memc%d size\n", i);
+			dev_err(dev, "cannot get memc%d size\n", i);
 			ret = -EINVAL;
 			goto done;
 		} else if (size) {
@@ -636,8 +1004,16 @@ done:
 static void brcm_pcie_remove_controller(struct brcm_pcie *pcie)
 {
 	mutex_lock(&brcm_pcie_lock);
-	if (--num_pcie == 0)
-		num_memc = 0;
+	if (--num_pcie > 0)
+		goto out;
+
+	if (brcm_unregister_notifier())
+		dev_err(pcie->dev, "failed to unregister pci bus notifier\n");
+	kfree(dma_ranges);
+	dma_ranges = NULL;
+	num_dma_ranges = 0;
+	num_memc = 0;
+out:
 	mutex_unlock(&brcm_pcie_lock);
 }
 
@@ -756,6 +1132,38 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 	 * only.  We always start the viewport at address 0.
 	 */
 	rc_bar2_offset = 0;
+
+	if (dma_ranges) {
+		/*
+		 * The best-case scenario is to place the inbound
+		 * region in the first 4GB of pci-space, as some
+		 * legacy devices can only address 32bits.
+		 * We would also like to put the MSI under 4GB
+		 * as well, since some devices require a 32bit
+		 * MSI target address.
+		 */
+		if (total_mem_size <= 0xc0000000ULL &&
+		    rc_bar2_size <= 0x100000000ULL) {
+			rc_bar2_offset = 0;
+		} else {
+			/*
+			 * The system memory is 4GB or larger so we
+			 * cannot start the inbound region at location
+			 * 0 (since we have to allow some space for
+			 * outbound memory @ 3GB).  So instead we
+			 * start it at the 1x multiple of its size
+			 */
+			rc_bar2_offset = rc_bar2_size;
+		}
+
+	} else {
+		/*
+		 * Set simple configuration based on memory sizes
+		 * only.  We always start the viewport at address 0,
+		 * and set the MSI target address accordingly.
+		 */
+		rc_bar2_offset = 0;
+	}
 
 	tmp = lower_32_bits(rc_bar2_offset);
 	tmp = INSERT_FIELD(tmp, PCIE_MISC_RC_BAR2_CONFIG_LO, SIZE,
@@ -967,7 +1375,6 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 	struct brcm_pcie *pcie;
 	struct resource *res;
 	void __iomem *base;
-	u32 tmp;
 	struct pci_host_bridge *bridge;
 	struct pci_bus *child;
 
@@ -981,11 +1388,6 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 	of_id = of_match_node(brcm_pcie_match, dn);
 	if (!of_id) {
 		dev_err(&pdev->dev, "failed to look up compatible string\n");
-		return -EINVAL;
-	}
-
-	if (of_property_read_u32(dn, "dma-ranges", &tmp) == 0) {
-		dev_err(&pdev->dev, "cannot yet handle dma-ranges\n");
 		return -EINVAL;
 	}
 
