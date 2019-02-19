@@ -29,6 +29,7 @@
 #include <linux/string.h>
 #include <linux/types.h>
 #include "../pci.h"
+#include "pcie-brcmstb-bounce.h"
 
 /* BRCM_PCIE_CAP_REGS - Offset for the mandatory capability config regs */
 #define BRCM_PCIE_CAP_REGS				0x00ac
@@ -53,6 +54,7 @@
 #define PCIE_MISC_MSI_BAR_CONFIG_LO			0x4044
 #define PCIE_MISC_MSI_BAR_CONFIG_HI			0x4048
 #define PCIE_MISC_MSI_DATA_CONFIG			0x404c
+#define PCIE_MISC_EOI_CTRL				0x4060
 #define PCIE_MISC_PCIE_CTRL				0x4064
 #define PCIE_MISC_PCIE_STATUS				0x4068
 #define PCIE_MISC_REVISION				0x406c
@@ -260,12 +262,14 @@ struct brcm_pcie {
 	unsigned int		rev;
 	const int		*reg_offsets;
 	const int		*reg_field_info;
+	u32			max_burst_size;
 	enum pcie_type		type;
 };
 
 struct pcie_cfg_data {
 	const int		*reg_field_info;
 	const int		*offsets;
+	const u32		max_burst_size;
 	const enum pcie_type	type;
 };
 
@@ -288,24 +292,27 @@ static const int pcie_offset_bcm7425[] = {
 static const struct pcie_cfg_data bcm7425_cfg = {
 	.reg_field_info	= pcie_reg_field_info,
 	.offsets	= pcie_offset_bcm7425,
+	.max_burst_size	= BURST_SIZE_256,
 	.type		= BCM7425,
 };
 
 static const int pcie_offsets[] = {
 	[RGR1_SW_INIT_1] = 0x9210,
 	[EXT_CFG_INDEX]  = 0x9000,
-	[EXT_CFG_DATA]   = 0x9004,
+	[EXT_CFG_DATA]   = 0x8000,
 };
 
 static const struct pcie_cfg_data bcm7435_cfg = {
 	.reg_field_info	= pcie_reg_field_info,
 	.offsets	= pcie_offsets,
+	.max_burst_size	= BURST_SIZE_256,
 	.type		= BCM7435,
 };
 
 static const struct pcie_cfg_data generic_cfg = {
 	.reg_field_info	= pcie_reg_field_info,
 	.offsets	= pcie_offsets,
+	.max_burst_size	= BURST_SIZE_128, // before BURST_SIZE_512
 	.type		= GENERIC,
 };
 
@@ -318,6 +325,7 @@ static const int pcie_offset_bcm7278[] = {
 static const struct pcie_cfg_data bcm7278_cfg = {
 	.reg_field_info = pcie_reg_field_info_bcm7278,
 	.offsets	= pcie_offset_bcm7278,
+	.max_burst_size	= BURST_SIZE_512,
 	.type		= BCM7278,
 };
 
@@ -360,7 +368,6 @@ static struct pci_ops brcm_pcie_ops = {
 	 (reg##_##field##_MASK & (field_val << reg##_##field##_SHIFT)))
 
 static const struct dma_map_ops *arch_dma_ops;
-static const struct dma_map_ops *brcm_dma_ops_ptr;
 static struct of_pci_range *dma_ranges;
 static int num_dma_ranges;
 
@@ -368,6 +375,16 @@ static phys_addr_t scb_size[BRCM_MAX_SCB];
 static int num_memc;
 static int num_pcie;
 static DEFINE_MUTEX(brcm_pcie_lock);
+
+static unsigned int bounce_buffer = 32*1024*1024;
+module_param(bounce_buffer, uint, 0644);
+MODULE_PARM_DESC(bounce_buffer, "Size of bounce buffer");
+
+static unsigned int bounce_threshold = 0xc0000000;
+module_param(bounce_threshold, uint, 0644);
+MODULE_PARM_DESC(bounce_threshold, "Bounce threshold");
+
+static struct brcm_pcie *g_pcie;
 
 static dma_addr_t brcm_to_pci(dma_addr_t addr)
 {
@@ -457,12 +474,10 @@ static int brcm_map_sg(struct device *dev, struct scatterlist *sgl,
 	struct scatterlist *sg;
 
 	for_each_sg(sgl, sg, nents, i) {
-#ifdef CONFIG_NEED_SG_DMA_LENGTH
-		sg->dma_length = sg->length;
-#endif
+		sg_dma_len(sg) = sg->length;
 		sg->dma_address =
-			brcm_dma_ops_ptr->map_page(dev, sg_page(sg), sg->offset,
-						   sg->length, dir, attrs);
+			brcm_map_page(dev, sg_page(sg), sg->offset,
+				      sg->length, dir, attrs);
 		if (dma_mapping_error(dev, sg->dma_address))
 			goto bad_mapping;
 	}
@@ -470,8 +485,8 @@ static int brcm_map_sg(struct device *dev, struct scatterlist *sgl,
 
 bad_mapping:
 	for_each_sg(sgl, sg, i, j)
-		brcm_dma_ops_ptr->unmap_page(dev, sg_dma_address(sg),
-					     sg_dma_len(sg), dir, attrs);
+		brcm_unmap_page(dev, sg_dma_address(sg),
+				sg_dma_len(sg), dir, attrs);
 	return 0;
 }
 
@@ -484,8 +499,8 @@ static void brcm_unmap_sg(struct device *dev,
 	struct scatterlist *sg;
 
 	for_each_sg(sgl, sg, nents, i)
-		brcm_dma_ops_ptr->unmap_page(dev, sg_dma_address(sg),
-					     sg_dma_len(sg), dir, attrs);
+		brcm_unmap_page(dev, sg_dma_address(sg),
+				sg_dma_len(sg), dir, attrs);
 }
 
 static void brcm_sync_single_for_cpu(struct device *dev,
@@ -531,8 +546,8 @@ void brcm_sync_sg_for_cpu(struct device *dev, struct scatterlist *sgl,
 	int i;
 
 	for_each_sg(sgl, sg, nents, i)
-		brcm_dma_ops_ptr->sync_single_for_cpu(dev, sg_dma_address(sg),
-						      sg->length, dir);
+		brcm_sync_single_for_cpu(dev, sg_dma_address(sg),
+					 sg->length, dir);
 }
 
 void brcm_sync_sg_for_device(struct device *dev, struct scatterlist *sgl,
@@ -542,14 +557,9 @@ void brcm_sync_sg_for_device(struct device *dev, struct scatterlist *sgl,
 	int i;
 
 	for_each_sg(sgl, sg, nents, i)
-		brcm_dma_ops_ptr->sync_single_for_device(dev,
-							 sg_dma_address(sg),
-							 sg->length, dir);
-}
-
-static int brcm_mapping_error(struct device *dev, dma_addr_t dma_addr)
-{
-	return arch_dma_ops->mapping_error(dev, dma_addr);
+		brcm_sync_single_for_device(dev,
+					    sg_dma_address(sg),
+					    sg->length, dir);
 }
 
 static int brcm_dma_supported(struct device *dev, u64 mask)
@@ -572,7 +582,7 @@ static int brcm_dma_supported(struct device *dev, u64 mask)
 }
 
 #ifdef ARCH_HAS_DMA_GET_REQUIRED_MASK
-u64 brcm_get_required_mask)(struct device *dev)
+u64 brcm_get_required_mask(struct device *dev)
 {
 	return arch_dma_ops->get_required_mask(dev);
 }
@@ -593,7 +603,6 @@ static const struct dma_map_ops brcm_dma_ops = {
 	.sync_single_for_device	= brcm_sync_single_for_device,
 	.sync_sg_for_cpu	= brcm_sync_sg_for_cpu,
 	.sync_sg_for_device	= brcm_sync_sg_for_device,
-	.mapping_error		= brcm_mapping_error,
 	.dma_supported		= brcm_dma_supported,
 #ifdef ARCH_HAS_DMA_GET_REQUIRED_MASK
 	.get_required_mask	= brcm_get_required_mask,
@@ -633,17 +642,47 @@ static void brcm_set_dma_ops(struct device *dev)
 	set_dma_ops(dev, &brcm_dma_ops);
 }
 
+static inline void brcm_pcie_perst_set(struct brcm_pcie *pcie,
+				       unsigned int val);
 static int brcmstb_platform_notifier(struct notifier_block *nb,
 				     unsigned long event, void *__dev)
 {
+	extern unsigned long max_pfn;
 	struct device *dev = __dev;
+	const char *rc_name = "0000:00:00.0";
 
-	brcm_dma_ops_ptr = &brcm_dma_ops;
-	if (event != BUS_NOTIFY_ADD_DEVICE)
+	switch (event) {
+	case BUS_NOTIFY_ADD_DEVICE:
+		if (max_pfn > (bounce_threshold/PAGE_SIZE) &&
+		    strcmp(dev->kobj.name, rc_name)) {
+			int ret;
+
+			ret = brcm_pcie_bounce_register_dev(dev, bounce_buffer,
+							    (dma_addr_t)bounce_threshold);
+			if (ret) {
+				dev_err(dev,
+					"brcm_pcie_bounce_register_dev() failed: %d\n",
+				ret);
+				return ret;
+			}
+		}
+		brcm_set_dma_ops(dev);
+		return NOTIFY_OK;
+
+	case BUS_NOTIFY_DEL_DEVICE:
+		if (!strcmp(dev->kobj.name, rc_name) && g_pcie) {
+			/* Force a bus reset */
+			brcm_pcie_perst_set(g_pcie, 1);
+			msleep(100);
+			brcm_pcie_perst_set(g_pcie, 0);
+		} else if (max_pfn > (bounce_threshold/PAGE_SIZE)) {
+			brcm_pcie_bounce_unregister_dev(dev);
+		}
+		return NOTIFY_OK;
+
+	default:
 		return NOTIFY_DONE;
-
-	brcm_set_dma_ops(dev);
-	return NOTIFY_OK;
+	}
 }
 
 static struct notifier_block brcmstb_platform_nb = {
@@ -914,6 +953,7 @@ static void brcm_pcie_msi_isr(struct irq_desc *desc)
 		}
 	}
 	chained_irq_exit(chip, desc);
+	bcm_writel(1, msi->base + PCIE_MISC_EOI_CTRL);
 }
 
 static void brcm_compose_msi_msg(struct irq_data *data, struct msi_msg *msg)
@@ -930,7 +970,8 @@ static void brcm_compose_msi_msg(struct irq_data *data, struct msi_msg *msg)
 static int brcm_msi_set_affinity(struct irq_data *irq_data,
 				 const struct cpumask *mask, bool force)
 {
-	return -EINVAL;
+	struct brcm_msi *msi = irq_data_get_irq_chip_data(irq_data);
+	return __irq_set_affinity(msi->irq, mask, force);
 }
 
 static struct irq_chip brcm_msi_bottom_irq_chip = {
@@ -1168,9 +1209,9 @@ static void __iomem *brcm_pcie_map_conf(struct pci_bus *bus, unsigned int devfn,
 		return PCI_SLOT(devfn) ? NULL : base + where;
 
 	/* For devices, write to the config space index register */
-	idx = cfg_index(bus->number, devfn, where);
+	idx = cfg_index(bus->number, devfn, 0);
 	bcm_writel(idx, pcie->base + IDX_ADDR(pcie));
-	return base + DATA_ADDR(pcie) + (where & 0x3);
+	return base + DATA_ADDR(pcie) + where;
 }
 
 static inline void brcm_pcie_bridge_sw_init_set(struct brcm_pcie *pcie,
@@ -1238,20 +1279,6 @@ static int brcm_pcie_parse_map_dma_ranges(struct brcm_pcie *pcie)
 			num_dma_ranges++;
 	}
 
-	for (i = 0, num_memc = 0; i < BRCM_MAX_SCB; i++) {
-		u64 size = brcmstb_memory_memc_size(i);
-
-		if (size == (u64)-1) {
-			dev_err(pcie->dev, "cannot get memc%d size", i);
-			return -EINVAL;
-		} else if (size) {
-			scb_size[i] = roundup_pow_of_two_64(size);
-			num_memc++;
-		} else {
-			break;
-		}
-	}
-
 	return 0;
 }
 
@@ -1275,26 +1302,25 @@ static int brcm_pcie_add_controller(struct brcm_pcie *pcie)
 	if (ret)
 		goto done;
 
-	/* Determine num_memc and their sizes */
-	for (i = 0, num_memc = 0; i < BRCM_MAX_SCB; i++) {
-		u64 size = brcmstb_memory_memc_size(i);
+	if (!num_dma_ranges) {
+		/* Determine num_memc and their sizes by other means */
+		for (i = 0, num_memc = 0; i < BRCM_MAX_SCB; i++) {
+			u64 size = brcmstb_memory_memc_size(i);
 
-		if (size == (u64)-1) {
-			dev_err(dev, "cannot get memc%d size\n", i);
-			ret = -EINVAL;
-			goto done;
-		} else if (size) {
-			scb_size[i] = roundup_pow_of_two_64(size);
-			num_memc++;
-		} else {
-			break;
+			if (size == (u64)-1) {
+				dev_err(dev, "cannot get memc%d size\n", i);
+				ret = -EINVAL;
+				goto done;
+			} else if (size) {
+				scb_size[i] = roundup_pow_of_two_64(size);
+			} else {
+				break;
+			}
 		}
-	}
-	if (!ret && num_memc == 0) {
-		ret = -EINVAL;
-		goto done;
+		num_memc = i;
 	}
 
+	g_pcie = pcie;
 	num_pcie++;
 done:
 	mutex_unlock(&brcm_pcie_lock);
@@ -1307,6 +1333,7 @@ static void brcm_pcie_remove_controller(struct brcm_pcie *pcie)
 	if (--num_pcie > 0)
 		goto out;
 
+	g_pcie = NULL;
 	if (brcm_unregister_notifier())
 		dev_err(pcie->dev, "failed to unregister pci bus notifier\n");
 	kfree(dma_ranges);
@@ -1367,7 +1394,7 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 	void __iomem *base = pcie->base;
 	unsigned int scb_size_val;
 	u64 rc_bar2_offset, rc_bar2_size, total_mem_size = 0;
-	u32 tmp, burst;
+	u32 tmp;
 	int i, j, ret, limit;
 	u16 nlw, cls, lnksta;
 	bool ssc_good = false;
@@ -1400,20 +1427,15 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 	/* Set SCB_MAX_BURST_SIZE, CFG_READ_UR_MODE, SCB_ACCESS_EN */
 	tmp = INSERT_FIELD(0, PCIE_MISC_MISC_CTRL, SCB_ACCESS_EN, 1);
 	tmp = INSERT_FIELD(tmp, PCIE_MISC_MISC_CTRL, CFG_READ_UR_MODE, 1);
-	burst = (pcie->type == GENERIC || pcie->type == BCM7278)
-		? BURST_SIZE_512 : BURST_SIZE_256;
-	tmp = INSERT_FIELD(tmp, PCIE_MISC_MISC_CTRL, MAX_BURST_SIZE, burst);
+	tmp = INSERT_FIELD(tmp, PCIE_MISC_MISC_CTRL, MAX_BURST_SIZE,
+			   pcie->max_burst_size);
 	bcm_writel(tmp, base + PCIE_MISC_MISC_CTRL);
 
 	/*
 	 * Set up inbound memory view for the EP (called RC_BAR2,
 	 * not to be confused with the BARs that are advertised by
 	 * the EP).
-	 */
-	for (i = 0; i < num_memc; i++)
-		total_mem_size += scb_size[i];
-
-	/*
+	 *
 	 * The PCIe host controller by design must set the inbound
 	 * viewport to be a contiguous arrangement of all of the
 	 * system's memory.  In addition, its size mut be a power of
@@ -1429,55 +1451,49 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 	 * the controller will know to send outbound memory downstream
 	 * and everything else upstream.
 	 */
-	rc_bar2_size = roundup_pow_of_two_64(total_mem_size);
 
-	if (dma_ranges) {
+	if (num_dma_ranges) {
 		/*
-		 * The best-case scenario is to place the inbound
-		 * region in the first 4GB of pcie-space, as some
-		 * legacy devices can only address 32bits.
-		 * We would also like to put the MSI under 4GB
-		 * as well, since some devices require a 32bit
-		 * MSI target address.
+		 * Use the base address and size(s) provided in the dma-ranges
+		 * property.
 		 */
-		if (total_mem_size <= 0xc0000000ULL &&
-		    rc_bar2_size <= 0x100000000ULL) {
-			rc_bar2_offset = 0;
-			/* If the viewport is less then 4GB we can fit
-			 * the MSI target address under 4GB. Otherwise
-			 * put it right below 64GB.
-			 */
-			msi_target_addr =
-				(rc_bar2_size == 0x100000000ULL)
-				? BRCM_MSI_TARGET_ADDR_GT_4GB
-				: BRCM_MSI_TARGET_ADDR_LT_4GB;
-		} else {
-			/*
-			 * The system memory is 4GB or larger so we
-			 * cannot start the inbound region at location
-			 * 0 (since we have to allow some space for
-			 * outbound memory @ 3GB).  So instead we
-			 * start it at the 1x multiple of its size
-			 */
-			rc_bar2_offset = rc_bar2_size;
+		for (i = 0; i < num_dma_ranges; i++)
+			scb_size[i] = roundup_pow_of_two_64(dma_ranges[i].size);
 
-			/* Since we are starting the viewport at 4GB or
-			 * higher, put the MSI target address below 4GB
-			 */
-			msi_target_addr = BRCM_MSI_TARGET_ADDR_LT_4GB;
-		}
-	} else {
+		num_memc = num_dma_ranges;
+		rc_bar2_offset = dma_ranges[0].pci_addr;
+	} else if (num_memc) {
 		/*
 		 * Set simple configuration based on memory sizes
-		 * only.  We always start the viewport at address 0,
-		 * and set the MSI target address accordingly.
+		 * only.  We always start the viewport at address 0.
 		 */
 		rc_bar2_offset = 0;
-
-		msi_target_addr = (rc_bar2_size >= 0x100000000ULL)
-			? BRCM_MSI_TARGET_ADDR_GT_4GB
-			: BRCM_MSI_TARGET_ADDR_LT_4GB;
+	} else {
+		return -EINVAL;
 	}
+
+	for (i = 0; i < num_memc; i++)
+		total_mem_size += scb_size[i];
+
+	rc_bar2_size = roundup_pow_of_two_64(total_mem_size);
+
+	/* Verify the alignment is correct */
+	if (rc_bar2_offset & (rc_bar2_size - 1)) {
+		dev_err(dev, "inbound window is misaligned\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Position the MSI target low if possible.
+	 *
+	 * TO DO: Consider outbound window when choosing MSI target and
+	 * verifying configuration.
+	 */
+	msi_target_addr = BRCM_MSI_TARGET_ADDR_LT_4GB;
+	if (rc_bar2_offset <= msi_target_addr &&
+	    rc_bar2_offset + rc_bar2_size > msi_target_addr)
+		msi_target_addr = BRCM_MSI_TARGET_ADDR_GT_4GB;
+
 	pcie->msi_target_addr = msi_target_addr;
 
 	tmp = lower_32_bits(rc_bar2_offset);
@@ -1713,6 +1729,7 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 	data = of_id->data;
 	pcie->reg_offsets = data->offsets;
 	pcie->reg_field_info = data->reg_field_info;
+	pcie->max_burst_size = data->max_burst_size;
 	pcie->type = data->type;
 	pcie->dn = dn;
 	pcie->dev = &pdev->dev;
@@ -1732,7 +1749,7 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 
 	pcie->clk = of_clk_get_by_name(dn, "sw_pcie");
 	if (IS_ERR(pcie->clk)) {
-		dev_err(&pdev->dev, "could not get clock\n");
+		dev_warn(&pdev->dev, "could not get clock\n");
 		pcie->clk = NULL;
 	}
 	pcie->base = base;
@@ -1755,7 +1772,8 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 
 	ret = clk_prepare_enable(pcie->clk);
 	if (ret) {
-		dev_err(&pdev->dev, "could not enable clock\n");
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "could not enable clock\n");
 		return ret;
 	}
 
@@ -1818,7 +1836,6 @@ static struct platform_driver brcm_pcie_driver = {
 	.remove = brcm_pcie_remove,
 	.driver = {
 		.name = "brcm-pcie",
-		.owner = THIS_MODULE,
 		.of_match_table = brcm_pcie_match,
 		.pm = &brcm_pcie_pm_ops,
 	},
