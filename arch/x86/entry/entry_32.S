@@ -775,15 +775,15 @@ ENTRY(resume_kernel)
 
 	# atleast preempt count == 0 ?
 	cmpl $_PREEMPT_ENABLED,PER_CPU_VAR(__preempt_count)
-	jne restore_all
+	jne	restore_all_kernel
 
 	movl	PER_CPU_VAR(current_task), %ebp
 	cmpl	$0,TASK_TI_preempt_lazy_count(%ebp)	# non-zero preempt_lazy_count ?
-	jnz	restore_all
+	jnz	restore_all_kernel
 
 	testl	$_TIF_NEED_RESCHED_LAZY, TASK_TI_flags(%ebp)
-	jz	restore_all
-	test_int_off:
+	jz	restore_all_kernel
+test_int_off:
 #endif
 	testl	$X86_EFLAGS_IF, PT_EFLAGS(%esp)	# interrupts off (exception path) ?
 	jz	restore_all_kernel
