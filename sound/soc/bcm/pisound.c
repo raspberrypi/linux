@@ -1,6 +1,6 @@
 /*
  * Pisound Linux kernel module.
- * Copyright (C) 2016-2017  Vilniaus Blokas UAB, https://blokas.io/pisound
+ * Copyright (C) 2016-2019  Vilniaus Blokas UAB, https://blokas.io/pisound
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -532,10 +532,10 @@ static void pisnd_spi_gpio_uninit(void)
 
 static int pisnd_spi_gpio_irq_init(struct device *dev)
 {
-	return request_irq(
-		gpiod_to_irq(data_available),
+	return request_threaded_irq(
+		gpiod_to_irq(data_available), NULL,
 		data_available_interrupt_handler,
-		IRQF_TIMER | IRQF_TRIGGER_RISING,
+		IRQF_TIMER | IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 		"data_available_int",
 		NULL
 		);
