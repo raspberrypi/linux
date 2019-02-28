@@ -56,6 +56,7 @@ enum sd_lbp_mode {
 	SD_LBP_FULL,		/* Full logical block provisioning */
 	SD_LBP_UNMAP,		/* Use UNMAP command */
 	SD_LBP_WS16,		/* Use WRITE SAME(16) with UNMAP bit */
+	SD_LBP_WS16_NDOB,	/* Use WRITE SAME(16) with UNMAP + NDOB bits */
 	SD_LBP_WS10,		/* Use WRITE SAME(10) with UNMAP bit */
 	SD_LBP_ZERO,		/* Use WRITE SAME(10) with zeroed payload */
 	SD_LBP_DISABLE,		/* Discard disabled due to failed cmd */
@@ -66,6 +67,7 @@ enum sd_zeroing_mode {
 	SD_ZERO_WRITE,		/* Use WRITE(10/16) command */
 	SD_ZERO_WS,		/* Use WRITE SAME(10/16) command */
 	SD_ZERO_WS16_UNMAP,	/* Use WRITE SAME(16) with UNMAP */
+	SD_ZERO_WS16_NDOB,	/* Use WRITE SAME(16) with UNMAP + NDOB bits */
 	SD_ZERO_WS10_UNMAP,	/* Use WRITE SAME(10) with UNMAP */
 	SD_ZERO_DISABLE,	/* Write Zeroes disabled due to failed cmd */
 };
@@ -113,6 +115,7 @@ struct scsi_disk {
 	bool		lblvpd;
 	bool		provisioning_override;
 	bool		zeroing_override;
+	bool		ndob;
 	unsigned	ATO : 1;	/* state of disk ATO bit */
 	unsigned	cache_override : 1; /* temp override of WCE,RCD */
 	unsigned	WCE : 1;	/* state of disk WCE bit */

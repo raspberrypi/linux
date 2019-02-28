@@ -83,7 +83,8 @@ scsi_trace_rw16(struct trace_seq *p, unsigned char *cdb, int len)
 			 cdb[1] >> 5);
 
 	if (cdb[0] == WRITE_SAME_16)
-		trace_seq_printf(p, " unmap=%u", cdb[1] >> 3 & 1);
+		trace_seq_printf(p, " unmap=%u ndob=%u", cdb[1] >> 3 & 1,
+				 cdb[1] & 1);
 
 	trace_seq_putc(p, 0);
 
