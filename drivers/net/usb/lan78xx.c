@@ -2280,7 +2280,7 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 	mii_adv_to_linkmode_adv_t(fc, mii_adv);
 	linkmode_or(phydev->advertising, fc, phydev->advertising);
 
-	if (of_property_read_bool(dev->udev->dev.of_node,
+	if (of_property_read_bool(phydev->mdio.dev.of_node,
 				  "microchip,eee-enabled")) {
 		struct ethtool_eee edata;
 		memset(&edata, 0, sizeof(edata));
