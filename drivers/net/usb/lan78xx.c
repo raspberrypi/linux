@@ -2191,7 +2191,7 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 	mii_adv = (u32)mii_advertise_flowctrl(dev->fc_request_control);
 	phydev->advertising |= mii_adv_to_ethtool_adv_t(mii_adv);
 
-	if (of_property_read_bool(dev->udev->dev.of_node,
+	if (of_property_read_bool(phydev->mdio.dev.of_node,
 				  "microchip,eee-enabled")) {
 		struct ethtool_eee edata;
 		memset(&edata, 0, sizeof(edata));
