@@ -2,6 +2,7 @@
 /* Copyright (c) 2010-2012 Broadcom. All rights reserved. */
 
 #include "vchiq_core.h"
+#include "vchiq_killable.h"
 
 #define VCHIQ_SLOT_HANDLER_STACK 8192
 
