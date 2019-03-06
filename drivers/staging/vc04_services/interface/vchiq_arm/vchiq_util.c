@@ -2,6 +2,7 @@
 /* Copyright (c) 2010-2012 Broadcom. All rights reserved. */
 
 #include "vchiq_util.h"
+#include "vchiq_killable.h"
 
 static inline int is_pow2(int i)
 {
