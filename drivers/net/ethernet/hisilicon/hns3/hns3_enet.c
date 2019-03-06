@@ -2373,6 +2373,9 @@ static int hns3_handle_rx_bd(struct hns3_enet_ring *ring,
 	length = le16_to_cpu(desc->rx.size);
 	bd_base_info = le32_to_cpu(desc->rx.bd_base_info);
 
+	/* make sure HW write desc complete */
+	dma_rmb();
+
 	/* Check valid BD */
 	if (unlikely(!hnae3_get_bit(bd_base_info, HNS3_RXD_VLD_B)))
 		return -EFAULT;
