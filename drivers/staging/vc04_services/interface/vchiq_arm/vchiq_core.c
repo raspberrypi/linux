@@ -5,6 +5,7 @@
 #include <linux/rcupdate.h>
 
 #include "vchiq_core.h"
+#include "vchiq_killable.h"
 
 #define VCHIQ_SLOT_HANDLER_STACK 8192
 
