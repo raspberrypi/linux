@@ -656,7 +656,7 @@ static void vc_sm_connected_init(void)
 		       __func__, ret);
 
 		ret = -EIO;
-		goto err_free_mem;
+		goto err_failed;
 	}
 
 	ret = vchi_connect(vchi_instance);
@@ -665,7 +665,7 @@ static void vc_sm_connected_init(void)
 		       __func__, ret);
 
 		ret = -EIO;
-		goto err_free_mem;
+		goto err_failed;
 	}
 
 	/* Initialize an instance of the shared memory service. */
@@ -676,7 +676,7 @@ static void vc_sm_connected_init(void)
 		       __func__);
 
 		ret = -EPERM;
-		goto err_free_mem;
+		goto err_failed;
 	}
 
 	/* Create a debug fs directory entry (root). */
@@ -722,8 +722,7 @@ err_remove_shared_memory:
 	debugfs_remove_recursive(sm_state->dir_root);
 err_stop_sm_service:
 	vc_sm_cma_vchi_stop(&sm_state->sm_handle);
-err_free_mem:
-	kfree(sm_state);
+err_failed:
 	pr_info("[%s]: failed, ret %d\n", __func__, ret);
 }
 
@@ -732,7 +731,7 @@ static int bcm2835_vc_sm_cma_probe(struct platform_device *pdev)
 {
 	pr_info("%s: Videocore shared memory driver\n", __func__);
 
-	sm_state = kzalloc(sizeof(*sm_state), GFP_KERNEL);
+	sm_state = devm_kzalloc(&pdev->dev, sizeof(*sm_state), GFP_KERNEL);
 	if (!sm_state)
 		return -ENOMEM;
 	sm_state->pdev = pdev;
@@ -766,7 +765,6 @@ static int bcm2835_vc_sm_cma_remove(struct platform_device *pdev)
 
 		/* Free the memory for the state structure. */
 		mutex_destroy(&sm_state->map_lock);
-		kfree(sm_state);
 	}
 
 	pr_debug("[%s]: end\n", __func__);
