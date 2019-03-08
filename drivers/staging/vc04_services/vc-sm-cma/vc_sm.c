@@ -25,7 +25,6 @@
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
-#include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/of_device.h>
@@ -72,7 +71,6 @@ struct sm_pde_t {
 struct sm_state_t {
 	struct platform_device *pdev;
 
-	struct miscdevice dev;
 	struct sm_instance *sm_handle;	/* Handle for videocore service. */
 
 	spinlock_t kernelid_map_lock;	/* Spinlock protecting kernelid_map */
@@ -758,9 +756,6 @@ static int bcm2835_vc_sm_cma_remove(struct platform_device *pdev)
 {
 	pr_debug("[%s]: start\n", __func__);
 	if (sm_inited) {
-		/* Remove shared memory device. */
-		misc_deregister(&sm_state->dev);
-
 		/* Remove all proc entries. */
 		//debugfs_remove_recursive(sm_state->dir_root);
 
