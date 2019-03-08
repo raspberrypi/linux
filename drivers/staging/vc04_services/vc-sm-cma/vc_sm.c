@@ -757,7 +757,7 @@ static int bcm2835_vc_sm_cma_remove(struct platform_device *pdev)
 	pr_debug("[%s]: start\n", __func__);
 	if (sm_inited) {
 		/* Remove all proc entries. */
-		//debugfs_remove_recursive(sm_state->dir_root);
+		debugfs_remove_recursive(sm_state->dir_root);
 
 		/* Stop the videocore shared memory service. */
 		vc_sm_cma_vchi_stop(&sm_state->sm_handle);
