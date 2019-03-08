@@ -752,7 +752,9 @@ static int bcm2835_vc_sm_cma_remove(struct platform_device *pdev)
 
 		/* Stop the videocore shared memory service. */
 		vc_sm_cma_vchi_stop(&sm_state->sm_handle);
+	}
 
+	if (sm_state) {
 		idr_destroy(&sm_state->kernelid_map);
 
 		/* Free the memory for the state structure. */
