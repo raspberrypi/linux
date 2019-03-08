@@ -77,6 +77,12 @@ enum bcm2835_codec_role {
 	ISP,
 };
 
+const static char *roles[] = {
+	"decode",
+	"encode",
+	"isp"
+};
+
 static const char * const components[] = {
 	"ril.video_decode",
 	"ril.video_encode",
@@ -2522,7 +2528,6 @@ static int bcm2835_codec_create(struct platform_device *pdev,
 	struct video_device *vfd;
 	int video_nr;
 	int ret;
-	const static char *roles[] = {"decode", "encode", "isp"};
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev)
@@ -2615,7 +2620,8 @@ static int bcm2835_codec_destroy(struct bcm2835_codec_dev *dev)
 	if (!dev)
 		return -ENODEV;
 
-	v4l2_info(&dev->v4l2_dev, "Removing " MEM2MEM_NAME);
+	v4l2_info(&dev->v4l2_dev, "Removing " MEM2MEM_NAME ", %s\n",
+		  roles[dev->role]);
 	v4l2_m2m_release(dev->m2m_dev);
 	video_unregister_device(&dev->vfd);
 	v4l2_device_unregister(&dev->v4l2_dev);
