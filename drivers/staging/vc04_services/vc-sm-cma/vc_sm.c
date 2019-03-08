@@ -681,13 +681,6 @@ static void vc_sm_connected_init(void)
 
 	/* Create a debug fs directory entry (root). */
 	sm_state->dir_root = debugfs_create_dir(VC_SM_DIR_ROOT_NAME, NULL);
-	if (!sm_state->dir_root) {
-		pr_err("[%s]: failed to create \'%s\' directory entry\n",
-		       __func__, VC_SM_DIR_ROOT_NAME);
-
-		ret = -EPERM;
-		goto err_stop_sm_service;
-	}
 
 	sm_state->dir_state.show = &vc_sm_cma_global_state_show;
 	sm_state->dir_state.dir_entry =
@@ -720,7 +713,6 @@ static void vc_sm_connected_init(void)
 
 err_remove_shared_memory:
 	debugfs_remove_recursive(sm_state->dir_root);
-err_stop_sm_service:
 	vc_sm_cma_vchi_stop(&sm_state->sm_handle);
 err_failed:
 	pr_info("[%s]: failed, ret %d\n", __func__, ret);
