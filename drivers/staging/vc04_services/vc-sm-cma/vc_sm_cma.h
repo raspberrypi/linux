@@ -34,6 +34,6 @@ int vc_sm_cma_buffer_allocate(struct cma *cma_heap,
 			      unsigned long len);
 void vc_sm_cma_buffer_free(struct vc_sm_cma_alloc_data *buffer);
 
-int vc_sm_cma_add_heaps(struct cma **cma_heap);
+void vc_sm_cma_add_heaps(struct cma **cma_heap);
 
 #endif
