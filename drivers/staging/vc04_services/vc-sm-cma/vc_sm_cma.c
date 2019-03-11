@@ -92,8 +92,7 @@ int __vc_sm_cma_add_heaps(struct cma *cma, void *priv)
 	return 0;
 }
 
-int vc_sm_cma_add_heaps(struct cma **cma_heap)
+void vc_sm_cma_add_heaps(struct cma **cma_heap)
 {
 	cma_for_each_area(__vc_sm_cma_add_heaps, cma_heap);
-	return 0;
 }
