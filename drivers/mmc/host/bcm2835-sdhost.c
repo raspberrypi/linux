@@ -543,6 +543,11 @@ static void bcm2835_sdhost_dma_complete(void *param)
 		void *page;
 		u32 *buf;
 
+		if (host->drain_offset & PAGE_MASK) {
+			host->drain_page += host->drain_offset >> PAGE_SHIFT;
+			host->drain_offset &= ~PAGE_MASK;
+		}
+
 		page = kmap_atomic(host->drain_page);
 		buf = page + host->drain_offset;
 
