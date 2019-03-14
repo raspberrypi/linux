@@ -254,6 +254,7 @@ arm_copy_to_user(void __user *to, const void *from, unsigned long n)
 unsigned long __must_check
 arm_copy_from_user(void *to, const void __user *from, unsigned long n)
 {
+#ifdef CONFIG_BCM2835_FAST_MEMCPY
 	/*
 	 * This test is stubbed out of the main function above to keep
 	 * the overhead for small copies low by avoiding a large
@@ -268,6 +269,11 @@ arm_copy_from_user(void *to, const void __user *from, unsigned long n)
 	} else {
 		n = __copy_from_user_memcpy(to, from, n);
 	}
+#else
+	unsigned long ua_flags = uaccess_save_and_enable();
+	n = __copy_from_user_std(to, from, n);
+	uaccess_restore(ua_flags);
+#endif
 	return n;
 }
 	
