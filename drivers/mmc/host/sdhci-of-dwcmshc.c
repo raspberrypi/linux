@@ -220,6 +220,7 @@ struct rk35xx_priv {
 
 struct dwcmshc_priv {
 	struct clk	*bus_clk;
+	struct clk	*sdio_clk;
 	int vendor_specific_area1; /* P_VENDOR_SPECIFIC_AREA1 reg */
 	int vendor_specific_area2; /* P_VENDOR_SPECIFIC_AREA2 reg */
 
@@ -286,6 +287,17 @@ static void dwcmshc_adma_write_desc(struct sdhci_host *host, void **desc,
 	addr += tmplen;
 	len -= tmplen;
 	sdhci_adma_write_desc(host, desc, addr, len, cmd);
+}
+
+static void dwcmshc_set_clock(struct sdhci_host *host, unsigned int clock)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct dwcmshc_priv *priv = sdhci_pltfm_priv(pltfm_host);
+
+	if (priv->sdio_clk)
+		clk_set_rate(priv->sdio_clk, clock);
+
+	sdhci_set_clock(host, clock);
 }
 
 static unsigned int dwcmshc_get_max_clock(struct sdhci_host *host)
@@ -1114,10 +1126,11 @@ static int sg2042_init(struct device *dev, struct sdhci_host *host,
 }
 
 static const struct sdhci_ops sdhci_dwcmshc_ops = {
-	.set_clock		= sdhci_set_clock,
+	.set_clock		= dwcmshc_set_clock,
 	.set_bus_width		= sdhci_set_bus_width,
 	.set_uhs_signaling	= dwcmshc_set_uhs_signaling,
 	.get_max_clock		= dwcmshc_get_max_clock,
+	.get_timeout_clock	= sdhci_pltfm_clk_get_timeout_clock,
 	.reset			= sdhci_reset,
 	.adma_write_desc	= dwcmshc_adma_write_desc,
 	.irq			= dwcmshc_cqe_irq_handler,
@@ -1190,8 +1203,10 @@ static const struct sdhci_ops sdhci_dwcmshc_sg2042_ops = {
 static const struct dwcmshc_pltfm_data sdhci_dwcmshc_pdata = {
 	.pdata = {
 		.ops = &sdhci_dwcmshc_ops,
-		.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
-		.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
+		.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
+			SDHCI_QUIRK_BROKEN_CARD_DETECTION,
+		.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
+			SDHCI_QUIRK2_BROKEN_HS200,
 	},
 };
 
@@ -1205,6 +1220,15 @@ static const struct dwcmshc_pltfm_data sdhci_dwcmshc_bf3_pdata = {
 	},
 };
 #endif
+
+static const struct sdhci_pltfm_data sdhci_dwcmshc_rp1_pdata = {
+	.ops = &sdhci_dwcmshc_ops,
+	.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
+		  SDHCI_QUIRK_BROKEN_CARD_DETECTION,
+	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
+		   SDHCI_QUIRK2_BROKEN_HS200 |
+		   SDHCI_QUIRK2_SPURIOUS_INT_RESP,
+};
 
 static const struct dwcmshc_pltfm_data sdhci_dwcmshc_rk35xx_pdata = {
 	.pdata = {
@@ -1317,6 +1341,10 @@ dsbl_cqe_caps:
 
 static const struct of_device_id sdhci_dwcmshc_dt_ids[] = {
 	{
+		.compatible = "raspberrypi,rp1-dwcmshc",
+		.data = &sdhci_dwcmshc_rp1_pdata,
+	},
+	{
 		.compatible = "rockchip,rk3588-dwcmshc",
 		.data = &sdhci_dwcmshc_rk35xx_pdata,
 	},
@@ -1405,13 +1433,32 @@ static int dwcmshc_probe(struct platform_device *pdev)
 		priv->bus_clk = devm_clk_get(dev, "bus");
 		if (!IS_ERR(priv->bus_clk))
 			clk_prepare_enable(priv->bus_clk);
+
+		pltfm_host->timeout_clk = devm_clk_get(dev, "timeout");
+		if (!IS_ERR(pltfm_host->timeout_clk))
+			err = clk_prepare_enable(pltfm_host->timeout_clk);
+		if (err)
+			goto free_pltfm;
+
+		priv->sdio_clk = devm_clk_get_optional(&pdev->dev, "sdio");
 	}
+
+	pltfm_host->timeout_clk = devm_clk_get(&pdev->dev, "timeout");
+	if (IS_ERR(pltfm_host->timeout_clk)) {
+		err = PTR_ERR(pltfm_host->timeout_clk);
+		dev_err(&pdev->dev, "failed to get timeout clk: %d\n", err);
+		goto free_pltfm;
+	}
+	err = clk_prepare_enable(pltfm_host->timeout_clk);
+	if (err)
+		goto free_pltfm;
 
 	err = mmc_of_parse(host->mmc);
 	if (err)
 		goto err_clk;
 
 	sdhci_get_of_property(pdev);
+	sdhci_enable_v4_mode(host);
 
 	priv->vendor_specific_area1 =
 		sdhci_readl(host, DWCMSHC_P_VENDOR_AREA1) & DWCMSHC_AREA1_MASK;
@@ -1471,6 +1518,7 @@ err_rpm:
 	pm_runtime_put_noidle(dev);
 err_clk:
 	clk_disable_unprepare(pltfm_host->clk);
+	clk_disable_unprepare(pltfm_host->timeout_clk);
 	clk_disable_unprepare(priv->bus_clk);
 	clk_bulk_disable_unprepare(priv->num_other_clks, priv->other_clks);
 free_pltfm:
