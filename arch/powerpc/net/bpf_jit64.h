@@ -86,6 +86,26 @@ DECLARE_LOAD_FUNC(sk_load_byte);
 			(imm >= SKF_LL_OFF ? func##_negative_offset : func) :	\
 			func##_positive_offset)
 
+/*
+ * WARNING: These can use TMP_REG_2 if the offset is not at word boundary,
+ * so ensure that it isn't in use already.
+ */
+#define PPC_BPF_LL(r, base, i) do {					      \
+				if ((i) % 4) {				      \
+					PPC_LI(b2p[TMP_REG_2], (i));	      \
+					PPC_LDX(r, base, b2p[TMP_REG_2]);     \
+				} else					      \
+					PPC_LD(r, base, i);		      \
+				} while(0)
+#define PPC_BPF_STL(r, base, i) do {					      \
+				if ((i) % 4) {				      \
+					PPC_LI(b2p[TMP_REG_2], (i));	      \
+					PPC_STDX(r, base, b2p[TMP_REG_2]);    \
+				} else					      \
+					PPC_STD(r, base, i);		      \
+				} while(0)
+#define PPC_BPF_STLU(r, base, i) do { PPC_STDU(r, base, i); } while(0)
+
 #define SEEN_FUNC	0x1000 /* might call external helpers */
 #define SEEN_STACK	0x2000 /* uses BPF stack */
 #define SEEN_SKB	0x4000 /* uses sk_buff */
