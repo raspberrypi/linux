@@ -11,6 +11,8 @@
 #
 .*
 *.a
+make.log
+modules/
 *.asn1.[ch]
 *.bin
 *.bz2
