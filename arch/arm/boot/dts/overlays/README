@@ -531,6 +531,59 @@ Load:   dtoverlay=dpi24
 Params: <None>
 
 
+Name:   draws
+Info:   Configures the NW Digital Radio DRAWS Hat
+
+        The board includes an ADC to measure various board values and also
+        provides two analog user inputs on the expansion header.  The ADC
+        can be configured for various sample rates and gain values to adjust
+        the input range.  Tables describing the two parameters follow.
+
+        ADC Gain Values:
+            0 = +/- 6.144V
+            1 = +/- 4.096V
+            2 = +/- 2.048V
+            3 = +/- 1.024V
+            4 = +/- 0.512V
+            5 = +/- 0.256V
+            6 = +/- 0.256V
+            7 = +/- 0.256V
+
+        ADC Datarate Values:
+            0 = 128sps
+            1 = 250sps
+            2 = 490sps
+            3 = 920sps
+            4 = 1600sps (default)
+            5 = 2400sps
+            6 = 3300sps
+            7 = 3300sps
+Load:   dtoverlay=draws,<param>=<val>
+Params: draws_adc_ch4_gain      Sets the full scale resolution of the ADCs
+                                input voltage sensor (default 1)
+
+        draws_adc_ch4_datarate  Sets the datarate of the ADCs input voltage
+                                sensor
+
+        draws_adc_ch5_gain      Sets the full scale resolution of the ADCs
+                                5V rail voltage sensor (default 1)
+
+        draws_adc_ch5_datarate  Sets the datarate of the ADCs 4V rail voltage
+                                sensor
+
+        draws_adc_ch6_gain      Sets the full scale resolution of the ADCs
+                                AIN2 input (default 2)
+
+        draws_adc_ch6_datarate  Sets the datarate of the ADCs AIN2 input
+
+        draws_adc_ch7_gain      Sets the full scale resolution of the ADCs
+                                AIN3 input (default 2)
+
+        draws_adc_ch7_datarate  Sets the datarate of the ADCs AIN3 input
+
+        alsaname                Name of the ALSA audio device (default "draws")
+
+
 Name:   dwc-otg
 Info:   Selects the dwc_otg USB controller driver which has fiq support. This
         is the default on all except the Pi Zero which defaults to dwc2.
@@ -2115,6 +2168,12 @@ Load:   dtoverlay=uart1,<param>=<val>
 Params: txd1_pin                GPIO pin for TXD1 (14, 32 or 40 - default 14)
 
         rxd1_pin                GPIO pin for RXD1 (15, 33 or 41 - default 15)
+
+
+Name:   udrc
+Info:   Configures the NW Digital Radio UDRC Hat
+Load:   dtoverlay=udrc,<param>=<val>
+Params: alsaname                Name of the ALSA audio device (default "udrc")
 
 
 Name:   upstream

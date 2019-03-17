@@ -29,6 +29,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	dionaudio-loco-v2.dtbo \
 	dpi18.dtbo \
 	dpi24.dtbo \
+	draws.dtbo \
 	dwc-otg.dtbo \
 	dwc2.dtbo \
 	enc28j60.dtbo \
@@ -146,6 +147,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	tpm-slb9670.dtbo \
 	uart0.dtbo \
 	uart1.dtbo \
+	udrc.dtbo \
 	upstream.dtbo \
 	upstream-aux-interrupt.dtbo \
 	vc4-fkms-v3d.dtbo \
