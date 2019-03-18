@@ -1574,8 +1574,8 @@ error:
 }
 
 /* Allocate a shared memory handle and block. */
-int vc_sm_ioctl_alloc(struct sm_priv_data_t *private,
-		      struct vmcs_sm_ioctl_alloc *ioparam)
+static int vc_sm_ioctl_alloc(struct sm_priv_data_t *private,
+			     struct vmcs_sm_ioctl_alloc *ioparam)
 {
 	int ret = 0;
 	int status;
@@ -1685,8 +1685,8 @@ error:
 }
 
 /* Share an allocate memory handle and block.*/
-int vc_sm_ioctl_alloc_share(struct sm_priv_data_t *private,
-			    struct vmcs_sm_ioctl_alloc_share *ioparam)
+static int vc_sm_ioctl_alloc_share(struct sm_priv_data_t *private,
+				   struct vmcs_sm_ioctl_alloc_share *ioparam)
 {
 	struct sm_resource_t *resource, *shared_resource;
 	int ret = 0;
@@ -2200,9 +2200,9 @@ error:
 }
 
 /* Import a contiguous block of memory to be shared with VC. */
-int vc_sm_ioctl_import_dmabuf(struct sm_priv_data_t *private,
-			      struct vmcs_sm_ioctl_import_dmabuf *ioparam,
-			      struct dma_buf *src_dma_buf)
+static int vc_sm_ioctl_import_dmabuf(struct sm_priv_data_t *private,
+				     struct vmcs_sm_ioctl_import_dmabuf *ioparam,
+				     struct dma_buf *src_dma_buf)
 {
 	int ret = 0;
 	int status;
