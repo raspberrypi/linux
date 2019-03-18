@@ -361,7 +361,7 @@ lock:
 	return -EINVAL;
 }
 
-int vc_vchi_sm_send_msg(struct sm_instance *handle,
+static int vc_vchi_sm_send_msg(struct sm_instance *handle,
 			enum vc_sm_msg_type msg_id,
 			void *msg, uint32_t msg_size,
 			void *result, uint32_t result_size,
