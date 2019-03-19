@@ -1776,13 +1776,21 @@ static int bcm2835_codec_create_component(struct bcm2835_codec_ctx *ctx)
 
 	ret = vchiq_mmal_port_set_format(dev->instance,
 					 &ctx->component->input[0]);
-	if (ret < 0)
+	if (ret < 0) {
+		v4l2_dbg(1, debug, &dev->v4l2_dev,
+			 "%s: vchiq_mmal_port_set_format ip port failed\n",
+			 __func__);
 		goto destroy_component;
+	}
 
 	ret = vchiq_mmal_port_set_format(dev->instance,
 					 &ctx->component->output[0]);
-	if (ret < 0)
+	if (ret < 0) {
+		v4l2_dbg(1, debug, &dev->v4l2_dev,
+			 "%s: vchiq_mmal_port_set_format op port failed\n",
+			 __func__);
 		goto destroy_component;
+	}
 
 	if (dev->role == ENCODE) {
 		u32 param = 1;
@@ -1812,11 +1820,14 @@ static int bcm2835_codec_create_component(struct bcm2835_codec_ctx *ctx)
 				 ctx->q_data[V4L2_M2M_DST].sizeimage,
 				 ctx->component->output[0].minimum_buffer.size);
 	}
+	v4l2_dbg(2, debug, &dev->v4l2_dev, "%s: component created as %s\n",
+		 __func__, components[dev->role]);
 
 	return 0;
 
 destroy_component:
 	vchiq_mmal_component_finalise(ctx->dev->instance, ctx->component);
+	ctx->component = NULL;
 
 	return ret;
 }
