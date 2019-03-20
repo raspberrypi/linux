@@ -2587,8 +2587,8 @@ static int bcm2835_codec_create(struct platform_device *pdev,
 	}
 
 	video_set_drvdata(vfd, dev);
-	snprintf(vfd->name, sizeof(vfd->name), "%s",
-		 bcm2835_codec_videodev.name);
+	snprintf(vfd->name, sizeof(vfd->name), "%s-%s",
+		 bcm2835_codec_videodev.name, roles[role]);
 	v4l2_info(&dev->v4l2_dev, "Device registered as /dev/video%d\n",
 		  vfd->num);
 
