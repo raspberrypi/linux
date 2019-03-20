@@ -77,7 +77,7 @@ enum bcm2835_codec_role {
 	ISP,
 };
 
-const static char *roles[] = {
+static const char * const roles[] = {
 	"decode",
 	"encode",
 	"isp"
