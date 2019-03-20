@@ -314,6 +314,9 @@ struct unicam_device {
 	struct clk *clock;
 	/* V4l2 device */
 	struct v4l2_device v4l2_dev;
+	struct media_device mdev;
+	struct media_pad pad;
+
 	/* parent device */
 	struct platform_device *pdev;
 	/* subdevice async Notifier */
@@ -1912,6 +1915,8 @@ static int unicam_probe_complete(struct unicam_device *unicam)
 		unicam->v4l2_dev.ctrl_handler = NULL;
 
 	video_set_drvdata(vdev, unicam);
+	vdev->entity.flags |= MEDIA_ENT_FL_DEFAULT;
+
 	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
 	if (ret) {
 		unicam_err(unicam, "Unable to register video device.\n");
@@ -1949,6 +1954,16 @@ static int unicam_probe_complete(struct unicam_device *unicam)
 	if (ret) {
 		unicam_err(unicam,
 			   "Unable to register subdev nodes.\n");
+		video_unregister_device(&unicam->video_dev);
+		return ret;
+	}
+
+	ret = media_create_pad_link(&unicam->sensor->entity, 0,
+				    &unicam->video_dev.entity, 0,
+				    MEDIA_LNK_FL_ENABLED |
+				    MEDIA_LNK_FL_IMMUTABLE);
+	if (ret) {
+		unicam_err(unicam, "Unable to create pad links.\n");
 		video_unregister_device(&unicam->video_dev);
 		return ret;
 	}
@@ -2154,18 +2169,38 @@ static int unicam_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	unicam->mdev.dev = &pdev->dev;
+	strscpy(unicam->mdev.model, UNICAM_MODULE_NAME,
+		sizeof(unicam->mdev.model));
+	strscpy(unicam->mdev.serial, "", sizeof(unicam->mdev.serial));
+	snprintf(unicam->mdev.bus_info, sizeof(unicam->mdev.bus_info),
+		 "platform:%s", pdev->name);
+	unicam->mdev.hw_revision = 1;
+
+	media_entity_pads_init(&unicam->video_dev.entity, 1, &unicam->pad);
+	media_device_init(&unicam->mdev);
+
+	unicam->v4l2_dev.mdev = &unicam->mdev;
+
 	ret = v4l2_device_register(&pdev->dev, &unicam->v4l2_dev);
 	if (ret) {
 		unicam_err(unicam,
 			   "Unable to register v4l2 device.\n");
-		return ret;
+		goto media_cleanup;
+	}
+
+	ret = media_device_register(&unicam->mdev);
+	if (ret < 0) {
+		unicam_err(unicam,
+			   "Unable to register media-controller device.\n");
+		goto probe_out_v4l2_unregister;
 	}
 
 	/* Reserve space for the controls */
 	hdl = &unicam->ctrl_handler;
 	ret = v4l2_ctrl_handler_init(hdl, 16);
 	if (ret < 0)
-		goto probe_out_v4l2_unregister;
+		goto media_unregister;
 	unicam->v4l2_dev.ctrl_handler = hdl;
 
 	/* set the driver data in platform device */
@@ -2184,8 +2219,13 @@ static int unicam_probe(struct platform_device *pdev)
 
 free_hdl:
 	v4l2_ctrl_handler_free(hdl);
+media_unregister:
+	media_device_unregister(&unicam->mdev);
 probe_out_v4l2_unregister:
 	v4l2_device_unregister(&unicam->v4l2_dev);
+media_cleanup:
+	media_device_cleanup(&unicam->mdev);
+
 	return ret;
 }
 
@@ -2203,6 +2243,8 @@ static int unicam_remove(struct platform_device *pdev)
 	video_unregister_device(&unicam->video_dev);
 	if (unicam->sensor_config)
 		v4l2_subdev_free_pad_config(unicam->sensor_config);
+	media_device_unregister(&unicam->mdev);
+	media_device_cleanup(&unicam->mdev);
 
 	return 0;
 }
