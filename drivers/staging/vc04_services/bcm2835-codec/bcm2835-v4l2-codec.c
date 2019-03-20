@@ -457,6 +457,8 @@ struct bcm2835_codec_ctx {
 };
 
 struct bcm2835_codec_driver {
+	struct platform_device *pdev;
+
 	struct bcm2835_codec_dev *encode;
 	struct bcm2835_codec_dev *decode;
 	struct bcm2835_codec_dev *isp;
@@ -2587,10 +2589,11 @@ destroy_component:
 	return ret;
 }
 
-static int bcm2835_codec_create(struct platform_device *pdev,
+static int bcm2835_codec_create(struct bcm2835_codec_driver *drv,
 				struct bcm2835_codec_dev **new_dev,
 				enum bcm2835_codec_role role)
 {
+	struct platform_device *pdev = drv->pdev;
 	struct bcm2835_codec_dev *dev;
 	struct video_device *vfd;
 	int video_nr;
@@ -2711,15 +2714,17 @@ static int bcm2835_codec_probe(struct platform_device *pdev)
 	if (!drv)
 		return -ENOMEM;
 
-	ret = bcm2835_codec_create(pdev, &drv->decode, DECODE);
+	drv->pdev = pdev;
+
+	ret = bcm2835_codec_create(drv, &drv->decode, DECODE);
 	if (ret)
 		goto out;
 
-	ret = bcm2835_codec_create(pdev, &drv->encode, ENCODE);
+	ret = bcm2835_codec_create(drv, &drv->encode, ENCODE);
 	if (ret)
 		goto out;
 
-	ret = bcm2835_codec_create(pdev, &drv->isp, ISP);
+	ret = bcm2835_codec_create(drv, &drv->isp, ISP);
 	if (ret)
 		goto out;
 
