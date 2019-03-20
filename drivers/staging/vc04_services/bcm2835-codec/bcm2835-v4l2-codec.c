@@ -947,8 +947,10 @@ static void device_run(void *priv)
 static int vidioc_querycap(struct file *file, void *priv,
 			   struct v4l2_capability *cap)
 {
+	struct bcm2835_codec_dev *dev = video_drvdata(file);
+
 	strncpy(cap->driver, MEM2MEM_NAME, sizeof(cap->driver) - 1);
-	strncpy(cap->card, MEM2MEM_NAME, sizeof(cap->card) - 1);
+	strncpy(cap->card, dev->vfd.name, sizeof(cap->card) - 1);
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s",
 		 MEM2MEM_NAME);
 	return 0;
@@ -2657,8 +2659,8 @@ static int bcm2835_codec_create(struct platform_device *pdev,
 	}
 
 	video_set_drvdata(vfd, dev);
-	snprintf(vfd->name, sizeof(vfd->name), "%s",
-		 bcm2835_codec_videodev.name);
+	snprintf(vfd->name, sizeof(vfd->name), "%s-%s",
+		 bcm2835_codec_videodev.name, roles[role]);
 	v4l2_info(&dev->v4l2_dev, "Device registered as /dev/video%d\n",
 		  vfd->num);
 
