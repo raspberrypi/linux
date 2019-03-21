@@ -297,7 +297,7 @@ static int audioinjector_octo_probe(struct platform_device *pdev)
 			dai->codec_name = NULL;
 			dai->codec_of_node = codec_node;
 		} else
-			if (!dai->cpu_of_node) {
+			if (!i2s_node) {
 				dev_err(&pdev->dev,
 				"i2s-controller missing or invalid in DT\n");
 				return -EINVAL;
