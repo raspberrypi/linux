@@ -13,6 +13,17 @@
 	};
 
 	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			cs42448_mclk: codec-mclk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <49152000>;
+			};
+		};
+	};
+
+	fragment@2 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -27,16 +38,10 @@
 				clock-names = "mclk";
 				status = "okay";
 			};
-
-			cs42448_mclk: codec-mclk {
-				compatible = "fixed-clock";
-				#clock-cells = <0>;
-				clock-frequency = <49152000>;
-			};
 		};
 	};
 
-	fragment@2 {
+	fragment@3 {
 		target = <&sound>;
 		snd: __overlay__ {
 			compatible = "ai,audioinjector-octo-soundcard";
