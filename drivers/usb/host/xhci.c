@@ -196,8 +196,9 @@ int xhci_reset(struct xhci_hcd *xhci)
 	if (xhci->quirks & XHCI_INTEL_HOST)
 		udelay(1000);
 
+	// Hack: reduce handshake timeout from 10s 0.5s due to unprogrammed vl805
 	ret = xhci_handshake(&xhci->op_regs->command,
-			CMD_RESET, 0, 10 * 1000 * 1000);
+			CMD_RESET, 0, 500 * 1000);
 	if (ret)
 		return ret;
 
