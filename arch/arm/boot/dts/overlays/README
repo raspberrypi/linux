@@ -1747,6 +1747,9 @@ Params: sdio_overclock          SDIO Clock (in MHz) to use when the MMC
         gpios_34_37             Select GPIOs 34-37 for 1-bit mode. Must be used
                                 with bus_width=1.
 
+        gpios_34_39             Select GPIOs 34-39 for 4-bit mode. Must be used
+                                with bus_width=4 (the default).
+
 
 Name:   sdio-1bit
 Info:   This overlay is now deprecated. Use
