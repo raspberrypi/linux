@@ -31,7 +31,8 @@
 
 	__overrides__ {
 		int_pin = <&sc16is750>,"interrupts:0";
-		addr = <&sc16is750>,"reg:0";
+		addr = <&sc16is750>,"reg:0",<&sc16is750_clk>,"name";
+		xtal = <&sc16is750>,"clock-frequency:0";
 	};
 
 };
