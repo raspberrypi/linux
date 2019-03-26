@@ -68,6 +68,8 @@ extern void zfcp_erp_clear_port_status(struct zfcp_port *, u32);
 extern int  zfcp_erp_port_reopen(struct zfcp_port *, int, char *);
 extern void zfcp_erp_port_shutdown(struct zfcp_port *, int, char *);
 extern void zfcp_erp_port_forced_reopen(struct zfcp_port *, int, char *);
+extern void zfcp_erp_port_forced_reopen_all(struct zfcp_adapter *adapter,
+					    int clear, char *dbftag);
 extern void zfcp_erp_set_lun_status(struct scsi_device *, u32);
 extern void zfcp_erp_clear_lun_status(struct scsi_device *, u32);
 extern void zfcp_erp_lun_reopen(struct scsi_device *, int, char *);
