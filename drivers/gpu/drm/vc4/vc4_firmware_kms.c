@@ -27,7 +27,45 @@
 #include "linux/of_device.h"
 #include "vc4_drv.h"
 #include "vc4_regs.h"
+#include "vc_image_types.h"
 #include <soc/bcm2835/raspberrypi-firmware.h>
+
+struct set_plane {
+	u8 display;
+	u8 plane_id;
+	u8 vc_image_type;
+	s8 layer;
+
+	u16 width;
+	u16 height;
+
+	u16 pitch;
+	u16 vpitch;
+
+	u32 src_x;	/* 16p16 */
+	u32 src_y;	/* 16p16 */
+
+	u32 src_w;	/* 16p16 */
+	u32 src_h;	/* 16p16 */
+
+	s16 dst_x;
+	s16 dst_y;
+
+	u16 dst_w;
+	u16 dst_h;
+
+	u8 alpha;
+	u8 num_planes;
+	u8 is_vu;
+	u8 padding;
+
+	u32 planes[4];  /* DMA address of each plane */
+};
+
+struct mailbox_set_plane {
+	struct rpi_firmware_property_tag_header tag;
+	struct set_plane plane;
+};
 
 struct fb_alloc_tags {
 	struct rpi_firmware_property_tag_header tag1;
@@ -47,6 +85,79 @@ struct fb_alloc_tags {
 	struct rpi_firmware_property_tag_header tag8;
 	u32 layer;
 };
+
+static const struct vc_image_format {
+	u32 drm;	/* DRM_FORMAT_* */
+	u32 vc_image;	/* VC_IMAGE_* */
+	u32 is_vu;
+} vc_image_formats[] = {
+	{
+		.drm = DRM_FORMAT_XRGB8888,
+		.vc_image = VC_IMAGE_XRGB8888,
+	},
+	{
+		.drm = DRM_FORMAT_ARGB8888,
+		.vc_image = VC_IMAGE_ARGB8888,
+	},
+/*
+ *	FIXME: Need to resolve which DRM format goes to which vc_image format
+ *	for the remaining RGBA and RGBX formats.
+ *	{
+ *		.drm = DRM_FORMAT_ABGR8888,
+ *		.vc_image = VC_IMAGE_RGBA8888,
+ *	},
+ *	{
+ *		.drm = DRM_FORMAT_XBGR8888,
+ *		.vc_image = VC_IMAGE_RGBA8888,
+ *	},
+ */
+	{
+		.drm = DRM_FORMAT_RGB565,
+		.vc_image = VC_IMAGE_RGB565,
+	},
+	{
+		.drm = DRM_FORMAT_RGB888,
+		.vc_image = VC_IMAGE_BGR888,
+	},
+	{
+		.drm = DRM_FORMAT_BGR888,
+		.vc_image = VC_IMAGE_RGB888,
+	},
+	{
+		.drm = DRM_FORMAT_YUV422,
+		.vc_image = VC_IMAGE_YUV422PLANAR,
+	},
+	{
+		.drm = DRM_FORMAT_YUV420,
+		.vc_image = VC_IMAGE_YUV420,
+	},
+	{
+		.drm = DRM_FORMAT_YVU420,
+		.vc_image = VC_IMAGE_YUV420,
+		.is_vu = 1,
+	},
+	{
+		.drm = DRM_FORMAT_NV12,
+		.vc_image = VC_IMAGE_YUV420SP,
+	},
+	{
+		.drm = DRM_FORMAT_NV21,
+		.vc_image = VC_IMAGE_YUV420SP,
+		.is_vu = 1,
+	},
+};
+
+static const struct vc_image_format *vc4_get_vc_image_fmt(u32 drm_format)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(vc_image_formats); i++) {
+		if (vc_image_formats[i].drm == drm_format)
+			return &vc_image_formats[i];
+	}
+
+	return NULL;
+}
 
 /* The firmware delivers a vblank interrupt to us through the SMI
  * hardware, which has only this one register.
@@ -114,6 +225,7 @@ struct vc4_fkms_plane {
 	struct fbinfo_s *fbinfo;
 	dma_addr_t fbinfo_bus_addr;
 	u32 pitch;
+	struct mailbox_set_plane mb;
 };
 
 static inline struct vc4_fkms_plane *to_vc4_fkms_plane(struct drm_plane *plane)
@@ -121,165 +233,183 @@ static inline struct vc4_fkms_plane *to_vc4_fkms_plane(struct drm_plane *plane)
 	return (struct vc4_fkms_plane *)plane;
 }
 
-/* Turns the display on/off. */
-static int vc4_plane_set_primary_blank(struct drm_plane *plane, bool blank)
+static int vc4_plane_set_blank(struct drm_plane *plane, bool blank)
 {
 	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
+	struct vc4_fkms_plane *vc4_plane = to_vc4_fkms_plane(plane);
+	struct mailbox_set_plane blank_mb = {
+		.tag = { RPI_FIRMWARE_SET_PLANE, sizeof(struct set_plane), 0 },
+		.plane = {
+			.display = vc4_plane->mb.plane.display,
+			.plane_id = vc4_plane->mb.plane.plane_id,
+		}
+	};
+	int ret;
 
-	u32 packet = blank;
-
-	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] primary plane %s",
+	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] overlay plane %s",
 			 plane->base.id, plane->name,
 			 blank ? "blank" : "unblank");
 
-	return rpi_firmware_property(vc4->firmware,
-				     RPI_FIRMWARE_FRAMEBUFFER_BLANK,
-				     &packet, sizeof(packet));
+	if (blank)
+		ret = rpi_firmware_property_list(vc4->firmware, &blank_mb,
+						 sizeof(blank_mb));
+	else
+		ret = rpi_firmware_property_list(vc4->firmware, &vc4_plane->mb,
+						 sizeof(vc4_plane->mb));
+
+	WARN_ONCE(ret, "%s: firmware call failed. Please update your firmware",
+		  __func__);
+	return ret;
 }
 
-static void vc4_primary_plane_atomic_update(struct drm_plane *plane,
-					    struct drm_plane_state *old_state)
+static void vc4_plane_atomic_update(struct drm_plane *plane,
+				    struct drm_plane_state *old_state)
 {
-	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
 	struct drm_plane_state *state = plane->state;
 	struct drm_framebuffer *fb = state->fb;
 	struct drm_gem_cma_object *bo = drm_fb_cma_get_gem_obj(fb, 0);
-	u32 format = fb->format->format;
-	struct fb_alloc_tags fbinfo = {
-		.tag1 = { RPI_FIRMWARE_FRAMEBUFFER_SET_PHYSICAL_WIDTH_HEIGHT,
-			  8, 0, },
-			.xres = state->crtc_w,
-			.yres = state->crtc_h,
-		.tag2 = { RPI_FIRMWARE_FRAMEBUFFER_SET_VIRTUAL_WIDTH_HEIGHT,
-			  8, 0, },
-			.xres_virtual = state->crtc_w,
-			.yres_virtual = state->crtc_h,
-		.tag3 = { RPI_FIRMWARE_FRAMEBUFFER_SET_DEPTH, 4, 0 },
-			.bpp = 32,
-		.tag4 = { RPI_FIRMWARE_FRAMEBUFFER_SET_VIRTUAL_OFFSET, 8, 0 },
-			.xoffset = 0,
-			.yoffset = 0,
-		.tag5 = { RPI_FIRMWARE_FRAMEBUFFER_ALLOCATE, 8, 0 },
-			.base = bo->paddr + fb->offsets[0],
-			.screen_size = state->crtc_w * state->crtc_h * 4,
-		.tag6 = { RPI_FIRMWARE_FRAMEBUFFER_SET_PITCH, 4, 0 },
-			.pitch = fb->pitches[0],
-		.tag7 = { RPI_FIRMWARE_FRAMEBUFFER_SET_ALPHA_MODE, 4, 0 },
-			.alpha_mode = format == DRM_FORMAT_ARGB8888 ? 0 : 2,
-		.tag8 = { RPI_FIRMWARE_FRAMEBUFFER_SET_LAYER, 4, 0 },
-			.layer = -127,
-	};
-	u32 bpp = 32;
-	int ret;
-
-	if (fb->modifier == DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED)
-		fbinfo.bpp |= BIT(31);
-
-	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] primary update %dx%d@%d +%d,%d 0x%pad/%d\n",
-			 plane->base.id, plane->name,
-			 state->crtc_w,
-			 state->crtc_h,
-			 bpp,
-			 state->crtc_x,
-			 state->crtc_y,
-			 &fbinfo.base,
-			 fb->pitches[0]);
-
-	ret = rpi_firmware_property_list(vc4->firmware, &fbinfo,
-					 sizeof(fbinfo));
-	WARN_ON_ONCE(fbinfo.pitch != fb->pitches[0]);
-	WARN_ON_ONCE(fbinfo.base != bo->paddr + fb->offsets[0]);
-
-	/* If the CRTC is on (or going to be on) and we're enabled,
-	 * then unblank.  Otherwise, stay blank until CRTC enable.
-	*/
-	if (state->crtc->state->active)
-		vc4_plane_set_primary_blank(plane, false);
-}
-
-static void vc4_primary_plane_atomic_disable(struct drm_plane *plane,
-					     struct drm_plane_state *old_state)
-{
-	vc4_plane_set_primary_blank(plane, true);
-}
-
-static void vc4_cursor_plane_atomic_update(struct drm_plane *plane,
-					   struct drm_plane_state *old_state)
-{
-	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
-	struct drm_plane_state *state = plane->state;
+	const struct drm_format_info *drm_fmt = fb->format;
+	const struct vc_image_format *vc_fmt =
+					vc4_get_vc_image_fmt(drm_fmt->format);
+	struct vc4_fkms_plane *vc4_plane = to_vc4_fkms_plane(plane);
+	struct mailbox_set_plane *mb = &vc4_plane->mb;
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(state->crtc);
-	struct drm_framebuffer *fb = state->fb;
-	struct drm_gem_cma_object *bo = drm_fb_cma_get_gem_obj(fb, 0);
-	dma_addr_t addr = bo->paddr + fb->offsets[0];
-	int ret;
-	u32 packet_state[] = {
-		state->crtc->state->active,
-		state->crtc_x,
-		state->crtc_y,
-		0
-	};
-	WARN_ON_ONCE(fb->pitches[0] != state->crtc_w * 4);
+	int num_planes = fb->format->num_planes;
+	struct drm_display_mode *mode = &state->crtc->mode;
 
-	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] update %dx%d cursor at %d,%d (0x%pad/%d)",
+	mb->plane.vc_image_type = vc_fmt->vc_image;
+	mb->plane.width = fb->width;
+	mb->plane.height = fb->height;
+	mb->plane.pitch = fb->pitches[0];
+	mb->plane.src_w = state->src_w;
+	mb->plane.src_h = state->src_h;
+	mb->plane.src_x = state->src_x;
+	mb->plane.src_y = state->src_y;
+	mb->plane.dst_w = state->crtc_w;
+	mb->plane.dst_h = state->crtc_h;
+	mb->plane.dst_x = state->crtc_x;
+	mb->plane.dst_y = state->crtc_y;
+	mb->plane.alpha = state->alpha >> 8;
+	mb->plane.layer = state->normalized_zpos ?
+					state->normalized_zpos : -127;
+	mb->plane.num_planes = num_planes;
+	mb->plane.is_vu = vc_fmt->is_vu;
+	mb->plane.planes[0] = bo->paddr + fb->offsets[0];
+
+	/* FIXME: If the dest rect goes off screen then clip the src rect so we
+	 * don't have off-screen pixels.
+	 */
+	if (plane->type == DRM_PLANE_TYPE_CURSOR) {
+		/* There is no scaling on the cursor plane, therefore the calcs
+		 * to alter the source crop as the cursor goes off the screen
+		 * are simple.
+		 */
+		if (mb->plane.dst_x + mb->plane.dst_w > mode->hdisplay) {
+			mb->plane.dst_w = mode->hdisplay - mb->plane.dst_x;
+			mb->plane.src_w = (mode->hdisplay - mb->plane.dst_x)
+									<< 16;
+		}
+		if (mb->plane.dst_y + mb->plane.dst_h > mode->vdisplay) {
+			mb->plane.dst_h = mode->vdisplay - mb->plane.dst_y;
+			mb->plane.src_h = (mode->vdisplay - mb->plane.dst_y)
+									<< 16;
+		}
+	}
+
+	if (num_planes > 1) {
+		/* Assume this must be YUV */
+		/* Makes assumptions on the stride for the chroma planes as we
+		 * can't easily plumb in non-standard pitches.
+		 */
+		mb->plane.planes[1] = bo->paddr + fb->offsets[1];
+		if (num_planes > 2)
+			mb->plane.planes[2] = bo->paddr + fb->offsets[2];
+		else
+			mb->plane.planes[2] = 0;
+
+		/* Special case the YUV420 with U and V as line interleaved
+		 * planes as we have special handling for that case.
+		 */
+		if (num_planes == 3 &&
+		    (fb->offsets[2] - fb->offsets[1]) == fb->pitches[1])
+			mb->plane.vc_image_type = VC_IMAGE_YUV420_S;
+	} else {
+		mb->plane.planes[1] = 0;
+		mb->plane.planes[2] = 0;
+	}
+	mb->plane.planes[3] = 0;
+
+	switch (fb->modifier) {
+	case DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED:
+		switch (mb->plane.vc_image_type) {
+		case VC_IMAGE_RGBX32:
+			mb->plane.vc_image_type = VC_IMAGE_TF_RGBX32;
+			break;
+		case VC_IMAGE_RGBA32:
+			mb->plane.vc_image_type = VC_IMAGE_TF_RGBA32;
+			break;
+		case VC_IMAGE_RGB565:
+			mb->plane.vc_image_type = VC_IMAGE_TF_RGB565;
+			break;
+		}
+		break;
+	case DRM_FORMAT_MOD_BROADCOM_SAND128:
+		mb->plane.vc_image_type = VC_IMAGE_YUV_UV;
+		mb->plane.pitch = fourcc_mod_broadcom_param(fb->modifier);
+		break;
+	}
+
+	if (vc4_crtc) {
+		mb->plane.dst_x += vc4_crtc->overscan[0];
+		mb->plane.dst_y += vc4_crtc->overscan[1];
+	}
+
+	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] plane update %dx%d@%d +dst(%d,%d, %d,%d) +src(%d,%d, %d,%d) 0x%08x/%08x/%08x/%d, alpha %u zpos %u\n",
+			 plane->base.id, plane->name,
+			 mb->plane.width,
+			 mb->plane.height,
+			 mb->plane.vc_image_type,
+			 state->crtc_x,
+			 state->crtc_y,
+			 state->crtc_w,
+			 state->crtc_h,
+			 mb->plane.src_x,
+			 mb->plane.src_y,
+			 mb->plane.src_w,
+			 mb->plane.src_h,
+			 mb->plane.planes[0],
+			 mb->plane.planes[1],
+			 mb->plane.planes[2],
+			 fb->pitches[0],
+			 state->alpha,
+			 state->normalized_zpos);
+
+	/*
+	 * Do NOT set now, as we haven't checked if the crtc is active or not.
+	 * Set from vc4_plane_set_blank instead.
+	 *
+	 * If the CRTC is on (or going to be on) and we're enabled,
+	 * then unblank.  Otherwise, stay blank until CRTC enable.
+	 */
+	if (state->crtc->state->active)
+		vc4_plane_set_blank(plane, false);
+}
+
+static void vc4_plane_atomic_disable(struct drm_plane *plane,
+				     struct drm_plane_state *old_state)
+{
+	//struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
+	struct drm_plane_state *state = plane->state;
+	struct vc4_fkms_plane *vc4_plane = to_vc4_fkms_plane(plane);
+
+	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] plane disable %dx%d@%d +%d,%d\n",
 			 plane->base.id, plane->name,
 			 state->crtc_w,
 			 state->crtc_h,
+			 vc4_plane->mb.plane.vc_image_type,
 			 state->crtc_x,
-			 state->crtc_y,
-			 &addr,
-			 fb->pitches[0]);
-
-	/* add on the top/left offsets when overscan is active */
-	if (vc4_crtc) {
-		packet_state[1] += vc4_crtc->overscan[0];
-		packet_state[2] += vc4_crtc->overscan[1];
-	}
-
-	ret = rpi_firmware_property(vc4->firmware,
-				    RPI_FIRMWARE_SET_CURSOR_STATE,
-				    &packet_state,
-				    sizeof(packet_state));
-	if (ret || packet_state[0] != 0)
-		DRM_ERROR("Failed to set cursor state: 0x%08x\n", packet_state[0]);
-
-	/* Note: When the cursor contents change, the modesetting
-	 * driver calls drm_mode_cursor_univeral() with
-	 * DRM_MODE_CURSOR_BO, which means a new fb will be allocated.
-	 */
-	if (!old_state ||
-	    state->crtc_w != old_state->crtc_w ||
-	    state->crtc_h != old_state->crtc_h ||
-	    fb != old_state->fb) {
-		u32 packet_info[] = { state->crtc_w, state->crtc_h,
-				      0, /* unused */
-				      addr,
-				      0, 0, /* hotx, hoty */};
-
-		ret = rpi_firmware_property(vc4->firmware,
-					    RPI_FIRMWARE_SET_CURSOR_INFO,
-					    &packet_info,
-					    sizeof(packet_info));
-		if (ret || packet_info[0] != 0)
-			DRM_ERROR("Failed to set cursor info: 0x%08x\n", packet_info[0]);
-	}
-}
-
-static void vc4_cursor_plane_atomic_disable(struct drm_plane *plane,
-					    struct drm_plane_state *old_state)
-{
-	struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
-	u32 packet_state[] = { false, 0, 0, 0 };
-	int ret;
-
-	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] disabling cursor", plane->base.id, plane->name);
-
-	ret = rpi_firmware_property(vc4->firmware,
-				    RPI_FIRMWARE_SET_CURSOR_STATE,
-				    &packet_state,
-				    sizeof(packet_state));
-	if (ret || packet_state[0] != 0)
-		DRM_ERROR("Failed to set cursor state: 0x%08x\n", packet_state[0]);
+			 state->crtc_y);
+	vc4_plane_set_blank(plane, true);
 }
 
 static int vc4_plane_atomic_check(struct drm_plane *plane,
@@ -301,6 +431,7 @@ static bool vc4_fkms_format_mod_supported(struct drm_plane *plane,
 	switch (format) {
 	case DRM_FORMAT_XRGB8888:
 	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_RGB565:
 		switch (modifier) {
 		case DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED:
 		case DRM_FORMAT_MOD_LINEAR:
@@ -309,8 +440,22 @@ static bool vc4_fkms_format_mod_supported(struct drm_plane *plane,
 		default:
 			return false;
 		}
+	case DRM_FORMAT_NV12:
+	case DRM_FORMAT_NV21:
+		switch (fourcc_mod_broadcom_mod(modifier)) {
+		case DRM_FORMAT_MOD_LINEAR:
+		case DRM_FORMAT_MOD_BROADCOM_SAND128:
+			return true;
+		default:
+			return false;
+		}
+	case DRM_FORMAT_RGB888:
+	case DRM_FORMAT_BGR888:
+	case DRM_FORMAT_YUV422:
+	case DRM_FORMAT_YUV420:
+	case DRM_FORMAT_YVU420:
 	default:
-		return false;
+		return (modifier == DRM_FORMAT_MOD_LINEAR);
 	}
 }
 
@@ -325,31 +470,24 @@ static const struct drm_plane_funcs vc4_plane_funcs = {
 	.format_mod_supported = vc4_fkms_format_mod_supported,
 };
 
-static const struct drm_plane_helper_funcs vc4_primary_plane_helper_funcs = {
+static const struct drm_plane_helper_funcs vc4_plane_helper_funcs = {
 	.prepare_fb = drm_gem_fb_prepare_fb,
 	.cleanup_fb = NULL,
 	.atomic_check = vc4_plane_atomic_check,
-	.atomic_update = vc4_primary_plane_atomic_update,
-	.atomic_disable = vc4_primary_plane_atomic_disable,
-};
-
-static const struct drm_plane_helper_funcs vc4_cursor_plane_helper_funcs = {
-	.prepare_fb = drm_gem_fb_prepare_fb,
-	.cleanup_fb = NULL,
-	.atomic_check = vc4_plane_atomic_check,
-	.atomic_update = vc4_cursor_plane_atomic_update,
-	.atomic_disable = vc4_cursor_plane_atomic_disable,
+	.atomic_update = vc4_plane_atomic_update,
+	.atomic_disable = vc4_plane_atomic_disable,
 };
 
 static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
-					     enum drm_plane_type type)
+					     enum drm_plane_type type,
+					     u8 plane_id)
 {
-	/* Primary and cursor planes only */
 	struct drm_plane *plane = NULL;
 	struct vc4_fkms_plane *vc4_plane;
-	u32 formats[] = {DRM_FORMAT_ARGB8888, DRM_FORMAT_XRGB8888};
+	u32 formats[ARRAY_SIZE(vc_image_formats)];
+	unsigned int default_zpos = 0;
+	u32 num_formats = 0;
 	int ret = 0;
-	bool primary = (type == DRM_PLANE_TYPE_PRIMARY);
 	static const uint64_t modifiers[] = {
 		DRM_FORMAT_MOD_LINEAR,
 		/* VC4_T_TILED should come after linear, because we
@@ -358,6 +496,7 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 		DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED,
 		DRM_FORMAT_MOD_INVALID,
 	};
+	int i;
 
 	vc4_plane = devm_kzalloc(dev->dev, sizeof(*vc4_plane),
 				 GFP_KERNEL);
@@ -366,18 +505,47 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 		goto fail;
 	}
 
+	for (i = 0; i < ARRAY_SIZE(vc_image_formats); i++)
+		formats[num_formats++] = vc_image_formats[i].drm;
+
 	plane = &vc4_plane->base;
 	ret = drm_universal_plane_init(dev, plane, 0xff,
 				       &vc4_plane_funcs,
-				       formats, primary ? 2 : 1, modifiers,
-				       type, primary ? "primary" : "cursor");
+				       formats, num_formats, modifiers,
+				       type, NULL);
 
-	if (type == DRM_PLANE_TYPE_PRIMARY)
-		drm_plane_helper_add(plane, &vc4_primary_plane_helper_funcs);
-	else
-		drm_plane_helper_add(plane, &vc4_cursor_plane_helper_funcs);
+	drm_plane_helper_add(plane, &vc4_plane_helper_funcs);
 
 	drm_plane_create_alpha_property(plane);
+
+	/*
+	 * Default frame buffer setup is with FB on -127, and raspistill etc
+	 * tend to drop overlays on layer 2. Cursor plane was on layer +127.
+	 *
+	 * For F-KMS the mailbox call allows for a s8.
+	 * Remap zpos 0 to -127 for the background layer, but leave all the
+	 * other layers as requested by KMS.
+	 */
+	switch (type) {
+	case DRM_PLANE_TYPE_PRIMARY:
+		default_zpos = 0;
+		break;
+	case DRM_PLANE_TYPE_OVERLAY:
+		default_zpos = 1;
+		break;
+	case DRM_PLANE_TYPE_CURSOR:
+		default_zpos = 2;
+		break;
+	}
+	drm_plane_create_zpos_property(plane, default_zpos, 0, 127);
+
+	/* Prepare the static elements of the mailbox structure */
+	vc4_plane->mb.tag.tag = RPI_FIRMWARE_SET_PLANE;
+	vc4_plane->mb.tag.buf_size = sizeof(struct set_plane);
+	vc4_plane->mb.tag.req_resp_size = 0;
+	vc4_plane->mb.plane.display = 0;
+	vc4_plane->mb.plane.plane_id = plane_id;
+	vc4_plane->mb.plane.layer = default_zpos ? default_zpos : -127;
 
 	return plane;
 fail:
@@ -400,19 +568,23 @@ static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_s
 	 * whether anything scans out at all, but the firmware doesn't
 	 * give us a CRTC-level control for that.
 	 */
-	vc4_cursor_plane_atomic_disable(crtc->cursor, crtc->cursor->state);
-	vc4_plane_set_primary_blank(crtc->primary, true);
+
+	vc4_plane_atomic_disable(crtc->cursor, crtc->cursor->state);
+	vc4_plane_atomic_disable(crtc->primary, crtc->primary->state);
+
+	/* FIXME: Disable overlay planes */
 }
 
 static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
 {
 	/* Unblank the planes (if they're supposed to be displayed). */
+
 	if (crtc->primary->state->fb)
-		vc4_plane_set_primary_blank(crtc->primary, false);
-	if (crtc->cursor->state->fb) {
-		vc4_cursor_plane_atomic_update(crtc->cursor,
-					       crtc->cursor->state);
-	}
+		vc4_plane_set_blank(crtc->primary, false);
+	if (crtc->cursor->state->fb)
+		vc4_plane_set_blank(crtc->cursor, crtc->cursor->state);
+
+	/* FIXME: Enable overlay planes */
 }
 
 static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
@@ -672,8 +844,10 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	struct vc4_crtc *vc4_crtc;
 	struct vc4_fkms_encoder *vc4_encoder;
 	struct drm_crtc *crtc;
-	struct drm_plane *primary_plane, *cursor_plane, *destroy_plane, *temp;
+	struct drm_plane *primary_plane, *overlay_plane, *cursor_plane;
+	struct drm_plane *destroy_plane, *temp;
 	struct device_node *firmware_node;
+	u32 blank = 1;
 	int ret;
 
 	vc4->firmware_kms = true;
@@ -702,20 +876,26 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	if (IS_ERR(vc4_crtc->regs))
 		return PTR_ERR(vc4_crtc->regs);
 
-	/* For now, we create just the primary and the legacy cursor
-	 * planes.  We should be able to stack more planes on easily,
-	 * but to do that we would need to compute the bandwidth
-	 * requirement of the plane configuration, and reject ones
-	 * that will take too much.
-	 */
-	primary_plane = vc4_fkms_plane_init(drm, DRM_PLANE_TYPE_PRIMARY);
+	/* Blank the firmware provided framebuffer */
+	rpi_firmware_property(vc4->firmware,
+			      RPI_FIRMWARE_FRAMEBUFFER_BLANK,
+			      &blank, sizeof(blank));
+
+	primary_plane = vc4_fkms_plane_init(drm, DRM_PLANE_TYPE_PRIMARY, 0);
 	if (IS_ERR(primary_plane)) {
 		dev_err(dev, "failed to construct primary plane\n");
 		ret = PTR_ERR(primary_plane);
 		goto err;
 	}
 
-	cursor_plane = vc4_fkms_plane_init(drm, DRM_PLANE_TYPE_CURSOR);
+	overlay_plane = vc4_fkms_plane_init(drm, DRM_PLANE_TYPE_OVERLAY, 1);
+	if (IS_ERR(overlay_plane)) {
+		dev_err(dev, "failed to construct overlay plane\n");
+		ret = PTR_ERR(overlay_plane);
+		goto err;
+	}
+
+	cursor_plane = vc4_fkms_plane_init(drm, DRM_PLANE_TYPE_CURSOR, 2);
 	if (IS_ERR(cursor_plane)) {
 		dev_err(dev, "failed to construct cursor plane\n");
 		ret = PTR_ERR(cursor_plane);
