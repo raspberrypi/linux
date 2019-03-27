@@ -4174,9 +4174,10 @@ static int bcmgenet_probe(struct platform_device *pdev)
 		priv->rx_rings[i].priv = priv;
 		priv->rx_rings[i].index = i;
 		priv->rx_rings[i].rx_max_coalesced_frames = 1;
+		priv->rx_rings[i].rx_coalesce_usecs = 50;
 	}
 	for (i = 0; i <= priv->hw_params->tx_queues; i++)
-		priv->tx_rings[i].tx_max_coalesced_frames = 1;
+		priv->tx_rings[i].tx_max_coalesced_frames = 10;
 
 	/* Initialize u64 stats seq counter for 32bit machines */
 	for (i = 0; i <= GENET_MAX_MQ_CNT; i++) {
