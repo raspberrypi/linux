@@ -540,6 +540,7 @@ int vc4_kms_load(struct drm_device *dev)
 	dev->mode_config.preferred_depth = 24;
 	dev->mode_config.async_page_flip = true;
 	dev->mode_config.allow_fb_modifiers = true;
+	dev->mode_config.normalize_zpos = true;
 
 	drm_modeset_lock_init(&vc4->ctm_state_lock);
 
