@@ -218,6 +218,71 @@ v3d_unlock_bo_reservations(struct v3d_bo **bos,
 	ww_acquire_fini(acquire_ctx);
 }
 
+static int
+v3d_add_dep(struct v3d_job *job, struct dma_fence *fence)
+{
+	if (!fence)
+		return 0;
+
+	if (job->deps_size == job->deps_count) {
+		int new_deps_size = max(job->deps_size * 2, 4);
+		struct dma_fence **new_deps =
+			krealloc(job->deps, new_deps_size * sizeof(*new_deps),
+				 GFP_KERNEL);
+		if (!new_deps) {
+			dma_fence_put(fence);
+			return -ENOMEM;
+		}
+
+		job->deps = new_deps;
+		job->deps_size = new_deps_size;
+	}
+
+	job->deps[job->deps_count++] = fence;
+
+	return 0;
+}
+
+/**
+ * Adds the required implicit fences before executing the job
+ *
+ * Userspace (X11 + Mesa) requires that a job submitted against a shared BO
+ * from one fd will implicitly synchronize against previous jobs submitted
+ * against that BO from other fds.
+ *
+ * Currently we don't bother trying to track the shared BOs, and instead just
+ * sync everything.  However, our synchronization is only for the render pass
+ * -- the binning stage (VS coordinate calculations) ignores implicit sync,
+ * since using shared buffers for texture coordinates seems unlikely, and
+ * implicitly syncing them would break bin/render parallelism.  If we want to
+ * fix that, we should introduce a flag when VS texturing has been used in the
+ * binning stage, or a set of flags for which BOs are sampled during binning.
+ */
+static int
+v3d_add_implicit_fences(struct v3d_job *job, struct v3d_bo *bo)
+{
+	int i, ret, nr_fences;
+	struct dma_fence **fences;
+
+	ret = reservation_object_get_fences_rcu(bo->resv, NULL,
+						&nr_fences, &fences);
+	if (ret || !nr_fences)
+		return ret;
+
+	for (i = 0; i < nr_fences; i++) {
+		ret = v3d_add_dep(job, fences[i]);
+		if (ret)
+			break;
+	}
+
+	/* Free any remaining fences after error. */
+	for (; i < nr_fences; i++)
+		dma_fence_put(fences[i]);
+	kfree(fences);
+
+	return ret;
+}
+
 /* Takes the reservation lock on all the BOs being referenced, so that
  * at queue submit time we can update the reservations.
  *
@@ -226,10 +291,11 @@ v3d_unlock_bo_reservations(struct v3d_bo **bos,
  * to v3d, so we don't attach dma-buf fences to them.
  */
 static int
-v3d_lock_bo_reservations(struct v3d_bo **bos,
-			 int bo_count,
+v3d_lock_bo_reservations(struct v3d_job *job,
 			 struct ww_acquire_ctx *acquire_ctx)
 {
+	struct v3d_bo **bos = job->bo;
+	int bo_count = job->bo_count;
 	int contended_lock = -1;
 	int i, ret;
 
@@ -281,6 +347,13 @@ retry:
 	 * before we commit the CL to the hardware.
 	 */
 	for (i = 0; i < bo_count; i++) {
+		ret = v3d_add_implicit_fences(job, bos[i]);
+		if (ret) {
+			v3d_unlock_bo_reservations(bos, bo_count,
+						   acquire_ctx);
+			return ret;
+		}
+
 		ret = reservation_object_reserve_shared(bos[i]->resv, 1);
 		if (ret) {
 			v3d_unlock_bo_reservations(bos, bo_count,
@@ -383,7 +456,10 @@ v3d_job_free(struct kref *ref)
 	}
 	kvfree(job->bo);
 
-	dma_fence_put(job->in_fence);
+	for (i = 0; i < job->deps_count; i++)
+		dma_fence_put(job->deps[i]);
+	kfree(job->deps);
+
 	dma_fence_put(job->irq_fence);
 	dma_fence_put(job->done_fence);
 
@@ -464,13 +540,18 @@ v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 	     struct v3d_job *job, void (*free)(struct kref *ref),
 	     u32 in_sync)
 {
+	struct dma_fence *in_fence = NULL;
 	int ret;
 
 	job->v3d = v3d;
 	job->free = free;
 
-	ret = drm_syncobj_find_fence(file_priv, in_sync, 0, &job->in_fence);
+	ret = drm_syncobj_find_fence(file_priv, in_sync, 0, 0, &in_fence);
 	if (ret == -EINVAL)
+		return ret;
+
+	ret = v3d_add_dep(job, in_fence);
+	if (ret)
 		return ret;
 
 	kref_init(&job->refcount);
@@ -590,8 +671,7 @@ v3d_submit_cl_ioctl(struct drm_device *dev, void *data,
 	if (ret)
 		goto fail;
 
-	ret = v3d_lock_bo_reservations(render->base.bo, render->base.bo_count,
-				       &acquire_ctx);
+	ret = v3d_lock_bo_reservations(&render->base, &acquire_ctx);
 	if (ret)
 		goto fail;
 
@@ -601,7 +681,8 @@ v3d_submit_cl_ioctl(struct drm_device *dev, void *data,
 		if (ret)
 			goto fail_unreserve;
 
-		render->bin_done_fence = dma_fence_get(bin->base.done_fence);
+		ret = v3d_add_dep(&render->base,
+				  dma_fence_get(bin->base.done_fence));
 	}
 
 	ret = v3d_push_job(v3d_priv, &render->base, V3D_RENDER);
@@ -692,8 +773,7 @@ v3d_submit_tfu_ioctl(struct drm_device *dev, void *data,
 	}
 	spin_unlock(&file_priv->table_lock);
 
-	ret = v3d_lock_bo_reservations(job->base.bo, job->base.bo_count,
-				       &acquire_ctx);
+	ret = v3d_lock_bo_reservations(&job->base, &acquire_ctx);
 	if (ret)
 		goto fail;
 
