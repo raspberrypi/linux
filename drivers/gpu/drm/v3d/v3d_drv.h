@@ -186,8 +186,9 @@ struct v3d_job {
 	struct v3d_bo **bo;
 	u32 bo_count;
 
-	/* An optional fence userspace can pass in for the job to depend on. */
-	struct dma_fence *in_fence;
+	struct dma_fence **deps;
+	int deps_count;
+	int deps_size;
 
 	/* v3d fence to be signaled by IRQ handler when the job is complete. */
 	struct dma_fence *irq_fence;
@@ -218,11 +219,6 @@ struct v3d_bin_job {
 
 struct v3d_render_job {
 	struct v3d_job base;
-
-	/* Optional fence for the binner, to depend on before starting
-	 * our job.
-	 */
-	struct dma_fence *bin_done_fence;
 
 	/* GPU virtual addresses of the start/end of the CL job. */
 	u32 start, end;
