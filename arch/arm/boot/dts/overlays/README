@@ -939,6 +939,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         pcf8563                 Select the PCF8563 device
 
+        rv3028                  Select the Micro Crystal RV3028 device
+
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
                                 address.
@@ -947,7 +949,7 @@ Params: abx80x                  Select one of the ABx80x family:
                                 "schottky" (ABx80x only)
 
         trickle-resistor-ohms   Resistor value for trickle charge (DS1339,
-                                ABx80x)
+                                ABx80x, RV3028)
 
         wakeup-source           Specify that the RTC can be used as a wakeup
                                 source
