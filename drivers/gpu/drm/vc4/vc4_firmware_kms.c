@@ -15,6 +15,7 @@
  */
 
 #include "drm/drm_atomic_helper.h"
+#include "drm/drm_gem_framebuffer_helper.h"
 #include "drm/drm_plane_helper.h"
 #include "drm/drm_crtc_helper.h"
 #include "drm/drm_fourcc.h"
@@ -291,7 +292,7 @@ static const struct drm_plane_funcs vc4_plane_funcs = {
 };
 
 static const struct drm_plane_helper_funcs vc4_primary_plane_helper_funcs = {
-	.prepare_fb = NULL,
+	.prepare_fb = drm_gem_fb_prepare_fb,
 	.cleanup_fb = NULL,
 	.atomic_check = vc4_plane_atomic_check,
 	.atomic_update = vc4_primary_plane_atomic_update,
@@ -299,7 +300,7 @@ static const struct drm_plane_helper_funcs vc4_primary_plane_helper_funcs = {
 };
 
 static const struct drm_plane_helper_funcs vc4_cursor_plane_helper_funcs = {
-	.prepare_fb = NULL,
+	.prepare_fb = drm_gem_fb_prepare_fb,
 	.cleanup_fb = NULL,
 	.atomic_check = vc4_plane_atomic_check,
 	.atomic_update = vc4_cursor_plane_atomic_update,
