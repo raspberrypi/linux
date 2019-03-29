@@ -80,6 +80,7 @@
 
 #define RV3028_BACKUP_TCE		BIT(5)
 #define RV3028_BACKUP_TCR_MASK		GENMASK(1,0)
+#define RV3028_BACKUP_BSM_MASK		0x0C
 
 #define OFFSET_STEP_PPT			953674
 
@@ -789,6 +790,7 @@ static int rv3028_probe(struct i2c_client *client)
 	struct rv3028_data *rv3028;
 	int ret, status;
 	u32 ohms;
+	u8 bsm;
 	struct nvmem_config nvmem_cfg = {
 		.name = "rv3028_nvram",
 		.word_size = 1,
@@ -854,6 +856,21 @@ static int rv3028_probe(struct i2c_client *client)
 				 RV3028_CTRL2_EIE | RV3028_CTRL2_TSE);
 	if (ret)
 		return ret;
+
+	/* setup backup switchover mode */
+	if (!device_property_read_u8(&client->dev, "backup-switchover-mode",
+				     &bsm))  {
+		if (bsm <= 3) {
+			ret = regmap_update_bits(rv3028->regmap, RV3028_BACKUP,
+				RV3028_BACKUP_BSM_MASK,
+				(bsm & 0x03) << 2);
+
+			if (ret)
+				return ret;
+		} else {
+			dev_warn(&client->dev, "invalid backup switchover mode value\n");
+		}
+	}
 
 	/* setup trickle charger */
 	if (!device_property_read_u32(&client->dev, "trickle-resistor-ohms",
