@@ -26,6 +26,7 @@ below.
 - trickle-diode-disable :   Do not use internal trickle charger diode Should be
                             given if internal trickle charger diode should be
                             disabled
+- backup-switchover-mode :  Configure RTC backup power supply switch behaviour
 - wakeup-source :           Enables wake up of host system on alarm
 - quartz-load-femtofarads : The capacitive load of the quartz(x-tal),
                             expressed in femto Farad (fF).
