@@ -1013,6 +1013,9 @@ Params: abx80x                  Select one of the ABx80x family:
         wakeup-source           Specify that the RTC can be used as a wakeup
                                 source
 
+        backup-switchover-mode  Backup power supply switch mode. Must be 0 for
+                                off or 1 for Vdd < VBackup (RV3028 only)
+
 
 Name:   i2c-rtc-gpio
 Info:   Adds support for a number of I2C Real Time Clock devices
