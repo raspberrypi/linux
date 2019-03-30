@@ -24,9 +24,8 @@ echo "copy kernel image"
 scripts/mkknlimg arch/arm/boot/zImage /tmp/normalimage/kernel7.img
 cp arch/arm/boot/dts/*.dtb /tmp/normalimage/boot
 cp arch/arm/boot/dts/overlays/*.dtb* /tmp/normalimage/boot/overlays
-cp -r modules/lib/ /tmp/normalimage/
 
-cp replace.sh /tmp/normalimage/
+cp replace.normal.sh /tmp/normalimage/
 
 
 echo "zip these files to tar.gz"
@@ -34,14 +33,16 @@ echo "zip these files to tar.gz"
 cd /tmp/
 tar -zcvf normalimage.tar.gz normalimage
 echo ""
-echo "Send to remote target"
+echo "Send vmlinux to remote target"
+sshpass -p "'" scp vmlinux pi@$remote_ip:~/kernel/
+echo "Send normal image to remote target"
 sshpass -p "'" scp /tmp/normalimage.tar.gz pi@$remote_ip:~/
 
 echo "extract remote target"
 sshpass -p "'" ssh pi@$remote_ip tar -zxf /home/pi/normalimage.tar.gz
 echo "exec replace shell"
-sshpass -p "'" ssh pi@$remote_ip chmod 777 /home/pi/normalimage/replace.sh
-sshpass -p "'" ssh pi@$remote_ip  /home/pi/normalimage/replace.sh
+sshpass -p "'" ssh pi@$remote_ip chmod 777 /home/pi/normalimage/replace.normal.sh
+sshpass -p "'" ssh pi@$remote_ip  /home/pi/normalimage/replace.normal.sh
 echo "Reboot remote slave"
 sshpass -p "'" ssh pi@$remote_ip sudo reboot 
 echo "done!"

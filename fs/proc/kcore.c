@@ -568,6 +568,7 @@ static struct notifier_block kcore_callback_nb __meminitdata = {
 
 static struct kcore_list kcore_vmalloc;
 
+
 #ifdef CONFIG_ARCH_PROC_KCORE_TEXT
 static struct kcore_list kcore_text;
 /*

@@ -3797,7 +3797,7 @@ static vm_fault_t do_fault(struct vm_fault *vmf)
 
 			pte_unmap_unlock(vmf->pte, vmf->ptl);
 		}
-	} else if (!(vmf->flags & FAULT_FLAG_WRITE))
+	} else if (!(vmf->flags & FAULT_FLAG_WRITE))/*Here we will judge what type the fault is */
 		ret = do_read_fault(vmf);
 	else if (!(vma->vm_flags & VM_SHARED))
 		ret = do_cow_fault(vmf);
@@ -4027,9 +4027,9 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 
 	if (!vmf->pte) {
 		if (vma_is_anonymous(vmf->vma))
-			return do_anonymous_page(vmf);
+			return do_anonymous_page(vmf);//<<<<<<<<<<<<<<<<<<
 		else
-			return do_fault(vmf);
+			return do_fault(vmf);//<<<<<<<<<<<<<<<<<<<<<<
 	}
 
 	if (!pte_present(vmf->orig_pte))
@@ -4190,7 +4190,7 @@ vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 	if (unlikely(is_vm_hugetlb_page(vma)))
 		ret = hugetlb_fault(vma->vm_mm, vma, address, flags);
 	else
-		ret = __handle_mm_fault(vma, address, flags);
+		ret = __handle_mm_fault(vma, address, flags);//<<<<<<<<<<<<<<<
 
 	if (flags & FAULT_FLAG_USER) {
 		mem_cgroup_exit_user_fault();

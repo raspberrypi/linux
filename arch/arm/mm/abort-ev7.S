@@ -30,14 +30,14 @@ ENTRY(v7_early_abort)
 	ldr	r3, =0x40d			@ On permission fault
 	and	r3, r1, r3
 	cmp	r3, #0x0d
-	bne	do_DataAbort
+	bne	do_DataAbort @ //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 	mcr	p15, 0, r0, c7, c8, 0   	@ Retranslate FAR
 	isb
 	mrc	p15, 0, ip, c7, c4, 0   	@ Read the PAR
 	and	r3, ip, #0x7b   		@ On translation fault
 	cmp	r3, #0x0b
-	bne	do_DataAbort
+	bne	do_DataAbort @//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 	bic	r1, r1, #0xf			@ Fix up FSR FS[5:0]
 	and	ip, ip, #0x7e
 	orr	r1, r1, ip, LSR #1

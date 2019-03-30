@@ -78,7 +78,7 @@
 	mov	lr, pc
 	ldr	pc, [ip, #PROCESSOR_DABT_FUNC]
 #else
-	bl	CPU_DABORT_HANDLER
+	bl	CPU_DABORT_HANDLER @//<<<<<<<<<<<<<<<<<<<<<<<<<<
 #endif
 	.endm
 
@@ -203,7 +203,7 @@ ENDPROC(__und_invalid)
 __dabt_svc:
 	svc_entry uaccess=0
 	mov	r2, sp
-	dabt_helper
+	dabt_helper @ <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
  THUMB(	ldr	r5, [sp, #S_PSR]	)	@ potentially updated CPSR
 	svc_exit r5				@ return from exception
  UNWIND(.fnend		)
@@ -1123,7 +1123,7 @@ vector_rst:
 	.long	__dabt_usr			@  0  (USR_26 / USR_32)
 	.long	__dabt_invalid			@  1  (FIQ_26 / FIQ_32)
 	.long	__dabt_invalid			@  2  (IRQ_26 / IRQ_32)
-	.long	__dabt_svc			@  3  (SVC_26 / SVC_32)
+	.long	__dabt_svc			@  3  (SVC_26 / SVC_32) <<<<<<<<<<<<<<<<<<<<<<<<<<<
 	.long	__dabt_invalid			@  4
 	.long	__dabt_invalid			@  5
 	.long	__dabt_invalid			@  6
