@@ -673,6 +673,12 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 
 	vc4->firmware_kms = true;
 
+	/* firmware kms doesn't have precise a scanoutpos implementation, so
+	 * we can't do the precise vblank timestamp mode.
+	 */
+	drm->driver->get_scanout_position = NULL;
+	drm->driver->get_vblank_timestamp = NULL;
+
 	vc4_crtc = devm_kzalloc(dev, sizeof(*vc4_crtc), GFP_KERNEL);
 	if (!vc4_crtc)
 		return -ENOMEM;
