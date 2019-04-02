@@ -20,6 +20,7 @@
 #include "drm/drm_crtc_helper.h"
 #include "drm/drm_fourcc.h"
 #include "drm/drm_probe_helper.h"
+#include "drm/drm_drv.h"
 #include "linux/clk.h"
 #include "linux/debugfs.h"
 #include "drm/drm_fb_cma_helper.h"
@@ -672,6 +673,12 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	int ret;
 
 	vc4->firmware_kms = true;
+
+	/* firmware kms doesn't have precise a scanoutpos implementation, so
+	 * we can't do the precise vblank timestamp mode.
+	 */
+	drm->driver->get_scanout_position = NULL;
+	drm->driver->get_vblank_timestamp = NULL;
 
 	vc4_crtc = devm_kzalloc(dev, sizeof(*vc4_crtc), GFP_KERNEL);
 	if (!vc4_crtc)
