@@ -94,9 +94,6 @@ bool vc4_crtc_get_scanoutpos(struct drm_device *dev, unsigned int crtc_id,
 	int vblank_lines;
 	bool ret = false;
 
-	if (vc4->firmware_kms)
-		return 0;
-
 	/* preempt_disable_rt() should go right here in PREEMPT_RT patchset. */
 
 	/* Get optional system timestamp before query. */
