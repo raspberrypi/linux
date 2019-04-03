@@ -268,7 +268,7 @@ static void print_verifier_state(struct bpf_verifier_state *state)
 	for (i = 0; i < state->allocated_stack / BPF_REG_SIZE; i++) {
 		if (state->stack[i].slot_type[0] == STACK_SPILL)
 			verbose(" fp%d=%s",
-				-MAX_BPF_STACK + i * BPF_REG_SIZE,
+				(-i - 1) * BPF_REG_SIZE,
 				reg_type_str[state->stack[i].spilled_ptr.type]);
 	}
 	verbose("\n");
