@@ -644,6 +644,7 @@ static void brcm_set_dma_ops(struct device *dev)
 
 static inline void brcm_pcie_perst_set(struct brcm_pcie *pcie,
 				       unsigned int val);
+
 static int brcmstb_platform_notifier(struct notifier_block *nb,
 				     unsigned long event, void *__dev)
 {
@@ -657,12 +658,11 @@ static int brcmstb_platform_notifier(struct notifier_block *nb,
 		    strcmp(dev->kobj.name, rc_name)) {
 			int ret;
 
-			ret = brcm_pcie_bounce_register_dev(dev, bounce_buffer,
-							    (dma_addr_t)bounce_threshold);
+			ret = brcm_pcie_bounce_register_dev(dev);
 			if (ret) {
 				dev_err(dev,
 					"brcm_pcie_bounce_register_dev() failed: %d\n",
-				ret);
+					ret);
 				return ret;
 			}
 		}
@@ -675,8 +675,6 @@ static int brcmstb_platform_notifier(struct notifier_block *nb,
 			brcm_pcie_perst_set(g_pcie, 1);
 			msleep(100);
 			brcm_pcie_perst_set(g_pcie, 0);
-		} else if (max_pfn > (bounce_threshold/PAGE_SIZE)) {
-			brcm_pcie_bounce_unregister_dev(dev);
 		}
 		return NOTIFY_OK;
 
@@ -1712,6 +1710,7 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 	void __iomem *base;
 	struct pci_host_bridge *bridge;
 	struct pci_bus *child;
+	extern unsigned long max_pfn;
 
 	bridge = devm_pci_alloc_host_bridge(&pdev->dev, sizeof(*pcie));
 	if (!bridge)
@@ -1746,6 +1745,20 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 	base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
+
+	/* To Do: Add hardware check if this ever gets fixed */
+	if (max_pfn > (bounce_threshold/PAGE_SIZE)) {
+		int ret;
+		ret = brcm_pcie_bounce_init(&pdev->dev, bounce_buffer,
+					    (dma_addr_t)bounce_threshold);
+		if (ret) {
+			if (ret != -EPROBE_DEFER)
+				dev_err(&pdev->dev,
+					"could not init bounce buffers: %d\n",
+					ret);
+			return ret;
+		}
+	}
 
 	pcie->clk = of_clk_get_by_name(dn, "sw_pcie");
 	if (IS_ERR(pcie->clk)) {
