@@ -91,7 +91,7 @@ struct dmabounce_device_info {
 
 static struct dmabounce_device_info *g_dmabounce_device_info;
 
-extern int bcm2838_dma40_memcpy_init(struct device *dev);
+extern int bcm2838_dma40_memcpy_init(void);
 extern void bcm2838_dma40_memcpy(dma_addr_t dst, dma_addr_t src, size_t size);
 
 #ifdef STATS
@@ -465,9 +465,9 @@ static const struct dma_map_ops dmabounce_ops = {
 	.dma_supported		= dmabounce_dma_supported,
 };
 
-int brcm_pcie_bounce_register_dev(struct device *dev,
-				  unsigned long buffer_size,
-				  dma_addr_t threshold)
+int brcm_pcie_bounce_init(struct device *dev,
+			  unsigned long buffer_size,
+			  dma_addr_t threshold)
 {
 	struct dmabounce_device_info *device_info;
 	int ret;
@@ -476,9 +476,9 @@ int brcm_pcie_bounce_register_dev(struct device *dev,
 	if (g_dmabounce_device_info)
 		return -EBUSY;
 
-	ret = bcm2838_dma40_memcpy_init(dev);
+	ret = bcm2838_dma40_memcpy_init();
 	if (ret)
-	    return ret;
+		return ret;
 
 	device_info = kmalloc(sizeof(struct dmabounce_device_info), GFP_ATOMIC);
 	if (!device_info) {
@@ -509,9 +509,8 @@ int brcm_pcie_bounce_register_dev(struct device *dev,
 		 device_create_file(dev, &dev_attr_dmabounce_stats));
 
 	g_dmabounce_device_info = device_info;
-	set_dma_ops(dev, &dmabounce_ops);
 
-	dev_info(dev, "dmabounce: registered device - %ld kB, threshold %pad\n",
+	dev_info(dev, "dmabounce: initialised - %ld kB, threshold %pad\n",
 		 buffer_size / 1024, &threshold);
 
 	return 0;
@@ -520,14 +519,13 @@ int brcm_pcie_bounce_register_dev(struct device *dev,
 	kfree(device_info);
 	return ret;
 }
-EXPORT_SYMBOL(brcm_pcie_bounce_register_dev);
+EXPORT_SYMBOL(brcm_pcie_bounce_init);
 
-void brcm_pcie_bounce_unregister_dev(struct device *dev)
+void brcm_pcie_bounce_uninit(struct device *dev)
 {
 	struct dmabounce_device_info *device_info = g_dmabounce_device_info;
 
 	g_dmabounce_device_info = NULL;
-	set_dma_ops(dev, NULL);
 
 	if (!device_info) {
 		dev_warn(dev,
@@ -548,10 +546,16 @@ void brcm_pcie_bounce_unregister_dev(struct device *dev)
 			 device_remove_file(dev, &dev_attr_dmabounce_stats));
 
 	kfree(device_info);
-
-	dev_info(dev, "dmabounce: device unregistered\n");
 }
-EXPORT_SYMBOL(brcm_pcie_bounce_unregister_dev);
+EXPORT_SYMBOL(brcm_pcie_bounce_uninit);
+
+int brcm_pcie_bounce_register_dev(struct device *dev)
+{
+	set_dma_ops(dev, &dmabounce_ops);
+
+	return 0;
+}
+EXPORT_SYMBOL(brcm_pcie_bounce_register_dev);
 
 MODULE_AUTHOR("Phil Elwell <phil@raspberrypi.org>");
 MODULE_DESCRIPTION("Dedicate DMA bounce support for pcie-brcmstb");
