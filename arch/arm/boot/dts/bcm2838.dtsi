@@ -372,6 +372,23 @@
 			};
 		};
 
+		dma40: dma@7e007b00 {
+			compatible = "brcm,bcm2838-dma";
+			reg = <0x0 0x7e007b00 0x400>;
+			interrupts =
+				<GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>, /* dma4 11 */
+				<GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>, /* dma4 12 */
+				<GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>, /* dma4 13 */
+				<GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>; /* dma4 14 */
+			interrupt-names = "dma11",
+				"dma12",
+				"dma13",
+				"dma14";
+			#dma-cells = <1>;
+			brcm,dma-channel-mask = <0x7000>;
+		};
+		/* DMA4 - 40 bit DMA engines */
+
 		xhci: xhci@7e9c0000 {
 			compatible = "generic-xhci";
 			status = "disabled";
@@ -689,6 +706,7 @@
 };
 
 &dma {
+	reg = <0x7e007000 0xb00>;
 	interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>,
 		<GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>,
 		<GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>,
@@ -699,12 +717,7 @@
 		<GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>, /* dmalite  7 */
 		<GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>, /* dmalite  8 */
 		<GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>, /* dmalite  9 */
-		<GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>, /* dmalite 10 */
-		/* DMA4 - 40 bit DMA engines */
-		<GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>, /* dma4    11 */
-		<GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>, /* dma4    12 */
-		<GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>, /* dma4    13 */
-		<GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>; /* dma4    14 */
+		<GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>; /* dmalite 10 */
 	interrupt-names = "dma0",
 			  "dma1",
 			  "dma2",
@@ -715,10 +728,6 @@
 			  "dma7",
 			  "dma8",
 			  "dma9",
-			  "dma10",
-			  "dma11",
-			  "dma12",
-			  "dma13",
-			  "dma14";
-	brcm,dma-channel-mask = <0x7ef5>;
+			  "dma10";
+	brcm,dma-channel-mask = <0x01f5>;
 };
