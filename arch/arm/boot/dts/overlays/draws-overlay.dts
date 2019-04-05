@@ -187,14 +187,14 @@
     };
 
     __overrides__ {
-        draws_adc_ch4_gain = <&adc_ch4>,"ti,gain";
-        draws_adc_ch4_datarate = <&adc_ch4>,"ti,datarate";
-        draws_adc_ch5_gain = <&adc_ch5>,"ti,gain";
-        draws_adc_ch5_datarate = <&adc_ch5>,"ti,datarate";
-        draws_adc_ch6_gain = <&adc_ch6>,"ti,gain";
-        draws_adc_ch6_datarate = <&adc_ch6>,"ti,datarate";
-        draws_adc_ch7_gain = <&adc_ch7>,"ti,gain";
-        draws_adc_ch7_datarate = <&adc_ch7>,"ti,datarate";
+        draws_adc_ch4_gain = <&adc_ch4>,"ti,gain:0";
+        draws_adc_ch4_datarate = <&adc_ch4>,"ti,datarate:0";
+        draws_adc_ch5_gain = <&adc_ch5>,"ti,gain:0";
+        draws_adc_ch5_datarate = <&adc_ch5>,"ti,datarate:0";
+        draws_adc_ch6_gain = <&adc_ch6>,"ti,gain:0";
+        draws_adc_ch6_datarate = <&adc_ch6>,"ti,datarate:0";
+        draws_adc_ch7_gain = <&adc_ch7>,"ti,gain:0";
+        draws_adc_ch7_datarate = <&adc_ch7>,"ti,datarate:0";
         alsaname = <&snd>, "simple-audio-card,name";
     };
 };
