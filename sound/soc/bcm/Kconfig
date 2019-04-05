@@ -123,6 +123,13 @@ config SND_BCM2708_SOC_IQAUDIO_DIGI
 	help
 	  Say Y or M if you want to add support for IQAudIO Digital IO board.
 
+config SND_BCM2708_SOC_I_SABRE_Q2M
+        tristate "Support for Audiophonics I-Sabre Q2M DAC"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+        select SND_SOC_I_SABRE_CODEC
+        help
+        Say Y or M if you want to add support for Audiophonics I-SABRE Q2M DAC
+
 config SND_BCM2708_SOC_ADAU1977_ADC
 	tristate "Support for ADAU1977 ADC"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
