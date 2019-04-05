@@ -69,25 +69,6 @@ struct mailbox_set_plane {
 	struct set_plane plane;
 };
 
-struct fb_alloc_tags {
-	struct rpi_firmware_property_tag_header tag1;
-	u32 xres, yres;
-	struct rpi_firmware_property_tag_header tag2;
-	u32 xres_virtual, yres_virtual;
-	struct rpi_firmware_property_tag_header tag3;
-	u32 bpp;
-	struct rpi_firmware_property_tag_header tag4;
-	u32 xoffset, yoffset;
-	struct rpi_firmware_property_tag_header tag5;
-	u32 base, screen_size;
-	struct rpi_firmware_property_tag_header tag6;
-	u32 pitch;
-	struct rpi_firmware_property_tag_header tag7;
-	u32 alpha_mode;
-	struct rpi_firmware_property_tag_header tag8;
-	u32 layer;
-};
-
 struct mailbox_blank_display {
 	struct rpi_firmware_property_tag_header tag1;
 	u32 display;
