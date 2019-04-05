@@ -878,6 +878,10 @@ static int sfp_probe(struct platform_device *pdev)
 	if (poll)
 		mod_delayed_work(system_wq, &sfp->poll, poll_jiffies);
 
+	sfp->sfp_bus = sfp_register_socket(sfp->dev, sfp, &sfp_module_ops);
+	if (!sfp->sfp_bus)
+		return -ENOMEM;
+
 	return 0;
 }
 
@@ -886,10 +890,6 @@ static int sfp_remove(struct platform_device *pdev)
 	struct sfp *sfp = platform_get_drvdata(pdev);
 
 	sfp_unregister_socket(sfp->sfp_bus);
-
-	sfp->sfp_bus = sfp_register_socket(sfp->dev, sfp, &sfp_module_ops);
-	if (!sfp->sfp_bus)
-		return -ENOMEM;
 
 	return 0;
 }
