@@ -2194,6 +2194,12 @@ Params: led_gpio                GPIO for LED (default "17")
                                 "default-on")
 
 
+
+Name:   i-sabre-q2m
+Info:   Configures the Audiophonics I-SABRE Q2M DAC
+Load:   dtoverlay=i-sabre-q2m
+Params: <none>
+
 Troubleshooting
 ===============
 
