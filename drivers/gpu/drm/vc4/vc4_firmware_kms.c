@@ -932,8 +932,6 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 
 	return 0;
 
-err_destroy_connector:
-	vc4_fkms_connector_destroy(vc4_crtc->connector);
 err_destroy_encoder:
 	vc4_fkms_encoder_destroy(vc4_crtc->encoder);
 	list_for_each_entry_safe(destroy_plane, temp,
