@@ -869,6 +869,12 @@ Params: speed                   Display SPI bus speed
         ledgpio                 GPIO used to control backlight
 
 
+Name:   i-sabre-q2m
+Info:   Configures the Audiophonics I-SABRE Q2M DAC
+Load:   dtoverlay=i-sabre-q2m
+Params: <None>
+
+
 Name:   i2c-bcm2708
 Info:   Fall back to the i2c_bcm2708 driver for the i2c_arm bus.
 Load:   dtoverlay=i2c-bcm2708
