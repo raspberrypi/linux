@@ -95,6 +95,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_ICS43432
 	select SND_SOC_INNO_RK3036
 	select SND_SOC_ISABELLE if I2C
+	select SND_SOC_I_SABRE_CODEC if I2C
 	select SND_SOC_JZ4740_CODEC
 	select SND_SOC_JZ4725B_CODEC
 	select SND_SOC_LM4857 if I2C
@@ -1474,6 +1475,10 @@ config SND_SOC_NAU8825
 
 config SND_SOC_TPA6130A2
 	tristate "Texas Instruments TPA6130A2 headphone amplifier"
+	depends on I2C
+
+config SND_SOC_I_SABRE_CODEC
+	tristate "Audiophonics I-SABRE Codec"
 	depends on I2C
 
 endmenu
