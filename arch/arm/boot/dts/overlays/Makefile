@@ -55,6 +55,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	hy28a.dtbo \
 	hy28b.dtbo \
 	hy28b-2017.dtbo \
+	i-sabre-q2m.dtbo \
 	i2c-bcm2708.dtbo \
 	i2c-gpio.dtbo \
 	i2c-mux.dtbo \
@@ -68,7 +69,6 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	iqaudio-dac.dtbo \
 	iqaudio-dacplus.dtbo \
 	iqaudio-digi-wm8804-audio.dtbo \
-	i-sabre-q2m.dtbo \
 	jedec-spi-nor.dtbo \
 	justboom-dac.dtbo \
 	justboom-digi.dtbo \

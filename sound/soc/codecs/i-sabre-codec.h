@@ -27,13 +27,13 @@
 #define ISABRECODEC_REG_21	0x21	/* 0x00 = Mute OFF, 0x01 = Mute ON */
 #define ISABRECODEC_REG_22	0x22	
 /*
-   0x00 = brick wall, 
+   0x00 = brick wall,
    0x01 = corrected minimum phase fast,
-   0x02 = minimum phase slow, 
-   0x03 = minimum phase fast,  
-   0x04 = linear phase slow, 
+   0x02 = minimum phase slow,
+   0x03 = minimum phase fast,
+   0x04 = linear phase slow,
    0x05 = linear phase fast,
-   0x06 = apodizing fast,  
+   0x06 = apodizing fast,
 */
 //#define ISABRECODEC_REG_23	0x23	/* reserved */
 #define ISABRECODEC_REG_24	0x24	/* 0x00 = I2S, 0x01 = SPDIF */
