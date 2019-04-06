@@ -498,11 +498,8 @@ disable_device:
 	return rc;
 }
 
-static void hl_device_hard_reset_pending(struct work_struct *work)
+static void device_kill_open_processes(struct hl_device *hdev)
 {
-	struct hl_device_reset_work *device_reset_work =
-		container_of(work, struct hl_device_reset_work, reset_work);
-	struct hl_device *hdev = device_reset_work->hdev;
 	u16 pending_total, pending_cnt;
 	struct task_struct *task = NULL;
 
@@ -537,6 +534,12 @@ static void hl_device_hard_reset_pending(struct work_struct *work)
 		}
 	}
 
+	/* We killed the open users, but because the driver cleans up after the
+	 * user contexts are closed (e.g. mmu mappings), we need to wait again
+	 * to make sure the cleaning phase is finished before continuing with
+	 * the reset
+	 */
+
 	pending_cnt = pending_total;
 
 	while ((atomic_read(&hdev->fd_open_cnt)) && (pending_cnt)) {
@@ -551,6 +554,16 @@ static void hl_device_hard_reset_pending(struct work_struct *work)
 			"Going to hard reset with open user contexts\n");
 
 	mutex_unlock(&hdev->fd_open_cnt_lock);
+
+}
+
+static void device_hard_reset_pending(struct work_struct *work)
+{
+	struct hl_device_reset_work *device_reset_work =
+		container_of(work, struct hl_device_reset_work, reset_work);
+	struct hl_device *hdev = device_reset_work->hdev;
+
+	device_kill_open_processes(hdev);
 
 	hl_device_reset(hdev, true, true);
 
@@ -635,7 +648,7 @@ again:
 		 * from a dedicated work
 		 */
 		INIT_WORK(&device_reset_work->reset_work,
-				hl_device_hard_reset_pending);
+				device_hard_reset_pending);
 		device_reset_work->hdev = hdev;
 		schedule_work(&device_reset_work->reset_work);
 
@@ -1034,6 +1047,15 @@ void hl_device_fini(struct hl_device *hdev)
 
 	/* Mark device as disabled */
 	hdev->disabled = true;
+
+	/*
+	 * Flush anyone that is inside the critical section of enqueue
+	 * jobs to the H/W
+	 */
+	hdev->asic_funcs->hw_queues_lock(hdev);
+	hdev->asic_funcs->hw_queues_unlock(hdev);
+
+	device_kill_open_processes(hdev);
 
 	hl_hwmon_fini(hdev);
 
