@@ -12,7 +12,6 @@ obj-$(CONFIG_SND_SOC_CYGNUS) += snd-soc-cygnus.o
 snd-soc-googlevoicehat-codec-objs := googlevoicehat-codec.o
 
 # BCM2708 Machine Support
-snd-soc-3dlab-nano-player-objs := 3dlab-nano-player.o
 snd-soc-hifiberry-dacplus-objs := hifiberry_dacplus.o
 snd-soc-hifiberry-dacplusadc-objs := hifiberry_dacplusadc.o
 snd-soc-justboom-dac-objs := justboom-dac.o
@@ -20,7 +19,7 @@ snd-soc-rpi-cirrus-objs := rpi-cirrus.o
 snd-soc-rpi-proto-objs := rpi-proto.o
 snd-soc-iqaudio-codec-objs := iqaudio-codec.o
 snd-soc-iqaudio-dac-objs := iqaudio-dac.o
- snd-soc-i-sabre-q2m-objs := i-sabre-q2m.o
+snd-soc-i-sabre-q2m-objs := i-sabre-q2m.o
 snd-soc-audioinjector-pi-soundcard-objs := audioinjector-pi-soundcard.o
 snd-soc-audioinjector-octo-soundcard-objs := audioinjector-octo-soundcard.o
 snd-soc-audiosense-pi-objs := audiosense-pi.o
@@ -36,7 +35,6 @@ snd-soc-fe-pi-audio-objs := fe-pi-audio.o
 snd-soc-rpi-simple-soundcard-objs := rpi-simple-soundcard.o
 snd-soc-rpi-wm8804-soundcard-objs := rpi-wm8804-soundcard.o
 
-obj-$(CONFIG_SND_BCM2708_SOC_3DLAB_NANO_PLAYER) += snd-soc-3dlab-nano-player.o
 obj-$(CONFIG_SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD)  += snd-soc-googlevoicehat-codec.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUS) += snd-soc-hifiberry-dacplus.o
 obj-$(CONFIG_SND_BCM2708_SOC_HIFIBERRY_DACPLUSADC) += snd-soc-hifiberry-dacplusadc.o
@@ -45,7 +43,7 @@ obj-$(CONFIG_SND_BCM2708_SOC_RPI_CIRRUS) += snd-soc-rpi-cirrus.o
 obj-$(CONFIG_SND_BCM2708_SOC_RPI_PROTO) += snd-soc-rpi-proto.o
 obj-$(CONFIG_SND_BCM2708_SOC_IQAUDIO_CODEC) += snd-soc-iqaudio-codec.o
 obj-$(CONFIG_SND_BCM2708_SOC_IQAUDIO_DAC) += snd-soc-iqaudio-dac.o
- obj-$(CONFIG_SND_BCM2708_SOC_I_SABRE_Q2M) += snd-soc-i-sabre-q2m.o
+obj-$(CONFIG_SND_BCM2708_SOC_I_SABRE_Q2M) += snd-soc-i-sabre-q2m.o
 obj-$(CONFIG_SND_AUDIOINJECTOR_PI_SOUNDCARD) += snd-soc-audioinjector-pi-soundcard.o
 obj-$(CONFIG_SND_AUDIOINJECTOR_OCTO_SOUNDCARD) += snd-soc-audioinjector-octo-soundcard.o
 obj-$(CONFIG_SND_AUDIOSENSE_PI) += snd-soc-audiosense-pi.o
