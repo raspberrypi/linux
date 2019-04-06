@@ -205,12 +205,6 @@ Params:
         and the other i2c baudrate parameters.
 
 
-Name:   3dlab-nano-player
-Info:   Configures the 3Dlab Nano Player
-Load:   dtoverlay=3dlab-nano-player
-Params: <None>
-
-
 Name:   adau1977-adc
 Info:   Overlay for activation of ADAU1977 ADC codec over I2C for control
         and I2S for data.
