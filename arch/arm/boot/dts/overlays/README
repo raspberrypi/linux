@@ -1146,6 +1146,17 @@ Load:   dtoverlay=i2s-gpio28-31
 Params: <None>
 
 
+Name:   ilitek251x
+Info:   Enables I2C connected Ilitek 251x multiple touch controller using
+        GPIO 4 (pin 7 on GPIO header) for interrupt.
+Load:   dtoverlay=ilitek251x,<param>=<val>
+Params: interrupt               GPIO used for interrupt (default 4)
+        sizex                   Touchscreen size x, horizontal resolution of
+                                touchscreen (in pixels)
+        sizey                   Touchscreen size y, vertical resolution of
+                                touchscreen (in pixels)
+
+
 Name:   iqaudio-dac
 Info:   Configures the IQaudio DAC audio card
 Load:   dtoverlay=iqaudio-dac,<param>
