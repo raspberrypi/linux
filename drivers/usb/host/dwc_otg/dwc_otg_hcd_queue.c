@@ -167,8 +167,10 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh, dwc_otg_hcd_urb_t * urb)
 	char *speed, *type;
 	int dev_speed;
 	uint32_t hub_addr, hub_port;
+	hprt0_data_t hprt;
 
 	dwc_memset(qh, 0, sizeof(dwc_otg_qh_t));
+	hprt.d32 = DWC_READ_REG32(hcd->core_if->host_if->hprt0);
 
 	/* Initialize QH */
 	qh->ep_type = dwc_otg_hcd_get_pipe_type(&urb->pipe_info);
@@ -191,9 +193,8 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh, dwc_otg_hcd_urb_t * urb)
 
 	qh->nak_frame = 0xffff;
 
-	if (((dev_speed == USB_SPEED_LOW) ||
-	     (dev_speed == USB_SPEED_FULL)) &&
-	    (hub_addr != 0 && hub_addr != 1)) {
+	if (hprt.b.prtspd == DWC_HPRT0_PRTSPD_HIGH_SPEED &&
+			dev_speed != USB_SPEED_HIGH) {
 		DWC_DEBUGPL(DBG_HCD,
 			    "QH init: EP %d: TT found at hub addr %d, for port %d\n",
 			    dwc_otg_hcd_get_ep_num(&urb->pipe_info), hub_addr,
@@ -204,7 +205,6 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh, dwc_otg_hcd_urb_t * urb)
 
 	if (qh->ep_type == UE_INTERRUPT || qh->ep_type == UE_ISOCHRONOUS) {
 		/* Compute scheduling parameters once and save them. */
-		hprt0_data_t hprt;
 
 		/** @todo Account for split transfers in the bus time. */
 		int bytecount =
@@ -219,7 +219,6 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh, dwc_otg_hcd_urb_t * urb)
 						    SCHEDULE_SLOP);
 		qh->interval = urb->interval;
 
-		hprt.d32 = DWC_READ_REG32(hcd->core_if->host_if->hprt0);
 		if (hprt.b.prtspd == DWC_HPRT0_PRTSPD_HIGH_SPEED) {
 			if (dev_speed == USB_SPEED_LOW ||
 					dev_speed == USB_SPEED_FULL) {
