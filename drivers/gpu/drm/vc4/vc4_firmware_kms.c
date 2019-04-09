@@ -62,7 +62,20 @@ struct set_plane {
 	u8 padding;
 
 	u32 planes[4];  /* DMA address of each plane */
+
+	u32 transform;
 };
+
+/* Values for the transform field */
+#define TRANSFORM_NO_ROTATE	0
+#define TRANSFORM_ROTATE_180	BIT(1)
+#define TRANSFORM_FLIP_HRIZ	BIT(16)
+#define TRANSFORM_FLIP_VERT	BIT(17)
+
+#define SUPPORTED_ROTATIONS	(DRM_MODE_ROTATE_0 | \
+				 DRM_MODE_ROTATE_180 | \
+				 DRM_MODE_REFLECT_X | \
+				 DRM_MODE_REFLECT_Y)
 
 struct mailbox_set_plane {
 	struct rpi_firmware_property_tag_header tag;
@@ -275,6 +288,7 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(state->crtc);
 	int num_planes = fb->format->num_planes;
 	struct drm_display_mode *mode = &state->crtc->mode;
+	unsigned int rotation = SUPPORTED_ROTATIONS;
 
 	mb->plane.vc_image_type = vc_fmt->vc_image;
 	mb->plane.width = fb->width;
@@ -294,6 +308,24 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 	mb->plane.num_planes = num_planes;
 	mb->plane.is_vu = vc_fmt->is_vu;
 	mb->plane.planes[0] = bo->paddr + fb->offsets[0];
+
+	rotation = drm_rotation_simplify(state->rotation, rotation);
+
+	switch (rotation) {
+	default:
+	case DRM_MODE_ROTATE_0:
+		mb->plane.transform = TRANSFORM_NO_ROTATE;
+		break;
+	case DRM_MODE_ROTATE_180:
+		mb->plane.transform = TRANSFORM_ROTATE_180;
+		break;
+	case DRM_MODE_REFLECT_X:
+		mb->plane.transform = TRANSFORM_FLIP_HRIZ;
+		break;
+	case DRM_MODE_REFLECT_Y:
+		mb->plane.transform = TRANSFORM_FLIP_VERT;
+		break;
+	}
 
 	/* FIXME: If the dest rect goes off screen then clip the src rect so we
 	 * don't have off-screen pixels.
@@ -514,9 +546,13 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 				       formats, num_formats, modifiers,
 				       type, NULL);
 
+	/* FIXME: Do we need to be checking return values from all these calls?
+	 */
 	drm_plane_helper_add(plane, &vc4_plane_helper_funcs);
 
 	drm_plane_create_alpha_property(plane);
+	drm_plane_create_rotation_property(plane, DRM_MODE_ROTATE_0,
+					   SUPPORTED_ROTATIONS);
 
 	/*
 	 * Default frame buffer setup is with FB on -127, and raspistill etc
