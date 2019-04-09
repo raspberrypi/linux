@@ -89,11 +89,60 @@ struct mailbox_blank_display {
 	u32 blank;
 };
 
-struct mailbox_get_width_height {
+struct mailbox_get_edid {
 	struct rpi_firmware_property_tag_header tag1;
-	u32 display;
-	struct rpi_firmware_property_tag_header tag2;
-	u32 wh[2];
+	u32 block;
+	u32 display_number;
+	u8 edid[128];
+};
+
+struct set_timings {
+	u8 display;
+	u8 padding;
+	u16 video_id_code;
+
+	u32 clock;		/* in kHz */
+
+	u16 hdisplay;
+	u16 hsync_start;
+
+	u16 hsync_end;
+	u16 htotal;
+
+	u16 hskew;
+	u16 vdisplay;
+
+	u16 vsync_start;
+	u16 vsync_end;
+
+	u16 vtotal;
+	u16 vscan;
+
+	u16 vrefresh;
+	u16 padding2;
+
+	u32 flags;
+#define  TIMINGS_FLAGS_H_SYNC_POS	BIT(0)
+#define  TIMINGS_FLAGS_H_SYNC_NEG	0
+#define  TIMINGS_FLAGS_V_SYNC_POS	BIT(1)
+#define  TIMINGS_FLAGS_V_SYNC_NEG	0
+
+#define TIMINGS_FLAGS_ASPECT_MASK	GENMASK(7, 4)
+#define TIMINGS_FLAGS_ASPECT_NONE	(0 << 4)
+#define TIMINGS_FLAGS_ASPECT_4_3	(1 << 4)
+#define TIMINGS_FLAGS_ASPECT_16_9	(2 << 4)
+#define TIMINGS_FLAGS_ASPECT_64_27	(3 << 4)
+#define TIMINGS_FLAGS_ASPECT_256_135	(4 << 4)
+
+/* Limited range RGB flag. Not set corresponds to full range. */
+#define TIMINGS_FLAGS_RGB_LIMITED	BIT(8)
+/* DVI monitor, therefore disable infoframes. Not set corresponds to HDMI. */
+#define TIMINGS_FLAGS_DVI		BIT(9)
+};
+
+struct mailbox_set_mode {
+	struct rpi_firmware_property_tag_header tag1;
+	struct set_timings timings;
 };
 
 static const struct vc_image_format {
@@ -187,6 +236,7 @@ struct vc4_crtc {
 	u32 overscan[4];
 	bool vblank_enabled;
 	u32 display_number;
+	u32 display_type;
 };
 
 static inline struct vc4_crtc *to_vc4_crtc(struct drm_crtc *crtc)
@@ -196,6 +246,8 @@ static inline struct vc4_crtc *to_vc4_crtc(struct drm_crtc *crtc)
 
 struct vc4_fkms_encoder {
 	struct drm_encoder base;
+	bool hdmi_monitor;
+	bool rgb_range_selectable;
 };
 
 static inline struct vc4_fkms_encoder *
@@ -213,13 +265,35 @@ struct vc4_fkms_connector {
 	 * hook.
 	 */
 	struct drm_encoder *encoder;
-	u32 display_idx;
+	struct vc4_dev *vc4_dev;
+	u32 display_number;
+	u32 display_type;
 };
 
 static inline struct vc4_fkms_connector *
 to_vc4_fkms_connector(struct drm_connector *connector)
 {
 	return container_of(connector, struct vc4_fkms_connector, base);
+}
+
+static u32 vc4_get_display_type(u32 display_number)
+{
+	const u32 display_types[] = {
+		/* The firmware display (DispmanX) IDs map to specific types in
+		 * a fixed manner.
+		 */
+		DRM_MODE_ENCODER_DSI,	/* MAIN_LCD */
+		DRM_MODE_ENCODER_DSI,	/* AUX_LCD */
+		DRM_MODE_ENCODER_TMDS,	/* HDMI0 */
+		DRM_MODE_ENCODER_TVDAC,	/* VEC */
+		DRM_MODE_ENCODER_NONE,	/* FORCE_LCD */
+		DRM_MODE_ENCODER_NONE,	/* FORCE_TV */
+		DRM_MODE_ENCODER_NONE,	/* FORCE_OTHER */
+		DRM_MODE_ENCODER_TMDS,	/* HDMI1 */
+		DRM_MODE_ENCODER_NONE,	/* FORCE_TV2 */
+	};
+	return display_number > ARRAY_SIZE(display_types) - 1 ?
+			DRM_MODE_ENCODER_NONE : display_types[display_number];
 }
 
 /* Firmware's structure for making an FB mbox call. */
@@ -256,10 +330,15 @@ static int vc4_plane_set_blank(struct drm_plane *plane, bool blank)
 			.plane_id = vc4_plane->mb.plane.plane_id,
 		}
 	};
+	static const char * const plane_types[] = {
+							"overlay",
+							"primary",
+							"cursor"
+						  };
 	int ret;
 
-	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] overlay plane %s",
-			 plane->base.id, plane->name,
+	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] %s plane %s",
+			 plane->base.id, plane->name, plane_types[plane->type],
 			 blank ? "blank" : "unblank");
 
 	if (blank)
@@ -593,13 +672,102 @@ fail:
 
 static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 {
-	/* Everyting is handled in the planes. */
+	struct drm_device *dev = crtc->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct drm_display_mode *mode = &crtc->state->adjusted_mode;
+	struct vc4_fkms_encoder *vc4_encoder =
+					to_vc4_fkms_encoder(vc4_crtc->encoder);
+	struct mailbox_set_mode mb = {
+		.tag1 = { RPI_FIRMWARE_SET_TIMING,
+			  sizeof(struct set_timings), 0},
+	};
+	union hdmi_infoframe frame;
+	int ret;
+
+	ret = drm_hdmi_avi_infoframe_from_display_mode(&frame.avi, mode, false);
+	if (ret < 0) {
+		DRM_ERROR("couldn't fill AVI infoframe\n");
+		return;
+	}
+
+	DRM_DEBUG_KMS("Setting mode for display num %u mode name %s, clk %d, h(disp %d, start %d, end %d, total %d, skew %d) v(disp %d, start %d, end %d, total %d, scan %d), vrefresh %d, par %u\n",
+		      vc4_crtc->display_number, mode->name, mode->clock,
+		      mode->hdisplay, mode->hsync_start, mode->hsync_end,
+		      mode->htotal, mode->hskew, mode->vdisplay,
+		      mode->vsync_start, mode->vsync_end, mode->vtotal,
+		      mode->vscan, mode->vrefresh, mode->picture_aspect_ratio);
+	mb.timings.display = vc4_crtc->display_number;
+
+	mb.timings.video_id_code = frame.avi.video_code;
+
+	mb.timings.clock = mode->clock;
+	mb.timings.hdisplay = mode->hdisplay;
+	mb.timings.hsync_start = mode->hsync_start;
+	mb.timings.hsync_end = mode->hsync_end;
+	mb.timings.htotal = mode->htotal;
+	mb.timings.hskew = mode->hskew;
+	mb.timings.vdisplay = mode->vdisplay;
+	mb.timings.vsync_start = mode->vsync_start;
+	mb.timings.vsync_end = mode->vsync_end;
+	mb.timings.vtotal = mode->vtotal;
+	mb.timings.vscan = mode->vscan;
+	mb.timings.vrefresh = 0;
+	mb.timings.flags = 0;
+	if (mode->flags & DRM_MODE_FLAG_PHSYNC)
+		mb.timings.flags |= TIMINGS_FLAGS_H_SYNC_POS;
+	if (mode->flags & DRM_MODE_FLAG_PVSYNC)
+		mb.timings.flags |= TIMINGS_FLAGS_V_SYNC_POS;
+
+	switch (frame.avi.picture_aspect) {
+	default:
+	case HDMI_PICTURE_ASPECT_NONE:
+		mode->flags |= TIMINGS_FLAGS_ASPECT_NONE;
+		break;
+	case HDMI_PICTURE_ASPECT_4_3:
+		mode->flags |= TIMINGS_FLAGS_ASPECT_4_3;
+		break;
+	case HDMI_PICTURE_ASPECT_16_9:
+		mode->flags |= TIMINGS_FLAGS_ASPECT_16_9;
+		break;
+	case HDMI_PICTURE_ASPECT_64_27:
+		mode->flags |= TIMINGS_FLAGS_ASPECT_64_27;
+		break;
+	case HDMI_PICTURE_ASPECT_256_135:
+		mode->flags |= TIMINGS_FLAGS_ASPECT_256_135;
+		break;
+	}
+
+	if (!vc4_encoder->hdmi_monitor)
+		mb.timings.flags |= TIMINGS_FLAGS_DVI;
+	else if (drm_default_rgb_quant_range(mode) ==
+					HDMI_QUANTIZATION_RANGE_LIMITED)
+		mb.timings.flags |= TIMINGS_FLAGS_RGB_LIMITED;
+
+	/*
+	FIXME: To implement
+	switch(mode->flag & DRM_MODE_FLAG_3D_MASK) {
+	case DRM_MODE_FLAG_3D_NONE:
+	case DRM_MODE_FLAG_3D_FRAME_PACKING:
+	case DRM_MODE_FLAG_3D_FIELD_ALTERNATIVE:
+	case DRM_MODE_FLAG_3D_LINE_ALTERNATIVE:
+	case DRM_MODE_FLAG_3D_SIDE_BY_SIDE_FULL:
+	case DRM_MODE_FLAG_3D_L_DEPTH:
+	case DRM_MODE_FLAG_3D_L_DEPTH_GFX_GFX_DEPTH:
+	case DRM_MODE_FLAG_3D_TOP_AND_BOTTOM:
+	case DRM_MODE_FLAG_3D_SIDE_BY_SIDE_HALF:
+	}
+	*/
+
+	ret = rpi_firmware_property_list(vc4->firmware, &mb, sizeof(mb));
 }
 
 static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
 {
 	struct drm_plane *plane;
 
+	DRM_DEBUG_KMS("[CRTC:%d] vblanks off.\n",
+		      crtc->base.id);
 	drm_crtc_vblank_off(crtc);
 
 	/* Always turn the planes off on CRTC disable. In DRM, planes
@@ -617,6 +785,8 @@ static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_st
 {
 	struct drm_plane *plane;
 
+	DRM_DEBUG_KMS("[CRTC:%d] vblanks on.\n",
+		      crtc->base.id);
 	drm_crtc_vblank_on(crtc);
 
 	/* Unblank the planes (if they're supposed to be displayed). */
@@ -635,12 +805,20 @@ vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 		return MODE_NO_DBLESCAN;
 	}
 
+	/* Limit the pixel clock until we can get dynamic HDMI 2.0 scrambling
+	 * working.
+	 */
+	if (mode->clock > 340000)
+		return MODE_CLOCK_HIGH;
+
 	return MODE_OK;
 }
 
 static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 				 struct drm_crtc_state *state)
 {
+	DRM_DEBUG_KMS("[CRTC:%d] crtc_atomic_check.\n",
+		      crtc->base.id);
 	return 0;
 }
 
@@ -650,6 +828,8 @@ static void vc4_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 	struct drm_device *dev = crtc->dev;
 
+	DRM_DEBUG_KMS("[CRTC:%d] crtc_atomic_flush.\n",
+		      crtc->base.id);
 	if (crtc->state->event) {
 		unsigned long flags;
 
@@ -717,6 +897,8 @@ static int vc4_fkms_enable_vblank(struct drm_crtc *crtc)
 {
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 
+	DRM_DEBUG_KMS("[CRTC:%d] enable_vblank.\n",
+		      crtc->base.id);
 	vc4_crtc->vblank_enabled = true;
 
 	return 0;
@@ -726,6 +908,8 @@ static void vc4_fkms_disable_vblank(struct drm_crtc *crtc)
 {
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 
+	DRM_DEBUG_KMS("[CRTC:%d] disable_vblank.\n",
+		      crtc->base.id);
 	vc4_crtc->vblank_enabled = false;
 }
 
@@ -760,36 +944,92 @@ static const struct of_device_id vc4_firmware_kms_dt_match[] = {
 static enum drm_connector_status
 vc4_fkms_connector_detect(struct drm_connector *connector, bool force)
 {
+	DRM_DEBUG_KMS("connector detect.\n");
 	return connector_status_connected;
+}
+
+static int vc4_fkms_get_edid_block(void *data, u8 *buf, unsigned int block,
+				   size_t len)
+{
+	struct vc4_fkms_connector *fkms_connector =
+					(struct vc4_fkms_connector *)data;
+	struct vc4_dev *vc4 = fkms_connector->vc4_dev;
+	struct mailbox_get_edid mb = {
+		.tag1 = { RPI_FIRMWARE_GET_EDID_BLOCK_DISPLAY,
+			  128 + 8, 0 },
+		.block = block,
+		.display_number = fkms_connector->display_number,
+	};
+	int ret = 0;
+
+	ret = rpi_firmware_property_list(vc4->firmware, &mb, sizeof(mb));
+
+	if (!ret)
+		memcpy(buf, mb.edid, len);
+
+	return ret;
 }
 
 static int vc4_fkms_connector_get_modes(struct drm_connector *connector)
 {
-	struct drm_device *dev = connector->dev;
 	struct vc4_fkms_connector *fkms_connector =
-		to_vc4_fkms_connector(connector);
-	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	struct drm_display_mode *mode;
-	struct mailbox_get_width_height wh = {
-		.tag1 = {RPI_FIRMWARE_FRAMEBUFFER_SET_DISPLAY_NUM, 4, 0, },
-		.display = fkms_connector->display_idx,
-		.tag2 = { RPI_FIRMWARE_FRAMEBUFFER_GET_PHYSICAL_WIDTH_HEIGHT,
-			  8, 0, },
-	};
-	int ret;
+					to_vc4_fkms_connector(connector);
+	struct drm_encoder *encoder = fkms_connector->encoder;
+	struct vc4_fkms_encoder *vc4_encoder = to_vc4_fkms_encoder(encoder);
+	int ret = 0;
+	struct edid *edid;
 
-	ret = rpi_firmware_property_list(vc4->firmware, &wh, sizeof(wh));
+	edid = drm_do_get_edid(connector, vc4_fkms_get_edid_block,
+			       fkms_connector);
 
-	if (ret) {
-		DRM_ERROR("Failed to get screen size: %d (0x%08x 0x%08x)\n",
-			  ret, wh.wh[0], wh.wh[1]);
-		return 0;
+	/* FIXME: Can we do CEC?
+	 * cec_s_phys_addr_from_edid(vc4->hdmi->cec_adap, edid);
+	 * if (!edid)
+	 *	return -ENODEV;
+	 */
+
+	vc4_encoder->hdmi_monitor = drm_detect_hdmi_monitor(edid);
+
+	if (edid && edid->input & DRM_EDID_INPUT_DIGITAL) {
+		vc4_encoder->rgb_range_selectable =
+			drm_rgb_quant_range_selectable(edid);
 	}
 
-	mode = drm_cvt_mode(dev, wh.wh[0], wh.wh[1], 60 /* vrefresh */,
-			    0, 0, false);
+	drm_connector_update_edid_property(connector, edid);
+	ret = drm_add_edid_modes(connector, edid);
+	kfree(edid);
+
+	return ret;
+}
+
+/* FIXME: Read LCD mode from the firmware. This is the DSI panel resolution. */
+static const struct drm_display_mode lcd_mode = {
+	DRM_MODE("800x480", DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
+		 25979400 / 1000,
+		 800, 800 + 1, 800 + 1 + 2, 800 + 1 + 2 + 46, 0,
+		 480, 480 + 7, 480 + 7 + 2, 480 + 7 + 2 + 21, 0,
+		 DRM_MODE_FLAG_INTERLACE)
+};
+
+static int vc4_fkms_lcd_connector_get_modes(struct drm_connector *connector)
+{
+	//struct vc4_fkms_connector *fkms_connector =
+	//				to_vc4_fkms_connector(connector);
+	//struct drm_encoder *encoder = fkms_connector->encoder;
+	//struct vc4_fkms_encoder *vc4_encoder = to_vc4_fkms_encoder(encoder);
+	struct drm_display_mode *mode;
+	//int ret = 0;
+
+	mode = drm_mode_duplicate(connector->dev,
+				  &lcd_mode);
+	if (!mode) {
+		DRM_ERROR("Failed to create a new display mode\n");
+		return -ENOMEM;
+	}
+
 	drm_mode_probed_add(connector, mode);
 
+	/* We have one mode */
 	return 1;
 }
 
@@ -798,11 +1038,14 @@ vc4_fkms_connector_best_encoder(struct drm_connector *connector)
 {
 	struct vc4_fkms_connector *fkms_connector =
 		to_vc4_fkms_connector(connector);
+	DRM_DEBUG_KMS("best_connector.\n");
 	return fkms_connector->encoder;
 }
 
 static void vc4_fkms_connector_destroy(struct drm_connector *connector)
 {
+	DRM_DEBUG_KMS("[CONNECTOR:%d] destroy.\n",
+		      connector->base.id);
 	drm_connector_unregister(connector);
 	drm_connector_cleanup(connector);
 }
@@ -821,13 +1064,21 @@ static const struct drm_connector_helper_funcs vc4_fkms_connector_helper_funcs =
 	.best_encoder = vc4_fkms_connector_best_encoder,
 };
 
+static const struct drm_connector_helper_funcs vc4_fkms_lcd_conn_helper_funcs = {
+	.get_modes = vc4_fkms_lcd_connector_get_modes,
+	.best_encoder = vc4_fkms_connector_best_encoder,
+};
+
 static struct drm_connector *
 vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
-			u32 display_idx)
+			u32 display_num)
 {
 	struct drm_connector *connector = NULL;
 	struct vc4_fkms_connector *fkms_connector;
+	struct vc4_dev *vc4_dev = to_vc4_dev(dev);
 	int ret = 0;
+
+	DRM_DEBUG_KMS("connector_init, display_num %u\n", display_num);
 
 	fkms_connector = devm_kzalloc(dev->dev, sizeof(*fkms_connector),
 				      GFP_KERNEL);
@@ -838,11 +1089,21 @@ vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
 	connector = &fkms_connector->base;
 
 	fkms_connector->encoder = encoder;
-	fkms_connector->display_idx = display_idx;
+	fkms_connector->display_number = display_num;
+	fkms_connector->display_type = vc4_get_display_type(display_num);
+	fkms_connector->vc4_dev = vc4_dev;
 
-	drm_connector_init(dev, connector, &vc4_fkms_connector_funcs,
-			   DRM_MODE_CONNECTOR_HDMIA);
-	drm_connector_helper_add(connector, &vc4_fkms_connector_helper_funcs);
+	if (fkms_connector->display_type == DRM_MODE_ENCODER_DSI) {
+		drm_connector_init(dev, connector, &vc4_fkms_connector_funcs,
+				   DRM_MODE_CONNECTOR_DSI);
+		drm_connector_helper_add(connector,
+					 &vc4_fkms_lcd_conn_helper_funcs);
+	} else {
+		drm_connector_init(dev, connector, &vc4_fkms_connector_funcs,
+				   DRM_MODE_CONNECTOR_HDMIA);
+		drm_connector_helper_add(connector,
+					 &vc4_fkms_connector_helper_funcs);
+	}
 
 	connector->polled = (DRM_CONNECTOR_POLL_CONNECT |
 			     DRM_CONNECTOR_POLL_DISCONNECT);
@@ -863,6 +1124,7 @@ vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
 
 static void vc4_fkms_encoder_destroy(struct drm_encoder *encoder)
 {
+	DRM_DEBUG_KMS("Encoder_destroy\n");
 	drm_encoder_cleanup(encoder);
 }
 
@@ -872,10 +1134,12 @@ static const struct drm_encoder_funcs vc4_fkms_encoder_funcs = {
 
 static void vc4_fkms_encoder_enable(struct drm_encoder *encoder)
 {
+	DRM_DEBUG_KMS("Encoder_enable\n");
 }
 
 static void vc4_fkms_encoder_disable(struct drm_encoder *encoder)
 {
+	DRM_DEBUG_KMS("Encoder_disable\n");
 }
 
 static const struct drm_encoder_helper_funcs vc4_fkms_encoder_helper_funcs = {
@@ -907,6 +1171,7 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 	crtc = &vc4_crtc->base;
 
 	vc4_crtc->display_number = display_ref;
+	vc4_crtc->display_type = vc4_get_display_type(display_ref);
 
 	/* Blank the firmware provided framebuffer */
 	rpi_firmware_property_list(vc4->firmware, &blank, sizeof(blank));
@@ -950,13 +1215,14 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 		return -ENOMEM;
 	vc4_crtc->encoder = &vc4_encoder->base;
 	vc4_encoder->base.possible_crtcs |= drm_crtc_mask(crtc) ;
+
 	drm_encoder_init(drm, &vc4_encoder->base, &vc4_fkms_encoder_funcs,
-			 DRM_MODE_ENCODER_TMDS, NULL);
+			 vc4_crtc->display_type, NULL);
 	drm_encoder_helper_add(&vc4_encoder->base,
 			       &vc4_fkms_encoder_helper_funcs);
 
 	vc4_crtc->connector = vc4_fkms_connector_init(drm, &vc4_encoder->base,
-						      display_idx);
+						      display_ref);
 	if (IS_ERR(vc4_crtc->connector)) {
 		ret = PTR_ERR(vc4_crtc->connector);
 		goto err_destroy_encoder;
