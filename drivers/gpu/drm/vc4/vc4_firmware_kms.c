@@ -943,7 +943,7 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	struct vc4_crtc **crtc_list;
 	u32 num_displays, display_num;
 	int ret;
-	const u32 display_num_lookup[] = {2, 7, 1};
+	u32 display_id;
 
 	vc4->firmware_kms = true;
 
@@ -982,8 +982,18 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 		return -ENOMEM;
 
 	for (display_num = 0; display_num < num_displays; display_num++) {
-		ret = vc4_fkms_create_screen(dev, drm, display_num,
-					     display_num_lookup[display_num],
+		display_id = display_num;
+		ret = rpi_firmware_property(vc4->firmware,
+					    RPI_FIRMWARE_FRAMEBUFFER_GET_DISPLAY_ID,
+					    &display_id, sizeof(display_id));
+		/* FIXME: Determine the correct error handling here.
+		 * Should we fail to create the one "screen" but keep the
+		 * others, or fail the whole thing?
+		 */
+		if (ret)
+			DRM_ERROR("Failed to get display id %u\n", display_num);
+
+		ret = vc4_fkms_create_screen(dev, drm, display_num, display_id,
 					     &crtc_list[display_num]);
 		if (ret)
 			DRM_ERROR("Oh dear, failed to create display %u\n",
