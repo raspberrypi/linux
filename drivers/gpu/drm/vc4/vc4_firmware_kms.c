@@ -21,6 +21,7 @@
 #include "drm/drm_fourcc.h"
 #include "drm/drm_probe_helper.h"
 #include "drm/drm_drv.h"
+#include "drm/drm_vblank.h"
 #include "linux/clk.h"
 #include "linux/debugfs.h"
 #include "drm/drm_fb_cma_helper.h"
@@ -563,6 +564,8 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
 {
+	drm_crtc_vblank_off(crtc);
+
 	/* Always turn the planes off on CRTC disable. In DRM, planes
 	 * are enabled/disabled through the update/disable hooks
 	 * above, and the CRTC enable/disable independently controls
@@ -578,6 +581,7 @@ static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_s
 
 static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
 {
+	drm_crtc_vblank_on(crtc);
 	/* Unblank the planes (if they're supposed to be displayed). */
 
 	if (crtc->primary->state->fb)
@@ -674,6 +678,9 @@ static int vc4_fkms_enable_vblank(struct drm_crtc *crtc)
 
 static void vc4_fkms_disable_vblank(struct drm_crtc *crtc)
 {
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+
+	vc4_crtc->vblank_enabled = false;
 }
 
 static const struct drm_crtc_funcs vc4_crtc_funcs = {
