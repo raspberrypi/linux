@@ -195,15 +195,11 @@ static void kill_urbs_in_qh_list(dwc_otg_hcd_t * hcd, dwc_list_link_t * qh_list)
 			 * but not yet been through the IRQ handler.
 			 */
 			if (fiq_fsm_enable && (hcd->fiq_state->channel[qh->channel->hc_num].fsm != FIQ_PASSTHROUGH)) {
-				local_fiq_disable();
-				fiq_fsm_spin_lock(&hcd->fiq_state->lock);
 				qh->channel->halt_status = DWC_OTG_HC_XFER_URB_DEQUEUE;
 				qh->channel->halt_pending = 1;
 				if (hcd->fiq_state->channel[n].fsm == FIQ_HS_ISOC_TURBO ||
 					hcd->fiq_state->channel[n].fsm == FIQ_HS_ISOC_SLEEPING)
 					hcd->fiq_state->channel[n].fsm = FIQ_HS_ISOC_ABORTED;
-				fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
-				local_fiq_enable();
 			} else {
 				dwc_otg_hc_halt(hcd->core_if, qh->channel,
 						DWC_OTG_HC_XFER_URB_DEQUEUE);
