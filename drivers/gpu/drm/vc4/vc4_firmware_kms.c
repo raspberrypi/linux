@@ -625,7 +625,17 @@ static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_st
 			vc4_plane_set_blank(plane, plane->state->visible);
 }
 
+static enum drm_mode_status
+vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
+{
+	/* Do not allow doublescan modes from user space */
+	if (mode->flags & DRM_MODE_FLAG_DBLSCAN) {
+		DRM_DEBUG_KMS("[CRTC:%d] Doublescan mode rejected.\n",
+			      crtc->base.id);
+		return MODE_NO_DBLESCAN;
+	}
 
+	return MODE_OK;
 }
 
 static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
@@ -735,10 +745,11 @@ static const struct drm_crtc_funcs vc4_crtc_funcs = {
 
 static const struct drm_crtc_helper_funcs vc4_crtc_helper_funcs = {
 	.mode_set_nofb = vc4_crtc_mode_set_nofb,
-	.atomic_disable = vc4_crtc_disable,
-	.atomic_enable = vc4_crtc_enable,
+	.mode_valid = vc4_crtc_mode_valid,
 	.atomic_check = vc4_crtc_atomic_check,
 	.atomic_flush = vc4_crtc_atomic_flush,
+	.atomic_enable = vc4_crtc_enable,
+	.atomic_disable = vc4_crtc_disable,
 };
 
 static const struct of_device_id vc4_firmware_kms_dt_match[] = {
