@@ -777,7 +777,6 @@ extern const struct dma_fence_ops vc4_fence_ops;
 
 /* vc4_firmware_kms.c */
 extern struct platform_driver vc4_firmware_kms_driver;
-void vc4_fkms_cancel_page_flip(struct drm_crtc *crtc, struct drm_file *file);
 
 /* vc4_gem.c */
 void vc4_gem_init(struct drm_device *dev);
