@@ -598,6 +598,8 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
 {
+	struct drm_plane *plane;
+
 	drm_crtc_vblank_off(crtc);
 
 	/* Always turn the planes off on CRTC disable. In DRM, planes
@@ -607,23 +609,23 @@ static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_s
 	 * give us a CRTC-level control for that.
 	 */
 
-	vc4_plane_atomic_disable(crtc->cursor, crtc->cursor->state);
-	vc4_plane_atomic_disable(crtc->primary, crtc->primary->state);
-
-	/* FIXME: Disable overlay planes */
+	drm_atomic_crtc_for_each_plane(plane, crtc)
+		vc4_plane_atomic_disable(plane, plane->state);
 }
 
 static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
 {
+	struct drm_plane *plane;
+
 	drm_crtc_vblank_on(crtc);
+
 	/* Unblank the planes (if they're supposed to be displayed). */
+	drm_atomic_crtc_for_each_plane(plane, crtc)
+		if (plane->state->fb)
+			vc4_plane_set_blank(plane, plane->state->visible);
+}
 
-	if (crtc->primary->state->fb)
-		vc4_plane_set_blank(crtc->primary, false);
-	if (crtc->cursor->state->fb)
-		vc4_plane_set_blank(crtc->cursor, crtc->cursor->state);
 
-	/* FIXME: Enable overlay planes */
 }
 
 static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
