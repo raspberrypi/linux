@@ -1281,7 +1281,7 @@ Info:   Configures the Maxim MAX98357A I2S DAC
 Load:   dtoverlay=max98357a,<param>=<val>
 Params: no-sdmode               Driver does not manage the state of the DAC's
                                 SD_MODE pin (i.e. chip is always on).
-Params: sdmode-pin              integer, GPIO pin connected to the SD_MODE input
+        sdmode-pin              integer, GPIO pin connected to the SD_MODE input
                                 of the DAC (default GPIO4 if parameter omitted).
 
 

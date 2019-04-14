@@ -31,7 +31,7 @@
 		};
 	};
 
-	/* DAC whose SD_MODE pin is not managed by driver */ 
+	/* DAC whose SD_MODE pin is not managed by driver */
 	fragment@2 {
 		target-path = "/";
 		__dormant__ {
