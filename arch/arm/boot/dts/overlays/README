@@ -1276,6 +1276,15 @@ Params: ltc2941                 Select the ltc2941 device
                                 See the datasheet for more information.
 
 
+Name:   max98357a
+Info:   Configures the Maxim MAX98357A I2S DAC
+Load:   dtoverlay=max98357a,<param>=<val>
+Params: no-sdmode               Driver does not manage the state of the DAC's
+                                SD_MODE pin (i.e. chip is always on).
+        sdmode-pin              integer, GPIO pin connected to the SD_MODE input
+                                of the DAC (default GPIO4 if parameter omitted).
+
+
 Name:   mbed-dac
 Info:   Configures the mbed AudioCODEC (TLV320AIC23B)
 Load:   dtoverlay=mbed-dac
