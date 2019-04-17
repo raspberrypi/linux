@@ -1629,7 +1629,7 @@ void intel_vgpu_unpin_mm(struct intel_vgpu_mm *mm)
 	if (WARN_ON(mm->type != INTEL_GVT_MM_PPGTT))
 		return;
 
-	atomic_dec(&mm->pincount);
+	atomic_dec_if_positive(&mm->pincount);
 }
 
 /**
