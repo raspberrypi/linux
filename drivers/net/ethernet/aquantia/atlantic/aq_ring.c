@@ -270,11 +270,12 @@ int aq_ring_rx_clean(struct aq_ring_s *self,
 		} else {
 			if (buff->is_ip_cso) {
 				__skb_incr_checksum_unnecessary(skb);
-				if (buff->is_udp_cso || buff->is_tcp_cso)
-					__skb_incr_checksum_unnecessary(skb);
 			} else {
 				skb->ip_summed = CHECKSUM_NONE;
 			}
+
+			if (buff->is_udp_cso || buff->is_tcp_cso)
+				__skb_incr_checksum_unnecessary(skb);
 		}
 
 		skb_set_hash(skb, buff->rss_hash,

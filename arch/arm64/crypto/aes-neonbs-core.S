@@ -940,7 +940,7 @@ CPU_LE(	rev		x8, x8		)
 8:	next_ctr	v0
 	cbnz		x4, 99b
 
-0:	st1		{v0.16b}, [x5]
+	st1		{v0.16b}, [x5]
 	ldp		x29, x30, [sp], #16
 	ret
 
@@ -948,6 +948,9 @@ CPU_LE(	rev		x8, x8		)
 	 * If we are handling the tail of the input (x6 != NULL), return the
 	 * final keystream block back to the caller.
 	 */
+0:	cbz		x6, 8b
+	st1		{v0.16b}, [x6]
+	b		8b
 1:	cbz		x6, 8b
 	st1		{v1.16b}, [x6]
 	b		8b

@@ -45,6 +45,7 @@ static int tcf_sample_init(struct net *net, struct nlattr *nla,
 	struct tc_sample *parm;
 	struct tcf_sample *s;
 	bool exists = false;
+	u32 rate;
 	int ret;
 
 	if (!nla)
@@ -73,10 +74,17 @@ static int tcf_sample_init(struct net *net, struct nlattr *nla,
 		if (!ovr)
 			return -EEXIST;
 	}
-	s = to_sample(*a);
 
+	rate = nla_get_u32(tb[TCA_SAMPLE_RATE]);
+	if (!rate) {
+		tcf_idr_release(*a, bind);
+		return -EINVAL;
+	}
+
+	s = to_sample(*a);
 	s->tcf_action = parm->action;
 	s->rate = nla_get_u32(tb[TCA_SAMPLE_RATE]);
+	s->rate = rate;
 	s->psample_group_num = nla_get_u32(tb[TCA_SAMPLE_PSAMPLE_GROUP]);
 	psample_group = psample_group_get(net, s->psample_group_num);
 	if (!psample_group) {

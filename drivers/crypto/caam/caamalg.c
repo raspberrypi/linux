@@ -1097,6 +1097,7 @@ static void init_ablkcipher_job(u32 *sh_desc, dma_addr_t ptr,
 	} else {
 		if (edesc->dst_nents == 1) {
 			dst_dma = sg_dma_address(req->dst);
+			out_options = 0;
 		} else {
 			dst_dma = edesc->sec4_sg_dma + (edesc->src_nents + 1) *
 				  sizeof(struct sec4_sg_entry);

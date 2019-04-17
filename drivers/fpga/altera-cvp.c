@@ -404,6 +404,7 @@ static int altera_cvp_probe(struct pci_dev *pdev,
 {
 	struct altera_cvp_conf *conf;
 	u16 cmd, val;
+	u32 regval;
 	int ret;
 
 	/*
@@ -414,6 +415,14 @@ static int altera_cvp_probe(struct pci_dev *pdev,
 	pci_read_config_word(pdev, VSE_PCIE_EXT_CAP_ID, &val);
 	if (val != VSE_PCIE_EXT_CAP_ID_VAL) {
 		dev_err(&pdev->dev, "Wrong EXT_CAP_ID value 0x%x\n", val);
+		return -ENODEV;
+	}
+
+	pci_read_config_dword(pdev, VSE_CVP_STATUS, &regval);
+	if (!(regval & VSE_CVP_STATUS_CVP_EN)) {
+		dev_err(&pdev->dev,
+			"CVP is disabled for this device: CVP_STATUS Reg 0x%x\n",
+			regval);
 		return -ENODEV;
 	}
 
