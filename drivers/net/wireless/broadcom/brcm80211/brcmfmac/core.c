@@ -38,6 +38,7 @@
 #include "proto.h"
 #include "pcie.h"
 #include "common.h"
+#include "led.h"
 
 #define MAX_WAIT_FOR_8021X_TX			msecs_to_jiffies(950)
 
@@ -457,6 +458,8 @@ void brcmf_rx_frame(struct device *dev, struct sk_buff *skb, bool handle_event)
 
 	brcmf_dbg(DATA, "Enter: %s: rxp=%p\n", dev_name(dev), skb);
 
+	brcmfmac_led_rx(drvr->config);
+
 	if (brcmf_rx_hdrpull(drvr, skb, &ifp))
 		return;
 
@@ -493,6 +496,8 @@ void brcmf_txfinalize(struct brcmf_if *ifp, struct sk_buff *txp, bool success)
 
 	eh = (struct ethhdr *)(txp->data);
 	type = ntohs(eh->h_proto);
+
+	brcmfmac_led_tx(ifp->drvr->config);
 
 	if (type == ETH_P_PAE) {
 		atomic_dec(&ifp->pend_8021x_cnt);

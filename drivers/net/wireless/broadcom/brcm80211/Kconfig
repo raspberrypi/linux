@@ -67,6 +67,18 @@ config BRCMFMAC_PCIE
 	  IEEE802.11ac embedded FullMAC WLAN driver. Say Y if you want to
 	  use the driver for an PCIE wireless card.
 
+config BRCMFMAC_LEDS
+	bool "LED trigger support for FullMAC driver"
+	depends on BRCMFMAC
+	depends on LEDS_CLASS
+	select LEDS_TRIGGERS
+	default y
+	---help---
+	  This option enables LED trigger support for Broadcom FullMAC WLAN
+	  driver. Say Y to create LED triggers for receive events (phyXrx),
+	  transmit events (phyXtx), and both events combined (phyXrxtx), on
+	  each adapter (where 'phyX' is the phy name).
+
 config BRCM_TRACING
 	bool "Broadcom device tracing"
 	depends on BRCMSMAC || BRCMFMAC

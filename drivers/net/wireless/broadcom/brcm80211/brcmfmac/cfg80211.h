@@ -17,6 +17,8 @@
 #ifndef BRCMFMAC_CFG80211_H
 #define BRCMFMAC_CFG80211_H
 
+#include <linux/leds.h>
+
 /* for brcmu_d11inf */
 #include <brcmu_d11.h>
 
@@ -300,6 +302,12 @@ struct brcmf_cfg80211_wowl {
  * @vif_event: vif event signalling.
  * @wowl: wowl related information.
  * @pno: information of pno module.
+ * @rx_led: receive LED trigger information.
+ * @tx_led: transmit LED trigger information.
+ * @rxtx_led: receive/transmit LED trigger information.
+ * @rx_led_active: receive LED trigger active.
+ * @tx_led_active: transmit LED trigger active.
+ * @rxtx_led_active: receive/transmit LED trigger active.
  */
 struct brcmf_cfg80211_info {
 	struct wiphy *wiphy;
@@ -333,6 +341,14 @@ struct brcmf_cfg80211_info {
 	struct brcmf_assoclist_le assoclist;
 	struct brcmf_cfg80211_wowl wowl;
 	struct brcmf_pno_info *pno;
+#ifdef CONFIG_BRCMFMAC_LEDS
+	struct led_trigger rx_led;
+	struct led_trigger tx_led;
+	struct led_trigger rxtx_led;
+	atomic_t rx_led_active;
+	atomic_t tx_led_active;
+	atomic_t rxtx_led_active;
+#endif
 };
 
 /**

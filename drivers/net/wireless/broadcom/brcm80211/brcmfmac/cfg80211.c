@@ -40,6 +40,7 @@
 #include "vendor.h"
 #include "bus.h"
 #include "common.h"
+#include "led.h"
 
 #define BRCMF_SCAN_IE_LEN_MAX		2048
 
@@ -7049,6 +7050,8 @@ struct brcmf_cfg80211_info *brcmf_cfg80211_attach(struct brcmf_pub *drvr,
 #endif
 	}
 
+	brcmfmac_led_init(cfg);
+
 	return cfg;
 
 detach:
@@ -7072,6 +7075,7 @@ void brcmf_cfg80211_detach(struct brcmf_cfg80211_info *cfg)
 	if (!cfg)
 		return;
 
+	brcmfmac_led_exit(cfg);
 	brcmf_pno_detach(cfg);
 	brcmf_btcoex_detach(cfg);
 	wiphy_unregister(cfg->wiphy);
