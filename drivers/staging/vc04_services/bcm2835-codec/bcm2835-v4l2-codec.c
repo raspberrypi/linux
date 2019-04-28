@@ -557,7 +557,7 @@ static struct vchiq_mmal_port *get_port_data(struct bcm2835_codec_ctx *ctx,
  * mem2mem callbacks
  */
 
-/**
+/*
  * job_ready() - check whether an instance is ready to be scheduled to run
  */
 static int job_ready(void *priv)
