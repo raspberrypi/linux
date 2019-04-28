@@ -970,7 +970,6 @@ struct vcpu_vmx {
 	u64 		      msr_guest_kernel_gs_base;
 #endif
 
-	u64 		      arch_capabilities;
 	u64 		      spec_ctrl;
 
 	u32 vm_entry_controls_shadow;
@@ -4104,12 +4103,6 @@ static int vmx_get_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 
 		msr_info->data = to_vmx(vcpu)->spec_ctrl;
 		break;
-	case MSR_IA32_ARCH_CAPABILITIES:
-		if (!msr_info->host_initiated &&
-		    !guest_cpuid_has(vcpu, X86_FEATURE_ARCH_CAPABILITIES))
-			return 1;
-		msr_info->data = to_vmx(vcpu)->arch_capabilities;
-		break;
 	case MSR_IA32_SYSENTER_CS:
 		msr_info->data = vmcs_read32(GUEST_SYSENTER_CS);
 		break;
@@ -4270,11 +4263,6 @@ static int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		 */
 		vmx_disable_intercept_for_msr(vmx->vmcs01.msr_bitmap, MSR_IA32_PRED_CMD,
 					      MSR_TYPE_W);
-		break;
-	case MSR_IA32_ARCH_CAPABILITIES:
-		if (!msr_info->host_initiated)
-			return 1;
-		vmx->arch_capabilities = data;
 		break;
 	case MSR_IA32_CR_PAT:
 		if (vmcs_config.vmentry_ctrl & VM_ENTRY_LOAD_IA32_PAT) {
@@ -6665,8 +6653,6 @@ static void vmx_vcpu_setup(struct vcpu_vmx *vmx)
 		vmx->guest_msrs[j].mask = -1ull;
 		++vmx->nmsrs;
 	}
-
-	vmx->arch_capabilities = kvm_get_arch_capabilities();
 
 	vm_exit_controls_init(vmx, vmcs_config.vmexit_ctrl);
 
@@ -11596,6 +11582,17 @@ static int nested_vmx_check_tpr_shadow_controls(struct kvm_vcpu *vcpu,
 	return 0;
 }
 
+static inline void enable_x2apic_msr_intercepts(unsigned long *msr_bitmap) {
+	int msr;
+
+	for (msr = 0x800; msr <= 0x8ff; msr += BITS_PER_LONG) {
+		unsigned word = msr / BITS_PER_LONG;
+
+		msr_bitmap[word] = ~0;
+		msr_bitmap[word + (0x800 / sizeof(long))] = ~0;
+	}
+}
+
 /*
  * Merge L0's and L1's MSR bitmap, return false to indicate that
  * we do not use the hardware.
@@ -11637,39 +11634,44 @@ static inline bool nested_vmx_prepare_msr_bitmap(struct kvm_vcpu *vcpu,
 		return false;
 
 	msr_bitmap_l1 = (unsigned long *)kmap(page);
-	if (nested_cpu_has_apic_reg_virt(vmcs12)) {
-		/*
-		 * L0 need not intercept reads for MSRs between 0x800 and 0x8ff, it
-		 * just lets the processor take the value from the virtual-APIC page;
-		 * take those 256 bits directly from the L1 bitmap.
-		 */
-		for (msr = 0x800; msr <= 0x8ff; msr += BITS_PER_LONG) {
-			unsigned word = msr / BITS_PER_LONG;
-			msr_bitmap_l0[word] = msr_bitmap_l1[word];
-			msr_bitmap_l0[word + (0x800 / sizeof(long))] = ~0;
-		}
-	} else {
-		for (msr = 0x800; msr <= 0x8ff; msr += BITS_PER_LONG) {
-			unsigned word = msr / BITS_PER_LONG;
-			msr_bitmap_l0[word] = ~0;
-			msr_bitmap_l0[word + (0x800 / sizeof(long))] = ~0;
-		}
-	}
 
-	nested_vmx_disable_intercept_for_msr(
-		msr_bitmap_l1, msr_bitmap_l0,
-		X2APIC_MSR(APIC_TASKPRI),
-		MSR_TYPE_W);
+	/*
+	 * To keep the control flow simple, pay eight 8-byte writes (sixteen
+	 * 4-byte writes on 32-bit systems) up front to enable intercepts for
+	 * the x2APIC MSR range and selectively disable them below.
+	 */
+	enable_x2apic_msr_intercepts(msr_bitmap_l0);
 
-	if (nested_cpu_has_vid(vmcs12)) {
+	if (nested_cpu_has_virt_x2apic_mode(vmcs12)) {
+		if (nested_cpu_has_apic_reg_virt(vmcs12)) {
+			/*
+			 * L0 need not intercept reads for MSRs between 0x800
+			 * and 0x8ff, it just lets the processor take the value
+			 * from the virtual-APIC page; take those 256 bits
+			 * directly from the L1 bitmap.
+			 */
+			for (msr = 0x800; msr <= 0x8ff; msr += BITS_PER_LONG) {
+				unsigned word = msr / BITS_PER_LONG;
+
+				msr_bitmap_l0[word] = msr_bitmap_l1[word];
+			}
+		}
+
 		nested_vmx_disable_intercept_for_msr(
 			msr_bitmap_l1, msr_bitmap_l0,
-			X2APIC_MSR(APIC_EOI),
-			MSR_TYPE_W);
-		nested_vmx_disable_intercept_for_msr(
-			msr_bitmap_l1, msr_bitmap_l0,
-			X2APIC_MSR(APIC_SELF_IPI),
-			MSR_TYPE_W);
+			X2APIC_MSR(APIC_TASKPRI),
+			MSR_TYPE_R | MSR_TYPE_W);
+
+		if (nested_cpu_has_vid(vmcs12)) {
+			nested_vmx_disable_intercept_for_msr(
+				msr_bitmap_l1, msr_bitmap_l0,
+				X2APIC_MSR(APIC_EOI),
+				MSR_TYPE_W);
+			nested_vmx_disable_intercept_for_msr(
+				msr_bitmap_l1, msr_bitmap_l0,
+				X2APIC_MSR(APIC_SELF_IPI),
+				MSR_TYPE_W);
+		}
 	}
 
 	if (spec_ctrl)
@@ -12850,11 +12852,15 @@ static int nested_vmx_run(struct kvm_vcpu *vcpu, bool launch)
 	nested_cache_shadow_vmcs12(vcpu, vmcs12);
 
 	/*
-	 * If we're entering a halted L2 vcpu and the L2 vcpu won't be woken
-	 * by event injection, halt vcpu.
+	 * If we're entering a halted L2 vcpu and the L2 vcpu won't be
+	 * awakened by event injection or by an NMI-window VM-exit or
+	 * by an interrupt-window VM-exit, halt the vcpu.
 	 */
 	if ((vmcs12->guest_activity_state == GUEST_ACTIVITY_HLT) &&
-	    !(vmcs12->vm_entry_intr_info_field & INTR_INFO_VALID_MASK)) {
+	    !(vmcs12->vm_entry_intr_info_field & INTR_INFO_VALID_MASK) &&
+	    !(vmcs12->cpu_based_vm_exec_control & CPU_BASED_VIRTUAL_NMI_PENDING) &&
+	    !((vmcs12->cpu_based_vm_exec_control & CPU_BASED_VIRTUAL_INTR_PENDING) &&
+	      (vmcs12->guest_rflags & X86_EFLAGS_IF))) {
 		vmx->nested.nested_run_pending = 0;
 		return kvm_vcpu_halt(vcpu);
 	}
@@ -13175,24 +13181,6 @@ static void prepare_vmcs12(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12,
 	kvm_clear_interrupt_queue(vcpu);
 }
 
-static void load_vmcs12_mmu_host_state(struct kvm_vcpu *vcpu,
-			struct vmcs12 *vmcs12)
-{
-	u32 entry_failure_code;
-
-	nested_ept_uninit_mmu_context(vcpu);
-
-	/*
-	 * Only PDPTE load can fail as the value of cr3 was checked on entry and
-	 * couldn't have changed.
-	 */
-	if (nested_vmx_load_cr3(vcpu, vmcs12->host_cr3, false, &entry_failure_code))
-		nested_vmx_abort(vcpu, VMX_ABORT_LOAD_HOST_PDPTE_FAIL);
-
-	if (!enable_ept)
-		vcpu->arch.walk_mmu->inject_page_fault = kvm_inject_page_fault;
-}
-
 /*
  * A part of what we need to when the nested L2 guest exits and we want to
  * run its L1 parent, is to reset L1's guest state to the host state specified
@@ -13206,6 +13194,7 @@ static void load_vmcs12_host_state(struct kvm_vcpu *vcpu,
 				   struct vmcs12 *vmcs12)
 {
 	struct kvm_segment seg;
+	u32 entry_failure_code;
 
 	if (vmcs12->vm_exit_controls & VM_EXIT_LOAD_IA32_EFER)
 		vcpu->arch.efer = vmcs12->host_ia32_efer;
@@ -13232,7 +13221,17 @@ static void load_vmcs12_host_state(struct kvm_vcpu *vcpu,
 	vcpu->arch.cr4_guest_owned_bits = ~vmcs_readl(CR4_GUEST_HOST_MASK);
 	vmx_set_cr4(vcpu, vmcs12->host_cr4);
 
-	load_vmcs12_mmu_host_state(vcpu, vmcs12);
+	nested_ept_uninit_mmu_context(vcpu);
+
+	/*
+	 * Only PDPTE load can fail as the value of cr3 was checked on entry and
+	 * couldn't have changed.
+	 */
+	if (nested_vmx_load_cr3(vcpu, vmcs12->host_cr3, false, &entry_failure_code))
+		nested_vmx_abort(vcpu, VMX_ABORT_LOAD_HOST_PDPTE_FAIL);
+
+	if (!enable_ept)
+		vcpu->arch.walk_mmu->inject_page_fault = kvm_inject_page_fault;
 
 	/*
 	 * If vmcs01 don't use VPID, CPU flushes TLB on every
@@ -13326,6 +13325,140 @@ static void load_vmcs12_host_state(struct kvm_vcpu *vcpu,
 	if (nested_vmx_load_msr(vcpu, vmcs12->vm_exit_msr_load_addr,
 				vmcs12->vm_exit_msr_load_count))
 		nested_vmx_abort(vcpu, VMX_ABORT_LOAD_HOST_MSR_FAIL);
+}
+
+static inline u64 nested_vmx_get_vmcs01_guest_efer(struct vcpu_vmx *vmx)
+{
+	struct shared_msr_entry *efer_msr;
+	unsigned int i;
+
+	if (vm_entry_controls_get(vmx) & VM_ENTRY_LOAD_IA32_EFER)
+		return vmcs_read64(GUEST_IA32_EFER);
+
+	if (cpu_has_load_ia32_efer)
+		return host_efer;
+
+	for (i = 0; i < vmx->msr_autoload.guest.nr; ++i) {
+		if (vmx->msr_autoload.guest.val[i].index == MSR_EFER)
+			return vmx->msr_autoload.guest.val[i].value;
+	}
+
+	efer_msr = find_msr_entry(vmx, MSR_EFER);
+	if (efer_msr)
+		return efer_msr->data;
+
+	return host_efer;
+}
+
+static void nested_vmx_restore_host_state(struct kvm_vcpu *vcpu)
+{
+	struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	struct vmx_msr_entry g, h;
+	struct msr_data msr;
+	gpa_t gpa;
+	u32 i, j;
+
+	vcpu->arch.pat = vmcs_read64(GUEST_IA32_PAT);
+
+	if (vmcs12->vm_entry_controls & VM_ENTRY_LOAD_DEBUG_CONTROLS) {
+		/*
+		 * L1's host DR7 is lost if KVM_GUESTDBG_USE_HW_BP is set
+		 * as vmcs01.GUEST_DR7 contains a userspace defined value
+		 * and vcpu->arch.dr7 is not squirreled away before the
+		 * nested VMENTER (not worth adding a variable in nested_vmx).
+		 */
+		if (vcpu->guest_debug & KVM_GUESTDBG_USE_HW_BP)
+			kvm_set_dr(vcpu, 7, DR7_FIXED_1);
+		else
+			WARN_ON(kvm_set_dr(vcpu, 7, vmcs_readl(GUEST_DR7)));
+	}
+
+	/*
+	 * Note that calling vmx_set_{efer,cr0,cr4} is important as they
+	 * handle a variety of side effects to KVM's software model.
+	 */
+	vmx_set_efer(vcpu, nested_vmx_get_vmcs01_guest_efer(vmx));
+
+	vcpu->arch.cr0_guest_owned_bits = X86_CR0_TS;
+	vmx_set_cr0(vcpu, vmcs_readl(CR0_READ_SHADOW));
+
+	vcpu->arch.cr4_guest_owned_bits = ~vmcs_readl(CR4_GUEST_HOST_MASK);
+	vmx_set_cr4(vcpu, vmcs_readl(CR4_READ_SHADOW));
+
+	nested_ept_uninit_mmu_context(vcpu);
+	vcpu->arch.cr3 = vmcs_readl(GUEST_CR3);
+	__set_bit(VCPU_EXREG_CR3, (ulong *)&vcpu->arch.regs_avail);
+
+	/*
+	 * Use ept_save_pdptrs(vcpu) to load the MMU's cached PDPTRs
+	 * from vmcs01 (if necessary).  The PDPTRs are not loaded on
+	 * VMFail, like everything else we just need to ensure our
+	 * software model is up-to-date.
+	 */
+	ept_save_pdptrs(vcpu);
+
+	kvm_mmu_reset_context(vcpu);
+
+	if (cpu_has_vmx_msr_bitmap())
+		vmx_update_msr_bitmap(vcpu);
+
+	/*
+	 * This nasty bit of open coding is a compromise between blindly
+	 * loading L1's MSRs using the exit load lists (incorrect emulation
+	 * of VMFail), leaving the nested VM's MSRs in the software model
+	 * (incorrect behavior) and snapshotting the modified MSRs (too
+	 * expensive since the lists are unbound by hardware).  For each
+	 * MSR that was (prematurely) loaded from the nested VMEntry load
+	 * list, reload it from the exit load list if it exists and differs
+	 * from the guest value.  The intent is to stuff host state as
+	 * silently as possible, not to fully process the exit load list.
+	 */
+	msr.host_initiated = false;
+	for (i = 0; i < vmcs12->vm_entry_msr_load_count; i++) {
+		gpa = vmcs12->vm_entry_msr_load_addr + (i * sizeof(g));
+		if (kvm_vcpu_read_guest(vcpu, gpa, &g, sizeof(g))) {
+			pr_debug_ratelimited(
+				"%s read MSR index failed (%u, 0x%08llx)\n",
+				__func__, i, gpa);
+			goto vmabort;
+		}
+
+		for (j = 0; j < vmcs12->vm_exit_msr_load_count; j++) {
+			gpa = vmcs12->vm_exit_msr_load_addr + (j * sizeof(h));
+			if (kvm_vcpu_read_guest(vcpu, gpa, &h, sizeof(h))) {
+				pr_debug_ratelimited(
+					"%s read MSR failed (%u, 0x%08llx)\n",
+					__func__, j, gpa);
+				goto vmabort;
+			}
+			if (h.index != g.index)
+				continue;
+			if (h.value == g.value)
+				break;
+
+			if (nested_vmx_load_msr_check(vcpu, &h)) {
+				pr_debug_ratelimited(
+					"%s check failed (%u, 0x%x, 0x%x)\n",
+					__func__, j, h.index, h.reserved);
+				goto vmabort;
+			}
+
+			msr.index = h.index;
+			msr.data = h.value;
+			if (kvm_set_msr(vcpu, &msr)) {
+				pr_debug_ratelimited(
+					"%s WRMSR failed (%u, 0x%x, 0x%llx)\n",
+					__func__, j, h.index, h.value);
+				goto vmabort;
+			}
+		}
+	}
+
+	return;
+
+vmabort:
+	nested_vmx_abort(vcpu, VMX_ABORT_LOAD_HOST_MSR_FAIL);
 }
 
 /*
@@ -13472,7 +13605,13 @@ static void nested_vmx_vmexit(struct kvm_vcpu *vcpu, u32 exit_reason,
 	 */
 	nested_vmx_failValid(vcpu, VMXERR_ENTRY_INVALID_CONTROL_FIELD);
 
-	load_vmcs12_mmu_host_state(vcpu, vmcs12);
+	/*
+	 * Restore L1's host state to KVM's software model.  We're here
+	 * because a consistency check was caught by hardware, which
+	 * means some amount of guest state has been propagated to KVM's
+	 * model and needs to be unwound to the host's state.
+	 */
+	nested_vmx_restore_host_state(vcpu);
 
 	/*
 	 * The emulated instruction was already skipped in

@@ -450,7 +450,6 @@ struct f2fs_flush_device {
 
 /* for inline stuff */
 #define DEF_INLINE_RESERVED_SIZE	1
-#define DEF_MIN_INLINE_SIZE		1
 static inline int get_extra_isize(struct inode *inode);
 static inline int get_inline_xattr_addrs(struct inode *inode);
 #define MAX_INLINE_DATA(inode)	(sizeof(__le32) *			\
@@ -3410,11 +3409,20 @@ static inline int get_blkz_type(struct f2fs_sb_info *sbi,
 }
 #endif
 
-static inline bool f2fs_discard_en(struct f2fs_sb_info *sbi)
+static inline bool f2fs_hw_should_discard(struct f2fs_sb_info *sbi)
 {
-	struct request_queue *q = bdev_get_queue(sbi->sb->s_bdev);
+	return f2fs_sb_has_blkzoned(sbi->sb);
+}
 
-	return blk_queue_discard(q) || f2fs_sb_has_blkzoned(sbi->sb);
+static inline bool f2fs_hw_support_discard(struct f2fs_sb_info *sbi)
+{
+	return blk_queue_discard(bdev_get_queue(sbi->sb->s_bdev));
+}
+
+static inline bool f2fs_realtime_discard_enable(struct f2fs_sb_info *sbi)
+{
+	return (test_opt(sbi, DISCARD) && f2fs_hw_support_discard(sbi)) ||
+					f2fs_hw_should_discard(sbi);
 }
 
 static inline void set_opt_mode(struct f2fs_sb_info *sbi, unsigned int mt)

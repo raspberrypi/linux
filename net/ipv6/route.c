@@ -1048,14 +1048,20 @@ static struct rt6_info *ip6_create_rt_rcu(struct fib6_info *rt)
 	struct rt6_info *nrt;
 
 	if (!fib6_info_hold_safe(rt))
-		return NULL;
+		goto fallback;
 
 	nrt = ip6_dst_alloc(dev_net(dev), dev, flags);
-	if (nrt)
-		ip6_rt_copy_init(nrt, rt);
-	else
+	if (!nrt) {
 		fib6_info_release(rt);
+		goto fallback;
+	}
 
+	ip6_rt_copy_init(nrt, rt);
+	return nrt;
+
+fallback:
+	nrt = dev_net(dev)->ipv6.ip6_null_entry;
+	dst_hold(&nrt->dst);
 	return nrt;
 }
 
@@ -1104,10 +1110,6 @@ restart:
 		dst_hold(&rt->dst);
 	} else {
 		rt = ip6_create_rt_rcu(f6i);
-		if (!rt) {
-			rt = net->ipv6.ip6_null_entry;
-			dst_hold(&rt->dst);
-		}
 	}
 
 	rcu_read_unlock();
@@ -2365,6 +2367,10 @@ static void __ip6_rt_update_pmtu(struct dst_entry *dst, const struct sock *sk,
 
 		rcu_read_lock();
 		from = rcu_dereference(rt6->from);
+		if (!from) {
+			rcu_read_unlock();
+			return;
+		}
 		nrt6 = ip6_rt_cache_alloc(from, daddr, saddr);
 		if (nrt6) {
 			rt6_do_update_pmtu(nrt6, mtu);
