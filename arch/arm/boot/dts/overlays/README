@@ -1494,6 +1494,12 @@ Params: alsaname                Set the name as it appears in ALSA (default
                                 "PiBell")
 
 
+Name:   piglow
+Info:   Configures the PiGlow by pimoroni.com
+Load:   dtoverlay=piglow
+Params: <None>
+
+
 Name:   piscreen
 Info:   PiScreen display by OzzMaker.com
 Load:   dtoverlay=piscreen,<param>=<val>
