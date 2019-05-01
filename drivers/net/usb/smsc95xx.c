@@ -2082,7 +2082,9 @@ static struct sk_buff *smsc95xx_tx_fixup(struct usbnet *dev,
 					 struct sk_buff *skb, gfp_t flags)
 {
 	bool csum = skb->ip_summed == CHECKSUM_PARTIAL;
-	int overhead = csum ? SMSC95XX_TX_OVERHEAD_CSUM : SMSC95XX_TX_OVERHEAD;
+	unsigned int align_bytes = -((uintptr_t)skb->data) & 0x3;
+	int overhead = csum ? SMSC95XX_TX_OVERHEAD_CSUM + align_bytes
+				: SMSC95XX_TX_OVERHEAD + align_bytes;
 	u32 tx_cmd_a, tx_cmd_b;
 
 	/* We do not advertise SG, so skbs should be already linearized */
@@ -2116,16 +2118,16 @@ static struct sk_buff *smsc95xx_tx_fixup(struct usbnet *dev,
 		}
 	}
 
-	skb_push(skb, 4);
-	tx_cmd_b = (u32)(skb->len - 4);
+	skb_push(skb, 4 + align_bytes);
+	tx_cmd_b = (u32)(skb->len - 4 - align_bytes);
 	if (csum)
 		tx_cmd_b |= TX_CMD_B_CSUM_ENABLE;
 	cpu_to_le32s(&tx_cmd_b);
 	memcpy(skb->data, &tx_cmd_b, 4);
 
 	skb_push(skb, 4);
-	tx_cmd_a = (u32)(skb->len - 8) | TX_CMD_A_FIRST_SEG_ |
-		TX_CMD_A_LAST_SEG_;
+	tx_cmd_a = (u32)(skb->len - 8 - align_bytes) | TX_CMD_A_FIRST_SEG_ |
+		(align_bytes << 16) | TX_CMD_A_LAST_SEG_;
 	cpu_to_le32s(&tx_cmd_a);
 	memcpy(skb->data, &tx_cmd_a, 4);
 
