@@ -3,7 +3,7 @@
 
 / {
 	chosen {
-		bootargs = "";
+		bootargs = "coherent_pool=1M";
 		/delete-property/ stdout-path;
 	};
 
