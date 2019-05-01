@@ -1979,6 +1979,8 @@ int vchiq_mmal_component_finalise(struct vchiq_mmal_instance *instance,
 
 	release_all_event_contexts(component);
 
+	free_event_context(&component->control);
+
 	mutex_unlock(&instance->vchiq_mutex);
 
 	return ret;
