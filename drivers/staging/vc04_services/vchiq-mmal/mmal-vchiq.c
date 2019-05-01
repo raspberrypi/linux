@@ -1898,6 +1898,8 @@ int vchiq_mmal_component_finalise(struct vchiq_mmal_instance *instance,
 	for (idx = 0; idx < component->clocks; idx++)
 		free_event_context(&component->clock[idx]);
 
+	free_event_context(&component->control);
+
 	mutex_unlock(&instance->vchiq_mutex);
 
 	return ret;
