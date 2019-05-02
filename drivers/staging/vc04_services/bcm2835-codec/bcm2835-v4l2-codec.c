@@ -605,8 +605,8 @@ static void setup_mmal_port_format(struct bcm2835_codec_ctx *ctx,
 
 	if (!(q_data->fmt->flags & V4L2_FMT_FLAG_COMPRESSED)) {
 		/* Raw image format - set width/height */
-		port->es.video.width = q_data->bytesperline /
-						(q_data->fmt->depth >> 3);
+		port->es.video.width = (q_data->bytesperline << 3) /
+						q_data->fmt->depth;
 		port->es.video.height = q_data->height;
 		port->es.video.crop.width = q_data->crop_width;
 		port->es.video.crop.height = q_data->crop_height;
