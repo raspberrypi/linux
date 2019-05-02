@@ -1015,7 +1015,8 @@ static int vidioc_g_fmt_vid_cap(struct file *file, void *priv,
 	return vidioc_g_fmt(file2ctx(file), f);
 }
 
-static int vidioc_try_fmt(struct v4l2_format *f, struct bcm2835_codec_fmt *fmt)
+static int vidioc_try_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
+			  struct bcm2835_codec_fmt *fmt)
 {
 	/*
 	 * The V4L2 specification requires the driver to correct the format
@@ -1034,11 +1035,13 @@ static int vidioc_try_fmt(struct v4l2_format *f, struct bcm2835_codec_fmt *fmt)
 			f->fmt.pix.height = MIN_H;
 
 		/*
-		 * Buffer must have a vertical alignment of 16 lines.
+		 * For codecs the buffer must have a vertical alignment of 16
+		 * lines.
 		 * The selection will reflect any cropping rectangle when only
 		 * some of the pixels are active.
 		 */
-		f->fmt.pix.height = ALIGN(f->fmt.pix.height, 16);
+		if (ctx->dev->role != ISP)
+			f->fmt.pix.height = ALIGN(f->fmt.pix.height, 16);
 	}
 	f->fmt.pix.bytesperline = get_bytesperline(f->fmt.pix.width,
 						   fmt);
@@ -1065,7 +1068,7 @@ static int vidioc_try_fmt_vid_cap(struct file *file, void *priv,
 		fmt = find_format(f, ctx->dev, true);
 	}
 
-	return vidioc_try_fmt(f, fmt);
+	return vidioc_try_fmt(ctx, f, fmt);
 }
 
 static int vidioc_try_fmt_vid_out(struct file *file, void *priv,
@@ -1084,7 +1087,7 @@ static int vidioc_try_fmt_vid_out(struct file *file, void *priv,
 	if (!f->fmt.pix.colorspace)
 		f->fmt.pix.colorspace = ctx->colorspace;
 
-	return vidioc_try_fmt(f, fmt);
+	return vidioc_try_fmt(ctx, f, fmt);
 }
 
 static int vidioc_s_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
