@@ -1087,15 +1087,19 @@ static int bcm2835_clock_set_rate(struct clk_hw *hw,
 
 	spin_lock(&cprman->regs_lock);
 
-	/*
-	 * Setting up frac support
-	 *
-	 * In principle it is recommended to stop/start the clock first,
-	 * but as we set CLK_SET_RATE_GATE during registration of the
-	 * clock this requirement should be take care of by the
-	 * clk-framework.
+	ctl = cprman_read(cprman, data->ctl_reg);
+
+	/* If the clock is running, we have to pause clock generation while
+	 * updating the control and div regs.  This is glitchless (no clock
+	 * signals generated faster than the rate) but each reg access is two
+	 * OSC cycles so the clock will slow down for a moment.
 	 */
-	ctl = cprman_read(cprman, data->ctl_reg) & ~CM_FRAC;
+	if (ctl & CM_ENABLE) {
+		cprman_write(cprman, data->ctl_reg, ctl & ~CM_ENABLE);
+		bcm2835_clock_wait_busy(clock);
+	}
+
+	ctl &= ~CM_FRAC;
 	ctl |= (div & CM_DIV_FRAC_MASK) ? CM_FRAC : 0;
 	cprman_write(cprman, data->ctl_reg, ctl);
 
@@ -1465,7 +1469,7 @@ static struct clk_hw *bcm2835_register_clock(struct bcm2835_cprman *cprman,
 		init.ops = &bcm2835_vpu_clock_clk_ops;
 	} else {
 		init.ops = &bcm2835_clock_clk_ops;
-		init.flags |= CLK_SET_RATE_GATE | CLK_SET_PARENT_GATE;
+		init.flags |= CLK_SET_PARENT_GATE;
 
 		/* If the clock wasn't actually enabled at boot, it's not
 		 * critical.
