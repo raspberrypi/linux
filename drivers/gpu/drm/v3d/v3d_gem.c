@@ -4,6 +4,7 @@
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
 #include <linux/io.h>
+#include <linux/clk.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
@@ -17,6 +18,47 @@
 #include "v3d_drv.h"
 #include "v3d_regs.h"
 #include "v3d_trace.h"
+
+static void
+v3d_clock_down_work(struct work_struct *work)
+{
+	struct v3d_dev *v3d =
+		container_of(work, struct v3d_dev, clk_down_work.work);
+	int ret;
+
+	ret = clk_set_rate(v3d->clk, v3d->clk_down_rate);
+	v3d->clk_up = false;
+	WARN_ON_ONCE(ret != 0);
+}
+
+static void
+v3d_clock_up_get(struct v3d_dev *v3d)
+{
+	mutex_lock(&v3d->clk_lock);
+	if (v3d->clk_refcount++ == 0) {
+		cancel_delayed_work_sync(&v3d->clk_down_work);
+		if (!v3d->clk_up)  {
+			int ret;
+
+			ret = clk_set_rate(v3d->clk, v3d->clk_up_rate);
+			WARN_ON_ONCE(ret != 0);
+			v3d->clk_up = true;
+		}
+	}
+	mutex_unlock(&v3d->clk_lock);
+}
+
+static void
+v3d_clock_up_put(struct v3d_dev *v3d)
+{
+	mutex_lock(&v3d->clk_lock);
+	if (--v3d->clk_refcount == 0) {
+		schedule_delayed_work(&v3d->clk_down_work,
+				      msecs_to_jiffies(100));
+	}
+	mutex_unlock(&v3d->clk_lock);
+}
+
 
 static void
 v3d_init_core(struct v3d_dev *v3d, int core)
@@ -318,6 +360,7 @@ static void
 v3d_job_free(struct kref *ref)
 {
 	struct v3d_job *job = container_of(ref, struct v3d_job, refcount);
+	struct v3d_dev *v3d = job->v3d;
 	int i;
 
 	if (job->bo) {
@@ -326,8 +369,7 @@ v3d_job_free(struct kref *ref)
 		kvfree(job->bo);
 	}
 
-	dma_fence_put(job->irq_fence);
-	dma_fence_put(job->done_fence);
+	v3d_clock_up_put(v3d);
 
 	if (job->perfmon)
 		v3d_perfmon_put(job->perfmon);
@@ -448,6 +490,7 @@ v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 			goto fail_deps;
 	}
 
+	v3d_clock_up_get(v3d);
 	kref_init(&job->refcount);
 
 	return 0;
@@ -1030,6 +1073,9 @@ v3d_gem_init(struct drm_device *dev)
 	ret = drmm_mutex_init(dev, &v3d->cache_clean_lock);
 	if (ret)
 		return ret;
+
+	mutex_init(&v3d->clk_lock);
+	INIT_DELAYED_WORK(&v3d->clk_down_work, v3d_clock_down_work);
 
 	/* Note: We don't allocate address 0.  Various bits of HW
 	 * treat 0 as special, such as the occlusion query counters
