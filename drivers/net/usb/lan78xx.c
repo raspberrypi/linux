@@ -3525,7 +3525,7 @@ static int rx_submit(struct lan78xx_net *dev, struct urb *urb, gfp_t flags)
 	size_t size = dev->rx_urb_size;
 	int ret = 0;
 
-	skb = netdev_alloc_skb_ip_align(dev->net, size);
+	skb = netdev_alloc_skb(dev->net, size);
 	if (!skb) {
 		usb_free_urb(urb);
 		return -ENOMEM;
