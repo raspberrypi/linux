@@ -1848,9 +1848,26 @@ static void free_event_context(struct vchiq_mmal_port *port)
 {
 	struct mmal_msg_context *ctx = port->event_context;
 
+	if (!ctx)
+		return;
+
 	kfree(ctx->u.bulk.buffer->buffer);
 	kfree(ctx->u.bulk.buffer);
 	release_msg_context(ctx);
+	port->event_context = NULL;
+}
+
+static void release_all_event_contexts(struct vchiq_mmal_component *component)
+{
+	int idx;
+
+	for (idx = 0; idx < component->inputs; idx++)
+		free_event_context(&component->input[idx]);
+	for (idx = 0; idx < component->outputs; idx++)
+		free_event_context(&component->output[idx]);
+	for (idx = 0; idx < component->clocks; idx++)
+		free_event_context(&component->clock[idx]);
+	free_event_context(&component->control);
 }
 
 /* Initialise a mmal component and its ports
@@ -1948,6 +1965,7 @@ int vchiq_mmal_component_init(struct vchiq_mmal_instance *instance,
 
 release_component:
 	destroy_component(instance, component);
+	release_all_event_contexts(component);
 unlock:
 	if (component)
 		component->in_use = 0;
@@ -1975,14 +1993,7 @@ int vchiq_mmal_component_finalise(struct vchiq_mmal_instance *instance,
 
 	component->in_use = 0;
 
-	for (idx = 0; idx < component->inputs; idx++)
-		free_event_context(&component->input[idx]);
-	for (idx = 0; idx < component->outputs; idx++)
-		free_event_context(&component->output[idx]);
-	for (idx = 0; idx < component->clocks; idx++)
-		free_event_context(&component->clock[idx]);
-
-	free_event_context(&component->control);
+	release_all_event_contexts(component);
 
 	mutex_unlock(&instance->vchiq_mutex);
 
