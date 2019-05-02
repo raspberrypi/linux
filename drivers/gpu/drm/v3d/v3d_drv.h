@@ -51,6 +51,12 @@ struct v3d_dev {
 	void __iomem *bridge_regs;
 	void __iomem *gca_regs;
 	struct clk *clk;
+	struct delayed_work clk_down_work;
+	unsigned long clk_up_rate, clk_down_rate;
+	struct mutex clk_lock;
+	u32 clk_refcount;
+	bool clk_up;
+
 	struct reset_control *reset;
 
 	/* Virtual and DMA addresses of the single shared page table. */
