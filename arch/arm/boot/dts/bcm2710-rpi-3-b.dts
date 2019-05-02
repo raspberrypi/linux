@@ -8,7 +8,7 @@
 	model = "Raspberry Pi 3 Model B";
 
 	chosen {
-		bootargs = "8250.nr_uarts=1";
+		bootargs = "coherent_pool=1M 8250.nr_uarts=1";
 	};
 
 	aliases {
