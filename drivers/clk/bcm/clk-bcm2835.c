@@ -1104,8 +1104,10 @@ static int bcm2835_clock_on(struct clk_hw *hw)
 	return 0;
 }
 
-static int bcm2835_clock_set_rate(struct clk_hw *hw,
-				  unsigned long rate, unsigned long parent_rate)
+static int bcm2835_clock_set_rate_and_parent(struct clk_hw *hw,
+					     unsigned long rate,
+					     unsigned long parent_rate,
+					     u8 parent)
 {
 	struct bcm2835_clock *clock = bcm2835_clock_from_hw(hw);
 	struct bcm2835_cprman *cprman = clock->cprman;
@@ -1127,6 +1129,11 @@ static int bcm2835_clock_set_rate(struct clk_hw *hw,
 		bcm2835_clock_wait_busy(clock);
 	}
 
+	if (parent != 0xff) {
+		ctl &= ~(CM_SRC_MASK << CM_SRC_SHIFT);
+		ctl |= parent << CM_SRC_SHIFT;
+	}
+
 	ctl &= ~CM_FRAC;
 	ctl |= (div & CM_DIV_FRAC_MASK) ? CM_FRAC : 0;
 	cprman_write(cprman, data->ctl_reg, ctl);
@@ -1136,6 +1143,12 @@ static int bcm2835_clock_set_rate(struct clk_hw *hw,
 	spin_unlock(&cprman->regs_lock);
 
 	return 0;
+}
+
+static int bcm2835_clock_set_rate(struct clk_hw *hw,
+				  unsigned long rate, unsigned long parent_rate)
+{
+	return bcm2835_clock_set_rate_and_parent(hw, rate, parent_rate, 0xff);
 }
 
 static bool
@@ -1321,6 +1334,7 @@ static const struct clk_ops bcm2835_clock_clk_ops = {
 	.unprepare = bcm2835_clock_off,
 	.recalc_rate = bcm2835_clock_get_rate,
 	.set_rate = bcm2835_clock_set_rate,
+	.set_rate_and_parent = bcm2835_clock_set_rate_and_parent,
 	.determine_rate = bcm2835_clock_determine_rate,
 	.set_parent = bcm2835_clock_set_parent,
 	.get_parent = bcm2835_clock_get_parent,
@@ -1503,7 +1517,6 @@ static struct clk_hw *bcm2835_register_clock(struct bcm2835_cprman *cprman,
 		init.ops = &bcm2835_vpu_clock_clk_ops;
 	} else {
 		init.ops = &bcm2835_clock_clk_ops;
-		init.flags |= CLK_SET_PARENT_GATE;
 
 		/* If the clock wasn't actually enabled at boot, it's not
 		 * critical.
