@@ -233,7 +233,6 @@ struct vc4_crtc {
 	void __iomem *regs;
 
 	struct drm_pending_vblank_event *event;
-	u32 overscan[4];
 	bool vblank_enabled;
 	u32 display_number;
 	u32 display_type;
@@ -467,11 +466,6 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 		mb->plane.vc_image_type = VC_IMAGE_YUV_UV;
 		mb->plane.pitch = fourcc_mod_broadcom_param(fb->modifier);
 		break;
-	}
-
-	if (vc4_crtc) {
-		mb->plane.dst_x += vc4_crtc->overscan[0];
-		mb->plane.dst_y += vc4_crtc->overscan[1];
 	}
 
 	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] plane update %dx%d@%d +dst(%d,%d, %d,%d) +src(%d,%d, %d,%d) 0x%08x/%08x/%08x/%d, alpha %u zpos %u\n",
@@ -1226,15 +1220,6 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 	if (IS_ERR(vc4_crtc->connector)) {
 		ret = PTR_ERR(vc4_crtc->connector);
 		goto err_destroy_encoder;
-	}
-
-	ret = rpi_firmware_property(vc4->firmware,
-				    RPI_FIRMWARE_FRAMEBUFFER_GET_OVERSCAN,
-				    &vc4_crtc->overscan,
-				    sizeof(vc4_crtc->overscan));
-	if (ret) {
-		DRM_ERROR("Failed to get overscan state: 0x%08x\n", vc4_crtc->overscan[0]);
-		memset(&vc4_crtc->overscan, 0, sizeof(vc4_crtc->overscan));
 	}
 
 	*ret_crtc = vc4_crtc;
