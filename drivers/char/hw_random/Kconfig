@@ -105,7 +105,7 @@ config HW_RANDOM_IPROC_RNG200
 	default HW_RANDOM
 	help
 	  This driver provides kernel-side support for the RNG200
-	  hardware found on the Broadcom iProc and STB SoCs.
+	  hardware found on the Broadcom iProc, BCM2711 and STB SoCs.
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called iproc-rng200
