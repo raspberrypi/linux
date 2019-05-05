@@ -38,7 +38,7 @@
 			};
 
 			hts221-humid@5f {
-				compatible = "st,hts221-humid";
+				compatible = "st,hts221-humid", "st,hts221";
 				reg = <0x5f>;
 				status = "okay";
 			};
