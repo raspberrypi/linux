@@ -624,11 +624,7 @@ static int dwc_otg_driver_remove(        struct platform_device *_dev )
 	 * Free the IRQ
 	 */
 	if (otg_dev->common_irq_installed) {
-#ifdef PLATFORM_INTERFACE
-		free_irq(platform_get_irq(_dev, 0), otg_dev);
-#else
-		free_irq(_dev->irq, otg_dev);
-#endif
+		free_irq(otg_dev->os_dep.irq_num, otg_dev);
         } else {
 		DWC_DEBUGPL(DBG_ANY, "%s: There is no installed irq!\n", __func__);
 		return REM_RETVAL(-ENXIO);
@@ -905,7 +901,9 @@ static int dwc_otg_driver_probe(
 	 */
 
 #if defined(PLATFORM_INTERFACE)
-	devirq = platform_get_irq(_dev, fiq_enable ? 0 : 1);
+	devirq = platform_get_irq_byname(_dev, fiq_enable ? "soft" : "usb");
+	if (devirq < 0)
+	    devirq = platform_get_irq(_dev, fiq_enable ? 0 : 1);
 #else
 	devirq = _dev->irq;
 #endif
@@ -921,6 +919,14 @@ static int dwc_otg_driver_probe(
 		goto fail;
 	} else {
 		dwc_otg_device->common_irq_installed = 1;
+	}
+	dwc_otg_device->os_dep.irq_num = devirq;
+	dwc_otg_device->os_dep.fiq_num = -EINVAL;
+	if (fiq_enable) {
+		int devfiq = platform_get_irq_byname(_dev, "usb");
+		if (devfiq < 0)
+			devfiq = platform_get_irq(_dev, 1);
+		dwc_otg_device->os_dep.fiq_num = devfiq;
 	}
 
 #ifndef IRQF_TRIGGER_LOW
