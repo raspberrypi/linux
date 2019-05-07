@@ -151,7 +151,6 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	uart1.dtbo \
 	udrc.dtbo \
 	upstream.dtbo \
-	upstream-aux-interrupt.dtbo \
 	vc4-fkms-v3d.dtbo \
 	vc4-kms-kippah-7inch.dtbo \
 	vc4-kms-v3d.dtbo \
