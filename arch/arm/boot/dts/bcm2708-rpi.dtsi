@@ -118,7 +118,8 @@
 		sd_force_pio = <&sdhost>,"brcm,force-pio?";
 		sd_pio_limit = <&sdhost>,"brcm,pio-limit:0";
 		sd_debug     = <&sdhost>,"brcm,debug";
-		sdio_overclock = <&mmc>,"brcm,overclock-50:0";
+		sdio_overclock = <&mmc>,"brcm,overclock-50:0",
+				 <&mmcnr>,"brcm,overclock-50:0";
 		axiperf      = <&axiperf>,"status";
 	};
 };
