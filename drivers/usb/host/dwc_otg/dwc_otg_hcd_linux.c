@@ -492,7 +492,7 @@ static void hcd_init_fiq(void *cookie)
 #endif
 	// Enable FIQ interrupt from USB peripheral
 #ifdef CONFIG_ARM64
-	irq = platform_get_irq(otg_dev->os_dep.platformdev, 1);
+	irq = otg_dev->os_dep.fiq_num;
 
 	if (irq < 0) {
 		DWC_ERROR("Can't get SIM-FIQ irq");
@@ -509,7 +509,7 @@ static void hcd_init_fiq(void *cookie)
 	simfiq_irq = irq;
 #else
 #ifdef CONFIG_GENERIC_IRQ_MULTI_HANDLER
-	irq = platform_get_irq(otg_dev->os_dep.platformdev, 1);
+	irq = otg_dev->os_dep.fiq_num;
 #else
 	irq = INTERRUPT_VC_USB;
 #endif
@@ -626,11 +626,7 @@ int hcd_init(dwc_bus_dev_t *_dev)
 	 * allocates the DMA buffer pool, registers the USB bus, requests the
 	 * IRQ line, and calls hcd_start method.
 	 */
-#ifdef PLATFORM_INTERFACE
-	retval = usb_add_hcd(hcd, platform_get_irq(_dev, fiq_enable ? 0 : 1), IRQF_SHARED);
-#else
-	retval = usb_add_hcd(hcd, _dev->irq, IRQF_SHARED);
-#endif
+	retval = usb_add_hcd(hcd, otg_dev->os_dep.irq_num, IRQF_SHARED);
 	if (retval < 0) {
 		goto error2;
 	}
