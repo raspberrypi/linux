@@ -288,12 +288,10 @@ static int snd_allo_boss_hw_params(
 			return ret;
 	}
 
-	ret = snd_soc_dai_set_tdm_slot(rtd->cpu_dai, 0x03, 0x03,
-		channels, width);
+	ret = snd_soc_dai_set_bclk_ratio(rtd->cpu_dai, channels * width);
 	if (ret)
 		return ret;
-	ret = snd_soc_dai_set_tdm_slot(rtd->codec_dai, 0x03, 0x03,
-		channels, width);
+	ret = snd_soc_dai_set_bclk_ratio(rtd->codec_dai, channels * width);
 	return ret;
 }
 
