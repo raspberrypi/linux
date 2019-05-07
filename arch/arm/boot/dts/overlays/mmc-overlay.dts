@@ -33,6 +33,13 @@
 		};
 	};
 
+	fragment@3 {
+		target = <&mmcnr>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
 	__overrides__ {
 		overclock_50     = <&frag0>,"brcm,overclock-50:0";
 	};
