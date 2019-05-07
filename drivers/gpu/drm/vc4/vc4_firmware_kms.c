@@ -716,19 +716,19 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	switch (frame.avi.picture_aspect) {
 	default:
 	case HDMI_PICTURE_ASPECT_NONE:
-		mode->flags |= TIMINGS_FLAGS_ASPECT_NONE;
+		mb.timings.flags |= TIMINGS_FLAGS_ASPECT_NONE;
 		break;
 	case HDMI_PICTURE_ASPECT_4_3:
-		mode->flags |= TIMINGS_FLAGS_ASPECT_4_3;
+		mb.timings.flags |= TIMINGS_FLAGS_ASPECT_4_3;
 		break;
 	case HDMI_PICTURE_ASPECT_16_9:
-		mode->flags |= TIMINGS_FLAGS_ASPECT_16_9;
+		mb.timings.flags |= TIMINGS_FLAGS_ASPECT_16_9;
 		break;
 	case HDMI_PICTURE_ASPECT_64_27:
-		mode->flags |= TIMINGS_FLAGS_ASPECT_64_27;
+		mb.timings.flags |= TIMINGS_FLAGS_ASPECT_64_27;
 		break;
 	case HDMI_PICTURE_ASPECT_256_135:
-		mode->flags |= TIMINGS_FLAGS_ASPECT_256_135;
+		mb.timings.flags |= TIMINGS_FLAGS_ASPECT_256_135;
 		break;
 	}
 
