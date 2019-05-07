@@ -685,12 +685,13 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 		return;
 	}
 
-	DRM_DEBUG_KMS("Setting mode for display num %u mode name %s, clk %d, h(disp %d, start %d, end %d, total %d, skew %d) v(disp %d, start %d, end %d, total %d, scan %d), vrefresh %d, par %u\n",
+	DRM_DEBUG_KMS("Setting mode for display num %u mode name %s, clk %d, h(disp %d, start %d, end %d, total %d, skew %d) v(disp %d, start %d, end %d, total %d, scan %d), vrefresh %d, par %u, flags 0x%04x\n",
 		      vc4_crtc->display_number, mode->name, mode->clock,
 		      mode->hdisplay, mode->hsync_start, mode->hsync_end,
 		      mode->htotal, mode->hskew, mode->vdisplay,
 		      mode->vsync_start, mode->vsync_end, mode->vtotal,
-		      mode->vscan, mode->vrefresh, mode->picture_aspect_ratio);
+		      mode->vscan, mode->vrefresh, mode->picture_aspect_ratio,
+		      mode->flags);
 	mb.timings.display = vc4_crtc->display_number;
 
 	mb.timings.video_id_code = frame.avi.video_code;
