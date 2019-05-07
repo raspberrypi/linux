@@ -15,6 +15,7 @@
 	aliases {
 		serial0 = &uart1;
 		serial1 = &uart0;
+		mmc1 = &mmcnr;
 	};
 };
 
@@ -74,13 +75,11 @@
 	};
 };
 
-&mmc {
+&mmcnr {
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdio_pins>;
-	non-removable;
 	bus-width = <4>;
 	status = "okay";
-	brcm,overclock-50 = <0>;
 };
 
 &soc {
