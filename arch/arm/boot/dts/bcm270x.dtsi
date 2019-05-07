@@ -79,6 +79,19 @@
 			status = "disabled";
 		};
 
+		/* A clone of mmc but with non-removable set */
+		mmcnr: mmcnr@7e300000 {
+			compatible = "brcm,bcm2835-mmc", "brcm,bcm2835-sdhci";
+			reg = <0x7e300000 0x100>;
+			interrupts = <2 30>;
+			clocks = <&clocks BCM2835_CLOCK_EMMC>;
+			dmas = <&dma 11>;
+			dma-names = "rx-tx";
+			brcm,overclock-50 = <0>;
+			non-removable;
+			status = "disabled";
+		};
+
 		hvs: hvs@7e400000 {
 			/* Add alias */
 			status = "disabled";
