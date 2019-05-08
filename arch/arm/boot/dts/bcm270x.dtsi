@@ -131,8 +131,10 @@
 			compatible = "brcm,bcm2708-usb";
 			reg = <0x7e980000 0x10000>,
 			      <0x7e006000 0x1000>;
-			interrupts = <2 0>,
-				     <1 9>;
+			interrupt-names = "usb",
+					  "soft";
+			interrupts = <1 9>,
+				     <2 0>;
 		};
 
 		v3d@7ec00000 { /* vd3 */
