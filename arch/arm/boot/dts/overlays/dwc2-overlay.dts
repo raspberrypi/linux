@@ -10,8 +10,6 @@
 		#size-cells = <1>;
 		dwc2_usb: __overlay__ {
 			compatible = "brcm,bcm2835-usb";
-			reg = <0x7e980000 0x10000>;
-			interrupts = <1 9>;
 			dr_mode = "otg";
 			g-np-tx-fifo-size = <32>;
 			g-rx-fifo-size = <256>;
