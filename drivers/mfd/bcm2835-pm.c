@@ -50,14 +50,14 @@ static int bcm2835_pm_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	/* Map the ARGON ASB regs if present. */
+	/* Map the RPiVid ASB regs if present. */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 	if (res) {
-		pm->arg_asb = devm_ioremap_resource(dev, res);
-		if (IS_ERR(pm->arg_asb)) {
-			dev_err(dev, "Failed to map ARGON ASB: %ld\n",
-				PTR_ERR(pm->arg_asb));
-			return PTR_ERR(pm->arg_asb);
+		pm->rpivid_asb = devm_ioremap_resource(dev, res);
+		if (IS_ERR(pm->rpivid_asb)) {
+			dev_err(dev, "Failed to map RPiVid ASB: %ld\n",
+				PTR_ERR(pm->rpivid_asb));
+			return PTR_ERR(pm->rpivid_asb);
 		}
 	}
 
