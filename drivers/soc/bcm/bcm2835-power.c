@@ -637,15 +637,15 @@ static int bcm2835_power_probe(struct platform_device *pdev)
 	power->base = pm->base;
 	power->asb = pm->asb;
 
-	/* 2711 hack: the new ARGON ASB took over V3D, which is our
+	/* 2711 hack: the new RPiVid ASB took over V3D, which is our
 	 * only consumer of this driver so far.  The old ASB seems to
 	 * still be present with ISP and H264 bits but no V3D, but I
 	 * don't know if that's real or not.  The V3D is in the same
 	 * place in the new ASB as the old one, so just poke the new
 	 * one for now.
 	 */
-	if (pm->arg_asb) {
-		power->asb = pm->arg_asb;
+	if (pm->rpivid_asb) {
+		power->asb = pm->rpivid_asb;
 		power->is_2711 = true;
 	}
 
