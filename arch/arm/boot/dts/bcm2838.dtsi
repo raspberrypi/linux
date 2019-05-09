@@ -409,26 +409,26 @@
 		};
 
 		hevc-decoder@7eb00000 {
-			compatible = "raspberrypi,argon-hevc-decoder";
+			compatible = "raspberrypi,rpivid-hevc-decoder";
 			reg = <0x0 0x7eb00000 0x10000>;
 			status = "okay";
 		};
 
-		argon-local-intc@7eb10000 {
-			compatible = "raspberrypi,argon-local-intc";
+		rpivid-local-intc@7eb10000 {
+			compatible = "raspberrypi,rpivid-local-intc";
 			reg = <0x0 0x7eb10000 0x1000>;
 			status = "okay";
 			interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		h264-decoder@7eb20000 {
-			compatible = "raspberrypi,argon-h264-decoder";
+			compatible = "raspberrypi,rpivid-h264-decoder";
 			reg = <0x0 0x7eb20000 0x10000>;
 			status = "okay";
 		};
 
 		vp9-decoder@7eb30000 {
-			compatible = "raspberrypi,argon-vp9-decoder";
+			compatible = "raspberrypi,rpivid-vp9-decoder";
 			reg = <0x0 0x7eb30000 0x10000>;
 			status = "okay";
 		};
