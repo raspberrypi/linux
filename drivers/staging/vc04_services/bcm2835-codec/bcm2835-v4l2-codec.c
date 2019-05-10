@@ -823,7 +823,8 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 		vb2->flags |= V4L2_BUF_FLAG_LAST;
 	}
 
-	vb2->vb2_buf.timestamp = mmal_buf->pts;
+	/* vb2 timestamps in nsecs, mmal in usecs */
+	vb2->vb2_buf.timestamp = mmal_buf->pts * 1000;
 
 	vb2_set_plane_payload(&vb2->vb2_buf, 0, mmal_buf->length);
 	if (mmal_buf->mmal_flags & MMAL_BUFFER_HEADER_FLAG_KEYFRAME)
@@ -847,6 +848,7 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 static void vb2_to_mmal_buffer(struct m2m_mmal_buffer *buf,
 			       struct vb2_v4l2_buffer *vb2)
 {
+	u64 pts;
 	buf->mmal.mmal_flags = 0;
 	if (vb2->flags & V4L2_BUF_FLAG_KEYFRAME)
 		buf->mmal.mmal_flags |= MMAL_BUFFER_HEADER_FLAG_KEYFRAME;
@@ -869,7 +871,10 @@ static void vb2_to_mmal_buffer(struct m2m_mmal_buffer *buf,
 	if (!buf->mmal.length || vb2->flags & V4L2_BUF_FLAG_LAST)
 		buf->mmal.mmal_flags |= MMAL_BUFFER_HEADER_FLAG_EOS;
 
-	buf->mmal.pts = vb2->vb2_buf.timestamp;
+	/* vb2 timestamps in nsecs, mmal in usecs */
+	pts = vb2->vb2_buf.timestamp;
+	do_div(pts, 1000);
+	buf->mmal.pts = pts;
 	buf->mmal.dts = MMAL_TIME_UNKNOWN;
 }
 
