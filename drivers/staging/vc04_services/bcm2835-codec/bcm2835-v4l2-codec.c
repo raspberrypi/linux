@@ -447,6 +447,8 @@ struct bcm2835_codec_ctx {
 	/* Source and destination queue data */
 	struct bcm2835_codec_q_data   q_data[2];
 	s32  bitrate;
+	unsigned int	framerate_num;
+	unsigned int	framerate_denom;
 
 	bool aborting;
 	int num_ip_buffers;
@@ -610,8 +612,8 @@ static void setup_mmal_port_format(struct bcm2835_codec_ctx *ctx,
 		port->es.video.height = q_data->height;
 		port->es.video.crop.width = q_data->crop_width;
 		port->es.video.crop.height = q_data->crop_height;
-		port->es.video.frame_rate.num = 0;
-		port->es.video.frame_rate.den = 1;
+		port->es.video.frame_rate.num = ctx->framerate_num;
+		port->es.video.frame_rate.den = ctx->framerate_denom;
 	} else {
 		/* Compressed format - leave resolution as 0 for decode */
 		if (ctx->dev->role == DECODE) {
@@ -625,9 +627,9 @@ static void setup_mmal_port_format(struct bcm2835_codec_ctx *ctx,
 			port->es.video.crop.width = q_data->crop_width;
 			port->es.video.crop.height = q_data->crop_height;
 			port->format.bitrate = ctx->bitrate;
+			port->es.video.frame_rate.num = ctx->framerate_num;
+			port->es.video.frame_rate.den = ctx->framerate_denom;
 		}
-		port->es.video.frame_rate.num = 0;
-		port->es.video.frame_rate.den = 1;
 	}
 	port->es.video.crop.x = 0;
 	port->es.video.crop.y = 0;
@@ -1361,6 +1363,41 @@ static int vidioc_s_selection(struct file *file, void *priv,
 	return 0;
 }
 
+static int vidioc_s_parm(struct file *file, void *priv,
+			 struct v4l2_streamparm *parm)
+{
+	struct bcm2835_codec_ctx *ctx = file2ctx(file);
+
+	if (parm->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
+		return -EINVAL;
+
+	ctx->framerate_num =
+			parm->parm.output.timeperframe.denominator;
+	ctx->framerate_denom =
+			parm->parm.output.timeperframe.numerator;
+
+	parm->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
+
+	return 0;
+}
+
+static int vidioc_g_parm(struct file *file, void *priv,
+			 struct v4l2_streamparm *parm)
+{
+	struct bcm2835_codec_ctx *ctx = file2ctx(file);
+
+	if (parm->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
+		return -EINVAL;
+
+	parm->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
+	parm->parm.output.timeperframe.denominator =
+			ctx->framerate_num;
+	parm->parm.output.timeperframe.numerator =
+			ctx->framerate_denom;
+
+	return 0;
+}
+
 static int vidioc_subscribe_evt(struct v4l2_fh *fh,
 				const struct v4l2_event_subscription *sub)
 {
@@ -1724,6 +1761,9 @@ static const struct v4l2_ioctl_ops bcm2835_codec_ioctl_ops = {
 
 	.vidioc_g_selection	= vidioc_g_selection,
 	.vidioc_s_selection	= vidioc_s_selection,
+
+	.vidioc_g_parm		= vidioc_g_parm,
+	.vidioc_s_parm		= vidioc_s_parm,
 
 	.vidioc_subscribe_event = vidioc_subscribe_evt,
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
@@ -2546,6 +2586,8 @@ static int bcm2835_codec_create(struct platform_device *pdev,
 	case DECODE:
 		v4l2_disable_ioctl(vfd, VIDIOC_ENCODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_TRY_ENCODER_CMD);
+		v4l2_disable_ioctl(vfd, VIDIOC_S_PARM);
+		v4l2_disable_ioctl(vfd, VIDIOC_G_PARM);
 		video_nr = decode_video_nr;
 		break;
 	case ENCODE:
@@ -2558,6 +2600,8 @@ static int bcm2835_codec_create(struct platform_device *pdev,
 		v4l2_disable_ioctl(vfd, VIDIOC_TRY_ENCODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_DECODER_CMD);
 		v4l2_disable_ioctl(vfd, VIDIOC_TRY_DECODER_CMD);
+		v4l2_disable_ioctl(vfd, VIDIOC_S_PARM);
+		v4l2_disable_ioctl(vfd, VIDIOC_G_PARM);
 		video_nr = isp_video_nr;
 		break;
 	default:
