@@ -2085,6 +2085,110 @@ Params: cs0_pin                 GPIO pin for CS0 (default 43 - BCM SPI2_CE0).
                                 is 'okay' or enabled).
 
 
+Name:   spi3-1cs
+Info:   Enables spi3 with a single chip select (CS) line and associated spidev
+        dev node. The gpio pin number for the CS line and spidev device node
+        creation are configurable.
+Load:   dtoverlay=spi3-1cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 0 - BCM SPI3_CE0).
+        cs0_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev3.0 (default
+                                is 'on' or enabled).
+
+
+Name:   spi3-2cs
+Info:   Enables spi3 with two chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+Load:   dtoverlay=spi3-2cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 0 - BCM SPI3_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 24 - BCM SPI3_CE1).
+        cs0_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev3.0 (default
+                                is 'on' or enabled).
+        cs1_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev3.1 (default
+                                is 'on' or enabled).
+
+
+Name:   spi4-1cs
+Info:   Enables spi4 with a single chip select (CS) line and associated spidev
+        dev node. The gpio pin number for the CS line and spidev device node
+        creation are configurable.
+Load:   dtoverlay=spi4-1cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 4 - BCM SPI4_CE0).
+        cs0_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev4.0 (default
+                                is 'on' or enabled).
+
+
+Name:   spi4-2cs
+Info:   Enables spi4 with two chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+Load:   dtoverlay=spi4-2cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 4 - BCM SPI4_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 25 - BCM SPI4_CE1).
+        cs0_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev4.0 (default
+                                is 'on' or enabled).
+        cs1_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev4.1 (default
+                                is 'on' or enabled).
+
+
+Name:   spi5-1cs
+Info:   Enables spi5 with a single chip select (CS) line and associated spidev
+        dev node. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+Load:   dtoverlay=spi5-1cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 12 - BCM SPI5_CE0).
+        cs0_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev5.0 (default
+                                is 'on' or enabled).
+
+
+Name:   spi5-2cs
+Info:   Enables spi5 with two chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+Load:   dtoverlay=spi5-2cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 12 - BCM SPI5_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 26 - BCM SPI5_CE1).
+        cs0_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev5.0 (default
+                                is 'on' or enabled).
+        cs1_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev5.1 (default
+                                is 'on' or enabled).
+
+
+Name:   spi6-1cs
+Info:   Enables spi6 with a single chip select (CS) line and associated spidev
+        dev node. The gpio pin number for the CS line and spidev device node
+        creation are configurable.
+Load:   dtoverlay=spi6-1cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI6_CE0).
+        cs0_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev6.0 (default
+                                is 'on' or enabled).
+
+
+Name:   spi6-2cs
+Info:   Enables spi6 with two chip select (CS) lines and associated spidev
+        dev nodes. The gpio pin numbers for the CS lines and spidev device node
+        creation are configurable.
+Load:   dtoverlay=spi6-2cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 18 - BCM SPI6_CE0).
+        cs1_pin                 GPIO pin for CS1 (default 27 - BCM SPI6_CE1).
+        cs0_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev6.0 (default
+                                is 'on' or enabled).
+        cs1_spidev              Set to 'off' to prevent the creation of a
+                                userspace device node /dev/spidev6.1 (default
+                                is 'on' or enabled).
+
+
 Name:   ssd1306
 Info:   Overlay for activation of SSD1306 over I2C OLED display framebuffer.
 Load:   dtoverlay=ssd1306,<param>=<val>
