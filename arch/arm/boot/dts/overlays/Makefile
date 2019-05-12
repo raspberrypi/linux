@@ -144,6 +144,14 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	spi2-1cs.dtbo \
 	spi2-2cs.dtbo \
 	spi2-3cs.dtbo \
+	spi3-1cs.dtbo \
+	spi3-2cs.dtbo \
+	spi4-1cs.dtbo \
+	spi4-2cs.dtbo \
+	spi5-1cs.dtbo \
+	spi5-2cs.dtbo \
+	spi6-1cs.dtbo \
+	spi6-2cs.dtbo \
 	ssd1306.dtbo \
 	superaudioboard.dtbo \
 	sx150x.dtbo \
