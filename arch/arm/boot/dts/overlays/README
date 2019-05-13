@@ -1134,6 +1134,12 @@ Params: interrupt               GPIO used for interrupt (default 4)
                                 touchscreen (in pixels)
 
 
+Name:   iqaudio-codec
+Info:   Configures the IQaudio Codec audio card
+Load:   dtoverlay=iqaudio-codec
+Params: <None>
+
+
 Name:   iqaudio-dac
 Info:   Configures the IQaudio DAC audio card
 Load:   dtoverlay=iqaudio-dac,<param>
