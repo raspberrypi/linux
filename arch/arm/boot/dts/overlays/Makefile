@@ -66,6 +66,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	i2c1-bcm2708.dtbo \
 	i2s-gpio28-31.dtbo \
 	ilitek251x.dtbo \
+	iqaudio-codec.dtbo \
 	iqaudio-dac.dtbo \
 	iqaudio-dacplus.dtbo \
 	iqaudio-digi-wm8804-audio.dtbo \
