@@ -150,6 +150,10 @@ static irqreturn_t bcm2835_spi_interrupt(int irq, void *dev_id)
 	struct spi_master *master = dev_id;
 	struct bcm2835_spi *bs = spi_master_get_devdata(master);
 
+	/* check if we got interrupt enabled */
+	if (!(bcm2835_rd(bs, BCM2835_SPI_CS) & BCM2835_SPI_CS_INTR))
+		return IRQ_NONE;
+
 	/* Read as many bytes as possible from FIFO */
 	bcm2835_rd_fifo(bs);
 	/* Write as many bytes as possible to FIFO */
@@ -755,7 +759,8 @@ static int bcm2835_spi_probe(struct platform_device *pdev)
 	bcm2835_wr(bs, BCM2835_SPI_CS,
 		   BCM2835_SPI_CS_CLEAR_RX | BCM2835_SPI_CS_CLEAR_TX);
 
-	err = devm_request_irq(&pdev->dev, bs->irq, bcm2835_spi_interrupt, 0,
+	err = devm_request_irq(&pdev->dev, bs->irq, bcm2835_spi_interrupt,
+			       IRQF_SHARED,
 			       dev_name(&pdev->dev), master);
 	if (err) {
 		dev_err(&pdev->dev, "could not request IRQ: %d\n", err);
