@@ -1572,6 +1572,8 @@ static void vc_sm_connected_init(void)
 	sm_state->misc_dev.name = DEVICE_NAME;
 	sm_state->misc_dev.fops = &vc_sm_ops;
 	sm_state->misc_dev.parent = NULL;
+	/* Temporarily set as 666 until udev rules have been sorted */
+	sm_state->misc_dev.mode = 0666;
 	ret = misc_register(&sm_state->misc_dev);
 	if (ret) {
 		pr_err("vcsm-cma: failed to register misc device.\n");
