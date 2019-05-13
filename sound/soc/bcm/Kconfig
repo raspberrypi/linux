@@ -103,6 +103,13 @@ config SND_BCM2708_SOC_JUSTBOOM_DIGI
 	help
 	  Say Y or M if you want to add support for JustBoom Digi.
 
+config SND_BCM2708_SOC_IQAUDIO_CODEC
+	tristate "Support for IQaudIO-CODEC"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_DA7213
+	help
+	  Say Y or M if you want to add support for IQaudIO-CODEC.
+
 config SND_BCM2708_SOC_IQAUDIO_DAC
 	tristate "Support for IQaudIO-DAC"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
