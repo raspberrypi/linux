@@ -1162,7 +1162,7 @@ Params: interrupt               GPIO used for interrupt (default 4)
 
 Name:   iqaudio-codec
 Info:   Configures the IQaudio Codec audio card
-Load:   dtoverlay=iqaudio-codec,<param>
+Load:   dtoverlay=iqaudio-codec
 Params: <None>
 
 
