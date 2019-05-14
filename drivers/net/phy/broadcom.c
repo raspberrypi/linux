@@ -293,6 +293,7 @@ static void bcm54xx_adjust_rxrefclk(struct phy_device *phydev)
 	      phy_id_compare_model(phydev->drv->phy_id, PHY_ID_BCM50610) ||
 	      phy_id_compare_model(phydev->drv->phy_id, PHY_ID_BCM50610M) ||
 	      phy_id_compare_model(phydev->drv->phy_id, PHY_ID_BCM54210E) ||
+	      phy_id_compare_model(phydev->drv->phy_id, PHY_ID_BCM54213PE) ||
 	      phy_id_compare_model(phydev->drv->phy_id, PHY_ID_BCM54810) ||
 	      phy_id_compare_model(phydev->drv->phy_id, PHY_ID_BCM54811)))
 		return;
@@ -1486,7 +1487,7 @@ static struct phy_driver broadcom_drivers[] = {
 	.handle_interrupt = bcm_phy_handle_interrupt,
 	.link_change_notify	= bcm54xx_link_change_notify,
 }, {
-	PHY_ID_MATCH_MODEL(PHY_ID_BCM54210E),
+	PHY_ID_MATCH_EXACT(PHY_ID_BCM54210E),
 	.name		= "Broadcom BCM54210E",
 	/* PHY_GBIT_FEATURES */
 	.flags		= PHY_ALWAYS_CALL_SUSPEND,
@@ -1503,6 +1504,12 @@ static struct phy_driver broadcom_drivers[] = {
 	.get_wol	= bcm54xx_phy_get_wol,
 	.set_wol	= bcm54xx_phy_set_wol,
 	.led_brightness_set	= bcm_phy_led_brightness_set,
+}, {
+	PHY_ID_MATCH_EXACT(PHY_ID_BCM54213PE),
+	.name		= "Broadcom BCM54213PE",
+	/* PHY_GBIT_FEATURES */
+	.config_init	= bcm54xx_config_init,
+	.config_intr	= bcm_phy_config_intr,
 }, {
 	PHY_ID_MATCH_MODEL(PHY_ID_BCM5461),
 	.name		= "Broadcom BCM5461",
@@ -1752,7 +1759,8 @@ module_phy_driver(broadcom_drivers);
 static const struct mdio_device_id __maybe_unused broadcom_tbl[] = {
 	{ PHY_ID_MATCH_MODEL(PHY_ID_BCM5411) },
 	{ PHY_ID_MATCH_MODEL(PHY_ID_BCM5421) },
-	{ PHY_ID_MATCH_MODEL(PHY_ID_BCM54210E) },
+	{ PHY_ID_MATCH_EXACT(PHY_ID_BCM54210E) },
+	{ PHY_ID_MATCH_EXACT(PHY_ID_BCM54213PE) },
 	{ PHY_ID_MATCH_MODEL(PHY_ID_BCM5461) },
 	{ PHY_ID_MATCH_MODEL(PHY_ID_BCM54612E) },
 	{ PHY_ID_MATCH_MODEL(PHY_ID_BCM54616S) },
