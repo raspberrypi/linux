@@ -4,7 +4,7 @@
 /* Overlay for Atmel AT86RF233 IEEE 802.15.4 WPAN transceiver on spi0.0 */
 
 / {
-	compatible = "brcm,bcm2835", "brcm,bcm2836", "brcm,bcm2708", "brcm,bcm2709";
+	compatible = "brcm,bcm2835";
 
 	fragment@0 {
 		target = <&spi0>;
