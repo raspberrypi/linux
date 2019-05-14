@@ -277,7 +277,10 @@ int bcmgenet_mii_probe(struct net_device *dev)
 	int ret;
 
 	/* Communicate the integrated PHY revision */
-	phy_flags = priv->gphy_rev;
+	if (priv->internal_phy)
+		phy_flags = priv->gphy_rev;
+	else
+		phy_flags = PHY_BRCM_AUTO_PWRDWN_ENABLE;
 
 	/* Initialize link state variables that bcmgenet_mii_setup() uses */
 	priv->old_link = -1;
