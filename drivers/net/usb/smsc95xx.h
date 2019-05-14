@@ -21,7 +21,7 @@
 #define _SMSC95XX_H
 
 /* Tx command words */
-#define TX_CMD_A_DATA_OFFSET_	(0x00030000)	/* Data Start Offset */
+#define TX_CMD_A_DATA_OFFSET_	(0x001F0000)	/* Data Start Offset */
 #define TX_CMD_A_FIRST_SEG_	(0x00002000)	/* First Segment */
 #define TX_CMD_A_LAST_SEG_	(0x00001000)	/* Last Segment */
 #define TX_CMD_A_BUF_SIZE_	(0x000007FF)	/* Buffer Size */
