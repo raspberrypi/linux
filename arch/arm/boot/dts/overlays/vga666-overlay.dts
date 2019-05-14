@@ -2,7 +2,7 @@
 /plugin/;
 
 /{
-	compatible = "brcm,bcm2708";
+	compatible = "brcm,bcm2835";
 
 	// There is no VGA driver module, but we need a platform device
 	// node (that doesn't already use pinctrl) to hang the pinctrl
