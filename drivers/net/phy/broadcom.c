@@ -253,7 +253,8 @@ static void bcm54xx_adjust_rxrefclk(struct phy_device *phydev)
 	    BRCM_PHY_MODEL(phydev) != PHY_ID_BCM50610M &&
 	    BRCM_PHY_MODEL(phydev) != PHY_ID_BCM54210E &&
 	    BRCM_PHY_MODEL(phydev) != PHY_ID_BCM54810 &&
-	    BRCM_PHY_MODEL(phydev) != PHY_ID_BCM54811)
+	    BRCM_PHY_MODEL(phydev) != PHY_ID_BCM54811 &&
+	    BRCM_PHY_MODEL(phydev) != PHY_ID_BCM54213PE)
 		return;
 
 	val = bcm_phy_read_shadow(phydev, BCM54XX_SHD_SCR3);
@@ -715,12 +716,19 @@ static struct phy_driver broadcom_drivers[] = {
 	.handle_interrupt = bcm_phy_handle_interrupt,
 }, {
 	.phy_id		= PHY_ID_BCM54210E,
-	.phy_id_mask	= 0xfffffff0,
+	.phy_id_mask	= 0xffffffff,
 	.name		= "Broadcom BCM54210E",
 	/* PHY_GBIT_FEATURES */
 	.config_init	= bcm54xx_config_init,
 	.config_intr	= bcm_phy_config_intr,
 	.handle_interrupt = bcm_phy_handle_interrupt,
+}, {
+	.phy_id		= PHY_ID_BCM54213PE,
+	.phy_id_mask	= 0xffffffff,
+	.name		= "Broadcom BCM54213PE",
+	/* PHY_GBIT_FEATURES */
+	.config_init	= bcm54xx_config_init,
+	.config_intr	= bcm_phy_config_intr,
 }, {
 	.phy_id		= PHY_ID_BCM5461,
 	.phy_id_mask	= 0xfffffff0,
@@ -875,7 +883,8 @@ module_phy_driver(broadcom_drivers);
 static struct mdio_device_id __maybe_unused broadcom_tbl[] = {
 	{ PHY_ID_BCM5411, 0xfffffff0 },
 	{ PHY_ID_BCM5421, 0xfffffff0 },
-	{ PHY_ID_BCM54210E, 0xfffffff0 },
+	{ PHY_ID_BCM54210E, 0xffffffff },
+	{ PHY_ID_BCM54213PE, 0xffffffff },
 	{ PHY_ID_BCM5461, 0xfffffff0 },
 	{ PHY_ID_BCM54612E, 0xfffffff0 },
 	{ PHY_ID_BCM54616S, 0xfffffff0 },
