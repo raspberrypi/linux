@@ -8,7 +8,7 @@
 /plugin/;
 
 / {
-	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+	compatible = "brcm,bcm2835";
 
 	/* Enable I2S */
 	fragment@0 {

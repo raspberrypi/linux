@@ -5,7 +5,7 @@
 #include "adv7282m-overlay.dts"
 
 /{
-	compatible = "brcm,bcm2708";
+	compatible = "brcm,bcm2835";
 
 	// Fragment numbers deliberately high to avoid conflicts with the
 	// included adv7282m overlay file.

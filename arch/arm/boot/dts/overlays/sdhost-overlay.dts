@@ -4,7 +4,7 @@
 /* Provide backwards compatible aliases for the old sdhost dtparams. */
 
 /{
-	compatible = "brcm,bcm2708";
+	compatible = "brcm,bcm2835";
 
 	fragment@0 {
 		target = <&sdhost>;
