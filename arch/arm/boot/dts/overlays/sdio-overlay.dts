@@ -4,7 +4,7 @@
 /* Enable SDIO from MMC interface via GPIOs 22-27. Includes sdhost overlay. */
 
 /{
-	compatible = "brcm,bcm2708";
+	compatible = "brcm,bcm2835";
 
 	fragment@0 {
 		target = <&mmc>;

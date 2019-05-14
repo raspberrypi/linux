@@ -4,7 +4,7 @@
 /plugin/;
 
 / {
-	compatible = "brcm,bcm2708", "brcm,bcm2709";
+	compatible = "brcm,bcm2835";
 
 	fragment@0 {
 		target = <&spidev0>;
