@@ -10,7 +10,7 @@
 // note that GPIO3 has an external pullup on at least some boards).
 
 / {
-	compatible = "brcm,bcm2708";
+	compatible = "brcm,bcm2835";
 
 	fragment@0 {
 		// Configure the gpio pin controller
