@@ -301,14 +301,13 @@ static void vc_sm_release_resource(struct vc_sm_buffer *buffer)
 
 	if (buffer->vc_handle) {
 		/* We've sent the unmap request but not had the response. */
-		pr_err("[%s]: Waiting for VPU unmap response on %p\n",
-		       __func__, buffer);
+		pr_debug("[%s]: Waiting for VPU unmap response on %p\n",
+			 __func__, buffer);
 		goto defer;
 	}
 	if (buffer->in_use) {
 		/* dmabuf still in use - we await the release */
-		pr_err("[%s]: buffer %p is still in use\n",
-		       __func__, buffer);
+		pr_debug("[%s]: buffer %p is still in use\n", __func__, buffer);
 		goto defer;
 	}
 
