@@ -1003,7 +1003,7 @@ static const struct drm_display_mode lcd_mode = {
 		 25979400 / 1000,
 		 800, 800 + 1, 800 + 1 + 2, 800 + 1 + 2 + 46, 0,
 		 480, 480 + 7, 480 + 7 + 2, 480 + 7 + 2 + 21, 0,
-		 DRM_MODE_FLAG_INTERLACE)
+		 0)
 };
 
 static int vc4_fkms_lcd_connector_get_modes(struct drm_connector *connector)
