@@ -542,7 +542,7 @@ static unsigned long pcm512x_ncp_target(struct pcm512x_priv *pcm512x,
 
 static const u32 pcm512x_dai_rates[] = {
 	8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000,
-	88200, 96000, 176400, 192000, 384000,
+	88200, 96000, 176400, 192000, 352800, 384000,
 };
 
 static const struct snd_pcm_hw_constraint_list constraints_slave = {
