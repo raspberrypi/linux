@@ -186,6 +186,12 @@ rkisp1_rsz_get_pad_fmt(struct rkisp1_resizer *rsz,
 	struct v4l2_subdev_state state = {
 		.pads = rsz->pad_cfg
 		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
+		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
+		};
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
 		return v4l2_subdev_get_try_format(&rsz->sd, sd_state, pad);
 	else
@@ -199,6 +205,12 @@ rkisp1_rsz_get_pad_crop(struct rkisp1_resizer *rsz,
 {
 	struct v4l2_subdev_state state = {
 		.pads = rsz->pad_cfg
+		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
+		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
 		};
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
 		return v4l2_subdev_get_try_crop(&rsz->sd, sd_state, pad);
@@ -790,6 +802,12 @@ static int rkisp1_rsz_register(struct rkisp1_resizer *rsz)
 {
 	struct v4l2_subdev_state state = {
 		.pads = rsz->pad_cfg
+		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
+		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
 		};
 	static const char * const dev_names[] = {
 		RKISP1_RSZ_MP_DEV_NAME,
