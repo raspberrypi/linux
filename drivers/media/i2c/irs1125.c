@@ -562,8 +562,8 @@ static const struct v4l2_subdev_video_ops irs1125_subdev_video_ops = {
 };
 
 static int irs1125_enum_mbus_code(struct v4l2_subdev *sd,
-				  struct v4l2_subdev_pad_config *cfg,
-	struct v4l2_subdev_mbus_code_enum *code)
+				  struct v4l2_subdev_state *sd_state,
+				  struct v4l2_subdev_mbus_code_enum *code)
 {
 	if (code->index > 0)
 		return -EINVAL;
@@ -574,7 +574,7 @@ static int irs1125_enum_mbus_code(struct v4l2_subdev *sd,
 }
 
 static int irs1125_set_get_fmt(struct v4l2_subdev *sd,
-			       struct v4l2_subdev_pad_config *cfg,
+			       struct v4l2_subdev_state *sd_state,
 			       struct v4l2_subdev_format *format)
 {
 	struct v4l2_mbus_framefmt *fmt = &format->format;
@@ -930,7 +930,7 @@ static int irs1125_detect(struct v4l2_subdev *sd)
 static int irs1125_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct v4l2_mbus_framefmt *format =
-	v4l2_subdev_get_try_format(sd, fh->pad, 0);
+	v4l2_subdev_get_try_format(sd, fh->state, 0);
 
 	format->code = MEDIA_BUS_FMT_Y12_1X12;
 	format->width = IRS1125_WINDOW_WIDTH_DEF;
@@ -1161,7 +1161,7 @@ mutex_remove:
 	return ret;
 }
 
-static int irs1125_remove(struct i2c_client *client)
+static void irs1125_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct irs1125 *irs1125 = to_state(sd);
@@ -1171,8 +1171,6 @@ static int irs1125_remove(struct i2c_client *client)
 	v4l2_device_unregister_subdev(sd);
 	mutex_destroy(&irs1125->lock);
 	v4l2_ctrl_handler_free(&irs1125->ctrl_handler);
-
-	return 0;
 }
 
 #if IS_ENABLED(CONFIG_OF)
