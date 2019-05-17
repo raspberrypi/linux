@@ -185,6 +185,10 @@
 #define  BCM54XX_SHD_SCR3_DLLAPD_DIS	0x0002
 #define  BCM54XX_SHD_SCR3_TRDDAPD	0x0004
 
+/* 01001: Additional LED trigger options */
+#define BCM54XX_SHD_LEDCTL		0x09
+#define  BCM54XX_SHD_LEDCTL_ACTLINK_EN	0x0010
+
 /* 01010: Auto Power-Down */
 #define BCM54XX_SHD_APD			0x0a
 #define  BCM_APD_CLR_MASK		0xFE9F /* clear bits 5, 6 & 8 */
