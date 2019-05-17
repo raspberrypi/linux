@@ -216,6 +216,12 @@ rkisp1_isp_get_pad_fmt(struct rkisp1_isp *isp,
 	struct v4l2_subdev_state state = {
 		.pads = isp->pad_cfg
 		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
+		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
+		};
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
 		return v4l2_subdev_get_try_format(&isp->sd, sd_state, pad);
 	else
@@ -229,6 +235,12 @@ rkisp1_isp_get_pad_crop(struct rkisp1_isp *isp,
 {
 	struct v4l2_subdev_state state = {
 		.pads = isp->pad_cfg
+		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
+		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
 		};
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
 		return v4l2_subdev_get_try_crop(&isp->sd, sd_state, pad);
@@ -1067,6 +1079,12 @@ int rkisp1_isp_register(struct rkisp1_device *rkisp1)
 {
 	struct v4l2_subdev_state state = {
 		.pads = rkisp1->isp.pad_cfg
+		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
+		};
+	struct v4l2_subdev_state state = {
+		.pads = &state
 		};
 	struct rkisp1_isp *isp = &rkisp1->isp;
 	struct media_pad *pads = isp->pads;
