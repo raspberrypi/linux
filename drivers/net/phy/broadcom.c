@@ -48,6 +48,21 @@ static int bcm54210e_config_init(struct phy_device *phydev)
 	return 0;
 }
 
+static void bcm54213pe_config_init(struct phy_device *phydev)
+{
+	u16 val;
+
+	/* Enable ACT+LINK indication on ACTIVITY trigger */
+	val = bcm_phy_read_shadow(phydev, BCM54XX_SHD_LEDCTL);
+	val |= BCM54XX_SHD_LEDCTL_ACTLINK_EN;
+	bcm_phy_write_shadow(phydev, BCM54XX_SHD_LEDCTL, val);
+
+	/* Set ACTIVITY on LED "1" output, LINKSPD[1] on LED "3" output */
+	val = BCM5482_SHD_LEDS1_LED1(BCM_LED_SRC_ACTIVITYLED) |
+		BCM5482_SHD_LEDS1_LED3(BCM_LED_SRC_LINKSPD1);
+	bcm_phy_write_shadow(phydev, BCM5482_SHD_LEDS1, val);
+}
+
 static int bcm54612e_config_init(struct phy_device *phydev)
 {
 	int reg;
@@ -306,6 +321,8 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 		err = bcm54210e_config_init(phydev);
 		if (err)
 			return err;
+	} else if (BRCM_PHY_MODEL(phydev) == PHY_ID_BCM54213PE) {
+		bcm54213pe_config_init(phydev);
 	} else if (BRCM_PHY_MODEL(phydev) == PHY_ID_BCM54612E) {
 		err = bcm54612e_config_init(phydev);
 		if (err)
