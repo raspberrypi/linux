@@ -806,14 +806,15 @@ static int dwc_otg_driver_probe(
 		if (!request_mem_region(_dev->resource[1].start,
 	                                _dev->resource[1].end - _dev->resource[1].start + 1,
 	                                "dwc_otg")) {
-	          dev_dbg(&_dev->dev, "error reserving mapped memory\n");
-	          retval = -EFAULT;
-	          goto fail;
-	}
+			dev_dbg(&_dev->dev, "error reserving mapped memory\n");
+			retval = -EFAULT;
+			goto fail;
+		}
 
 		dwc_otg_device->os_dep.mphi_base = ioremap_nocache(_dev->resource[1].start,
 							    _dev->resource[1].end -
 							    _dev->resource[1].start + 1);
+		dwc_otg_device->os_dep.use_swirq = (_dev->resource[1].end - _dev->resource[1].start) == 0x200;
 	}
 
 #else
