@@ -118,6 +118,8 @@ typedef struct {
 	volatile void* outdda;
 	volatile void* outddb;
 	volatile void* intstat;
+	volatile void* swirq_set;
+	volatile void* swirq_clr;
 } mphi_regs_t;
 
 enum fiq_debug_level {
