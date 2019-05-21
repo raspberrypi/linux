@@ -220,16 +220,20 @@ exit_handler_routine:
 
 		/* The FIQ could have sneaked another interrupt in. If so, don't clear MPHI */
 		if ((gintmsk_new.d32 == ~0) && (haintmsk_new.d32 == 0x0000FFFF)) {
+			if (dwc_otg_hcd->fiq_state->mphi_regs.swirq_clr) {
+				DWC_WRITE_REG32(dwc_otg_hcd->fiq_state->mphi_regs.swirq_clr, 1);
+			} else {
 				DWC_WRITE_REG32(dwc_otg_hcd->fiq_state->mphi_regs.intstat, (1<<16));
-				if (dwc_otg_hcd->fiq_state->mphi_int_count >= 50) {
-					fiq_print(FIQDBG_INT, dwc_otg_hcd->fiq_state, "MPHI CLR");
+			}
+			if (dwc_otg_hcd->fiq_state->mphi_int_count >= 50) {
+				fiq_print(FIQDBG_INT, dwc_otg_hcd->fiq_state, "MPHI CLR");
 					DWC_WRITE_REG32(dwc_otg_hcd->fiq_state->mphi_regs.ctrl, ((1<<31) + (1<<16)));
 					while (!(DWC_READ_REG32(dwc_otg_hcd->fiq_state->mphi_regs.ctrl) & (1 << 17)))
 						;
 					DWC_WRITE_REG32(dwc_otg_hcd->fiq_state->mphi_regs.ctrl, (1<<31));
 					dwc_otg_hcd->fiq_state->mphi_int_count = 0;
-				}
-				int_done++;
+			}
+			int_done++;
 		}
 		haintmsk.d32 = DWC_READ_REG32(&core_if->host_if->host_global_regs->haintmsk);
 		/* Re-enable interrupts that the FIQ masked (first time round) */
