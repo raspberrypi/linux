@@ -150,6 +150,7 @@ enum rpi_firmware_property_tag {
 	RPI_FIRMWARE_VCHIQ_INIT =                             0x00048010,
 
 	RPI_FIRMWARE_SET_PLANE =                              0x00048015,
+	RPI_FIRMWARE_GET_DISPLAY_TIMING =                     0x00040017,
 	RPI_FIRMWARE_SET_TIMING =                             0x00048017,
 
 	RPI_FIRMWARE_GET_COMMAND_LINE =                       0x00050001,
