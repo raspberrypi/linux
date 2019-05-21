@@ -246,7 +246,6 @@ static inline struct vc4_crtc *to_vc4_crtc(struct drm_crtc *crtc)
 struct vc4_fkms_encoder {
 	struct drm_encoder base;
 	bool hdmi_monitor;
-	bool rgb_range_selectable;
 };
 
 static inline struct vc4_fkms_encoder *
@@ -281,7 +280,7 @@ static u32 vc4_get_display_type(u32 display_number)
 		/* The firmware display (DispmanX) IDs map to specific types in
 		 * a fixed manner.
 		 */
-		DRM_MODE_ENCODER_DSI,	/* MAIN_LCD */
+		DRM_MODE_ENCODER_DSI,	/* MAIN_LCD - DSI or DPI */
 		DRM_MODE_ENCODER_DSI,	/* AUX_LCD */
 		DRM_MODE_ENCODER_TMDS,	/* HDMI0 */
 		DRM_MODE_ENCODER_TVDAC,	/* VEC */
@@ -363,7 +362,6 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 					vc4_get_vc_image_fmt(drm_fmt->format);
 	struct vc4_fkms_plane *vc4_plane = to_vc4_fkms_plane(plane);
 	struct mailbox_set_plane *mb = &vc4_plane->mb;
-	struct vc4_crtc *vc4_crtc = to_vc4_crtc(state->crtc);
 	int num_planes = fb->format->num_planes;
 	struct drm_display_mode *mode = &state->crtc->mode;
 	unsigned int rotation = SUPPORTED_ROTATIONS;
@@ -679,7 +677,7 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	union hdmi_infoframe frame;
 	int ret;
 
-	ret = drm_hdmi_avi_infoframe_from_display_mode(&frame.avi, mode, false);
+	ret = drm_hdmi_avi_infoframe_from_display_mode(&frame.avi, vc4_crtc->connector, false);
 	if (ret < 0) {
 		DRM_ERROR("couldn't fill AVI infoframe\n");
 		return;
@@ -985,11 +983,6 @@ static int vc4_fkms_connector_get_modes(struct drm_connector *connector)
 
 	vc4_encoder->hdmi_monitor = drm_detect_hdmi_monitor(edid);
 
-	if (edid && edid->input & DRM_EDID_INPUT_DIGITAL) {
-		vc4_encoder->rgb_range_selectable =
-			drm_rgb_quant_range_selectable(edid);
-	}
-
 	drm_connector_update_edid_property(connector, edid);
 	ret = drm_add_edid_modes(connector, edid);
 	kfree(edid);
@@ -997,7 +990,9 @@ static int vc4_fkms_connector_get_modes(struct drm_connector *connector)
 	return ret;
 }
 
-/* FIXME: Read LCD mode from the firmware. This is the DSI panel resolution. */
+/* This is the DSI panel resolution. Use this as a default should the firmware
+ * not respond to our request for the timings.
+ */
 static const struct drm_display_mode lcd_mode = {
 	DRM_MODE("800x480", DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
 		 25979400 / 1000,
@@ -1008,15 +1003,52 @@ static const struct drm_display_mode lcd_mode = {
 
 static int vc4_fkms_lcd_connector_get_modes(struct drm_connector *connector)
 {
-	//struct vc4_fkms_connector *fkms_connector =
-	//				to_vc4_fkms_connector(connector);
-	//struct drm_encoder *encoder = fkms_connector->encoder;
-	//struct vc4_fkms_encoder *vc4_encoder = to_vc4_fkms_encoder(encoder);
+	struct vc4_fkms_connector *fkms_connector =
+					to_vc4_fkms_connector(connector);
+	struct vc4_dev *vc4 = fkms_connector->vc4_dev;
 	struct drm_display_mode *mode;
-	//int ret = 0;
+	struct mailbox_set_mode mb = {
+		.tag1 = { RPI_FIRMWARE_GET_DISPLAY_TIMING,
+			  sizeof(struct set_timings), 0},
+		.timings = { .display = fkms_connector->display_number },
+	};
+	struct drm_display_mode fw_mode;
+	int ret = 0;
 
-	mode = drm_mode_duplicate(connector->dev,
-				  &lcd_mode);
+	ret = rpi_firmware_property_list(vc4->firmware, &mb, sizeof(mb));
+	if (!ret) {
+		/* Equivalent to DRM_MODE macro. */
+		memset(&fw_mode, 0, sizeof(fw_mode));
+		strncpy(fw_mode.name, "LCD_MODE", sizeof(fw_mode.name));
+		fw_mode.status = 0;
+		fw_mode.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
+		fw_mode.clock = mb.timings.clock;
+		fw_mode.hdisplay = mb.timings.hdisplay;
+		fw_mode.hsync_start = mb.timings.hsync_start;
+		fw_mode.hsync_end = mb.timings.hsync_end;
+		fw_mode.htotal = mb.timings.htotal;
+		fw_mode.hskew = 0;
+		fw_mode.vdisplay = mb.timings.vdisplay;
+		fw_mode.vsync_start = mb.timings.vsync_start;
+		fw_mode.vsync_end = mb.timings.vsync_end;
+		fw_mode.vtotal = mb.timings.vtotal;
+		fw_mode.vscan = mb.timings.vscan;
+		if (mb.timings.flags & TIMINGS_FLAGS_H_SYNC_POS)
+			fw_mode.flags |= DRM_MODE_FLAG_PHSYNC;
+		else
+			fw_mode.flags |= DRM_MODE_FLAG_NHSYNC;
+		if (mb.timings.flags & TIMINGS_FLAGS_V_SYNC_POS)
+			fw_mode.flags |= DRM_MODE_FLAG_PVSYNC;
+		else
+			fw_mode.flags |= DRM_MODE_FLAG_NVSYNC;
+
+		mode = drm_mode_duplicate(connector->dev,
+					  &fw_mode);
+	} else {
+		mode = drm_mode_duplicate(connector->dev,
+					  &lcd_mode);
+	}
+
 	if (!mode) {
 		DRM_ERROR("Failed to create a new display mode\n");
 		return -ENOMEM;
