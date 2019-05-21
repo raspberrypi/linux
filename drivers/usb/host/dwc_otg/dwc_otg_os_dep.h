@@ -102,6 +102,9 @@ typedef struct os_dependent {
 	/** Base address for MPHI peripheral */
 	void *mphi_base;
 
+	/** mphi_base actually points to the SWIRQ block */
+	bool use_swirq;
+
 	/** IRQ number (<0 if not valid) */
 	int irq_num;
 
