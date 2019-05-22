@@ -1206,7 +1206,7 @@ int vc_sm_cma_ioctl_alloc(struct vc_sm_privdata_t *private,
 
 	import.addr = (uint32_t)sg_dma_address(buffer->sg_table->sgl);
 	import.size = aligned_size;
-	import.kernel_id = (uint32_t)buffer;
+	import.kernel_id = get_kernel_id(buffer);
 
 	/* Wrap it into a videocore buffer. */
 	status = vc_sm_cma_vchi_import(sm_state->sm_handle, &import, &result,
@@ -1231,6 +1231,7 @@ int vc_sm_cma_ioctl_alloc(struct vc_sm_privdata_t *private,
 	buffer->size = import.size;
 	buffer->dma_addr = import.addr;
 	buffer->vpu_state = VPU_MAPPED;
+	buffer->kernel_id = import.kernel_id;
 	//buffer->res_cached = ioparam->cached;
 
 	fd = dma_buf_fd(dmabuf, O_CLOEXEC);
