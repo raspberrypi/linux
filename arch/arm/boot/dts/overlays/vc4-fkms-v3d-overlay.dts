@@ -60,7 +60,6 @@
 	fragment@7 {
 		target = <&v3d>;
 		__overlay__  {
-			interrupts = <1 10>;
 			status = "okay";
 		};
 	};
@@ -69,13 +68,6 @@
 		target = <&vc4>;
 		__overlay__  {
 			status = "okay";
-		};
-	};
-
-	fragment@9 {
-		target-path = "/soc/dma";
-		__overlay__ {
-			brcm,dma-channel-mask = <0x7f35>;
 		};
 	};
 
