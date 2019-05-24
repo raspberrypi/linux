@@ -126,6 +126,7 @@ struct set_timings {
 #define  TIMINGS_FLAGS_H_SYNC_NEG	0
 #define  TIMINGS_FLAGS_V_SYNC_POS	BIT(1)
 #define  TIMINGS_FLAGS_V_SYNC_NEG	0
+#define  TIMINGS_FLAGS_INTERLACE	BIT(2)
 
 #define TIMINGS_FLAGS_ASPECT_MASK	GENMASK(7, 4)
 #define TIMINGS_FLAGS_ASPECT_NONE	(0 << 4)
@@ -1041,6 +1042,12 @@ static int vc4_fkms_lcd_connector_get_modes(struct drm_connector *connector)
 			fw_mode.flags |= DRM_MODE_FLAG_PVSYNC;
 		else
 			fw_mode.flags |= DRM_MODE_FLAG_NVSYNC;
+		if (mb.timings.flags & TIMINGS_FLAGS_V_SYNC_POS)
+			fw_mode.flags |= DRM_MODE_FLAG_PVSYNC;
+		else
+			fw_mode.flags |= DRM_MODE_FLAG_NVSYNC;
+		if (mb.timings.flags & TIMINGS_FLAGS_INTERLACE)
+			fw_mode.flags |= DRM_MODE_FLAG_INTERLACE;
 
 		mode = drm_mode_duplicate(connector->dev,
 					  &fw_mode);
@@ -1125,17 +1132,24 @@ vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
 				   DRM_MODE_CONNECTOR_DSI);
 		drm_connector_helper_add(connector,
 					 &vc4_fkms_lcd_conn_helper_funcs);
+		connector->interlace_allowed = 0;
+	} else if (fkms_connector->display_type == DRM_MODE_ENCODER_TVDAC) {
+		drm_connector_init(dev, connector, &vc4_fkms_connector_funcs,
+				   DRM_MODE_CONNECTOR_Composite);
+		drm_connector_helper_add(connector,
+					 &vc4_fkms_lcd_conn_helper_funcs);
+		connector->interlace_allowed = 1;
 	} else {
 		drm_connector_init(dev, connector, &vc4_fkms_connector_funcs,
 				   DRM_MODE_CONNECTOR_HDMIA);
 		drm_connector_helper_add(connector,
 					 &vc4_fkms_connector_helper_funcs);
+		connector->interlace_allowed = 0;
 	}
 
 	connector->polled = (DRM_CONNECTOR_POLL_CONNECT |
 			     DRM_CONNECTOR_POLL_DISCONNECT);
 
-	connector->interlace_allowed = 0;
 	connector->doublescan_allowed = 0;
 
 	drm_connector_attach_encoder(connector, encoder);
