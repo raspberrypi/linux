@@ -1301,13 +1301,13 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 				    RPI_FIRMWARE_FRAMEBUFFER_GET_NUM_DISPLAYS,
 				    &num_displays, sizeof(u32));
 
-	/* If we fail to get the number of displays, or it returns 0, then
+	/* If we fail to get the number of displays, then
 	 * assume old firmware that doesn't have the mailbox call, so just
 	 * set one display
 	 */
-	if (ret || num_displays == 0) {
+	if (ret) {
 		num_displays = 1;
-		DRM_WARN("Unable to determine number of displays's. Assuming 1\n");
+		DRM_WARN("Unable to determine number of displays - assuming 1\n");
 		ret = 0;
 	}
 
@@ -1336,17 +1336,21 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 				  display_num);
 	}
 
-	/* Map the SMI interrupt reg */
-	crtc_list[0]->regs = vc4_ioremap_regs(pdev, 0);
-	if (IS_ERR(crtc_list[0]->regs))
-		DRM_ERROR("Oh dear, failed to map registers\n");
+	if (num_displays > 0) {
+		/* Map the SMI interrupt reg */
+		crtc_list[0]->regs = vc4_ioremap_regs(pdev, 0);
+		if (IS_ERR(crtc_list[0]->regs))
+			DRM_ERROR("Oh dear, failed to map registers\n");
 
-	writel(0, crtc_list[0]->regs + SMICS);
-	ret = devm_request_irq(dev, platform_get_irq(pdev, 0),
-			       vc4_crtc_irq_handler, 0, "vc4 firmware kms",
-			       crtc_list);
-	if (ret)
-		DRM_ERROR("Oh dear, failed to register IRQ\n");
+		writel(0, crtc_list[0]->regs + SMICS);
+		ret = devm_request_irq(dev, platform_get_irq(pdev, 0),
+				       vc4_crtc_irq_handler, 0,
+				       "vc4 firmware kms", crtc_list);
+		if (ret)
+			DRM_ERROR("Oh dear, failed to register IRQ\n");
+	} else {
+		DRM_WARN("No displays found. Consider forcing hotplug if HDMI is attached\n");
+	}
 
 	platform_set_drvdata(pdev, crtc_list);
 
