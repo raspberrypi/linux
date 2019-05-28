@@ -539,6 +539,7 @@ static int ethoc_tx(struct net_device *dev, int limit)
 		ethoc_update_tx_stats(priv, &bd);
 		priv->dty_tx++;
 	}
+	printk(KERN_INFO "Packet transmission");
 
 	if ((priv->cur_tx - priv->dty_tx) <= (priv->num_tx / 2))
 		netif_wake_queue(dev);
