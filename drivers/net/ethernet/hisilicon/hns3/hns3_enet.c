@@ -3896,6 +3896,8 @@ static void hns3_client_uninit(struct hnae3_handle *handle, bool reset)
 
 	hns3_client_stop(handle);
 
+	hns3_uninit_phy(netdev);
+
 	if (!test_and_clear_bit(HNS3_NIC_STATE_INITED, &priv->state)) {
 		netdev_warn(netdev, "already uninitialized\n");
 		goto out_netdev_free;
@@ -3904,8 +3906,6 @@ static void hns3_client_uninit(struct hnae3_handle *handle, bool reset)
 	hns3_del_all_fd_rules(netdev, true);
 
 	hns3_clear_all_ring(handle, true);
-
-	hns3_uninit_phy(netdev);
 
 	hns3_nic_uninit_vector_data(priv);
 
