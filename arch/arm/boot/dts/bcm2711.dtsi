@@ -1,0 +1,50 @@
+#include "bcm2838.dtsi"
+#include "bcm270x.dtsi"
+#include "bcm2708-rpi.dtsi"
+
+/ {
+	soc {
+		/delete-node/ mailbox@7e00b840;
+		/delete-node/ v3d@7ec00000;
+	};
+
+	__overrides__ {
+		arm_freq;
+	};
+};
+
+&dma {
+	brcm,dma-channel-mask = <0x7ef5>;
+};
+
+&txp {
+	interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&firmwarekms {
+	interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&smi {
+	interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mmc {
+	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mmcnr {
+	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&usb {
+	reg = <0x7e980000 0x10000>,
+	      <0x7e00b200 0x200>;
+	interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&gpio {
+	interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+};
