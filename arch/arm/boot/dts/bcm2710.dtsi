@@ -5,18 +5,15 @@
 / {
 	compatible = "brcm,bcm2837", "brcm,bcm2836";
 
-	soc {
-
-		arm-pmu {
+	arm-pmu {
 #ifdef RPI364
-			compatible = "arm,armv8-pmuv3", "arm,cortex-a7-pmu";
+		compatible = "arm,armv8-pmuv3", "arm,cortex-a7-pmu";
 #else
-			compatible = "arm,cortex-a7-pmu";
+		compatible = "arm,cortex-a7-pmu";
 #endif
-			interrupt-parent = <&local_intc>;
-			interrupts = <9 IRQ_TYPE_LEVEL_HIGH>;
-		};
+	};
 
+	soc {
 		/delete-node/ timer@7e003000;
 	};
 
