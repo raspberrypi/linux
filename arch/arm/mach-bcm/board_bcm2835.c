@@ -114,6 +114,9 @@ static const char * const bcm2835_compat[] = {
 };
 
 DT_MACHINE_START(BCM2835, "BCM2835")
+#if defined(CONFIG_ZONE_DMA) && defined(CONFIG_ARM_LPAE)
+	.dma_zone_size	= SZ_1G,
+#endif
 	.map_io = bcm2835_map_io,
 	.init_machine = bcm2835_init,
 	.dt_compat = bcm2835_compat,
