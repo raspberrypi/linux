@@ -544,7 +544,6 @@ static bool vc4_fkms_format_mod_supported(struct drm_plane *plane,
 			return false;
 		}
 	case DRM_FORMAT_NV12:
-	case DRM_FORMAT_NV21:
 		switch (fourcc_mod_broadcom_mod(modifier)) {
 		case DRM_FORMAT_MOD_LINEAR:
 		case DRM_FORMAT_MOD_BROADCOM_SAND128:
@@ -552,6 +551,7 @@ static bool vc4_fkms_format_mod_supported(struct drm_plane *plane,
 		default:
 			return false;
 		}
+	case DRM_FORMAT_NV21:
 	case DRM_FORMAT_RGB888:
 	case DRM_FORMAT_BGR888:
 	case DRM_FORMAT_YUV422:
@@ -598,6 +598,7 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 		 * would prefer to scan out linear (less bus traffic).
 		 */
 		DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED,
+		DRM_FORMAT_MOD_BROADCOM_SAND128,
 		DRM_FORMAT_MOD_INVALID,
 	};
 	int i;
