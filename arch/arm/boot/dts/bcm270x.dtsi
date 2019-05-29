@@ -10,11 +10,11 @@
 	soc: soc {
 
 		watchdog: watchdog@7e100000 {
-			/* Add alias */
+			/* Add label */
 		};
 
 		random: rng@7e104000 {
-			/* Add alias */
+			/* Add label */
 		};
 
 		gpio@7e200000 { /* gpio */
@@ -40,18 +40,18 @@
 		};
 
 		spi0: spi@7e204000 {
-			/* Add alias */
+			/* Add label */
 			dmas = <&dma 6>, <&dma 7>;
 			dma-names = "tx", "rx";
 		};
 
 		pixelvalve0: pixelvalve@7e206000 {
-			/* Add alias */
+			/* Add label */
 			status = "disabled";
 		};
 
 		pixelvalve1: pixelvalve@7e207000 {
-			/* Add alias */
+			/* Add label */
 			status = "disabled";
 		};
 
@@ -93,7 +93,7 @@
 		};
 
 		hvs: hvs@7e400000 {
-			/* Add alias */
+			/* Add label */
 			status = "disabled";
 		};
 
@@ -119,7 +119,7 @@
 		};
 
 		pixelvalve2: pixelvalve@7e807000 {
-			/* Add alias */
+			/* Add label */
 			status = "disabled";
 		};
 
