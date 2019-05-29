@@ -8,6 +8,7 @@ dtb-$(CONFIG_ARCH_BCM2835) += \
 	bcm2708-rpi-zero-w.dtb \
 	bcm2709-rpi-2-b.dtb \
 	bcm2710-rpi-3-b.dtb \
+	bcm2711-rpi-4-b.dtb \
 	bcm2710-rpi-3-b-plus.dtb \
 	bcm2710-rpi-cm3.dtb
 
