@@ -285,12 +285,7 @@ int irq_set_affinity_locked(struct irq_data *data, const struct cpumask *mask,
 
 	if (desc->affinity_notify) {
 		kref_get(&desc->affinity_notify->kref);
-
-#ifdef CONFIG_PREEMPT_RT_BASE
-		kthread_schedule_work(&desc->affinity_notify->work);
-#else
 		schedule_work(&desc->affinity_notify->work);
-#endif
 	}
 	irqd_set(data, IRQD_AFFINITY_SET);
 
@@ -328,8 +323,10 @@ int irq_set_affinity_hint(unsigned int irq, const struct cpumask *m)
 }
 EXPORT_SYMBOL_GPL(irq_set_affinity_hint);
 
-static void _irq_affinity_notify(struct irq_affinity_notify *notify)
+static void irq_affinity_notify(struct work_struct *work)
 {
+	struct irq_affinity_notify *notify =
+		container_of(work, struct irq_affinity_notify, work);
 	struct irq_desc *desc = irq_to_desc(notify->irq);
 	cpumask_var_t cpumask;
 	unsigned long flags;
@@ -350,25 +347,6 @@ static void _irq_affinity_notify(struct irq_affinity_notify *notify)
 out:
 	kref_put(&notify->kref, notify->release);
 }
-
-#ifdef CONFIG_PREEMPT_RT_BASE
-
-static void irq_affinity_notify(struct kthread_work *work)
-{
-	struct irq_affinity_notify *notify =
-		container_of(work, struct irq_affinity_notify, work);
-	_irq_affinity_notify(notify);
-}
-
-#else
-
-static void irq_affinity_notify(struct work_struct *work)
-{
-	struct irq_affinity_notify *notify =
-		container_of(work, struct irq_affinity_notify, work);
-	_irq_affinity_notify(notify);
-}
-#endif
 
 /**
  *	irq_set_affinity_notifier - control notification of IRQ affinity changes
@@ -398,11 +376,7 @@ irq_set_affinity_notifier(unsigned int irq, struct irq_affinity_notify *notify)
 	if (notify) {
 		notify->irq = irq;
 		kref_init(&notify->kref);
-#ifdef CONFIG_PREEMPT_RT_BASE
-		kthread_init_work(&notify->work, irq_affinity_notify);
-#else
 		INIT_WORK(&notify->work, irq_affinity_notify);
-#endif
 	}
 
 	raw_spin_lock_irqsave(&desc->lock, flags);
@@ -411,11 +385,7 @@ irq_set_affinity_notifier(unsigned int irq, struct irq_affinity_notify *notify)
 	raw_spin_unlock_irqrestore(&desc->lock, flags);
 
 	if (old_notify) {
-#ifdef CONFIG_PREEMPT_RT_BASE
-		kthread_cancel_work_sync(&notify->work);
-#else
 		cancel_work_sync(&old_notify->work);
-#endif
 		kref_put(&old_notify->kref, old_notify->release);
 	}
 
