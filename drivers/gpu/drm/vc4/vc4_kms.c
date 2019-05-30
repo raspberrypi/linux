@@ -18,6 +18,7 @@
 #include <drm/drm_plane_helper.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_vblank.h>
+#include <drm/drm_drv.h>
 
 #include "vc4_drv.h"
 #include "vc4_regs.h"
@@ -536,8 +537,14 @@ int vc4_kms_load(struct drm_device *dev)
 		return ret;
 	}
 
-	dev->mode_config.max_width = 7680;
-	dev->mode_config.max_height = 7680;
+	if (!drm_core_check_feature(dev, DRIVER_RENDER)) {
+		/* No V3D as part of vc4. Assume this is Pi4. */
+		dev->mode_config.max_width = 7680;
+		dev->mode_config.max_height = 7680;
+	} else {
+		dev->mode_config.max_width = 2048;
+		dev->mode_config.max_height = 2048;
+	}
 	dev->mode_config.funcs = &vc4_mode_funcs;
 	dev->mode_config.preferred_depth = 24;
 	dev->mode_config.async_page_flip = true;
