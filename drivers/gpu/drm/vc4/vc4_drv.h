@@ -78,6 +78,7 @@ struct vc4_dev {
 	struct vc4_dsi *dsi1;
 	struct vc4_vec *vec;
 	struct vc4_txp *txp;
+	struct vc4_fkms *fkms;
 
 	struct vc4_hang_state *hang_state;
 
