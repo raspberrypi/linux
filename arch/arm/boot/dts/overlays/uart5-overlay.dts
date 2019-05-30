@@ -1,0 +1,27 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2838";
+
+	fragment@0 {
+		target = <&uart5>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart5_pins>;
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target = <&uart5_pins>;
+		__dormant__ {
+			brcm,pins = <12 13 14 15>;
+			brcm,pull = <0 2 2 0>;
+		};
+	};
+
+	__overrides__ {
+		ctsrts = <0>,"=1";
+	};
+};
