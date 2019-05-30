@@ -1,0 +1,27 @@
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2838";
+
+	fragment@0 {
+		target = <&i2c4>;
+		__overlay__ {
+			status = "okay";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c4_pins>;
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c4_pins>;
+		__dormant__ {
+			brcm,pins = <6 7>;
+		};
+	};
+
+	__overrides__ {
+		pins_6_7 = <0>,"=1";
+		pins_8_9 = <0>,"!1";
+	};
+};
