@@ -5,13 +5,12 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&mmc>;
-		sdio_wifi: __overlay__ {
+		target = <&mmcnr>;
+		__overlay__ {
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdio_pins>;
 			bus-width = <4>;
 			brcm,overclock-50 = <35>;
-			non-removable;
 			status = "okay";
 		};
 	};
@@ -43,6 +42,8 @@
 				compatible = "gpio-poweroff";
 				gpios = <&gpio 40 1>;
 				force;
+				pinctrl-names = "default";
+				pinctrl-0 = <&power_ctrl_pins>;
 			};
 
 			i2c_soft: i2c@0 {

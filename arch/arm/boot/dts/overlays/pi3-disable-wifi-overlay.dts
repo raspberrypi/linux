@@ -10,4 +10,11 @@
 			status = "disabled";
 		};
 	};
+
+	fragment@1 {
+		target = <&mmcnr>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
 };
