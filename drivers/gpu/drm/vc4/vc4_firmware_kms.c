@@ -30,6 +30,14 @@
 #include "vc_image_types.h"
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
+struct get_display_cfg {
+	u32  max_pixel_clock[2];  //Max pixel clock for each display
+};
+
+struct vc4_fkms {
+	struct get_display_cfg cfg;
+};
+
 #define PLANES_PER_CRTC		3
 
 struct set_plane {
@@ -793,11 +801,32 @@ static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_st
 static enum drm_mode_status
 vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 {
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct drm_device *dev = crtc->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_fkms *fkms = vc4->fkms;
+
 	/* Do not allow doublescan modes from user space */
 	if (mode->flags & DRM_MODE_FLAG_DBLSCAN) {
 		DRM_DEBUG_KMS("[CRTC:%d] Doublescan mode rejected.\n",
 			      crtc->base.id);
 		return MODE_NO_DBLESCAN;
+	}
+
+	/* Limit the pixel clock based on the HDMI clock limits from the
+	 * firmware
+	 */
+	switch (vc4_crtc->display_number) {
+	case 2:	/* HDMI0 */
+		if (fkms->cfg.max_pixel_clock[0] &&
+		    mode->clock > fkms->cfg.max_pixel_clock[0])
+			return MODE_CLOCK_HIGH;
+		break;
+	case 7:	/* HDMI1 */
+		if (fkms->cfg.max_pixel_clock[1] &&
+		    mode->clock > fkms->cfg.max_pixel_clock[1])
+			return MODE_CLOCK_HIGH;
+		break;
 	}
 
 	/* Limit the pixel clock until we can get dynamic HDMI 2.0 scrambling
@@ -1293,10 +1322,15 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	struct device_node *firmware_node;
 	struct vc4_crtc **crtc_list;
 	u32 num_displays, display_num;
+	struct vc4_fkms *fkms;
 	int ret;
 	u32 display_id;
 
 	vc4->firmware_kms = true;
+
+	fkms = devm_kzalloc(dev, sizeof(*fkms), GFP_KERNEL);
+	if (!fkms)
+		return -ENOMEM;
 
 	/* firmware kms doesn't have precise a scanoutpos implementation, so
 	 * we can't do the precise vblank timestamp mode.
@@ -1325,6 +1359,18 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 		DRM_WARN("Unable to determine number of displays - assuming 1\n");
 		ret = 0;
 	}
+
+	ret = rpi_firmware_property(vc4->firmware,
+				    RPI_FIRMWARE_GET_DISPLAY_CFG,
+				    &fkms->cfg, sizeof(fkms->cfg));
+
+	if (ret)
+		return -EINVAL;
+	/* The firmware works in Hz. This will be compared against kHz, so div
+	 * 1000 now rather than multiple times later.
+	 */
+	fkms->cfg.max_pixel_clock[0] /= 1000;
+	fkms->cfg.max_pixel_clock[1] /= 1000;
 
 	/* Allocate a list, with space for a NULL on the end */
 	crtc_list = devm_kzalloc(dev, sizeof(crtc_list) * (num_displays + 1),
@@ -1366,6 +1412,8 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	} else {
 		DRM_WARN("No displays found. Consider forcing hotplug if HDMI is attached\n");
 	}
+
+	vc4->fkms = fkms;
 
 	platform_set_drvdata(pdev, crtc_list);
 
