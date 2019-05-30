@@ -65,6 +65,10 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	i2c-sensor.dtbo \
 	i2c0-bcm2708.dtbo \
 	i2c1-bcm2708.dtbo \
+	i2c3.dtbo \
+	i2c4.dtbo \
+	i2c5.dtbo \
+	i2c6.dtbo \
 	i2s-gpio28-31.dtbo \
 	ilitek251x.dtbo \
 	iqaudio-codec.dtbo \
@@ -149,6 +153,10 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	tpm-slb9670.dtbo \
 	uart0.dtbo \
 	uart1.dtbo \
+	uart2.dtbo \
+	uart3.dtbo \
+	uart4.dtbo \
+	uart5.dtbo \
 	udrc.dtbo \
 	upstream.dtbo \
 	vc4-fkms-v3d.dtbo \
