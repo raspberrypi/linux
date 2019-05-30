@@ -1137,6 +1137,34 @@ Params: sda1_pin                GPIO pin for SDA1 (2 or 44 - default 2)
                                 "yes")
 
 
+Name:   i2c3
+Info:   Enable the i2c3 bus
+Load:   dtoverlay=i2c3,<param>
+Params: pins_2_3                Use GPIOs 2 and 3
+        pins_4_5                Use GPIOs 4 and 5 (default)
+
+
+Name:   i2c4
+Info:   Enable the i2c4 bus
+Load:   dtoverlay=i2c4,<param>
+Params: pins_6_7                Use GPIOs 6 and 7
+        pins_8_9                Use GPIOs 8 and 9 (default)
+
+
+Name:   i2c5
+Info:   Enable the i2c5 bus
+Load:   dtoverlay=i2c5,<param>
+Params: pins_10_11              Use GPIOs 10 and 11
+        pins_12_13              Use GPIOs 12 and 13 (default)
+
+
+Name:   i2c6
+Info:   Enable the i2c6 bus
+Load:   dtoverlay=i2c6,<param>
+Params: pins_0_1                Use GPIOs 0 and 1
+        pins_22_23              Use GPIOs 22 and 23 (default)
+
+
 Name:   i2s-gpio28-31
 Info:   move I2S function block to GPIO 28 to 31
 Load:   dtoverlay=i2s-gpio28-31
@@ -2197,6 +2225,30 @@ Load:   dtoverlay=uart1,<param>=<val>
 Params: txd1_pin                GPIO pin for TXD1 (14, 32 or 40 - default 14)
 
         rxd1_pin                GPIO pin for RXD1 (15, 33 or 41 - default 15)
+
+
+Name:   uart2
+Info:   Enable uart 2 on GPIOs 0-3
+Load:   dtoverlay=uart2,<param>
+Params: ctsrts                  Enable CTS/RTS on GPIOs 2-3 (default off)
+
+
+Name:   uart3
+Info:   Enable uart 3 on GPIOs 4-7
+Load:   dtoverlay=uart3,<param>
+Params: ctsrts                  Enable CTS/RTS on GPIOs 6-7 (default off)
+
+
+Name:   uart4
+Info:   Enable uart 4 on GPIOs 8-11
+Load:   dtoverlay=uart4,<param>
+Params: ctsrts                  Enable CTS/RTS on GPIOs 10-11 (default off)
+
+
+Name:   uart5
+Info:   Enable uart 5 on GPIOs 12-15
+Load:   dtoverlay=uart5,<param>
+Params: ctsrts                  Enable CTS/RTS on GPIOs 14-15 (default off)
 
 
 Name:   udrc
