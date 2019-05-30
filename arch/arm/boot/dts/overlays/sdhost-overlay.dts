@@ -22,6 +22,13 @@
 		};
 	};
 
+	fragment@2 {
+		target = <&mmcnr>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
 	__overrides__ {
 		overclock_50     = <&frag0>,"brcm,overclock-50:0";
 		force_pio        = <&frag0>,"brcm,force-pio?";
