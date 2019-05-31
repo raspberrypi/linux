@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include "bcm2711.dtsi"
+#include "bcm283x-rpi-csi1-2lane.dtsi"
 
 / {
 	compatible = "raspberrypi,4-model-b", "brcm,bcm2838", "brcm,bcm2837";
