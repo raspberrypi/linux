@@ -6,43 +6,43 @@
 #########################################################################
 #!/bin/bash
 remote_ip="192.168.2.107"
-if [ ! -d "/tmp/normalimage" ]
+if [ ! -d "/tmp/normal2image" ]
 then
-    echo "mkdir /tmp/normalimage"
-    mkdir /tmp/normalimage
+    echo "mkdir /tmp/normal2image"
+    mkdir /tmp/normal2image
 fi
 
 
-if [ ! -d "/tmp/normalimage/boot" ]
+if [ ! -d "/tmp/normal2image/boot" ]
 then
-    mkdir /tmp/normalimage/boot/
-    mkdir /tmp/normalimage/boot/overlays
+    mkdir /tmp/normal2image/boot/
+    mkdir /tmp/normal2image/boot/overlays
 fi
 
 
 echo "copy kernel image"
-scripts/mkknlimg arch/arm/boot/zImage /tmp/normalimage/kernel7.img
-cp arch/arm/boot/dts/*.dtb /tmp/normalimage/boot
-cp arch/arm/boot/dts/overlays/*.dtb* /tmp/normalimage/boot/overlays
+scripts/mkknlimg arch/arm/boot/zImage /tmp/normal2image/kernel7.img
+cp arch/arm/boot/dts/*.dtb /tmp/normal2image/boot
+cp arch/arm/boot/dts/overlays/*.dtb* /tmp/normal2image/boot/overlays
 
-cp replace.normal.sh /tmp/normalimage/
+cp replace.normal.sh /tmp/normal2image/
 
 
 echo "zip these files to tar.gz"
 
 cd /tmp/
-tar -zcvf normalimage.tar.gz normalimage
+tar -zcvf normal2image.tar.gz normal2image
 echo ""
 echo "Send vmlinux to remote target"
 sshpass -p "'" scp vmlinux pi@$remote_ip:~/kernel/
 echo "Send normal image to remote target"
-sshpass -p "'" scp /tmp/normalimage.tar.gz pi@$remote_ip:~/
+sshpass -p "'" scp /tmp/normal2image.tar.gz pi@$remote_ip:~/
 
 echo "extract remote target"
-sshpass -p "'" ssh pi@$remote_ip tar -zxf /home/pi/normalimage.tar.gz
+sshpass -p "'" ssh pi@$remote_ip tar -zxf /home/pi/normal2image.tar.gz
 echo "exec replace shell"
-sshpass -p "'" ssh pi@$remote_ip chmod 777 /home/pi/normalimage/replace.normal.sh
-sshpass -p "'" ssh pi@$remote_ip  /home/pi/normalimage/replace.normal.sh
+sshpass -p "'" ssh pi@$remote_ip chmod 777 /home/pi/normal2image/replace.normal.sh
+sshpass -p "'" ssh pi@$remote_ip  /home/pi/normal2image/replace.normal.sh
 echo "Reboot remote slave"
 sshpass -p "'" ssh pi@$remote_ip sudo reboot 
 echo "done!"
