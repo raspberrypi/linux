@@ -2556,7 +2556,7 @@ static int rdtgroup_init_alloc(struct rdtgroup *rdtgrp)
 				if (closid_allocated(i) && i != closid) {
 					mode = rdtgroup_mode_by_closid(i);
 					if (mode == RDT_MODE_PSEUDO_LOCKSETUP)
-						break;
+						continue;
 					/*
 					 * If CDP is active include peer
 					 * domain's usage to ensure there
