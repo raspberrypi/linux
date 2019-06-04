@@ -1,0 +1,7 @@
+#include "bcm2708-rpi.dtsi"
+#include "bcm2838-rpi.dtsi"
+
+&v3d {
+     /* Undo the overwriting by bcm270x.dtsi */
+     power-domains = <&pm BCM2835_POWER_DOMAIN_GRAFX_V3D>;
+};
