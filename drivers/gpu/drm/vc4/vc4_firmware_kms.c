@@ -231,7 +231,12 @@ static const struct vc_image_format *vc4_get_vc_image_fmt(u32 drm_format)
  * hardware, which has only this one register.
  */
 #define SMICS 0x0
+#define SMIDSW0 0x14
+#define SMIDSW1 0x1C
 #define SMICS_INTERRUPTS (BIT(9) | BIT(10) | BIT(11))
+
+/* Flag to denote that the firmware is giving multiple display callbacks */
+#define SMI_NEW 0xabcd0000
 
 #define vc4_crtc vc4_kms_crtc
 #define to_vc4_crtc to_vc4_kms_crtc
@@ -883,16 +888,42 @@ static irqreturn_t vc4_crtc_irq_handler(int irq, void *data)
 	int i;
 	u32 stat = readl(crtc_list[0]->regs + SMICS);
 	irqreturn_t ret = IRQ_NONE;
+	u32 chan;
 
 	if (stat & SMICS_INTERRUPTS) {
 		writel(0, crtc_list[0]->regs + SMICS);
 
-		for (i = 0; crtc_list[i]; i++) {
-			if (crtc_list[i]->vblank_enabled)
-				drm_crtc_handle_vblank(&crtc_list[i]->base);
-			vc4_crtc_handle_page_flip(crtc_list[i]);
-			ret = IRQ_HANDLED;
+		chan = readl(crtc_list[0]->regs + SMIDSW0);
+
+		if ((chan & 0xFFFF0000) != SMI_NEW) {
+			/* Older firmware. Treat the one interrupt as vblank/
+			 * complete for all crtcs.
+			 */
+			for (i = 0; crtc_list[i]; i++) {
+				if (crtc_list[i]->vblank_enabled)
+					drm_crtc_handle_vblank(&crtc_list[i]->base);
+				vc4_crtc_handle_page_flip(crtc_list[i]);
+			}
+		} else {
+			if (chan & 1) {
+				writel(SMI_NEW, crtc_list[0]->regs + SMIDSW0);
+				if (crtc_list[0]->vblank_enabled)
+					drm_crtc_handle_vblank(&crtc_list[0]->base);
+				vc4_crtc_handle_page_flip(crtc_list[0]);
+			}
+
+			/* Check for the secondary display too */
+			chan = readl(crtc_list[0]->regs + SMIDSW1);
+
+			if (chan & 1) {
+				writel(SMI_NEW, crtc_list[0]->regs + SMIDSW1);
+				if (crtc_list[1]->vblank_enabled)
+					drm_crtc_handle_vblank(&crtc_list[1]->base);
+				vc4_crtc_handle_page_flip(crtc_list[1]);
+			}
 		}
+
+		ret = IRQ_HANDLED;
 	}
 
 	return ret;
