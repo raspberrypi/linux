@@ -1,13 +1,12 @@
 /dts-v1/;
 
 #include "bcm2711.dtsi"
+#include "bcm2711-rpi.dtsi"
 #include "bcm283x-rpi-csi1-2lane.dtsi"
 
 / {
-	compatible = "raspberrypi,4-model-b", "brcm,bcm2838", "brcm,bcm2837";
+	compatible = "raspberrypi,4-model-b", "brcm,bcm2838";
 	model = "Raspberry Pi 4 Model B";
-	#address-cells = <2>;
-	#size-cells = <1>;
 
 	memory {
 		device_type = "memory";
@@ -48,10 +47,18 @@
 };
 
 &firmware {
-	expgpio: expgpio {
+	expgpio: gpio {
 		compatible = "raspberrypi,firmware-gpio";
 		gpio-controller;
 		#gpio-cells = <2>;
+		gpio-line-names = "BT_ON",
+				  "WL_ON",
+				  "PWR_LED_OFF",
+				  "GLOBAL_RESET",
+				  "VDD_SD_IO_SEL",
+				  "CAM_GPIO",
+				  "",
+				  "";
 		status = "okay";
 	};
 };

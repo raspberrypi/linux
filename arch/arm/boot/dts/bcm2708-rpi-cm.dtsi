@@ -1,4 +1,5 @@
 #include "bcm2708.dtsi"
+#include "bcm2708-rpi.dtsi"
 
 &leds {
 	act_led: act {
