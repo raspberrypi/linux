@@ -183,12 +183,11 @@ static inline void bcm2835_wr_fifo_count(struct bcm2835_spi *bs, int count)
 	bs->tx_len -= count;
 
 	while (count > 0) {
+		val = 0;
 		if (bs->tx_buf) {
 			len = min(count, 4);
 			memcpy(&val, bs->tx_buf, len);
 			bs->tx_buf += len;
-		} else {
-			val = 0;
 		}
 		bcm2835_wr(bs, BCM2835_SPI_FIFO, val);
 		count -= 4;
