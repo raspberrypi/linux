@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include "bcm2710.dtsi"
+#include "bcm2709-rpi.dtsi"
 #include "bcm283x-rpi-csi0-2lane.dtsi"
 #include "bcm283x-rpi-csi1-4lane.dtsi"
 

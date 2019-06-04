@@ -56,7 +56,7 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		txp@7e004000 {
+		txp: txp@7e004000 {
 			compatible = "brcm,bcm2835-txp";
 			reg = <0x7e004000 0x20>;
 			interrupts = <1 11>;
