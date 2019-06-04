@@ -1,6 +1,6 @@
-/* Downstream version of bcm2835-rpi.dtsi */
+/* Downstream modifications to bcm2835-rpi.dtsi */
 
-#include <dt-bindings/power/raspberrypi-power.h>
+#include "bcm2835-rpi.dtsi"
 
 / {
 	memory {
@@ -49,29 +49,10 @@
 			reg = <0x7e200000 0x1000>;
 		};
 
-		firmware: firmware {
-			compatible = "raspberrypi,bcm2835-firmware", "simple-bus";
-			#address-cells = <0>;
-			#size-cells = <0>;
-			mboxes = <&mailbox>;
-		};
-
-		power: power {
-			compatible = "raspberrypi,bcm2835-power";
-			firmware = <&firmware>;
-			#power-domain-cells = <1>;
-		};
-
 		fb: fb {
 			compatible = "brcm,bcm2708-fb";
 			firmware = <&firmware>;
-			status = "disabled";
-		};
-
-		vchiq: mailbox@7e00b840 {
-			compatible = "brcm,bcm2835-vchiq";
-			reg = <0x7e00b840 0x3c>;
-			interrupts = <0 2>;
+			status = "okay";
 		};
 
 		vcsm: vcsm {
@@ -89,10 +70,6 @@
 
 		/* External sound card */
 		sound: sound {
-			status = "disabled";
-		};
-
-		txp: txp@7e004000 {
 			status = "disabled";
 		};
 	};
@@ -125,11 +102,23 @@
 };
 
 &hdmi {
-	power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
+	status = "disabled";
 };
 
-&usb {
-	power-domains = <&power RPI_POWER_DOMAIN_USB>;
+&txp {
+	status = "disabled";
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&i2c2 {
+	status = "disabled";
 };
 
 &clocks {
@@ -141,16 +130,8 @@ sdhost_pins: &sdhost_gpio48 {
 };
 
 &sdhost {
-	pinctrl-names = "default";
-	pinctrl-0 = <&sdhost_gpio48>;
-	bus-width = <4>;
 	brcm,overclock-50 = <0>;
 	brcm,pio-limit = <1>;
-	status = "okay";
-};
-
-&fb {
-	status = "okay";
 };
 
 &cpu_thermal {
@@ -159,12 +140,4 @@ sdhost_pins: &sdhost_gpio48 {
 
 &vec {
 	status = "disabled";
-};
-
-&csi0 {
-	power-domains = <&power RPI_POWER_DOMAIN_UNICAM0>;
-};
-
-&csi1 {
-	power-domains = <&power RPI_POWER_DOMAIN_UNICAM1>;
 };

@@ -5,7 +5,10 @@
 #include <dt-bindings/soc/bcm2835-pm.h>
 
 / {
-	compatible = "brcm,bcm2838", "brcm,bcm2837";
+	compatible = "brcm,bcm2838";
+
+	#address-cells = <2>;
+	#size-cells = <1>;
 
 	interrupt-parent = <&gicv2>;
 
@@ -16,8 +19,8 @@
 		/* Emulate a contiguous 30-bit address range for DMA */
 		dma-ranges = <0xc0000000  0x0 0x00000000  0x3c000000>;
 
-		/delete-node/ mailbox@7e00b840;
 		/delete-node/ interrupt-controller@7e00f300;
+		/delete-node/ v3d@7ec00000;
 
 		local_intc: local_intc@40000000 {
 			compatible = "brcm,bcm2836-l1-intc";
@@ -189,6 +192,16 @@
 
 		pixelvalve@7e207000 {
 			interrupts = <GIC_SPI 110 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		pwm1: pwm@7e20c800 {
+			compatible = "brcm,bcm2835-pwm";
+			reg = <0x7e20c800 0x28>;
+			clocks = <&clocks BCM2835_CLOCK_PWM>;
+			assigned-clocks = <&clocks BCM2835_CLOCK_PWM>;
+			assigned-clock-rates = <10000000>;
+			#pwm-cells = <2>;
+			status = "disabled";
 		};
 
 		emmc2: emmc2@7e340000 {
@@ -385,7 +398,7 @@
 				"dma13",
 				"dma14";
 			#dma-cells = <1>;
-			brcm,dma-channel-mask = <0x7000>;
+			brcm,dma-channel-mask = <0x7800>;
 		};
 		/* DMA4 - 40 bit DMA engines */
 
@@ -394,12 +407,6 @@
 			status = "disabled";
 			reg = <0x0 0x7e9c0000 0x100000>;
 			interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>;
-		};
-
-		vchiq: mailbox@7e00b840 {
-			compatible = "brcm,bcm2838-vchiq";
-			reg = <0 0x7e00b840 0x3c>;
-			interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		hevc-decoder@7eb00000 {
@@ -450,6 +457,8 @@
 };
 
 &gpio {
+	compatible = "brcm,bcm2838-gpio", "brcm,bcm2835-gpio";
+
 	gpclk0_gpio49: gpclk0_gpio49 {
 		brcm,pins = <49>;
 		brcm,function = <BCM2835_FSEL_ALT1>;
@@ -729,5 +738,9 @@
 			  "dma8",
 			  "dma9",
 			  "dma10";
-	brcm,dma-channel-mask = <0x01f5>;
+	brcm,dma-channel-mask = <0x07f5>;
+};
+
+&txp {
+	interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
 };
