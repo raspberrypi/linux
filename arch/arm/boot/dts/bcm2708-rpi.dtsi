@@ -124,10 +124,6 @@
 	};
 };
 
-&dma {
-	brcm,dma-channel-mask = <0x7f34>;
-};
-
 &hdmi {
 	power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
 };
