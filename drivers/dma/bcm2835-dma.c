@@ -569,8 +569,6 @@ static void bcm2835_dma_fill_cb_chain_with_sg(
 	dma_addr_t addr;
 	struct scatterlist *sgent;
 
-	pr_err("dma_fill_chain_with_sg(ch %d, dir %d):\n", c->ch, direction);
-
 	max_len = bcm2835_dma_max_frame_length(c);
 	for_each_sg(sgl, sgent, sg_len, i) {
 		if (c->is_40bit_channel) {
@@ -588,7 +586,6 @@ static void bcm2835_dma_fill_cb_chain_with_sg(
 					scb->srci = upper_32_bits(addr) | BCM2838_DMA40_INC;
 				}
 				scb->len = min(len, max_len);
-				pr_err("  %llx, %x\n", (u64)addr, scb->len);
 			}
 		} else {
 			for (addr = sg_dma_address(sgent),
@@ -601,7 +598,6 @@ static void bcm2835_dma_fill_cb_chain_with_sg(
 				else
 					cb->cb->src = addr;
 				cb->cb->length = min(len, max_len);
-				pr_err("  %llx, %x\n", (u64)addr, cb->cb->length);
 			}
 		}
 	}
@@ -643,7 +639,6 @@ static void bcm2835_dma_start_desc(struct bcm2835_chan *c)
 	struct virt_dma_desc *vd = vchan_next_desc(&c->vc);
 	struct bcm2835_desc *d;
 
-	pr_err("dma_start_desc(%px)\n", vd);
 	if (!vd) {
 		c->desc = NULL;
 		return;
