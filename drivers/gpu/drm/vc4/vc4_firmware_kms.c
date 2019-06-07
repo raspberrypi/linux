@@ -458,10 +458,10 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 	switch (fb->modifier) {
 	case DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED:
 		switch (mb->plane.vc_image_type) {
-		case VC_IMAGE_RGBX32:
+		case VC_IMAGE_XRGB8888:
 			mb->plane.vc_image_type = VC_IMAGE_TF_RGBX32;
 			break;
-		case VC_IMAGE_RGBA32:
+		case VC_IMAGE_ARGB8888:
 			mb->plane.vc_image_type = VC_IMAGE_TF_RGBA32;
 			break;
 		case VC_IMAGE_RGB565:
