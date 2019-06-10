@@ -829,12 +829,6 @@ vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 		break;
 	}
 
-	/* Limit the pixel clock until we can get dynamic HDMI 2.0 scrambling
-	 * working.
-	 */
-	if (mode->clock > 340000)
-		return MODE_CLOCK_HIGH;
-
 	return MODE_OK;
 }
 
