@@ -13,6 +13,10 @@
 	};
 };
 
+&v3d {
+	status = "disabled";
+};
+
 &dma {
 	brcm,dma-channel-mask = <0x7ef5>;
 };
