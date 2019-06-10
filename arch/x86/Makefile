@@ -47,7 +47,7 @@ export REALMODE_CFLAGS
 export BITS
 
 ifdef CONFIG_X86_NEED_RELOCS
-        LDFLAGS_vmlinux := --emit-relocs
+        LDFLAGS_vmlinux := --emit-relocs --discard-none
 endif
 
 #
@@ -305,7 +305,7 @@ vdso_install:
 
 archprepare: checkbin
 checkbin:
-ifndef CC_HAVE_ASM_GOTO
+ifndef CONFIG_CC_HAS_ASM_GOTO
 	@echo Compiler lacks asm-goto support.
 	@exit 1
 endif
