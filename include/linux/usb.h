@@ -1840,6 +1840,8 @@ extern int usb_clear_halt(struct usb_device *dev, int pipe);
 extern int usb_reset_configuration(struct usb_device *dev);
 extern int usb_set_interface(struct usb_device *dev, int ifnum, int alternate);
 extern void usb_reset_endpoint(struct usb_device *dev, unsigned int epaddr);
+extern void usb_fixup_endpoint(struct usb_device *dev, int epaddr,
+			       int interval);
 
 /* this request isn't really synchronous, but it belongs with the others */
 extern int usb_driver_set_configuration(struct usb_device *udev, int config);
