@@ -1268,6 +1268,21 @@ static void remove_intf_ep_devs(struct usb_interface *intf)
 	intf->ep_devs_created = 0;
 }
 
+void usb_fixup_endpoint(struct usb_device *dev, int epaddr, int interval)
+{
+	unsigned int epnum = epaddr & USB_ENDPOINT_NUMBER_MASK;
+	struct usb_host_endpoint *ep;
+
+	if (usb_endpoint_out(epaddr))
+		ep = dev->ep_out[epnum];
+	else
+		ep = dev->ep_in[epnum];
+
+	if (ep && usb_endpoint_xfer_int(&ep->desc))
+		usb_hcd_fixup_endpoint(dev, ep, interval);
+}
+EXPORT_SYMBOL_GPL(usb_fixup_endpoint);
+
 /**
  * usb_disable_endpoint -- Disable an endpoint by address
  * @dev: the device whose endpoint is being disabled
