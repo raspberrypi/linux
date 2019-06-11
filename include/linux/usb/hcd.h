@@ -381,6 +381,11 @@ struct hc_driver {
 		 * or bandwidth constraints.
 		 */
 	void	(*reset_bandwidth)(struct usb_hcd *, struct usb_device *);
+		/* Override the endpoint-derived interval
+		 * (if there is any cached hardware state).
+		 */
+	void	(*fixup_endpoint)(struct usb_hcd *hcd, struct usb_device *udev,
+				  struct usb_host_endpoint *ep, int interval);
 		/* Returns the hardware-chosen device address */
 	int	(*address_device)(struct usb_hcd *, struct usb_device *udev);
 		/* prepares the hardware to send commands to the device */
@@ -440,6 +445,8 @@ extern void usb_hcd_unmap_urb_setup_for_dma(struct usb_hcd *, struct urb *);
 extern void usb_hcd_unmap_urb_for_dma(struct usb_hcd *, struct urb *);
 extern void usb_hcd_flush_endpoint(struct usb_device *udev,
 		struct usb_host_endpoint *ep);
+extern void usb_hcd_fixup_endpoint(struct usb_device *udev,
+		struct usb_host_endpoint *ep, int interval);
 extern void usb_hcd_disable_endpoint(struct usb_device *udev,
 		struct usb_host_endpoint *ep);
 extern void usb_hcd_reset_endpoint(struct usb_device *udev,
