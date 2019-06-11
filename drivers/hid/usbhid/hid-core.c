@@ -1126,6 +1126,7 @@ static int usbhid_start(struct hid_device *hid)
 				interval = hid_kbpoll_interval;
 			break;
 		}
+		usb_fixup_endpoint(dev, endpoint->bEndpointAddress, interval);
 
 		ret = -ENOMEM;
 		if (usb_endpoint_dir_in(endpoint)) {
