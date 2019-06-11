@@ -669,6 +669,24 @@ config TCP_CONG_BBR
 	  AQM schemes that do not provide a delay signal. It requires the fq
 	  ("Fair Queue") pacing packet scheduler.
 
+config TCP_CONG_BBR2
+	tristate "BBR2 TCP"
+	default n
+	help
+
+	BBR2 TCP congestion control is a model-based congestion control
+	algorithm that aims to maximize network utilization, keep queues and
+	retransmit rates low, and to be able to coexist with Reno/CUBIC in
+	common scenarios. It builds an explicit model of the network path.  It
+	tolerates a targeted degree of random packet loss and delay that are
+	unrelated to congestion. It can operate over LAN, WAN, cellular, wifi,
+	or cable modem links, and can use DCTCP-L4S-style ECN signals.  It can
+	coexist with flows that use loss-based congestion control, and can
+	operate with shallow buffers, deep buffers, bufferbloat, policers, or
+	AQM schemes that do not provide a delay signal. It requires pacing,
+	using either TCP internal pacing or the fq ("Fair Queue") pacing packet
+	scheduler.
+
 choice
 	prompt "Default TCP congestion control"
 	default DEFAULT_CUBIC
@@ -706,6 +724,9 @@ choice
 	config DEFAULT_BBR
 		bool "BBR" if TCP_CONG_BBR=y
 
+	config DEFAULT_BBR2
+		bool "BBR2" if TCP_CONG_BBR2=y
+
 	config DEFAULT_RENO
 		bool "Reno"
 endchoice
@@ -730,6 +751,7 @@ config DEFAULT_TCP_CONG
 	default "dctcp" if DEFAULT_DCTCP
 	default "cdg" if DEFAULT_CDG
 	default "bbr" if DEFAULT_BBR
+	default "bbr2" if DEFAULT_BBR2
 	default "cubic"
 
 config TCP_MD5SIG

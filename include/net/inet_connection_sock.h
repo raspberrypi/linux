@@ -134,8 +134,9 @@ struct inet_connection_sock {
 	u32			  icsk_probes_tstamp;
 	u32			  icsk_user_timeout;
 
-	u64			  icsk_ca_priv[104 / sizeof(u64)];
-#define ICSK_CA_PRIV_SIZE      (13 * sizeof(u64))
+/* XXX inflated by temporary internal debugging info */
+#define ICSK_CA_PRIV_SIZE      (216)
+	u64			  icsk_ca_priv[ICSK_CA_PRIV_SIZE / sizeof(u64)];
 };
 
 #define ICSK_TIME_RETRANS	1	/* Retransmit timer */
