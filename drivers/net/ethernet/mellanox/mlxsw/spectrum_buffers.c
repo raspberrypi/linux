@@ -411,9 +411,9 @@ static const struct mlxsw_sp_sb_pr mlxsw_sp1_sb_prs[] = {
 	MLXSW_SP_SB_PR(MLXSW_REG_SBPR_MODE_STATIC, MLXSW_SP_SB_INFI),
 };
 
-#define MLXSW_SP2_SB_PR_INGRESS_SIZE	40960000
+#define MLXSW_SP2_SB_PR_INGRESS_SIZE	38128752
+#define MLXSW_SP2_SB_PR_EGRESS_SIZE	38128752
 #define MLXSW_SP2_SB_PR_INGRESS_MNG_SIZE (200 * 1000)
-#define MLXSW_SP2_SB_PR_EGRESS_SIZE	40960000
 
 static const struct mlxsw_sp_sb_pr mlxsw_sp2_sb_prs[] = {
 	/* Ingress pools. */
