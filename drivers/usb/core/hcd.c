@@ -1969,6 +1969,16 @@ reset:
 	return ret;
 }
 
+void usb_hcd_fixup_endpoint(struct usb_device *udev,
+			    struct usb_host_endpoint *ep, int interval)
+{
+	struct usb_hcd *hcd;
+
+	hcd = bus_to_hcd(udev->bus);
+	if (hcd->driver->fixup_endpoint)
+		hcd->driver->fixup_endpoint(hcd, udev, ep, interval);
+}
+
 /* Disables the endpoint: synchronizes with the hcd to make sure all
  * endpoint state is gone from hardware.  usb_hcd_flush_endpoint() must
  * have been called previously.  Use for set_configuration, set_interface,
