@@ -2261,9 +2261,7 @@ Info:   Configures the w1-gpio Onewire interface module.
         Use this overlay if you *don't* need a GPIO to drive an external pullup.
 Load:   dtoverlay=w1-gpio,<param>=<val>
 Params: gpiopin                 GPIO for I/O (default "4")
-
-        pullup                  Non-zero, "on", or "y" to enable the parasitic
-                                power (2-wire, power-on-data) feature
+        pullup                  Now enabled by default (ignored)
 
 
 Name:   w1-gpio-pullup
@@ -2271,11 +2269,8 @@ Info:   Configures the w1-gpio Onewire interface module.
         Use this overlay if you *do* need a GPIO to drive an external pullup.
 Load:   dtoverlay=w1-gpio-pullup,<param>=<val>
 Params: gpiopin                 GPIO for I/O (default "4")
-
-        pullup                  Non-zero, "on", or "y" to enable the parasitic
-                                power (2-wire, power-on-data) feature
-
         extpullup               GPIO for external pullup (default "5")
+        pullup                  Now enabled by default (ignored)
 
 
 Name:   wittypi
