@@ -460,7 +460,7 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 	}
 	mb->plane.planes[3] = 0;
 
-	switch (fb->modifier) {
+	switch (fourcc_mod_broadcom_mod(fb->modifier)) {
 	case DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED:
 		switch (mb->plane.vc_image_type) {
 		case VC_IMAGE_XRGB8888:
@@ -476,6 +476,9 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 		break;
 	case DRM_FORMAT_MOD_BROADCOM_SAND128:
 		mb->plane.vc_image_type = VC_IMAGE_YUV_UV;
+		/* Note that the column pitch is passed across in lines, not
+		 * bytes.
+		 */
 		mb->plane.pitch = fourcc_mod_broadcom_param(fb->modifier);
 		break;
 	}
