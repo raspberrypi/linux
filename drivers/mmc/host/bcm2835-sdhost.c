@@ -2163,6 +2163,8 @@ static int bcm2835_sdhost_probe(struct platform_device *pdev)
 
 err:
 	pr_debug("bcm2835_sdhost_probe -> err %d\n", ret);
+	if (host->dma_chan_rxtx)
+		dma_release_channel(host->dma_chan_rxtx);
 	mmc_free_host(mmc);
 
 	return ret;
@@ -2183,7 +2185,8 @@ static int bcm2835_sdhost_remove(struct platform_device *pdev)
 	del_timer_sync(&host->timer);
 
 	tasklet_kill(&host->finish_tasklet);
-
+	if (host->dma_chan_rxtx)
+		dma_release_channel(host->dma_chan_rxtx);
 	mmc_free_host(host->mmc);
 	platform_set_drvdata(pdev, NULL);
 
