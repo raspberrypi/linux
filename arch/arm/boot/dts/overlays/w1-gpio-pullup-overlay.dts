@@ -14,7 +14,6 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&w1_pins>;
 				gpios = <&gpio 4 0>, <&gpio 5 1>;
-				rpi,parasitic-power = <0>;
 				status = "okay";
 			};
 		};
@@ -38,6 +37,6 @@
 				<&w1_pins>,"reg:0";
 		extpullup =     <&w1>,"gpios:16",
 				<&w1_pins>,"brcm,pins:4";
-		pullup =        <&w1>,"rpi,parasitic-power:0";
+		pullup;		// Silently ignore unneeded parameter
 	};
 };
