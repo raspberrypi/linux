@@ -6,6 +6,7 @@
 #include <asm/io.h>
 
 #include <linux/delay.h>
+#include <linux/ktime.h>
 #include <linux/moduleparam.h>
 #include <linux/module.h>
 
@@ -36,9 +37,21 @@ static u8 w1_crc8_table[] = {
 	116, 42, 200, 150, 21, 75, 169, 247, 182, 232, 10, 84, 215, 137, 107, 53
 };
 
-static void w1_delay(unsigned long tm)
+static void w1_delay(struct w1_master *dev, unsigned long tm)
 {
-	udelay(tm * w1_delay_parm);
+	ktime_t start, delta;
+
+	if (!dev->bus_master->delay_needs_poll) {
+		udelay(tm * w1_delay_parm);
+		return;
+	}
+
+	start = ktime_get();
+	delta = ktime_add(start, ns_to_ktime(1000 * tm * w1_delay_parm));
+	do {
+		dev->bus_master->read_bit(dev->bus_master->data);
+		udelay(1);
+	} while (ktime_before(ktime_get(), delta));
 }
 
 static void w1_write_bit(struct w1_master *dev, int bit);
@@ -77,14 +90,14 @@ static void w1_write_bit(struct w1_master *dev, int bit)
 
 	if (bit) {
 		dev->bus_master->write_bit(dev->bus_master->data, 0);
-		w1_delay(6);
+		w1_delay(dev, 6);
 		dev->bus_master->write_bit(dev->bus_master->data, 1);
-		w1_delay(64);
+		w1_delay(dev, 64);
 	} else {
 		dev->bus_master->write_bit(dev->bus_master->data, 0);
-		w1_delay(60);
+		w1_delay(dev, 60);
 		dev->bus_master->write_bit(dev->bus_master->data, 1);
-		w1_delay(10);
+		w1_delay(dev, 10);
 	}
 
 	if(w1_disable_irqs) local_irq_restore(flags);
@@ -164,14 +177,14 @@ static u8 w1_read_bit(struct w1_master *dev)
 	/* sample timing is critical here */
 	local_irq_save(flags);
 	dev->bus_master->write_bit(dev->bus_master->data, 0);
-	w1_delay(6);
+	w1_delay(dev, 6);
 	dev->bus_master->write_bit(dev->bus_master->data, 1);
-	w1_delay(9);
+	w1_delay(dev, 9);
 
 	result = dev->bus_master->read_bit(dev->bus_master->data);
 	local_irq_restore(flags);
 
-	w1_delay(55);
+	w1_delay(dev, 55);
 
 	return result & 0x1;
 }
@@ -333,16 +346,16 @@ int w1_reset_bus(struct w1_master *dev)
 		 * cpu for such a short amount of time AND get it back in
 		 * the maximum amount of time.
 		 */
-		w1_delay(500);
+		w1_delay(dev, 500);
 		dev->bus_master->write_bit(dev->bus_master->data, 1);
-		w1_delay(70);
+		w1_delay(dev, 70);
 
 		result = dev->bus_master->read_bit(dev->bus_master->data) & 0x1;
 		/* minimum 70 (above) + 430 = 500 us
 		 * There aren't any timing requirements between a reset and
 		 * the following transactions.  Sleeping is safe here.
 		 */
-		/* w1_delay(430); min required time */
+		/* w1_delay(dev, 430); min required time */
 		msleep(1);
 	}
 
