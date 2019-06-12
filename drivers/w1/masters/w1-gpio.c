@@ -35,7 +35,7 @@ static u8 w1_gpio_set_pullup(void *data, int delay)
 			 * This will OVERRIDE open drain emulation and force-pull
 			 * the line high for some time.
 			 */
-			gpiod_set_raw_value(ddata->gpiod, 1);
+			gpiod_direction_output_raw(ddata->gpiod, 1);
 			msleep(ddata->pullup_duration);
 			/*
 			 * This will simply set the line as input since we are doing
@@ -88,6 +88,9 @@ static int w1_gpio_probe(struct platform_device *pdev)
 	master = devm_kzalloc(dev, sizeof(*master), GFP_KERNEL);
 	if (!master)
 		return -ENOMEM;
+
+	if (device_property_present(dev, "raspberrypi,delay-needs-poll"))
+		master->delay_needs_poll = true;
 
 	ddata->gpiod = devm_gpiod_get_index(dev, NULL, 0, gflags);
 	if (IS_ERR(ddata->gpiod))
