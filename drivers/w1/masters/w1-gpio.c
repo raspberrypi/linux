@@ -33,7 +33,7 @@ static u8 w1_gpio_set_pullup(void *data, int delay)
 			 * This will OVERRIDE open drain emulation and force-pull
 			 * the line high for some time.
 			 */
-			gpiod_set_raw_value(pdata->gpiod, 1);
+			gpiod_direction_output_raw(pdata->gpiod, 1);
 			msleep(pdata->pullup_duration);
 			/*
 			 * This will simply set the line as input since we are doing
