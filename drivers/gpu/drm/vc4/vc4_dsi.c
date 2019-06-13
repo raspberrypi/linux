@@ -1496,6 +1496,12 @@ vc4_dsi_init_phy_clocks(struct vc4_dsi *dsi)
 				      dsi->clk_onecell);
 }
 
+static int release_return(struct dma_chan *dmachan, int retval){
+	if (dmachan)
+		dma_release_channel(dmachan);
+	return retval;
+}
+
 static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -1507,22 +1513,21 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	const struct of_device_id *match;
 	dma_cap_mask_t dma_mask;
 	int ret;
-	static int callcount = 0;
+
 	match = of_match_device(vc4_dsi_dt_match, dev);
 	if (!match)
 		return -ENODEV;
-	++callcount;
+
 	dsi->port = (uintptr_t)match->data;
 
-//	if (!dsi->encoder){		// Consider this conditional to prevent memory leak
-		vc4_dsi_encoder = devm_kzalloc(dev, sizeof(*vc4_dsi_encoder),
-				       GFP_KERNEL);
-		if (!vc4_dsi_encoder)
-			return -ENOMEM;
-		vc4_dsi_encoder->base.type = VC4_ENCODER_TYPE_DSI1;
-		vc4_dsi_encoder->dsi = dsi;
-		dsi->encoder = &vc4_dsi_encoder->base.base;
-//	}
+	vc4_dsi_encoder = devm_kzalloc(dev, sizeof(*vc4_dsi_encoder),
+			       GFP_KERNEL);
+	if (!vc4_dsi_encoder)
+		return -ENOMEM;
+	vc4_dsi_encoder->base.type = VC4_ENCODER_TYPE_DSI1;
+	vc4_dsi_encoder->dsi = dsi;
+	dsi->encoder = &vc4_dsi_encoder->base.base;
+
 	dsi->regs = vc4_ioremap_regs(pdev, 0);
 	if (IS_ERR(dsi->regs))
 		return PTR_ERR(dsi->regs);
@@ -1536,11 +1541,12 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	/* DSI1 has a broken AXI slave that doesn't respond to writes
 	 * from the ARM.  It does handle writes from the DMA engine,
 	 * so set up a channel for talking to it.
+	 * Where possible managed resource providers are used, but the DMA channel
+	 * must - if acquired - be explicitly released prior to taking an error exit path.
 	 */
 	if (dsi->port == 1) {
-		dev_warn(dev,"Count %d: dsi->r.d.mem=0x%08x, dsu->r.d.chan=%d\n",callcount,(unsigned int)dsi->reg_dma_mem, (unsigned int)dsi->reg_dma_chan);
-		if (!dsi->reg_dma_mem)			//Consider this conditionial to prevent memory leak		
-			dsi->reg_dma_mem = dma_alloc_coherent(dev, 4,
+
+		dsi->reg_dma_mem = dmam_alloc_coherent(dev, 4,
 						      &dsi->reg_dma_paddr,
 						      GFP_KERNEL);
 		if (!dsi->reg_dma_mem) {
@@ -1550,15 +1556,16 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 
 		dma_cap_zero(dma_mask);
 		dma_cap_set(DMA_MEMCPY, dma_mask);
-		if (!dsi->reg_dma_chan)			// this conditional to prevent DMA channel leak
-			dsi->reg_dma_chan = dma_request_chan_by_mask(&dma_mask);
+		dsi->reg_dma_chan = dma_request_chan_by_mask(&dma_mask);
 		if (IS_ERR(dsi->reg_dma_chan)) {
 			ret = PTR_ERR(dsi->reg_dma_chan);
 			if (ret != -EPROBE_DEFER)
-				DRM_ERROR("Failed to get DMA channel: mask:%08x  chan:%08x\n",
-					 dma_mask, dsi->reg_dma_chan);
+				DRM_ERROR("Failed to get DMA channel: %d\n",
+					  ret);
 			return ret;
 		}
+
+		/* From here on, any error exits must release the dma channel */
 
 		/* Get the physical address of the device's registers.  The
 		 * struct resource for the regs gives us the bus address
@@ -1586,7 +1593,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	if (ret) {
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get interrupt: %d\n", ret);
-		return ret;
+		return release_return(dsi->reg_dma_chan, ret);
 	}
 
 	dsi->escape_clock = devm_clk_get(dev, "escape");
@@ -1594,7 +1601,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->escape_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get escape clock: %d\n", ret);
-		return ret;
+		return release_return(dsi->reg_dma_chan, ret);
 	}
 
 	dsi->pll_phy_clock = devm_clk_get(dev, "phy");
@@ -1602,7 +1609,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->pll_phy_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get phy clock: %d\n", ret);
-		return ret;
+		return release_return(dsi->reg_dma_chan, ret);
 	}
 
 	dsi->pixel_clock = devm_clk_get(dev, "pixel");
@@ -1610,7 +1617,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->pixel_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get pixel clock: %d\n", ret);
-		return ret;
+		return release_return(dsi->reg_dma_chan, ret);
 	}
 
 	ret = drm_of_find_panel_or_bridge(dev->of_node, 0, 0,
@@ -1625,26 +1632,26 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		if (ret == -ENODEV)
 			return 0;
 
-		return ret;
+		return release_return(dsi->reg_dma_chan, ret);
 	}
 
 	if (panel) {
 		dsi->bridge = devm_drm_panel_bridge_add(dev, panel,
 							DRM_MODE_CONNECTOR_DSI);
 		if (IS_ERR(dsi->bridge))
-			return PTR_ERR(dsi->bridge);
+			return release_return(dsi->reg_dma_chan, PTR_ERR(dsi->bridge));
 	}
 
 	/* The esc clock rate is supposed to always be 100Mhz. */
 	ret = clk_set_rate(dsi->escape_clock, 100 * 1000000);
 	if (ret) {
 		dev_err(dev, "Failed to set esc clock: %d\n", ret);
-		return ret;
+		return release_return(dsi->reg_dma_chan, ret);
 	}
 
 	ret = vc4_dsi_init_phy_clocks(dsi);
 	if (ret)
-		return ret;
+		return release_return(dsi->reg_dma_chan, ret);
 
 	if (dsi->port == 1)
 		vc4->dsi1 = dsi;
@@ -1656,7 +1663,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	ret = drm_bridge_attach(dsi->encoder, dsi->bridge, NULL);
 	if (ret) {
 		dev_err(dev, "bridge attach failed: %d\n", ret);
-		return ret;
+		return release_return(dsi->reg_dma_chan, ret);;
 	}
 	/* Disable the atomic helper calls into the bridge.  We
 	 * manually call the bridge pre_enable / enable / etc. calls
@@ -1681,6 +1688,8 @@ static void vc4_dsi_unbind(struct device *dev, struct device *master,
 		pm_runtime_disable(dev);
 
 	vc4_dsi_encoder_destroy(dsi->encoder);
+
+	dma_release_channel(dsi->reg_dma_chan);
 
 	if (dsi->port == 1)
 		vc4->dsi1 = NULL;
