@@ -498,6 +498,7 @@
  */
 #define DSI1_ID			0x8c
 
+
 /* General DSI hardware state. */
 struct vc4_dsi {
 	struct platform_device *pdev;
@@ -892,7 +893,7 @@ static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
 	unsigned long dsip_clock;
 	unsigned long phy_clock;
 	int ret;
-
+	DRM_INFO("Entering vc4_dsi_encoder_enable()");
 	ret = pm_runtime_get_sync(dev);
 	if (ret) {
 		DRM_ERROR("Failed to runtime PM enable on DSI%d\n", dsi->port);
@@ -1231,7 +1232,6 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 		DSI_PORT_WRITE(INT_EN, (DSI1_INTERRUPTS_ALWAYS_ENABLED |
 					DSI1_INT_TXPKT1_DONE));
 	}
-
 	/* Send the packet. */
 	DSI_PORT_WRITE(TXPKT1H, pkth);
 	DSI_PORT_WRITE(TXPKT1C, pktc);
@@ -1384,7 +1384,6 @@ static irqreturn_t vc4_dsi_irq_defer_to_thread_handler(int irq, void *data)
 
 	if (!stat)
 		return IRQ_NONE;
-
 	return IRQ_WAKE_THREAD;
 }
 
@@ -1508,21 +1507,22 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	const struct of_device_id *match;
 	dma_cap_mask_t dma_mask;
 	int ret;
-
+	static int callcount = 0;
 	match = of_match_device(vc4_dsi_dt_match, dev);
 	if (!match)
 		return -ENODEV;
-
+	++callcount;
 	dsi->port = (uintptr_t)match->data;
 
-	vc4_dsi_encoder = devm_kzalloc(dev, sizeof(*vc4_dsi_encoder),
+//	if (!dsi->encoder){		// Consider this conditional to prevent memory leak
+		vc4_dsi_encoder = devm_kzalloc(dev, sizeof(*vc4_dsi_encoder),
 				       GFP_KERNEL);
-	if (!vc4_dsi_encoder)
-		return -ENOMEM;
-	vc4_dsi_encoder->base.type = VC4_ENCODER_TYPE_DSI1;
-	vc4_dsi_encoder->dsi = dsi;
-	dsi->encoder = &vc4_dsi_encoder->base.base;
-
+		if (!vc4_dsi_encoder)
+			return -ENOMEM;
+		vc4_dsi_encoder->base.type = VC4_ENCODER_TYPE_DSI1;
+		vc4_dsi_encoder->dsi = dsi;
+		dsi->encoder = &vc4_dsi_encoder->base.base;
+//	}
 	dsi->regs = vc4_ioremap_regs(pdev, 0);
 	if (IS_ERR(dsi->regs))
 		return PTR_ERR(dsi->regs);
@@ -1538,7 +1538,9 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	 * so set up a channel for talking to it.
 	 */
 	if (dsi->port == 1) {
-		dsi->reg_dma_mem = dma_alloc_coherent(dev, 4,
+		dev_warn(dev,"Count %d: dsi->r.d.mem=0x%08x, dsu->r.d.chan=%d\n",callcount,(unsigned int)dsi->reg_dma_mem, (unsigned int)dsi->reg_dma_chan);
+		if (!dsi->reg_dma_mem)			//Consider this conditionial to prevent memory leak		
+			dsi->reg_dma_mem = dma_alloc_coherent(dev, 4,
 						      &dsi->reg_dma_paddr,
 						      GFP_KERNEL);
 		if (!dsi->reg_dma_mem) {
@@ -1548,12 +1550,13 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 
 		dma_cap_zero(dma_mask);
 		dma_cap_set(DMA_MEMCPY, dma_mask);
-		dsi->reg_dma_chan = dma_request_chan_by_mask(&dma_mask);
+		if (!dsi->reg_dma_chan)			// this conditional to prevent DMA channel leak
+			dsi->reg_dma_chan = dma_request_chan_by_mask(&dma_mask);
 		if (IS_ERR(dsi->reg_dma_chan)) {
 			ret = PTR_ERR(dsi->reg_dma_chan);
 			if (ret != -EPROBE_DEFER)
-				DRM_ERROR("Failed to get DMA channel: %d\n",
-					  ret);
+				DRM_ERROR("Failed to get DMA channel: mask:%08x  chan:%08x\n",
+					 dma_mask, dsi->reg_dma_chan);
 			return ret;
 		}
 
