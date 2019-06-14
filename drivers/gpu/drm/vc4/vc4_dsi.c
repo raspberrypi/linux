@@ -498,7 +498,6 @@
  */
 #define DSI1_ID			0x8c
 
-
 /* General DSI hardware state. */
 struct vc4_dsi {
 	struct platform_device *pdev;
@@ -893,7 +892,7 @@ static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
 	unsigned long dsip_clock;
 	unsigned long phy_clock;
 	int ret;
-	DRM_INFO("Entering vc4_dsi_encoder_enable()");
+
 	ret = pm_runtime_get_sync(dev);
 	if (ret) {
 		DRM_ERROR("Failed to runtime PM enable on DSI%d\n", dsi->port);
@@ -1232,6 +1231,7 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 		DSI_PORT_WRITE(INT_EN, (DSI1_INTERRUPTS_ALWAYS_ENABLED |
 					DSI1_INT_TXPKT1_DONE));
 	}
+
 	/* Send the packet. */
 	DSI_PORT_WRITE(TXPKT1H, pkth);
 	DSI_PORT_WRITE(TXPKT1C, pktc);
@@ -1384,6 +1384,7 @@ static irqreturn_t vc4_dsi_irq_defer_to_thread_handler(int irq, void *data)
 
 	if (!stat)
 		return IRQ_NONE;
+
 	return IRQ_WAKE_THREAD;
 }
 
@@ -1496,12 +1497,6 @@ vc4_dsi_init_phy_clocks(struct vc4_dsi *dsi)
 				      dsi->clk_onecell);
 }
 
-static int release_return(struct dma_chan *dmachan, int retval){
-	if (dmachan)
-		dma_release_channel(dmachan);
-	return retval;
-}
-
 static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -1521,7 +1516,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	dsi->port = (uintptr_t)match->data;
 
 	vc4_dsi_encoder = devm_kzalloc(dev, sizeof(*vc4_dsi_encoder),
-			       GFP_KERNEL);
+				       GFP_KERNEL);
 	if (!vc4_dsi_encoder)
 		return -ENOMEM;
 	vc4_dsi_encoder->base.type = VC4_ENCODER_TYPE_DSI1;
@@ -1545,7 +1540,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	 * must - if acquired - be explicitly released prior to taking an error exit path.
 	 */
 	if (dsi->port == 1) {
-
 		dsi->reg_dma_mem = dmam_alloc_coherent(dev, 4,
 						      &dsi->reg_dma_paddr,
 						      GFP_KERNEL);
@@ -1593,7 +1587,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	if (ret) {
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get interrupt: %d\n", ret);
-		return release_return(dsi->reg_dma_chan, ret);
+		goto rel_dma_exit;
 	}
 
 	dsi->escape_clock = devm_clk_get(dev, "escape");
@@ -1601,7 +1595,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->escape_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get escape clock: %d\n", ret);
-		return release_return(dsi->reg_dma_chan, ret);
+		goto rel_dma_exit;
 	}
 
 	dsi->pll_phy_clock = devm_clk_get(dev, "phy");
@@ -1609,7 +1603,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->pll_phy_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get phy clock: %d\n", ret);
-		return release_return(dsi->reg_dma_chan, ret);
+		goto rel_dma_exit;
 	}
 
 	dsi->pixel_clock = devm_clk_get(dev, "pixel");
@@ -1617,7 +1611,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		ret = PTR_ERR(dsi->pixel_clock);
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get pixel clock: %d\n", ret);
-		return release_return(dsi->reg_dma_chan, ret);
+		goto rel_dma_exit;
 	}
 
 	ret = drm_of_find_panel_or_bridge(dev->of_node, 0, 0,
@@ -1632,26 +1626,28 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		if (ret == -ENODEV)
 			return 0;
 
-		return release_return(dsi->reg_dma_chan, ret);
+		goto rel_dma_exit;
 	}
 
 	if (panel) {
 		dsi->bridge = devm_drm_panel_bridge_add(dev, panel,
 							DRM_MODE_CONNECTOR_DSI);
-		if (IS_ERR(dsi->bridge))
-			return release_return(dsi->reg_dma_chan, PTR_ERR(dsi->bridge));
+		if (IS_ERR(dsi->bridge)){
+			ret = PTR_ERR(dsi->bridge);
+			goto rel_dma_exit;
+		}
 	}
 
 	/* The esc clock rate is supposed to always be 100Mhz. */
 	ret = clk_set_rate(dsi->escape_clock, 100 * 1000000);
 	if (ret) {
 		dev_err(dev, "Failed to set esc clock: %d\n", ret);
-		return release_return(dsi->reg_dma_chan, ret);
+		goto rel_dma_exit;
 	}
 
 	ret = vc4_dsi_init_phy_clocks(dsi);
 	if (ret)
-		return release_return(dsi->reg_dma_chan, ret);
+		goto rel_dma_exit;
 
 	if (dsi->port == 1)
 		vc4->dsi1 = dsi;
@@ -1663,7 +1659,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	ret = drm_bridge_attach(dsi->encoder, dsi->bridge, NULL);
 	if (ret) {
 		dev_err(dev, "bridge attach failed: %d\n", ret);
-		return release_return(dsi->reg_dma_chan, ret);;
+		goto rel_dma_exit;
 	}
 	/* Disable the atomic helper calls into the bridge.  We
 	 * manually call the bridge pre_enable / enable / etc. calls
@@ -1675,6 +1671,11 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	pm_runtime_enable(dev);
 
 	return 0;
+
+rel_dma_exit:
+	dma_release_channel(dsi->reg_dma_chan);
+	return ret;
+
 }
 
 static void vc4_dsi_unbind(struct device *dev, struct device *master,
