@@ -395,8 +395,13 @@ irq_set_affinity_notifier(unsigned int irq, struct irq_affinity_notify *notify)
 	desc->affinity_notify = notify;
 	raw_spin_unlock_irqrestore(&desc->lock, flags);
 
-	if (old_notify)
+	if (old_notify) {
+#ifndef CONFIG_PREEMPT_RT_BASE
+		/* Need to address this for PREEMPT_RT */
+		cancel_work_sync(&old_notify->work);
+#endif
 		kref_put(&old_notify->kref, old_notify->release);
+	}
 
 	return 0;
 }
