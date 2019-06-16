@@ -755,7 +755,7 @@ static void handle_fmt_changed(struct bcm2835_codec_ctx *ctx,
 	q_data = get_q_data(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE);
 	q_data->crop_width = format->es.video.crop.width;
 	q_data->crop_height = format->es.video.crop.height;
-	q_data->bytesperline = format->es.video.crop.width;
+	q_data->bytesperline = format->es.video.width;
 	q_data->height = format->es.video.height;
 	q_data->sizeimage = format->buffer_size_min;
 	if (format->es.video.color_space)
