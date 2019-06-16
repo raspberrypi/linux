@@ -1106,9 +1106,9 @@ static int vidioc_s_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 	bool update_capture_port = false;
 	int ret;
 
-	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev,	"Setting format for type %d, wxh: %dx%d, fmt: %08x, size %u\n",
+	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev,	"Setting format for type %d, wxh: %dx%d, fmt: %.4s, size %u\n",
 		 f->type, f->fmt.pix.width, f->fmt.pix.height,
-		 f->fmt.pix.pixelformat, f->fmt.pix.sizeimage);
+		 (char*)&f->fmt.pix.pixelformat, f->fmt.pix.sizeimage);
 
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
 	if (!vq)
