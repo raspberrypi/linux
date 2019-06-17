@@ -30,7 +30,7 @@
 			status = "okay";
 
 			ds1307: ds1307@68 {
-				compatible = "maxim,ds1307";
+				compatible = "dallas,ds1307";
 				reg = <0x68>;
 				status = "okay";
 			};
