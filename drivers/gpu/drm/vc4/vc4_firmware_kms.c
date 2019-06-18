@@ -821,6 +821,10 @@ vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 		return MODE_NO_DBLESCAN;
 	}
 
+	/* Disable refresh rates > 85Hz as limited gain from them */
+	if (drm_mode_vrefresh(mode) > 85)
+		return MODE_BAD_VVALUE;
+
 	/* Limit the pixel clock based on the HDMI clock limits from the
 	 * firmware
 	 */
