@@ -319,7 +319,7 @@ static int mcde_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct drm_device *drm;
 	struct mcde *mcde;
-	struct component_match *match;
+	struct component_match *match = NULL;
 	struct resource *res;
 	u32 pid;
 	u32 val;
@@ -484,6 +484,10 @@ static int mcde_probe(struct platform_device *pdev)
 			p = d;
 		}
 		put_device(p);
+	}
+	if (!match) {
+		dev_err(dev, "no matching components\n");
+		return -ENODEV;
 	}
 	if (IS_ERR(match)) {
 		dev_err(dev, "could not create component match\n");
