@@ -113,7 +113,7 @@
 		target = <&usb>;
 		#address-cells = <1>;
 		#size-cells = <1>;
-		dwc2_usb: __overlay__ {
+		__overlay__ {
 			compatible = "brcm,bcm2835-usb";
 			dr_mode = "otg";
 			g-np-tx-fifo-size = <32>;
