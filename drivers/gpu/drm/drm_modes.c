@@ -1577,7 +1577,7 @@ bool drm_mode_parse_command_line_for_connector(const char *mode_option,
 					       struct drm_cmdline_mode *mode)
 {
 	const char *name;
-	bool parse_extras = false;
+	bool named_mode = false, parse_extras = false;
 	unsigned int bpp_off = 0, refresh_off = 0;
 	unsigned int mode_end = 0;
 	char *bpp_ptr = NULL, *refresh_ptr = NULL, *extra_ptr = NULL;
@@ -1596,8 +1596,22 @@ bool drm_mode_parse_command_line_for_connector(const char *mode_option,
 
 	name = mode_option;
 
-	if (!isdigit(name[0]))
-		return false;
+	/*
+	 * This is a bit convoluted. To differentiate between the
+	 * named modes and poorly formatted resolutions, we need a
+	 * bunch of things:
+	 *   - We need to make sure that the first character (which
+	 *     would be our resolution in X) is a digit.
+	 *   - However, if the X resolution is missing, then we end up
+	 *     with something like x<yres>, with our first character
+	 *     being an alpha-numerical character, which would be
+	 *     considered a named mode.
+	 *
+	 * If this isn't enough, we should add more heuristics here,
+	 * and matching unit-tests.
+	 */
+	if (!isdigit(name[0]) && name[0] != 'x')
+		named_mode = true;
 
 	/* Try to locate the bpp and refresh specifiers, if any */
 	bpp_ptr = strchr(name, '-');
@@ -1608,6 +1622,9 @@ bool drm_mode_parse_command_line_for_connector(const char *mode_option,
 
 	refresh_ptr = strchr(name, '@');
 	if (refresh_ptr) {
+		if (named_mode)
+			return false;
+
 		refresh_off = refresh_ptr - name;
 		mode->refresh_specified = true;
 	}
@@ -1624,12 +1641,16 @@ bool drm_mode_parse_command_line_for_connector(const char *mode_option,
 		parse_extras = true;
 	}
 
-	ret = drm_mode_parse_cmdline_res_mode(name, mode_end,
-					      parse_extras,
-					      connector,
-					      mode);
-	if (ret)
-		return false;
+	if (named_mode) {
+		strncpy(mode->name, name, mode_end);
+	} else {
+		ret = drm_mode_parse_cmdline_res_mode(name, mode_end,
+						      parse_extras,
+						      connector,
+						      mode);
+		if (ret)
+			return false;
+	}
 	mode->specified = true;
 
 	if (bpp_ptr) {
@@ -1657,14 +1678,23 @@ bool drm_mode_parse_command_line_for_connector(const char *mode_option,
 		extra_ptr = refresh_end_ptr;
 
 	if (extra_ptr) {
-		int remaining = strlen(name) - (extra_ptr - name);
+		if (!named_mode) {
+			int len = strlen(name) - (extra_ptr - name);
 
-		/*
-		 * We still have characters to process, while
-		 * we shouldn't have any
-		 */
-		if (remaining > 0)
-			return false;
+			ret = drm_mode_parse_cmdline_extra(extra_ptr, len,
+							   connector, mode);
+			if (ret)
+				return false;
+		} else {
+			int remaining = strlen(name) - (extra_ptr - name);
+
+			/*
+			 * We still have characters to process, while
+			 * we shouldn't have any
+			 */
+			if (remaining > 0)
+				return false;
+		}
 	}
 
 	return true;
