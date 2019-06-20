@@ -1026,7 +1026,7 @@ next_dnode:
 			!f2fs_is_valid_blkaddr(sbi, *blkaddr,
 					DATA_GENERIC_ENHANCE)) {
 			f2fs_put_dnode(&dn);
-			return -EFAULT;
+			return -EFSCORRUPTED;
 		}
 
 		if (!f2fs_is_checkpointed_data(sbi, *blkaddr)) {
