@@ -15,6 +15,7 @@ struct cpu_timer_list {
 	u64 expires, incr;
 	struct task_struct *task;
 	int firing;
+	int firing_cpu;
 };
 
 /*

@@ -22,7 +22,6 @@
 #include <linux/percpu.h>
 #include <linux/timer.h>
 #include <linux/timerqueue.h>
-#include <linux/wait.h>
 
 struct hrtimer_clock_base;
 struct hrtimer_cpu_base;
@@ -193,6 +192,8 @@ enum  hrtimer_base_type {
  * @nr_retries:		Total number of hrtimer interrupt retries
  * @nr_hangs:		Total number of hrtimer interrupt hangs
  * @max_hang_time:	Maximum time spent in hrtimer_interrupt
+ * @softirq_expiry_lock: Lock which is taken while softirq based hrtimer are
+ *			 expired
  * @expires_next:	absolute time of the next event, is required for remote
  *			hrtimer enqueue; it is the total first expiry time (hard
  *			and soft hrtimer are taken into account)
@@ -220,12 +221,10 @@ struct hrtimer_cpu_base {
 	unsigned short			nr_hangs;
 	unsigned int			max_hang_time;
 #endif
+	spinlock_t			softirq_expiry_lock;
 	ktime_t				expires_next;
 	struct hrtimer			*next_timer;
 	ktime_t				softirq_expires_next;
-#ifdef CONFIG_PREEMPT_RT_BASE
-	wait_queue_head_t		wait;
-#endif
 	struct hrtimer			*softirq_next_timer;
 	struct hrtimer_clock_base	clock_base[HRTIMER_MAX_CLOCK_BASES];
 } ____cacheline_aligned;
@@ -426,6 +425,7 @@ static inline void hrtimer_start(struct hrtimer *timer, ktime_t tim,
 
 extern int hrtimer_cancel(struct hrtimer *timer);
 extern int hrtimer_try_to_cancel(struct hrtimer *timer);
+extern void hrtimer_grab_expiry_lock(const struct hrtimer *timer);
 
 static inline void hrtimer_start_expires(struct hrtimer *timer,
 					 enum hrtimer_mode mode)
@@ -442,13 +442,6 @@ static inline void hrtimer_restart(struct hrtimer *timer)
 {
 	hrtimer_start_expires(timer, HRTIMER_MODE_ABS);
 }
-
-/* Softirq preemption could deadlock timer removal */
-#ifdef CONFIG_PREEMPT_RT_BASE
-  extern void hrtimer_wait_for_timer(const struct hrtimer *timer);
-#else
-# define hrtimer_wait_for_timer(timer)	do { cpu_relax(); } while (0)
-#endif
 
 /* Query timers: */
 extern ktime_t __hrtimer_get_remaining(const struct hrtimer *timer, bool adjust);
@@ -475,7 +468,7 @@ static inline int hrtimer_is_queued(struct hrtimer *timer)
  * Helper function to check, whether the timer is running the callback
  * function
  */
-static inline int hrtimer_callback_running(const struct hrtimer *timer)
+static inline int hrtimer_callback_running(struct hrtimer *timer)
 {
 	return timer->base->running == timer;
 }

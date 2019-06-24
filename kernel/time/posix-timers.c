@@ -821,25 +821,20 @@ static void common_hrtimer_arm(struct k_itimer *timr, ktime_t expires,
 		hrtimer_start_expires(timer, HRTIMER_MODE_ABS);
 }
 
-/*
- * Protected by RCU!
- */
-static void timer_wait_for_callback(const struct k_clock *kc, struct k_itimer *timr)
-{
-#ifdef CONFIG_PREEMPT_RT_FULL
-	if (kc->timer_arm == common_hrtimer_arm)
-		hrtimer_wait_for_timer(&timr->it.real.timer);
-	else if (kc == &alarm_clock)
-		hrtimer_wait_for_timer(&timr->it.alarm.alarmtimer.timer);
-	else
-		/* FIXME: Whacky hack for posix-cpu-timers */
-		schedule_timeout(1);
-#endif
-}
-
 static int common_hrtimer_try_to_cancel(struct k_itimer *timr)
 {
 	return hrtimer_try_to_cancel(&timr->it.real.timer);
+}
+
+static void timer_wait_for_callback(const struct k_clock *kc, struct k_itimer *timer)
+{
+	if (kc->timer_arm == common_hrtimer_arm)
+		hrtimer_grab_expiry_lock(&timer->it.real.timer);
+	else if (kc == &alarm_clock)
+		hrtimer_grab_expiry_lock(&timer->it.alarm.alarmtimer.timer);
+	else
+		/* posix-cpu-timers */
+		cpu_timers_grab_expiry_lock(timer);
 }
 
 /* Set a POSIX.1b interval timer. */
@@ -901,21 +896,21 @@ retry:
 	if (!timr)
 		return -EINVAL;
 
-	rcu_read_lock();
 	kc = timr->kclock;
 	if (WARN_ON_ONCE(!kc || !kc->timer_set))
 		error = -EINVAL;
 	else
 		error = kc->timer_set(timr, flags, new_spec64, old_spec64);
 
-	unlock_timer(timr, flag);
 	if (error == TIMER_RETRY) {
+		rcu_read_lock();
+		unlock_timer(timr, flag);
 		timer_wait_for_callback(kc, timr);
-		old_spec64 = NULL;	// We already got the old time...
 		rcu_read_unlock();
+		old_spec64 = NULL;	// We already got the old time...
 		goto retry;
 	}
-	rcu_read_unlock();
+	unlock_timer(timr, flag);
 
 	return error;
 }
@@ -977,13 +972,21 @@ int common_timer_del(struct k_itimer *timer)
 	return 0;
 }
 
-static inline int timer_delete_hook(struct k_itimer *timer)
+static int timer_delete_hook(struct k_itimer *timer)
 {
 	const struct k_clock *kc = timer->kclock;
+	int ret;
 
 	if (WARN_ON_ONCE(!kc || !kc->timer_del))
 		return -EINVAL;
-	return kc->timer_del(timer);
+	ret = kc->timer_del(timer);
+	if (ret == TIMER_RETRY) {
+		rcu_read_lock();
+		spin_unlock_irq(&timer->it_lock);
+		timer_wait_for_callback(kc, timer);
+		rcu_read_unlock();
+	}
+	return ret;
 }
 
 /* Delete a POSIX.1b interval timer. */
@@ -997,15 +1000,8 @@ retry_delete:
 	if (!timer)
 		return -EINVAL;
 
-	rcu_read_lock();
-	if (timer_delete_hook(timer) == TIMER_RETRY) {
-		unlock_timer(timer, flags);
-		timer_wait_for_callback(clockid_to_kclock(timer->it_clock),
-					timer);
-		rcu_read_unlock();
+	if (timer_delete_hook(timer) == TIMER_RETRY)
 		goto retry_delete;
-	}
-	rcu_read_unlock();
 
 	spin_lock(&current->sighand->siglock);
 	list_del(&timer->list);
@@ -1031,20 +1027,9 @@ static void itimer_delete(struct k_itimer *timer)
 retry_delete:
 	spin_lock_irqsave(&timer->it_lock, flags);
 
-	/* On RT we can race with a deletion */
-	if (!timer->it_signal) {
-		unlock_timer(timer, flags);
-		return;
-	}
-
-	if (timer_delete_hook(timer) == TIMER_RETRY) {
-		rcu_read_lock();
-		unlock_timer(timer, flags);
-		timer_wait_for_callback(clockid_to_kclock(timer->it_clock),
-					timer);
-		rcu_read_unlock();
+	if (timer_delete_hook(timer) == TIMER_RETRY)
 		goto retry_delete;
-	}
+
 	list_del(&timer->list);
 	/*
 	 * This keeps any tasks waiting on the spin lock from thinking
