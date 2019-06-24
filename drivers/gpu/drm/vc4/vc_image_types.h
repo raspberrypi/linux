@@ -4,6 +4,8 @@
  *
  * Values taken from vc_image_types.h released by Broadcom at
  * https://github.com/raspberrypi/userland/blob/master/interface/vctypes/vc_image_types.h
+ * and vc_image_structs.h at
+ * https://github.com/raspberrypi/userland/blob/master/interface/vctypes/vc_image_structs.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -140,4 +142,30 @@ enum {
 
 	VC_IMAGE_MAX,     /* bounds for error checking */
 	VC_IMAGE_FORCE_ENUM_16BIT = 0xffff,
+};
+
+enum {
+	/* Unknown or unset - defaults to BT601 interstitial */
+	VC_IMAGE_YUVINFO_UNSPECIFIED    = 0,
+
+	/* colour-space conversions data [4 bits] */
+
+	/* ITU-R BT.601-5 [SDTV] (compatible with VideoCore-II) */
+	VC_IMAGE_YUVINFO_CSC_ITUR_BT601      = 1,
+	/* ITU-R BT.709-3 [HDTV] */
+	VC_IMAGE_YUVINFO_CSC_ITUR_BT709      = 2,
+	/* JPEG JFIF */
+	VC_IMAGE_YUVINFO_CSC_JPEG_JFIF       = 3,
+	/* Title 47 Code of Federal Regulations (2003) 73.682 (a) (20) */
+	VC_IMAGE_YUVINFO_CSC_FCC             = 4,
+	/* Society of Motion Picture and Television Engineers 240M (1999) */
+	VC_IMAGE_YUVINFO_CSC_SMPTE_240M      = 5,
+	/* ITU-R BT.470-2 System M */
+	VC_IMAGE_YUVINFO_CSC_ITUR_BT470_2_M  = 6,
+	/* ITU-R BT.470-2 System B,G */
+	VC_IMAGE_YUVINFO_CSC_ITUR_BT470_2_BG = 7,
+	/* JPEG JFIF, but with 16..255 luma */
+	VC_IMAGE_YUVINFO_CSC_JPEG_JFIF_Y16_255 = 8,
+	/* Rec 2020 */
+	VC_IMAGE_YUVINFO_CSC_REC_2020        = 9,
 };
