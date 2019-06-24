@@ -1259,6 +1259,7 @@ error:
 	return ret;
 }
 
+#ifndef CONFIG_ARM64
 /* Converts VCSM_CACHE_OP_* to an operating function. */
 static void (*cache_op_to_func(const unsigned int cache_op))
 						(const void*, const void*)
@@ -1351,6 +1352,7 @@ out:
 
 	return ret;
 }
+#endif
 
 static long vc_sm_cma_ioctl(struct file *file, unsigned int cmd,
 			    unsigned long arg)
@@ -1448,6 +1450,7 @@ static long vc_sm_cma_ioctl(struct file *file, unsigned int cmd,
 		break;
 	}
 
+#ifndef CONFIG_ARM64
 	/*
 	 * Flush/Invalidate the cache for a given mapping.
 	 * Blocks must be pinned (i.e. accessed) before this call.
@@ -1455,6 +1458,7 @@ static long vc_sm_cma_ioctl(struct file *file, unsigned int cmd,
 	case VC_SM_CMA_CMD_CLEAN_INVALID2:
 		ret = vc_sm_cma_clean_invalid2(cmdnr, arg);
 		break;
+#endif
 
 	default:
 		pr_debug("[%s]: cmd %x tgid %u, owner %u\n", __func__, cmdnr,
@@ -1467,6 +1471,7 @@ static long vc_sm_cma_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+#ifndef CONFIG_ARM64
 #ifdef CONFIG_COMPAT
 struct vc_sm_cma_ioctl_clean_invalid2_32 {
 	u32 op_count;
@@ -1496,13 +1501,16 @@ static long vc_sm_cma_compat_ioctl(struct file *file, unsigned int cmd,
 	}
 }
 #endif
+#endif
 
 /* Device operations that we managed in this driver. */
 static const struct file_operations vc_sm_ops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = vc_sm_cma_ioctl,
+#ifndef CONFIG_ARM64
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = vc_sm_cma_compat_ioctl,
+#endif
 #endif
 	.open = vc_sm_cma_open,
 	.release = vc_sm_cma_release,
