@@ -44,7 +44,6 @@
 #include <linux/sched/debug.h>
 #include <linux/slab.h>
 #include <linux/compat.h>
-#include <linux/swait.h>
 
 #include <linux/uaccess.h>
 #include <asm/unistd.h>
@@ -198,9 +197,7 @@ EXPORT_SYMBOL(jiffies_64);
 struct timer_base {
 	raw_spinlock_t		lock;
 	struct timer_list	*running_timer;
-#ifdef CONFIG_PREEMPT_RT_FULL
-	struct swait_queue_head	wait_for_running_timer;
-#endif
+	spinlock_t		expiry_lock;
 	unsigned long		clk;
 	unsigned long		next_expiry;
 	unsigned int		cpu;
@@ -1189,33 +1186,6 @@ void add_timer_on(struct timer_list *timer, int cpu)
 }
 EXPORT_SYMBOL_GPL(add_timer_on);
 
-#ifdef CONFIG_PREEMPT_RT_FULL
-/*
- * Wait for a running timer
- */
-static void wait_for_running_timer(struct timer_list *timer)
-{
-	struct timer_base *base;
-	u32 tf = timer->flags;
-
-	if (tf & TIMER_MIGRATING)
-		return;
-
-	base = get_timer_base(tf);
-	swait_event_exclusive(base->wait_for_running_timer,
-			      base->running_timer != timer);
-}
-
-# define wakeup_timer_waiters(b)	swake_up_all(&(b)->wait_for_running_timer)
-#else
-static inline void wait_for_running_timer(struct timer_list *timer)
-{
-	cpu_relax();
-}
-
-# define wakeup_timer_waiters(b)	do { } while (0)
-#endif
-
 /**
  * del_timer - deactivate a timer.
  * @timer: the timer to be deactivated
@@ -1245,6 +1215,25 @@ int del_timer(struct timer_list *timer)
 }
 EXPORT_SYMBOL(del_timer);
 
+static int __try_to_del_timer_sync(struct timer_list *timer,
+				   struct timer_base **basep)
+{
+	struct timer_base *base;
+	unsigned long flags;
+	int ret = -1;
+
+	debug_assert_init(timer);
+
+	*basep = base = lock_timer_base(timer, &flags);
+
+	if (base->running_timer != timer)
+		ret = detach_if_pending(timer, base, true);
+
+	raw_spin_unlock_irqrestore(&base->lock, flags);
+
+	return ret;
+}
+
 /**
  * try_to_del_timer_sync - Try to deactivate a timer
  * @timer: timer to delete
@@ -1255,23 +1244,31 @@ EXPORT_SYMBOL(del_timer);
 int try_to_del_timer_sync(struct timer_list *timer)
 {
 	struct timer_base *base;
-	unsigned long flags;
-	int ret = -1;
 
-	debug_assert_init(timer);
-
-	base = lock_timer_base(timer, &flags);
-
-	if (base->running_timer != timer)
-		ret = detach_if_pending(timer, base, true);
-
-	raw_spin_unlock_irqrestore(&base->lock, flags);
-
-	return ret;
+	return __try_to_del_timer_sync(timer, &base);
 }
 EXPORT_SYMBOL(try_to_del_timer_sync);
 
 #if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT_RT_FULL)
+static int __del_timer_sync(struct timer_list *timer)
+{
+	struct timer_base *base;
+	int ret;
+
+	for (;;) {
+		ret = __try_to_del_timer_sync(timer, &base);
+		if (ret >= 0)
+			return ret;
+
+		/*
+		 * When accessing the lock, timers of base are no longer expired
+		 * and so timer is no longer running.
+		 */
+		spin_lock(&base->expiry_lock);
+		spin_unlock(&base->expiry_lock);
+	}
+}
+
 /**
  * del_timer_sync - deactivate a timer and wait for the handler to finish.
  * @timer: the timer to be deactivated
@@ -1327,12 +1324,8 @@ int del_timer_sync(struct timer_list *timer)
 	 * could lead to deadlock.
 	 */
 	WARN_ON(in_irq() && !(timer->flags & TIMER_IRQSAFE));
-	for (;;) {
-		int ret = try_to_del_timer_sync(timer);
-		if (ret >= 0)
-			return ret;
-		wait_for_running_timer(timer);
-	}
+
+	return __del_timer_sync(timer);
 }
 EXPORT_SYMBOL(del_timer_sync);
 #endif
@@ -1397,11 +1390,15 @@ static void expire_timers(struct timer_base *base, struct hlist_head *head)
 			raw_spin_unlock(&base->lock);
 			call_timer_fn(timer, fn);
 			base->running_timer = NULL;
+			spin_unlock(&base->expiry_lock);
+			spin_lock(&base->expiry_lock);
 			raw_spin_lock(&base->lock);
 		} else {
 			raw_spin_unlock_irq(&base->lock);
 			call_timer_fn(timer, fn);
 			base->running_timer = NULL;
+			spin_unlock(&base->expiry_lock);
+			spin_lock(&base->expiry_lock);
 			raw_spin_lock_irq(&base->lock);
 		}
 	}
@@ -1696,6 +1693,7 @@ static inline void __run_timers(struct timer_base *base)
 	if (!time_after_eq(jiffies, base->clk))
 		return;
 
+	spin_lock(&base->expiry_lock);
 	raw_spin_lock_irq(&base->lock);
 
 	/*
@@ -1723,7 +1721,7 @@ static inline void __run_timers(struct timer_base *base)
 			expire_timers(base, heads + levels);
 	}
 	raw_spin_unlock_irq(&base->lock);
-	wakeup_timer_waiters(base);
+	spin_unlock(&base->expiry_lock);
 }
 
 /*
@@ -1970,9 +1968,7 @@ static void __init init_timer_cpu(int cpu)
 		base->cpu = cpu;
 		raw_spin_lock_init(&base->lock);
 		base->clk = jiffies;
-#ifdef CONFIG_PREEMPT_RT_FULL
-		init_swait_queue_head(&base->wait_for_running_timer);
-#endif
+		spin_lock_init(&base->expiry_lock);
 	}
 }
 
