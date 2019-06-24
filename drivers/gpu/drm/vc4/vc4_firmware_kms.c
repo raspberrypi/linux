@@ -67,7 +67,7 @@ struct set_plane {
 	u8 alpha;
 	u8 num_planes;
 	u8 is_vu;
-	u8 padding;
+	u8 color_encoding;
 
 	u32 planes[4];  /* DMA address of each plane */
 
@@ -454,6 +454,28 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 		if (num_planes == 3 &&
 		    (fb->offsets[2] - fb->offsets[1]) == fb->pitches[1])
 			mb->plane.vc_image_type = VC_IMAGE_YUV420_S;
+
+		switch (state->color_encoding) {
+		default:
+		case DRM_COLOR_YCBCR_BT601:
+			if (state->color_range == DRM_COLOR_YCBCR_LIMITED_RANGE)
+				mb->plane.color_encoding =
+						VC_IMAGE_YUVINFO_CSC_ITUR_BT601;
+			else
+				mb->plane.color_encoding =
+						VC_IMAGE_YUVINFO_CSC_JPEG_JFIF;
+			break;
+		case DRM_COLOR_YCBCR_BT709:
+			/* Currently no support for a full range BT709 */
+			mb->plane.color_encoding =
+						VC_IMAGE_YUVINFO_CSC_ITUR_BT709;
+			break;
+		case DRM_COLOR_YCBCR_BT2020:
+			/* Currently no support for a full range BT2020 */
+			mb->plane.color_encoding =
+					VC_IMAGE_YUVINFO_CSC_REC_2020;
+			break;
+		}
 	} else {
 		mb->plane.planes[1] = 0;
 		mb->plane.planes[2] = 0;
@@ -642,6 +664,14 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 	drm_plane_create_alpha_property(plane);
 	drm_plane_create_rotation_property(plane, DRM_MODE_ROTATE_0,
 					   SUPPORTED_ROTATIONS);
+	drm_plane_create_color_properties(plane,
+					  BIT(DRM_COLOR_YCBCR_BT601) |
+					  BIT(DRM_COLOR_YCBCR_BT709) |
+					  BIT(DRM_COLOR_YCBCR_BT2020),
+					  BIT(DRM_COLOR_YCBCR_LIMITED_RANGE) |
+					  BIT(DRM_COLOR_YCBCR_FULL_RANGE),
+					  DRM_COLOR_YCBCR_BT709,
+					  DRM_COLOR_YCBCR_LIMITED_RANGE);
 
 	/*
 	 * Default frame buffer setup is with FB on -127, and raspistill etc
