@@ -1674,8 +1674,8 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 
 rel_dma_exit:
 	dma_release_channel(dsi->reg_dma_chan);
-	return ret;
 
+	return ret;
 }
 
 static void vc4_dsi_unbind(struct device *dev, struct device *master,
