@@ -822,13 +822,13 @@ static void get_pi_state(struct futex_pi_state *pi_state)
  * Drops a reference to the pi_state object and frees or caches it
  * when the last reference is gone.
  */
-static void put_pi_state(struct futex_pi_state *pi_state)
+static struct futex_pi_state *__put_pi_state(struct futex_pi_state *pi_state)
 {
 	if (!pi_state)
-		return;
+		return NULL;
 
 	if (!atomic_dec_and_test(&pi_state->refcount))
-		return;
+		return NULL;
 
 	/*
 	 * If pi_state->owner is NULL, the owner is most probably dying
@@ -848,9 +848,7 @@ static void put_pi_state(struct futex_pi_state *pi_state)
 		raw_spin_unlock_irq(&pi_state->pi_mutex.wait_lock);
 	}
 
-	if (current->pi_state_cache) {
-		kfree(pi_state);
-	} else {
+	if (!current->pi_state_cache) {
 		/*
 		 * pi_state->list is already empty.
 		 * clear pi_state->owner.
@@ -859,6 +857,30 @@ static void put_pi_state(struct futex_pi_state *pi_state)
 		pi_state->owner = NULL;
 		atomic_set(&pi_state->refcount, 1);
 		current->pi_state_cache = pi_state;
+		pi_state = NULL;
+	}
+	return pi_state;
+}
+
+static void put_pi_state(struct futex_pi_state *pi_state)
+{
+	kfree(__put_pi_state(pi_state));
+}
+
+static void put_pi_state_atomic(struct futex_pi_state *pi_state,
+				struct list_head *to_free)
+{
+	if (__put_pi_state(pi_state))
+		list_add(&pi_state->list, to_free);
+}
+
+static void free_pi_state_list(struct list_head *to_free)
+{
+	struct futex_pi_state *p, *next;
+
+	list_for_each_entry_safe(p, next, to_free, list) {
+		list_del(&p->list);
+		kfree(p);
 	}
 }
 
@@ -875,6 +897,7 @@ void exit_pi_state_list(struct task_struct *curr)
 	struct futex_pi_state *pi_state;
 	struct futex_hash_bucket *hb;
 	union futex_key key = FUTEX_KEY_INIT;
+	LIST_HEAD(to_free);
 
 	if (!futex_cmpxchg_enabled)
 		return;
@@ -919,7 +942,7 @@ void exit_pi_state_list(struct task_struct *curr)
 			/* retain curr->pi_lock for the loop invariant */
 			raw_spin_unlock(&pi_state->pi_mutex.wait_lock);
 			raw_spin_unlock(&hb->lock);
-			put_pi_state(pi_state);
+			put_pi_state_atomic(pi_state, &to_free);
 			continue;
 		}
 
@@ -938,6 +961,8 @@ void exit_pi_state_list(struct task_struct *curr)
 		raw_spin_lock_irq(&curr->pi_lock);
 	}
 	raw_spin_unlock_irq(&curr->pi_lock);
+
+	free_pi_state_list(&to_free);
 }
 
 #endif
@@ -1920,6 +1945,7 @@ static int futex_requeue(u32 __user *uaddr1, unsigned int flags,
 	struct futex_hash_bucket *hb1, *hb2;
 	struct futex_q *this, *next;
 	DEFINE_WAKE_Q(wake_q);
+	LIST_HEAD(to_free);
 
 	if (nr_wake < 0 || nr_requeue < 0)
 		return -EINVAL;
@@ -2157,7 +2183,7 @@ retry_private:
 				 * object.
 				 */
 				this->pi_state = NULL;
-				put_pi_state(pi_state);
+				put_pi_state_atomic(pi_state, &to_free);
 				/*
 				 * We stop queueing more waiters and let user
 				 * space deal with the mess.
@@ -2174,7 +2200,7 @@ retry_private:
 	 * in futex_proxy_trylock_atomic() or in lookup_pi_state(). We
 	 * need to drop it here again.
 	 */
-	put_pi_state(pi_state);
+	put_pi_state_atomic(pi_state, &to_free);
 
 out_unlock:
 	double_unlock_hb(hb1, hb2);
@@ -2195,6 +2221,7 @@ out_put_keys:
 out_put_key1:
 	put_futex_key(&key1);
 out:
+	free_pi_state_list(&to_free);
 	return ret ? ret : task_count;
 }
 
@@ -2331,13 +2358,16 @@ retry:
 static void unqueue_me_pi(struct futex_q *q)
 	__releases(q->lock_ptr)
 {
+	struct futex_pi_state *ps;
+
 	__unqueue_futex(q);
 
 	BUG_ON(!q->pi_state);
-	put_pi_state(q->pi_state);
+	ps = __put_pi_state(q->pi_state);
 	q->pi_state = NULL;
 
 	raw_spin_unlock(q->lock_ptr);
+	kfree(ps);
 }
 
 static int fixup_pi_state_owner(u32 __user *uaddr, struct futex_q *q,
@@ -3286,6 +3316,8 @@ static int futex_wait_requeue_pi(u32 __user *uaddr, unsigned int flags,
 		 * did a lock-steal - fix up the PI-state in that case.
 		 */
 		if (q.pi_state && (q.pi_state->owner != current)) {
+			struct futex_pi_state *ps_free;
+
 			raw_spin_lock(q.lock_ptr);
 			ret = fixup_pi_state_owner(uaddr2, &q, current);
 			if (ret && rt_mutex_owner(&q.pi_state->pi_mutex) == current) {
@@ -3296,8 +3328,9 @@ static int futex_wait_requeue_pi(u32 __user *uaddr, unsigned int flags,
 			 * Drop the reference to the pi state which
 			 * the requeue_pi() code acquired for us.
 			 */
-			put_pi_state(q.pi_state);
+			ps_free = __put_pi_state(q.pi_state);
 			raw_spin_unlock(q.lock_ptr);
+			kfree(ps_free);
 		}
 	} else {
 		struct rt_mutex *pi_mutex;
