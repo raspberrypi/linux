@@ -2096,7 +2096,7 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events,
 	finish_wait(&ctx->wait, &wait);
 
 	if (sig)
-		restore_user_sigmask(sig, &sigsaved);
+		restore_user_sigmask(sig, &sigsaved, ret == -EINTR);
 
 	return READ_ONCE(ring->r.head) == READ_ONCE(ring->r.tail) ? ret : 0;
 }
