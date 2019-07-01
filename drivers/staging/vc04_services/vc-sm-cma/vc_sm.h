@@ -21,14 +21,18 @@
 #include <linux/types.h>
 #include <linux/miscdevice.h>
 
-#include "vc_sm_cma.h"
-
 #define VC_SM_MAX_NAME_LEN 32
 
 enum vc_sm_vpu_mapping_state {
 	VPU_NOT_MAPPED,
 	VPU_MAPPED,
 	VPU_UNMAPPING
+};
+
+struct vc_sm_alloc_data {
+	unsigned long num_pages;
+	void *priv_virt;
+	struct sg_table *sg_table;
 };
 
 struct vc_sm_imported {
@@ -56,8 +60,6 @@ struct vc_sm_buffer {
 	int in_use:1;	/* Kernel is still using this resource */
 	int imported:1;	/* Imported dmabuf */
 
-	struct sg_table *sg_table;
-
 	enum vc_sm_vpu_mapping_state vpu_state;
 	u32 vc_handle;	/* VideoCore handle for this buffer */
 	int vpu_allocated;	/*
@@ -69,11 +71,12 @@ struct vc_sm_buffer {
 	/* DMABUF related fields */
 	struct dma_buf *dma_buf;
 	dma_addr_t dma_addr;
+	void *cookie;
 
 	struct vc_sm_privdata_t *private;
 
 	union {
-		struct vc_sm_cma_alloc_data alloc;
+		struct vc_sm_alloc_data alloc;
 		struct vc_sm_imported import;
 	};
 };

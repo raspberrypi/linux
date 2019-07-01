@@ -6,8 +6,8 @@
  * Dave Stevenson <dave.stevenson@raspberrypi.org>
  *
  * Based on vmcs_sm driver from Broadcom Corporation for some API,
- * and taking some code for CMA/dmabuf handling from the Android Ion
- * driver (Google/Linaro).
+ * and taking some code for buffer allocation and dmabuf handling from
+ * videobuf2.
  *
  *
  * This driver has 3 main uses:
@@ -52,7 +52,6 @@
 #include "vc_sm_cma_vchi.h"
 
 #include "vc_sm.h"
-#include "vc_sm_cma.h"
 #include "vc_sm_knl.h"
 #include <linux/broadcom/vc_sm_cma_ioctl.h>
 
@@ -89,7 +88,6 @@ struct sm_state_t {
 	struct miscdevice misc_dev;
 
 	struct sm_instance *sm_handle;	/* Handle for videocore service. */
-	struct cma *cma_heap;
 
 	spinlock_t kernelid_map_lock;	/* Spinlock protecting kernelid_map */
 	struct idr kernelid_map;
@@ -110,8 +108,9 @@ struct sm_state_t {
 
 struct vc_sm_dma_buf_attachment {
 	struct device *dev;
-	struct sg_table *table;
+	struct sg_table sg_table;
 	struct list_head list;
+	enum dma_data_direction	dma_dir;
 };
 
 /* ---- Private Variables ----------------------------------------------- */
@@ -202,9 +201,10 @@ static int vc_sm_cma_global_state_show(struct seq_file *s, void *v)
 					   resource->import.attach);
 				seq_printf(s, "           SGT          %p\n",
 					   resource->import.sgt);
+			} else {
+				seq_printf(s, "           SGT          %p\n",
+					   resource->alloc.sg_table);
 			}
-			seq_printf(s, "           SG_TABLE     %p\n",
-				   resource->sg_table);
 			seq_printf(s, "           DMA_ADDR     %pad\n",
 				   &resource->dma_addr);
 			seq_printf(s, "           VC_HANDLE     %08x\n",
@@ -296,8 +296,9 @@ static void vc_sm_vpu_free(struct vc_sm_buffer *buffer)
  */
 static void vc_sm_release_resource(struct vc_sm_buffer *buffer)
 {
-	pr_debug("[%s]: buffer %p (name %s, size %zu)\n",
-		 __func__, buffer, buffer->name, buffer->size);
+	pr_debug("[%s]: buffer %p (name %s, size %zu), imported %u\n",
+		 __func__, buffer, buffer->name, buffer->size,
+		 buffer->imported);
 
 	if (buffer->vc_handle) {
 		/* We've sent the unmap request but not had the response. */
@@ -313,8 +314,6 @@ static void vc_sm_release_resource(struct vc_sm_buffer *buffer)
 
 	/* Release the allocation (whether imported dmabuf or CMA allocation) */
 	if (buffer->imported) {
-		pr_debug("%s: Release imported dmabuf %p\n", __func__,
-			 buffer->import.dma_buf);
 		if (buffer->import.dma_buf)
 			dma_buf_put(buffer->import.dma_buf);
 		else
@@ -322,16 +321,8 @@ static void vc_sm_release_resource(struct vc_sm_buffer *buffer)
 			       __func__, buffer);
 		buffer->import.dma_buf = NULL;
 	} else {
-		if (buffer->sg_table) {
-			/* Our own allocation that we need to dma_unmap_sg */
-			dma_unmap_sg(&sm_state->pdev->dev,
-				     buffer->sg_table->sgl,
-				     buffer->sg_table->nents,
-				     DMA_BIDIRECTIONAL);
-		}
-		pr_debug("%s: Release our allocation\n", __func__);
-		vc_sm_cma_buffer_free(&buffer->alloc);
-		pr_debug("%s: Release our allocation - done\n", __func__);
+		dma_free_coherent(&sm_state->pdev->dev, buffer->size,
+				  buffer->cookie, buffer->dma_addr);
 	}
 
 
@@ -371,38 +362,6 @@ static struct vc_sm_privdata_t *vc_sm_cma_create_priv_data(pid_t id)
 	return file_data;
 }
 
-static struct sg_table *dup_sg_table(struct sg_table *table)
-{
-	struct sg_table *new_table;
-	int ret, i;
-	struct scatterlist *sg, *new_sg;
-
-	new_table = kzalloc(sizeof(*new_table), GFP_KERNEL);
-	if (!new_table)
-		return ERR_PTR(-ENOMEM);
-
-	ret = sg_alloc_table(new_table, table->nents, GFP_KERNEL);
-	if (ret) {
-		kfree(new_table);
-		return ERR_PTR(ret);
-	}
-
-	new_sg = new_table->sgl;
-	for_each_sg(table->sgl, sg, table->nents, i) {
-		memcpy(new_sg, sg, sizeof(*sg));
-		sg->dma_address = 0;
-		new_sg = sg_next(new_sg);
-	}
-
-	return new_table;
-}
-
-static void free_duped_table(struct sg_table *table)
-{
-	sg_free_table(table);
-	kfree(table);
-}
-
 /* Dma buf operations for use with our own allocations */
 
 static int vc_sm_dma_buf_attach(struct dma_buf *dmabuf,
@@ -410,28 +369,45 @@ static int vc_sm_dma_buf_attach(struct dma_buf *dmabuf,
 
 {
 	struct vc_sm_dma_buf_attachment *a;
-	struct sg_table *table;
+	struct sg_table *sgt;
 	struct vc_sm_buffer *buf = dmabuf->priv;
+	struct scatterlist *rd, *wr;
+	int ret, i;
 
 	a = kzalloc(sizeof(*a), GFP_KERNEL);
 	if (!a)
 		return -ENOMEM;
 
-	table = dup_sg_table(buf->sg_table);
-	if (IS_ERR(table)) {
-		kfree(a);
-		return PTR_ERR(table);
-	}
-
-	a->table = table;
-	INIT_LIST_HEAD(&a->list);
-
-	attachment->priv = a;
+	pr_debug("%s dmabuf %p attachment %p\n", __func__, dmabuf, attachment);
 
 	mutex_lock(&buf->lock);
+
+	INIT_LIST_HEAD(&a->list);
+
+	sgt = &a->sg_table;
+
+	/* Copy the buf->base_sgt scatter list to the attachment, as we can't
+	 * map the same scatter list to multiple attachments at the same time.
+	 */
+	ret = sg_alloc_table(sgt, buf->alloc.sg_table->orig_nents, GFP_KERNEL);
+	if (ret) {
+		kfree(a);
+		return -ENOMEM;
+	}
+
+	rd = buf->alloc.sg_table->sgl;
+	wr = sgt->sgl;
+	for (i = 0; i < sgt->orig_nents; ++i) {
+		sg_set_page(wr, sg_page(rd), rd->length, rd->offset);
+		rd = sg_next(rd);
+		wr = sg_next(wr);
+	}
+
+	a->dma_dir = DMA_NONE;
+	attachment->priv = a;
+
 	list_add(&a->list, &buf->attachments);
 	mutex_unlock(&buf->lock);
-	pr_debug("%s dmabuf %p attachment %p\n", __func__, dmabuf, attachment);
 
 	return 0;
 }
@@ -441,9 +417,20 @@ static void vc_sm_dma_buf_detach(struct dma_buf *dmabuf,
 {
 	struct vc_sm_dma_buf_attachment *a = attachment->priv;
 	struct vc_sm_buffer *buf = dmabuf->priv;
+	struct sg_table *sgt;
 
 	pr_debug("%s dmabuf %p attachment %p\n", __func__, dmabuf, attachment);
-	free_duped_table(a->table);
+	if (!a)
+		return;
+
+	sgt = &a->sg_table;
+
+	/* release the scatterlist cache */
+	if (a->dma_dir != DMA_NONE)
+		dma_unmap_sg(attachment->dev, sgt->sgl, sgt->orig_nents,
+			     a->dma_dir);
+	sg_free_table(sgt);
+
 	mutex_lock(&buf->lock);
 	list_del(&a->list);
 	mutex_unlock(&buf->lock);
@@ -455,13 +442,38 @@ static struct sg_table *vc_sm_map_dma_buf(struct dma_buf_attachment *attachment,
 					  enum dma_data_direction direction)
 {
 	struct vc_sm_dma_buf_attachment *a = attachment->priv;
+	/* stealing dmabuf mutex to serialize map/unmap operations */
+	struct mutex *lock = &attachment->dmabuf->lock;
 	struct sg_table *table;
 
-	table = a->table;
+	mutex_lock(lock);
+	pr_debug("%s attachment %p\n", __func__, attachment);
+	table = &a->sg_table;
 
-	if (!dma_map_sg(attachment->dev, table->sgl, table->nents,
-			direction))
-		return ERR_PTR(-ENOMEM);
+	/* return previously mapped sg table */
+	if (a->dma_dir == direction) {
+		mutex_unlock(lock);
+		return table;
+	}
+
+	/* release any previous cache */
+	if (a->dma_dir != DMA_NONE) {
+		dma_unmap_sg(attachment->dev, table->sgl, table->orig_nents,
+			     a->dma_dir);
+		a->dma_dir = DMA_NONE;
+	}
+
+	/* mapping to the client with new direction */
+	table->nents = dma_map_sg(attachment->dev, table->sgl,
+				  table->orig_nents, direction);
+	if (!table->nents) {
+		pr_err("failed to map scatterlist\n");
+		mutex_unlock(lock);
+		return ERR_PTR(-EIO);
+	}
+
+	a->dma_dir = direction;
+	mutex_unlock(lock);
 
 	pr_debug("%s attachment %p\n", __func__, attachment);
 	return table;
@@ -478,41 +490,26 @@ static void vc_sm_unmap_dma_buf(struct dma_buf_attachment *attachment,
 static int vc_sm_dmabuf_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 {
 	struct vc_sm_buffer *buf = dmabuf->priv;
-	struct sg_table *table = buf->sg_table;
-	unsigned long addr = vma->vm_start;
-	unsigned long offset = vma->vm_pgoff * PAGE_SIZE;
-	struct scatterlist *sg;
-	int i;
-	int ret = 0;
+	int ret;
 
 	pr_debug("%s dmabuf %p, buf %p, vm_start %08lX\n", __func__, dmabuf,
-		 buf, addr);
+		 buf, vma->vm_start);
 
 	mutex_lock(&buf->lock);
 
 	/* now map it to userspace */
-	for_each_sg(table->sgl, sg, table->nents, i) {
-		struct page *page = sg_page(sg);
-		unsigned long remainder = vma->vm_end - addr;
-		unsigned long len = sg->length;
+	vma->vm_pgoff = 0;
 
-		if (offset >= sg->length) {
-			offset -= sg->length;
-			continue;
-		} else if (offset) {
-			page += offset / PAGE_SIZE;
-			len = sg->length - offset;
-			offset = 0;
-		}
-		len = min(len, remainder);
-		ret = remap_pfn_range(vma, addr, page_to_pfn(page), len,
-				      vma->vm_page_prot);
-		if (ret)
-			break;
-		addr += len;
-		if (addr >= vma->vm_end)
-			break;
+	ret = dma_mmap_coherent(&sm_state->pdev->dev, vma, buf->cookie,
+				buf->dma_addr, buf->size);
+
+	if (ret) {
+		pr_err("Remapping memory failed, error: %d\n", ret);
+		return ret;
 	}
+
+	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
+
 	mutex_unlock(&buf->lock);
 
 	if (ret)
@@ -570,8 +567,8 @@ static int vc_sm_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 	mutex_lock(&buf->lock);
 
 	list_for_each_entry(a, &buf->attachments, list) {
-		dma_sync_sg_for_cpu(a->dev, a->table->sgl, a->table->nents,
-				    direction);
+		dma_sync_sg_for_cpu(a->dev, a->sg_table.sgl,
+				    a->sg_table.nents, direction);
 	}
 	mutex_unlock(&buf->lock);
 
@@ -593,8 +590,8 @@ static int vc_sm_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 	mutex_lock(&buf->lock);
 
 	list_for_each_entry(a, &buf->attachments, list) {
-		dma_sync_sg_for_device(a->dev, a->table->sgl, a->table->nents,
-				       direction);
+		dma_sync_sg_for_device(a->dev, a->sg_table.sgl,
+				       a->sg_table.nents, direction);
 	}
 	mutex_unlock(&buf->lock);
 
@@ -625,7 +622,9 @@ static const struct dma_buf_ops dma_buf_ops = {
 	.map = vc_sm_dma_buf_kmap,
 	.unmap = vc_sm_dma_buf_kunmap,
 };
+
 /* Dma_buf operations for chaining through to an imported dma_buf */
+
 static
 int vc_sm_import_dma_buf_attach(struct dma_buf *dmabuf,
 				struct dma_buf_attachment *attachment)
@@ -819,7 +818,7 @@ vc_sm_cma_import_dmabuf_internal(struct vc_sm_privdata_t *private,
 
 	import.type = VC_SM_ALLOC_NON_CACHED;
 	dma_addr = sg_dma_address(sgt->sgl);
-	import.addr = (uint32_t)dma_addr;
+	import.addr = (u32)dma_addr;
 	if ((import.addr & 0xC0000000) != 0xC0000000) {
 		pr_err("%s: Expecting an uncached alias for dma_addr %pad\n",
 		       __func__, &dma_addr);
@@ -911,11 +910,12 @@ error:
 	return ret;
 }
 
-static int vc_sm_cma_vpu_alloc(u32 size, uint32_t align, const char *name,
+static int vc_sm_cma_vpu_alloc(u32 size, u32 align, const char *name,
 			       u32 mem_handle, struct vc_sm_buffer **ret_buffer)
 {
 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
 	struct vc_sm_buffer *buffer = NULL;
+	struct sg_table *sgt;
 	int aligned_size;
 	int ret = 0;
 
@@ -938,23 +938,34 @@ static int vc_sm_cma_vpu_alloc(u32 size, uint32_t align, const char *name,
 	 */
 	mutex_lock(&buffer->lock);
 
-	if (vc_sm_cma_buffer_allocate(sm_state->cma_heap, &buffer->alloc,
-				      aligned_size)) {
-		pr_err("[%s]: cma alloc of %d bytes failed\n",
+	buffer->cookie = dma_alloc_coherent(&sm_state->pdev->dev,
+					    aligned_size, &buffer->dma_addr,
+					    GFP_KERNEL);
+	if (!buffer->cookie) {
+		pr_err("[%s]: dma_alloc_coherent alloc of %d bytes failed\n",
 		       __func__, aligned_size);
 		ret = -ENOMEM;
 		goto error;
 	}
-	buffer->sg_table = buffer->alloc.sg_table;
 
-	pr_debug("[%s]: cma alloc of %d bytes success\n",
+	pr_debug("[%s]: alloc of %d bytes success\n",
 		 __func__, aligned_size);
 
-	if (dma_map_sg(&sm_state->pdev->dev, buffer->sg_table->sgl,
-		       buffer->sg_table->nents, DMA_BIDIRECTIONAL) <= 0) {
-		pr_err("[%s]: dma_map_sg failed\n", __func__);
+	sgt = kmalloc(sizeof(*sgt), GFP_KERNEL);
+	if (!sgt) {
+		ret = -ENOMEM;
 		goto error;
 	}
+
+	ret = dma_get_sgtable(&sm_state->pdev->dev, sgt, buffer->cookie,
+			      buffer->dma_addr, buffer->size);
+	if (ret < 0) {
+		pr_err("failed to get scatterlist from DMA API\n");
+		kfree(sgt);
+		ret = -ENOMEM;
+		goto error;
+	}
+	buffer->alloc.sg_table = sgt;
 
 	INIT_LIST_HEAD(&buffer->attachments);
 
@@ -971,10 +982,10 @@ static int vc_sm_cma_vpu_alloc(u32 size, uint32_t align, const char *name,
 		ret = PTR_ERR(buffer->dma_buf);
 		goto error;
 	}
-	buffer->dma_addr = (uint32_t)sg_dma_address(buffer->sg_table->sgl);
+	buffer->dma_addr = (u32)sg_dma_address(buffer->alloc.sg_table->sgl);
 	if ((buffer->dma_addr & 0xC0000000) != 0xC0000000) {
-		pr_err("%s: Expecting an uncached alias for dma_addr %pad\n",
-		       __func__, &buffer->dma_addr);
+		pr_warn_once("%s: Expecting an uncached alias for dma_addr %pad\n",
+			     __func__, &buffer->dma_addr);
 		buffer->dma_addr |= 0xC0000000;
 	}
 	buffer->private = sm_state->vpu_allocs;
@@ -1145,6 +1156,7 @@ int vc_sm_cma_ioctl_alloc(struct vc_sm_privdata_t *private,
 	struct vc_sm_import import = { 0 };
 	struct vc_sm_import_result result = { 0 };
 	struct dma_buf *dmabuf = NULL;
+	struct sg_table *sgt;
 	int aligned_size;
 	int ret = 0;
 	int status;
@@ -1162,18 +1174,13 @@ int vc_sm_cma_ioctl_alloc(struct vc_sm_privdata_t *private,
 		goto error;
 	}
 
-	if (vc_sm_cma_buffer_allocate(sm_state->cma_heap, &buffer->alloc,
-				      aligned_size)) {
-		pr_err("[%s]: cma alloc of %d bytes failed\n",
+	buffer->cookie = dma_alloc_coherent(&sm_state->pdev->dev,
+					    aligned_size,
+					    &buffer->dma_addr,
+					    GFP_KERNEL);
+	if (!buffer->cookie) {
+		pr_err("[%s]: dma_alloc_coherent alloc of %d bytes failed\n",
 		       __func__, aligned_size);
-		kfree(buffer);
-		return -ENOMEM;
-	}
-	buffer->sg_table = buffer->alloc.sg_table;
-
-	if (dma_map_sg(&sm_state->pdev->dev, buffer->sg_table->sgl,
-		       buffer->sg_table->nents, DMA_BIDIRECTIONAL) <= 0) {
-		pr_err("[%s]: dma_map_sg failed\n", __func__);
 		ret = -ENOMEM;
 		goto error;
 	}
@@ -1204,7 +1211,7 @@ int vc_sm_cma_ioctl_alloc(struct vc_sm_privdata_t *private,
 	}
 	buffer->dma_buf = dmabuf;
 
-	import.addr = (uint32_t)sg_dma_address(buffer->sg_table->sgl);
+	import.addr = buffer->dma_addr;
 	import.size = aligned_size;
 	import.kernel_id = get_kernel_id(buffer);
 
@@ -1229,10 +1236,25 @@ int vc_sm_cma_ioctl_alloc(struct vc_sm_privdata_t *private,
 	buffer->private = private;
 	buffer->vc_handle = result.res_handle;
 	buffer->size = import.size;
-	buffer->dma_addr = import.addr;
 	buffer->vpu_state = VPU_MAPPED;
 	buffer->kernel_id = import.kernel_id;
-	//buffer->res_cached = ioparam->cached;
+
+	sgt = kmalloc(sizeof(*sgt), GFP_KERNEL);
+	if (!sgt) {
+		ret = -ENOMEM;
+		goto error;
+	}
+
+	ret = dma_get_sgtable(&sm_state->pdev->dev, sgt, buffer->cookie,
+			      buffer->dma_addr, buffer->size);
+	if (ret < 0) {
+		/* FIXME: error handling */
+		pr_err("failed to get scatterlist from DMA API\n");
+		kfree(sgt);
+		ret = -ENOMEM;
+		goto error;
+	}
+	buffer->alloc.sg_table = sgt;
 
 	fd = dma_buf_fd(dmabuf, O_CLOEXEC);
 	if (fd < 0)
@@ -1250,11 +1272,19 @@ int vc_sm_cma_ioctl_alloc(struct vc_sm_privdata_t *private,
 	return 0;
 
 error:
-	if (buffer) {
-		pr_err("[%s]: something failed - cleanup. ret %d\n", __func__,
-		       ret);
+	pr_err("[%s]: something failed - cleanup. ret %d\n", __func__, ret);
 
+	if (dmabuf) {
+		/* dmabuf has been exported, therefore allow dmabuf cleanup to
+		 * deal with this
+		 */
 		dma_buf_put(dmabuf);
+	} else {
+		/* No dmabuf, therefore just free the buffer here */
+		if (buffer->cookie)
+			dma_free_coherent(&sm_state->pdev->dev, buffer->size,
+					  buffer->cookie, buffer->dma_addr);
+		kfree(buffer);
 	}
 	return ret;
 }
@@ -1526,13 +1556,6 @@ static void vc_sm_connected_init(void)
 	struct vc_sm_result_t version_result;
 
 	pr_info("[%s]: start\n", __func__);
-
-	vc_sm_cma_add_heaps(&sm_state->cma_heap);
-	if (!sm_state->cma_heap) {
-		pr_err("[%s]: failed to initialise CMA heap\n",
-		       __func__);
-		return;
-	}
 
 	/*
 	 * Initialize and create a VCHI connection for the shared memory service
