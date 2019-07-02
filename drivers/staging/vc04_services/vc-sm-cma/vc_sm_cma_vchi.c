@@ -188,79 +188,77 @@ static int vc_sm_cma_vchi_videocore_io(void *arg)
 		if (svc_use)
 			vchi_service_release(instance->vchi_handle[0]);
 		svc_use = 0;
-		if (!wait_for_completion_interruptible(&instance->io_cmplt)) {
-			vchi_service_use(instance->vchi_handle[0]);
-			svc_use = 1;
 
-			do {
-				/*
-				 * Get new command and move it to response list
-				 */
-				mutex_lock(&instance->lock);
-				if (list_empty(&instance->cmd_list)) {
-					/* no more commands to process */
-					mutex_unlock(&instance->lock);
-					break;
-				}
-				cmd =
-				    list_first_entry(&instance->cmd_list,
-						     struct sm_cmd_rsp_blk,
-						     head);
-				list_move(&cmd->head, &instance->rsp_list);
-				cmd->sent = 1;
-				mutex_unlock(&instance->lock);
+		if (wait_for_completion_interruptible(&instance->io_cmplt))
+			continue;
 
-				/* Send the command */
-				status = bcm2835_vchi_msg_queue(
-						instance->vchi_handle[0],
-						cmd->msg, cmd->length);
-				if (status) {
-					pr_err("%s: failed to queue message (%d)",
-					       __func__, status);
-				}
+		vchi_service_use(instance->vchi_handle[0]);
+		svc_use = 1;
 
-				/* If no reply is needed then we're done */
-				if (!cmd->wait) {
-					mutex_lock(&instance->lock);
-					list_del(&cmd->head);
-					mutex_unlock(&instance->lock);
-					vc_vchi_cmd_delete(instance, cmd);
-					continue;
-				}
-
-				if (status) {
-					complete(&cmd->cmplt);
-					continue;
-				}
-
-			} while (1);
-
-			while (!vchi_msg_peek(instance->vchi_handle[0],
-					      (void **)&reply, &reply_len,
-					      VCHI_FLAGS_NONE)) {
-				if (reply->trans_id & 0x80000000) {
-					/* Async event or cmd from the VPU */
-					if (instance->vpu_event)
-						instance->vpu_event(
-							instance, reply,
-							reply_len);
-				} else {
-					vc_sm_cma_vchi_rx_ack(instance, cmd,
-							      reply, reply_len);
-				}
-
-				vchi_msg_remove(instance->vchi_handle[0]);
-			}
-
-			/* Go through the dead list and free them */
+		do {
+			/*
+			 * Get new command and move it to response list
+			 */
 			mutex_lock(&instance->lock);
-			list_for_each_entry_safe(cmd, cmd_tmp,
-						 &instance->dead_list, head) {
-				list_del(&cmd->head);
-				vc_vchi_cmd_delete(instance, cmd);
+			if (list_empty(&instance->cmd_list)) {
+				/* no more commands to process */
+				mutex_unlock(&instance->lock);
+				break;
 			}
+			cmd = list_first_entry(&instance->cmd_list,
+					       struct sm_cmd_rsp_blk, head);
+			list_move(&cmd->head, &instance->rsp_list);
+			cmd->sent = 1;
 			mutex_unlock(&instance->lock);
+
+			/* Send the command */
+			status =
+				bcm2835_vchi_msg_queue(instance->vchi_handle[0],
+						       cmd->msg, cmd->length);
+			if (status) {
+				pr_err("%s: failed to queue message (%d)",
+				       __func__, status);
+			}
+
+			/* If no reply is needed then we're done */
+			if (!cmd->wait) {
+				mutex_lock(&instance->lock);
+				list_del(&cmd->head);
+				mutex_unlock(&instance->lock);
+				vc_vchi_cmd_delete(instance, cmd);
+				continue;
+			}
+
+			if (status) {
+				complete(&cmd->cmplt);
+				continue;
+			}
+
+		} while (1);
+
+		while (!vchi_msg_peek(instance->vchi_handle[0], (void **)&reply,
+				      &reply_len, VCHI_FLAGS_NONE)) {
+			if (reply->trans_id & 0x80000000) {
+				/* Async event or cmd from the VPU */
+				if (instance->vpu_event)
+					instance->vpu_event(instance, reply,
+							    reply_len);
+			} else {
+				vc_sm_cma_vchi_rx_ack(instance, cmd, reply,
+						      reply_len);
+			}
+
+			vchi_msg_remove(instance->vchi_handle[0]);
 		}
+
+		/* Go through the dead list and free them */
+		mutex_lock(&instance->lock);
+		list_for_each_entry_safe(cmd, cmd_tmp, &instance->dead_list,
+					 head) {
+			list_del(&cmd->head);
+			vc_vchi_cmd_delete(instance, cmd);
+		}
+		mutex_unlock(&instance->lock);
 	}
 
 	return 0;
