@@ -325,7 +325,6 @@ static void vc_sm_release_resource(struct vc_sm_buffer *buffer)
 				  buffer->cookie, buffer->dma_addr);
 	}
 
-
 	/* Free our buffer. Start by removing it from the list */
 	mutex_lock(&sm_state->map_lock);
 	list_del(&buffer->global_buffer_list);
@@ -1365,7 +1364,8 @@ static int vc_sm_cma_clean_invalid2(unsigned int cmdnr, unsigned long arg)
 	}
 
 	for (i = 0; i < ioparam.op_count; i++) {
-		const struct vc_sm_cma_ioctl_clean_invalid_block * const op = block + i;
+		const struct vc_sm_cma_ioctl_clean_invalid_block * const op =
+								block + i;
 
 		if (op->invalidate_mode == VC_SM_CACHE_OP_NOP)
 			continue;
@@ -1637,8 +1637,6 @@ err_remove_misc_dev:
 err_remove_debugfs:
 	debugfs_remove_recursive(sm_state->dir_root);
 	vc_sm_cma_vchi_stop(&sm_state->sm_handle);
-
-	return;
 }
 
 /* Driver loading. */
