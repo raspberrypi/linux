@@ -1,6 +1,7 @@
 # Overlays for the Raspberry Pi platform
 
 dtbo-$(CONFIG_ARCH_BCM2835) += \
+	act-led.dtbo \
 	adau1977-adc.dtbo \
 	adau7002-simple.dtbo \
 	ads1015.dtbo \
@@ -26,6 +27,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	dht11.dtbo \
 	dionaudio-loco.dtbo \
 	dionaudio-loco-v2.dtbo \
+	disable-bt.dtbo \
+	disable-wifi.dtbo \
 	dpi18.dtbo \
 	dpi24.dtbo \
 	draws.dtbo \
@@ -91,6 +94,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	media-center.dtbo \
 	midi-uart0.dtbo \
 	midi-uart1.dtbo \
+	miniuart-bt.dtbo \
 	mmc.dtbo \
 	mpu6050.dtbo \
 	mz61581.dtbo \
