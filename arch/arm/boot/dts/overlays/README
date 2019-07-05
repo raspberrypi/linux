@@ -180,14 +180,16 @@ Params:
 
         act_led_activelow       Set to "on" to invert the sense of the LED
                                 (default "off")
-                                N.B. For Pi3 see pi3-act-led overlay.
+                                N.B. For Pi 3B, 3B+, 3A+ and 4B, use the act-led
+                                overlay.
 
         act_led_gpio            Set which GPIO to use for the activity LED
                                 (in case you want to connect it to an external
                                 device)
                                 (default "16" on a non-Plus board, "47" on a
                                 Plus or Pi 2)
-                                N.B. For Pi3 see pi3-act-led overlay.
+                                N.B. For Pi 3B, 3B+, 3A+ and 4B, use the act-led
+                                overlay.
 
         pwr_led_trigger
         pwr_led_activelow
@@ -203,6 +205,23 @@ Params:
         but deprecated because the ARM/VC assignments differ between board
         revisions. The same board-specific mapping applies to i2c_baudrate,
         and the other i2c baudrate parameters.
+
+
+Name:   act-led
+Info:   Pi 3B, 3B+, 3A+ and 4B use a GPIO expander to drive the LEDs which can
+        only be accessed from the VPU. There is a special driver for this with a
+        separate DT node, which has the unfortunate consequence of breaking the
+        act_led_gpio and act_led_activelow dtparams.
+        This overlay changes the GPIO controller back to the standard one and
+        restores the dtparams.
+Load:   dtoverlay=act-led,<param>=<val>
+Params: activelow               Set to "on" to invert the sense of the LED
+                                (default "off")
+
+        gpio                    Set which GPIO to use for the activity LED
+                                (in case you want to connect it to an external
+                                device)
+                                REQUIRED
 
 
 Name:   adau1977-adc
@@ -507,6 +526,21 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 responsibility of the user to ensure that
                                 the Digital volume control is set to a value
                                 that does not result in clipping/distortion!)
+
+
+Name:   disable-bt
+Info:   Disable onboard Bluetooth on Pi 3B, 3B+, 3A+, 4B and Zero W, restoring
+        UART0/ttyAMA0 over GPIOs 14 & 15.
+        N.B. To disable the systemd service that initialises the modem so it
+        doesn't use the UART, use 'sudo systemctl disable hciuart'.
+Load:   dtoverlay=disable-bt
+Params: <None>
+
+
+Name:   disable-wifi
+Info:   Disable onboard WiFi on Pi 3B, 3B+, 3A+, 4B and Zero W.
+Load:   dtoverlay=disable-wifi
+Params: <None>
 
 
 Name:   dpi18
@@ -1447,6 +1481,20 @@ Load:   dtoverlay=midi-uart1
 Params: <None>
 
 
+Name:   miniuart-bt
+Info:   Switch the onboard Bluetooth function on Pi 3B, 3B+, 3A+, 4B and Zero W
+        to use the mini-UART (ttyS0) and restore UART0/ttyAMA0 over GPIOs 14 &
+        15. Note that this may reduce the maximum usable baudrate.
+        N.B. It is also necessary to edit /lib/systemd/system/hciuart.service
+        and replace ttyAMA0 with ttyS0, unless using Raspbian or another
+        distribution with udev rules that create /dev/serial0 and /dev/serial1,
+        in which case use /dev/serial1 instead because it will always be
+        correct. Furthermore, you must also set core_freq and core_freq_min to
+        the same value in config.txt or the miniuart will not work.
+Load:   dtoverlay=miniuart-bt
+Params: <None>
+
+
 Name:   mmc
 Info:   Selects the bcm2835-mmc SD/MMC driver, optionally with overclock
 Load:   dtoverlay=mmc,<param>=<val>
@@ -1509,48 +1557,27 @@ Params: panel                   Display panel (required):
 
 
 Name:   pi3-act-led
-Info:   Pi3 uses a GPIO expander to drive the LEDs which can only be accessed
-        from the VPU. There is a special driver for this with a separate DT
-        node, which has the unfortunate consequence of breaking the
-        act_led_gpio and act_led_activelow dtparams.
-        This overlay changes the GPIO controller back to the standard one and
-        restores the dtparams.
-Load:   dtoverlay=pi3-act-led,<param>=<val>
-Params: activelow               Set to "on" to invert the sense of the LED
-                                (default "off")
-
-        gpio                    Set which GPIO to use for the activity LED
-                                (in case you want to connect it to an external
-                                device)
-                                REQUIRED
+Info:   This overlay has been renamed act-led, keeping pi3-act-led as an alias
+        for backwards compatibility.
+Load:   <Deprecated>
 
 
 Name:   pi3-disable-bt
-Info:   Disable Pi3 Bluetooth and restore UART0/ttyAMA0 over GPIOs 14 & 15
-        N.B. To disable the systemd service that initialises the modem so it
-        doesn't use the UART, use 'sudo systemctl disable hciuart'.
-Load:   dtoverlay=pi3-disable-bt
-Params: <None>
+Info:   This overlay has been renamed disable-bt, keeping pi3-disable-bt as an
+        alias for backwards compatibility.
+Load:   <Deprecated>
 
 
 Name:   pi3-disable-wifi
-Info:   Disable Pi3 onboard WiFi
-Load:   dtoverlay=pi3-disable-wifi
-Params: <None>
+Info:   This overlay has been renamed disable-wifi, keeping pi3-disable-wifi as
+        an alias for backwards compatibility.
+Load:   <Deprecated>
 
 
 Name:   pi3-miniuart-bt
-Info:   Switch Pi3 Bluetooth function to use the mini-UART (ttyS0) and restore
-        UART0/ttyAMA0 over GPIOs 14 & 15. Note that this may reduce the maximum
-        usable baudrate.
-        N.B. It is also necessary to edit /lib/systemd/system/hciuart.service
-        and replace ttyAMA0 with ttyS0, unless you have a system with udev rules
-        that create /dev/serial0 and /dev/serial1, in which case use
-        /dev/serial1 instead because it will always be correct. Furthermore,
-        you must also set core_freq=250 in config.txt or the miniuart will not
-        work.
-Load:   dtoverlay=pi3-miniuart-bt
-Params: <None>
+Info:   This overlay has been renamed miniuart-bt, keeping pi3-miniuart-bt as
+        an alias for backwards compatibility.
+Load:   <Deprecated>
 
 
 Name:   pibell
