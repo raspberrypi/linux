@@ -60,4 +60,11 @@
 			poe_fan_temp1_hyst =	<&trip1>,"hysteresis:0";
 		};
 	};
+
+	__overrides__ {
+		poe_fan_temp0 =		<&trip0>,"temperature:0";
+		poe_fan_temp0_hyst =	<&trip0>,"hysteresis:0";
+		poe_fan_temp1 =		<&trip1>,"temperature:0";
+		poe_fan_temp1_hyst =	<&trip1>,"hysteresis:0";
+	};
 };
