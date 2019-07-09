@@ -7,8 +7,10 @@
 
 	fragment@0 {
 		target-path = "/";
+
 		__overlay__ {
 			i2c_gpio: i2c@0 {
+				reg = <0xffffffff>;
 				compatible = "i2c-gpio";
 				gpios = <&gpio 23 0 /* sda */
 					 &gpio 24 0 /* scl */
