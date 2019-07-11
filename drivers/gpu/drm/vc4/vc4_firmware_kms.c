@@ -766,8 +766,8 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 		      mode->hdisplay, mode->hsync_start, mode->hsync_end,
 		      mode->htotal, mode->hskew, mode->vdisplay,
 		      mode->vsync_start, mode->vsync_end, mode->vtotal,
-		      mode->vscan, mode->vrefresh, mode->picture_aspect_ratio,
-		      mode->flags);
+		      mode->vscan, drm_mode_vrefresh(mode),
+		      mode->picture_aspect_ratio, mode->flags);
 	mb.timings.display = vc4_crtc->display_number;
 
 	mb.timings.video_id_code = frame.avi.video_code;
@@ -783,7 +783,7 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	mb.timings.vsync_end = mode->vsync_end;
 	mb.timings.vtotal = mode->vtotal;
 	mb.timings.vscan = mode->vscan;
-	mb.timings.vrefresh = 0;
+	mb.timings.vrefresh = drm_mode_vrefresh(mode);
 	mb.timings.flags = 0;
 	if (mode->flags & DRM_MODE_FLAG_PHSYNC)
 		mb.timings.flags |= TIMINGS_FLAGS_H_SYNC_POS;
