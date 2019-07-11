@@ -753,6 +753,10 @@ static void handle_fmt_changed(struct bcm2835_codec_ctx *ctx,
 		 format->es.video.color_space);
 
 	q_data = get_q_data(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: Format was %ux%u, crop %ux%u\n",
+		 __func__, q_data->bytesperline, q_data->height,
+		 q_data->crop_width, q_data->crop_height);
+
 	q_data->crop_width = format->es.video.crop.width;
 	q_data->crop_height = format->es.video.crop.height;
 	q_data->bytesperline = format->es.video.crop.width;
@@ -1110,10 +1114,10 @@ static int vidioc_s_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 	bool update_capture_port = false;
 	int ret;
 
-	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "Setting format for type %d, wxh: %dx%d, fmt: %08x, size %u\n",
+	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev,	"Setting format for type %d, wxh: %dx%d, fmt: " V4L2_FOURCC_CONV ", size %u\n",
 		 f->type, f->fmt.pix_mp.width, f->fmt.pix_mp.height,
-		 f->fmt.pix_mp.pixelformat, f->fmt.pix_mp.plane_fmt[0].sizeimage);
-
+		 V4L2_FOURCC_CONV_ARGS(f->fmt.pix_mp.pixelformat),
+		 f->fmt.pix_mp.plane_fmt[0].sizeimage);
 
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
 	if (!vq)
