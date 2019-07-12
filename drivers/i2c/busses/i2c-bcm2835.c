@@ -60,6 +60,10 @@ static unsigned int debug;
 module_param(debug, uint, 0644);
 MODULE_PARM_DESC(debug, "1=err, 2=isr, 3=xfer");
 
+static unsigned int clk_tout_ms = 35; /* SMBUs-recommended 35ms */
+module_param(clk_tout_ms, uint, 0644);
+MODULE_PARM_DESC(clk_tout_ms, "clock-stretch timeout (mS)");
+
 #define BCM2835_DEBUG_MAX	512
 struct bcm2835_debug {
 	struct i2c_msg *msg;
@@ -193,6 +197,7 @@ static int clk_bcm2835_i2c_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk_bcm2835_i2c *div = to_clk_bcm2835_i2c(hw);
 	u32 redl, fedl;
+	u32 clk_tout;
 	u32 divider = clk_bcm2835_i2c_calc_divider(rate, parent_rate);
 
 	if (divider == -EINVAL)
@@ -216,6 +221,17 @@ static int clk_bcm2835_i2c_set_rate(struct clk_hw *hw, unsigned long rate,
 	bcm2835_i2c_writel(div->i2c_dev, BCM2835_I2C_DEL,
 			   (fedl << BCM2835_I2C_FEDL_SHIFT) |
 			   (redl << BCM2835_I2C_REDL_SHIFT));
+
+	/*
+	 * Set the clock stretch timeout.
+	 */
+	if (rate > 0xffff*1000/clk_tout_ms)
+	    clk_tout = 0xffff;
+	else
+	    clk_tout = clk_tout_ms*rate/1000;
+
+	bcm2835_i2c_writel(div->i2c_dev, BCM2835_I2C_CLKT, clk_tout);
+
 	return 0;
 }
 
@@ -369,10 +385,8 @@ static irqreturn_t bcm2835_i2c_isr(int this_irq, void *data)
 	bcm2835_debug_add(i2c_dev, val);
 
 	err = val & (BCM2835_I2C_S_CLKT | BCM2835_I2C_S_ERR);
-	if (err) {
+	if (err && !(val & BCM2835_I2C_S_TA))
 		i2c_dev->msg_err = err;
-		goto complete;
-	}
 
 	if (val & BCM2835_I2C_S_DONE) {
 		if (!i2c_dev->curr_msg) {
@@ -384,8 +398,6 @@ static irqreturn_t bcm2835_i2c_isr(int this_irq, void *data)
 
 		if ((val & BCM2835_I2C_S_RXD) || i2c_dev->msg_buf_remaining)
 			i2c_dev->msg_err = BCM2835_I2C_S_LEN;
-		else
-			i2c_dev->msg_err = 0;
 		goto complete;
 	}
 
@@ -431,6 +443,7 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 {
 	struct bcm2835_i2c_dev *i2c_dev = i2c_get_adapdata(adap);
 	unsigned long time_left;
+	bool ignore_nak = false;
 	int i;
 
 	if (debug)
@@ -440,15 +453,19 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 		for (i = 0; i < num; i++)
 			bcm2835_debug_print_msg(i2c_dev, &msgs[i], i + 1, num, __func__);
 
-	for (i = 0; i < (num - 1); i++)
+	for (i = 0; i < (num - 1); i++) {
 		if (msgs[i].flags & I2C_M_RD) {
 			dev_warn_once(i2c_dev->dev,
 				      "only one read message supported, has to be last\n");
 			return -EOPNOTSUPP;
 		}
+		if (msgs[i].flags & I2C_M_IGNORE_NAK)
+			ignore_nak = true;
+	}
 
 	i2c_dev->curr_msg = msgs;
 	i2c_dev->num_msgs = num;
+	i2c_dev->msg_err = 0;
 	reinit_completion(&i2c_dev->completion);
 
 	bcm2835_i2c_start_transfer(i2c_dev);
@@ -457,6 +474,9 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 						adap->timeout);
 
 	bcm2835_i2c_finish_transfer(i2c_dev);
+
+	if (ignore_nak)
+		i2c_dev->msg_err &= ~BCM2835_I2C_S_ERR;
 
 	if (debug > 1 || (debug && (!time_left || i2c_dev->msg_err)))
 		bcm2835_debug_print(i2c_dev);
@@ -483,7 +503,7 @@ static int bcm2835_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 
 static u32 bcm2835_i2c_func(struct i2c_adapter *adap)
 {
-	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
+	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL | I2C_FUNC_PROTOCOL_MANGLING;
 }
 
 static const struct i2c_algorithm bcm2835_i2c_algo = {
