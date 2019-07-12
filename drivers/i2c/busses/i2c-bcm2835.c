@@ -188,6 +188,7 @@ static int clk_bcm2835_i2c_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk_bcm2835_i2c *div = to_clk_bcm2835_i2c(hw);
 	u32 redl, fedl;
+	u32 clk_tout;
 	u32 divider = clk_bcm2835_i2c_calc_divider(rate, parent_rate);
 
 	if (divider == -EINVAL)
@@ -211,6 +212,17 @@ static int clk_bcm2835_i2c_set_rate(struct clk_hw *hw, unsigned long rate,
 	bcm2835_i2c_writel(div->i2c_dev, BCM2835_I2C_DEL,
 			   (fedl << BCM2835_I2C_FEDL_SHIFT) |
 			   (redl << BCM2835_I2C_REDL_SHIFT));
+
+	/*
+	 * Set the clock stretch timeout to the SMBUs-recommended 35ms.
+	 */
+	if (rate > 0xffff*1000/35)
+	    clk_tout = 0xffff;
+	else
+	    clk_tout = 35*rate/1000;
+
+	bcm2835_i2c_writel(div->i2c_dev, BCM2835_I2C_CLKT, clk_tout);
+
 	return 0;
 }
 
