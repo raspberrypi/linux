@@ -286,9 +286,6 @@ static irqreturn_t data_available_interrupt_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static DEFINE_SPINLOCK(spilock);
-static unsigned long spilockflags;
-
 static uint16_t spi_transfer16(uint16_t val)
 {
 	uint8_t txbuf[2];
@@ -333,9 +330,7 @@ static void spi_transfer(const uint8_t *txbuf, uint8_t *rxbuf, int len)
 	transfer.delay_usecs = 10;
 	spi_message_add_tail(&transfer, &msg);
 
-	spin_lock_irqsave(&spilock, spilockflags);
 	err = spi_sync(pisnd_spi_device, &msg);
-	spin_unlock_irqrestore(&spilock, spilockflags);
 
 	if (err < 0) {
 		printe("spi_sync error %d\n", err);
