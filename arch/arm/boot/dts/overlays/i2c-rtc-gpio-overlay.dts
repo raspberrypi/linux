@@ -121,7 +121,7 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			pcf2127: pcf2127@51 {
+			pcf2127@51 {
 				compatible = "nxp,pcf2127";
 				reg = <0x51>;
 				status = "okay";
@@ -174,6 +174,36 @@
 		};
 	};
 
+	fragment@11 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			rv3028: rv3028@52 {
+				compatible = "microcrystal,rv3028";
+				reg = <0x52>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@12 {
+		target = <&i2c_gpio>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcf2129@51 {
+				compatible = "nxp,pcf2129";
+				reg = <0x51>;
+				status = "okay";
+			};
+		};
+	};
+
 	__overrides__ {
 		abx80x = <0>,"+1";
 		ds1307 = <0>,"+2";
@@ -185,6 +215,8 @@
 		pcf8523 = <0>,"+8";
 		pcf8563 = <0>,"+9";
 		m41t62 = <0>,"+10";
+		rv3028 = <0>,"+11";
+		pcf2129 = <0>,"+12";
 
 		addr = <&abx80x>, "reg:0",
 		       <&ds1307>, "reg:0",
@@ -192,18 +224,19 @@
 		       <&ds3231>, "reg:0",
 		       <&mcp7940x>, "reg:0",
 		       <&mcp7941x>, "reg:0",
-		       <&pcf2127>, "reg:0",
 		       <&pcf8523>, "reg:0",
 		       <&pcf8563>, "reg:0",
 		       <&m41t62>, "reg:0";
 
 		trickle-diode-type = <&abx80x>,"abracon,tc-diode";
 		trickle-resistor-ohms = <&ds1339>,"trickle-resistor-ohms:0",
-					<&abx80x>,"abracon,tc-resistor";
+					<&abx80x>,"abracon,tc-resistor",
+					<&rv3028>,"trickle-resistor-ohms:0";
+		backup-switchover-mode = <&rv3028>,"backup-switchover-mode:0";
 		wakeup-source = <&ds1339>,"wakeup-source?",
 				<&ds3231>,"wakeup-source?",
 				<&mcp7940x>,"wakeup-source?",
-					<&mcp7941x>,"wakeup-source?";
+				<&mcp7941x>,"wakeup-source?";
 		i2c_gpio_sda = <&i2c_gpio>,"gpios:4";
 		i2c_gpio_scl = <&i2c_gpio>,"gpios:16";
 		i2c_gpio_delay_us = <&i2c_gpio>,"i2c-gpio,delay-us:0";
