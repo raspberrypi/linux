@@ -1022,6 +1022,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         pcf2127                 Select the PCF2127 device
 
+        pcf2129                 Select the PCF2129 device
+
         pcf8523                 Select the PCF8523 device
 
         pcf8563                 Select the PCF8563 device
@@ -1067,9 +1069,13 @@ Params: abx80x                  Select one of the ABx80x family:
 
         pcf2127                 Select the PCF2127 device
 
+        pcf2129                 Select the PCF2129 device
+
         pcf8523                 Select the PCF8523 device
 
         pcf8563                 Select the PCF8563 device
+
+        rv3028                  Select the Micro Crystal RV3028 device
 
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
@@ -1079,10 +1085,13 @@ Params: abx80x                  Select one of the ABx80x family:
                                 "schottky" (ABx80x only)
 
         trickle-resistor-ohms   Resistor value for trickle charge (DS1339,
-                                ABx80x)
+                                ABx80x, RV3028)
 
         wakeup-source           Specify that the RTC can be used as a wakeup
                                 source
+
+        backup-switchover-mode  Backup power supply switch mode. Must be 0 for
+                                off or 1 for Vdd < VBackup (RV3028 only)
 
         i2c_gpio_sda            GPIO used for I2C data (default "23")
 
