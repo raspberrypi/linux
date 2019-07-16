@@ -17,6 +17,14 @@
 	};
 
 	fragment@1 {
+		target = <&vc4>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&dpi24_pins>;
+		};
+	};
+
+	fragment@2 {
 		target = <&gpio>;
 		__overlay__ {
 			dpi24_pins: dpi24_pins {
