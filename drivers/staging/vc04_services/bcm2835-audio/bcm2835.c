@@ -79,7 +79,11 @@ static int bcm2835_audio_alsa_newpcm(struct bcm2835_chip *chip,
 	if (err)
 		return err;
 
-	err = snd_bcm2835_new_pcm(chip, "bcm2835 IEC958/HDMI", 1, 0, 1, true);
+	err = snd_bcm2835_new_pcm(chip, "bcm2835 IEC958/HDMI", 1, AUDIO_DEST_HDMI0, 1, true);
+	if (err)
+		return err;
+
+	err = snd_bcm2835_new_pcm(chip, "bcm2835 IEC958/HDMI1", 2, AUDIO_DEST_HDMI1, 1, true);
 	if (err)
 		return err;
 
@@ -106,7 +110,7 @@ static struct bcm2835_audio_driver bcm2835_audio_alsa = {
 	.newctl = snd_bcm2835_new_ctl,
 };
 
-static struct bcm2835_audio_driver bcm2835_audio_hdmi = {
+static struct bcm2835_audio_driver bcm2835_audio_hdmi0 = {
 	.driver = {
 		.name = "bcm2835_hdmi",
 		.owner = THIS_MODULE,
@@ -116,7 +120,20 @@ static struct bcm2835_audio_driver bcm2835_audio_hdmi = {
 	.minchannels = 1,
 	.newpcm = bcm2835_audio_simple_newpcm,
 	.newctl = snd_bcm2835_new_hdmi_ctl,
-	.route = AUDIO_DEST_HDMI
+	.route = AUDIO_DEST_HDMI0
+};
+
+static struct bcm2835_audio_driver bcm2835_audio_hdmi1 = {
+	.driver = {
+		.name = "bcm2835_hdmi",
+		.owner = THIS_MODULE,
+	},
+	.shortname = "bcm2835 HDMI 1",
+	.longname  = "bcm2835 HDMI 1",
+	.minchannels = 1,
+	.newpcm = bcm2835_audio_simple_newpcm,
+	.newctl = snd_bcm2835_new_hdmi_ctl,
+	.route = AUDIO_DEST_HDMI1
 };
 
 static struct bcm2835_audio_driver bcm2835_audio_headphones = {
@@ -143,7 +160,11 @@ static struct bcm2835_audio_drivers children_devices[] = {
 		.is_enabled = &enable_compat_alsa,
 	},
 	{
-		.audio_driver = &bcm2835_audio_hdmi,
+		.audio_driver = &bcm2835_audio_hdmi0,
+		.is_enabled = &enable_hdmi,
+	},
+	{
+		.audio_driver = &bcm2835_audio_hdmi1,
 		.is_enabled = &enable_hdmi,
 	},
 	{
