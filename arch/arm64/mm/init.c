@@ -171,7 +171,7 @@ static void __init reserve_elfcorehdr(void)
 static phys_addr_t __init max_zone_dma_phys(void)
 {
 	phys_addr_t offset = memblock_start_of_DRAM() & GENMASK_ULL(63, 32);
-	return min(offset + (1ULL << 32), memblock_end_of_DRAM());
+	return min(offset + (1ULL << 30), memblock_end_of_DRAM());
 }
 
 #ifdef CONFIG_NUMA
