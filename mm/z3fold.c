@@ -1439,16 +1439,11 @@ static int z3fold_page_migrate(struct address_space *mapping, struct page *newpa
 	zhdr = page_address(page);
 	pool = zhdr_to_pool(zhdr);
 
-	if (!trylock_page(page))
-		return -EAGAIN;
-
 	if (!z3fold_page_trylock(zhdr)) {
-		unlock_page(page);
 		return -EAGAIN;
 	}
 	if (zhdr->mapped_count != 0) {
 		z3fold_page_unlock(zhdr);
-		unlock_page(page);
 		return -EBUSY;
 	}
 	if (work_pending(&zhdr->work)) {
@@ -1494,7 +1489,6 @@ static int z3fold_page_migrate(struct address_space *mapping, struct page *newpa
 	spin_unlock(&pool->lock);
 
 	page_mapcount_reset(page);
-	unlock_page(page);
 	put_page(page);
 	return 0;
 }
