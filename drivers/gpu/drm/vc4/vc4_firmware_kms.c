@@ -802,6 +802,7 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 	 * other layers as requested by KMS.
 	 */
 	switch (type) {
+	default:
 	case DRM_PLANE_TYPE_PRIMARY:
 		default_zpos = 0;
 		break;
