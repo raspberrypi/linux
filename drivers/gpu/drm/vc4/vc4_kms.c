@@ -153,7 +153,7 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 	struct vc4_crtc *vc4_crtc;
 	int i;
 
-	for (i = 0; i < dev->mode_config.num_crtc; i++) {
+	for (i = 0; vc4->hvs && i < dev->mode_config.num_crtc; i++) {
 		if (!state->crtcs[i].ptr || !state->crtcs[i].commit)
 			continue;
 
