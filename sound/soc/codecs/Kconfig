@@ -121,6 +121,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_PCM186X_SPI if SPI_MASTER
 	select SND_SOC_PCM1794A if I2C
 	select SND_SOC_PCM3008
+	select SND_SOC_PCM3060HW
 	select SND_SOC_PCM3168A_I2C if I2C
 	select SND_SOC_PCM3168A_SPI if SPI_MASTER
 	select SND_SOC_PCM5102A
@@ -734,6 +735,9 @@ config SND_SOC_PCM186X_SPI
 
 config SND_SOC_PCM3008
        tristate
+
+config SND_SOC_PCM3060HW
+	tristate
 
 config SND_SOC_PCM3168A
 	tristate

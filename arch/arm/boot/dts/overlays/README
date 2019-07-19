@@ -1601,6 +1601,12 @@ Params: panel                   Display panel (required):
 [ The pcf8563-rtc overlay has been deleted. See i2c-rtc. ]
 
 
+Name:   pcm3060-board
+Info:   Configures the PCM3060-based audio card
+Load:   dtoverlay=pcm3060-board
+Params: <None>
+
+
 Name:   pi3-act-led
 Info:   This overlay has been renamed act-led, keeping pi3-act-led as an alias
         for backwards compatibility.

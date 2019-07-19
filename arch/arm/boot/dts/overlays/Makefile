@@ -103,6 +103,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	mz61581.dtbo \
 	ov5647.dtbo \
 	papirus.dtbo \
+	pcm3060-board.dtbo \
 	pi3-act-led.dtbo \
 	pi3-disable-bt.dtbo \
 	pi3-disable-wifi.dtbo \

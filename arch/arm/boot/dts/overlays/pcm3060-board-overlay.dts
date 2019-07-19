@@ -1,0 +1,34 @@
+// Definitions for PCM3060 Board
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			pcm3060-codec {
+				#sound-dai-cells = <0>;
+				compatible = "ti,pcm3060hw";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "pcm3060,pcm3060-board";
+			i2s-controller = <&i2s>;
+			status = "okay";
+		};
+	};
+};

@@ -16,6 +16,9 @@
  * adau1977-adc.c
  * by Andrey Grodzovsky <andrey2805@gmail.com>
  *
+ * pcm3060_board.c
+ * by Jon Ronen-Drori <jon_ronen@yahoo.com>
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * version 2 as published by the Free Software Foundation.
@@ -188,6 +191,24 @@ static struct snd_rpi_simple_drvdata drvdata_rpi_dac = {
 	.fixed_bclk_ratio = 64,
 };
 
+static struct snd_soc_dai_link snd_rpi_pcm3060_dai[] = {
+	{
+	.name           = "PCM3060 Board",
+	.stream_name    = "PCM3060 Board HiFi",
+	.codec_dai_name = "pcm3060-hifi",
+	.codec_name     = "pcm3060-codec",
+	.dai_fmt = SND_SOC_DAIFMT_I2S |
+		SND_SOC_DAIFMT_NB_NF |
+		SND_SOC_DAIFMT_CBM_CFM,
+	},
+};
+
+static struct snd_rpi_simple_drvdata drvdata_pcm3060_board = {
+	.card_name        = "snd_rpi_pcm3060_board",
+	.dai              = snd_rpi_pcm3060_dai,
+	.fixed_bclk_ratio = 64,
+};
+
 static const struct of_device_id snd_rpi_simple_of_match[] = {
 	{ .compatible = "adi,adau1977-adc",
 		.data = (void *) &drvdata_adau1977 },
@@ -197,6 +218,8 @@ static const struct of_device_id snd_rpi_simple_of_match[] = {
 		.data = (void *) &drvdata_hifiberry_amp },
 	{ .compatible = "hifiberry,hifiberry-dac",
 		.data = (void *) &drvdata_hifiberry_dac },
+	{ .compatible = "pcm3060,pcm3060-board",
+		.data = (void *) &drvdata_pcm3060_board },
 	{ .compatible = "rpi,rpi-dac", &drvdata_rpi_dac},
 	{},
 };
