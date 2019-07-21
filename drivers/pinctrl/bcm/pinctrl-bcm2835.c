@@ -1168,6 +1168,12 @@ static int bcm2835_pinctrl_probe(struct platform_device *pdev)
 			(const struct pinconf_ops *)match->data;
 	}
 
+	match = of_match_node(bcm2835_pinctrl_match, pdev->dev.of_node);
+	if (match) {
+		bcm2835_pinctrl_desc.confops =
+			(const struct pinconf_ops *)match->data;
+	}
+
 	pc->pctl_dev = devm_pinctrl_register(dev, &bcm2835_pinctrl_desc, pc);
 	if (IS_ERR(pc->pctl_dev)) {
 		gpiochip_remove(&pc->gpio_chip);
