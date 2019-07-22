@@ -2357,6 +2357,18 @@ static int bcm2835_codec_open(struct file *file)
 		}
 		ctx->fh.ctrl_handler = hdl;
 		v4l2_ctrl_handler_setup(hdl);
+	} else if (dev->role == DECODE) {
+		v4l2_ctrl_handler_init(hdl, 1);
+
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_MIN_BUFFERS_FOR_CAPTURE,
+				  1, 1, 1, 1);
+		if (hdl->error) {
+			rc = hdl->error;
+			goto free_ctrl_handler;
+		}
+		ctx->fh.ctrl_handler = hdl;
+		v4l2_ctrl_handler_setup(hdl);
 	}
 
 	ctx->fh.m2m_ctx = v4l2_m2m_ctx_init(dev->m2m_dev, ctx, &queue_init);
