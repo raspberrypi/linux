@@ -945,8 +945,6 @@ static int vidioc_querycap(struct file *file, void *priv,
 	strncpy(cap->card, MEM2MEM_NAME, sizeof(cap->card) - 1);
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s",
 		 MEM2MEM_NAME);
-	cap->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
-	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 	return 0;
 }
 
@@ -2600,6 +2598,7 @@ static int bcm2835_codec_create(struct platform_device *pdev,
 	vfd = &dev->vfd;
 	vfd->lock = &dev->dev_mutex;
 	vfd->v4l2_dev = &dev->v4l2_dev;
+	vfd->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
 
 	switch (role) {
 	case DECODE:
