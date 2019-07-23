@@ -2554,7 +2554,7 @@ static void drm_setup_crtc_rotation(struct drm_fb_helper *fb_helper,
 	 * simple XOR between the two handle the addition nicely.
 	 */
 	cmdline = &connector->cmdline_mode;
-	if (cmdline->specified) {
+	if (cmdline->specified && cmdline->rotation_reflection) {
 		unsigned int cmdline_rest, panel_rest;
 		unsigned int cmdline_rot, panel_rot;
 		unsigned int sum_rot, sum_rest;
