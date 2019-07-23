@@ -475,12 +475,14 @@ Params: <None>
 
 
 Name:   audremap
-Info:   Switches PWM sound output to pins 12 (Right) & 13 (Left)
+Info:   Switches PWM sound output to GPIOs on the 40-pin header
 Load:   dtoverlay=audremap,<param>=<val>
 Params: swap_lr                 Reverse the channel allocation, which will also
                                 swap the audio jack outputs (default off)
         enable_jack             Don't switch off the audio jack output
                                 (default off)
+        pins_12_13              Select GPIOs 12 & 13 (default)
+        pins_18_19              Select GPIOs 18 & 19
 
 
 Name:   balena-fin
