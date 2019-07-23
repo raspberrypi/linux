@@ -883,6 +883,27 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 master for bit clock and frame clock.
 
 
+Name:   hifiberry-dacplusadcpro
+Info:   Configures the HifiBerry DAC+ADC PRO audio card
+Load:   dtoverlay=hifiberry-dacplusadcpro,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=hifiberry-dacplusadcpro,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24dB_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+        slave                   Force DAC+ADC Pro into slave mode, using Pi as
+                                master for bit clock and frame clock.
+
+
 Name:   hifiberry-digi
 Info:   Configures the HifiBerry Digi and Digi+ audio card
 Load:   dtoverlay=hifiberry-digi
