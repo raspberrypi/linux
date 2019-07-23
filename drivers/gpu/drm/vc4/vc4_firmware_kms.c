@@ -1479,10 +1479,17 @@ int vc4_connector_atomic_set_property(struct drm_connector *connector,
 	return -EINVAL;
 }
 
+static void vc4_hdmi_connector_reset(struct drm_connector *connector)
+{
+	drm_atomic_helper_connector_reset(connector);
+	drm_atomic_helper_connector_tv_reset(connector);
+}
+
 static const struct drm_connector_funcs vc4_fkms_connector_funcs = {
 	.detect = vc4_fkms_connector_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.destroy = vc4_fkms_connector_destroy,
+	.reset = vc4_hdmi_connector_reset,
 	.atomic_duplicate_state = vc4_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
 	.atomic_get_property = vc4_connector_atomic_get_property,
