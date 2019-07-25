@@ -71,6 +71,9 @@ struct set_plane {
 	u32 planes[4];  /* DMA address of each plane */
 
 	u32 transform;
+
+	u8 update_id;	/* Returned via SMI fields */
+	u8 padding[3];
 };
 
 /* Values for the transform field */
@@ -249,6 +252,9 @@ struct vc4_crtc {
 	bool vblank_enabled;
 	u32 display_number;
 	u32 display_type;
+
+	u8 flip_update_id;	/* Last update requested before flip_done call */
+	u8 update_id;		/* Counter for the updates sent to the fw */
 };
 
 static inline struct vc4_crtc *to_vc4_crtc(struct drm_crtc *crtc)
@@ -488,8 +494,18 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 	 * If the CRTC is on (or going to be on) and we're enabled,
 	 * then unblank.  Otherwise, stay blank until CRTC enable.
 	 */
-	if (state->crtc->state->active)
+	if (state->crtc->state->active) {
+		struct vc4_crtc *vc4_crtc = to_vc4_crtc(state->crtc);
+		struct vc4_fkms_plane *vc4_plane = to_vc4_fkms_plane(plane);
+
+		if (vc4_crtc->update_id == 0xFF)
+			vc4_crtc->update_id = 1;
+		else
+			vc4_crtc->update_id++;
+
+		vc4_plane->mb.plane.update_id = vc4_crtc->update_id;
 		vc4_plane_set_blank(plane, false);
+	}
 }
 
 static void vc4_plane_atomic_disable(struct drm_plane *plane,
@@ -969,11 +985,15 @@ static void vc4_crtc_consume_event(struct drm_crtc *crtc)
 	struct drm_device *dev = crtc->dev;
 	unsigned long flags;
 
+	if (!crtc->state->event)
+		return;
+
 	crtc->state->event->pipe = drm_crtc_index(crtc);
 
 	WARN_ON(drm_crtc_vblank_get(crtc) != 0);
 
 	spin_lock_irqsave(&dev->event_lock, flags);
+	vc4_crtc->flip_update_id = vc4_crtc->update_id;
 	vc4_crtc->event = crtc->state->event;
 	crtc->state->event = NULL;
 	spin_unlock_irqrestore(&dev->event_lock, flags);
@@ -1064,17 +1084,22 @@ static void vc4_crtc_atomic_flush(struct drm_crtc *crtc,
 		vc4_crtc_consume_event(crtc);
 }
 
-static void vc4_crtc_handle_page_flip(struct vc4_crtc *vc4_crtc)
+static void vc4_crtc_handle_page_flip(struct vc4_crtc *vc4_crtc,
+				      unsigned int update)
 {
 	struct drm_crtc *crtc = &vc4_crtc->base;
 	struct drm_device *dev = crtc->dev;
 	unsigned long flags;
 
 	spin_lock_irqsave(&dev->event_lock, flags);
-	if (vc4_crtc->event) {
+	if (vc4_crtc->event &&
+	    (!update || update == vc4_crtc->flip_update_id)) {
 		drm_crtc_send_vblank_event(crtc, vc4_crtc->event);
 		vc4_crtc->event = NULL;
 		drm_crtc_vblank_put(crtc);
+	} else if (vc4_crtc->event) {
+		DRM_ERROR("Dropping update as update %u and flip_up_id %u",
+			  update, vc4_crtc->flip_update_id);
 	}
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 }
@@ -1099,14 +1124,16 @@ static irqreturn_t vc4_crtc_irq_handler(int irq, void *data)
 			for (i = 0; crtc_list[i]; i++) {
 				if (crtc_list[i]->vblank_enabled)
 					drm_crtc_handle_vblank(&crtc_list[i]->base);
-				vc4_crtc_handle_page_flip(crtc_list[i]);
+				vc4_crtc_handle_page_flip(crtc_list[i], 0);
 			}
 		} else {
 			if (chan & 1) {
 				writel(SMI_NEW, crtc_list[0]->regs + SMIDSW0);
 				if (crtc_list[0]->vblank_enabled)
 					drm_crtc_handle_vblank(&crtc_list[0]->base);
-				vc4_crtc_handle_page_flip(crtc_list[0]);
+
+				vc4_crtc_handle_page_flip(crtc_list[0],
+							  (chan & 0xFF00) >> 8);
 			}
 
 			/* Check for the secondary display too */
@@ -1116,7 +1143,8 @@ static irqreturn_t vc4_crtc_irq_handler(int irq, void *data)
 				writel(SMI_NEW, crtc_list[0]->regs + SMIDSW1);
 				if (crtc_list[1]->vblank_enabled)
 					drm_crtc_handle_vblank(&crtc_list[1]->base);
-				vc4_crtc_handle_page_flip(crtc_list[1]);
+				vc4_crtc_handle_page_flip(crtc_list[1],
+							  (chan & 0xFF00) >> 8);
 			}
 		}
 
@@ -1131,10 +1159,18 @@ static int vc4_page_flip(struct drm_crtc *crtc,
 			 struct drm_pending_vblank_event *event,
 			 uint32_t flags, struct drm_modeset_acquire_ctx *ctx)
 {
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct drm_device *dev = crtc->dev;
+	unsigned long spinlock_flags;
+
 	if (flags & DRM_MODE_PAGE_FLIP_ASYNC) {
 		DRM_ERROR("Async flips aren't allowed\n");
 		return -EINVAL;
 	}
+
+	spin_lock_irqsave(&dev->event_lock, spinlock_flags);
+	vc4_crtc->flip_update_id = vc4_crtc->update_id;
+	spin_unlock_irqrestore(&dev->event_lock, spinlock_flags);
 
 	return drm_atomic_helper_page_flip(crtc, fb, event, flags, ctx);
 }
