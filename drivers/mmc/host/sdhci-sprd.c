@@ -497,7 +497,7 @@ static int sdhci_sprd_runtime_resume(struct device *dev)
 		return ret;
 	}
 
-	sdhci_runtime_resume_host(host);
+	sdhci_runtime_resume_host(host, 1);
 
 	return 0;
 }
