@@ -523,7 +523,6 @@ static int vc4_plane_to_mb(struct drm_plane *plane,
 	const struct vc_image_format *vc_fmt =
 					vc4_get_vc_image_fmt(drm_fmt->format);
 	int num_planes = fb->format->num_planes;
-	struct drm_display_mode *mode = &state->crtc->mode;
 	unsigned int rotation = SUPPORTED_ROTATIONS;
 
 	mb->plane.vc_image_type = vc_fmt->vc_image;
