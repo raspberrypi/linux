@@ -962,6 +962,7 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
 {
+	struct drm_device *dev = crtc->dev;
 	struct drm_plane *plane;
 
 	DRM_DEBUG_KMS("[CRTC:%d] vblanks off.\n",
@@ -977,6 +978,35 @@ static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_s
 
 	drm_atomic_crtc_for_each_plane(plane, crtc)
 		vc4_plane_atomic_disable(plane, plane->state);
+
+	/*
+	 * Make sure we issue a vblank event after disabling the CRTC if
+	 * someone was waiting it.
+	 */
+	if (crtc->state->event) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&dev->event_lock, flags);
+		drm_crtc_send_vblank_event(crtc, crtc->state->event);
+		crtc->state->event = NULL;
+		spin_unlock_irqrestore(&dev->event_lock, flags);
+	}
+}
+
+static void vc4_crtc_consume_event(struct drm_crtc *crtc)
+{
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct drm_device *dev = crtc->dev;
+	unsigned long flags;
+
+	crtc->state->event->pipe = drm_crtc_index(crtc);
+
+	WARN_ON(drm_crtc_vblank_get(crtc) != 0);
+
+	spin_lock_irqsave(&dev->event_lock, flags);
+	vc4_crtc->event = crtc->state->event;
+	crtc->state->event = NULL;
+	spin_unlock_irqrestore(&dev->event_lock, flags);
 }
 
 static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
@@ -986,6 +1016,7 @@ static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_st
 	DRM_DEBUG_KMS("[CRTC:%d] vblanks on.\n",
 		      crtc->base.id);
 	drm_crtc_vblank_on(crtc);
+	vc4_crtc_consume_event(crtc);
 
 	/* Unblank the planes (if they're supposed to be displayed). */
 	drm_atomic_crtc_for_each_plane(plane, crtc)
@@ -1057,23 +1088,10 @@ static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 static void vc4_crtc_atomic_flush(struct drm_crtc *crtc,
 				  struct drm_crtc_state *old_state)
 {
-	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
-	struct drm_device *dev = crtc->dev;
-
 	DRM_DEBUG_KMS("[CRTC:%d] crtc_atomic_flush.\n",
 		      crtc->base.id);
-	if (crtc->state->event) {
-		unsigned long flags;
-
-		crtc->state->event->pipe = drm_crtc_index(crtc);
-
-		WARN_ON(drm_crtc_vblank_get(crtc) != 0);
-
-		spin_lock_irqsave(&dev->event_lock, flags);
-		vc4_crtc->event = crtc->state->event;
-		crtc->state->event = NULL;
-		spin_unlock_irqrestore(&dev->event_lock, flags);
-	}
+	if (crtc->state->active && old_state->active && crtc->state->event)
+		vc4_crtc_consume_event(crtc);
 }
 
 static void vc4_crtc_handle_page_flip(struct vc4_crtc *vc4_crtc)
