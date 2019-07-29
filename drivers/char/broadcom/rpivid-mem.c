@@ -66,7 +66,7 @@ static int rpivid_mem_open(struct inode *inode, struct file *file)
 	int dev = iminor(inode);
 	int ret = 0;
 	struct rpivid_mem_priv *priv;
-	if (dev != DEVICE_MINOR)
+	if (dev != DEVICE_MINOR && dev != DEVICE_MINOR + 1)
 		ret = -ENXIO;
 
 	priv = container_of(inode->i_cdev, struct rpivid_mem_priv,
@@ -82,7 +82,7 @@ static int rpivid_mem_release(struct inode *inode, struct file *file)
 	int dev = iminor(inode);
 	int ret = 0;
 
-	if (dev != DEVICE_MINOR)
+	if (dev != DEVICE_MINOR && dev != DEVICE_MINOR + 1)
 		ret = -ENXIO;
 
 	return ret;
@@ -167,14 +167,14 @@ static int rpivid_mem_probe(struct platform_device *pdev)
 	/* Create character device entries */
 
 	err = alloc_chrdev_region(&priv->devid,
-				  DEVICE_MINOR, 1, priv->name);
+				  DEVICE_MINOR, 2, priv->name);
 	if (err != 0) {
 		dev_err(priv->dev, "unable to allocate device number");
 		goto failed_alloc_chrdev;
 	}
 	cdev_init(&priv->rpivid_mem_cdev, &rpivid_mem_fops);
 	priv->rpivid_mem_cdev.owner = THIS_MODULE;
-	err = cdev_add(&priv->rpivid_mem_cdev, priv->devid, 1);
+	err = cdev_add(&priv->rpivid_mem_cdev, priv->devid, 2);
 	if (err != 0) {
 		dev_err(priv->dev, "unable to register device");
 		goto failed_cdev_add;
@@ -193,6 +193,20 @@ static int rpivid_mem_probe(struct platform_device *pdev)
 	ptr_err = rpivid_mem_dev;
 	if (IS_ERR(ptr_err))
 		goto failed_device_create;
+
+	/* Legacy alias */
+	{
+		char *oldname = kstrdup(priv->name, GFP_KERNEL);
+
+		oldname[1] = 'a';
+		oldname[2] = 'r';
+		oldname[3] = 'g';
+		oldname[4] = 'o';
+		oldname[5] = 'n';
+		(void)device_create(priv->class, NULL, priv->devid + 1, NULL,
+				       oldname + 1);
+		kfree(oldname);
+	}
 
 	dev_info(priv->dev, "%s initialised: Registers at 0x%08lx length 0x%08lx",
 		priv->name, priv->regs_phys, priv->mem_window_len);
