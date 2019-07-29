@@ -1085,14 +1085,17 @@ static irqreturn_t vc4_crtc_irq_handler(int irq, void *data)
 				vc4_crtc_handle_page_flip(crtc_list[0]);
 			}
 
-			/* Check for the secondary display too */
-			chan = readl(crtc_list[0]->regs + SMIDSW1);
+			if (crtc_list[1]) {
+				/* Check for the secondary display too */
+				chan = readl(crtc_list[0]->regs + SMIDSW1);
 
-			if (chan & 1) {
-				writel(SMI_NEW, crtc_list[0]->regs + SMIDSW1);
-				if (crtc_list[1]->vblank_enabled)
-					drm_crtc_handle_vblank(&crtc_list[1]->base);
-				vc4_crtc_handle_page_flip(crtc_list[1]);
+				if (chan & 1) {
+					writel(SMI_NEW, crtc_list[0]->regs + SMIDSW1);
+
+					if (crtc_list[1]->vblank_enabled)
+						drm_crtc_handle_vblank(&crtc_list[1]->base);
+					vc4_crtc_handle_page_flip(crtc_list[1]);
+				}
 			}
 		}
 
