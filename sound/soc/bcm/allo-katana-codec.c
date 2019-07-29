@@ -126,7 +126,7 @@ static SOC_VALUE_ENUM_SINGLE_DECL(katana_codec_deemphasis,
 				  katana_codec_deemphasis_texts,
 				  katana_codec_deemphasis_values);
 
-static const SNDRV_CTL_TLVD_DECLARE_DB_MINMAX(master_tlv, -12700, 0);
+static const SNDRV_CTL_TLVD_DECLARE_DB_MINMAX(master_tlv, -12750, 0);
 
 static const struct snd_kcontrol_new katana_codec_controls[] = {
 	SOC_DOUBLE_R_TLV("Master Playback Volume", KATANA_CODEC_VOLUME_1,
