@@ -110,6 +110,12 @@
 		};
 	};
 	fragment@17 {
+		target = <&hdmi>;
+		__dormant__ {
+			dmas;
+		};
+	};
+	fragment@18 {
 		target = <&usb>;
 		#address-cells = <1>;
 		#size-cells = <1>;
