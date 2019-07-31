@@ -2480,6 +2480,7 @@ Params: cma-256                 CMA is 256MB (needs 1GB)
         cma-128                 CMA is 128MB
         cma-96                  CMA is 96MB
         cma-64                  CMA is 64MB
+        audio                   Enable or disable audio over HDMI (default "on")
 
 
 Name:   vga666
