@@ -69,6 +69,10 @@
 #define GENET_RDMA_REG_OFF	(priv->hw_params->rdma_offset + \
 				TOTAL_DESC * DMA_DESC_SIZE)
 
+static bool force_reneg = false;
+module_param(force_reneg, bool, 0444);
+MODULE_PARM_DESC(force_reneg, "Force a renegotiation after the initial link-up");
+
 static inline void bcmgenet_writel(u32 value, void __iomem *offset)
 {
 	/* MIPS chips strapped for BE will automagically configure the
@@ -2608,6 +2612,7 @@ static void bcmgenet_irq_task(struct work_struct *work)
 	unsigned int status;
 	struct bcmgenet_priv *priv = container_of(
 			work, struct bcmgenet_priv, bcmgenet_irq_work);
+	static int first_link = 1;
 
 	netif_dbg(priv, intr, priv->dev, "%s\n", __func__);
 
@@ -2620,6 +2625,23 @@ static void bcmgenet_irq_task(struct work_struct *work)
 	if (status & UMAC_IRQ_LINK_EVENT) {
 		priv->dev->phydev->link = !!(status & UMAC_IRQ_LINK_UP);
 		phy_mac_interrupt(priv->dev->phydev);
+
+		if (priv->dev->phydev->link && first_link) {
+			first_link = 0;
+			/*
+			 * HACK: Some Pi4Bs, when paired with some switches,
+			 * come up in a strange state where they are unable to
+			 * transmit, causing them to fail to get an IP address.
+			 * Although the failure mechanism is not yet understood,
+			 * forcing renegotiation at this point has been shown
+			 * to be effective in avoiding the problem.
+			 */
+			if (force_reneg) {
+				dev_info(&priv->pdev->dev,
+					 "Forcing renegotiation\n");
+				genphy_restart_aneg(priv->dev->phydev);
+			}
+		}
 	}
 }
 
