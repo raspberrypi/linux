@@ -1,4 +1,4 @@
-ccflags-y += -Idrivers/staging/vc04_services -Idrivers/staging/vc04_services/interface/vchi -Idrivers/staging/vc04_services/interface/vchiq_arm
+ccflags-y += -I$(srctree)/drivers/staging/vc04_services -I$(srctree)/drivers/staging/vc04_services/interface/vchi -I$(srctree)/drivers/staging/vc04_services/interface/vchiq_arm
 # -I"drivers/staging/android/ion/" -I"$(srctree)/fs/"
 ccflags-y += -D__VCCOREVER__=0
 
