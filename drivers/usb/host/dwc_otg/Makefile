@@ -22,7 +22,7 @@ endif
 
 ccflags-y	+= -Dlinux -DDWC_HS_ELECT_TST
 #ccflags-y	+= -DDWC_EN_ISOC
-ccflags-y   	+= -I$(obj)/../dwc_common_port
+ccflags-y   	+= -I$(srctree)/drivers/usb/host/dwc_common_port
 #ccflags-y   	+= -I$(PORTLIB)
 ccflags-y   	+= -DDWC_LINUX
 ccflags-y   	+= $(CFI)
