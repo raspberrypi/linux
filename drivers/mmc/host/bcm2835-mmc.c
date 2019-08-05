@@ -1016,8 +1016,7 @@ static irqreturn_t bcm2835_mmc_irq(int irq, void *dev_id)
 
 		if (intmask & SDHCI_INT_CARD_INT) {
 			bcm2835_mmc_enable_sdio_irq_nolock(host, false);
-			host->thread_isr |= SDHCI_INT_CARD_INT;
-			result = IRQ_WAKE_THREAD;
+			sdio_signal_irq(host->mmc);
 		}
 
 		intmask &= ~(SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE |
@@ -1047,6 +1046,19 @@ out:
 	return result;
 }
 
+
+static void bcm2835_mmc_ack_sdio_irq(struct mmc_host *mmc)
+{
+	struct bcm2835_host *host = mmc_priv(mmc);
+	unsigned long flags;
+
+	spin_lock_irqsave(&host->lock, flags);
+	if (host->flags & SDHCI_SDIO_IRQ_ENABLED)
+		bcm2835_mmc_enable_sdio_irq_nolock(host, true);
+	spin_unlock_irqrestore(&host->lock, flags);
+}
+
+
 static irqreturn_t bcm2835_mmc_thread_irq(int irq, void *dev_id)
 {
 	struct bcm2835_host *host = dev_id;
@@ -1057,15 +1069,6 @@ static irqreturn_t bcm2835_mmc_thread_irq(int irq, void *dev_id)
 	isr = host->thread_isr;
 	host->thread_isr = 0;
 	spin_unlock_irqrestore(&host->lock, flags);
-
-	if (isr & SDHCI_INT_CARD_INT) {
-		sdio_run_irqs(host->mmc);
-
-		spin_lock_irqsave(&host->lock, flags);
-		if (host->flags & SDHCI_SDIO_IRQ_ENABLED)
-			bcm2835_mmc_enable_sdio_irq_nolock(host, true);
-		spin_unlock_irqrestore(&host->lock, flags);
-	}
 
 	return isr ? IRQ_HANDLED : IRQ_NONE;
 }
@@ -1237,6 +1240,7 @@ static struct mmc_host_ops bcm2835_ops = {
 	.request = bcm2835_mmc_request,
 	.set_ios = bcm2835_mmc_set_ios,
 	.enable_sdio_irq = bcm2835_mmc_enable_sdio_irq,
+	.ack_sdio_irq = bcm2835_mmc_ack_sdio_irq,
 };
 
 
