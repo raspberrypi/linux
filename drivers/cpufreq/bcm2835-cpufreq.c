@@ -156,7 +156,8 @@ static int bcm2835_cpufreq_driver_init(struct cpufreq_policy *policy)
 	}
 
 	print_info("min=%d max=%d\n", min_frequency, max_frequency);
-	return cpufreq_generic_init(policy, bcm2835_freq_table, transition_latency);
+	cpufreq_generic_init(policy, bcm2835_freq_table, transition_latency);
+	return 0;
 }
 
 /*
