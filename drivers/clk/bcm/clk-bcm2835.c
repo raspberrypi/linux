@@ -2187,7 +2187,7 @@ static bool bcm2835_clk_is_claimed(const char *name)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(clk_desc_array); i++) {
-		const char *clk_name = *(const char **)(clk_desc_array[i].data);
+		const char *clk_name = clk_desc_array[i].data ? *(const char **)(clk_desc_array[i].data) : "";
 		if (!strcmp(name, clk_name))
 		    return bcm2835_clk_claimed[i];
 	}
