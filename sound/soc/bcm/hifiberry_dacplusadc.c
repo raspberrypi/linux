@@ -333,13 +333,6 @@ static int snd_rpi_hifiberry_dacplusadc_probe(struct platform_device *pdev)
 			dai->cpu_dai_name = NULL;
 			dai->platform_name = NULL;
 		}
-		dai = &snd_rpi_hifiberry_dacplusadc_dai[1];
-		i2s_node = of_parse_phandle(pdev->dev.of_node, "dmic", 0);
-		if (i2s_node) {
-			dai->cpu_of_node = i2s_node;
-			dai->platform_of_node = i2s_node;
-		}
-
 	}
 	digital_gain_0db_limit = !of_property_read_bool(
 		pdev->dev.of_node, "hifiberry,24db_digital_gain");
