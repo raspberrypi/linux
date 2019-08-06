@@ -887,30 +887,36 @@ static struct snd_soc_ops rpi_cirrus_ops = {
 	.hw_free = rpi_cirrus_hw_free,
 };
 
+SND_SOC_DAILINK_DEFS(wm5102,
+     DAILINK_COMP_ARRAY(COMP_EMPTY()),
+     DAILINK_COMP_ARRAY(COMP_CODEC("wm5102-codec", "wm5102-aif1")),
+     DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
+SND_SOC_DAILINK_DEFS(wm8804,
+     DAILINK_COMP_ARRAY(COMP_CPU("wm5102-aif2")),
+     DAILINK_COMP_ARRAY(COMP_CODEC("wm8804.1-003b", "wm8804-spdif")));
+
 static struct snd_soc_dai_link rpi_cirrus_dai[] = {
 	[DAI_WM5102] = {
 		.name		= "WM5102",
 		.stream_name	= "WM5102 AiFi",
-		.codec_dai_name	= "wm5102-aif1",
-		.codec_name	= "wm5102-codec",
 		.dai_fmt	=   SND_SOC_DAIFMT_I2S
 				  | SND_SOC_DAIFMT_NB_NF
 				  | SND_SOC_DAIFMT_CBM_CFM,
 		.ops		= &rpi_cirrus_ops,
 		.init		= rpi_cirrus_init_wm5102,
+		SND_SOC_DAILINK_REG(wm5102),
 	},
 	[DAI_WM8804] = {
 		.name		= "WM5102 SPDIF",
 		.stream_name	= "SPDIF Tx/Rx",
-		.cpu_dai_name	= "wm5102-aif2",
-		.codec_dai_name	= "wm8804-spdif",
-		.codec_name	= "wm8804.1-003b",
 		.dai_fmt	=   SND_SOC_DAIFMT_I2S
 				  | SND_SOC_DAIFMT_NB_NF
 				  | SND_SOC_DAIFMT_CBM_CFM,
 		.ignore_suspend = 1,
 		.params		= &rpi_cirrus_dai_link2_params,
 		.init		= rpi_cirrus_init_wm8804,
+		SND_SOC_DAILINK_REG(wm8804),
 	},
 };
 
@@ -990,8 +996,8 @@ static int rpi_cirrus_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	rpi_cirrus_dai[DAI_WM5102].cpu_of_node = i2s_node;
-	rpi_cirrus_dai[DAI_WM5102].platform_of_node = i2s_node;
+	rpi_cirrus_dai[DAI_WM5102].cpus->of_node = i2s_node;
+	rpi_cirrus_dai[DAI_WM5102].platforms->of_node = i2s_node;
 
 	rpi_cirrus_card.dev = &pdev->dev;
 
