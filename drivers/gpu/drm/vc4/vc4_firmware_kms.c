@@ -998,6 +998,9 @@ static void vc4_crtc_consume_event(struct drm_crtc *crtc)
 	struct drm_device *dev = crtc->dev;
 	unsigned long flags;
 
+	if (!crtc->state->event)
+		return;
+
 	crtc->state->event->pipe = drm_crtc_index(crtc);
 
 	WARN_ON(drm_crtc_vblank_get(crtc) != 0);
