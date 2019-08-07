@@ -665,8 +665,8 @@ static int brcmstb_platform_notifier(struct notifier_block *nb,
 					ret);
 				return ret;
 			}
+			brcm_set_dma_ops(dev);
 		}
-		brcm_set_dma_ops(dev);
 		return NOTIFY_OK;
 
 	case BUS_NOTIFY_DEL_DEVICE:
