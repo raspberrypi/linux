@@ -103,8 +103,6 @@ struct bcm2835_host {
 
 	wait_queue_head_t		buf_ready_int;		/* Waitqueue for Buffer Read Ready interrupt */
 
-	u32						thread_isr;
-
 	u32						shadow;
 
 	/*DMA part*/
@@ -1058,23 +1056,6 @@ static void bcm2835_mmc_ack_sdio_irq(struct mmc_host *mmc)
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
-
-static irqreturn_t bcm2835_mmc_thread_irq(int irq, void *dev_id)
-{
-	struct bcm2835_host *host = dev_id;
-	unsigned long flags;
-	u32 isr;
-
-	spin_lock_irqsave(&host->lock, flags);
-	isr = host->thread_isr;
-	host->thread_isr = 0;
-	spin_unlock_irqrestore(&host->lock, flags);
-
-	return isr ? IRQ_HANDLED : IRQ_NONE;
-}
-
-
-
 void bcm2835_mmc_set_clock(struct bcm2835_host *host, unsigned int clock)
 {
 	int div = 0; /* Initialized for compiler warning */
@@ -1386,8 +1367,7 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 	init_waitqueue_head(&host->buf_ready_int);
 
 	bcm2835_mmc_init(host, 0);
-	ret = request_threaded_irq(host->irq, bcm2835_mmc_irq,
-				   bcm2835_mmc_thread_irq, IRQF_SHARED,
+	ret = request_irq(host->irq, bcm2835_mmc_irq, IRQF_SHARED,
 				   mmc_hostname(mmc), host);
 	if (ret) {
 		dev_err(dev, "Failed to request IRQ %d: %d\n", host->irq, ret);
