@@ -183,10 +183,16 @@ static struct snd_soc_ops snd_rpi_wm8804_ops = {
 	.hw_params = snd_rpi_wm8804_hw_params,
 };
 
+SND_SOC_DAILINK_DEFS(justboom_digi,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link snd_justboom_digi_dai[] = {
 {
 	.name        = "JustBoom Digi",
 	.stream_name = "JustBoom Digi HiFi",
+	SND_SOC_DAILINK_REG(justboom_digi),
 },
 };
 
@@ -195,10 +201,16 @@ static struct snd_rpi_wm8804_drvdata drvdata_justboom_digi = {
 	.dai                  = snd_justboom_digi_dai,
 };
 
+SND_SOC_DAILINK_DEFS(iqaudio_digi,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link snd_iqaudio_digi_dai[] = {
 {
 	.name        = "IQAudIO Digi",
 	.stream_name = "IQAudIO Digi HiFi",
+	SND_SOC_DAILINK_REG(iqaudio_digi),
 },
 };
 
@@ -221,10 +233,16 @@ static int snd_allo_digione_probe(struct platform_device *pdev)
 	return 0;
 }
 
+SND_SOC_DAILINK_DEFS(allo_digione,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link snd_allo_digione_dai[] = {
 {
 	.name        = "Allo DigiOne",
 	.stream_name = "Allo DigiOne HiFi",
+	SND_SOC_DAILINK_REG(allo_digione),
 },
 };
 
@@ -234,10 +252,16 @@ static struct snd_rpi_wm8804_drvdata drvdata_allo_digione = {
 	.probe     = snd_allo_digione_probe,
 };
 
+SND_SOC_DAILINK_DEFS(hifiberry_digi,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link snd_hifiberry_digi_dai[] = {
 {
 	.name        = "HifiBerry Digi",
 	.stream_name = "HifiBerry Digi HiFi",
+	SND_SOC_DAILINK_REG(hifiberry_digi),
 },
 };
 
@@ -296,10 +320,10 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 
 		if (!dai->ops)
 			dai->ops = &snd_rpi_wm8804_ops;
-		if (!dai->codec_dai_name)
-			dai->codec_dai_name = "wm8804-spdif";
-		if (!dai->codec_name)
-			dai->codec_name = "wm8804.1-003b";
+		if (!dai->codecs->dai_name)
+			dai->codecs->dai_name = "wm8804-spdif";
+		if (!dai->codecs->name)
+			dai->codecs->name = "wm8804.1-003b";
 		if (!dai->dai_fmt)
 			dai->dai_fmt = SND_SOC_DAIFMT_I2S |
 				SND_SOC_DAIFMT_NB_NF |
@@ -331,8 +355,8 @@ static int snd_rpi_wm8804_probe(struct platform_device *pdev)
 					drvdata->dai_stream_name_dt,
 					&dai->stream_name);
 
-		dai->cpu_of_node = i2s_node;
-		dai->platform_of_node = i2s_node;
+		dai->cpus->of_node = i2s_node;
+		dai->platforms->of_node = i2s_node;
 
 		/*
 		 * clk44gpio and clk48gpio are not required by all cards so
