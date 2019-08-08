@@ -338,6 +338,7 @@ static void vc4_crtc_config_pv(struct drm_crtc *crtc)
 	struct drm_encoder *encoder = vc4_get_crtc_encoder(crtc);
 	struct vc4_encoder *vc4_encoder = to_vc4_encoder(encoder);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct vc4_dev *vc4 = to_vc4_dev(crtc->dev);
 	struct drm_crtc_state *state = crtc->state;
 	struct drm_display_mode *mode = &state->adjusted_mode;
 	bool interlace = mode->flags & DRM_MODE_FLAG_INTERLACE;
@@ -408,18 +409,39 @@ static void vc4_crtc_config_pv(struct drm_crtc *crtc)
 
 	CRTC_WRITE(PV_HACT_ACT, mode->hdisplay * pixel_rep);
 
-	CRTC_WRITE(PV_CONTROL,
-		   VC4_SET_FIELD(format, PV_CONTROL_FORMAT) |
-		   VC4_SET_FIELD(vc4_get_fifo_full_level(format),
-				 PV_CONTROL_FIFO_LEVEL) |
-		   VC4_SET_FIELD(pixel_rep - 1, PV_CONTROL_PIXEL_REP) |
-		   PV_CONTROL_CLR_AT_START |
-		   PV_CONTROL_TRIGGER_UNDERFLOW |
-		   PV_CONTROL_WAIT_HSTART |
-		   VC4_SET_FIELD(vc4_encoder->clock_select,
-				 PV_CONTROL_CLK_SELECT) |
-		   PV_CONTROL_FIFO_CLR |
-		   PV_CONTROL_EN);
+	if (!vc4->hvs->hvs5) {
+		CRTC_WRITE(PV_CONTROL,
+			   VC4_SET_FIELD(format, PV_CONTROL_FORMAT) |
+			   VC4_SET_FIELD(vc4_get_fifo_full_level(format),
+					 PV_CONTROL_FIFO_LEVEL) |
+			   VC4_SET_FIELD(pixel_rep - 1, PV_CONTROL_PIXEL_REP) |
+			   PV_CONTROL_CLR_AT_START |
+			   PV_CONTROL_TRIGGER_UNDERFLOW |
+			   PV_CONTROL_WAIT_HSTART |
+			   VC4_SET_FIELD(vc4_encoder->clock_select,
+					 PV_CONTROL_CLK_SELECT) |
+			   PV_CONTROL_FIFO_CLR |
+			   PV_CONTROL_EN);
+	} else {
+		u32 fifo_full_level_level = vc4_get_fifo_full_level(format);
+		u32 fifo_full_level_bits =
+			VC4_SET_FIELD(fifo_full_level_level & 0x3f,
+				      PV_CONTROL_FIFO_LEVEL) |
+			VC4_SET_FIELD((fifo_full_level_level >> 6) & 0x3,
+				      PV5_CONTROL_FIFO_LEVEL_HIGH);
+
+		CRTC_WRITE(PV_CONTROL,
+			   VC4_SET_FIELD(format, PV_CONTROL_FORMAT) |
+			   fifo_full_level_bits |
+			   VC4_SET_FIELD(pixel_rep - 1, PV_CONTROL_PIXEL_REP) |
+			   PV_CONTROL_CLR_AT_START |
+			   PV_CONTROL_TRIGGER_UNDERFLOW |
+			   PV_CONTROL_WAIT_HSTART |
+			   VC4_SET_FIELD(vc4_encoder->clock_select,
+					 PV_CONTROL_CLK_SELECT) |
+			   PV_CONTROL_FIFO_CLR |
+			   PV_CONTROL_EN);
+	}
 }
 
 static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
@@ -589,6 +611,7 @@ static void vc4_crtc_atomic_enable(struct drm_crtc *crtc,
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc->state);
 	struct drm_display_mode *mode = &crtc->state->adjusted_mode;
+	u32 dispctrl;
 
 	require_hvs_enabled(dev);
 
@@ -603,11 +626,24 @@ static void vc4_crtc_atomic_enable(struct drm_crtc *crtc,
 	 * When feeding the transposer, we should operate in oneshot
 	 * mode.
 	 */
-	HVS_WRITE(SCALER_DISPCTRLX(vc4_crtc->channel),
-		  VC4_SET_FIELD(mode->hdisplay, SCALER_DISPCTRLX_WIDTH) |
-		  VC4_SET_FIELD(mode->vdisplay, SCALER_DISPCTRLX_HEIGHT) |
-		  SCALER_DISPCTRLX_ENABLE |
-		  (vc4_state->feed_txp ? SCALER_DISPCTRLX_ONESHOT : 0));
+	dispctrl = SCALER_DISPCTRLX_ENABLE;
+
+	if (!vc4->hvs->hvs5)
+		dispctrl |= VC4_SET_FIELD(mode->hdisplay,
+					  SCALER_DISPCTRLX_WIDTH) |
+			    VC4_SET_FIELD(mode->vdisplay,
+					  SCALER_DISPCTRLX_HEIGHT) |
+			    (vc4_state->feed_txp ?
+					SCALER_DISPCTRLX_ONESHOT : 0);
+	else
+		dispctrl |= VC4_SET_FIELD(mode->hdisplay,
+					  SCALER5_DISPCTRLX_WIDTH) |
+			    VC4_SET_FIELD(mode->vdisplay,
+					  SCALER5_DISPCTRLX_HEIGHT) |
+			    (vc4_state->feed_txp ?
+					SCALER5_DISPCTRLX_ONESHOT : 0);
+
+	HVS_WRITE(SCALER_DISPCTRLX(vc4_crtc->channel), dispctrl);
 
 	/* When feeding the transposer block the pixelvalve is unneeded and
 	 * should not be enabled.

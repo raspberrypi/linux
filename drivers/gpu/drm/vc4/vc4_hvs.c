@@ -174,6 +174,7 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	struct vc4_hvs *hvs = NULL;
 	int ret;
 	u32 dispctrl;
+	unsigned int hvs_version;
 
 	hvs = devm_kzalloc(&pdev->dev, sizeof(*hvs), GFP_KERNEL);
 	if (!hvs)
@@ -185,7 +186,14 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	if (IS_ERR(hvs->regs))
 		return PTR_ERR(hvs->regs);
 
-	hvs->dlist = hvs->regs + SCALER_DLIST_START;
+	hvs_version = readl(hvs->regs + SCALER_DISPLSTAT) >> 24;
+	if (hvs_version >= 0x40)
+		hvs->hvs5 = true;
+
+	if (!hvs->hvs5)
+		hvs->dlist = hvs->regs + SCALER_DLIST_START;
+	else
+		hvs->dlist = hvs->regs + SCALER5_DLIST_START;
 
 	spin_lock_init(&hvs->mm_lock);
 
