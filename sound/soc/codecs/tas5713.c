@@ -190,10 +190,6 @@ static int tas5713_probe(struct snd_soc_component *component)
 	ret = snd_soc_component_write(component, TAS5713_ERROR_STATUS, 0x00);
 	if (ret < 0) return ret;
 
-	// Clock mode: 44/48kHz, MCLK=64xfs
-	ret = snd_soc_component_write(component, TAS5713_CLOCK_CTRL, 0x60);
-	if (ret < 0) return ret;
-
 	// I2S 24bit
 	ret = snd_soc_component_write(component, TAS5713_SERIAL_DATA_INTERFACE, 0x05);
 	if (ret < 0) return ret;
@@ -257,6 +253,7 @@ static bool tas5713_reg_volatile(struct device *dev, unsigned int reg)
 	switch (reg) {
 		case TAS5713_DEVICE_ID:
 		case TAS5713_ERROR_STATUS:
+		case TAS5713_CLOCK_CTRL:
 			return true;
 	default:
 			return false;
