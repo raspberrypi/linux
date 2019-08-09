@@ -270,8 +270,6 @@ static void buffer_work_cb(struct work_struct *work)
 	if (!buffer->cmd)
 		atomic_dec(&msg_context->u.bulk.port->buffers_with_vpu);
 
-	atomic_dec(&msg_context->u.bulk.port->buffers_with_vpu);
-
 	msg_context->u.bulk.port->buffer_cb(msg_context->u.bulk.instance,
 					    msg_context->u.bulk.port,
 					    msg_context->u.bulk.status,
@@ -412,8 +410,6 @@ buffer_from_host(struct vchiq_mmal_instance *instance,
 	INIT_WORK(&msg_context->u.bulk.work, buffer_work_cb);
 	INIT_WORK(&msg_context->u.bulk.buffer_to_host_work,
 		  buffer_to_host_work_cb);
-
-	atomic_inc(&port->buffers_with_vpu);
 
 	atomic_inc(&port->buffers_with_vpu);
 
