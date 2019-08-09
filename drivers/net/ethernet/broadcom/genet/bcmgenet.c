@@ -72,6 +72,10 @@
 #define GENET_RDMA_REG_OFF	(priv->hw_params->rdma_offset + \
 				TOTAL_DESC * DMA_DESC_SIZE)
 
+static bool skip_umac_reset = true;
+module_param(skip_umac_reset, bool, 0444);
+MODULE_PARM_DESC(skip_umac_reset, "Skip UMAC reset step");
+
 static inline void bcmgenet_writel(u32 value, void __iomem *offset)
 {
 	/* MIPS chips strapped for BE will automagically configure the
@@ -1992,6 +1996,11 @@ static void reset_umac(struct bcmgenet_priv *priv)
 	/* 7358a0/7552a0: bad default in RBUF_FLUSH_CTRL.umac_sw_rst */
 	bcmgenet_rbuf_ctrl_set(priv, 0);
 	udelay(10);
+
+	if (skip_umac_reset) {
+		pr_warn("Skipping UMAC reset\n");
+		return;
+	}
 
 	/* disable MAC while updating its registers */
 	bcmgenet_umac_writel(priv, 0, UMAC_CMD);
