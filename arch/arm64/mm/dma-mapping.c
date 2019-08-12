@@ -938,7 +938,6 @@ static void __iommu_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
 void arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
 			const struct iommu_ops *iommu, bool coherent)
 {
-	dev_err(dev,"DMA MASK %llx",dev->dma_mask);
 	if (!dev->dma_ops)
 		dev->dma_ops = &arm64_swiotlb_dma_ops;
 
