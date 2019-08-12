@@ -617,28 +617,6 @@ static const struct dma_map_ops brcm_dma_ops = {
 
 static void brcm_set_dma_ops(struct device *dev)
 {
-	int ret;
-
-	if (IS_ENABLED(CONFIG_ARM64)) {
-		/*
-		 * We are going to invoke get_dma_ops().  That
-		 * function, at this point in time, invokes
-		 * get_arch_dma_ops(), and for ARM64 that function
-		 * returns a pointer to dummy_dma_ops.  So then we'd
-		 * like to call arch_setup_dma_ops(), but that isn't
-		 * exported.  Instead, we call of_dma_configure(),
-		 * which is exported, and this calls
-		 * arch_setup_dma_ops().  Once we do this the call to
-		 * get_dma_ops() will work properly because
-		 * dev->dma_ops will be set.
-		 */
-		ret = of_dma_configure(dev, dev->of_node, true);
-		if (ret) {
-			dev_err(dev, "of_dma_configure() failed: %d\n", ret);
-			return;
-		}
-	}
-
 	arch_dma_ops = get_dma_ops(dev);
 	if (!arch_dma_ops) {
 		dev_err(dev, "failed to get arch_dma_ops\n");
@@ -657,12 +635,12 @@ static int brcmstb_platform_notifier(struct notifier_block *nb,
 	extern unsigned long max_pfn;
 	struct device *dev = __dev;
 	const char *rc_name = "0000:00:00.0";
+	int ret;
 
 	switch (event) {
 	case BUS_NOTIFY_ADD_DEVICE:
 		if (max_pfn > (bounce_threshold/PAGE_SIZE) &&
 		    strcmp(dev->kobj.name, rc_name)) {
-			int ret;
 
 			ret = brcm_pcie_bounce_register_dev(dev);
 			if (ret) {
@@ -670,6 +648,12 @@ static int brcmstb_platform_notifier(struct notifier_block *nb,
 					"brcm_pcie_bounce_register_dev() failed: %d\n",
 					ret);
 				return ret;
+			}
+		} else if (IS_ENABLED(CONFIG_ARM64)) {
+			ret = of_dma_configure(dev, dev->of_node, true);
+			if (ret) {
+				dev_err(dev, "of_dma_configure() failed: %d\n", ret);
+				return;
 			}
 		}
 		brcm_set_dma_ops(dev);

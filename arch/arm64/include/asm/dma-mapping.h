@@ -24,6 +24,27 @@
 #include <xen/xen.h>
 #include <asm/xen/hypervisor.h>
 
+extern void *arm64_dma_alloc(struct device *dev, size_t size, dma_addr_t *handle,
+			   gfp_t gfp, unsigned long attrs);
+extern void arm64_dma_free(struct device *dev, size_t size, void *cpu_addr,
+			 dma_addr_t handle, unsigned long attrs);
+extern int arm64_dma_mmap(struct device *dev, struct vm_area_struct *vma,
+			void *cpu_addr, dma_addr_t dma_addr, size_t size,
+			unsigned long attrs);
+extern int arm64_dma_get_sgtable(struct device *dev, struct sg_table *sgt,
+		void *cpu_addr, dma_addr_t dma_addr, size_t size,
+		unsigned long attrs);
+extern int arm64_dma_map_sg(struct device *dev, struct scatterlist *sgl, int nelems,
+		enum dma_data_direction dir, unsigned long attrs);
+extern void arm64_dma_unmap_sg(struct device *dev, struct scatterlist *sgl, int,
+		enum dma_data_direction dir, unsigned long attrs);
+extern void arm64_dma_sync_sg_for_cpu(struct device *dev, struct scatterlist *sgl, int nelems,
+		enum dma_data_direction dir);
+extern void arm64_dma_sync_sg_for_device(struct device *dev, struct scatterlist *sgl, int nelems,
+		enum dma_data_direction dir);
+
+
+
 extern const struct dma_map_ops dummy_dma_ops;
 
 static inline const struct dma_map_ops *get_arch_dma_ops(struct bus_type *bus)
