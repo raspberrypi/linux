@@ -516,7 +516,7 @@ i915_gem_object_wait_reservation(struct reservation_object *resv,
 				 long timeout,
 				 struct intel_rps_client *rps_client)
 {
-	unsigned int seq = __read_seqcount_begin(&resv->seq);
+	unsigned int seq = read_seqbegin(&resv->seq);
 	struct dma_fence *excl;
 	bool prune_fences = false;
 
@@ -569,9 +569,9 @@ i915_gem_object_wait_reservation(struct reservation_object *resv,
 	 * signaled and that the reservation object has not been changed (i.e.
 	 * no new fences have been added).
 	 */
-	if (prune_fences && !__read_seqcount_retry(&resv->seq, seq)) {
+	if (prune_fences && !read_seqretry(&resv->seq, seq)) {
 		if (reservation_object_trylock(resv)) {
-			if (!__read_seqcount_retry(&resv->seq, seq))
+			if (!read_seqretry(&resv->seq, seq))
 				reservation_object_add_excl_fence(resv, NULL);
 			reservation_object_unlock(resv);
 		}
@@ -4615,7 +4615,7 @@ i915_gem_busy_ioctl(struct drm_device *dev, void *data,
 	 *
 	 */
 retry:
-	seq = raw_read_seqcount(&obj->resv->seq);
+	seq = read_seqbegin(&obj->resv->seq);
 
 	/* Translate the exclusive fence to the READ *and* WRITE engine */
 	args->busy = busy_check_writer(rcu_dereference(obj->resv->fence_excl));
@@ -4633,7 +4633,7 @@ retry:
 		}
 	}
 
-	if (args->busy && read_seqcount_retry(&obj->resv->seq, seq))
+	if (args->busy && read_seqretry(&obj->resv->seq, seq))
 		goto retry;
 
 	err = 0;
