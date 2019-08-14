@@ -32,6 +32,9 @@ obj-$(CONFIG_PCIE_BRCMSTB) += pcie-brcmstb.o
 ifdef CONFIG_ARM
 obj-$(CONFIG_PCIE_BRCMSTB) += pcie-brcmstb-bounce.o
 endif
+ifdef CONFIG_ARM64
+obj-$(CONFIG_PCIE_BRCMSTB) += pcie-brcmstb-bounce64.o
+endif
 
 obj-$(CONFIG_VMD) += vmd.o
 # pcie-hisi.o quirks are needed even without CONFIG_PCIE_DW
