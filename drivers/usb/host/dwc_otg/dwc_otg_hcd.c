@@ -1182,6 +1182,7 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	dwc_otg_qtd_t *qtd;
 	dwc_otg_hcd_urb_t *urb;
 	void* ptr = NULL;
+	uint16_t wLength;
 	uint32_t intr_enable;
 	unsigned long flags;
 	gintmsk_data_t gintmsk = { .d32 = 0, };
@@ -1293,6 +1294,23 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 			break;
 		case DWC_OTG_CONTROL_DATA:
 			DWC_DEBUGPL(DBG_HCDV, "  Control data transaction\n");
+			/*
+			 * Hardware bug: small IN packets with length < 4
+			 * cause a 4-byte write to memory. We can only catch
+			 * the case where we know a short packet is going to be
+			 * returned in a control transfer, as the length is
+			 * specified in the setup packet. This is only an issue
+			 * for drivers that insist on packing a device's various
+			 * properties into a struct and querying them one at a
+			 * time (uvcvideo).
+			 * Force the use of align_buf so that the subsequent
+			 * memcpy puts the right number of bytes in the URB's
+			 * buffer.
+			 */
+			wLength = ((uint16_t *)urb->setup_packet)[3];
+			if (hc->ep_is_in && wLength < 4)
+				ptr = hc->xfer_buff;
+
 			hc->data_pid_start = qtd->data_toggle;
 			break;
 		case DWC_OTG_CONTROL_STATUS:
