@@ -559,6 +559,20 @@ static int vc4_plane_atomic_check(struct drm_plane *plane,
 	return 0;
 }
 
+/* Called during init to allocate the plane's atomic state. */
+static void vc4_plane_reset(struct drm_plane *plane)
+{
+	struct vc4_plane_state *vc4_state;
+
+	WARN_ON(plane->state);
+
+	vc4_state = kzalloc(sizeof(*vc4_state), GFP_KERNEL);
+	if (!vc4_state)
+		return;
+
+	__drm_atomic_helper_plane_reset(plane, &vc4_state->base);
+}
+
 static void vc4_plane_destroy(struct drm_plane *plane)
 {
 	drm_plane_cleanup(plane);
@@ -600,13 +614,29 @@ static bool vc4_fkms_format_mod_supported(struct drm_plane *plane,
 	}
 }
 
+static struct drm_plane_state *vc4_plane_duplicate_state(struct drm_plane *plane)
+{
+	struct vc4_plane_state *vc4_state;
+
+	if (WARN_ON(!plane->state))
+		return NULL;
+
+	vc4_state = kzalloc(sizeof(*vc4_state), GFP_KERNEL);
+	if (!vc4_state)
+		return NULL;
+
+	__drm_atomic_helper_plane_duplicate_state(plane, &vc4_state->base);
+
+	return &vc4_state->base;
+}
+
 static const struct drm_plane_funcs vc4_plane_funcs = {
 	.update_plane = drm_atomic_helper_update_plane,
 	.disable_plane = drm_atomic_helper_disable_plane,
 	.destroy = vc4_plane_destroy,
 	.set_property = NULL,
-	.reset = drm_atomic_helper_plane_reset,
-	.atomic_duplicate_state = drm_atomic_helper_plane_duplicate_state,
+	.reset = vc4_plane_reset,
+	.atomic_duplicate_state = vc4_plane_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_plane_destroy_state,
 	.format_mod_supported = vc4_fkms_format_mod_supported,
 };
