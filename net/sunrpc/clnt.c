@@ -1893,6 +1893,7 @@ call_bind(struct rpc_task *task)
 static void
 call_bind_status(struct rpc_task *task)
 {
+	struct rpc_xprt *xprt = task->tk_rqstp->rq_xprt;
 	int status = -EIO;
 
 	if (rpc_task_transmitted(task)) {
@@ -1900,14 +1901,15 @@ call_bind_status(struct rpc_task *task)
 		return;
 	}
 
-	if (task->tk_status >= 0) {
-		dprint_status(task);
+	dprint_status(task);
+	trace_rpc_bind_status(task);
+	if (task->tk_status >= 0)
+		goto out_next;
+	if (xprt_bound(xprt)) {
 		task->tk_status = 0;
-		task->tk_action = call_connect;
-		return;
+		goto out_next;
 	}
 
-	trace_rpc_bind_status(task);
 	switch (task->tk_status) {
 	case -ENOMEM:
 		dprintk("RPC: %5u rpcbind out of memory\n", task->tk_pid);
@@ -1966,7 +1968,9 @@ call_bind_status(struct rpc_task *task)
 
 	rpc_call_rpcerror(task, status);
 	return;
-
+out_next:
+	task->tk_action = call_connect;
+	return;
 retry_timeout:
 	task->tk_status = 0;
 	task->tk_action = call_bind;
@@ -2013,6 +2017,7 @@ call_connect(struct rpc_task *task)
 static void
 call_connect_status(struct rpc_task *task)
 {
+	struct rpc_xprt *xprt = task->tk_rqstp->rq_xprt;
 	struct rpc_clnt *clnt = task->tk_client;
 	int status = task->tk_status;
 
@@ -2022,8 +2027,17 @@ call_connect_status(struct rpc_task *task)
 	}
 
 	dprint_status(task);
-
 	trace_rpc_connect_status(task);
+
+	if (task->tk_status == 0) {
+		clnt->cl_stats->netreconn++;
+		goto out_next;
+	}
+	if (xprt_connected(xprt)) {
+		task->tk_status = 0;
+		goto out_next;
+	}
+
 	task->tk_status = 0;
 	switch (status) {
 	case -ECONNREFUSED:
@@ -2054,12 +2068,11 @@ call_connect_status(struct rpc_task *task)
 	case -EAGAIN:
 	case -ETIMEDOUT:
 		goto out_retry;
-	case 0:
-		clnt->cl_stats->netreconn++;
-		task->tk_action = call_transmit;
-		return;
 	}
 	rpc_call_rpcerror(task, status);
+	return;
+out_next:
+	task->tk_action = call_transmit;
 	return;
 out_retry:
 	/* Check for timeouts before looping back to call_bind */
