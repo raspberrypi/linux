@@ -38,6 +38,7 @@
 #include <linux/dmaengine.h>
 #include <linux/dma-mapping.h>
 #include <linux/of_dma.h>
+#include <linux/swiotlb.h>
 
 #include "sdhci.h"
 
@@ -1373,8 +1374,15 @@ static int bcm2835_mmc_add_host(struct bcm2835_host *host)
 		}
 	}
 #endif
-	mmc->max_segs = 128;
-	mmc->max_req_size = 524288;
+	if (swiotlb_max_segment()) {
+		mmc->max_req_size = (1 << IO_TLB_SHIFT) * IO_TLB_SEGSIZE;
+		mmc->max_segs = 1;
+	}
+	else
+	{
+		mmc->max_req_size = 524288;
+		mmc->max_segs = 128;
+	}
 	mmc->max_seg_size = mmc->max_req_size;
 	mmc->max_blk_size = 512;
 	mmc->max_blk_count =  65535;
