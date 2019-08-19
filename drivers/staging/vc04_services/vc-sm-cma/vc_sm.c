@@ -1501,11 +1501,10 @@ static long vc_sm_cma_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
-#ifndef CONFIG_ARM64
 #ifdef CONFIG_COMPAT
 struct vc_sm_cma_ioctl_clean_invalid2_32 {
 	u32 op_count;
-	struct vc_sm_cma_ioctl_clean_invalid_block {
+	struct vc_sm_cma_ioctl_clean_invalid_block_32 {
 		u16 invalidate_mode;
 		u16 block_count;
 		compat_uptr_t start_address;
@@ -1516,7 +1515,7 @@ struct vc_sm_cma_ioctl_clean_invalid2_32 {
 
 #define VC_SM_CMA_CMD_CLEAN_INVALID2_32\
 	_IOR(VC_SM_CMA_MAGIC_TYPE, VC_SM_CMA_CMD_CLEAN_INVALID2,\
-	 struct vc_sm_cma_ioctl_clean_invalid2)
+	 struct vc_sm_cma_ioctl_clean_invalid2_32)
 
 static long vc_sm_cma_compat_ioctl(struct file *file, unsigned int cmd,
 				   unsigned long arg)
@@ -1524,23 +1523,20 @@ static long vc_sm_cma_compat_ioctl(struct file *file, unsigned int cmd,
 	switch (cmd) {
 	case VC_SM_CMA_CMD_CLEAN_INVALID2_32:
 		/* FIXME */
-		break;
+		return -EINVAL;
 
 	default:
-		return vc_sm_cma_compat_ioctl(file, cmd, arg);
+		return vc_sm_cma_ioctl(file, cmd, arg);
 	}
 }
-#endif
 #endif
 
 /* Device operations that we managed in this driver. */
 static const struct file_operations vc_sm_ops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = vc_sm_cma_ioctl,
-#ifndef CONFIG_ARM64
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = vc_sm_cma_compat_ioctl,
-#endif
 #endif
 	.open = vc_sm_cma_open,
 	.release = vc_sm_cma_release,
