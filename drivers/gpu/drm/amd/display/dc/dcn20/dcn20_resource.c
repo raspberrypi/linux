@@ -2474,6 +2474,7 @@ bool dcn20_fast_validate_bw(
 							&context->res_ctx, dc->res_pool,
 							pipe, hsplit_pipe))
 						goto validate_fail;
+					dcn20_build_mapped_resource(dc, context, pipe->stream);
 				} else
 					dcn20_split_stream_for_mpc(
 						&context->res_ctx, dc->res_pool,
