@@ -1050,12 +1050,12 @@ static int vidioc_try_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 			f->fmt.pix_mp.height = MIN_H;
 
 		/*
-		 * For codecs the buffer must have a vertical alignment of 16
+		 * For decoders the buffer must have a vertical alignment of 16
 		 * lines.
 		 * The selection will reflect any cropping rectangle when only
 		 * some of the pixels are active.
 		 */
-		if (ctx->dev->role != ISP)
+		if (ctx->dev->role == DECODE)
 			f->fmt.pix_mp.height = ALIGN(f->fmt.pix_mp.height, 16);
 	}
 	f->fmt.pix_mp.num_planes = 1;
