@@ -342,16 +342,17 @@ static void bcm2835_mmc_dma_complete(void *param)
 
 	host->use_dma = false;
 
-	if (host->data && !(host->data->flags & MMC_DATA_WRITE)) {
-		/* otherwise handled in SDHCI IRQ */
+	if (host->data) {
 		dma_chan = host->dma_chan_rxtx;
-		dir_data = DMA_FROM_DEVICE;
-
+		if (host->data->flags & MMC_DATA_WRITE)
+			dir_data = DMA_TO_DEVICE;
+		else
+			dir_data = DMA_FROM_DEVICE;
 		dma_unmap_sg(dma_chan->device->dev,
 		     host->data->sg, host->data->sg_len,
 		     dir_data);
-
-		bcm2835_mmc_finish_data(host);
+		if (! (host->data->flags & MMC_DATA_WRITE))
+			bcm2835_mmc_finish_data(host);
 	} else if (host->wait_for_dma) {
 		host->wait_for_dma = false;
 		tasklet_schedule(&host->finish_tasklet);
@@ -537,6 +538,8 @@ static void bcm2835_mmc_transfer_dma(struct bcm2835_host *host)
 		spin_unlock_irqrestore(&host->lock, flags);
 		dmaengine_submit(desc);
 		dma_async_issue_pending(dma_chan);
+	} else {
+		dma_unmap_sg(dma_chan->device->dev, host->data->sg, len, dir_data);
 	}
 
 }
