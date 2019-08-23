@@ -1073,6 +1073,7 @@ struct i915_frontbuffer_tracking {
 };
 
 struct i915_virtual_gpu {
+	struct mutex lock; /* serialises sending of g2v_notify command pkts */
 	bool active;
 	u32 caps;
 };

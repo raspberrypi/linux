@@ -79,6 +79,7 @@ void i915_check_vgpu(struct drm_i915_private *dev_priv)
 	dev_priv->vgpu.caps = __raw_uncore_read32(uncore, vgtif_reg(vgt_caps));
 
 	dev_priv->vgpu.active = true;
+	mutex_init(&dev_priv->vgpu.lock);
 	DRM_INFO("Virtual GPU for Intel GVT-g detected.\n");
 }
 
