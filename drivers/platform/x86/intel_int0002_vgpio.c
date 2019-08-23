@@ -155,6 +155,7 @@ static struct irq_chip int0002_cht_irqchip = {
 	 * No set_wake, on CHT the IRQ is typically shared with the ACPI SCI
 	 * and we don't want to mess with the ACPI SCI irq settings.
 	 */
+	.flags			= IRQCHIP_SKIP_SET_WAKE,
 };
 
 static int int0002_probe(struct platform_device *pdev)
