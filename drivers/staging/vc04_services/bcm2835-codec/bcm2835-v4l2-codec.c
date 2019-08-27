@@ -947,8 +947,9 @@ static void device_run(void *priv)
 static int vidioc_querycap(struct file *file, void *priv,
 			   struct v4l2_capability *cap)
 {
+	struct bcm2835_codec_ctx *ctx = file2ctx(file);
 	strncpy(cap->driver, MEM2MEM_NAME, sizeof(cap->driver) - 1);
-	strncpy(cap->card, MEM2MEM_NAME, sizeof(cap->card) - 1);
+	strncpy(cap->card, components[ctx->dev->role], sizeof(cap->card) - 1);
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s",
 		 MEM2MEM_NAME);
 	return 0;
