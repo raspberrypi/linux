@@ -1269,6 +1269,18 @@ Params: interrupt               GPIO used for interrupt (default 4)
                                 touchscreen (in pixels)
 
 
+Name:   imx219
+Info:   Sony IMX219 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx219,<param>=<val>
+Params: i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
+                                Useful on Compute Modules.
+
+        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
+                                This is required for Pi B+, 2, 0, and 0W.
+
+
 Name:   iqaudio-codec
 Info:   Configures the IQaudio Codec audio card
 Load:   dtoverlay=iqaudio-codec
