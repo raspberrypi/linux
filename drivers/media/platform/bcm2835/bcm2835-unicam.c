@@ -963,7 +963,7 @@ static void unicam_cfg_image_id(struct unicam_device *dev)
 	}
 }
 
-void unicam_start_rx(struct unicam_device *dev, unsigned long addr)
+static void unicam_start_rx(struct unicam_device *dev, unsigned long addr)
 {
 	struct unicam_cfg *cfg = &dev->cfg;
 	int line_int_freq = dev->v_fmt.fmt.pix.height >> 2;
