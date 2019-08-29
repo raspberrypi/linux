@@ -6,6 +6,7 @@
 #include "bcm283x-rpi-csi1-4lane.dtsi"
 
 / {
+	compatible = "raspberrypi,3-compute-module", "brcm,bcm2837";
 	model = "Raspberry Pi Compute Module 3";
 };
 
