@@ -5,6 +5,7 @@
 #include "bcm283x-rpi-csi1-4lane.dtsi"
 
 / {
+	compatible = "raspberrypi,compute-module", "brcm,bcm2835";
 	model = "Raspberry Pi Compute Module";
 };
 
