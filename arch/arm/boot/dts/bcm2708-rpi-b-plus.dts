@@ -6,6 +6,7 @@
 #include "bcm283x-rpi-csi1-2lane.dtsi"
 
 / {
+	compatible = "raspberrypi,model-b-plus", "brcm,bcm2835";
 	model = "Raspberry Pi Model B+";
 };
 
