@@ -1240,6 +1240,8 @@ static int c_show(struct seq_file *m, void *v)
 {
 	int i, j;
 	u32 cpuid;
+	struct device_node *np;
+	const char *model;
 
 	for_each_online_cpu(i) {
 		/*
@@ -1298,6 +1300,14 @@ static int c_show(struct seq_file *m, void *v)
 	seq_printf(m, "Hardware\t: %s\n", machine_name);
 	seq_printf(m, "Revision\t: %04x\n", system_rev);
 	seq_printf(m, "Serial\t\t: %s\n", system_serial);
+
+	np = of_find_node_by_path("/");
+	if (np) {
+		if (!of_property_read_string(np, "model",
+					     &model))
+			seq_printf(m, "Model\t\t: %s\n", model);
+		of_node_put(np);
+	}
 
 	return 0;
 }
