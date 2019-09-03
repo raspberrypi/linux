@@ -48,6 +48,8 @@ extern "C" {
 #define DRM_IOCTL_V3D_SUBMIT_TFU          DRM_IOW(DRM_COMMAND_BASE + DRM_V3D_SUBMIT_TFU, struct drm_v3d_submit_tfu)
 #define DRM_IOCTL_V3D_SUBMIT_CSD          DRM_IOW(DRM_COMMAND_BASE + DRM_V3D_SUBMIT_CSD, struct drm_v3d_submit_csd)
 
+#define DRM_V3D_SUBMIT_CL_FLUSH_CACHE             0x01
+
 /**
  * struct drm_v3d_submit_cl - ioctl argument for submitting commands to the 3D
  * engine.
@@ -124,8 +126,7 @@ struct drm_v3d_submit_cl {
 	/* Number of BO handles passed in (size is that times 4). */
 	__u32 bo_handle_count;
 
-	/* Pad, must be zero-filled. */
-	__u32 pad;
+	__u32 flags;
 };
 
 /**
@@ -193,6 +194,7 @@ enum drm_v3d_param {
 	DRM_V3D_PARAM_V3D_CORE0_IDENT2,
 	DRM_V3D_PARAM_SUPPORTS_TFU,
 	DRM_V3D_PARAM_SUPPORTS_CSD,
+	DRM_V3D_PARAM_SUPPORTS_CACHE_FLUSH,
 };
 
 struct drm_v3d_get_param {
