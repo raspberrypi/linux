@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 #include <linux/sched/signal.h>
 #include <linux/swait.h>
+#include <linux/suspend.h>
 
 void __init_swait_queue_head(struct swait_queue_head *q, const char *name,
 			     struct lock_class_key *key)
@@ -30,6 +31,25 @@ void swake_up_locked(struct swait_queue_head *q)
 }
 EXPORT_SYMBOL(swake_up_locked);
 
+void swake_up_all_locked(struct swait_queue_head *q)
+{
+	struct swait_queue *curr;
+	int wakes = 0;
+
+	while (!list_empty(&q->task_list)) {
+
+		curr = list_first_entry(&q->task_list, typeof(*curr),
+					task_list);
+		wake_up_process(curr->task);
+		list_del_init(&curr->task_list);
+		wakes++;
+	}
+	if (pm_in_action)
+		return;
+	WARN(wakes > 2, "complete_all() with %d waiters\n", wakes);
+}
+EXPORT_SYMBOL(swake_up_all_locked);
+
 void swake_up(struct swait_queue_head *q)
 {
 	unsigned long flags;
@@ -49,6 +69,7 @@ void swake_up_all(struct swait_queue_head *q)
 	struct swait_queue *curr;
 	LIST_HEAD(tmp);
 
+	WARN_ON(irqs_disabled());
 	raw_spin_lock_irq(&q->lock);
 	list_splice_init(&q->task_list, &tmp);
 	while (!list_empty(&tmp)) {

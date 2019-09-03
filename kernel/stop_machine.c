@@ -503,6 +503,8 @@ repeat:
 		struct cpu_stop_done *done = work->done;
 		int ret;
 
+		/* XXX */
+
 		/* cpu stop callbacks must not sleep, make in_atomic() == T */
 		preempt_count_inc();
 		ret = fn(arg);

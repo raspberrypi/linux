@@ -1,0 +1,532 @@
+patching file Documentation/trace/events.txt
+patching file Documentation/trace/ftrace.txt
+patching file Documentation/trace/histogram.txt
+patching file arch/Kconfig
+patching file arch/alpha/include/asm/spinlock_types.h
+patching file arch/arm/Kconfig
+patching file arch/arm/include/asm/irq.h
+patching file arch/arm/include/asm/spinlock_types.h
+patching file arch/arm/include/asm/switch_to.h
+patching file arch/arm/include/asm/thread_info.h
+patching file arch/arm/kernel/asm-offsets.c
+patching file arch/arm/kernel/entry-armv.S
+patching file arch/arm/kernel/entry-common.S
+patching file arch/arm/kernel/process.c
+patching file arch/arm/kernel/signal.c
+patching file arch/arm/kernel/smp.c
+patching file arch/arm/mach-exynos/platsmp.c
+patching file arch/arm/mach-hisi/platmcpm.c
+patching file arch/arm/mach-omap2/omap-smp.c
+patching file arch/arm/mach-prima2/platsmp.c
+patching file arch/arm/mach-qcom/platsmp.c
+patching file arch/arm/mach-spear/platsmp.c
+patching file arch/arm/mach-sti/platsmp.c
+patching file arch/arm/mm/fault.c
+patching file arch/arm/mm/highmem.c
+patching file arch/arm/plat-versatile/platsmp.c
+patching file arch/arm64/Kconfig
+patching file arch/arm64/crypto/Kconfig
+patching file arch/arm64/crypto/crc32-ce-glue.c
+patching file arch/arm64/include/asm/spinlock_types.h
+patching file arch/arm64/include/asm/thread_info.h
+patching file arch/arm64/kernel/asm-offsets.c
+patching file arch/arm64/kernel/entry.S
+patching file arch/arm64/kernel/fpsimd.c
+patching file arch/arm64/kernel/signal.c
+patching file arch/blackfin/include/asm/spinlock_types.h
+patching file arch/hexagon/include/asm/spinlock_types.h
+patching file arch/ia64/include/asm/spinlock_types.h
+patching file arch/ia64/kernel/mca.c
+patching file arch/m32r/include/asm/spinlock_types.h
+patching file arch/metag/include/asm/spinlock_types.h
+patching file arch/mips/Kconfig
+patching file arch/mips/include/asm/switch_to.h
+patching file arch/mips/kernel/mips-mt-fpaff.c
+patching file arch/mips/kernel/traps.c
+patching file arch/mn10300/include/asm/spinlock_types.h
+patching file arch/powerpc/Kconfig
+patching file arch/powerpc/include/asm/spinlock_types.h
+patching file arch/powerpc/include/asm/thread_info.h
+patching file arch/powerpc/kernel/asm-offsets.c
+patching file arch/powerpc/kernel/entry_32.S
+patching file arch/powerpc/kernel/entry_64.S
+patching file arch/powerpc/kernel/irq.c
+patching file arch/powerpc/kernel/misc_32.S
+patching file arch/powerpc/kernel/misc_64.S
+patching file arch/powerpc/kvm/Kconfig
+patching file arch/powerpc/platforms/cell/spufs/sched.c
+patching file arch/powerpc/platforms/ps3/device-init.c
+patching file arch/powerpc/platforms/pseries/iommu.c
+patching file arch/s390/include/asm/spinlock_types.h
+patching file arch/sh/include/asm/spinlock_types.h
+patching file arch/sh/kernel/irq.c
+patching file arch/sparc/Kconfig
+patching file arch/sparc/kernel/irq_64.c
+patching file arch/tile/include/asm/setup.h
+patching file arch/tile/include/asm/spinlock_types.h
+patching file arch/tile/kernel/hardwall.c
+patching file arch/x86/Kconfig
+patching file arch/x86/crypto/aesni-intel_glue.c
+patching file arch/x86/crypto/camellia_aesni_avx2_glue.c
+patching file arch/x86/crypto/camellia_aesni_avx_glue.c
+patching file arch/x86/crypto/cast5_avx_glue.c
+patching file arch/x86/crypto/cast6_avx_glue.c
+patching file arch/x86/crypto/chacha20_glue.c
+patching file arch/x86/crypto/glue_helper.c
+patching file arch/x86/crypto/serpent_avx2_glue.c
+patching file arch/x86/crypto/serpent_avx_glue.c
+patching file arch/x86/crypto/serpent_sse2_glue.c
+patching file arch/x86/crypto/twofish_avx_glue.c
+patching file arch/x86/entry/common.c
+patching file arch/x86/entry/entry_32.S
+patching file arch/x86/entry/entry_64.S
+patching file arch/x86/include/asm/fpu/api.h
+patching file arch/x86/include/asm/preempt.h
+patching file arch/x86/include/asm/signal.h
+patching file arch/x86/include/asm/stackprotector.h
+patching file arch/x86/include/asm/thread_info.h
+patching file arch/x86/kernel/apic/io_apic.c
+patching file arch/x86/kernel/asm-offsets.c
+patching file arch/x86/kernel/cpu/mcheck/dev-mcelog.c
+patching file arch/x86/kernel/cpu/mcheck/mce.c
+patching file arch/x86/kernel/fpu/core.c
+patching file arch/x86/kernel/fpu/signal.c
+patching file arch/x86/kernel/irq_32.c
+patching file arch/x86/kernel/process_32.c
+patching file arch/x86/kvm/lapic.c
+patching file arch/x86/kvm/x86.c
+patching file arch/x86/mm/highmem_32.c
+patching file arch/x86/mm/iomap_32.c
+patching file arch/x86/mm/pageattr.c
+patching file arch/xtensa/include/asm/spinlock_types.h
+patching file block/blk-core.c
+patching file block/blk-ioc.c
+patching file block/blk-mq.c
+patching file block/blk-mq.h
+patching file block/blk-softirq.c
+patching file block/bounce.c
+patching file crypto/algapi.c
+patching file crypto/api.c
+patching file crypto/cryptd.c
+patching file crypto/internal.h
+patching file crypto/scompress.c
+patching file drivers/acpi/acpica/acglobal.h
+patching file drivers/acpi/acpica/hwregs.c
+patching file drivers/acpi/acpica/hwxface.c
+patching file drivers/acpi/acpica/utmutex.c
+patching file drivers/ata/libata-sff.c
+patching file drivers/base/power/wakeup.c
+patching file drivers/block/brd.c
+patching file drivers/block/zram/zcomp.c
+patching file drivers/block/zram/zcomp.h
+patching file drivers/block/zram/zram_drv.c
+Hunk #1 succeeded at 763 (offset -1 lines).
+Hunk #2 succeeded at 796 (offset -1 lines).
+Hunk #3 succeeded at 826 (offset -1 lines).
+Hunk #4 succeeded at 878 (offset -1 lines).
+Hunk #5 succeeded at 913 (offset -1 lines).
+Hunk #6 succeeded at 921 (offset -1 lines).
+patching file drivers/block/zram/zram_drv.h
+patching file drivers/char/random.c
+patching file drivers/char/tpm/tpm_tis.c
+patching file drivers/clocksource/tcb_clksrc.c
+patching file drivers/clocksource/timer-atmel-pit.c
+patching file drivers/clocksource/timer-atmel-st.c
+patching file drivers/connector/cn_proc.c
+patching file drivers/cpufreq/Kconfig.x86
+patching file drivers/firmware/efi/efi.c
+patching file drivers/gpu/drm/i915/i915_gem_timeline.c
+patching file drivers/gpu/drm/i915/i915_irq.c
+patching file drivers/gpu/drm/i915/i915_trace.h
+patching file drivers/gpu/drm/i915/intel_sprite.c
+patching file drivers/gpu/drm/radeon/radeon_display.c
+patching file drivers/hv/hyperv_vmbus.h
+patching file drivers/hv/vmbus_drv.c
+patching file drivers/ide/alim15x3.c
+patching file drivers/ide/hpt366.c
+patching file drivers/ide/ide-io-std.c
+patching file drivers/ide/ide-io.c
+patching file drivers/ide/ide-iops.c
+patching file drivers/ide/ide-probe.c
+patching file drivers/ide/ide-taskfile.c
+patching file drivers/infiniband/hw/hfi1/affinity.c
+patching file drivers/infiniband/hw/hfi1/sdma.c
+patching file drivers/infiniband/hw/qib/qib_file_ops.c
+patching file drivers/infiniband/ulp/ipoib/ipoib_multicast.c
+patching file drivers/input/gameport/gameport.c
+patching file drivers/iommu/amd_iommu.c
+patching file drivers/iommu/amd_iommu_init.c
+patching file drivers/iommu/amd_iommu_types.h
+patching file drivers/iommu/iova.c
+patching file drivers/irqchip/irq-gic-v3-its.c
+patching file drivers/leds/trigger/Kconfig
+patching file drivers/md/bcache/Kconfig
+patching file drivers/md/dm-rq.c
+patching file drivers/md/raid5.c
+patching file drivers/md/raid5.h
+patching file drivers/mfd/atmel-smc.c
+patching file drivers/misc/Kconfig
+Hunk #1 succeeded at 62 (offset 8 lines).
+Hunk #2 succeeded at 78 (offset 8 lines).
+Hunk #3 succeeded at 92 (offset 8 lines).
+patching file drivers/mmc/host/mmci.c
+patching file drivers/net/ethernet/3com/3c59x.c
+patching file drivers/net/ethernet/marvell/mvpp2.c
+patching file drivers/net/wireless/intersil/orinoco/orinoco_usb.c
+patching file drivers/net/wireless/mac80211_hwsim.c
+patching file drivers/pci/switch/switchtec.c
+patching file drivers/scsi/fcoe/fcoe.c
+patching file drivers/scsi/fcoe/fcoe_ctlr.c
+patching file drivers/scsi/libfc/fc_exch.c
+patching file drivers/scsi/libsas/sas_ata.c
+patching file drivers/scsi/qla2xxx/qla_inline.h
+patching file drivers/staging/greybus/audio_manager.c
+patching file drivers/target/target_core_tmr.c
+patching file drivers/target/target_core_transport.c
+patching file drivers/thermal/x86_pkg_temp_thermal.c
+patching file drivers/tty/serial/8250/8250_core.c
+patching file drivers/tty/serial/8250/8250_port.c
+patching file drivers/tty/serial/amba-pl011.c
+Hunk #1 succeeded at 2251 (offset 20 lines).
+Hunk #2 succeeded at 2294 (offset 20 lines).
+patching file drivers/tty/serial/omap-serial.c
+patching file drivers/tty/sysrq.c
+patching file drivers/usb/core/hcd.c
+patching file drivers/usb/gadget/function/f_fs.c
+patching file drivers/usb/gadget/function/f_ncm.c
+patching file drivers/usb/gadget/legacy/inode.c
+patching file fs/aio.c
+patching file fs/autofs4/autofs_i.h
+patching file fs/autofs4/expire.c
+patching file fs/buffer.c
+patching file fs/cifs/readdir.c
+patching file fs/dcache.c
+patching file fs/eventpoll.c
+patching file fs/exec.c
+patching file fs/ext4/page-io.c
+patching file fs/fuse/dir.c
+patching file fs/inode.c
+patching file fs/libfs.c
+patching file fs/locks.c
+patching file fs/namei.c
+patching file fs/namespace.c
+patching file fs/nfs/delegation.c
+patching file fs/nfs/dir.c
+patching file fs/nfs/inode.c
+patching file fs/nfs/nfs4_fs.h
+patching file fs/nfs/nfs4proc.c
+patching file fs/nfs/nfs4state.c
+patching file fs/nfs/unlink.c
+patching file fs/ntfs/aops.c
+patching file fs/proc/array.c
+patching file fs/proc/base.c
+patching file fs/proc/proc_sysctl.c
+patching file fs/squashfs/decompressor_multi_percpu.c
+patching file fs/timerfd.c
+patching file fs/xfs/xfs_aops.c
+patching file include/acpi/platform/aclinux.h
+patching file include/asm-generic/bug.h
+patching file include/linux/blk-mq.h
+patching file include/linux/blkdev.h
+patching file include/linux/bottom_half.h
+patching file include/linux/buffer_head.h
+patching file include/linux/cgroup-defs.h
+patching file include/linux/completion.h
+patching file include/linux/cpu.h
+patching file include/linux/dcache.h
+patching file include/linux/delay.h
+patching file include/linux/fs.h
+patching file include/linux/highmem.h
+patching file include/linux/hrtimer.h
+patching file include/linux/idr.h
+patching file include/linux/init_task.h
+patching file include/linux/interrupt.h
+patching file include/linux/irq.h
+patching file include/linux/irq_work.h
+patching file include/linux/irqchip/arm-gic-v3.h
+patching file include/linux/irqdesc.h
+patching file include/linux/irqflags.h
+patching file include/linux/jbd2.h
+patching file include/linux/kdb.h
+patching file include/linux/kernel.h
+patching file include/linux/kthread.h
+patching file include/linux/list_bl.h
+patching file include/linux/locallock.h
+patching file include/linux/mm_types.h
+patching file include/linux/mutex.h
+patching file include/linux/mutex_rt.h
+patching file include/linux/netdevice.h
+patching file include/linux/netfilter/x_tables.h
+patching file include/linux/nfs_fs.h
+patching file include/linux/nfs_xdr.h
+patching file include/linux/notifier.h
+patching file include/linux/percpu-rwsem.h
+patching file include/linux/percpu.h
+patching file include/linux/pid.h
+patching file include/linux/posix-timers.h
+patching file include/linux/preempt.h
+patching file include/linux/printk.h
+patching file include/linux/radix-tree.h
+patching file include/linux/random.h
+patching file include/linux/rbtree.h
+patching file include/linux/rbtree_augmented.h
+patching file include/linux/rbtree_latch.h
+patching file include/linux/rcu_assign_pointer.h
+patching file include/linux/rcupdate.h
+patching file include/linux/rcutree.h
+patching file include/linux/ring_buffer.h
+patching file include/linux/rtmutex.h
+patching file include/linux/rwlock_rt.h
+patching file include/linux/rwlock_types.h
+patching file include/linux/rwlock_types_rt.h
+patching file include/linux/rwsem.h
+patching file include/linux/rwsem_rt.h
+patching file include/linux/sched.h
+patching file include/linux/sched/mm.h
+patching file include/linux/sched/task.h
+patching file include/linux/sched/wake_q.h
+patching file include/linux/seqlock.h
+patching file include/linux/signal.h
+patching file include/linux/skbuff.h
+patching file include/linux/smp.h
+patching file include/linux/spinlock.h
+patching file include/linux/spinlock_api_smp.h
+patching file include/linux/spinlock_rt.h
+patching file include/linux/spinlock_types.h
+patching file include/linux/spinlock_types_nort.h
+patching file include/linux/spinlock_types_raw.h
+patching file include/linux/spinlock_types_rt.h
+patching file include/linux/spinlock_types_up.h
+patching file include/linux/srcutiny.h
+patching file include/linux/srcutree.h
+patching file include/linux/suspend.h
+patching file include/linux/swait.h
+patching file include/linux/swap.h
+patching file include/linux/swork.h
+patching file include/linux/thread_info.h
+patching file include/linux/timer.h
+patching file include/linux/trace_events.h
+patching file include/linux/uaccess.h
+patching file include/linux/vmstat.h
+patching file include/linux/wait.h
+patching file include/net/gen_stats.h
+patching file include/net/neighbour.h
+patching file include/net/net_seq_lock.h
+patching file include/net/sch_generic.h
+patching file include/net/xfrm.h
+patching file include/trace/events/timer.h
+patching file init/Kconfig
+patching file init/Makefile
+patching file init/main.c
+patching file kernel/Kconfig.locks
+patching file kernel/Kconfig.preempt
+patching file kernel/cgroup/cgroup.c
+Hunk #3 succeeded at 5292 (offset 8 lines).
+patching file kernel/cgroup/cpuset.c
+patching file kernel/cpu.c
+patching file kernel/debug/kdb/kdb_io.c
+patching file kernel/events/core.c
+patching file kernel/exit.c
+patching file kernel/fork.c
+patching file kernel/futex.c
+patching file kernel/irq/handle.c
+patching file kernel/irq/manage.c
+patching file kernel/irq/settings.h
+patching file kernel/irq/spurious.c
+patching file kernel/irq_work.c
+patching file kernel/ksysfs.c
+patching file kernel/kthread.c
+patching file kernel/locking/Makefile
+patching file kernel/locking/lockdep.c
+patching file kernel/locking/locktorture.c
+patching file kernel/locking/mutex-rt.c
+patching file kernel/locking/rtmutex.c
+patching file kernel/locking/rtmutex_common.h
+patching file kernel/locking/rwlock-rt.c
+patching file kernel/locking/rwsem-rt.c
+patching file kernel/locking/spinlock.c
+patching file kernel/locking/spinlock_debug.c
+patching file kernel/panic.c
+patching file kernel/power/hibernate.c
+patching file kernel/power/suspend.c
+patching file kernel/printk/printk.c
+patching file kernel/printk/printk_safe.c
+patching file kernel/ptrace.c
+patching file kernel/rcu/Kconfig
+patching file kernel/rcu/rcu.h
+patching file kernel/rcu/rcu_segcblist.c
+patching file kernel/rcu/rcutorture.c
+patching file kernel/rcu/srcutree.c
+patching file kernel/rcu/tree.c
+patching file kernel/rcu/tree.h
+patching file kernel/rcu/tree_plugin.h
+patching file kernel/rcu/update.c
+patching file kernel/sched/Makefile
+patching file kernel/sched/completion.c
+patching file kernel/sched/core.c
+patching file kernel/sched/cpudeadline.c
+patching file kernel/sched/cpupri.c
+patching file kernel/sched/deadline.c
+Hunk #1 succeeded at 504 (offset 1 line).
+Hunk #2 succeeded at 1020 (offset 1 line).
+Hunk #3 succeeded at 1753 (offset 1 line).
+Hunk #4 succeeded at 1903 (offset 1 line).
+patching file kernel/sched/debug.c
+patching file kernel/sched/fair.c
+Hunk #3 succeeded at 3841 (offset -4 lines).
+Hunk #4 succeeded at 3865 (offset -4 lines).
+Hunk #5 succeeded at 4007 (offset -4 lines).
+Hunk #6 succeeded at 4191 (offset -4 lines).
+Hunk #7 succeeded at 4378 (offset -4 lines).
+Hunk #8 succeeded at 4395 (offset -4 lines).
+Hunk #9 succeeded at 4411 (offset -4 lines).
+Hunk #10 succeeded at 4453 (offset -4 lines).
+Hunk #11 succeeded at 4566 (offset -4 lines).
+Hunk #12 succeeded at 4588 (offset -4 lines).
+Hunk #13 succeeded at 4679 (offset -4 lines).
+Hunk #14 succeeded at 4712 (offset -4 lines).
+Hunk #15 succeeded at 4883 (offset -4 lines).
+Hunk #16 succeeded at 5521 (offset -4 lines).
+Hunk #17 succeeded at 5641 (offset -4 lines).
+Hunk #18 succeeded at 5745 (offset -4 lines).
+Hunk #19 succeeded at 5779 (offset -4 lines).
+Hunk #20 succeeded at 5842 (offset -4 lines).
+Hunk #21 succeeded at 5997 (offset -4 lines).
+Hunk #22 succeeded at 6278 (offset -4 lines).
+Hunk #23 succeeded at 6746 (offset -4 lines).
+Hunk #24 succeeded at 6773 (offset -4 lines).
+Hunk #25 succeeded at 7318 (offset -4 lines).
+Hunk #26 succeeded at 7894 (offset -4 lines).
+Hunk #27 succeeded at 8286 (offset -4 lines).
+Hunk #28 succeeded at 9108 (offset -4 lines).
+Hunk #29 succeeded at 9132 (offset -4 lines).
+patching file kernel/sched/features.h
+patching file kernel/sched/rt.c
+patching file kernel/sched/sched.h
+patching file kernel/sched/swait.c
+patching file kernel/sched/swork.c
+patching file kernel/sched/topology.c
+patching file kernel/signal.c
+patching file kernel/softirq.c
+patching file kernel/stop_machine.c
+patching file kernel/time/alarmtimer.c
+patching file kernel/time/hrtimer.c
+patching file kernel/time/itimer.c
+patching file kernel/time/jiffies.c
+patching file kernel/time/posix-cpu-timers.c
+patching file kernel/time/posix-timers.c
+patching file kernel/time/tick-broadcast-hrtimer.c
+patching file kernel/time/tick-common.c
+patching file kernel/time/tick-internal.h
+patching file kernel/time/tick-sched.c
+patching file kernel/time/timekeeping.c
+patching file kernel/time/timekeeping.h
+patching file kernel/time/timer.c
+patching file kernel/trace/Kconfig
+patching file kernel/trace/ring_buffer.c
+patching file kernel/trace/trace.c
+Hunk #1 succeeded at 1170 (offset -3 lines).
+Hunk #2 succeeded at 2135 (offset -3 lines).
+Hunk #3 succeeded at 2146 (offset -3 lines).
+Hunk #4 succeeded at 2287 (offset -3 lines).
+Hunk #5 succeeded at 3354 (offset -3 lines).
+Hunk #6 succeeded at 3402 (offset -3 lines).
+Hunk #7 succeeded at 4552 (offset -3 lines).
+Hunk #8 succeeded at 4731 (offset -3 lines).
+Hunk #9 succeeded at 6242 (offset -3 lines).
+Hunk #10 succeeded at 6322 (offset -3 lines).
+Hunk #11 succeeded at 6634 (offset -3 lines).
+Hunk #12 succeeded at 7780 (offset -3 lines).
+Hunk #13 succeeded at 7813 (offset -3 lines).
+Hunk #14 succeeded at 7837 (offset -3 lines).
+Hunk #15 succeeded at 7849 (offset -3 lines).
+Hunk #16 succeeded at 7862 (offset -3 lines).
+Hunk #17 succeeded at 7908 (offset -3 lines).
+Hunk #18 succeeded at 7966 (offset -3 lines).
+Hunk #19 succeeded at 8380 (offset -3 lines).
+Hunk #20 succeeded at 8566 (offset -3 lines).
+patching file kernel/trace/trace.h
+patching file kernel/trace/trace_events.c
+patching file kernel/trace/trace_events_hist.c
+patching file kernel/trace/trace_events_trigger.c
+patching file kernel/trace/trace_hwlat.c
+patching file kernel/trace/trace_kprobe.c
+patching file kernel/trace/trace_output.c
+patching file kernel/trace/trace_probe.c
+patching file kernel/trace/trace_probe.h
+patching file kernel/trace/trace_uprobe.c
+patching file kernel/trace/tracing_map.c
+patching file kernel/trace/tracing_map.h
+patching file kernel/user.c
+patching file kernel/watchdog.c
+patching file kernel/watchdog_hld.c
+patching file kernel/workqueue.c
+patching file kernel/workqueue_internal.h
+patching file lib/Kconfig
+patching file lib/Kconfig.debug
+patching file lib/debugobjects.c
+patching file lib/irq_poll.c
+patching file lib/locking-selftest.c
+patching file lib/percpu_ida.c
+patching file lib/radix-tree.c
+patching file lib/scatterlist.c
+patching file lib/smp_processor_id.c
+patching file lib/timerqueue.c
+patching file localversion-rt
+patching file mm/Kconfig
+patching file mm/backing-dev.c
+patching file mm/compaction.c
+patching file mm/filemap.c
+patching file mm/highmem.c
+patching file mm/kasan/quarantine.c
+patching file mm/kmemleak.c
+patching file mm/memcontrol.c
+patching file mm/mmu_context.c
+patching file mm/page_alloc.c
+Hunk #22 succeeded at 7739 (offset -2 lines).
+Hunk #23 succeeded at 7748 (offset -2 lines).
+patching file mm/slab.h
+patching file mm/slub.c
+patching file mm/swap.c
+patching file mm/truncate.c
+patching file mm/vmalloc.c
+patching file mm/vmstat.c
+patching file mm/workingset.c
+patching file mm/zsmalloc.c
+patching file net/9p/trans_xen.c
+patching file net/Kconfig
+patching file net/bluetooth/hci_sock.c
+patching file net/can/bcm.c
+patching file net/core/dev.c
+patching file net/core/filter.c
+patching file net/core/gen_estimator.c
+patching file net/core/gen_stats.c
+patching file net/core/pktgen.c
+patching file net/core/skbuff.c
+patching file net/core/sock.c
+patching file net/ipv4/icmp.c
+patching file net/ipv4/tcp_ipv4.c
+patching file net/mac80211/rx.c
+patching file net/netfilter/core.c
+patching file net/packet/af_packet.c
+patching file net/rds/ib_rdma.c
+patching file net/rxrpc/security.c
+patching file net/sched/sch_api.c
+patching file net/sched/sch_generic.c
+patching file net/sunrpc/svc_xprt.c
+patching file net/xfrm/xfrm_state.c
+patching file samples/trace_events/trace-events-sample.c
+patching file scripts/mkcompile_h
+patching file security/apparmor/include/path.h
+patching file security/apparmor/lsm.c
+patching file sound/core/pcm_native.c
+patching file sound/drivers/dummy.c
+patching file tools/testing/selftests/ftrace/test.d/functions
+patching file tools/testing/selftests/ftrace/test.d/trigger/inter-event/trigger-extended-error-support.tc
+patching file tools/testing/selftests/ftrace/test.d/trigger/inter-event/trigger-field-variable-support.tc
+patching file tools/testing/selftests/ftrace/test.d/trigger/inter-event/trigger-inter-event-combined-hist.tc
+patching file tools/testing/selftests/ftrace/test.d/trigger/inter-event/trigger-onmatch-action-hist.tc
+patching file tools/testing/selftests/ftrace/test.d/trigger/inter-event/trigger-onmatch-onmax-action-hist.tc
+patching file tools/testing/selftests/ftrace/test.d/trigger/inter-event/trigger-onmax-action-hist.tc
+patching file tools/testing/selftests/ftrace/test.d/trigger/inter-event/trigger-synthetic-event-createremove.tc
+patching file virt/kvm/arm/arm.c

@@ -148,7 +148,7 @@ again:
 			parent = p->d_parent;
 			if (!spin_trylock(&parent->d_lock)) {
 				spin_unlock(&p->d_lock);
-				cpu_relax();
+				cpu_chill();
 				goto relock;
 			}
 			spin_unlock(&p->d_lock);

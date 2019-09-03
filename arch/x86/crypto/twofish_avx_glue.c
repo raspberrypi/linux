@@ -218,6 +218,21 @@ struct crypt_priv {
 	bool fpu_enabled;
 };
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+static void twofish_fpu_end_rt(struct crypt_priv *ctx)
+{
+	bool fpu_enabled = ctx->fpu_enabled;
+
+	if (!fpu_enabled)
+		return;
+	twofish_fpu_end(fpu_enabled);
+	ctx->fpu_enabled = false;
+}
+
+#else
+static void twofish_fpu_end_rt(struct crypt_priv *ctx) { }
+#endif
+
 static void encrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 {
 	const unsigned int bsize = TF_BLOCK_SIZE;
@@ -228,12 +243,16 @@ static void encrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 
 	if (nbytes == bsize * TWOFISH_PARALLEL_BLOCKS) {
 		twofish_ecb_enc_8way(ctx->ctx, srcdst, srcdst);
+		twofish_fpu_end_rt(ctx);
 		return;
 	}
 
-	for (i = 0; i < nbytes / (bsize * 3); i++, srcdst += bsize * 3)
+	for (i = 0; i < nbytes / (bsize * 3); i++, srcdst += bsize * 3) {
+		kernel_fpu_resched();
 		twofish_enc_blk_3way(ctx->ctx, srcdst, srcdst);
+	}
 
+	twofish_fpu_end_rt(ctx);
 	nbytes %= bsize * 3;
 
 	for (i = 0; i < nbytes / bsize; i++, srcdst += bsize)
@@ -250,11 +269,15 @@ static void decrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 
 	if (nbytes == bsize * TWOFISH_PARALLEL_BLOCKS) {
 		twofish_ecb_dec_8way(ctx->ctx, srcdst, srcdst);
+		twofish_fpu_end_rt(ctx);
 		return;
 	}
 
-	for (i = 0; i < nbytes / (bsize * 3); i++, srcdst += bsize * 3)
+	for (i = 0; i < nbytes / (bsize * 3); i++, srcdst += bsize * 3) {
+		kernel_fpu_resched();
 		twofish_dec_blk_3way(ctx->ctx, srcdst, srcdst);
+	}
+	twofish_fpu_end_rt(ctx);
 
 	nbytes %= bsize * 3;
 

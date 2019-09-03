@@ -1,3 +1,16 @@
+config PREEMPT
+	bool
+	select PREEMPT_COUNT
+
+config PREEMPT_RT_BASE
+	bool
+	select PREEMPT
+
+config HAVE_PREEMPT_LAZY
+	bool
+
+config PREEMPT_LAZY
+	def_bool y if HAVE_PREEMPT_LAZY && PREEMPT_RT_FULL
 
 choice
 	prompt "Preemption Model"
@@ -33,9 +46,9 @@ config PREEMPT_VOLUNTARY
 
 	  Select this if you are building a kernel for a desktop system.
 
-config PREEMPT
+config PREEMPT__LL
 	bool "Preemptible Kernel (Low-Latency Desktop)"
-	select PREEMPT_COUNT
+	select PREEMPT
 	select UNINLINE_SPIN_UNLOCK if !ARCH_INLINE_SPIN_UNLOCK
 	help
 	  This option reduces the latency of the kernel by making
@@ -51,6 +64,22 @@ config PREEMPT
 	  Select this if you are building a kernel for a desktop or
 	  embedded system with latency requirements in the milliseconds
 	  range.
+
+config PREEMPT_RTB
+	bool "Preemptible Kernel (Basic RT)"
+	select PREEMPT_RT_BASE
+	help
+	  This option is basically the same as (Low-Latency Desktop) but
+	  enables changes which are preliminary for the full preemptible
+	  RT kernel.
+
+config PREEMPT_RT_FULL
+	bool "Fully Preemptible Kernel (RT)"
+	depends on IRQ_FORCED_THREADING
+	select PREEMPT_RT_BASE
+	select PREEMPT_RCU
+	help
+	  All and everything
 
 endchoice
 
