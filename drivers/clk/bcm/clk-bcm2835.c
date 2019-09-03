@@ -1764,16 +1764,12 @@ static const struct bcm2835_clk_desc clk_desc_array[] = {
 		.hold_mask = CM_PLLA_HOLDCORE,
 		.fixed_divider = 1,
 		.flags = CLK_SET_RATE_PARENT),
-	[BCM2835_PLLA_PER]	= REGISTER_PLL_DIV(
-		SOC_ALL,
-		.name = "plla_per",
-		.source_pll = "plla",
-		.cm_reg = CM_PLLA,
-		.a2w_reg = A2W_PLLA_PER,
-		.load_mask = CM_PLLA_LOADPER,
-		.hold_mask = CM_PLLA_HOLDPER,
-		.fixed_divider = 1,
-		.flags = CLK_SET_RATE_PARENT),
+
+	/*
+	 * PLLA_PER is used for gpu clocks. Controlled by firmware, see
+	 * clk-raspberrypi.c.
+	 */
+
 	[BCM2835_PLLA_DSI0]	= REGISTER_PLL_DIV(
 		SOC_ALL,
 		.name = "plla_dsi0",
@@ -2074,14 +2070,12 @@ static const struct bcm2835_clk_desc clk_desc_array[] = {
 		.int_bits = 6,
 		.frac_bits = 0,
 		.tcnt_mux = 3),
-	[BCM2835_CLOCK_V3D]	= REGISTER_VPU_CLK(
-		SOC_ALL,
-		.name = "v3d",
-		.ctl_reg = CM_V3DCTL,
-		.div_reg = CM_V3DDIV,
-		.int_bits = 4,
-		.frac_bits = 8,
-		.tcnt_mux = 4),
+
+	/*
+	 * CLOCK_V3D is used for v3d clock. Controlled by firmware, see
+	 * clk-raspberrypi.c.
+	 */
+
 	/*
 	 * VPU clock.  This doesn't have an enable bit, since it drives
 	 * the bus for everything else, and is special so it doesn't need
@@ -2243,21 +2237,6 @@ static const struct bcm2835_clk_desc clk_desc_array[] = {
 		.frac_bits = 12,
 		.tcnt_mux = 28,
 		.round_up = true),
-
-	/* TV encoder clock.  Only operating frequency is 108Mhz.  */
-	[BCM2835_CLOCK_VEC]	= REGISTER_PER_CLK(
-		SOC_ALL,
-		.name = "vec",
-		.ctl_reg = CM_VECCTL,
-		.div_reg = CM_VECDIV,
-		.int_bits = 4,
-		.frac_bits = 0,
-		/*
-		 * Allow rate change propagation only on PLLH_AUX which is
-		 * assigned index 7 in the parent array.
-		 */
-		.set_rate_parent = BIT(7),
-		.tcnt_mux = 29),
 
 	/* dsi clocks */
 	[BCM2835_CLOCK_DSI0E]	= REGISTER_PER_CLK(
