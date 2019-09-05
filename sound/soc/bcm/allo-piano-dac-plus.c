@@ -867,19 +867,22 @@ static struct snd_soc_dai_link_component allo_piano_2_1_codecs[] = {
 	},
 };
 
+SND_SOC_DAILINK_DEFS(allo_piano_dai_plus,
+	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
+	DAILINK_COMP_ARRAY(COMP_CODEC(NULL, "pcm512x-hifi"),
+			   COMP_CODEC(NULL, "pcm512x-hifi")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("bcm2708-i2s.0")));
+
 static struct snd_soc_dai_link snd_allo_piano_dac_dai[] = {
 	{
 		.name		= "PianoDACPlus",
 		.stream_name	= "PianoDACPlus",
-		.cpu_dai_name	= "bcm2708-i2s.0",
-		.platform_name	= "bcm2708-i2s.0",
-		.codecs		= allo_piano_2_1_codecs,
-		.num_codecs	= 2,
 		.dai_fmt	= SND_SOC_DAIFMT_I2S |
 				SND_SOC_DAIFMT_NB_NF |
 				SND_SOC_DAIFMT_CBS_CFS,
 		.ops		= &snd_allo_piano_dac_ops,
 		.init		= snd_allo_piano_dac_init,
+		SND_SOC_DAILINK_REG(allo_piano_dai_plus),
 	},
 };
 
@@ -910,10 +913,10 @@ static int snd_allo_piano_dac_probe(struct platform_device *pdev)
 						"i2s-controller", 0);
 		if (i2s_node) {
 			for (i = 0; i < card->num_links; i++) {
-				dai->cpu_dai_name = NULL;
-				dai->cpu_of_node = i2s_node;
-				dai->platform_name = NULL;
-				dai->platform_of_node = i2s_node;
+				dai->cpus->dai_name = NULL;
+				dai->cpus->of_node = i2s_node;
+				dai->platforms->name = NULL;
+				dai->platforms->of_node = i2s_node;
 			}
 		}
 		digital_gain_0db_limit =
