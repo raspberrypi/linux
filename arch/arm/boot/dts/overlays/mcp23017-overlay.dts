@@ -16,7 +16,7 @@
 	fragment@1 {
 		target = <&gpio>;
 		__overlay__ {
-			mcp23017_pins: mcp23017_pins {
+			mcp23017_pins: mcp23017_pins@20 {
 				brcm,pins = <4>;
 				brcm,function = <0>;
 			};
@@ -55,7 +55,7 @@
 	__overrides__ {
 		gpiopin = <&mcp23017_pins>,"brcm,pins:0",
 				<&mcp23017>,"interrupts:0";
-		addr = <&mcp23017>,"reg:0";
+		addr = <&mcp23017>,"reg:0", <&mcp23017_pins>,"reg:0";
 		mcp23008 = <0>,"=3";
 	};
 };
