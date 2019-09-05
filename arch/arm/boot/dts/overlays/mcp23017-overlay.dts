@@ -34,11 +34,6 @@
 				reg = <0x20>;
 				gpio-controller;
 				#gpio-cells = <2>;
-				#interrupt-cells=<2>;
-				interrupt-parent = <&gpio>;
-				interrupts = <4 2>;
-				interrupt-controller;
-				microchip,irq-mirror;
 
 				status = "okay";
 			};
@@ -52,11 +47,25 @@
 		};
 	};
 
+	fragment@4 {
+		target = <&i2c1>;
+		__overlay__ {
+			mcp23017_irq: mcp@20 {
+				#interrupt-cells=<2>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 2>;
+				interrupt-controller;
+				microchip,irq-mirror;
+			};
+		};
+	};
+
 	__overrides__ {
 		gpiopin = <&mcp23017_pins>,"brcm,pins:0",
-				<&mcp23017>,"interrupts:0";
+				<&mcp23017_irq>,"interrupts:0";
 		addr = <&mcp23017>,"reg:0", <&mcp23017_pins>,"reg:0";
 		mcp23008 = <0>,"=3";
+		noints = <0>,"!1!4";
 	};
 };
 
