@@ -84,17 +84,19 @@ static int audioinjector_pi_soundcard_dai_init(struct snd_soc_pcm_runtime *rtd)
 	return snd_soc_dai_set_sysclk(rtd->codec_dai, WM8731_SYSCLK_XTAL, 12000000, SND_SOC_CLOCK_IN);
 }
 
+SND_SOC_DAILINK_DEFS(audioinjector_pi,
+	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("wm8731.1-001a", "wm8731-hifi")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("bcm2835-i2s.0")));
+
 static struct snd_soc_dai_link audioinjector_pi_soundcard_dai[] = {
 	{
 		.name = "AudioInjector audio",
 		.stream_name = "AudioInjector audio",
-		.cpu_dai_name	= "bcm2708-i2s.0",
-		.codec_dai_name = "wm8731-hifi",
-		.platform_name	= "bcm2835-i2s.0",
-		.codec_name = "wm8731.1-001a",
 		.ops = &snd_audioinjector_pi_soundcard_ops,
 		.init = audioinjector_pi_soundcard_dai_init,
 		.dai_fmt = SND_SOC_DAIFMT_CBM_CFM|SND_SOC_DAIFMT_I2S|SND_SOC_DAIFMT_NB_NF,
+		SND_SOC_DAILINK_REG(audioinjector_pi),
 	},
 };
 
@@ -145,12 +147,12 @@ static int audioinjector_pi_soundcard_probe(struct platform_device *pdev)
 								"i2s-controller", 0);
 
 		if (i2s_node) {
-			dai->cpu_dai_name = NULL;
-			dai->cpu_of_node = i2s_node;
-			dai->platform_name = NULL;
-			dai->platform_of_node = i2s_node;
+			dai->cpus->dai_name = NULL;
+			dai->cpus->of_node = i2s_node;
+			dai->platforms->name = NULL;
+			dai->platforms->of_node = i2s_node;
 		} else
-			if (!dai->cpu_of_node) {
+			if (!dai->cpus->of_node) {
 				dev_err(&pdev->dev, "Property 'i2s-controller' missing or invalid\n");
 				return -EINVAL;
 			}
