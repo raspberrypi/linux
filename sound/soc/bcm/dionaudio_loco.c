@@ -42,18 +42,20 @@ static struct snd_soc_ops snd_rpi_dionaudio_loco_ops = {
 	.hw_params = snd_rpi_dionaudio_loco_hw_params,
 };
 
+SND_SOC_DAILINK_DEFS(dionaudio_loco,
+	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("pcm5102a-codec", "pcm5102a-hifi")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("bcm2708-i2s.0")));
+
 static struct snd_soc_dai_link snd_rpi_dionaudio_loco_dai[] = {
 {
 	.name		= "DionAudio LOCO",
 	.stream_name	= "DionAudio LOCO DAC-AMP",
-	.cpu_dai_name	= "bcm2708-i2s.0",
-	.codec_dai_name	= "pcm5102a-hifi",
-	.platform_name	= "bcm2708-i2s.0",
-	.codec_name	= "pcm5102a-codec",
 	.dai_fmt	= SND_SOC_DAIFMT_I2S |
 			  SND_SOC_DAIFMT_NB_NF |
 			  SND_SOC_DAIFMT_CBS_CFS,
 	.ops		= &snd_rpi_dionaudio_loco_ops,
+	SND_SOC_DAILINK_REG(dionaudio_loco),
 },
 };
 
@@ -78,10 +80,10 @@ static int snd_rpi_dionaudio_loco_probe(struct platform_device *pdev)
 
 		i2s_np = of_parse_phandle(np, "i2s-controller", 0);
 		if (i2s_np) {
-			dai->cpu_dai_name = NULL;
-			dai->cpu_of_node = i2s_np;
-			dai->platform_name = NULL;
-			dai->platform_of_node = i2s_np;
+			dai->cpus->dai_name = NULL;
+			dai->cpus->of_node = i2s_np;
+			dai->platforms->name = NULL;
+			dai->platforms->of_node = i2s_np;
 		}
 	}
 
