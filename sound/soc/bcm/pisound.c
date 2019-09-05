@@ -371,7 +371,7 @@ static int spi_read_bytes(char *dst, size_t length, uint8_t *bytesRead)
 	return 0;
 }
 
-static int spi_device_match(struct device *dev, void *data)
+static int spi_device_match(struct device *dev, const void *data)
 {
 	struct spi_device *spi = container_of(dev, struct spi_device, dev);
 
