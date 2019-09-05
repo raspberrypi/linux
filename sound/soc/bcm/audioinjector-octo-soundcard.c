@@ -198,15 +198,20 @@ static struct snd_soc_ops audioinjector_octo_ops = {
 	.trigger = audioinjector_octo_trigger,
 };
 
+SND_SOC_DAILINK_DEFS(audioinjector_octo,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC(NULL, "cs42448")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link audioinjector_octo_dai[] = {
 	{
 		.name = "AudioInjector Octo",
 		.stream_name = "AudioInject-HIFI",
-		.codec_dai_name = "cs42448",
 		.ops = &audioinjector_octo_ops,
 		.init = audioinjector_octo_dai_init,
 		.symmetric_rates = 1,
 		.symmetric_channels = 1,
+		SND_SOC_DAILINK_REG(audioinjector_octo),
 	},
 };
 
@@ -290,12 +295,12 @@ static int audioinjector_octo_probe(struct platform_device *pdev)
 		msleep(500);
 
 		if (i2s_node && codec_node) {
-			dai->cpu_dai_name = NULL;
-			dai->cpu_of_node = i2s_node;
-			dai->platform_name = NULL;
-			dai->platform_of_node = i2s_node;
-			dai->codec_name = NULL;
-			dai->codec_of_node = codec_node;
+			dai->cpus->dai_name = NULL;
+			dai->cpus->of_node = i2s_node;
+			dai->platforms->name = NULL;
+			dai->platforms->of_node = i2s_node;
+			dai->codecs->name = NULL;
+			dai->codecs->of_node = codec_node;
 		} else
 			if (!i2s_node) {
 				dev_err(&pdev->dev,
