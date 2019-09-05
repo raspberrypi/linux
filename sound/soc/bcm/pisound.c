@@ -930,19 +930,21 @@ static struct snd_soc_ops pisnd_ops = {
 	.hw_params = pisnd_hw_params,
 };
 
+SND_SOC_DAILINK_DEFS(pisnd,
+	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
+	DAILINK_COMP_ARRAY(COMP_DUMMY()),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("bcm2708-i2s.0")));
+
 static struct snd_soc_dai_link pisnd_dai[] = {
 	{
 		.name           = "pisound",
 		.stream_name    = "pisound",
-		.cpu_dai_name   = "bcm2708-i2s.0",
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.platform_name  = "bcm2708-i2s.0",
-		.codec_name     = "snd-soc-dummy",
 		.dai_fmt        =
 			SND_SOC_DAIFMT_I2S |
 			SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBM_CFM,
 		.ops            = &pisnd_ops,
+		SND_SOC_DAILINK_REG(pisnd),
 	},
 };
 
@@ -1140,10 +1142,10 @@ static int pisnd_probe(struct platform_device *pdev)
 			struct snd_soc_dai_link *dai = &pisnd_dai[i];
 
 			if (i2s_node) {
-				dai->cpu_dai_name = NULL;
-				dai->cpu_of_node = i2s_node;
-				dai->platform_name = NULL;
-				dai->platform_of_node = i2s_node;
+				dai->cpus->dai_name = NULL;
+				dai->cpus->of_node = i2s_node;
+				dai->platforms->name = NULL;
+				dai->platforms->of_node = i2s_node;
 				dai->stream_name = pisnd_spi_get_serial();
 			}
 		}
