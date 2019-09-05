@@ -332,28 +332,33 @@ static struct snd_soc_ops digidac1_soundcard_ops = {
 	.shutdown	= digidac1_soundcard_shutdown,
 };
 
+SND_SOC_DAILINK_DEFS(digidac1,
+	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("wm8804.1-003b", "wm8804-spdif")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("bcm2835-i2s.0")));
+
+SND_SOC_DAILINK_DEFS(digidac11,
+	DAILINK_COMP_ARRAY(COMP_CPU("wm8804-spdif")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("wm8741.1-001a", "wm8741")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link digidac1_soundcard_dai[] = {
 	{
 	.name		= "RRA DigiDAC1",
 	.stream_name	= "RRA DigiDAC1 HiFi",
-	.cpu_dai_name	= "bcm2708-i2s.0",
-	.codec_dai_name	= "wm8804-spdif",
-	.platform_name	= "bcm2708-i2s.0",
-	.codec_name	= "wm8804.1-003b",
 	.dai_fmt	= SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 				SND_SOC_DAIFMT_CBM_CFM,
 	.ops		= &digidac1_soundcard_ops,
 	.init		= digidac1_soundcard_init,
+	SND_SOC_DAILINK_REG(digidac1),
 	},
 	{
 	.name		= "RRA DigiDAC11",
 	.stream_name	= "RRA DigiDAC11 HiFi",
-	.cpu_dai_name	= "wm8804-spdif",
-	.codec_dai_name	= "wm8741",
-	.codec_name	= "wm8741.1-001a",
 	.dai_fmt	= SND_SOC_DAIFMT_I2S
 			| SND_SOC_DAIFMT_NB_NF
 			| SND_SOC_DAIFMT_CBS_CFS,
+	SND_SOC_DAILINK_REG(digidac11),
 	},
 };
 
@@ -379,10 +384,10 @@ static int digidac1_soundcard_probe(struct platform_device *pdev)
 					"i2s-controller", 0);
 
 		if (i2s_node) {
-			dai->cpu_dai_name = NULL;
-			dai->cpu_of_node = i2s_node;
-			dai->platform_name = NULL;
-			dai->platform_of_node = i2s_node;
+			dai->cpus->dai_name = NULL;
+			dai->cpus->of_node = i2s_node;
+			dai->platforms->name = NULL;
+			dai->platforms->of_node = i2s_node;
 		}
 	}
 
