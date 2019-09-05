@@ -1129,6 +1129,10 @@ v3d_gem_init(struct drm_device *dev)
 	mutex_init(&v3d->clk_lock);
 	INIT_DELAYED_WORK(&v3d->clk_down_work, v3d_clock_down_work);
 
+	/* kick the clock so firmware knows we are using firmware clock interface */
+	v3d_clock_up_get(v3d);
+	v3d_clock_up_put(v3d);
+
 	/* Note: We don't allocate address 0.  Various bits of HW
 	 * treat 0 as special, such as the occlusion query counters
 	 * where 0 means "disabled".
