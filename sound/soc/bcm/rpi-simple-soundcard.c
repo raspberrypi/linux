@@ -102,16 +102,20 @@ static int adau1977_init(struct snd_soc_pcm_runtime *rtd)
 			11289600, SND_SOC_CLOCK_IN);
 }
 
+SND_SOC_DAILINK_DEFS(adau1977,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("adau1977.1-0011", "adau1977-hifi")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link snd_rpi_adau1977_dai[] = {
 	{
 	.name           = "adau1977",
 	.stream_name    = "ADAU1977",
-	.codec_dai_name = "adau1977-hifi",
-	.codec_name     = "adau1977.1-0011",
 	.init           = adau1977_init,
 	.dai_fmt = SND_SOC_DAIFMT_I2S |
 		SND_SOC_DAIFMT_NB_NF |
 		SND_SOC_DAIFMT_CBM_CFM,
+	SND_SOC_DAILINK_REG(adau1977),
 	},
 };
 
@@ -120,14 +124,18 @@ static struct snd_rpi_simple_drvdata drvdata_adau1977 = {
 	.dai       = snd_rpi_adau1977_dai,
 };
 
+SND_SOC_DAILINK_DEFS(gvchat,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("voicehat-codec", "voicehat-hifi")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link snd_googlevoicehat_soundcard_dai[] = {
 {
 	.name           = "Google voiceHAT SoundCard",
 	.stream_name    = "Google voiceHAT SoundCard HiFi",
-	.codec_dai_name = "voicehat-hifi",
-	.codec_name     = "voicehat-codec",
 	.dai_fmt        =  SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 				SND_SOC_DAIFMT_CBS_CFS,
+	SND_SOC_DAILINK_REG(gvchat),
 },
 };
 
@@ -136,15 +144,19 @@ static struct snd_rpi_simple_drvdata drvdata_googlevoicehat = {
 	.dai       = snd_googlevoicehat_soundcard_dai,
 };
 
+SND_SOC_DAILINK_DEFS(hifiberry_amp,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("tas5713.1-001b", "tas5713-hifi")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link snd_hifiberry_amp_dai[] = {
 	{
 		.name           = "HifiBerry AMP",
 		.stream_name    = "HifiBerry AMP HiFi",
-		.codec_dai_name = "tas5713-hifi",
-		.codec_name     = "tas5713.1-001b",
 		.dai_fmt        = SND_SOC_DAIFMT_I2S |
 					SND_SOC_DAIFMT_NB_NF |
 					SND_SOC_DAIFMT_CBS_CFS,
+		SND_SOC_DAILINK_REG(hifiberry_amp),
 	},
 };
 
@@ -154,15 +166,19 @@ static struct snd_rpi_simple_drvdata drvdata_hifiberry_amp = {
 	.fixed_bclk_ratio = 64,
 };
 
+SND_SOC_DAILINK_DEFS(hifiberry_dac,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("pcm5102a-codec", "pcm5102a-hifi")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link snd_hifiberry_dac_dai[] = {
 	{
 		.name           = "HifiBerry DAC",
 		.stream_name    = "HifiBerry DAC HiFi",
-		.codec_dai_name = "pcm5102a-hifi",
-		.codec_name     = "pcm5102a-codec",
 		.dai_fmt        = SND_SOC_DAIFMT_I2S |
 					SND_SOC_DAIFMT_NB_NF |
 					SND_SOC_DAIFMT_CBS_CFS,
+		SND_SOC_DAILINK_REG(hifiberry_dac),
 	},
 };
 
@@ -171,14 +187,18 @@ static struct snd_rpi_simple_drvdata drvdata_hifiberry_dac = {
 	.dai       = snd_hifiberry_dac_dai,
 };
 
+SND_SOC_DAILINK_DEFS(rpi_dac,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("pcm1794a-codec", "pcm1794a-hifi")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
 static struct snd_soc_dai_link snd_rpi_dac_dai[] = {
 {
 	.name		= "RPi-DAC",
 	.stream_name	= "RPi-DAC HiFi",
-	.codec_dai_name	= "pcm1794a-hifi",
-	.codec_name	= "pcm1794a-codec",
 	.dai_fmt	= SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 				SND_SOC_DAIFMT_CBS_CFS,
+	SND_SOC_DAILINK_REG(rpi_dac),
 },
 };
 
@@ -240,8 +260,8 @@ static int snd_rpi_simple_probe(struct platform_device *pdev)
 			return -ENODEV;
 		}
 
-		dai->cpu_of_node = i2s_node;
-		dai->platform_of_node = i2s_node;
+		dai->cpus->of_node = i2s_node;
+		dai->platforms->of_node = i2s_node;
 	}
 
 	ret = devm_snd_soc_register_card(&pdev->dev, &snd_rpi_simple);
