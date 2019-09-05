@@ -72,18 +72,20 @@ static struct snd_soc_ops snd_rpi_proto_ops = {
 	.hw_params = snd_rpi_proto_hw_params,
 };
 
+SND_SOC_DAILINK_DEFS(rpi_proto,
+	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("wm8731.1-001a", "wm8731-hifi")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("bcm2708-i2s.0")));
+
 static struct snd_soc_dai_link snd_rpi_proto_dai[] = {
 {
 	.name		= "WM8731",
 	.stream_name	= "WM8731 HiFi",
-	.cpu_dai_name	= "bcm2708-i2s.0",
-	.codec_dai_name	= "wm8731-hifi",
-	.platform_name	= "bcm2708-i2s.0",
-	.codec_name	= "wm8731.1-001a",
 	.dai_fmt	= SND_SOC_DAIFMT_I2S
 				| SND_SOC_DAIFMT_NB_NF
 				| SND_SOC_DAIFMT_CBM_CFM,
 	.ops		= &snd_rpi_proto_ops,
+	SND_SOC_DAILINK_REG(rpi_proto),
 },
 };
 
@@ -108,10 +110,10 @@ static int snd_rpi_proto_probe(struct platform_device *pdev)
 				            "i2s-controller", 0);
 
 		if (i2s_node) {
-			dai->cpu_dai_name = NULL;
-			dai->cpu_of_node = i2s_node;
-			dai->platform_name = NULL;
-			dai->platform_of_node = i2s_node;
+			dai->cpus->dai_name = NULL;
+			dai->cpus->of_node = i2s_node;
+			dai->platforms->name = NULL;
+			dai->platforms->of_node = i2s_node;
 		}
 	}
 
