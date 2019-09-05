@@ -63,19 +63,20 @@ static struct snd_soc_ops snd_rpi_i_sabre_q2m_ops = {
 	.hw_params = snd_rpi_i_sabre_q2m_hw_params,
 };
 
+SND_SOC_DAILINK_DEFS(rpi_i_sabre_q2m,
+	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("i-sabre-codec-i2c.1-0048", "i-sabre-codec-dai")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("bcm2708-i2s.0")));
 
 static struct snd_soc_dai_link snd_rpi_i_sabre_q2m_dai[] = {
 	{
 		.name           = "I-Sabre Q2M",
 		.stream_name    = "I-Sabre Q2M DAC",
-		.cpu_dai_name   = "bcm2708-i2s.0",
-		.codec_dai_name = "i-sabre-codec-dai",
-		.platform_name  = "bcm2708-i2s.0",
-		.codec_name     = "i-sabre-codec-i2c.1-0048",
 		.dai_fmt        = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
 						| SND_SOC_DAIFMT_CBS_CFS,
 		.init           = snd_rpi_i_sabre_q2m_init,
 		.ops            = &snd_rpi_i_sabre_q2m_ops,
+		SND_SOC_DAILINK_REG(rpi_i_sabre_q2m),
 	}
 };
 
@@ -101,10 +102,10 @@ static int snd_rpi_i_sabre_q2m_probe(struct platform_device *pdev)
 		i2s_node = of_parse_phandle(pdev->dev.of_node,
 							"i2s-controller", 0);
 		if (i2s_node) {
-			dai->cpu_dai_name     = NULL;
-			dai->cpu_of_node      = i2s_node;
-			dai->platform_name    = NULL;
-			dai->platform_of_node = i2s_node;
+			dai->cpus->dai_name     = NULL;
+			dai->cpus->of_node      = i2s_node;
+			dai->platforms->name    = NULL;
+			dai->platforms->of_node = i2s_node;
 		} else {
 			dev_err(&pdev->dev,
 			    "Property 'i2s-controller' missing or invalid\n");
