@@ -150,18 +150,20 @@ static struct snd_soc_ops audiosense_pi_card_ops = {
 	.hw_params = audiosense_pi_card_hw_params,
 };
 
+SND_SOC_DAILINK_DEFS(audiosense_pi,
+	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("tlv320aic32x4.1-0018", "tlv320aic32x4-hifi")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("bcm2708-i2s.0")));
+
 static struct snd_soc_dai_link audiosense_pi_card_dai[] = {
 	{
 		.name           = "TLV320AIC3204 Audio",
 		.stream_name    = "TLV320AIC3204 Hifi Audio",
-		.cpu_dai_name   = "bcm2708-i2s.0",
-		.codec_dai_name = "tlv320aic32x4-hifi",
-		.platform_name  = "bcm2708-i2s.0",
-		.codec_name     = "tlv320aic32x4.1-0018",
 		.dai_fmt        = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBM_CFM,
 		.ops            = &audiosense_pi_card_ops,
 		.init           = audiosense_pi_card_init,
+		SND_SOC_DAILINK_REG(audiosense_pi),
 	},
 };
 
@@ -198,10 +200,10 @@ static int audiosense_pi_card_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	dai->cpu_dai_name = NULL;
-	dai->cpu_of_node = i2s_node;
-	dai->platform_name = NULL;
-	dai->platform_of_node = i2s_node;
+	dai->cpus->dai_name = NULL;
+	dai->cpus->of_node = i2s_node;
+	dai->platforms->name = NULL;
+	dai->platforms->of_node = i2s_node;
 
 	of_node_put(i2s_node);
 
