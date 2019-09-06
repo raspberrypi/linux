@@ -477,6 +477,10 @@ static int ctrl_set_awb_mode(struct bm2835_mmal_dev *dev,
 	case V4L2_WHITE_BALANCE_SHADE:
 		u32_value = MMAL_PARAM_AWBMODE_SHADE;
 		break;
+
+	case V4L2_WHITE_BALANCE_GREYWORLD:
+		u32_value = MMAL_PARAM_AWBMODE_GREYWORLD;
+		break;
 	}
 
 	return vchiq_mmal_port_parameter_set(dev->instance, control,
@@ -1014,8 +1018,8 @@ static const struct bm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 	{
 		V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE,
 		MMAL_CONTROL_TYPE_STD_MENU,
-		~0x3ff, V4L2_WHITE_BALANCE_SHADE, V4L2_WHITE_BALANCE_AUTO, 0,
-		NULL,
+		~0x7ff, V4L2_WHITE_BALANCE_GREYWORLD, V4L2_WHITE_BALANCE_AUTO,
+		0, NULL,
 		MMAL_PARAMETER_AWB_MODE,
 		ctrl_set_awb_mode,
 		false
