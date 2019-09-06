@@ -310,6 +310,7 @@ enum mmal_parameter_awbmode {
 	MMAL_PARAM_AWBMODE_INCANDESCENT,
 	MMAL_PARAM_AWBMODE_FLASH,
 	MMAL_PARAM_AWBMODE_HORIZON,
+	MMAL_PARAM_AWBMODE_GREYWORLD,
 };
 
 enum mmal_parameter_imagefx {
