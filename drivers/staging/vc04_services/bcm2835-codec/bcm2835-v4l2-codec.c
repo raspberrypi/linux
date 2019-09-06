@@ -92,7 +92,7 @@ static const char * const components[] = {
 #define MIN_W		32
 #define MIN_H		32
 #define MAX_W		1920
-#define MAX_H		1088
+#define MAX_H		1920
 #define BPL_ALIGN	32
 #define DEFAULT_WIDTH	640
 #define DEFAULT_HEIGHT	480
