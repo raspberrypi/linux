@@ -474,6 +474,10 @@ static int ctrl_set_awb_mode(struct bm2835_mmal_dev *dev,
 	case V4L2_WHITE_BALANCE_SHADE:
 		u32_value = MMAL_PARAM_AWBMODE_SHADE;
 		break;
+
+	case V4L2_WHITE_BALANCE_GREYWORLD:
+		u32_value = MMAL_PARAM_AWBMODE_GREYWORLD;
+		break;
 	}
 
 	return vchiq_mmal_port_parameter_set(dev->instance, control,
