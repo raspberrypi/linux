@@ -70,7 +70,7 @@ static int raspberrypi_clock_property(struct rpi_firmware *firmware, u32 tag,
 	struct raspberrypi_firmware_prop msg = {
 		.id = cpu_to_le32(clk),
 		.val = cpu_to_le32(*val),
-		.disable_turbo = cpu_to_le32(1),
+		.disable_turbo = cpu_to_le32(0),
 	};
 	int ret;
 
