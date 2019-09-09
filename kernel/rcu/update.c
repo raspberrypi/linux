@@ -66,7 +66,7 @@ extern int rcu_expedited; /* from sysctl */
 module_param(rcu_expedited, int, 0);
 extern int rcu_normal; /* from sysctl */
 module_param(rcu_normal, int, 0);
-static int rcu_normal_after_boot;
+static int rcu_normal_after_boot = IS_ENABLED(CONFIG_PREEMPT_RT_FULL);
 module_param(rcu_normal_after_boot, int, 0);
 #endif /* #ifndef CONFIG_TINY_RCU */
 
@@ -333,6 +333,7 @@ int rcu_read_lock_held(void)
 }
 EXPORT_SYMBOL_GPL(rcu_read_lock_held);
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /**
  * rcu_read_lock_bh_held() - might we be in RCU-bh read-side critical section?
  *
@@ -359,6 +360,7 @@ int rcu_read_lock_bh_held(void)
 	return in_softirq() || irqs_disabled();
 }
 EXPORT_SYMBOL_GPL(rcu_read_lock_bh_held);
+#endif
 
 #endif /* #ifdef CONFIG_DEBUG_LOCK_ALLOC */
 

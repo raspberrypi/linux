@@ -763,6 +763,30 @@ static DEVICE_ATTR_RO(io_stat);
 static DEVICE_ATTR_RO(mm_stat);
 static DEVICE_ATTR_RO(debug_stat);
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+static void zram_meta_init_table_locks(struct zram *zram, size_t num_pages)
+{
+	size_t index;
+
+	for (index = 0; index < num_pages; index++)
+		spin_lock_init(&zram->table[index].lock);
+}
+
+static void zram_slot_lock(struct zram *zram, u32 index)
+{
+	spin_lock(&zram->table[index].lock);
+	__set_bit(ZRAM_ACCESS, &zram->table[index].value);
+}
+
+static void zram_slot_unlock(struct zram *zram, u32 index)
+{
+	__clear_bit(ZRAM_ACCESS, &zram->table[index].value);
+	spin_unlock(&zram->table[index].lock);
+}
+
+#else
+static void zram_meta_init_table_locks(struct zram *zram, size_t num_pages) { }
+
 static void zram_slot_lock(struct zram *zram, u32 index)
 {
 	bit_spin_lock(ZRAM_ACCESS, &zram->table[index].value);
@@ -772,6 +796,7 @@ static void zram_slot_unlock(struct zram *zram, u32 index)
 {
 	bit_spin_unlock(ZRAM_ACCESS, &zram->table[index].value);
 }
+#endif
 
 static void zram_meta_free(struct zram *zram, u64 disksize)
 {
@@ -801,6 +826,7 @@ static bool zram_meta_alloc(struct zram *zram, u64 disksize)
 		return false;
 	}
 
+	zram_meta_init_table_locks(zram, num_pages);
 	return true;
 }
 
@@ -852,6 +878,7 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 	unsigned long handle;
 	unsigned int size;
 	void *src, *dst;
+	struct zcomp_strm *zstrm;
 
 	if (zram_wb_enabled(zram)) {
 		zram_slot_lock(zram, index);
@@ -886,6 +913,7 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 
 	size = zram_get_obj_size(zram, index);
 
+	zstrm = zcomp_stream_get(zram->comp);
 	src = zs_map_object(zram->mem_pool, handle, ZS_MM_RO);
 	if (size == PAGE_SIZE) {
 		dst = kmap_atomic(page);
@@ -893,14 +921,13 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 		kunmap_atomic(dst);
 		ret = 0;
 	} else {
-		struct zcomp_strm *zstrm = zcomp_stream_get(zram->comp);
 
 		dst = kmap_atomic(page);
 		ret = zcomp_decompress(zstrm, src, size, dst);
 		kunmap_atomic(dst);
-		zcomp_stream_put(zram->comp);
 	}
 	zs_unmap_object(zram->mem_pool, handle);
+	zcomp_stream_put(zram->comp);
 	zram_slot_unlock(zram, index);
 
 	/* Should NEVER happen. Return bio error if it does. */

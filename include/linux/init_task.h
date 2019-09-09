@@ -163,6 +163,12 @@ extern struct cred init_cred;
 # define INIT_PERF_EVENTS(tsk)
 #endif
 
+#if defined(CONFIG_POSIX_TIMERS) && defined(CONFIG_PREEMPT_RT_BASE)
+# define INIT_TIMER_LIST		.posix_timer_list = NULL,
+#else
+# define INIT_TIMER_LIST
+#endif
+
 #ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
 # define INIT_VTIME(tsk)						\
 	.vtime.seqcount = SEQCNT_ZERO(tsk.vtime.seqcount),		\
@@ -234,7 +240,8 @@ extern struct cred init_cred;
 	.static_prio	= MAX_PRIO-20,					\
 	.normal_prio	= MAX_PRIO-20,					\
 	.policy		= SCHED_NORMAL,					\
-	.cpus_allowed	= CPU_MASK_ALL,					\
+	.cpus_ptr	= &tsk.cpus_mask,				\
+	.cpus_mask	= CPU_MASK_ALL,					\
 	.nr_cpus_allowed= NR_CPUS,					\
 	.mm		= NULL,						\
 	.active_mm	= &init_mm,					\
@@ -276,6 +283,7 @@ extern struct cred init_cred;
 	INIT_CPU_TIMERS(tsk)						\
 	.pi_lock	= __RAW_SPIN_LOCK_UNLOCKED(tsk.pi_lock),	\
 	.timer_slack_ns = 50000, /* 50 usec default slack */		\
+	INIT_TIMER_LIST							\
 	.pids = {							\
 		[PIDTYPE_PID]  = INIT_PID_LINK(PIDTYPE_PID),		\
 		[PIDTYPE_PGID] = INIT_PID_LINK(PIDTYPE_PGID),		\

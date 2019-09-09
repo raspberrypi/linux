@@ -9,7 +9,7 @@
  * See kernel/sched/completion.c for details.
  */
 
-#include <linux/wait.h>
+#include <linux/swait.h>
 #ifdef CONFIG_LOCKDEP_COMPLETIONS
 #include <linux/lockdep.h>
 #endif
@@ -28,7 +28,7 @@
  */
 struct completion {
 	unsigned int done;
-	wait_queue_head_t wait;
+	struct swait_queue_head wait;
 #ifdef CONFIG_LOCKDEP_COMPLETIONS
 	struct lockdep_map_cross map;
 #endif
@@ -67,11 +67,11 @@ static inline void complete_release_commit(struct completion *x) {}
 
 #ifdef CONFIG_LOCKDEP_COMPLETIONS
 #define COMPLETION_INITIALIZER(work) \
-	{ 0, __WAIT_QUEUE_HEAD_INITIALIZER((work).wait), \
+	{ 0, __SWAIT_QUEUE_HEAD_INITIALIZER((work).wait), \
 	STATIC_CROSS_LOCKDEP_MAP_INIT("(complete)" #work, &(work)) }
 #else
 #define COMPLETION_INITIALIZER(work) \
-	{ 0, __WAIT_QUEUE_HEAD_INITIALIZER((work).wait) }
+	{ 0, __SWAIT_QUEUE_HEAD_INITIALIZER((work).wait) }
 #endif
 
 #define COMPLETION_INITIALIZER_ONSTACK(work) \
@@ -117,7 +117,7 @@ static inline void complete_release_commit(struct completion *x) {}
 static inline void __init_completion(struct completion *x)
 {
 	x->done = 0;
-	init_waitqueue_head(&x->wait);
+	init_swait_queue_head(&x->wait);
 }
 
 /**

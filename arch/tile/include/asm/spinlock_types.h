@@ -15,10 +15,6 @@
 #ifndef _ASM_TILE_SPINLOCK_TYPES_H
 #define _ASM_TILE_SPINLOCK_TYPES_H
 
-#ifndef __LINUX_SPINLOCK_TYPES_H
-# error "please don't include this file directly"
-#endif
-
 #ifdef __tilegx__
 
 /* Low 15 bits are "next"; high 15 bits are "current". */

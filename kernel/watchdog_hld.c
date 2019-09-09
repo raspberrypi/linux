@@ -24,6 +24,8 @@ static DEFINE_PER_CPU(bool, hard_watchdog_warn);
 static DEFINE_PER_CPU(bool, watchdog_nmi_touch);
 static DEFINE_PER_CPU(struct perf_event *, watchdog_ev);
 static DEFINE_PER_CPU(struct perf_event *, dead_event);
+static DEFINE_RAW_SPINLOCK(watchdog_output_lock);
+
 static struct cpumask dead_events_mask;
 
 static unsigned long hardlockup_allcpu_dumped;
@@ -134,6 +136,13 @@ static void watchdog_overflow_callback(struct perf_event *event,
 		/* only print hardlockups once */
 		if (__this_cpu_read(hard_watchdog_warn) == true)
 			return;
+		/*
+		 * If early-printk is enabled then make sure we do not
+		 * lock up in printk() and kill console logging:
+		 */
+		printk_kill();
+
+		raw_spin_lock(&watchdog_output_lock);
 
 		pr_emerg("Watchdog detected hard LOCKUP on cpu %d", this_cpu);
 		print_modules();
@@ -151,6 +160,7 @@ static void watchdog_overflow_callback(struct perf_event *event,
 				!test_and_set_bit(0, &hardlockup_allcpu_dumped))
 			trigger_allbutself_cpu_backtrace();
 
+		raw_spin_unlock(&watchdog_output_lock);
 		if (hardlockup_panic)
 			nmi_panic(regs, "Hard LOCKUP");
 

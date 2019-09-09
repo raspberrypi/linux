@@ -452,7 +452,7 @@ static
 void nfs_prime_dcache(struct dentry *parent, struct nfs_entry *entry)
 {
 	struct qstr filename = QSTR_INIT(entry->name, entry->len);
-	DECLARE_WAIT_QUEUE_HEAD_ONSTACK(wq);
+	DECLARE_SWAIT_QUEUE_HEAD_ONSTACK(wq);
 	struct dentry *dentry;
 	struct dentry *alias;
 	struct inode *dir = d_inode(parent);
@@ -1443,7 +1443,7 @@ int nfs_atomic_open(struct inode *dir, struct dentry *dentry,
 		    struct file *file, unsigned open_flags,
 		    umode_t mode, int *opened)
 {
-	DECLARE_WAIT_QUEUE_HEAD_ONSTACK(wq);
+	DECLARE_SWAIT_QUEUE_HEAD_ONSTACK(wq);
 	struct nfs_open_context *ctx;
 	struct dentry *res;
 	struct iattr attr = { .ia_valid = ATTR_OPEN };
@@ -1763,7 +1763,11 @@ int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 
 	trace_nfs_rmdir_enter(dir, dentry);
 	if (d_really_is_positive(dentry)) {
+#ifdef CONFIG_PREEMPT_RT_BASE
+		down(&NFS_I(d_inode(dentry))->rmdir_sem);
+#else
 		down_write(&NFS_I(d_inode(dentry))->rmdir_sem);
+#endif
 		error = NFS_PROTO(dir)->rmdir(dir, &dentry->d_name);
 		/* Ensure the VFS deletes this inode */
 		switch (error) {
@@ -1773,7 +1777,11 @@ int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 		case -ENOENT:
 			nfs_dentry_handle_enoent(dentry);
 		}
+#ifdef CONFIG_PREEMPT_RT_BASE
+		up(&NFS_I(d_inode(dentry))->rmdir_sem);
+#else
 		up_write(&NFS_I(d_inode(dentry))->rmdir_sem);
+#endif
 	} else
 		error = NFS_PROTO(dir)->rmdir(dir, &dentry->d_name);
 	trace_nfs_rmdir_exit(dir, dentry, error);
