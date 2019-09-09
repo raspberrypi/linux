@@ -653,7 +653,7 @@ static int brcmstb_platform_notifier(struct notifier_block *nb,
 			ret = of_dma_configure(dev, dev->of_node, true);
 			if (ret) {
 				dev_err(dev, "of_dma_configure() failed: %d\n", ret);
-				return;
+				return ret;
 			}
 		}
 		brcm_set_dma_ops(dev);
