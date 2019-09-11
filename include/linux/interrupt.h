@@ -13,7 +13,7 @@
 #include <linux/hrtimer.h>
 #include <linux/kref.h>
 #include <linux/workqueue.h>
-#include <linux/swork.h>
+#include <linux/kthread.h>
 
 #include <linux/atomic.h>
 #include <asm/ptrace.h>
@@ -228,7 +228,6 @@ extern void resume_device_irqs(void);
  * struct irq_affinity_notify - context for notification of IRQ affinity changes
  * @irq:		Interrupt to which notification applies
  * @kref:		Reference count, for internal use
- * @swork:		Swork item, for internal use
  * @work:		Work item, for internal use
  * @notify:		Function to be called on change.  This will be
  *			called in process context.
@@ -241,7 +240,7 @@ struct irq_affinity_notify {
 	unsigned int irq;
 	struct kref kref;
 #ifdef CONFIG_PREEMPT_RT_BASE
-	struct swork_event swork;
+	struct kthread_work work;
 #else
 	struct work_struct work;
 #endif
