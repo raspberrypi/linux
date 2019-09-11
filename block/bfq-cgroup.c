@@ -1184,7 +1184,11 @@ struct cftype bfq_blkg_files[] = {
 #else	/* CONFIG_BFQ_GROUP_IOSCHED */
 
 void bfq_bfqq_move(struct bfq_data *bfqd, struct bfq_queue *bfqq,
-		   struct bfq_group *bfqg) {}
+		   struct bfq_group *bfqg) 
+{
+	return;
+}
+
 
 void bfq_init_entity(struct bfq_entity *entity, struct bfq_group *bfqg)
 {
