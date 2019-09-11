@@ -1610,14 +1610,9 @@ vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
 		connector->interlace_allowed = 0;
 	}
 
-	/* Create and attach TV margin props to this connector.
-	 * Already done for SDTV outputs.
-	 */
-	if (fkms_connector->display_type != DRM_MODE_ENCODER_TVDAC) {
-		ret = drm_mode_create_tv_margin_properties(dev);
-		if (ret)
-			goto fail;
-	}
+	ret = drm_mode_create_tv_margin_properties(dev);
+	if (ret)
+		goto fail;
 
 	drm_connector_attach_tv_margin_properties(connector);
 
