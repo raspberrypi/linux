@@ -136,6 +136,23 @@ static struct snd_rpi_simple_drvdata drvdata_googlevoicehat = {
 	.dai       = snd_googlevoicehat_soundcard_dai,
 };
 
+static struct snd_soc_dai_link snd_hifiberrydacplusdsp_soundcard_dai[] = {
+{
+	.name           = "Hifiberry DAC+DSP SoundCard",
+	.stream_name    = "Hifiberry DAC+DSP SoundCard HiFi",
+	.codec_dai_name = "dacplusdsp-hifi",
+	.codec_name     = "dacplusdsp-codec",
+	.dai_fmt        =  SND_SOC_DAIFMT_I2S |
+			   SND_SOC_DAIFMT_NB_NF |
+			   SND_SOC_DAIFMT_CBS_CFS,
+},
+};
+
+static struct snd_rpi_simple_drvdata drvdata_hifiberrydacplusdsp = {
+	.card_name = "snd_rpi_hifiberrydacplusdsp_soundcard",
+	.dai       = snd_hifiberrydacplusdsp_soundcard_dai,
+};
+
 static struct snd_soc_dai_link snd_hifiberry_amp_dai[] = {
 	{
 		.name           = "HifiBerry AMP",
@@ -193,6 +210,8 @@ static const struct of_device_id snd_rpi_simple_of_match[] = {
 		.data = (void *) &drvdata_adau1977 },
 	{ .compatible = "googlevoicehat,googlevoicehat-soundcard",
 		.data = (void *) &drvdata_googlevoicehat },
+	{ .compatible = "hifiberrydacplusdsp,hifiberrydacplusdsp-soundcard",
+		.data = (void *) &drvdata_hifiberrydacplusdsp },
 	{ .compatible = "hifiberry,hifiberry-amp",
 		.data = (void *) &drvdata_hifiberry_amp },
 	{ .compatible = "hifiberry,hifiberry-dac",
