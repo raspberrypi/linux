@@ -904,6 +904,12 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 master for bit clock and frame clock.
 
 
+Name:   hifiberry-dacplusdsp
+Info:   Configures the HifiBerry DAC+DSP audio card
+Load:   dtoverlay=hifiberry-dacplusdsp
+Params: <None>
+
+
 Name:   hifiberry-digi
 Info:   Configures the HifiBerry Digi and Digi+ audio card
 Load:   dtoverlay=hifiberry-digi
