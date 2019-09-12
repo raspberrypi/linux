@@ -256,6 +256,23 @@ static inline struct vc4_crtc *to_vc4_crtc(struct drm_crtc *crtc)
 	return container_of(crtc, struct vc4_crtc, base);
 }
 
+struct vc4_crtc_state {
+	struct drm_crtc_state base;
+
+	struct {
+		unsigned int left;
+		unsigned int right;
+		unsigned int top;
+		unsigned int bottom;
+	} margins;
+};
+
+static inline struct vc4_crtc_state *
+to_vc4_crtc_state(struct drm_crtc_state *crtc_state)
+{
+	return (struct vc4_crtc_state *)crtc_state;
+}
+
 struct vc4_fkms_encoder {
 	struct drm_encoder base;
 	bool hdmi_monitor;
@@ -267,6 +284,13 @@ to_vc4_fkms_encoder(struct drm_encoder *encoder)
 {
 	return container_of(encoder, struct vc4_fkms_encoder, base);
 }
+
+/* "Broadcast RGB" property.
+ * Allows overriding of HDMI full or limited range RGB
+ */
+#define VC4_BROADCAST_RGB_AUTO 0
+#define VC4_BROADCAST_RGB_FULL 1
+#define VC4_BROADCAST_RGB_LIMITED 2
 
 /* VC4 FKMS connector KMS struct */
 struct vc4_fkms_connector {
@@ -280,6 +304,8 @@ struct vc4_fkms_connector {
 	struct vc4_dev *vc4_dev;
 	u32 display_number;
 	u32 display_type;
+
+	struct drm_property *broadcast_rgb_property;
 };
 
 static inline struct vc4_fkms_connector *
@@ -287,6 +313,16 @@ to_vc4_fkms_connector(struct drm_connector *connector)
 {
 	return container_of(connector, struct vc4_fkms_connector, base);
 }
+
+/* VC4 FKMS connector state */
+struct vc4_fkms_connector_state {
+	struct drm_connector_state base;
+
+	int broadcast_rgb;
+};
+
+#define to_vc4_fkms_connector_state(x) \
+			container_of(x, struct vc4_fkms_connector_state, base)
 
 static u32 vc4_get_display_type(u32 display_number)
 {
@@ -365,19 +401,128 @@ static int vc4_plane_set_blank(struct drm_plane *plane, bool blank)
 	return ret;
 }
 
+static void vc4_fkms_crtc_get_margins(struct drm_crtc_state *state,
+				      unsigned int *left, unsigned int *right,
+				      unsigned int *top, unsigned int *bottom)
+{
+	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(state);
+	struct drm_connector_state *conn_state;
+	struct drm_connector *conn;
+	int i;
+
+	*left = vc4_state->margins.left;
+	*right = vc4_state->margins.right;
+	*top = vc4_state->margins.top;
+	*bottom = vc4_state->margins.bottom;
+
+	/* We have to interate over all new connector states because
+	 * vc4_fkms_crtc_get_margins() might be called before
+	 * vc4_fkms_crtc_atomic_check() which means margins info in
+	 * vc4_crtc_state might be outdated.
+	 */
+	for_each_new_connector_in_state(state->state, conn, conn_state, i) {
+		if (conn_state->crtc != state->crtc)
+			continue;
+
+		*left = conn_state->tv.margins.left;
+		*right = conn_state->tv.margins.right;
+		*top = conn_state->tv.margins.top;
+		*bottom = conn_state->tv.margins.bottom;
+		break;
+	}
+}
+
+static int vc4_fkms_margins_adj(struct drm_plane_state *pstate,
+				struct set_plane *plane)
+{
+	unsigned int left, right, top, bottom;
+	int adjhdisplay, adjvdisplay;
+	struct drm_crtc_state *crtc_state;
+
+	crtc_state = drm_atomic_get_new_crtc_state(pstate->state,
+						   pstate->crtc);
+
+	vc4_fkms_crtc_get_margins(crtc_state, &left, &right, &top, &bottom);
+
+	if (!left && !right && !top && !bottom)
+		return 0;
+
+	if (left + right >= crtc_state->mode.hdisplay ||
+	    top + bottom >= crtc_state->mode.vdisplay)
+		return -EINVAL;
+
+	adjhdisplay = crtc_state->mode.hdisplay - (left + right);
+	plane->dst_x = DIV_ROUND_CLOSEST(plane->dst_x * adjhdisplay,
+					 (int)crtc_state->mode.hdisplay);
+	plane->dst_x += left;
+	if (plane->dst_x > (int)(crtc_state->mode.hdisplay - left))
+		plane->dst_x = crtc_state->mode.hdisplay - left;
+
+	adjvdisplay = crtc_state->mode.vdisplay - (top + bottom);
+	plane->dst_y = DIV_ROUND_CLOSEST(plane->dst_y * adjvdisplay,
+					 (int)crtc_state->mode.vdisplay);
+	plane->dst_y += top;
+	if (plane->dst_y > (int)(crtc_state->mode.vdisplay - top))
+		plane->dst_y = crtc_state->mode.vdisplay - top;
+
+	plane->dst_w = DIV_ROUND_CLOSEST(plane->dst_w * adjhdisplay,
+					 crtc_state->mode.hdisplay);
+	plane->dst_h = DIV_ROUND_CLOSEST(plane->dst_h * adjvdisplay,
+					 crtc_state->mode.vdisplay);
+
+	if (!plane->dst_w || !plane->dst_h)
+		return -EINVAL;
+
+	return 0;
+}
+
 static void vc4_plane_atomic_update(struct drm_plane *plane,
 				    struct drm_plane_state *old_state)
 {
 	struct drm_plane_state *state = plane->state;
+
+	/*
+	 * Do NOT set now, as we haven't checked if the crtc is active or not.
+	 * Set from vc4_plane_set_blank instead.
+	 *
+	 * If the CRTC is on (or going to be on) and we're enabled,
+	 * then unblank.  Otherwise, stay blank until CRTC enable.
+	 */
+	if (state->crtc->state->active)
+		vc4_plane_set_blank(plane, false);
+}
+
+static void vc4_plane_atomic_disable(struct drm_plane *plane,
+				     struct drm_plane_state *old_state)
+{
+	struct drm_plane_state *state = plane->state;
+	struct vc4_fkms_plane *vc4_plane = to_vc4_fkms_plane(plane);
+
+	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] plane disable %dx%d@%d +%d,%d\n",
+			 plane->base.id, plane->name,
+			 state->crtc_w,
+			 state->crtc_h,
+			 vc4_plane->mb.plane.vc_image_type,
+			 state->crtc_x,
+			 state->crtc_y);
+	vc4_plane_set_blank(plane, true);
+}
+
+static bool plane_enabled(struct drm_plane_state *state)
+{
+	return state->fb && state->crtc;
+}
+
+static int vc4_plane_to_mb(struct drm_plane *plane,
+			   struct mailbox_set_plane *mb,
+			   struct drm_plane_state *state)
+{
 	struct drm_framebuffer *fb = state->fb;
 	struct drm_gem_cma_object *bo = drm_fb_cma_get_gem_obj(fb, 0);
 	const struct drm_format_info *drm_fmt = fb->format;
 	const struct vc_image_format *vc_fmt =
 					vc4_get_vc_image_fmt(drm_fmt->format);
-	struct vc4_fkms_plane *vc4_plane = to_vc4_fkms_plane(plane);
-	struct mailbox_set_plane *mb = &vc4_plane->mb;
 	int num_planes = fb->format->num_planes;
-	struct drm_display_mode *mode = &state->crtc->mode;
 	unsigned int rotation = SUPPORTED_ROTATIONS;
 
 	mb->plane.vc_image_type = vc_fmt->vc_image;
@@ -417,25 +562,7 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 		break;
 	}
 
-	/* FIXME: If the dest rect goes off screen then clip the src rect so we
-	 * don't have off-screen pixels.
-	 */
-	if (plane->type == DRM_PLANE_TYPE_CURSOR) {
-		/* There is no scaling on the cursor plane, therefore the calcs
-		 * to alter the source crop as the cursor goes off the screen
-		 * are simple.
-		 */
-		if (mb->plane.dst_x + mb->plane.dst_w > mode->hdisplay) {
-			mb->plane.dst_w = mode->hdisplay - mb->plane.dst_x;
-			mb->plane.src_w = (mode->hdisplay - mb->plane.dst_x)
-									<< 16;
-		}
-		if (mb->plane.dst_y + mb->plane.dst_h > mode->vdisplay) {
-			mb->plane.dst_h = mode->vdisplay - mb->plane.dst_y;
-			mb->plane.src_h = (mode->vdisplay - mb->plane.dst_y)
-									<< 16;
-		}
-	}
+	vc4_fkms_margins_adj(state, &mb->plane);
 
 	if (num_planes > 1) {
 		/* Assume this must be YUV */
@@ -525,38 +652,19 @@ static void vc4_plane_atomic_update(struct drm_plane *plane,
 			 state->alpha,
 			 state->normalized_zpos);
 
-	/*
-	 * Do NOT set now, as we haven't checked if the crtc is active or not.
-	 * Set from vc4_plane_set_blank instead.
-	 *
-	 * If the CRTC is on (or going to be on) and we're enabled,
-	 * then unblank.  Otherwise, stay blank until CRTC enable.
-	 */
-	if (state->crtc->state->active)
-		vc4_plane_set_blank(plane, false);
-}
-
-static void vc4_plane_atomic_disable(struct drm_plane *plane,
-				     struct drm_plane_state *old_state)
-{
-	//struct vc4_dev *vc4 = to_vc4_dev(plane->dev);
-	struct drm_plane_state *state = plane->state;
-	struct vc4_fkms_plane *vc4_plane = to_vc4_fkms_plane(plane);
-
-	DRM_DEBUG_ATOMIC("[PLANE:%d:%s] plane disable %dx%d@%d +%d,%d\n",
-			 plane->base.id, plane->name,
-			 state->crtc_w,
-			 state->crtc_h,
-			 vc4_plane->mb.plane.vc_image_type,
-			 state->crtc_x,
-			 state->crtc_y);
-	vc4_plane_set_blank(plane, true);
+	return 0;
 }
 
 static int vc4_plane_atomic_check(struct drm_plane *plane,
 				  struct drm_plane_state *state)
 {
-	return 0;
+	struct vc4_fkms_plane *vc4_plane = to_vc4_fkms_plane(plane);
+
+	if (!plane_enabled(state))
+		return 0;
+
+	return vc4_plane_to_mb(plane, &vc4_plane->mb, state);
+
 }
 
 static void vc4_plane_destroy(struct drm_plane *plane)
@@ -683,6 +791,7 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 	 * other layers as requested by KMS.
 	 */
 	switch (type) {
+	default:
 	case DRM_PLANE_TYPE_PRIMARY:
 		default_zpos = 0;
 		break;
@@ -741,8 +850,6 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 		      mode->picture_aspect_ratio, mode->flags);
 	mb.timings.display = vc4_crtc->display_number;
 
-	mb.timings.video_id_code = frame.avi.video_code;
-
 	mb.timings.clock = mode->clock;
 	mb.timings.hdisplay = mode->hdisplay;
 	mb.timings.hsync_start = mode->hsync_start;
@@ -780,11 +887,30 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 		break;
 	}
 
-	if (!vc4_encoder->hdmi_monitor)
+	if (!vc4_encoder->hdmi_monitor) {
 		mb.timings.flags |= TIMINGS_FLAGS_DVI;
-	else if (drm_default_rgb_quant_range(mode) ==
+		mb.timings.video_id_code = frame.avi.video_code;
+	} else {
+		struct vc4_fkms_connector_state *conn_state =
+			to_vc4_fkms_connector_state(vc4_crtc->connector->state);
+
+		/* Do not provide a VIC as the HDMI spec requires that we do not
+		 * signal the opposite of the defined range in the AVI
+		 * infoframe.
+		 */
+		mb.timings.video_id_code = 0;
+
+		if (conn_state->broadcast_rgb == VC4_BROADCAST_RGB_AUTO) {
+			/* See CEA-861-E - 5.1 Default Encoding Parameters */
+			if (drm_default_rgb_quant_range(mode) ==
 					HDMI_QUANTIZATION_RANGE_LIMITED)
-		mb.timings.flags |= TIMINGS_FLAGS_RGB_LIMITED;
+				mb.timings.flags |= TIMINGS_FLAGS_RGB_LIMITED;
+		} else {
+			if (conn_state->broadcast_rgb ==
+						VC4_BROADCAST_RGB_LIMITED)
+				mb.timings.flags |= TIMINGS_FLAGS_RGB_LIMITED;
+		}
+	}
 
 	/*
 	FIXME: To implement
@@ -806,6 +932,7 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
 {
+	struct drm_device *dev = crtc->dev;
 	struct drm_plane *plane;
 
 	DRM_DEBUG_KMS("[CRTC:%d] vblanks off.\n",
@@ -821,6 +948,38 @@ static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_s
 
 	drm_atomic_crtc_for_each_plane(plane, crtc)
 		vc4_plane_atomic_disable(plane, plane->state);
+
+	/*
+	 * Make sure we issue a vblank event after disabling the CRTC if
+	 * someone was waiting it.
+	 */
+	if (crtc->state->event) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&dev->event_lock, flags);
+		drm_crtc_send_vblank_event(crtc, crtc->state->event);
+		crtc->state->event = NULL;
+		spin_unlock_irqrestore(&dev->event_lock, flags);
+	}
+}
+
+static void vc4_crtc_consume_event(struct drm_crtc *crtc)
+{
+	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+	struct drm_device *dev = crtc->dev;
+	unsigned long flags;
+
+	if (!crtc->state->event)
+		return;
+
+	crtc->state->event->pipe = drm_crtc_index(crtc);
+
+	WARN_ON(drm_crtc_vblank_get(crtc) != 0);
+
+	spin_lock_irqsave(&dev->event_lock, flags);
+	vc4_crtc->event = crtc->state->event;
+	crtc->state->event = NULL;
+	spin_unlock_irqrestore(&dev->event_lock, flags);
 }
 
 static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
@@ -830,6 +989,7 @@ static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_st
 	DRM_DEBUG_KMS("[CRTC:%d] vblanks on.\n",
 		      crtc->base.id);
 	drm_crtc_vblank_on(crtc);
+	vc4_crtc_consume_event(crtc);
 
 	/* Unblank the planes (if they're supposed to be displayed). */
 	drm_atomic_crtc_for_each_plane(plane, crtc)
@@ -878,31 +1038,33 @@ vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 				 struct drm_crtc_state *state)
 {
-	DRM_DEBUG_KMS("[CRTC:%d] crtc_atomic_check.\n",
-		      crtc->base.id);
+	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(state);
+	struct drm_connector *conn;
+	struct drm_connector_state *conn_state;
+	int i;
+
+	DRM_DEBUG_KMS("[CRTC:%d] crtc_atomic_check.\n", crtc->base.id);
+
+	for_each_new_connector_in_state(state->state, conn, conn_state, i) {
+		if (conn_state->crtc != crtc)
+			continue;
+
+		vc4_state->margins.left = conn_state->tv.margins.left;
+		vc4_state->margins.right = conn_state->tv.margins.right;
+		vc4_state->margins.top = conn_state->tv.margins.top;
+		vc4_state->margins.bottom = conn_state->tv.margins.bottom;
+		break;
+	}
 	return 0;
 }
 
 static void vc4_crtc_atomic_flush(struct drm_crtc *crtc,
 				  struct drm_crtc_state *old_state)
 {
-	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
-	struct drm_device *dev = crtc->dev;
-
 	DRM_DEBUG_KMS("[CRTC:%d] crtc_atomic_flush.\n",
 		      crtc->base.id);
-	if (crtc->state->event) {
-		unsigned long flags;
-
-		crtc->state->event->pipe = drm_crtc_index(crtc);
-
-		WARN_ON(drm_crtc_vblank_get(crtc) != 0);
-
-		spin_lock_irqsave(&dev->event_lock, flags);
-		vc4_crtc->event = crtc->state->event;
-		crtc->state->event = NULL;
-		spin_unlock_irqrestore(&dev->event_lock, flags);
-	}
+	if (crtc->state->active && old_state->active && crtc->state->event)
+		vc4_crtc_consume_event(crtc);
 }
 
 static void vc4_crtc_handle_page_flip(struct vc4_crtc *vc4_crtc)
@@ -950,14 +1112,17 @@ static irqreturn_t vc4_crtc_irq_handler(int irq, void *data)
 				vc4_crtc_handle_page_flip(crtc_list[0]);
 			}
 
-			/* Check for the secondary display too */
-			chan = readl(crtc_list[0]->regs + SMIDSW1);
+			if (crtc_list[1]) {
+				/* Check for the secondary display too */
+				chan = readl(crtc_list[0]->regs + SMIDSW1);
 
-			if (chan & 1) {
-				writel(SMI_NEW, crtc_list[0]->regs + SMIDSW1);
-				if (crtc_list[1]->vblank_enabled)
-					drm_crtc_handle_vblank(&crtc_list[1]->base);
-				vc4_crtc_handle_page_flip(crtc_list[1]);
+				if (chan & 1) {
+					writel(SMI_NEW, crtc_list[0]->regs + SMIDSW1);
+
+					if (crtc_list[1]->vblank_enabled)
+						drm_crtc_handle_vblank(&crtc_list[1]->base);
+					vc4_crtc_handle_page_flip(crtc_list[1]);
+				}
 			}
 		}
 
@@ -978,6 +1143,33 @@ static int vc4_page_flip(struct drm_crtc *crtc,
 	}
 
 	return drm_atomic_helper_page_flip(crtc, fb, event, flags, ctx);
+}
+
+static struct drm_crtc_state *
+vc4_crtc_duplicate_state(struct drm_crtc *crtc)
+{
+	struct vc4_crtc_state *vc4_state, *old_vc4_state;
+
+	vc4_state = kzalloc(sizeof(*vc4_state), GFP_KERNEL);
+	if (!vc4_state)
+		return NULL;
+
+	old_vc4_state = to_vc4_crtc_state(crtc->state);
+	vc4_state->margins = old_vc4_state->margins;
+
+	__drm_atomic_helper_crtc_duplicate_state(crtc, &vc4_state->base);
+	return &vc4_state->base;
+}
+
+static void
+vc4_crtc_reset(struct drm_crtc *crtc)
+{
+	if (crtc->state)
+		__drm_atomic_helper_crtc_destroy_state(crtc->state);
+
+	crtc->state = kzalloc(sizeof(*crtc->state), GFP_KERNEL);
+	if (crtc->state)
+		crtc->state->crtc = crtc;
 }
 
 static int vc4_fkms_enable_vblank(struct drm_crtc *crtc)
@@ -1007,8 +1199,8 @@ static const struct drm_crtc_funcs vc4_crtc_funcs = {
 	.set_property = NULL,
 	.cursor_set = NULL, /* handled by drm_mode_cursor_universal */
 	.cursor_move = NULL, /* handled by drm_mode_cursor_universal */
-	.reset = drm_atomic_helper_crtc_reset,
-	.atomic_duplicate_state = drm_atomic_helper_crtc_duplicate_state,
+	.reset = vc4_crtc_reset,
+	.atomic_duplicate_state = vc4_crtc_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_crtc_destroy_state,
 	.enable_vblank = vc4_fkms_enable_vblank,
 	.disable_vblank = vc4_fkms_disable_vblank,
@@ -1204,13 +1396,102 @@ static void vc4_fkms_connector_destroy(struct drm_connector *connector)
 	drm_connector_cleanup(connector);
 }
 
+/**
+ * vc4_connector_duplicate_state - duplicate connector state
+ * @connector: digital connector
+ *
+ * Allocates and returns a copy of the connector state (both common and
+ * digital connector specific) for the specified connector.
+ *
+ * Returns: The newly allocated connector state, or NULL on failure.
+ */
+struct drm_connector_state *
+vc4_connector_duplicate_state(struct drm_connector *connector)
+{
+	struct vc4_fkms_connector_state *state;
+
+	state = kmemdup(connector->state, sizeof(*state), GFP_KERNEL);
+	if (!state)
+		return NULL;
+
+	__drm_atomic_helper_connector_duplicate_state(connector, &state->base);
+	return &state->base;
+}
+
+/**
+ * vc4_connector_atomic_get_property - hook for connector->atomic_get_property.
+ * @connector: Connector to get the property for.
+ * @state: Connector state to retrieve the property from.
+ * @property: Property to retrieve.
+ * @val: Return value for the property.
+ *
+ * Returns the atomic property value for a digital connector.
+ */
+int vc4_connector_atomic_get_property(struct drm_connector *connector,
+				      const struct drm_connector_state *state,
+				      struct drm_property *property,
+				      uint64_t *val)
+{
+	struct vc4_fkms_connector *fkms_connector =
+					to_vc4_fkms_connector(connector);
+	struct vc4_fkms_connector_state *vc4_conn_state =
+					to_vc4_fkms_connector_state(state);
+
+	if (property == fkms_connector->broadcast_rgb_property) {
+		*val = vc4_conn_state->broadcast_rgb;
+	} else {
+		DRM_DEBUG_ATOMIC("Unknown property [PROP:%d:%s]\n",
+				 property->base.id, property->name);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/**
+ * vc4_connector_atomic_set_property - hook for connector->atomic_set_property.
+ * @connector: Connector to set the property for.
+ * @state: Connector state to set the property on.
+ * @property: Property to set.
+ * @val: New value for the property.
+ *
+ * Sets the atomic property value for a digital connector.
+ */
+int vc4_connector_atomic_set_property(struct drm_connector *connector,
+				      struct drm_connector_state *state,
+				      struct drm_property *property,
+				      uint64_t val)
+{
+	struct vc4_fkms_connector *fkms_connector =
+					to_vc4_fkms_connector(connector);
+	struct vc4_fkms_connector_state *vc4_conn_state =
+					to_vc4_fkms_connector_state(state);
+
+	if (property == fkms_connector->broadcast_rgb_property) {
+		vc4_conn_state->broadcast_rgb = val;
+		return 0;
+	}
+
+	DRM_DEBUG_ATOMIC("Unknown property [PROP:%d:%s]\n",
+			 property->base.id, property->name);
+	return -EINVAL;
+}
+
+static void vc4_hdmi_connector_reset(struct drm_connector *connector)
+{
+	drm_atomic_helper_connector_reset(connector);
+	drm_atomic_helper_connector_tv_reset(connector);
+}
+
 static const struct drm_connector_funcs vc4_fkms_connector_funcs = {
 	.detect = vc4_fkms_connector_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.destroy = vc4_fkms_connector_destroy,
-	.reset = drm_atomic_helper_connector_reset,
-	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
+	.reset = vc4_hdmi_connector_reset,
+	.atomic_duplicate_state = vc4_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+	.atomic_get_property = vc4_connector_atomic_get_property,
+	.atomic_set_property = vc4_connector_atomic_set_property,
 };
 
 static const struct drm_connector_helper_funcs vc4_fkms_connector_helper_funcs = {
@@ -1223,12 +1504,40 @@ static const struct drm_connector_helper_funcs vc4_fkms_lcd_conn_helper_funcs = 
 	.best_encoder = vc4_fkms_connector_best_encoder,
 };
 
+static const struct drm_prop_enum_list broadcast_rgb_names[] = {
+	{ VC4_BROADCAST_RGB_AUTO, "Automatic" },
+	{ VC4_BROADCAST_RGB_FULL, "Full" },
+	{ VC4_BROADCAST_RGB_LIMITED, "Limited 16:235" },
+};
+
+static void
+vc4_attach_broadcast_rgb_property(struct vc4_fkms_connector *fkms_connector)
+{
+	struct drm_device *dev = fkms_connector->base.dev;
+	struct drm_property *prop;
+
+	prop = fkms_connector->broadcast_rgb_property;
+	if (!prop) {
+		prop = drm_property_create_enum(dev, DRM_MODE_PROP_ENUM,
+						"Broadcast RGB",
+						broadcast_rgb_names,
+						ARRAY_SIZE(broadcast_rgb_names));
+		if (!prop)
+			return;
+
+		fkms_connector->broadcast_rgb_property = prop;
+	}
+
+	drm_object_attach_property(&fkms_connector->base.base, prop, 0);
+}
+
 static struct drm_connector *
 vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
 			u32 display_num)
 {
 	struct drm_connector *connector = NULL;
 	struct vc4_fkms_connector *fkms_connector;
+	struct vc4_fkms_connector_state *conn_state = NULL;
 	struct vc4_dev *vc4_dev = to_vc4_dev(dev);
 	int ret = 0;
 
@@ -1237,15 +1546,27 @@ vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
 	fkms_connector = devm_kzalloc(dev->dev, sizeof(*fkms_connector),
 				      GFP_KERNEL);
 	if (!fkms_connector) {
-		ret = -ENOMEM;
-		goto fail;
+		return ERR_PTR(-ENOMEM);
 	}
+
+	/*
+	 * Allocate enough memory to hold vc4_fkms_connector_state,
+	 */
+	conn_state = kzalloc(sizeof(*conn_state), GFP_KERNEL);
+	if (!conn_state) {
+		kfree(fkms_connector);
+		return ERR_PTR(-ENOMEM);
+	}
+
 	connector = &fkms_connector->base;
 
 	fkms_connector->encoder = encoder;
 	fkms_connector->display_number = display_num;
 	fkms_connector->display_type = vc4_get_display_type(display_num);
 	fkms_connector->vc4_dev = vc4_dev;
+
+	__drm_atomic_helper_connector_reset(connector,
+					    &conn_state->base);
 
 	if (fkms_connector->display_type == DRM_MODE_ENCODER_DSI) {
 		drm_connector_init(dev, connector, &vc4_fkms_connector_funcs,
@@ -1267,10 +1588,23 @@ vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
 		connector->interlace_allowed = 0;
 	}
 
+	/* Create and attach TV margin props to this connector.
+	 * Already done for SDTV outputs.
+	 */
+	if (fkms_connector->display_type != DRM_MODE_ENCODER_TVDAC) {
+		ret = drm_mode_create_tv_margin_properties(dev);
+		if (ret)
+			goto fail;
+	}
+
+	drm_connector_attach_tv_margin_properties(connector);
+
 	connector->polled = (DRM_CONNECTOR_POLL_CONNECT |
 			     DRM_CONNECTOR_POLL_DISCONNECT);
 
 	connector->doublescan_allowed = 0;
+
+	vc4_attach_broadcast_rgb_property(fkms_connector);
 
 	drm_connector_attach_encoder(connector, encoder);
 

@@ -292,11 +292,17 @@ static int vc4_hdmi_connector_get_modes(struct drm_connector *connector)
 	return ret;
 }
 
+static void vc4_hdmi_connector_reset(struct drm_connector *connector)
+{
+	drm_atomic_helper_connector_reset(connector);
+	drm_atomic_helper_connector_tv_reset(connector);
+}
+
 static const struct drm_connector_funcs vc4_hdmi_connector_funcs = {
 	.detect = vc4_hdmi_connector_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.destroy = vc4_hdmi_connector_destroy,
-	.reset = drm_atomic_helper_connector_reset,
+	.reset = vc4_hdmi_connector_reset,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
 };
@@ -310,6 +316,7 @@ static struct drm_connector *vc4_hdmi_connector_init(struct drm_device *dev,
 {
 	struct drm_connector *connector;
 	struct vc4_hdmi_connector *hdmi_connector;
+	int ret;
 
 	hdmi_connector = devm_kzalloc(dev->dev, sizeof(*hdmi_connector),
 				      GFP_KERNEL);
@@ -322,6 +329,13 @@ static struct drm_connector *vc4_hdmi_connector_init(struct drm_device *dev,
 	drm_connector_init(dev, connector, &vc4_hdmi_connector_funcs,
 			   DRM_MODE_CONNECTOR_HDMIA);
 	drm_connector_helper_add(connector, &vc4_hdmi_connector_helper_funcs);
+
+	/* Create and attach TV margin props to this connector. */
+	ret = drm_mode_create_tv_margin_properties(dev);
+	if (ret)
+		return ERR_PTR(ret);
+
+	drm_connector_attach_tv_margin_properties(connector);
 
 	connector->polled = (DRM_CONNECTOR_POLL_CONNECT |
 			     DRM_CONNECTOR_POLL_DISCONNECT);
@@ -408,6 +422,9 @@ static void vc4_hdmi_write_infoframe(struct drm_encoder *encoder,
 static void vc4_hdmi_set_avi_infoframe(struct drm_encoder *encoder)
 {
 	struct vc4_hdmi_encoder *vc4_encoder = to_vc4_hdmi_encoder(encoder);
+	struct vc4_dev *vc4 = encoder->dev->dev_private;
+	struct vc4_hdmi *hdmi = vc4->hdmi;
+	struct drm_connector_state *cstate = hdmi->connector->state;
 	struct drm_crtc *crtc = encoder->crtc;
 	const struct drm_display_mode *mode = &crtc->state->adjusted_mode;
 	union hdmi_infoframe frame;
@@ -425,6 +442,11 @@ static void vc4_hdmi_set_avi_infoframe(struct drm_encoder *encoder)
 					   HDMI_QUANTIZATION_RANGE_FULL,
 					   vc4_encoder->rgb_range_selectable,
 					   false);
+
+	frame.avi.right_bar = cstate->tv.margins.right;
+	frame.avi.left_bar = cstate->tv.margins.left;
+	frame.avi.top_bar = cstate->tv.margins.top;
+	frame.avi.bottom_bar = cstate->tv.margins.bottom;
 
 	vc4_hdmi_write_infoframe(encoder, &frame);
 }
@@ -1071,10 +1093,12 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *hdmi)
 	struct device *dev = &hdmi->pdev->dev;
 	const __be32 *addr;
 	int ret;
+	int len;
 
-	if (!of_find_property(dev->of_node, "dmas", NULL)) {
+	if (!of_find_property(dev->of_node, "dmas", &len) ||
+	    len == 0) {
 		dev_warn(dev,
-			 "'dmas' DT property is missing, no HDMI audio\n");
+			 "'dmas' DT property is missing or empty, no HDMI audio\n");
 		return 0;
 	}
 

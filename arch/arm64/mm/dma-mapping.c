@@ -138,6 +138,12 @@ no_mem:
 	return NULL;
 }
 
+void *arm64_dma_alloc(struct device *dev, size_t size, dma_addr_t *handle,
+                           gfp_t gfp, unsigned long attrs)
+{
+        return __dma_alloc(dev, size, handle, gfp, attrs);
+}
+
 static void __dma_free(struct device *dev, size_t size,
 		       void *vaddr, dma_addr_t dma_handle,
 		       unsigned long attrs)
@@ -152,6 +158,12 @@ static void __dma_free(struct device *dev, size_t size,
 		vunmap(vaddr);
 	}
 	swiotlb_free(dev, size, swiotlb_addr, dma_handle, attrs);
+}
+
+void arm64_dma_free(struct device *dev, size_t size, void *cpu_addr,
+                         dma_addr_t handle, unsigned long attrs)
+{
+        __dma_free(dev, size, cpu_addr, handle, attrs);
 }
 
 static dma_addr_t __swiotlb_map_page(struct device *dev, struct page *page,
@@ -197,6 +209,12 @@ static int __swiotlb_map_sg_attrs(struct device *dev, struct scatterlist *sgl,
 	return ret;
 }
 
+int arm64_dma_map_sg(struct device *dev, struct scatterlist *sgl, int nelems,
+                enum dma_data_direction dir, unsigned long attrs)
+{
+	return __swiotlb_map_sg_attrs(dev, sgl, nelems, dir, attrs);
+}
+
 static void __swiotlb_unmap_sg_attrs(struct device *dev,
 				     struct scatterlist *sgl, int nelems,
 				     enum dma_data_direction dir,
@@ -211,6 +229,12 @@ static void __swiotlb_unmap_sg_attrs(struct device *dev,
 			__dma_unmap_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
 					 sg->length, dir);
 	swiotlb_unmap_sg_attrs(dev, sgl, nelems, dir, attrs);
+}
+
+void arm64_dma_unmap_sg(struct device *dev, struct scatterlist *sgl, int nelems,
+                enum dma_data_direction dir, unsigned long attrs)
+{
+	__swiotlb_unmap_sg_attrs(dev, sgl, nelems, dir, attrs);
 }
 
 static void __swiotlb_sync_single_for_cpu(struct device *dev,
@@ -245,6 +269,12 @@ static void __swiotlb_sync_sg_for_cpu(struct device *dev,
 	swiotlb_sync_sg_for_cpu(dev, sgl, nelems, dir);
 }
 
+void arm64_dma_sync_sg_for_cpu(struct device *dev, struct scatterlist *sgl, int nelems,
+                enum dma_data_direction dir)
+{
+	__swiotlb_sync_sg_for_cpu(dev, sgl, nelems, dir);
+}
+
 static void __swiotlb_sync_sg_for_device(struct device *dev,
 					 struct scatterlist *sgl, int nelems,
 					 enum dma_data_direction dir)
@@ -257,6 +287,12 @@ static void __swiotlb_sync_sg_for_device(struct device *dev,
 		for_each_sg(sgl, sg, nelems, i)
 			__dma_map_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
 				       sg->length, dir);
+}
+
+void arm64_dma_sync_sg_for_device(struct device *dev, struct scatterlist *sgl, int nelems,
+                enum dma_data_direction dir)
+{
+	__swiotlb_sync_sg_for_device(dev, sgl, nelems, dir);
 }
 
 static int __swiotlb_mmap_pfn(struct vm_area_struct *vma,
@@ -294,6 +330,13 @@ static int __swiotlb_mmap(struct device *dev,
 	return __swiotlb_mmap_pfn(vma, pfn, size);
 }
 
+int arm64_dma_mmap(struct device *dev, struct vm_area_struct *vma,
+                        void *cpu_addr, dma_addr_t dma_addr, size_t size,
+                        unsigned long attrs)
+{
+	return __swiotlb_mmap(dev, vma, cpu_addr, dma_addr, size, attrs);
+}
+
 static int __swiotlb_get_sgtable_page(struct sg_table *sgt,
 				      struct page *page, size_t size)
 {
@@ -312,6 +355,13 @@ static int __swiotlb_get_sgtable(struct device *dev, struct sg_table *sgt,
 	struct page *page = phys_to_page(dma_to_phys(dev, handle));
 
 	return __swiotlb_get_sgtable_page(sgt, page, size);
+}
+
+int arm64_dma_get_sgtable(struct device *dev, struct sg_table *sgt,
+                void *cpu_addr, dma_addr_t dma_addr, size_t size,
+                unsigned long attrs)
+{
+	return __swiotlb_get_sgtable(dev, sgt, cpu_addr, dma_addr, size, attrs);
 }
 
 static int __swiotlb_dma_supported(struct device *hwdev, u64 mask)

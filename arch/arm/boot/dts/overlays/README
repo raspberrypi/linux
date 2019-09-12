@@ -475,12 +475,14 @@ Params: <None>
 
 
 Name:   audremap
-Info:   Switches PWM sound output to pins 12 (Right) & 13 (Left)
+Info:   Switches PWM sound output to GPIOs on the 40-pin header
 Load:   dtoverlay=audremap,<param>=<val>
 Params: swap_lr                 Reverse the channel allocation, which will also
                                 swap the audio jack outputs (default off)
         enable_jack             Don't switch off the audio jack output
                                 (default off)
+        pins_12_13              Select GPIOs 12 & 13 (default)
+        pins_18_19              Select GPIOs 18 & 19
 
 
 Name:   balena-fin
@@ -881,6 +883,27 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 master for bit clock and frame clock.
 
 
+Name:   hifiberry-dacplusadcpro
+Info:   Configures the HifiBerry DAC+ADC PRO audio card
+Load:   dtoverlay=hifiberry-dacplusadcpro,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=hifiberry-dacplusadcpro,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24dB_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+        slave                   Force DAC+ADC Pro into slave mode, using Pi as
+                                master for bit clock and frame clock.
+
+
 Name:   hifiberry-digi
 Info:   Configures the HifiBerry Digi and Digi+ audio card
 Load:   dtoverlay=hifiberry-digi
@@ -1198,6 +1221,8 @@ Info:   Enable the i2c3 bus
 Load:   dtoverlay=i2c3,<param>
 Params: pins_2_3                Use GPIOs 2 and 3
         pins_4_5                Use GPIOs 4 and 5 (default)
+        baudrate                Set the baudrate for the interface (default
+                                "100000")
 
 
 Name:   i2c4
@@ -1205,6 +1230,8 @@ Info:   Enable the i2c4 bus
 Load:   dtoverlay=i2c4,<param>
 Params: pins_6_7                Use GPIOs 6 and 7
         pins_8_9                Use GPIOs 8 and 9 (default)
+        baudrate                Set the baudrate for the interface (default
+                                "100000")
 
 
 Name:   i2c5
@@ -1212,6 +1239,8 @@ Info:   Enable the i2c5 bus
 Load:   dtoverlay=i2c5,<param>
 Params: pins_10_11              Use GPIOs 10 and 11
         pins_12_13              Use GPIOs 12 and 13 (default)
+        baudrate                Set the baudrate for the interface (default
+                                "100000")
 
 
 Name:   i2c6
@@ -1219,6 +1248,8 @@ Info:   Enable the i2c6 bus
 Load:   dtoverlay=i2c6,<param>
 Params: pins_0_1                Use GPIOs 0 and 1
         pins_22_23              Use GPIOs 22 and 23 (default)
+        baudrate                Set the baudrate for the interface (default
+                                "100000")
 
 
 Name:   i2s-gpio28-31
@@ -1236,6 +1267,18 @@ Params: interrupt               GPIO used for interrupt (default 4)
                                 touchscreen (in pixels)
         sizey                   Touchscreen size y, vertical resolution of
                                 touchscreen (in pixels)
+
+
+Name:   imx219
+Info:   Sony IMX219 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx219,<param>=<val>
+Params: i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
+                                Useful on Compute Modules.
+
+        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
+                                This is required for Pi B+, 2, 0, and 0W.
 
 
 Name:   iqaudio-codec
@@ -1384,6 +1427,7 @@ Params: gpiopin                 Gpio pin connected to the INTA output of the
         addr                    I2C address of the MCP23017 (default: 0x20)
 
         mcp23008                Configure an MCP23008 instead.
+        noints                  Disable the interrupt GPIO line.
 
 
 Name:   mcp23s17
@@ -2457,6 +2501,7 @@ Params: cma-256                 CMA is 256MB (needs 1GB)
         cma-128                 CMA is 128MB
         cma-96                  CMA is 96MB
         cma-64                  CMA is 64MB
+        audio                   Enable or disable audio over HDMI (default "on")
 
 
 Name:   vga666

@@ -628,6 +628,7 @@ static int mcp251x_hw_reset(struct spi_device *spi)
 	struct mcp251x_priv *priv = spi_get_drvdata(spi);
 	u8 reg;
 	int ret;
+	int retries = 10;
 
 	/* Wait for oscillator startup timer after power up */
 	mdelay(MCP251X_OST_DELAY_MS);
@@ -637,10 +638,18 @@ static int mcp251x_hw_reset(struct spi_device *spi)
 	if (ret)
 		return ret;
 
-	/* Wait for oscillator startup timer after reset */
-	mdelay(MCP251X_OST_DELAY_MS);
+	/*
+	 * Wait for oscillator startup timer after reset
+	 *
+	 * Some devices can take longer than the expected 5ms to wake
+	 * up, so allow a few retries.
+	 */
 
-	reg = mcp251x_read_reg(spi, CANSTAT);
+	do {
+		mdelay(MCP251X_OST_DELAY_MS);
+		reg = mcp251x_read_reg(spi, CANSTAT);
+	} while (!reg && retries--);
+
 	if ((reg & CANCTRL_REQOP_MASK) != CANCTRL_REQOP_CONF)
 		return -ENODEV;
 
@@ -676,17 +685,6 @@ static int mcp251x_power_enable(struct regulator *reg, int enable)
 		return regulator_enable(reg);
 	else
 		return regulator_disable(reg);
-}
-
-static void mcp251x_open_clean(struct net_device *net)
-{
-	struct mcp251x_priv *priv = netdev_priv(net);
-	struct spi_device *spi = priv->spi;
-
-	free_irq(spi->irq, priv);
-	mcp251x_hw_sleep(spi);
-	mcp251x_power_enable(priv->transceiver, 0);
-	close_candev(net);
 }
 
 static int mcp251x_stop(struct net_device *net)
@@ -957,37 +955,43 @@ static int mcp251x_open(struct net_device *net)
 				   flags | IRQF_ONESHOT, DEVICE_NAME, priv);
 	if (ret) {
 		dev_err(&spi->dev, "failed to acquire irq %d\n", spi->irq);
-		mcp251x_power_enable(priv->transceiver, 0);
-		close_candev(net);
-		goto open_unlock;
+		goto out_close;
 	}
 
 	priv->wq = alloc_workqueue("mcp251x_wq", WQ_FREEZABLE | WQ_MEM_RECLAIM,
 				   0);
+	if (!priv->wq) {
+		ret = -ENOMEM;
+		goto out_clean;
+	}
 	INIT_WORK(&priv->tx_work, mcp251x_tx_work_handler);
 	INIT_WORK(&priv->restart_work, mcp251x_restart_work_handler);
 
 	ret = mcp251x_hw_reset(spi);
-	if (ret) {
-		mcp251x_open_clean(net);
-		goto open_unlock;
-	}
+	if (ret)
+		goto out_free_wq;
 	ret = mcp251x_setup(net, spi);
-	if (ret) {
-		mcp251x_open_clean(net);
-		goto open_unlock;
-	}
+	if (ret)
+		goto out_free_wq;
 	ret = mcp251x_set_normal_mode(spi);
-	if (ret) {
-		mcp251x_open_clean(net);
-		goto open_unlock;
-	}
+	if (ret)
+		goto out_free_wq;
 
 	can_led_event(net, CAN_LED_EVENT_OPEN);
 
 	netif_wake_queue(net);
+	mutex_unlock(&priv->mcp_lock);
 
-open_unlock:
+	return 0;
+
+out_free_wq:
+	destroy_workqueue(priv->wq);
+out_clean:
+	free_irq(spi->irq, priv);
+	mcp251x_hw_sleep(spi);
+out_close:
+	mcp251x_power_enable(priv->transceiver, 0);
+	close_candev(net);
 	mutex_unlock(&priv->mcp_lock);
 	return ret;
 }

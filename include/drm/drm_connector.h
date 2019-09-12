@@ -344,13 +344,37 @@ int drm_display_info_set_bus_formats(struct drm_display_info *info,
 				     unsigned int num_formats);
 
 /**
+ * struct drm_connector_tv_margins - TV connector related margins
+ *
+ * Describes the margins in pixels to put around the image on TV
+ * connectors to deal with overscan.
+ */
+struct drm_connector_tv_margins {
+	/**
+	 * @bottom: Bottom margin in pixels.
+	 */
+	unsigned int bottom;
+
+	/**
+	 * @left: Left margin in pixels.
+	 */
+	unsigned int left;
+
+	/**
+	 * @right: Right margin in pixels.
+	 */
+	unsigned int right;
+
+	/**
+	 * @top: Top margin in pixels.
+	 */
+	unsigned int top;
+};
+
+/**
  * struct drm_tv_connector_state - TV connector related states
  * @subconnector: selected subconnector
- * @margins: margins
- * @margins.left: left margin
- * @margins.right: right margin
- * @margins.top: top margin
- * @margins.bottom: bottom margin
+ * @margins: TV margins
  * @mode: TV mode
  * @brightness: brightness in percent
  * @contrast: contrast in percent
@@ -361,12 +385,7 @@ int drm_display_info_set_bus_formats(struct drm_display_info *info,
  */
 struct drm_tv_connector_state {
 	enum drm_mode_subconnector subconnector;
-	struct {
-		unsigned int left;
-		unsigned int right;
-		unsigned int top;
-		unsigned int bottom;
-	} margins;
+	struct drm_connector_tv_margins margins;
 	unsigned int mode;
 	unsigned int brightness;
 	unsigned int contrast;
@@ -755,19 +774,123 @@ struct drm_connector_funcs {
 				   const struct drm_connector_state *state);
 };
 
-/* mode specified on the command line */
+/**
+ * struct drm_cmdline_mode - DRM Mode passed through the kernel command-line
+ *
+ * Each connector can have an initial mode with additional options
+ * passed through the kernel command line. This structure allows to
+ * express those parameters and will be filled by the command-line
+ * parser.
+ */
 struct drm_cmdline_mode {
+	/**
+	 * @name:
+	 *
+	 * Name of the mode.
+	 */
+	char name[DRM_DISPLAY_MODE_LEN];
+
+	/**
+	 * @specified:
+	 *
+	 * Has a mode been read from the command-line?
+	 */
 	bool specified;
+
+	/**
+	 * @refresh_specified:
+	 *
+	 * Did the mode have a preferred refresh rate?
+	 */
 	bool refresh_specified;
+
+	/**
+	 * @bpp_specified:
+	 *
+	 * Did the mode have a preferred BPP?
+	 */
 	bool bpp_specified;
-	int xres, yres;
+
+	/**
+	 * @xres:
+	 *
+	 * Active resolution on the X axis, in pixels.
+	 */
+	int xres;
+
+	/**
+	 * @yres:
+	 *
+	 * Active resolution on the Y axis, in pixels.
+	 */
+	int yres;
+
+	/**
+	 * @bpp:
+	 *
+	 * Bits per pixels for the mode.
+	 */
 	int bpp;
+
+	/**
+	 * @refresh:
+	 *
+	 * Refresh rate, in Hertz.
+	 */
 	int refresh;
+
+	/**
+	 * @rb:
+	 *
+	 * Do we need to use reduced blanking?
+	 */
 	bool rb;
+
+	/**
+	 * @interlace:
+	 *
+	 * The mode is interlaced.
+	 */
 	bool interlace;
+
+	/**
+	 * @cvt:
+	 *
+	 * The timings will be calculated using the VESA Coordinated
+	 * Video Timings instead of looking up the mode from a table.
+	 */
 	bool cvt;
+
+	/**
+	 * @margins:
+	 *
+	 * Add margins to the mode calculation (1.8% of xres rounded
+	 * down to 8 pixels and 1.8% of yres).
+	 */
 	bool margins;
+
+	/**
+	 * @force:
+	 *
+	 * Ignore the hotplug state of the connector, and force its
+	 * state to one of the DRM_FORCE_* values.
+	 */
 	enum drm_connector_force force;
+
+	/**
+	 * @rotation_reflection:
+	 *
+	 * Initial rotation and reflection of the mode setup from the
+	 * command line. See DRM_MODE_ROTATE_* and
+	 * DRM_MODE_REFLECT_*. The only rotations supported are
+	 * DRM_MODE_ROTATE_0 and DRM_MODE_ROTATE_180.
+	 */
+	unsigned int rotation_reflection;
+
+	/**
+	 * @tv_margins: TV margins to apply to the mode.
+	 */
+	struct drm_connector_tv_margins tv_margins;
 };
 
 /**
@@ -1175,9 +1298,11 @@ const char *drm_get_tv_select_name(int val);
 const char *drm_get_content_protection_name(int val);
 
 int drm_mode_create_dvi_i_properties(struct drm_device *dev);
+int drm_mode_create_tv_margin_properties(struct drm_device *dev);
 int drm_mode_create_tv_properties(struct drm_device *dev,
 				  unsigned int num_modes,
 				  const char * const modes[]);
+void drm_connector_attach_tv_margin_properties(struct drm_connector *conn);
 int drm_mode_create_scaling_mode_property(struct drm_device *dev);
 int drm_connector_attach_content_type_property(struct drm_connector *dev);
 int drm_connector_attach_scaling_mode_property(struct drm_connector *connector,
