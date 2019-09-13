@@ -1423,6 +1423,10 @@ static int vidioc_s_parm(struct file *file, void *priv,
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		return -EINVAL;
 
+	if (!parm->parm.output.timeperframe.denominator ||
+	    !parm->parm.output.timeperframe.numerator)
+		return -EINVAL;
+
 	ctx->framerate_num =
 			parm->parm.output.timeperframe.denominator;
 	ctx->framerate_denom =
@@ -2389,6 +2393,9 @@ static int bcm2835_codec_open(struct file *file)
 
 	ctx->colorspace = V4L2_COLORSPACE_REC709;
 	ctx->bitrate = 10 * 1000 * 1000;
+
+	ctx->framerate_num = 30;
+	ctx->framerate_denom = 1;
 
 	/* Initialise V4L2 contexts */
 	v4l2_fh_init(&ctx->fh, video_devdata(file));
