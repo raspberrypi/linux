@@ -1438,7 +1438,7 @@ static int vidioc_g_parm(struct file *file, void *priv,
 {
 	struct bcm2835_codec_ctx *ctx = file2ctx(file);
 
-	if (parm->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
+	if (parm->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		return -EINVAL;
 
 	parm->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
