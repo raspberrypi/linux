@@ -496,9 +496,10 @@ struct bcm2835_codec_fmt *get_default_format(struct bcm2835_codec_dev *dev,
 	return &dev->supported_fmts[capture ? 1 : 0].list[0];
 }
 
-static struct bcm2835_codec_fmt *find_format(struct v4l2_format *f,
-					     struct bcm2835_codec_dev *dev,
-					     bool capture)
+static
+struct bcm2835_codec_fmt *find_format_pix_fmt(u32 pix_fmt,
+					      struct bcm2835_codec_dev *dev,
+					      bool capture)
 {
 	struct bcm2835_codec_fmt *fmt;
 	unsigned int k;
@@ -507,13 +508,21 @@ static struct bcm2835_codec_fmt *find_format(struct v4l2_format *f,
 
 	for (k = 0; k < fmts->num_entries; k++) {
 		fmt = &fmts->list[k];
-		if (fmt->fourcc == f->fmt.pix_mp.pixelformat)
+		if (fmt->fourcc == pix_fmt)
 			break;
 	}
 	if (k == fmts->num_entries)
 		return NULL;
 
 	return &fmts->list[k];
+}
+
+static inline
+struct bcm2835_codec_fmt *find_format(struct v4l2_format *f,
+				      struct bcm2835_codec_dev *dev,
+				      bool capture)
+{
+	return find_format_pix_fmt(f->fmt.pix_mp.pixelformat, dev, capture);
 }
 
 static inline struct bcm2835_codec_ctx *file2ctx(struct file *file)
@@ -1792,6 +1801,36 @@ static int vidioc_encoder_cmd(struct file *file, void *priv,
 	return 0;
 }
 
+static int vidioc_enum_framesizes(struct file *file, void *fh,
+				  struct v4l2_frmsizeenum *fsize)
+{
+	struct bcm2835_codec_fmt *fmt;
+
+	fmt = find_format_pix_fmt(fsize->pixel_format, file2ctx(file)->dev,
+				  true);
+	if (!fmt)
+		fmt = find_format_pix_fmt(fsize->pixel_format,
+					  file2ctx(file)->dev,
+					  false);
+
+	if (!fmt)
+		return -EINVAL;
+
+	if (fsize->index)
+		return -EINVAL;
+
+	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
+
+	fsize->stepwise.min_width = MIN_W;
+	fsize->stepwise.max_width = MAX_W;
+	fsize->stepwise.step_width = 1;
+	fsize->stepwise.min_height = MIN_H;
+	fsize->stepwise.max_height = MAX_H;
+	fsize->stepwise.step_height = 1;
+
+	return 0;
+}
+
 static const struct v4l2_ioctl_ops bcm2835_codec_ioctl_ops = {
 	.vidioc_querycap	= vidioc_querycap,
 
@@ -1829,6 +1868,7 @@ static const struct v4l2_ioctl_ops bcm2835_codec_ioctl_ops = {
 	.vidioc_try_decoder_cmd = vidioc_try_decoder_cmd,
 	.vidioc_encoder_cmd = vidioc_encoder_cmd,
 	.vidioc_try_encoder_cmd = vidioc_try_encoder_cmd,
+	.vidioc_enum_framesizes = vidioc_enum_framesizes,
 };
 
 static int bcm2835_codec_set_ctrls(struct bcm2835_codec_ctx *ctx)
