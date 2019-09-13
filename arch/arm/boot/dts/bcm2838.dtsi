@@ -287,16 +287,16 @@
 	v3dbus {
 		compatible = "simple-bus";
 		#address-cells = <1>;
-		#size-cells = <1>;
-		ranges = <0x7c500000  0x0 0xfc500000  0x03300000>,
-			 <0x40000000  0x0 0xff800000  0x00800000>;
-		dma-ranges = <0x00000000  0x0 0x00000000  0x3c000000>;
+		#size-cells = <2>;
+		ranges = <0x7c500000  0x0 0xfc500000  0x0 0x03300000>,
+			 <0x40000000  0x0 0xff800000  0x0 0x00800000>;
+		dma-ranges = <0x00000000  0x0 0x00000000  0x4 0x00000000>;
 
 		v3d: v3d@7ec04000 {
 			compatible = "brcm,2711-v3d";
 			reg =
-			    <0x7ec00000 0x4000>,
-			    <0x7ec04000 0x4000>;
+			    <0x7ec00000 0x0 0x4000>,
+			    <0x7ec04000 0x0 0x4000>;
 			reg-names = "hub", "core0";
 
 			power-domains = <&pm BCM2835_POWER_DOMAIN_GRAFX_V3D>;
