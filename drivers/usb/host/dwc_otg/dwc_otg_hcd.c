@@ -1429,8 +1429,6 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 
 	dwc_otg_hc_init(hcd->core_if, hc);
 
-	local_irq_save(flags);
-
 	if (fiq_enable)
 		fiq_fsm_spin_lock_irqsave(&hcd->fiq_state->lock, flags);
 	else
