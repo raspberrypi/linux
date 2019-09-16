@@ -508,6 +508,8 @@ ignore define VIDEO_MAX_FRAME
 ignore define VIDEO_MAX_PLANES
 ignore define v4l2_fourcc
 ignore define v4l2_fourcc_be
+ignore define v4l2_fourcc_conv
+ignore define v4l2_fourcc_args
 ignore define V4L2_FIELD_HAS_TOP
 ignore define V4L2_FIELD_HAS_BOTTOM
 ignore define V4L2_FIELD_HAS_BOTH
