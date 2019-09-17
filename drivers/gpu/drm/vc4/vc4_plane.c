@@ -637,6 +637,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	const struct hvs_format *format = vc4_get_hvs_format(fb->format->format);
 	u64 base_format_mod = fourcc_mod_broadcom_mod(fb->modifier);
 	int num_planes = fb->format->num_planes;
+	bool hflip = false, vflip = false;
 	u32 h_subsample = fb->format->hsub;
 	u32 v_subsample = fb->format->vsub;
 	bool mix_plane_alpha;
@@ -649,6 +650,24 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 
 	if (vc4_state->dlist_initialized)
 		return 0;
+
+	ret = vc4_plane_setup_clipping_and_scaling(state);
+	if (ret)
+		return ret;
+
+	rotation = drm_rotation_simplify(state->rotation,
+					 DRM_MODE_ROTATE_0 |
+					 DRM_MODE_REFLECT_X |
+					 DRM_MODE_REFLECT_Y);
+
+	if ((rotation & DRM_MODE_ROTATE_MASK) == DRM_MODE_ROTATE_180) {
+		hflip = true;
+		vflip = true;
+	}
+	if (rotation & DRM_MODE_REFLECT_X)
+		hflip ^= true;
+	if (rotation & DRM_MODE_REFLECT_Y)
+		vflip ^= true;
 
 	ret = vc4_plane_setup_clipping_and_scaling(state);
 	if (ret)
@@ -668,15 +687,15 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		scl1 = vc4_get_scl_field(state, 0);
 	}
 
-	rotation = drm_rotation_simplify(state->rotation,
-					 DRM_MODE_ROTATE_0 |
-					 DRM_MODE_REFLECT_X |
-					 DRM_MODE_REFLECT_Y);
-
-	/* We must point to the last line when Y reflection is enabled. */
-	src_y = vc4_state->src_y;
-	if (rotation & DRM_MODE_REFLECT_Y)
-		src_y += vc4_state->src_h[0] - 1;
+	if (!vflip)
+		src_y = vc4_state->src_y;
+	else
+		/* When vflipped the image offset needs to be
+		 * the start of the last line of the image, and
+		 * the pitch will be subtracted from the offset.
+		 */
+		src_y = vc4_state->src_y +
+			vc4_state->src_h[0] - 1;
 
 	switch (base_format_mod) {
 	case DRM_FORMAT_MOD_LINEAR:
@@ -736,7 +755,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		 * definitely required (I guess it's also related to the "going
 		 * backward" situation).
 		 */
-		if (rotation & DRM_MODE_REFLECT_Y) {
+		if (vflip) {
 			y_off = tile_h_mask - y_off;
 			pitch0 = SCALER_PITCH0_TILE_LINE_DIR;
 		} else {
@@ -834,7 +853,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 			VC4_SET_FIELD(tiling, SCALER_CTL0_TILING) |
 			(vc4_state->is_unity ? SCALER_CTL0_UNITY : 0) |
 			VC4_SET_FIELD(scl0, SCALER_CTL0_SCL0) |
-			VC4_SET_FIELD(scl1, SCALER_CTL0_SCL1));
+			VC4_SET_FIELD(scl1, SCALER_CTL0_SCL1) |
+			(vflip ? SCALER_CTL0_VFLIP : 0) |
+			(hflip ? SCALER_CTL0_HFLIP : 0));
 
 	/* Position Word 0: Image Positions and Alpha Value */
 	vc4_state->pos0_offset = vc4_state->dlist_count;
@@ -1330,6 +1351,12 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 					  BIT(DRM_COLOR_YCBCR_FULL_RANGE),
 					  DRM_COLOR_YCBCR_BT709,
 					  DRM_COLOR_YCBCR_LIMITED_RANGE);
+
+	drm_plane_create_rotation_property(plane, DRM_MODE_ROTATE_0,
+					   DRM_MODE_ROTATE_0 |
+					   DRM_MODE_ROTATE_180 |
+					   DRM_MODE_REFLECT_X |
+					   DRM_MODE_REFLECT_Y);
 
 	return plane;
 }
