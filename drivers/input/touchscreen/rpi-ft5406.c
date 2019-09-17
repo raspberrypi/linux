@@ -78,12 +78,12 @@ static int ft5406_thread(void *arg)
 
 	while (!kthread_should_stop()) {
 		/* 60fps polling */
-		msleep_interruptible(17);
+		usleep_range(16600,16700);
+
 		memcpy_fromio(&regs, ts->ts_base, sizeof(struct ft5406_regs));
 		iowrite8(99,
 			 ts->ts_base +
 			 offsetof(struct ft5406_regs, num_points));
-
 		/*
 		 * Do not output if theres no new information (num_points is 99)
 		 * or we have no touch points and don't need to release any
