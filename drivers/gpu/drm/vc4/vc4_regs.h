@@ -976,6 +976,7 @@ enum hvs_pixel_format {
 #define SCALER_CSC0_ITR_R_601_5			0x00f00000
 #define SCALER_CSC0_ITR_R_709_3			0x00f00000
 #define SCALER_CSC0_JPEG_JFIF			0x00000000
+#define SCALER_CSC0_ITR_R_709_3_FR		0x00000000
 
 /* S2.8 contribution of Cb to Green */
 #define SCALER_CSC1_COEF_CB_GRN_MASK		VC4_MASK(31, 22)
@@ -992,6 +993,7 @@ enum hvs_pixel_format {
 #define SCALER_CSC1_ITR_R_601_5			0xe73304a8
 #define SCALER_CSC1_ITR_R_709_3			0xf2b784a8
 #define SCALER_CSC1_JPEG_JFIF			0xea34a400
+#define SCALER_CSC1_ITR_R_709_3_FR		0xe23d0400
 
 /* S2.8 contribution of Cb to Red */
 #define SCALER_CSC2_COEF_CB_RED_MASK		VC4_MASK(29, 20)
@@ -1005,6 +1007,7 @@ enum hvs_pixel_format {
 #define SCALER_CSC2_ITR_R_601_5			0x00066204
 #define SCALER_CSC2_ITR_R_709_3			0x00072a1c
 #define SCALER_CSC2_JPEG_JFIF			0x000599c5
+#define SCALER_CSC2_ITR_R_709_3_FR		0x00064ddb
 
 #define SCALER_TPZ0_VERT_RECALC			BIT(31)
 #define SCALER_TPZ0_SCALE_MASK			VC4_MASK(28, 8)
