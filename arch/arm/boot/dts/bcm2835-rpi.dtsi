@@ -93,6 +93,10 @@
 	status = "okay";
 };
 
+&v3d {
+	power-domains = <&power RPI_POWER_DOMAIN_V3D>;
+};
+
 &vec {
 	power-domains = <&power RPI_POWER_DOMAIN_VEC>;
 	status = "okay";
