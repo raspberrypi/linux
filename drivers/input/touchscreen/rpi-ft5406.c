@@ -84,6 +84,7 @@ static int ft5406_thread(void *arg)
 		iowrite8(99,
 			 ts->ts_base +
 			 offsetof(struct ft5406_regs, num_points));
+
 		/*
 		 * Do not output if theres no new information (num_points is 99)
 		 * or we have no touch points and don't need to release any
