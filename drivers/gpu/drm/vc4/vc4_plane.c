@@ -560,7 +560,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	const struct hvs_format *format = vc4_get_hvs_format(fb->format->format);
 	u64 base_format_mod = fourcc_mod_broadcom_mod(fb->modifier);
 	int num_planes = drm_format_num_planes(format->drm);
+	bool hflip = false, vflip = false;
 	u32 h_subsample, v_subsample;
+	unsigned int rotation;
 	bool mix_plane_alpha;
 	bool covers_screen;
 	u32 scl0, scl1, pitch0;
@@ -568,10 +570,25 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	unsigned long irqflags;
 	u32 hvs_format = format->hvs;
 	int ret, i;
+	u32 src_y;
 
 	ret = vc4_plane_setup_clipping_and_scaling(state);
 	if (ret)
 		return ret;
+
+	rotation = drm_rotation_simplify(state->rotation,
+					 DRM_MODE_ROTATE_0 |
+					 DRM_MODE_REFLECT_X |
+					 DRM_MODE_REFLECT_Y);
+
+	if ((rotation & DRM_MODE_ROTATE_MASK) == DRM_MODE_ROTATE_180) {
+		hflip = true;
+		vflip = true;
+	}
+	if (rotation & DRM_MODE_REFLECT_X)
+		hflip ^= true;
+	if (rotation & DRM_MODE_REFLECT_Y)
+		vflip ^= true;
 
 	/* Allocate the LBM memory that the HVS will use for temporary
 	 * storage due to our scaling/format conversion.
@@ -609,6 +626,16 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	h_subsample = drm_format_horz_chroma_subsampling(format->drm);
 	v_subsample = drm_format_vert_chroma_subsampling(format->drm);
 
+	if (!vflip)
+		src_y = vc4_state->src_y;
+	else
+		/* When vflipped the image offset needs to be
+		 * the start of the last line of the image, and
+		 * the pitch will be subtracted from the offset.
+		 */
+		src_y = vc4_state->src_y +
+			vc4_state->src_h[0] - 1;
+
 	switch (base_format_mod) {
 	case DRM_FORMAT_MOD_LINEAR:
 		tiling = SCALER_CTL0_TILING_LINEAR;
@@ -618,12 +645,13 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		 * out.
 		 */
 		for (i = 0; i < num_planes; i++) {
-			vc4_state->offsets[i] += vc4_state->src_y /
+			vc4_state->offsets[i] += src_y /
 						 (i ? v_subsample : 1) *
 						 fb->pitches[i];
+
 			vc4_state->offsets[i] += vc4_state->src_x /
-						 (i ? h_subsample : 1) *
-						 fb->format->cpp[i];
+						(i ? h_subsample : 1) *
+						fb->format->cpp[i];
 		}
 
 		break;
@@ -651,11 +679,11 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		 * SCALER_PITCH0_TILE_Y_OFFSET tells HVS how to walk from that
 		 * base address).
 		 */
-		u32 tile_y = (vc4_state->src_y >> 4) & 1;
-		u32 subtile_y = (vc4_state->src_y >> 2) & 3;
-		u32 utile_y = vc4_state->src_y & 3;
+		u32 tile_y = (src_y >> 4) & 1;
+		u32 subtile_y = (src_y >> 2) & 3;
+		u32 utile_y = src_y & 3;
 		u32 x_off = vc4_state->src_x & tile_w_mask;
-		u32 y_off = vc4_state->src_y & tile_h_mask;
+		u32 y_off = src_y & tile_h_mask;
 
 		tiling = SCALER_CTL0_TILING_256B_OR_T;
 		pitch0 = (VC4_SET_FIELD(x_off, SCALER_PITCH0_SINK_PIX) |
@@ -732,7 +760,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		 */
 		for (i = 0; i < num_planes; i++) {
 			vc4_state->offsets[i] += param * tile_w * tile;
-			vc4_state->offsets[i] += vc4_state->src_y /
+			vc4_state->offsets[i] += src_y /
 						 (i ? v_subsample : 1) *
 						 tile_w;
 			vc4_state->offsets[i] += x_off /
@@ -759,7 +787,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 			VC4_SET_FIELD(tiling, SCALER_CTL0_TILING) |
 			(vc4_state->is_unity ? SCALER_CTL0_UNITY : 0) |
 			VC4_SET_FIELD(scl0, SCALER_CTL0_SCL0) |
-			VC4_SET_FIELD(scl1, SCALER_CTL0_SCL1));
+			VC4_SET_FIELD(scl1, SCALER_CTL0_SCL1) |
+			(vflip ? SCALER_CTL0_VFLIP : 0) |
+			(hflip ? SCALER_CTL0_HFLIP : 0));
 
 	/* Position Word 0: Image Positions and Alpha Value */
 	vc4_state->pos0_offset = vc4_state->dlist_count;
@@ -1202,6 +1232,12 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 					  BIT(DRM_COLOR_YCBCR_FULL_RANGE),
 					  DRM_COLOR_YCBCR_BT709,
 					  DRM_COLOR_YCBCR_LIMITED_RANGE);
+
+	drm_plane_create_rotation_property(plane, DRM_MODE_ROTATE_0,
+					   DRM_MODE_ROTATE_0 |
+					   DRM_MODE_ROTATE_180 |
+					   DRM_MODE_REFLECT_X |
+					   DRM_MODE_REFLECT_Y);
 
 	return plane;
 }
