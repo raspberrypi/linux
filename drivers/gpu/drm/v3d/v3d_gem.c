@@ -476,10 +476,6 @@ v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 	job->v3d = v3d;
 	job->free = free;
 
-	ret = pm_runtime_get_sync(v3d->dev);
-	if (ret < 0)
-		return ret;
-
 	xa_init_flags(&job->deps, XA_FLAGS_ALLOC);
 
 	ret = drm_syncobj_find_fence(file_priv, in_sync, 0, 0, &in_fence);
@@ -496,7 +492,6 @@ v3d_job_init(struct v3d_dev *v3d, struct drm_file *file_priv,
 	return 0;
 fail:
 	xa_destroy(&job->deps);
-	pm_runtime_put_autosuspend(v3d->dev);
 	return ret;
 }
 
