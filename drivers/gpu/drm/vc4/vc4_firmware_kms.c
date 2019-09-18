@@ -80,11 +80,6 @@ struct set_plane {
 #define TRANSFORM_FLIP_HRIZ	BIT(16)
 #define TRANSFORM_FLIP_VERT	BIT(17)
 
-#define SUPPORTED_ROTATIONS	(DRM_MODE_ROTATE_0 | \
-				 DRM_MODE_ROTATE_180 | \
-				 DRM_MODE_REFLECT_X | \
-				 DRM_MODE_REFLECT_Y)
-
 struct mailbox_set_plane {
 	struct rpi_firmware_property_tag_header tag;
 	struct set_plane plane;
@@ -523,7 +518,7 @@ static int vc4_plane_to_mb(struct drm_plane *plane,
 	const struct vc_image_format *vc_fmt =
 					vc4_get_vc_image_fmt(drm_fmt->format);
 	int num_planes = fb->format->num_planes;
-	unsigned int rotation = SUPPORTED_ROTATIONS;
+	unsigned int rotation;
 
 	mb->plane.vc_image_type = vc_fmt->vc_image;
 	mb->plane.width = fb->width;
@@ -544,23 +539,16 @@ static int vc4_plane_to_mb(struct drm_plane *plane,
 	mb->plane.is_vu = vc_fmt->is_vu;
 	mb->plane.planes[0] = bo->paddr + fb->offsets[0];
 
-	rotation = drm_rotation_simplify(state->rotation, rotation);
+	rotation = drm_rotation_simplify(state->rotation,
+					 DRM_MODE_ROTATE_0 |
+					 DRM_MODE_REFLECT_X |
+					 DRM_MODE_REFLECT_Y);
 
-	switch (rotation) {
-	default:
-	case DRM_MODE_ROTATE_0:
-		mb->plane.transform = TRANSFORM_NO_ROTATE;
-		break;
-	case DRM_MODE_ROTATE_180:
-		mb->plane.transform = TRANSFORM_ROTATE_180;
-		break;
-	case DRM_MODE_REFLECT_X:
-		mb->plane.transform = TRANSFORM_FLIP_HRIZ;
-		break;
-	case DRM_MODE_REFLECT_Y:
-		mb->plane.transform = TRANSFORM_FLIP_VERT;
-		break;
-	}
+	mb->plane.transform = TRANSFORM_NO_ROTATE;
+	if (rotation & DRM_MODE_REFLECT_X)
+		mb->plane.transform |= TRANSFORM_FLIP_HRIZ;
+	if (rotation & DRM_MODE_REFLECT_Y)
+		mb->plane.transform |= TRANSFORM_FLIP_VERT;
 
 	vc4_fkms_margins_adj(state, &mb->plane);
 
@@ -801,7 +789,10 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 
 	drm_plane_create_alpha_property(plane);
 	drm_plane_create_rotation_property(plane, DRM_MODE_ROTATE_0,
-					   SUPPORTED_ROTATIONS);
+					   DRM_MODE_ROTATE_0 |
+					   DRM_MODE_ROTATE_180 |
+					   DRM_MODE_REFLECT_X |
+					   DRM_MODE_REFLECT_Y);
 	drm_plane_create_color_properties(plane,
 					  BIT(DRM_COLOR_YCBCR_BT601) |
 					  BIT(DRM_COLOR_YCBCR_BT709) |
