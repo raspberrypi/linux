@@ -109,7 +109,7 @@ static const char * const bcm2835_compat[] = {
 #ifdef CONFIG_ARCH_MULTI_V7
 	"brcm,bcm2836",
 	"brcm,bcm2837",
-	"brcm,bcm2838",
+	"brcm,bcm2711",
 #endif
 	NULL
 };
