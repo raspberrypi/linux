@@ -440,7 +440,7 @@
 };
 
 &clocks {
-	compatible = "brcm,bcm2838-cprman";
+	compatible = "brcm,bcm2711-cprman";
 };
 
 &cpu_thermal {
@@ -456,7 +456,7 @@
 };
 
 &gpio {
-	compatible = "brcm,bcm2838-gpio", "brcm,bcm2835-gpio";
+	compatible = "brcm,bcm2711-gpio", "brcm,bcm2835-gpio";
 
 	gpclk0_gpio49: gpclk0_gpio49 {
 		brcm,pins = <49>;
