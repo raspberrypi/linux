@@ -1,0 +1,183 @@
+/*
+ * vc4-kms-v3d-pi4-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/bcm2835.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/chosen";
+		__overlay__ {
+			bootargs = "cma=256M";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=192M";
+		};
+	};
+
+	fragment@2 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=128M";
+		};
+	};
+
+	fragment@3 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=96M";
+		};
+	};
+
+	fragment@4 {
+		target-path = "/chosen";
+		__dormant__ {
+			bootargs = "cma=64M";
+		};
+	};
+
+	fragment@5 {
+		target = <&ddc0>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@6 {
+		target = <&ddc1>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@7 {
+		target = <&hdmi0>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@8 {
+		target = <&hdmi1>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@9 {
+		target = <&hvs>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@10 {
+		target = <&pixelvalve0>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@11 {
+		target = <&pixelvalve1>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@12 {
+		target = <&pixelvalve2>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@13 {
+		target = <&pixelvalve3>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@14 {
+		target = <&pixelvalve4>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@15 {
+		target = <&v3d>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@16 {
+		target = <&vc4>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@17 {
+		target = <&txp>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
+	fragment@18 {
+		target = <&fb>;
+		__overlay__  {
+			status = "disabled";
+		};
+	};
+
+	fragment@19 {
+		target = <&firmwarekms>;
+		__overlay__  {
+			status = "disabled";
+		};
+	};
+
+	fragment@20 {
+		target = <&vec>;
+		__overlay__  {
+			status = "disabled";
+		};
+	};
+
+	fragment@21 {
+		target = <&hdmi0>;
+		__dormant__  {
+			dmas;
+		};
+	};
+
+	fragment@22 {
+		target = <&hdmi1>;
+		__dormant__  {
+			dmas;
+		};
+	};
+
+	__overrides__ {
+		cma-256 = <0>,"+0-1-2-3-4";
+		cma-192 = <0>,"-0+1-2-3-4";
+		cma-128 = <0>,"-0-1+2-3-4";
+		cma-96  = <0>,"-0-1-2+3-4";
+		cma-64  = <0>,"-0-1-2-3+4";
+		audio   = <0>,"!21";
+		audio1   = <0>,"!22";
+	};
+};
