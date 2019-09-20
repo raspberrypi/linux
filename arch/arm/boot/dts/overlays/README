@@ -2684,6 +2684,20 @@ Params: cma-256                 CMA is 256MB (needs 1GB)
         audio                   Enable or disable audio over HDMI (default "on")
 
 
+Name:   vc4-kms-v3d-pi4
+Info:   Enable Eric Anholt's DRM VC4 HDMI/HVS/V3D driver for Pi4.
+Load:   dtoverlay=vc4-kms-v3d-pi4,<param>
+Params: cma-256                 CMA is 256MB
+        cma-192                 CMA is 192MB
+        cma-128                 CMA is 128MB
+        cma-96                  CMA is 96MB
+        cma-64                  CMA is 64MB
+        audio                   Enable or disable audio over HDMI0 (default
+                                "on")
+        audio1                  Enable or disable audio over HDMI1 (default
+                                "on")
+
+
 Name:   vga666
 Info:   Overlay for the Fen Logic VGA666 board
         This uses GPIOs 2-21 (so no I2C), and activates the output 2-3 seconds
