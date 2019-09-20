@@ -317,7 +317,11 @@ vm_fault_t i915_gem_fault(struct vm_fault *vmf)
 				   msecs_to_jiffies_timeout(CONFIG_DRM_I915_USERFAULT_AUTOSUSPEND));
 	GEM_BUG_ON(!obj->userfault_count);
 
-	i915_vma_set_ggtt_write(vma);
+	if (write) {
+		GEM_BUG_ON(!i915_gem_object_has_pinned_pages(obj));
+		i915_vma_set_ggtt_write(vma);
+		obj->mm.dirty = true;
+	}
 
 err_fence:
 	i915_vma_unpin_fence(vma);
