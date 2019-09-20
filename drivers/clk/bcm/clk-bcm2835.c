@@ -115,6 +115,8 @@
 #define CM_AVEODIV		0x1bc
 #define CM_EMMCCTL		0x1c0
 #define CM_EMMCDIV		0x1c4
+#define CM_EMMC2CTL		0x1d0
+#define CM_EMMC2DIV		0x1d4
 
 /* General bits for the CM_*CTL regs */
 # define CM_ENABLE			BIT(4)
@@ -293,7 +295,8 @@
 #define VCMSG_ID_CORE_CLOCK     4
 
 #define SOC_BCM2835		BIT(0)
-#define SOC_ALL			(SOC_BCM2835)
+#define SOC_BCM2711		BIT(1)
+#define SOC_ALL			(SOC_BCM2835 | SOC_BCM2711)
 
 /*
  * Names of clocks used within the driver that need to be replaced
@@ -2071,6 +2074,16 @@ static const struct bcm2835_clk_desc clk_desc_array[] = {
 		.frac_bits = 8,
 		.tcnt_mux = 39),
 
+	/* EMMC2 clock (only available for BCM2711) */
+	[BCM2711_CLOCK_EMMC2]	= REGISTER_PER_CLK(
+		SOC_BCM2711,
+		.name = "emmc2",
+		.ctl_reg = CM_EMMC2CTL,
+		.div_reg = CM_EMMC2DIV,
+		.int_bits = 4,
+		.frac_bits = 8,
+		.tcnt_mux = 42),
+
 	/* General purpose (GPIO) clocks */
 	[BCM2835_CLOCK_GP0]	= REGISTER_PER_CLK(
 		SOC_ALL,
@@ -2345,8 +2358,13 @@ static const struct cprman_plat_data cprman_bcm2835_plat_data = {
 	.soc = SOC_BCM2835,
 };
 
+static const struct cprman_plat_data cprman_bcm2711_plat_data = {
+	.soc = SOC_BCM2711,
+};
+
 static const struct of_device_id bcm2835_clk_of_match[] = {
 	{ .compatible = "brcm,bcm2835-cprman", .data = &cprman_bcm2835_plat_data },
+	{ .compatible = "brcm,bcm2711-cprman", .data = &cprman_bcm2711_plat_data },
 	{}
 };
 MODULE_DEVICE_TABLE(of, bcm2835_clk_of_match);
