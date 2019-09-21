@@ -102,6 +102,7 @@
 };
 
 &hdmi {
+	power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
 	status = "disabled";
 };
 
