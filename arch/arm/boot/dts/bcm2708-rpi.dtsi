@@ -125,13 +125,23 @@
 	firmware = <&firmware>;
 };
 
+&sdhci {
+	pinctrl-names = "default";
+	pinctrl-0 = <&emmc_gpio48>;
+	bus-width = <4>;
+};
+
 sdhost_pins: &sdhost_gpio48 {
 	/* Add alias */
 };
 
 &sdhost {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdhost_gpio48>;
+	bus-width = <4>;
 	brcm,overclock-50 = <0>;
 	brcm,pio-limit = <1>;
+	status = "okay";
 };
 
 &cpu_thermal {
