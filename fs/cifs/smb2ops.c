@@ -743,6 +743,8 @@ int open_shroot(unsigned int xid, struct cifs_tcon *tcon, struct cifs_fid *pfid)
 	if (rc)
 		goto oshr_exit;
 
+	atomic_inc(&tcon->num_remote_opens);
+
 	o_rsp = (struct smb2_create_rsp *)rsp_iov[0].iov_base;
 	oparms.fid->persistent_fid = o_rsp->PersistentFileId;
 	oparms.fid->volatile_fid = o_rsp->VolatileFileId;
@@ -1168,6 +1170,7 @@ smb2_set_ea(const unsigned int xid, struct cifs_tcon *tcon,
 
 	rc = compound_send_recv(xid, ses, flags, 3, rqst,
 				resp_buftype, rsp_iov);
+	/* no need to bump num_remote_opens because handle immediately closed */
 
  sea_exit:
 	kfree(ea);
@@ -1489,6 +1492,8 @@ smb2_ioctl_query_info(const unsigned int xid,
 				resp_buftype, rsp_iov);
 	if (rc)
 		goto iqinf_exit;
+
+	/* No need to bump num_remote_opens since handle immediately closed */
 	if (qi.flags & PASSTHRU_FSCTL) {
 		pqi = (struct smb_query_info __user *)arg;
 		io_rsp = (struct smb2_ioctl_rsp *)rsp_iov[1].iov_base;
