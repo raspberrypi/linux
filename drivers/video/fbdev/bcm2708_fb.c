@@ -88,8 +88,8 @@ struct vc4_display_settings_t {
 	u32 display_num;
 	u32 width;
 	u32 height;
-	u32 pitch;
 	u32 depth;
+	u32 pitch;
 	u32 virtual_width;
 	u32 virtual_height;
 	u32 virtual_width_offset;
