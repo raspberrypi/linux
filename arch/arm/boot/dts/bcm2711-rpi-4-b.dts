@@ -8,7 +8,7 @@
 	compatible = "raspberrypi,4-model-b", "brcm,bcm2838";
 	model = "Raspberry Pi 4 Model B";
 
-	memory {
+	memory@0 {
 		device_type = "memory";
 		reg = <0x0 0x0 0x0>;
 	};
