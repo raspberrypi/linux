@@ -307,7 +307,9 @@ again:
 	preempt_lazy_enable();
 	preempt_enable();
 
+	sleeping_lock_inc();
 	__read_rt_lock(cpuhp_pin);
+	sleeping_lock_dec();
 
 	preempt_disable();
 	preempt_lazy_disable();
