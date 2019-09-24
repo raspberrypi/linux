@@ -9,8 +9,9 @@
 #include <linux/of.h>
 
 #include "bcm2835.h"
+#include <soc/bcm2835/raspberrypi-firmware.h>
 
-static bool enable_hdmi;
+static bool enable_hdmi, enable_hdmi0, enable_hdmi1;
 static bool enable_headphones;
 static bool enable_compat_alsa = true;
 
@@ -109,8 +110,8 @@ static struct bcm2835_audio_driver bcm2835_audio_hdmi0 = {
 		.name = "bcm2835_hdmi",
 		.owner = THIS_MODULE,
 	},
-	.shortname = "bcm2835 HDMI",
-	.longname  = "bcm2835 HDMI",
+	.shortname = "bcm2835 HDMI 1",
+	.longname  = "bcm2835 HDMI 1",
 	.minchannels = 1,
 	.newpcm = bcm2835_audio_simple_newpcm,
 	.newctl = snd_bcm2835_new_hdmi_ctl,
@@ -122,8 +123,8 @@ static struct bcm2835_audio_driver bcm2835_audio_hdmi1 = {
 		.name = "bcm2835_hdmi",
 		.owner = THIS_MODULE,
 	},
-	.shortname = "bcm2835 HDMI 1",
-	.longname  = "bcm2835 HDMI 1",
+	.shortname = "bcm2835 HDMI 2",
+	.longname  = "bcm2835 HDMI 2",
 	.minchannels = 1,
 	.newpcm = bcm2835_audio_simple_newpcm,
 	.newctl = snd_bcm2835_new_hdmi_ctl,
@@ -155,11 +156,11 @@ static struct bcm2835_audio_drivers children_devices[] = {
 	},
 	{
 		.audio_driver = &bcm2835_audio_hdmi0,
-		.is_enabled = &enable_hdmi,
+		.is_enabled = &enable_hdmi0,
 	},
 	{
 		.audio_driver = &bcm2835_audio_hdmi1,
-		.is_enabled = &enable_hdmi,
+		.is_enabled = &enable_hdmi1,
 	},
 	{
 		.audio_driver = &bcm2835_audio_headphones,
@@ -306,6 +307,53 @@ static int snd_add_child_devices(struct device *device, u32 numchans)
 	return 0;
 }
 
+static void set_hdmi_enables(struct device *dev)
+{
+	struct device_node *firmware_node;
+	struct rpi_firmware *firmware;
+	u32 num_displays, i, display_id;
+	int ret;
+
+	firmware_node = of_parse_phandle(dev->of_node, "brcm,firmware", 0);
+	firmware = rpi_firmware_get(firmware_node);
+
+	if (!firmware)
+		return;
+
+	of_node_put(firmware_node);
+
+	ret = rpi_firmware_property(firmware,
+				    RPI_FIRMWARE_FRAMEBUFFER_GET_NUM_DISPLAYS,
+				    &num_displays, sizeof(u32));
+
+	if (ret)
+		return;
+
+	for (i = 0; i < num_displays; i++) {
+		display_id = i;
+		ret = rpi_firmware_property(firmware,
+				RPI_FIRMWARE_FRAMEBUFFER_GET_DISPLAY_ID,
+				&display_id, sizeof(display_id));
+		if (!ret) {
+			if (display_id == 2)
+				enable_hdmi0 = true;
+			if (display_id == 7)
+				enable_hdmi1 = true;
+		}
+	}
+
+	if (!enable_hdmi0 && enable_hdmi1) {
+		/* Swap them over and reassign route. This means
+		 * that if we only have one connected, it is always named
+		 *  HDMI1, irrespective of if its on port HDMI0 or HDMI1.
+		 *  This should match with the naming of HDMI ports in DRM
+		 */
+		enable_hdmi0 = true;
+		enable_hdmi1 = false;
+		bcm2835_audio_hdmi0.route = AUDIO_DEST_HDMI1;
+	}
+}
+
 static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -324,6 +372,14 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 		dev_warn(dev,
 			 "Illegal 'brcm,pwm-channels' value, will use %u\n",
 			 numchans);
+	}
+
+	if (!enable_compat_alsa) {
+		set_hdmi_enables(dev);
+		// In this mode, always enable analog output
+		enable_headphones = true;
+	} else {
+		enable_hdmi0 = enable_hdmi;
 	}
 
 	err = bcm2835_devm_add_vchi_ctx(dev);
