@@ -1213,6 +1213,7 @@ static void btf_dump_emit_type_chain(struct btf_dump *d,
 				return;
 			}
 
+			next_id = decls->ids[decls->cnt - 1];
 			next_t = btf__type_by_id(d->btf, next_id);
 			multidim = btf_kind_of(next_t) == BTF_KIND_ARRAY;
 			/* we need space if we have named non-pointer */
