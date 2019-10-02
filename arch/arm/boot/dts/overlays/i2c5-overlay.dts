@@ -2,7 +2,7 @@
 /plugin/;
 
 /{
-	compatible = "brcm,bcm2838";
+	compatible = "brcm,bcm2711";
 
 	fragment@0 {
 		target = <&i2c5>;
