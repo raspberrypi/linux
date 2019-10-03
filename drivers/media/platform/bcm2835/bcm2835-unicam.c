@@ -307,12 +307,31 @@ static const struct unicam_fmt formats[] = {
 		.code		= MEDIA_BUS_FMT_SRGGB14_1X14,
 		.depth		= 14,
 		.csi_dt		= 0x2d,
-	},
+	}, {
 	/*
 	 * 16 bit Bayer formats could be supported, but there is no CSI2
 	 * data_type defined for raw 16, and no sensors that produce it at
 	 * present.
 	 */
+
+	/* Greyscale formats */
+		.fourcc		= V4L2_PIX_FMT_GREY,
+		.code		= MEDIA_BUS_FMT_Y8_1X8,
+		.depth		= 8,
+		.csi_dt		= 0x2a,
+	}, {
+		.fourcc		= V4L2_PIX_FMT_Y10P,
+		.repacked_fourcc = V4L2_PIX_FMT_Y10,
+		.code		= MEDIA_BUS_FMT_Y10_1X10,
+		.depth		= 10,
+		.csi_dt		= 0x2b,
+	}, {
+		/* NB There is no packed V4L2 fourcc for this format. */
+		.repacked_fourcc = V4L2_PIX_FMT_Y12,
+		.code		= MEDIA_BUS_FMT_Y12_1X12,
+		.depth		= 12,
+		.csi_dt		= 0x2c,
+	},
 };
 
 struct unicam_dmaqueue {
