@@ -516,7 +516,7 @@ int brcm_pcie_bounce_init(struct device *dev,
 
 	g_dmabounce_device_info = device_info;
 
-	dev_err(dev, "dmabounce: initialised - %ld kB, threshold %pad\n",
+	dev_info(dev, "dmabounce: initialised - %ld kB, threshold %pad\n",
 		 buffer_size / 1024, &threshold);
 
 	return 0;
