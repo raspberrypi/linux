@@ -239,7 +239,7 @@ static void read_bus_watcher(int monitor, int watcher, u32 *results)
 		u32 tmp[11];
 		int err;
 
-		tmp[0] = (u32)(state->monitor[monitor].base_address + watcher
+		tmp[0] = (u32)(uintptr_t)(state->monitor[monitor].base_address + watcher
 				+ BW_ATRANS_OFFSET);
 		tmp[1] = NUM_BUS_WATCHER_RESULTS;
 
@@ -265,7 +265,7 @@ static void read_bus_watcher(int monitor, int watcher, u32 *results)
 static void set_monitor_control(int monitor, u32 set)
 {
 	if (state->monitor[monitor].use_mailbox_interface) {
-		u32 tmp[3] = {(u32)(state->monitor[monitor].base_address +
+		u32 tmp[3] = {(u32)(uintptr_t)(state->monitor[monitor].base_address +
 				GEN_CTRL), 1, set};
 		int err = rpi_firmware_property(state->firmware,
 						RPI_FIRMWARE_SET_PERIPH_REG,
@@ -281,7 +281,7 @@ static void set_monitor_control(int monitor, u32 set)
 static void set_bus_watcher_control(int monitor, int watcher, u32 set)
 {
 	if (state->monitor[monitor].use_mailbox_interface) {
-		u32 tmp[3] = {(u32)(state->monitor[monitor].base_address +
+		u32 tmp[3] = {(u32)(uintptr_t)(state->monitor[monitor].base_address +
 				    watcher), 1, set};
 		int err = rpi_firmware_property(state->firmware,
 						RPI_FIRMWARE_SET_PERIPH_REG,
@@ -403,7 +403,7 @@ static ssize_t myreader(struct file *fp, char __user *user_buffer,
 #define INIT_BUFF_SIZE 2048
 
 	int i;
-	int idx = (int)(fp->private_data);
+	int idx = (int)(uintptr_t)(fp->private_data);
 	int num_buses, cnt;
 	char *string_buffer;
 	int buff_size = INIT_BUFF_SIZE;
@@ -498,7 +498,7 @@ done:
 static ssize_t mywriter(struct file *fp, const char __user *user_buffer,
 			size_t count, loff_t *position)
 {
-	int idx = (int)(fp->private_data);
+	int idx = (int)(uintptr_t)(fp->private_data);
 
 	if (idx < 0 || idx > NUM_MONITORS)
 		idx = 0;
@@ -578,7 +578,7 @@ static int rpi_axiperf_probe(struct platform_device *pdev)
 
 		debugfs_create_file("data", 0444,
 				    state->monitor[i].debugfs_entry,
-				    (void *)i, &fops_debug);
+				    (void *)(uintptr_t)i, &fops_debug);
 		debugfs_create_u32("enable", 0644,
 				   state->monitor[i].debugfs_entry,
 				   &state->monitor[i].bus_enabled);
