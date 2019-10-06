@@ -1178,7 +1178,7 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 		return PTR_ERR(base);
 
 	/* The set of channels can be split across multiple instances. */
-	chan_start = ((u32)base / BCM2835_DMA_CHAN_SIZE) & 0xf;
+	chan_start = ((u32)(uintptr_t)base / BCM2835_DMA_CHAN_SIZE) & 0xf;
 	base -= BCM2835_DMA_CHAN(chan_start);
 	chan_count = resource_size(res) / BCM2835_DMA_CHAN_SIZE;
 	chan_end = min(chan_start + chan_count,
