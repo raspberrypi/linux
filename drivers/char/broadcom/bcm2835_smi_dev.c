@@ -192,7 +192,7 @@ bcm2835_read_file(struct file *f, char __user *user_ptr,
 {
 	int odd_bytes;
 
-	dev_dbg(inst->dev, "User reading %d bytes from SMI.", count);
+	dev_dbg(inst->dev, "User reading %zu bytes from SMI.", count);
 	/* We don't want to DMA a number of bytes % 4 != 0 (32 bit FIFO) */
 	if (count > DMA_THRESHOLD_BYTES)
 		odd_bytes = count & 0x3;
@@ -228,7 +228,7 @@ bcm2835_write_file(struct file *f, const char __user *user_ptr,
 {
 	int odd_bytes;
 
-	dev_dbg(inst->dev, "User writing %d bytes to SMI.", count);
+	dev_dbg(inst->dev, "User writing %zu bytes to SMI.", count);
 	if (count > DMA_THRESHOLD_BYTES)
 		odd_bytes = count & 0x3;
 	else
