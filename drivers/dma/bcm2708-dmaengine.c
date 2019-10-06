@@ -263,8 +263,8 @@ int bcm_dmaman_probe(struct platform_device *pdev, void __iomem *base,
 	g_dmaman = dmaman;
 	dmaman_dev = dev;
 
-	dev_info(dev, "DMA legacy API manager at %p, dmachans=0x%x\n",
-		 base, chans_available);
+	dev_info(dev, "DMA legacy API manager, dmachans=0x%x\n",
+		 chans_available);
 
 	return 0;
 }
