@@ -803,6 +803,9 @@ Params: gpio_pin                GPIO pin to trigger on (default 3)
                                 Note that the default pin (GPIO3) has an
                                 external pullup.
 
+        debounce                Specify the debounce interval in milliseconds
+                                (default 100)
+
 
 Name:   hd44780-lcd
 Info:   Configures an HD44780 compatible LCD display. Uses 4 gpio pins for
