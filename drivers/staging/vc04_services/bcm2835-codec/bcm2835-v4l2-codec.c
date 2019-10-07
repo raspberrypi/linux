@@ -2112,6 +2112,11 @@ static int bcm2835_codec_buf_prepare(struct vb2_buffer *vb)
 			}
 
 			buf->mmal.dma_buf = dma_buf;
+		} else {
+			/* We already have a reference count on the dmabuf, so
+			 * release the one we acquired above.
+			 */
+			dma_buf_put(dma_buf);
 		}
 		ret = 0;
 		break;
