@@ -53,6 +53,7 @@
 					label = "shutdown";
 					linux,code = <116>; // KEY_POWER
 					gpios = <&gpio 3 1>;
+					debounce-interval = <100>; // ms
 				};
 			};
 		};
@@ -75,6 +76,7 @@
 
 		// Allow setting the active_low flag. 0 = active high, 1 = active low
 		active_low = <&button>,"gpios:8";
+		debounce = <&button>,"debounce-interval:0";
 	};
 
 };
