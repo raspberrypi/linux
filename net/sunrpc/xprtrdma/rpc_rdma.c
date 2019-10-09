@@ -1362,6 +1362,7 @@ void rpcrdma_reply_handler(struct rpcrdma_rep *rep)
 		xprt->cwnd = credits << RPC_CWNDSHIFT;
 		spin_unlock(&xprt->transport_lock);
 	}
+	rpcrdma_post_recvs(r_xprt, false);
 
 	req = rpcr_to_rdmar(rqst);
 	if (req->rl_reply) {
