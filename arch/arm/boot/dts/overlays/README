@@ -2538,6 +2538,16 @@ Params: gpiopin                 GPIO for I/O (default "4")
         pullup                  Now enabled by default (ignored)
 
 
+Name:   w5500
+Info:   Overlay for the Wiznet W5500 Ethernet Controller on SPI0
+Load:   dtoverlay=w5500,<param>=<val>
+Params: int_pin                 GPIO used for INT (default 25)
+
+        speed                   SPI bus speed (default 30000000)
+
+        cs                      SPI bus Chip Select (default 0)
+
+
 Name:   wittypi
 Info:   Configures the wittypi RTC module.
 Load:   dtoverlay=wittypi,<param>=<val>
