@@ -1347,6 +1347,18 @@ Params: card_name               Override the default, "IQAudIODigi", card name.
                                 dai stream name.
 
 
+Name:   irs1125
+Info:   Infineon irs1125 TOF camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=irs1125,<param>=<val>
+Params: i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
+                                Useful on Compute Modules.
+
+        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
+                                This is required for Pi B+, 2, 0, and 0W.
+
+
 Name:   jedec-spi-nor
 Info:   Adds support for JEDEC-compliant SPI NOR flash devices.  (Note: The
         "jedec,spi-nor" kernel driver was formerly known as "m25p80".)
