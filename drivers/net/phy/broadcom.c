@@ -61,9 +61,14 @@ static void bcm54213pe_config_init(struct phy_device *phydev)
 	val |= BCM54XX_SHD_LEDCTL_ACTLINK_EN;
 	bcm_phy_write_shadow(phydev, BCM54XX_SHD_LEDCTL, val);
 
-	/* Set ACTIVITY on LED "1" output, LINKSPD[1] on LED "3" output */
-	val = BCM5482_SHD_LEDS1_LED1(BCM_LED_SRC_ACTIVITYLED) |
-		BCM5482_SHD_LEDS1_LED3(BCM_LED_SRC_LINKSPD1);
+	/* Some day there may be a DT wired toggle for this. Disable for now.
+	 * Set ACTIVITY on LED "1" output, LINKSPD[1] on LED "3" output
+	 * val = BCM5482_SHD_LEDS1_LED1(BCM_LED_SRC_ACTIVITYLED) |
+	 *	BCM5482_SHD_LEDS1_LED3(BCM_LED_SRC_LINKSPD1);
+	 */
+	/* Turn off LED "1" and LED "3" unconditionally */
+	val = BCM5482_SHD_LEDS1_LED1(BCM_LED_SRC_OFF) |
+		BCM5482_SHD_LEDS1_LED3(BCM_LED_SRC_OFF);
 	bcm_phy_write_shadow(phydev, BCM5482_SHD_LEDS1, val);
 }
 
