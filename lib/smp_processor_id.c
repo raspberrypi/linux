@@ -22,6 +22,9 @@ notrace static unsigned int check_preemption_disabled(const char *what1,
 	 * Kernel threads bound to a single CPU can safely use
 	 * smp_processor_id():
 	 */
+	if (current->migrate_disable)
+		goto out;
+
 	if (current->nr_cpus_allowed == 1)
 		goto out;
 
