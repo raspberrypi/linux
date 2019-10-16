@@ -92,6 +92,12 @@ struct mailbox_blank_display {
 	u32 blank;
 };
 
+struct mailbox_display_pwr {
+	struct rpi_firmware_property_tag_header tag1;
+	u32 display;
+	u32 state;
+};
+
 struct mailbox_get_edid {
 	struct rpi_firmware_property_tag_header tag1;
 	u32 block;
@@ -272,6 +278,8 @@ to_vc4_crtc_state(struct drm_crtc_state *crtc_state)
 struct vc4_fkms_encoder {
 	struct drm_encoder base;
 	bool hdmi_monitor;
+	bool rgb_range_selectable;
+	int display_num;
 };
 
 static inline struct vc4_fkms_encoder *
@@ -1635,13 +1643,29 @@ static const struct drm_encoder_funcs vc4_fkms_encoder_funcs = {
 	.destroy = vc4_fkms_encoder_destroy,
 };
 
+static void vc4_fkms_display_power(struct drm_encoder *encoder, bool power)
+{
+	struct vc4_fkms_encoder *vc4_encoder = to_vc4_fkms_encoder(encoder);
+	struct vc4_dev *vc4 = to_vc4_dev(encoder->dev);
+
+	struct mailbox_display_pwr pwr = {
+		.tag1 = {RPI_FIRMWARE_SET_DISPLAY_POWER, 8, 0, },
+		.display = vc4_encoder->display_num,
+		.state = power ? 1 : 0,
+	};
+
+	rpi_firmware_property_list(vc4->firmware, &pwr, sizeof(pwr));
+}
+
 static void vc4_fkms_encoder_enable(struct drm_encoder *encoder)
 {
+	vc4_fkms_display_power(encoder, true);
 	DRM_DEBUG_KMS("Encoder_enable\n");
 }
 
 static void vc4_fkms_encoder_disable(struct drm_encoder *encoder)
 {
+	vc4_fkms_display_power(encoder, false);
 	DRM_DEBUG_KMS("Encoder_disable\n");
 }
 
@@ -1717,6 +1741,8 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 	if (!vc4_encoder)
 		return -ENOMEM;
 	vc4_crtc->encoder = &vc4_encoder->base;
+
+	vc4_encoder->display_num = display_ref;
 	vc4_encoder->base.possible_crtcs |= drm_crtc_mask(crtc) ;
 
 	drm_encoder_init(drm, &vc4_encoder->base, &vc4_fkms_encoder_funcs,
