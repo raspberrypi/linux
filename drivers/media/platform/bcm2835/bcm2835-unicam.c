@@ -136,6 +136,8 @@ MODULE_PARM_DESC(debug, "Debug level 0-3");
  * @code: V4L2 media bus format code.
  * @depth: Bits per pixel as delivered from the source.
  * @csi_dt: CSI data type.
+ * @check_variants: Flag to denote that there are multiple mediabus formats
+ *		still in the list that could match this V4L2 format.
  */
 struct unicam_fmt {
 	u32	fourcc;
@@ -143,6 +145,7 @@ struct unicam_fmt {
 	u32	code;
 	u8	depth;
 	u8	csi_dt;
+	u8	check_variants;
 };
 
 static const struct unicam_fmt formats[] = {
@@ -152,21 +155,25 @@ static const struct unicam_fmt formats[] = {
 		.code		= MEDIA_BUS_FMT_YUYV8_2X8,
 		.depth		= 16,
 		.csi_dt		= 0x1e,
+		.check_variants = 1,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_UYVY,
 		.code		= MEDIA_BUS_FMT_UYVY8_2X8,
 		.depth		= 16,
 		.csi_dt		= 0x1e,
+		.check_variants = 1,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_YVYU,
 		.code		= MEDIA_BUS_FMT_YVYU8_2X8,
 		.depth		= 16,
 		.csi_dt		= 0x1e,
+		.check_variants = 1,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_VYUY,
 		.code		= MEDIA_BUS_FMT_VYUY8_2X8,
 		.depth		= 16,
 		.csi_dt		= 0x1e,
+		.check_variants = 1,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_YUYV,
 		.code		= MEDIA_BUS_FMT_YUYV8_1X16,
@@ -489,14 +496,40 @@ static const struct unicam_fmt *find_format_by_code(u32 code)
 	return NULL;
 }
 
-static const struct unicam_fmt *find_format_by_pix(u32 pixelformat)
+static int check_mbus_format(struct unicam_device *dev,
+			     const struct unicam_fmt *format)
+{
+	struct v4l2_subdev_mbus_code_enum mbus_code;
+	int ret = 0;
+	int i;
+
+	for (i = 0; !ret && i < MAX_ENUM_MBUS_CODE; i++) {
+		memset(&mbus_code, 0, sizeof(mbus_code));
+		mbus_code.index = i;
+
+		ret = v4l2_subdev_call(dev->sensor, pad, enum_mbus_code,
+				       NULL, &mbus_code);
+
+		if (!ret && mbus_code.code == format->code)
+			return 1;
+	}
+
+	return 0;
+}
+
+static const struct unicam_fmt *find_format_by_pix(struct unicam_device *dev,
+						   u32 pixelformat)
 {
 	unsigned int k;
 
 	for (k = 0; k < ARRAY_SIZE(formats); k++) {
 		if (formats[k].fourcc == pixelformat ||
-		    formats[k].repacked_fourcc == pixelformat)
+		    formats[k].repacked_fourcc == pixelformat) {
+			if (formats[k].check_variants &&
+			    !check_mbus_format(dev, &formats[k]))
+				continue;
 			return &formats[k];
+		}
 	}
 
 	return NULL;
@@ -832,7 +865,7 @@ static int unicam_try_fmt_vid_cap(struct file *file, void *priv,
 	struct v4l2_mbus_framefmt *mbus_fmt = &sd_fmt.format;
 	int ret;
 
-	fmt = find_format_by_pix(f->fmt.pix.pixelformat);
+	fmt = find_format_by_pix(dev, f->fmt.pix.pixelformat);
 	if (!fmt) {
 		/* Pixel format not supported by unicam. Choose the first
 		 * supported format, and let the sensor choose something else.
@@ -917,7 +950,7 @@ static int unicam_s_fmt_vid_cap(struct file *file, void *priv,
 	if (ret < 0)
 		return ret;
 
-	fmt = find_format_by_pix(f->fmt.pix.pixelformat);
+	fmt = find_format_by_pix(dev, f->fmt.pix.pixelformat);
 	if (!fmt) {
 		/* Unknown pixel format - adopt a default.
 		 * This shouldn't happen as try_fmt should have resolved any
@@ -1540,7 +1573,7 @@ static int unicam_enum_framesizes(struct file *file, void *priv,
 	int ret;
 
 	/* check for valid format */
-	fmt = find_format_by_pix(fsize->pixel_format);
+	fmt = find_format_by_pix(dev, fsize->pixel_format);
 	if (!fmt) {
 		unicam_dbg(3, dev, "Invalid pixel code: %x\n",
 			   fsize->pixel_format);
@@ -1579,7 +1612,7 @@ static int unicam_enum_frameintervals(struct file *file, void *priv,
 	};
 	int ret;
 
-	fmt = find_format_by_pix(fival->pixel_format);
+	fmt = find_format_by_pix(dev, fival->pixel_format);
 	if (!fmt)
 		return -EINVAL;
 
