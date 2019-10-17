@@ -97,6 +97,11 @@ MODULE_PARM_DESC(debug, "Debug level 0-3");
 #define unicam_err(dev, fmt, arg...)	\
 		v4l2_err(&(dev)->v4l2_dev, fmt, ##arg)
 
+/* To protect against a dodgy sensor driver never returning an error from
+ * enum_mbus_code, set a maximum index value to be used.
+ */
+#define MAX_ENUM_MBUS_CODE	128
+
 /*
  * Stride is a 16 bit register, but also has to be a multiple of 16.
  */
@@ -738,11 +743,7 @@ static int unicam_enum_fmt_vid_cap(struct file *file, void  *priv,
 	int ret = 0;
 	int i;
 
-	/* Loop whilst the sensor driver says it has more formats, but add a
-	 * failsafe against a dodgy driver at 128 (more than any sensor will
-	 * ever sensibly advertise)
-	 */
-	for (i = 0; !ret && i < 128 ; i++) {
+	for (i = 0; !ret && i < MAX_ENUM_MBUS_CODE; i++) {
 		memset(&mbus_code, 0, sizeof(mbus_code));
 		mbus_code.index = i;
 
