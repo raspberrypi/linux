@@ -589,7 +589,7 @@ xen_swiotlb_map_sg_attrs(struct device *hwdev, struct scatterlist *sgl,
 						sg->length,
 						dir,
 						attrs);
-			sg->dma_address = dev_addr;
+			sg->dma_address = phys_to_dma(hwdev, dev_addr);
 		} else {
 			/* we are not interested in the dma_addr returned by
 			 * xen_dma_map_page, only in the potential cache flushes executed
@@ -600,7 +600,7 @@ xen_swiotlb_map_sg_attrs(struct device *hwdev, struct scatterlist *sgl,
 						sg->length,
 						dir,
 						attrs);
-			sg->dma_address = dev_addr;
+			sg->dma_address = phys_to_dma(hwdev, dev_addr);
 		}
 		sg_dma_len(sg) = sg->length;
 	}
