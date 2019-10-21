@@ -887,7 +887,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 				(rotation & DRM_MODE_REFLECT_X ?
 					      SCALER5_POS0_HFLIP : 0) |
 				VC4_SET_FIELD(vc4_state->crtc_y,
-					      SCALER_POS0_START_Y)
+					      SCALER5_POS0_START_Y)
 			       );
 
 		/* Control Word 2 */
