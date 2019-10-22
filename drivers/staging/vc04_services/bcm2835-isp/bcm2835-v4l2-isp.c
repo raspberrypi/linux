@@ -1323,6 +1323,7 @@ static int register_node(struct platform_device *pdev,
 	vfd = &node->vfd;
 	vfd->lock = &node->node_lock; /* get V4L2 to serialise our ioctls */
 	vfd->v4l2_dev = &node_group->isp_dev->v4l2_dev;
+	vfd->queue = &node->queue;
 	node->open = 0;
 
 	ret = video_register_device(vfd, VFL_TYPE_GRABBER, video_nr + index);
