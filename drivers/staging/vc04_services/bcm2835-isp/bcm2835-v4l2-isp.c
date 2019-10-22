@@ -1163,66 +1163,6 @@ static int bcm2835_isp_node_s_fmt_vid_out(struct file *file, void *priv,
 	return populate_qdata_fmt(f, node);
 }
 
-static int bcm2835_isp_node_querybuf(struct file *file, void *priv,
-				     struct v4l2_buffer *b)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-	int ret;
-
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Queuybuf for node %p\n", node);
-
-	/* locking should be handled by the queue->lock? */
-	ret = vb2_querybuf(&node->queue, b);
-
-	return ret;
-}
-
-static int bcm2835_isp_node_reqbufs(struct file *file, void *priv,
-				    struct v4l2_requestbuffers *rb)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-	int ret;
-
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Reqbufs for node %p\n", node);
-
-	/* locking should be handled by the queue->lock? */
-	ret = vb2_reqbufs(&node->queue, rb);
-
-	return ret;
-}
-
-static int bcm2835_isp_node_qbuf(struct file *file, void *priv,
-				 struct v4l2_buffer *b)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-	int ret;
-
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Queue buffer for node %p\n", node);
-
-	/* locking should be handled by the queue->lock? */
-	ret = vb2_qbuf(&node->queue, b);
-
-	return ret;
-}
-
-static int bcm2835_isp_node_dqbuf(struct file *file, void *priv,
-				  struct v4l2_buffer *b)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-	int ret;
-
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Dequeue buffer for node %p\n", node);
-
-	/* locking should be handled by the queue->lock? */
-	ret = vb2_dqbuf(&node->queue, b, file->f_flags & O_NONBLOCK);
-
-	return ret;
-}
-
 static int bcm2835_isp_node_streamon(struct file *file, void *priv,
 				     enum v4l2_buf_type type)
 {
@@ -1268,10 +1208,15 @@ static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops = {
 	.vidioc_s_fmt_meta_cap		= bcm2835_isp_node_s_fmt_meta_cap,
 	.vidioc_try_fmt_vid_out		= bcm2835_isp_node_try_fmt_vid_out,
 	.vidioc_try_fmt_vid_cap		= bcm2835_isp_node_try_fmt_meta_cap,
-	.vidioc_reqbufs			= bcm2835_isp_node_reqbufs,
-	.vidioc_querybuf		= bcm2835_isp_node_querybuf,
-	.vidioc_qbuf			= bcm2835_isp_node_qbuf,
-	.vidioc_dqbuf			= bcm2835_isp_node_dqbuf,
+
+	.vidioc_reqbufs			= vb2_ioctl_reqbufs,
+	.vidioc_querybuf		= vb2_ioctl_querybuf,
+	.vidioc_qbuf			= vb2_ioctl_qbuf,
+	.vidioc_dqbuf			= vb2_ioctl_dqbuf,
+	.vidioc_expbuf			= vb2_ioctl_expbuf,
+	.vidioc_create_bufs		= vb2_ioctl_create_bufs,
+	.vidioc_prepare_buf		= vb2_ioctl_prepare_buf,
+
 	.vidioc_streamon		= bcm2835_isp_node_streamon,
 	.vidioc_streamoff		= bcm2835_isp_node_streamoff,
 };
