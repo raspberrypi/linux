@@ -119,14 +119,6 @@ MODULE_PARM_DESC(debug, "Debug level 0-3");
 /* Define a nominal minimum image size */
 #define MIN_WIDTH	16
 #define MIN_HEIGHT	16
-/*
- * Whilst Unicam doesn't require any additional padding on the image
- * height, various other parts of the BCM283x frameworks require a multiple
- * of 16.
- * Seeing as image buffers are significantly larger than this extra
- * padding, add it in order to simplify integration.
- */
-#define HEIGHT_ALIGNMENT	16
 
 /*
  * struct unicam_fmt - Unicam media bus format information
@@ -612,9 +604,7 @@ static int unicam_calc_format_size_bpl(struct unicam_device *dev,
 	else
 		f->fmt.pix.bytesperline = min_bytesperline;
 
-	/* Align height up for compatibility with other hardware blocks */
-	f->fmt.pix.sizeimage = ALIGN(f->fmt.pix.height, HEIGHT_ALIGNMENT) *
-			       f->fmt.pix.bytesperline;
+	f->fmt.pix.sizeimage = f->fmt.pix.height * f->fmt.pix.bytesperline;
 
 	unicam_dbg(3, dev, "%s: fourcc: " v4l2_fourcc_conv " size: %dx%d bpl:%d img_size:%d\n",
 		   __func__,
