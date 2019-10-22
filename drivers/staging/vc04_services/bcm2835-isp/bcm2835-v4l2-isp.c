@@ -1221,15 +1221,6 @@ static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops = {
 	.vidioc_streamoff		= bcm2835_isp_node_streamoff,
 };
 
-static const struct video_device bcm2835_isp_videodev = {
-	.name		= BCM2835_ISP_NAME,
-	.vfl_dir	= VFL_DIR_M2M, /* gets overwritten */
-	.fops		= &bcm2835_isp_fops,
-	.ioctl_ops	= &bcm2835_isp_node_ioctl_ops,
-	.minor		= -1,
-	.release	= video_device_release_empty,
-};
-
 /* Register a device node /dev/video<N> to go along with one of the ISP's input
  * or output nodes.
  */
@@ -1241,6 +1232,8 @@ static int register_node(struct platform_device *pdev,
 	int ret;
 
 	mutex_init(&node->node_lock);
+
+	node->open = 0;
 	node->type = INDEX_TO_NODE_TYPE(index);
 	switch (node->type) {
 	case NODE_TYPE_OUTPUT:
@@ -1264,12 +1257,18 @@ static int register_node(struct platform_device *pdev,
 		break;
 	}
 	node->node_group = node_group;
-	node->vfd = bcm2835_isp_videodev;
 	vfd = &node->vfd;
-	vfd->lock = &node->node_lock; /* get V4L2 to serialise our ioctls */
-	vfd->v4l2_dev = &node_group->isp_dev->v4l2_dev;
-	vfd->queue = &node->queue;
-	node->open = 0;
+
+	/* Initialise the the video node... */
+	vfd->vfl_type	= VFL_TYPE_GRABBER;
+	vfd->fops	= &bcm2835_isp_fops,
+	vfd->ioctl_ops	= &bcm2835_isp_node_ioctl_ops,
+	vfd->minor	= -1,
+	vfd->release	= video_device_release_empty,
+	vfd->queue	= &node->queue;
+	vfd->lock	= &node->node_lock; /* get V4L2 to serialise our ioctls */
+	vfd->v4l2_dev	= &node_group->isp_dev->v4l2_dev;
+	vfd->vfl_dir	= node->vfl_dir;
 
 	ret = video_register_device(vfd, VFL_TYPE_GRABBER, video_nr + index);
 	if (ret) {
@@ -1280,7 +1279,7 @@ static int register_node(struct platform_device *pdev,
 	}
 
 	video_set_drvdata(vfd, node);
-	snprintf(vfd->name, sizeof(vfd->name), "%s", bcm2835_isp_videodev.name);
+	snprintf(vfd->name, sizeof(vfd->name), "%s", BCM2835_ISP_NAME);
 	v4l2_info(&node_group->isp_dev->v4l2_dev,
 		  "device node %p (%s[%d]) registered as /dev/video%d\n", node,
 		  node->name, node->id, vfd->num);
