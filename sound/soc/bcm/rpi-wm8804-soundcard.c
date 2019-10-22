@@ -66,6 +66,11 @@ static struct gpio_desc *snd_clk44gpio;
 static struct gpio_desc *snd_clk48gpio;
 static int wm8804_samplerate = 0;
 
+/* Forward declarations */
+static struct snd_soc_dai_link snd_allo_digione_dai[];
+static struct snd_soc_card snd_rpi_wm8804;
+
+
 #define CLK_44EN_RATE 22579200UL
 #define CLK_48EN_RATE 24576000UL
 
@@ -90,11 +95,10 @@ static unsigned int snd_rpi_wm8804_enable_clock(unsigned int samplerate)
 static void snd_rpi_wm8804_clk_cfg(unsigned int samplerate,
 		struct wm8804_clk_cfg *clk_cfg)
 {
-	clk_cfg->mclk_freq = 0;
-	clk_cfg->mclk_div = 1;
 	clk_cfg->sysclk_freq = 27000000;
 
-	if (samplerate <= 96000) {
+	if (samplerate <= 96000 ||
+	    snd_rpi_wm8804.dai_link == snd_allo_digione_dai) {
 		clk_cfg->mclk_freq = samplerate * 256;
 		clk_cfg->mclk_div = WM8804_MCLKDIV_256FS;
 	} else {
