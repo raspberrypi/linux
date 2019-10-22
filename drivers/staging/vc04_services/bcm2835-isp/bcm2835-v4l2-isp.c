@@ -1270,6 +1270,10 @@ static int register_node(struct platform_device *pdev,
 	vfd->v4l2_dev	= &node_group->isp_dev->v4l2_dev;
 	vfd->vfl_dir	= node->vfl_dir;
 
+	/* Define the device names */
+	snprintf(vfd->name, sizeof(node->vfd.name), "%s-%s%d",
+		 BCM2835_ISP_NAME, node->name, node->id);
+
 	ret = video_register_device(vfd, VFL_TYPE_GRABBER, video_nr + index);
 	if (ret) {
 		v4l2_err(&node_group->isp_dev->v4l2_dev,
@@ -1279,10 +1283,11 @@ static int register_node(struct platform_device *pdev,
 	}
 
 	video_set_drvdata(vfd, node);
-	snprintf(vfd->name, sizeof(vfd->name), "%s", BCM2835_ISP_NAME);
+
 	v4l2_info(&node_group->isp_dev->v4l2_dev,
 		  "device node %p (%s[%d]) registered as /dev/video%d\n", node,
 		  node->name, node->id, vfd->num);
+
 	return 0;
 }
 
@@ -1374,7 +1379,7 @@ media_controller_register_node(struct bcm2835_isp_node_group *node_group, int i,
 		ret = -ENOMEM;
 		goto error_no_mem;
 	}
-	snprintf(name, BCM2835_ISP_ENTITY_NAME_LEN, "%s%d-%s%d", node->vfd.name,
+	snprintf(name, BCM2835_ISP_ENTITY_NAME_LEN, "%s%d-%s%d", BCM2835_ISP_NAME,
 		 group_num, output ? "output" : "capture", i);
 	entity->name = name;
 	node->pad.flags = output ? MEDIA_PAD_FL_SOURCE : MEDIA_PAD_FL_SINK;
