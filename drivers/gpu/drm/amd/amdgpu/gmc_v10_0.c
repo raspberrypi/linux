@@ -264,6 +264,7 @@ static void gmc_v10_0_flush_gpu_tlb(struct amdgpu_device *adev,
 
 	job->vm_pd_addr = amdgpu_gmc_pd_addr(adev->gart.bo);
 	job->vm_needs_flush = true;
+	job->ibs->ptr[job->ibs->length_dw++] = ring->funcs->nop;
 	amdgpu_ring_pad_ib(ring, &job->ibs[0]);
 	r = amdgpu_job_submit(job, &adev->mman.entity,
 			      AMDGPU_FENCE_OWNER_UNDEFINED, &fence);
