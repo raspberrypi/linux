@@ -647,6 +647,7 @@
 
 &usb {
 	interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
+	status = "disabled";
 };
 
 &hdmi {
