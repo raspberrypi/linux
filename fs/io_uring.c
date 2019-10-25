@@ -2488,12 +2488,13 @@ static int io_ring_submit(struct io_ring_ctx *ctx, unsigned int to_submit)
 		submit++;
 		io_submit_sqe(ctx, &s, statep, &link);
 	}
-	io_commit_sqring(ctx);
 
 	if (link)
 		io_queue_sqe(ctx, link, &link->submit);
 	if (statep)
 		io_submit_state_end(statep);
+
+	io_commit_sqring(ctx);
 
 	return submit;
 }
