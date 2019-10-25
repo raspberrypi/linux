@@ -2157,6 +2157,8 @@ err:
 		return;
 	}
 
+	req->user_data = s->sqe->user_data;
+
 	/*
 	 * If we already have a head request, queue this one for async
 	 * submittal once the head completes. If we don't have a head but
