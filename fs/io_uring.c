@@ -221,6 +221,7 @@ struct io_ring_ctx {
 		unsigned		sq_entries;
 		unsigned		sq_mask;
 		unsigned		sq_thread_idle;
+		unsigned		cached_sq_dropped;
 		struct io_uring_sqe	*sq_sqes;
 
 		struct list_head	defer_list;
@@ -237,6 +238,7 @@ struct io_ring_ctx {
 		/* CQ ring */
 		struct io_cq_ring	*cq_ring;
 		unsigned		cached_cq_tail;
+		atomic_t		cached_cq_overflow;
 		unsigned		cq_entries;
 		unsigned		cq_mask;
 		struct wait_queue_head	cq_wait;
@@ -431,7 +433,8 @@ static inline bool io_sequence_defer(struct io_ring_ctx *ctx,
 	if ((req->flags & (REQ_F_IO_DRAIN|REQ_F_IO_DRAINED)) != REQ_F_IO_DRAIN)
 		return false;
 
-	return req->sequence != ctx->cached_cq_tail + ctx->sq_ring->dropped;
+	return req->sequence != ctx->cached_cq_tail + ctx->sq_ring->dropped
+					+ atomic_read(&ctx->cached_cq_overflow);
 }
 
 static struct io_kiocb *io_get_deferred_req(struct io_ring_ctx *ctx)
@@ -511,9 +514,8 @@ static void io_cqring_fill_event(struct io_ring_ctx *ctx, u64 ki_user_data,
 		WRITE_ONCE(cqe->res, res);
 		WRITE_ONCE(cqe->flags, 0);
 	} else {
-		unsigned overflow = READ_ONCE(ctx->cq_ring->overflow);
-
-		WRITE_ONCE(ctx->cq_ring->overflow, overflow + 1);
+		WRITE_ONCE(ctx->cq_ring->overflow,
+				atomic_inc_return(&ctx->cached_cq_overflow));
 	}
 }
 
@@ -2272,7 +2274,8 @@ static bool io_get_sqring(struct io_ring_ctx *ctx, struct sqe_submit *s)
 
 	/* drop invalid entries */
 	ctx->cached_sq_head++;
-	ring->dropped++;
+	ctx->cached_sq_dropped++;
+	WRITE_ONCE(ring->dropped, ctx->cached_sq_dropped);
 	return false;
 }
 
