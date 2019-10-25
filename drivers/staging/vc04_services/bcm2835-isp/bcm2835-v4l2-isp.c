@@ -49,8 +49,6 @@ MODULE_PARM_DESC(video_nr, "base video device number");
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
 
-#define V4L2_CID_BCM2835_ISP_PARAM (V4L2_CID_USER_BASE + 0x1000)
-
 enum node_type {
 	NODE_TYPE_OUTPUT = 0x0,
 	NODE_TYPE_CAPTURE = 0x1,
@@ -127,7 +125,6 @@ struct bcm2835_isp_node_group {
 	struct bcm2835_isp_node node[BCM2835_ISP_NUM_NODES];
 	struct media_entity entity;
 	struct media_pad pad[BCM2835_ISP_NUM_NODES];
-	int param; /* this is just an example parameter */
 	atomic_t num_streaming;
 };
 
@@ -146,6 +143,9 @@ struct bcm2835_isp_dev {
 	// Image pipeline controls.
 	int r_gain;
 	int b_gain;
+	int digital_gain;
+	bool wb_updated;
+	bool dg_updated;
 };
 
 struct bcm2835_isp_buffer {
@@ -159,7 +159,7 @@ static int set_wb_gains(struct bcm2835_isp_dev *isp_dev)
 	struct vchiq_mmal_port *control = &isp_dev->component->control;
 
 	gains.r_gain.num = isp_dev->r_gain;
-	gains.r_gain.num = isp_dev->b_gain;
+	gains.b_gain.num = isp_dev->b_gain;
 	gains.r_gain.den = 1000;
 	gains.b_gain.den = 1000;
 	return vchiq_mmal_port_parameter_set(isp_dev->mmal_instance, control,
@@ -167,12 +167,12 @@ static int set_wb_gains(struct bcm2835_isp_dev *isp_dev)
 					     &gains, sizeof(gains));
 }
 
-static int set_digital_gain(struct bcm2835_isp_dev *isp_dev, int gain)
+static int set_digital_gain(struct bcm2835_isp_dev *isp_dev)
 {
 	struct mmal_parameter_rational digital_gain;
 	struct vchiq_mmal_port *control = &isp_dev->component->control;
 
-	digital_gain.num = gain;
+	digital_gain.num = isp_dev->digital_gain;
 	digital_gain.den = 1000;
 	return vchiq_mmal_port_parameter_set(isp_dev->mmal_instance, control,
 					     MMAL_PARAMETER_DIGITAL_GAIN,
@@ -539,10 +539,26 @@ static void bcm2835_isp_node_buffer_queue(struct vb2_buffer *buf)
 	struct bcm2835_isp_node *node = vb2_get_drv_priv(buf->vb2_queue);
 	struct bcm2835_isp_dev *isp_dev = node_get_bcm2835_isp(node);
 
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "%s: node %s[%d], buffer %p\n", __func__, node->name,
-		  node->id, buffer);
+	v4l2_info(&isp_dev->v4l2_dev, "%s: node %s[%d], buffer %p\n",
+		  __func__, node->name, node->id, buffer);
 
+	/* If this is the V4L output node, look to see if we have to update
+	 * any controls synchronously.
+	 */
+	if (NODE_IS_OUTPUT(node)) {
+		if (isp_dev->wb_updated) {
+			if (set_wb_gains(isp_dev))
+				v4l2_info(&isp_dev->v4l2_dev,
+					  "%s: Set WB failed\n", __func__);
+			isp_dev->wb_updated = false;
+		}
+		if (isp_dev->dg_updated) {
+			if (set_digital_gain(isp_dev))
+				v4l2_info(&isp_dev->v4l2_dev,
+					  "%s: Set DG failed\n", __func__);
+			isp_dev->dg_updated = false;
+		}
+	}
 	vb2_to_mmal_buffer(&buffer->mmal, &buffer->vb);
 	v4l2_dbg(3, debug, &isp_dev->v4l2_dev,
 		 "%s: node %s[%d] - submitting  mmal dmabuf %p\n", __func__,
@@ -687,24 +703,25 @@ static int bcm2835_isp_s_ctrl(struct v4l2_ctrl *ctrl)
 	struct bcm2835_isp_dev *isp_dev = node_group->isp_dev;
 	int ret = 0;
 
+	if (!NODE_IS_OUTPUT(node)) {
+		v4l2_err(&isp_dev->v4l2_dev,
+			 "%s: Cannot set ctrl on this node\n", __func__);
+		ret = -EINVAL;
+	}
+
 	v4l2_info(&isp_dev->v4l2_dev, "Ctrl id is %u\n", ctrl->id);
 	switch (ctrl->id) {
 	case V4L2_CID_RED_BALANCE:
 		isp_dev->r_gain = ctrl->val;
-		ret = set_wb_gains(isp_dev);
+		isp_dev->wb_updated = true;
 		break;
 	case V4L2_CID_BLUE_BALANCE:
 		isp_dev->b_gain = ctrl->val;
-		ret = set_wb_gains(isp_dev);
+		isp_dev->wb_updated = true;
 		break;
 	case V4L2_CID_DIGITAL_GAIN:
-		ret = set_digital_gain(isp_dev, ctrl->val);
-		break;
-	case V4L2_CID_BCM2835_ISP_PARAM:
-		node_group->param = ctrl->val;
-		ret = 0;
-		v4l2_info(&isp_dev->v4l2_dev, "Set param to %d\n",
-			  node_group->param);
+		isp_dev->digital_gain = ctrl->val;
+		isp_dev->dg_updated = true;
 		break;
 	default:
 		v4l2_info(&isp_dev->v4l2_dev, "Unrecognised control\n");
@@ -715,16 +732,6 @@ static int bcm2835_isp_s_ctrl(struct v4l2_ctrl *ctrl)
 
 static const struct v4l2_ctrl_ops bcm2835_isp_ctrl_ops = {
 	.s_ctrl = bcm2835_isp_s_ctrl,
-};
-
-static struct v4l2_ctrl_config bcm2835_isp_ctrl_param = {
-	.ops	= &bcm2835_isp_ctrl_ops,
-	.id	= V4L2_CID_BCM2835_ISP_PARAM,
-	.name	= "Param",
-	.type	= V4L2_CTRL_TYPE_INTEGER,
-	.min	= 0,
-	.max	= 999999,
-	.step	= 1,
 };
 
 static struct bcm2835_isp_fmt *get_default_format(struct bcm2835_isp_node *node)
@@ -752,7 +759,6 @@ static int bcm2835_isp_open(struct file *file)
 	struct bcm2835_isp_node *node = video_drvdata(file);
 	struct bcm2835_isp_dev *isp_dev = node_get_bcm2835_isp(node);
 	struct vb2_queue *queue;
-	struct v4l2_ctrl_handler *hdl;
 	int ret = 0;
 
 	if (mutex_lock_interruptible(&node->node_lock))
@@ -783,17 +789,12 @@ static int bcm2835_isp_open(struct file *file)
 	v4l2_fh_init(&node->fh, video_devdata(file));
 	file->private_data = &node->fh;
 
-	hdl = &node->hdl;
-	v4l2_ctrl_handler_init(hdl, 4);
-	bcm2835_isp_ctrl_param.def = 0;
-	v4l2_ctrl_new_custom(hdl, &bcm2835_isp_ctrl_param, NULL);
-	if (hdl->error) {
-		ret = hdl->error;
-		v4l2_ctrl_handler_free(hdl);
-		goto unlock_return;
+	/* Only the Video Output node accepts ctrls. */
+	if (NODE_IS_OUTPUT(node)) {
+		v4l2_ctrl_handler_init(&node->hdl, 4);
+		node->fh.ctrl_handler = &node->hdl;
+		v4l2_ctrl_handler_setup(&node->hdl);
 	}
-	node->fh.ctrl_handler = hdl;
-	v4l2_ctrl_handler_setup(hdl);
 	v4l2_fh_add(&node->fh);
 	node->open = 1;
 
@@ -811,12 +812,15 @@ static int bcm2835_isp_open(struct file *file)
 	if (NODE_IS_OUTPUT(node)) {
 		isp_dev->r_gain = 1000;
 		isp_dev->b_gain = 1000;
+		isp_dev->wb_updated = true;
 		v4l2_ctrl_new_std(&node->hdl, &bcm2835_isp_ctrl_ops,
 				  V4L2_CID_RED_BALANCE, 1, 7999, 1,
 				  isp_dev->r_gain);
 		v4l2_ctrl_new_std(&node->hdl, &bcm2835_isp_ctrl_ops,
 				  V4L2_CID_BLUE_BALANCE, 1, 7999, 1,
 				  isp_dev->b_gain);
+		isp_dev->digital_gain = 1000;
+		isp_dev->dg_updated = true;
 		v4l2_ctrl_new_std(&node->hdl, &bcm2835_isp_ctrl_ops,
 				  V4L2_CID_DIGITAL_GAIN, 1, 7999, 1, 1000);
 	}
