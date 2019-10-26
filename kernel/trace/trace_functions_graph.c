@@ -820,6 +820,40 @@ trace_print_graph_duration(unsigned long long duration, struct trace_seq *s)
 }
 
 static void
+print_graph_duration2(struct trace_array *tr, unsigned long long start_time, unsigned long long duration,
+		     struct trace_seq *s, u32 flags)
+{
+	if (!(flags & TRACE_GRAPH_PRINT_DURATION) ||
+	    !(tr->trace_flags & TRACE_ITER_CONTEXT_INFO))
+		return;
+
+	/* No real adata, just filling the column with spaces */
+	switch (flags & TRACE_GRAPH_PRINT_FILL_MASK) {
+	case FLAGS_FILL_FULL:
+		trace_seq_puts(s, "              |  ");
+		return;
+	case FLAGS_FILL_START:
+		trace_seq_puts(s, "  ");
+		return;
+	case FLAGS_FILL_END:
+		trace_seq_puts(s, " |");
+		return;
+	}
+
+	/* Signal a overhead of time execution to the output */
+	if (flags & TRACE_GRAPH_PRINT_OVERHEAD)
+		trace_seq_printf(s, "%c ", trace_find_mark(duration));
+	else
+		trace_seq_puts(s, "  ");
+
+    trace_seq_puts(s, " lxcdebug ");
+
+	trace_print_graph_duration(duration, s);
+	trace_seq_puts(s, "|  ");
+}
+
+
+static void
 print_graph_duration(struct trace_array *tr, unsigned long long duration,
 		     struct trace_seq *s, u32 flags)
 {
@@ -892,7 +926,8 @@ print_graph_entry_leaf(struct trace_iterator *iter,
 	}
 
 	/* Overhead and duration */
-	print_graph_duration(tr, duration, s, flags);
+	print_graph_duration2(tr, graph_ret->calltime, duration, s, flags);
+	//print_graph_duration(tr, duration, s, flags);
 
 	/* Function */
 	for (i = 0; i < call->depth * TRACE_GRAPH_INDENT; i++)
