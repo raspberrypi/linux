@@ -34,10 +34,10 @@ cd /tmp/
 tar -zcvf normal2image.tar.gz normal2image
 echo ""
 echo "Send vmlinux to remote target"
-sshpass -p "'" ssh pi@$remote_ip mkdir -p ~/kernel
-sshpass -p "'" scp /home/at1a5/raspberrypi_dev/linux_4_19/vmlinux pi@$remote_ip:~/kernel/
+sshpass -p "'" ssh pi@$remote_ip mkdir -p /home/pi/kernel
+sshpass -p "'" scp /home/at1a5/raspberrypi_dev/linux_4_19/vmlinux pi@$remote_ip:/home/pi/kernel/
 echo "Send normal image to remote target"
-sshpass -p "'" scp /tmp/normal2image.tar.gz pi@$remote_ip:~/
+sshpass -p "'" scp /tmp/normal2image.tar.gz pi@$remote_ip:/home/pi/
 
 echo "extract remote target"
 sshpass -p "'" ssh pi@$remote_ip tar -zxf /home/pi/normal2image.tar.gz
