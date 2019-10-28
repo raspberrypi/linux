@@ -521,6 +521,21 @@ static int bcm2708_fb_blank(int blank_mode, struct fb_info *info)
 	ret = rpi_firmware_property(fb->fbdev->fw, RPI_FIRMWARE_FRAMEBUFFER_BLANK,
 				    &value, sizeof(value));
 
+	if (!ret && (blank_mode == FB_BLANK_POWERDOWN ||
+	    blank_mode == FB_BLANK_UNBLANK)) {
+		u32 buf[2] = {fb->display_settings.display_num,
+			      blank_mode == FB_BLANK_POWERDOWN ? 0 : 1};
+
+		/* Convert display number to a display id in place */
+		ret = rpi_firmware_property(fb->fbdev->fw,
+					    RPI_FIRMWARE_GET_DISPLAY_ID,
+					    buf, sizeof(u32));
+
+		ret = rpi_firmware_property(fb->fbdev->fw,
+					    RPI_FIRMWARE_SET_DISPLAY_POWER,
+					    buf, sizeof(buf));
+	}
+
 	if (ret)
 		dev_err(info->device, "%s(%d) failed: %d\n", __func__,
 			blank_mode, ret);
