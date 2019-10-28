@@ -1,0 +1,18 @@
+language: c
+
+os: linux
+
+notifications:
+  email:
+    on_success: change
+    on_failure: always
+
+env:
+  matrix:
+  - DEFCONFIG=bcm2709_defconfig ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf-
+  - DEFCONFIG=bcm2711_defconfig ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf-
+  - DEFCONFIG=bcm2835_defconfig ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf-
+  - DEFCONFIG=bcm2711_defconfig ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+
+script:
+  - ./ci/travis/run-build-docker.sh
