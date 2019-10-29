@@ -829,4 +829,26 @@ struct mmal_parameter_camera_info_t {
 				flashes[MMAL_PARAMETER_CAMERA_INFO_MAX_FLASHES];
 };
 
+struct mmal_parameter_ccm_t {
+   struct mmal_parameter_rational ccm[3][3];
+   int32_t offsets[3];
+};
+
+struct mmal_parameter_custom_ccm_t {
+   u32 enabled;				/**< Enable the custom CCM. */
+   struct mmal_parameter_ccm_t ccm;	/**< CCM to be used. */
+};
+
+struct mmal_parameter_lens_shading_t
+{
+   u32 enabled;
+   u32 grid_cell_size;
+   u32 grid_width;
+   u32 grid_stride;
+   u32 grid_height;
+   u32 mem_handle_table;
+   u32 ref_transform;
+};
+
+
 #endif
