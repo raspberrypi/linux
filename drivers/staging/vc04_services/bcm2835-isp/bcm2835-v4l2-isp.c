@@ -25,7 +25,7 @@
 //#include "mmal-parameters.h"
 #include "bcm2835_isp_fmts.h"
 
-static unsigned int debug = 3;
+static unsigned int debug = 1;
 module_param(debug, uint, 0644);
 MODULE_PARM_DESC(debug, "activates debug info");
 
@@ -48,6 +48,9 @@ MODULE_PARM_DESC(video_nr, "base video device number");
 
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
+
+#define V4L2_CID_USER_BCM2835_ISP_CC_MATRIX	(V4L2_CID_USER_BASE + 0x0000)
+#define V4L2_CID_USER_BCM2835_ISP_LENS_SHADING	(V4L2_CID_USER_BASE + 0x0001)
 
 enum node_type {
 	NODE_TYPE_OUTPUT = 0x0,
@@ -144,8 +147,12 @@ struct bcm2835_isp_dev {
 	int r_gain;
 	int b_gain;
 	int digital_gain;
+	struct mmal_parameter_custom_ccm_t ccm;
+	struct mmal_parameter_lens_shading_t ls;
 	bool wb_updated;
 	bool dg_updated;
+	bool ccm_updated;
+	bool ls_updated;
 };
 
 struct bcm2835_isp_buffer {
@@ -165,6 +172,22 @@ static int set_wb_gains(struct bcm2835_isp_dev *isp_dev)
 	return vchiq_mmal_port_parameter_set(isp_dev->mmal_instance, control,
 					     MMAL_PARAMETER_CUSTOM_AWB_GAINS,
 					     &gains, sizeof(gains));
+}
+
+static int set_ccm(struct bcm2835_isp_dev *isp_dev)
+{
+	struct vchiq_mmal_port *control = &isp_dev->component->control;
+	return vchiq_mmal_port_parameter_set(isp_dev->mmal_instance, control,
+					     MMAL_PARAMETER_CUSTOM_CCM,
+					     &isp_dev->ccm, sizeof(isp_dev->ccm));
+}
+
+static int set_ls(struct bcm2835_isp_dev *isp_dev)
+{
+	struct vchiq_mmal_port *control = &isp_dev->component->control;
+	return vchiq_mmal_port_parameter_set(isp_dev->mmal_instance, control,
+					     MMAL_PARAMETER_LENS_SHADING_OVERRIDE,
+					     &isp_dev->ls, sizeof(isp_dev->ls));
 }
 
 static int set_digital_gain(struct bcm2835_isp_dev *isp_dev)
@@ -543,9 +566,11 @@ static void bcm2835_isp_node_buffer_queue(struct vb2_buffer *buf)
 		  __func__, node->name, node->id, buffer);
 
 	/* If this is the V4L output node, look to see if we have to update
-	 * any controls synchronously.
+	 * any controls synchronously.  We use a lock so as to avoid a race
+	 * where some portion of the ctrls are in the process of being updated.
 	 */
 	if (NODE_IS_OUTPUT(node)) {
+		mutex_lock(&node->node_lock);
 		if (isp_dev->wb_updated) {
 			if (set_wb_gains(isp_dev))
 				v4l2_info(&isp_dev->v4l2_dev,
@@ -558,6 +583,19 @@ static void bcm2835_isp_node_buffer_queue(struct vb2_buffer *buf)
 					  "%s: Set DG failed\n", __func__);
 			isp_dev->dg_updated = false;
 		}
+		if (isp_dev->ccm_updated) {
+			if (set_ccm(isp_dev))
+				v4l2_info(&isp_dev->v4l2_dev,
+					  "%s: Set CCM failed\n", __func__);
+			isp_dev->ccm_updated = false;
+		}
+		if (isp_dev->ls_updated) {
+			if (set_ls(isp_dev))
+				v4l2_info(&isp_dev->v4l2_dev,
+					  "%s: Set LS failed\n", __func__);
+			isp_dev->ls_updated = false;
+		}
+		mutex_unlock(&node->node_lock);
 	}
 	vb2_to_mmal_buffer(&buffer->mmal, &buffer->vb);
 	v4l2_dbg(3, debug, &isp_dev->v4l2_dev,
@@ -695,45 +733,6 @@ static const struct vb2_ops bcm2835_isp_node_queue_ops = {
 	.stop_streaming		= bcm2835_isp_node_stop_streaming,
 };
 
-static int bcm2835_isp_s_ctrl(struct v4l2_ctrl *ctrl)
-{
-	struct bcm2835_isp_node *node =
-		container_of(ctrl->handler, struct bcm2835_isp_node, hdl);
-	struct bcm2835_isp_node_group *node_group = node->node_group;
-	struct bcm2835_isp_dev *isp_dev = node_group->isp_dev;
-	int ret = 0;
-
-	if (!NODE_IS_OUTPUT(node)) {
-		v4l2_err(&isp_dev->v4l2_dev,
-			 "%s: Cannot set ctrl on this node\n", __func__);
-		ret = -EINVAL;
-	}
-
-	v4l2_info(&isp_dev->v4l2_dev, "Ctrl id is %u\n", ctrl->id);
-	switch (ctrl->id) {
-	case V4L2_CID_RED_BALANCE:
-		isp_dev->r_gain = ctrl->val;
-		isp_dev->wb_updated = true;
-		break;
-	case V4L2_CID_BLUE_BALANCE:
-		isp_dev->b_gain = ctrl->val;
-		isp_dev->wb_updated = true;
-		break;
-	case V4L2_CID_DIGITAL_GAIN:
-		isp_dev->digital_gain = ctrl->val;
-		isp_dev->dg_updated = true;
-		break;
-	default:
-		v4l2_info(&isp_dev->v4l2_dev, "Unrecognised control\n");
-		ret = -EINVAL;
-	}
-	return ret;
-}
-
-static const struct v4l2_ctrl_ops bcm2835_isp_ctrl_ops = {
-	.s_ctrl = bcm2835_isp_s_ctrl,
-};
-
 static struct bcm2835_isp_fmt *get_default_format(struct bcm2835_isp_node *node)
 {
 	return &node->supported_fmts.list[node->id];
@@ -750,6 +749,82 @@ static inline unsigned int get_sizeimage(int bpl, int width, int height,
 {
 	return (bpl * height * fmt->size_multiplier_x2) >> 1;
 }
+
+static int bcm2835_isp_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct bcm2835_isp_node *node =
+		container_of(ctrl->handler, struct bcm2835_isp_node, hdl);
+	struct bcm2835_isp_node_group *node_group = node->node_group;
+	struct bcm2835_isp_dev *isp_dev = node_group->isp_dev;
+	int ret = 0;
+
+	if (!NODE_IS_OUTPUT(node)) {
+		v4l2_err(&isp_dev->v4l2_dev,
+			 "%s: Cannot set ctrl on this node\n", __func__);
+		ret = -EINVAL;
+	}
+
+	v4l2_info(&isp_dev->v4l2_dev, "Ctrl id is %u\n", ctrl->id);
+	/* Lock here to ensure we do not have a race when writing these params
+	 * into MMAL from buf_queue.
+	 */
+	mutex_lock(&node->node_lock);
+	switch (ctrl->id) {
+	case V4L2_CID_RED_BALANCE:
+		isp_dev->r_gain = ctrl->val;
+		isp_dev->wb_updated = true;
+		break;
+	case V4L2_CID_BLUE_BALANCE:
+		isp_dev->b_gain = ctrl->val;
+		isp_dev->wb_updated = true;
+		break;
+	case V4L2_CID_DIGITAL_GAIN:
+		isp_dev->digital_gain = ctrl->val;
+		isp_dev->dg_updated = true;
+		break;
+	case V4L2_CID_USER_BCM2835_ISP_CC_MATRIX:
+		memcpy(&isp_dev->ccm, ctrl->p_new.p_u8, sizeof(isp_dev->ccm));
+		isp_dev->ccm_updated = true;
+		break;
+	case V4L2_CID_USER_BCM2835_ISP_LENS_SHADING:
+		memcpy(&isp_dev->ls, ctrl->p_new.p_u8, sizeof(isp_dev->ls));
+		isp_dev->ls_updated = true;
+		break;
+	default:
+		v4l2_info(&isp_dev->v4l2_dev, "Unrecognised control\n");
+		ret = -EINVAL;
+	}
+	mutex_unlock(&node->node_lock);
+	return ret;
+}
+
+static const struct v4l2_ctrl_ops bcm2835_isp_ctrl_ops = {
+	.s_ctrl = bcm2835_isp_s_ctrl,
+};
+
+static const struct v4l2_ctrl_config bcm2835_isp_cc_ctrl = {
+	.ops 		= &bcm2835_isp_ctrl_ops,
+	.id 		= V4L2_CID_USER_BCM2835_ISP_CC_MATRIX,
+	.name		= "ccm",
+	.type 		= V4L2_CTRL_TYPE_U8,
+	.def		= 0,
+	.min 		= 0x00,
+	.max 		= 0xff,
+	.step 		= 1,
+	.dims 		= {sizeof(struct mmal_parameter_custom_ccm_t)},
+};
+
+static const struct v4l2_ctrl_config bcm2835_isp_ls_ctrl = {
+	.ops 		= &bcm2835_isp_ctrl_ops,
+	.id 		= V4L2_CID_USER_BCM2835_ISP_LENS_SHADING,
+	.name		= "lens shading",
+	.type 		= V4L2_CTRL_TYPE_U8,
+	.def		= 0,
+	.min 		= 0x00,
+	.max 		= 0xff,
+	.step 		= 1,
+	.dims 		= {sizeof(struct mmal_parameter_lens_shading_t)},
+};
 
 /* Open one of the nodes /dev/video<N> associated with the ISP. Each node can be
  * opened only once.
@@ -823,6 +898,8 @@ static int bcm2835_isp_open(struct file *file)
 		isp_dev->dg_updated = true;
 		v4l2_ctrl_new_std(&node->hdl, &bcm2835_isp_ctrl_ops,
 				  V4L2_CID_DIGITAL_GAIN, 1, 7999, 1, 1000);
+		v4l2_ctrl_new_custom(&node->hdl, &bcm2835_isp_cc_ctrl, NULL);
+		v4l2_ctrl_new_custom(&node->hdl, &bcm2835_isp_ls_ctrl, NULL);
 	}
 
 	ret = vb2_queue_init(queue);
