@@ -1027,8 +1027,8 @@ static int mtk_pcie_setup(struct mtk_pcie *pcie)
 	resource_size_t io_base;
 	int err;
 
-	err = devm_of_pci_get_host_bridge_resources(dev, 0, 0xff,
-						    windows, &io_base);
+	err = pci_parse_request_of_pci_ranges(dev, windows,
+					      &host->dma_ranges, &bus);
 	if (err)
 		return err;
 
