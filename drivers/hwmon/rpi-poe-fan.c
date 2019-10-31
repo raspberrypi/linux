@@ -110,7 +110,7 @@ static int  __set_def_pwm(struct rpi_poe_fan_ctx *ctx, u32 def_pwm)
 	if (ctx->def_pwm_value == def_pwm)
 		goto exit_set_def_pwm_err;
 
-	ret = write_reg(ctx->fw, POE_CUR_PWM, &def_pwm);
+	ret = write_reg(ctx->fw, POE_DEF_PWM, &def_pwm);
 	if (!ret)
 		ctx->def_pwm_value = def_pwm;
 exit_set_def_pwm_err:
