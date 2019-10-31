@@ -1934,10 +1934,18 @@ static ssize_t __ceph_copy_file_range(struct file *src_file, loff_t src_off,
 	if (ceph_test_mount_opt(ceph_inode_to_client(src_inode), NOCOPYFROM))
 		return -EOPNOTSUPP;
 
+	/*
+	 * Striped file layouts require that we copy partial objects, but the
+	 * OSD copy-from operation only supports full-object copies.  Limit
+	 * this to non-striped file layouts for now.
+	 */
 	if ((src_ci->i_layout.stripe_unit != dst_ci->i_layout.stripe_unit) ||
-	    (src_ci->i_layout.stripe_count != dst_ci->i_layout.stripe_count) ||
-	    (src_ci->i_layout.object_size != dst_ci->i_layout.object_size))
+	    (src_ci->i_layout.stripe_count != 1) ||
+	    (dst_ci->i_layout.stripe_count != 1) ||
+	    (src_ci->i_layout.object_size != dst_ci->i_layout.object_size)) {
+		dout("Invalid src/dst files layout\n");
 		return -EOPNOTSUPP;
+	}
 
 	if (len < src_ci->i_layout.object_size)
 		return -EOPNOTSUPP; /* no remote copy will be done */
