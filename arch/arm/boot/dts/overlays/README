@@ -102,26 +102,38 @@ Params:
 
         eee                     Enable Energy Efficient Ethernet support for
                                 compatible devices (default "on"). See also
-                                "tx_lpi_timer".
+                                "tx_lpi_timer". Pi3B+ only.
 
         eth_downshift_after     Set the number of auto-negotiation failures
                                 after which the 1000Mbps modes are disabled.
                                 Legal values are 2, 3, 4, 5 and 0, where
-                                0 means never downshift (default 2).
+                                0 means never downshift (default 2). Pi3B+ only.
 
-        eth_led0                Set mode of LED0 (usually orange) (default
-                                "1"). The legal values are:
-                                0=link/activity          1=link1000/activity
+        eth_led0                Set mode of LED0 (usually orange). The legal
+                                values are:
+
+                                Pi3B+
+
+                                0=link/activity    1=link1000/activity (default)
                                 2=link100/activity       3=link10/activity
                                 4=link100/1000/activity  5=link10/1000/activity
                                 6=link10/100/activity    14=off    15=on
 
-        eth_led1                Set mode of LED1 (usually green) (default
-                                "6"). See eth_led0 for legal values.
+                                Pi4
+
+                                0=Speed/Activity (default)       1=Speed
+                                2=Speed/Flash activity   3=FDX
+                                4=Off                    5=On
+                                6=Alt                    7=Speed/Flash
+                                8=Link                   9=Activity
+
+        eth_led1                Set mode of LED1 (usually green) (Pi3B+ default
+                                "6", Pi4 default "0"). See eth_led0 for legal
+                                values.
 
         eth_max_speed           Set the maximum speed a link is allowed
                                 to negotiate. Legal values are 10, 100 and
-                                1000 (default 1000).
+                                1000 (default 1000). Pi3B+ only.
 
         i2c_arm                 Set to "on" to enable the ARM's i2c interface
                                 (default "off")
