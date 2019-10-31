@@ -334,5 +334,8 @@
 		pwr_led_gpio = <&pwr_led>,"gpios:4";
 		pwr_led_activelow = <&pwr_led>,"gpios:8";
 		pwr_led_trigger = <&pwr_led>,"linux,default-trigger";
+
+		eth_led0 = <&phy1>,"led-modes:0";
+		eth_led1 = <&phy1>,"led-modes:4";
 	};
 };
