@@ -315,6 +315,9 @@ static void bcm54xx_adjust_rxrefclk(struct phy_device *phydev)
 static int bcm54xx_config_init(struct phy_device *phydev)
 {
 	int reg, err, val;
+	u32 led_modes[] = {BCM_LED_MULTICOLOR_LINK_ACT,
+			   BCM_LED_MULTICOLOR_LINK};
+	struct device_node *np = phydev->mdio.dev.of_node;
 
 	reg = phy_read(phydev, MII_BCM54XX_ECR);
 	if (reg < 0)
@@ -370,10 +373,10 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 
 	bcm54xx_phydsp_config(phydev);
 
+	of_property_read_u32_array(np, "led-modes", led_modes, 2);
+
 	/* For non-SFP setups, encode link speed into LED1 and LED3 pair
 	 * (green/amber).
-	 * Also flash these two LEDs on activity. This means configuring
-	 * them for MULTICOLOR and encoding link/activity into them.
 	 * Don't do this for devices on an SFP module, since some of these
 	 * use the LED outputs to control the SFP LOS signal, and changing
 	 * these settings will cause LOS to malfunction.
@@ -384,8 +387,8 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 		bcm_phy_write_shadow(phydev, BCM5482_SHD_LEDS1, val);
 
 		val = BCM_LED_MULTICOLOR_IN_PHASE |
-			BCM5482_SHD_LEDS1_LED1(BCM_LED_MULTICOLOR_LINK_ACT) |
-			BCM5482_SHD_LEDS1_LED3(BCM_LED_MULTICOLOR_LINK_ACT);
+			BCM5482_SHD_LEDS1_LED1(led_modes[0]) |
+			BCM5482_SHD_LEDS1_LED3(led_modes[1]);
 		bcm_phy_write_exp(phydev, BCM_EXP_MULTICOLOR, val);
 	}
 
