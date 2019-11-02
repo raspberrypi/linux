@@ -1,3 +1,14 @@
+############ Forked by adam.liu for raspberry pi test ############ 
+
+Quick scripts:
+    a) compile the whole kernel: make.sh
+    b) compile core kernel with simple way: make_normal.sh
+    c) flash all contents into pi: flashall.sh
+    d) flash vmlinux into pi: flashall_normal.sh
+
+PS: the ip address of my raspberry pi is 192.168.2.107, you may need to
+change it to fit your own pi if you want to use these scripts.
+
 Linux kernel
 ============
 
