@@ -23,6 +23,11 @@
 		interrupts = <9 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
+    kernel_monitor {
+        compatible = "lxc,kernel_monitor";
+        status = "okay";
+    };
+
 	timer {
 		compatible = "arm,armv7-timer";
 		interrupt-parent = <&local_intc>;
