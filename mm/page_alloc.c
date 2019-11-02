@@ -4145,6 +4145,61 @@ check_retry_cpuset(int cpuset_mems_cookie, struct alloc_context *ac)
 	return false;
 }
 
+void gfpmask_to_str(gfp_t gfp_mask)
+{
+    pr_err("gfp_mask is 0x%08x, explained as below\n", gfp_mask);
+    if (gfp_mask & __GFP_DMA)
+        pr_err("__GFP_DMA : 1");
+    if (gfp_mask & __GFP_HIGHMEM)
+        pr_err("__GFP_HIGHMEM : 1");
+    if (gfp_mask & __GFP_DMA32)
+        pr_err("__GFP_DMA32 : 1");
+    if (gfp_mask & __GFP_MOVABLE)
+        pr_err("__GFP_MOVABLE : 1");
+    if (gfp_mask & __GFP_RECLAIMABLE)
+        pr_err("__GFP_RECLAIMABLE : 1");
+    if (gfp_mask & __GFP_WRITE)
+        pr_err("__GFP_WRITE : 1");
+    if (gfp_mask & __GFP_HARDWALL)
+        pr_err("__GFP_HARDWALL : 1");
+    if (gfp_mask & __GFP_THISNODE)
+        pr_err("__GFP_THISNODE : 1");
+    if (gfp_mask & __GFP_ACCOUNT)
+        pr_err("__GFP_ACCOUNT : 1");
+    if (gfp_mask & __GFP_ATOMIC)
+        pr_err("__GFP_ATOMIC : 1");
+    if (gfp_mask & __GFP_HIGH)
+        pr_err("__GFP_HIGH : 1");
+    if (gfp_mask & __GFP_MEMALLOC)
+        pr_err("__GFP_MEMALLOC : 1");
+    if (gfp_mask & __GFP_NOMEMALLOC)
+        pr_err("__GFP_NOMEMALLOC : 1");
+    if (gfp_mask & __GFP_IO)
+        pr_err("__GFP_IO : 1");
+    if (gfp_mask & __GFP_FS)
+        pr_err("__GFP_FS : 1");
+    if (gfp_mask & __GFP_DIRECT_RECLAIM)
+        pr_err("__GFP_DIRECT_RECLAIM : 1");
+    if (gfp_mask & __GFP_KSWAPD_RECLAIM)
+        pr_err("__GFP_KSWAPD_RECLAIM : 1");
+    if (gfp_mask & __GFP_RECLAIM)
+        pr_err("__GFP_RECLAIM : 1");
+    if (gfp_mask & __GFP_RETRY_MAYFAIL)
+        pr_err("__GFP_RETRY_MAYFAIL : 1");
+    if (gfp_mask & __GFP_NOFAIL)
+        pr_err("__GFP_NOFAIL : 1");
+    if (gfp_mask & __GFP_NORETRY)
+        pr_err("__GFP_NORETRY : 1");
+    if (gfp_mask & __GFP_NOWARN)
+        pr_err("__GFP_NOWARN : 1");
+    if (gfp_mask & __GFP_COMP)
+        pr_err("__GFP_COMP : 1");
+    if (gfp_mask & __GFP_ZERO)
+        pr_err("__GFP_ZERO: 1");
+    if (gfp_mask & __GFP_NOLOCKDEP)
+        pr_err("__GFP_NOLOCKDEP: 1");
+}
+
 static inline struct page *
 __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 						struct alloc_context *ac)
@@ -4190,8 +4245,10 @@ retry_cpuset:
 	 */
 	ac->preferred_zoneref = first_zones_zonelist(ac->zonelist,
 					ac->high_zoneidx, ac->nodemask);
-	if (!ac->preferred_zoneref->zone)
+    if (!ac->preferred_zoneref->zone) {
+        pr_err("buddy no page : preferred_zoneref->zone is null\n");
 		goto nopage;
+    }
 
 	if (gfp_mask & __GFP_KSWAPD_RECLAIM)
 		wake_all_kswapds(order, gfp_mask, ac);
@@ -4237,8 +4294,10 @@ retry_cpuset:
 			 * system, so we fail the allocation instead of entering
 			 * direct reclaim.
 			 */
-			if (compact_result == COMPACT_DEFERRED)
+            if (compact_result == COMPACT_DEFERRED) {
+                pr_err("buddy no page : compact_result == COMPACT_DEFERRED\n");
 				goto nopage;
+            }
 
 			/*
 			 * Looks like reclaim/compaction is worth trying, but
@@ -4275,12 +4334,16 @@ retry:
 		goto got_pg;
 
 	/* Caller is not willing to reclaim, we can't balance anything */
-	if (!can_direct_reclaim)
+    if (!can_direct_reclaim) {
+        pr_err("buddy no page : can_direct_reclaim is false\n");
 		goto nopage;
+    }
 
 	/* Avoid recursion of direct reclaim */
-	if (current->flags & PF_MEMALLOC)
+    if (current->flags & PF_MEMALLOC) {
+        pr_err("buddy no page : PF_MEMALLOC set in current->flags\n");
 		goto nopage;
+    }
 
 	/* Try direct reclaim and then allocating */
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
@@ -4295,15 +4358,19 @@ retry:
 		goto got_pg;
 
 	/* Do not loop if specifically requested */
-	if (gfp_mask & __GFP_NORETRY)
+    if (gfp_mask & __GFP_NORETRY) {
+        pr_err("buddy no page : __GFP_NORETRY set in gfp_mask\n");
 		goto nopage;
+    }
 
 	/*
 	 * Do not retry costly high order allocations unless they are
 	 * __GFP_RETRY_MAYFAIL
 	 */
-	if (costly_order && !(gfp_mask & __GFP_RETRY_MAYFAIL))
+    if (costly_order && !(gfp_mask & __GFP_RETRY_MAYFAIL)) {
+        pr_err("buddy no page : costly_order and __GFP_RETRY_MAYFAIL set in gfp_mask\n");
 		goto nopage;
+    }
 
 	if (should_reclaim_retry(gfp_mask, order, ac, alloc_flags,
 				 did_some_progress > 0, &no_progress_loops))
@@ -4334,8 +4401,10 @@ retry:
 	/* Avoid allocations with no watermarks from looping endlessly */
 	if (tsk_is_oom_victim(current) &&
 	    (alloc_flags == ALLOC_OOM ||
-	     (gfp_mask & __GFP_NOMEMALLOC)))
+         (gfp_mask & __GFP_NOMEMALLOC))) {
+        pr_err("buddy no page : current is oom victim\n");
 		goto nopage;
+    }
 
 	/* Retry as long as the OOM killer is making progress */
 	if (did_some_progress) {
@@ -4390,7 +4459,7 @@ nopage:
 	}
 fail:
 	warn_alloc(gfp_mask, ac->nodemask,
-			"page allocation failure: order:%u", order);
+			"page allocation failure: order:%u, alloc_flags:0x%08x", order, alloc_flags);
 got_pg:
 	return page;
 }
@@ -4960,6 +5029,7 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
 	int cpu;
 	struct zone *zone;
 	pg_data_t *pgdat;
+    int zone_id = 0;
 
 	for_each_populated_zone(zone) {
 		if (show_mem_node_skip(filter, zone_to_nid(zone), nodemask))
@@ -5107,27 +5177,46 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
 		unsigned int order;
 		unsigned long nr[MAX_ORDER], flags, total = 0;
 		unsigned char types[MAX_ORDER];
+        unsigned short area_type[MAX_ORDER][MIGRATE_TYPES] = {0};
+        struct list_head *cur_tmp;
+        int type_tmp;
 
 		if (show_mem_node_skip(filter, zone_to_nid(zone), nodemask))
 			continue;
 		show_node(zone);
 		printk(KERN_CONT "%s: ", zone->name);
 
+        pr_err("\n####      |  unmove  move reclaim highatom cma  isolate");
+        pr_err("####      |     U      M      E      H      C      I\n");
 		spin_lock_irqsave(&zone->lock, flags);
+
 		for (order = 0; order < MAX_ORDER; order++) {
 			struct free_area *area = &zone->free_area[order];
 			int type;
+            int area_sum = 0;
 
 			nr[order] = area->nr_free;
 			total += nr[order] << order;
 
+            printk(KERN_CONT "#### [%2d] | ", (int)order);
 			types[order] = 0;
 			for (type = 0; type < MIGRATE_TYPES; type++) {
 				if (!list_empty(&area->free_list[type]))
 					types[order] |= 1 << type;
 			}
-		}
+
+			for (type = 0; type < MIGRATE_TYPES; type++) {
+                area_type[order][type] = 0;
+                list_for_each(cur_tmp, &area->free_list[type]) {
+                    area_type[order][type]++;
+                    area_sum++;
+                }
+                printk(KERN_CONT " %4d  ", (int)area_type[order][type]);
+		    }
+            printk(KERN_CONT " |  %4d\n", area_sum);
+        }
 		spin_unlock_irqrestore(&zone->lock, flags);
+        pr_err("\n\n");
 		for (order = 0; order < MAX_ORDER; order++) {
 			printk(KERN_CONT "%lu*%lukB ",
 			       nr[order], K(1UL) << order);
