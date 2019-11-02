@@ -616,6 +616,9 @@ static void vivid_dev_release(struct v4l2_device *v4l2_dev)
 
 	vivid_free_controls(dev);
 	v4l2_device_unregister(&dev->v4l2_dev);
+#ifdef CONFIG_MEDIA_CONTROLLER
+	media_device_cleanup(&dev->mdev);
+#endif
 	vfree(dev->scaled_line);
 	vfree(dev->blended_line);
 	vfree(dev->edid);
@@ -1580,7 +1583,6 @@ static int vivid_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_MEDIA_CONTROLLER
 		media_device_unregister(&dev->mdev);
-		media_device_cleanup(&dev->mdev);
 #endif
 
 		if (dev->has_vid_cap) {
