@@ -321,6 +321,7 @@ struct kvm_mmu_page {
 	struct hlist_node hash_link;
 	bool unsync;
 	bool mmio_cached;
+	bool lpage_disallowed; /* Can't be replaced by an equiv large page */
 
 	/*
 	 * The following two entries are used to key the shadow page in the
@@ -950,6 +951,7 @@ struct kvm_vm_stat {
 	ulong mmu_unsync;
 	ulong remote_tlb_flush;
 	ulong lpages;
+	ulong nx_lpage_splits;
 	ulong max_mmu_page_hash_collisions;
 };
 
