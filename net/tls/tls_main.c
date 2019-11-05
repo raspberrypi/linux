@@ -258,6 +258,7 @@ void tls_ctx_free(struct tls_context *ctx)
 
 	memzero_explicit(&ctx->crypto_send, sizeof(ctx->crypto_send));
 	memzero_explicit(&ctx->crypto_recv, sizeof(ctx->crypto_recv));
+	mutex_destroy(&ctx->tx_lock);
 	kfree(ctx);
 }
 
@@ -615,6 +616,7 @@ static struct tls_context *create_ctx(struct sock *sk)
 	ctx->getsockopt = sk->sk_prot->getsockopt;
 	ctx->sk_proto_close = sk->sk_prot->close;
 	ctx->unhash = sk->sk_prot->unhash;
+	mutex_init(&ctx->tx_lock);
 	return ctx;
 }
 

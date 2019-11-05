@@ -482,8 +482,10 @@ last_record:
 int tls_device_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 {
 	unsigned char record_type = TLS_RECORD_TYPE_DATA;
+	struct tls_context *tls_ctx = tls_get_ctx(sk);
 	int rc;
 
+	mutex_lock(&tls_ctx->tx_lock);
 	lock_sock(sk);
 
 	if (unlikely(msg->msg_controllen)) {
@@ -497,12 +499,14 @@ int tls_device_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 
 out:
 	release_sock(sk);
+	mutex_unlock(&tls_ctx->tx_lock);
 	return rc;
 }
 
 int tls_device_sendpage(struct sock *sk, struct page *page,
 			int offset, size_t size, int flags)
 {
+	struct tls_context *tls_ctx = tls_get_ctx(sk);
 	struct iov_iter	msg_iter;
 	char *kaddr = kmap(page);
 	struct kvec iov;
@@ -511,6 +515,7 @@ int tls_device_sendpage(struct sock *sk, struct page *page,
 	if (flags & MSG_SENDPAGE_NOTLAST)
 		flags |= MSG_MORE;
 
+	mutex_lock(&tls_ctx->tx_lock);
 	lock_sock(sk);
 
 	if (flags & MSG_OOB) {
@@ -527,6 +532,7 @@ int tls_device_sendpage(struct sock *sk, struct page *page,
 
 out:
 	release_sock(sk);
+	mutex_unlock(&tls_ctx->tx_lock);
 	return rc;
 }
 
