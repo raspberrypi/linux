@@ -10,6 +10,9 @@
  * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2014-2017 Mentor Graphics Inc.
  *
+ * Flip handling taken from the Sony IMX319 driver.
+ * Copyright (C) 2018 Intel Corporation
+ *
  */
 
 #include <linux/clk.h>
@@ -74,6 +77,8 @@
 #define IMX219_DGTL_GAIN_MAX		0x0fff
 #define IMX219_DGTL_GAIN_DEFAULT	0x0100
 #define IMX219_DGTL_GAIN_STEP		1
+
+#define IMX219_REG_ORIENTATION		0x0172
 
 /* Test Pattern Control */
 #define IMX219_REG_TEST_PATTERN		0x0600
@@ -169,7 +174,7 @@ static const struct imx219_reg mode_3280x2464_regs[] = {
 	{0x4797, 0x0e},
 	{0x479b, 0x0e},
 
-	{0x0172, 0x03},
+	{0x0172, 0x00},
 	{0x0162, 0x0d},
 	{0x0163, 0x78},
 };
@@ -229,7 +234,7 @@ static const struct imx219_reg mode_1920_1080_regs[] = {
 	{0x4797, 0x0e},
 	{0x479b, 0x0e},
 
-	{0x0172, 0x03},
+	{0x0172, 0x00},
 	{0x0162, 0x0d},
 	{0x0163, 0x78},
 };
@@ -286,7 +291,7 @@ static const struct imx219_reg mode_1640_1232_regs[] = {
 	{0x4797, 0x0e},
 	{0x479b, 0x0e},
 
-	{0x0172, 0x03},
+	{0x0172, 0x00},
 	{0x0162, 0x0d},
 	{0x0163, 0x78},
 };
@@ -368,6 +373,8 @@ struct imx219 {
 	/* V4L2 Controls */
 	struct v4l2_ctrl *pixel_rate;
 	struct v4l2_ctrl *exposure;
+	struct v4l2_ctrl *vflip;
+	struct v4l2_ctrl *hflip;
 
 	/* Current mode */
 	const struct imx219_mode *mode;
@@ -544,16 +551,40 @@ out:
 	return ret;
 }
 
+/* Get bayer order based on flip setting. */
+static u32 imx219_get_format_code(struct imx219 *imx219)
+{
+	/*
+	 * Only one bayer order is supported.
+	 * It depends on the flip settings.
+	 */
+	u32 code;
+	static const u32 codes[2][2] = {
+		{ MEDIA_BUS_FMT_SRGGB10_1X10, MEDIA_BUS_FMT_SGRBG10_1X10, },
+		{ MEDIA_BUS_FMT_SGBRG10_1X10, MEDIA_BUS_FMT_SBGGR10_1X10, },
+	};
+
+	lockdep_assert_held(&imx219->mutex);
+	code = codes[imx219->vflip->val][imx219->hflip->val];
+
+	return code;
+}
+
 static int imx219_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
+	struct imx219 *imx219 = to_imx219(sd);
 	struct v4l2_mbus_framefmt *try_fmt =
 		v4l2_subdev_get_try_format(sd, fh->pad, 0);
+
+	mutex_lock(&imx219->mutex);
 
 	/* Initialize try_fmt */
 	try_fmt->width = supported_modes[0].width;
 	try_fmt->height = supported_modes[0].height;
-	try_fmt->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	try_fmt->code = imx219_get_format_code(imx219);
 	try_fmt->field = V4L2_FIELD_NONE;
+
+	mutex_unlock(&imx219->mutex);
 
 	return 0;
 }
@@ -590,6 +621,12 @@ static int imx219_set_ctrl(struct v4l2_ctrl *ctrl)
 				       IMX219_REG_VALUE_16BIT,
 				       imx219_test_pattern_val[ctrl->val]);
 		break;
+	case V4L2_CID_HFLIP:
+	case V4L2_CID_VFLIP:
+		ret = imx219_write_reg(imx219, IMX219_REG_ORIENTATION, 1,
+				       imx219->hflip->val |
+				       imx219->vflip->val << 1);
+		break;
 	default:
 		dev_info(&client->dev,
 			 "ctrl(id:0x%x,val:0x%x) is not handled\n",
@@ -611,11 +648,13 @@ static int imx219_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_pad_config *cfg,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
+	struct imx219 *imx219 = to_imx219(sd);
+
 	/* Only one bayer order(GRBG) is supported */
 	if (code->index > 0)
 		return -EINVAL;
 
-	code->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	code->code = imx219_get_format_code(imx219);
 
 	return 0;
 }
@@ -624,10 +663,12 @@ static int imx219_enum_frame_size(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_pad_config *cfg,
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
+	struct imx219 *imx219 = to_imx219(sd);
+
 	if (fse->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fse->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+	if (fse->code != imx219_get_format_code(imx219))
 		return -EINVAL;
 
 	fse->min_width = supported_modes[fse->index].width;
@@ -654,7 +695,7 @@ static void imx219_update_pad_format(struct imx219 *imx219,
 {
 	fmt->format.width = mode->width;
 	fmt->format.height = mode->height;
-	fmt->format.code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	fmt->format.code = imx219_get_format_code(imx219);
 	fmt->format.field = V4L2_FIELD_NONE;
 
 	imx219_reset_colorspace(&fmt->format);
@@ -668,7 +709,7 @@ static int __imx219_get_pad_format(struct imx219 *imx219,
 		fmt->format = *v4l2_subdev_get_try_format(&imx219->sd, cfg,
 							  fmt->pad);
 	else
-		imx219_update_pad_format(imx219->mode, fmt);
+		imx219_update_pad_format(imx219, imx219->mode, fmt);
 
 	return 0;
 }
@@ -697,14 +738,14 @@ static int imx219_set_pad_format(struct v4l2_subdev *sd,
 
 	mutex_lock(&imx219->mutex);
 
-	/* Only one raw bayer(BGGR) order is supported */
-	fmt->format.code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	/* Bayer order varies with flips */
+	fmt->format.code = imx219_get_format_code(imx219);
 
 	mode = v4l2_find_nearest_size(supported_modes,
 				      ARRAY_SIZE(supported_modes),
 				      width, height,
 				      fmt->format.width, fmt->format.height);
-	imx219_update_pad_format(mode, fmt);
+	imx219_update_pad_format(imx219, mode, fmt);
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 		framefmt = v4l2_subdev_get_try_format(sd, cfg, fmt->pad);
 		*framefmt = fmt->format;
@@ -804,6 +845,11 @@ static int imx219_set_stream(struct v4l2_subdev *sd, int enable)
 	}
 
 	imx219->streaming = enable;
+
+	/* vflip and hflip cannot change during streaming */
+	__v4l2_ctrl_grab(imx219->vflip, enable);
+	__v4l2_ctrl_grab(imx219->hflip, enable);
+
 	mutex_unlock(&imx219->mutex);
 
 	return ret;
@@ -923,7 +969,7 @@ static int imx219_init_controls(struct imx219 *imx219)
 	int ret;
 
 	ctrl_hdlr = &imx219->ctrl_handler;
-	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 8);
+	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 6);
 	if (ret)
 		return ret;
 
@@ -949,6 +995,13 @@ static int imx219_init_controls(struct imx219 *imx219)
 				     V4L2_CID_TEST_PATTERN,
 				     ARRAY_SIZE(imx219_test_pattern_menu) - 1,
 				     0, 0, imx219_test_pattern_menu);
+
+	imx219->hflip = v4l2_ctrl_new_std(ctrl_hdlr, &imx219_ctrl_ops,
+					  V4L2_CID_HFLIP, 0, 1, 1, 0);
+	imx219->hflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
+	imx219->vflip = v4l2_ctrl_new_std(ctrl_hdlr, &imx219_ctrl_ops,
+					  V4L2_CID_VFLIP, 0, 1, 1, 0);
+	imx219->vflip->flags |= V4L2_CTRL_FLAG_MODIFY_LAYOUT;
 
 	if (ctrl_hdlr->error) {
 		ret = ctrl_hdlr->error;
