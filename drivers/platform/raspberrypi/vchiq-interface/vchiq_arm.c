@@ -65,6 +65,7 @@
  */
 static struct vchiq_device *bcm2835_audio;
 static struct vchiq_device *bcm2835_isp;
+static struct vchiq_device *bcm2835_codec;
 static struct vchiq_device *vcsm_cma;
 
 static const struct vchiq_platform_info bcm2835_info = {
@@ -1792,6 +1793,7 @@ static int vchiq_probe(struct platform_device *pdev)
 	vchiq_debugfs_init(&mgmt->state);
 
 	vcsm_cma = vchiq_device_register(&pdev->dev, "vcsm-cma");
+	bcm2835_codec = vchiq_device_register(&pdev->dev, "bcm2835-codec");
 	bcm2835_audio = vchiq_device_register(&pdev->dev, "bcm2835-audio");
 	bcm2835_isp = vchiq_device_register(&pdev->dev, "bcm2835-isp");
 
@@ -1804,6 +1806,7 @@ static void vchiq_remove(struct platform_device *pdev)
 
 	vchiq_device_unregister(bcm2835_isp);
 	vchiq_device_unregister(bcm2835_audio);
+	vchiq_device_unregister(bcm2835_codec);
 	vchiq_device_unregister(vcsm_cma);
 	vchiq_debugfs_deinit();
 	vchiq_deregister_chrdev();
