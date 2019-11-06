@@ -803,16 +803,6 @@ static int unicam_enum_fmt_vid_cap(struct file *file, void  *priv,
 	return 0;
 }
 
-static int unicam_g_fmt_vid_cap(struct file *file, void *priv,
-				struct v4l2_format *f)
-{
-	struct unicam_device *dev = video_drvdata(file);
-
-	*f = dev->v_fmt;
-
-	return 0;
-}
-
 static
 const struct unicam_fmt *get_first_supported_format(struct unicam_device *dev)
 {
@@ -847,6 +837,77 @@ const struct unicam_fmt *get_first_supported_format(struct unicam_device *dev)
 	}
 
 	return NULL;
+}
+
+static int unicam_g_fmt_vid_cap(struct file *file, void *priv,
+				struct v4l2_format *f)
+{
+	struct unicam_device *dev = video_drvdata(file);
+	struct v4l2_mbus_framefmt mbus_fmt = {0};
+	const struct unicam_fmt *fmt;
+	int ret;
+
+	/*
+	 * With controls such as H&V flips, the Bayer order can change on the
+	 * sensor, and if set through the sensor subdev then this driver has no
+	 * idea it has happened.
+	 * Avoid this by always rereading the format from the sensor subdev.
+	 */
+	ret = __subdev_get_format(dev, &mbus_fmt);
+	if (ret) {
+		unicam_err(dev, "Failed to get_format - ret %d\n", ret);
+		return ret;
+	}
+
+	fmt = find_format_by_code(mbus_fmt.code);
+	if (!fmt) {
+		/* Find the first format that the sensor and unicam both
+		 * support
+		 */
+		fmt = get_first_supported_format(dev);
+
+		if (!fmt)
+			/* No compatible formats */
+			return -EINVAL;
+
+		mbus_fmt.code = fmt->code;
+		ret = __subdev_set_format(dev, &mbus_fmt);
+		if (ret)
+			return -EINVAL;
+	}
+
+	if (fmt->fourcc != dev->v_fmt.fmt.pix.pixelformat &&
+	    fmt->repacked_fourcc != dev->v_fmt.fmt.pix.pixelformat) {
+		/* Format changed. Try to match with the same packing */
+		const struct unicam_fmt *old_fmt;
+		u32 old_pix_fmt = dev->v_fmt.fmt.pix.pixelformat;
+
+		old_fmt = find_format_by_pix(dev, old_pix_fmt);
+		if (old_fmt) {
+			if (old_fmt->fourcc == old_pix_fmt && fmt->fourcc)
+				dev->v_fmt.fmt.pix.pixelformat = fmt->fourcc;
+			else if (old_fmt->repacked_fourcc == old_pix_fmt &&
+				 fmt->repacked_fourcc)
+				dev->v_fmt.fmt.pix.pixelformat =
+							fmt->repacked_fourcc;
+			else if (fmt->fourcc)
+				dev->v_fmt.fmt.pix.pixelformat = fmt->fourcc;
+			else
+				dev->v_fmt.fmt.pix.pixelformat =
+							fmt->repacked_fourcc;
+		} else {
+			/* Old format not found, so choose a valid mapping */
+			if (fmt->fourcc)
+				dev->v_fmt.fmt.pix.pixelformat = fmt->fourcc;
+			else
+				dev->v_fmt.fmt.pix.pixelformat =
+							fmt->repacked_fourcc;
+		}
+	}
+
+	*f = dev->v_fmt;
+
+	return 0;
 }
 
 static int unicam_try_fmt_vid_cap(struct file *file, void *priv,
