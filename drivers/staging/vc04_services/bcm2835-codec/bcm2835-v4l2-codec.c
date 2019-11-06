@@ -2841,6 +2841,10 @@ static int bcm2835_codec_probe(struct platform_device *pdev)
 	return 0;
 
 out:
+	if (drv->isp) {
+		bcm2835_codec_destroy(drv->isp);
+		drv->isp = NULL;
+	}
 	if (drv->encode) {
 		bcm2835_codec_destroy(drv->encode);
 		drv->encode = NULL;
