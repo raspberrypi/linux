@@ -49,6 +49,10 @@
 			port {
 				csi1_ep: endpoint {
 					remote-endpoint = <&ov5647_0>;
+					clock-lanes = <0>;
+					data-lanes = <1 2>;
+					clock-noncontinuous;
+					bus-type = <4>;
 				};
 			};
 		};
