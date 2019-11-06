@@ -109,6 +109,7 @@ static struct class  *vchiq_class;
 static DEFINE_SPINLOCK(msg_queue_spinlock);
 static struct platform_device *bcm2835_camera;
 static struct platform_device *bcm2835_audio;
+static struct platform_device *bcm2835_codec;
 static struct platform_device *vcsm_cma;
 
 static struct vchiq_drvdata bcm2835_drvdata = {
@@ -2776,6 +2777,7 @@ static int vchiq_probe(struct platform_device *pdev)
 		MAJOR(vchiq_devid), MINOR(vchiq_devid));
 
 	vcsm_cma = vchiq_register_child(pdev, "vcsm-cma");
+	bcm2835_codec = vchiq_register_child(pdev, "bcm2835-codec");
 	bcm2835_camera = vchiq_register_child(pdev, "bcm2835-camera");
 	bcm2835_audio = vchiq_register_child(pdev, "bcm2835_audio");
 
@@ -2792,6 +2794,7 @@ static int vchiq_remove(struct platform_device *pdev)
 {
 	platform_device_unregister(bcm2835_audio);
 	platform_device_unregister(bcm2835_camera);
+	platform_device_unregister(bcm2835_codec);
 	platform_device_unregister(vcsm_cma);
 	vchiq_debugfs_deinit();
 	device_destroy(vchiq_class, vchiq_devid);
