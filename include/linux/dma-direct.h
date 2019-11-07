@@ -6,7 +6,7 @@
 #include <linux/memblock.h> /* for min_low_pfn */
 #include <linux/mem_encrypt.h>
 
-extern unsigned int zone_dma_bits;
+static inline dma_addr_t phys_to_dma(struct device *dev, phys_addr_t paddr);
 
 #ifdef CONFIG_ARCH_HAS_PHYS_TO_DMA
 #include <asm/dma-direct.h>
