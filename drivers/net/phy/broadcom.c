@@ -258,7 +258,7 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 {
 	int reg, err, val;
 	u32 led_modes[] = {BCM_LED_MULTICOLOR_LINK_ACT,
-			   BCM_LED_MULTICOLOR_LINK_ACT};
+			   BCM_LED_MULTICOLOR_LINK};
 	struct device_node *np = phydev->mdio.dev.of_node;
 
 	reg = phy_read(phydev, MII_BCM54XX_ECR);
@@ -310,10 +310,6 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 
 	of_property_read_u32_array(np, "led-modes", led_modes, 2);
 
-	/* Encode link speed into LED1 and LED3 pair (green/amber).
-	 * Also flash these two LEDs on activity. This means configuring
-	 * them for MULTICOLOR and encoding link/activity into them.
-	 */
 	val = BCM5482_SHD_LEDS1_LED1(BCM_LED_SRC_MULTICOLOR1) |
 		BCM5482_SHD_LEDS1_LED3(BCM_LED_SRC_MULTICOLOR1);
 	bcm_phy_write_shadow(phydev, BCM5482_SHD_LEDS1, val);
