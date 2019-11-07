@@ -474,7 +474,7 @@ raspberrypi_register_pll_divider(struct raspberrypi_clk *rpi,
 	 * PLLH's channels have a fixed divide by 10 afterwards, which
 	 * is what our consumers are actually using.
 	 */
-	if (data->fixed_divider != 1) {
+	if (data->fixed_divider != 0) {
 		struct clk_lookup *lookup;
 		struct clk_hw *clk = clk_hw_register_fixed_factor(rpi->dev,
 						    data->divider_name,
@@ -559,7 +559,7 @@ static const struct raspberrypi_clk_desc clk_desc_array[] = {
 		.source_pll = "osc",
 		.divider_name = "pllb_arm",
 		.lookup = "cpu0",
-		.fixed_divider = 2,
+		.fixed_divider = 1,
 		.clock_id = RPI_FIRMWARE_ARM_CLK_ID,
 		.flags = CLK_SET_RATE_PARENT),
 };
