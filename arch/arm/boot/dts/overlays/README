@@ -109,7 +109,7 @@ Params:
                                 Legal values are 2, 3, 4, 5 and 0, where
                                 0 means never downshift (default 2). Pi3B+ only.
 
-        eth_led0                Set mode of LED0 (usually orange). The legal 
+        eth_led0                Set mode of LED0 (usually orange). The legal
                                 values are:
 
                                 Pi3B+
