@@ -208,6 +208,9 @@ static int raspberrypi_determine_rate(struct raspberrypi_clk *rpi,
 					  u32 clock_id, const char *name, unsigned long min_rate, unsigned long max_rate,
 					  struct clk_rate_request *req)
 {
+#if 1
+	req->rate = clamp(req->rate, min_rate, max_rate);
+#else
 	u64 div, final_rate;
 	u32 ndiv, fdiv;
 
@@ -225,6 +228,7 @@ static int raspberrypi_determine_rate(struct raspberrypi_clk *rpi,
 
 	req->rate = final_rate >> A2W_PLL_FRAC_BITS;
 
+#endif
 	return 0;
 }
 
@@ -351,21 +355,21 @@ static const struct clk_ops raspberrypi_firmware_pll_clk_ops = {
 	.is_prepared = raspberrypi_fw_pll_is_on,
 	.recalc_rate = raspberrypi_fw_pll_get_rate,
 	.set_rate = raspberrypi_fw_pll_set_rate,
-	//.determine_rate = raspberrypi_pll_determine_rate,
+	.determine_rate = raspberrypi_pll_determine_rate,
 };
 
 static const struct clk_ops raspberrypi_firmware_pll_divider_clk_ops = {
 	.is_prepared = raspberrypi_fw_pll_div_is_on,
 	.recalc_rate = raspberrypi_fw_pll_div_get_rate,
 	.set_rate = raspberrypi_fw_pll_div_set_rate,
-	//.determine_rate = raspberrypi_pll_div_determine_rate,
+	.determine_rate = raspberrypi_pll_div_determine_rate,
 };
 
 static const struct clk_ops raspberrypi_firmware_clk_ops = {
 	.is_prepared = raspberrypi_fw_clock_is_on,
 	.recalc_rate = raspberrypi_fw_clock_get_rate,
 	.set_rate = raspberrypi_fw_clock_set_rate,
-	//.determine_rate = raspberrypi_clock_determine_rate,
+	.determine_rate = raspberrypi_clock_determine_rate,
 };
 
 
