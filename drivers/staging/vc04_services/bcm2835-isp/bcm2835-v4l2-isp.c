@@ -826,149 +826,14 @@ static const struct v4l2_ctrl_config bcm2835_isp_ls_ctrl = {
 	.dims 		= {sizeof(struct mmal_parameter_lens_shading_t)},
 };
 
-/* Open one of the nodes /dev/video<N> associated with the ISP. Each node can be
- * opened only once.
- */
-static int bcm2835_isp_open(struct file *file)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-	struct bcm2835_isp_dev *isp_dev = node_get_bcm2835_isp(node);
-	struct vb2_queue *queue;
-	int ret = 0;
-
-	if (mutex_lock_interruptible(&node->node_lock))
-		return -ERESTARTSYS;
-
-	if (node->open) {
-		ret = -EBUSY;
-		goto unlock_return;
-	}
-
-	node->q_data.fmt = get_default_format(node);
-	node->q_data.crop_width = DEFAULT_WIDTH;
-	node->q_data.crop_height = DEFAULT_HEIGHT;
-	node->q_data.height = DEFAULT_HEIGHT;
-	node->q_data.bytesperline =
-		get_bytesperline(DEFAULT_WIDTH, node->q_data.fmt);
-	node->q_data.sizeimage = NODE_IS_STATS(node) ?
-				get_port_data(node)->recommended_buffer.size :
-				get_sizeimage(node->q_data.bytesperline,
-					      node->q_data.crop_width,
-					      node->q_data.height,
-					      node->q_data.fmt);
-	node->colorspace = V4L2_COLORSPACE_REC709;
-
-	v4l2_info(&isp_dev->v4l2_dev, "Opening node %p (%s[%d])\n", node,
-		  node->name, node->id);
-
-	v4l2_fh_init(&node->fh, video_devdata(file));
-	file->private_data = &node->fh;
-
-	/* Only the Video Output node accepts ctrls. */
-	if (NODE_IS_OUTPUT(node)) {
-		v4l2_ctrl_handler_init(&node->hdl, 4);
-		node->fh.ctrl_handler = &node->hdl;
-		v4l2_ctrl_handler_setup(&node->hdl);
-	}
-	v4l2_fh_add(&node->fh);
-	node->open = 1;
-
-	queue = &node->queue;
-	queue->type = node->v4l_type;
-	queue->io_modes = VB2_MMAP | VB2_DMABUF; /* for now */
-	queue->drv_priv = node;
-	queue->ops = &bcm2835_isp_node_queue_ops;
-	queue->mem_ops = &vb2_dma_contig_memops;
-	queue->buf_struct_size = sizeof(struct bcm2835_isp_buffer);
-	queue->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
-	queue->dev = isp_dev->dev;
-	queue->lock = &node->queue_lock; /* get V4L2 to handle queue locking */
-	/* Set some controls and defaults, but only on the VIDEO_OUTPUT node. */
-	if (NODE_IS_OUTPUT(node)) {
-		isp_dev->r_gain = 1000;
-		isp_dev->b_gain = 1000;
-		isp_dev->wb_updated = true;
-		v4l2_ctrl_new_std(&node->hdl, &bcm2835_isp_ctrl_ops,
-				  V4L2_CID_RED_BALANCE, 1, 7999, 1,
-				  isp_dev->r_gain);
-		v4l2_ctrl_new_std(&node->hdl, &bcm2835_isp_ctrl_ops,
-				  V4L2_CID_BLUE_BALANCE, 1, 7999, 1,
-				  isp_dev->b_gain);
-		isp_dev->digital_gain = 1000;
-		isp_dev->dg_updated = true;
-		v4l2_ctrl_new_std(&node->hdl, &bcm2835_isp_ctrl_ops,
-				  V4L2_CID_DIGITAL_GAIN, 1, 7999, 1, 1000);
-		v4l2_ctrl_new_custom(&node->hdl, &bcm2835_isp_cc_ctrl, NULL);
-		v4l2_ctrl_new_custom(&node->hdl, &bcm2835_isp_ls_ctrl, NULL);
-	}
-
-	ret = vb2_queue_init(queue);
-	if (ret < 0) {
-		v4l2_info(&isp_dev->v4l2_dev, "vb2_queue_init failed\n");
-		v4l2_fh_del(&node->fh);
-		v4l2_fh_exit(&node->fh);
-		node->open = 0;
-	}
-
-unlock_return:
-	mutex_unlock(&node->node_lock);
-	return ret;
-}
-
-static int bcm2835_isp_release(struct file *file)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Releasing node %p (%s[%d])\n", node, node->name, node->id);
-
-	/* TODO: make sure streamoff was called */
-
-	mutex_lock(&node->node_lock);
-	vb2_queue_release(&node->queue);
-
-	v4l2_ctrl_handler_free(&node->hdl);
-	v4l2_fh_del(&node->fh);
-	v4l2_fh_exit(&node->fh);
-	node->open = 0;
-	mutex_unlock(&node->node_lock);
-
-	return 0;
-}
-
-static unsigned int bcm2835_isp_poll(struct file *file, poll_table *wait)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-	unsigned int ret;
-
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Polling %p (%s[%d])\n", node, node->name, node->id);
-
-	/* locking should be handled by the queue->lock? */
-	ret = vb2_poll(&node->queue, file, wait);
-
-	return ret;
-}
-
-static int bcm2835_isp_mmap(struct file *file, struct vm_area_struct *vma)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-	unsigned int ret;
-
-	v4l2_dbg(1, debug, &node_get_bcm2835_isp(node)->v4l2_dev, "Mmap %p\n",
-		 node);
-	/* locking should be handled by the queue->lock? */
-	ret = vb2_mmap(&node->queue, vma);
-	return ret;
-}
-
 static const struct v4l2_file_operations bcm2835_isp_fops = {
 	.owner		= THIS_MODULE,
-	.open		= bcm2835_isp_open,
-	.release	= bcm2835_isp_release,
-	.poll		= bcm2835_isp_poll,
-	.unlocked_ioctl = video_ioctl2,
-	.mmap		= bcm2835_isp_mmap
+	.open = v4l2_fh_open,
+	.release = vb2_fop_release,
+	.read = vb2_fop_read,
+	.poll = vb2_fop_poll,
+	.unlocked_ioctl = video_ioctl2,	/* V4L2 ioctl handler */
+	.mmap = vb2_fop_mmap,
 };
 
 static void populate_v4l_fmt(struct v4l2_format *f,
@@ -1072,19 +937,18 @@ static int bcm2835_isp_node_querycap(struct file *file, void *priv,
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s",
 		 BCM2835_ISP_NAME);
 
-	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_OUTPUT |
-			    V4L2_CAP_STREAMING | V4L2_CAP_DEVICE_CAPS;
-
 	if (NODE_IS_CAPTURE(node))
-		cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+		cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
+				   V4L2_CAP_READWRITE;
 	else if (NODE_IS_OUTPUT(node))
-		cap->device_caps = V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_STREAMING;
+		cap->device_caps = V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_STREAMING |
+				   V4L2_CAP_READWRITE;
 	else
-		cap->device_caps = V4L2_CAP_META_CAPTURE | V4L2_CAP_STREAMING;
+		cap->device_caps = V4L2_CAP_META_CAPTURE | V4L2_CAP_STREAMING |
+				   V4L2_CAP_READWRITE;
 
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Caps for node %p: %x and %x\n", priv, cap->capabilities,
-		  cap->device_caps);
+	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
+
 	return 0;
 }
 
@@ -1132,6 +996,81 @@ static int bcm2835_isp_node_g_fmt_vid_out(struct file *file, void *priv,
 	populate_v4l_fmt(f, node);
 	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
 		  "Get output format for node %p\n", node);
+	return 0;
+}
+
+static int bcm2835_isp_node_enum_fmt_vid_out(struct file *file, void *priv,
+					     struct v4l2_fmtdesc *f)
+{
+	struct bcm2835_isp_node *node = video_drvdata(file);
+	const struct bcm2835_isp_fmt *fmt;
+
+	if (node->vfl_dir == VFL_DIR_RX || !V4L2_TYPE_IS_OUTPUT(f->type)) {
+		v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
+			  "Cannot enum output format for capture node %p\n",
+			  node);
+		return -EINVAL;
+	}
+	if (f->index >= node->supported_fmts.num_entries)
+		return -EINVAL;
+
+	/* Format found */
+	fmt = &node->supported_fmts.list[f->index];
+	f->pixelformat = fmt->fourcc;
+	f->flags = fmt->flags;
+
+	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
+		  "Get output format for node %p\n", node);
+	return 0;
+}
+
+static int bcm2835_isp_node_enum_fmt_vid_cap(struct file *file, void *priv,
+					     struct v4l2_fmtdesc *f)
+{
+	struct bcm2835_isp_node *node = video_drvdata(file);
+	const struct bcm2835_isp_fmt *fmt;
+
+	if (node->vfl_dir == VFL_DIR_TX || V4L2_TYPE_IS_OUTPUT(f->type)) {
+		v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
+			  "Cannot enum capture format for output node %p\n",
+			  node);
+		return -EINVAL;
+	}
+	if (f->index >= node->supported_fmts.num_entries)
+		return -EINVAL;
+
+	/* Format found */
+	fmt = &node->supported_fmts.list[f->index];
+	f->pixelformat = fmt->fourcc;
+	f->flags = fmt->flags;
+
+	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
+		  "Get capture format for node %p\n", node);
+	return 0;
+}
+
+static int bcm2835_isp_node_enum_fmt_meta_cap(struct file *file, void *priv,
+					      struct v4l2_fmtdesc *f)
+{
+	struct bcm2835_isp_node *node = video_drvdata(file);
+	const struct bcm2835_isp_fmt *fmt;
+
+	if (!NODE_IS_STATS(node)) {
+		v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
+			  "Cannot enum capture format for output node %p\n",
+			  node);
+		return -EINVAL;
+	}
+	if (f->index >= node->supported_fmts.num_entries)
+		return -EINVAL;
+
+	/* Format found */
+	fmt = &node->supported_fmts.list[f->index];
+	f->pixelformat = fmt->fourcc;
+	f->flags = fmt->flags;
+
+	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
+		  "Get meta capture format for node %p\n", node);
 	return 0;
 }
 
@@ -1279,16 +1218,12 @@ static int bcm2835_isp_node_streamoff(struct file *file, void *priv,
 	return 0;
 }
 
-static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops = {
+static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops_out = {
 	.vidioc_querycap		= bcm2835_isp_node_querycap,
-	.vidioc_g_fmt_vid_cap		= bcm2835_isp_node_g_fmt_vid_cap,
 	.vidioc_g_fmt_vid_out		= bcm2835_isp_node_g_fmt_vid_out,
-	.vidioc_g_fmt_meta_cap		= bcm2835_isp_node_g_fmt_meta_cap,
-	.vidioc_s_fmt_vid_cap		= bcm2835_isp_node_s_fmt_vid_cap,
 	.vidioc_s_fmt_vid_out		= bcm2835_isp_node_s_fmt_vid_out,
-	.vidioc_s_fmt_meta_cap		= bcm2835_isp_node_s_fmt_meta_cap,
 	.vidioc_try_fmt_vid_out		= bcm2835_isp_node_try_fmt_vid_out,
-	.vidioc_try_fmt_vid_cap		= bcm2835_isp_node_try_fmt_meta_cap,
+	.vidioc_enum_fmt_vid_out	= bcm2835_isp_node_enum_fmt_vid_out,
 
 	.vidioc_reqbufs			= vb2_ioctl_reqbufs,
 	.vidioc_querybuf		= vb2_ioctl_querybuf,
@@ -1302,6 +1237,104 @@ static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops = {
 	.vidioc_streamoff		= bcm2835_isp_node_streamoff,
 };
 
+static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops_cap = {
+	.vidioc_querycap		= bcm2835_isp_node_querycap,
+	.vidioc_g_fmt_vid_cap		= bcm2835_isp_node_g_fmt_vid_cap,
+	.vidioc_s_fmt_vid_cap		= bcm2835_isp_node_s_fmt_vid_cap,
+	.vidioc_try_fmt_vid_cap		= bcm2835_isp_node_try_fmt_vid_cap,
+	.vidioc_enum_fmt_vid_cap	= bcm2835_isp_node_enum_fmt_vid_cap,
+
+	.vidioc_reqbufs			= vb2_ioctl_reqbufs,
+	.vidioc_querybuf		= vb2_ioctl_querybuf,
+	.vidioc_qbuf			= vb2_ioctl_qbuf,
+	.vidioc_dqbuf			= vb2_ioctl_dqbuf,
+	.vidioc_expbuf			= vb2_ioctl_expbuf,
+	.vidioc_create_bufs		= vb2_ioctl_create_bufs,
+	.vidioc_prepare_buf		= vb2_ioctl_prepare_buf,
+
+	.vidioc_streamon		= bcm2835_isp_node_streamon,
+	.vidioc_streamoff		= bcm2835_isp_node_streamoff,
+};
+
+static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops_meta_cap = {
+	.vidioc_querycap		= bcm2835_isp_node_querycap,
+	.vidioc_g_fmt_meta_cap		= bcm2835_isp_node_g_fmt_meta_cap,
+	.vidioc_s_fmt_meta_cap		= bcm2835_isp_node_s_fmt_meta_cap,
+	.vidioc_try_fmt_meta_cap	= bcm2835_isp_node_try_fmt_meta_cap,
+	.vidioc_enum_fmt_meta_cap	= bcm2835_isp_node_enum_fmt_meta_cap,
+
+	.vidioc_reqbufs			= vb2_ioctl_reqbufs,
+	.vidioc_querybuf		= vb2_ioctl_querybuf,
+	.vidioc_qbuf			= vb2_ioctl_qbuf,
+	.vidioc_dqbuf			= vb2_ioctl_dqbuf,
+	.vidioc_expbuf			= vb2_ioctl_expbuf,
+	.vidioc_create_bufs		= vb2_ioctl_create_bufs,
+	.vidioc_prepare_buf		= vb2_ioctl_prepare_buf,
+
+	.vidioc_streamon		= bcm2835_isp_node_streamon,
+	.vidioc_streamoff		= bcm2835_isp_node_streamoff,
+};
+
+/* Size of the array to provide to the VPU when asking for the list of supported
+ * formats.
+ * The ISP component currently advertises 33 input formats, so add a small
+ * overhead on that.
+ */
+#define MAX_SUPPORTED_ENCODINGS 40
+
+/* Populate node->supported_fmts with the formats supported by those ports. */
+static int bcm2835_isp_get_supported_fmts(struct bcm2835_isp_node *node)
+{
+	struct bcm2835_isp_dev *isp_dev = node_get_bcm2835_isp(node);
+	struct bcm2835_isp_fmt *list;
+	u32 fourccs[MAX_SUPPORTED_ENCODINGS];
+	u32 param_size = sizeof(fourccs);
+	unsigned int i, j, num_encodings;
+	int ret;
+
+	ret = vchiq_mmal_port_parameter_get(isp_dev->mmal_instance,
+					    get_port_data(node),
+					    MMAL_PARAMETER_SUPPORTED_ENCODINGS,
+					    &fourccs, &param_size);
+
+	if (ret) {
+		if (ret == MMAL_MSG_STATUS_ENOSPC) {
+			v4l2_err(&isp_dev->v4l2_dev,
+				 "%s: port has more encoding than we provided space for. Some are dropped.\n",
+				 __func__);
+			num_encodings = MAX_SUPPORTED_ENCODINGS;
+		} else {
+			v4l2_err(&isp_dev->v4l2_dev, "%s: get_param ret %u.\n",
+				 __func__, ret);
+			return -EINVAL;
+		}
+	} else {
+		num_encodings = param_size / sizeof(u32);
+	}
+
+	/* Assume at this stage that all encodings will be supported in V4L2.
+	 * Any that aren't supported will waste a very small amount of memory.
+	 */
+	list = devm_kzalloc(isp_dev->dev,
+			    sizeof(struct bcm2835_isp_fmt) * num_encodings,
+			    GFP_KERNEL);
+	if (!list)
+		return -ENOMEM;
+	node->supported_fmts.list = list;
+
+	for (i = 0, j = 0; i < num_encodings; i++) {
+		const struct bcm2835_isp_fmt *fmt = get_fmt(fourccs[i]);
+
+		if (fmt) {
+			list[j] = *fmt;
+			j++;
+		}
+	}
+	node->supported_fmts.num_entries = j;
+
+	return 0;
+}
+
 /* Register a device node /dev/video<N> to go along with one of the ISP's input
  * or output nodes.
  */
@@ -1310,18 +1343,24 @@ static int register_node(struct platform_device *pdev,
 			 struct bcm2835_isp_node_group *node_group, int index)
 {
 	struct video_device *vfd;
+	struct vb2_queue *queue;
+	u32 device_caps;
 	int ret;
 
 	mutex_init(&node->node_lock);
 
-	node->open = 0;
 	node->type = INDEX_TO_NODE_TYPE(index);
+	vfd = &node->vfd;
+
 	switch (node->type) {
 	case NODE_TYPE_OUTPUT:
 		node->v4l_type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
 		node->id = index;
 		node->vfl_dir = VFL_DIR_TX;
 		node->name = "output";
+		device_caps = V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_STREAMING |
+			    V4L2_CAP_READWRITE;
+		vfd->ioctl_ops = &bcm2835_isp_node_ioctl_ops_out;
 		break;
 	case NODE_TYPE_CAPTURE:
 		node->v4l_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -1329,27 +1368,66 @@ static int register_node(struct platform_device *pdev,
 		node->id = index - BCM2835_ISP_NUM_OUTPUTS;
 		node->vfl_dir = VFL_DIR_RX;
 		node->name = "capture";
+		device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
+			    V4L2_CAP_READWRITE;
+		vfd->ioctl_ops = &bcm2835_isp_node_ioctl_ops_cap;
 		break;
 	case NODE_TYPE_STATS:
 		node->v4l_type = V4L2_BUF_TYPE_META_CAPTURE;
 		node->id = index - BCM2835_ISP_NUM_OUTPUTS;
 		node->vfl_dir = VFL_DIR_RX;
 		node->name = "stats";
+		device_caps = V4L2_CAP_META_CAPTURE | V4L2_CAP_STREAMING |
+			    V4L2_CAP_READWRITE;
+		vfd->ioctl_ops = &bcm2835_isp_node_ioctl_ops_meta_cap;
 		break;
 	}
+
 	node->node_group = node_group;
-	vfd = &node->vfd;
+	ret = bcm2835_isp_get_supported_fmts(node);
+	if (ret)
+		return -EINVAL;
 
 	/* Initialise the the video node... */
 	vfd->vfl_type	= VFL_TYPE_GRABBER;
-	vfd->fops	= &bcm2835_isp_fops,
-	vfd->ioctl_ops	= &bcm2835_isp_node_ioctl_ops,
-	vfd->minor	= -1,
-	vfd->release	= video_device_release_empty,
+	vfd->fops	= &bcm2835_isp_fops;
+	vfd->minor	= -1;
+	vfd->release	= video_device_release_empty;
 	vfd->queue	= &node->queue;
 	vfd->lock	= &node->node_lock; /* get V4L2 to serialise our ioctls */
 	vfd->v4l2_dev	= &node_group->isp_dev->v4l2_dev;
 	vfd->vfl_dir	= node->vfl_dir;
+	vfd->device_caps = device_caps;
+
+	node->q_data.fmt = get_default_format(node);
+	node->q_data.crop_width = DEFAULT_WIDTH;
+	node->q_data.crop_height = DEFAULT_HEIGHT;
+	node->q_data.height = DEFAULT_HEIGHT;
+	node->q_data.bytesperline =
+		get_bytesperline(DEFAULT_WIDTH, node->q_data.fmt);
+	node->q_data.sizeimage = NODE_IS_STATS(node) ?
+				get_port_data(node)->recommended_buffer.size :
+				get_sizeimage(node->q_data.bytesperline,
+					      node->q_data.crop_width,
+					      node->q_data.height,
+					      node->q_data.fmt);
+	node->colorspace = V4L2_COLORSPACE_REC709;
+
+	queue = &node->queue;
+	queue->type = node->v4l_type;
+	queue->io_modes = VB2_MMAP | VB2_DMABUF; /* for now */
+	queue->drv_priv = node;
+	queue->ops = &bcm2835_isp_node_queue_ops;
+	queue->mem_ops = &vb2_dma_contig_memops;
+	queue->buf_struct_size = sizeof(struct bcm2835_isp_buffer);
+	queue->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+	queue->dev = node_group->isp_dev->dev;
+	queue->lock = &node->queue_lock; /* get V4L2 to handle queue locking */
+
+	ret = vb2_queue_init(queue);
+	if (ret)
+		v4l2_info(&node_group->isp_dev->v4l2_dev,
+			  "vb2_queue_init failed\n");
 
 	/* Define the device names */
 	snprintf(vfd->name, sizeof(node->vfd.name), "%s-%s%d",
@@ -1364,6 +1442,32 @@ static int register_node(struct platform_device *pdev,
 	}
 
 	video_set_drvdata(vfd, node);
+
+	/* Set some controls and defaults, but only on the VIDEO_OUTPUT node. */
+	if (NODE_IS_OUTPUT(node)) {
+		ret = v4l2_ctrl_handler_init(&node->hdl, 5);
+		//if (ret)
+		//	bail out
+		vfd->ctrl_handler = &node->hdl;
+
+		node_group->isp_dev->r_gain = 1000;
+		node_group->isp_dev->b_gain = 1000;
+		node_group->isp_dev->wb_updated = true;
+
+		v4l2_ctrl_new_std(&node->hdl, &bcm2835_isp_ctrl_ops,
+				  V4L2_CID_RED_BALANCE, 1, 7999, 1,
+				  node_group->isp_dev->r_gain);
+		v4l2_ctrl_new_std(&node->hdl, &bcm2835_isp_ctrl_ops,
+				  V4L2_CID_BLUE_BALANCE, 1, 7999, 1,
+				  node_group->isp_dev->b_gain);
+
+		node_group->isp_dev->digital_gain = 1000;
+		node_group->isp_dev->dg_updated = true;
+		v4l2_ctrl_new_std(&node->hdl, &bcm2835_isp_ctrl_ops,
+				  V4L2_CID_DIGITAL_GAIN, 1, 7999, 1, 1000);
+		v4l2_ctrl_new_custom(&node->hdl, &bcm2835_isp_cc_ctrl, NULL);
+		v4l2_ctrl_new_custom(&node->hdl, &bcm2835_isp_ls_ctrl, NULL);
+	}
 
 	v4l2_info(&node_group->isp_dev->v4l2_dev,
 		  "device node %p (%s[%d]) registered as /dev/video%d\n", node,
@@ -1601,100 +1705,8 @@ done:
 	return ret;
 }
 
-/* Size of the array to provide to the VPU when asking for the list of supported
- * formats.
- * The ISP component currently advertises 33 input formats, so add a small
- * overhead on that.
- */
-#define MAX_SUPPORTED_ENCODINGS 40
-
-/* Populate node->supported_fmts with the formats supported by those ports. */
-static int bcm2835_isp_get_supported_fmts(struct bcm2835_isp_node *node)
-{
-	struct bcm2835_isp_dev *isp_dev = node_get_bcm2835_isp(node);
-	struct bcm2835_isp_fmt *list;
-	u32 fourccs[MAX_SUPPORTED_ENCODINGS];
-	u32 param_size = sizeof(fourccs);
-	unsigned int i, j, num_encodings;
-	int ret;
-
-	ret = vchiq_mmal_port_parameter_get(isp_dev->mmal_instance,
-					    get_port_data(node),
-					    MMAL_PARAMETER_SUPPORTED_ENCODINGS,
-					    &fourccs, &param_size);
-
-	if (ret) {
-		if (ret == MMAL_MSG_STATUS_ENOSPC) {
-			v4l2_err(&isp_dev->v4l2_dev,
-				 "%s: port has more encoding than we provided space for. Some are dropped.\n",
-				 __func__);
-			num_encodings = MAX_SUPPORTED_ENCODINGS;
-		} else {
-			v4l2_err(&isp_dev->v4l2_dev, "%s: get_param ret %u.\n",
-				 __func__, ret);
-			return -EINVAL;
-		}
-	} else {
-		num_encodings = param_size / sizeof(u32);
-	}
-
-	/* Assume at this stage that all encodings will be supported in V4L2.
-	 * Any that aren't supported will waste a very small amount of memory.
-	 */
-	list = devm_kzalloc(isp_dev->dev,
-			    sizeof(struct bcm2835_isp_fmt) * num_encodings,
-			    GFP_KERNEL);
-	if (!list)
-		return -ENOMEM;
-	node->supported_fmts.list = list;
-
-	for (i = 0, j = 0; i < num_encodings; i++) {
-		const struct bcm2835_isp_fmt *fmt = get_fmt(fourccs[i]);
-
-		if (fmt) {
-			list[j] = *fmt;
-			j++;
-		}
-	}
-	node->supported_fmts.num_entries = j;
-
-	param_size = sizeof(fourccs);
-	ret = vchiq_mmal_port_parameter_get(isp_dev->mmal_instance,
-					    get_port_data(node),
-					    MMAL_PARAMETER_SUPPORTED_ENCODINGS,
-					    &fourccs, &param_size);
-
-	if (ret) {
-		if (ret == MMAL_MSG_STATUS_ENOSPC) {
-			v4l2_err(&isp_dev->v4l2_dev,
-				 "%s: port has more encoding than we provided space for. Some are dropped.\n",
-				 __func__);
-			num_encodings = MAX_SUPPORTED_ENCODINGS;
-		} else {
-			return -EINVAL;
-		}
-	} else {
-		num_encodings = param_size / sizeof(u32);
-	}
-	/* Assume at this stage that all encodings will be supported in V4L2. */
-	list = devm_kzalloc(isp_dev->dev,
-			    sizeof(struct bcm2835_isp_fmt) * num_encodings,
-			    GFP_KERNEL);
-	if (!list)
-		return -ENOMEM;
-	node->supported_fmts.list = list;
-
-	for (i = 0, j = 0; i < num_encodings; i++) {
-		const struct bcm2835_isp_fmt *fmt = get_fmt(fourccs[i]);
-
-		if (fmt) {
-			list[j] = *fmt;
-			j++;
-		}
-	}
-	node->supported_fmts.num_entries = j;
-	return 0;
-}
+#define INPUT_COUNT 1
+#define OUTPUT_COUNT 3
 
 static int bcm2835_isp_probe(struct platform_device *pdev)
 {
@@ -1722,6 +1734,19 @@ static int bcm2835_isp_probe(struct platform_device *pdev)
 		goto vchiq_finalise;
 	}
 
+	if (isp_dev->component->outputs < OUTPUT_COUNT) {
+		v4l2_err(&isp_dev->v4l2_dev, "%s: too few outputs %d needed %d\n",
+			 __func__, isp_dev->component->outputs, OUTPUT_COUNT);
+		ret = -EINVAL;
+		goto vchiq_finalise;
+	}
+	if (isp_dev->component->inputs < INPUT_COUNT) {
+		v4l2_err(&isp_dev->v4l2_dev, "%s: too few inputs %d needed %d\n",
+			 __func__, isp_dev->component->inputs, INPUT_COUNT);
+		ret = -EINVAL;
+		goto vchiq_finalise;
+	}
+
 	for (; num_groups_registered < BCM2835_ISP_NUM_NODE_GROUPS;
 	     num_groups_registered++) {
 		struct bcm2835_isp_node_group *node_group =
@@ -1736,10 +1761,6 @@ static int bcm2835_isp_probe(struct platform_device *pdev)
 			ret = register_node(pdev,
 				&node_group->node[num_nodes_registered],
 				node_group, num_nodes_registered);
-			if (ret)
-				goto done;
-			ret = bcm2835_isp_get_supported_fmts(
-				&node_group->node[num_nodes_registered]);
 			if (ret)
 				goto done;
 		}
