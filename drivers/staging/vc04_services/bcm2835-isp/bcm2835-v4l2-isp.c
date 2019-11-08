@@ -952,65 +952,23 @@ static int bcm2835_isp_node_querycap(struct file *file, void *priv,
 	return 0;
 }
 
-static int bcm2835_isp_node_g_fmt_vid_cap(struct file *file, void *priv,
-					  struct v4l2_format *f)
+static int bcm2835_isp_node_g_fmt(struct file *file, void *priv,
+				  struct v4l2_format *f)
 {
 	struct bcm2835_isp_node *node = video_drvdata(file);
 
-	if (node->vfl_dir == VFL_DIR_TX || V4L2_TYPE_IS_OUTPUT(f->type)) {
-		v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-			  "Cannot get capture format for output node %p\n",
-			  node);
-		return -EINVAL;
-	}
 	populate_v4l_fmt(f, node);
 	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
 		  "Get capture format for node %p\n", node);
 	return 0;
 }
 
-static int bcm2835_isp_node_g_fmt_meta_cap(struct file *file, void *priv,
-					   struct v4l2_format *f)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-
-	if (!NODE_IS_STATS(node))
-		return -EINVAL;
-	populate_v4l_fmt(f, node);
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Get meta format for node %p\n", node);
-	return 0;
-}
-
-static int bcm2835_isp_node_g_fmt_vid_out(struct file *file, void *priv,
-					  struct v4l2_format *f)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-
-	if (node->vfl_dir == VFL_DIR_RX || !V4L2_TYPE_IS_OUTPUT(f->type)) {
-		v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-			  "Cannot get output format for capture node %p\n",
-			  node);
-		return -EINVAL;
-	}
-	populate_v4l_fmt(f, node);
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Get output format for node %p\n", node);
-	return 0;
-}
-
-static int bcm2835_isp_node_enum_fmt_vid_out(struct file *file, void *priv,
-					     struct v4l2_fmtdesc *f)
+static int bcm2835_isp_node_enum_fmt(struct file *file, void *priv,
+				     struct v4l2_fmtdesc *f)
 {
 	struct bcm2835_isp_node *node = video_drvdata(file);
 	const struct bcm2835_isp_fmt *fmt;
 
-	if (node->vfl_dir == VFL_DIR_RX || !V4L2_TYPE_IS_OUTPUT(f->type)) {
-		v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-			  "Cannot enum output format for capture node %p\n",
-			  node);
-		return -EINVAL;
-	}
 	if (f->index >= node->supported_fmts.num_entries)
 		return -EINVAL;
 
@@ -1024,59 +982,23 @@ static int bcm2835_isp_node_enum_fmt_vid_out(struct file *file, void *priv,
 	return 0;
 }
 
-static int bcm2835_isp_node_enum_fmt_vid_cap(struct file *file, void *priv,
-					     struct v4l2_fmtdesc *f)
+static int bcm2835_isp_node_try_fmt(struct file *file, void *priv,
+				    struct v4l2_format *f)
 {
+	struct bcm2835_isp_fmt *fmt;
 	struct bcm2835_isp_node *node = video_drvdata(file);
-	const struct bcm2835_isp_fmt *fmt;
 
-	if (node->vfl_dir == VFL_DIR_TX || V4L2_TYPE_IS_OUTPUT(f->type)) {
-		v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-			  "Cannot enum capture format for output node %p\n",
-			  node);
-		return -EINVAL;
+	fmt = find_format(f, node);
+	if (!fmt) {
+		f->fmt.pix.pixelformat = get_default_format(node)->fourcc;
+		fmt = find_format(f, node);
 	}
-	if (f->index >= node->supported_fmts.num_entries)
-		return -EINVAL;
-
-	/* Format found */
-	fmt = &node->supported_fmts.list[f->index];
-	f->pixelformat = fmt->fourcc;
-	f->flags = fmt->flags;
-
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Get capture format for node %p\n", node);
-	return 0;
-}
-
-static int bcm2835_isp_node_enum_fmt_meta_cap(struct file *file, void *priv,
-					      struct v4l2_fmtdesc *f)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-	const struct bcm2835_isp_fmt *fmt;
-
-	if (!NODE_IS_STATS(node)) {
-		v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-			  "Cannot enum capture format for output node %p\n",
-			  node);
-		return -EINVAL;
+	if (NODE_IS_STATS(node)) {
+		f->fmt.meta.buffersize =
+				get_port_data(node)->minimum_buffer.size;
+		return 0;
 	}
-	if (f->index >= node->supported_fmts.num_entries)
-		return -EINVAL;
 
-	/* Format found */
-	fmt = &node->supported_fmts.list[f->index];
-	f->pixelformat = fmt->fourcc;
-	f->flags = fmt->flags;
-
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Get meta capture format for node %p\n", node);
-	return 0;
-}
-
-static int vidioc_try_fmt(struct bcm2835_isp_node *node, struct v4l2_format *f,
-			  struct bcm2835_isp_fmt *fmt)
-{
 	f->fmt.pix.bytesperline = get_bytesperline(f->fmt.pix.width, fmt);
 	f->fmt.pix.field = V4L2_FIELD_NONE;
 	f->fmt.pix.sizeimage = get_sizeimage(f->fmt.pix.bytesperline,
@@ -1085,100 +1007,18 @@ static int vidioc_try_fmt(struct bcm2835_isp_node *node, struct v4l2_format *f,
 	return 0;
 }
 
-static int bcm2835_isp_node_try_fmt_vid_cap(struct file *file, void *priv,
-					    struct v4l2_format *f)
-{
-	struct bcm2835_isp_fmt *fmt;
-	struct bcm2835_isp_node *node = video_drvdata(file);
-
-	fmt = find_format(f, node);
-	if (!fmt) {
-		f->fmt.pix.pixelformat = get_default_format(node)->fourcc;
-		fmt = find_format(f, node);
-	}
-	return vidioc_try_fmt(node, f, fmt);
-}
-
-static int bcm2835_isp_node_try_fmt_meta_cap(struct file *file, void *priv,
-					     struct v4l2_format *f)
-{
-	struct bcm2835_isp_fmt *fmt;
-	struct bcm2835_isp_node *node = video_drvdata(file);
-
-	if (!NODE_IS_STATS(node))
-		return -EINVAL;
-
-	fmt = find_format(f, node);
-	if (!fmt) {
-		f->fmt.meta.dataformat = V4L2_META_FMT_STATS;
-		fmt = find_format(f, node);
-	}
-	f->fmt.meta.buffersize = get_port_data(node)->minimum_buffer.size;
-	return 0;
-}
-
-static int bcm2835_isp_node_try_fmt_vid_out(struct file *file, void *priv,
-					    struct v4l2_format *f)
-{
-	struct bcm2835_isp_fmt *fmt;
-	struct bcm2835_isp_node *node = video_drvdata(file);
-
-	fmt = find_format(f, node);
-	if (!fmt) {
-		f->fmt.pix.pixelformat = get_default_format(node)->fourcc;
-		fmt = find_format(f, node);
-	}
-
-	if (!f->fmt.pix.colorspace)
-		f->fmt.pix.colorspace = node->colorspace;
-
-	return vidioc_try_fmt(node, f, fmt);
-}
-
-static int bcm2835_isp_node_s_fmt_vid_cap(struct file *file, void *priv,
-					  struct v4l2_format *f)
+static int bcm2835_isp_node_s_fmt(struct file *file, void *priv,
+				  struct v4l2_format *f)
 {
 	struct bcm2835_isp_node *node = video_drvdata(file);
 	int ret;
 
-	ret = bcm2835_isp_node_try_fmt_vid_cap(file, priv, f);
+	ret = bcm2835_isp_node_try_fmt(file, priv, f);
 	if (ret)
 		return ret;
 
 	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Set capture format for node %p (%s[%d])\n",
-		  node, node->name, node->id);
-	return populate_qdata_fmt(f, node);
-}
-
-static int bcm2835_isp_node_s_fmt_meta_cap(struct file *file, void *priv,
-					   struct v4l2_format *f)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-	int ret;
-
-	ret = bcm2835_isp_node_try_fmt_meta_cap(file, priv, f);
-	if (ret)
-		return ret;
-
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Set meta format for node %p (%s[%d])\n",
-		  node, node->name, node->id);
-	return populate_qdata_fmt(f, node);
-}
-
-static int bcm2835_isp_node_s_fmt_vid_out(struct file *file, void *priv,
-					  struct v4l2_format *f)
-{
-	struct bcm2835_isp_node *node = video_drvdata(file);
-	int ret;
-
-	ret = bcm2835_isp_node_try_fmt_vid_out(file, priv, f);
-	if (ret)
-		return ret;
-
-	v4l2_info(&node_get_bcm2835_isp(node)->v4l2_dev,
-		  "Set output format for node %p (%s[%d])\n",
+		  "Set format for node %p (%s[%d])\n",
 		  node, node->name, node->id);
 	return populate_qdata_fmt(f, node);
 }
@@ -1220,10 +1060,10 @@ static int bcm2835_isp_node_streamoff(struct file *file, void *priv,
 
 static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops_out = {
 	.vidioc_querycap		= bcm2835_isp_node_querycap,
-	.vidioc_g_fmt_vid_out		= bcm2835_isp_node_g_fmt_vid_out,
-	.vidioc_s_fmt_vid_out		= bcm2835_isp_node_s_fmt_vid_out,
-	.vidioc_try_fmt_vid_out		= bcm2835_isp_node_try_fmt_vid_out,
-	.vidioc_enum_fmt_vid_out	= bcm2835_isp_node_enum_fmt_vid_out,
+	.vidioc_g_fmt_vid_out		= bcm2835_isp_node_g_fmt,
+	.vidioc_s_fmt_vid_out		= bcm2835_isp_node_s_fmt,
+	.vidioc_try_fmt_vid_out		= bcm2835_isp_node_try_fmt,
+	.vidioc_enum_fmt_vid_out	= bcm2835_isp_node_enum_fmt,
 
 	.vidioc_reqbufs			= vb2_ioctl_reqbufs,
 	.vidioc_querybuf		= vb2_ioctl_querybuf,
@@ -1239,10 +1079,10 @@ static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops_out = {
 
 static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops_cap = {
 	.vidioc_querycap		= bcm2835_isp_node_querycap,
-	.vidioc_g_fmt_vid_cap		= bcm2835_isp_node_g_fmt_vid_cap,
-	.vidioc_s_fmt_vid_cap		= bcm2835_isp_node_s_fmt_vid_cap,
-	.vidioc_try_fmt_vid_cap		= bcm2835_isp_node_try_fmt_vid_cap,
-	.vidioc_enum_fmt_vid_cap	= bcm2835_isp_node_enum_fmt_vid_cap,
+	.vidioc_g_fmt_vid_cap		= bcm2835_isp_node_g_fmt,
+	.vidioc_s_fmt_vid_cap		= bcm2835_isp_node_s_fmt,
+	.vidioc_try_fmt_vid_cap		= bcm2835_isp_node_try_fmt,
+	.vidioc_enum_fmt_vid_cap	= bcm2835_isp_node_enum_fmt,
 
 	.vidioc_reqbufs			= vb2_ioctl_reqbufs,
 	.vidioc_querybuf		= vb2_ioctl_querybuf,
@@ -1258,10 +1098,10 @@ static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops_cap = {
 
 static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops_meta_cap = {
 	.vidioc_querycap		= bcm2835_isp_node_querycap,
-	.vidioc_g_fmt_meta_cap		= bcm2835_isp_node_g_fmt_meta_cap,
-	.vidioc_s_fmt_meta_cap		= bcm2835_isp_node_s_fmt_meta_cap,
-	.vidioc_try_fmt_meta_cap	= bcm2835_isp_node_try_fmt_meta_cap,
-	.vidioc_enum_fmt_meta_cap	= bcm2835_isp_node_enum_fmt_meta_cap,
+	.vidioc_g_fmt_meta_cap		= bcm2835_isp_node_g_fmt,
+	.vidioc_s_fmt_meta_cap		= bcm2835_isp_node_s_fmt,
+	.vidioc_try_fmt_meta_cap	= bcm2835_isp_node_try_fmt,
+	.vidioc_enum_fmt_meta_cap	= bcm2835_isp_node_enum_fmt,
 
 	.vidioc_reqbufs			= vb2_ioctl_reqbufs,
 	.vidioc_querybuf		= vb2_ioctl_querybuf,
