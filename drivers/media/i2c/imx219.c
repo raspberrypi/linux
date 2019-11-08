@@ -6,9 +6,8 @@
  * Based on Sony imx258 camera driver
  * Copyright (C) 2018 Intel Corporation
  *
- * DT / fwnode changes, and regulator / GPIO control taken from ov5640.c
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
- * Copyright (C) 2014-2017 Mentor Graphics Inc.
+ * DT / fwnode changes, and regulator / GPIO control taken from imx214 driver
+ * Copyright 2018 Qtechnology A/S
  *
  * Flip handling taken from the Sony IMX319 driver.
  * Copyright (C) 2018 Intel Corporation
@@ -26,6 +25,7 @@
 #include <linux/regulator/consumer.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
+#include <media/v4l2-event.h>
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mediabus.h>
 #include <asm/unaligned.h>
@@ -359,6 +359,8 @@ static const struct imx219_mode supported_modes[] = {
 };
 
 struct imx219 {
+	struct device *dev;
+
 	struct v4l2_subdev sd;
 	struct media_pad pad;
 
@@ -385,7 +387,6 @@ struct imx219 {
 	 */
 	struct mutex mutex;
 
-	int power_count;
 	/* Streaming on/off */
 	bool streaming;
 };
@@ -465,90 +466,6 @@ static int imx219_write_regs(struct imx219 *imx219,
 	}
 
 	return 0;
-}
-
-/* Power/clock management functions */
-static void imx219_power(struct imx219 *imx219, bool enable)
-{
-	gpiod_set_value_cansleep(imx219->xclr_gpio, enable ? 1 : 0);
-}
-
-static int imx219_set_power_on(struct imx219 *imx219)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx219->sd);
-	int ret;
-
-	ret = clk_prepare_enable(imx219->xclk);
-	if (ret) {
-		dev_err(&client->dev, "%s: failed to enable clock\n",
-			__func__);
-		return ret;
-	}
-
-	ret = regulator_bulk_enable(IMX219_NUM_SUPPLIES,
-				    imx219->supplies);
-	if (ret) {
-		dev_err(&client->dev, "%s: failed to enable regulators\n",
-			__func__);
-		goto xclk_off;
-	}
-
-	imx219_power(imx219, true);
-	msleep(IMX219_XCLR_DELAY_MS);
-
-	return 0;
-xclk_off:
-	clk_disable_unprepare(imx219->xclk);
-	return ret;
-}
-
-static void imx219_set_power_off(struct imx219 *imx219)
-{
-	imx219_power(imx219, false);
-	regulator_bulk_disable(IMX219_NUM_SUPPLIES, imx219->supplies);
-	clk_disable_unprepare(imx219->xclk);
-}
-
-static int imx219_set_power(struct imx219 *imx219, bool on)
-{
-	int ret = 0;
-
-	if (on) {
-		ret = imx219_set_power_on(imx219);
-		if (ret)
-			return ret;
-	} else {
-		imx219_set_power_off(imx219);
-	}
-
-	return 0;
-}
-
-/* Open sub-device */
-static int imx219_s_power(struct v4l2_subdev *sd, int on)
-{
-	struct imx219 *imx219 = to_imx219(sd);
-	int ret = 0;
-
-	mutex_lock(&imx219->mutex);
-
-	/*
-	 * If the power count is modified from 0 to != 0 or from != 0 to 0,
-	 * update the power state.
-	 */
-	if (imx219->power_count == !on) {
-		ret = imx219_set_power(imx219, !!on);
-		if (ret)
-			goto out;
-	}
-
-	/* Update the power count. */
-	imx219->power_count += on ? 1 : -1;
-	WARN_ON(imx219->power_count < 0);
-out:
-	mutex_unlock(&imx219->mutex);
-
-	return ret;
 }
 
 /* Get bayer order based on flip setting. */
@@ -836,8 +753,7 @@ static int imx219_set_stream(struct v4l2_subdev *sd, int enable)
 		 */
 		ret = imx219_start_streaming(imx219);
 		if (ret) {
-			pm_runtime_put(&client->dev);
-			goto err_unlock;
+			goto err_rpm_put;
 		}
 	} else {
 		imx219_stop_streaming(imx219);
@@ -854,10 +770,57 @@ static int imx219_set_stream(struct v4l2_subdev *sd, int enable)
 
 	return ret;
 
+err_rpm_put:
+	pm_runtime_put(&client->dev);
 err_unlock:
 	mutex_unlock(&imx219->mutex);
 
 	return ret;
+}
+
+/* Power/clock management functions */
+static int imx219_power_on(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct imx219 *imx219 = to_imx219(sd);
+	int ret;
+
+	ret = regulator_bulk_enable(IMX219_NUM_SUPPLIES,
+				    imx219->supplies);
+	if (ret) {
+		dev_err(&client->dev, "%s: failed to enable regulators\n",
+			__func__);
+		return ret;
+	}
+
+	ret = clk_prepare_enable(imx219->xclk);
+	if (ret) {
+		dev_err(&client->dev, "%s: failed to enable clock\n",
+			__func__);
+		goto reg_off;
+	}
+
+	gpiod_set_value_cansleep(imx219->xclr_gpio, 1);
+	msleep(IMX219_XCLR_DELAY_MS);
+
+	return 0;
+reg_off:
+	regulator_bulk_disable(IMX219_NUM_SUPPLIES, imx219->supplies);
+	return ret;
+}
+
+static int imx219_power_off(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct imx219 *imx219 = to_imx219(sd);
+
+	gpiod_set_value_cansleep(imx219->xclr_gpio, 0);
+	regulator_bulk_disable(IMX219_NUM_SUPPLIES, imx219->supplies);
+	clk_disable_unprepare(imx219->xclk);
+
+	return 0;
 }
 
 static int __maybe_unused imx219_suspend(struct device *dev)
@@ -913,7 +876,7 @@ static int imx219_identify_module(struct imx219 *imx219)
 	int ret;
 	u32 val;
 
-	ret = imx219_set_power_on(imx219);
+	ret = imx219_power_on(imx219->dev);
 	if (ret)
 		return ret;
 
@@ -932,12 +895,14 @@ static int imx219_identify_module(struct imx219 *imx219)
 	}
 
 power_off:
-	imx219_set_power_off(imx219);
+	if (ret)
+		imx219_power_off(imx219->dev);
 	return ret;
 }
 
 static const struct v4l2_subdev_core_ops imx219_core_ops = {
-	.s_power = imx219_s_power,
+	.subscribe_event = v4l2_ctrl_subdev_subscribe_event,
+	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 };
 
 static const struct v4l2_subdev_video_ops imx219_video_ops = {
@@ -1039,6 +1004,8 @@ static int imx219_probe(struct i2c_client *client,
 	if (!imx219)
 		return -ENOMEM;
 
+	imx219->dev = dev;
+
 	/* Initialize subdev */
 	v4l2_i2c_subdev_init(&imx219->sd, client, &imx219_subdev_ops);
 
@@ -1107,9 +1074,9 @@ static int imx219_probe(struct i2c_client *client,
 	if (ret < 0)
 		goto error_media_entity;
 
-	pm_runtime_set_active(&client->dev);
-	pm_runtime_enable(&client->dev);
-	pm_runtime_idle(&client->dev);
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
+	pm_runtime_idle(dev);
 
 	return 0;
 
@@ -1143,10 +1110,16 @@ static const struct of_device_id imx219_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, imx219_dt_ids);
 
+static const struct dev_pm_ops imx219_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(imx219_suspend, imx219_resume)
+	SET_RUNTIME_PM_OPS(imx219_power_off, imx219_power_on, NULL)
+};
+
 static struct i2c_driver imx219_i2c_driver = {
 	.driver = {
 		.name = "imx219",
 		.of_match_table	= imx219_dt_ids,
+		.pm = &imx219_pm_ops,
 	},
 	.probe = imx219_probe,
 	.remove = imx219_remove,
@@ -1154,6 +1127,6 @@ static struct i2c_driver imx219_i2c_driver = {
 
 module_i2c_driver(imx219_i2c_driver);
 
-MODULE_AUTHOR("Dave Stevenson <dave.stevenson@raspberrypi.org");
+MODULE_AUTHOR("Dave Stevenson <dave.stevenson@raspberrypi.com");
 MODULE_DESCRIPTION("Sony IMX219 sensor driver");
 MODULE_LICENSE("GPL v2");
