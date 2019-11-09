@@ -1128,8 +1128,10 @@ __mlxsw_core_bus_device_register(const struct mlxsw_bus_info *mlxsw_bus_info,
 	if (err)
 		goto err_thermal_init;
 
-	if (mlxsw_driver->params_register)
+	if (mlxsw_driver->params_register) {
 		devlink_params_publish(devlink);
+		devlink_reload_enable(devlink);
+	}
 
 	return 0;
 
@@ -1191,6 +1193,8 @@ void mlxsw_core_bus_device_unregister(struct mlxsw_core *mlxsw_core,
 {
 	struct devlink *devlink = priv_to_devlink(mlxsw_core);
 
+	if (!reload)
+		devlink_reload_disable(devlink);
 	if (mlxsw_core->reload_fail) {
 		if (!reload)
 			/* Only the parts that were not de-initialized in the

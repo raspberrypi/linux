@@ -297,6 +297,7 @@ nsim_dev_create(struct nsim_bus_dev *nsim_bus_dev, unsigned int port_count)
 	if (err)
 		goto err_debugfs_exit;
 
+	devlink_reload_enable(devlink);
 	return nsim_dev;
 
 err_debugfs_exit:
@@ -314,6 +315,7 @@ static void nsim_dev_destroy(struct nsim_dev *nsim_dev)
 {
 	struct devlink *devlink = priv_to_devlink(nsim_dev);
 
+	devlink_reload_disable(devlink);
 	nsim_bpf_dev_exit(nsim_dev);
 	nsim_dev_debugfs_exit(nsim_dev);
 	devlink_unregister(devlink);
