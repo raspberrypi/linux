@@ -197,6 +197,7 @@ v3d_hub_irq(int irq, void *arg)
 			{0x7F, 0x80, "GMP"},
 		};
 		const char *client = "?";
+		static int logged_error;
 
 		V3D_WRITE(V3D_MMU_CTL, V3D_READ(V3D_MMU_CTL));
 
@@ -224,6 +225,7 @@ v3d_hub_irq(int irq, void *arg)
 			}
 		}
 
+		if (!logged_error)
 		dev_err(v3d->drm.dev, "MMU error from client %s (0x%x) at 0x%llx%s%s%s\n",
 			client, axi_id, (long long)vio_addr,
 			((intsts & V3D_HUB_INT_MMU_WRV) ?
@@ -232,6 +234,7 @@ v3d_hub_irq(int irq, void *arg)
 			 ", pte invalid" : ""),
 			((intsts & V3D_HUB_INT_MMU_CAP) ?
 			 ", cap exceeded" : ""));
+		logged_error = 1;
 		status = IRQ_HANDLED;
 	}
 
