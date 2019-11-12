@@ -414,6 +414,9 @@ v3d_job_free(struct kref *ref)
 	}
 	xa_destroy(&job->deps);
 
+	dma_fence_put(job->irq_fence);
+	dma_fence_put(job->done_fence);
+
 	v3d_clock_up_put(v3d);
 
 	if (job->perfmon)
