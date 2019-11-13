@@ -234,7 +234,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
 	unsigned int duration_us, hits, misses, early_hits;
-	int max_early_idx, constraint_idx, idx, i;
+	int max_early_idx, prev_max_early_idx, constraint_idx, idx, i;
 	ktime_t delta_tick;
 
 	if (dev->last_state_idx >= 0) {
@@ -251,6 +251,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	misses = 0;
 	early_hits = 0;
 	max_early_idx = -1;
+	prev_max_early_idx = -1;
 	constraint_idx = drv->state_count;
 	idx = -1;
 
@@ -303,6 +304,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 			 */
 			if (!(tick_nohz_tick_stopped() &&
 			      drv->states[idx].target_residency < TICK_USEC)) {
+				prev_max_early_idx = max_early_idx;
 				early_hits = cpu_data->states[i].early_hits;
 				max_early_idx = idx;
 			}
@@ -329,6 +331,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 		if (early_hits < cpu_data->states[i].early_hits &&
 		    !(tick_nohz_tick_stopped() &&
 		      drv->states[i].target_residency < TICK_USEC)) {
+			prev_max_early_idx = max_early_idx;
 			early_hits = cpu_data->states[i].early_hits;
 			max_early_idx = i;
 		}
@@ -342,9 +345,19 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	 * "early hits" metric, but if that cannot be determined, just use the
 	 * state selected so far.
 	 */
-	if (hits <= misses && max_early_idx >= 0) {
-		idx = max_early_idx;
-		duration_us = drv->states[idx].target_residency;
+	if (hits <= misses) {
+		/*
+		 * The current candidate state is not suitable, so take the one
+		 * whose "early hits" metric is the maximum for the range of
+		 * shallower states.
+		 */
+		if (idx == max_early_idx)
+			max_early_idx = prev_max_early_idx;
+
+		if (max_early_idx >= 0) {
+			idx = max_early_idx;
+			duration_us = drv->states[idx].target_residency;
+		}
 	}
 
 	/*
