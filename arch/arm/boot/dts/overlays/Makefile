@@ -108,6 +108,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	mcp23s17.dtbo \
 	mcp2515-can0.dtbo \
 	mcp2515-can1.dtbo \
+	mcp251xfd.dtbo \
 	mcp3008.dtbo \
 	mcp3202.dtbo \
 	mcp342x.dtbo \
