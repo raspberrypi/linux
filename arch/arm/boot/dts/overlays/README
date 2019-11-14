@@ -1779,6 +1779,28 @@ Params: oscillator              Clock frequency for the CAN controller (Hz)
         interrupt               GPIO for interrupt signal
 
 
+Name:   mcp251xfd
+Info:   Configures the MCP251XFD CAN controller family
+        For devices on spi1 or spi2, the interfaces should be enabled
+        with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
+Load:   dtoverlay=mcp251xfd,<param>=<val>
+Params: spi<n>-<m>              Configure device at spi<n>, cs<m>
+                                (boolean, required)
+
+        oscillator              Clock frequency for the CAN controller (Hz)
+
+        speed                   Maximum SPI frequence (Hz)
+
+        interrupt               GPIO for interrupt signal
+
+        rx_interrupt            GPIO for RX interrupt signal (nINT1) (optional)
+
+        xceiver_enable          GPIO for CAN transceiver enable (optional)
+
+        xceiver_active_high     specifiy if CAN transceiver enable pin is
+                                active high (optional, default: active low)
+
+
 Name:   mcp3008
 Info:   Configures MCP3008 A/D converters
         For devices on spi1 or spi2, the interfaces should be enabled
