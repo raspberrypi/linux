@@ -105,6 +105,18 @@ config SND_BCM2708_SOC_RPI_PROTO
 	help
 	  Say Y or M if you want to add support for Audio Codec Board PROTO (WM8731).
 
+config SND_BCM2708_SOC_JUSTBOOM_BOTH
+	tristate "Support for simultaneous JustBoom Digi and JustBoom DAC"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_WM8804
+	select SND_SOC_PCM512x
+	help
+		Say Y or M if you want to add support for simultaneous
+		JustBoom Digi and JustBoom DAC.
+
+		This is not the right choice if you only have one but both of
+		these cards.
+
 config SND_BCM2708_SOC_JUSTBOOM_DAC
 	tristate "Support for JustBoom DAC"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
