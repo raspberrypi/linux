@@ -821,10 +821,6 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 		dump_urb_info(urb, "dwc_otg_urb_enqueue");
 	}
 #endif
-
-	if (!urb->transfer_buffer && urb->transfer_buffer_length)
-		return -EINVAL;
-
 	if ((usb_pipetype(urb->pipe) == PIPE_ISOCHRONOUS)
 	    || (usb_pipetype(urb->pipe) == PIPE_INTERRUPT)) {
 		if (!dwc_otg_hcd_is_bandwidth_allocated
@@ -879,6 +875,13 @@ static int dwc_otg_urb_enqueue(struct usb_hcd *hcd,
 		dev_warn_once(&urb->dev->dev,
 			      "USB transfer_buffer was NULL, will use __bus_to_virt(%pad)=%p\n",
 			      &urb->transfer_dma, buf);
+	}
+
+	if (!buf && urb->transfer_buffer_length) {
+		DWC_FREE(dwc_otg_urb);
+		DWC_ERROR("transfer_buffer is NULL in PIO mode or both "
+			   "transfer_buffer and transfer_dma are NULL in DMA mode\n");
+		return -EINVAL;
 	}
 
 	if (!(urb->transfer_flags & URB_NO_INTERRUPT))
