@@ -26,6 +26,7 @@
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
 #include <linux/dma-direct.h>
+#include <linux/dma-noncoherent.h>
 #include <linux/dmapool.h>
 #include <linux/list.h>
 #include <linux/scatterlist.h>
@@ -364,7 +365,7 @@ dmabounce_map_page(struct device *dev, struct page *page, unsigned long offset,
 	dma_addr = phys_to_dma(dev, page_to_phys(page)) + offset;
 
 	dma_direct_sync_single_for_device(dev, dma_addr, size, dir);
-        if (!is_device_dma_coherent(dev))
+        if (!dev_is_dma_coherent(dev))
 		__dma_map_area(phys_to_virt(dma_to_phys(dev, dma_addr)), size, dir);
 
 	if (device_info && (dma_addr + size) > device_info->threshold) {
@@ -402,7 +403,7 @@ dmabounce_unmap_page(struct device *dev, dma_addr_t dma_addr, size_t size,
 		free_safe_buffer(g_dmabounce_device_info, buf);
 	}
 
-        if (!is_device_dma_coherent(dev))
+        if (!dev_is_dma_coherent(dev))
 		__dma_unmap_area(phys_to_virt(dma_to_phys(dev, dma_addr)), size, dir);
 	dma_direct_sync_single_for_cpu(dev, dma_addr, size, dir);
 }
@@ -418,7 +419,7 @@ dmabounce_sync_for_device(struct device *dev, dma_addr_t dma_addr, size_t size,
 	struct safe_buffer *buf;
 
         dma_direct_sync_single_for_device(dev, dma_addr, size, dir);
-        if (!is_device_dma_coherent(dev))
+        if (!dev_is_dma_coherent(dev))
                 __dma_map_area(phys_to_virt(dma_to_phys(dev, dma_addr)), size, dir);
 
 	buf = find_safe_buffer_dev(dev, dma_addr, __func__);
@@ -444,7 +445,7 @@ dmabounce_sync_for_cpu(struct device *dev, dma_addr_t dma_addr,
 		dma_addr = unmap_single(dev, buf, size, dir, 0);
 	}
 
-        if (!is_device_dma_coherent(dev))
+        if (!dev_is_dma_coherent(dev))
                 __dma_unmap_area(phys_to_virt(dma_to_phys(dev, dma_addr)), size, dir);
         dma_direct_sync_single_for_cpu(dev, dma_addr, size, dir);
 }
