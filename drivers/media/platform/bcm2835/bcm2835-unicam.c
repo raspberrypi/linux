@@ -2066,12 +2066,6 @@ static int unicam_probe_complete(struct unicam_device *unicam)
 	video_set_drvdata(vdev, unicam);
 	vdev->entity.flags |= MEDIA_ENT_FL_DEFAULT;
 
-	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
-	if (ret) {
-		unicam_err(unicam, "Unable to register video device.\n");
-		return ret;
-	}
-
 	if (!v4l2_subdev_has_op(unicam->sensor, video, s_std)) {
 		v4l2_disable_ioctl(&unicam->video_dev, VIDIOC_S_STD);
 		v4l2_disable_ioctl(&unicam->video_dev, VIDIOC_G_STD);
@@ -2098,6 +2092,12 @@ static int unicam_probe_complete(struct unicam_device *unicam)
 
 	if (!v4l2_subdev_has_op(unicam->sensor, pad, enum_frame_size))
 		v4l2_disable_ioctl(&unicam->video_dev, VIDIOC_ENUM_FRAMESIZES);
+
+	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
+	if (ret) {
+		unicam_err(unicam, "Unable to register video device.\n");
+		return ret;
+	}
 
 	ret = v4l2_device_register_subdev_nodes(&unicam->v4l2_dev);
 	if (ret) {
