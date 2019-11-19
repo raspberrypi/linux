@@ -35,6 +35,5 @@ config CRYPTO_DEV_HISI_ZIP
 	depends on ARM64 && PCI && PCI_MSI
 	select CRYPTO_DEV_HISI_QM
 	select CRYPTO_HISI_SGL
-	select SG_SPLIT
 	help
 	  Support for HiSilicon ZIP Driver
