@@ -1602,7 +1602,11 @@ static int unicam_enum_framesizes(struct file *file, void *priv,
 {
 	struct unicam_device *dev = video_drvdata(file);
 	const struct unicam_fmt *fmt;
-	struct v4l2_subdev_frame_size_enum fse;
+	struct v4l2_subdev_frame_size_enum fse = {
+		.index = fsize->index,
+		.pad = 0,
+		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
+	};
 	int ret;
 
 	/* check for valid format */
@@ -1612,9 +1616,6 @@ static int unicam_enum_framesizes(struct file *file, void *priv,
 			   fsize->pixel_format);
 		return -EINVAL;
 	}
-
-	fse.index = fsize->index;
-	fse.pad = 0;
 	fse.code = fmt->code;
 
 	ret = v4l2_subdev_call(dev->sensor, pad, enum_frame_size, NULL, &fse);
