@@ -261,7 +261,7 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 	int ret;
 	u32 ident1;
 
-	dev->coherent_dma_mask = DMA_BIT_MASK(36);
+	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(36));
 
 	v3d = kzalloc(sizeof(*v3d), GFP_KERNEL);
 	if (!v3d)
