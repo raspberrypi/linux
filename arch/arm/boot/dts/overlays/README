@@ -128,7 +128,7 @@ Params:
                                 8=Link                   9=Activity
 
         eth_led1                Set mode of LED1 (usually green) (Pi3B+ default
-                                "6", Pi4 default "0"). See eth_led0 for legal
+                                "6", Pi4 default "8"). See eth_led0 for legal
                                 values.
 
         eth_max_speed           Set the maximum speed a link is allowed
