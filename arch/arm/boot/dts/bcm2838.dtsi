@@ -380,7 +380,7 @@
 					/* No interrupts - use PHY_POLL */
 					max-speed = <1000>;
 					reg = <0x1>;
-					led-modes = <0x02 0x02>;
+					led-modes = <0x00 0x08>; /* link/activity link */
 				};
 			};
 		};
