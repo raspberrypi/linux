@@ -238,6 +238,8 @@ struct io_ring_ctx {
 
 	struct user_struct	*user;
 
+	struct cred		*creds;
+
 	struct completion	ctx_done;
 
 	struct {
@@ -1752,7 +1754,10 @@ static void io_poll_complete_work(struct work_struct *work)
 	struct io_poll_iocb *poll = &req->poll;
 	struct poll_table_struct pt = { ._key = poll->events };
 	struct io_ring_ctx *ctx = req->ctx;
+	const struct cred *old_cred;
 	__poll_t mask = 0;
+
+	old_cred = override_creds(ctx->creds);
 
 	if (!READ_ONCE(poll->canceled))
 		mask = vfs_poll(poll->file, &pt) & poll->events;
@@ -1768,7 +1773,7 @@ static void io_poll_complete_work(struct work_struct *work)
 	if (!mask && !READ_ONCE(poll->canceled)) {
 		add_wait_queue(poll->head, &poll->wait);
 		spin_unlock_irq(&ctx->completion_lock);
-		return;
+		goto out;
 	}
 	list_del_init(&req->list);
 	io_poll_complete(ctx, req, mask);
@@ -1776,6 +1781,8 @@ static void io_poll_complete_work(struct work_struct *work)
 
 	io_cqring_ev_posted(ctx);
 	io_put_req(req);
+out:
+	revert_creds(old_cred);
 }
 
 static int io_poll_wake(struct wait_queue_entry *wait, unsigned mode, int sync,
@@ -2147,10 +2154,12 @@ static void io_sq_wq_submit_work(struct work_struct *work)
 	struct io_ring_ctx *ctx = req->ctx;
 	struct mm_struct *cur_mm = NULL;
 	struct async_list *async_list;
+	const struct cred *old_cred;
 	LIST_HEAD(req_list);
 	mm_segment_t old_fs;
 	int ret;
 
+	old_cred = override_creds(ctx->creds);
 	async_list = io_async_list_from_sqe(ctx, req->submit.sqe);
 restart:
 	do {
@@ -2258,6 +2267,7 @@ out:
 		unuse_mm(cur_mm);
 		mmput(cur_mm);
 	}
+	revert_creds(old_cred);
 }
 
 /*
@@ -2663,6 +2673,7 @@ static int io_sq_thread(void *data)
 {
 	struct io_ring_ctx *ctx = data;
 	struct mm_struct *cur_mm = NULL;
+	const struct cred *old_cred;
 	mm_segment_t old_fs;
 	DEFINE_WAIT(wait);
 	unsigned inflight;
@@ -2672,6 +2683,7 @@ static int io_sq_thread(void *data)
 
 	old_fs = get_fs();
 	set_fs(USER_DS);
+	old_cred = override_creds(ctx->creds);
 
 	timeout = inflight = 0;
 	while (!kthread_should_park()) {
@@ -2782,6 +2794,7 @@ static int io_sq_thread(void *data)
 		unuse_mm(cur_mm);
 		mmput(cur_mm);
 	}
+	revert_creds(old_cred);
 
 	kthread_parkme();
 
@@ -3567,6 +3580,8 @@ static void io_ring_ctx_free(struct io_ring_ctx *ctx)
 		io_unaccount_mem(ctx->user,
 				ring_pages(ctx->sq_entries, ctx->cq_entries));
 	free_uid(ctx->user);
+	if (ctx->creds)
+		put_cred(ctx->creds);
 	kfree(ctx);
 }
 
@@ -3837,6 +3852,12 @@ static int io_uring_create(unsigned entries, struct io_uring_params *p)
 	ctx->compat = in_compat_syscall();
 	ctx->account_mem = account_mem;
 	ctx->user = user;
+
+	ctx->creds = prepare_creds();
+	if (!ctx->creds) {
+		ret = -ENOMEM;
+		goto err;
+	}
 
 	ret = io_allocate_scq_urings(ctx, p);
 	if (ret)
