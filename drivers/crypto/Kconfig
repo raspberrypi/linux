@@ -287,6 +287,7 @@ config CRYPTO_DEV_TALITOS
 	select CRYPTO_AUTHENC
 	select CRYPTO_BLKCIPHER
 	select CRYPTO_HASH
+	select CRYPTO_LIB_DES
 	select HW_RANDOM
 	depends on FSL_SOC
 	help
