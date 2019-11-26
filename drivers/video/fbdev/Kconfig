@@ -2,6 +2,18 @@
 # fbdev configuration
 #
 
+config FB_CMDLINE
+	bool
+
+config FB_NOTIFY
+	bool
+
+config FB_CLPS711X_OLD
+	tristate
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+
 menuconfig FB
 	tristate "Support for frame buffer devices"
 	select FB_CMDLINE
@@ -53,12 +65,6 @@ config FIRMWARE_EDID
 	 something on your display, try setting this to N.  Matrox cards in
 	 combination with certain motherboards and monitors are known to
 	 suffer from this problem.
-
-config FB_CMDLINE
-	bool
-
-config FB_NOTIFY
-	bool
 
 config FB_DDC
        tristate
@@ -342,12 +348,6 @@ config FB_ACORN
 	  This is the frame buffer device driver for the Acorn VIDC graphics
 	  hardware found in Acorn RISC PCs and other ARM-based machines.  If
 	  unsure, say N.
-
-config FB_CLPS711X_OLD
-	tristate
-	select FB_CFB_FILLRECT
-	select FB_CFB_COPYAREA
-	select FB_CFB_IMAGEBLIT
 
 config FB_CLPS711X
 	tristate "CLPS711X LCD support"
@@ -1470,7 +1470,6 @@ if FB_VIA
 
 config FB_VIA_DIRECT_PROCFS
 	bool "direct hardware access via procfs (DEPRECATED)(DANGEROUS)"
-	depends on FB_VIA
 	default n
 	help
 	  Allow direct hardware access to some output registers via procfs.
@@ -1480,7 +1479,6 @@ config FB_VIA_DIRECT_PROCFS
 
 config FB_VIA_X_COMPATIBILITY
 	bool "X server compatibility"
-	depends on FB_VIA
 	default n
 	help
 	  This option reduces the functionality (power saving, ...) of the
@@ -2322,10 +2320,6 @@ config FB_SIMPLE
 	  Configuration re: surface address, size, and format must be provided
 	  through device tree, or plain old platform data.
 
-source "drivers/video/fbdev/omap/Kconfig"
-source "drivers/video/fbdev/omap2/Kconfig"
-source "drivers/video/fbdev/mmp/Kconfig"
-
 config FB_SSD1307
 	tristate "Solomon SSD1307 framebuffer support"
 	depends on FB && I2C
@@ -2368,3 +2362,7 @@ config FB_RPISENSE
 
 	help
 	  This is the framebuffer driver for the Raspberry Pi Sense HAT
+
+source "drivers/video/fbdev/omap/Kconfig"
+source "drivers/video/fbdev/omap2/Kconfig"
+source "drivers/video/fbdev/mmp/Kconfig"
