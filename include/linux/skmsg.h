@@ -14,6 +14,7 @@
 #include <net/strparser.h>
 
 #define MAX_MSG_FRAGS			MAX_SKB_FRAGS
+#define NR_MSG_FRAG_IDS			(MAX_MSG_FRAGS + 1)
 
 enum __sk_action {
 	__SK_DROP = 0,
@@ -29,11 +30,13 @@ struct sk_msg_sg {
 	u32				size;
 	u32				copybreak;
 	bool				copy[MAX_MSG_FRAGS];
-	/* The extra element is used for chaining the front and sections when
-	 * the list becomes partitioned (e.g. end < start). The crypto APIs
-	 * require the chaining.
+	/* The extra two elements:
+	 * 1) used for chaining the front and sections when the list becomes
+	 *    partitioned (e.g. end < start). The crypto APIs require the
+	 *    chaining;
+	 * 2) to chain tailer SG entries after the message.
 	 */
-	struct scatterlist		data[MAX_MSG_FRAGS + 1];
+	struct scatterlist		data[MAX_MSG_FRAGS + 2];
 };
 
 /* UAPI in filter.c depends on struct sk_msg_sg being first element. */
@@ -141,13 +144,13 @@ static inline void sk_msg_apply_bytes(struct sk_psock *psock, u32 bytes)
 
 static inline u32 sk_msg_iter_dist(u32 start, u32 end)
 {
-	return end >= start ? end - start : end + (MAX_MSG_FRAGS - start);
+	return end >= start ? end - start : end + (NR_MSG_FRAG_IDS - start);
 }
 
 #define sk_msg_iter_var_prev(var)			\
 	do {						\
 		if (var == 0)				\
-			var = MAX_MSG_FRAGS - 1;	\
+			var = NR_MSG_FRAG_IDS - 1;	\
 		else					\
 			var--;				\
 	} while (0)
@@ -155,7 +158,7 @@ static inline u32 sk_msg_iter_dist(u32 start, u32 end)
 #define sk_msg_iter_var_next(var)			\
 	do {						\
 		var++;					\
-		if (var == MAX_MSG_FRAGS)		\
+		if (var == NR_MSG_FRAG_IDS)		\
 			var = 0;			\
 	} while (0)
 
@@ -172,9 +175,9 @@ static inline void sk_msg_clear_meta(struct sk_msg *msg)
 
 static inline void sk_msg_init(struct sk_msg *msg)
 {
-	BUILD_BUG_ON(ARRAY_SIZE(msg->sg.data) - 1 != MAX_MSG_FRAGS);
+	BUILD_BUG_ON(ARRAY_SIZE(msg->sg.data) - 1 != NR_MSG_FRAG_IDS);
 	memset(msg, 0, sizeof(*msg));
-	sg_init_marker(msg->sg.data, MAX_MSG_FRAGS);
+	sg_init_marker(msg->sg.data, NR_MSG_FRAG_IDS);
 }
 
 static inline void sk_msg_xfer(struct sk_msg *dst, struct sk_msg *src,
@@ -195,14 +198,11 @@ static inline void sk_msg_xfer_full(struct sk_msg *dst, struct sk_msg *src)
 
 static inline bool sk_msg_full(const struct sk_msg *msg)
 {
-	return (msg->sg.end == msg->sg.start) && msg->sg.size;
+	return sk_msg_iter_dist(msg->sg.start, msg->sg.end) == MAX_MSG_FRAGS;
 }
 
 static inline u32 sk_msg_elem_used(const struct sk_msg *msg)
 {
-	if (sk_msg_full(msg))
-		return MAX_MSG_FRAGS;
-
 	return sk_msg_iter_dist(msg->sg.start, msg->sg.end);
 }
 
