@@ -410,7 +410,8 @@ static int bcm2708_fb_set_par(struct fb_info *info)
 		}
 
 		fb->cpuaddr = dma_alloc_coherent(info->device, image_size,
-						 &fb->dma_addr, GFP_KERNEL);
+						 &fb->dma_addr,
+						 GFP_KERNEL | __GFP_NOWARN);
 
 		if (!fb->cpuaddr) {
 			fb->dma_addr = 0;
