@@ -1804,6 +1804,12 @@ int __init register_tracer(struct tracer *type)
 		return -1;
 	}
 
+	if (security_locked_down(LOCKDOWN_TRACEFS)) {
+		pr_warning("Can not register tracer %s due to lockdown\n",
+			   type->name);
+		return -EPERM;
+	}
+
 	mutex_lock(&trace_types_lock);
 
 	tracing_selftest_running = true;
@@ -8647,6 +8653,11 @@ struct dentry *tracing_init_dentry(void)
 {
 	struct trace_array *tr = &global_trace;
 
+	if (security_locked_down(LOCKDOWN_TRACEFS)) {
+		pr_warning("Tracing disabled due to lockdown\n");
+		return ERR_PTR(-EPERM);
+	}
+
 	/* The top level trace array uses  NULL as parent */
 	if (tr->dir)
 		return NULL;
@@ -9088,6 +9099,12 @@ __init static int tracer_alloc_buffers(void)
 {
 	int ring_buf_size;
 	int ret = -ENOMEM;
+
+
+	if (security_locked_down(LOCKDOWN_TRACEFS)) {
+		pr_warning("Tracing disabled due to lockdown\n");
+		return -EPERM;
+	}
 
 	/*
 	 * Make sure we don't accidently add more trace options
