@@ -2505,6 +2505,27 @@ Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
                                 the fan slows down (default 5000)
 
 
+Name:   rpi-poe-plus
+Info:   Raspberry Pi PoE+ HAT fan
+Load:   dtoverlay=rpi-poe-plus,<param>[=<val>]
+Params: poe_fan_temp0           Temperature (in millicelcius) at which the fan
+                                turns on (default 40000)
+        poe_fan_temp0_hyst      Temperature delta (in millicelcius) at which
+                                the fan turns off (default 2000)
+        poe_fan_temp1           Temperature (in millicelcius) at which the fan
+                                speeds up (default 45000)
+        poe_fan_temp1_hyst      Temperature delta (in millicelcius) at which
+                                the fan slows down (default 2000)
+        poe_fan_temp2           Temperature (in millicelcius) at which the fan
+                                speeds up (default 50000)
+        poe_fan_temp2_hyst      Temperature delta (in millicelcius) at which
+                                the fan slows down (default 2000)
+        poe_fan_temp3           Temperature (in millicelcius) at which the fan
+                                speeds up (default 55000)
+        poe_fan_temp3_hyst      Temperature delta (in millicelcius) at which
+                                the fan slows down (default 5000)
+
+
 Name:   rpi-proto
 Info:   Configures the RPi Proto audio card
 Load:   dtoverlay=rpi-proto
