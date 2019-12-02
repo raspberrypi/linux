@@ -28,6 +28,7 @@
 struct rpi_poe_fan_ctx {
 	struct mutex lock;
 	struct rpi_firmware *fw;
+	u32 set_tag;
 	unsigned int pwm_value;
 	unsigned int def_pwm_value;
 	unsigned int rpi_poe_fan_state;
@@ -43,13 +44,15 @@ struct fw_tag_data_s{
 	u32 ret;
 };
 
-static int write_reg(struct rpi_firmware *fw, u32 reg, u32 *val){
+static int write_reg(struct rpi_firmware *fw, u32 reg, u32 *val, u32 set_tag)
+{
 	struct fw_tag_data_s fw_tag_data = {
 		.reg = reg,
 		.val = *val
 	};
 	int ret;
-	ret = rpi_firmware_property(fw, RPI_FIRMWARE_SET_POE_HAT_VAL,
+
+	ret = rpi_firmware_property(fw, set_tag,
 				    &fw_tag_data, sizeof(fw_tag_data));
 	if (ret) {
 		return ret;
@@ -82,7 +85,7 @@ static int rpi_poe_reboot(struct notifier_block *nb, unsigned long code,
 						   nb);
 
 	if (ctx->pwm_value != ctx->def_pwm_value)
-		write_reg(ctx->fw, POE_CUR_PWM, &ctx->def_pwm_value);
+		write_reg(ctx->fw, POE_CUR_PWM, &ctx->def_pwm_value, ctx->set_tag);
 
 	return NOTIFY_DONE;
 }
@@ -95,7 +98,7 @@ static int  __set_pwm(struct rpi_poe_fan_ctx *ctx, u32 pwm)
 	if (ctx->pwm_value == pwm)
 		goto exit_set_pwm_err;
 
-	ret = write_reg(ctx->fw, POE_CUR_PWM, &pwm);
+	ret = write_reg(ctx->fw, POE_CUR_PWM, &pwm, ctx->set_tag);
 	if (!ret)
 		ctx->pwm_value = pwm;
 exit_set_pwm_err:
@@ -110,7 +113,7 @@ static int  __set_def_pwm(struct rpi_poe_fan_ctx *ctx, u32 def_pwm)
 	if (ctx->def_pwm_value == def_pwm)
 		goto exit_set_def_pwm_err;
 
-	ret = write_reg(ctx->fw, POE_DEF_PWM, &def_pwm);
+	ret = write_reg(ctx->fw, POE_DEF_PWM, &def_pwm, ctx->set_tag);
 	if (!ret)
 		ctx->def_pwm_value = def_pwm;
 exit_set_def_pwm_err:
@@ -297,6 +300,7 @@ static int rpi_poe_fan_probe(struct platform_device *pdev)
 	struct device *hwmon;
 	struct device_node *np = pdev->dev.of_node;
 	struct device_node *fw_node;
+	u32 revision;
 	int ret;
 
 	fw_node = of_parse_phandle(np, "firmware", 0);
@@ -314,6 +318,17 @@ static int rpi_poe_fan_probe(struct platform_device *pdev)
 	ctx->fw = rpi_firmware_get(fw_node);
 	if (!ctx->fw)
 		return -EPROBE_DEFER;
+	ret = rpi_firmware_property(ctx->fw,
+		RPI_FIRMWARE_GET_FIRMWARE_REVISION,
+		&revision, sizeof(revision));
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to get firmware revision: %i\n", ret);
+		return ret;
+	}
+	if (revision < 0x60af72e8)
+		ctx->set_tag = RPI_FIRMWARE_SET_POE_HAT_VAL_OLD;
+	else
+		ctx->set_tag = RPI_FIRMWARE_SET_POE_HAT_VAL;
 
 	platform_set_drvdata(pdev, ctx);
 
@@ -378,9 +393,9 @@ static int rpi_poe_fan_remove(struct platform_device *pdev)
 
 	unregister_reboot_notifier(&ctx->nb);
 	thermal_cooling_device_unregister(ctx->cdev);
-	if (ctx->pwm_value != value) {
-		write_reg(ctx->fw, POE_CUR_PWM, &value);
-	}
+	if (ctx->pwm_value != value)
+		write_reg(ctx->fw, POE_CUR_PWM, &value, ctx->set_tag);
+
 	return 0;
 }
 
@@ -392,7 +407,7 @@ static int rpi_poe_fan_suspend(struct device *dev)
 	int ret = 0;
 
 	if (ctx->pwm_value != value)
-		ret = write_reg(ctx->fw, POE_CUR_PWM, &value);
+		ret = write_reg(ctx->fw, POE_CUR_PWM, &value, ctx->set_tag);
 	return ret;
 }
 
@@ -403,7 +418,7 @@ static int rpi_poe_fan_resume(struct device *dev)
 	int ret = 0;
 
 	if (value != 0)
-		ret = write_reg(ctx->fw, POE_CUR_PWM, &value);
+		ret = write_reg(ctx->fw, POE_CUR_PWM, &value, ctx->set_tag);
 
 	return ret;
 }
