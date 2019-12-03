@@ -1495,6 +1495,8 @@ out_free_iclog:
 		prev_iclog = iclog->ic_next;
 		kmem_free(iclog->ic_data);
 		kmem_free(iclog);
+		if (prev_iclog == log->l_iclog)
+			break;
 	}
 out_free_log:
 	kmem_free(log);
