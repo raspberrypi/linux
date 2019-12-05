@@ -31,6 +31,28 @@
 		/delete-property/ intc;
 		ethernet0 = &genet;
 		pcie0 = &pcie_0;
+		emmc2bus = &emmc2bus;
+	};
+};
+
+/delete-node/ &emmc2;
+
+/ {
+	emmc2bus: emmc2bus {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <1>;
+
+		ranges = <0x0 0x7e000000  0x0 0xfe000000  0x01800000>;
+		dma-ranges = <0x0 0xc0000000  0x0 0x00000000  0x3c000000>;
+
+		emmc2: emmc2@7e340000 {
+			compatible = "brcm,bcm2711-emmc2";
+			status = "okay";
+			interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clocks BCM2711_CLOCK_EMMC2>;
+			reg = <0x0 0x7e340000 0x100>;
+		};
 	};
 };
 
