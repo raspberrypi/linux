@@ -384,6 +384,7 @@ u64 cpuidle_poll_time(struct cpuidle_driver *drv,
 			continue;
 
 		limit_ns = (u64)drv->states[i].target_residency * NSEC_PER_USEC;
+		break;
 	}
 
 	dev->poll_limit_ns = limit_ns;
