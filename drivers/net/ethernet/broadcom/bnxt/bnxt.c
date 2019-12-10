@@ -10563,6 +10563,12 @@ static int bnxt_fw_init_one(struct bnxt *bp)
 	rc = bnxt_approve_mac(bp, bp->dev->dev_addr, false);
 	if (rc)
 		return rc;
+
+	/* In case fw capabilities have changed, destroy the unneeded
+	 * reporters and create newly capable ones.
+	 */
+	bnxt_dl_fw_reporters_destroy(bp, false);
+	bnxt_dl_fw_reporters_create(bp);
 	bnxt_fw_init_one_p3(bp);
 	return 0;
 }
@@ -11339,6 +11345,7 @@ static void bnxt_remove_one(struct pci_dev *pdev)
 
 	if (BNXT_PF(bp)) {
 		bnxt_sriov_disable(bp);
+		bnxt_dl_fw_reporters_destroy(bp, true);
 		bnxt_dl_unregister(bp);
 	}
 
@@ -11837,8 +11844,10 @@ static int bnxt_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (rc)
 		goto init_err_cleanup_tc;
 
-	if (BNXT_PF(bp))
+	if (BNXT_PF(bp)) {
 		bnxt_dl_register(bp);
+		bnxt_dl_fw_reporters_create(bp);
+	}
 
 	netdev_info(dev, "%s found at mem %lx, node addr %pM\n",
 		    board_info[ent->driver_data].name,
