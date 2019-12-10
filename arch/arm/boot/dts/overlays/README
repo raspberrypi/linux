@@ -441,6 +441,29 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 better voice quality. (default Off)
 
 
+Name:   anyspi
+Info:   Universal device tree overlay for SPI devices
+
+        Just specify the SPI address and device name ("compatible" property).
+        This overlay lacks any device-specific parameter support!
+
+        For devices on spi1 or spi2, the interfaces should be enabled
+        with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
+
+        Examples:
+        1. SPI NOR flash on spi0.1, maximum SPI clock frequency 45MHz:
+            dtoverlay=anyspi:spi0-1,dev="jedec,spi-nor",speed=45000000
+        2. MCP3204 ADC on spi1.2, maximum SPI clock frequency 500kHz:
+            dtoverlay=anyspi:spi1-2,dev="microchip,mcp3204"
+Load:   dtoverlay=anyspi,<param>=<val>
+Params: spi<n>-<m>              Configure device at spi<n>, cs<m>
+                                (boolean, required)
+        dev                     Set device name to search compatible module
+                                (string, required)
+        speed                   Set SPI clock frequency in Hz
+                                (integer, optional, default 500000)
+
+
 Name:   apds9960
 Info:   Configures the AVAGO APDS9960 digital proximity, ambient light, RGB and
         gesture sensor
