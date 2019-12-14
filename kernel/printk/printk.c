@@ -1164,7 +1164,7 @@ void __init setup_log_buf(int early)
 {
 	unsigned long flags;
 	char *new_log_buf;
-	int free;
+	unsigned int free;
 
 	if (log_buf != __log_buf)
 		return;
@@ -2005,8 +2005,9 @@ asmlinkage int vprintk_emit(int facility, int level,
 			    const char *fmt, va_list args)
 {
 	int printed_len;
-	bool in_sched = false;
+	bool in_sched = false, pending_output;
 	unsigned long flags;
+	u64 curr_log_seq;
 
 	/*
 	 * Fall back to early_printk if a debugging subsystem has
@@ -2025,11 +2026,13 @@ asmlinkage int vprintk_emit(int facility, int level,
 
 	/* This stops the holder of console_sem just where we want him */
 	logbuf_lock_irqsave(flags);
+	curr_log_seq = log_next_seq;
 	printed_len = vprintk_store(facility, level, dict, dictlen, fmt, args);
+	pending_output = (curr_log_seq != log_next_seq);
 	logbuf_unlock_irqrestore(flags);
 
 	/* If called from the scheduler, we can not call up(). */
-	if (!in_sched) {
+	if (!in_sched && pending_output) {
 		int may_trylock = 1;
 
 #ifdef CONFIG_PREEMPT_RT_FULL
@@ -2056,7 +2059,8 @@ asmlinkage int vprintk_emit(int facility, int level,
 		migrate_enable();
 	}
 
-	wake_up_klogd();
+	if (pending_output)
+		wake_up_klogd();
 	return printed_len;
 }
 EXPORT_SYMBOL(vprintk_emit);
