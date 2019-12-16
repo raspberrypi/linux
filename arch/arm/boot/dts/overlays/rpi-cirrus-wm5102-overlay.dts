@@ -104,7 +104,7 @@
 				SPKVDDR-supply = <&vdd_5v0_reg>;
 				DCVDD-supply = <&arizona_ldo1>;
 
-				wlf,reset = <&gpio 17 GPIO_ACTIVE_HIGH>;
+				reset-gpios = <&gpio 17 GPIO_ACTIVE_HIGH>;
 				wlf,ldoena = <&gpio 22 GPIO_ACTIVE_HIGH>;
 				wlf,gpio-defaults = <
 					ARIZONA_GP_DEFAULT
