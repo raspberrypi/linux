@@ -4511,6 +4511,7 @@ static inline void finalise_ac(gfp_t gfp_mask, struct alloc_context *ac)
 					ac->high_zoneidx, ac->nodemask);
 }
 
+void buddy_statistic_entry(unsigned long return_addr, unsigned int order);
 /*
  * This is the 'heart' of the zoned buddy allocator.
  */
@@ -4569,6 +4570,7 @@ out:
 		page = NULL;
 	}
 
+	buddy_statistic_entry((unsigned long)__builtin_return_address(0), order);
 	trace_mm_page_alloc(page, order, alloc_mask, ac.migratetype);
 
 	return page;

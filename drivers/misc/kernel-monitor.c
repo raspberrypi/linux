@@ -22,6 +22,17 @@
 static unsigned long timer_interval_ns = 100000;
 static struct hrtimer hr_timer;
 static unsigned int timer_count = 0;
+static int sw = 0;
+
+void buddy_statistic_entry(unsigned long return_addr, unsigned int order)
+{
+	if (sw) {
+		pr_info("lr=0x%x order=%d\n", return_addr, order);
+	}
+}
+EXPORT_SYMBOL(buddy_statistic_entry);
+
+//void buddy_monitor_init()
 
 enum hrtimer_restart hrtimer_test_entry(struct hrtimer *my_timer)
 {
@@ -48,7 +59,7 @@ static void my_hrtimer_init(void)
     ktime = ktime_set(0, timer_interval_ns);
     hrtimer_init(&hr_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
     hr_timer.function = hrtimer_test_entry;
-    hrtimer_start(&hr_timer, ms_to_ktime(10), HRTIMER_MODE_REL);
+    //hrtimer_start(&hr_timer, ms_to_ktime(10), HRTIMER_MODE_REL);
 }
 
 static ssize_t debug_status_store(struct device *dev, struct device_attribute *attr,
@@ -81,6 +92,7 @@ static ssize_t debug_status_store(struct device *dev, struct device_attribute *a
 static ssize_t debug_status_show(struct device *dev, struct device_attribute *attr,
 			      char *buf)
 {
+	sw = !sw;
 	return sprintf(buf, "test");
 }
 
