@@ -1078,6 +1078,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         pcf8523                 Select the PCF8523 device
 
+        pcf85363                Select the PCF85363 device
+
         pcf8563                 Select the PCF8563 device
 
         rv3028                  Select the Micro Crystal RV3028 device
