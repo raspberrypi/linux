@@ -188,6 +188,21 @@
 		};
 	};
 
+	fragment@12 {
+		target = <&i2c_arm>;
+	       __dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			pcf85363@51 {
+				compatible = "nxp,pcf85363";
+				reg = <0x51>;
+				status = "okay";
+			};
+		};
+	};
+
 	__overrides__ {
 		abx80x = <0>,"+0";
 		ds1307 = <0>,"+1";
@@ -201,6 +216,7 @@
 		m41t62 = <0>,"+9";
 		rv3028 = <0>,"+10";
 		pcf2129 = <0>,"+11";
+		pcf85363 = <0>,"+12";
 
 		addr = <&abx80x>, "reg:0",
 		       <&ds1307>, "reg:0",
