@@ -33,7 +33,7 @@
 
 			power-domains = <&pm BCM2835_POWER_DOMAIN_GRAFX_V3D>;
 			resets = <&pm BCM2835_RESET_V3D>;
-			clocks = <&clocks BCM2835_CLOCK_V3D>;
+			clocks = <&firmware_clocks 5>;
 			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
