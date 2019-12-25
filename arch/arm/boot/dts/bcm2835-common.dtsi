@@ -5,6 +5,8 @@
  */
 
 / {
+	interrupt-parent = <&intc>;
+
 	soc {
 		intc: interrupt-controller@7e00b200 {
 			compatible = "brcm,bcm2835-armctrl-ic";
