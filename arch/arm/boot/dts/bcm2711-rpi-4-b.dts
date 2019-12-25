@@ -134,6 +134,20 @@
 	vqmmc-supply = <&sd_io_1v8_reg>;
 };
 
+&genet {
+	phy-handle = <&phy1>;
+	phy-mode = "rgmii-rxid";
+	status = "okay";
+};
+
+&genet_mdio {
+	phy1: ethernet-phy@1 {
+		/* No PHY interrupt */
+		reg = <0x1>;
+		led-modes = <0x00 0x08>; /* link/activity link */
+	};
+};
+
 &leds {
 	act_led: act {
 		label = "led0";
