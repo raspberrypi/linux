@@ -11,6 +11,9 @@
  * crtc, HDMI encoder).
  */
 
+#include <linux/bitfield.h>
+#include <linux/bitops.h>
+
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc.h>
@@ -148,6 +151,72 @@ vc4_ctm_commit(struct vc4_dev *vc4, struct drm_atomic_state *state)
 		  VC4_SET_FIELD(ctm_state->fifo, SCALER_OLEDOFFS_DISPFIFO));
 }
 
+static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
+				     struct drm_atomic_state *state)
+{
+	struct drm_crtc_state *crtc_state;
+	struct drm_crtc *crtc;
+	unsigned char dsp2_mux = 0;
+	unsigned char dsp3_mux = 3;
+	unsigned char dsp4_mux = 3;
+	unsigned char dsp5_mux = 3;
+	unsigned int i;
+	u32 reg;
+
+	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
+		struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
+		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+
+		if (!crtc_state->active)
+			continue;
+
+		switch (vc4_crtc->data->hvs_output) {
+		case 2:
+			dsp2_mux = (vc4_state->assigned_channel == 2) ? 1 : 0;
+			break;
+
+		case 3:
+			dsp3_mux = vc4_state->assigned_channel;
+			break;
+
+		case 4:
+			dsp4_mux = vc4_state->assigned_channel;
+			break;
+
+		case 5:
+			dsp5_mux = vc4_state->assigned_channel;
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	reg = HVS_READ(SCALER_DISPECTRL);
+	if (FIELD_GET(SCALER_DISPECTRL_DSP2_MUX_MASK, reg) != dsp2_mux)
+		HVS_WRITE(SCALER_DISPECTRL,
+			  (reg & ~SCALER_DISPECTRL_DSP2_MUX_MASK) |
+			  VC4_SET_FIELD(dsp2_mux, SCALER_DISPECTRL_DSP2_MUX));
+
+	reg = HVS_READ(SCALER_DISPCTRL);
+	if (FIELD_GET(SCALER_DISPCTRL_DSP3_MUX_MASK, reg) != dsp3_mux)
+		HVS_WRITE(SCALER_DISPCTRL,
+			  (reg & ~SCALER_DISPCTRL_DSP3_MUX_MASK) |
+			  VC4_SET_FIELD(dsp3_mux, SCALER_DISPCTRL_DSP3_MUX));
+
+	reg = HVS_READ(SCALER_DISPEOLN);
+	if (FIELD_GET(SCALER_DISPEOLN_DSP4_MUX_MASK, reg) != dsp4_mux)
+		HVS_WRITE(SCALER_DISPEOLN,
+			  (reg & ~SCALER_DISPEOLN_DSP4_MUX_MASK) |
+			  VC4_SET_FIELD(dsp4_mux, SCALER_DISPEOLN_DSP4_MUX));
+
+	reg = HVS_READ(SCALER_DISPDITHER);
+	if (FIELD_GET(SCALER_DISPDITHER_DSP5_MUX_MASK, reg) != dsp5_mux)
+		HVS_WRITE(SCALER_DISPDITHER,
+			  (reg & ~SCALER_DISPDITHER_DSP5_MUX_MASK) |
+			  VC4_SET_FIELD(dsp5_mux, SCALER_DISPDITHER_DSP5_MUX));
+}
+
 static void
 vc4_atomic_complete_commit(struct drm_atomic_state *state)
 {
@@ -157,11 +226,15 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 	int i;
 
 	for (i = 0; vc4->hvs && i < dev->mode_config.num_crtc; i++) {
-		if (!state->crtcs[i].ptr || !state->crtcs[i].commit)
+		struct __drm_crtcs_state *_state = &state->crtcs[i];
+		struct vc4_crtc_state *vc4_crtc_state;
+
+		if (!_state->ptr || !_state->commit)
 			continue;
 
-		vc4_crtc = to_vc4_crtc(state->crtcs[i].ptr);
-		vc4_hvs_mask_underrun(dev, vc4_crtc->channel);
+		vc4_crtc = to_vc4_crtc(_state->ptr);
+		vc4_crtc_state = to_vc4_crtc_state(_state->state);
+		vc4_hvs_mask_underrun(dev, vc4_crtc_state->assigned_channel);
 	}
 
 	drm_atomic_helper_wait_for_fences(dev, state, false);
@@ -170,8 +243,10 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 
 	drm_atomic_helper_commit_modeset_disables(dev, state);
 
-	if (!vc4->firmware_kms)
+	if (!vc4->firmware_kms) {
 		vc4_ctm_commit(vc4, state);
+		vc4_hvs_pv_muxing_commit(vc4, state);
+	}
 
 	drm_atomic_helper_commit_planes(dev, state, 0);
 
@@ -380,8 +455,11 @@ vc4_ctm_atomic_check(struct drm_device *dev, struct drm_atomic_state *state)
 
 		/* CTM is being enabled or the matrix changed. */
 		if (new_crtc_state->ctm) {
+			struct vc4_crtc_state *vc4_crtc_state =
+				to_vc4_crtc_state(new_crtc_state);
+
 			/* fifo is 1-based since 0 disables CTM. */
-			int fifo = to_vc4_crtc(crtc)->channel + 1;
+			int fifo = vc4_crtc_state->assigned_channel + 1;
 
 			/* Check userland isn't trying to turn on CTM for more
 			 * than one CRTC at a time.
@@ -494,10 +572,66 @@ static const struct drm_private_state_funcs vc4_load_tracker_state_funcs = {
 	.atomic_destroy_state = vc4_load_tracker_destroy_state,
 };
 
+#define NUM_OUTPUTS  6
+#define NUM_CHANNELS 3
+
 static int
 vc4_atomic_check(struct drm_device *dev, struct drm_atomic_state *state)
 {
-	int ret;
+	unsigned long unassigned_channels = GENMASK(NUM_CHANNELS - 1, 0);
+	struct drm_crtc_state *crtc_state;
+	struct drm_crtc *crtc;
+	int i, ret;
+
+	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
+		struct vc4_crtc_state *vc4_crtc_state =
+			to_vc4_crtc_state(crtc_state);
+		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+		bool is_assigned = false;
+		unsigned int channel;
+
+		if (!crtc_state->active)
+			continue;
+
+		/*
+		 * The problem we have to solve here is that we have
+		 * up to 7 encoders, connected to up to 6 CRTCs.
+		 *
+		 * Those CRTCs, depending on the instance, can be
+		 * routed to 1, 2 or 3 HVS FIFOs, and we need to set
+		 * the change the muxing between FIFOs and outputs in
+		 * the HVS accordingly.
+		 *
+		 * It would be pretty hard to come up with an
+		 * algorithm that would generically solve
+		 * this. However, the current routing trees we support
+		 * allow us to simplify a bit the problem.
+		 *
+		 * Indeed, with the current supported layouts, if we
+		 * try to assign in the ascending crtc index order the
+		 * FIFOs, we can't fall into the situation where an
+		 * earlier CRTC that had multiple routes is assigned
+		 * one that was the only option for a later CRTC.
+		 *
+		 * If the layout changes and doesn't give us that in
+		 * the future, we will need to have something smarter,
+		 * but it works so far.
+		 */
+		for_each_set_bit(channel, &unassigned_channels,
+				 sizeof(unassigned_channels)) {
+
+			if (!(BIT(channel) & vc4_crtc->data->hvs_available_channels))
+				continue;
+
+			vc4_crtc_state->assigned_channel = channel;
+			unassigned_channels &= ~BIT(channel);
+			is_assigned = true;
+			break;
+		}
+
+		if (!is_assigned)
+			return -EINVAL;
+	}
 
 	ret = vc4_ctm_atomic_check(dev, state);
 	if (ret < 0)
