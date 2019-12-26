@@ -260,7 +260,7 @@ static inline struct vc4_crtc *to_vc4_crtc(struct drm_crtc *crtc)
 	return container_of(crtc, struct vc4_crtc, base);
 }
 
-struct vc4_crtc_state {
+struct fkms_crtc_state {
 	struct drm_crtc_state base;
 
 	struct {
@@ -271,10 +271,10 @@ struct vc4_crtc_state {
 	} margins;
 };
 
-static inline struct vc4_crtc_state *
-to_vc4_crtc_state(struct drm_crtc_state *crtc_state)
+static inline struct fkms_crtc_state *
+to_fkms_crtc_state(struct drm_crtc_state *crtc_state)
 {
-	return (struct vc4_crtc_state *)crtc_state;
+	return (struct fkms_crtc_state *)crtc_state;
 }
 
 struct vc4_fkms_encoder {
@@ -410,7 +410,7 @@ static void vc4_fkms_crtc_get_margins(struct drm_crtc_state *state,
 				      unsigned int *left, unsigned int *right,
 				      unsigned int *top, unsigned int *bottom)
 {
-	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(state);
+	struct fkms_crtc_state *vc4_state = to_fkms_crtc_state(state);
 	struct drm_connector_state *conn_state;
 	struct drm_connector *conn;
 	int i;
@@ -423,7 +423,7 @@ static void vc4_fkms_crtc_get_margins(struct drm_crtc_state *state,
 	/* We have to interate over all new connector states because
 	 * vc4_fkms_crtc_get_margins() might be called before
 	 * vc4_fkms_crtc_atomic_check() which means margins info in
-	 * vc4_crtc_state might be outdated.
+	 * fkms_crtc_state might be outdated.
 	 */
 	for_each_new_connector_in_state(state->state, conn, conn_state, i) {
 		if (conn_state->crtc != state->crtc)
@@ -1068,7 +1068,7 @@ vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 				 struct drm_crtc_state *state)
 {
-	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(state);
+	struct fkms_crtc_state *vc4_state = to_fkms_crtc_state(state);
 	struct drm_connector *conn;
 	struct drm_connector_state *conn_state;
 	int i;
@@ -1178,13 +1178,13 @@ static int vc4_page_flip(struct drm_crtc *crtc,
 static struct drm_crtc_state *
 vc4_crtc_duplicate_state(struct drm_crtc *crtc)
 {
-	struct vc4_crtc_state *vc4_state, *old_vc4_state;
+	struct fkms_crtc_state *vc4_state, *old_vc4_state;
 
 	vc4_state = kzalloc(sizeof(*vc4_state), GFP_KERNEL);
 	if (!vc4_state)
 		return NULL;
 
-	old_vc4_state = to_vc4_crtc_state(crtc->state);
+	old_vc4_state = to_fkms_crtc_state(crtc->state);
 	vc4_state->margins = old_vc4_state->margins;
 
 	__drm_atomic_helper_crtc_duplicate_state(crtc, &vc4_state->base);
