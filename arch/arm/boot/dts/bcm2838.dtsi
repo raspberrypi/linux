@@ -682,7 +682,7 @@
 };
 
 &rng {
-	compatible = "brcm,bcm2838-rng200";
+	compatible = "brcm,bcm2711-rng200", "brcm,bcm2838-rng200";
 };
 
 &sdhost {
