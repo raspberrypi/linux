@@ -188,14 +188,6 @@
 			status = "disabled";
 		};
 
-		pixelvalve@7e206000 {
-			interrupts = <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>;
-		};
-
-		pixelvalve@7e207000 {
-			interrupts = <GIC_SPI 110 IRQ_TYPE_LEVEL_HIGH>;
-		};
-
 		pwm1: pwm@7e20c800 {
 			compatible = "brcm,bcm2835-pwm";
 			reg = <0x7e20c800 0x28>;
@@ -216,10 +208,6 @@
 
 		hvs@7e400000 {
 			interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>;
-		};
-
-		pixelvalve@7e807000 {
-			interrupts = <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>;
 		};
 	};
 
