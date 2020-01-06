@@ -1128,8 +1128,7 @@ static int rcar_pcie_probe(struct platform_device *pdev)
 	pcie->dev = dev;
 	platform_set_drvdata(pdev, pcie);
 
-	err = pci_parse_request_of_pci_ranges(dev, &pcie->resources,
-					      &bridge->dma_ranges, NULL);
+	err = pci_parse_request_of_pci_ranges(dev, &pcie->resources, NULL);
 	if (err)
 		goto err_free_bridge;
 
