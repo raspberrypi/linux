@@ -76,7 +76,6 @@ struct vc4_dev {
 	bool firmware_kms;
 	struct rpi_firmware *firmware;
 
-	struct vc4_hdmi *hdmi;
 	struct vc4_hvs *hvs;
 	struct vc4_v3d *v3d;
 	struct vc4_dpi *dpi;
