@@ -1813,7 +1813,7 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	st->nr_errors = 0;
 
 	st->hcchar_copy.d32 = 0;
-	st->hcchar_copy.b.mps = hc->max_packet;
+	st->hcchar_copy.b.mps = min_t(uint32_t, hc->xfer_len, hc->max_packet);
 	st->hcchar_copy.b.epdir = hc->ep_is_in;
 	st->hcchar_copy.b.devaddr = hc->dev_addr;
 	st->hcchar_copy.b.epnum = hc->ep_num;
@@ -1858,7 +1858,7 @@ int fiq_fsm_queue_split_transaction(dwc_otg_hcd_t *hcd, dwc_otg_qh_t *qh)
 	st->hctsiz_copy.b.pid = hc->data_pid_start;
 
 	if (hc->ep_is_in || (hc->xfer_len > hc->max_packet)) {
-		hc->xfer_len = hc->max_packet;
+		hc->xfer_len = min_t(uint32_t, hc->xfer_len, hc->max_packet);
 	} else if (!hc->ep_is_in && (hc->xfer_len > 188)) {
 		hc->xfer_len = 188;
 	}
