@@ -27,6 +27,11 @@ struct vc4_hdmi;
 struct vc4_hdmi_register;
 
 struct vc4_hdmi_variant {
+	/* On devices that have multiple, different instances (like
+	 * the BCM2711), which instance is that variant useful for.
+	 */
+	unsigned int id;
+
 	/* List of the registers available on that variant */
 	const struct vc4_hdmi_register *registers;
 
