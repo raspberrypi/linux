@@ -175,6 +175,7 @@ static void kill_urbs_in_qh_list(dwc_otg_hcd_t * hcd, dwc_list_link_t * qh_list)
 	dwc_list_link_t *qh_item, *qh_tmp;
 	dwc_otg_qh_t *qh;
 	dwc_otg_qtd_t *qtd, *qtd_tmp;
+	int quiesced = 0;
 
 	DWC_LIST_FOREACH_SAFE(qh_item, qh_tmp, qh_list) {
 		qh = DWC_LIST_ENTRY(qh_item, dwc_otg_qh_t, qh_list_entry);
@@ -198,8 +199,17 @@ static void kill_urbs_in_qh_list(dwc_otg_hcd_t * hcd, dwc_list_link_t * qh_list)
 				qh->channel->halt_status = DWC_OTG_HC_XFER_URB_DEQUEUE;
 				qh->channel->halt_pending = 1;
 				if (hcd->fiq_state->channel[n].fsm == FIQ_HS_ISOC_TURBO ||
-					hcd->fiq_state->channel[n].fsm == FIQ_HS_ISOC_SLEEPING)
+				    hcd->fiq_state->channel[n].fsm == FIQ_HS_ISOC_SLEEPING)
 					hcd->fiq_state->channel[n].fsm = FIQ_HS_ISOC_ABORTED;
+				/* We're called from disconnect callback or in the middle of freeing the HCD here,
+				 * so FIQ is disabled, top-level interrupts masked and we're holding the spinlock.
+				 * No further URBs will be submitted, but wait 1 microframe for any previously
+				 * submitted periodic DMA to finish.
+				 */
+				if (!quiesced) {
+					udelay(125);
+					quiesced = 1;
+				}
 			} else {
 				dwc_otg_hc_halt(hcd->core_if, qh->channel,
 						DWC_OTG_HC_XFER_URB_DEQUEUE);
@@ -600,15 +610,34 @@ int dwc_otg_hcd_urb_dequeue(dwc_otg_hcd_t * hcd,
 			/* In FIQ FSM mode, we need to shut down carefully.
 			 * The FIQ may attempt to restart a disabled channel */
 			if (fiq_fsm_enable && (hcd->fiq_state->channel[n].fsm != FIQ_PASSTHROUGH)) {
+				int retries = 3;
+				int running = 0;
+				enum fiq_fsm_state state;
+
 				local_fiq_disable();
 				fiq_fsm_spin_lock(&hcd->fiq_state->lock);
 				qh->channel->halt_status = DWC_OTG_HC_XFER_URB_DEQUEUE;
 				qh->channel->halt_pending = 1;
 				if (hcd->fiq_state->channel[n].fsm == FIQ_HS_ISOC_TURBO ||
-					hcd->fiq_state->channel[n].fsm == FIQ_HS_ISOC_SLEEPING)
+				    hcd->fiq_state->channel[n].fsm == FIQ_HS_ISOC_SLEEPING)
 					hcd->fiq_state->channel[n].fsm = FIQ_HS_ISOC_ABORTED;
 				fiq_fsm_spin_unlock(&hcd->fiq_state->lock);
 				local_fiq_enable();
+
+				if (dwc_qh_is_non_per(qh)) {
+					do {
+						state = READ_ONCE(hcd->fiq_state->channel[n].fsm);
+						running = (state != FIQ_NP_SPLIT_DONE) &&
+							  (state != FIQ_NP_SPLIT_LS_ABORTED) &&
+							  (state != FIQ_NP_SPLIT_HS_ABORTED);
+						if (!running)
+							break;
+						udelay(125);
+					} while(--retries);
+					if (!retries)
+						DWC_WARN("Timed out waiting for FSM NP transfer to complete on %d",
+							 qh->channel->hc_num);
+				}
 			} else {
 				dwc_otg_hc_halt(hcd->core_if, qh->channel,
 						DWC_OTG_HC_XFER_URB_DEQUEUE);
