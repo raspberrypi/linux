@@ -592,15 +592,15 @@ static int brcmstb_platform_notifier(struct notifier_block *nb,
 
 	switch (event) {
 	case BUS_NOTIFY_ADD_DEVICE:
-		if (max_pfn > (bounce_threshold/PAGE_SIZE) &&
-		    strcmp(dev->kobj.name, rc_name)) {
-
-			ret = brcm_pcie_bounce_register_dev(dev);
-			if (ret) {
-				dev_err(dev,
-					"brcm_pcie_bounce_register_dev() failed: %d\n",
-					ret);
-				return ret;
+		if (strcmp(dev->kobj.name, rc_name)) {
+			if (max_pfn > (bounce_threshold/PAGE_SIZE)) {
+				ret = brcm_pcie_bounce_register_dev(dev);
+				if (ret) {
+					dev_err(dev,
+						"brcm_pcie_bounce_register_dev() failed: %d\n",
+						ret);
+					return ret;
+				}
 			}
 			brcm_set_dma_ops(dev);
 		} else if (IS_ENABLED(CONFIG_ARM64)) {
