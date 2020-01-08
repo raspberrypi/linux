@@ -27,6 +27,7 @@
 #include <linux/workqueue.h>
 #include <linux/stat.h>
 #include <linux/pci.h>
+#include <linux/compiler.h>
 
 #include <linux/version.h>
 
