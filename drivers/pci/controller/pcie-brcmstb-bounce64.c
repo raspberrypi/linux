@@ -77,6 +77,7 @@ struct dmabounce_pool {
 
 struct dmabounce_device_info {
 	struct device *dev;
+	dma_addr_t phys_offset;
 	dma_addr_t threshold;
 	struct list_head safe_buffers;
 	struct dmabounce_pool pool;
@@ -92,6 +93,11 @@ struct dmabounce_device_info {
 };
 
 static struct dmabounce_device_info *g_dmabounce_device_info;
+
+dma_addr_t pcie_to_dma40(dma_addr_t addr)
+{
+	return addr - g_dmabounce_device_info->phys_offset;
+}
 
 extern int bcm2838_dma40_memcpy_init(void);
 extern void bcm2838_dma40_memcpy(dma_addr_t dst, dma_addr_t src, size_t size);
@@ -322,7 +328,8 @@ map_single(struct device *dev, struct safe_buffer *buf, size_t size,
 
 	if ((dir == DMA_TO_DEVICE || dir == DMA_BIDIRECTIONAL) &&
 	    !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
-		bcm2838_dma40_memcpy(buf->safe_dma_addr, buf->unsafe_dma_addr,
+		bcm2838_dma40_memcpy(pcie_to_dma40(buf->safe_dma_addr),
+				     pcie_to_dma40(buf->unsafe_dma_addr),
 				     size);
 
 	return buf->safe_dma_addr;
@@ -340,7 +347,8 @@ unmap_single(struct device *dev, struct safe_buffer *buf, size_t size,
 		dev_dbg(dev, "unmap: %llx->%llx\n", (u64)buf->safe_dma_addr,
 			(u64)buf->unsafe_dma_addr);
 
-		bcm2838_dma40_memcpy(buf->unsafe_dma_addr, buf->safe_dma_addr,
+		bcm2838_dma40_memcpy(pcie_to_dma40(buf->unsafe_dma_addr),
+				     pcie_to_dma40(buf->safe_dma_addr),
 				     size);
 	}
 	return buf->unsafe_dma_addr;
@@ -474,7 +482,7 @@ static const struct dma_map_ops dmabounce_ops = {
 
 int brcm_pcie_bounce_init(struct device *dev,
 			  unsigned long buffer_size,
-			  dma_addr_t threshold)
+			  phys_addr_t phys_threshold)
 {
 	struct dmabounce_device_info *device_info;
 	int ret;
@@ -503,7 +511,8 @@ int brcm_pcie_bounce_init(struct device *dev,
 	}
 
 	device_info->dev = dev;
-	device_info->threshold = threshold;
+	device_info->phys_offset = __phys_to_dma(dev, 0);
+	device_info->threshold = phys_threshold + device_info->phys_offset;
 	INIT_LIST_HEAD(&device_info->safe_buffers);
 	rwlock_init(&device_info->lock);
 
@@ -517,8 +526,8 @@ int brcm_pcie_bounce_init(struct device *dev,
 
 	g_dmabounce_device_info = device_info;
 
-	dev_info(dev, "dmabounce: initialised - %ld kB, threshold %pad\n",
-		 buffer_size / 1024, &threshold);
+	dev_info(dev, "dmabounce: initialised - %ld kB, threshold %padx (%padx)\n",
+		 buffer_size / 1024, &phys_threshold, &device_info->threshold);
 
 	return 0;
 
