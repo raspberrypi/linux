@@ -1159,10 +1159,13 @@ Name:   i2c-sensor
 Info:   Adds support for a number of I2C barometric pressure and temperature
         sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
-Params: addr                    Set the address for the BME280, BMP280, DS1621,
-                                HDC100X, LM75, SHT3x or TMP102
+Params: addr                    Set the address for the BME280, BME680, BMP280,
+                                DS1621, HDC100X, LM75, SHT3x or TMP102
 
         bme280                  Select the Bosch Sensortronic BME280
+                                Valid addresses 0x76-0x77, default 0x76
+
+        bme680                  Select the Bosch Sensortronic BME680
                                 Valid addresses 0x76-0x77, default 0x76
 
         bmp085                  Select the Bosch Sensortronic BMP085
