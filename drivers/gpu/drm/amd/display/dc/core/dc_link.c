@@ -809,8 +809,8 @@ bool dc_link_detect(struct dc_link *link, enum dc_detect_reason reason)
 		}
 
 		case SIGNAL_TYPE_EDP: {
-			read_edp_current_link_settings_on_detect(link);
 			detect_edp_sink_caps(link);
+			read_edp_current_link_settings_on_detect(link);
 			sink_caps.transaction_type =
 				DDC_TRANSACTION_TYPE_I2C_OVER_AUX;
 			sink_caps.signal = SIGNAL_TYPE_EDP;
