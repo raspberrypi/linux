@@ -1259,6 +1259,9 @@ void notrace dwc_otg_fiq_fsm(struct fiq_state *state, int num_channels)
 	haintmsk_data_t haintmsk;
 	int kick_irq = 0;
 
+	/* Ensure peripheral reads issued prior to FIQ entry are complete */
+	dsb(sy);
+
 	gintsts_handled.d32 = 0;
 	haint_handled.d32 = 0;
 
@@ -1378,6 +1381,9 @@ void notrace dwc_otg_fiq_nop(struct fiq_state *state)
 	gintsts_data_t gintsts, gintsts_handled;
 	gintmsk_data_t gintmsk;
 	hfnum_data_t hfnum;
+
+	/* Ensure peripheral reads issued prior to FIQ entry are complete */
+	dsb(sy);
 
 	fiq_fsm_spin_lock(&state->lock);
 	hfnum.d32 = FIQ_READ(state->dwc_regs_base + HFNUM);
