@@ -816,7 +816,7 @@ static void vc4_crtc_handle_page_flip(struct vc4_crtc *vc4_crtc)
 		 * underruns. This can be seen when reconfiguring the CRTC.
 		 */
 		if (vc4->hvs)
-			vc4_hvs_unmask_underrun(dev, vc4_crtc->channel);
+			vc4_hvs_unmask_underrun(dev, chan);
 	}
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 }
