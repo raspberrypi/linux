@@ -587,7 +587,13 @@ static int ov5647_write16(struct v4l2_subdev *sd, u16 reg, u16 val)
 	int ret;
 
 	ret = i2c_master_send(client, data, 4);
-	if (ret < 0) {
+	/*
+	 * Writing the wrong number of bytes also needs to be flagged as an
+	 * error. Success needs to produce a 0 return code.
+	 */
+	if (ret == 4) {
+		ret = 0;
+	} else {
 		dev_dbg(&client->dev, "%s: i2c write error, reg: %x\n",
 			__func__, reg);
 		return ret;
@@ -603,10 +609,17 @@ static int ov5647_write(struct v4l2_subdev *sd, u16 reg, u8 val)
 	int ret;
 
 	ret = i2c_master_send(client, data, 3);
-	if (ret < 0) {
+	/*
+	 * Writing the wrong number of bytes also needs to be flagged as an
+	 * error. Success needs to produce a 0 return code.
+	 */
+	if (ret == 3) {
+		ret = 0;
+	} else {
 		dev_dbg(&client->dev, "%s: i2c write error, reg: %x\n",
 				__func__, reg);
-		return ret;
+		if (ret >= 0)
+			ret = -EINVAL;
 	}
 
 	return 0;
@@ -619,17 +632,30 @@ static int ov5647_read(struct v4l2_subdev *sd, u16 reg, u8 *val)
 	int ret;
 
 	ret = i2c_master_send(client, data_w, 2);
-	if (ret < 0) {
+	/*
+	 * A negative return code, or sending the wrong number of bytes, both
+	 * count as an error.
+	 */
+	if (ret != 2) {
 		dev_dbg(&client->dev, "%s: i2c write error, reg: %x\n",
 			__func__, reg);
+		if (ret >= 0)
+			ret = -EINVAL;
 		return ret;
 	}
 
 	ret = i2c_master_recv(client, val, 1);
-	if (ret < 0) {
+	/*
+	 * The only return value indicating success is 1. Anything else, even
+	 * a non-negative value, indicates something went wrong.
+	 */
+	if (ret == 1) {
+		ret = 0;
+	} else {
 		dev_dbg(&client->dev, "%s: i2c read error, reg: %x\n",
 				__func__, reg);
-		return ret;
+		if (ret >= 0)
+			ret = -EINVAL;
 	}
 
 	return 0;
