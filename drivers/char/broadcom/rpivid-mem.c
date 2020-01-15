@@ -66,6 +66,7 @@ static int rpivid_mem_open(struct inode *inode, struct file *file)
 	int dev = iminor(inode);
 	int ret = 0;
 	struct rpivid_mem_priv *priv;
+
 	if (dev != DEVICE_MINOR && dev != DEVICE_MINOR + 1)
 		ret = -ENXIO;
 
@@ -134,7 +135,6 @@ static int rpivid_mem_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct resource *ioresource;
 	struct rpivid_mem_priv *priv;
-
 
 	/* Allocate buffers and instance data */
 
