@@ -602,7 +602,13 @@ static int ov5647_write16(struct v4l2_subdev *sd, u16 reg, u16 val)
 	int ret;
 
 	ret = i2c_master_send(client, data, 4);
-	if (ret < 0) {
+	/*
+	 * Writing the wrong number of bytes also needs to be flagged as an
+	 * error. Success needs to produce a 0 return code.
+	 */
+	if (ret == 4) {
+		ret = 0;
+	} else {
 		dev_dbg(&client->dev, "%s: i2c write error, reg: %x\n",
 			__func__, reg);
 		return ret;
@@ -618,10 +624,17 @@ static int ov5647_write(struct v4l2_subdev *sd, u16 reg, u8 val)
 	int ret;
 
 	ret = i2c_master_send(client, data, 3);
-	if (ret < 0) {
+	/*
+	 * Writing the wrong number of bytes also needs to be flagged as an
+	 * error. Success needs to produce a 0 return code.
+	 */
+	if (ret == 3) {
+		ret = 0;
+	} else {
 		dev_dbg(&client->dev, "%s: i2c write error, reg: %x\n",
 				__func__, reg);
-		return ret;
+		if (ret >= 0)
+			ret = -EINVAL;
 	}
 
 	return 0;
