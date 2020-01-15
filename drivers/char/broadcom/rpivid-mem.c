@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /**
  * rpivid-mem.c - character device access to the RPiVid decoder registers
  *
