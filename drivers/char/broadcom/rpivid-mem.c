@@ -233,6 +233,7 @@ static int rpivid_mem_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct rpivid_mem_priv *priv = platform_get_drvdata(pdev);
 
+	device_destroy(priv->class, priv->devid + 1);
 	device_destroy(priv->class, priv->devid);
 	class_destroy(priv->class);
 	cdev_del(&priv->rpivid_mem_cdev);
