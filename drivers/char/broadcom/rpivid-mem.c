@@ -201,9 +201,14 @@ static int rpivid_mem_probe(struct platform_device *pdev)
 		oldname[3] = 'g';
 		oldname[4] = 'o';
 		oldname[5] = 'n';
-		(void)device_create(priv->class, NULL, priv->devid + 1, NULL,
-				       oldname + 1);
+		dev = device_create(priv->class, NULL, priv->devid + 1, NULL,
+				    oldname + 1);
 		kfree(oldname);
+
+		if (IS_ERR(dev)) {
+			err = PTR_ERR(dev);
+			goto failed_legacy_device_create;
+		}
 	}
 
 	dev_info(priv->dev, "%s initialised: Registers at 0x%08lx length 0x%08lx",
@@ -211,6 +216,8 @@ static int rpivid_mem_probe(struct platform_device *pdev)
 
 	return 0;
 
+failed_legacy_device_create:
+	device_destroy(priv->class, priv->devid);
 failed_device_create:
 	class_destroy(priv->class);
 failed_class_create:
