@@ -18,7 +18,7 @@
 #include <linux/dmi.h>
 #include "pci-quirks.h"
 #include "xhci-ext-caps.h"
-
+#include <soc/bcm2835/raspberrypi-firmware.h>
 
 #define UHCI_USBLEGSUP		0xc0		/* legacy support */
 #define UHCI_USBCMD		0		/* command register */
@@ -628,6 +628,32 @@ bool usb_amd_pt_check_port(struct device *device, int port)
 }
 EXPORT_SYMBOL_GPL(usb_amd_pt_check_port);
 
+/* The VL805 firmware may either be loaded from an EEPROM or by the BIOS into
+ * memory. If run from memory it must be reloaded after a PCI fundmental reset.
+ * The Raspberry Pi firmware acts as the BIOS in this case.
+ */
+static void usb_vl805_init(struct pci_dev *pdev)
+{
+#if IS_ENABLED(CONFIG_RASPBERRYPI_FIRMWARE)
+	struct rpi_firmware *fw;
+	struct {
+		u32 dev_addr;
+	} packet;
+	int ret;
+
+	fw = rpi_firmware_get(NULL);
+	if (!fw)
+		return;
+
+	packet.dev_addr = (pdev->bus->number << 20) |
+		(PCI_SLOT(pdev->devfn) << 15) | (PCI_FUNC(pdev->devfn) << 12);
+
+	dev_dbg(&pdev->dev, "RPI_FIRMWARE_NOTIFY_XHCI_RESET %x", packet.dev_addr);
+	ret = rpi_firmware_property(fw, RPI_FIRMWARE_NOTIFY_XHCI_RESET,
+			&packet, sizeof(packet));
+#endif
+}
+
 /*
  * Make sure the controller is completely inactive, unable to
  * generate interrupts or do DMA.
@@ -1210,6 +1236,9 @@ static void quirk_usb_handoff_xhci(struct pci_dev *pdev)
 hc_init:
 	if (pdev->vendor == PCI_VENDOR_ID_INTEL)
 		usb_enable_intel_xhci_ports(pdev);
+
+	if (pdev->vendor == PCI_VENDOR_ID_VIA && pdev->device == 0x3483)
+		usb_vl805_init(pdev);
 
 	op_reg_base = base + XHCI_HC_LENGTH(readl(base));
 
