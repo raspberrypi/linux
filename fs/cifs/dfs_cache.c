@@ -1319,7 +1319,7 @@ static struct cifs_ses *find_root_ses(struct dfs_cache_vol_info *vi,
 	char *mdata = NULL, *devname = NULL;
 	struct TCP_Server_Info *server;
 	struct cifs_ses *ses;
-	struct smb_vol vol;
+	struct smb_vol vol = {NULL};
 
 	rpath = get_dfs_root(path);
 	if (IS_ERR(rpath))
