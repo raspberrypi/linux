@@ -3716,6 +3716,12 @@ SYSCALL_DEFINE6(io_uring_enter, unsigned int, fd, u32, to_submit,
 			wake_up(&ctx->sqo_wait);
 		submitted = to_submit;
 	} else if (to_submit) {
+		if (current->mm != ctx->sqo_mm ||
+		    current_cred() != ctx->creds) {
+			ret = -EPERM;
+			goto out;
+		}
+
 		to_submit = min(to_submit, ctx->sq_entries);
 
 		mutex_lock(&ctx->uring_lock);
