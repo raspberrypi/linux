@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * XArray implementation
- * Copyright (c) 2017 Microsoft Corporation
+ * Copyright (c) 2017-2018 Microsoft Corporation
+ * Copyright (c) 2018-2020 Oracle
  * Author: Matthew Wilcox <willy@infradead.org>
  */
 
@@ -1081,6 +1082,8 @@ void *xas_find(struct xa_state *xas, unsigned long max)
 
 	if (xas_error(xas))
 		return NULL;
+	if (xas->xa_index > max)
+		return set_bounds(xas);
 
 	if (!xas->xa_node) {
 		xas->xa_index = 1;
@@ -1150,6 +1153,8 @@ void *xas_find_marked(struct xa_state *xas, unsigned long max, xa_mark_t mark)
 
 	if (xas_error(xas))
 		return NULL;
+	if (xas->xa_index > max)
+		goto max;
 
 	if (!xas->xa_node) {
 		xas->xa_index = 1;
@@ -1867,7 +1872,8 @@ void *xa_find_after(struct xarray *xa, unsigned long *indexp,
 			entry = xas_find_marked(&xas, max, filter);
 		else
 			entry = xas_find(&xas, max);
-		if (xas.xa_node == XAS_BOUNDS)
+
+		if (xas_invalid(&xas))
 			break;
 		if (xas_sibling(&xas))
 			continue;
