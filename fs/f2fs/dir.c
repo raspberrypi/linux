@@ -785,6 +785,7 @@ int f2fs_fill_dentries(struct dir_context *ctx, struct f2fs_dentry_ptr *d,
 	struct f2fs_dir_entry *de = NULL;
 	struct fscrypt_str de_name = FSTR_INIT(NULL, 0);
 	struct f2fs_sb_info *sbi = F2FS_I_SB(d->inode);
+	int err = 0;
 
 	bit_pos = ((unsigned long)ctx->pos % d->max);
 
@@ -805,9 +806,20 @@ int f2fs_fill_dentries(struct dir_context *ctx, struct f2fs_dentry_ptr *d,
 		de_name.name = d->filename[bit_pos];
 		de_name.len = le16_to_cpu(de->name_len);
 
+		/* check memory boundary before moving forward */
+		bit_pos += GET_DENTRY_SLOTS(le16_to_cpu(de->name_len));
+		if (unlikely(bit_pos > d->max ||
+				le16_to_cpu(de->name_len) > F2FS_NAME_LEN)) {
+			f2fs_msg(sbi->sb, KERN_WARNING,
+				"%s: corrupted namelen=%d, run fsck to fix.",
+				__func__, le16_to_cpu(de->name_len));
+			set_sbi_flag(sbi, SBI_NEED_FSCK);
+			err = -EINVAL;
+			goto out;
+		}
+
 		if (f2fs_encrypted_inode(d->inode)) {
 			int save_len = fstr->len;
-			int err;
 
 			err = fscrypt_fname_disk_to_usr(d->inode,
 						(u32)de->hash_code, 0,
@@ -826,10 +838,10 @@ int f2fs_fill_dentries(struct dir_context *ctx, struct f2fs_dentry_ptr *d,
 		if (sbi->readdir_ra == 1)
 			f2fs_ra_node_page(sbi, le32_to_cpu(de->ino));
 
-		bit_pos += GET_DENTRY_SLOTS(le16_to_cpu(de->name_len));
 		ctx->pos = start_pos + bit_pos;
 	}
-	return 0;
+out:
+	return err;
 }
 
 static int f2fs_readdir(struct file *file, struct dir_context *ctx)
