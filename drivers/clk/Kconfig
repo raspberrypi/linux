@@ -70,6 +70,9 @@ config COMMON_CLK_HI655X
 	  multi-function device has one fixed-rate oscillator, clocked
 	  at 32KHz.
 
+config COMMON_CLK_HIFIBERRY_DACPLUSHD
+	tristate
+
 config COMMON_CLK_HIFIBERRY_DACPRO
 	tristate
 
