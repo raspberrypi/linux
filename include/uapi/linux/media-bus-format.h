@@ -165,4 +165,7 @@
  */
 #define MEDIA_BUS_FMT_METADATA_FIXED		0x7001
 
+/* Sensor ancillary metadata formats - next is 0x7002 */
+#define MEDIA_BUS_FMT_SENSOR_DATA		0x7002
+
 #endif /* __LINUX_MEDIA_BUS_FORMAT_H */
