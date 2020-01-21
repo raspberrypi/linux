@@ -956,6 +956,12 @@ Load:   dtoverlay=hifiberry-dacplusdsp
 Params: <None>
 
 
+Name:   hifiberry-dacplushd
+Info:   Configures the HifiBerry DAC+ HD audio card
+Load:   dtoverlay=hifiberry-dacplushd
+Params: <None>
+
+
 Name:   hifiberry-digi
 Info:   Configures the HifiBerry Digi and Digi+ audio card
 Load:   dtoverlay=hifiberry-digi
