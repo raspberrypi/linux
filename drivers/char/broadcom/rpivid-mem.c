@@ -130,10 +130,8 @@ static const struct of_device_id rpivid_mem_of_match[];
 static int rpivid_mem_probe(struct platform_device *pdev)
 {
 	int err;
-	void *ptr_err;
 	const struct of_device_id *id;
 	struct device *dev = &pdev->dev;
-	struct device *rpivid_mem_dev;
 	struct resource *ioresource;
 	struct rpivid_mem_priv *priv;
 
@@ -183,16 +181,16 @@ static int rpivid_mem_probe(struct platform_device *pdev)
 	/* Create sysfs entries */
 
 	priv->class = class_create(THIS_MODULE, priv->name);
-	ptr_err = priv->class;
-	if (IS_ERR(ptr_err))
+	if (IS_ERR(priv->class)) {
+		err = PTR_ERR(priv->class);
 		goto failed_class_create;
+	}
 
-	rpivid_mem_dev = device_create(priv->class, NULL,
-					priv->devid, NULL,
-					priv->name);
-	ptr_err = rpivid_mem_dev;
-	if (IS_ERR(ptr_err))
+	dev = device_create(priv->class, NULL, priv->devid, NULL, priv->name);
+	if (IS_ERR(dev)) {
+		err = PTR_ERR(dev);
 		goto failed_device_create;
+	}
 
 	/* Legacy alias */
 	{
@@ -217,7 +215,6 @@ failed_device_create:
 	class_destroy(priv->class);
 failed_class_create:
 	cdev_del(&priv->rpivid_mem_cdev);
-	err = PTR_ERR(ptr_err);
 failed_cdev_add:
 	unregister_chrdev_region(priv->devid, 1);
 failed_alloc_chrdev:
