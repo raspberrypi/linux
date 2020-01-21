@@ -229,7 +229,7 @@ failed_alloc_chrdev:
 failed_get_resource:
 	kfree(priv);
 failed_inst_alloc:
-	dev_err(priv->dev, "could not load rpivid_mem");
+	dev_err(&pdev->dev, "could not load rpivid_mem");
 	return err;
 }
 
