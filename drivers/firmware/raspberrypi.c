@@ -430,7 +430,7 @@ out2:
 out1:
 	return ret;
 }
-subsys_initcall(rpi_firmware_init);
+core_initcall(rpi_firmware_init);
 
 static void __init rpi_firmware_exit(void)
 {
