@@ -285,6 +285,8 @@ static int snd_rpi_hifiberry_dacplusadcpro_init(struct snd_soc_pcm_runtime *rtd)
 
 		dai->name = "HiFiBerry DAC+ADC Pro";
 		dai->stream_name = "HiFiBerry DAC+ADC Pro HiFi";
+		dai->dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
+			| SND_SOC_DAIFMT_CBM_CFM;
 
 		// set DAC DAI configuration
 		ret = snd_soc_dai_set_fmt(rtd->codec_dais[0],
