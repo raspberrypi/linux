@@ -5,6 +5,8 @@
 /plugin/;
 
 /{
+	compatible = "brcm,bcm2835";
+
 	fragment@0 {
 		target = <&soc>;
 		__overlay__ {
