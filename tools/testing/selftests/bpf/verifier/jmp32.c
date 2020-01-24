@@ -768,7 +768,8 @@
 	},
 	.prog_type = BPF_PROG_TYPE_SCHED_CLS,
 	.fixup_map_hash_48b = { 4 },
-	.result = ACCEPT,
+	.result = REJECT,
+	.errstr = "R8 unbounded memory access",
 	.flags = F_NEEDS_EFFICIENT_UNALIGNED_ACCESS,
 },
 {
@@ -796,7 +797,8 @@
 	},
 	.prog_type = BPF_PROG_TYPE_SCHED_CLS,
 	.fixup_map_hash_48b = { 4 },
-	.result = ACCEPT,
+	.result = REJECT,
+	.errstr = "R8 unbounded memory access",
 	.flags = F_NEEDS_EFFICIENT_UNALIGNED_ACCESS,
 },
 {
@@ -824,6 +826,7 @@
 	},
 	.prog_type = BPF_PROG_TYPE_SCHED_CLS,
 	.fixup_map_hash_48b = { 4 },
-	.result = ACCEPT,
+	.result = REJECT,
+	.errstr = "R8 unbounded memory access",
 	.flags = F_NEEDS_EFFICIENT_UNALIGNED_ACCESS,
 },
