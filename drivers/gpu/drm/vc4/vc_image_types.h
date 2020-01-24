@@ -139,6 +139,10 @@ enum {
 	VC_IMAGE_YUV_UV_16,
 	/* YUV4:2:0 with U,V in side-by-side format */
 	VC_IMAGE_YUV420_S,
+	/* 10-bit YUV 420 column image format */
+	VC_IMAGE_YUV10COL,
+	/* 32-bpp, 10-bit R/G/B, 2-bit Alpha */
+	VC_IMAGE_RGBA1010102,
 
 	VC_IMAGE_MAX,     /* bounds for error checking */
 	VC_IMAGE_FORCE_ENUM_16BIT = 0xffff,
