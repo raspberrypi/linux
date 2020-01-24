@@ -7351,7 +7351,6 @@ void migrate_enable(void)
 		stop_one_cpu_nowait(task_cpu(p), migration_cpu_stop,
 				    arg, work);
 		tlb_migrate_finish(p->mm);
-		__schedule(true);
 	}
 
 out:
