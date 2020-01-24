@@ -51,6 +51,7 @@ to brightness information.
     pixfmt-nv12
     pixfmt-nv12m
     pixfmt-nv12mt
+    pixfmt-nv12-col128
     pixfmt-nv16
     pixfmt-nv16m
     pixfmt-nv24
