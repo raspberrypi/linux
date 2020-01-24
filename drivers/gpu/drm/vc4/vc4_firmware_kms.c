@@ -216,6 +216,10 @@ static const struct vc_image_format {
 		.vc_image = VC_IMAGE_YUV420SP,
 		.is_vu = 1,
 	},
+	{
+		.drm = DRM_FORMAT_P030,
+		.vc_image = VC_IMAGE_YUV10COL,
+	},
 };
 
 static const struct vc_image_format *vc4_get_vc_image_fmt(u32 drm_format)
@@ -622,7 +626,15 @@ static int vc4_plane_to_mb(struct drm_plane *plane,
 		}
 		break;
 	case DRM_FORMAT_MOD_BROADCOM_SAND128:
-		mb->plane.vc_image_type = VC_IMAGE_YUV_UV;
+		switch (mb->plane.vc_image_type) {
+		case VC_IMAGE_YUV420SP:
+			mb->plane.vc_image_type = VC_IMAGE_YUV_UV;
+			break;
+		/* VC_IMAGE_YUV10COL could be included in here, but it is only
+		 * valid as a SAND128 format, so the table at the top will have
+		 * already set the correct format.
+		 */
+		}
 		/* Note that the column pitch is passed across in lines, not
 		 * bytes.
 		 */
@@ -704,6 +716,13 @@ static bool vc4_fkms_format_mod_supported(struct drm_plane *plane,
 	case DRM_FORMAT_NV12:
 		switch (fourcc_mod_broadcom_mod(modifier)) {
 		case DRM_FORMAT_MOD_LINEAR:
+		case DRM_FORMAT_MOD_BROADCOM_SAND128:
+			return true;
+		default:
+			return false;
+		}
+	case DRM_FORMAT_P030:
+		switch (fourcc_mod_broadcom_mod(modifier)) {
 		case DRM_FORMAT_MOD_BROADCOM_SAND128:
 			return true;
 		default:
