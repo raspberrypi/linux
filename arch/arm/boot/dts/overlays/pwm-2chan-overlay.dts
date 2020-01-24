@@ -17,6 +17,8 @@ N.B.:
 */
 
 / {
+	compatible = "brcm,bcm2835";
+
 	fragment@0 {
 		target = <&gpio>;
 		__overlay__ {
