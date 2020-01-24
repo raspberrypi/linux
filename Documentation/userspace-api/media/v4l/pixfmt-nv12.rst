@@ -3,9 +3,9 @@
 .. _V4L2-PIX-FMT-NV12:
 .. _V4L2-PIX-FMT-NV21:
 
-******************************************************
-V4L2_PIX_FMT_NV12 ('NV12'), V4L2_PIX_FMT_NV21 ('NV21')
-******************************************************
+********************************************************************************
+V4L2_PIX_FMT_NV12 ('NV12'), V4L2_PIX_FMT_NV21 ('NV21'), V4L2_PIX_FMT_NV12_COL128
+********************************************************************************
 
 
 V4L2_PIX_FMT_NV21
@@ -30,6 +30,14 @@ with a Cr byte.
 
 If the Y plane has pad bytes after each row, then the CbCr plane has as
 many pad bytes after its rows.
+
+``V4L2_PIX_FMT_NV12_COL128`` is the tiled version of
+``V4L2_PIX_FMT_NV12`` with the image broken down into 128 pixel wide columns of
+Y followed by the associated combined CbCr plane.
+The normal bytesperline is effectively fixed at 128. However the format
+requires knowledge of the stride between columns, therefore the bytesperline
+value has been repurposed to denote the number of 128 byte long lines between
+the start of each column.
 
 **Byte Order.**
 Each cell is one byte.
