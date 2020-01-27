@@ -54,6 +54,7 @@ struct pcm512x_priv {
 static bool slave;
 static bool snd_rpi_hifiberry_is_dacpro;
 static bool digital_gain_0db_limit = true;
+static bool leds_off;
 
 static const unsigned int pcm186x_adc_input_channel_sel_value[] = {
 	0x00, 0x01, 0x02, 0x03, 0x10
@@ -321,7 +322,10 @@ static int snd_rpi_hifiberry_dacplusadcpro_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_component_update_bits(dac, PCM512x_GPIO_EN, 0x08, 0x08);
 	snd_soc_component_update_bits(dac, PCM512x_GPIO_OUTPUT_4, 0x0f, 0x02);
-	snd_soc_component_update_bits(dac, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
+	if (leds_off)
+		snd_soc_component_update_bits(dac, PCM512x_GPIO_CONTROL_1, 0x08, 0x00);
+	else
+		snd_soc_component_update_bits(dac, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
 
 	ret = pcm1863_add_controls(adc);
 	if (ret < 0)
@@ -331,7 +335,10 @@ static int snd_rpi_hifiberry_dacplusadcpro_init(struct snd_soc_pcm_runtime *rtd)
 	/* set GPIO2 to output, GPIO3 input */
 	snd_soc_component_write(adc, PCM186X_GPIO3_2_CTRL, 0x00);
 	snd_soc_component_write(adc, PCM186X_GPIO3_2_DIR_CTRL, 0x04);
-	snd_soc_component_update_bits(adc, PCM186X_GPIO_IN_OUT, 0x40, 0x40);
+	if (leds_off)
+		snd_soc_component_update_bits(adc, PCM186X_GPIO_IN_OUT, 0x40, 0x00);
+	else
+		snd_soc_component_update_bits(adc, PCM186X_GPIO_IN_OUT, 0x40, 0x40);
 
 	if (digital_gain_0db_limit) {
 		int ret;
@@ -417,6 +424,8 @@ static int snd_rpi_hifiberry_dacplusadcpro_startup(
 	struct snd_soc_component *dac = rtd->codec_dais[0]->component;
 	struct snd_soc_component *adc = rtd->codec_dais[1]->component;
 
+	if (leds_off)
+		return 0;
 	/* switch on respective LED */
 	if (!substream->stream)
 		snd_soc_component_update_bits(dac, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
@@ -500,6 +509,8 @@ static int snd_rpi_hifiberry_dacplusadcpro_probe(struct platform_device *pdev)
 		pdev->dev.of_node, "hifiberry-dacplusadcpro,24db_digital_gain");
 	slave = of_property_read_bool(pdev->dev.of_node,
 					"hifiberry-dacplusadcpro,slave");
+	leds_off = of_property_read_bool(pdev->dev.of_node,
+					"hifiberry-dacplusadcpro,leds_off");
 	ret = snd_soc_register_card(&snd_rpi_hifiberry_dacplusadcpro);
 	if (ret && ret != -EPROBE_DEFER)
 		dev_err(&pdev->dev,
