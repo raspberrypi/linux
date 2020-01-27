@@ -60,5 +60,6 @@
 		24db_digital_gain =
 			<&hifiberry_dacplusadcpro>,"hifiberry-dacplusadcpro,24db_digital_gain?";
 		slave = <&hifiberry_dacplusadcpro>,"hifiberry-dacplusadcpro,slave?";
+		leds_off = <&hifiberry_dacplusadcpro>,"hifiberry-dacplusadcpro,leds_off?";
 	};
 };
