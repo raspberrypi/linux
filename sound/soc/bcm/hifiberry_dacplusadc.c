@@ -54,6 +54,7 @@ struct pcm512x_priv {
 static bool slave;
 static bool snd_rpi_hifiberry_is_dacpro;
 static bool digital_gain_0db_limit = true;
+static bool leds_off;
 
 static void snd_rpi_hifiberry_dacplusadc_select_clk(struct snd_soc_component *component,
 	int clk_id)
@@ -175,7 +176,10 @@ static int snd_rpi_hifiberry_dacplusadc_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_component_update_bits(component, PCM512x_GPIO_EN, 0x08, 0x08);
 	snd_soc_component_update_bits(component, PCM512x_GPIO_OUTPUT_4, 0x0f, 0x02);
-	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
+	if (leds_off)
+		snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08, 0x00);
+	else
+		snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x08, 0x08);
 
 	if (digital_gain_0db_limit) {
 		int ret;
@@ -254,6 +258,8 @@ static int snd_rpi_hifiberry_dacplusadc_startup(
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_component *component = rtd->codec_dai->component;
 
+	if (leds_off)
+		return 0;
 	snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1,
 					 0x08, 0x08);
 	hifiberry_dacplusadc_LED_cnt++;
@@ -330,6 +336,8 @@ static int snd_rpi_hifiberry_dacplusadc_probe(struct platform_device *pdev)
 		pdev->dev.of_node, "hifiberry,24db_digital_gain");
 	slave = of_property_read_bool(pdev->dev.of_node,
 					"hifiberry-dacplusadc,slave");
+	leds_off = of_property_read_bool(pdev->dev.of_node,
+					"hifiberry-dacplusadc,leds_off");
 
 	ret = devm_snd_soc_register_card(&pdev->dev,
 						 &snd_rpi_hifiberry_dacplusadc);
