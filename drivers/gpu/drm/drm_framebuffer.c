@@ -214,12 +214,16 @@ static int framebuffer_check(struct drm_device *dev,
 		if (min_pitch > UINT_MAX)
 			return -ERANGE;
 
-		if ((uint64_t) height * r->pitches[i] + r->offsets[i] > UINT_MAX)
-			return -ERANGE;
+		if (r->modifier[i] == DRM_FORMAT_MOD_LINEAR) {
+			if ((uint64_t)height * r->pitches[i] + r->offsets[i] >
+								UINT_MAX)
+				return -ERANGE;
 
-		if (block_size && r->pitches[i] < min_pitch) {
-			DRM_DEBUG_KMS("bad pitch %u for plane %d\n", r->pitches[i], i);
-			return -EINVAL;
+			if (block_size && r->pitches[i] < min_pitch) {
+				DRM_DEBUG_KMS("bad pitch %u for plane %d\n",
+					      r->pitches[i], i);
+				return -EINVAL;
+			}
 		}
 
 		if (r->modifier[i] && !(r->flags & DRM_MODE_FB_MODIFIERS)) {
