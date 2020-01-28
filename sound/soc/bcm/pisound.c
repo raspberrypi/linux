@@ -591,6 +591,8 @@ static int spi_read_info(void)
 				buffer[0],
 				buffer[1]
 				);
+
+			g_fw_version[MAX_VERSION_STR_LEN-1] = '\0';
 			break;
 		case 3:
 			if (n != 2)
@@ -603,6 +605,8 @@ static int spi_read_info(void)
 				buffer[0],
 				buffer[1]
 			);
+
+			g_hw_version[MAX_VERSION_STR_LEN-1] = '\0';
 			break;
 		case 1:
 			if (n >= sizeof(g_serial_num))
@@ -612,12 +616,14 @@ static int spi_read_info(void)
 			break;
 		case 2:
 			{
-				if (n >= sizeof(g_id))
+				if (n*2 >= sizeof(g_id))
 					return -EINVAL;
 
 				p = g_id;
 				for (j = 0; j < n; ++j)
 					p += sprintf(p, "%02x", buffer[j]);
+
+				*p = '\0';
 			}
 			break;
 		default:
