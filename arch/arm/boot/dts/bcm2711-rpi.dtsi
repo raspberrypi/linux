@@ -5,6 +5,14 @@
 	soc {
 		/delete-node/ v3d@7ec00000;
 		/delete-node/ mailbox@7e00b840;
+
+		dvp: clock@7ef00000 {
+			compatible = "brcm,brcm2711-dvp";
+			reg = <0x7ef00000 0x10>;
+			clocks = <&clk_108MHz>;
+			#clock-cells = <1>;
+			#reset-cells = <1>;
+		};
 	};
 
 	__overrides__ {
@@ -36,6 +44,13 @@
 
 	scb: scb {
 	     /* Add a label */
+	};
+
+	clk_108MHz: clk-108M {
+		#clock-cells = <0>;
+		compatible = "fixed-clock";
+		clock-frequency = <108000000>;
+		clock-output-names = "108MHz-clock";
 	};
 
 	firmware_clocks: firmware-clocks {
