@@ -752,34 +752,22 @@ static void pisnd_spi_set_callback(pisnd_spi_recv_cb cb, void *data)
 
 static const char *pisnd_spi_get_serial(void)
 {
-	if (strlen(g_serial_num))
-		return g_serial_num;
-
-	return "";
+	return g_serial_num;
 }
 
 static const char *pisnd_spi_get_id(void)
 {
-	if (strlen(g_id))
-		return g_id;
-
-	return "";
+	return g_id;
 }
 
 static const char *pisnd_spi_get_fw_version(void)
 {
-	if (strlen(g_fw_version))
-		return g_fw_version;
-
-	return "";
+	return g_fw_version;
 }
 
 static const char *pisnd_spi_get_hw_version(void)
 {
-	if (strlen(g_hw_version))
-		return g_hw_version;
-
-	return "";
+	return g_hw_version;
 }
 
 static const struct of_device_id pisound_of_match[] = {
