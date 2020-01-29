@@ -1490,6 +1490,10 @@ static bool pl011_tx_chars(struct uart_amba_port *uap, bool from_irq)
 		if (likely(from_irq) && count-- == 0)
 			break;
 
+		if (likely(from_irq) && count == 0 &&
+		    pl011_read(uap, REG_FR) & UART01x_FR_TXFF)
+			break;
+
 		if (!pl011_tx_char(uap, xmit->buf[xmit->tail], from_irq))
 			break;
 
