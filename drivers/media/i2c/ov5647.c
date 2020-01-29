@@ -669,8 +669,8 @@ static struct ov5647_mode supported_modes_10bit[] = {
 	},
 };
 
-/* Use original 8-bit VGA mode as default. */
-#define OV5647_DEFAULT_MODE (&supported_modes_8bit[0])
+/* Use 2x2 binned 10-bit mode as default. */
+#define OV5647_DEFAULT_MODE (&supported_modes_10bit[2])
 
 static int ov5647_write(struct v4l2_subdev *sd, u16 reg, u8 val)
 {
@@ -1367,18 +1367,18 @@ static int ov5647_probe(struct i2c_client *client)
 			  0,  /* min */
 			  1,  /* max */
 			  1,  /* step */
-			  1); /* default */
+			  0); /* default */
 	v4l2_ctrl_new_std(&sensor->ctrls, &ov5647_ctrl_ops,
 			  V4L2_CID_AUTO_WHITE_BALANCE,
 			  0,  /* min */
 			  1,  /* max */
 			  1,  /* step */
-			  1); /* default */
+			  0); /* default */
 	v4l2_ctrl_new_std_menu(&sensor->ctrls, &ov5647_ctrl_ops,
 			       V4L2_CID_EXPOSURE_AUTO,
 			       V4L2_EXPOSURE_MANUAL,  /* max */
 			       0,                     /* skip_mask */
-			       V4L2_EXPOSURE_AUTO);   /* default */
+			       V4L2_EXPOSURE_MANUAL); /* default */
 	ctrl = v4l2_ctrl_new_std(&sensor->ctrls, &ov5647_ctrl_ops,
 				 V4L2_CID_EXPOSURE,
 				 4,     /* min lines */
