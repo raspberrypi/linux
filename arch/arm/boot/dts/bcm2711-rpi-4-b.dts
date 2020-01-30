@@ -449,5 +449,6 @@
 		eth_led0 = <&phy1>,"led-modes:0";
 		eth_led1 = <&phy1>,"led-modes:4";
 
+		sd_poll_once = <&emmc2>, "non-removable?";
 	};
 };
