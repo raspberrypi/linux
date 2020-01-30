@@ -17,32 +17,8 @@
 			/* Add label */
 		};
 
-		gpio@7e200000 { /* gpio */
-			interrupts = <2 17>, <2 18>;
-
-			dpi_18bit_gpio0: dpi_18bit_gpio0 {
-				brcm,pins = <0 1 2 3 4 5 6 7 8 9 10 11
-					     12 13 14 15 16 17 18 19
-					     20 21>;
-				brcm,function = <BCM2835_FSEL_ALT2>;
-			};
-		};
-
-		serial@7e201000 { /* uart0 */
-			/* Enable CTS bug workaround */
-			cts-event-workaround;
-		};
-
-		i2s@7e203000 { /* i2s */
-			#sound-dai-cells = <0>;
-			reg = <0x7e203000 0x24>;
-			clocks = <&clocks BCM2835_CLOCK_PCM>;
-		};
-
 		spi0: spi@7e204000 {
 			/* Add label */
-			dmas = <&dma 6>, <&dma 7>;
-			dma-names = "tx", "rx";
 		};
 
 		pixelvalve0: pixelvalve@7e206000 {
@@ -52,17 +28,6 @@
 
 		pixelvalve1: pixelvalve@7e207000 {
 			/* Add label */
-			status = "disabled";
-		};
-
-		dpi: dpi@7e208000 {
-			compatible = "brcm,bcm2835-dpi";
-			reg = <0x7e208000 0x8c>;
-			clocks = <&clocks BCM2835_CLOCK_VPU>,
-				 <&clocks BCM2835_CLOCK_DPI>;
-			clock-names = "core", "pixel";
-			#address-cells = <1>;
-			#size-cells = <0>;
 			status = "disabled";
 		};
 
@@ -118,6 +83,34 @@
 			status = "disabled";
 		};
 
+		csi0: csi@7e800000 {
+			compatible = "brcm,bcm2835-unicam";
+			reg = <0x7e800000 0x800>,
+			      <0x7e802000 0x4>;
+			interrupts = <2 6>;
+			clocks = <&clocks BCM2835_CLOCK_CAM0>;
+			clock-names = "lp";
+			power-domains = <&power RPI_POWER_DOMAIN_UNICAM0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#clock-cells = <1>;
+			status = "disabled";
+		};
+
+		csi1: csi@7e801000 {
+			compatible = "brcm,bcm2835-unicam";
+			reg = <0x7e801000 0x800>,
+			      <0x7e802004 0x4>;
+			interrupts = <2 7>;
+			clocks = <&clocks BCM2835_CLOCK_CAM1>;
+			clock-names = "lp";
+			power-domains = <&power RPI_POWER_DOMAIN_UNICAM1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#clock-cells = <1>;
+			status = "disabled";
+		};
+
 		pixelvalve2: pixelvalve@7e807000 {
 			/* Add label */
 			status = "disabled";
@@ -160,6 +153,37 @@
 	};
 };
 
-&vc4 {
-	status = "disabled";
+&gpio {
+	interrupts = <2 17>, <2 18>;
+
+	dpi_18bit_gpio0: dpi_18bit_gpio0 {
+		brcm,pins = <0 1 2 3 4 5 6 7 8 9 10 11
+			     12 13 14 15 16 17 18 19
+			     20 21>;
+		brcm,function = <BCM2835_FSEL_ALT2>;
+	};
+};
+
+&uart0 {
+	/* Enable CTS bug workaround */
+	cts-event-workaround;
+};
+
+&i2s {
+	#sound-dai-cells = <0>;
+	dmas = <&dma 2>, <&dma 3>;
+	dma-names = "tx", "rx";
+};
+
+&sdhost {
+	dmas = <&dma (13|(1<<29))>;
+	dma-names = "rx-tx";
+	bus-width = <4>;
+	brcm,overclock-50 = <0>;
+	brcm,pio-limit = <1>;
+};
+
+&spi0 {
+	dmas = <&dma 6>, <&dma 7>;
+	dma-names = "tx", "rx";
 };
