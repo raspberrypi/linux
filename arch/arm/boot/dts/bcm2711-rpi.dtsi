@@ -1,0 +1,222 @@
+// SPDX-License-Identifier: GPL-2.0
+#include "bcm270x-rpi.dtsi"
+
+/ {
+	soc {
+		/delete-node/ v3d@7ec00000;
+		/delete-node/ mailbox@7e00b840;
+	};
+
+	__overrides__ {
+		arm_freq;
+		sd_poll_once = <&emmc2>, "non-removable?";
+	};
+
+	v3dbus {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <2>;
+		ranges = <0x7c500000  0x0 0xfc500000  0x0 0x03300000>,
+			 <0x40000000  0x0 0xff800000  0x0 0x00800000>;
+		dma-ranges = <0x00000000  0x0 0x00000000  0x4 0x00000000>;
+
+		v3d: v3d@7ec04000 {
+			compatible = "brcm,2711-v3d";
+			reg =
+			    <0x7ec00000  0x0 0x4000>,
+			    <0x7ec04000  0x0 0x4000>;
+			reg-names = "hub", "core0";
+
+			power-domains = <&pm BCM2835_POWER_DOMAIN_GRAFX_V3D>;
+			resets = <&pm BCM2835_RESET_V3D>;
+			clocks = <&clocks BCM2835_CLOCK_V3D>;
+			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+	};
+
+	scb: scb {
+	     /* Add a label */
+	};
+};
+
+&soc {
+	thermal: thermal@7d5d2200 {
+		compatible = "brcm,avs-tmon-bcm2838";
+		reg = <0x7d5d2200 0x2c>;
+		interrupts = <GIC_SPI 137 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "tmon";
+		clocks = <&clocks BCM2835_CLOCK_TSENS>;
+		#thermal-sensor-cells = <0>;
+		status = "okay";
+	};
+
+	vc4: gpu {
+		compatible = "brcm,bcm2835-vc4";
+		status = "disabled";
+	};
+};
+
+&scb {
+	ranges = <0x0 0x7c000000  0x0 0xfc000000  0x03800000>,
+		 <0x0 0x40000000  0x0 0xff800000  0x00800000>,
+		 <0x6 0x00000000  0x6 0x00000000  0x40000000>,
+		 <0x0 0x00000000  0x0 0x00000000  0xfc000000>;
+	dma-ranges = <0x0 0x00000000  0x0 0x00000000  0xfc000000>;
+
+	pcie_0: pcie@7d500000 {
+		reg = <0x0 0x7d500000 0x9310>,
+		      <0x0 0x7e00f300 0x20>;
+		msi-controller;
+		msi-parent = <&pcie_0>;
+		#address-cells = <3>;
+		#interrupt-cells = <1>;
+		#size-cells = <2>;
+		bus-range = <0x0 0x01>;
+		compatible = "brcm,bcm2711b0-pcie", // Safe value
+			     "brcm,bcm2711-pcie",
+			     "brcm,pci-plat-dev";
+		max-link-speed = <2>;
+		tot-num-pcie = <1>;
+		linux,pci-domain = <0>;
+		interrupts = <GIC_SPI 148 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 148 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "pcie", "msi";
+		interrupt-map-mask = <0x0 0x0 0x0 0x7>;
+		interrupt-map = <0 0 0 1 &gicv2 GIC_SPI 143
+					IRQ_TYPE_LEVEL_HIGH
+				 0 0 0 2 &gicv2 GIC_SPI 144
+					IRQ_TYPE_LEVEL_HIGH
+				 0 0 0 3 &gicv2 GIC_SPI 145
+					IRQ_TYPE_LEVEL_HIGH
+				 0 0 0 4 &gicv2 GIC_SPI 146
+					IRQ_TYPE_LEVEL_HIGH>;
+
+		/* Map outbound accesses from scb:0x6_00000000-03ffffff
+		 * to pci:0x0_f8000000-fbffffff
+		 */
+		ranges = <0x02000000 0x0 0xf8000000  0x6 0x00000000
+			  0x0 0x04000000>;
+		/* Map inbound accesses from pci:0x0_00000000..ffffffff
+		 * to scb:0x0_00000000-ffffffff
+		 */
+		dma-ranges = <0x02000000 0x0 0x00000000  0x0 0x00000000
+			      0x1 0x00000000>;
+		status = "okay";
+	};
+
+	dma40: dma@7e007b00 {
+		compatible = "brcm,bcm2838-dma";
+		reg = <0x0 0x7e007b00 0x400>;
+		interrupts =
+			<GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>, /* dma4 11 */
+			<GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>, /* dma4 12 */
+			<GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>, /* dma4 13 */
+			<GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>; /* dma4 14 */
+		interrupt-names = "dma11",
+			"dma12",
+			"dma13",
+			"dma14";
+		#dma-cells = <1>;
+		brcm,dma-channel-mask = <0x7800>;
+	};
+
+	vchiq: mailbox@7e00b840 {
+		compatible = "brcm,bcm2838-vchiq";
+		reg = <0 0x7e00b840 0x3c>;
+		interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	xhci: xhci@7e9c0000 {
+		compatible = "generic-xhci";
+		status = "disabled";
+		reg = <0x0 0x7e9c0000 0x100000>;
+		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	hevc-decoder@7eb00000 {
+		compatible = "raspberrypi,rpivid-hevc-decoder";
+		reg = <0x0 0x7eb00000 0x10000>;
+		status = "okay";
+	};
+
+	rpivid-local-intc@7eb10000 {
+		compatible = "raspberrypi,rpivid-local-intc";
+		reg = <0x0 0x7eb10000 0x1000>;
+		status = "okay";
+		interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	h264-decoder@7eb20000 {
+		compatible = "raspberrypi,rpivid-h264-decoder";
+		reg = <0x0 0x7eb20000 0x10000>;
+		status = "okay";
+	};
+
+	vp9-decoder@7eb30000 {
+		compatible = "raspberrypi,rpivid-vp9-decoder";
+		reg = <0x0 0x7eb30000 0x10000>;
+		status = "okay";
+	};
+};
+
+&dma {
+	/* The VPU firmware uses DMA channel 11 for VCHIQ */
+	brcm,dma-channel-mask = <0x1f5>;
+};
+
+&dma40 {
+	/* The VPU firmware DMA channel 11 for VCHIQ */
+	brcm,dma-channel-mask = <0x7000>;
+};
+
+&firmwarekms {
+	interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&smi {
+	interrupts = <GIC_SPI 112 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mmc {
+	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&mmcnr {
+	interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&csi0 {
+	interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&csi1 {
+	interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&random {
+	compatible = "brcm,bcm2711-rng200", "brcm,bcm2838-rng200";
+	status = "okay";
+};
+
+&usb {
+	/* Enable the FIQ support */
+	reg = <0x7e980000 0x10000>,
+	      <0x7e00b200 0x200>;
+	interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+	status = "disabled";
+};
+
+&gpio {
+	interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&cpu_thermal {
+	 thermal-sensors = <&thermal>;
+};
+
+&genet {
+	compatible = "brcm,bcm2711-genet-v5", "brcm,genet-v5";
+};
