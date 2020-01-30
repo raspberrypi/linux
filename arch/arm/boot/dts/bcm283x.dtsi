@@ -35,8 +35,6 @@
 			polling-delay-passive = <0>;
 			polling-delay = <1000>;
 
-			thermal-sensors = <&thermal>;
-
 			trips {
 				cpu-crit {
 					temperature	= <90000>;
@@ -72,61 +70,6 @@
 			interrupts = <1 11>;
 		};
 
-		dma: dma@7e007000 {
-			compatible = "brcm,bcm2835-dma";
-			reg = <0x7e007000 0xf00>;
-			interrupts = <1 16>,
-				     <1 17>,
-				     <1 18>,
-				     <1 19>,
-				     <1 20>,
-				     <1 21>,
-				     <1 22>,
-				     <1 23>,
-				     <1 24>,
-				     <1 25>,
-				     <1 26>,
-				     /* dma channel 11-14 share one irq */
-				     <1 27>,
-				     <1 27>,
-				     <1 27>,
-				     <1 27>,
-				     /* unused shared irq for all channels */
-				     <1 28>;
-			interrupt-names = "dma0",
-					  "dma1",
-					  "dma2",
-					  "dma3",
-					  "dma4",
-					  "dma5",
-					  "dma6",
-					  "dma7",
-					  "dma8",
-					  "dma9",
-					  "dma10",
-					  "dma11",
-					  "dma12",
-					  "dma13",
-					  "dma14",
-					  "dma-shared-all";
-			#dma-cells = <1>;
-			brcm,dma-channel-mask = <0x7f35>;
-		};
-
-		pm: watchdog@7e100000 {
-			compatible = "brcm,bcm2835-pm", "brcm,bcm2835-pm-wdt";
-			#power-domain-cells = <1>;
-			#reset-cells = <1>;
-			reg = <0x7e100000 0x114>,
-			      <0x7e00a000 0x24>;
-			clocks = <&clocks BCM2835_CLOCK_V3D>,
-				 <&clocks BCM2835_CLOCK_PERI_IMAGE>,
-				 <&clocks BCM2835_CLOCK_H264>,
-				 <&clocks BCM2835_CLOCK_ISP>;
-			clock-names = "v3d", "peri_image", "h264", "isp";
-			system-power-controller;
-		};
-
 		clocks: cprman@7e101000 {
 			compatible = "brcm,bcm2835-cprman";
 			#clock-cells = <1>;
@@ -141,7 +84,7 @@
 				<&dsi1 0>, <&dsi1 1>, <&dsi1 2>;
 		};
 
-		rng: rng@7e104000 {
+		rng@7e104000 {
 			compatible = "brcm,bcm2835-rng";
 			reg = <0x7e104000 0x10>;
 			interrupts = <2 29>;
@@ -269,35 +212,6 @@
 				brcm,function = <BCM2835_FSEL_ALT2>;
 			};
 
-			pwm0_gpio12: pwm0_gpio12 {
-				brcm,pins = <12>;
-				brcm,function = <BCM2835_FSEL_ALT0>;
-			};
-			pwm0_gpio18: pwm0_gpio18 {
-				brcm,pins = <18>;
-				brcm,function = <BCM2835_FSEL_ALT5>;
-			};
-			pwm0_gpio40: pwm0_gpio40 {
-				brcm,pins = <40>;
-				brcm,function = <BCM2835_FSEL_ALT0>;
-			};
-			pwm1_gpio13: pwm1_gpio13 {
-				brcm,pins = <13>;
-				brcm,function = <BCM2835_FSEL_ALT0>;
-			};
-			pwm1_gpio19: pwm1_gpio19 {
-				brcm,pins = <19>;
-				brcm,function = <BCM2835_FSEL_ALT5>;
-			};
-			pwm1_gpio41: pwm1_gpio41 {
-				brcm,pins = <41>;
-				brcm,function = <BCM2835_FSEL_ALT0>;
-			};
-			pwm1_gpio45: pwm1_gpio45 {
-				brcm,pins = <45>;
-				brcm,function = <BCM2835_FSEL_ALT0>;
-			};
-
 			sdhost_gpio48: sdhost_gpio48 {
 				brcm,pins = <48 49 50 51 52 53>;
 				brcm,function = <BCM2835_FSEL_ALT0>;
@@ -379,7 +293,7 @@
 		};
 
 		uart0: serial@7e201000 {
-			compatible = "brcm,bcm2835-pl011", "arm,pl011", "arm,primecell";
+			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x7e201000 0x200>;
 			interrupts = <2 25>;
 			clocks = <&clocks BCM2835_CLOCK_UART>,
@@ -393,8 +307,6 @@
 			reg = <0x7e202000 0x100>;
 			interrupts = <2 24>;
 			clocks = <&clocks BCM2835_CLOCK_VPU>;
-			dmas = <&dma (13|(1<<29))>;
-			dma-names = "rx-tx";
 			status = "disabled";
 		};
 
@@ -402,10 +314,6 @@
 			compatible = "brcm,bcm2835-i2s";
 			reg = <0x7e203000 0x24>;
 			clocks = <&clocks BCM2835_CLOCK_PCM>;
-
-			dmas = <&dma 2>,
-			       <&dma 3>;
-			dma-names = "tx", "rx";
 			status = "disabled";
 		};
 
@@ -414,8 +322,6 @@
 			reg = <0x7e204000 0x200>;
 			interrupts = <2 22>;
 			clocks = <&clocks BCM2835_CLOCK_VPU>;
-			dmas = <&dma 6>, <&dma 7>;
-			dma-names = "tx", "rx";
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -540,45 +446,9 @@
 			status = "disabled";
 		};
 
-		csi0: csi@7e800000 {
-			compatible = "brcm,bcm2835-unicam";
-			reg = <0x7e800000 0x800>,
-			      <0x7e802000 0x4>;
-			interrupts = <2 6>;
-			clocks = <&clocks BCM2835_CLOCK_CAM0>;
-			clock-names = "lp";
-			#address-cells = <1>;
-			#size-cells = <0>;
-			#clock-cells = <1>;
-			status = "disabled";
-		};
-
-		csi1: csi@7e801000 {
-			compatible = "brcm,bcm2835-unicam";
-			reg = <0x7e801000 0x800>,
-			      <0x7e802004 0x4>;
-			interrupts = <2 7>;
-			clocks = <&clocks BCM2835_CLOCK_CAM1>;
-			clock-names = "lp";
-			#address-cells = <1>;
-			#size-cells = <0>;
-			#clock-cells = <1>;
-			status = "disabled";
-		};
-
 		i2c1: i2c@7e804000 {
 			compatible = "brcm,bcm2835-i2c";
 			reg = <0x7e804000 0x1000>;
-			interrupts = <2 21>;
-			clocks = <&clocks BCM2835_CLOCK_VPU>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			status = "disabled";
-		};
-
-		i2c2: i2c@7e805000 {
-			compatible = "brcm,bcm2835-i2c";
-			reg = <0x7e805000 0x1000>;
 			interrupts = <2 21>;
 			clocks = <&clocks BCM2835_CLOCK_VPU>;
 			#address-cells = <1>;
@@ -594,20 +464,6 @@
 			status = "disabled";
 		};
 
-		hdmi: hdmi@7e902000 {
-			compatible = "brcm,bcm2835-hdmi";
-			reg = <0x7e902000 0x600>,
-			      <0x7e808000 0x100>;
-			interrupts = <2 8>, <2 9>;
-			ddc = <&i2c2>;
-			clocks = <&clocks BCM2835_PLLH_PIX>,
-				 <&clocks BCM2835_CLOCK_HSM>;
-			clock-names = "pixel", "hdmi";
-			dmas = <&dma 17>;
-			dma-names = "audio-rx";
-			status = "disabled";
-		};
-
 		usb: usb@7e980000 {
 			compatible = "brcm,bcm2835-usb";
 			reg = <0x7e980000 0x10000>;
@@ -618,10 +474,6 @@
 			clock-names = "otg";
 			phys = <&usbphy>;
 			phy-names = "usb2-phy";
-		};
-
-		vc4: gpu {
-			compatible = "brcm,bcm2835-vc4";
 		};
 	};
 
