@@ -8,3 +8,7 @@
 		arm_freq;
 	};
 };
+
+&vc4 {
+	status = "disabled";
+};
