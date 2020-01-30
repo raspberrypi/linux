@@ -34,7 +34,7 @@ struct sm_cmd_rsp_blk {
 	/* To be signaled when the response is there */
 	struct completion cmplt;
 
-	u16 id;
+	u32 id;
 	u16 length;
 
 	u8 msg[VC_SM_MAX_MSG_LEN];
