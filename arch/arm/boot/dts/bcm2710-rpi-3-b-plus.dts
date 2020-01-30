@@ -170,6 +170,12 @@
 	pinctrl-0 = <&audio_pins>;
 };
 
+&eth_phy {
+	microchip,eee-enabled;
+	microchip,tx-lpi-timer = <600>; /* non-aggressive*/
+	microchip,downshift-after = <2>;
+};
+
 / {
 	__overrides__ {
 		act_led_gpio = <&act_led>,"gpios:4";
@@ -179,5 +185,12 @@
 		pwr_led_gpio = <&pwr_led>,"gpios:4";
 		pwr_led_activelow = <&pwr_led>,"gpios:8";
 		pwr_led_trigger = <&pwr_led>,"linux,default-trigger";
+
+		eee = <&eth_phy>,"microchip,eee-enabled?";
+		tx_lpi_timer = <&eth_phy>,"microchip,tx-lpi-timer:0";
+		eth_led0 = <&eth_phy>,"microchip,led-modes:0";
+		eth_led1 = <&eth_phy>,"microchip,led-modes:4";
+		eth_downshift_after = <&eth_phy>,"microchip,downshift-after:0";
+		eth_max_speed = <&eth_phy>,"max-speed:0";
 	};
 };
