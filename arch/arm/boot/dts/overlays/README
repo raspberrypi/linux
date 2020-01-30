@@ -165,6 +165,13 @@ Params:
         sd_overclock            Clock (in MHz) to use when the MMC framework
                                 requests 50MHz
 
+        sd_poll_once            Looks for a card once after booting. Useful
+                                for network booting scenarios to avoid the
+                                overhead of continuous polling. N.B. Using
+                                this option restricts the system to using a
+                                single card per boot (or none at all).
+                                (default off)
+
         sd_force_pio            Disable DMA support for SD driver (default off)
 
         sd_pio_limit            Number of blocks above which to use DMA for
