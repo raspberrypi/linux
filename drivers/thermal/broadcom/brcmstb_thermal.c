@@ -290,7 +290,7 @@ static const struct thermal_zone_of_device_ops bcm7445_thermal_of_ops = {
 	.set_trips	= brcmstb_set_trips,
 };
 
-static const struct thermal_zone_of_device_ops bcm2838_thermal_of_ops = {
+static const struct thermal_zone_of_device_ops bcm2711_thermal_of_ops = {
 	.get_temp	= brcmstb_get_temp,
 };
 
@@ -301,8 +301,8 @@ static const struct brcmstb_thermal_of_data bcm7445_thermal_of_data = {
 	.status_data_shift = 1,
 };
 
-static const struct brcmstb_thermal_of_data bcm2838_thermal_of_data = {
-	.of_ops = &bcm2838_thermal_of_ops,
+static const struct brcmstb_thermal_of_data bcm2711_thermal_of_data = {
+	.of_ops = &bcm2711_thermal_of_ops,
 	.status_valid_mask = BIT(10),
 	.status_data_mask = GENMASK(9, 0),
 	.status_data_shift = 0,
@@ -311,8 +311,8 @@ static const struct brcmstb_thermal_of_data bcm2838_thermal_of_data = {
 static const struct of_device_id brcmstb_thermal_id_table[] = {
 	{ .compatible = "brcm,avs-tmon",
 	  .data = &bcm7445_thermal_of_data },
-	{ .compatible = "brcm,avs-tmon-bcm2838",
-	  .data = &bcm2838_thermal_of_data },
+	{ .compatible = "brcm,avs-tmon-bcm2711",
+	  .data = &bcm2711_thermal_of_data },
 	{},
 };
 MODULE_DEVICE_TABLE(of, brcmstb_thermal_id_table);
