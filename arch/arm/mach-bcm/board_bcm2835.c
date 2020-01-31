@@ -123,8 +123,6 @@ MACHINE_END
 static const char * const bcm2711_compat[] = {
 #ifdef CONFIG_ARCH_MULTI_V7
 	"brcm,bcm2711",
-	// Temporary, for backwards-compatibility with old DTBs
-	"brcm,bcm2838",
 #endif
 	NULL
 };
