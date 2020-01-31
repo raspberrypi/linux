@@ -174,7 +174,7 @@ static int iproc_rng200_init(struct hwrng *rng)
 	return 0;
 }
 
-static int bcm2838_rng200_read(struct hwrng *rng, void *buf, size_t max,
+static int bcm2711_rng200_read(struct hwrng *rng, void *buf, size_t max,
 			       bool wait)
 {
 	struct iproc_rng200_dev *priv = to_rng_priv(rng);
@@ -211,7 +211,7 @@ static int bcm2838_rng200_read(struct hwrng *rng, void *buf, size_t max,
 	return num_words * sizeof(u32);
 }
 
-static int bcm2838_rng200_init(struct hwrng *rng)
+static int bcm2711_rng200_init(struct hwrng *rng)
 {
 	struct iproc_rng200_dev *priv = to_rng_priv(rng);
 	uint32_t val;
@@ -271,9 +271,9 @@ static int iproc_rng200_probe(struct platform_device *pdev)
 	priv->rng.name = pdev->name;
 	priv->rng.cleanup = iproc_rng200_cleanup;
 
-	if (of_device_is_compatible(dev->of_node, "brcm,bcm2838-rng200")) {
-		priv->rng.init = bcm2838_rng200_init;
-		priv->rng.read = bcm2838_rng200_read;
+	if (of_device_is_compatible(dev->of_node, "brcm,bcm2711-rng200")) {
+		priv->rng.init = bcm2711_rng200_init;
+		priv->rng.read = bcm2711_rng200_read;
 	} else {
 		priv->rng.init = iproc_rng200_init;
 		priv->rng.read = iproc_rng200_read;
@@ -296,7 +296,6 @@ static const struct of_device_id iproc_rng200_of_match[] = {
 	{ .compatible = "brcm,bcm7211-rng200", },
 	{ .compatible = "brcm,bcm7278-rng200", },
 	{ .compatible = "brcm,iproc-rng200", },
-	{ .compatible = "brcm,bcm2838-rng200"},
 	{},
 };
 MODULE_DEVICE_TABLE(of, iproc_rng200_of_match);
