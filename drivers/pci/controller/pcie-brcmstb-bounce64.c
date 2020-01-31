@@ -99,8 +99,8 @@ dma_addr_t pcie_to_dma40(dma_addr_t addr)
 	return addr - g_dmabounce_device_info->phys_offset;
 }
 
-extern int bcm2838_dma40_memcpy_init(void);
-extern void bcm2838_dma40_memcpy(dma_addr_t dst, dma_addr_t src, size_t size);
+extern int bcm2711_dma40_memcpy_init(void);
+extern void bcm2711_dma40_memcpy(dma_addr_t dst, dma_addr_t src, size_t size);
 
 #ifdef STATS
 static ssize_t
@@ -328,7 +328,7 @@ map_single(struct device *dev, struct safe_buffer *buf, size_t size,
 
 	if ((dir == DMA_TO_DEVICE || dir == DMA_BIDIRECTIONAL) &&
 	    !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
-		bcm2838_dma40_memcpy(pcie_to_dma40(buf->safe_dma_addr),
+		bcm2711_dma40_memcpy(pcie_to_dma40(buf->safe_dma_addr),
 				     pcie_to_dma40(buf->unsafe_dma_addr),
 				     size);
 
@@ -347,7 +347,7 @@ unmap_single(struct device *dev, struct safe_buffer *buf, size_t size,
 		dev_dbg(dev, "unmap: %llx->%llx\n", (u64)buf->safe_dma_addr,
 			(u64)buf->unsafe_dma_addr);
 
-		bcm2838_dma40_memcpy(pcie_to_dma40(buf->unsafe_dma_addr),
+		bcm2711_dma40_memcpy(pcie_to_dma40(buf->unsafe_dma_addr),
 				     pcie_to_dma40(buf->safe_dma_addr),
 				     size);
 	}
@@ -491,7 +491,7 @@ int brcm_pcie_bounce_init(struct device *dev,
 	if (g_dmabounce_device_info)
 		return -EBUSY;
 
-	ret = bcm2838_dma40_memcpy_init();
+	ret = bcm2711_dma40_memcpy_init();
 	if (ret)
 		return ret;
 
