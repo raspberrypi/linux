@@ -145,6 +145,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	sdhost.dtbo \
 	sdio.dtbo \
 	sdtweak.dtbo \
+	sh1106-spi.dtbo \
 	smi.dtbo \
 	smi-dev.dtbo \
 	smi-nand.dtbo \
@@ -168,6 +169,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	spi6-1cs.dtbo \
 	spi6-2cs.dtbo \
 	ssd1306.dtbo \
+	ssd1306-spi.dtbo \
+	ssd1351-spi.dtbo \
 	superaudioboard.dtbo \
 	sx150x.dtbo \
 	tc358743.dtbo \
