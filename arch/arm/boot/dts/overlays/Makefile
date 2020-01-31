@@ -168,6 +168,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	spi6-1cs.dtbo \
 	spi6-2cs.dtbo \
 	ssd1306.dtbo \
+	ssd1306-spi.dtbo \
 	superaudioboard.dtbo \
 	sx150x.dtbo \
 	tc358743.dtbo \
