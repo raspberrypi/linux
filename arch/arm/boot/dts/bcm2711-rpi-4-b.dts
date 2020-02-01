@@ -167,6 +167,10 @@
 	};
 
 	/delete-node/ wifi-pwrseq;
+
+	reserved-memory {
+		/delete-node/ linux,cma;
+	};
 };
 
 &mmcnr {
