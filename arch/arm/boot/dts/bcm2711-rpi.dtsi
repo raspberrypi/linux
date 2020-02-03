@@ -55,6 +55,8 @@
 		compatible = "brcm,bcm2835-vc4";
 		status = "disabled";
 	};
+
+	/delete-node/ audio;
 };
 
 &scb {
@@ -157,6 +159,18 @@
 		compatible = "raspberrypi,rpivid-vp9-decoder";
 		reg = <0x0 0x7eb30000 0x10000>;
 		status = "okay";
+	};
+};
+
+&vchiq {
+	/* Onboard audio
+	 * This node is replicated because the original from bcm270x-rpi.dtsi
+	 * was deleted when the vchiq node was deleted above.
+	 */
+	audio: bcm2835_audio {
+		compatible = "brcm,bcm2835-audio";
+		brcm,pwm-channels = <8>;
+		status = "disabled";
 	};
 };
 
