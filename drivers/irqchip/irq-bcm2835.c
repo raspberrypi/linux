@@ -76,8 +76,7 @@
 #define ARM_LOCAL_GPU_INT_ROUTING 0x0c
 
 #define REG_FIQ_CONTROL		0x0c
-#define REG_FIQ_ENABLE		0x80
-#define REG_FIQ_DISABLE		0
+#define FIQ_CONTROL_ENABLE	BIT(7)
 
 #define NR_BANKS		3
 #define IRQS_PER_BANK		32
@@ -125,7 +124,7 @@ static inline unsigned int hwirq_to_fiq(unsigned long hwirq)
 static void armctrl_mask_irq(struct irq_data *d)
 {
 	if (d->hwirq >= NUMBER_IRQS)
-		writel_relaxed(REG_FIQ_DISABLE, intc.base + REG_FIQ_CONTROL);
+		writel_relaxed(0, intc.base + REG_FIQ_CONTROL);
 	else
 		writel_relaxed(HWIRQ_BIT(d->hwirq),
 			       intc.disable[HWIRQ_BANK(d->hwirq)]);
@@ -152,7 +151,7 @@ static void armctrl_unmask_irq(struct irq_data *d)
 				       ARM_LOCAL_GPU_INT_ROUTING);
 		}
 
-		writel_relaxed(REG_FIQ_ENABLE | hwirq_to_fiq(d->hwirq),
+		writel_relaxed(FIQ_CONTROL_ENABLE | hwirq_to_fiq(d->hwirq),
 			       intc.base + REG_FIQ_CONTROL);
 	} else {
 		writel_relaxed(HWIRQ_BIT(d->hwirq),
@@ -210,6 +209,7 @@ static int __init armctrl_of_init(struct device_node *node,
 {
 	void __iomem *base;
 	int irq = 0, last_irq, b, i;
+	u32 reg;
 
 	base = of_iomap(node, 0);
 	if (!base)
@@ -233,6 +233,19 @@ static int __init armctrl_of_init(struct device_node *node,
 				handle_level_irq);
 			irq_set_probe(irq);
 		}
+
+		reg = readl_relaxed(intc.enable[b]);
+		if (reg) {
+			writel_relaxed(reg, intc.disable[b]);
+			pr_err(FW_BUG "Bootloader left irq enabled: "
+			       "bank %d irq %*pbl\n", b, IRQS_PER_BANK, &reg);
+		}
+	}
+
+	reg = readl_relaxed(base + REG_FIQ_CONTROL);
+	if (reg & FIQ_CONTROL_ENABLE) {
+		writel_relaxed(0, base + REG_FIQ_CONTROL);
+		pr_err(FW_BUG "Bootloader left fiq enabled\n");
 	}
 
 	last_irq = irq;
