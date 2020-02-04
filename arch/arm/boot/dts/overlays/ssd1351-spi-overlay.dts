@@ -77,7 +77,7 @@
 		debug     = <&ssd1351>,"debug:0";
 		dc_pin    = <&ssd1351>,"dc-gpios:4",
 		            <&ssd1351_pins>,"brcm,pins:4";
-		reset_pin = <&ssd1351>,"reset-gpios:4";
+		reset_pin = <&ssd1351>,"reset-gpios:4",
 		            <&ssd1351_pins>,"brcm,pins:0";
 	};
 };
