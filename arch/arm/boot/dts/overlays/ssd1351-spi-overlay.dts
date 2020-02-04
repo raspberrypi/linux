@@ -71,11 +71,13 @@
 	};
 
 	__overrides__ {
-		speed		= <&ssd1351>,"spi-max-frequency:0";
-		rotate		= <&ssd1351>,"rotate:0";
-		fps		= <&ssd1351>,"fps:0";
-		debug		= <&ssd1351>,"debug:0";
-		dc_pin		= <&ssd1351>,"dc-gpios:4>";
-		reset_pin	= <&ssd1351>,"reset-gpios:4>";
+		speed     = <&ssd1351>,"spi-max-frequency:0";
+		rotate    = <&ssd1351>,"rotate:0";
+		fps       = <&ssd1351>,"fps:0";
+		debug     = <&ssd1351>,"debug:0";
+		dc_pin    = <&ssd1351>,"dc-gpios:4",
+		            <&ssd1351_pins>,"brcm,pins:4";
+		reset_pin = <&ssd1351>,"reset-gpios:4";
+		            <&ssd1351_pins>,"brcm,pins:0";
 	};
 };
