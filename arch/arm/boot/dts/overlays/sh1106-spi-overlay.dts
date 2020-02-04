@@ -76,9 +76,9 @@
 		fps       = <&sh1106>,"fps:0";
 		debug     = <&sh1106>,"debug:0";
 		dc_pin    = <&sh1106>,"dc-gpios:4",
-		            <&sh1106_pins>,"brcm,pins:4;
+		            <&sh1106_pins>,"brcm,pins:4";
 		reset_pin = <&sh1106>,"reset-gpios:4",
-		            <&sh1106_pins>,"brcm,pins:0;
+		            <&sh1106_pins>,"brcm,pins:0";
 		height    = <&sh1106>,"sinowealth,height:0";
 	};
 };
