@@ -71,12 +71,14 @@
 	};
 
 	__overrides__ {
-		speed		= <&ssd1306>,"spi-max-frequency:0";
-		rotate		= <&ssd1306>,"rotate:0";
-		fps		= <&ssd1306>,"fps:0";
-		debug		= <&ssd1306>,"debug:0";
-		dc_pin		= <&ssd1306>,"dc-gpios:4>";
-		reset_pin	= <&ssd1306>,"reset-gpios:4>";
-		height		= <&ssd1306>,"solomon,height:0>";
+		speed     = <&ssd1306>,"spi-max-frequency:0";
+		rotate    = <&ssd1306>,"rotate:0";
+		fps       = <&ssd1306>,"fps:0";
+		debug     = <&ssd1306>,"debug:0";
+		dc_pin    = <&ssd1306>,"dc-gpios:4";
+		            <&ssd1306_pins>,"brcm,pins:4";
+		reset_pin = <&ssd1306>,"reset-gpios:4";
+		            <&ssd1306_pins>,"brcm,pins:0";
+		height    = <&ssd1306>,"solomon,height:0";
 	};
 };
