@@ -666,6 +666,8 @@ void lru_add_drain(void)
 	local_unlock_cpu(swapvec_lock);
 }
 
+static DEFINE_PER_CPU(struct work_struct, lru_add_drain_work);
+
 #ifdef CONFIG_PREEMPT_RT_BASE
 static inline void remote_lru_add_drain(int cpu, struct cpumask *has_work)
 {
@@ -690,8 +692,6 @@ static inline void remote_lru_add_drain(int cpu, struct cpumask *has_work)
 	cpumask_set_cpu(cpu, has_work);
 }
 #endif
-
-static DEFINE_PER_CPU(struct work_struct, lru_add_drain_work);
 
 /*
  * Doesn't need any cpu hotplug locking because we do rely on per-cpu
