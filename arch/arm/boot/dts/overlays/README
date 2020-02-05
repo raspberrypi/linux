@@ -883,6 +883,20 @@ Params: pin_d4                  GPIO pin for data pin D4 (default 6)
         display_width           Width of the display in characters
 
 
+Name:   hdmi-backlight-hwhack-gpio
+Info:   Devicetree overlay for GPIO based backlight on/off capability.
+        Use this if you have one of those HDMI displays whose backlight cannot
+        be controlled via DPMS over HDMI and plan to do a little soldering to
+        use an RPi gpio pin for on/off switching. See:
+        https://www.waveshare.com/wiki/7inch_HDMI_LCD_(C)#Backlight_Control
+Load:   dtoverlay=hdmi-backlight-hwhack-gpio,<param>=<val>
+Params: gpio_pin                GPIO pin used (default 17)
+        active_low              Set this to 1 if the display backlight is
+                                switched on when the wire goes low.
+                                Leave the default (value 0) if the backlight
+                                expects a high to switch it on.
+
+
 Name:   hifiberry-amp
 Info:   Configures the HifiBerry Amp and Amp+ audio cards
 Load:   dtoverlay=hifiberry-amp
