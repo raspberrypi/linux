@@ -932,6 +932,9 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	int ret;
 	int len;
 
+	if (!vc4_hdmi->variant->audio_available)
+		return 0;
+
 	if (!of_find_property(dev->of_node, "dmas", &len) ||
 	    len == 0) {
 		dev_warn(dev,
@@ -1432,6 +1435,7 @@ static int vc4_hdmi_dev_remove(struct platform_device *pdev)
 }
 
 static const struct vc4_hdmi_variant bcm2835_variant = {
+	.audio_available	= true,
 	.registers		= vc4_hdmi_fields,
 	.num_registers		= ARRAY_SIZE(vc4_hdmi_fields),
 
