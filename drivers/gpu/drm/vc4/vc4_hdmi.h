@@ -35,6 +35,9 @@ struct vc4_hdmi_variant {
 	/* Set to true when the audio support is available */
 	bool audio_available;
 
+	/* Set to true when the CEC support is available */
+	bool cec_available;
+
 	/* List of the registers available on that variant */
 	const struct vc4_hdmi_register *registers;
 
