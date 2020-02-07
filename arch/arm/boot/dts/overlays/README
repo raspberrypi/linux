@@ -821,6 +821,8 @@ Params: gpiopin                 GPIO for signalling (default 26)
         input                   Set if the gpio pin should be configured as
                                 an input.
         export                  Set to export the configured pin to sysfs
+        timeout_ms              Specify (in ms) how long the kernel waits for
+                                power-down before issuing a WARN (default 3000).
 
 
 Name:   gpio-shutdown
