@@ -1312,6 +1312,8 @@ intel_engine_create_ring(struct intel_engine_cs *engine, int size)
 	kref_init(&ring->ref);
 
 	ring->size = size;
+	ring->wrap = BITS_PER_TYPE(ring->size) - ilog2(size);
+
 	/* Workaround an erratum on the i830 which causes a hang if
 	 * the TAIL pointer points to within the last 2 cachelines
 	 * of the buffer.
