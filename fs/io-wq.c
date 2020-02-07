@@ -16,6 +16,7 @@
 #include <linux/slab.h>
 #include <linux/kthread.h>
 #include <linux/rculist_nulls.h>
+#include <linux/fs_struct.h>
 
 #include "io-wq.h"
 
@@ -58,6 +59,7 @@ struct io_worker {
 	struct mm_struct *mm;
 	const struct cred *creds;
 	struct files_struct *restore_files;
+	struct fs_struct *restore_fs;
 };
 
 #if BITS_PER_LONG == 64
@@ -149,6 +151,9 @@ static bool __io_worker_unuse(struct io_wqe *wqe, struct io_worker *worker)
 		current->files = worker->restore_files;
 		task_unlock(current);
 	}
+
+	if (current->fs != worker->restore_fs)
+		current->fs = worker->restore_fs;
 
 	/*
 	 * If we have an active mm, we need to drop the wq lock before unusing
@@ -310,6 +315,7 @@ static void io_worker_start(struct io_wqe *wqe, struct io_worker *worker)
 
 	worker->flags |= (IO_WORKER_F_UP | IO_WORKER_F_RUNNING);
 	worker->restore_files = current->files;
+	worker->restore_fs = current->fs;
 	io_wqe_inc_running(wqe, worker);
 }
 
@@ -456,6 +462,8 @@ next:
 		}
 		if (!worker->creds)
 			worker->creds = override_creds(wq->creds);
+		if (work->fs && current->fs != work->fs)
+			current->fs = work->fs;
 		if (test_bit(IO_WQ_BIT_CANCEL, &wq->state))
 			work->flags |= IO_WQ_WORK_CANCEL;
 		if (worker->mm)
