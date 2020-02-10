@@ -160,6 +160,11 @@ enum rpi_firmware_property_tag {
 
 #define GET_DISPLAY_SETTINGS_PAYLOAD_SIZE 64
 
+struct rpi_firmware_get_clocks_response {
+	__le32 parent;
+	__le32 id;
+};
+
 #if IS_ENABLED(CONFIG_RASPBERRYPI_FIRMWARE)
 int rpi_firmware_property(struct rpi_firmware *fw,
 			  u32 tag, void *data, size_t len);
