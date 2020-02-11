@@ -1020,10 +1020,6 @@ static int ceph_get_tree(struct fs_context *fc)
 	if (!fc->source)
 		return invalf(fc, "ceph: No source");
 
-#ifdef CONFIG_CEPH_FS_POSIX_ACL
-	fc->sb_flags |= SB_POSIXACL;
-#endif
-
 	/* create client (which we may/may not use) */
 	fsc = create_fs_client(pctx->opts, pctx->copts);
 	pctx->opts = NULL;
@@ -1140,6 +1136,10 @@ static int ceph_init_fs_context(struct fs_context *fc)
 	fsopt->max_readdir = CEPH_MAX_READDIR_DEFAULT;
 	fsopt->max_readdir_bytes = CEPH_MAX_READDIR_BYTES_DEFAULT;
 	fsopt->congestion_kb = default_congestion_kb();
+
+#ifdef CONFIG_CEPH_FS_POSIX_ACL
+	fc->sb_flags |= SB_POSIXACL;
+#endif
 
 	fc->fs_private = pctx;
 	fc->ops = &ceph_context_ops;
