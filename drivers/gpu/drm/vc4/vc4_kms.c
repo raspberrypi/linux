@@ -579,6 +579,7 @@ static int
 vc4_atomic_check(struct drm_device *dev, struct drm_atomic_state *state)
 {
 	unsigned long unassigned_channels = GENMASK(NUM_CHANNELS - 1, 0);
+	struct vc4_dev *vc4 = to_vc4_dev(state->dev);
 	struct drm_crtc_state *crtc_state;
 	struct drm_crtc *crtc;
 	int i, ret;
@@ -590,7 +591,7 @@ vc4_atomic_check(struct drm_device *dev, struct drm_atomic_state *state)
 		bool is_assigned = false;
 		unsigned int channel;
 
-		if (!crtc_state->active)
+		if (!crtc_state->active || vc4->firmware_kms)
 			continue;
 
 		/*
