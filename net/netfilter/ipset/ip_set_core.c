@@ -557,6 +557,20 @@ ip_set_rcu_get(struct net *net, ip_set_id_t index)
 	return set;
 }
 
+static inline void
+ip_set_lock(struct ip_set *set)
+{
+	if (!set->variant->region_lock)
+		spin_lock_bh(&set->lock);
+}
+
+static inline void
+ip_set_unlock(struct ip_set *set)
+{
+	if (!set->variant->region_lock)
+		spin_unlock_bh(&set->lock);
+}
+
 int
 ip_set_test(ip_set_id_t index, const struct sk_buff *skb,
 	    const struct xt_action_param *par, struct ip_set_adt_opt *opt)
@@ -578,9 +592,9 @@ ip_set_test(ip_set_id_t index, const struct sk_buff *skb,
 	if (ret == -EAGAIN) {
 		/* Type requests element to be completed */
 		pr_debug("element must be completed, ADD is triggered\n");
-		spin_lock_bh(&set->lock);
+		ip_set_lock(set);
 		set->variant->kadt(set, skb, par, IPSET_ADD, opt);
-		spin_unlock_bh(&set->lock);
+		ip_set_unlock(set);
 		ret = 1;
 	} else {
 		/* --return-nomatch: invert matched element */
@@ -609,9 +623,9 @@ ip_set_add(ip_set_id_t index, const struct sk_buff *skb,
 	    !(opt->family == set->family || set->family == NFPROTO_UNSPEC))
 		return -IPSET_ERR_TYPE_MISMATCH;
 
-	spin_lock_bh(&set->lock);
+	ip_set_lock(set);
 	ret = set->variant->kadt(set, skb, par, IPSET_ADD, opt);
-	spin_unlock_bh(&set->lock);
+	ip_set_unlock(set);
 
 	return ret;
 }
@@ -631,9 +645,9 @@ ip_set_del(ip_set_id_t index, const struct sk_buff *skb,
 	    !(opt->family == set->family || set->family == NFPROTO_UNSPEC))
 		return -IPSET_ERR_TYPE_MISMATCH;
 
-	spin_lock_bh(&set->lock);
+	ip_set_lock(set);
 	ret = set->variant->kadt(set, skb, par, IPSET_DEL, opt);
-	spin_unlock_bh(&set->lock);
+	ip_set_unlock(set);
 
 	return ret;
 }
@@ -1098,9 +1112,9 @@ ip_set_flush_set(struct ip_set *set)
 {
 	pr_debug("set: %s\n",  set->name);
 
-	spin_lock_bh(&set->lock);
+	ip_set_lock(set);
 	set->variant->flush(set);
-	spin_unlock_bh(&set->lock);
+	ip_set_unlock(set);
 }
 
 static int ip_set_flush(struct net *net, struct sock *ctnl, struct sk_buff *skb,
@@ -1523,9 +1537,9 @@ call_ad(struct sock *ctnl, struct sk_buff *skb, struct ip_set *set,
 	bool eexist = flags & IPSET_FLAG_EXIST, retried = false;
 
 	do {
-		spin_lock_bh(&set->lock);
+		ip_set_lock(set);
 		ret = set->variant->uadt(set, tb, adt, &lineno, flags, retried);
-		spin_unlock_bh(&set->lock);
+		ip_set_unlock(set);
 		retried = true;
 	} while (ret == -EAGAIN &&
 		 set->variant->resize &&
