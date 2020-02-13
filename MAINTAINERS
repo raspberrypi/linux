@@ -5573,7 +5573,7 @@ T:	git git://github.com/anholt/linux
 S:	Supported
 F:	drivers/gpu/drm/vc4/
 F:	include/uapi/drm/vc4_drm.h
-F:	Documentation/devicetree/bindings/display/brcm,bcm-vc4.txt
+F:	Documentation/devicetree/bindings/display/brcm,bcm2835-*.yaml
 T:	git git://anongit.freedesktop.org/drm/drm-misc
 
 DRM DRIVERS FOR VIVANTE GPU IP
