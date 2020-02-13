@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/clock/raspberrypi,firmware-clocks.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: RaspberryPi Firmware Clocks Device Tree Bindings
+
+maintainers:
+  - Maxime Ripard <mripard@kernel.org>
+
+properties:
+  "#clock-cells":
+    const: 1
+
+  compatible:
+    const: raspberrypi,firmware-clocks
+
+  raspberrypi,firmware:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: >
+      Phandle to the mailbox node to communicate with the firmware.
+
+required:
+  - "#clock-cells"
+  - compatible
+  - raspberrypi,firmware
+
+additionalProperties: false
+
+examples:
+  - |
+    firmware_clocks: firmware-clocks {
+        compatible = "raspberrypi,firmware-clocks";
+        raspberrypi,firmware = <&firmware>;
+        #clock-cells = <1>;
+    };
+
+...
