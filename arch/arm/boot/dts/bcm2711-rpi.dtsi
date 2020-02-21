@@ -54,11 +54,6 @@
 		status = "okay";
 	};
 
-	vc4: gpu {
-		compatible = "brcm,bcm2835-vc4";
-		status = "disabled";
-	};
-
 	/delete-node/ audio;
 };
 
