@@ -2732,16 +2732,6 @@ static int io_sq_thread(void *data)
 		to_submit = io_sqring_entries(ctx);
 		if (!to_submit) {
 			/*
-			 * We're polling. If we're within the defined idle
-			 * period, then let us spin without work before going
-			 * to sleep.
-			 */
-			if (inflight || !time_after(jiffies, timeout)) {
-				cond_resched();
-				continue;
-			}
-
-			/*
 			 * Drop cur_mm before scheduling, we can't hold it for
 			 * long periods (or over schedule()). Do this before
 			 * adding ourselves to the waitqueue, as the unuse/drop
@@ -2751,6 +2741,16 @@ static int io_sq_thread(void *data)
 				unuse_mm(cur_mm);
 				mmput(cur_mm);
 				cur_mm = NULL;
+			}
+
+			/*
+			 * We're polling. If we're within the defined idle
+			 * period, then let us spin without work before going
+			 * to sleep.
+			 */
+			if (inflight || !time_after(jiffies, timeout)) {
+				cond_resched();
+				continue;
 			}
 
 			prepare_to_wait(&ctx->sqo_wait, &wait,
