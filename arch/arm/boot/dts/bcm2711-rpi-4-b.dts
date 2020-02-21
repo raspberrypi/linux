@@ -182,6 +182,14 @@
 // Downstream rpi- changes
 
 #include "bcm270x.dtsi"
+
+/ {
+	soc {
+		/delete-node/ pixelvalve@7e807000;
+		/delete-node/ hdmi@7e902000;
+	};
+};
+
 #include "bcm2711-rpi.dtsi"
 #include "bcm283x-rpi-csi1-2lane.dtsi"
 
@@ -474,6 +482,46 @@
 &audio {
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
+};
+
+&vc4 {
+	status = "disabled";
+};
+
+&pixelvalve0 {
+	status = "disabled";
+};
+
+&pixelvalve1 {
+	status = "disabled";
+};
+
+&pixelvalve2 {
+	status = "disabled";
+};
+
+&pixelvalve3 {
+	status = "disabled";
+};
+
+&pixelvalve4 {
+	status = "disabled";
+};
+
+&hdmi0 {
+	status = "disabled";
+};
+
+&ddc0 {
+	status = "disabled";
+};
+
+&hdmi1 {
+	status = "disabled";
+};
+
+&ddc1 {
+	status = "disabled";
 };
 
 / {
