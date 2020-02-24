@@ -1662,6 +1662,12 @@ Params: speed                   Display SPI bus speed
                                 (default "off")
 
 
+Name:   merus-amp
+Info:   Configures the merus-amp audio card
+Load:   dtoverlay=merus-amp
+Params: <None>
+
+
 Name:   midi-uart0
 Info:   Configures UART0 (ttyAMA0) so that a requested 38.4kbaud actually gets
         31.25kbaud, the frequency required for MIDI

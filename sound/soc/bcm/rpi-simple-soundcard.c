@@ -16,6 +16,10 @@
  * adau1977-adc.c
  * by Andrey Grodzovsky <andrey2805@gmail.com>
  *
+ * merus-amp.c
+ * by Ariel Muszkat <ariel.muszkat@gmail.com>
+ *		Jorgen Kragh Jakobsen <jorgen.kraghjakobsen@infineon.com>
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * version 2 as published by the Free Software Foundation.
@@ -229,6 +233,28 @@ static struct snd_rpi_simple_drvdata drvdata_rpi_dac = {
 	.fixed_bclk_ratio = 64,
 };
 
+SND_SOC_DAILINK_DEFS(merus_amp,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("ma120x0p-amp", "ma120x0p.1-0020")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
+static struct snd_soc_dai_link snd_merus_amp_dai[] = {
+	{
+		.name           = "MerusAmp",
+		.stream_name    = "Merus Audio Amp",
+		.dai_fmt        = SND_SOC_DAIFMT_I2S |
+					SND_SOC_DAIFMT_NB_NF |
+					SND_SOC_DAIFMT_CBS_CFS,
+		SND_SOC_DAILINK_REG(merus_amp),
+	},
+};
+
+static struct snd_rpi_simple_drvdata drvdata_merus_amp = {
+	.card_name        = "snd_rpi_merus_amp",
+	.dai              = snd_merus_amp_dai,
+	.fixed_bclk_ratio = 64,
+};
+
 static const struct of_device_id snd_rpi_simple_of_match[] = {
 	{ .compatible = "adi,adau1977-adc",
 		.data = (void *) &drvdata_adau1977 },
@@ -241,6 +267,8 @@ static const struct of_device_id snd_rpi_simple_of_match[] = {
 	{ .compatible = "hifiberry,hifiberry-dac",
 		.data = (void *) &drvdata_hifiberry_dac },
 	{ .compatible = "rpi,rpi-dac", &drvdata_rpi_dac},
+	{ .compatible = "merus,merus-amp",
+		.data = (void *) &drvdata_merus_amp },
 	{},
 };
 
