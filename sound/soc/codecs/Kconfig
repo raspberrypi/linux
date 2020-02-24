@@ -103,6 +103,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_LM4857 if I2C
 	select SND_SOC_LM49453 if I2C
 	select SND_SOC_LOCHNAGAR_SC if MFD_LOCHNAGAR
+	select SND_SOC_MA120X0P if I2C
 	select SND_SOC_MAX98088 if I2C
 	select SND_SOC_MAX98090 if I2C
 	select SND_SOC_MAX98095 if I2C
@@ -731,6 +732,13 @@ config SND_SOC_LOCHNAGAR_SC
 	help
 	  This driver support the sound card functionality of the Cirrus
 	  Logic Lochnagar audio development board.
+
+config SND_SOC_MA120X0P
+	tristate "Infineon Merus(TM) MA120X0P Multilevel Class-D Audio amplifiers"
+	depends on I2C
+	help
+		Enable support for Infineon MA120X0P Multilevel Class-D audio power
+		amplifiers.
 
 config SND_SOC_MADERA
 	tristate
