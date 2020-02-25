@@ -1441,7 +1441,7 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 		return ERR_PTR(-ENOMEM);
 
 	for (i = 0; i < ARRAY_SIZE(hvs_formats); i++) {
-		if (hvs_formats[i].hvs5_only || hvs5) {
+		if (!hvs_formats[i].hvs5_only || hvs5) {
 			formats[num_formats] = hvs_formats[i].drm;
 			num_formats++;
 		}
