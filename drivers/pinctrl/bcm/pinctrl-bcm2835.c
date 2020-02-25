@@ -1232,8 +1232,13 @@ static int bcm2835_pinctrl_probe(struct platform_device *pdev)
 	 * bank that was firing the IRQ and look up the per-group
 	 * and bank data.
 	 */
-	for (i = 0; i < BCM2835_NUM_IRQS; i++)
+	for (i = 0; i < BCM2835_NUM_IRQS; i++) {
 		girq->parents[i] = irq_of_parse_and_map(np, i);
+		if (!girq->parents[i]) {
+			girq->num_parents = i;
+			break;
+		}
+	}
 	girq->default_type = IRQ_TYPE_NONE;
 	girq->handler = handle_level_irq;
 
