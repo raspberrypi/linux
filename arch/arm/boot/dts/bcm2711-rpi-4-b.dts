@@ -34,16 +34,6 @@
 	};
 };
 
-&soc {
-	virtgpio: virtgpio {
-		compatible = "brcm,bcm2835-virtgpio";
-		gpio-controller;
-		#gpio-cells = <2>;
-		firmware = <&firmware>;
-		status = "okay";
-	};
-};
-
 &mmcnr {
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdio_pins>;
