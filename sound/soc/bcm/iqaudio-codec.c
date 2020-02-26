@@ -37,7 +37,7 @@ static int snd_rpi_iqaudio_pll_control(struct snd_soc_dapm_widget *w,
 	struct snd_soc_dapm_context *dapm = w->dapm;
 	struct snd_soc_card *card = dapm->card;
 	struct snd_soc_pcm_runtime *rtd =
-		snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
+		snd_soc_get_pcm_runtime(card, &card->dai_link[0]);
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 
 	if (SND_SOC_DAPM_EVENT_OFF(event)) {
