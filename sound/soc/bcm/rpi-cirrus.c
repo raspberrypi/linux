@@ -55,12 +55,12 @@ struct rpi_cirrus_priv {
 /* helper functions */
 static inline struct snd_soc_pcm_runtime *get_wm5102_runtime(
 	struct snd_soc_card *card) {
-	return snd_soc_get_pcm_runtime(card, card->dai_link[DAI_WM5102].name);
+	return snd_soc_get_pcm_runtime(card, &card->dai_link[DAI_WM5102]);
 }
 
 static inline struct snd_soc_pcm_runtime *get_wm8804_runtime(
 	struct snd_soc_card *card) {
-	return snd_soc_get_pcm_runtime(card, card->dai_link[DAI_WM8804].name);
+	return snd_soc_get_pcm_runtime(card, &card->dai_link[DAI_WM8804]);
 }
 
 
