@@ -140,7 +140,7 @@ static int digidac1_soundcard_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_kcontrol *kctl;
 	int ret;
 
-	wm8741_rtd = snd_soc_get_pcm_runtime(card, card->dai_link[1].name);
+	wm8741_rtd = snd_soc_get_pcm_runtime(card, &card->dai_link[1]);
 	if (!wm8741_rtd) {
 		dev_warn(card->dev, "digidac1_soundcard_init: couldn't get wm8741 rtd\n");
 		return -EFAULT;
@@ -179,7 +179,7 @@ static int digidac1_soundcard_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_component *wm8741_component;
 
 	snd_soc_component_update_bits(component, WM8804_PWRDN, 0x3c, 0x00);
-	wm8741_rtd = snd_soc_get_pcm_runtime(card, card->dai_link[1].name);
+	wm8741_rtd = snd_soc_get_pcm_runtime(card, &card->dai_link[1]);
 	if (!wm8741_rtd) {
 		dev_warn(card->dev, "digidac1_soundcard_startup: couldn't get WM8741 rtd\n");
 		return -EFAULT;
@@ -225,7 +225,7 @@ static int digidac1_soundcard_hw_params(struct snd_pcm_substream *substream,
 	int sampling_freq = 1;
 	int ret;
 
-	wm8741_rtd = snd_soc_get_pcm_runtime(card, card->dai_link[1].name);
+	wm8741_rtd = snd_soc_get_pcm_runtime(card, &card->dai_link[1]);
 	if (!wm8741_rtd) {
 		dev_warn(card->dev, "digidac1_soundcard_hw_params: couldn't get WM8741 rtd\n");
 		return -EFAULT;
