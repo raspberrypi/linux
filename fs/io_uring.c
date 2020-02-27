@@ -1657,6 +1657,11 @@ static int io_send_recvmsg(struct io_kiocb *req, const struct io_uring_sqe *sqe,
 		else if (force_nonblock)
 			flags |= MSG_DONTWAIT;
 
+#ifdef CONFIG_COMPAT
+		if (req->ctx->compat)
+			flags |= MSG_CMSG_COMPAT;
+#endif
+
 		msg = (struct user_msghdr __user *) (unsigned long)
 			READ_ONCE(sqe->addr);
 
