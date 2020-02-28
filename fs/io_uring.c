@@ -71,6 +71,7 @@
 #include <linux/sizes.h>
 #include <linux/hugetlb.h>
 #include <linux/highmem.h>
+#include <linux/fs_struct.h>
 
 #include <uapi/linux/io_uring.h>
 
@@ -333,6 +334,8 @@ struct io_kiocb {
 	u64			user_data;
 	u32			result;
 	u32			sequence;
+
+	struct fs_struct	*fs;
 
 	struct work_struct	work;
 };
@@ -651,6 +654,7 @@ static struct io_kiocb *io_get_req(struct io_ring_ctx *ctx,
 	/* one is dropped after submission, the other at completion */
 	refcount_set(&req->refs, 2);
 	req->result = 0;
+	req->fs = NULL;
 	return req;
 out:
 	percpu_ref_put(&ctx->refs);
@@ -1663,6 +1667,16 @@ static int io_send_recvmsg(struct io_kiocb *req, const struct io_uring_sqe *sqe,
 			ret = -EINTR;
 	}
 
+	if (req->fs) {
+		struct fs_struct *fs = req->fs;
+
+		spin_lock(&req->fs->lock);
+		if (--fs->users)
+			fs = NULL;
+		spin_unlock(&req->fs->lock);
+		if (fs)
+			free_fs_struct(fs);
+	}
 	io_cqring_add_event(req->ctx, sqe->user_data, ret);
 	io_put_req(req);
 	return 0;
@@ -2159,6 +2173,7 @@ static inline bool io_sqe_needs_user(const struct io_uring_sqe *sqe)
 static void io_sq_wq_submit_work(struct work_struct *work)
 {
 	struct io_kiocb *req = container_of(work, struct io_kiocb, work);
+	struct fs_struct *old_fs_struct = current->fs;
 	struct io_ring_ctx *ctx = req->ctx;
 	struct mm_struct *cur_mm = NULL;
 	struct async_list *async_list;
@@ -2177,6 +2192,15 @@ restart:
 
 		/* Ensure we clear previously set non-block flag */
 		req->rw.ki_flags &= ~IOCB_NOWAIT;
+
+		if (req->fs != current->fs && current->fs != old_fs_struct) {
+			task_lock(current);
+			if (req->fs)
+				current->fs = req->fs;
+			else
+				current->fs = old_fs_struct;
+			task_unlock(current);
+		}
 
 		ret = 0;
 		if (io_sqe_needs_user(sqe) && !cur_mm) {
@@ -2276,6 +2300,11 @@ out:
 		mmput(cur_mm);
 	}
 	revert_creds(old_cred);
+	if (old_fs_struct) {
+		task_lock(current);
+		current->fs = old_fs_struct;
+		task_unlock(current);
+	}
 }
 
 /*
@@ -2502,6 +2531,23 @@ err:
 	}
 
 	req->user_data = s->sqe->user_data;
+
+#if defined(CONFIG_NET)
+	switch (READ_ONCE(s->sqe->opcode)) {
+	case IORING_OP_SENDMSG:
+	case IORING_OP_RECVMSG:
+		spin_lock(&current->fs->lock);
+		if (!current->fs->in_exec) {
+			req->fs = current->fs;
+			req->fs->users++;
+		}
+		spin_unlock(&current->fs->lock);
+		if (!req->fs) {
+			ret = -EAGAIN;
+			goto err_req;
+		}
+	}
+#endif
 
 	/*
 	 * If we already have a head request, queue this one for async
