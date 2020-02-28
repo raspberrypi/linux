@@ -9,7 +9,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target-path = "/clocks";
+		target-path = "/";
 		__overlay__ {
 			boss_osc: boss_osc {
 				compatible = "allo,dac-clk";
