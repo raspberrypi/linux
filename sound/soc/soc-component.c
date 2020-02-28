@@ -452,7 +452,7 @@ int snd_soc_pcm_component_sync_stop(struct snd_pcm_substream *substream)
 	int ret;
 
 	for_each_rtd_components(rtd, rtdcom, component) {
-		if (component->driver->ioctl) {
+		if (component->driver->sync_stop) {
 			ret = component->driver->sync_stop(component,
 							   substream);
 			if (ret < 0)
