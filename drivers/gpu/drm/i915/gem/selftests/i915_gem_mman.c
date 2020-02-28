@@ -375,7 +375,7 @@ static bool assert_mmap_offset(struct drm_i915_private *i915,
 
 	obj = i915_gem_object_create_internal(i915, size);
 	if (IS_ERR(obj))
-		return PTR_ERR(obj);
+		return false;
 
 	err = create_mmap_offset(obj);
 	i915_gem_object_put(obj);
