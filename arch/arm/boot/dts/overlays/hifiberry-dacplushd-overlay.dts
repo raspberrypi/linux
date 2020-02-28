@@ -8,7 +8,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target-path = "/clocks";
+		target-path = "/";
 		__overlay__ {
 			dachd_osc: pll_dachd_osc {
 				compatible = "hifiberry,dachd-clk";
