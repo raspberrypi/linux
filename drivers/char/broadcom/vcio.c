@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/compat.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
 #define MBOX_CHAN_PROPERTY 8
