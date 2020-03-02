@@ -163,7 +163,7 @@
 		i2c6 = &i2c6;
 		/delete-property/ ethernet;
 		/delete-property/ intc;
-		pcie0 = &pcie_0;
+		pcie0 = &pcie0;
 	};
 
 	/delete-node/ wifi-pwrseq;
