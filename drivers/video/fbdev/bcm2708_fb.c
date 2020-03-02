@@ -38,6 +38,7 @@
 #include <linux/cred.h>
 #include <soc/bcm2835/raspberrypi-firmware.h>
 #include <linux/mutex.h>
+#include <linux/compat.h>
 
 //#define BCM2708_FB_DEBUG
 #define MODULE_NAME "bcm2708_fb"
