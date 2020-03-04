@@ -1468,6 +1468,10 @@ int btrfs_init_reloc_root(struct btrfs_trans_handle *trans,
 	int clear_rsv = 0;
 	int ret;
 
+	if (!rc || !rc->create_reloc_tree ||
+	    root->root_key.objectid == BTRFS_TREE_RELOC_OBJECTID)
+		return 0;
+
 	/*
 	 * The subvolume has reloc tree but the swap is finished, no need to
 	 * create/update the dead reloc tree
@@ -1480,10 +1484,6 @@ int btrfs_init_reloc_root(struct btrfs_trans_handle *trans,
 		reloc_root->last_trans = trans->transid;
 		return 0;
 	}
-
-	if (!rc || !rc->create_reloc_tree ||
-	    root->root_key.objectid == BTRFS_TREE_RELOC_OBJECTID)
-		return 0;
 
 	if (!trans->reloc_reserved) {
 		rsv = trans->block_rsv;
@@ -2336,6 +2336,18 @@ static noinline_for_stack int merge_reloc_root(struct reloc_control *rc,
 			trans = NULL;
 			goto out;
 		}
+
+		/*
+		 * At this point we no longer have a reloc_control, so we can't
+		 * depend on btrfs_init_reloc_root to update our last_trans.
+		 *
+		 * But that's ok, we started the trans handle on our
+		 * corresponding fs_root, which means it's been added to the
+		 * dirty list.  At commit time we'll still call
+		 * btrfs_update_reloc_root() and update our root item
+		 * appropriately.
+		 */
+		reloc_root->last_trans = trans->transid;
 		trans->block_rsv = rc->block_rsv;
 
 		replaced = 0;
