@@ -416,15 +416,18 @@ static void v4l2_m2m_cancel_job(struct v4l2_m2m_ctx *m2m_ctx)
 {
 	struct v4l2_m2m_dev *m2m_dev;
 	unsigned long flags;
+	bool det_abort_req;
 
 	m2m_dev = m2m_ctx->m2m_dev;
 	spin_lock_irqsave(&m2m_dev->job_spinlock, flags);
 
+	det_abort_req = !list_empty(&m2m_ctx->det_list);
 	m2m_ctx->job_flags |= TRANS_ABORT;
 	if (m2m_ctx->job_flags & TRANS_RUNNING) {
 		spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags);
 		if (m2m_dev->m2m_ops->job_abort)
 			m2m_dev->m2m_ops->job_abort(m2m_ctx->priv);
+		det_abort_req = false;
 		dprintk("m2m_ctx %p running, will wait to complete\n", m2m_ctx);
 		wait_event(m2m_ctx->finished,
 				!(m2m_ctx->job_flags & TRANS_RUNNING));
@@ -438,6 +441,11 @@ static void v4l2_m2m_cancel_job(struct v4l2_m2m_ctx *m2m_ctx)
 		/* Do nothing, was not on queue/running */
 		spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags);
 	}
+
+	/* Wait for detached buffers to come back too */
+	if (det_abort_req && m2m_dev->m2m_ops->job_abort)
+		m2m_dev->m2m_ops->job_abort(m2m_ctx->priv);
+	wait_event(m2m_ctx->det_empty, list_empty(&m2m_ctx->det_list));
 }
 
 /*
@@ -475,6 +483,7 @@ static bool _v4l2_m2m_job_finish(struct v4l2_m2m_dev *m2m_dev,
 
 	list_del(&m2m_dev->curr_ctx->queue);
 	m2m_dev->curr_ctx->job_flags &= ~(TRANS_QUEUED | TRANS_RUNNING);
+	m2m_ctx->cap_detached = false;
 	wake_up(&m2m_dev->curr_ctx->finished);
 	m2m_dev->curr_ctx = NULL;
 	return true;
@@ -502,6 +511,80 @@ void v4l2_m2m_job_finish(struct v4l2_m2m_dev *m2m_dev,
 }
 EXPORT_SYMBOL(v4l2_m2m_job_finish);
 
+struct vb2_v4l2_buffer *_v4l2_m2m_cap_buf_detach(struct v4l2_m2m_ctx *m2m_ctx)
+{
+	struct vb2_v4l2_buffer *buf;
+
+	buf = v4l2_m2m_dst_buf_remove(m2m_ctx);
+	list_add_tail(&container_of(buf, struct v4l2_m2m_buffer, vb)->list,
+		      &m2m_ctx->det_list);
+	m2m_ctx->cap_detached = true;
+	buf->is_held = true;
+	buf->det_state = VB2_BUF_STATE_ACTIVE;
+
+	return buf;
+}
+
+struct vb2_v4l2_buffer *v4l2_m2m_cap_buf_detach(struct v4l2_m2m_dev *m2m_dev,
+						struct v4l2_m2m_ctx *m2m_ctx)
+{
+	unsigned long flags;
+	struct vb2_v4l2_buffer *src_buf, *dst_buf;
+
+	spin_lock_irqsave(&m2m_dev->job_spinlock, flags);
+
+	dst_buf = NULL;
+	src_buf = v4l2_m2m_next_src_buf(m2m_ctx);
+
+	if (!(src_buf->flags & V4L2_BUF_FLAG_M2M_HOLD_CAPTURE_BUF) &&
+	    !m2m_ctx->cap_detached)
+		dst_buf = _v4l2_m2m_cap_buf_detach(m2m_ctx);
+
+	spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags);
+	return dst_buf;
+}
+EXPORT_SYMBOL(v4l2_m2m_cap_buf_detach);
+
+static void _v4l2_m2m_cap_buf_return(struct v4l2_m2m_ctx *m2m_ctx,
+				     struct vb2_v4l2_buffer *buf,
+				     enum vb2_buffer_state state)
+{
+	buf->det_state = state;
+
+	/*
+	 * Always signal done in the order we got stuff
+	 * Stop if we find a buf that is still in use
+	 */
+	while (!list_empty(&m2m_ctx->det_list)) {
+		buf = &list_first_entry(&m2m_ctx->det_list,
+					struct v4l2_m2m_buffer, list)->vb;
+		state = buf->det_state;
+		if (state != VB2_BUF_STATE_DONE &&
+		    state != VB2_BUF_STATE_ERROR)
+			return;
+		list_del(&container_of(buf, struct v4l2_m2m_buffer, vb)->list);
+		buf->det_state = VB2_BUF_STATE_DEQUEUED;
+		v4l2_m2m_buf_done(buf, state);
+	}
+	wake_up(&m2m_ctx->det_empty);
+}
+
+void v4l2_m2m_cap_buf_return(struct v4l2_m2m_dev *m2m_dev,
+			     struct v4l2_m2m_ctx *m2m_ctx,
+			     struct vb2_v4l2_buffer *buf,
+			     enum vb2_buffer_state state)
+{
+	unsigned long flags;
+
+	if (!buf)
+		return;
+
+	spin_lock_irqsave(&m2m_dev->job_spinlock, flags);
+	_v4l2_m2m_cap_buf_return(m2m_ctx, buf, state);
+	spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags);
+}
+EXPORT_SYMBOL(v4l2_m2m_cap_buf_return);
+
 void v4l2_m2m_buf_done_and_job_finish(struct v4l2_m2m_dev *m2m_dev,
 				      struct v4l2_m2m_ctx *m2m_ctx,
 				      enum vb2_buffer_state state)
@@ -512,14 +595,21 @@ void v4l2_m2m_buf_done_and_job_finish(struct v4l2_m2m_dev *m2m_dev,
 
 	spin_lock_irqsave(&m2m_dev->job_spinlock, flags);
 	src_buf = v4l2_m2m_src_buf_remove(m2m_ctx);
-	dst_buf = v4l2_m2m_next_dst_buf(m2m_ctx);
 
-	if (WARN_ON(!src_buf || !dst_buf))
+	if (WARN_ON(!src_buf))
 		goto unlock;
-	dst_buf->is_held = src_buf->flags & V4L2_BUF_FLAG_M2M_HOLD_CAPTURE_BUF;
-	if (!dst_buf->is_held) {
-		v4l2_m2m_dst_buf_remove(m2m_ctx);
-		v4l2_m2m_buf_done(dst_buf, state);
+	if (!m2m_ctx->cap_detached) {
+		dst_buf = v4l2_m2m_next_dst_buf(m2m_ctx);
+		if (WARN_ON(!dst_buf))
+			goto unlock;
+
+		dst_buf->is_held = src_buf->flags
+				    & V4L2_BUF_FLAG_M2M_HOLD_CAPTURE_BUF;
+
+		if (!dst_buf->is_held) {
+			dst_buf = _v4l2_m2m_cap_buf_detach(m2m_ctx);
+			_v4l2_m2m_cap_buf_return(m2m_ctx, dst_buf, state);
+		}
 	}
 	/*
 	 * If the request API is being used, returning the OUTPUT
@@ -1176,12 +1266,14 @@ struct v4l2_m2m_ctx *v4l2_m2m_ctx_init(struct v4l2_m2m_dev *m2m_dev,
 	m2m_ctx->priv = drv_priv;
 	m2m_ctx->m2m_dev = m2m_dev;
 	init_waitqueue_head(&m2m_ctx->finished);
+	init_waitqueue_head(&m2m_ctx->det_empty);
 
 	out_q_ctx = &m2m_ctx->out_q_ctx;
 	cap_q_ctx = &m2m_ctx->cap_q_ctx;
 
 	INIT_LIST_HEAD(&out_q_ctx->rdy_queue);
 	INIT_LIST_HEAD(&cap_q_ctx->rdy_queue);
+	INIT_LIST_HEAD(&m2m_ctx->det_list);
 	spin_lock_init(&out_q_ctx->rdy_spinlock);
 	spin_lock_init(&cap_q_ctx->rdy_spinlock);
 
