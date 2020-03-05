@@ -34,6 +34,8 @@ source "drivers/staging/media/meson/vdec/Kconfig"
 
 source "drivers/staging/media/rkvdec/Kconfig"
 
+source "drivers/staging/media/rpivid/Kconfig"
+
 source "drivers/staging/media/starfive/Kconfig"
 
 source "drivers/staging/media/sunxi/Kconfig"
