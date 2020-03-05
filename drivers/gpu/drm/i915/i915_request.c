@@ -785,7 +785,7 @@ i915_request_await_start(struct i915_request *rq, struct i915_request *signal)
 		return PTR_ERR_OR_ZERO(fence);
 
 	err = 0;
-	if (intel_timeline_sync_is_later(i915_request_timeline(rq), fence))
+	if (!intel_timeline_sync_is_later(i915_request_timeline(rq), fence))
 		err = i915_sw_fence_await_dma_fence(&rq->submit,
 						    fence, 0,
 						    I915_FENCE_GFP);
