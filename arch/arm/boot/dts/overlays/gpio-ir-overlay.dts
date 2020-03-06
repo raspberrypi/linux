@@ -42,6 +42,7 @@
                                 <&gpio_ir_pins>,"brcm,pins:0",
                                 <&gpio_ir_pins>,"reg:0";
                 gpio_pull = <&gpio_ir_pins>,"brcm,pull:0";              // pull-up/down state
+                invert = <&gpio_ir>,"gpios:8";                          // 0 = active high input
 
                 rc-map-name = <&gpio_ir>,"linux,rc-map-name";           // default rc map
         };
