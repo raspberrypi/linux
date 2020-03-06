@@ -206,8 +206,6 @@ enum pcie_type {
 	BCM7435,
 	GENERIC,
 	BCM7278,
-	BCM2711B0,
-	BCM2711,
 };
 
 struct brcm_window {
@@ -304,20 +302,6 @@ static const int pcie_offsets[] = {
 	[EXT_CFG_DATA]   = 0x8000,
 };
 
-static const struct pcie_cfg_data bcm2711b0_cfg = {
-	.reg_field_info	= pcie_reg_field_info,
-	.offsets	= pcie_offsets,
-	.max_burst_size	= BURST_SIZE_128,
-	.type		= BCM2711B0,
-};
-
-static const struct pcie_cfg_data bcm2711_cfg = {
-	.reg_field_info	= pcie_reg_field_info,
-	.offsets	= pcie_offsets,
-	.max_burst_size	= BURST_SIZE_128,
-	.type		= BCM2711,
-};
-
 static const struct pcie_cfg_data bcm7435_cfg = {
 	.reg_field_info	= pcie_reg_field_info,
 	.offsets	= pcie_offsets,
@@ -328,7 +312,7 @@ static const struct pcie_cfg_data bcm7435_cfg = {
 static const struct pcie_cfg_data generic_cfg = {
 	.reg_field_info	= pcie_reg_field_info,
 	.offsets	= pcie_offsets,
-	.max_burst_size	= BURST_SIZE_512,
+	.max_burst_size	= BURST_SIZE_128, // before BURST_SIZE_512
 	.type		= GENERIC,
 };
 
@@ -396,7 +380,7 @@ static unsigned int bounce_buffer = 32*1024*1024;
 module_param(bounce_buffer, uint, 0644);
 MODULE_PARM_DESC(bounce_buffer, "Size of bounce buffer");
 
-static unsigned int bounce_threshold;
+static unsigned int bounce_threshold = 0xc0000000;
 module_param(bounce_threshold, uint, 0644);
 MODULE_PARM_DESC(bounce_threshold, "Bounce threshold");
 
@@ -1691,8 +1675,6 @@ static int brcm_pcie_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id brcm_pcie_match[] = {
-	{ .compatible = "brcm,bcm2711b0-pcie", .data = &bcm2711b0_cfg },
-	{ .compatible = "brcm,bcm2711-pcie", .data = &bcm2711_cfg },
 	{ .compatible = "brcm,bcm7425-pcie", .data = &bcm7425_cfg },
 	{ .compatible = "brcm,bcm7435-pcie", .data = &bcm7435_cfg },
 	{ .compatible = "brcm,bcm7278-pcie", .data = &bcm7278_cfg },
@@ -1749,13 +1731,8 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
-	if (!bounce_threshold) {
-		/* PCIe on BCM2711B0 can only address 3GB */
-		if (pcie->type == BCM2711B0 || pcie->type == GENERIC)
-			bounce_threshold = 0xc0000000;
-	}
-
-	if (bounce_threshold && (max_pfn > (bounce_threshold/PAGE_SIZE))) {
+	/* To Do: Add hardware check if this ever gets fixed */
+	if (max_pfn > (bounce_threshold/PAGE_SIZE)) {
 		int ret;
 		ret = brcm_pcie_bounce_init(dev, bounce_buffer,
 					    (dma_addr_t)bounce_threshold);
