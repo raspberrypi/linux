@@ -755,8 +755,8 @@ Params: gpio_pin                Input pin number. Default is 18.
                                 Default is "up".
 
         invert                  "1" = invert the input (active-low signalling).
-                                "0" = non-inverted input (active-high signalling).
-                                Default is "1".
+                                "0" = non-inverted input (active-high
+                                signalling). Default is "1".
 
         rc-map-name             Default rc keymap (can also be changed by
                                 ir-keytable), defaults to "rc-rc6-mce"
