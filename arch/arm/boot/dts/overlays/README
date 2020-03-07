@@ -1261,6 +1261,9 @@ Params: addr                    Set the address for the BME280, BME680, BMP280,
         si7020                  Select the Silicon Labs Si7013/20/21 humidity/
                                 temperature sensor
 
+        sps30                   Select the Sensirion SPS30 particulate matter
+                                sensor. Fixed address 0x69.
+
         tmp102                  Select the Texas Instruments TMP102 temp sensor
                                 Valid addresses 0x48-0x4b, default 0x48
 
