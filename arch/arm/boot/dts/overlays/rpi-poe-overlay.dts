@@ -14,9 +14,9 @@
 				compatible = "raspberrypi,rpi-poe-fan";
 				firmware = <&firmware>;
 				cooling-min-state = <0>;
-				cooling-max-state = <2>;
+				cooling-max-state = <4>;
 				#cooling-cells = <2>;
-				cooling-levels = <0 150 255>;
+				cooling-levels = <0 31 63 150 255>;
 				status = "okay";
 			};
 		};
@@ -27,12 +27,21 @@
 		__overlay__ {
 			trips {
 				trip0: trip0 {
-					temperature = <50000>;
-					hysteresis = <5000>;
+					temperature = <40000>;
+					hysteresis = <2000>;
 					type = "active";
 				};
 				trip1: trip1 {
-
+					temperature = <45000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				trip2: trip2 {
+					temperature = <50000>;
+					hysteresis = <2000>;
+					type = "active";
+				};
+				trip3: trip3 {
 					temperature = <55000>;
 					hysteresis = <5000>;
 					type = "active";
@@ -47,6 +56,14 @@
 					trip = <&trip1>;
 					cooling-device = <&fan0 1 2>;
 				};
+				map2 {
+					trip = <&trip2>;
+					cooling-device = <&fan0 2 3>;
+				};
+				map3 {
+					trip = <&trip3>;
+					cooling-device = <&fan0 3 4>;
+				};
 			};
 		};
 	};
@@ -58,6 +75,10 @@
 			poe_fan_temp0_hyst =	<&trip0>,"hysteresis:0";
 			poe_fan_temp1 =		<&trip1>,"temperature:0";
 			poe_fan_temp1_hyst =	<&trip1>,"hysteresis:0";
+			poe_fan_temp2 =		<&trip2>,"temperature:0";
+			poe_fan_temp2_hyst =	<&trip2>,"hysteresis:0";
+			poe_fan_temp3 =		<&trip3>,"temperature:0";
+			poe_fan_temp3_hyst =	<&trip3>,"hysteresis:0";
 		};
 	};
 
@@ -66,5 +87,9 @@
 		poe_fan_temp0_hyst =	<&trip0>,"hysteresis:0";
 		poe_fan_temp1 =		<&trip1>,"temperature:0";
 		poe_fan_temp1_hyst =	<&trip1>,"hysteresis:0";
+		poe_fan_temp2 =		<&trip2>,"temperature:0";
+		poe_fan_temp2_hyst =	<&trip2>,"hysteresis:0";
+		poe_fan_temp3 =		<&trip3>,"temperature:0";
+		poe_fan_temp3_hyst =	<&trip3>,"hysteresis:0";
 	};
 };
