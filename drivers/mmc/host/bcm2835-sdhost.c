@@ -209,7 +209,7 @@ struct bcm2835_host {
 	/*end of DMA part*/
 
 	int				max_delay;	/* maximum length of time spent waiting */
-	struct timeval			stop_time;	/* when the last stop was issued */
+	struct timespec64		stop_time;	/* when the last stop was issued */
 	u32				delay_after_stop; /* minimum time between stop and subsequent data transfer */
 	u32				delay_after_this_stop; /* minimum time between this stop and subsequent data transfer */
 	u32				user_overclock_50; /* User's preferred frequency to use when 50MHz is requested (in MHz) */
@@ -310,15 +310,6 @@ static void log_dump(void)
 #define log_dump() (void)0
 
 #endif
-
-static inline void do_gettimeofday(struct timeval *tv)
-{
-	struct timespec64 now;
-
-	ktime_get_real_ts64(&now);
-	tv->tv_sec = now.tv_sec;
-	tv->tv_usec = now.tv_nsec/1000;
-}
 
 static inline void bcm2835_sdhost_write(struct bcm2835_host *host, u32 val, int reg)
 {
@@ -1036,14 +1027,15 @@ bool bcm2835_sdhost_send_command(struct bcm2835_host *host,
 	if (cmd->data) {
 		log_event("CMDD", cmd->data->blocks, cmd->data->blksz);
 		if (host->delay_after_this_stop) {
-			struct timeval now;
+			struct timespec64 now;
 			int time_since_stop;
-			do_gettimeofday(&now);
-			time_since_stop = (now.tv_sec - host->stop_time.tv_sec);
+
+			ktime_get_real_ts64(&now);
+			time_since_stop = now.tv_sec - host->stop_time.tv_sec;
 			if (time_since_stop < 2) {
 				/* Possibly less than one second */
 				time_since_stop = time_since_stop * 1000000 +
-					(now.tv_usec - host->stop_time.tv_usec);
+					(now.tv_nsec - host->stop_time.tv_nsec)/1000;
 				if (time_since_stop <
 				    host->delay_after_this_stop)
 					udelay(host->delay_after_this_stop -
@@ -1145,7 +1137,7 @@ static void bcm2835_sdhost_transfer_complete(struct bcm2835_host *host)
 				bcm2835_sdhost_finish_command(host, NULL);
 
 			if (host->delay_after_this_stop)
-				do_gettimeofday(&host->stop_time);
+				ktime_get_real_ts64(&host->stop_time);
 		}
 	} else {
 		bcm2835_sdhost_wait_transfer_complete(host);
@@ -1162,7 +1154,7 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 	u32 sdcmd;
 	u32 retries;
 #ifdef DEBUG
-	struct timeval before, after;
+	struct timespec64 before, after;
 	int timediff = 0;
 #endif
 
@@ -1176,7 +1168,7 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 	retries = host->cmd_quick_poll_retries;
 	if (!retries) {
 		/* Work out how many polls take 1us by timing 10us */
-		struct timeval start, now;
+		struct timespec64 start, now;
 		int us_diff;
 
 		retries = 1;
@@ -1185,16 +1177,16 @@ static void bcm2835_sdhost_finish_command(struct bcm2835_host *host,
 
 			retries *= 2;
 
-			do_gettimeofday(&start);
+			ktime_get_real_ts64(&start);
 
 			for (i = 0; i < retries; i++) {
 				cpu_relax();
 				sdcmd = bcm2835_sdhost_read(host, SDCMD);
 			}
 
-			do_gettimeofday(&now);
+			ktime_get_real_ts64(&now);
 			us_diff = (now.tv_sec - start.tv_sec) * 1000000 +
-				(now.tv_usec - start.tv_usec);
+				(now.tv_nsec - start.tv_nsec)/1000;
 		} while (us_diff < 10);
 
 		host->cmd_quick_poll_retries = ((retries * us_diff + 9)*CMD_DALLY_US)/10 + 1;
@@ -1913,7 +1905,7 @@ int bcm2835_sdhost_add_host(struct bcm2835_host *host)
 	/* host controller capabilities */
 	mmc->caps |=
 		MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED |
-		MMC_CAP_NEEDS_POLL | MMC_CAP_HW_RESET | MMC_CAP_ERASE |
+		MMC_CAP_NEEDS_POLL | MMC_CAP_HW_RESET |
 		((ALLOW_CMD23_READ|ALLOW_CMD23_WRITE) * MMC_CAP_CMD23);
 
 	spin_lock_init(&host->lock);
