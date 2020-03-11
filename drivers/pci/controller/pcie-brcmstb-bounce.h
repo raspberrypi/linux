@@ -6,7 +6,7 @@
 #ifndef _PCIE_BRCMSTB_BOUNCE_H
 #define _PCIE_BRCMSTB_BOUNCE_H
 
-#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+#ifdef CONFIG_ARM
 
 int brcm_pcie_bounce_init(struct device *dev, unsigned long buffer_size,
 			  dma_addr_t threshold);
