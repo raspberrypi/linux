@@ -24,7 +24,6 @@
 #include <linux/slab.h>
 #include <linux/page-flags.h>
 #include <linux/device.h>
-#include <linux/dma-direct.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmapool.h>
 #include <linux/list.h>
@@ -76,7 +75,6 @@ struct dmabounce_pool {
 
 struct dmabounce_device_info {
 	struct device *dev;
-	dma_addr_t phys_offset;
 	dma_addr_t threshold;
 	struct list_head safe_buffers;
 	struct dmabounce_pool pool;
@@ -92,11 +90,6 @@ struct dmabounce_device_info {
 };
 
 static struct dmabounce_device_info *g_dmabounce_device_info;
-
-dma_addr_t pcie_to_dma40(dma_addr_t addr)
-{
-	return addr - g_dmabounce_device_info->phys_offset;
-}
 
 extern int bcm2711_dma40_memcpy_init(void);
 extern void bcm2711_dma40_memcpy(dma_addr_t dst, dma_addr_t src, size_t size);
@@ -252,7 +245,7 @@ alloc_safe_buffer(struct dmabounce_device_info *device_info,
 
 	if (!buf->safe) {
 		dev_warn(dev,
-			 "%s: could not alloc dma memory (size=%zu)\n",
+			 "%s: could not alloc dma memory (size=%d)\n",
 			 __func__, size);
 		kfree(buf);
 		return NULL;
@@ -327,8 +320,7 @@ map_single(struct device *dev, struct safe_buffer *buf, size_t size,
 
 	if ((dir == DMA_TO_DEVICE || dir == DMA_BIDIRECTIONAL) &&
 	    !(attrs & DMA_ATTR_SKIP_CPU_SYNC))
-		bcm2711_dma40_memcpy(pcie_to_dma40(buf->safe_dma_addr),
-				     pcie_to_dma40(buf->unsafe_dma_addr),
+		bcm2711_dma40_memcpy(buf->safe_dma_addr, buf->unsafe_dma_addr,
 				     size);
 
 	return buf->safe_dma_addr;
@@ -346,8 +338,7 @@ unmap_single(struct device *dev, struct safe_buffer *buf, size_t size,
 		dev_dbg(dev, "unmap: %llx->%llx\n", (u64)buf->safe_dma_addr,
 			(u64)buf->unsafe_dma_addr);
 
-		bcm2711_dma40_memcpy(pcie_to_dma40(buf->unsafe_dma_addr),
-				     pcie_to_dma40(buf->safe_dma_addr),
+		bcm2711_dma40_memcpy(buf->unsafe_dma_addr, buf->safe_dma_addr,
 				     size);
 	}
 	return buf->unsafe_dma_addr;
@@ -386,6 +377,7 @@ dmabounce_map_page(struct device *dev, struct page *page, unsigned long offset,
 
 		dma_addr = map_single(dev, buf, size, dir, attrs);
 	}
+
 	return dma_addr;
 }
 
@@ -475,7 +467,7 @@ static const struct dma_map_ops dmabounce_ops = {
 
 int brcm_pcie_bounce_init(struct device *dev,
 			  unsigned long buffer_size,
-			  phys_addr_t phys_threshold)
+			  dma_addr_t threshold)
 {
 	struct dmabounce_device_info *device_info;
 	int ret;
@@ -504,8 +496,7 @@ int brcm_pcie_bounce_init(struct device *dev,
 	}
 
 	device_info->dev = dev;
-	device_info->phys_offset = __phys_to_dma(dev, 0);
-	device_info->threshold = phys_threshold + device_info->phys_offset;
+	device_info->threshold = threshold;
 	INIT_LIST_HEAD(&device_info->safe_buffers);
 	rwlock_init(&device_info->lock);
 
@@ -519,8 +510,8 @@ int brcm_pcie_bounce_init(struct device *dev,
 
 	g_dmabounce_device_info = device_info;
 
-	dev_info(dev, "dmabounce: initialised - %ld kB, threshold %padx (%padx)\n",
-		 buffer_size / 1024, &phys_threshold, &device_info->threshold);
+	dev_info(dev, "dmabounce: initialised - %ld kB, threshold %pad\n",
+		 buffer_size / 1024, &threshold);
 
 	return 0;
 

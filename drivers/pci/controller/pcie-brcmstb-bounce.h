@@ -9,7 +9,7 @@
 #if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 
 int brcm_pcie_bounce_init(struct device *dev, unsigned long buffer_size,
-			  phys_addr_t threshold);
+			  dma_addr_t threshold);
 int brcm_pcie_bounce_uninit(struct device *dev);
 int brcm_pcie_bounce_register_dev(struct device *dev);
 
@@ -17,7 +17,7 @@ int brcm_pcie_bounce_register_dev(struct device *dev);
 
 static inline int brcm_pcie_bounce_init(struct device *dev,
 					unsigned long buffer_size,
-					phys_addr_t threshold)
+					dma_addr_t threshold)
 {
 	return 0;
 }
