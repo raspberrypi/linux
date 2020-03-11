@@ -36,7 +36,7 @@
 						data-lanes = <1 2>;
 						clock-noncontinuous;
 						link-frequencies =
-							/bits/ 64 <297000000>;
+							/bits/ 64 <456000000>;
 					};
 				};
 			};
