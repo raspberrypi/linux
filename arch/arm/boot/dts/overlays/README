@@ -2064,6 +2064,13 @@ Load:   dtoverlay=rpi-tv
 Params: <None>
 
 
+Name:   rpivid-v4l2
+Info:   Load the V4L2 stateless video decoder driver for the HEVC block,
+        disabling the memory mapped devices in the process.
+Load:   dtoverlay=rpivid-v4l2
+Params: <None>
+
+
 Name:   rra-digidac1-wm8741-audio
 Info:   Configures the Red Rocks Audio DigiDAC1 soundcard
 Load:   dtoverlay=rra-digidac1-wm8741-audio
