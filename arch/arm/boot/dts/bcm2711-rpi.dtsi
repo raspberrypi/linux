@@ -12,6 +12,10 @@
 		sd_poll_once = <&emmc2>, "non-removable?";
 	};
 
+	arm-pmu {
+		compatible = "arm,cortex-a72-pmu", "arm,cortex-a15-pmu";
+	};
+
 	v3dbus {
 		compatible = "simple-bus";
 		#address-cells = <1>;
