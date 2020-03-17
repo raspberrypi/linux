@@ -3675,6 +3675,13 @@ N:	bcm113*
 N:	bcm216*
 N:	kona
 
+BROADCOM BCM2711 HEVC DECODER
+M:	Raspberry Pi Kernel Maintenance <kernel-list@raspberrypi.com>
+L:	linux-media@vger.kernel.org
+S:	Maintained
+F:	Documentation/devicetree/bindings/media/rpivid_hevc.jaml
+F:	drivers/staging/media/rpivid
+
 BROADCOM BCM2835 CAMERA DRIVER
 M:	Dave Stevenson <dave.stevenson@raspberrypi.org>
 L:	linux-media@vger.kernel.org
