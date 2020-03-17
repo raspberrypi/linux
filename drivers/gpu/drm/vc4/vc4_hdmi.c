@@ -44,6 +44,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/rational.h>
 #include <linux/reset.h>
+#include <sound/asoundef.h>
 #include <sound/dmaengine_pcm.h>
 #include <sound/pcm_drm_eld.h>
 #include <sound/pcm_params.h>
@@ -1170,6 +1171,47 @@ static int vc4_hdmi_audio_eld_ctl_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int vc4_spdif_info(struct snd_kcontrol *kcontrol,
+			  struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_IEC958;
+	uinfo->count = 1;
+	return 0;
+}
+
+static int vc4_spdif_playback_get(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct vc4_hdmi *vc4_hdmi = snd_component_to_hdmi(component);
+
+	memcpy(ucontrol->value.iec958.status, vc4_hdmi->audio.iec_status,
+	       sizeof(vc4_hdmi->audio.iec_status));
+
+	return 0;
+}
+
+static int vc4_spdif_playback_put(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct vc4_hdmi *vc4_hdmi = snd_component_to_hdmi(component);
+
+	memcpy(vc4_hdmi->audio.iec_status, ucontrol->value.iec958.status,
+	       sizeof(vc4_hdmi->audio.iec_status));
+
+	return 0;
+}
+
+static int vc4_spdif_mask_get(struct snd_kcontrol *kcontrol,
+			      struct snd_ctl_elem_value *ucontrol)
+{
+	memset(ucontrol->value.iec958.status, 0xff,
+	       sizeof_field(struct vc4_hdmi_audio, iec_status));
+
+	return 0;
+}
+
 static const struct snd_kcontrol_new vc4_hdmi_audio_controls[] = {
 	{
 		.access = SNDRV_CTL_ELEM_ACCESS_READ |
@@ -1178,6 +1220,19 @@ static const struct snd_kcontrol_new vc4_hdmi_audio_controls[] = {
 		.name = "ELD",
 		.info = vc4_hdmi_audio_eld_ctl_info,
 		.get = vc4_hdmi_audio_eld_ctl_get,
+	},
+	{
+		.iface =   SNDRV_CTL_ELEM_IFACE_MIXER,
+		.name =    SNDRV_CTL_NAME_IEC958("", PLAYBACK, DEFAULT),
+		.info =    vc4_spdif_info,
+		.get =     vc4_spdif_playback_get,
+		.put =     vc4_spdif_playback_put,
+	},
+	{
+		.iface =   SNDRV_CTL_ELEM_IFACE_MIXER,
+		.name =    SNDRV_CTL_NAME_IEC958("", PLAYBACK, MASK),
+		.info =    vc4_spdif_info,
+		.get =     vc4_spdif_mask_get,
 	},
 };
 
@@ -1298,6 +1353,11 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	vc4_hdmi->audio.dma_data.addr = be32_to_cpup(addr) + mai_data->offset;
 	vc4_hdmi->audio.dma_data.addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 	vc4_hdmi->audio.dma_data.maxburst = 2;
+
+	vc4_hdmi->audio.iec_status[0] = IEC958_AES0_CON_NOT_COPYRIGHT;
+	vc4_hdmi->audio.iec_status[1] =
+		IEC958_AES1_CON_ORIGINAL | IEC958_AES1_CON_PCM_CODER;
+	vc4_hdmi->audio.iec_status[3] = IEC958_AES3_CON_FS_48000;
 
 	ret = devm_snd_dmaengine_pcm_register(dev, &pcm_conf, 0);
 	if (ret) {
