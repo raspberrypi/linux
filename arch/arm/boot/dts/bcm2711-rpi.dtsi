@@ -11,6 +11,10 @@
 		arm_freq;
 	};
 
+	arm-pmu {
+		compatible = "arm,cortex-a72-pmu", "arm,cortex-a15-pmu";
+	};
+
 	v3dbus {
 		compatible = "simple-bus";
 		#address-cells = <1>;
