@@ -947,6 +947,10 @@ again:
 	 * is locked before adding it to the list.
 	 */
 	if (test_bit(TASKLET_STATE_SCHED, &t->state)) {
+		if (test_and_set_bit(TASKLET_STATE_CHAINED, &t->state)) {
+			tasklet_unlock(t);
+			return;
+		}
 		t->next = NULL;
 		*head->tail = t;
 		head->tail = &(t->next);
@@ -1040,7 +1044,7 @@ out_disabled:
 again:
 		t->func(t->data);
 
-		while (!tasklet_tryunlock(t)) {
+		while (cmpxchg(&t->state, TASKLET_STATEF_RC, 0) != TASKLET_STATEF_RC) {
 			/*
 			 * If it got disabled meanwhile, bail out:
 			 */
