@@ -282,6 +282,7 @@ struct mlx5_ib_wq {
 	unsigned		head;
 	unsigned		tail;
 	u16			cur_post;
+	u16			last_poll;
 	void			*cur_edge;
 };
 
