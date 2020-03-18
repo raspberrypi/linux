@@ -192,8 +192,7 @@ struct fsl_dspi {
 	u8					bytes_per_word;
 	const struct fsl_dspi_devtype_data	*devtype_data;
 
-	wait_queue_head_t			waitq;
-	u32					waitflags;
+	struct completion			xfer_done;
 
 	struct fsl_dspi_dma			*dma;
 };
@@ -703,10 +702,8 @@ static irqreturn_t dspi_interrupt(int irq, void *dev_id)
 	if (!(spi_sr & (SPI_SR_EOQF | SPI_SR_TCFQF)))
 		return IRQ_NONE;
 
-	if (dspi_rxtx(dspi) == 0) {
-		dspi->waitflags = 1;
-		wake_up_interruptible(&dspi->waitq);
-	}
+	if (dspi_rxtx(dspi) == 0)
+		complete(&dspi->xfer_done);
 
 	return IRQ_HANDLED;
 }
@@ -800,13 +797,9 @@ static int dspi_transfer_one_message(struct spi_controller *ctlr,
 				status = dspi_poll(dspi);
 			} while (status == -EINPROGRESS);
 		} else if (trans_mode != DSPI_DMA_MODE) {
-			status = wait_event_interruptible(dspi->waitq,
-							  dspi->waitflags);
-			dspi->waitflags = 0;
+			wait_for_completion(&dspi->xfer_done);
+			reinit_completion(&dspi->xfer_done);
 		}
-		if (status)
-			dev_err(&dspi->pdev->dev,
-				"Waiting for transfer to complete failed!\n");
 
 		if (transfer->delay_usecs)
 			udelay(transfer->delay_usecs);
@@ -1122,7 +1115,7 @@ static int dspi_probe(struct platform_device *pdev)
 		goto out_clk_put;
 	}
 
-	init_waitqueue_head(&dspi->waitq);
+	init_completion(&dspi->xfer_done);
 
 poll_mode:
 	if (dspi->devtype_data->trans_mode == DSPI_DMA_MODE) {
