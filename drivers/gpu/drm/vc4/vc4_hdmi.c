@@ -1019,9 +1019,8 @@ static int sample_rate_to_mai_fmt(int samplerate)
 }
 
 /* HDMI audio codec callbacks */
-static int vc4_hdmi_audio_hw_params(struct snd_pcm_substream *substream,
-				    struct snd_pcm_hw_params *params,
-				    struct snd_soc_dai *dai)
+static int vc4_hdmi_audio_prepare(struct snd_pcm_substream *substream,
+				  struct snd_soc_dai *dai)
 {
 	struct vc4_hdmi *vc4_hdmi = dai_to_hdmi(dai);
 	struct drm_encoder *encoder = &vc4_hdmi->encoder.base.base;
@@ -1034,12 +1033,15 @@ static int vc4_hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 	if (substream != vc4_hdmi->audio.substream)
 		return -EINVAL;
 
-	dev_dbg(dev, "%s: %u Hz, %d bit, %d channels\n", __func__,
-		params_rate(params), params_width(params),
-		params_channels(params));
+	dev_dbg(dev, "%s: %u Hz, %d bit, %d channels AES0=%02x\n",
+		__func__,
+		substream->runtime->rate,
+		snd_pcm_format_width(substream->runtime->format),
+		substream->runtime->channels,
+		vc4_hdmi->audio.iec_status[0]);
 
-	vc4_hdmi->audio.channels = params_channels(params);
-	vc4_hdmi->audio.samplerate = params_rate(params);
+	vc4_hdmi->audio.channels = substream->runtime->channels;
+	vc4_hdmi->audio.samplerate = substream->runtime->rate;
 
 	HDMI_WRITE(HDMI_MAI_CTL,
 		   VC4_HD_MAI_CTL_RESET |
@@ -1261,7 +1263,7 @@ static const struct snd_soc_component_driver vc4_hdmi_audio_component_drv = {
 static const struct snd_soc_dai_ops vc4_hdmi_audio_dai_ops = {
 	.startup = vc4_hdmi_audio_startup,
 	.shutdown = vc4_hdmi_audio_shutdown,
-	.hw_params = vc4_hdmi_audio_hw_params,
+	.prepare = vc4_hdmi_audio_prepare,
 	.set_fmt = vc4_hdmi_audio_set_fmt,
 	.trigger = vc4_hdmi_audio_trigger,
 };
