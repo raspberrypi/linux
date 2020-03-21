@@ -70,6 +70,12 @@ static void __irq_work_queue_local(struct irq_work *work, struct llist_head *lis
 		arch_irq_work_raise();
 }
 
+static inline bool use_lazy_list(struct irq_work *work)
+{
+	return (IS_ENABLED(CONFIG_PREEMPT_RT_FULL) && !(work->flags & IRQ_WORK_HARD_IRQ))
+		|| (work->flags & IRQ_WORK_LAZY);
+}
+
 /* Enqueue the irq work @work on the current CPU */
 bool irq_work_queue(struct irq_work *work)
 {
@@ -81,11 +87,10 @@ bool irq_work_queue(struct irq_work *work)
 
 	/* Queue the entry and raise the IPI if needed. */
 	preempt_disable();
-	if (IS_ENABLED(CONFIG_PREEMPT_RT_FULL) && !(work->flags & IRQ_WORK_HARD_IRQ))
+	if (use_lazy_list(work))
 		list = this_cpu_ptr(&lazy_list);
 	else
 		list = this_cpu_ptr(&raised_list);
-
 	__irq_work_queue_local(work, list);
 	preempt_enable();
 
@@ -106,7 +111,6 @@ bool irq_work_queue_on(struct irq_work *work, int cpu)
 
 #else /* CONFIG_SMP: */
 	struct llist_head *list;
-	bool lazy_work, realtime = IS_ENABLED(CONFIG_PREEMPT_RT_FULL);
 
 	/* All work should have been flushed before going offline */
 	WARN_ON_ONCE(cpu_is_offline(cpu));
@@ -116,10 +120,7 @@ bool irq_work_queue_on(struct irq_work *work, int cpu)
 		return false;
 
 	preempt_disable();
-
-	lazy_work = work->flags & IRQ_WORK_LAZY;
-
-	if (lazy_work || (realtime && !(work->flags & IRQ_WORK_HARD_IRQ)))
+	if (use_lazy_list(work))
 		list = &per_cpu(lazy_list, cpu);
 	else
 		list = &per_cpu(raised_list, cpu);
