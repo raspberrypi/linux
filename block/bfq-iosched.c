@@ -2717,8 +2717,6 @@ static void bfq_bfqq_save_state(struct bfq_queue *bfqq)
 	}
 }
 
-
-static
 void bfq_release_process_ref(struct bfq_data *bfqd, struct bfq_queue *bfqq)
 {
 	/*
