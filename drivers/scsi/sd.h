@@ -51,12 +51,13 @@ enum {
 	SD_MAX_WS16_BLOCKS = 0x7fffff,
 };
 
-enum {
-	SD_LBP_FULL = 0,	/* Full logical block provisioning */
+enum sd_lbp_mode {
+	SD_LBP_DEFAULT = 0,	/* Select mode based on what device reports */
+	SD_LBP_FULL,		/* Full logical block provisioning */
 	SD_LBP_UNMAP,		/* Use UNMAP command */
 	SD_LBP_WS16,		/* Use WRITE SAME(16) with UNMAP bit */
 	SD_LBP_WS10,		/* Use WRITE SAME(10) with UNMAP bit */
-	SD_LBP_ZERO,		/* Use WRITE SAME(10) with zero payload */
+	SD_LBP_ZERO,		/* Use WRITE SAME(10) with zeroed payload */
 	SD_LBP_DISABLE,		/* Discard disabled due to failed cmd */
 };
 
@@ -107,6 +108,8 @@ struct scsi_disk {
 	u8		protection_type;/* Data Integrity Field */
 	u8		provisioning_mode;
 	u8		zeroing_mode;
+	bool		lblvpd;
+	bool		provisioning_override;
 	unsigned	ATO : 1;	/* state of disk ATO bit */
 	unsigned	cache_override : 1; /* temp override of WCE,RCD */
 	unsigned	WCE : 1;	/* state of disk WCE bit */
