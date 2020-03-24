@@ -772,6 +772,16 @@ static int unicam_all_nodes_disabled(struct unicam_device *dev)
 	       !dev->node[METADATA_PAD].streaming;
 }
 
+static void unicam_queue_event_sof(struct unicam_device *unicam)
+{
+	struct v4l2_event event = {
+		.type = V4L2_EVENT_FRAME_SYNC,
+		.u.frame_sync.frame_sequence = unicam->sequence,
+	};
+
+	v4l2_event_queue(&unicam->node[IMAGE_PAD].video_dev, &event);
+}
+
 /*
  * unicam_isr : ISR handler for unicam capture
  * @irq: irq number
@@ -853,6 +863,8 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 			 */
 			unicam_schedule_dummy_buffer(&unicam->node[i]);
 		}
+
+		unicam_queue_event_sof(unicam);
 	}
 	/*
 	 * Cannot swap buffer at frame end, there may be a race condition
@@ -2022,6 +2034,8 @@ static int unicam_subscribe_event(struct v4l2_fh *fh,
 				  const struct v4l2_event_subscription *sub)
 {
 	switch (sub->type) {
+	case V4L2_EVENT_FRAME_SYNC:
+		return v4l2_event_subscribe(fh, sub, 2, NULL);
 	case V4L2_EVENT_SOURCE_CHANGE:
 		return v4l2_event_subscribe(fh, sub, 4, NULL);
 	}
