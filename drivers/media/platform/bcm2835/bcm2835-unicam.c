@@ -2374,6 +2374,11 @@ static int register_node(struct unicam_device *unicam, struct unicam_node *node,
 		return -ENOMEM;
 	}
 
+	if (node->pad_id == METADATA_PAD) {
+		v4l2_disable_ioctl(vdev, VIDIOC_DQEVENT);
+		v4l2_disable_ioctl(vdev, VIDIOC_SUBSCRIBE_EVENT);
+		v4l2_disable_ioctl(vdev, VIDIOC_UNSUBSCRIBE_EVENT);
+	}
 	if (node->pad_id == METADATA_PAD ||
 	    !v4l2_subdev_has_op(unicam->sensor, video, s_std)) {
 		v4l2_disable_ioctl(&node->video_dev, VIDIOC_S_STD);
