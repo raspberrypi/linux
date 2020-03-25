@@ -581,10 +581,11 @@ static void vc4_hdmi_encoder_enable(struct drm_encoder *encoder)
 	}
 
 	/*
-	 * The HSM rate needs to be at 108% of the pixel clock, with a
-	 * minimum of 108MHz.
+	 * The HSM rate needs to be slightly greater than the pixel clock, with
+	 * a minimum of 108MHz.
+	 * Use 101% as this is what the firmware uses.
 	 */
-	hsm_rate = max_t(unsigned long, 108000000, (pixel_rate / 100) * 108);
+	hsm_rate = max_t(unsigned long, 108000000, (pixel_rate / 100) * 101);
 	ret = clk_set_rate(vc4_hdmi->hsm_clock, hsm_rate);
 	if (ret) {
 		DRM_ERROR("Failed to set HSM clock rate: %d\n", ret);
@@ -1714,7 +1715,7 @@ static int vc4_hdmi_dev_remove(struct platform_device *pdev)
 }
 
 static const struct vc4_hdmi_variant bcm2835_variant = {
-	.max_pixel_clock	= 148500000,
+	.max_pixel_clock	= 162000000,
 	.audio_available	= true,
 	.cec_available		= true,
 	.registers		= vc4_hdmi_fields,
