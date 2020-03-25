@@ -1739,6 +1739,7 @@ static const struct vc4_hdmi_variant bcm2835_variant = {
 
 static const struct vc4_hdmi_variant bcm2711_hdmi0_variant = {
 	.id			= 0,
+	.audio_available	= true,
 	.max_pixel_clock	= 297000000,
 	.registers		= vc5_hdmi_hdmi0_fields,
 	.num_registers		= ARRAY_SIZE(vc5_hdmi_hdmi0_fields),
@@ -1762,6 +1763,7 @@ static const struct vc4_hdmi_variant bcm2711_hdmi0_variant = {
 
 static const struct vc4_hdmi_variant bcm2711_hdmi1_variant = {
 	.id			= 1,
+	.audio_available	= true,
 	.max_pixel_clock	= 297000000,
 	.registers		= vc5_hdmi_hdmi1_fields,
 	.num_registers		= ARRAY_SIZE(vc5_hdmi_hdmi1_fields),
