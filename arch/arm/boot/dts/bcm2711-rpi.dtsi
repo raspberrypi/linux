@@ -309,3 +309,8 @@
 &cpu_thermal {
 	 thermal-sensors = <&thermal>;
 };
+
+&hvs {
+	clocks = <&firmware_clocks 4>;
+};
+
