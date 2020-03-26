@@ -13,6 +13,7 @@
 
 #include <linux/bitfield.h>
 #include <linux/bitops.h>
+#include <linux/clk.h>
 
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
@@ -222,6 +223,7 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 {
 	struct drm_device *dev = state->dev;
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct vc4_hvs *hvs = vc4->hvs;
 	struct vc4_crtc *vc4_crtc;
 	int i;
 
@@ -236,6 +238,8 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 		vc4_crtc_state = to_vc4_crtc_state(_state->state);
 		vc4_hvs_mask_underrun(dev, vc4_crtc_state->assigned_channel);
 	}
+
+	clk_set_rate(hvs->core_clk, 500000000);
 
 	drm_atomic_helper_wait_for_fences(dev, state, false);
 
@@ -261,6 +265,8 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 	drm_atomic_helper_cleanup_planes(dev, state);
 
 	drm_atomic_helper_commit_cleanup_done(state);
+
+	clk_set_rate(hvs->core_clk, 200000000);
 
 	drm_atomic_state_put(state);
 
