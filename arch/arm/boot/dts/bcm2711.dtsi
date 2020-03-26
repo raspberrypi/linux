@@ -306,6 +306,7 @@
 		};
 
 		hvs@7e400000 {
+			clocks = <&firmware_clocks 4>;
 			interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
