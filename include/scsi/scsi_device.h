@@ -147,6 +147,10 @@ struct scsi_device {
 	struct scsi_vpd __rcu *vpd_pg83;
 	struct scsi_vpd __rcu *vpd_pg80;
 	struct scsi_vpd __rcu *vpd_pg89;
+	struct scsi_vpd __rcu *vpd_pgb0;
+	struct scsi_vpd __rcu *vpd_pgb1;
+	struct scsi_vpd __rcu *vpd_pgb2;
+
 	unsigned char current_tag;	/* current tag */
 	struct scsi_target      *sdev_target;   /* used only for single_lun */
 
