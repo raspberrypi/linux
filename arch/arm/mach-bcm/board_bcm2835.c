@@ -26,7 +26,8 @@
 
 #include "platsmp.h"
 
-#define BCM2835_VIRT_BASE   (VMALLOC_START)
+#define BCM2835_USB_VIRT_BASE   (VMALLOC_START)
+#define BCM2835_USB_VIRT_MPHI   (VMALLOC_START + 0x10000)
 
 static void __init bcm2835_init(void)
 {
@@ -51,13 +52,44 @@ static void __init bcm2835_init(void)
  * For more background see the following old mailing list thread:
  * https://www.spinics.net/lists/arm-kernel/msg325250.html
  */
+static int __init bcm2835_map_usb(unsigned long node, const char *uname,
+					int depth, void *data)
+{
+	struct map_desc map[2];
+	const __be32 *reg;
+	int len;
+	unsigned long p2b_offset = *((unsigned long *) data);
+
+	if (!of_flat_dt_is_compatible(node, "brcm,bcm2708-usb"))
+		return 0;
+	reg = of_get_flat_dt_prop(node, "reg", &len);
+	if (!reg || len != (sizeof(unsigned long) * 4))
+		return 0;
+
+	/* Use information about the physical addresses of the
+	 * registers from the device tree, but use legacy
+	 * iotable_init() static mapping function to map them,
+	 * as ioremap() is not functional at this stage in boot.
+	 */
+	map[0].virtual = (unsigned long) BCM2835_USB_VIRT_BASE;
+	map[0].pfn = __phys_to_pfn(be32_to_cpu(reg[0]) - p2b_offset);
+	map[0].length = be32_to_cpu(reg[1]);
+	map[0].type = MT_DEVICE;
+	map[1].virtual = (unsigned long) BCM2835_USB_VIRT_MPHI;
+	map[1].pfn = __phys_to_pfn(be32_to_cpu(reg[2]) - p2b_offset);
+	map[1].length = be32_to_cpu(reg[3]);
+	map[1].type = MT_DEVICE;
+		iotable_init(map, 2);
+
+	return 1;
+}
 
 static void __init bcm2835_map_io(void)
 {
 	const __be32 *ranges, *address_cells;
 	unsigned long root, addr_cells;
 	int soc, len;
-	struct map_desc map[1];
+	unsigned long p2b_offset;
 
 	debug_ll_io_init();
 
@@ -73,17 +105,10 @@ static void __init bcm2835_map_io(void)
 	ranges = of_get_flat_dt_prop(soc, "ranges", &len);
 	if (!ranges || len < (sizeof(unsigned long) * (2 + addr_cells)))
 		return;
+	p2b_offset = be32_to_cpu(ranges[0]) - be32_to_cpu(ranges[addr_cells]);
 
-	/* Use information about the physical addresses of the
-	 * ranges from the device tree, but use legacy
-	 * iotable_init() static mapping function to map them,
-	 * as ioremap() is not functional at this stage in boot.
-	 */
-	map[0].virtual = (unsigned long) BCM2835_VIRT_BASE;
-	map[0].pfn = __phys_to_pfn(be32_to_cpu(ranges[1]));
-	map[0].length = be32_to_cpu(ranges[2]);
-	map[0].type = MT_DEVICE;
-	iotable_init(map, 1);
+	/* Now search for bcm2708-usb node in device tree */
+	of_scan_flat_dt(bcm2835_map_usb, &p2b_offset);
 }
 
 static const char * const bcm2835_compat[] = {
