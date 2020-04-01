@@ -1,9 +1,0 @@
-#include "i2c1-overlay.dts"
-
-/{
-	__overrides__ {
-		sda1_pin = <&pins1>,"brcm,pins:0", <&pins2>,"brcm,pins:0";
-		scl1_pin = <&pins1>,"brcm,pins:4", <&pins1>,"brcm,pins:4";
-		pin_func = <&pins1>,"brcm,function:0", <&pins2>,"brcm,function:0";
-	};
-};
