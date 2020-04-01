@@ -1,5 +1,7 @@
 # Overlays for the Raspberry Pi platform
 
+dtb-$(CONFIG_ARCH_BCM2835) += overlay_map.dtb
+
 dtbo-$(CONFIG_ARCH_BCM2835) += \
 	act-led.dtbo \
 	adau1977-adc.dtbo \
