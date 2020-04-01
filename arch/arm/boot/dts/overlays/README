@@ -1288,11 +1288,8 @@ Params: pins_0_1                Use pins 0 and 1 (default)
 
 
 Name:   i2c0-bcm2708
-Info:   Deprecated, legacy version of i2c0, from which it inherits its
-        parameters, just adding the explicit individual pin specifiers.
+Info:   Deprecated, legacy version of i2c0.
 Load:   <Deprecated>
-Params: sda0_pin                GPIO pin for SDA0 (deprecated - use pins_*)
-        scl0_pin                GPIO pin for SCL0 (deprecated - use pins_*)
 
 
 Name:   i2c1
@@ -1307,13 +1304,8 @@ Params: pins_2_3                Use pins 2 and 3 (default)
 
 
 Name:   i2c1-bcm2708
-Info:   Deprecated, legacy version of i2c1, from which it inherits its
-        parameters, just adding the explicit individual pin specifiers.
+Info:   Deprecated, legacy version of i2c1.
 Load:   <Deprecated>
-Params: sda1_pin                GPIO pin for SDA1 (2 or 44 - default 2)
-        scl1_pin                GPIO pin for SCL1 (3 or 45 - default 3)
-        pin_func                Alternative pin function (4 (alt0), 6 (alt2) -
-                                default 4)
 
 
 Name:   i2c3
