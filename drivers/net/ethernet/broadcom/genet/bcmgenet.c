@@ -69,7 +69,7 @@
 #define GENET_RDMA_REG_OFF	(priv->hw_params->rdma_offset + \
 				TOTAL_DESC * DMA_DESC_SIZE)
 
-static bool skip_umac_reset = true;
+static bool skip_umac_reset = false;
 module_param(skip_umac_reset, bool, 0444);
 MODULE_PARM_DESC(skip_umac_reset, "Skip UMAC reset step");
 
