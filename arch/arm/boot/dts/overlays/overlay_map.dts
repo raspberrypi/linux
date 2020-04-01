@@ -1,0 +1,71 @@
+/dts-v1/;
+
+/ {
+	i2c3 {
+		bcm2711;
+	};
+
+	i2c4 {
+		bcm2711;
+	};
+
+	i2c5 {
+		bcm2711;
+	};
+
+	i2c6 {
+		bcm2711;
+	};
+
+	rpivid-v4l2 {
+		bcm2711;
+	};
+
+	spi3-1cs {
+		bcm2711;
+	};
+
+	spi3-2cs {
+		bcm2711;
+	};
+
+	spi4-1cs {
+		bcm2711;
+	};
+
+	spi4-2cs {
+		bcm2711;
+	};
+
+	spi5-1cs {
+		bcm2711;
+	};
+
+	spi5-2cs {
+		bcm2711;
+	};
+
+	spi6-1cs {
+		bcm2711;
+	};
+
+	spi6-2cs {
+		bcm2711;
+	};
+
+	uart2 {
+		bcm2711;
+	};
+
+	uart3 {
+		bcm2711;
+	};
+
+	uart4 {
+		bcm2711;
+	};
+
+	uart5 {
+		bcm2711;
+	};
+};
