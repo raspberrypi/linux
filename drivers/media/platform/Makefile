@@ -100,4 +100,6 @@ obj-y					+= meson/
 
 obj-y					+= cros-ec-cec/
 
+obj-y					+= bcm2835/
+
 obj-y					+= sunxi/
