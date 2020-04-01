@@ -1,6 +1,18 @@
 /dts-v1/;
 
 / {
+	bmp085_i2c-sensor {
+		deprecated = "use i2c-sensor,bmp085";
+	};
+
+	i2c0-bcm2708 {
+		deprecated = "use i2c0";
+	};
+
+	i2c1-bcm2708 {
+		deprecated = "use i2c1";
+	};
+
 	i2c3 {
 		bcm2711;
 	};
@@ -17,8 +29,32 @@
 		bcm2711;
 	};
 
+	lirc-rpi {
+		deprecated = "use gpio-ir";
+	};
+
+	pi3-act-led {
+		renamed = "act-led";
+	};
+
+	pi3-disable-bt {
+		renamed = "disable-bt";
+	};
+
+	pi3-disable-wifi {
+		renamed = "disable-wifi";
+	};
+
+	pi3-miniuart-bt {
+		renamed = "miniuart-bt";
+	};
+
 	rpivid-v4l2 {
 		bcm2711;
+	};
+
+	sdio-1bit {
+		deprecated = "use sdio,bus_width=1,gpios_22_25";
 	};
 
 	spi3-1cs {
@@ -67,5 +103,9 @@
 
 	uart5 {
 		bcm2711;
+	};
+
+	upstream-aux-interrupt {
+		deprecated = "no longer necessary";
 	};
 };
