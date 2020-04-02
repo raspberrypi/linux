@@ -2310,8 +2310,7 @@ static enum compact_result compact_zone_order(struct zone *zone, int order,
 		.page = NULL,
 	};
 
-	if (capture)
-		current->capture_control = &capc;
+	current->capture_control = &capc;
 
 	ret = compact_zone(&cc, &capc);
 
@@ -2333,6 +2332,7 @@ int sysctl_extfrag_threshold = 500;
  * @alloc_flags: The allocation flags of the current allocation
  * @ac: The context of current allocation
  * @prio: Determines how hard direct compaction should try to succeed
+ * @capture: Pointer to free page created by compaction will be stored here
  *
  * This is the main entry point for direct page compaction.
  */
