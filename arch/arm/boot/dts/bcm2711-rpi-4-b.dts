@@ -195,7 +195,7 @@
 
 / {
 	chosen {
-		bootargs = "coherent_pool=1M 8250.nr_uarts=1 cma=64M";
+		bootargs = "coherent_pool=1M 8250.nr_uarts=1";
 	};
 
 	aliases {
@@ -215,10 +215,6 @@
 	};
 
 	/delete-node/ wifi-pwrseq;
-
-	reserved-memory {
-		/delete-node/ linux,cma;
-	};
 };
 
 &mmcnr {
