@@ -554,6 +554,19 @@ Info:   This overlay is now deprecated - see i2c-sensor
 Load:   <Deprecated>
 
 
+Name:   cma
+Info:   Set custom CMA sizes, only use if you know what you are doing, might
+        clash with other overlays like vc4-fkms-v3d and vc4-kms-v3d.
+Load:   dtoverlay=cma,<param>=<val>
+Params: cma-256                 CMA is 256MB (needs 1GB)
+        cma-192                 CMA is 192MB (needs 1GB)
+        cma-128                 CMA is 128MB
+        cma-96                  CMA is 96MB
+        cma-64                  CMA is 64MB
+        cma-size                CMA size in bytes, 4MB aligned
+        cma-default             Use upstream's default value
+
+
 Name:   dht11
 Info:   Overlay for the DHT11/DHT21/DHT22 humidity/temperature sensors
         Also sometimes found with the part number(s) AM230x.
@@ -2675,6 +2688,8 @@ Params: cma-256                 CMA is 256MB (needs 1GB)
         cma-128                 CMA is 128MB
         cma-96                  CMA is 96MB
         cma-64                  CMA is 64MB
+        cma-size                CMA size in bytes, 4MB aligned
+        cma-default             Use upstream's default value
 
 
 Name:   vc4-kms-kippah-7inch
@@ -2692,6 +2707,8 @@ Params: cma-256                 CMA is 256MB (needs 1GB)
         cma-128                 CMA is 128MB
         cma-96                  CMA is 96MB
         cma-64                  CMA is 64MB
+        cma-size                CMA size in bytes, 4MB aligned
+        cma-default             Use upstream's default value
         audio                   Enable or disable audio over HDMI (default "on")
 
 
@@ -2703,6 +2720,8 @@ Params: cma-256                 CMA is 256MB
         cma-128                 CMA is 128MB
         cma-96                  CMA is 96MB
         cma-64                  CMA is 64MB
+        cma-size                CMA size in bytes, 4MB aligned
+        cma-default             Use upstream's default value
         audio                   Enable or disable audio over HDMI0 (default
                                 "on")
         audio1                  Enable or disable audio over HDMI1 (default
