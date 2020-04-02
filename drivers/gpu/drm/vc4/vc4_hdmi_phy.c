@@ -192,8 +192,8 @@ static u32 phy_get_rm_offset(unsigned long long vco_freq)
 
 	/* RM offset is stored as 9.22 format */
 	offset = vco_freq * 2;
-	do_div(offset, fref);
 	offset = offset << 22;
+	do_div(offset, fref);
 	offset >>= 2;
 
 	return offset;
