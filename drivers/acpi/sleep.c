@@ -1009,6 +1009,10 @@ static bool acpi_s2idle_wake(void)
 		if (acpi_any_fixed_event_status_set())
 			return true;
 
+		/* Check wakeups from drivers sharing the SCI. */
+		if (acpi_check_wakeup_handlers())
+			return true;
+
 		/*
 		 * If there are no EC events to process and at least one of the
 		 * other enabled GPEs is active, the wakeup is regarded as a
