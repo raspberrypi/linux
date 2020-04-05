@@ -1242,7 +1242,6 @@ fallback:
 	req = io_get_fallback_req(ctx);
 	if (req)
 		goto got_it;
-	percpu_ref_put(&ctx->refs);
 	return NULL;
 }
 
