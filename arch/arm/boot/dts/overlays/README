@@ -2653,6 +2653,13 @@ Info:   This overlay has been deprecated and removed because it is no longer
 Load:   <Deprecated>
 
 
+Name:   upstream-pi4
+Info:   Allow usage of downstream .dtb with upstream kernel on Pi 4. Comprises
+        the vc4-kms-v3d-pi4 and dwc2 overlays.
+Load:   dtoverlay=upstream-pi4
+Params: <None>
+
+
 Name:   vc4-fkms-v3d
 Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
         display stack.
