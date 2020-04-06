@@ -2704,6 +2704,8 @@ Params: cma-256                 CMA is 256MB
         cma-128                 CMA is 128MB
         cma-96                  CMA is 96MB
         cma-64                  CMA is 64MB
+        cma-size                CMA size in bytes, 4MB aligned
+        cma-default             Use upstream's default value
         audio                   Enable or disable audio over HDMI0 (default
                                 "on")
         audio1                  Enable or disable audio over HDMI1 (default
