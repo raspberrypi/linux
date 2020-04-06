@@ -182,7 +182,7 @@ static u8 phy_get_cp_current(unsigned long vco_freq)
 	if (vco_freq < 3700000000ULL)
 		return 0x1c;
 
-	return 0xc8;
+	return 0x18;
 }
 
 static u32 phy_get_rm_offset(unsigned long long vco_freq)
