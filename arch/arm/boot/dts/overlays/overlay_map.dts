@@ -105,8 +105,17 @@
 		bcm2711;
 	};
 
+	upstream {
+		bcm2835;
+		bcm2711 = "upstream-pi4";
+	};
+
 	upstream-aux-interrupt {
 		deprecated = "no longer necessary";
+	};
+
+	upstream-pi4 {
+		bcm2711;
 	};
 
 	vc4-kms-v3d {
