@@ -187,6 +187,13 @@ config SND_AUDIOINJECTOR_OCTO_SOUNDCARD
 	help
 	  Say Y or M if you want to add support for audioinjector.net octo add on
 
+config SND_AUDIOINJECTOR_ISOLATED_SOUNDCARD
+	tristate "Support for audioinjector.net isolated DAC and ADC soundcard"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_CS4271_I2C
+	help
+	  Say Y or M if you want to add support for audioinjector.net isolated soundcard
+
 config SND_AUDIOSENSE_PI
 	tristate "Support for AudioSense Add-On Soundcard"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S

@@ -1,0 +1,55 @@
+// Definitions for audioinjector.net audio isolated soundcard
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2s>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			cs4272_mclk: codec-mclk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <24576000>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			cs4272: cs4272@10 {
+				#sound-dai-cells = <0>;
+				compatible = "cirrus,cs4271";
+				reg = <0x10>;
+				reset-gpio = <&gpio 5 0>;
+				clocks = <&cs4272_mclk>;
+				clock-names = "mclk";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@3 {
+		target = <&sound>;
+		snd: __overlay__ {
+			compatible = "ai,audioinjector-isolated-soundcard";
+			mute-gpios = <&gpio 17 0>;
+			i2s-controller = <&i2s>;
+			codec = <&cs4272>;
+			status = "okay";
+		};
+	};
+};
