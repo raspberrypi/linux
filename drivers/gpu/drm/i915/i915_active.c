@@ -121,7 +121,7 @@ static inline void debug_active_assert(struct i915_active *ref) { }
 #endif
 
 static void
-__active_retire(struct i915_active *ref)
+__active_retire(struct i915_active *ref, bool lock)
 {
 	struct active_node *it, *n;
 	struct rb_root root;
@@ -138,7 +138,8 @@ __active_retire(struct i915_active *ref)
 		retire = true;
 	}
 
-	mutex_unlock(&ref->mutex);
+	if (likely(lock))
+		mutex_unlock(&ref->mutex);
 	if (!retire)
 		return;
 
@@ -153,21 +154,28 @@ __active_retire(struct i915_active *ref)
 }
 
 static void
-active_retire(struct i915_active *ref)
+active_retire(struct i915_active *ref, bool lock)
 {
 	GEM_BUG_ON(!atomic_read(&ref->count));
 	if (atomic_add_unless(&ref->count, -1, 1))
 		return;
 
 	/* One active may be flushed from inside the acquire of another */
-	mutex_lock_nested(&ref->mutex, SINGLE_DEPTH_NESTING);
-	__active_retire(ref);
+	if (likely(lock))
+		mutex_lock_nested(&ref->mutex, SINGLE_DEPTH_NESTING);
+	__active_retire(ref, lock);
 }
 
 static void
 node_retire(struct i915_active_request *base, struct i915_request *rq)
 {
-	active_retire(node_from_active(base)->ref);
+	active_retire(node_from_active(base)->ref, true);
+}
+
+static void
+node_retire_nolock(struct i915_active_request *base, struct i915_request *rq)
+{
+	active_retire(node_from_active(base)->ref, false);
 }
 
 static struct i915_active_request *
@@ -364,7 +372,7 @@ int i915_active_acquire(struct i915_active *ref)
 void i915_active_release(struct i915_active *ref)
 {
 	debug_active_assert(ref);
-	active_retire(ref);
+	active_retire(ref, true);
 }
 
 static void __active_ungrab(struct i915_active *ref)
@@ -391,7 +399,7 @@ void i915_active_ungrab(struct i915_active *ref)
 {
 	GEM_BUG_ON(!test_bit(I915_ACTIVE_GRAB_BIT, &ref->flags));
 
-	active_retire(ref);
+	active_retire(ref, true);
 	__active_ungrab(ref);
 }
 
@@ -421,12 +429,13 @@ int i915_active_wait(struct i915_active *ref)
 			break;
 		}
 
-		err = i915_active_request_retire(&it->base, BKL(ref));
+		err = i915_active_request_retire(&it->base, BKL(ref),
+						 node_retire_nolock);
 		if (err)
 			break;
 	}
 
-	__active_retire(ref);
+	__active_retire(ref, true);
 	if (err)
 		return err;
 
