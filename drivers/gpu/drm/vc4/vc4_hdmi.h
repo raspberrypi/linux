@@ -119,6 +119,8 @@ struct vc4_hdmi {
 	struct vc4_hdmi_encoder encoder;
 	struct drm_connector connector;
 
+	struct drm_property *broadcast_rgb_property;
+
 	struct vc4_hdmi_audio audio;
 
 	struct i2c_adapter *ddc;
@@ -167,6 +169,24 @@ encoder_to_vc4_hdmi(struct drm_encoder *encoder)
 	struct vc4_hdmi_encoder *_encoder = to_vc4_hdmi_encoder(encoder);
 
 	return container_of(_encoder, struct vc4_hdmi, encoder);
+}
+
+struct vc4_hdmi_state {
+	struct drm_connector_state base;
+
+	int broadcast_rgb;
+};
+
+static inline struct vc4_hdmi_state *
+connector_state_to_vc4_hdmi_state(struct drm_connector_state *state)
+{
+	return container_of(state, struct vc4_hdmi_state, base);
+}
+
+static inline const struct vc4_hdmi_state *
+const_connector_state_to_vc4_hdmi_state(const struct drm_connector_state *state)
+{
+	return container_of(state, struct vc4_hdmi_state, base);
 }
 
 void vc4_hdmi_phy_init(struct vc4_hdmi *vc4_hdmi,
