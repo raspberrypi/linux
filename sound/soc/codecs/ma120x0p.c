@@ -1002,7 +1002,7 @@ static struct snd_soc_dai_driver ma120x0p_dai = {
 		.channels_max	= 2,
 		.rates = SNDRV_PCM_RATE_CONTINUOUS,
 		.rate_min = 44100,
-		.rate_max = 48000,
+		.rate_max = 96000,
 		.formats = SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE
 	},
 	.ops        = &ma120x0p_dai_ops,
@@ -1235,7 +1235,7 @@ static int ma120x0p_i2c_probe(struct i2c_client *i2c,
 	//Startup sequence
 
 	//Make sure the device is muted
-	priv_data->mute_gpio = devm_gpiod_get(&i2c->dev, "mute_gp",
+	priv_data->mute_gpio = devm_gpiod_get_optional(&i2c->dev, "mute_gp",
 		GPIOD_OUT_LOW);
 	if (IS_ERR(priv_data->mute_gpio)) {
 		ret = PTR_ERR(priv_data->mute_gpio);
@@ -1262,7 +1262,7 @@ static int ma120x0p_i2c_probe(struct i2c_client *i2c,
 	msleep(200);
 
 	//Enable ma120x0pp
-	priv_data->enable_gpio = devm_gpiod_get(&i2c->dev,
+	priv_data->enable_gpio = devm_gpiod_get_optional(&i2c->dev,
 		"enable_gp", GPIOD_OUT_LOW);
 	if (IS_ERR(priv_data->enable_gpio)) {
 		ret = PTR_ERR(priv_data->enable_gpio);
