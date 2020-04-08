@@ -129,6 +129,8 @@ struct vc4_hdmi {
 
 	struct delayed_work scrambling_work;
 
+	struct drm_property *broadcast_rgb_property;
+
 	struct i2c_adapter *ddc;
 	void __iomem *hdmicore_regs;
 	void __iomem *hd_regs;
@@ -229,6 +231,12 @@ struct vc4_hdmi {
 	 * for use outside of KMS hooks. Protected by @mutex.
 	 */
 	enum vc4_hdmi_output_format output_format;
+
+	/**
+	 * @broadcast_rgb: Copy of @vc4_connector_state.broadcast_rgb
+	 * for use outside of KMS hooks. Protected by @mutex.
+	 */
+	int broadcast_rgb;
 };
 
 static inline struct vc4_hdmi *
@@ -249,10 +257,17 @@ struct vc4_hdmi_connector_state {
 	unsigned long long		tmds_char_rate;
 	unsigned int 			output_bpc;
 	enum vc4_hdmi_output_format	output_format;
+	int				broadcast_rgb;
 };
 
 static inline struct vc4_hdmi_connector_state *
 conn_state_to_vc4_hdmi_conn_state(struct drm_connector_state *conn_state)
+{
+	return container_of(conn_state, struct vc4_hdmi_connector_state, base);
+}
+
+static inline const struct vc4_hdmi_connector_state *
+const_conn_state_to_vc4_hdmi_conn_state(const struct drm_connector_state *conn_state)
 {
 	return container_of(conn_state, struct vc4_hdmi_connector_state, base);
 }
