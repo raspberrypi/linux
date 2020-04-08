@@ -30,7 +30,7 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			cs4272: cs4272@10 {
+			cs4272: cs4271@10 {
 				#sound-dai-cells = <0>;
 				compatible = "cirrus,cs4271";
 				reg = <0x10>;

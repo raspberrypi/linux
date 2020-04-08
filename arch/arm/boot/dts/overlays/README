@@ -500,7 +500,7 @@ Params: interrupt               GPIO used for INT (default 23)
 
 Name:   audioinjector-isolated-soundcard
 Info:   Configures the audioinjector.net isolated soundcard
-Load:   dtoverlay=audioinjector-isolated-soundcard,<param>=<val>
+Load:   dtoverlay=audioinjector-isolated-soundcard
 Params: <None>
 
 
