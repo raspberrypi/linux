@@ -505,6 +505,12 @@ Params: non-stop-clocks         Keeps the clocks running even when the stream
                                 is paused or stopped (default off)
 
 
+Name:   audioinjector-isolated-soundcard
+Info:   Configures the audioinjector.net isolated soundcard
+Load:   dtoverlay=audioinjector-isolated-soundcard
+Params: <None>
+
+
 Name:   audioinjector-ultra
 Info:   Configures the audioinjector.net ultra soundcard
 Load:   dtoverlay=audioinjector-ultra
