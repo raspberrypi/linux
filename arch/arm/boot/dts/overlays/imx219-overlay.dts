@@ -9,7 +9,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2c_vc>;
+		target = <&i2c_csi_dsi>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -61,34 +61,13 @@
 	};
 
 	fragment@2 {
-		target = <&i2c0_pins>;
-		__dormant__ {
-			brcm,pins = <28 29>;
-			brcm,function = <4>; /* alt0 */
-		};
-	};
-	fragment@3 {
-		target = <&i2c0_pins>;
-		__overlay__ {
-			brcm,pins = <44 45>;
-			brcm,function = <5>; /* alt1 */
-		};
-	};
-	fragment@4 {
-		target = <&i2c0_pins>;
-		__dormant__ {
-			brcm,pins = <0 1>;
-			brcm,function = <4>; /* alt0 */
-		};
-	};
-	fragment@5 {
-		target = <&i2c_vc>;
+		target = <&i2c0if>;
 		__overlay__ {
 			status = "okay";
 		};
 	};
 
-	fragment@6 {
+	fragment@3 {
 		target-path="/";
 		__overlay__ {
 			imx219_vana: fixedregulator@0 {
@@ -114,16 +93,18 @@
 		};
 	};
 
-	fragment@7 {
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
 		target-path="/__overrides__";
 		__overlay__ {
 			cam0-pwdn-ctrl = <&imx219_vana>,"gpio:0";
 			cam0-pwdn      = <&imx219_vana>,"gpio:4";
 		};
-	};
-
-	__overrides__ {
-		i2c_pins_0_1 = <0>,"-2-3+4";
-		i2c_pins_28_29 = <0>,"+2-3-4";
 	};
 };
