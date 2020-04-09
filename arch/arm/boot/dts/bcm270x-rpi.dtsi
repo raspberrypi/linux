@@ -21,6 +21,7 @@
 		i2s = &i2s;
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
+		i2c10 = &i2c_csi_dsi;
 		spi0 = &spi0;
 		spi1 = &spi1;
 		spi2 = &spi2;
@@ -83,9 +84,9 @@
 		uart1 = <&uart1>,"status";
 		i2s = <&i2s>,"status";
 		spi = <&spi0>,"status";
-		i2c0 = <&i2c0>,"status";
+		i2c0 = <&i2c0if>,"status",<&i2c0mux>,"status";
 		i2c1 = <&i2c1>,"status";
-		i2c0_baudrate = <&i2c0>,"clock-frequency:0";
+		i2c0_baudrate = <&i2c0if>,"clock-frequency:0";
 		i2c1_baudrate = <&i2c1>,"clock-frequency:0";
 
 		audio = <&audio>,"status";
@@ -105,7 +106,7 @@
 	status = "disabled";
 };
 
-&i2c0 {
+&i2c0if {
 	status = "disabled";
 };
 
