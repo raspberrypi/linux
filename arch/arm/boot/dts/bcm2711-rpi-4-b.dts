@@ -192,6 +192,7 @@
 
 #include "bcm2711-rpi.dtsi"
 #include "bcm283x-rpi-csi1-2lane.dtsi"
+#include "bcm283x-rpi-i2c0mux_0_44.dtsi"
 
 /delete-node/ &emmc2;
 
@@ -421,9 +422,7 @@
 	};
 };
 
-&i2c0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c0_pins>;
+&i2c0if {
 	clock-frequency = <100000>;
 };
 
