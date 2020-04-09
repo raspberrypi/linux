@@ -331,22 +331,14 @@ Info:   Analog Devices ADV7282M analogue video to CSI2 bridge.
         Uses Unicam1, which is the standard camera connector on most Pi
         variants.
 Load:   dtoverlay=adv7282m,<param>=<val>
-Params: i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
-                                Useful on Compute Modules.
-        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
-                                This is required for Pi B+, 2, 0, and 0W.
-        addr                    Overrides the I2C address (default 0x21)
+Params: addr                    Overrides the I2C address (default 0x21)
 
 
 Name:   adv728x-m
 Info:   Analog Devices ADV728[0|1|2]-M analogue video to CSI2 bridges.
         This is a wrapper for adv7282m, and defaults to ADV7282M.
 Load:   dtoverlay=adv728x-m,<param>=<val>
-Params: i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
-                                Useful on Compute Modules.
-        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
-                                This is required for Pi B+, 2, 0, and 0W.
-        addr                    Overrides the I2C address (default 0x21)
+Params: addr                    Overrides the I2C address (default 0x21)
         adv7280m                Select ADV7280-M.
         adv7281m                Select ADV7281-M.
         adv7281ma               Select ADV7281-MA.
@@ -1384,12 +1376,8 @@ Name:   imx219
 Info:   Sony IMX219 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=imx219,<param>=<val>
-Params: i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
-                                Useful on Compute Modules.
-
-        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
-                                This is required for Pi B+, 2, 0, and 0W.
+Load:   dtoverlay=imx219
+Params: <None>
 
 
 Name:   iqaudio-codec
@@ -1453,12 +1441,8 @@ Name:   irs1125
 Info:   Infineon irs1125 TOF camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=irs1125,<param>=<val>
-Params: i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
-                                Useful on Compute Modules.
-
-        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
-                                This is required for Pi B+, 2, 0, and 0W.
+Load:   dtoverlay=irs1125
+Params: <None>
 
 
 Name:   jedec-spi-nor
@@ -1743,12 +1727,8 @@ Name:   ov5647
 Info:   Omnivision OV5647 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=ov5647,<param>=<val>
-Params: i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
-                                Useful on Compute Modules.
-
-        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
-                                This is required for Pi B+, 2, 0, and 0W.
+Load:   dtoverlay=ov5647
+Params: <None>
 
 
 Name:   papirus
@@ -2554,12 +2534,6 @@ Params: 4lane                   Use 4 lanes (only applicable to Compute Modules
         link-frequency          Set the link frequency. Only values of 297000000
                                 (574Mbit/s) and 486000000 (972Mbit/s - default)
                                 are supported by the driver.
-
-        i2c_pins_0_1            Use pins 0&1 for the I2C instead of 44&45.
-                                Useful on Compute Modules.
-
-        i2c_pins_28_29          Use pins 28&29 for the I2C instead of 44&45.
-                                This is required for Pi B+, 2, 0, and 0W.
 
 
 Name:   tc358743-audio
