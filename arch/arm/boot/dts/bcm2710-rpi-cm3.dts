@@ -4,7 +4,7 @@
 #include "bcm2709-rpi.dtsi"
 #include "bcm283x-rpi-csi0-2lane.dtsi"
 #include "bcm283x-rpi-csi1-4lane.dtsi"
-
+#include "bcm283x-rpi-i2c0mux_0_28.dtsi"
 / {
 	compatible = "raspberrypi,3-compute-module", "brcm,bcm2837";
 	model = "Raspberry Pi Compute Module 3";
@@ -88,10 +88,12 @@
 	};
 };
 
-&i2c0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c0_pins>;
+&i2c0if {
 	clock-frequency = <100000>;
+};
+
+&i2c0mux {
+	pinctrl-0 = <&i2c0_pins>;
 };
 
 &i2c1 {
