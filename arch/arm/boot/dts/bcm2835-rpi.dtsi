@@ -46,11 +46,15 @@
 	};
 };
 
-&i2c0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c0_gpio0>;
+&i2c0if {
 	status = "okay";
 	clock-frequency = <100000>;
+};
+
+&i2c0mux {
+	pinctrl-0 = <&i2c0_gpio0>;
+	/* pinctrl-1 varies based on platform */
+	status = "okay";
 };
 
 &i2c1 {
