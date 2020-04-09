@@ -116,3 +116,10 @@
 	pinctrl-0 = <&uart0_gpio14>;
 	status = "okay";
 };
+
+/* camera/display connector use BSC1 on GPIOS 2&3.
+ * To avoid having to remap everything, map both ports to gpios 0&1
+ */
+&i2c0mux {
+	pinctrl-1 = <&i2c0_gpio0>;
+};
