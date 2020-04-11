@@ -1477,8 +1477,10 @@ static int vc4_hdmi_init_resources(struct vc4_hdmi *vc4_hdmi)
 
 	vc4_hdmi->pixel_clock = devm_clk_get(dev, "pixel");
 	if (IS_ERR(vc4_hdmi->pixel_clock)) {
-		DRM_ERROR("Failed to get pixel clock\n");
-		return PTR_ERR(vc4_hdmi->pixel_clock);
+		ret = PTR_ERR(vc4_hdmi->pixel_clock);
+		if (ret != -EPROBE_DEFER)
+			DRM_ERROR("Failed to get pixel clock\n");
+		return ret;
 	}
 
 	vc4_hdmi->hsm_clock = devm_clk_get(dev, "hdmi");
