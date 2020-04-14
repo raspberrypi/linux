@@ -179,6 +179,11 @@
 	/delete-node/ audio;
 };
 
+&cma {
+	/* Limit cma to the lower 768MB to allow room for HIGHMEM on 32-bit */
+	alloc-ranges = <0x0 0x00000000 0x30000000>;
+};
+
 &scb {
 	ranges = <0x0 0x7c000000  0x0 0xfc000000  0x03800000>,
 		 <0x0 0x40000000  0x0 0xff800000  0x00800000>,
