@@ -45,6 +45,11 @@
 	};
 };
 
+&cma {
+	/* Limit cma to the lower 768MB to allow room for HIGHMEM on 32-bit */
+	alloc-ranges = <0x0 0x00000000 0x30000000>;
+};
+
 &soc {
 	thermal: thermal@7d5d2200 {
 		compatible = "brcm,avs-tmon-bcm2711";
