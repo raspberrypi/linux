@@ -419,10 +419,8 @@ static int snd_rpi_hifiberry_dacplusadcpro_hw_params(
 	if (ret)
 		return ret;
 
-	if (snd_rpi_hifiberry_is_dacpro) {
-		if (ops->hw_params)
+	if (snd_rpi_hifiberry_is_dacpro && ops->hw_params)
 			ret = ops->hw_params(substream, params, dai);
-	}
 	return ret;
 }
 
