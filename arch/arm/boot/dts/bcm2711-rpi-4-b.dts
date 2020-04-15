@@ -52,6 +52,8 @@
 			interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clocks BCM2711_CLOCK_EMMC2>;
 			reg = <0x0 0x7e340000 0x100>;
+			vqmmc-supply = <&sd_io_1v8_reg>;
+			broken-cd;
 		};
 	};
 };
