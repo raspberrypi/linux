@@ -4034,6 +4034,7 @@ static int spi_set_cs_timing(struct spi_device *spi)
 
 static int __spi_setup(struct spi_device *spi, bool initial_setup)
 {
+	struct spi_controller *ctlr = spi->controller;
 	unsigned	bad_bits, ugly_bits;
 	int		status;
 
@@ -4060,6 +4061,14 @@ static int __spi_setup(struct spi_device *spi, bool initial_setup)
 			"setup: MOSI configured to idle low and high at the same time.\n");
 		return -EINVAL;
 	}
+
+	if (ctlr->use_gpio_descriptors && ctlr->cs_gpiods &&
+	    ctlr->cs_gpiods[spi->chip_select[0]] && !(spi->mode & SPI_CS_HIGH)) {
+		dev_dbg(&spi->dev,
+			"setup: forcing CS_HIGH (use_gpio_descriptors)\n");
+		spi->mode |= SPI_CS_HIGH;
+	}
+
 	/*
 	 * Help drivers fail *cleanly* when they need options
 	 * that aren't supported with their current controller.
