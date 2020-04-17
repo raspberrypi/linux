@@ -3922,6 +3922,7 @@ static int spi_set_cs_timing(struct spi_device *spi)
  */
 int spi_setup(struct spi_device *spi)
 {
+	struct spi_controller *ctlr = spi->controller;
 	unsigned	bad_bits, ugly_bits;
 	int		status = 0;
 
@@ -3942,6 +3943,14 @@ int spi_setup(struct spi_device *spi)
 		(SPI_TX_DUAL | SPI_TX_QUAD | SPI_TX_OCTAL |
 		 SPI_RX_DUAL | SPI_RX_QUAD | SPI_RX_OCTAL)))
 		return -EINVAL;
+
+	if (ctlr->use_gpio_descriptors && ctlr->cs_gpiods &&
+	    ctlr->cs_gpiods[spi->chip_select[0]] && !(spi->mode & SPI_CS_HIGH)) {
+		dev_dbg(&spi->dev,
+			"setup: forcing CS_HIGH (use_gpio_descriptors)\n");
+		spi->mode |= SPI_CS_HIGH;
+	}
+
 	/*
 	 * Help drivers fail *cleanly* when they need options
 	 * that aren't supported with their current controller.
