@@ -428,7 +428,7 @@ spidev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			}
 
 			if (ctlr->use_gpio_descriptors && spi_get_csgpiod(spi, 0))
-				tmp |= SPI_CS_HIGH;
+				{ /*tmp |= SPI_CS_HIGH;*/ }
 
 			tmp |= spi->mode & ~SPI_MODE_MASK;
 			spi->mode = tmp & SPI_MODE_USER_MASK;
