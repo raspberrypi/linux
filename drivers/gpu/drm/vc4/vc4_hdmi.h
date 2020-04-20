@@ -118,6 +118,9 @@ struct vc4_hdmi_audio {
 	bool streaming;
 
 	unsigned char iec_status[4];
+	const struct snd_pcm_chmap_elem *chmap;
+	unsigned int chmap_idx;
+	unsigned int max_channels;
 };
 
 /* General HDMI hardware state. */
