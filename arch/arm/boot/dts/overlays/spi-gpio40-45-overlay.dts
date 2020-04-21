@@ -17,20 +17,10 @@
 	};
 
 	fragment@1 {
-		target = <&spi0_cs_pins>;
-		__overlay__ {
-			brcm,pins = <45 44 43>;
-			brcm,function = <1>; /* output */
-			status = "okay";
-		};
-	};
-
-	fragment@2 {
 		target = <&spi0_pins>;
 		__overlay__ {
 			brcm,pins = <40 41 42>;
 			brcm,function = <3>; /* alt4 */
-			status = "okay";
 		};
 	};
 };

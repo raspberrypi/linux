@@ -287,8 +287,6 @@
 	};
 
 	spi0_cs_pins: spi0_cs_pins {
-		brcm,pins = <8 7>;
-		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
 	};
 
 	spi3_pins: spi3_pins {
@@ -297,8 +295,6 @@
 	};
 
 	spi3_cs_pins: spi3_cs_pins {
-		brcm,pins = <0 24>;
-		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
 	};
 
 	spi4_pins: spi4_pins {
@@ -307,8 +303,6 @@
 	};
 
 	spi4_cs_pins: spi4_cs_pins {
-		brcm,pins = <4 25>;
-		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
 	};
 
 	spi5_pins: spi5_pins {
@@ -317,8 +311,6 @@
 	};
 
 	spi5_cs_pins: spi5_cs_pins {
-		brcm,pins = <12 26>;
-		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
 	};
 
 	spi6_pins: spi6_pins {
@@ -327,8 +319,6 @@
 	};
 
 	spi6_cs_pins: spi6_cs_pins {
-		brcm,pins = <18 27>;
-		brcm,function = <BCM2835_FSEL_GPIO_OUT>;
 	};
 
 	i2c0_pins: i2c0 {

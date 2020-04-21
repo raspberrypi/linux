@@ -12,11 +12,6 @@
 				brcm,pins = <40 41 42>;
 				brcm,function = <3>; /* alt4 */
 			};
-
-			spi2_cs_pins: spi2_cs_pins {
-				brcm,pins = <43 44>;
-				brcm,function = <1>; /* output */
-			};
 		};
 	};
 
@@ -27,7 +22,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&spi2_pins &spi2_cs_pins>;
+			pinctrl-0 = <&spi2_pins>;
 			cs-gpios = <&gpio 43 1>, <&gpio 44 1>;
 			status = "okay";
 
@@ -59,10 +54,8 @@
 	};
 
 	__overrides__ {
-		cs0_pin  = <&spi2_cs_pins>,"brcm,pins:0",
-			   <&frag1>,"cs-gpios:4";
-		cs1_pin  = <&spi2_cs_pins>,"brcm,pins:4",
-			   <&frag1>,"cs-gpios:16";
+		cs0_pin  = <&frag1>,"cs-gpios:4";
+		cs1_pin  = <&frag1>,"cs-gpios:16";
 		cs0_spidev = <&spidev2_0>,"status";
 		cs1_spidev = <&spidev2_1>,"status";
 	};

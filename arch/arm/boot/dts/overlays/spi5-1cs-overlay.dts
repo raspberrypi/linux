@@ -6,22 +6,14 @@
 	compatible = "brcm,bcm2711";
 
 	fragment@0 {
-		target = <&spi5_cs_pins>;
-		frag0: __overlay__ {
-			brcm,pins = <12>;
-			brcm,function = <1>; /* output */
-		};
-	};
-
-	fragment@1 {
 		target = <&spi5>;
-		frag1: __overlay__ {
+		frag0: __overlay__ {
 			/* needed to avoid dtc warning */
 			#address-cells = <1>;
 			#size-cells = <0>;
 
 			pinctrl-names = "default";
-		        pinctrl-0 = <&spi5_pins &spi5_cs_pins>;
+		        pinctrl-0 = <&spi5_pins>;
 			cs-gpios = <&gpio 12 1>;
 			status = "okay";
 
@@ -37,8 +29,7 @@
 	};
 
 	__overrides__ {
-		cs0_pin  = <&frag0>,"brcm,pins:0",
-			   <&frag1>,"cs-gpios:4";
+		cs0_pin  = <&frag0>,"cs-gpios:4";
 		cs0_spidev = <&spidev5_0>,"status";
 	};
 };

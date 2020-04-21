@@ -28,8 +28,6 @@
 	};
 
 	spi0_cs_pins: spi0_cs_pins {
-		brcm,pins = <8 7>;
-		brcm,function = <1>; /* output */
 	};
 
 	i2c0_pins: i2c0 {
