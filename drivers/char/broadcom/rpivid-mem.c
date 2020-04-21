@@ -100,6 +100,7 @@ static int rpivid_mem_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct rpivid_mem_priv *priv;
 	unsigned long pages;
+	unsigned long len;
 
 	priv = file->private_data;
 	pages = priv->regs_phys >> PAGE_SHIFT;
@@ -107,14 +108,13 @@ static int rpivid_mem_mmap(struct file *file, struct vm_area_struct *vma)
 	 * The address decode is far larger than the actual number of registers.
 	 * Just map the whole lot in.
 	 */
-	vma->vm_page_prot = phys_mem_access_prot(file, pages,
-						 priv->mem_window_len,
+	len = min(vma->vm_end - vma->vm_start, priv->mem_window_len);
+	vma->vm_page_prot = phys_mem_access_prot(file, pages, len,
 						 vma->vm_page_prot);
 	vma->vm_ops = &rpivid_mem_vm_ops;
 	if (remap_pfn_range(vma, vma->vm_start,
-			pages,
-			priv->mem_window_len,
-			vma->vm_page_prot)) {
+			    pages, len,
+			    vma->vm_page_prot)) {
 		return -EAGAIN;
 	}
 	return 0;
@@ -156,7 +156,7 @@ static int rpivid_mem_probe(struct platform_device *pdev)
 	ioresource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (ioresource) {
 		priv->regs_phys = ioresource->start;
-		priv->mem_window_len = ioresource->end - ioresource->start;
+		priv->mem_window_len = (ioresource->end + 1) - ioresource->start;
 	} else {
 		dev_err(priv->dev, "failed to get IO resource");
 		err = -ENOENT;
