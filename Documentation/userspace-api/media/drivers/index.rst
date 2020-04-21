@@ -36,6 +36,7 @@ For more details see the file COPYING in the source distribution of Linux.
 	cx2341x-uapi
 	dw100
 	imx-uapi
+	bcm2835-isp
 	max2175
 	omap3isp-uapi
 	st-vgxy61
