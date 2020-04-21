@@ -110,6 +110,10 @@
 	status = "disabled";
 };
 
+&i2c0mux {
+	status = "disabled";
+};
+
 &i2c1 {
 	status = "disabled";
 };
