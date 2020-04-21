@@ -1515,7 +1515,6 @@ static int b53_arl_op(struct b53_device *dev, int op, int port,
 
 	memset(&ent, 0, sizeof(ent));
 	ent.port = port;
-	ent.is_valid = is_valid;
 	ent.vid = vid;
 	ent.is_static = true;
 	memcpy(ent.mac, addr, ETH_ALEN);
