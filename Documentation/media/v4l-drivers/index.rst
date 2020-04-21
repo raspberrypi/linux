@@ -35,6 +35,7 @@ For more details see the file COPYING in the source distribution of Linux.
 	v4l-with-ir
 	tuners
 	cardlist
+	bcm2835-isp
 	bttv
 	cafe_ccic
 	cpia2
