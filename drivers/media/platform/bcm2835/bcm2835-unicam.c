@@ -967,11 +967,30 @@ static int unicam_enum_fmt_vid_cap(struct file *file, void  *priv,
 static int unicam_g_fmt_vid_cap(struct file *file, void *priv,
 				struct v4l2_format *f)
 {
+	struct v4l2_mbus_framefmt mbus_fmt = {0};
 	struct unicam_node *node = video_drvdata(file);
+	struct unicam_device *dev = node->dev;
+	const struct unicam_fmt *fmt = NULL;
+	int ret;
 
-	if (node->pad_id == METADATA_PAD)
+	if (node->pad_id != IMAGE_PAD)
 		return -EINVAL;
 
+	/*
+	 * If a flip has occurred in the sensor, the fmt code might have
+	 * changed. So we will need to re-fetch the format from the subdevice.
+	 */
+	ret = __subdev_get_format(dev, &mbus_fmt, node->pad_id);
+	if (ret)
+		return -EINVAL;
+
+	/* Find the V4L2 format from mbus code. We must match a known format. */
+	fmt = find_format_by_code(mbus_fmt.code);
+	if (!fmt)
+		return -EINVAL;
+
+	node->fmt = fmt;
+	node->v_fmt.fmt.pix.pixelformat = fmt->fourcc;
 	*f = node->v_fmt;
 
 	return 0;
