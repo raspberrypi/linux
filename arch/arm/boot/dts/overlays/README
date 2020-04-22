@@ -1019,6 +1019,12 @@ Load:   dtoverlay=hifiberry-digi-pro
 Params: <None>
 
 
+Name:   highperi
+Info:   Enables "High Peripheral" mode
+Load:   dtoverlay=highperi
+Params: <None>
+
+
 Name:   hy28a
 Info:   HY28A - 2.8" TFT LCD Display Module by HAOYU Electronics
         Default values match Texy's display shield
