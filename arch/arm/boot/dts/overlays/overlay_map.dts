@@ -5,6 +5,10 @@
 		deprecated = "use i2c-sensor,bmp085";
 	};
 
+	highperi {
+		bcm2711;
+	};
+
 	i2c0-bcm2708 {
 		deprecated = "use i2c0";
 	};
