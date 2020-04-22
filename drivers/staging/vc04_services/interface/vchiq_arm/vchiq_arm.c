@@ -69,6 +69,7 @@ static struct platform_device *bcm2835_camera;
 static struct platform_device *bcm2835_audio;
 static struct platform_device *bcm2835_codec;
 static struct platform_device *vcsm_cma;
+static struct platform_device *bcm2835_isp;
 
 static struct vchiq_drvdata bcm2835_drvdata = {
 	.cache_line_size = 32,
@@ -1850,6 +1851,7 @@ static int vchiq_probe(struct platform_device *pdev)
 	bcm2835_codec = vchiq_register_child(pdev, "bcm2835-codec");
 	bcm2835_camera = vchiq_register_child(pdev, "bcm2835-camera");
 	bcm2835_audio = vchiq_register_child(pdev, "bcm2835_audio");
+	bcm2835_isp = vchiq_register_child(pdev, "bcm2835-isp");
 
 	return 0;
 
@@ -1861,6 +1863,7 @@ error_exit:
 
 static int vchiq_remove(struct platform_device *pdev)
 {
+	platform_device_unregister(bcm2835_isp);
 	platform_device_unregister(bcm2835_audio);
 	platform_device_unregister(bcm2835_camera);
 	platform_device_unregister(bcm2835_codec);
