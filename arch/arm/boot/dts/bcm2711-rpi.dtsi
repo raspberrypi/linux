@@ -128,7 +128,7 @@
 		arm_freq;
 	};
 
-	v3dbus {
+	v3dbus: v3dbus {
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <2>;
