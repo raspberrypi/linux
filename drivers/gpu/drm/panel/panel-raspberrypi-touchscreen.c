@@ -220,7 +220,35 @@ static struct rpi_touchscreen *panel_to_ts(struct drm_panel *panel)
 
 static int rpi_touchscreen_i2c_read(struct rpi_touchscreen *ts, u8 reg)
 {
-	return i2c_smbus_read_byte_data(ts->i2c, reg);
+	struct i2c_client *client = ts->i2c;
+	struct i2c_msg msgs[1];
+	u8 addr_buf[1] = { reg };
+	u8 data_buf[1] = { 0, };
+	int ret;
+
+	/* Write register address */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = 0;
+	msgs[0].len = ARRAY_SIZE(addr_buf);
+	msgs[0].buf = addr_buf;
+
+	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+	if (ret != ARRAY_SIZE(msgs))
+		return -EIO;
+
+	usleep_range(100, 300);
+
+	/* Read data from register */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = I2C_M_RD;
+	msgs[0].len = 1;
+	msgs[0].buf = data_buf;
+
+	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+	if (ret != ARRAY_SIZE(msgs))
+		return -EIO;
+
+	return data_buf[0];
 }
 
 static void rpi_touchscreen_i2c_write(struct rpi_touchscreen *ts,
