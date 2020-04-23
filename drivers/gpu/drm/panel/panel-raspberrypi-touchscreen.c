@@ -218,7 +218,35 @@ static struct rpi_touchscreen *panel_to_ts(struct drm_panel *panel)
 
 static int rpi_touchscreen_i2c_read(struct rpi_touchscreen *ts, u8 reg)
 {
-	return i2c_smbus_read_byte_data(ts->i2c, reg);
+	struct i2c_client *client = ts->i2c;
+	struct i2c_msg msgs[1];
+	u8 addr_buf[1] = { reg };
+	u8 data_buf[1] = { 0, };
+	int ret;
+
+	/* Write register address */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = 0;
+	msgs[0].len = ARRAY_SIZE(addr_buf);
+	msgs[0].buf = addr_buf;
+
+	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+	if (ret != ARRAY_SIZE(msgs))
+		return -EIO;
+
+	usleep_range(100, 300);
+
+	/* Read data from register */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = I2C_M_RD;
+	msgs[0].len = 1;
+	msgs[0].buf = data_buf;
+
+	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+	if (ret != ARRAY_SIZE(msgs))
+		return -EIO;
+
+	return data_buf[0];
 }
 
 static void rpi_touchscreen_i2c_write(struct rpi_touchscreen *ts,
@@ -267,12 +295,21 @@ static int rpi_touchscreen_noop(struct drm_panel *panel)
 static int rpi_touchscreen_prepare(struct drm_panel *panel)
 {
 	struct rpi_touchscreen *ts = panel_to_ts(panel);
-	int i;
+	int i, data;
 
+	/*
+	 * Power up the Toshiba bridge. The Atmel device can misbehave
+	 * over I2C for a few ms after writes to REG_POWERON (including the
+	 * write in rpi_touchscreen_disable()), so sleep before and after.
+	 * Also to ensure that the bridge has been off for at least 100ms.
+	 */
+	msleep(100);
 	rpi_touchscreen_i2c_write(ts, REG_POWERON, 1);
+	usleep_range(20000, 25000);
 	/* Wait for nPWRDWN to go low to indicate poweron is done. */
 	for (i = 0; i < 100; i++) {
-		if (rpi_touchscreen_i2c_read(ts, REG_PORTB) & 1)
+		data = rpi_touchscreen_i2c_read(ts, REG_PORTB);
+		if (data >= 0 && (data & 1))
 			break;
 	}
 
@@ -398,6 +435,7 @@ static int rpi_touchscreen_probe(struct i2c_client *i2c)
 
 	/* Turn off at boot, so we can cleanly sequence powering on. */
 	rpi_touchscreen_i2c_write(ts, REG_POWERON, 0);
+	usleep_range(20000, 25000);
 
 	/* Look up the DSI host.  It needs to probe before we do. */
 	endpoint = of_graph_get_next_endpoint(dev->of_node, NULL);
