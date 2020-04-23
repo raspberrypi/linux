@@ -46,6 +46,7 @@ source "drivers/staging/vc04_services/bcm2835-camera/Kconfig"
 
 source "drivers/staging/vc04_services/vc-sm-cma/Kconfig"
 source "drivers/staging/vc04_services/bcm2835-codec/Kconfig"
+source "drivers/staging/vc04_services/bcm2835-isp/Kconfig"
 
 source "drivers/staging/vc04_services/vchiq-mmal/Kconfig"
 
