@@ -1,0 +1,14 @@
+config VIDEO_ISP_BCM2835
+	tristate "BCM2835 ISP support"
+	depends on MEDIA_SUPPORT
+	depends on VIDEO_DEV && (ARCH_BCM2835 || COMPILE_TEST)
+	depends on MEDIA_CONTROLLER
+	select BCM2835_VCHIQ_MMAL
+	select VIDEOBUF2_DMA_CONTIG
+	help
+	  This is the V4L2 driver for the Broadcom BCM2835 ISP hardware.
+	  This operates over the VCHIQ interface to a service running on
+	  VideoCore.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called bcm2835-isp.
