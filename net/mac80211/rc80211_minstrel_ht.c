@@ -1631,7 +1631,7 @@ minstrel_ht_init_cck_rates(struct minstrel_priv *mp)
 }
 
 static void *
-minstrel_ht_alloc(struct ieee80211_hw *hw, struct dentry *debugfsdir)
+minstrel_ht_alloc(struct ieee80211_hw *hw)
 {
 	struct minstrel_priv *mp;
 
@@ -1668,18 +1668,24 @@ minstrel_ht_alloc(struct ieee80211_hw *hw, struct dentry *debugfsdir)
 	mp->hw = hw;
 	mp->update_interval = 100;
 
+	minstrel_ht_init_cck_rates(mp);
+
+	return mp;
+}
+
 #ifdef CONFIG_MAC80211_DEBUGFS
+static void minstrel_ht_add_debugfs(struct ieee80211_hw *hw, void *priv,
+				    struct dentry *debugfsdir)
+{
+	struct minstrel_priv *mp = priv;
+
 	mp->fixed_rate_idx = (u32) -1;
 	debugfs_create_u32("fixed_rate_idx", S_IRUGO | S_IWUGO, debugfsdir,
 			   &mp->fixed_rate_idx);
 	debugfs_create_u32("sample_switch", S_IRUGO | S_IWUSR, debugfsdir,
 			   &mp->sample_switch);
-#endif
-
-	minstrel_ht_init_cck_rates(mp);
-
-	return mp;
 }
+#endif
 
 static void
 minstrel_ht_free(void *priv)
@@ -1718,6 +1724,7 @@ static const struct rate_control_ops mac80211_minstrel_ht = {
 	.alloc = minstrel_ht_alloc,
 	.free = minstrel_ht_free,
 #ifdef CONFIG_MAC80211_DEBUGFS
+	.add_debugfs = minstrel_ht_add_debugfs,
 	.add_sta_debugfs = minstrel_ht_add_sta_debugfs,
 #endif
 	.get_expected_throughput = minstrel_ht_get_expected_throughput,
