@@ -13,11 +13,12 @@
 		__overlay__ {
 			/* needed to avoid dtc warning */
 			#address-cells = <2>;
-			#size-cells = <1>;
+			#size-cells = <2>;
+
 			codec@7eb10000 {
 				compatible = "raspberrypi,rpivid-vid-decoder";
-				reg = <0x0 0x7eb10000 0x1000>,	/* INTC */
-				      <0x0 0x7eb00000 0x10000>; /* HEVC */
+				reg = <0x0 0x7eb10000  0x0 0x1000>,  /* INTC */
+				      <0x0 0x7eb00000  0x0 0x10000>; /* HEVC */
 				reg-names = "intc",
 					    "hevc";
 
