@@ -363,6 +363,10 @@ void x25_disconnect(struct sock *sk, int reason, unsigned char cause,
 		x25->neighbour = NULL;
 		read_unlock_bh(&x25_list_lock);
 	}
+	read_lock_bh(&x25_list_lock);
+	x25_neigh_put(x25->neighbour);
+	x25->neighbour = NULL;
+	read_unlock_bh(&x25_list_lock);
 }
 
 /*
