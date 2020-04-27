@@ -569,12 +569,7 @@ static void vc4_hdmi_encoder_enable(struct drm_encoder *encoder)
 		return;
 	}
 
-	/*
-	 * The HSM rate needs to be slightly greater than the pixel clock, with
-	 * a minimum of 108MHz.
-	 * Use 101% as this is what the firmware uses.
-	 */
-	hsm_rate = max_t(unsigned long, 108000000, (pixel_rate / 100) * 101);
+	hsm_rate = vc4_hdmi->variant->calc_hsm_clock(vc4_hdmi, pixel_rate);
 	ret = clk_set_rate(vc4_hdmi->hsm_clock, hsm_rate);
 	if (ret) {
 		DRM_ERROR("Failed to set HSM clock rate: %d\n", ret);
@@ -740,6 +735,28 @@ static u32 vc4_hdmi_get_hsm_clock(struct vc4_hdmi *vc4_hdmi)
 static u32 vc5_hdmi_get_hsm_clock(struct vc4_hdmi *vc4_hdmi)
 {
 	return 108000000;
+}
+
+static u32 vc4_hdmi_calc_hsm_clock(struct vc4_hdmi *vc4_hdmi, unsigned long pixel_rate)
+{
+	/*
+	 * This is the rate that is set by the firmware.  The number
+	 * needs to be a bit higher than the pixel clock rate
+	 * (generally 148.5Mhz).
+	 */
+
+	return 163682864;
+}
+
+static u32 vc5_hdmi_calc_hsm_clock(struct vc4_hdmi *vc4_hdmi, unsigned long pixel_rate)
+{
+	/*
+	 * The HSM rate needs to be slightly greater than the pixel clock, with
+	 * a minimum of 108MHz.
+	 * Use 101% as this is what the firmware uses.
+	 */
+
+	return max_t(unsigned long, 108000000, (pixel_rate / 100) * 101);
 }
 
 static u32 vc4_hdmi_channel_map(struct vc4_hdmi *vc4_hdmi, u32 channel_mask)
@@ -1736,6 +1753,7 @@ static const struct vc4_hdmi_variant bcm2835_variant = {
 	.phy_rng_enable		= vc4_hdmi_phy_rng_enable,
 	.phy_rng_disable	= vc4_hdmi_phy_rng_disable,
 	.get_hsm_clock		= vc4_hdmi_get_hsm_clock,
+	.calc_hsm_clock		= vc4_hdmi_calc_hsm_clock,
 	.channel_map		= vc4_hdmi_channel_map,
 };
 
@@ -1760,6 +1778,7 @@ static const struct vc4_hdmi_variant bcm2711_hdmi0_variant = {
 	.phy_rng_enable		= vc5_hdmi_phy_rng_enable,
 	.phy_rng_disable	= vc5_hdmi_phy_rng_disable,
 	.get_hsm_clock		= vc5_hdmi_get_hsm_clock,
+	.calc_hsm_clock		= vc5_hdmi_calc_hsm_clock,
 	.channel_map		= vc5_hdmi_channel_map,
 };
 
@@ -1784,6 +1803,7 @@ static const struct vc4_hdmi_variant bcm2711_hdmi1_variant = {
 	.phy_rng_enable		= vc5_hdmi_phy_rng_enable,
 	.phy_rng_disable	= vc5_hdmi_phy_rng_disable,
 	.get_hsm_clock		= vc5_hdmi_get_hsm_clock,
+	.calc_hsm_clock		= vc5_hdmi_calc_hsm_clock,
 	.channel_map		= vc5_hdmi_channel_map,
 };
 
