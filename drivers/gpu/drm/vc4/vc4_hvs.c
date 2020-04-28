@@ -240,7 +240,7 @@ static int vc4_hvs_bind(struct device *dev, struct device *master, void *data)
 	hvs->regset.regs = hvs_regs;
 	hvs->regset.nregs = ARRAY_SIZE(hvs_regs);
 
-	hvs->core_clk = devm_clk_get(&pdev->dev, NULL);
+	hvs->core_clk = devm_clk_get_optional(&pdev->dev, NULL);
 	if (IS_ERR(hvs->core_clk)) {
 		dev_err(&pdev->dev, "Couldn't get core clock\n");
 		return PTR_ERR(hvs->regs);
