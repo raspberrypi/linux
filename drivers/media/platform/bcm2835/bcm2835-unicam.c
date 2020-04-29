@@ -2204,9 +2204,6 @@ static int unicam_release(struct file *file)
 	if (fh_singular)
 		v4l2_subdev_call(sd, core, s_power, 0);
 
-	if (node->streaming)
-		unicam_stop_streaming(&node->buffer_queue);
-
 	node->open--;
 	mutex_unlock(&node->lock);
 
