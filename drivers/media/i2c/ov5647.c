@@ -592,7 +592,7 @@ static struct ov5647_mode supported_modes_8bit[] = {
 	 * Uncentred crop (top left quarter) from 2x2 binned 1296x972 image.
 	 */
 	{
-		{
+		.format = {
 			.code = MEDIA_BUS_FMT_SBGGR8_1X8,
 			.colorspace = V4L2_COLORSPACE_SRGB,
 			.field = V4L2_FIELD_NONE,
@@ -608,8 +608,8 @@ static struct ov5647_mode supported_modes_8bit[] = {
 		.pixel_rate = 77291670,
 		.hts = 1896,
 		.vts_def = 0x3d8,
-		ov5647_640x480_8bit,
-		ARRAY_SIZE(ov5647_640x480_8bit)
+		.reg_list = ov5647_640x480_8bit,
+		.num_regs = ARRAY_SIZE(ov5647_640x480_8bit)
 	},
 };
 
@@ -618,7 +618,7 @@ static struct ov5647_mode supported_modes_10bit[] = {
 	 * MODE 0: 2592x1944 full resolution full FOV 10-bit mode.
 	 */
 	{
-		{
+		.format = {
 			.code = MEDIA_BUS_FMT_SBGGR10_1X10,
 			.colorspace = V4L2_COLORSPACE_SRGB,
 			.field = V4L2_FIELD_NONE,
@@ -634,15 +634,15 @@ static struct ov5647_mode supported_modes_10bit[] = {
 		.pixel_rate = 87500000,
 		.hts = 2844,
 		.vts_def = 0x7b0,
-		ov5647_2592x1944_10bit,
-		ARRAY_SIZE(ov5647_2592x1944_10bit)
+		.reg_list = ov5647_2592x1944_10bit,
+		.num_regs = ARRAY_SIZE(ov5647_2592x1944_10bit)
 	},
 	/*
 	 * MODE 1: 1080p30 10-bit mode.
 	 * Full resolution centre-cropped down to 1080p.
 	 */
 	{
-		{
+		.format = {
 			.code = MEDIA_BUS_FMT_SBGGR10_1X10,
 			.colorspace = V4L2_COLORSPACE_SRGB,
 			.field = V4L2_FIELD_NONE,
@@ -658,14 +658,14 @@ static struct ov5647_mode supported_modes_10bit[] = {
 		.pixel_rate = 81666700,
 		.hts = 2416,
 		.vts_def = 0x450,
-		ov5647_1080p30_10bit,
-		ARRAY_SIZE(ov5647_1080p30_10bit)
+		.reg_list = ov5647_1080p30_10bit,
+		.num_regs = ARRAY_SIZE(ov5647_1080p30_10bit)
 	},
 	/*
 	 * MODE 2: 2x2 binned full FOV 10-bit mode.
 	 */
 	{
-		{
+		.format = {
 			.code = MEDIA_BUS_FMT_SBGGR10_1X10,
 			.colorspace = V4L2_COLORSPACE_SRGB,
 			.field = V4L2_FIELD_NONE,
@@ -681,15 +681,15 @@ static struct ov5647_mode supported_modes_10bit[] = {
 		.pixel_rate = 81666700,
 		.hts = 1896,
 		.vts_def = 0x59b,
-		ov5647_2x2binned_10bit,
-		ARRAY_SIZE(ov5647_2x2binned_10bit)
+		.reg_list = ov5647_2x2binned_10bit,
+		.num_regs = ARRAY_SIZE(ov5647_2x2binned_10bit)
 	},
 	/*
 	 * MODE 3: 10-bit VGA full FOV mode 60fps.
 	 * 2x2 binned and subsampled down to VGA.
 	 */
 	{
-		{
+		.format = {
 			.code = MEDIA_BUS_FMT_SBGGR10_1X10,
 			.colorspace = V4L2_COLORSPACE_SRGB,
 			.field = V4L2_FIELD_NONE,
@@ -705,8 +705,8 @@ static struct ov5647_mode supported_modes_10bit[] = {
 		.pixel_rate = 55000000,
 		.hts = 1852,
 		.vts_def = 0x1f8,
-		ov5647_640x480_10bit,
-		ARRAY_SIZE(ov5647_640x480_10bit)
+		.reg_list = ov5647_640x480_10bit,
+		.num_regs = ARRAY_SIZE(ov5647_640x480_10bit)
 	},
 };
 
