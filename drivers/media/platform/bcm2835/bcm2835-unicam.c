@@ -1898,6 +1898,39 @@ static int unicam_g_edid(struct file *file, void *priv, struct v4l2_edid *edid)
 	return v4l2_subdev_call(dev->sensor, pad, get_edid, edid);
 }
 
+static int unicam_s_selection(struct file *file, void *priv,
+			      struct v4l2_selection *sel)
+{
+	struct unicam_node *node = video_drvdata(file);
+	struct unicam_device *dev = node->dev;
+	struct v4l2_subdev_selection sdsel = {
+		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
+		.target = sel->target,
+		.flags = sel->flags,
+		.r = sel->r,
+	};
+
+	return v4l2_subdev_call(dev->sensor, pad, set_selection, NULL, &sdsel);
+}
+
+static int unicam_g_selection(struct file *file, void *priv,
+			      struct v4l2_selection *sel)
+{
+	struct unicam_node *node = video_drvdata(file);
+	struct unicam_device *dev = node->dev;
+	struct v4l2_subdev_selection sdsel = {
+		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
+		.target = sel->target,
+	};
+	int ret;
+
+	ret = v4l2_subdev_call(dev->sensor, pad, get_selection, NULL, &sdsel);
+	if (!ret)
+		sel->r = sdsel.r;
+
+	return ret;
+}
+
 static int unicam_enum_framesizes(struct file *file, void *priv,
 				  struct v4l2_frmsizeenum *fsize)
 {
@@ -2218,6 +2251,9 @@ static const struct v4l2_ioctl_ops unicam_ioctl_ops = {
 	.vidioc_enum_framesizes		= unicam_enum_framesizes,
 	.vidioc_enum_frameintervals	= unicam_enum_frameintervals,
 
+	.vidioc_g_selection		= unicam_g_selection,
+	.vidioc_s_selection		= unicam_s_selection,
+
 	.vidioc_g_parm			= unicam_g_parm,
 	.vidioc_s_parm			= unicam_s_parm,
 
@@ -2445,6 +2481,14 @@ static int register_node(struct unicam_device *unicam, struct unicam_node *node,
 	if (node->pad_id == METADATA_PAD ||
 	    !v4l2_subdev_has_op(unicam->sensor, pad, enum_frame_size))
 		v4l2_disable_ioctl(&node->video_dev, VIDIOC_ENUM_FRAMESIZES);
+
+	if (node->pad_id == METADATA_PAD ||
+	    !v4l2_subdev_has_op(unicam->sensor, pad, set_selection))
+		v4l2_disable_ioctl(&node->video_dev, VIDIOC_S_SELECTION);
+
+	if (node->pad_id == METADATA_PAD ||
+	    !v4l2_subdev_has_op(unicam->sensor, pad, get_selection))
+		v4l2_disable_ioctl(&node->video_dev, VIDIOC_G_SELECTION);
 
 	ret = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
 	if (ret) {
