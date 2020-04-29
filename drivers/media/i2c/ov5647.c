@@ -1146,8 +1146,10 @@ static int ov5647_set_fmt(struct v4l2_subdev *sd,
 	else
 		mode = mode_8bit;
 
-	if (!mode)
+	if (!mode) {
+		mutex_unlock(&state->lock);
 		return -EINVAL;
+	}
 
 	*fmt = mode->format;
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
