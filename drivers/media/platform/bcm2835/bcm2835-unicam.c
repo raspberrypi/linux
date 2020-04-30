@@ -2137,13 +2137,13 @@ static int unicam_open(struct file *file)
 		goto unlock;
 	}
 
-	if (!v4l2_fh_is_singular_file(file))
-		goto unlock;
-
-	ret = v4l2_subdev_call(dev->sensor, core, s_power, 1);
-	if (ret < 0 && ret != -ENOIOCTLCMD) {
-		v4l2_fh_release(file);
-		goto unlock;
+	if (v4l2_fh_is_singular_file(file)) {
+		/* Only the first open instance must power the subdev. */
+		ret = v4l2_subdev_call(dev->sensor, core, s_power, 1);
+		if (ret < 0 && ret != -ENOIOCTLCMD) {
+			v4l2_fh_release(file);
+			goto unlock;
+		}
 	}
 
 	node->open++;
@@ -2170,9 +2170,6 @@ static int unicam_release(struct file *file)
 
 	if (fh_singular)
 		v4l2_subdev_call(sd, core, s_power, 0);
-
-	if (node->streaming)
-		unicam_stop_streaming(&node->buffer_queue);
 
 	node->open--;
 	mutex_unlock(&node->lock);
