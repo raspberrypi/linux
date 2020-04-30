@@ -159,6 +159,10 @@ Params:
         spi                     Set to "on" to enable the spi interfaces
                                 (default "off")
 
+        spi_dma4                Use to enable 40-bit DMA on spi interfaces
+                                (the assigned value doesn't matter)
+                                (2711 only)
+
         random                  Set to "on" to enable the hardware random
                                 number generator (default "on")
 
