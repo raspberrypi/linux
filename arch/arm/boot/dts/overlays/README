@@ -842,6 +842,7 @@ Params: gpiopin                 GPIO for signalling (default 26)
 Name:   gpio-shutdown
 Info:   Initiates a shutdown when GPIO pin changes. The given GPIO pin
         is configured as an input key that generates KEY_POWER events.
+
         This event is handled by systemd-logind by initiating a
         shutdown. Systemd versions older than 225 need an udev rule
         enable listening to the input device:
@@ -849,6 +850,29 @@ Info:   Initiates a shutdown when GPIO pin changes. The given GPIO pin
                 ACTION!="REMOVE", SUBSYSTEM=="input", KERNEL=="event*", \
                         SUBSYSTEMS=="platform", DRIVERS=="gpio-keys", \
                         ATTRS{keys}=="116", TAG+="power-switch"
+
+        Alternatively this event can be handled also on systems without
+        systemd, just by traditional SysV init daemon. KEY_POWER event
+        (keycode 116) needs to be mapped to KeyboardSignal on console
+        and then kb::kbrequest inittab action which is triggered by
+        KeyboardSignal from console can be configured to issue system
+        shutdown. Steps for this configuration are:
+
+            Add following lines to the /etc/console-setup/remap.inc file:
+
+                # Key Power as special keypress
+                keycode 116 = KeyboardSignal
+
+            Then add following lines to /etc/inittab file:
+
+                # Action on special keypress (Key Power)
+                kb::kbrequest:/sbin/shutdown -t1 -a -h -P now
+
+            And finally reload configuration by calling following commands:
+
+                # dpkg-reconfigure console-setup
+                # service console-setup reload
+                # init q
 
         This overlay only handles shutdown. After shutdown, the system
         can be powered up again by driving GPIO3 low. The default
