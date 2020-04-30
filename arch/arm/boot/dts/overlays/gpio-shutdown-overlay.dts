@@ -4,7 +4,9 @@
 
 // This overlay sets up an input device that generates KEY_POWER events
 // when a given GPIO pin changes. It defaults to using GPIO3, which can
-// also be used to wake up (start) the Rpi again after shutdown. Since
+// also be used to wake up (start) the Rpi again after shutdown.
+// Raspberry Pi 1 Model B rev 1 can be wake up only by GPIO1 pin, so for
+// these boards change default GPIO pin to 1 via gpio_pin parameter. Since
 // wakeup is active-low, this defaults to active-low with a pullup
 // enabled, but all of this can be changed using overlay parameters (but
 // note that GPIO3 has an external pullup on at least some boards).
@@ -71,7 +73,7 @@
 
 		// Allow changing the internal pullup/down state. 0 = none, 1 = pulldown, 2 = pullup
 		// Note that GPIO3 and GPIO2 are the I2c pins and have an external pullup (at least
-                // on some boards).
+		// on some boards). Same applies for GPIO1 on Raspberry Pi 1 Model B rev 1.
 		gpio_pull = <&pin_state>,"brcm,pull:0";
 
 		// Allow setting the active_low flag. 0 = active high, 1 = active low
