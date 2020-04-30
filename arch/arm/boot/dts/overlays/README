@@ -878,9 +878,14 @@ Info:   Initiates a shutdown when GPIO pin changes. The given GPIO pin
         can be powered up again by driving GPIO3 low. The default
         configuration uses GPIO3 with a pullup, so if you connect a
         button between GPIO3 and GND (pin 5 and 6 on the 40-pin header),
-        you get a shutdown and power-up button.
+        you get a shutdown and power-up button. Please note that
+        Raspberry Pi 1 Model B rev 1 uses GPIO1 instead of GPIO3.
 Load:   dtoverlay=gpio-shutdown,<param>=<val>
 Params: gpio_pin                GPIO pin to trigger on (default 3)
+                                For Raspberry Pi 1 Model B rev 1 set this
+                                explicitly to value 1, e.g.:
+
+                                    dtoverlay=gpio-shutdown,gpio_pin=1
 
         active_low              When this is 1 (active low), a falling
                                 edge generates a key down event and a
@@ -892,7 +897,8 @@ Params: gpio_pin                GPIO pin to trigger on (default 3)
                                 Default is "up".
 
                                 Note that the default pin (GPIO3) has an
-                                external pullup.
+                                external pullup. Same applies for GPIO1
+                                on Raspberry Pi 1 Model B rev 1.
 
         debounce                Specify the debounce interval in milliseconds
                                 (default 100)
