@@ -2170,16 +2170,18 @@ static int unicam_open(struct file *file)
 		goto unlock;
 	}
 
+	node->open++;
+
 	if (!v4l2_fh_is_singular_file(file))
 		goto unlock;
 
 	ret = v4l2_subdev_call(dev->sensor, core, s_power, 1);
 	if (ret < 0 && ret != -ENOIOCTLCMD) {
 		v4l2_fh_release(file);
+		node->open--;
 		goto unlock;
 	}
 
-	node->open++;
 	ret = 0;
 
 unlock:
