@@ -26,7 +26,7 @@ struct bcm2835_isp_fmt {
 };
 
 struct bcm2835_isp_fmt_list {
-	struct bcm2835_isp_fmt *list;
+	struct bcm2835_isp_fmt const **list;
 	unsigned int num_entries;
 };
 
