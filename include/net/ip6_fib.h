@@ -177,6 +177,7 @@ struct fib6_info {
 struct rt6_info {
 	struct dst_entry		dst;
 	struct fib6_info __rcu		*from;
+	int				sernum;
 
 	struct rt6key			rt6i_dst;
 	struct rt6key			rt6i_src;
@@ -259,6 +260,9 @@ static inline u32 rt6_get_cookie(const struct rt6_info *rt)
 {
 	struct fib6_info *from;
 	u32 cookie = 0;
+
+	if (rt->sernum)
+		return rt->sernum;
 
 	rcu_read_lock();
 
