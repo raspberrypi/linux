@@ -1160,41 +1160,6 @@ static int bcm2835_isp_get_supported_fmts(struct bcm2835_isp_node *node)
 	}
 	node->supported_fmts.num_entries = j;
 
-	param_size = sizeof(fourccs);
-	ret = vchiq_mmal_port_parameter_get(dev->mmal_instance,
-					    get_port_data(node),
-					    MMAL_PARAMETER_SUPPORTED_ENCODINGS,
-					    &fourccs, &param_size);
-
-	if (ret) {
-		if (ret == MMAL_MSG_STATUS_ENOSPC) {
-			v4l2_err(&dev->v4l2_dev,
-				 "%s: port has more encoding than we provided space for. Some are dropped.\n",
-				 __func__);
-			num_encodings = MAX_SUPPORTED_ENCODINGS;
-		} else {
-			return -EINVAL;
-		}
-	} else {
-		num_encodings = param_size / sizeof(u32);
-	}
-	/* Assume at this stage that all encodings will be supported in V4L2. */
-	list = devm_kzalloc(dev->dev,
-			    sizeof(struct bcm2835_isp_fmt) * num_encodings,
-			    GFP_KERNEL);
-	if (!list)
-		return -ENOMEM;
-	node->supported_fmts.list = list;
-
-	for (i = 0, j = 0; i < num_encodings; i++) {
-		const struct bcm2835_isp_fmt *fmt = get_fmt(fourccs[i]);
-
-		if (fmt) {
-			list[j] = *fmt;
-			j++;
-		}
-	}
-	node->supported_fmts.num_entries = j;
 	return 0;
 }
 
