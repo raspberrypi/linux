@@ -227,8 +227,9 @@ static const struct bcm2835_isp_fmt *get_fmt(u32 mmal_fmt)
 	return NULL;
 }
 
-static struct bcm2835_isp_fmt *find_format(struct v4l2_format *f,
-					   struct bcm2835_isp_node *node)
+static const
+struct bcm2835_isp_fmt *find_format_by_fourcc(unsigned int fourcc,
+					      struct bcm2835_isp_node *node)
 {
 	struct bcm2835_isp_fmt_list *fmts = &node->supported_fmts;
 	struct bcm2835_isp_fmt *fmt;
@@ -236,13 +237,20 @@ static struct bcm2835_isp_fmt *find_format(struct v4l2_format *f,
 
 	for (i = 0; i < fmts->num_entries; i++) {
 		fmt = &fmts->list[i];
-		if (fmt->fourcc == (node_is_stats(node) ?
-					    f->fmt.meta.dataformat :
-					    f->fmt.pix.pixelformat))
+		if (fmt->fourcc == fourcc)
 			return fmt;
 	}
 
 	return NULL;
+}
+
+static struct bcm2835_isp_fmt *find_format(struct v4l2_format *f,
+					   struct bcm2835_isp_node *node)
+{
+	return find_format_by_fourcc(node_is_stats(node) ?
+				     f->fmt.meta.dataformat :
+				     f->fmt.pix.pixelformat,
+				     node);
 }
 
 /* vb2_to_mmal_buffer() - converts vb2 buffer header to MMAL
@@ -892,6 +900,35 @@ static int bcm2835_isp_node_enum_fmt(struct file *file, void  *priv,
 	return -EINVAL;
 }
 
+static int bcm2835_isp_enum_framesizes(struct file *file, void *priv,
+				       struct v4l2_frmsizeenum *fsize)
+{
+	struct bcm2835_isp_node *node = video_drvdata(file);
+	struct bcm2835_isp_dev *dev = node_get_dev(node);
+	struct bcm2835_isp_fmt *fmt;
+
+	if (node_is_stats(node) || fsize->index)
+		return -EINVAL;
+
+	fmt = find_format_by_fourcc(fsize->pixel_format, node);
+	if (!fmt) {
+		v4l2_err(&dev->v4l2_dev, "Invalid pixel code: %x\n",
+			 fsize->pixel_format);
+		return -EINVAL;
+	}
+
+	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
+	fsize->stepwise.min_width = MIN_DIM;
+	fsize->stepwise.max_width = MAX_DIM;
+	fsize->stepwise.step_width = fmt->step_size;
+
+	fsize->stepwise.min_height = MIN_DIM;
+	fsize->stepwise.max_height = MAX_DIM;
+	fsize->stepwise.step_height = fmt->step_size;
+
+	return 0;
+}
+
 static int bcm2835_isp_node_try_fmt(struct file *file, void *priv,
 				    struct v4l2_format *f)
 {
@@ -1046,6 +1083,7 @@ static const struct v4l2_ioctl_ops bcm2835_isp_node_ioctl_ops = {
 	.vidioc_enum_fmt_vid_cap	= bcm2835_isp_node_enum_fmt,
 	.vidioc_enum_fmt_vid_out	= bcm2835_isp_node_enum_fmt,
 	.vidioc_enum_fmt_meta_cap	= bcm2835_isp_node_enum_fmt,
+	.vidioc_enum_framesizes		= bcm2835_isp_enum_framesizes,
 
 	.vidioc_reqbufs			= vb2_ioctl_reqbufs,
 	.vidioc_querybuf		= vb2_ioctl_querybuf,
