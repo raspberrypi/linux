@@ -9,9 +9,6 @@
 		target-path = "/";
 
 		__overlay__ {
-			#address-cells = <1>;
-			#size-cells = <0>;
-
 			i2c_gpio: i2c@0 {
 				reg = <0xffffffff>;
 				compatible = "i2c-gpio";
