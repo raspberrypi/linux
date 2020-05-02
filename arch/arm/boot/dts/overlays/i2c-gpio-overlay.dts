@@ -16,6 +16,8 @@
 					 &gpio 24 0 /* scl */
 					>;
 				i2c-gpio,delay-us = <2>;        /* ~100 kHz */
+				i2c-gpio,sda-open-drain;
+				i2c-gpio,scl-open-drain;
 				#address-cells = <1>;
 				#size-cells = <0>;
 			};
