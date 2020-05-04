@@ -461,17 +461,11 @@ static int dsa_tree_setup_switches(struct dsa_switch_tree *dst)
 
 			err = dsa_port_setup(dp);
 			if (err)
-				goto ports_teardown;
+				continue;
 		}
 	}
 
 	return 0;
-
-ports_teardown:
-	for (i = 0; i < port; i++)
-		dsa_port_teardown(&ds->ports[i]);
-
-	dsa_switch_teardown(ds);
 
 switch_teardown:
 	for (i = 0; i < device; i++) {
