@@ -1,0 +1,24 @@
+# Broadcom VideoCore4 V4L2 camera support
+
+config VIDEO_BCM2835_UNICAM_LEGACY
+	tristate "Broadcom BCM283x/BCM271x Unicam video capture driver - no MC"
+	depends on VIDEO_DEV
+	depends on ARCH_BCM2835 || COMPILE_TEST
+	select VIDEO_V4L2_SUBDEV_API
+	select MEDIA_CONTROLLER
+	select VIDEOBUF2_DMA_CONTIG
+	select V4L2_FWNODE
+	help
+	  Say Y here to enable support for the BCM283x/BCM271x CSI-2 receiver.
+	  This is a V4L2 driver that controls the CSI-2 receiver directly,
+	  independently from the VC4 firmware.
+	  This is the downstream version of this driver that still supports
+	  being driven from the video node for simple devices. The mainline
+	  driver only supports using Media Controller.
+	  This driver is mutually exclusive with the use of bcm2835-camera. The
+	  firmware will disable all access to the peripheral from within the
+	  firmware if it finds a DT node using it, and bcm2835-camera will
+	  therefore fail to probe.
+
+	  To compile this driver as a module, choose M here. The module will be
+	  called bcm2835-unicam.
