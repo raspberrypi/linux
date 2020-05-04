@@ -2345,6 +2345,7 @@ static void update_domain(struct protection_domain *domain)
 
 	/* Flush domain TLB(s) and wait for completion */
 	domain_flush_tlb_pde(domain);
+	domain_flush_complete(domain);
 }
 
 int __init amd_iommu_init_api(void)
