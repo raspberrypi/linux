@@ -3406,7 +3406,7 @@ M:	Raspberry Pi Kernel Maintenance <kernel-list@raspberrypi.com>
 L:	linux-media@vger.kernel.org
 S:	Maintained
 F:	drivers/media/platform/bcm2835/
-F:	Documentation/devicetree/bindings/media/bcm2835-unicam.txt
+F:	Documentation/devicetree/bindings/media/brcm,bcm2835-unicam.yaml
 
 BROADCOM BCM47XX MIPS ARCHITECTURE
 M:	Hauke Mehrtens <hauke@hauke-m.de>
