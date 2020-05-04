@@ -11,6 +11,7 @@ obj-y += amphion/
 obj-y += arm/
 obj-y += aspeed/
 obj-y += atmel/
+obj-y += bcm2835/
 obj-y += broadcom/
 obj-y += cadence/
 obj-y += chips-media/
