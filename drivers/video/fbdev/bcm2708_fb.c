@@ -1092,10 +1092,9 @@ static int bcm2708_fb_probe(struct platform_device *dev)
 	 * set one display
 	 */
 	if (ret || num_displays == 0) {
-		num_displays = 1;
 		dev_err(&dev->dev,
-			"Unable to determine number of FB's. Assuming 1\n");
-		ret = 0;
+			"Unable to determine number of FBs. Disabling driver.\n");
+		return -ENOENT;
 	} else {
 		fbdev->firmware_supports_multifb = 1;
 	}
