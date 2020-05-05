@@ -206,7 +206,7 @@ static bool zswap_has_pool;
 **********************************/
 
 #define zswap_pool_debug(msg, p)				\
-	pr_debug("%s pool %s/%s\n", msg, (p)->tfm_name,		\
+	pr_err("%s pool %s/%s\n", msg, (p)->tfm_name,		\
 		 zpool_get_type((p)->zpool))
 
 static int zswap_writeback_entry(struct zpool *pool, unsigned long handle);
@@ -518,6 +518,7 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
 	gfp_t gfp = __GFP_NORETRY | __GFP_NOWARN | __GFP_KSWAPD_RECLAIM;
 	int ret;
 
+	pr_err("zswap_pool_create(%s, %s)\n", type, compressor);
 	if (!zswap_has_pool) {
 		/* if either are unset, pool initialization failed, and we
 		 * need both params to be set correctly before trying to
@@ -541,7 +542,7 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
 		pr_err("%s zpool not available\n", type);
 		goto error;
 	}
-	pr_debug("using %s zpool\n", zpool_get_type(pool->zpool));
+	pr_err("using %s zpool\n", zpool_get_type(pool->zpool));
 
 	strlcpy(pool->tfm_name, compressor, sizeof(pool->tfm_name));
 	pool->tfm = alloc_percpu(struct crypto_comp *);
@@ -554,7 +555,7 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
 				       &pool->node);
 	if (ret)
 		goto error;
-	pr_debug("using %s compressor\n", pool->tfm_name);
+	pr_err("using %s compressor\n", pool->tfm_name);
 
 	/* being the current pool takes 1 ref; this func expects the
 	 * caller to always add the new pool as the current pool
@@ -777,6 +778,7 @@ static int zswap_compressor_param_set(const char *val,
 static int zswap_zpool_param_set(const char *val,
 				 const struct kernel_param *kp)
 {
+    pr_err("zswap_zpool_param_set\n");
 	return __zswap_param_set(val, kp, zswap_zpool_type, NULL);
 }
 
@@ -784,13 +786,15 @@ static int zswap_enabled_param_set(const char *val,
 				   const struct kernel_param *kp)
 {
 	int ret;
-
+	pr_err("zswap_enabled_param_set\n");
 	if (zswap_init_failed) {
 		pr_err("can't enable, initialization failed\n");
 		return -ENODEV;
 	}
 
 	ret = param_set_bool(val, kp);
+	pr_err("  zswap_enabled -> %d, init_started %d, has_pool %d\n",
+	       zswap_enabled, zswap_init_started, zswap_has_pool);
 	if (!ret && zswap_enabled && zswap_init_started && !zswap_has_pool)
 		ret = init_zswap();
 
@@ -1313,6 +1317,7 @@ static int init_zswap(void)
 	struct zswap_pool *pool;
 	int ret;
 
+	pr_err("init_zswap(%d)\n", zswap_enabled);
 	zswap_init_started = true;
 
 	if (!zswap_enabled)
