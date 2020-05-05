@@ -996,7 +996,7 @@ const struct unicam_fmt *get_first_supported_format(struct unicam_device *dev)
 	struct v4l2_subdev_mbus_code_enum mbus_code;
 	const struct unicam_fmt *fmt = NULL;
 	unsigned int i;
-	int ret;
+	int ret = 0;
 
 	for (i = 0; ret != -EINVAL && ret != -ENOIOCTLCMD; ++i) {
 		memset(&mbus_code, 0, sizeof(mbus_code));
