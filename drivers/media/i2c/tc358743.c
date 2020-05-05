@@ -1980,6 +1980,7 @@ static int tc358743_probe_of(struct tc358743_state *state)
 	switch (bps_pr_lane) {
 	default:
 		dev_warn(dev, "untested bps per lane: %u bps\n", bps_pr_lane);
+		fallthrough;
 	case 594000000U:
 		state->pdata.lineinitcnt = 0xe80;
 		state->pdata.lptxtimecnt = 0x003;
