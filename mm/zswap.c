@@ -212,6 +212,7 @@ static bool zswap_has_pool;
 static int zswap_writeback_entry(struct zpool *pool, unsigned long handle);
 static int zswap_pool_get(struct zswap_pool *pool);
 static void zswap_pool_put(struct zswap_pool *pool);
+static int init_zswap(void);
 
 static const struct zpool_ops zswap_zpool_ops = {
 	.evict = zswap_writeback_entry
@@ -243,13 +244,13 @@ static void zswap_update_total_size(void)
 **********************************/
 static struct kmem_cache *zswap_entry_cache;
 
-static int __init zswap_entry_cache_create(void)
+static int zswap_entry_cache_create(void)
 {
 	zswap_entry_cache = KMEM_CACHE(zswap_entry, 0);
 	return zswap_entry_cache == NULL;
 }
 
-static void __init zswap_entry_cache_destroy(void)
+static void zswap_entry_cache_destroy(void)
 {
 	kmem_cache_destroy(zswap_entry_cache);
 }
@@ -573,7 +574,7 @@ error:
 	return NULL;
 }
 
-static __init struct zswap_pool *__zswap_pool_create_fallback(void)
+static struct zswap_pool *__zswap_pool_create_fallback(void)
 {
 	bool has_comp, has_zpool;
 
@@ -770,28 +771,30 @@ static int __zswap_param_set(const char *val, const struct kernel_param *kp,
 static int zswap_compressor_param_set(const char *val,
 				      const struct kernel_param *kp)
 {
-	return __zswap_param_set(val, kp, zswap_zpool_type, NULL);
+	return __zswap_param_set(val, kp, NULL, zswap_compressor);
 }
 
 static int zswap_zpool_param_set(const char *val,
 				 const struct kernel_param *kp)
 {
-	return __zswap_param_set(val, kp, NULL, zswap_compressor);
+	return __zswap_param_set(val, kp, zswap_zpool_type, NULL);
 }
 
 static int zswap_enabled_param_set(const char *val,
 				   const struct kernel_param *kp)
 {
+	int ret;
+
 	if (zswap_init_failed) {
 		pr_err("can't enable, initialization failed\n");
 		return -ENODEV;
 	}
-	if (!zswap_has_pool && zswap_init_started) {
-		pr_err("can't enable, no pool configured\n");
-		return -ENODEV;
-	}
 
-	return param_set_bool(val, kp);
+	ret = param_set_bool(val, kp);
+	if (!ret && zswap_enabled && zswap_init_started && !zswap_has_pool)
+		ret = init_zswap();
+
+	return ret;
 }
 
 /*********************************
@@ -1256,7 +1259,7 @@ static struct frontswap_ops zswap_frontswap_ops = {
 
 static struct dentry *zswap_debugfs_root;
 
-static int __init zswap_debugfs_init(void)
+static int zswap_debugfs_init(void)
 {
 	if (!debugfs_initialized())
 		return -ENODEV;
@@ -1294,7 +1297,7 @@ static void __exit zswap_debugfs_exit(void)
 	debugfs_remove_recursive(zswap_debugfs_root);
 }
 #else
-static int __init zswap_debugfs_init(void)
+static int zswap_debugfs_init(void)
 {
 	return 0;
 }
@@ -1305,12 +1308,15 @@ static void __exit zswap_debugfs_exit(void) { }
 /*********************************
 * module init and exit
 **********************************/
-static int __init init_zswap(void)
+static int init_zswap(void)
 {
 	struct zswap_pool *pool;
 	int ret;
 
 	zswap_init_started = true;
+
+	if (!zswap_enabled)
+	    return 0;
 
 	if (zswap_entry_cache_create()) {
 		pr_err("entry cache creation failed\n");
@@ -1340,6 +1346,7 @@ static int __init init_zswap(void)
 	} else {
 		pr_err("pool creation failed\n");
 		zswap_enabled = false;
+		zswap_init_failed = true;
 	}
 
 	frontswap_register_ops(&zswap_frontswap_ops);
