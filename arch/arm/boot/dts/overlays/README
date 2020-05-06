@@ -2143,6 +2143,7 @@ Info:   Overlay for the NXP SC16IS752 Dual UART with SPI Interface
 
 Load:   dtoverlay=sc16is752-spi1,<param>=<val>
 Params: int_pin                 GPIO used for IRQ (default 24)
+        xtal                    On-board crystal frequency (default 14745600)
 
 
 Name:   sdhost
