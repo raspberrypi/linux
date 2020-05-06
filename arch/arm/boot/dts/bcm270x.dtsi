@@ -7,6 +7,12 @@
 		/delete-property/ stdout-path;
 	};
 
+	firmware_clocks: firmware-clocks {
+		compatible = "raspberrypi,firmware-clocks";
+		raspberrypi,firmware = <&firmware>;
+		#clock-cells = <1>;
+	};
+
 	soc: soc {
 
 		watchdog: watchdog@7e100000 {
