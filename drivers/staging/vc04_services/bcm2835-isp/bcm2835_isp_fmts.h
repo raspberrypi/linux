@@ -328,7 +328,57 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.colorspace	    = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
-		/* ISP statistics format */
+		/* Monochrome MIPI formats */
+		/* 8 bit */
+		.fourcc		    = V4L2_PIX_FMT_GREY,
+		.depth		    = 8,
+		.bytesperline_align = 32,
+		.flags		    = 0,
+		.mmal_fmt	    = MMAL_ENCODING_GREY,
+		.size_multiplier_x2 = 2,
+		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.step_size	    = 2,
+	}, {
+		/* 10 bit */
+		.fourcc		    = V4L2_PIX_FMT_Y10P,
+		.depth		    = 10,
+		.bytesperline_align = 32,
+		.flags		    = 0,
+		.mmal_fmt	    = MMAL_ENCODING_Y10P,
+		.size_multiplier_x2 = 2,
+		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.step_size	    = 2,
+	}, {
+		/* 12 bit */
+		.fourcc		    = V4L2_PIX_FMT_Y12P,
+		.depth		    = 12,
+		.bytesperline_align = 32,
+		.flags		    = 0,
+		.mmal_fmt	    = MMAL_ENCODING_Y12P,
+		.size_multiplier_x2 = 2,
+		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.step_size	    = 2,
+	}, {
+		/* 14 bit */
+		.fourcc		    = V4L2_PIX_FMT_Y14P,
+		.depth		    = 14,
+		.bytesperline_align = 32,
+		.flags		    = 0,
+		.mmal_fmt	    = MMAL_ENCODING_Y14P,
+		.size_multiplier_x2 = 2,
+		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.step_size	    = 2,
+	}, {
+		/* 16 bit */
+		.fourcc		    = V4L2_PIX_FMT_Y16,
+		.depth		    = 16,
+		.bytesperline_align = 32,
+		.flags		    = 0,
+		.mmal_fmt	    = MMAL_ENCODING_Y16,
+		.size_multiplier_x2 = 2,
+		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.step_size	    = 2,
+	}, {
 		.fourcc		    = V4L2_META_FMT_BCM2835_ISP_STATS,
 		.mmal_fmt	    = MMAL_ENCODING_BRCM_STATS,
 		/* The rest are not valid fields for stats. */
