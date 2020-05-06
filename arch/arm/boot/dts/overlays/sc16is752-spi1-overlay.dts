@@ -56,6 +56,7 @@
 	};
 
     __overrides__ {
-      int_pin = <&sc16is752>,"interrupts:0";
+		int_pin = <&sc16is752>,"interrupts:0";
+		xtal = <&sc16is752_clk>,"clock-frequency:0";
     };
 };
