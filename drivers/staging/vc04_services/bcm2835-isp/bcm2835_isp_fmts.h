@@ -254,6 +254,43 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.colorspace	    = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
+		/* 14 bit */
+		.fourcc		    = V4L2_PIX_FMT_SRGGB14P,
+		.depth		    = 14,
+		.bytesperline_align = 32,
+		.flags		    = 0,
+		.mmal_fmt	    = MMAL_ENCODING_BAYER_SRGGB14P,
+		.size_multiplier_x2 = 2,
+		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.step_size	    = 2,
+	}, {
+		.fourcc		    = V4L2_PIX_FMT_SBGGR14P,
+		.depth		    = 14,
+		.bytesperline_align = 32,
+		.flags		    = 0,
+		.mmal_fmt	    = MMAL_ENCODING_BAYER_SBGGR14P,
+		.size_multiplier_x2 = 2,
+		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.step_size	    = 2,
+	}, {
+		.fourcc		    = V4L2_PIX_FMT_SGRBG14P,
+		.depth		    = 14,
+		.bytesperline_align = 32,
+		.flags		    = 0,
+		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGRBG14P,
+		.size_multiplier_x2 = 2,
+		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.step_size	    = 2,
+	}, {
+		.fourcc		    = V4L2_PIX_FMT_SGBRG14P,
+		.depth		    = 14,
+		.bytesperline_align = 32,
+		.flags		    = 0,
+		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGBRG14P,
+		.size_multiplier_x2 = 2,
+		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.step_size	    = 2,
+	}, {
 		/* 16 bit */
 		.fourcc		    = V4L2_PIX_FMT_SRGGB16,
 		.depth		    = 16,
