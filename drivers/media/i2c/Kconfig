@@ -935,6 +935,17 @@ config VIDEO_UDA1342
 	  To compile this driver as a module, choose M here: the
 	  module will be called uda1342.
 
+config VIDEO_IMX477
+	tristate "Sony IMX477 sensor support"
+	depends on I2C && VIDEO_DEV
+	select VIDEO_V4L2_SUBDEV_API
+	help
+	  This is a Video4Linux2 sensor driver for the Sony
+	  IMX477 camera. Also supports the Sony IMX378.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called imx477.
+
 config VIDEO_VP27SMPX
 	tristate "Panasonic VP27's internal MPX"
 	depends on VIDEO_DEV && I2C
