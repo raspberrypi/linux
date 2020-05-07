@@ -26203,6 +26203,13 @@ L:	linux-media@vger.kernel.org
 S:	Maintained
 F:	Documentation/devicetree/bindings/media/i2c/sony,imx576.yaml
 F:	drivers/media/i2c/imx576.c
+SONY IMX477 SENSOR DRIVER
+M:	Raspberry Pi Kernel Maintenance <kernel-list@raspberrypi.com>
+L:	linux-media@vger.kernel.org
+S:	Maintained
+T:	git git://linuxtv.org/media_tree.git
+F:	Documentation/devicetree/bindings/media/i2c/imx477.yaml
+F:	drivers/media/i2c/imx477.c
 
 SONY IMX678 SENSOR DRIVER
 M:	Jai Luthra <jai.luthra@ideasonboard.com>
