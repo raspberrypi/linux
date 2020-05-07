@@ -42,9 +42,6 @@ struct vc4_hdmi_variant {
 	/* Set to true when the audio support is available */
 	bool audio_available;
 
-	/* Set to true when the CEC support is available */
-	bool cec_available;
-
 	/* Maximum pixel clock supported by the controller (in Hz) */
 	unsigned long long max_pixel_clock;
 
