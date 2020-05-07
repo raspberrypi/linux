@@ -1274,7 +1274,7 @@ static irqreturn_t vc4_cec_irq_handler(int irq, void *priv)
 	u32 stat = HDMI_READ(HDMI_CEC_CPU_STATUS);
 	u32 cntrl1, cntrl5;
 
-	if (!(stat & VC4_HDMI_CPU_CEC))
+	if (!(stat & vc4_hdmi->variant->cec_mask))
 		return IRQ_NONE;
 	vc4_hdmi->cec_rx_msg.len = 0;
 	cntrl1 = HDMI_READ(HDMI_CEC_CNTRL_1);
@@ -1290,7 +1290,7 @@ static irqreturn_t vc4_cec_irq_handler(int irq, void *priv)
 		cntrl1 &= ~VC4_HDMI_CEC_START_XMIT_BEGIN;
 	}
 	HDMI_WRITE(HDMI_CEC_CNTRL_1, cntrl1);
-	HDMI_WRITE(HDMI_CEC_CPU_CLEAR, VC4_HDMI_CPU_CEC);
+	HDMI_WRITE(HDMI_CEC_CPU_CLEAR, vc4_hdmi->variant->cec_mask);
 
 	return IRQ_WAKE_THREAD;
 }
@@ -1329,9 +1329,9 @@ static int vc4_hdmi_cec_adap_enable(struct cec_adapter *adap, bool enable)
 			 ((3600 / usecs) << VC4_HDMI_CEC_CNT_TO_3600_US_SHIFT) |
 			 ((3500 / usecs) << VC4_HDMI_CEC_CNT_TO_3500_US_SHIFT));
 
-		HDMI_WRITE(HDMI_CEC_CPU_MASK_CLEAR, VC4_HDMI_CPU_CEC);
+		HDMI_WRITE(HDMI_CEC_CPU_MASK_CLEAR, vc4_hdmi->variant->cec_mask);
 	} else {
-		HDMI_WRITE(HDMI_CEC_CPU_MASK_SET, VC4_HDMI_CPU_CEC);
+		HDMI_WRITE(HDMI_CEC_CPU_MASK_SET, vc4_hdmi->variant->cec_mask);
 		HDMI_WRITE(HDMI_CEC_CNTRL_5, val |
 			   VC4_HDMI_CEC_TX_SW_RESET | VC4_HDMI_CEC_RX_SW_RESET);
 	}
@@ -1772,6 +1772,8 @@ static const struct vc4_hdmi_variant bcm2835_variant = {
 	.get_hsm_clock		= vc4_hdmi_get_hsm_clock,
 	.calc_hsm_clock		= vc4_hdmi_calc_hsm_clock,
 	.channel_map		= vc4_hdmi_channel_map,
+
+	.cec_mask = VC4_HDMI_CPU_CEC,
 };
 
 static const struct vc4_hdmi_variant bcm2711_hdmi0_variant = {
@@ -1797,6 +1799,8 @@ static const struct vc4_hdmi_variant bcm2711_hdmi0_variant = {
 	.get_hsm_clock		= vc5_hdmi_get_hsm_clock,
 	.calc_hsm_clock		= vc5_hdmi_calc_hsm_clock,
 	.channel_map		= vc5_hdmi_channel_map,
+
+	.cec_mask = VC5_HDMI0_CPU_CEC_RX | VC5_HDMI0_CPU_CEC_TX,
 };
 
 static const struct vc4_hdmi_variant bcm2711_hdmi1_variant = {
@@ -1822,6 +1826,8 @@ static const struct vc4_hdmi_variant bcm2711_hdmi1_variant = {
 	.get_hsm_clock		= vc5_hdmi_get_hsm_clock,
 	.calc_hsm_clock		= vc5_hdmi_calc_hsm_clock,
 	.channel_map		= vc5_hdmi_channel_map,
+
+	.cec_mask = VC5_HDMI1_CPU_CEC_RX | VC5_HDMI1_CPU_CEC_TX,
 };
 
 static const struct of_device_id vc4_hdmi_dt_match[] = {
