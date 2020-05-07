@@ -49,6 +49,9 @@ struct vc4_hdmi_variant {
 	/* Maximum pixel clock supported by the controller (in Hz) */
 	unsigned long long max_pixel_clock;
 
+	/* Input clock frequency of CEC block (in Hz) */
+	unsigned long cec_input_clock;
+
 	/* List of the registers available on that variant */
 	const struct vc4_hdmi_register *registers;
 
