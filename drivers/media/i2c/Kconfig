@@ -277,6 +277,20 @@ config VIDEO_IMX415
 	  To compile this driver as a module, choose M here: the
 	  module will be called imx415.
 
+config VIDEO_IMX477
+	tristate "Sony IMX477 sensor support"
+	depends on I2C && VIDEO_DEV
+	select V4L2_CCI_I2C
+	select VIDEO_V4L2_SUBDEV_API
+	select MEDIA_CONTROLLER
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor driver for the Sony
+	  IMX477 camera. Also supports the Sony IMX378.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called imx477.
+
 config VIDEO_MAX9271_LIB
 	tristate
 
