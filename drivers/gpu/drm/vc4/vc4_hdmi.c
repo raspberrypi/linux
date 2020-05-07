@@ -1399,9 +1399,6 @@ static int vc4_hdmi_cec_init(struct vc4_hdmi *vc4_hdmi)
 	u32 clk_cnt;
 	int ret;
 
-	if (!vc4_hdmi->variant->cec_available)
-		return 0;
-
 	vc4_hdmi->cec_adap = cec_allocate_adapter(&vc4_hdmi_cec_adap_ops,
 						  vc4_hdmi, "vc4",
 						  CEC_CAP_DEFAULTS |
@@ -1770,7 +1767,6 @@ static const struct vc4_hdmi_variant bcm2835_variant = {
 	.max_pixel_clock	= 162000000,
 	.cec_input_clock	= VC4_HSM_CLOCK,
 	.audio_available	= true,
-	.cec_available		= true,
 	.registers		= vc4_hdmi_fields,
 	.num_registers		= ARRAY_SIZE(vc4_hdmi_fields),
 
