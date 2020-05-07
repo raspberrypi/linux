@@ -668,6 +668,15 @@
 # define VC4_HDMI_CPU_CEC			BIT(6)
 # define VC4_HDMI_CPU_HOTPLUG			BIT(0)
 
+# define VC5_HDMI0_CPU_CEC_RX			BIT(1)
+# define VC5_HDMI0_CPU_CEC_TX			BIT(0)
+# define VC5_HDMI0_CPU_HOTPLUG_CONN		BIT(4)
+# define VC5_HDMI0_CPU_HOTPLUG_REM		BIT(5)
+# define VC5_HDMI1_CPU_CEC_RX			BIT(7)
+# define VC5_HDMI1_CPU_CEC_TX			BIT(6)
+# define VC5_HDMI1_CPU_HOTPLUG_CONN		BIT(10)
+# define VC5_HDMI1_CPU_HOTPLUG_REM		BIT(11)
+
 /* Debug: Current receive value on the CEC pad. */
 # define VC4_HD_CECRXD				BIT(9)
 /* Debug: Override CEC output to 0. */
