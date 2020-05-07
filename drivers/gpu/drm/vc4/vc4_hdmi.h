@@ -141,6 +141,8 @@ struct vc4_hdmi {
 	void __iomem *ram_regs;
 	/* VC5 Only */
 	void __iomem *rm_regs;
+	/* VC5 Only */
+	void __iomem *intr2_regs;
 
 	int hpd_gpio;
 	bool hpd_active_low;
