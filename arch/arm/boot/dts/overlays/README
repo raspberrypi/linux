@@ -1390,6 +1390,14 @@ Load:   dtoverlay=imx219
 Params: <None>
 
 
+Name:   imx477
+Info:   Sony IMX477 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx477
+Params: <None>
+
+
 Name:   iqaudio-codec
 Info:   Configures the IQaudio Codec audio card
 Load:   dtoverlay=iqaudio-codec
