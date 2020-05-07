@@ -318,7 +318,8 @@
 			      <0x7ef01f00 0x400>,
 			      <0x7ef00200 0x80>,
 			      <0x7ef04300 0x100>,
-			      <0x7ef20000 0x100>;
+			      <0x7ef20000 0x100>,
+			      <0x7ef00100 0x30>;
 			reg-names = "hdmi",
 				    "dvp",
 				    "phy",
@@ -327,7 +328,8 @@
 				    "metadata",
 				    "csc",
 				    "cec",
-				    "hd";
+				    "hd",
+				    "intr2";
 			clocks = <&firmware_clocks 13>,
 				 <&firmware_clocks 14>,
 				 <&dvp 0>,
@@ -337,6 +339,7 @@
 			ddc = <&ddc0>;
 			dmas = <&dma 10>;
 			dma-names = "audio-rx";
+			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
 
@@ -358,7 +361,8 @@
 			      <0x7ef06f00 0x400>,
 			      <0x7ef00280 0x80>,
 			      <0x7ef09300 0x100>,
-			      <0x7ef20000 0x100>;
+			      <0x7ef20000 0x100>,
+			      <0x7ef00100 0x30>;
 			reg-names = "hdmi",
 				    "dvp",
 				    "phy",
@@ -367,7 +371,8 @@
 				    "metadata",
 				    "csc",
 				    "cec",
-				    "hd";
+				    "hd",
+				    "intr2";
 			ddc = <&ddc1>;
 			clock-names = "hdmi", "bvb", "audio", "cec";
 			clocks = <&firmware_clocks 13>,
@@ -377,6 +382,7 @@
 			resets = <&dvp 1>;
 			dmas = <&dma 17>;
 			dma-names = "audio-rx";
+			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
 
