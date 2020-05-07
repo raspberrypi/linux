@@ -2,18 +2,18 @@
 /plugin/;
 
 / {
-	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+	compatible = "brcm,bcm2835";
 
 	fragment@0 {
 		target = <&gpio>;
 		__overlay__ {
 			spi0_pins: spi0_pins {
-				brcm,pins = <10 9 11>; /* miso mosi sck was 19 20 21*/
-				brcm,function = <4>; /* alt0? was 3 / alt4 */
+				brcm,pins = <10 9 11>; /* miso mosi sck */
+				brcm,function = <4>; /* alt0 */
 			};
 
 			spi0_cs_pins: spi0_cs_pins {
-				brcm,pins = <8>;  /* ce0 was 18 */
+				brcm,pins = <8>; /* ce0 */
 				brcm,function = <1>; /* output */
 			};
 		};
@@ -28,43 +28,18 @@
 			pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
 			cs-gpios = <&gpio 8 1>;
 			status = "okay";
-
-			sc16is752: sc16is752@0 {
-				compatible = "nxp,sc16is752";
-				reg = <0>; /* CE0 */
-				clocks = <&sc16is752_clk>;
-				interrupt-parent = <&gpio>;
-				interrupts = <24 2>; /* IRQ_TYPE_EDGE_FALLING */
-				#gpio-controller;
-				#gpio-cells = <2>;
-				spi-max-frequency = <4000000>;
-
-				sc16is752_clk: sc16is752_clk {
-					compatible = "fixed-clock";
-					#clock-cells = <0>;
-					clock-frequency = <14745600>;
-				};
-			};
 		};
 	};
 
 	fragment@2 {
-		target = <&aux>;
+		target = <&spidev0>;
 		__overlay__ {
-			status = "okay";
+			status = "disabled";
 		};
 	};
 
-        fragment@2 {
-                target = <&spidev0>;
-                __overlay__ {
-                        status = "disabled";
-                };
-        };
-
-    __overrides__ {
-      int_pin = <&sc16is752>,"interrupts:0";
-      xtal = <&sc16is752_clk>, "clock-frequency:0";
-    };
+	__overrides__ {
+		int_pin = <&sc16is752>,"interrupts:0";
+		xtal = <&sc16is752_clk>, "clock-frequency:0";
+	};
 };
-
