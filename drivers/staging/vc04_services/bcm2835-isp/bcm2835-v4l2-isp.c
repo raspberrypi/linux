@@ -21,6 +21,8 @@
 #include "vchiq-mmal/mmal-parameters.h"
 #include "vchiq-mmal/mmal-vchiq.h"
 
+#include "vc-sm-cma/vc_sm_knl.h"
+
 #include "bcm2835_isp_ctrls.h"
 #include "bcm2835_isp_fmts.h"
 
@@ -722,10 +724,38 @@ static int bcm2835_isp_s_ctrl(struct v4l2_ctrl *ctrl)
 				    sizeof(struct bcm2835_isp_custom_ccm));
 		break;
 	case V4L2_CID_USER_BCM2835_ISP_LENS_SHADING:
-		ret = set_isp_param(node, MMAL_PARAMETER_LENS_SHADING_OVERRIDE,
-				    ctrl->p_new.p_u8,
-				    sizeof(struct bcm2835_isp_lens_shading));
+	{
+		struct bcm2835_isp_lens_shading ls;
+		struct dma_buf *dmabuf;
+		void *vcsm_handle;
+
+		memcpy(&ls, ctrl->p_new.p_u8,
+		       sizeof(struct bcm2835_isp_lens_shading));
+
+		dmabuf = dma_buf_get(ls.dmabuf);
+		if (!dmabuf)
+			return -EINVAL;
+
+		ret = vc_sm_cma_import_dmabuf(dmabuf,
+					      &vcsm_handle);
+		if (ret) {
+			dma_buf_put(dmabuf);
+			return -EINVAL;
+		}
+
+		ls.dmabuf = vc_sm_cma_int_handle(vcsm_handle);
+		if (ls.dmabuf)
+			ret = set_isp_param(node,
+					    MMAL_PARAMETER_LENS_SHADING_OVERRIDE,
+					    &ls,
+					    sizeof(struct bcm2835_isp_lens_shading));
+		else
+			ret = -EINVAL;
+
+		vc_sm_cma_free(vcsm_handle);
+		dma_buf_put(dmabuf);
 		break;
+	}
 	case V4L2_CID_USER_BCM2835_ISP_BLACK_LEVEL:
 		ret = set_isp_param(node, MMAL_PARAMETER_BLACK_LEVEL,
 				    ctrl->p_new.p_u8,
