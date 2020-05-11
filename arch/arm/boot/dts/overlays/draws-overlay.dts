@@ -30,6 +30,12 @@
                     regulator-max-microvolt = <3300000>;
                     regulator-always-on;
                 };
+
+                sc16is752_clk: sc16is752_draws_clk {
+                    compatible = "fixed-clock";
+                    #clock-cells = <0>;
+                    clock-frequency = <1843200>;
+                };
             };
 
             pps: pps {
@@ -78,12 +84,6 @@
 
                 pinctrl-names = "default";
                 pinctrl-0 = <&sc16is752_irq>;
-
-                sc16is752_clk: sc16is752_clk {
-                    compatible = "fixed-clock";
-                    #clock-cells = <0>;
-                    clock-frequency = <1843200>;
-                };
             };
 
             tla2024: tla2024@48 {

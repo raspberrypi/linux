@@ -21,12 +21,6 @@
 				clocks = <&tc358743_clk>;
 				clock-names = "refclk";
 
-				tc358743_clk: bridge-clk {
-					compatible = "fixed-clock";
-					#clock-cells = <0>;
-					clock-frequency = <27000000>;
-				};
-
 				port {
 					tc358743: endpoint {
 						remote-endpoint = <&csi1_ep>;
@@ -78,6 +72,17 @@
 		target = <&i2c0mux>;
 		__overlay__ {
 			status = "okay";
+		};
+	};
+
+	fragment@6 {
+		target-path = "/";
+		__overlay__ {
+			tc358743_clk: bridge-clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <27000000>;
+			};
 		};
 	};
 
