@@ -21,12 +21,6 @@
 				pwdn-gpios = <&gpio 5 0>;
 				clocks = <&irs1125_clk>;
 
-				irs1125_clk: camera-clk {
-					compatible = "fixed-clock";
-					#clock-cells = <0>;
-					clock-frequency = <26000000>;
-				};
-
 				port {
 					irs1125_0: endpoint {
 						remote-endpoint = <&csi1_ep>;
@@ -73,6 +67,17 @@
 		__overlay__ {
 			cam0-pwdn-ctrl = <&irs1125>,"pwdn-gpios:0";
 			cam0-pwdn      = <&irs1125>,"pwdn-gpios:4";
+		};
+	};
+
+	fragment@5 {
+		target-path = "/";
+		__overlay__ {
+			irs1125_clk: camera-clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <26000000>;
+			};
 		};
 	};
 };
