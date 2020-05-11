@@ -35,7 +35,7 @@
 
     /* the clock/oscillator of the can-controller */
     fragment@3 {
-        target-path = "/clocks";
+        target-path = "/";
         __overlay__ {
             /* external oscillator of mcp2515 on SPI0.0 */
             can0_osc: can0_osc {

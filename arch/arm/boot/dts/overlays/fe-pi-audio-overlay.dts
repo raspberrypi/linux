@@ -6,7 +6,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&clocks>;
+		target-path = "/";
 		__overlay__ {
 			sgtl5000_mclk: sgtl5000_mclk {
 				compatible = "fixed-clock";
