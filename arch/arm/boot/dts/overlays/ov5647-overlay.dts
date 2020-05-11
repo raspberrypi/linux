@@ -21,12 +21,6 @@
 				pwdn-gpios = <&gpio 41 1>, <&gpio 32 1>;
 				clocks = <&ov5647_clk>;
 
-				ov5647_clk: camera-clk {
-					compatible = "fixed-clock";
-					#clock-cells = <0>;
-					clock-frequency = <25000000>;
-				};
-
 				port {
 					ov5647_0: endpoint {
 						remote-endpoint = <&csi1_ep>;
@@ -75,6 +69,17 @@
 			cam0-pwdn      = <&ov5647>,"pwdn-gpios:4";
 			cam0-led-ctrl  = <&ov5647>,"pwdn-gpios:12";
 			cam0-led       = <&ov5647>,"pwdn-gpios:16";
+		};
+	};
+
+	fragment@5 {
+		target-path = "/";
+		__overlay__ {
+			ov5647_clk: camera-clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <25000000>;
+			};
 		};
 	};
 };
