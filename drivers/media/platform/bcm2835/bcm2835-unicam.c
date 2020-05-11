@@ -89,6 +89,11 @@ MODULE_PARM_DESC(debug, "Debug level 0-3");
 		v4l2_err(&(dev)->v4l2_dev, fmt, ##arg)
 
 /*
+ * Unicam must request a minimum of 250Mhz from the VPU clock.
+ * Otherwise the input FIFOs overrun and cause image corruption.
+ */
+#define MIN_VPU_CLOCK_RATE (250 * 1000 * 1000)
+/*
  * To protect against a dodgy sensor driver never returning an error from
  * enum_mbus_code, set a maximum index value to be used.
  */
@@ -417,8 +422,10 @@ struct unicam_device {
 	void __iomem *base;
 	/* clock gating base address */
 	void __iomem *clk_gate_base;
-	/* clock handle */
+	/* lp clock handle */
 	struct clk *clock;
+	/* vpu clock handle */
+	struct clk *vpu_clock;
 	/* V4l2 device */
 	struct v4l2_device v4l2_dev;
 	struct media_device mdev;
@@ -1678,16 +1685,28 @@ static int unicam_start_streaming(struct vb2_queue *vq, unsigned int count)
 	unicam_dbg(1, dev, "Running with %u data lanes\n",
 		   dev->active_data_lanes);
 
+	ret = clk_set_min_rate(dev->vpu_clock, MIN_VPU_CLOCK_RATE);
+	if (ret) {
+		unicam_err(dev, "failed to set up VPU clock\n");
+		goto err_pm_put;
+	}
+
+	ret = clk_prepare_enable(dev->vpu_clock);
+	if (ret) {
+		unicam_err(dev, "Failed to enable VPU clock: %d\n", ret);
+		goto err_pm_put;
+	}
+
 	ret = clk_set_rate(dev->clock, 100 * 1000 * 1000);
 	if (ret) {
-		unicam_err(dev, "failed to set up clock\n");
-		goto err_pm_put;
+		unicam_err(dev, "failed to set up CSI clock\n");
+		goto err_vpu_clock;
 	}
 
 	ret = clk_prepare_enable(dev->clock);
 	if (ret) {
 		unicam_err(dev, "Failed to enable CSI clock: %d\n", ret);
-		goto err_pm_put;
+		goto err_vpu_clock;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(dev->node); i++) {
@@ -1721,6 +1740,11 @@ static int unicam_start_streaming(struct vb2_queue *vq, unsigned int count)
 err_disable_unicam:
 	unicam_disable(dev);
 	clk_disable_unprepare(dev->clock);
+err_vpu_clock:
+	ret = clk_set_min_rate(dev->vpu_clock, 0);
+	if (ret)
+		unicam_err(dev, "failed to reset the VPU clock\n");
+	clk_disable_unprepare(dev->vpu_clock);
 err_pm_put:
 	unicam_runtime_put(dev);
 err_streaming:
@@ -1738,6 +1762,8 @@ static void unicam_stop_streaming(struct vb2_queue *vq)
 	node->streaming = false;
 
 	if (node->pad_id == IMAGE_PAD) {
+		int ret;
+
 		/*
 		 * Stop streaming the sensor and disable the peripheral.
 		 * We cannot continue streaming embedded data with the
@@ -1747,6 +1773,12 @@ static void unicam_stop_streaming(struct vb2_queue *vq)
 			unicam_err(dev, "stream off failed in subdev\n");
 
 		unicam_disable(dev);
+
+		ret = clk_set_min_rate(dev->vpu_clock, 0);
+		if (ret)
+			unicam_err(dev, "failed to reset the min VPU clock\n");
+
+		clk_disable_unprepare(dev->vpu_clock);
 		clk_disable_unprepare(dev->clock);
 		unicam_runtime_put(dev);
 
@@ -2750,8 +2782,15 @@ static int unicam_probe(struct platform_device *pdev)
 
 	unicam->clock = devm_clk_get(&pdev->dev, "lp");
 	if (IS_ERR(unicam->clock)) {
-		unicam_err(unicam, "Failed to get clock\n");
+		unicam_err(unicam, "Failed to get lp clock\n");
 		ret = PTR_ERR(unicam->clock);
+		goto err_unicam_put;
+	}
+
+	unicam->vpu_clock = devm_clk_get(&pdev->dev, "vpu");
+	if (IS_ERR(unicam->vpu_clock)) {
+		unicam_err(unicam, "Failed to get vpu clock\n");
+		ret = PTR_ERR(unicam->vpu_clock);
 		goto err_unicam_put;
 	}
 
