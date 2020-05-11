@@ -26,12 +26,6 @@
 
 				clocks = <&hevc_clk>;
 				clock-names = "hevc";
-
-				hevc_clk: hevc_clk {
-					compatible = "fixed-clock";
-					#clock-cells = <0>;
-					clock-frequency = <500000000>;
-				};
 			};
 		};
 	};
@@ -50,6 +44,17 @@
 			};
 			vp9-decoder@7eb30000 {
 				status = "disabled";
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			hevc_clk: hevc_clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <500000000>;
 			};
 		};
 	};
