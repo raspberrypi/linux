@@ -782,12 +782,6 @@ static bool unicam_all_nodes_streaming(struct unicam_device *dev)
 	return ret;
 }
 
-static bool unicam_all_nodes_disabled(struct unicam_device *dev)
-{
-	return !dev->node[IMAGE_PAD].streaming &&
-	       !dev->node[METADATA_PAD].streaming;
-}
-
 static void unicam_queue_event_sof(struct unicam_device *unicam)
 {
 	struct v4l2_event event = {
@@ -814,15 +808,6 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 	unsigned int i;
 	u32 ista, sta;
 	u64 ts;
-
-	/*
-	 * Don't service interrupts if not streaming.
-	 * Avoids issues if the VPU should enable the
-	 * peripheral without the kernel knowing (that
-	 * shouldn't happen, but causes issues if it does).
-	 */
-	if (unicam_all_nodes_disabled(unicam))
-		return IRQ_NONE;
 
 	sta = reg_read(unicam, UNICAM_STA);
 	/* Write value back to clear the interrupts */
