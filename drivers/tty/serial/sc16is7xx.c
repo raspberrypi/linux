@@ -523,8 +523,9 @@ static int sc16is7xx_set_baud(struct uart_port *port, int baud)
 
 	/* Enable enhanced features */
 	regcache_cache_bypass(s->regmap, true);
-	sc16is7xx_port_write(port, SC16IS7XX_EFR_REG,
-			     SC16IS7XX_EFR_ENABLE_BIT);
+	sc16is7xx_port_update(port, SC16IS7XX_EFR_REG,
+			      SC16IS7XX_EFR_ENABLE_BIT,
+			      SC16IS7XX_EFR_ENABLE_BIT);
 	regcache_cache_bypass(s->regmap, false);
 
 	/* Put LCR back to the normal mode */
@@ -839,7 +840,7 @@ static unsigned int sc16is7xx_get_mctrl(struct uart_port *port)
 	/* DCD and DSR are not wired and CTS/RTS is handled automatically
 	 * so just indicate DSR and CAR asserted
 	 */
-	return TIOCM_DSR | TIOCM_CAR;
+	return TIOCM_DSR | TIOCM_CAR | TIOCM_RI | TIOCM_CTS;
 }
 
 static void sc16is7xx_set_mctrl(struct uart_port *port, unsigned int mctrl)
@@ -926,13 +927,18 @@ static void sc16is7xx_set_termios(struct uart_port *port,
 	regcache_cache_bypass(s->regmap, true);
 	sc16is7xx_port_write(port, SC16IS7XX_XON1_REG, termios->c_cc[VSTART]);
 	sc16is7xx_port_write(port, SC16IS7XX_XOFF1_REG, termios->c_cc[VSTOP]);
-	if (termios->c_cflag & CRTSCTS)
+	if (termios->c_cflag & CRTSCTS) {
 		flow |= SC16IS7XX_EFR_AUTOCTS_BIT |
 			SC16IS7XX_EFR_AUTORTS_BIT;
+		port->status |= UPSTAT_AUTOCTS;
+	};
 	if (termios->c_iflag & IXON)
 		flow |= SC16IS7XX_EFR_SWFLOW3_BIT;
 	if (termios->c_iflag & IXOFF)
 		flow |= SC16IS7XX_EFR_SWFLOW1_BIT;
+
+	/* Always set enable enhanced */
+	flow |= SC16IS7XX_EFR_ENABLE_BIT;
 
 	sc16is7xx_port_write(port, SC16IS7XX_EFR_REG, flow);
 	regcache_cache_bypass(s->regmap, false);
