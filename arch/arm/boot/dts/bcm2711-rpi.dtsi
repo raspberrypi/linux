@@ -302,10 +302,6 @@
 		     <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
 };
 
-&cpu_thermal {
-	 thermal-sensors = <&thermal>;
-};
-
 &hvs {
 	clocks = <&firmware_clocks 4>;
 };
