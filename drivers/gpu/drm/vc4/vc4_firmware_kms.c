@@ -936,18 +936,13 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 		break;
 	}
 
+	mb.timings.video_id_code = frame.avi.video_code;
+
 	if (!vc4_encoder->hdmi_monitor) {
 		mb.timings.flags |= TIMINGS_FLAGS_DVI;
-		mb.timings.video_id_code = frame.avi.video_code;
 	} else {
 		struct vc4_fkms_connector_state *conn_state =
 			to_vc4_fkms_connector_state(vc4_crtc->connector->state);
-
-		/* Do not provide a VIC as the HDMI spec requires that we do not
-		 * signal the opposite of the defined range in the AVI
-		 * infoframe.
-		 */
-		mb.timings.video_id_code = 0;
 
 		if (conn_state->broadcast_rgb == VC4_BROADCAST_RGB_AUTO) {
 			/* See CEA-861-E - 5.1 Default Encoding Parameters */
@@ -958,6 +953,16 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 			if (conn_state->broadcast_rgb ==
 						VC4_BROADCAST_RGB_LIMITED)
 				mb.timings.flags |= TIMINGS_FLAGS_RGB_LIMITED;
+
+			/* If not using the default range, then do not provide
+			 * a VIC as the HDMI spec requires that we do not
+			 * signal the opposite of the defined range in the AVI
+			 * infoframe.
+			 */
+			if (!!(mb.timings.flags & TIMINGS_FLAGS_RGB_LIMITED) !=
+			    (drm_default_rgb_quant_range(mode) ==
+					HDMI_QUANTIZATION_RANGE_LIMITED))
+				mb.timings.video_id_code = 0;
 		}
 	}
 
