@@ -1730,6 +1730,12 @@ static int mmal_init(struct bcm2835_mmal_dev *dev)
 					      MMAL_PARAMETER_MINIMISE_FRAGMENTATION,
 					      &enable,
 					      sizeof(enable));
+
+		/* Enable inserting headers into the first frame */
+		vchiq_mmal_port_parameter_set(dev->instance,
+					      &dev->component[COMP_VIDEO_ENCODE]->control,
+					      MMAL_PARAMETER_VIDEO_ENCODE_HEADERS_WITH_FRAME,
+					      &enable, sizeof(enable));
 	}
 	ret = bcm2835_mmal_set_all_camera_controls(dev);
 	if (ret < 0) {
