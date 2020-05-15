@@ -12,11 +12,6 @@
 
 	interrupt-parent = <&gicv2>;
 
-	vc4: gpu {
-		compatible = "brcm,bcm2711-vc5";
-		status = "disabled";
-	};
-
 	clk_108MHz: clk-108M {
 		#clock-cells = <0>;
 		compatible = "fixed-clock";
@@ -385,6 +380,12 @@
 			clock-frequency = <97500>;
 			status = "disabled";
 		};
+
+		vc4: gpu {
+			compatible = "brcm,bcm2711-vc5";
+			status = "disabled";
+		};
+
 	};
 
 	arm-pmu {
