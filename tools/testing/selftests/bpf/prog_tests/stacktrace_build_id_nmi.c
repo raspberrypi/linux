@@ -52,7 +52,7 @@ retry:
 	if (pmu_fd < 0 && errno == ENOENT) {
 		printf("%s:SKIP:no PERF_COUNT_HW_CPU_CYCLES\n", __func__);
 		test__skip();
-		goto cleanup;
+		goto close_prog;
 	}
 	if (CHECK(pmu_fd < 0, "perf_event_open", "err %d errno %d\n",
 		  pmu_fd, errno))
