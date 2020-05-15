@@ -4113,7 +4113,9 @@ static int do_refine_retval_range(struct bpf_verifier_env *env,
 
 	if (ret_type != RET_INTEGER ||
 	    (func_id != BPF_FUNC_get_stack &&
-	     func_id != BPF_FUNC_probe_read_str))
+	     func_id != BPF_FUNC_probe_read_str &&
+	     func_id != BPF_FUNC_probe_read_kernel_str &&
+	     func_id != BPF_FUNC_probe_read_user_str))
 		return 0;
 
 	/* Error case where ret is in interval [S32MIN, -1]. */
