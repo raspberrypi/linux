@@ -2865,8 +2865,10 @@ scsi_host_unblock(struct Scsi_Host *shost, int new_state)
 
 	shost_for_each_device(sdev, shost) {
 		ret = scsi_internal_device_unblock(sdev, new_state);
-		if (ret)
+		if (ret) {
+			scsi_device_put(sdev);
 			break;
+		}
 	}
 	return ret;
 }
