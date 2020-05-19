@@ -254,7 +254,7 @@ static int vc4_drm_bind(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct drm_device *drm;
 	struct vc4_dev *vc4;
-	struct device_node *node;
+	struct device_node *node, *hvs_node;
 	int ret = 0;
 
 	dev->coherent_dma_mask = DMA_BIT_MASK(32);
@@ -268,6 +268,15 @@ static int vc4_drm_bind(struct device *dev)
 	if (!node || !of_device_is_available(node))
 		vc4_drm_driver.driver_features &= ~DRIVER_RENDER;
 	of_node_put(node);
+
+	hvs_node = of_find_compatible_node(NULL, NULL, "brcm,bcm2835-hvs");
+	if (hvs_node) {
+		ret = of_dma_configure(dev, hvs_node, true);
+		of_node_put(hvs_node);
+
+		if (ret)
+			return ret;
+	}
 
 	drm = drm_dev_alloc(&vc4_drm_driver, dev);
 	if (IS_ERR(drm))
