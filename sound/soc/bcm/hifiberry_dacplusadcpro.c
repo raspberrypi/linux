@@ -406,21 +406,14 @@ static int snd_rpi_hifiberry_dacplusadcpro_hw_params(
 			return ret;
 	}
 
-	ret = snd_soc_dai_set_tdm_slot(rtd->cpu_dai, 0x03, 0x03,
-		channels, width);
+	ret = snd_soc_dai_set_bclk_ratio(rtd->cpu_dai, channels * width);
 	if (ret)
 		return ret;
-	ret = snd_soc_dai_set_tdm_slot(rtd->codec_dais[0], 0x03, 0x03,
-		channels, width);
+	ret = snd_soc_dai_set_bclk_ratio(rtd->codec_dais[0], channels * width);
 	if (ret)
 		return ret;
-	ret = snd_soc_dai_set_tdm_slot(rtd->codec_dais[1], 0x03, 0x03,
-		channels, width);
-	if (ret)
-		return ret;
-
 	if (snd_rpi_hifiberry_is_dacpro && ops->hw_params)
-			ret = ops->hw_params(substream, params, dai);
+		ret = ops->hw_params(substream, params, dai);
 	return ret;
 }
 
