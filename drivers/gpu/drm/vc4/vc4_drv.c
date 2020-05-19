@@ -270,6 +270,9 @@ static int vc4_drm_bind(struct device *dev)
 	of_node_put(node);
 
 	hvs_node = of_find_compatible_node(NULL, NULL, "brcm,bcm2835-hvs");
+	if (!hvs_node)
+		hvs_node = of_find_compatible_node(NULL, NULL,
+						   "raspberrypi,rpi-firmware-kms");
 	if (hvs_node) {
 		ret = of_dma_configure(dev, hvs_node, true);
 		of_node_put(hvs_node);
