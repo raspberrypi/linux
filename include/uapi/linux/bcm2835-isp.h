@@ -46,7 +46,7 @@
  */
 struct bcm2835_isp_rational {
 	__s32 num;
-	__s32 den;
+	__u32 den;
 };
 
 /**
@@ -140,7 +140,7 @@ struct bcm2835_isp_black_level {
 	__u16 black_level_r;
 	__u16 black_level_g;
 	__u16 black_level_b;
-	__u8 pad_[2]; /* Unused */
+	__u8 padding[2]; /* Unused */
 };
 
 /**
