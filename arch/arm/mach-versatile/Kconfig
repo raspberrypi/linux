@@ -7,7 +7,7 @@ config ARCH_VERSATILE
 	select ARM_VIC
 	select CLKSRC_VERSATILE
 	select COMMON_CLK_VERSATILE
-	select CPU_ARM926T
+	select CPU_V6
 	select ICST
 	select MFD_SYSCON
 	select PLAT_VERSATILE
