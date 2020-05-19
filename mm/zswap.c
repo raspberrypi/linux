@@ -792,13 +792,13 @@ static int __zswap_param_set(const char *val, const struct kernel_param *kp,
 static int zswap_compressor_param_set(const char *val,
 				      const struct kernel_param *kp)
 {
-	return __zswap_param_set(val, kp, zswap_zpool_type, NULL);
+	return __zswap_param_set(val, kp, NULL, zswap_compressor);
 }
 
 static int zswap_zpool_param_set(const char *val,
 				 const struct kernel_param *kp)
 {
-	return __zswap_param_set(val, kp, NULL, zswap_compressor);
+	return __zswap_param_set(val, kp, zswap_zpool_type, NULL);
 }
 
 static int zswap_enabled_param_set(const char *val,
