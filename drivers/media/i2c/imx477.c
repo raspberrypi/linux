@@ -1919,7 +1919,7 @@ static int imx477_identify_module(struct imx477 *imx477)
 	if (val != IMX477_CHIP_ID) {
 		dev_err(&client->dev, "chip id mismatch: %x!=%x\n",
 			IMX477_CHIP_ID, val);
-		ret = -EINVAL;
+		return -EIO;
 	}
 
 	return 0;
