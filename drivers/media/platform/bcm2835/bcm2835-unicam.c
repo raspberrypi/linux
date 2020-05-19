@@ -974,8 +974,23 @@ static int unicam_g_fmt_vid_cap(struct file *file, void *priv,
 	if (!fmt)
 		return -EINVAL;
 
-	node->fmt = fmt;
-	node->v_fmt.fmt.pix.pixelformat = fmt->fourcc;
+	if (node->fmt != fmt) {
+		/*
+		 * The sensor format has changed so the pixelformat needs to
+		 * be updated. Try and retain the packed/unpacked choice if
+		 * at all possible.
+		 */
+		if (node->fmt->repacked_fourcc ==
+						node->v_fmt.fmt.pix.pixelformat)
+			/* Using the repacked format */
+			node->v_fmt.fmt.pix.pixelformat = fmt->repacked_fourcc;
+		else
+			/* Using the native format */
+			node->v_fmt.fmt.pix.pixelformat = fmt->fourcc;
+
+		node->fmt = fmt;
+	}
+
 	*f = node->v_fmt;
 
 	return 0;
