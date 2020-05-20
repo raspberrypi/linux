@@ -2540,6 +2540,8 @@ again:
 			if (!IS_ERR(root)) {
 				if (root->reloc_root == reloc_root)
 					root->reloc_root = NULL;
+				clear_bit(BTRFS_ROOT_DEAD_RELOC_TREE,
+					  &root->state);
 			}
 
 			list_del_init(&reloc_root->root_list);
