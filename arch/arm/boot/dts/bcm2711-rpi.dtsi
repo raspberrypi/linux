@@ -4,7 +4,6 @@
 / {
 	soc {
 		/delete-node/ v3d@7ec00000;
-		/delete-node/ mailbox@7e00b840;
 	};
 
 	__overrides__ {
@@ -88,12 +87,6 @@
 		brcm,dma-channel-mask = <0x7800>;
 	};
 
-	vchiq: mailbox@7e00b840 {
-		compatible = "brcm,bcm2711-vchiq";
-		reg = <0 0x7e00b840  0x0 0x3c>;
-		interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
-	};
-
 	xhci: xhci@7e9c0000 {
 		compatible = "generic-xhci";
 		status = "disabled";
@@ -127,18 +120,6 @@
 	};
 };
 
-&vchiq {
-	/* Onboard audio
-	 * This node is replicated because the original from bcm270x-rpi.dtsi
-	 * was deleted when the vchiq node was deleted above.
-	 */
-	audio: bcm2835_audio {
-		compatible = "brcm,bcm2835-audio";
-		brcm,pwm-channels = <8>;
-		status = "disabled";
-	};
-};
-
 &dma {
 	/* The VPU firmware uses DMA channel 11 for VCHIQ */
 	brcm,dma-channel-mask = <0x1f5>;
@@ -147,6 +128,10 @@
 &dma40 {
 	/* The VPU firmware DMA channel 11 for VCHIQ */
 	brcm,dma-channel-mask = <0x7000>;
+};
+
+&vchiq {
+	compatible = "brcm,bcm2711-vchiq";
 };
 
 &firmwarekms {
