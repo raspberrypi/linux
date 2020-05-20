@@ -2718,21 +2718,7 @@ vchiq_register_child(struct platform_device *pdev, const char *name)
 
 	child->dev.of_node = np;
 
-	/*
-	 * We want the dma-ranges etc to be copied from a device with the
-	 * correct dma-ranges for the VPU.
-	 * VCHIQ on Pi4 is now under scb which doesn't get those dma-ranges.
-	 * Take the "dma" node as going to be suitable as it sees the world
-	 * through the same eyes as the VPU.
-	 */
-	np = of_find_node_by_path("dma");
-	if (!np)
-		np = pdev->dev.of_node;
-
 	of_dma_configure(&child->dev, np, true);
-
-	if (np != pdev->dev.of_node)
-		of_node_put(np);
 
 	return child;
 }
