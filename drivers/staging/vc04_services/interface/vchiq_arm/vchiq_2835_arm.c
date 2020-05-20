@@ -16,8 +16,6 @@
 #include <soc/bcm2835/raspberrypi-firmware.h>
 
 #define TOTAL_SLOTS (VCHIQ_SLOT_ZERO_SLOTS + 2 * 32)
-#define VC_SAFE(x) (g_use_36bit_addrs ? ((u32)(x) | 0xc0000000) : (u32)(x))
-#define IS_VC_SAFE(x) (g_use_36bit_addrs ? !((x) & ~0x3fffffffull) : 1)
 
 #include "vchiq_arm.h"
 #include "vchiq_connected.h"
@@ -66,6 +64,7 @@ static char *g_fragments_base;
 static char *g_free_fragments;
 static struct semaphore g_free_fragments_sema;
 static struct device *g_dev;
+static struct device *g_dma_dev;
 
 static DEFINE_SEMAPHORE(g_free_fragments_mutex);
 
@@ -82,6 +81,7 @@ free_pagelist(struct vchiq_pagelist_info *pagelistinfo,
 int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state *state)
 {
 	struct device *dev = &pdev->dev;
+	struct device *dma_dev = NULL;
 	struct vchiq_drvdata *drvdata = platform_get_drvdata(pdev);
 	struct rpi_firmware *fw = drvdata->fw;
 	struct vchiq_slot_zero *vchiq_slot_zero;
@@ -103,7 +103,23 @@ int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state *state)
 	g_cache_line_size = drvdata->cache_line_size;
 	g_fragments_size = 2 * g_cache_line_size;
 
-	g_use_36bit_addrs = (dev->dma_pfn_offset == 0);
+	if (drvdata->use_36bit_addrs) {
+		struct device_node *dma_node =
+			of_find_compatible_node(NULL, NULL, "brcm,bcm2711-dma");
+
+		if (dma_node) {
+			struct platform_device *pdev;
+
+			pdev = of_find_device_by_node(dma_node);
+			if (pdev)
+				dma_dev = &pdev->dev;
+			of_node_put(dma_node);
+			g_use_36bit_addrs = true;
+		} else {
+			dev_err(dev, "40-bit DMA controller not found\n");
+			return -EINVAL;
+		}
+	}
 
 	/* Allocate space for the channels in coherent memory */
 	slot_mem_size = PAGE_ALIGN(TOTAL_SLOTS * VCHIQ_SLOT_SIZE);
@@ -116,14 +132,8 @@ int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state *state)
 		return -ENOMEM;
 	}
 
-	if (!IS_VC_SAFE(slot_phys)) {
-		dev_err(dev, "allocated DMA memory %pad is not VC-safe\n",
-			&slot_phys);
-		return -ENOMEM;
-	}
-
 	WARN_ON(((unsigned long)slot_mem & (PAGE_SIZE - 1)) != 0);
-	channelbase = VC_SAFE(slot_phys);
+	channelbase = slot_phys;
 
 	vchiq_slot_zero = vchiq_init_slots(slot_mem, slot_mem_size);
 	if (!vchiq_slot_zero)
@@ -171,6 +181,8 @@ int vchiq_platform_init(struct platform_device *pdev, struct vchiq_state *state)
 	}
 
 	g_dev = dev;
+	g_dma_dev = dma_dev ?: dev;
+
 	vchiq_log_info(vchiq_arm_log_level,
 		"vchiq_init - done (slots %pK, phys %pad)",
 		vchiq_slot_zero, &slot_phys);
@@ -240,7 +252,7 @@ vchiq_prepare_bulk_data(struct vchiq_bulk *bulk, void *offset,
 	if (!pagelistinfo)
 		return VCHIQ_ERROR;
 
-	bulk->data = (void *)VC_SAFE(pagelistinfo->dma_addr);
+	bulk->data = pagelistinfo->dma_addr;
 
 	/*
 	 * Store the pagelistinfo address in remote_data,
@@ -295,7 +307,7 @@ static void
 cleanup_pagelistinfo(struct vchiq_pagelist_info *pagelistinfo)
 {
 	if (pagelistinfo->scatterlist_mapped) {
-		dma_unmap_sg(g_dev, pagelistinfo->scatterlist,
+		dma_unmap_sg(g_dma_dev, pagelistinfo->scatterlist,
 			     pagelistinfo->num_pages, pagelistinfo->dma_dir);
 	}
 
@@ -444,7 +456,7 @@ create_pagelist(char *buf, char __user *ubuf,
 		count -= len;
 	}
 
-	dma_buffers = dma_map_sg(g_dev,
+	dma_buffers = dma_map_sg(g_dma_dev,
 				 scatterlist,
 				 num_pages,
 				 pagelistinfo->dma_dir);
@@ -494,7 +506,7 @@ create_pagelist(char *buf, char __user *ubuf,
 	} else {
 		for_each_sg(scatterlist, sg, dma_buffers, i) {
 			u32 len = sg_dma_len(sg);
-			u32 addr = VC_SAFE(sg_dma_address(sg));
+			u32 addr = sg_dma_address(sg);
 			u32 new_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
 			/* Note: addrs is the address + page_count - 1
@@ -555,7 +567,7 @@ free_pagelist(struct vchiq_pagelist_info *pagelistinfo,
 	 * NOTE: dma_unmap_sg must be called before the
 	 * cpu can touch any of the data/pages.
 	 */
-	dma_unmap_sg(g_dev, pagelistinfo->scatterlist,
+	dma_unmap_sg(g_dma_dev, pagelistinfo->scatterlist,
 		     pagelistinfo->num_pages, pagelistinfo->dma_dir);
 	pagelistinfo->scatterlist_mapped = 0;
 
