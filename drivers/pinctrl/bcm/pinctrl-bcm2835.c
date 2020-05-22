@@ -378,7 +378,7 @@ static const struct gpio_chip bcm2711_gpio_chip = {
 	.get = bcm2835_gpio_get,
 	.set = bcm2835_gpio_set,
 	.set_config = gpiochip_generic_config,
-	.base = -1,
+	.base = 0,
 	.ngpio = BCM2711_NUM_GPIOS,
 	.can_sleep = false,
 };
