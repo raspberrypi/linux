@@ -1773,7 +1773,8 @@ static int udma_alloc_chan_resources(struct dma_chan *chan)
 			dev_err(ud->ddev.dev,
 				"Descriptor pool allocation failed\n");
 			uc->use_dma_pool = false;
-			return -ENOMEM;
+			ret = -ENOMEM;
+			goto err_cleanup;
 		}
 	}
 
@@ -1793,16 +1794,18 @@ static int udma_alloc_chan_resources(struct dma_chan *chan)
 
 		ret = udma_get_chan_pair(uc);
 		if (ret)
-			return ret;
+			goto err_cleanup;
 
 		ret = udma_alloc_tx_resources(uc);
-		if (ret)
-			return ret;
+		if (ret) {
+			udma_put_rchan(uc);
+			goto err_cleanup;
+		}
 
 		ret = udma_alloc_rx_resources(uc);
 		if (ret) {
 			udma_free_tx_resources(uc);
-			return ret;
+			goto err_cleanup;
 		}
 
 		uc->config.src_thread = ud->psil_base + uc->tchan->id;
@@ -1820,10 +1823,8 @@ static int udma_alloc_chan_resources(struct dma_chan *chan)
 			uc->id);
 
 		ret = udma_alloc_tx_resources(uc);
-		if (ret) {
-			uc->config.remote_thread_id = -1;
-			return ret;
-		}
+		if (ret)
+			goto err_cleanup;
 
 		uc->config.src_thread = ud->psil_base + uc->tchan->id;
 		uc->config.dst_thread = uc->config.remote_thread_id;
@@ -1840,10 +1841,8 @@ static int udma_alloc_chan_resources(struct dma_chan *chan)
 			uc->id);
 
 		ret = udma_alloc_rx_resources(uc);
-		if (ret) {
-			uc->config.remote_thread_id = -1;
-			return ret;
-		}
+		if (ret)
+			goto err_cleanup;
 
 		uc->config.src_thread = uc->config.remote_thread_id;
 		uc->config.dst_thread = (ud->psil_base + uc->rchan->id) |
@@ -1858,7 +1857,9 @@ static int udma_alloc_chan_resources(struct dma_chan *chan)
 		/* Can not happen */
 		dev_err(uc->ud->dev, "%s: chan%d invalid direction (%u)\n",
 			__func__, uc->id, uc->config.dir);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_cleanup;
+
 	}
 
 	/* check if the channel configuration was successful */
@@ -1936,7 +1937,7 @@ err_psi_free:
 err_res_free:
 	udma_free_tx_resources(uc);
 	udma_free_rx_resources(uc);
-
+err_cleanup:
 	udma_reset_uchan(uc);
 
 	if (uc->use_dma_pool) {
