@@ -138,8 +138,16 @@
 		};
 	};
 
+	fragment@19 {
+		target = <&audio>;
+		__overlay__  {
+		    brcm,disable-hdmi;
+		};
+	};
+
 	__overrides__ {
 		audio   = <0>,"!17";
 		audio1   = <0>,"!18";
+		noaudio = <0>,"=17", <0>,"=18", <0>,"!19";
 	};
 };
