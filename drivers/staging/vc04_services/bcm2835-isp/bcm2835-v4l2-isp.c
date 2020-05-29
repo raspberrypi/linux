@@ -676,7 +676,11 @@ struct bcm2835_isp_fmt *get_default_format(struct bcm2835_isp_node *node)
 static inline unsigned int get_bytesperline(int width,
 					    const struct bcm2835_isp_fmt *fmt)
 {
-	return ALIGN((width * fmt->depth) >> 3, fmt->bytesperline_align);
+	/* GPU aligns 24bpp images to a multiple of 32 pixels (not bytes). */
+	if (fmt->depth == 24)
+		return ALIGN(width, 32) * 3;
+	else
+		return ALIGN((width * fmt->depth) >> 3, fmt->bytesperline_align);
 }
 
 static inline unsigned int get_sizeimage(int bpl, int width, int height,
