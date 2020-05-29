@@ -230,7 +230,7 @@
 
 		trickle-diode-type = <&abx80x>,"abracon,tc-diode";
 		trickle-resistor-ohms = <&ds1339>,"trickle-resistor-ohms:0",
-					<&abx80x>,"abracon,tc-resistor",
+					<&abx80x>,"abracon,tc-resistor:0",
 					<&rv3028>,"trickle-resistor-ohms:0";
 		backup-switchover-mode = <&rv3028>,"backup-switchover-mode:0";
 		wakeup-source = <&ds1339>,"wakeup-source?",
