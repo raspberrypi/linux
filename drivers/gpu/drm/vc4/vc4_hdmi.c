@@ -1216,6 +1216,7 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	card->dai_link = dai_link;
 	card->num_links = 1;
 	card->name = vc4_hdmi->variant->id ? "vc4-hdmi1" : "vc4-hdmi";
+	card->driver_name = "vc4-hdmi";
 	card->dev = dev;
 
 	/*
