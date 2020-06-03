@@ -363,6 +363,7 @@ static inline unsigned long vcpu_data_host_to_guest(struct kvm_vcpu *vcpu,
 	}
 }
 
-static inline void vcpu_ptrauth_setup_lazy(struct kvm_vcpu *vcpu) {}
+static inline bool vcpu_has_ptrauth(struct kvm_vcpu *vcpu) { return false; }
+static inline void vcpu_ptrauth_disable(struct kvm_vcpu *vcpu) { }
 
 #endif /* __ARM_KVM_EMULATE_H__ */
