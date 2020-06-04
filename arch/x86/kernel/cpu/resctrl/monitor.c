@@ -216,8 +216,9 @@ void free_rmid(u32 rmid)
 
 static u64 mbm_overflow_count(u64 prev_msr, u64 cur_msr)
 {
-	u64 shift = 64 - MBM_CNTR_WIDTH, chunks;
+	u64 shift, chunks;
 
+	shift = 64 - rdt_resources_all[RDT_RESOURCE_MBA].membw.mbm_width;
 	chunks = (cur_msr << shift) - (prev_msr << shift);
 	return chunks >>= shift;
 }
