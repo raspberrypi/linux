@@ -381,7 +381,9 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 	}
 
 	if (!enable_compat_alsa) {
-		set_hdmi_enables(dev);
+		if (!of_property_read_bool(dev->of_node, "brcm,disable-hdmi"))
+			set_hdmi_enables(dev);
+
 		// In this mode, always enable analog output
 		enable_headphones = true;
 	} else {
