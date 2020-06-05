@@ -1,6 +1,8 @@
 /dts-v1/;
 /plugin/;
 
+#include <dt-bindings/gpio/gpio.h>
+
 /{
 	compatible = "brcm,bcm2835";
 
@@ -48,7 +50,8 @@
 
 			i2c_soft: i2c@0 {
 				compatible = "i2c-gpio";
-				gpios = <&gpio 43 0 /* sda */ &gpio 42 0 /* scl */>;
+				gpios = <&gpio 43 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN) /* sda */
+				         &gpio 42 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN) /* scl */>;
 				i2c-gpio,delay-us = <5>;
 				i2c-gpio,scl-open-drain;
 				i2c-gpio,sda-open-drain;
