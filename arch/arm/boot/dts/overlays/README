@@ -2745,6 +2745,7 @@ Params: cma-256                 CMA is 256MB (needs 1GB)
         cma-size                CMA size in bytes, 4MB aligned
         cma-default             Use upstream's default value
         audio                   Enable or disable audio over HDMI (default "on")
+        noaudio                 Disable all HDMI audio (default "off")
 
 
 Name:   vc4-kms-v3d-pi4
@@ -2761,6 +2762,7 @@ Params: cma-256                 CMA is 256MB
                                 "on")
         audio1                  Enable or disable audio over HDMI1 (default
                                 "on")
+        noaudio                 Disable all HDMI audio (default "off")
 
 
 Name:   vga666
