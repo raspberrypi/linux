@@ -92,6 +92,12 @@
 		};
 	};
 	fragment@14 {
+		target = <&audio>;
+		__overlay__ {
+			brcm,disable-hdmi;
+		};
+	};
+	fragment@15 {
 		target = <&usb>;
 		#address-cells = <1>;
 		#size-cells = <1>;
