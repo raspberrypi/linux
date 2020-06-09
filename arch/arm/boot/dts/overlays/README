@@ -756,6 +756,17 @@ Params: draws_adc_ch4_gain      Sets the full scale resolution of the ADCs
         alsaname                Name of the ALSA audio device (default "draws")
 
 
+Name:   dummy-csi-sensor
+Info:   A dummy CSI-2 sensor driver for sources with no controls.
+        bcm2835-unicam requires a sensor subdev driver, so this uses a dummy
+        one with a resolution and format configured via module parameters.2lanes
+        CSI-2 config defaults to one data lane and continuous clock lane.
+Load:   dtoverlay=dummy-csi-sensor,<param>=<val>
+Params: 2lanes                  Select 2 CSI-2 data lanes.
+        4lanes                  Select 4 CSI-2 data lanes.
+        noncontinuous           Support the clock lane dropping to LP state.
+
+
 Name:   dwc-otg
 Info:   Selects the dwc_otg USB controller driver which has fiq support. This
         is the default on all except the Pi Zero which defaults to dwc2.

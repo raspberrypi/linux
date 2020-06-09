@@ -39,6 +39,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	dpi18.dtbo \
 	dpi24.dtbo \
 	draws.dtbo \
+	dummy-csi-sensor.dtbo \
 	dwc-otg.dtbo \
 	dwc2.dtbo \
 	edt-ft5406.dtbo \

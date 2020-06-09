@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for Dummy CSI2 sensor
+/dts-v1/;
+/plugin/;
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			sensor: sensor {
+				compatible = "raspberrypi,dummy-csi2-sensor";
+				status = "okay";
+
+				port {
+					sensor_0: endpoint {
+						remote-endpoint = <&csi1_ep>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&csi1>;
+		__overlay__ {
+			status = "okay";
+
+			port {
+				csi1_ep: endpoint {
+					remote-endpoint = <&sensor_0>;
+					clock-lanes = <0>;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&csi1_ep>;
+		__overlay__ {
+			data-lanes = <1>;
+		};
+	};
+
+	fragment@3 {
+		target = <&csi1_ep>;
+		__dormant__ {
+			data-lanes = <1 2>;
+		};
+	};
+
+	fragment@4 {
+		target = <&csi1_ep>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+	fragment@5 {
+		target = <&csi1_ep>;
+		__dormant__ {
+			clock-noncontinuous;
+		};
+	};
+
+	fragment@6 {
+		target = <&sensor_0>;
+		__overlay__ {
+			data-lanes = <1>;
+		};
+	};
+
+	fragment@7 {
+		target = <&sensor_0>;
+		__dormant__ {
+			data-lanes = <1 2>;
+		};
+	};
+
+	fragment@8 {
+		target = <&sensor_0>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+	fragment@9 {
+		target = <&sensor_0>;
+		__dormant__ {
+			clock-noncontinuous;
+		};
+	};
+
+	__overrides__ {
+		2lanes = <0>, "-2+3-6+7";
+		4lanes = <0>, "-2+4-6+8";
+		noncontinuous = <0>, "+5+9";
+	};
+};
