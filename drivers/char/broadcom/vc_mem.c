@@ -82,23 +82,6 @@ vc_mem_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static void
-vc_mem_get_size(void)
-{
-}
-
-static void
-vc_mem_get_base(void)
-{
-}
-
-int
-vc_mem_get_current_size(void)
-{
-	return mm_vc_mem_size;
-}
-EXPORT_SYMBOL_GPL(vc_mem_get_current_size);
-
 static long
 vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -123,9 +106,6 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 	case VC_MEM_IOC_MEM_SIZE:
 		{
-			/* Get the videocore memory size first */
-			vc_mem_get_size();
-
 			pr_debug("%s: VC_MEM_IOC_MEM_SIZE=%x\n", __func__,
 				 mm_vc_mem_size);
 
@@ -137,9 +117,6 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 	case VC_MEM_IOC_MEM_BASE:
 		{
-			/* Get the videocore memory base */
-			vc_mem_get_base();
-
 			pr_debug("%s: VC_MEM_IOC_MEM_BASE=%x\n", __func__,
 				 mm_vc_mem_base);
 
@@ -151,9 +128,6 @@ vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 	case VC_MEM_IOC_MEM_LOAD:
 		{
-			/* Get the videocore memory base */
-			vc_mem_get_base();
-
 			pr_debug("%s: VC_MEM_IOC_MEM_LOAD=%x\n", __func__,
 				mm_vc_mem_base);
 
@@ -289,8 +263,6 @@ vc_mem_init(void)
 	mm_vc_mem_phys_addr = phys_addr;
 	mm_vc_mem_size = mem_size;
 	mm_vc_mem_base = mem_base;
-
-	vc_mem_get_size();
 
 	pr_info("vc-mem: phys_addr:0x%08lx mem_base=0x%08x mem_size:0x%08x(%u MiB)\n",
 		mm_vc_mem_phys_addr, mm_vc_mem_base, mm_vc_mem_size,

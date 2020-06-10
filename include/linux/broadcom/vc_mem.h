@@ -29,7 +29,6 @@
 
 extern unsigned long mm_vc_mem_phys_addr;
 extern unsigned int  mm_vc_mem_size;
-extern int vc_mem_get_current_size(void);
 #endif
 
 #ifdef CONFIG_COMPAT
