@@ -38,7 +38,6 @@
 #define BCM2835_DMA_MAX_DMA_CHAN_SUPPORTED 14
 #define BCM2835_DMA_CHAN_NAME_SIZE 8
 #define BCM2835_DMA_BULK_MASK  BIT(0)
-#define BCM2711_DMA_MEMCPY_CHAN 14
 
 struct bcm2835_dma_cfg_data {
 	u32	chan_40bit_mask;
@@ -277,23 +276,6 @@ struct bcm2835_desc {
 #define BCM2711_DMA40_SIZE_256		(3 << 13)
 #define BCM2711_DMA40_IGNORE		BIT(15)
 #define BCM2711_DMA40_STRIDE(x)		((x) << 16) /* For 2D mode */
-
-#define BCM2711_DMA40_MEMCPY_FLAGS \
-	(BCM2711_DMA40_QOS(0) | \
-	 BCM2711_DMA40_PANIC_QOS(0) | \
-	 BCM2711_DMA40_WAIT_FOR_WRITES | \
-	 BCM2711_DMA40_DISDEBUG)
-
-#define BCM2711_DMA40_MEMCPY_XFER_INFO \
-	(BCM2711_DMA40_SIZE_128 | \
-	 BCM2711_DMA40_INC | \
-	 BCM2711_DMA40_BURST_LEN(16))
-
-struct bcm2835_dmadev *memcpy_parent;
-static void __iomem *memcpy_chan;
-static struct bcm2711_dma40_scb *memcpy_scb;
-static dma_addr_t memcpy_scb_dma;
-DEFINE_SPINLOCK(memcpy_lock);
 
 static const struct bcm2835_dma_cfg_data bcm2835_dma_cfg = {
 	.chan_40bit_mask = 0,
@@ -1103,55 +1085,6 @@ static void bcm2835_dma_free(struct bcm2835_dmadev *od)
 			     DMA_TO_DEVICE, DMA_ATTR_SKIP_CPU_SYNC);
 }
 
-int bcm2711_dma40_memcpy_init(void)
-{
-	if (!memcpy_parent)
-		return -EPROBE_DEFER;
-
-	if (!memcpy_chan)
-		return -EINVAL;
-
-	if (!memcpy_scb)
-		return -ENOMEM;
-
-	return 0;
-}
-EXPORT_SYMBOL(bcm2711_dma40_memcpy_init);
-
-void bcm2711_dma40_memcpy(dma_addr_t dst, dma_addr_t src, size_t size)
-{
-	struct bcm2711_dma40_scb *scb = memcpy_scb;
-	unsigned long flags;
-
-	if (!scb) {
-		pr_err("bcm2711_dma40_memcpy not initialised!\n");
-		return;
-	}
-
-	spin_lock_irqsave(&memcpy_lock, flags);
-
-	scb->ti = 0;
-	scb->src = lower_32_bits(src);
-	scb->srci = upper_32_bits(src) | BCM2711_DMA40_MEMCPY_XFER_INFO;
-	scb->dst = lower_32_bits(dst);
-	scb->dsti = upper_32_bits(dst) | BCM2711_DMA40_MEMCPY_XFER_INFO;
-	scb->len = size;
-	scb->next_cb = 0;
-
-	writel((u32)(memcpy_scb_dma >> 5), memcpy_chan + BCM2711_DMA40_CB);
-	writel(BCM2711_DMA40_MEMCPY_FLAGS + BCM2711_DMA40_ACTIVE,
-	       memcpy_chan + BCM2711_DMA40_CS);
-
-	/* Poll for completion */
-	while (!(readl(memcpy_chan + BCM2711_DMA40_CS) & BCM2711_DMA40_END))
-		cpu_relax();
-
-	writel(BCM2711_DMA40_END, memcpy_chan + BCM2711_DMA40_CS);
-
-	spin_unlock_irqrestore(&memcpy_lock, flags);
-}
-EXPORT_SYMBOL(bcm2711_dma40_memcpy);
-
 static const struct of_device_id bcm2835_dma_of_match[] = {
 	{ .compatible = "brcm,bcm2835-dma", .data = &bcm2835_dma_cfg },
 	{ .compatible = "brcm,bcm2711-dma", .data = &bcm2711_dma_cfg },
@@ -1280,21 +1213,6 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 		chans_available &= ~BCM2835_DMA_BULK_MASK;
 	}
 
-	/* And possibly one for the 40-bit DMA memcpy API */
-	if (chans_available & od->cfg_data->chan_40bit_mask &
-	    BIT(BCM2711_DMA_MEMCPY_CHAN)) {
-		memcpy_parent = od;
-		memcpy_chan = BCM2835_DMA_CHANIO(base, BCM2711_DMA_MEMCPY_CHAN);
-		memcpy_scb = dma_alloc_coherent(memcpy_parent->ddev.dev,
-						sizeof(*memcpy_scb),
-						&memcpy_scb_dma, GFP_KERNEL);
-		if (!memcpy_scb)
-			dev_warn(&pdev->dev,
-				 "Failed to allocated memcpy scb\n");
-
-		chans_available &= ~BIT(BCM2711_DMA_MEMCPY_CHAN);
-	}
-
 	/* get irqs for each channel that we support */
 	for (i = chan_start; i < chan_end; i++) {
 		/* skip masked out channels */
@@ -1375,14 +1293,6 @@ static int bcm2835_dma_remove(struct platform_device *pdev)
 	struct bcm2835_dmadev *od = platform_get_drvdata(pdev);
 
 	bcm_dmaman_remove(pdev);
-	dma_async_device_unregister(&od->ddev);
-	if (memcpy_parent == od) {
-		dma_free_coherent(&pdev->dev, sizeof(*memcpy_scb), memcpy_scb,
-				  memcpy_scb_dma);
-		memcpy_parent = NULL;
-		memcpy_scb = NULL;
-		memcpy_chan = NULL;
-	}
 	bcm2835_dma_free(od);
 
 	return 0;
