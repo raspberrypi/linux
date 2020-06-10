@@ -16,6 +16,7 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/device.h>
+#include <linux/dmaengine.h>
 #include <linux/cdev.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
@@ -26,8 +27,11 @@
 #include <linux/dma-mapping.h>
 #include <linux/broadcom/vc_mem.h>
 #include <linux/platform_device.h>
+#include <linux/ptrace.h>
 
 #define DRIVER_NAME  "vc-mem"
+
+#define VC_MEM_DMA_SIZE 4096
 
 struct vc_mem {
 	struct miscdevice misc;
@@ -51,6 +55,8 @@ struct vc_mem {
 	u32 base;
 	u32 size;
 
+	struct dma_chan *dma_chan;
+
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *debugfs_entry;
 #endif
@@ -68,6 +74,7 @@ vc_mem_open(struct inode *inode, struct file *file)
 
 	pr_debug("%s: called file = 0x%p\n", __func__, file);
 
+	file->f_mode |= FMODE_UNSIGNED_OFFSET;
 	file->private_data = container_of(file->private_data, struct vc_mem, misc);
 
 	return 0;
@@ -157,6 +164,105 @@ vc_mem_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 #endif
 
+static loff_t
+vc_mem_llseek(struct file *file, loff_t off, int whence)
+{
+	switch (whence) {
+	case SEEK_CUR:
+		off += file->f_pos;
+		// fallthrough
+	case SEEK_SET:
+		file->f_pos = off;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	force_successful_syscall_return();
+	return off;
+}
+
+static ssize_t
+vc_mem_read(struct file *file, char __user *read_buf, size_t read_size, loff_t *ppos)
+{
+	int err = 0;
+	void *buf;
+	dma_addr_t buf_paddr;
+	dma_addr_t src_begin, src_end, src_at;
+
+	struct vc_mem *drv = file->private_data;
+	struct device *dev = drv->misc.parent;
+	struct dma_chan *dma_chan = drv->dma_chan;
+	struct dma_device *dma_dev = dma_chan->device;
+
+	unsigned long init_pos = *ppos;
+
+#if 0
+	if (init_pos < drv->base || init_pos > drv->size || drv->size - init_pos < read_size)
+		return -EINVAL;
+#endif
+
+	if (read_size == 0)
+		return 0;
+
+	src_begin = *ppos;
+	src_end = src_begin + read_size;
+	src_at = src_begin;
+
+	buf = dmam_alloc_coherent(dev, VC_MEM_DMA_SIZE, &buf_paddr, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	while (src_at != src_end) {
+		size_t tx_size;
+		struct dma_async_tx_descriptor *tx;
+		dma_cookie_t cookie;
+		enum dma_status status;
+
+		tx_size = src_end - src_at;
+		if (tx_size > VC_MEM_DMA_SIZE)
+			tx_size = VC_MEM_DMA_SIZE;
+
+		tx = dma_dev->device_prep_dma_memcpy(dma_chan, buf_paddr, src_at, tx_size, 0);
+		if (!tx) {
+			dev_err(dev, "Failed to prepare DMA\n");
+			err = -ENOMEM;
+			break;
+		}
+
+		cookie = tx->tx_submit(tx);
+		err = dma_submit_error(cookie);
+		if (err) {
+			dev_err(dev, "Failed to submit DMA: %d\n", err);
+			break;
+		}
+
+		status = dma_sync_wait(dma_chan, cookie);
+		if (status != DMA_COMPLETE) {
+			dev_err(dev, "DMA failed: %d\n", status);
+			err = -EIO;
+			break;
+		}
+
+		if (copy_to_user(read_buf, buf, tx_size)) {
+			err = -EFAULT;
+			break;
+		}
+
+		src_at += tx_size;
+		read_buf += tx_size;
+	}
+
+	dmam_free_coherent(dev, VC_MEM_DMA_SIZE, buf, buf_paddr);
+
+	if (src_at == src_begin && err < 0)
+		return err;
+
+	read_size = src_at - src_begin;
+	*ppos = init_pos + read_size;
+	return read_size;
+}
+
 static int
 vc_mem_mmap(struct file *filp, struct vm_area_struct *vma)
 {
@@ -194,6 +300,8 @@ static const struct file_operations vc_mem_fops = {
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = vc_mem_compat_ioctl,
 #endif
+	.llseek = vc_mem_llseek,
+	.read = vc_mem_read,
 	.mmap = vc_mem_mmap,
 };
 
@@ -213,6 +321,7 @@ static int vc_mem_probe(struct platform_device *pdev)
 	struct vc_mem *drv;
 	const __be32 *addrp;
 	int n_addr_bytes;
+	struct dma_chan *dma_chan;
 
 	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
 	if (!drv)
@@ -238,6 +347,15 @@ static int vc_mem_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "misc_register: %d\n", ret);
 		return ret;
 	}
+
+	dma_chan = dma_request_chan(&pdev->dev, "rx-tx");
+	if (IS_ERR(dma_chan)) {
+		ret = PTR_ERR(dma_chan);
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "Failed to get DMA channel: %d\n", ret);
+		return ret;
+	}
+	drv->dma_chan = dma_chan;
 
 #ifdef CONFIG_DEBUG_FS
 	drv->debugfs_entry = debugfs_create_dir(DRIVER_NAME, NULL);
@@ -279,6 +397,9 @@ static int vc_mem_remove(struct platform_device *pdev)
 #endif
 
 	misc_deregister(&drv->misc);
+
+	if (drv->dma_chan)
+		dma_release_channel(drv->dma_chan);
 
 	return 0;
 }
