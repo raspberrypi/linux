@@ -268,13 +268,24 @@ static int raspberrypi_discover_clocks(struct raspberrypi_clk *rpi,
 	while (clks->id) {
 		struct clk_hw *hw;
 
-		hw = raspberrypi_clk_register(rpi, clks->parent, clks->id);
-		if (IS_ERR(hw))
-			return PTR_ERR(hw);
+		switch (clks->id) {
+		case RPI_FIRMWARE_ARM_CLK_ID:
+		case RPI_FIRMWARE_CORE_CLK_ID:
+		case RPI_FIRMWARE_M2MC_CLK_ID:
+		case RPI_FIRMWARE_V3D_CLK_ID:
+			hw = raspberrypi_clk_register(rpi, clks->parent,
+						      clks->id);
+			if (IS_ERR(hw))
+				return PTR_ERR(hw);
 
-		data->hws[clks->id] = hw;
-		data->num = clks->id + 1;
-		clks++;
+			data->hws[clks->id] = hw;
+			data->num = clks->id + 1;
+			fallthrough;
+
+		default:
+			clks++;
+			break;
+		}
 	}
 
 	return 0;
