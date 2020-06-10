@@ -61,6 +61,12 @@
 		};
 	};
 
+	axi {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};
+
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <1>;

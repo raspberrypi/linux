@@ -11,6 +11,17 @@
 		};
 	};
 
+	axi {
+		vc_mem {
+			compatible = "raspberrypi,vc-mem";
+
+			// Set by firmware.
+			// reg = <VC base address, VC end address, VC physical address?>;
+
+			status = "okay";
+		};
+	};
+
 	soc {
 		firmware: firmware {
 			compatible = "raspberrypi,bcm2835-firmware", "simple-bus";
