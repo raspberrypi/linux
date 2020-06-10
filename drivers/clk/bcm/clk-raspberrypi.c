@@ -359,8 +359,8 @@ static int raspberrypi_clk_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id raspberrypi_clk_match[] = {
-        { .compatible = "raspberrypi,firmware-clocks" },
-        { },
+	{ .compatible = "raspberrypi,firmware-clocks" },
+	{ },
 };
 MODULE_DEVICE_TABLE(of, raspberrypi_clk_match);
 
