@@ -40,6 +40,9 @@ enum imx290_clk_index {
 #define IMX290_GAIN 0x3014
 #define IMX290_HMAX_LOW 0x301c
 #define IMX290_HMAX_HIGH 0x301d
+#define IMX290_HMAX_MIN_2LANE 4400 /* Min of 4400 pixels = 30fps */
+#define IMX290_HMAX_MIN_4LANE 2200 /* Min of 2200 pixels = 60fps */
+#define IMX290_HMAX_MAX 0xffff
 #define IMX290_PGCTRL 0x308c
 #define IMX290_PHY_LANE_NUM 0x3407
 #define IMX290_CSI_LANE_MODE 0x3443
@@ -82,6 +85,7 @@ struct imx290 {
 	struct regmap *regmap;
 	u8 nlanes;
 	u8 bpp;
+	u16 hmax_min;
 
 	struct v4l2_subdev sd;
 	struct media_pad pad;
@@ -94,6 +98,7 @@ struct imx290 {
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_ctrl *link_freq;
 	struct v4l2_ctrl *pixel_rate;
+	struct v4l2_ctrl *hblank;
 
 	struct mutex lock;
 };
@@ -518,6 +523,26 @@ static int imx290_set_gain(struct imx290 *imx290, u32 value)
 	return ret;
 }
 
+static int imx290_set_hmax(struct imx290 *imx290, u32 val)
+{
+	u32 hmax = val + imx290->current_mode->width;
+	int ret;
+
+	ret = imx290_write_reg(imx290, IMX290_HMAX_LOW, (hmax & 0xff));
+	if (ret) {
+		dev_err(imx290->dev, "Error setting HMAX register\n");
+		return ret;
+	}
+
+	ret = imx290_write_reg(imx290, IMX290_HMAX_HIGH, ((hmax >> 8) & 0xff));
+	if (ret) {
+		dev_err(imx290->dev, "Error setting HMAX register\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 /* Stop streaming */
 static int imx290_stop_streaming(struct imx290 *imx290)
 {
@@ -545,6 +570,9 @@ static int imx290_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_GAIN:
 		ret = imx290_set_gain(imx290, ctrl->val);
+		break;
+	case V4L2_CID_HBLANK:
+		ret = imx290_set_hmax(imx290, ctrl->val);
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		if (ctrl->val) {
@@ -702,6 +730,12 @@ static int imx290_set_fmt(struct v4l2_subdev *sd,
 		if (imx290->pixel_rate)
 			__v4l2_ctrl_s_ctrl_int64(imx290->pixel_rate,
 						 imx290_calc_pixel_rate(imx290));
+
+		if (imx290->hblank)
+			__v4l2_ctrl_modify_range(imx290->hblank,
+						 imx290->hmax_min - mode->width,
+						 IMX290_HMAX_MAX - mode->width,
+						 1, mode->hmax - mode->width);
 	}
 
 	*format = fmt->format;
@@ -756,25 +790,6 @@ static int imx290_write_current_format(struct imx290 *imx290)
 	return 0;
 }
 
-static int imx290_set_hmax(struct imx290 *imx290, u32 val)
-{
-	int ret;
-
-	ret = imx290_write_reg(imx290, IMX290_HMAX_LOW, (val & 0xff));
-	if (ret) {
-		dev_err(imx290->dev, "Error setting HMAX register\n");
-		return ret;
-	}
-
-	ret = imx290_write_reg(imx290, IMX290_HMAX_HIGH, ((val >> 8) & 0xff));
-	if (ret) {
-		dev_err(imx290->dev, "Error setting HMAX register\n");
-		return ret;
-	}
-
-	return 0;
-}
-
 /* Start streaming */
 static int imx290_start_streaming(struct imx290 *imx290)
 {
@@ -813,9 +828,6 @@ static int imx290_start_streaming(struct imx290 *imx290)
 		dev_err(imx290->dev, "Could not set current mode\n");
 		return ret;
 	}
-	ret = imx290_set_hmax(imx290, imx290->current_mode->hmax);
-	if (ret < 0)
-		return ret;
 
 	/* Apply customized values from user */
 	ret = v4l2_ctrl_handler_setup(imx290->sd.ctrl_handler);
@@ -1012,6 +1024,7 @@ static int imx290_probe(struct i2c_client *client)
 	struct v4l2_fwnode_endpoint ep = {
 		.bus_type = V4L2_MBUS_CSI2_DPHY
 	};
+	const struct imx290_mode *mode;
 	struct imx290 *imx290;
 	s64 fq;
 	int ret;
@@ -1050,6 +1063,8 @@ static int imx290_probe(struct i2c_client *client)
 		ret = -EINVAL;
 		goto free_err;
 	}
+	imx290->hmax_min = (imx290->nlanes == 2) ? IMX290_HMAX_MIN_2LANE :
+						 IMX290_HMAX_MIN_4LANE;
 
 	dev_dbg(dev, "Using %u data lanes\n", imx290->nlanes);
 
@@ -1123,6 +1138,13 @@ static int imx290_probe(struct i2c_client *client)
 
 	v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops,
 			  V4L2_CID_GAIN, 0, 238, 1, 0);
+
+	mode = imx290->current_mode;
+	imx290->hblank = v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops,
+					   V4L2_CID_HBLANK,
+					   imx290->hmax_min - mode->width,
+					   IMX290_HMAX_MAX - mode->width, 1,
+					   mode->hmax - mode->width);
 
 	imx290->link_freq =
 		v4l2_ctrl_new_int_menu(&imx290->ctrls, &imx290_ctrl_ops,
