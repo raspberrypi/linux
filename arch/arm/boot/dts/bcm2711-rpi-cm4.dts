@@ -252,6 +252,10 @@
 	/delete-node/ wifi-pwrseq;
 };
 
+&pcie0 {
+       brcm,enable-l1ss;
+};
+
 &mmcnr {
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdio_pins>;
