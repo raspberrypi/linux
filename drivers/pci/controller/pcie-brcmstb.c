@@ -123,6 +123,7 @@
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK	0x2
 #define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ_MASK		0x08000000
 #define  PCIE_BMIPS_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ_MASK		0x00800000
+#define  PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_L1SS_ENABLE_MASK		0x00200000
 
 
 #define PCIE_INTR2_CPU_BASE		0x4300
@@ -252,6 +253,7 @@ struct brcm_pcie {
 	struct clk		*clk;
 	struct device_node	*np;
 	bool			ssc;
+	bool			l1ss;
 	int			gen;
 	u64			msi_target_addr;
 	struct brcm_msi		*msi;
@@ -1073,12 +1075,25 @@ static int brcm_pcie_start_link(struct brcm_pcie *pcie)
 		 pci_speed_string(pcie_link_speed[cls]), nlw,
 		 ssc_good ? "(SSC)" : "(!SSC)");
 
-	/*
-	 * Refclk from RC should be gated with CLKREQ# input when ASPM L0s,L1
-	 * is enabled => setting the CLKREQ_DEBUG_ENABLE field to 1.
-	 */
 	tmp = readl(base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
-	tmp |= PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK;
+	if (pcie->l1ss) {
+		/*
+		 * Enable CLKREQ# signalling include L1 Substate control of
+		 * the CLKREQ# signal and the external reference clock buffer.
+		 * meet requirement for Endpoints that require CLKREQ#
+		 * assertion to clock active within 400ns.
+		 */
+		tmp &= ~PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK;
+		tmp |= PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_L1SS_ENABLE_MASK;
+	} else {
+		/*
+		 * Refclk from RC should be gated with CLKREQ# input when
+		 * ASPM L0s,L1 is enabled => setting the CLKREQ_DEBUG_ENABLE
+		 * field to 1.
+		 */
+		tmp &= ~PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_L1SS_ENABLE_MASK;
+		tmp |= PCIE_MISC_HARD_PCIE_HARD_DEBUG_CLKREQ_DEBUG_ENABLE_MASK;
+	}
 	writel(tmp, base + PCIE_MISC_HARD_PCIE_HARD_DEBUG);
 
 	return 0;
@@ -1532,6 +1547,7 @@ static int brcm_pcie_probe(struct platform_device *pdev)
 	pcie->gen = (ret < 0) ? 0 : ret;
 
 	pcie->ssc = of_property_read_bool(np, "brcm,enable-ssc");
+	pcie->l1ss = of_property_read_bool(np, "brcm,enable-l1ss");
 
 	ret = clk_prepare_enable(pcie->clk);
 	if (ret) {
