@@ -170,3 +170,10 @@
 &genet {
 	compatible = "brcm,bcm2711-genet-v5", "brcm,genet-v5";
 };
+
+&firmware {
+	firmware_clocks: clocks {
+		compatible = "raspberrypi,firmware-clocks";
+		#clock-cells = <1>;
+	};
+};
