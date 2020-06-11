@@ -3,3 +3,10 @@
 &vchiq {
 	compatible = "brcm,bcm2836-vchiq", "brcm,bcm2835-vchiq";
 };
+
+&firmware {
+	firmware_clocks: clocks {
+		compatible = "raspberrypi,firmware-clocks";
+		#clock-cells = <1>;
+	};
+};
