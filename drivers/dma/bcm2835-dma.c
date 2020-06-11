@@ -1206,11 +1206,12 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 	if (chans_available & BCM2835_DMA_BULK_MASK) {
 		rc = bcm_dmaman_probe(pdev, base,
 				      chans_available & BCM2835_DMA_BULK_MASK);
-		if (rc)
+		if (rc >= 0) {
+			chans_available &= ~BCM2835_DMA_BULK_MASK;
+		} else if (rc != -ENODEV) {
 			dev_err(&pdev->dev,
-				"Failed to initialize the legacy API\n");
-
-		chans_available &= ~BCM2835_DMA_BULK_MASK;
+				"Failed to initialize the legacy API: %d\n", rc);
+		}
 	}
 
 	/* get irqs for each channel that we support */
