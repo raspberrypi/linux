@@ -89,6 +89,52 @@ static inline struct irs1125 *to_state(struct v4l2_subdev *sd)
 	return container_of(sd, struct irs1125, sd);
 }
 
+static const char *expo_ctrl_names[IRS1125_NUM_SEQ_ENTRIES] = {
+	"safe reconfiguration of exposure of sequence 0",
+	"safe reconfiguration of exposure of sequence 1",
+	"safe reconfiguration of exposure of sequence 2",
+	"safe reconfiguration of exposure of sequence 3",
+	"safe reconfiguration of exposure of sequence 4",
+	"safe reconfiguration of exposure of sequence 5",
+	"safe reconfiguration of exposure of sequence 6",
+	"safe reconfiguration of exposure of sequence 7",
+	"safe reconfiguration of exposure of sequence 8",
+	"safe reconfiguration of exposure of sequence 9",
+	"safe reconfiguration of exposure of sequence 10",
+	"safe reconfiguration of exposure of sequence 11",
+	"safe reconfiguration of exposure of sequence 12",
+	"safe reconfiguration of exposure of sequence 13",
+	"safe reconfiguration of exposure of sequence 14",
+	"safe reconfiguration of exposure of sequence 15",
+	"safe reconfiguration of exposure of sequence 16",
+	"safe reconfiguration of exposure of sequence 17",
+	"safe reconfiguration of exposure of sequence 18",
+	"safe reconfiguration of exposure of sequence 19",
+};
+
+static const char *frame_ctrl_names[IRS1125_NUM_SEQ_ENTRIES] = {
+	"safe reconfiguration of framerate of sequence 0",
+	"safe reconfiguration of framerate of sequence 1",
+	"safe reconfiguration of framerate of sequence 2",
+	"safe reconfiguration of framerate of sequence 3",
+	"safe reconfiguration of framerate of sequence 4",
+	"safe reconfiguration of framerate of sequence 5",
+	"safe reconfiguration of framerate of sequence 6",
+	"safe reconfiguration of framerate of sequence 7",
+	"safe reconfiguration of framerate of sequence 8",
+	"safe reconfiguration of framerate of sequence 9",
+	"safe reconfiguration of framerate of sequence 10",
+	"safe reconfiguration of framerate of sequence 11",
+	"safe reconfiguration of framerate of sequence 12",
+	"safe reconfiguration of framerate of sequence 13",
+	"safe reconfiguration of framerate of sequence 14",
+	"safe reconfiguration of framerate of sequence 15",
+	"safe reconfiguration of framerate of sequence 16",
+	"safe reconfiguration of framerate of sequence 17",
+	"safe reconfiguration of framerate of sequence 18",
+	"safe reconfiguration of framerate of sequence 19",
+};
+
 static struct regval_list irs1125_26mhz[] = {
 	{0xB017, 0x0413},
 	{0xB086, 0x3535},
@@ -561,36 +607,57 @@ static int irs1125_s_ctrl(struct v4l2_ctrl *ctrl)
 	struct irs1125 *dev = container_of(ctrl->handler,
 					struct irs1125, ctrl_handler);
 	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
-	int err, i;
 	struct irs1125_mod_pll *mod_cur, *mod_new;
-	struct irs1125_seq_cfg *cfg_cur, *cfg_new;
 	u16 addr, val;
-
-	err = 0;
+	int err = 0, i;
 
 	switch (ctrl->id) {
-	case IRS1125_CID_SAFE_RECONFIG:
-	{
-		struct irs1125_illu *illu_cur, *illu_new;
+	case IRS1125_CID_SAFE_RECONFIG_S0_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S0_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S1_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S1_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S2_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S2_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S3_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S3_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S4_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S4_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S5_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S5_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S6_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S6_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S7_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S7_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S8_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S8_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S9_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S9_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S10_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S10_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S11_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S11_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S12_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S12_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S13_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S13_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S14_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S14_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S15_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S15_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S16_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S16_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S17_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S17_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S18_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S18_FRAME:
+	case IRS1125_CID_SAFE_RECONFIG_S19_EXPO:
+	case IRS1125_CID_SAFE_RECONFIG_S19_FRAME: {
+		unsigned int offset = ctrl->id -
+			IRS1125_CID_SAFE_RECONFIG_S0_EXPO;
 
-		illu_new = (struct irs1125_illu *)ctrl->p_new.p;
-		illu_cur = (struct irs1125_illu *)ctrl->p_cur.p;
-		for (i = 0; i < IRS1125_NUM_SEQ_ENTRIES; i++) {
-			if (illu_cur[i].exposure != illu_new[i].exposure) {
-				addr = 0xA850 + i * 2;
-				val = illu_new[i].exposure;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (illu_cur[i].framerate != illu_new[i].framerate) {
-				addr = 0xA851 + i * 2;
-				val = illu_new[i].framerate;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-		}
+		err = irs1125_write(&dev->sd,
+				    IRS1125_REG_SAFE_RECONFIG + offset,
+				    ctrl->val);
 		break;
 	}
 	case IRS1125_CID_MOD_PLL:
@@ -655,40 +722,40 @@ static int irs1125_s_ctrl(struct v4l2_ctrl *ctrl)
 			}
 		}
 		break;
-	case IRS1125_CID_SEQ_CONFIG:
+	case IRS1125_CID_SEQ_CONFIG: {
+		struct irs1125_seq_cfg *cfg_new;
+
 		cfg_new = (struct irs1125_seq_cfg *)ctrl->p_new.p;
-		cfg_cur = (struct irs1125_seq_cfg *)ctrl->p_cur.p;
 		for (i = 0; i < IRS1125_NUM_SEQ_ENTRIES; i++) {
-			if (cfg_cur[i].exposure != cfg_new[i].exposure)	{
-				addr = IRS1125_REG_DMEM_SHADOW + i * 4;
-				val = cfg_new[i].exposure;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (cfg_cur[i].framerate != cfg_new[i].framerate) {
-				addr = IRS1125_REG_DMEM_SHADOW + 1 + i * 4;
-				val = cfg_new[i].framerate;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (cfg_cur[i].ps != cfg_new[i].ps) {
-				addr = IRS1125_REG_DMEM_SHADOW + 2 + i * 4;
-				val = cfg_new[i].ps;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (cfg_cur[i].pll != cfg_new[i].pll) {
-				addr = IRS1125_REG_DMEM_SHADOW + 3 + i * 4;
-				val = cfg_new[i].pll;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
+			unsigned int seq_offset = i * 4;
+			u16 addr, val;
+
+			addr = IRS1125_REG_DMEM_SHADOW + seq_offset;
+			val = cfg_new[i].exposure;
+			err = irs1125_write(&dev->sd, addr, val);
+			if (err < 0)
+				break;
+
+			addr = IRS1125_REG_DMEM_SHADOW + 1 + seq_offset;
+			val = cfg_new[i].framerate;
+			err = irs1125_write(&dev->sd, addr, val);
+			if (err < 0)
+				break;
+
+			addr = IRS1125_REG_DMEM_SHADOW + 2 + seq_offset;
+			val = cfg_new[i].ps;
+			err = irs1125_write(&dev->sd, addr, val);
+			if (err < 0)
+				break;
+
+			addr = IRS1125_REG_DMEM_SHADOW + 3 + seq_offset;
+			val = cfg_new[i].pll;
+			err = irs1125_write(&dev->sd, addr, val);
+			if (err < 0)
+				break;
 		}
 		break;
+	}
 	case IRS1125_CID_NUM_SEQS:
 		err = irs1125_write(&dev->sd, 0xA88D, ctrl->val - 1);
 		if (err >= 0)
@@ -758,19 +825,6 @@ static const struct v4l2_ctrl_config irs1125_custom_ctrls[] = {
 		.elem_size = sizeof(u16),
 		.dims = {sizeof(struct irs1125_mod_pll) / sizeof(u16),
 			IRS1125_NUM_MOD_PLLS}
-	}, {
-		.ops = &irs1125_ctrl_ops,
-		.id = IRS1125_CID_SAFE_RECONFIG,
-		.name = "Change exposure and pause of single seq",
-		.type = V4L2_CTRL_TYPE_U16,
-		.flags = V4L2_CTRL_FLAG_HAS_PAYLOAD,
-		.min = 0,
-		.max = U16_MAX,
-		.step = 1,
-		.def = 0,
-		.elem_size = sizeof(u16),
-		.dims = {sizeof(struct irs1125_illu) / sizeof(u16),
-			IRS1125_NUM_SEQ_ENTRIES}
 	}, {
 		.ops = &irs1125_ctrl_ops,
 		.id = IRS1125_CID_SEQ_CONFIG,
@@ -900,9 +954,16 @@ static int irs1125_ctrls_init(struct irs1125 *sensor, struct device *dev)
 {
 	struct v4l2_ctrl *ctrl;
 	int err, i;
-	struct v4l2_ctrl_handler *hdl;
+	struct v4l2_ctrl_handler *hdl = &sensor->ctrl_handler;
+	struct v4l2_ctrl_config ctrl_cfg = {
+		.ops = &irs1125_ctrl_ops,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0,
+		.max = U16_MAX,
+		.step = 1,
+		.def = 0x1000
+	};
 
-	hdl = &sensor->ctrl_handler;
 	v4l2_ctrl_handler_init(hdl, ARRAY_SIZE(irs1125_custom_ctrls));
 
 	for (i = 0; i < ARRAY_SIZE(irs1125_custom_ctrls); i++)	{
@@ -921,6 +982,27 @@ static int irs1125_ctrls_init(struct irs1125 *sensor, struct device *dev)
 		dev_err(dev, "Error %d adding controls\n", hdl->error);
 		err = hdl->error;
 		goto error_ctrls;
+	}
+
+	for (i = 0; i < IRS1125_NUM_SEQ_ENTRIES; i++) {
+		ctrl_cfg.name = expo_ctrl_names[i];
+		ctrl_cfg.id = IRS1125_CID_SAFE_RECONFIG_S0_EXPO + i * 2;
+		ctrl = v4l2_ctrl_new_custom(hdl, &ctrl_cfg,
+					    NULL);
+		if (!ctrl)
+			dev_err(dev, "Failed to init exposure control %s\n",
+				ctrl_cfg.name);
+	}
+
+	ctrl_cfg.def = 0;
+	for (i = 0; i < IRS1125_NUM_SEQ_ENTRIES; i++) {
+		ctrl_cfg.name = frame_ctrl_names[i];
+		ctrl_cfg.id = IRS1125_CID_SAFE_RECONFIG_S0_FRAME + i * 2;
+		ctrl = v4l2_ctrl_new_custom(hdl, &ctrl_cfg,
+					    NULL);
+		if (!ctrl)
+			dev_err(dev, "Failed to init framerate control %s\n",
+				ctrl_cfg.name);
 	}
 
 	sensor->sd.ctrl_handler = hdl;
