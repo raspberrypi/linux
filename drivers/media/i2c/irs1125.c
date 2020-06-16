@@ -248,27 +248,34 @@ static int irs1125_write(struct v4l2_subdev *sd, u16 reg, u16 val)
 
 static int irs1125_read(struct v4l2_subdev *sd, u16 reg, u16 *val)
 {
-	int ret;
-	unsigned char data_w[2] = { reg >> 8, reg & 0xff };
-	char rdval[2];
-
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct i2c_msg msgs[2];
+	u8 addr_buf[2] = { reg >> 8, reg & 0xff };
+	u8 data_buf[2] = { 0, };
+	int ret;
 
-	ret = i2c_master_send(client, data_w, 2);
-	if (ret < 0) {
-		dev_dbg(&client->dev, "%s: i2c write error, reg: %x\n",
-			__func__, reg);
+	/* Write register address */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = 0;
+	msgs[0].len = ARRAY_SIZE(addr_buf);
+	msgs[0].buf = addr_buf;
+
+	/* Read data from register */
+	msgs[1].addr = client->addr;
+	msgs[1].flags = I2C_M_RD;
+	msgs[1].len = 2;
+	msgs[1].buf = data_buf;
+
+	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+	if (ret != ARRAY_SIZE(msgs)) {
+		if (ret >= 0)
+			ret = -EIO;
 		return ret;
 	}
 
-	ret = i2c_master_recv(client, rdval, 2);
-	if (ret < 0)
-		dev_err(&client->dev, "%s: i2c read error, reg: %x\n",
-			__func__, reg);
+	*val = data_buf[1] | (data_buf[0] << 8);
 
-	*val = rdval[1] | (rdval[0] << 8);
-
-	return ret;
+	return 0;
 }
 
 static int irs1125_write_array(struct v4l2_subdev *sd,
