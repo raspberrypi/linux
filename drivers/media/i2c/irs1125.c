@@ -82,6 +82,7 @@ struct irs1125 {
 	struct v4l2_ctrl *ctrl_numseq;
 
 	int power_count;
+	bool mod_pll_init;
 };
 
 static inline struct irs1125 *to_state(struct v4l2_subdev *sd)
@@ -276,8 +277,7 @@ static struct regval_list irs1125_seq_cfg_init[] = {
 	{0xC039, 0x0000},
 	{0xC401, 0x0002},
 
-	{0xFFFF, 1},
-	{0xA87C, 0x0001}
+	{0xFFFF, 1}
 };
 
 static int irs1125_write(struct v4l2_subdev *sd, u16 reg, u16 val)
@@ -471,7 +471,11 @@ static int __sensor_init(struct v4l2_subdev *sd)
 		return ret;
 	}
 
-	return 0;
+	irs1125->mod_pll_init = true;
+	v4l2_ctrl_handler_setup(&irs1125->ctrl_handler);
+	irs1125->mod_pll_init = false;
+
+	return irs1125_write(sd, 0xA87C, 0x0001);
 }
 
 static int irs1125_sensor_power(struct v4l2_subdev *sd, int on)
@@ -607,8 +611,6 @@ static int irs1125_s_ctrl(struct v4l2_ctrl *ctrl)
 	struct irs1125 *dev = container_of(ctrl->handler,
 					struct irs1125, ctrl_handler);
 	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
-	struct irs1125_mod_pll *mod_cur, *mod_new;
-	u16 addr, val;
 	int err = 0, i;
 
 	switch (ctrl->id) {
@@ -660,68 +662,61 @@ static int irs1125_s_ctrl(struct v4l2_ctrl *ctrl)
 				    ctrl->val);
 		break;
 	}
-	case IRS1125_CID_MOD_PLL:
+	case IRS1125_CID_MOD_PLL: {
+		struct irs1125_mod_pll *mod_new;
+
+		if (dev->mod_pll_init)
+			break;
+
 		mod_new = (struct irs1125_mod_pll *)ctrl->p_new.p;
-		mod_cur = (struct irs1125_mod_pll *)ctrl->p_cur.p;
 		for (i = 0; i < IRS1125_NUM_MOD_PLLS; i++) {
-			if (mod_cur[i].pllcfg1 != mod_new[i].pllcfg1) {
-				addr = 0xC3A0 + i * 3;
-				val = mod_new[i].pllcfg1;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (mod_cur[i].pllcfg2 != mod_new[i].pllcfg2) {
-				addr = 0xC3A1 + i * 3;
-				val = mod_new[i].pllcfg2;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (mod_cur[i].pllcfg3 != mod_new[i].pllcfg3) {
-				addr = 0xC3A2 + i * 3;
-				val = mod_new[i].pllcfg3;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (mod_cur[i].pllcfg4 != mod_new[i].pllcfg4) {
-				addr = 0xC24C + i * 5;
-				val = mod_new[i].pllcfg4;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (mod_cur[i].pllcfg5 != mod_new[i].pllcfg5) {
-				addr = 0xC24D + i * 5;
-				val = mod_new[i].pllcfg5;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (mod_cur[i].pllcfg6 != mod_new[i].pllcfg6) {
-				addr = 0xC24E + i * 5;
-				val = mod_new[i].pllcfg6;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (mod_cur[i].pllcfg7 != mod_new[i].pllcfg7) {
-				addr = 0xC24F + i * 5;
-				val = mod_new[i].pllcfg7;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
-			if (mod_cur[i].pllcfg8 != mod_new[i].pllcfg8) {
-				addr = 0xC250 + i * 5;
-				val = mod_new[i].pllcfg8;
-				err = irs1125_write(&dev->sd, addr, val);
-				if (err < 0)
-					break;
-			}
+			unsigned int pll_offset, ssc_offset;
+
+			pll_offset = i * 3;
+			ssc_offset = i * 5;
+
+			err = irs1125_write(&dev->sd, 0xC3A0 + pll_offset,
+					    mod_new[i].pllcfg1);
+			if (err < 0)
+				break;
+
+			err = irs1125_write(&dev->sd, 0xC3A1 + pll_offset,
+					    mod_new[i].pllcfg2);
+			if (err < 0)
+				break;
+
+			err = irs1125_write(&dev->sd, 0xC3A2 + pll_offset,
+					    mod_new[i].pllcfg3);
+			if (err < 0)
+				break;
+
+			err = irs1125_write(&dev->sd, 0xC24C + ssc_offset,
+					    mod_new[i].pllcfg4);
+			if (err < 0)
+				break;
+
+			err = irs1125_write(&dev->sd, 0xC24D + ssc_offset,
+					    mod_new[i].pllcfg5);
+			if (err < 0)
+				break;
+
+			err = irs1125_write(&dev->sd, 0xC24E + ssc_offset,
+					    mod_new[i].pllcfg6);
+			if (err < 0)
+				break;
+
+			err = irs1125_write(&dev->sd, 0xC24F + ssc_offset,
+					    mod_new[i].pllcfg7);
+			if (err < 0)
+				break;
+
+			err = irs1125_write(&dev->sd, 0xC250 + ssc_offset,
+					    mod_new[i].pllcfg8);
+			if (err < 0)
+				break;
 		}
 		break;
+	}
 	case IRS1125_CID_SEQ_CONFIG: {
 		struct irs1125_seq_cfg *cfg_new;
 
