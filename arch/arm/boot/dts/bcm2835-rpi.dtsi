@@ -11,6 +11,13 @@
 		};
 	};
 
+	axi {
+		compatible = "simple-bus";
+		vc_mem {
+			compatible = "raspberrypi,vc-mem";
+		};
+	};
+
 	soc {
 		firmware: firmware {
 			compatible = "raspberrypi,bcm2835-firmware", "simple-bus";
