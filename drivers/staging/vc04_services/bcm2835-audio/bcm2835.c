@@ -432,3 +432,4 @@ module_platform_driver(bcm2835_alsa_driver);
 MODULE_AUTHOR("Dom Cobley");
 MODULE_DESCRIPTION("Alsa driver for BCM2835 chip");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:bcm2835_audio");
