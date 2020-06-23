@@ -1,8 +1,4 @@
 // SPDX-License-Identifier: GPL-2.0-only
 &csi0 {
-	port {
-		endpoint {
-			data-lanes = <1 2>;
-		};
-	};
+	brcm,num-data-lanes = <2>;
 };

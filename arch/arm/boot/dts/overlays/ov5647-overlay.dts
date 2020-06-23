@@ -43,6 +43,7 @@
 			port {
 				csi1_ep: endpoint {
 					remote-endpoint = <&ov5647_0>;
+					data-lanes = <1 2>;
 				};
 			};
 		};

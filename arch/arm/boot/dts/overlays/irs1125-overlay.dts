@@ -43,6 +43,8 @@
 			port {
 				csi1_ep: endpoint {
 					remote-endpoint = <&irs1125_0>;
+					data-lanes = <1 2>;
+					clock-noncontinuous;
 				};
 			};
 		};
