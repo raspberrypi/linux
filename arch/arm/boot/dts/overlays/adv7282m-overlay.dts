@@ -40,6 +40,7 @@
 			port {
 				csi1_ep: endpoint {
 					remote-endpoint = <&adv728x_0>;
+					data-lanes = <1>;
 				};
 			};
 		};
