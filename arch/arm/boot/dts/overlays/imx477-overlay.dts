@@ -49,6 +49,7 @@
 			port {
 				csi1_ep: endpoint {
 					remote-endpoint = <&imx477_0>;
+					data-lanes = <1 2>;
 				};
 			};
 		};
