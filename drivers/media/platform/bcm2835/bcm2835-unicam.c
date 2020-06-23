@@ -1641,11 +1641,34 @@ static int unicam_start_streaming(struct vb2_queue *vq, unsigned int count)
 		goto err_streaming;
 	}
 
-	/*
-	 * TODO: Retrieve the number of active data lanes from the connected
-	 * subdevice.
-	 */
 	dev->active_data_lanes = dev->max_data_lanes;
+
+	if (dev->bus_type == V4L2_MBUS_CSI2_DPHY) {
+		struct v4l2_mbus_config mbus_config = { 0 };
+
+		ret = v4l2_subdev_call(dev->sensor, pad, get_mbus_config,
+				       0, &mbus_config);
+		if (ret < 0 && ret != -ENOIOCTLCMD) {
+			unicam_dbg(3, dev, "g_mbus_config failed\n");
+			goto err_pm_put;
+		}
+
+		dev->active_data_lanes =
+			(mbus_config.flags & V4L2_MBUS_CSI2_LANE_MASK) >>
+					__ffs(V4L2_MBUS_CSI2_LANE_MASK);
+		if (!dev->active_data_lanes)
+			dev->active_data_lanes = dev->max_data_lanes;
+		if (dev->active_data_lanes > dev->max_data_lanes) {
+			unicam_err(dev, "Device has requested %u data lanes, which is >%u configured in DT\n",
+				   dev->active_data_lanes,
+				   dev->max_data_lanes);
+			ret = -EINVAL;
+			goto err_pm_put;
+		}
+	}
+
+	unicam_dbg(1, dev, "Running with %u data lanes\n",
+		   dev->active_data_lanes);
 
 	ret = clk_set_rate(dev->clock, 100 * 1000 * 1000);
 	if (ret) {
