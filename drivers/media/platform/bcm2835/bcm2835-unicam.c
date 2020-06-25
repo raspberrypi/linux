@@ -336,7 +336,7 @@ static const struct unicam_fmt formats[] = {
 		.depth		= 10,
 		.csi_dt		= 0x2b,
 	}, {
-		/* NB There is no packed V4L2 fourcc for this format. */
+		.fourcc		= V4L2_PIX_FMT_Y12P,
 		.repacked_fourcc = V4L2_PIX_FMT_Y12,
 		.code		= MEDIA_BUS_FMT_Y12_1X12,
 		.depth		= 12,
