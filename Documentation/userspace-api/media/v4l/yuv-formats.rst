@@ -268,6 +268,7 @@ image.
     pixfmt-yuv-planar
     pixfmt-yuv-luma
     pixfmt-y12p
+    pixfmt-y14p
     pixfmt-y8i
     pixfmt-y12i
     pixfmt-uv8
