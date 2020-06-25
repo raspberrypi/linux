@@ -341,6 +341,12 @@ static const struct unicam_fmt formats[] = {
 		.code		= MEDIA_BUS_FMT_Y12_1X12,
 		.depth		= 12,
 		.csi_dt		= 0x2c,
+	}, {
+		.fourcc		= V4L2_PIX_FMT_Y14P,
+		.repacked_fourcc = V4L2_PIX_FMT_Y14,
+		.code		= MEDIA_BUS_FMT_Y14_1X14,
+		.depth		= 14,
+		.csi_dt		= 0x2d,
 	},
 	/* Embedded data format */
 	{
