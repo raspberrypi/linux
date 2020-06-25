@@ -30,6 +30,7 @@ to brightness information.
     pixfmt-y12
     pixfmt-y12p
     pixfmt-y14
+    pixfmt-y14p
     pixfmt-y10b
     pixfmt-y10p
     pixfmt-y16
