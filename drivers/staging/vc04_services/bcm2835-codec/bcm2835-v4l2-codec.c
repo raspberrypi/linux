@@ -2569,10 +2569,10 @@ static const struct v4l2_m2m_ops m2m_ops = {
 
 /* Size of the array to provide to the VPU when asking for the list of supported
  * formats.
- * The ISP component currently advertises 33 input formats, so add a small
+ * The ISP component currently advertises 44 input formats, so add a small
  * overhead on that.
  */
-#define MAX_SUPPORTED_ENCODINGS 40
+#define MAX_SUPPORTED_ENCODINGS 50
 
 /* Populate dev->supported_fmts with the formats supported by those ports. */
 static int bcm2835_codec_get_supported_fmts(struct bcm2835_codec_dev *dev)
