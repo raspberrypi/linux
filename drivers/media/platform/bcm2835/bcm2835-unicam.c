@@ -441,7 +441,7 @@ static const struct unicam_fmt formats[] = {
 		.csi_dt		= MIPI_CSI2_DT_RAW10,
 		.valid_colorspaces = MASK_CS_RAW,
 	}, {
-		/* NB There is no packed V4L2 fourcc for this format. */
+		.fourcc		= V4L2_PIX_FMT_Y12P,
 		.repacked_fourcc = V4L2_PIX_FMT_Y12,
 		.code		= MEDIA_BUS_FMT_Y12_1X12,
 		.depth		= 12,
