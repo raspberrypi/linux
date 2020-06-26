@@ -534,6 +534,7 @@ static int nouveau_range_fault(struct nouveau_svmm *svmm,
 		.flags = nouveau_svm_pfn_flags,
 		.values = nouveau_svm_pfn_values,
 		.pfn_shift = NVIF_VMM_PFNMAP_V0_ADDR_SHIFT,
+		.dev_private_owner = drm->dev,
 	};
 	struct mm_struct *mm = notifier->notifier.mm;
 	long ret;
