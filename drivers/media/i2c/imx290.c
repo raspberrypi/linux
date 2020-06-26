@@ -568,19 +568,12 @@ static int imx290_set_hmax(struct imx290 *imx290, u32 val)
 	u32 hmax = val + imx290->current_mode->width;
 	int ret;
 
-	ret = imx290_write_reg(imx290, IMX290_HMAX_LOW, (hmax & 0xff));
-	if (ret) {
+	ret = imx290_write_buffered_reg(imx290, IMX290_HMAX_LOW, 2,
+					hmax);
+	if (ret)
 		dev_err(imx290->dev, "Error setting HMAX register\n");
-		return ret;
-	}
 
-	ret = imx290_write_reg(imx290, IMX290_HMAX_HIGH, ((hmax >> 8) & 0xff));
-	if (ret) {
-		dev_err(imx290->dev, "Error setting HMAX register\n");
-		return ret;
-	}
-
-	return 0;
+	return ret;
 }
 
 static int imx290_set_vmax(struct imx290 *imx290, u32 val)
