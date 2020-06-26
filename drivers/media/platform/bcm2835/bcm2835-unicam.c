@@ -2586,7 +2586,7 @@ static const struct v4l2_async_notifier_operations unicam_async_ops = {
 static int of_unicam_connect_subdevs(struct unicam_device *dev)
 {
 	struct platform_device *pdev = dev->pdev;
-	struct v4l2_fwnode_endpoint ep = { 0 };
+	struct v4l2_fwnode_endpoint ep = { };
 	struct device_node *ep_node;
 	struct device_node *sensor_node;
 	unsigned int lane;
