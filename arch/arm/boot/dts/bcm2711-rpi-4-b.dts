@@ -182,6 +182,7 @@
 // Downstream rpi- changes
 
 #include "bcm270x.dtsi"
+#include "bcm271x-rpi-bt.dtsi"
 
 / {
 	soc {
@@ -250,8 +251,6 @@
 &uart0 {
 	pinctrl-0 = <&uart0_pins &bt_pins>;
 	status = "okay";
-
-	/delete-node/ bluetooth;
 };
 
 &uart1 {
