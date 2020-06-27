@@ -162,6 +162,13 @@ Params:
         i2s                     Set to "on" to enable the i2s interface
                                 (default "off")
 
+        krnbt                   Set to "on" to enable autoprobing of Bluetooth
+                                driver without need of hciattach/btattach
+                                (default "off")
+
+        krnbt_baudrate          Set the baudrate of the PL011 UART when used
+                                with krnbt=on
+
         spi                     Set to "on" to enable the spi interfaces
                                 (default "off")
 
@@ -1764,8 +1771,9 @@ Info:   Switch the onboard Bluetooth function on Pi 3B, 3B+, 3A+, 4B and Zero W
         in which case use /dev/serial1 instead because it will always be
         correct. Furthermore, you must also set core_freq and core_freq_min to
         the same value in config.txt or the miniuart will not work.
-Load:   dtoverlay=miniuart-bt
-Params: <None>
+Load:   dtoverlay=miniuart-bt,<param>=<val>
+Params: krnbt                   Set to "on" to enable autoprobing of Bluetooth
+                                driver without need of hciattach/btattach
 
 
 Name:   mmc
