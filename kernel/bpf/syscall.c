@@ -2029,10 +2029,10 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 		ptype = BPF_PROG_TYPE_CGROUP_DEVICE;
 		break;
 	case BPF_SK_MSG_VERDICT:
-		return sock_map_get_from_fd(attr, NULL);
+		return sock_map_prog_detach(attr, BPF_PROG_TYPE_SK_MSG);
 	case BPF_SK_SKB_STREAM_PARSER:
 	case BPF_SK_SKB_STREAM_VERDICT:
-		return sock_map_get_from_fd(attr, NULL);
+		return sock_map_prog_detach(attr, BPF_PROG_TYPE_SK_SKB);
 	case BPF_LIRC_MODE2:
 		return lirc_prog_detach(attr);
 	case BPF_FLOW_DISSECTOR:

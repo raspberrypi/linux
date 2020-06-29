@@ -956,11 +956,14 @@ static inline void bpf_map_offload_map_free(struct bpf_map *map)
 #endif /* CONFIG_NET && CONFIG_BPF_SYSCALL */
 
 #if defined(CONFIG_BPF_STREAM_PARSER)
-int sock_map_prog_update(struct bpf_map *map, struct bpf_prog *prog, u32 which);
+int sock_map_prog_update(struct bpf_map *map, struct bpf_prog *prog,
+			 struct bpf_prog *old, u32 which);
 int sock_map_get_from_fd(const union bpf_attr *attr, struct bpf_prog *prog);
+int sock_map_prog_detach(const union bpf_attr *attr, enum bpf_prog_type ptype);
 #else
 static inline int sock_map_prog_update(struct bpf_map *map,
-				       struct bpf_prog *prog, u32 which)
+				       struct bpf_prog *prog,
+				       struct bpf_prog *old, u32 which)
 {
 	return -EOPNOTSUPP;
 }
@@ -969,6 +972,12 @@ static inline int sock_map_get_from_fd(const union bpf_attr *attr,
 				       struct bpf_prog *prog)
 {
 	return -EINVAL;
+}
+
+static inline int sock_map_prog_detach(const union bpf_attr *attr,
+				       enum bpf_prog_type ptype)
+{
+	return -EOPNOTSUPP;
 }
 #endif
 
