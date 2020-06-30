@@ -936,6 +936,9 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 		break;
 	}
 
+	if (mode->flags & DRM_MODE_FLAG_INTERLACE)
+		mb.timings.flags |= TIMINGS_FLAGS_INTERLACE;
+
 	mb.timings.video_id_code = frame.avi.video_code;
 
 	if (!vc4_encoder->hdmi_monitor) {
@@ -1632,7 +1635,7 @@ vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
 				   DRM_MODE_CONNECTOR_HDMIA);
 		drm_connector_helper_add(connector,
 					 &vc4_fkms_connector_helper_funcs);
-		connector->interlace_allowed = 0;
+		connector->interlace_allowed = 1;
 	}
 
 	ret = drm_mode_create_tv_margin_properties(dev);
