@@ -490,6 +490,12 @@ static int gsi_channel_stop_command(struct gsi_channel *channel)
 	enum gsi_channel_state state = channel->state;
 	int ret;
 
+	/* Channel could have entered STOPPED state since last call
+	 * if it timed out.  If so, we're done.
+	 */
+	if (state == GSI_CHANNEL_STATE_STOPPED)
+		return 0;
+
 	if (state != GSI_CHANNEL_STATE_STARTED &&
 	    state != GSI_CHANNEL_STATE_STOP_IN_PROC)
 		return -EINVAL;
@@ -772,13 +778,6 @@ int gsi_channel_stop(struct gsi *gsi, u32 channel_id)
 	int ret;
 
 	gsi_channel_freeze(channel);
-
-	/* Channel could have entered STOPPED state since last call if the
-	 * STOP command timed out.  We won't stop a channel if stopping it
-	 * was successful previously (so we still want the freeze above).
-	 */
-	if (channel->state == GSI_CHANNEL_STATE_STOPPED)
-		return 0;
 
 	/* RX channels might require a little time to enter STOPPED state */
 	retries = channel->toward_ipa ? 0 : GSI_CHANNEL_STOP_RX_RETRIES;
