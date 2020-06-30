@@ -1685,6 +1685,12 @@ static int psp_suspend(void *handle)
 		return ret;
 	}
 
+	ret = psp_asd_unload(psp);
+	if (ret) {
+		DRM_ERROR("Failed to unload asd\n");
+		return ret;
+	}
+
 	ret = psp_ring_stop(psp, PSP_RING_TYPE__KM);
 	if (ret) {
 		DRM_ERROR("PSP ring stop failed\n");
