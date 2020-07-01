@@ -311,6 +311,40 @@ static const struct bcm2835_codec_fmt supported_formats[] = {
 		.size_multiplier_x2	= 2,
 		.is_bayer		= true,
 	}, {
+		/* 14 bit */
+		.fourcc			= V4L2_PIX_FMT_SRGGB14P,
+		.depth			= 14,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SRGGB14P,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SBGGR14P,
+		.depth			= 14,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SBGGR14P,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SGRBG14P,
+		.depth			= 14,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SGRBG14P,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SGBRG14P,
+		.depth			= 14,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SGBRG14P,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
 		/* 16 bit */
 		.fourcc			= V4L2_PIX_FMT_SRGGB16,
 		.depth			= 16,
