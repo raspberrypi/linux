@@ -301,21 +301,25 @@ static const struct unicam_fmt formats[] = {
 		.csi_dt		= 0x2c,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SBGGR14P,
+		.repacked_fourcc = V4L2_PIX_FMT_SBGGR14,
 		.code		= MEDIA_BUS_FMT_SBGGR14_1X14,
 		.depth		= 14,
 		.csi_dt		= 0x2d,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SGBRG14P,
+		.repacked_fourcc = V4L2_PIX_FMT_SGBRG14,
 		.code		= MEDIA_BUS_FMT_SGBRG14_1X14,
 		.depth		= 14,
 		.csi_dt		= 0x2d,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SGRBG14P,
+		.repacked_fourcc = V4L2_PIX_FMT_SGRBG14,
 		.code		= MEDIA_BUS_FMT_SGRBG14_1X14,
 		.depth		= 14,
 		.csi_dt		= 0x2d,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SRGGB14P,
+		.repacked_fourcc = V4L2_PIX_FMT_SRGGB14,
 		.code		= MEDIA_BUS_FMT_SRGGB14_1X14,
 		.depth		= 14,
 		.csi_dt		= 0x2d,
