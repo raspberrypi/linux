@@ -1168,6 +1168,8 @@ static int dmatest_run_set(const char *val, const struct kernel_param *kp)
 	} else if (dmatest_run) {
 		if (!is_threaded_test_pending(info)) {
 			pr_info("No channels configured, continue with any\n");
+			if (!is_threaded_test_run(info))
+				stop_threaded_test(info);
 			add_threaded_test(info);
 		}
 		start_threaded_tests(info);
