@@ -81,7 +81,13 @@
 		};
 	};
 
+	fragment@7 {
+		target = <&minibt>;
+		minibt_frag: __overlay__ {
+		};
+	};
+
 	__overrides__ {
-		krnbt = <&minibt>,"status";
+		krnbt = <&minibt_frag>,"status";
 	};
 };
