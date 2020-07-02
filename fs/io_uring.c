@@ -267,6 +267,9 @@ struct io_ring_ctx {
 #if defined(CONFIG_UNIX)
 	struct socket		*ring_sock;
 #endif
+
+	struct list_head	task_list;
+	spinlock_t		task_lock;
 };
 
 struct sqe_submit {
@@ -331,14 +334,18 @@ struct io_kiocb {
 #define REQ_F_ISREG		2048	/* regular file */
 #define REQ_F_MUST_PUNT		4096	/* must be punted even for NONBLOCK */
 #define REQ_F_TIMEOUT_NOSEQ	8192	/* no timeout sequence */
+#define REQ_F_CANCEL		16384	/* cancel request */
 	unsigned long		fsize;
 	u64			user_data;
 	u32			result;
 	u32			sequence;
+	struct task_struct	*task;
 
 	struct fs_struct	*fs;
 
 	struct work_struct	work;
+	struct task_struct	*work_task;
+	struct list_head	task_list;
 };
 
 #define IO_PLUG_THRESHOLD		2
@@ -425,6 +432,8 @@ static struct io_ring_ctx *io_ring_ctx_alloc(struct io_uring_params *p)
 	INIT_LIST_HEAD(&ctx->cancel_list);
 	INIT_LIST_HEAD(&ctx->defer_list);
 	INIT_LIST_HEAD(&ctx->timeout_list);
+	INIT_LIST_HEAD(&ctx->task_list);
+	spin_lock_init(&ctx->task_lock);
 	return ctx;
 }
 
@@ -492,6 +501,7 @@ static void __io_commit_cqring(struct io_ring_ctx *ctx)
 static inline void io_queue_async_work(struct io_ring_ctx *ctx,
 				       struct io_kiocb *req)
 {
+	unsigned long flags;
 	int rw = 0;
 
 	if (req->submit.sqe) {
@@ -502,6 +512,13 @@ static inline void io_queue_async_work(struct io_ring_ctx *ctx,
 			break;
 		}
 	}
+
+	req->task = current;
+
+	spin_lock_irqsave(&ctx->task_lock, flags);
+	list_add(&req->task_list, &ctx->task_list);
+	req->work_task = NULL;
+	spin_unlock_irqrestore(&ctx->task_lock, flags);
 
 	queue_work(ctx->sqo_wq[rw], &req->work);
 }
@@ -2201,6 +2218,8 @@ static void io_sq_wq_submit_work(struct work_struct *work)
 
 	old_cred = override_creds(ctx->creds);
 	async_list = io_async_list_from_sqe(ctx, req->submit.sqe);
+
+	allow_kernel_signal(SIGINT);
 restart:
 	do {
 		struct sqe_submit *s = &req->submit;
@@ -2232,6 +2251,12 @@ restart:
 		}
 
 		if (!ret) {
+			req->work_task = current;
+			if (req->flags & REQ_F_CANCEL) {
+				ret = -ECANCELED;
+				goto end_req;
+			}
+
 			s->has_user = cur_mm != NULL;
 			s->needs_lock = true;
 			do {
@@ -2246,6 +2271,12 @@ restart:
 					break;
 				cond_resched();
 			} while (1);
+end_req:
+			if (!list_empty(&req->task_list)) {
+				spin_lock_irq(&ctx->task_lock);
+				list_del_init(&req->task_list);
+				spin_unlock_irq(&ctx->task_lock);
+			}
 		}
 
 		/* drop submission reference */
@@ -2311,6 +2342,7 @@ restart:
 	}
 
 out:
+	disallow_signal(SIGINT);
 	if (cur_mm) {
 		set_fs(old_fs);
 		unuse_mm(cur_mm);
@@ -3675,17 +3707,47 @@ static int io_uring_fasync(int fd, struct file *file, int on)
 	return fasync_helper(fd, file, on, &ctx->cq_fasync);
 }
 
+static void io_cancel_async_work(struct io_ring_ctx *ctx,
+				 struct task_struct *task)
+{
+	if (list_empty(&ctx->task_list))
+		return;
+
+	spin_lock_irq(&ctx->task_lock);
+	while (!list_empty(&ctx->task_list)) {
+		struct io_kiocb *req;
+
+		req = list_first_entry(&ctx->task_list, struct io_kiocb, task_list);
+		list_del_init(&req->task_list);
+		req->flags |= REQ_F_CANCEL;
+		if (req->work_task && (!task || req->task == task))
+			send_sig(SIGINT, req->work_task, 1);
+	}
+	spin_unlock_irq(&ctx->task_lock);
+}
+
 static void io_ring_ctx_wait_and_kill(struct io_ring_ctx *ctx)
 {
 	mutex_lock(&ctx->uring_lock);
 	percpu_ref_kill(&ctx->refs);
 	mutex_unlock(&ctx->uring_lock);
 
+	io_cancel_async_work(ctx, NULL);
 	io_kill_timeouts(ctx);
 	io_poll_remove_all(ctx);
 	io_iopoll_reap_events(ctx);
 	wait_for_completion(&ctx->ctx_done);
 	io_ring_ctx_free(ctx);
+}
+
+static int io_uring_flush(struct file *file, void *data)
+{
+	struct io_ring_ctx *ctx = file->private_data;
+
+	if (fatal_signal_pending(current) || (current->flags & PF_EXITING))
+		io_cancel_async_work(ctx, current);
+
+	return 0;
 }
 
 static int io_uring_release(struct inode *inode, struct file *file)
@@ -3792,6 +3854,7 @@ out_fput:
 
 static const struct file_operations io_uring_fops = {
 	.release	= io_uring_release,
+	.flush		= io_uring_flush,
 	.mmap		= io_uring_mmap,
 	.poll		= io_uring_poll,
 	.fasync		= io_uring_fasync,
