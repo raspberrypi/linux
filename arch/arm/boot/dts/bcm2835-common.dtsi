@@ -117,7 +117,7 @@
 			clocks = <&clocks BCM2835_PLLH_PIX>,
 				 <&clocks BCM2835_CLOCK_HSM>;
 			clock-names = "pixel", "hdmi";
-			dmas = <&dma 17>;
+			dmas = <&dma (17|(1<<27))>;
 			dma-names = "audio-rx";
 			status = "disabled";
 		};
