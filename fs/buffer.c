@@ -174,7 +174,7 @@ void end_buffer_write_sync(struct buffer_head *bh, int uptodate)
 	unlock_buffer(bh);
 	put_bh(bh);
 }
-EXPORT_SYMBOL(end_buffer_write_sync);
+EXPORT_SYMBOL_NS(end_buffer_write_sync, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /*
  * Various filesystems appear to want __find_get_block to be non-blocking.
@@ -461,7 +461,7 @@ void mark_buffer_async_write(struct buffer_head *bh)
 {
 	mark_buffer_async_write_endio(bh, end_buffer_async_write);
 }
-EXPORT_SYMBOL(mark_buffer_async_write);
+EXPORT_SYMBOL_NS(mark_buffer_async_write, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 
 /*
@@ -1216,7 +1216,7 @@ void mark_buffer_dirty(struct buffer_head *bh)
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
 }
-EXPORT_SYMBOL(mark_buffer_dirty);
+EXPORT_SYMBOL_NS(mark_buffer_dirty, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 void mark_buffer_write_io_error(struct buffer_head *bh)
 {
@@ -1229,7 +1229,7 @@ void mark_buffer_write_io_error(struct buffer_head *bh)
 		errseq_set(&bh->b_assoc_map->host->i_sb->s_wb_err, -EIO);
 	}
 }
-EXPORT_SYMBOL(mark_buffer_write_io_error);
+EXPORT_SYMBOL_NS(mark_buffer_write_io_error, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /*
  * Decrement a buffer_head's reference count.  If all buffers against a page
@@ -1246,7 +1246,7 @@ void __brelse(struct buffer_head * buf)
 	}
 	WARN(1, KERN_ERR "VFS: brelse: Trying to free free buffer\n");
 }
-EXPORT_SYMBOL(__brelse);
+EXPORT_SYMBOL_NS(__brelse, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /*
  * bforget() is like brelse(), except it discards any
@@ -1265,7 +1265,7 @@ void __bforget(struct buffer_head *bh)
 	}
 	__brelse(bh);
 }
-EXPORT_SYMBOL(__bforget);
+EXPORT_SYMBOL_NS(__bforget, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 static struct buffer_head *__bread_slow(struct buffer_head *bh)
 {
@@ -1452,7 +1452,7 @@ void __breadahead(struct block_device *bdev, sector_t block, unsigned size)
 		brelse(bh);
 	}
 }
-EXPORT_SYMBOL(__breadahead);
+EXPORT_SYMBOL_NS(__breadahead, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /**
  *  __bread_gfp() - reads a specified block and returns the bh
@@ -1476,7 +1476,7 @@ __bread_gfp(struct block_device *bdev, sector_t block,
 		bh = __bread_slow(bh);
 	return bh;
 }
-EXPORT_SYMBOL(__bread_gfp);
+EXPORT_SYMBOL_NS(__bread_gfp, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 static void __invalidate_bh_lrus(struct bh_lru *b)
 {
@@ -1675,7 +1675,7 @@ void create_empty_buffers(struct page *page,
 {
 	folio_create_empty_buffers(page_folio(page), blocksize, b_state);
 }
-EXPORT_SYMBOL(create_empty_buffers);
+EXPORT_SYMBOL_NS(create_empty_buffers, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /**
  * clean_bdev_aliases: clean a range of buffers in block device
@@ -1749,7 +1749,7 @@ unlock_page:
 			break;
 	}
 }
-EXPORT_SYMBOL(clean_bdev_aliases);
+EXPORT_SYMBOL_NS(clean_bdev_aliases, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /*
  * Size is a power-of-two in the range 512..PAGE_SIZE,
@@ -2310,7 +2310,7 @@ int generic_write_end(struct file *file, struct address_space *mapping,
 		mark_inode_dirty(inode);
 	return copied;
 }
-EXPORT_SYMBOL(generic_write_end);
+EXPORT_SYMBOL_NS(generic_write_end, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /*
  * block_is_partially_uptodate checks whether buffers within a folio are
@@ -2353,7 +2353,7 @@ bool block_is_partially_uptodate(struct folio *folio, size_t from, size_t count)
 
 	return ret;
 }
-EXPORT_SYMBOL(block_is_partially_uptodate);
+EXPORT_SYMBOL_NS(block_is_partially_uptodate, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /*
  * Generic "read_folio" function for block devices that have the normal
@@ -2485,7 +2485,7 @@ int generic_cont_expand_simple(struct inode *inode, loff_t size)
 out:
 	return err;
 }
-EXPORT_SYMBOL(generic_cont_expand_simple);
+EXPORT_SYMBOL_NS(generic_cont_expand_simple, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 static int cont_expand_zero(struct file *file, struct address_space *mapping,
 			    loff_t pos, loff_t *bytes)
@@ -2770,7 +2770,7 @@ sector_t generic_block_bmap(struct address_space *mapping, sector_t block,
 	get_block(inode, block, &tmp, 0);
 	return tmp.b_blocknr;
 }
-EXPORT_SYMBOL(generic_block_bmap);
+EXPORT_SYMBOL_NS(generic_block_bmap, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 static void end_bio_bh_io_sync(struct bio *bio)
 {
@@ -2879,13 +2879,13 @@ int __sync_dirty_buffer(struct buffer_head *bh, blk_opf_t op_flags)
 	}
 	return 0;
 }
-EXPORT_SYMBOL(__sync_dirty_buffer);
+EXPORT_SYMBOL_NS(__sync_dirty_buffer, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 int sync_dirty_buffer(struct buffer_head *bh)
 {
 	return __sync_dirty_buffer(bh, REQ_SYNC);
 }
-EXPORT_SYMBOL(sync_dirty_buffer);
+EXPORT_SYMBOL_NS(sync_dirty_buffer, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 /*
  * try_to_free_buffers() checks if all the buffers on this particular folio
