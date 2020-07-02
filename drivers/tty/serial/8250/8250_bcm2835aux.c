@@ -92,6 +92,13 @@ static int bcm2835aux_serial_probe(struct platform_device *pdev)
 	 */
 	data->uart.port.uartclk = clk_get_rate(data->clk) * 2;
 
+	/* The clock is only queried at probe time, which means we get one shot
+	 * at this. A zero clock is never going to work and is almost certainly
+	 * due to a parent not being ready, so prefer to defer.
+	 */
+	if (!data->uart.port.uartclk)
+	    return -EPROBE_DEFER;
+
 	/* register the port */
 	ret = serial8250_register_8250_port(&data->uart);
 	if (ret < 0) {
