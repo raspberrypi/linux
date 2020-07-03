@@ -1957,11 +1957,12 @@ static int imx477_init_controls(struct imx477 *imx477)
 {
 	struct v4l2_ctrl_handler *ctrl_hdlr;
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
+	struct v4l2_fwnode_device_properties props;
 	unsigned int i;
 	int ret;
 
 	ctrl_hdlr = &imx477->ctrl_handler;
-	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 14);
+	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 16);
 	if (ret)
 		return ret;
 
@@ -2044,6 +2045,15 @@ static int imx477_init_controls(struct imx477 *imx477)
 			__func__, ret);
 		goto error;
 	}
+
+	ret = v4l2_fwnode_device_parse(&client->dev, &props);
+	if (ret)
+		goto error;
+
+	ret = v4l2_ctrl_new_fwnode_properties(ctrl_hdlr, &imx477_ctrl_ops,
+					      &props);
+	if (ret)
+		goto error;
 
 	imx477->sd.ctrl_handler = ctrl_hdlr;
 
