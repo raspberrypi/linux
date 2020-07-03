@@ -14,25 +14,26 @@
  * Pi's firmware display stack.
  */
 
+#include <drm/drm_atomic_helper.h>
+#include <drm/drm_crtc_helper.h>
+#include <drm/drm_drv.h>
+#include <drm/drm_fb_cma_helper.h>
+#include <drm/drm_fourcc.h>
+#include <drm/drm_gem_framebuffer_helper.h>
+#include <drm/drm_plane_helper.h>
+#include <drm/drm_probe_helper.h>
+#include <drm/drm_vblank.h>
+
+#include <linux/component.h>
+#include <linux/clk.h>
+#include <linux/debugfs.h>
 #include <linux/module.h>
 
-#include "drm/drm_atomic_helper.h"
-#include "drm/drm_gem_framebuffer_helper.h"
-#include "drm/drm_plane_helper.h"
-#include "drm/drm_crtc_helper.h"
-#include "drm/drm_fourcc.h"
-#include "drm/drm_probe_helper.h"
-#include "drm/drm_drv.h"
-#include "drm/drm_vblank.h"
-#include "linux/clk.h"
-#include "linux/debugfs.h"
-#include "drm/drm_fb_cma_helper.h"
-#include "linux/component.h"
-#include "linux/of_device.h"
+#include <soc/bcm2835/raspberrypi-firmware.h>
+
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 #include "vc_image_types.h"
-#include <soc/bcm2835/raspberrypi-firmware.h>
 
 int fkms_max_refresh_rate = 85;
 module_param(fkms_max_refresh_rate, int, 0644);
