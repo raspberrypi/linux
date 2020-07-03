@@ -443,6 +443,10 @@
 	};
 };
 
+&firmwarekms {
+	compatible = "raspberrypi,rpi-firmware-kms-2711";
+};
+
 // =============================================
 // Board specific stuff here
 
