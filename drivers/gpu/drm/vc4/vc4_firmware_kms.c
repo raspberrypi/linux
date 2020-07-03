@@ -44,6 +44,7 @@ struct get_display_cfg {
 
 struct vc4_fkms {
 	struct get_display_cfg cfg;
+	bool bcm2711;
 };
 
 #define PLANES_PER_CRTC		3
@@ -1097,6 +1098,17 @@ vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 		break;
 	}
 
+	/* Pi4 can't generate odd horizontal timings on HDMI, so reject modes
+	 * that would set them.
+	 */
+	if (fkms->bcm2711 &&
+	    (vc4_crtc->display_number == 2 || vc4_crtc->display_number == 7) &&
+	    ((mode->hdisplay |				/* active */
+	      (mode->hsync_start - mode->hdisplay) |	/* front porch */
+	      (mode->hsync_end - mode->hsync_start) |	/* sync pulse */
+	      (mode->htotal - mode->hsync_end)) & 1))	/* back porch */
+		return MODE_H_ILLEGAL;
+
 	return MODE_OK;
 }
 
@@ -1282,6 +1294,8 @@ static const struct drm_crtc_helper_funcs vc4_crtc_helper_funcs = {
 
 static const struct of_device_id vc4_firmware_kms_dt_match[] = {
 	{ .compatible = "raspberrypi,rpi-firmware-kms" },
+	{ .compatible = "raspberrypi,rpi-firmware-kms-2711",
+	  .data = (void *)1 },
 	{}
 };
 
@@ -1815,6 +1829,7 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dev *vc4 = to_vc4_dev(drm);
 	struct device_node *firmware_node;
+	const struct of_device_id *match;
 	struct vc4_crtc **crtc_list;
 	u32 num_displays, display_num;
 	struct vc4_fkms *fkms;
@@ -1826,6 +1841,12 @@ static int vc4_fkms_bind(struct device *dev, struct device *master, void *data)
 	fkms = devm_kzalloc(dev, sizeof(*fkms), GFP_KERNEL);
 	if (!fkms)
 		return -ENOMEM;
+
+	match = of_match_device(vc4_firmware_kms_dt_match, dev);
+	if (!match)
+		return -ENODEV;
+	if (match->data)
+		fkms->bcm2711 = true;
 
 	/* firmware kms doesn't have precise a scanoutpos implementation, so
 	 * we can't do the precise vblank timestamp mode.
