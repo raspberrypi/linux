@@ -14,6 +14,8 @@
  * Pi's firmware display stack.
  */
 
+#include <linux/module.h>
+
 #include "drm/drm_atomic_helper.h"
 #include "drm/drm_gem_framebuffer_helper.h"
 #include "drm/drm_plane_helper.h"
@@ -31,6 +33,10 @@
 #include "vc4_regs.h"
 #include "vc_image_types.h"
 #include <soc/bcm2835/raspberrypi-firmware.h>
+
+int fkms_max_refresh_rate = 85;
+module_param(fkms_max_refresh_rate, int, 0644);
+MODULE_PARM_DESC(fkms_max_refresh_rate, "Max supported refresh rate");
 
 struct get_display_cfg {
 	u32  max_pixel_clock[2];  //Max pixel clock for each display
@@ -1069,8 +1075,10 @@ vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 		return MODE_NO_DBLESCAN;
 	}
 
-	/* Disable refresh rates > 85Hz as limited gain from them */
-	if (drm_mode_vrefresh(mode) > 85)
+	/* Disable refresh rates > defined threshold (default 85Hz) as limited
+	 * gain from them
+	 */
+	if (drm_mode_vrefresh(mode) > fkms_max_refresh_rate)
 		return MODE_BAD_VVALUE;
 
 	/* Limit the pixel clock based on the HDMI clock limits from the
