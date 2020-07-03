@@ -1288,10 +1288,11 @@ static const struct v4l2_ctrl_ops ov5647_ctrl_ops = {
 	.s_ctrl = ov5647_s_ctrl,
 };
 
-static int ov5647_init_controls(struct ov5647 *sensor)
+static int ov5647_init_controls(struct ov5647 *sensor, struct device *dev)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&sensor->sd);
 	int hblank, exposure_max, exposure_def;
+	struct v4l2_fwnode_device_properties props;
 
 	v4l2_ctrl_handler_init(&sensor->ctrls, 8);
 
@@ -1336,6 +1337,11 @@ static int ov5647_init_controls(struct ov5647 *sensor)
 					   sensor->mode->format.height, 1,
 					   sensor->mode->vts -
 					   sensor->mode->format.height);
+
+	v4l2_fwnode_device_parse(dev, &props);
+
+	v4l2_ctrl_new_fwnode_properties(&sensor->ctrls, &ov5647_ctrl_ops,
+					&props);
 
 	if (sensor->ctrls.error)
 		goto handler_free;
@@ -1423,7 +1429,7 @@ static int ov5647_probe(struct i2c_client *client)
 
 	sensor->mode = OV5647_DEFAULT_MODE;
 
-	ret = ov5647_init_controls(sensor);
+	ret = ov5647_init_controls(sensor, dev);
 	if (ret)
 		goto mutex_destroy;
 
