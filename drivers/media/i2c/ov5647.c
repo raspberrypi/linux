@@ -1501,6 +1501,7 @@ static int ov5647_probe(struct i2c_client *client)
 	struct device_node *np = client->dev.of_node;
 	u32 xclk_freq;
 	int hblank, exposure_max, exposure_def;
+	struct v4l2_fwnode_device_properties props;
 
 	sensor = devm_kzalloc(dev, sizeof(*sensor), GFP_KERNEL);
 	if (!sensor)
@@ -1534,7 +1535,7 @@ static int ov5647_probe(struct i2c_client *client)
 	mutex_init(&sensor->lock);
 
 	/* Initialise controls. */
-	v4l2_ctrl_handler_init(&sensor->ctrls, 7);
+	v4l2_ctrl_handler_init(&sensor->ctrls, 9);
 	v4l2_ctrl_new_std(&sensor->ctrls, &ov5647_ctrl_ops,
 			  V4L2_CID_AUTOGAIN,
 			  0,  /* min */
@@ -1598,6 +1599,16 @@ static int ov5647_probe(struct i2c_client *client)
 			__func__, ret);
 		goto error;
 	}
+
+	ret = v4l2_fwnode_device_parse(&client->dev, &props);
+	if (ret)
+		goto error;
+
+	ret = v4l2_ctrl_new_fwnode_properties(&sensor->ctrls, &ov5647_ctrl_ops,
+					      &props);
+	if (ret)
+		goto error;
+
 	sensor->sd.ctrl_handler = &sensor->ctrls;
 
 	/* Write out the register set over I2C on stream-on. */
