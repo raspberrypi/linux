@@ -1433,8 +1433,9 @@ Name:   imx219
 Info:   Sony IMX219 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=imx219
-Params: <None>
+Load:   dtoverlay=imx219,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 180)
 
 
 Name:   imx290
