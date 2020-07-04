@@ -27,6 +27,8 @@
 				VDIG-supply = <&imx219_vdig>;	/* 1.8v */
 				VDDL-supply = <&imx219_vddl>;	/* 1.2v */
 
+				rotation = <180>;
+
 				port {
 					imx219_0: endpoint {
 						remote-endpoint = <&csi1_ep>;
@@ -109,5 +111,9 @@
 			cam0-pwdn-ctrl = <&imx219_vana>,"gpio:0";
 			cam0-pwdn      = <&imx219_vana>,"gpio:4";
 		};
+	};
+
+	__overrides__ {
+		rotation = <&imx219>,"rotation:0";
 	};
 };
