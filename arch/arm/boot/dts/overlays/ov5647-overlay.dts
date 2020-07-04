@@ -21,6 +21,8 @@
 				pwdn-gpios = <&gpio 41 1>, <&gpio 32 1>;
 				clocks = <&ov5647_clk>;
 
+				rotation = <0>;
+
 				port {
 					ov5647_0: endpoint {
 						remote-endpoint = <&csi1_ep>;
@@ -82,5 +84,9 @@
 				clock-frequency = <25000000>;
 			};
 		};
+	};
+
+	__overrides__ {
+		rotation = <&ov5647>,"rotation:0";
 	};
 };
