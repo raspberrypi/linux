@@ -1809,8 +1809,9 @@ Name:   ov5647
 Info:   Omnivision OV5647 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=ov5647
-Params: <None>
+Load:   dtoverlay=ov5647,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
 
 
 Name:   ov7251
