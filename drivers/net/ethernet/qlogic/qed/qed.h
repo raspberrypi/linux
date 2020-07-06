@@ -880,6 +880,8 @@ struct qed_dev {
 #endif
 	struct qed_dbg_feature dbg_features[DBG_FEATURE_NUM];
 	bool disable_ilt_dump;
+	bool				dbg_bin_dump;
+
 	DECLARE_HASHTABLE(connections, 10);
 	const struct firmware		*firmware;
 
