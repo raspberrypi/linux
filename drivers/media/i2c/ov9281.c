@@ -904,13 +904,17 @@ static int ov9281_check_sensor_id(struct ov9281 *ov9281,
 				  struct i2c_client *client)
 {
 	struct device *dev = &ov9281->client->dev;
-	u32 id = 0;
+	u32 id = 0, id_msb;
 	int ret;
 
-	ret = ov9281_read_reg(client, OV9281_REG_CHIP_ID,
-			      OV9281_REG_VALUE_16BIT, &id);
-	if (id != CHIP_ID) {
-		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
+	ret = ov9281_read_reg(client, OV9281_REG_CHIP_ID + 1,
+			      OV9281_REG_VALUE_08BIT, &id);
+	if (!ret)
+		ret = ov9281_read_reg(client, OV9281_REG_CHIP_ID,
+				      OV9281_REG_VALUE_08BIT, &id_msb);
+	id |= (id_msb << 8);
+	if (ret || id != CHIP_ID) {
+		dev_err(dev, "Unexpected sensor id(%04x), ret(%d)\n", id, ret);
 		return -ENODEV;
 	}
 
