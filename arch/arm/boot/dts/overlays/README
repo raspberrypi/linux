@@ -1813,6 +1813,14 @@ Load:   dtoverlay=ov5647
 Params: <None>
 
 
+Name:   ov9281
+Info:   Omnivision OV9281 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=ov9281
+Params: <None>
+
+
 Name:   papirus
 Info:   PaPiRus ePaper Screen by Pi Supply (both HAT and pHAT)
 Load:   dtoverlay=papirus,<param>=<val>
