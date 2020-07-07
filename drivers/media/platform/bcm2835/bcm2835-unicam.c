@@ -2420,8 +2420,8 @@ static int register_node(struct unicam_device *unicam, struct unicam_node *node,
 	vdev->queue = q;
 	vdev->lock = &node->lock;
 	vdev->device_caps = (pad_id == IMAGE_PAD) ?
-			    (V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING) :
-			    (V4L2_CAP_META_CAPTURE | V4L2_CAP_STREAMING);
+				V4L2_CAP_VIDEO_CAPTURE : V4L2_CAP_META_CAPTURE;
+	vdev->device_caps |= V4L2_CAP_READWRITE | V4L2_CAP_STREAMING;
 
 	/* Define the device names */
 	snprintf(vdev->name, sizeof(vdev->name), "%s-%s", UNICAM_MODULE_NAME,
