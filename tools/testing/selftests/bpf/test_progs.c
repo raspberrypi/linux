@@ -7,6 +7,8 @@
 #include <argp.h>
 #include <string.h>
 
+#define EXIT_NO_TEST		2
+
 /* defined in test_progs.h */
 struct test_env env;
 
@@ -585,7 +587,7 @@ int main(int argc, char **argv)
 	free(env.subtest_selector.num_set);
 
 	if (env.succ_cnt + env.fail_cnt + env.skip_cnt == 0)
-		return EXIT_FAILURE;
+		return EXIT_NO_TEST;
 
 	return env.fail_cnt ? EXIT_FAILURE : EXIT_SUCCESS;
 }
