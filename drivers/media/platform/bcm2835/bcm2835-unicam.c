@@ -1887,6 +1887,9 @@ static int unicam_s_selection(struct file *file, void *priv,
 		.r = sel->r,
 	};
 
+	if (sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
 	return v4l2_subdev_call(dev->sensor, pad, set_selection, NULL, &sdsel);
 }
 
@@ -1900,6 +1903,9 @@ static int unicam_g_selection(struct file *file, void *priv,
 		.target = sel->target,
 	};
 	int ret;
+
+	if (sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
 
 	ret = v4l2_subdev_call(dev->sensor, pad, get_selection, NULL, &sdsel);
 	if (!ret)
