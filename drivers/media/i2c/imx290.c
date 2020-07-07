@@ -796,17 +796,23 @@ static int imx290_set_fmt(struct v4l2_subdev *sd,
 			__v4l2_ctrl_s_ctrl_int64(imx290->pixel_rate,
 						 imx290_calc_pixel_rate(imx290));
 
-		if (imx290->hblank)
+		if (imx290->hblank) {
 			__v4l2_ctrl_modify_range(imx290->hblank,
 						 imx290->hmax_min - mode->width,
 						 IMX290_HMAX_MAX - mode->width,
 						 1, mode->hmax - mode->width);
-		if (imx290->vblank)
+			__v4l2_ctrl_s_ctrl(imx290->hblank,
+					   mode->hmax - mode->width);
+		}
+		if (imx290->vblank) {
 			__v4l2_ctrl_modify_range(imx290->vblank,
 						 mode->vmax - mode->height,
 						 IMX290_VMAX_MAX - mode->height,
 						 1,
 						 mode->vmax - mode->height);
+			__v4l2_ctrl_s_ctrl(imx290->vblank,
+					   mode->vmax - mode->height);
+		}
 		if (imx290->exposure)
 			__v4l2_ctrl_modify_range(imx290->exposure,
 						 mode->vmax - mode->height,
