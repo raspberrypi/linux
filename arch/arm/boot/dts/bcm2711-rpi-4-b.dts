@@ -19,7 +19,9 @@
 	};
 
 	aliases {
+		emmc2bus = &emmc2bus;
 		ethernet0 = &genet;
+		pcie0 = &pcie0;
 	};
 
 	leds {
@@ -30,6 +32,8 @@
 		pwr {
 			label = "PWR";
 			gpios = <&expgpio 2 GPIO_ACTIVE_LOW>;
+			default-state = "keep";
+			linux,default-trigger = "default-on";
 		};
 	};
 
@@ -68,6 +72,79 @@
 				  "SD_OC_N";
 		status = "okay";
 	};
+};
+
+&gpio {
+	/*
+	 * Parts taken from rpi_SCH_4b_4p0_reduced.pdf and
+	 * the official GPU firmware DT blob.
+	 *
+	 * Legend:
+	 * "FOO" = GPIO line named "FOO" on the schematic
+	 * "FOO_N" = GPIO line named "FOO" on schematic, active low
+	 */
+	gpio-line-names = "ID_SDA",
+			  "ID_SCL",
+			  "SDA1",
+			  "SCL1",
+			  "GPIO_GCLK",
+			  "GPIO5",
+			  "GPIO6",
+			  "SPI_CE1_N",
+			  "SPI_CE0_N",
+			  "SPI_MISO",
+			  "SPI_MOSI",
+			  "SPI_SCLK",
+			  "GPIO12",
+			  "GPIO13",
+			  /* Serial port */
+			  "TXD1",
+			  "RXD1",
+			  "GPIO16",
+			  "GPIO17",
+			  "GPIO18",
+			  "GPIO19",
+			  "GPIO20",
+			  "GPIO21",
+			  "GPIO22",
+			  "GPIO23",
+			  "GPIO24",
+			  "GPIO25",
+			  "GPIO26",
+			  "GPIO27",
+			  "RGMII_MDIO",
+			  "RGMIO_MDC",
+			  /* Used by BT module */
+			  "CTS0",
+			  "RTS0",
+			  "TXD0",
+			  "RXD0",
+			  /* Used by Wifi */
+			  "SD1_CLK",
+			  "SD1_CMD",
+			  "SD1_DATA0",
+			  "SD1_DATA1",
+			  "SD1_DATA2",
+			  "SD1_DATA3",
+			  /* Shared with SPI flash */
+			  "PWM0_MISO",
+			  "PWM1_MOSI",
+			  "STATUS_LED_G_CLK",
+			  "SPIFLASH_CE_N",
+			  "SDA0",
+			  "SCL0",
+			  "RGMII_RXCLK",
+			  "RGMII_RXCTL",
+			  "RGMII_RXD0",
+			  "RGMII_RXD1",
+			  "RGMII_RXD2",
+			  "RGMII_RXD3",
+			  "RGMII_TXCLK",
+			  "RGMII_TXCTL",
+			  "RGMII_TXD0",
+			  "RGMII_TXD1",
+			  "RGMII_TXD2",
+			  "RGMII_TXD3";
 };
 
 &pwm1 {
@@ -138,46 +215,6 @@
 	interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
 };
 
-&vc4 {
-	status = "okay";
-};
-
-&pixelvalve0 {
-	status = "okay";
-};
-
-&pixelvalve1 {
-	status = "okay";
-};
-
-&pixelvalve2 {
-	status = "okay";
-};
-
-&pixelvalve3 {
-	status = "okay";
-};
-
-&pixelvalve4 {
-	status = "okay";
-};
-
-&hdmi0 {
-	status = "okay";
-};
-
-&ddc0 {
-	status = "okay";
-};
-
-&hdmi1 {
-	status = "okay";
-};
-
-&ddc1 {
-	status = "okay";
-};
-
 // =============================================
 // Downstream rpi- changes
 
@@ -195,8 +232,6 @@
 #include "bcm283x-rpi-csi1-2lane.dtsi"
 #include "bcm283x-rpi-i2c0mux_0_44.dtsi"
 
-/delete-node/ &emmc2;
-
 / {
 	chosen {
 		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_compat_alsa=0 snd_bcm2835.enable_hdmi=1 snd_bcm2835.enable_headphones=1";
@@ -213,29 +248,7 @@
 		i2c4 = &i2c4;
 		i2c5 = &i2c5;
 		i2c6 = &i2c6;
-		/delete-property/ ethernet;
 		/delete-property/ intc;
-		pcie0 = &pcie0;
-		emmc2bus = &emmc2bus;
-	};
-
-	emmc2bus: emmc2bus {
-		compatible = "simple-bus";
-		#address-cells = <2>;
-		#size-cells = <1>;
-
-		ranges = <0x0 0x7e000000  0x0 0xfe000000  0x01800000>;
-		dma-ranges = <0x0 0xc0000000  0x0 0x00000000  0x40000000>;
-
-		emmc2: emmc2@7e340000 {
-			compatible = "brcm,bcm2711-emmc2";
-			status = "okay";
-			interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clocks BCM2711_CLOCK_EMMC2>;
-			reg = <0x0 0x7e340000 0x100>;
-			vqmmc-supply = <&sd_io_1v8_reg>;
-			broken-cd;
-		};
 	};
 
 	/delete-node/ wifi-pwrseq;
@@ -557,6 +570,7 @@
 		eth_led0 = <&phy1>,"led-modes:0";
 		eth_led1 = <&phy1>,"led-modes:4";
 
+		sd_poll_once = <&emmc2>, "non-removable?";
 		spi_dma4 = <&spi0>, "dmas:0=", <&dma40>,
 			   <&spi0>, "dmas:8=", <&dma40>;
 	};
