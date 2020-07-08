@@ -1,0 +1,23 @@
+gpio=42=op,dh
+gpio=43=ip,pu
+
+[all]
+dtoverlay=vc4-fkms-v3d
+gpu_mem=124
+
+dtoverlay=dpi24
+dtoverlay=i2c0-bcm2708,sda0_pin=28,scl0_pin=29
+dtoverlay=ssd2543
+dtoverlay=tca8418
+overscan_left=0
+overscan_right=0
+overscan_top=0
+overscan_bottom=0
+framebuffer_width=800
+framebuffer_height=480
+enable_dpi_lcd=1
+display_default_lcd=1
+dpi_group=2
+dpi_mode=87
+dpi_output_format=0x00117
+dpi_timings=800 0 0 48 48 480 0 0 3 24 0 0 0 60 0 32000000 6
