@@ -39,8 +39,8 @@
 
 #define TS_POLL_DELAY	(50 * 1000 * 1000)	/* ns delay before the first sample */
 #define TS_POLL_PERIOD	(50 * 1000 * 1000)	/* ns delay between samples */
-#define MAX_X        1023
-#define MAX_Y        599
+#define MAX_X        799
+#define MAX_Y        479
 #define MAX_PRESSURE 200
 #define MT_SUPPORT
 
@@ -111,9 +111,11 @@ static const struct ChipSetting ssdcfgTable[] = {
 	{2,0x30,0x08,0x0D},
 	{2,0x36,0x00,0x1A},
 	{2,0x3A,0x00,0x00},
-	{2,0x65,0x00,0x04},
-	{2,0x66,0x27,0xF0},
-	{2,0x67,0x27,0x60},
+	{2,0x65,0x00,0x05},
+	{2,0x66,0x23,0x28},
+	{2,0x67,0x23,0x28},
+	{2,0x68,0xFF,0x9C},
+	{2,0x69,0xFF,0x9C},
 	{2,0x7A,0xFF,0xFF},
 	{2,0x7B,0x00,0x03},
 	{2,0x25,0x00,0x0C},
@@ -660,49 +662,74 @@ static int ssd2543_probe(struct i2c_client *client,
 	/* reset GPIO NR passed in dev.platform_data */
 	unsigned int *SSD_gpios = (unsigned int *) client->dev.platform_data;
 
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	dev_err(&client->dev, "%s:\n",__func__);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	ssd_i2c_client = NULL;
-
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	/* reset the SSD chip */
+	if (SSD_gpios != NULL)
+	{
 	gpio_direction_output(SSD_gpios[0], 1);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	mdelay(5);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	gpio_set_value(SSD_gpios[0], 0);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	mdelay(5);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	gpio_set_value(SSD_gpios[0], 1);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	mdelay(25);
-
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
+	}
 	if (!i2c_check_functionality(client->adapter,
 					 I2C_FUNC_SMBUS_READ_WORD_DATA)) {
 		dev_err(&client->dev, "%s: i2c_check_functionality failed\n", __func__);
+	printk(KERN_ERR "FIXME: < %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 		return -EIO;
 	}
 
 	ts = kzalloc(sizeof(struct ssl_ts_priv), GFP_KERNEL);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	input_dev = input_allocate_device();
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	if (!ts || !input_dev) {
 		dev_err(&client->dev, "%s: kzalloc failed\n", __func__);
 		err = -ENOMEM;
 		goto err_free_mem;
 	}
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 
 	ts->client = client;
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	i2c_set_clientdata(client, ts);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 
 	ts->input = input_dev;
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 
 #ifdef SSD_POLL
 	hrtimer_init(&ts->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	ts->timer.function = ssd_ts_timer ;			//ssd2543_timer;
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 #endif
 
 	spin_lock_init(&ts->lock);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 
 	input_dev->name = "SSD2543 Touch Screen";
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	input_dev->id.bustype = BUS_I2C;
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 
 	input_dev->evbit[0] = BIT_MASK(EV_SYN) | BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	input_dev->keybit[BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	input_dev->keybit[BIT_WORD(KEY_INFO)] |= BIT_MASK(KEY_INFO);
+	printk(KERN_ERR "FIXME: > %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 
 #ifdef MT_SUPPORT
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X,  0, MAX_X, 0, 0);
@@ -767,7 +794,7 @@ static int ssd2543_probe(struct i2c_client *client,
 #endif
 
 	ssd_i2c_client = client;
-
+	printk(KERN_ERR "FIXME: < %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	return 0;
 
  err_free_irq:
@@ -783,6 +810,7 @@ static int ssd2543_probe(struct i2c_client *client,
 	input_free_device(input_dev);
 	kfree(ts);
 	dev_err(&client->dev, "%s: failed, err = %d\n", __func__, err);
+	printk(KERN_ERR "FIXME: < %s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
 	return err;
 }
 
@@ -845,3 +873,4 @@ module_exit(ssd2543_exit);
 MODULE_AUTHOR("Kwangwoo Lee <kwlee@mtekvision.com>");
 MODULE_DESCRIPTION("TouchScreen Driver");
 MODULE_LICENSE("GPL");
+
