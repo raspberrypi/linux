@@ -19,6 +19,11 @@
 
 			mboxes = <&mailbox>;
 			dma-ranges;
+
+			firmware_clocks: clocks {
+				compatible = "raspberrypi,firmware-clocks";
+				#clock-cells = <1>;
+			};
 		};
 
 		power: power {
