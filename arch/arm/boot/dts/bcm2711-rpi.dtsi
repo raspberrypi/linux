@@ -309,10 +309,3 @@
 &hvs {
 	clocks = <&firmware_clocks 4>;
 };
-
-&firmware {
-	firmware_clocks: clocks {
-		compatible = "raspberrypi,firmware-clocks";
-		#clock-cells = <1>;
-	};
-};
