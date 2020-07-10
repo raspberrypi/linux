@@ -1360,7 +1360,11 @@ static int vc4_hdmi_audio_prepare(struct snd_pcm_substream *substream,
 	vc4_hdmi_audio_set_mai_clock(vc4_hdmi);
 
 	mai_sample_rate = sample_rate_to_mai_fmt(vc4_hdmi->audio.samplerate);
-	mai_audio_format = VC4_HDMI_MAI_FORMAT_PCM;
+	if (vc4_hdmi->audio.iec_status[0] & IEC958_AES0_NONAUDIO &&
+	    vc4_hdmi->audio.channels == 8)
+		mai_audio_format = VC4_HDMI_MAI_FORMAT_HBR;
+	else
+		mai_audio_format = VC4_HDMI_MAI_FORMAT_PCM;
 	HDMI_WRITE(HDMI_MAI_FMT,
 		   VC4_SET_FIELD(mai_sample_rate,
 				 VC4_HDMI_MAI_FORMAT_SAMPLE_RATE) |
