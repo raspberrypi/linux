@@ -162,4 +162,15 @@ config LEDS_TRIGGER_TTY
 
 	  When build as a module this driver will be called ledtrig-tty.
 
+config LEDS_TRIGGER_ACTPWR
+	tristate "ACT/PWR Input Trigger"
+	depends on LEDS_TRIGGERS
+	help
+	  This trigger is intended for platforms that have one software-
+	  controllable LED and no dedicated activity or power LEDs, hence the
+	  need to make the one LED perform both functions. It cycles between
+	  default-on and an inverted mmc0 every 500ms, guaranteeing that it is
+	  on for at least half of the time.
+	  If unsure, say N.
+
 endif # LEDS_TRIGGERS
