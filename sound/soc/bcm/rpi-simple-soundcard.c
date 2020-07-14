@@ -235,7 +235,7 @@ static struct snd_rpi_simple_drvdata drvdata_rpi_dac = {
 
 SND_SOC_DAILINK_DEFS(merus_amp,
 	DAILINK_COMP_ARRAY(COMP_EMPTY()),
-	DAILINK_COMP_ARRAY(COMP_CODEC("ma120x0p-amp", "ma120x0p.1-0020")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("ma120x0p.1-0020","ma120x0p-amp")),
 	DAILINK_COMP_ARRAY(COMP_EMPTY()));
 
 static struct snd_soc_dai_link snd_merus_amp_dai[] = {
