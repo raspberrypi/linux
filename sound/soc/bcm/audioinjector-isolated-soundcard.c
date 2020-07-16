@@ -42,41 +42,21 @@ static int audioinjector_isolated_dai_init(struct snd_soc_pcm_runtime *rtd)
 	int ret=snd_soc_dai_set_sysclk(rtd->codec_dai, 0, 24576000, 0);
 	if (ret)
 		return ret;
-
 	return snd_soc_dai_set_bclk_ratio(rtd->cpu_dai, 64);
 }
 
 static int audioinjector_isolated_startup(struct snd_pcm_substream *substream)
 {
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	snd_pcm_hw_constraint_list(substream->runtime, 0,
-				SNDRV_PCM_HW_PARAM_RATE, &audioinjector_isolated_constraints);
+			SNDRV_PCM_HW_PARAM_RATE, &audioinjector_isolated_constraints);
 
-	return 0;
-}
-
-static int audioinjector_isolated_trigger(struct snd_pcm_substream *substream,
-								int cmd){
-
-	switch (cmd) {
-	case SNDRV_PCM_TRIGGER_STOP:
-	case SNDRV_PCM_TRIGGER_SUSPEND:
-	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		gpiod_set_value(mute_gpio, 0);
-		break;
-	case SNDRV_PCM_TRIGGER_START:
-	case SNDRV_PCM_TRIGGER_RESUME:
-	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		gpiod_set_value(mute_gpio, 1);
-		break;
-	default:
-		return -EINVAL;
-	}
+	gpiod_set_value(mute_gpio, 1);
 	return 0;
 }
 
 static struct snd_soc_ops audioinjector_isolated_ops = {
 	.startup	= audioinjector_isolated_startup,
-	.trigger = audioinjector_isolated_trigger,
 };
 
 static struct snd_soc_dai_link audioinjector_isolated_dai[] = {
@@ -139,6 +119,7 @@ static int audioinjector_isolated_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "mute gpio not found in dt overlay\n");
 			return PTR_ERR(mute_gpio);
 		}
+		gpiod_set_value(mute_gpio, 0);
 
 		if (i2s_node && codec_node) {
 			dai->cpu_dai_name = NULL;
