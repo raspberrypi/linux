@@ -158,6 +158,8 @@ struct set_timings {
 #define TIMINGS_FLAGS_RGB_LIMITED	BIT(8)
 /* DVI monitor, therefore disable infoframes. Not set corresponds to HDMI. */
 #define TIMINGS_FLAGS_DVI		BIT(9)
+/* Double clock */
+#define TIMINGS_FLAGS_DBL_CLK		BIT(10)
 };
 
 struct mailbox_set_mode {
@@ -946,6 +948,8 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 	if (mode->flags & DRM_MODE_FLAG_INTERLACE)
 		mb.timings.flags |= TIMINGS_FLAGS_INTERLACE;
+	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
+		mb.timings.flags |= TIMINGS_FLAGS_DBL_CLK;
 
 	mb.timings.video_id_code = frame.avi.video_code;
 
@@ -1104,11 +1108,16 @@ vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 	 */
 	if (fkms->bcm2711 &&
 	    (vc4_crtc->display_number == 2 || vc4_crtc->display_number == 7) &&
+	    !(mode->flags & DRM_MODE_FLAG_DBLCLK) &&
 	    ((mode->hdisplay |				/* active */
 	      (mode->hsync_start - mode->hdisplay) |	/* front porch */
 	      (mode->hsync_end - mode->hsync_start) |	/* sync pulse */
-	      (mode->htotal - mode->hsync_end)) & 1))	/* back porch */
+	      (mode->htotal - mode->hsync_end)) & 1))	/* back porch */ {
+		DRM_DEBUG_KMS("[CRTC:%d] Odd timing rejected %u %u %u %u.\n",
+			      crtc->base.id, mode->hdisplay, mode->hsync_start,
+			      mode->hsync_end, mode->htotal);
 		return MODE_H_ILLEGAL;
+	}
 
 	return MODE_OK;
 }
