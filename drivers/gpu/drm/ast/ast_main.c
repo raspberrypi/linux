@@ -458,9 +458,6 @@ int ast_driver_load(struct drm_device *dev, unsigned long flags)
 
 	ast_detect_chip(dev, &need_post);
 
-	if (need_post)
-		ast_post_gpu(dev);
-
 	ret = ast_get_dram_info(dev);
 	if (ret)
 		goto out_free;
@@ -468,6 +465,9 @@ int ast_driver_load(struct drm_device *dev, unsigned long flags)
 	DRM_INFO("dram MCLK=%u Mhz type=%d bus_width=%d size=%08x\n",
 		 ast->mclk, ast->dram_type,
 		 ast->dram_bus_width, ast->vram_size);
+
+	if (need_post)
+		ast_post_gpu(dev);
 
 	ret = ast_mm_init(ast);
 	if (ret)
