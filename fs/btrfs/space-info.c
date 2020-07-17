@@ -304,8 +304,8 @@ again:
 			cache->key.objectid, cache->key.offset,
 			btrfs_block_group_used(&cache->item), cache->pinned,
 			cache->reserved, cache->ro ? "[readonly]" : "");
-		btrfs_dump_free_space(cache, bytes);
 		spin_unlock(&cache->lock);
+		btrfs_dump_free_space(cache, bytes);
 	}
 	if (++index < BTRFS_NR_RAID_TYPES)
 		goto again;
