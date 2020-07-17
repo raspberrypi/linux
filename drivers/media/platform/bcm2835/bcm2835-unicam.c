@@ -15,12 +15,15 @@
  *
  * This driver directly controls the Unicam peripheral - there is no
  * involvement with the VideoCore firmware. Unicam receives CSI-2 or
- * CCP2 data and writes it into SDRAM. The only potential processing options are
- * to repack Bayer data into an alternate format, and applying windowing.
- * The repacking does not shift the data, so could repack V4L2_PIX_FMT_Sxxxx10P
+ * CCP2 data and writes it into SDRAM.
+ * The only potential processing options are to repack Bayer data into an
+ * alternate format, and applying windowing.
+ * The repacking does not shift the data, so can repack V4L2_PIX_FMT_Sxxxx10P
  * to V4L2_PIX_FMT_Sxxxx10, or V4L2_PIX_FMT_Sxxxx12P to V4L2_PIX_FMT_Sxxxx12,
- * but not generically up to V4L2_PIX_FMT_Sxxxx16.
- * Adding support for repacking and windowing may be added later.
+ * but not generically up to V4L2_PIX_FMT_Sxxxx16. The driver will add both
+ * formats where the relevant formats are defined, and will automatically
+ * configure the repacking as required.
+ * Support for windowing may be added later.
  *
  * It should be possible to connect this driver to any sensor with a
  * suitable output interface and V4L2 subdevice driver.
@@ -94,6 +97,11 @@ MODULE_PARM_DESC(debug, "Debug level 0-3");
 #define unicam_err(dev, fmt, arg...)	\
 		v4l2_err(&(dev)->v4l2_dev, fmt, ##arg)
 
+/* To protect against a dodgy sensor driver never returning an error from
+ * enum_mbus_code, set a maximum index value to be used.
+ */
+#define MAX_ENUM_MBUS_CODE	128
+
 /*
  * Stride is a 16 bit register, but also has to be a multiple of 16.
  */
@@ -122,16 +130,22 @@ MODULE_PARM_DESC(debug, "Debug level 0-3");
 
 /*
  * struct unicam_fmt - Unicam media bus format information
- * @pixelformat: V4L2 pixel format FCC identifier.
+ * @pixelformat: V4L2 pixel format FCC identifier. 0 if n/a.
+ * @repacked_fourcc: V4L2 pixel format FCC identifier if the data is expanded
+ * out to 16bpp. 0 if n/a.
  * @code: V4L2 media bus format code.
- * @depth: Bits per pixel (when stored in memory).
+ * @depth: Bits per pixel as delivered from the source.
  * @csi_dt: CSI data type.
+ * @check_variants: Flag to denote that there are multiple mediabus formats
+ *		still in the list that could match this V4L2 format.
  */
 struct unicam_fmt {
 	u32	fourcc;
+	u32	repacked_fourcc;
 	u32	code;
 	u8	depth;
 	u8	csi_dt;
+	u8	check_variants;
 };
 
 static const struct unicam_fmt formats[] = {
@@ -141,21 +155,25 @@ static const struct unicam_fmt formats[] = {
 		.code		= MEDIA_BUS_FMT_YUYV8_2X8,
 		.depth		= 16,
 		.csi_dt		= 0x1e,
+		.check_variants = 1,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_UYVY,
 		.code		= MEDIA_BUS_FMT_UYVY8_2X8,
 		.depth		= 16,
 		.csi_dt		= 0x1e,
+		.check_variants = 1,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_YVYU,
 		.code		= MEDIA_BUS_FMT_YVYU8_2X8,
 		.depth		= 16,
 		.csi_dt		= 0x1e,
+		.check_variants = 1,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_VYUY,
 		.code		= MEDIA_BUS_FMT_VYUY8_2X8,
 		.depth		= 16,
 		.csi_dt		= 0x1e,
+		.check_variants = 1,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_YUYV,
 		.code		= MEDIA_BUS_FMT_YUYV8_1X16,
@@ -235,49 +253,97 @@ static const struct unicam_fmt formats[] = {
 		.csi_dt		= 0x2a,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SBGGR10P,
+		.repacked_fourcc = V4L2_PIX_FMT_SBGGR10,
 		.code		= MEDIA_BUS_FMT_SBGGR10_1X10,
 		.depth		= 10,
 		.csi_dt		= 0x2b,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SGBRG10P,
+		.repacked_fourcc = V4L2_PIX_FMT_SGBRG10,
 		.code		= MEDIA_BUS_FMT_SGBRG10_1X10,
 		.depth		= 10,
 		.csi_dt		= 0x2b,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SGRBG10P,
+		.repacked_fourcc = V4L2_PIX_FMT_SGRBG10,
 		.code		= MEDIA_BUS_FMT_SGRBG10_1X10,
 		.depth		= 10,
 		.csi_dt		= 0x2b,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SRGGB10P,
+		.repacked_fourcc = V4L2_PIX_FMT_SRGGB10,
 		.code		= MEDIA_BUS_FMT_SRGGB10_1X10,
 		.depth		= 10,
 		.csi_dt		= 0x2b,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SBGGR12P,
+		.repacked_fourcc = V4L2_PIX_FMT_SBGGR12,
 		.code		= MEDIA_BUS_FMT_SBGGR12_1X12,
 		.depth		= 12,
 		.csi_dt		= 0x2c,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SGBRG12P,
+		.repacked_fourcc = V4L2_PIX_FMT_SGBRG12,
 		.code		= MEDIA_BUS_FMT_SGBRG12_1X12,
 		.depth		= 12,
 		.csi_dt		= 0x2c,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SGRBG12P,
+		.repacked_fourcc = V4L2_PIX_FMT_SGRBG12,
 		.code		= MEDIA_BUS_FMT_SGRBG12_1X12,
 		.depth		= 12,
 		.csi_dt		= 0x2c,
 	}, {
 		.fourcc		= V4L2_PIX_FMT_SRGGB12P,
+		.repacked_fourcc = V4L2_PIX_FMT_SRGGB12,
 		.code		= MEDIA_BUS_FMT_SRGGB12_1X12,
 		.depth		= 12,
 		.csi_dt		= 0x2c,
-	},
+	}, {
+		.fourcc		= V4L2_PIX_FMT_SBGGR14P,
+		.code		= MEDIA_BUS_FMT_SBGGR14_1X14,
+		.depth		= 14,
+		.csi_dt		= 0x2d,
+	}, {
+		.fourcc		= V4L2_PIX_FMT_SGBRG14P,
+		.code		= MEDIA_BUS_FMT_SGBRG14_1X14,
+		.depth		= 14,
+		.csi_dt		= 0x2d,
+	}, {
+		.fourcc		= V4L2_PIX_FMT_SGRBG14P,
+		.code		= MEDIA_BUS_FMT_SGRBG14_1X14,
+		.depth		= 14,
+		.csi_dt		= 0x2d,
+	}, {
+		.fourcc		= V4L2_PIX_FMT_SRGGB14P,
+		.code		= MEDIA_BUS_FMT_SRGGB14_1X14,
+		.depth		= 14,
+		.csi_dt		= 0x2d,
+	}, {
 	/*
-	 * 14 and 16 bit Bayer formats could be supported, but there are no V4L2
-	 * defines for 14bit packed Bayer, and no CSI2 data_type for raw 16.
+	 * 16 bit Bayer formats could be supported, but there is no CSI2
+	 * data_type defined for raw 16, and no sensors that produce it at
+	 * present.
 	 */
+
+	/* Greyscale formats */
+		.fourcc		= V4L2_PIX_FMT_GREY,
+		.code		= MEDIA_BUS_FMT_Y8_1X8,
+		.depth		= 8,
+		.csi_dt		= 0x2a,
+	}, {
+		.fourcc		= V4L2_PIX_FMT_Y10P,
+		.repacked_fourcc = V4L2_PIX_FMT_Y10,
+		.code		= MEDIA_BUS_FMT_Y10_1X10,
+		.depth		= 10,
+		.csi_dt		= 0x2b,
+	}, {
+		/* NB There is no packed V4L2 fourcc for this format. */
+		.repacked_fourcc = V4L2_PIX_FMT_Y12,
+		.code		= MEDIA_BUS_FMT_Y12_1X12,
+		.depth		= 12,
+		.csi_dt		= 0x2c,
+	},
 };
 
 struct unicam_dmaqueue {
@@ -342,8 +408,6 @@ struct unicam_device {
 	/* Used to store current mbus frame format */
 	struct v4l2_mbus_framefmt m_fmt;
 
-	struct unicam_fmt active_fmts[MAX_POSSIBLE_PIX_FMTS];
-	int num_active_fmt;
 	unsigned int virtual_channel;
 	enum v4l2_mbus_type bus_type;
 	/*
@@ -420,66 +484,66 @@ static inline void unicam_runtime_put(struct unicam_device *dev)
 }
 
 /* Format setup functions */
-static int find_mbus_depth_by_code(u32 code)
+static const struct unicam_fmt *find_format_by_code(u32 code)
 {
-	const struct unicam_fmt *fmt;
 	unsigned int k;
 
 	for (k = 0; k < ARRAY_SIZE(formats); k++) {
-		fmt = &formats[k];
-		if (fmt->code == code)
-			return fmt->depth;
+		if (formats[k].code == code)
+			return &formats[k];
+	}
+
+	return NULL;
+}
+
+static int check_mbus_format(struct unicam_device *dev,
+			     const struct unicam_fmt *format)
+{
+	struct v4l2_subdev_mbus_code_enum mbus_code;
+	int ret = 0;
+	int i;
+
+	for (i = 0; !ret && i < MAX_ENUM_MBUS_CODE; i++) {
+		memset(&mbus_code, 0, sizeof(mbus_code));
+		mbus_code.index = i;
+
+		ret = v4l2_subdev_call(dev->sensor, pad, enum_mbus_code,
+				       NULL, &mbus_code);
+
+		if (!ret && mbus_code.code == format->code)
+			return 1;
 	}
 
 	return 0;
 }
 
-static const struct unicam_fmt *find_format_by_code(struct unicam_device *dev,
-						    u32 code)
-{
-	const struct unicam_fmt *fmt;
-	unsigned int k;
-
-	for (k = 0; k < dev->num_active_fmt; k++) {
-		fmt = &dev->active_fmts[k];
-		if (fmt->code == code)
-			return fmt;
-	}
-
-	return NULL;
-}
-
 static const struct unicam_fmt *find_format_by_pix(struct unicam_device *dev,
 						   u32 pixelformat)
 {
-	const struct unicam_fmt *fmt;
 	unsigned int k;
 
-	for (k = 0; k < dev->num_active_fmt; k++) {
-		fmt = &dev->active_fmts[k];
-		if (fmt->fourcc == pixelformat)
-			return fmt;
+	for (k = 0; k < ARRAY_SIZE(formats); k++) {
+		if (formats[k].fourcc == pixelformat ||
+		    formats[k].repacked_fourcc == pixelformat) {
+			if (formats[k].check_variants &&
+			    !check_mbus_format(dev, &formats[k]))
+				continue;
+			return &formats[k];
+		}
 	}
 
 	return NULL;
 }
 
-static void dump_active_formats(struct unicam_device *dev)
-{
-	int i;
-
-	for (i = 0; i < dev->num_active_fmt; i++) {
-		unicam_dbg(3, dev, "active_fmt[%d] (%p) is code %04x, fourcc " V4L2_FOURCC_CONV ", depth %d\n",
-			   i, &dev->active_fmts[i], dev->active_fmts[i].code,
-			   V4L2_FOURCC_CONV_ARGS(dev->active_fmts[i].fourcc),
-			   dev->active_fmts[i].depth);
-	}
-}
-
 static inline unsigned int bytes_per_line(u32 width,
-					  const struct unicam_fmt *fmt)
+					  const struct unicam_fmt *fmt,
+					  u32 v4l2_fourcc)
 {
-	return ALIGN((width * fmt->depth) >> 3, BPL_ALIGNMENT);
+	if (v4l2_fourcc == fmt->repacked_fourcc)
+		/* Repacking always goes to 16bpp */
+		return ALIGN(width << 1, BPL_ALIGNMENT);
+	else
+		return ALIGN((width * fmt->depth) >> 3, BPL_ALIGNMENT);
 }
 
 static int __subdev_get_format(struct unicam_device *dev,
@@ -537,7 +601,8 @@ static int unicam_calc_format_size_bpl(struct unicam_device *dev,
 			      &f->fmt.pix.height, MIN_HEIGHT, MAX_HEIGHT, 0,
 			      0);
 
-	min_bytesperline = bytes_per_line(f->fmt.pix.width, fmt);
+	min_bytesperline = bytes_per_line(f->fmt.pix.width, fmt,
+					  f->fmt.pix.pixelformat);
 
 	if (f->fmt.pix.bytesperline > min_bytesperline &&
 	    f->fmt.pix.bytesperline <= MAX_BYTESPERLINE)
@@ -705,14 +770,43 @@ static int unicam_enum_fmt_vid_cap(struct file *file, void  *priv,
 				   struct v4l2_fmtdesc *f)
 {
 	struct unicam_device *dev = video_drvdata(file);
+	struct v4l2_subdev_mbus_code_enum mbus_code;
 	const struct unicam_fmt *fmt = NULL;
+	int index = 0;
+	int ret = 0;
+	int i;
 
-	if (f->index >= dev->num_active_fmt)
-		return -EINVAL;
+	for (i = 0; !ret && i < MAX_ENUM_MBUS_CODE; i++) {
+		memset(&mbus_code, 0, sizeof(mbus_code));
+		mbus_code.index = i;
 
-	fmt = &dev->active_fmts[f->index];
+		ret = v4l2_subdev_call(dev->sensor, pad, enum_mbus_code,
+				       NULL, &mbus_code);
+		if (ret < 0) {
+			unicam_dbg(2, dev,
+				   "subdev->enum_mbus_code idx %d returned %d - index invalid\n",
+				   i, ret);
+			return -EINVAL;
+		}
 
-	f->pixelformat = fmt->fourcc;
+		fmt = find_format_by_code(mbus_code.code);
+		if (fmt) {
+			if (fmt->fourcc) {
+				if (index == f->index) {
+					f->pixelformat = fmt->fourcc;
+					break;
+				}
+				index++;
+			}
+			if (fmt->repacked_fourcc) {
+				if (index == f->index) {
+					f->pixelformat = fmt->repacked_fourcc;
+					break;
+				}
+				index++;
+			}
+		}
+	}
 
 	return 0;
 }
@@ -727,6 +821,39 @@ static int unicam_g_fmt_vid_cap(struct file *file, void *priv,
 	return 0;
 }
 
+static
+const struct unicam_fmt *get_first_supported_format(struct unicam_device *dev)
+{
+	struct v4l2_subdev_mbus_code_enum mbus_code;
+	const struct unicam_fmt *fmt = NULL;
+	int ret;
+	int j;
+
+	for (j = 0; ret != -EINVAL && ret != -ENOIOCTLCMD; ++j) {
+		memset(&mbus_code, 0, sizeof(mbus_code));
+		mbus_code.index = j;
+		ret = v4l2_subdev_call(dev->sensor, pad, enum_mbus_code, NULL,
+				       &mbus_code);
+		if (ret < 0) {
+			unicam_dbg(2, dev,
+				   "subdev->enum_mbus_code idx %d returned %d - continue\n",
+				   j, ret);
+			continue;
+		}
+
+		unicam_dbg(2, dev, "subdev %s: code: %04x idx: %d\n",
+			   dev->sensor->name, mbus_code.code, j);
+
+		fmt = find_format_by_code(mbus_code.code);
+		unicam_dbg(2, dev, "fmt %04x returned as %p, V4L2 FOURCC %04x, csi_dt %02X\n",
+			   mbus_code.code, fmt, fmt ? fmt->fourcc : 0,
+			   fmt ? fmt->csi_dt : 0);
+		if (fmt)
+			return fmt;
+	}
+
+	return NULL;
+}
 static int unicam_try_fmt_vid_cap(struct file *file, void *priv,
 				  struct v4l2_format *f)
 {
@@ -740,11 +867,13 @@ static int unicam_try_fmt_vid_cap(struct file *file, void *priv,
 
 	fmt = find_format_by_pix(dev, f->fmt.pix.pixelformat);
 	if (!fmt) {
-		unicam_dbg(3, dev, "Fourcc format (0x%08x) not found. Use default of %08X\n",
-			   f->fmt.pix.pixelformat, dev->active_fmts[0].fourcc);
+		/* Pixel format not supported by unicam. Choose the first
+		 * supported format, and let the sensor choose something else.
+		 */
+		unicam_dbg(3, dev, "Fourcc format (0x%08x) not found. Use first format.\n",
+			   f->fmt.pix.pixelformat);
 
-		/* Just get the first one enumerated */
-		fmt = &dev->active_fmts[0];
+		fmt = &formats[0];
 		f->fmt.pix.pixelformat = fmt->fourcc;
 	}
 
@@ -764,6 +893,43 @@ static int unicam_try_fmt_vid_cap(struct file *file, void *priv,
 		unicam_info(dev, "Sensor trying to send interlaced video - results may be unpredictable\n");
 
 	v4l2_fill_pix_format(&f->fmt.pix, &sd_fmt.format);
+	if (mbus_fmt->code != fmt->code) {
+		/* Sensor has returned an alternate format */
+		fmt = find_format_by_code(mbus_fmt->code);
+		if (!fmt) {
+			/* The alternate format is one unicam can't support.
+			 * Find the first format that is supported by both, and
+			 * then set that.
+			 */
+			fmt = get_first_supported_format(dev);
+			mbus_fmt->code = fmt->code;
+
+			ret = v4l2_subdev_call(dev->sensor, pad, set_fmt,
+					       dev->sensor_config, &sd_fmt);
+			if (ret && ret != -ENOIOCTLCMD && ret != -ENODEV)
+				return ret;
+
+			if (mbus_fmt->field != V4L2_FIELD_NONE)
+				unicam_info(dev, "Sensor trying to send interlaced video - results may be unpredictable\n");
+
+			v4l2_fill_pix_format(&f->fmt.pix, &sd_fmt.format);
+
+			if (mbus_fmt->code != fmt->code) {
+				/* We've set a format that the sensor reports
+				 * as being supported, but it refuses to set it.
+				 * Not much else we can do.
+				 * Assume that the sensor driver may accept the
+				 * format when it is set (rather than tried).
+				 */
+				unicam_err(dev, "Sensor won't accept default format, and Unicam can't support sensor default\n");
+			}
+		}
+
+		if (fmt->fourcc)
+			f->fmt.pix.pixelformat = fmt->fourcc;
+		else
+			f->fmt.pix.pixelformat = fmt->repacked_fourcc;
+	}
 
 	return unicam_calc_format_size_bpl(dev, fmt, f);
 }
@@ -786,8 +952,16 @@ static int unicam_s_fmt_vid_cap(struct file *file, void *priv,
 
 	fmt = find_format_by_pix(dev, f->fmt.pix.pixelformat);
 	if (!fmt) {
-		/* Unknown pixel format - adopt a default */
-		fmt = &dev->active_fmts[0];
+		/* Unknown pixel format - adopt a default.
+		 * This shouldn't happen as try_fmt should have resolved any
+		 * issues first.
+		 */
+		fmt = get_first_supported_format(dev);
+		if (!fmt)
+			/* It shouldn't be possible to get here with no
+			 * supported formats
+			 */
+			return -EINVAL;
 		f->fmt.pix.pixelformat = fmt->fourcc;
 		return -EINVAL;
 	}
@@ -894,16 +1068,14 @@ static void unicam_wr_dma_config(struct unicam_device *dev,
 
 static void unicam_set_packing_config(struct unicam_device *dev)
 {
-	int mbus_depth = find_mbus_depth_by_code(dev->fmt->code);
-	int v4l2_depth = dev->fmt->depth;
 	int pack, unpack;
 	u32 val;
 
-	if (mbus_depth == v4l2_depth) {
+	if (dev->v_fmt.fmt.pix.pixelformat == dev->fmt->fourcc) {
 		unpack = UNICAM_PUM_NONE;
 		pack = UNICAM_PPM_NONE;
 	} else {
-		switch (mbus_depth) {
+		switch (dev->fmt->depth) {
 		case 8:
 			unpack = UNICAM_PUM_UNPACK8;
 			break;
@@ -923,26 +1095,9 @@ static void unicam_set_packing_config(struct unicam_device *dev)
 			unpack = UNICAM_PUM_NONE;
 			break;
 		}
-		switch (v4l2_depth) {
-		case 8:
-			pack = UNICAM_PPM_PACK8;
-			break;
-		case 10:
-			pack = UNICAM_PPM_PACK10;
-			break;
-		case 12:
-			pack = UNICAM_PPM_PACK12;
-			break;
-		case 14:
-			pack = UNICAM_PPM_PACK14;
-			break;
-		case 16:
-			pack = UNICAM_PPM_PACK16;
-			break;
-		default:
-			pack = UNICAM_PPM_NONE;
-			break;
-		}
+
+		/* Repacking is always to 16bpp */
+		pack = UNICAM_PPM_PACK16;
 	}
 
 	val = 0;
@@ -1721,27 +1876,6 @@ static const struct v4l2_ioctl_ops unicam_ioctl_ops = {
 	.vidioc_unsubscribe_event	= v4l2_event_unsubscribe,
 };
 
-/*
- * Adds an entry to the active_fmts array
- * Returns non-zero if attempting to write off the end of the array.
- */
-static int unicam_add_active_format(struct unicam_device *unicam,
-				    const struct unicam_fmt *fmt)
-{
-	//Ensure we don't run off the end of the array.
-	if (unicam->num_active_fmt >= MAX_POSSIBLE_PIX_FMTS)
-		return 1;
-
-	unicam->active_fmts[unicam->num_active_fmt] = *fmt;
-	unicam_dbg(2, unicam,
-		   "matched fourcc: " V4L2_FOURCC_CONV ": code: %04x idx: %d\n",
-		   V4L2_FOURCC_CONV_ARGS(fmt->fourcc),
-		   fmt->code, unicam->num_active_fmt);
-	unicam->num_active_fmt++;
-
-	return 0;
-}
-
 static int
 unicam_async_bound(struct v4l2_async_notifier *notifier,
 		   struct v4l2_subdev *subdev,
@@ -1749,9 +1883,6 @@ unicam_async_bound(struct v4l2_async_notifier *notifier,
 {
 	struct unicam_device *unicam = container_of(notifier->v4l2_dev,
 					       struct unicam_device, v4l2_dev);
-	struct v4l2_subdev_mbus_code_enum mbus_code;
-	int ret = 0;
-	int j;
 
 	if (unicam->sensor) {
 		unicam_info(unicam, "Rejecting subdev %s (Already set!!)",
@@ -1761,47 +1892,6 @@ unicam_async_bound(struct v4l2_async_notifier *notifier,
 
 	unicam->sensor = subdev;
 	unicam_dbg(1, unicam, "Using sensor %s for capture\n", subdev->name);
-
-	/* Enumerate sub device formats and enable all matching local formats */
-	unicam->num_active_fmt = 0;
-	unicam_dbg(2, unicam, "Get supported formats...\n");
-	for (j = 0; ret != -EINVAL && ret != -ENOIOCTLCMD; ++j) {
-		const struct unicam_fmt *fmt = NULL;
-		int k;
-
-		memset(&mbus_code, 0, sizeof(mbus_code));
-		mbus_code.index = j;
-		ret = v4l2_subdev_call(subdev, pad, enum_mbus_code,
-				       NULL, &mbus_code);
-		if (ret < 0) {
-			unicam_dbg(2, unicam,
-				   "subdev->enum_mbus_code idx %d returned %d - continue\n",
-				   j, ret);
-			continue;
-		}
-
-		unicam_dbg(2, unicam, "subdev %s: code: %04x idx: %d\n",
-			   subdev->name, mbus_code.code, j);
-
-		for (k = 0; k < ARRAY_SIZE(formats); k++) {
-			if (mbus_code.code == formats[k].code) {
-				fmt = &formats[k];
-				break;
-			}
-		}
-		unicam_dbg(2, unicam, "fmt %04x returned as %p, V4L2 FOURCC %04x, csi_dt %02X\n",
-			   mbus_code.code, fmt, fmt ? fmt->fourcc : 0,
-			   fmt ? fmt->csi_dt : 0);
-		if (fmt) {
-			if (unicam_add_active_format(unicam, fmt)) {
-				unicam_dbg(1, unicam, "Active fmt list truncated\n");
-				break;
-			}
-		}
-	}
-	unicam_dbg(2, unicam,
-		   "Done all formats\n");
-	dump_active_formats(unicam);
 
 	return 0;
 }
@@ -1828,10 +1918,17 @@ static int unicam_probe_complete(struct unicam_device *unicam)
 		return ret;
 	}
 
-	fmt = find_format_by_code(unicam, mbus_fmt.code);
+	fmt = find_format_by_code(mbus_fmt.code);
 	if (!fmt) {
-		/* Default image format not valid. Choose first active fmt. */
-		fmt = &unicam->active_fmts[0];
+		/* Find the first format that the sensor and unicam both
+		 * support
+		 */
+		fmt = get_first_supported_format(unicam);
+
+		if (!fmt)
+			/* No compatible formats */
+			return -EINVAL;
+
 		mbus_fmt.code = fmt->code;
 		ret = __subdev_set_format(unicam, &mbus_fmt);
 		if (ret)
@@ -1846,7 +1943,10 @@ static int unicam_probe_complete(struct unicam_device *unicam)
 	}
 
 	unicam->fmt = fmt;
-	unicam->v_fmt.fmt.pix.pixelformat = fmt->fourcc;
+	if (fmt->fourcc)
+		unicam->v_fmt.fmt.pix.pixelformat = fmt->fourcc;
+	else
+		unicam->v_fmt.fmt.pix.pixelformat = fmt->repacked_fourcc;
 
 	/* Read current subdev format */
 	unicam_reset_format(unicam);

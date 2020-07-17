@@ -98,7 +98,7 @@ enum rpi_firmware_property_tag {
 	RPI_FIRMWARE_SET_PERIPH_REG =                         0x00038045,
 	RPI_FIRMWARE_GET_POE_HAT_VAL =                        0x00030049,
 	RPI_FIRMWARE_SET_POE_HAT_VAL =                        0x00030050,
-
+	RPI_FIRMWARE_NOTIFY_XHCI_RESET =                      0x00030058,
 
 	/* Dispmanx TAGS */
 	RPI_FIRMWARE_FRAMEBUFFER_ALLOCATE =                   0x00040001,
@@ -155,7 +155,7 @@ enum rpi_firmware_property_tag {
 	RPI_FIRMWARE_GET_DISPLAY_TIMING =                     0x00040017,
 	RPI_FIRMWARE_SET_TIMING =                             0x00048017,
 	RPI_FIRMWARE_GET_DISPLAY_CFG =                        0x00040018,
-
+	RPI_FIRMWARE_SET_DISPLAY_POWER =		      0x00048019,
 	RPI_FIRMWARE_GET_COMMAND_LINE =                       0x00050001,
 	RPI_FIRMWARE_GET_DMA_CHANNELS =                       0x00060001,
 };

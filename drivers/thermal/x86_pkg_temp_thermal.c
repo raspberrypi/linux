@@ -29,7 +29,6 @@
 #include <linux/pm.h>
 #include <linux/thermal.h>
 #include <linux/debugfs.h>
-#include <linux/swork.h>
 #include <asm/cpu_device_id.h>
 #include <asm/mce.h>
 
@@ -76,7 +75,7 @@ static int max_packages __read_mostly;
 /* Array of package pointers */
 static struct pkg_device **packages;
 /* Serializes interrupt notification, work and hotplug */
-static DEFINE_SPINLOCK(pkg_temp_lock);
+static DEFINE_RAW_SPINLOCK(pkg_temp_lock);
 /* Protects zone operation in the work function against hotplug removal */
 static DEFINE_MUTEX(thermal_zone_mutex);
 
@@ -292,12 +291,12 @@ static void pkg_temp_thermal_threshold_work_fn(struct work_struct *work)
 	u64 msr_val, wr_val;
 
 	mutex_lock(&thermal_zone_mutex);
-	spin_lock_irq(&pkg_temp_lock);
+	raw_spin_lock_irq(&pkg_temp_lock);
 	++pkg_work_cnt;
 
 	pkgdev = pkg_temp_thermal_get_dev(cpu);
 	if (!pkgdev) {
-		spin_unlock_irq(&pkg_temp_lock);
+		raw_spin_unlock_irq(&pkg_temp_lock);
 		mutex_unlock(&thermal_zone_mutex);
 		return;
 	}
@@ -311,7 +310,7 @@ static void pkg_temp_thermal_threshold_work_fn(struct work_struct *work)
 	}
 
 	enable_pkg_thres_interrupt();
-	spin_unlock_irq(&pkg_temp_lock);
+	raw_spin_unlock_irq(&pkg_temp_lock);
 
 	/*
 	 * If tzone is not NULL, then thermal_zone_mutex will prevent the
@@ -330,13 +329,13 @@ static void pkg_thermal_schedule_work(int cpu, struct delayed_work *work)
 	schedule_delayed_work_on(cpu, work, ms);
 }
 
-static void pkg_thermal_notify_work(struct swork_event *event)
+static int pkg_thermal_notify(u64 msr_val)
 {
 	int cpu = smp_processor_id();
 	struct pkg_device *pkgdev;
 	unsigned long flags;
 
-	spin_lock_irqsave(&pkg_temp_lock, flags);
+	raw_spin_lock_irqsave(&pkg_temp_lock, flags);
 	++pkg_interrupt_cnt;
 
 	disable_pkg_thres_interrupt();
@@ -348,47 +347,9 @@ static void pkg_thermal_notify_work(struct swork_event *event)
 		pkg_thermal_schedule_work(pkgdev->cpu, &pkgdev->work);
 	}
 
-	spin_unlock_irqrestore(&pkg_temp_lock, flags);
-}
-
-#ifdef CONFIG_PREEMPT_RT_FULL
-static struct swork_event notify_work;
-
-static int pkg_thermal_notify_work_init(void)
-{
-	int err;
-
-	err = swork_get();
-	if (err)
-		return err;
-
-	INIT_SWORK(&notify_work, pkg_thermal_notify_work);
+	raw_spin_unlock_irqrestore(&pkg_temp_lock, flags);
 	return 0;
 }
-
-static void pkg_thermal_notify_work_cleanup(void)
-{
-	swork_put();
-}
-
-static int pkg_thermal_notify(u64 msr_val)
-{
-	swork_queue(&notify_work);
-	return 0;
-}
-
-#else  /* !CONFIG_PREEMPT_RT_FULL */
-
-static int pkg_thermal_notify_work_init(void) { return 0; }
-
-static void pkg_thermal_notify_work_cleanup(void) {  }
-
-static int pkg_thermal_notify(u64 msr_val)
-{
-	pkg_thermal_notify_work(NULL);
-	return 0;
-}
-#endif /* CONFIG_PREEMPT_RT_FULL */
 
 static int pkg_temp_thermal_device_add(unsigned int cpu)
 {
@@ -432,9 +393,9 @@ static int pkg_temp_thermal_device_add(unsigned int cpu)
 	      pkgdev->msr_pkg_therm_high);
 
 	cpumask_set_cpu(cpu, &pkgdev->cpumask);
-	spin_lock_irq(&pkg_temp_lock);
+	raw_spin_lock_irq(&pkg_temp_lock);
 	packages[pkgid] = pkgdev;
-	spin_unlock_irq(&pkg_temp_lock);
+	raw_spin_unlock_irq(&pkg_temp_lock);
 	return 0;
 }
 
@@ -471,7 +432,7 @@ static int pkg_thermal_cpu_offline(unsigned int cpu)
 	}
 
 	/* Protect against work and interrupts */
-	spin_lock_irq(&pkg_temp_lock);
+	raw_spin_lock_irq(&pkg_temp_lock);
 
 	/*
 	 * Check whether this cpu was the current target and store the new
@@ -503,9 +464,9 @@ static int pkg_thermal_cpu_offline(unsigned int cpu)
 		 * To cancel the work we need to drop the lock, otherwise
 		 * we might deadlock if the work needs to be flushed.
 		 */
-		spin_unlock_irq(&pkg_temp_lock);
+		raw_spin_unlock_irq(&pkg_temp_lock);
 		cancel_delayed_work_sync(&pkgdev->work);
-		spin_lock_irq(&pkg_temp_lock);
+		raw_spin_lock_irq(&pkg_temp_lock);
 		/*
 		 * If this is not the last cpu in the package and the work
 		 * did not run after we dropped the lock above, then we
@@ -516,7 +477,7 @@ static int pkg_thermal_cpu_offline(unsigned int cpu)
 			pkg_thermal_schedule_work(target, &pkgdev->work);
 	}
 
-	spin_unlock_irq(&pkg_temp_lock);
+	raw_spin_unlock_irq(&pkg_temp_lock);
 
 	/* Final cleanup if this is the last cpu */
 	if (lastcpu)
@@ -554,16 +515,11 @@ static int __init pkg_temp_thermal_init(void)
 	if (!x86_match_cpu(pkg_temp_thermal_ids))
 		return -ENODEV;
 
-	if (!pkg_thermal_notify_work_init())
-		return -ENODEV;
-
 	max_packages = topology_max_packages();
 	packages = kcalloc(max_packages, sizeof(struct pkg_device *),
 			   GFP_KERNEL);
-	if (!packages) {
-		ret = -ENOMEM;
-		goto err;
-	}
+	if (!packages)
+		return -ENOMEM;
 
 	ret = cpuhp_setup_state(CPUHP_AP_ONLINE_DYN, "thermal/x86_pkg:online",
 				pkg_thermal_cpu_online,	pkg_thermal_cpu_offline);
@@ -581,7 +537,6 @@ static int __init pkg_temp_thermal_init(void)
 	return 0;
 
 err:
-	pkg_thermal_notify_work_cleanup();
 	kfree(packages);
 	return ret;
 }
@@ -595,7 +550,6 @@ static void __exit pkg_temp_thermal_exit(void)
 	cpuhp_remove_state(pkg_thermal_hp_state);
 	debugfs_remove_recursive(debugfs);
 	kfree(packages);
-	pkg_thermal_notify_work_cleanup();
 }
 module_exit(pkg_temp_thermal_exit)
 

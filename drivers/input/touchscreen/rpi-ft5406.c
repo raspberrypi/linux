@@ -78,7 +78,7 @@ static int ft5406_thread(void *arg)
 
 	while (!kthread_should_stop()) {
 		/* 60fps polling */
-		msleep_interruptible(17);
+		usleep_range(16600, 16700);
 		memcpy_fromio(&regs, ts->ts_base, sizeof(struct ft5406_regs));
 		iowrite8(99,
 			 ts->ts_base +

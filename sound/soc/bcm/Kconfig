@@ -40,6 +40,13 @@ config SND_BCM2708_SOC_HIFIBERRY_DACPLUS
         help
          Say Y or M if you want to add support for HifiBerry DAC+.
 
+config SND_BCM2708_SOC_HIFIBERRY_DACPLUSHD
+        tristate "Support for HifiBerry DAC+ HD"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+        select SND_SOC_PCM179X_I2C
+        help
+         Say Y or M if you want to add support for HifiBerry DAC+ HD.
+
 config SND_BCM2708_SOC_HIFIBERRY_DACPLUSADC
         tristate "Support for HifiBerry DAC+ADC"
         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
@@ -55,6 +62,13 @@ config SND_BCM2708_SOC_HIFIBERRY_DACPLUSADCPRO
 	select SND_SOC_PCM186X_I2C
         help
          Say Y or M if you want to add support for HifiBerry DAC+ADC PRO.
+
+config SND_BCM2708_SOC_HIFIBERRY_DACPLUSDSP
+        tristate "Support for HifiBerry DAC+DSP"
+        depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_RPI_SIMPLE_SOUNDCARD
+        help
+         Say Y or M if you want to add support for HifiBerry DSP-DAC.
 
 config SND_BCM2708_SOC_HIFIBERRY_DIGI
         tristate "Support for HifiBerry Digi"
@@ -94,6 +108,18 @@ config SND_BCM2708_SOC_RPI_PROTO
 	select SND_SOC_WM8731
 	help
 	  Say Y or M if you want to add support for Audio Codec Board PROTO (WM8731).
+
+config SND_BCM2708_SOC_JUSTBOOM_BOTH
+	tristate "Support for simultaneous JustBoom Digi and JustBoom DAC"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_WM8804
+	select SND_SOC_PCM512x
+	help
+		Say Y or M if you want to add support for simultaneous
+		JustBoom Digi and JustBoom DAC.
+
+		This is not the right choice if you only have one but both of
+		these cards.
 
 config SND_BCM2708_SOC_JUSTBOOM_DAC
 	tristate "Support for JustBoom DAC"
@@ -160,6 +186,13 @@ config SND_AUDIOINJECTOR_OCTO_SOUNDCARD
 	select SND_SOC_CS42XX8_I2C
 	help
 	  Say Y or M if you want to add support for audioinjector.net octo add on
+
+config SND_AUDIOINJECTOR_ISOLATED_SOUNDCARD
+	tristate "Support for audioinjector.net isolated DAC and ADC soundcard"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	select SND_SOC_CS4271_I2C
+	help
+	  Say Y or M if you want to add support for audioinjector.net isolated soundcard
 
 config SND_AUDIOSENSE_PI
 	tristate "Support for AudioSense Add-On Soundcard"
