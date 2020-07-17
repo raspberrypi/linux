@@ -86,9 +86,24 @@ static __always_inline void __preempt_count_sub(int val)
  * a decrement which hits zero means we have no preempt_count and should
  * reschedule.
  */
-static __always_inline bool __preempt_count_dec_and_test(void)
+static __always_inline bool ____preempt_count_dec_and_test(void)
 {
 	GEN_UNARY_RMWcc("decl", __preempt_count, __percpu_arg(0), e);
+}
+
+static __always_inline bool __preempt_count_dec_and_test(void)
+{
+	if (____preempt_count_dec_and_test())
+		return true;
+#ifdef CONFIG_PREEMPT_LAZY
+	if (preempt_count())
+		return false;
+	if (current_thread_info()->preempt_lazy_count)
+		return false;
+	return test_thread_flag(TIF_NEED_RESCHED_LAZY);
+#else
+	return false;
+#endif
 }
 
 /*
@@ -96,7 +111,23 @@ static __always_inline bool __preempt_count_dec_and_test(void)
  */
 static __always_inline bool should_resched(int preempt_offset)
 {
+#ifdef CONFIG_PREEMPT_LAZY
+	u32 tmp;
+
+	tmp = raw_cpu_read_4(__preempt_count);
+	if (tmp == preempt_offset)
+		return true;
+
+	/* preempt count == 0 ? */
+	tmp &= ~PREEMPT_NEED_RESCHED;
+	if (tmp != preempt_offset)
+		return false;
+	if (current_thread_info()->preempt_lazy_count)
+		return false;
+	return test_thread_flag(TIF_NEED_RESCHED_LAZY);
+#else
 	return unlikely(raw_cpu_read_4(__preempt_count) == preempt_offset);
+#endif
 }
 
 #ifdef CONFIG_PREEMPT

@@ -150,6 +150,11 @@ static struct hrtimer_cpu_base migration_cpu_base = {
 
 #define migration_base	migration_cpu_base.clock_base[0]
 
+static inline bool is_migration_base(struct hrtimer_clock_base *base)
+{
+	return base == &migration_base;
+}
+
 /*
  * We are using hashed locking: holding per_cpu(hrtimer_bases)[n].lock
  * means that all timers which are tied to this base via timer->base are
@@ -273,6 +278,11 @@ again:
 }
 
 #else /* CONFIG_SMP */
+
+static inline bool is_migration_base(struct hrtimer_clock_base *base)
+{
+	return false;
+}
 
 static inline struct hrtimer_clock_base *
 lock_hrtimer_base(const struct hrtimer *timer, unsigned long *flags)
@@ -939,6 +949,16 @@ u64 hrtimer_forward(struct hrtimer *timer, ktime_t now, ktime_t interval)
 }
 EXPORT_SYMBOL_GPL(hrtimer_forward);
 
+void hrtimer_grab_expiry_lock(const struct hrtimer *timer)
+{
+	struct hrtimer_clock_base *base = READ_ONCE(timer->base);
+
+	if (timer->is_soft && !is_migration_base(base)) {
+		spin_lock(&base->cpu_base->softirq_expiry_lock);
+		spin_unlock(&base->cpu_base->softirq_expiry_lock);
+	}
+}
+
 /*
  * enqueue_hrtimer - internal function to (re)start a timer
  *
@@ -1111,7 +1131,9 @@ void hrtimer_start_range_ns(struct hrtimer *timer, ktime_t tim,
 	 * Check whether the HRTIMER_MODE_SOFT bit and hrtimer.is_soft
 	 * match.
 	 */
+#ifndef CONFIG_PREEMPT_RT_BASE
 	WARN_ON_ONCE(!(mode & HRTIMER_MODE_SOFT) ^ !timer->is_soft);
+#endif
 
 	base = lock_hrtimer_base(timer, &flags);
 
@@ -1174,7 +1196,7 @@ int hrtimer_cancel(struct hrtimer *timer)
 
 		if (ret >= 0)
 			return ret;
-		cpu_relax();
+		hrtimer_grab_expiry_lock(timer);
 	}
 }
 EXPORT_SYMBOL_GPL(hrtimer_cancel);
@@ -1271,9 +1293,16 @@ static inline int hrtimer_clockid_to_base(clockid_t clock_id)
 static void __hrtimer_init(struct hrtimer *timer, clockid_t clock_id,
 			   enum hrtimer_mode mode)
 {
-	bool softtimer = !!(mode & HRTIMER_MODE_SOFT);
-	int base = softtimer ? HRTIMER_MAX_CLOCK_BASES / 2 : 0;
+	bool softtimer;
+	int base;
 	struct hrtimer_cpu_base *cpu_base;
+
+	softtimer = !!(mode & HRTIMER_MODE_SOFT);
+#ifdef CONFIG_PREEMPT_RT_FULL
+	if (!softtimer && !(mode & HRTIMER_MODE_HARD))
+		softtimer = true;
+#endif
+	base = softtimer ? HRTIMER_MAX_CLOCK_BASES / 2 : 0;
 
 	memset(timer, 0, sizeof(struct hrtimer));
 
@@ -1471,6 +1500,7 @@ static __latent_entropy void hrtimer_run_softirq(struct softirq_action *h)
 	unsigned long flags;
 	ktime_t now;
 
+	spin_lock(&cpu_base->softirq_expiry_lock);
 	raw_spin_lock_irqsave(&cpu_base->lock, flags);
 
 	now = hrtimer_update_base(cpu_base);
@@ -1480,6 +1510,7 @@ static __latent_entropy void hrtimer_run_softirq(struct softirq_action *h)
 	hrtimer_update_softirq_timer(cpu_base, true);
 
 	raw_spin_unlock_irqrestore(&cpu_base->lock, flags);
+	spin_unlock(&cpu_base->softirq_expiry_lock);
 }
 
 #ifdef CONFIG_HIGH_RES_TIMERS
@@ -1651,12 +1682,51 @@ static enum hrtimer_restart hrtimer_wakeup(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
-void hrtimer_init_sleeper(struct hrtimer_sleeper *sl, struct task_struct *task)
+static void __hrtimer_init_sleeper(struct hrtimer_sleeper *sl,
+				   clockid_t clock_id,
+				   enum hrtimer_mode mode,
+				   struct task_struct *task)
 {
+#ifdef CONFIG_PREEMPT_RT_FULL
+	if (!(mode & (HRTIMER_MODE_SOFT | HRTIMER_MODE_HARD))) {
+		if (task_is_realtime(current) || system_state != SYSTEM_RUNNING)
+			mode |= HRTIMER_MODE_HARD;
+		else
+			mode |= HRTIMER_MODE_SOFT;
+	}
+#endif
+	__hrtimer_init(&sl->timer, clock_id, mode);
 	sl->timer.function = hrtimer_wakeup;
 	sl->task = task;
 }
+
+/**
+ * hrtimer_init_sleeper - initialize sleeper to the given clock
+ * @sl:		sleeper to be initialized
+ * @clock_id:	the clock to be used
+ * @mode:	timer mode abs/rel
+ * @task:	the task to wake up
+ */
+void hrtimer_init_sleeper(struct hrtimer_sleeper *sl, clockid_t clock_id,
+			  enum hrtimer_mode mode, struct task_struct *task)
+{
+	debug_init(&sl->timer, clock_id, mode);
+	__hrtimer_init_sleeper(sl, clock_id, mode, task);
+
+}
 EXPORT_SYMBOL_GPL(hrtimer_init_sleeper);
+
+#ifdef CONFIG_DEBUG_OBJECTS_TIMERS
+void hrtimer_init_sleeper_on_stack(struct hrtimer_sleeper *sl,
+				   clockid_t clock_id,
+				   enum hrtimer_mode mode,
+				   struct task_struct *task)
+{
+	debug_object_init_on_stack(&sl->timer, &hrtimer_debug_descr);
+	__hrtimer_init_sleeper(sl, clock_id, mode, task);
+}
+EXPORT_SYMBOL_GPL(hrtimer_init_sleeper_on_stack);
+#endif
 
 int nanosleep_copyout(struct restart_block *restart, struct timespec64 *ts)
 {
@@ -1681,8 +1751,6 @@ static int __sched do_nanosleep(struct hrtimer_sleeper *t, enum hrtimer_mode mod
 {
 	struct restart_block *restart;
 
-	hrtimer_init_sleeper(t, current);
-
 	do {
 		set_current_state(TASK_INTERRUPTIBLE);
 		hrtimer_start_expires(&t->timer, mode);
@@ -1690,12 +1758,12 @@ static int __sched do_nanosleep(struct hrtimer_sleeper *t, enum hrtimer_mode mod
 		if (likely(t->task))
 			freezable_schedule();
 
+		__set_current_state(TASK_RUNNING);
 		hrtimer_cancel(&t->timer);
 		mode = HRTIMER_MODE_ABS;
 
 	} while (t->task && !signal_pending(current));
 
-	__set_current_state(TASK_RUNNING);
 
 	if (!t->task)
 		return 0;
@@ -1719,10 +1787,9 @@ static long __sched hrtimer_nanosleep_restart(struct restart_block *restart)
 	struct hrtimer_sleeper t;
 	int ret;
 
-	hrtimer_init_on_stack(&t.timer, restart->nanosleep.clockid,
-				HRTIMER_MODE_ABS);
+	hrtimer_init_sleeper_on_stack(&t, restart->nanosleep.clockid,
+				      HRTIMER_MODE_ABS, current);
 	hrtimer_set_expires_tv64(&t.timer, restart->nanosleep.expires);
-
 	ret = do_nanosleep(&t, HRTIMER_MODE_ABS);
 	destroy_hrtimer_on_stack(&t.timer);
 	return ret;
@@ -1740,7 +1807,7 @@ long hrtimer_nanosleep(const struct timespec64 *rqtp,
 	if (dl_task(current) || rt_task(current))
 		slack = 0;
 
-	hrtimer_init_on_stack(&t.timer, clockid, mode);
+	hrtimer_init_sleeper_on_stack(&t, clockid, mode, current);
 	hrtimer_set_expires_range_ns(&t.timer, timespec64_to_ktime(*rqtp), slack);
 	ret = do_nanosleep(&t, mode);
 	if (ret != -ERESTART_RESTARTBLOCK)
@@ -1800,6 +1867,38 @@ COMPAT_SYSCALL_DEFINE2(nanosleep, struct compat_timespec __user *, rqtp,
 }
 #endif
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+/*
+ * Sleep for 1 ms in hope whoever holds what we want will let it go.
+ */
+void cpu_chill(void)
+{
+	unsigned int freeze_flag = current->flags & PF_NOFREEZE;
+	struct task_struct *self = current;
+	ktime_t chill_time;
+
+	raw_spin_lock_irq(&self->pi_lock);
+	self->saved_state = self->state;
+	__set_current_state_no_track(TASK_UNINTERRUPTIBLE);
+	raw_spin_unlock_irq(&self->pi_lock);
+
+	chill_time = ktime_set(0, NSEC_PER_MSEC);
+
+	current->flags |= PF_NOFREEZE;
+	sleeping_lock_inc();
+	schedule_hrtimeout(&chill_time, HRTIMER_MODE_REL_HARD);
+	sleeping_lock_dec();
+	if (!freeze_flag)
+		current->flags &= ~PF_NOFREEZE;
+
+	raw_spin_lock_irq(&self->pi_lock);
+	__set_current_state_no_track(self->saved_state);
+	self->saved_state = TASK_RUNNING;
+	raw_spin_unlock_irq(&self->pi_lock);
+}
+EXPORT_SYMBOL(cpu_chill);
+#endif
+
 /*
  * Functions related to boot-time initialization:
  */
@@ -1821,6 +1920,7 @@ int hrtimers_prepare_cpu(unsigned int cpu)
 	cpu_base->softirq_next_timer = NULL;
 	cpu_base->expires_next = KTIME_MAX;
 	cpu_base->softirq_expires_next = KTIME_MAX;
+	spin_lock_init(&cpu_base->softirq_expiry_lock);
 	return 0;
 }
 
@@ -1939,10 +2039,8 @@ schedule_hrtimeout_range_clock(ktime_t *expires, u64 delta,
 		return -EINTR;
 	}
 
-	hrtimer_init_on_stack(&t.timer, clock_id, mode);
+	hrtimer_init_sleeper_on_stack(&t, clock_id, mode, current);
 	hrtimer_set_expires_range_ns(&t.timer, *expires, delta);
-
-	hrtimer_init_sleeper(&t, current);
 
 	hrtimer_start_expires(&t.timer, mode);
 

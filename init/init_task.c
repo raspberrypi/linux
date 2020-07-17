@@ -50,6 +50,12 @@ static struct sighand_struct init_sighand = {
 	.signalfd_wqh	= __WAIT_QUEUE_HEAD_INITIALIZER(init_sighand.signalfd_wqh),
 };
 
+#if defined(CONFIG_POSIX_TIMERS) && defined(CONFIG_PREEMPT_RT_BASE)
+# define INIT_TIMER_LIST		.posix_timer_list = NULL,
+#else
+# define INIT_TIMER_LIST
+#endif
+
 /*
  * Set up the first task table, touch at your own risk!. Base=0,
  * limit=0x1fffff (=2MB)
@@ -71,8 +77,13 @@ struct task_struct init_task
 	.static_prio	= MAX_PRIO - 20,
 	.normal_prio	= MAX_PRIO - 20,
 	.policy		= SCHED_NORMAL,
-	.cpus_allowed	= CPU_MASK_ALL,
+	.cpus_ptr	= &init_task.cpus_mask,
+	.cpus_mask	= CPU_MASK_ALL,
 	.nr_cpus_allowed= NR_CPUS,
+#if defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE) && \
+    defined(CONFIG_SCHED_DEBUG)
+	.pinned_on_cpu	= -1,
+#endif
 	.mm		= NULL,
 	.active_mm	= &init_mm,
 	.restart_block	= {
@@ -118,6 +129,7 @@ struct task_struct init_task
 	INIT_CPU_TIMERS(init_task)
 	.pi_lock	= __RAW_SPIN_LOCK_UNLOCKED(init_task.pi_lock),
 	.timer_slack_ns = 50000, /* 50 usec default slack */
+	INIT_TIMER_LIST
 	.thread_pid	= &init_struct_pid,
 	.thread_group	= LIST_HEAD_INIT(init_task.thread_group),
 	.thread_node	= LIST_HEAD_INIT(init_signals.thread_head),

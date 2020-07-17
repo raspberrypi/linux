@@ -61,6 +61,7 @@
  *                interrupt handler after suspending interrupts. For system
  *                wakeup devices users need to implement wakeup detection in
  *                their interrupt handlers.
+ * IRQF_NO_SOFTIRQ_CALL - Do not process softirqs in the irq thread context (RT)
  */
 #define IRQF_SHARED		0x00000080
 #define IRQF_PROBE_SHARED	0x00000100
@@ -74,6 +75,7 @@
 #define IRQF_NO_THREAD		0x00010000
 #define IRQF_EARLY_RESUME	0x00020000
 #define IRQF_COND_SUSPEND	0x00040000
+#define IRQF_NO_SOFTIRQ_CALL	0x00080000
 
 #define IRQF_TIMER		(__IRQF_TIMER | IRQF_NO_SUSPEND | IRQF_NO_THREAD)
 
@@ -427,7 +429,11 @@ extern int irq_set_irqchip_state(unsigned int irq, enum irqchip_irq_state which,
 				 bool state);
 
 #ifdef CONFIG_IRQ_FORCED_THREADING
+# ifdef CONFIG_PREEMPT_RT_BASE
+#  define force_irqthreads	(true)
+# else
 extern bool force_irqthreads;
+# endif
 #else
 #define force_irqthreads	(0)
 #endif
@@ -493,9 +499,10 @@ struct softirq_action
 	void	(*action)(struct softirq_action *);
 };
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 asmlinkage void do_softirq(void);
 asmlinkage void __do_softirq(void);
-
+static inline void thread_do_softirq(void) { do_softirq(); }
 #ifdef __ARCH_HAS_DO_SOFTIRQ
 void do_softirq_own_stack(void);
 #else
@@ -504,13 +511,25 @@ static inline void do_softirq_own_stack(void)
 	__do_softirq();
 }
 #endif
+#else
+extern void thread_do_softirq(void);
+#endif
 
 extern void open_softirq(int nr, void (*action)(struct softirq_action *));
 extern void softirq_init(void);
 extern void __raise_softirq_irqoff(unsigned int nr);
+#ifdef CONFIG_PREEMPT_RT_FULL
+extern void __raise_softirq_irqoff_ksoft(unsigned int nr);
+#else
+static inline void __raise_softirq_irqoff_ksoft(unsigned int nr)
+{
+	__raise_softirq_irqoff(nr);
+}
+#endif
 
 extern void raise_softirq_irqoff(unsigned int nr);
 extern void raise_softirq(unsigned int nr);
+extern void softirq_check_pending_idle(void);
 
 DECLARE_PER_CPU(struct task_struct *, ksoftirqd);
 
@@ -532,8 +551,9 @@ static inline struct task_struct *this_cpu_ksoftirqd(void)
      to be executed on some cpu at least once after this.
    * If the tasklet is already scheduled, but its execution is still not
      started, it will be executed only once.
-   * If this tasklet is already running on another CPU (or schedule is called
-     from tasklet itself), it is rescheduled for later.
+   * If this tasklet is already running on another CPU, it is rescheduled
+     for later.
+   * Schedule must not be called from the tasklet itself (a lockup occurs)
    * Tasklet is strictly serialized wrt itself, but not
      wrt another tasklets. If client needs some intertask synchronization,
      he makes it with spinlocks.
@@ -558,13 +578,26 @@ struct tasklet_struct name = { NULL, 0, ATOMIC_INIT(1), func, data }
 enum
 {
 	TASKLET_STATE_SCHED,	/* Tasklet is scheduled for execution */
-	TASKLET_STATE_RUN	/* Tasklet is running (SMP only) */
+	TASKLET_STATE_RUN,	/* Tasklet is running (SMP only) */
+	TASKLET_STATE_PENDING,	/* Tasklet is pending */
+	TASKLET_STATE_CHAINED	/* Tasklet is chained */
 };
 
-#ifdef CONFIG_SMP
+#define TASKLET_STATEF_SCHED	(1 << TASKLET_STATE_SCHED)
+#define TASKLET_STATEF_RUN	(1 << TASKLET_STATE_RUN)
+#define TASKLET_STATEF_PENDING	(1 << TASKLET_STATE_PENDING)
+#define TASKLET_STATEF_CHAINED	(1 << TASKLET_STATE_CHAINED)
+#define TASKLET_STATEF_RC	(TASKLET_STATEF_RUN | TASKLET_STATEF_CHAINED)
+
+#if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT_RT_FULL)
 static inline int tasklet_trylock(struct tasklet_struct *t)
 {
 	return !test_and_set_bit(TASKLET_STATE_RUN, &(t)->state);
+}
+
+static inline int tasklet_tryunlock(struct tasklet_struct *t)
+{
+	return cmpxchg(&t->state, TASKLET_STATEF_RUN, 0) == TASKLET_STATEF_RUN;
 }
 
 static inline void tasklet_unlock(struct tasklet_struct *t)
@@ -573,12 +606,11 @@ static inline void tasklet_unlock(struct tasklet_struct *t)
 	clear_bit(TASKLET_STATE_RUN, &(t)->state);
 }
 
-static inline void tasklet_unlock_wait(struct tasklet_struct *t)
-{
-	while (test_bit(TASKLET_STATE_RUN, &(t)->state)) { barrier(); }
-}
+extern void tasklet_unlock_wait(struct tasklet_struct *t);
+
 #else
 #define tasklet_trylock(t) 1
+#define tasklet_tryunlock(t)	1
 #define tasklet_unlock_wait(t) do { } while (0)
 #define tasklet_unlock(t) do { } while (0)
 #endif
@@ -612,16 +644,17 @@ static inline void tasklet_disable(struct tasklet_struct *t)
 	smp_mb();
 }
 
-static inline void tasklet_enable(struct tasklet_struct *t)
-{
-	smp_mb__before_atomic();
-	atomic_dec(&t->count);
-}
-
+extern void tasklet_enable(struct tasklet_struct *t);
 extern void tasklet_kill(struct tasklet_struct *t);
 extern void tasklet_kill_immediate(struct tasklet_struct *t, unsigned int cpu);
 extern void tasklet_init(struct tasklet_struct *t,
 			 void (*func)(unsigned long), unsigned long data);
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+extern void softirq_early_init(void);
+#else
+static inline void softirq_early_init(void) { }
+#endif
 
 struct tasklet_hrtimer {
 	struct hrtimer		timer;

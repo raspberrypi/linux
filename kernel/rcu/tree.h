@@ -413,7 +413,9 @@ extern struct list_head rcu_struct_flavors;
  */
 extern struct rcu_state rcu_sched_state;
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 extern struct rcu_state rcu_bh_state;
+#endif
 
 #ifdef CONFIG_PREEMPT_RCU
 extern struct rcu_state rcu_preempt_state;
@@ -421,12 +423,10 @@ extern struct rcu_state rcu_preempt_state;
 
 int rcu_dynticks_snap(struct rcu_dynticks *rdtp);
 
-#ifdef CONFIG_RCU_BOOST
 DECLARE_PER_CPU(unsigned int, rcu_cpu_kthread_status);
 DECLARE_PER_CPU(int, rcu_cpu_kthread_cpu);
 DECLARE_PER_CPU(unsigned int, rcu_cpu_kthread_loops);
 DECLARE_PER_CPU(char, rcu_cpu_has_work);
-#endif /* #ifdef CONFIG_RCU_BOOST */
 
 #ifndef RCU_TREE_NONCORE
 
@@ -449,8 +449,8 @@ static void dump_blkd_tasks(struct rcu_state *rsp, struct rcu_node *rnp,
 			    int ncheck);
 static void rcu_initiate_boost(struct rcu_node *rnp, unsigned long flags);
 static void rcu_preempt_boost_start_gp(struct rcu_node *rnp);
-static void invoke_rcu_callbacks_kthread(void);
 static bool rcu_is_callbacks_kthread(void);
+static void rcu_cpu_kthread_setup(unsigned int cpu);
 #ifdef CONFIG_RCU_BOOST
 static int rcu_spawn_one_boost_kthread(struct rcu_state *rsp,
 						 struct rcu_node *rnp);

@@ -857,9 +857,11 @@ int kdb_printf(const char *fmt, ...)
 	va_list ap;
 	int r;
 
+	kdb_trap_printk++;
 	va_start(ap, fmt);
 	r = vkdb_printf(KDB_MSGSRC_INTERNAL, fmt, ap);
 	va_end(ap);
+	kdb_trap_printk--;
 
 	return r;
 }

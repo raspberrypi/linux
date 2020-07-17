@@ -17,6 +17,7 @@
 #include <linux/cpu.h>
 #include <linux/notifier.h>
 #include <linux/smp.h>
+#include <linux/interrupt.h>
 #include <asm/processor.h>
 
 
@@ -57,29 +58,40 @@ void __weak arch_irq_work_raise(void)
 }
 
 /* Enqueue on current CPU, work must already be claimed and preempt disabled */
-static void __irq_work_queue_local(struct irq_work *work)
+static void __irq_work_queue_local(struct irq_work *work, struct llist_head *list)
 {
-	/* If the work is "lazy", handle it from next tick if any */
-	if (work->flags & IRQ_WORK_LAZY) {
-		if (llist_add(&work->llnode, this_cpu_ptr(&lazy_list)) &&
-		    tick_nohz_tick_stopped())
-			arch_irq_work_raise();
-	} else {
-		if (llist_add(&work->llnode, this_cpu_ptr(&raised_list)))
-			arch_irq_work_raise();
-	}
+	bool empty;
+
+	empty = llist_add(&work->llnode, list);
+
+	if (empty &&
+	    (!(work->flags & IRQ_WORK_LAZY) ||
+	     tick_nohz_tick_stopped()))
+		arch_irq_work_raise();
+}
+
+static inline bool use_lazy_list(struct irq_work *work)
+{
+	return (IS_ENABLED(CONFIG_PREEMPT_RT_FULL) && !(work->flags & IRQ_WORK_HARD_IRQ))
+		|| (work->flags & IRQ_WORK_LAZY);
 }
 
 /* Enqueue the irq work @work on the current CPU */
 bool irq_work_queue(struct irq_work *work)
 {
+	struct llist_head *list;
+
 	/* Only queue if not already pending */
 	if (!irq_work_claim(work))
 		return false;
 
 	/* Queue the entry and raise the IPI if needed. */
 	preempt_disable();
-	__irq_work_queue_local(work);
+	if (use_lazy_list(work))
+		list = this_cpu_ptr(&lazy_list);
+	else
+		list = this_cpu_ptr(&raised_list);
+	__irq_work_queue_local(work, list);
 	preempt_enable();
 
 	return true;
@@ -98,6 +110,8 @@ bool irq_work_queue_on(struct irq_work *work, int cpu)
 	return irq_work_queue(work);
 
 #else /* CONFIG_SMP: */
+	struct llist_head *list;
+
 	/* All work should have been flushed before going offline */
 	WARN_ON_ONCE(cpu_is_offline(cpu));
 
@@ -106,13 +120,18 @@ bool irq_work_queue_on(struct irq_work *work, int cpu)
 		return false;
 
 	preempt_disable();
+	if (use_lazy_list(work))
+		list = &per_cpu(lazy_list, cpu);
+	else
+		list = &per_cpu(raised_list, cpu);
+
 	if (cpu != smp_processor_id()) {
 		/* Arch remote IPI send/receive backend aren't NMI safe */
 		WARN_ON_ONCE(in_nmi());
-		if (llist_add(&work->llnode, &per_cpu(raised_list, cpu)))
+		if (llist_add(&work->llnode, list))
 			arch_send_call_function_single_ipi(cpu);
 	} else {
-		__irq_work_queue_local(work);
+		__irq_work_queue_local(work, list);
 	}
 	preempt_enable();
 
@@ -128,9 +147,8 @@ bool irq_work_needs_cpu(void)
 	raised = this_cpu_ptr(&raised_list);
 	lazy = this_cpu_ptr(&lazy_list);
 
-	if (llist_empty(raised) || arch_irq_work_has_interrupt())
-		if (llist_empty(lazy))
-			return false;
+	if (llist_empty(raised) && llist_empty(lazy))
+		return false;
 
 	/* All work should have been flushed before going offline */
 	WARN_ON_ONCE(cpu_is_offline(smp_processor_id()));
@@ -144,8 +162,12 @@ static void irq_work_run_list(struct llist_head *list)
 	struct llist_node *llnode;
 	unsigned long flags;
 
+#ifndef CONFIG_PREEMPT_RT_FULL
+	/*
+	 * nort: On RT IRQ-work may run in SOFTIRQ context.
+	 */
 	BUG_ON(!irqs_disabled());
-
+#endif
 	if (llist_empty(list))
 		return;
 
@@ -177,7 +199,16 @@ static void irq_work_run_list(struct llist_head *list)
 void irq_work_run(void)
 {
 	irq_work_run_list(this_cpu_ptr(&raised_list));
-	irq_work_run_list(this_cpu_ptr(&lazy_list));
+	if (IS_ENABLED(CONFIG_PREEMPT_RT_FULL)) {
+		/*
+		 * NOTE: we raise softirq via IPI for safety,
+		 * and execute in irq_work_tick() to move the
+		 * overhead from hard to soft irq context.
+		 */
+		if (!llist_empty(this_cpu_ptr(&lazy_list)))
+			raise_softirq(TIMER_SOFTIRQ);
+	} else
+		irq_work_run_list(this_cpu_ptr(&lazy_list));
 }
 EXPORT_SYMBOL_GPL(irq_work_run);
 
@@ -187,8 +218,17 @@ void irq_work_tick(void)
 
 	if (!llist_empty(raised) && !arch_irq_work_has_interrupt())
 		irq_work_run_list(raised);
+
+	if (!IS_ENABLED(CONFIG_PREEMPT_RT_FULL))
+		irq_work_run_list(this_cpu_ptr(&lazy_list));
+}
+
+#if defined(CONFIG_IRQ_WORK) && defined(CONFIG_PREEMPT_RT_FULL)
+void irq_work_tick_soft(void)
+{
 	irq_work_run_list(this_cpu_ptr(&lazy_list));
 }
+#endif
 
 /*
  * Synchronize against the irq_work @entry, ensures the entry is not

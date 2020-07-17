@@ -28,6 +28,7 @@
 #include <linux/mm_types_task.h>
 #include <linux/task_io_accounting.h>
 #include <linux/rseq.h>
+#include <asm/kmap_types.h>
 
 /* task_struct member predeclarations (sorted alphabetically): */
 struct audit_context;
@@ -101,11 +102,7 @@ struct task_group;
 					 __TASK_TRACED | EXIT_DEAD | EXIT_ZOMBIE | \
 					 TASK_PARKED)
 
-#define task_is_traced(task)		((task->state & __TASK_TRACED) != 0)
-
 #define task_is_stopped(task)		((task->state & __TASK_STOPPED) != 0)
-
-#define task_is_stopped_or_traced(task)	((task->state & (__TASK_STOPPED | __TASK_TRACED)) != 0)
 
 #define task_contributes_to_load(task)	((task->state & TASK_UNINTERRUPTIBLE) != 0 && \
 					 (task->flags & PF_FROZEN) == 0 && \
@@ -134,6 +131,9 @@ struct task_group;
 		smp_store_mb(current->state, (state_value));	\
 	} while (0)
 
+#define __set_current_state_no_track(state_value)		\
+	current->state = (state_value);
+
 #define set_special_state(state_value)					\
 	do {								\
 		unsigned long flags; /* may shadow */			\
@@ -143,6 +143,7 @@ struct task_group;
 		current->state = (state_value);				\
 		raw_spin_unlock_irqrestore(&current->pi_lock, flags);	\
 	} while (0)
+
 #else
 /*
  * set_current_state() includes a barrier so that the write of current->state
@@ -187,6 +188,9 @@ struct task_group;
 #define set_current_state(state_value)					\
 	smp_store_mb(current->state, (state_value))
 
+#define __set_current_state_no_track(state_value)	\
+	__set_current_state(state_value)
+
 /*
  * set_special_state() should be used for those states when the blocking task
  * can not use the regular condition based wait-loop. In that case we must
@@ -222,6 +226,8 @@ extern int __must_check io_schedule_prepare(void);
 extern void io_schedule_finish(int token);
 extern long io_schedule_timeout(long timeout);
 extern void io_schedule(void);
+
+int cpu_nr_pinned(int cpu);
 
 /**
  * struct prev_cputime - snapshot of system and user cputime
@@ -600,6 +606,8 @@ struct task_struct {
 #endif
 	/* -1 unrunnable, 0 runnable, >0 stopped: */
 	volatile long			state;
+	/* saved state for "spinlock sleepers" */
+	volatile long			saved_state;
 
 	/*
 	 * This begins the randomizable portion of task_struct. Only
@@ -660,7 +668,22 @@ struct task_struct {
 
 	unsigned int			policy;
 	int				nr_cpus_allowed;
-	cpumask_t			cpus_allowed;
+	const cpumask_t			*cpus_ptr;
+	cpumask_t			cpus_mask;
+#if defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
+	int				migrate_disable;
+	bool				migrate_disable_scheduled;
+# ifdef CONFIG_SCHED_DEBUG
+	int				pinned_on_cpu;
+# endif
+#elif !defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
+# ifdef CONFIG_SCHED_DEBUG
+	int				migrate_disable;
+# endif
+#endif
+#ifdef CONFIG_PREEMPT_RT_FULL
+	int				sleeping_lock;
+#endif
 
 #ifdef CONFIG_PREEMPT_RCU
 	int				rcu_read_lock_nesting;
@@ -824,6 +847,9 @@ struct task_struct {
 #ifdef CONFIG_POSIX_TIMERS
 	struct task_cputime		cputime_expires;
 	struct list_head		cpu_timers[3];
+#ifdef CONFIG_PREEMPT_RT_BASE
+	struct task_struct		*posix_timer_list;
+#endif
 #endif
 
 	/* Process credentials: */
@@ -868,11 +894,17 @@ struct task_struct {
 	/* Signal handlers: */
 	struct signal_struct		*signal;
 	struct sighand_struct		*sighand;
+	struct sigqueue			*sigqueue_cache;
+
 	sigset_t			blocked;
 	sigset_t			real_blocked;
 	/* Restored if set_restore_sigmask() was used: */
 	sigset_t			saved_sigmask;
 	struct sigpending		pending;
+#ifdef CONFIG_PREEMPT_RT_FULL
+	/* TODO: move me into ->restart_block ? */
+	struct				siginfo forced_info;
+#endif
 	unsigned long			sas_ss_sp;
 	size_t				sas_ss_size;
 	unsigned int			sas_ss_flags;
@@ -897,6 +929,7 @@ struct task_struct {
 	raw_spinlock_t			pi_lock;
 
 	struct wake_q_node		wake_q;
+	struct wake_q_node		wake_q_sleeper;
 
 #ifdef CONFIG_RT_MUTEXES
 	/* PI waiters blocked on a rt_mutex held by this task: */
@@ -1179,8 +1212,22 @@ struct task_struct {
 	unsigned int			sequential_io;
 	unsigned int			sequential_io_avg;
 #endif
+#ifdef CONFIG_PREEMPT_RT_BASE
+	struct rcu_head			put_rcu;
+	int				softirq_nestcnt;
+	unsigned int			softirqs_raised;
+#endif
+#ifdef CONFIG_PREEMPT_RT_FULL
+# if defined CONFIG_HIGHMEM || defined CONFIG_X86_32
+	int				kmap_idx;
+	pte_t				kmap_pte[KM_TYPE_NR];
+# endif
+#endif
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP
 	unsigned long			task_state_change;
+#endif
+#ifdef CONFIG_PREEMPT_RT_FULL
+	int				xmit_recursion;
 #endif
 	int				pagefault_disabled;
 #ifdef CONFIG_MMU
@@ -1375,6 +1422,7 @@ extern struct pid *cad_pid;
 /*
  * Per process flags
  */
+#define PF_IN_SOFTIRQ		0x00000001      /* Task is serving softirq */
 #define PF_IDLE			0x00000002	/* I am an IDLE thread */
 #define PF_EXITING		0x00000004	/* Getting shut down */
 #define PF_EXITPIDONE		0x00000008	/* PI exit done on shut down */
@@ -1398,7 +1446,7 @@ extern struct pid *cad_pid;
 #define PF_KTHREAD		0x00200000	/* I am a kernel thread */
 #define PF_RANDOMIZE		0x00400000	/* Randomize virtual address space */
 #define PF_SWAPWRITE		0x00800000	/* Allowed to write to swap */
-#define PF_NO_SETAFFINITY	0x04000000	/* Userland is not allowed to meddle with cpus_allowed */
+#define PF_NO_SETAFFINITY	0x04000000	/* Userland is not allowed to meddle with cpus_mask */
 #define PF_MCE_EARLY		0x08000000      /* Early kill for mce process policy */
 #define PF_MUTEX_TESTER		0x20000000	/* Thread belongs to the rt mutex tester */
 #define PF_FREEZER_SKIP		0x40000000	/* Freezer should not count it as freezable */
@@ -1603,6 +1651,7 @@ extern struct task_struct *find_get_task_by_vpid(pid_t nr);
 
 extern int wake_up_state(struct task_struct *tsk, unsigned int state);
 extern int wake_up_process(struct task_struct *tsk);
+extern int wake_up_lock_sleeper(struct task_struct *tsk);
 extern void wake_up_new_task(struct task_struct *tsk);
 
 #ifdef CONFIG_SMP
@@ -1685,6 +1734,89 @@ static inline int test_tsk_need_resched(struct task_struct *tsk)
 	return unlikely(test_tsk_thread_flag(tsk,TIF_NEED_RESCHED));
 }
 
+#ifdef CONFIG_PREEMPT_LAZY
+static inline void set_tsk_need_resched_lazy(struct task_struct *tsk)
+{
+	set_tsk_thread_flag(tsk,TIF_NEED_RESCHED_LAZY);
+}
+
+static inline void clear_tsk_need_resched_lazy(struct task_struct *tsk)
+{
+	clear_tsk_thread_flag(tsk,TIF_NEED_RESCHED_LAZY);
+}
+
+static inline int test_tsk_need_resched_lazy(struct task_struct *tsk)
+{
+	return unlikely(test_tsk_thread_flag(tsk,TIF_NEED_RESCHED_LAZY));
+}
+
+static inline int need_resched_lazy(void)
+{
+	return test_thread_flag(TIF_NEED_RESCHED_LAZY);
+}
+
+static inline int need_resched_now(void)
+{
+	return test_thread_flag(TIF_NEED_RESCHED);
+}
+
+#else
+static inline void clear_tsk_need_resched_lazy(struct task_struct *tsk) { }
+static inline int need_resched_lazy(void) { return 0; }
+
+static inline int need_resched_now(void)
+{
+	return test_thread_flag(TIF_NEED_RESCHED);
+}
+
+#endif
+
+
+static inline bool __task_is_stopped_or_traced(struct task_struct *task)
+{
+	if (task->state & (__TASK_STOPPED | __TASK_TRACED))
+		return true;
+#ifdef CONFIG_PREEMPT_RT_FULL
+	if (task->saved_state & (__TASK_STOPPED | __TASK_TRACED))
+		return true;
+#endif
+	return false;
+}
+
+static inline bool task_is_stopped_or_traced(struct task_struct *task)
+{
+	bool traced_stopped;
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&task->pi_lock, flags);
+	traced_stopped = __task_is_stopped_or_traced(task);
+	raw_spin_unlock_irqrestore(&task->pi_lock, flags);
+#else
+	traced_stopped = __task_is_stopped_or_traced(task);
+#endif
+	return traced_stopped;
+}
+
+static inline bool task_is_traced(struct task_struct *task)
+{
+	bool traced = false;
+
+	if (task->state & __TASK_TRACED)
+		return true;
+#ifdef CONFIG_PREEMPT_RT_FULL
+	/* in case the task is sleeping on tasklist_lock */
+	raw_spin_lock_irq(&task->pi_lock);
+	if (task->state & __TASK_TRACED)
+		traced = true;
+	else if (task->saved_state & __TASK_TRACED)
+		traced = true;
+	raw_spin_unlock_irq(&task->pi_lock);
+#endif
+	return traced;
+}
+
 /*
  * cond_resched() and cond_resched_lock(): latency reduction via
  * explicit rescheduling in places that are safe. The return
@@ -1736,6 +1868,23 @@ static __always_inline bool need_resched(void)
 {
 	return unlikely(tif_need_resched());
 }
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+static inline void sleeping_lock_inc(void)
+{
+	current->sleeping_lock++;
+}
+
+static inline void sleeping_lock_dec(void)
+{
+	current->sleeping_lock--;
+}
+
+#else
+
+static inline void sleeping_lock_inc(void) { }
+static inline void sleeping_lock_dec(void) { }
+#endif
 
 /*
  * Wrappers for p->thread_info->cpu access. No-op on UP.
@@ -1907,5 +2056,7 @@ static inline void rseq_syscall(struct pt_regs *regs)
 }
 
 #endif
+
+extern struct task_struct *takedown_cpu_task;
 
 #endif

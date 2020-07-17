@@ -8,6 +8,7 @@
 #include <linux/mm.h>
 #include <linux/uaccess.h>
 #include <linux/hardirq.h>
+#include <linux/sched.h>
 
 #include <asm/cacheflush.h>
 
@@ -66,7 +67,7 @@ static inline void kunmap(struct page *page)
 
 static inline void *kmap_atomic(struct page *page)
 {
-	preempt_disable();
+	preempt_disable_nort();
 	pagefault_disable();
 	return page_address(page);
 }
@@ -75,7 +76,7 @@ static inline void *kmap_atomic(struct page *page)
 static inline void __kunmap_atomic(void *addr)
 {
 	pagefault_enable();
-	preempt_enable();
+	preempt_enable_nort();
 }
 
 #define kmap_atomic_pfn(pfn)	kmap_atomic(pfn_to_page(pfn))
@@ -87,32 +88,51 @@ static inline void __kunmap_atomic(void *addr)
 
 #if defined(CONFIG_HIGHMEM) || defined(CONFIG_X86_32)
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 DECLARE_PER_CPU(int, __kmap_atomic_idx);
+#endif
 
 static inline int kmap_atomic_idx_push(void)
 {
+#ifndef CONFIG_PREEMPT_RT_FULL
 	int idx = __this_cpu_inc_return(__kmap_atomic_idx) - 1;
 
-#ifdef CONFIG_DEBUG_HIGHMEM
+# ifdef CONFIG_DEBUG_HIGHMEM
 	WARN_ON_ONCE(in_irq() && !irqs_disabled());
 	BUG_ON(idx >= KM_TYPE_NR);
-#endif
+# endif
 	return idx;
+#else
+	current->kmap_idx++;
+	BUG_ON(current->kmap_idx > KM_TYPE_NR);
+	return current->kmap_idx - 1;
+#endif
 }
 
 static inline int kmap_atomic_idx(void)
 {
+#ifndef CONFIG_PREEMPT_RT_FULL
 	return __this_cpu_read(__kmap_atomic_idx) - 1;
+#else
+	return current->kmap_idx - 1;
+#endif
 }
 
 static inline void kmap_atomic_idx_pop(void)
 {
-#ifdef CONFIG_DEBUG_HIGHMEM
+#ifndef CONFIG_PREEMPT_RT_FULL
+# ifdef CONFIG_DEBUG_HIGHMEM
 	int idx = __this_cpu_dec_return(__kmap_atomic_idx);
 
 	BUG_ON(idx < 0);
-#else
+# else
 	__this_cpu_dec(__kmap_atomic_idx);
+# endif
+#else
+	current->kmap_idx--;
+# ifdef CONFIG_DEBUG_HIGHMEM
+	BUG_ON(current->kmap_idx < 0);
+# endif
 #endif
 }
 

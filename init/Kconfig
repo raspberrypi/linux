@@ -784,6 +784,7 @@ config CFS_BANDWIDTH
 config RT_GROUP_SCHED
 	bool "Group scheduling for SCHED_RR/FIFO"
 	depends on CGROUP_SCHED
+	depends on !PREEMPT_RT_FULL
 	default n
 	help
 	  This feature lets you explicitly allocate real CPU bandwidth
@@ -1637,6 +1638,7 @@ choice
 
 config SLAB
 	bool "SLAB"
+	depends on !PREEMPT_RT_FULL
 	select HAVE_HARDENED_USERCOPY_ALLOCATOR
 	help
 	  The regular slab allocator that is established and known to work
@@ -1657,6 +1659,7 @@ config SLUB
 config SLOB
 	depends on EXPERT
 	bool "SLOB (Simple Allocator)"
+	depends on !PREEMPT_RT_FULL
 	help
 	   SLOB replaces the stock allocator with a drastically simpler
 	   allocator. SLOB is generally more space efficient but
@@ -1698,7 +1701,7 @@ config SLAB_FREELIST_HARDENED
 
 config SLUB_CPU_PARTIAL
 	default y
-	depends on SLUB && SMP
+	depends on SLUB && SMP && !PREEMPT_RT_FULL
 	bool "SLUB per cpu partial cache"
 	help
 	  Per cpu partial caches accellerate objects allocation and freeing

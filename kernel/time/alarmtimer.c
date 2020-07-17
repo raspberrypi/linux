@@ -438,7 +438,7 @@ int alarm_cancel(struct alarm *alarm)
 		int ret = alarm_try_to_cancel(alarm);
 		if (ret >= 0)
 			return ret;
-		cpu_relax();
+		hrtimer_grab_expiry_lock(&alarm->timer);
 	}
 }
 EXPORT_SYMBOL_GPL(alarm_cancel);

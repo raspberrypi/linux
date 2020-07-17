@@ -121,6 +121,7 @@ struct kioctx {
 	long			nr_pages;
 
 	struct rcu_work		free_rwork;	/* see free_ioctx() */
+	struct work_struct	free_work;	/* see free_ioctx() */
 
 	/*
 	 * signals when all in-flight requests are done
@@ -606,9 +607,9 @@ static void free_ioctx_reqs(struct percpu_ref *ref)
  * and ctx->users has dropped to 0, so we know no more kiocbs can be submitted -
  * now it's safe to cancel any that need to be.
  */
-static void free_ioctx_users(struct percpu_ref *ref)
+static void free_ioctx_users_work(struct work_struct *work)
 {
-	struct kioctx *ctx = container_of(ref, struct kioctx, users);
+	struct kioctx *ctx = container_of(work, struct kioctx, free_work);
 	struct aio_kiocb *req;
 
 	spin_lock_irq(&ctx->ctx_lock);
@@ -624,6 +625,14 @@ static void free_ioctx_users(struct percpu_ref *ref)
 
 	percpu_ref_kill(&ctx->reqs);
 	percpu_ref_put(&ctx->reqs);
+}
+
+static void free_ioctx_users(struct percpu_ref *ref)
+{
+	struct kioctx *ctx = container_of(ref, struct kioctx, users);
+
+	INIT_WORK(&ctx->free_work, free_ioctx_users_work);
+	schedule_work(&ctx->free_work);
 }
 
 static int ioctx_add_table(struct kioctx *ctx, struct mm_struct *mm)

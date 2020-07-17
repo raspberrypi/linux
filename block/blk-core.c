@@ -189,6 +189,9 @@ void blk_rq_init(struct request_queue *q, struct request *rq)
 
 	INIT_LIST_HEAD(&rq->queuelist);
 	INIT_LIST_HEAD(&rq->timeout_list);
+#ifdef CONFIG_PREEMPT_RT_FULL
+	INIT_WORK(&rq->work, __blk_mq_complete_request_remote_work);
+#endif
 	rq->cpu = -1;
 	rq->q = q;
 	rq->__sector = (sector_t) -1;
@@ -970,12 +973,21 @@ void blk_queue_exit(struct request_queue *q)
 	percpu_ref_put(&q->q_usage_counter);
 }
 
+static void blk_queue_usage_counter_release_wrk(struct work_struct *work)
+{
+	struct request_queue *q =
+		container_of(work, struct request_queue, mq_pcpu_wake);
+
+	wake_up_all(&q->mq_freeze_wq);
+}
+
 static void blk_queue_usage_counter_release(struct percpu_ref *ref)
 {
 	struct request_queue *q =
 		container_of(ref, struct request_queue, q_usage_counter);
 
-	wake_up_all(&q->mq_freeze_wq);
+	if (wq_has_sleeper(&q->mq_freeze_wq))
+		schedule_work(&q->mq_pcpu_wake);
 }
 
 static void blk_rq_timed_out_timer(struct timer_list *t)
@@ -1072,6 +1084,7 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id,
 	queue_flag_set_unlocked(QUEUE_FLAG_BYPASS, q);
 
 	init_waitqueue_head(&q->mq_freeze_wq);
+	INIT_WORK(&q->mq_pcpu_wake, blk_queue_usage_counter_release_wrk);
 
 	/*
 	 * Init percpu_ref in atomic mode so that it's faster to shutdown.

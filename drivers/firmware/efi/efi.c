@@ -87,7 +87,7 @@ struct mm_struct efi_mm = {
 
 struct workqueue_struct *efi_rts_wq;
 
-static bool disable_runtime;
+static bool disable_runtime = IS_ENABLED(CONFIG_PREEMPT_RT_BASE);
 static int __init setup_noefi(char *arg)
 {
 	disable_runtime = true;
@@ -112,6 +112,9 @@ static int __init parse_efi_cmdline(char *str)
 
 	if (parse_option_str(str, "noruntime"))
 		disable_runtime = true;
+
+	if (parse_option_str(str, "runtime"))
+		disable_runtime = false;
 
 	return 0;
 }

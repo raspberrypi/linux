@@ -1166,7 +1166,7 @@ static struct Qdisc *qdisc_create(struct net_device *dev,
 		rcu_assign_pointer(sch->stab, stab);
 	}
 	if (tca[TCA_RATE]) {
-		seqcount_t *running;
+		net_seqlock_t *running;
 
 		err = -EOPNOTSUPP;
 		if (sch->flags & TCQ_F_MQROOT) {

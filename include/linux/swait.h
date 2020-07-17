@@ -160,7 +160,9 @@ static inline bool swq_has_sleeper(struct swait_queue_head *wq)
 extern void swake_up_one(struct swait_queue_head *q);
 extern void swake_up_all(struct swait_queue_head *q);
 extern void swake_up_locked(struct swait_queue_head *q);
+extern void swake_up_all_locked(struct swait_queue_head *q);
 
+extern void __prepare_to_swait(struct swait_queue_head *q, struct swait_queue *wait);
 extern void prepare_to_swait_exclusive(struct swait_queue_head *q, struct swait_queue *wait, int state);
 extern long prepare_to_swait_event(struct swait_queue_head *q, struct swait_queue *wait, int state);
 
@@ -296,5 +298,19 @@ do {									\
 						   condition, timeout);	\
 	__ret;								\
 })
+
+#define __swait_event_lock_irq(wq, condition, lock, cmd)		\
+	___swait_event(wq, condition, TASK_UNINTERRUPTIBLE, 0,		\
+		       raw_spin_unlock_irq(&lock);			\
+		       cmd;						\
+		       schedule();					\
+		       raw_spin_lock_irq(&lock))
+
+#define swait_event_lock_irq(wq_head, condition, lock)			\
+	do {								\
+		if (condition)						\
+			break;						\
+		__swait_event_lock_irq(wq_head, condition, lock, );	\
+	} while (0)
 
 #endif /* _LINUX_SWAIT_H */

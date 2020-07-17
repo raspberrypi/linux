@@ -176,7 +176,7 @@ system_call:			/* label this so stack traces look sane */
  * based on caller's run-mode / personality.
  */
 	ld	r11,SYS_CALL_TABLE@toc(2)
-	andi.	r10,r10,_TIF_32BIT
+	andis.	r10,r10,_TIF_32BIT@h
 	beq	15f
 	addi	r11,r11,8	/* use 32-bit syscall entries */
 	clrldi	r3,r3,32
@@ -250,7 +250,9 @@ system_call_exit:
 
 	ld	r9,TI_FLAGS(r12)
 	li	r11,-MAX_ERRNO
-	andi.	r0,r9,(_TIF_SYSCALL_DOTRACE|_TIF_SINGLESTEP|_TIF_USER_WORK_MASK|_TIF_PERSYSCALL_MASK)
+	lis	r0,(_TIF_SYSCALL_DOTRACE|_TIF_SINGLESTEP|_TIF_USER_WORK_MASK|_TIF_PERSYSCALL_MASK)@h
+	ori	r0,r0,(_TIF_SYSCALL_DOTRACE|_TIF_SINGLESTEP|_TIF_USER_WORK_MASK|_TIF_PERSYSCALL_MASK)@l
+	and.	r0,r9,r0
 	bne-	.Lsyscall_exit_work
 
 	andi.	r0,r8,MSR_FP
@@ -363,25 +365,25 @@ END_FTR_SECTION_IFSET(CPU_FTR_HAS_PPR)
 	/* If TIF_RESTOREALL is set, don't scribble on either r3 or ccr.
 	 If TIF_NOERROR is set, just save r3 as it is. */
 
-	andi.	r0,r9,_TIF_RESTOREALL
+	andis.	r0,r9,_TIF_RESTOREALL@h
 	beq+	0f
 	REST_NVGPRS(r1)
 	b	2f
 0:	cmpld	r3,r11		/* r11 is -MAX_ERRNO */
 	blt+	1f
-	andi.	r0,r9,_TIF_NOERROR
+	andis.	r0,r9,_TIF_NOERROR@h
 	bne-	1f
 	ld	r5,_CCR(r1)
 	neg	r3,r3
 	oris	r5,r5,0x1000	/* Set SO bit in CR */
 	std	r5,_CCR(r1)
 1:	std	r3,GPR3(r1)
-2:	andi.	r0,r9,(_TIF_PERSYSCALL_MASK)
+2:	andis.	r0,r9,(_TIF_PERSYSCALL_MASK)@h
 	beq	4f
 
 	/* Clear per-syscall TIF flags if any are set.  */
 
-	li	r11,_TIF_PERSYSCALL_MASK
+	lis	r11,(_TIF_PERSYSCALL_MASK)@h
 	addi	r12,r12,TI_FLAGS
 3:	ldarx	r10,0,r12
 	andc	r10,r10,r11
@@ -774,7 +776,7 @@ _GLOBAL(ret_from_except_lite)
 	bl	restore_math
 	b	restore
 #endif
-1:	andi.	r0,r4,_TIF_NEED_RESCHED
+1:	andi.	r0,r4,_TIF_NEED_RESCHED_MASK
 	beq	2f
 	bl	restore_interrupts
 	SCHEDULE_USER
@@ -836,10 +838,18 @@ resume_kernel:
 
 #ifdef CONFIG_PREEMPT
 	/* Check if we need to preempt */
-	andi.	r0,r4,_TIF_NEED_RESCHED
-	beq+	restore
-	/* Check that preempt_count() == 0 and interrupts are enabled */
 	lwz	r8,TI_PREEMPT(r9)
+	cmpwi	0,r8,0		/* if non-zero, just restore regs and return */
+	bne	restore
+	andi.	r0,r4,_TIF_NEED_RESCHED
+	bne+	check_count
+
+	andi.	r0,r4,_TIF_NEED_RESCHED_LAZY
+	beq+	restore
+	lwz	r8,TI_PREEMPT_LAZY(r9)
+
+	/* Check that preempt_count() == 0 and interrupts are enabled */
+check_count:
 	cmpwi	cr0,r8,0
 	bne	restore
 	ld	r0,SOFTE(r1)
@@ -856,7 +866,7 @@ resume_kernel:
 	/* Re-test flags and eventually loop */
 	CURRENT_THREAD_INFO(r9, r1)
 	ld	r4,TI_FLAGS(r9)
-	andi.	r0,r4,_TIF_NEED_RESCHED
+	andi.	r0,r4,_TIF_NEED_RESCHED_MASK
 	bne	1b
 
 	/*

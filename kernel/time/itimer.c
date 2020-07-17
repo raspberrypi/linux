@@ -215,6 +215,7 @@ again:
 		/* We are sharing ->siglock with it_real_fn() */
 		if (hrtimer_try_to_cancel(timer) < 0) {
 			spin_unlock_irq(&tsk->sighand->siglock);
+			hrtimer_grab_expiry_lock(timer);
 			goto again;
 		}
 		expires = timeval_to_ktime(value->it_value);

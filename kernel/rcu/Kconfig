@@ -172,7 +172,7 @@ config RCU_FANOUT_LEAF
 
 config RCU_FAST_NO_HZ
 	bool "Accelerate last non-dyntick-idle CPU's grace periods"
-	depends on NO_HZ_COMMON && SMP && RCU_EXPERT
+	depends on NO_HZ_COMMON && SMP && RCU_EXPERT && !PREEMPT_RT_FULL
 	default n
 	help
 	  This option permits CPUs to enter dynticks-idle state even if
@@ -190,8 +190,8 @@ config RCU_FAST_NO_HZ
 
 config RCU_BOOST
 	bool "Enable RCU priority boosting"
-	depends on RT_MUTEXES && PREEMPT_RCU && RCU_EXPERT
-	default n
+	depends on (RT_MUTEXES && PREEMPT_RCU && RCU_EXPERT) || PREEMPT_RT_FULL
+	default y if PREEMPT_RT_FULL
 	help
 	  This option boosts the priority of preempted RCU readers that
 	  block the current preemptible RCU grace period for too long.

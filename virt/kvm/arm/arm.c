@@ -723,7 +723,7 @@ int kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu, struct kvm_run *run)
 		 * involves poking the GIC, which must be done in a
 		 * non-preemptible context.
 		 */
-		preempt_disable();
+		migrate_disable();
 
 		kvm_pmu_flush_hwstate(vcpu);
 
@@ -772,7 +772,7 @@ int kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu, struct kvm_run *run)
 				kvm_timer_sync_hwstate(vcpu);
 			kvm_vgic_sync_hwstate(vcpu);
 			local_irq_enable();
-			preempt_enable();
+			migrate_enable();
 			continue;
 		}
 
@@ -850,7 +850,7 @@ int kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu, struct kvm_run *run)
 		/* Exit types that need handling before we can be preempted */
 		handle_exit_early(vcpu, run, ret);
 
-		preempt_enable();
+		migrate_enable();
 
 		ret = handle_exit(vcpu, run, ret);
 	}

@@ -15,6 +15,7 @@ struct cpu_timer_list {
 	u64 expires, incr;
 	struct task_struct *task;
 	int firing;
+	int firing_cpu;
 };
 
 /*
@@ -114,8 +115,8 @@ struct k_itimer {
 		struct {
 			struct alarm	alarmtimer;
 		} alarm;
-		struct rcu_head		rcu;
 	} it;
+	struct rcu_head		rcu;
 };
 
 void run_posix_cpu_timers(struct task_struct *task);

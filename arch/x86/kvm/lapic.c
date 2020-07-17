@@ -2261,7 +2261,7 @@ int kvm_create_lapic(struct kvm_vcpu *vcpu)
 	apic->vcpu = vcpu;
 
 	hrtimer_init(&apic->lapic_timer.timer, CLOCK_MONOTONIC,
-		     HRTIMER_MODE_ABS_PINNED);
+		     HRTIMER_MODE_ABS_PINNED_HARD);
 	apic->lapic_timer.timer.function = apic_timer_fn;
 
 	/*

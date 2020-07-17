@@ -62,6 +62,8 @@ struct trace_entry {
 	unsigned char		flags;
 	unsigned char		preempt_count;
 	int			pid;
+	unsigned char		migrate_disable;
+	unsigned char		preempt_lazy_count;
 };
 
 #define TRACE_EVENT_TYPE_MAX						\
