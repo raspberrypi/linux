@@ -396,4 +396,18 @@ extern void dwc_otg_fiq_fsm(struct fiq_state *state, int num_channels);
 
 extern void dwc_otg_fiq_nop(struct fiq_state *state);
 
+#define fiq_fsm_spin_lock_irqsave(lock, flags)		\
+	do {											\
+		local_fiq_disable();						\
+		local_irq_save(flags);						\
+		fiq_fsm_spin_lock(lock);					\
+	} while (0)
+
+#define fiq_fsm_spin_unlock_irqrestore(lock, flags)	\
+	do {											\
+		fiq_fsm_spin_unlock(lock);					\
+		local_irq_restore(flags);					\
+		local_fiq_enable();							\
+	} while (0)
+
 #endif /* DWC_OTG_FIQ_FSM_H_ */
