@@ -17,6 +17,7 @@
 		target = <&uart1>;
 		__overlay__ {
 			status = "disabled";
+			skip-init;
 		};
 	};
 
@@ -26,6 +27,7 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&uart0_pins>;
 			status = "okay";
+			skip-init;
 		};
 	};
 
