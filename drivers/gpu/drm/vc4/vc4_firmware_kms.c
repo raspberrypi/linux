@@ -48,7 +48,7 @@ struct vc4_fkms {
 	bool bcm2711;
 };
 
-#define PLANES_PER_CRTC		3
+#define PLANES_PER_CRTC		8
 
 struct set_plane {
 	u8 display;
@@ -1742,7 +1742,6 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 	struct vc4_crtc *vc4_crtc;
 	struct vc4_fkms_encoder *vc4_encoder;
 	struct drm_crtc *crtc;
-	struct drm_plane *primary_plane, *overlay_plane, *cursor_plane;
 	struct drm_plane *destroy_plane, *temp;
 	struct mailbox_blank_display blank = {
 		.tag1 = {RPI_FIRMWARE_FRAMEBUFFER_SET_DISPLAY_NUM, 4, 0, },
@@ -1750,7 +1749,8 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 		.tag2 = { RPI_FIRMWARE_FRAMEBUFFER_BLANK, 4, 0, },
 		.blank = 1,
 	};
-	int ret;
+	struct drm_plane *planes[PLANES_PER_CRTC];
+	int ret, i;
 
 	vc4_crtc = devm_kzalloc(dev, sizeof(*vc4_crtc), GFP_KERNEL);
 	if (!vc4_crtc)
@@ -1763,38 +1763,26 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 	/* Blank the firmware provided framebuffer */
 	rpi_firmware_property_list(vc4->firmware, &blank, sizeof(blank));
 
-	primary_plane = vc4_fkms_plane_init(drm, DRM_PLANE_TYPE_PRIMARY,
-					    display_ref,
-					    0 + (display_idx * PLANES_PER_CRTC)
-					   );
-	if (IS_ERR(primary_plane)) {
-		dev_err(dev, "failed to construct primary plane\n");
-		ret = PTR_ERR(primary_plane);
-		goto err;
+	for (i = 0; i < PLANES_PER_CRTC; i++) {
+		planes[i] = vc4_fkms_plane_init(drm,
+						(i == 0) ?
+						  DRM_PLANE_TYPE_PRIMARY :
+						  (i == PLANES_PER_CRTC - 1) ?
+							DRM_PLANE_TYPE_CURSOR :
+							DRM_PLANE_TYPE_OVERLAY,
+						display_ref,
+						i + (display_idx * PLANES_PER_CRTC)
+					       );
+		if (IS_ERR(planes[i])) {
+			dev_err(dev, "failed to construct plane %u\n", i);
+			ret = PTR_ERR(planes[i]);
+			goto err;
+		}
 	}
 
-	overlay_plane = vc4_fkms_plane_init(drm, DRM_PLANE_TYPE_OVERLAY,
-					    display_ref,
-					    1 + (display_idx * PLANES_PER_CRTC)
-					   );
-	if (IS_ERR(overlay_plane)) {
-		dev_err(dev, "failed to construct overlay plane\n");
-		ret = PTR_ERR(overlay_plane);
-		goto err;
-	}
-
-	cursor_plane = vc4_fkms_plane_init(drm, DRM_PLANE_TYPE_CURSOR,
-					   display_ref,
-					   2 + (display_idx * PLANES_PER_CRTC)
-					  );
-	if (IS_ERR(cursor_plane)) {
-		dev_err(dev, "failed to construct cursor plane\n");
-		ret = PTR_ERR(cursor_plane);
-		goto err;
-	}
-
-	drm_crtc_init_with_planes(drm, crtc, primary_plane, cursor_plane,
-				  &vc4_crtc_funcs, NULL);
+	drm_crtc_init_with_planes(drm, crtc, planes[0],
+				  planes[PLANES_PER_CRTC - 1], &vc4_crtc_funcs,
+				  NULL);
 	drm_crtc_helper_add(crtc, &vc4_crtc_helper_funcs);
 
 	vc4_encoder = devm_kzalloc(dev, sizeof(*vc4_encoder), GFP_KERNEL);
