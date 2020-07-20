@@ -94,7 +94,6 @@ static void actpwr_trig_cycle(struct timer_list *t)
 {
 	struct actpwr_trig_data *trig  = &actpwr_data;
 	struct actpwr_vled *active;
-	enum led_brightness value;
 
 	active = &trig->virt_leds[trig->next_active];
 	trig->active = active;
