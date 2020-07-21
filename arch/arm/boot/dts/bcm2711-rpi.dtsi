@@ -300,7 +300,3 @@
 &hvs {
 	clocks = <&firmware_clocks 4>;
 };
-
-&hvs {
-	clocks = <&firmware_clocks 4>;
-};
