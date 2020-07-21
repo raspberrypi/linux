@@ -2729,7 +2729,17 @@ vchiq_register_child(struct platform_device *pdev, const char *name)
 
 	child->dev.of_node = np;
 
+	/*
+	 * We want the dma-ranges etc to be copied from the parent VCHIQ device
+	 * to be passed on to the children without a node of their own.
+	 */
+	if (!np)
+		np = pdev->dev.of_node;
+
 	of_dma_configure(&child->dev, np, true);
+
+	if (np != pdev->dev.of_node)
+		of_node_put(np);
 
 	return child;
 }
