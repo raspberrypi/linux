@@ -7,7 +7,6 @@
 #include <linux/of_address.h>
 #include <linux/of_pci.h>
 #include <linux/platform_device.h>
-#include <linux/pm_runtime.h>
 
 #include "pcie-cadence.h"
 
@@ -256,7 +255,7 @@ int cdns_pcie_host_setup(struct cdns_pcie_rc *rc)
 
 	ret = cdns_pcie_host_init(dev, &resources, rc);
 	if (ret)
-		goto err_init;
+		return ret;
 
 	list_splice_init(&resources, &bridge->windows);
 	bridge->dev.parent = dev;
@@ -273,9 +272,6 @@ int cdns_pcie_host_setup(struct cdns_pcie_rc *rc)
 
  err_host_probe:
 	pci_free_resource_list(&resources);
-
- err_init:
-	pm_runtime_put_sync(dev);
 
 	return ret;
 }
