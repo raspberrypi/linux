@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
+# Copyright 2020 Hristo Venev
+%YAML 1.2
+---
+$id: "http://devicetree.org/schemas/firmware/raspberrypi,vc-mem.yaml#"
+$schema: "http://devicetree.org/meta-schemas/core.yaml#"
+
+title: VideoCore Memory Access
+
+maintainers:
+  - Hristo Venev <hristo@venev.name>
+
+description: |
+  The firmware for the Broadcom VideoCore found in the Raspberry Pi can
+  provide its exact load address to the operating system for debugging
+  purposes.
+
+  The register space used by the vc-mem node is the address space of the
+  VideoCore. It is equivalent to the address space of the legacy DMA
+  engines, but different from the DMA4 engines found on the Raspberry Pi 4.
+  It is also different from the address space of the CPU. On some Raspberry
+  Pi models, some addresses cannot be accessed by the ARM core because I/O
+  memory is mapped there instead. For those ranges, DMA is the only way to
+  access them.
+
+required:
+  - compatible
+  - reg
+
+properties:
+  compatible:
+    items:
+      - const: raspberrypi,vc-mem
+  reg:
+    minItems: 3
+    maxItems: 3
+  dmas:
+    minItems: 1
+    maxItems: 1
+  dma-names:
+    items:
+      - const: rx-tx
+
+examples:
+  - |
+    vc_mem {
+            compatible = "raspberrypi,vc-mem";
+            reg = <0x3ec00000, 0x40000000, 0xc0000000>;
+            dmas = <&dma 0x01>;
+            dma-names = "rx-tx";
+            status = "okay";
+    };

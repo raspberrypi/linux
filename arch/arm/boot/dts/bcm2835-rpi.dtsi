@@ -11,6 +11,19 @@
 		};
 	};
 
+	axi {
+		vc_mem {
+			compatible = "raspberrypi,vc-mem";
+
+			// Set by firmware.
+			// reg = <VC base address, VC end address, VC physical address?>;
+
+			dmas = <&dma 0x01>; // priority=1, panic priority=0
+			dma-names = "rx-tx";
+			status = "okay";
+		};
+	};
+
 	soc {
 		firmware: firmware {
 			compatible = "raspberrypi,bcm2835-firmware", "simple-bus";

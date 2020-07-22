@@ -16,51 +16,56 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/device.h>
+#include <linux/dmaengine.h>
 #include <linux/cdev.h>
+#include <linux/miscdevice.h>
 #include <linux/mm.h>
+#include <linux/of_address.h>
 #include <linux/slab.h>
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
 #include <linux/dma-mapping.h>
 #include <linux/broadcom/vc_mem.h>
+#include <linux/platform_device.h>
+#include <linux/ptrace.h>
 
 #define DRIVER_NAME  "vc-mem"
 
-/* Device (/dev) related variables */
-static dev_t vc_mem_devnum;
-static struct class *vc_mem_class;
-static struct cdev vc_mem_cdev;
-static int vc_mem_inited;
+#define VC_MEM_DMA_SIZE 4096
+
+struct vc_mem {
+	struct miscdevice misc;
+
+	/*
+	 * Videocore memory addresses and size
+	 *
+	 * Drivers that wish to know the videocore memory addresses and sizes should
+	 * use these variables instead of the MM_IO_BASE and MM_ADDR_IO defines in
+	 * headers. This allows the other drivers to not be tied down to a a certain
+	 * address/size at compile time.
+	 *
+	 * In the future, the goal is to have the videocore memory virtual address and
+	 * size be calculated at boot time rather than at compile time. The decision of
+	 * where the videocore memory resides and its size would be in the hands of the
+	 * bootloader (and/or kernel). When that happens, the values of these variables
+	 * would be calculated and assigned in the init function.
+	 */
+	/* In the 2835 VC in mapped above ARM, but ARM has full access to VC space */
+	unsigned long phys_addr;
+	u32 base;
+	u32 size;
+
+	struct dma_chan *dma_chan;
 
 #ifdef CONFIG_DEBUG_FS
-static struct dentry *vc_mem_debugfs_entry;
+	struct dentry *debugfs_entry;
 #endif
+};
 
-/*
- * Videocore memory addresses and size
- *
- * Drivers that wish to know the videocore memory addresses and sizes should
- * use these variables instead of the MM_IO_BASE and MM_ADDR_IO defines in
- * headers. This allows the other drivers to not be tied down to a a certain
- * address/size at compile time.
- *
- * In the future, the goal is to have the videocore memory virtual address and
- * size be calculated at boot time rather than at compile time. The decision of
- * where the videocore memory resides and its size would be in the hands of the
- * bootloader (and/or kernel). When that happens, the values of these variables
- * would be calculated and assigned in the init function.
- */
-/* In the 2835 VC in mapped above ARM, but ARM has full access to VC space */
 unsigned long mm_vc_mem_phys_addr;
 EXPORT_SYMBOL(mm_vc_mem_phys_addr);
 unsigned int mm_vc_mem_size;
 EXPORT_SYMBOL(mm_vc_mem_size);
-unsigned int mm_vc_mem_base;
-EXPORT_SYMBOL(mm_vc_mem_base);
-
-static uint phys_addr;
-static uint mem_size;
-static uint mem_base;
 
 static int
 vc_mem_open(struct inode *inode, struct file *file)
@@ -68,6 +73,9 @@ vc_mem_open(struct inode *inode, struct file *file)
 	(void)inode;
 
 	pr_debug("%s: called file = 0x%p\n", __func__, file);
+
+	file->f_mode |= FMODE_UNSIGNED_OFFSET;
+	file->private_data = container_of(file->private_data, struct vc_mem, misc);
 
 	return 0;
 }
@@ -82,91 +90,42 @@ vc_mem_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static void
-vc_mem_get_size(void)
-{
-}
-
-static void
-vc_mem_get_base(void)
-{
-}
-
-int
-vc_mem_get_current_size(void)
-{
-	return mm_vc_mem_size;
-}
-EXPORT_SYMBOL_GPL(vc_mem_get_current_size);
-
 static long
 vc_mem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int rc = 0;
-
-	(void) cmd;
-	(void) arg;
+	struct vc_mem *drv = file->private_data;
 
 	pr_debug("%s: called file = 0x%p, cmd %08x\n", __func__, file, cmd);
 
 	switch (cmd) {
 	case VC_MEM_IOC_MEM_PHYS_ADDR:
-		{
-			pr_debug("%s: VC_MEM_IOC_MEM_PHYS_ADDR=0x%p\n",
-				__func__, (void *)mm_vc_mem_phys_addr);
+		pr_debug("%s: VC_MEM_IOC_MEM_PHYS_ADDR=%lx\n",
+			 __func__, drv->phys_addr);
 
-			if (copy_to_user((void *)arg, &mm_vc_mem_phys_addr,
-					 sizeof(mm_vc_mem_phys_addr))) {
-				rc = -EFAULT;
-			}
-			break;
-		}
+		if (copy_to_user((void __user *)arg, &drv->phys_addr, sizeof(drv->phys_addr)))
+			rc = -EFAULT;
+		break;
+
 	case VC_MEM_IOC_MEM_SIZE:
-		{
-			/* Get the videocore memory size first */
-			vc_mem_get_size();
+		pr_debug("%s: VC_MEM_IOC_MEM_SIZE=%x\n",
+			 __func__, drv->size);
 
-			pr_debug("%s: VC_MEM_IOC_MEM_SIZE=%x\n", __func__,
-				 mm_vc_mem_size);
+		if (copy_to_user((void __user *)arg, &drv->size, sizeof(drv->size)))
+			rc = -EFAULT;
+		break;
 
-			if (copy_to_user((void *)arg, &mm_vc_mem_size,
-					 sizeof(mm_vc_mem_size))) {
-				rc = -EFAULT;
-			}
-			break;
-		}
 	case VC_MEM_IOC_MEM_BASE:
-		{
-			/* Get the videocore memory base */
-			vc_mem_get_base();
-
-			pr_debug("%s: VC_MEM_IOC_MEM_BASE=%x\n", __func__,
-				 mm_vc_mem_base);
-
-			if (copy_to_user((void *)arg, &mm_vc_mem_base,
-					 sizeof(mm_vc_mem_base))) {
-				rc = -EFAULT;
-			}
-			break;
-		}
 	case VC_MEM_IOC_MEM_LOAD:
-		{
-			/* Get the videocore memory base */
-			vc_mem_get_base();
+		pr_debug("%s: VC_MEM_IOC_MEM_BASE=%x\n",
+			 __func__, drv->base);
 
-			pr_debug("%s: VC_MEM_IOC_MEM_LOAD=%x\n", __func__,
-				mm_vc_mem_base);
+		if (copy_to_user((void __user *)arg, &drv->base, sizeof(drv->base)))
+			rc = -EFAULT;
+		break;
 
-			if (copy_to_user((void *)arg, &mm_vc_mem_base,
-					 sizeof(mm_vc_mem_base))) {
-				rc = -EFAULT;
-			}
-			break;
-		}
 	default:
-		{
-			return -ENOTTY;
-		}
+		rc = -ENOTTY;
 	}
 	pr_debug("%s: file = 0x%p returning %d\n", __func__, file, rc);
 
@@ -178,20 +137,23 @@ static long
 vc_mem_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int rc = 0;
+	struct vc_mem *drv = file->private_data;
 
 	switch (cmd) {
 	case VC_MEM_IOC_MEM_PHYS_ADDR32:
-		pr_debug("%s: VC_MEM_IOC_MEM_PHYS_ADDR32=0x%p\n",
-			 __func__, (void *)mm_vc_mem_phys_addr);
+		{
+			/* This isn't correct, but will cover us for now as
+			 * VideoCore is 32bit only.
+			 */
+			compat_ulong_t phys_addr = drv->phys_addr;
 
-		/* This isn't correct, but will cover us for now as
-		 * VideoCore is 32bit only.
-		 */
-		if (copy_to_user((void *)arg, &mm_vc_mem_phys_addr,
-				 sizeof(compat_ulong_t)))
-			rc = -EFAULT;
+			pr_debug("%s: VC_MEM_IOC_MEM_PHYS_ADDR32=0x%p\n",
+				 __func__, (unsigned int)phys_addr);
 
-		break;
+			if (copy_to_user((void __user *)arg, &phys_addr, sizeof(phys_addr)))
+				rc = -EFAULT;
+			break;
+		}
 
 	default:
 		rc = vc_mem_ioctl(file, cmd, arg);
@@ -202,10 +164,110 @@ vc_mem_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 #endif
 
+static loff_t
+vc_mem_llseek(struct file *file, loff_t off, int whence)
+{
+	switch (whence) {
+	case SEEK_CUR:
+		off += file->f_pos;
+		// fallthrough
+	case SEEK_SET:
+		file->f_pos = off;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	force_successful_syscall_return();
+	return off;
+}
+
+static ssize_t
+vc_mem_read(struct file *file, char __user *read_buf, size_t read_size, loff_t *ppos)
+{
+	int err = 0;
+	void *buf;
+	dma_addr_t buf_paddr;
+	dma_addr_t src_begin, src_end, src_at;
+
+	struct vc_mem *drv = file->private_data;
+	struct device *dev = drv->misc.parent;
+	struct dma_chan *dma_chan = drv->dma_chan;
+	struct dma_device *dma_dev = dma_chan->device;
+
+	unsigned long init_pos = *ppos;
+
+#if 0
+	if (init_pos < drv->base || init_pos > drv->size || drv->size - init_pos < read_size)
+		return -EINVAL;
+#endif
+
+	if (read_size == 0)
+		return 0;
+
+	src_begin = *ppos;
+	src_end = src_begin + read_size;
+	src_at = src_begin;
+
+	buf = dmam_alloc_coherent(dev, VC_MEM_DMA_SIZE, &buf_paddr, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	while (src_at != src_end) {
+		size_t tx_size;
+		struct dma_async_tx_descriptor *tx;
+		dma_cookie_t cookie;
+		enum dma_status status;
+
+		tx_size = src_end - src_at;
+		if (tx_size > VC_MEM_DMA_SIZE)
+			tx_size = VC_MEM_DMA_SIZE;
+
+		tx = dma_dev->device_prep_dma_memcpy(dma_chan, buf_paddr, src_at, tx_size, 0);
+		if (!tx) {
+			dev_err(dev, "Failed to prepare DMA\n");
+			err = -ENOMEM;
+			break;
+		}
+
+		cookie = tx->tx_submit(tx);
+		err = dma_submit_error(cookie);
+		if (err) {
+			dev_err(dev, "Failed to submit DMA: %d\n", err);
+			break;
+		}
+
+		status = dma_sync_wait(dma_chan, cookie);
+		if (status != DMA_COMPLETE) {
+			dev_err(dev, "DMA failed: %d\n", status);
+			err = -EIO;
+			break;
+		}
+
+		if (copy_to_user(read_buf, buf, tx_size)) {
+			err = -EFAULT;
+			break;
+		}
+
+		src_at += tx_size;
+		read_buf += tx_size;
+	}
+
+	dmam_free_coherent(dev, VC_MEM_DMA_SIZE, buf, buf_paddr);
+
+	if (src_at == src_begin && err < 0)
+		return err;
+
+	read_size = src_at - src_begin;
+	*ppos = init_pos + read_size;
+	return read_size;
+}
+
 static int
 vc_mem_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	int rc = 0;
+	struct vc_mem *drv = filp->private_data;
 	unsigned long length = vma->vm_end - vma->vm_start;
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 
@@ -213,7 +275,7 @@ vc_mem_mmap(struct file *filp, struct vm_area_struct *vma)
 		 __func__, (long)vma->vm_start, (long)vma->vm_end,
 		 (long)vma->vm_pgoff);
 
-	if (offset + length > mm_vc_mem_size) {
+	if (offset > drv->size || length > drv->size - offset) {
 		pr_err("%s: length %ld is too big\n", __func__, length);
 		return -EINVAL;
 	}
@@ -221,8 +283,8 @@ vc_mem_mmap(struct file *filp, struct vm_area_struct *vma)
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
 	rc = remap_pfn_range(vma, vma->vm_start,
-			     (mm_vc_mem_phys_addr >> PAGE_SHIFT) +
-			     vma->vm_pgoff, length, vma->vm_page_prot);
+			     (drv->phys_addr >> PAGE_SHIFT) + vma->vm_pgoff,
+			     length, vma->vm_page_prot);
 	if (rc)
 		pr_err("%s: remap_pfn_range failed (rc=%d)\n", __func__, rc);
 
@@ -238,138 +300,136 @@ static const struct file_operations vc_mem_fops = {
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = vc_mem_compat_ioctl,
 #endif
+	.llseek = vc_mem_llseek,
+	.read = vc_mem_read,
 	.mmap = vc_mem_mmap,
 };
 
 #ifdef CONFIG_DEBUG_FS
-static void vc_mem_debugfs_deinit(void)
+static int vc_mem_ulong_get(void *data, u64 *val)
 {
-	debugfs_remove_recursive(vc_mem_debugfs_entry);
-	vc_mem_debugfs_entry = NULL;
-}
-
-
-static int vc_mem_debugfs_init(
-	struct device *dev)
-{
-	vc_mem_debugfs_entry = debugfs_create_dir(DRIVER_NAME, NULL);
-	if (!vc_mem_debugfs_entry) {
-		dev_warn(dev, "could not create debugfs entry\n");
-		return -EFAULT;
-	}
-
-	debugfs_create_x32("vc_mem_phys_addr",
-				0444,
-				vc_mem_debugfs_entry,
-				(u32 *)&mm_vc_mem_phys_addr);
-	debugfs_create_x32("vc_mem_size",
-				0444,
-				vc_mem_debugfs_entry,
-				(u32 *)&mm_vc_mem_size);
-	debugfs_create_x32("vc_mem_base",
-				0444,
-				vc_mem_debugfs_entry,
-				(u32 *)&mm_vc_mem_base);
-
+	*val = *(unsigned long *)data;
 	return 0;
 }
 
+DEFINE_DEBUGFS_ATTRIBUTE(vc_mem_phys_addr_fops, vc_mem_ulong_get, NULL, "0x%08llx\n");
 #endif /* CONFIG_DEBUG_FS */
 
-/* Module load/unload functions */
-
-static int __init
-vc_mem_init(void)
+static int vc_mem_probe(struct platform_device *pdev)
 {
-	int rc = -EFAULT;
-	struct device *dev;
+	int ret;
+	struct vc_mem *drv;
+	const __be32 *addrp;
+	int n_addr_bytes;
+	struct dma_chan *dma_chan;
 
-	pr_debug("%s: called\n", __func__);
+	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
+	if (!drv)
+		return -ENOMEM;
+	platform_set_drvdata(pdev, drv);
 
-	mm_vc_mem_phys_addr = phys_addr;
-	mm_vc_mem_size = mem_size;
-	mm_vc_mem_base = mem_base;
+	// Note that the "reg" property provided by firmware is does not
+	// follow any conventions. It is just a bunch of 32-bit addresses.
+	addrp = of_get_property(pdev->dev.of_node, "reg", &n_addr_bytes);
+	if (!addrp || n_addr_bytes != 12)
+		return -ENODEV;
+	drv->base = be32_to_cpu(addrp[0]);
+	drv->size = be32_to_cpu(addrp[1]);
 
-	vc_mem_get_size();
+	drv->phys_addr = 0; // TODO: translate base using ranges, subtract base?
 
-	pr_info("vc-mem: phys_addr:0x%08lx mem_base=0x%08x mem_size:0x%08x(%u MiB)\n",
-		mm_vc_mem_phys_addr, mm_vc_mem_base, mm_vc_mem_size,
-		mm_vc_mem_size / (1024 * 1024));
-
-	rc = alloc_chrdev_region(&vc_mem_devnum, 0, 1, DRIVER_NAME);
-	if (rc < 0) {
-		pr_err("%s: alloc_chrdev_region failed (rc=%d)\n",
-		       __func__, rc);
-		goto out_err;
+	drv->misc.minor = MISC_DYNAMIC_MINOR;
+	drv->misc.name = DRIVER_NAME;
+	drv->misc.fops = &vc_mem_fops;
+	drv->misc.parent = &pdev->dev;
+	ret = misc_register(&drv->misc);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "misc_register: %d\n", ret);
+		return ret;
 	}
 
-	cdev_init(&vc_mem_cdev, &vc_mem_fops);
-	rc = cdev_add(&vc_mem_cdev, vc_mem_devnum, 1);
-	if (rc) {
-		pr_err("%s: cdev_add failed (rc=%d)\n", __func__, rc);
-		goto out_unregister;
+	dma_chan = dma_request_chan(&pdev->dev, "rx-tx");
+	if (IS_ERR(dma_chan)) {
+		ret = PTR_ERR(dma_chan);
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "Failed to get DMA channel: %d\n", ret);
+		return ret;
 	}
-
-	vc_mem_class = class_create(THIS_MODULE, DRIVER_NAME);
-	if (IS_ERR(vc_mem_class)) {
-		rc = PTR_ERR(vc_mem_class);
-		pr_err("%s: class_create failed (rc=%d)\n", __func__, rc);
-		goto out_cdev_del;
-	}
-
-	dev = device_create(vc_mem_class, NULL, vc_mem_devnum, NULL,
-			    DRIVER_NAME);
-	if (IS_ERR(dev)) {
-		rc = PTR_ERR(dev);
-		pr_err("%s: device_create failed (rc=%d)\n", __func__, rc);
-		goto out_class_destroy;
-	}
+	drv->dma_chan = dma_chan;
 
 #ifdef CONFIG_DEBUG_FS
-	/* don't fail if the debug entries cannot be created */
-	vc_mem_debugfs_init(dev);
+	drv->debugfs_entry = debugfs_create_dir(DRIVER_NAME, NULL);
+
+	debugfs_create_file_unsafe("vc_mem_phys_addr",
+				   0444,
+				   drv->debugfs_entry,
+				   &drv->phys_addr,
+				   &vc_mem_phys_addr_fops);
+	debugfs_create_x32("vc_mem_size",
+			   0444,
+			   drv->debugfs_entry,
+			   &drv->size);
+	debugfs_create_x32("vc_mem_base",
+			   0444,
+			   drv->debugfs_entry,
+			   &drv->base);
 #endif
 
-	vc_mem_inited = 1;
+	mm_vc_mem_phys_addr = drv->phys_addr;
+	mm_vc_mem_size = drv->size;
+
+	dev_info(&pdev->dev, "phys_addr:0x%08lx mem_base=0x%08x mem_size:0x%08x(%u MiB)\n",
+		 drv->phys_addr, drv->base, drv->size, drv->size / (1024 * 1024));
+
 	return 0;
-
-	device_destroy(vc_mem_class, vc_mem_devnum);
-
-out_class_destroy:
-	class_destroy(vc_mem_class);
-	vc_mem_class = NULL;
-
-out_cdev_del:
-	cdev_del(&vc_mem_cdev);
-
-out_unregister:
-	unregister_chrdev_region(vc_mem_devnum, 1);
-
-out_err:
-	return -1;
 }
 
-static void __exit
-vc_mem_exit(void)
+static int vc_mem_remove(struct platform_device *pdev)
 {
-	pr_debug("%s: called\n", __func__);
+	struct vc_mem *drv;
 
-	if (vc_mem_inited) {
-#if CONFIG_DEBUG_FS
-		vc_mem_debugfs_deinit();
+	drv = platform_get_drvdata(pdev);
+	if (!drv)
+		return 0;
+
+#ifdef CONFIG_DEBUG_FS
+	debugfs_remove_recursive(drv->debugfs_entry);
 #endif
-		device_destroy(vc_mem_class, vc_mem_devnum);
-		class_destroy(vc_mem_class);
-		cdev_del(&vc_mem_cdev);
-		unregister_chrdev_region(vc_mem_devnum, 1);
-	}
+
+	misc_deregister(&drv->misc);
+
+	if (drv->dma_chan)
+		dma_release_channel(drv->dma_chan);
+
+	return 0;
+}
+
+static const struct of_device_id vc_mem_of_match[] = {
+	{ .compatible = "raspberrypi,vc-mem", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, rpi_firmware_of_match);
+
+static struct platform_driver vc_mem_driver = {
+	.driver = {
+		.name = DRIVER_NAME,
+		.of_match_table = vc_mem_of_match,
+	},
+	.probe		= vc_mem_probe,
+	.remove		= vc_mem_remove,
+};
+
+static int __init vc_mem_init(void)
+{
+	return platform_driver_register(&vc_mem_driver);
+}
+
+static void __exit vc_mem_exit(void)
+{
+	platform_driver_unregister(&vc_mem_driver);
 }
 
 module_init(vc_mem_init);
 module_exit(vc_mem_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Broadcom Corporation");
-
-module_param(phys_addr, uint, 0644);
-module_param(mem_size, uint, 0644);
-module_param(mem_base, uint, 0644);

@@ -130,7 +130,7 @@ static inline int bcm_dma_chan_free(int channel)
 static inline int bcm_dmaman_probe(struct platform_device *pdev,
 				   void __iomem *base, u32 chans_available)
 {
-	return 0;
+	return -ENODEV;
 }
 
 static inline int bcm_dmaman_remove(struct platform_device *pdev)
