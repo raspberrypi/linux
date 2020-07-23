@@ -3370,7 +3370,7 @@ done:
 		bt_dev_err(hdev, "Suspend notifier action (%lu) failed: %d",
 			   action, ret);
 
-	return NOTIFY_STOP;
+	return NOTIFY_DONE;
 }
 
 /* Alloc HCI device */
