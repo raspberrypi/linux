@@ -5,6 +5,7 @@ config CLK_BCM2835
 	depends on COMMON_CLK
 	default ARCH_BCM2835 || ARCH_BRCMSTB
 	select RESET_SIMPLE
+	select RESET_CONTROLLER
 	help
 	  Enable common clock framework support for Broadcom BCM2835
 	  SoCs.
