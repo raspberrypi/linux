@@ -121,9 +121,6 @@ static void __dwc3_set_mode(struct work_struct *work)
 	int ret;
 	u32 reg;
 
-	if (dwc->dr_mode != USB_DR_MODE_OTG)
-		return;
-
 	pm_runtime_get_sync(dwc->dev);
 
 	if (dwc->current_dr_role == DWC3_GCTL_PRTCAP_OTG)
@@ -208,6 +205,9 @@ out:
 void dwc3_set_mode(struct dwc3 *dwc, u32 mode)
 {
 	unsigned long flags;
+
+	if (dwc->dr_mode != USB_DR_MODE_OTG)
+		return;
 
 	spin_lock_irqsave(&dwc->lock, flags);
 	dwc->desired_dr_role = mode;
