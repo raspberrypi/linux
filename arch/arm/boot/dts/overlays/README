@@ -1622,6 +1622,36 @@ Params: no-sdmode               Driver does not manage the state of the DAC's
                                 of the DAC (default GPIO4 if parameter omitted).
 
 
+Name:   maxtherm
+Info:   Configure a MAX6675 or MAX31855 thermocouple as an IIO device.
+
+        For devices on spi1 or spi2, the interfaces should be enabled
+        with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
+        The overlay expects to disable the relevant spidev node, so also using
+        e.g. cs0_spidev=off is unnecessary.
+
+        Note:   with the 5.7 kernel (and later) there will also be
+                overlays for MAX31855E, MAX31855J, MAX31855K,
+                MAX31885N, MAX31855R, MAX31855S and MAX31855T.
+
+        Example:
+        MAX31855 on /dev/spidev0.0
+            dtoverlay=maxtherm,spi0-0,max31855
+
+Load:   dtoverlay=maxtherm,<param>=<val>
+Params: spi<n>-<m>              Configure device at spi<n>, cs<m>
+                                (boolean, required)
+        max6675                 Enable support for the MAX6675 (default)
+        max31855                Enable support for the MAX31855
+        max31855e               Enable support for the MAX31855E
+        max31855j               Enable support for the MAX31855J
+        max31855k               Enable support for the MAX31855K
+        max31855n               Enable support for the MAX31855N
+        max31855r               Enable support for the MAX31855R
+        max31855s               Enable support for the MAX31855S
+        max31855t               Enable support for the MAX31855T
+
+
 Name:   mbed-dac
 Info:   Configures the mbed AudioCODEC (TLV320AIC23B)
 Load:   dtoverlay=mbed-dac
