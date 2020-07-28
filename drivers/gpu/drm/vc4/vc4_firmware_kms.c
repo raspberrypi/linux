@@ -718,7 +718,6 @@ static bool vc4_fkms_format_mod_supported(struct drm_plane *plane,
 		switch (modifier) {
 		case DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED:
 		case DRM_FORMAT_MOD_LINEAR:
-		case DRM_FORMAT_MOD_BROADCOM_UIF:
 			return true;
 		default:
 			return false;
