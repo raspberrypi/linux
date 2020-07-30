@@ -159,7 +159,6 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	spi-gpio40-45.dtbo \
 	spi-rtc.dtbo \
 	spi0-cs.dtbo \
-	spi0-hw-cs.dtbo \
 	spi1-1cs.dtbo \
 	spi1-2cs.dtbo \
 	spi1-3cs.dtbo \
