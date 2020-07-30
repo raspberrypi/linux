@@ -2346,9 +2346,9 @@ Params: cs0_pin                 GPIO pin for CS0 (default 8)
 
 
 Name:   spi0-hw-cs
-Info:   Re-enables hardware CS/CE (chip selects) for SPI0
-Load:   dtoverlay=spi0-hw-cs
-Params: <None>
+Info:   This overlay has been deprecated and removed because it is no longer
+        necessary and has been seen to prevent spi0 from working.
+Load:   <Deprecated>
 
 
 Name:   spi1-1cs
