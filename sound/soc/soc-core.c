@@ -443,7 +443,6 @@ static struct snd_soc_pcm_runtime *soc_new_pcm_runtime(
 
 	dev->parent	= card->dev;
 	dev->release	= soc_release_rtd_dev;
-	dev->groups	= soc_dev_attr_groups;
 
 	dev_set_name(dev, "%s", dai_link->name);
 
@@ -501,6 +500,10 @@ static struct snd_soc_pcm_runtime *soc_new_pcm_runtime(
 	list_add_tail(&rtd->list, &card->rtd_list);
 	rtd->num = card->num_rtd;
 	card->num_rtd++;
+
+	ret = device_add_groups(dev, soc_dev_attr_groups);
+	if (ret < 0)
+		goto free_rtd;
 
 	return rtd;
 
