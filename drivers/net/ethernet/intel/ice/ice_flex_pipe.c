@@ -2291,6 +2291,8 @@ static void ice_free_flow_profs(struct ice_hw *hw, u8 blk_idx)
 	mutex_lock(&hw->fl_profs_locks[blk_idx]);
 	list_for_each_entry_safe(p, tmp, &hw->fl_profs[blk_idx], l_entry) {
 		list_del(&p->l_entry);
+
+		mutex_destroy(&p->entries_lock);
 		devm_kfree(ice_hw_to_dev(hw), p);
 	}
 	mutex_unlock(&hw->fl_profs_locks[blk_idx]);
@@ -2408,7 +2410,7 @@ void ice_clear_hw_tbls(struct ice_hw *hw)
 		memset(prof_redir->t, 0,
 		       prof_redir->count * sizeof(*prof_redir->t));
 
-		memset(es->t, 0, es->count * sizeof(*es->t));
+		memset(es->t, 0, es->count * sizeof(*es->t) * es->fvw);
 		memset(es->ref_count, 0, es->count * sizeof(*es->ref_count));
 		memset(es->written, 0, es->count * sizeof(*es->written));
 	}
