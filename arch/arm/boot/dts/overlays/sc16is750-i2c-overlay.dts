@@ -13,26 +13,31 @@
 
 			sc16is750: sc16is750@48 {
 				compatible = "nxp,sc16is750";
-				reg = <0x48>; /* address */
+				reg = <0x48>; /* i2c address */
 				clocks = <&sc16is750_clk>;
 				interrupt-parent = <&gpio>;
 				interrupts = <24 2>; /* IRQ_TYPE_EDGE_FALLING */
+				gpio-controller;
 				#gpio-cells = <2>;
-
-				sc16is750_clk: sc16is750_clk {
-					compatible = "fixed-clock";
-					#clock-cells = <0>;
-					clock-frequency = <14745600>;
-				};
+				i2c-max-frequency = <400000>;
 			};
 		};
 	};
 
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			sc16is750_clk: sc16is750_i2c_clk@48 {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <14745600>;
+			};
+		};
+	};
 
 	__overrides__ {
 		int_pin = <&sc16is750>,"interrupts:0";
-		addr = <&sc16is750>,"reg:0",<&sc16is750_clk>,"name";
+		addr = <&sc16is750>,"reg:0", <&sc16is750_clk>,"name";
 		xtal = <&sc16is750_clk>,"clock-frequency:0";
 	};
-
 };

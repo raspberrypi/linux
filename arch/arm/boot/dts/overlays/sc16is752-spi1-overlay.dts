@@ -21,7 +21,7 @@
 
 	fragment@1 {
 		target = <&spi1>;
-		frag1: __overlay__ {
+		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			pinctrl-names = "default";
@@ -35,7 +35,7 @@
 				clocks = <&sc16is752_clk>;
 				interrupt-parent = <&gpio>;
 				interrupts = <24 2>; /* IRQ_TYPE_EDGE_FALLING */
-				#gpio-controller;
+				gpio-controller;
 				#gpio-cells = <2>;
 				spi-max-frequency = <4000000>;
 			};
@@ -52,7 +52,7 @@
 	fragment@3 {
 		target-path = "/";
 		__overlay__ {
-			sc16is752_clk: sc16is752_spi1_clk {
+			sc16is752_clk: sc16is752_spi1_0_clk {
 				compatible = "fixed-clock";
 				#clock-cells = <0>;
 				clock-frequency = <14745600>;

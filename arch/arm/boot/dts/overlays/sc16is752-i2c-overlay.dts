@@ -5,29 +5,32 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2c1>;
-
-		frag1: __overlay__ {
+		target = <&i2c_arm>;
+		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
 
 			sc16is752: sc16is752@48 {
 				compatible = "nxp,sc16is752";
-				reg = <0x48>; // i2c address
+				reg = <0x48>; /* i2c address */
 				clocks = <&sc16is752_clk>;
 				interrupt-parent = <&gpio>;
-				interrupts = <24 0x2>; /* IRQ_TYPE_EDGE_FALLING */
+				interrupts = <24 2>; /* IRQ_TYPE_EDGE_FALLING */
 				gpio-controller;
-				#gpio-cells = <0>;
+				#gpio-cells = <2>;
 				i2c-max-frequency = <400000>;
-				status = "okay";
+			};
+		};
+	};
 
-				sc16is752_clk: sc16is752_clk {
-					compatible = "fixed-clock";
-					#clock-cells = <0>;
-					clock-frequency = <14745600>;
-				};
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			sc16is752_clk: sc16is752_i2c_clk@48 {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <14745600>;
 			};
 		};
 	};
