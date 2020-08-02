@@ -45,6 +45,13 @@
                 gpios = <&gpio 7 0>;
                 status = "okay";
             };
+
+            iio-hwmon {
+                compatible = "iio-hwmon";
+                status = "okay";
+                io-channels = <&tla2024 4>, <&tla2024 5>, <&tla2024 6>,
+                              <&tla2024 7>;
+            };
         };
     };
 
@@ -91,6 +98,7 @@
                 reg = <0x48>;
                 #address-cells = <1>;
                 #size-cells = <0>;
+                #io-channel-cells = <1>;
 
                 adc_ch4: channel@4 {
                     reg = <4>;
