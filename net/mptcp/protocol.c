@@ -802,7 +802,6 @@ fallback:
 
 	mptcp_set_timeout(sk, ssk);
 	if (copied) {
-		ret = copied;
 		tcp_push(ssk, msg->msg_flags, mss_now, tcp_sk(ssk)->nonagle,
 			 size_goal);
 
@@ -815,7 +814,7 @@ fallback:
 	release_sock(ssk);
 out:
 	release_sock(sk);
-	return ret;
+	return copied ? : ret;
 }
 
 static void mptcp_wait_data(struct sock *sk, long *timeo)
