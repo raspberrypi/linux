@@ -2232,6 +2232,7 @@ restart:
 		if (io_req_needs_user(req) && !cur_mm) {
 			if (!mmget_not_zero(ctx->sqo_mm)) {
 				ret = -EFAULT;
+				goto end_req;
 			} else {
 				cur_mm = ctx->sqo_mm;
 				use_mm(cur_mm);
