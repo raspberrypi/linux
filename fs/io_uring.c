@@ -1433,8 +1433,10 @@ static int io_read(struct io_kiocb *req, const struct sqe_submit *s,
 
 		if (file->f_op->read_iter)
 			ret2 = call_read_iter(file, kiocb, &iter);
-		else
+		else if (req->file->f_op->read)
 			ret2 = loop_rw_iter(READ, file, kiocb, &iter);
+		else
+			ret2 = -EINVAL;
 
 		/*
 		 * In case of a short read, punt to async. This can happen
@@ -1524,8 +1526,10 @@ static int io_write(struct io_kiocb *req, const struct sqe_submit *s,
 
 		if (file->f_op->write_iter)
 			ret2 = call_write_iter(file, kiocb, &iter);
-		else
+		else if (req->file->f_op->write)
 			ret2 = loop_rw_iter(WRITE, file, kiocb, &iter);
+		else
+			ret2 = -EINVAL;
 
 		if (!force_nonblock)
 			current->signal->rlim[RLIMIT_FSIZE].rlim_cur = RLIM_INFINITY;
