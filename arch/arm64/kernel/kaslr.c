@@ -10,8 +10,8 @@
 #include <linux/mm_types.h>
 #include <linux/sched.h>
 #include <linux/types.h>
+#include <linux/random.h>
 
-#include <asm/archrandom.h>
 #include <asm/cacheflush.h>
 #include <asm/fixmap.h>
 #include <asm/kernel-pgtable.h>
