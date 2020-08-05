@@ -212,6 +212,7 @@
 		status = "disabled";
 		reg = <0x0 0x7e9c0000  0x0 0x100000>;
 		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>;
+		power-domains = <&power RPI_POWER_DOMAIN_USB>;
 	};
 
 	hevc-decoder@7eb00000 {
