@@ -145,6 +145,13 @@
 		};
 	};
 
+	fragment@20 {
+		target = <&dvp>;
+		__overlay__  {
+			status = "okay";
+		};
+	};
+
 	__overrides__ {
 		audio   = <0>,"!17";
 		audio1   = <0>,"!18";
