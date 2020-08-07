@@ -226,6 +226,17 @@ v3d_csd_job_run(struct drm_sched_job *sched_job)
 	struct dma_fence *fence;
 	int i;
 
+	/* This error is set to -ECANCELED by drm_sched_resubmit_jobs() if this
+	 * job timed out more than sched_job->sched->hang_limit times.
+	 */
+	int error = sched_job->s_fence->finished.error;
+
+	if (unlikely(error < 0)) {
+		DRM_WARN("Skipping CSD job resubmission due to previous error (%d)\n",
+			 error);
+		return ERR_PTR(error);
+	}
+
 	v3d->csd_job = job;
 
 	v3d_invalidate_caches(v3d);
