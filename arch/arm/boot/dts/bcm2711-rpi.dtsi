@@ -46,6 +46,7 @@
 			clocks = <&clk_108MHz>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+			status = "disabled";
 		};
 
 		hdmi0: hdmi@7ef00700 {
