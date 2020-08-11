@@ -4140,6 +4140,8 @@ static int __io_async_wake(struct io_kiocb *req, struct io_poll_iocb *poll,
 	tsk = req->task;
 	req->result = mask;
 	init_task_work(&req->task_work, func);
+	percpu_ref_get(&req->ctx->refs);
+
 	/*
 	 * If this fails, then the task is exiting. When a task exits, the
 	 * work gets canceled, so just cancel this request as well instead
@@ -4239,6 +4241,7 @@ static void io_poll_task_handler(struct io_kiocb *req, struct io_kiocb **nxt)
 static void io_poll_task_func(struct callback_head *cb)
 {
 	struct io_kiocb *req = container_of(cb, struct io_kiocb, task_work);
+	struct io_ring_ctx *ctx = req->ctx;
 	struct io_kiocb *nxt = NULL;
 
 	io_poll_task_handler(req, &nxt);
@@ -4249,6 +4252,7 @@ static void io_poll_task_func(struct callback_head *cb)
 		__io_queue_sqe(nxt, NULL);
 		mutex_unlock(&ctx->uring_lock);
 	}
+	percpu_ref_put(&ctx->refs);
 }
 
 static int io_poll_double_wake(struct wait_queue_entry *wait, unsigned mode,
@@ -4365,6 +4369,7 @@ static void io_async_task_func(struct callback_head *cb)
 
 	if (io_poll_rewait(req, &apoll->poll)) {
 		spin_unlock_irq(&ctx->completion_lock);
+		percpu_ref_put(&ctx->refs);
 		return;
 	}
 
@@ -4402,6 +4407,7 @@ end_req:
 		req_set_fail_links(req);
 		io_double_put_req(req);
 	}
+	percpu_ref_put(&ctx->refs);
 }
 
 static int io_async_wake(struct wait_queue_entry *wait, unsigned mode, int sync,
