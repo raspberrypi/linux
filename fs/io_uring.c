@@ -1692,6 +1692,17 @@ static int io_put_kbuf(struct io_kiocb *req)
 	return cflags;
 }
 
+static inline bool io_run_task_work(void)
+{
+	if (current->task_works) {
+		__set_current_state(TASK_RUNNING);
+		task_work_run();
+		return true;
+	}
+
+	return false;
+}
+
 static void io_iopoll_queue(struct list_head *again)
 {
 	struct io_kiocb *req;
@@ -1881,6 +1892,7 @@ static int io_iopoll_check(struct io_ring_ctx *ctx, unsigned *nr_events,
 		 */
 		if (!(++iters & 7)) {
 			mutex_unlock(&ctx->uring_lock);
+			io_run_task_work();
 			mutex_lock(&ctx->uring_lock);
 		}
 
@@ -4420,7 +4432,6 @@ end_req:
 		return;
 	}
 
-	__set_current_state(TASK_RUNNING);
 	if (io_sq_thread_acquire_mm(ctx, req)) {
 		io_cqring_add_event(req, -EFAULT);
 		goto end_req;
@@ -6152,8 +6163,7 @@ static int io_sq_thread(void *data)
 			if (!list_empty(&ctx->poll_list) || need_resched() ||
 			    (!time_after(jiffies, timeout) && ret != -EBUSY &&
 			    !percpu_ref_is_dying(&ctx->refs))) {
-				if (current->task_works)
-					task_work_run();
+				io_run_task_work();
 				cond_resched();
 				continue;
 			}
@@ -6185,8 +6195,7 @@ static int io_sq_thread(void *data)
 					finish_wait(&ctx->sqo_wait, &wait);
 					break;
 				}
-				if (current->task_works) {
-					task_work_run();
+				if (io_run_task_work()) {
 					finish_wait(&ctx->sqo_wait, &wait);
 					continue;
 				}
@@ -6210,8 +6219,7 @@ static int io_sq_thread(void *data)
 		timeout = jiffies + ctx->sq_thread_idle;
 	}
 
-	if (current->task_works)
-		task_work_run();
+	io_run_task_work();
 
 	set_fs(old_fs);
 	io_sq_thread_drop_mm(ctx);
@@ -6277,9 +6285,8 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events,
 	do {
 		if (io_cqring_events(ctx, false) >= min_events)
 			return 0;
-		if (!current->task_works)
+		if (!io_run_task_work())
 			break;
-		task_work_run();
 	} while (1);
 
 	if (sig) {
@@ -6301,8 +6308,8 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events,
 		prepare_to_wait_exclusive(&ctx->wait, &iowq.wq,
 						TASK_INTERRUPTIBLE);
 		/* make sure we run task_work before checking for signals */
-		if (current->task_works)
-			task_work_run();
+		if (io_run_task_work())
+			continue;
 		if (signal_pending(current)) {
 			if (current->jobctl & JOBCTL_TASK_WORK) {
 				spin_lock_irq(&current->sighand->siglock);
@@ -7690,8 +7697,7 @@ SYSCALL_DEFINE6(io_uring_enter, unsigned int, fd, u32, to_submit,
 	int submitted = 0;
 	struct fd f;
 
-	if (current->task_works)
-		task_work_run();
+	io_run_task_work();
 
 	if (flags & ~(IORING_ENTER_GETEVENTS | IORING_ENTER_SQ_WAKEUP))
 		return -EINVAL;
