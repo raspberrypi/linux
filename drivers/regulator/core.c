@@ -4868,12 +4868,8 @@ static void regulator_resolve_coupling(struct regulator_dev *rdev)
 			return;
 		}
 
-		regulator_lock(c_rdev);
-
 		c_desc->coupled_rdevs[i] = c_rdev;
 		c_desc->n_resolved++;
-
-		regulator_unlock(c_rdev);
 
 		regulator_resolve_coupling(c_rdev);
 	}
