@@ -128,6 +128,12 @@
 		};
 	};
 	fragment@20 {
+		target = <&dvp>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@21 {
 		target = <&usb>;
 		#address-cells = <1>;
 		#size-cells = <1>;
