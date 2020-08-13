@@ -1949,6 +1949,14 @@ Params: alsaname                Set the name as it appears in ALSA (default
                                 "PiBell")
 
 
+Name:   pifacedigital
+Info:   Configures the PiFace Digital mcp23s17 GPIO port expander.
+Load:   dtoverlay=pifacedigital,<param>=<val>
+Params: spi-present-mask        8-bit integer, bitmap indicating MCP23S17 SPI0
+                                CS0 address. PiFace Digital supports addresses
+                                0-3, which can be configured with JP1 and JP2.
+
+
 Name:   piglow
 Info:   Configures the PiGlow by pimoroni.com
 Load:   dtoverlay=piglow
