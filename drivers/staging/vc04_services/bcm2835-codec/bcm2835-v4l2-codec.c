@@ -2377,13 +2377,15 @@ static void bcm2835_codec_stop_streaming(struct vb2_queue *q)
 
 
 	/* If both ports disabled, then disable the component */
-	if (!ctx->component->input[0].enabled &&
+	if (ctx->component_enabled &&
+	    !ctx->component->input[0].enabled &&
 	    !ctx->component->output[0].enabled) {
 		ret = vchiq_mmal_component_disable(dev->instance,
 						   ctx->component);
 		if (ret)
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed enabling component, ret %d\n",
 				 __func__, ret);
+		ctx->component_enabled = false;
 	}
 
 	if (V4L2_TYPE_IS_OUTPUT(q->type))
