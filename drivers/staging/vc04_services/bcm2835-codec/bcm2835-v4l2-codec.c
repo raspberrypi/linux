@@ -2320,10 +2320,7 @@ static void bcm2835_codec_stop_streaming(struct vb2_queue *q)
 	struct bcm2835_codec_q_data *q_data = get_q_data(ctx, q->type);
 	struct vchiq_mmal_port *port = get_port_data(ctx, q->type);
 	struct vb2_v4l2_buffer *vbuf;
-	struct vb2_v4l2_buffer *vb2;
-	struct v4l2_m2m_buffer *m2m;
-	struct m2m_mmal_buffer *buf;
-	int ret, i;
+	int ret;
 
 	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: type: %d - return buffers\n",
 		 __func__, q->type);
@@ -2363,18 +2360,6 @@ static void bcm2835_codec_stop_streaming(struct vb2_queue *q)
 		}
 	}
 
-	/*
-	 * Release the VCSM handle here as otherwise REQBUFS(0) aborts because
-	 * someone is using the dmabuf before giving the driver a chance to do
-	 * anything about it.
-	 */
-	for (i = 0; i < q->num_buffers; i++) {
-		vb2 = to_vb2_v4l2_buffer(q->bufs[i]);
-		m2m = container_of(vb2, struct v4l2_m2m_buffer, vb);
-		buf = container_of(m2m, struct m2m_mmal_buffer, m2m);
-
-		bcm2835_codec_mmal_buf_cleanup(&buf->mmal);
-	}
 
 	/* If both ports disabled, then disable the component */
 	if (!ctx->component->input[0].enabled &&
