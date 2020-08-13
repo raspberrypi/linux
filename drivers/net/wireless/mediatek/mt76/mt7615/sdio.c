@@ -426,6 +426,8 @@ static int mt7663s_suspend(struct device *dev)
 			return err;
 	}
 
+	sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
+
 	mt76s_stop_txrx(&mdev->mt76);
 
 	return mt7663s_firmware_own(mdev);
