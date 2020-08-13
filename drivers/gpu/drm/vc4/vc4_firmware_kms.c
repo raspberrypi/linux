@@ -816,7 +816,7 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 		formats[num_formats++] = vc_image_formats[i].drm;
 
 	plane = &vc4_plane->base;
-	ret = drm_universal_plane_init(dev, plane, 0xff,
+	ret = drm_universal_plane_init(dev, plane, 0,
 				       &vc4_plane_funcs,
 				       formats, num_formats, modifiers,
 				       type, NULL);
@@ -1784,6 +1784,10 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 				  planes[PLANES_PER_CRTC - 1], &vc4_crtc_funcs,
 				  NULL);
 	drm_crtc_helper_add(crtc, &vc4_crtc_helper_funcs);
+
+	/* Update the possible_crtcs mask for the overlay plane(s) */
+	for (i = 1; i < (PLANES_PER_CRTC - 1); i++)
+		planes[i]->possible_crtcs = drm_crtc_mask(crtc);
 
 	vc4_encoder = devm_kzalloc(dev, sizeof(*vc4_encoder), GFP_KERNEL);
 	if (!vc4_encoder)
