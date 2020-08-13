@@ -2268,6 +2268,7 @@ static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 	struct bcm2835_codec_ctx *ctx = vb2_get_drv_priv(q);
 	struct bcm2835_codec_dev *dev = ctx->dev;
 	struct bcm2835_codec_q_data *q_data = get_q_data(ctx, q->type);
+	struct vchiq_mmal_port *port = get_port_data(ctx, q->type);
 	int ret;
 
 	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: type: %d count %d\n",
@@ -2283,6 +2284,20 @@ static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 		ctx->component_enabled = true;
 	}
 
+	if (count < port->minimum_buffer.num)
+		count = port->minimum_buffer.num;
+
+	if (port->current_buffer.num != count + 1) {
+		v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: ctx:%p, buffer count changed %u to %u\n",
+			 __func__, ctx, port->current_buffer.num, count + 1);
+
+		port->current_buffer.num = count + 1;
+		ret = vchiq_mmal_port_set_format(dev->instance, port);
+		if (ret)
+			v4l2_err(&ctx->dev->v4l2_dev, "%s: Error updating buffer count, ret %d\n",
+				 __func__, ret);
+	}
+
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		/*
 		 * Create the EOS buffer.
@@ -2294,17 +2309,17 @@ static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 				      &q_data->eos_buffer.mmal);
 		q_data->eos_buffer_in_use = false;
 
-		ctx->component->input[0].cb_ctx = ctx;
+		port->cb_ctx = ctx;
 		ret = vchiq_mmal_port_enable(dev->instance,
-					     &ctx->component->input[0],
+					     port,
 					     ip_buffer_cb);
 		if (ret)
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed enabling i/p port, ret %d\n",
 				 __func__, ret);
 	} else {
-		ctx->component->output[0].cb_ctx = ctx;
+		port->cb_ctx = ctx;
 		ret = vchiq_mmal_port_enable(dev->instance,
-					     &ctx->component->output[0],
+					     port,
 					     op_buffer_cb);
 		if (ret)
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed enabling o/p port, ret %d\n",
