@@ -3766,7 +3766,7 @@ static int lan78xx_probe(struct usb_interface *intf,
 	netif_set_gso_max_size(netdev, MAX_SINGLE_PACKET_SIZE - MAX_HEADER);
 
 	if (int_urb_interval_ms <= 0)
-		period = dev->ep_intr->desc.bInterval;
+		period = ep_intr->desc.bInterval;
 	else
 		period = int_urb_interval_ms * INT_URB_MICROFRAMES_PER_MS;
 
