@@ -72,6 +72,7 @@
 
 #define RV3028_EVT_CTRL_TSR		BIT(2)
 
+#define RV3028_EEPROM_CMD_REFRESH	0x12
 #define RV3028_EEPROM_CMD_WRITE		0x21
 #define RV3028_EEPROM_CMD_READ		0x22
 
@@ -713,6 +714,58 @@ static int rv3028_clkout_register_clk(struct rv3028_data *rv3028,
 }
 #endif
 
+static int rv3028_ram_refresh(void *priv)
+{
+	u32 status, ctrl1;
+	int ret, err;
+
+	ret = regmap_read(priv, RV3028_CTRL1, &ctrl1);
+	if (ret)
+		return ret;
+
+	if (!(ctrl1 & RV3028_CTRL1_EERD)) {
+		ret = regmap_update_bits(priv, RV3028_CTRL1,
+					 RV3028_CTRL1_EERD, RV3028_CTRL1_EERD);
+		if (ret)
+			return ret;
+
+		ret = regmap_read_poll_timeout(priv, RV3028_STATUS, status,
+					       !(status & RV3028_STATUS_EEBUSY),
+					       RV3028_EEBUSY_POLL,
+					       RV3028_EEBUSY_TIMEOUT);
+		if (ret)
+			goto restore_eerd;
+	}
+
+	ret = regmap_write(priv, RV3028_EEPROM_CMD, 0x0);
+	if (ret)
+		goto restore_eerd;
+
+	ret = regmap_write(priv, RV3028_EEPROM_CMD,
+			   RV3028_EEPROM_CMD_REFRESH);
+	if (ret)
+		goto restore_eerd;
+
+	usleep_range(RV3028_EEBUSY_POLL, RV3028_EEBUSY_TIMEOUT);
+
+	ret = regmap_read_poll_timeout(priv, RV3028_STATUS, status,
+				       !(status & RV3028_STATUS_EEBUSY),
+				       RV3028_EEBUSY_POLL,
+				       RV3028_EEBUSY_TIMEOUT);
+	if (ret)
+		goto restore_eerd;
+
+restore_eerd:
+	if (!(ctrl1 & RV3028_CTRL1_EERD)) {
+		err = regmap_update_bits(priv, RV3028_CTRL1, RV3028_CTRL1_EERD,
+					 0);
+		if (err && !ret)
+			ret = err;
+	}
+
+	return ret;
+}
+
 static struct rtc_class_ops rv3028_rtc_ops = {
 	.read_time = rv3028_get_time,
 	.set_time = rv3028_set_time,
@@ -853,6 +906,9 @@ static int rv3028_probe(struct i2c_client *client)
 				ret = rv3028_eeprom_write(
 					(void *)(rv3028->regmap),
 					RV3028_BACKUP, (void *)&backup, 1);
+
+				if (!ret)
+					ret = rv3028_ram_refresh((void *)(rv3028->regmap));
 			}
 		}
 
