@@ -1873,6 +1873,42 @@ Params: panel                   Display panel (required):
         speed                   Display SPI bus speed
 
 
+Name:   pca953x
+Info:   TI PCA953x family of I2C GPIO expanders. Default is for NXP PCA9534.
+Load:   dtoverlay=pca953x,<param>=<val>
+Params: addr                    I2C address of expander. Default 0x20.
+        pca6416                 Select the NXP PCA6416 (16 bit)
+        pca9505                 Select the NXP PCA9505 (40 bit)
+        pca9535                 Select the NXP PCA9535 (16 bit)
+        pca9536                 Select the NXP PCA9536 or TI PCA9536 (4 bit)
+        pca9537                 Select the NXP PCA9537 (4 bit)
+        pca9538                 Select the NXP PCA9538 (8 bit)
+        pca9539                 Select the NXP PCA9539 (16 bit)
+        pca9554                 Select the NXP PCA9554 (8 bit)
+        pca9555                 Select the NXP PCA9555 (16 bit)
+        pca9556                 Select the NXP PCA9556 (8 bit)
+        pca9557                 Select the NXP PCA9557 (8 bit)
+        pca9574                 Select the NXP PCA9574 (8 bit)
+        pca9575                 Select the NXP PCA9575 (16 bit)
+        pca9698                 Select the NXP PCA9698 (40 bit)
+        pca16416                Select the NXP PCA16416 (16 bit)
+        pca16524                Select the NXP PCA16524 (24 bit)
+        pca19555a               Select the NXP PCA19555A (16 bit)
+        max7310                 Select the Maxim MAX7310 (8 bit)
+        max7312                 Select the Maxim MAX7312 (16 bit)
+        max7313                 Select the Maxim MAX7313 (16 bit)
+        max7315                 Select the Maxim MAX7315 (8 bit)
+        pca6107                 Select the TI PCA6107 (8 bit)
+        tca6408                 Select the TI TCA6408 (8 bit)
+        tca6416                 Select the TI TCA6416 (16 bit)
+        tca6424                 Select the TI TCA6424 (24 bit)
+        tca9539                 Select the TI TCA9539 (16 bit)
+        tca9554                 Select the TI TCA9554 (8 bit)
+        cat9554                 Select the Onnn CAT9554 (8 bit)
+        pca9654                 Select the Onnn PCA9654 (8 bit)
+        xra1202                 Select the Exar XRA1202 (8 bit)
+
+
 [ The pcf2127-rtc overlay has been deleted. See i2c-rtc. ]
 
 
