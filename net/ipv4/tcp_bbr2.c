@@ -179,9 +179,8 @@ struct bbr {
 			min_rtt_win_sec:5,	/* max allowed value: 31 */
 			probe_rtt_mode_ms:9,	/* max allowed value: 511 */
 			full_bw_cnt:3,		/* max allowed value: 7 */
-			bw_rtts:5,		/* max allowed value: 31 */
 			cwnd_tso_budget:1,	/* allowed values: {0, 1} */
-			unused3:1,
+			unused3:6,
 			drain_to_target:1,	/* boolean */
 			precise_ece_ack:1,	/* boolean */
 			extra_acked_in_startup:1, /* allowed values: {0, 1} */
@@ -237,8 +236,6 @@ struct bbr_context {
 	u32 log:1;
 };
 
-/* Window length of bw filter (in rounds). Max allowed value is 31 (0x1F) */
-static int bbr_bw_rtts = CYCLE_LEN + 2;
 /* Window length of min_rtt filter (in sec). Max allowed value is 31 (0x1F) */
 static u32 bbr_min_rtt_win_sec = 10;
 /* Minimum time (in ms) spent at bbr_cwnd_min_target in BBR_PROBE_RTT mode.
@@ -390,7 +387,6 @@ static bool bbr_usage_based_cwnd;		/* default: disabled */
  */
 static bool bbr_ecn_enable = false;
 
-module_param_named(bw_rtts,           bbr_bw_rtts,           int,    0644);
 module_param_named(min_tso_rate,      bbr_min_tso_rate,      int,    0644);
 module_param_named(tso_rtt_shift,     bbr_tso_rtt_shift,     int,    0644);
 module_param_named(high_gain,         bbr_high_gain,         int,    0644);
@@ -1247,7 +1243,6 @@ static void bbr_init(struct sock *sk)
 	bbr->params.min_rtt_win_sec = min(0x1FU, bbr_min_rtt_win_sec);
 	bbr->params.probe_rtt_mode_ms = min(0x1FFU, bbr_probe_rtt_mode_ms);
 	bbr->params.full_bw_cnt = min(0x7U, bbr_full_bw_cnt);
-	bbr->params.bw_rtts = min(0x1F, bbr_bw_rtts);
 	bbr->params.full_bw_thresh = min(0x3FFU, bbr_full_bw_thresh);
 	bbr->params.extra_acked_gain = min(0x7FF, bbr_extra_acked_gain);
 	bbr->params.extra_acked_win_rtts = min(0x1FU, bbr_extra_acked_win_rtts);
