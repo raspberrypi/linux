@@ -303,8 +303,6 @@ static int bbr_pacing_gain[] = {
 	BBR_UNIT, BBR_UNIT, BBR_UNIT,	/* cruise at 1.0*bw to utilize pipe, */
 	BBR_UNIT, BBR_UNIT, BBR_UNIT	/* without creating excess queue... */
 };
-/* Randomize the starting gain cycling phase over N phases: */
-static u32 bbr_cycle_rand = 7;
 
 /* Try to keep at least this many packets in flight, if things go smoothly. For
  * smooth functioning, a sliding window protocol ACKing every other packet
@@ -395,7 +393,6 @@ module_param_named(startup_cwnd_gain, bbr_startup_cwnd_gain, int,    0644);
 module_param_named(cwnd_gain,         bbr_cwnd_gain,         int,    0644);
 module_param_array_named(pacing_gain, bbr_pacing_gain,       int,
 			 &bbr_pacing_gain_size, 0644);
-module_param_named(cycle_rand,        bbr_cycle_rand,        uint,   0644);
 module_param_named(cwnd_min_target,   bbr_cwnd_min_target,   uint,   0644);
 module_param_named(probe_rtt_cwnd_gain,
 		   bbr_probe_rtt_cwnd_gain,		     uint,   0664);
