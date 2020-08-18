@@ -1568,7 +1568,7 @@ static noinline int check_can_nocow(struct btrfs_inode *inode, loff_t pos,
 
 	num_bytes = lockend - lockstart + 1;
 	ret = can_nocow_extent(&inode->vfs_inode, lockstart, &num_bytes,
-			NULL, NULL, NULL);
+			NULL, NULL, NULL, false);
 	if (ret <= 0) {
 		ret = 0;
 		btrfs_end_write_no_snapshotting(root);
