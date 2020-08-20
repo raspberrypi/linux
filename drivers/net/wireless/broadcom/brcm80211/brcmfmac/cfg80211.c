@@ -2534,6 +2534,9 @@ brcmf_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 				err = -EINVAL;
 				goto done;
 			}
+		} else if (!sme->crypto.psk &&
+			   profile->use_fwsup != BRCMF_PROFILE_FWSUP_1X) {
+			profile->use_fwsup = BRCMF_PROFILE_FWSUP_NONE;
 		}
 		if (profile->use_fwsup != BRCMF_PROFILE_FWSUP_NONE) {
 			/* enable firmware supplicant for this interface */
