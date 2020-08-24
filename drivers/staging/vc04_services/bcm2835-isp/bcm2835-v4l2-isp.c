@@ -733,7 +733,7 @@ static int bcm2835_isp_s_ctrl(struct v4l2_ctrl *ctrl)
 		       sizeof(struct bcm2835_isp_lens_shading));
 
 		dmabuf = dma_buf_get(ls.dmabuf);
-		if (!dmabuf)
+		if (IS_ERR_OR_NULL(dmabuf))
 			return -EINVAL;
 
 		ret = vc_sm_cma_import_dmabuf(dmabuf,
