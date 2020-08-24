@@ -922,10 +922,10 @@ static void bnxt_qplib_init_psn_ptr(struct bnxt_qplib_qp *qp, int size)
 	sq = &qp->sq;
 	hwq = &sq->hwq;
 
+	/* First psn entry */
 	fpsne = (u64)bnxt_qplib_get_qe(hwq, hwq->max_elements, &psn_pg);
 	if (!IS_ALIGNED(fpsne, PAGE_SIZE))
-		indx_pad = ALIGN(fpsne, PAGE_SIZE) / size;
-
+		indx_pad = (fpsne & ~PAGE_MASK) / size;
 	page = (u64 *)psn_pg;
 	for (indx = 0; indx < hwq->max_elements; indx++) {
 		pg_num = (indx + indx_pad) / (PAGE_SIZE / size);
