@@ -2,8 +2,6 @@
 #include "bcm270x.dtsi"
 
 / {
-	/delete-node/ cpus;
-
 	__overrides__ {
 		arm_freq;
 	};
