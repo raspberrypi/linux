@@ -796,6 +796,7 @@ int bnxt_qplib_create_qp1(struct bnxt_qplib_res *res, struct bnxt_qplib_qp *qp)
 	u16 cmd_flags = 0;
 	u32 qp_flags = 0;
 	u8 pg_sz_lvl;
+	u32 tbl_indx;
 	int rc;
 
 	RCFW_CMD_PREP(req, CREATE_QP1, cmd_flags);
@@ -891,8 +892,9 @@ int bnxt_qplib_create_qp1(struct bnxt_qplib_res *res, struct bnxt_qplib_qp *qp)
 		rq->dbinfo.xid = qp->id;
 		rq->dbinfo.db = qp->dpi->dbr;
 	}
-	rcfw->qp_tbl[qp->id].qp_id = qp->id;
-	rcfw->qp_tbl[qp->id].qp_handle = (void *)qp;
+	tbl_indx = map_qp_id_to_tbl_indx(qp->id, rcfw);
+	rcfw->qp_tbl[tbl_indx].qp_id = qp->id;
+	rcfw->qp_tbl[tbl_indx].qp_handle = (void *)qp;
 
 	return 0;
 
@@ -950,6 +952,7 @@ int bnxt_qplib_create_qp(struct bnxt_qplib_res *res, struct bnxt_qplib_qp *qp)
 	u32 qp_flags = 0;
 	u8 pg_sz_lvl;
 	u16 max_rsge;
+	u32 tbl_indx;
 
 	RCFW_CMD_PREP(req, CREATE_QP, cmd_flags);
 
@@ -1118,8 +1121,9 @@ int bnxt_qplib_create_qp(struct bnxt_qplib_res *res, struct bnxt_qplib_qp *qp)
 		rq->dbinfo.xid = qp->id;
 		rq->dbinfo.db = qp->dpi->dbr;
 	}
-	rcfw->qp_tbl[qp->id].qp_id = qp->id;
-	rcfw->qp_tbl[qp->id].qp_handle = (void *)qp;
+	tbl_indx = map_qp_id_to_tbl_indx(qp->id, rcfw);
+	rcfw->qp_tbl[tbl_indx].qp_id = qp->id;
+	rcfw->qp_tbl[tbl_indx].qp_handle = (void *)qp;
 
 	return 0;
 
@@ -1467,10 +1471,12 @@ int bnxt_qplib_destroy_qp(struct bnxt_qplib_res *res,
 	struct cmdq_destroy_qp req;
 	struct creq_destroy_qp_resp resp;
 	u16 cmd_flags = 0;
+	u32 tbl_indx;
 	int rc;
 
-	rcfw->qp_tbl[qp->id].qp_id = BNXT_QPLIB_QP_ID_INVALID;
-	rcfw->qp_tbl[qp->id].qp_handle = NULL;
+	tbl_indx = map_qp_id_to_tbl_indx(qp->id, rcfw);
+	rcfw->qp_tbl[tbl_indx].qp_id = BNXT_QPLIB_QP_ID_INVALID;
+	rcfw->qp_tbl[tbl_indx].qp_handle = NULL;
 
 	RCFW_CMD_PREP(req, DESTROY_QP, cmd_flags);
 
@@ -1478,8 +1484,8 @@ int bnxt_qplib_destroy_qp(struct bnxt_qplib_res *res,
 	rc = bnxt_qplib_rcfw_send_message(rcfw, (void *)&req,
 					  (void *)&resp, NULL, 0);
 	if (rc) {
-		rcfw->qp_tbl[qp->id].qp_id = qp->id;
-		rcfw->qp_tbl[qp->id].qp_handle = qp;
+		rcfw->qp_tbl[tbl_indx].qp_id = qp->id;
+		rcfw->qp_tbl[tbl_indx].qp_handle = qp;
 		return rc;
 	}
 
