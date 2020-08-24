@@ -8,7 +8,6 @@
 #include <linux/clk.h>
 #include <linux/cpu.h>
 #include <linux/cpufreq.h>
-#include <linux/math64.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/pm_opp.h>
@@ -23,7 +22,6 @@ static int raspberrypi_cpufreq_probe(struct platform_device *pdev)
 	unsigned long min, max;
 	unsigned long rate;
 	struct clk *clk;
-	int div;
 	int ret;
 
 	cpu_dev = get_cpu_device(0);
@@ -46,10 +44,7 @@ static int raspberrypi_cpufreq_probe(struct platform_device *pdev)
 	max = roundup(clk_round_rate(clk, ULONG_MAX), RASPBERRYPI_FREQ_INTERVAL);
 	clk_put(clk);
 
-	for (div = 2; ; div++) {
-		rate = div_u64((u64)max * 2, div);
-		if (rate < min)
-			break;
+	for (rate = min; rate <= max; rate += RASPBERRYPI_FREQ_INTERVAL) {
 		ret = dev_pm_opp_add(cpu_dev, rate, 0);
 		if (ret)
 			goto remove_opp;
