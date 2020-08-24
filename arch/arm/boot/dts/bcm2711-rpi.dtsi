@@ -310,3 +310,7 @@
 &hvs {
 	clocks = <&firmware_clocks 4>;
 };
+
+&emmc2 {
+	mmc-ddr-3_3v;
+};
