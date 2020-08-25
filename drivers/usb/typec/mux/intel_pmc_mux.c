@@ -441,6 +441,7 @@ err_remove_ports:
 	for (i = 0; i < pmc->num_ports; i++) {
 		typec_switch_unregister(pmc->port[i].typec_sw);
 		typec_mux_unregister(pmc->port[i].typec_mux);
+		usb_role_switch_unregister(pmc->port[i].usb_sw);
 	}
 
 	return ret;
@@ -454,6 +455,7 @@ static int pmc_usb_remove(struct platform_device *pdev)
 	for (i = 0; i < pmc->num_ports; i++) {
 		typec_switch_unregister(pmc->port[i].typec_sw);
 		typec_mux_unregister(pmc->port[i].typec_mux);
+		usb_role_switch_unregister(pmc->port[i].usb_sw);
 	}
 
 	return 0;
