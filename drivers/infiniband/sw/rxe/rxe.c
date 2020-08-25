@@ -48,6 +48,8 @@ static void rxe_cleanup_ports(struct rxe_dev *rxe)
 
 }
 
+bool rxe_initialized;
+
 /* free resources for a rxe device all objects created for this device must
  * have been destroyed
  */
@@ -355,6 +357,7 @@ static int __init rxe_module_init(void)
 		return err;
 
 	rdma_link_register(&rxe_link_ops);
+	rxe_initialized = true;
 	pr_info("loaded\n");
 	return 0;
 }
@@ -366,6 +369,7 @@ static void __exit rxe_module_exit(void)
 	rxe_net_exit();
 	rxe_cache_exit();
 
+	rxe_initialized = false;
 	pr_info("unloaded\n");
 }
 
