@@ -772,7 +772,7 @@ static int check_inode_item(struct extent_buffer *leaf,
 	/* Here we use super block generation + 1 to handle log tree */
 	if (btrfs_inode_generation(leaf, iitem) > super_gen + 1) {
 		inode_item_err(fs_info, leaf, slot,
-			"invalid inode generation: has %llu expect (0, %llu]",
+			"invalid inode transid: has %llu expect [0, %llu]",
 			       btrfs_inode_generation(leaf, iitem),
 			       super_gen + 1);
 		return -EUCLEAN;
