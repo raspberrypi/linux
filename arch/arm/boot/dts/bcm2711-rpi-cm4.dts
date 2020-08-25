@@ -109,10 +109,9 @@
 	};
 };
 
-/* EMMC2 is used to drive the eMMC/SD card */
+/* EMMC2 is used to drive the SD card */
 &emmc2 {
 	vqmmc-supply = <&sd_io_1v8_reg>;
-	mmc-ddr-1_8v;
 	broken-cd;
 	status = "okay";
 };
