@@ -2924,6 +2924,8 @@ Params: cma-256                 CMA is 256MB
         audio1                  Enable or disable audio over HDMI1 (default
                                 "on")
         noaudio                 Disable all HDMI audio (default "off")
+        composite               Enable the composite output (disables all other
+                                outputs)
 
 
 Name:   vga666
