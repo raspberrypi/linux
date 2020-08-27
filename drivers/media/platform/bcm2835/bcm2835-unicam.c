@@ -711,13 +711,6 @@ static void unicam_wr_dma_addr(struct unicam_device *dev, dma_addr_t dmaaddr,
 {
 	dma_addr_t endaddr = dmaaddr + buffer_size;
 
-	/*
-	 * dmaaddr and endaddr should be a 32-bit address with the top two bits
-	 * set to 0x3 to signify uncached access through the Videocore memory
-	 * controller.
-	 */
-	WARN_ON((dmaaddr >> 30) != 0x3 || (endaddr >> 30) != 0x3);
-
 	if (pad_id == IMAGE_PAD) {
 		reg_write(dev, UNICAM_IBSA0, dmaaddr);
 		reg_write(dev, UNICAM_IBEA0, endaddr);
