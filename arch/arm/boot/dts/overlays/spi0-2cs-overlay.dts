@@ -20,10 +20,18 @@
 		};
 	};
 
+	fragment@2 {
+		target = <&spi0_pins>;
+		__dormant__ {
+			brcm,pins = <10 11>;
+		};
+	};
+
 	__overrides__ {
 		cs0_pin  = <&frag0>,"brcm,pins:0",
 			   <&frag1>,"cs-gpios:4";
 		cs1_pin  = <&frag0>,"brcm,pins:4",
 			   <&frag1>,"cs-gpios:16";
+		no_miso = <0>,"=2";
 	};
 };
