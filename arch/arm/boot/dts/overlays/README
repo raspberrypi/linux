@@ -2412,11 +2412,27 @@ Load:   dtoverlay=spi-rtc,<param>=<val>
 Params: pcf2123                 Select the PCF2123 device
 
 
-Name:   spi0-cs
-Info:   Allows the (software) CS pins for SPI0 to be changed
-Load:   dtoverlay=spi0-cs,<param>=<val>
+Name:   spi0-1cs
+Info:   Only use one CS pin for SPI0
+Load:   dtoverlay=spi0-1cs,<param>=<val>
+Params: cs0_pin                 GPIO pin for CS0 (default 8)
+        no_miso                 Don't claim and use the MISO pin (9), freeing
+                                it for other uses.
+
+
+Name:   spi0-2cs
+Info:   Change the CS pins for SPI0
+Load:   dtoverlay=spi0-2cs,<param>=<val>
 Params: cs0_pin                 GPIO pin for CS0 (default 8)
         cs1_pin                 GPIO pin for CS1 (default 7)
+        no_miso                 Don't claim and use the MISO pin (9), freeing
+                                it for other uses.
+
+
+Name:   spi0-cs
+Info:   This overlay has been renamed spi0-1cs, keeping spi0-cs as an
+        alias for backwards compatibility.
+Load:   <Deprecated>
 
 
 Name:   spi0-hw-cs
