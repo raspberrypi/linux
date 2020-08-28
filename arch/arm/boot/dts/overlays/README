@@ -2430,7 +2430,7 @@ Params: cs0_pin                 GPIO pin for CS0 (default 8)
 
 
 Name:   spi0-cs
-Info:   This overlay has been renamed spi0-1cs, keeping spi0-cs as an
+Info:   This overlay has been renamed spi0-2cs, keeping spi0-cs as an
         alias for backwards compatibility.
 Load:   <Deprecated>
 
