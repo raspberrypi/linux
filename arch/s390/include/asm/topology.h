@@ -83,8 +83,6 @@ static inline const struct cpumask *cpumask_of_node(int node)
 
 #define pcibus_to_node(bus) __pcibus_to_node(bus)
 
-#define node_distance(a, b) __node_distance(a, b)
-
 #else /* !CONFIG_NUMA */
 
 #define numa_node_id numa_node_id

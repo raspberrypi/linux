@@ -49,12 +49,6 @@ void numa_update_cpu_topology(void)
 		mode->update_cpu_topology();
 }
 
-int __node_distance(int a, int b)
-{
-	return mode->distance ? mode->distance(a, b) : 0;
-}
-EXPORT_SYMBOL(__node_distance);
-
 int numa_debug_enabled;
 
 /*

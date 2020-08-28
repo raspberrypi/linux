@@ -17,7 +17,6 @@
 
 void numa_setup(void);
 int numa_pfn_to_nid(unsigned long pfn);
-int __node_distance(int a, int b);
 void numa_update_cpu_topology(void);
 
 extern cpumask_t node_to_cpumask_map[MAX_NUMNODES];
