@@ -16,6 +16,10 @@
 #define DEFAULT_GAMMA   "0F 1A 0F 18 2F 28 20 22 1F 1B 23 37 00 07 02 10\n" \
 			"0F 1B 0F 17 33 2C 29 2E 30 30 39 3F 00 07 03 10"
 
+#define ADAFRUIT18_GAMMA \
+			"02 1c 07 12 37 32 29 2d 29 25 2B 39 00 01 03 10\n" \
+			"03 1d 07 06 2E 2C 29 2D 2E 2E 37 3F 00 00 02 10"
+
 static const s16 default_init_sequence[] = {
 	-1, MIPI_DCS_SOFT_RESET,
 	-2, 150,                               /* delay */
@@ -92,6 +96,14 @@ static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 		  ys >> 8, ys & 0xFF, ye >> 8, ye & 0xFF);
 
 	write_reg(par, MIPI_DCS_WRITE_MEMORY_START);
+}
+
+static void adafruit18_green_tab_set_addr_win(struct fbtft_par *par,
+					      int xs, int ys, int xe, int ye)
+{
+	write_reg(par, 0x2A, 0, xs + 2, 0, xe + 2);
+	write_reg(par, 0x2B, 0, ys + 1, 0, ye + 1);
+	write_reg(par, 0x2C);
 }
 
 #define MY BIT(7)
@@ -174,12 +186,36 @@ static struct fbtft_display display = {
 	},
 };
 
-FBTFT_REGISTER_DRIVER(DRVNAME, "sitronix,st7735r", &display);
+int variant_adafruit18(struct fbtft_display *display)
+{
+	display->gamma = ADAFRUIT18_GAMMA;
+	return 0;
+}
+
+int variant_adafruit18_green(struct fbtft_display *display)
+{
+	display->gamma = ADAFRUIT18_GAMMA;
+	display->fbtftops.set_addr_win = adafruit18_green_tab_set_addr_win;
+	return 0;
+}
+
+FBTFT_REGISTER_DRIVER_START(&display)
+FBTFT_COMPATIBLE("sitronix,st7735r")
+FBTFT_COMPATIBLE("fbtft,sainsmart18")
+FBTFT_VARIANT_COMPATIBLE("fbtft,adafruit18", variant_adafruit18)
+FBTFT_VARIANT_COMPATIBLE("fbtft,adafruit18_green", variant_adafruit18_green)
+FBTFT_REGISTER_DRIVER_END(DRVNAME, &display);
 
 MODULE_ALIAS("spi:" DRVNAME);
 MODULE_ALIAS("platform:" DRVNAME);
 MODULE_ALIAS("spi:st7735r");
 MODULE_ALIAS("platform:st7735r");
+MODULE_ALIAS("spi:sainsmart18");
+MODULE_ALIAS("platform:sainsmart");
+MODULE_ALIAS("spi:adafruit18");
+MODULE_ALIAS("platform:adafruit18");
+MODULE_ALIAS("spi:adafruit18_green");
+MODULE_ALIAS("platform:adafruit18_green");
 
 MODULE_DESCRIPTION("FB driver for the ST7735R LCD Controller");
 MODULE_AUTHOR("Noralf Tronnes");
