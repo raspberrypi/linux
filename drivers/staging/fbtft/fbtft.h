@@ -251,7 +251,8 @@ void fbtft_register_backlight(struct fbtft_par *par);
 void fbtft_unregister_backlight(struct fbtft_par *par);
 int fbtft_init_display(struct fbtft_par *par);
 int fbtft_probe_common(struct fbtft_display *display, struct spi_device *sdev,
-		       struct platform_device *pdev);
+		       struct platform_device *pdev,
+		       const struct of_device_id *dt_ids);
 int fbtft_remove_common(struct device *dev, struct fb_info *info);
 
 /* fbtft-io.c */
@@ -272,11 +273,13 @@ void fbtft_write_reg8_bus9(struct fbtft_par *par, int len, ...);
 void fbtft_write_reg16_bus8(struct fbtft_par *par, int len, ...);
 void fbtft_write_reg16_bus16(struct fbtft_par *par, int len, ...);
 
-#define FBTFT_REGISTER_DRIVER(_name, _compatible, _display)                \
+#define FBTFT_REGISTER_DRIVER_START(_display)                              \
+									   \
+static const struct of_device_id dt_ids[];                                 \
 									   \
 static int fbtft_driver_probe_spi(struct spi_device *spi)                  \
 {                                                                          \
-	return fbtft_probe_common(_display, spi, NULL);                    \
+	return fbtft_probe_common(_display, spi, NULL, dt_ids);	           \
 }                                                                          \
 									   \
 static int fbtft_driver_remove_spi(struct spi_device *spi)                 \
@@ -288,7 +291,7 @@ static int fbtft_driver_remove_spi(struct spi_device *spi)                 \
 									   \
 static int fbtft_driver_probe_pdev(struct platform_device *pdev)           \
 {                                                                          \
-	return fbtft_probe_common(_display, NULL, pdev);                   \
+	return fbtft_probe_common(_display, NULL, pdev, dt_ids);           \
 }                                                                          \
 									   \
 static int fbtft_driver_remove_pdev(struct platform_device *pdev)          \
@@ -298,8 +301,16 @@ static int fbtft_driver_remove_pdev(struct platform_device *pdev)          \
 	return fbtft_remove_common(&pdev->dev, info);                      \
 }                                                                          \
 									   \
-static const struct of_device_id dt_ids[] = {                              \
-	{ .compatible = _compatible },                                     \
+static const struct of_device_id dt_ids[] = {
+
+#define FBTFT_COMPATIBLE(_compatible)                                      \
+	{ .compatible = _compatible },
+
+#define FBTFT_VARIANT_COMPATIBLE(_compatible, _variant)                    \
+	{ .compatible = _compatible, .data = _variant },
+
+#define FBTFT_REGISTER_DRIVER_END(_name, _display)                         \
+									   \
 	{},                                                                \
 };                                                                         \
 									   \
@@ -343,6 +354,11 @@ static void __exit fbtft_driver_module_exit(void)                          \
 									   \
 module_init(fbtft_driver_module_init);                                     \
 module_exit(fbtft_driver_module_exit);
+
+#define FBTFT_REGISTER_DRIVER(_name, _compatible, _display)                \
+	FBTFT_REGISTER_DRIVER_START(_display)                              \
+	FBTFT_COMPATIBLE(_compatible)                                      \
+	FBTFT_REGISTER_DRIVER_END(_name, _display)
 
 /* Debug macros */
 
