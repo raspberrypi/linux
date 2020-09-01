@@ -24,6 +24,8 @@
 #include <linux/platform_device.h>
 #include <linux/property.h>
 #include <linux/spinlock.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 
 #include <video/mipi_display.h>
 
@@ -1185,6 +1187,7 @@ static struct fbtft_platform_data *fbtft_properties_read(struct device *dev)
  * @display: Display properties
  * @sdev: SPI device
  * @pdev: Platform device
+ * @dt_ids: Compatible string table
  *
  * Allocates, initializes and registers a framebuffer
  *
@@ -1194,12 +1197,15 @@ static struct fbtft_platform_data *fbtft_properties_read(struct device *dev)
  */
 int fbtft_probe_common(struct fbtft_display *display,
 		       struct spi_device *sdev,
-		       struct platform_device *pdev)
+		       struct platform_device *pdev,
+		       const struct of_device_id *dt_ids)
 {
 	struct device *dev;
 	struct fb_info *info;
 	struct fbtft_par *par;
 	struct fbtft_platform_data *pdata;
+	const struct of_device_id *match;
+	int (*variant)(struct fbtft_display *);
 	int ret;
 
 	if (sdev)
@@ -1215,6 +1221,14 @@ int fbtft_probe_common(struct fbtft_display *display,
 		pdata = fbtft_properties_read(dev);
 		if (IS_ERR(pdata))
 			return PTR_ERR(pdata);
+		match = of_match_device(dt_ids, dev);
+		if (match && match->data) {
+			/* apply the variant */
+			variant = match->data;
+			ret = (*variant)(display);
+			if (ret)
+				return ret;
+		}
 	}
 
 	info = fbtft_framebuffer_alloc(display, dev, pdata);
