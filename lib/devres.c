@@ -155,6 +155,7 @@ void __iomem *devm_ioremap_resource(struct device *dev,
 {
 	resource_size_t size;
 	void __iomem *dest_ptr;
+	char *pretty_name;
 
 	BUG_ON(!dev);
 
@@ -165,7 +166,15 @@ void __iomem *devm_ioremap_resource(struct device *dev,
 
 	size = resource_size(res);
 
-	if (!devm_request_mem_region(dev, res->start, size, dev_name(dev))) {
+	if (res->name)
+		pretty_name = devm_kasprintf(dev, GFP_KERNEL, "%s %s",
+					     dev_name(dev), res->name);
+	else
+		pretty_name = devm_kstrdup(dev, dev_name(dev), GFP_KERNEL);
+	if (!pretty_name)
+		return IOMEM_ERR_PTR(-ENOMEM);
+
+	if (!devm_request_mem_region(dev, res->start, size, pretty_name)) {
 		dev_err(dev, "can't request region for resource %pR\n", res);
 		return IOMEM_ERR_PTR(-EBUSY);
 	}

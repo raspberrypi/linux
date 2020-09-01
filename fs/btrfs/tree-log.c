@@ -3140,16 +3140,10 @@ int btrfs_sync_log(struct btrfs_trans_handle *trans,
 	btrfs_init_log_ctx(&root_log_ctx, NULL);
 
 	mutex_lock(&log_root_tree->log_mutex);
-	atomic_inc(&log_root_tree->log_batch);
-	atomic_inc(&log_root_tree->log_writers);
 
 	index2 = log_root_tree->log_transid % 2;
 	list_add_tail(&root_log_ctx.list, &log_root_tree->log_ctxs[index2]);
 	root_log_ctx.log_transid = log_root_tree->log_transid;
-
-	mutex_unlock(&log_root_tree->log_mutex);
-
-	mutex_lock(&log_root_tree->log_mutex);
 
 	/*
 	 * Now we are safe to update the log_root_tree because we're under the
@@ -3157,12 +3151,6 @@ int btrfs_sync_log(struct btrfs_trans_handle *trans,
 	 * open until we drop the log_mutex.
 	 */
 	ret = update_log_root(trans, log, &new_root_item);
-
-	if (atomic_dec_and_test(&log_root_tree->log_writers)) {
-		/* atomic_dec_and_test implies a barrier */
-		cond_wake_up_nomb(&log_root_tree->log_writer_wait);
-	}
-
 	if (ret) {
 		if (!list_empty(&root_log_ctx.list))
 			list_del_init(&root_log_ctx.list);
@@ -3207,8 +3195,6 @@ int btrfs_sync_log(struct btrfs_trans_handle *trans,
 		wait_log_commit(log_root_tree,
 				root_log_ctx.log_transid - 1);
 	}
-
-	wait_for_writer(log_root_tree);
 
 	/*
 	 * now that we've moved on to the tree of log tree roots,
@@ -4054,11 +4040,8 @@ static noinline int copy_items(struct btrfs_trans_handle *trans,
 						fs_info->csum_root,
 						ds + cs, ds + cs + cl - 1,
 						&ordered_sums, 0);
-				if (ret) {
-					btrfs_release_path(dst_path);
-					kfree(ins_data);
-					return ret;
-				}
+				if (ret)
+					break;
 			}
 		}
 	}
@@ -4071,7 +4054,6 @@ static noinline int copy_items(struct btrfs_trans_handle *trans,
 	 * we have to do this after the loop above to avoid changing the
 	 * log tree while trying to change the log tree.
 	 */
-	ret = 0;
 	while (!list_empty(&ordered_sums)) {
 		struct btrfs_ordered_sum *sums = list_entry(ordered_sums.next,
 						   struct btrfs_ordered_sum,
