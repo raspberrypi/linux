@@ -134,7 +134,7 @@ Params:
                                 6=Alt                    7=Speed/Flash
                                 8=Link                   9=Activity
 
-        eth_led1                Set mode of LED1 - green on Pi3B (default "6"),
+        eth_led1                Set mode of LED1 - green on Pi3B+ (default "6"),
                                 amber on Pi4 (default "8"). See eth_led0 for
                                 legal values.
 
