@@ -23,16 +23,6 @@ config BCM_VCIO
 
 endif
 
-config BCM_VC_SM
-	bool "VMCS Shared Memory"
-	depends on BCM2835_VCHIQ
-	select BCM2708_VCMEM
-	select DMA_SHARED_BUFFER
-	default n
-	help
-	Support for the VC shared memory on the Broadcom reference
-	design. Uses the VCHIQ stack.
-
 config BCM2835_DEVGPIOMEM
 	tristate "/dev/gpiomem rootless GPIO access via mmap() on the BCM2835"
 	default m
