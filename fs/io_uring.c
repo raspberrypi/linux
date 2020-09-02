@@ -2697,8 +2697,15 @@ static int io_read(struct io_kiocb *req, bool force_nonblock)
 		else
 			ret2 = -EINVAL;
 
+		/* no retry on NONBLOCK marked file */
+		if (ret2 == -EAGAIN && (req->file->f_flags & O_NONBLOCK)) {
+			ret = 0;
+			goto done;
+		}
+
 		/* Catch -EAGAIN return for forced non-blocking submission */
 		if (!force_nonblock || ret2 != -EAGAIN) {
+	done:
 			kiocb_done(kiocb, ret2);
 		} else {
 copy_iov:
@@ -2823,7 +2830,13 @@ static int io_write(struct io_kiocb *req, bool force_nonblock)
 		 */
 		if (ret2 == -EOPNOTSUPP && (kiocb->ki_flags & IOCB_NOWAIT))
 			ret2 = -EAGAIN;
+		/* no retry on NONBLOCK marked file */
+		if (ret2 == -EAGAIN && (req->file->f_flags & O_NONBLOCK)) {
+			ret = 0;
+			goto done;
+		}
 		if (!force_nonblock || ret2 != -EAGAIN) {
+done:
 			kiocb_done(kiocb, ret2);
 		} else {
 copy_iov:
