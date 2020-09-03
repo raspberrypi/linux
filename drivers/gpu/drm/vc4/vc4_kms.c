@@ -240,8 +240,7 @@ static int vc4_atomic_commit(struct drm_device *dev,
 	 * drm_atomic_helper_setup_commit() from auto-completing
 	 * commit->flip_done.
 	 */
-	if (!vc4->firmware_kms)
-		state->legacy_cursor_update = false;
+	state->legacy_cursor_update = false;
 	ret = drm_atomic_helper_setup_commit(state, nonblock);
 	if (ret)
 		return ret;
