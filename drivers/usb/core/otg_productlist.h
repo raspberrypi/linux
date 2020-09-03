@@ -139,7 +139,7 @@ static int is_targeted(struct usb_device *dev)
 		/* NOTE: can't use usb_match_id() since interface caches
 		 * aren't set up yet. this is cut/paste from that code.
 		 */
-		for (id = whitelist_table; id->match_flags; id++) {
+		for (id = productlist_table; id->match_flags; id++) {
 #ifdef DEBUG
 			dev_dbg(&dev->dev,
 				"ID: V:%04x P:%04x DC:%04x SC:%04x PR:%04x \n",
