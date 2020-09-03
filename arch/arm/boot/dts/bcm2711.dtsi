@@ -328,6 +328,10 @@
 				    "csc",
 				    "cec",
 				    "hd";
+			clocks = <&firmware_clocks 13>,
+				 <&firmware_clocks 14>,
+				 <&dvp 0>,
+				 <&clk_27MHz>;
 			clock-names = "hdmi", "bvb", "audio", "cec";
 			resets = <&dvp 0>;
 			ddc = <&ddc0>;
@@ -366,6 +370,10 @@
 				    "hd";
 			ddc = <&ddc1>;
 			clock-names = "hdmi", "bvb", "audio", "cec";
+			clocks = <&firmware_clocks 13>,
+				 <&firmware_clocks 14>,
+				 <&dvp 0>,
+				 <&clk_27MHz>;
 			resets = <&dvp 1>;
 			dmas = <&dma 17>;
 			dma-names = "audio-rx";

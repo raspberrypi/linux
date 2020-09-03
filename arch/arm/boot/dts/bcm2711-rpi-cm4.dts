@@ -473,10 +473,6 @@
 	};
 };
 
-&firmwarekms {
-	compatible = "raspberrypi,rpi-firmware-kms-2711";
-};
-
 // =============================================
 // Board specific stuff here
 
@@ -533,46 +529,6 @@
 &audio {
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
-};
-
-&vc4 {
-	status = "disabled";
-};
-
-&pixelvalve0 {
-	status = "disabled";
-};
-
-&pixelvalve1 {
-	status = "disabled";
-};
-
-&pixelvalve2 {
-	status = "disabled";
-};
-
-&pixelvalve3 {
-	status = "disabled";
-};
-
-&pixelvalve4 {
-	status = "disabled";
-};
-
-&hdmi0 {
-	status = "disabled";
-};
-
-&ddc0 {
-	status = "disabled";
-};
-
-&hdmi1 {
-	status = "disabled";
-};
-
-&ddc1 {
-	status = "disabled";
 };
 
 / {
