@@ -367,7 +367,7 @@ static void bcm2835_bcm2835_mmc_read_block_pio(struct bcm2835_host *host)
 	unsigned long flags;
 	size_t blksize, len, chunk;
 
-	u32 uninitialized_var(scratch);
+	u32 scratch = 0;
 	u8 *buf;
 
 	blksize = host->data->blksz;
