@@ -4,6 +4,7 @@ dtb-$(CONFIG_ARCH_BCM2835) += overlay_map.dtb
 
 dtbo-$(CONFIG_ARCH_BCM2835) += \
 	act-led.dtbo \
+	adafruit18.dtbo \
 	adau1977-adc.dtbo \
 	adau7002-simple.dtbo \
 	ads1015.dtbo \
@@ -147,6 +148,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	rpi-tv.dtbo \
 	rpivid-v4l2.dtbo \
 	rra-digidac1-wm8741-audio.dtbo \
+	sainsmart18.dtbo \
 	sc16is750-i2c.dtbo \
 	sc16is752-i2c.dtbo \
 	sc16is752-spi0.dtbo \
