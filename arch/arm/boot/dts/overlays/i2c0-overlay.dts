@@ -5,7 +5,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2c0>;
+		target = <&i2c0if>;
 		__overlay__ {
 			status = "okay";
 			pinctrl-0 = <&i2c0_pins>;
@@ -51,6 +51,19 @@
 		};
 	};
 
+	fragment@6 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@7 {
+		target-path = "/aliases";
+		__overlay__ {
+			i2c0 = "/soc/i2c@7e205000";
+		};
+	};
 	__overrides__ {
 		pins_0_1   = <0>,"+1-2-3-4";
 		pins_28_29 = <0>,"-1+2-3-4";
