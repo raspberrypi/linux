@@ -1201,7 +1201,7 @@ static irqreturn_t vc4_crtc_irq_handler(int irq, void *data)
 	return ret;
 }
 
-static int vc4_page_flip(struct drm_crtc *crtc,
+static int vc4_fkms_page_flip(struct drm_crtc *crtc,
 			 struct drm_framebuffer *fb,
 			 struct drm_pending_vblank_event *event,
 			 uint32_t flags, struct drm_modeset_acquire_ctx *ctx)
@@ -1215,7 +1215,7 @@ static int vc4_page_flip(struct drm_crtc *crtc,
 }
 
 static struct drm_crtc_state *
-vc4_crtc_duplicate_state(struct drm_crtc *crtc)
+vc4_fkms_crtc_duplicate_state(struct drm_crtc *crtc)
 {
 	struct vc4_crtc_state *vc4_state, *old_vc4_state;
 
@@ -1231,7 +1231,7 @@ vc4_crtc_duplicate_state(struct drm_crtc *crtc)
 }
 
 static void
-vc4_crtc_reset(struct drm_crtc *crtc)
+vc4_fkms_crtc_reset(struct drm_crtc *crtc)
 {
 	if (crtc->state)
 		__drm_atomic_helper_crtc_destroy_state(crtc->state);
@@ -1264,12 +1264,12 @@ static void vc4_fkms_disable_vblank(struct drm_crtc *crtc)
 static const struct drm_crtc_funcs vc4_crtc_funcs = {
 	.set_config = drm_atomic_helper_set_config,
 	.destroy = drm_crtc_cleanup,
-	.page_flip = vc4_page_flip,
+	.page_flip = vc4_fkms_page_flip,
 	.set_property = NULL,
 	.cursor_set = NULL, /* handled by drm_mode_cursor_universal */
 	.cursor_move = NULL, /* handled by drm_mode_cursor_universal */
-	.reset = vc4_crtc_reset,
-	.atomic_duplicate_state = vc4_crtc_duplicate_state,
+	.reset = vc4_fkms_crtc_reset,
+	.atomic_duplicate_state = vc4_fkms_crtc_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_crtc_destroy_state,
 	.enable_vblank = vc4_fkms_enable_vblank,
 	.disable_vblank = vc4_fkms_disable_vblank,
