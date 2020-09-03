@@ -1,0 +1,47 @@
+/*
+ * Device Tree overlay for the Sainsmart 1.8" TFT LCD with ST7735R chip 160x128
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ss18: sainsmart18@0 {
+				compatible = "fbtft,sainsmart18";
+				reg = <0>;
+				pinctrl-names = "default";
+				spi-max-frequency = <40000000>;
+				rotate = <90>;
+				buswidth = <8>;
+				fps = <50>;
+				height = <160>;
+				width = <128>;
+				reset-gpios = <&gpio 25 0>;
+				dc-gpios = <&gpio 24 0>;
+				bgr;
+				debug = <0>;
+			};
+		};
+	};
+
+	__overrides__ {
+		rotate = <&ss18>, "rotate:0";
+	};
+};

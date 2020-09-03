@@ -261,6 +261,14 @@ Params: activelow               Set to "on" to invert the sense of the LED
                                 REQUIRED
 
 
+Name:   adafruit18
+Info:   Overlay for the SPI-connected Adafruit 1.8" display (based on the
+        ST7735R chip). It includes support for the "green tab" version.
+Load:   dtoverlay=adafruit18,<param>=<val>
+Params: green                   Use the adafruit18_green variant.
+        rotate                  Display rotation {0,90,180,270}
+
+
 Name:   adau1977-adc
 Info:   Overlay for activation of ADAU1977 ADC codec over I2C for control
         and I2S for data.
@@ -2249,6 +2257,13 @@ Name:   rra-digidac1-wm8741-audio
 Info:   Configures the Red Rocks Audio DigiDAC1 soundcard
 Load:   dtoverlay=rra-digidac1-wm8741-audio
 Params: <None>
+
+
+Name:   sainsmart18
+Info:   Overlay for the SPI-connected Sainsmart 1.8" display (based on the
+        ST7735R chip).
+Load:   dtoverlay=sainsmart18,<param>=<val>
+Params: rotate                  Display rotation {0,90,180,270}
 
 
 Name:   sc16is750-i2c
