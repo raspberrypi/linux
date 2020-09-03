@@ -67,6 +67,14 @@
 	};
 };
 
+&ddc0 {
+	status = "okay";
+};
+
+&ddc1 {
+	status = "okay";
+};
+
 &firmware {
 	firmware_clocks: clocks {
 		compatible = "raspberrypi,firmware-clocks";
@@ -160,6 +168,38 @@
 			  "RGMII_TXD1",
 			  "RGMII_TXD2",
 			  "RGMII_TXD3";
+};
+
+&hdmi0 {
+	clocks = <&firmware_clocks 13>, <&firmware_clocks 14>, <&dvp 0>, <&clk_27MHz>;
+	clock-names = "hdmi", "bvb", "audio", "cec";
+	status = "okay";
+};
+
+&hdmi1 {
+	clocks = <&firmware_clocks 13>, <&firmware_clocks 14>, <&dvp 1>, <&clk_27MHz>;
+	clock-names = "hdmi", "bvb", "audio", "cec";
+	status = "okay";
+};
+
+&hvs {
+	clocks = <&firmware_clocks 4>;
+};
+
+&pixelvalve0 {
+	status = "okay";
+};
+
+&pixelvalve1 {
+	status = "okay";
+};
+
+&pixelvalve2 {
+	status = "okay";
+};
+
+&pixelvalve4 {
+	status = "okay";
 };
 
 &pwm1 {
@@ -590,4 +630,12 @@
 		spi_dma4 = <&spi0>, "dmas:0=", <&dma40>,
 			   <&spi0>, "dmas:8=", <&dma40>;
 	};
+};
+
+&vc4 {
+	status = "okay";
+};
+
+&vec {
+	status = "disabled";
 };
