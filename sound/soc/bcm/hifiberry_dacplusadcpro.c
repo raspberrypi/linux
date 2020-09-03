@@ -203,7 +203,7 @@ static bool snd_rpi_hifiberry_dacplusadcpro_is_sclk(struct snd_soc_component *co
 {
 	unsigned int sck;
 
-	snd_soc_component_read(component, PCM512x_RATE_DET_4, &sck);
+	sck = snd_soc_component_read(component, PCM512x_RATE_DET_4);
 	return (!(sck & 0x40));
 }
 
