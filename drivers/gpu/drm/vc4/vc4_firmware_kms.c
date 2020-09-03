@@ -43,7 +43,6 @@ struct vc4_crtc {
 
 	struct drm_pending_vblank_event *event;
 	u32 overscan[4];
-	bool vblank_enabled;
 };
 
 static inline struct vc4_crtc *to_vc4_crtc(struct drm_crtc *crtc)
@@ -421,8 +420,7 @@ static irqreturn_t vc4_crtc_irq_handler(int irq, void *data)
 
 	if (stat & SMICS_INTERRUPTS) {
 		writel(0, vc4_crtc->regs + SMICS);
-		if (vc4_crtc->vblank_enabled)
-			drm_crtc_handle_vblank(&vc4_crtc->base);
+		drm_crtc_handle_vblank(&vc4_crtc->base);
 		vc4_crtc_handle_page_flip(vc4_crtc);
 		ret = IRQ_HANDLED;
 	}
@@ -445,9 +443,9 @@ static int vc4_page_flip(struct drm_crtc *crtc,
 
 static int vc4_fkms_enable_vblank(struct drm_crtc *crtc)
 {
-	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
-
-	vc4_crtc->vblank_enabled = true;
+	/* XXX: Need a way to enable/disable the interrupt, to avoid
+	 * DRM warnings at boot time.
+	 */
 
 	return 0;
 }
