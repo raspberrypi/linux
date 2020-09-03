@@ -226,13 +226,11 @@ static int rpi_cirrus_spdif_capture_get(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *wm8804_component =
 		asoc_rtd_to_codec(get_wm8804_runtime(card), 0)->component;
 	unsigned int val, mask;
-	int i, ret;
+	int i;
 
 	for (i = 0; i < 4; i++) {
-		ret = snd_soc_component_read(wm8804_component,
-			WM8804_RXCHAN1 + i, &val);
-		if (ret)
-			return ret;
+		val = snd_soc_component_read(wm8804_component,
+			WM8804_RXCHAN1 + i);
 		mask = (i == 3) ? 0x3f : 0xff;
 		ucontrol->value.iec958.status[i] = val & mask;
 	}
@@ -263,13 +261,10 @@ static int rpi_cirrus_spdif_status_flag_get(struct snd_kcontrol *kcontrol,
 	unsigned int bit = kcontrol->private_value & 0xff;
 	unsigned int reg = (kcontrol->private_value >> 8) & 0xff;
 	unsigned int invert = (kcontrol->private_value >> 16) & 0xff;
-	int ret;
 	unsigned int val;
 	bool flag;
 
-	ret = snd_soc_component_read(wm8804_component, reg, &val);
-	if (ret)
-		return ret;
+	val = snd_soc_component_read(wm8804_component, reg);
 
 	flag = val & (1 << bit);
 
@@ -308,11 +303,8 @@ static int rpi_cirrus_recovered_frequency_get(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *wm8804_component =
 		asoc_rtd_to_codec(get_wm8804_runtime(card), 0)->component;
 	unsigned int val;
-	int ret;
 
-	ret = snd_soc_component_read(wm8804_component, WM8804_SPDSTAT, &val);
-	if (ret)
-		return ret;
+	val = snd_soc_component_read(wm8804_component, WM8804_SPDSTAT);
 
 	ucontrol->value.enumerated.item[0] = (val >> 4) & 0x03;
 	return 0;
@@ -844,10 +836,8 @@ static int rpi_cirrus_init_wm8804(struct snd_soc_pcm_runtime *rtd)
 	int i, ret;
 
 	for (i = 0; i < 4; i++) {
-		ret = snd_soc_component_read(component,
-			WM8804_SPDTX1 + i, &val);
-		if (ret)
-			return ret;
+		val = snd_soc_component_read(component,
+			WM8804_SPDTX1 + i);
 		mask = (i == 3) ? 0x3f : 0xff;
 		priv->iec958_status[i] = val & mask;
 	}
