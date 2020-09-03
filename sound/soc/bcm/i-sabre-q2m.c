@@ -36,11 +36,11 @@ static int snd_rpi_i_sabre_q2m_init(struct snd_soc_pcm_runtime *rtd)
 	unsigned int value;
 
 	/* Device ID */
-	value = snd_soc_component_read32(component, ISABRECODEC_REG_01);
+	value = snd_soc_component_read(component, ISABRECODEC_REG_01);
 	dev_info(component->card->dev, "Audiophonics Device ID : %02X\n", value);
 
 	/* API revision */
-	value = snd_soc_component_read32(component, ISABRECODEC_REG_02);
+	value = snd_soc_component_read(component, ISABRECODEC_REG_02);
 	dev_info(component->card->dev, "Audiophonics API revision : %02X\n", value);
 
 	return 0;
