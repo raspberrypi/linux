@@ -833,8 +833,6 @@ static int vc4_hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
 		HD_WRITE(VC4_HD_MAI_CTL,
 			 VC4_SET_FIELD(hdmi->audio.channels,
 				       VC4_HD_MAI_CTL_CHNUM) |
-				       VC4_HD_MAI_CTL_WHOLSMP |
-				       VC4_HD_MAI_CTL_CHALIGN |
 			 VC4_HD_MAI_CTL_ENABLE);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
