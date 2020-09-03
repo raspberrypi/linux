@@ -288,11 +288,9 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		goto gem_destroy;
 
-	if (!vc4->firmware_kms) {
-		ret = vc4_plane_create_additional_planes(drm);
-		if (ret)
-			goto unbind_all;
-	}
+	ret = vc4_plane_create_additional_planes(drm);
+	if (ret)
+		goto unbind_all;
 
 	drm_fb_helper_remove_conflicting_framebuffers(NULL, "vc4drmfb", false);
 
