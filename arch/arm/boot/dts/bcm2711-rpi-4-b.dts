@@ -202,6 +202,14 @@
 	status = "okay";
 };
 
+&vc4 {
+	status = "okay";
+};
+
+&vec {
+	status = "disabled";
+};
+
 &pwm1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pwm1_0_gpio40 &pwm1_1_gpio41>;
@@ -512,10 +520,6 @@
 	};
 };
 
-&firmwarekms {
-	compatible = "raspberrypi,rpi-firmware-kms-2711";
-};
-
 // =============================================
 // Board specific stuff here
 
@@ -573,46 +577,6 @@
 	pinctrl-0 = <&audio_pins>;
 };
 
-&vc4 {
-	status = "disabled";
-};
-
-&pixelvalve0 {
-	status = "disabled";
-};
-
-&pixelvalve1 {
-	status = "disabled";
-};
-
-&pixelvalve2 {
-	status = "disabled";
-};
-
-&pixelvalve3 {
-	status = "disabled";
-};
-
-&pixelvalve4 {
-	status = "disabled";
-};
-
-&hdmi0 {
-	status = "disabled";
-};
-
-&ddc0 {
-	status = "disabled";
-};
-
-&hdmi1 {
-	status = "disabled";
-};
-
-&ddc1 {
-	status = "disabled";
-};
-
 / {
 	__overrides__ {
 		act_led_gpio = <&act_led>,"gpios:4";
@@ -630,12 +594,4 @@
 		spi_dma4 = <&spi0>, "dmas:0=", <&dma40>,
 			   <&spi0>, "dmas:8=", <&dma40>;
 	};
-};
-
-&vc4 {
-	status = "okay";
-};
-
-&vec {
-	status = "disabled";
 };
