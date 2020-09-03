@@ -77,13 +77,6 @@ struct mailbox_blank_display {
 	u32 blank;
 };
 
-struct mailbox_get_width_height {
-	struct rpi_firmware_property_tag_header tag1;
-	u32 display;
-	struct rpi_firmware_property_tag_header tag2;
-	u32 wh[2];
-};
-
 static const struct vc_image_format {
 	u32 drm;	/* DRM_FORMAT_* */
 	u32 vc_image;	/* VC_IMAGE_* */
@@ -201,7 +194,6 @@ struct vc4_fkms_connector {
 	 * hook.
 	 */
 	struct drm_encoder *encoder;
-	u32 display_idx;
 };
 
 static inline struct vc4_fkms_connector *
@@ -732,27 +724,21 @@ vc4_fkms_connector_detect(struct drm_connector *connector, bool force)
 static int vc4_fkms_connector_get_modes(struct drm_connector *connector)
 {
 	struct drm_device *dev = connector->dev;
-	struct vc4_fkms_connector *fkms_connector =
-		to_vc4_fkms_connector(connector);
 	struct vc4_dev *vc4 = to_vc4_dev(dev);
-	struct drm_display_mode *mode;
-	struct mailbox_get_width_height wh = {
-		.tag1 = {RPI_FIRMWARE_FRAMEBUFFER_SET_DISPLAY_NUM, 4, 0, },
-		.display = fkms_connector->display_idx,
-		.tag2 = { RPI_FIRMWARE_FRAMEBUFFER_GET_PHYSICAL_WIDTH_HEIGHT,
-			  8, 0, },
-	};
+	u32 wh[2] = {0, 0};
 	int ret;
+	struct drm_display_mode *mode;
 
-	ret = rpi_firmware_property_list(vc4->firmware, &wh, sizeof(wh));
-
+	ret = rpi_firmware_property(vc4->firmware,
+				    RPI_FIRMWARE_FRAMEBUFFER_GET_PHYSICAL_WIDTH_HEIGHT,
+				    &wh, sizeof(wh));
 	if (ret) {
 		DRM_ERROR("Failed to get screen size: %d (0x%08x 0x%08x)\n",
-			  ret, wh.wh[0], wh.wh[1]);
+			  ret, wh[0], wh[1]);
 		return 0;
 	}
 
-	mode = drm_cvt_mode(dev, wh.wh[0], wh.wh[1], 60 /* vrefresh */,
+	mode = drm_cvt_mode(dev, wh[0], wh[1], 60 /* vrefresh */,
 			    0, 0, false);
 	drm_mode_probed_add(connector, mode);
 
@@ -787,9 +773,8 @@ static const struct drm_connector_helper_funcs vc4_fkms_connector_helper_funcs =
 	.best_encoder = vc4_fkms_connector_best_encoder,
 };
 
-static struct drm_connector *
-vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
-			u32 display_idx)
+static struct drm_connector *vc4_fkms_connector_init(struct drm_device *dev,
+						     struct drm_encoder *encoder)
 {
 	struct drm_connector *connector = NULL;
 	struct vc4_fkms_connector *fkms_connector;
@@ -804,7 +789,6 @@ vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
 	connector = &fkms_connector->base;
 
 	fkms_connector->encoder = encoder;
-	fkms_connector->display_idx = display_idx;
 
 	drm_connector_init(dev, connector, &vc4_fkms_connector_funcs,
 			   DRM_MODE_CONNECTOR_HDMIA);
@@ -921,8 +905,7 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 	drm_encoder_helper_add(&vc4_encoder->base,
 			       &vc4_fkms_encoder_helper_funcs);
 
-	vc4_crtc->connector = vc4_fkms_connector_init(drm, &vc4_encoder->base,
-						      display_idx);
+	vc4_crtc->connector = vc4_fkms_connector_init(drm, &vc4_encoder->base);
 	if (IS_ERR(vc4_crtc->connector)) {
 		ret = PTR_ERR(vc4_crtc->connector);
 		goto err_destroy_encoder;
