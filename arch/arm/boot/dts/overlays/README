@@ -1354,6 +1354,13 @@ Name:   i2c0
 Info:   Change i2c0 pin usage. Not all pin combinations are usable on all
         platforms - platforms other then Compute Modules can only use this
         to disable transaction combining.
+        Do NOT use in conjunction with dtparam=i2c_vc=on. From the 5.4 kernel
+        onwards the base DT includes the use of i2c_mux_pinctrl to expose two
+        muxings of BSC0 - GPIOs 0&1, and whichever combination is used for the
+        camera and display connectors. This overlay disables that mux and
+        configures /dev/i2c0 to point at whichever set of pins is requested.
+        dtparam=i2c_vc=on will try and enable the mux, so combining the two
+        will cause conflicts.
 Load:   dtoverlay=i2c0,<param>=<val>
 Params: pins_0_1                Use pins 0 and 1 (default)
         pins_28_29              Use pins 28 and 29
