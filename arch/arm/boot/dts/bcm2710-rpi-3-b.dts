@@ -117,6 +117,10 @@
 	status = "okay";
 };
 
+&bt {
+	max-speed = <921600>;
+};
+
 &spi0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
