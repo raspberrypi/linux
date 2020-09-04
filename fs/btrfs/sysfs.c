@@ -1165,10 +1165,12 @@ int btrfs_sysfs_remove_devices_dir(struct btrfs_fs_devices *fs_devices,
 					  disk_kobj->name);
 		}
 
-		kobject_del(&one_device->devid_kobj);
-		kobject_put(&one_device->devid_kobj);
+		if (one_device->devid_kobj.state_initialized) {
+			kobject_del(&one_device->devid_kobj);
+			kobject_put(&one_device->devid_kobj);
 
-		wait_for_completion(&one_device->kobj_unregister);
+			wait_for_completion(&one_device->kobj_unregister);
+		}
 
 		return 0;
 	}
@@ -1181,10 +1183,12 @@ int btrfs_sysfs_remove_devices_dir(struct btrfs_fs_devices *fs_devices,
 			sysfs_remove_link(fs_devices->devices_kobj,
 					  disk_kobj->name);
 		}
-		kobject_del(&one_device->devid_kobj);
-		kobject_put(&one_device->devid_kobj);
+		if (one_device->devid_kobj.state_initialized) {
+			kobject_del(&one_device->devid_kobj);
+			kobject_put(&one_device->devid_kobj);
 
-		wait_for_completion(&one_device->kobj_unregister);
+			wait_for_completion(&one_device->kobj_unregister);
+		}
 	}
 
 	return 0;
