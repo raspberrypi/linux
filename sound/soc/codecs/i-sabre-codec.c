@@ -252,7 +252,7 @@ static int i_sabre_codec_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	return 0;
 }
 
-static int i_sabre_codec_dac_mute(struct snd_soc_dai *dai, int mute)
+static int i_sabre_codec_dac_mute(struct snd_soc_dai *dai, int mute, int direction)
 {
 	struct snd_soc_component *component = dai->component;
 
