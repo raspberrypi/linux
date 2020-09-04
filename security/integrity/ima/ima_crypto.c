@@ -688,6 +688,8 @@ static int ima_calc_boot_aggregate_tfm(char *digest, u16 alg_id,
 		/* now accumulate with current aggregate */
 		rc = crypto_shash_update(shash, d.digest,
 					 crypto_shash_digestsize(tfm));
+		if (rc != 0)
+			return rc;
 	}
 	if (!rc)
 		crypto_shash_final(shash, digest);
