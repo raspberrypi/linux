@@ -1628,6 +1628,10 @@ struct bnxt {
 #define BNXT_STATE_ABORT_ERR	5
 #define BNXT_STATE_FW_FATAL_COND	6
 
+#define BNXT_NO_FW_ACCESS(bp)					\
+	(test_bit(BNXT_STATE_FW_FATAL_COND, &(bp)->state) ||	\
+	 pci_channel_offline((bp)->pdev))
+
 	struct bnxt_irq	*irq_tbl;
 	int			total_irqs;
 	u8			mac_addr[ETH_ALEN];
