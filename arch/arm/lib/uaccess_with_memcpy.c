@@ -210,7 +210,7 @@ __copy_from_user_memcpy(void *to, const void __user *from, unsigned long n)
 		while (!pin_page_for_read(from, &pte, &ptl)) {
 			char temp;
 			if (!atomic)
-				mmap_write_unlock(current->mm);
+				mmap_read_unlock(current->mm);
 			if (__get_user(temp, (char __user *)from))
 				goto out;
 			if (!atomic)
@@ -231,7 +231,7 @@ __copy_from_user_memcpy(void *to, const void __user *from, unsigned long n)
 		pte_unmap_unlock(pte, ptl);
 	}
 	if (!atomic)
-		mmap_write_unlock(current->mm);
+		mmap_read_unlock(current->mm);
 
 out:
 	return n;
