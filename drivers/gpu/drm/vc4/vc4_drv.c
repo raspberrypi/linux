@@ -24,8 +24,10 @@
 #include <linux/clk.h>
 #include <linux/component.h>
 #include <linux/device.h>
+#include <linux/dma-mapping.h>
 #include <linux/io.h>
 #include <linux/module.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/dma-direct.h>
@@ -287,6 +289,28 @@ static void vc4_component_unbind_all(void *ptr)
 	component_unbind_all(vc4->dev, &vc4->base);
 }
 
+static const struct of_device_id vc4_dma_range_matches[] = {
+	{ .compatible = "brcm,bcm2711-hvs" },
+	{ .compatible = "brcm,bcm2712-hvs" },
+	{ .compatible = "brcm,bcm2835-hvs" },
+	{ .compatible = "brcm,bcm2835-v3d" },
+	{ .compatible = "brcm,cygnus-v3d" },
+	{ .compatible = "brcm,vc4-v3d" },
+	{}
+};
+
+/*
+ * we need this helper function for determining presence of fkms
+ * before it's been bound
+ */
+static bool firmware_kms(void)
+{
+	return of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms")) ||
+	       of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms-2711"));
+}
+
 static int vc4_drm_bind(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -305,6 +329,24 @@ static int vc4_drm_bind(struct device *dev)
 		driver = &vc5_drm_driver;
 	else
 		driver = &vc4_drm_driver;
+
+	/*
+	 * Without HVS/V3D components to provide the DMA device, fkms keeps
+	 * borrowing their DT DMA configuration.
+	 */
+	if (firmware_kms()) {
+		dma_set_mask_and_coherent(dev, DMA_BIT_MASK(gen >= VC4_GEN_6_C ? 36 : 32));
+
+		node = of_find_matching_node_and_match(NULL, vc4_dma_range_matches,
+						       NULL);
+		if (node) {
+			ret = of_dma_configure(dev, node, true);
+			of_node_put(node);
+
+			if (ret)
+				return ret;
+		}
+	}
 
 	vc4 = devm_drm_dev_alloc(dev, driver, struct vc4_dev, base);
 	if (IS_ERR(vc4))
@@ -353,7 +395,7 @@ static int vc4_drm_bind(struct device *dev)
 		goto err;
 	}
 
-	if (firmware) {
+	if (firmware && !firmware_kms()) {
 		ret = rpi_firmware_property(firmware,
 					    RPI_FIRMWARE_NOTIFY_DISPLAY_DONE,
 					    NULL, 0);
@@ -371,16 +413,20 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		goto err;
 
-	ret = vc4_plane_create_additional_planes(drm);
-	if (ret)
-		goto err;
+	if (!vc4->firmware_kms) {
+		ret = vc4_plane_create_additional_planes(drm);
+		if (ret)
+			goto err;
+	}
 
 	ret = vc4_kms_load(drm);
 	if (ret < 0)
 		goto err;
 
-	drm_for_each_crtc(crtc, drm)
-		vc4_crtc_disable_at_boot(crtc);
+	if (!vc4->firmware_kms) {
+		drm_for_each_crtc(crtc, drm)
+			vc4_crtc_disable_at_boot(crtc);
+	}
 
 	ret = drm_dev_register(drm, 0);
 	if (ret < 0)
@@ -426,6 +472,7 @@ static struct platform_driver *const component_drivers[] = {
 	&vc4_dsi_driver,
 	&vc4_txp_driver,
 	&vc4_crtc_driver,
+	&vc4_firmware_kms_driver,
 	&vc4_v3d_driver,
 };
 
