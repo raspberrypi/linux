@@ -230,6 +230,18 @@ const struct of_device_id vc4_dma_range_matches[] = {
 	{}
 };
 
+/*
+ * we need this helper function for determining presence of fkms
+ * before it's been bound
+ */
+static bool firmware_kms(void)
+{
+	return of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms")) ||
+	       of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms-2711"));
+}
+
 static int vc4_drm_bind(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -292,7 +304,7 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		goto unbind_all;
 
-	if (vc4->firmware) {
+	if (vc4->firmware && !firmware_kms()) {
 		ret = rpi_firmware_property(vc4->firmware,
 					    RPI_FIRMWARE_NOTIFY_DISPLAY_DONE,
 					    NULL, 0);
@@ -304,16 +316,20 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		return ret;
 
-	ret = vc4_plane_create_additional_planes(drm);
-	if (ret)
-		goto unbind_all;
+	if (!vc4->firmware_kms) {
+		ret = vc4_plane_create_additional_planes(drm);
+		if (ret)
+			goto unbind_all;
+	}
 
 	ret = vc4_kms_load(drm);
 	if (ret < 0)
 		goto unbind_all;
 
-	drm_for_each_crtc(crtc, drm)
-		vc4_crtc_disable_at_boot(crtc);
+	if (!vc4->firmware_kms) {
+		drm_for_each_crtc(crtc, drm)
+			vc4_crtc_disable_at_boot(crtc);
+	}
 
 	ret = drm_dev_register(drm, 0);
 	if (ret < 0)
@@ -360,6 +376,7 @@ static struct platform_driver *const component_drivers[] = {
 	&vc4_dsi_driver,
 	&vc4_txp_driver,
 	&vc4_crtc_driver,
+	&vc4_firmware_kms_driver,
 	&vc4_v3d_driver,
 };
 
