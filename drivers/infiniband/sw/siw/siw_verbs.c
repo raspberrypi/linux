@@ -1055,7 +1055,7 @@ int siw_post_receive(struct ib_qp *base_qp, const struct ib_recv_wr *wr,
 	return rv > 0 ? 0 : rv;
 }
 
-void siw_destroy_cq(struct ib_cq *base_cq, struct ib_udata *udata)
+int siw_destroy_cq(struct ib_cq *base_cq, struct ib_udata *udata)
 {
 	struct siw_cq *cq = to_siw_cq(base_cq);
 	struct siw_device *sdev = to_siw_dev(base_cq->device);
@@ -1073,6 +1073,7 @@ void siw_destroy_cq(struct ib_cq *base_cq, struct ib_udata *udata)
 	atomic_dec(&sdev->num_cq);
 
 	vfree(cq->queue);
+	return 0;
 }
 
 /*
