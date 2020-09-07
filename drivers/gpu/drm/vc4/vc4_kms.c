@@ -154,6 +154,9 @@ vc4_ctm_commit(struct vc4_dev *vc4, struct drm_atomic_state *state)
 	struct vc4_ctm_state *ctm_state = to_vc4_ctm_state(vc4->ctm_manager.state);
 	struct drm_color_ctm *ctm = ctm_state->ctm;
 
+	if (vc4->firmware_kms)
+		return;
+
 	if (ctm_state->fifo) {
 		HVS_WRITE(SCALER_OLEDCOEF2,
 			  VC4_SET_FIELD(vc4_ctm_s31_32_to_s0_9(ctm->matrix[0]),
@@ -315,14 +318,14 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 	for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
 		struct vc4_crtc_state *vc4_crtc_state;
 
-		if (!new_crtc_state->commit)
+		if (!new_crtc_state->commit || vc4->firmware_kms)
 			continue;
 
 		vc4_crtc_state = to_vc4_crtc_state(new_crtc_state);
 		vc4_hvs_mask_underrun(dev, vc4_crtc_state->assigned_channel);
 	}
 
-	if (vc4->hvs->hvs5)
+	if (vc4->hvs && vc4->hvs->hvs5)
 		clk_set_min_rate(hvs->core_clk, 500000000);
 
 	drm_atomic_helper_wait_for_fences(dev, state, false);
@@ -333,10 +336,12 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 
 	vc4_ctm_commit(vc4, state);
 
-	if (vc4->hvs->hvs5)
-		vc5_hvs_pv_muxing_commit(vc4, state);
-	else
-		vc4_hvs_pv_muxing_commit(vc4, state);
+	if (!vc4->firmware_kms) {
+		if (vc4->hvs->hvs5)
+			vc5_hvs_pv_muxing_commit(vc4, state);
+		else
+			vc4_hvs_pv_muxing_commit(vc4, state);
+	}
 
 	drm_atomic_helper_commit_planes(dev, state, 0);
 
@@ -352,7 +357,7 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 
 	drm_atomic_helper_commit_cleanup_done(state);
 
-	if (vc4->hvs->hvs5)
+	if (vc4->hvs && vc4->hvs->hvs5)
 		clk_set_min_rate(hvs->core_clk, 0);
 
 	drm_atomic_state_put(state);
@@ -413,7 +418,8 @@ static int vc4_atomic_commit(struct drm_device *dev,
 	 * drm_atomic_helper_setup_commit() from auto-completing
 	 * commit->flip_done.
 	 */
-	state->legacy_cursor_update = false;
+	if (!vc4->firmware_kms)
+		state->legacy_cursor_update = false;
 	ret = drm_atomic_helper_setup_commit(state, nonblock);
 	if (ret)
 		return ret;
@@ -778,6 +784,7 @@ static int vc4_hvs_channels_obj_init(struct vc4_dev *vc4)
 static int vc4_pv_muxing_atomic_check(struct drm_device *dev,
 				      struct drm_atomic_state *state)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(state->dev);
 	struct vc4_hvs_state *hvs_new_state;
 	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
 	struct drm_crtc *crtc;
@@ -794,6 +801,9 @@ static int vc4_pv_muxing_atomic_check(struct drm_device *dev,
 			to_vc4_crtc_state(new_crtc_state);
 		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 		unsigned int matching_channels;
+
+		if (vc4->firmware_kms)
+			continue;
 
 		/* Nothing to do here, let's skip it */
 		if (old_crtc_state->enable == new_crtc_state->enable)
@@ -913,6 +923,7 @@ int vc4_kms_load(struct drm_device *dev)
 	dev->mode_config.preferred_depth = 24;
 	dev->mode_config.async_page_flip = true;
 	dev->mode_config.allow_fb_modifiers = true;
+	dev->mode_config.normalize_zpos = true;
 
 	ret = vc4_ctm_obj_init(vc4);
 	if (ret)
