@@ -73,6 +73,7 @@ enum rpi_firmware_property_tag {
 	RPI_FIRMWARE_GET_DISPMANX_RESOURCE_MEM_HANDLE =       0x00030014,
 	RPI_FIRMWARE_GET_EDID_BLOCK =                         0x00030020,
 	RPI_FIRMWARE_GET_CUSTOMER_OTP =                       0x00030021,
+	RPI_FIRMWARE_GET_EDID_BLOCK_DISPLAY =                 0x00030023,
 	RPI_FIRMWARE_GET_DOMAIN_STATE =                       0x00030030,
 	RPI_FIRMWARE_GET_THROTTLED =                          0x00030046,
 	RPI_FIRMWARE_GET_CLOCK_MEASURED =                     0x00030047,
@@ -149,6 +150,11 @@ enum rpi_firmware_property_tag {
 
 	RPI_FIRMWARE_VCHIQ_INIT =                             0x00048010,
 
+	RPI_FIRMWARE_SET_PLANE =                              0x00048015,
+	RPI_FIRMWARE_GET_DISPLAY_TIMING =                     0x00040017,
+	RPI_FIRMWARE_SET_TIMING =                             0x00048017,
+	RPI_FIRMWARE_GET_DISPLAY_CFG =                        0x00040018,
+	RPI_FIRMWARE_SET_DISPLAY_POWER =		      0x00048019,
 	RPI_FIRMWARE_GET_COMMAND_LINE =                       0x00050001,
 	RPI_FIRMWARE_GET_DMA_CHANNELS =                       0x00060001,
 };
