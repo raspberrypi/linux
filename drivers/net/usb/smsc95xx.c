@@ -812,7 +812,7 @@ static int smsc95xx_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 }
 
 /* Check the macaddr module parameter for a MAC address */
-static int smsc95xx_is_macaddr_param(struct usbnet *dev, struct net_device *nd)
+static int smsc95xx_macaddr_param(struct usbnet *dev, struct net_device *nd)
 {
 	u8 mtbl[ETH_ALEN];
 
@@ -820,9 +820,9 @@ static int smsc95xx_is_macaddr_param(struct usbnet *dev, struct net_device *nd)
 		netif_dbg(dev, ifup, dev->net,
 			  "Overriding MAC address with: %pM\n", mtbl);
 		dev_addr_mod(nd, 0, mtbl, ETH_ALEN);
-		return 1;
-	} else {
 		return 0;
+	} else {
+		return -EINVAL;
 	}
 }
 
@@ -850,8 +850,12 @@ static void smsc95xx_init_mac_address(struct usbnet *dev)
 	}
 
 	/* Check module parameters */
-	if (smsc95xx_is_macaddr_param(dev, dev->net))
-		return;
+	if (smsc95xx_macaddr_param(dev, dev->net) == 0) {
+		if (is_valid_ether_addr(dev->net->dev_addr)) {
+			netif_dbg(dev, ifup, dev->net, "MAC address read from module parameter\n");
+			return;
+		}
+	}
 
 	/* no useful static MAC address found. generate a random one */
 	eth_hw_addr_random(dev->net);
