@@ -76,11 +76,6 @@
 };
 
 &firmware {
-	firmware_clocks: clocks {
-		compatible = "raspberrypi,firmware-clocks";
-		#clock-cells = <1>;
-	};
-
 	expgpio: gpio {
 		compatible = "raspberrypi,firmware-gpio";
 		gpio-controller;
@@ -281,6 +276,8 @@
 
 // =============================================
 // Downstream rpi- changes
+
+#define BCM2711
 
 #include "bcm270x.dtsi"
 #include "bcm271x-rpi-bt.dtsi"
@@ -523,24 +520,8 @@
 // =============================================
 // Board specific stuff here
 
-/ {
-	sd_vcc_reg: sd_vcc_reg {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc-sd";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		regulator-boot-on;
-		enable-active-high;
-		gpio = <&expgpio 6 GPIO_ACTIVE_HIGH>;
-	};
-};
-
 &sdhost {
 	status = "disabled";
-};
-
-&emmc2 {
-	vmmc-supply = <&sd_vcc_reg>;
 };
 
 &phy1 {
