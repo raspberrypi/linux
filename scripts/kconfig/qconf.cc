@@ -1263,7 +1263,7 @@ void ConfigInfoView::clicked(const QUrl &url)
 	}
 
 	free(result);
-	delete data;
+	delete[] data;
 }
 
 QMenu* ConfigInfoView::createStandardContextMenu(const QPoint & pos)
