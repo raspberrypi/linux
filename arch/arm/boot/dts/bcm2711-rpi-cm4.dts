@@ -55,6 +55,24 @@
 			  3300000 0x0>;
 		status = "okay";
 	};
+
+	sd_vcc_reg: sd_vcc_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-sd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		enable-active-high;
+		gpio = <&expgpio 6 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&ddc0 {
+	status = "okay";
+};
+
+&ddc1 {
+	status = "okay";
 };
 
 &firmware {
@@ -159,6 +177,46 @@
 			  "RGMII_TXD3";
 };
 
+&hdmi0 {
+	clocks = <&firmware_clocks 13>, <&firmware_clocks 14>, <&dvp 0>, <&clk_27MHz>;
+	clock-names = "hdmi", "bvb", "audio", "cec";
+	status = "okay";
+};
+
+&hdmi1 {
+	clocks = <&firmware_clocks 13>, <&firmware_clocks 14>, <&dvp 1>, <&clk_27MHz>;
+	clock-names = "hdmi", "bvb", "audio", "cec";
+	status = "okay";
+};
+
+&hvs {
+	clocks = <&firmware_clocks 4>;
+};
+
+&pixelvalve0 {
+	status = "okay";
+};
+
+&pixelvalve1 {
+	status = "okay";
+};
+
+&pixelvalve2 {
+	status = "okay";
+};
+
+&pixelvalve4 {
+	status = "okay";
+};
+
+&vc4 {
+	status = "okay";
+};
+
+&vec {
+	status = "disabled";
+};
+
 &pwm1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pwm1_0_gpio40 &pwm1_1_gpio41>;
@@ -182,9 +240,11 @@
 	};
 };
 
-/* EMMC2 is used to drive the SD card */
+/* EMMC2 is used to drive the EMMC card */
 &emmc2 {
+	bus-width = <8>;
 	vqmmc-supply = <&sd_io_1v8_reg>;
+	vmmc-supply = <&sd_vcc_reg>;
 	broken-cd;
 	status = "okay";
 };
@@ -230,6 +290,8 @@
 // =============================================
 // Downstream rpi- changes
 
+#define BCM2711
+
 #include "bcm270x.dtsi"
 #include "bcm271x-rpi-bt.dtsi"
 
@@ -265,10 +327,6 @@
 	};
 
 	/delete-node/ wifi-pwrseq;
-};
-
-&pcie0 {
-       brcm,enable-l1ss;
 };
 
 &mmcnr {
@@ -476,25 +534,12 @@
 // =============================================
 // Board specific stuff here
 
-/ {
-	sd_vcc_reg: sd_vcc_reg {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc-sd";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		regulator-boot-on;
-		enable-active-high;
-		gpio = <&expgpio 6 GPIO_ACTIVE_HIGH>;
-	};
+&pcie0 {
+       brcm,enable-l1ss;
 };
 
 &sdhost {
 	status = "disabled";
-};
-
-&emmc2 {
-	vmmc-supply = <&sd_vcc_reg>;
-	bus-width = <8>;
 };
 
 &phy1 {
