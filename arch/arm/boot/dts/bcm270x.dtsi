@@ -21,6 +21,7 @@
 			/* Add label */
 		};
 
+#ifndef BCM2711
 		pixelvalve0: pixelvalve@7e206000 {
 			/* Add label */
 			status = "disabled";
@@ -30,6 +31,7 @@
 			/* Add label */
 			status = "disabled";
 		};
+#endif
 
 		/delete-node/ sdhci@7e300000;
 
@@ -113,10 +115,12 @@
 			status = "disabled";
 		};
 
+#ifndef BCM2711
 		pixelvalve2: pixelvalve@7e807000 {
 			/* Add label */
 			status = "disabled";
 		};
+#endif
 
 		hdmi@7e902000 { /* hdmi */
 			status = "disabled";
@@ -132,11 +136,13 @@
 				     <2 0>;
 		};
 
+#ifndef BCM2711
 		v3d@7ec00000 { /* vd3 */
 			compatible = "brcm,vc4-v3d";
 			power-domains = <&power RPI_POWER_DOMAIN_V3D>;
 			status = "disabled";
 		};
+#endif
 
 		axiperf: axiperf {
 			compatible = "brcm,bcm2835-axiperf";

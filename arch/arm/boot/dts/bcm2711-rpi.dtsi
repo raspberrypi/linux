@@ -2,11 +2,6 @@
 #include "bcm270x-rpi.dtsi"
 
 / {
-	soc {
-		/delete-node/ v3d@7ec00000;
-
-	};
-
 	__overrides__ {
 		arm_freq;
 	};
@@ -38,22 +33,6 @@
 	scb: scb {
 	     /* Add a label */
 	};
-
-	vc4: gpu {
-		compatible = "brcm,bcm2711-vc5";
-		status = "disabled";
-	};
-
-	clk_108MHz: clk-108M {
-		#clock-cells = <0>;
-		compatible = "fixed-clock";
-		clock-frequency = <108000000>;
-		clock-output-names = "108MHz-clock";
-	};
-};
-
-&soc {
-	/delete-node/ audio;
 };
 
 &cma {
@@ -174,10 +153,6 @@
 &gpio {
 	interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH>,
 		     <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
-};
-
-&hvs {
-	clocks = <&firmware_clocks 4>;
 };
 
 &emmc2 {
