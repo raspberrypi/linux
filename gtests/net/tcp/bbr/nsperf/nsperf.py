@@ -134,7 +134,7 @@ def setup_veth():
     c += 'ip netns exec srt ethtool -K srt.r tso off gso off gro off\n'
     c += 'ip netns exec mid ethtool -K mid.l tso off gso off gro off\n'
     c += 'ip netns exec mid ethtool -K mid.r tso off gso off gro off\n'
-    c += 'ip netns exec srt ethtool -K crt.l tso off gso off gro off\n'
+    c += 'ip netns exec crt ethtool -K crt.l tso off gso off gro off\n'
 
     # server
     c += 'ip netns exec srv ip addr add 192.168.0.1/24 dev srv.r\n'
