@@ -3473,11 +3473,13 @@ fail:
 	btrfs_free_path(path);
 out_unlock:
 	mutex_unlock(&dir->log_mutex);
-	if (ret == -ENOSPC) {
+	if (err == -ENOSPC) {
 		btrfs_set_log_full_commit(trans);
-		ret = 0;
-	} else if (ret < 0)
-		btrfs_abort_transaction(trans, ret);
+		err = 0;
+	} else if (err < 0 && err != -ENOENT) {
+		/* ENOENT can be returned if the entry hasn't been fsynced yet */
+		btrfs_abort_transaction(trans, err);
+	}
 
 	btrfs_end_log_trans(root);
 
@@ -4994,6 +4996,138 @@ static int log_conflicting_inodes(struct btrfs_trans_handle *trans,
 	return ret;
 }
 
+static int copy_inode_items_to_log(struct btrfs_trans_handle *trans,
+				   struct btrfs_inode *inode,
+				   struct btrfs_key *min_key,
+				   const struct btrfs_key *max_key,
+				   struct btrfs_path *path,
+				   struct btrfs_path *dst_path,
+				   const u64 logged_isize,
+				   const bool recursive_logging,
+				   const int inode_only,
+				   struct btrfs_log_ctx *ctx,
+				   bool *need_log_inode_item)
+{
+	struct btrfs_root *root = inode->root;
+	int ins_start_slot = 0;
+	int ins_nr = 0;
+	int ret;
+
+	while (1) {
+		ret = btrfs_search_forward(root, min_key, path, trans->transid);
+		if (ret < 0)
+			return ret;
+		if (ret > 0) {
+			ret = 0;
+			break;
+		}
+again:
+		/* Note, ins_nr might be > 0 here, cleanup outside the loop */
+		if (min_key->objectid != max_key->objectid)
+			break;
+		if (min_key->type > max_key->type)
+			break;
+
+		if (min_key->type == BTRFS_INODE_ITEM_KEY)
+			*need_log_inode_item = false;
+
+		if ((min_key->type == BTRFS_INODE_REF_KEY ||
+		     min_key->type == BTRFS_INODE_EXTREF_KEY) &&
+		    inode->generation == trans->transid &&
+		    !recursive_logging) {
+			u64 other_ino = 0;
+			u64 other_parent = 0;
+
+			ret = btrfs_check_ref_name_override(path->nodes[0],
+					path->slots[0], min_key, inode,
+					&other_ino, &other_parent);
+			if (ret < 0) {
+				return ret;
+			} else if (ret > 0 && ctx &&
+				   other_ino != btrfs_ino(BTRFS_I(ctx->inode))) {
+				if (ins_nr > 0) {
+					ins_nr++;
+				} else {
+					ins_nr = 1;
+					ins_start_slot = path->slots[0];
+				}
+				ret = copy_items(trans, inode, dst_path, path,
+						 ins_start_slot, ins_nr,
+						 inode_only, logged_isize);
+				if (ret < 0)
+					return ret;
+				ins_nr = 0;
+
+				ret = log_conflicting_inodes(trans, root, path,
+						ctx, other_ino, other_parent);
+				if (ret)
+					return ret;
+				btrfs_release_path(path);
+				goto next_key;
+			}
+		}
+
+		/* Skip xattrs, we log them later with btrfs_log_all_xattrs() */
+		if (min_key->type == BTRFS_XATTR_ITEM_KEY) {
+			if (ins_nr == 0)
+				goto next_slot;
+			ret = copy_items(trans, inode, dst_path, path,
+					 ins_start_slot,
+					 ins_nr, inode_only, logged_isize);
+			if (ret < 0)
+				return ret;
+			ins_nr = 0;
+			goto next_slot;
+		}
+
+		if (ins_nr && ins_start_slot + ins_nr == path->slots[0]) {
+			ins_nr++;
+			goto next_slot;
+		} else if (!ins_nr) {
+			ins_start_slot = path->slots[0];
+			ins_nr = 1;
+			goto next_slot;
+		}
+
+		ret = copy_items(trans, inode, dst_path, path, ins_start_slot,
+				 ins_nr, inode_only, logged_isize);
+		if (ret < 0)
+			return ret;
+		ins_nr = 1;
+		ins_start_slot = path->slots[0];
+next_slot:
+		path->slots[0]++;
+		if (path->slots[0] < btrfs_header_nritems(path->nodes[0])) {
+			btrfs_item_key_to_cpu(path->nodes[0], min_key,
+					      path->slots[0]);
+			goto again;
+		}
+		if (ins_nr) {
+			ret = copy_items(trans, inode, dst_path, path,
+					 ins_start_slot, ins_nr, inode_only,
+					 logged_isize);
+			if (ret < 0)
+				return ret;
+			ins_nr = 0;
+		}
+		btrfs_release_path(path);
+next_key:
+		if (min_key->offset < (u64)-1) {
+			min_key->offset++;
+		} else if (min_key->type < max_key->type) {
+			min_key->type++;
+			min_key->offset = 0;
+		} else {
+			break;
+		}
+	}
+	if (ins_nr)
+		ret = copy_items(trans, inode, dst_path, path, ins_start_slot,
+				 ins_nr, inode_only, logged_isize);
+
+	return ret;
+}
+
 /* log a single inode in the tree log.
  * At least one parent directory for this inode must exist in the tree
  * or be logged already.
@@ -5015,17 +5149,13 @@ static int btrfs_log_inode(struct btrfs_trans_handle *trans,
 			   const loff_t end,
 			   struct btrfs_log_ctx *ctx)
 {
-	struct btrfs_fs_info *fs_info = root->fs_info;
 	struct btrfs_path *path;
 	struct btrfs_path *dst_path;
 	struct btrfs_key min_key;
 	struct btrfs_key max_key;
 	struct btrfs_root *log = root->log_root;
 	int err = 0;
-	int ret;
-	int nritems;
-	int ins_start_slot = 0;
-	int ins_nr;
+	int ret = 0;
 	bool fast_search = false;
 	u64 ino = btrfs_ino(inode);
 	struct extent_map_tree *em_tree = &inode->extent_tree;
@@ -5061,15 +5191,19 @@ static int btrfs_log_inode(struct btrfs_trans_handle *trans,
 	max_key.offset = (u64)-1;
 
 	/*
-	 * Only run delayed items if we are a dir or a new file.
-	 * Otherwise commit the delayed inode only, which is needed in
-	 * order for the log replay code to mark inodes for link count
-	 * fixup (create temporary BTRFS_TREE_LOG_FIXUP_OBJECTID items).
+	 * Only run delayed items if we are a directory. We want to make sure
+	 * all directory indexes hit the fs/subvolume tree so we can find them
+	 * and figure out which index ranges have to be logged.
+	 *
+	 * Otherwise commit the delayed inode only if the full sync flag is set,
+	 * as we want to make sure an up to date version is in the subvolume
+	 * tree so copy_inode_items_to_log() / copy_items() can find it and copy
+	 * it to the log tree. For a non full sync, we always log the inode item
+	 * based on the in-memory struct btrfs_inode which is always up to date.
 	 */
-	if (S_ISDIR(inode->vfs_inode.i_mode) ||
-	    inode->generation > fs_info->last_trans_committed)
+	if (S_ISDIR(inode->vfs_inode.i_mode))
 		ret = btrfs_commit_inode_delayed_items(trans, inode);
-	else
+	else if (test_bit(BTRFS_INODE_NEEDS_FULL_SYNC, &inode->runtime_flags))
 		ret = btrfs_commit_inode_delayed_inode(inode);
 
 	if (ret) {
@@ -5156,139 +5290,12 @@ static int btrfs_log_inode(struct btrfs_trans_handle *trans,
 		goto out_unlock;
 	}
 
-	while (1) {
-		ins_nr = 0;
-		ret = btrfs_search_forward(root, &min_key,
-					   path, trans->transid);
-		if (ret < 0) {
-			err = ret;
-			goto out_unlock;
-		}
-		if (ret != 0)
-			break;
-again:
-		/* note, ins_nr might be > 0 here, cleanup outside the loop */
-		if (min_key.objectid != ino)
-			break;
-		if (min_key.type > max_key.type)
-			break;
-
-		if (min_key.type == BTRFS_INODE_ITEM_KEY)
-			need_log_inode_item = false;
-
-		if ((min_key.type == BTRFS_INODE_REF_KEY ||
-		     min_key.type == BTRFS_INODE_EXTREF_KEY) &&
-		    inode->generation == trans->transid &&
-		    !recursive_logging) {
-			u64 other_ino = 0;
-			u64 other_parent = 0;
-
-			ret = btrfs_check_ref_name_override(path->nodes[0],
-					path->slots[0], &min_key, inode,
-					&other_ino, &other_parent);
-			if (ret < 0) {
-				err = ret;
-				goto out_unlock;
-			} else if (ret > 0 && ctx &&
-				   other_ino != btrfs_ino(BTRFS_I(ctx->inode))) {
-				if (ins_nr > 0) {
-					ins_nr++;
-				} else {
-					ins_nr = 1;
-					ins_start_slot = path->slots[0];
-				}
-				ret = copy_items(trans, inode, dst_path, path,
-						 ins_start_slot,
-						 ins_nr, inode_only,
-						 logged_isize);
-				if (ret < 0) {
-					err = ret;
-					goto out_unlock;
-				}
-				ins_nr = 0;
-
-				err = log_conflicting_inodes(trans, root, path,
-						ctx, other_ino, other_parent);
-				if (err)
-					goto out_unlock;
-				btrfs_release_path(path);
-				goto next_key;
-			}
-		}
-
-		/* Skip xattrs, we log them later with btrfs_log_all_xattrs() */
-		if (min_key.type == BTRFS_XATTR_ITEM_KEY) {
-			if (ins_nr == 0)
-				goto next_slot;
-			ret = copy_items(trans, inode, dst_path, path,
-					 ins_start_slot,
-					 ins_nr, inode_only, logged_isize);
-			if (ret < 0) {
-				err = ret;
-				goto out_unlock;
-			}
-			ins_nr = 0;
-			goto next_slot;
-		}
-
-		if (ins_nr && ins_start_slot + ins_nr == path->slots[0]) {
-			ins_nr++;
-			goto next_slot;
-		} else if (!ins_nr) {
-			ins_start_slot = path->slots[0];
-			ins_nr = 1;
-			goto next_slot;
-		}
-
-		ret = copy_items(trans, inode, dst_path, path,
-				 ins_start_slot, ins_nr, inode_only,
-				 logged_isize);
-		if (ret < 0) {
-			err = ret;
-			goto out_unlock;
-		}
-		ins_nr = 1;
-		ins_start_slot = path->slots[0];
-next_slot:
-
-		nritems = btrfs_header_nritems(path->nodes[0]);
-		path->slots[0]++;
-		if (path->slots[0] < nritems) {
-			btrfs_item_key_to_cpu(path->nodes[0], &min_key,
-					      path->slots[0]);
-			goto again;
-		}
-		if (ins_nr) {
-			ret = copy_items(trans, inode, dst_path, path,
-					 ins_start_slot,
-					 ins_nr, inode_only, logged_isize);
-			if (ret < 0) {
-				err = ret;
-				goto out_unlock;
-			}
-			ins_nr = 0;
-		}
-		btrfs_release_path(path);
-next_key:
-		if (min_key.offset < (u64)-1) {
-			min_key.offset++;
-		} else if (min_key.type < max_key.type) {
-			min_key.type++;
-			min_key.offset = 0;
-		} else {
-			break;
-		}
-	}
-	if (ins_nr) {
-		ret = copy_items(trans, inode, dst_path, path,
-				 ins_start_slot, ins_nr, inode_only,
-				 logged_isize);
-		if (ret < 0) {
-			err = ret;
-			goto out_unlock;
-		}
-		ins_nr = 0;
-	}
+	err = copy_inode_items_to_log(trans, inode, &min_key, &max_key,
+				      path, dst_path, logged_isize,
+				      recursive_logging, inode_only, ctx,
+				      &need_log_inode_item);
+	if (err)
+		goto out_unlock;
 
 	btrfs_release_path(path);
 	btrfs_release_path(dst_path);
