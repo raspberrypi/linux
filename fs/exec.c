@@ -62,6 +62,7 @@
 #include <linux/oom.h>
 #include <linux/compat.h>
 #include <linux/vmalloc.h>
+#include <linux/io_uring.h>
 
 #include <linux/uaccess.h>
 #include <asm/mmu_context.h>
@@ -1846,6 +1847,11 @@ static int __do_execve_file(int fd, struct filename *filename,
 	/* We're below the limit (still or again), so we don't want to make
 	 * further execve() calls fail. */
 	current->flags &= ~PF_NPROC_EXCEEDED;
+
+	/*
+	 * Cancel any io_uring activity across execve
+	 */
+	io_uring_task_cancel();
 
 	retval = unshare_files(&displaced);
 	if (retval)
