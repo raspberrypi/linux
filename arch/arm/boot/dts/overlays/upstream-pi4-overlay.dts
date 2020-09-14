@@ -134,6 +134,18 @@
 		};
 	};
 	fragment@21 {
+		target = <&pixelvalve3>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+	fragment@22 {
+		target = <&vec>;
+		__dormant__ {
+			status = "okay";
+		};
+	};
+	fragment@23 {
 		target = <&usb>;
 		#address-cells = <1>;
 		#size-cells = <1>;
