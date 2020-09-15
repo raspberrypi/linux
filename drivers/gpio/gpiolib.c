@@ -836,6 +836,21 @@ static __poll_t lineevent_poll(struct file *filep,
 	return events;
 }
 
+static ssize_t lineevent_get_size(void)
+{
+#ifdef __x86_64__
+	/* i386 has no padding after 'id' */
+	if (in_ia32_syscall()) {
+		struct compat_gpioeevent_data {
+			compat_u64	timestamp;
+			u32		id;
+		};
+
+		return sizeof(struct compat_gpioeevent_data);
+	}
+#endif
+	return sizeof(struct gpioevent_data);
+}
 
 static ssize_t lineevent_read(struct file *filep,
 			      char __user *buf,
@@ -845,9 +860,20 @@ static ssize_t lineevent_read(struct file *filep,
 	struct lineevent_state *le = filep->private_data;
 	struct gpioevent_data ge;
 	ssize_t bytes_read = 0;
+	ssize_t ge_size;
 	int ret;
 
-	if (count < sizeof(ge))
+	/*
+	 * When compatible system call is being used the struct gpioevent_data,
+	 * in case of at least ia32, has different size due to the alignment
+	 * differences. Because we have first member 64 bits followed by one of
+	 * 32 bits there is no gap between them. The only difference is the
+	 * padding at the end of the data structure. Hence, we calculate the
+	 * actual sizeof() and pass this as an argument to copy_to_user() to
+	 * drop unneeded bytes from the output.
+	 */
+	ge_size = lineevent_get_size();
+	if (count < ge_size)
 		return -EINVAL;
 
 	do {
@@ -883,10 +909,10 @@ static ssize_t lineevent_read(struct file *filep,
 			break;
 		}
 
-		if (copy_to_user(buf + bytes_read, &ge, sizeof(ge)))
+		if (copy_to_user(buf + bytes_read, &ge, ge_size))
 			return -EFAULT;
-		bytes_read += sizeof(ge);
-	} while (count >= bytes_read + sizeof(ge));
+		bytes_read += ge_size;
+	} while (count >= bytes_read + ge_size);
 
 	return bytes_read;
 }
