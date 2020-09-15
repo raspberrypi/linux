@@ -31,7 +31,7 @@
  *	- sudo nano /boot/config.txt add "dtoverlay=gpio-fan" or "dtoverlay=gpio-fan,gpiopin=12,temp=45000"
  *	 or
  *	- sudo sh -c 'printf "\n# Enable PI GPIO-Fan Default\ndtoverlay=gpio-fan\n" >> /boot/config.txt'
- *	- sudo sh -c 'printf "\n# Enable PI GPIO-Fan Custom\ntoverlay=gpio-fan,gpiopin=12,temp=45000\n" >> /boot/config.txt'
+ *	- sudo sh -c 'printf "\n# Enable PI GPIO-Fan Custom\ndtoverlay=gpio-fan,gpiopin=12,temp=45000\n" >> /boot/config.txt'
  *
  */
 /dts-v1/;
