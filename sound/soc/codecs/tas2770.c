@@ -574,6 +574,8 @@ static int tas2770_codec_probe(struct snd_soc_component *component)
 
 	tas2770->component = component;
 
+	tas2770_reset(tas2770);
+
 	return 0;
 }
 
@@ -769,8 +771,6 @@ static int tas2770_i2c_probe(struct i2c_client *client,
 
 	tas2770->channel_size = 0;
 	tas2770->slot_width = 0;
-
-	tas2770_reset(tas2770);
 
 	result = tas2770_register_codec(tas2770);
 	if (result)
