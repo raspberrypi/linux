@@ -192,7 +192,7 @@ extern const void *__pv_table_begin, *__pv_table_end;
 	__asm__("@ __pv_stub\n"				\
 	"1:	" instr "	%0, %1, %2\n"		\
 	"	.pushsection .pv_table,\"a\"\n"		\
-	"	.long	1b\n"				\
+	"	.long	1b - .\n"			\
 	"	.popsection\n"				\
 	: "=r" (to)					\
 	: "r" (from), "I" (__PV_BITS_31_24))
@@ -201,7 +201,7 @@ extern const void *__pv_table_begin, *__pv_table_end;
 	__asm__ volatile("@ __pv_stub_mov\n"		\
 	"1:	mov	%R0, %1\n"			\
 	"	.pushsection .pv_table,\"a\"\n"		\
-	"	.long	1b\n"				\
+	"	.long	1b - .\n"			\
 	"	.popsection\n"				\
 	: "=r" (t)					\
 	: "I" (__PV_BITS_7_0))
@@ -211,7 +211,7 @@ extern const void *__pv_table_begin, *__pv_table_end;
 	"1:	adds	%Q0, %1, %2\n"			\
 	"	adc	%R0, %R0, #0\n"			\
 	"	.pushsection .pv_table,\"a\"\n"		\
-	"	.long	1b\n"				\
+	"	.long	1b - .\n"			\
 	"	.popsection\n"				\
 	: "+r" (y)					\
 	: "r" (x), "I" (__PV_BITS_31_24)		\
