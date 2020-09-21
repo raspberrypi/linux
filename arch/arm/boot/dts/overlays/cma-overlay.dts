@@ -21,6 +21,10 @@
 	};
 
 	__overrides__ {
+		cma-512 = <&frag0>,"size:0=",<0x20000000>;
+		cma-448 = <&frag0>,"size:0=",<0x1c000000>;
+		cma-384 = <&frag0>,"size:0=",<0x18000000>;
+		cma-320 = <&frag0>,"size:0=",<0x14000000>;
 		cma-256 = <&frag0>,"size:0=",<0x10000000>;
 		cma-192 = <&frag0>,"size:0=",<0xC000000>;
 		cma-128 = <&frag0>,"size:0=",<0x8000000>;
