@@ -36,7 +36,6 @@
 				reset-gpios = <&gpio 25 1>;
 				dc-gpios = <&gpio 24 0>;
 				led-gpios = <&gpio 18 0>;
-				bgr;
 				debug = <0>;
 			};
 		};

@@ -269,7 +269,7 @@ Params: green                   Use the adafruit18_green variant.
         rotate                  Display rotation {0,90,180,270}
         speed                   SPI bus speed in Hz (default 4000000)
         fps                     Display frame rate in Hz
-        bgr                     Enable BGR mode (default on)
+        bgr                     Enable BGR mode (default off)
         debug                   Debug output level {0-7}
         dc_pin                  GPIO pin for D/C (default 24)
         reset_pin               GPIO pin for RESET (default 25)
@@ -2284,7 +2284,7 @@ Load:   dtoverlay=sainsmart18,<param>=<val>
 Params: rotate                  Display rotation {0,90,180,270}
         speed                   SPI bus speed in Hz (default 4000000)
         fps                     Display frame rate in Hz
-        bgr                     Enable BGR mode (default on)
+        bgr                     Enable BGR mode (default off)
         debug                   Debug output level {0-7}
         dc_pin                  GPIO pin for D/C (default 24)
         reset_pin               GPIO pin for RESET (default 25)
