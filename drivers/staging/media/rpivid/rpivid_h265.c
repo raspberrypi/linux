@@ -2178,7 +2178,7 @@ static int rpivid_h265_start(struct rpivid_ctx *ctx)
 	if (w > 4096)
 		w = 4096;
 	if (h == 0)
-		w = 1088;
+		h = 1088;
 	if (h > 4096)
 		h = 4096;
 	wxh = w * h;
