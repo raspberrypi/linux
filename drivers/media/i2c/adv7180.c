@@ -178,10 +178,37 @@
 #define ADV7180_DEFAULT_CSI_I2C_ADDR 0x44
 #define ADV7180_DEFAULT_VPP_I2C_ADDR 0x42
 
+#define ADV7180_REG_PATTERN_SELECT 0x14
+#define ADV7180_PATTERN_SELECT_SINGLE 0x00
+#define ADV7180_PATTERN_SELECT_COLOUR_BAR 0x01
+#define ADV7180_PATTERN_SELECT_LUMA_RAMP 0x02
+#define ADV7180_PATTERN_SELECT_BOUNDARY_BOX 0x05
+
+#define ADV7180_REG_DEFAULT_VALUE_ENABLE 0x0c
+#define ADV7180_FREE_RUN_NOT_FORCE 0x00
+#define ADV7180_FREE_RUN_FORCE 0x01
+
 #define V4L2_CID_ADV_FAST_SWITCH	(V4L2_CID_USER_ADV7180_BASE + 0x00)
 
 /* Initial number of frames to skip to avoid possible garbage */
 #define ADV7180_NUM_OF_SKIP_FRAMES       2
+
+static int dbg_input;
+module_param(dbg_input, int, 0644);
+MODULE_PARM_DESC(dbg_input, "Input number (0-31)");
+
+static int pattern_select=0;
+module_param(pattern_select, int, 0644);
+MODULE_PARM_DESC(pattern_select, "Free run pattern select (0,1,2,5)");
+
+static int free_run=0;
+module_param(free_run, int, 0644);
+MODULE_PARM_DESC(free_run, "Default value enable (0,1)");
+
+static char* i2c_write[10];
+static int i2c_param_count =0;
+module_param_array(i2c_write,charp, &i2c_param_count,0644);
+MODULE_PARM_DESC(i2c_write, "write to i2c address in the format: <addr> <data>,<addr> <data> e.g. 0c 01,14 02");
 
 struct adv7180_state;
 
@@ -245,6 +272,39 @@ static int adv7180_read(struct adv7180_state *state, unsigned int reg)
 	lockdep_assert_held(&state->mutex);
 	adv7180_select_page(state, reg >> 8);
 	return i2c_smbus_read_byte_data(state->client, reg & 0xff);
+}
+
+void adv7180_parse_i2c_parameter(struct adv7180_state *state)
+{
+	/* split string to address and data and write to i2c*/
+	int i,k;
+	int j,ctr;
+	char newString[2][3];
+	long int addr,data;
+	if (i2c_param_count == 0)
+		return;
+	for (i=0;i<i2c_param_count;i++)
+	{
+		j=0;
+		ctr=0;
+   		for(k=0;k<6;k++)
+	    	{
+			if(i2c_write[i][k]==' '||i2c_write[i][k]=='\0'||i2c_write[i][k]=='\n')
+		        {
+        		    newString[ctr][j]='\0';
+	        	    ctr++;
+	        	    j=0;
+		        }
+	        	else
+	        	{
+		            newString[ctr][j]=i2c_write[i][k];
+            		    j++;
+	        	}
+    		}
+		kstrtol(newString[0],16,&addr);
+		kstrtol(newString[1],16,&data);
+		adv7180_write(state,addr,data);
+	}
 }
 
 static int adv7180_csi_write(struct adv7180_state *state, unsigned int reg,
@@ -399,10 +459,28 @@ out:
 	return ret;
 }
 
+static void adv7180_check_user_input(struct v4l2_subdev *sd)
+{
+	struct adv7180_state *state = to_state(sd);
+
+	if (state->input != dbg_input)
+		if (adv7180_s_routing(sd,dbg_input,0,0))
+			dbg_input = state->input;
+
+	if (pattern_select == ADV7180_PATTERN_SELECT_SINGLE||pattern_select == ADV7180_PATTERN_SELECT_COLOUR_BAR||pattern_select == ADV7180_PATTERN_SELECT_LUMA_RAMP||pattern_select == ADV7180_PATTERN_SELECT_BOUNDARY_BOX)
+		adv7180_write(state, ADV7180_REG_PATTERN_SELECT, pattern_select);
+	if (free_run == ADV7180_FREE_RUN_NOT_FORCE||free_run == ADV7180_FREE_RUN_FORCE)
+		adv7180_write(state, ADV7180_REG_DEFAULT_VALUE_ENABLE, free_run);
+
+	adv7180_parse_i2c_parameter(state);
+
+}
+
 static int adv7180_g_input_status(struct v4l2_subdev *sd, u32 *status)
 {
 	struct adv7180_state *state = to_state(sd);
 	int ret = mutex_lock_interruptible(&state->mutex);
+	adv7180_check_user_input(sd);
 	if (ret)
 		return ret;
 
@@ -429,6 +507,7 @@ static int adv7180_s_std(struct v4l2_subdev *sd, v4l2_std_id std)
 {
 	struct adv7180_state *state = to_state(sd);
 	int ret = mutex_lock_interruptible(&state->mutex);
+	adv7180_check_user_input(sd);
 
 	if (ret)
 		return ret;
@@ -449,6 +528,7 @@ out:
 static int adv7180_g_std(struct v4l2_subdev *sd, v4l2_std_id *norm)
 {
 	struct adv7180_state *state = to_state(sd);
+	adv7180_check_user_input(sd);
 
 	*norm = state->curr_norm;
 
@@ -728,7 +808,7 @@ static int adv7180_set_pad_format(struct v4l2_subdev *sd,
 			break;
 		/* fall through */
 	default:
-		format->format.field = V4L2_FIELD_ALTERNATE;
+		format->format.field = V4L2_FIELD_INTERLACED;
 		break;
 	}
 
@@ -811,6 +891,7 @@ static int adv7180_s_stream(struct v4l2_subdev *sd, int enable)
 		state->streaming = enable;
 		return 0;
 	}
+	adv7180_check_user_input(sd);
 
 	/* Must wait until querystd released the lock */
 	ret = mutex_lock_interruptible(&state->mutex);
@@ -1324,7 +1405,7 @@ static int adv7180_probe(struct i2c_client *client,
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -EIO;
 
-	v4l_info(client, "chip found @ 0x%02x (%s)\n",
+	v4l_info(client, "Init PEL ADV Driver:chip found @ 0x%02x (%s)\n",
 		 client->addr, client->adapter->name);
 
 	state = devm_kzalloc(&client->dev, sizeof(*state), GFP_KERNEL);
@@ -1469,7 +1550,8 @@ static int adv7180_resume(struct device *dev)
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct adv7180_state *state = to_state(sd);
 	int ret;
-
+	
+	v4l_info(client,"Resuming ADV device");
 	ret = init_device(state);
 	if (ret < 0)
 		return ret;
