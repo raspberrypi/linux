@@ -382,6 +382,8 @@ struct unicam_node {
 	int open;
 	bool streaming;
 	unsigned int pad_id;
+	/* Source pad id on the sensor for this node */
+	unsigned int src_pad_id;
 	/* Pointer pointing to current v4l2_buffer */
 	struct unicam_buffer *cur_frm;
 	/* Pointer pointing to next v4l2_buffer */
@@ -592,7 +594,7 @@ static int __subdev_get_format(struct unicam_device *dev,
 {
 	struct v4l2_subdev_format sd_fmt = {
 		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
-		.pad = pad_id
+		.pad = dev->node[pad_id].src_pad_id,
 	};
 	int ret;
 
@@ -614,7 +616,7 @@ static int __subdev_set_format(struct unicam_device *dev,
 {
 	struct v4l2_subdev_format sd_fmt = {
 		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
-		.pad = pad_id
+		.pad = dev->node[pad_id].src_pad_id,
 	};
 	int ret;
 
@@ -1979,7 +1981,7 @@ static int unicam_enum_framesizes(struct file *file, void *priv,
 
 	fse.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	fse.index = fsize->index;
-	fse.pad = node->pad_id;
+	fse.pad = node->src_pad_id;
 
 	ret = v4l2_subdev_call(dev->sensor, pad, enum_frame_size, NULL, &fse);
 	if (ret)
@@ -2004,6 +2006,7 @@ static int unicam_enum_frameintervals(struct file *file, void *priv,
 	const struct unicam_fmt *fmt;
 	struct v4l2_subdev_frame_interval_enum fie = {
 		.index = fival->index,
+		.pad = node->src_pad_id,
 		.width = fival->width,
 		.height = fival->height,
 		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
@@ -2095,8 +2098,13 @@ static int unicam_enum_dv_timings(struct file *file, void *priv,
 {
 	struct unicam_node *node = video_drvdata(file);
 	struct unicam_device *dev = node->dev;
+	int ret;
 
-	return v4l2_subdev_call(dev->sensor, pad, enum_dv_timings, timings);
+	timings->pad = node->src_pad_id;
+	ret = v4l2_subdev_call(dev->sensor, pad, enum_dv_timings, timings);
+	timings->pad = node->pad_id;
+
+	return ret;
 }
 
 static int unicam_dv_timings_cap(struct file *file, void *priv,
@@ -2104,8 +2112,13 @@ static int unicam_dv_timings_cap(struct file *file, void *priv,
 {
 	struct unicam_node *node = video_drvdata(file);
 	struct unicam_device *dev = node->dev;
+	int ret;
 
-	return v4l2_subdev_call(dev->sensor, pad, dv_timings_cap, cap);
+	cap->pad = node->src_pad_id;
+	ret = v4l2_subdev_call(dev->sensor, pad, dv_timings_cap, cap);
+	cap->pad = node->pad_id;
+
+	return ret;
 }
 
 static int unicam_subscribe_event(struct v4l2_fh *fh,
@@ -2376,14 +2389,12 @@ static int register_node(struct unicam_device *unicam, struct unicam_node *node,
 			 */
 			fmt = get_first_supported_format(unicam);
 
-			if (!fmt)
-				/* No compatible formats */
-				return -EINVAL;
-
-			mbus_fmt.code = fmt->code;
-			ret = __subdev_set_format(unicam, &mbus_fmt, pad_id);
-			if (ret)
-				return -EINVAL;
+			if (fmt) {
+				mbus_fmt.code = fmt->code;
+				ret = __subdev_set_format(unicam, &mbus_fmt, pad_id);
+				if (ret)
+					return -EINVAL;
+			}
 		}
 		if (mbus_fmt.field != V4L2_FIELD_NONE) {
 			/* Interlaced not supported - disable it now. */
@@ -2393,7 +2404,8 @@ static int register_node(struct unicam_device *unicam, struct unicam_node *node,
 				return -EINVAL;
 		}
 
-		node->v_fmt.fmt.pix.pixelformat = fmt->fourcc ? fmt->fourcc
+		if (fmt)
+			node->v_fmt.fmt.pix.pixelformat = fmt->fourcc ? fmt->fourcc
 						: fmt->repacked_fourcc;
 	} else {
 		/* Fix this node format as embedded data. */
@@ -2406,7 +2418,8 @@ static int register_node(struct unicam_device *unicam, struct unicam_node *node,
 	node->fmt = fmt;
 
 	/* Read current subdev format */
-	unicam_reset_format(node);
+	if (fmt)
+		unicam_reset_format(node);
 
 	if (v4l2_subdev_has_op(unicam->sensor, video, s_std)) {
 		v4l2_std_id tvnorms;
@@ -2495,6 +2508,7 @@ static int register_node(struct unicam_device *unicam, struct unicam_node *node,
 		unicam_err(unicam, "Unable to allocate dummy buffer.\n");
 		return -ENOMEM;
 	}
+
 	if (pad_id == METADATA_PAD ||
 	    !v4l2_subdev_has_op(unicam->sensor, video, s_std)) {
 		v4l2_disable_ioctl(&node->video_dev, VIDIOC_S_STD);
@@ -2553,7 +2567,8 @@ static int register_node(struct unicam_device *unicam, struct unicam_node *node,
 	node->registered = true;
 
 	if (pad_id != METADATA_PAD || unicam->sensor_embedded_data) {
-		ret = media_create_pad_link(&unicam->sensor->entity, pad_id,
+		ret = media_create_pad_link(&unicam->sensor->entity,
+					    node->src_pad_id,
 					    &node->video_dev.entity, 0,
 					    MEDIA_LNK_FL_ENABLED |
 					    MEDIA_LNK_FL_IMMUTABLE);
@@ -2585,8 +2600,10 @@ static void unregister_nodes(struct unicam_device *unicam)
 	}
 }
 
-static int unicam_probe_complete(struct unicam_device *unicam)
+static int unicam_async_complete(struct v4l2_async_notifier *notifier)
 {
+	struct unicam_device *unicam = to_unicam_device(notifier->v4l2_dev);
+	unsigned int i, source_pads = 0;
 	int ret;
 
 	unicam->v4l2_dev.notify = unicam_notify;
@@ -2595,7 +2612,20 @@ static int unicam_probe_complete(struct unicam_device *unicam)
 	if (!unicam->sensor_state)
 		return -ENOMEM;
 
-	unicam->sensor_embedded_data = (unicam->sensor->entity.num_pads >= 2);
+	for (i = 0; i < unicam->sensor->entity.num_pads; i++) {
+		if (unicam->sensor->entity.pads[i].flags & MEDIA_PAD_FL_SOURCE) {
+			if (source_pads < MAX_NODES) {
+				unicam->node[source_pads].src_pad_id = i;
+				unicam_err(unicam, "source pad %u is index %u\n",
+					   source_pads, i);
+			}
+			source_pads++;
+		}
+	}
+	if (!source_pads) {
+		unicam_err(unicam, "No source pads on sensor.\n");
+		goto unregister;
+	}
 
 	ret = register_node(unicam, &unicam->node[IMAGE_PAD],
 			    V4L2_BUF_TYPE_VIDEO_CAPTURE, IMAGE_PAD);
@@ -2604,11 +2634,15 @@ static int unicam_probe_complete(struct unicam_device *unicam)
 		goto unregister;
 	}
 
-	ret = register_node(unicam, &unicam->node[METADATA_PAD],
-			    V4L2_BUF_TYPE_META_CAPTURE, METADATA_PAD);
-	if (ret) {
-		unicam_err(unicam, "Unable to register metadata video device.\n");
-		goto unregister;
+	if (source_pads >= 2) {
+		unicam->sensor_embedded_data = true;
+
+		ret = register_node(unicam, &unicam->node[METADATA_PAD],
+				    V4L2_BUF_TYPE_META_CAPTURE, METADATA_PAD);
+		if (ret) {
+			unicam_err(unicam, "Unable to register metadata video device.\n");
+			goto unregister;
+		}
 	}
 
 	ret = v4l2_device_register_ro_subdev_nodes(&unicam->v4l2_dev);
@@ -2629,13 +2663,6 @@ unregister:
 	unicam_put(unicam);
 
 	return ret;
-}
-
-static int unicam_async_complete(struct v4l2_async_notifier *notifier)
-{
-	struct unicam_device *unicam = to_unicam_device(notifier->v4l2_dev);
-
-	return unicam_probe_complete(unicam);
 }
 
 static const struct v4l2_async_notifier_operations unicam_async_ops = {
@@ -2746,7 +2773,7 @@ static int of_unicam_connect_subdevs(struct unicam_device *dev)
 	dev->notifier.ops = &unicam_async_ops;
 
 	dev->asd.match_type = V4L2_ASYNC_MATCH_FWNODE;
-	dev->asd.match.fwnode = of_fwnode_handle(sensor_node);
+	dev->asd.match.fwnode = fwnode_graph_get_remote_endpoint(of_fwnode_handle(ep_node));
 	ret = __v4l2_async_nf_add_subdev(&dev->notifier, &dev->asd);
 	if (ret) {
 		unicam_err(dev, "Error adding subdevice: %d\n", ret);
