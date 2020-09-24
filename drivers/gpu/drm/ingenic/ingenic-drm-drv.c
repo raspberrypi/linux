@@ -112,7 +112,7 @@ static inline struct ingenic_drm *drm_crtc_get_priv(struct drm_crtc *crtc)
 }
 
 static void ingenic_drm_crtc_atomic_enable(struct drm_crtc *crtc,
-					   struct drm_crtc_state *state)
+					   struct drm_atomic_state *state)
 {
 	struct ingenic_drm *priv = drm_crtc_get_priv(crtc);
 
@@ -126,7 +126,7 @@ static void ingenic_drm_crtc_atomic_enable(struct drm_crtc *crtc,
 }
 
 static void ingenic_drm_crtc_atomic_disable(struct drm_crtc *crtc,
-					    struct drm_crtc_state *state)
+					    struct drm_atomic_state *state)
 {
 	struct ingenic_drm *priv = drm_crtc_get_priv(crtc);
 	unsigned int var;
