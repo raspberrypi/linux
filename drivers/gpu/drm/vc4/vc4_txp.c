@@ -401,14 +401,14 @@ static int vc4_txp_atomic_check(struct drm_crtc *crtc,
 }
 
 static void vc4_txp_atomic_enable(struct drm_crtc *crtc,
-				  struct drm_crtc_state *old_state)
+				  struct drm_atomic_state *state)
 {
 	drm_crtc_vblank_on(crtc);
 	vc4_hvs_atomic_enable(crtc, old_state);
 }
 
 static void vc4_txp_atomic_disable(struct drm_crtc *crtc,
-				   struct drm_crtc_state *old_state)
+				   struct drm_atomic_state *state)
 {
 	struct drm_device *dev = crtc->dev;
 
