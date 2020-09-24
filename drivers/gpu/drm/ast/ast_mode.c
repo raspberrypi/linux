@@ -800,14 +800,14 @@ static void ast_crtc_helper_atomic_flush(struct drm_crtc *crtc,
 
 static void
 ast_crtc_helper_atomic_enable(struct drm_crtc *crtc,
-			      struct drm_crtc_state *old_crtc_state)
+			      struct drm_atomic_state *state)
 {
 	ast_crtc_dpms(crtc, DRM_MODE_DPMS_ON);
 }
 
 static void
 ast_crtc_helper_atomic_disable(struct drm_crtc *crtc,
-			       struct drm_crtc_state *old_crtc_state)
+			       struct drm_atomic_state *state)
 {
 	ast_crtc_dpms(crtc, DRM_MODE_DPMS_OFF);
 }
