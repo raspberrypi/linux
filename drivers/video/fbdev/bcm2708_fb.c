@@ -657,6 +657,8 @@ static long vc_mem_copy(struct bcm2708_fb *fb, struct fb_dmacopy *ioparam)
 	long rc = 0;
 	size_t offset;
 
+return -EFAULT;
+
 	/* restrict this to root user */
 	if (!uid_eq(current_euid(), GLOBAL_ROOT_UID)) {
 		rc = -EFAULT;
@@ -1109,6 +1111,7 @@ static int bcm2708_fb_probe(struct platform_device *dev)
 
 	dev_info(&dev->dev, "FB found %d display(s)\n", num_displays);
 
+#if 0
 	/* Set up the DMA information. Note we have just one set of DMA
 	 * parameters to work with all the FB's so requires synchronising when
 	 * being used
@@ -1141,7 +1144,7 @@ static int bcm2708_fb_probe(struct platform_device *dev)
 			"Failed to request DMA irq\n");
 		goto free_dma_chan;
 	}
-
+#endif
 	rpi_firmware_property(fbdev->fw,
 			      RPI_FIRMWARE_GET_VC_MEMORY,
 			      &gpu_mem, sizeof(gpu_mem));
