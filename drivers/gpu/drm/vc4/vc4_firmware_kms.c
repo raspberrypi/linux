@@ -981,7 +981,8 @@ static void vc4_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	ret = rpi_firmware_property_list(vc4->firmware, &mb, sizeof(mb));
 }
 
-static void vc4_crtc_disable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
+static void vc4_crtc_disable(struct drm_crtc *crtc,
+			     struct drm_atomic_state *state)
 {
 	struct drm_device *dev = crtc->dev;
 	struct drm_plane *plane;
@@ -1033,7 +1034,8 @@ static void vc4_crtc_consume_event(struct drm_crtc *crtc)
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 }
 
-static void vc4_crtc_enable(struct drm_crtc *crtc, struct drm_crtc_state *old_state)
+static void vc4_crtc_enable(struct drm_crtc *crtc,
+			    struct drm_atomic_state *state)
 {
 	struct drm_plane *plane;
 
