@@ -5,6 +5,8 @@
 
 menu "Character devices"
 
+source "drivers/char/broadcom/Kconfig"
+
 source "drivers/tty/Kconfig"
 
 config TTY_PRINTK
