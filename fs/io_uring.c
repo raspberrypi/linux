@@ -1240,12 +1240,24 @@ static void io_cqring_ev_posted(struct io_ring_ctx *ctx)
 		eventfd_signal(ctx->cq_ev_fd, 1);
 }
 
+static inline bool io_match_files(struct io_kiocb *req,
+				       struct files_struct *files)
+{
+	if (!files)
+		return true;
+	if (req->flags & REQ_F_WORK_INITIALIZED)
+		return req->work.files == files;
+	return false;
+}
+
 /* Returns true if there are no backlogged entries after the flush */
-static bool io_cqring_overflow_flush(struct io_ring_ctx *ctx, bool force)
+static bool io_cqring_overflow_flush(struct io_ring_ctx *ctx, bool force,
+				     struct task_struct *tsk,
+				     struct files_struct *files)
 {
 	struct io_rings *rings = ctx->rings;
+	struct io_kiocb *req, *tmp;
 	struct io_uring_cqe *cqe;
-	struct io_kiocb *req;
 	unsigned long flags;
 	LIST_HEAD(list);
 
@@ -1264,7 +1276,12 @@ static bool io_cqring_overflow_flush(struct io_ring_ctx *ctx, bool force)
 		ctx->cq_overflow_flushed = 1;
 
 	cqe = NULL;
-	while (!list_empty(&ctx->cq_overflow_list)) {
+	list_for_each_entry_safe(req, tmp, &ctx->cq_overflow_list, list) {
+		if (tsk && req->task != tsk)
+			continue;
+		if (!io_match_files(req, files))
+			continue;
+
 		cqe = io_get_cqring(ctx);
 		if (!cqe && !force)
 			break;
@@ -1734,7 +1751,7 @@ static unsigned io_cqring_events(struct io_ring_ctx *ctx, bool noflush)
 		if (noflush && !list_empty(&ctx->cq_overflow_list))
 			return -1U;
 
-		io_cqring_overflow_flush(ctx, false);
+		io_cqring_overflow_flush(ctx, false, NULL, NULL);
 	}
 
 	/* See comment at the top of this file */
@@ -6095,7 +6112,7 @@ static int io_submit_sqes(struct io_ring_ctx *ctx, unsigned int nr,
 	/* if we have a backlog and couldn't flush it all, return BUSY */
 	if (test_bit(0, &ctx->sq_check_overflow)) {
 		if (!list_empty(&ctx->cq_overflow_list) &&
-		    !io_cqring_overflow_flush(ctx, false))
+		    !io_cqring_overflow_flush(ctx, false, NULL, NULL))
 			return -EBUSY;
 	}
 
@@ -7556,7 +7573,7 @@ static void io_ring_exit_work(struct work_struct *work)
 
 	ctx = container_of(work, struct io_ring_ctx, exit_work);
 	if (ctx->rings)
-		io_cqring_overflow_flush(ctx, true);
+		io_cqring_overflow_flush(ctx, true, NULL, NULL);
 
 	/*
 	 * If we're doing polled IO and end up having requests being
@@ -7567,7 +7584,7 @@ static void io_ring_exit_work(struct work_struct *work)
 	while (!wait_for_completion_timeout(&ctx->ref_comp, HZ/20)) {
 		io_iopoll_reap_events(ctx);
 		if (ctx->rings)
-			io_cqring_overflow_flush(ctx, true);
+			io_cqring_overflow_flush(ctx, true, NULL, NULL);
 	}
 	io_ring_ctx_free(ctx);
 }
@@ -7587,7 +7604,7 @@ static void io_ring_ctx_wait_and_kill(struct io_ring_ctx *ctx)
 	io_iopoll_reap_events(ctx);
 	/* if we failed setting up the ctx, we might not have any rings */
 	if (ctx->rings)
-		io_cqring_overflow_flush(ctx, true);
+		io_cqring_overflow_flush(ctx, true, NULL, NULL);
 	idr_for_each(&ctx->personality_idr, io_remove_personalities, ctx);
 
 	/*
@@ -7635,12 +7652,6 @@ static bool io_match_link(struct io_kiocb *preq, struct io_kiocb *req)
 	}
 
 	return false;
-}
-
-static inline bool io_match_files(struct io_kiocb *req,
-				       struct files_struct *files)
-{
-	return (req->flags & REQ_F_WORK_INITIALIZED) && req->work.files == files;
 }
 
 static bool io_match_link_files(struct io_kiocb *req,
@@ -7959,7 +7970,7 @@ SYSCALL_DEFINE6(io_uring_enter, unsigned int, fd, u32, to_submit,
 	ret = 0;
 	if (ctx->flags & IORING_SETUP_SQPOLL) {
 		if (!list_empty_careful(&ctx->cq_overflow_list))
-			io_cqring_overflow_flush(ctx, false);
+			io_cqring_overflow_flush(ctx, false, NULL, NULL);
 		if (flags & IORING_ENTER_SQ_WAKEUP)
 			wake_up(&ctx->sqo_wait);
 		submitted = to_submit;
