@@ -45,6 +45,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	exc3000.dtbo \
 	fe-pi-audio.dtbo \
 	fsm-demo.dtbo \
+	ghost-amp.dtbo \
 	goodix.dtbo \
 	googlevoicehat-soundcard.dtbo \
 	gpio-fan.dtbo \
