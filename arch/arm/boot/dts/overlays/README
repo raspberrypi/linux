@@ -775,6 +775,13 @@ Load:   dtoverlay=fsm-demo,<param>=<val>
 Params: fsm_debug               Enable debug logging (default off)
 
 
+Name:   ghost-amp
+Info:   An overlay for the Ghost amplifier.
+Load:   dtoverlay=ghost-amp,<param>=<val>
+Params: fsm_debug               Enable debug logging of the GPIO FSM (default
+                                off)
+
+
 Name:   goodix
 Info:   Enables I2C connected Goodix gt9271 multiple touch controller using
         GPIOs 4 and 17 (pins 7 and 11 on GPIO header) for interrupt and reset.
