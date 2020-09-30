@@ -1231,6 +1231,15 @@ config HTC_EGPIO
 	  several HTC phones.  It provides basic support for input
 	  pins, output pins, and irqs.
 
+config GPIO_FSM
+	tristate "GPIO FSM support"
+	help
+	  The GPIO FSM driver allows the creation of state machines for
+	  manipulating GPIOs (both real and virtual), with state transitions
+	  triggered by GPIO edges or delays.
+
+	  If unsure, say N.
+
 config GPIO_JANZ_TTL
 	tristate "Janz VMOD-TTL Digital IO Module"
 	depends on MFD_JANZ_CMODIO
