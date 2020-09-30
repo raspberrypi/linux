@@ -2290,7 +2290,7 @@ static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 	if (count < port->minimum_buffer.num)
 		count = port->minimum_buffer.num;
 
-	if (port->current_buffer.num != count + 1) {
+	if (port->current_buffer.num < count + 1) {
 		v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: ctx:%p, buffer count changed %u to %u\n",
 			 __func__, ctx, port->current_buffer.num, count + 1);
 
