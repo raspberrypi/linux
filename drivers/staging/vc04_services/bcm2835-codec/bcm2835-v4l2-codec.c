@@ -89,6 +89,9 @@ static const char * const components[] = {
 	"ril.isp",
 };
 
+/* Timeout for stop_streaming to allow all buffers to return */
+#define COMPLETE_TIMEOUT (2 * HZ)
+
 #define MIN_W		32
 #define MIN_H		32
 #define MAX_W		1920
@@ -2366,7 +2369,8 @@ static void bcm2835_codec_stop_streaming(struct vb2_queue *q)
 	while (atomic_read(&port->buffers_with_vpu)) {
 		v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: Waiting for buffers to be returned - %d outstanding\n",
 			 __func__, atomic_read(&port->buffers_with_vpu));
-		ret = wait_for_completion_timeout(&ctx->frame_cmplt, HZ);
+		ret = wait_for_completion_timeout(&ctx->frame_cmplt,
+						  COMPLETE_TIMEOUT);
 		if (ret <= 0) {
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Timeout waiting for buffers to be returned - %d outstanding\n",
 				 __func__,
