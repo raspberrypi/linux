@@ -767,6 +767,14 @@ Load:   dtoverlay=fe-pi-audio
 Params: <None>
 
 
+Name:   fsm-demo
+Info:   A demonstration of the gpio-fsm driver. The GPIOs are chosen to work
+        nicely with a "traffic-light" display of red, amber and green LEDs on
+        GPIOs 7, 8 and 25 respectively.
+Load:   dtoverlay=fsm-demo,<param>=<val>
+Params: fsm_debug               Enable debug logging (default off)
+
+
 Name:   goodix
 Info:   Enables I2C connected Goodix gt9271 multiple touch controller using
         GPIOs 4 and 17 (pins 7 and 11 on GPIO header) for interrupt and reset.
