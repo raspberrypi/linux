@@ -5514,6 +5514,10 @@ static int rtl8169_change_mtu(struct net_device *dev, int new_mtu)
 	dev->mtu = new_mtu;
 	netdev_update_features(dev);
 
+	/* Reportedly at least Asus X453MA truncates packets otherwise */
+	if (tp->mac_version == RTL_GIGA_MAC_VER_37)
+		rtl_init_rxcfg(tp);
+
 	return 0;
 }
 
