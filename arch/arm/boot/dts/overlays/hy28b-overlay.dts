@@ -61,7 +61,7 @@
 				fps = <50>;
 				buswidth = <8>;
 				startbyte = <0x70>;
-				reset-gpios = <&gpio 25 0>;
+				reset-gpios = <&gpio 25 1>;
 				led-gpios = <&gpio 18 1>;
 
 				gamma = "04 1F 4 7 7 0 7 7 6 0\n0F 00 1 7 4 0 0 0 6 7";
