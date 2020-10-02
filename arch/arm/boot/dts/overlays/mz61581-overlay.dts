@@ -65,7 +65,7 @@
 				buswidth = <8>;
 				txbuflen = <32768>;
 
-				reset-gpios = <&gpio 15 0>;
+				reset-gpios = <&gpio 15 1>;
 				dc-gpios = <&gpio 25 0>;
 				led-gpios = <&gpio 18 0>;
 
