@@ -411,8 +411,6 @@ try_again:
 	}
 	status = usb_ep_queue(hidg->in_ep, req, GFP_ATOMIC);
 	if (status < 0) {
-		ERROR(hidg->func.config->cdev,
-			"usb_ep_queue error on int endpoint %zd\n", status);
 		goto release_write_pending;
 	} else {
 		status = count;
