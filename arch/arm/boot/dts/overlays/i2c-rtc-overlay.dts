@@ -220,6 +220,21 @@
 		};
 	};
 
+	fragment@14 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			sd3078: sd3078@32 {
+				compatible = "whwave,sd3078";
+				reg = <0x32>;
+				status = "okay";
+			};
+		};
+	};
+
 	__overrides__ {
 		abx80x = <0>,"+0";
 		ds1307 = <0>,"+1";
@@ -235,6 +250,7 @@
 		pcf2129 = <0>,"+11";
 		pcf85363 = <0>,"+12";
 		rv1805 = <0>,"+13";
+		sd3078 = <0>,"+14";
 
 		addr = <&abx80x>, "reg:0",
 		       <&ds1307>, "reg:0",
