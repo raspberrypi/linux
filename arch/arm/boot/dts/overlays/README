@@ -1232,6 +1232,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         rv3028                  Select the Micro Crystal RV3028 device
 
+        sd3078                  Select the ZXW Shenzhen whwave SD3078 device
+
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
                                 address.
