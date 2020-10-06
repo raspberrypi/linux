@@ -517,7 +517,7 @@ static bool mptcp_established_options_dss(struct sock *sk, struct sk_buff *skb,
 		return ret;
 	}
 
-	if (subflow->use_64bit_ack) {
+	if (READ_ONCE(msk->use_64bit_ack)) {
 		ack_size = TCPOLEN_MPTCP_DSS_ACK64;
 		opts->ext_copy.data_ack = msk->ack_seq;
 		opts->ext_copy.ack64 = 1;
