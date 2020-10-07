@@ -689,7 +689,11 @@ int dwc_otg_hcd_qh_add(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 				     &qh->qh_list_entry);
 		//hcd->fiq_state->kick_np_queues = 1;
 	} else {
+		/* If the QH wasn't in a schedule, then sched_frame is stale. */
+		qh->sched_frame = dwc_frame_num_inc(dwc_otg_hcd_get_frame_number(hcd),
+							SCHEDULE_SLOP);
 		status = schedule_periodic(hcd, qh);
+		qh->start_split_frame = qh->sched_frame;
 		if ( !hcd->periodic_qh_count ) {
 			intr_mask.b.sofintr = 1;
 			if (fiq_enable) {
