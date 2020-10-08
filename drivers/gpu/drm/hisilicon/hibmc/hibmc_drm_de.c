@@ -172,7 +172,7 @@ static void hibmc_crtc_dpms(struct drm_crtc *crtc, int dpms)
 }
 
 static void hibmc_crtc_atomic_enable(struct drm_crtc *crtc,
-				     struct drm_crtc_state *old_state)
+				     struct drm_atomic_state *state)
 {
 	unsigned int reg;
 	struct hibmc_drm_private *priv = crtc->dev->dev_private;
@@ -191,7 +191,7 @@ static void hibmc_crtc_atomic_enable(struct drm_crtc *crtc,
 }
 
 static void hibmc_crtc_atomic_disable(struct drm_crtc *crtc,
-				      struct drm_crtc_state *old_state)
+				      struct drm_atomic_state *state)
 {
 	unsigned int reg;
 	struct hibmc_drm_private *priv = crtc->dev->dev_private;
