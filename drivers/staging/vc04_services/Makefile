@@ -14,6 +14,7 @@ endif
 obj-$(CONFIG_SND_BCM2835)		+= bcm2835-audio/
 obj-$(CONFIG_VIDEO_BCM2835)		+= bcm2835-camera/
 obj-$(CONFIG_BCM2835_VCHIQ_MMAL)	+= vchiq-mmal/
+obj-$(CONFIG_BCM_VC_SM_CMA)		+= vc-sm-cma/
 
 ccflags-y += -I $(srctree)/$(src)/include
 
