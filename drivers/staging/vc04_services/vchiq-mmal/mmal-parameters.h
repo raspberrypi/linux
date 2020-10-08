@@ -223,6 +223,8 @@ enum mmal_parameter_camera_type {
 	MMAL_PARAMETER_SHUTTER_SPEED,
 		/**< Takes a @ref MMAL_PARAMETER_AWB_GAINS_T */
 	MMAL_PARAMETER_CUSTOM_AWB_GAINS,
+		/**< Takes a @ref MMAL_PARAMETER_BOOLEAN_T */
+	MMAL_PARAMETER_JPEG_IJG_SCALING,
 };
 
 enum mmal_parameter_camera_config_timestamp_mode {
@@ -615,6 +617,12 @@ enum mmal_parameter_video_type {
 
 	/**< Take a @ref MMAL_PARAMETER_BOOLEAN_T */
 	MMAL_PARAMETER_VIDEO_ENCODE_HEADERS_WITH_FRAME,
+
+	/**< Take a @ref MMAL_PARAMETER_BOOLEAN_T */
+	MMAL_PARAMETER_VIDEO_VALIDATE_TIMESTAMPS,
+
+	/**< Takes a @ref MMAL_PARAMETER_BOOLEAN_T */
+	MMAL_PARAMETER_VIDEO_STOP_ON_PAR_COLOUR_CHANGE,
 };
 
 /** Valid mirror modes */
