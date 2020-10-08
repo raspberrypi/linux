@@ -651,6 +651,14 @@ static const struct drm_private_state_funcs vc4_load_tracker_state_funcs = {
  *   need to consider all the running CRTCs in the DRM device to assign
  *   a FIFO, not just the one in the state.
  *
+ * - To fix the above, we can't use drm_atomic_get_crtc_state on all
+ *   enabled CRTCs to pull their CRTC state into the global state, since
+ *   a page flip would start considering their vblank to complete. Since
+ *   we don't have a guarantee that they are actually active, that
+ *   vblank might never happen, and shouldn't even be considered if we
+ *   want to do a page flip on a single CRTC. That can be tested by
+ *   doing a modetest -v first on HDMI1 and then on HDMI0.
+ *
  * - Since we need the pixelvalve to be disabled and enabled back when
  *   the FIFO is changed, we should keep the FIFO assigned for as long
  *   as the CRTC is enabled, only considering it free again once that
@@ -663,6 +671,7 @@ static int vc4_pv_muxing_atomic_check(struct drm_device *dev,
 	unsigned long unassigned_channels = GENMASK(NUM_CHANNELS - 1, 0);
 	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
 	struct vc4_dev *vc4 = to_vc4_dev(state->dev);
+	struct drm_crtc_state *crtc_state;
 	struct drm_crtc *crtc;
 	unsigned int i;
 
@@ -674,15 +683,14 @@ static int vc4_pv_muxing_atomic_check(struct drm_device *dev,
 	 * the same CRTCs, instead of evaluating only the CRTC being
 	 * modified.
 	 */
-	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
-		struct drm_crtc_state *crtc_state;
+	for_each_new_or_current_crtc_state(state, crtc, crtc_state) {
+		struct vc4_crtc_state *vc4_crtc_state;
 
-		if (!crtc->state->enable)
+		if (!crtc_state->enable)
 			continue;
 
-		crtc_state = drm_atomic_get_crtc_state(state, crtc);
-		if (IS_ERR(crtc_state))
-			return PTR_ERR(crtc_state);
+		vc4_crtc_state = to_vc4_crtc_state(crtc_state);
+		unassigned_channels &= ~BIT(vc4_crtc_state->assigned_channel);
 	}
 
 	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i) {
@@ -700,10 +708,8 @@ static int vc4_pv_muxing_atomic_check(struct drm_device *dev,
 		if (!new_crtc_state->enable)
 			continue;
 
-		if (new_vc4_crtc_state->assigned_channel != VC4_HVS_CHANNEL_DISABLED) {
-			unassigned_channels &= ~BIT(new_vc4_crtc_state->assigned_channel);
+		if (new_vc4_crtc_state->assigned_channel != VC4_HVS_CHANNEL_DISABLED)
 			continue;
-		}
 
 		/*
 		 * The problem we have to solve here is that we have
