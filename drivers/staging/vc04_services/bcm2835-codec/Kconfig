@@ -1,0 +1,11 @@
+config VIDEO_CODEC_BCM2835
+	tristate "BCM2835 Video codec support"
+	depends on MEDIA_SUPPORT && MEDIA_CONTROLLER
+	depends on VIDEO_V4L2 && (ARCH_BCM2835 || COMPILE_TEST)
+	select BCM2835_VCHIQ_MMAL
+	select VIDEOBUF2_DMA_CONTIG
+	select V4L2_MEM2MEM_DEV
+	help
+	  Say Y here to enable the V4L2 video codecs for
+	  Broadcom BCM2835 SoC. This operates over the VCHIQ interface
+	  to a service running on VideoCore.
