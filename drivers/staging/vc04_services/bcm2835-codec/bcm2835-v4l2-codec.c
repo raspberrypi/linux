@@ -207,7 +207,7 @@ static const struct bcm2835_codec_fmt supported_formats[] = {
 		.mmal_fmt		= MMAL_ENCODING_BGR24,
 		.size_multiplier_x2	= 2,
 	}, {
-		.fourcc			= V4L2_PIX_FMT_BGR32,
+		.fourcc			= V4L2_PIX_FMT_BGRX32,
 		.depth			= 32,
 		.bytesperline_align	= 32,
 		.flags			= 0,
