@@ -177,7 +177,7 @@ static struct mmal_fmt formats[] = {
 		.ybbp = 1,
 		.remove_padding = true,
 	}, {
-		.fourcc = V4L2_PIX_FMT_BGR32,
+		.fourcc = V4L2_PIX_FMT_BGRX32,
 		.mmal = MMAL_ENCODING_BGRA,
 		.depth = 32,
 		.mmal_component = COMP_CAMERA,
