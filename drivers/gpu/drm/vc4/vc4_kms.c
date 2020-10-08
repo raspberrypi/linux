@@ -188,6 +188,23 @@ static void vc4_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 	}
 }
 
+static struct drm_crtc_state *
+drm_atomic_get_new_or_current_crtc_state(struct drm_atomic_state *state,
+					 struct drm_crtc *crtc)
+{
+	struct drm_crtc_state *crtc_state;
+
+	crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
+	if (crtc_state)
+		return crtc_state;
+
+	return crtc->state;
+}
+
+#define for_each_new_or_current_crtc_state(__state, crtc, crtc_state)	\
+	list_for_each_entry(crtc, &__state->dev->mode_config.crtc_list, head) \
+		for_each_if(crtc_state = drm_atomic_get_new_or_current_crtc_state(__state, crtc))
+
 static void vc5_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 				     struct drm_atomic_state *state)
 {
@@ -197,16 +214,16 @@ static void vc5_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 	unsigned char dsp3_mux = 3;
 	unsigned char dsp4_mux = 3;
 	unsigned char dsp5_mux = 3;
-	unsigned int i;
 	u32 reg;
 
-	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
-		struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
+	for_each_new_or_current_crtc_state(state, crtc, crtc_state) {
 		struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
+		struct vc4_crtc_state *vc4_state;
 
 		if (!crtc_state->active)
 			continue;
 
+		vc4_state = to_vc4_crtc_state(crtc_state);
 		switch (vc4_crtc->data->hvs_output) {
 		case 2:
 			dsp2_mux = (vc4_state->assigned_channel == 2) ? 0 : 1;
