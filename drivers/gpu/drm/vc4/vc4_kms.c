@@ -618,14 +618,14 @@ static const struct drm_private_state_funcs vc4_load_tracker_state_funcs = {
 #define NUM_OUTPUTS  6
 #define NUM_CHANNELS 3
 
-static int
-vc4_atomic_check(struct drm_device *dev, struct drm_atomic_state *state)
+static int vc4_pv_muxing_atomic_check(struct drm_device *dev,
+				      struct drm_atomic_state *state)
 {
 	unsigned long unassigned_channels = GENMASK(NUM_CHANNELS - 1, 0);
 	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
 	struct vc4_dev *vc4 = to_vc4_dev(state->dev);
 	struct drm_crtc *crtc;
-	int i, ret;
+	unsigned int i;
 
 	/*
 	 * Since the HVS FIFOs are shared across all the pixelvalves and
@@ -700,6 +700,18 @@ vc4_atomic_check(struct drm_device *dev, struct drm_atomic_state *state)
 			return -EINVAL;
 		}
 	}
+
+	return 0;
+}
+
+static int
+vc4_atomic_check(struct drm_device *dev, struct drm_atomic_state *state)
+{
+	int ret;
+
+	ret = vc4_pv_muxing_atomic_check(dev, state);
+	if (ret)
+		return ret;
 
 	ret = vc4_ctm_atomic_check(dev, state);
 	if (ret < 0)
