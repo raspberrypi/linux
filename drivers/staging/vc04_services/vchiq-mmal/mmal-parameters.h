@@ -618,6 +618,9 @@ enum mmal_parameter_video_type {
 
 	/**< Take a @ref MMAL_PARAMETER_BOOLEAN_T */
 	MMAL_PARAMETER_VIDEO_ENCODE_HEADERS_WITH_FRAME,
+
+	/**< Take a @ref MMAL_PARAMETER_BOOLEAN_T */
+	MMAL_PARAMETER_VIDEO_VALIDATE_TIMESTAMPS,
 };
 
 /** Valid mirror modes */
