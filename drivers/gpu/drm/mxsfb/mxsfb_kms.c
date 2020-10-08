@@ -303,7 +303,7 @@ static void mxsfb_crtc_atomic_flush(struct drm_crtc *crtc,
 }
 
 static void mxsfb_crtc_atomic_enable(struct drm_crtc *crtc,
-				     struct drm_crtc_state *old_state)
+				     struct drm_atomic_state *state)
 {
 	struct mxsfb_drm_private *mxsfb = to_mxsfb_drm_private(crtc->dev);
 	struct drm_device *drm = mxsfb->drm;
@@ -327,7 +327,7 @@ static void mxsfb_crtc_atomic_enable(struct drm_crtc *crtc,
 }
 
 static void mxsfb_crtc_atomic_disable(struct drm_crtc *crtc,
-				      struct drm_crtc_state *old_state)
+				      struct drm_atomic_state *state)
 {
 	struct mxsfb_drm_private *mxsfb = to_mxsfb_drm_private(crtc->dev);
 	struct drm_device *drm = mxsfb->drm;
