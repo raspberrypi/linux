@@ -1286,6 +1286,7 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 		goto err_no_dma;
 	}
 
+#ifdef CONFIG_DMA_BCM2708
 	/* One channel is reserved for the legacy API */
 	if (chans_available & BCM2835_DMA_BULK_MASK) {
 		rc = bcm_dmaman_probe(pdev, base,
@@ -1296,6 +1297,7 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 
 		chans_available &= ~BCM2835_DMA_BULK_MASK;
 	}
+#endif
 
 	/* And possibly one for the 40-bit DMA memcpy API */
 	if (chans_available & od->cfg_data->chan_40bit_mask &
