@@ -264,7 +264,16 @@ struct io_ring_ctx {
 	/* IO offload */
 	struct io_wq		*io_wq;
 	struct task_struct	*sqo_thread;	/* if using sq thread polling */
-	struct mm_struct	*sqo_mm;
+
+	/*
+	 * For SQPOLL usage - we hold a reference to the parent task, so we
+	 * have access to the ->files
+	 */
+	struct task_struct	*sqo_task;
+
+	/* Only used for accounting purposes */
+	struct mm_struct	*mm_account;
+
 	wait_queue_head_t	sqo_wait;
 
 	/*
@@ -4421,9 +4430,10 @@ static int io_sq_thread_acquire_mm(struct io_ring_ctx *ctx,
 {
 	if (io_op_defs[req->opcode].needs_mm && !current->mm) {
 		if (unlikely(!(ctx->flags & IORING_SETUP_SQPOLL) ||
-			     !mmget_not_zero(ctx->sqo_mm)))
+			!ctx->sqo_task->mm ||
+			!mmget_not_zero(ctx->sqo_task->mm)))
 			return -EFAULT;
-		kthread_use_mm(ctx->sqo_mm);
+		kthread_use_mm(ctx->sqo_task->mm);
 	}
 
 	return 0;
@@ -7104,9 +7114,6 @@ static int io_sq_offload_start(struct io_ring_ctx *ctx,
 {
 	int ret;
 
-	mmgrab(current->mm);
-	ctx->sqo_mm = current->mm;
-
 	if (ctx->flags & IORING_SETUP_SQPOLL) {
 		ret = -EPERM;
 		if (!capable(CAP_SYS_ADMIN))
@@ -7151,8 +7158,6 @@ static int io_sq_offload_start(struct io_ring_ctx *ctx,
 	return 0;
 err:
 	io_finish_async(ctx);
-	mmdrop(ctx->sqo_mm);
-	ctx->sqo_mm = NULL;
 	return ret;
 }
 
@@ -7482,8 +7487,12 @@ static void io_destroy_buffers(struct io_ring_ctx *ctx)
 static void io_ring_ctx_free(struct io_ring_ctx *ctx)
 {
 	io_finish_async(ctx);
-	if (ctx->sqo_mm)
-		mmdrop(ctx->sqo_mm);
+	if (ctx->sqo_task) {
+		put_task_struct(ctx->sqo_task);
+		ctx->sqo_task = NULL;
+		mmdrop(ctx->mm_account);
+		ctx->mm_account = NULL;
+	}
 
 	io_iopoll_reap_events(ctx);
 	io_sqe_buffer_unregister(ctx);
@@ -8255,6 +8264,16 @@ static int io_uring_create(unsigned entries, struct io_uring_params *p,
 	ctx->account_mem = account_mem;
 	ctx->user = user;
 	ctx->creds = get_current_cred();
+
+	ctx->sqo_task = get_task_struct(current);
+	/*
+	 * This is just grabbed for accounting purposes. When a process exits,
+	 * the mm is exited and dropped before the files, hence we need to hang
+	 * on to this mm purely for the purposes of being able to unaccount
+	 * memory (locked/pinned vm). It's not used for anything else.
+	 */
+	mmgrab(current->mm);
+	ctx->mm_account = current->mm;
 
 	ret = io_allocate_scq_urings(ctx, p);
 	if (ret)
