@@ -246,13 +246,8 @@
 	};
 };
 
-&dma {
-	/* The VPU firmware uses DMA channel 11 for VCHIQ */
-	brcm,dma-channel-mask = <0x1f5>;
-};
-
 &dma40 {
-	/* The VPU firmware DMA channel 11 for VCHIQ */
+	/* The VPU firmware uses DMA channel 11 for VCHIQ */
 	brcm,dma-channel-mask = <0x7000>;
 };
 
