@@ -550,7 +550,6 @@ enum {
 	REQ_F_NO_FILE_TABLE_BIT,
 	REQ_F_QUEUE_TIMEOUT_BIT,
 	REQ_F_WORK_INITIALIZED_BIT,
-	REQ_F_TASK_PINNED_BIT,
 
 	/* not a real bit, just to check we're not overflowing the space */
 	__REQ_F_LAST_BIT,
@@ -608,8 +607,6 @@ enum {
 	REQ_F_QUEUE_TIMEOUT	= BIT(REQ_F_QUEUE_TIMEOUT_BIT),
 	/* io_wq_work is initialized */
 	REQ_F_WORK_INITIALIZED	= BIT(REQ_F_WORK_INITIALIZED_BIT),
-	/* req->task is refcounted */
-	REQ_F_TASK_PINNED	= BIT(REQ_F_TASK_PINNED_BIT),
 };
 
 struct async_poll {
@@ -923,21 +920,6 @@ struct sock *io_uring_get_socket(struct file *file)
 	return NULL;
 }
 EXPORT_SYMBOL(io_uring_get_socket);
-
-static void io_get_req_task(struct io_kiocb *req)
-{
-	if (req->flags & REQ_F_TASK_PINNED)
-		return;
-	get_task_struct(req->task);
-	req->flags |= REQ_F_TASK_PINNED;
-}
-
-/* not idempotent -- it doesn't clear REQ_F_TASK_PINNED */
-static void __io_put_req_task(struct io_kiocb *req)
-{
-	if (req->flags & REQ_F_TASK_PINNED)
-		put_task_struct(req->task);
-}
 
 static void io_file_put_work(struct work_struct *work);
 
@@ -1455,7 +1437,7 @@ static void __io_req_aux_free(struct io_kiocb *req)
 	kfree(req->io);
 	if (req->file)
 		io_put_file(req, req->file, (req->flags & REQ_F_FIXED_FILE));
-	__io_put_req_task(req);
+	put_task_struct(req->task);
 	io_req_work_drop_env(req);
 }
 
@@ -1765,7 +1747,7 @@ static inline bool io_req_multi_free(struct req_batch *rb, struct io_kiocb *req)
 	if ((req->flags & REQ_F_LINK_HEAD) || io_is_fallback_req(req))
 		return false;
 
-	if (req->file || req->io)
+	if (req->file || req->io || req->task)
 		rb->need_iter++;
 
 	rb->reqs[rb->to_free++] = req;
@@ -4584,7 +4566,6 @@ static bool io_arm_poll_handler(struct io_kiocb *req)
 	if (req->flags & REQ_F_WORK_INITIALIZED)
 		memcpy(&apoll->work, &req->work, sizeof(req->work));
 
-	io_get_req_task(req);
 	req->apoll = apoll;
 	INIT_HLIST_NODE(&req->hash_node);
 
@@ -4774,8 +4755,6 @@ static int io_poll_add_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe
 
 	events = READ_ONCE(sqe->poll_events);
 	poll->events = demangle_poll(events) | EPOLLERR | EPOLLHUP;
-
-	io_get_req_task(req);
 	return 0;
 }
 
@@ -6057,6 +6036,7 @@ static int io_init_req(struct io_ring_ctx *ctx, struct io_kiocb *req,
 	/* one is dropped after submission, the other at completion */
 	refcount_set(&req->refs, 2);
 	req->task = current;
+	get_task_struct(req->task);
 	req->result = 0;
 
 	if (unlikely(req->opcode >= IORING_OP_LAST))
