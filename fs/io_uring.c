@@ -1762,6 +1762,12 @@ static int io_put_kbuf(struct io_kiocb *req)
 
 static inline bool io_run_task_work(void)
 {
+	/*
+	 * Not safe to run on exiting task, and the task_work handling will
+	 * not add work to such a task.
+	 */
+	if (unlikely(current->flags & PF_EXITING))
+		return false;
 	if (current->task_works) {
 		__set_current_state(TASK_RUNNING);
 		task_work_run();
@@ -7791,6 +7797,8 @@ static void io_uring_cancel_files(struct io_ring_ctx *ctx,
 			io_put_req(cancel_req);
 		}
 
+		/* cancellations _may_ trigger task work */
+		io_run_task_work();
 		schedule();
 		finish_wait(&ctx->inflight_wait, &wait);
 	}
