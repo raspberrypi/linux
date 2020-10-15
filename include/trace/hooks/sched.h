@@ -346,6 +346,11 @@ DECLARE_RESTRICTED_HOOK(android_rvh_find_new_ilb,
 DECLARE_HOOK(android_vh_sched_pelt_multiplier,
 	TP_PROTO(unsigned int old, unsigned int cur, int *ret),
 	TP_ARGS(old, cur, ret));
+
+DECLARE_RESTRICTED_HOOK(android_rvh_find_energy_efficient_cpu,
+	TP_PROTO(struct task_struct *p, int prev_cpu, int sync, int *new_cpu),
+	TP_ARGS(p, prev_cpu, sync, new_cpu), 1);
+
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */
