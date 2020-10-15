@@ -3890,7 +3890,7 @@ retry:	/* Rest of adevs pre asic reset from XGMI hive. */
 
 		amdgpu_device_lock_adev(tmp_adev, false);
 		r = amdgpu_device_pre_asic_reset(tmp_adev,
-						 NULL,
+						 (tmp_adev == adev) ? job : NULL,
 						 &need_full_reset);
 		/*TODO Should we stop ?*/
 		if (r) {
