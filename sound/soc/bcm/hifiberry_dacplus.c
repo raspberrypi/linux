@@ -315,11 +315,13 @@ static int hb_hp_detect(void)
 {
 	struct i2c_adapter *adap = i2c_get_adapter(1);
 	int ret;
-
 	struct i2c_client tpa_i2c_client = {
 		.addr = 0x60,
 		.adapter = adap,
 	};
+
+	if (!adap)
+		return -EPROBE_DEFER;	/* I2C module not yet available */
 
 	ret = i2c_smbus_read_byte(&tpa_i2c_client) >= 0;
 	i2c_put_adapter(adap);
@@ -342,7 +344,10 @@ static int snd_rpi_hifiberry_dacplus_probe(struct platform_device *pdev)
 	struct of_changeset ocs;
 
 	/* probe for head phone amp */
-	if (hb_hp_detect()) {
+	ret = hb_hp_detect();
+	if (ret < 0)
+		return ret;
+	if (ret) {
 		card->aux_dev = hifiberry_dacplus_aux_devs;
 		card->num_aux_devs =
 				ARRAY_SIZE(hifiberry_dacplus_aux_devs);
