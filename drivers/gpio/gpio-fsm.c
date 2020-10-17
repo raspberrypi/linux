@@ -20,6 +20,7 @@
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/sysfs.h>
 
 #include <dt-bindings/gpio/gpio-fsm.h>
 
@@ -120,6 +121,7 @@ struct gpio_fsm {
 	struct fsm_state *current_state;
 	struct fsm_state *next_state;
 	struct fsm_state *delay_target_state;
+	unsigned int delay_jiffies;
 	int delay_ms;
 	unsigned int debug;
 	bool shutting_down;
@@ -364,9 +366,10 @@ static void gpio_fsm_enter_state(struct gpio_fsm *gf,
 			jiffies + msecs_to_jiffies(state->shutdown_ms);
 
 		if (gf->shutting_down) {
+			gf->delay_jiffies = gf->shutdown_jiffies;
 			gf->delay_target_state = state->shutdown_target;
 			gf->delay_ms = state->shutdown_ms;
-			mod_timer(&gf->timer, gf->shutdown_jiffies);
+			mod_timer(&gf->timer, gf->delay_jiffies);
 		}
 	}
 
@@ -421,9 +424,10 @@ static void gpio_fsm_enter_state(struct gpio_fsm *gf,
 	// 6. Schedule a timer callback if delay_target
 	if (state->delay_target) {
 		gf->delay_target_state = state->delay_target;
+		gf->delay_jiffies = jiffies +
+			msecs_to_jiffies(state->delay_ms);
 		gf->delay_ms = state->delay_ms;
-		mod_timer(&gf->timer,
-			  jiffies + msecs_to_jiffies(state->delay_ms));
+		mod_timer(&gf->timer, gf->delay_jiffies);
 	}
 }
 
@@ -847,10 +851,81 @@ static int resolve_sym_to_state(struct gpio_fsm *gf, struct fsm_state **pstate)
 	return 0;
 }
 
+
+/*
+ * /sys/class/gpio-fsm/<fsm-name>/
+ *   /state ... the current state
+ */
+
+static ssize_t state_show(struct device *dev,
+			  struct device_attribute *attr, char *buf)
+{
+	const struct gpio_fsm *gf = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%s\n", gf->current_state->name);
+}
+static DEVICE_ATTR_RO(state);
+
+static ssize_t delay_state_show(struct device *dev,
+			  struct device_attribute *attr, char *buf)
+{
+	const struct gpio_fsm *gf = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%s\n",
+		       gf->delay_target_state ? gf->delay_target_state->name :
+		       "-");
+}
+
+static DEVICE_ATTR_RO(delay_state);
+
+static ssize_t delay_ms_show(struct device *dev,
+			     struct device_attribute *attr, char *buf)
+{
+	const struct gpio_fsm *gf = dev_get_drvdata(dev);
+	int jiffies_left;
+
+	jiffies_left = gf->delay_jiffies - jiffies;
+	return sprintf(buf,
+		       gf->delay_target_state ? "%u\n" : "-\n",
+		       jiffies_to_msecs(jiffies_left));
+}
+static DEVICE_ATTR_RO(delay_ms);
+
+static struct attribute *gpio_fsm_attrs[] = {
+	&dev_attr_state.attr,
+	&dev_attr_delay_state.attr,
+	&dev_attr_delay_ms.attr,
+	NULL,
+};
+
+static const struct attribute_group gpio_fsm_group = {
+	.attrs = gpio_fsm_attrs,
+	//.is_visible = gpio_is_visible,
+};
+
+static const struct attribute_group *gpio_fsm_groups[] = {
+	&gpio_fsm_group,
+	NULL
+};
+
+static struct attribute *gpio_fsm_class_attrs[] = {
+	// There are no top-level attributes
+	NULL,
+};
+ATTRIBUTE_GROUPS(gpio_fsm_class);
+
+static struct class gpio_fsm_class = {
+	.name =		MODULE_NAME,
+	.owner =	THIS_MODULE,
+
+	.class_groups = gpio_fsm_class_groups,
+};
+
 static int gpio_fsm_probe(struct platform_device *pdev)
 {
 	struct input_gpio_state *inp_state;
 	struct device *dev = &pdev->dev;
+	struct device *sysfs_dev;
 	struct device_node *np = dev->of_node;
 	struct device_node *cp;
 	struct gpio_fsm *gf;
@@ -1029,6 +1104,13 @@ static int gpio_fsm_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, gf);
 
+	sysfs_dev = device_create_with_groups(&gpio_fsm_class, dev,
+					      MKDEV(0, 0), gf,
+					      gpio_fsm_groups,
+					      "%s", np->name);
+	if (IS_ERR(sysfs_dev))
+		dev_err(gf->dev, "Error creating sysfs entry\n");
+
 	if (gf->debug)
 		dev_info(gf->dev, "Start -> %s\n", gf->start_state->name);
 
@@ -1097,7 +1179,29 @@ static struct platform_driver gpio_fsm_driver = {
 	.remove = gpio_fsm_remove,
 	.shutdown = gpio_fsm_shutdown,
 };
-module_platform_driver(gpio_fsm_driver);
+
+static int gpio_fsm_init(void)
+{
+	int ret;
+
+	ret = class_register(&gpio_fsm_class);
+	if (ret)
+		return ret;
+
+	ret = platform_driver_register(&gpio_fsm_driver);
+	if (ret)
+		class_unregister(&gpio_fsm_class);
+
+	return ret;
+}
+module_init(gpio_fsm_init);
+
+static void gpio_fsm_exit(void)
+{
+	platform_driver_unregister(&gpio_fsm_driver);
+	class_unregister(&gpio_fsm_class);
+}
+module_exit(gpio_fsm_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Phil Elwell <phil@raspberrypi.com>");
