@@ -196,6 +196,7 @@ static int rpi_firmware_notify_reboot(struct notifier_block *nb,
 {
 	struct rpi_firmware *fw;
 	struct platform_device *pdev = g_pdev;
+	u32 reboot_flags = 0;
 
 	if (!pdev)
 		return 0;
@@ -204,8 +205,28 @@ static int rpi_firmware_notify_reboot(struct notifier_block *nb,
 	if (!fw)
 		return 0;
 
-	(void)rpi_firmware_property(fw, RPI_FIRMWARE_NOTIFY_REBOOT,
-				    0, 0);
+	// The partition id is the first parameter followed by zero or
+	// more flags separated by spaces indicating the reason for the reboot.
+	//
+	// 'tryboot': Sets a one-shot flag which is cleared upon reboot and
+	//            causes the tryboot.txt to be loaded instead of config.txt
+	//            by the bootloader and the start.elf firmware.
+	//
+	//            This is intended to allow automatic fallback to a known
+	//            good image if an OS/FW upgrade fails.
+	//
+	// N.B. The firmware mechanism for storing reboot flags may vary
+	// on different Raspberry Pi models.
+	if (data && strstr(data, " tryboot"))
+		reboot_flags |= 0x1;
+
+	// The mailbox might have been called earlier, directly via vcmailbox
+	// so only overwrite if reboot flags are passed to the reboot command.
+	if (reboot_flags)
+		(void)rpi_firmware_property(fw, RPI_FIRMWARE_SET_REBOOT_FLAGS,
+				&reboot_flags, sizeof(reboot_flags));
+
+	(void)rpi_firmware_property(fw, RPI_FIRMWARE_NOTIFY_REBOOT, NULL, 0);
 
 	return 0;
 }
