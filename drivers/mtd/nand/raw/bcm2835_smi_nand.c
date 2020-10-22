@@ -208,10 +208,10 @@ static int bcm2835_smi_nand_probe(struct platform_device *pdev)
 
 	/* Scan to find the device and get the page size */
 
-	if (nand_scan(mtd, 1))
+	if (nand_scan(this, 1))
 		return -ENXIO;
 
-	nand_release(mtd);
+	nand_release(this);
 	return -EINVAL;
 }
 
@@ -219,7 +219,7 @@ static int bcm2835_smi_nand_remove(struct platform_device *pdev)
 {
 	struct bcm2835_smi_nand_host *host = platform_get_drvdata(pdev);
 
-	nand_release(&host->mtd);
+	nand_release(mtd_to_nand(&host->mtd));
 
 	return 0;
 }
