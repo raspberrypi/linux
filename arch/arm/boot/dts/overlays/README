@@ -1666,20 +1666,19 @@ Params: no-sdmode               Driver does not manage the state of the DAC's
 
 
 Name:   maxtherm
-Info:   Configure a MAX6675 or MAX31855 thermocouple as an IIO device.
+Info:   Configure a MAX6675, MAX31855 or MAX31856 thermocouple as an IIO device.
 
         For devices on spi1 or spi2, the interfaces should be enabled
         with one of the spi1-1/2/3cs and/or spi2-1/2/3cs overlays.
         The overlay expects to disable the relevant spidev node, so also using
         e.g. cs0_spidev=off is unnecessary.
 
-        Note:   with the 5.7 kernel (and later) there will also be
-                overlays for MAX31855E, MAX31855J, MAX31855K,
-                MAX31885N, MAX31855R, MAX31855S and MAX31855T.
-
         Example:
         MAX31855 on /dev/spidev0.0
             dtoverlay=maxtherm,spi0-0,max31855
+        MAX31856 using a type J thermocouple on /dev/spidev2.1
+            dtoverlay=spi2-2cs
+            dtoverlay=maxtherm,spi2-1,max31856,type_j
 
 Load:   dtoverlay=maxtherm,<param>=<val>
 Params: spi<n>-<m>              Configure device at spi<n>, cs<m>
@@ -1693,6 +1692,15 @@ Params: spi<n>-<m>              Configure device at spi<n>, cs<m>
         max31855r               Enable support for the MAX31855R
         max31855s               Enable support for the MAX31855S
         max31855t               Enable support for the MAX31855T
+        max31856                Enable support for the MAX31856 (with type K)
+        type_b                  Select a type B sensor for max31856
+        type_e                  Select a type E sensor for max31856
+        type_j                  Select a type J sensor for max31856
+        type_k                  Select a type K sensor for max31856
+        type_n                  Select a type N sensor for max31856
+        type_r                  Select a type R sensor for max31856
+        type_s                  Select a type S sensor for max31856
+        type_t                  Select a type T sensor for max31856
 
 
 Name:   mbed-dac
