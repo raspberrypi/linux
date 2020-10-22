@@ -127,10 +127,12 @@ static int bcm2835_restart(struct watchdog_device *wdog,
 {
 	struct bcm2835_wdt *wdt = watchdog_get_drvdata(wdog);
 
-	unsigned long long val;
+	unsigned long val;
 	u8 partition = 0;
 
-	if (data && !kstrtoull(data, 0, &val) && val <= 63)
+	// Allow extra arguments separated by spaces after
+	// the partition number.
+	if (data && sscanf(data, "%lu", &val) && val < 63)
 		partition = val;
 
 	__bcm2835_restart(wdt, partition);
