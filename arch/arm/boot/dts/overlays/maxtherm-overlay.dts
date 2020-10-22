@@ -5,6 +5,8 @@
 /dts-v1/;
 /plugin/;
 
+#include <dt-bindings/iio/temperature/thermocouple.h>
+
 / {
 	compatible = "brcm,bcm2835";
 
@@ -128,6 +130,15 @@
 		};
 	};
 
+	fragment@16 {
+		target = <&max>;
+		__dormant__ {
+			compatible = "maxim,max31856";
+			spi-cpha;
+			thermocouple-type = <THERMOCOUPLE_TYPE_K>;
+		};
+	};
+
 	__overrides__ {
 		spi0-0 = <0>, "+0",
 			 <&maxfrag>,"target:0=",<&spi0>,
@@ -162,5 +173,14 @@
 		max31855r = <0>,"+13";
 		max31855s = <0>,"+14";
 		max31855t = <0>,"+15";
+		max31856  = <0>,"+16";
+		type_b    = <&max>,"thermocouple-type:0=",<THERMOCOUPLE_TYPE_B>;
+		type_e    = <&max>,"thermocouple-type:0=",<THERMOCOUPLE_TYPE_E>;
+		type_j    = <&max>,"thermocouple-type:0=",<THERMOCOUPLE_TYPE_J>;
+		type_k    = <&max>,"thermocouple-type:0=",<THERMOCOUPLE_TYPE_K>;
+		type_n    = <&max>,"thermocouple-type:0=",<THERMOCOUPLE_TYPE_N>;
+		type_r    = <&max>,"thermocouple-type:0=",<THERMOCOUPLE_TYPE_R>;
+		type_s    = <&max>,"thermocouple-type:0=",<THERMOCOUPLE_TYPE_S>;
+		type_t    = <&max>,"thermocouple-type:0=",<THERMOCOUPLE_TYPE_T>;
 	};
 };
