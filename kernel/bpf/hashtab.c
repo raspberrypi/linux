@@ -667,26 +667,23 @@ static void htab_elem_free_rcu(struct rcu_head *head)
 	struct htab_elem *l = container_of(head, struct htab_elem, rcu);
 	struct bpf_htab *htab = l->htab;
 
-	/* must increment bpf_prog_active to avoid kprobe+bpf triggering while
-	 * we're calling kfree, otherwise deadlock is possible if kprobes
-	 * are placed somewhere inside of slub
-	 */
-	preempt_disable();
-	__this_cpu_inc(bpf_prog_active);
 	htab_elem_free(htab, l);
-	__this_cpu_dec(bpf_prog_active);
-	preempt_enable();
+}
+
+static void htab_put_fd_value(struct bpf_htab *htab, struct htab_elem *l)
+{
+	struct bpf_map *map = &htab->map;
+	void *ptr;
+
+	if (map->ops->map_fd_put_ptr) {
+		ptr = fd_htab_map_get_ptr(map, l);
+		map->ops->map_fd_put_ptr(ptr);
+	}
 }
 
 static void free_htab_elem(struct bpf_htab *htab, struct htab_elem *l)
 {
-	struct bpf_map *map = &htab->map;
-
-	if (map->ops->map_fd_put_ptr) {
-		void *ptr = fd_htab_map_get_ptr(map, l);
-
-		map->ops->map_fd_put_ptr(ptr);
-	}
+	htab_put_fd_value(htab, l);
 
 	if (htab_is_prealloc(htab)) {
 		__pcpu_freelist_push(&htab->freelist, &l->fnode);
@@ -747,6 +744,7 @@ static struct htab_elem *alloc_htab_elem(struct bpf_htab *htab, void *key,
 			 */
 			pl_new = this_cpu_ptr(htab->extra_elems);
 			l_new = *pl_new;
+			htab_put_fd_value(htab, old_elem);
 			*pl_new = old_elem;
 		} else {
 			struct pcpu_freelist_node *l;

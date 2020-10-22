@@ -810,16 +810,16 @@ static bool is_addr_all_mask(u8 *ipmask, int family)
 		struct in_addr *addr;
 
 		addr = (struct in_addr *)ipmask;
-		if (addr->s_addr == 0xffffffff)
+		if (addr->s_addr == htonl(0xffffffff))
 			return true;
 	} else if (family == AF_INET6) {
 		struct in6_addr *addr6;
 
 		addr6 = (struct in6_addr *)ipmask;
-		if (addr6->s6_addr32[0] == 0xffffffff &&
-		    addr6->s6_addr32[1] == 0xffffffff &&
-		    addr6->s6_addr32[2] == 0xffffffff &&
-		    addr6->s6_addr32[3] == 0xffffffff)
+		if (addr6->s6_addr32[0] == htonl(0xffffffff) &&
+		    addr6->s6_addr32[1] == htonl(0xffffffff) &&
+		    addr6->s6_addr32[2] == htonl(0xffffffff) &&
+		    addr6->s6_addr32[3] == htonl(0xffffffff))
 			return true;
 	}
 	return false;
@@ -1591,13 +1591,16 @@ out:
 static int configure_filter_tcb(struct adapter *adap, unsigned int tid,
 				struct filter_entry *f)
 {
-	if (f->fs.hitcnts)
+	if (f->fs.hitcnts) {
 		set_tcb_field(adap, f, tid, TCB_TIMESTAMP_W,
-			      TCB_TIMESTAMP_V(TCB_TIMESTAMP_M) |
+			      TCB_TIMESTAMP_V(TCB_TIMESTAMP_M),
+			      TCB_TIMESTAMP_V(0ULL),
+			      1);
+		set_tcb_field(adap, f, tid, TCB_RTT_TS_RECENT_AGE_W,
 			      TCB_RTT_TS_RECENT_AGE_V(TCB_RTT_TS_RECENT_AGE_M),
-			      TCB_TIMESTAMP_V(0ULL) |
 			      TCB_RTT_TS_RECENT_AGE_V(0ULL),
 			      1);
+	}
 
 	if (f->fs.newdmac)
 		set_tcb_tflag(adap, f, tid, TF_CCTRL_ECE_S, 1,

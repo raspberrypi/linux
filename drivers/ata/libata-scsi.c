@@ -2391,6 +2391,7 @@ static unsigned int ata_scsiop_inq_89(struct ata_scsi_args *args, u8 *rbuf)
 
 static unsigned int ata_scsiop_inq_b0(struct ata_scsi_args *args, u8 *rbuf)
 {
+	struct ata_device *dev = args->dev;
 	u16 min_io_sectors;
 
 	rbuf[1] = 0xb0;
@@ -2416,7 +2417,12 @@ static unsigned int ata_scsiop_inq_b0(struct ata_scsi_args *args, u8 *rbuf)
 	 * with the unmap bit set.
 	 */
 	if (ata_id_has_trim(args->id)) {
-		put_unaligned_be64(65535 * ATA_MAX_TRIM_RNUM, &rbuf[36]);
+		u64 max_blocks = 65535 * ATA_MAX_TRIM_RNUM;
+
+		if (dev->horkage & ATA_HORKAGE_MAX_TRIM_128M)
+			max_blocks = 128 << (20 - SECTOR_SHIFT);
+
+		put_unaligned_be64(max_blocks, &rbuf[36]);
 		put_unaligned_be32(1, &rbuf[28]);
 	}
 
@@ -3995,12 +4001,13 @@ static unsigned int ata_scsi_mode_select_xlat(struct ata_queued_cmd *qc)
 {
 	struct scsi_cmnd *scmd = qc->scsicmd;
 	const u8 *cdb = scmd->cmnd;
-	const u8 *p;
 	u8 pg, spg;
 	unsigned six_byte, pg_len, hdr_len, bd_len;
 	int len;
 	u16 fp = (u16)-1;
 	u8 bp = 0xff;
+	u8 buffer[64];
+	const u8 *p = buffer;
 
 	VPRINTK("ENTER\n");
 
@@ -4034,10 +4041,12 @@ static unsigned int ata_scsi_mode_select_xlat(struct ata_queued_cmd *qc)
 	if (!scsi_sg_count(scmd) || scsi_sglist(scmd)->length < len)
 		goto invalid_param_len;
 
-	p = page_address(sg_page(scsi_sglist(scmd)));
-
 	/* Move past header and block descriptors.  */
 	if (len < hdr_len)
+		goto invalid_param_len;
+
+	if (!sg_copy_to_buffer(scsi_sglist(scmd), scsi_sg_count(scmd),
+			       buffer, sizeof(buffer)))
 		goto invalid_param_len;
 
 	if (six_byte)
