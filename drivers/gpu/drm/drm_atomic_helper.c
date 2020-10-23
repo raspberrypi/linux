@@ -1608,13 +1608,6 @@ drm_atomic_helper_wait_for_vblanks(struct drm_device *dev,
 	int i, ret;
 	unsigned int crtc_mask = 0;
 
-	 /*
-	  * Legacy cursor ioctls are completely unsynced, and userspace
-	  * relies on that (by doing tons of cursor updates).
-	  */
-	if (old_state->legacy_cursor_update)
-		return;
-
 	for_each_oldnew_crtc_in_state(old_state, crtc, old_crtc_state, new_crtc_state, i) {
 		if (!new_crtc_state->active)
 			continue;
@@ -2261,12 +2254,6 @@ int drm_atomic_helper_setup_commit(struct drm_atomic_state *state,
 		 * stays off.
 		 */
 		if (!old_crtc_state->active && !new_crtc_state->active) {
-			complete_all(&commit->flip_done);
-			continue;
-		}
-
-		/* Legacy cursor updates are fully unsynced. */
-		if (state->legacy_cursor_update) {
 			complete_all(&commit->flip_done);
 			continue;
 		}
