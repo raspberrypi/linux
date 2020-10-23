@@ -1916,6 +1916,12 @@ Params: panel                   Display panel (required):
         speed                   Display SPI bus speed
 
 
+Name:   parport-gpio
+Info:   Parallel port implementation using GPIO
+Load:   dtoverlay=parport-gpio
+Params: <None>
+
+
 Name:   pca953x
 Info:   TI PCA953x family of I2C GPIO expanders. Default is for NXP PCA9534.
 Load:   dtoverlay=pca953x,<param>=<val>

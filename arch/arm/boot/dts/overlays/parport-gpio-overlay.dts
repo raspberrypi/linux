@@ -1,0 +1,65 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2708", "brcm,bcm2709";
+
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			data_pins: data_pins {
+				brcm,pins =     <11 8 9 25 10 24 23 22>;
+				brcm,function = <1  1 1 1  1  1  1  1>; // out
+			};
+			status_pins: status_pins {
+				brcm,pins =     <2 3 4 17 18>;
+				brcm,function = <0 0 0 0  0>; // in
+			};
+			control_pins: control_pins {
+				brcm,pins =     <13 6 19 26>;
+				brcm,function = <1  1 1  1>; // out
+			};
+			hd_pin: hd_pin {
+				brcm,pins =     <20>;
+				brcm,function = <1>; // out
+			};
+			dir_pin: dir_pin {
+				brcm,pins =     <21>;
+				brcm,function = <1>; // out
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			ppgpio: ppgpio@0 {
+				compatible = "parport-gpio";
+				pinctrl-names = "default";
+				pinctrl-0 = <&data_pins>,
+					    <&status_pins>,
+					    <&control_pins>;
+				data-gpios = <&gpio 11 0>,
+					     <&gpio 8 0>,
+					     <&gpio 9 0>,
+					     <&gpio 25 0>,
+					     <&gpio 10 0>,
+					     <&gpio 24 0>,
+					     <&gpio 23 0>,
+					     <&gpio 22 0>;
+				status-gpios = <&gpio 2 0>, // nError
+					       <&gpio 3 0>, // Select
+					       <&gpio 4 0>, // Paperout
+					       <&gpio 17 0>, // nAck
+					       <&gpio 18 1>; // ~Busy
+				control-gpios = <&gpio 13 1>, // ~nStrobe
+					        <&gpio 6 1>, // ~nAutoLF
+					        <&gpio 19 0>, // nInitialize
+					        <&gpio 26 1>; // ~nSelect
+				// 74LVC161284 pins
+				hd-gpio = <&gpio 20 0>; // HD
+				dir-gpio = <&gpio 21 0>; // DIR
+			};
+		};
+	};
+};
