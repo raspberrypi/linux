@@ -420,6 +420,12 @@ Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
                                 slave"
 
 
+Name:   allo-boss2-dac-audio
+Info:   Configures the Allo Boss2 DAC audio card
+Load:   dtoverlay=allo-boss2-dac-audio
+Params: <None>
+
+
 Name:   allo-digione
 Info:   Configures the Allo Digione audio card
 Load:   dtoverlay=allo-digione
