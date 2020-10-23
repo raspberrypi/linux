@@ -2949,6 +2949,8 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
         cma-default             Use upstream's default value
         audio                   Enable or disable audio over HDMI (default "on")
         noaudio                 Disable all HDMI audio (default "off")
+        nocomposite             Disable the composite video output (default
+                                "off")
 
 
 Name:   vc4-kms-v3d-pi4
