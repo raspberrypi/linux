@@ -14,6 +14,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	adv728x-m.dtbo \
 	akkordion-iqdacplus.dtbo \
 	allo-boss-dac-pcm512x-audio.dtbo \
+	allo-boss2-dac-audio.dtbo \
 	allo-digione.dtbo \
 	allo-katana-dac-audio.dtbo \
 	allo-piano-dac-pcm512x-audio.dtbo \
