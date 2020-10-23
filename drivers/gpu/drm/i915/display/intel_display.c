@@ -7246,6 +7246,19 @@ int intel_atomic_commit(struct drm_device *dev, struct drm_atomic_state *_state,
 				state->base.legacy_cursor_update = false;
 	}
 
+	/*
+	 * FIXME: Cut over to (async) commit helpers instead of hand-rolling
+	 * everything.
+	 */
+	if (state->base.legacy_cursor_update) {
+		struct intel_crtc_state *new_crtc_state;
+		struct intel_crtc *crtc;
+		int i;
+
+		for_each_new_intel_crtc_in_state(state, crtc, new_crtc_state, i)
+			complete_all(&new_crtc_state->uapi.commit->flip_done);
+	}
+
 	ret = intel_atomic_prepare_commit(state);
 	if (ret) {
 		drm_dbg_atomic(&dev_priv->drm,
