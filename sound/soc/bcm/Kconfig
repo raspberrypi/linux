@@ -267,6 +267,15 @@ config SND_BCM2708_SOC_ALLO_BOSS_DAC
 	help
 	  Say Y or M if you want to add support for Allo Boss DAC.
 
+config SND_BCM2708_SOC_ALLO_BOSS2_DAC
+	tristate "Support for Allo Boss2 DAC"
+	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+	depends on I2C
+	select REGMAP_I2C
+	select SND_AUDIO_GRAPH_CARD
+	help
+	  Say Y or M if you want to add support for Allo Boss2 DAC.
+
 config SND_BCM2708_SOC_ALLO_DIGIONE
 	tristate "Support for Allo DigiOne"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
