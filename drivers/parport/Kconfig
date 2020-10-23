@@ -151,6 +151,21 @@ config PARPORT_AX88796
 	  The driver is not dependent on the AX88796 network driver, and
 	  should not interfere with the networking functions of the chip.
 
+config PARPORT_GPIO
+	tristate "GPIO parallel port"
+	depends on GPIOLIB
+	select PARPORT_NOT_PC
+	help
+	  Enable parallel port over GPIO pins attached to appropriate line
+	  conditioning, e.g. the Raspberry Pi plus 74LVC161284.
+
+	  This approach works with device drivers that respect the generic
+	  kernel parport interfaces, or use ppdev from user space.  Code that
+	  directly accesses legacy x86 LPT ports, common practice in days
+	  past, will not work.
+
+	  It is safe to say N here.
+
 config PARPORT_1284
 	bool "IEEE 1284 transfer modes"
 	help
