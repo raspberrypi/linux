@@ -13,13 +13,13 @@ improve compression ratio of executable data.
 
 The XZ decompressor in Linux is called XZ Embedded. It supports
 the LZMA2 filter and optionally also BCJ filters. CRC32 is supported
-for integrity checking. The home page of XZ Embedded is at
+for integrity checking. The homepage of XZ Embedded is at
 <http://tukaani.org/xz/embedded.html>, where you can find the
-latest version and also information about using the code outside
+latest version and information about using the code outside
 the Linux kernel.
 
 For userspace, XZ Utils provide a zlib-like compression library
-and a gzip-like command line tool. XZ Utils can be downloaded from
+and a gzip-like command-line tool. XZ Utils can be downloaded from
 <http://tukaani.org/xz/>.
 
 XZ related components in the kernel
@@ -60,12 +60,12 @@ Since the XZ Embedded supports only streams with no integrity check or
 CRC32, make sure that you don't use some other integrity check type
 when encoding files that are supposed to be decoded by the kernel. With
 liblzma, you need to use either LZMA_CHECK_NONE or LZMA_CHECK_CRC32
-when encoding. With the xz command line tool, use --check=none or
+when encoding. With the xz command-line tool, use --check=none or
 --check=crc32.
 
 Using CRC32 is strongly recommended unless there is some other layer
 which will verify the integrity of the uncompressed data anyway.
-Double checking the integrity would probably be waste of CPU cycles.
+Double-checking the integrity would probably be waste of CPU cycles.
 Note that the headers will always have a CRC32 which will be validated
 by the decoder; you can only change the integrity check type (or
 disable it) for the actual uncompressed data.
@@ -80,7 +80,7 @@ so don't hesitate to use custom settings. Example::
 
 	xz --check=crc32 --lzma2=dict=512KiB inputfile
 
-An exception to above dictionary size limitation is when the decoder
+An exception to the above dictionary size limitation is when the decoder
 is used in single-call mode. Decompressing the kernel itself is an
 example of this situation. In single-call mode, the memory usage
 doesn't depend on the dictionary size, and it is perfectly fine to
@@ -119,7 +119,7 @@ latest code.
 Report bugs to <lasse.collin@tukaani.org> or visit #tukaani on
 Freenode and talk to Larhzu. I don't actively read LKML or other
 kernel-related mailing lists, so if there's something I should know,
-you should email to me personally or use IRC.
+you should email it to me personally or use IRC.
 
 Don't bother Igor Pavlov with questions about the XZ implementation
 in the kernel or about XZ Utils. While these two implementations
