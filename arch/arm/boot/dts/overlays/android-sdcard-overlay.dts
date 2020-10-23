@@ -1,0 +1,40 @@
+/dts-v1/;
+/plugin/;
+/ {
+    compatible = "brcm,bcm2835";
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            firmware {
+                android {
+                    compatible = "android,firmware";
+                    bootdevice = "sdcard";
+                    fstab {
+                        compatible = "android,fstab";
+                        boot {
+                            compatible = "android,boot";
+                            dev = "/dev/block/mmcblk0p1";
+                            type = "vfat";
+                            mnt_flags = "ro";
+                            fsmgr_flags = "wait,first_stage_mount";
+                        };
+                        system {
+                            compatible = "android,system";
+                            dev = "/dev/block/mmcblk0p2";
+                            type = "ext4";
+                            mnt_flags = "ro,barrier=1";
+                            fsmgr_flags = "wait,first_stage_mount";
+                        };
+                        vendor {
+                            compatible = "android,vendor";
+                            dev = "/dev/block/mmcblk0p3";
+                            type = "ext4";
+                            mnt_flags = "ro,barrier=1";
+                            fsmgr_flags = "wait,first_stage_mount";
+                        };
+                    };
+                };
+            };
+        };
+    };
+};
