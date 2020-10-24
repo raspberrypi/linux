@@ -3,9 +3,9 @@
 Linux Serial Console
 ====================
 
-To use a serial port as console you need to compile the support into your
-kernel - by default it is not compiled in. For PC style serial ports
-it's the config option next to menu option:
+To use a serial port as a console you need to compile the support into your
+kernel - by default, it is not compiled in. For PC style serial ports
+it's the config option next to the menu option:
 
 :menuselection:`Character devices --> Serial drivers --> 8250/16550 and compatible serial support --> Console on 8250/16550 and compatible serial port`
 
@@ -33,13 +33,13 @@ The format of this option is::
 			9600n8. The maximum baudrate is 115200.
 
 You can specify multiple console= options on the kernel command line.
-Output will appear on all of them. The last device will be used when
+The output will appear on all of them. The last device will be used when
 you open ``/dev/console``. So, for example::
 
 	console=ttyS1,9600 console=tty0
 
 defines that opening ``/dev/console`` will get you the current foreground
-virtual console, and kernel messages will appear on both the VGA
+virtual console and kernel messages will appear on both the VGA
 console and the 2nd serial port (ttyS1 or COM2) at 9600 baud.
 
 Note that you can only define one console per device type (serial, video).
@@ -54,7 +54,7 @@ You will need to create a new device to use ``/dev/console``. The official
 ``/dev/console`` is now character device 5,1.
 
 (You can also use a network device as a console.  See
-``Documentation/networking/netconsole.txt`` for information on that.)
+``Documentation/networking/netconsole.rst`` for information on that.)
 
 Here's an example that will use ``/dev/ttyS1`` (COM2) as the console.
 Replace the sample values as needed.
@@ -95,7 +95,7 @@ Replace the sample values as needed.
    Programs that want to do something with the virtual console usually
    open ``/dev/console``. If you have created the new ``/dev/console`` device,
    and your console is NOT the virtual console some programs will fail.
-   Those are programs that want to access the VT interface, and use
+   Those are programs that want to access the VT interface and use
    ``/dev/console instead of /dev/tty0``. Some of those programs are::
 
      Xfree86, svgalib, gpm, SVGATextMode
@@ -104,12 +104,12 @@ Replace the sample values as needed.
 
    Note that if you boot without a ``console=`` option (or with
    ``console=/dev/tty0``), ``/dev/console`` is the same as ``/dev/tty0``.
-   In that case everything will still work.
+   In that case, everything will still work.
 
 7. Thanks
 
    Thanks to Geert Uytterhoeven <geert@linux-m68k.org>
    for porting the patches from 2.1.4x to 2.1.6x for taking care of
-   the integration of these patches into m68k, ppc and alpha.
+   the integration of these patches into m68k, ppc, and alpha.
 
 Miquel van Smoorenburg <miquels@cistron.nl>, 11-Jun-2000

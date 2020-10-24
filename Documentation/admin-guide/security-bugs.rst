@@ -21,10 +21,17 @@ understand and fix the security vulnerability.
 
 As it is with any bug, the more information provided the easier it
 will be to diagnose and fix.  Please review the procedure outlined in
-admin-guide/reporting-bugs.rst if you are unclear about what
+:doc:`reporting-bugs` if you are unclear about what
 information is helpful.  Any exploit code is very helpful and will not
 be released without consent from the reporter unless it has already been
 made public.
+
+Please send plain text emails without attachments where possible.
+It is much harder to have a context-quoted discussion about a complex
+issue if all the details are hidden away in attachments.  Think of it like a
+:doc:`regular patch submission <../process/submitting-patches>`
+(even if you don't have a patch yet): describe the problem and impact, list
+reproduction steps, and follow it with a proposed fix, all in plain text.
 
 Disclosure and embargoed information
 ------------------------------------
@@ -51,7 +58,7 @@ reporter.  This includes but is not limited to the original bug report
 and followup discussions (if any), exploits, CVE information or the
 identity of the reporter.
 
-In other words our only interest is in getting bugs fixed.  All other
+In other words, our only interest is in getting bugs fixed.  All other
 information submitted to the security list and any followup discussions
 of the report are treated confidentially even after the embargo has been
 lifted, in perpetuity.
@@ -60,15 +67,15 @@ Coordination
 ------------
 
 Fixes for sensitive bugs, such as those that might lead to privilege
-escalations, may need to be coordinated with the private
+escalations may need to be coordinated with the private
 <linux-distros@vs.openwall.org> mailing list so that distribution vendors
-are well prepared to issue a fixed kernel upon public disclosure of the
+are well prepared to issue a fixed kernel upon the public disclosure of the
 upstream fix. Distros will need some time to test the proposed patch and
 will generally request at least a few days of embargo, and vendor update
 publication prefers to happen Tuesday through Thursday. When appropriate,
 the security team can assist with this coordination, or the reporter can
 include linux-distros from the start. In this case, remember to prefix
-the email Subject line with "[vs]" as described in the linux-distros wiki:
+the email subject line with "[vs]" as described in the linux-distros wiki:
 <http://oss-security.openwall.org/wiki/mailing-lists/distros#how-to-use-the-lists>
 
 CVE assignment

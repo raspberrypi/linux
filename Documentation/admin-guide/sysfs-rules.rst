@@ -100,7 +100,7 @@ versions of the sysfs interface.
     child device.
 
 - Hierarchy in a single device tree
-    There is only one valid place in sysfs where hierarchy can be examined
+    There is only one valid place in sysfs where the hierarchy can be examined
     and this is below: ``/sys/devices.``
     It is planned that all device directories will end up in the tree
     below this directory.

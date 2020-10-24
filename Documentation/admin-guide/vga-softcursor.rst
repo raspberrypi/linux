@@ -5,7 +5,7 @@ by Pavel Machek <pavel@atrey.karlin.mff.cuni.cz>
 and Martin Mares <mj@atrey.karlin.mff.cuni.cz>
 
 Linux now has some ability to manipulate cursor appearance.  Normally,
-you can set the size of hardware cursor.  You can now play a few new
+you can set the size of the hardware cursor.  You can now play a few new
 tricks: you can make your cursor look like a non-blinking red block,
 make it inverse background of the character it's over or to highlight
 that character and still choose whether the original hardware cursor
@@ -13,7 +13,7 @@ should remain visible or not.  There may be other things I have never
 thought of.
 
 The cursor appearance is controlled by a ``<ESC>[?1;2;3c`` escape sequence
-where 1, 2 and 3 are parameters described below. If you omit any of them,
+where 1, 2, and 3 are parameters described below. If you omit any of them,
 they will default to zeroes.
 
 first Parameter
@@ -34,7 +34,7 @@ first Parameter
 second parameter
 	selects character attribute bits you want to change
 	(by simply XORing them with the value of this parameter). On standard
-	VGA, the high four bits specify background and the low four the
+	VGA, the high four bits specify the background and the low four the
 	foreground. In both groups, low three bits set color (as in normal
 	color codes used by the console) and the most significant one turns
 	on highlight (or sometimes blinking -- it depends on the configuration

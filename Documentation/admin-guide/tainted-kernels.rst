@@ -18,7 +18,7 @@ information about this to the logs ``dmesg`` outputs. It's also possible to
 check the tainted state at runtime through a file in ``/proc/``.
 
 
-Tainted flag in bugs, oops or panics messages
+Tainted flag in bugs, oops, or panics messages
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You find the tainted state near the top in a line starting with 'CPU:'; if or
@@ -38,7 +38,7 @@ either letters or blanks. In above example it looks like this::
 
 	Tainted: P        W  O
 
-The meaning of those characters is explained in the table below. In tis case
+The meaning of those characters is explained in the table below. In this case
 the kernel got tainted earlier because a proprietary Module (``P``) was loaded,
 a warning occurred (``W``), and an externally-built module was loaded (``O``).
 To decode other letters use the table below.
@@ -61,13 +61,13 @@ this on the machine that had the statements in the logs that were quoted earlier
 	 * Proprietary module was loaded (#0)
 	 * Kernel issued warning (#9)
 	 * Externally-built ('out-of-tree') module was loaded  (#12)
-	See Documentation/admin-guide/tainted-kernels.rst in the the Linux kernel or
+	See Documentation/admin-guide/tainted-kernels.rst in the Linux kernel or
 	 https://www.kernel.org/doc/html/latest/admin-guide/tainted-kernels.html for
 	 a more details explanation of the various taint flags.
 	Raw taint value as int/string: 4609/'P        W  O     '
 
 You can try to decode the number yourself. That's easy if there was only one
-reason that got your kernel tainted, as in this case you can find the number
+the reason that got your kernel tainted, as in this case, you can find the number
 with the table below. If there were multiple reasons you need to decode the
 number, as it is a bitfield, where each bit indicates the absence or presence of
 a particular type of taint. It's best to leave that to the aforementioned
@@ -118,7 +118,7 @@ More detailed explanation for tainting
 
  2)  ``S`` if the oops occurred on an SMP kernel running on hardware that
      hasn't been certified as safe to run multiprocessor.
-     Currently this occurs only on various Athlons that are not
+     Currently, this occurs only on various Athlons that are not
      SMP capable.
 
  3)  ``R`` if a module was force unloaded by ``rmmod -f``, ``' '`` if all
@@ -130,7 +130,7 @@ More detailed explanation for tainting
  5)  ``B`` If a page-release function has found a bad page reference or some
      unexpected page flags. This indicates a hardware problem or a kernel bug;
      there should be other information in the log indicating why this tainting
-     occured.
+     occurred.
 
  6)  ``U`` if a user or user application specifically requested that the
      Tainted flag be set, ``' '`` otherwise.

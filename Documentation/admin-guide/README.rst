@@ -34,7 +34,7 @@ On what hardware does it run?
   Linux is easily portable to most general-purpose 32- or 64-bit architectures
   as long as they have a paged memory management unit (PMMU) and a port of the
   GNU C compiler (gcc) (part of The GNU Compiler Collection, GCC). Linux has
-  also been ported to a number of architectures without a PMMU, although
+  also been ported to several architectures without a PMMU, although
   functionality is then obviously somewhat limited.
   Linux has also been ported to itself. You can now run the kernel as a
   userspace application - this is called UserMode Linux (UML).
@@ -53,7 +53,7 @@ Documentation
    these typically contain kernel-specific installation notes for some
    drivers for example. Please read the
    :ref:`Documentation/process/changes.rst <changes>` file, as it
-   contains information about the problems, which may result by upgrading
+   contains information about the problems, which may result from upgrading
    your kernel.
 
 Installing the kernel source
@@ -74,7 +74,7 @@ Installing the kernel source
 
  - You can also upgrade between 5.x releases by patching.  Patches are
    distributed in the xz format.  To install by patching, get all the
-   newer patch files, enter the top level directory of the kernel source
+   newer patch files, enter the top-level directory of the kernel source
    (linux-5.x) and execute::
 
      xz -cd ../patch-5.x.xz | patch -p1
@@ -128,8 +128,8 @@ Build directory for the kernel
 
    When compiling the kernel, all output files will per default be
    stored together with the kernel source code.
-   Using the option ``make O=output/dir`` allows you to specify an alternate
-   place for the output files (including .config).
+   Using the option `` make O=output/dir`` allows you to specify an alternate
+   a place for the output files (including .config).
    Example::
 
      kernel source code: /usr/src/linux-5.x
@@ -209,15 +209,22 @@ Configuring the kernel
                            store the lsmod of that machine into a file
                            and pass it in as a LSMOD parameter.
 
+                           Also, you can preserve modules in certain folders
+                           or kconfig files by specifying their paths in
+                           parameter LMC_KEEP.
+
                    target$ lsmod > /tmp/mylsmod
                    target$ scp /tmp/mylsmod host:/tmp
 
-                   host$ make LSMOD=/tmp/mylsmod localmodconfig
+                   host$ make LSMOD=/tmp/mylsmod \
+                           LMC_KEEP="drivers/usb:drivers/gpu:fs" \
+                           localmodconfig
 
                            The above also works when cross compiling.
 
      "make localyesconfig" Similar to localmodconfig, except it will convert
-                           all module options to built in (=y) options.
+                           all module options to built in (=y) options. You can
+                           also preserve modules by LMC_KEEP.
 
      "make kvmconfig"   Enable additional options for kvm guest kernel support.
 
@@ -251,7 +258,7 @@ Configuring the kernel
 Compiling the kernel
 --------------------
 
- - Make sure you have at least gcc 4.6 available.
+ - Make sure you have at least gcc 4.9 available.
    For more information, refer to :ref:`Documentation/process/changes.rst <changes>`.
 
    Please note that you can still run a.out user programs with this kernel.
@@ -280,7 +287,7 @@ Compiling the kernel
    target, use ``V=2``.  The default is ``V=0``.
 
  - Keep a backup kernel handy in case something goes wrong.  This is
-   especially true for the development releases, since each new release
+   especially true for the development releases since each new release
    contains new code which has not been debugged.  Make sure you keep a
    backup of the modules corresponding to that kernel, as well.  If you
    are installing a new kernel with the same version number as your
@@ -301,7 +308,7 @@ Compiling the kernel
    If you boot Linux from the hard drive, chances are you use LILO, which
    uses the kernel image as specified in the file /etc/lilo.conf.  The
    kernel image file is usually /vmlinuz, /boot/vmlinuz, /bzImage or
-   /boot/bzImage.  To use the new kernel, save a copy of the old image
+   /boot/bzImage.  To use the new kernel, save a copy of the old image,
    and copy the new image over the old one.  Then, you MUST RERUN LILO
    to update the loading map! If you don't, you won't be able to boot
    the new kernel image.
@@ -315,9 +322,9 @@ Compiling the kernel
    reboot, and enjoy!
 
    If you ever need to change the default root device, video mode,
-   ramdisk size, etc.  in the kernel image, use the ``rdev`` program (or
-   alternatively the LILO boot options when appropriate).  No need to
-   recompile the kernel to change these parameters.
+   etc. in the kernel image, use your bootloader's boot options
+   where appropriate.  No need to recompile the kernel to change
+   these parameters.
 
  - Reboot with the new kernel and enjoy.
 
@@ -350,13 +357,13 @@ If something goes wrong
    or similar kernel debugging information on your screen or in your
    system log, please duplicate it *exactly*.  The dump may look
    incomprehensible to you, but it does contain information that may
-   help debugging the problem.  The text above the dump is also
+   help to debug the problem.  The text above the dump is also
    important: it tells something about why the kernel dumped code (in
    the above example, it's due to a bad kernel pointer). More information
    on making sense of the dump is in Documentation/admin-guide/bug-hunting.rst
 
  - If you compiled the kernel with CONFIG_KALLSYMS you can send the dump
-   as is, otherwise you will have to use the ``ksymoops`` program to make
+   as-is, otherwise you will have to use the ``ksymoops`` program to make
    sense of the dump (but compiling with CONFIG_KALLSYMS is usually preferred).
    This utility can be downloaded from
    https://www.kernel.org/pub/linux/utils/kernel/ksymoops/ .
@@ -378,7 +385,7 @@ If something goes wrong
 
    This will give you a list of kernel addresses sorted in ascending
    order, from which it is simple to find the function that contains the
-   offending address.  Note that the address given by the kernel
+   offending address.  Note that the address was given by the kernel
    debugging messages will not necessarily match exactly with the
    function addresses (in fact, that is very unlikely), so you can't
    just 'grep' the list: the list will, however, give you the starting
@@ -395,7 +402,7 @@ If something goes wrong
    document for details.
 
  - Alternatively, you can use gdb on a running kernel. (read-only; i.e. you
-   cannot change values or set break points.) To do this, first compile the
+   cannot change values or set break points.) To do this, first, compile the
    kernel with -g; edit arch/x86/Makefile appropriately, then do a ``make
    clean``. You'll also need to enable CONFIG_PROC_FS (via ``make config``).
 

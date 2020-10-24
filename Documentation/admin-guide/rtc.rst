@@ -3,7 +3,7 @@ Real Time Clock (RTC) Drivers for Linux
 =======================================
 
 When Linux developers talk about a "Real Time Clock", they usually mean
-something that tracks wall clock time and is battery backed so that it
+something that tracks wall clock time and is battery-backed so that it
 works even with system power off.  Such clocks will normally not track
 the local time zone or daylight savings time -- unless they dual boot
 with MS-Windows -- but will instead be set to Coordinated Universal Time
@@ -36,15 +36,15 @@ Old PC/AT-Compatible driver:  /dev/rtc
 --------------------------------------
 
 All PCs (even Alpha machines) have a Real Time Clock built into them.
-Usually they are built into the chipset of the computer, but some may
+Usually, they are built into the chipset of the computer, but some may
 actually have a Motorola MC146818 (or clone) on the board. This is the
 clock that keeps the date and time while your computer is turned off.
 
-ACPI has standardized that MC146818 functionality, and extended it in
+ACPI has standardized that MC146818 functionality and extended it in
 a few ways (enabling longer alarm periods, and wake-from-hibernate).
-That functionality is NOT exposed in the old driver.
+That functionality is NOT exposed to the old driver.
 
-However it can also be used to generate signals from a slow 2Hz to a
+However, it can also be used to generate signals from a slow 2Hz to a
 relatively fast 8192Hz, in increments of powers of two. These signals
 are reported by interrupt number 8. (Oh! So *that* is what IRQ 8 is
 for...) It can also function as a 24hr alarm, raising IRQ 8 when the
@@ -60,7 +60,7 @@ the type of interrupt (update-done, alarm-rang, or periodic) that was
 raised, and the remaining bytes contain the number of interrupts since
 the last read.  Status information is reported through the pseudo-file
 /proc/driver/rtc if the /proc filesystem was enabled.  The driver has
-built in locking so that only one process is allowed to have the /dev/rtc
+built-in locking so that only one process is allowed to have the /dev/rtc
 interface open at a time.
 
 A user process can monitor these interrupts by doing a read(2) or a
@@ -73,7 +73,7 @@ At high frequencies, or under high loads, the user process should check
 the number of interrupts received since the last read to determine if
 there has been any interrupt "pileup" so to speak. Just for reference, a
 typical 486-33 running a tight read loop on /dev/rtc will start to suffer
-occasional interrupt pileup (i.e. > 1 IRQ event since last read) for
+occasional interrupt pileup (i.e. > 1 IRQ event since the last read) for
 frequencies above 1024Hz. So you really should check the high bytes
 of the value you read, especially at frequencies above that of the
 normal timer interrupt, which is 100Hz.
@@ -86,9 +86,9 @@ a different value to /proc/sys/dev/rtc/max-user-freq. Note that the
 interrupt handler is only a few lines of code to minimize any possibility
 of this effect.
 
-Also, if the kernel time is synchronized with an external source, the 
-kernel will write the time back to the CMOS clock every 11 minutes. In 
-the process of doing this, the kernel briefly turns off RTC periodic 
+Also, if the kernel time is synchronized with an external source, the
+kernel will write the time back to the CMOS clock every 11 minutes. In
+the process of doing this, the kernel briefly turns off RTC periodic
 interrupts, so be aware of this if you are doing serious work. If you
 don't synchronize the kernel time with an external source (via ntp or
 whatever) then the kernel will keep its hands off the RTC, allowing you
@@ -98,7 +98,7 @@ The alarm and/or interrupt frequency are programmed into the RTC via
 various ioctl(2) calls as listed in ./include/linux/rtc.h
 Rather than write 50 pages describing the ioctl() and so on, it is
 perhaps more useful to include a small test program that demonstrates
-how to use them, and demonstrates the features of the driver. This is
+how to use them and demonstrates the features of the driver. This is
 probably a lot more useful to people interested in writing applications
 that will be using this driver.  See the code at the end of this document.
 

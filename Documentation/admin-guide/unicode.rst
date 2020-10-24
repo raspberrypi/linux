@@ -70,7 +70,7 @@ U+F804 DEC VT GRAPHICS HORIZONTAL LINE SCAN 9
 
 The DEC VT220 uses a 6x10 character matrix, and these characters form
 a smooth progression in the DEC VT graphics character set.  I have
-omitted the scan 5 line, since it is also used as a block-graphics
+omitted the scan 5 lines since it is also used as a block-graphics
 character, and hence has been coded as U+2500 FORMS LIGHT HORIZONTAL.
 
 [v1.3]: These characters have been officially added to Unicode 3.2.0;
@@ -104,7 +104,7 @@ For more information, contact them at:
 
 	http://www.kli.org/
 
-Since the characters in the beginning of the Linux CZ have been more
+Since the characters at the beginning of the Linux CZ have been more
 of the dingbats/symbols/forms type and this is a language, I have
 located it at the end, on a 16-cell boundary in keeping with standard
 Unicode practice.
@@ -114,7 +114,7 @@ Unicode practice.
   This range is now officially managed by the ConScript Unicode
   Registry.  The normative reference is at:
 
-	http://www.evertype.com/standards/csur/klingon.html
+	https://www.evertype.com/standards/csur/klingon.html
 
 Klingon has an alphabet of 26 characters, a positional numeric writing
 system with 10 digits, and is written left-to-right, top-to-bottom.
@@ -178,7 +178,7 @@ fictional and artificial scripts has been established by John Cowan
 <jcowan@reutershealth.com> and Michael Everson <everson@evertype.com>.
 The ConScript Unicode Registry is accessible at:
 
-	  http://www.evertype.com/standards/csur/
+	  https://www.evertype.com/standards/csur/
 
 The ranges used fall at the low end of the End User Zone and can hence
 not be normatively assigned, but it is recommended that people who
