@@ -52,6 +52,8 @@ static u8 gamma_low[32] = {0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
 
 static u8 gamma_user[32];
 
+static u32 pseudo_palette[16];
+
 static struct rpisense_fb_param rpisense_fb_param = {
 	.vmem = NULL,
 	.vmemsize = 128,
@@ -225,6 +227,7 @@ static int rpisense_fb_probe(struct platform_device *pdev)
 	info->flags = FBINFO_FLAG_DEFAULT | FBINFO_VIRTFB;
 	info->screen_base = rpisense_fb_param.vmem;
 	info->screen_size = rpisense_fb_param.vmemsize;
+	info->pseudo_palette = pseudo_palette;
 
 	if (lowlight)
 		rpisense_fb_param.gamma = gamma_low;
