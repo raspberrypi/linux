@@ -336,6 +336,7 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	int err;
+	u32 disable_headphones = 0;
 
 	if (num_channels <= 0 || num_channels > MAX_SUBSTREAMS) {
 		num_channels = MAX_SUBSTREAMS;
@@ -345,6 +346,11 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 
 	if (!of_property_read_bool(dev->of_node, "brcm,disable-hdmi"))
 		set_hdmi_enables(dev);
+
+	of_property_read_u32(dev->of_node,
+			     "brcm,disable-headphones",
+			     &disable_headphones);
+	enable_headphones = !disable_headphones;
 
 	err = bcm2835_devm_add_vchi_ctx(dev);
 	if (err)
