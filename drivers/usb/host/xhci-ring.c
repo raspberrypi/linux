@@ -659,6 +659,19 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 
 deq_found:
 
+	/*
+	 * Quirk: the xHC does not correctly parse link TRBs if the HW Dequeue
+	 * pointer is set to one. Advance to the next TRB (and next segment).
+	 */
+	if (xhci->quirks & XHCI_AVOID_DQ_ON_LINK && trb_is_link(new_deq)) {
+		if (link_trb_toggles_cycle(new_deq))
+			state->new_cycle_state ^= 0x1;
+		next_trb(xhci, ep_ring, &new_seg, &new_deq);
+	}
+
+	state->new_deq_seg = new_seg;
+	state->new_deq_ptr = new_deq;
+
 	/* Don't update the ring cycle state for the producer (us). */
 	addr = xhci_trb_virt_to_dma(new_seg, new_deq);
 	if (addr == 0) {
