@@ -381,11 +381,16 @@ static int snd_bcm2835_alsa_probe(struct platform_device *pdev)
 	}
 
 	if (!enable_compat_alsa) {
+		// In this mode, enable analog output by default
+		u32 disable_headphones = 0;
+
 		if (!of_property_read_bool(dev->of_node, "brcm,disable-hdmi"))
 			set_hdmi_enables(dev);
 
-		// In this mode, always enable analog output
-		enable_headphones = true;
+		of_property_read_u32(dev->of_node,
+				     "brcm,disable-headphones",
+				     &disable_headphones);
+		enable_headphones = !disable_headphones;
 	} else {
 		enable_hdmi0 = enable_hdmi;
 	}
