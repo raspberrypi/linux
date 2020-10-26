@@ -1628,6 +1628,9 @@ struct xhci_hcd {
 #define XHCI_ZHAOXIN_TRB_FETCH	BIT_ULL(45)
 #define XHCI_ZHAOXIN_HOST	BIT_ULL(46)
 
+/* Downstream VLI fixes */
+#define XHCI_AVOID_DQ_ON_LINK	BIT_ULL(56)
+
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;
 	struct xhci_port	*hw_ports;
