@@ -106,6 +106,7 @@
 &audio {
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
+	brcm,disable-headphones = <1>;
 };
 
 / {
