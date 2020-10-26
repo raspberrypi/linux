@@ -1875,6 +1875,7 @@ struct xhci_hcd {
 #define XHCI_SNPS_BROKEN_SUSPEND    BIT_ULL(35)
 #define XHCI_RENESAS_FW_QUIRK	BIT_ULL(36)
 #define XHCI_EP_CTX_BROKEN_DCS	BIT_ULL(37)
+#define XHCI_AVOID_DQ_ON_LINK	BIT_ULL(38)
 
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;
