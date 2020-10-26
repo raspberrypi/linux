@@ -550,7 +550,7 @@ static int vt_io_fontreset(struct console_font_op *op)
 }
 
 static inline int do_unimap_ioctl(int cmd, struct unimapdesc __user *user_ud,
-		struct vc_data *vc)
+		bool perm, struct vc_data *vc)
 {
 	struct unimapdesc tmp;
 
@@ -558,9 +558,11 @@ static inline int do_unimap_ioctl(int cmd, struct unimapdesc __user *user_ud,
 		return -EFAULT;
 	switch (cmd) {
 	case PIO_UNIMAP:
+		if (!perm)
+			return -EPERM;
 		return con_set_unimap(vc, tmp.entry_ct, tmp.entries);
 	case GIO_UNIMAP:
-		if (fg_console != vc->vc_num)
+		if (!perm && fg_console != vc->vc_num)
 			return -EPERM;
 		return con_get_unimap(vc, tmp.entry_ct, &(user_ud->entry_ct),
 				tmp.entries);
@@ -640,10 +642,7 @@ static int vt_io_ioctl(struct vc_data *vc, unsigned int cmd, void __user *up,
 
 	case PIO_UNIMAP:
 	case GIO_UNIMAP:
-		if (!perm)
-			return -EPERM;
-
-		return do_unimap_ioctl(cmd, up, vc);
+		return do_unimap_ioctl(cmd, up, perm, vc);
 
 	default:
 		return -ENOIOCTLCMD;
