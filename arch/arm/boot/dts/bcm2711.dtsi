@@ -503,8 +503,8 @@
 			msi-controller;
 			msi-parent = <&pcie0>;
 
-			ranges = <0x02000000 0x0 0xf8000000 0x6 0x00000000
-				  0x0 0x04000000>;
+			ranges = <0x02000000 0x0 0xc0000000 0x6 0x00000000
+				  0x0 0x40000000>;
 			/*
 			 * The wrapper around the PCIe block has a bug
 			 * preventing it from accessing beyond the first 3GB of
