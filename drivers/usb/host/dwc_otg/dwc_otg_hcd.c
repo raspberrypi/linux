@@ -1270,7 +1270,8 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 	hc->multi_count = 1;
 
 	if (hcd->core_if->dma_enable) {
-		hc->xfer_buff = (uint8_t *) urb->dma + urb->actual_length;
+		hc->xfer_buff =
+		    (uint8_t *)(uintptr_t)urb->dma + urb->actual_length;
 
 		/* For non-dword aligned case */
 		if (((unsigned long)hc->xfer_buff & 0x3)
@@ -1314,7 +1315,8 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 			hc->ep_is_in = 0;
 			hc->data_pid_start = DWC_OTG_HC_PID_SETUP;
 			if (hcd->core_if->dma_enable) {
-				hc->xfer_buff = (uint8_t *) urb->setup_dma;
+				hc->xfer_buff =
+					(uint8_t *)(uintptr_t)urb->setup_dma;
 			} else {
 				hc->xfer_buff = (uint8_t *) urb->setup_packet;
 			}
@@ -1362,7 +1364,8 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 
 			hc->xfer_len = 0;
 			if (hcd->core_if->dma_enable) {
-				hc->xfer_buff = (uint8_t *) hcd->status_buf_dma;
+				hc->xfer_buff = (uint8_t *)
+					(uintptr_t)hcd->status_buf_dma;
 			} else {
 				hc->xfer_buff = (uint8_t *) hcd->status_buf;
 			}
@@ -1390,7 +1393,7 @@ static void assign_and_init_hc(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 			frame_desc->status = 0;
 
 			if (hcd->core_if->dma_enable) {
-				hc->xfer_buff = (uint8_t *) urb->dma;
+				hc->xfer_buff = (uint8_t *)(uintptr_t)urb->dma;
 			} else {
 				hc->xfer_buff = (uint8_t *) urb->buf;
 			}
@@ -1571,8 +1574,10 @@ int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_state *st,
 		 * Pointer arithmetic on hcd->fiq_state->dma_base (a dma_addr_t)
 		 * to point it to the correct offset in the allocated buffers.
 		 */
-		blob = (struct fiq_dma_blob *) hcd->fiq_state->dma_base;
-		st->hcdma_copy.d32 = (dma_addr_t) blob->channel[hc->hc_num].index[0].buf;
+		blob = (struct fiq_dma_blob *)
+			(uintptr_t)hcd->fiq_state->dma_base;
+		st->hcdma_copy.d32 =(u32)(uintptr_t)
+			blob->channel[hc->hc_num].index[0].buf;
 
 		/* Calculate the max number of CSPLITS such that the FIQ can time out
 		 * a transaction if it fails.
@@ -1627,8 +1632,10 @@ int fiq_fsm_setup_periodic_dma(dwc_otg_hcd_t *hcd, struct fiq_channel_state *st,
 			 * dma_addr_t) to point it to the correct offset in the
 			 * allocated buffers.
 			 */
-			blob = (struct fiq_dma_blob *) hcd->fiq_state->dma_base;
-			st->hcdma_copy.d32 = (dma_addr_t) blob->channel[hc->hc_num].index[0].buf;
+			blob = (struct fiq_dma_blob *)
+				(uintptr_t)hcd->fiq_state->dma_base;
+			st->hcdma_copy.d32 = (u32)(uintptr_t)
+				blob->channel[hc->hc_num].index[0].buf;
 
 			/* fixup xfersize to the actual packet size */
 			st->hctsiz_copy.b.pid = 0;
