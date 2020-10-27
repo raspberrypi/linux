@@ -482,8 +482,8 @@ static void hcd_init_fiq(void *cookie)
 			otg_dev->os_dep.mphi_base + 0x1f0;
 		dwc_otg_hcd->fiq_state->mphi_regs.swirq_clr =
 			otg_dev->os_dep.mphi_base + 0x1f4;
-		DWC_WARN("Fake MPHI regs_base at 0x%08x",
-			 (int)dwc_otg_hcd->fiq_state->mphi_regs.base);
+		DWC_WARN("Fake MPHI regs_base at %px",
+			 dwc_otg_hcd->fiq_state->mphi_regs.base);
 	} else {
 		dwc_otg_hcd->fiq_state->mphi_regs.ctrl =
 			otg_dev->os_dep.mphi_base + 0x4c;
