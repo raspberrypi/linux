@@ -605,13 +605,16 @@ static int dwc2_driver_probe(struct platform_device *dev)
 			goto error_debugfs;
 		}
 	}
-#endif /* CONFIG_USB_DWC2_PERIPHERAL || CONFIG_USB_DWC2_DUAL_ROLE */
 	return 0;
 
 error_debugfs:
 	dwc2_debugfs_exit(hsotg);
 	if (hsotg->hcd_enabled)
 		dwc2_hcd_remove(hsotg);
+#else
+	return 0;
+#endif
+
 error_drd:
 	dwc2_drd_exit(hsotg);
 
