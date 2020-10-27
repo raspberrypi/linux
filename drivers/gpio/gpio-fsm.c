@@ -956,7 +956,8 @@ static int gpio_fsm_probe(struct platform_device *pdev)
 	// add reserved words to the symbol table
 	for (i = 0; i < ARRAY_SIZE(reserved_symbols); i++) {
 		if (reserved_symbols[i])
-			add_symbol(&gf->symtab, reserved_symbols[i], (void *)i);
+			add_symbol(&gf->symtab, reserved_symbols[i],
+				   (void *)(uintptr_t)i);
 	}
 
 	// parse the state
