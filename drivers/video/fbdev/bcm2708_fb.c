@@ -693,7 +693,8 @@ static long vc_mem_copy(struct bcm2708_fb *fb, struct fb_dmacopy *ioparam)
 		u8 *q = (u8 *)ioparam->dst + offset;
 
 		dma_memcpy(fb, bus_addr,
-			   INTALIAS_L1L2_NONALLOCATING((dma_addr_t)p), size);
+			   INTALIAS_L1L2_NONALLOCATING((u32)(uintptr_t)p),
+						       size);
 		if (copy_to_user(q, buf, s) != 0) {
 			pr_err("[%s]: failed to copy-to-user\n", __func__);
 			rc = -EFAULT;
