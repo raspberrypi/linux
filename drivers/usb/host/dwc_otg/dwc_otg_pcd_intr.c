@@ -3377,7 +3377,7 @@ void predict_nextep_seq( dwc_otg_core_if_t * core_if)
 	dtknq1_data_t dtknqr1;
 	uint32_t in_tkn_epnums[4];
 	uint8_t seqnum[MAX_EPS_CHANNELS];
-	uint8_t intkn_seq[TOKEN_Q_DEPTH];
+	uint8_t intkn_seq[1 << 5];
 	grstctl_t resetctl = {.d32 = 0 };
 	uint8_t temp;
 	int ndx = 0;
