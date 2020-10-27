@@ -1468,6 +1468,7 @@ static int vc4_hdmi_audio_prepare(struct snd_pcm_substream *substream,
 	} else {
 		vc4_hdmi->audio.chmap_idx = hdmi_codec_channel_alloc[idx].ca_id;
 	}
+	vc4_hdmi_set_audio_infoframe(encoder);
 
 	return 0;
 }
