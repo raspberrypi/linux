@@ -1390,6 +1390,7 @@ static int vc4_hdmi_audio_prepare(struct snd_pcm_substream *substream,
 				  struct snd_soc_dai *dai)
 {
 	struct vc4_hdmi *vc4_hdmi = dai_to_hdmi(dai);
+	struct drm_encoder *encoder = &vc4_hdmi->encoder.base.base;
 	struct device *dev = &vc4_hdmi->pdev->dev;
 	u32 audio_packet_config, channel_mask;
 	u32 channel_map;
@@ -1465,6 +1466,7 @@ static int vc4_hdmi_audio_prepare(struct snd_pcm_substream *substream,
 	} else {
 		vc4_hdmi->audio.chmap_idx = hdmi_codec_channel_alloc[idx].ca_id;
 	}
+	vc4_hdmi_set_audio_infoframe(encoder);
 
 	return 0;
 }
@@ -1473,11 +1475,9 @@ static int vc4_hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
 				  struct snd_soc_dai *dai)
 {
 	struct vc4_hdmi *vc4_hdmi = dai_to_hdmi(dai);
-	struct drm_encoder *encoder = &vc4_hdmi->encoder.base.base;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
-		vc4_hdmi_set_audio_infoframe(encoder);
 		vc4_hdmi->audio.streaming = true;
 
 		if (vc4_hdmi->variant->phy_rng_enable)
