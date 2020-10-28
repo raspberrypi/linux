@@ -125,6 +125,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pca953x.dtbo \
 	pibell.dtbo \
 	pifacedigital.dtbo \
+	pifi-40.dtbo \
 	piglow.dtbo \
 	piscreen.dtbo \
 	piscreen2r.dtbo \
