@@ -393,7 +393,7 @@ static void hibmc_crtc_mode_set_nofb(struct drm_crtc *crtc)
 }
 
 static void hibmc_crtc_atomic_begin(struct drm_crtc *crtc,
-				    struct drm_crtc_state *old_state)
+				    struct drm_atomic_state *state)
 {
 	unsigned int reg;
 	struct drm_device *dev = crtc->dev;
@@ -413,7 +413,7 @@ static void hibmc_crtc_atomic_begin(struct drm_crtc *crtc,
 }
 
 static void hibmc_crtc_atomic_flush(struct drm_crtc *crtc,
-				    struct drm_crtc_state *old_state)
+				    struct drm_atomic_state *state)
 
 {
 	unsigned long flags;
