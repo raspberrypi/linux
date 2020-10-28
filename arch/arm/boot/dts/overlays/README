@@ -2000,6 +2000,12 @@ Params: spi-present-mask        8-bit integer, bitmap indicating MCP23S17 SPI0
                                 0-3, which can be configured with JP1 and JP2.
 
 
+Name:   pifi-40
+Info:   Configures the PiFi 40W stereo amplifier
+Load:   dtoverlay=pifi-40
+Params: <None>
+
+
 Name:   piglow
 Info:   Configures the PiGlow by pimoroni.com
 Load:   dtoverlay=piglow
