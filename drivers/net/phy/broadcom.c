@@ -82,6 +82,11 @@ static int bcm54210e_config_init(struct phy_device *phydev)
 	return 0;
 }
 
+static int bcm54213pe_config_init(struct phy_device *phydev)
+{
+	return bcm54210e_config_init(phydev);
+}
+
 static int bcm54612e_config_init(struct phy_device *phydev)
 {
 	int reg;
@@ -355,6 +360,9 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 		break;
 	case PHY_ID_BCM54612E:
 		err = bcm54612e_config_init(phydev);
+		break;
+	case PHY_ID_BCM54213PE:
+		err = bcm54213pe_config_init(phydev);
 		break;
 	case PHY_ID_BCM54616S:
 		err = bcm54616s_config_init(phydev);
