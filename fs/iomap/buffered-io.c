@@ -559,6 +559,7 @@ __iomap_write_begin(struct inode *inode, loff_t pos, unsigned len,
 
 	if (PageUptodate(page))
 		return 0;
+	ClearPageError(page);
 
 	do {
 		iomap_adjust_read_range(inode, iop, &block_start,
