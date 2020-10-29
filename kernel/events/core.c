@@ -2597,7 +2597,6 @@ group_error:
 
 error:
 	pmu->cancel_txn(pmu);
-	perf_mux_hrtimer_restart(cpuctx);
 	return -EAGAIN;
 }
 
@@ -3653,6 +3652,7 @@ static int merge_sched_in(struct perf_event *event, void *data)
 
 		*can_add_hw = 0;
 		ctx->rotate_necessary = 1;
+		perf_mux_hrtimer_restart(cpuctx);
 	}
 
 	return 0;
