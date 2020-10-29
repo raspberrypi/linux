@@ -230,13 +230,15 @@ static blk_status_t null_zone_mgmt(struct nullb_cmd *cmd, enum req_opf op,
 
 	switch (op) {
 	case REQ_OP_ZONE_RESET_ALL:
-		for (i = 0; i < dev->nr_zones; i++) {
-			if (zone[i].type == BLK_ZONE_TYPE_CONVENTIONAL)
-				continue;
-			zone[i].cond = BLK_ZONE_COND_EMPTY;
-			zone[i].wp = zone[i].start;
+		for (i = dev->zone_nr_conv; i < dev->nr_zones; i++) {
+			zone = &dev->zones[i];
+			if (zone->cond != BLK_ZONE_COND_EMPTY) {
+				zone->cond = BLK_ZONE_COND_EMPTY;
+				zone->wp = zone->start;
+				trace_nullb_zone_op(cmd, i, zone->cond);
+			}
 		}
-		break;
+		return BLK_STS_OK;
 	case REQ_OP_ZONE_RESET:
 		if (zone->type == BLK_ZONE_TYPE_CONVENTIONAL)
 			return BLK_STS_IOERR;
