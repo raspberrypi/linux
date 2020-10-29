@@ -38,7 +38,11 @@
 #define SDIO_CFG_OP_DLY_DEFAULT			0x80000003
 #define SDIO_CFG_CQ_CAPABILITY			0x4c
 #define SDIO_CFG_CQ_CAPABILITY_FMUL		GENMASK(13, 12)
+#define SDIO_CFG_CQ_CAPABILITY_FMUL_SHIFT	12
 #define SDIO_CFG_SD_PIN_SEL			0x44
+#define SDIO_CFG_SD_PIN_SEL_MASK		0x3
+#define SDIO_CFG_SD_PIN_SEL_SD			BIT(1)
+#define SDIO_CFG_SD_PIN_SEL_MMC			BIT(0)
 #define SDIO_CFG_V1_SD_PIN_SEL			0x54
 #define SDIO_CFG_PHY_SW_MODE_0_RX_CTRL		0x7C
 #define SDIO_CFG_MAX_50MHZ_MODE			0x1ac
@@ -222,6 +226,42 @@ static void sdhci_brcmstb_hs400es(struct mmc_host *mmc, struct mmc_ios *ios)
 	writel(reg, host->ioaddr + SDHCI_VENDOR);
 }
 
+static void sdhci_bcm2712_set_clock(struct sdhci_host *host, unsigned int clock)
+{
+	u16 clk;
+	u32 reg;
+	bool is_emmc_rate = false;
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_brcmstb_priv *brcmstb_priv = sdhci_pltfm_priv(pltfm_host);
+
+	host->mmc->actual_clock = 0;
+
+	sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
+
+	switch (host->mmc->ios.timing) {
+	case MMC_TIMING_MMC_HS400:
+	case MMC_TIMING_MMC_HS200:
+	case MMC_TIMING_MMC_DDR52:
+	case MMC_TIMING_MMC_HS:
+	is_emmc_rate = true;
+	break;
+	}
+
+	reg = readl(brcmstb_priv->cfg_regs + SDIO_CFG_SD_PIN_SEL);
+	reg &= ~SDIO_CFG_SD_PIN_SEL_MASK;
+	if (is_emmc_rate)
+		reg |= SDIO_CFG_SD_PIN_SEL_MMC;
+	else
+		reg |= SDIO_CFG_SD_PIN_SEL_SD;
+	writel(reg, brcmstb_priv->cfg_regs + SDIO_CFG_SD_PIN_SEL);
+
+	if (clock == 0)
+		return;
+
+	clk = sdhci_calc_clk(host, clock, &host->mmc->actual_clock);
+	sdhci_enable_clk(host, clk);
+}
+
 static void sdhci_brcmstb_set_clock(struct sdhci_host *host, unsigned int clock)
 {
 	u16 clk;
@@ -235,6 +275,17 @@ static void sdhci_brcmstb_set_clock(struct sdhci_host *host, unsigned int clock)
 		return;
 
 	sdhci_enable_clk(host, clk);
+}
+
+static void sdhci_brcmstb_set_power(struct sdhci_host *host, unsigned char mode,
+				  unsigned short vdd)
+{
+	if (!IS_ERR(host->mmc->supply.vmmc)) {
+		struct mmc_host *mmc = host->mmc;
+
+		mmc_regulator_set_ocr(mmc, mmc->supply.vmmc, vdd);
+	}
+	sdhci_set_power_noreg(host, mode, vdd);
 }
 
 static void sdhci_brcmstb_set_uhs_signaling(struct sdhci_host *host,
@@ -285,12 +336,16 @@ static void sdhci_brcmstb_cfginit_2712(struct sdhci_host *host)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_brcmstb_priv *brcmstb_priv = sdhci_pltfm_priv(pltfm_host);
 	u32 reg;
+	u32 uhs_mask = (MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_SDR104);
+	u32 hsemmc_mask = (MMC_CAP2_HS200_1_8V_SDR | MMC_CAP2_HS200_1_2V_SDR |
+			   MMC_CAP2_HS400_1_8V | MMC_CAP2_HS400_1_2V);
+	u32 base_clk_mhz;
 
 	/*
 	 * If we support a speed that requires tuning,
 	 * then select the delay line PHY as the clock source.
 	 */
-	if ((host->mmc->caps & MMC_CAP_UHS_I_SDR_MASK) || (host->mmc->caps2 & MMC_CAP_HSE_MASK)) {
+	if ((host->mmc->caps & uhs_mask) || (host->mmc->caps2 & hsemmc_mask)) {
 		reg = readl(brcmstb_priv->cfg_regs + SDIO_CFG_MAX_50MHZ_MODE);
 		reg &= ~SDIO_CFG_MAX_50MHZ_MODE_ENABLE;
 		reg |= SDIO_CFG_MAX_50MHZ_MODE_STRAP_OVERRIDE;
@@ -307,6 +362,11 @@ static void sdhci_brcmstb_cfginit_2712(struct sdhci_host *host)
 		reg |= SDIO_CFG_CTRL_SDCD_N_TEST_EN;
 		writel(reg, brcmstb_priv->cfg_regs + SDIO_CFG_CTRL);
 	}
+
+	/* Guesstimate the timer frequency (controller base clock) */
+	base_clk_mhz = max_t(u32, clk_get_rate(pltfm_host->clk) / (1000 * 1000), 1);
+	reg = (3 << SDIO_CFG_CQ_CAPABILITY_FMUL_SHIFT) | base_clk_mhz;
+	writel(reg, brcmstb_priv->cfg_regs + SDIO_CFG_CQ_CAPABILITY);
 }
 
 static void sdhci_brcmstb_set_72116_uhs_signaling(struct sdhci_host *host, unsigned int timing)
@@ -374,8 +434,8 @@ static struct sdhci_ops sdhci_brcmstb_ops = {
 };
 
 static struct sdhci_ops sdhci_brcmstb_ops_2712 = {
-	.set_clock = sdhci_set_clock,
-	.set_power = sdhci_set_power_and_bus_voltage,
+	.set_clock = sdhci_bcm2712_set_clock,
+	.set_power = sdhci_brcmstb_set_power,
 	.set_bus_width = sdhci_set_bus_width,
 	.reset = brcmstb_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
@@ -403,6 +463,8 @@ static struct sdhci_ops sdhci_brcmstb_ops_74165b0 = {
 };
 
 static const struct brcmstb_match_priv match_priv_2712 = {
+	.flags = BRCMSTB_MATCH_FLAGS_USE_CARD_BUSY,
+	.hs400es = sdhci_brcmstb_hs400es,
 	.cfginit = sdhci_brcmstb_cfginit_2712,
 	.ops = &sdhci_brcmstb_ops_2712,
 };
@@ -546,6 +608,8 @@ static int sdhci_brcmstb_probe(struct platform_device *pdev)
 		return PTR_ERR(host);
 
 	pltfm_host = sdhci_priv(host);
+	pltfm_host->clk = clk;
+
 	priv = sdhci_pltfm_priv(pltfm_host);
 	priv->match_priv = match->data;
 	cqe = 0;
@@ -643,7 +707,6 @@ add_host:
 	if (res)
 		goto err;
 
-	pltfm_host->clk = clk;
 	return res;
 
 err:
