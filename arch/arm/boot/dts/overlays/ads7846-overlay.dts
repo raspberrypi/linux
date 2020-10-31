@@ -85,5 +85,8 @@
 		pmin =   <&ads7846>,"ti,pressure-min;0";
 		pmax =   <&ads7846>,"ti,pressure-max;0";
 		xohms =  <&ads7846>,"ti,x-plate-ohms;0";
+		touchscreen-inverted-x = <&ads7846>,"touchscreen-inverted-x?";
+		touchscreen-inverted-y = <&ads7846>,"touchscreen-inverted-y?";
+		touchscreen-swapped-x-y = <&ads7846>,"touchscreen-swapped-x-y?";
 	};
 };

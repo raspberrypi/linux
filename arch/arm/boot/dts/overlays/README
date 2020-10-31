@@ -560,6 +560,9 @@ Params: cs                      SPI bus Chip Select (default 1)
         pmax                    Maximum reported pressure value (default 65535)
         xohms                   Touchpanel sensitivity (X-plate resistance)
                                 (default 400)
+        touchscreen-inverted-x  Invert touchscreen X coordinates (default 0);
+        touchscreen-inverted-y  Invert touchscreen Y coordinates (default 0);
+        touchscreen-swapped-x-y Swap X and Y cordinates (default 0);
 
         penirq is required and usually xohms (60-100) has to be set as well.
         Apart from that, pmax (255) and swapxy are also common.
