@@ -315,8 +315,10 @@ static void __vma_release(struct dma_fence_work *work)
 {
 	struct i915_vma_work *vw = container_of(work, typeof(*vw), base);
 
-	if (vw->pinned)
+	if (vw->pinned) {
 		__i915_gem_object_unpin_pages(vw->pinned);
+		i915_gem_object_put(vw->pinned);
+	}
 }
 
 static const struct dma_fence_work_ops bind_ops = {
@@ -430,7 +432,7 @@ int i915_vma_bind(struct i915_vma *vma,
 
 		if (vma->obj) {
 			__i915_gem_object_pin_pages(vma->obj);
-			work->pinned = vma->obj;
+			work->pinned = i915_gem_object_get(vma->obj);
 		}
 	} else {
 		ret = vma->ops->bind_vma(vma->vm, vma, cache_level, bind_flags);
