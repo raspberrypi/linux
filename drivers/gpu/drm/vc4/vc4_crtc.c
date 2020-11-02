@@ -665,7 +665,7 @@ static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 		}
 	}
 
-	for_each_new_connector_in_state(crtc_state->state, conn, conn_state,
+	for_each_new_connector_in_state(state, conn, conn_state,
 					i) {
 		if (conn_state->crtc != crtc)
 			continue;
