@@ -158,7 +158,6 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	sc16is752-spi1.dtbo \
 	sdhost.dtbo \
 	sdio.dtbo \
-	sdtweak.dtbo \
 	sh1106-spi.dtbo \
 	smi.dtbo \
 	smi-dev.dtbo \
