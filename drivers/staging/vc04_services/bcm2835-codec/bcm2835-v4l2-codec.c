@@ -2001,6 +2001,19 @@ static int bcm2835_codec_create_component(struct bcm2835_codec_ctx *ctx)
 				      MMAL_PARAMETER_ZERO_COPY, &enable,
 				      sizeof(enable));
 
+	if (dev->role == DECODE) {
+		/*
+		 * Disable firmware option that ensures decoded timestamps
+		 * always increase.
+		 */
+		enable = 0;
+		vchiq_mmal_port_parameter_set(dev->instance,
+					      &ctx->component->output[0],
+					      MMAL_PARAMETER_VIDEO_VALIDATE_TIMESTAMPS,
+					      &enable,
+					      sizeof(enable));
+	}
+
 	setup_mmal_port_format(ctx, &ctx->q_data[V4L2_M2M_SRC],
 			       &ctx->component->input[0]);
 
