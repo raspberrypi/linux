@@ -2409,29 +2409,10 @@ Load:   <Deprecated>
 
 
 Name:   sdtweak
-Info:   Tunes the bcm2835-sdhost SD/MMC driver
-        N.B. This functionality is now available via the sd_* dtparams in the
-        base DTB.
-Load:   dtoverlay=sdtweak,<param>=<val>
-Params: overclock_50            Clock (in MHz) to use when the MMC framework
-                                requests 50MHz
-
-        force_pio               Disable DMA support (default off)
-
-        pio_limit               Number of blocks above which to use DMA
-                                (default 1)
-
-        debug                   Enable debug output (default off)
-
-        poll_once               Looks for a card once after booting. Useful
-                                for network booting scenarios to avoid the
-                                overhead of continuous polling. N.B. Using
-                                this option restricts the system to using a
-                                single card per boot (or none at all).
-                                (default off)
-
-        enable                  Set to off to completely disable the interface
-                                (default on)
+Info:   This overlay is now deprecated. Use the sd_* dtparams in the
+        base DTB, e.g. "dtoverlay=sdtweak,poll_once" becomes
+        "dtparam=sd_poll_once".
+Load:   <Deprecated>
 
 
 Name:   sh1106-spi
