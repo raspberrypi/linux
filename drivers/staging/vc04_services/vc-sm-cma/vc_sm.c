@@ -237,6 +237,7 @@ static void vc_sm_add_resource(struct vc_sm_privdata_t *privdata,
 
 /*
  * Cleans up imported dmabuf.
+ * Should be called with mutex held.
  */
 static void vc_sm_clean_up_dmabuf(struct vc_sm_buffer *buffer)
 {
@@ -244,7 +245,6 @@ static void vc_sm_clean_up_dmabuf(struct vc_sm_buffer *buffer)
 		return;
 
 	/* Handle cleaning up imported dmabufs */
-	mutex_lock(&buffer->lock);
 	if (buffer->import.sgt) {
 		dma_buf_unmap_attachment(buffer->import.attach,
 					 buffer->import.sgt,
@@ -255,7 +255,6 @@ static void vc_sm_clean_up_dmabuf(struct vc_sm_buffer *buffer)
 		dma_buf_detach(buffer->dma_buf, buffer->import.attach);
 		buffer->import.attach = NULL;
 	}
-	mutex_unlock(&buffer->lock);
 }
 
 /*
@@ -673,23 +672,6 @@ int vc_sm_import_dmabuf_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 }
 
 static
-void vc_sm_import_dma_buf_release(struct dma_buf *dmabuf)
-{
-	struct vc_sm_buffer *buf = dmabuf->priv;
-
-	pr_debug("%s: Relasing dma_buf %p\n", __func__, dmabuf);
-	mutex_lock(&buf->lock);
-	if (!buf->imported)
-		return;
-
-	buf->in_use = 0;
-
-	vc_sm_vpu_free(buf);
-
-	vc_sm_release_resource(buf);
-}
-
-static
 int vc_sm_import_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 					  enum dma_data_direction direction)
 {
@@ -717,7 +699,7 @@ static const struct dma_buf_ops dma_buf_import_ops = {
 	.map_dma_buf = vc_sm_import_map_dma_buf,
 	.unmap_dma_buf = vc_sm_import_unmap_dma_buf,
 	.mmap = vc_sm_import_dmabuf_mmap,
-	.release = vc_sm_import_dma_buf_release,
+	.release = vc_sm_dma_buf_release,
 	.attach = vc_sm_import_dma_buf_attach,
 	.detach = vc_sm_import_dma_buf_detatch,
 	.begin_cpu_access = vc_sm_import_dma_buf_begin_cpu_access,
