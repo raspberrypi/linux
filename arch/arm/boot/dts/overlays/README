@@ -733,6 +733,20 @@ Params: dr_mode                 Dual role mode: "host", "peripheral" or "otg"
 [ The ds1307-rtc overlay has been deleted. See i2c-rtc. ]
 
 
+Name:   edt-ft5406
+Info:   Overlay for the EDT FT5406 touchscreen on the CSI/DSI I2C interface.
+        This works with the Raspberry Pi 7" touchscreen when not being polled
+        by the firmware.
+        You MUST use either "disable_touchscreen=1" or "ignore_lcd=1" in
+        config.txt to stop the firmware polling the touchscreen.
+Load:   dtoverlay=edt-ft5406,<param>=<val>
+Params: sizex                   Touchscreen size x (default 800)
+        sizey                   Touchscreen size y (default 480)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+
+
 Name:   enc28j60
 Info:   Overlay for the Microchip ENC28J60 Ethernet Controller on SPI0
 Load:   dtoverlay=enc28j60,<param>=<val>
