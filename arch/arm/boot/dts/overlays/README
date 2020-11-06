@@ -741,6 +741,20 @@ Params: int_pin                 GPIO used for INT (default 25)
         speed                   SPI bus speed (default 12000000)
 
 
+Name:   edt-ft5406
+Info:   Overlay for the EDT FT5406 touchscreen on the CSI/DSI I2C interface.
+        This works with the Raspberry Pi 7" touchscreen when not being polled
+        by the firmware.
+        You MUST use either "disable_touchscreen=1" or "ignore_lcd=1" in
+        config.txt to stop the firmware polling the touchscreen.
+Load:   dtoverlay=edt-ft5406,<param>=<val>
+Params: sizex                   Touchscreen size x (default 800)
+        sizey                   Touchscreen size y (default 480)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+
+
 Name:   enc28j60-spi2
 Info:   Overlay for the Microchip ENC28J60 Ethernet Controller on SPI2
 Load:   dtoverlay=enc28j60-spi2,<param>=<val>
