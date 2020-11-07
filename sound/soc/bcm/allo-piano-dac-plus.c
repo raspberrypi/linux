@@ -420,6 +420,7 @@ static int pcm512x_get_reg_sub(struct snd_kcontrol *kcontrol,
 	unsigned int right_val = 0;
 	int ret;
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
+
 	ret = snd_soc_component_read(rtd->codec_dais[1]->component,
 			PCM512x_DIGITAL_VOLUME_3, &right_val);
 	if (ret < 0)
@@ -465,17 +466,20 @@ static int pcm512x_set_reg_sub(struct snd_kcontrol *kcontrol,
 				ret);
 	}
 
-	if (glb_ptr->dual_mode != 1) {
+	// When in Dual Mono, Sub vol control should not set anything.
+	if (glb_ptr->dual_mode != 1) { //Not in Dual Mono mode
+
 		ret = snd_soc_component_write(rtd->codec_dais[1]->component,
 				PCM512x_DIGITAL_VOLUME_2, (~left_val));
 		if (ret < 0)
 			return ret;
-	}
 
-	ret = snd_soc_component_write(rtd->codec_dais[1]->component,
-			PCM512x_DIGITAL_VOLUME_3, (~right_val));
-	if (ret < 0)
-		return ret;
+		ret = snd_soc_component_write(rtd->codec_dais[1]->component,
+				PCM512x_DIGITAL_VOLUME_3, (~right_val));
+		if (ret < 0)
+			return ret;
+
+	}
 
 	return 1;
 }
@@ -540,7 +544,7 @@ static int pcm512x_get_reg_master(struct snd_kcontrol *kcontrol,
 	if ( ret < 0)
 		return ret;
 
-	if (glb_ptr->dual_mode == 1) {
+	if (glb_ptr->dual_mode == 1) {  // in Dual Mono mode
 		ret = snd_soc_component_read(rtd->codec_dais[1]->component,
 				PCM512x_DIGITAL_VOLUME_3, &right_val);
 		if (ret < 0)
@@ -582,8 +586,21 @@ static int pcm512x_set_reg_master(struct snd_kcontrol *kcontrol,
 				ret);
 	}
 
-	if (glb_ptr->dual_mode != 1) {
+	if (glb_ptr->dual_mode == 1) { //in Dual Mono Mode
+
+		ret = snd_soc_component_write(rtd->codec_dais[0]->component,
+				PCM512x_DIGITAL_VOLUME_2, (~left_val));
+		if (ret < 0)
+			return ret;
+
 		ret = snd_soc_component_write(rtd->codec_dais[1]->component,
+				PCM512x_DIGITAL_VOLUME_3, (~right_val));
+		if (ret < 0)
+			return ret;
+
+	} else {
+
+		ret = snd_soc_component_write(rtd->codec_dais[0]->component,
 				PCM512x_DIGITAL_VOLUME_2, (~left_val));
 		if (ret < 0)
 			return ret;
@@ -594,16 +611,6 @@ static int pcm512x_set_reg_master(struct snd_kcontrol *kcontrol,
 			return ret;
 
 	}
-
-	ret = snd_soc_component_write(rtd->codec_dais[1]->component,
-			PCM512x_DIGITAL_VOLUME_3, (~right_val));
-	if (ret < 0)
-		return ret;
-
-	ret = snd_soc_component_write(rtd->codec_dais[0]->component,
-			PCM512x_DIGITAL_VOLUME_2, (~left_val));
-	if (ret < 0)
-		return ret;
 	return 1;
 }
 
@@ -697,7 +704,7 @@ static const struct snd_kcontrol_new allo_piano_controls[] = {
 
 	SOC_DOUBLE_R_EXT_TLV("Subwoofer Playback Volume",
 			PCM512x_DIGITAL_VOLUME_2,
-			PCM512x_DIGITAL_VOLUME_3, 0, 207, 1,
+			PCM512x_DIGITAL_VOLUME_3, 0, 255, 1,
 			pcm512x_get_reg_sub,
 			pcm512x_set_reg_sub,
 			digital_tlv_sub),
@@ -711,7 +718,7 @@ static const struct snd_kcontrol_new allo_piano_controls[] = {
 
 	SOC_DOUBLE_R_EXT_TLV("Master Playback Volume",
 			PCM512x_DIGITAL_VOLUME_2,
-			PCM512x_DIGITAL_VOLUME_3, 0, 207, 1,
+			PCM512x_DIGITAL_VOLUME_3, 0, 255, 1,
 			pcm512x_get_reg_master,
 			pcm512x_set_reg_master,
 			digital_tlv_master),
@@ -737,7 +744,11 @@ static const char * const codec_ctl_name[] = {
 	"Max Overclock DSP",
 	"Max Overclock PLL",
 	"Volume Ramp Down Emergency Rate",
-	"Volume Ramp Down Emergency Step"
+	"Volume Ramp Down Emergency Step",
+	"Volume Ramp Up Rate",
+	"Volume Ramp Down Rate",
+	"Volume Ramp Up Step",
+	"Volume Ramp Down Step"
 };
 
 static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
@@ -774,8 +785,7 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 
 	// Remove codec controls
 	for (i = 0; i < ARRAY_SIZE(codec_ctl_pfx); i++) {
-		// Start at 1, leave the Digital Volume control.
-		for (j = 1; j < ARRAY_SIZE(codec_ctl_name); j++) {
+		for (j = 0; j < ARRAY_SIZE(codec_ctl_name); j++) {
 			char cname[256];
 
 			sprintf(cname, "%s %s", codec_ctl_pfx[i], codec_ctl_name[j]);
