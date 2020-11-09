@@ -169,15 +169,19 @@ static int gfs2_check_sb(struct gfs2_sbd *sdp, int silent)
 		return -EINVAL;
 	}
 
-	/*  If format numbers match exactly, we're done.  */
+	if (sb->sb_fs_format != GFS2_FORMAT_FS ||
+	    sb->sb_multihost_format != GFS2_FORMAT_MULTI) {
+		fs_warn(sdp, "Unknown on-disk format, unable to mount\n");
+		return -EINVAL;
+	}
 
-	if (sb->sb_fs_format == GFS2_FORMAT_FS &&
-	    sb->sb_multihost_format == GFS2_FORMAT_MULTI)
-		return 0;
+	if (sb->sb_bsize < 512 || sb->sb_bsize > PAGE_SIZE ||
+	    (sb->sb_bsize & (sb->sb_bsize - 1))) {
+		pr_warn("Invalid superblock size\n");
+		return -EINVAL;
+	}
 
-	fs_warn(sdp, "Unknown on-disk format, unable to mount\n");
-
-	return -EINVAL;
+	return 0;
 }
 
 static void end_bio_io_page(struct bio *bio)
@@ -1094,26 +1098,14 @@ static int gfs2_fill_super(struct super_block *sb, struct fs_context *fc)
 	}
 
 	error = init_names(sdp, silent);
-	if (error) {
-		/* In this case, we haven't initialized sysfs, so we have to
-		   manually free the sdp. */
-		free_sbd(sdp);
-		sb->s_fs_info = NULL;
-		return error;
-	}
+	if (error)
+		goto fail_free;
 
 	snprintf(sdp->sd_fsname, sizeof(sdp->sd_fsname), "%s", sdp->sd_table_name);
 
 	error = gfs2_sys_fs_add(sdp);
-	/*
-	 * If we hit an error here, gfs2_sys_fs_add will have called function
-	 * kobject_put which causes the sysfs usage count to go to zero, which
-	 * causes sysfs to call function gfs2_sbd_release, which frees sdp.
-	 * Subsequent error paths here will call gfs2_sys_fs_del, which also
-	 * kobject_put to free sdp.
-	 */
 	if (error)
-		return error;
+		goto fail_free;
 
 	gfs2_create_debugfs_file(sdp);
 
@@ -1210,9 +1202,9 @@ fail_lm:
 	gfs2_lm_unmount(sdp);
 fail_debug:
 	gfs2_delete_debugfs_file(sdp);
-	/* gfs2_sys_fs_del must be the last thing we do, since it causes
-	 * sysfs to call function gfs2_sbd_release, which frees sdp. */
 	gfs2_sys_fs_del(sdp);
+fail_free:
+	free_sbd(sdp);
 	sb->s_fs_info = NULL;
 	return error;
 }

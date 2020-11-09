@@ -1010,8 +1010,6 @@ void uio_unregister_device(struct uio_info *info)
 
 	idev = info->uio_dev;
 
-	uio_free_minor(idev);
-
 	mutex_lock(&idev->info_lock);
 	uio_dev_del_attributes(idev);
 
@@ -1025,6 +1023,8 @@ void uio_unregister_device(struct uio_info *info)
 	kill_fasync(&idev->async_queue, SIGIO, POLL_HUP);
 
 	device_unregister(&idev->dev);
+
+	uio_free_minor(idev);
 
 	return;
 }
