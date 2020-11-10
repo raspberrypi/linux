@@ -201,6 +201,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	upstream.dtbo \
 	upstream-pi4.dtbo \
 	vc4-fkms-v3d.dtbo \
+	vc4-kms-dsi-7inch.dtbo \
 	vc4-kms-kippah-7inch.dtbo \
 	vc4-kms-v3d.dtbo \
 	vc4-kms-v3d-pi4.dtbo \
