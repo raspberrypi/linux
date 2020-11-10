@@ -2935,6 +2935,14 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
         cma-default             Use upstream's default value
 
 
+Name:   vc4-kms-dsi-7inch
+Info:   Enable the Raspberry Pi DSI 7" screen.
+        Use edt-ft5406 for the touchscreen element.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-7inch
+Params: <None>
+
+
 Name:   vc4-kms-kippah-7inch
 Info:   Enable the Adafruit DPI Kippah with the 7" Ontat panel attached.
         Requires vc4-kms-v3d to be loaded.
