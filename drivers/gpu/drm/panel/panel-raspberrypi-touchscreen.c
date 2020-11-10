@@ -300,6 +300,7 @@ static int rpi_touchscreen_prepare(struct drm_panel *panel)
 	int i;
 
 	rpi_touchscreen_i2c_write(ts, REG_POWERON, 1);
+	usleep_range(20000, 25000);
 	/* Wait for nPWRDWN to go low to indicate poweron is done. */
 	for (i = 0; i < 100; i++) {
 		if (rpi_touchscreen_i2c_read(ts, REG_PORTB) & 1)
