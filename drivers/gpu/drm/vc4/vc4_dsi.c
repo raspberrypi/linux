@@ -1306,6 +1306,7 @@ static const struct drm_encoder_helper_funcs vc4_dsi_encoder_helper_funcs = {
 };
 
 static const struct of_device_id vc4_dsi_dt_match[] = {
+	{ .compatible = "brcm,bcm2835-dsi0", (void *)(uintptr_t)0 },
 	{ .compatible = "brcm,bcm2835-dsi1", (void *)(uintptr_t)1 },
 	{}
 };
@@ -1429,10 +1430,10 @@ vc4_dsi_init_phy_clocks(struct vc4_dsi *dsi)
 		memset(&init, 0, sizeof(init));
 		init.parent_names = &parent_name;
 		init.num_parents = 1;
-		if (dsi->port == 1)
-			init.name = phy_clocks[i].dsi1_name;
-		else
+		if (dsi->port == 0)
 			init.name = phy_clocks[i].dsi0_name;
+		else
+			init.name = phy_clocks[i].dsi1_name;
 		init.ops = &clk_fixed_factor_ops;
 
 		ret = devm_clk_hw_register(dev, &fix->hw);
@@ -1604,7 +1605,9 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	if (ret)
 		return ret;
 
-	if (dsi->port == 1)
+	if (dsi->port == 0)
+		vc4->dsi0 = dsi;
+	else
 		vc4->dsi1 = dsi;
 
 	drm_simple_encoder_init(drm, dsi->encoder, DRM_MODE_ENCODER_DSI);
@@ -1649,7 +1652,9 @@ static void vc4_dsi_unbind(struct device *dev, struct device *master,
 	list_splice_init(&dsi->bridge_chain, &dsi->encoder->bridge_chain);
 	drm_encoder_cleanup(dsi->encoder);
 
-	if (dsi->port == 1)
+	if (dsi->port == 0)
+		vc4->dsi0 = NULL;
+	else
 		vc4->dsi1 = NULL;
 }
 
