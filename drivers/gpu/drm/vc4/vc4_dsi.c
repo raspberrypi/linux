@@ -1308,6 +1308,11 @@ static const struct drm_encoder_helper_funcs vc4_dsi_encoder_helper_funcs = {
 static const struct of_device_id vc4_dsi_dt_match[] = {
 	{ .compatible = "brcm,bcm2835-dsi0", (void *)(uintptr_t)0 },
 	{ .compatible = "brcm,bcm2835-dsi1", (void *)(uintptr_t)1 },
+	/*
+	 * Use 2 so that it uses the DSI1 register layout, but not DMA
+	 * workaround
+	 */
+	{ .compatible = "brcm,bcm2711-dsi1", (void *)(uintptr_t)2 },
 	{}
 };
 
@@ -1495,8 +1500,8 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		return -ENODEV;
 	}
 
-	/* DSI1 has a broken AXI slave that doesn't respond to writes
-	 * from the ARM.  It does handle writes from the DMA engine,
+	/* DSI1 on BCM2835/6/7 has a broken AXI slave that doesn't respond to
+	 * writes from the ARM.  It does handle writes from the DMA engine,
 	 * so set up a channel for talking to it.
 	 */
 	if (dsi->port == 1) {
