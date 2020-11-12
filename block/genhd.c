@@ -49,7 +49,7 @@ static void disk_release_events(struct gendisk *disk);
  * Set disk capacity and notify if the size is not currently
  * zero and will not be set to zero
  */
-void set_capacity_revalidate_and_notify(struct gendisk *disk, sector_t size,
+bool set_capacity_revalidate_and_notify(struct gendisk *disk, sector_t size,
 					bool revalidate)
 {
 	sector_t capacity = get_capacity(disk);
@@ -63,7 +63,10 @@ void set_capacity_revalidate_and_notify(struct gendisk *disk, sector_t size,
 		char *envp[] = { "RESIZE=1", NULL };
 
 		kobject_uevent_env(&disk_to_dev(disk)->kobj, KOBJ_CHANGE, envp);
+		return true;
 	}
+
+	return false;
 }
 
 EXPORT_SYMBOL_GPL(set_capacity_revalidate_and_notify);
