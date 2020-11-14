@@ -1469,8 +1469,6 @@ static int vc4_hdmi_audio_prepare(struct snd_pcm_substream *substream,
 	HDMI_WRITE(HDMI_AUDIO_PACKET_CONFIG, audio_packet_config);
 	vc4_hdmi_set_n_cts(vc4_hdmi);
 
-	vc4_hdmi_set_audio_infoframe(encoder);
-
 	idx = hdmi_codec_get_ch_alloc_table_idx(vc4_hdmi, vc4_hdmi->audio.channels);
 	if (idx < 0) {
 		DRM_ERROR("Not able to map channels to speakers (%d)\n", idx);
@@ -1478,6 +1476,8 @@ static int vc4_hdmi_audio_prepare(struct snd_pcm_substream *substream,
 	} else {
 		vc4_hdmi->audio.chmap_idx = hdmi_codec_channel_alloc[idx].ca_id;
 	}
+
+	vc4_hdmi_set_audio_infoframe(encoder);
 
 	return 0;
 }
