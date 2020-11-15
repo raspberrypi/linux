@@ -73,8 +73,10 @@ static int lpass_platform_pcmops_open(struct snd_soc_component *component,
 	else
 		dma_ch = 0;
 
-	if (dma_ch < 0)
+	if (dma_ch < 0) {
+		kfree(data);
 		return dma_ch;
+	}
 
 	drvdata->substream[dma_ch] = substream;
 
@@ -95,6 +97,7 @@ static int lpass_platform_pcmops_open(struct snd_soc_component *component,
 	ret = snd_pcm_hw_constraint_integer(runtime,
 			SNDRV_PCM_HW_PARAM_PERIODS);
 	if (ret < 0) {
+		kfree(data);
 		dev_err(soc_runtime->dev, "setting constraints failed: %d\n",
 			ret);
 		return -EINVAL;
