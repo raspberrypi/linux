@@ -689,6 +689,30 @@ static void vc4_hdmi_set_spd_infoframe(struct drm_encoder *encoder)
 	vc4_hdmi_write_infoframe(encoder, &frame);
 }
 
+static void vc4_hdmi_set_hdmi_infoframe(struct drm_encoder *encoder)
+{
+	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
+	struct drm_connector *connector = &vc4_hdmi->connector;
+	struct drm_crtc *crtc = encoder->crtc;
+	const struct drm_display_mode *mode = &crtc->state->adjusted_mode;
+	union hdmi_infoframe frame;
+	int ret;
+
+	ret = drm_hdmi_vendor_infoframe_from_display_mode(&frame.vendor.hdmi,
+							  connector,
+							  mode);
+	if (ret < 0) {
+		DRM_ERROR("couldn't fill HDMI infoframe (%d)\n", ret);
+		return;
+	}
+	ret = hdmi_vendor_infoframe_check(&frame.vendor.hdmi);
+	if (ret < 0) {
+		DRM_ERROR("Invalid HDMI infoframe (%d)\n", ret);
+		return;
+	}
+	vc4_hdmi_write_infoframe(encoder, &frame);
+}
+
 static void vc4_hdmi_set_audio_infoframe(struct drm_encoder *encoder)
 {
 	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
@@ -714,6 +738,8 @@ static void vc4_hdmi_set_infoframes(struct drm_encoder *encoder)
 
 	vc4_hdmi_set_avi_infoframe(encoder);
 	vc4_hdmi_set_spd_infoframe(encoder);
+	vc4_hdmi_set_hdmi_infoframe(encoder);
+
 	/*
 	 * If audio was streaming, then we need to reenabled the audio
 	 * infoframe here during encoder_enable.
