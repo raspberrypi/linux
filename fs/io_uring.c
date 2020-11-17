@@ -2359,7 +2359,6 @@ static bool io_resubmit_prep(struct io_kiocb *req, int error)
 	}
 end_req:
 	req_set_fail_links(req);
-	io_req_complete(req, ret);
 	return false;
 }
 #endif
