@@ -11,13 +11,12 @@
 
 #ifdef __ASSEMBLY__
 
-.macro kuap_restore_amr	gpr
 #ifdef CONFIG_PPC_KUAP
+.macro kuap_restore_amr	gpr
 	BEGIN_MMU_FTR_SECTION_NESTED(67)
 	ld	\gpr, STACK_REGS_KUAP(r1)
 	mtspr	SPRN_AMR, \gpr
 	END_MMU_FTR_SECTION_NESTED_IFSET(MMU_FTR_RADIX_KUAP, 67)
-#endif
 .endm
 
 .macro kuap_check_amr gpr1, gpr2
@@ -31,6 +30,7 @@
 	END_MMU_FTR_SECTION_NESTED_IFSET(MMU_FTR_RADIX_KUAP, 67)
 #endif
 .endm
+#endif
 
 .macro kuap_save_amr_and_lock gpr1, gpr2, use_cr, msr_pr_cr
 #ifdef CONFIG_PPC_KUAP
@@ -87,6 +87,7 @@ bad_kuap_fault(struct pt_regs *regs, unsigned long address, bool is_write)
 		    "Bug: %s fault blocked by AMR!", is_write ? "Write" : "Read");
 }
 #else /* CONFIG_PPC_KUAP */
+static inline void kuap_restore_amr(struct pt_regs *regs, unsigned long amr) { }
 static inline void set_kuap(unsigned long value) { }
 #endif /* !CONFIG_PPC_KUAP */
 
