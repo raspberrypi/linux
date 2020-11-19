@@ -1025,7 +1025,7 @@ void setup_uaccess_flush(bool enable)
 		return;
 
 	if (!no_uaccess_flush)
-		uaccess_flush_enable(true);
+		uaccess_flush_enable(enable);
 }
 
 #ifdef CONFIG_DEBUG_FS
