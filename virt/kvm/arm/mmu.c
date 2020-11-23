@@ -1756,6 +1756,7 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	if (kvm_is_device_pfn(pfn)) {
 		mem_type = PAGE_S2_DEVICE;
 		flags |= KVM_S2PTE_FLAG_IS_IOMAP;
+		force_pte = true;
 	} else if (logging_active) {
 		/*
 		 * Faults on pages in a memslot with logging enabled

@@ -2162,6 +2162,7 @@ int yfs_fs_store_opaque_acl2(struct afs_fs_cursor *fc, const struct afs_acl *acl
 	memcpy(bp, acl->data, acl->size);
 	if (acl->size != size)
 		memset((void *)bp + acl->size, 0, size - acl->size);
+	bp += size / sizeof(__be32);
 	yfs_check_req(call, bp);
 
 	trace_afs_make_fs_call(call, &vnode->fid);
