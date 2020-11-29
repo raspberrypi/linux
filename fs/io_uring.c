@@ -4300,7 +4300,8 @@ static int __io_compat_recvmsg_copy_hdr(struct io_kiocb *req,
 			return -EFAULT;
 		if (clen < 0)
 			return -EINVAL;
-		sr->len = iomsg->iov[0].iov_len;
+		sr->len = clen;
+		iomsg->iov[0].iov_len = clen;
 		iomsg->iov = NULL;
 	} else {
 		ret = compat_import_iovec(READ, uiov, len, UIO_FASTIOV,
