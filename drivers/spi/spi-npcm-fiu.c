@@ -680,7 +680,7 @@ static int npcm_fiu_probe(struct platform_device *pdev)
 	int ret;
 	int id;
 
-	ctrl = spi_alloc_master(dev, sizeof(*fiu));
+	ctrl = devm_spi_alloc_master(dev, sizeof(*fiu));
 	if (!ctrl)
 		return -ENOMEM;
 
