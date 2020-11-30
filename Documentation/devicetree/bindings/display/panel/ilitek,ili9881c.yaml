@@ -21,6 +21,8 @@ properties:
           - feixin,k101-im2byl02
           - tdo,tl050hdv35
           - wanchanglong,w552946aba
+          - raspberrypi,dsi-5inch
+          - raspberrypi,dsi-7inch
       - const: ilitek,ili9881c
 
   backlight: true
