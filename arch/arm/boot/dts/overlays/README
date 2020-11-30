@@ -4981,6 +4981,34 @@ Params: clock-frequency         Display clock frequency (Hz)
                                 Only supported on Pi5 and CM
 
 
+Name:   vc4-kms-dsi-ili9881-5inch
+Info:   Enable the Raspberry Pi 5" ILI9881 based touchscreen panel.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-ili9881-5inch,<param>
+Params: sizex                   Touchscreen size x (default 720)
+        sizey                   Touchscreen size y (default 1280)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+        disable_touch           Disables the touch screen overlay driver
+        dsi0                    Use DSI0 and i2c_csi_dsi0 (rather than
+                                the default DSI1 and i2c_csi_dsi).
+
+
+Name:   vc4-kms-dsi-ili9881-7inch
+Info:   Enable the Raspberry Pi 7" ILI9881 based touchscreen panel.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-ili9881-7inch,<param>
+Params: sizex                   Touchscreen size x (default 720)
+        sizey                   Touchscreen size y (default 1280)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+        disable_touch           Disables the touch screen overlay driver
+        dsi0                    Use DSI0 and i2c_csi_dsi0 (rather than
+                                the default DSI1 and i2c_csi_dsi).
+
+
 Name:   vc4-kms-dsi-lt070me05000
 Info:   Enable a JDI LT070ME05000 DSI display on DSI1.
         Note that this is a 4 lane DSI device, so it will only work on a Compute
