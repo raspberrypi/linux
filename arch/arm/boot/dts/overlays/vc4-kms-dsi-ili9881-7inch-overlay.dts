@@ -1,0 +1,122 @@
+/*
+ * vc4-kms-dsi-ili9881-5inch-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	i2c_frag: fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			display_mcu: display_mcu@45
+			{
+				compatible = "raspberrypi,v2-touchscreen-panel-regulator";
+				reg = <0x45>;
+				gpio-controller;
+				#gpio-cells = <2>;
+			};
+
+			gt911: gt911@5d {
+				compatible = "goodix,gt911";
+				reg = <0x5d>;
+				AVDD28-supply = <&touch_reg>;
+				touchscreen-size-x = <720>;
+				touchscreen-size-y = <1280>;
+				touchscreen-x-mm = <90>;
+				touchscreen-y-mm = <151>;
+			};
+		};
+	};
+
+	dsi_frag: fragment@1 {
+		target = <&dsi1>;
+		__overlay__  {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&panel_in>;
+				};
+			};
+
+			dsi_panel: dsi_panel@0 {
+				reg = <0>;
+				compatible = "raspberrypi,dsi-7inch";
+				reset-gpio = <&display_mcu 0 GPIO_ACTIVE_LOW>;
+				backlight = <&display_mcu>;
+
+				port {
+					panel_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@4 {
+		target-path = "/";
+		__overlay__ {
+			touch_reg: touch_reg@1 {
+				reg = <1>;
+				compatible = "regulator-fixed";
+				regulator-name = "touch_reg_1";
+				gpio = <&display_mcu 1 GPIO_ACTIVE_HIGH>;
+				startup-delay-us = <50000>;
+				enable-active-high;
+			};
+		};
+	};
+
+	fragment@10 {
+		target = <&gt911>;
+		__dormant__ {
+			touchscreen-inverted-x;
+		};
+	};
+
+	fragment@11 {
+		target = <&gt911>;
+		__dormant__ {
+			touchscreen-inverted-y;
+		};
+	};
+
+	__overrides__ {
+		dsi0 = <&dsi_frag>, "target:0=",<&dsi0>,
+		       <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
+		       <&touch_reg>, "reg:0=0",
+		       <&touch_reg>, "regulator-name=touch_reg_0";
+		sizex = <&gt911>,"touchscreen-size-x:0";
+		sizey = <&gt911>,"touchscreen-size-y:0";
+		invx = <0>, "+10";
+		invy = <0>, "+11";
+		swapxy = <&gt911>,"touchscreen-swapped-x-y?";
+		disable_touch = <&gt911>, "status=disabled";
+	};
+};
