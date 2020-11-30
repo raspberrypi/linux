@@ -22,6 +22,8 @@ properties:
           - startek,kd050hdfia020
           - tdo,tl050hdv35
           - wanchanglong,w552946aba
+          - raspberrypi,dsi-5inch
+          - raspberrypi,dsi-7inch
       - const: ilitek,ili9881c
 
   reg:
