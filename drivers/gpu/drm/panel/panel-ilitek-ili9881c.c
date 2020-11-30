@@ -45,6 +45,7 @@ struct ili9881c_desc {
 	const size_t init_length;
 	const struct drm_display_mode *mode;
 	const unsigned long mode_flags;
+	unsigned int lanes;
 };
 
 struct ili9881c {
@@ -1565,7 +1566,7 @@ static int ili9881c_dsi_probe(struct mipi_dsi_device *dsi)
 
 	dsi->mode_flags = ctx->desc->mode_flags;
 	dsi->format = MIPI_DSI_FMT_RGB888;
-	dsi->lanes = 4;
+	dsi->lanes = ctx->desc->lanes;
 
 	ret = mipi_dsi_attach(dsi);
 	if (ret)
@@ -1587,6 +1588,7 @@ static const struct ili9881c_desc lhr050h41_desc = {
 	.init_length = ARRAY_SIZE(lhr050h41_init),
 	.mode = &lhr050h41_default_mode,
 	.mode_flags = MIPI_DSI_MODE_VIDEO_SYNC_PULSE,
+	.lanes = 4,
 };
 
 static const struct ili9881c_desc k101_im2byl02_desc = {
@@ -1594,6 +1596,7 @@ static const struct ili9881c_desc k101_im2byl02_desc = {
 	.init_length = ARRAY_SIZE(k101_im2byl02_init),
 	.mode = &k101_im2byl02_default_mode,
 	.mode_flags = MIPI_DSI_MODE_VIDEO_SYNC_PULSE,
+	.lanes = 4,
 };
 
 static const struct ili9881c_desc nwe080_desc = {
@@ -1601,6 +1604,7 @@ static const struct ili9881c_desc nwe080_desc = {
 	.init_length = ARRAY_SIZE(nwe080_init),
 	.mode = &nwe080_default_mode,
 	.mode_flags = MIPI_DSI_MODE_VIDEO_SYNC_PULSE | MIPI_DSI_MODE_VIDEO,
+	.lanes = 4,
 };
 
 static const struct ili9881c_desc tl050hdv35_desc = {
@@ -1617,6 +1621,7 @@ static const struct ili9881c_desc w552946aba_desc = {
 	.mode = &w552946aba_default_mode,
 	.mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
 		      MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_NO_EOT_PACKET,
+	.lanes = 4,
 };
 
 static const struct ili9881c_desc cfaf7201280a0_050tx_desc = {
@@ -1624,6 +1629,7 @@ static const struct ili9881c_desc cfaf7201280a0_050tx_desc = {
 	.init_length = ARRAY_SIZE(cfaf7201280a0_050tx_init),
 	.mode = &cfaf7201280a0_050tx_default_mode,
 	.mode_flags = MIPI_DSI_MODE_VIDEO_SYNC_PULSE | MIPI_DSI_MODE_VIDEO,
+	.lanes = 4,
 };
 
 static const struct of_device_id ili9881c_of_match[] = {
