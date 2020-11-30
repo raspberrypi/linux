@@ -27,6 +27,8 @@ properties:
           - waveshare,7.0-dsi-touch-a
           - wanchanglong,w552946aaa
           - wanchanglong,w552946aba
+          - raspberrypi,dsi-5inch
+          - raspberrypi,dsi-7inch
       - const: ilitek,ili9881c
 
   reg:
