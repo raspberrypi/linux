@@ -1107,16 +1107,18 @@ vc4_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 }
 
 static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
-				 struct drm_crtc_state *state)
+				 struct drm_atomic_state *state)
 {
-	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(state);
+	struct drm_crtc_state *crtc_state = drm_atomic_get_new_crtc_state(state,
+									  crtc);
+	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
 	struct drm_connector *conn;
 	struct drm_connector_state *conn_state;
 	int i;
 
 	DRM_DEBUG_KMS("[CRTC:%d] crtc_atomic_check.\n", crtc->base.id);
 
-	for_each_new_connector_in_state(state->state, conn, conn_state, i) {
+	for_each_new_connector_in_state(crtc_state->state, conn, conn_state, i) {
 		if (conn_state->crtc != crtc)
 			continue;
 
@@ -1130,8 +1132,11 @@ static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 }
 
 static void vc4_crtc_atomic_flush(struct drm_crtc *crtc,
-				  struct drm_crtc_state *old_state)
+				  struct drm_atomic_state *state)
 {
+	struct drm_crtc_state *old_state = drm_atomic_get_old_crtc_state(state,
+									 crtc);
+
 	DRM_DEBUG_KMS("[CRTC:%d] crtc_atomic_flush.\n",
 		      crtc->base.id);
 	if (crtc->state->active && old_state->active && crtc->state->event)
