@@ -1769,6 +1769,7 @@ static void unicam_stop_streaming(struct vb2_queue *vq)
 
 			clk_disable_unprepare(dev->vpu_clock);
 			clk_disable_unprepare(dev->clock);
+			dev->clocks_enabled = false;
 		}
 		unicam_runtime_put(dev);
 
