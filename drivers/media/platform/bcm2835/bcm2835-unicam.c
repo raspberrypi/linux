@@ -426,6 +426,8 @@ struct unicam_device {
 	struct clk *clock;
 	/* vpu clock handle */
 	struct clk *vpu_clock;
+	/* clock status for error handling */
+	bool clocks_enabled;
 	/* V4l2 device */
 	struct v4l2_device v4l2_dev;
 	struct media_device mdev;
@@ -1724,6 +1726,7 @@ static int unicam_start_streaming(struct vb2_queue *vq, unsigned int count)
 		goto err_disable_unicam;
 	}
 
+	dev->clocks_enabled = true;
 	return 0;
 
 err_disable_unicam:
@@ -1750,8 +1753,6 @@ static void unicam_stop_streaming(struct vb2_queue *vq)
 	node->streaming = false;
 
 	if (node->pad_id == IMAGE_PAD) {
-		int ret;
-
 		/*
 		 * Stop streaming the sensor and disable the peripheral.
 		 * We cannot continue streaming embedded data with the
@@ -1762,12 +1763,13 @@ static void unicam_stop_streaming(struct vb2_queue *vq)
 
 		unicam_disable(dev);
 
-		ret = clk_set_min_rate(dev->vpu_clock, 0);
-		if (ret)
-			unicam_err(dev, "failed to reset the min VPU clock\n");
+		if (dev->clocks_enabled) {
+			if (clk_set_min_rate(dev->vpu_clock, 0))
+				unicam_err(dev, "failed to reset the min VPU clock\n");
 
-		clk_disable_unprepare(dev->vpu_clock);
-		clk_disable_unprepare(dev->clock);
+			clk_disable_unprepare(dev->vpu_clock);
+			clk_disable_unprepare(dev->clock);
+		}
 		unicam_runtime_put(dev);
 
 	} else if (node->pad_id == METADATA_PAD) {
