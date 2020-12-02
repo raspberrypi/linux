@@ -1732,8 +1732,7 @@ err_disable_unicam:
 	unicam_disable(dev);
 	clk_disable_unprepare(dev->clock);
 err_vpu_clock:
-	ret = clk_set_min_rate(dev->vpu_clock, 0);
-	if (ret)
+	if (clk_set_min_rate(dev->vpu_clock, 0))
 		unicam_err(dev, "failed to reset the VPU clock\n");
 	clk_disable_unprepare(dev->vpu_clock);
 err_pm_put:
