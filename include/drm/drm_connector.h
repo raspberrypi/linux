@@ -707,6 +707,8 @@ struct drm_connector_state {
 	 */
 	u32 colorspace;
 
+	u32 color_format;
+
 	/**
 	 * @writeback_job: Writeback job for writeback connectors
 	 *
@@ -1317,6 +1319,8 @@ struct drm_connector {
 	 */
 	struct drm_property *colorspace_property;
 
+	struct drm_property *hdmi_color_format_property;
+
 	/**
 	 * @path_blob_ptr:
 	 *
@@ -1506,6 +1510,25 @@ struct drm_connector {
 
 	/** @hdr_sink_metadata: HDR Metadata Information read from sink */
 	struct hdr_sink_metadata hdr_sink_metadata;
+
+	/**
+	 * @supported_output_format:
+	 * Bitmask of the supported output color format.
+	 */
+	u32 supported_output_formats;
+
+	/**
+	 * @supported_color_formats_property: Optional DRM bitmask
+	 * property for the color format that can be output by a
+	 * connector.
+	 */
+	struct drm_property *supported_color_formats_property;
+
+	/**
+	 * @color_formats_property: Optional DRM enum property for
+	 * the color format that is output by a connector.
+	 */
+	struct drm_property *color_format_property;
 };
 
 #define obj_to_connector(x) container_of(x, struct drm_connector, base)
@@ -1634,6 +1657,9 @@ void drm_hdmi_avi_infoframe_content_type(struct hdmi_avi_infoframe *frame,
 					 const struct drm_connector_state *conn_state);
 
 int drm_mode_create_suggested_offset_properties(struct drm_device *dev);
+
+int drm_connector_create_hdmi_color_formats_properties(struct drm_connector *connector,
+						       u32 supported_fmts);
 
 int drm_connector_set_path_property(struct drm_connector *connector,
 				    const char *path);

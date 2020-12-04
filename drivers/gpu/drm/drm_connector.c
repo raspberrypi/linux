@@ -2063,6 +2063,26 @@ int drm_connector_update_edid_property(struct drm_connector *connector,
 		}
 	}
 
+	if (connector->supported_color_formats_property) {
+		u32 fmts = DRM_COLOR_FORMAT_RGB444;
+
+		if ((connector->supported_output_formats & DRM_COLOR_FORMAT_YCRCB444) &&
+		    (connector->display_info.color_formats & DRM_COLOR_FORMAT_YCRCB444))
+			fmts |= DRM_COLOR_FORMAT_YCRCB444;
+
+		if ((connector->supported_output_formats & DRM_COLOR_FORMAT_YCRCB422) &&
+		    (connector->display_info.color_formats & DRM_COLOR_FORMAT_YCRCB422))
+			fmts |= DRM_COLOR_FORMAT_YCRCB422;
+
+		if ((connector->supported_output_formats & DRM_COLOR_FORMAT_YCRCB420) &&
+		    (connector->display_info.color_formats & DRM_COLOR_FORMAT_YCRCB420))
+			fmts |= DRM_COLOR_FORMAT_YCRCB420;
+
+		drm_object_property_set_value(&connector->base,
+					      connector->supported_color_formats_property,
+					      fmts);
+	}
+
 	drm_object_property_set_value(&connector->base,
 				      dev->mode_config.non_desktop_property,
 				      connector->display_info.non_desktop);
@@ -2142,6 +2162,72 @@ int drm_connector_attach_max_bpc_property(struct drm_connector *connector,
 	return 0;
 }
 EXPORT_SYMBOL(drm_connector_attach_max_bpc_property);
+
+static const struct drm_prop_enum_list hdmi_output_fmts[] = {
+	{ __builtin_ffs(DRM_COLOR_FORMAT_RGB444) - 1, "RGB444" },
+	{ __builtin_ffs(DRM_COLOR_FORMAT_YCRCB444) - 1, "YCrCb444" },
+	{ __builtin_ffs(DRM_COLOR_FORMAT_YCRCB422) - 1, "YCrCb422" },
+	{ __builtin_ffs(DRM_COLOR_FORMAT_YCRCB420) - 1, "YCrCb420" },
+};
+
+/**
+ * drm_connector_create_hdmi_color_formats_properties - create hdmi color formats properties
+ * @connector: connector to create the output property on.
+ * @supported_fmts: bitmask of supported DRM_COLOR_FORMAT_*
+ *
+ * Called by a driver the first time it's needed, must be attached to
+ * desired HDMI connectors.
+ *
+ * Returns:
+ * Zero on success, negative errno on failure.
+ */
+int drm_connector_create_hdmi_color_formats_properties(struct drm_connector *connector,
+						       u32 supported_fmts)
+{
+	struct drm_device *dev = connector->dev;
+	struct drm_property *prop;
+
+	connector->supported_output_formats = supported_fmts;
+	prop = connector->supported_color_formats_property;
+	if (!prop) {
+		prop = drm_property_create_bitmask(dev, DRM_MODE_PROP_IMMUTABLE,
+						   "available output formats",
+						   hdmi_output_fmts,
+						   ARRAY_SIZE(hdmi_output_fmts),
+						   DRM_COLOR_FORMAT_RGB444 |
+						   DRM_COLOR_FORMAT_YCRCB444 |
+						   DRM_COLOR_FORMAT_YCRCB422 |
+						   DRM_COLOR_FORMAT_YCRCB420);
+		if (!prop)
+			return -ENOMEM;
+
+		connector->supported_color_formats_property = prop;
+	}
+
+	/*
+	 * Report only RGB444 for now, this will be updated using the
+	 * EDID later on depending on the display capabilities.
+	 */
+	drm_object_attach_property(&connector->base, prop, DRM_COLOR_FORMAT_RGB444);
+
+	prop = connector->color_format_property;
+	if (!prop) {
+		prop = drm_property_create_enum(dev, 0,
+						"output format",
+						hdmi_output_fmts,
+						ARRAY_SIZE(hdmi_output_fmts));
+		if (!prop)
+			return -ENOMEM;
+
+		connector->color_format_property = prop;
+	}
+
+	drm_object_attach_property(&connector->base, prop, DRM_COLOR_FORMAT_RGB444);
+	connector->state->color_format = DRM_COLOR_FORMAT_RGB444;
+
+	return 0;
+}
+EXPORT_SYMBOL(drm_connector_create_hdmi_color_formats_properties);
 
 /**
  * drm_connector_attach_hdr_output_metadata_property - attach "HDR_OUTPUT_METADA" property
