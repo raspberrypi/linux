@@ -873,7 +873,7 @@ static const struct i2c_algorithm i2c_dw_algo = {
 };
 
 static const struct i2c_adapter_quirks i2c_dw_quirks = {
-	.flags = I2C_AQ_NO_ZERO_LEN,
+	.flags = 0,
 };
 
 int i2c_dw_probe(struct dw_i2c_dev *dev)
