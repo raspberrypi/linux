@@ -54,6 +54,8 @@
 
 #else /* !__ASSEMBLY__ */
 
+#include <linux/jump_label.h>
+
 DECLARE_STATIC_KEY_FALSE(uaccess_flush_key);
 
 #ifdef CONFIG_PPC_KUAP
