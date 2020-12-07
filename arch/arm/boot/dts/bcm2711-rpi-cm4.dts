@@ -548,8 +548,6 @@
 
 &gpio {
 	audio_pins: audio_pins {
-		brcm,pins = <40 41>;
-		brcm,function = <4>;
 	};
 };
 
