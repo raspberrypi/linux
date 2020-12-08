@@ -411,7 +411,6 @@ static int vc4_hdmi_debugfs_regs(struct seq_file *m, void *unused)
 	drm_print_regset32(&p, &vc4_hdmi->cec_regset);
 	drm_print_regset32(&p, &vc4_hdmi->csc_regset);
 	drm_print_regset32(&p, &vc4_hdmi->dvp_regset);
-	drm_print_regset32(&p, &vc4_hdmi->intr2_regset);
 	drm_print_regset32(&p, &vc4_hdmi->phy_regset);
 	drm_print_regset32(&p, &vc4_hdmi->ram_regset);
 	drm_print_regset32(&p, &vc4_hdmi->rm_regset);
@@ -2324,14 +2323,6 @@ static int vc5_hdmi_init_resources(struct vc4_hdmi *vc4_hdmi)
 	if (!vc4_hdmi->dvp_regs)
 		return -ENOMEM;
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "intr2");
-	if (!res)
-		return -ENODEV;
-
-	vc4_hdmi->intr2_regs = devm_ioremap(dev, res->start, resource_size(res));
-	if (IS_ERR(vc4_hdmi->intr2_regs))
-		return PTR_ERR(vc4_hdmi->intr2_regs);
-
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phy");
 	if (!res)
 		return -ENODEV;
@@ -2409,10 +2400,6 @@ static int vc5_hdmi_init_resources(struct vc4_hdmi *vc4_hdmi)
 		return ret;
 
 	ret = vc4_hdmi_build_regset(vc4_hdmi, &vc4_hdmi->rm_regset, VC5_RM);
-	if (ret)
-		return ret;
-
-	ret = vc4_hdmi_build_regset(vc4_hdmi, &vc4_hdmi->intr2_regset, VC5_INTR2);
 	if (ret)
 		return ret;
 
