@@ -706,10 +706,8 @@ static struct drm_crtc_state *dpu_crtc_duplicate_state(struct drm_crtc *crtc)
 }
 
 static void dpu_crtc_disable(struct drm_crtc *crtc,
-			     struct drm_atomic_state *state)
+			     struct drm_crtc_state *old_crtc_state)
 {
-	struct drm_crtc_state *old_crtc_state = drm_atomic_get_old_crtc_state(state,
-									      crtc);
 	struct dpu_crtc *dpu_crtc = to_dpu_crtc(crtc);
 	struct dpu_crtc_state *cstate = to_dpu_crtc_state(crtc->state);
 	struct drm_encoder *encoder;
@@ -772,7 +770,7 @@ static void dpu_crtc_disable(struct drm_crtc *crtc,
 }
 
 static void dpu_crtc_enable(struct drm_crtc *crtc,
-		struct drm_atomic_state *state)
+		struct drm_crtc_state *old_crtc_state)
 {
 	struct dpu_crtc *dpu_crtc = to_dpu_crtc(crtc);
 	struct drm_encoder *encoder;

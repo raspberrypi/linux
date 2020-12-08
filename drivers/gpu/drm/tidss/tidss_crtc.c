@@ -212,10 +212,8 @@ static void tidss_crtc_atomic_flush(struct drm_crtc *crtc,
 }
 
 static void tidss_crtc_atomic_enable(struct drm_crtc *crtc,
-				     struct drm_atomic_state *state)
+				     struct drm_crtc_state *old_state)
 {
-	struct drm_crtc_state *old_state = drm_atomic_get_old_crtc_state(state,
-									 crtc);
 	struct tidss_crtc *tcrtc = to_tidss_crtc(crtc);
 	struct drm_device *ddev = crtc->dev;
 	struct tidss_device *tidss = to_tidss(ddev);
@@ -257,7 +255,7 @@ static void tidss_crtc_atomic_enable(struct drm_crtc *crtc,
 }
 
 static void tidss_crtc_atomic_disable(struct drm_crtc *crtc,
-				      struct drm_atomic_state *state)
+				      struct drm_crtc_state *old_state)
 {
 	struct tidss_crtc *tcrtc = to_tidss_crtc(crtc);
 	struct drm_device *ddev = crtc->dev;

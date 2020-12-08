@@ -213,12 +213,12 @@ static void vbox_crtc_set_base_and_mode(struct drm_crtc *crtc,
 }
 
 static void vbox_crtc_atomic_enable(struct drm_crtc *crtc,
-				    struct drm_atomic_state *state)
+				    struct drm_crtc_state *old_crtc_state)
 {
 }
 
 static void vbox_crtc_atomic_disable(struct drm_crtc *crtc,
-				     struct drm_atomic_state *state)
+				     struct drm_crtc_state *old_crtc_state)
 {
 }
 
