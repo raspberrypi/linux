@@ -146,8 +146,6 @@ struct vc4_hdmi {
 	void __iomem *ram_regs;
 	/* VC5 Only */
 	void __iomem *rm_regs;
-	/* VC5 Only */
-	void __iomem *intr2_regs;
 
 	int hpd_gpio;
 	bool hpd_active_low;
@@ -179,7 +177,6 @@ struct vc4_hdmi {
 	struct debugfs_regset32 cec_regset;
 	struct debugfs_regset32 csc_regset;
 	struct debugfs_regset32 dvp_regset;
-	struct debugfs_regset32 intr2_regset;
 	struct debugfs_regset32 phy_regset;
 	struct debugfs_regset32 ram_regset;
 	struct debugfs_regset32 rm_regset;
