@@ -460,9 +460,8 @@ vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 			connected = true;
 	} else if (drm_probe_ddc(vc4_hdmi->ddc))
 		connected = true;
-	else if (HDMI_READ(HDMI_HOTPLUG) & VC4_HDMI_HOTPLUG_CONNECTED)
+	if (HDMI_READ(HDMI_HOTPLUG) & VC4_HDMI_HOTPLUG_CONNECTED)
 		connected = true;
-
 	if (connected) {
 		if (connector->status != connector_status_connected) {
 			struct edid *edid = drm_get_edid(connector, vc4_hdmi->ddc);
