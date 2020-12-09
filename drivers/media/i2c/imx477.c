@@ -900,8 +900,8 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		.height = 3040,
 		.line_length_pix = 0x5dc0,
 		.crop = {
-			.left = 0,
-			.top = 0,
+			.left = IMX477_PIXEL_ARRAY_LEFT,
+			.top = IMX477_PIXEL_ARRAY_TOP,
 			.width = 4056,
 			.height = 3040,
 		},
@@ -924,8 +924,8 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		.height = 1520,
 		.line_length_pix = 0x31c4,
 		.crop = {
-			.left = 0,
-			.top = 0,
+			.left = IMX477_PIXEL_ARRAY_LEFT,
+			.top = IMX477_PIXEL_ARRAY_TOP,
 			.width = 4056,
 			.height = 3040,
 		},
@@ -948,8 +948,8 @@ static const struct imx477_mode supported_modes_12bit[] = {
 		.height = 1080,
 		.line_length_pix = 0x31c4,
 		.crop = {
-			.left = 0,
-			.top = 440,
+			.left = IMX477_PIXEL_ARRAY_LEFT,
+			.top = IMX477_PIXEL_ARRAY_TOP + 440,
 			.width = 4056,
 			.height = 2600,
 		},
@@ -983,8 +983,8 @@ static const struct imx477_mode supported_modes_10bit[] = {
 			 * rectangle once the driver is expanded to represent
 			 * its processing blocks with multiple subdevs.
 			 */
-			.left = 4,
-			.top = 0,
+			.left = IMX477_PIXEL_ARRAY_LEFT + 4,
+			.top = IMX477_PIXEL_ARRAY_TOP,
 			.width = 4052,
 			.height = 3040,
 		},
@@ -1696,6 +1696,7 @@ static int imx477_get_selection(struct v4l2_subdev *sd,
 		return 0;
 
 	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
 		sel->r.left = IMX477_PIXEL_ARRAY_LEFT;
 		sel->r.top = IMX477_PIXEL_ARRAY_TOP;
 		sel->r.width = IMX477_PIXEL_ARRAY_WIDTH;
