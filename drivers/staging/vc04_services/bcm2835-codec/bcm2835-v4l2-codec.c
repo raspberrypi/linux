@@ -1019,6 +1019,7 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 			 struct mmal_buffer *mmal_buf)
 {
 	struct bcm2835_codec_ctx *ctx = port->cb_ctx;
+	enum vb2_buffer_state buf_state = VB2_BUF_STATE_DONE;
 	struct m2m_mmal_buffer *buf;
 	struct vb2_v4l2_buffer *vb2;
 
@@ -1075,6 +1076,9 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 		vb2->flags |= V4L2_BUF_FLAG_LAST;
 	}
 
+	if (mmal_buf->mmal_flags & MMAL_BUFFER_HEADER_FLAG_CORRUPTED)
+		buf_state = VB2_BUF_STATE_ERROR;
+
 	/* vb2 timestamps in nsecs, mmal in usecs */
 	vb2->vb2_buf.timestamp = mmal_buf->pts * 1000;
 
@@ -1082,7 +1086,7 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 	if (mmal_buf->mmal_flags & MMAL_BUFFER_HEADER_FLAG_KEYFRAME)
 		vb2->flags |= V4L2_BUF_FLAG_KEYFRAME;
 
-	vb2_buffer_done(&vb2->vb2_buf, VB2_BUF_STATE_DONE);
+	vb2_buffer_done(&vb2->vb2_buf, buf_state);
 	ctx->num_op_buffers++;
 
 	v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: done %d output buffers\n",
