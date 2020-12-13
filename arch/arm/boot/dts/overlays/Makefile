@@ -20,6 +20,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	allo-katana-dac-audio.dtbo \
 	allo-piano-dac-pcm512x-audio.dtbo \
 	allo-piano-dac-plus-pcm512x-audio.dtbo \
+	android-i2c-sensor.dtbo \
 	android-nvme.dtbo \
 	android-sdcard.dtbo \
 	android-usb.dtbo \
