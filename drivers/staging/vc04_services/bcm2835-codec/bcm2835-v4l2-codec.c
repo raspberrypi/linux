@@ -1692,6 +1692,17 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 						    sizeof(ctrl->val));
 		break;
 
+	case V4L2_CID_MPEG_VIDEO_HEADER_MODE:
+		if (!ctx->component)
+			break;
+
+		ret = vchiq_mmal_port_parameter_set(ctx->dev->instance,
+						    &ctx->component->output[0],
+						    MMAL_PARAMETER_VIDEO_ENCODE_HEADERS_WITH_FRAME,
+						    &ctrl->val,
+						    sizeof(ctrl->val));
+		break;
+
 	case V4L2_CID_MPEG_VIDEO_H264_I_PERIOD:
 		if (!ctx->component)
 			break;
@@ -1963,6 +1974,7 @@ static int bcm2835_codec_set_ctrls(struct bcm2835_codec_ctx *ctx)
 	const u32 control_ids[] = {
 		V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
 		V4L2_CID_MPEG_VIDEO_REPEAT_SEQ_HEADER,
+		V4L2_CID_MPEG_VIDEO_HEADER_MODE,
 		V4L2_CID_MPEG_VIDEO_H264_I_PERIOD,
 		V4L2_CID_MPEG_VIDEO_H264_LEVEL,
 		V4L2_CID_MPEG_VIDEO_H264_PROFILE,
@@ -2515,7 +2527,7 @@ static int bcm2835_codec_open(struct file *file)
 	hdl = &ctx->hdl;
 	if (dev->role == ENCODE) {
 		/* Encode controls */
-		v4l2_ctrl_handler_init(hdl, 7);
+		v4l2_ctrl_handler_init(hdl, 9);
 
 		v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 				       V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
@@ -2525,6 +2537,10 @@ static int bcm2835_codec_open(struct file *file)
 				  V4L2_CID_MPEG_VIDEO_BITRATE,
 				  25 * 1000, 25 * 1000 * 1000,
 				  25 * 1000, 10 * 1000 * 1000);
+		v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+				       V4L2_CID_MPEG_VIDEO_HEADER_MODE,
+				       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
+				       0, V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME);
 		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
 				  V4L2_CID_MPEG_VIDEO_REPEAT_SEQ_HEADER,
 				  0, 1,
