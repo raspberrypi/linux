@@ -1780,6 +1780,7 @@ static int vidioc_decoder_cmd(struct file *file, void *priv,
 {
 	struct bcm2835_codec_ctx *ctx = file2ctx(file);
 	struct bcm2835_codec_q_data *q_data = &ctx->q_data[V4L2_M2M_SRC];
+	struct vb2_queue *dst_vq;
 	int ret;
 
 	v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s, cmd %u", __func__,
@@ -1815,7 +1816,9 @@ static int vidioc_decoder_cmd(struct file *file, void *priv,
 		break;
 
 	case V4L2_DEC_CMD_START:
-		/* Do we need to do anything here? */
+		dst_vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx,
+					 V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+		vb2_clear_last_buffer_dequeued(dst_vq);
 		break;
 
 	default:
