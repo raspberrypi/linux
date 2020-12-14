@@ -436,6 +436,7 @@ static void alc_fill_eapd_coef(struct hda_codec *codec)
 			alc_update_coef_idx(codec, 0x7, 1<<5, 0);
 		break;
 	case 0x10ec0892:
+	case 0x10ec0897:
 		alc_update_coef_idx(codec, 0x7, 1<<5, 0);
 		break;
 	case 0x10ec0899:
@@ -5990,6 +5991,21 @@ static void alc274_fixup_bind_dacs(struct hda_codec *codec,
 	codec->power_save_node = 0;
 }
 
+/* avoid DAC 0x06 for bass speaker 0x17; it has no volume control */
+static void alc289_fixup_asus_ga401(struct hda_codec *codec,
+				    const struct hda_fixup *fix, int action)
+{
+	static const hda_nid_t preferred_pairs[] = {
+		0x14, 0x02, 0x17, 0x02, 0x21, 0x03, 0
+	};
+	struct alc_spec *spec = codec->spec;
+
+	if (action == HDA_FIXUP_ACT_PRE_PROBE) {
+		spec->gen.preferred_dacs = preferred_pairs;
+		spec->gen.obey_preferred_dacs = 1;
+	}
+}
+
 /* The DAC of NID 0x3 will introduce click/pop noise on headphones, so invalidate it */
 static void alc285_fixup_invalidate_dacs(struct hda_codec *codec,
 			      const struct hda_fixup *fix, int action)
@@ -7543,11 +7559,10 @@ static const struct hda_fixup alc269_fixups[] = {
 		.chain_id = ALC269_FIXUP_HEADSET_MIC
 	},
 	[ALC289_FIXUP_ASUS_GA401] = {
-		.type = HDA_FIXUP_PINS,
-		.v.pins = (const struct hda_pintbl[]) {
-			{ 0x19, 0x03a11020 }, /* headset mic with jack detect */
-			{ }
-		},
+		.type = HDA_FIXUP_FUNC,
+		.v.func = alc289_fixup_asus_ga401,
+		.chained = true,
+		.chain_id = ALC289_FIXUP_ASUS_GA502,
 	},
 	[ALC289_FIXUP_ASUS_GA502] = {
 		.type = HDA_FIXUP_PINS,
@@ -7671,7 +7686,7 @@ static const struct hda_fixup alc269_fixups[] = {
 			{ }
 		},
 		.chained = true,
-		.chain_id = ALC289_FIXUP_ASUS_GA401
+		.chain_id = ALC289_FIXUP_ASUS_GA502
 	},
 	[ALC274_FIXUP_HP_MIC] = {
 		.type = HDA_FIXUP_VERBS,
@@ -7847,6 +7862,7 @@ static const struct snd_pci_quirk alc269_fixup_tbl[] = {
 	SND_PCI_QUIRK(0x103c, 0x820d, "HP Pavilion 15", ALC269_FIXUP_HP_MUTE_LED_MIC3),
 	SND_PCI_QUIRK(0x103c, 0x8256, "HP", ALC221_FIXUP_HP_FRONT_MIC),
 	SND_PCI_QUIRK(0x103c, 0x827e, "HP x360", ALC295_FIXUP_HP_X360),
+	SND_PCI_QUIRK(0x103c, 0x827f, "HP x360", ALC269_FIXUP_HP_MUTE_LED_MIC3),
 	SND_PCI_QUIRK(0x103c, 0x82bf, "HP G3 mini", ALC221_FIXUP_HP_MIC_NO_PRESENCE),
 	SND_PCI_QUIRK(0x103c, 0x82c0, "HP G3 mini premium", ALC221_FIXUP_HP_MIC_NO_PRESENCE),
 	SND_PCI_QUIRK(0x103c, 0x83b9, "HP Spectre x360", ALC269_FIXUP_HP_MUTE_LED_MIC3),
@@ -8573,6 +8589,9 @@ static const struct snd_hda_pin_quirk alc269_pin_fixup_tbl[] = {
 	SND_HDA_PIN_QUIRK(0x10ec0293, 0x1028, "Dell", ALC293_FIXUP_DELL1_MIC_NO_PRESENCE,
 		ALC292_STANDARD_PINS,
 		{0x13, 0x90a60140}),
+	SND_HDA_PIN_QUIRK(0x10ec0294, 0x1043, "ASUS", ALC294_FIXUP_ASUS_HPE,
+		{0x17, 0x90170110},
+		{0x21, 0x04211020}),
 	SND_HDA_PIN_QUIRK(0x10ec0294, 0x1043, "ASUS", ALC294_FIXUP_ASUS_MIC,
 		{0x14, 0x90170110},
 		{0x1b, 0x90a70130},
@@ -10156,6 +10175,7 @@ static const struct hda_device_id snd_hda_id_realtek[] = {
 	HDA_CODEC_ENTRY(0x10ec0888, "ALC888", patch_alc882),
 	HDA_CODEC_ENTRY(0x10ec0889, "ALC889", patch_alc882),
 	HDA_CODEC_ENTRY(0x10ec0892, "ALC892", patch_alc662),
+	HDA_CODEC_ENTRY(0x10ec0897, "ALC897", patch_alc662),
 	HDA_CODEC_ENTRY(0x10ec0899, "ALC898", patch_alc882),
 	HDA_CODEC_ENTRY(0x10ec0900, "ALC1150", patch_alc882),
 	HDA_CODEC_ENTRY(0x10ec0b00, "ALCS1200A", patch_alc882),

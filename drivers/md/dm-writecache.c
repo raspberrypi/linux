@@ -316,7 +316,7 @@ err1:
 #else
 static int persistent_memory_claim(struct dm_writecache *wc)
 {
-	BUG();
+	return -EOPNOTSUPP;
 }
 #endif
 
@@ -1889,7 +1889,7 @@ static int writecache_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	struct wc_memory_superblock s;
 
 	static struct dm_arg _args[] = {
-		{0, 10, "Invalid number of feature args"},
+		{0, 16, "Invalid number of feature args"},
 	};
 
 	as.argc = argc;
