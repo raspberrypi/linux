@@ -1629,7 +1629,16 @@ exit_unlock:
  */
 static int lan78xx_phy_int_ack(struct lan78xx_net *dev)
 {
-	return lan78xx_write_reg(dev, INT_STS, INT_STS_PHY_INT_);
+		struct phy_device *phydev = dev->net->phydev;
+	int ret = lan78xx_write_reg(dev, INT_STS, INT_STS_PHY_INT_);
+
+	if (unlikely(ret < 0))
+		return ret;
+
+	/* Acknowledge any pending PHY interrupt, lest it be the last */
+	phy_read(phydev, LAN88XX_INT_STS);
+
+	return 0;
 }
 
 /* some work can't be done in tasklets, so we use keventd
