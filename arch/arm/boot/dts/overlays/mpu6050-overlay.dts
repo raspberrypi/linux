@@ -24,5 +24,6 @@
 
         __overrides__ {
                 interrupt = <&mpu6050>,"interrupts:0";
+                addr = <&mpu6050>,"reg:0";
         };
 };
