@@ -402,6 +402,8 @@ static void hdmi_codec_eld_chmap(struct vc4_hdmi *vc4_hdmi)
 		vc4_hdmi->audio.chmap = hdmi_codec_stereo_chmaps;
 }
 
+#define HDMI_14_MAX_TMDS_CLK   (340 * 1000 * 1000)
+
 static int vc4_hdmi_debugfs_regs(struct seq_file *m, void *unused)
 {
 	struct drm_info_node *node = (struct drm_info_node *)m->private;
