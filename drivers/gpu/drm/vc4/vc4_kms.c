@@ -923,7 +923,8 @@ int vc4_kms_load(struct drm_device *dev)
 	dev->mode_config.preferred_depth = 24;
 	dev->mode_config.async_page_flip = true;
 	dev->mode_config.allow_fb_modifiers = true;
-	dev->mode_config.normalize_zpos = true;
+	if (vc4->firmware_kms)
+		dev->mode_config.normalize_zpos = true;
 
 	ret = vc4_ctm_obj_init(vc4);
 	if (ret)
