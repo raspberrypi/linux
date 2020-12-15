@@ -647,7 +647,7 @@ static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 	struct drm_encoder *encoder;
 	int ret, i;
 
-	ret = vc4_hvs_atomic_check(crtc, crtc_state);
+	ret = vc4_hvs_atomic_check(crtc, state);
 	if (ret)
 		return ret;
 
