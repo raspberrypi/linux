@@ -1181,6 +1181,9 @@ static int lan78xx_link_reset(struct lan78xx_net *dev)
 	if (unlikely(ret < 0))
 		return -EIO;
 
+	/* Acknowledge any pending PHY interrupt, lest it be the last */
+	phy_read(phydev, LAN88XX_INT_STS);
+
 	phy_read_status(phydev);
 
 	if (!phydev->link && dev->link_on) {
