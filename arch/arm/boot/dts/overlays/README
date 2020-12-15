@@ -1920,6 +1920,7 @@ Name:   mpu6050
 Info:   Overlay for i2c connected mpu6050 imu
 Load:   dtoverlay=mpu6050,<param>=<val>
 Params: interrupt               GPIO pin for interrupt (default 4)
+        addr                    I2C address of the device (default 0x68)
 
 
 Name:   mz61581
