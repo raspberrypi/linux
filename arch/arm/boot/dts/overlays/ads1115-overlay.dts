@@ -15,7 +15,7 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			ads1115: ads1115 {
+			ads1115: ads1115@48 {
 				compatible = "ti,ads1115";
 				status = "okay";
 				#address-cells = <1>;
