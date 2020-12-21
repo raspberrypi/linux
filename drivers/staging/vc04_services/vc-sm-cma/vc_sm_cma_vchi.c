@@ -321,7 +321,7 @@ struct sm_instance *vc_sm_cma_vchi_init(struct vchiq_instance *vchiq_instance,
 	/* Open the VCHI service connections */
 	instance->num_connections = num_connections;
 	for (i = 0; i < num_connections; i++) {
-		struct vchiq_service_params_kernel params = {
+		struct vchiq_service_params params = {
 			.version = VC_SM_VER,
 			.version_min = VC_SM_MIN_VER,
 			.fourcc = VCHIQ_MAKE_FOURCC('S', 'M', 'E', 'M'),
