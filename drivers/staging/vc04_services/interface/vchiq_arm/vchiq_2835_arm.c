@@ -264,7 +264,7 @@ vchiq_prepare_bulk_data(struct vchiq_bulk *bulk, void *offset, int size,
 	if (!pagelistinfo)
 		return VCHIQ_ERROR;
 
-	bulk->data = pagelistinfo->dma_addr;
+	bulk->data = (void *)(unsigned long)pagelistinfo->dma_addr;
 
 	/*
 	 * Store the pagelistinfo address in remote_data,

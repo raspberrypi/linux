@@ -53,7 +53,7 @@ int vchiq_susp_log_level = VCHIQ_LOG_ERROR;
 
 struct user_service {
 	struct vchiq_service *service;
-	void __user *userdata;
+	void *userdata;
 	struct vchiq_instance *instance;
 	char is_vchi;
 	char dequeue_pending;
@@ -75,7 +75,7 @@ struct bulk_waiter_node {
 
 struct vchiq_instance {
 	struct vchiq_state *state;
-	struct vchiq_completion_data_kernel completions[MAX_COMPLETIONS];
+	struct vchiq_completion_data completions[MAX_COMPLETIONS];
 	int completion_insert;
 	int completion_remove;
 	struct completion insert_event;
@@ -281,7 +281,7 @@ EXPORT_SYMBOL(vchiq_connect);
 
 static enum vchiq_status vchiq_add_service(
 	struct vchiq_instance             *instance,
-	const struct vchiq_service_params_kernel *params,
+	const struct vchiq_service_params *params,
 	unsigned int       *phandle)
 {
 	enum vchiq_status status;
@@ -319,7 +319,7 @@ static enum vchiq_status vchiq_add_service(
 
 enum vchiq_status vchiq_open_service(
 	struct vchiq_instance             *instance,
-	const struct vchiq_service_params_kernel *params,
+	const struct vchiq_service_params *params,
 	unsigned int       *phandle)
 {
 	enum vchiq_status   status = VCHIQ_ERROR;
@@ -367,8 +367,7 @@ vchiq_bulk_transmit(unsigned int handle, const void *data,
 		switch (mode) {
 		case VCHIQ_BULK_MODE_NOCALLBACK:
 		case VCHIQ_BULK_MODE_CALLBACK:
-			status = vchiq_bulk_transfer(handle,
-						     (void *)data, size,
+			status = vchiq_bulk_transfer(handle, (void *)data, size,
 						     userdata, mode,
 						     VCHIQ_BULK_TRANSMIT);
 			break;
@@ -464,8 +463,7 @@ vchiq_blocking_bulk_transfer(unsigned int handle, void *data,
 
 		if (bulk) {
 			/* This thread has an outstanding bulk transfer. */
-			/* FIXME: why compare a dma address to a pointer? */
-			if ((bulk->data != (dma_addr_t)(uintptr_t)data) ||
+			if ((bulk->data != data) ||
 				(bulk->size != size)) {
 				/* This is not a retry of the previous one.
 				 * Cancel the signal when the transfer
@@ -523,7 +521,7 @@ add_completion(struct vchiq_instance *instance, enum vchiq_reason reason,
 	       struct vchiq_header *header, struct user_service *user_service,
 	       void *bulk_userdata)
 {
-	struct vchiq_completion_data_kernel *completion;
+	struct vchiq_completion_data *completion;
 	int insert;
 
 	DEBUG_INITIALISE(g_state.local)
@@ -812,7 +810,7 @@ static int vchiq_ioc_create_service(struct vchiq_instance *instance,
 	struct user_service *user_service = NULL;
 	struct vchiq_service *service;
 	enum vchiq_status status = VCHIQ_SUCCESS;
-	struct vchiq_service_params_kernel params;
+	void *userdata;
 	int srvstate;
 
 	user_service = kmalloc(sizeof(*user_service), GFP_KERNEL);
@@ -830,23 +828,20 @@ static int vchiq_ioc_create_service(struct vchiq_instance *instance,
 			 VCHIQ_SRVSTATE_LISTENING : VCHIQ_SRVSTATE_HIDDEN;
 	}
 
-	params = (struct vchiq_service_params_kernel) {
-		.fourcc   = args->params.fourcc,
-		.callback = service_callback,
-		.userdata = user_service,
-		.version  = args->params.version,
-		.version_min = args->params.version_min,
-	};
-	service = vchiq_add_service_internal(instance->state, &params,
+	userdata = args->params.userdata;
+	args->params.callback = service_callback;
+	args->params.userdata = user_service;
+	service = vchiq_add_service_internal(instance->state, &args->params,
 					     srvstate, instance,
 					     user_service_free);
+
 	if (!service) {
 		kfree(user_service);
 		return -EEXIST;
 	}
 
 	user_service->service = service;
-	user_service->userdata = args->params.userdata;
+	user_service->userdata = userdata;
 	user_service->instance = instance;
 	user_service->is_vchi = (args->is_vchi != 0);
 	user_service->dequeue_pending = 0;
@@ -959,7 +954,6 @@ static int vchiq_irq_queue_bulk_tx_rx(struct vchiq_instance *instance,
 	struct vchiq_service *service;
 	struct bulk_waiter_node *waiter = NULL;
 	bool found = false;
-	void *userdata = NULL;
 	int status = 0;
 	int ret;
 
@@ -975,7 +969,7 @@ static int vchiq_irq_queue_bulk_tx_rx(struct vchiq_instance *instance,
 			goto out;
 		}
 
-		userdata = &waiter->bulk_waiter;
+		args->userdata = &waiter->bulk_waiter;
 	} else if (args->mode == VCHIQ_BULK_MODE_WAITING) {
 		mutex_lock(&instance->bulk_waiter_list_mutex);
 		list_for_each_entry(waiter, &instance->bulk_waiter_list,
@@ -997,18 +991,11 @@ static int vchiq_irq_queue_bulk_tx_rx(struct vchiq_instance *instance,
 		vchiq_log_info(vchiq_arm_log_level,
 			"found bulk_waiter %pK for pid %d", waiter,
 			current->pid);
-		userdata = &waiter->bulk_waiter;
+		args->userdata = &waiter->bulk_waiter;
 	}
 
-	/*
-	 * FIXME address space mismatch:
-	 * args->data may be interpreted as a kernel pointer
-	 * in create_pagelist() called from vchiq_bulk_transfer(),
-	 * accessing kernel data instead of user space, based on the
-	 * address.
-	 */
 	status = vchiq_bulk_transfer(args->handle, args->data, args->size,
-				     userdata, args->mode, dir);
+				     args->userdata, args->mode, dir);
 
 	if (!waiter) {
 		ret = 0;
@@ -1050,22 +1037,19 @@ out:
 	return 0;
 }
 
-/* read a user pointer value from an array pointers in user space */
 static inline int vchiq_get_user_ptr(void __user **buf, void __user *ubuf, int index)
 {
+	compat_uptr_t ptr32;
 	int ret;
 
 	if (in_compat_syscall()) {
-		compat_uptr_t ptr32;
 		compat_uptr_t __user *uptr = ubuf;
-		ret = get_user(ptr32, uptr + index);
+		ret = get_user(ptr32, &uptr[index]);
 		*buf = compat_ptr(ptr32);
 	} else {
-		uintptr_t ptr, __user *uptr = ubuf;
-		ret = get_user(ptr, uptr + index);
-		*buf = (void __user *)ptr;
+		void __user *__user *uptr = ubuf;
+		ret = get_user(buf, &uptr[index]);
 	}
-
 	return ret;
 }
 
@@ -1084,10 +1068,10 @@ static int vchiq_put_completion(struct vchiq_completion_data __user *buf,
 
 	if (in_compat_syscall()) {
 		struct vchiq_completion_data32 tmp = {
-			.reason		  = completion->reason,
-			.header		  = ptr_to_compat(completion->header),
-			.service_userdata = ptr_to_compat(completion->service_userdata),
-			.bulk_userdata	  = ptr_to_compat(completion->bulk_userdata),
+			.reason		  = buf->reason,
+			.header		  = ptr_to_compat(buf->header),
+			.service_userdata = ptr_to_compat(buf->service_userdata),
+			.bulk_userdata	  = ptr_to_compat(buf->bulk_userdata),
 		};
 		if (copy_to_user(&buf32[index], &tmp, sizeof(tmp)))
 			return -EFAULT;
@@ -1141,8 +1125,7 @@ static int vchiq_ioc_await_completion(struct vchiq_instance *instance,
 	remove = instance->completion_remove;
 
 	for (ret = 0; ret < args->count; ret++) {
-		struct vchiq_completion_data_kernel *completion;
-		struct vchiq_completion_data user_completion;
+		struct vchiq_completion_data *completion;
 		struct vchiq_service *service;
 		struct user_service *user_service;
 		struct vchiq_header *header;
@@ -1161,12 +1144,7 @@ static int vchiq_ioc_await_completion(struct vchiq_instance *instance,
 
 		service = completion->service_userdata;
 		user_service = service->base.userdata;
-
-		memset(&user_completion, 0, sizeof(user_completion));
-		user_completion = (struct vchiq_completion_data) {
-			.reason = completion->reason,
-			.service_userdata = user_service->userdata,
-		};
+		completion->service_userdata = user_service->userdata;
 
 		header = completion->header;
 		if (header) {
@@ -1190,7 +1168,7 @@ static int vchiq_ioc_await_completion(struct vchiq_instance *instance,
 				break;
 			/* Get the pointer from user space */
 			msgbufcount--;
-			if (vchiq_get_user_ptr(&msgbuf, args->msgbufs,
+			if (vchiq_get_user_ptr(&msgbuf, &args->msgbufs,
 						msgbufcount)) {
 				if (ret == 0)
 					ret = -EFAULT;
@@ -1210,20 +1188,15 @@ static int vchiq_ioc_await_completion(struct vchiq_instance *instance,
 
 			/* The completion must point to the
 			** msgbuf. */
-			user_completion.header = msgbuf;
+			completion->header =
+				(struct vchiq_header __force *)msgbuf;
 		}
 
 		if ((completion->reason == VCHIQ_SERVICE_CLOSED) &&
 		    !instance->use_close_delivered)
 			unlock_service(service);
 
-		/*
-		 * FIXME: address space mismatch, does bulk_userdata
-		 * actually point to user or kernel memory?
-		 */
-		user_completion.bulk_userdata = completion->bulk_userdata;
-
-		if (vchiq_put_completion(args->buf, &user_completion, ret)) {
+		if (vchiq_put_completion(args->buf, completion, ret)) {
 			if (ret == 0)
 				ret = -EFAULT;
 			break;
@@ -1750,7 +1723,7 @@ struct vchiq_await_completion32 {
 static long
 vchiq_compat_ioctl_await_completion(struct file *file,
 				    unsigned int cmd,
-				    struct vchiq_await_completion32 __user *argp)
+				    struct vchiq_await_completion32 *argp)
 {
 	struct vchiq_await_completion args;
 	struct vchiq_await_completion32 args32;
@@ -1963,7 +1936,7 @@ static int vchiq_release(struct inode *inode, struct file *file)
 	/* Release any closed services */
 	while (instance->completion_remove !=
 		instance->completion_insert) {
-		struct vchiq_completion_data_kernel *completion;
+		struct vchiq_completion_data *completion;
 		struct vchiq_service *service;
 
 		completion = &instance->completions[
@@ -2228,7 +2201,7 @@ vchiq_keepalive_thread_func(void *v)
 	struct vchiq_instance *instance;
 	unsigned int ka_handle;
 
-	struct vchiq_service_params_kernel params = {
+	struct vchiq_service_params params = {
 		.fourcc      = VCHIQ_MAKE_FOURCC('K', 'E', 'E', 'P'),
 		.callback    = vchiq_keepalive_vchiq_callback,
 		.version     = KEEPALIVE_VER,

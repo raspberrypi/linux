@@ -62,14 +62,7 @@ struct vchiq_service_base {
 	void *userdata;
 };
 
-struct vchiq_completion_data_kernel {
-	enum vchiq_reason reason;
-	struct vchiq_header *header;
-	void *service_userdata;
-	void *bulk_userdata;
-};
-
-struct vchiq_service_params_kernel {
+struct vchiq_service_params {
 	int fourcc;
 	enum vchiq_status (*callback)(enum vchiq_reason reason,
 				      struct vchiq_header *header,
@@ -86,7 +79,7 @@ extern enum vchiq_status vchiq_initialise(struct vchiq_instance **pinstance);
 extern enum vchiq_status vchiq_shutdown(struct vchiq_instance *instance);
 extern enum vchiq_status vchiq_connect(struct vchiq_instance *instance);
 extern enum vchiq_status vchiq_open_service(struct vchiq_instance *instance,
-	const struct vchiq_service_params_kernel *params,
+	const struct vchiq_service_params *params,
 	unsigned int *pservice);
 extern enum vchiq_status vchiq_close_service(unsigned int service);
 extern enum vchiq_status vchiq_use_service(unsigned int service);

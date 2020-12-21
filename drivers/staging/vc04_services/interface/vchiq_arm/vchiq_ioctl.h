@@ -10,17 +10,6 @@
 #define VCHIQ_IOC_MAGIC 0xc4
 #define VCHIQ_INVALID_HANDLE (~0)
 
-struct vchiq_service_params {
-	int fourcc;
-	enum vchiq_status __user (*callback)(enum vchiq_reason reason,
-				      struct vchiq_header *header,
-				      unsigned int handle,
-				      void *bulk_userdata);
-	void __user *userdata;
-	short version;       /* Increment for non-trivial changes */
-	short version_min;   /* Update for incompatible changes */
-};
-
 struct vchiq_create_service {
 	struct vchiq_service_params params;
 	int is_open;
@@ -36,32 +25,32 @@ struct vchiq_queue_message {
 
 struct vchiq_queue_bulk_transfer {
 	unsigned int handle;
-	void __user *data;
+	void *data;
 	unsigned int size;
-	void __user *userdata;
+	void *userdata;
 	enum vchiq_bulk_mode mode;
 };
 
 struct vchiq_completion_data {
 	enum vchiq_reason reason;
-	struct vchiq_header __user *header;
-	void __user *service_userdata;
-	void __user *bulk_userdata;
+	struct vchiq_header *header;
+	void *service_userdata;
+	void *bulk_userdata;
 };
 
 struct vchiq_await_completion {
 	unsigned int count;
-	struct vchiq_completion_data __user *buf;
+	struct vchiq_completion_data *buf;
 	unsigned int msgbufsize;
 	unsigned int msgbufcount; /* IN/OUT */
-	void * __user *msgbufs;
+	void **msgbufs;
 };
 
 struct vchiq_dequeue_message {
 	unsigned int handle;
 	int blocking;
 	unsigned int bufsize;
-	void __user *buf;
+	void *buf;
 };
 
 struct vchiq_get_config {
@@ -76,7 +65,7 @@ struct vchiq_set_service_option {
 };
 
 struct vchiq_dump_mem {
-	void     __user *virt_addr;
+	void     *virt_addr;
 	size_t    num_bytes;
 };
 
