@@ -606,8 +606,8 @@ static struct ov5647_mode supported_modes_8bit[] = {
 			.height = 480
 		},
 		.crop = {
-			.left = 0,
-			.top = 0,
+			.left = OV5647_PIXEL_ARRAY_LEFT,
+			.top = OV5647_PIXEL_ARRAY_TOP,
 			.width = 1280,
 			.height = 960,
 		},
@@ -632,8 +632,8 @@ static struct ov5647_mode supported_modes_10bit[] = {
 			.height = 1944
 		},
 		.crop = {
-			.left = 0,
-			.top = 0,
+			.left = OV5647_PIXEL_ARRAY_LEFT,
+			.top = OV5647_PIXEL_ARRAY_TOP,
 			.width = 2592,
 			.height = 1944
 		},
@@ -656,8 +656,8 @@ static struct ov5647_mode supported_modes_10bit[] = {
 			.height = 1080
 		},
 		.crop = {
-			.left = 348,
-			.top = 434,
+			.left = 364,
+			.top = 450,
 			.width = 1928,
 			.height = 1080,
 		},
@@ -679,8 +679,8 @@ static struct ov5647_mode supported_modes_10bit[] = {
 			.height = 972
 		},
 		.crop = {
-			.left = 0,
-			.top = 0,
+			.left = OV5647_PIXEL_ARRAY_LEFT,
+			.top = OV5647_PIXEL_ARRAY_TOP,
 			.width = 2592,
 			.height = 1944,
 		},
@@ -703,8 +703,8 @@ static struct ov5647_mode supported_modes_10bit[] = {
 			.height = 480
 		},
 		.crop = {
-			.left = 16,
-			.top = 0,
+			.left = OV5647_PIXEL_ARRAY_LEFT,
+			.top = OV5647_PIXEL_ARRAY_TOP,
 			.width = 2560,
 			.height = 1920,
 		},
@@ -1080,6 +1080,7 @@ static int ov5647_get_selection(struct v4l2_subdev *sd,
 		return 0;
 
 	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
 		sel->r.top = OV5647_PIXEL_ARRAY_TOP;
 		sel->r.left = OV5647_PIXEL_ARRAY_LEFT;
 		sel->r.width = OV5647_PIXEL_ARRAY_WIDTH;
