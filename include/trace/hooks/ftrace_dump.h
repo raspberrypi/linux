@@ -9,9 +9,25 @@
 
 #include <trace/hooks/vendor_hooks.h>
 
+DECLARE_HOOK(android_vh_ftrace_oops_enter,
+	TP_PROTO(bool *ftrace_check),
+	TP_ARGS(ftrace_check));
+
+DECLARE_HOOK(android_vh_ftrace_oops_exit,
+	TP_PROTO(bool *ftrace_check),
+	TP_ARGS(ftrace_check));
+
+DECLARE_HOOK(android_vh_ftrace_size_check,
+	TP_PROTO(unsigned long size, bool *ftrace_check),
+	TP_ARGS(size, ftrace_check));
+
 DECLARE_HOOK(android_vh_ftrace_format_check,
 	TP_PROTO(bool *ftrace_check),
 	TP_ARGS(ftrace_check));
+
+DECLARE_HOOK(android_vh_ftrace_dump_buffer,
+	TP_PROTO(struct trace_seq *trace_buf, bool *dump_printk),
+	TP_ARGS(trace_buf, dump_printk));
 
 #endif /* _TRACE_HOOK_FTRACE_DUMP_H */
 /* This part must be outside protection */
