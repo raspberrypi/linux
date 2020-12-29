@@ -2444,6 +2444,13 @@ Info:   This overlay is now deprecated. Use the sd_* dtparams in the
 Load:   <Deprecated>
 
 
+Name:   seeed-can-fd-hat
+Info:   Overlay for Seeed Studio CAN BUS FD HAT with two CAN FD channels and an RTC. 
+        https://www.seeedstudio.com/CAN-BUS-FD-HAT-for-Raspberry-Pi-p-4742.html
+Load:   dtoverlay=seeed-can-fd-hat
+Params: <None>
+
+
 Name:   sh1106-spi
 Info:   Overlay for SH1106 OLED via SPI using fbtft staging driver.
 Load:   dtoverlay=sh1106-spi,<param>=<val>
