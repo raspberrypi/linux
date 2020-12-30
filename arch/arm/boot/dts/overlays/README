@@ -85,7 +85,7 @@ Making new Overlays based on existing Overlays
 ==============================================
 
 Recent overlays have been designed in a more general way, so that they can be
-adapted to hardware by changing their parameters. When you have additional 
+adapted to hardware by changing their parameters. When you have additional
 hardware with more than one device of a kind, you end up using the same overlay
 multiple times with other parameters, e.g.
 
@@ -2483,7 +2483,8 @@ Load:   <Deprecated>
 
 
 Name:   seeed-can-fd-hat
-Info:   Overlay for Seeed Studio CAN BUS FD HAT with two CAN FD channels and an RTC. 
+Info:   Overlay for Seeed Studio CAN BUS FD HAT with two CAN FD channels and an
+        RTC.
         https://www.seeedstudio.com/CAN-BUS-FD-HAT-for-Raspberry-Pi-p-4742.html
 Load:   dtoverlay=seeed-can-fd-hat
 Params: <None>
