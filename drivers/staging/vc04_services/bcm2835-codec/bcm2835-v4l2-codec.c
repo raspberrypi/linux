@@ -908,7 +908,7 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 		/* stream ended, or buffer being returned during disable. */
 		v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: Empty buffer - flags %04x",
 			 __func__, mmal_buf->mmal_flags);
-		if (!mmal_buf->mmal_flags & MMAL_BUFFER_HEADER_FLAG_EOS) {
+		if (!(mmal_buf->mmal_flags & MMAL_BUFFER_HEADER_FLAG_EOS)) {
 			vb2_buffer_done(&vb2->vb2_buf, VB2_BUF_STATE_ERROR);
 			if (!port->enabled)
 				complete(&ctx->frame_cmplt);
@@ -1135,7 +1135,7 @@ static int vidioc_try_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 	if (f->fmt.pix_mp.height > MAX_H)
 		f->fmt.pix_mp.height = MAX_H;
 
-	if (!fmt->flags & V4L2_FMT_FLAG_COMPRESSED) {
+	if (!(fmt->flags & V4L2_FMT_FLAG_COMPRESSED)) {
 		/* Only clip min w/h on capture. Treat 0x0 as unknown. */
 		if (f->fmt.pix_mp.width < MIN_W)
 			f->fmt.pix_mp.width = MIN_W;
