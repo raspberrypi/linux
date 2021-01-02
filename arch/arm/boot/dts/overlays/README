@@ -3095,6 +3095,13 @@ Params: led_gpio                GPIO for LED (default "17")
                                 "default-on")
 
 
+Name:   wm8960-soundcard
+Info:   Overlay for the Waveshare wm8960 soundcard
+Load:   dtoverlay=wm8960-soundcard,<param>=<val>
+Params: alsaname                Changes the card name in ALSA
+        compatible              Changes the codec compatibility
+
+
 Troubleshooting
 ===============
 
