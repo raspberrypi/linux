@@ -53,7 +53,9 @@ __ret_fast_syscall:
 	cmp	r2, #TASK_SIZE
 	blne	addr_limit_check_failed
 	ldr	r1, [tsk, #TI_FLAGS]		@ re-check for syscall tracing
-	tst	r1, #_TIF_SYSCALL_WORK | _TIF_WORK_MASK
+	tst	r1, #((_TIF_SYSCALL_WORK | _TIF_WORK_MASK) & ~_TIF_SECCOMP)
+	bne	fast_work_pending
+	tst	r1, #_TIF_SECCOMP
 	bne	fast_work_pending
 
 
@@ -90,8 +92,11 @@ __ret_fast_syscall:
 	cmp	r2, #TASK_SIZE
 	blne	addr_limit_check_failed
 	ldr	r1, [tsk, #TI_FLAGS]		@ re-check for syscall tracing
-	tst	r1, #_TIF_SYSCALL_WORK | _TIF_WORK_MASK
+	tst	r1, #((_TIF_SYSCALL_WORK | _TIF_WORK_MASK) & ~_TIF_SECCOMP)
+	bne	do_slower_path
+	tst	r1, #_TIF_SECCOMP
 	beq	no_work_pending
+do_slower_path:
  UNWIND(.fnend		)
 ENDPROC(ret_fast_syscall)
 

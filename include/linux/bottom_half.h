@@ -4,6 +4,10 @@
 
 #include <linux/preempt.h>
 
+#ifdef CONFIG_PREEMPT_RT
+extern void __local_bh_disable_ip(unsigned long ip, unsigned int cnt);
+#else
+
 #ifdef CONFIG_TRACE_IRQFLAGS
 extern void __local_bh_disable_ip(unsigned long ip, unsigned int cnt);
 #else
@@ -12,6 +16,7 @@ static __always_inline void __local_bh_disable_ip(unsigned long ip, unsigned int
 	preempt_count_add(cnt);
 	barrier();
 }
+#endif
 #endif
 
 static inline void local_bh_disable(void)

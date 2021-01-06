@@ -56,8 +56,8 @@ sections.
 RCU-preempt Expedited Grace Periods</a></h2>
 
 <p>
-<tt>CONFIG_PREEMPT=y</tt> kernels implement RCU-preempt.
-The overall flow of the handling of a given CPU by an RCU-preempt
+<tt>CONFIG_PREEMPT=y</tt> and <tt>CONFIG_PREEMPT_RT=y</tt> kernels implement
+RCU-preempt. The overall flow of the handling of a given CPU by an RCU-preempt
 expedited grace period is shown in the following diagram:
 
 <p><img src="ExpRCUFlow.svg" alt="ExpRCUFlow.svg" width="55%">
@@ -140,8 +140,8 @@ or offline, among other things.
 RCU-sched Expedited Grace Periods</a></h2>
 
 <p>
-<tt>CONFIG_PREEMPT=n</tt> kernels implement RCU-sched.
-The overall flow of the handling of a given CPU by an RCU-sched
+<tt>CONFIG_PREEMPT=n</tt> and <tt>CONFIG_PREEMPT_RT=n</tt> kernels implement
+RCU-sched. The overall flow of the handling of a given CPU by an RCU-sched
 expedited grace period is shown in the following diagram:
 
 <p><img src="ExpSchedFlow.svg" alt="ExpSchedFlow.svg" width="55%">

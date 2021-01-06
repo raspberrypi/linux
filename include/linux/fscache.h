@@ -226,6 +226,7 @@ extern void __fscache_readpages_cancel(struct fscache_cookie *cookie,
 extern void __fscache_disable_cookie(struct fscache_cookie *, const void *, bool);
 extern void __fscache_enable_cookie(struct fscache_cookie *, const void *, loff_t,
 				    bool (*)(void *), void *);
+extern void fscache_cookie_init(void);
 
 /**
  * fscache_register_netfs - Register a filesystem as desiring caching services

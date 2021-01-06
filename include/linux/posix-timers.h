@@ -72,6 +72,7 @@ struct cpu_timer {
 	struct task_struct	*task;
 	struct list_head	elist;
 	int			firing;
+	int			firing_cpu;
 };
 
 static inline bool cpu_timer_enqueue(struct timerqueue_head *head,
@@ -123,6 +124,9 @@ struct posix_cputimers {
 	struct posix_cputimer_base	bases[CPUCLOCK_MAX];
 	unsigned int			timers_active;
 	unsigned int			expiry_active;
+#ifdef CONFIG_PREEMPT_RT
+	struct task_struct		*posix_timer_list;
+#endif
 };
 
 static inline void posix_cputimers_init(struct posix_cputimers *pct)
@@ -152,9 +156,16 @@ static inline void posix_cputimers_rt_watchdog(struct posix_cputimers *pct,
 	INIT_CPU_TIMERBASE(b[2]),					\
 }
 
+#ifdef CONFIG_PREEMPT_RT
+# define INIT_TIMER_LIST	.posix_timer_list = NULL,
+#else
+# define INIT_TIMER_LIST
+#endif
+
 #define INIT_CPU_TIMERS(s)						\
 	.posix_cputimers = {						\
 		.bases = INIT_CPU_TIMERBASES(s.posix_cputimers.bases),	\
+		INIT_TIMER_LIST						\
 	},
 #else
 struct posix_cputimers { };

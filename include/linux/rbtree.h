@@ -19,7 +19,7 @@
 
 #include <linux/kernel.h>
 #include <linux/stddef.h>
-#include <linux/rcupdate.h>
+#include <linux/rcu_assign_pointer.h>
 
 struct rb_node {
 	unsigned long  __rb_parent_color;

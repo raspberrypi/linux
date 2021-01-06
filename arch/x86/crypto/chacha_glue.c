@@ -127,7 +127,6 @@ static int chacha_simd_stream_xor(struct skcipher_walk *walk,
 				  const struct chacha_ctx *ctx, const u8 *iv)
 {
 	u32 *state, state_buf[16 + 2] __aligned(8);
-	int next_yield = 4096; /* bytes until next FPU yield */
 	int err = 0;
 
 	BUILD_BUG_ON(CHACHA_STATE_ALIGN != 16);
@@ -140,20 +139,14 @@ static int chacha_simd_stream_xor(struct skcipher_walk *walk,
 
 		if (nbytes < walk->total) {
 			nbytes = round_down(nbytes, walk->stride);
-			next_yield -= nbytes;
 		}
 
 		chacha_dosimd(state, walk->dst.virt.addr, walk->src.virt.addr,
 			      nbytes, ctx->nrounds);
 
-		if (next_yield <= 0) {
-			/* temporarily allow preemption */
-			kernel_fpu_end();
-			kernel_fpu_begin();
-			next_yield = 4096;
-		}
-
+		kernel_fpu_end();
 		err = skcipher_walk_done(walk, walk->nbytes - nbytes);
+		kernel_fpu_begin();
 	}
 
 	return err;

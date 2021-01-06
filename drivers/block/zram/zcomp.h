@@ -10,6 +10,7 @@ struct zcomp_strm {
 	/* compression/decompression buffer */
 	void *buffer;
 	struct crypto_comp *tfm;
+	spinlock_t zcomp_lock;
 };
 
 /* dynamic per-device compression frontend */

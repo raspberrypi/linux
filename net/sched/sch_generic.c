@@ -558,7 +558,11 @@ struct Qdisc noop_qdisc = {
 	.ops		=	&noop_qdisc_ops,
 	.q.lock		=	__SPIN_LOCK_UNLOCKED(noop_qdisc.q.lock),
 	.dev_queue	=	&noop_netdev_queue,
+#ifdef CONFIG_PREEMPT_RT
+	.running	=	__SEQLOCK_UNLOCKED(noop_qdisc.running),
+#else
 	.running	=	SEQCNT_ZERO(noop_qdisc.running),
+#endif
 	.busylock	=	__SPIN_LOCK_UNLOCKED(noop_qdisc.busylock),
 	.gso_skb = {
 		.next = (struct sk_buff *)&noop_qdisc.gso_skb,
@@ -854,7 +858,11 @@ struct Qdisc *qdisc_alloc(struct netdev_queue *dev_queue,
 	spin_lock_init(&sch->busylock);
 	/* seqlock has the same scope of busylock, for NOLOCK qdisc */
 	spin_lock_init(&sch->seqlock);
+#ifdef CONFIG_PREEMPT_RT
+	seqlock_init(&sch->running);
+#else
 	seqcount_init(&sch->running);
+#endif
 
 	sch->ops = ops;
 	sch->flags = ops->static_flags;
@@ -868,7 +876,12 @@ struct Qdisc *qdisc_alloc(struct netdev_queue *dev_queue,
 	if (sch != &noop_qdisc) {
 		lockdep_set_class(&sch->busylock, &dev->qdisc_tx_busylock_key);
 		lockdep_set_class(&sch->seqlock, &dev->qdisc_tx_busylock_key);
+#ifdef CONFIG_PREEMPT_RT
+		lockdep_set_class(&sch->running.seqcount, &dev->qdisc_running_key);
+		lockdep_set_class(&sch->running.lock, &dev->qdisc_running_key);
+#else
 		lockdep_set_class(&sch->running, &dev->qdisc_running_key);
+#endif
 	}
 
 	return sch;
@@ -1236,7 +1249,7 @@ void dev_deactivate_many(struct list_head *head)
 	/* Wait for outstanding qdisc_run calls. */
 	list_for_each_entry(dev, head, close_list) {
 		while (some_qdisc_is_busy(dev))
-			yield();
+			msleep(1);
 		/* The new qdisc is assigned at this point so we can safely
 		 * unwind stale skb lists and qdisc statistics
 		 */

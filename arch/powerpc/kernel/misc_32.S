@@ -37,6 +37,7 @@
  * We store the saved ksp_limit in the unused part
  * of the STACK_FRAME_OVERHEAD
  */
+#ifndef CONFIG_PREEMPT_RT
 _GLOBAL(call_do_softirq)
 	mflr	r0
 	stw	r0,4(r1)
@@ -52,6 +53,7 @@ _GLOBAL(call_do_softirq)
 	stw	r10,THREAD+KSP_LIMIT(r2)
 	mtlr	r0
 	blr
+#endif
 
 /*
  * void call_do_irq(struct pt_regs *regs, void *sp);

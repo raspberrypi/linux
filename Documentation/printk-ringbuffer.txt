@@ -1,0 +1,377 @@
+struct printk_ringbuffer
+------------------------
+John Ogness <john.ogness@linutronix.de>
+
+Overview
+~~~~~~~~
+As the name suggests, this ring buffer was implemented specifically to serve
+the needs of the printk() infrastructure. The ring buffer itself is not
+specific to printk and could be used for other purposes. _However_, the
+requirements and semantics of printk are rather unique. If you intend to use
+this ring buffer for anything other than printk, you need to be very clear on
+its features, behavior, and pitfalls.
+
+Features
+^^^^^^^^
+The printk ring buffer has the following features:
+
+- single global buffer
+- resides in initialized data section (available at early boot)
+- lockless readers
+- supports multiple writers
+- supports multiple non-consuming readers
+- safe from any context (including NMI)
+- groups bytes into variable length blocks (referenced by entries)
+- entries tagged with sequence numbers
+
+Behavior
+^^^^^^^^
+Since the printk ring buffer readers are lockless, there exists no
+synchronization between readers and writers. Basically writers are the tasks
+in control and may overwrite any and all committed data at any time and from
+any context. For this reason readers can miss entries if they are overwritten
+before the reader was able to access the data. The reader API implementation
+is such that reader access to entries is atomic, so there is no risk of
+readers having to deal with partial or corrupt data. Also, entries are
+tagged with sequence numbers so readers can recognize if entries were missed.
+
+Writing to the ring buffer consists of 2 steps. First a writer must reserve
+an entry of desired size. After this step the writer has exclusive access
+to the memory region. Once the data has been written to memory, it needs to
+be committed to the ring buffer. After this step the entry has been inserted
+into the ring buffer and assigned an appropriate sequence number.
+
+Once committed, a writer must no longer access the data directly. This is
+because the data may have been overwritten and no longer exists. If a
+writer must access the data, it should either keep a private copy before
+committing the entry or use the reader API to gain access to the data.
+
+Because of how the data backend is implemented, entries that have been
+reserved but not yet committed act as barriers, preventing future writers
+from filling the ring buffer beyond the location of the reserved but not
+yet committed entry region. For this reason it is *important* that writers
+perform both reserve and commit as quickly as possible. Also, be aware that
+preemption and local interrupts are disabled and writing to the ring buffer
+is processor-reentrant locked during the reserve/commit window. Writers in
+NMI contexts can still preempt any other writers, but as long as these
+writers do not write a large amount of data with respect to the ring buffer
+size, this should not become an issue.
+
+API
+~~~
+
+Declaration
+^^^^^^^^^^^
+The printk ring buffer can be instantiated as a static structure:
+
+ /* declare a static struct printk_ringbuffer */
+ #define DECLARE_STATIC_PRINTKRB(name, szbits, cpulockptr)
+
+The value of szbits specifies the size of the ring buffer in bits. The
+cpulockptr field is a pointer to a prb_cpulock struct that is used to
+perform processor-reentrant spin locking for the writers. It is specified
+externally because it may be used for multiple ring buffers (or other
+code) to synchronize writers without risk of deadlock.
+
+Here is an example of a declaration of a printk ring buffer specifying a
+32KB (2^15) ring buffer:
+
+....
+DECLARE_STATIC_PRINTKRB_CPULOCK(rb_cpulock);
+DECLARE_STATIC_PRINTKRB(rb, 15, &rb_cpulock);
+....
+
+If writers will be using multiple ring buffers and the ordering of that usage
+is not clear, the same prb_cpulock should be used for both ring buffers.
+
+Writer API
+^^^^^^^^^^
+The writer API consists of 2 functions. The first is to reserve an entry in
+the ring buffer, the second is to commit that data to the ring buffer. The
+reserved entry information is stored within a provided `struct prb_handle`.
+
+ /* reserve an entry */
+ char *prb_reserve(struct prb_handle *h, struct printk_ringbuffer *rb,
+                   unsigned int size);
+
+ /* commit a reserved entry to the ring buffer */
+ void prb_commit(struct prb_handle *h);
+
+Here is an example of a function to write data to a ring buffer:
+
+....
+int write_data(struct printk_ringbuffer *rb, char *data, int size)
+{
+    struct prb_handle h;
+    char *buf;
+
+    buf = prb_reserve(&h, rb, size);
+    if (!buf)
+        return -1;
+    memcpy(buf, data, size);
+    prb_commit(&h);
+
+    return 0;
+}
+....
+
+Pitfalls
+++++++++
+Be aware that prb_reserve() can fail. A retry might be successful, but it
+depends entirely on whether or not the next part of the ring buffer to
+overwrite belongs to reserved but not yet committed entries of other writers.
+Writers can use the prb_inc_lost() function to allow readers to notice that a
+message was lost.
+
+Reader API
+^^^^^^^^^^
+The reader API utilizes a `struct prb_iterator` to track the reader's
+position in the ring buffer.
+
+ /* declare a pre-initialized static iterator for a ring buffer */
+ #define DECLARE_STATIC_PRINTKRB_ITER(name, rbaddr)
+
+ /* initialize iterator for a ring buffer (if static macro NOT used) */
+ void prb_iter_init(struct prb_iterator *iter,
+                    struct printk_ringbuffer *rb, u64 *seq);
+
+ /* make a deep copy of an iterator */
+ void prb_iter_copy(struct prb_iterator *dest,
+                    struct prb_iterator *src);
+
+ /* non-blocking, advance to next entry (and read the data) */
+ int prb_iter_next(struct prb_iterator *iter, char *buf,
+                   int size, u64 *seq);
+
+ /* blocking, advance to next entry (and read the data) */
+ int prb_iter_wait_next(struct prb_iterator *iter, char *buf,
+                        int size, u64 *seq);
+
+ /* position iterator at the entry seq */
+ int prb_iter_seek(struct prb_iterator *iter, u64 seq);
+
+ /* read data at current position */
+ int prb_iter_data(struct prb_iterator *iter, char *buf,
+                   int size, u64 *seq);
+
+Typically prb_iter_data() is not needed because the data can be retrieved
+directly with prb_iter_next().
+
+Here is an example of a non-blocking function that will read all the data in
+a ring buffer:
+
+....
+void read_all_data(struct printk_ringbuffer *rb, char *buf, int size)
+{
+    struct prb_iterator iter;
+    u64 prev_seq = 0;
+    u64 seq;
+    int ret;
+
+    prb_iter_init(&iter, rb, NULL);
+
+    for (;;) {
+        ret = prb_iter_next(&iter, buf, size, &seq);
+        if (ret > 0) {
+            if (seq != ++prev_seq) {
+                /* "seq - prev_seq" entries missed */
+                prev_seq = seq;
+            }
+            /* process buf here */
+        } else if (ret == 0) {
+            /* hit the end, done */
+            break;
+        } else if (ret < 0) {
+            /*
+             * iterator is invalid, a writer overtook us, reset the
+             * iterator and keep going, entries were missed
+             */
+            prb_iter_init(&iter, rb, NULL);
+        }
+    }
+}
+....
+
+Pitfalls
+++++++++
+The reader's iterator can become invalid at any time because the reader was
+overtaken by a writer. Typically the reader should reset the iterator back
+to the current oldest entry (which will be newer than the entry the reader
+was at) and continue, noting the number of entries that were missed.
+
+Utility API
+^^^^^^^^^^^
+Several functions are available as convenience for external code.
+
+ /* query the size of the data buffer */
+ int prb_buffer_size(struct printk_ringbuffer *rb);
+
+ /* skip a seq number to signify a lost record */
+ void prb_inc_lost(struct printk_ringbuffer *rb);
+
+ /* processor-reentrant spin lock */
+ void prb_lock(struct prb_cpulock *cpu_lock, unsigned int *cpu_store);
+
+ /* processor-reentrant spin unlock */
+ void prb_lock(struct prb_cpulock *cpu_lock, unsigned int *cpu_store);
+
+Pitfalls
+++++++++
+Although the value returned by prb_buffer_size() does represent an absolute
+upper bound, the amount of data that can be stored within the ring buffer
+is actually less because of the additional storage space of a header for each
+entry.
+
+The prb_lock() and prb_unlock() functions can be used to synchronize between
+ring buffer writers and other external activities. The function of a
+processor-reentrant spin lock is to disable preemption and local interrupts
+and synchronize against other processors. It does *not* protect against
+multiple contexts of a single processor, i.e NMI.
+
+Implementation
+~~~~~~~~~~~~~~
+This section describes several of the implementation concepts and details to
+help developers better understand the code.
+
+Entries
+^^^^^^^
+All ring buffer data is stored within a single static byte array. The reason
+for this is to ensure that any pointers to the data (past and present) will
+always point to valid memory. This is important because the lockless readers
+may be preempted for long periods of time and when they resume may be working
+with expired pointers.
+
+Entries are identified by start index and size. (The start index plus size
+is the start index of the next entry.) The start index is not simply an
+offset into the byte array, but rather a logical position (lpos) that maps
+directly to byte array offsets.
+
+For example, for a byte array of 1000, an entry may have have a start index
+of 100. Another entry may have a start index of 1100. And yet another 2100.
+All of these entry are pointing to the same memory region, but only the most
+recent entry is valid. The other entries are pointing to valid memory, but
+represent entries that have been overwritten.
+
+Note that due to overflowing, the most recent entry is not necessarily the one
+with the highest lpos value. Indeed, the printk ring buffer initializes its
+data such that an overflow happens relatively quickly in order to validate the
+handling of this situation. The implementation assumes that an lpos (unsigned
+long) will never completely wrap while a reader is preempted. If this were to
+become an issue, the seq number (which never wraps) could be used to increase
+the robustness of handling this situation.
+
+Buffer Wrapping
+^^^^^^^^^^^^^^^
+If an entry starts near the end of the byte array but would extend beyond it,
+a special terminating entry (size = -1) is inserted into the byte array and
+the real entry is placed at the beginning of the byte array. This can waste
+space at the end of the byte array, but simplifies the implementation by
+allowing writers to always work with contiguous buffers.
+
+Note that the size field is the first 4 bytes of the entry header. Also note
+that calc_next() always ensures that there are at least 4 bytes left at the
+end of the byte array to allow room for a terminating entry.
+
+Ring Buffer Pointers
+^^^^^^^^^^^^^^^^^^^^
+Three pointers (lpos values) are used to manage the ring buffer:
+
+ - _tail_: points to the oldest entry
+ - _head_: points to where the next new committed entry will be
+ - _reserve_: points to where the next new reserved entry will be
+
+These pointers always maintain a logical ordering:
+
+ tail <= head <= reserve
+
+The reserve pointer moves forward when a writer reserves a new entry. The
+head pointer moves forward when a writer commits a new entry.
+
+The reserve pointer cannot overwrite the tail pointer in a wrap situation. In
+such a situation, the tail pointer must be "pushed forward", thus
+invalidating that oldest entry. Readers identify if they are accessing a
+valid entry by ensuring their entry pointer is `>= tail && < head`.
+
+If the tail pointer is equal to the head pointer, it cannot be pushed and any
+reserve operation will fail. The only resolution is for writers to commit
+their reserved entries.
+
+Processor-Reentrant Locking
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The purpose of the processor-reentrant locking is to limit the interruption
+scenarios of writers to 2 contexts. This allows for a simplified
+implementation where:
+
+- The reserve/commit window only exists on 1 processor at a time. A reserve
+  can never fail due to uncommitted entries of other processors.
+
+- When committing entries, it is trivial to handle the situation when
+  subsequent entries have already been committed, i.e. managing the head
+  pointer.
+
+Performance
+~~~~~~~~~~~
+Some basic tests were performed on a quad Intel(R) Xeon(R) CPU E5-2697 v4 at
+2.30GHz (36 cores / 72 threads). All tests involved writing a total of
+32,000,000 records at an average of 33 bytes each. Each writer was pinned to
+its own CPU and would write as fast as it could until a total of 32,000,000
+records were written. All tests involved 2 readers that were both pinned
+together to another CPU. Each reader would read as fast as it could and track
+how many of the 32,000,000 records it could read. All tests used a ring buffer
+of 16KB in size, which holds around 350 records (header + data for each
+entry).
+
+The only difference between the tests is the number of writers (and thus also
+the number of records per writer). As more writers are added, the time to
+write a record increases. This is because data pointers, modified via cmpxchg,
+and global data access in general become more contended.
+
+1 writer
+^^^^^^^^
+ runtime: 0m 18s
+ reader1: 16219900/32000000 (50%) records
+ reader2: 16141582/32000000 (50%) records
+
+2 writers
+^^^^^^^^^
+ runtime: 0m 32s
+ reader1: 16327957/32000000 (51%) records
+ reader2: 16313988/32000000 (50%) records
+
+4 writers
+^^^^^^^^^
+ runtime: 0m 42s
+ reader1: 16421642/32000000 (51%) records
+ reader2: 16417224/32000000 (51%) records
+
+8 writers
+^^^^^^^^^
+ runtime: 0m 43s
+ reader1: 16418300/32000000 (51%) records
+ reader2: 16432222/32000000 (51%) records
+
+16 writers
+^^^^^^^^^^
+ runtime: 0m 54s
+ reader1: 16539189/32000000 (51%) records
+ reader2: 16542711/32000000 (51%) records
+
+32 writers
+^^^^^^^^^^
+ runtime: 1m 13s
+ reader1: 16731808/32000000 (52%) records
+ reader2: 16735119/32000000 (52%) records
+
+Comments
+^^^^^^^^
+It is particularly interesting to compare/contrast the 1-writer and 32-writer
+tests. Despite the writing of the 32,000,000 records taking over 4 times
+longer, the readers (which perform no cmpxchg) were still unable to keep up.
+This shows that the memory contention between the increasing number of CPUs
+also has a dramatic effect on readers.
+
+It should also be noted that in all cases each reader was able to read >=50%
+of the records. This means that a single reader would have been able to keep
+up with the writer(s) in all cases, becoming slightly easier as more writers
+are added. This was the purpose of pinning 2 readers to 1 CPU: to observe how
+maximum reader performance changes.

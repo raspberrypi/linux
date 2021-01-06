@@ -669,7 +669,7 @@ el1_irq:
 
 	irq_handler
 
-#ifdef CONFIG_PREEMPT
+#ifdef CONFIG_PREEMPTION
 	ldr	x24, [tsk, #TSK_TI_PREEMPT]	// get preempt count
 alternative_if ARM64_HAS_IRQ_PRIO_MASKING
 	/*
@@ -679,9 +679,18 @@ alternative_if ARM64_HAS_IRQ_PRIO_MASKING
 	mrs	x0, daif
 	orr	x24, x24, x0
 alternative_else_nop_endif
-	cbnz	x24, 1f				// preempt count != 0 || NMI return path
-	bl	arm64_preempt_schedule_irq	// irq en/disable is done inside
+
+	cbz	x24, 1f					// (need_resched + count) == 0
+	cbnz	w24, 2f					// count != 0
+
+	ldr	w24, [tsk, #TSK_TI_PREEMPT_LAZY]	// get preempt lazy count
+	cbnz	w24, 2f					// preempt lazy count != 0
+
+	ldr	x0, [tsk, #TSK_TI_FLAGS]		// get flags
+	tbz	x0, #TIF_NEED_RESCHED_LAZY, 2f		// needs rescheduling?
 1:
+	bl	arm64_preempt_schedule_irq		// irq en/disable is done inside
+2:
 #endif
 
 #ifdef CONFIG_ARM64_PSEUDO_NMI

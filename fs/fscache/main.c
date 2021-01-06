@@ -145,6 +145,7 @@ static int __init fscache_init(void)
 		ret = -ENOMEM;
 		goto error_cookie_jar;
 	}
+	fscache_cookie_init();
 
 	fscache_root = kobject_create_and_add("fscache", kernel_kobj);
 	if (!fscache_root)

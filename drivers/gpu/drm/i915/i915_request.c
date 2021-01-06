@@ -205,14 +205,14 @@ static void remove_from_engine(struct i915_request *rq)
 	 * check that the rq still belongs to the newly locked engine.
 	 */
 	locked = READ_ONCE(rq->engine);
-	spin_lock(&locked->active.lock);
+	spin_lock_irq(&locked->active.lock);
 	while (unlikely(locked != (engine = READ_ONCE(rq->engine)))) {
 		spin_unlock(&locked->active.lock);
 		spin_lock(&engine->active.lock);
 		locked = engine;
 	}
 	list_del(&rq->sched.link);
-	spin_unlock(&locked->active.lock);
+	spin_unlock_irq(&locked->active.lock);
 }
 
 static bool i915_request_retire(struct i915_request *rq)
@@ -272,8 +272,6 @@ static bool i915_request_retire(struct i915_request *rq)
 		active->retire(active, rq);
 	}
 
-	local_irq_disable();
-
 	/*
 	 * We only loosely track inflight requests across preemption,
 	 * and so we may find ourselves attempting to retire a _completed_
@@ -282,7 +280,7 @@ static bool i915_request_retire(struct i915_request *rq)
 	 */
 	remove_from_engine(rq);
 
-	spin_lock(&rq->lock);
+	spin_lock_irq(&rq->lock);
 	i915_request_mark_complete(rq);
 	if (!i915_request_signaled(rq))
 		dma_fence_signal_locked(&rq->fence);
@@ -297,9 +295,7 @@ static bool i915_request_retire(struct i915_request *rq)
 		__notify_execute_cb(rq);
 	}
 	GEM_BUG_ON(!list_empty(&rq->execute_cb));
-	spin_unlock(&rq->lock);
-
-	local_irq_enable();
+	spin_unlock_irq(&rq->lock);
 
 	remove_from_client(rq);
 	list_del(&rq->link);

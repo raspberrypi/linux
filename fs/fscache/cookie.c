@@ -958,3 +958,11 @@ inconsistent:
 	return -ESTALE;
 }
 EXPORT_SYMBOL(__fscache_check_consistency);
+
+void __init fscache_cookie_init(void)
+{
+	int i;
+
+	for (i = 0; i < (1 << fscache_cookie_hash_shift) - 1; i++)
+		INIT_HLIST_BL_HEAD(&fscache_cookie_hash[i]);
+}

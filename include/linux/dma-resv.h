@@ -65,13 +65,13 @@ struct dma_resv_list {
 /**
  * struct dma_resv - a reservation object manages fences for a buffer
  * @lock: update side lock
- * @seq: sequence count for managing RCU read-side synchronization
+ * @seq: sequence lock for managing RCU read-side synchronization
  * @fence_excl: the exclusive fence, if there is one currently
  * @fence: list of current shared fences
  */
 struct dma_resv {
 	struct ww_mutex lock;
-	seqcount_t seq;
+	seqlock_t seq;
 
 	struct dma_fence __rcu *fence_excl;
 	struct dma_resv_list __rcu *fence;

@@ -24,7 +24,11 @@ static __always_inline void boot_init_stack_canary(void)
 	unsigned long canary;
 
 	/* Try to get a semi random initial value. */
+#ifdef CONFIG_PREEMPT_RT
+	canary = (unsigned long)&canary;
+#else
 	canary = get_random_canary();
+#endif
 	canary ^= mftb();
 	canary ^= LINUX_VERSION_CODE;
 	canary &= CANARY_MASK;

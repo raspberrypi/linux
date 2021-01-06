@@ -59,7 +59,7 @@ static inline void ratelimit_state_exit(struct ratelimit_state *rs)
 		return;
 
 	if (rs->missed) {
-		pr_warn("%s: %d output lines suppressed due to ratelimiting\n",
+		pr_info("%s: %d output lines suppressed due to ratelimiting\n",
 			current->comm, rs->missed);
 		rs->missed = 0;
 	}

@@ -75,7 +75,6 @@ busy_check_writer(const struct dma_fence *fence)
 
 	return __busy_set_if_active(fence, __busy_write_id);
 }
-
 int
 i915_gem_busy_ioctl(struct drm_device *dev, void *data,
 		    struct drm_file *file)
@@ -110,7 +109,8 @@ i915_gem_busy_ioctl(struct drm_device *dev, void *data,
 	 *
 	 */
 retry:
-	seq = raw_read_seqcount(&obj->base.resv->seq);
+	/* XXX raw_read_seqcount() does not wait for the WRTIE to finish */
+	seq = read_seqbegin(&obj->base.resv->seq);
 
 	/* Translate the exclusive fence to the READ *and* WRITE engine */
 	args->busy =
@@ -129,7 +129,7 @@ retry:
 		}
 	}
 
-	if (args->busy && read_seqcount_retry(&obj->base.resv->seq, seq))
+	if (args->busy && read_seqretry(&obj->base.resv->seq, seq))
 		goto retry;
 
 	err = 0;

@@ -61,6 +61,23 @@ config CONSOLE_LOGLEVEL_QUIET
 	  will be used as the loglevel. IOW passing "quiet" will be the
 	  equivalent of passing "loglevel=<CONSOLE_LOGLEVEL_QUIET>"
 
+config CONSOLE_LOGLEVEL_EMERGENCY
+	int "Emergency console loglevel (1-15)"
+	range 1 15
+	default "5"
+	help
+	  The loglevel to determine if a console message is an emergency
+	  message.
+
+	  If supported by the console driver, emergency messages will be
+	  flushed to the console immediately. This can cause significant system
+	  latencies so the value should be set such that only significant
+	  messages are classified as emergency messages.
+
+	  Setting a default here is equivalent to passing in
+	  emergency_loglevel=<x> in the kernel bootargs. emergency_loglevel=<x>
+	  continues to override whatever value is specified here as well.
+
 config MESSAGE_LOGLEVEL_DEFAULT
 	int "Default message log level (1-7)"
 	range 1 7
@@ -1044,7 +1061,7 @@ config DEBUG_TIMEKEEPING
 
 config DEBUG_PREEMPT
 	bool "Debug preemptible kernel"
-	depends on DEBUG_KERNEL && PREEMPT && TRACE_IRQFLAGS_SUPPORT
+	depends on DEBUG_KERNEL && PREEMPTION && TRACE_IRQFLAGS_SUPPORT
 	default y
 	help
 	  If you say Y here then the kernel will use a debug variant of the
@@ -1222,7 +1239,7 @@ config DEBUG_ATOMIC_SLEEP
 
 config DEBUG_LOCKING_API_SELFTESTS
 	bool "Locking API boot-time self-tests"
-	depends on DEBUG_KERNEL
+	depends on DEBUG_KERNEL && !PREEMPT_RT
 	help
 	  Say Y here if you want the kernel to run a short self-test during
 	  bootup. The self-test checks whether common types of locking bugs

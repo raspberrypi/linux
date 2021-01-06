@@ -26,7 +26,6 @@ void bust_spinlocks(int yes)
 		unblank_screen();
 #endif
 		console_unblank();
-		if (--oops_in_progress == 0)
-			wake_up_klogd();
+		--oops_in_progress;
 	}
 }

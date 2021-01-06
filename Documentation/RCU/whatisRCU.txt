@@ -648,9 +648,10 @@ Quick Quiz #1:	Why is this argument naive?  How could a deadlock
 
 This section presents a "toy" RCU implementation that is based on
 "classic RCU".  It is also short on performance (but only for updates) and
-on features such as hotplug CPU and the ability to run in CONFIG_PREEMPT
-kernels.  The definitions of rcu_dereference() and rcu_assign_pointer()
-are the same as those shown in the preceding section, so they are omitted.
+on features such as hotplug CPU and the ability to run in
+CONFIG_PREEMPTION kernels. The definitions of rcu_dereference() and
+rcu_assign_pointer() are the same as those shown in the preceding
+section, so they are omitted.
 
 	void rcu_read_lock(void) { }
 

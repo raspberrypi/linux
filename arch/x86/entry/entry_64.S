@@ -671,7 +671,23 @@ retint_kernel:
 	btl	$9, EFLAGS(%rsp)		/* were interrupts off? */
 	jnc	1f
 	cmpl	$0, PER_CPU_VAR(__preempt_count)
+#ifndef CONFIG_PREEMPT_LAZY
 	jnz	1f
+#else
+	jz	do_preempt_schedule_irq
+
+	# atleast preempt count == 0 ?
+	cmpl	$_PREEMPT_ENABLED,PER_CPU_VAR(__preempt_count)
+	jnz	1f
+
+	movq	PER_CPU_VAR(current_task), %rcx
+	cmpl	$0, TASK_TI_preempt_lazy_count(%rcx)
+	jnz	1f
+
+	btl	$TIF_NEED_RESCHED_LAZY,TASK_TI_flags(%rcx)
+	jnc	1f
+do_preempt_schedule_irq:
+#endif
 	call	preempt_schedule_irq
 1:
 #endif
@@ -1075,6 +1091,7 @@ EXPORT_SYMBOL(native_load_gs_index)
 	jmp	2b
 	.previous
 
+#ifndef CONFIG_PREEMPT_RT
 /* Call softirq on interrupt stack. Interrupts are off. */
 ENTRY(do_softirq_own_stack)
 	pushq	%rbp
@@ -1085,6 +1102,7 @@ ENTRY(do_softirq_own_stack)
 	leaveq
 	ret
 ENDPROC(do_softirq_own_stack)
+#endif
 
 #ifdef CONFIG_XEN_PV
 idtentry hypervisor_callback xen_do_hypervisor_callback has_error_code=0

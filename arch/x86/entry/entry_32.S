@@ -1106,8 +1106,26 @@ restore_all:
 restore_all_kernel:
 #ifdef CONFIG_PREEMPTION
 	DISABLE_INTERRUPTS(CLBR_ANY)
+	# preempt count == 0 + NEED_RS set?
 	cmpl	$0, PER_CPU_VAR(__preempt_count)
+#ifndef CONFIG_PREEMPT_LAZY
 	jnz	.Lno_preempt
+#else
+	jz	test_int_off
+
+	# atleast preempt count == 0 ?
+	cmpl	$_PREEMPT_ENABLED,PER_CPU_VAR(__preempt_count)
+	jne	.Lno_preempt
+
+	movl	PER_CPU_VAR(current_task), %ebp
+	cmpl	$0,TASK_TI_preempt_lazy_count(%ebp)	# non-zero preempt_lazy_count ?
+	jnz	.Lno_preempt
+
+	testl	$_TIF_NEED_RESCHED_LAZY, TASK_TI_flags(%ebp)
+	jz	.Lno_preempt
+
+test_int_off:
+#endif
 	testl	$X86_EFLAGS_IF, PT_EFLAGS(%esp)	# interrupts off (exception path) ?
 	jz	.Lno_preempt
 	call	preempt_schedule_irq

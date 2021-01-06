@@ -77,12 +77,13 @@ EXPORT_SYMBOL_GPL(hv_remove_vmbus_irq);
 __visible void __irq_entry hv_stimer0_vector_handler(struct pt_regs *regs)
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
+	u64 ip = regs ? instruction_pointer(regs) : 0;
 
 	entering_irq();
 	inc_irq_stat(hyperv_stimer0_count);
 	if (hv_stimer0_handler)
 		hv_stimer0_handler();
-	add_interrupt_randomness(HYPERV_STIMER0_VECTOR, 0);
+	add_interrupt_randomness(HYPERV_STIMER0_VECTOR, 0, ip);
 	ack_APIC_irq();
 
 	exiting_irq();

@@ -146,6 +146,8 @@ OF_EARLYCON_DECLARE(x1000_uart, "ingenic,x1000-uart",
 
 static void ingenic_uart_serial_out(struct uart_port *p, int offset, int value)
 {
+	unsigned int flags;
+	bool is_console;
 	int ier;
 
 	switch (offset) {
@@ -167,7 +169,12 @@ static void ingenic_uart_serial_out(struct uart_port *p, int offset, int value)
 		 * If we have enabled modem status IRQs we should enable
 		 * modem mode.
 		 */
+		is_console = uart_console(p);
+		if (is_console)
+			console_atomic_lock(&flags);
 		ier = p->serial_in(p, UART_IER);
+		if (is_console)
+			console_atomic_unlock(flags);
 
 		if (ier & UART_IER_MSI)
 			value |= UART_MCR_MDCE | UART_MCR_FCM;

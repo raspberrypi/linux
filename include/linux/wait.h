@@ -10,6 +10,7 @@
 
 #include <asm/current.h>
 #include <uapi/linux/wait.h>
+#include <linux/atomic.h>
 
 typedef struct wait_queue_entry wait_queue_entry_t;
 
@@ -20,6 +21,7 @@ int default_wake_function(struct wait_queue_entry *wq_entry, unsigned mode, int 
 #define WQ_FLAG_EXCLUSIVE	0x01
 #define WQ_FLAG_WOKEN		0x02
 #define WQ_FLAG_BOOKMARK	0x04
+#define WQ_FLAG_CUSTOM		0x08
 
 /*
  * A single wait-queue entry structure:

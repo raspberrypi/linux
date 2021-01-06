@@ -693,8 +693,8 @@ static void ezusb_req_ctx_wait(struct ezusb_priv *upriv,
 			while (!ctx->done.done && msecs--)
 				udelay(1000);
 		} else {
-			wait_event_interruptible(ctx->done.wait,
-						 ctx->done.done);
+			swait_event_interruptible_exclusive(ctx->done.wait,
+							    ctx->done.done);
 		}
 		break;
 	default:

@@ -1596,7 +1596,7 @@ struct nfs_unlinkdata {
 	struct nfs_removeargs args;
 	struct nfs_removeres res;
 	struct dentry *dentry;
-	wait_queue_head_t wq;
+	struct swait_queue_head wq;
 	const struct cred *cred;
 	struct nfs_fattr dir_attr;
 	long timeout;

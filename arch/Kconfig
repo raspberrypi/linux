@@ -31,6 +31,7 @@ config OPROFILE
 	tristate "OProfile system profiling"
 	depends on PROFILING
 	depends on HAVE_OPROFILE
+	depends on !PREEMPT_RT
 	select RING_BUFFER
 	select RING_BUFFER_ALLOW_SWAP
 	help
