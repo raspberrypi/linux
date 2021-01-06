@@ -23,7 +23,7 @@
 				clocks = <&ov9281_clk>;
 				clock-names = "xvclk";
 
-				avdd-supply = <&ov9281_avdd>;
+				avdd-supply = <&cam1_reg>;
 				dovdd-supply = <&ov9281_dovdd>;
 				dvdd-supply = <&ov9281_dvdd>;
 
@@ -66,14 +66,6 @@
 	fragment@3 {
 		target-path="/";
 		__overlay__ {
-			ov9281_avdd: fixedregulator@0 {
-				compatible = "regulator-fixed";
-				regulator-name = "ov9281_avdd";
-				regulator-min-microvolt = <2800000>;
-				regulator-max-microvolt = <2800000>;
-				gpio = <&gpio 41 GPIO_ACTIVE_HIGH>;
-				enable-active-high;
-			};
 			ov9281_dovdd: fixedregulator@1 {
 				compatible = "regulator-fixed";
 				regulator-name = "ov9281_dovdd";
@@ -102,10 +94,13 @@
 	};
 
 	fragment@5 {
-		target-path="/__overrides__";
+		target = <&cam1_reg>;
 		__overlay__ {
-			cam0-pwdn-ctrl = <&ov9281_avdd>,"gpio:0";
-			cam0-pwdn      = <&ov9281_avdd>,"gpio:4";
+			status = "okay";
+			regulator-name = "ov9281_avdd";
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
 		};
 	};
+
 };
