@@ -4,6 +4,7 @@
 #include "bcm2708-rpi.dtsi"
 #include "bcm283x-rpi-smsc9512.dtsi"
 #include "bcm283x-rpi-csi1-2lane.dtsi"
+#include "bcm283x-rpi-cam1-regulator.dtsi"
 
 / {
 	compatible = "raspberrypi,model-b", "brcm,bcm2835";
@@ -116,6 +117,10 @@ i2c_csi_dsi: &i2c1 {
 &audio {
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
+};
+
+&cam1_reg {
+	gpio = <&gpio 27 GPIO_ACTIVE_HIGH>;
 };
 
 / {
