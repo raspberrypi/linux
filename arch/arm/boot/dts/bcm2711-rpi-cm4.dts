@@ -327,6 +327,14 @@
 	};
 
 	/delete-node/ wifi-pwrseq;
+
+	cam0_reg: cam1_reg: cam1_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "cam1-reg";
+		gpio = <&expgpio 5 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		status = "disabled";
+	};
 };
 
 &mmcnr {
