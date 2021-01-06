@@ -24,7 +24,7 @@
 				clock-names = "xclk";
 				clock-frequency = <37125000>;
 
-				vdda-supply = <&imx290_vdda>;	/* 2.8v */
+				vdda-supply = <&cam1_reg>;	/* 2.8v */
 				vdddo-supply = <&imx290_vdddo>;	/* 1.8v */
 				vddd-supply = <&imx290_vddd>;	/* 1.5v */
 
@@ -61,14 +61,6 @@
 	fragment@3 {
 		target-path="/";
 		__overlay__ {
-			imx290_vdda: fixedregulator@0 {
-				compatible = "regulator-fixed";
-				regulator-name = "imx290_vdda";
-				regulator-min-microvolt = <2800000>;
-				regulator-max-microvolt = <2800000>;
-				gpio = <&gpio 41 GPIO_ACTIVE_HIGH>;
-				enable-active-high;
-			};
 			imx290_vdddo: fixedregulator@1 {
 				compatible = "regulator-fixed";
 				regulator-name = "imx290_vdddo";
@@ -98,10 +90,12 @@
 	};
 
 	fragment@5 {
-		target-path="/__overrides__";
+		target = <&cam1_reg>;
 		__overlay__ {
-			cam0-pwdn-ctrl = <&imx290_vdda>,"gpio:0";
-			cam0-pwdn      = <&imx290_vdda>,"gpio:4";
+			status = "okay";
+			regulator-name = "imx290_vdda";
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
 		};
 	};
 
