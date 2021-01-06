@@ -5,6 +5,7 @@
 #include "bcm283x-rpi-csi1-2lane.dtsi"
 #include "bcm283x-rpi-i2c0mux_0_28.dtsi"
 #include "bcm2708-rpi-bt.dtsi"
+#include "bcm283x-rpi-cam1-regulator.dtsi"
 
 / {
 	compatible = "raspberrypi,model-zero-w", "brcm,bcm2835";
@@ -153,6 +154,10 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
 	brcm,disable-headphones = <1>;
+};
+
+&cam1_reg {
+	gpio = <&gpio 44 GPIO_ACTIVE_HIGH>;
 };
 
 / {
