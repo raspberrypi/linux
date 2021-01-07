@@ -444,6 +444,11 @@ mode_fixup(struct drm_atomic_state *state)
 		new_crtc_state =
 			drm_atomic_get_new_crtc_state(state, new_conn_state->crtc);
 
+		if (!new_crtc_state->mode_changed &&
+		    !new_crtc_state->connectors_changed) {
+			continue;
+		}
+
 		/*
 		 * Each encoder has at most one connector (since we always steal
 		 * it away), so we won't call ->mode_fixup twice.
