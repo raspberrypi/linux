@@ -5,7 +5,7 @@
  *		Copyright 2014-2015
  *		based on code by Florian Meier <florian.meier@koalo.de>
  *		ADC added by Joerg Schambacher <joerg@i2audio.com>
- *		Copyright 2018-19
+ *		Copyright 2018-20
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,6 +26,7 @@
 #include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/i2c.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -474,6 +475,15 @@ static struct snd_soc_dai_link snd_rpi_hifiberry_dacplusadcpro_dai[] = {
 },
 };
 
+static struct snd_soc_aux_dev hifiberry_dacplusadcpro_aux_devs[] = {
+	{
+		.dlc = {
+			.name = "tpa6130a2.1-0060",
+		},
+	},
+};
+
+
 /* audio machine driver */
 static struct snd_soc_card snd_rpi_hifiberry_dacplusadcpro = {
 	.name         = "snd_rpi_hifiberry_dacplusadcpro",
@@ -483,10 +493,68 @@ static struct snd_soc_card snd_rpi_hifiberry_dacplusadcpro = {
 	.num_links    = ARRAY_SIZE(snd_rpi_hifiberry_dacplusadcpro_dai),
 };
 
+static int hb_hp_detect(void)
+{
+	struct i2c_adapter *adap = i2c_get_adapter(1);
+	int ret;
+	struct i2c_client tpa_i2c_client = {
+		.addr = 0x60,
+		.adapter = adap,
+	};
+
+	if (!adap)
+		return -EPROBE_DEFER;	/* I2C module not yet available */
+
+	ret = i2c_smbus_read_byte(&tpa_i2c_client) >= 0;
+	i2c_put_adapter(adap);
+	return ret;
+};
+
+static struct property tpa_enable_prop = {
+	       .name = "status",
+	       .length = 4 + 1, /* length 'okay' + 1 */
+	       .value = "okay",
+	};
+
 static int snd_rpi_hifiberry_dacplusadcpro_probe(struct platform_device *pdev)
 {
 	int ret = 0, i = 0;
 	struct snd_soc_card *card = &snd_rpi_hifiberry_dacplusadcpro;
+	int len;
+	struct device_node *tpa_node;
+	struct property *tpa_prop;
+	struct of_changeset ocs;
+
+	/* probe for head phone amp */
+	ret = hb_hp_detect();
+	if (ret < 0)
+		return ret;
+	if (ret) {
+		card->aux_dev = hifiberry_dacplusadcpro_aux_devs;
+		card->num_aux_devs =
+				ARRAY_SIZE(hifiberry_dacplusadcpro_aux_devs);
+		tpa_node = of_find_compatible_node(NULL, NULL, "ti,tpa6130a2");
+		tpa_prop = of_find_property(tpa_node, "status", &len);
+
+		if (strcmp((char *)tpa_prop->value, "okay")) {
+			/* and activate headphone using change_sets */
+			dev_info(&pdev->dev, "activating headphone amplifier");
+			of_changeset_init(&ocs);
+			ret = of_changeset_update_property(&ocs, tpa_node,
+							&tpa_enable_prop);
+			if (ret) {
+				dev_err(&pdev->dev,
+				"cannot activate headphone amplifier\n");
+				return -ENODEV;
+			}
+			ret = of_changeset_apply(&ocs);
+			if (ret) {
+				dev_err(&pdev->dev,
+				"cannot activate headphone amplifier\n");
+				return -ENODEV;
+			}
+		}
+	}
 
 	snd_rpi_hifiberry_dacplusadcpro.dev = &pdev->dev;
 	if (pdev->dev.of_node) {
