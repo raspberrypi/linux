@@ -75,11 +75,6 @@ static DEFINE_PER_CPU(struct cpuhp_cpu_state, cpuhp_state) = {
 	.fail = CPUHP_INVALID,
 };
 
-#if defined(CONFIG_HOTPLUG_CPU) && defined(CONFIG_PREEMPT_RT_FULL)
-static DEFINE_PER_CPU(struct rt_rw_lock, cpuhp_pin_lock) = \
-	__RWLOCK_RT_INITIALIZER(cpuhp_pin_lock);
-#endif
-
 #if defined(CONFIG_LOCKDEP) && defined(CONFIG_SMP)
 static struct lockdep_map cpuhp_state_up_map =
 	STATIC_LOCKDEP_MAP_INIT("cpuhp_state-up", &cpuhp_state_up_map);
@@ -286,55 +281,6 @@ static int cpu_hotplug_disabled;
 
 #ifdef CONFIG_HOTPLUG_CPU
 
-/**
- * pin_current_cpu - Prevent the current cpu from being unplugged
- */
-void pin_current_cpu(void)
-{
-#ifdef CONFIG_PREEMPT_RT_FULL
-	struct rt_rw_lock *cpuhp_pin;
-	unsigned int cpu;
-	int ret;
-
-again:
-	cpuhp_pin = this_cpu_ptr(&cpuhp_pin_lock);
-	ret = __read_rt_trylock(cpuhp_pin);
-	if (ret) {
-		current->pinned_on_cpu = smp_processor_id();
-		return;
-	}
-	cpu = smp_processor_id();
-	preempt_lazy_enable();
-	preempt_enable();
-
-	__read_rt_lock(cpuhp_pin);
-
-	preempt_disable();
-	preempt_lazy_disable();
-	if (cpu != smp_processor_id()) {
-		__read_rt_unlock(cpuhp_pin);
-		goto again;
-	}
-	current->pinned_on_cpu = cpu;
-#endif
-}
-
-/**
- * unpin_current_cpu - Allow unplug of current cpu
- */
-void unpin_current_cpu(void)
-{
-#ifdef CONFIG_PREEMPT_RT_FULL
-	struct rt_rw_lock *cpuhp_pin = this_cpu_ptr(&cpuhp_pin_lock);
-
-	if (WARN_ON(current->pinned_on_cpu != smp_processor_id()))
-		cpuhp_pin = per_cpu_ptr(&cpuhp_pin_lock, current->pinned_on_cpu);
-
-	current->pinned_on_cpu = -1;
-	__read_rt_unlock(cpuhp_pin);
-#endif
-}
-
 DEFINE_STATIC_PERCPU_RWSEM(cpu_hotplug_lock);
 
 void cpus_read_lock(void)
@@ -429,6 +375,7 @@ void __init cpu_smt_disable(bool force)
 		pr_info("SMT: Force disabled\n");
 		cpu_smt_control = CPU_SMT_FORCE_DISABLED;
 	} else {
+		pr_info("SMT: disabled\n");
 		cpu_smt_control = CPU_SMT_DISABLED;
 	}
 }
@@ -546,8 +493,7 @@ static int bringup_wait_for_ap(unsigned int cpu)
 	if (WARN_ON_ONCE((!cpu_online(cpu))))
 		return -ECANCELED;
 
-	/* Unpark the stopper thread and the hotplug thread of the target cpu */
-	stop_machine_unpark(cpu);
+	/* Unpark the hotplug thread of the target cpu */
 	kthread_unpark(st->thread);
 
 	/*
@@ -863,6 +809,15 @@ static int take_cpu_down(void *_param)
 	int err, cpu = smp_processor_id();
 	int ret;
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+	/*
+	 * If any tasks disabled migration before we got here,
+	 * go back and sleep again.
+	 */
+	if (cpu_nr_pinned(cpu))
+		return -EAGAIN;
+#endif
+
 	/* Ensure this CPU doesn't handle any more interrupts. */
 	err = __cpu_disable();
 	if (err < 0)
@@ -890,11 +845,12 @@ static int take_cpu_down(void *_param)
 	return 0;
 }
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+struct task_struct *takedown_cpu_task;
+#endif
+
 static int takedown_cpu(unsigned int cpu)
 {
-#ifdef CONFIG_PREEMPT_RT_FULL
-	struct rt_rw_lock *cpuhp_pin = per_cpu_ptr(&cpuhp_pin_lock, cpu);
-#endif
 	struct cpuhp_cpu_state *st = per_cpu_ptr(&cpuhp_state, cpu);
 	int err;
 
@@ -907,17 +863,38 @@ static int takedown_cpu(unsigned int cpu)
 	 */
 	irq_lock_sparse();
 
-#ifdef CONFIG_PREEMPT_RT_FULL
-	__write_rt_lock(cpuhp_pin);
+#ifdef CONFIG_PREEMPT_RT_BASE
+	WARN_ON_ONCE(takedown_cpu_task);
+	takedown_cpu_task = current;
+
+again:
+	/*
+	 * If a task pins this CPU after we pass this check, take_cpu_down
+	 * will return -EAGAIN.
+	 */
+	for (;;) {
+		int nr_pinned;
+
+		set_current_state(TASK_UNINTERRUPTIBLE);
+		nr_pinned = cpu_nr_pinned(cpu);
+		if (nr_pinned == 0)
+			break;
+		schedule();
+	}
+	set_current_state(TASK_RUNNING);
 #endif
 
 	/*
 	 * So now all preempt/rcu users must observe !cpu_active().
 	 */
 	err = stop_machine_cpuslocked(take_cpu_down, NULL, cpumask_of(cpu));
+#ifdef CONFIG_PREEMPT_RT_BASE
+	if (err == -EAGAIN)
+		goto again;
+#endif
 	if (err) {
-#ifdef CONFIG_PREEMPT_RT_FULL
-		__write_rt_unlock(cpuhp_pin);
+#ifdef CONFIG_PREEMPT_RT_BASE
+		takedown_cpu_task = NULL;
 #endif
 		/* CPU refused to die */
 		irq_unlock_sparse();
@@ -937,8 +914,8 @@ static int takedown_cpu(unsigned int cpu)
 	wait_for_ap_thread(st, false);
 	BUG_ON(st->state != CPUHP_AP_IDLE_DEAD);
 
-#ifdef CONFIG_PREEMPT_RT_FULL
-	__write_rt_unlock(cpuhp_pin);
+#ifdef CONFIG_PREEMPT_RT_BASE
+	takedown_cpu_task = NULL;
 #endif
 	/* Interrupts are moved away from the dying cpu, reenable alloc/free */
 	irq_unlock_sparse();
@@ -1114,8 +1091,8 @@ void notify_cpu_starting(unsigned int cpu)
 
 /*
  * Called from the idle task. Wake up the controlling task which brings the
- * stopper and the hotplug thread of the upcoming CPU up and then delegates
- * the rest of the online bringup to the hotplug thread.
+ * hotplug thread of the upcoming CPU up and then delegates the rest of the
+ * online bringup to the hotplug thread.
  */
 void cpuhp_online_idle(enum cpuhp_state state)
 {
@@ -1124,6 +1101,12 @@ void cpuhp_online_idle(enum cpuhp_state state)
 	/* Happens for the boot cpu */
 	if (state != CPUHP_AP_ONLINE_IDLE)
 		return;
+
+	/*
+	 * Unpart the stopper thread before we start the idle loop (and start
+	 * scheduling); this ensures the stopper task is always available.
+	 */
+	stop_machine_unpark(smp_processor_id());
 
 	st->state = CPUHP_AP_ONLINE_IDLE;
 	complete_ap_thread(st, true);
@@ -2131,10 +2114,8 @@ int cpuhp_smt_disable(enum cpuhp_smt_control ctrlval)
 		 */
 		cpuhp_offline_cpu_device(cpu);
 	}
-	if (!ret) {
+	if (!ret)
 		cpu_smt_control = ctrlval;
-		arch_smt_update();
-	}
 	cpu_maps_update_done();
 	return ret;
 }
@@ -2145,7 +2126,6 @@ int cpuhp_smt_enable(void)
 
 	cpu_maps_update_begin();
 	cpu_smt_control = CPU_SMT_ENABLED;
-	arch_smt_update();
 	for_each_present_cpu(cpu) {
 		/* Skip online CPUs and CPUs on offline nodes */
 		if (cpu_online(cpu) || !node_online(cpu_to_node(cpu)))
@@ -2349,7 +2329,18 @@ void __init boot_cpu_hotplug_init(void)
 	this_cpu_write(cpuhp_state.state, CPUHP_ONLINE);
 }
 
-enum cpu_mitigations cpu_mitigations __ro_after_init = CPU_MITIGATIONS_AUTO;
+/*
+ * These are used for a global "mitigations=" cmdline option for toggling
+ * optional CPU mitigations.
+ */
+enum cpu_mitigations {
+	CPU_MITIGATIONS_OFF,
+	CPU_MITIGATIONS_AUTO,
+	CPU_MITIGATIONS_AUTO_NOSMT,
+};
+
+static enum cpu_mitigations cpu_mitigations __ro_after_init =
+	CPU_MITIGATIONS_AUTO;
 
 static int __init mitigations_parse_cmdline(char *arg)
 {
@@ -2366,3 +2357,17 @@ static int __init mitigations_parse_cmdline(char *arg)
 	return 0;
 }
 early_param("mitigations", mitigations_parse_cmdline);
+
+/* mitigations=off */
+bool cpu_mitigations_off(void)
+{
+	return cpu_mitigations == CPU_MITIGATIONS_OFF;
+}
+EXPORT_SYMBOL_GPL(cpu_mitigations_off);
+
+/* mitigations=auto,nosmt */
+bool cpu_mitigations_auto_nosmt(void)
+{
+	return cpu_mitigations == CPU_MITIGATIONS_AUTO_NOSMT;
+}
+EXPORT_SYMBOL_GPL(cpu_mitigations_auto_nosmt);

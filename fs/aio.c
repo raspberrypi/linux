@@ -42,7 +42,6 @@
 #include <linux/ramfs.h>
 #include <linux/percpu-refcount.h>
 #include <linux/mount.h>
-#include <linux/swork.h>
 
 #include <asm/kmap_types.h>
 #include <linux/uaccess.h>
@@ -122,7 +121,7 @@ struct kioctx {
 	long			nr_pages;
 
 	struct rcu_work		free_rwork;	/* see free_ioctx() */
-	struct swork_event	free_swork;	/* see free_ioctx() */
+	struct work_struct	free_work;	/* see free_ioctx() */
 
 	/*
 	 * signals when all in-flight requests are done
@@ -267,7 +266,6 @@ static int __init aio_setup(void)
 		.mount		= aio_mount,
 		.kill_sb	= kill_anon_super,
 	};
-	BUG_ON(swork_get());
 	aio_mnt = kern_mount(&aio_fs);
 	if (IS_ERR(aio_mnt))
 		panic("Failed to create aio fs mount.");
@@ -609,9 +607,9 @@ static void free_ioctx_reqs(struct percpu_ref *ref)
  * and ctx->users has dropped to 0, so we know no more kiocbs can be submitted -
  * now it's safe to cancel any that need to be.
  */
-static void free_ioctx_users_work(struct swork_event *sev)
+static void free_ioctx_users_work(struct work_struct *work)
 {
-	struct kioctx *ctx = container_of(sev, struct kioctx, free_swork);
+	struct kioctx *ctx = container_of(work, struct kioctx, free_work);
 	struct aio_kiocb *req;
 
 	spin_lock_irq(&ctx->ctx_lock);
@@ -633,8 +631,8 @@ static void free_ioctx_users(struct percpu_ref *ref)
 {
 	struct kioctx *ctx = container_of(ref, struct kioctx, users);
 
-	INIT_SWORK(&ctx->free_swork, free_ioctx_users_work);
-	swork_queue(&ctx->free_swork);
+	INIT_WORK(&ctx->free_work, free_ioctx_users_work);
+	schedule_work(&ctx->free_work);
 }
 
 static int ioctx_add_table(struct kioctx *ctx, struct mm_struct *mm)
@@ -1611,6 +1609,14 @@ static int aio_fsync(struct fsync_iocb *req, const struct iocb *iocb,
 	return 0;
 }
 
+static void aio_poll_put_work(struct work_struct *work)
+{
+	struct poll_iocb *req = container_of(work, struct poll_iocb, work);
+	struct aio_kiocb *iocb = container_of(req, struct aio_kiocb, poll);
+
+	iocb_put(iocb);
+}
+
 static void aio_poll_complete_work(struct work_struct *work)
 {
 	struct poll_iocb *req = container_of(work, struct poll_iocb, work);
@@ -1675,6 +1681,8 @@ static int aio_poll_wake(struct wait_queue_entry *wait, unsigned mode, int sync,
 	list_del_init(&req->wait.entry);
 
 	if (mask && spin_trylock_irqsave(&iocb->ki_ctx->ctx_lock, flags)) {
+		struct kioctx *ctx = iocb->ki_ctx;
+
 		/*
 		 * Try to complete the iocb inline if we can. Use
 		 * irqsave/irqrestore because not all filesystems (e.g. fuse)
@@ -1684,8 +1692,14 @@ static int aio_poll_wake(struct wait_queue_entry *wait, unsigned mode, int sync,
 		list_del(&iocb->ki_list);
 		iocb->ki_res.res = mangle_poll(mask);
 		req->done = true;
-		spin_unlock_irqrestore(&iocb->ki_ctx->ctx_lock, flags);
-		iocb_put(iocb);
+		if (iocb->ki_eventfd && eventfd_signal_count()) {
+			iocb = NULL;
+			INIT_WORK(&req->work, aio_poll_put_work);
+			schedule_work(&req->work);
+		}
+		spin_unlock_irqrestore(&ctx->ctx_lock, flags);
+		if (iocb)
+			iocb_put(iocb);
 	} else {
 		schedule_work(&req->work);
 	}

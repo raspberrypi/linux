@@ -76,7 +76,7 @@ vc4_get_hang_state_ioctl(struct drm_device *dev, void *data,
 
 	if (!vc4->v3d) {
 		DRM_DEBUG("VC4_GET_HANG_STATE with no VC4 V3D probed\n");
-		return -EINVAL;
+		return -ENODEV;
 	}
 
 	spin_lock_irqsave(&vc4->job_lock, irqflags);
@@ -1131,7 +1131,7 @@ vc4_submit_cl_ioctl(struct drm_device *dev, void *data,
 
 	if (!vc4->v3d) {
 		DRM_DEBUG("VC4_SUBMIT_CL with no VC4 V3D probed\n");
-		return -EINVAL;
+		return -ENODEV;
 	}
 
 	if ((args->flags & ~(VC4_SUBMIT_CL_USE_CLEAR_COLOR |

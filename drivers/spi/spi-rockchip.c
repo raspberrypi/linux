@@ -22,7 +22,6 @@
 #include <linux/spi/spi.h>
 #include <linux/pm_runtime.h>
 #include <linux/scatterlist.h>
-#include <linux/interrupt.h>
 
 #define DRIVER_NAME "rockchip-spi"
 
@@ -445,6 +444,9 @@ static int rockchip_spi_prepare_dma(struct rockchip_spi *rs)
 	unsigned long flags;
 	struct dma_slave_config rxconf, txconf;
 	struct dma_async_tx_descriptor *rxdesc, *txdesc;
+
+	memset(&rxconf, 0, sizeof(rxconf));
+	memset(&txconf, 0, sizeof(txconf));
 
 	spin_lock_irqsave(&rs->lock, flags);
 	rs->state &= ~RXBUSY;

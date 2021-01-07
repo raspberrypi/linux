@@ -536,7 +536,8 @@ static struct bcm2835_desc *bcm2835_dma_create_cb_chain(
 
 		/* link this the last controlblock */
 		if (frame && c->is_40bit_channel)
-			d->cb_list[frame - 1].cb->next =
+			((struct bcm2838_dma40_scb *)
+			 d->cb_list[frame - 1].cb)->next_cb =
 				to_bcm2838_cbaddr(cb_entry->paddr);
 		if (frame && !c->is_40bit_channel)
 			d->cb_list[frame - 1].cb->next = cb_entry->paddr;
@@ -587,12 +588,13 @@ static void bcm2835_dma_fill_cb_chain_with_sg(
 	max_len = bcm2835_dma_max_frame_length(c);
 	for_each_sg(sgl, sgent, sg_len, i) {
 		if (c->is_40bit_channel) {
-			struct bcm2838_dma40_scb *scb =
-				(struct bcm2838_dma40_scb *)cb->cb;
+			struct bcm2838_dma40_scb *scb;
+
 			for (addr = sg_dma_address(sgent),
 				     len = sg_dma_len(sgent);
-			     len > 0;
-			     addr += scb->len, len -= scb->len, scb++) {
+				     len > 0;
+			     addr += scb->len, len -= scb->len, cb++) {
+				scb = (struct bcm2838_dma40_scb *)cb->cb;
 				if (direction == DMA_DEV_TO_MEM) {
 					scb->dst = lower_32_bits(addr);
 					scb->dsti = upper_32_bits(addr) | BCM2838_DMA40_INC;
@@ -700,9 +702,7 @@ static irqreturn_t bcm2835_dma_callback(int irq, void *data)
 	 * if this IRQ handler is threaded.) If the channel is finished, it
 	 * will remain idle despite the ACTIVE flag being set.
 	 */
-	writel(BCM2835_DMA_INT | BCM2835_DMA_ACTIVE |
-	       (c->is_40bit_channel ? BCM2838_DMA40_CS_FLAGS(c->dreq) :
-		BCM2835_DMA_CS_FLAGS(c->dreq)),
+	writel(BCM2835_DMA_INT | BCM2835_DMA_ACTIVE,
 	       c->chan_base + BCM2835_DMA_CS);
 
 	d = c->desc;
@@ -1187,8 +1187,10 @@ static int bcm2835_dma_probe(struct platform_device *pdev)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 
 	rc = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
-	if (rc)
+	if (rc) {
+		dev_err(&pdev->dev, "Unable to set DMA mask\n");
 		return rc;
+	}
 
 	od = devm_kzalloc(&pdev->dev, sizeof(*od), GFP_KERNEL);
 	if (!od)

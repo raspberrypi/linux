@@ -76,7 +76,7 @@ static int __written_first_block(struct f2fs_sb_info *sbi,
 	if (!__is_valid_data_blkaddr(addr))
 		return 1;
 	if (!f2fs_is_valid_blkaddr(sbi, addr, DATA_GENERIC))
-		return -EFAULT;
+		return -EFSCORRUPTED;
 	return 0;
 }
 
@@ -361,7 +361,7 @@ static int do_read_inode(struct inode *inode)
 
 	if (!sanity_check_inode(inode, node_page)) {
 		f2fs_put_page(node_page, 1);
-		return -EINVAL;
+		return -EFSCORRUPTED;
 	}
 
 	/* check data exist */
@@ -614,7 +614,11 @@ int f2fs_write_inode(struct inode *inode, struct writeback_control *wbc)
 			inode->i_ino == F2FS_META_INO(sbi))
 		return 0;
 
-	if (!is_inode_flag_set(inode, FI_DIRTY_INODE))
+	/*
+	 * atime could be updated without dirtying f2fs inode in lazytime mode
+	 */
+	if (f2fs_is_time_consistent(inode) &&
+		!is_inode_flag_set(inode, FI_DIRTY_INODE))
 		return 0;
 
 	/*

@@ -3841,15 +3841,28 @@ xfs_bmapi_read(
 	XFS_STATS_INC(mp, xs_blk_mapr);
 
 	ifp = XFS_IFORK_PTR(ip, whichfork);
+	if (!ifp) {
+		/* No CoW fork?  Return a hole. */
+		if (whichfork == XFS_COW_FORK) {
+			mval->br_startoff = bno;
+			mval->br_startblock = HOLESTARTBLOCK;
+			mval->br_blockcount = len;
+			mval->br_state = XFS_EXT_NORM;
+			*nmap = 1;
+			return 0;
+		}
 
-	/* No CoW fork?  Return a hole. */
-	if (whichfork == XFS_COW_FORK && !ifp) {
-		mval->br_startoff = bno;
-		mval->br_startblock = HOLESTARTBLOCK;
-		mval->br_blockcount = len;
-		mval->br_state = XFS_EXT_NORM;
-		*nmap = 1;
-		return 0;
+		/*
+		 * A missing attr ifork implies that the inode says we're in
+		 * extents or btree format but failed to pass the inode fork
+		 * verifier while trying to load it.  Treat that as a file
+		 * corruption too.
+		 */
+#ifdef DEBUG
+		xfs_alert(mp, "%s: inode %llu missing fork %d",
+				__func__, ip->i_ino, whichfork);
+#endif /* DEBUG */
+		return -EFSCORRUPTED;
 	}
 
 	if (!(ifp->if_flags & XFS_IFEXTENTS)) {
@@ -5226,7 +5239,7 @@ __xfs_bunmapi(
 		 * Make sure we don't touch multiple AGF headers out of order
 		 * in a single transaction, as that could cause AB-BA deadlocks.
 		 */
-		if (!wasdel) {
+		if (!wasdel && !isrt) {
 			agno = XFS_FSB_TO_AGNO(mp, del.br_startblock);
 			if (prev_agno != NULLAGNUMBER && prev_agno > agno)
 				break;

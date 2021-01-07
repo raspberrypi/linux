@@ -5,10 +5,10 @@
 #include "bcm283x-rpi-csi1-2lane.dtsi"
 
 / {
-	compatible = "raspberrypi,4-model-b", "brcm,bcm2838";
+	compatible = "raspberrypi,4-model-b", "brcm,bcm2711";
 	model = "Raspberry Pi 4 Model B";
 
-	memory {
+	memory@0 {
 		device_type = "memory";
 		reg = <0x0 0x0 0x0>;
 	};
@@ -30,16 +30,31 @@
 		/delete-property/ ethernet;
 		/delete-property/ intc;
 		ethernet0 = &genet;
+		pcie0 = &pcie_0;
+		emmc2bus = &emmc2bus;
 	};
 };
 
-&soc {
-	virtgpio: virtgpio {
-		compatible = "brcm,bcm2835-virtgpio";
-		gpio-controller;
-		#gpio-cells = <2>;
-		firmware = <&firmware>;
-		status = "okay";
+/delete-node/ &emmc2;
+
+/ {
+	emmc2bus: emmc2bus {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <1>;
+
+		ranges = <0x0 0x7e000000  0x0 0xfe000000  0x01800000>;
+		dma-ranges = <0x0 0xc0000000  0x0 0x00000000  0x3c000000>;
+
+		emmc2: emmc2@7e340000 {
+			compatible = "brcm,bcm2711-emmc2";
+			status = "okay";
+			interrupts = <GIC_SPI 126 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clocks BCM2711_CLOCK_EMMC2>;
+			reg = <0x0 0x7e340000 0x100>;
+			vqmmc-supply = <&sd_io_1v8_reg>;
+			broken-cd;
+		};
 	};
 };
 
@@ -121,6 +136,16 @@
 		states = <1800000 0x1
 			  3300000 0x0>;
 	};
+
+	sd_vcc_reg: sd_vcc_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-sd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		enable-active-high;
+		gpio = <&expgpio 6 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &sdhost {
@@ -131,6 +156,7 @@
 	status = "okay";
 	broken-cd;
 	vqmmc-supply = <&sd_io_1v8_reg>;
+	vmmc-supply = <&sd_vcc_reg>;
 };
 
 &leds {
@@ -334,5 +360,12 @@
 		pwr_led_gpio = <&pwr_led>,"gpios:4";
 		pwr_led_activelow = <&pwr_led>,"gpios:8";
 		pwr_led_trigger = <&pwr_led>,"linux,default-trigger";
+
+		eth_led0 = <&phy1>,"led-modes:0";
+		eth_led1 = <&phy1>,"led-modes:4";
+
+		sd_poll_once = <&emmc2>, "non-removable?";
+		spi_dma4 = <&spi0>, "dmas:0=", <&dma40>,
+			   <&spi0>, "dmas:8=", <&dma40>;
 	};
 };

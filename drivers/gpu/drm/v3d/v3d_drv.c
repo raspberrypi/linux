@@ -117,6 +117,9 @@ static int v3d_get_param_ioctl(struct drm_device *dev, void *data,
 	case DRM_V3D_PARAM_SUPPORTS_CSD:
 		args->value = v3d_has_csd(v3d);
 		return 0;
+	case DRM_V3D_PARAM_SUPPORTS_CACHE_FLUSH:
+		args->value = 1;
+		return 0;
 	default:
 		DRM_DEBUG("Unknown parameter %d\n", args->param);
 		return -EINVAL;
@@ -258,7 +261,7 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 	int ret;
 	u32 ident1;
 
-	dev->coherent_dma_mask = DMA_BIT_MASK(36);
+	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(36));
 
 	v3d = kzalloc(sizeof(*v3d), GFP_KERNEL);
 	if (!v3d)
@@ -297,10 +300,12 @@ static int v3d_platform_drm_probe(struct platform_device *pdev)
 		}
 	}
 
-	v3d->clk = devm_clk_get(dev, NULL);
-	if (IS_ERR(v3d->clk)) {
-		if (ret != -EPROBE_DEFER)
-			dev_err(dev, "Failed to get clock\n");
+	v3d->clk = devm_clk_get(dev, "v3d");
+	if (!v3d->clk)
+		v3d->clk = devm_clk_get(dev, NULL);
+	if (IS_ERR_OR_NULL(v3d->clk)) {
+		if (PTR_ERR(v3d->clk) != -EPROBE_DEFER)
+			dev_err(dev, "Failed to get clock (%ld)\n", PTR_ERR(v3d->clk));
 		goto dev_free;
 	}
 	v3d->clk_up_rate = clk_get_rate(v3d->clk);

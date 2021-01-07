@@ -311,10 +311,7 @@ static void serial_cleanup(struct tty_struct *tty)
 	serial = port->serial;
 	owner = serial->type->driver.owner;
 
-	mutex_lock(&serial->disc_mutex);
-	if (!serial->disconnected)
-		usb_autopm_put_interface(serial->interface);
-	mutex_unlock(&serial->disc_mutex);
+	usb_autopm_put_interface(serial->interface);
 
 	usb_serial_put(serial);
 	module_put(owner);
@@ -1296,6 +1293,9 @@ static int usb_serial_register(struct usb_serial_driver *driver)
 				driver->description);
 		return -EINVAL;
 	}
+
+	/* Prevent individual ports from being unbound. */
+	driver->driver.suppress_bind_attrs = true;
 
 	usb_serial_operations_init(driver);
 

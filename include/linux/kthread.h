@@ -4,6 +4,7 @@
 /* Simple interface for creating and stopping kernel threads without mess. */
 #include <linux/err.h>
 #include <linux/sched.h>
+#include <linux/cgroup.h>
 
 __printf(4, 5)
 struct task_struct *kthread_create_on_node(int (*threadfn)(void *data),
@@ -197,12 +198,14 @@ bool kthread_cancel_delayed_work_sync(struct kthread_delayed_work *work);
 
 void kthread_destroy_worker(struct kthread_worker *worker);
 
-extern struct kthread_worker kthread_global_worker;
-void kthread_init_global_worker(void);
-
-static inline bool kthread_schedule_work(struct kthread_work *work)
+#ifdef CONFIG_BLK_CGROUP
+void kthread_associate_blkcg(struct cgroup_subsys_state *css);
+struct cgroup_subsys_state *kthread_blkcg(void);
+#else
+static inline void kthread_associate_blkcg(struct cgroup_subsys_state *css) { }
+static inline struct cgroup_subsys_state *kthread_blkcg(void)
 {
-	return kthread_queue_work(&kthread_global_worker, work);
+	return NULL;
 }
-
+#endif
 #endif /* _LINUX_KTHREAD_H */

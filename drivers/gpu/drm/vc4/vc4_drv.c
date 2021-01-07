@@ -72,7 +72,7 @@ static int vc4_get_param_ioctl(struct drm_device *dev, void *data,
 		return -EINVAL;
 
 	if (!vc4->v3d)
-		return -EINVAL;
+		return -ENODEV;
 
 	switch (args->param) {
 	case DRM_VC4_PARAM_V3D_IDENT0:
@@ -284,11 +284,10 @@ static int vc4_drm_bind(struct device *dev)
 		return -ENOMEM;
 
 	/* If VC4 V3D is missing, don't advertise render nodes. */
-	node = of_find_compatible_node(NULL, NULL, "brcm,bcm2835-v3d");
-	if (node)
-		of_node_put(node);
-	else
+	node = of_find_matching_node_and_match(NULL, vc4_v3d_dt_match, NULL);
+	if (!node || !of_device_is_available(node))
 		vc4_drm_driver.driver_features &= ~DRIVER_RENDER;
+	of_node_put(node);
 
 	drm = drm_dev_alloc(&vc4_drm_driver, dev);
 	if (IS_ERR(drm))

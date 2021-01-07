@@ -500,6 +500,53 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 	}
 }
 
+/* The colorspace conversion matrices are held in 3 entries in the dlist.
+ * Create an array of them, with entries for each full and limited mode, and
+ * each supported colorspace.
+ */
+#define VC4_LIMITED_RANGE	0
+#define VC4_FULL_RANGE		1
+
+static const u32 colorspace_coeffs[2][DRM_COLOR_ENCODING_MAX][3] = {
+	{
+		/* Limited range */
+		{
+			/* BT601 */
+			SCALER_CSC0_ITR_R_601_5,
+			SCALER_CSC1_ITR_R_601_5,
+			SCALER_CSC2_ITR_R_601_5,
+		}, {
+			/* BT709 */
+			SCALER_CSC0_ITR_R_709_3,
+			SCALER_CSC1_ITR_R_709_3,
+			SCALER_CSC2_ITR_R_709_3,
+		}, {
+			/* BT2020. Not supported yet - copy 601 */
+			SCALER_CSC0_ITR_R_601_5,
+			SCALER_CSC1_ITR_R_601_5,
+			SCALER_CSC2_ITR_R_601_5,
+		}
+	}, {
+		/* Full range */
+		{
+			/* JFIF */
+			SCALER_CSC0_JPEG_JFIF,
+			SCALER_CSC1_JPEG_JFIF,
+			SCALER_CSC2_JPEG_JFIF,
+		}, {
+			/* BT709 */
+			SCALER_CSC0_ITR_R_709_3_FR,
+			SCALER_CSC1_ITR_R_709_3_FR,
+			SCALER_CSC2_ITR_R_709_3_FR,
+		}, {
+			/* BT2020. Not supported yet - copy JFIF */
+			SCALER_CSC0_JPEG_JFIF,
+			SCALER_CSC1_JPEG_JFIF,
+			SCALER_CSC2_JPEG_JFIF,
+		}
+	}
+};
+
 /* Writes out a full display list for an active plane to the plane's
  * private dlist state.
  */
@@ -513,7 +560,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	const struct hvs_format *format = vc4_get_hvs_format(fb->format->format);
 	u64 base_format_mod = fourcc_mod_broadcom_mod(fb->modifier);
 	int num_planes = drm_format_num_planes(format->drm);
+	bool hflip = false, vflip = false;
 	u32 h_subsample, v_subsample;
+	unsigned int rotation;
 	bool mix_plane_alpha;
 	bool covers_screen;
 	u32 scl0, scl1, pitch0;
@@ -521,10 +570,25 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	unsigned long irqflags;
 	u32 hvs_format = format->hvs;
 	int ret, i;
+	u32 src_y;
 
 	ret = vc4_plane_setup_clipping_and_scaling(state);
 	if (ret)
 		return ret;
+
+	rotation = drm_rotation_simplify(state->rotation,
+					 DRM_MODE_ROTATE_0 |
+					 DRM_MODE_REFLECT_X |
+					 DRM_MODE_REFLECT_Y);
+
+	if ((rotation & DRM_MODE_ROTATE_MASK) == DRM_MODE_ROTATE_180) {
+		hflip = true;
+		vflip = true;
+	}
+	if (rotation & DRM_MODE_REFLECT_X)
+		hflip ^= true;
+	if (rotation & DRM_MODE_REFLECT_Y)
+		vflip ^= true;
 
 	/* Allocate the LBM memory that the HVS will use for temporary
 	 * storage due to our scaling/format conversion.
@@ -562,6 +626,16 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	h_subsample = drm_format_horz_chroma_subsampling(format->drm);
 	v_subsample = drm_format_vert_chroma_subsampling(format->drm);
 
+	if (!vflip)
+		src_y = vc4_state->src_y;
+	else
+		/* When vflipped the image offset needs to be
+		 * the start of the last line of the image, and
+		 * the pitch will be subtracted from the offset.
+		 */
+		src_y = vc4_state->src_y +
+			vc4_state->src_h[0] - 1;
+
 	switch (base_format_mod) {
 	case DRM_FORMAT_MOD_LINEAR:
 		tiling = SCALER_CTL0_TILING_LINEAR;
@@ -571,12 +645,13 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		 * out.
 		 */
 		for (i = 0; i < num_planes; i++) {
-			vc4_state->offsets[i] += vc4_state->src_y /
+			vc4_state->offsets[i] += src_y /
 						 (i ? v_subsample : 1) *
 						 fb->pitches[i];
+
 			vc4_state->offsets[i] += vc4_state->src_x /
-						 (i ? h_subsample : 1) *
-						 fb->format->cpp[i];
+						(i ? h_subsample : 1) *
+						fb->format->cpp[i];
 		}
 
 		break;
@@ -604,11 +679,11 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		 * SCALER_PITCH0_TILE_Y_OFFSET tells HVS how to walk from that
 		 * base address).
 		 */
-		u32 tile_y = (vc4_state->src_y >> 4) & 1;
-		u32 subtile_y = (vc4_state->src_y >> 2) & 3;
-		u32 utile_y = vc4_state->src_y & 3;
+		u32 tile_y = (src_y >> 4) & 1;
+		u32 subtile_y = (src_y >> 2) & 3;
+		u32 utile_y = src_y & 3;
 		u32 x_off = vc4_state->src_x & tile_w_mask;
-		u32 y_off = vc4_state->src_y & tile_h_mask;
+		u32 y_off = src_y & tile_h_mask;
 
 		tiling = SCALER_CTL0_TILING_256B_OR_T;
 		pitch0 = (VC4_SET_FIELD(x_off, SCALER_PITCH0_SINK_PIX) |
@@ -637,6 +712,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	case DRM_FORMAT_MOD_BROADCOM_SAND128:
 	case DRM_FORMAT_MOD_BROADCOM_SAND256: {
 		uint32_t param = fourcc_mod_broadcom_param(fb->modifier);
+		u32 tile_w, tile, x_off, pix_per_tile;
 
 		/* Column-based NV12 or RGBA.
 		 */
@@ -656,12 +732,15 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		switch (base_format_mod) {
 		case DRM_FORMAT_MOD_BROADCOM_SAND64:
 			tiling = SCALER_CTL0_TILING_64B;
+			tile_w = 64;
 			break;
 		case DRM_FORMAT_MOD_BROADCOM_SAND128:
 			tiling = SCALER_CTL0_TILING_128B;
+			tile_w = 128;
 			break;
 		case DRM_FORMAT_MOD_BROADCOM_SAND256:
 			tiling = SCALER_CTL0_TILING_256B_OR_T;
+			tile_w = 256;
 			break;
 		default:
 			break;
@@ -670,6 +749,23 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		if (param > SCALER_TILE_HEIGHT_MASK) {
 			DRM_DEBUG_KMS("SAND height too large (%d)\n", param);
 			return -EINVAL;
+		}
+
+		pix_per_tile = tile_w / fb->format->cpp[0];
+		tile = vc4_state->src_x / pix_per_tile;
+		x_off = vc4_state->src_x % pix_per_tile;
+
+		/* Adjust the base pointer to the first pixel to be scanned
+		 * out.
+		 */
+		for (i = 0; i < num_planes; i++) {
+			vc4_state->offsets[i] += param * tile_w * tile;
+			vc4_state->offsets[i] += src_y /
+						 (i ? v_subsample : 1) *
+						 tile_w;
+			vc4_state->offsets[i] += x_off /
+						 (i ? h_subsample : 1) *
+						 fb->format->cpp[i];
 		}
 
 		pitch0 = VC4_SET_FIELD(param, SCALER_TILE_HEIGHT);
@@ -691,7 +787,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 			VC4_SET_FIELD(tiling, SCALER_CTL0_TILING) |
 			(vc4_state->is_unity ? SCALER_CTL0_UNITY : 0) |
 			VC4_SET_FIELD(scl0, SCALER_CTL0_SCL0) |
-			VC4_SET_FIELD(scl1, SCALER_CTL0_SCL1));
+			VC4_SET_FIELD(scl1, SCALER_CTL0_SCL1) |
+			(vflip ? SCALER_CTL0_VFLIP : 0) |
+			(hflip ? SCALER_CTL0_HFLIP : 0));
 
 	/* Position Word 0: Image Positions and Alpha Value */
 	vc4_state->pos0_offset = vc4_state->dlist_count;
@@ -760,9 +858,20 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 
 	/* Colorspace conversion words */
 	if (vc4_state->is_yuv) {
-		vc4_dlist_write(vc4_state, SCALER_CSC0_ITR_R_601_5);
-		vc4_dlist_write(vc4_state, SCALER_CSC1_ITR_R_601_5);
-		vc4_dlist_write(vc4_state, SCALER_CSC2_ITR_R_601_5);
+		enum drm_color_encoding color_encoding = state->color_encoding;
+		enum drm_color_range color_range = state->color_range;
+		const u32 *ccm;
+
+		if (color_encoding >= DRM_COLOR_ENCODING_MAX)
+			color_encoding = DRM_COLOR_YCBCR_BT601;
+		if (color_range >= DRM_COLOR_RANGE_MAX)
+			color_range = DRM_COLOR_YCBCR_LIMITED_RANGE;
+
+		ccm = colorspace_coeffs[color_range][color_encoding];
+
+		vc4_dlist_write(vc4_state, ccm[0]);
+		vc4_dlist_write(vc4_state, ccm[1]);
+		vc4_dlist_write(vc4_state, ccm[2]);
 	}
 
 	if (vc4_state->x_scaling[0] != VC4_SCALING_NONE ||
@@ -1115,6 +1224,20 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 	drm_plane_helper_add(plane, &vc4_plane_helper_funcs);
 
 	drm_plane_create_alpha_property(plane);
+
+	drm_plane_create_color_properties(plane,
+					  BIT(DRM_COLOR_YCBCR_BT601) |
+					  BIT(DRM_COLOR_YCBCR_BT709),
+					  BIT(DRM_COLOR_YCBCR_LIMITED_RANGE) |
+					  BIT(DRM_COLOR_YCBCR_FULL_RANGE),
+					  DRM_COLOR_YCBCR_BT709,
+					  DRM_COLOR_YCBCR_LIMITED_RANGE);
+
+	drm_plane_create_rotation_property(plane, DRM_MODE_ROTATE_0,
+					   DRM_MODE_ROTATE_0 |
+					   DRM_MODE_ROTATE_180 |
+					   DRM_MODE_REFLECT_X |
+					   DRM_MODE_REFLECT_Y);
 
 	return plane;
 }

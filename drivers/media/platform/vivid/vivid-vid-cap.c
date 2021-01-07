@@ -222,9 +222,6 @@ static int vid_cap_start_streaming(struct vb2_queue *vq, unsigned count)
 	if (vb2_is_streaming(&dev->vb_vid_out_q))
 		dev->can_loop_video = vivid_vid_can_loop(dev);
 
-	if (dev->kthread_vid_cap)
-		return 0;
-
 	dev->vid_cap_seq_count = 0;
 	dprintk(dev, 1, "%s\n", __func__);
 	for (i = 0; i < VIDEO_MAX_FRAME; i++)
@@ -1724,7 +1721,7 @@ int vidioc_s_edid(struct file *file, void *_fh,
 		return -E2BIG;
 	}
 	phys_addr = cec_get_edid_phys_addr(edid->edid, edid->blocks * 128, NULL);
-	ret = cec_phys_addr_validate(phys_addr, &phys_addr, NULL);
+	ret = v4l2_phys_addr_validate(phys_addr, &phys_addr, NULL);
 	if (ret)
 		return ret;
 
@@ -1740,7 +1737,7 @@ set_phys_addr:
 
 	for (i = 0; i < MAX_OUTPUTS && dev->cec_tx_adap[i]; i++)
 		cec_s_phys_addr(dev->cec_tx_adap[i],
-				cec_phys_addr_for_input(phys_addr, i + 1),
+				v4l2_phys_addr_for_input(phys_addr, i + 1),
 				false);
 	return 0;
 }

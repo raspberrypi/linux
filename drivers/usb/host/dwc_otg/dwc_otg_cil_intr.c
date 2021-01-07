@@ -1336,8 +1336,8 @@ static inline uint32_t dwc_otg_read_common_intr(dwc_otg_core_if_t * core_if, gin
 #ifdef CONFIG_USB_DWC_OTG_LPM
 	gintmsk_common.b.lpmtranrcvd = 1;
 #endif
-	unsigned long flags;
 	gintmsk_common.b.restoredone = 1;
+	unsigned long flags;
 	if(dwc_otg_is_device_mode(core_if))
 	{
 		/** @todo: The port interrupt occurs while in device

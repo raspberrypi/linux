@@ -814,11 +814,9 @@ __acquires(&uap->port.lock)
 	if (!uap->using_tx_dma)
 		return;
 
-	/* Avoid deadlock with the DMA engine callback */
 	uap->irq_locked = 0;
-	spin_unlock(&uap->port.lock);
-	dmaengine_terminate_all(uap->dmatx.chan);
-	spin_lock(&uap->port.lock);
+	dmaengine_terminate_async(uap->dmatx.chan);
+
 	if (uap->dmatx.queued) {
 		dma_unmap_sg(uap->dmatx.chan->device->dev, &uap->dmatx.sg, 1,
 			     DMA_TO_DEVICE);
@@ -1325,6 +1323,32 @@ static void pl011_start_tx(struct uart_port *port)
 		pl011_start_tx_pio(uap);
 }
 
+static void pl011_throttle(struct uart_port *port)
+{
+	struct uart_amba_port *uap =
+	    container_of(port, struct uart_amba_port, port);
+	unsigned long flags;
+
+	spin_lock_irqsave(&uap->port.lock, flags);
+	uap->im &= ~(UART011_RTIM | UART011_RXIM);
+	pl011_write(uap->im, uap, REG_IMSC);
+	spin_unlock_irqrestore(&uap->port.lock, flags);
+}
+
+static void pl011_unthrottle(struct uart_port *port)
+{
+	struct uart_amba_port *uap =
+	    container_of(port, struct uart_amba_port, port);
+	unsigned long flags;
+
+	spin_lock_irqsave(&uap->port.lock, flags);
+	uap->im |= UART011_RTIM;
+	if (!pl011_dma_rx_running(uap))
+	    uap->im |= UART011_RXIM;
+	pl011_write(uap->im, uap, REG_IMSC);
+	spin_unlock_irqrestore(&uap->port.lock, flags);
+}
+
 static void pl011_stop_rx(struct uart_port *port)
 {
 	struct uart_amba_port *uap =
@@ -1418,6 +1442,10 @@ static bool pl011_tx_chars(struct uart_amba_port *uap, bool from_irq)
 
 	do {
 		if (likely(from_irq) && count-- == 0)
+			break;
+
+		if (likely(from_irq) && count == 0 &&
+		    pl011_read(uap, REG_FR) & UART01x_FR_TXFF)
 			break;
 
 		if (!pl011_tx_char(uap, xmit->buf[xmit->tail], from_irq))
@@ -2167,6 +2195,8 @@ static const struct uart_ops amba_pl011_pops = {
 	.stop_tx	= pl011_stop_tx,
 	.start_tx	= pl011_start_tx,
 	.stop_rx	= pl011_stop_rx,
+	.throttle	= pl011_throttle,
+	.unthrottle	= pl011_unthrottle,
 	.enable_ms	= pl011_enable_ms,
 	.break_ctl	= pl011_break_ctl,
 	.startup	= pl011_startup,

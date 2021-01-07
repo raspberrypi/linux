@@ -310,6 +310,7 @@ static const struct kfd_deviceid supported_devices[] = {
 	{ 0x67CF, &polaris10_device_info },	/* Polaris10 */
 	{ 0x67D0, &polaris10_vf_device_info },	/* Polaris10 vf*/
 	{ 0x67DF, &polaris10_device_info },	/* Polaris10 */
+	{ 0x6FDF, &polaris10_device_info },	/* Polaris10 */
 	{ 0x67E0, &polaris11_device_info },	/* Polaris11 */
 	{ 0x67E1, &polaris11_device_info },	/* Polaris11 */
 	{ 0x67E3, &polaris11_device_info },	/* Polaris11 */
@@ -920,9 +921,9 @@ kfd_gtt_out:
 	return 0;
 
 kfd_gtt_no_free_chunk:
-	pr_debug("Allocation failed with mem_obj = %p\n", mem_obj);
+	pr_debug("Allocation failed with mem_obj = %p\n", *mem_obj);
 	mutex_unlock(&kfd->gtt_sa_lock);
-	kfree(mem_obj);
+	kfree(*mem_obj);
 	return -ENOMEM;
 }
 

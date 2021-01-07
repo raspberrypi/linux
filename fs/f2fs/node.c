@@ -40,7 +40,7 @@ int f2fs_check_nid_range(struct f2fs_sb_info *sbi, nid_t nid)
 		f2fs_msg(sbi->sb, KERN_WARNING,
 				"%s: out-of-range nid=%x, run fsck to fix.",
 				__func__, nid);
-		return -EINVAL;
+		return -EFSCORRUPTED;
 	}
 	return 0;
 }
@@ -1284,7 +1284,7 @@ static int read_node_page(struct page *page, int op_flags)
 	if (PageUptodate(page)) {
 		if (!f2fs_inode_chksum_verify(sbi, page)) {
 			ClearPageUptodate(page);
-			return -EBADMSG;
+			return -EFSBADCRC;
 		}
 		return LOCKED_PAGE;
 	}
@@ -1370,7 +1370,7 @@ repeat:
 	}
 
 	if (!f2fs_inode_chksum_verify(sbi, page)) {
-		err = -EBADMSG;
+		err = -EFSBADCRC;
 		goto out_err;
 	}
 page_hit:
@@ -1559,14 +1559,15 @@ static int __write_node_page(struct page *page, bool atomic, bool *submitted,
 	if (atomic && !test_opt(sbi, NOBARRIER))
 		fio.op_flags |= REQ_PREFLUSH | REQ_FUA;
 
-	set_page_writeback(page);
-	ClearPageError(page);
-
+	/* should add to global list before clearing PAGECACHE status */
 	if (f2fs_in_warm_node_list(sbi, page)) {
 		seq = f2fs_add_fsync_node_entry(sbi, page);
 		if (seq_id)
 			*seq_id = seq;
 	}
+
+	set_page_writeback(page);
+	ClearPageError(page);
 
 	fio.old_blkaddr = ni.blk_addr;
 	f2fs_do_write_node_page(nid, &fio);
@@ -2367,8 +2368,9 @@ retry:
 	spin_unlock(&nm_i->nid_list_lock);
 
 	/* Let's scan nat pages and its caches to get free nids */
-	f2fs_build_free_nids(sbi, true, false);
-	goto retry;
+	if (!f2fs_build_free_nids(sbi, true, false))
+		goto retry;
+	return false;
 }
 
 /*

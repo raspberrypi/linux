@@ -188,8 +188,7 @@ struct bpf_call_arg_meta {
 	bool pkt_access;
 	int regno;
 	int access_size;
-	s64 msize_smax_value;
-	u64 msize_umax_value;
+	u64 msize_max_value;
 };
 
 static DEFINE_MUTEX(bpf_verifier_lock);
@@ -1253,7 +1252,7 @@ static int check_stack_access(struct bpf_verifier_env *env,
 		char tn_buf[48];
 
 		tnum_strn(tn_buf, sizeof(tn_buf), reg->var_off);
-		verbose(env, "variable stack access var_off=%s off=%d size=%d",
+		verbose(env, "variable stack access var_off=%s off=%d size=%d\n",
 			tn_buf, off, size);
 		return -EACCES;
 	}
@@ -2076,8 +2075,7 @@ static int check_func_arg(struct bpf_verifier_env *env, u32 regno,
 		/* remember the mem_size which may be used later
 		 * to refine return values.
 		 */
-		meta->msize_smax_value = reg->smax_value;
-		meta->msize_umax_value = reg->umax_value;
+		meta->msize_max_value = reg->umax_value;
 
 		/* The register is SCALAR_VALUE; the access check
 		 * happens using its boundaries.
@@ -2448,21 +2446,44 @@ static int prepare_func_exit(struct bpf_verifier_env *env, int *insn_idx)
 	return 0;
 }
 
-static void do_refine_retval_range(struct bpf_reg_state *regs, int ret_type,
-				   int func_id,
-				   struct bpf_call_arg_meta *meta)
+static int do_refine_retval_range(struct bpf_verifier_env *env,
+				  struct bpf_reg_state *regs, int ret_type,
+				  int func_id, struct bpf_call_arg_meta *meta)
 {
 	struct bpf_reg_state *ret_reg = &regs[BPF_REG_0];
+	struct bpf_reg_state tmp_reg = *ret_reg;
+	bool ret;
 
 	if (ret_type != RET_INTEGER ||
 	    (func_id != BPF_FUNC_get_stack &&
 	     func_id != BPF_FUNC_probe_read_str))
-		return;
+		return 0;
 
-	ret_reg->smax_value = meta->msize_smax_value;
-	ret_reg->umax_value = meta->msize_umax_value;
+	/* Error case where ret is in interval [S32MIN, -1]. */
+	ret_reg->smin_value = S32_MIN;
+	ret_reg->smax_value = -1;
+
 	__reg_deduce_bounds(ret_reg);
 	__reg_bound_offset(ret_reg);
+	__update_reg_bounds(ret_reg);
+
+	ret = push_stack(env, env->insn_idx + 1, env->insn_idx, false);
+	if (!ret)
+		return -EFAULT;
+
+	*ret_reg = tmp_reg;
+
+	/* Success case where ret is in range [0, msize_max_value]. */
+	ret_reg->smin_value = 0;
+	ret_reg->smax_value = meta->msize_max_value;
+	ret_reg->umin_value = ret_reg->smin_value;
+	ret_reg->umax_value = ret_reg->smax_value;
+
+	__reg_deduce_bounds(ret_reg);
+	__reg_bound_offset(ret_reg);
+	__update_reg_bounds(ret_reg);
+
+	return 0;
 }
 
 static int
@@ -2617,7 +2638,9 @@ static int check_helper_call(struct bpf_verifier_env *env, int func_id, int insn
 		return -EINVAL;
 	}
 
-	do_refine_retval_range(regs, fn->ret_type, func_id, &meta);
+	err = do_refine_retval_range(env, regs, fn->ret_type, func_id, &meta);
+	if (err)
+		return err;
 
 	err = check_map_func_compatibility(env, meta.map_ptr, func_id);
 	if (err)
@@ -3309,9 +3332,16 @@ static int adjust_scalar_min_max_vals(struct bpf_verifier_env *env,
 		/* Upon reaching here, src_known is true and
 		 * umax_val is equal to umin_val.
 		 */
-		dst_reg->smin_value >>= umin_val;
-		dst_reg->smax_value >>= umin_val;
-		dst_reg->var_off = tnum_arshift(dst_reg->var_off, umin_val);
+		if (insn_bitness == 32) {
+			dst_reg->smin_value = (u32)(((s32)dst_reg->smin_value) >> umin_val);
+			dst_reg->smax_value = (u32)(((s32)dst_reg->smax_value) >> umin_val);
+		} else {
+			dst_reg->smin_value >>= umin_val;
+			dst_reg->smax_value >>= umin_val;
+		}
+
+		dst_reg->var_off = tnum_arshift(dst_reg->var_off, umin_val,
+						insn_bitness);
 
 		/* blow away the dst_reg umin_value/umax_value and rely on
 		 * dst_reg var_off to refine the result.
@@ -4272,6 +4302,7 @@ static bool may_access_skb(enum bpf_prog_type type)
 static int check_ld_abs(struct bpf_verifier_env *env, struct bpf_insn *insn)
 {
 	struct bpf_reg_state *regs = cur_regs(env);
+	static const int ctx_reg = BPF_REG_6;
 	u8 mode = BPF_MODE(insn->code);
 	int i, err;
 
@@ -4305,11 +4336,11 @@ static int check_ld_abs(struct bpf_verifier_env *env, struct bpf_insn *insn)
 	}
 
 	/* check whether implicit source operand (register R6) is readable */
-	err = check_reg_arg(env, BPF_REG_6, SRC_OP);
+	err = check_reg_arg(env, ctx_reg, SRC_OP);
 	if (err)
 		return err;
 
-	if (regs[BPF_REG_6].type != PTR_TO_CTX) {
+	if (regs[ctx_reg].type != PTR_TO_CTX) {
 		verbose(env,
 			"at the time of BPF_LD_ABS|IND R6 != pointer to skb\n");
 		return -EINVAL;
@@ -4321,6 +4352,10 @@ static int check_ld_abs(struct bpf_verifier_env *env, struct bpf_insn *insn)
 		if (err)
 			return err;
 	}
+
+	err = check_ctx_reg(env, &regs[ctx_reg], ctx_reg);
+	if (err < 0)
+		return err;
 
 	/* reset caller saved regs to unreadable */
 	for (i = 0; i < CALLER_SAVED_REGS; i++) {

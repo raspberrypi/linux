@@ -148,8 +148,9 @@ __cached_rbnode_delete_update(struct iova_domain *iovad, struct iova *free)
 	struct iova *cached_iova;
 
 	cached_iova = rb_entry(iovad->cached32_node, struct iova, node);
-	if (free->pfn_hi < iovad->dma_32bit_pfn &&
-	    free->pfn_lo >= cached_iova->pfn_lo)
+	if (free == cached_iova ||
+	    (free->pfn_hi < iovad->dma_32bit_pfn &&
+	     free->pfn_lo >= cached_iova->pfn_lo))
 		iovad->cached32_node = rb_next(&free->node);
 
 	cached_iova = rb_entry(iovad->cached_node, struct iova, node);
@@ -235,7 +236,7 @@ static DEFINE_MUTEX(iova_cache_mutex);
 
 struct iova *alloc_iova_mem(void)
 {
-	return kmem_cache_alloc(iova_cache, GFP_ATOMIC);
+	return kmem_cache_zalloc(iova_cache, GFP_ATOMIC);
 }
 EXPORT_SYMBOL(alloc_iova_mem);
 
@@ -579,7 +580,9 @@ void queue_iova(struct iova_domain *iovad,
 
 	spin_unlock_irqrestore(&fq->lock, flags);
 
-	if (atomic_cmpxchg(&iovad->fq_timer_on, 0, 1) == 0)
+	/* Avoid false sharing as much as possible. */
+	if (!atomic_read(&iovad->fq_timer_on) &&
+	    !atomic_cmpxchg(&iovad->fq_timer_on, 0, 1))
 		mod_timer(&iovad->fq_timer,
 			  jiffies + msecs_to_jiffies(IOVA_FQ_TIMEOUT));
 }

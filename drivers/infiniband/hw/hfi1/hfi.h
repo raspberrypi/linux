@@ -1093,6 +1093,8 @@ struct hfi1_devdata {
 
 	char *boardname; /* human readable board info */
 
+	u64 ctx0_seq_drop;
+
 	/* reset value */
 	u64 z_int_counter;
 	u64 z_rcv_limit;
@@ -1376,10 +1378,13 @@ struct mmu_rb_handler;
 
 /* Private data for file operations */
 struct hfi1_filedata {
+	struct srcu_struct pq_srcu;
 	struct hfi1_devdata *dd;
 	struct hfi1_ctxtdata *uctxt;
 	struct hfi1_user_sdma_comp_q *cq;
-	struct hfi1_user_sdma_pkt_q *pq;
+	/* update side lock for SRCU */
+	spinlock_t pq_rcu_lock;
+	struct hfi1_user_sdma_pkt_q __rcu *pq;
 	u16 subctxt;
 	/* for cpu affinity; -1 if none */
 	int rec_cpu_num;
@@ -1797,13 +1802,20 @@ static inline struct hfi1_ibport *rcd_to_iport(struct hfi1_ctxtdata *rcd)
 	return &rcd->ppd->ibport_data;
 }
 
-void hfi1_process_ecn_slowpath(struct rvt_qp *qp, struct hfi1_packet *pkt,
-			       bool do_cnp);
-static inline bool process_ecn(struct rvt_qp *qp, struct hfi1_packet *pkt,
-			       bool do_cnp)
+/**
+ * hfi1_may_ecn - Check whether FECN or BECN processing should be done
+ * @pkt: the packet to be evaluated
+ *
+ * Check whether the FECN or BECN bits in the packet's header are
+ * enabled, depending on packet type.
+ *
+ * This function only checks for FECN and BECN bits. Additional checks
+ * are done in the slowpath (hfi1_process_ecn_slowpath()) in order to
+ * ensure correct handling.
+ */
+static inline bool hfi1_may_ecn(struct hfi1_packet *pkt)
 {
-	bool becn;
-	bool fecn;
+	bool fecn, becn;
 
 	if (pkt->etype == RHF_RCV_TYPE_BYPASS) {
 		fecn = hfi1_16B_get_fecn(pkt->hdr);
@@ -1812,10 +1824,18 @@ static inline bool process_ecn(struct rvt_qp *qp, struct hfi1_packet *pkt,
 		fecn = ib_bth_get_fecn(pkt->ohdr);
 		becn = ib_bth_get_becn(pkt->ohdr);
 	}
-	if (unlikely(fecn || becn)) {
-		hfi1_process_ecn_slowpath(qp, pkt, do_cnp);
-		return fecn;
-	}
+	return fecn || becn;
+}
+
+bool hfi1_process_ecn_slowpath(struct rvt_qp *qp, struct hfi1_packet *pkt,
+			       bool prescan);
+static inline bool process_ecn(struct rvt_qp *qp, struct hfi1_packet *pkt)
+{
+	bool do_work;
+
+	do_work = hfi1_may_ecn(pkt);
+	if (unlikely(do_work))
+		return hfi1_process_ecn_slowpath(qp, pkt, false);
 	return false;
 }
 

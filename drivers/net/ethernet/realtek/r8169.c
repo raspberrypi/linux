@@ -1010,6 +1010,10 @@ static int r8168dp_2_mdio_read(struct rtl8169_private *tp, int reg)
 {
 	int value;
 
+	/* Work around issue with chip reporting wrong PHY ID */
+	if (reg == MII_PHYSID2)
+		return 0xc912;
+
 	r8168dp_2_mdio_start(tp);
 
 	value = r8169_mdio_read(tp, reg);
@@ -7245,7 +7249,7 @@ static int rtl_alloc_irq(struct rtl8169_private *tp)
 		RTL_W8(tp, Config2, RTL_R8(tp, Config2) & ~MSIEnable);
 		RTL_W8(tp, Cfg9346, Cfg9346_Lock);
 		/* fall through */
-	case RTL_GIGA_MAC_VER_07 ... RTL_GIGA_MAC_VER_24:
+	case RTL_GIGA_MAC_VER_07 ... RTL_GIGA_MAC_VER_17:
 		flags = PCI_IRQ_LEGACY;
 		break;
 	default:

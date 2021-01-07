@@ -313,7 +313,7 @@ int dev_pm_opp_get_opp_count(struct device *dev)
 		count = PTR_ERR(opp_table);
 		dev_dbg(dev, "%s: OPP table not found (%d)\n",
 			__func__, count);
-		return 0;
+		return count;
 	}
 
 	count = _get_opp_count(opp_table);
@@ -793,6 +793,9 @@ static struct opp_table *_allocate_opp_table(struct device *dev)
 
 	INIT_LIST_HEAD(&opp_table->dev_list);
 
+	/* Mark regulator count uninitialized */
+	opp_table->regulator_count = -1;
+
 	opp_dev = _add_opp_dev(dev, opp_table);
 	if (!opp_dev) {
 		kfree(opp_table);
@@ -881,11 +884,9 @@ void _opp_free(struct dev_pm_opp *opp)
 	kfree(opp);
 }
 
-static void _opp_kref_release(struct kref *kref)
+static void _opp_kref_release(struct dev_pm_opp *opp,
+			      struct opp_table *opp_table)
 {
-	struct dev_pm_opp *opp = container_of(kref, struct dev_pm_opp, kref);
-	struct opp_table *opp_table = opp->opp_table;
-
 	/*
 	 * Notify the changes in the availability of the operable
 	 * frequency/voltage list.
@@ -894,7 +895,22 @@ static void _opp_kref_release(struct kref *kref)
 	opp_debug_remove_one(opp);
 	list_del(&opp->node);
 	kfree(opp);
+}
 
+static void _opp_kref_release_unlocked(struct kref *kref)
+{
+	struct dev_pm_opp *opp = container_of(kref, struct dev_pm_opp, kref);
+	struct opp_table *opp_table = opp->opp_table;
+
+	_opp_kref_release(opp, opp_table);
+}
+
+static void _opp_kref_release_locked(struct kref *kref)
+{
+	struct dev_pm_opp *opp = container_of(kref, struct dev_pm_opp, kref);
+	struct opp_table *opp_table = opp->opp_table;
+
+	_opp_kref_release(opp, opp_table);
 	mutex_unlock(&opp_table->lock);
 	dev_pm_opp_put_opp_table(opp_table);
 }
@@ -906,9 +922,15 @@ void dev_pm_opp_get(struct dev_pm_opp *opp)
 
 void dev_pm_opp_put(struct dev_pm_opp *opp)
 {
-	kref_put_mutex(&opp->kref, _opp_kref_release, &opp->opp_table->lock);
+	kref_put_mutex(&opp->kref, _opp_kref_release_locked,
+		       &opp->opp_table->lock);
 }
 EXPORT_SYMBOL_GPL(dev_pm_opp_put);
+
+static void dev_pm_opp_put_unlocked(struct dev_pm_opp *opp)
+{
+	kref_put(&opp->kref, _opp_kref_release_unlocked);
+}
 
 /**
  * dev_pm_opp_remove()  - Remove an OPP from OPP table
@@ -949,13 +971,47 @@ void dev_pm_opp_remove(struct device *dev, unsigned long freq)
 }
 EXPORT_SYMBOL_GPL(dev_pm_opp_remove);
 
+/**
+ * dev_pm_opp_remove_all_dynamic() - Remove all dynamically created OPPs
+ * @dev:	device for which we do this operation
+ *
+ * This function removes all dynamically created OPPs from the opp table.
+ */
+void dev_pm_opp_remove_all_dynamic(struct device *dev)
+{
+	struct opp_table *opp_table;
+	struct dev_pm_opp *opp, *temp;
+	int count = 0;
+
+	opp_table = _find_opp_table(dev);
+	if (IS_ERR(opp_table))
+		return;
+
+	mutex_lock(&opp_table->lock);
+	list_for_each_entry_safe(opp, temp, &opp_table->opp_list, node) {
+		if (opp->dynamic) {
+			dev_pm_opp_put_unlocked(opp);
+			count++;
+		}
+	}
+	mutex_unlock(&opp_table->lock);
+
+	/* Drop the references taken by dev_pm_opp_add() */
+	while (count--)
+		dev_pm_opp_put_opp_table(opp_table);
+
+	/* Drop the reference taken by _find_opp_table() */
+	dev_pm_opp_put_opp_table(opp_table);
+}
+EXPORT_SYMBOL_GPL(dev_pm_opp_remove_all_dynamic);
+
 struct dev_pm_opp *_opp_allocate(struct opp_table *table)
 {
 	struct dev_pm_opp *opp;
 	int count, supply_size;
 
 	/* Allocate space for at least one supply */
-	count = table->regulator_count ? table->regulator_count : 1;
+	count = table->regulator_count > 0 ? table->regulator_count : 1;
 	supply_size = sizeof(*opp->supplies) * count;
 
 	/* allocate new OPP node and supplies structures */
@@ -1363,7 +1419,7 @@ free_regulators:
 
 	kfree(opp_table->regulators);
 	opp_table->regulators = NULL;
-	opp_table->regulator_count = 0;
+	opp_table->regulator_count = -1;
 err:
 	dev_pm_opp_put_opp_table(opp_table);
 
@@ -1392,7 +1448,7 @@ void dev_pm_opp_put_regulators(struct opp_table *opp_table)
 
 	kfree(opp_table->regulators);
 	opp_table->regulators = NULL;
-	opp_table->regulator_count = 0;
+	opp_table->regulator_count = -1;
 
 put_opp_table:
 	dev_pm_opp_put_opp_table(opp_table);
@@ -1544,6 +1600,9 @@ int dev_pm_opp_add(struct device *dev, unsigned long freq, unsigned long u_volt)
 	opp_table = dev_pm_opp_get_opp_table(dev);
 	if (!opp_table)
 		return -ENOMEM;
+
+	/* Fix regulator count for dynamic OPPs */
+	opp_table->regulator_count = 1;
 
 	ret = _opp_add_v1(opp_table, dev, freq, u_volt, true);
 

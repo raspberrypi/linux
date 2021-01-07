@@ -3,7 +3,7 @@
 #include "bcm2835-rpi.dtsi"
 
 / {
-	memory {
+	memory@0 {
 		device_type = "memory";
 		reg = <0x0 0x0>;
 	};
@@ -92,6 +92,7 @@
 		watchdog = <&watchdog>,"status";
 		random = <&random>,"status";
 		sd_overclock = <&sdhost>,"brcm,overclock-50:0";
+		sd_poll_once = <&sdhost>,"non-removable?";
 		sd_force_pio = <&sdhost>,"brcm,force-pio?";
 		sd_pio_limit = <&sdhost>,"brcm,pio-limit:0";
 		sd_debug     = <&sdhost>,"brcm,debug";
@@ -102,6 +103,7 @@
 };
 
 &hdmi {
+	power-domains = <&power RPI_POWER_DOMAIN_HDMI>;
 	status = "disabled";
 };
 
@@ -125,13 +127,23 @@
 	firmware = <&firmware>;
 };
 
+&sdhci {
+	pinctrl-names = "default";
+	pinctrl-0 = <&emmc_gpio48>;
+	bus-width = <4>;
+};
+
 sdhost_pins: &sdhost_gpio48 {
 	/* Add alias */
 };
 
 &sdhost {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdhost_gpio48>;
+	bus-width = <4>;
 	brcm,overclock-50 = <0>;
 	brcm,pio-limit = <1>;
+	status = "okay";
 };
 
 &cpu_thermal {

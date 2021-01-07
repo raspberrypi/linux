@@ -109,7 +109,7 @@ int vc4_perfmon_create_ioctl(struct drm_device *dev, void *data,
 
 	if (!vc4->v3d) {
 		DRM_DEBUG("Creating perfmon no VC4 V3D probed\n");
-		return -EINVAL;
+		return -ENODEV;
 	}
 
 	/* Number of monitored counters cannot exceed HW limits. */
@@ -159,7 +159,7 @@ int vc4_perfmon_destroy_ioctl(struct drm_device *dev, void *data,
 
 	if (!vc4->v3d) {
 		DRM_DEBUG("Destroying perfmon no VC4 V3D probed\n");
-		return -EINVAL;
+		return -ENODEV;
 	}
 
 	mutex_lock(&vc4file->perfmon.lock);
@@ -184,7 +184,7 @@ int vc4_perfmon_get_values_ioctl(struct drm_device *dev, void *data,
 
 	if (!vc4->v3d) {
 		DRM_DEBUG("Getting perfmon no VC4 V3D probed\n");
-		return -EINVAL;
+		return -ENODEV;
 	}
 
 	mutex_lock(&vc4file->perfmon.lock);

@@ -13,7 +13,6 @@
 #include <linux/hrtimer.h>
 #include <linux/kref.h>
 #include <linux/workqueue.h>
-#include <linux/kthread.h>
 
 #include <linux/atomic.h>
 #include <asm/ptrace.h>
@@ -239,11 +238,7 @@ extern void resume_device_irqs(void);
 struct irq_affinity_notify {
 	unsigned int irq;
 	struct kref kref;
-#ifdef CONFIG_PREEMPT_RT_BASE
-	struct kthread_work work;
-#else
 	struct work_struct work;
-#endif
 	void (*notify)(struct irq_affinity_notify *, const cpumask_t *mask);
 	void (*release)(struct kref *ref);
 };
@@ -584,12 +579,15 @@ enum
 {
 	TASKLET_STATE_SCHED,	/* Tasklet is scheduled for execution */
 	TASKLET_STATE_RUN,	/* Tasklet is running (SMP only) */
-	TASKLET_STATE_PENDING	/* Tasklet is pending */
+	TASKLET_STATE_PENDING,	/* Tasklet is pending */
+	TASKLET_STATE_CHAINED	/* Tasklet is chained */
 };
 
 #define TASKLET_STATEF_SCHED	(1 << TASKLET_STATE_SCHED)
 #define TASKLET_STATEF_RUN	(1 << TASKLET_STATE_RUN)
 #define TASKLET_STATEF_PENDING	(1 << TASKLET_STATE_PENDING)
+#define TASKLET_STATEF_CHAINED	(1 << TASKLET_STATE_CHAINED)
+#define TASKLET_STATEF_RC	(TASKLET_STATEF_RUN | TASKLET_STATEF_CHAINED)
 
 #if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT_RT_FULL)
 static inline int tasklet_trylock(struct tasklet_struct *t)

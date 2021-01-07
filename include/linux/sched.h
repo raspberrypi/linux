@@ -227,6 +227,8 @@ extern void io_schedule_finish(int token);
 extern long io_schedule_timeout(long timeout);
 extern void io_schedule(void);
 
+int cpu_nr_pinned(int cpu);
+
 /**
  * struct prev_cputime - snapshot of system and user cputime
  * @utime: time spent in user mode
@@ -670,16 +672,13 @@ struct task_struct {
 	cpumask_t			cpus_mask;
 #if defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
 	int				migrate_disable;
-	int				migrate_disable_update;
-	int				pinned_on_cpu;
+	bool				migrate_disable_scheduled;
 # ifdef CONFIG_SCHED_DEBUG
-	int				migrate_disable_atomic;
+	int				pinned_on_cpu;
 # endif
-
 #elif !defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
 # ifdef CONFIG_SCHED_DEBUG
 	int				migrate_disable;
-	int				migrate_disable_atomic;
 # endif
 #endif
 #ifdef CONFIG_PREEMPT_RT_FULL
@@ -920,8 +919,8 @@ struct task_struct {
 	struct seccomp			seccomp;
 
 	/* Thread group tracking: */
-	u32				parent_exec_id;
-	u32				self_exec_id;
+	u64				parent_exec_id;
+	u64				self_exec_id;
 
 	/* Protection against (de-)allocation: mm, files, fs, tty, keyrings, mems_allowed, mempolicy: */
 	spinlock_t			alloc_lock;
@@ -1993,11 +1992,11 @@ static inline void rseq_migrate(struct task_struct *t)
 
 /*
  * If parent process has a registered restartable sequences area, the
- * child inherits. Only applies when forking a process, not a thread.
+ * child inherits. Unregister rseq for a clone with CLONE_VM set.
  */
 static inline void rseq_fork(struct task_struct *t, unsigned long clone_flags)
 {
-	if (clone_flags & CLONE_THREAD) {
+	if (clone_flags & CLONE_VM) {
 		t->rseq = NULL;
 		t->rseq_len = 0;
 		t->rseq_sig = 0;
@@ -2057,5 +2056,7 @@ static inline void rseq_syscall(struct pt_regs *regs)
 }
 
 #endif
+
+extern struct task_struct *takedown_cpu_task;
 
 #endif

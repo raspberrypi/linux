@@ -1,6 +1,6 @@
 /*
  * Pisound Linux kernel module.
- * Copyright (C) 2016-2019  Vilniaus Blokas UAB, https://blokas.io/pisound
+ * Copyright (C) 2016-2020  Vilniaus Blokas UAB, https://blokas.io/pisound
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -51,7 +51,8 @@ static void pisnd_spi_set_callback(pisnd_spi_recv_cb cb, void *data);
 
 static const char *pisnd_spi_get_serial(void);
 static const char *pisnd_spi_get_id(void);
-static const char *pisnd_spi_get_version(void);
+static const char *pisnd_spi_get_fw_version(void);
+static const char *pisnd_spi_get_hw_version(void);
 
 static int pisnd_midi_init(struct snd_card *card);
 static void pisnd_midi_uninit(void);
@@ -222,7 +223,9 @@ static pisnd_spi_recv_cb g_recvCallback;
 
 static char g_serial_num[11];
 static char g_id[25];
-static char g_version[5];
+enum { MAX_VERSION_STR_LEN = 6 };
+static char g_fw_version[MAX_VERSION_STR_LEN];
+static char g_hw_version[MAX_VERSION_STR_LEN];
 
 static uint8_t g_ledFlashDuration;
 static bool    g_ledFlashDurationChanged;
@@ -326,7 +329,7 @@ static void spi_transfer(const uint8_t *txbuf, uint8_t *rxbuf, int len)
 	transfer.tx_buf = txbuf;
 	transfer.rx_buf = rxbuf;
 	transfer.len = len;
-	transfer.speed_hz = 100000;
+	transfer.speed_hz = 150000;
 	transfer.delay_usecs = 10;
 	spi_message_add_tail(&transfer, &msg);
 
@@ -403,9 +406,9 @@ static struct spi_device *pisnd_spi_find_device(void)
 static void pisnd_work_handler(struct work_struct *work)
 {
 	enum { TRANSFER_SIZE = 4 };
-	enum { PISOUND_OUTPUT_BUFFER_SIZE = 128 };
-	enum { MIDI_BYTES_PER_SECOND = 3125 };
-	int out_buffer_used = 0;
+	enum { PISOUND_OUTPUT_BUFFER_SIZE_MILLIBYTES = 127 * 1000 };
+	enum { MIDI_MILLIBYTES_PER_JIFFIE = (3125 * 1000) / HZ };
+	int out_buffer_used_millibytes = 0;
 	unsigned long now;
 	uint8_t val;
 	uint8_t txbuf[TRANSFER_SIZE];
@@ -445,7 +448,9 @@ static void pisnd_work_handler(struct work_struct *work)
 			had_data = false;
 			memset(txbuf, 0, sizeof(txbuf));
 			for (i = 0; i < sizeof(txbuf) &&
-				out_buffer_used < PISOUND_OUTPUT_BUFFER_SIZE;
+				((out_buffer_used_millibytes+1000 <
+				PISOUND_OUTPUT_BUFFER_SIZE_MILLIBYTES) ||
+				g_ledFlashDurationChanged);
 				i += 2) {
 
 				val = 0;
@@ -458,7 +463,7 @@ static void pisnd_work_handler(struct work_struct *work)
 				} else if (kfifo_get(&spi_fifo_out, &val)) {
 					txbuf[i+0] = 0x0f;
 					txbuf[i+1] = val;
-					++out_buffer_used;
+					out_buffer_used_millibytes += 1000;
 				}
 			}
 
@@ -469,12 +474,14 @@ static void pisnd_work_handler(struct work_struct *work)
 			 * rate.
 			 */
 			now = jiffies;
-			out_buffer_used -=
-				(MIDI_BYTES_PER_SECOND / HZ) /
-				(now - last_transfer_at);
-			if (out_buffer_used < 0)
-				out_buffer_used = 0;
-			last_transfer_at = now;
+			if (now != last_transfer_at) {
+				out_buffer_used_millibytes -=
+					(now - last_transfer_at) *
+					MIDI_MILLIBYTES_PER_JIFFIE;
+				if (out_buffer_used_millibytes < 0)
+					out_buffer_used_millibytes = 0;
+				last_transfer_at = now;
+			}
 
 			for (i = 0; i < sizeof(rxbuf); i += 2) {
 				if (rxbuf[i]) {
@@ -489,6 +496,7 @@ static void pisnd_work_handler(struct work_struct *work)
 			|| !kfifo_is_empty(&spi_fifo_out)
 			|| pisnd_spi_has_more()
 			|| g_ledFlashDurationChanged
+			|| out_buffer_used_millibytes != 0
 			);
 
 		if (!kfifo_is_empty(&spi_fifo_in) && g_recvCallback)
@@ -553,7 +561,8 @@ static int spi_read_info(void)
 	char *p;
 
 	memset(g_serial_num, 0, sizeof(g_serial_num));
-	memset(g_version, 0, sizeof(g_version));
+	memset(g_fw_version, 0, sizeof(g_fw_version));
+	strcpy(g_hw_version, "1.0"); // Assume 1.0 hw version.
 	memset(g_id, 0, sizeof(g_id));
 
 	tmp = spi_transfer16(0);
@@ -576,12 +585,28 @@ static int spi_read_info(void)
 				return -EINVAL;
 
 			snprintf(
-				g_version,
-				sizeof(g_version),
+				g_fw_version,
+				MAX_VERSION_STR_LEN,
 				"%x.%02x",
 				buffer[0],
 				buffer[1]
 				);
+
+			g_fw_version[MAX_VERSION_STR_LEN-1] = '\0';
+			break;
+		case 3:
+			if (n != 2)
+				return -EINVAL;
+
+			snprintf(
+				g_hw_version,
+				MAX_VERSION_STR_LEN,
+				"%x.%x",
+				buffer[0],
+				buffer[1]
+			);
+
+			g_hw_version[MAX_VERSION_STR_LEN-1] = '\0';
 			break;
 		case 1:
 			if (n >= sizeof(g_serial_num))
@@ -591,12 +616,14 @@ static int spi_read_info(void)
 			break;
 		case 2:
 			{
-				if (n >= sizeof(g_id))
+				if (n*2 >= sizeof(g_id))
 					return -EINVAL;
 
 				p = g_id;
 				for (j = 0; j < n; ++j)
 					p += sprintf(p, "%02x", buffer[j]);
+
+				*p = '\0';
 			}
 			break;
 		default:
@@ -614,7 +641,8 @@ static int pisnd_spi_init(struct device *dev)
 
 	memset(g_serial_num, 0, sizeof(g_serial_num));
 	memset(g_id, 0, sizeof(g_id));
-	memset(g_version, 0, sizeof(g_version));
+	memset(g_fw_version, 0, sizeof(g_fw_version));
+	memset(g_hw_version, 0, sizeof(g_hw_version));
 
 	spi = pisnd_spi_find_device();
 
@@ -724,26 +752,22 @@ static void pisnd_spi_set_callback(pisnd_spi_recv_cb cb, void *data)
 
 static const char *pisnd_spi_get_serial(void)
 {
-	if (strlen(g_serial_num))
-		return g_serial_num;
-
-	return "";
+	return g_serial_num;
 }
 
 static const char *pisnd_spi_get_id(void)
 {
-	if (strlen(g_id))
-		return g_id;
-
-	return "";
+	return g_id;
 }
 
-static const char *pisnd_spi_get_version(void)
+static const char *pisnd_spi_get_fw_version(void)
 {
-	if (strlen(g_version))
-		return g_version;
+	return g_fw_version;
+}
 
-	return "";
+static const char *pisnd_spi_get_hw_version(void)
+{
+	return g_hw_version;
 }
 
 static const struct of_device_id pisound_of_match[] = {
@@ -1049,13 +1073,22 @@ static ssize_t pisnd_id_show(
 	return sprintf(buf, "%s\n", pisnd_spi_get_id());
 }
 
-static ssize_t pisnd_version_show(
+static ssize_t pisnd_fw_version_show(
 	struct kobject *kobj,
 	struct kobj_attribute *attr,
 	char *buf
 	)
 {
-	return sprintf(buf, "%s\n", pisnd_spi_get_version());
+	return sprintf(buf, "%s\n", pisnd_spi_get_fw_version());
+}
+
+static ssize_t pisnd_hw_version_show(
+	struct kobject *kobj,
+	struct kobj_attribute *attr,
+	char *buf
+)
+{
+	return sprintf(buf, "%s\n", pisnd_spi_get_hw_version());
 }
 
 static ssize_t pisnd_led_store(
@@ -1080,15 +1113,18 @@ static struct kobj_attribute pisnd_serial_attribute =
 	__ATTR(serial, 0444, pisnd_serial_show, NULL);
 static struct kobj_attribute pisnd_id_attribute =
 	__ATTR(id, 0444, pisnd_id_show, NULL);
-static struct kobj_attribute pisnd_version_attribute =
-	__ATTR(version, 0444, pisnd_version_show, NULL);
+static struct kobj_attribute pisnd_fw_version_attribute =
+	__ATTR(version, 0444, pisnd_fw_version_show, NULL);
+static struct kobj_attribute pisnd_hw_version_attribute =
+__ATTR(hw_version, 0444, pisnd_hw_version_show, NULL);
 static struct kobj_attribute pisnd_led_attribute =
 	__ATTR(led, 0644, NULL, pisnd_led_store);
 
 static struct attribute *attrs[] = {
 	&pisnd_serial_attribute.attr,
 	&pisnd_id_attribute.attr,
-	&pisnd_version_attribute.attr,
+	&pisnd_fw_version_attribute.attr,
+	&pisnd_hw_version_attribute.attr,
 	&pisnd_led_attribute.attr,
 	NULL
 };
@@ -1107,9 +1143,10 @@ static int pisnd_probe(struct platform_device *pdev)
 	}
 
 	printi("Detected Pisound card:\n");
-	printi("\tSerial:  %s\n", pisnd_spi_get_serial());
-	printi("\tVersion: %s\n", pisnd_spi_get_version());
-	printi("\tId:      %s\n", pisnd_spi_get_id());
+	printi("\tSerial:           %s\n", pisnd_spi_get_serial());
+	printi("\tFirmware Version: %s\n", pisnd_spi_get_fw_version());
+	printi("\tHardware Version: %s\n", pisnd_spi_get_hw_version());
+	printi("\tId:               %s\n", pisnd_spi_get_id());
 
 	pisnd_kobj = kobject_create_and_add("pisound", kernel_kobj);
 	if (!pisnd_kobj) {

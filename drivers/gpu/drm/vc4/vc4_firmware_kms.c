@@ -79,11 +79,6 @@ struct set_plane {
 #define TRANSFORM_FLIP_HRIZ	BIT(16)
 #define TRANSFORM_FLIP_VERT	BIT(17)
 
-#define SUPPORTED_ROTATIONS	(DRM_MODE_ROTATE_0 | \
-				 DRM_MODE_ROTATE_180 | \
-				 DRM_MODE_REFLECT_X | \
-				 DRM_MODE_REFLECT_Y)
-
 struct mailbox_set_plane {
 	struct rpi_firmware_property_tag_header tag;
 	struct set_plane plane;
@@ -94,6 +89,12 @@ struct mailbox_blank_display {
 	u32 display;
 	struct rpi_firmware_property_tag_header tag2;
 	u32 blank;
+};
+
+struct mailbox_display_pwr {
+	struct rpi_firmware_property_tag_header tag1;
+	u32 display;
+	u32 state;
 };
 
 struct mailbox_get_edid {
@@ -277,6 +278,7 @@ struct vc4_fkms_encoder {
 	struct drm_encoder base;
 	bool hdmi_monitor;
 	bool rgb_range_selectable;
+	int display_num;
 };
 
 static inline struct vc4_fkms_encoder *
@@ -523,7 +525,7 @@ static int vc4_plane_to_mb(struct drm_plane *plane,
 	const struct vc_image_format *vc_fmt =
 					vc4_get_vc_image_fmt(drm_fmt->format);
 	int num_planes = fb->format->num_planes;
-	unsigned int rotation = SUPPORTED_ROTATIONS;
+	unsigned int rotation;
 
 	mb->plane.vc_image_type = vc_fmt->vc_image;
 	mb->plane.width = fb->width;
@@ -544,23 +546,16 @@ static int vc4_plane_to_mb(struct drm_plane *plane,
 	mb->plane.is_vu = vc_fmt->is_vu;
 	mb->plane.planes[0] = bo->paddr + fb->offsets[0];
 
-	rotation = drm_rotation_simplify(state->rotation, rotation);
+	rotation = drm_rotation_simplify(state->rotation,
+					 DRM_MODE_ROTATE_0 |
+					 DRM_MODE_REFLECT_X |
+					 DRM_MODE_REFLECT_Y);
 
-	switch (rotation) {
-	default:
-	case DRM_MODE_ROTATE_0:
-		mb->plane.transform = TRANSFORM_NO_ROTATE;
-		break;
-	case DRM_MODE_ROTATE_180:
-		mb->plane.transform = TRANSFORM_ROTATE_180;
-		break;
-	case DRM_MODE_REFLECT_X:
-		mb->plane.transform = TRANSFORM_FLIP_HRIZ;
-		break;
-	case DRM_MODE_REFLECT_Y:
-		mb->plane.transform = TRANSFORM_FLIP_VERT;
-		break;
-	}
+	mb->plane.transform = TRANSFORM_NO_ROTATE;
+	if (rotation & DRM_MODE_REFLECT_X)
+		mb->plane.transform |= TRANSFORM_FLIP_HRIZ;
+	if (rotation & DRM_MODE_REFLECT_Y)
+		mb->plane.transform |= TRANSFORM_FLIP_VERT;
 
 	vc4_fkms_margins_adj(state, &mb->plane);
 
@@ -772,7 +767,10 @@ static struct drm_plane *vc4_fkms_plane_init(struct drm_device *dev,
 
 	drm_plane_create_alpha_property(plane);
 	drm_plane_create_rotation_property(plane, DRM_MODE_ROTATE_0,
-					   SUPPORTED_ROTATIONS);
+					   DRM_MODE_ROTATE_0 |
+					   DRM_MODE_ROTATE_180 |
+					   DRM_MODE_REFLECT_X |
+					   DRM_MODE_REFLECT_Y);
 	drm_plane_create_color_properties(plane,
 					  BIT(DRM_COLOR_YCBCR_BT601) |
 					  BIT(DRM_COLOR_YCBCR_BT709) |
@@ -1588,14 +1586,9 @@ vc4_fkms_connector_init(struct drm_device *dev, struct drm_encoder *encoder,
 		connector->interlace_allowed = 0;
 	}
 
-	/* Create and attach TV margin props to this connector.
-	 * Already done for SDTV outputs.
-	 */
-	if (fkms_connector->display_type != DRM_MODE_ENCODER_TVDAC) {
-		ret = drm_mode_create_tv_margin_properties(dev);
-		if (ret)
-			goto fail;
-	}
+	ret = drm_mode_create_tv_margin_properties(dev);
+	if (ret)
+		goto fail;
 
 	drm_connector_attach_tv_margin_properties(connector);
 
@@ -1627,13 +1620,29 @@ static const struct drm_encoder_funcs vc4_fkms_encoder_funcs = {
 	.destroy = vc4_fkms_encoder_destroy,
 };
 
+static void vc4_fkms_display_power(struct drm_encoder *encoder, bool power)
+{
+	struct vc4_fkms_encoder *vc4_encoder = to_vc4_fkms_encoder(encoder);
+	struct vc4_dev *vc4 = to_vc4_dev(encoder->dev);
+
+	struct mailbox_display_pwr pwr = {
+		.tag1 = {RPI_FIRMWARE_SET_DISPLAY_POWER, 8, 0, },
+		.display = vc4_encoder->display_num,
+		.state = power ? 1 : 0,
+	};
+
+	rpi_firmware_property_list(vc4->firmware, &pwr, sizeof(pwr));
+}
+
 static void vc4_fkms_encoder_enable(struct drm_encoder *encoder)
 {
+	vc4_fkms_display_power(encoder, true);
 	DRM_DEBUG_KMS("Encoder_enable\n");
 }
 
 static void vc4_fkms_encoder_disable(struct drm_encoder *encoder)
 {
+	vc4_fkms_display_power(encoder, false);
 	DRM_DEBUG_KMS("Encoder_disable\n");
 }
 
@@ -1709,6 +1718,8 @@ static int vc4_fkms_create_screen(struct device *dev, struct drm_device *drm,
 	if (!vc4_encoder)
 		return -ENOMEM;
 	vc4_crtc->encoder = &vc4_encoder->base;
+
+	vc4_encoder->display_num = display_ref;
 	vc4_encoder->base.possible_crtcs |= drm_crtc_mask(crtc) ;
 
 	drm_encoder_init(drm, &vc4_encoder->base, &vc4_fkms_encoder_funcs,

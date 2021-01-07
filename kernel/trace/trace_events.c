@@ -188,8 +188,8 @@ static int trace_define_common_fields(void)
 	__common_field(unsigned char, flags);
 	__common_field(unsigned char, preempt_count);
 	__common_field(int, pid);
-	__common_field(unsigned short, migrate_disable);
-	__common_field(unsigned short, padding);
+	__common_field(unsigned char, migrate_disable);
+	__common_field(unsigned char, preempt_lazy_count);
 
 	return ret;
 }
@@ -329,7 +329,8 @@ void trace_event_enable_cmd_record(bool enable)
 	struct trace_event_file *file;
 	struct trace_array *tr;
 
-	mutex_lock(&event_mutex);
+	lockdep_assert_held(&event_mutex);
+
 	do_for_each_event_file(tr, file) {
 
 		if (!(file->flags & EVENT_FILE_FL_ENABLED))
@@ -343,7 +344,6 @@ void trace_event_enable_cmd_record(bool enable)
 			clear_bit(EVENT_FILE_FL_RECORDED_CMD_BIT, &file->flags);
 		}
 	} while_for_each_event_file();
-	mutex_unlock(&event_mutex);
 }
 
 void trace_event_enable_tgid_record(bool enable)
@@ -351,7 +351,8 @@ void trace_event_enable_tgid_record(bool enable)
 	struct trace_event_file *file;
 	struct trace_array *tr;
 
-	mutex_lock(&event_mutex);
+	lockdep_assert_held(&event_mutex);
+
 	do_for_each_event_file(tr, file) {
 		if (!(file->flags & EVENT_FILE_FL_ENABLED))
 			continue;
@@ -365,7 +366,6 @@ void trace_event_enable_tgid_record(bool enable)
 				  &file->flags);
 		}
 	} while_for_each_event_file();
-	mutex_unlock(&event_mutex);
 }
 
 static int __ftrace_event_enable_disable(struct trace_event_file *file,
@@ -2304,11 +2304,11 @@ __trace_early_add_new_event(struct trace_event_call *call,
 struct ftrace_module_file_ops;
 static void __add_event_to_tracers(struct trace_event_call *call);
 
-/* Add an additional event_call dynamically */
-int trace_add_event_call(struct trace_event_call *call)
+int trace_add_event_call_nolock(struct trace_event_call *call)
 {
 	int ret;
-	mutex_lock(&event_mutex);
+	lockdep_assert_held(&event_mutex);
+
 	mutex_lock(&trace_types_lock);
 
 	ret = __register_event(call, NULL);
@@ -2316,6 +2316,16 @@ int trace_add_event_call(struct trace_event_call *call)
 		__add_event_to_tracers(call);
 
 	mutex_unlock(&trace_types_lock);
+	return ret;
+}
+
+/* Add an additional event_call dynamically */
+int trace_add_event_call(struct trace_event_call *call)
+{
+	int ret;
+
+	mutex_lock(&event_mutex);
+	ret = trace_add_event_call_nolock(call);
 	mutex_unlock(&event_mutex);
 	return ret;
 }
@@ -2365,17 +2375,29 @@ static int probe_remove_event_call(struct trace_event_call *call)
 	return 0;
 }
 
+/* no event_mutex version */
+int trace_remove_event_call_nolock(struct trace_event_call *call)
+{
+	int ret;
+
+	lockdep_assert_held(&event_mutex);
+
+	mutex_lock(&trace_types_lock);
+	down_write(&trace_event_sem);
+	ret = probe_remove_event_call(call);
+	up_write(&trace_event_sem);
+	mutex_unlock(&trace_types_lock);
+
+	return ret;
+}
+
 /* Remove an event_call */
 int trace_remove_event_call(struct trace_event_call *call)
 {
 	int ret;
 
 	mutex_lock(&event_mutex);
-	mutex_lock(&trace_types_lock);
-	down_write(&trace_event_sem);
-	ret = probe_remove_event_call(call);
-	up_write(&trace_event_sem);
-	mutex_unlock(&trace_types_lock);
+	ret = trace_remove_event_call_nolock(call);
 	mutex_unlock(&event_mutex);
 
 	return ret;
