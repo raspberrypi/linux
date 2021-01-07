@@ -1171,8 +1171,9 @@ static int bcm2835_isp_get_supported_fmts(struct bcm2835_isp_node *node)
 	if (ret) {
 		if (ret == MMAL_MSG_STATUS_ENOSPC) {
 			v4l2_err(&dev->v4l2_dev,
-				 "%s: port has more encoding than we provided space for. Some are dropped.\n",
-				 __func__);
+				 "%s: port has more encodings than we provided space for. Some are dropped (%u vs %u).\n",
+				 __func__, param_size / sizeof(u32),
+				 MAX_SUPPORTED_ENCODINGS);
 			num_encodings = MAX_SUPPORTED_ENCODINGS;
 		} else {
 			v4l2_err(&dev->v4l2_dev, "%s: get_param ret %u.\n",
