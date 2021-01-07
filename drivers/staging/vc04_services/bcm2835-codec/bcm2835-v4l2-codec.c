@@ -383,6 +383,106 @@ static const struct bcm2835_codec_fmt supported_formats[] = {
 		.size_multiplier_x2	= 2,
 		.is_bayer		= true,
 	}, {
+		/* Bayer formats unpacked to 16bpp */
+		/* 10 bit */
+		.fourcc			= V4L2_PIX_FMT_SRGGB10,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SRGGB10,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SBGGR10,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SBGGR10,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SGRBG10,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SGRBG10,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SGBRG10,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SGBRG10,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		/* 12 bit */
+		.fourcc			= V4L2_PIX_FMT_SRGGB12,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SRGGB12,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SBGGR12,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SBGGR12,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SGRBG12,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SGRBG12,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SGBRG12,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SGBRG12,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		/* 14 bit */
+		.fourcc			= V4L2_PIX_FMT_SRGGB14,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SRGGB14,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SBGGR14,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SBGGR14,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SGRBG14,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SGRBG14,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_SGBRG14,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_BAYER_SGBRG14,
+		.size_multiplier_x2	= 2,
+		.is_bayer		= true,
+	}, {
 		/* Monochrome MIPI formats */
 		/* 8 bit */
 		.fourcc			= V4L2_PIX_FMT_GREY,
@@ -422,6 +522,30 @@ static const struct bcm2835_codec_fmt supported_formats[] = {
 		.bytesperline_align	= 32,
 		.flags			= 0,
 		.mmal_fmt		= MMAL_ENCODING_Y16,
+		.size_multiplier_x2	= 2,
+	}, {
+		/* 10 bit as 16bpp */
+		.fourcc			= V4L2_PIX_FMT_Y10,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_Y10,
+		.size_multiplier_x2	= 2,
+	}, {
+		/* 12 bit as 16bpp */
+		.fourcc			= V4L2_PIX_FMT_Y12,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_Y12,
+		.size_multiplier_x2	= 2,
+	}, {
+		/* 14 bit as 16bpp */
+		.fourcc			= V4L2_PIX_FMT_Y14,
+		.depth			= 16,
+		.bytesperline_align	= 32,
+		.flags			= 0,
+		.mmal_fmt		= MMAL_ENCODING_Y14,
 		.size_multiplier_x2	= 2,
 	}, {
 		/* Compressed formats */
@@ -2683,10 +2807,10 @@ static const struct v4l2_m2m_ops m2m_ops = {
 
 /* Size of the array to provide to the VPU when asking for the list of supported
  * formats.
- * The ISP component currently advertises 44 input formats, so add a small
+ * The ISP component currently advertises 62 input formats, so add a small
  * overhead on that.
  */
-#define MAX_SUPPORTED_ENCODINGS 50
+#define MAX_SUPPORTED_ENCODINGS 70
 
 /* Populate dev->supported_fmts with the formats supported by those ports. */
 static int bcm2835_codec_get_supported_fmts(struct bcm2835_codec_dev *dev)
