@@ -127,6 +127,10 @@
 #define MMAL_ENCODING_Y12P    MMAL_FOURCC('Y', '1', '2', 'P')
 #define MMAL_ENCODING_Y14P    MMAL_FOURCC('Y', '1', '4', 'P')
 #define MMAL_ENCODING_Y16     MMAL_FOURCC('Y', '1', '6', ' ')
+/* Unpacked monochrome formats (16bit per sample, but only N LSBs used) */
+#define MMAL_ENCODING_Y10     MMAL_FOURCC('Y', '1', '0', ' ')
+#define MMAL_ENCODING_Y12     MMAL_FOURCC('Y', '1', '2', ' ')
+#define MMAL_ENCODING_Y14     MMAL_FOURCC('Y', '1', '4', ' ')
 
 /* Unpacked monochrome formats (16bit per sample, but only N LSBs used) */
 #define MMAL_ENCODING_Y10     MMAL_FOURCC('Y', '1', '0', ' ')
