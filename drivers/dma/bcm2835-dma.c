@@ -172,12 +172,12 @@ struct bcm2835_desc {
 		      0 : BCM2835_DMA_WAIT_RESP)
 
 /* A fake bit to request that the driver requires wide reads */
-#define BCM2835_DMA_WIDE_SOURCE BIT(28)
+#define BCM2835_DMA_WIDE_SOURCE BIT(24)
 #define WIDE_SOURCE(x) ((x & BCM2835_DMA_WIDE_SOURCE) ? \
 		      BCM2835_DMA_S_WIDTH : 0)
 
 /* A fake bit to request that the driver requires wide writes */
-#define BCM2835_DMA_WIDE_DEST BIT(29)
+#define BCM2835_DMA_WIDE_DEST BIT(25)
 #define WIDE_DEST(x) ((x & BCM2835_DMA_WIDE_DEST) ? \
 		      BCM2835_DMA_D_WIDTH : 0)
 
