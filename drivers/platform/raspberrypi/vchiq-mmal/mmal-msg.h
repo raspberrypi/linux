@@ -253,6 +253,25 @@ struct mmal_msg_port_action_reply {
 /* Signals that a buffer failed to be transmitted */
 #define MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED    BIT(10)
 
+/* Video buffer header flags
+ * videobufferheaderflags
+ * The following flags describe properties of a video buffer header.
+ * As there is no collision with the MMAL_BUFFER_HEADER_FLAGS_ defines, these
+ * flags will also be present in the MMAL_BUFFER_HEADER_T flags field.
+ */
+#define MMAL_BUFFER_HEADER_FLAG_FORMAT_SPECIFIC_START_BIT 16
+#define MMAL_BUFFER_HEADER_FLAG_FORMAT_SPECIFIC_START \
+			(1 << MMAL_BUFFER_HEADER_FLAG_FORMAT_SPECIFIC_START_BIT)
+/* Signals an interlaced video frame */
+#define MMAL_BUFFER_HEADER_VIDEO_FLAG_INTERLACED \
+			(MMAL_BUFFER_HEADER_FLAG_FORMAT_SPECIFIC_START << 0)
+/*
+ * Signals that the top field of the current interlaced frame should be
+ * displayed first
+ */
+#define MMAL_BUFFER_HEADER_VIDEO_FLAG_TOP_FIELD_FIRST \
+			(MMAL_BUFFER_HEADER_FLAG_FORMAT_SPECIFIC_START << 1)
+
 struct mmal_driver_buffer {
 	u32 magic;
 	u32 component_handle;
