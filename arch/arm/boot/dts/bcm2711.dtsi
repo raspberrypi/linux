@@ -362,7 +362,6 @@
 			ddc = <&ddc0>;
 			dmas = <&dma 10>;
 			dma-names = "audio-rx";
-			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
 
@@ -412,7 +411,6 @@
 					  "wakeup", "hpd-connected", "hpd-removed";
 			dmas = <&dma 17>;
 			dma-names = "audio-rx";
-			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
 		};
 
