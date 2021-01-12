@@ -21,7 +21,8 @@ struct bcm2835_isp_fmt {
 	u32 flags;
 	u32 mmal_fmt;
 	int size_multiplier_x2;
-	enum v4l2_colorspace colorspace;
+	u32 colorspace_mask;
+	enum v4l2_colorspace colorspace_default;
 	unsigned int step_size;
 };
 
@@ -29,6 +30,24 @@ struct bcm2835_isp_fmt_list {
 	struct bcm2835_isp_fmt const **list;
 	unsigned int num_entries;
 };
+
+#define V4L2_COLORSPACE_MASK(colorspace) (1<<(colorspace))
+
+#define V4L2_COLORSPACE_MASK_JPEG V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_JPEG)
+#define V4L2_COLORSPACE_MASK_SMPTE170M V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_SMPTE170M)
+#define V4L2_COLORSPACE_MASK_REC709 V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_REC709)
+#define V4L2_COLORSPACE_MASK_SRGB V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_SRGB)
+#define V4L2_COLORSPACE_MASK_RAW V4L2_COLORSPACE_MASK(V4L2_COLORSPACE_RAW)
+
+/*
+ * The colour spaces we support for YUV outputs. SRGB features here because,
+ * once you assign the default transfer func and so on, it and JPEG effectively
+ * mean the same.
+ */
+#define V4L2_COLORSPACE_MASK_YUV (V4L2_COLORSPACE_MASK_JPEG | \
+				  V4L2_COLORSPACE_MASK_SRGB | \
+				  V4L2_COLORSPACE_MASK_SMPTE170M | \
+				  V4L2_COLORSPACE_MASK_REC709)
 
 static const struct bcm2835_isp_fmt supported_formats[] = {
 	{
@@ -39,7 +58,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_I420,
 		.size_multiplier_x2 = 3,
-		.colorspace	    = V4L2_COLORSPACE_SMPTE170M,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_YUV,
+		.colorspace_default = V4L2_COLORSPACE_JPEG,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_YVU420,
@@ -48,7 +68,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_YV12,
 		.size_multiplier_x2 = 3,
-		.colorspace	    = V4L2_COLORSPACE_SMPTE170M,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_YUV,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_NV12,
@@ -57,7 +78,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_NV12,
 		.size_multiplier_x2 = 3,
-		.colorspace	    = V4L2_COLORSPACE_SMPTE170M,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_YUV,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_NV21,
@@ -66,7 +88,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_NV21,
 		.size_multiplier_x2 = 3,
-		.colorspace	    = V4L2_COLORSPACE_SMPTE170M,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_YUV,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_YUYV,
@@ -75,7 +98,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_YUYV,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_SMPTE170M,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_YUV,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_UYVY,
@@ -84,7 +108,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_UYVY,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_SMPTE170M,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_YUV,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_YVYU,
@@ -93,7 +118,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_YVYU,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_SMPTE170M,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_YUV,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_VYUY,
@@ -102,7 +128,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_VYUY,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_SMPTE170M,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_YUV,
+		.colorspace_default = V4L2_COLORSPACE_SMPTE170M,
 		.step_size	    = 2,
 	}, {
 		/* RGB formats */
@@ -112,7 +139,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_RGB24,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_SRGB,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_SRGB,
+		.colorspace_default = V4L2_COLORSPACE_SRGB,
 		.step_size	    = 1,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_RGB565,
@@ -121,7 +149,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_RGB16,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_SRGB,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_SRGB,
+		.colorspace_default = V4L2_COLORSPACE_SRGB,
 		.step_size	    = 1,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_BGR24,
@@ -130,7 +159,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BGR24,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_SRGB,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_SRGB,
+		.colorspace_default = V4L2_COLORSPACE_SRGB,
 		.step_size	    = 1,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_ABGR32,
@@ -139,7 +169,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BGRA,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_SRGB,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_SRGB,
+		.colorspace_default = V4L2_COLORSPACE_SRGB,
 		.step_size	    = 1,
 	}, {
 		/* Bayer formats */
@@ -150,7 +181,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SRGGB8,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SBGGR8,
@@ -159,7 +191,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SBGGR8,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SGRBG8,
@@ -168,7 +201,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGRBG8,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SGBRG8,
@@ -177,7 +211,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGBRG8,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		/* 10 bit */
@@ -187,7 +222,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SRGGB10P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SBGGR10P,
@@ -196,7 +232,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SBGGR10P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SGRBG10P,
@@ -205,7 +242,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGRBG10P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SGBRG10P,
@@ -214,7 +252,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGBRG10P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		/* 12 bit */
@@ -224,7 +263,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SRGGB12P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SBGGR12P,
@@ -233,7 +273,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SBGGR12P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SGRBG12P,
@@ -242,7 +283,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGRBG12P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SGBRG12P,
@@ -251,7 +293,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGBRG12P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		/* 14 bit */
@@ -261,7 +304,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SRGGB14P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SBGGR14P,
@@ -270,7 +314,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SBGGR14P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SGRBG14P,
@@ -279,7 +324,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGRBG14P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SGBRG14P,
@@ -288,7 +334,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGBRG14P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		/* 16 bit */
@@ -298,7 +345,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SRGGB16,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SBGGR16,
@@ -307,7 +355,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SBGGR16,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SGRBG16,
@@ -316,7 +365,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGRBG16,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_SGBRG16,
@@ -325,7 +375,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_BAYER_SGBRG16,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		/* Monochrome MIPI formats */
@@ -336,7 +387,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_GREY,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		/* 10 bit */
@@ -346,7 +398,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_Y10P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		/* 12 bit */
@@ -356,7 +409,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_Y12P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		/* 14 bit */
@@ -366,7 +420,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_Y14P,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		/* 16 bit */
@@ -376,7 +431,8 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_Y16,
 		.size_multiplier_x2 = 2,
-		.colorspace	    = V4L2_COLORSPACE_RAW,
+		.colorspace_mask    = V4L2_COLORSPACE_MASK_RAW,
+		.colorspace_default = V4L2_COLORSPACE_RAW,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_META_FMT_BCM2835_ISP_STATS,
