@@ -72,6 +72,7 @@ struct bcm2835_isp_q_data {
 	unsigned int width;
 	unsigned int height;
 	unsigned int sizeimage;
+	enum v4l2_colorspace colorspace;
 	const struct bcm2835_isp_fmt *fmt;
 };
 
@@ -311,6 +312,43 @@ static void mmal_buffer_cb(struct vchiq_mmal_instance *instance,
 		complete(&dev->frame_cmplt);
 }
 
+struct colorspace_translation {
+	enum v4l2_colorspace v4l2_value;
+	u32 mmal_value;
+};
+
+static u32 translate_color_space(enum v4l2_colorspace color_space)
+{
+	static const struct colorspace_translation translations[] = {
+		{ V4L2_COLORSPACE_DEFAULT, MMAL_COLOR_SPACE_UNKNOWN },
+		{ V4L2_COLORSPACE_SMPTE170M, MMAL_COLOR_SPACE_ITUR_BT601 },
+		{ V4L2_COLORSPACE_SMPTE240M, MMAL_COLOR_SPACE_SMPTE240M },
+		{ V4L2_COLORSPACE_REC709, MMAL_COLOR_SPACE_ITUR_BT709 },
+		/* V4L2_COLORSPACE_BT878 unavailable */
+		{ V4L2_COLORSPACE_470_SYSTEM_M, MMAL_COLOR_SPACE_BT470_2_M },
+		{ V4L2_COLORSPACE_470_SYSTEM_BG, MMAL_COLOR_SPACE_BT470_2_BG },
+		{ V4L2_COLORSPACE_JPEG, MMAL_COLOR_SPACE_JPEG_JFIF },
+		/*
+		 * We don't have an encoding for SRGB as such, but VideoCore
+		 * will do the right thing if it gets "unknown".
+		 */
+		{ V4L2_COLORSPACE_SRGB, MMAL_COLOR_SPACE_UNKNOWN },
+		/* V4L2_COLORSPACE_OPRGB unavailable */
+		/* V4L2_COLORSPACE_BT2020 unavailable */
+		/* V4L2_COLORSPACE_RAW unavailable */
+		/* V4L2_COLORSPACE_DCI_P3 unavailable */
+	};
+
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(translations); i++) {
+		if (color_space == translations[i].v4l2_value)
+			return translations[i].mmal_value;
+	}
+
+	return MMAL_COLOR_SPACE_UNKNOWN;
+}
+
 static void setup_mmal_port_format(struct bcm2835_isp_node *node,
 				   struct vchiq_mmal_port *port)
 {
@@ -324,6 +362,7 @@ static void setup_mmal_port_format(struct bcm2835_isp_node *node,
 	port->es.video.crop.height = q_data->height;
 	port->es.video.crop.x = 0;
 	port->es.video.crop.y = 0;
+	port->es.video.color_space = translate_color_space(q_data->colorspace);
 };
 
 static int setup_mmal_port(struct bcm2835_isp_node *node)
@@ -827,6 +866,9 @@ static int populate_qdata_fmt(struct v4l2_format *f,
 		/* All parameters should have been set correctly by try_fmt */
 		q_data->bytesperline = f->fmt.pix.bytesperline;
 		q_data->sizeimage = f->fmt.pix.sizeimage;
+
+		/* We must indicate which of the allowed colour spaces we have. */
+		q_data->colorspace = f->fmt.pix.colorspace;
 	} else {
 		v4l2_dbg(1, debug, &dev->v4l2_dev,
 			 "%s: Setting meta format for fmt: %08x, size %u\n",
@@ -838,6 +880,9 @@ static int populate_qdata_fmt(struct v4l2_format *f,
 		q_data->height = 0;
 		q_data->bytesperline = 0;
 		q_data->sizeimage = f->fmt.meta.buffersize;
+
+		/* This won't mean anything for metadata, but may as well fill it in. */
+		q_data->colorspace = V4L2_COLORSPACE_DEFAULT;
 	}
 
 	v4l2_dbg(1, debug, &dev->v4l2_dev,
@@ -901,7 +946,7 @@ static int bcm2835_isp_node_g_fmt(struct file *file, void *priv,
 		f->fmt.pix.pixelformat = q_data->fmt->fourcc;
 		f->fmt.pix.bytesperline = q_data->bytesperline;
 		f->fmt.pix.sizeimage = q_data->sizeimage;
-		f->fmt.pix.colorspace = q_data->fmt->colorspace;
+		f->fmt.pix.colorspace = q_data->colorspace;
 	}
 
 	return 0;
@@ -968,13 +1013,29 @@ static int bcm2835_isp_node_try_fmt(struct file *file, void *priv,
 		fmt = get_default_format(node);
 
 	if (!node_is_stats(node)) {
+		int is_rgb;
+
 		f->fmt.pix.width = max(min(f->fmt.pix.width, MAX_DIM),
 				       MIN_DIM);
 		f->fmt.pix.height = max(min(f->fmt.pix.height, MAX_DIM),
 					MIN_DIM);
 
 		f->fmt.pix.pixelformat = fmt->fourcc;
-		f->fmt.pix.colorspace = fmt->colorspace;
+
+		/*
+		 * Fill in the actual colour space when the requested one was
+		 * not supported. This also catches the case when the "default"
+		 * colour space was requested (as that's never in the mask).
+		 */
+		if (!(V4L2_COLORSPACE_MASK(f->fmt.pix.colorspace) & fmt->colorspace_mask))
+			f->fmt.pix.colorspace = fmt->colorspace_default;
+		/* In all cases, we only support the defaults for these: */
+		f->fmt.pix.ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(f->fmt.pix.colorspace);
+		f->fmt.pix.xfer_func = V4L2_MAP_XFER_FUNC_DEFAULT(f->fmt.pix.colorspace);
+		is_rgb = f->fmt.pix.colorspace == V4L2_COLORSPACE_SRGB;
+		f->fmt.pix.quantization = V4L2_MAP_QUANTIZATION_DEFAULT(is_rgb, f->fmt.pix.colorspace,
+									f->fmt.pix.ycbcr_enc);
+
 		f->fmt.pix.bytesperline = get_bytesperline(f->fmt.pix.width,
 							   fmt);
 		f->fmt.pix.field = V4L2_FIELD_NONE;
@@ -1299,6 +1360,7 @@ static int register_node(struct bcm2835_isp_dev *dev,
 					       node->q_data.width,
 					       node->q_data.height,
 					       node->q_data.fmt);
+	node->q_data.colorspace = node->q_data.fmt->colorspace_default;
 
 	queue->io_modes = VB2_MMAP | VB2_DMABUF;
 	queue->drv_priv = node;
