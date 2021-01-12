@@ -330,10 +330,44 @@ static void mmal_buffer_cb(struct vchiq_mmal_instance *instance,
 		complete(&dev->frame_cmplt);
 }
 
+struct colorspace_translation {
+	enum v4l2_colorspace v4l2_value;
+	u32 mmal_value;
+};
+
+u32 translate_color_space(enum v4l2_colorspace color_space)
+{
+	static const struct colorspace_translation translations[] = {
+		{ V4L2_COLORSPACE_DEFAULT, MMAL_COLOR_SPACE_UNKNOWN },
+		{ V4L2_COLORSPACE_SMPTE170M, MMAL_COLOR_SPACE_ITUR_BT601 },
+		{ V4L2_COLORSPACE_SMPTE240M, MMAL_COLOR_SPACE_SMPTE240M },
+		{ V4L2_COLORSPACE_REC709, MMAL_COLOR_SPACE_ITUR_BT709 },
+		// V4L2_COLORSPACE_BT878 unavailable
+		{ V4L2_COLORSPACE_470_SYSTEM_M, MMAL_COLOR_SPACE_BT470_2_M },
+		{ V4L2_COLORSPACE_470_SYSTEM_BG, MMAL_COLOR_SPACE_BT470_2_BG },
+		{ V4L2_COLORSPACE_JPEG, MMAL_COLOR_SPACE_JPEG_JFIF },
+		// V4L2_COLORSPACE_SRGB unavailable
+		// V4L2_COLORSPACE_OPRGB unavailable
+		// V4L2_COLORSPACE_BT2020 unavailable
+		// V4L2_COLORSPACE_RAW unavailable
+		// V4L2_COLORSPACE_DCI_P3 unavailable
+	};
+
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(translations); i++) {
+		if (color_space == translations[i].v4l2_value)
+			return translations[i].mmal_value;
+	}
+
+	return -1;
+}
+
 static void setup_mmal_port_format(struct bcm2835_isp_node *node,
 				   struct vchiq_mmal_port *port)
 {
 	struct bcm2835_isp_q_data *q_data = &node->q_data;
+	u32 mmal_colour_space;
 
 	port->format.encoding = q_data->fmt->mmal_fmt;
 	/* Raw image format - set width/height */
@@ -343,6 +377,15 @@ static void setup_mmal_port_format(struct bcm2835_isp_node *node,
 	port->es.video.crop.height = q_data->height;
 	port->es.video.crop.x = 0;
 	port->es.video.crop.y = 0;
+
+	mmal_colour_space = translate_color_space(q_data->fmt->colorspace);
+	if (mmal_colour_space == -1) {
+		v4l2_dbg(1, debug, &node->dev->v4l2_dev,
+			 "%s: no MMAL colour space for %d\n",
+			 __func__, q_data->fmt->colorspace);
+		mmal_colour_space = MMAL_COLOR_SPACE_UNKNOWN;
+	}
+	port->es.video.color_space = mmal_colour_space;
 };
 
 static int setup_mmal_port(struct bcm2835_isp_node *node)

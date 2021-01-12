@@ -39,7 +39,7 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		.flags		    = 0,
 		.mmal_fmt	    = MMAL_ENCODING_I420,
 		.size_multiplier_x2 = 3,
-		.colorspace	    = V4L2_COLORSPACE_SMPTE170M,
+		.colorspace	    = V4L2_COLORSPACE_JPEG,
 		.step_size	    = 2,
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_YVU420,
