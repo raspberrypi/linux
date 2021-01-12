@@ -2443,8 +2443,10 @@ void mlx5e_close_channels(struct mlx5e_channels *chs)
 {
 	int i;
 
-	if (chs->port_ptp)
+	if (chs->port_ptp) {
 		mlx5e_port_ptp_close(chs->port_ptp);
+		chs->port_ptp = NULL;
+	}
 
 	for (i = 0; i < chs->num; i++)
 		mlx5e_close_channel(chs->c[i]);
