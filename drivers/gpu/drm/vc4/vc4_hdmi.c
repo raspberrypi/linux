@@ -1028,6 +1028,8 @@ static void vc5_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
 {
 	u32 csc_ctl;
 
+	HDMI_WRITE(HDMI_VEC_INTERFACE_XBAR, 0x354021);
+
 	csc_ctl = 0x07;	/* RGB_CONVERT_MODE = custom matrix, || USE_RGB_TO_YCBCR */
 
 	if (!vc4_hdmi_is_full_range_rgb(vc4_hdmi, mode)) {
@@ -1134,7 +1136,6 @@ static void vc5_hdmi_set_timings(struct vc4_hdmi *vc4_hdmi,
 	bool gcp_en;
 	u32 reg;
 
-	HDMI_WRITE(HDMI_VEC_INTERFACE_XBAR, 0x354021);
 	HDMI_WRITE(HDMI_HORZA,
 		   (vsync_pos ? VC5_HDMI_HORZA_VPOS : 0) |
 		   (hsync_pos ? VC5_HDMI_HORZA_HPOS : 0) |
