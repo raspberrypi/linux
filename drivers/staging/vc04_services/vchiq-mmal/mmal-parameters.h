@@ -277,6 +277,8 @@ enum mmal_parameter_camera_type {
 	MMAL_PARAMETER_DPC,
 		/**< Tales a @ref MMAP_PARAMETER_GAMMA_T */
 	MMAL_PARAMETER_GAMMA,
+		/**< Takes a @ref MMAL_PARAMETER_CDN_T */
+	MMAL_PARAMETER_CDN,
 };
 
 struct mmal_parameter_rational {
@@ -911,6 +913,17 @@ struct mmal_parameter_gamma {
 	u32 enabled;
 	u16 x[MMAL_NUM_GAMMA_PTS];
 	u16 y[MMAL_NUM_GAMMA_PTS];
+};
+
+enum mmal_parameter_cdn_mode {
+	MMAL_PARAM_CDN_FAST = 0,
+	MMAL_PARAM_CDN_HIGH_QUALITY = 1,
+	MMAL_PARAM_CDN_DUMMY  = 0x7FFFFFFF
+};
+
+struct mmal_parameter_colour_denoise {
+	u32 enabled;
+	enum mmal_parameter_cdn_mode mode;
 };
 
 struct mmal_parameter_denoise {
