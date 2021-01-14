@@ -57,6 +57,11 @@ static const struct bcm2835_isp_custom_ctrl custom_ctrls[] = {
 		.size	= sizeof(struct bcm2835_isp_denoise),
 		.flags  = 0
 	}, {
+		.name	= "Colour Denoise",
+		.id	= V4L2_CID_USER_BCM2835_ISP_CDN,
+		.size	= sizeof(struct bcm2835_isp_cdn),
+		.flags  = 0
+	}, {
 		.name	= "Defective Pixel Correction",
 		.id	= V4L2_CID_USER_BCM2835_ISP_DPC,
 		.size	= sizeof(struct bcm2835_isp_dpc),
