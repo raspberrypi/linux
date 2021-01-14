@@ -764,6 +764,11 @@ static int bcm2835_isp_s_ctrl(struct v4l2_ctrl *ctrl)
 				    ctrl->p_new.p_u8,
 				    sizeof(struct bcm2835_isp_denoise));
 		break;
+	case V4L2_CID_USER_BCM2835_ISP_CDN:
+		ret = set_isp_param(node, MMAL_PARAMETER_CDN,
+				    ctrl->p_new.p_u8,
+				    sizeof(struct bcm2835_isp_cdn));
+		break;
 	case V4L2_CID_USER_BCM2835_ISP_SHARPEN:
 		ret = set_isp_param(node, MMAL_PARAMETER_SHARPEN,
 				    ctrl->p_new.p_u8,
