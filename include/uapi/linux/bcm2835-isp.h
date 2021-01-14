@@ -31,6 +31,8 @@
 				(V4L2_CID_USER_BCM2835_ISP_BASE + 0x0007)
 #define V4L2_CID_USER_BCM2835_ISP_DPC		\
 				(V4L2_CID_USER_BCM2835_ISP_BASE + 0x0008)
+#define V4L2_CID_USER_BCM2835_ISP_CDN \
+				(V4L2_CID_USER_BCM2835_ISP_BASE + 0x0009)
 
 /*
  * All structs below are directly mapped onto the equivalent structs in
@@ -173,6 +175,31 @@ struct bcm2835_isp_gamma {
 	__u32 enabled;
 	__u16 x[BCM2835_NUM_GAMMA_PTS];
 	__u16 y[BCM2835_NUM_GAMMA_PTS];
+};
+
+/**
+ * enum bcm2835_isp_cdn_mode - Mode of operation for colour denoise.
+ *
+ * @CDN_MODE_FAST:		Fast (but lower quality) colour denoise
+ *				algorithm, typically used for video recording.
+ * @CDN_HIGH_QUALITY:		High quality (but slower) colour denoise
+ *				algorithm, typically used for stills capture.
+ */
+enum bcm2835_isp_cdn_mode {
+	CDN_MODE_FAST = 0,
+	CDN_MODE_HIGH_QUALITY = 1,
+};
+
+/**
+ * struct bcm2835_isp_cdn - Colour denoise parameters set with the
+ *			    V4L2_CID_USER_BCM2835_ISP_CDN ctrl.
+ *
+ * @enabled:	Enable colour denoise.
+ * @mode:	Colour denoise operating mode (see enum &bcm2835_isp_cdn_mode)
+ */
+struct bcm2835_isp_cdn {
+	__u32 enabled;
+	__u32 mode;
 };
 
 /**
