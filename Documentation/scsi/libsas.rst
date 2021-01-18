@@ -192,6 +192,8 @@ The event interface::
 	void (*notify_ha_event)(struct sas_ha_struct *, enum ha_event);
 	void sas_notify_port_event(struct sas_phy *, enum port_event);
 	void sas_notify_phy_event(struct sas_phy *, enum phy_event);
+	void sas_notify_port_event_gfp(struct sas_phy *, enum port_event, gfp_t);
+	void sas_notify_phy_event_gfp(struct sas_phy *, enum phy_event, gfp_t);
 
 The port notification::
 
