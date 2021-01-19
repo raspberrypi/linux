@@ -49,6 +49,8 @@
 #include <asm/system_misc.h>
 #include <asm/sysreg.h>
 
+#include <trace/hooks/traps.h>
+
 static bool __kprobes __check_eq(unsigned long pstate)
 {
 	return (pstate & PSR_Z_BIT) != 0;
@@ -957,6 +959,8 @@ void __noreturn arm64_serror_panic(struct pt_regs *regs, unsigned long esr)
 
 	pr_crit("SError Interrupt on CPU%d, code 0x%016lx -- %s\n",
 		smp_processor_id(), esr, esr_get_class_string(esr));
+
+	trace_android_rvh_arm64_serror_panic(regs, esr);
 	if (regs)
 		__show_regs(regs);
 
