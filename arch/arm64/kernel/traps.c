@@ -485,6 +485,7 @@ void do_el1_undef(struct pt_regs *regs, unsigned long esr)
 		return;
 
 out_err:
+	trace_android_rvh_do_el1_undef(regs, esr);
 	die("Oops - Undefined instruction", regs, esr);
 }
 
@@ -499,6 +500,8 @@ void do_el1_bti(struct pt_regs *regs, unsigned long esr)
 		regs->pstate &= ~PSR_BTYPE_MASK;
 		return;
 	}
+
+	trace_android_rvh_do_el1_bti(regs, esr);
 	die("Oops - BTI", regs, esr);
 }
 
@@ -513,6 +516,7 @@ void do_el1_fpac(struct pt_regs *regs, unsigned long esr)
 	 * Unexpected FPAC exception in the kernel: kill the task before it
 	 * does any more harm.
 	 */
+	trace_android_rvh_do_el1_fpac(regs, esr);
 	die("Oops - FPAC", regs, esr);
 }
 
