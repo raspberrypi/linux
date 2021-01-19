@@ -1957,19 +1957,17 @@ static inline int input_available_p(struct tty_struct *tty, int poll)
  *		read_tail published
  */
 
-static int copy_from_read_buf(struct tty_struct *tty,
+static void copy_from_read_buf(struct tty_struct *tty,
 				      unsigned char **kbp,
 				      size_t *nr)
 
 {
 	struct n_tty_data *ldata = tty->disc_data;
-	int retval;
 	size_t n;
 	bool is_eof;
 	size_t head = smp_load_acquire(&ldata->commit_head);
 	size_t tail = ldata->read_tail & (N_TTY_BUF_SIZE - 1);
 
-	retval = 0;
 	n = min(head - ldata->read_tail, N_TTY_BUF_SIZE - tail);
 	n = min(*nr, n);
 	if (n) {
@@ -1986,7 +1984,6 @@ static int copy_from_read_buf(struct tty_struct *tty,
 		*kbp += n;
 		*nr -= n;
 	}
-	return retval;
 }
 
 /**
@@ -2012,9 +2009,9 @@ static int copy_from_read_buf(struct tty_struct *tty,
  *		read_tail published
  */
 
-static int canon_copy_from_read_buf(struct tty_struct *tty,
-				    unsigned char **kbp,
-				    size_t *nr)
+static void canon_copy_from_read_buf(struct tty_struct *tty,
+				     unsigned char **kbp,
+				     size_t *nr)
 {
 	struct n_tty_data *ldata = tty->disc_data;
 	size_t n, size, more, c;
@@ -2024,7 +2021,7 @@ static int canon_copy_from_read_buf(struct tty_struct *tty,
 
 	/* N.B. avoid overrun if nr == 0 */
 	if (!*nr)
-		return 0;
+		return;
 
 	n = min(*nr + 1, smp_load_acquire(&ldata->canon_head) - ldata->read_tail);
 
@@ -2071,7 +2068,6 @@ static int canon_copy_from_read_buf(struct tty_struct *tty,
 			ldata->push = 0;
 		tty_audit_push();
 	}
-	return 0;
 }
 
 /**
@@ -2221,24 +2217,17 @@ static ssize_t n_tty_read(struct tty_struct *tty, struct file *file,
 		}
 
 		if (ldata->icanon && !L_EXTPROC(tty)) {
-			retval = canon_copy_from_read_buf(tty, &kb, &nr);
-			if (retval)
-				break;
+			canon_copy_from_read_buf(tty, &kb, &nr);
 		} else {
-			int uncopied;
-
 			/* Deal with packet mode. */
 			if (packet && kb == kbuf) {
 				*kb++ = TIOCPKT_DATA;
 				nr--;
 			}
 
-			uncopied = copy_from_read_buf(tty, &kb, &nr);
-			uncopied += copy_from_read_buf(tty, &kb, &nr);
-			if (uncopied) {
-				retval = -EFAULT;
-				break;
-			}
+			/* See comment above copy_from_read_buf() why twice */
+			copy_from_read_buf(tty, &kb, &nr);
+			copy_from_read_buf(tty, &kb, &nr);
 		}
 
 		n_tty_check_unthrottle(tty);
