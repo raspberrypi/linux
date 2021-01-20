@@ -57,6 +57,10 @@ static bool leds_off;
 static void snd_rpi_hifiberry_dacplus_select_clk(struct snd_soc_component *component,
 	int clk_id)
 {
+	/* reset PLL divider */
+	snd_soc_component_update_bits(component, PCM512x_MASTER_MODE,
+					PCM512x_RLRK | PCM512x_RBCK, 0);
+
 	switch (clk_id) {
 	case HIFIBERRY_DACPRO_NOCLOCK:
 		snd_soc_component_update_bits(component, PCM512x_GPIO_CONTROL_1, 0x24, 0x00);
