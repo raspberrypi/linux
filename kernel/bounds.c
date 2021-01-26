@@ -22,6 +22,13 @@ int main(void)
 	DEFINE(NR_CPUS_BITS, ilog2(CONFIG_NR_CPUS));
 #endif
 	DEFINE(SPINLOCK_SIZE, sizeof(spinlock_t));
+#ifdef CONFIG_LRU_GEN
+	DEFINE(LRU_GEN_WIDTH, order_base_2(MAX_NR_GENS + 1));
+	DEFINE(LRU_REFS_WIDTH, 0);
+#else
+	DEFINE(LRU_GEN_WIDTH, 0);
+	DEFINE(LRU_REFS_WIDTH, 0);
+#endif
 	/* End of constants */
 
 	return 0;
