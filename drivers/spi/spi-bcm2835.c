@@ -1090,6 +1090,16 @@ static int bcm2835_spi_transfer_one(struct spi_controller *ctlr,
 	unsigned long hz_per_byte, byte_limit;
 	u32 cs = bs->prepare_cs[spi->chip_select];
 
+	if (unlikely(!tfr->len)) {
+		static int warned;
+
+		if (!warned)
+			dev_warn(&spi->dev,
+				 "zero-length SPI transfer ignored\n");
+		warned = 1;
+		return 0;
+	}
+
 	/* set clock */
 	spi_hz = tfr->speed_hz;
 	clk_hz = clk_get_rate(bs->clk);
