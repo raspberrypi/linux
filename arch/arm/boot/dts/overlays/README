@@ -1045,8 +1045,36 @@ Load:   dtoverlay=hifiberry-amp
 Params: <None>
 
 
+Name:   hifiberry-amp100
+Info:   Configures the HifiBerry AMP100 audio card
+Load:   dtoverlay=hifiberry-amp100,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=hifiberry-amp100,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24dB_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+        slave                   Force DAC+ Pro into slave mode, using Pi as
+                                master for bit clock and frame clock.
+        leds_off                If set to 'true' the onboard indicator LEDs
+                                are switched off at all times.
+        auto_mute               If set to 'true' the amplifier is automatically
+                                muted when the DAC is not playing.
+        mute_ext_ctl            The amplifier's HW mute control is enabled
+                                in ALSA mixer and set to <val>.
+                                Will be overwritten by ALSA user settings.
+
+
 Name:   hifiberry-dac
-Info:   Configures the HifiBerry DAC audio card
+Info:   Configures the HifiBerry DAC audio cards
 Load:   dtoverlay=hifiberry-dac
 Params: <None>
 
