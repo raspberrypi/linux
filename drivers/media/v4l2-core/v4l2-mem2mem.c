@@ -301,9 +301,10 @@ static void __v4l2_m2m_try_queue(struct v4l2_m2m_dev *m2m_dev,
 
 	dprintk("Trying to schedule a job for m2m_ctx: %p\n", m2m_ctx);
 
-	if (!m2m_ctx->out_q_ctx.q.streaming
-	    || !m2m_ctx->cap_q_ctx.q.streaming) {
-		dprintk("Streaming needs to be on for both queues\n");
+	if (!(m2m_ctx->out_q_ctx.q.streaming &&
+	      m2m_ctx->cap_q_ctx.q.streaming) &&
+	    !(m2m_ctx->out_q_ctx.buffered && m2m_ctx->out_q_ctx.q.streaming)) {
+		dprintk("Streaming needs to be on for both queues, or buffered and OUTPUT streaming\n");
 		return;
 	}
 
