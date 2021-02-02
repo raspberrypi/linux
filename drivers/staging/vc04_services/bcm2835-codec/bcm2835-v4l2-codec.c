@@ -1519,6 +1519,14 @@ static int vidioc_g_selection(struct file *file, void *priv,
 			s->r.width = q_data->crop_width;
 			s->r.height = q_data->crop_height;
 			break;
+		case V4L2_SEL_TGT_CROP_BOUNDS:
+		case V4L2_SEL_TGT_CROP_DEFAULT:
+			s->r.left = 0;
+			s->r.top = 0;
+			s->r.width = (q_data->bytesperline << 3) /
+						q_data->fmt->depth;
+			s->r.height = q_data->height;
+			break;
 		default:
 			return -EINVAL;
 		}
