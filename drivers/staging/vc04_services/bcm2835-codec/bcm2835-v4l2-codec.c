@@ -930,23 +930,43 @@ static void send_eos_event(struct bcm2835_codec_ctx *ctx)
 	v4l2_event_queue_fh(&ctx->fh, &ev);
 }
 
-static void color_mmal2v4l(struct bcm2835_codec_ctx *ctx, u32 mmal_color_space)
+static void color_mmal2v4l(struct bcm2835_codec_ctx *ctx, u32 encoding,
+			   u32 color_space)
 {
-	switch (mmal_color_space) {
-	case MMAL_COLOR_SPACE_ITUR_BT601:
-		ctx->colorspace = V4L2_COLORSPACE_REC709;
-		ctx->xfer_func = V4L2_XFER_FUNC_709;
-		ctx->ycbcr_enc = V4L2_YCBCR_ENC_601;
-		ctx->quant = V4L2_QUANTIZATION_LIM_RANGE;
-		break;
+	int is_rgb;
 
-	case MMAL_COLOR_SPACE_ITUR_BT709:
-		ctx->colorspace = V4L2_COLORSPACE_REC709;
-		ctx->xfer_func = V4L2_XFER_FUNC_709;
-		ctx->ycbcr_enc = V4L2_YCBCR_ENC_709;
-		ctx->quant = V4L2_QUANTIZATION_LIM_RANGE;
+	switch (encoding) {
+	case MMAL_ENCODING_I420:
+	case MMAL_ENCODING_YV12:
+	case MMAL_ENCODING_NV12:
+	case MMAL_ENCODING_NV21:
+	case V4L2_PIX_FMT_YUYV:
+	case V4L2_PIX_FMT_YVYU:
+	case V4L2_PIX_FMT_UYVY:
+	case V4L2_PIX_FMT_VYUY:
+		/* YUV based colourspaces */
+		switch (color_space) {
+		case MMAL_COLOR_SPACE_ITUR_BT601:
+			ctx->colorspace = V4L2_COLORSPACE_SMPTE170M;
+			break;
+
+		case MMAL_COLOR_SPACE_ITUR_BT709:
+			ctx->colorspace = V4L2_COLORSPACE_REC709;
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		/* RGB based colourspaces */
+		ctx->colorspace = V4L2_COLORSPACE_SRGB;
 		break;
 	}
+	ctx->xfer_func = V4L2_MAP_XFER_FUNC_DEFAULT(ctx->colorspace);
+	ctx->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(ctx->colorspace);
+	is_rgb = ctx->colorspace == V4L2_COLORSPACE_SRGB;
+	ctx->quant = V4L2_MAP_QUANTIZATION_DEFAULT(is_rgb, ctx->colorspace,
+						   ctx->ycbcr_enc);
 }
 
 static void handle_fmt_changed(struct bcm2835_codec_ctx *ctx,
@@ -985,7 +1005,8 @@ static void handle_fmt_changed(struct bcm2835_codec_ctx *ctx,
 	q_data->height = format->es.video.height;
 	q_data->sizeimage = format->buffer_size_min;
 	if (format->es.video.color_space)
-		color_mmal2v4l(ctx, format->es.video.color_space);
+		color_mmal2v4l(ctx, format->format.encoding,
+			       format->es.video.color_space);
 
 	q_data->aspect_ratio.numerator = format->es.video.par.num;
 	q_data->aspect_ratio.denominator = format->es.video.par.den;
