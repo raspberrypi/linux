@@ -7226,9 +7226,8 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events,
 		.to_wait	= min_events,
 	};
 	struct io_rings *rings = ctx->rings;
-	struct timespec64 ts;
-	signed long timeout = 0;
-	int ret = 0;
+	signed long timeout = MAX_SCHEDULE_TIMEOUT;
+	int ret;
 
 	do {
 		io_cqring_overflow_flush(ctx, false, NULL, NULL);
@@ -7252,6 +7251,8 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events,
 	}
 
 	if (uts) {
+		struct timespec64 ts;
+
 		if (get_timespec64(&ts, uts))
 			return -EFAULT;
 		timeout = timespec64_to_jiffies(&ts);
@@ -7277,14 +7278,10 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events,
 			finish_wait(&ctx->wait, &iowq.wq);
 			continue;
 		}
-		if (uts) {
-			timeout = schedule_timeout(timeout);
-			if (timeout == 0) {
-				ret = -ETIME;
-				break;
-			}
-		} else {
-			schedule();
+		timeout = schedule_timeout(timeout);
+		if (timeout == 0) {
+			ret = -ETIME;
+			break;
 		}
 	} while (1);
 	finish_wait(&ctx->wait, &iowq.wq);
