@@ -73,10 +73,18 @@ static void gptr_free(struct rpivid_dev *const dev,
 	gptr->attrs = 0;
 }
 
-/* Realloc but do not copy */
+/* Realloc but do not copy
+ *
+ * Frees then allocs.
+ * If the alloc fails then it attempts to re-allocote the old size
+ * On error then check gptr->ptr to determine if anything is currently
+ * allocated.
+ */
 static int gptr_realloc_new(struct rpivid_dev * const dev,
 			    struct rpivid_gptr * const gptr, size_t size)
 {
+	const size_t old_size = gptr->size;
+
 	if (size == gptr->size)
 		return 0;
 
@@ -88,7 +96,21 @@ static int gptr_realloc_new(struct rpivid_dev * const dev,
 	gptr->size = size;
 	gptr->ptr = dma_alloc_attrs(dev->dev, gptr->size,
 				    &gptr->addr, GFP_KERNEL, gptr->attrs);
-	return gptr->ptr ? 0 : -ENOMEM;
+
+	if (!gptr->ptr) {
+		gptr->addr = 0;
+		gptr->size = old_size;
+		gptr->ptr = dma_alloc_attrs(dev->dev, gptr->size,
+					    &gptr->addr, GFP_KERNEL, gptr->attrs);
+		if (!gptr->ptr) {
+			gptr->size = 0;
+			gptr->addr = 0;
+			gptr->attrs = 0;
+		}
+		return -ENOMEM;
+	}
+
+	return 0;
 }
 
 /* floor(log2(x)) */
@@ -2020,6 +2042,12 @@ static void phase1_thread(struct rpivid_dev *const dev, void *v)
 	return;
 
 fail:
+	if (!pu_gptr->addr || !coeff_gptr->addr) {
+		v4l2_err(&dev->v4l2_dev,
+			 "%s: Fatal: failed to reclaim old alloc\n",
+			 __func__);
+		ctx->fatal_err = 1;
+	}
 	dec_env_delete(de);
 	xtrace_fin(dev, de);
 	v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx,
@@ -2093,6 +2121,9 @@ static void phase1_claimed(struct rpivid_dev *const dev, void *v)
 
 	xtrace_in(dev, de);
 
+	if (ctx->fatal_err)
+		goto fail;
+
 	de->pu_base_vc = pu_gptr->addr;
 	de->pu_stride =
 		ALIGN_DOWN(pu_gptr->size / de->pic_height_in_ctbs_y, 64);
@@ -2116,6 +2147,14 @@ static void phase1_claimed(struct rpivid_dev *const dev, void *v)
 	apb_write_vc_addr_final(dev, RPI_CFBASE, de->cmd_copy_gptr->addr);
 
 	xtrace_ok(dev, de);
+	return;
+
+fail:
+	dec_env_delete(de);
+	xtrace_fin(dev, de);
+	v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx,
+					 VB2_BUF_STATE_ERROR);
+	xtrace_fail(dev, de);
 }
 
 static void dec_state_delete(struct rpivid_ctx *const ctx)
@@ -2186,6 +2225,7 @@ static int rpivid_h265_start(struct rpivid_ctx *ctx)
 	v4l2_info(&dev->v4l2_dev, "%s: (%dx%d)\n", __func__,
 		  ctx->dst_fmt.width, ctx->dst_fmt.height);
 
+	ctx->fatal_err = 0;
 	ctx->dec0 = NULL;
 	ctx->state = kzalloc(sizeof(*ctx->state), GFP_KERNEL);
 	if (!ctx->state) {
