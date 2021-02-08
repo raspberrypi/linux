@@ -88,6 +88,9 @@ struct rpivid_ctx {
 	struct v4l2_pix_format		src_fmt;
 	struct v4l2_pix_format		dst_fmt;
 	int dst_fmt_set;
+	// fatal_err is set if an error has occurred s.t. decode cannot
+	// continue (such as running out of CMA)
+	int fatal_err;
 
 	struct v4l2_ctrl_handler	hdl;
 	struct v4l2_ctrl		**ctrls;
