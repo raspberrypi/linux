@@ -1050,8 +1050,8 @@ static const struct bcm2835_mmal_v4l2_ctrl v4l2_ctrls[V4L2_CTRL_COUNT] = {
 	{
 		.id = V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE,
 		.type = MMAL_CONTROL_TYPE_STD_MENU,
-		.min = ~0x3ff,
-		.max = V4L2_WHITE_BALANCE_SHADE,
+		.min = ~0x7ff,
+		.max = V4L2_WHITE_BALANCE_GREYWORLD,
 		.def = V4L2_WHITE_BALANCE_AUTO,
 		.step = 0,
 		.imenu = NULL,
