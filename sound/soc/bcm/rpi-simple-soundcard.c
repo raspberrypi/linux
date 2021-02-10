@@ -340,6 +340,28 @@ static struct snd_rpi_simple_drvdata drvdata_pifi_mini_210 = {
 	.fixed_bclk_ratio = 64,
 };
 
+SND_SOC_DAILINK_DEFS(pifi_dac_hd,
+	DAILINK_COMP_ARRAY(COMP_EMPTY()),
+	DAILINK_COMP_ARRAY(COMP_CODEC("pcm512x.1-004c", "pcm512x-hifi")),
+	DAILINK_COMP_ARRAY(COMP_EMPTY()));
+
+static struct snd_soc_dai_link snd_pifi_dac_hd_dai[] = {
+	{
+		.name           = "PiFi DAC HD",
+		.stream_name    = "PiFi DAC HD HiFi",
+		.dai_fmt        = SND_SOC_DAIFMT_I2S |
+					SND_SOC_DAIFMT_NB_NF |
+					SND_SOC_DAIFMT_CBS_CFS,
+		SND_SOC_DAILINK_REG(pifi_dac_hd),
+	},
+};
+
+static struct snd_rpi_simple_drvdata drvdata_pifi_dac_hd = {
+	.card_name = "snd_pifi_dac_hd",
+	.dai       = snd_pifi_dac_hd_dai,
+};
+
+
 static const struct of_device_id snd_rpi_simple_of_match[] = {
 	{ .compatible = "adi,adau1977-adc",
 		.data = (void *) &drvdata_adau1977 },
@@ -356,6 +378,8 @@ static const struct of_device_id snd_rpi_simple_of_match[] = {
 		.data = (void *) &drvdata_merus_amp },
 	{ .compatible = "pifi,pifi-mini-210",
 		.data = (void *) &drvdata_pifi_mini_210 },
+	{ .compatible = "pifi,pifi-dac-hd",
+		.data = (void *) &drvdata_pifi_dac_hd },
 	{},
 };
 
