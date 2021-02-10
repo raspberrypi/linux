@@ -44,6 +44,10 @@
 #define IMX477_REG_FRAME_LENGTH		0x0340
 #define IMX477_FRAME_LENGTH_MAX		0xffdc
 
+/* Long exposure multiplier */
+#define IMX477_LONG_EXP_SHIFT_MAX	7
+#define IMX477_LONG_EXP_SHIFT_REG	0x3100
+
 /* Exposure control */
 #define IMX477_REG_EXPOSURE		0x0202
 #define IMX477_EXPOSURE_OFFSET		22
@@ -1097,6 +1101,9 @@ struct imx477 {
 
 	/* Rewrite common registers on stream on? */
 	bool common_regs_written;
+
+	/* Current long exposure factor in use. Set through V4L2_CID_VBLANK */
+	unsigned int long_exp_shift;
 };
 
 static inline struct imx477 *to_imx477(struct v4l2_subdev *_sd)
@@ -1285,11 +1292,31 @@ static void imx477_adjust_exposure_range(struct imx477 *imx477,
 
 	/* Honour the VBLANK limits when setting exposure. */
 	exposure_max = imx477->mode->height + imx477->vblank->val -
-						IMX477_EXPOSURE_OFFSET;
+		       (IMX477_EXPOSURE_OFFSET << imx477->long_exp_shift);
 	exposure_def = min(exposure_max, imx477->exposure->val);
 	__v4l2_ctrl_modify_range(imx477->exposure, imx477->exposure->minimum,
 				 exposure_max, imx477->exposure->step,
 				 exposure_def);
+}
+
+static int imx477_set_frame_length(struct imx477 *imx477, unsigned int val)
+{
+	int ret = 0;
+
+	imx477->long_exp_shift = 0;
+
+	while (val > IMX477_FRAME_LENGTH_MAX) {
+		imx477->long_exp_shift++;
+		val >>= 1;
+	}
+
+	ret = imx477_write_reg(imx477, IMX477_REG_FRAME_LENGTH,
+			       IMX477_REG_VALUE_16BIT, val);
+	if (ret)
+		return ret;
+
+	return imx477_write_reg(imx477, IMX477_LONG_EXP_SHIFT_REG,
+				IMX477_REG_VALUE_08BIT, imx477->long_exp_shift);
 }
 
 static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -1299,6 +1326,10 @@ static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
 	struct i2c_client *client = v4l2_get_subdevdata(&imx477->sd);
 	int ret = 0;
 
+	/*
+	 * The VBLANK control may change the limits of usable exposure, so check
+	 * and adjust if necessary.
+	 */
 	if (ctrl->id == V4L2_CID_VBLANK)
 		imx477_adjust_exposure_range(imx477, ctrl);
 
@@ -1316,7 +1347,8 @@ static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_EXPOSURE:
 		ret = imx477_write_reg(imx477, IMX477_REG_EXPOSURE,
-				       IMX477_REG_VALUE_16BIT, ctrl->val);
+				       IMX477_REG_VALUE_16BIT, ctrl->val >>
+							imx477->long_exp_shift);
 		break;
 	case V4L2_CID_DIGITAL_GAIN:
 		ret = imx477_write_reg(imx477, IMX477_REG_DIGITAL_GAIN,
@@ -1350,9 +1382,8 @@ static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
 				       imx477->vflip->val << 1);
 		break;
 	case V4L2_CID_VBLANK:
-		ret = imx477_write_reg(imx477, IMX477_REG_FRAME_LENGTH,
-				       IMX477_REG_VALUE_16BIT,
-				       imx477->mode->height + ctrl->val);
+		ret = imx477_set_frame_length(imx477,
+					      imx477->mode->height + ctrl->val);
 		break;
 	default:
 		dev_info(&client->dev,
@@ -1521,9 +1552,13 @@ static void imx477_set_framing_limits(struct imx477 *imx477)
 	frm_length_default =
 		     imx477_get_frame_length(mode, &mode->timeperframe_default);
 
+	/* Default to no long exposure multiplier. */
+	imx477->long_exp_shift = 0;
+
 	/* Update limits and set FPS to default */
 	__v4l2_ctrl_modify_range(imx477->vblank, frm_length_min - mode->height,
-				 IMX477_FRAME_LENGTH_MAX - mode->height,
+				 ((1 << IMX477_LONG_EXP_SHIFT_MAX) *
+					IMX477_FRAME_LENGTH_MAX) - mode->height,
 				 1, frm_length_default - mode->height);
 
 	/* Setting this will adjust the exposure limits as well. */
