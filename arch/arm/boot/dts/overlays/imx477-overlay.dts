@@ -9,7 +9,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2c_csi_dsi>;
+		target = <&i2cbus>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -23,7 +23,7 @@
 				clocks = <&imx477_clk>;
 				clock-names = "xclk";
 
-				VANA-supply = <&cam1_reg>;	/* 2.8v */
+				VANA-supply = <&cam_reg>;	/* 2.8v */
 				VDIG-supply = <&imx477_vdig>;	/* 1.05v */
 				VDDL-supply = <&imx477_vddl>;	/* 1.8v */
 
@@ -31,7 +31,7 @@
 
 				port {
 					imx477_0: endpoint {
-						remote-endpoint = <&csi1_ep>;
+						remote-endpoint = <&csi_ep>;
 						clock-lanes = <0>;
 						data-lanes = <1 2>;
 						clock-noncontinuous;
@@ -44,12 +44,12 @@
 	};
 
 	fragment@1 {
-		target = <&csi1>;
+		target = <&csi>;
 		__overlay__ {
 			status = "okay";
 
 			port {
-				csi1_ep: endpoint {
+				csi_ep: endpoint {
 					remote-endpoint = <&imx477_0>;
 					clock-lanes = <0>;
 					data-lanes = <1 2>;
@@ -69,22 +69,23 @@
 	fragment@3 {
 		target-path="/";
 		__overlay__ {
-			imx477_vdig: fixedregulator@0 {
+			imx477_vdig: imx477_1_vdig {
 				compatible = "regulator-fixed";
-				regulator-name = "imx477_vdig";
+				regulator-name = "imx477_1_vdig";
 				regulator-min-microvolt = <1050000>;
 				regulator-max-microvolt = <1050000>;
 			};
-			imx477_vddl: fixedregulator@1 {
+			imx477_vddl: imx477_1_vddl {
 				compatible = "regulator-fixed";
-				regulator-name = "imx477_vddl";
+				regulator-name = "imx477_1_vddl";
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
 			};
-			imx477_clk: camera-clk {
+			imx477_clk: imx477_1_clk {
 				compatible = "fixed-clock";
 				#clock-cells = <0>;
 				clock-frequency = <24000000>;
+				clock-output-names = "imx477_1_clk";
 			};
 		};
 	};
@@ -97,17 +98,48 @@
 	};
 
 	fragment@5 {
-		target = <&cam1_reg>;
+		target = <&cam_reg>;
 		__overlay__ {
 			status = "okay";
-			regulator-name = "imx477_vana";
+			regulator-name = "imx477_1_vana";
 			startup-delay-us = <300000>;
 			regulator-min-microvolt = <2800000>;
 			regulator-max-microvolt = <2800000>;
 		};
 	};
 
+	frag100: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		i2cbus: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	frag101: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	frag102: fragment@102 {
+		target = <&cam1_reg>;
+		cam_reg: __overlay__ {
+			status = "okay";
+		};
+	};
+
 	__overrides__ {
 		rotation = <&imx477>,"rotation:0";
+		cam0 =	<&frag100>, "target:0=",<&i2c_vc>,
+			<&frag101>, "target:0=",<&csi0>,
+			<&frag102>, "target:0=",<&cam0_reg>,
+			<&imx477_vdig>, "name=imx477_0_dovdd",
+			<&imx477_vdig>, "regulator-name=imx477_0_dovdd",
+			<&imx477_vddl>, "name=imx477_0_dvdd",
+			<&imx477_vddl>, "regulator-name=imx477_0_dvdd",
+			<&imx477_clk>, "clock-output-names=imx477_0_clk",
+			<&imx477_clk>, "name=imx477_0_clk"
+			;
 	};
 };

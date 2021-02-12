@@ -7,13 +7,13 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2c_csi_dsi>;
+		target = <&i2cbus>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
 
-			irs1125: irs1125@3D {
+			irs1125: irs1125@3d {
 				compatible = "infineon,irs1125";
 				reg = <0x3D>;
 				status = "okay";
@@ -23,7 +23,7 @@
 
 				port {
 					irs1125_0: endpoint {
-						remote-endpoint = <&csi1_ep>;
+						remote-endpoint = <&csi_ep>;
 						clock-lanes = <0>;
 						data-lanes = <1 2>;
 						clock-noncontinuous;
@@ -36,12 +36,12 @@
 	};
 
 	fragment@1 {
-		target = <&csi1>;
+		target = <&csi>;
 		__overlay__ {
 			status = "okay";
 
 			port {
-				csi1_ep: endpoint {
+				csi_ep: endpoint {
 					remote-endpoint = <&irs1125_0>;
 					data-lanes = <1 2>;
 					clock-noncontinuous;
@@ -65,6 +65,18 @@
 	};
 
 	fragment@4 {
+		target-path = "/";
+		__overlay__ {
+			irs1125_clk: irs1125-1-clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <26000000>;
+				clock-output-names = "irs1125_1_clk";
+			};
+		};
+	};
+
+	fragment@5 {
 		target-path="/__overrides__";
 		__overlay__ {
 			cam0-pwdn-ctrl = <&irs1125>,"pwdn-gpios:0";
@@ -72,14 +84,34 @@
 		};
 	};
 
-	fragment@5 {
-		target-path = "/";
+	fragment@6 {
+		target-path="/__overrides__";
 		__overlay__ {
-			irs1125_clk: camera-clk {
-				compatible = "fixed-clock";
-				#clock-cells = <0>;
-				clock-frequency = <26000000>;
-			};
+			cam1-pwdn-ctrl = <&irs1125>,"pwdn-gpios:0";
+			cam1-pwdn      = <&irs1125>,"pwdn-gpios:4";
 		};
+	};
+
+	frag100: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		i2cbus: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	frag101: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		cam0 =	<&frag100>, "target:0=",<&i2c_vc>,
+			<&frag101>, "target:0=",<&csi0>,
+			<&irs1125_clk>, "clock-output-names=irs1125_0_clk",
+			<&irs1125_clk>, "name=irs1125_0_clk",
+			<0>, "-4+5"
+			;
 	};
 };

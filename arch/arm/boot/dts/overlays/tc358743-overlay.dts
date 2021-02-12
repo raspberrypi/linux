@@ -7,7 +7,32 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2c_csi_dsi>;
+		target-path = "/";
+		__overlay__ {
+			tc358743_clk: bridge-1-clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <27000000>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&tc358743>;
+		__overlay__ {
+			data-lanes = <1 2>;
+		};
+	};
+
+	fragment@2 {
+		target = <&tc358743>;
+		__dormant__ {
+			data-lanes = <1 2 3 4>;
+		};
+	};
+
+	fragment@3 {
+		target = <&i2cbus>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -23,7 +48,7 @@
 
 				port {
 					tc358743: endpoint {
-						remote-endpoint = <&csi1_ep>;
+						remote-endpoint = <&csi_ep>;
 						clock-lanes = <0>;
 						clock-noncontinuous;
 						link-frequencies =
@@ -34,74 +59,69 @@
 		};
 	};
 
-	fragment@1 {
-		target = <&csi1>;
-		__overlay__ {
-			status = "okay";
-
-			port {
-				csi1_ep: endpoint {
-					remote-endpoint = <&tc358743>;
-				};
-			};
-		};
-	};
-
-	fragment@2 {
-		target = <&tc358743>;
+	fragment@4 {
+		target = <&csi_ep>;
 		__overlay__ {
 			data-lanes = <1 2>;
 		};
 	};
 
-	fragment@3 {
-		target = <&tc358743>;
+	fragment@5 {
+		target = <&csi_ep>;
 		__dormant__ {
 			data-lanes = <1 2 3 4>;
 		};
 	};
 
-	fragment@4 {
+	fragment@6 {
+		target = <&csi>;
+		__overlay__ {
+			status = "okay";
+
+			port {
+				csi_ep: endpoint {
+					remote-endpoint = <&tc358743>;
+					data-lanes = <1 2>;
+				};
+			};
+		};
+	};
+
+	fragment@7 {
 		target = <&i2c0if>;
 		__overlay__ {
 			status = "okay";
 		};
 	};
 
-	fragment@5 {
+	fragment@8 {
 		target = <&i2c0mux>;
 		__overlay__ {
 			status = "okay";
 		};
 	};
 
-	fragment@6 {
-		target-path = "/";
-		__overlay__ {
-			tc358743_clk: bridge-clk {
-				compatible = "fixed-clock";
-				#clock-cells = <0>;
-				clock-frequency = <27000000>;
-			};
+	frag100: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		i2cbus: __overlay__ {
+			status = "okay";
 		};
 	};
 
-	fragment@7 {
-		target = <&csi1_ep>;
-		__overlay__ {
-			data-lanes = <1 2>;
-		};
-	};
-
-	fragment@8 {
-		target = <&csi1_ep>;
-		__dormant__ {
-			data-lanes = <1 2 3 4>;
+	frag101: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
 		};
 	};
 
 	__overrides__ {
-		4lane = <0>, "-2+3-7+8";
+		4lane = <0>, "-1+2-4+5";
 		link-frequency = <&tc358743>,"link-frequencies#0";
+		cam0 =	<&frag100>, "target:0=",<&i2c_vc>,
+			<&frag101>, "target:0=",<&csi0>,
+			<&tc358743_clk>, "clock-output-names=bridge-0-clk",
+			<&tc358743_clk>, "name=bridge-0-clk"
+			;
 	};
 };

@@ -7,7 +7,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2c_csi_dsi>;
+		target = <&i2cbus>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -20,7 +20,7 @@
 				clock-frequency = <24000000>;
 				port {
 					adv728x_0: endpoint {
-						remote-endpoint = <&csi1_ep>;
+						remote-endpoint = <&csi_ep>;
 						clock-lanes = <0>;
 						data-lanes = <1>;
 						link-frequencies =
@@ -33,12 +33,12 @@
 		};
 	};
 	fragment@1 {
-		target = <&csi1>;
+		target = <&csi>;
 		__overlay__ {
 			status = "okay";
 
 			port {
-				csi1_ep: endpoint {
+				csi_ep: endpoint {
 					remote-endpoint = <&adv728x_0>;
 					data-lanes = <1>;
 				};
@@ -59,7 +59,24 @@
 		};
 	};
 
+	frag100: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		i2cbus: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	frag101: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+		};
+	};
+
 	__overrides__ {
-		addr =			<&adv728x>,"reg:0";
+		addr =	<&adv728x>,"reg:0";
+		cam0 =	<&frag100>, "target:0=",<&i2c_vc>,
+			<&frag101>, "target:0=",<&csi0>
+			;
 	};
 };

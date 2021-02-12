@@ -1631,6 +1631,8 @@ Info:   Sony IMX219 camera module.
 Load:   dtoverlay=imx219,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
 
 
 Name:   imx290
@@ -1647,6 +1649,8 @@ Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
                                 (the default), whilst those from Innomaker use
                                 74.25MHz.
         mono                    Denote that the module is a mono sensor.
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
 
 
 Name:   imx477
@@ -1656,6 +1660,8 @@ Info:   Sony IMX477 camera module.
 Load:   dtoverlay=imx477,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
 
 
 Name:   iqaudio-codec
@@ -1719,8 +1725,10 @@ Name:   irs1125
 Info:   Infineon irs1125 TOF camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=irs1125
-Params: <None>
+Load:   dtoverlay=irs1125,<param>=<val>
+Params: cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+
 
 
 Name:   jedec-spi-nor
@@ -2081,22 +2089,27 @@ Info:   Omnivision OV5647 camera module.
 Load:   dtoverlay=ov5647,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 0)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
 
 
 Name:   ov7251
 Info:   Omnivision OV7251 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=ov7251
-Params: <None>
+Load:   dtoverlay=ov7251,<param>=<val>
+Params: cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+
 
 
 Name:   ov9281
 Info:   Omnivision OV9281 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=ov9281
-Params: <None>
+Load:   dtoverlay=ov9281,<param>=<val>
+Params: cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
 
 
 Name:   papirus
@@ -3014,6 +3027,8 @@ Params: 4lane                   Use 4 lanes (only applicable to Compute Modules
         link-frequency          Set the link frequency. Only values of 297000000
                                 (574Mbit/s) and 486000000 (972Mbit/s - default)
                                 are supported by the driver.
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
 
 
 Name:   tc358743-audio

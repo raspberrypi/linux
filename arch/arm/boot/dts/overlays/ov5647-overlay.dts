@@ -7,7 +7,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2c_csi_dsi>;
+		target = <&i2cbus>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -25,7 +25,7 @@
 
 				port {
 					ov5647_0: endpoint {
-						remote-endpoint = <&csi1_ep>;
+						remote-endpoint = <&csi_ep>;
 						clock-lanes = <0>;
 						data-lanes = <1 2>;
 						clock-noncontinuous;
@@ -38,12 +38,12 @@
 	};
 
 	fragment@1 {
-		target = <&csi1>;
+		target = <&csi>;
 		__overlay__ {
 			status = "okay";
 
 			port {
-				csi1_ep: endpoint {
+				csi_ep: endpoint {
 					remote-endpoint = <&ov5647_0>;
 					data-lanes = <1 2>;
 				};
@@ -76,17 +76,49 @@
 	};
 
 	fragment@5 {
+		target-path="/__overrides__";
+		__overlay__ {
+			cam1-pwdn-ctrl = <&ov5647>,"pwdn-gpios:0";
+			cam1-pwdn      = <&ov5647>,"pwdn-gpios:4";
+			cam1-led-ctrl  = <&ov5647>,"pwdn-gpios:12";
+			cam1-led       = <&ov5647>,"pwdn-gpios:16";
+		};
+	};
+
+	fragment@6 {
 		target-path = "/";
 		__overlay__ {
-			ov5647_clk: camera-clk {
+			ov5647_clk: ov5647_1_clk {
 				compatible = "fixed-clock";
 				#clock-cells = <0>;
 				clock-frequency = <25000000>;
+				clock-output-names = "ov5647_1_clk";
 			};
+		};
+	};
+
+	frag100: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		i2cbus: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	frag101: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
 		};
 	};
 
 	__overrides__ {
 		rotation = <&ov5647>,"rotation:0";
+		cam0 =	<&frag100>, "target:0=",<&i2c_vc>,
+			<&frag101>, "target:0=",<&csi0>,
+			<&frag102>, "target:0=",<&cam0_reg>,
+			<&ov5647_clk>, "clock-output-names=ov5647_0_clk",
+			<&ov5647_clk>, "name=ov5647_0_clk",
+			<0>, "-4+5"
+			;
 	};
 };

@@ -9,7 +9,7 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target = <&i2c_csi_dsi>;
+		target = <&i2cbus>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -25,12 +25,12 @@
 				clock-frequency = <24000000>;
 
 				vdddo-supply = <&ov7251_dovdd>;
-				vdda-supply = <&cam1_reg>;
+				vdda-supply = <&cam_reg>;
 				vddd-supply = <&ov7251_dvdd>;
 
 				port {
 					ov7251_0: endpoint {
-						remote-endpoint = <&csi1_ep>;
+						remote-endpoint = <&csi_ep>;
 						clock-lanes = <0>;
 						data-lanes = <1>;
 						clock-noncontinuous;
@@ -43,12 +43,12 @@
 	};
 
 	fragment@1 {
-		target = <&csi1>;
+		target = <&csi>;
 		__overlay__ {
 			status = "okay";
 
 			port {
-				csi1_ep: endpoint {
+				csi_ep: endpoint {
 					remote-endpoint = <&ov7251_0>;
 					data-lanes = <1>;
 				};
@@ -66,22 +66,23 @@
 	fragment@3 {
 		target-path="/";
 		__overlay__ {
-			ov7251_dovdd: fixedregulator@1 {
+			ov7251_dovdd: ov7251_1_dovdd {
 				compatible = "regulator-fixed";
-				regulator-name = "ov7251_dovdd";
+				regulator-name = "ov7251_1_dovdd";
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
 			};
-			ov7251_dvdd: fixedregulator@2 {
+			ov7251_dvdd: ov7251_1_dvdd {
 				compatible = "regulator-fixed";
-				regulator-name = "ov7251_dvdd";
+				regulator-name = "ov7251_1_dvdd";
 				regulator-min-microvolt = <1200000>;
 				regulator-max-microvolt = <1200000>;
 			};
-			ov7251_clk: ov7251-clk {
+			ov7251_clk: ov7251_1_clk {
 				compatible = "fixed-clock";
 				#clock-cells = <0>;
 				clock-frequency = <24000000>;
+				clock-output-names = "ov7251_1_clk";
 			};
 		};
 	};
@@ -94,12 +95,47 @@
 	};
 
 	fragment@5 {
-		target = <&cam1_reg>;
+		target = <&cam_reg>;
 		__overlay__ {
 			status = "okay";
-			regulator-name = "ov7251_avdd";
+			regulator-name = "ov7251_1_avdd";
 			regulator-min-microvolt = <2800000>;
 			regulator-max-microvolt = <2800000>;
 		};
+	};
+
+	frag100: fragment@100 {
+		target = <&i2c_csi_dsi>;
+		i2cbus: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	frag101: fragment@101 {
+		target = <&csi1>;
+		csi: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	frag102: fragment@102 {
+		target = <&cam1_reg>;
+		cam_reg: __overlay__ {
+			status = "okay";
+		};
+	};
+
+	__overrides__ {
+		cam0 =	<&frag100>, "target:0=",<&i2c_vc>,
+			<&frag101>, "target:0=",<&csi0>,
+			<&frag102>, "target:0=",<&cam0_reg>,
+			<&frag102>, "regulator-name=ov7251_0_avdd",
+			<&ov7251_dovdd>, "name=ov7251_0_dovdd",
+			<&ov7251_dovdd>, "regulator-name=ov7251_0_dovdd",
+			<&ov7251_dvdd>, "name=ov7251_0_dvdd",
+			<&ov7251_dvdd>, "regulator-name=ov7251_0_dvdd",
+			<&ov7251_clk>, "clock-output-names=ov7251_0_clk",
+			<&ov7251_clk>, "name=ov7251_0_clk"
+			;
 	};
 };
