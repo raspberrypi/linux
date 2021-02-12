@@ -314,7 +314,6 @@
 			interrupts = <GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-controller;
 			#interrupt-cells = <1>;
-			status = "disabled";
 		};
 
 		aon_intr: interrupt-controller@7ef00100 {
