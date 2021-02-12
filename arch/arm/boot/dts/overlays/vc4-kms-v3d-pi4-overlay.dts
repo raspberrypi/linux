@@ -167,13 +167,6 @@
 	};
 
 	fragment@23 {
-		target = <&bsc_intr>;
-		__overlay__  {
-			status = "okay";
-		};
-	};
-
-	fragment@24 {
 		target = <&aon_intr>;
 		__overlay__  {
 			status = "okay";
