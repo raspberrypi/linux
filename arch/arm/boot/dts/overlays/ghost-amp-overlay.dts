@@ -58,7 +58,7 @@
 				debug = <0>;
 				gpio-controller;
 				#gpio-cells = <2>;
-				num-soft-gpios = <1>;
+				num-swgpios = <1>;
 				gpio-line-names = "enable";
 				input-gpios  = <&gpio 5 1>;  // FAULT (active low)
 				output-gpios = <&gpio 22 0>, // RELAY1
