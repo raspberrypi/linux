@@ -866,8 +866,9 @@ static int gpio_fsm_probe(struct platform_device *pdev)
 		[SYM_SHUTDOWN] = "shutdown_state",
 	};
 
-	if (of_property_read_u32(np, "num-soft-gpios", &num_soft_gpios)) {
-		dev_err(dev, "missing 'num-soft-gpios' property\n");
+	if (of_property_read_u32(np, "num-swgpios", &num_soft_gpios) &&
+	    of_property_read_u32(np, "num-soft-gpios", &num_soft_gpios)) {
+		dev_err(dev, "missing 'num-swgpios' property\n");
 		return -EINVAL;
 	}
 
