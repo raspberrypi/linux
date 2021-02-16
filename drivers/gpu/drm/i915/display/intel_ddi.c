@@ -2597,6 +2597,9 @@ static void icl_mg_phy_ddi_vswing_sequence(struct intel_encoder *encoder,
 	u32 n_entries, val;
 	int ln, rate = 0;
 
+	if (enc_to_dig_port(encoder)->tc_mode == TC_PORT_TBT_ALT)
+		return;
+
 	if (type != INTEL_OUTPUT_HDMI) {
 		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
 
@@ -2605,12 +2608,11 @@ static void icl_mg_phy_ddi_vswing_sequence(struct intel_encoder *encoder,
 
 	ddi_translations = icl_get_mg_buf_trans(encoder, type, rate,
 						&n_entries);
-	/* The table does not have values for level 3 and level 9. */
-	if (level >= n_entries || level == 3 || level == 9) {
+	if (level >= n_entries) {
 		drm_dbg_kms(&dev_priv->drm,
 			    "DDI translation not found for level %d. Using %d instead.",
-			    level, n_entries - 2);
-		level = n_entries - 2;
+			    level, n_entries - 1);
+		level = n_entries - 1;
 	}
 
 	/* Set MG_TX_LINK_PARAMS cri_use_fs32 to 0. */
@@ -2741,6 +2743,9 @@ tgl_dkl_phy_ddi_vswing_sequence(struct intel_encoder *encoder, int link_clock,
 	const struct tgl_dkl_phy_ddi_buf_trans *ddi_translations;
 	u32 n_entries, val, ln, dpcnt_mask, dpcnt_val;
 	int rate = 0;
+
+	if (enc_to_dig_port(encoder)->tc_mode == TC_PORT_TBT_ALT)
+		return;
 
 	if (type != INTEL_OUTPUT_HDMI) {
 		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
@@ -3274,6 +3279,23 @@ static void intel_ddi_disable_fec_state(struct intel_encoder *encoder,
 	intel_de_posting_read(dev_priv, intel_dp->regs.dp_tp_ctl);
 }
 
+static void intel_ddi_power_up_lanes(struct intel_encoder *encoder,
+				     const struct intel_crtc_state *crtc_state)
+{
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
+	enum phy phy = intel_port_to_phy(i915, encoder->port);
+
+	if (intel_phy_is_combo(i915, phy)) {
+		bool lane_reversal =
+			dig_port->saved_port_bits & DDI_BUF_PORT_REVERSAL;
+
+		intel_combo_phy_power_up_lanes(i915, phy, false,
+					       crtc_state->lane_count,
+					       lane_reversal);
+	}
+}
+
 static void tgl_ddi_pre_enable_dp(struct intel_atomic_state *state,
 				  struct intel_encoder *encoder,
 				  const struct intel_crtc_state *crtc_state,
@@ -3367,14 +3389,7 @@ static void tgl_ddi_pre_enable_dp(struct intel_atomic_state *state,
 	 * 7.f Combo PHY: Configure PORT_CL_DW10 Static Power Down to power up
 	 * the used lanes of the DDI.
 	 */
-	if (intel_phy_is_combo(dev_priv, phy)) {
-		bool lane_reversal =
-			dig_port->saved_port_bits & DDI_BUF_PORT_REVERSAL;
-
-		intel_combo_phy_power_up_lanes(dev_priv, phy, false,
-					       crtc_state->lane_count,
-					       lane_reversal);
-	}
+	intel_ddi_power_up_lanes(encoder, crtc_state);
 
 	/*
 	 * 7.g Configure and enable DDI_BUF_CTL
@@ -3458,14 +3473,7 @@ static void hsw_ddi_pre_enable_dp(struct intel_atomic_state *state,
 	else
 		intel_prepare_dp_ddi_buffers(encoder, crtc_state);
 
-	if (intel_phy_is_combo(dev_priv, phy)) {
-		bool lane_reversal =
-			dig_port->saved_port_bits & DDI_BUF_PORT_REVERSAL;
-
-		intel_combo_phy_power_up_lanes(dev_priv, phy, false,
-					       crtc_state->lane_count,
-					       lane_reversal);
-	}
+	intel_ddi_power_up_lanes(encoder, crtc_state);
 
 	intel_ddi_init_dp_buf_reg(encoder);
 	if (!is_mst)
@@ -3932,6 +3940,8 @@ static void intel_enable_ddi_hdmi(struct intel_atomic_state *state,
 
 		intel_de_write(dev_priv, reg, val);
 	}
+
+	intel_ddi_power_up_lanes(encoder, crtc_state);
 
 	/* In HDMI/DVI mode, the port width, and swing/emphasis values
 	 * are ignored so nothing special needs to be done besides
