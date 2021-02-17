@@ -1142,7 +1142,8 @@ static int gpio_fsm_remove(struct platform_device *pdev)
 				   gf->current_state->shutdown_target ==
 				   gf->current_state,
 				   msecs_to_jiffies(gf->shutdown_timeout_ms));
-		if (gf->current_state->shutdown_target == gf->current_state)
+		/* On failure to reach a shutdown state, jump to one */
+		if (gf->current_state->shutdown_target != gf->current_state)
 			gpio_fsm_enter_state(gf, gf->shutdown_state);
 	}
 	cancel_work_sync(&gf->work);
