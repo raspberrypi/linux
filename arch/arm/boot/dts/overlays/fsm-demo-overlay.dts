@@ -92,7 +92,7 @@
 
 				shutdown4 {
 					shutdown_state;
-					set = <RED 0>;
+					set = <RED 0>, <AMBER 0>, <GREEN 0>;
 				};
 			};
 	       };
