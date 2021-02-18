@@ -955,7 +955,7 @@ static const struct imx477_mode supported_modes_12bit[] = {
 			.left = IMX477_PIXEL_ARRAY_LEFT,
 			.top = IMX477_PIXEL_ARRAY_TOP + 440,
 			.width = 4056,
-			.height = 2600,
+			.height = 2160,
 		},
 		.timeperframe_min = {
 			.numerator = 100,
