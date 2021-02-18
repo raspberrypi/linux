@@ -131,6 +131,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	pifacedigital.dtbo \
 	pifi-40.dtbo \
 	pifi-dac-zero.dtbo \
+	pifi-dac-hd.dtbo \
 	pifi-mini-210.dtbo \
 	piglow.dtbo \
 	piscreen.dtbo \
