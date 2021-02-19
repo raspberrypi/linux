@@ -2131,6 +2131,18 @@ Load:   dtoverlay=pifi-40
 Params: <None>
 
 
+Name:   pifi-dac-hd
+Info:   Configures the PiFi DAC HD
+Load:   dtoverlay=pifi-dac-hd
+Params: <None>
+
+
+Name:   pifi-dac-zero
+Info:   Configures the PiFi DAC Zero
+Load:   dtoverlay=pifi-dac-zero
+Params: <None>
+
+
 Name:   pifi-mini-210
 Info:   Configures the PiFi Mini stereo amplifier
 Load:   dtoverlay=pifi-mini-210
