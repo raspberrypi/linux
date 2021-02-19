@@ -1276,8 +1276,7 @@ static int imx477_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	return 0;
 }
 
-static void imx477_adjust_exposure_range(struct imx477 *imx477,
-					 struct v4l2_ctrl *ctrl)
+static void imx477_adjust_exposure_range(struct imx477 *imx477)
 {
 	int exposure_max, exposure_def;
 
@@ -1322,7 +1321,7 @@ static int imx477_set_ctrl(struct v4l2_ctrl *ctrl)
 	 * and adjust if necessary.
 	 */
 	if (ctrl->id == V4L2_CID_VBLANK)
-		imx477_adjust_exposure_range(imx477, ctrl);
+		imx477_adjust_exposure_range(imx477);
 
 	/*
 	 * Applying V4L2 control value only happens
