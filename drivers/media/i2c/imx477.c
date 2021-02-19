@@ -1073,7 +1073,7 @@ struct imx477 {
 	struct v4l2_subdev sd;
 	struct media_pad pad[NUM_PADS];
 
-	struct v4l2_mbus_framefmt fmt;
+	unsigned int fmt_code;
 
 	struct clk *xclk;
 	u32 xclk_freq;
@@ -1235,21 +1235,9 @@ static u32 imx477_get_format_code(struct imx477 *imx477, u32 code)
 
 static void imx477_set_default_format(struct imx477 *imx477)
 {
-	struct v4l2_mbus_framefmt *fmt = &imx477->fmt;
-
 	/* Set default mode to max resolution */
 	imx477->mode = &supported_modes_12bit[0];
-
-	fmt->code = MEDIA_BUS_FMT_SRGGB12_1X12;
-	fmt->colorspace = V4L2_COLORSPACE_SRGB;
-	fmt->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->colorspace);
-	fmt->quantization = V4L2_MAP_QUANTIZATION_DEFAULT(true,
-							  fmt->colorspace,
-							  fmt->ycbcr_enc);
-	fmt->xfer_func = V4L2_MAP_XFER_FUNC_DEFAULT(fmt->colorspace);
-	fmt->width = imx477->mode->width;
-	fmt->height = imx477->mode->height;
-	fmt->field = V4L2_FIELD_NONE;
+	imx477->fmt_code = MEDIA_BUS_FMT_SRGGB12_1X12;
 }
 
 static int imx477_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
@@ -1520,7 +1508,7 @@ static int imx477_get_pad_format(struct v4l2_subdev *sd,
 			imx477_update_image_pad_format(imx477, imx477->mode,
 						       fmt);
 			fmt->format.code =
-			       imx477_get_format_code(imx477, imx477->fmt.code);
+			       imx477_get_format_code(imx477, imx477->fmt_code);
 		} else {
 			imx477_update_metadata_pad_format(fmt);
 		}
@@ -1611,6 +1599,7 @@ static int imx477_set_pad_format(struct v4l2_subdev *sd,
 			*framefmt = fmt->format;
 		} else {
 			imx477->mode = mode;
+			imx477->fmt_code = fmt->format.code;
 			imx477_set_framing_limits(imx477);
 		}
 	} else {
