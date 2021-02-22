@@ -24,7 +24,7 @@
 
 				interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
 
-				clocks = <&hevc_clk>;
+				clocks = <&firmware_clocks 11>;
 				clock-names = "hevc";
 			};
 		};
@@ -44,17 +44,6 @@
 			};
 			vp9-decoder@7eb30000 {
 				status = "disabled";
-			};
-		};
-	};
-
-	fragment@2 {
-		target-path = "/";
-		__overlay__ {
-			hevc_clk: hevc_clk {
-				compatible = "fixed-clock";
-				#clock-cells = <0>;
-				clock-frequency = <500000000>;
 			};
 		};
 	};
