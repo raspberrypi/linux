@@ -355,7 +355,7 @@ vc_mem_exit(void)
 	pr_debug("%s: called\n", __func__);
 
 	if (vc_mem_inited) {
-#if CONFIG_DEBUG_FS
+#ifdef CONFIG_DEBUG_FS
 		vc_mem_debugfs_deinit();
 #endif
 		device_destroy(vc_mem_class, vc_mem_devnum);
