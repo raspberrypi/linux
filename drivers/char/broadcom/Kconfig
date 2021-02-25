@@ -25,6 +25,7 @@ endif
 
 config BCM2835_DEVGPIOMEM
 	tristate "/dev/gpiomem rootless GPIO access via mmap() on the BCM2835"
+	depends on ARM_DMA_MEM_BUFFERABLE
 	default m
 	help
 		Provides users with root-free access to the GPIO registers
