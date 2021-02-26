@@ -1311,6 +1311,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         ds1339                  Select the DS1339 device
 
+        ds1340                  Select the DS1340 device
+
         ds3231                  Select the DS3231 device
 
         m41t62                  Select the M41T62 device
