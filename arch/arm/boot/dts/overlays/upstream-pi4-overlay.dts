@@ -116,6 +116,12 @@
 		};
 	};
 	fragment@18 {
+		target = <&aon_intr>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@19 {
 		target = <&usb>;
 		#address-cells = <1>;
 		#size-cells = <1>;
