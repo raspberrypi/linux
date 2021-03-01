@@ -2215,7 +2215,7 @@ mackey_and_ltk:
 	if (err)
 		return SMP_UNSPECIFIED;
 
-	if (smp->method == REQ_OOB) {
+	if (smp->method == JUST_WORKS || smp->method == REQ_OOB) {
 		if (test_bit(SMP_FLAG_INITIATOR, &smp->flags)) {
 			sc_dhkey_check(smp);
 			SMP_ALLOW_CMD(smp, SMP_CMD_DHKEY_CHECK);
@@ -2230,9 +2230,6 @@ mackey_and_ltk:
 	confirm_hint = 0;
 
 confirm:
-	if (smp->method == JUST_WORKS)
-		confirm_hint = 1;
-
 	err = mgmt_user_confirm_request(hcon->hdev, &hcon->dst, hcon->type,
 					hcon->dst_type, passkey, confirm_hint);
 	if (err)
