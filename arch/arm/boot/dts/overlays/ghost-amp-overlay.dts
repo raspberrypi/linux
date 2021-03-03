@@ -54,6 +54,8 @@
 		__overlay__ {
 			amp: ghost-amp {
 				compatible = "rpi,gpio-fsm";
+				pinctrl-names = "default";
+				pinctrl-0 = <&ghost_amp_pins>;
 
 				debug = <0>;
 				gpio-controller;
@@ -77,18 +79,18 @@
 
 				amp_on_1 {
 					set = <RELAY1 1>;
-					amp_on = <GF_DELAY 1500>;
+					amp_on = <GF_DELAY 1000>;
 					amp_off = <ENABLE 0>;
 					fault = <FAULT 1>;
 				};
 
 				amp_on {
 					set = <RELAY2 1>;
-					amp_off_wait = <ENABLE 0>;
+					amp_on_wait = <ENABLE 0>;
 					fault = <FAULT 1>;
 				};
 
-				amp_off_wait {
+				amp_on_wait {
 					amp_off_1 = <GF_DELAY (30*60*1000)>,
 						    <GF_SHUTDOWN 0>;
 					amp_on = <ENABLE 1>;
@@ -107,8 +109,20 @@
 				fault {
 					set = <RELAY2 0>,
 					      <RELAY1 0>;
+					amp_off = <FAULT 0>;
 					shutdown_state;
 				};
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&gpio>;
+		__overlay__ {
+			ghost_amp_pins: ghost_amp_pins {
+				brcm,pins = <5 22 23>;
+				brcm,function = <0 1 1>; /* in out out */
+				brcm,pull = <2 0 0>; /* up none none */
 			};
 		};
 	};
