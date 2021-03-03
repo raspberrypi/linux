@@ -152,7 +152,7 @@ int btrfs_get_dev_zone_info(struct btrfs_device *device)
 	sector_t sector = 0;
 	struct blk_zone *zones = NULL;
 	unsigned int i, nreported = 0, nr_zones;
-	unsigned int zone_sectors;
+	sector_t zone_sectors;
 	int ret;
 
 	if (!bdev_is_zoned(bdev))
@@ -485,7 +485,7 @@ int btrfs_sb_log_location_bdev(struct block_device *bdev, int mirror, int rw,
 			       u64 *bytenr_ret)
 {
 	struct blk_zone zones[BTRFS_NR_SB_LOG_ZONES];
-	unsigned int zone_sectors;
+	sector_t zone_sectors;
 	u32 sb_zone;
 	int ret;
 	u64 zone_size;
