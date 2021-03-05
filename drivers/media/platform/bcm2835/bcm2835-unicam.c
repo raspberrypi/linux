@@ -800,6 +800,7 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 	unsigned int sequence = unicam->sequence;
 	unsigned int i;
 	u32 ista, sta;
+	bool fe;
 	u64 ts;
 
 	sta = reg_read(unicam, UNICAM_STA);
@@ -817,12 +818,18 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 		return IRQ_HANDLED;
 
 	/*
+	 * Look for either the Frame End interrupt or the Packet Capture status
+	 * to signal a frame end.
+	 */
+	fe = (ista & UNICAM_FEI || sta & UNICAM_PI0);
+
+	/*
 	 * We must run the frame end handler first. If we have a valid next_frm
 	 * and we get a simultaneout FE + FS interrupt, running the FS handler
 	 * first would null out the next_frm ptr and we would have lost the
 	 * buffer forever.
 	 */
-	if (ista & UNICAM_FEI || sta & UNICAM_PI0) {
+	if (fe) {
 		/*
 		 * Ensure we have swapped buffers already as we can't
 		 * stop the peripheral. If no buffer is available, use a
@@ -833,7 +840,15 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 			if (!unicam->node[i].streaming)
 				continue;
 
-			if (unicam->node[i].cur_frm)
+			/*
+			 * If cur_frm == next_frm, it means we have not had
+			 * a chance to swap buffers, likely due to having
+			 * multiple interrupts occurring simultaneously (like FE
+			 * + FS + LS). In this case, we cannot signal the buffer
+			 * as complete, as the HW will reuse that buffer.
+			 */
+			if (unicam->node[i].cur_frm &&
+			    unicam->node[i].cur_frm != unicam->node[i].next_frm)
 				unicam_process_buffer_complete(&unicam->node[i],
 							       sequence);
 			unicam->node[i].cur_frm = unicam->node[i].next_frm;
@@ -870,7 +885,7 @@ static irqreturn_t unicam_isr(int irq, void *dev)
 	 * where the HW does not actually swap it if the new frame has
 	 * already started.
 	 */
-	if (ista & (UNICAM_FSI | UNICAM_LCI) && !(ista & UNICAM_FEI)) {
+	if (ista & (UNICAM_FSI | UNICAM_LCI) && !fe) {
 		for (i = 0; i < ARRAY_SIZE(unicam->node); i++) {
 			if (!unicam->node[i].streaming)
 				continue;
