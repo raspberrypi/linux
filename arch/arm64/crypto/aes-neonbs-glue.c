@@ -18,11 +18,6 @@
 MODULE_AUTHOR("Ard Biesheuvel <ard.biesheuvel@linaro.org>");
 MODULE_LICENSE("GPL v2");
 
-MODULE_ALIAS_CRYPTO("ecb(aes)");
-MODULE_ALIAS_CRYPTO("cbc(aes)");
-MODULE_ALIAS_CRYPTO("ctr(aes)");
-MODULE_ALIAS_CRYPTO("xts(aes)");
-
 asmlinkage void aesbs_convert_key(u8 out[], u32 const rk[], int rounds);
 
 asmlinkage void aesbs_ecb_encrypt(u8 out[], u8 const in[], u8 const rk[],
