@@ -9,6 +9,17 @@
 #include <linux/crypto.h>
 #include <linux/module.h>
 
+MODULE_ALIAS_CRYPTO("ecb(aes)");
+MODULE_ALIAS_CRYPTO("cbc(aes)");
+MODULE_ALIAS_CRYPTO("ctr(aes)");
+MODULE_ALIAS_CRYPTO("xts(aes)");
+MODULE_ALIAS_CRYPTO("xctr(aes)");
+MODULE_ALIAS_CRYPTO("cts(cbc(aes))");
+MODULE_ALIAS_CRYPTO("essiv(cbc(aes),sha256)");
+MODULE_ALIAS_CRYPTO("cmac(aes)");
+MODULE_ALIAS_CRYPTO("xcbc(aes)");
+MODULE_ALIAS_CRYPTO("cbcmac(aes)");
+
 asmlinkage void __aes_arm64_encrypt(u32 *rk, u8 *out, const u8 *in, int rounds);
 asmlinkage void __aes_arm64_decrypt(u32 *rk, u8 *out, const u8 *in, int rounds);
 
