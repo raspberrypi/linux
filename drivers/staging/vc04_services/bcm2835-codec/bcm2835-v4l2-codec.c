@@ -576,7 +576,12 @@ static const struct bcm2835_codec_fmt supported_formats[] = {
 		.depth			= 0,
 		.flags			= V4L2_FMT_FLAG_COMPRESSED,
 		.mmal_fmt		= MMAL_ENCODING_VP8,
-	},
+	}, {
+		.fourcc			= V4L2_PIX_FMT_VC1_ANNEX_G,
+		.depth			= 0,
+		.flags			= V4L2_FMT_FLAG_COMPRESSED,
+		.mmal_fmt		= MMAL_ENCODING_WVC1,
+	}
 };
 
 struct bcm2835_codec_fmt_list {
