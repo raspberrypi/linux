@@ -24,6 +24,10 @@
 
 #define OPT_DEBUG_POLL_IRQ  0
 
+#define RPIVID_DEC_ENV_COUNT 6
+#define RPIVID_P1BUF_COUNT 3
+#define RPIVID_P2BUF_COUNT 3
+
 #define RPIVID_NAME			"rpivid"
 
 #define RPIVID_CAPABILITY_UNTILED	BIT(0)
@@ -45,6 +49,7 @@ struct rpivid_control {
 };
 
 struct rpivid_h265_run {
+	u32 slice_ents;
 	const struct v4l2_ctrl_hevc_sps			*sps;
 	const struct v4l2_ctrl_hevc_pps			*pps;
 	const struct v4l2_ctrl_hevc_slice_params	*slice_params;
@@ -64,7 +69,6 @@ struct rpivid_buffer {
 
 struct rpivid_dec_state;
 struct rpivid_dec_env;
-#define RPIVID_DEC_ENV_COUNT 3
 
 struct rpivid_gptr {
 	size_t size;
@@ -79,7 +83,6 @@ typedef void (*rpivid_irq_callback)(struct rpivid_dev *dev, void *ctx);
 struct rpivid_q_aux;
 #define RPIVID_AUX_ENT_COUNT VB2_MAX_FRAME
 
-#define RPIVID_P2BUF_COUNT 2
 
 struct rpivid_ctx {
 	struct v4l2_fh			fh;
@@ -108,11 +111,13 @@ struct rpivid_ctx {
 
 	struct rpivid_dec_env *dec_pool;
 
-	/* Some of these should be in dev */
-	struct rpivid_gptr bitbufs[1];  /* Will be 2 */
-	struct rpivid_gptr cmdbufs[1];  /* Will be 2 */
+	unsigned int p1idx;
+	atomic_t p1out;
+	struct rpivid_gptr bitbufs[RPIVID_P1BUF_COUNT];
+	struct rpivid_gptr cmdbufs[RPIVID_P1BUF_COUNT];
+
+	/* *** Should be in dev *** */
 	unsigned int p2idx;
-	atomic_t p2out;
 	struct rpivid_gptr pu_bufs[RPIVID_P2BUF_COUNT];
 	struct rpivid_gptr coeff_bufs[RPIVID_P2BUF_COUNT];
 
@@ -140,6 +145,8 @@ struct rpivid_variant {
 };
 
 struct rpivid_hw_irq_ent;
+
+#define RPIVID_ICTL_ENABLE_UNLIMITED (-1)
 
 struct rpivid_hw_irq_ctrl {
 	/* Spinlock protecting claim and tail */
@@ -182,6 +189,7 @@ struct rpivid_dev {
 
 extern struct rpivid_dec_ops rpivid_dec_ops_h265;
 
+struct v4l2_ctrl *rpivid_find_ctrl(struct rpivid_ctx *ctx, u32 id);
 void *rpivid_find_control_data(struct rpivid_ctx *ctx, u32 id);
 
 #endif
