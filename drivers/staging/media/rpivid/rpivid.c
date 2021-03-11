@@ -79,15 +79,22 @@ static const struct rpivid_control rpivid_ctrls[] = {
 
 #define rpivid_ctrls_COUNT	ARRAY_SIZE(rpivid_ctrls)
 
-void *rpivid_find_control_data(struct rpivid_ctx *ctx, u32 id)
+struct v4l2_ctrl *rpivid_find_ctrl(struct rpivid_ctx *ctx, u32 id)
 {
 	unsigned int i;
 
 	for (i = 0; ctx->ctrls[i]; i++)
 		if (ctx->ctrls[i]->id == id)
-			return ctx->ctrls[i]->p_cur.p;
+			return ctx->ctrls[i];
 
 	return NULL;
+}
+
+void *rpivid_find_control_data(struct rpivid_ctx *ctx, u32 id)
+{
+	struct v4l2_ctrl *const ctrl = rpivid_find_ctrl(ctx, id);
+
+	return !ctrl ? NULL : ctrl->p_cur.p;
 }
 
 static int rpivid_init_ctrls(struct rpivid_dev *dev, struct rpivid_ctx *ctx)
