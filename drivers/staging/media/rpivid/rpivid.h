@@ -151,6 +151,8 @@ struct rpivid_hw_irq_ctrl {
 	struct rpivid_hw_irq_ent *irq;
 	/* Non-zero => do not start a new job - outer layer sched pending */
 	int no_sched;
+	/* Enable count. -1 always OK, 0 do not sched, +ve shed & count down */
+	int enable;
 	/* Thread CB requested */
 	bool thread_reqed;
 };
