@@ -185,14 +185,14 @@ static void do_enable_claim(struct rpivid_dev * const dev,
 	sched_cb(dev, ictl, ient);
 }
 
-static void ictl_init(struct rpivid_hw_irq_ctrl * const ictl)
+static void ictl_init(struct rpivid_hw_irq_ctrl * const ictl, int enables)
 {
 	spin_lock_init(&ictl->lock);
 	ictl->claim = NULL;
 	ictl->tail = NULL;
 	ictl->irq = NULL;
 	ictl->no_sched = 0;
-	ictl->enable = -1;
+	ictl->enable = enables;
 	ictl->thread_reqed = false;
 }
 
@@ -308,8 +308,8 @@ int rpivid_hw_probe(struct rpivid_dev *dev)
 	int irq_dec;
 	int ret = 0;
 
-	ictl_init(&dev->ic_active1);
-	ictl_init(&dev->ic_active2);
+	ictl_init(&dev->ic_active1, RPIVID_P2BUF_COUNT);
+	ictl_init(&dev->ic_active2, RPIVID_ICTL_ENABLE_UNLIMITED);
 
 	res = platform_get_resource_byname(dev->pdev, IORESOURCE_MEM, "intc");
 	if (!res)
