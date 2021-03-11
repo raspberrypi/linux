@@ -22,6 +22,8 @@
 #define DEBUG_TRACE_P1_CMD 0
 #define DEBUG_TRACE_EXECUTION 0
 
+#define USE_REQUEST_PIN 1
+
 #if DEBUG_TRACE_EXECUTION
 #define xtrace_in(dev_, de_)\
 	v4l2_info(&(dev_)->v4l2_dev, "%s[%d]: in\n",   __func__,\
@@ -192,8 +194,6 @@ struct rpivid_dec_env {
 	unsigned int decode_order;
 	int p1_status;		/* P1 status - what to realloc */
 
-	struct rpivid_dec_env *phase_wait_q_next;
-
 	struct rpi_cmd *cmd_fifo;
 	unsigned int cmd_len, cmd_max;
 	unsigned int num_slice_msgs;
@@ -219,6 +219,7 @@ struct rpivid_dec_env {
 	u32 rpi_currpoc;
 
 	struct vb2_v4l2_buffer *frame_buf; // Detached dest buffer
+	struct vb2_v4l2_buffer *src_buf;   // Detached src buffer
 	unsigned int frame_c_offset;
 	unsigned int frame_stride;
 	dma_addr_t frame_addr;
@@ -235,9 +236,15 @@ struct rpivid_dec_env {
 	size_t bit_copy_len;
 	struct rpivid_gptr *cmd_copy_gptr;
 
-	u16 slice_msgs[2 * HEVC_MAX_REFS * 8 + 3];
+#define SLICE_MSGS_MAX (2 * HEVC_MAX_REFS * 8 + 3)
+	u16 slice_msgs[SLICE_MSGS_MAX];
 	u8 scaling_factors[NUM_SCALING_FACTORS];
 
+#if USE_REQUEST_PIN
+	struct media_request *req_pin;
+#else
+	struct media_request_object *req_obj;
+#endif
 	struct rpivid_hw_irq_ent irq_ent;
 };
 
@@ -286,6 +293,17 @@ struct rpivid_dec_state {
 	unsigned int prev_ctb_y;
 };
 
+#if !USE_REQUEST_PIN
+static void dst_req_obj_release(struct media_request_object *object)
+{
+	kfree(object);
+}
+
+static const struct media_request_object_ops dst_req_obj_ops = {
+	.release = dst_req_obj_release,
+};
+#endif
+
 static inline int clip_int(const int x, const int lo, const int hi)
 {
 	return x < lo ? lo : x > hi ? hi : x;
@@ -298,15 +316,48 @@ static inline int clip_int(const int x, const int lo, const int hi)
 static int p1_z;
 #endif
 
-// ???? u16 addr - put in u32
-static int p1_apb_write(struct rpivid_dec_env *const de, const u16 addr,
-			const u32 data)
+static int cmds_check_space(struct rpivid_dec_env *const de, unsigned int n)
 {
-	if (de->cmd_len == de->cmd_max)
-		de->cmd_fifo =
-			krealloc(de->cmd_fifo,
-				 (de->cmd_max *= 2) * sizeof(struct rpi_cmd),
-				 GFP_KERNEL);
+	struct rpi_cmd *a;
+	unsigned int newmax;
+
+	if (n > 0x100000) {
+		v4l2_err(&de->ctx->dev->v4l2_dev,
+			 "%s: n %u implausible\n", __func__, n);
+		return -ENOMEM;
+	}
+
+	if (de->cmd_len + n <= de->cmd_max)
+		return 0;
+
+	newmax = 2 << log2_size(de->cmd_len + n);
+
+	a = krealloc(de->cmd_fifo, newmax * sizeof(struct rpi_cmd),
+		     GFP_KERNEL);
+	if (!a) {
+		v4l2_err(&de->ctx->dev->v4l2_dev,
+			 "Failed cmd buffer realloc from %u to %u\n",
+			 de->cmd_max, newmax);
+		return -ENOMEM;
+	}
+	v4l2_info(&de->ctx->dev->v4l2_dev,
+		  "cmd buffer realloc from %u to %u\n", de->cmd_max, newmax);
+
+	de->cmd_fifo = a;
+	de->cmd_max = newmax;
+	return 0;
+}
+
+// ???? u16 addr - put in u32
+static void p1_apb_write(struct rpivid_dec_env *const de, const u16 addr,
+			 const u32 data)
+{
+	if (de->cmd_len >= de->cmd_max) {
+		v4l2_err(&de->ctx->dev->v4l2_dev,
+			 "%s: Overflow @ %d\n", __func__, de->cmd_len);
+		return;
+	}
+
 	de->cmd_fifo[de->cmd_len].addr = addr;
 	de->cmd_fifo[de->cmd_len].data = data;
 
@@ -316,8 +367,7 @@ static int p1_apb_write(struct rpivid_dec_env *const de, const u16 addr,
 			  de->cmd_len, addr, data);
 	}
 #endif
-
-	return de->cmd_len++;
+	de->cmd_len++;
 }
 
 static int ctb_to_tile(unsigned int ctb, unsigned int *bd, int num)
@@ -511,6 +561,7 @@ static const u8 prob_init[3][156] = {
 	},
 };
 
+#define CMDS_WRITE_PROB ((RPI_PROB_ARRAY_SIZE / 4) + 1)
 static void write_prob(struct rpivid_dec_env *const de,
 		       const struct rpivid_dec_state *const s)
 {
@@ -554,6 +605,7 @@ static void write_prob(struct rpivid_dec_env *const de,
 	p1_apb_write(de, RPI_TRANSFER, PROB_BACKUP);
 }
 
+#define CMDS_WRITE_SCALING_FACTORS NUM_SCALING_FACTORS
 static void write_scaling_factors(struct rpivid_dec_env *const de)
 {
 	int i;
@@ -569,8 +621,9 @@ static inline __u32 dma_to_axi_addr(dma_addr_t a)
 	return (__u32)(a >> 6);
 }
 
-static void write_bitstream(struct rpivid_dec_env *const de,
-			    const struct rpivid_dec_state *const s)
+#define CMDS_WRITE_BITSTREAM 4
+static int write_bitstream(struct rpivid_dec_env *const de,
+			   const struct rpivid_dec_state *const s)
 {
 	// Note that FFmpeg V4L2 does not remove emulation prevention bytes,
 	// so this is matched in the configuration here.
@@ -584,6 +637,13 @@ static void write_bitstream(struct rpivid_dec_env *const de,
 	if (s->src_addr != 0) {
 		addr = s->src_addr + offset;
 	} else {
+		if (len + de->bit_copy_len > de->bit_copy_gptr->size) {
+			v4l2_warn(&de->ctx->dev->v4l2_dev,
+				  "Bit copy buffer overflow: size=%zu, offset=%zu, len=%u\n",
+				  de->bit_copy_gptr->size,
+				  de->bit_copy_len, len);
+			return -ENOMEM;
+		}
 		memcpy(de->bit_copy_gptr->ptr + de->bit_copy_len,
 		       s->src_buf + offset, len);
 		addr = de->bit_copy_gptr->addr + de->bit_copy_len;
@@ -595,6 +655,7 @@ static void write_bitstream(struct rpivid_dec_env *const de,
 	p1_apb_write(de, RPI_BFNUM, len);
 	p1_apb_write(de, RPI_BFCONTROL, offset + (1 << 7)); // Stop
 	p1_apb_write(de, RPI_BFCONTROL, offset + (rpi_use_emu << 6));
+	return 0;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -623,6 +684,7 @@ static u32 slice_reg_const(const struct rpivid_dec_state *const s)
 
 //////////////////////////////////////////////////////////////////////////////
 
+#define CMDS_NEW_SLICE_SEGMENT (4 + CMDS_WRITE_SCALING_FACTORS)
 static void new_slice_segment(struct rpivid_dec_env *const de,
 			      const struct rpivid_dec_state *const s)
 {
@@ -706,6 +768,7 @@ static void msg_slice(struct rpivid_dec_env *const de, const u16 msg)
 	de->slice_msgs[de->num_slice_msgs++] = msg;
 }
 
+#define CMDS_PROGRAM_SLICECMDS (1 + SLICE_MSGS_MAX)
 static void program_slicecmds(struct rpivid_dec_env *const de,
 			      const int sliceid)
 {
@@ -902,6 +965,7 @@ static void pre_slice_decode(struct rpivid_dec_env *const de,
 		       (sh->slice_cb_qp_offset & 31)); // CMD_QPOFF
 }
 
+#define CMDS_WRITE_SLICE 1
 static void write_slice(struct rpivid_dec_env *const de,
 			const struct rpivid_dec_state *const s,
 			const u32 slice_const,
@@ -927,6 +991,7 @@ static void write_slice(struct rpivid_dec_env *const de,
  * N.B. This can be called to fill in data from the previous slice so must not
  * use any state data that may change from slice to slice (e.g. qp)
  */
+#define CMDS_NEW_ENTRY_POINT (6 + CMDS_WRITE_SLICE)
 static void new_entry_point(struct rpivid_dec_env *const de,
 			    const struct rpivid_dec_state *const s,
 			    const bool do_bte,
@@ -977,6 +1042,7 @@ static void new_entry_point(struct rpivid_dec_env *const de,
 //////////////////////////////////////////////////////////////////////////////
 // Wavefront mode
 
+#define CMDS_WPP_PAUSE 4
 static void wpp_pause(struct rpivid_dec_env *const de, int ctb_row)
 {
 	p1_apb_write(de, RPI_STATUS, (ctb_row << 18) | 0x25);
@@ -987,11 +1053,18 @@ static void wpp_pause(struct rpivid_dec_env *const de, int ctb_row)
 	p1_apb_write(de, RPI_CONTROL, (ctb_row << 16) + 2);
 }
 
-static void wpp_entry_fill(struct rpivid_dec_env *const de,
-			   const struct rpivid_dec_state *const s,
-			   const unsigned int last_y)
+#define CMDS_WPP_ENTRY_FILL_1 (CMDS_WPP_PAUSE + 2 + CMDS_NEW_ENTRY_POINT)
+static int wpp_entry_fill(struct rpivid_dec_env *const de,
+			  const struct rpivid_dec_state *const s,
+			  const unsigned int last_y)
 {
+	int rv;
 	const unsigned int last_x = s->ctb_width - 1;
+
+	rv = cmds_check_space(de, CMDS_WPP_ENTRY_FILL_1 *
+				  (last_y - de->entry_ctb_y));
+	if (rv)
+		return rv;
 
 	while (de->entry_ctb_y < last_y) {
 		/* wpp_entry_x/y set by wpp_entry_point */
@@ -1010,12 +1083,21 @@ static void wpp_entry_fill(struct rpivid_dec_env *const de,
 				0, 0, 0, de->entry_ctb_y + 1,
 				de->entry_qp, de->entry_slice);
 	}
+	return 0;
 }
 
-static void wpp_end_previous_slice(struct rpivid_dec_env *const de,
-				   const struct rpivid_dec_state *const s)
+static int wpp_end_previous_slice(struct rpivid_dec_env *const de,
+				  const struct rpivid_dec_state *const s)
 {
-	wpp_entry_fill(de, s, s->prev_ctb_y);
+	int rv;
+
+	rv = wpp_entry_fill(de, s, s->prev_ctb_y);
+	if (rv)
+		return rv;
+
+	rv = cmds_check_space(de, CMDS_WPP_PAUSE + 2);
+	if (rv)
+		return rv;
 
 	if (de->entry_ctb_x < 2 &&
 	    (de->entry_ctb_y < s->start_ctb_y || s->start_ctb_x > 2) &&
@@ -1026,21 +1108,38 @@ static void wpp_end_previous_slice(struct rpivid_dec_env *const de,
 	if (s->start_ctb_x == 2 ||
 	    (s->ctb_width == 2 && de->entry_ctb_y < s->start_ctb_y))
 		p1_apb_write(de, RPI_TRANSFER, PROB_BACKUP);
+	return 0;
 }
 
 /* Only main profile supported so WPP => !Tiles which makes some of the
  * next chunk code simpler
  */
-static void wpp_decode_slice(struct rpivid_dec_env *const de,
-			     const struct rpivid_dec_state *const s)
+static int wpp_decode_slice(struct rpivid_dec_env *const de,
+			    const struct rpivid_dec_state *const s)
 {
 	bool reset_qp_y = true;
 	const bool indep = !s->dependent_slice_segment_flag;
+	int rv;
 
-	if (s->start_ts)
-		wpp_end_previous_slice(de, s);
+	if (s->start_ts) {
+		rv = wpp_end_previous_slice(de, s);
+		if (rv)
+			return rv;
+	}
 	pre_slice_decode(de, s);
-	write_bitstream(de, s);
+
+	rv = cmds_check_space(de,
+			      CMDS_WRITE_BITSTREAM +
+				CMDS_WRITE_PROB +
+				CMDS_PROGRAM_SLICECMDS +
+				CMDS_NEW_SLICE_SEGMENT +
+				CMDS_NEW_ENTRY_POINT);
+	if (rv)
+		return rv;
+
+	rv = write_bitstream(de, s);
+	if (rv)
+		return rv;
 
 	if (!s->start_ts || indep || s->ctb_width == 1)
 		write_prob(de, s);
@@ -1056,7 +1155,13 @@ static void wpp_decode_slice(struct rpivid_dec_env *const de,
 			s->slice_qp, slice_reg_const(s));
 
 	if (s->frame_end) {
-		wpp_entry_fill(de, s, s->ctb_height - 1);
+		rv = wpp_entry_fill(de, s, s->ctb_height - 1);
+		if (rv)
+			return rv;
+
+		rv = cmds_check_space(de, CMDS_WPP_PAUSE + 1);
+		if (rv)
+			return rv;
 
 		if (de->entry_ctb_x < 2 && s->ctb_width > 2)
 			wpp_pause(de, s->ctb_height - 1);
@@ -1065,24 +1170,31 @@ static void wpp_decode_slice(struct rpivid_dec_env *const de,
 			     1 | ((s->ctb_width - 1) << 5) |
 				((s->ctb_height - 1) << 18));
 	}
-
+	return 0;
 }
 
 //////////////////////////////////////////////////////////////////////////////
 // Tiles mode
 
-static void tile_entry_fill(struct rpivid_dec_env *const de,
-			    const struct rpivid_dec_state *const s,
-			    const unsigned int last_tile_x,
-			    const unsigned int last_tile_y)
+// Guarantees 1 cmd entry free on exit
+static int tile_entry_fill(struct rpivid_dec_env *const de,
+			   const struct rpivid_dec_state *const s,
+			   const unsigned int last_tile_x,
+			   const unsigned int last_tile_y)
 {
 	while (de->entry_tile_y < last_tile_y ||
 	       (de->entry_tile_y == last_tile_y &&
 		de->entry_tile_x < last_tile_x)) {
+		int rv;
 		unsigned int t_x = de->entry_tile_x;
 		unsigned int t_y = de->entry_tile_y;
 		const unsigned int last_x = s->col_bd[t_x + 1] - 1;
 		const unsigned int last_y = s->row_bd[t_y + 1] - 1;
+
+		// One more than needed here
+		rv = cmds_check_space(de, CMDS_NEW_ENTRY_POINT + 3);
+		if (rv)
+			return rv;
 
 		p1_apb_write(de, RPI_STATUS,
 			     2 | (last_x << 5) | (last_y << 18));
@@ -1098,33 +1210,55 @@ static void tile_entry_fill(struct rpivid_dec_env *const de,
 				t_x, t_y, s->col_bd[t_x], s->row_bd[t_y],
 				de->entry_qp, de->entry_slice);
 	}
+	return 0;
 }
 
 /*
  * Write STATUS register with expected end CTU address of previous slice
  */
-static void end_previous_slice(struct rpivid_dec_env *const de,
-			       const struct rpivid_dec_state *const s)
+static int end_previous_slice(struct rpivid_dec_env *const de,
+			      const struct rpivid_dec_state *const s)
 {
-	tile_entry_fill(de, s,
-			ctb_to_tile_x(s, s->prev_ctb_x),
-			ctb_to_tile_y(s, s->prev_ctb_y));
+	int rv;
+
+	rv = tile_entry_fill(de, s,
+			     ctb_to_tile_x(s, s->prev_ctb_x),
+			     ctb_to_tile_y(s, s->prev_ctb_y));
+	if (rv)
+		return rv;
+
 	p1_apb_write(de, RPI_STATUS,
 		     1 | (s->prev_ctb_x << 5) | (s->prev_ctb_y << 18));
+	return 0;
 }
 
-static void decode_slice(struct rpivid_dec_env *const de,
-			 const struct rpivid_dec_state *const s)
+static int decode_slice(struct rpivid_dec_env *const de,
+			const struct rpivid_dec_state *const s)
 {
 	bool reset_qp_y;
 	unsigned int tile_x = ctb_to_tile_x(s, s->start_ctb_x);
 	unsigned int tile_y = ctb_to_tile_y(s, s->start_ctb_y);
+	int rv;
 
-	if (s->start_ts)
-		end_previous_slice(de, s);
+	if (s->start_ts) {
+		rv = end_previous_slice(de, s);
+		if (rv)
+			return rv;
+	}
+
+	rv = cmds_check_space(de,
+			      CMDS_WRITE_BITSTREAM +
+				CMDS_WRITE_PROB +
+				CMDS_PROGRAM_SLICECMDS +
+				CMDS_NEW_SLICE_SEGMENT +
+				CMDS_NEW_ENTRY_POINT);
+	if (rv)
+		return rv;
 
 	pre_slice_decode(de, s);
-	write_bitstream(de, s);
+	rv = write_bitstream(de, s);
+	if (rv)
+		return rv;
 
 	reset_qp_y = !s->start_ts ||
 		!s->dependent_slice_segment_flag ||
@@ -1146,13 +1280,16 @@ static void decode_slice(struct rpivid_dec_env *const de,
 	 * when it will be known where this slice finishes
 	 */
 	if (s->frame_end) {
-		tile_entry_fill(de, s,
-				s->tile_width - 1,
-				s->tile_height - 1);
+		rv = tile_entry_fill(de, s,
+				     s->tile_width - 1,
+				     s->tile_height - 1);
+		if (rv)
+			return rv;
 		p1_apb_write(de, RPI_STATUS,
 			     1 | ((s->ctb_width - 1) << 5) |
 				((s->ctb_height - 1) << 18));
 	}
+	return 0;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1524,7 +1661,7 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 	struct rpivid_dev *const dev = ctx->dev;
 	const struct v4l2_ctrl_hevc_slice_params *const sh =
 						run->h265.slice_params;
-	const struct v4l2_hevc_pred_weight_table *pred_weight_table;
+//	const struct v4l2_hevc_pred_weight_table *pred_weight_table;
 	struct rpivid_q_aux *dpb_q_aux[V4L2_HEVC_DPB_ENTRIES_NUM_MAX];
 	struct rpivid_dec_state *const s = ctx->state;
 	struct vb2_queue *vq;
@@ -1532,11 +1669,12 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 	unsigned int prev_rs;
 	unsigned int i;
 	int use_aux;
+	int rv;
 	bool slice_temporal_mvp;
 
 	xtrace_in(dev, de);
 
-	pred_weight_table = &sh->pred_weight_table;
+//	pred_weight_table = &sh->pred_weight_table;
 
 	s->frame_end =
 		((run->src->flags & V4L2_BUF_FLAG_M2M_HOLD_CAPTURE_BUF) == 0);
@@ -1608,9 +1746,9 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 		de->cmd_len = 0;
 		de->dpbno_col = ~0U;
 
-		de->bit_copy_gptr = ctx->bitbufs + 0;
+		de->bit_copy_gptr = ctx->bitbufs + ctx->p1idx;
 		de->bit_copy_len = 0;
-		de->cmd_copy_gptr = ctx->cmdbufs + 0;
+		de->cmd_copy_gptr = ctx->cmdbufs + ctx->p1idx;
 
 		de->frame_c_offset = ctx->dst_fmt.height * 128;
 		de->frame_stride = ctx->dst_fmt.plane_fmt[0].bytesperline * 128;
@@ -1727,6 +1865,9 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 			bits_alloc = wxh < 983040 ? wxh * 3 / 4 :
 				wxh < 983040 * 2 ? 983040 * 3 / 4 :
 				wxh * 3 / 8;
+			/* Allow for bit depth */
+			bits_alloc += (bits_alloc *
+				       s->sps.bit_depth_luma_minus8) / 8;
 			bits_alloc = round_up_size(bits_alloc);
 
 			if (gptr_alloc(dev, de->bit_copy_gptr,
@@ -1743,18 +1884,35 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 		}
 	}
 
-	// Pre calc a few things
-	s->src_addr =
-		!s->frame_end ?
-			0 :
-			vb2_dma_contig_plane_dma_addr(&run->src->vb2_buf, 0);
-	s->src_buf = s->src_addr != 0 ? NULL :
-					vb2_plane_vaddr(&run->src->vb2_buf, 0);
+	// Either map src buffer or use directly
+	s->src_addr = 0;
+	s->src_buf = NULL;
+
+	if (run->src->planes[0].bytesused < (sh->bit_size + 7) / 8) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "Bit size %d > bytesused %d\n",
+			  sh->bit_size, run->src->planes[0].bytesused);
+		goto fail;
+	}
+	if (sh->data_bit_offset >= sh->bit_size ||
+	    sh->bit_size - sh->data_bit_offset < 8) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "Bit size %d < Bit offset %d + 8\n",
+			  sh->bit_size, sh->data_bit_offset);
+		goto fail;
+	}
+
+	if (s->frame_end)
+		s->src_addr = vb2_dma_contig_plane_dma_addr(&run->src->vb2_buf,
+							    0);
+	if (!s->src_addr)
+		s->src_buf = vb2_plane_vaddr(&run->src->vb2_buf, 0);
 	if (!s->src_addr && !s->src_buf) {
 		v4l2_err(&dev->v4l2_dev, "Failed to map src buffer\n");
 		goto fail;
 	}
 
+	// Pre calc a few things
 	s->sh = sh;
 	s->slice_qp = 26 + s->pps.init_qp_minus26 + s->sh->slice_qp_delta;
 	s->max_num_merge_cand = sh->slice_type == HEVC_SLICE_I ?
@@ -1785,9 +1943,11 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 	s->prev_ctb_y = prev_rs / de->pic_width_in_ctbs_y;
 
 	if ((s->pps.flags & V4L2_HEVC_PPS_FLAG_ENTROPY_CODING_SYNC_ENABLED))
-		wpp_decode_slice(de, s);
+		rv = wpp_decode_slice(de, s);
 	else
-		decode_slice(de, s);
+		rv = decode_slice(de, s);
+	if (rv)
+		goto fail;
 
 	if (!s->frame_end) {
 		xtrace_ok(dev, de);
@@ -1945,29 +2105,28 @@ static int check_status(const struct rpivid_dev *const dev)
 	return -1;
 }
 
-static void cb_phase2(struct rpivid_dev *const dev, void *v)
+static void phase2_cb(struct rpivid_dev *const dev, void *v)
 {
 	struct rpivid_dec_env *const de = v;
-	struct rpivid_ctx *const ctx = de->ctx;
 
 	xtrace_in(dev, de);
 
-	v4l2_m2m_cap_buf_return(dev->m2m_dev, ctx->fh.m2m_ctx, de->frame_buf,
-				VB2_BUF_STATE_DONE);
+	/* Done with buffers - allow new P1 */
+	rpivid_hw_irq_active1_enable_claim(dev, 1);
+
+	v4l2_m2m_buf_done(de->frame_buf, VB2_BUF_STATE_DONE);
 	de->frame_buf = NULL;
 
-	/* Delete de before finish as finish might immediately trigger a reuse
-	 * of de
-	 */
-	dec_env_delete(de);
-
-	if (atomic_add_return(-1, &ctx->p2out) >= RPIVID_P2BUF_COUNT - 1) {
-		xtrace_fin(dev, de);
-		v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx,
-						 VB2_BUF_STATE_DONE);
-	}
+#if USE_REQUEST_PIN
+	media_request_unpin(de->req_pin);
+	de->req_pin = NULL;
+#else
+	media_request_object_complete(de->req_obj);
+	de->req_obj = NULL;
+#endif
 
 	xtrace_ok(dev, de);
+	dec_env_delete(de);
 }
 
 static void phase2_claimed(struct rpivid_dev *const dev, void *v)
@@ -2023,7 +2182,7 @@ static void phase2_claimed(struct rpivid_dev *const dev, void *v)
 	//	   de->ctx->colmvbuf.addr, de->ctx->colmvbuf.addr +
 	//	   de->ctx->colmvbuf.size);
 
-	rpivid_hw_irq_active2_irq(dev, &de->irq_ent, cb_phase2, de);
+	rpivid_hw_irq_active2_irq(dev, &de->irq_ent, phase2_cb, de);
 
 	apb_write_final(dev, RPI_NUMROWS, de->pic_height_in_ctbs_y);
 
@@ -2031,6 +2190,39 @@ static void phase2_claimed(struct rpivid_dev *const dev, void *v)
 }
 
 static void phase1_claimed(struct rpivid_dev *const dev, void *v);
+
+// release any and all objects associated with de
+// and reenable phase 1 if required
+static void phase1_err_fin(struct rpivid_dev *const dev,
+			   struct rpivid_ctx *const ctx,
+			   struct rpivid_dec_env *const de)
+{
+	/* Return all detached buffers */
+	if (de->src_buf)
+		v4l2_m2m_buf_done(de->src_buf, VB2_BUF_STATE_ERROR);
+	de->src_buf = NULL;
+	if (de->frame_buf)
+		v4l2_m2m_buf_done(de->frame_buf, VB2_BUF_STATE_ERROR);
+	de->frame_buf = NULL;
+#if USE_REQUEST_PIN
+	if (de->req_pin)
+		media_request_unpin(de->req_pin);
+	de->req_pin = NULL;
+#else
+	if (de->req_obj)
+		media_request_object_complete(de->req_obj);
+	de->req_obj = NULL;
+#endif
+
+	dec_env_delete(de);
+
+	/* Reenable phase 0 if we were blocking */
+	if (atomic_add_return(-1, &ctx->p1out) >= RPIVID_P1BUF_COUNT - 1)
+		v4l2_m2m_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx);
+
+	/* Done with P1-P2 buffers - allow new P1 */
+	rpivid_hw_irq_active1_enable_claim(dev, 1);
+}
 
 static void phase1_thread(struct rpivid_dev *const dev, void *v)
 {
@@ -2076,15 +2268,12 @@ fail:
 			 __func__);
 		ctx->fatal_err = 1;
 	}
-	dec_env_delete(de);
-	xtrace_fin(dev, de);
-	v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx,
-					 VB2_BUF_STATE_ERROR);
 	xtrace_fail(dev, de);
+	phase1_err_fin(dev, ctx, de);
 }
 
 /* Always called in irq context (this is good) */
-static void cb_phase1(struct rpivid_dev *const dev, void *v)
+static void phase1_cb(struct rpivid_dev *const dev, void *v)
 {
 	struct rpivid_dec_env *const de = v;
 	struct rpivid_ctx *const ctx = de->ctx;
@@ -2092,6 +2281,7 @@ static void cb_phase1(struct rpivid_dev *const dev, void *v)
 	xtrace_in(dev, de);
 
 	de->p1_status = check_status(dev);
+
 	if (de->p1_status != 0) {
 		v4l2_info(&dev->v4l2_dev, "%s: Post wait: %#x\n",
 			  __func__, de->p1_status);
@@ -2105,24 +2295,17 @@ static void cb_phase1(struct rpivid_dev *const dev, void *v)
 		return;
 	}
 
-	/* After the frame-buf is detached it must be returned but from
-	 * this point onward (phase2_claimed, cb_phase2) there are no error
-	 * paths so the return at the end of cb_phase2 is all that is needed
-	 */
-	de->frame_buf = v4l2_m2m_cap_buf_detach(dev->m2m_dev, ctx->fh.m2m_ctx);
-	if (!de->frame_buf) {
-		v4l2_err(&dev->v4l2_dev, "%s: No detached buffer\n", __func__);
-		goto fail;
-	}
+	v4l2_m2m_buf_done(de->src_buf, VB2_BUF_STATE_DONE);
+	de->src_buf = NULL;
 
+	/* All phase1 error paths done - it is safe to inc p2idx */
 	ctx->p2idx =
 		(ctx->p2idx + 1 >= RPIVID_P2BUF_COUNT) ? 0 : ctx->p2idx + 1;
 
-	// Enable the next setup if our Q isn't too big
-	if (atomic_add_return(1, &ctx->p2out) < RPIVID_P2BUF_COUNT) {
+	/* Renable the next setup if we were blocking */
+	if (atomic_add_return(-1, &ctx->p1out) >= RPIVID_P1BUF_COUNT - 1) {
 		xtrace_fin(dev, de);
-		v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx,
-						 VB2_BUF_STATE_DONE);
+		v4l2_m2m_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx);
 	}
 
 	rpivid_hw_irq_active2_claim(dev, &de->irq_ent, phase2_claimed, de);
@@ -2131,11 +2314,8 @@ static void cb_phase1(struct rpivid_dev *const dev, void *v)
 	return;
 
 fail:
-	dec_env_delete(de);
-	xtrace_fin(dev, de);
-	v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx,
-					 VB2_BUF_STATE_ERROR);
 	xtrace_fail(dev, de);
+	phase1_err_fin(dev, ctx, de);
 }
 
 static void phase1_claimed(struct rpivid_dev *const dev, void *v)
@@ -2160,6 +2340,10 @@ static void phase1_claimed(struct rpivid_dev *const dev, void *v)
 	de->coeff_stride =
 		ALIGN_DOWN(coeff_gptr->size / de->pic_height_in_ctbs_y, 64);
 
+	/* phase1_claimed blocked until cb_phase1 completed so p2idx inc
+	 * in cb_phase1 after error detection
+	 */
+
 	apb_write_vc_addr(dev, RPI_PUWBASE, de->pu_base_vc);
 	apb_write_vc_len(dev, RPI_PUWSTRIDE, de->pu_stride);
 	apb_write_vc_addr(dev, RPI_COEFFWBASE, de->coeff_base_vc);
@@ -2169,7 +2353,7 @@ static void phase1_claimed(struct rpivid_dev *const dev, void *v)
 	apb_write(dev, RPI_CFNUM, de->cmd_len);
 
 	// Claim irq
-	rpivid_hw_irq_active1_irq(dev, &de->irq_ent, cb_phase1, de);
+	rpivid_hw_irq_active1_irq(dev, &de->irq_ent, phase1_cb, de);
 
 	// And start the h/w
 	apb_write_vc_addr_final(dev, RPI_CFBASE, de->cmd_copy_gptr->addr);
@@ -2178,11 +2362,8 @@ static void phase1_claimed(struct rpivid_dev *const dev, void *v)
 	return;
 
 fail:
-	dec_env_delete(de);
-	xtrace_fin(dev, de);
-	v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx,
-					 VB2_BUF_STATE_ERROR);
 	xtrace_fail(dev, de);
+	phase1_err_fin(dev, ctx, de);
 }
 
 static void dec_state_delete(struct rpivid_ctx *const ctx)
@@ -2315,7 +2496,9 @@ static void rpivid_h265_trigger(struct rpivid_ctx *ctx)
 	case RPIVID_DECODE_SLICE_CONTINUE:
 		v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx,
 						 VB2_BUF_STATE_DONE);
+		xtrace_ok(dev, de);
 		break;
+
 	default:
 		v4l2_err(&dev->v4l2_dev, "%s: Unexpected state: %d\n", __func__,
 			 de->state);
@@ -2329,14 +2512,59 @@ static void rpivid_h265_trigger(struct rpivid_ctx *ctx)
 		v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx,
 						 VB2_BUF_STATE_ERROR);
 		break;
+
 	case RPIVID_DECODE_PHASE1:
 		ctx->dec0 = NULL;
+
+#if !USE_REQUEST_PIN
+		/* Alloc a new request object - needs to be alloced dynamically
+		 * as the media request will release it some random time after
+		 * it is completed
+		 */
+		de->req_obj = kmalloc(sizeof(*de->req_obj), GFP_KERNEL);
+		if (!de->req_obj) {
+			xtrace_fail(dev, de);
+			dec_env_delete(de);
+			v4l2_m2m_buf_done_and_job_finish(dev->m2m_dev,
+							 ctx->fh.m2m_ctx,
+							 VB2_BUF_STATE_ERROR);
+			break;
+		}
+		media_request_object_init(de->req_obj);
+#warning probably needs to _get the req obj too
+#endif
+		ctx->p1idx = (ctx->p1idx + 1 >= RPIVID_P1BUF_COUNT) ?
+							0 : ctx->p1idx + 1;
+
+		/* We know we have src & dst so no need to test */
+		de->src_buf = v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx);
+		de->frame_buf = v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
+
+#if USE_REQUEST_PIN
+		de->req_pin = de->src_buf->vb2_buf.req_obj.req;
+		media_request_pin(de->req_pin);
+#else
+		media_request_object_bind(de->src_buf->vb2_buf.req_obj.req,
+					  &dst_req_obj_ops, de, false,
+					  de->req_obj);
+#endif
+
+		/* We could get rid of the src buffer here if we've already
+		 * copied it, but we don't copy the last buffer unless it
+		 * didn't return a contig dma addr and that shouldn't happen
+		 */
+
+		/* Enable the next setup if our Q isn't too big */
+		if (atomic_add_return(1, &ctx->p1out) < RPIVID_P1BUF_COUNT) {
+			xtrace_fin(dev, de);
+			v4l2_m2m_job_finish(dev->m2m_dev, ctx->fh.m2m_ctx);
+		}
+
 		rpivid_hw_irq_active1_claim(dev, &de->irq_ent, phase1_claimed,
 					    de);
+		xtrace_ok(dev, de);
 		break;
 	}
-
-	xtrace_ok(dev, de);
 }
 
 struct rpivid_dec_ops rpivid_dec_ops_h265 = {
