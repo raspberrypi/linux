@@ -283,7 +283,7 @@ static const struct video_device rpivid_video_device = {
 	.ioctl_ops	= &rpivid_ioctl_ops,
 	.minor		= -1,
 	.release	= video_device_release_empty,
-	.device_caps	= V4L2_CAP_VIDEO_M2M | V4L2_CAP_STREAMING,
+	.device_caps	= V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING,
 };
 
 static const struct v4l2_m2m_ops rpivid_m2m_ops = {
