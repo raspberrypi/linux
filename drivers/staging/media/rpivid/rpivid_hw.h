@@ -272,6 +272,9 @@ static inline void apb_write_vc_len(const struct rpivid_dev * const dev,
 		ARG_IC_ICTRL_ACTIVE1_INT_SET    |\
 		ARG_IC_ICTRL_ACTIVE2_INT_SET)
 
+/* Regulate claim Q */
+void rpivid_hw_irq_active1_enable_claim(struct rpivid_dev *dev,
+					int n);
 /* Auto release once all CBs called */
 void rpivid_hw_irq_active1_claim(struct rpivid_dev *dev,
 				 struct rpivid_hw_irq_ent *ient,
