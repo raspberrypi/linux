@@ -42,25 +42,27 @@ static inline unsigned int constrain2x(unsigned int x, unsigned int y)
 			(x > y * 2) ? y : x;
 }
 
-int rpivid_prepare_src_format(struct v4l2_pix_format *pix_fmt)
+int rpivid_prepare_src_format(struct v4l2_pix_format_mplane *pix_fmt)
 {
 	if (pix_fmt->pixelformat != V4L2_PIX_FMT_HEVC_SLICE)
 		return -EINVAL;
 
 	/* Zero bytes per line for encoded source. */
-	pix_fmt->bytesperline = 0;
+	pix_fmt->plane_fmt[0].bytesperline = 0;
 	/* Choose some minimum size since this can't be 0 */
-	pix_fmt->sizeimage = max_t(u32, SZ_1K, pix_fmt->sizeimage);
+	pix_fmt->plane_fmt[0].sizeimage = max_t(u32, SZ_1K,
+						pix_fmt->plane_fmt[0].sizeimage);
+	pix_fmt->num_planes = 1;
 	pix_fmt->field = V4L2_FIELD_NONE;
 	return 0;
 }
 
-int rpivid_prepare_dst_format(struct v4l2_pix_format *pix_fmt)
+int rpivid_prepare_dst_format(struct v4l2_pix_format_mplane *pix_fmt)
 {
 	unsigned int width = pix_fmt->width;
 	unsigned int height = pix_fmt->height;
-	unsigned int sizeimage = pix_fmt->sizeimage;
-	unsigned int bytesperline = pix_fmt->bytesperline;
+	unsigned int sizeimage = pix_fmt->plane_fmt[0].sizeimage;
+	unsigned int bytesperline = pix_fmt->plane_fmt[0].bytesperline;
 
 	switch (pix_fmt->pixelformat) {
 	/* For column formats set bytesperline to column height (stride2) */
@@ -112,8 +114,9 @@ int rpivid_prepare_dst_format(struct v4l2_pix_format *pix_fmt)
 	pix_fmt->height = height;
 
 	pix_fmt->field = V4L2_FIELD_NONE;
-	pix_fmt->bytesperline = bytesperline;
-	pix_fmt->sizeimage = sizeimage;
+	pix_fmt->plane_fmt[0].bytesperline = bytesperline;
+	pix_fmt->plane_fmt[0].sizeimage = sizeimage;
+	pix_fmt->num_planes = 1;
 	return 0;
 }
 
@@ -222,12 +225,12 @@ static u32 pixelformat_from_sps(const struct v4l2_ctrl_hevc_sps * const sps,
 	return pf;
 }
 
-static struct v4l2_pix_format
+static struct v4l2_pix_format_mplane
 rpivid_hevc_default_dst_fmt(struct rpivid_ctx * const ctx)
 {
 	const struct v4l2_ctrl_hevc_sps * const sps =
 		rpivid_find_control_data(ctx, V4L2_CID_MPEG_VIDEO_HEVC_SPS);
-	struct v4l2_pix_format pix_fmt = {
+	struct v4l2_pix_format_mplane pix_fmt = {
 		.width = sps->pic_width_in_luma_samples,
 		.height = sps->pic_height_in_luma_samples,
 		.pixelformat = pixelformat_from_sps(sps, 0)
@@ -267,7 +270,7 @@ static int rpivid_g_fmt_vid_cap(struct file *file, void *priv,
 
 	if (!ctx->dst_fmt_set)
 		ctx->dst_fmt = rpivid_hevc_default_dst_fmt(ctx);
-	f->fmt.pix = ctx->dst_fmt;
+	f->fmt.pix_mp = ctx->dst_fmt;
 	return 0;
 }
 
@@ -276,12 +279,12 @@ static int rpivid_g_fmt_vid_out(struct file *file, void *priv,
 {
 	struct rpivid_ctx *ctx = rpivid_file2ctx(file);
 
-	f->fmt.pix = ctx->src_fmt;
+	f->fmt.pix_mp = ctx->src_fmt;
 	return 0;
 }
 
-static inline void copy_color(struct v4l2_pix_format *d,
-			      const struct v4l2_pix_format *s)
+static inline void copy_color(struct v4l2_pix_format_mplane *d,
+			      const struct v4l2_pix_format_mplane *s)
 {
 	d->colorspace   = s->colorspace;
 	d->xfer_func    = s->xfer_func;
@@ -298,12 +301,8 @@ static int rpivid_try_fmt_vid_cap(struct file *file, void *priv,
 	u32 pixelformat;
 	int i;
 
-	/* Reject format types we don't support */
-	if (f->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		return -EINVAL;
-
 	for (i = 0; (pixelformat = pixelformat_from_sps(sps, i)) != 0; i++) {
-		if (f->fmt.pix.pixelformat == pixelformat)
+		if (f->fmt.pix_mp.pixelformat == pixelformat)
 			break;
 	}
 
@@ -317,23 +316,20 @@ static int rpivid_try_fmt_vid_cap(struct file *file, void *priv,
 
 	// We don't have any way of finding out colourspace so believe
 	// anything we are told - take anything set in src as a default
-	if (f->fmt.pix.colorspace == V4L2_COLORSPACE_DEFAULT)
-		copy_color(&f->fmt.pix, &ctx->src_fmt);
+	if (f->fmt.pix_mp.colorspace == V4L2_COLORSPACE_DEFAULT)
+		copy_color(&f->fmt.pix_mp, &ctx->src_fmt);
 
-	f->fmt.pix.pixelformat = pixelformat;
-	return rpivid_prepare_dst_format(&f->fmt.pix);
+	f->fmt.pix_mp.pixelformat = pixelformat;
+	return rpivid_prepare_dst_format(&f->fmt.pix_mp);
 }
 
 static int rpivid_try_fmt_vid_out(struct file *file, void *priv,
 				  struct v4l2_format *f)
 {
-	if (f->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
-		return -EINVAL;
-
-	if (rpivid_prepare_src_format(&f->fmt.pix)) {
+	if (rpivid_prepare_src_format(&f->fmt.pix_mp)) {
 		// Set default src format
-		f->fmt.pix.pixelformat = RPIVID_SRC_PIXELFORMAT_DEFAULT;
-		rpivid_prepare_src_format(&f->fmt.pix);
+		f->fmt.pix_mp.pixelformat = RPIVID_SRC_PIXELFORMAT_DEFAULT;
+		rpivid_prepare_src_format(&f->fmt.pix_mp);
 	}
 	return 0;
 }
@@ -353,7 +349,7 @@ static int rpivid_s_fmt_vid_cap(struct file *file, void *priv,
 	if (ret)
 		return ret;
 
-	ctx->dst_fmt = f->fmt.pix;
+	ctx->dst_fmt = f->fmt.pix_mp;
 	ctx->dst_fmt_set = 1;
 
 	return 0;
@@ -374,14 +370,14 @@ static int rpivid_s_fmt_vid_out(struct file *file, void *priv,
 	if (ret)
 		return ret;
 
-	ctx->src_fmt = f->fmt.pix;
+	ctx->src_fmt = f->fmt.pix_mp;
 	ctx->dst_fmt_set = 0;  // Setting src invalidates dst
 
 	vq->subsystem_flags |=
 		VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF;
 
 	/* Propagate colorspace information to capture. */
-	copy_color(&ctx->dst_fmt, &f->fmt.pix);
+	copy_color(&ctx->dst_fmt, &f->fmt.pix_mp);
 	return 0;
 }
 
@@ -389,14 +385,14 @@ const struct v4l2_ioctl_ops rpivid_ioctl_ops = {
 	.vidioc_querycap		= rpivid_querycap,
 
 	.vidioc_enum_fmt_vid_cap	= rpivid_enum_fmt_vid_cap,
-	.vidioc_g_fmt_vid_cap		= rpivid_g_fmt_vid_cap,
-	.vidioc_try_fmt_vid_cap		= rpivid_try_fmt_vid_cap,
-	.vidioc_s_fmt_vid_cap		= rpivid_s_fmt_vid_cap,
+	.vidioc_g_fmt_vid_cap_mplane	= rpivid_g_fmt_vid_cap,
+	.vidioc_try_fmt_vid_cap_mplane	= rpivid_try_fmt_vid_cap,
+	.vidioc_s_fmt_vid_cap_mplane	= rpivid_s_fmt_vid_cap,
 
 	.vidioc_enum_fmt_vid_out	= rpivid_enum_fmt_vid_out,
-	.vidioc_g_fmt_vid_out		= rpivid_g_fmt_vid_out,
-	.vidioc_try_fmt_vid_out		= rpivid_try_fmt_vid_out,
-	.vidioc_s_fmt_vid_out		= rpivid_s_fmt_vid_out,
+	.vidioc_g_fmt_vid_out_mplane	= rpivid_g_fmt_vid_out,
+	.vidioc_try_fmt_vid_out_mplane	= rpivid_try_fmt_vid_out,
+	.vidioc_s_fmt_vid_out_mplane	= rpivid_s_fmt_vid_out,
 
 	.vidioc_reqbufs			= v4l2_m2m_ioctl_reqbufs,
 	.vidioc_querybuf		= v4l2_m2m_ioctl_querybuf,
@@ -421,7 +417,7 @@ static int rpivid_queue_setup(struct vb2_queue *vq, unsigned int *nbufs,
 			      struct device *alloc_devs[])
 {
 	struct rpivid_ctx *ctx = vb2_get_drv_priv(vq);
-	struct v4l2_pix_format *pix_fmt;
+	struct v4l2_pix_format_mplane *pix_fmt;
 
 	if (V4L2_TYPE_IS_OUTPUT(vq->type))
 		pix_fmt = &ctx->src_fmt;
@@ -429,10 +425,10 @@ static int rpivid_queue_setup(struct vb2_queue *vq, unsigned int *nbufs,
 		pix_fmt = &ctx->dst_fmt;
 
 	if (*nplanes) {
-		if (sizes[0] < pix_fmt->sizeimage)
+		if (sizes[0] < pix_fmt->plane_fmt[0].sizeimage)
 			return -EINVAL;
 	} else {
-		sizes[0] = pix_fmt->sizeimage;
+		sizes[0] = pix_fmt->plane_fmt[0].sizeimage;
 		*nplanes = 1;
 	}
 
@@ -471,17 +467,17 @@ static int rpivid_buf_prepare(struct vb2_buffer *vb)
 {
 	struct vb2_queue *vq = vb->vb2_queue;
 	struct rpivid_ctx *ctx = vb2_get_drv_priv(vq);
-	struct v4l2_pix_format *pix_fmt;
+	struct v4l2_pix_format_mplane *pix_fmt;
 
 	if (V4L2_TYPE_IS_OUTPUT(vq->type))
 		pix_fmt = &ctx->src_fmt;
 	else
 		pix_fmt = &ctx->dst_fmt;
 
-	if (vb2_plane_size(vb, 0) < pix_fmt->sizeimage)
+	if (vb2_plane_size(vb, 0) < pix_fmt->plane_fmt[0].sizeimage)
 		return -EINVAL;
 
-	vb2_set_plane_payload(vb, 0, pix_fmt->sizeimage);
+	vb2_set_plane_payload(vb, 0, pix_fmt->plane_fmt[0].sizeimage);
 
 	return 0;
 }
@@ -567,7 +563,7 @@ int rpivid_queue_init(void *priv, struct vb2_queue *src_vq,
 	struct rpivid_ctx *ctx = priv;
 	int ret;
 
-	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	src_vq->io_modes = VB2_MMAP | VB2_DMABUF;
 	src_vq->drv_priv = ctx;
 	src_vq->buf_struct_size = sizeof(struct rpivid_buffer);
@@ -584,7 +580,7 @@ int rpivid_queue_init(void *priv, struct vb2_queue *src_vq,
 	if (ret)
 		return ret;
 
-	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	dst_vq->io_modes = VB2_MMAP | VB2_DMABUF;
 	dst_vq->drv_priv = ctx;
 	dst_vq->buf_struct_size = sizeof(struct rpivid_buffer);
