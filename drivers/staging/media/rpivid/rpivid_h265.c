@@ -1613,7 +1613,7 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 		de->cmd_copy_gptr = ctx->cmdbufs + 0;
 
 		de->frame_c_offset = ctx->dst_fmt.height * 128;
-		de->frame_stride = ctx->dst_fmt.bytesperline * 128;
+		de->frame_stride = ctx->dst_fmt.plane_fmt[0].bytesperline * 128;
 		de->frame_addr =
 			vb2_dma_contig_plane_dma_addr(&run->dst->vb2_buf, 0);
 		de->frame_aux = NULL;
@@ -1654,11 +1654,11 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 			goto fail;
 		}
 		if (run->dst->planes[0].length <
-		    ctx->dst_fmt.sizeimage) {
+		    ctx->dst_fmt.plane_fmt[0].sizeimage) {
 			v4l2_warn(&dev->v4l2_dev,
 				  "Capture plane[0] length (%d) < sizeimage (%d)\n",
 				  run->dst->planes[0].length,
-				  ctx->dst_fmt.sizeimage);
+				  ctx->dst_fmt.plane_fmt[0].sizeimage);
 			goto fail;
 		}
 
@@ -1812,7 +1812,8 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 	// slices. If this changes we will need idx mapping code.
 	// Uses sh so here rather than trigger
 
-	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE);
+	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx,
+			     V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 
 	if (!vq) {
 		v4l2_err(&dev->v4l2_dev, "VQ gone!\n");
