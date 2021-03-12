@@ -914,6 +914,62 @@ Params: gpio                    GPIO pin to trigger on (default 3)
         keycode                 Set the key code for the button
 
 
+
+Name:   gpio-led
+Info:   This is a generic overlay for activating LEDs (or any other component)
+        by a GPIO pin. Multiple LEDs can be set up using multiple calls to the
+        overlay. While there are many existing methods to activate LEDs on the
+        RPi, this method offers some advantages:
+        1) Does not require any userspace programs.
+        2) LEDs can be connected to the kernel's led-trigger framework,
+           and drive the LED based on triggers such as cpu load, heartbeat,
+           kernel panic, key input, timers and others.
+        3) LED can be tied to the input state of another GPIO pin.
+        4) The LED is setup early during the kernel boot process (useful
+           for cpu/heartbeat/panic triggers).
+
+        Typical electrical connection is:
+           RPI-GPIO.19  ->  LED  -> 300ohm resister  -> RPI-GND
+        The GPIO pin number can be changed with the 'gpio=' parameter.
+
+        To control an LED from userspace, write a 0 or 1 value:
+           echo 1 > /sys/class/leds/myled1/brightness
+        The 'myled1' name can be changed with the 'label=' parameter.
+
+        To connect the LED to a kernel trigger from userspace:
+           echo cpu > /sys/class/leds/myled1/trigger
+           echo heartbeat > /sys/class/leds/myled1/trigger
+           echo none > /sys/class/leds/myled1/trigger
+        To connect the LED to GPIO.26 pin (physical pin 37):
+           echo gpio > /sys/class/leds/myled1/trigger
+           echo 26 > /sys/class/leds/myled1/gpio
+        Available triggers:
+           cat /sys/class/leds/myled1/trigger
+
+        More information about the Linux kernel LED/Trigger system:
+           https://www.kernel.org/doc/Documentation/leds/leds-class.rst
+           https://www.kernel.org/doc/Documentation/leds/ledtrig-oneshot.rst
+Load:   dtoverlay=gpio-led,<param>=<val>
+Params: gpio                    GPIO pin connected to the LED (default 19)
+        label                   The label for this LED. It will appear under
+                                /sys/class/leds/<label> . Default 'myled1'.
+        trigger                 Set the led-trigger to connect to this LED.
+                                default 'none' (LED is user-controlled).
+                                Some possible triggers:
+                                 cpu - CPU load (all CPUs)
+                                 cpu0 - CPU load of first CPU.
+                                 mmc - disk activity (all disks)
+                                 panic - turn on on kernel panic
+                                 heartbeat - indicate system health
+                                 gpio - connect to a GPIO input pin (note:
+                                        currently the GPIO PIN can not be set
+                                        using overlay parameters, must be
+                                        done in userspace, see examples above.
+        active_low              Set to 1 to turn invert the LED control
+                                (writing 0 to /sys/class/leds/XXX/brightness
+                                will turn on the GPIO/LED). Default '0'.
+
+
 Name:   gpio-no-bank0-irq
 Info:   Use this overlay to disable GPIO interrupts for GPIOs in bank 0 (0-27),
         which can be useful for UIO drivers.
