@@ -833,10 +833,10 @@ static void vc4_hdmi_set_infoframes(struct drm_encoder *encoder)
 	vc4_hdmi_set_hdr_infoframe(encoder);
 }
 
-static void vc4_hdmi_encoder_post_crtc_disable(struct drm_encoder *encoder,
-					       struct drm_atomic_state *state)
+static void vc4_hdmi_bridge_post_crtc_disable(struct drm_bridge *bridge,
+					      struct drm_atomic_state *state)
 {
-	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
+	struct vc4_hdmi *vc4_hdmi = bridge_to_vc4_hdmi(bridge);
 
 	HDMI_WRITE(HDMI_RAM_PACKET_CONFIG, 0);
 
@@ -847,10 +847,10 @@ static void vc4_hdmi_encoder_post_crtc_disable(struct drm_encoder *encoder,
 		   HDMI_READ(HDMI_VID_CTL) | VC4_HD_VID_CTL_BLANKPIX);
 }
 
-static void vc4_hdmi_encoder_post_crtc_powerdown(struct drm_encoder *encoder,
-						 struct drm_atomic_state *state)
+static void vc4_hdmi_bridge_post_crtc_powerdown(struct drm_bridge *bridge,
+						struct drm_atomic_state *state)
 {
-	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
+	struct vc4_hdmi *vc4_hdmi = bridge_to_vc4_hdmi(bridge);
 	int ret;
 
 	if (vc4_hdmi->variant->phy_disable)
@@ -866,10 +866,6 @@ static void vc4_hdmi_encoder_post_crtc_powerdown(struct drm_encoder *encoder,
 	ret = pm_runtime_put(&vc4_hdmi->pdev->dev);
 	if (ret < 0)
 		DRM_ERROR("Failed to release power domain: %d\n", ret);
-}
-
-static void vc4_hdmi_encoder_disable(struct drm_encoder *encoder)
-{
 }
 
 static void vc4_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
@@ -1119,9 +1115,10 @@ vc4_hdmi_encoder_get_connector_state(struct drm_encoder *encoder,
 	return NULL;
 }
 
-static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
-						struct drm_atomic_state *state)
+static void vc4_hdmi_bridge_pre_crtc_configure(struct drm_bridge *bridge,
+					       struct drm_atomic_state *state)
 {
+	struct drm_encoder *encoder = bridge->encoder;
 	struct drm_connector_state *conn_state =
 		vc4_hdmi_encoder_get_connector_state(encoder, state);
 	struct vc4_hdmi_connector_state *vc4_conn_state =
@@ -1215,9 +1212,10 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 		vc4_hdmi->variant->set_timings(vc4_hdmi, conn_state, mode);
 }
 
-static void vc4_hdmi_encoder_pre_crtc_enable(struct drm_encoder *encoder,
-					     struct drm_atomic_state *state)
+static void vc4_hdmi_bridge_pre_crtc_enable(struct drm_bridge *bridge,
+					    struct drm_atomic_state *state)
 {
+	struct drm_encoder *encoder = bridge->encoder;
 	struct drm_display_mode *mode = &encoder->crtc->state->adjusted_mode;
 	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
 
@@ -1227,9 +1225,10 @@ static void vc4_hdmi_encoder_pre_crtc_enable(struct drm_encoder *encoder,
 	HDMI_WRITE(HDMI_FIFO_CTL, VC4_HDMI_FIFO_CTL_MASTER_SLAVE_N);
 }
 
-static void vc4_hdmi_encoder_post_crtc_enable(struct drm_encoder *encoder,
-					      struct drm_atomic_state *state)
+static void vc4_hdmi_bridge_post_crtc_enable(struct drm_bridge *bridge,
+					     struct drm_atomic_state *state)
 {
+	struct drm_encoder *encoder = bridge->encoder;
 	struct drm_display_mode *mode = &encoder->crtc->state->adjusted_mode;
 	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
 	struct vc4_hdmi_encoder *vc4_encoder = to_vc4_hdmi_encoder(encoder);
@@ -1286,20 +1285,17 @@ static void vc4_hdmi_encoder_post_crtc_enable(struct drm_encoder *encoder,
 	vc4_hdmi_recenter_fifo(vc4_hdmi);
 }
 
-static void vc4_hdmi_encoder_enable(struct drm_encoder *encoder)
-{
-}
-
 #define WIFI_2_4GHz_CH1_MIN_FREQ	2400000000ULL
 #define WIFI_2_4GHz_CH1_MAX_FREQ	2422000000ULL
 
-static int vc4_hdmi_encoder_atomic_check(struct drm_encoder *encoder,
-					 struct drm_crtc_state *crtc_state,
-					 struct drm_connector_state *conn_state)
+static int vc4_hdmi_bridge_atomic_check(struct drm_bridge *bridge,
+					struct drm_bridge_state *bridge_state,
+					struct drm_crtc_state *crtc_state,
+					struct drm_connector_state *conn_state)
 {
 	struct vc4_hdmi_connector_state *vc4_state = conn_state_to_vc4_hdmi_conn_state(conn_state);
 	struct drm_display_mode *mode = &crtc_state->adjusted_mode;
-	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
+	struct vc4_hdmi *vc4_hdmi = bridge_to_vc4_hdmi(bridge);
 	unsigned long long pixel_rate = mode->clock * 1000;
 	unsigned long long tmds_rate;
 
@@ -1342,10 +1338,11 @@ static int vc4_hdmi_encoder_atomic_check(struct drm_encoder *encoder,
 }
 
 static enum drm_mode_status
-vc4_hdmi_encoder_mode_valid(struct drm_encoder *encoder,
-			    const struct drm_display_mode *mode)
+vc4_hdmi_bridge_mode_valid(struct drm_bridge *bridge,
+			   const struct drm_display_info *info,
+			   const struct drm_display_mode *mode)
 {
-	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
+	struct vc4_hdmi *vc4_hdmi = bridge_to_vc4_hdmi(bridge);
 
 	if (vc4_hdmi->variant->unsupported_odd_h_timings &&
 	    ((mode->hdisplay % 2) || (mode->hsync_start % 2) ||
@@ -1358,12 +1355,48 @@ vc4_hdmi_encoder_mode_valid(struct drm_encoder *encoder,
 	return MODE_OK;
 }
 
-static const struct drm_encoder_helper_funcs vc4_hdmi_encoder_helper_funcs = {
-	.atomic_check = vc4_hdmi_encoder_atomic_check,
-	.mode_valid = vc4_hdmi_encoder_mode_valid,
-	.disable = vc4_hdmi_encoder_disable,
-	.enable = vc4_hdmi_encoder_enable,
+static int vc4_hdmi_bridge_attach(struct drm_bridge *bridge,
+				  enum drm_bridge_attach_flags flags)
+{
+	struct vc4_hdmi *vc4_hdmi = bridge_to_vc4_hdmi(bridge);
+
+	if (flags & DRM_BRIDGE_ATTACH_NO_CONNECTOR)
+		return 0;
+
+	return vc4_hdmi_connector_init(bridge->dev, vc4_hdmi);
+}
+
+static const struct drm_bridge_funcs vc4_hdmi_bridge_funcs = {
+	.attach =	vc4_hdmi_bridge_attach,
+	.atomic_check =	vc4_hdmi_bridge_atomic_check,
+	.atomic_destroy_state = drm_atomic_helper_bridge_destroy_state,
+	.atomic_duplicate_state = drm_atomic_helper_bridge_duplicate_state,
+	.atomic_reset = drm_atomic_helper_bridge_reset,
+	.mode_valid =	vc4_hdmi_bridge_mode_valid,
 };
+
+static int vc4_hdmi_bridge_init(struct drm_device *drm,
+				struct vc4_hdmi *vc4_hdmi)
+{
+	struct drm_encoder *encoder = &vc4_hdmi->encoder.base.base;
+	struct drm_bridge *bridge = &vc4_hdmi->bridge.base;
+	struct device *dev = &vc4_hdmi->pdev->dev;
+	int ret;
+
+	bridge->funcs = &vc4_hdmi_bridge_funcs;
+	bridge->of_node = dev->of_node;
+	bridge->type = DRM_MODE_CONNECTOR_HDMIA;
+
+	drm_bridge_add(bridge);
+
+	ret = drm_bridge_attach(encoder, bridge, NULL, 0);
+	if (ret) {
+		drm_bridge_remove(bridge);
+		return ret;
+	}
+
+	return 0;
+}
 
 static u32 vc4_hdmi_channel_map(struct vc4_hdmi *vc4_hdmi, u32 channel_mask)
 {
@@ -2572,13 +2605,14 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	dev_set_drvdata(dev, vc4_hdmi);
 	encoder = &vc4_hdmi->encoder.base.base;
 	vc4_hdmi->encoder.base.type = variant->encoder_type;
-	vc4_hdmi->encoder.base.pre_crtc_configure = vc4_hdmi_encoder_pre_crtc_configure;
-	vc4_hdmi->encoder.base.pre_crtc_enable = vc4_hdmi_encoder_pre_crtc_enable;
-	vc4_hdmi->encoder.base.post_crtc_enable = vc4_hdmi_encoder_post_crtc_enable;
-	vc4_hdmi->encoder.base.post_crtc_disable = vc4_hdmi_encoder_post_crtc_disable;
-	vc4_hdmi->encoder.base.post_crtc_powerdown = vc4_hdmi_encoder_post_crtc_powerdown;
 	vc4_hdmi->pdev = pdev;
 	vc4_hdmi->variant = variant;
+
+	vc4_hdmi->bridge.pre_crtc_configure = vc4_hdmi_bridge_pre_crtc_configure;
+	vc4_hdmi->bridge.pre_crtc_enable = vc4_hdmi_bridge_pre_crtc_enable;
+	vc4_hdmi->bridge.post_crtc_enable = vc4_hdmi_bridge_post_crtc_enable;
+	vc4_hdmi->bridge.post_crtc_disable = vc4_hdmi_bridge_post_crtc_disable;
+	vc4_hdmi->bridge.post_crtc_powerdown = vc4_hdmi_bridge_post_crtc_powerdown;
 
 	ret = variant->init_resources(vc4_hdmi);
 	if (ret)
@@ -2631,9 +2665,8 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 	pm_runtime_enable(dev);
 
 	drm_simple_encoder_init(drm, encoder, DRM_MODE_ENCODER_TMDS);
-	drm_encoder_helper_add(encoder, &vc4_hdmi_encoder_helper_funcs);
 
-	ret = vc4_hdmi_connector_init(drm, vc4_hdmi);
+	ret = vc4_hdmi_bridge_init(drm, vc4_hdmi);
 	if (ret)
 		goto err_destroy_encoder;
 

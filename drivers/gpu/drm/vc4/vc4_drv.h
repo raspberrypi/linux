@@ -10,6 +10,7 @@
 #include <linux/uaccess.h>
 
 #include <drm/drm_atomic.h>
+#include <drm/drm_bridge.h>
 #include <drm/drm_debugfs.h>
 #include <drm/drm_device.h>
 #include <drm/drm_encoder.h>
@@ -447,22 +448,32 @@ enum vc4_encoder_type {
 
 struct vc4_encoder {
 	struct drm_encoder base;
-	struct drm_crtc *crtc;
 	enum vc4_encoder_type type;
 	u32 clock_select;
-
-	void (*pre_crtc_configure)(struct drm_encoder *encoder, struct drm_atomic_state *state);
-	void (*pre_crtc_enable)(struct drm_encoder *encoder, struct drm_atomic_state *state);
-	void (*post_crtc_enable)(struct drm_encoder *encoder, struct drm_atomic_state *state);
-
-	void (*post_crtc_disable)(struct drm_encoder *encoder, struct drm_atomic_state *state);
-	void (*post_crtc_powerdown)(struct drm_encoder *encoder, struct drm_atomic_state *state);
 };
 
 static inline struct vc4_encoder *
 to_vc4_encoder(struct drm_encoder *encoder)
 {
 	return container_of(encoder, struct vc4_encoder, base);
+}
+
+struct vc4_bridge {
+	struct drm_bridge base;
+	struct drm_crtc *crtc;
+
+	void (*pre_crtc_configure)(struct drm_bridge *bridge, struct drm_atomic_state *state);
+	void (*pre_crtc_enable)(struct drm_bridge *bridge, struct drm_atomic_state *state);
+	void (*post_crtc_enable)(struct drm_bridge *bridge, struct drm_atomic_state *state);
+
+	void (*post_crtc_disable)(struct drm_bridge *bridge, struct drm_atomic_state *state);
+	void (*post_crtc_powerdown)(struct drm_bridge *bridge, struct drm_atomic_state *state);
+};
+
+static inline struct vc4_bridge *
+to_vc4_bridge(struct drm_bridge *bridge)
+{
+	return container_of(bridge, struct vc4_bridge, base);
 }
 
 struct vc4_crtc_data {

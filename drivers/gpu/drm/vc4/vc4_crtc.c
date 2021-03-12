@@ -291,14 +291,19 @@ static struct drm_encoder *vc4_get_crtc_encoder(struct drm_crtc *crtc)
 	drm_connector_list_iter_begin(crtc->dev, &conn_iter);
 	drm_for_each_connector_iter(connector, &conn_iter) {
 		struct drm_encoder *encoder;
-		struct vc4_encoder *vc4_encoder;
+		struct drm_bridge *bridge;
+		struct vc4_bridge *vc4_bridge;
 
 		encoder = vc4_get_connector_encoder(connector);
 		if (!encoder)
 			continue;
 
-		vc4_encoder = to_vc4_encoder(encoder);
-		if (vc4_encoder->crtc == crtc) {
+		bridge = drm_bridge_chain_get_first_bridge(encoder);
+		if (!bridge)
+			continue;
+
+		vc4_bridge = to_vc4_bridge(bridge);
+		if (vc4_bridge->crtc == crtc) {
 			drm_connector_list_iter_end(&conn_iter);
 			return encoder;
 		}
@@ -437,7 +442,8 @@ static int vc4_crtc_disable(struct drm_crtc *crtc,
 			    unsigned int channel)
 {
 	struct drm_encoder *encoder = vc4_get_crtc_encoder(crtc);
-	struct vc4_encoder *vc4_encoder = to_vc4_encoder(encoder);
+	struct drm_bridge *bridge = drm_bridge_chain_get_first_bridge(encoder);
+	struct vc4_bridge *vc4_bridge = to_vc4_bridge(bridge);
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 	struct drm_device *dev = crtc->dev;
 	int ret;
@@ -465,14 +471,14 @@ static int vc4_crtc_disable(struct drm_crtc *crtc,
 	 */
 	mdelay(20);
 
-	if (vc4_encoder && vc4_encoder->post_crtc_disable)
-		vc4_encoder->post_crtc_disable(encoder, state);
+	if (vc4_bridge && vc4_bridge->post_crtc_disable)
+		vc4_bridge->post_crtc_disable(bridge, state);
 
 	vc4_crtc_pixelvalve_reset(crtc);
 	vc4_hvs_stop_channel(dev, channel);
 
-	if (vc4_encoder && vc4_encoder->post_crtc_powerdown)
-		vc4_encoder->post_crtc_powerdown(encoder, state);
+	if (vc4_bridge && vc4_bridge->post_crtc_powerdown)
+		vc4_bridge->post_crtc_powerdown(bridge, state);
 
 	return 0;
 }
@@ -537,7 +543,8 @@ static void vc4_crtc_atomic_enable(struct drm_crtc *crtc,
 	struct drm_device *dev = crtc->dev;
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
 	struct drm_encoder *encoder = vc4_get_crtc_encoder(crtc);
-	struct vc4_encoder *vc4_encoder = to_vc4_encoder(encoder);
+	struct drm_bridge *bridge = drm_bridge_chain_get_first_bridge(encoder);
+	struct vc4_bridge *vc4_bridge = to_vc4_bridge(bridge);
 
 	require_hvs_enabled(dev);
 
@@ -548,15 +555,15 @@ static void vc4_crtc_atomic_enable(struct drm_crtc *crtc,
 
 	vc4_hvs_atomic_enable(crtc, state);
 
-	if (vc4_encoder->pre_crtc_configure)
-		vc4_encoder->pre_crtc_configure(encoder, state);
+	if (vc4_bridge->pre_crtc_configure)
+		vc4_bridge->pre_crtc_configure(bridge, state);
 
 	vc4_crtc_config_pv(crtc);
 
 	CRTC_WRITE(PV_CONTROL, CRTC_READ(PV_CONTROL) | PV_CONTROL_EN);
 
-	if (vc4_encoder->pre_crtc_enable)
-		vc4_encoder->pre_crtc_enable(encoder, state);
+	if (vc4_bridge->pre_crtc_enable)
+		vc4_bridge->pre_crtc_enable(bridge, state);
 
 	/* When feeding the transposer block the pixelvalve is unneeded and
 	 * should not be enabled.
@@ -564,8 +571,8 @@ static void vc4_crtc_atomic_enable(struct drm_crtc *crtc,
 	CRTC_WRITE(PV_V_CONTROL,
 		   CRTC_READ(PV_V_CONTROL) | PV_VCONTROL_VIDEN);
 
-	if (vc4_encoder->post_crtc_enable)
-		vc4_encoder->post_crtc_enable(encoder, state);
+	if (vc4_bridge->post_crtc_enable)
+		vc4_bridge->post_crtc_enable(bridge, state);
 }
 
 static enum drm_mode_status vc4_crtc_mode_valid(struct drm_crtc *crtc,

@@ -244,20 +244,25 @@ static struct drm_crtc *vc4_drv_find_crtc(struct drm_device *drm,
 	return NULL;
 }
 
-static void vc4_drv_set_encoder_data(struct drm_device *drm)
+static void vc4_drv_set_bridge_data(struct drm_device *drm)
 {
 	struct drm_encoder *encoder;
 
 	drm_for_each_encoder(encoder, drm) {
-		struct vc4_encoder *vc4_encoder;
+		struct vc4_bridge *vc4_bridge;
+		struct drm_bridge *bridge;
 		struct drm_crtc *crtc;
 
 		crtc = vc4_drv_find_crtc(drm, encoder);
 		if (WARN_ON(!crtc))
 			return;
 
-		vc4_encoder = to_vc4_encoder(encoder);
-		vc4_encoder->crtc = crtc;
+		bridge = drm_bridge_chain_get_first_bridge(encoder);
+		if (!bridge)
+			continue;
+
+		vc4_bridge = to_vc4_bridge(bridge);
+		vc4_bridge->crtc = crtc;
 	}
 }
 
@@ -343,7 +348,7 @@ static int vc4_drm_bind(struct device *dev)
 	ret = component_bind_all(dev, drm);
 	if (ret)
 		return ret;
-	vc4_drv_set_encoder_data(drm);
+	vc4_drv_set_bridge_data(drm);
 
 	if (!vc4->firmware_kms) {
 		ret = vc4_plane_create_additional_planes(drm);
