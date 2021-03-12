@@ -868,6 +868,12 @@ drm_atomic_helper_bridge_propagate_bus_fmt(struct drm_bridge *bridge,
 					u32 output_fmt,
 					unsigned int *num_input_fmts);
 
+u32 *drm_atomic_helper_bridge_hdmi_get_output_bus_fmts(struct drm_bridge *bridge,
+						       struct drm_bridge_state *bridge_state,
+						       struct drm_crtc_state *crtc_state,
+						       struct drm_connector_state *conn_state,
+						       unsigned int *num_output_fmts);
+
 enum drm_connector_status drm_bridge_detect(struct drm_bridge *bridge);
 int drm_bridge_get_modes(struct drm_bridge *bridge,
 			 struct drm_connector *connector);
