@@ -1,0 +1,18 @@
+/*
+ * pcie-32bit-dma-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2711";
+
+	fragment@0 {
+		target-path = "/aliases";
+		__overlay__ {
+			pcie0 = "";
+		};
+	};
+
+};
