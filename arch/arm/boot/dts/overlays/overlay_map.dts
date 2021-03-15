@@ -37,6 +37,10 @@
 		deprecated = "use gpio-ir";
 	};
 
+	pcie-32bit-dma {
+		bcm2711;
+	};
+
 	pi3-act-led {
 		renamed = "act-led";
 	};
