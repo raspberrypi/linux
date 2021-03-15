@@ -2135,6 +2135,13 @@ Params: addr                    I2C address of expander. Default 0x20.
         xra1202                 Select the Exar XRA1202 (8 bit)
 
 
+Name:   pcie-32bit-dma
+Info:   Force PCIe config to support 32bit DMA addresses at the expense of
+        having to bounce buffers.
+Load:   dtoverlay=pcie-32bit-dma
+Params: <None>
+
+
 [ The pcf2127-rtc overlay has been deleted. See i2c-rtc. ]
 
 
