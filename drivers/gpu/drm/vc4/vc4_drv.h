@@ -443,6 +443,16 @@ enum vc4_encoder_type {
 
 struct vc4_encoder {
 	struct drm_encoder base;
+
+	/*
+	 * At boot time, we need to be able to retrieve the CRTC for a given
+	 * connector in order to run the disable hooks below to avoid the stuck
+	 * pixel issue. Unfortunately the drm_connector->encoder pointer is
+	 * NULL at that time so we can't move up the chain, so we'll store it
+	 * ourselves here.
+	 */
+	struct drm_crtc *crtc;
+
 	enum vc4_encoder_type type;
 	u32 clock_select;
 
