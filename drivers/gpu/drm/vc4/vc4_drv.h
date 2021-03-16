@@ -447,6 +447,7 @@ enum vc4_encoder_type {
 
 struct vc4_encoder {
 	struct drm_encoder base;
+	struct drm_crtc *crtc;
 	enum vc4_encoder_type type;
 	u32 clock_select;
 
