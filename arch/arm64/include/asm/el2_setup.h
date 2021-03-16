@@ -111,7 +111,7 @@
 .endm
 
 /* Virtual CPU ID registers */
-.macro __init_el2_nvhe_idregs
+.macro __init_el2_idregs
 	mrs	x0, midr_el1
 	mrs	x1, mpidr_el1
 	msr	vpidr_el2, x0
@@ -163,6 +163,7 @@
 	__init_el2_stage2
 	__init_el2_gicv3
 	__init_el2_hstr
+	__init_el2_idregs
 
 	/*
 	 * When VHE is not in use, early init of EL2 needs to be done here.
@@ -171,7 +172,6 @@
 	 * will be done via the _EL1 system register aliases in __cpu_setup.
 	 */
 .ifeqs "\mode", "nvhe"
-	__init_el2_nvhe_idregs
 	__init_el2_nvhe_cptr
 	__init_el2_nvhe_sve
 	__init_el2_nvhe_prepare_eret
