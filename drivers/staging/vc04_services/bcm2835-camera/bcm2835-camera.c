@@ -1445,6 +1445,7 @@ static const struct v4l2_ioctl_ops camera0_ioctl_ops = {
 	.vidioc_querybuf = vb2_ioctl_querybuf,
 	.vidioc_qbuf = vb2_ioctl_qbuf,
 	.vidioc_dqbuf = vb2_ioctl_dqbuf,
+	.vidioc_expbuf = vb2_ioctl_expbuf,
 	.vidioc_enum_framesizes = vidioc_enum_framesizes,
 	.vidioc_enum_frameintervals = vidioc_enum_frameintervals,
 	.vidioc_g_parm        = vidioc_g_parm,
@@ -1930,7 +1931,7 @@ static int bcm2835_mmal_probe(struct vchiq_device *device)
 		q = &dev->capture.vb_vidq;
 		memset(q, 0, sizeof(*q));
 		q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_READ;
+		q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_READ | VB2_DMABUF;
 		q->drv_priv = dev;
 		q->buf_struct_size = sizeof(struct vb2_mmal_buffer);
 		q->ops = &bcm2835_mmal_video_qops;
