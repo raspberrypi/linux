@@ -72,6 +72,8 @@
 #include <media/v4l2-fwnode.h>
 #include <media/videobuf2-dma-contig.h>
 
+#include <media/v4l2-async.h>
+
 #include "vc4-regs-unicam.h"
 
 #define UNICAM_MODULE_NAME	"unicam"
@@ -2732,18 +2734,18 @@ static int of_unicam_connect_subdevs(struct unicam_device *dev)
 		   dev->max_data_lanes, dev->bus_flags);
 
 	/* Initialize and register the async notifier. */
-	v4l2_async_notifier_init(&dev->notifier);
+	v4l2_async_nf_init(&dev->notifier);
 	dev->notifier.ops = &unicam_async_ops;
 
 	dev->asd.match_type = V4L2_ASYNC_MATCH_FWNODE;
 	dev->asd.match.fwnode = of_fwnode_handle(sensor_node);
-	ret = v4l2_async_notifier_add_subdev(&dev->notifier, &dev->asd);
+	ret = __v4l2_async_nf_add_subdev(&dev->notifier, &dev->asd);
 	if (ret) {
 		unicam_err(dev, "Error adding subdevice: %d\n", ret);
 		goto cleanup_exit;
 	}
 
-	ret = v4l2_async_notifier_register(&dev->v4l2_dev, &dev->notifier);
+	ret = v4l2_async_nf_register(&dev->v4l2_dev, &dev->notifier);
 	if (ret) {
 		unicam_err(dev, "Error registering async notifier: %d\n", ret);
 		ret = -EINVAL;
@@ -2872,7 +2874,7 @@ static int unicam_remove(struct platform_device *pdev)
 
 	unicam_dbg(2, unicam, "%s\n", __func__);
 
-	v4l2_async_notifier_unregister(&unicam->notifier);
+	v4l2_async_nf_unregister(&unicam->notifier);
 	v4l2_device_unregister(&unicam->v4l2_dev);
 	media_device_unregister(&unicam->mdev);
 	unregister_nodes(unicam);
