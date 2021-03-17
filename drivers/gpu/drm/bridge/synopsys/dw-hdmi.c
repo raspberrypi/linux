@@ -29,6 +29,7 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_bridge.h>
 #include <drm/drm_edid.h>
+#include <drm/drm_hdmi.h>
 #include <drm/drm_of.h>
 #include <drm/drm_print.h>
 #include <drm/drm_probe_helper.h>
@@ -801,92 +802,6 @@ void dw_hdmi_audio_disable(struct dw_hdmi *hdmi)
 }
 EXPORT_SYMBOL_GPL(dw_hdmi_audio_disable);
 
-static bool hdmi_bus_fmt_is_rgb(unsigned int bus_format)
-{
-	switch (bus_format) {
-	case MEDIA_BUS_FMT_RGB888_1X24:
-	case MEDIA_BUS_FMT_RGB101010_1X30:
-	case MEDIA_BUS_FMT_RGB121212_1X36:
-	case MEDIA_BUS_FMT_RGB161616_1X48:
-		return true;
-
-	default:
-		return false;
-	}
-}
-
-static bool hdmi_bus_fmt_is_yuv444(unsigned int bus_format)
-{
-	switch (bus_format) {
-	case MEDIA_BUS_FMT_YUV8_1X24:
-	case MEDIA_BUS_FMT_YUV10_1X30:
-	case MEDIA_BUS_FMT_YUV12_1X36:
-	case MEDIA_BUS_FMT_YUV16_1X48:
-		return true;
-
-	default:
-		return false;
-	}
-}
-
-static bool hdmi_bus_fmt_is_yuv422(unsigned int bus_format)
-{
-	switch (bus_format) {
-	case MEDIA_BUS_FMT_UYVY8_1X16:
-	case MEDIA_BUS_FMT_UYVY10_1X20:
-	case MEDIA_BUS_FMT_UYVY12_1X24:
-		return true;
-
-	default:
-		return false;
-	}
-}
-
-static bool hdmi_bus_fmt_is_yuv420(unsigned int bus_format)
-{
-	switch (bus_format) {
-	case MEDIA_BUS_FMT_UYYVYY8_0_5X24:
-	case MEDIA_BUS_FMT_UYYVYY10_0_5X30:
-	case MEDIA_BUS_FMT_UYYVYY12_0_5X36:
-	case MEDIA_BUS_FMT_UYYVYY16_0_5X48:
-		return true;
-
-	default:
-		return false;
-	}
-}
-
-static int hdmi_bus_fmt_color_depth(unsigned int bus_format)
-{
-	switch (bus_format) {
-	case MEDIA_BUS_FMT_RGB888_1X24:
-	case MEDIA_BUS_FMT_YUV8_1X24:
-	case MEDIA_BUS_FMT_UYVY8_1X16:
-	case MEDIA_BUS_FMT_UYYVYY8_0_5X24:
-		return 8;
-
-	case MEDIA_BUS_FMT_RGB101010_1X30:
-	case MEDIA_BUS_FMT_YUV10_1X30:
-	case MEDIA_BUS_FMT_UYVY10_1X20:
-	case MEDIA_BUS_FMT_UYYVYY10_0_5X30:
-		return 10;
-
-	case MEDIA_BUS_FMT_RGB121212_1X36:
-	case MEDIA_BUS_FMT_YUV12_1X36:
-	case MEDIA_BUS_FMT_UYVY12_1X24:
-	case MEDIA_BUS_FMT_UYYVYY12_0_5X36:
-		return 12;
-
-	case MEDIA_BUS_FMT_RGB161616_1X48:
-	case MEDIA_BUS_FMT_YUV16_1X48:
-	case MEDIA_BUS_FMT_UYYVYY16_0_5X48:
-		return 16;
-
-	default:
-		return 0;
-	}
-}
-
 /*
  * this submodule is responsible for the video data synchronization.
  * for example, for RGB 4:4:4 input, the data map is defined as
@@ -967,8 +882,8 @@ static int is_color_space_conversion(struct dw_hdmi *hdmi)
 	struct hdmi_data_info *hdmi_data = &hdmi->hdmi_data;
 	bool is_input_rgb, is_output_rgb;
 
-	is_input_rgb = hdmi_bus_fmt_is_rgb(hdmi_data->enc_in_bus_format);
-	is_output_rgb = hdmi_bus_fmt_is_rgb(hdmi_data->enc_out_bus_format);
+	is_input_rgb = drm_hdmi_bus_fmt_is_rgb(hdmi_data->enc_in_bus_format);
+	is_output_rgb = drm_hdmi_bus_fmt_is_rgb(hdmi_data->enc_out_bus_format);
 
 	return (is_input_rgb != is_output_rgb) ||
 	       (is_input_rgb && is_output_rgb && hdmi_data->rgb_limited_range);
@@ -976,11 +891,11 @@ static int is_color_space_conversion(struct dw_hdmi *hdmi)
 
 static int is_color_space_decimation(struct dw_hdmi *hdmi)
 {
-	if (!hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_out_bus_format))
+	if (!drm_hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_out_bus_format))
 		return 0;
 
-	if (hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_in_bus_format) ||
-	    hdmi_bus_fmt_is_yuv444(hdmi->hdmi_data.enc_in_bus_format))
+	if (drm_hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_in_bus_format) ||
+	    drm_hdmi_bus_fmt_is_yuv444(hdmi->hdmi_data.enc_in_bus_format))
 		return 1;
 
 	return 0;
@@ -988,11 +903,11 @@ static int is_color_space_decimation(struct dw_hdmi *hdmi)
 
 static int is_color_space_interpolation(struct dw_hdmi *hdmi)
 {
-	if (!hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_in_bus_format))
+	if (!drm_hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_in_bus_format))
 		return 0;
 
-	if (hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_out_bus_format) ||
-	    hdmi_bus_fmt_is_yuv444(hdmi->hdmi_data.enc_out_bus_format))
+	if (drm_hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_out_bus_format) ||
+	    drm_hdmi_bus_fmt_is_yuv444(hdmi->hdmi_data.enc_out_bus_format))
 		return 1;
 
 	return 0;
@@ -1012,8 +927,8 @@ static void dw_hdmi_update_csc_coeffs(struct dw_hdmi *hdmi)
 	unsigned i;
 	u32 csc_scale = 1;
 
-	is_input_rgb = hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_in_bus_format);
-	is_output_rgb = hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_out_bus_format);
+	is_input_rgb = drm_hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_in_bus_format);
+	is_output_rgb = drm_hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_out_bus_format);
 
 	if (!is_input_rgb && is_output_rgb) {
 		if (hdmi->hdmi_data.enc_out_encoding == V4L2_YCBCR_ENC_601)
@@ -1061,7 +976,7 @@ static void hdmi_video_csc(struct dw_hdmi *hdmi)
 	else if (is_color_space_decimation(hdmi))
 		decimation = HDMI_CSC_CFG_DECMODE_CHROMA_INT_FORMULA3;
 
-	switch (hdmi_bus_fmt_color_depth(hdmi->hdmi_data.enc_out_bus_format)) {
+	switch (drm_hdmi_bus_fmt_color_depth(hdmi->hdmi_data.enc_out_bus_format)) {
 	case 8:
 		color_depth = HDMI_CSC_SCALE_CSC_COLORDE_PTH_24BPP;
 		break;
@@ -1100,10 +1015,10 @@ static void hdmi_video_packetize(struct dw_hdmi *hdmi)
 	struct hdmi_data_info *hdmi_data = &hdmi->hdmi_data;
 	u8 val, vp_conf;
 
-	if (hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_out_bus_format) ||
-	    hdmi_bus_fmt_is_yuv444(hdmi->hdmi_data.enc_out_bus_format) ||
-	    hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_out_bus_format)) {
-		switch (hdmi_bus_fmt_color_depth(
+	if (drm_hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_out_bus_format) ||
+	    drm_hdmi_bus_fmt_is_yuv444(hdmi->hdmi_data.enc_out_bus_format) ||
+	    drm_hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_out_bus_format)) {
+		switch (drm_hdmi_bus_fmt_color_depth(
 					hdmi->hdmi_data.enc_out_bus_format)) {
 		case 8:
 			color_depth = 4;
@@ -1121,8 +1036,8 @@ static void hdmi_video_packetize(struct dw_hdmi *hdmi)
 		default:
 			output_select = HDMI_VP_CONF_OUTPUT_SELECTOR_BYPASS;
 		}
-	} else if (hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_out_bus_format)) {
-		switch (hdmi_bus_fmt_color_depth(
+	} else if (drm_hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_out_bus_format)) {
+		switch (drm_hdmi_bus_fmt_color_depth(
 					hdmi->hdmi_data.enc_out_bus_format)) {
 		case 0:
 		case 8:
@@ -1641,7 +1556,7 @@ static void hdmi_config_AVI(struct dw_hdmi *hdmi,
 	/* Initialise info frame from DRM mode */
 	drm_hdmi_avi_infoframe_from_display_mode(&frame, connector, mode);
 
-	if (hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_out_bus_format)) {
+	if (drm_hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_out_bus_format)) {
 		drm_hdmi_avi_infoframe_quant_range(&frame, connector, mode,
 						   hdmi->hdmi_data.rgb_limited_range ?
 						   HDMI_QUANTIZATION_RANGE_LIMITED :
@@ -1652,17 +1567,17 @@ static void hdmi_config_AVI(struct dw_hdmi *hdmi,
 			HDMI_YCC_QUANTIZATION_RANGE_LIMITED;
 	}
 
-	if (hdmi_bus_fmt_is_yuv444(hdmi->hdmi_data.enc_out_bus_format))
+	if (drm_hdmi_bus_fmt_is_yuv444(hdmi->hdmi_data.enc_out_bus_format))
 		frame.colorspace = HDMI_COLORSPACE_YUV444;
-	else if (hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_out_bus_format))
+	else if (drm_hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_out_bus_format))
 		frame.colorspace = HDMI_COLORSPACE_YUV422;
-	else if (hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_out_bus_format))
+	else if (drm_hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_out_bus_format))
 		frame.colorspace = HDMI_COLORSPACE_YUV420;
 	else
 		frame.colorspace = HDMI_COLORSPACE_RGB;
 
 	/* Set up colorimetry */
-	if (!hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_out_bus_format)) {
+	if (!drm_hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_out_bus_format)) {
 		switch (hdmi->hdmi_data.enc_out_encoding) {
 		case V4L2_YCBCR_ENC_601:
 			if (hdmi->hdmi_data.enc_in_encoding == V4L2_YCBCR_ENC_XV601)
@@ -1864,8 +1779,8 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 
 	vmode->mtmdsclock = vmode->mpixelclock;
 
-	if (!hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_out_bus_format)) {
-		switch (hdmi_bus_fmt_color_depth(
+	if (!drm_hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_out_bus_format)) {
+		switch (drm_hdmi_bus_fmt_color_depth(
 				hdmi->hdmi_data.enc_out_bus_format)) {
 		case 16:
 			vmode->mtmdsclock = vmode->mpixelclock * 2;
@@ -1879,7 +1794,7 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 		}
 	}
 
-	if (hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_out_bus_format))
+	if (drm_hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_out_bus_format))
 		vmode->mtmdsclock /= 2;
 
 	dev_dbg(hdmi->dev, "final tmdsclock = %d\n", vmode->mtmdsclock);
@@ -1930,7 +1845,7 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 	 * When we're setting a YCbCr420 mode, we need
 	 * to adjust the horizontal timing to suit.
 	 */
-	if (hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_out_bus_format)) {
+	if (drm_hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_out_bus_format)) {
 		hdisplay /= 2;
 		hblank /= 2;
 		h_de_hs /= 2;
@@ -2750,7 +2665,7 @@ static const struct drm_bridge_funcs dw_hdmi_bridge_funcs = {
 	.attach = dw_hdmi_bridge_attach,
 	.detach = dw_hdmi_bridge_detach,
 	.atomic_check = dw_hdmi_bridge_atomic_check,
-	.atomic_get_output_bus_fmts = dw_hdmi_bridge_atomic_get_output_bus_fmts,
+	.atomic_get_output_bus_fmts = drm_atomic_helper_bridge_hdmi_get_output_bus_fmts,
 	.atomic_get_input_bus_fmts = dw_hdmi_bridge_atomic_get_input_bus_fmts,
 	.atomic_enable = dw_hdmi_bridge_atomic_enable,
 	.atomic_disable = dw_hdmi_bridge_atomic_disable,
