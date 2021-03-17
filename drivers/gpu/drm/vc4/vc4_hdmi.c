@@ -1369,21 +1369,15 @@ static void vc4_hdmi_bridge_post_crtc_enable(struct drm_bridge *bridge,
 #define WIFI_2_4GHz_CH1_MIN_FREQ	2400000000ULL
 #define WIFI_2_4GHz_CH1_MAX_FREQ	2422000000ULL
 
-static int vc4_hdmi_bridge_atomic_check(struct drm_bridge *bridge,
-					struct drm_bridge_state *bridge_state,
-					struct drm_crtc_state *crtc_state,
-					struct drm_connector_state *conn_state)
+static unsigned long vc4_hdmi_calc_pixel_rate(struct drm_bridge *bridge,
+					      struct drm_bridge_state *bridge_state,
+					      struct drm_crtc_state *crtc_state,
+					      struct drm_connector_state *conn_state)
 {
-	struct vc4_hdmi_connector_state *vc4_state = conn_state_to_vc4_hdmi_conn_state(conn_state);
 	struct drm_display_mode *mode = &crtc_state->adjusted_mode;
-	struct vc4_hdmi *vc4_hdmi = bridge_to_vc4_hdmi(bridge);
 	unsigned long long pixel_rate = mode->clock * 1000;
+	struct vc4_hdmi *vc4_hdmi = bridge_to_vc4_hdmi(bridge);
 	unsigned long long tmds_rate;
-
-	if (vc4_hdmi->variant->unsupported_odd_h_timings &&
-	    ((mode->hdisplay % 2) || (mode->hsync_start % 2) ||
-	     (mode->hsync_end % 2) || (mode->htotal % 2)))
-		return -EINVAL;
 
 	/*
 	 * The 1440p@60 pixel rate is in the same range than the first
@@ -1410,6 +1404,26 @@ static int vc4_hdmi_bridge_atomic_check(struct drm_bridge *bridge,
 	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
 		pixel_rate = pixel_rate * 2;
 
+	return pixel_rate;
+}
+
+static int vc4_hdmi_bridge_atomic_check(struct drm_bridge *bridge,
+					struct drm_bridge_state *bridge_state,
+					struct drm_crtc_state *crtc_state,
+					struct drm_connector_state *conn_state)
+{
+	struct vc4_hdmi *vc4_hdmi = bridge_to_vc4_hdmi(bridge);
+	struct vc4_hdmi_connector_state *vc4_state =
+		conn_state_to_vc4_hdmi_conn_state(conn_state);
+	struct drm_display_mode *mode = &crtc_state->adjusted_mode;
+	unsigned long long pixel_rate;
+
+	if (vc4_hdmi->variant->unsupported_odd_h_timings &&
+	    ((mode->hdisplay % 2) || (mode->hsync_start % 2) ||
+	     (mode->hsync_end % 2) || (mode->htotal % 2)))
+		return -EINVAL;
+
+	pixel_rate = vc4_hdmi_calc_pixel_rate(bridge, bridge_state, crtc_state, conn_state);
 	if (pixel_rate > vc4_hdmi->variant->max_pixel_clock)
 		return -EINVAL;
 
