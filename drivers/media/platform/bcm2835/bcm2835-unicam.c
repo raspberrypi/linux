@@ -72,6 +72,9 @@
 #include <media/v4l2-fwnode.h>
 #include <media/videobuf2-dma-contig.h>
 
+#include <media/v4l2-async.h>
+#define v4l2_async_notifier_add_subdev __v4l2_async_notifier_add_subdev
+
 #include "vc4-regs-unicam.h"
 
 #define UNICAM_MODULE_NAME	"unicam"
