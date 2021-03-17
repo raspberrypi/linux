@@ -1407,6 +1407,41 @@ static unsigned long vc4_hdmi_calc_pixel_rate(struct drm_bridge *bridge,
 	return pixel_rate;
 }
 
+static u32 *vc4_hdmi_bridge_atomic_get_output_bus_fmts(struct drm_bridge *bridge,
+						       struct drm_bridge_state *bridge_state,
+						       struct drm_crtc_state *crtc_state,
+						       struct drm_connector_state *conn_state,
+						       unsigned int *num_output_fmts)
+{
+	struct vc4_hdmi *vc4_hdmi = bridge_to_vc4_hdmi(bridge);
+	unsigned long long pixel_rate = vc4_hdmi_calc_pixel_rate(bridge,
+								 bridge_state,
+								 crtc_state,
+								 conn_state);
+
+	/*
+	 * If our pixel rate is too fast, force YUV422 and hope it works
+	 */
+	if (pixel_rate > vc4_hdmi->variant->max_pixel_clock) {
+		u32 *output_fmts;
+
+		output_fmts = kzalloc(sizeof(*output_fmts), GFP_KERNEL);
+		if (!output_fmts)
+			return NULL;
+
+		*output_fmts = MEDIA_BUS_FMT_UYVY8_1X16;
+		*num_output_fmts = 1;
+
+		return output_fmts;
+	}
+
+	return drm_atomic_helper_bridge_hdmi_get_output_bus_fmts(bridge,
+								 bridge_state,
+								 crtc_state,
+								 conn_state,
+								 num_output_fmts);
+}
+
 static int vc4_hdmi_bridge_atomic_check(struct drm_bridge *bridge,
 					struct drm_bridge_state *bridge_state,
 					struct drm_crtc_state *crtc_state,
@@ -1466,7 +1501,7 @@ static const struct drm_bridge_funcs vc4_hdmi_bridge_funcs = {
 	.atomic_check =	vc4_hdmi_bridge_atomic_check,
 	.atomic_destroy_state = drm_atomic_helper_bridge_destroy_state,
 	.atomic_duplicate_state = drm_atomic_helper_bridge_duplicate_state,
-	.atomic_get_output_bus_fmts = drm_atomic_helper_bridge_hdmi_get_output_bus_fmts,
+	.atomic_get_output_bus_fmts = vc4_hdmi_bridge_atomic_get_output_bus_fmts,
 	.atomic_reset = drm_atomic_helper_bridge_reset,
 	.mode_valid =	vc4_hdmi_bridge_mode_valid,
 };
