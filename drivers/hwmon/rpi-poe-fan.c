@@ -363,7 +363,7 @@ static int rpi_poe_fan_probe(struct platform_device *pdev)
 		goto err;
 	}
 	ctx->cdev = cdev;
-	thermal_cdev_update(cdev);
+	//thermal_cdev_update(cdev);
 
 	return 0;
 err:
