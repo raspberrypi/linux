@@ -1625,6 +1625,7 @@ int otx2_stop(struct net_device *netdev)
 	struct otx2_nic *pf = netdev_priv(netdev);
 	struct otx2_cq_poll *cq_poll = NULL;
 	struct otx2_qset *qset = &pf->qset;
+	struct otx2_rss_info *rss;
 	int qidx, vec, wrk;
 
 	netif_carrier_off(netdev);
@@ -1636,6 +1637,10 @@ int otx2_stop(struct net_device *netdev)
 
 	/* First stop packet Rx/Tx */
 	otx2_rxtx_enable(pf, false);
+
+	/* Clear RSS enable flag */
+	rss = &pf->hw.rss_info;
+	rss->enable = false;
 
 	/* Cleanup Queue IRQ */
 	vec = pci_irq_vector(pf->pdev,
