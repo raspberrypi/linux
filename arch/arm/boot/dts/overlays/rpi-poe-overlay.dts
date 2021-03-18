@@ -16,7 +16,7 @@
 				cooling-min-state = <0>;
 				cooling-max-state = <4>;
 				#cooling-cells = <2>;
-				cooling-levels = <0 31 63 150 255>;
+				cooling-levels = <0 1 10 100 255>;
 				status = "okay";
 			};
 		};
