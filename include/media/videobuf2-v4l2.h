@@ -37,8 +37,6 @@ struct video_device;
  * @request_fd:	the request_fd associated with this buffer
  * @is_held:	if true, then this capture buffer was held
  * @planes:	plane information (userptr/fd, length, bytesused, data_offset).
- * @det_state:	if a detached request capture buffer then this contains its
- *		current state
  *
  * Should contain enough information to be able to cover all the fields
  * of &struct v4l2_buffer at ``videodev2.h``.
@@ -53,7 +51,6 @@ struct vb2_v4l2_buffer {
 	__s32			request_fd;
 	bool			is_held;
 	struct vb2_plane	planes[VB2_MAX_PLANES];
-	enum vb2_buffer_state	det_state;
 };
 
 /* VB2 V4L2 flags as set in vb2_queue.subsystem_flags */
