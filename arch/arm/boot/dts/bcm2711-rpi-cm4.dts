@@ -257,9 +257,12 @@
 
 &genet_mdio {
 	phy1: ethernet-phy@1 {
-		/* No PHY interrupt */
-		reg = <0x1>;
-	};
+                /* No PHY interrupt */
+                interrupt-parent=<&gpio>;
+                interrupts=<41 2>;
+
+                reg = <0x1>;
+        };
 };
 
 /* uart0 communicates with the BT module */
