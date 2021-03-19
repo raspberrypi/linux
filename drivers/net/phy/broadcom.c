@@ -15,6 +15,14 @@
 #include <linux/phy.h>
 #include <linux/brcmphy.h>
 #include <linux/of.h>
+#include <linux/irq.h>
+
+#if IS_ENABLED (CONFIG_BCM54120PE_PHY)
+extern int bcm54210pe_probe(struct phy_device *phydev);
+extern irqreturn_t bcm54210pe_handle_interrupt(struct phy_device *phydev);
+#endif
+
+
 
 #define BRCM_PHY_MODEL(phydev) \
 	((phydev)->drv->phy_id & (phydev)->drv->phy_id_mask)
@@ -710,7 +718,20 @@ static struct phy_driver broadcom_drivers[] = {
 	.config_init	= bcm54xx_config_init,
 	.ack_interrupt	= bcm_phy_ack_intr,
 	.config_intr	= bcm_phy_config_intr,
-}, {
+},
+#if IS_ENABLED (CONFIG_BCM54120PE_PHY)
+{
+	.phy_id		= PHY_ID_BCM54213PE,
+	.phy_id_mask	= 0xffffffff,
+        .name           = "Broadcom BCM54210PE",
+        /* PHY_GBIT_FEATURES */
+        .config_init    = bcm54xx_config_init,
+        .ack_interrupt  = bcm_phy_ack_intr,
+        .config_intr    = bcm_phy_config_intr,
+	/*.handle_interrupt = bcm54210pe_handle_interrupt,*/
+	.probe		= bcm54210pe_probe,
+#elif
+{ 
 	.phy_id		= PHY_ID_BCM54213PE,
 	.phy_id_mask	= 0xffffffff,
 	.name		= "Broadcom BCM54213PE",
@@ -718,6 +739,7 @@ static struct phy_driver broadcom_drivers[] = {
 	.config_init	= bcm54xx_config_init,
 	.ack_interrupt	= bcm_phy_ack_intr,
 	.config_intr	= bcm_phy_config_intr,
+#endif
 }, {
 	.phy_id		= PHY_ID_BCM5461,
 	.phy_id_mask	= 0xfffffff0,

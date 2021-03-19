@@ -87,6 +87,22 @@ config PTP_1588_CLOCK_INES
 	  core.  This clock is only useful if the MII bus of your MAC
 	  is wired up to the core.
 
+config BCM54120PE_PHY
+	tristate "Add suport for ptp in bcm54210pe PHYs"
+	depends on NETWORK_PHY_TIMESTAMPING
+	depends on PHYLIB
+	depends on PTP_1588_CLOCK
+	depends on BCM_NET_PHYLIB
+	help
+	  This driver adds support for using the BCM54210PE as a PTP
+	  clock. This clock is only useful if your PTP programs are
+	  getting hardware time stamps on the PTP Ethernet packets
+	  using the SO_TIMESTAMPING API.
+
+	  In order for this to work, your MAC driver must also
+	  implement the skb_tx_timestamp() function.
+
+
 config PTP_1588_CLOCK_PCH
 	tristate "Intel PCH EG20T as PTP clock"
 	depends on X86_32 || COMPILE_TEST
