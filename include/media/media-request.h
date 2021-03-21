@@ -189,6 +189,10 @@ static inline void media_request_get(struct media_request *req)
  */
 void media_request_put(struct media_request *req);
 
+void media_request_pin(struct media_request *req);
+
+void media_request_unpin(struct media_request *req);
+
 /**
  * media_request_get_by_fd - Get a media request by fd
  *
@@ -225,6 +229,14 @@ static inline void media_request_get(struct media_request *req)
 }
 
 static inline void media_request_put(struct media_request *req)
+{
+}
+
+static inline void media_request_pin(struct media_request *req)
+{
+}
+
+static inline void media_request_unpin(struct media_request *req)
 {
 }
 
