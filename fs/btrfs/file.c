@@ -2729,8 +2729,6 @@ int btrfs_replace_file_extents(struct inode *inode, struct btrfs_path *path,
 			extent_info->file_offset += replace_len;
 		}
 
-		cur_offset = drop_args.drop_end;
-
 		ret = btrfs_update_inode(trans, root, BTRFS_I(inode));
 		if (ret)
 			break;
@@ -2750,7 +2748,9 @@ int btrfs_replace_file_extents(struct inode *inode, struct btrfs_path *path,
 		BUG_ON(ret);	/* shouldn't happen */
 		trans->block_rsv = rsv;
 
-		if (!extent_info) {
+		cur_offset = drop_args.drop_end;
+		len = end - cur_offset;
+		if (!extent_info && len) {
 			ret = find_first_non_hole(BTRFS_I(inode), &cur_offset,
 						  &len);
 			if (unlikely(ret < 0))
