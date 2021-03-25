@@ -1789,6 +1789,17 @@ static int bcm2835_codec_set_level_profile(struct bcm2835_codec_ctx *ctx,
 		case V4L2_MPEG_VIDEO_H264_LEVEL_4_0:
 			param.level = MMAL_VIDEO_LEVEL_H264_4;
 			break;
+		/*
+		 * Note that the hardware spec is level 4.0. Levels above that
+		 * are there for correctly encoding the headers and may not
+		 * be able to keep up with real-time.
+		 */
+		case V4L2_MPEG_VIDEO_H264_LEVEL_4_1:
+			param.level = MMAL_VIDEO_LEVEL_H264_41;
+			break;
+		case V4L2_MPEG_VIDEO_H264_LEVEL_4_2:
+			param.level = MMAL_VIDEO_LEVEL_H264_42;
+			break;
 		default:
 			/* Should never get here */
 			break;
