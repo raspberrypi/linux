@@ -3365,10 +3365,15 @@ Params: <None>
 
 Name:   vc4-kms-dsi-7inch
 Info:   Enable the Raspberry Pi DSI 7" screen.
-        Use edt-ft5406 for the touchscreen element.
+        Includes the edt-ft5406 for the touchscreen element.
         Requires vc4-kms-v3d to be loaded.
-Load:   dtoverlay=vc4-kms-dsi-7inch
-Params: <None>
+Load:   dtoverlay=vc4-kms-dsi-7inch,<param>=<val>
+Params: sizex                   Touchscreen size x (default 800)
+        sizey                   Touchscreen size y (default 480)
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+        disable_touch           Disables the touch screen overlay driver
 
 
 Name:   vc4-kms-dsi-lt070me05000
