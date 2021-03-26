@@ -151,8 +151,6 @@ struct panel_simple {
 	const struct drm_edid *drm_edid;
 
 	struct drm_display_mode override_mode;
-
-	enum drm_panel_orientation orientation;
 };
 
 static inline struct panel_simple *to_panel_simple(struct drm_panel *panel)
@@ -387,12 +385,6 @@ static int panel_simple_get_modes(struct drm_panel *panel,
 	/* add hard-coded panel modes */
 	num += panel_simple_get_non_edid_modes(p, connector);
 
-	/*
-	 * TODO: Remove once all drm drivers call
-	 * drm_connector_set_orientation_from_panel()
-	 */
-	drm_connector_set_panel_orientation(connector, p->orientation);
-
 	return num;
 }
 
@@ -413,20 +405,12 @@ static int panel_simple_get_timings(struct drm_panel *panel,
 	return p->desc->num_timings;
 }
 
-static enum drm_panel_orientation panel_simple_get_orientation(struct drm_panel *panel)
-{
-	struct panel_simple *p = to_panel_simple(panel);
-
-	return p->orientation;
-}
-
 static const struct drm_panel_funcs panel_simple_funcs = {
 	.disable = panel_simple_disable,
 	.unprepare = panel_simple_unprepare,
 	.prepare = panel_simple_prepare,
 	.enable = panel_simple_enable,
 	.get_modes = panel_simple_get_modes,
-	.get_orientation = panel_simple_get_orientation,
 	.get_timings = panel_simple_get_timings,
 };
 
@@ -463,6 +447,7 @@ static int panel_dpi_probe(struct device *dev,
 
 	of_property_read_u32(np, "width-mm", &desc->size.width);
 	of_property_read_u32(np, "height-mm", &desc->size.height);
+	of_property_read_u32(np, "bus-format", &desc->bus_format);
 
 	/* Extract bus_flags from display_timing */
 	bus_flags = 0;
@@ -472,6 +457,8 @@ static int panel_dpi_probe(struct device *dev,
 
 	/* We do not know the connector for the DT node, so guess it */
 	desc->connector_type = DRM_MODE_CONNECTOR_DPI;
+	/* Likewise for the bit depth. */
+	desc->bpc = 8;
 
 	panel->desc = desc;
 
@@ -594,12 +581,6 @@ static int panel_simple_probe(struct device *dev, const struct panel_desc *desc)
 	if (IS_ERR(panel->enable_gpio))
 		return dev_err_probe(dev, PTR_ERR(panel->enable_gpio),
 				     "failed to request GPIO\n");
-
-	err = of_drm_get_panel_orientation(dev->of_node, &panel->orientation);
-	if (err) {
-		dev_err(dev, "%pOF: failed to get orientation %d\n", dev->of_node, err);
-		return err;
-	}
 
 	ddc = of_parse_phandle(dev->of_node, "ddc-i2c-bus", 0);
 	if (ddc) {
@@ -2261,6 +2242,32 @@ static const struct panel_desc friendlyarm_hd702e = {
 	},
 };
 
+static const struct drm_display_mode geekworm_mzp280_mode = {
+	.clock = 32000,
+	.hdisplay = 480,
+	.hsync_start = 480 + 41,
+	.hsync_end = 480 + 41 + 20,
+	.htotal = 480 + 41 + 20 + 60,
+	.vdisplay = 640,
+	.vsync_start = 640 + 5,
+	.vsync_end = 640 + 5 + 10,
+	.vtotal = 640 + 5 + 10 + 10,
+	.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+};
+
+static const struct panel_desc geekworm_mzp280 = {
+	.modes = &geekworm_mzp280_mode,
+	.num_modes = 1,
+	.bpc = 6,
+	.size = {
+		.width = 47,
+		.height = 61,
+	},
+	.bus_format = MEDIA_BUS_FMT_RGB565_1X24_CPADHI,
+	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE,
+	.connector_type = DRM_MODE_CONNECTOR_DPI,
+};
+
 static const struct drm_display_mode giantplus_gpg482739qs5_mode = {
 	.clock = 9000,
 	.hdisplay = 480,
@@ -2439,6 +2446,38 @@ static const struct panel_desc innolux_at043tn24 = {
 	.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
 	.connector_type = DRM_MODE_CONNECTOR_DPI,
 	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_POSEDGE,
+};
+
+static const struct display_timing innolux_at056tn53v1_timing = {
+	.pixelclock = { 39700000, 39700000, 39700000},
+	.hactive = { 640, 640, 640 },
+	.hfront_porch = { 16, 16, 16 },
+	.hback_porch = { 134, 134, 134 },
+	.hsync_len = { 10, 10, 10},
+	.vactive = { 480, 480, 480 },
+	.vfront_porch = { 32, 32, 32},
+	.vback_porch = { 11, 11, 11 },
+	.vsync_len = { 2, 2, 2 },
+	.flags = DRM_MODE_FLAG_PVSYNC | DRM_MODE_FLAG_PHSYNC,
+};
+
+static const struct panel_desc innolux_at056tn53v1 = {
+	.timings = &innolux_at056tn53v1_timing,
+	.num_timings = 1,
+	.bpc = 6,
+	.size = {
+		.width = 112,
+		.height = 84,
+	},
+	.delay = {
+		.prepare = 50,
+		.enable = 200,
+		.disable = 110,
+		.unprepare = 200,
+	},
+	.bus_format = MEDIA_BUS_FMT_BGR666_1X24_CPADHI,
+	.bus_flags = DRM_BUS_FLAG_PIXDATA_SAMPLE_POSEDGE,
+	.connector_type = DRM_MODE_CONNECTOR_DPI,
 };
 
 static const struct drm_display_mode innolux_at070tn92_mode = {
@@ -3854,6 +3893,31 @@ static const struct panel_desc rocktech_rk043fn48h = {
 	.connector_type = DRM_MODE_CONNECTOR_DPI,
 };
 
+static const struct drm_display_mode raspberrypi_7inch_mode = {
+	.clock = 30000,
+	.hdisplay = 800,
+	.hsync_start = 800 + 131,
+	.hsync_end = 800 + 131 + 2,
+	.htotal = 800 + 131 + 2 + 45,
+	.vdisplay = 480,
+	.vsync_start = 480 + 7,
+	.vsync_end = 480 + 7 + 2,
+	.vtotal = 480 + 7 + 2 + 22,
+	.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+};
+
+static const struct panel_desc raspberrypi_7inch = {
+	.modes = &raspberrypi_7inch_mode,
+	.num_modes = 1,
+	.bpc = 8,
+	.size = {
+		.width = 154,
+		.height = 86,
+	},
+	.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
+	.connector_type = DRM_MODE_CONNECTOR_DSI,
+};
+
 static const struct display_timing rocktech_rk070er9427_timing = {
 	.pixelclock = { 26400000, 33300000, 46800000 },
 	.hactive = { 800, 800, 800 },
@@ -4798,6 +4862,9 @@ static const struct of_device_id platform_of_match[] = {
 		.compatible = "friendlyarm,hd702e",
 		.data = &friendlyarm_hd702e,
 	}, {
+		.compatible = "geekworm,mzp280",
+		.data = &geekworm_mzp280,
+	}, {
 		.compatible = "giantplus,gpg482739qs5",
 		.data = &giantplus_gpg482739qs5
 	}, {
@@ -4818,6 +4885,9 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "innolux,at043tn24",
 		.data = &innolux_at043tn24,
+	}, {
+		.compatible = "innolux,at056tn53v1",
+		.data = &innolux_at056tn53v1,
 	}, {
 		.compatible = "innolux,at070tn92",
 		.data = &innolux_at070tn92,
@@ -4977,6 +5047,9 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "rocktech,rk043fn48h",
 		.data = &rocktech_rk043fn48h,
+	}, {
+		.compatible = "raspberrypi,7inch-dsi",
+		.data = &raspberrypi_7inch,
 	}, {
 		.compatible = "rocktech,rk070er9427",
 		.data = &rocktech_rk070er9427,
@@ -5334,6 +5407,9 @@ static const struct panel_desc_dsi osd101t2045_53ts = {
 	.lanes = 4,
 };
 
+// for panels using generic panel-dsi binding
+static struct panel_desc_dsi panel_dsi;
+
 static const struct of_device_id dsi_of_match[] = {
 	{
 		.compatible = "auo,b080uan01",
@@ -5357,19 +5433,136 @@ static const struct of_device_id dsi_of_match[] = {
 		.compatible = "osddisplays,osd101t2045-53ts",
 		.data = &osd101t2045_53ts
 	}, {
+		/* Must be the last entry */
+		.compatible = "panel-dsi",
+		.data = &panel_dsi,
+	}, {
 		/* sentinel */
 	}
 };
 MODULE_DEVICE_TABLE(of, dsi_of_match);
 
+
+/* Checks for DSI panel definition in device-tree, analog to panel_dpi */
+static int panel_dsi_dt_probe(struct device *dev,
+			  struct panel_desc_dsi *desc_dsi)
+{
+	struct panel_desc *desc;
+	struct display_timing *timing;
+	const struct device_node *np;
+	const char *dsi_color_format;
+	const char *dsi_mode_flags;
+	struct property *prop;
+	int dsi_lanes, ret;
+
+	np = dev->of_node;
+
+	desc = devm_kzalloc(dev, sizeof(*desc), GFP_KERNEL);
+	if (!desc)
+		return -ENOMEM;
+
+	timing = devm_kzalloc(dev, sizeof(*timing), GFP_KERNEL);
+	if (!timing)
+		return -ENOMEM;
+
+	ret = of_get_display_timing(np, "panel-timing", timing);
+	if (ret < 0) {
+		dev_err(dev, "%pOF: no panel-timing node found for \"panel-dsi\" binding\n",
+			np);
+		return ret;
+	}
+
+	desc->timings = timing;
+	desc->num_timings = 1;
+
+	of_property_read_u32(np, "width-mm", &desc->size.width);
+	of_property_read_u32(np, "height-mm", &desc->size.height);
+
+	dsi_lanes = drm_of_get_data_lanes_count_ep(np, 0, 0, 1, 4);
+
+	if (dsi_lanes < 0) {
+		dev_err(dev, "%pOF: no or too many data-lanes defined", np);
+		return dsi_lanes;
+	}
+
+	desc_dsi->lanes = dsi_lanes;
+
+	of_property_read_string(np, "dsi-color-format", &dsi_color_format);
+	if (!strcmp(dsi_color_format, "RGB888")) {
+		desc_dsi->format = MIPI_DSI_FMT_RGB888;
+		desc->bpc = 8;
+	} else if (!strcmp(dsi_color_format, "RGB565")) {
+		desc_dsi->format = MIPI_DSI_FMT_RGB565;
+		desc->bpc = 6;
+	} else if (!strcmp(dsi_color_format, "RGB666")) {
+		desc_dsi->format = MIPI_DSI_FMT_RGB666;
+		desc->bpc = 6;
+	} else if (!strcmp(dsi_color_format, "RGB666_PACKED")) {
+		desc_dsi->format = MIPI_DSI_FMT_RGB666_PACKED;
+		desc->bpc = 6;
+	} else {
+		dev_err(dev, "%pOF: no valid dsi-color-format defined", np);
+		return -EINVAL;
+	}
+
+
+	of_property_for_each_string(np, "mode", prop, dsi_mode_flags) {
+		if (!strcmp(dsi_mode_flags, "MODE_VIDEO"))
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO;
+		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_BURST"))
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_BURST;
+		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_SYNC_PULSE"))
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_SYNC_PULSE;
+		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_AUTO_VERT"))
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_AUTO_VERT;
+		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_HSE"))
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_HSE;
+		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_NO_HFP"))
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_NO_HFP;
+		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_NO_HBP"))
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_NO_HBP;
+		else if (!strcmp(dsi_mode_flags, "MODE_VIDEO_NO_HSA"))
+			desc_dsi->flags |= MIPI_DSI_MODE_VIDEO_NO_HSA;
+		else if (!strcmp(dsi_mode_flags, "MODE_VSYNC_FLUSH"))
+			desc_dsi->flags |= MIPI_DSI_MODE_VSYNC_FLUSH;
+		else if (!strcmp(dsi_mode_flags, "MODE_NO_EOT_PACKET"))
+			desc_dsi->flags |= MIPI_DSI_MODE_NO_EOT_PACKET;
+		else if (!strcmp(dsi_mode_flags, "CLOCK_NON_CONTINUOUS"))
+			desc_dsi->flags |= MIPI_DSI_CLOCK_NON_CONTINUOUS;
+		else if (!strcmp(dsi_mode_flags, "MODE_LPM"))
+			desc_dsi->flags |= MIPI_DSI_MODE_LPM;
+		else if (!strcmp(dsi_mode_flags, "HS_PKT_END_ALIGNED"))
+			desc_dsi->flags |= MIPI_DSI_HS_PKT_END_ALIGNED;
+	}
+
+	desc->connector_type = DRM_MODE_CONNECTOR_DSI;
+	desc_dsi->desc = *desc;
+
+	return 0;
+}
+
 static int panel_simple_dsi_probe(struct mipi_dsi_device *dsi)
 {
 	const struct panel_desc_dsi *desc;
+	struct panel_desc_dsi *dt_desc;
 	int err;
 
 	desc = of_device_get_match_data(&dsi->dev);
 	if (!desc)
 		return -ENODEV;
+
+	if (desc == &panel_dsi) {
+		/* Handle the generic panel-dsi binding */
+		dt_desc = devm_kzalloc(&dsi->dev, sizeof(*dt_desc), GFP_KERNEL);
+		if (!dt_desc)
+			return -ENOMEM;
+
+		err = panel_dsi_dt_probe(&dsi->dev, dt_desc);
+		if (err < 0)
+			return err;
+
+		desc = dt_desc;
+	}
 
 	err = panel_simple_probe(&dsi->dev, &desc->desc);
 	if (err < 0)
