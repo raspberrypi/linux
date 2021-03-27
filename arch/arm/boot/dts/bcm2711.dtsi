@@ -301,7 +301,7 @@
 		};
 
 		vec: vec@7ec13000 {
-			compatible = "brcm,bcm2835-vec";
+			compatible = "brcm,bcm2711-vec";
 			reg = <0x7ec13000 0x1000>;
 			clocks = <&clocks BCM2835_CLOCK_VEC>;
 			interrupts = <2 27>;
