@@ -758,9 +758,44 @@ static const struct drm_plane_funcs vc4_plane_funcs = {
 	.format_mod_supported = vc4_fkms_format_mod_supported,
 };
 
+static int vc4_prepare_fb(struct drm_plane *plane,
+			  struct drm_plane_state *state)
+{
+	struct vc4_bo *bo;
+	int ret;
+
+	if (!state->fb)
+		return 0;
+
+	bo = to_vc4_bo(&drm_fb_cma_get_gem_obj(state->fb, 0)->base);
+
+	drm_gem_fb_prepare_fb(plane, state);
+
+	if (plane->state->fb == state->fb)
+		return 0;
+
+	ret = vc4_bo_inc_usecnt(bo);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+static void vc4_cleanup_fb(struct drm_plane *plane,
+			   struct drm_plane_state *state)
+{
+	struct vc4_bo *bo;
+
+	if (plane->state->fb == state->fb || !state->fb)
+		return;
+
+	bo = to_vc4_bo(&drm_fb_cma_get_gem_obj(state->fb, 0)->base);
+	vc4_bo_dec_usecnt(bo);
+}
+
 static const struct drm_plane_helper_funcs vc4_plane_helper_funcs = {
-	.prepare_fb = drm_gem_fb_prepare_fb,
-	.cleanup_fb = NULL,
+	.prepare_fb = vc4_prepare_fb,
+	.cleanup_fb = vc4_cleanup_fb,
 	.atomic_check = vc4_plane_atomic_check,
 	.atomic_update = vc4_plane_atomic_update,
 	.atomic_disable = vc4_plane_atomic_disable,
