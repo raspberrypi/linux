@@ -57,14 +57,4 @@
 			status = "okay";
 		};
 	};
-
-	fragment@4 {
-		target = <&spi0>;
-		frag4: __overlay__ {
-		};
-	};
-
-	__overrides__ {
-		spioff = <&frag4>, "status=disabled";
-	};
 };
