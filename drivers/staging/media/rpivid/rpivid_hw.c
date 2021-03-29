@@ -331,6 +331,8 @@ int rpivid_hw_probe(struct rpivid_dev *dev)
 	if (IS_ERR(dev->clock))
 		return PTR_ERR(dev->clock);
 
+	dev->cache_align = dma_get_cache_alignment();
+
 	// Disable IRQs & reset anything pending
 	irq_write(dev, 0,
 		  ARG_IC_ICTRL_ACTIVE1_EN_SET | ARG_IC_ICTRL_ACTIVE2_EN_SET);
