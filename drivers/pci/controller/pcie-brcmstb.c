@@ -896,6 +896,7 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 		burst = 0x3; /* 512 bytes */
 	else
 		burst = 0x2; /* 512 bytes */
+	printk("MANUAL PRINT: burst = %d\n",burst)//---------------------------------------------------added
 
 	/* Set SCB_MAX_BURST_SIZE, CFG_READ_UR_MODE, SCB_ACCESS_EN */
 	tmp = readl(base + PCIE_MISC_MISC_CTRL);
@@ -904,8 +905,7 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 	u32p_replace_bits(&tmp, burst, PCIE_MISC_MISC_CTRL_MAX_BURST_SIZE_MASK);
 	writel(tmp, base + PCIE_MISC_MISC_CTRL);
 
-	ret = brcm_pcie_get_rc_bar2_size_and_offset(pcie, &rc_bar2_size,
-						    &rc_bar2_offset);
+	ret = brcm_pcie_get_rc_bar2_size_and_offset(pcie, &rc_bar2_size,&rc_bar2_offset);
 	if (ret)
 		return ret;
 
@@ -956,12 +956,13 @@ static int brcm_pcie_setup(struct brcm_pcie *pcie)
 
 	/* Unassert the fundamental reset */
 	pcie->perst_set(pcie, 0);
-
+	printk("MANUAL PRINT: PCIe RESET ASSERTED\n")//---------------------------------------------------added
+	
 	/*
 	 * Give the RC/EP time to wake up, before trying to configure RC.
 	 * Intermittently check status for link-up, up to a total of 100ms.
 	 */
-	for (i = 0; i < 100 && !brcm_pcie_link_up(pcie); i += 5)
+	for (i = 0; i < 10000 && !brcm_pcie_link_up(pcie); i += 5)//---------------------------------------------------increased linkup time from 100ms to 10s
 		msleep(5);
 
 	if (!brcm_pcie_link_up(pcie)) {
