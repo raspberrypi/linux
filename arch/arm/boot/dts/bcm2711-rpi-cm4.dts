@@ -3,6 +3,8 @@
 #include "bcm2711.dtsi"
 #include "bcm2835-rpi.dtsi"
 
+#include <dt-bindings/reset/raspberrypi,firmware-reset.h>
+
 / {
 	compatible = "raspberrypi,4-compute-module", "brcm,bcm2711";
 	model = "Raspberry Pi Compute Module 4";
@@ -22,6 +24,7 @@
 		emmc2bus = &emmc2bus;
 		ethernet0 = &genet;
 		pcie0 = &pcie0;
+		blconfig = &blconfig;
 	};
 
 	leds {
@@ -76,6 +79,11 @@
 };
 
 &firmware {
+	firmware_clocks: clocks {
+		compatible = "raspberrypi,firmware-clocks";
+		#clock-cells = <1>;
+	};
+
 	expgpio: gpio {
 		compatible = "raspberrypi,firmware-gpio";
 		gpio-controller;
@@ -101,6 +109,11 @@
 			gpios = <7 GPIO_ACTIVE_HIGH>;
 			output-low;
 		};
+	};
+
+	reset: reset {
+		compatible = "raspberrypi,firmware-reset";
+		#reset-cells = <1>;
 	};
 };
 
@@ -209,18 +222,26 @@
 	status = "okay";
 };
 
-&vc4 {
-	status = "okay";
-};
-
-&vec {
-	status = "disabled";
-};
-
 &pwm1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pwm1_0_gpio40 &pwm1_1_gpio41>;
 	status = "okay";
+};
+
+&rmem {
+	/*
+	 * RPi4's co-processor will copy the board's bootloader configuration
+	 * into memory for the OS to consume. It'll also update this node with
+	 * its placement information.
+	 */
+	blconfig: nvram@0 {
+		compatible = "raspberrypi,bootloader-config", "nvmem-rmem";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0 0x0 0x0>;
+		no-map;
+		status = "disabled";
+	};
 };
 
 /* SDHCI is used to control the SDIO for wireless */
@@ -262,6 +283,21 @@
 	};
 };
 
+&pcie0 {
+	pci@1,0 {
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges;
+
+		reg = <0 0 0 0 0>;
+
+		usb@1,0 {
+			reg = <0x10000 0 0 0 0>;
+			resets = <&reset RASPBERRYPI_FIRMWARE_RESET_ID_USB>;
+		};
+	};
+};
+
 /* uart0 communicates with the BT module */
 &uart0 {
 	pinctrl-names = "default";
@@ -287,6 +323,14 @@
 	interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
 };
 
+&vc4 {
+	status = "okay";
+};
+
+&vec {
+	status = "disabled";
+};
+
 // =============================================
 // Downstream rpi- changes
 
@@ -306,6 +350,7 @@
 #include "bcm283x-rpi-csi0-2lane.dtsi"
 #include "bcm283x-rpi-csi1-4lane.dtsi"
 #include "bcm283x-rpi-i2c0mux_0_44.dtsi"
+#include "bcm283x-rpi-cam1-regulator.dtsi"
 
 / {
 	chosen {
@@ -331,14 +376,6 @@
 	};
 
 	/delete-node/ wifi-pwrseq;
-
-	cam0_reg: cam1_reg: cam1_reg {
-		compatible = "regulator-fixed";
-		regulator-name = "cam1-reg";
-		gpio = <&expgpio 5 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		status = "disabled";
-	};
 };
 
 &mmcnr {
@@ -587,6 +624,10 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
 	brcm,disable-headphones = <1>;
+};
+
+cam0_reg: &cam1_reg {
+	gpio = <&expgpio 5 GPIO_ACTIVE_HIGH>;
 };
 
 / {
