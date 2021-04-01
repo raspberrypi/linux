@@ -18,6 +18,7 @@
 
 #include "rpivid.h"
 #include "rpivid_hw.h"
+#include "rpivid_video.h"
 
 #define DEBUG_TRACE_P1_CMD 0
 #define DEBUG_TRACE_EXECUTION 0
@@ -115,41 +116,9 @@ static int gptr_realloc_new(struct rpivid_dev * const dev,
 	return 0;
 }
 
-/* floor(log2(x)) */
-static unsigned int log2_size(size_t x)
-{
-	unsigned int n = 0;
-
-	if (x & ~0xffff) {
-		n += 16;
-		x >>= 16;
-	}
-	if (x & ~0xff) {
-		n += 8;
-		x >>= 8;
-	}
-	if (x & ~0xf) {
-		n += 4;
-		x >>= 4;
-	}
-	if (x & ~3) {
-		n += 2;
-		x >>= 2;
-	}
-	return (x & ~1) ? n + 1 : n;
-}
-
-static size_t round_up_size(const size_t x)
-{
-	/* Admit no size < 256 */
-	const unsigned int n = x < 256 ? 8 : log2_size(x) - 1;
-
-	return x >= (3 << n) ? 4 << n : (3 << n);
-}
-
 static size_t next_size(const size_t x)
 {
-	return round_up_size(x + 1);
+	return rpivid_round_up_size(x + 1);
 }
 
 #define NUM_SCALING_FACTORS 4064 /* Not a typo = 0xbe0 + 0x400 */
@@ -332,7 +301,7 @@ static int cmds_check_space(struct rpivid_dec_env *const de, unsigned int n)
 	if (de->cmd_len + n <= de->cmd_max)
 		return 0;
 
-	newmax = 2 << log2_size(de->cmd_len + n);
+	newmax = roundup_pow_of_two(de->cmd_len + n);
 
 	a = krealloc(de->cmd_fifo, newmax * sizeof(struct rpi_cmd),
 		     GFP_KERNEL);
@@ -1855,23 +1824,10 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 		 * slice as we can use the src buf directly
 		 */
 		if (!s->frame_end && !de->bit_copy_gptr->ptr) {
-			const size_t wxh = s->sps.pic_width_in_luma_samples *
-				s->sps.pic_height_in_luma_samples;
 			size_t bits_alloc;
-
-			/* Annex A gives a min compression of 2 @ lvl 3.1
-			 * (wxh <= 983040) and min 4 thereafter but avoid
-			 * the odity of 983041 having a lower limit than
-			 * 983040.
-			 * Multiply by 3/2 for 4:2:0
-			 */
-			bits_alloc = wxh < 983040 ? wxh * 3 / 4 :
-				wxh < 983040 * 2 ? 983040 * 3 / 4 :
-				wxh * 3 / 8;
-			/* Allow for bit depth */
-			bits_alloc += (bits_alloc *
-				       s->sps.bit_depth_luma_minus8) / 8;
-			bits_alloc = round_up_size(bits_alloc);
+			bits_alloc = rpivid_bit_buf_size(s->sps.pic_width_in_luma_samples,
+							 s->sps.pic_height_in_luma_samples,
+							 s->sps.bit_depth_luma_minus8);
 
 			if (gptr_alloc(dev, de->bit_copy_gptr,
 				       bits_alloc,
@@ -2454,17 +2410,15 @@ static int rpivid_h265_start(struct rpivid_ctx *ctx)
 
 	// Finger in the air PU & Coeff alloc
 	// Will be realloced if too small
-	coeff_alloc = round_up_size(wxh);
-	pu_alloc = round_up_size(wxh / 4);
+	coeff_alloc = rpivid_round_up_size(wxh);
+	pu_alloc = rpivid_round_up_size(wxh / 4);
 	for (i = 0; i != ARRAY_SIZE(ctx->pu_bufs); ++i) {
 		// Don't actually need a kernel mapping here
 		if (gptr_alloc(dev, ctx->pu_bufs + i, pu_alloc,
-			       DMA_ATTR_FORCE_CONTIGUOUS |
-					DMA_ATTR_NO_KERNEL_MAPPING))
+			       DMA_ATTR_NO_KERNEL_MAPPING))
 			goto fail;
 		if (gptr_alloc(dev, ctx->coeff_bufs + i, coeff_alloc,
-			       DMA_ATTR_FORCE_CONTIGUOUS |
-					DMA_ATTR_NO_KERNEL_MAPPING))
+			       DMA_ATTR_NO_KERNEL_MAPPING))
 			goto fail;
 	}
 	aux_q_init(ctx);

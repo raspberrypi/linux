@@ -24,6 +24,10 @@ extern const struct v4l2_ioctl_ops rpivid_ioctl_ops;
 
 int rpivid_queue_init(void *priv, struct vb2_queue *src_vq,
 		      struct vb2_queue *dst_vq);
+
+size_t rpivid_bit_buf_size(unsigned int w, unsigned int h, unsigned int bits_minus8);
+size_t rpivid_round_up_size(const size_t x);
+
 int rpivid_prepare_src_format(struct v4l2_pix_format_mplane *pix_fmt);
 int rpivid_prepare_dst_format(struct v4l2_pix_format_mplane *pix_fmt);
 
