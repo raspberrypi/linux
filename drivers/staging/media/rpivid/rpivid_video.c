@@ -42,18 +42,69 @@ static inline unsigned int constrain2x(unsigned int x, unsigned int y)
 			(x > y * 2) ? y : x;
 }
 
+size_t rpivid_round_up_size(const size_t x)
+{
+	/* Admit no size < 256 */
+	const unsigned int n = x < 256 ? 8 : ilog2(x);
+
+	return x >= (3 << n) ? 4 << n : (3 << n);
+}
+
+size_t rpivid_bit_buf_size(unsigned int w, unsigned int h, unsigned int bits_minus8)
+{
+	const size_t wxh = w * h;
+	size_t bits_alloc;
+
+	/* Annex A gives a min compression of 2 @ lvl 3.1
+	 * (wxh <= 983040) and min 4 thereafter but avoid
+	 * the odity of 983041 having a lower limit than
+	 * 983040.
+	 * Multiply by 3/2 for 4:2:0
+	 */
+	bits_alloc = wxh < 983040 ? wxh * 3 / 4 :
+		wxh < 983040 * 2 ? 983040 * 3 / 4 :
+		wxh * 3 / 8;
+	/* Allow for bit depth */
+	bits_alloc += (bits_alloc * bits_minus8) / 8;
+	return rpivid_round_up_size(bits_alloc);
+}
+
 int rpivid_prepare_src_format(struct v4l2_pix_format_mplane *pix_fmt)
 {
+	size_t size;
+	u32 w;
+	u32 h;
+
 	if (pix_fmt->pixelformat != V4L2_PIX_FMT_HEVC_SLICE)
 		return -EINVAL;
 
-	/* Zero bytes per line for encoded source. */
-	pix_fmt->plane_fmt[0].bytesperline = 0;
-	/* Choose some minimum size since this can't be 0 */
-	pix_fmt->plane_fmt[0].sizeimage = max_t(u32, SZ_1K,
-						pix_fmt->plane_fmt[0].sizeimage);
+	w = pix_fmt->width;
+	h = pix_fmt->height;
+	if (!w || !h) {
+		w = 1920;
+		h = 1080;
+	}
+	if (w > 4096)
+		w = 4096;
+	if (h > 4096)
+		h = 4096;
+
+	if (!pix_fmt->plane_fmt[0].sizeimage ||
+	    pix_fmt->plane_fmt[0].sizeimage > SZ_32M) {
+		/* Unspecified or way too big - pick max for size */
+		size = rpivid_bit_buf_size(w, h, 2);
+	}
+	/* Set a minimum */
+	size = max_t(u32, SZ_4K, pix_fmt->plane_fmt[0].sizeimage);
+
+	pix_fmt->width = w;
+	pix_fmt->height = h;
 	pix_fmt->num_planes = 1;
 	pix_fmt->field = V4L2_FIELD_NONE;
+	/* Zero bytes per line for encoded source. */
+	pix_fmt->plane_fmt[0].bytesperline = 0;
+	pix_fmt->plane_fmt[0].sizeimage = size;
+
 	return 0;
 }
 
