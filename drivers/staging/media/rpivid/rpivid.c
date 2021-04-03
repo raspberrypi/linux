@@ -212,8 +212,11 @@ static int rpivid_open(struct file *file)
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx) {
 		mutex_unlock(&dev->dev_mutex);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto err_unlock;
 	}
+
+	mutex_init(&ctx->ctx_mutex);
 
 	v4l2_fh_init(&ctx->fh, video_devdata(file));
 	file->private_data = &ctx->fh;
@@ -245,7 +248,9 @@ static int rpivid_open(struct file *file)
 err_ctrls:
 	v4l2_ctrl_handler_free(&ctx->hdl);
 err_free:
+	mutex_destroy(&ctx->ctx_mutex);
 	kfree(ctx);
+err_unlock:
 	mutex_unlock(&dev->dev_mutex);
 
 	return ret;
@@ -266,6 +271,7 @@ static int rpivid_release(struct file *file)
 	kfree(ctx->ctrls);
 
 	v4l2_fh_exit(&ctx->fh);
+	mutex_destroy(&ctx->ctx_mutex);
 
 	kfree(ctx);
 
