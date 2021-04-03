@@ -359,6 +359,7 @@ int rpivid_hw_probe(struct rpivid_dev *dev)
 void rpivid_hw_remove(struct rpivid_dev *dev)
 {
 	// IRQ auto freed on unload so no need to do it here
+	// ioremap auto freed on unload
 	ictl_uninit(&dev->ic_active1);
 	ictl_uninit(&dev->ic_active2);
 }
