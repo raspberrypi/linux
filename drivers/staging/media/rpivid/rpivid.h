@@ -84,6 +84,11 @@ struct rpivid_q_aux;
 #define RPIVID_AUX_ENT_COUNT VB2_MAX_FRAME
 
 
+#define RPIVID_CTX_STATE_STOPPED	0	/* stream_off */
+#define RPIVID_CTX_STATE_STREAM_ON	1	/* decoding */
+#define RPIVID_CTX_STATE_STREAM_STOP	2	/* in stream_off */
+#define RPIVID_CTX_STATE_STREAM_ERR	3	/* stream_on but broken */
+
 struct rpivid_ctx {
 	struct v4l2_fh			fh;
 	struct rpivid_dev		*dev;
@@ -91,9 +96,18 @@ struct rpivid_ctx {
 	struct v4l2_pix_format_mplane	src_fmt;
 	struct v4l2_pix_format_mplane	dst_fmt;
 	int dst_fmt_set;
+
+	atomic_t 			stream_state;
+	struct clk_request		*clk_req;
+	int 				src_stream_on;
+	int 				dst_stream_on;
+
 	// fatal_err is set if an error has occurred s.t. decode cannot
 	// continue (such as running out of CMA)
 	int fatal_err;
+
+	/* Lock for queue operations */
+	struct mutex			ctx_mutex;
 
 	struct v4l2_ctrl_handler	hdl;
 	struct v4l2_ctrl		**ctrls;
@@ -180,7 +194,6 @@ struct rpivid_dev {
 	void __iomem		*base_h265;
 
 	struct clk		*clock;
-	struct clk_request      *hevc_req;
 
 	int			cache_align;
 
