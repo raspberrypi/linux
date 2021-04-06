@@ -1487,7 +1487,7 @@ int dwc_otg_pcd_ep_enable(dwc_otg_pcd_t * pcd,
 	num = UE_GET_ADDR(desc->bEndpointAddress);
 	dir = UE_GET_DIR(desc->bEndpointAddress);
 
-	if (!desc->wMaxPacketSize) {
+	if (!UGETW(desc->wMaxPacketSize)) {
 		DWC_WARN("bad maxpacketsize\n");
 		retval = -DWC_E_INVALID;
 		goto out;
