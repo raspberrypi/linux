@@ -805,7 +805,7 @@ static int32_t dwc_otg_handle_pwrdn_session_change(dwc_otg_core_if_t * core_if)
  */
 static uint32_t dwc_otg_handle_pwrdn_stschng_intr(dwc_otg_device_t *otg_dev)
 {
-	int retval;
+	uint32_t retval = 0;
 	gpwrdn_data_t gpwrdn = {.d32 = 0 };
 	gpwrdn_data_t gpwrdn_temp = {.d32 = 0 };
 	dwc_otg_core_if_t *core_if = otg_dev->core_if;
