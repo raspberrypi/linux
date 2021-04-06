@@ -255,17 +255,17 @@ struct fiq_dma_info {
 	u8 slot_len[6];
 };
 
-struct __attribute__((packed)) fiq_split_dma_slot {
+struct fiq_split_dma_slot {
 	u8 buf[188];
-};
+} __attribute__((packed));
 
 struct fiq_dma_channel {
-	struct __attribute__((packed)) fiq_split_dma_slot index[6];
-};
+	struct fiq_split_dma_slot index[6];
+} __attribute__((packed));
 
 struct fiq_dma_blob {
-	struct __attribute__((packed)) fiq_dma_channel channel[0];
-};
+	struct fiq_dma_channel channel[0];
+} __attribute__((packed));
 
 /**
  * struct fiq_hs_isoc_info - USB2.0 isochronous data
