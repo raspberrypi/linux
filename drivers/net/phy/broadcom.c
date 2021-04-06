@@ -26,7 +26,46 @@ MODULE_DESCRIPTION("Broadcom PHY driver");
 MODULE_AUTHOR("Maciej W. Rozycki");
 MODULE_LICENSE("GPL");
 
-static int bcm54xx_config_clock_delay(struct phy_device *phydev);
+static int bcm54xx_config_clock_delay(struct phy_device *phydev)
+{
+	int rc, val;
+
+	/* handling PHY's internal RX clock delay */
+	val = bcm54xx_auxctl_read(phydev, MII_BCM54XX_AUXCTL_SHDWSEL_MISC);
+	val |= MII_BCM54XX_AUXCTL_MISC_WREN;
+	if (phydev->interface == PHY_INTERFACE_MODE_RGMII ||
+	    phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID) {
+		/* Disable RGMII RXC-RXD skew */
+		val &= ~MII_BCM54XX_AUXCTL_SHDWSEL_MISC_RGMII_SKEW_EN;
+	}
+	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID ||
+	    phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID) {
+		/* Enable RGMII RXC-RXD skew */
+		val |= MII_BCM54XX_AUXCTL_SHDWSEL_MISC_RGMII_SKEW_EN;
+	}
+	rc = bcm54xx_auxctl_write(phydev, MII_BCM54XX_AUXCTL_SHDWSEL_MISC,
+				  val);
+	if (rc < 0)
+		return rc;
+
+	/* handling PHY's internal TX clock delay */
+	val = bcm_phy_read_shadow(phydev, BCM54810_SHD_CLK_CTL);
+	if (phydev->interface == PHY_INTERFACE_MODE_RGMII ||
+	    phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID) {
+		/* Disable internal TX clock delay */
+		val &= ~BCM54810_SHD_CLK_CTL_GTXCLK_EN;
+	}
+	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID ||
+	    phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID) {
+		/* Enable internal TX clock delay */
+		val |= BCM54810_SHD_CLK_CTL_GTXCLK_EN;
+	}
+	rc = bcm_phy_write_shadow(phydev, BCM54810_SHD_CLK_CTL, val);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
 
 static int bcm54210e_config_init(struct phy_device *phydev)
 {
@@ -69,45 +108,62 @@ static int bcm54612e_config_init(struct phy_device *phydev)
 	return 0;
 }
 
-static int bcm54xx_config_clock_delay(struct phy_device *phydev)
+static int bcm54616s_config_init(struct phy_device *phydev)
 {
 	int rc, val;
 
-	/* handling PHY's internal RX clock delay */
+	if (phydev->interface != PHY_INTERFACE_MODE_SGMII &&
+	    phydev->interface != PHY_INTERFACE_MODE_1000BASEX)
+		return 0;
+
+	/* Ensure proper interface mode is selected. */
+	/* Disable RGMII mode */
 	val = bcm54xx_auxctl_read(phydev, MII_BCM54XX_AUXCTL_SHDWSEL_MISC);
+	if (val < 0)
+		return val;
+	val &= ~MII_BCM54XX_AUXCTL_SHDWSEL_MISC_RGMII_EN;
 	val |= MII_BCM54XX_AUXCTL_MISC_WREN;
-	if (phydev->interface == PHY_INTERFACE_MODE_RGMII ||
-	    phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID) {
-		/* Disable RGMII RXC-RXD skew */
-		val &= ~MII_BCM54XX_AUXCTL_SHDWSEL_MISC_RGMII_SKEW_EN;
-	}
-	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID ||
-	    phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID) {
-		/* Enable RGMII RXC-RXD skew */
-		val |= MII_BCM54XX_AUXCTL_SHDWSEL_MISC_RGMII_SKEW_EN;
-	}
 	rc = bcm54xx_auxctl_write(phydev, MII_BCM54XX_AUXCTL_SHDWSEL_MISC,
 				  val);
 	if (rc < 0)
 		return rc;
 
-	/* handling PHY's internal TX clock delay */
-	val = bcm_phy_read_shadow(phydev, BCM54810_SHD_CLK_CTL);
-	if (phydev->interface == PHY_INTERFACE_MODE_RGMII ||
-	    phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID) {
-		/* Disable internal TX clock delay */
-		val &= ~BCM54810_SHD_CLK_CTL_GTXCLK_EN;
-	}
-	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID ||
-	    phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID) {
-		/* Enable internal TX clock delay */
-		val |= BCM54810_SHD_CLK_CTL_GTXCLK_EN;
-	}
-	rc = bcm_phy_write_shadow(phydev, BCM54810_SHD_CLK_CTL, val);
+	/* Select 1000BASE-X register set (primary SerDes) */
+	val = bcm_phy_read_shadow(phydev, BCM54XX_SHD_MODE);
+	if (val < 0)
+		return val;
+	val |= BCM54XX_SHD_MODE_1000BX;
+	rc = bcm_phy_write_shadow(phydev, BCM54XX_SHD_MODE, val);
 	if (rc < 0)
 		return rc;
 
-	return 0;
+	/* Power down SerDes interface */
+	rc = phy_set_bits(phydev, MII_BMCR, BMCR_PDOWN);
+	if (rc < 0)
+		return rc;
+
+	/* Select proper interface mode */
+	val &= ~BCM54XX_SHD_INTF_SEL_MASK;
+	val |= phydev->interface == PHY_INTERFACE_MODE_SGMII ?
+		BCM54XX_SHD_INTF_SEL_SGMII :
+		BCM54XX_SHD_INTF_SEL_GBIC;
+	rc = bcm_phy_write_shadow(phydev, BCM54XX_SHD_MODE, val);
+	if (rc < 0)
+		return rc;
+
+	/* Power up SerDes interface */
+	rc = phy_clear_bits(phydev, MII_BMCR, BMCR_PDOWN);
+	if (rc < 0)
+		return rc;
+
+	/* Select copper register set */
+	val &= ~BCM54XX_SHD_MODE_1000BX;
+	rc = bcm_phy_write_shadow(phydev, BCM54XX_SHD_MODE, val);
+	if (rc < 0)
+		return rc;
+
+	/* Power up copper interface */
+	return phy_clear_bits(phydev, MII_BMCR, BMCR_PDOWN);
 }
 
 /* Needs SMDSP clock enabled via bcm54xx_phydsp_config() */
@@ -292,19 +348,24 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 
 	bcm54xx_adjust_rxrefclk(phydev);
 
-	if (BRCM_PHY_MODEL(phydev) == PHY_ID_BCM54210E) {
+	switch (BRCM_PHY_MODEL(phydev)) {
+	case PHY_ID_BCM50610:
+	case PHY_ID_BCM50610M:
+		err = bcm54xx_config_clock_delay(phydev);
+		break;
+	case PHY_ID_BCM54210E:
 		err = bcm54210e_config_init(phydev);
-		if (err)
-			return err;
-	} else if (BRCM_PHY_MODEL(phydev) == PHY_ID_BCM54213PE) {
-		err = bcm54213pe_config_init(phydev);
-		if (err)
-			return err;
-	} else if (BRCM_PHY_MODEL(phydev) == PHY_ID_BCM54612E) {
+		break;
+	case PHY_ID_BCM54612E:
 		err = bcm54612e_config_init(phydev);
-		if (err)
-			return err;
-	} else if (BRCM_PHY_MODEL(phydev) == PHY_ID_BCM54810) {
+		break;
+	case PHY_ID_BCM54213PE:
+		err = bcm54213pe_config_init(phydev);
+		break;
+	case PHY_ID_BCM54616S:
+		err = bcm54616s_config_init(phydev);
+		break;
+	case PHY_ID_BCM54810:
 		/* For BCM54810, we need to disable BroadR-Reach function */
 		val = bcm_phy_read_exp(phydev,
 				       BCM54810_EXP_BROADREACH_LRE_MISC_CTL);
@@ -312,9 +373,10 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 		err = bcm_phy_write_exp(phydev,
 					BCM54810_EXP_BROADREACH_LRE_MISC_CTL,
 					val);
-		if (err < 0)
-			return err;
+		break;
 	}
+	if (err)
+		return err;
 
 	bcm54xx_phydsp_config(phydev);
 
@@ -342,6 +404,11 @@ static int bcm54xx_resume(struct phy_device *phydev)
 	ret = genphy_resume(phydev);
 	if (ret < 0)
 		return ret;
+
+	/* Upon exiting power down, the PHY remains in an internal reset state
+	 * for 40us
+	 */
+	fsleep(40);
 
 	return bcm54xx_config_init(phydev);
 }
@@ -486,7 +553,7 @@ static int bcm5481_config_aneg(struct phy_device *phydev)
 
 static int bcm54616s_probe(struct phy_device *phydev)
 {
-	int val, intf_sel;
+	int val;
 
 	val = bcm_phy_read_shadow(phydev, BCM54XX_SHD_MODE);
 	if (val < 0)
@@ -498,8 +565,7 @@ static int bcm54616s_probe(struct phy_device *phydev)
 	 * RGMII-1000Base-X is properly supported, but RGMII-100Base-FX
 	 * support is still missing as of now.
 	 */
-	intf_sel = (val & BCM54XX_SHD_INTF_SEL_MASK) >> 1;
-	if (intf_sel == 1) {
+	if ((val & BCM54XX_SHD_INTF_SEL_MASK) == BCM54XX_SHD_INTF_SEL_RGMII) {
 		val = bcm_phy_read_shadow(phydev, BCM54616S_SHD_100FX_CTRL);
 		if (val < 0)
 			return val;
@@ -511,6 +577,8 @@ static int bcm54616s_probe(struct phy_device *phydev)
 		 */
 		if (!(val & BCM54616S_100FX_MODE))
 			phydev->dev_flags |= PHY_BCM_FLAGS_MODE_1000BX;
+
+		phydev->port = PORT_FIBRE;
 	}
 
 	return 0;
