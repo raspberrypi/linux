@@ -40,6 +40,7 @@
 #include <trace/hooks/traps.h>
 #include <trace/hooks/fault.h>
 #include <trace/hooks/regmap.h>
+#include <trace/hooks/hung_task.h>
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -113,3 +114,5 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ftrace_format_check);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_arm64_serror_panic);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_do_sea);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_regmap_update);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_uninterruptible_tasks);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_uninterruptible_tasks_dn);
