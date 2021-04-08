@@ -1432,9 +1432,13 @@ static int updated_ps(struct rpivid_dec_state *const s)
 	s->ctb_addr_rs_to_ts = kmalloc_array(s->ctb_size,
 					     sizeof(*s->ctb_addr_rs_to_ts),
 					     GFP_KERNEL);
+	if (!s->ctb_addr_rs_to_ts)
+		goto fail;
 	s->ctb_addr_ts_to_rs = kmalloc_array(s->ctb_size,
 					     sizeof(*s->ctb_addr_ts_to_rs),
 					     GFP_KERNEL);
+	if (!s->ctb_addr_ts_to_rs)
+		goto fail;
 
 	if (!(s->pps.flags & V4L2_HEVC_PPS_FLAG_TILES_ENABLED)) {
 		s->tile_width = 1;
@@ -1446,8 +1450,12 @@ static int updated_ps(struct rpivid_dec_state *const s)
 
 	s->col_bd = kmalloc((s->tile_width + 1) * sizeof(*s->col_bd),
 			    GFP_KERNEL);
+	if (!s->col_bd)
+		goto fail;
 	s->row_bd = kmalloc((s->tile_height + 1) * sizeof(*s->row_bd),
 			    GFP_KERNEL);
+	if (!s->row_bd)
+		goto fail;
 
 	s->col_bd[0] = 0;
 	for (i = 1; i < s->tile_width; i++)
@@ -1462,8 +1470,13 @@ static int updated_ps(struct rpivid_dec_state *const s)
 	s->row_bd[s->tile_height] = s->ctb_height;
 
 	fill_rs_to_ts(s);
-
 	return 0;
+
+fail:
+	free_ps_info(s);
+	/* Set invalid to force reload */
+	s->sps.pic_width_in_luma_samples = 0;
+	return -ENOMEM;
 }
 
 static int write_cmd_buffer(struct rpivid_dev *const dev,
@@ -1694,7 +1707,9 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 			memcpy(&s->pps, run->h265.pps, sizeof(s->pps));
 
 			/* Recalc stuff as required */
-			updated_ps(s);
+			rv = updated_ps(s);
+			if (rv)
+				goto fail;
 		}
 
 		de = dec_env_new(ctx);
@@ -1769,22 +1784,6 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 				  "Capture plane[0] length (%d) < sizeimage (%d)\n",
 				  run->dst->planes[0].length,
 				  ctx->dst_fmt.plane_fmt[0].sizeimage);
-			goto fail;
-		}
-
-		if (s->sps.pic_width_in_luma_samples > 4096 ||
-		    s->sps.pic_height_in_luma_samples > 4096) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "Pic dimension (%dx%d) exeeds 4096\n",
-				  s->sps.pic_width_in_luma_samples,
-				  s->sps.pic_height_in_luma_samples);
-			goto fail;
-		}
-		if ((s->tile_width != 1 || s->tile_height != 1) &&
-		    (s->pps.flags &
-		     V4L2_HEVC_PPS_FLAG_ENTROPY_CODING_SYNC_ENABLED)) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "Tiles + WPP not supported\n");
 			goto fail;
 		}
 
@@ -2515,9 +2514,104 @@ static void rpivid_h265_trigger(struct rpivid_ctx *ctx)
 	}
 }
 
-struct rpivid_dec_ops rpivid_dec_ops_h265 = {
+const struct rpivid_dec_ops rpivid_dec_ops_h265 = {
 	.setup = rpivid_h265_setup,
 	.start = rpivid_h265_start,
 	.stop = rpivid_h265_stop,
 	.trigger = rpivid_h265_trigger,
 };
+
+static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
+{
+	const struct v4l2_ctrl_hevc_sps *const sps = ctrl->p_new.p_hevc_sps;
+	struct rpivid_ctx *const ctx = ctrl->priv;
+	struct rpivid_dev *const dev = ctx->dev;
+
+	if (sps->chroma_format_idc != 1) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "Chroma format (%d) unsupported\n",
+			  sps->chroma_format_idc);
+		return -EINVAL;
+	}
+
+	if (sps->bit_depth_luma_minus8 != 0 &&
+	    sps->bit_depth_luma_minus8 != 2) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "Luma depth (%d) unsupported\n",
+			  sps->bit_depth_luma_minus8 + 8);
+		return -EINVAL;
+	}
+
+	if (sps->bit_depth_luma_minus8 != sps->bit_depth_chroma_minus8) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "Chroma depth (%d) != Luma depth (%d)\n",
+			  sps->bit_depth_chroma_minus8 + 8,
+			  sps->bit_depth_luma_minus8 + 8);
+		return -EINVAL;
+	}
+
+	if (!sps->pic_width_in_luma_samples ||
+	    !sps->pic_height_in_luma_samples ||
+	    sps->pic_width_in_luma_samples > 4096 ||
+	    sps->pic_height_in_luma_samples > 4096) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "Bad sps width (%u) x height (%u)\n",
+			  sps->pic_width_in_luma_samples,
+			  sps->pic_height_in_luma_samples);
+		return -EINVAL;
+	}
+
+	if (!ctx->dst_fmt_set)
+		return 0;
+
+	if ((sps->bit_depth_luma_minus8 == 0 &&
+	     ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_COL128) ||
+	    (sps->bit_depth_luma_minus8 == 2 &&
+	     ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_10_COL128)) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "SPS luma depth %d does not match capture format\n",
+			  sps->bit_depth_luma_minus8 + 8);
+		return -EINVAL;
+	}
+
+	if (sps->pic_width_in_luma_samples > ctx->dst_fmt.width ||
+	    sps->pic_height_in_luma_samples > ctx->dst_fmt.height) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "SPS size (%dx%d) > capture size (%d,%d)\n",
+			  sps->pic_width_in_luma_samples,
+			  sps->pic_height_in_luma_samples,
+			  ctx->dst_fmt.width,
+			  ctx->dst_fmt.height);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+const struct v4l2_ctrl_ops rpivid_hevc_sps_ctrl_ops = {
+	.try_ctrl = try_ctrl_sps,
+};
+
+static int try_ctrl_pps(struct v4l2_ctrl *ctrl)
+{
+	const struct v4l2_ctrl_hevc_pps *const pps = ctrl->p_new.p_hevc_pps;
+	struct rpivid_ctx *const ctx = ctrl->priv;
+	struct rpivid_dev *const dev = ctx->dev;
+
+	if ((pps->flags &
+	     V4L2_HEVC_PPS_FLAG_ENTROPY_CODING_SYNC_ENABLED) &&
+	    (pps->flags &
+	     V4L2_HEVC_PPS_FLAG_TILES_ENABLED) &&
+	    (pps->num_tile_columns_minus1 || pps->num_tile_rows_minus1)) {
+		v4l2_warn(&dev->v4l2_dev,
+			  "WPP + Tiles not supported\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+const struct v4l2_ctrl_ops rpivid_hevc_pps_ctrl_ops = {
+	.try_ctrl = try_ctrl_pps,
+};
+
