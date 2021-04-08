@@ -38,12 +38,14 @@ static const struct rpivid_control rpivid_ctrls[] = {
 	{
 		.cfg = {
 			.id	= V4L2_CID_MPEG_VIDEO_HEVC_SPS,
+			.ops	= &rpivid_hevc_sps_ctrl_ops,
 		},
 		.required	= true,
 	},
 	{
 		.cfg = {
 			.id	= V4L2_CID_MPEG_VIDEO_HEVC_PPS,
+			.ops	= &rpivid_hevc_pps_ctrl_ops,
 		},
 		.required	= true,
 	},
@@ -119,7 +121,7 @@ static int rpivid_init_ctrls(struct rpivid_dev *dev, struct rpivid_ctx *ctx)
 
 	for (i = 0; i < rpivid_ctrls_COUNT; i++) {
 		ctrl = v4l2_ctrl_new_custom(hdl, &rpivid_ctrls[i].cfg,
-					    NULL);
+					    ctx);
 		if (hdl->error) {
 			v4l2_err(&dev->v4l2_dev,
 				 "Failed to create new custom control id=%#x\n",
@@ -191,6 +193,7 @@ static int rpivid_request_validate(struct media_request *req)
 		if (!ctrl_test) {
 			v4l2_info(&ctx->dev->v4l2_dev,
 				  "Missing required codec control\n");
+			v4l2_ctrl_request_hdl_put(hdl);
 			return -ENOENT;
 		}
 	}
