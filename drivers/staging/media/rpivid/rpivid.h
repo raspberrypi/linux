@@ -185,7 +185,7 @@ struct rpivid_dev {
 	struct platform_device	*pdev;
 	struct device		*dev;
 	struct v4l2_m2m_dev	*m2m_dev;
-	struct rpivid_dec_ops	*dec_ops;
+	const struct rpivid_dec_ops *dec_ops;
 
 	/* Device file mutex */
 	struct mutex		dev_mutex;
@@ -201,7 +201,9 @@ struct rpivid_dev {
 	struct rpivid_hw_irq_ctrl ic_active2;
 };
 
-extern struct rpivid_dec_ops rpivid_dec_ops_h265;
+extern const struct rpivid_dec_ops rpivid_dec_ops_h265;
+extern const struct v4l2_ctrl_ops rpivid_hevc_sps_ctrl_ops;
+extern const struct v4l2_ctrl_ops rpivid_hevc_pps_ctrl_ops;
 
 struct v4l2_ctrl *rpivid_find_ctrl(struct rpivid_ctx *ctx, u32 id);
 void *rpivid_find_control_data(struct rpivid_ctx *ctx, u32 id);
