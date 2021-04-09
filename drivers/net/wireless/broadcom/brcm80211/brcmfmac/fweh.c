@@ -432,6 +432,8 @@ int brcmf_fweh_activate_events(struct brcmf_if *ifp)
 {
 	struct brcmf_fweh_info *fweh = ifp->drvr->fweh;
 	enum brcmf_fweh_event_code code;
+	struct eventmsgs_ext *eventmask_msg;
+	u32 msglen;
 	int i, err;
 
 	memset(fweh->event_mask, 0, fweh->event_mask_len);
@@ -444,15 +446,32 @@ int brcmf_fweh_activate_events(struct brcmf_if *ifp)
 		}
 	}
 
+	msglen = EVENTMSGS_EXT_STRUCT_SIZE + fweh->event_mask_len;
+	eventmask_msg = kzalloc(msglen, GFP_KERNEL);
+	if (!eventmask_msg)
+		return -ENOMEM;
+
 	/* want to handle IF event as well */
 	brcmf_dbg(EVENT, "enable event IF\n");
 	setbit(fweh->event_mask, BRCMF_E_IF);
+
+	eventmask_msg->ver = EVENTMSGS_VER;
+	eventmask_msg->command = EVENTMSGS_SET_MASK;
+	eventmask_msg->len = fweh->event_mask_len;
+	memcpy(eventmask_msg->mask, fweh->event_mask, fweh->event_mask_len);
+
+	err = brcmf_fil_iovar_data_set(ifp, "event_msgs_ext", eventmask_msg,
+				       msglen);
+	if (!err)
+		goto end;
 
 	err = brcmf_fil_iovar_data_set(ifp, "event_msgs", fweh->event_mask,
 				       fweh->event_mask_len);
 	if (err)
 		bphy_err(fweh->drvr, "Set event_msgs error (%d)\n", err);
 
+end:
+	kfree(eventmask_msg);
 	return err;
 }
 
