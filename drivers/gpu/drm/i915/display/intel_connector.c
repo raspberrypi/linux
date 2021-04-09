@@ -297,6 +297,5 @@ intel_attach_colorspace_property(struct drm_connector *connector)
 		return;
 	}
 
-	drm_object_attach_property(&connector->base,
-				   connector->colorspace_property, 0);
+	drm_connector_attach_colorspace_property(connector);
 }
