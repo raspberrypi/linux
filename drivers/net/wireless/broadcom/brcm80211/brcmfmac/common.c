@@ -440,7 +440,7 @@ int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 	/* Enable event_msg_ext specific to 43012 chip */
 	if (bus->chip == CY_CC_43012_CHIP_ID) {
 		/* Program event_msg_ext to support event larger than 128 */
-		msglen = (roundup(BRCMF_E_LAST, NBBY) / NBBY) +
+		msglen = (roundup(fweh->num_event_codes, NBBY) / NBBY) +
 				  EVENTMSGS_EXT_STRUCT_SIZE;
 		/* Allocate buffer for eventmask_msg */
 		eventmask_msg = kzalloc(msglen, GFP_KERNEL);
@@ -451,7 +451,7 @@ int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 
 		/* Read the current programmed event_msgs_ext */
 		eventmask_msg->ver = EVENTMSGS_VER;
-		eventmask_msg->len = roundup(BRCMF_E_LAST, NBBY) / NBBY;
+		eventmask_msg->len = roundup(fweh->num_event_codes, NBBY) / NBBY;
 		err = brcmf_fil_iovar_data_get(ifp, "event_msgs_ext",
 					       eventmask_msg,
 					       msglen);
@@ -463,7 +463,7 @@ int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 		/* Write updated Event mask */
 		eventmask_msg->ver = EVENTMSGS_VER;
 		eventmask_msg->command = EVENTMSGS_SET_MASK;
-		eventmask_msg->len = (roundup(BRCMF_E_LAST, NBBY) / NBBY);
+		eventmask_msg->len = (roundup(fweh->num_event_codes, NBBY) / NBBY);
 
 		err = brcmf_fil_iovar_data_set(ifp, "event_msgs_ext",
 					       eventmask_msg, msglen);
