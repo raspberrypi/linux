@@ -95,7 +95,11 @@ struct brcmf_cfg80211_info;
 	BRCMF_ENUM_DEF(ACTION_FRAME_RX, 75) \
 	BRCMF_ENUM_DEF(TDLS_PEER_EVENT, 92) \
 	BRCMF_ENUM_DEF(BCMC_CREDIT_SUPPORT, 127) \
-	BRCMF_ENUM_DEF(ULP, 146)
+	BRCMF_ENUM_DEF(ULP, 146) \
+	BRCMF_ENUM_DEF(EXT_AUTH_REQ, 187) \
+	BRCMF_ENUM_DEF(EXT_AUTH_FRAME_RX, 188) \
+	BRCMF_ENUM_DEF(MGMT_FRAME_TXSTATUS, 189) \
+	BRCMF_ENUM_DEF(MGMT_FRAME_OFF_CHAN_COMPLETE, 190)
 
 #define BRCMF_ENUM_DEF(id, val) \
 	BRCMF_E_##id = (val),
@@ -103,12 +107,6 @@ struct brcmf_cfg80211_info;
 /* firmware event codes sent by the dongle */
 enum brcmf_fweh_event_code {
 	BRCMF_FWEH_EVENT_ENUM_DEFLIST
-
-	/* this determines event mask length which must match
-	 * minimum length check in device firmware so it is
-	 * hard-coded here.
-	 */
-	BRCMF_E_LAST
 };
 #undef BRCMF_ENUM_DEF
 
