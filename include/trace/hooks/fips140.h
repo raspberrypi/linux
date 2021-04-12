@@ -7,6 +7,8 @@
 #define _TRACE_HOOK_FIPS140_H
 #include <trace/hooks/vendor_hooks.h>
 
+struct crypto_aes_ctx;
+
 /*
  * These hooks exist only for the benefit of the FIPS140 crypto module, which
  * uses them to swap out the underlying implementation with one that is integrity
@@ -19,6 +21,27 @@ DECLARE_HOOK(android_vh_sha256,
 		      u8 *out,
 		      int *hook_inuse),
 	     TP_ARGS(data, len, out, hook_inuse));
+
+DECLARE_HOOK(android_vh_aes_expandkey,
+	     TP_PROTO(struct crypto_aes_ctx *ctx,
+		      const u8 *in_key,
+		      unsigned int key_len,
+		      int *err),
+	     TP_ARGS(ctx, in_key, key_len, err));
+
+DECLARE_HOOK(android_vh_aes_encrypt,
+	     TP_PROTO(const struct crypto_aes_ctx *ctx,
+		      u8 *out,
+		      const u8 *in,
+		      int *hook_inuse),
+	     TP_ARGS(ctx, out, in, hook_inuse));
+
+DECLARE_HOOK(android_vh_aes_decrypt,
+	     TP_PROTO(const struct crypto_aes_ctx *ctx,
+		      u8 *out,
+		      const u8 *in,
+		      int *hook_inuse),
+	     TP_ARGS(ctx, out, in, hook_inuse));
 
 #endif /* _TRACE_HOOK_FIPS140_H */
 
