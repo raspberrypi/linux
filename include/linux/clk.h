@@ -15,6 +15,7 @@
 
 struct device;
 struct clk;
+struct clk_request;
 struct device_node;
 struct of_phandle_args;
 
@@ -782,6 +783,9 @@ int clk_save_context(void);
  * so locking is not necessary.
  */
 void clk_restore_context(void);
+
+struct clk_request *clk_request_start(struct clk *clk, unsigned long rate);
+void clk_request_done(struct clk_request *req);
 
 #else /* !CONFIG_HAVE_CLK */
 
