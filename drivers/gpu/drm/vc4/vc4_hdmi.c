@@ -969,6 +969,9 @@ static void vc4_hdmi_encoder_post_crtc_powerdown(struct drm_encoder *encoder,
 		vc4_hdmi->variant->phy_disable(vc4_hdmi);
 
 	clk_disable_unprepare(vc4_hdmi->pixel_bvb_clock);
+	clk_request_done(vc4_hdmi->bvb_req);
+	clk_disable_unprepare(vc4_hdmi->hsm_clock);
+	clk_request_done(vc4_hdmi->hsm_req);
 	clk_disable_unprepare(vc4_hdmi->pixel_clock);
 
 	ret = pm_runtime_put(&vc4_hdmi->pdev->dev);
@@ -1258,9 +1261,9 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	 * pixel clock, but HSM ends up being the limiting factor.
 	 */
 	hsm_rate = max_t(unsigned long, 120000000, (pixel_rate / 100) * 101);
-	ret = clk_set_min_rate(vc4_hdmi->hsm_clock, hsm_rate);
-	if (ret) {
-		DRM_ERROR("Failed to set HSM clock rate: %d\n", ret);
+	vc4_hdmi->hsm_req = clk_request_start(vc4_hdmi->hsm_clock, hsm_rate);
+	if (IS_ERR(vc4_hdmi->hsm_req)) {
+		DRM_ERROR("Failed to set HSM clock rate: %ld\n", PTR_ERR(vc4_hdmi->hsm_req));
 		return;
 	}
 
@@ -1273,9 +1276,11 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	else
 		bvb_rate = 75000000;
 
-	ret = clk_set_min_rate(vc4_hdmi->pixel_bvb_clock, bvb_rate);
-	if (ret) {
-		DRM_ERROR("Failed to set pixel bvb clock rate: %d\n", ret);
+	vc4_hdmi->bvb_req = clk_request_start(vc4_hdmi->pixel_bvb_clock, bvb_rate);
+	if (IS_ERR(vc4_hdmi->bvb_req)) {
+		DRM_ERROR("Failed to set pixel bvb clock rate: %ld\n", PTR_ERR(vc4_hdmi->bvb_req));
+		clk_request_done(vc4_hdmi->hsm_req);
+		clk_disable_unprepare(vc4_hdmi->hsm_clock);
 		clk_disable_unprepare(vc4_hdmi->pixel_clock);
 		return;
 	}
@@ -1283,6 +1288,9 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	ret = clk_prepare_enable(vc4_hdmi->pixel_bvb_clock);
 	if (ret) {
 		DRM_ERROR("Failed to turn on pixel bvb clock: %d\n", ret);
+		clk_request_done(vc4_hdmi->bvb_req);
+		clk_request_done(vc4_hdmi->hsm_req);
+		clk_disable_unprepare(vc4_hdmi->hsm_clock);
 		clk_disable_unprepare(vc4_hdmi->pixel_clock);
 		return;
 	}
