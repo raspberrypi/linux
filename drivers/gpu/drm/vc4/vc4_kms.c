@@ -344,6 +344,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	struct drm_crtc_state *new_crtc_state;
 	struct drm_crtc *crtc;
 	struct vc4_hvs_state *old_hvs_state;
+	struct clk_request *core_req;
 	int i;
 
 	for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
@@ -357,7 +358,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	}
 
 	if (vc4->hvs && vc4->hvs->hvs5)
-		clk_set_min_rate(hvs->core_clk, 500000000);
+		core_req = clk_request_start(hvs->core_clk, 500000000);
 
 	old_hvs_state = vc4_hvs_get_old_global_state(state);
 	if (!old_hvs_state)
@@ -404,7 +405,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 	drm_atomic_helper_cleanup_planes(dev, state);
 
 	if (vc4->hvs && vc4->hvs->hvs5)
-		clk_set_min_rate(hvs->core_clk, 0);
+		clk_request_done(core_req);
 }
 
 static int vc4_atomic_commit_setup(struct drm_atomic_state *state)
