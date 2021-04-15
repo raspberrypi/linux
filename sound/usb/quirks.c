@@ -1534,6 +1534,7 @@ bool snd_usb_get_sample_rate_quirk(struct snd_usb_audio *chip)
 	case USB_ID(0x2912, 0x30c8): /* Audioengine D1 */
 	case USB_ID(0x413c, 0xa506): /* Dell AE515 sound bar */
 	case USB_ID(0x046d, 0x084c): /* Logitech ConferenceCam Connect */
+	case USB_ID(0x09da, 0x2695): /* A4Tech FHD 1080p webcam */
 		return true;
 	}
 
