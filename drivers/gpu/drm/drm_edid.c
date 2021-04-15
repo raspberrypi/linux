@@ -5731,6 +5731,39 @@ drm_hdmi_avi_infoframe_colorimetry(struct hdmi_avi_infoframe *frame,
 EXPORT_SYMBOL(drm_hdmi_avi_infoframe_colorimetry);
 
 /**
+ * drm_hdmi_avi_infoframe_colorspace() - fill the HDMI AVI infoframe
+ *                                       colorspace information
+ * @frame: HDMI AVI infoframe
+ * @conn_state: connector state
+ */
+void
+drm_hdmi_avi_infoframe_colorspace(struct hdmi_avi_infoframe *frame,
+				  const struct drm_connector_state *conn_state)
+{
+	switch (BIT(conn_state->color_format)) {
+	case DRM_COLOR_FORMAT_YCRCB444:
+		frame->colorspace = HDMI_COLORSPACE_YUV444;
+		break;
+
+	case DRM_COLOR_FORMAT_YCRCB422:
+		frame->colorspace = HDMI_COLORSPACE_YUV422;
+		break;
+
+	case DRM_COLOR_FORMAT_YCRCB420:
+		frame->colorspace = HDMI_COLORSPACE_YUV420;
+		break;
+
+	case DRM_COLOR_FORMAT_RGB444:
+		frame->colorspace = HDMI_COLORSPACE_RGB;
+		break;
+
+	default:
+		break;
+	}
+}
+EXPORT_SYMBOL(drm_hdmi_avi_infoframe_colorspace);
+
+/**
  * drm_hdmi_avi_infoframe_quant_range() - fill the HDMI AVI infoframe
  *                                        quantization range information
  * @frame: HDMI AVI infoframe
