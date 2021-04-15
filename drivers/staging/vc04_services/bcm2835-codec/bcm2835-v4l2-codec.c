@@ -999,6 +999,13 @@ static void handle_fmt_changed(struct bcm2835_codec_ctx *ctx,
 
 	q_data->crop_width = format->es.video.crop.width;
 	q_data->crop_height = format->es.video.crop.height;
+	/*
+	 * Stop S_FMT updating crop_height should it be unaligned.
+	 * Client can still update the crop region via S_SELECTION should it
+	 * really want to, but the decoder is likely to complain that the
+	 * format then doesn't match.
+	 */
+	q_data->selection_set = true;
 	q_data->bytesperline = get_bytesperline(format->es.video.width,
 						q_data->fmt);
 
