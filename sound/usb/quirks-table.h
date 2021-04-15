@@ -47,6 +47,15 @@
 },
 
 {
+	/* A4Tech FHD 1080p webcam */
+	USB_DEVICE(0x09da, 0x2695),
+	.driver_info = (unsigned long) &(const struct snd_usb_audio_quirk) {
+		.ifnum = QUIRK_ANY_INTERFACE,
+		.type = QUIRK_SETUP_DISABLE_AUTOSUSPEND
+	}
+},
+
+{
 	/* Creative BT-D1 */
 	USB_DEVICE(0x041e, 0x0005),
 	.driver_info = (unsigned long) &(const struct snd_usb_audio_quirk) {
