@@ -3158,6 +3158,27 @@ Load:   dtoverlay=vc4-kms-dsi-7inch
 Params: <None>
 
 
+Name:   vc4-kms-dsi-lt070me05000
+Info:   Enable a JDI LT070ME05000 DSI display on DSI1.
+        Note that this is a 4 lane DSI device, so it will only work on a Compute
+        Module.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-lt070me05000,<param>
+Params: reset                   GPIO for the reset signal (default 17)
+        enable                  GPIO for the enable signal (default 4)
+        dcdc-en                 GPIO for the DC-DC converter enable (default 5)
+
+
+Name:   vc4-kms-dsi-lt070me05000-v2
+Info:   Enable a JDI LT070ME05000 DSI display on DSI1 using Harlab's V2
+        interface board.
+        Note that this is a 4 lane DSI device, so it will only work on a Compute
+        Module.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dsi-lt070me05000-v2
+Params: <None>
+
+
 Name:   vc4-kms-kippah-7inch
 Info:   Enable the Adafruit DPI Kippah with the 7" Ontat panel attached.
         Requires vc4-kms-v3d to be loaded.
