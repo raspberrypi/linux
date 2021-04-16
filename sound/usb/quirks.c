@@ -555,6 +555,11 @@ static int setup_disable_autosuspend(struct snd_usb_audio *chip,
 				       struct usb_driver *driver,
 				       const struct snd_usb_audio_quirk *quirk)
 {
+	/*
+	 * Grab the interface, because on a webcam uvcvideo may race
+	 * with snd-usb-audio during probe and re-enable autosuspend.
+	 */
+	usb_autopm_get_interface(iface);
 	usb_disable_autosuspend(interface_to_usbdev(iface));
 	return 1;	/* Continue with creating streams and mixer */
 }
