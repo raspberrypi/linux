@@ -46,6 +46,18 @@ config HD44780
 	  kernel and started at boot.
 	  If you don't understand what all this is about, say N.
 
+config HD44780_I2C
+	tristate "HD44780-over-I2C Character LCD support"
+	depends on I2C || COMPILE_TEST
+	select HD44780_COMMON
+	help
+	  Enable support for Character LCDs using a HD44780 controller
+	  connected through a PCF8547 I2C controller.
+	  The LCD is accessible through the /dev/lcd char device (10, 156).
+	  This code can either be compiled as a module, or linked into the
+	  kernel and started at boot.
+	  If you don't understand what all this is about, say N.
+
 config KS0108
 	tristate "KS0108 LCD Controller"
 	depends on PARPORT_PC
