@@ -2689,7 +2689,17 @@ Params: <None>
 Name:   spi-rtc
 Info:   Adds support for a number of SPI Real Time Clock devices
 Load:   dtoverlay=spi-rtc,<param>=<val>
-Params: pcf2123                 Select the PCF2123 device
+Params: ds3232                  Select the DS3232 device
+        ds3234                  Select the DS3234 device
+        pcf2123                 Select the PCF2123 device
+
+        spi0_0                  Use spi0.0 (default)
+        spi0_1                  Use spi0.1
+        spi1_0                  Use spi1.0
+        spi1_1                  Use spi1.1
+        spi2_0                  Use spi2.0
+        spi2_1                  Use spi2.1
+        cs_high                 This device requires an active-high CS
 
 
 Name:   spi0-1cs
