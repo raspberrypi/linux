@@ -172,6 +172,7 @@ struct rpivid_dev {
 	void __iomem		*base_h265;
 
 	struct clk		*clock;
+	struct clk_request      *hevc_req;
 
 	struct rpivid_hw_irq_ctrl ic_active1;
 	struct rpivid_hw_irq_ctrl ic_active2;
