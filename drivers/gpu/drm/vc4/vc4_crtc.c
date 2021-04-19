@@ -240,8 +240,17 @@ static u32 vc4_get_fifo_full_level(struct vc4_crtc *vc4_crtc, u32 format)
 			return 32;
 
 		/*
-		 * Experimentally have found PV on hvs4 reports fifo full
-		 * error with expected settings and does not with one less
+		 * It looks like in some situations, we will overflow
+		 * the PixelValve FIFO (with the bit 10 of PV stat being
+		 * set) and stall the HVS / PV, eventually resulting in
+		 * a page flip timeout.
+		 *
+		 * Displaying the video overlay during a playback with
+		 * Kodi on an RPi3 seems to be a great solution with a
+		 * failure rate around 50%.
+		 *
+		 * Removing 1 from the FIFO full level however
+		 * seems to completely remove that issue.
 		 */
 		if (!vc4->hvs->hvs5)
 			return fifo_len_bytes - 3 * HVS_FIFO_LATENCY_PIX - 1;
