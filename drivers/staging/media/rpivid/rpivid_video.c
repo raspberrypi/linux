@@ -499,8 +499,8 @@ static int rpivid_start_streaming(struct vb2_queue *vq, unsigned int count)
 	if (V4L2_TYPE_IS_OUTPUT(vq->type) && dev->dec_ops->start)
 		ret = dev->dec_ops->start(ctx);
 
-	ret = clk_set_rate(dev->clock, max_hevc_clock);
-	if (ret) {
+	dev->hevc_req = clk_request_start(dev->clock, max_hevc_clock);
+	if (!dev->hevc_req) {
 		dev_err(dev->dev, "Failed to set clock rate\n");
 		goto out;
 	}
@@ -520,18 +520,13 @@ static void rpivid_stop_streaming(struct vb2_queue *vq)
 {
 	struct rpivid_ctx *ctx = vb2_get_drv_priv(vq);
 	struct rpivid_dev *dev = ctx->dev;
-	long min_hevc_clock = clk_round_rate(dev->clock, 0);
-	int ret;
 
 	if (V4L2_TYPE_IS_OUTPUT(vq->type) && dev->dec_ops->stop)
 		dev->dec_ops->stop(ctx);
 
 	rpivid_queue_cleanup(vq, VB2_BUF_STATE_ERROR);
 
-	ret = clk_set_rate(dev->clock, min_hevc_clock);
-	if (ret)
-		dev_err(dev->dev, "Failed to set minimum clock rate\n");
-
+	clk_request_done(dev->hevc_req);
 	clk_disable_unprepare(dev->clock);
 }
 
