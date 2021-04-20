@@ -526,7 +526,11 @@ static void rpivid_stop_streaming(struct vb2_queue *vq)
 
 	rpivid_queue_cleanup(vq, VB2_BUF_STATE_ERROR);
 
-	clk_request_done(dev->hevc_req);
+	if (dev->hevc_req)
+	{
+		clk_request_done(dev->hevc_req);
+		dev->hevc_req = NULL;
+	}
 	clk_disable_unprepare(dev->clock);
 }
 
