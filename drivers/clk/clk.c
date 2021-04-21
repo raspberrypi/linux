@@ -2542,6 +2542,9 @@ void clk_request_done(struct clk_request *req)
 {
 	struct clk_core *core = req->clk->core;
 
+	if (!req)
+		return;
+
 	clk_prepare_lock();
 
 	list_del(&req->list);
