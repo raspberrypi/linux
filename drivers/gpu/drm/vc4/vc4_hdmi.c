@@ -936,7 +936,8 @@ static void vc4_hdmi_encoder_post_crtc_powerdown(struct drm_encoder *encoder,
 		   HDMI_READ(HDMI_VID_CTL) & ~VC4_HD_VID_CTL_ENABLE);
 
 	clk_disable_unprepare(vc4_hdmi->pixel_bvb_clock);
-	clk_request_done(vc4_hdmi->bvb_req);
+	if (vc4_hdmi->bvb_req)
+		clk_request_done(vc4_hdmi->bvb_req);
 	clk_disable_unprepare(vc4_hdmi->hsm_clock);
 	clk_request_done(vc4_hdmi->hsm_req);
 	clk_disable_unprepare(vc4_hdmi->pixel_clock);
@@ -1265,7 +1266,8 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	else
 		bvb_rate = 75000000;
 
-	vc4_hdmi->bvb_req = clk_request_start(vc4_hdmi->pixel_bvb_clock, bvb_rate);
+	if (vc4_hdmi->pixel_bvb_clock)
+		vc4_hdmi->bvb_req = clk_request_start(vc4_hdmi->pixel_bvb_clock, bvb_rate);
 	if (IS_ERR(vc4_hdmi->bvb_req)) {
 		DRM_ERROR("Failed to set pixel bvb clock rate: %ld\n", PTR_ERR(vc4_hdmi->bvb_req));
 		clk_request_done(vc4_hdmi->hsm_req);
@@ -1277,7 +1279,8 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	ret = clk_prepare_enable(vc4_hdmi->pixel_bvb_clock);
 	if (ret) {
 		DRM_ERROR("Failed to turn on pixel bvb clock: %d\n", ret);
-		clk_request_done(vc4_hdmi->bvb_req);
+		if (vc4_hdmi->bvb_req)
+			clk_request_done(vc4_hdmi->bvb_req);
 		clk_request_done(vc4_hdmi->hsm_req);
 		clk_disable_unprepare(vc4_hdmi->hsm_clock);
 		clk_disable_unprepare(vc4_hdmi->pixel_clock);
