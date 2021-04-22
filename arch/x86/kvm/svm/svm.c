@@ -980,7 +980,16 @@ static __init int svm_hardware_setup(void)
 		kvm_enable_efer_bits(EFER_SVME | EFER_LMSLE);
 	}
 
-	if (IS_ENABLED(CONFIG_KVM_AMD_SEV) && sev) {
+	if (!boot_cpu_has(X86_FEATURE_NPT))
+		npt_enabled = false;
+
+	if (npt_enabled && !npt)
+		npt_enabled = false;
+
+	kvm_configure_mmu(npt_enabled, get_max_npt_level(), PG_LEVEL_1G);
+	pr_info("kvm: Nested Paging %sabled\n", npt_enabled ? "en" : "dis");
+
+	if (IS_ENABLED(CONFIG_KVM_AMD_SEV) && sev && npt_enabled) {
 		sev_hardware_setup();
 	} else {
 		sev = false;
@@ -994,15 +1003,6 @@ static __init int svm_hardware_setup(void)
 		if (r)
 			goto err;
 	}
-
-	if (!boot_cpu_has(X86_FEATURE_NPT))
-		npt_enabled = false;
-
-	if (npt_enabled && !npt)
-		npt_enabled = false;
-
-	kvm_configure_mmu(npt_enabled, get_max_npt_level(), PG_LEVEL_1G);
-	pr_info("kvm: Nested Paging %sabled\n", npt_enabled ? "en" : "dis");
 
 	if (nrips) {
 		if (!boot_cpu_has(X86_FEATURE_NRIPS))
