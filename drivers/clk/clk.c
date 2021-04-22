@@ -2515,10 +2515,11 @@ EXPORT_SYMBOL_GPL(clk_request_start);
  */
 void clk_request_done(struct clk_request *req)
 {
-	struct clk_core *core = req->clk->core;
+	struct clk_core *core;
 
 	if (!req)
 		return;
+	core = req->clk->core;
 
 	clk_prepare_lock();
 
