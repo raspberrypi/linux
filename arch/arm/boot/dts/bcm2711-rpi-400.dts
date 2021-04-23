@@ -616,6 +616,10 @@
 	brcm,disable-headphones = <1>;
 };
 
+&genet_mdio {
+	clock-frequency = <1950000>;
+};
+
 / {
 	__overrides__ {
 		act_led_gpio = <&act_led>,"gpios:4";
