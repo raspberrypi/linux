@@ -990,7 +990,7 @@ Name:   gpio-poweroff
 Info:   Drives a GPIO high or low on poweroff (including halt). Using this
         overlay interferes with the normal power-down sequence, preventing the
         kernel from resetting the SoC (a necessary step in a normal power-off
-        or reboot). This also disables the ability to triger a boot by driving
+        or reboot). This also disables the ability to trigger a boot by driving
         GPIO3 low.
 
         Users of this overlay are required to provide an external mechanism to
