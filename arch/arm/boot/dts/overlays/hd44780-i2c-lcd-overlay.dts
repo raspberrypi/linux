@@ -1,0 +1,32 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    fragment@0 {
+        target = <&i2c_arm>;
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+            lcd_screen: auxdisplay@27 {
+                compatible = "hit,hd44780_i2c";
+                status = "okay";
+                #address-cells = <1>;
+                #size-cells = <0>;
+                reg = <0x27>;
+
+                display-height-chars = <2>;
+                display-width-chars = <16>;
+            };
+        };
+    };
+
+    __overrides__ {
+        addr =          <&lcd_screen>,"reg:0";
+        display_height = <&lcd_screen>,"display-height-chars:0";
+        display_width = <&lcd_screen>,"display-width-chars:0";
+    };
+
+};
