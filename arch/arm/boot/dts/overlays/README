@@ -987,8 +987,15 @@ Params: <None>
 
 
 Name:   gpio-poweroff
-Info:   Drives a GPIO high or low on poweroff (including halt). Enabling this
-        overlay will prevent the ability to boot by driving GPIO3 low.
+Info:   Drives a GPIO high or low on poweroff (including halt). Using this
+        overlay interferes with the normal power-down sequence, preventing the
+        kernel from resetting the SoC (a necessary step in a normal power-off
+        or reboot). This also disables the ability to trigger a boot by driving
+        GPIO3 low.
+
+        Users of this overlay are required to provide an external mechanism to
+        switch off the power supply when signalled - failure to do so results
+        in a kernel BUG, increased power consumption and undefined behaviour.
 Load:   dtoverlay=gpio-poweroff,<param>=<val>
 Params: gpiopin                 GPIO for signalling (default 26)
 
