@@ -28,6 +28,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	audioinjector-ultra.dtbo \
 	audioinjector-wm8731-audio.dtbo \
 	audiosense-pi.dtbo \
+	ugreen-dabboard.dtbo \
 	audremap.dtbo \
 	balena-fin.dtbo \
 	cma.dtbo \
