@@ -22,6 +22,7 @@
 #include <kunit/test-bug.h>
 
 #include "uapi/drm/vc4_drm.h"
+#include "vc4_regs.h"
 
 struct drm_device;
 struct drm_gem_object;
@@ -494,6 +495,17 @@ struct drm_encoder *vc4_find_encoder_by_type(struct drm_device *drm,
 	return NULL;
 }
 
+struct vc5_gamma_entry {
+	u32 x_c_terms;
+	u32 grad_term;
+};
+
+#define VC5_HVS_SET_GAMMA_ENTRY(x, c, g) (struct vc5_gamma_entry){	\
+	.x_c_terms = VC4_SET_FIELD((x), SCALER5_DSPGAMMA_OFF_X) | 	\
+		     VC4_SET_FIELD((c), SCALER5_DSPGAMMA_OFF_C),	\
+	.grad_term = (g)						\
+}
+
 struct vc4_crtc_data {
 	const char *name;
 
@@ -538,9 +550,19 @@ struct vc4_crtc {
 	/* Timestamp at start of vblank irq - unaffected by lock delays. */
 	ktime_t t_vblank;
 
-	u8 lut_r[256];
-	u8 lut_g[256];
-	u8 lut_b[256];
+	union {
+		struct {  /* VC4 gamma LUT */
+			u8 lut_r[256];
+			u8 lut_g[256];
+			u8 lut_b[256];
+		};
+		struct {  /* VC5 gamma PWL entries */
+			struct vc5_gamma_entry pwl_r[SCALER5_DSPGAMMA_NUM_POINTS];
+			struct vc5_gamma_entry pwl_g[SCALER5_DSPGAMMA_NUM_POINTS];
+			struct vc5_gamma_entry pwl_b[SCALER5_DSPGAMMA_NUM_POINTS];
+			struct vc5_gamma_entry pwl_a[SCALER5_DSPGAMMA_NUM_POINTS];
+		};
+	};
 
 	struct drm_pending_vblank_event *event;
 
