@@ -1326,19 +1326,42 @@ int vc4_crtc_init(struct drm_device *drm, struct vc4_crtc *vc4_crtc,
 
 	if (!vc4->is_vc5) {
 		drm_mode_crtc_set_gamma_size(crtc, ARRAY_SIZE(vc4_crtc->lut_r));
+	} else {
+		/* This is a lie for hvs5 which uses a 16 point PWL, but it
+		 * allows for something smarter than just 16 linearly spaced
+		 * segments. Conversion is done in vc5_hvs_update_gamma_lut.
+		 */
+		drm_mode_crtc_set_gamma_size(crtc, 256);
+	}
 
-		drm_crtc_enable_color_mgmt(crtc, 0, false, crtc->gamma_size);
+	drm_crtc_enable_color_mgmt(crtc, 0, false, crtc->gamma_size);
 
+	if (!vc4->is_vc5) {
 		/* We support CTM, but only for one CRTC at a time. It's therefore
 		 * implemented as private driver state in vc4_kms, not here.
 		 */
 		drm_crtc_enable_color_mgmt(crtc, 0, true, crtc->gamma_size);
-	}
 
-	for (i = 0; i < crtc->gamma_size; i++) {
-		vc4_crtc->lut_r[i] = i;
-		vc4_crtc->lut_g[i] = i;
-		vc4_crtc->lut_b[i] = i;
+		/* Initialize the VC4 gamma LUTs */
+		for (i = 0; i < crtc->gamma_size; i++) {
+			vc4_crtc->lut_r[i] = i;
+			vc4_crtc->lut_g[i] = i;
+			vc4_crtc->lut_b[i] = i;
+		}
+	} else {
+		/* Initialize the VC5 gamma PWL entries. Assume 12-bit pipeline,
+		 * evenly spread over full range.
+		 */
+		for (i = 0; i < SCALER5_DSPGAMMA_NUM_POINTS; i++) {
+			vc4_crtc->pwl_r[i] =
+				VC5_HVS_SET_GAMMA_ENTRY(i << 8, i << 12, 1 << 8);
+			vc4_crtc->pwl_g[i] =
+				VC5_HVS_SET_GAMMA_ENTRY(i << 8, i << 12, 1 << 8);
+			vc4_crtc->pwl_b[i] =
+				VC5_HVS_SET_GAMMA_ENTRY(i << 8, i << 12, 1 << 8);
+			vc4_crtc->pwl_a[i] =
+				VC5_HVS_SET_GAMMA_ENTRY(i << 8, i << 12, 1 << 8);
+		}
 	}
 
 	return 0;
