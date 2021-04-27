@@ -26,6 +26,7 @@ static struct gpio_desc *reset_gpio;
 static u32 timeout = DEFAULT_TIMEOUT_MS;
 static u32 active_delay = 100;
 static u32 inactive_delay = 100;
+static void (*old_power_off)(void);
 
 static void gpio_poweroff_do_poweroff(void)
 {
@@ -44,6 +45,9 @@ static void gpio_poweroff_do_poweroff(void)
 
 	/* give it some time */
 	mdelay(timeout);
+
+	if (old_power_off)
+		old_power_off();
 
 	WARN_ON(1);
 }
@@ -85,6 +89,7 @@ static int gpio_poweroff_probe(struct platform_device *pdev)
 		gpiod_export_link(&pdev->dev, "poweroff-gpio", reset_gpio);
 	}
 
+	old_power_off = pm_power_off;
 	pm_power_off = &gpio_poweroff_do_poweroff;
 	return 0;
 }
@@ -92,7 +97,7 @@ static int gpio_poweroff_probe(struct platform_device *pdev)
 static int gpio_poweroff_remove(struct platform_device *pdev)
 {
 	if (pm_power_off == &gpio_poweroff_do_poweroff)
-		pm_power_off = NULL;
+		pm_power_off = old_power_off;
 
 	gpiod_unexport(reset_gpio);
 
