@@ -243,7 +243,8 @@ static void vc4_hvs_lut_load(struct vc4_hvs *hvs,
 static void vc4_hvs_update_gamma_lut(struct vc4_hvs *hvs,
 				     struct vc4_crtc *vc4_crtc)
 {
-	struct drm_crtc_state *crtc_state = vc4_crtc->base.state;
+	struct drm_crtc *crtc = &vc4_crtc->base;
+	struct drm_crtc_state *crtc_state = crtc->state;
 	struct drm_color_lut *lut = crtc_state->gamma_lut->data;
 	u32 length = drm_color_lut_size(crtc_state->gamma_lut);
 	u32 i;
@@ -255,6 +256,81 @@ static void vc4_hvs_update_gamma_lut(struct vc4_hvs *hvs,
 	}
 
 	vc4_hvs_lut_load(hvs, vc4_crtc);
+}
+
+static void vc5_hvs_write_gamma_entry(struct vc4_hvs *hvs,
+				      u32 offset,
+				      struct vc5_gamma_entry *gamma)
+{
+	HVS_WRITE(offset, gamma->x_c_terms);
+	HVS_WRITE(offset + 4, gamma->grad_term);
+}
+
+static void vc5_hvs_lut_load(struct vc4_hvs *hvs,
+			     struct vc4_crtc *vc4_crtc)
+{
+	struct drm_crtc *crtc = &vc4_crtc->base;
+	struct drm_crtc_state *crtc_state = crtc->state;
+	struct vc4_crtc_state *vc4_state = to_vc4_crtc_state(crtc_state);
+	u32 i;
+	u32 offset = SCALER5_DSPGAMMA_START +
+		vc4_state->assigned_channel * SCALER5_DSPGAMMA_CHAN_OFFSET;
+
+	for (i = 0; i < SCALER5_DSPGAMMA_NUM_POINTS; i++, offset += 8)
+		vc5_hvs_write_gamma_entry(hvs, offset, &vc4_crtc->pwl_r[i]);
+	for (i = 0; i < SCALER5_DSPGAMMA_NUM_POINTS; i++, offset += 8)
+		vc5_hvs_write_gamma_entry(hvs, offset, &vc4_crtc->pwl_g[i]);
+	for (i = 0; i < SCALER5_DSPGAMMA_NUM_POINTS; i++, offset += 8)
+		vc5_hvs_write_gamma_entry(hvs, offset, &vc4_crtc->pwl_b[i]);
+
+	if (vc4_state->assigned_channel == 2) {
+		/* Alpha only valid on channel 2 */
+		for (i = 0; i < SCALER5_DSPGAMMA_NUM_POINTS; i++, offset += 8)
+			vc5_hvs_write_gamma_entry(hvs, offset, &vc4_crtc->pwl_a[i]);
+	}
+}
+
+static void vc5_hvs_update_gamma_lut(struct vc4_hvs *hvs,
+				     struct vc4_crtc *vc4_crtc)
+{
+	struct drm_crtc *crtc = &vc4_crtc->base;
+	struct drm_color_lut *lut = crtc->state->gamma_lut->data;
+	unsigned int step, i;
+	u32 start, end;
+
+#define VC5_HVS_UPDATE_GAMMA_ENTRY_FROM_LUT(pwl, chan)			\
+	start = drm_color_lut_extract(lut[i * step].chan, 12);		\
+	end = drm_color_lut_extract(lut[(i + 1) * step - 1].chan, 12);	\
+									\
+	/* Negative gradients not permitted by the hardware, so		\
+	 * flatten such points out.					\
+	 */								\
+	if (end < start)						\
+		end = start;						\
+									\
+	/* Assume 12bit pipeline.					\
+	 * X evenly spread over full range (12 bit).			\
+	 * C as U12.4 format.						\
+	 * Gradient as U4.8 format.					\
+	*/								\
+	vc4_crtc->pwl[i] =						\
+		VC5_HVS_SET_GAMMA_ENTRY(i << 8, start << 4,		\
+				((end - start) << 4) / (step - 1))
+
+	/* HVS5 has a 16 point piecewise linear function for each colour
+	 * channel (including alpha on channel 2) on each display channel.
+	 *
+	 * Currently take a crude subsample of the gamma LUT, but this could
+	 * be improved to implement curve fitting.
+	 */
+	step = crtc->gamma_size / SCALER5_DSPGAMMA_NUM_POINTS;
+	for (i = 0; i < SCALER5_DSPGAMMA_NUM_POINTS; i++) {
+		VC5_HVS_UPDATE_GAMMA_ENTRY_FROM_LUT(pwl_r, red);
+		VC5_HVS_UPDATE_GAMMA_ENTRY_FROM_LUT(pwl_g, green);
+		VC5_HVS_UPDATE_GAMMA_ENTRY_FROM_LUT(pwl_b, blue);
+	}
+
+	vc5_hvs_lut_load(hvs, vc4_crtc);
 }
 
 u8 vc4_hvs_get_fifo_frame_count(struct vc4_hvs *hvs, unsigned int fifo)
@@ -400,7 +476,10 @@ static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 	/* Reload the LUT, since the SRAMs would have been disabled if
 	 * all CRTCs had SCALER_DISPBKGND_GAMMA unset at once.
 	 */
-	vc4_hvs_lut_load(hvs, vc4_crtc);
+	if (!vc4->is_vc5)
+		vc4_hvs_lut_load(hvs, vc4_crtc);
+	else
+		vc5_hvs_lut_load(hvs, vc4_crtc);
 
 	drm_dev_exit(idx);
 
@@ -646,7 +725,11 @@ void vc4_hvs_atomic_flush(struct drm_crtc *crtc,
 		u32 dispbkgndx = HVS_READ(SCALER_DISPBKGNDX(channel));
 
 		if (crtc->state->gamma_lut) {
-			vc4_hvs_update_gamma_lut(hvs, vc4_crtc);
+			if (!vc4->is_vc5)
+				vc4_hvs_update_gamma_lut(hvs, vc4_crtc);
+			else
+				vc5_hvs_update_gamma_lut(hvs, vc4_crtc);
+
 			dispbkgndx |= SCALER_DISPBKGND_GAMMA;
 		} else {
 			/* Unsetting DISPBKGND_GAMMA skips the gamma lut step
