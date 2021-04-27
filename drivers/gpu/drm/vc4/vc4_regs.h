@@ -491,6 +491,28 @@
 #define SCALER_DLIST_START                      0x00002000
 #define SCALER_DLIST_SIZE                       0x00004000
 
+/* Gamma PWL for each channel. 16 points for each of 4 colour channels (alpha
+ * only on channel 2). 8 bytes per entry, offsets first, then gradient:
+ *   Y = GRAD * X + C
+ *
+ * Values for X and C are left justified, and vary depending on the width of
+ * the HVS channel:
+ *    8-bit pipeline: X uses [31:24], C is U8.8 format, and GRAD is U4.8.
+ *   12-bit pipeline: X uses [31:20], C is U12.4 format, and GRAD is U4.8.
+ *
+ * The 3 HVS channels start at 0x400 offsets (ie chan 1 starts at 0x2400, and
+ * chan 2 at 0x2800).
+ */
+#define SCALER5_DSPGAMMA_NUM_POINTS		16
+#define SCALER5_DSPGAMMA_START			0x00002000
+#define SCALER5_DSPGAMMA_CHAN_OFFSET		0x400
+# define SCALER5_DSPGAMMA_OFF_X_MASK		VC4_MASK(31, 20)
+# define SCALER5_DSPGAMMA_OFF_X_SHIFT		20
+# define SCALER5_DSPGAMMA_OFF_C_MASK		VC4_MASK(15, 0)
+# define SCALER5_DSPGAMMA_OFF_C_SHIFT		0
+# define SCALER5_DSPGAMMA_GRAD_MASK		VC4_MASK(11, 0)
+# define SCALER5_DSPGAMMA_GRAD_SHIFT		0
+
 #define SCALER5_DLIST_START			0x00004000
 
 # define VC4_HDMI_SW_RESET_FORMAT_DETECT	BIT(1)
