@@ -3130,6 +3130,16 @@ Load:   dtoverlay=udrc,<param>=<val>
 Params: alsaname                Name of the ALSA audio device (default "udrc")
 
 
+Name:   ugreen-dabboard
+Info:   Configures the ugreen-dabboard I2S overlay
+        This is a simple overlay based on the simple-audio-card and the dmic
+        codec. It has the speciality that it is configured to use the codec
+        as a master I2S device. It works for example with the Si468x DAB
+        receiver on the uGreen DABBoard.
+Load:   dtoverlay=ugreen-dabboard,<param>=<val>
+Params: card-name               Override the default, "dabboard", card name.
+
+
 Name:   upstream
 Info:   Allow usage of downstream .dtb with upstream kernel. Comprises the
         vc4-kms-v3d and dwc2 overlays.
