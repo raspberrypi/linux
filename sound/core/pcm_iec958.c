@@ -9,41 +9,68 @@
 #include <sound/pcm_params.h>
 #include <sound/pcm_iec958.h>
 
-static int create_iec958_consumer(uint rate, uint sample_width,
-				  u8 *cs, size_t len)
+int snd_pcm_create_iec958_consumer_default(u8 *cs, size_t len)
 {
-	unsigned int fs, ws;
-
 	if (len < 4)
 		return -EINVAL;
 
-	switch (rate) {
-	case 32000:
-		fs = IEC958_AES3_CON_FS_32000;
-		break;
-	case 44100:
-		fs = IEC958_AES3_CON_FS_44100;
-		break;
-	case 48000:
-		fs = IEC958_AES3_CON_FS_48000;
-		break;
-	case 88200:
-		fs = IEC958_AES3_CON_FS_88200;
-		break;
-	case 96000:
-		fs = IEC958_AES3_CON_FS_96000;
-		break;
-	case 176400:
-		fs = IEC958_AES3_CON_FS_176400;
-		break;
-	case 192000:
-		fs = IEC958_AES3_CON_FS_192000;
-		break;
-	default:
+	memset(cs, 0, len);
+
+	cs[0] = IEC958_AES0_CON_NOT_COPYRIGHT | IEC958_AES0_CON_EMPHASIS_NONE;
+	cs[1] = IEC958_AES1_CON_GENERAL;
+	cs[2] = IEC958_AES2_CON_SOURCE_UNSPEC | IEC958_AES2_CON_CHANNEL_UNSPEC;
+	cs[3] = IEC958_AES3_CON_CLOCK_1000PPM | IEC958_AES3_CON_FS_NOTID;
+
+	if (len > 4)
+		cs[4] = IEC958_AES4_CON_WORDLEN_NOTID;
+
+	return len;
+}
+EXPORT_SYMBOL(snd_pcm_create_iec958_consumer_default);
+
+static int fill_iec958_consumer(uint rate, uint sample_width,
+				u8 *cs, size_t len)
+{
+	if (len < 4)
 		return -EINVAL;
+
+	if ((cs[3] & IEC958_AES3_CON_FS) == IEC958_AES3_CON_FS_NOTID) {
+		unsigned int fs;
+
+		switch (rate) {
+			case 32000:
+				fs = IEC958_AES3_CON_FS_32000;
+				break;
+			case 44100:
+				fs = IEC958_AES3_CON_FS_44100;
+				break;
+			case 48000:
+				fs = IEC958_AES3_CON_FS_48000;
+				break;
+			case 88200:
+				fs = IEC958_AES3_CON_FS_88200;
+				break;
+			case 96000:
+				fs = IEC958_AES3_CON_FS_96000;
+				break;
+			case 176400:
+				fs = IEC958_AES3_CON_FS_176400;
+				break;
+			case 192000:
+				fs = IEC958_AES3_CON_FS_192000;
+				break;
+			default:
+				return -EINVAL;
+		}
+
+		cs[3] &= ~IEC958_AES3_CON_FS;
+		cs[3] |= fs;
 	}
 
-	if (len > 4) {
+	if (len > 4 &&
+	    (cs[4] & IEC958_AES4_CON_WORDLEN) == IEC958_AES4_CON_WORDLEN_NOTID) {
+		unsigned int ws;
+
 		switch (sample_width) {
 		case 16:
 			ws = IEC958_AES4_CON_WORDLEN_20_16;
@@ -64,20 +91,29 @@ static int create_iec958_consumer(uint rate, uint sample_width,
 		default:
 			return -EINVAL;
 		}
+
+		cs[4] &= ~IEC958_AES4_CON_WORDLEN;
+		cs[4] |= ws;
 	}
-
-	memset(cs, 0, len);
-
-	cs[0] = IEC958_AES0_CON_NOT_COPYRIGHT | IEC958_AES0_CON_EMPHASIS_NONE;
-	cs[1] = IEC958_AES1_CON_GENERAL;
-	cs[2] = IEC958_AES2_CON_SOURCE_UNSPEC | IEC958_AES2_CON_CHANNEL_UNSPEC;
-	cs[3] = IEC958_AES3_CON_CLOCK_1000PPM | fs;
-
-	if (len > 4)
-		cs[4] = ws;
 
 	return len;
 }
+
+int snd_pcm_fill_iec958_consumer_hw_params(struct snd_pcm_hw_params *params,
+					   u8 *cs, size_t len)
+{
+	return fill_iec958_consumer(params_rate(params), params_width(params), cs, len);
+}
+EXPORT_SYMBOL(snd_pcm_fill_iec958_consumer_hw_params);
+
+int snd_pcm_fill_iec958_consumer(struct snd_pcm_runtime *runtime,
+				 u8 *cs, size_t len)
+{
+	return fill_iec958_consumer(runtime->rate,
+				    snd_pcm_format_width(runtime->format),
+				    cs, len);
+}
+EXPORT_SYMBOL(snd_pcm_fill_iec958_consumer);
 
 /**
  * snd_pcm_create_iec958_consumer - create consumer format IEC958 channel status
@@ -95,9 +131,13 @@ static int create_iec958_consumer(uint rate, uint sample_width,
 int snd_pcm_create_iec958_consumer(struct snd_pcm_runtime *runtime, u8 *cs,
 	size_t len)
 {
-	return create_iec958_consumer(runtime->rate,
-				      snd_pcm_format_width(runtime->format),
-				      cs, len);
+	int ret;
+
+	ret = snd_pcm_create_iec958_consumer_default(cs, len);
+	if (ret < 0)
+		return ret;
+
+	return snd_pcm_fill_iec958_consumer(runtime, cs, len);
 }
 EXPORT_SYMBOL(snd_pcm_create_iec958_consumer);
 
@@ -117,7 +157,12 @@ EXPORT_SYMBOL(snd_pcm_create_iec958_consumer);
 int snd_pcm_create_iec958_consumer_hw_params(struct snd_pcm_hw_params *params,
 					     u8 *cs, size_t len)
 {
-	return create_iec958_consumer(params_rate(params), params_width(params),
-				      cs, len);
+	int ret;
+
+	ret = snd_pcm_create_iec958_consumer_default(cs, len);
+	if (ret < 0)
+		return ret;
+
+	return fill_iec958_consumer(params_rate(params), params_width(params), cs, len);
 }
 EXPORT_SYMBOL(snd_pcm_create_iec958_consumer_hw_params);
