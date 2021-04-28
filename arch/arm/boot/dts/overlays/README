@@ -599,16 +599,6 @@ Load:   dtoverlay=audiosense-pi
 Params: <None>
 
 
-Name:   ugreen-dabboard
-Info:   Configures the ugreen-dabboard I2S overlay
-        This is a simple overlay based on the simple-audio-card and the dmic 
-        codec. It has the speciality that it is configured to use the codec 
-        as a master I2S device. It works for example with the Si468x DAB 
-        receiver on the uGreen DABBoard.
-Load:   dtoverlay=ugreen-dabboard
-Params: <None>
-
-
 Name:   audremap
 Info:   Switches PWM sound output to GPIOs on the 40-pin header
 Load:   dtoverlay=audremap,<param>=<val>
@@ -3138,6 +3128,16 @@ Name:   udrc
 Info:   Configures the NW Digital Radio UDRC Hat
 Load:   dtoverlay=udrc,<param>=<val>
 Params: alsaname                Name of the ALSA audio device (default "udrc")
+
+
+Name:   ugreen-dabboard
+Info:   Configures the ugreen-dabboard I2S overlay
+        This is a simple overlay based on the simple-audio-card and the dmic
+        codec. It has the speciality that it is configured to use the codec
+        as a master I2S device. It works for example with the Si468x DAB
+        receiver on the uGreen DABBoard.
+Load:   dtoverlay=ugreen-dabboard,<param>=<val>
+Params: card-name               Override the default, "dabboard", card name.
 
 
 Name:   upstream
