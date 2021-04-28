@@ -32,6 +32,8 @@ struct dw_axi_dma_hcfg {
 	u32	axi_rw_burst_len;
 	/* Register map for DMAX_NUM_CHANNELS <= 8 */
 	bool	reg_map_8_channels;
+	/* Register map for DMAX_NUM_CHANNELS > 8 || DMAX_NUM_HS_IF > 16*/
+	bool	reg_map_cfg2;
 	bool	restrict_axi_burst_len;
 };
 
@@ -100,6 +102,7 @@ struct axi_dma_desc {
 
 	struct virt_dma_desc		vd;
 	struct axi_dma_chan		*chan;
+	u32				hw_desc_count;
 	u32				completed_blocks;
 	u32				length;
 	u32				period_len;
