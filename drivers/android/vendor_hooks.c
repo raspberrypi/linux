@@ -257,3 +257,6 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_compl_rsp_check_done);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_err_handler);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_err_check_ctrl);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_err_print_ctrl);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_binder_proc_transaction);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_binder_new_ref);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_binder_del_ref);

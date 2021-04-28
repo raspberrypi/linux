@@ -94,6 +94,18 @@ DECLARE_HOOK(android_vh_binder_spawn_new_thread,
 DECLARE_HOOK(android_vh_binder_has_special_work_ilocked,
 	TP_PROTO(struct binder_thread *thread, bool do_proc_work, bool *has_work),
 	TP_ARGS(thread, do_proc_work, has_work));
+DECLARE_HOOK(android_vh_binder_proc_transaction,
+	TP_PROTO(struct task_struct *caller_task, struct task_struct *binder_proc_task,
+		struct task_struct *binder_th_task, int node_debug_id,
+		unsigned int code, bool pending_async),
+	TP_ARGS(caller_task, binder_proc_task, binder_th_task, node_debug_id, code, pending_async));
+DECLARE_HOOK(android_vh_binder_new_ref,
+	TP_PROTO(struct task_struct *proc, uint32_t ref_desc, int node_debug_id),
+	TP_ARGS(proc, ref_desc, node_debug_id));
+DECLARE_HOOK(android_vh_binder_del_ref,
+	TP_PROTO(struct task_struct *proc, uint32_t ref_desc),
+	TP_ARGS(proc, ref_desc));
+
 #endif /* _TRACE_HOOK_BINDER_H */
 /* This part must be outside protection */
 #include <trace/define_trace.h>
