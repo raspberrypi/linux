@@ -209,6 +209,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	uart4.dtbo \
 	uart5.dtbo \
 	udrc.dtbo \
+	ugreen-dabboard.dtbo \
 	upstream.dtbo \
 	upstream-pi4.dtbo \
 	vc4-fkms-v3d.dtbo \
