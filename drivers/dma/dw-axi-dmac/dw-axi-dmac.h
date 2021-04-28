@@ -101,6 +101,7 @@ struct axi_dma_desc {
 
 	struct virt_dma_desc		vd;
 	struct axi_dma_chan		*chan;
+	u32				hw_desc_count;
 	u32				completed_blocks;
 	u32				length;
 	u32				period_len;
