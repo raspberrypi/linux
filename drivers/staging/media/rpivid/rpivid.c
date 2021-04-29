@@ -63,7 +63,11 @@ static const struct rpivid_control rpivid_ctrls[] = {
 	},
 	{
 		.cfg = {
+			.name	= "Slice param array",
 			.id	= V4L2_CID_MPEG_VIDEO_HEVC_SLICE_PARAMS,
+			.type	= V4L2_CTRL_TYPE_HEVC_SLICE_PARAMS,
+			.flags	= V4L2_CTRL_FLAG_DYNAMIC_ARRAY,
+			.dims	= { 0x1000 },
 		},
 		.required	= true,
 	},
