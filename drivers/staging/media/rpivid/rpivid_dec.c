@@ -46,22 +46,34 @@ void rpivid_device_run(void *priv)
 
 	switch (ctx->src_fmt.pixelformat) {
 	case V4L2_PIX_FMT_HEVC_SLICE:
+	{
+		const struct v4l2_ctrl *ctrl;
+
 		run.h265.sps =
 			rpivid_find_control_data(ctx,
 						 V4L2_CID_MPEG_VIDEO_HEVC_SPS);
 		run.h265.pps =
 			rpivid_find_control_data(ctx,
 						 V4L2_CID_MPEG_VIDEO_HEVC_PPS);
-		run.h265.slice_params =
-			rpivid_find_control_data(ctx,
-						 V4L2_CID_MPEG_VIDEO_HEVC_SLICE_PARAMS);
 		run.h265.dec =
 			rpivid_find_control_data(ctx,
 						 V4L2_CID_MPEG_VIDEO_HEVC_DECODE_PARAMS);
+
+		ctrl = rpivid_find_ctrl(ctx,
+					V4L2_CID_MPEG_VIDEO_HEVC_SLICE_PARAMS);
+		if (!ctrl || !ctrl->elems) {
+			v4l2_err(&dev->v4l2_dev, "%s: Missing slice params\n",
+				 __func__);
+			goto fail;
+		}
+		run.h265.slice_ents = ctrl->elems;
+		run.h265.slice_params = ctrl->p_cur.p;
+
 		run.h265.scaling_matrix =
 			rpivid_find_control_data(ctx,
 						 V4L2_CID_MPEG_VIDEO_HEVC_SCALING_MATRIX);
 		break;
+	}
 
 	default:
 		break;
