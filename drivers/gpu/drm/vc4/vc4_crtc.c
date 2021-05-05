@@ -272,19 +272,6 @@ static u32 vc4_crtc_get_fifo_full_level_bits(struct vc4_crtc *vc4_crtc,
 				   PV_CONTROL_FIFO_LEVEL);
 }
 
-static struct drm_encoder *vc4_get_connector_encoder(struct drm_connector *connector)
-{
-	struct drm_encoder *encoder;
-
-	if (drm_WARN_ON(connector->dev, hweight32(connector->possible_encoders) != 1))
-		return NULL;
-
-	drm_connector_for_each_possible_encoder(connector, encoder)
-		return encoder;
-
-	return NULL;
-}
-
 /*
  * Returns the encoder attached to the CRTC.
  *
@@ -299,17 +286,9 @@ static struct drm_encoder *vc4_get_crtc_encoder(struct drm_crtc *crtc)
 
 	drm_connector_list_iter_begin(crtc->dev, &conn_iter);
 	drm_for_each_connector_iter(connector, &conn_iter) {
-		struct drm_encoder *encoder;
-		struct vc4_encoder *vc4_encoder;
-
-		encoder = vc4_get_connector_encoder(connector);
-		if (!encoder)
-			continue;
-
-		vc4_encoder = to_vc4_encoder(encoder);
-		if (vc4_encoder->crtc == crtc) {
+		if (connector->state->crtc == crtc) {
 			drm_connector_list_iter_end(&conn_iter);
-			return encoder;
+			return connector->encoder;
 		}
 	}
 	drm_connector_list_iter_end(&conn_iter);
