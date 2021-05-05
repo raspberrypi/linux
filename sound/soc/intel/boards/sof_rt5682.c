@@ -742,7 +742,7 @@ static struct snd_soc_dai_link *sof_card_dai_links_create(struct device *dev,
 				SOF_MAX98373_SPEAKER_AMP_PRESENT) {
 			links[id].codecs = max_98373_components;
 			links[id].num_codecs = ARRAY_SIZE(max_98373_components);
-			links[id].init = max98373_spk_codec_init;
+			links[id].init = max_98373_spk_codec_init;
 			links[id].ops = &max_98373_ops;
 			/* feedback stream */
 			links[id].dpcm_capture = 1;
@@ -863,7 +863,7 @@ static int sof_audio_probe(struct platform_device *pdev)
 		sof_audio_card_rt5682.num_links++;
 
 	if (sof_rt5682_quirk & SOF_MAX98373_SPEAKER_AMP_PRESENT)
-		sof_max98373_codec_conf(&sof_audio_card_rt5682);
+		max_98373_set_codec_conf(&sof_audio_card_rt5682);
 	else if (sof_rt5682_quirk & SOF_RT1011_SPEAKER_AMP_PRESENT)
 		sof_rt1011_codec_conf(&sof_audio_card_rt5682);
 	else if (sof_rt5682_quirk & SOF_RT1015P_SPEAKER_AMP_PRESENT)
@@ -995,3 +995,4 @@ MODULE_ALIAS("platform:cml_rt1015_rt5682");
 MODULE_ALIAS("platform:tgl_rt1011_rt5682");
 MODULE_ALIAS("platform:jsl_rt5682_rt1015p");
 MODULE_IMPORT_NS(SND_SOC_INTEL_HDA_DSP_COMMON);
+MODULE_IMPORT_NS(SND_SOC_INTEL_SOF_MAXIM_COMMON);
