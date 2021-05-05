@@ -994,3 +994,4 @@ MODULE_ALIAS("platform:jsl_rt5682_max98360a");
 MODULE_ALIAS("platform:cml_rt1015_rt5682");
 MODULE_ALIAS("platform:tgl_rt1011_rt5682");
 MODULE_ALIAS("platform:jsl_rt5682_rt1015p");
+MODULE_IMPORT_NS(SND_SOC_INTEL_HDA_DSP_COMMON);
