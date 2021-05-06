@@ -479,7 +479,11 @@ static enum drm_connector_status
 vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 {
 	struct vc4_hdmi *vc4_hdmi = connector_to_vc4_hdmi(connector);
+	enum drm_connector_status ret = connector_status_disconnected;
 	bool connected = false;
+
+	WARN_ON(pm_runtime_resume_and_get(&vc4_hdmi->pdev->dev));
+	WARN_ON(clk_prepare_enable(vc4_hdmi->hsm_clock));
 
 	if (vc4_hdmi->hpd_gpio) {
 		if (gpio_get_value_cansleep(vc4_hdmi->hpd_gpio) ^
@@ -502,11 +506,16 @@ vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 			}
 		}
 
-		return connector_status_connected;
+		ret = connector_status_connected;
+		goto out;
 	}
 
 	cec_phys_addr_invalidate(vc4_hdmi->cec_adap);
-	return connector_status_disconnected;
+
+out:
+	clk_disable_unprepare(vc4_hdmi->hsm_clock);
+	pm_runtime_put(&vc4_hdmi->pdev->dev);
+	return ret;
 }
 
 static void vc4_hdmi_connector_destroy(struct drm_connector *connector)
