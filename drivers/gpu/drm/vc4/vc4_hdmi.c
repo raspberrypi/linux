@@ -2198,6 +2198,21 @@ static int vc4_hdmi_hotplug_init(struct vc4_hdmi *vc4_hdmi)
 			return ret;
 
 		connector->polled = DRM_CONNECTOR_POLL_HPD;
+	} else if (vc4_hdmi->hpd_gpio) {
+		int irq = gpiod_to_irq(vc4_hdmi->hpd_gpio);
+		if (irq < 0)
+			return 0;
+
+		ret = devm_request_threaded_irq(dev, irq,
+						NULL, vc4_hdmi_hpd_irq_thread,
+						IRQF_ONESHOT |
+						IRQF_TRIGGER_RISING |
+						IRQF_TRIGGER_FALLING,
+						"vc4 hdmi hpd", vc4_hdmi);
+		if (ret)
+			return ret;
+
+		connector->polled = DRM_CONNECTOR_POLL_HPD;
 	}
 
 	return 0;
