@@ -1416,6 +1416,9 @@ static void svm_prepare_guest_switch(struct kvm_vcpu *vcpu)
 	struct svm_cpu_data *sd = per_cpu(svm_data, vcpu->cpu);
 	unsigned int i;
 
+	if (sev_es_guest(vcpu->kvm))
+		sev_es_unmap_ghcb(svm);
+
 	if (svm->guest_state_loaded)
 		return;
 
