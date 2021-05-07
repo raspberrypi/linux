@@ -6307,7 +6307,6 @@ static enum hrtimer_restart io_link_timeout_fn(struct hrtimer *timer)
 	} else {
 		io_req_complete_post(req, -ETIME, 0);
 	}
-	io_put_req_deferred(req, 1);
 	return HRTIMER_NORESTART;
 }
 
