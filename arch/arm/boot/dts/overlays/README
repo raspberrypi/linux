@@ -1045,8 +1045,36 @@ Load:   dtoverlay=hifiberry-amp
 Params: <None>
 
 
+Name:   hifiberry-amp100
+Info:   Configures the HifiBerry AMP100 audio card
+Load:   dtoverlay=hifiberry-amp100,<param>=<val>
+Params: 24db_digital_gain       Allow gain to be applied via the PCM512x codec
+                                Digital volume control. Enable with
+                                "dtoverlay=hifiberry-amp100,24db_digital_gain"
+                                (The default behaviour is that the Digital
+                                volume control is limited to a maximum of
+                                0dB. ie. it can attenuate but not provide
+                                gain. For most users, this will be desired
+                                as it will prevent clipping. By appending
+                                the 24dB_digital_gain parameter, the Digital
+                                volume control will allow up to 24dB of
+                                gain. If this parameter is enabled, it is the
+                                responsibility of the user to ensure that
+                                the Digital volume control is set to a value
+                                that does not result in clipping/distortion!)
+        slave                   Force DAC+ Pro into slave mode, using Pi as
+                                master for bit clock and frame clock.
+        leds_off                If set to 'true' the onboard indicator LEDs
+                                are switched off at all times.
+        auto_mute               If set to 'true' the amplifier is automatically
+                                muted when the DAC is not playing.
+        mute_ext_ctl            The amplifier's HW mute control is enabled
+                                in ALSA mixer and set to <val>.
+                                Will be overwritten by ALSA user settings.
+
+
 Name:   hifiberry-dac
-Info:   Configures the HifiBerry DAC audio card
+Info:   Configures the HifiBerry DAC audio cards
 Load:   dtoverlay=hifiberry-dac
 Params: <None>
 
@@ -1892,8 +1920,8 @@ Params: speed                   Display SPI bus speed
 
 Name:   merus-amp
 Info:   Configures the merus-amp audio card
-Load:   dtoverlay=merus-amp
-Params: <None>
+Load:   dtoverlay=merus-amp,<param>=<val>
+Params: spioff                  Turn SPI bus off
 
 
 Name:   midi-uart0
@@ -2483,16 +2511,18 @@ Load:   <Deprecated>
 
 
 Name:   seeed-can-fd-hat-v1
-Info:   Overlay for Seeed Studio CAN BUS FD HAT with two CAN FD channels
-        (based on the mcp2517fd).
+Info:   Overlay for Seeed Studio CAN BUS FD HAT with two CAN FD
+        channels without RTC. Use this overlay if your HAT has no
+        battery holder.
         https://www.seeedstudio.com/2-Channel-CAN-BUS-FD-Shield-for-Raspberry-Pi-p-4072.html
 Load:   dtoverlay=seeed-can-fd-hat-v1
 Params: <None>
 
 
 Name:   seeed-can-fd-hat-v2
-Info:   Overlay for Seeed Studio CAN BUS FD HAT with two CAN FD channels
-        (based on the mcp2518fd) and an RTC.
+Info:   Overlay for Seeed Studio CAN BUS FD HAT with two CAN FD
+        channels and an RTC. Use this overlay if your HAT has a
+        battery holder.
         https://www.seeedstudio.com/CAN-BUS-FD-HAT-for-Raspberry-Pi-p-4742.html
 Load:   dtoverlay=seeed-can-fd-hat-v2
 Params: <None>
