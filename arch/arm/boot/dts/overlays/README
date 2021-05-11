@@ -1482,11 +1482,15 @@ Params: abx80x                  Select one of the ABx80x family:
 
 
 Name:   i2c-sensor
-Info:   Adds support for a number of I2C barometric pressure and temperature
-        sensors on i2c_arm
+Info:   Adds support for a number of I2C barometric pressure, temperature,
+        light level and chemical sensors on i2c_arm
 Load:   dtoverlay=i2c-sensor,<param>=<val>
-Params: addr                    Set the address for the BME280, BME680, BMP280,
-                                DS1621, HDC100X, LM75, SHT3x or TMP102
+Params: addr                    Set the address for the BH1750, BME280, BME680,
+                                BMP280, CCS811, DS1621, HDC100X, LM75, SHT3x or
+                                TMP102
+
+        bh1750                  Select the Rohm BH1750 ambient light sensor
+                                Valid addresses 0x23 or 0x5c, default 0x23
 
         bme280                  Select the Bosch Sensortronic BME280
                                 Valid addresses 0x76-0x77, default 0x76
@@ -1500,6 +1504,9 @@ Params: addr                    Set the address for the BME280, BME680, BMP280,
 
         bmp280                  Select the Bosch Sensortronic BMP280
                                 Valid addresses 0x76-0x77, default 0x76
+
+        ccs811                  Select the AMS CCS811 digital gas sensor
+                                Valid addresses 0x5a-0x5b, default 0x5b
 
         ds1621                  Select the Dallas Semiconductors DS1621 temp
                                 sensor. Valid addresses 0x48-0x4f, default 0x48
