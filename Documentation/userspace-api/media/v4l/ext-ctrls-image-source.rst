@@ -58,3 +58,31 @@ Image Source Control IDs
     The unit cell consists of the whole area of the pixel, sensitive and
     non-sensitive.
     This control is required for automatic calibration of sensors/cameras.
+
+``V4L2_CID_NOTIFY_GAIN_RED (integer)``
+    Notify the sensor what gain will be applied to red pixels by the
+    subsequent processing (such as by an ISP). The sensor is merely
+    informed of this value in case it performs processing that requires
+    it, but it is not applied to the output pixels themselves. The
+    units are determined by the sensor driver.
+
+``V4L2_CID_NOTIFY_GAIN_GREENR (integer)``
+    Notify the sensor what gain will be applied to green pixels (on
+    red rows) by subsequent processing (such as by an ISP). The sensor
+    is merely informed of this value in case it performs processing
+    that requires it, but it is not applied to the output pixels
+    themselves. The units are determined by the sensor driver.
+
+``V4L2_CID_NOTIFY_GAIN_BLUE (integer)``
+    Notify the sensor what gain will be applied to blue pixels by the
+    subsequent processing (such as by an ISP). The sensor is merely
+    informed of this value in case it performs processing that requires
+    it, but it is not applied to the output pixels themselves. The
+    units are determined by the sensor driver.
+
+``V4L2_CID_NOTIFY_GAIN_GREENB (integer)``
+    Notify the sensor what gain will be applied to green pixels (on
+    blue rows) by subsequent processing (such as by an ISP). The sensor
+    is merely informed of this value in case it performs processing
+    that requires it, but it is not applied to the output pixels
+    themselves. The units are determined by the sensor driver.
