@@ -671,6 +671,7 @@
 					  "otg";
 			maximum-speed = "super-speed";
 			dr_mode = "otg";
+			cdns,phyrst-a-enable;
 		};
 	};
 
