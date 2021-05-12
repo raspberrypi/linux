@@ -879,6 +879,8 @@ static const struct v4l2_subdev_core_ops ov5647_subdev_core_ops = {
 	.g_register		= ov5647_sensor_get_register,
 	.s_register		= ov5647_sensor_set_register,
 #endif
+	.subscribe_event = v4l2_ctrl_subdev_subscribe_event,
+	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 };
 
 static const struct v4l2_rect *
