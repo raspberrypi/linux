@@ -65,6 +65,14 @@
 			i2c0 = "/soc/i2c@7e205000";
 		};
 	};
+
+	fragment@8 {
+		target-path = "/__symbols__";
+		__overlay__ {
+			i2c0 = "/soc/i2c@7e205000";
+		};
+	};
+
 	__overrides__ {
 		pins_0_1   = <0>,"+1-2-3-4";
 		pins_28_29 = <0>,"-1+2-3-4";
