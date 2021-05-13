@@ -99,8 +99,19 @@ static const char * const components[] = {
 #define MAX_W		1920
 #define MAX_H		1920
 #define BPL_ALIGN	32
-#define DEFAULT_WIDTH	640
-#define DEFAULT_HEIGHT	480
+/*
+ * The decoder spec supports the V4L2_EVENT_SOURCE_CHANGE event, but the docs
+ * seem to want it to always be generated on startup, which prevents the client
+ * from configuring the CAPTURE queue based on any parsing it has already done
+ * which may save time and allow allocation of CAPTURE buffers early. Surely
+ * SOURCE_CHANGE means something has changed, not just "always notify".
+ *
+ * For those clients that don't set the CAPTURE resolution, adopt a default
+ * resolution that is seriously unlikely to be correct, therefore almost
+ * guaranteed to get the SOURCE_CHANGE event.
+ */
+#define DEFAULT_WIDTH	32
+#define DEFAULT_HEIGHT	32
 /*
  * The unanswered question - what is the maximum size of a compressed frame?
  * V4L2 mandates that the encoded frame must fit in a single buffer. Sizing
