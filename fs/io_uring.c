@@ -1037,7 +1037,7 @@ static bool io_disarm_next(struct io_kiocb *req);
 static void io_uring_del_task_file(unsigned long index);
 static void io_uring_try_cancel_requests(struct io_ring_ctx *ctx,
 					 struct task_struct *task,
-					 struct files_struct *files);
+					 bool cancel_all);
 static void io_uring_cancel_sqpoll(struct io_sq_data *sqd);
 static struct io_rsrc_node *io_rsrc_node_alloc(struct io_ring_ctx *ctx);
 
@@ -1106,15 +1106,14 @@ static void io_refs_resurrect(struct percpu_ref *ref, struct completion *compl)
 		percpu_ref_put(ref);
 }
 
-static bool io_match_task(struct io_kiocb *head,
-			  struct task_struct *task,
-			  struct files_struct *files)
+static bool io_match_task(struct io_kiocb *head, struct task_struct *task,
+			  bool cancel_all)
 {
 	struct io_kiocb *req;
 
 	if (task && head->task != task)
 		return false;
-	if (!files)
+	if (cancel_all)
 		return true;
 
 	io_for_each_link(req, head) {
@@ -5265,7 +5264,7 @@ static bool io_poll_remove_one(struct io_kiocb *req)
  * Returns true if we found and killed one or more poll requests
  */
 static bool io_poll_remove_all(struct io_ring_ctx *ctx, struct task_struct *tsk,
-			       struct files_struct *files)
+			       bool cancel_all)
 {
 	struct hlist_node *tmp;
 	struct io_kiocb *req;
@@ -5277,7 +5276,7 @@ static bool io_poll_remove_all(struct io_ring_ctx *ctx, struct task_struct *tsk,
 
 		list = &ctx->cancel_hash[i];
 		hlist_for_each_entry_safe(req, tmp, list, hash_node) {
-			if (io_match_task(req, tsk, files))
+			if (io_match_task(req, tsk, cancel_all))
 				posted += io_poll_remove_one(req);
 		}
 	}
@@ -8747,7 +8746,7 @@ static void io_ring_exit_work(struct work_struct *work)
 	 * as nobody else will be looking for them.
 	 */
 	do {
-		io_uring_try_cancel_requests(ctx, NULL, NULL);
+		io_uring_try_cancel_requests(ctx, NULL, true);
 		if (ctx->sq_data) {
 			struct io_sq_data *sqd = ctx->sq_data;
 			struct task_struct *tsk;
@@ -8798,14 +8797,14 @@ static void io_ring_exit_work(struct work_struct *work)
 
 /* Returns true if we found and killed one or more timeouts */
 static bool io_kill_timeouts(struct io_ring_ctx *ctx, struct task_struct *tsk,
-			     struct files_struct *files)
+			     bool cancel_all)
 {
 	struct io_kiocb *req, *tmp;
 	int canceled = 0;
 
 	spin_lock_irq(&ctx->completion_lock);
 	list_for_each_entry_safe(req, tmp, &ctx->timeout_list, timeout.list) {
-		if (io_match_task(req, tsk, files)) {
+		if (io_match_task(req, tsk, cancel_all)) {
 			io_kill_timeout(req, -ECANCELED);
 			canceled++;
 		}
@@ -8831,8 +8830,8 @@ static void io_ring_ctx_wait_and_kill(struct io_ring_ctx *ctx)
 		io_unregister_personality(ctx, index);
 	mutex_unlock(&ctx->uring_lock);
 
-	io_kill_timeouts(ctx, NULL, NULL);
-	io_poll_remove_all(ctx, NULL, NULL);
+	io_kill_timeouts(ctx, NULL, true);
+	io_poll_remove_all(ctx, NULL, true);
 
 	/* if we failed setting up the ctx, we might not have any rings */
 	io_iopoll_try_reap_events(ctx);
@@ -8858,7 +8857,7 @@ static int io_uring_release(struct inode *inode, struct file *file)
 
 struct io_task_cancel {
 	struct task_struct *task;
-	struct files_struct *files;
+	bool all;
 };
 
 static bool io_cancel_task_cb(struct io_wq_work *work, void *data)
@@ -8867,30 +8866,29 @@ static bool io_cancel_task_cb(struct io_wq_work *work, void *data)
 	struct io_task_cancel *cancel = data;
 	bool ret;
 
-	if (cancel->files && (req->flags & REQ_F_LINK_TIMEOUT)) {
+	if (!cancel->all && (req->flags & REQ_F_LINK_TIMEOUT)) {
 		unsigned long flags;
 		struct io_ring_ctx *ctx = req->ctx;
 
 		/* protect against races with linked timeouts */
 		spin_lock_irqsave(&ctx->completion_lock, flags);
-		ret = io_match_task(req, cancel->task, cancel->files);
+		ret = io_match_task(req, cancel->task, cancel->all);
 		spin_unlock_irqrestore(&ctx->completion_lock, flags);
 	} else {
-		ret = io_match_task(req, cancel->task, cancel->files);
+		ret = io_match_task(req, cancel->task, cancel->all);
 	}
 	return ret;
 }
 
 static bool io_cancel_defer_files(struct io_ring_ctx *ctx,
-				  struct task_struct *task,
-				  struct files_struct *files)
+				  struct task_struct *task, bool cancel_all)
 {
 	struct io_defer_entry *de;
 	LIST_HEAD(list);
 
 	spin_lock_irq(&ctx->completion_lock);
 	list_for_each_entry_reverse(de, &ctx->defer_list, list) {
-		if (io_match_task(de->req, task, files)) {
+		if (io_match_task(de->req, task, cancel_all)) {
 			list_cut_position(&list, &ctx->defer_list, &de->list);
 			break;
 		}
@@ -8934,9 +8932,9 @@ static bool io_uring_try_cancel_iowq(struct io_ring_ctx *ctx)
 
 static void io_uring_try_cancel_requests(struct io_ring_ctx *ctx,
 					 struct task_struct *task,
-					 struct files_struct *files)
+					 bool cancel_all)
 {
-	struct io_task_cancel cancel = { .task = task, .files = files, };
+	struct io_task_cancel cancel = { .task = task, .all = cancel_all, };
 	struct io_uring_task *tctx = task ? task->io_uring : NULL;
 
 	while (1) {
@@ -8956,7 +8954,7 @@ static void io_uring_try_cancel_requests(struct io_ring_ctx *ctx,
 		}
 
 		/* SQPOLL thread does its own polling */
-		if ((!(ctx->flags & IORING_SETUP_SQPOLL) && !files) ||
+		if ((!(ctx->flags & IORING_SETUP_SQPOLL) && cancel_all) ||
 		    (ctx->sq_data && ctx->sq_data->thread == current)) {
 			while (!list_empty_careful(&ctx->iopoll_list)) {
 				io_iopoll_try_reap_events(ctx);
@@ -8964,9 +8962,9 @@ static void io_uring_try_cancel_requests(struct io_ring_ctx *ctx,
 			}
 		}
 
-		ret |= io_cancel_defer_files(ctx, task, files);
-		ret |= io_poll_remove_all(ctx, task, files);
-		ret |= io_kill_timeouts(ctx, task, files);
+		ret |= io_cancel_defer_files(ctx, task, cancel_all);
+		ret |= io_poll_remove_all(ctx, task, cancel_all);
+		ret |= io_kill_timeouts(ctx, task, cancel_all);
 		ret |= io_run_task_work();
 		ret |= io_run_ctx_fallback(ctx);
 		if (!ret)
@@ -9072,7 +9070,7 @@ static s64 tctx_inflight(struct io_uring_task *tctx, bool tracked)
 	return percpu_counter_sum(&tctx->inflight);
 }
 
-static void io_uring_try_cancel(struct files_struct *files)
+static void io_uring_try_cancel(bool cancel_all)
 {
 	struct io_uring_task *tctx = current->io_uring;
 	struct io_tctx_node *node;
@@ -9083,7 +9081,7 @@ static void io_uring_try_cancel(struct files_struct *files)
 
 		/* sqpoll task will cancel all its requests */
 		if (!ctx->sq_data)
-			io_uring_try_cancel_requests(ctx, current, files);
+			io_uring_try_cancel_requests(ctx, current, cancel_all);
 	}
 }
 
@@ -9109,7 +9107,7 @@ static void io_uring_cancel_sqpoll(struct io_sq_data *sqd)
 		if (!inflight)
 			break;
 		list_for_each_entry(ctx, &sqd->ctx_list, sqd_list)
-			io_uring_try_cancel_requests(ctx, current, NULL);
+			io_uring_try_cancel_requests(ctx, current, true);
 
 		prepare_to_wait(&tctx->wait, &wait, TASK_UNINTERRUPTIBLE);
 		/*
@@ -9133,6 +9131,7 @@ void __io_uring_cancel(struct files_struct *files)
 	struct io_uring_task *tctx = current->io_uring;
 	DEFINE_WAIT(wait);
 	s64 inflight;
+	bool cancel_all = !files;
 
 	if (tctx->io_wq)
 		io_wq_exit_start(tctx->io_wq);
@@ -9141,10 +9140,10 @@ void __io_uring_cancel(struct files_struct *files)
 	atomic_inc(&tctx->in_idle);
 	do {
 		/* read completions before cancelations */
-		inflight = tctx_inflight(tctx, !!files);
+		inflight = tctx_inflight(tctx, !cancel_all);
 		if (!inflight)
 			break;
-		io_uring_try_cancel(files);
+		io_uring_try_cancel(cancel_all);
 		prepare_to_wait(&tctx->wait, &wait, TASK_UNINTERRUPTIBLE);
 
 		/*
@@ -9152,14 +9151,14 @@ void __io_uring_cancel(struct files_struct *files)
 		 * avoids a race where a completion comes in before we did
 		 * prepare_to_wait().
 		 */
-		if (inflight == tctx_inflight(tctx, !!files))
+		if (inflight == tctx_inflight(tctx, !cancel_all))
 			schedule();
 		finish_wait(&tctx->wait, &wait);
 	} while (1);
 	atomic_dec(&tctx->in_idle);
 
 	io_uring_clean_tctx(tctx);
-	if (!files) {
+	if (cancel_all) {
 		/* for exec all current's requests should be gone, kill tctx */
 		__io_uring_free(current);
 	}
