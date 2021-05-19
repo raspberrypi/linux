@@ -64,6 +64,7 @@
 #include <trace/hooks/dmabuf.h>
 #include <trace/hooks/compaction.h>
 #include <trace/hooks/sd.h>
+#include <trace/hooks/user.h>
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -364,3 +365,5 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_swapmem_gather_add_bypass);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_swapmem_gather_finish);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_oom_swapmem_gather_init);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_oom_swapmem_gather_finish);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_alloc_uid);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_free_user);
