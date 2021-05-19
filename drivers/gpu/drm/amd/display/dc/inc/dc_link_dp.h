@@ -67,6 +67,10 @@ bool perform_link_training_with_retries(
 	struct pipe_ctx *pipe_ctx,
 	enum signal_type signal);
 
+bool hpd_rx_irq_check_link_loss_status(
+	struct dc_link *link,
+	union hpd_irq_data *hpd_irq_dpcd_data);
+
 bool is_mst_supported(struct dc_link *link);
 
 bool detect_dp_sink_caps(struct dc_link *link);
