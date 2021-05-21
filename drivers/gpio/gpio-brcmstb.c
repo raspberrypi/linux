@@ -640,6 +640,8 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 #if defined(CONFIG_MIPS) && defined(__BIG_ENDIAN)
 	flags = BGPIOF_BIG_ENDIAN_BYTE_ORDER;
 #endif
+	if (of_property_read_bool(np, "brcm,gpio-direct"))
+	    flags |= BGPIOF_REG_DIRECT;
 
 	of_property_for_each_u32(np, "brcm,gpio-bank-widths", prop, p,
 			bank_width) {
@@ -689,7 +691,9 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 		}
 
 		gc->owner = THIS_MODULE;
-		gc->label = devm_kasprintf(dev, GFP_KERNEL, "%pOF", np);
+		gc->label = devm_kasprintf(dev, GFP_KERNEL, "gpio-brcmstb@%zx",
+					   (size_t)res->start +
+					   GIO_BANK_OFF(bank->id, 0));
 		if (!gc->label) {
 			err = -ENOMEM;
 			goto fail;
@@ -698,7 +702,7 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 		gc->of_gpio_n_cells = 2;
 		gc->of_xlate = brcmstb_gpio_of_xlate;
 		/* not all ngpio lines are valid, will use bank width later */
-		gc->ngpio = MAX_GPIO_PER_BANK;
+		gc->ngpio = bank_width;
 		gc->offset = bank->id * MAX_GPIO_PER_BANK;
 		if (priv->parent_irq > 0)
 			gc->to_irq = brcmstb_gpio_to_irq;
@@ -707,8 +711,10 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 		 * Mask all interrupts by default, since wakeup interrupts may
 		 * be retained from S5 cold boot
 		 */
-		need_wakeup_event |= !!__brcmstb_gpio_get_active_irqs(bank);
-		gc->write_reg(reg_base + GIO_MASK(bank->id), 0);
+		if (priv->parent_irq > 0) {
+			need_wakeup_event |= !!__brcmstb_gpio_get_active_irqs(bank);
+			gc->write_reg(reg_base + GIO_MASK(bank->id), 0);
+		}
 
 		err = gpiochip_add_data(gc, bank);
 		if (err) {
