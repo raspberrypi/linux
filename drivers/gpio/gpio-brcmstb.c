@@ -50,7 +50,6 @@ struct brcmstb_gpio_priv {
 	struct irq_domain *irq_domain;
 	struct irq_chip irq_chip;
 	int parent_irq;
-	int gpio_base;
 	int num_gpios;
 	int parent_wake_irq;
 };
@@ -92,7 +91,7 @@ brcmstb_gpio_get_active_irqs(struct brcmstb_gpio_bank *bank)
 static int brcmstb_gpio_hwirq_to_offset(irq_hw_number_t hwirq,
 					struct brcmstb_gpio_bank *bank)
 {
-	return hwirq - (bank->gc.base - bank->parent_priv->gpio_base);
+	return hwirq - bank->id * 32;
 }
 
 static void brcmstb_gpio_set_imask(struct brcmstb_gpio_bank *bank,
@@ -117,8 +116,9 @@ static void brcmstb_gpio_set_imask(struct brcmstb_gpio_bank *bank,
 static int brcmstb_gpio_to_irq(struct gpio_chip *gc, unsigned offset)
 {
 	struct brcmstb_gpio_priv *priv = brcmstb_gpio_gc_to_priv(gc);
+	struct brcmstb_gpio_bank *bank = gpiochip_get_data(gc);
 	/* gc_offset is relative to this gpio_chip; want real offset */
-	int hwirq = offset + (gc->base - priv->gpio_base);
+	int hwirq = offset + bank->id * 32;
 
 	if (hwirq >= priv->num_gpios)
 		return -ENXIO;
@@ -263,7 +263,7 @@ static void brcmstb_gpio_irq_bank_handler(struct brcmstb_gpio_bank *bank)
 {
 	struct brcmstb_gpio_priv *priv = bank->parent_priv;
 	struct irq_domain *domain = priv->irq_domain;
-	int hwbase = bank->gc.base - priv->gpio_base;
+	int hwbase = bank->id * 32;
 	unsigned long status;
 
 	while ((status = brcmstb_gpio_get_active_irqs(bank))) {
@@ -412,7 +412,7 @@ static int brcmstb_gpio_of_xlate(struct gpio_chip *gc,
 	if (WARN_ON(gpiospec->args_count < gc->of_gpio_n_cells))
 		return -EINVAL;
 
-	offset = gpiospec->args[0] - (gc->base - priv->gpio_base);
+	offset = gpiospec->args[0] - bank->id * 32;
 	if (offset >= gc->ngpio || offset < 0)
 		return -EINVAL;
 
@@ -596,8 +596,8 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 	const __be32 *p;
 	u32 bank_width;
 	int num_banks = 0;
+	int num_gpios = 0;
 	int err;
-	static int gpio_base;
 	unsigned long flags = 0;
 	bool need_wakeup_event = false;
 
@@ -611,7 +611,6 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 	if (IS_ERR(reg_base))
 		return PTR_ERR(reg_base);
 
-	priv->gpio_base = gpio_base;
 	priv->reg_base = reg_base;
 	priv->pdev = pdev;
 
@@ -637,6 +636,8 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 #if defined(CONFIG_MIPS) && defined(__BIG_ENDIAN)
 	flags = BGPIOF_BIG_ENDIAN_BYTE_ORDER;
 #endif
+	if (of_property_read_bool(np, "brcm,gpio-direct"))
+	    flags |= BGPIOF_REG_DIRECT;
 
 	of_property_for_each_u32(np, "brcm,gpio-bank-widths", prop, p,
 			bank_width) {
@@ -651,7 +652,7 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 			dev_dbg(dev, "Width 0 found: Empty bank @ %d\n",
 				num_banks);
 			num_banks++;
-			gpio_base += MAX_GPIO_PER_BANK;
+			num_gpios += MAX_GPIO_PER_BANK;
 			continue;
 		}
 
@@ -686,16 +687,18 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 		}
 
 		gc->owner = THIS_MODULE;
-		gc->label = devm_kasprintf(dev, GFP_KERNEL, "%pOF", np);
+		gc->label = devm_kasprintf(dev, GFP_KERNEL, "gpio-brcmstb@%zx",
+					   (size_t)res->start +
+					   GIO_BANK_OFF(bank->id, 0));
 		if (!gc->label) {
 			err = -ENOMEM;
 			goto fail;
 		}
-		gc->base = gpio_base;
+		gc->base = -1;
 		gc->of_gpio_n_cells = 2;
 		gc->of_xlate = brcmstb_gpio_of_xlate;
 		/* not all ngpio lines are valid, will use bank width later */
-		gc->ngpio = MAX_GPIO_PER_BANK;
+		gc->ngpio = bank_width;
 		gc->offset = bank->id * MAX_GPIO_PER_BANK;
 		if (priv->parent_irq > 0)
 			gc->to_irq = brcmstb_gpio_to_irq;
@@ -704,8 +707,10 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 		 * Mask all interrupts by default, since wakeup interrupts may
 		 * be retained from S5 cold boot
 		 */
-		need_wakeup_event |= !!__brcmstb_gpio_get_active_irqs(bank);
-		gc->write_reg(reg_base + GIO_MASK(bank->id), 0);
+		if (priv->parent_irq > 0) {
+			need_wakeup_event |= !!__brcmstb_gpio_get_active_irqs(bank);
+			gc->write_reg(reg_base + GIO_MASK(bank->id), 0);
+		}
 
 		err = gpiochip_add_data(gc, bank);
 		if (err) {
@@ -713,7 +718,7 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 					bank->id);
 			goto fail;
 		}
-		gpio_base += gc->ngpio;
+		num_gpios += gc->ngpio;
 
 		dev_dbg(dev, "bank=%d, base=%d, ngpio=%d, width=%d\n", bank->id,
 			gc->base, gc->ngpio, bank->width);
@@ -724,7 +729,7 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 		num_banks++;
 	}
 
-	priv->num_gpios = gpio_base - priv->gpio_base;
+	priv->num_gpios = num_gpios;
 	if (priv->parent_irq > 0) {
 		err = brcmstb_gpio_irq_setup(pdev, priv);
 		if (err)
