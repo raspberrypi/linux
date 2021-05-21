@@ -18,6 +18,7 @@ struct device;
 #define GPIO_GENERIC_NO_SET_ON_INPUT		BIT(6)
 #define GPIO_GENERIC_PINCTRL_BACKEND		BIT(7) /* Call pinctrl direction setters */
 #define GPIO_GENERIC_NO_INPUT			BIT(8) /* only output */
+#define GPIO_GENERIC_REG_DIRECT			BIT(15) /* ignore shadow registers */
 
 /**
  * struct gpio_generic_chip_config - Generic GPIO chip configuration data
