@@ -2010,8 +2010,8 @@ Params: speed                   Display SPI bus speed
 
 Name:   merus-amp
 Info:   Configures the merus-amp audio card
-Load:   dtoverlay=merus-amp,<param>=<val>
-Params: spioff                  Turn SPI bus off
+Load:   dtoverlay=merus-amp
+Params: <None>
 
 
 Name:   midi-uart0
