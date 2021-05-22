@@ -1187,6 +1187,8 @@ struct rq {
 	struct list_head	cfsb_csd_list;
 #endif
 
+	ANDROID_OEM_DATA_ARRAY(1, 16);
+
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
 	ANDROID_KABI_RESERVE(3);
