@@ -1748,6 +1748,7 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	card->name = vc4_hdmi->variant->id ? "vc4-hdmi1" : "vc4-hdmi";
 	card->driver_name = "vc4-hdmi";
 	card->dev = dev;
+	card->owner = THIS_MODULE;
 
 	/*
 	 * Be careful, snd_soc_register_card() calls dev_set_drvdata() and

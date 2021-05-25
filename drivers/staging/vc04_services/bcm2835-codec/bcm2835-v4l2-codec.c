@@ -89,6 +89,9 @@ static const char * const components[] = {
 	"ril.isp",
 };
 
+/* Timeout for stop_streaming to allow all buffers to return */
+#define COMPLETE_TIMEOUT (2 * HZ)
+
 #define MIN_W		32
 #define MIN_H		32
 #define MAX_W		1920
@@ -204,7 +207,7 @@ static const struct bcm2835_codec_fmt supported_formats[] = {
 		.mmal_fmt		= MMAL_ENCODING_BGR24,
 		.size_multiplier_x2	= 2,
 	}, {
-		.fourcc			= V4L2_PIX_FMT_BGR32,
+		.fourcc			= V4L2_PIX_FMT_BGRX32,
 		.depth			= 32,
 		.bytesperline_align	= 32,
 		.flags			= 0,
@@ -2287,7 +2290,7 @@ static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 	if (count < port->minimum_buffer.num)
 		count = port->minimum_buffer.num;
 
-	if (port->current_buffer.num != count + 1) {
+	if (port->current_buffer.num < count + 1) {
 		v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: ctx:%p, buffer count changed %u to %u\n",
 			 __func__, ctx, port->current_buffer.num, count + 1);
 
@@ -2366,7 +2369,8 @@ static void bcm2835_codec_stop_streaming(struct vb2_queue *q)
 	while (atomic_read(&port->buffers_with_vpu)) {
 		v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: Waiting for buffers to be returned - %d outstanding\n",
 			 __func__, atomic_read(&port->buffers_with_vpu));
-		ret = wait_for_completion_timeout(&ctx->frame_cmplt, HZ);
+		ret = wait_for_completion_timeout(&ctx->frame_cmplt,
+						  COMPLETE_TIMEOUT);
 		if (ret <= 0) {
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Timeout waiting for buffers to be returned - %d outstanding\n",
 				 __func__,

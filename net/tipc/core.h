@@ -86,6 +86,12 @@ extern unsigned int tipc_net_id __read_mostly;
 extern int sysctl_tipc_rmem[3] __read_mostly;
 extern int sysctl_tipc_named_timeout __read_mostly;
 
+struct tipc_net_work {
+	struct work_struct work;
+	struct net *net;
+	u32 addr;
+};
+
 struct tipc_net {
 	u8  node_id[NODE_ID_LEN];
 	u32 node_addr;
@@ -134,6 +140,9 @@ struct tipc_net {
 
 	/* Tracing of node internal messages */
 	struct packet_type loopback_pt;
+
+	/* Work item for net finalize */
+	struct tipc_net_work final_work;
 };
 
 static inline struct tipc_net *tipc_net(struct net *net)

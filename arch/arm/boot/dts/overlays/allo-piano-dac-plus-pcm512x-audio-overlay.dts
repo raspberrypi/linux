@@ -23,12 +23,14 @@
 				#sound-dai-cells = <0>;
 				compatible = "ti,pcm5122";
 				reg = <0x4c>;
+				sound-name-prefix = "Main";
 				status = "okay";
 			};
 			allo_pcm5122_4d: pcm5122@4d {
 				#sound-dai-cells = <0>;
 				compatible = "ti,pcm5122";
 				reg = <0x4d>;
+				sound-name-prefix = "Sub";
 				status = "okay";
 			};
 		};

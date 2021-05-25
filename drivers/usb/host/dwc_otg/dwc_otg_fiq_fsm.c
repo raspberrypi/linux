@@ -240,7 +240,8 @@ static int notrace fiq_increment_dma_buf(struct fiq_state *st, int num_channels,
 	hcdma_data_t hcdma;
 	int i = st->channel[n].dma_info.index;
 	int len;
-	struct fiq_dma_blob *blob = (struct fiq_dma_blob *) st->dma_base;
+	struct fiq_dma_blob *blob =
+		(struct fiq_dma_blob *)(uintptr_t)st->dma_base;
 
 	len = fiq_get_xfer_len(st, n);
 	fiq_print(FIQDBG_INT, st, "LEN: %03d", len);
@@ -249,7 +250,7 @@ static int notrace fiq_increment_dma_buf(struct fiq_state *st, int num_channels,
 	if (i > 6)
 		BUG();
 
-	hcdma.d32 = (dma_addr_t) &blob->channel[n].index[i].buf[0];
+	hcdma.d32 = (u32)(uintptr_t)&blob->channel[n].index[i].buf[0];
 	FIQ_WRITE(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HC_DMA, hcdma.d32);
 	st->channel[n].dma_info.index = i;
 	return 0;
@@ -289,7 +290,8 @@ static int notrace fiq_iso_out_advance(struct fiq_state *st, int num_channels, i
 	hcsplt_data_t hcsplt;
 	hctsiz_data_t hctsiz;
 	hcdma_data_t hcdma;
-	struct fiq_dma_blob *blob = (struct fiq_dma_blob *) st->dma_base;
+	struct fiq_dma_blob *blob =
+		(struct fiq_dma_blob *)(uintptr_t)st->dma_base;
 	int last = 0;
 	int i = st->channel[n].dma_info.index;
 
@@ -301,7 +303,7 @@ static int notrace fiq_iso_out_advance(struct fiq_state *st, int num_channels, i
 		last = 1;
 
 	/* New DMA address - address of bounce buffer referred to in index */
-	hcdma.d32 = (dma_addr_t) blob->channel[n].index[i].buf;
+	hcdma.d32 = (u32)(uintptr_t)blob->channel[n].index[i].buf;
 	//hcdma.d32 = FIQ_READ(st->dwc_regs_base + HC_START + (HC_OFFSET * n) + HC_DMA);
 	//hcdma.d32 += st->channel[n].dma_info.slot_len[i];
 	fiq_print(FIQDBG_INT, st, "LAST: %01d ", last);

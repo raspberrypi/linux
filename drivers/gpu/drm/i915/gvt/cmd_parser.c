@@ -963,18 +963,6 @@ static int cmd_handler_lri(struct parser_exec_state *s)
 	int i, ret = 0;
 	int cmd_len = cmd_length(s);
 	struct intel_gvt *gvt = s->vgpu->gvt;
-	u32 valid_len = CMD_LEN(1);
-
-	/*
-	 * Official intel docs are somewhat sloppy , check the definition of
-	 * MI_LOAD_REGISTER_IMM.
-	 */
-	#define MAX_VALID_LEN 127
-	if ((cmd_len < valid_len) || (cmd_len > MAX_VALID_LEN)) {
-		gvt_err("len is not valid:  len=%u  valid_len=%u\n",
-			cmd_len, valid_len);
-		return -EFAULT;
-	}
 
 	for (i = 1; i < cmd_len; i += 2) {
 		if (IS_BROADWELL(gvt->dev_priv) && s->ring_id != RCS0) {

@@ -59,7 +59,7 @@
 				rotate = <0>;
 				fps = <25>;
 				buswidth = <8>;
-				reset-gpios = <&gpio 25 0>;
+				reset-gpios = <&gpio 25 1>;
 				dc-gpios = <&gpio 24 0>;
 				debug = <0>;
 

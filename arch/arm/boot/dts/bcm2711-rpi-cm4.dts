@@ -174,7 +174,7 @@
 
 / {
 	chosen {
-		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_compat_alsa=0 snd_bcm2835.enable_hdmi=1 snd_bcm2835.enable_headphones=1";
+		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_compat_alsa=0 snd_bcm2835.enable_hdmi=1";
 	};
 
 	aliases {
@@ -434,8 +434,8 @@
 
 &gpio {
 	audio_pins: audio_pins {
-		brcm,pins = <40 41>;
-		brcm,function = <4>;
+		brcm,pins = <>;
+		brcm,function = <>;
 	};
 };
 
@@ -460,6 +460,7 @@
 &audio {
 	pinctrl-names = "default";
 	pinctrl-0 = <&audio_pins>;
+	brcm,disable-headphones = <1>;
 };
 
 &vc4 {
