@@ -8,6 +8,7 @@
 	fragment@0 {
 		target = <&i2s>;
 		__overlay__ {
+			#sound-dai-cells = <0>;
 			status = "okay";
 		};
 	};
@@ -15,7 +16,7 @@
 	fragment@1 {
 		target-path = "/";
 		__overlay__ {
-			pcm5102a-codec {
+			codec_pcm: pcm5102a-codec {
 				#sound-dai-cells = <0>;
 				compatible = "ti,pcm5102a";
 				status = "okay";
@@ -26,9 +27,23 @@
 	fragment@2 {
 		target = <&sound>;
 		__overlay__ {
-			compatible = "hifiberry,hifiberry-dac";
-			i2s-controller = <&i2s>;
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "HiFiBerry-DAC";
 			status = "okay";
+
+			simple-audio-card,dai-link@1 {
+				format = "i2s";
+
+				cpu {
+					sound-dai = <&i2s>;
+					dai-tdm-slot-num = <2>;
+					dai-tdm-slot-width = <32>;
+				};
+
+				codec {
+					sound-dai = <&codec_pcm>;
+				};
+			};
 		};
 	};
 };
