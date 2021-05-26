@@ -372,6 +372,12 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 						new_hvs_state->core_clock_rate);
 
 		core_req = clk_request_start(hvs->core_clk, core_rate);
+
+		/*
+		 * And remove the previous one based on the HVS
+		 * requirements if any.
+		 */
+		clk_request_done(hvs->core_req);
 	}
 
 	for_each_old_crtc_in_state(state, crtc, old_crtc_state, i) {
@@ -416,6 +422,14 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		drm_dbg(dev, "Running the core clock at %lu Hz\n",
 			new_hvs_state->core_clock_rate);
 
+		/*
+		 * Request a clock rate based on the current HVS
+		 * requirements.
+		 */
+		hvs->core_req = clk_request_start(hvs->core_clk,
+						  new_hvs_state->core_clock_rate);
+
+		/* And drop the temporary request */
 		clk_request_done(core_req);
 	}
 }
