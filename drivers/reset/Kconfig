@@ -51,7 +51,7 @@ config RESET_BERLIN
 
 config RESET_BRCMSTB
 	tristate "Broadcom STB reset controller"
-	depends on ARCH_BRCMSTB || COMPILE_TEST
+	depends on ARCH_BRCMSTB || ARCH_BCM2835 || COMPILE_TEST
 	default ARCH_BRCMSTB
 	help
 	  This enables the reset controller driver for Broadcom STB SoCs using
