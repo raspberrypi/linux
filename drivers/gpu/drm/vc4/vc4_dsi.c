@@ -42,6 +42,9 @@
 #include "vc4_drv.h"
 #include "vc4_regs.h"
 
+/* Set to 1 to dump register values */
+#define DEBUG_DUMP_REGS	0
+
 #define DSI_CMD_FIFO_DEPTH  16
 #define DSI_PIX_FIFO_DEPTH 256
 #define DSI_PIX_FIFO_WIDTH   4
@@ -554,7 +557,6 @@ struct vc4_dsi {
 	struct mipi_dsi_host dsi_host;
 	struct drm_encoder *encoder;
 	struct drm_bridge *bridge;
-	struct list_head bridge_chain;
 
 	void __iomem *regs;
 
@@ -798,29 +800,15 @@ static void vc4_dsi_encoder_disable(struct drm_encoder *encoder)
 	struct vc4_dsi_encoder *vc4_encoder = to_vc4_dsi_encoder(encoder);
 	struct vc4_dsi *dsi = vc4_encoder->dsi;
 	struct device *dev = &dsi->pdev->dev;
-	struct drm_bridge *iter;
 
-	list_for_each_entry_reverse(iter, &dsi->bridge_chain, chain_node) {
-		if (iter->funcs->disable)
-			iter->funcs->disable(iter);
-
-		if (iter == dsi->bridge)
-			break;
-	}
+	DSI_PORT_WRITE(DISP0_CTRL,
+		       DSI_PORT_READ(DISP0_CTRL) & ~DSI_DISP0_ENABLE);
 
 	vc4_dsi_ulps(dsi, true);
 
-	list_for_each_entry_from(iter, &dsi->bridge_chain, chain_node) {
-		if (iter->funcs->post_disable)
-			iter->funcs->post_disable(iter);
-	}
-
-	clk_disable_unprepare(dsi->pll_phy_clock);
-	clk_disable_unprepare(dsi->escape_clock);
-	clk_disable_unprepare(dsi->pixel_clock);
-
 	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
+
 }
 
 /* Extends the mode's blank intervals to handle BCM2835's integer-only
@@ -877,249 +865,18 @@ static bool vc4_dsi_encoder_mode_fixup(struct drm_encoder *encoder,
 
 static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
 {
-	struct drm_display_mode *mode = &encoder->crtc->state->adjusted_mode;
 	struct vc4_dsi_encoder *vc4_encoder = to_vc4_dsi_encoder(encoder);
 	struct vc4_dsi *dsi = vc4_encoder->dsi;
 	struct device *dev = &dsi->pdev->dev;
-	bool debug_dump_regs = false;
-	struct drm_bridge *iter;
-	unsigned long hs_clock;
-	u32 ui_ns;
-	/* Minimum LP state duration in escape clock cycles. */
-	u32 lpx = dsi_esc_timing(60);
-	unsigned long pixel_clock_hz = mode->clock * 1000;
-	unsigned long dsip_clock;
-	unsigned long phy_clock;
 	int ret;
 
 	ret = pm_runtime_get_sync(dev);
 	if (ret < 0) {
-		DRM_ERROR("Failed to runtime PM enable on DSI%d\n", dsi->variant->port);
-		pm_runtime_put_autosuspend(dev);
+		DRM_ERROR("Failed to runtime PM enable on DSI%d %d\n", dsi->variant->port, ret);
 		return;
 	}
-
-	if (debug_dump_regs) {
-		struct drm_printer p = drm_info_printer(&dsi->pdev->dev);
-		dev_info(&dsi->pdev->dev, "DSI regs before:\n");
-		drm_print_regset32(&p, &dsi->regset);
-	}
-
-	/* Round up the clk_set_rate() request slightly, since
-	 * PLLD_DSI1 is an integer divider and its rate selection will
-	 * never round up.
-	 */
-	phy_clock = (pixel_clock_hz + 1000) * dsi->divider;
-	ret = clk_set_rate(dsi->pll_phy_clock, phy_clock);
-	if (ret) {
-		dev_err(&dsi->pdev->dev,
-			"Failed to set phy clock to %ld: %d\n", phy_clock, ret);
-	}
-
-	/* Reset the DSI and all its fifos. */
-	DSI_PORT_WRITE(CTRL,
-		       DSI_CTRL_SOFT_RESET_CFG |
-		       DSI_PORT_BIT(CTRL_RESET_FIFOS));
-
-	DSI_PORT_WRITE(CTRL,
-		       DSI_CTRL_HSDT_EOT_DISABLE |
-		       DSI_CTRL_RX_LPDT_EOT_DISABLE);
-
-	/* Clear all stat bits so we see what has happened during enable. */
-	DSI_PORT_WRITE(STAT, DSI_PORT_READ(STAT));
-
-	/* Set AFE CTR00/CTR1 to release powerdown of analog. */
-	if (dsi->variant->port == 0) {
-		u32 afec0 = (VC4_SET_FIELD(7, DSI_PHY_AFEC0_PTATADJ) |
-			     VC4_SET_FIELD(7, DSI_PHY_AFEC0_CTATADJ));
-
-		if (dsi->lanes < 2)
-			afec0 |= DSI0_PHY_AFEC0_PD_DLANE1;
-
-		if (!(dsi->mode_flags & MIPI_DSI_MODE_VIDEO))
-			afec0 |= DSI0_PHY_AFEC0_RESET;
-
-		DSI_PORT_WRITE(PHY_AFEC0, afec0);
-
-		/* AFEC reset hold time */
-		mdelay(1);
-
-		DSI_PORT_WRITE(PHY_AFEC1,
-			       VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_DLANE1) |
-			       VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_DLANE0) |
-			       VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_CLANE));
-	} else {
-		u32 afec0 = (VC4_SET_FIELD(7, DSI_PHY_AFEC0_PTATADJ) |
-			     VC4_SET_FIELD(7, DSI_PHY_AFEC0_CTATADJ) |
-			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_CLANE) |
-			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE0) |
-			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE1) |
-			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE2) |
-			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE3));
-
-		if (dsi->lanes < 4)
-			afec0 |= DSI1_PHY_AFEC0_PD_DLANE3;
-		if (dsi->lanes < 3)
-			afec0 |= DSI1_PHY_AFEC0_PD_DLANE2;
-		if (dsi->lanes < 2)
-			afec0 |= DSI1_PHY_AFEC0_PD_DLANE1;
-
-		afec0 |= DSI1_PHY_AFEC0_RESET;
-
-		DSI_PORT_WRITE(PHY_AFEC0, afec0);
-
-		DSI_PORT_WRITE(PHY_AFEC1, 0);
-
-		/* AFEC reset hold time */
-		mdelay(1);
-	}
-
-	ret = clk_prepare_enable(dsi->escape_clock);
-	if (ret) {
-		DRM_ERROR("Failed to turn on DSI escape clock: %d\n", ret);
-		return;
-	}
-
-	ret = clk_prepare_enable(dsi->pll_phy_clock);
-	if (ret) {
-		DRM_ERROR("Failed to turn on DSI PLL: %d\n", ret);
-		return;
-	}
-
-	hs_clock = clk_get_rate(dsi->pll_phy_clock);
-
-	/* Yes, we set the DSI0P/DSI1P pixel clock to the byte rate,
-	 * not the pixel clock rate.  DSIxP take from the APHY's byte,
-	 * DDR2, or DDR4 clock (we use byte) and feed into the PV at
-	 * that rate.  Separately, a value derived from PIX_CLK_DIV
-	 * and HS_CLKC is fed into the PV to divide down to the actual
-	 * pixel clock for pushing pixels into DSI.
-	 */
-	dsip_clock = phy_clock / 8;
-	ret = clk_set_rate(dsi->pixel_clock, dsip_clock);
-	if (ret) {
-		dev_err(dev, "Failed to set pixel clock to %ldHz: %d\n",
-			dsip_clock, ret);
-	}
-
-	ret = clk_prepare_enable(dsi->pixel_clock);
-	if (ret) {
-		DRM_ERROR("Failed to turn on DSI pixel clock: %d\n", ret);
-		return;
-	}
-
-	/* How many ns one DSI unit interval is.  Note that the clock
-	 * is DDR, so there's an extra divide by 2.
-	 */
-	ui_ns = DIV_ROUND_UP(500000000, hs_clock);
-
-	DSI_PORT_WRITE(HS_CLT0,
-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 262, 0),
-				     DSI_HS_CLT0_CZERO) |
-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 0, 8),
-				     DSI_HS_CLT0_CPRE) |
-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 38, 0),
-				     DSI_HS_CLT0_CPREP));
-
-	DSI_PORT_WRITE(HS_CLT1,
-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 60, 0),
-				     DSI_HS_CLT1_CTRAIL) |
-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 60, 52),
-				     DSI_HS_CLT1_CPOST));
-
-	DSI_PORT_WRITE(HS_CLT2,
-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 1000000, 0),
-				     DSI_HS_CLT2_WUP));
-
-	DSI_PORT_WRITE(HS_DLT3,
-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 100, 0),
-				     DSI_HS_DLT3_EXIT) |
-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 105, 6),
-				     DSI_HS_DLT3_ZERO) |
-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 40, 4),
-				     DSI_HS_DLT3_PRE));
-
-	DSI_PORT_WRITE(HS_DLT4,
-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, lpx * ESC_TIME_NS, 0),
-				     DSI_HS_DLT4_LPX) |
-		       VC4_SET_FIELD(max(dsi_hs_timing(ui_ns, 0, 8),
-					 dsi_hs_timing(ui_ns, 60, 4)),
-				     DSI_HS_DLT4_TRAIL) |
-		       VC4_SET_FIELD(0, DSI_HS_DLT4_ANLAT));
-
-	/* T_INIT is how long STOP is driven after power-up to
-	 * indicate to the slave (also coming out of power-up) that
-	 * master init is complete, and should be greater than the
-	 * maximum of two value: T_INIT,MASTER and T_INIT,SLAVE.  The
-	 * D-PHY spec gives a minimum 100us for T_INIT,MASTER and
-	 * T_INIT,SLAVE, while allowing protocols on top of it to give
-	 * greater minimums.  The vc4 firmware uses an extremely
-	 * conservative 5ms, and we maintain that here.
-	 */
-	DSI_PORT_WRITE(HS_DLT5, VC4_SET_FIELD(dsi_hs_timing(ui_ns,
-							    5 * 1000 * 1000, 0),
-					      DSI_HS_DLT5_INIT));
-
-	DSI_PORT_WRITE(HS_DLT6,
-		       VC4_SET_FIELD(lpx * 5, DSI_HS_DLT6_TA_GET) |
-		       VC4_SET_FIELD(lpx, DSI_HS_DLT6_TA_SURE) |
-		       VC4_SET_FIELD(lpx * 4, DSI_HS_DLT6_TA_GO) |
-		       VC4_SET_FIELD(lpx, DSI_HS_DLT6_LP_LPX));
-
-	DSI_PORT_WRITE(HS_DLT7,
-		       VC4_SET_FIELD(dsi_esc_timing(1000000),
-				     DSI_HS_DLT7_LP_WUP));
-
-	DSI_PORT_WRITE(PHYC,
-		       DSI_PHYC_DLANE0_ENABLE |
-		       (dsi->lanes >= 2 ? DSI_PHYC_DLANE1_ENABLE : 0) |
-		       (dsi->lanes >= 3 ? DSI_PHYC_DLANE2_ENABLE : 0) |
-		       (dsi->lanes >= 4 ? DSI_PHYC_DLANE3_ENABLE : 0) |
-		       DSI_PORT_BIT(PHYC_CLANE_ENABLE) |
-		       ((dsi->mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS) ?
-			0 : DSI_PORT_BIT(PHYC_HS_CLK_CONTINUOUS)) |
-		       (dsi->variant->port == 0 ?
-			VC4_SET_FIELD(lpx - 1, DSI0_PHYC_ESC_CLK_LPDT) :
-			VC4_SET_FIELD(lpx - 1, DSI1_PHYC_ESC_CLK_LPDT)));
-
-	DSI_PORT_WRITE(CTRL,
-		       DSI_PORT_READ(CTRL) |
-		       DSI_CTRL_CAL_BYTE);
-
-	/* HS timeout in HS clock cycles: disabled. */
-	DSI_PORT_WRITE(HSTX_TO_CNT, 0);
-	/* LP receive timeout in HS clocks. */
-	DSI_PORT_WRITE(LPRX_TO_CNT, 0xffffff);
-	/* Bus turnaround timeout */
-	DSI_PORT_WRITE(TA_TO_CNT, 100000);
-	/* Display reset sequence timeout */
-	DSI_PORT_WRITE(PR_TO_CNT, 100000);
-
-	/* Set up DISP1 for transferring long command payloads through
-	 * the pixfifo.
-	 */
-	DSI_PORT_WRITE(DISP1_CTRL,
-		       VC4_SET_FIELD(DSI_DISP1_PFORMAT_32BIT_LE,
-				     DSI_DISP1_PFORMAT) |
-		       DSI_DISP1_ENABLE);
-
-	/* Ungate the block. */
-	if (dsi->variant->port == 0)
-		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI0_CTRL_CTRL0);
-	else
-		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI1_CTRL_EN);
-
-	/* Bring AFE out of reset. */
-	DSI_PORT_WRITE(PHY_AFEC0,
-		       DSI_PORT_READ(PHY_AFEC0) &
-		       ~DSI_PORT_BIT(PHY_AFEC0_RESET));
 
 	vc4_dsi_ulps(dsi, false);
-
-	list_for_each_entry_reverse(iter, &dsi->bridge_chain, chain_node) {
-		if (iter->funcs->pre_enable)
-			iter->funcs->pre_enable(iter);
-	}
 
 	if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO) {
 		DSI_PORT_WRITE(DISP0_CTRL,
@@ -1134,17 +891,6 @@ static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
 		DSI_PORT_WRITE(DISP0_CTRL,
 			       DSI_DISP0_COMMAND_MODE |
 			       DSI_DISP0_ENABLE);
-	}
-
-	list_for_each_entry(iter, &dsi->bridge_chain, chain_node) {
-		if (iter->funcs->enable)
-			iter->funcs->enable(iter);
-	}
-
-	if (debug_dump_regs) {
-		struct drm_printer p = drm_info_printer(&dsi->pdev->dev);
-		dev_info(&dsi->pdev->dev, "DSI regs after:\n");
-		drm_print_regset32(&p, &dsi->regset);
 	}
 }
 
@@ -1162,9 +908,9 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 	ret = pm_runtime_get_sync(dev);
 	if (ret < 0) {
 		DRM_ERROR("Failed to runtime PM enable on DSI%d %d\n", dsi->variant->port, ret);
-		pm_runtime_put_autosuspend(dev);
 		return -ENXIO;
 	}
+
 	mipi_dsi_create_packet(&packet, msg);
 
 	pkth |= VC4_SET_FIELD(packet.header[0], DSI_TXPKT1H_BC_DT);
@@ -1309,8 +1055,10 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 			}
 		}
 	}
+
 	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
+
 	return ret;
 
 reset_fifo_and_return:
@@ -1494,12 +1242,248 @@ static int vc4_dsi_runtime_suspend(struct device *dev)
 {
 	struct vc4_dsi *dsi = dev_get_drvdata(dev);
 
+	clk_disable_unprepare(dsi->pll_phy_clock);
+	clk_disable_unprepare(dsi->escape_clock);
+	clk_disable_unprepare(dsi->pixel_clock);
+
 	return 0;
 }
 
 static int vc4_dsi_runtime_resume(struct device *dev)
 {
 	struct vc4_dsi *dsi = dev_get_drvdata(dev);
+	struct drm_display_mode *mode = &dsi->encoder->crtc->state->adjusted_mode;
+	unsigned long hs_clock;
+	u32 ui_ns;
+	/* Minimum LP state duration in escape clock cycles. */
+	u32 lpx = dsi_esc_timing(60);
+	unsigned long pixel_clock_hz = mode->clock * 1000;
+	unsigned long dsip_clock;
+	unsigned long phy_clock;
+	int ret;
+
+	if (DEBUG_DUMP_REGS) {
+		struct drm_printer p = drm_info_printer(&dsi->pdev->dev);
+
+		dev_info(&dsi->pdev->dev, "DSI regs before:\n");
+		drm_print_regset32(&p, &dsi->regset);
+	}
+
+	/* Round up the clk_set_rate() request slightly, since
+	 * PLLD_DSI1 is an integer divider and its rate selection will
+	 * never round up.
+	 */
+	phy_clock = (pixel_clock_hz + 1000) * dsi->divider;
+	ret = clk_set_rate(dsi->pll_phy_clock, phy_clock);
+	if (ret) {
+		dev_err(&dsi->pdev->dev,
+			"Failed to set phy clock to %ld: %d\n", phy_clock, ret);
+	}
+
+	/* Reset the DSI and all its fifos. */
+	DSI_PORT_WRITE(CTRL,
+		       DSI_CTRL_SOFT_RESET_CFG |
+		       DSI_PORT_BIT(CTRL_RESET_FIFOS));
+
+	DSI_PORT_WRITE(CTRL,
+		       DSI_CTRL_HSDT_EOT_DISABLE |
+		       DSI_CTRL_RX_LPDT_EOT_DISABLE);
+
+	/* Clear all stat bits so we see what has happened during enable. */
+	DSI_PORT_WRITE(STAT, DSI_PORT_READ(STAT));
+
+	/* Set AFE CTR00/CTR1 to release powerdown of analog. */
+	if (dsi->variant->port == 0) {
+		u32 afec0 = (VC4_SET_FIELD(7, DSI_PHY_AFEC0_PTATADJ) |
+			     VC4_SET_FIELD(7, DSI_PHY_AFEC0_CTATADJ));
+
+		if (dsi->lanes < 2)
+			afec0 |= DSI0_PHY_AFEC0_PD_DLANE1;
+
+		if (!(dsi->mode_flags & MIPI_DSI_MODE_VIDEO))
+			afec0 |= DSI0_PHY_AFEC0_RESET;
+
+		DSI_PORT_WRITE(PHY_AFEC0, afec0);
+
+		/* AFEC reset hold time */
+		mdelay(1);
+
+		DSI_PORT_WRITE(PHY_AFEC1,
+			       VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_DLANE1) |
+			       VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_DLANE0) |
+			       VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_CLANE));
+	} else {
+		u32 afec0 = (VC4_SET_FIELD(7, DSI_PHY_AFEC0_PTATADJ) |
+			     VC4_SET_FIELD(7, DSI_PHY_AFEC0_CTATADJ) |
+			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_CLANE) |
+			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE0) |
+			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE1) |
+			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE2) |
+			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE3));
+
+		if (dsi->lanes < 4)
+			afec0 |= DSI1_PHY_AFEC0_PD_DLANE3;
+		if (dsi->lanes < 3)
+			afec0 |= DSI1_PHY_AFEC0_PD_DLANE2;
+		if (dsi->lanes < 2)
+			afec0 |= DSI1_PHY_AFEC0_PD_DLANE1;
+
+		afec0 |= DSI1_PHY_AFEC0_RESET;
+
+		DSI_PORT_WRITE(PHY_AFEC0, afec0);
+
+		DSI_PORT_WRITE(PHY_AFEC1, 0);
+
+		/* AFEC reset hold time */
+		mdelay(1);
+	}
+
+	ret = clk_prepare_enable(dsi->escape_clock);
+	if (ret) {
+		DRM_ERROR("Failed to turn on DSI escape clock: %d\n", ret);
+		return ret;
+	}
+
+	ret = clk_prepare_enable(dsi->pll_phy_clock);
+	if (ret) {
+		DRM_ERROR("Failed to turn on DSI PLL: %d\n", ret);
+		return ret;
+	}
+
+	hs_clock = clk_get_rate(dsi->pll_phy_clock);
+
+	/* Yes, we set the DSI0P/DSI1P pixel clock to the byte rate,
+	 * not the pixel clock rate.  DSIxP take from the APHY's byte,
+	 * DDR2, or DDR4 clock (we use byte) and feed into the PV at
+	 * that rate.  Separately, a value derived from PIX_CLK_DIV
+	 * and HS_CLKC is fed into the PV to divide down to the actual
+	 * pixel clock for pushing pixels into DSI.
+	 */
+	dsip_clock = phy_clock / 8;
+	ret = clk_set_rate(dsi->pixel_clock, dsip_clock);
+	if (ret) {
+		dev_err(dev, "Failed to set pixel clock to %ldHz: %d\n",
+			dsip_clock, ret);
+	}
+
+	ret = clk_prepare_enable(dsi->pixel_clock);
+	if (ret) {
+		DRM_ERROR("Failed to turn on DSI pixel clock: %d\n", ret);
+		return ret;
+	}
+
+	/* How many ns one DSI unit interval is.  Note that the clock
+	 * is DDR, so there's an extra divide by 2.
+	 */
+	ui_ns = DIV_ROUND_UP(500000000, hs_clock);
+
+	DSI_PORT_WRITE(HS_CLT0,
+		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 262, 0),
+				     DSI_HS_CLT0_CZERO) |
+		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 0, 8),
+				     DSI_HS_CLT0_CPRE) |
+		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 38, 0),
+				     DSI_HS_CLT0_CPREP));
+
+	DSI_PORT_WRITE(HS_CLT1,
+		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 60, 0),
+				     DSI_HS_CLT1_CTRAIL) |
+		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 60, 52),
+				     DSI_HS_CLT1_CPOST));
+
+	DSI_PORT_WRITE(HS_CLT2,
+		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 1000000, 0),
+				     DSI_HS_CLT2_WUP));
+
+	DSI_PORT_WRITE(HS_DLT3,
+		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 100, 0),
+				     DSI_HS_DLT3_EXIT) |
+		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 105, 6),
+				     DSI_HS_DLT3_ZERO) |
+		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 40, 4),
+				     DSI_HS_DLT3_PRE));
+
+	DSI_PORT_WRITE(HS_DLT4,
+		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, lpx * ESC_TIME_NS, 0),
+				     DSI_HS_DLT4_LPX) |
+		       VC4_SET_FIELD(max(dsi_hs_timing(ui_ns, 0, 8),
+					 dsi_hs_timing(ui_ns, 60, 4)),
+				     DSI_HS_DLT4_TRAIL) |
+		       VC4_SET_FIELD(0, DSI_HS_DLT4_ANLAT));
+
+	/* T_INIT is how long STOP is driven after power-up to
+	 * indicate to the slave (also coming out of power-up) that
+	 * master init is complete, and should be greater than the
+	 * maximum of two value: T_INIT,MASTER and T_INIT,SLAVE.  The
+	 * D-PHY spec gives a minimum 100us for T_INIT,MASTER and
+	 * T_INIT,SLAVE, while allowing protocols on top of it to give
+	 * greater minimums.  The vc4 firmware uses an extremely
+	 * conservative 5ms, and we maintain that here.
+	 */
+	DSI_PORT_WRITE(HS_DLT5, VC4_SET_FIELD(dsi_hs_timing(ui_ns,
+							    5 * 1000 * 1000, 0),
+					      DSI_HS_DLT5_INIT));
+
+	DSI_PORT_WRITE(HS_DLT6,
+		       VC4_SET_FIELD(lpx * 5, DSI_HS_DLT6_TA_GET) |
+		       VC4_SET_FIELD(lpx, DSI_HS_DLT6_TA_SURE) |
+		       VC4_SET_FIELD(lpx * 4, DSI_HS_DLT6_TA_GO) |
+		       VC4_SET_FIELD(lpx, DSI_HS_DLT6_LP_LPX));
+
+	DSI_PORT_WRITE(HS_DLT7,
+		       VC4_SET_FIELD(dsi_esc_timing(1000000),
+				     DSI_HS_DLT7_LP_WUP));
+
+	DSI_PORT_WRITE(PHYC,
+		       DSI_PHYC_DLANE0_ENABLE |
+		       (dsi->lanes >= 2 ? DSI_PHYC_DLANE1_ENABLE : 0) |
+		       (dsi->lanes >= 3 ? DSI_PHYC_DLANE2_ENABLE : 0) |
+		       (dsi->lanes >= 4 ? DSI_PHYC_DLANE3_ENABLE : 0) |
+		       DSI_PORT_BIT(PHYC_CLANE_ENABLE) |
+		       ((dsi->mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS) ?
+			0 : DSI_PORT_BIT(PHYC_HS_CLK_CONTINUOUS)) |
+		       (dsi->variant->port == 0 ?
+			VC4_SET_FIELD(lpx - 1, DSI0_PHYC_ESC_CLK_LPDT) :
+			VC4_SET_FIELD(lpx - 1, DSI1_PHYC_ESC_CLK_LPDT)));
+
+	DSI_PORT_WRITE(CTRL,
+		       DSI_PORT_READ(CTRL) |
+		       DSI_CTRL_CAL_BYTE);
+
+	/* HS timeout in HS clock cycles: disabled. */
+	DSI_PORT_WRITE(HSTX_TO_CNT, 0);
+	/* LP receive timeout in HS clocks. */
+	DSI_PORT_WRITE(LPRX_TO_CNT, 0xffffff);
+	/* Bus turnaround timeout */
+	DSI_PORT_WRITE(TA_TO_CNT, 100000);
+	/* Display reset sequence timeout */
+	DSI_PORT_WRITE(PR_TO_CNT, 100000);
+
+	/* Set up DISP1 for transferring long command payloads through
+	 * the pixfifo.
+	 */
+	DSI_PORT_WRITE(DISP1_CTRL,
+		       VC4_SET_FIELD(DSI_DISP1_PFORMAT_32BIT_LE,
+				     DSI_DISP1_PFORMAT) |
+		       DSI_DISP1_ENABLE);
+
+	/* Ungate the block. */
+	if (dsi->variant->port == 0)
+		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI0_CTRL_CTRL0);
+	else
+		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI1_CTRL_EN);
+
+	/* Bring AFE out of reset. */
+	DSI_PORT_WRITE(PHY_AFEC0,
+		       DSI_PORT_READ(PHY_AFEC0) &
+		       ~DSI_PORT_BIT(PHY_AFEC0_RESET));
+
+	if (DEBUG_DUMP_REGS) {
+		struct drm_printer p = drm_info_printer(&dsi->pdev->dev);
+
+		dev_info(&dsi->pdev->dev, "DSI regs after:\n");
+		drm_print_regset32(&p, &dsi->regset);
+	}
 
 	return 0;
 }
@@ -1595,7 +1579,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	if (!vc4_dsi_encoder)
 		return -ENOMEM;
 
-	INIT_LIST_HEAD(&dsi->bridge_chain);
 	vc4_dsi_encoder->base.type = dsi->variant->port ?
 			VC4_ENCODER_TYPE_DSI1 : VC4_ENCODER_TYPE_DSI0;
 	vc4_dsi_encoder->dsi = dsi;
@@ -1733,12 +1716,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		dev_err(dev, "bridge attach failed: %d\n", ret);
 		return ret;
 	}
-	/* Disable the atomic helper calls into the bridge.  We
-	 * manually call the bridge pre_enable / enable / etc. calls
-	 * from our driver, since we need to sequence them within the
-	 * encoder's enable/disable paths.
-	 */
-	list_splice_init(&dsi->encoder->bridge_chain, &dsi->bridge_chain);
 
 	vc4_debugfs_add_regset32(drm, dsi->variant->debugfs_name, &dsi->regset);
 
@@ -1757,11 +1734,6 @@ static void vc4_dsi_unbind(struct device *dev, struct device *master,
 	if (dsi->bridge)
 		pm_runtime_disable(dev);
 
-	/*
-	 * Restore the bridge_chain so the bridge detach procedure can happen
-	 * normally.
-	 */
-	list_splice_init(&dsi->bridge_chain, &dsi->encoder->bridge_chain);
 	drm_encoder_cleanup(dsi->encoder);
 }
 
@@ -1821,6 +1793,7 @@ static const struct dev_pm_ops vc4_dsi_pm_ops = {
 			   vc4_dsi_runtime_resume,
 			   NULL)
 };
+
 struct platform_driver vc4_dsi_driver = {
 	.probe = vc4_dsi_dev_probe,
 	.remove = vc4_dsi_dev_remove,
