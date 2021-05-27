@@ -819,7 +819,8 @@ static void vc4_dsi_encoder_disable(struct drm_encoder *encoder)
 	clk_disable_unprepare(dsi->escape_clock);
 	clk_disable_unprepare(dsi->pixel_clock);
 
-	pm_runtime_put(dev);
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
 }
 
 /* Extends the mode's blank intervals to handle BCM2835's integer-only
@@ -892,8 +893,9 @@ static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
 	int ret;
 
 	ret = pm_runtime_get_sync(dev);
-	if (ret) {
+	if (ret < 0) {
 		DRM_ERROR("Failed to runtime PM enable on DSI%d\n", dsi->variant->port);
+		pm_runtime_put_autosuspend(dev);
 		return;
 	}
 
@@ -1150,12 +1152,19 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 				     const struct mipi_dsi_msg *msg)
 {
 	struct vc4_dsi *dsi = host_to_dsi(host);
+	struct device *dev = &dsi->pdev->dev;
 	struct mipi_dsi_packet packet;
 	u32 pkth = 0, pktc = 0;
 	int i, ret;
 	bool is_long = mipi_dsi_packet_format_is_long(msg->type);
 	u32 cmd_fifo_len = 0, pix_fifo_len = 0;
 
+	ret = pm_runtime_get_sync(dev);
+	if (ret < 0) {
+		DRM_ERROR("Failed to runtime PM enable on DSI%d %d\n", dsi->variant->port, ret);
+		pm_runtime_put_autosuspend(dev);
+		return -ENXIO;
+	}
 	mipi_dsi_create_packet(&packet, msg);
 
 	pkth |= VC4_SET_FIELD(packet.header[0], DSI_TXPKT1H_BC_DT);
@@ -1300,7 +1309,8 @@ static ssize_t vc4_dsi_host_transfer(struct mipi_dsi_host *host,
 			}
 		}
 	}
-
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
 	return ret;
 
 reset_fifo_and_return:
@@ -1314,6 +1324,10 @@ reset_fifo_and_return:
 
 	DSI_PORT_WRITE(TXPKT1C, 0);
 	DSI_PORT_WRITE(INT_EN, DSI_PORT_BIT(INTERRUPTS_ALWAYS_ENABLED));
+
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+
 	return ret;
 }
 
@@ -1474,6 +1488,20 @@ static irqreturn_t vc4_dsi_irq_handler(int irq, void *data)
 	}
 
 	return ret;
+}
+
+static int vc4_dsi_runtime_suspend(struct device *dev)
+{
+	struct vc4_dsi *dsi = dev_get_drvdata(dev);
+
+	return 0;
+}
+
+static int vc4_dsi_runtime_resume(struct device *dev)
+{
+	struct vc4_dsi *dsi = dev_get_drvdata(dev);
+
+	return 0;
 }
 
 /**
@@ -1714,6 +1742,8 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 
 	vc4_debugfs_add_regset32(drm, dsi->variant->debugfs_name, &dsi->regset);
 
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, 1000);
 	pm_runtime_enable(dev);
 
 	return 0;
@@ -1786,11 +1816,17 @@ static int vc4_dsi_dev_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct dev_pm_ops vc4_dsi_pm_ops = {
+	SET_RUNTIME_PM_OPS(vc4_dsi_runtime_suspend,
+			   vc4_dsi_runtime_resume,
+			   NULL)
+};
 struct platform_driver vc4_dsi_driver = {
 	.probe = vc4_dsi_dev_probe,
 	.remove = vc4_dsi_dev_remove,
 	.driver = {
 		.name = "vc4_dsi",
 		.of_match_table = vc4_dsi_dt_match,
+		.pm = &vc4_dsi_pm_ops,
 	},
 };
