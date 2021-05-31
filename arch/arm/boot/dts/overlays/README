@@ -3015,6 +3015,17 @@ Params: speed                   SPI bus speed (default 10000000)
         height                  Display height (32 or 64; default 64)
 
 
+Name:   ssd1331-spi
+Info:   Overlay for SSD1331 OLED via SPI using fbtft staging driver.
+Load:   dtoverlay=ssd1331-spi,<param>=<val>
+Params: speed                   SPI bus speed (default 4500000)
+        rotate                  Display rotation (0, 90, 180 or 270; default 0)
+        fps                     Delay between frame updates (default 25)
+        debug                   Debug output level (0-7; default 0)
+        dc_pin                  GPIO pin for D/C (default 24)
+        reset_pin               GPIO pin for RESET (default 25)
+
+
 Name:   ssd1351-spi
 Info:   Overlay for SSD1351 OLED via SPI using fbtft staging driver.
 Load:   dtoverlay=ssd1351-spi,<param>=<val>
