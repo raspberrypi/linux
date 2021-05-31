@@ -445,6 +445,13 @@ void drm_atomic_state_default_release(struct drm_atomic_state *state);
 struct drm_crtc_state * __must_check
 drm_atomic_get_crtc_state(struct drm_atomic_state *state,
 			  struct drm_crtc *crtc);
+struct drm_crtc_state * __must_check
+drm_atomic_get_new_or_current_crtc_state(struct drm_atomic_state *state,
+					 struct drm_crtc *crtc);
+struct drm_crtc_state * __must_check
+drm_atomic_get_old_or_current_crtc_state(struct drm_atomic_state *state,
+					 struct drm_crtc *crtc);
+
 struct drm_plane_state * __must_check
 drm_atomic_get_plane_state(struct drm_atomic_state *state,
 			   struct drm_plane *plane);
