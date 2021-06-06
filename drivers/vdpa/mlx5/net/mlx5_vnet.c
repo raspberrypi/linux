@@ -2017,7 +2017,7 @@ static int mlx5v_probe(struct auxiliary_device *adev,
 			goto err_mtu;
 	}
 
-	mvdev->vdev.dma_dev = mdev->device;
+	mvdev->vdev.dma_dev = &mdev->pdev->dev;
 	err = mlx5_vdpa_alloc_resources(&ndev->mvdev);
 	if (err)
 		goto err_mpfs;
