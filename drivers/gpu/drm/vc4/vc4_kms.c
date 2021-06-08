@@ -401,7 +401,7 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		if (!old_hvs_state->fifo_state[channel].in_use)
 			continue;
 
-		commit = old_hvs_state->fifo_state[i].pending_commit;
+		commit = old_hvs_state->fifo_state[channel].pending_commit;
 		if (!commit)
 			continue;
 
