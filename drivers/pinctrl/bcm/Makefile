@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 # Broadcom pinctrl support
 
+obj-$(CONFIG_PINCTRL_BCM2712)		+= pinctrl-bcm2712.o
 obj-$(CONFIG_PINCTRL_BCM281XX)		+= pinctrl-bcm281xx.o
 obj-$(CONFIG_PINCTRL_BCM2835)		+= pinctrl-bcm2835.o
 obj-$(CONFIG_PINCTRL_BCM4908)		+= pinctrl-bcm4908.o
