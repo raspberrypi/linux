@@ -3,6 +3,15 @@
 # Broadcom pinctrl drivers
 #
 
+config PINCTRL_BCM2712
+	bool "Broadcom BCM2712 PINCONF driver"
+	depends on OF && (ARCH_BCM2835 || ARCH_BRCMSTB || COMPILE_TEST)
+	select PINMUX
+	select PINCONF
+	select GENERIC_PINCONF
+	help
+	   Say Y here to enable the Broadcom BCM2835 GPIO driver.
+
 config PINCTRL_BCM281XX
 	bool "Broadcom BCM281xx pinctrl driver"
 	depends on OF && (ARCH_BCM_MOBILE || COMPILE_TEST)
