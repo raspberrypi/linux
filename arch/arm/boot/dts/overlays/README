@@ -1872,6 +1872,24 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
         vcm                     Configure a VCM focus drive on the sensor.
 
 
+Name:   imx258
+Info:   Sony IMX258 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx258,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        media-controller        Configure use of Media Controller API for
+                                configuring the sensor (default on)
+        cam0                    Adopt the default configuration for CAM0 on a
+                                Compute Module (CSI0, i2c_vc, and cam0_reg).
+        vcm                     Configure a VCM focus drive on the sensor.
+        4lane                   Enable 4 CSI2 lanes. This requires a Compute
+                                Module (1, 3, or 4).
+
+
 Name:   imx290
 Info:   Sony IMX290 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
