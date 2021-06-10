@@ -190,7 +190,7 @@ static void snd_rpi_hifiberry_dacplusadcpro_select_clk(
 				PCM512x_GPIO_CONTROL_1, 0x24, 0x04);
 		break;
 	}
-	usleep_range(2000, 2100);
+	usleep_range(3000, 4000);
 }
 
 static void snd_rpi_hifiberry_dacplusadcpro_clk_gpio(struct snd_soc_component *component)
