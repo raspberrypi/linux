@@ -2517,6 +2517,15 @@ static int read_capacity_16(struct scsi_disk *sdkp, struct scsi_device *sdp,
 
 		if (buffer[14] & 0x40) /* LBPRZ */
 			sdkp->lbprz = 1;
+		/*
+		 * If a device sets LBPME=1 then it should, in theory, support
+		 * the Logical Block Provisioning VPD page. Assume that querying
+		 * VPD pages is safe if logical block provisioning is enabled
+		 * and the device claims conformance to a recent version of the
+		 * spec.
+		 */
+		if (sdp->scsi_level > SCSI_SPC_3)
+			sdp->try_vpd_pages = 1;
 	}
 
 	sdkp->capacity = lba + 1;
