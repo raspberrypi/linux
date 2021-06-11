@@ -1282,7 +1282,7 @@ static void imx477_adjust_exposure_range(struct imx477 *imx477)
 
 	/* Honour the VBLANK limits when setting exposure. */
 	exposure_max = imx477->mode->height + imx477->vblank->val -
-		       (IMX477_EXPOSURE_OFFSET << imx477->long_exp_shift);
+		       IMX477_EXPOSURE_OFFSET;
 	exposure_def = min(exposure_max, imx477->exposure->val);
 	__v4l2_ctrl_modify_range(imx477->exposure, imx477->exposure->minimum,
 				 exposure_max, imx477->exposure->step,
