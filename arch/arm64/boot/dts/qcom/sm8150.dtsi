@@ -1082,6 +1082,8 @@
 
 			qcom,gmu = <&gmu>;
 
+			status = "disabled";
+
 			zap-shader {
 				memory-region = <&gpu_mem>;
 			};
@@ -1148,6 +1150,8 @@
 			iommus = <&adreno_smmu 5 0x400>;
 
 			operating-points-v2 = <&gmu_opp_table>;
+
+			status = "disabled";
 
 			gmu_opp_table: opp-table {
 				compatible = "operating-points-v2";
@@ -1495,6 +1499,8 @@
 
 			qcom,smem-states = <&modem_smp2p_out 0>;
 			qcom,smem-state-names = "stop";
+
+			status = "disabled";
 
 			glink-edge {
 				interrupts = <GIC_SPI 449 IRQ_TYPE_EDGE_RISING>;
