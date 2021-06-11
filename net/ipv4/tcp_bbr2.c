@@ -2471,6 +2471,9 @@ static void bbr2_init(struct sock *sk)
 	bbr->alpha_last_delivered_ce = 0;
 
 	tp->fast_ack_mode = min_t(u32, 0x2U, bbr_fast_ack_mode);
+
+	if ((tp->ecn_flags & TCP_ECN_OK) && bbr_ecn_enable)
+		tp->ecn_flags |= TCP_ECN_ECT_PERMANENT;
 }
 
 /* Core TCP stack informs us that the given skb was just marked lost. */

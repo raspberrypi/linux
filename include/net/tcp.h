@@ -371,6 +371,7 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 #define	TCP_ECN_QUEUE_CWR	2
 #define	TCP_ECN_DEMAND_CWR	4
 #define	TCP_ECN_SEEN		8
+#define	TCP_ECN_ECT_PERMANENT	16
 
 enum tcp_tw_status {
 	TCP_TW_SUCCESS = 0,
