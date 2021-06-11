@@ -1291,6 +1291,8 @@ static int vidioc_g_fmt_vid_cap(struct file *file, void *priv,
 static int vidioc_try_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 			  struct bcm2835_codec_fmt *fmt)
 {
+	unsigned int sizeimage;
+
 	/*
 	 * The V4L2 specification requires the driver to correct the format
 	 * struct if any of the dimensions is unsupported
@@ -1319,9 +1321,18 @@ static int vidioc_try_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 	f->fmt.pix_mp.num_planes = 1;
 	f->fmt.pix_mp.plane_fmt[0].bytesperline =
 		get_bytesperline(f->fmt.pix_mp.width, fmt);
-	f->fmt.pix_mp.plane_fmt[0].sizeimage =
-		get_sizeimage(f->fmt.pix_mp.plane_fmt[0].bytesperline,
-			      f->fmt.pix_mp.width, f->fmt.pix_mp.height, fmt);
+	sizeimage = get_sizeimage(f->fmt.pix_mp.plane_fmt[0].bytesperline,
+				  f->fmt.pix_mp.width, f->fmt.pix_mp.height,
+				  fmt);
+	/*
+	 * Drivers must set sizeimage for uncompressed formats
+	 * Compressed formats allow the client to request an alternate
+	 * size for the buffer.
+	 */
+	if (!(fmt->flags & V4L2_FMT_FLAG_COMPRESSED) ||
+	    f->fmt.pix_mp.plane_fmt[0].sizeimage < sizeimage)
+		f->fmt.pix_mp.plane_fmt[0].sizeimage = sizeimage;
+
 	memset(f->fmt.pix_mp.plane_fmt[0].reserved, 0,
 	       sizeof(f->fmt.pix_mp.plane_fmt[0].reserved));
 
