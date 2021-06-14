@@ -303,6 +303,23 @@ struct drm_encoder *vc4_get_crtc_encoder(struct drm_crtc *crtc,
 	return NULL;
 }
 
+#define drm_for_each_connector_mask(connector, dev, connector_mask) \
+	list_for_each_entry((connector), &(dev)->mode_config.connector_list, head) \
+		for_each_if ((connector_mask) & drm_connector_mask(connector))
+
+struct drm_connector *vc4_get_crtc_connector(struct drm_crtc *crtc,
+					     struct drm_crtc_state *state)
+{
+	struct drm_connector *connector;
+
+	WARN_ON(hweight32(state->connector_mask) > 1);
+
+	drm_for_each_connector_mask(connector, crtc->dev, state->connector_mask)
+		return connector;
+
+	return NULL;
+}
+
 static void vc4_crtc_pixelvalve_reset(struct drm_crtc *crtc)
 {
 	struct vc4_crtc *vc4_crtc = to_vc4_crtc(crtc);
