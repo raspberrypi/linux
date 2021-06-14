@@ -82,14 +82,20 @@
 
 				amp_on_1 {
 					set = <RELAY1 1>;
-					amp_on = <GF_DELAY 1000>;
-					amp_off = <ENABLE 0>;
+					amp_on_2 = <GF_DELAY 1000>;
+					amp_off = <GF_SHUTDOWN 0>;
+					fault = <FAULT 1>;
+				};
+
+				amp_on_2 {
+					set = <RELAY2 1>;
+					amp_on_wait = <ENABLE 0>;
+					amp_on = <GF_DELAY 1>;
 					fault = <FAULT 1>;
 				};
 
 				amp_on {
-					set = <RELAY2 1>,
-					      <RELAYSSR 1>;
+					set = <RELAYSSR 1>;
 					amp_on_wait = <ENABLE 0>;
 					fault = <FAULT 1>;
 				};
