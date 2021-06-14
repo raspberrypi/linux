@@ -592,6 +592,36 @@ out:
 	drm_dev_exit(idx);
 }
 
+static int vc4_hvs_gamma_check(struct drm_crtc *crtc,
+			       struct drm_atomic_state *state)
+{
+	struct drm_crtc_state *crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
+	struct drm_connector_state *conn_state;
+	struct drm_connector *connector;
+	struct drm_device *dev = crtc->dev;
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+
+	if (!vc4->is_vc5)
+		return 0;
+
+	if (!crtc_state->color_mgmt_changed)
+		return 0;
+
+	connector = vc4_get_crtc_connector(crtc, crtc_state);
+	if (!connector)
+		return -EINVAL;
+
+	if (!(connector->connector_type == DRM_MODE_CONNECTOR_HDMIA))
+		return 0;
+
+	conn_state = drm_atomic_get_connector_state(state, connector);
+	if (!conn_state)
+		return -EINVAL;
+
+	crtc_state->mode_changed = true;
+	return 0;
+}
+
 int vc4_hvs_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 {
 	struct drm_crtc_state *crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
@@ -622,7 +652,7 @@ int vc4_hvs_atomic_check(struct drm_crtc *crtc, struct drm_atomic_state *state)
 	if (ret)
 		return ret;
 
-	return 0;
+	return vc4_hvs_gamma_check(crtc, state);
 }
 
 static void vc4_hvs_install_dlist(struct drm_crtc *crtc)
