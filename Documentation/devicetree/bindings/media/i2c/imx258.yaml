@@ -14,10 +14,13 @@ description: |-
   type stacked image sensor with a square pixel array of size 4208 x 3120. It
   is programmable through I2C interface.  Image data is sent through MIPI
   CSI-2.
+  There are a number of variants of the sensor which cannot be detected at
+  runtime, so multiple compatible strings are required to differentiate these.
 
 properties:
   compatible:
     const: sony,imx258
+    const: sony,imx258-pdaf
 
   assigned-clocks: true
   assigned-clock-parents: true
