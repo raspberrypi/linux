@@ -607,6 +607,12 @@ static int sk_psock_handle_skb(struct sk_psock *psock, struct sk_buff *skb,
 	return sk_psock_skb_ingress(psock, skb);
 }
 
+static void sock_drop(struct sock *sk, struct sk_buff *skb)
+{
+	sk_drops_add(sk, skb);
+	kfree_skb(skb);
+}
+
 static void sk_psock_backlog(struct work_struct *work)
 {
 	struct sk_psock *psock = container_of(work, struct sk_psock, work);
@@ -646,7 +652,7 @@ start:
 				/* Hard errors break pipe and stop xmit. */
 				sk_psock_report_error(psock, ret ? -ret : EPIPE);
 				sk_psock_clear_state(psock, SK_PSOCK_TX_ENABLED);
-				kfree_skb(skb);
+				sock_drop(psock->sk, skb);
 				goto end;
 			}
 			off += ret;
@@ -737,7 +743,7 @@ static void __sk_psock_zap_ingress(struct sk_psock *psock)
 
 	while ((skb = skb_dequeue(&psock->ingress_skb)) != NULL) {
 		skb_bpf_redirect_clear(skb);
-		kfree_skb(skb);
+		sock_drop(psock->sk, skb);
 	}
 	__sk_psock_purge_ingress_msg(psock);
 }
@@ -863,7 +869,7 @@ static int sk_psock_skb_redirect(struct sk_buff *skb)
 	 * return code, but then didn't set a redirect interface.
 	 */
 	if (unlikely(!sk_other)) {
-		kfree_skb(skb);
+		sock_drop(from->sk, skb);
 		return -EIO;
 	}
 	psock_other = sk_psock(sk_other);
@@ -873,14 +879,14 @@ static int sk_psock_skb_redirect(struct sk_buff *skb)
 	 */
 	if (!psock_other || sock_flag(sk_other, SOCK_DEAD)) {
 		skb_bpf_redirect_clear(skb);
-		kfree_skb(skb);
+		sock_drop(from->sk, skb);
 		return -EIO;
 	}
 	spin_lock_bh(&psock_other->ingress_lock);
 	if (!sk_psock_test_state(psock_other, SK_PSOCK_TX_ENABLED)) {
 		spin_unlock_bh(&psock_other->ingress_lock);
 		skb_bpf_redirect_clear(skb);
-		kfree_skb(skb);
+		sock_drop(from->sk, skb);
 		return -EIO;
 	}
 
@@ -970,7 +976,7 @@ static int sk_psock_verdict_apply(struct sk_psock *psock, struct sk_buff *skb,
 	case __SK_DROP:
 	default:
 out_free:
-		kfree_skb(skb);
+		sock_drop(psock->sk, skb);
 	}
 
 	return err;
@@ -1005,7 +1011,7 @@ static void sk_psock_strp_read(struct strparser *strp, struct sk_buff *skb)
 	sk = strp->sk;
 	psock = sk_psock(sk);
 	if (unlikely(!psock)) {
-		kfree_skb(skb);
+		sock_drop(sk, skb);
 		goto out;
 	}
 	prog = READ_ONCE(psock->progs.stream_verdict);
@@ -1126,7 +1132,7 @@ static int sk_psock_verdict_recv(read_descriptor_t *desc, struct sk_buff *skb,
 	psock = sk_psock(sk);
 	if (unlikely(!psock)) {
 		len = 0;
-		kfree_skb(skb);
+		sock_drop(sk, skb);
 		goto out;
 	}
 	prog = READ_ONCE(psock->progs.stream_verdict);
