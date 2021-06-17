@@ -485,10 +485,10 @@ static const struct imx290_mode imx290_modes_2lanes[] = {
 		.lane_data = imx290_720p_2lane_settings,
 		.lane_data_size = ARRAY_SIZE(imx290_720p_2lane_settings),
 		.clk_data = {
-			[CLK_37_125] = imx290_37_125mhz_clock_1080p,
-			[CLK_74_25] = imx290_74_250mhz_clock_1080p,
+			[CLK_37_125] = imx290_37_125mhz_clock_720p,
+			[CLK_74_25] = imx290_74_250mhz_clock_720p,
 		},
-		.clk_size = ARRAY_SIZE(imx290_37_125mhz_clock_1080p),
+		.clk_size = ARRAY_SIZE(imx290_37_125mhz_clock_720p),
 	},
 };
 
@@ -510,10 +510,10 @@ static const struct imx290_mode imx290_modes_4lanes[] = {
 		.lane_data = imx290_1080p_4lane_settings,
 		.lane_data_size = ARRAY_SIZE(imx290_1080p_4lane_settings),
 		.clk_data = {
-			[CLK_37_125] = imx290_37_125mhz_clock_720p,
-			[CLK_74_25] = imx290_74_250mhz_clock_720p,
+			[CLK_37_125] = imx290_37_125mhz_clock_1080p,
+			[CLK_74_25] = imx290_74_250mhz_clock_1080p,
 		},
-		.clk_size = ARRAY_SIZE(imx290_37_125mhz_clock_720p),
+		.clk_size = ARRAY_SIZE(imx290_37_125mhz_clock_1080p),
 	},
 	{
 		.width = 1280,
