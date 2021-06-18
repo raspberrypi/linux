@@ -2312,6 +2312,38 @@ static const struct panel_desc innolux_at043tn24 = {
 	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_POSEDGE,
 };
 
+static const struct display_timing innolux_at056tn53v1_timing = {
+	.pixelclock = { 39700000, 39700000, 39700000},
+	.hactive = { 640, 640, 640 },
+	.hfront_porch = { 16, 16, 16 },
+	.hback_porch = { 134, 134, 134 },
+	.hsync_len = { 10, 10, 10},
+	.vactive = { 480, 480, 480 },
+	.vfront_porch = { 32, 32, 32},
+	.vback_porch = { 11, 11, 11 },
+	.vsync_len = { 2, 2, 2 },
+	.flags = DRM_MODE_FLAG_PVSYNC | DRM_MODE_FLAG_PHSYNC,
+};
+
+static const struct panel_desc innolux_at056tn53v1 = {
+	.timings = &innolux_at056tn53v1_timing,
+	.num_timings = 1,
+	.bpc = 6,
+	.size = {
+		.width = 112,
+		.height = 84,
+	},
+	.delay = {
+		.prepare = 50,
+		.enable = 200,
+		.disable = 110,
+		.unprepare = 200,
+	},
+	.bus_format = MEDIA_BUS_FMT_BGR666_1X24_CPADHI,
+	.bus_flags = DRM_BUS_FLAG_PIXDATA_SAMPLE_POSEDGE,
+	.connector_type = DRM_MODE_CONNECTOR_DPI,
+};
+
 static const struct drm_display_mode innolux_at070tn92_mode = {
 	.clock = 33333,
 	.hdisplay = 800,
@@ -4380,6 +4412,9 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "innolux,at043tn24",
 		.data = &innolux_at043tn24,
+	}, {
+		.compatible = "innolux,at056tn53v1",
+		.data = &innolux_at056tn53v1,
 	}, {
 		.compatible = "innolux,at070tn92",
 		.data = &innolux_at070tn92,
