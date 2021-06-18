@@ -165,9 +165,19 @@ static void vc4_dpi_encoder_enable(struct drm_encoder *encoder)
 			dpi_c |= VC4_SET_FIELD(DPI_FORMAT_18BIT_666_RGB_2,
 					       DPI_FORMAT);
 			break;
+		case MEDIA_BUS_FMT_BGR666_1X24_CPADHI:
+			dpi_c |= VC4_SET_FIELD(DPI_FORMAT_18BIT_666_RGB_2,
+					       DPI_FORMAT);
+			dpi_c |= VC4_SET_FIELD(DPI_ORDER_BGR, DPI_ORDER);
+			break;
 		case MEDIA_BUS_FMT_RGB666_1X18:
 			dpi_c |= VC4_SET_FIELD(DPI_FORMAT_18BIT_666_RGB_1,
 					       DPI_FORMAT);
+			break;
+		case MEDIA_BUS_FMT_BGR666_1X18:
+			dpi_c |= VC4_SET_FIELD(DPI_FORMAT_18BIT_666_RGB_1,
+					       DPI_FORMAT);
+			dpi_c |= VC4_SET_FIELD(DPI_ORDER_BGR, DPI_ORDER);
 			break;
 		case MEDIA_BUS_FMT_RGB565_1X16:
 			dpi_c |= VC4_SET_FIELD(DPI_FORMAT_16BIT_565_RGB_3,
