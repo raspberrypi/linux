@@ -305,106 +305,6 @@ static void vc5_hvs_pv_muxing_commit(struct vc4_dev *vc4,
 	}
 }
 
-#define HVS_BUS_WIDTH	4
-
-/*
- * On the BCM2711, the core clock needs to be raised depending on the
- * rate of pixels being fetched from memory by the HVS and then the
- * pixels being output to the PixelValves.
- *
- * Thus, we need to consider the mode on each CRTC to compute the output
- * pixel rate, and all the planes attached to those CRTCs to compute the
- * input rate, and take the highest of the two.
- */
-static unsigned long vc5_hvs_compute_core_rate(struct vc4_dev *vc4,
-					       struct drm_atomic_state *state)
-{
-	struct drm_crtc *crtc;
-	unsigned long cob_rate = 0;
-	unsigned long pixel_rate = 0;
-	unsigned num_outputs = 0;
-
-	drm_for_each_crtc(crtc, state->dev) {
-		const struct drm_display_mode *mode;
-		struct drm_crtc_state *crtc_state;
-		struct vc4_encoder *vc4_encoder;
-		struct drm_encoder *encoder;
-		struct drm_plane *plane;
-		unsigned long min_rate;
-		unsigned refresh;
-
-		crtc_state = drm_atomic_get_new_or_current_crtc_state(state, crtc);
-		if (!crtc_state)
-			continue;
-
-		if (!crtc_state->active)
-			continue;
-
-		mode = &crtc_state->adjusted_mode;
-		encoder = vc4_get_crtc_encoder(crtc, state,
-					       drm_atomic_get_connector_state);
-		if (!encoder)
-			continue;
-
-		num_outputs++;
-		vc4_encoder = to_vc4_encoder(encoder);
-
-		/*
-		 * The HVS only generates the active pixels and stores
-		 * completed lines in the COB. However, pixel-valve
-		 * consumes at the HDMI pixel clock rate which can be a
-		 * lot higher than the number of active pixels e.g. 4K
-		 * p60 is 594 MHz but active pixels would be 498 MHz.
-		 * The COB output is one pixel per clock and runs of the
-		 * the core clock and needs to run fast enough to send
-		 * the active pixels minus the buffering in pixel-valve.
-		 *
-		 * For PV2 (HDMI0) there are 512 pixels and for PV4
-		 * (HDMI1) there are 58. This means that for HDMI1 the
-		 * core-clock needs to be the same as the pixel clock
-		 * but for HDMI0 the core-clock can be a bit slower -
-		 * experiments suggest that 90% is about right so long
-		 * as the horizontal blanking period is at least 10% of
-		 * the total horizonal time, this isn't always in the
-		 * case.
-		 */
-		if (vc4_encoder->type == VC4_ENCODER_TYPE_HDMI0) {
-			min_rate = max(mode->clock * mode->hdisplay / mode->htotal + 1000,
-				       mode->clock * 9 / 10) * 1000;
-		} else {
-			min_rate = mode->clock * 1000;
-		}
-		cob_rate = max(cob_rate, min_rate);
-
-		refresh = drm_mode_vrefresh(mode);
-		drm_for_each_plane_mask(plane, state->dev, crtc_state->plane_mask) {
-			struct drm_plane_state *plane_state =
-				drm_atomic_get_plane_state(state, plane);
-			unsigned height, width;
-
-			if (!plane_state->fb)
-				continue;
-
-			height = plane_state->src_h >> 16;
-			width = plane_state->src_w >> 16;
-
-			pixel_rate += height * width * refresh;
-		}
-	}
-
-	/*
-	 * We need to target a memory bus load of 60% if we have a
-	 * single HVS channel enabled, and 40% otherwise.
-	 */
-	if (num_outputs > 1)
-		pixel_rate = pixel_rate / 40;
-	else
-		pixel_rate = pixel_rate / 60;
-	pixel_rate = pixel_rate * 100;
-
-	return max(cob_rate, pixel_rate / HVS_BUS_WIDTH);
-}
-
 static void
 vc4_atomic_complete_commit(struct drm_atomic_state *state)
 {
@@ -426,19 +326,8 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 		vc4_hvs_mask_underrun(dev, vc4_crtc_state->assigned_channel);
 	}
 
-	if (vc4->hvs && vc4->hvs->hvs5) {
-		/*
-		 * Do a temporary request on the core clock during the
-		 * modeset.
-		 */
+	if (vc4->hvs && vc4->hvs->hvs5)
 		core_req = clk_request_start(hvs->core_clk, 500000000);
-
-		/*
-		 * And remove the previous one based on the HVS
-		 * requirements if any.
-		 */
-		clk_request_done(hvs->core_req);
-	}
 
 	drm_atomic_helper_wait_for_fences(dev, state, false);
 
@@ -469,20 +358,8 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 
 	drm_atomic_helper_commit_cleanup_done(state);
 
-	if (vc4->hvs && vc4->hvs->hvs5) {
-		unsigned long core_rate = vc5_hvs_compute_core_rate(vc4,
-								    state);
-
-		/*
-		 * Request a clock rate based on the current HVS
-		 * requirements.
-		 */
-		hvs->core_req = clk_request_start(hvs->core_clk,
-						  core_rate);
-
-		/* And drop the temporary request */
+	if (vc4->hvs && vc4->hvs->hvs5)
 		clk_request_done(core_req);
-	}
 
 	drm_atomic_state_put(state);
 
