@@ -695,6 +695,14 @@ Load:   dtoverlay=dpi18
 Params: <None>
 
 
+Name:   dpi18cpadhi
+Info:   Overlay for a generic 18-bit DPI display (in 'mode 6' connection scheme)
+        This uses GPIOs 0-9,12-17,20-25 (so no I2C, uart etc.), and activates
+        the output 3-3 seconds after the kernel has started.
+Load:   dtoverlay=dpi18cpadhi
+Params: <None>
+
+
 Name:   dpi24
 Info:   Overlay for a generic 24-bit DPI display
         This uses GPIOs 0-27 (so no I2C, uart etc.), and activates the output
@@ -3217,6 +3225,13 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
         cma-64                  CMA is 64MB
         cma-size                CMA size in bytes, 4MB aligned
         cma-default             Use upstream's default value
+
+
+Name:   vc4-kms-dpi-at056tn53v1
+Info:   Enable an Innolux 5.6in VGA TFT connected to DPI interface under KMS.
+        Requires vc4-kms-v3d to be loaded.
+Load:   dtoverlay=vc4-kms-dpi-at056tn53v1
+Params: <None>
 
 
 Name:   vc4-kms-dsi-7inch
