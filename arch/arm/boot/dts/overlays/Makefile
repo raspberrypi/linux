@@ -37,6 +37,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	disable-bt.dtbo \
 	disable-wifi.dtbo \
 	dpi18.dtbo \
+	dpi18cpadhi.dtbo \
 	dpi24.dtbo \
 	draws.dtbo \
 	dwc-otg.dtbo \
@@ -215,6 +216,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	upstream.dtbo \
 	upstream-pi4.dtbo \
 	vc4-fkms-v3d.dtbo \
+	vc4-kms-dpi-at056tn53v1.dtbo \
 	vc4-kms-dsi-7inch.dtbo \
 	vc4-kms-dsi-lt070me05000.dtbo \
 	vc4-kms-dsi-lt070me05000-v2.dtbo \
