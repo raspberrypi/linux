@@ -21,6 +21,11 @@ properties:
       - brcm,bcm2835-vc4
       - brcm,cygnus-vc4
 
+  raspberrypi,firmware:
+    $ref: /schemas/types.yaml#/definitions/phandle
+    description: >
+      Phandle to the mailbox node to communicate with the firmware.
+
 required:
   - compatible
 
