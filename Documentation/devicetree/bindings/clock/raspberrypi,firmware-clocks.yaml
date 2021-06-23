@@ -16,15 +16,9 @@ properties:
   compatible:
     const: raspberrypi,firmware-clocks
 
-  raspberrypi,firmware:
-    $ref: /schemas/types.yaml#/definitions/phandle
-    description: >
-      Phandle to the mailbox node to communicate with the firmware.
-
 required:
   - "#clock-cells"
   - compatible
-  - raspberrypi,firmware
 
 additionalProperties: false
 
@@ -32,7 +26,6 @@ examples:
   - |
     firmware_clocks: firmware-clocks {
         compatible = "raspberrypi,firmware-clocks";
-        raspberrypi,firmware = <&firmware>;
         #clock-cells = <1>;
     };
 
