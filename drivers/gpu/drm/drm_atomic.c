@@ -281,10 +281,6 @@ EXPORT_SYMBOL(__drm_atomic_state_free);
  * needed. It will also grab the relevant CRTC lock to make sure that the state
  * is consistent.
  *
- * This function is deprecated,
- * @drm_atomic_get_old_or_current_crtc_state or
- * @drm_atomic_get_new_or_current_crtc_state should be used instead.
- *
  * Returns:
  *
  * Either the allocated state or the error code encoded into the pointer. When
@@ -324,106 +320,6 @@ drm_atomic_get_crtc_state(struct drm_atomic_state *state,
 	return crtc_state;
 }
 EXPORT_SYMBOL(drm_atomic_get_crtc_state);
-
-/**
- * drm_atomic_get_old_or_current_crtc_state - get CRTC state
- * @state: global atomic state object
- * @crtc: CRTC to get state object for
- *
- * This function returns the old CRTC state for the given CRTC if it's
- * part of the state, or allocating a copy of the current state
- * otherwise. It will also grab the relevant CRTC lock to make sure that
- * the state is consistent.
- *
- * Returns:
- *
- * Either the allocated state or the error code encoded into the pointer. When
- * the error is EDEADLK then the w/w mutex code has detected a deadlock and the
- * entire atomic sequence must be restarted. All other errors are fatal.
- */
-struct drm_crtc_state *
-drm_atomic_get_old_or_current_crtc_state(struct drm_atomic_state *state,
-					 struct drm_crtc *crtc)
-{
-	int ret, index = drm_crtc_index(crtc);
-	struct drm_crtc_state *crtc_state;
-
-	WARN_ON(!state->acquire_ctx);
-
-	crtc_state = drm_atomic_get_old_crtc_state(state, crtc);
-	if (crtc_state)
-		return crtc_state;
-
-	ret = drm_modeset_lock(&crtc->mutex, state->acquire_ctx);
-	if (ret)
-		return ERR_PTR(ret);
-
-	crtc_state = crtc->funcs->atomic_duplicate_state(crtc);
-	if (!crtc_state)
-		return ERR_PTR(-ENOMEM);
-
-	state->crtcs[index].state = crtc_state;
-	state->crtcs[index].old_state = crtc->state;
-	state->crtcs[index].new_state = crtc_state;
-	state->crtcs[index].ptr = crtc;
-	crtc_state->state = state;
-
-	DRM_DEBUG_ATOMIC("Added [CRTC:%d:%s] %p state to %p\n",
-			 crtc->base.id, crtc->name, crtc_state, state);
-
-	return crtc_state;
-}
-EXPORT_SYMBOL(drm_atomic_get_old_or_current_crtc_state);
-
-/**
- * drm_atomic_get_new_or_current_crtc_state - get CRTC state
- * @state: global atomic state object
- * @crtc: CRTC to get state object for
- *
- * This function returns the new CRTC state for the given CRTC if it's
- * part of the state, or allocating a copy of the current state
- * otherwise. It will also grab the relevant CRTC lock to make sure that
- * the state is consistent.
- *
- * Returns:
- *
- * Either the allocated state or the error code encoded into the pointer. When
- * the error is EDEADLK then the w/w mutex code has detected a deadlock and the
- * entire atomic sequence must be restarted. All other errors are fatal.
- */
-struct drm_crtc_state *
-drm_atomic_get_new_or_current_crtc_state(struct drm_atomic_state *state,
-					 struct drm_crtc *crtc)
-{
-	int ret, index = drm_crtc_index(crtc);
-	struct drm_crtc_state *crtc_state;
-
-	WARN_ON(!state->acquire_ctx);
-
-	crtc_state = drm_atomic_get_new_crtc_state(state, crtc);
-	if (crtc_state)
-		return crtc_state;
-
-	ret = drm_modeset_lock(&crtc->mutex, state->acquire_ctx);
-	if (ret)
-		return ERR_PTR(ret);
-
-	crtc_state = crtc->funcs->atomic_duplicate_state(crtc);
-	if (!crtc_state)
-		return ERR_PTR(-ENOMEM);
-
-	state->crtcs[index].state = crtc_state;
-	state->crtcs[index].old_state = crtc->state;
-	state->crtcs[index].new_state = crtc_state;
-	state->crtcs[index].ptr = crtc;
-	crtc_state->state = state;
-
-	DRM_DEBUG_ATOMIC("Added [CRTC:%d:%s] %p state to %p\n",
-			 crtc->base.id, crtc->name, crtc_state, state);
-
-	return crtc_state;
-}
-EXPORT_SYMBOL(drm_atomic_get_new_or_current_crtc_state);
 
 static int drm_atomic_crtc_check(const struct drm_crtc_state *old_crtc_state,
 				 const struct drm_crtc_state *new_crtc_state)
