@@ -35,6 +35,10 @@
 	};
 };
 
+&vc4 {
+	raspberrypi,firmware = <&firmware>;
+};
+
 &cma {
 	/* Limit cma to the lower 768MB to allow room for HIGHMEM on 32-bit */
 	alloc-ranges = <0x0 0x00000000 0x30000000>;
