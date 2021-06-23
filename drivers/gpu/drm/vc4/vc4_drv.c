@@ -37,6 +37,8 @@
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_vblank.h>
 
+#include <soc/bcm2835/raspberrypi-firmware.h>
+
 #include "uapi/drm/vc4_drm.h"
 
 #include "vc4_drv.h"
@@ -277,9 +279,26 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		return ret;
 
+	node = of_parse_phandle(dev->of_node, "raspberrypi,firmware", 0);
+	if (node) {
+		vc4->firmware = rpi_firmware_get(node);
+		of_node_put(node);
+
+		if (!vc4->firmware)
+			return -EPROBE_DEFER;
+	}
+
 	ret = drm_aperture_remove_framebuffers(false, "vc4drmfb");
 	if (ret)
 		goto unbind_all;
+
+	if (vc4->firmware) {
+		ret = rpi_firmware_property(vc4->firmware,
+					    RPI_FIRMWARE_NOTIFY_DISPLAY_DONE,
+					    NULL, 0);
+		if (ret)
+			drm_warn(drm, "Couldn't stop firmware display driver: %d\n", ret);
+	}
 
 	ret = component_bind_all(dev, drm);
 	if (ret)
