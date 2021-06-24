@@ -822,6 +822,7 @@ static void set_track_update(struct kmem_cache *s, void *object,
 	p->cpu = smp_processor_id();
 	p->pid = current->pid;
 	p->when = jiffies;
+	trace_android_vh_save_track_hash(alloc == TRACK_ALLOC, p);
 }
 
 static __always_inline void set_track(struct kmem_cache *s, void *object,
