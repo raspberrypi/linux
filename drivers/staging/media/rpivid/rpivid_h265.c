@@ -371,7 +371,8 @@ static void aux_q_free(struct rpivid_ctx *const ctx,
 	kfree(aq);
 }
 
-static struct rpivid_q_aux *aux_q_alloc(struct rpivid_ctx *const ctx)
+static struct rpivid_q_aux *aux_q_alloc(struct rpivid_ctx *const ctx,
+					const unsigned int q_index)
 {
 	struct rpivid_dev *const dev = ctx->dev;
 	struct rpivid_q_aux *const aq = kzalloc(sizeof(*aq), GFP_KERNEL);
@@ -379,11 +380,17 @@ static struct rpivid_q_aux *aux_q_alloc(struct rpivid_ctx *const ctx)
 	if (!aq)
 		return NULL;
 
-	aq->refcount = 1;
 	if (gptr_alloc(dev, &aq->col, ctx->colmv_picsize,
 		       DMA_ATTR_FORCE_CONTIGUOUS | DMA_ATTR_NO_KERNEL_MAPPING))
 		goto fail;
 
+	/*
+	 * Spinlock not required as called in P0 only and
+	 * aux checks done by _new
+	 */
+	aq->refcount = 1;
+	aq->q_index = q_index;
+	ctx->aux_ents[q_index] = aq;
 	return aq;
 
 fail:
@@ -398,22 +405,38 @@ static struct rpivid_q_aux *aux_q_new(struct rpivid_ctx *const ctx,
 	unsigned long lockflags;
 
 	spin_lock_irqsave(&ctx->aux_lock, lockflags);
-	aq = ctx->aux_free;
-	if (aq) {
+	/*
+	 * If we already have this allocated to a slot then use that
+	 * and assume that it will all work itself out in the pipeline
+	 */
+	if ((aq = ctx->aux_ents[q_index]) != NULL) {
+		++aq->refcount;
+	} else if ((aq = ctx->aux_free) != NULL) {
 		ctx->aux_free = aq->next;
 		aq->next = NULL;
 		aq->refcount = 1;
+		aq->q_index = q_index;
+		ctx->aux_ents[q_index] = aq;
 	}
 	spin_unlock_irqrestore(&ctx->aux_lock, lockflags);
 
-	if (!aq) {
-		aq = aux_q_alloc(ctx);
-		if (!aq)
-			return NULL;
-	}
+	if (!aq)
+		aq = aux_q_alloc(ctx, q_index);
 
-	aq->q_index = q_index;
-	ctx->aux_ents[q_index] = aq;
+	return aq;
+}
+
+static struct rpivid_q_aux *aux_q_ref_idx(struct rpivid_ctx *const ctx,
+					  const int q_index)
+{
+	unsigned long lockflags;
+	struct rpivid_q_aux *aq;
+
+	spin_lock_irqsave(&ctx->aux_lock, lockflags);
+	if ((aq = ctx->aux_ents[q_index]) != NULL)
+		++aq->refcount;
+	spin_unlock_irqrestore(&ctx->aux_lock, lockflags);
+
 	return aq;
 }
 
@@ -436,21 +459,21 @@ static void aux_q_release(struct rpivid_ctx *const ctx,
 			  struct rpivid_q_aux **const paq)
 {
 	struct rpivid_q_aux *const aq = *paq;
+	unsigned long lockflags;
+
+	if (!aq)
+		return;
+
 	*paq = NULL;
 
-	if (aq) {
-		unsigned long lockflags;
-
-		spin_lock_irqsave(&ctx->aux_lock, lockflags);
-
-		if (--aq->refcount == 0) {
-			aq->next = ctx->aux_free;
-			ctx->aux_free = aq;
-			ctx->aux_ents[aq->q_index] = NULL;
-		}
-
-		spin_unlock_irqrestore(&ctx->aux_lock, lockflags);
+	spin_lock_irqsave(&ctx->aux_lock, lockflags);
+	if (--aq->refcount == 0) {
+		aq->next = ctx->aux_free;
+		ctx->aux_free = aq;
+		ctx->aux_ents[aq->q_index] = NULL;
+		aq->q_index = ~0U;
 	}
+	spin_unlock_irqrestore(&ctx->aux_lock, lockflags);
 }
 
 static void aux_q_init(struct rpivid_ctx *const ctx)
@@ -1958,12 +1981,12 @@ static void rpivid_h265_setup(struct rpivid_ctx *ctx, struct rpivid_run *run)
 		}
 
 		if (use_aux) {
-			dpb_q_aux[i] = aux_q_ref(ctx,
-						 ctx->aux_ents[buffer_index]);
+			dpb_q_aux[i] = aux_q_ref_idx(ctx, buffer_index);
 			if (!dpb_q_aux[i])
 				v4l2_warn(&dev->v4l2_dev,
-					  "Missing DPB AUX ent %d index=%d\n",
-					  i, buffer_index);
+					  "Missing DPB AUX ent %d, timestamp=%lld, index=%d\n",
+					  i, (long long)sh->dpb[i].timestamp,
+					  buffer_index);
 		}
 
 		de->ref_addrs[i] =
