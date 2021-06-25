@@ -278,6 +278,8 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		return ret;
 
+	drm_fb_helper_remove_conflicting_framebuffers(NULL, "vc4drmfb", false);
+
 	ret = component_bind_all(dev, drm);
 	if (ret)
 		return ret;
@@ -287,8 +289,6 @@ static int vc4_drm_bind(struct device *dev)
 		if (ret)
 			goto unbind_all;
 	}
-
-	drm_fb_helper_remove_conflicting_framebuffers(NULL, "vc4drmfb", false);
 
 	ret = vc4_kms_load(drm);
 	if (ret < 0)
