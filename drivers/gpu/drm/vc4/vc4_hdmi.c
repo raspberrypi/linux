@@ -473,6 +473,8 @@ static void vc4_hdmi_cec_update_clk_div(struct vc4_hdmi *vc4_hdmi)
 static void vc4_hdmi_cec_update_clk_div(struct vc4_hdmi *vc4_hdmi) {}
 #endif
 
+static void vc4_hdmi_enable_scrambling(struct drm_encoder *encoder);
+
 static enum drm_connector_status
 vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 {
@@ -500,6 +502,8 @@ vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 				kfree(edid);
 			}
 		}
+
+		vc4_hdmi_enable_scrambling(&vc4_hdmi->encoder.base.base);
 
 		pm_runtime_put(&vc4_hdmi->pdev->dev);
 		return connector_status_connected;
@@ -871,9 +875,13 @@ static bool vc4_hdmi_supports_scrambling(struct drm_encoder *encoder,
 
 static void vc4_hdmi_enable_scrambling(struct drm_encoder *encoder)
 {
-	struct drm_display_mode *mode = &encoder->crtc->state->adjusted_mode;
+	struct drm_display_mode *mode;
 	struct vc4_hdmi *vc4_hdmi = encoder_to_vc4_hdmi(encoder);
 
+	if (!encoder->crtc || !encoder->crtc->state)
+		return;
+
+	mode = &encoder->crtc->state->adjusted_mode;
 	if (!vc4_hdmi_supports_scrambling(encoder, mode))
 		return;
 
