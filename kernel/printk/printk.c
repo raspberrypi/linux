@@ -2240,6 +2240,7 @@ int vprintk_store(int facility, int level,
 				prb_commit(&e);
 			}
 
+			trace_android_vh_logbuf_pr_cont(&r, text_len);
 			ret = text_len;
 			goto out;
 		}
