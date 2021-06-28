@@ -26,6 +26,7 @@
 /* Chip ID */
 #define IMX477_REG_CHIP_ID		0x0016
 #define IMX477_CHIP_ID			0x0477
+#define IMX378_CHIP_ID			0x0378
 
 #define IMX477_REG_MODE_SELECT		0x0100
 #define IMX477_MODE_STANDBY		0x00
@@ -453,6 +454,12 @@ static const struct imx477_reg mode_common_regs[] = {
 	{0x0350, 0x00},
 	{0xbcf1, 0x02},
 	{0x3ff9, 0x01},
+};
+
+static const struct imx477_reg imx378_extra_regs[] = {
+	{0x3e35, 0x01},
+	{0x4421, 0x08},
+	{0x3ff9, 0x00},
 };
 
 /* 12 mpix 10fps */
@@ -1107,6 +1114,9 @@ struct imx477 {
 
 	/* Current long exposure factor in use. Set through V4L2_CID_VBLANK */
 	unsigned int long_exp_shift;
+
+	/* imx378 sensor needs a tiny number of extra register updates */
+	unsigned int chip_id;
 };
 
 static inline struct imx477 *to_imx477(struct v4l2_subdev *_sd)
@@ -1678,6 +1688,9 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	if (!imx477->common_regs_written) {
 		ret = imx477_write_regs(imx477, mode_common_regs,
 					ARRAY_SIZE(mode_common_regs));
+		if (ret == 0 && imx477->chip_id == IMX378_CHIP_ID)
+			ret = imx477_write_regs(imx477, imx378_extra_regs,
+						ARRAY_SIZE(imx378_extra_regs));
 		if (ret) {
 			dev_err(&client->dev, "%s failed to set common settings\n",
 				__func__);
@@ -1877,11 +1890,12 @@ static int imx477_identify_module(struct imx477 *imx477)
 		return ret;
 	}
 
-	if (val != IMX477_CHIP_ID) {
-		dev_err(&client->dev, "chip id mismatch: %x!=%x\n",
-			IMX477_CHIP_ID, val);
+	if (val != IMX477_CHIP_ID && val != IMX378_CHIP_ID) {
+		dev_err(&client->dev, "chip id mismatch: %x\n", val);
 		return -EIO;
 	}
+	imx477->chip_id = val;
+	dev_info(&client->dev, "Sensor is imx%x\n", val);
 
 	return 0;
 }
@@ -2082,6 +2096,7 @@ static int imx477_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
 	struct imx477 *imx477;
+	struct v4l2_subdev *sd;
 	int ret;
 
 	imx477 = devm_kzalloc(&client->dev, sizeof(*imx477), GFP_KERNEL);
@@ -2129,6 +2144,10 @@ static int imx477_probe(struct i2c_client *client)
 	ret = imx477_identify_module(imx477);
 	if (ret)
 		goto error_power_off;
+
+	sd = &imx477->sd;
+	snprintf(sd->name, sizeof(sd->name), "imx%x %s",
+		 imx477->chip_id, dev_name(sd->dev));
 
 	/* Initialize default format */
 	imx477_set_default_format(imx477);
