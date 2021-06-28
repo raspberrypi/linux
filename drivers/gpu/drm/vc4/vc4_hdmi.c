@@ -933,23 +933,7 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 		return;
 	}
 
-	/*
-	 * As stated in RPi's vc4 firmware "HDMI state machine (HSM) clock must
-	 * be faster than pixel clock, infinitesimally faster, tested in
-	 * simulation. Otherwise, exact value is unimportant for HDMI
-	 * operation." This conflicts with bcm2835's vc4 documentation, which
-	 * states HSM's clock has to be at least 108% of the pixel clock.
-	 *
-	 * Real life tests reveal that vc4's firmware statement holds up, and
-	 * users are able to use pixel clocks closer to HSM's, namely for
-	 * 1920x1200@60Hz. So it was decided to have leave a 1% margin between
-	 * both clocks. Which, for RPi0-3 implies a maximum pixel clock of
-	 * 162MHz.
-	 *
-	 * Additionally, the AXI clock needs to be at least 25% of
-	 * pixel clock, but HSM ends up being the limiting factor.
-	 */
-	hsm_rate = max_t(unsigned long, 120000000, (pixel_rate / 100) * 101);
+	hsm_rate = vc4_hdmi->variant->calc_hsm_clock(vc4_hdmi, pixel_rate);
 	vc4_hdmi->hsm_req = clk_request_start(vc4_hdmi->hsm_clock, hsm_rate);
 	if (IS_ERR(vc4_hdmi->hsm_req)) {
 		DRM_ERROR("Failed to set HSM clock rate: %ld\n", PTR_ERR(vc4_hdmi->hsm_req));
@@ -1168,6 +1152,39 @@ static const struct drm_encoder_helper_funcs vc4_hdmi_encoder_helper_funcs = {
 	.disable = vc4_hdmi_encoder_disable,
 	.enable = vc4_hdmi_encoder_enable,
 };
+
+static u32 vc4_hdmi_calc_hsm_clock(struct vc4_hdmi *vc4_hdmi, unsigned long pixel_rate)
+{
+	/*
+	 * Whilst this can vary, all the CEC timings are derived from this
+	 * clock, so make it constant to avoid having to reconfigure CEC on
+	 * every mode change.
+	 */
+
+	return 163682864;
+}
+
+static u32 vc5_hdmi_calc_hsm_clock(struct vc4_hdmi *vc4_hdmi, unsigned long pixel_rate)
+{
+	/*
+	 * As stated in RPi's vc4 firmware "HDMI state machine (HSM) clock must
+	 * be faster than pixel clock, infinitesimally faster, tested in
+	 * simulation. Otherwise, exact value is unimportant for HDMI
+	 * operation." This conflicts with bcm2835's vc4 documentation, which
+	 * states HSM's clock has to be at least 108% of the pixel clock.
+	 *
+	 * Real life tests reveal that vc4's firmware statement holds up, and
+	 * users are able to use pixel clocks closer to HSM's, namely for
+	 * 1920x1200@60Hz. So it was decided to have leave a 1% margin between
+	 * both clocks. Which, for RPi0-3 implies a maximum pixel clock of
+	 * 162MHz.
+	 *
+	 * Additionally, the AXI clock needs to be at least 25% of
+	 * pixel clock, but HSM ends up being the limiting factor.
+	 */
+
+	return max_t(unsigned long, 120000000, (pixel_rate / 100) * 101);
+}
 
 static u32 vc4_hdmi_channel_map(struct vc4_hdmi *vc4_hdmi, u32 channel_mask)
 {
@@ -2418,6 +2435,7 @@ static const struct vc4_hdmi_variant bcm2835_variant = {
 	.phy_disable		= vc4_hdmi_phy_disable,
 	.phy_rng_enable		= vc4_hdmi_phy_rng_enable,
 	.phy_rng_disable	= vc4_hdmi_phy_rng_disable,
+	.calc_hsm_clock		= vc4_hdmi_calc_hsm_clock,
 	.channel_map		= vc4_hdmi_channel_map,
 	.supports_hdr		= false,
 };
@@ -2446,6 +2464,7 @@ static const struct vc4_hdmi_variant bcm2711_hdmi0_variant = {
 	.phy_disable		= vc5_hdmi_phy_disable,
 	.phy_rng_enable		= vc5_hdmi_phy_rng_enable,
 	.phy_rng_disable	= vc5_hdmi_phy_rng_disable,
+	.calc_hsm_clock		= vc5_hdmi_calc_hsm_clock,
 	.channel_map		= vc5_hdmi_channel_map,
 	.supports_hdr		= true,
 };
@@ -2474,6 +2493,7 @@ static const struct vc4_hdmi_variant bcm2711_hdmi1_variant = {
 	.phy_disable		= vc5_hdmi_phy_disable,
 	.phy_rng_enable		= vc5_hdmi_phy_rng_enable,
 	.phy_rng_disable	= vc5_hdmi_phy_rng_disable,
+	.calc_hsm_clock		= vc5_hdmi_calc_hsm_clock,
 	.channel_map		= vc5_hdmi_channel_map,
 	.supports_hdr		= true,
 };
