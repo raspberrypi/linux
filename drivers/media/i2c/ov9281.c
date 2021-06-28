@@ -1197,8 +1197,6 @@ static int ov9281_probe(struct i2c_client *client,
 	if (ret < 0)
 		goto err_power_off;
 
-	snprintf(sd->name, sizeof(sd->name), "m%s %s",
-		 OV9281_NAME, dev_name(sd->dev));
 	ret = v4l2_async_register_subdev_sensor(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
