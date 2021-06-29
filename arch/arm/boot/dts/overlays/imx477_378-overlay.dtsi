@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Definitions for IMX477 camera module on VC I2C bus
+
+/{
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c_csi_dsi>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			imx477: imx477@1a {
+				reg = <0x1a>;
+				status = "okay";
+
+				clocks = <&imx477_clk>;
+				clock-names = "xclk";
+
+				VANA-supply = <&cam1_reg>;	/* 2.8v */
+				VDIG-supply = <&imx477_vdig>;	/* 1.05v */
+				VDDL-supply = <&imx477_vddl>;	/* 1.8v */
+
+				rotation = <180>;
+
+				port {
+					imx477_0: endpoint {
+						remote-endpoint = <&csi1_ep>;
+						clock-lanes = <0>;
+						data-lanes = <1 2>;
+						clock-noncontinuous;
+						link-frequencies =
+							/bits/ 64 <450000000>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&csi1>;
+		__overlay__ {
+			status = "okay";
+
+			port {
+				csi1_ep: endpoint {
+					remote-endpoint = <&imx477_0>;
+					clock-lanes = <0>;
+					data-lanes = <1 2>;
+					clock-noncontinuous;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&i2c0if>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@3 {
+		target-path="/";
+		__overlay__ {
+			imx477_vdig: fixedregulator@0 {
+				compatible = "regulator-fixed";
+				regulator-name = "imx477_vdig";
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1050000>;
+			};
+			imx477_vddl: fixedregulator@1 {
+				compatible = "regulator-fixed";
+				regulator-name = "imx477_vddl";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+			imx477_clk: camera-clk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <24000000>;
+			};
+		};
+	};
+
+	fragment@4 {
+		target = <&i2c0mux>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@5 {
+		target = <&cam1_reg>;
+		__overlay__ {
+			status = "okay";
+			regulator-name = "imx477_vana";
+			startup-delay-us = <300000>;
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+		};
+	};
+
+	__overrides__ {
+		rotation = <&imx477>,"rotation:0";
+	};
+};
