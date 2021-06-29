@@ -917,6 +917,7 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	ret = pm_runtime_resume_and_get(&vc4_hdmi->pdev->dev);
 	if (ret < 0) {
 		DRM_ERROR("Failed to retain power domain: %d\n", ret);
+		pm_runtime_put(&vc4_hdmi->pdev->dev);
 		return;
 	}
 
@@ -924,12 +925,14 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	ret = clk_set_rate(vc4_hdmi->pixel_clock, pixel_rate);
 	if (ret) {
 		DRM_ERROR("Failed to set pixel clock rate: %d\n", ret);
+		pm_runtime_put(&vc4_hdmi->pdev->dev);
 		return;
 	}
 
 	ret = clk_prepare_enable(vc4_hdmi->pixel_clock);
 	if (ret) {
 		DRM_ERROR("Failed to turn on pixel clock: %d\n", ret);
+		pm_runtime_put(&vc4_hdmi->pdev->dev);
 		return;
 	}
 
@@ -937,6 +940,7 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	vc4_hdmi->hsm_req = clk_request_start(vc4_hdmi->hsm_clock, hsm_rate);
 	if (IS_ERR(vc4_hdmi->hsm_req)) {
 		DRM_ERROR("Failed to set HSM clock rate: %ld\n", PTR_ERR(vc4_hdmi->hsm_req));
+		pm_runtime_put(&vc4_hdmi->pdev->dev);
 		return;
 	}
 
@@ -956,6 +960,7 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 		clk_request_done(vc4_hdmi->hsm_req);
 		clk_disable_unprepare(vc4_hdmi->hsm_clock);
 		clk_disable_unprepare(vc4_hdmi->pixel_clock);
+		pm_runtime_put(&vc4_hdmi->pdev->dev);
 		return;
 	}
 
@@ -967,6 +972,7 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 		clk_request_done(vc4_hdmi->hsm_req);
 		clk_disable_unprepare(vc4_hdmi->hsm_clock);
 		clk_disable_unprepare(vc4_hdmi->pixel_clock);
+		pm_runtime_put(&vc4_hdmi->pdev->dev);
 		return;
 	}
 
