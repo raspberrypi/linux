@@ -1674,6 +1674,15 @@ Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
         mono                    Denote that the module is a mono sensor.
 
 
+Name:   imx378
+Info:   Sony IMX378 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx378,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 180)
+
+
 Name:   imx477
 Info:   Sony IMX477 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
