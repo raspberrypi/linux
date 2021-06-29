@@ -351,6 +351,28 @@ static int bcm2835_gpio_direction_output(struct gpio_chip *chip,
 	return pinctrl_gpio_direction_output(chip->base + offset);
 }
 
+static int bcm2835_gpio_irq_map(struct irq_domain *d,
+				unsigned int irq,
+				irq_hw_number_t hwirq)
+{
+	unsigned bank = GPIO_REG_OFFSET(hwirq);
+
+	/*
+	 * FIXME: It appears that the interrupts in any bank but the
+	 * first are not working.
+	 */
+	if (bank)
+		return -EINVAL;
+
+	return gpiochip_irq_map(d, irq, hwirq);
+}
+
+static const struct irq_domain_ops bcm2835_irq_domain_ops = {
+	.map	= bcm2835_gpio_irq_map,
+	.unmap	= gpiochip_irq_unmap,
+	.xlate	= irq_domain_xlate_twocell,
+};
+
 static const struct gpio_chip bcm2835_gpio_chip = {
 	.label = MODULE_NAME,
 	.owner = THIS_MODULE,
@@ -1258,6 +1280,7 @@ static int bcm2835_pinctrl_probe(struct platform_device *pdev)
 
 	girq = &pc->gpio_chip.irq;
 	girq->chip = &bcm2835_gpio_irq_chip;
+	girq->domain_ops = &bcm2835_irq_domain_ops;
 	girq->parent_handler = bcm2835_gpio_irq_handler;
 	girq->num_parents = BCM2835_NUM_IRQS;
 	girq->parents = devm_kcalloc(dev, BCM2835_NUM_IRQS,
