@@ -48,7 +48,7 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 		/* YUV formats */
 		.fourcc		    = V4L2_PIX_FMT_YUV420,
 		.depth		    = 8,
-		.bytesperline_align = 32,
+		.bytesperline_align = 64,
 		.mmal_fmt	    = MMAL_ENCODING_I420,
 		.size_multiplier_x2 = 3,
 		.colorspace_mask    = V4L2_COLORSPACE_MASK_YUV,
@@ -57,7 +57,7 @@ static const struct bcm2835_isp_fmt supported_formats[] = {
 	}, {
 		.fourcc		    = V4L2_PIX_FMT_YVU420,
 		.depth		    = 8,
-		.bytesperline_align = 32,
+		.bytesperline_align = 64,
 		.mmal_fmt	    = MMAL_ENCODING_YV12,
 		.size_multiplier_x2 = 3,
 		.colorspace_mask    = V4L2_COLORSPACE_MASK_YUV,
