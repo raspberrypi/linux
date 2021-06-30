@@ -39,6 +39,7 @@
 #include <linux/overflow.h>
 #include <linux/pgtable.h>
 #include <linux/hugetlb.h>
+#include <linux/io.h>
 #include <linux/sched/mm.h>
 #include <asm/tlbflush.h>
 #include <asm/shmparam.h>
@@ -309,12 +310,17 @@ int ioremap_page_range(unsigned long addr, unsigned long end,
 {
 	int err;
 
-	err = vmap_range_noflush(addr, end, phys_addr, pgprot_nx(prot),
+	prot = pgprot_nx(prot);
+	err = vmap_range_noflush(addr, end, phys_addr, prot,
 				 ioremap_max_page_shift);
 	flush_cache_vmap(addr, end);
 	if (!err)
 		err = kmsan_ioremap_page_range(addr, end, phys_addr, prot,
 					       ioremap_max_page_shift);
+
+	if (IS_ENABLED(CONFIG_ARCH_HAS_IOREMAP_PHYS_HOOKS) && !err)
+		ioremap_phys_range_hook(phys_addr, end - addr, prot);
+
 	return err;
 }
 
@@ -2361,6 +2367,11 @@ void vm_unmap_ram(const void *mem, unsigned int count)
 
 	debug_check_no_locks_freed((void *)va->va_start,
 				    (va->va_end - va->va_start));
+
+	if (IS_ENABLED(CONFIG_ARCH_HAS_IOREMAP_PHYS_HOOKS) && va->vm &&
+	    va->vm->flags & VM_IOREMAP)
+		iounmap_phys_range_hook(va->vm->phys_addr, get_vm_area_size(va->vm));
+
 	free_unmap_vmap_area(va);
 }
 EXPORT_SYMBOL(vm_unmap_ram);

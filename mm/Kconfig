@@ -1166,6 +1166,11 @@ config IO_MAPPING
 config MEMFD_CREATE
 	bool "Enable memfd_create() system call" if EXPERT
 
+# Some architectures want callbacks for all IO mappings in order to
+# track the physical addresses that get used as devices.
+config ARCH_HAS_IOREMAP_PHYS_HOOKS
+	bool
+
 config SECRETMEM
 	default y
 	bool "Enable memfd_secret() system call" if EXPERT
