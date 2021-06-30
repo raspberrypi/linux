@@ -1445,6 +1445,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         ds1339                  Select the DS1339 device
 
+        ds1340                  Select the DS1340 device
+
         ds3231                  Select the DS3231 device
 
         m41t62                  Select the M41T62 device
@@ -1457,13 +1459,21 @@ Params: abx80x                  Select one of the ABx80x family:
 
         pcf2129                 Select the PCF2129 device
 
+        pcf85063                Select the PCF85063 device
+
+        pcf85063a               Select the PCF85063A device
+
         pcf8523                 Select the PCF8523 device
+
+        pcf85363                Select the PCF85363 device
 
         pcf8563                 Select the PCF8563 device
 
         rv1805                  Select the Micro Crystal RV1805 device
 
         rv3028                  Select the Micro Crystal RV3028 device
+
+        sd3078                  Select the ZXW Shenzhen whwave SD3078 device
 
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
