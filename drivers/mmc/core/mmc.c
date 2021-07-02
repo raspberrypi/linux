@@ -982,7 +982,7 @@ static int mmc_select_powerclass(struct mmc_card *card)
 /*
  * Set the bus speed for the selected speed mode.
  */
-static void mmc_set_bus_speed(struct mmc_card *card)
+void mmc_set_bus_speed(struct mmc_card *card)
 {
 	unsigned int max_dtr = (unsigned int)-1;
 
