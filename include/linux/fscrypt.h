@@ -190,6 +190,8 @@ struct fscrypt_operations {
 	 */
 	struct block_device **(*get_devices)(struct super_block *sb,
 					     unsigned int *num_devs);
+
+	ANDROID_OEM_DATA_ARRAY(1, 4);
 };
 
 static inline struct fscrypt_inode_info *
