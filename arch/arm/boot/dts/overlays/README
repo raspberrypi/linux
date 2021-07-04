@@ -2722,7 +2722,7 @@ Params: speed                   SPI bus speed (default 4000000)
 
 Name:   si446x-spi0
 Info:   Overlay for Si446x UHF Transceiver via SPI using si446x driver (currently out-of-tree at https://github.com/sunipkmukherjee/silabs.git)
-Loat:   dtoverlay=si446x-spi0,<param>=<val>
+Load:   dtoverlay=si446x-spi0,<param>=<val>
 Params: speed                   SPI bus speed (default 4000000)
         int_pin                 GPIO pin for interrupts (default 17)
         reset_pin               GPIO pin for RESET (default 27)
