@@ -2733,6 +2733,16 @@ Params: speed                   SPI bus speed (default 4000000)
         height                  Display height (32 or 64; default 64)
 
 
+Name:   si446x-spi0
+Info:   Overlay for Si446x UHF Transceiver via SPI using si446x driver.
+        The driver is currently out-of-tree at
+        https://github.com/sunipkmukherjee/silabs.git
+Load:   dtoverlay=si446x-spi0,<param>=<val>
+Params: speed                   SPI bus speed (default 4000000)
+        int_pin                 GPIO pin for interrupts (default 17)
+        reset_pin               GPIO pin for RESET (default 27)
+
+
 Name:   smi
 Info:   Enables the Secondary Memory Interface peripheral. Uses GPIOs 2-25!
 Load:   dtoverlay=smi
