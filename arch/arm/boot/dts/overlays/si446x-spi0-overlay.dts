@@ -5,7 +5,7 @@
 /plugin/;
 
    / {
-    compatible = "brcm,bcm2708";
+    compatible = "brcm,bcm2835";
 
     fragment@0 {
         target = <&spi0>;
@@ -47,7 +47,7 @@
                   <&uhf0>, "irq_pin:0",
                   <&uhf0_pins>, "brcm,pins:0";
         reset_pin = <&uhf0>, "sdn_pin:0",
-                    <&uhf0_pins>, "brcm,pins:1";
+                    <&uhf0_pins>, "brcm,pins:4";
         speed   = <&uhf0>, "spi-max-frequency:0";
     };
 };
