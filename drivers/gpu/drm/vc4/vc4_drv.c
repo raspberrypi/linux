@@ -231,6 +231,18 @@ const struct of_device_id vc4_dma_range_matches[] = {
 	{}
 };
 
+/*
+ * we need this helper function for determining presence of fkms
+ * before it's been bound
+ */
+static bool firmware_kms(void)
+{
+	return of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms")) ||
+	       of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms-2711"));
+}
+
 static int vc4_drm_bind(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -291,7 +303,7 @@ static int vc4_drm_bind(struct device *dev)
 
 	drm_fb_helper_remove_conflicting_framebuffers(NULL, "vc4drmfb", false);
 
-	if (vc4->firmware) {
+	if (vc4->firmware && !firmware_kms()) {
 		ret = rpi_firmware_property(vc4->firmware,
 					    RPI_FIRMWARE_NOTIFY_DISPLAY_DONE,
 					    NULL, 0);
