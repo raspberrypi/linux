@@ -1212,7 +1212,11 @@ static const struct dwcmshc_pltfm_data sdhci_dwcmshc_rk35xx_pdata = {
 		.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
 			  SDHCI_QUIRK_BROKEN_TIMEOUT_VAL,
 		.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
-			   SDHCI_QUIRK2_CLOCK_DIV_ZERO_BROKEN,
+			   SDHCI_QUIRK2_CLOCK_DIV_ZERO_BROKEN |
+			   SDHCI_QUIRK2_NO_SDR50 |
+			   SDHCI_QUIRK2_NO_SDR104 |
+			   SDHCI_QUIRK2_NO_SDR25,
+
 	},
 	.init = dwcmshc_rk35xx_init,
 	.postinit = dwcmshc_rk35xx_postinit,
