@@ -2129,7 +2129,10 @@ static const struct rockchip_pltfm_data sdhci_dwcmshc_rk3568_pdata = {
 			.quirks = SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
 				  SDHCI_QUIRK_BROKEN_TIMEOUT_VAL,
 			.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
-				   SDHCI_QUIRK2_CLOCK_DIV_ZERO_BROKEN,
+				   SDHCI_QUIRK2_CLOCK_DIV_ZERO_BROKEN |
+				   SDHCI_QUIRK2_NO_SDR50 |
+				   SDHCI_QUIRK2_NO_SDR104 |
+				   SDHCI_QUIRK2_NO_SDR25,
 		},
 		.cqhci_host_ops = &rk35xx_cqhci_ops,
 		.init = dwcmshc_rk35xx_init,
