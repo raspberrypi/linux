@@ -3071,6 +3071,15 @@ static void sdhci_card_event(struct mmc_host *mmc)
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
+static int sdhci_init_sd_express(struct mmc_host *mmc, struct mmc_ios *ios)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	if (!host->ops->init_sd_express)
+		return -EOPNOTSUPP;
+	return host->ops->init_sd_express(host, ios);
+}
+
 static const struct mmc_host_ops sdhci_ops = {
 	.request	= sdhci_request,
 	.post_req	= sdhci_post_req,
@@ -3086,6 +3095,7 @@ static const struct mmc_host_ops sdhci_ops = {
 	.execute_tuning			= sdhci_execute_tuning,
 	.card_event			= sdhci_card_event,
 	.card_busy	= sdhci_card_busy,
+	.init_sd_express = sdhci_init_sd_express,
 };
 
 /*****************************************************************************\
@@ -4604,6 +4614,15 @@ int sdhci_setup_host(struct sdhci_host *host)
 	if ((host->caps1 & SDHCI_SUPPORT_DDR50) &&
 	    !(host->quirks2 & SDHCI_QUIRK2_BROKEN_DDR50))
 		mmc->caps |= MMC_CAP_UHS_DDR50;
+
+	if (host->quirks2 & SDHCI_QUIRK2_NO_SDR25)
+		mmc->caps &= ~MMC_CAP_UHS_SDR25;
+
+	if (host->quirks2 & SDHCI_QUIRK2_NO_SDR50)
+		mmc->caps &= ~MMC_CAP_UHS_SDR50;
+
+	if (host->quirks2 & SDHCI_QUIRK2_NO_SDR104)
+		mmc->caps &= ~MMC_CAP_UHS_SDR104;
 
 	/* Does the host need tuning for SDR50? */
 	if (host->caps1 & SDHCI_USE_SDR50_TUNING)
