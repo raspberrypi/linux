@@ -1799,6 +1799,7 @@ static int unicam_enum_input(struct file *file, void *priv,
 {
 	struct unicam_node *node = video_drvdata(file);
 	struct unicam_device *dev = node->dev;
+	int ret;
 
 	if (inp->index != 0)
 		return -EINVAL;
@@ -1815,6 +1816,14 @@ static int unicam_enum_input(struct file *file, void *priv,
 		inp->capabilities = 0;
 		inp->std = 0;
 	}
+
+	if (v4l2_subdev_has_op(dev->sensor, video, g_input_status)) {
+		ret = v4l2_subdev_call(dev->sensor, video, g_input_status,
+				       &inp->status);
+		if (ret < 0)
+			return ret;
+	}
+
 	snprintf(inp->name, sizeof(inp->name), "Camera 0");
 	return 0;
 }
