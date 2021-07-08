@@ -2354,7 +2354,7 @@ static int bcm2835_clk_probe(struct platform_device *pdev)
 
 	fw_node = of_parse_phandle(dev->of_node, "firmware", 0);
 	if (fw_node) {
-		struct rpi_firmware *fw = rpi_firmware_get(NULL);
+		struct rpi_firmware *fw = rpi_firmware_get(fw_node);
 		if (!fw)
 			return -EPROBE_DEFER;
 		cprman->fw = fw;
