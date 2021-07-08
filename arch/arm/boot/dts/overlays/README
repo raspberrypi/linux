@@ -621,6 +621,10 @@ Name:   bmp085_i2c-sensor
 Info:   This overlay is now deprecated - see i2c-sensor
 Load:   <Deprecated>
 
+Name:   cap1106
+Info:   Enables the ability to use the cap1106 touch sensor as a keyboard 
+Load:   dtoverlay=cap1106
+Params: <None>
 
 Name:   cma
 Info:   Set custom CMA sizes, only use if you know what you are doing, might
