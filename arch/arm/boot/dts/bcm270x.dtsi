@@ -195,6 +195,7 @@
 	bus-width = <4>;
 	brcm,overclock-50 = <0>;
 	brcm,pio-limit = <1>;
+	firmware = <&firmware>;
 };
 
 &spi0 {
