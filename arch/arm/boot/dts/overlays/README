@@ -622,6 +622,12 @@ Info:   This overlay is now deprecated - see i2c-sensor
 Load:   <Deprecated>
 
 
+Name:   cap1106
+Info:   Enables the ability to use the cap1106 touch sensor as a keyboard
+Load:   dtoverlay=cap1106,<param>=<val>
+Params: int_pin                 GPIO pin for interrupt signal (default 23)
+
+
 Name:   chipdip-i2s-master-dac
 Info:   Configures Raspberry PI to work as I2S slave with BCLK=64Fs.
 Load:   dtoverlay=chipdip-i2s-master-dac
