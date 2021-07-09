@@ -30,6 +30,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	audiosense-pi.dtbo \
 	audremap.dtbo \
 	balena-fin.dtbo \
+	chipdip-i2s-master-dac.dtbo \
 	cma.dtbo \
 	dht11.dtbo \
 	dionaudio-loco.dtbo \
