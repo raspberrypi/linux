@@ -11,22 +11,20 @@
         target = <&sound>;
         __overlay__ {
             compatible = "simple-audio-card";
-            simple-audio-card,name = "Generic I2S Master";
-			
+            simple-audio-card,name = "ChipDip I2S master DAC";
             status="okay";
-            playback_link: simple-audio-card,dai-link@1 {
+            playback_link: simple-audio-card,dai-link@0 {
                 format = "i2s";
-				
 		bitclock-master = <&p_codec_dai>;
                 frame-master = <&p_codec_dai>;
                 p_cpu_dai: cpu {
-                    sound-dai = <&i2s>;
+                        sound-dai = <&i2s>;
 			dai-tdm-slot-num = <2>;
 			dai-tdm-slot-width = <32>;
 				};
 
                 p_codec_dai: codec {
-                    sound-dai = <&codec_out>;
+                        sound-dai = <&codec_out>;
                 };
             };
         };
