@@ -1,3 +1,7 @@
+/*
+ * Device Tree overlay for ChipDip I2S master DAC
+ */
+
 /dts-v1/;
 /plugin/;
 
