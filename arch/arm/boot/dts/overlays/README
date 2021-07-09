@@ -626,6 +626,12 @@ Info:   Enables the ability to use the cap1106 touch sensor as a keyboard
 Load:   dtoverlay=cap1106
 Params: <None>
 
+Name:   chipdip-i2s-master-dac
+Info:   Configures Raspberry PI to work as I2S slave with BCLK=64Fs.
+Load:   dtoverlay=chipdip-i2s-master-dac
+Params: <None>
+
+
 Name:   cma
 Info:   Set custom CMA sizes, only use if you know what you are doing, might
         clash with other overlays like vc4-fkms-v3d and vc4-kms-v3d.

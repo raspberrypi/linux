@@ -647,7 +647,7 @@ static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 	struct drm_encoder *encoder;
 	int ret, i;
 
-	ret = vc4_hvs_atomic_check(crtc, crtc_state);
+	ret = vc4_hvs_atomic_check(crtc, state);
 	if (ret)
 		return ret;
 
@@ -665,7 +665,7 @@ static int vc4_crtc_atomic_check(struct drm_crtc *crtc,
 		}
 	}
 
-	for_each_new_connector_in_state(crtc_state->state, conn, conn_state,
+	for_each_new_connector_in_state(state, conn, conn_state,
 					i) {
 		if (conn_state->crtc != crtc)
 			continue;
@@ -765,7 +765,6 @@ vc4_async_page_flip_complete(struct vc4_seqno_cb *cb)
 		container_of(cb, struct vc4_async_flip_state, cb);
 	struct drm_crtc *crtc = flip_state->crtc;
 	struct drm_device *dev = crtc->dev;
-	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_plane *plane = crtc->primary;
 
 	vc4_plane_async_set_fb(plane, flip_state->fb);
@@ -797,8 +796,6 @@ vc4_async_page_flip_complete(struct vc4_seqno_cb *cb)
 	}
 
 	kfree(flip_state);
-
-	up(&vc4->async_modeset);
 }
 
 /* Implements async (non-vblank-synced) page flips.
@@ -813,7 +810,6 @@ static int vc4_async_page_flip(struct drm_crtc *crtc,
 			       uint32_t flags)
 {
 	struct drm_device *dev = crtc->dev;
-	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	struct drm_plane *plane = crtc->primary;
 	int ret = 0;
 	struct vc4_async_flip_state *flip_state;
@@ -841,15 +837,6 @@ static int vc4_async_page_flip(struct drm_crtc *crtc,
 	flip_state->fb = fb;
 	flip_state->crtc = crtc;
 	flip_state->event = event;
-
-	/* Make sure all other async modesetes have landed. */
-	ret = down_interruptible(&vc4->async_modeset);
-	if (ret) {
-		drm_framebuffer_put(fb);
-		vc4_bo_dec_usecnt(bo);
-		kfree(flip_state);
-		return ret;
-	}
 
 	/* Save the current FB before it's replaced by the new one in
 	 * drm_atomic_set_fb_for_plane(). We'll need the old FB in
@@ -952,7 +939,6 @@ static const struct drm_crtc_funcs vc4_crtc_funcs = {
 	.reset = vc4_crtc_reset,
 	.atomic_duplicate_state = vc4_crtc_duplicate_state,
 	.atomic_destroy_state = vc4_crtc_destroy_state,
-	.gamma_set = drm_atomic_helper_legacy_gamma_set,
 	.enable_vblank = vc4_enable_vblank,
 	.disable_vblank = vc4_disable_vblank,
 	.get_vblank_timestamp = drm_crtc_vblank_helper_get_vblank_timestamp,
