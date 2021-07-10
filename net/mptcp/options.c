@@ -990,7 +990,8 @@ static bool add_addr_hmac_valid(struct mptcp_sock *msk,
 	return hmac == mp_opt->ahmac;
 }
 
-void mptcp_incoming_options(struct sock *sk, struct sk_buff *skb)
+/* Return false if a subflow has been reset, else return true */
+bool mptcp_incoming_options(struct sock *sk, struct sk_buff *skb)
 {
 	struct mptcp_subflow_context *subflow = mptcp_subflow_ctx(sk);
 	struct mptcp_sock *msk = mptcp_sk(subflow->conn);
@@ -1008,12 +1009,16 @@ void mptcp_incoming_options(struct sock *sk, struct sk_buff *skb)
 			__mptcp_check_push(subflow->conn, sk);
 		__mptcp_data_acked(subflow->conn);
 		mptcp_data_unlock(subflow->conn);
-		return;
+		return true;
 	}
 
 	mptcp_get_options(sk, skb, &mp_opt);
+
+	/* The subflow can be in close state only if check_fully_established()
+	 * just sent a reset. If so, tell the caller to ignore the current packet.
+	 */
 	if (!check_fully_established(msk, sk, subflow, skb, &mp_opt))
-		return;
+		return sk->sk_state != TCP_CLOSE;
 
 	if (mp_opt.fastclose &&
 	    msk->local_key == mp_opt.rcvr_key) {
@@ -1055,7 +1060,7 @@ void mptcp_incoming_options(struct sock *sk, struct sk_buff *skb)
 	}
 
 	if (!mp_opt.dss)
-		return;
+		return true;
 
 	/* we can't wait for recvmsg() to update the ack_seq, otherwise
 	 * monodirectional flows will stuck
@@ -1074,12 +1079,12 @@ void mptcp_incoming_options(struct sock *sk, struct sk_buff *skb)
 		    schedule_work(&msk->work))
 			sock_hold(subflow->conn);
 
-		return;
+		return true;
 	}
 
 	mpext = skb_ext_add(skb, SKB_EXT_MPTCP);
 	if (!mpext)
-		return;
+		return true;
 
 	memset(mpext, 0, sizeof(*mpext));
 
@@ -1104,6 +1109,8 @@ void mptcp_incoming_options(struct sock *sk, struct sk_buff *skb)
 		mpext->data_len = mp_opt.data_len;
 		mpext->use_map = 1;
 	}
+
+	return true;
 }
 
 static void mptcp_set_rwin(const struct tcp_sock *tp)
