@@ -415,6 +415,31 @@ static void vc4_vec_connector_reset(struct drm_connector *connector)
 		connector->state->tv.mode = vc4_vec_get_default_mode(connector);
 }
 
+static int vc4_vec_connector_atomic_check(struct drm_connector *conn,
+					  struct drm_atomic_state *state)
+{
+	struct drm_connector_state *old_state =
+		drm_atomic_get_old_connector_state(state, conn);
+	struct drm_connector_state *new_state =
+		drm_atomic_get_new_connector_state(state, conn);
+
+	const struct vc4_vec_tv_mode *vec_mode =
+		&vc4_vec_tv_modes[new_state->tv.mode];
+
+	if (new_state->crtc) {
+		struct drm_crtc_state *crtc_state =
+			drm_atomic_get_new_crtc_state(state, new_state->crtc);
+
+		if (!drm_mode_equal(vec_mode->mode, &crtc_state->mode))
+			return -EINVAL;
+
+		if (old_state->tv.mode != new_state->tv.mode)
+			crtc_state->mode_changed = true;
+	}
+
+	return 0;
+}
+
 static const struct drm_connector_funcs vc4_vec_connector_funcs = {
 	.detect = vc4_vec_connector_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
@@ -426,6 +451,7 @@ static const struct drm_connector_funcs vc4_vec_connector_funcs = {
 
 static const struct drm_connector_helper_funcs vc4_vec_connector_helper_funcs = {
 	.get_modes = vc4_vec_connector_get_modes,
+	.atomic_check = vc4_vec_connector_atomic_check,
 };
 
 static struct drm_connector *vc4_vec_connector_init(struct drm_device *dev,
@@ -563,26 +589,10 @@ static bool vc4_vec_encoder_mode_fixup(struct drm_encoder *encoder,
 	return true;
 }
 
-static int vc4_vec_encoder_atomic_check(struct drm_encoder *encoder,
-					struct drm_crtc_state *crtc_state,
-					struct drm_connector_state *conn_state)
-{
-	const struct vc4_vec_tv_mode *vec_mode;
-
-	vec_mode = &vc4_vec_tv_modes[conn_state->tv.mode];
-
-	if (conn_state->crtc &&
-	    !drm_mode_equal(vec_mode->mode, &crtc_state->adjusted_mode))
-		return -EINVAL;
-
-	return 0;
-}
-
 static const struct drm_encoder_helper_funcs vc4_vec_encoder_helper_funcs = {
 	.disable = vc4_vec_encoder_disable,
 	.enable = vc4_vec_encoder_enable,
 	.mode_fixup = vc4_vec_encoder_mode_fixup,
-	.atomic_check = vc4_vec_encoder_atomic_check,
 };
 
 static const struct vc4_vec_variant bcm2835_vec_variant = {
