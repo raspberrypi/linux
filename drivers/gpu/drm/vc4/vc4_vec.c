@@ -400,18 +400,11 @@ static int vc4_vec_connector_atomic_check(struct drm_connector *conn,
 	struct drm_connector_state *new_state =
 		drm_atomic_get_new_connector_state(state, conn);
 
-	const struct vc4_vec_tv_mode *vec_mode =
-		&vc4_vec_tv_modes[new_state->tv.mode];
-
-	if (new_state->crtc) {
+	if (new_state->crtc && old_state->tv.mode != new_state->tv.mode) {
 		struct drm_crtc_state *crtc_state =
 			drm_atomic_get_new_crtc_state(state, new_state->crtc);
 
-		if (!drm_mode_equal(vec_mode->mode, &crtc_state->mode))
-			return -EINVAL;
-
-		if (old_state->tv.mode != new_state->tv.mode)
-			crtc_state->mode_changed = true;
+		crtc_state->mode_changed = true;
 	}
 
 	return 0;
@@ -546,7 +539,10 @@ static void vc4_vec_encoder_enable(struct drm_encoder *encoder,
 	VEC_WRITE(VEC_CLMP0_START, 0xac);
 	VEC_WRITE(VEC_CLMP0_END, 0xec);
 	VEC_WRITE(VEC_CONFIG2,
-		  VEC_CONFIG2_UV_DIG_DIS | VEC_CONFIG2_RGB_DIG_DIS);
+		  VEC_CONFIG2_UV_DIG_DIS |
+		  VEC_CONFIG2_RGB_DIG_DIS |
+		  ((encoder->crtc->state->adjusted_mode.flags &
+		    DRM_MODE_FLAG_INTERLACE) ? 0 : VEC_CONFIG2_PROG_SCAN));
 	VEC_WRITE(VEC_CONFIG3, VEC_CONFIG3_HORIZ_LEN_STD);
 	VEC_WRITE(VEC_DAC_CONFIG, vec->variant->dac_config);
 
@@ -575,8 +571,86 @@ err_put_runtime_pm:
 err_dev_exit:
 	drm_dev_exit(idx);
 }
+static int vc4_vec_encoder_atomic_check(struct drm_encoder *encoder,
+					struct drm_crtc_state *crtc_state,
+					struct drm_connector_state *conn_state)
+{
+	const struct drm_display_mode *reference_mode =
+		vc4_vec_tv_modes[conn_state->tv.mode].mode;
+
+	if (crtc_state->adjusted_mode.crtc_clock != reference_mode->clock ||
+	    crtc_state->adjusted_mode.crtc_htotal != reference_mode->htotal ||
+	    crtc_state->adjusted_mode.crtc_hdisplay % 4 != 0 ||
+	    crtc_state->adjusted_mode.crtc_hsync_end -
+		    crtc_state->adjusted_mode.crtc_hsync_start < 1)
+		return -EINVAL;
+
+	switch (reference_mode->vtotal) {
+	case 525:
+		if (crtc_state->adjusted_mode.crtc_vdisplay < 1 ||
+		    crtc_state->adjusted_mode.crtc_vdisplay > 253 ||
+		    crtc_state->adjusted_mode.crtc_vsync_start -
+			    crtc_state->adjusted_mode.crtc_vdisplay < 1 ||
+		    crtc_state->adjusted_mode.crtc_vsync_end -
+			    crtc_state->adjusted_mode.crtc_vsync_start != 3 ||
+		    crtc_state->adjusted_mode.crtc_vtotal -
+			    crtc_state->adjusted_mode.crtc_vsync_end < 4 ||
+		    crtc_state->adjusted_mode.crtc_vtotal > 262)
+			return -EINVAL;
+
+		if ((crtc_state->adjusted_mode.flags &
+		     DRM_MODE_FLAG_INTERLACE) &&
+		    (crtc_state->adjusted_mode.vdisplay % 2 != 0 ||
+		     crtc_state->adjusted_mode.vsync_start % 2 != 1 ||
+		     crtc_state->adjusted_mode.vsync_end % 2 != 1 ||
+		     crtc_state->adjusted_mode.vtotal % 2 != 1))
+			return -EINVAL;
+
+		/* progressive mode is hard-wired to 262 total lines */
+		if (!(crtc_state->adjusted_mode.flags &
+		      DRM_MODE_FLAG_INTERLACE) &&
+		    crtc_state->adjusted_mode.crtc_vtotal != 262)
+			return -EINVAL;
+
+		break;
+
+	case 625:
+		if (crtc_state->adjusted_mode.crtc_vdisplay < 1 ||
+		    crtc_state->adjusted_mode.crtc_vdisplay > 305 ||
+		    crtc_state->adjusted_mode.crtc_vsync_start -
+			    crtc_state->adjusted_mode.crtc_vdisplay < 1 ||
+		    crtc_state->adjusted_mode.crtc_vsync_end -
+			    crtc_state->adjusted_mode.crtc_vsync_start != 3 ||
+		    crtc_state->adjusted_mode.crtc_vtotal -
+			    crtc_state->adjusted_mode.crtc_vsync_end < 2 ||
+		    crtc_state->adjusted_mode.crtc_vtotal > 312)
+			return -EINVAL;
+
+		if ((crtc_state->adjusted_mode.flags &
+		     DRM_MODE_FLAG_INTERLACE) &&
+		    (crtc_state->adjusted_mode.vdisplay % 2 != 0 ||
+		     crtc_state->adjusted_mode.vsync_start % 2 != 0 ||
+		     crtc_state->adjusted_mode.vsync_end % 2 != 0 ||
+		     crtc_state->adjusted_mode.vtotal % 2 != 1))
+			return -EINVAL;
+
+		/* progressive mode is hard-wired to 312 total lines */
+		if (!(crtc_state->adjusted_mode.flags &
+		      DRM_MODE_FLAG_INTERLACE) &&
+		    crtc_state->adjusted_mode.crtc_vtotal != 312)
+			return -EINVAL;
+
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
 
 static const struct drm_encoder_helper_funcs vc4_vec_encoder_helper_funcs = {
+	.atomic_check = vc4_vec_encoder_atomic_check,
 	.atomic_disable = vc4_vec_encoder_disable,
 	.atomic_enable = vc4_vec_encoder_enable,
 };
