@@ -721,6 +721,18 @@ static int vc4_vec_encoder_atomic_check(struct drm_encoder *encoder,
 		if ((mode->crtc_vtotal - mode->crtc_vsync_end) < 4)
 			return -EINVAL;
 
+		if ((mode->flags & DRM_MODE_FLAG_INTERLACE) &&
+		    (mode->vdisplay % 2 != 0 ||
+		     mode->vsync_start % 2 != 1 ||
+		     mode->vsync_end % 2 != 1 ||
+		     mode->vtotal % 2 != 1))
+			return -EINVAL;
+
+		/* progressive mode is hard-wired to 262 total lines */
+		if (!(mode->flags & DRM_MODE_FLAG_INTERLACE) &&
+		    mode->crtc_vtotal != 262)
+			return -EINVAL;
+
 		break;
 
 	/* PAL/SECAM */
@@ -738,6 +750,18 @@ static int vc4_vec_encoder_atomic_check(struct drm_encoder *encoder,
 			return -EINVAL;
 
 		if ((mode->crtc_vtotal - mode->crtc_vsync_end) < 2)
+			return -EINVAL;
+
+		if ((mode->flags & DRM_MODE_FLAG_INTERLACE) &&
+		    (mode->vdisplay % 2 != 0 ||
+		     mode->vsync_start % 2 != 0 ||
+		     mode->vsync_end % 2 != 0 ||
+		     mode->vtotal % 2 != 1))
+			return -EINVAL;
+
+		/* progressive mode is hard-wired to 312 total lines */
+		if (!(mode->flags & DRM_MODE_FLAG_INTERLACE) &&
+		    mode->crtc_vtotal != 312)
 			return -EINVAL;
 
 		break;
