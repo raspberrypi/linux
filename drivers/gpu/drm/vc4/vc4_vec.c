@@ -273,6 +273,18 @@ static const struct debugfs_reg32 vec_regs[] = {
 	VC4_REG32(VEC_DAC_MISC),
 };
 
+static const struct drm_display_mode drm_mode_240p = {
+	DRM_MODE("720x240", DRM_MODE_TYPE_DRIVER, 13500,
+		 720, 720 + 14, 720 + 14 + 64, 720 + 14 + 64 + 60, 0,
+		 240, 240 + 3, 240 + 3 + 3, 262, 0, 0)
+};
+
+static const struct drm_display_mode drm_mode_288p = {
+	DRM_MODE("720x288", DRM_MODE_TYPE_DRIVER, 13500,
+		 720, 720 + 20, 720 + 20 + 64, 720 + 20 + 64 + 60, 0,
+		 288, 288 + 2, 288 + 2 + 3, 312, 0, 0)
+};
+
 static const struct vc4_vec_tv_mode vc4_vec_tv_modes[] = {
 	{
 		.mode = DRM_MODE_TV_MODE_NTSC,
@@ -507,9 +519,31 @@ static const struct drm_connector_funcs vc4_vec_connector_funcs = {
 	.atomic_set_property = vc4_vec_connector_set_property,
 };
 
+static int vc4_vec_connector_get_modes(struct drm_connector *connector)
+{
+	struct drm_display_mode *mode;
+	int count = drm_connector_helper_tv_get_modes(connector);
+
+	mode = drm_mode_duplicate(connector->dev, &drm_mode_240p);
+	if (!mode)
+		return -ENOMEM;
+
+	drm_mode_probed_add(connector, mode);
+	count++;
+
+	mode = drm_mode_duplicate(connector->dev, &drm_mode_288p);
+	if (!mode)
+		return -ENOMEM;
+
+	drm_mode_probed_add(connector, mode);
+	count++;
+
+	return count;
+}
+
 static const struct drm_connector_helper_funcs vc4_vec_connector_helper_funcs = {
 	.atomic_check = drm_atomic_helper_connector_tv_check,
-	.get_modes = drm_connector_helper_tv_get_modes,
+	.get_modes = vc4_vec_connector_get_modes,
 };
 
 static int vc4_vec_connector_init(struct drm_device *dev, struct vc4_vec *vec)
