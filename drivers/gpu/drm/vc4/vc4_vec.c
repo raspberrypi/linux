@@ -45,6 +45,7 @@
 #define VEC_CONFIG0_YDEL(x)		((x) << 26)
 #define VEC_CONFIG0_CDEL_MASK		GENMASK(25, 24)
 #define VEC_CONFIG0_CDEL(x)		((x) << 24)
+#define VEC_CONFIG0_SECAM_STD		BIT(21)
 #define VEC_CONFIG0_PBPR_FIL		BIT(18)
 #define VEC_CONFIG0_CHROMA_GAIN_MASK	GENMASK(17, 16)
 #define VEC_CONFIG0_CHROMA_GAIN_UNITY	(0 << 16)
@@ -75,6 +76,27 @@
 #define VEC_SOFT_RESET			0x10c
 #define VEC_CLMP0_START			0x144
 #define VEC_CLMP0_END			0x148
+
+/*
+ * These set the color subcarrier frequency
+ * if VEC_CONFIG1_CUSTOM_FREQ is enabled.
+ *
+ * VEC_FREQ1_0 contains the most significant 16-bit half-word,
+ * VEC_FREQ3_2 contains the least significant 16-bit half-word.
+ * 0x80000000 seems to be equivalent to the pixel clock
+ * (which itself is the VEC clock divided by 8).
+ *
+ * Reference values (with the default pixel clock of 13.5 MHz):
+ *
+ * NTSC  (3579545.[45] Hz)     - 0x21F07C1F
+ * PAL   (4433618.75 Hz)       - 0x2A098ACB
+ * PAL-M (3575611.[888111] Hz) - 0x21E6EFE3
+ * PAL-N (3582056.25 Hz)       - 0x21F69446
+ *
+ * NOTE: For SECAM, it is used as the Dr center frequency,
+ * regardless of whether VEC_CONFIG1_CUSTOM_FREQ is enabled or not;
+ * that is specified as 4406250 Hz, which corresponds to 0x29C71C72.
+ */
 #define VEC_FREQ3_2			0x180
 #define VEC_FREQ1_0			0x184
 
@@ -117,6 +139,14 @@
 
 #define VEC_INTERRUPT_CONTROL		0x190
 #define VEC_INTERRUPT_STATUS		0x194
+
+/*
+ * Db center frequency for SECAM; the clock for this is the same as for
+ * VEC_FREQ3_2/VEC_FREQ1_0, which is used for Dr center frequency.
+ *
+ * This is specified as 4250000 Hz, which corresponds to 0x284BDA13.
+ * That is also the default value, so no need to set it explicitly.
+ */
 #define VEC_FCW_SECAM_B			0x198
 #define VEC_SECAM_GAIN_VAL		0x19c
 
@@ -204,8 +234,12 @@ struct vc4_vec_connector {
 enum vc4_vec_tv_mode_id {
 	VC4_VEC_TV_MODE_NTSC,
 	VC4_VEC_TV_MODE_NTSC_J,
+	VC4_VEC_TV_MODE_NTSC_443,
 	VC4_VEC_TV_MODE_PAL,
 	VC4_VEC_TV_MODE_PAL_M,
+	VC4_VEC_TV_MODE_PAL_N,
+	VC4_VEC_TV_MODE_PAL60,
+	VC4_VEC_TV_MODE_SECAM,
 };
 
 struct vc4_vec_tv_mode {
@@ -267,6 +301,13 @@ static const struct vc4_vec_tv_mode vc4_vec_tv_modes[] = {
 		.config0 = VEC_CONFIG0_NTSC_STD,
 		.config1 = VEC_CONFIG1_C_CVBS_CVBS,
 	},
+	[VC4_VEC_TV_MODE_NTSC_443] = {
+		/* NTSC with PAL chroma frequency */
+		.mode = &drm_mode_480i,
+		.config0 = VEC_CONFIG0_NTSC_STD,
+		.config1 = VEC_CONFIG1_C_CVBS_CVBS | VEC_CONFIG1_CUSTOM_FREQ,
+		.custom_freq = 0x2a098acb,
+	},
 	[VC4_VEC_TV_MODE_PAL] = {
 		.mode = &drm_mode_576i,
 		.config0 = VEC_CONFIG0_PAL_BDGHI_STD,
@@ -276,6 +317,24 @@ static const struct vc4_vec_tv_mode vc4_vec_tv_modes[] = {
 		.mode = &drm_mode_480i,
 		.config0 = VEC_CONFIG0_PAL_M_STD,
 		.config1 = VEC_CONFIG1_C_CVBS_CVBS,
+	},
+	[VC4_VEC_TV_MODE_PAL_N] = {
+		.mode = &drm_mode_576i,
+		.config0 = VEC_CONFIG0_PAL_N_STD,
+		.config1 = VEC_CONFIG1_C_CVBS_CVBS,
+	},
+	[VC4_VEC_TV_MODE_PAL60] = {
+		/* PAL-M with chroma frequency of regular PAL */
+		.mode = &drm_mode_480i,
+		.config0 = VEC_CONFIG0_PAL_M_STD,
+		.config1 = VEC_CONFIG1_C_CVBS_CVBS | VEC_CONFIG1_CUSTOM_FREQ,
+		.custom_freq = 0x2a098acb,
+	},
+	[VC4_VEC_TV_MODE_SECAM] = {
+		.mode = &drm_mode_576i,
+		.config0 = VEC_CONFIG0_SECAM_STD,
+		.config1 = VEC_CONFIG1_C_CVBS_CVBS,
+		.custom_freq = 0x29c71c72,
 	},
 };
 
@@ -499,8 +558,12 @@ static const struct of_device_id vc4_vec_dt_match[] = {
 static const char * const tv_mode_names[] = {
 	[VC4_VEC_TV_MODE_NTSC] = "NTSC",
 	[VC4_VEC_TV_MODE_NTSC_J] = "NTSC-J",
+	[VC4_VEC_TV_MODE_NTSC_443] = "NTSC-443",
 	[VC4_VEC_TV_MODE_PAL] = "PAL",
 	[VC4_VEC_TV_MODE_PAL_M] = "PAL-M",
+	[VC4_VEC_TV_MODE_PAL_N] = "PAL-N",
+	[VC4_VEC_TV_MODE_PAL60] = "PAL60",
+	[VC4_VEC_TV_MODE_SECAM] = "SECAM",
 };
 
 static int vc4_vec_bind(struct device *dev, struct device *master, void *data)
