@@ -523,14 +523,11 @@ static void dwc2_handle_usb_suspend_intr(struct dwc2_hsotg *hsotg)
 						__func__);
 			}
 skip_power_saving:
-			/*
-			 * Change to L2 (suspend) state before releasing
-			 * spinlock
-			 */
-			hsotg->lx_state = DWC2_L2;
+			/* Raspberry Pi seems to call the suspend interrupt on gadget disconnect, so instead of setting state to suspend set to not attached */
 
-			/* Call gadget suspend callback */
-			call_gadget(hsotg, suspend);
+			hsotg->lx_state = DWC2_L3;
+
+			usb_gadget_set_state(&hsotg->gadget, USB_STATE_NOTATTACHED);
 		}
 	} else {
 		if (hsotg->op_state == OTG_STATE_A_PERIPHERAL) {
