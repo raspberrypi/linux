@@ -446,7 +446,7 @@ struct unicam_device {
 	/* ptr to  sub device */
 	struct v4l2_subdev *sensor;
 	/* Pad config for the sensor */
-	struct v4l2_subdev_pad_config *sensor_config;
+	struct v4l2_subdev_state *sensor_state;
 
 	enum v4l2_mbus_type bus_type;
 	/*
@@ -597,7 +597,7 @@ static int __subdev_get_format(struct unicam_device *dev,
 	};
 	int ret;
 
-	ret = v4l2_subdev_call(dev->sensor, pad, get_fmt, dev->sensor_config,
+	ret = v4l2_subdev_call(dev->sensor, pad, get_fmt, dev->sensor_state,
 			       &sd_fmt);
 	if (ret < 0)
 		return ret;
@@ -621,7 +621,7 @@ static int __subdev_set_format(struct unicam_device *dev,
 
 	sd_fmt.format = *fmt;
 
-	ret = v4l2_subdev_call(dev->sensor, pad, set_fmt, dev->sensor_config,
+	ret = v4l2_subdev_call(dev->sensor, pad, set_fmt, dev->sensor_state,
 			       &sd_fmt);
 	if (ret < 0)
 		return ret;
@@ -1097,7 +1097,7 @@ static int unicam_try_fmt_vid_cap(struct file *file, void *priv,
 	 */
 	mbus_fmt->field = V4L2_FIELD_NONE;
 
-	ret = v4l2_subdev_call(dev->sensor, pad, set_fmt, dev->sensor_config,
+	ret = v4l2_subdev_call(dev->sensor, pad, set_fmt, dev->sensor_state,
 			       &sd_fmt);
 	if (ret && ret != -ENOIOCTLCMD && ret != -ENODEV)
 		return ret;
@@ -1119,7 +1119,7 @@ static int unicam_try_fmt_vid_cap(struct file *file, void *priv,
 			mbus_fmt->code = fmt->code;
 
 			ret = v4l2_subdev_call(dev->sensor, pad, set_fmt,
-					       dev->sensor_config, &sd_fmt);
+					       dev->sensor_state, &sd_fmt);
 			if (ret && ret != -ENOIOCTLCMD && ret != -ENODEV)
 				return ret;
 
@@ -2329,8 +2329,8 @@ static void unicam_release(struct kref *kref)
 	v4l2_ctrl_handler_free(&unicam->ctrl_handler);
 	media_device_cleanup(&unicam->mdev);
 
-	if (unicam->sensor_config)
-		v4l2_subdev_free_pad_config(unicam->sensor_config);
+	if (unicam->sensor_state)
+		v4l2_subdev_free_state(unicam->sensor_state);
 
 	kfree(unicam);
 }
@@ -2592,8 +2592,8 @@ static int unicam_probe_complete(struct unicam_device *unicam)
 
 	unicam->v4l2_dev.notify = unicam_notify;
 
-	unicam->sensor_config = v4l2_subdev_alloc_pad_config(unicam->sensor);
-	if (!unicam->sensor_config)
+	unicam->sensor_state = v4l2_subdev_alloc_state(unicam->sensor);
+	if (!unicam->sensor_state)
 		return -ENOMEM;
 
 	unicam->sensor_embedded_data = (unicam->sensor->entity.num_pads >= 2);
