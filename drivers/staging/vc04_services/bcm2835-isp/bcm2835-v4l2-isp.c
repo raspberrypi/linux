@@ -1463,7 +1463,7 @@ queue_cleanup:
 }
 
 /* Unregister one of the /dev/video<N> nodes associated with the ISP. */
-static void unregister_node(struct bcm2835_isp_node *node)
+static void bcm2835_unregister_node(struct bcm2835_isp_node *node)
 {
 	struct bcm2835_isp_dev *dev = node_get_dev(node);
 
@@ -1666,7 +1666,7 @@ static int bcm2835_isp_remove(struct platform_device *pdev)
 	media_controller_unregister(dev);
 
 	for (i = 0; i < BCM2835_ISP_NUM_NODES; i++)
-		unregister_node(&dev->node[i]);
+		bcm2835_unregister_node(&dev->node[i]);
 
 	v4l2_device_unregister(&dev->v4l2_dev);
 

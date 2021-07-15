@@ -988,12 +988,13 @@ static int imx290_write_current_format(struct imx290 *imx290)
 }
 
 static const struct v4l2_rect *
-__imx290_get_pad_crop(struct imx290 *imx290, struct v4l2_subdev_pad_config *cfg,
+__imx290_get_pad_crop(struct imx290 *imx290,
+		      struct v4l2_subdev_state *sd_state,
 		      unsigned int pad, enum v4l2_subdev_format_whence which)
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&imx290->sd, cfg, pad);
+		return v4l2_subdev_get_try_crop(&imx290->sd, sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &imx290->current_mode->crop;
 	}
@@ -1002,7 +1003,7 @@ __imx290_get_pad_crop(struct imx290 *imx290, struct v4l2_subdev_pad_config *cfg,
 }
 
 static int imx290_get_selection(struct v4l2_subdev *sd,
-				struct v4l2_subdev_pad_config *cfg,
+				struct v4l2_subdev_state *sd_state,
 				struct v4l2_subdev_selection *sel)
 {
 	switch (sel->target) {
@@ -1010,7 +1011,7 @@ static int imx290_get_selection(struct v4l2_subdev *sd,
 		struct imx290 *imx290 = to_imx290(sd);
 
 		mutex_lock(&imx290->lock);
-		sel->r = *__imx290_get_pad_crop(imx290, cfg, sel->pad,
+		sel->r = *__imx290_get_pad_crop(imx290, sd_state, sel->pad,
 						sel->which);
 		mutex_unlock(&imx290->lock);
 
