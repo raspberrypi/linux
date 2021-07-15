@@ -294,7 +294,7 @@ static int vc4_drm_bind(struct device *dev)
 
 	node = of_parse_phandle(dev->of_node, "raspberrypi,firmware", 0);
 	if (node) {
-		vc4->firmware = rpi_firmware_get(dev->of_node);
+		vc4->firmware = rpi_firmware_get(node);
 		of_node_put(node);
 
 		if (!vc4->firmware)
