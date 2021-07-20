@@ -982,7 +982,7 @@ static const struct imx477_mode supported_modes_10bit[] = {
 		/* 120fps. 2x2 binned and cropped */
 		.width = 1332,
 		.height = 990,
-		.line_length_pix = 0x1460,
+		.line_length_pix = 6664,
 		.crop = {
 			/*
 			 * FIXME: the analog crop rectangle is actually
