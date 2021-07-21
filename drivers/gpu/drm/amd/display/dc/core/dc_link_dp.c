@@ -1675,9 +1675,6 @@ static enum dp_panel_mode try_enable_assr(struct dc_stream_state *stream)
 	} else
 		panel_mode = DP_PANEL_MODE_DEFAULT;
 
-#else
-	/* turn off ASSR if the implementation is not compiled in */
-	panel_mode = DP_PANEL_MODE_DEFAULT;
 #endif
 	return panel_mode;
 }
