@@ -645,7 +645,7 @@ static int brcmf_fw_request_firmware(const struct firmware **fw,
 		if (!alt_path)
 			goto fallback;
 
-		ret = request_firmware(fw, alt_path, fwctx->dev);
+		ret = firmware_request_nowarn(fw, alt_path, fwctx->dev);
 		kfree(alt_path);
 		if (ret == 0)
 			return ret;
