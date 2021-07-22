@@ -1400,7 +1400,8 @@ static int brcmf_pcie_get_memdump(struct device *dev, void *data, size_t len)
 }
 
 static
-int brcmf_pcie_get_fwname(struct device *dev, const char *ext, u8 *fw_name)
+int brcmf_pcie_get_fwname(struct device *dev, const char *ext, u8 *fw_name,
+			  bool board_specific)
 {
 	struct brcmf_bus *bus_if = dev_get_drvdata(dev);
 	struct brcmf_fw_request *fwreq;
@@ -1408,6 +1409,10 @@ int brcmf_pcie_get_fwname(struct device *dev, const char *ext, u8 *fw_name)
 		{ ext, fw_name },
 	};
 
+	if (board_specific) {
+		fw_name[0] = 0;
+		return 0;
+	}
 	fwreq = brcmf_fw_alloc_request(bus_if->chip, bus_if->chiprev,
 				       brcmf_pcie_fwnames,
 				       ARRAY_SIZE(brcmf_pcie_fwnames),
