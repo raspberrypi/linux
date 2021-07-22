@@ -78,7 +78,7 @@ struct brcmf_bus_ops {
 	size_t (*get_ramsize)(struct device *dev);
 	int (*get_memdump)(struct device *dev, void *data, size_t len);
 	int (*get_fwname)(struct device *dev, const char *ext,
-			  unsigned char *fw_name);
+			  unsigned char *fw_name, bool board_specific);
 	void (*debugfs_create)(struct device *dev);
 	int (*reset)(struct device *dev);
 };
@@ -223,7 +223,14 @@ static inline
 int brcmf_bus_get_fwname(struct brcmf_bus *bus, const char *ext,
 			 unsigned char *fw_name)
 {
-	return bus->ops->get_fwname(bus->dev, ext, fw_name);
+	return bus->ops->get_fwname(bus->dev, ext, fw_name, false);
+}
+
+static inline
+int brcmf_bus_get_board_fwname(struct brcmf_bus *bus, const char *ext,
+			       unsigned char *fw_name)
+{
+	return bus->ops->get_fwname(bus->dev, ext, fw_name, true);
 }
 
 static inline
