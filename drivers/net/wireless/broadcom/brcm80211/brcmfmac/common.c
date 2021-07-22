@@ -134,13 +134,23 @@ static int brcmf_c_process_clm_blob(struct brcmf_if *ifp)
 	brcmf_dbg(TRACE, "Enter\n");
 
 	memset(clm_name, 0, sizeof(clm_name));
-	err = brcmf_bus_get_fwname(bus, ".clm_blob", clm_name);
+	err = brcmf_bus_get_board_fwname(bus, ".clm_blob", clm_name);
 	if (err) {
 		bphy_err(drvr, "get CLM blob file name failed (%d)\n", err);
 		return err;
 	}
 
-	err = firmware_request_nowarn(&clm, clm_name, bus->dev);
+	if (clm_name[0])
+		err = firmware_request_nowarn(&clm, clm_name, bus->dev);
+	if (err || !clm_name[0]) {
+		err = brcmf_bus_get_fwname(bus, ".clm_blob", clm_name);
+		if (err) {
+			bphy_err(drvr, "get CLM blob file name failed (%d)\n", err);
+			return err;
+		}
+
+		err = firmware_request_nowarn(&clm, clm_name, bus->dev);
+	}
 	if (err) {
 		brcmf_info("no clm_blob available (err=%d), device may have limited channels available\n",
 			   err);
