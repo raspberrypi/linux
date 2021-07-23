@@ -32,6 +32,7 @@
 #include <linux/clk.h>
 #include <linux/component.h>
 #include <linux/of_device.h>
+#include <linux/pm_runtime.h>
 
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
@@ -42,6 +43,7 @@
 #include <drm/drm_vblank.h>
 
 #include "vc4_drv.h"
+#include "vc4_hdmi.h"
 #include "vc4_regs.h"
 
 #define HVS_FIFO_LATENCY_PIX	6
@@ -501,8 +503,10 @@ int vc4_crtc_disable_at_boot(struct drm_crtc *crtc)
 	enum vc4_encoder_type encoder_type;
 	const struct vc4_pv_data *pv_data;
 	struct drm_encoder *encoder;
+	struct vc4_hdmi *vc4_hdmi;
 	unsigned encoder_sel;
 	int channel;
+	int ret;
 
 	if (!(of_device_is_compatible(vc4_crtc->pdev->dev.of_node,
 				      "brcm,bcm2711-pixelvalve2") ||
@@ -530,7 +534,14 @@ int vc4_crtc_disable_at_boot(struct drm_crtc *crtc)
 	if (WARN_ON(!encoder))
 		return 0;
 
-	return vc4_crtc_disable(crtc, encoder, NULL, channel);
+	vc4_hdmi = encoder_to_vc4_hdmi(encoder);
+	WARN_ON(pm_runtime_resume_and_get(&vc4_hdmi->pdev->dev));
+
+	ret = vc4_crtc_disable(crtc, encoder, NULL, channel);
+
+	pm_runtime_put(&vc4_hdmi->pdev->dev);
+
+	return ret;
 }
 
 static void vc4_crtc_atomic_disable(struct drm_crtc *crtc,
