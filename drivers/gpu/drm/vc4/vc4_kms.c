@@ -424,6 +424,8 @@ vc4_atomic_complete_commit(struct drm_atomic_state *state)
 		clk_request_done(core_req);
 
 	drm_atomic_state_put(state);
+
+	up(&vc4->async_modeset);
 }
 
 static void commit_work(struct work_struct *work)
@@ -481,16 +483,25 @@ static int vc4_atomic_commit(struct drm_device *dev,
 			     struct drm_atomic_state *state,
 			     bool nonblock)
 {
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
 	int ret;
 
 	if (state->async_update) {
-		ret = drm_atomic_helper_prepare_planes(dev, state);
+		ret = down_interruptible(&vc4->async_modeset);
 		if (ret)
 			return ret;
+
+		ret = drm_atomic_helper_prepare_planes(dev, state);
+		if (ret) {
+			up(&vc4->async_modeset);
+			return ret;
+		}
 
 		drm_atomic_helper_async_commit(dev, state);
 
 		drm_atomic_helper_cleanup_planes(dev, state);
+
+		up(&vc4->async_modeset);
 
 		return 0;
 	}
@@ -508,14 +519,21 @@ static int vc4_atomic_commit(struct drm_device *dev,
 
 	INIT_WORK(&state->commit_work, commit_work);
 
-	ret = drm_atomic_helper_prepare_planes(dev, state);
+	ret = down_interruptible(&vc4->async_modeset);
 	if (ret)
 		return ret;
+
+	ret = drm_atomic_helper_prepare_planes(dev, state);
+	if (ret) {
+		up(&vc4->async_modeset);
+		return ret;
+	}
 
 	if (!nonblock) {
 		ret = drm_atomic_helper_wait_for_fences(dev, state, true);
 		if (ret) {
 			drm_atomic_helper_cleanup_planes(dev, state);
+			up(&vc4->async_modeset);
 			return ret;
 		}
 	}
@@ -994,6 +1012,8 @@ int vc4_kms_load(struct drm_device *dev)
 		 */
 		vc4->load_tracker_enabled = true;
 	}
+
+	sema_init(&vc4->async_modeset, 1);
 
 	/* Set support for vblank irq fast disable, before drm_vblank_init() */
 	dev->vblank_disable_immediate = true;
