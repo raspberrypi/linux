@@ -628,9 +628,9 @@ Load:   dtoverlay=cap1106,<param>=<val>
 Params: int_pin                 GPIO pin for interrupt signal (default 23)
 
 
-Name:   chipdip-i2s-master-dac
-Info:   Configures Raspberry PI to work as I2S slave with BCLK=64Fs.
-Load:   dtoverlay=chipdip-i2s-master-dac
+Name:   chipdip-dac
+Info:   Configures Chip Dip audio cards.
+Load:   dtoverlay=chipdip-dac
 Params: <None>
 
 
