@@ -3268,6 +3268,23 @@ Params: cma-512                 CMA is 512MB (needs 1GB)
         cma-default             Use upstream's default value
 
 
+Name:   vc4-fkms-v3d-pi4
+Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
+        display stack.
+Load:   dtoverlay=vc4-fkms-v3d-pi4,<param>
+Params: cma-512                 CMA is 512MB (needs 1GB)
+        cma-448                 CMA is 448MB (needs 1GB)
+        cma-384                 CMA is 384MB (needs 1GB)
+        cma-320                 CMA is 320MB (needs 1GB)
+        cma-256                 CMA is 256MB (needs 1GB)
+        cma-192                 CMA is 192MB (needs 1GB)
+        cma-128                 CMA is 128MB
+        cma-96                  CMA is 96MB
+        cma-64                  CMA is 64MB
+        cma-size                CMA size in bytes, 4MB aligned
+        cma-default             Use upstream's default value
+
+
 Name:   vc4-kms-dpi-at056tn53v1
 Info:   Enable an Innolux 5.6in VGA TFT connected to DPI interface under KMS.
         Requires vc4-kms-v3d to be loaded.
