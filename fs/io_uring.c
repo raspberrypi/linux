@@ -1899,7 +1899,7 @@ static void tctx_task_work(struct callback_head *cb)
 
 	clear_bit(0, &tctx->task_state);
 
-	while (!wq_list_empty(&tctx->task_list)) {
+	while (true) {
 		struct io_ring_ctx *ctx = NULL;
 		struct io_wq_work_list list;
 		struct io_wq_work_node *node;
@@ -1908,6 +1908,9 @@ static void tctx_task_work(struct callback_head *cb)
 		list = tctx->task_list;
 		INIT_WQ_LIST(&tctx->task_list);
 		spin_unlock_irq(&tctx->task_lock);
+
+		if (wq_list_empty(&list))
+			break;
 
 		node = list.first;
 		while (node) {
