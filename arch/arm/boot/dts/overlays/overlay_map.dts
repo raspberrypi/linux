@@ -138,6 +138,15 @@
 		bcm2711;
 	};
 
+	vc4-fkms-v3d {
+		bcm2835;
+		bcm2711 = "vc4-fkms-v3d-pi4";
+	};
+
+	vc4-fkms-v3d-pi4 {
+		bcm2711;
+	};
+
 	vc4-kms-v3d {
 		bcm2835;
 		bcm2711 = "vc4-kms-v3d-pi4";
