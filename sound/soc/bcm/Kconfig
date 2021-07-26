@@ -27,6 +27,12 @@ config SND_BCM63XX_I2S_WHISTLER
 
 	  If you don't know what to do here, say N
 
+config SND_BCM2708_SOC_CHIPDIP_DAC
+         tristate "Support for the ChipDip DAC"
+         depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
+         help
+          Say Y or M if you want to add support for the ChipDip DAC soundcard
+
 config SND_BCM2708_SOC_GOOGLEVOICEHAT_SOUNDCARD
 	tristate "Support for Google voiceHAT soundcard"
 	depends on SND_BCM2708_SOC_I2S || SND_BCM2835_SOC_I2S
