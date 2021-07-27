@@ -628,9 +628,9 @@ Load:   dtoverlay=cap1106,<param>=<val>
 Params: int_pin                 GPIO pin for interrupt signal (default 23)
 
 
-Name:   chipdip-i2s-master-dac
-Info:   Configures Raspberry PI to work as I2S slave with BCLK=64Fs.
-Load:   dtoverlay=chipdip-i2s-master-dac
+Name:   chipdip-dac
+Info:   Configures Chip Dip audio cards.
+Load:   dtoverlay=chipdip-dac
 Params: <None>
 
 
@@ -3255,6 +3255,23 @@ Name:   vc4-fkms-v3d
 Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
         display stack.
 Load:   dtoverlay=vc4-fkms-v3d,<param>
+Params: cma-512                 CMA is 512MB (needs 1GB)
+        cma-448                 CMA is 448MB (needs 1GB)
+        cma-384                 CMA is 384MB (needs 1GB)
+        cma-320                 CMA is 320MB (needs 1GB)
+        cma-256                 CMA is 256MB (needs 1GB)
+        cma-192                 CMA is 192MB (needs 1GB)
+        cma-128                 CMA is 128MB
+        cma-96                  CMA is 96MB
+        cma-64                  CMA is 64MB
+        cma-size                CMA size in bytes, 4MB aligned
+        cma-default             Use upstream's default value
+
+
+Name:   vc4-fkms-v3d-pi4
+Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
+        display stack.
+Load:   dtoverlay=vc4-fkms-v3d-pi4,<param>
 Params: cma-512                 CMA is 512MB (needs 1GB)
         cma-448                 CMA is 448MB (needs 1GB)
         cma-384                 CMA is 384MB (needs 1GB)
