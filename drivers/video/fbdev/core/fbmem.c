@@ -1195,7 +1195,7 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			ret = fb_copyarea_user(info, &copy);
 			break;
 		}
-		/* fall through */
+		fallthrough;
 	default:
 		lock_fb_info(info);
 		fb = info->fbops;
