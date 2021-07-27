@@ -2,7 +2,7 @@
 #include "bcm2708-rpi.dtsi"
 
 &leds {
-	act_led: act {
+	act_led: led-act {
 		label = "led0";
 		linux,default-trigger = "mmc0";
 		gpios = <&gpio 47 0>;
