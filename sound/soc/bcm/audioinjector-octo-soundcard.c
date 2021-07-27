@@ -143,40 +143,40 @@ static int audioinjector_octo_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		if (!non_stop_clocks)
 			break;
-		/* fall through */
+		fallthrough;
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		switch (audioinjector_octo_rate) {
 		case 96000:
 			__assign_bit(3, mult, 1);
-			/* fall through */
+			fallthrough;
 		case 88200:
 			__assign_bit(1, mult, 1);
 			__assign_bit(2, mult, 1);
 			break;
 		case 48000:
 			__assign_bit(3, mult, 1);
-			/* fall through */
+			fallthrough;
 		case 44100:
 			__assign_bit(2, mult, 1);
 			break;
 		case 32000:
 			__assign_bit(3, mult, 1);
-			/* fall through */
+			fallthrough;
 		case 29400:
 			__assign_bit(0, mult, 1);
 			__assign_bit(1, mult, 1);
 			break;
 		case 24000:
 			__assign_bit(3, mult, 1);
-			/* fall through */
+			fallthrough;
 		case 22050:
 			__assign_bit(1, mult, 1);
 			break;
 		case 16000:
 			__assign_bit(3, mult, 1);
-			/* fall through */
+			fallthrough;
 		case 14700:
 			__assign_bit(0, mult, 1);
 			break;
