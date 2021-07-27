@@ -25,7 +25,7 @@ elif [ $1 = "4" ]; then
 	echo "Pi 4 Board Config"
 fi
 
-num=$(expr $(grep ^processor /proc/cpuinfo | wc -l) \* 4)
+num=$(expr $(grep ^processor /proc/cpuinfo | wc -l) \* 2)
 echo "calculate process number .."
 make -j$num ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- zImage modules dtbs
 
