@@ -33,7 +33,7 @@
 		};
 #endif
 
-		/delete-node/ sdhci@7e300000;
+		/delete-node/ mmc@7e300000;
 
 		sdhci: mmc: mmc@7e300000 {
 			compatible = "brcm,bcm2835-mmc", "brcm,bcm2835-sdhci";

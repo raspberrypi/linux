@@ -149,13 +149,13 @@
 };
 
 &leds {
-	act_led: act {
+	act_led: led-act {
 		label = "led0";
 		linux,default-trigger = "mmc0";
 		gpios = <&gpio 29 0>;
 	};
 
-	pwr_led: pwr {
+	pwr_led: led-pwr {
 		label = "led1";
 		linux,default-trigger = "default-on";
 		gpios = <&expgpio 2 GPIO_ACTIVE_LOW>;
