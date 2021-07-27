@@ -25,7 +25,11 @@ elif [ $1 = "4" ]; then
 	echo "Pi 4 Board Config"
 fi
 
-make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- zImage modules dtbs
+num=$(expr $(grep ^processor /proc/cpuinfo | wc -l) \* 4)
+echo "calculate process number .."
+make -j$num ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- zImage modules dtbs
+
+echo "make end - $(date)"
 
 sudo env PATH=$PATH make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- INSTALL_MOD_PATH=/media/$USER/rootfs modules_install
 sudo cp /media/$USER/boot/$KERNEL.img /media/$USER/boot/$KERNEL-backup.img
@@ -33,6 +37,8 @@ sudo cp arch/arm/boot/zImage /media/$USER/boot/$KERNEL.img
 sudo cp arch/arm/boot/dts/*.dtb /media/$USER/boot
 sudo cp arch/arm/boot/dts/overlays/*.dtb* /media/$USER/boot/overlays/
 sudo cp arch/arm/boot/dts/overlays/README /media/$USER/boot/overlays/
+
+echo "Finish - $(date)"
 }
 
 build_Script $1
