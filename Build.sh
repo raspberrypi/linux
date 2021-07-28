@@ -1,3 +1,4 @@
+# usage $ ./Build.sh model(zero,3,4) environment(cross,compile)
 function build_Script(){
 	sudo apt-get update
 	sudo apt-get install git bc bison flex libssl-dev make -y
