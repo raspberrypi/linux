@@ -333,9 +333,8 @@ vc_mem_init(void)
 	vc_mem_inited = 1;
 	return 0;
 
-	device_destroy(vc_mem_class, vc_mem_devnum);
-
 out_class_destroy:
+	device_destroy(vc_mem_class, vc_mem_devnum);
 	class_destroy(vc_mem_class);
 	vc_mem_class = NULL;
 
