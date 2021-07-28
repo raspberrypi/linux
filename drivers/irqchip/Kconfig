@@ -110,6 +110,14 @@ config I8259
 	bool
 	select IRQ_DOMAIN
 
+config BCM2712_MIP
+	bool "Broadcom 2712 MSI-X Interrupt Peripheral support"
+	depends on ARM_GIC
+	select GENERIC_IRQ_CHIP
+	select IRQ_DOMAIN
+	help
+	  Enable support for the Broadcom BCM2712 MSI-X target peripheral.
+
 config BCM6345_L1_IRQ
 	bool
 	select GENERIC_IRQ_CHIP
