@@ -1412,6 +1412,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         sd3078                  Select the ZXW Shenzhen whwave SD3078 device
 
+        s35390a                 Select the ABLIC S35390A device
+
         i2c0                    Choose the I2C0 bus on GPIOs 0&1
 
         i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
