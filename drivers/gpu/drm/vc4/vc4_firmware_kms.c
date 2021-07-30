@@ -458,15 +458,15 @@ static int vc4_fkms_margins_adj(struct drm_plane_state *pstate,
 	plane->dst_x = DIV_ROUND_CLOSEST(plane->dst_x * adjhdisplay,
 					 (int)crtc_state->mode.hdisplay);
 	plane->dst_x += left;
-	if (plane->dst_x > (int)(crtc_state->mode.hdisplay - left))
-		plane->dst_x = crtc_state->mode.hdisplay - left;
+	if (plane->dst_x > (int)(crtc_state->mode.hdisplay - right))
+		plane->dst_x = crtc_state->mode.hdisplay - right;
 
 	adjvdisplay = crtc_state->mode.vdisplay - (top + bottom);
 	plane->dst_y = DIV_ROUND_CLOSEST(plane->dst_y * adjvdisplay,
 					 (int)crtc_state->mode.vdisplay);
 	plane->dst_y += top;
-	if (plane->dst_y > (int)(crtc_state->mode.vdisplay - top))
-		plane->dst_y = crtc_state->mode.vdisplay - top;
+	if (plane->dst_y > (int)(crtc_state->mode.vdisplay - bottom))
+		plane->dst_y = crtc_state->mode.vdisplay - bottom;
 
 	plane->dst_w = DIV_ROUND_CLOSEST(plane->dst_w * adjhdisplay,
 					 crtc_state->mode.hdisplay);

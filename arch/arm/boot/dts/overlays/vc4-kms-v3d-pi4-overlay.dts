@@ -9,8 +9,12 @@
 
 #include "cma-overlay.dts"
 
+&frag0 {
+       size = <(512*1024*1024)>;
+};
+
 / {
-	compatible = "brcm,bcm2835";
+	compatible = "brcm,bcm2711";
 
 	fragment@1 {
 		target = <&ddc0>;

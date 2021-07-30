@@ -36,6 +36,8 @@
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_vblank.h>
 
+#include <soc/bcm2835/raspberrypi-firmware.h>
+
 #include "uapi/drm/vc4_drm.h"
 
 #include "vc4_drv.h"
@@ -256,6 +258,18 @@ const struct of_device_id vc4_dma_range_matches[] = {
 	{}
 };
 
+/*
+ * we need this helper function for determining presence of fkms
+ * before it's been bound
+ */
+static bool firmware_kms(void)
+{
+	return of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms")) ||
+	       of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms-2711"));
+}
+
 static int vc4_drm_bind(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -305,6 +319,25 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		return ret;
 
+	node = of_parse_phandle(dev->of_node, "raspberrypi,firmware", 0);
+	if (node) {
+		vc4->firmware = rpi_firmware_get(node);
+		of_node_put(node);
+
+		if (!vc4->firmware)
+			return -EPROBE_DEFER;
+	}
+
+	drm_fb_helper_remove_conflicting_framebuffers(NULL, "vc4drmfb", false);
+
+	if (vc4->firmware && !firmware_kms()) {
+		ret = rpi_firmware_property(vc4->firmware,
+					    RPI_FIRMWARE_NOTIFY_DISPLAY_DONE,
+					    NULL, 0);
+		if (ret)
+			drm_warn(drm, "Couldn't stop firmware display driver: %d\n", ret);
+	}
+
 	ret = component_bind_all(dev, drm);
 	if (ret)
 		return ret;
@@ -314,8 +347,6 @@ static int vc4_drm_bind(struct device *dev)
 		if (ret)
 			goto unbind_all;
 	}
-
-	drm_fb_helper_remove_conflicting_framebuffers(NULL, "vc4drmfb", false);
 
 	ret = vc4_kms_load(drm);
 	if (ret < 0)

@@ -622,6 +622,18 @@ Info:   This overlay is now deprecated - see i2c-sensor
 Load:   <Deprecated>
 
 
+Name:   cap1106
+Info:   Enables the ability to use the cap1106 touch sensor as a keyboard
+Load:   dtoverlay=cap1106,<param>=<val>
+Params: int_pin                 GPIO pin for interrupt signal (default 23)
+
+
+Name:   chipdip-dac
+Info:   Configures Chip Dip audio cards.
+Load:   dtoverlay=chipdip-dac
+Params: <None>
+
+
 Name:   cma
 Info:   Set custom CMA sizes, only use if you know what you are doing, might
         clash with other overlays like vc4-fkms-v3d and vc4-kms-v3d.
@@ -2723,6 +2735,16 @@ Params: speed                   SPI bus speed (default 4000000)
         height                  Display height (32 or 64; default 64)
 
 
+Name:   si446x-spi0
+Info:   Overlay for Si446x UHF Transceiver via SPI using si446x driver.
+        The driver is currently out-of-tree at
+        https://github.com/sunipkmukherjee/silabs.git
+Load:   dtoverlay=si446x-spi0,<param>=<val>
+Params: speed                   SPI bus speed (default 4000000)
+        int_pin                 GPIO pin for interrupts (default 17)
+        reset_pin               GPIO pin for RESET (default 27)
+
+
 Name:   smi
 Info:   Enables the Secondary Memory Interface peripheral. Uses GPIOs 2-25!
 Load:   dtoverlay=smi
@@ -3235,6 +3257,23 @@ Name:   vc4-fkms-v3d
 Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
         display stack.
 Load:   dtoverlay=vc4-fkms-v3d,<param>
+Params: cma-512                 CMA is 512MB (needs 1GB)
+        cma-448                 CMA is 448MB (needs 1GB)
+        cma-384                 CMA is 384MB (needs 1GB)
+        cma-320                 CMA is 320MB (needs 1GB)
+        cma-256                 CMA is 256MB (needs 1GB)
+        cma-192                 CMA is 192MB (needs 1GB)
+        cma-128                 CMA is 128MB
+        cma-96                  CMA is 96MB
+        cma-64                  CMA is 64MB
+        cma-size                CMA size in bytes, 4MB aligned
+        cma-default             Use upstream's default value
+
+
+Name:   vc4-fkms-v3d-pi4
+Info:   Enable Eric Anholt's DRM VC4 V3D driver on top of the dispmanx
+        display stack.
+Load:   dtoverlay=vc4-fkms-v3d-pi4,<param>
 Params: cma-512                 CMA is 512MB (needs 1GB)
         cma-448                 CMA is 448MB (needs 1GB)
         cma-384                 CMA is 384MB (needs 1GB)
