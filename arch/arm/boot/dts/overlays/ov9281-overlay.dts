@@ -27,6 +27,9 @@
 				dovdd-supply = <&ov9281_dovdd>;
 				dvdd-supply = <&ov9281_dvdd>;
 
+				rotation = <0>;
+				orientation = <2>;
+
 				port {
 					ov9281_0: endpoint {
 						remote-endpoint = <&csi1_ep>;
@@ -103,4 +106,8 @@
 		};
 	};
 
+	__overrides__ {
+		rotation = <&ov9281>,"rotation:0";
+		orientation = <&ov9281>,"orientation:0";
+	};
 };
