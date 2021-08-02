@@ -1678,6 +1678,8 @@ Info:   Sony IMX219 camera module.
 Load:   dtoverlay=imx219,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   imx290
@@ -1694,6 +1696,10 @@ Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
                                 (the default), whilst those from Innomaker use
                                 74.25MHz.
         mono                    Denote that the module is a mono sensor.
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
 
 
 Name:   imx378
@@ -1703,6 +1709,8 @@ Info:   Sony IMX378 camera module.
 Load:   dtoverlay=imx378,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   imx477
@@ -1712,6 +1720,8 @@ Info:   Sony IMX477 camera module.
 Load:   dtoverlay=imx477,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   iqaudio-codec
@@ -2137,22 +2147,30 @@ Info:   Omnivision OV5647 camera module.
 Load:   dtoverlay=ov5647,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   ov7251
 Info:   Omnivision OV7251 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=ov7251
-Params: <None>
+Load:   dtoverlay=ov7251,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   ov9281
 Info:   Omnivision OV9281 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=ov9281
-Params: <None>
+Load:   dtoverlay=ov9281,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   papirus

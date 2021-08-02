@@ -24,6 +24,9 @@
 				clock-names = "xclk";
 				clock-frequency = <37125000>;
 
+				rotation = <0>;
+				orientation = <2>;
+
 				vdda-supply = <&cam1_reg>;	/* 2.8v */
 				vdddo-supply = <&imx290_vdddo>;	/* 1.8v */
 				vddd-supply = <&imx290_vddd>;	/* 1.5v */
@@ -135,5 +138,7 @@
 		4lane = <0>, "-6+7-8+9";
 		clock-frequency = <&imx290_clk>,"clock-frequency:0",
 				  <&imx290>,"clock-frequency:0";
+		rotation = <&imx290>,"rotation:0";
+		orientation = <&imx290>,"orientation:0";
 	};
 };
