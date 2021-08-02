@@ -28,6 +28,9 @@
 				vdda-supply = <&cam1_reg>;
 				vddd-supply = <&ov7251_dvdd>;
 
+				rotation = <0>;
+				orientation = <2>;
+
 				port {
 					ov7251_0: endpoint {
 						remote-endpoint = <&csi1_ep>;
@@ -101,5 +104,10 @@
 			regulator-min-microvolt = <2800000>;
 			regulator-max-microvolt = <2800000>;
 		};
+	};
+
+	__overrides__ {
+		rotation = <&ov7251>,"rotation:0";
+		orientation = <&ov7251>,"orientation:0";
 	};
 };
