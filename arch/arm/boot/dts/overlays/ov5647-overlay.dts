@@ -22,6 +22,7 @@
 				clocks = <&ov5647_clk>;
 
 				rotation = <0>;
+				orientation = <2>;
 
 				port {
 					ov5647_0: endpoint {
@@ -88,5 +89,6 @@
 
 	__overrides__ {
 		rotation = <&ov5647>,"rotation:0";
+		orientation = <&ov5647>,"orientation:0";
 	};
 };

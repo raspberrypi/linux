@@ -23,6 +23,7 @@
 				VDDL-supply = <&imx477_vddl>;	/* 1.8v */
 
 				rotation = <180>;
+				orientation = <2>;
 
 				port {
 					imx477_0: endpoint {
@@ -104,5 +105,6 @@
 
 	__overrides__ {
 		rotation = <&imx477>,"rotation:0";
+		orientation = <&imx477>,"orientation:0";
 	};
 };
