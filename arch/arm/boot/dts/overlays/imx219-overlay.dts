@@ -28,6 +28,7 @@
 				VDDL-supply = <&imx219_vddl>;	/* 1.2v */
 
 				rotation = <180>;
+				orientation = <2>;
 
 				port {
 					imx219_0: endpoint {
@@ -109,5 +110,6 @@
 
 	__overrides__ {
 		rotation = <&imx219>,"rotation:0";
+		orientation = <&imx219>,"orientation:0";
 	};
 };
