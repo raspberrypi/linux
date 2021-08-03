@@ -1489,6 +1489,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         sd3078                  Select the ZXW Shenzhen whwave SD3078 device
 
+        s35390a                 Select the ABLIC S35390A device
+
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
                                 address.

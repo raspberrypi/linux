@@ -244,16 +244,14 @@
 	};
 
 	fragment@18 {
-		target = <&i2c_arm>;
+		target = <&i2cbus>;
 		__dormant__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "okay";
 
-			    s35390a: s35390a@30 {
+				s35390a: s35390a@30 {
 				compatible = "ablic,s35390a";
 				reg = <0x30>;
-				status = "okay";
 			};
 		};
 	};
@@ -289,7 +287,7 @@
 		       <&pcf8563>, "reg:0",
 		       <&m41t62>, "reg:0",
 		       <&rv1805>, "reg:0",
-			   <&s35390a>, "reg:0";
+		       <&s35390a>, "reg:0";
 		trickle-diode-type = <&abx80x>,"abracon,tc-diode",
 				     <&rv1805>,"abracon,tc-diode";
 		trickle-resistor-ohms = <&ds1339>,"trickle-resistor-ohms:0",
