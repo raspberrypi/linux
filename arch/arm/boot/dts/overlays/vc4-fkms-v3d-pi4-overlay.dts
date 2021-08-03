@@ -8,7 +8,7 @@
 #include "cma-overlay.dts"
 
 &frag0 {
-       size = <(512*1024*1024)>;
+	size = <((320-4)*1024*1024)>;
 };
 
 / {
