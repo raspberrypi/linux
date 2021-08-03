@@ -1242,6 +1242,7 @@ static const struct of_device_id imx290_of_match[] = {
 
 static int imx290_probe(struct i2c_client *client)
 {
+	struct v4l2_fwnode_device_properties props;
 	struct device *dev = &client->dev;
 	struct fwnode_handle *endpoint;
 	/* Only CSI2 is supported for now: */
@@ -1363,7 +1364,7 @@ static int imx290_probe(struct i2c_client *client)
 	 */
 	imx290_entity_init_cfg(&imx290->sd, NULL);
 
-	v4l2_ctrl_handler_init(&imx290->ctrls, 9);
+	v4l2_ctrl_handler_init(&imx290->ctrls, 11);
 
 	v4l2_ctrl_new_std(&imx290->ctrls, &imx290_ctrl_ops,
 			  V4L2_CID_ANALOGUE_GAIN, 0, 100, 1, 0);
@@ -1410,6 +1411,15 @@ static int imx290_probe(struct i2c_client *client)
 				     V4L2_CID_TEST_PATTERN,
 				     ARRAY_SIZE(imx290_test_pattern_menu) - 1,
 				     0, 0, imx290_test_pattern_menu);
+
+	ret = v4l2_fwnode_device_parse(&client->dev, &props);
+	if (ret)
+		goto free_ctrl;
+
+	ret = v4l2_ctrl_new_fwnode_properties(&imx290->ctrls, &imx290_ctrl_ops,
+					      &props);
+	if (ret)
+		goto free_ctrl;
 
 	imx290->sd.ctrl_handler = &imx290->ctrls;
 
