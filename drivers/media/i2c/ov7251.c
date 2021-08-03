@@ -1562,7 +1562,7 @@ static int ov7251_init_ctrls(struct ov7251 *ov7251)
 	s64 pixel_rate;
 	int hblank;
 
-	v4l2_ctrl_handler_init(&ov7251->ctrls, 7);
+	v4l2_ctrl_handler_init(&ov7251->ctrls, 9);
 	ov7251->ctrls.lock = &ov7251->lock;
 
 	v4l2_ctrl_new_std(&ov7251->ctrls, &ov7251_ctrl_ops,
@@ -1621,6 +1621,7 @@ static int ov7251_init_ctrls(struct ov7251 *ov7251)
 
 static int ov7251_probe(struct i2c_client *client)
 {
+	struct v4l2_fwnode_device_properties props;
 	struct device *dev = &client->dev;
 	struct ov7251 *ov7251;
 	unsigned int rate = 0, clk_rate = 0;
@@ -1710,6 +1711,15 @@ static int ov7251_probe(struct i2c_client *client)
 		dev_err_probe(dev, ret, "error during v4l2 ctrl init\n");
 		goto destroy_mutex;
 	}
+
+	ret = v4l2_fwnode_device_parse(&client->dev, &props);
+	if (ret)
+		goto free_ctrl;
+
+	ret = v4l2_ctrl_new_fwnode_properties(&ov7251->ctrls, &ov7251_ctrl_ops,
+					      &props);
+	if (ret)
+		goto free_ctrl;
 
 	v4l2_i2c_subdev_init(&ov7251->sd, client, &ov7251_subdev_ops);
 	ov7251->sd.internal_ops = &ov7251_internal_ops;
