@@ -31,7 +31,7 @@
 				interrupt-parent = <&gpio>;
 				interrupts = <4 2>; // high-to-low edge triggered
 				irq-gpios = <&gpio 4 0>; // Pin7 on GPIO header
-				reset-gpios = <&gpio 17 1>; // Pin11 on GPIO header
+				reset-gpios = <&gpio 17 0>; // Pin11 on GPIO header
 			};
 		};
 	};
