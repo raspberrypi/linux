@@ -811,6 +811,43 @@ struct mmal_parameter_displayregion {
 	u32 alpha;
 };
 
+enum mmal_interlace_type {
+	/* The data is not interlaced, it is progressive scan */
+	MMAL_INTERLACE_PROGRESSIVE,
+	/*
+	 * The data is interlaced, fields sent separately in temporal order, with
+	 * upper field first
+	 */
+	MMAL_INTERLACE_FIELD_SINGLE_UPPER_FIRST,
+	/*
+	 * The data is interlaced, fields sent separately in temporal order, with
+	 * lower field first
+	 */
+	MMAL_INTERLACE_FIELD_SINGLE_LOWER_FIRST,
+	/*
+	 * The data is interlaced, two fields sent together line interleaved,
+	 * with the upper field temporally earlier
+	 */
+	MMAL_INTERLACE_FIELDS_INTERLEAVED_UPPER_FIRST,
+	/*
+	 * The data is interlaced, two fields sent together line interleaved,
+	 * with the lower field temporally earlier
+	 */
+	MMAL_INTERLACE_FIELDS_INTERLEAVED_LOWER_FIRST,
+	/*
+	 * The stream may contain a mixture of progressive and interlaced
+	 * frames
+	 */
+	MMAL_INTERLACE_MIXED,
+
+	MMAL_INTERLACE_DUMMY = 0x7FFFFFFF
+};
+
+struct mmal_parameter_video_interlace_type {
+	enum mmal_interlace_type mode;	/* The interlace type of the content */
+	u32 bRepeatFirstField;		/* Whether to repeat the first field */
+};
+
 #define MMAL_MAX_IMAGEFX_PARAMETERS 5
 
 struct mmal_parameter_imagefx_parameters {
