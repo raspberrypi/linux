@@ -2224,10 +2224,10 @@ static int vidioc_enum_framesizes(struct file *file, void *fh,
 
 	fsize->stepwise.min_width = MIN_W;
 	fsize->stepwise.max_width = MAX_W;
-	fsize->stepwise.step_width = 1;
+	fsize->stepwise.step_width = 2;
 	fsize->stepwise.min_height = MIN_H;
 	fsize->stepwise.max_height = MAX_H;
-	fsize->stepwise.step_height = 1;
+	fsize->stepwise.step_height = 2;
 
 	return 0;
 }
