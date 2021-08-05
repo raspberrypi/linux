@@ -55,6 +55,9 @@ void rpivid_device_run(void *priv)
 		run.h265.slice_params =
 			rpivid_find_control_data(ctx,
 						 V4L2_CID_MPEG_VIDEO_HEVC_SLICE_PARAMS);
+		run.h265.dec =
+			rpivid_find_control_data(ctx,
+						 V4L2_CID_MPEG_VIDEO_HEVC_DECODE_PARAMS);
 		run.h265.scaling_matrix =
 			rpivid_find_control_data(ctx,
 						 V4L2_CID_MPEG_VIDEO_HEVC_SCALING_MATRIX);
