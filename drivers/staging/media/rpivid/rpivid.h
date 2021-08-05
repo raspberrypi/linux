@@ -52,6 +52,7 @@ struct rpivid_h265_run {
 	u32 slice_ents;
 	const struct v4l2_ctrl_hevc_sps			*sps;
 	const struct v4l2_ctrl_hevc_pps			*pps;
+	const struct v4l2_ctrl_hevc_decode_params      	*dec;
 	const struct v4l2_ctrl_hevc_slice_params	*slice_params;
 	const struct v4l2_ctrl_hevc_scaling_matrix	*scaling_matrix;
 };
