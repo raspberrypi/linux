@@ -57,6 +57,12 @@ static const struct rpivid_control rpivid_ctrls[] = {
 	},
 	{
 		.cfg = {
+			.id	= V4L2_CID_MPEG_VIDEO_HEVC_DECODE_PARAMS,
+		},
+		.required	= true,
+	},
+	{
+		.cfg = {
 			.id	= V4L2_CID_MPEG_VIDEO_HEVC_SLICE_PARAMS,
 		},
 		.required	= true,
