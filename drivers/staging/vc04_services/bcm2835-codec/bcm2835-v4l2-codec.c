@@ -1113,7 +1113,7 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 		v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: Empty buffer - flags %04x",
 			 __func__, mmal_buf->mmal_flags);
 		if (!(mmal_buf->mmal_flags & MMAL_BUFFER_HEADER_FLAG_EOS)) {
-			vb2_buffer_done(&vb2->vb2_buf, VB2_BUF_STATE_ERROR);
+			vb2_buffer_done(&vb2->vb2_buf, VB2_BUF_STATE_QUEUED);
 			if (!port->enabled)
 				complete(&ctx->frame_cmplt);
 			return;
@@ -2685,7 +2685,7 @@ static void bcm2835_codec_stop_streaming(struct vb2_queue *q)
 		v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: return buffer %p\n",
 			 __func__, vbuf);
 
-		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
+		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_QUEUED);
 	}
 
 	/* Disable MMAL port - this will flush buffers back */
