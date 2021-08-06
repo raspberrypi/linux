@@ -1071,7 +1071,7 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 	struct vb2_v4l2_buffer *vb2;
 
 	v4l2_dbg(2, debug, &ctx->dev->v4l2_dev,
-		 "%s: status:%d, buf:%p, length:%lu, flags %u, pts %lld\n",
+		 "%s: status:%d, buf:%p, length:%lu, flags %04x, pts %lld\n",
 		 __func__, status, mmal_buf, mmal_buf->length,
 		 mmal_buf->mmal_flags, mmal_buf->pts);
 
