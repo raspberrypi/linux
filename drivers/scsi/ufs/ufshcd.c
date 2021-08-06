@@ -6969,7 +6969,7 @@ static int ufshcd_abort(struct scsi_cmnd *cmd)
 	struct Scsi_Host *host;
 	struct ufs_hba *hba;
 	unsigned long flags;
-	unsigned int tag;
+	int tag;
 	int err = FAILED;
 	struct ufshcd_lrb *lrbp;
 	u32 reg;
