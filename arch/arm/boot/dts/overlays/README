@@ -1424,6 +1424,8 @@ Params: abx80x                  Select one of the ABx80x family:
 
         sd3078                  Select the ZXW Shenzhen whwave SD3078 device
 
+        s35390a                 Select the ABLIC S35390A device
+
         i2c0                    Choose the I2C0 bus on GPIOs 0&1
 
         i2c_csi_dsi             Choose the I2C0 bus on GPIOs 44&45
@@ -1486,6 +1488,8 @@ Params: abx80x                  Select one of the ABx80x family:
         rv3028                  Select the Micro Crystal RV3028 device
 
         sd3078                  Select the ZXW Shenzhen whwave SD3078 device
+
+        s35390a                 Select the ABLIC S35390A device
 
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
@@ -1678,6 +1682,8 @@ Info:   Sony IMX219 camera module.
 Load:   dtoverlay=imx219,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   imx290
@@ -1694,6 +1700,10 @@ Params: 4lane                   Enable 4 CSI2 lanes. This requires a Compute
                                 (the default), whilst those from Innomaker use
                                 74.25MHz.
         mono                    Denote that the module is a mono sensor.
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+        rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
 
 
 Name:   imx378
@@ -1703,6 +1713,8 @@ Info:   Sony IMX378 camera module.
 Load:   dtoverlay=imx378,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   imx477
@@ -1712,6 +1724,8 @@ Info:   Sony IMX477 camera module.
 Load:   dtoverlay=imx477,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 180)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   iqaudio-codec
@@ -2074,6 +2088,34 @@ Load:   dtoverlay=midi-uart1
 Params: <None>
 
 
+Name:   midi-uart2
+Info:   Configures UART2 (ttyAMA1) so that a requested 38.4kbaud actually gets
+        31.25kbaud, the frequency required for MIDI
+Load:   dtoverlay=midi-uart2
+Params: <None>
+
+
+Name:   midi-uart3
+Info:   Configures UART3 (ttyAMA2) so that a requested 38.4kbaud actually gets
+        31.25kbaud, the frequency required for MIDI
+Load:   dtoverlay=midi-uart3
+Params: <None>
+
+
+Name:   midi-uart4
+Info:   Configures UART4 (ttyAMA3) so that a requested 38.4kbaud actually gets
+        31.25kbaud, the frequency required for MIDI
+Load:   dtoverlay=midi-uart4
+Params: <None>
+
+
+Name:   midi-uart5
+Info:   Configures UART5 (ttyAMA4) so that a requested 38.4kbaud actually gets
+        31.25kbaud, the frequency required for MIDI
+Load:   dtoverlay=midi-uart5
+Params: <None>
+
+
 Name:   minipitft13
 Info:   Overlay for AdaFruit Mini Pi 1.3" TFT via SPI using fbtft driver.
 Load:   dtoverlay=minipitft13,<param>=<val>
@@ -2137,22 +2179,30 @@ Info:   Omnivision OV5647 camera module.
 Load:   dtoverlay=ov5647,<param>=<val>
 Params: rotation                Mounting rotation of the camera sensor (0 or
                                 180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   ov7251
 Info:   Omnivision OV7251 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=ov7251
-Params: <None>
+Load:   dtoverlay=ov7251,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   ov9281
 Info:   Omnivision OV9281 camera module.
         Uses Unicam 1, which is the standard camera connector on most Pi
         variants.
-Load:   dtoverlay=ov9281
-Params: <None>
+Load:   dtoverlay=ov9281,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
 
 
 Name:   papirus
