@@ -1615,6 +1615,11 @@ struct dfs_info3_param {
 	int ttl;
 };
 
+struct file_list {
+	struct list_head list;
+	struct cifsFileInfo *cfile;
+};
+
 /*
  * common struct for holding inode info when searching for or updating an
  * inode with new info
