@@ -706,8 +706,9 @@ static int xhci_move_deq_to_next_td(struct xhci_hcd *xhci,
 	}
 
 	if ((ep->ep_state & SET_DEQ_PENDING)) {
-		xhci_warn(xhci, "Set TR Deq already pending\n");
-		return -EBUSY;
+		xhci_warn(xhci, "WARN A Set TR Deq Ptr command is pending for slot %u ep %u\n",
+			  ep->vdev->slot_id, ep->ep_index);
+		ep->ep_state &= ~SET_DEQ_PENDING;
 	}
 
 	/* This function gets called from contexts where it cannot sleep */
