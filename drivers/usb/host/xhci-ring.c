@@ -739,9 +739,9 @@ deq_found:
 	}
 
 	if ((ep->ep_state & SET_DEQ_PENDING)) {
-		xhci_warn(xhci, "Set TR Deq already pending, don't submit for 0x%pad\n",
-			  &addr);
-		return -EBUSY;
+		xhci_warn(xhci, "WARN A Set TR Deq Ptr command is pending for slot %u ep %u\n",
+			  slot_id, ep_index);
+		ep->ep_state &= ~SET_DEQ_PENDING;
 	}
 
 	/* This function gets called from contexts where it cannot sleep */
