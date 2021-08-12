@@ -389,7 +389,7 @@ static int vc_vchi_sm_send_msg(struct sm_instance *handle,
 		pr_err("%s: invalid handle", __func__);
 		return -EINVAL;
 	}
-	if (msg == NULL) {
+	if (msg == NULL && msg_size > 0) {
 		pr_err("%s: invalid msg pointer", __func__);
 		return -EINVAL;
 	}
