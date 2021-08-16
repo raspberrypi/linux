@@ -1390,6 +1390,8 @@ Params: abx80x                  Select one of the ABx80x family:
                                   AB0801, AB0803, AB0804, AB0805,
                                   AB1801, AB1803, AB1804, AB1805
 
+        bq32000                 Select the TI BQ32000 device
+
         ds1307                  Select the DS1307 device
 
         ds1339                  Select the DS1339 device
@@ -1434,6 +1436,9 @@ Params: abx80x                  Select one of the ABx80x family:
                                 device must be configured to use the specified
                                 address.
 
+        trickle-diode-disable   Do not use the internal trickle charger diode
+                                (BQ32000 only)
+
         trickle-diode-type      Diode type for trickle charge - "standard" or
                                 "schottky" (ABx80x and RV1805 only)
 
@@ -1454,6 +1459,8 @@ Load:   dtoverlay=i2c-rtc-gpio,<param>=<val>
 Params: abx80x                  Select one of the ABx80x family:
                                   AB0801, AB0803, AB0804, AB0805,
                                   AB1801, AB1803, AB1804, AB1805
+
+        bq32000                 Select the TI BQ32000 device
 
         ds1307                  Select the DS1307 device
 
@@ -1494,6 +1501,9 @@ Params: abx80x                  Select one of the ABx80x family:
         addr                    Sets the address for the RTC. Note that the
                                 device must be configured to use the specified
                                 address.
+
+        trickle-diode-disable   Do not use the internal trickle charger diode
+                                (BQ32000 only)
 
         trickle-diode-type      Diode type for trickle charge - "standard" or
                                 "schottky" (ABx80x and RV1805 only)
