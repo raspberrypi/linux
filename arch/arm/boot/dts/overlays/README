@@ -1725,6 +1725,9 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
 
         htu21                   Select the HTU21 temperature and humidity sensor
 
+        int_pin                 Set the GPIO to use for interrupts (max30102
+                                only)
+
         lm75                    Select the Maxim LM75 temperature sensor
                                 Valid addresses 0x48-0x4f, default 0x4f
 
@@ -1732,6 +1735,9 @@ Params: addr                    Set the address for the BH1750, BME280, BME680,
 
         max17040                Select the Maxim Integrated MAX17040 battery
                                 monitor
+
+        max30102                Select the Maxim Integrated MAX30102 heart-rate
+                                and blood-oxygen sensor
 
         sht3x                   Select the Sensiron SHT3x temperature and
                                 humidity sensor. Valid addresses 0x44-0x45,
