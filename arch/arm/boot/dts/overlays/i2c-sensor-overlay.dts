@@ -291,11 +291,30 @@
 		};
 	};
 
+	fragment@19 {
+		target = <&i2c_arm>;
+		__dormant__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			max30102: max30102@57 {
+				compatible = "maxim,max30102";
+				reg = <0x57>;
+				maxim,red-led-current-microamp = <7000>;
+				maxim,ir-led-current-microamp  = <7000>;
+				interrupt-parent = <&gpio>;
+				interrupts = <4 2>;
+			};
+		};
+	};
+
 	__overrides__ {
 		addr =  <&bme280>,"reg:0", <&bmp280>,"reg:0", <&tmp102>,"reg:0",
 			<&lm75>,"reg:0", <&hdc100x>,"reg:0", <&sht3x>,"reg:0",
 			<&ds1621>,"reg:0", <&bme680>,"reg:0", <&ccs811>,"reg:0",
 			<&bh1750>,"reg:0";
+		int_pin = <&max30102>, "interrupts:0";
 		bme280 = <0>,"+0";
 		bmp085 = <0>,"+1";
 		bmp180 = <0>,"+2";
@@ -316,5 +335,6 @@
 		sgp30 = <0>,"+16";
 		ccs811 = <0>, "+17";
 		bh1750 = <0>, "+18";
+		max30102 = <0>,"+19";
 	};
 };
