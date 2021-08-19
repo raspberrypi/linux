@@ -2504,7 +2504,7 @@ Params: gpio_pin                Output GPIO (default 18)
 
 
 Name:   qca7000
-Info:   I2SE's Evaluation Board for PLC Stamp micro
+Info:   in-tech's Evaluation Board for PLC Stamp micro
 Load:   dtoverlay=qca7000,<param>=<val>
 Params: int_pin                 GPIO pin for interrupt signal (default 23)
 
