@@ -17,5 +17,5 @@ subdir-y	+= stingray
 
 # Enable fixups to support overlays on BCM2835 platforms
 ifeq ($(CONFIG_ARCH_BCM2835),y)
-	DTC_FLAGS ?= -@
+	DTC_FLAGS += -@
 endif
