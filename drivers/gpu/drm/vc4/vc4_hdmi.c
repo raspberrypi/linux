@@ -2453,6 +2453,7 @@ static int vc4_hdmi_cec_enable(struct cec_adapter *adap)
 	const u32 usecs = 1000000 / CEC_CLOCK_FREQ;
 	unsigned long flags;
 	u32 val;
+	int ret;
 
 	/*
 	 * NOTE: This function should really take vc4_hdmi->mutex, but doing so
@@ -2464,6 +2465,10 @@ static int vc4_hdmi_cec_enable(struct cec_adapter *adap)
 	 * state with KMS, so we can ignore the lock for now, but we need to
 	 * keep it in mind if we were to change that assumption.
 	 */
+
+	ret = pm_runtime_resume_and_get(&vc4_hdmi->pdev->dev);
+	if (ret)
+		return ret;
 
 	spin_lock_irqsave(&vc4_hdmi->hw_lock, flags);
 
@@ -2527,6 +2532,8 @@ static int vc4_hdmi_cec_disable(struct cec_adapter *adap)
 		   VC4_HDMI_CEC_TX_SW_RESET | VC4_HDMI_CEC_RX_SW_RESET);
 
 	spin_unlock_irqrestore(&vc4_hdmi->hw_lock, flags);
+
+	pm_runtime_put(&vc4_hdmi->pdev->dev);
 
 	return 0;
 }
