@@ -195,8 +195,6 @@ enum nix_scheduler {
 #define NIX_CHAN_LBK_CHX(a, b)		(0 + 0x100 * (a) + (b))
 #define NIX_CHAN_SDP_CH_START		(0x700ull)
 
-#define SDP_CHANNELS			256
-
 /* NIX LSO format indices.
  * As of now TSO is the only one using, so statically assigning indices.
  */
