@@ -730,6 +730,7 @@ static inline unsigned int size_index_elem(unsigned int bytes)
 struct kmem_cache *kmalloc_slab(size_t size, gfp_t flags, unsigned long caller)
 {
 	unsigned int index;
+	struct kmem_cache *s = NULL;
 
 	if (size <= 192) {
 		if (!size)
@@ -741,6 +742,10 @@ struct kmem_cache *kmalloc_slab(size_t size, gfp_t flags, unsigned long caller)
 			return NULL;
 		index = fls(size - 1);
 	}
+
+	trace_android_vh_kmalloc_slab(index, flags, &s);
+	if (s)
+		return s;
 
 	return kmalloc_caches[kmalloc_type(flags, caller)][index];
 }
