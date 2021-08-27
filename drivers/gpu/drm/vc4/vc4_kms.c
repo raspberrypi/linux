@@ -403,6 +403,8 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		ret = drm_crtc_commit_wait(commit);
 		if (ret)
 			drm_err(dev, "Timed out waiting for commit\n");
+
+		drm_crtc_commit_put(commit);
 	}
 
 	drm_atomic_helper_commit_modeset_disables(dev, state);
