@@ -389,6 +389,8 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		ret = drm_crtc_commit_wait(commit);
 		if (ret)
 			drm_err(dev, "Timed out waiting for commit\n");
+
+		drm_crtc_commit_put(commit);
 	}
 
 	if (vc4->hvs && vc4->hvs->hvs5) {
