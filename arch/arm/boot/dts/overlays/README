@@ -1738,6 +1738,17 @@ Params: rotation                Mounting rotation of the camera sensor (0 or
                                 2 = external, default external)
 
 
+Name:   imx519
+Info:   Sony IMX519 camera module.
+        Uses Unicam 1, which is the standard camera connector on most Pi
+        variants.
+Load:   dtoverlay=imx519,<param>=<val>
+Params: rotation                Mounting rotation of the camera sensor (0 or
+                                180, default 0)
+        orientation             Sensor orientation (0 = front, 1 = rear,
+                                2 = external, default external)
+
+
 Name:   iqaudio-codec
 Info:   Configures the IQaudio Codec audio card
 Load:   dtoverlay=iqaudio-codec
