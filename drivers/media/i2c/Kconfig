@@ -893,6 +893,17 @@ config VIDEO_IMX412
 	  To compile this driver as a module, choose M here: the
 	  module will be called imx412.
 
+config VIDEO_IMX519
+	tristate "Arducam IMX519 sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	help
+	  This is a Video4Linux2 sensor driver for the Arducam
+	  IMX519 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called IMX519.
+
 config VIDEO_OV02A10
 	tristate "OmniVision OV02A10 sensor support"
 	depends on VIDEO_V4L2 && I2C
