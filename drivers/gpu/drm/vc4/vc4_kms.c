@@ -369,20 +369,6 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 		vc4_hvs_mask_underrun(dev, vc4_crtc_state->assigned_channel);
 	}
 
-	if (vc4->hvs && vc4->hvs->hvs5) {
-		unsigned long core_rate = max_t(unsigned long,
-						500000000,
-						new_hvs_state->core_clock_rate);
-
-		core_req = clk_request_start(hvs->core_clk, core_rate);
-
-		/*
-		 * And remove the previous one based on the HVS
-		 * requirements if any.
-		 */
-		clk_request_done(hvs->core_req);
-	}
-
 	for_each_old_crtc_in_state(state, crtc, old_crtc_state, i) {
 		struct vc4_crtc_state *vc4_crtc_state =
 			to_vc4_crtc_state(old_crtc_state);
@@ -405,6 +391,26 @@ static void vc4_atomic_commit_tail(struct drm_atomic_state *state)
 			drm_err(dev, "Timed out waiting for commit\n");
 
 		drm_crtc_commit_put(commit);
+	}
+
+	if (vc4->hvs && vc4->hvs->hvs5) {
+		unsigned long core_rate = max_t(unsigned long,
+						500000000,
+						new_hvs_state->core_clock_rate);
+
+		drm_dbg(dev, "Raising the core clock at %lu Hz\n", core_rate);
+
+		/*
+		 * Do a temporary request on the core clock during the
+		 * modeset.
+		 */
+		core_req = clk_request_start(hvs->core_clk, core_rate);
+
+		/*
+		 * And remove the previous one based on the HVS
+		 * requirements if any.
+		 */
+		clk_request_done(hvs->core_req);
 	}
 
 	drm_atomic_helper_commit_modeset_disables(dev, state);
