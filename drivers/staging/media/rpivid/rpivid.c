@@ -249,7 +249,6 @@ static int rpivid_open(struct file *file)
 	/* The only bit of format info that we can guess now is H265 src
 	 * Everything else we need more info for
 	 */
-	ctx->src_fmt.pixelformat = RPIVID_SRC_PIXELFORMAT_DEFAULT;
 	rpivid_prepare_src_format(&ctx->src_fmt);
 
 	v4l2_fh_add(&ctx->fh);
