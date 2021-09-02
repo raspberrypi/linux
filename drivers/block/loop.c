@@ -2113,18 +2113,6 @@ int loop_register_transfer(struct loop_func_table *funcs)
 	return 0;
 }
 
-static int unregister_transfer_cb(int id, void *ptr, void *data)
-{
-	struct loop_device *lo = ptr;
-	struct loop_func_table *xfer = data;
-
-	mutex_lock(&lo->lo_mutex);
-	if (lo->lo_encryption == xfer)
-		loop_release_xfer(lo);
-	mutex_unlock(&lo->lo_mutex);
-	return 0;
-}
-
 int loop_unregister_transfer(int number)
 {
 	unsigned int n = number;
@@ -2132,9 +2120,20 @@ int loop_unregister_transfer(int number)
 
 	if (n == 0 || n >= MAX_LO_CRYPT || (xfer = xfer_funcs[n]) == NULL)
 		return -EINVAL;
+	/*
+	 * This function is called from only cleanup_cryptoloop().
+	 * Given that each loop device that has a transfer enabled holds a
+	 * reference to the module implementing it we should never get here
+	 * with a transfer that is set (unless forced module unloading is
+	 * requested). Thus, check module's refcount and warn if this is
+	 * not a clean unloading.
+	 */
+#ifdef CONFIG_MODULE_UNLOAD
+	if (xfer->owner && module_refcount(xfer->owner) != -1)
+		pr_err("Danger! Unregistering an in use transfer function.\n");
+#endif
 
 	xfer_funcs[n] = NULL;
-	idr_for_each(&loop_index_idr, &unregister_transfer_cb, xfer);
 	return 0;
 }
 
@@ -2325,8 +2324,9 @@ static int loop_add(int i)
 	} else {
 		err = idr_alloc(&loop_index_idr, lo, 0, 0, GFP_KERNEL);
 	}
+	mutex_unlock(&loop_ctl_mutex);
 	if (err < 0)
-		goto out_unlock;
+		goto out_free_dev;
 	i = err;
 
 	err = -ENOMEM;
@@ -2392,15 +2392,19 @@ static int loop_add(int i)
 	disk->private_data	= lo;
 	disk->queue		= lo->lo_queue;
 	sprintf(disk->disk_name, "loop%d", i);
+	/* Make this loop device reachable from pathname. */
 	add_disk(disk);
+	/* Show this loop device. */
+	mutex_lock(&loop_ctl_mutex);
+	lo->idr_visible = true;
 	mutex_unlock(&loop_ctl_mutex);
 	return i;
 
 out_cleanup_tags:
 	blk_mq_free_tag_set(&lo->tag_set);
 out_free_idr:
+	mutex_lock(&loop_ctl_mutex);
 	idr_remove(&loop_index_idr, i);
-out_unlock:
 	mutex_unlock(&loop_ctl_mutex);
 out_free_dev:
 	kfree(lo);
@@ -2410,9 +2414,14 @@ out:
 
 static void loop_remove(struct loop_device *lo)
 {
+	/* Make this loop device unreachable from pathname. */
 	del_gendisk(lo->lo_disk);
 	blk_cleanup_disk(lo->lo_disk);
 	blk_mq_free_tag_set(&lo->tag_set);
+	mutex_lock(&loop_ctl_mutex);
+	idr_remove(&loop_index_idr, lo->lo_number);
+	mutex_unlock(&loop_ctl_mutex);
+	/* There is no route which can find this loop device. */
 	mutex_destroy(&lo->lo_mutex);
 	kfree(lo);
 }
@@ -2436,31 +2445,40 @@ static int loop_control_remove(int idx)
 		return -EINVAL;
 	}
 		
+	/* Hide this loop device for serialization. */
 	ret = mutex_lock_killable(&loop_ctl_mutex);
 	if (ret)
 		return ret;
-
 	lo = idr_find(&loop_index_idr, idx);
-	if (!lo) {
+	if (!lo || !lo->idr_visible)
 		ret = -ENODEV;
-		goto out_unlock_ctrl;
-	}
+	else
+		lo->idr_visible = false;
+	mutex_unlock(&loop_ctl_mutex);
+	if (ret)
+		return ret;
 
+	/* Check whether this loop device can be removed. */
 	ret = mutex_lock_killable(&lo->lo_mutex);
 	if (ret)
-		goto out_unlock_ctrl;
+		goto mark_visible;
 	if (lo->lo_state != Lo_unbound ||
 	    atomic_read(&lo->lo_refcnt) > 0) {
 		mutex_unlock(&lo->lo_mutex);
 		ret = -EBUSY;
-		goto out_unlock_ctrl;
+		goto mark_visible;
 	}
+	/* Mark this loop device no longer open()-able. */
 	lo->lo_state = Lo_deleting;
 	mutex_unlock(&lo->lo_mutex);
 
-	idr_remove(&loop_index_idr, lo->lo_number);
 	loop_remove(lo);
-out_unlock_ctrl:
+	return 0;
+
+mark_visible:
+	/* Show this loop device again. */
+	mutex_lock(&loop_ctl_mutex);
+	lo->idr_visible = true;
 	mutex_unlock(&loop_ctl_mutex);
 	return ret;
 }
@@ -2474,7 +2492,8 @@ static int loop_control_get_free(int idx)
 	if (ret)
 		return ret;
 	idr_for_each_entry(&loop_index_idr, lo, id) {
-		if (lo->lo_state == Lo_unbound)
+		/* Hitting a race results in creating a new loop device which is harmless. */
+		if (lo->idr_visible && data_race(lo->lo_state) == Lo_unbound)
 			goto found;
 	}
 	mutex_unlock(&loop_ctl_mutex);
@@ -2590,10 +2609,14 @@ static void __exit loop_exit(void)
 	unregister_blkdev(LOOP_MAJOR, "loop");
 	misc_deregister(&loop_misc);
 
-	mutex_lock(&loop_ctl_mutex);
+	/*
+	 * There is no need to use loop_ctl_mutex here, for nobody else can
+	 * access loop_index_idr when this module is unloading (unless forced
+	 * module unloading is requested). If this is not a clean unloading,
+	 * we have no means to avoid kernel crash.
+	 */
 	idr_for_each_entry(&loop_index_idr, lo, id)
 		loop_remove(lo);
-	mutex_unlock(&loop_ctl_mutex);
 
 	idr_destroy(&loop_index_idr);
 }
