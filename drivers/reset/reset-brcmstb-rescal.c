@@ -20,6 +20,7 @@ struct brcm_rescal_reset {
 	struct reset_controller_dev rcdev;
 };
 
+/* Also doubles a deassert */
 static int brcm_rescal_reset_set(struct reset_controller_dev *rcdev,
 				 unsigned long id)
 {
@@ -52,6 +53,13 @@ static int brcm_rescal_reset_set(struct reset_controller_dev *rcdev,
 	return 0;
 }
 
+/* A dummy function - deassert/reset does all the work */
+static int brcm_rescal_reset_assert(struct reset_controller_dev *rcdev,
+				    unsigned long id)
+{
+	return 0;
+}
+
 static int brcm_rescal_reset_xlate(struct reset_controller_dev *rcdev,
 				   const struct of_phandle_args *reset_spec)
 {
@@ -61,6 +69,8 @@ static int brcm_rescal_reset_xlate(struct reset_controller_dev *rcdev,
 
 static const struct reset_control_ops brcm_rescal_reset_ops = {
 	.reset = brcm_rescal_reset_set,
+	.deassert = brcm_rescal_reset_set,
+	.assert = brcm_rescal_reset_assert,
 };
 
 static int brcm_rescal_reset_probe(struct platform_device *pdev)
