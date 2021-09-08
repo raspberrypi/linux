@@ -1381,6 +1381,10 @@ static void edt_ft5x06_ts_remove(struct i2c_client *client)
 {
 	struct edt_ft5x06_ts_data *tsdata = i2c_get_clientdata(client);
 
+	if (!client->irq) {
+		del_timer(&tsdata->timer);
+		cancel_work_sync(&tsdata->work_i2c_poll);
+	}
 	edt_ft5x06_ts_teardown_debugfs(tsdata);
 }
 
