@@ -812,6 +812,7 @@ struct vc4_async_flip_state {
 	struct drm_pending_vblank_event *event;
 
 	struct vc4_seqno_cb cb;
+	struct dma_fence_cb fence_cb;
 };
 
 /* Called when the V3D execution for the BO being flipped to is done, so that
@@ -855,6 +856,39 @@ vc4_async_page_flip_complete(struct vc4_seqno_cb *cb)
 	}
 
 	kfree(flip_state);
+}
+
+static void vc4_async_page_flip_fence_complete(struct dma_fence *fence,
+					       struct dma_fence_cb *cb)
+{
+	struct vc4_async_flip_state *flip_state =
+		container_of(cb, struct vc4_async_flip_state, fence_cb);
+
+	vc4_async_page_flip_complete(&flip_state->cb);
+	dma_fence_put(fence);
+}
+
+static int vc4_async_set_fence_cb(struct drm_device *dev,
+				  struct vc4_async_flip_state *flip_state)
+{
+	struct drm_framebuffer *fb = flip_state->fb;
+	struct drm_gem_cma_object *cma_bo = drm_fb_cma_get_gem_obj(fb, 0);
+	struct vc4_dev *vc4 = to_vc4_dev(dev);
+	struct dma_fence *fence;
+
+	if (!vc4->hvs->hvs5) {
+		struct vc4_bo *bo = to_vc4_bo(&cma_bo->base);
+
+		return vc4_queue_seqno_cb(dev, &flip_state->cb, bo->seqno,
+					  vc4_async_page_flip_complete);
+	}
+
+	fence = dma_fence_get(dma_resv_excl_fence(cma_bo->base.resv));
+	if (dma_fence_add_callback(fence, &flip_state->fence_cb,
+				   vc4_async_page_flip_fence_complete))
+		vc4_async_page_flip_fence_complete(fence, &flip_state->fence_cb);
+
+	return 0;
 }
 
 /* Implements async (non-vblank-synced) page flips.
@@ -917,8 +951,7 @@ static int vc4_async_page_flip(struct drm_crtc *crtc,
 	 */
 	drm_atomic_set_fb_for_plane(plane->state, fb);
 
-	vc4_queue_seqno_cb(dev, &flip_state->cb, bo->seqno,
-			   vc4_async_page_flip_complete);
+	vc4_async_set_fence_cb(dev, flip_state);
 
 	/* Driver takes ownership of state on successful async commit. */
 	return 0;
