@@ -21,6 +21,10 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mediabus.h>
 
+static int dpc_enable = 1;
+module_param(dpc_enable, int, 0644);
+MODULE_PARM_DESC(dpc_enable, "Enable on-sensor DPC");
+
 #define IMX477_REG_VALUE_08BIT		1
 #define IMX477_REG_VALUE_16BIT		2
 
@@ -1712,6 +1716,10 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		dev_err(&client->dev, "%s failed to set mode\n", __func__);
 		return ret;
 	}
+
+	/* Set on-sensor DPC. */
+	imx477_write_reg(imx477, 0x0b05, IMX477_REG_VALUE_08BIT, !!dpc_enable);
+	imx477_write_reg(imx477, 0x0b06, IMX477_REG_VALUE_08BIT, !!dpc_enable);
 
 	/* Apply customized values from user */
 	ret =  __v4l2_ctrl_handler_setup(imx477->sd.ctrl_handler);
