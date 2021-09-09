@@ -110,5 +110,7 @@ void smu_cmn_init_soft_gpu_metrics(void *table, uint8_t frev, uint8_t crev);
 int smu_cmn_set_mp1_state(struct smu_context *smu,
 			  enum pp_mp1_state mp1_state);
 
+bool smu_cmn_is_audio_func_enabled(struct amdgpu_device *adev);
+
 #endif
 #endif
