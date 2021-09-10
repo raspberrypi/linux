@@ -884,7 +884,7 @@ static ssize_t delay_ms_show(struct device *dev,
 	const struct gpio_fsm *gf = dev_get_drvdata(dev);
 	int jiffies_left;
 
-	jiffies_left = gf->delay_jiffies - jiffies;
+	jiffies_left = max((int)(gf->delay_jiffies - jiffies), 0);
 	return sprintf(buf,
 		       gf->delay_target_state ? "%u\n" : "-\n",
 		       jiffies_to_msecs(jiffies_left));
