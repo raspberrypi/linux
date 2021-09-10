@@ -1594,7 +1594,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dsi *dsi = dev_get_drvdata(dev);
 	struct vc4_dsi_encoder *vc4_dsi_encoder;
-	struct drm_panel *panel;
 	const struct of_device_id *match;
 	dma_cap_mask_t dma_mask;
 	int ret;
@@ -1706,28 +1705,10 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 		goto err_free_dma;
 	}
 
-	ret = drm_of_find_panel_or_bridge(dev->of_node, 0, 0,
-					  &panel, &dsi->out_bridge);
-	if (ret) {
-		/* If the bridge or panel pointed by dev->of_node is not
-		 * enabled, just return 0 here so that we don't prevent the DRM
-		 * dev from being registered. Of course that means the DSI
-		 * encoder won't be exposed, but that's not a problem since
-		 * nothing is connected to it.
-		 */
-		if (ret == -ENODEV)
-			return 0;
-
+	dsi->out_bridge = devm_drm_of_get_bridge(dev, dev->of_node, 0, 0);
+	if (IS_ERR(dsi->out_bridge)) {
+		ret = PTR_ERR(dsi->out_bridge);
 		goto err_free_dma;
-	}
-
-	if (panel) {
-		dsi->out_bridge = devm_drm_panel_bridge_add_typed(dev, panel,
-								  DRM_MODE_CONNECTOR_DSI);
-		if (IS_ERR(dsi->out_bridge)) {
-			ret = PTR_ERR(dsi->out_bridge);
-			goto err_free_dma;
-		}
 	}
 
 	/* The esc clock rate is supposed to always be 100Mhz. */
@@ -1774,8 +1755,7 @@ static void vc4_dsi_unbind(struct device *dev, struct device *master,
 {
 	struct vc4_dsi *dsi = dev_get_drvdata(dev);
 
-	if (dsi->out_bridge)
-		pm_runtime_disable(dev);
+	pm_runtime_disable(dev);
 
 	drm_encoder_cleanup(dsi->encoder);
 
