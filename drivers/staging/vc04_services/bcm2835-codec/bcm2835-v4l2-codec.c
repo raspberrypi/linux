@@ -1349,7 +1349,7 @@ static int vidioc_g_fmt_vid_cap(struct file *file, void *priv,
 static int vidioc_try_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 			  struct bcm2835_codec_fmt *fmt)
 {
-	unsigned int sizeimage;
+	unsigned int sizeimage, min_bytesperline;
 
 	/*
 	 * The V4L2 specification requires the driver to correct the format
@@ -1377,8 +1377,12 @@ static int vidioc_try_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 			f->fmt.pix_mp.height = ALIGN(f->fmt.pix_mp.height, 16);
 	}
 	f->fmt.pix_mp.num_planes = 1;
+	min_bytesperline = get_bytesperline(f->fmt.pix_mp.width, fmt);
+	if (f->fmt.pix_mp.plane_fmt[0].bytesperline < min_bytesperline)
+		f->fmt.pix_mp.plane_fmt[0].bytesperline = min_bytesperline;
 	f->fmt.pix_mp.plane_fmt[0].bytesperline =
-		get_bytesperline(f->fmt.pix_mp.width, fmt);
+		ALIGN(f->fmt.pix_mp.plane_fmt[0].bytesperline, fmt->bytesperline_align);
+
 	sizeimage = get_sizeimage(f->fmt.pix_mp.plane_fmt[0].bytesperline,
 				  f->fmt.pix_mp.width, f->fmt.pix_mp.height,
 				  fmt);
