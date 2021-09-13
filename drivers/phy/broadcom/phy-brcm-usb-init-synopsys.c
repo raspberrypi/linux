@@ -335,6 +335,36 @@ static void usb_init_common_7216(struct brcm_usb_init_params *params)
 	usb_init_common(params);
 }
 
+static void usb_init_common_2712(struct brcm_usb_init_params *params)
+{
+	void __iomem *ctrl = params->regs[BRCM_REGS_CTRL];
+	void __iomem *bdc_ec = params->regs[BRCM_REGS_BDC_EC];
+	u32 reg;
+
+	if (params->syscon_piarbctl)
+		syscon_piarbctl_init(params->syscon_piarbctl);
+
+	USB_CTRL_UNSET(ctrl, USB_PM, USB_PWRDN);
+
+	usb_wake_enable_7211b0(params, false);
+
+	usb_init_common(params);
+
+	/*
+	 * The BDC controller will get occasional failures with
+	 * the default "Read Transaction Size" of 6 (1024 bytes).
+	 * Set it to 4 (256 bytes).
+	 */
+	if ((params->supported_port_modes != USB_CTLR_MODE_HOST) && bdc_ec) {
+		reg = brcm_usb_readl(bdc_ec + BDC_EC_AXIRDA);
+		reg &= ~BDC_EC_AXIRDA_RTS_MASK;
+		reg |= (0x4 << BDC_EC_AXIRDA_RTS_SHIFT);
+		brcm_usb_writel(reg, bdc_ec + BDC_EC_AXIRDA);
+	}
+
+	usb2_eye_fix_7211b0(params);
+}
+
 static void usb_init_xhci(struct brcm_usb_init_params *params)
 {
 	pr_debug("%s\n", __func__);
@@ -378,6 +408,18 @@ static void usb_uninit_common_7211b0(struct brcm_usb_init_params *params)
 				usb_phy + USB_PHY_IDDQ);
 	}
 
+}
+
+static void usb_uninit_common_2712(struct brcm_usb_init_params *params)
+{
+	void __iomem *ctrl = params->regs[BRCM_REGS_CTRL];
+
+	if (params->wake_enabled) {
+		USB_CTRL_SET(ctrl, TEST_PORT_CTL, TPOUT_SEL_PME_GEN);
+		usb_wake_enable_7211b0(params, true);
+	} else {
+		USB_CTRL_SET(ctrl, USB_PM, USB_PWRDN);
+	}
 }
 
 static void usb_uninit_xhci(struct brcm_usb_init_params *params)
@@ -434,6 +476,16 @@ static const struct brcm_usb_init_ops bcm7211b0_ops = {
 	.set_dual_select = usb_set_dual_select,
 };
 
+static const struct brcm_usb_init_ops bcm2712_ops = {
+	.init_ipp = usb_init_ipp,
+	.init_common = usb_init_common_2712,
+	.init_xhci = usb_init_xhci,
+	.uninit_common = usb_uninit_common_2712,
+	.uninit_xhci = usb_uninit_xhci,
+	.get_dual_select = usb_get_dual_select,
+	.set_dual_select = usb_set_dual_select,
+};
+
 void brcm_usb_dvr_init_7216(struct brcm_usb_init_params *params)
 {
 
@@ -450,4 +502,11 @@ void brcm_usb_dvr_init_7211b0(struct brcm_usb_init_params *params)
 
 	params->family_name = "7211";
 	params->ops = &bcm7211b0_ops;
+}
+
+void brcm_usb_dvr_init_2712(struct brcm_usb_init_params *params)
+{
+	params->family_name = "2712";
+	params->ops = &bcm2712_ops;
+	params->suspend_with_clocks = true;
 }
