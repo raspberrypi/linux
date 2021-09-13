@@ -1323,6 +1323,24 @@ static void dwc3_config_threshold(struct dwc3 *dwc)
 	}
 }
 
+static void dwc3_set_axi_pipe_limit(struct dwc3 *dwc)
+{
+	struct device *dev = dwc->dev;
+	u32 cfg;
+
+	if (!dwc->axi_pipe_limit)
+		return;
+	if (dwc->axi_pipe_limit > 16) {
+		dev_err(dev, "Invalid axi_pipe_limit property\n");
+		return;
+	}
+	cfg = dwc3_readl(dwc->regs, DWC3_GSBUSCFG1);
+	cfg &= ~DWC3_GSBUSCFG1_PIPETRANSLIMIT(15);
+	cfg |= DWC3_GSBUSCFG1_PIPETRANSLIMIT(dwc->axi_pipe_limit - 1);
+
+	dwc3_writel(dwc->regs, DWC3_GSBUSCFG1, cfg);
+}
+
 /**
  * dwc3_core_init - Low-level initialization of DWC3 Core
  * @dwc: Pointer to our controller context structure
@@ -1389,6 +1407,8 @@ static int dwc3_core_init(struct dwc3 *dwc)
 	dwc3_set_incr_burst_type(dwc);
 
 	dwc3_config_soc_bus(dwc);
+
+	dwc3_set_axi_pipe_limit(dwc);
 
 	ret = dwc3_phy_power_on(dwc);
 	if (ret)
@@ -1516,6 +1536,24 @@ static int dwc3_core_init(struct dwc3 *dwc)
 		reg = dwc3_readl(dwc->regs, DWC3_GUCTL3);
 		reg |= DWC3_GUCTL3_USB20_RETRY_DISABLE;
 		dwc3_writel(dwc->regs, DWC3_GUCTL3, reg);
+	}
+
+	if (DWC3_IP_IS(DWC3) && dwc->dr_mode == USB_DR_MODE_HOST) {
+		u8 tx_thr_num = dwc->tx_thr_num_pkt_prd;
+		u8 tx_maxburst = dwc->tx_max_burst_prd;
+
+		if (tx_thr_num && tx_maxburst) {
+			reg = dwc3_readl(dwc->regs, DWC3_GTXTHRCFG);
+			reg |= DWC3_GTXTHRCFG_PKTCNTSEL;
+
+			reg &= ~DWC3_GTXTHRCFG_TXPKTCNT(~0);
+			reg |= DWC3_GTXTHRCFG_TXPKTCNT(tx_thr_num);
+
+			reg &= ~DWC3_GTXTHRCFG_MAXTXBURSTSIZE(~0);
+			reg |= DWC3_GTXTHRCFG_MAXTXBURSTSIZE(tx_maxburst);
+
+			dwc3_writel(dwc->regs, DWC3_GTXTHRCFG, reg);
+		}
 	}
 
 	return 0;
@@ -1704,6 +1742,7 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 	u8			tx_max_burst_prd = 0;
 	u8			tx_fifo_resize_max_num;
 	u16			num_hc_interrupters;
+	u8			axi_pipe_limit;
 
 	/* default to highest possible threshold */
 	lpm_nyet_threshold = 0xf;
@@ -1726,6 +1765,8 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 
 	/* default to a single XHCI interrupter */
 	num_hc_interrupters = 1;
+	/* Default to 0 (don't override hardware defaults) */
+	axi_pipe_limit = 0;
 
 	dwc->maximum_speed = usb_get_maximum_speed(dev);
 	dwc->max_ssp_rate = usb_get_maximum_ssp_rate(dev);
@@ -1847,6 +1888,9 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 	dwc->dis_split_quirk = device_property_read_bool(dev,
 				"snps,dis-split-quirk");
 
+	device_property_read_u8(dev, "snps,axi-pipe-limit",
+				   &axi_pipe_limit);
+
 	dwc->lpm_nyet_threshold = lpm_nyet_threshold;
 	dwc->tx_de_emphasis = tx_de_emphasis;
 
@@ -1863,6 +1907,8 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 
 	dwc->tx_thr_num_pkt_prd = tx_thr_num_pkt_prd;
 	dwc->tx_max_burst_prd = tx_max_burst_prd;
+
+	dwc->axi_pipe_limit = axi_pipe_limit;
 
 	dwc->tx_fifo_resize_max_num = tx_fifo_resize_max_num;
 
@@ -2212,6 +2258,12 @@ int dwc3_core_probe(const struct dwc3_probe_data *data)
 	dwc->usb_psy = dwc3_get_usb_power_supply(dwc);
 	if (IS_ERR(dwc->usb_psy))
 		return dev_err_probe(dev, PTR_ERR(dwc->usb_psy), "couldn't get usb power supply\n");
+
+	if (!dwc->sysdev_is_parent) {
+		ret = dma_set_mask_and_coherent(dwc->sysdev, DMA_BIT_MASK(64));
+		if (ret)
+			return ret;
+	}
 
 	if (!data->ignore_clocks_and_resets) {
 		dwc->reset = devm_reset_control_array_get_optional_shared(dev);
