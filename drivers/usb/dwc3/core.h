@@ -185,6 +185,9 @@
 #define DWC3_GSBUSCFG0_INCRBRSTENA	(1 << 0) /* undefined length enable */
 #define DWC3_GSBUSCFG0_INCRBRST_MASK	0xff
 
+/* Global SoC Bus Configuration Register 1 */
+#define DWC3_GSBUSCFG1_PIPETRANSLIMIT(n)	(((n) & 0xf) << 8)
+
 /* Global Debug LSP MUX Select */
 #define DWC3_GDBGLSPMUX_ENDBC		BIT(15)	/* Host only */
 #define DWC3_GDBGLSPMUX_HOSTSELECT(n)	((n) & 0x3fff)
@@ -230,6 +233,11 @@
 #define DWC31_TXTHRNUMPKTSEL_PRD		BIT(10)
 #define DWC31_TXTHRNUMPKT_PRD(n)		(((n) & 0x1f) << 5)
 #define DWC31_MAXTXBURSTSIZE_PRD(n)		((n) & 0x1f)
+
+/* Global TX Threshold Configuration Register for DWC_usb3 only */
+#define DWC3_GTXTHRCFG_MAXTXBURSTSIZE(n)	(((n) & 0x1f) << 16)
+#define DWC3_GTXTHRCFG_TXPKTCNT(n)		(((n) & 0x0f) << 24)
+#define DWC3_GTXTHRCFG_PKTCNTSEL		BIT(29)
 
 /* Global Configuration Register */
 #define DWC3_GCTL_PWRDNSCALE(n)	((n) << 19)
@@ -1051,6 +1059,7 @@ struct dwc3_scratchpad_array {
  * @tx_max_burst_prd: max periodic ESS transmit burst size
  * @tx_fifo_resize_max_num: max number of fifos allocated during txfifo resize
  * @clear_stall_protocol: endpoint number that requires a delayed status phase
+ * @axi_max_pipe: set to override the maximum number of pipelined AXI transfers
  * @hsphy_interface: "utmi" or "ulpi"
  * @connected: true when we're connected to a host, false otherwise
  * @softconnect: true when gadget connect is called, false when disconnect runs
@@ -1279,6 +1288,7 @@ struct dwc3 {
 	u8			tx_max_burst_prd;
 	u8			tx_fifo_resize_max_num;
 	u8			clear_stall_protocol;
+	u8			axi_pipe_limit;
 
 	const char		*hsphy_interface;
 
