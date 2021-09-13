@@ -7195,11 +7195,11 @@ static struct io_rsrc_data *io_rsrc_data_alloc(struct io_ring_ctx *ctx,
 {
 	struct io_rsrc_data *data;
 
-	data = kzalloc(sizeof(*data), GFP_KERNEL);
+	data = kzalloc(sizeof(*data), GFP_KERNEL_ACCOUNT);
 	if (!data)
 		return NULL;
 
-	data->tags = kvcalloc(nr, sizeof(*data->tags), GFP_KERNEL);
+	data->tags = kvcalloc(nr, sizeof(*data->tags), GFP_KERNEL_ACCOUNT);
 	if (!data->tags) {
 		kfree(data);
 		return NULL;
@@ -7477,7 +7477,7 @@ static bool io_alloc_file_tables(struct io_file_table *table, unsigned nr_files)
 {
 	unsigned i, nr_tables = DIV_ROUND_UP(nr_files, IORING_MAX_FILES_TABLE);
 
-	table->files = kcalloc(nr_tables, sizeof(*table->files), GFP_KERNEL);
+	table->files = kcalloc(nr_tables, sizeof(*table->files), GFP_KERNEL_ACCOUNT);
 	if (!table->files)
 		return false;
 
@@ -7485,7 +7485,7 @@ static bool io_alloc_file_tables(struct io_file_table *table, unsigned nr_files)
 		unsigned int this_files = min(nr_files, IORING_MAX_FILES_TABLE);
 
 		table->files[i] = kcalloc(this_files, sizeof(*table->files[i]),
-					GFP_KERNEL);
+					GFP_KERNEL_ACCOUNT);
 		if (!table->files[i])
 			break;
 		nr_files -= this_files;
