@@ -861,8 +861,6 @@ void intel_rps_park(struct intel_rps *rps)
 {
 	int adj;
 
-	GEM_BUG_ON(atomic_read(&rps->num_waiters));
-
 	if (!intel_rps_clear_active(rps))
 		return;
 
