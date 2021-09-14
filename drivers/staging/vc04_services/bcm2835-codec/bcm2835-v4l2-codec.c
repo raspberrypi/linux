@@ -1819,7 +1819,7 @@ static int vidioc_s_selection(struct file *file, void *priv,
 			s->r.top = 0;
 			s->r.left = 0;
 			s->r.width = min(s->r.width, q_data->crop_width);
-			s->r.height = min(s->r.height, q_data->crop_height);
+			s->r.height = min(s->r.height, q_data->height);
 			q_data->crop_width = s->r.width;
 			q_data->crop_height = s->r.height;
 			q_data->selection_set = true;
