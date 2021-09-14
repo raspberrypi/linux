@@ -6,3 +6,7 @@ Mandatory properties:
 
 - compatible: "asahi-kasei,ak7375"
 - reg: I2C slave address
+
+Optional properties:
+
+- VANA-supply: supply of voltage for VANA pin
