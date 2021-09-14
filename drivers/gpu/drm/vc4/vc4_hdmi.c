@@ -922,24 +922,20 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 	ret = clk_set_rate(vc4_hdmi->pixel_clock, pixel_rate);
 	if (ret) {
 		DRM_ERROR("Failed to set pixel clock rate: %d\n", ret);
-		pm_runtime_put(&vc4_hdmi->pdev->dev);
-		return;
+		goto err_runtime_pm;
 	}
 
 	ret = clk_prepare_enable(vc4_hdmi->pixel_clock);
 	if (ret) {
 		DRM_ERROR("Failed to turn on pixel clock: %d\n", ret);
-		pm_runtime_put(&vc4_hdmi->pdev->dev);
-		return;
+		goto err_runtime_pm;
 	}
 
 	hsm_rate = vc4_hdmi->variant->calc_hsm_clock(vc4_hdmi, pixel_rate);
 	vc4_hdmi->hsm_req = clk_request_start(vc4_hdmi->hsm_clock, hsm_rate);
 	if (IS_ERR(vc4_hdmi->hsm_req)) {
 		DRM_ERROR("Failed to set HSM clock rate: %ld\n", PTR_ERR(vc4_hdmi->hsm_req));
-		clk_disable_unprepare(vc4_hdmi->pixel_clock);
-		pm_runtime_put(&vc4_hdmi->pdev->dev);
-		return;
+		goto err_disable_pixel_clk;
 	}
 
 	vc4_hdmi_cec_update_clk_div(vc4_hdmi);
@@ -955,23 +951,13 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 		vc4_hdmi->bvb_req = clk_request_start(vc4_hdmi->pixel_bvb_clock, bvb_rate);
 	if (IS_ERR(vc4_hdmi->bvb_req)) {
 		DRM_ERROR("Failed to set pixel bvb clock rate: %ld\n", PTR_ERR(vc4_hdmi->bvb_req));
-		clk_request_done(vc4_hdmi->hsm_req);
-		clk_disable_unprepare(vc4_hdmi->hsm_clock);
-		clk_disable_unprepare(vc4_hdmi->pixel_clock);
-		pm_runtime_put(&vc4_hdmi->pdev->dev);
-		return;
+		goto err_remove_hsm_req;
 	}
 
 	ret = clk_prepare_enable(vc4_hdmi->pixel_bvb_clock);
 	if (ret) {
 		DRM_ERROR("Failed to turn on pixel bvb clock: %d\n", ret);
-		if (vc4_hdmi->bvb_req)
-			clk_request_done(vc4_hdmi->bvb_req);
-		clk_request_done(vc4_hdmi->hsm_req);
-		clk_disable_unprepare(vc4_hdmi->hsm_clock);
-		clk_disable_unprepare(vc4_hdmi->pixel_clock);
-		pm_runtime_put(&vc4_hdmi->pdev->dev);
-		return;
+		goto err_remove_bvb_req;
 	}
 
 	if (vc4_hdmi->variant->phy_init)
@@ -984,6 +970,19 @@ static void vc4_hdmi_encoder_pre_crtc_configure(struct drm_encoder *encoder,
 
 	if (vc4_hdmi->variant->set_timings)
 		vc4_hdmi->variant->set_timings(vc4_hdmi, conn_state, mode);
+
+	return;
+
+err_remove_bvb_req:
+	if (vc4_hdmi->bvb_req)
+		clk_request_done(vc4_hdmi->bvb_req);
+err_remove_hsm_req:
+	clk_request_done(vc4_hdmi->hsm_req);
+err_disable_pixel_clk:
+	clk_disable_unprepare(vc4_hdmi->pixel_clock);
+err_runtime_pm:
+	pm_runtime_put(&vc4_hdmi->pdev->dev);
+	return;
 }
 
 static void vc4_hdmi_encoder_pre_crtc_enable(struct drm_encoder *encoder,
