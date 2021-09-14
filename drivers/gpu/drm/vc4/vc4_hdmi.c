@@ -182,7 +182,6 @@ vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 	bool connected = false;
 
 	WARN_ON(pm_runtime_resume_and_get(&vc4_hdmi->pdev->dev));
-	WARN_ON(clk_prepare_enable(vc4_hdmi->hsm_clock));
 
 	if (vc4_hdmi->hpd_gpio) {
 		if (gpio_get_value_cansleep(vc4_hdmi->hpd_gpio) ^
@@ -212,7 +211,6 @@ vc4_hdmi_connector_detect(struct drm_connector *connector, bool force)
 	cec_phys_addr_invalidate(vc4_hdmi->cec_adap);
 
 out:
-	clk_disable_unprepare(vc4_hdmi->hsm_clock);
 	pm_runtime_put(&vc4_hdmi->pdev->dev);
 	return ret;
 }
