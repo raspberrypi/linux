@@ -1246,35 +1246,47 @@ static void device_run(void *priv)
 
 	v4l2_dbg(3, debug, &ctx->dev->v4l2_dev, "%s: off we go\n", __func__);
 
-	src_buf = v4l2_m2m_buf_remove(&ctx->fh.m2m_ctx->out_q_ctx);
-	if (src_buf) {
-		m2m = container_of(src_buf, struct v4l2_m2m_buffer, vb);
-		src_m2m_buf = container_of(m2m, struct m2m_mmal_buffer, m2m);
-		vb2_to_mmal_buffer(src_m2m_buf, src_buf);
+	if (ctx->fh.m2m_ctx->out_q_ctx.q.streaming) {
+		src_buf = v4l2_m2m_buf_remove(&ctx->fh.m2m_ctx->out_q_ctx);
+		if (src_buf) {
+			m2m = container_of(src_buf, struct v4l2_m2m_buffer, vb);
+			src_m2m_buf = container_of(m2m, struct m2m_mmal_buffer,
+						   m2m);
+			vb2_to_mmal_buffer(src_m2m_buf, src_buf);
 
-		ret = vchiq_mmal_submit_buffer(dev->instance,
-					       &ctx->component->input[0],
-					       &src_m2m_buf->mmal);
-		v4l2_dbg(3, debug, &ctx->dev->v4l2_dev, "%s: Submitted ip buffer len %lu, pts %llu, flags %04x\n",
-			 __func__, src_m2m_buf->mmal.length,
-			 src_m2m_buf->mmal.pts, src_m2m_buf->mmal.mmal_flags);
-		if (ret)
-			v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed submitting ip buffer\n",
-				 __func__);
+			ret = vchiq_mmal_submit_buffer(dev->instance,
+						       &ctx->component->input[0],
+						       &src_m2m_buf->mmal);
+			v4l2_dbg(3, debug, &ctx->dev->v4l2_dev,
+				 "%s: Submitted ip buffer len %lu, pts %llu, flags %04x\n",
+				 __func__, src_m2m_buf->mmal.length,
+				 src_m2m_buf->mmal.pts,
+				 src_m2m_buf->mmal.mmal_flags);
+			if (ret)
+				v4l2_err(&ctx->dev->v4l2_dev,
+					 "%s: Failed submitting ip buffer\n",
+					 __func__);
+		}
 	}
 
-	dst_buf = v4l2_m2m_buf_remove(&ctx->fh.m2m_ctx->cap_q_ctx);
-	if (dst_buf) {
-		m2m = container_of(dst_buf, struct v4l2_m2m_buffer, vb);
-		dst_m2m_buf = container_of(m2m, struct m2m_mmal_buffer, m2m);
-		vb2_to_mmal_buffer(dst_m2m_buf, dst_buf);
+	if (ctx->fh.m2m_ctx->cap_q_ctx.q.streaming) {
+		dst_buf = v4l2_m2m_buf_remove(&ctx->fh.m2m_ctx->cap_q_ctx);
+		if (dst_buf) {
+			m2m = container_of(dst_buf, struct v4l2_m2m_buffer, vb);
+			dst_m2m_buf = container_of(m2m, struct m2m_mmal_buffer,
+						   m2m);
+			vb2_to_mmal_buffer(dst_m2m_buf, dst_buf);
 
-		ret = vchiq_mmal_submit_buffer(dev->instance,
-					       &ctx->component->output[0],
-					       &dst_m2m_buf->mmal);
-		if (ret)
-			v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed submitting op buffer\n",
-				 __func__);
+			v4l2_dbg(3, debug, &ctx->dev->v4l2_dev,
+				 "%s: Submitted op buffer\n", __func__);
+			ret = vchiq_mmal_submit_buffer(dev->instance,
+						       &ctx->component->output[0],
+						       &dst_m2m_buf->mmal);
+			if (ret)
+				v4l2_err(&ctx->dev->v4l2_dev,
+					 "%s: Failed submitting op buffer\n",
+					 __func__);
+		}
 	}
 
 	v4l2_dbg(3, debug, &ctx->dev->v4l2_dev, "%s: Submitted src %p, dst %p\n",
