@@ -1005,6 +1005,7 @@ static void handle_fmt_changed(struct bcm2835_codec_ctx *ctx,
 		(struct mmal_msg_event_format_changed *)mmal_buf->buffer;
 	struct mmal_parameter_video_interlace_type interlace;
 	int interlace_size = sizeof(interlace);
+	struct vb2_queue *vq;
 	int ret;
 
 	v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: Format changed: buff size min %u, rec %u, buff num min %u, rec %u\n",
@@ -1073,6 +1074,10 @@ static void handle_fmt_changed(struct bcm2835_codec_ctx *ctx,
 	} else {
 		q_data->field = V4L2_FIELD_NONE;
 	}
+
+	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+	if (vq->streaming)
+		vq->last_buffer_dequeued = true;
 
 	queue_res_chg_event(ctx);
 }
