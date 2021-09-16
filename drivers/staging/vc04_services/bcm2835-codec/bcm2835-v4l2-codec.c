@@ -2485,6 +2485,16 @@ static int bcm2835_codec_create_component(struct bcm2835_codec_ctx *ctx)
 					      MMAL_PARAMETER_VIDEO_VALIDATE_TIMESTAMPS,
 					      &enable,
 					      sizeof(enable));
+		/*
+		 * Enable firmware option to stop on colourspace and pixel
+		 * aspect ratio changed
+		 */
+		enable = 1;
+		vchiq_mmal_port_parameter_set(dev->instance,
+					      &ctx->component->control,
+					      MMAL_PARAMETER_VIDEO_STOP_ON_PAR_COLOUR_CHANGE,
+					      &enable,
+					      sizeof(enable));
 	} else if (dev->role == DEINTERLACE) {
 		/* Select the default deinterlace algorithm. */
 		int half_framerate = 0;
