@@ -928,7 +928,9 @@ static void ip_buffer_cb(struct vchiq_mmal_instance *instance,
 
 	v4l2_dbg(3, debug, &ctx->dev->v4l2_dev, "%s: no error. Return buffer %p\n",
 		 __func__, &buf->m2m.vb.vb2_buf);
-	vb2_buffer_done(&buf->m2m.vb.vb2_buf, VB2_BUF_STATE_DONE);
+	vb2_buffer_done(&buf->m2m.vb.vb2_buf,
+			port->enabled ? VB2_BUF_STATE_DONE :
+					VB2_BUF_STATE_QUEUED);
 
 	ctx->num_ip_buffers++;
 	v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: done %d input buffers\n",
