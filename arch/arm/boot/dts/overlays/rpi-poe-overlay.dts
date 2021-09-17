@@ -8,21 +8,28 @@
 	compatible = "brcm,bcm2835";
 
 	fragment@0 {
-		target-path = "/";
+		target = <&firmware>;
 		__overlay__ {
-			fan0: rpi-poe-fan@0 {
-				compatible = "raspberrypi,rpi-poe-fan";
-				firmware = <&firmware>;
-				cooling-min-state = <0>;
-				cooling-max-state = <4>;
-				#cooling-cells = <2>;
-				cooling-levels = <0 1 10 100 255>;
-				status = "okay";
+			fwpwm: pwm {
+				compatible = "raspberrypi,firmware-poe-pwm";
+				#pwm-cells = <2>;
 			};
 		};
 	};
 
 	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			fan: pwm-fan {
+				compatible = "pwm-fan";
+				cooling-levels = <0 1 10 100 255>;
+				#cooling-cells = <2>;
+				pwms = <&fwpwm 0 80000>;
+			};
+		};
+	};
+
+	fragment@2 {
 		target = <&cpu_thermal>;
 		__overlay__ {
 			trips {
@@ -50,25 +57,25 @@
 			cooling-maps {
 				map0 {
 					trip = <&trip0>;
-					cooling-device = <&fan0 0 1>;
+					cooling-device = <&fan 0 1>;
 				};
 				map1 {
 					trip = <&trip1>;
-					cooling-device = <&fan0 1 2>;
+					cooling-device = <&fan 1 2>;
 				};
 				map2 {
 					trip = <&trip2>;
-					cooling-device = <&fan0 2 3>;
+					cooling-device = <&fan 2 3>;
 				};
 				map3 {
 					trip = <&trip3>;
-					cooling-device = <&fan0 3 4>;
+					cooling-device = <&fan 3 4>;
 				};
 			};
 		};
 	};
 
-	fragment@2 {
+	fragment@3 {
 		target-path = "/__overrides__";
 		__overlay__ {
 			poe_fan_temp0 =		<&trip0>,"temperature:0";
