@@ -6,10 +6,10 @@
 / {
 	compatible = "brcm,bcm2835";
 
-	fragment@3 {
+	fragment@10 {
 		target-path = "/";
 		__overlay__ {
-			rpi_poe_power_supply: rpi-poe-power-supply@0 {
+			rpi_poe_power_supply: rpi-poe-power-supply {
 				compatible = "raspberrypi,rpi-poe-power-supply";
 				firmware = <&firmware>;
 				status = "okay";
@@ -18,6 +18,6 @@
 	};
 };
 
-&fan0 {
+&fan {
 	cooling-levels = <0 32 64 128 255>;
 };
