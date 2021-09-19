@@ -2152,6 +2152,12 @@ Params: krnbt                   Set to "on" to enable autoprobing of Bluetooth
                                 driver without need of hciattach/btattach
 
 
+Name:   mlx90640
+Info:   Overlay for i2c connected mlx90640 thermal camera
+Load:   dtoverlay=mlx90640
+Params: <None>
+
+
 Name:   mmc
 Info:   Selects the bcm2835-mmc SD/MMC driver, optionally with overclock
 Load:   dtoverlay=mmc,<param>=<val>
