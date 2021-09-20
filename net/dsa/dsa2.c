@@ -1001,6 +1001,7 @@ static int dsa_tree_setup(struct dsa_switch_tree *dst)
 teardown_master:
 	dsa_tree_teardown_master(dst);
 teardown_switches:
+	dsa_tree_teardown_ports(dst);
 	dsa_tree_teardown_switches(dst);
 teardown_default_cpu:
 	dsa_tree_teardown_default_cpu(dst);
