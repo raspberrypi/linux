@@ -679,6 +679,9 @@ struct bcm2835_codec_ctx {
 	enum v4l2_xfer_func	xfer_func;
 	enum v4l2_quantization	quant;
 
+	int hflip;
+	int vflip;
+
 	/* Source and destination queue data */
 	struct bcm2835_codec_q_data   q_data[2];
 	s32  bitrate;
@@ -2202,6 +2205,34 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 						    sizeof(mmal_bool));
 		break;
 	}
+	case V4L2_CID_HFLIP:
+	case V4L2_CID_VFLIP: {
+		u32 u32_value;
+
+		if (ctrl->id == V4L2_CID_HFLIP)
+			ctx->hflip = ctrl->val;
+		else
+			ctx->vflip = ctrl->val;
+
+		if (!ctx->component)
+			break;
+
+		if (ctx->hflip && ctx->vflip)
+			u32_value = MMAL_PARAM_MIRROR_BOTH;
+		else if (ctx->hflip)
+			u32_value = MMAL_PARAM_MIRROR_HORIZONTAL;
+		else if (ctx->vflip)
+			u32_value = MMAL_PARAM_MIRROR_VERTICAL;
+		else
+			u32_value = MMAL_PARAM_MIRROR_NONE;
+
+		ret = vchiq_mmal_port_parameter_set(ctx->dev->instance,
+						    &ctx->component->input[0],
+						    MMAL_PARAMETER_MIRROR,
+						    &u32_value,
+						    sizeof(u32_value));
+		break;
+	}
 
 	default:
 		v4l2_err(&ctx->dev->v4l2_dev, "Invalid control\n");
@@ -3152,6 +3183,23 @@ static int bcm2835_codec_open(struct file *file)
 	}
 	break;
 	case ISP:
+	{
+		v4l2_ctrl_handler_init(hdl, 2);
+
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_HFLIP,
+				  1, 0, 1, 0);
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_VFLIP,
+				  1, 0, 1, 0);
+		if (hdl->error) {
+			rc = hdl->error;
+			goto free_ctrl_handler;
+		}
+		ctx->fh.ctrl_handler = hdl;
+		v4l2_ctrl_handler_setup(hdl);
+	}
+	break;
 	case DEINTERLACE:
 	{
 		v4l2_ctrl_handler_init(hdl, 0);
