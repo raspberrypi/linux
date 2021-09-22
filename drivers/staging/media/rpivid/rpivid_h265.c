@@ -2387,12 +2387,50 @@ static void dec_state_delete(struct rpivid_ctx *const ctx)
 	kfree(s);
 }
 
-static void rpivid_h265_stop(struct rpivid_ctx *ctx)
-{
-	struct rpivid_dev *const dev = ctx->dev;
-	unsigned int i;
+struct irq_sync {
+	atomic_t done;
+	wait_queue_head_t wq;
+	struct rpivid_hw_irq_ent irq_ent;
+};
 
-	v4l2_info(&dev->v4l2_dev, "%s\n", __func__);
+static void phase2_sync_claimed(struct rpivid_dev *const dev, void *v)
+{
+	struct irq_sync *const sync = v;
+
+	atomic_set(&sync->done, 1);
+	wake_up(&sync->wq);
+}
+
+static void phase1_sync_claimed(struct rpivid_dev *const dev, void *v)
+{
+	struct irq_sync *const sync = v;
+
+	rpivid_hw_irq_active1_enable_claim(dev, 1);
+	rpivid_hw_irq_active2_claim(dev, &sync->irq_ent, phase2_sync_claimed, sync);
+}
+
+/* Sync with IRQ operations
+ *
+ * Claims phase1 and phase2 in turn and waits for the phase2 claim so any
+ * pending IRQ ops will have completed by the time this returns
+ *
+ * phase1 has counted enables so must reenable once claimed
+ * phase2 has unlimited enables
+ */
+static void irq_sync(struct rpivid_dev *const dev)
+{
+	struct irq_sync sync;
+
+	atomic_set(&sync.done, 0);
+	init_waitqueue_head(&sync.wq);
+
+	rpivid_hw_irq_active1_claim(dev, &sync.irq_ent, phase1_sync_claimed, &sync);
+	wait_event(sync.wq, atomic_read(&sync.done));
+}
+
+static void h265_ctx_uninit(struct rpivid_dev *const dev, struct rpivid_ctx *ctx)
+{
+	unsigned int i;
 
 	dec_env_uninit(ctx);
 	dec_state_delete(ctx);
@@ -2407,6 +2445,16 @@ static void rpivid_h265_stop(struct rpivid_ctx *ctx)
 		gptr_free(dev, ctx->pu_bufs + i);
 	for (i = 0; i != ARRAY_SIZE(ctx->coeff_bufs); ++i)
 		gptr_free(dev, ctx->coeff_bufs + i);
+}
+
+static void rpivid_h265_stop(struct rpivid_ctx *ctx)
+{
+	struct rpivid_dev *const dev = ctx->dev;
+
+	v4l2_info(&dev->v4l2_dev, "%s\n", __func__);
+
+	irq_sync(dev);
+	h265_ctx_uninit(dev, ctx);
 }
 
 static int rpivid_h265_start(struct rpivid_ctx *ctx)
@@ -2470,7 +2518,7 @@ static int rpivid_h265_start(struct rpivid_ctx *ctx)
 	return 0;
 
 fail:
-	rpivid_h265_stop(ctx);
+	h265_ctx_uninit(dev, ctx);
 	return -ENOMEM;
 }
 
