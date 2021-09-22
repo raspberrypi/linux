@@ -936,7 +936,7 @@ static void ip_buffer_cb(struct vchiq_mmal_instance *instance,
 	v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: done %d input buffers\n",
 		 __func__, ctx->num_ip_buffers);
 
-	if (!port->enabled)
+	if (!port->enabled && atomic_read(&port->buffers_with_vpu))
 		complete(&ctx->frame_cmplt);
 }
 
@@ -1137,7 +1137,8 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 			 __func__, mmal_buf->mmal_flags);
 		if (!(mmal_buf->mmal_flags & MMAL_BUFFER_HEADER_FLAG_EOS)) {
 			vb2_buffer_done(&vb2->vb2_buf, VB2_BUF_STATE_QUEUED);
-			if (!port->enabled)
+			if (!port->enabled &&
+			    atomic_read(&port->buffers_with_vpu))
 				complete(&ctx->frame_cmplt);
 			return;
 		}
@@ -1180,7 +1181,7 @@ static void op_buffer_cb(struct vchiq_mmal_instance *instance,
 	v4l2_dbg(2, debug, &ctx->dev->v4l2_dev, "%s: done %d output buffers\n",
 		 __func__, ctx->num_op_buffers);
 
-	if (!port->enabled)
+	if (!port->enabled && atomic_read(&port->buffers_with_vpu))
 		complete(&ctx->frame_cmplt);
 }
 
@@ -1598,6 +1599,8 @@ static int vidioc_s_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 		return 0;
 
 	if (port->enabled) {
+		unsigned int num_buffers;
+
 		/*
 		 * This should only ever happen with DECODE and the MMAL output
 		 * port that has been enabled for resolution changed events.
@@ -1608,10 +1611,18 @@ static int vidioc_s_fmt(struct bcm2835_codec_ctx *ctx, struct v4l2_format *f,
 			f->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE ||
 			atomic_read(&port->buffers_with_vpu));
 
+		/*
+		 * Disable will reread the port format, so retain buffer count.
+		 */
+		num_buffers = port->current_buffer.num;
+
 		ret = vchiq_mmal_port_disable(ctx->dev->instance, port);
 		if (ret)
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Error disabling port update buffer count, ret %d\n",
 				 __func__, ret);
+
+		port->current_buffer.num = num_buffers;
+
 		reenable_port = true;
 	}
 
@@ -2789,7 +2800,7 @@ static void bcm2835_codec_flush_buffers(struct bcm2835_codec_ctx *ctx,
 {
 	int ret;
 
-	while (atomic_read(&port->buffers_with_vpu)) {
+	if (atomic_read(&port->buffers_with_vpu)) {
 		v4l2_dbg(1, debug, &ctx->dev->v4l2_dev, "%s: Waiting for buffers to be returned - %d outstanding\n",
 			 __func__, atomic_read(&port->buffers_with_vpu));
 		ret = wait_for_completion_timeout(&ctx->frame_cmplt,
@@ -2798,7 +2809,6 @@ static void bcm2835_codec_flush_buffers(struct bcm2835_codec_ctx *ctx,
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Timeout waiting for buffers to be returned - %d outstanding\n",
 				 __func__,
 				 atomic_read(&port->buffers_with_vpu));
-			break;
 		}
 	}
 }
