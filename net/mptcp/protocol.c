@@ -1291,7 +1291,7 @@ static int mptcp_sendmsg_frag(struct sock *sk, struct sock *ssk,
 			goto alloc_skb;
 		}
 
-		must_collapse = (info->size_goal - skb->len > 0) &&
+		must_collapse = (info->size_goal > skb->len) &&
 				(skb_shinfo(skb)->nr_frags < sysctl_max_skb_frags);
 		if (must_collapse) {
 			size_bias = skb->len;
@@ -1300,7 +1300,7 @@ static int mptcp_sendmsg_frag(struct sock *sk, struct sock *ssk,
 	}
 
 alloc_skb:
-	if (!must_collapse && !ssk->sk_tx_skb_cache &&
+	if (!must_collapse &&
 	    !mptcp_alloc_tx_skb(sk, ssk, info->data_lock_held))
 		return 0;
 
