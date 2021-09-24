@@ -337,7 +337,7 @@ static int mhi_net_newlink(void *ctxt, struct net_device *ndev, u32 if_id,
 	/* Start MHI channels */
 	err = mhi_prepare_for_transfer(mhi_dev);
 	if (err)
-		goto out_err;
+		return err;
 
 	/* Number of transfer descriptors determines size of the queue */
 	mhi_netdev->rx_queue_sz = mhi_get_free_desc_count(mhi_dev, DMA_FROM_DEVICE);
@@ -347,7 +347,7 @@ static int mhi_net_newlink(void *ctxt, struct net_device *ndev, u32 if_id,
 	else
 		err = register_netdev(ndev);
 	if (err)
-		goto out_err;
+		return err;
 
 	if (mhi_netdev->proto) {
 		err = mhi_netdev->proto->init(mhi_netdev);
@@ -359,8 +359,6 @@ static int mhi_net_newlink(void *ctxt, struct net_device *ndev, u32 if_id,
 
 out_err_proto:
 	unregister_netdevice(ndev);
-out_err:
-	free_netdev(ndev);
 	return err;
 }
 
